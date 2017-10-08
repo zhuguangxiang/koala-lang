@@ -173,7 +173,7 @@ static void hash_table_expand(struct hash_table *table,
   uint32_t index;
   int new_nr_entries = get_prime(new_prime_index);
   struct hlist_head *entries = new_entries(new_nr_entries);
-  if (new_entries == NULL) {
+  if (entries == NULL) {
     fprintf(stderr, "[ERROR] expand table failed\n");
     return;
   }

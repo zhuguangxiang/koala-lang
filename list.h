@@ -218,14 +218,14 @@ static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
 	     pos = n)
 
 #define hlist_for_each_entry(pos, head, member) \
-	for (pos = hlist_entry((head)->first, typeof(*(pos)), member); \
+	for (pos = hlist_entry((head)->first, __typeof__(*(pos)), member); \
 	     pos;	\
-	     pos = hlist_entry((pos)->member.next, typeof(*(pos)), member))
+	     pos = hlist_entry((pos)->member.next, __typeof__(*(pos)), member))
 
 #define hlist_for_each_entry_safe(pos, n, head, member) \
-	for (pos = hlist_entry((head)->first, typeof(*pos), member); \
+	for (pos = hlist_entry((head)->first, __typeof__(*pos), member); \
 	     pos && ({ n = pos->member.next; 1; }); \
-	     pos = hlist_entry(n, typeof(*pos), member))
+	     pos = hlist_entry(n, __typeof__(*pos), member))
 
 #ifdef __cplusplus
 }
