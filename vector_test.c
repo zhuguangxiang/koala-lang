@@ -6,7 +6,7 @@
 #include <assert.h>
 #include "types.h"
 #include "vector.h"
-
+/* gcc -g -std=c99 vector.c vector_test.c */
 int random_string(char *data, int len)
 {
   static const char char_set[] = "0123456789abcdefghijklmnopqrstuvwxyz" \
