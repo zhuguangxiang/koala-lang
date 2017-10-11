@@ -1,0 +1,37 @@
+
+#import test
+import "koala/io"
+import lang "koala/lang"
+
+#sexpr(no trailer) test
+true;false;id;100200;12.345;"hi,boy";self;null;
+
+#trailer test
+io.File;
+12.ToString();
+"abc".UpperCase();
+io.Print("hello,world\n", 123);
+# array[10];
+# array["hello"];
+add(2,3).ToString();
+
+#io.Print(int(32).ToString());
+#32.ToString();
+
+# //Not allowed in koala syntax
+# 32[10];   //subscript access
+# 32 () {}  //interface implementation with anonymous name
+# 32 (123)  //call
+
+/*
+1. Uses "koala/io" to replace "io"
+2. Symbols:
+  koala/io
+  Print
+  "hello,world\n"
+3. Instructions:
+  GET_MODULE 0
+  LOADK 2
+  CALL  1
+  RET
+*/
