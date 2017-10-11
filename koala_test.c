@@ -15,7 +15,7 @@
 gcc -g -std=c99 -Wall hash_table.c hash.c vector.c namei.c koala_test.c koala.c \
 object.c gstate.c \
 module_object.c method_object.c tuple_object.c \
-integer_object.c string_object.c
+integer_object.c string_object.c io_module.c sys_module.c
 */
 void koala_main(char *arg);
 
@@ -114,6 +114,8 @@ void type_system_test(void)
   assert(ob && OB_KLASS(ob) == &method_klass && offset > 0);
 
   module_display(mo);
+  module_display(find_module("koala/io"));
+  module_display(find_module("koala/sys"));
 }
 
 int main(int argc, char *argv[])
@@ -124,6 +126,5 @@ int main(int argc, char *argv[])
   int64_t i = -1;
   printf("%lld\n", i);
   printf("%llu\n", ULLONG_MAX);
-  getchar();
   return 0;
 }
