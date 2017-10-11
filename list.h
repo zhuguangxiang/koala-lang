@@ -3,11 +3,12 @@
  */
 #ifndef _KOALA_LIST_H_
 #define _KOALA_LIST_H_
+
+#include "types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "types.h"
 
 /*
  * Simple doubly linked list implementation.
@@ -154,8 +155,51 @@ static inline void list_del(struct list_head *entry)
 	     pos != (head); \
 	     pos = n, n = pos->prev)
 
+/**
+ * list_first_entry - get the first element from a list
+ * @ptr:	the list head to take the element from.
+ * @type:	the type of the struct this is embedded in.
+ * @member:	the name of the list_head within the struct.
+ *
+ * Note, that list is expected to be not empty.
+ */
+#define list_first_entry(ptr, type, member) \
+	list_entry((ptr)->next, type, member)
+
+/**
+ * list_next_entry - get the next element in list
+ * @pos:	the type * to cursor
+ * @member:	the name of the list_head within the struct.
+ */
+#define list_next_entry(pos, member) \
+	list_entry((pos)->member.next, __typeof__(*(pos)), member)
+
+/**
+ * list_for_each_entry	-	iterate over list of given type
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_head within the struct.
+ */
+#define list_for_each_entry(pos, head, member) \
+	for (pos = list_first_entry(head, __typeof__(*pos), member); \
+	     &pos->member != (head); \
+	     pos = list_next_entry(pos, member))
+
+/**
+ * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
+ * @pos:	the type * to use as a loop cursor.
+ * @n:		another type * to use as temporary storage
+ * @head:	the head for your list.
+ * @member:	the name of the list_head within the struct.
+ */
+#define list_for_each_entry_safe(pos, n, head, member) \
+	for (pos = list_first_entry(head, typeof(*pos), member), \
+		   n = list_next_entry(pos, member); \
+	     &pos->member != (head); \
+	     pos = n, n = list_next_entry(n, member))
+
 /*
- * Double linked lists with a single pointer list head.
+ * Double linked lists with a single pointer of list head.
  * Mostly useful for hash tables where the two pointer list head is
  * too wasteful.
  * You lose the ability to access the tail in O(1).
@@ -177,14 +221,14 @@ static inline void init_hlist_node(struct hlist_node *h)
 	h->pprev = NULL;
 }
 
-static inline int hlist_unhashed(const struct hlist_node *h)
+static inline int hlist_unhashed(const struct hlist_node *node)
 {
-	return !h->pprev;
+	return !node->pprev;
 }
 
-static inline int hlist_empty(const struct hlist_head *h)
+static inline int hlist_empty(const struct hlist_head *head)
 {
-	return !h->first;
+	return !head->first;
 }
 
 static inline void hlist_del(struct hlist_node *n)
@@ -226,6 +270,96 @@ static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
 	for (pos = hlist_entry((head)->first, __typeof__(*pos), member); \
 	     pos && ({ n = pos->member.next; 1; }); \
 	     pos = hlist_entry(n, __typeof__(*pos), member))
+
+/* Tail queue:
+ * Double linked lists with a last node has not a pointer of list head.
+ */
+struct tailq_head {
+  struct tailq_node *first;
+  struct tailq_node **last;
+};
+
+struct tailq_node {
+  struct tailq_node *next, **pprev;
+};
+
+#define TAILQ_HEAD_INIT(name)   {.first = NULL, .last = &(name).first}
+#define TAILQ_HEAD(name)  struct tailq_head name = TAILQ_HEAD_INIT(name)
+#define init_tailq_head(ptr) do { \
+  (ptr)->first = NULL; \
+  (ptr)->last  = &(ptr)->first; \
+} while (0)
+
+static inline void init_tailq_node(struct tailq_node *node)
+{
+	node->next = NULL;
+	node->pprev = NULL;
+}
+
+static inline int tailq_unhashed(const struct tailq_node *node)
+{
+	return !node->pprev;
+}
+
+static inline int tailq_empty(const struct tailq_head *head)
+{
+	return !head->first;
+}
+
+static inline void tailq_del(struct tailq_node *n, struct tailq_head *h)
+{
+	if (!tailq_unhashed(n)) {
+    struct tailq_node *next = n->next;
+  	struct tailq_node **pprev = n->pprev;
+
+  	*pprev = next;
+  	if (next)
+      next->pprev = pprev;
+    else
+      h->last = pprev;
+
+    init_tailq_node(n);
+  }
+}
+
+static inline void tailq_add_head(struct tailq_node *n, struct tailq_head *h)
+{
+	struct tailq_node *first = h->first;
+	n->next = first;
+	if (first)
+    first->pprev = &n->next;
+  else
+    h->last = &n->next;
+	h->first = n;
+	n->pprev = &h->first;
+}
+
+static inline void tailq_add_tail(struct tailq_node *n, struct tailq_head *h)
+{
+  n->pprev = h->last;
+  *h->last = n;
+  h->last = &n->next;
+}
+
+#define tailq_entry(ptr, type, member) container_of(ptr, type, member)
+
+#define tailq_for_each(pos, head) \
+	for (pos = (head)->first; pos ; pos = pos->next)
+
+#define tailq_for_each_safe(pos, n, head) \
+	for (pos = (head)->first; pos && (n = pos->next, 1); \
+	     pos = n)
+
+#define tailq_for_each_entry(pos, head, member) \
+	for (pos = tailq_entry((head)->first, __typeof__(*(pos)), member); \
+	     pos;	\
+	     pos = (pos)->member.next ? \
+       tailq_entry((pos)->member.next, __typeof__(*(pos)), member) : NULL)
+
+#define tailq_for_each_entry_safe(pos, n, head, member) \
+	for (pos = tailq_entry((head)->first, __typeof__(*pos), member); \
+	     pos && (n = pos->member.next, 1); \
+	     pos = n ? tailq_entry(n, __typeof__(*pos), member) : NULL)
 
 #ifdef __cplusplus
 }

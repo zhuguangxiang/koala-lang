@@ -1,11 +1,12 @@
 
 #ifndef _KOALA_INTEGER_OBJECT_H_
 #define _KOALA_INTEGER_OBJECT_H_
+
+#include "object.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "object.h"
 
 struct integer_object {
   OBJECT_HEAD

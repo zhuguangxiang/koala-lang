@@ -3,11 +3,12 @@
  */
 #ifndef _KOALA_HASH_H_
 #define _KOALA_HASH_H_
+
+#include "types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "types.h"
 
 uint64_t hash_uint64(uint64_t val, int bits);
 uint32_t hash_uint32(uint32_t val, int bits);

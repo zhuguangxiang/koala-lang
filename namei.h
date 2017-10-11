@@ -1,12 +1,13 @@
 
 #ifndef _KOALA_NAMEI_H_
 #define _KOALA_NAMEI_H_
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include "types.h"
 #include "hash_table.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define NT_VAR      1
 #define NT_FUNC     2
@@ -29,6 +30,9 @@ struct namei {
 };
 
 /* The macros & functions for struct namei */
+#define NAMEI_DEFINE(ni, n, t)  \
+  struct namei ni = {.name = n, .type = t,}
+
 #define hnode_to_namei(node) container_of(node, struct namei, hnode)
 
 static inline int namei_is_typedef(struct namei *ni)

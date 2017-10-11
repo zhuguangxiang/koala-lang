@@ -3,9 +3,6 @@
  */
 #ifndef _KOALA_TYPES_H_
 #define _KOALA_TYPES_H_
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* stddef.h - standard type definitions */
 #include <stddef.h>
@@ -14,6 +11,10 @@ extern "C" {
  * http://www.gnu.org/software/libc/manual/html_node/Integers.html
  */
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef float   float32_t;
 typedef double  float64_t;

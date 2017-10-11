@@ -1,11 +1,12 @@
 
 #ifndef _KOALA_METHOD_OBJECT_H_
 #define _KOALA_METHOD_OBJECT_H_
+
+#include "object.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "object.h"
 
 #define METH_CFUNC    1
 #define METH_KFUNC    2

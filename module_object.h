@@ -1,12 +1,13 @@
 
 #ifndef _KOALA_MODULE_OBJECT_H_
 #define _KOALA_MODULE_OBJECT_H_
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include "object.h"
 #include "namei.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct module_object {
   OBJECT_HEAD

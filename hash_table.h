@@ -1,12 +1,13 @@
 
 #ifndef _KOALA_HASH_TABLE_H_
 #define _KOALA_HASH_TABLE_H_
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include "list.h"
 #include "hash.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct hash_node {
   struct hlist_node link;     /* conflict list */

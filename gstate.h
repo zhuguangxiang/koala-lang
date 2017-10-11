@@ -1,13 +1,14 @@
 
 #ifndef _KOALA_GSTATE_H_
 #define _KOALA_GSTATE_H_
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include "object.h"
 #include "hash_table.h"
 #include "vector.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct global_state {
   int nr_mods;

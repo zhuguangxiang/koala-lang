@@ -1,14 +1,15 @@
 
 #ifndef _KOALA_OBJECT_H_
 #define _KOALA_OBJECT_H_
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include "namei.h"
 #include "list.h"
 #include "hash_table.h"
 #include "vector.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define OBJECT_HEAD \
   struct object *ob_next; int ob_mark; \

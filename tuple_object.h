@@ -1,11 +1,12 @@
 
 #ifndef _KOALA_TUPLE_OBJECT_H_
 #define _KOALA_TUPLE_OBJECT_H_
+
+#include "object.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "object.h"
 
 struct tuple_object {
   OBJECT_HEAD
