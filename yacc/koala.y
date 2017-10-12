@@ -18,10 +18,12 @@ int yylex(void);
   float64_t fval;
   char *string_const;
   /*int dims;*/
-  int primitive_type;
+  int type;
   struct expr *expr;
   struct atom *atom;
   struct list_head *list;
+  struct mod *module;
+  struct stmt *stmt;
   /*base_type_t base_type;*/
   /*struct {
     string mod_name;
@@ -152,7 +154,7 @@ int yylex(void);
 
 /*%type <linked_list> TypeNameList*/
 
-%type <primitive_type> PrimitiveType
+%type <type> PrimitiveType
 /*%type <module_type> ModuleType*/
 /*%type <func_type> FunctionType
 %type <base_type> BaseType
@@ -212,7 +214,13 @@ int yylex(void);
 
 /*%type <anonymous> AnonymousFunctionDeclaration*/
 
-%start CompileUnit
+%type <module> CompileModule
+%type <list> Imports
+%type <list> Statements
+%type <stmt> Import
+%type <stmt> Statement
+
+%start CompileModule
 
 %%
 
@@ -251,17 +259,23 @@ BaseType
 */
 
 PrimitiveType
-  : INTEGER {
-    /*$$ = TYPE_INT;*/
+  : CHAR {
+    $$ = TYPE_CHAR;
+  }
+  | BYTE {
+    $$ = TYPE_BYTE;
+  }
+  | INTEGER {
+    $$ = TYPE_INT;
   }
   | FLOAT {
-    /*$$ = TYPE_FLOAT;*/
+    $$ = TYPE_FLOAT;
   }
   | BOOL {
-    /*$$ = TYPE_BOOL;*/
+    $$ = TYPE_BOOL;
   }
   | STRING {
-    /*$$ = TYPE_STRING;*/
+    $$ = TYPE_STRING;
   }
   ;
 
@@ -307,43 +321,55 @@ ReturnTypeList
   ;
 */
 /*--------------------------------------------------------------------------*/
-CompileUnit
-  : ImportDeclarations Declarations {
+CompileModule
+  : Imports Statements {;
+    $$ = new_mod($1, $2);
+    mod_traverse($$);
   }
-  | Declarations
+  | Statements {
+    $$ = new_mod(NULL, $1);
+    mod_traverse($$);
+  }
   ;
 
-ImportDeclarations
-  : ImportDeclaration
-  | ImportDeclarations ImportDeclaration
+Imports
+  : Import {
+    $$ = new_list();
+    list_add_tail(&($1)->link, $$);
+  }
+  | Imports Import {
+    list_add_tail(&($2)->link, $1);
+    $$ = $1;
+  }
   ;
 
-ImportDeclaration
+Import
   : IMPORT STRING_CONST {
-    /*do_import_decl($2, null_string);*/
+    $$ = NULL;
   }
   | IMPORT ID STRING_CONST {
-    /*do_import_decl($2, $4);*/
+    $$ = stmt_from_import($2, $3);
   }
   ;
 
-Declarations
-  : Declaration {
-  }
-  | Declarations Declaration {
-  }
-  ;
-
-Declaration
+Statements
   : Statement {
+    $$ = new_list();
+    list_add_tail(&($1)->link, $$);
   }
-  /*
+  | Statements Statement {
+    list_add_tail(&($2)->link, $1);
+    $$ = $1;
+  }
+  ;
+
+/*Declaration
+  : Statement
   | ConstDeclaration
   | VariableDeclaration
   | TypeDeclaration
   | FunctionDeclaration
-  */
-  ;
+  ;*/
 
 /*--------------------------------------------------------------------------.
 |  |
@@ -661,8 +687,8 @@ LocalVariableDeclOrStatement
 /*--------------------------------------------------------------------------*/
 
 Statement
-  : ExpressionStatement ';' {
-    /*$$ = $1;*/
+  : Expression ';' {
+    $$ = stmt_from_expr($1);
   }
   /*
   | IfStatement {
@@ -691,16 +717,14 @@ Statement
   */
   ;
 
-ExpressionStatement
+/*ExpressionStatement
   : Expression {
-    /*$$ = $1;*/
-    printf("-----------------------\n");
-    expr_traverse($1);
+    $$ = new_stmt($1);
   }
-  /*| AssignmentExpression {
+  | AssignmentExpression {
     $$ = $1;
-  }*/
-  ;
+  }
+  ;*/
 /*
 IfStatement
   : IF '(' Expression ')' CodeBlock
@@ -785,7 +809,7 @@ PrimaryExpression
 
 Atom
   : ID {
-    $$ = atom_from_id($1);
+    $$ = atom_from_name($1);
   }
   | Constant {
     $$ = $1;

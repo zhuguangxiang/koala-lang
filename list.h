@@ -198,6 +198,22 @@ static inline void list_del(struct list_head *entry)
 	     &pos->member != (head); \
 	     pos = n, n = list_next_entry(n, member))
 
+/**
+* list_merge_tail - move 'from' list to the tail of 'to'
+* @from: the merged list
+* @to: the list
+*/
+static inline
+struct list_head *list_merge_tail(struct list_head *from, struct list_head *to)
+{
+  struct list_head *pos, *nxt;
+  list_for_each_safe(pos, nxt, from) {
+    list_del(pos);
+    list_add_tail(pos, to);
+  }
+  return to;
+}
+
 /*
  * Double linked lists with a single pointer of list head.
  * Mostly useful for hash tables where the two pointer list head is

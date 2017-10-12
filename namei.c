@@ -51,11 +51,11 @@ int namei_equal(void *key1, void *key2)
   }
 }
 
-char *namei_type_string(struct namei *ni)
+char *ni_type_string(int type)
 {
   char *val = NULL;
 
-  switch (ni->type) {
+  switch (type) {
     case NT_VAR:
       val = "var";
       break;

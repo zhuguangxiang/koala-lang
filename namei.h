@@ -53,7 +53,8 @@ void free_namei(struct namei *ni);
 struct namei *new_namei(char *name, int type, char *signature, int access);
 uint32_t namei_hash(void *key);
 int namei_equal(void *key1, void *key2);
-char *namei_type_string(struct namei *ni);
+#define namei_type_string(ni) ni_type_string((ni)->type)
+char *ni_type_string(int type);
 char *namei_access_string(struct namei *ni);
 void namei_display(struct namei *ni);
 

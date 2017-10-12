@@ -3,9 +3,11 @@
 #include "method_object.h"
 #include "tuple_object.h"
 #include "integer_object.h"
+#include "io_module.h"
+#include "sys_module.h"
 #include "gstate.h"
 
-void init_builtin_klasses(void)
+void init_lang_module(void)
 {
   /* koala/lang.kl */
   init_klass_klass();
@@ -23,8 +25,15 @@ void init_builtin_klasses(void)
   */
 }
 
+void init_modules(void)
+{
+  init_lang_module();
+  init_io_module();
+  init_sys_module();
+}
+
 void koala_main(char *arg)
 {
   init_gstate();
-  init_builtin_klasses();
+  init_modules();
 }

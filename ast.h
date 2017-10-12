@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 enum atom_kind {
-  ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, STRING_KIND = 4, BOOL_KIND = 5,
+  NAME_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, STRING_KIND = 4, BOOL_KIND = 5,
   SELF_KIND = 6, NULL_KIND = 7, EXP_KIND = 8, NEW_PRIMITIVE_KIND = 9,
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, INTF_IMPL_KIND
 };
@@ -18,7 +18,10 @@ enum atom_kind {
 struct atom {
   enum atom_kind kind;
   union {
-    char *id;
+    struct {
+      char *id;
+      int type;
+    } name;
     int64_t ival;
     float64_t fval;
     char *str;
@@ -27,6 +30,7 @@ struct atom {
     struct {
       struct atom *atom;
       char *id;
+      int type;
     } attribute;
     struct {
       struct atom *atom;
@@ -69,13 +73,15 @@ struct expr {
 };
 
 #define expr_foreach(pos, list) \
-  if (list != NULL) list_for_each_entry(pos, list, link)
+  if ((list) != NULL) list_for_each_entry(pos, list, link)
 
 struct list_head *new_list(void);
+void free_list(struct list_head *list);
+
 struct atom *trailer_from_attribute(char *id);
 struct atom *trailer_from_subscript(struct expr *idx);
 struct atom *trailer_from_call(struct list_head *para);
-struct atom *atom_from_id(char *id);
+struct atom *atom_from_name(char *id);
 struct atom *atom_from_int(int64_t ival);
 struct atom *atom_from_float(float64_t fval);
 struct atom *atom_from_string(char *str);
@@ -88,7 +94,7 @@ struct expr *expr_from_atom(struct atom *atom);
 void expr_traverse(struct expr *exp);
 
 enum stmt_kind {
-  IMPORT_KIND = 1,
+  IMPORT_KIND = 1, EXPR_KIND = 2,
 };
 
 struct stmt {
@@ -96,11 +102,26 @@ struct stmt {
   union {
     struct {
       char *alias;
-      char *module_path;
+      char *path;
     } import;
+    struct expr *expr;
   } v;
   struct list_head link;
 };
+
+#define stmt_foreach(stmt, list) \
+  if ((list) != NULL) list_for_each_entry(stmt, list, link)
+
+struct stmt *stmt_from_expr(struct expr *expr);
+struct stmt *stmt_from_import(char *alias, char *path);
+
+struct mod {
+  struct list_head *imports;
+  struct list_head *stmts;
+};
+
+struct mod *new_mod(struct list_head *imports, struct list_head *stmts);
+void mod_traverse(struct mod *mod);
 
 #ifdef __cplusplus
 }

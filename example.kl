@@ -1,19 +1,20 @@
 
 #import test
-import "koala/io"
-import lang "koala/lang"
+import io "koala/io"
 
 #sexpr(no trailer) test
-true;false;id;100200;12.345;"hi,boy";self;null;
+# true;false;id;100200;12.345;"hi,boy";self;null;
 
 #trailer test
-io.File;
-12.ToString();
-"abc".UpperCase();
-io.Print("hello,world\n", 123);
+# io.File;
+# 12.ToString();
+# "abc".UpperCase();
+io.Print("hello,world\n");
+
 # array[10];
 # array["hello"];
-add(2,3).ToString();
+# add(2,3).ToString();
+# Hello("koala world")(123);
 
 #io.Print(int(32).ToString());
 #32.ToString();

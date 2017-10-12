@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "ast.h"
+#include "namei.h"
 
 struct list_head *new_list(void)
 {
@@ -11,12 +12,19 @@ struct list_head *new_list(void)
   return list;
 }
 
+void free_list(struct list_head *list)
+{
+  assert(list_empty(list));
+  free(list);
+}
+
 struct atom *trailer_from_attribute(char *id)
 {
   struct atom *atom = malloc(sizeof(*atom));
   atom->kind = ATTRIBUTE_KIND;
   atom->v.attribute.atom = NULL;
   atom->v.attribute.id   = id;
+  atom->v.attribute.type = 0;
   init_list_head(&atom->link);
   return atom;
 }
@@ -52,6 +60,13 @@ static void trailer_set_left_atom(struct atom *atom, struct atom *left_atom)
       break;
     case CALL_KIND:
       atom->v.call.atom = left_atom;
+      if (left_atom->kind == NAME_KIND) {
+        left_atom->v.name.type = NT_FUNC;
+      } else if (left_atom->kind == ATTRIBUTE_KIND) {
+        left_atom->v.attribute.type = NT_FUNC;
+      } else {
+        printf("[DEBUG] call left_atom kind:%d\n", left_atom->kind);
+      }
       break;
     case INTF_IMPL_KIND:
     default:
@@ -60,11 +75,12 @@ static void trailer_set_left_atom(struct atom *atom, struct atom *left_atom)
   }
 }
 
-struct atom *atom_from_id(char *id)
+struct atom *atom_from_name(char *id)
 {
   struct atom *atom = malloc(sizeof(*atom));
-  atom->kind = ID_KIND;
-  atom->v.id = id;
+  atom->kind        = NAME_KIND;
+  atom->v.name.id   = id;
+  atom->v.name.type = 0;
   init_list_head(&atom->link);
   return atom;
 }
@@ -151,11 +167,37 @@ struct expr *expr_from_atom(struct atom *atom)
   return exp;
 }
 
+struct stmt *stmt_from_expr(struct expr *expr)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind   = EXPR_KIND;
+  stmt->v.expr = expr;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_import(char *alias, char *path)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind   = IMPORT_KIND;
+  stmt->v.import.alias = alias;
+  stmt->v.import.path  = path;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct mod *new_mod(struct list_head *imports, struct list_head *stmts)
+{
+  struct mod *mod = malloc(sizeof(*mod));
+  mod->imports = imports;
+  mod->stmts   = stmts;
+  return mod;
+}
 
 void atom_traverse(struct atom *atom)
 {
   switch (atom->kind) {
-    case ID_KIND: {
+    case NAME_KIND: {
       /*
       id scope
       method:
@@ -165,7 +207,7 @@ void atom_traverse(struct atom *atom)
       module variable -> external module name
       */
       printf("[id]\n");
-      printf("%s\n", atom->v.id);
+      printf("%s, %s\n", atom->v.name.id, ni_type_string(atom->v.name.type));
       break;
     }
     case INT_KIND: {
@@ -208,7 +250,8 @@ void atom_traverse(struct atom *atom)
     case ATTRIBUTE_KIND: {
       atom_traverse(atom->v.attribute.atom);
       printf("[attribute]\n");
-      printf("%s\n", atom->v.attribute.id);
+      printf("%s, %s\n", atom->v.attribute.id,
+             ni_type_string(atom->v.attribute.type));
       break;
     }
     case CALL_KIND: {
@@ -239,5 +282,35 @@ void expr_traverse(struct expr *exp)
       assert(0);
       break;
     }
+  }
+}
+
+void stmt_traverse(struct stmt *stmt)
+{
+  switch (stmt->kind) {
+    case IMPORT_KIND: {
+      printf("[import]\n");
+      printf("%s:%s\n", stmt->v.import.alias, stmt->v.import.path);
+      break;
+    }
+    case EXPR_KIND: {
+      printf("[expr]\n");
+      expr_traverse(stmt->v.expr);
+      break;
+    }
+    default:{
+      assert(0);
+    }
+  }
+}
+
+void mod_traverse(struct mod *mod)
+{
+  struct stmt *stmt;
+  stmt_foreach(stmt, mod->imports) {
+    stmt_traverse(stmt);
+  }
+  stmt_foreach(stmt, mod->stmts) {
+    stmt_traverse(stmt);
   }
 }

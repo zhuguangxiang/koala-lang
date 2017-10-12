@@ -30,6 +30,13 @@ typedef double  float64_t;
 #define container_of(ptr, type, member) \
   ((type *)((char *)ptr - offsetof(type, member)))
 
+#define TYPE_CHAR   1
+#define TYPE_BYTE   2
+#define TYPE_INT    3
+#define TYPE_FLOAT  4
+#define TYPE_BOOL   5
+#define TYPE_STRING 6
+
 #ifdef __cplusplus
 }
 #endif
