@@ -61,7 +61,7 @@ void type_system_test(void)
   ni.name = "GetMethods";
   ni.type = NT_FUNC;
   offset = 0;
-  klass_get(ko, &ni, &ob, &offset);;
+  klass_get(ko, &ni, &ob, &offset);
   assert(ob != NULL && OB_KLASS(ob) == &method_klass && offset > 0);
 
   ni.name = "Method";

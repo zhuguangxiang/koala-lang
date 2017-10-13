@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "types.h"
-#include "ast.h"
+#include "compile.h"
 
 int yyerror(const char *str);
 int yylex(void);
@@ -325,10 +325,12 @@ CompileModule
   : Imports Statements {;
     $$ = new_mod($1, $2);
     mod_traverse($$);
+    compiler_module($$);
   }
   | Statements {
     $$ = new_mod(NULL, $1);
     mod_traverse($$);
+    compiler_module($$);
   }
   ;
 

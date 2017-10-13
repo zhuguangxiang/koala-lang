@@ -4,6 +4,7 @@
 
 extern FILE *yyin;
 extern int yyparse(void);
+extern void koala_main(char *arg);
 
 int yyerror(const char *str)
 {
@@ -22,6 +23,8 @@ int main(int argc, char *argv[])
     fprintf(stderr, "no parameter\n");
     return 0;
   }
+
+  koala_main("/opt/libs/koala_lib:/opt/libs/third_part_klib");
 
   yyin = fopen(argv[1], "r");
   yyparse();
