@@ -14,7 +14,7 @@ L   [a-zA-Z_]
 
 %%
 
-[\+\-\*\/\%&\|!=><,.;{}\[\]\(\)^:] {echo();return yytext[0];}
+[\+\-\*\/\%&\|!=><,.;{}\[\]\(\)^~:] {echo();return yytext[0];}
 
 "=="                      {return EQ;}
 "!="                      {return NE;}
@@ -22,10 +22,8 @@ L   [a-zA-Z_]
 "<="                      {return LE;}
 "&&"                      {return AND;}
 "||"                      {return OR;}
-">>"                      {return SHIFT_RIGHT;}
-"<<"                      {return SHIFT_LEFT;}
-"++"                      {return INC;}
-"--"                      {return DEC;}
+">>"                      {return RSHIFT;}
+"<<"                      {return LSHIFT;}
 ":="                      {return TYPELESS_ASSIGN;}
 "+="                      {return PLUS_ASSGIN;}
 "-="                      {return MINUS_ASSIGN;}

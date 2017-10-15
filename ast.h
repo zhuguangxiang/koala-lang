@@ -123,18 +123,35 @@ struct atom {
 #define atom_foreach_safe(pos, head, temp) \
   clist_foreach_safe(pos, temp, head, link)
 
+enum unary_op_kind {
+  OP_PLUS = 1, OP_MINUS = 2, OP_BIT_NOT = 3, OP_LNOT = 4
+};
+
 enum operator_kind {
-  ADD = 1, SUB = 2, MULT = 3, DIV = 4, MOD = 5
+  OP_MULT = 1, OP_DIV = 2, OP_MOD = 3,
+  OP_ADD = 4, OP_SUB = 5,
+  OP_LSHIFT, OP_RSHIFT,
+  OP_GT, OP_GE, OP_LT, OP_LE,
+  OP_EQ, OP_NEQ,
+  OP_BIT_AND,
+  OP_BIT_XOR,
+  OP_BIT_OR,
+  OP_LAND,
+  OP_LOR,
 };
 
 enum expr_kind {
-  ATOM_KIND = 1, BINARY_KIND = 2, UNARY_KIND = 3,
+  ATOM_KIND = 1, UNARY_KIND = 2, BINARY_KIND = 3,
 };
 
 struct expr {
   enum expr_kind kind;
   union {
     struct atom *atom;
+    struct {
+      enum unary_op_kind op;
+      struct expr *operand;
+    } unary_op;
     struct {
       struct expr *left;
       enum operator_kind op;
@@ -162,6 +179,10 @@ struct atom *atom_from_array(struct type *type, int tail, struct clist *list);
 
 struct expr *expr_from_atom_trailers(struct clist *list, struct atom *atom);
 struct expr *expr_from_atom(struct atom *atom);
+struct expr *expr_for_binary(enum operator_kind kind,
+                             struct expr *left, struct expr *right);
+struct expr *expr_for_unary(enum unary_op_kind kind, struct expr *expr);
+
 void expr_traverse(struct expr *exp);
 
 struct var {

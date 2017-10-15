@@ -220,6 +220,28 @@ struct expr *expr_from_atom(struct atom *atom)
   return exp;
 }
 
+struct expr *expr_for_binary(enum operator_kind kind,
+                             struct expr *left, struct expr *right)
+{
+  struct expr *exp = malloc(sizeof(*exp));
+  exp->kind = BINARY_KIND;
+  exp->v.bin_op.left  = left;
+  exp->v.bin_op.op    = kind;
+  exp->v.bin_op.right = right;
+  init_list_head(&exp->link);
+  return exp;
+}
+
+struct expr *expr_for_unary(enum unary_op_kind kind, struct expr *expr)
+{
+  struct expr *exp = malloc(sizeof(*exp));
+  exp->kind = UNARY_KIND;
+  exp->v.unary_op.op = kind;
+  exp->v.unary_op.operand = expr;
+  init_list_head(&exp->link);
+  return exp;
+}
+
 struct stmt *stmt_from_expr(struct expr *expr)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
@@ -434,6 +456,17 @@ void expr_traverse(struct expr *exp)
   switch (exp->kind) {
     case ATOM_KIND: {
       atom_traverse(exp->v.atom);
+      break;
+    }
+    case UNARY_KIND: {
+      printf("unary expr,op:%d\n", exp->v.unary_op.op);
+      expr_traverse(exp->v.unary_op.operand);
+      break;
+    }
+    case BINARY_KIND: {
+      printf("binary expr,op:%d\n", exp->v.bin_op.op);
+      expr_traverse(exp->v.bin_op.left);
+      expr_traverse(exp->v.bin_op.right);
       break;
     }
     default: {

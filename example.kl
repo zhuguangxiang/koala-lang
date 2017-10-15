@@ -1,9 +1,9 @@
 
 #import test
-import io "koala/io"
-import sys "koala/sys"
-import "koala/lang"
-import "util"
+import io "koala/io";
+import sys "koala/sys";
+import "koala/lang";
+import "util";
 
 # array test
 var a []int = []int{12,3};
@@ -31,21 +31,16 @@ io.File;
 "abc".UpperCase();
 sys.Path();
 io.Print("hello,world\n");
+io.Print(int(32).ToString());
 
-# array[10];
-# array["hello"];
-# add(2,3).ToString();
-# Hello("koala world")(123);
-
-#io.Print(int(32).ToString());
-#32.ToString();
-
-# {1,2,3}.length();
-
-# //Not allowed in koala syntax
-# 32[10];   //subscript access
-# 32 () {}  //interface implementation with anonymous name
-# 32 (123)  //call
+# expression test
+2+3;2-3;2*3;3/2;4%2;
++3;-3;!3;~3;~444;
+2 && 3; 2 || 3;
+2 & 3; 2 | 3; 2 ^ 3;
+2 << 3; 2 >> 3;
+2 > 3; 2 < 3; 2 >= 3; 2 <= 3;
+2 != 3; 2 == 3;
 
 /*
 1. Uses "koala/io" to replace "io"

@@ -88,10 +88,8 @@ int yylex(void);
 %token AND
 %token OR
 %token NOT
-%token SHIFT_LEFT
-%token SHIFT_RIGHT
-%token INC
-%token DEC
+%token LSHIFT
+%token RSHIFT
 
 %token IF
 %token ELSE
@@ -214,7 +212,6 @@ int yylex(void);
 %type <expr> AdditiveExpression
 %type <expr> MultiplicativeExpression
 %type <expr> UnaryExpression
-%type <expr> PostfixExpression
 %type <expr> PrimaryExpression
 %type <atom> Atom
 %type <atom> ArrayAtom
@@ -364,10 +361,10 @@ Imports
   ;
 
 Import
-  : IMPORT STRING_CONST {
+  : IMPORT STRING_CONST ';' {
     $$ = stmt_from_import(NULL, $2);
   }
-  | IMPORT ID STRING_CONST {
+  | IMPORT ID STRING_CONST ';' {
     $$ = stmt_from_import($2, $3);
   }
   ;
@@ -477,11 +474,6 @@ VariableInitializerList
 
 /*--------------------------------------------------------------------------*/
 /*
-SemiOrEmpty
-  : %empty
-  | ';'
-  ;
-
 TypeDeclaration
   : TYPE ID STRUCT '{' MemberDeclarations '}' SemiOrEmpty {
     //$$ = new_exp_type_struct($2, $5[0], $5[1]);
@@ -971,164 +963,138 @@ FunctionDeclarationList
 
 /*-------------------------------------------------------------------------*/
 
-PostfixExpression
+UnaryExpression
   : PrimaryExpression {
     $$ = $1;
   }
-  /*| PostfixExpression INC {
-    $$ = new_exp_unary(OP_INC_AFTER, $1);
-  }
-  | PostfixExpression DEC {
-    $$ = new_exp_unary(OP_DEC_AFTER, $1);
-  }*/
-  ;
-
-UnaryExpression
-  : PostfixExpression {
-    $$ = $1;
-  }
-  /*| INC UnaryExpression {
-    if ($2->kind != EXP_TERM) {
-      yyerror("rvalue required as increment operand\n");
-      exit(-1);
-    } else {
-      $$ = new_exp_unary(OP_INC_BEFORE, $2);
-    }
-  }
-  | DEC UnaryExpression {
-    if ($2->kind != EXP_TERM) {
-      yyerror("rvalue required as decrement operand\n");
-      exit(-1);
-    } else {
-      $$ = new_exp_unary(OP_DEC_BEFORE, $2);
-    }
-  }
   | '+' UnaryExpression {
-    $$ = $2;
+    $$ = expr_for_unary(OP_PLUS, $2);;
   }
   | '-' UnaryExpression {
-    $$ = new_exp_unary(OP_MINUS, $2);
+    $$ = expr_for_unary(OP_MINUS, $2);
   }
   | '~' UnaryExpression {
-    $$ = new_exp_unary(OP_BNOT, $2);
+    /* bit operation : bit reversal */
+    $$ = expr_for_unary(OP_BIT_NOT, $2);
   }
   | '!' UnaryExpression {
-    $$ = new_exp_unary(OP_LNOT, $2);
-  }*/
+    /* logic operation : not */
+    $$ = expr_for_unary(OP_LNOT, $2);
+  }
   ;
 
 MultiplicativeExpression
   : UnaryExpression {
     $$ = $1;
   }
-  /*| MultiplicativeExpression '*' UnaryExpression {
-    $$ = new_exp_binary(OP_TIMES, $1, $3);
+  | MultiplicativeExpression '*' UnaryExpression {
+    $$ = expr_for_binary(OP_MULT, $1, $3);
   }
   | MultiplicativeExpression '/' UnaryExpression {
-    $$ = new_exp_binary(OP_DIVIDE, $1, $3);
+    $$ = expr_for_binary(OP_DIV, $1, $3);
   }
   | MultiplicativeExpression '%' UnaryExpression {
-    $$ = new_exp_binary(OP_MOD, $1, $3);
-  }*/
+    $$ = expr_for_binary(OP_MOD, $1, $3);
+  }
   ;
 
 AdditiveExpression
   : MultiplicativeExpression {
     $$ = $1;
   }
-  /*| AdditiveExpression '+' MultiplicativeExpression {
-    $$ = new_exp_binary(OP_PLUS, $1, $3);
+  | AdditiveExpression '+' MultiplicativeExpression {
+    $$ = expr_for_binary(OP_ADD, $1, $3);
   }
   | AdditiveExpression '-' MultiplicativeExpression {
-    $$ = new_exp_binary(OP_MINUS, $1, $3);
-  }*/
+    $$ = expr_for_binary(OP_SUB, $1, $3);
+  }
   ;
 
 ShiftExpression
   : AdditiveExpression {
     $$ = $1;
   }
-  /*| ShiftExpression SHIFT_LEFT AdditiveExpression {
-    $$ = new_exp_binary(OP_LSHIFT, $1, $3);
+  | ShiftExpression LSHIFT AdditiveExpression {
+    $$ = expr_for_binary(OP_LSHIFT, $1, $3);
   }
-  | ShiftExpression SHIFT_RIGHT AdditiveExpression {
-    $$ = new_exp_binary(OP_RSHIFT, $1, $3);
-  }*/
+  | ShiftExpression RSHIFT AdditiveExpression {
+    $$ = expr_for_binary(OP_RSHIFT, $1, $3);
+  }
   ;
 
 RelationalExpression
   : ShiftExpression {
     $$ = $1;
   }
-  /*| RelationalExpression '<' ShiftExpression {
-    $$ = new_exp_binary(OP_LT, $1, $3);
+  | RelationalExpression '<' ShiftExpression {
+    $$ = expr_for_binary(OP_LT, $1, $3);
   }
   | RelationalExpression '>' ShiftExpression {
-    $$ = new_exp_binary(OP_GT, $1, $3);
+    $$ = expr_for_binary(OP_GT, $1, $3);
   }
   | RelationalExpression LE  ShiftExpression {
-    $$ = new_exp_binary(OP_LE, $1, $3);
+    $$ = expr_for_binary(OP_LE, $1, $3);
   }
   | RelationalExpression GE  ShiftExpression {
-    $$ = new_exp_binary(OP_GE, $1, $3);
-  }*/
+    $$ = expr_for_binary(OP_GE, $1, $3);
+  }
   ;
 
 EqualityExpression
   : RelationalExpression {
     $$ = $1;
   }
-  /*| EqualityExpression EQ RelationalExpression {
-    $$ = new_exp_binary(OP_EQ, $1, $3);
+  | EqualityExpression EQ RelationalExpression {
+    $$ = expr_for_binary(OP_EQ, $1, $3);
   }
   | EqualityExpression NE RelationalExpression {
-    $$ = new_exp_binary(OP_NEQ, $1, $3);
-  }*/
+    $$ = expr_for_binary(OP_NEQ, $1, $3);
+  }
   ;
 
 AndExpression
   : EqualityExpression {
     $$ = $1;
   }
-  /*| AndExpression '&' EqualityExpression {
-    $$ = new_exp_binary(OP_BAND, $1, $3);
-  }*/
+  | AndExpression '&' EqualityExpression {
+    $$ = expr_for_binary(OP_BIT_AND, $1, $3);
+  }
   ;
 
 ExclusiveOrExpression
   : AndExpression {
     $$ = $1;
   }
-  /*| ExclusiveOrExpression '^' AndExpression {
-    $$ = new_exp_binary(OP_BXOR, $1, $3);
-  }*/
+  | ExclusiveOrExpression '^' AndExpression {
+    $$ = expr_for_binary(OP_BIT_XOR, $1, $3);
+  }
   ;
 
 InclusiveOrExpression
   : ExclusiveOrExpression {
     $$ = $1;
   }
-  /*| InclusiveOrExpression '|' ExclusiveOrExpression {
-    $$ = new_exp_binary(OP_BOR, $1, $3);
-  }*/
+  | InclusiveOrExpression '|' ExclusiveOrExpression {
+    $$ = expr_for_binary(OP_BIT_OR, $1, $3);
+  }
   ;
 
 LogicalAndExpression
   : InclusiveOrExpression {
     $$ = $1;
   }
-  /*| LogicalAndExpression AND InclusiveOrExpression {
-    $$ = new_exp_binary(OP_LAND, $1, $3);
-  }*/
+  | LogicalAndExpression AND InclusiveOrExpression {
+    $$ = expr_for_binary(OP_LAND, $1, $3);
+  }
   ;
 
 LogicalOrExpression
   : LogicalAndExpression {
     $$ = $1;
   }
-  /*| LogicalOrExpression OR LogicalAndExpression {
-    $$ = new_exp_binary(OP_LOR, $1, $3);
-  }*/
+  | LogicalOrExpression OR LogicalAndExpression {
+    $$ = expr_for_binary(OP_LOR, $1, $3);
+  }
   ;
 
 Expression
@@ -1148,17 +1114,17 @@ AssignmentExpression
     free_linked_list($1);
     free_linked_list($3);
   }
-  | PostfixExpression CompoundOperator VariableInitializer {
+  | PrimaryExpression CompoundOperator VariableInitializer {
     $$ = new_exp_compound_assign($2, $1, $3);
   }
   ;
 
 PostfixExpressionList
-  : PostfixExpression {
+  : PrimaryExpression {
     $$ = new_linked_list();
     linked_list_add_tail($$, $1);
   }
-  | PostfixExpressionList ',' PostfixExpression {
+  | PostfixExpressionList ',' PrimaryExpression {
     linked_list_add_tail($1, $3);
     $$ = $1;
   }
