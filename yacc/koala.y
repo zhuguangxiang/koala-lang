@@ -365,7 +365,7 @@ Imports
 
 Import
   : IMPORT STRING_CONST {
-    $$ = NULL;
+    $$ = stmt_from_import(NULL, $2);
   }
   | IMPORT ID STRING_CONST {
     $$ = stmt_from_import($2, $3);

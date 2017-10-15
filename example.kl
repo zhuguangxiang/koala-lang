@@ -2,10 +2,15 @@
 #import test
 import io "koala/io"
 import sys "koala/sys"
+import "koala/lang"
+import "util"
 
 # array test
 var a []int = []int{12,3};
 var b = [2]int;
+var a1, a2, a3 = []int{"123", "456"}, "jack", int(65535);
+const konst = "hello,world";
+
 # {12,3}.length();    //error
 # var d = {1,2}[3];   // error
 # var a1 = [3]int{1}; // error

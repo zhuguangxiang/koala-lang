@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <string.h>
 #include "ast.h"
 #include "namei.h"
 
@@ -231,8 +232,19 @@ struct stmt *stmt_from_expr(struct expr *expr)
 struct stmt *stmt_from_import(char *alias, char *path)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
-  stmt->kind   = IMPORT_KIND;
-  stmt->v.import.alias = alias;
+  stmt->kind = IMPORT_KIND;
+  if (alias == NULL) {
+    char *s = strrchr(path, '/');
+    if (s == NULL)
+      s = path;
+    else
+      s += 1;
+    char *tmp = malloc(strlen(s) + 1);
+    strcpy(tmp, s);
+    stmt->v.import.alias = tmp;
+  } else {
+    stmt->v.import.alias = alias;
+  }
   stmt->v.import.path  = path;
   init_list_head(&stmt->link);
   return stmt;
@@ -440,15 +452,19 @@ void assign_traverse(struct stmt *stmt)
   if (stmt->v.assign.type != NULL)
     type_traverse(stmt->v.assign.type);
 
+  printf("variables name:\n");
   struct var *var;
   var_foreach(var, stmt->v.assign.varlist) {
-
+    printf("%s ", var->id);
   }
+  putchar('\n');
 
   struct expr *expr;
   expr_foreach(expr, stmt->v.assign.exprlist) {
     expr_traverse(expr);
   }
+
+  printf("end variable declaration\n");
 }
 
 void stmt_traverse(struct stmt *stmt)
