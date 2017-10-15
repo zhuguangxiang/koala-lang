@@ -815,7 +815,7 @@ PrimaryExpression
     $$ = expr_from_atom($1);
   }
   | Atom TrailerList {
-    $$ = expr_for_atom($2, $1);
+    $$ = expr_from_atom_trailers($2, $1);
     free_clist($2);
   }
   ;

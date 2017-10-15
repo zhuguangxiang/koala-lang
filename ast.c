@@ -199,7 +199,7 @@ struct atom *atom_from_array(struct type *type, int tail, struct clist *list)
   return atom;
 }
 
-struct expr *expr_for_atom(struct clist *list, struct atom *atom)
+struct expr *expr_from_atom_trailers(struct clist *list, struct atom *atom)
 {
   struct atom *trailer, *temp;
   atom_foreach_safe(trailer, list, temp) {

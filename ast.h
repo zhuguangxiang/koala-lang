@@ -160,7 +160,7 @@ struct atom *atom_from_expr(struct expr *exp);
 struct atom *atom_from_null(void);
 struct atom *atom_from_array(struct type *type, int tail, struct clist *list);
 
-struct expr *expr_for_atom(struct clist *list, struct atom *atom);
+struct expr *expr_from_atom_trailers(struct clist *list, struct atom *atom);
 struct expr *expr_from_atom(struct atom *atom);
 void expr_traverse(struct expr *exp);
 
