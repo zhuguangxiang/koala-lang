@@ -69,10 +69,10 @@ L   [a-zA-Z_]
 "float"                   {return FLOAT;}
 "bool"                    {return BOOL;}
 "String"                  {return STRING;}
-"interface{}"             {return ROOT_OBJECT;}
+"Any"                     {return ANY;}
 "[]"+                     {
-                            /*yylval.dims = yyleng/2;*/
-                            /*return DIMS;*/
+                            yylval.dims = yyleng/2;
+                            return DIMS;
                           }
 
 "self"                    {return SELF;}

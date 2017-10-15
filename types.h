@@ -36,6 +36,8 @@ typedef double  float64_t;
 #define TYPE_FLOAT  4
 #define TYPE_BOOL   5
 #define TYPE_STRING 6
+#define TYPE_ANY    7
+#define TYPE_DEFINE 8
 
 #ifdef __cplusplus
 }

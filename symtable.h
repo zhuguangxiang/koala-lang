@@ -25,6 +25,7 @@ struct symbol {
   enum symbol_kind kind;
   union {
     char *mod_path;
+    struct type *var_type;
   } v;
 };
 

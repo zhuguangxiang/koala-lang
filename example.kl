@@ -3,13 +3,27 @@
 import io "koala/io"
 import sys "koala/sys"
 
-#sexpr(no trailer) test
-# true;false;id;100200;12.345;"hi,boy";self;null;
+# array test
+var a []int = []int{12,3};
+var b = [2]int;
+# {12,3}.length();    //error
+# var d = {1,2}[3];   // error
+# var a1 = [3]int{1}; // error
+var e = []int{1,2,{3,4}, {1,2, {3,4,{5}}}};
+[]int{2,3}.Print();
+[]Any{2, "zhuguangxiang", int(320023), tuple(), dict()};
+# []int{}; //error
+[3][2]int;
+[3][2][]int;
+[][]int{{1,2,3}, {4,5,6}, {7,8}, {100}, 200, {300, {22}}};
 
-#trailer test
-# io.File;
-# 12.ToString();
-# "abc".UpperCase();
+# atom test
+true;false;id;100200;12.345;"hi,boy";self;null;
+
+# trailer test
+io.File;
+12.ToString();
+"abc".UpperCase();
 sys.Path();
 io.Print("hello,world\n");
 
@@ -20,6 +34,8 @@ io.Print("hello,world\n");
 
 #io.Print(int(32).ToString());
 #32.ToString();
+
+# {1,2,3}.length();
 
 # //Not allowed in koala syntax
 # 32[10];   //subscript access
