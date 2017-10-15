@@ -194,8 +194,16 @@ struct var *new_var(char *id);
 #define var_foreach(pos, list) \
   if ((list) != NULL) clist_foreach(pos, list, link)
 
+enum assign_operator {
+  OP_PLUS_ASSIGN = 1, OP_MINUS_ASSIGN = 2,
+  OP_MULT_ASSIGN, OP_DIV_ASSIGN,
+  OP_MOD_ASSIGN, OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
+  OP_RSHIFT_ASSIGN, OP_LSHIFT_ASSIGN,
+};
+
 enum stmt_kind {
-  IMPORT_KIND = 1, EXPR_KIND = 2, ASSIGN_KIND = 3,
+  IMPORT_KIND = 1, EXPR_KIND = 2, VARDECL_KIND = 3, TYPEDECL_KIND = 4,
+  FUNCDECL_KIND = 5, ASSIGN_KIND = 6, COMPOUND_ASSIGN_KIND = 7,
 };
 
 struct stmt {
@@ -207,12 +215,20 @@ struct stmt {
     } import;
     struct expr *expr;
     struct {
-      short bdecl;
-      short bconst;
+      int bconst;
       struct type *type;
-      struct clist *varlist;
-      struct clist *exprlist;
+      struct clist *var_list;
+      struct clist *expr_list;
+    } vardecl;
+    struct {
+      struct clist *left_list;
+      struct clist *right_list;
     } assign;
+    struct {
+      struct expr *left;
+      enum assign_operator op;
+      struct expr *right;
+    } compound_assign;
   } v;
   struct list_head link;
 };
@@ -222,9 +238,14 @@ struct stmt {
 
 struct stmt *stmt_from_expr(struct expr *expr);
 struct stmt *stmt_from_import(char *alias, char *path);
-struct stmt *stmt_from_assign(struct clist *varlist,
-                              struct clist *initlist,
-                              int bdecl, int bconst, struct type *type);
+struct stmt *stmt_from_vardecl(struct clist *varlist,
+                               struct clist *initlist,
+                               int bconst, struct type *type);
+struct stmt *stmt_from_assign(struct clist *left_list,
+                              struct clist *right_list);
+struct stmt *stmt_from_compound_assign(struct expr *left,
+                                       enum assign_operator op,
+                                       struct expr *right);
 
 struct mod {
   struct clist *imports;

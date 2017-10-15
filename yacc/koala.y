@@ -26,7 +26,7 @@ int yylex(void);
   struct stmt *stmt;
   struct type *type;
   struct array_tail *array_tail;
-
+  int assign_op;
   /*base_type_t base_type;*/
   /*struct {
     string mod_name;
@@ -72,14 +72,14 @@ int yylex(void);
 %token TYPELESS_ASSIGN
 %token PLUS_ASSGIN
 %token MINUS_ASSIGN
-%token TIMES_ASSIGN
-%token DIVIDE_ASSIGN
+%token MULT_ASSIGN
+%token DIV_ASSIGN
 %token MOD_ASSIGN
 %token AND_ASSIGN
 %token OR_ASSIGN
 %token XOR_ASSIGN
-%token RIGHT_SHIFT_ASSIGN
-%token LEFT_SHIFT_ASSIGN
+%token RSHIFT_ASSIGN
+%token LSHIFT_ASSIGN
 
 %token EQ
 %token NE
@@ -139,10 +139,11 @@ int yylex(void);
 
 /*--------------------------------------------------------------------------*/
 
+/*%nonassoc ELSE*/
 %precedence ID
 %precedence '.'
 
-/*%nonassoc ELSE
+/*
 
 %precedence ID
 %precedence '.'
@@ -191,15 +192,18 @@ int yylex(void);
 %type <expr> ExpressionStatement
 %type <expr> ReturnStatement*/
 
-/*%type <compound_op> CompoundOperator*/
 /*%type <linked_list> PostfixExpressionList*/
 /*%type <expr> AssignmentExpression*/
 
 /*%type <expr>  SubscriptExpression*/
 
+%type <assign_op> CompoundAssignOperator
+
 %type <list> VariableList
 %type <list> VariableInitializerList
 %type <list> ExpressionList
+%type <list> PrimaryExpressionList
+
 %type <expr> Expression
 %type <expr> LogicalOrExpression
 %type <expr> LogicalAndExpression
@@ -231,6 +235,8 @@ int yylex(void);
 %type <stmt> Declaration
 %type <stmt> ConstDeclaration
 %type <stmt> VariableDeclaration
+%type <stmt> Assignment
+%type <stmt> IfStatement
 
 %start CompileModule
 
@@ -394,10 +400,13 @@ Statement
   | Declaration {
     $$ = $1;
   }
-  /*
-  | IfStatement {
-
+  | Assignment ';' {
+    $$ = $1;
   }
+  | IfStatement {
+    $$ = $1;
+  }
+  /*
   | SwitchStatement {
 
   }
@@ -436,22 +445,22 @@ Declaration
 
 ConstDeclaration
   : CONST VariableList '=' VariableInitializerList {
-    $$ = stmt_from_assign($2, $4, 1, 1, NULL);
+    $$ = stmt_from_vardecl($2, $4, 1, NULL);
   }
   | CONST VariableList Type '=' VariableInitializerList {
-    $$ = stmt_from_assign($2, $5, 1, 1, $3);
+    $$ = stmt_from_vardecl($2, $5, 1, $3);
   }
   ;
 
 VariableDeclaration
   : VAR VariableList Type {
-    $$ = stmt_from_assign($2, NULL, 1, 0, $3);
+    $$ = stmt_from_vardecl($2, NULL, 0, $3);
   }
   | VAR VariableList '=' VariableInitializerList {
-    $$ = stmt_from_assign($2, $4, 1, 0, NULL);
+    $$ = stmt_from_vardecl($2, $4, 0, NULL);
   }
   | VAR VariableList Type '=' VariableInitializerList {
-    $$ = stmt_from_assign($2, $5, 1, 0, $3);
+    $$ = stmt_from_vardecl($2, $5, 0, $3);
   }
   ;
 
@@ -720,21 +729,19 @@ LocalVariableDeclOrStatement
 */
 /*--------------------------------------------------------------------------*/
 
-/*ExpressionStatement
-  : Expression {
-    $$ = new_stmt($1);
-  }
-  | AssignmentExpression {
-    $$ = $1;
-  }
-  ;*/
-/*
 IfStatement
-  : IF Common_ParentExpression CodeBlock
-  | IF Common_ParentExpression CodeBlock ELSE CodeBlock
-  | IF Common_ParentExpression CodeBlock ELSE IfStatement
+  : IF '(' Expression ')' CodeBlock {
+    $$ = NULL;
+  }
+  | IF '(' Expression ')' CodeBlock ELSE CodeBlock {
+    $$ = NULL;
+  }
+  | IF '(' Expression ')' CodeBlock ELSE IfStatement {
+    $$ = NULL;
+  }
   ;
 
+/*
 SwitchStatement
   : SWITCH Common_ParentExpression '{' CaseStatement '}'
   ;
@@ -788,17 +795,6 @@ ReturnStatement
   }
   ;
 */
-
-ExpressionList
-  : Expression {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
-  }
-  | ExpressionList ',' Expression {
-    clist_add_tail(&($3)->link, $1);
-    $$ = $1;
-  }
-  ;
 
 /*-------------------------------------------------------------------------*/
 
@@ -1102,48 +1098,56 @@ Expression
     $$ = $1;
   }
   ;
-/*
-AssignmentExpression
-  : PostfixExpressionList '=' VariableInitializerList {
-    $$ = new_exp_assign_list($1, $3, true);
-    free_linked_list($1);
-    free_linked_list($3);
+
+ExpressionList
+  : Expression {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
   }
-  | PostfixExpressionList TYPELESS_ASSIGN VariableInitializerList {
-    $$ = new_exp_assign_list($1, $3, false);
-    free_linked_list($1);
-    free_linked_list($3);
-  }
-  | PrimaryExpression CompoundOperator VariableInitializer {
-    $$ = new_exp_compound_assign($2, $1, $3);
+  | ExpressionList ',' Expression {
+    clist_add_tail(&($3)->link, $1);
+    $$ = $1;
   }
   ;
 
-PostfixExpressionList
-  : PrimaryExpression {
-    $$ = new_linked_list();
-    linked_list_add_tail($$, $1);
+Assignment
+  : PrimaryExpressionList '=' ExpressionList {
+    $$ = stmt_from_assign($1, $3);
   }
-  | PostfixExpressionList ',' PrimaryExpression {
-    linked_list_add_tail($1, $3);
+  /*| PrimaryExpressionList TYPELESS_ASSIGN ExpressionList {
+    $$ = new_exp_assign_list($1, $3, false);
+    free_linked_list($1);
+    free_linked_list($3);
+  }*/
+  | PrimaryExpression CompoundAssignOperator Expression {
+    $$ = stmt_from_compound_assign($1, $2, $3);
+  }
+  ;
+
+PrimaryExpressionList
+  : PrimaryExpression {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
+  }
+  | PrimaryExpressionList ',' PrimaryExpression {
+    clist_add_tail(&($3)->link, $1);
     $$ = $1;
   }
-  ;*/
+  ;
 
 /* 算术运算和位运算 */
-/*
-CompoundOperator
+CompoundAssignOperator
   : PLUS_ASSGIN {
     $$ = OP_PLUS_ASSIGN;
   }
   | MINUS_ASSIGN {
     $$ = OP_MINUS_ASSIGN;
   }
-  | TIMES_ASSIGN {
-    $$ = OP_TIMES_ASSIGN;
+  | MULT_ASSIGN {
+    $$ = OP_MULT_ASSIGN;
   }
-  | DIVIDE_ASSIGN {
-    $$ = OP_DIVIDE_ASSIGN;
+  | DIV_ASSIGN {
+    $$ = OP_DIV_ASSIGN;
   }
   | MOD_ASSIGN {
     $$ = OP_MOD_ASSIGN;
@@ -1157,13 +1161,13 @@ CompoundOperator
   | XOR_ASSIGN {
     $$ = OP_XOR_ASSIGN;
   }
-  | RIGHT_SHIFT_ASSIGN {
-    $$ = OP_RIGHT_SHIFT_ASSIGN;
+  | RSHIFT_ASSIGN {
+    $$ = OP_RSHIFT_ASSIGN;
   }
-  | LEFT_SHIFT_ASSIGN {
-    $$ = OP_LEFT_SHIFT_ASSIGN;
+  | LSHIFT_ASSIGN {
+    $$ = OP_LSHIFT_ASSIGN;
   }
-  ;*/
+  ;
 
 /*--------------------------------------------------------------------------*/
 

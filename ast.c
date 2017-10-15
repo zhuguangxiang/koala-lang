@@ -290,17 +290,40 @@ int vars_add_symtable(struct clist *list, int bconst, struct type *type)
   return 0;
 }
 
-struct stmt *stmt_from_assign(struct clist *varlist,
-                              struct clist *initlist,
-                              int bdecl, int bconst, struct type *type)
+struct stmt *stmt_from_vardecl(struct clist *varlist,
+                               struct clist *initlist,
+                               int bconst, struct type *type)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = VARDECL_KIND;
+  stmt->v.vardecl.bconst    = bconst;
+  stmt->v.vardecl.type      = type;
+  stmt->v.vardecl.var_list  = varlist;
+  stmt->v.vardecl.expr_list = initlist;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_assign(struct clist *left_list,
+                              struct clist *right_list)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = ASSIGN_KIND;
-  stmt->v.assign.bdecl    = bdecl;
-  stmt->v.assign.bconst   = bconst;
-  stmt->v.assign.type     = type;
-  stmt->v.assign.varlist  = varlist;
-  stmt->v.assign.exprlist = initlist;
+  stmt->v.assign.left_list  = left_list;
+  stmt->v.assign.right_list = right_list;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_compound_assign(struct expr *left,
+                                       enum assign_operator op,
+                                       struct expr *right)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = COMPOUND_ASSIGN_KIND;
+  stmt->v.compound_assign.left  = left;
+  stmt->v.compound_assign.op    = op;
+  stmt->v.compound_assign.right = right;
   init_list_head(&stmt->link);
   return stmt;
 }
@@ -476,24 +499,23 @@ void expr_traverse(struct expr *exp)
   }
 }
 
-void assign_traverse(struct stmt *stmt)
+void vardecl_traverse(struct stmt *stmt)
 {
-  printf("variable declaration ? %s\n",
-         stmt->v.assign.bdecl ? "true" : "false");
+  printf("variable declaration\n");
   printf("const variable ? %s\n",
-         stmt->v.assign.bconst ? "true" : "false");
-  if (stmt->v.assign.type != NULL)
-    type_traverse(stmt->v.assign.type);
+         stmt->v.vardecl.bconst ? "true" : "false");
+  if (stmt->v.vardecl.type != NULL)
+    type_traverse(stmt->v.vardecl.type);
 
   printf("variables name:\n");
   struct var *var;
-  var_foreach(var, stmt->v.assign.varlist) {
+  var_foreach(var, stmt->v.vardecl.var_list) {
     printf("%s ", var->id);
   }
   putchar('\n');
 
   struct expr *expr;
-  expr_foreach(expr, stmt->v.assign.exprlist) {
+  expr_foreach(expr, stmt->v.vardecl.expr_list) {
     expr_traverse(expr);
   }
 
@@ -513,9 +535,27 @@ void stmt_traverse(struct stmt *stmt)
       expr_traverse(stmt->v.expr);
       break;
     }
+    case VARDECL_KIND: {
+      printf("[var decl]\n");
+      vardecl_traverse(stmt);
+      break;
+    }
     case ASSIGN_KIND: {
-      printf("[ASSIGN]\n");
-      assign_traverse(stmt);
+      printf("[assignment list]\n");
+      struct expr *expr;
+      expr_foreach(expr, stmt->v.assign.left_list) {
+        expr_traverse(expr);
+      }
+
+      expr_foreach(expr, stmt->v.assign.right_list) {
+        expr_traverse(expr);
+      }
+      break;
+    }
+    case COMPOUND_ASSIGN_KIND: {
+      printf("[compound assignment]:%d\n", stmt->v.compound_assign.op);
+      expr_traverse(stmt->v.compound_assign.left);
+      expr_traverse(stmt->v.compound_assign.right);
       break;
     }
     default:{

@@ -27,14 +27,14 @@ L   [a-zA-Z_]
 ":="                      {return TYPELESS_ASSIGN;}
 "+="                      {return PLUS_ASSGIN;}
 "-="                      {return MINUS_ASSIGN;}
-"*="                      {return TIMES_ASSIGN;}
-"/="                      {return DIVIDE_ASSIGN;}
+"*="                      {return MULT_ASSIGN;}
+"/="                      {return DIV_ASSIGN;}
 "%="                      {return MOD_ASSIGN;}
 "&="                      {return AND_ASSIGN;}
 "|="                      {return OR_ASSIGN;}
 "^="                      {return XOR_ASSIGN;}
-">>="                     {return RIGHT_SHIFT_ASSIGN;}
-"<<="                     {return LEFT_SHIFT_ASSIGN;}
+">>="                     {return RSHIFT_ASSIGN;}
+"<<="                     {return LSHIFT_ASSIGN;}
 "..."                     {return ELLIPSIS;}
 
 "if"                      {return IF;}
