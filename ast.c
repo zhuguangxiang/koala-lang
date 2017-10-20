@@ -758,6 +758,10 @@ void whilestmt_traverse(struct stmt *whilestmt)
 void stmt_traverse(struct stmt *stmt)
 {
   switch (stmt->kind) {
+    case EMPTY_KIND: {
+      printf("[empty statement]\n");
+      break;
+    }
     case IMPORT_KIND: {
       printf("[import]\n");
       printf("%s:%s\n", stmt->v.import.alias, stmt->v.import.path);

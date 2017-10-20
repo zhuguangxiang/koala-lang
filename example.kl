@@ -114,7 +114,7 @@ while (2 > 3) {
 
 do {
   io.Print("do-while test");
-} while (a <= b);
+} while (a <= b)
 
 while (a > 3) {
   if (a == 10) {
