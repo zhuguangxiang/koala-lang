@@ -220,8 +220,9 @@ enum assign_operator {
 
 enum stmt_kind {
   EMPTY_KIND = 1, IMPORT_KIND = 2, EXPR_KIND = 3, VARDECL_KIND = 4,
-  TYPEDECL_KIND = 5, FUNCDECL_KIND = 6, ASSIGN_KIND = 7,
-  COMPOUND_ASSIGN_KIND = 8, SEQ_KIND, RETURN_KIND, IF_KIND
+  FUNCDECL_KIND = 5, ASSIGN_KIND = 6, COMPOUND_ASSIGN_KIND = 7,
+  STRUCT_KIND, INTF_KIND, TYPEDEF_KIND, SEQ_KIND,
+  RETURN_KIND, IF_KIND,
 };
 
 struct stmt {
@@ -238,6 +239,12 @@ struct stmt {
       struct clist *expr_list;
     } vardecl;
     struct {
+      char *id;
+      struct clist *plist;
+      struct clist *rlist;
+      struct clist *body;
+    } funcdecl;
+    struct {
       struct clist *left_list;
       struct clist *right_list;
     } assign;
@@ -246,6 +253,15 @@ struct stmt {
       enum assign_operator op;
       struct expr *right;
     } compound_assign;
+    struct {
+
+    } structure;
+    struct {
+
+    } interface;
+    struct {
+
+    } user_typedef;
     struct clist *seq;
     struct {
       struct expr *test;
@@ -269,6 +285,8 @@ struct stmt *stmt_from_import(char *alias, char *path);
 struct stmt *stmt_from_vardecl(struct clist *varlist,
                                struct clist *initlist,
                                int bconst, struct type *type);
+struct stmt *stmt_from_funcdecl(char *id, struct clist *plist,
+                               struct clist *rlist, struct clist *body);
 struct stmt *stmt_from_assign(struct clist *left_list,
                               struct clist *right_list);
 struct stmt *stmt_from_compound_assign(struct expr *left,

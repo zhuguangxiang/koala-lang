@@ -300,7 +300,8 @@ struct stmt *stmt_from_import(char *alias, char *path)
 struct var *new_var(char *id)
 {
   struct var *v = malloc(sizeof(*v));
-  v->id = id;
+  v->id   = id;
+  v->type = NULL;
   init_list_head(&v->link);
   return v;
 }
@@ -338,6 +339,19 @@ struct stmt *stmt_from_vardecl(struct clist *varlist,
   var_foreach(var, varlist) {
     var_set_type(var, type);
   }
+  return stmt;
+}
+
+struct stmt *stmt_from_funcdecl(char *id, struct clist *plist,
+                                struct clist *rlist, struct clist *body)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = FUNCDECL_KIND;
+  stmt->v.funcdecl.id    = id;
+  stmt->v.funcdecl.plist = plist;
+  stmt->v.funcdecl.rlist = rlist;
+  stmt->v.funcdecl.body  = body;
+  init_list_head(&stmt->link);
   return stmt;
 }
 
@@ -401,8 +415,12 @@ struct mod *new_mod(struct clist *imports, struct clist *stmts)
 
 void type_traverse(struct type *type)
 {
-  printf("type_kind:%d\n", type->kind);
-  printf("type_dims:%d\n", type->dims);
+  if (type != NULL) {
+    printf("type_kind:%d\n", type->kind);
+    printf("type_dims:%d\n", type->dims);
+  } else {
+    printf("no type declared\n");
+  }
 }
 
 void array_tail_traverse(struct array_tail *tail)
@@ -502,6 +520,10 @@ void atom_traverse(struct atom *atom)
       array_traverse(atom);
       break;
     }
+    case ANONYOUS_FUNC_KIND: {
+      printf("[anonymous function]\n");
+      break;
+    }
     case ATTRIBUTE_KIND: {
       atom_traverse(atom->v.attribute.atom);
       printf("[attribute]\n");
@@ -525,10 +547,7 @@ void atom_traverse(struct atom *atom)
       }
       break;
     }
-    case INTF_IMPL_KIND: {
-      printf("[anonymous interface impl]\n");
-      break;
-    }
+    case INTF_IMPL_KIND:
     default: {
       printf("[ERROR] unknown atom kind :%d\n", atom->kind);
       assert(0);
@@ -601,6 +620,10 @@ void stmt_traverse(struct stmt *stmt)
       vardecl_traverse(stmt);
       break;
     }
+    case FUNCDECL_KIND: {
+      printf("[functin decl]\n");
+      break;
+    }
     case ASSIGN_KIND: {
       printf("[assignment list]\n");
       struct expr *expr;
@@ -620,6 +643,7 @@ void stmt_traverse(struct stmt *stmt)
       break;
     }
     default:{
+      printf("[ERROR] unknown stmt kind :%d\n", stmt->kind);
       assert(0);
     }
   }

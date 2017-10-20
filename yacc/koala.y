@@ -164,6 +164,8 @@ int yylex(void);
 %type <list> Block
 %type <list> LocalStatements
 %type <stmt> ReturnStatement
+%type <stmt> FunctionDeclaration
+%type <stmt> TypeDeclaration
 
 %start CompileModule
 
@@ -342,10 +344,10 @@ ModuleStatement
     $$ = $1;
   }
   | FunctionDeclaration {
-    $$ = NULL;
+    $$ = $1;
   }
   | TypeDeclaration {
-    $$ = NULL;
+    $$ = $1;
   }
   ;
 
@@ -440,9 +442,10 @@ VariableInitializerList
 
 FunctionDeclaration
   : FUNC ID '(' ParameterListOrEmpty ')' Block {
+    $$ = stmt_from_funcdecl($2, $4, NULL, $6);
   }
   | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-
+    $$ = stmt_from_funcdecl($2, $4, $6, $7);
   }
   ;
 
@@ -495,6 +498,11 @@ FieldDeclaration
   : VAR ID Type ';' {
   }
   | ID Type ';' {
+  }
+  | VAR ID Type '=' Expression ';' {
+
+  } ID Type '=' Expression ';' {
+
   }
   ;
 

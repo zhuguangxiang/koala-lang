@@ -16,6 +16,11 @@ func(a int, b int) int {
   return a + b;
 };
 
+# function test
+func string_to_int(str string) int {
+  return str.ToString();
+}
+
 # array test
 var a []int = []int{12,3};
 var b = [2]int;
