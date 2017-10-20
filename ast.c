@@ -405,6 +405,73 @@ struct stmt *stmt_from_empty(void)
   return stmt;
 }
 
+struct stmt *stmt_from_structure(char *id, struct clist *list)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = STRUCT_KIND;
+  stmt->v.structure.id   = id;
+  stmt->v.structure.list = list;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_interface(char *id, struct clist *list)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = INTF_KIND;
+  stmt->v.structure.id   = id;
+  stmt->v.structure.list = list;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_typedef(char *id, struct type *type)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = TYPEDEF_KIND;
+  stmt->v.user_typedef.id   = id;
+  stmt->v.user_typedef.type = type;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct member *new_structure_vardecl(char *id, struct type *t, struct expr *e)
+{
+  struct member *member = malloc(sizeof(*member));
+  member->id   = id;
+  member->kind = FIELD_KIND;
+  member->v.field.type = t;
+  member->v.field.expr = e;
+  init_list_head(&member->link);
+  return member;
+}
+
+struct member *new_structure_funcdecl(char *id, struct clist *plist,
+                                      struct clist *rlist,
+                                      struct clist *body)
+{
+  struct member *member = malloc(sizeof(*member));
+  member->id   = id;
+  member->kind = METHOD_KIND;
+  member->v.method.plist = plist;
+  member->v.method.rlist = rlist;
+  member->v.method.body  = body;
+  init_list_head(&member->link);
+  return member;
+}
+
+struct member *new_interface_funcdecl(char *id, struct clist *tlist,
+                                      struct clist *rlist)
+{
+  struct member *member = malloc(sizeof(*member));
+  member->id   = id;
+  member->kind = INTF_FUNCDECL_KIND;
+  member->v.intf_funcdecl.tlist = tlist;
+  member->v.intf_funcdecl.rlist = rlist;
+  init_list_head(&member->link);
+  return member;
+}
+
 struct mod *new_mod(struct clist *imports, struct clist *stmts)
 {
   struct mod *mod = malloc(sizeof(*mod));
@@ -621,7 +688,7 @@ void stmt_traverse(struct stmt *stmt)
       break;
     }
     case FUNCDECL_KIND: {
-      printf("[functin decl]\n");
+      printf("[functin decl]:%s\n", stmt->v.funcdecl.id);
       break;
     }
     case ASSIGN_KIND: {
@@ -640,6 +707,18 @@ void stmt_traverse(struct stmt *stmt)
       printf("[compound assignment]:%d\n", stmt->v.compound_assign.op);
       expr_traverse(stmt->v.compound_assign.left);
       expr_traverse(stmt->v.compound_assign.right);
+      break;
+    }
+    case STRUCT_KIND: {
+      printf("[structure]:%s\n", stmt->v.structure.id);
+      break;
+    }
+    case INTF_KIND: {
+      printf("[interface]:%s\n", stmt->v.structure.id);
+      break;
+    }
+    case TYPEDEF_KIND: {
+      printf("[typedef]:%s\n", stmt->v.user_typedef.id);
       break;
     }
     default:{

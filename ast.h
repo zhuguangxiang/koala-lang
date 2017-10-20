@@ -254,13 +254,12 @@ struct stmt {
       struct expr *right;
     } compound_assign;
     struct {
-
+      char *id;
+      struct clist *list;
     } structure;
     struct {
-
-    } interface;
-    struct {
-
+      char *id;
+      struct type *type;
     } user_typedef;
     struct clist *seq;
     struct {
@@ -295,7 +294,41 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 struct stmt *stmt_from_seq(struct clist *list);
 struct stmt *stmt_from_return(struct clist *list);
 struct stmt *stmt_from_empty(void);
+struct stmt *stmt_from_structure(char *id, struct clist *list);
+struct stmt *stmt_from_interface(char *id, struct clist *list);
+struct stmt *stmt_from_typedef(char *id, struct type *type);
 
+enum member_kind {
+  FIELD_KIND = 1, METHOD_KIND = 2, INTF_FUNCDECL_KIND = 3,
+};
+
+struct member {
+  enum member_kind kind;
+  char *id;
+  union {
+    struct {
+      struct type *type;
+      struct expr *expr;
+    } field;
+    struct {
+      struct clist *plist;
+      struct clist *rlist;
+      struct clist *body;
+    } method;
+    struct {
+      struct clist *tlist;
+      struct clist *rlist;
+    } intf_funcdecl;
+  } v;
+  struct list_head link;
+};
+
+struct member *new_structure_vardecl(char *id, struct type *t, struct expr *e);
+struct member *new_structure_funcdecl(char *id, struct clist *plist,
+                                      struct clist *rlist,
+                                      struct clist *body);
+struct member *new_interface_funcdecl(char *id, struct clist *tlist,
+                                      struct clist *rlist);
 struct mod {
   struct clist *imports;
   struct clist *stmts;

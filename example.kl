@@ -21,6 +21,33 @@ func string_to_int(str string) int {
   return str.ToString();
 }
 
+# struct define test
+struct Person {
+  name string = "zhuguangxiang";
+  age  int = 30;
+  func __init__(name string, age int) {
+    self.name = name;
+    self.age  = age;
+  }
+
+  func hash() int {
+    return age.hash();
+  }
+
+  func compare(p Person) bool {
+    return 1, 2 + 3, false;
+  }
+}
+
+# interface define test
+interface Hello {
+  func SayHello(string, int) string;
+  func SayBy(string);
+}
+
+# typedef test
+typedef myHello Hello;
+
 # array test
 var a []int = []int{12,3};
 var b = [2]int;

@@ -27,6 +27,7 @@ int yylex(void);
   struct type *type;
   struct array_tail *array_tail;
   int assign_op;
+  struct member *member;
 }
 
 %token ELLIPSIS
@@ -166,6 +167,12 @@ int yylex(void);
 %type <stmt> ReturnStatement
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
+%type <list> MemberDeclarations
+%type <list> InterfaceFunctionDeclarations
+%type <member> MemberDeclaration
+%type <member> FieldDeclaration
+%type <member> MethodDeclaration
+%type <member> InterfaceFunctionDeclaration
 
 %start CompileModule
 
@@ -473,61 +480,89 @@ ParameterListOrEmpty
 
 TypeDeclaration
   : STRUCT ID '{' MemberDeclarations '}' {
+    $$ = stmt_from_structure($2, $4);
   }
   | INTERFACE ID '{' InterfaceFunctionDeclarations '}' {
+    $$ = stmt_from_interface($2, $4);
   }
   | TYPEDEF ID Type ';' {
+    $$ = stmt_from_typedef($2, $3);
   }
   ;
 
 MemberDeclarations
   : MemberDeclaration {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
   }
   | MemberDeclarations MemberDeclaration {
+    clist_add_tail(&($2)->link, $1);
+    $$ = $1;
   }
   ;
 
 MemberDeclaration
   : FieldDeclaration {
+    $$ = $1;
   }
   | MethodDeclaration {
+    $$ = $1;
   }
   ;
 
 FieldDeclaration
   : VAR ID Type ';' {
+    $$ = new_structure_vardecl($2, $3, NULL);
   }
   | ID Type ';' {
+    $$ = new_structure_vardecl($1, $2, NULL);
   }
   | VAR ID Type '=' Expression ';' {
-
-  } ID Type '=' Expression ';' {
-
+    $$ = new_structure_vardecl($2, $3, $5);
+  }
+  | ID Type '=' Expression ';' {
+    $$ = new_structure_vardecl($1, $2, $4);
   }
   ;
 
 MethodDeclaration
-  : FUNC ID '(' ParameterListOrEmpty ')' Block
-  | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block
-  | ID '(' ParameterListOrEmpty ')' Block
-  | ID '(' ParameterListOrEmpty ')' ReturnTypeList Block
+  : FUNC ID '(' ParameterListOrEmpty ')' Block {
+    $$ = new_structure_funcdecl($2, $4, NULL, $6);
+  }
+  | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
+    $$ = new_structure_funcdecl($2, $4, $6, $7);
+  }
+  | ID '(' ParameterListOrEmpty ')' Block {
+    $$ = new_structure_funcdecl($1, $3, NULL, $5);
+  }
+  | ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
+    $$ = new_structure_funcdecl($1, $3, $5, $6);
+  }
   ;
 
 InterfaceFunctionDeclarations
   : InterfaceFunctionDeclaration ';' {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
   }
   | InterfaceFunctionDeclarations InterfaceFunctionDeclaration ';' {
+    clist_add_tail(&($2)->link, $1);
+    $$ = $1;
   }
   ;
 
 InterfaceFunctionDeclaration
   : FUNC ID '(' TypeNameListOrEmpty ')' ReturnTypeList {
+    $$ = new_interface_funcdecl($2, $4, $6);
   }
   | FUNC ID '(' TypeNameListOrEmpty ')' {
+    $$ = new_interface_funcdecl($2, $4, NULL);
   }
   | ID '(' TypeNameListOrEmpty ')' ReturnTypeList {
+    $$ = new_interface_funcdecl($1, $3, $5);
   }
   | ID '(' TypeNameListOrEmpty ')' {
+    $$ = new_interface_funcdecl($1, $3, NULL);
   }
   ;
 
