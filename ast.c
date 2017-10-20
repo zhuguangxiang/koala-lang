@@ -227,7 +227,7 @@ struct atom *atom_from_anonymous_func(struct clist *plist,
 struct expr *expr_from_atom_trailers(struct clist *list, struct atom *atom)
 {
   struct atom *trailer, *temp;
-  atom_foreach_safe(trailer, list, temp) {
+  clist_foreach_safe(trailer, list, temp) {
     clist_del(&trailer->link, list);
     trailer_set_left_atom(trailer, atom);
     atom = trailer;
@@ -336,7 +336,7 @@ struct stmt *stmt_from_vardecl(struct clist *varlist,
   stmt->v.vardecl.expr_list = initlist;
   init_list_head(&stmt->link);
   struct var *var;
-  var_foreach(var, varlist) {
+  clist_foreach(var, varlist) {
     var_set_type(var, type);
   }
   return stmt;
@@ -443,6 +443,38 @@ struct stmt *stmt_from_jump(int kind)
   return stmt;
 }
 
+struct stmt *stmt_from_if(struct if_expr *if_part, struct clist *elseif_list,
+                          struct if_expr *else_part)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = IF_KIND;
+  stmt->v.if_stmt.if_part = if_part;
+  stmt->v.if_stmt.elseif_list = elseif_list;
+  stmt->v.if_stmt.else_part = else_part;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct if_expr *new_if_expr(struct expr *test, struct clist *body)
+{
+  struct if_expr *expr = malloc(sizeof(*expr));
+  expr->test = test;
+  expr->body = body;
+  init_list_head(&expr->link);
+  return expr;
+}
+
+struct stmt *stmt_from_while(struct expr *test, struct clist *body, int b)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = WHILE_KIND;
+  stmt->v.while_stmt.btest = b;
+  stmt->v.while_stmt.test  = test;
+  stmt->v.while_stmt.body  = body;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
 struct member *new_structure_vardecl(char *id, struct type *t, struct expr *e)
 {
   struct member *member = malloc(sizeof(*member));
@@ -505,7 +537,7 @@ void array_tail_traverse(struct array_tail *tail)
     assert(!tail->expr);
     int count = 0;
     struct array_tail *t;
-    array_tail_foreach(t, tail->list) {
+    clist_foreach(t, tail->list) {
       count++;
       array_tail_traverse(t);
     }
@@ -525,7 +557,7 @@ void array_traverse(struct atom *atom)
     printf("array tail list, length:%d\n", atom->v.array.tail_list->count);
     int count = 0;
     struct array_tail *tail;
-    array_tail_foreach(tail, atom->v.array.tail_list) {
+    clist_foreach(tail, atom->v.array.tail_list) {
       count++;
       printf("start subarray\n");
       array_tail_traverse(tail);
@@ -617,7 +649,7 @@ void atom_traverse(struct atom *atom)
       printf("[func call]\n");
       printf("paras:\n");
       struct expr *expr;
-      expr_foreach(expr, atom->v.call.list) {
+      clist_foreach(expr, atom->v.call.list) {
         expr_traverse(expr);
       }
       break;
@@ -663,18 +695,64 @@ void vardecl_traverse(struct stmt *stmt)
          stmt->v.vardecl.bconst ? "true" : "false");
   printf("variables name:\n");
   struct var *var;
-  var_foreach(var, stmt->v.vardecl.var_list) {
+  clist_foreach(var, stmt->v.vardecl.var_list) {
     printf("%s ", var->id);
     type_traverse(var->type);
   }
   putchar('\n');
 
   struct expr *expr;
-  expr_foreach(expr, stmt->v.vardecl.expr_list) {
+  clist_foreach(expr, stmt->v.vardecl.expr_list) {
     expr_traverse(expr);
   }
 
   printf("end variable declaration\n");
+}
+
+void stmt_traverse(struct stmt *stmt);
+
+void ifexpr_traverse(struct if_expr *ifexpr)
+{
+  if (ifexpr == NULL) return;
+
+  if (ifexpr->test != NULL) {
+    printf("test part:\n");
+    expr_traverse(ifexpr->test);
+  }
+
+  if (ifexpr->body != NULL) {
+    printf("body part:\n");
+    struct stmt *pos;
+    clist_foreach(pos, ifexpr->body) {
+      stmt_traverse(pos);
+    }
+  }
+}
+
+void ifstmt_traverse(struct stmt *ifstmt)
+{
+  printf("if-condition:\n");
+  ifexpr_traverse(ifstmt->v.if_stmt.if_part);
+  printf("else-if-list:\n");
+  struct if_expr *pos;
+  clist_foreach(pos, ifstmt->v.if_stmt.elseif_list) {
+    ifexpr_traverse(pos);
+  }
+  printf("else:\n");
+  ifexpr_traverse(ifstmt->v.if_stmt.else_part);
+  printf("end of if statement\n");
+}
+
+void whilestmt_traverse(struct stmt *whilestmt)
+{
+  printf("while condition: first test ? %d\n", whilestmt->v.while_stmt.btest);
+  expr_traverse(whilestmt->v.while_stmt.test);
+  printf("while body:\n");
+  struct stmt *pos;
+  clist_foreach(pos, whilestmt->v.while_stmt.body) {
+    stmt_traverse(pos);
+  }
+  printf("end of while statement\n");
 }
 
 void stmt_traverse(struct stmt *stmt)
@@ -702,11 +780,11 @@ void stmt_traverse(struct stmt *stmt)
     case ASSIGN_KIND: {
       printf("[assignment list]\n");
       struct expr *expr;
-      expr_foreach(expr, stmt->v.assign.left_list) {
+      clist_foreach(expr, stmt->v.assign.left_list) {
         expr_traverse(expr);
       }
 
-      expr_foreach(expr, stmt->v.assign.right_list) {
+      clist_foreach(expr, stmt->v.assign.right_list) {
         expr_traverse(expr);
       }
       break;
@@ -729,6 +807,24 @@ void stmt_traverse(struct stmt *stmt)
       printf("[typedef]:%s\n", stmt->v.user_typedef.id);
       break;
     }
+    case IF_KIND: {
+      printf("[if statement]\n");
+      ifstmt_traverse(stmt);
+      break;
+    }
+    case WHILE_KIND: {
+      printf("[while statement]\n");
+      whilestmt_traverse(stmt);
+      break;
+    }
+    case BREAK_KIND: {
+      printf("[break statement]\n");
+      break;
+    }
+    case CONTINUE_KIND: {
+      printf("[continue statement]\n");
+      break;
+    }
     default:{
       printf("[ERROR] unknown stmt kind :%d\n", stmt->kind);
       assert(0);
@@ -739,10 +835,10 @@ void stmt_traverse(struct stmt *stmt)
 void mod_traverse(struct mod *mod)
 {
   struct stmt *stmt;
-  stmt_foreach(stmt, mod->imports) {
+  clist_foreach(stmt, mod->imports) {
     stmt_traverse(stmt);
   }
-  stmt_foreach(stmt, mod->stmts) {
+  clist_foreach(stmt, mod->stmts) {
     stmt_traverse(stmt);
   }
 }

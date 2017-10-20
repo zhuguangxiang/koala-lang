@@ -42,7 +42,7 @@ struct Person {
 # interface define test
 interface Hello {
   func SayHello(string, int) string;
-  func SayBy(string);
+  func SayBye(string);
 }
 
 # typedef test
@@ -99,9 +99,29 @@ a9 >>= 9;
 a10 <<= 10;
 
 # if statement test
-# if (2 > 3) {
-#   io.Print("2 > 3");
-# }
+if (2 > 3 && 4 < 5) {
+  io.Print("2 > 3");
+} else if (a <= b) {
+
+} else {
+  Print("bye");
+}
+
+# while statement test
+while (2 > 3) {
+  io.Print("while test");
+}
+
+do {
+  io.Print("do-while test");
+} while (a <= b);
+
+while (a > 3) {
+  if (a == 10) {
+    break;
+  }
+  a += 1;
+}
 /*
 1. Uses "koala/io" to replace "io"
 2. Symbols:

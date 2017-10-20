@@ -28,6 +28,7 @@ int yylex(void);
   struct array_tail *array_tail;
   int assign_op;
   struct member *member;
+  struct if_expr *ifexpr;
 }
 
 %token ELLIPSIS
@@ -162,6 +163,10 @@ int yylex(void);
 %type <stmt> VariableDeclaration
 %type <stmt> Assignment
 %type <stmt> IfStatement
+%type <list> ElseIfStatements
+%type <ifexpr> ElseIfStatement
+%type <ifexpr> OptionELSE
+%type <stmt> WhileStatement
 %type <list> Block
 %type <list> LocalStatements
 %type <stmt> ReturnStatement
@@ -373,10 +378,10 @@ Statement
     $$ = $1;
   }
   | IfStatement {
-    $$ = NULL;
+    $$ = $1;
   }
   | WhileStatement {
-    $$ = NULL;
+    $$ = $1;
   }
   /*
   | SwitchStatement {
@@ -593,31 +598,51 @@ LocalStatements
 
 IfStatement
   : IF '(' Expression ')' Block OptionELSE {
-    $$ = NULL;
+    $$ = stmt_from_if(new_if_expr($3, $5), NULL, $6);
   }
   | IF '(' Expression ')' Block ElseIfStatements OptionELSE {
-    $$ = NULL;
+    $$ = stmt_from_if(new_if_expr($3, $5), $6, $7);
   }
   ;
 
 ElseIfStatements
-  : ElseIfStatement
-  | ElseIfStatements ElseIfStatement
+  : ElseIfStatement {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
+  }
+  | ElseIfStatements ElseIfStatement {
+    clist_add_tail(&($2)->link, $1);
+    $$ = $1;
+  }
   ;
 
 ElseIfStatement
-  : ELSE IF '(' Expression ')' Block
+  : ELSE IF '(' Expression ')' Block {
+    $$ = new_if_expr($4, $6);
+  }
   ;
 
 OptionELSE
-  : ELSE Block
-  | %empty
+  : ELSE Block {
+    $$ = new_if_expr(NULL, $2);
+  }
+  | %empty {
+    $$ = NULL;
+  }
   ;
 
+/*--------------------------------------------------------------------------*/
+
 WhileStatement
-  : WHILE '(' Expression ')' Block
-  | DO Block WHILE '(' Expression ')' ';'
+  : WHILE '(' Expression ')' Block {
+    $$ = stmt_from_while($3, $5, 0);
+  }
+  | DO Block WHILE '(' Expression ')' ';' {
+    $$ = stmt_from_while($5, $2, 1);
+  }
   ;
+
+/*--------------------------------------------------------------------------*/
 
 /*
 SwitchStatement
@@ -628,7 +653,11 @@ CaseStatement
   : CASE Expression ':' Block
   | DEFAULT ':' Block
   ;
+*/
 
+/*--------------------------------------------------------------------------*/
+
+/*
 ForStatement
   : FOR '(' ForInit ForExpr ForIncr ')' Block
   //| FOR '(' ID IN ')'

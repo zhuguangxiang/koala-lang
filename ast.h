@@ -31,11 +31,11 @@ void free_clist(struct clist *list);
 #define clist_empty(list) \
   (list_empty(&(list)->head) && ((list)->count == 0))
 
-#define clist_foreach(pos, list, member) \
-  list_for_each_entry(pos, &(list)->head, member)
+#define clist_foreach(pos, list) \
+  if ((list) != NULL) list_for_each_entry(pos, &(list)->head, link)
 
-#define clist_foreach_safe(pos, temp, list, member) \
-  list_for_each_entry_safe(pos, temp, &(list)->head, member)
+#define clist_foreach_safe(pos, list, tmp) \
+  if ((list) != NULL) list_for_each_entry_safe(pos, tmp, &(list)->head, link)
 
 /*-------------------------------------------------------------------------*/
 
@@ -72,9 +72,6 @@ struct array_tail {
   struct clist *list;
   struct expr *expr;
 };
-
-#define array_tail_foreach(pos, list) \
-  if ((list) != NULL) clist_foreach(pos, list, link)
 
 struct array_tail *array_tail_from_expr(struct expr *expr);
 struct array_tail *array_tail_from_list(struct clist *list);
@@ -131,9 +128,6 @@ struct atom {
   struct list_head link;
 };
 
-#define atom_foreach_safe(pos, head, temp) \
-  clist_foreach_safe(pos, temp, head, link)
-
 enum unary_op_kind {
   OP_PLUS = 1, OP_MINUS = 2, OP_BIT_NOT = 3, OP_LNOT = 4
 };
@@ -172,9 +166,6 @@ struct expr {
   struct list_head link;
 };
 
-#define expr_foreach(pos, list) \
-  if ((list) != NULL) clist_foreach(pos, list, link)
-
 struct atom *trailer_from_attribute(char *id);
 struct atom *trailer_from_subscript(struct expr *idx);
 struct atom *trailer_from_call(struct clist *para);
@@ -208,8 +199,14 @@ struct var {
 struct var *new_var(char *id);
 struct var *new_var_with_type(char *id, struct type *type);
 #define var_set_type(v, t) ((v)->type = (t))
-#define var_foreach(pos, list) \
-  if ((list) != NULL) clist_foreach(pos, list, link)
+
+struct if_expr {
+  struct expr *test;
+  struct clist *body;
+  struct list_head link;
+};
+
+struct if_expr *new_if_expr(struct expr *test, struct clist *body);
 
 enum assign_operator {
   OP_PLUS_ASSIGN = 1, OP_MINUS_ASSIGN = 2,
@@ -221,8 +218,8 @@ enum assign_operator {
 enum stmt_kind {
   EMPTY_KIND = 1, IMPORT_KIND = 2, EXPR_KIND = 3, VARDECL_KIND = 4,
   FUNCDECL_KIND = 5, ASSIGN_KIND = 6, COMPOUND_ASSIGN_KIND = 7,
-  STRUCT_KIND, INTF_KIND, TYPEDEF_KIND, SEQ_KIND,
-  RETURN_KIND, IF_KIND, BREAK_KIND, CONTINUE_KIND,
+  STRUCT_KIND = 8, INTF_KIND = 9, TYPEDEF_KIND = 10, SEQ_KIND = 11,
+  RETURN_KIND, IF_KIND, WHILE_KIND, BREAK_KIND, CONTINUE_KIND,
 };
 
 struct stmt {
@@ -263,9 +260,9 @@ struct stmt {
     } user_typedef;
     struct clist *seq;
     struct {
-      struct expr *test;
-      struct clist *body;
-      struct clist *else_body;
+      struct if_expr *if_part;
+      struct clist *elseif_list;
+      struct if_expr *else_part;
     } if_stmt;
     struct {
       int btest;
@@ -275,9 +272,6 @@ struct stmt {
   } v;
   struct list_head link;
 };
-
-#define stmt_foreach(stmt, list) \
-  if ((list) != NULL) clist_foreach(stmt, list, link)
 
 struct stmt *stmt_from_expr(struct expr *expr);
 struct stmt *stmt_from_import(char *alias, char *path);
@@ -298,6 +292,9 @@ struct stmt *stmt_from_structure(char *id, struct clist *list);
 struct stmt *stmt_from_interface(char *id, struct clist *list);
 struct stmt *stmt_from_typedef(char *id, struct type *type);
 struct stmt *stmt_from_jump(int kind);
+struct stmt *stmt_from_if(struct if_expr *if_part, struct clist *elseif_list,
+                          struct if_expr *else_part);
+struct stmt *stmt_from_while(struct expr *test, struct clist *body, int b);
 
 enum member_kind {
   FIELD_KIND = 1, METHOD_KIND = 2, INTF_FUNCDECL_KIND = 3,

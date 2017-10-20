@@ -141,7 +141,7 @@ static int compiler_atom(struct compiler *cp, struct atom *atom)
       if (res) return res;
 
       struct expr *expr;
-      expr_foreach(expr, atom->v.call.list) {
+      clist_foreach(expr, atom->v.call.list) {
         compiler_expr(cp, expr);
       }
       assert(OB_KLASS(cp->obj) == &method_klass);
@@ -213,14 +213,14 @@ int compiler_module(struct mod *mod)
    * handle imports
    */
   struct stmt *stmt;
-  stmt_foreach(stmt, mod->imports) {
+  clist_foreach(stmt, mod->imports) {
     compiler_stmt(&c, stmt);
   }
 
   /**
    * handle statements
    */
-  stmt_foreach(stmt, mod->stmts) {
+  clist_foreach(stmt, mod->stmts) {
     compiler_stmt(&c, stmt);
   }
 
