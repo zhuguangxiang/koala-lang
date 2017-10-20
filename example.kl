@@ -5,6 +5,17 @@ import sys "koala/sys";
 import "koala/lang";
 import "util";
 
+# function type test
+var a func(int, int) int;
+var b func(int, int) int = func(a int, b int) int {
+  return a + b;
+};
+
+# anonymous function test
+func(a int, b int) int {
+  return a + b;
+};
+
 # array test
 var a []int = []int{12,3};
 var b = [2]int;
@@ -56,9 +67,9 @@ a9 >>= 9;
 a10 <<= 10;
 
 # if statement test
-if (2 > 3) {
-  io.Print("2 > 3");
-}
+# if (2 > 3) {
+#   io.Print("2 > 3");
+# }
 /*
 1. Uses "koala/io" to replace "io"
 2. Symbols:

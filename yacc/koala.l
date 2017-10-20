@@ -54,7 +54,7 @@ L   [a-zA-Z_]
 "return"                  {return RETURN;}
 "struct"                  {return STRUCT;}
 "interface"               {return INTERFACE;}
-"type"                    {return TYPE;}
+"typedef"                 {return TYPEDEF;}
 "const"                   {return CONST;}
 "import"                  {return IMPORT;}
 "as"                      {return AS;}

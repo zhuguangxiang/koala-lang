@@ -51,12 +51,18 @@ struct type {
       char *mod_name;
       char *type_name;
     } userdef;
+    struct {
+      struct clist *tlist;
+      struct clist *rlist;
+    } functype;
   } v;
   int dims;
+  struct list_head link;
 };
 
 struct type *type_from_primitive(int primitive);
 struct type *type_from_userdef(char *mod_name, char *type_name);
+struct type *type_from_functype(struct clist *tlist, struct clist *rlist);
 #define type_set_dims(type, dims_val) ((type)->dims = (dims_val))
 #define type_inc_dims(type, dims_val) ((type)->dims += (dims_val))
 
@@ -76,7 +82,7 @@ struct array_tail *array_tail_from_list(struct clist *list);
 enum atom_kind {
   NAME_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, STRING_KIND = 4, BOOL_KIND = 5,
   SELF_KIND = 6, NULL_KIND = 7, EXP_KIND = 8, NEW_PRIMITIVE_KIND = 9,
-  ARRAY_KIND,
+  ARRAY_KIND, ANONYOUS_FUNC_KIND,
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, INTF_IMPL_KIND
 };
 
@@ -98,6 +104,11 @@ struct atom {
       struct clist *dim_list;
       struct clist *tail_list;
     } array;
+    struct {
+      struct clist *plist;
+      struct clist *rlist;
+      struct clist *body;
+    } anonyous_func;
     /* Trailer */
     struct {
       struct atom *atom;
@@ -176,6 +187,9 @@ struct atom *atom_from_self(void);
 struct atom *atom_from_expr(struct expr *exp);
 struct atom *atom_from_null(void);
 struct atom *atom_from_array(struct type *type, int tail, struct clist *list);
+struct atom *atom_from_anonymous_func(struct clist *plist,
+                                      struct clist *rlist,
+                                      struct clist *body);
 
 struct expr *expr_from_atom_trailers(struct clist *list, struct atom *atom);
 struct expr *expr_from_atom(struct atom *atom);
@@ -188,9 +202,12 @@ void expr_traverse(struct expr *exp);
 struct var {
   struct list_head link;
   char *id;
+  struct type *type;
 };
 
 struct var *new_var(char *id);
+struct var *new_var_with_type(char *id, struct type *type);
+#define var_set_type(v, t) ((v)->type = (t))
 #define var_foreach(pos, list) \
   if ((list) != NULL) clist_foreach(pos, list, link)
 
@@ -202,8 +219,9 @@ enum assign_operator {
 };
 
 enum stmt_kind {
-  IMPORT_KIND = 1, EXPR_KIND = 2, VARDECL_KIND = 3, TYPEDECL_KIND = 4,
-  FUNCDECL_KIND = 5, ASSIGN_KIND = 6, COMPOUND_ASSIGN_KIND = 7,
+  EMPTY_KIND = 1, IMPORT_KIND = 2, EXPR_KIND = 3, VARDECL_KIND = 4,
+  TYPEDECL_KIND = 5, FUNCDECL_KIND = 6, ASSIGN_KIND = 7,
+  COMPOUND_ASSIGN_KIND = 8, SEQ_KIND, RETURN_KIND, IF_KIND
 };
 
 struct stmt {
@@ -216,7 +234,6 @@ struct stmt {
     struct expr *expr;
     struct {
       int bconst;
-      struct type *type;
       struct clist *var_list;
       struct clist *expr_list;
     } vardecl;
@@ -229,6 +246,17 @@ struct stmt {
       enum assign_operator op;
       struct expr *right;
     } compound_assign;
+    struct clist *seq;
+    struct {
+      struct expr *test;
+      struct clist *body;
+      struct clist *else_body;
+    } if_stmt;
+    struct {
+      int btest;
+      struct expr *test;
+      struct clist *body;
+    } while_stmt;
   } v;
   struct list_head link;
 };
@@ -246,6 +274,9 @@ struct stmt *stmt_from_assign(struct clist *left_list,
 struct stmt *stmt_from_compound_assign(struct expr *left,
                                        enum assign_operator op,
                                        struct expr *right);
+struct stmt *stmt_from_seq(struct clist *list);
+struct stmt *stmt_from_return(struct clist *list);
+struct stmt *stmt_from_empty(void);
 
 struct mod {
   struct clist *imports;

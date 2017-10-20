@@ -27,43 +27,6 @@ int yylex(void);
   struct type *type;
   struct array_tail *array_tail;
   int assign_op;
-  /*base_type_t base_type;*/
-  /*struct {
-    string mod_name;
-    string type_name;
-  } module_type;*/
-  /*
-  struct {
-    linked_list_t *parameter_type_list;
-    linked_list_t *return_type_list;
-  } func_type;
-  name_type_t *name_type;
-  type_t type;
-  linked_list_t *linked_list;
-  expr_t *expr;
-  term_t term;
-  trailer_t *trailer;
-  anonymous_function_t *anonymous;
-  array_object_t *array_object;
-  compound_op_t compound_op;
-  linked_list_t *member_declarations[2];
-  struct {
-    int type;
-    union {
-      variable_t *var;
-      function_t *func;
-    };
-  } member_declaration;
-  variable_t *variable;
-  function_t *function;
-  struct {
-    string name;
-    linked_list_t *parameter_list;
-    linked_list_t *parameter_type_list;
-    linked_list_t *return_type_list;
-  } method_header;
-  intf_func_proto_t *intf_func_proto;
-  */
 }
 
 %token ELLIPSIS
@@ -108,7 +71,7 @@ int yylex(void);
 %token RETURN
 %token STRUCT
 %token INTERFACE
-%token TYPE
+%token TYPEDEF
 %token CONST
 %token IMPORT
 %token AS
@@ -139,66 +102,27 @@ int yylex(void);
 
 /*--------------------------------------------------------------------------*/
 
-/*%nonassoc ELSE*/
 %precedence ID
 %precedence '.'
-
-/*
-
-%precedence ID
-%precedence '.'
-
 %precedence ')'
 %precedence '('
 
-%precedence FUNC*/
-
-/*%expect 2*/
-
 /*--------------------------------------------------------------------------*/
 
-/*%type <linked_list> TypeNameList*/
-
 %type <primitive> PrimitiveType
-/*%type <type> FunctionType*/
-%type <type> UserType
+%type <type> UserDefinedType
 %type <type> BaseType
 %type <type> Type
-
-/*
-%type <member_declarations> MemberDeclarations
-%type <member_declaration> MemberDeclaration
-%type <variable> FieldDeclaration
-%type <function> MethodDeclaration
-%type <method_header> MethodDeclarationHeader1
-%type <method_header> MethodDeclarationHeader2
-%type <intf_func_proto> InterfaceFunctionDeclaration
-
-%type <expr> VariableInitializer
-%type <linked_list> VariableInitializerList
-%type <linked_list> ArrayInitializerList
-
-
-%type <linked_list> VariableList
-%type <linked_list> ParameterList
-%type <linked_list> ReturnTypeList
-%type <linked_list> LocalVariableDeclsOrStatements
-%type <linked_list> FunctionDeclarationList
-%type <linked_list> InterfaceFunctionDeclarations
-
-%type <expr> CodeBlock
-%type <expr> LocalVariableDeclOrStatement
-%type <expr> Statement
-%type <expr> ExpressionStatement
-%type <expr> ReturnStatement*/
-
-/*%type <linked_list> PostfixExpressionList*/
-/*%type <expr> AssignmentExpression*/
-
-/*%type <expr>  SubscriptExpression*/
+%type <type> FunctionType
+%type <type> TypeName
+%type <list> TypeNameListOrEmpty
+%type <list> TypeNameList
+%type <list> ReturnTypeList
+%type <list> TypeList
+%type <list> ParameterList
+%type <list> ParameterListOrEmpty
 
 %type <assign_op> CompoundAssignOperator
-
 %type <list> VariableList
 %type <list> VariableInitializerList
 %type <list> ExpressionList
@@ -219,6 +143,7 @@ int yylex(void);
 %type <expr> PrimaryExpression
 %type <atom> Atom
 %type <atom> ArrayAtom
+%type <atom> AnonymousFunctionDeclaration
 %type <atom> Constant
 %type <atom> Trailer
 %type <list> TrailerList
@@ -226,33 +151,23 @@ int yylex(void);
 %type <list> ArrayTailList
 %type <array_tail> ArrayTail
 
-/*%type <anonymous> AnonymousFunctionDeclaration*/
-
 %type <list> Imports
-%type <list> Statements
+%type <list> ModuleStatements
 %type <stmt> Import
+%type <stmt> ModuleStatement
 %type <stmt> Statement
-%type <stmt> Declaration
+%type <stmt> VariableConstantDeclaration
 %type <stmt> ConstDeclaration
 %type <stmt> VariableDeclaration
 %type <stmt> Assignment
 %type <stmt> IfStatement
+%type <list> Block
+%type <list> LocalStatements
+%type <stmt> ReturnStatement
 
 %start CompileModule
 
 %%
-
-/*
-TypeNameList
-  : Type {
-    $$ = new_linked_list_data($1);
-  }
-  | TypeNameList ',' Type {
-    linked_list_add_tail($1, $3);
-    $$ = $1;
-  }
-  ;
-*/
 
 Type
   : BaseType {
@@ -268,13 +183,13 @@ BaseType
   : PrimitiveType {
     $$ = type_from_primitive($1);
   }
-  | UserType {
+  | UserDefinedType {
     $$ = $1;
   }
-  /*
+
   | FunctionType {
-    $$ = func_type($1.parameter_type_list, $1.return_type_list);
-  }*/
+    $$ = $1;
+  }
   ;
 
 PrimitiveType
@@ -301,56 +216,86 @@ PrimitiveType
   }
   ;
 
-UserType
-  /* type in local module */
+UserDefinedType
   : ID {
+    // type in local module
     $$ = type_from_userdef(NULL, $1);
   }
-  /* type in external module */
   | ID '.' ID {
+    // type in external module
     $$ = type_from_userdef($1, $3);
   }
   ;
-/*
+
 FunctionType
-  : FUNC '(' ')' ReturnTypeList {
-    $$.parameter_type_list = null;
-    $$.return_type_list = $4;
+  : FUNC '(' TypeNameListOrEmpty ')' ReturnTypeList {
+    $$ = type_from_functype($3, $5);
   }
-  | FUNC '(' ')' {
-    $$.parameter_type_list = null;
-    $$.return_type_list = null;
-    $$ = func_type(null, null);
+  | FUNC '(' TypeNameListOrEmpty ')' {
+    $$ = type_from_functype($3, NULL);
   }
-  | FUNC '(' TypeNameList ')' ReturnTypeList {
-    $$.parameter_type_list = $3;
-    $$.return_type_list = $5;
+  ;
+
+TypeNameListOrEmpty
+  : TypeNameList {
+    $$ = $1;
   }
-  | FUNC '(' TypeNameList ')' {
-    $$.parameter_type_list = $3;
-    $$.return_type_list = null;
+  | %empty {
+    $$ = NULL;
+  }
+  ;
+
+TypeNameList
+  : TypeName {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
+  }
+  | TypeNameList ',' TypeName {
+    clist_add_tail(&($3)->link, $1);
+    $$ = $1;
+  }
+  ;
+
+TypeName
+  : ID Type {
+    $$ = $2;
+  }
+  | Type {
+    $$ = $1;
   }
   ;
 
 ReturnTypeList
   : Type {
-    $$ = new_linked_list_data($1);
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
   }
-  | '(' TypeNameList ')' {
+  | '(' TypeList ')' {
     $$ = $2;
   }
   ;
-*/
+
+TypeList
+  : Type {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
+  }
+  | TypeList ',' Type {
+    clist_add_tail(&($3)->link, $1);
+    $$ = $1;
+  }
+  ;
+
 /*--------------------------------------------------------------------------*/
 CompileModule
-  : Imports Statements {;
+  : Imports ModuleStatements {;
     struct mod *mod = new_mod($1, $2);
     mod_traverse(mod);
     //compiler_module(mod);
   }
-  | Statements {
-    struct mod *mod = new_mod(NULL, $1);
-    mod_traverse(mod);
+  | ModuleStatements {
+    //struct mod *mod = new_mod(NULL, $1);
+    //mod_traverse(mod);
     //compiler_module(mod);
   }
   ;
@@ -375,8 +320,8 @@ Import
   }
   ;
 
-Statements
-  : Statement {
+ModuleStatements
+  : ModuleStatement {
     if ($1 != NULL) {
       $$ = new_clist();
       clist_add_tail(&($1)->link, $$);
@@ -384,61 +329,71 @@ Statements
       printf("[ERROR] Statement is NULL\n");
     }
   }
-  | Statements Statement {
-    assert($1 != NULL);
+  | ModuleStatements ModuleStatement {
+    assert($2 != NULL);
     clist_add_tail(&($2)->link, $1);
     $$ = $1;
   }
   ;
 
 /*--------------------------------------------------------------------------*/
+ModuleStatement
+  : Statement {
+    $$ = $1;
+  }
+  | FunctionDeclaration {
+    $$ = NULL;
+  }
+  | TypeDeclaration {
+    $$ = NULL;
+  }
+  ;
 
 Statement
-  : Expression ';' {
+  : ';' {
+    $$ = stmt_from_empty();
+  }
+  | Expression ';' {
     $$ = stmt_from_expr($1);
   }
-  | Declaration {
+  | VariableConstantDeclaration {
     $$ = $1;
   }
   | Assignment ';' {
     $$ = $1;
   }
   | IfStatement {
-    $$ = $1;
+    $$ = NULL;
+  }
+  | WhileStatement {
+    $$ = NULL;
   }
   /*
   | SwitchStatement {
 
   }
-  | WhileStatement {
-
-  }
-  | DoWhileStatement {
-
-  }
   | ForStatement {
 
   }
+  */
   | JumpStatement {
+    $$ = NULL;
   }
   | ReturnStatement {
     $$ = $1;
   }
-  */
-  | CodeBlock {
-    $$ = NULL;
+  | Block {
+    $$ = stmt_from_seq($1);
   }
   ;
 
-Declaration
+VariableConstantDeclaration
   : ConstDeclaration ';' {
     $$ = $1;
   }
   | VariableDeclaration ';' {
     $$ = $1;
   }
-  /*| TypeDeclaration
-  | FunctionDeclaration*/
   ;
 
 /*--------------------------------------------------------------------------*/
@@ -482,263 +437,142 @@ VariableInitializerList
   ;
 
 /*--------------------------------------------------------------------------*/
-/*
-TypeDeclaration
-  : TYPE ID STRUCT '{' MemberDeclarations '}' SemiOrEmpty {
-    //$$ = new_exp_type_struct($2, $5[0], $5[1]);
-    //free_linked_list($5[0]);
-    //free_linked_list($5[1]);
-  }
-  | TYPE ID INTERFACE '{' InterfaceFunctionDeclarations '}' SemiOrEmpty {
-    //$$ = new_exp_type_interface($2, $5);
-    //free_linked_list($5);
-  }
-  | TYPE ID Type SemiOrEmpty {
-    //$$ = new_exp_type_redef($2, $3);
-  }
-  ;
 
-MemberDeclarations
-  : MemberDeclaration {
-    $$[0] = new_linked_list();
-    $$[1] = new_linked_list();
-    if ($1.type == 1) {
-      linked_list_add_tail($$[0], $1.var);
-    } else {
-      linked_list_add_tail($$[1], $1.func);
-    }
+FunctionDeclaration
+  : FUNC ID '(' ParameterListOrEmpty ')' Block {
   }
-  | MemberDeclarations MemberDeclaration {
-    if ($2.type == 1) {
-      linked_list_add_tail($1[0], $2.var);
-    } else {
-      linked_list_add_tail($1[1], $2.func);
-    }
-    $$[0] = $1[0];
-    $$[1] = $1[1];
-  }
-  ;
+  | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
 
-MemberDeclaration
-  : FieldDeclaration {
-    $$.type = 1;
-    $$.var = $1;
-  }
-  | MethodDeclaration {
-    $$.type = 2;
-    $$.func = $1;
-  }
-  ;
-
-FieldDeclaration
-  : VAR ID Type ';' {
-    $$ = new_variable($2, $3);
-  }
-  | ID Type ';' {
-    $$ = new_variable($1, $2);
-  }
-  ;
-
-MethodDeclaration
-  : MethodDeclarationHeader1 CodeBlock {
-    $$ = new_method($1.name, $1.parameter_list, $1.return_type_list, $2);
-    if ($1.parameter_list != null)
-      free_linked_list($1.parameter_list);
-    if ($1.return_type_list != null)
-      free_linked_list($1.return_type_list);
-  }
-  ;
-
-MethodDeclarationHeader1
-  : FUNC ID '(' ')' ReturnTypeList {
-    $$.name = $2;
-    $$.parameter_list = null;
-    $$.return_type_list = $5;
-  }
-  | FUNC ID '(' ')' {
-    $$.name = $2;
-    $$.parameter_list = null;
-    $$.return_type_list = null;
-  }
-  | FUNC ID '(' ParameterList ')' ReturnTypeList {
-    $$.name = $2;
-    $$.parameter_list = $4;
-    $$.return_type_list = $6;
-  }
-  | FUNC ID '(' ParameterList ')' {
-    $$.name = $2;
-    $$.parameter_list = $4;
-    $$.return_type_list = null;
-  }
-  | ID '(' ')' ReturnTypeList {
-    $$.name = $1;
-    $$.parameter_list = null;
-    $$.return_type_list = $4;
-  }
-  | ID '(' ')' {
-    $$.name = $1;
-    $$.parameter_list = null;
-    $$.return_type_list = null;
-  }
-  | ID '(' ParameterList ')' ReturnTypeList {
-    $$.name = $1;
-    $$.parameter_list = $3;
-    $$.return_type_list = $5;
-  }
-  | ID '(' ParameterList ')' {
-    $$.name = $1;
-    $$.parameter_list = $3;
-    $$.return_type_list = null;
-  }
-  ;
-
-MethodDeclarationHeader2
-  : FUNC ID '(' TypeNameList ')' ReturnTypeList {
-    $$.name = $2;
-    $$.parameter_type_list = $4;
-    $$.return_type_list = $6;
-  }
-  | FUNC ID '(' TypeNameList ')' {
-    $$.name = $2;
-    $$.parameter_type_list = $4;
-    $$.return_type_list = null;
-  }
-  | ID '(' TypeNameList ')' ReturnTypeList {
-    $$.name = $1;
-    $$.parameter_type_list = $3;
-    $$.return_type_list = $5;
-  }
-  | ID '(' TypeNameList ')' {
-    $$.name = $1;
-    $$.parameter_type_list = $3;
-    $$.return_type_list = null;
   }
   ;
 
 ParameterList
   : ID Type {
-    $$ = new_linked_list();
-    linked_list_add_tail($$, new_variable($1, $2));
+    $$ = new_clist();
+    clist_add_tail(&new_var_with_type($1, $2)->link, $$);
   }
   | ParameterList ',' ID Type {
-    linked_list_add_tail($1, new_variable($3, $4));
+    clist_add_tail(&new_var_with_type($3, $4)->link, $1);
     $$ = $1;
   }
   ;
 
-InterfaceFunctionDeclarations
-  : InterfaceFunctionDeclaration {
-    $$ = new_linked_list();
-    linked_list_add_tail($$, $1);
-  }
-  | InterfaceFunctionDeclarations InterfaceFunctionDeclaration {
-    linked_list_add_tail($1, $2);
+ParameterListOrEmpty
+  : ParameterList {
     $$ = $1;
+  }
+  | %empty {
+    $$ = NULL;
+  }
+  ;
+
+/*--------------------------------------------------------------------------*/
+
+TypeDeclaration
+  : STRUCT ID '{' MemberDeclarations '}' {
+  }
+  | INTERFACE ID '{' InterfaceFunctionDeclarations '}' {
+  }
+  | TYPEDEF ID Type ';' {
+  }
+  ;
+
+MemberDeclarations
+  : MemberDeclaration {
+  }
+  | MemberDeclarations MemberDeclaration {
+  }
+  ;
+
+MemberDeclaration
+  : FieldDeclaration {
+  }
+  | MethodDeclaration {
+  }
+  ;
+
+FieldDeclaration
+  : VAR ID Type ';' {
+  }
+  | ID Type ';' {
+  }
+  ;
+
+MethodDeclaration
+  : FUNC ID '(' ParameterListOrEmpty ')' Block
+  | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block
+  | ID '(' ParameterListOrEmpty ')' Block
+  | ID '(' ParameterListOrEmpty ')' ReturnTypeList Block
+  ;
+
+InterfaceFunctionDeclarations
+  : InterfaceFunctionDeclaration ';' {
+  }
+  | InterfaceFunctionDeclarations InterfaceFunctionDeclaration ';' {
   }
   ;
 
 InterfaceFunctionDeclaration
-  : MethodDeclarationHeader1 ';' {
-    $$ = new_intf_func_proto($1.name,
-                             $1.parameter_list,
-                             null,
-                             $1.return_type_list);
-    free_linked_list($1.parameter_list);
-    free_linked_list($1.return_type_list);
+  : FUNC ID '(' TypeNameListOrEmpty ')' ReturnTypeList {
   }
-  | MethodDeclarationHeader2 ';' {
-    $$ = new_intf_func_proto($1.name,
-                             null,
-                             $1.parameter_type_list,
-                             $1.return_type_list);
-    free_linked_list($1.parameter_type_list);
-    free_linked_list($1.return_type_list);
+  | FUNC ID '(' TypeNameListOrEmpty ')' {
   }
-  ;
-*/
-/*--------------------------------------------------------------------------*/
-/*
-FunctionDeclaration
-  : FUNC ID '(' ')' ReturnTypeList CodeBlock {
-    $$ = new_exp_function($2, null, $5, $6);
-    free_linked_list($5);
+  | ID '(' TypeNameListOrEmpty ')' ReturnTypeList {
   }
-  | FUNC ID '(' ')' CodeBlock {
-    $$ = new_exp_function($2, null, null, $5);
-  }
-  | FUNC ID '(' ParameterList ')' ReturnTypeList CodeBlock {
-    $$ = new_exp_function($2, $4, $6, $7);
-    free_linked_list($4);
-    free_linked_list($6);
-  }
-  | FUNC ID '(' ParameterList ')' CodeBlock {
-    $$ = new_exp_function($2, $4, null, $6);
-    free_linked_list($4);
+  | ID '(' TypeNameListOrEmpty ')' {
   }
   ;
 
-AnonymousFunctionDeclaration
-  : FUNC '(' ')' ReturnTypeList CodeBlock {
-    $$ = new_anonymous_func(null, $4, $5);
-    free_linked_list($4);
-  }
-  | FUNC '(' ')' CodeBlock {
-    $$ = new_anonymous_func(null, null, $4);
-  }
-  | FUNC '(' ParameterList ')' ReturnTypeList CodeBlock {
-    $$ = new_anonymous_func($3, $5, $6);
-    free_linked_list($3);
-    free_linked_list($5);
-  }
-  | FUNC '(' ParameterList ')' CodeBlock {
-    $$ = new_anonymous_func($3, null, $5);
-    free_linked_list($3);
-  }
-  ;
-*/
 /*--------------------------------------------------------------------------*/
 
-CodeBlock
-  : '{' Statements '}' {
+Block
+  : '{' LocalStatements '}' {
+    $$ = $2;
   }
   | '{' '}' {
-
+    $$ = NULL;
   }
   ;
 
-/*
-LocalVariableDeclsOrStatements
-  : LocalVariableDeclOrStatement {
-    $$ = new_linked_list();
-    linked_list_add_tail($$, $1);
+LocalStatements
+  : Statement {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
   }
-  | LocalVariableDeclsOrStatements LocalVariableDeclOrStatement {
-    linked_list_add_tail($1, $2);
+  | LocalStatements Statement {
+    clist_add_tail(&($2)->link, $1);
     $$ = $1;
   }
   ;
 
-LocalVariableDeclOrStatement
-  : VariableDeclaration {
-    $$ = $1;
-  }
-  | Statement {
-    $$ = $1;
-  }
-  ;
-*/
 /*--------------------------------------------------------------------------*/
 
 IfStatement
-  : IF '(' Expression ')' CodeBlock {
+  : IF '(' Expression ')' Block OptionELSE {
     $$ = NULL;
   }
-  | IF '(' Expression ')' CodeBlock ELSE CodeBlock {
+  | IF '(' Expression ')' Block ElseIfStatements OptionELSE {
     $$ = NULL;
   }
-  | IF '(' Expression ')' CodeBlock ELSE IfStatement {
-    $$ = NULL;
-  }
+  ;
+
+ElseIfStatements
+  : ElseIfStatement
+  | ElseIfStatements ElseIfStatement
+  ;
+
+ElseIfStatement
+  : ELSE IF '(' Expression ')' Block
+  ;
+
+OptionELSE
+  : ELSE Block
+  | %empty
+  ;
+
+WhileStatement
+  : WHILE '(' Expression ')' Block
+  | DO Block WHILE '(' Expression ')' ';'
   ;
 
 /*
@@ -747,20 +581,12 @@ SwitchStatement
   ;
 
 CaseStatement
-  : CASE Expression ':' CodeBlock
-  | DEFAULT ':' CodeBlock
-  ;
-
-WhileStatement
-  : WHILE Common_ParentExpression CodeBlock
-  ;
-
-DoWhileStatement
-  : DO CodeBlock WHILE Common_ParentExpression ';'
+  : CASE Expression ':' Block
+  | DEFAULT ':' Block
   ;
 
 ForStatement
-  : FOR '(' ForInit ForExpr ForIncr ')' CodeBlock
+  : FOR '(' ForInit ForExpr ForIncr ')' Block
   //| FOR '(' ID IN ')'
   ;
 
@@ -778,23 +604,21 @@ ForExpr
 ForIncr
   : ExpressionStatement
   ;
+*/
 
 JumpStatement
   : BREAK ';'
-  | FALLTHROUGH ';'
   | CONTINUE ';'
   ;
 
 ReturnStatement
   : RETURN ';' {
-    $$ = new_exp_return(null);
+    $$ = stmt_from_return(NULL);
   }
   | RETURN ExpressionList ';' {
-    $$ = new_exp_return($2);
-    free_linked_list($2);
+    $$ = stmt_from_return($2);
   }
   ;
-*/
 
 /*-------------------------------------------------------------------------*/
 
@@ -827,13 +651,21 @@ Atom
   | ArrayAtom {
     $$ = $1;
   }
-  /*| AnonymousFunctionDeclaration {
-    $$ = new_exp_term_anonymous($1);
+  | AnonymousFunctionDeclaration {
+    $$ = $1;
   }
-  */
   ;
 
-/* 常量允许访问成员变量和成员方法，不允许数组操作 */
+AnonymousFunctionDeclaration
+  : FUNC '(' ParameterListOrEmpty ')' Block {
+    $$ = atom_from_anonymous_func($3, NULL, $5);
+  }
+  | FUNC '(' ParameterListOrEmpty ')' ReturnTypeList Block {
+    $$ = atom_from_anonymous_func($3, $5, $6);
+  }
+  ;
+
+/* 常量(当做对象)允许访问成员变量和成员方法 */
 Constant
   : INT_CONST {
     $$ = atom_from_int($1);
@@ -940,22 +772,22 @@ Trailer
   | '(' ')' {
     $$ = trailer_from_call(NULL);
   }
-  /*| '(' ')' '{' FunctionDeclarationList '}' {
-    //$$ = new_trailer_interface_implementation();
-    //free_linked_list($4);
-  }*/
+  | '(' ')' '{' FunctionDeclarationList '}' {
+    // 匿名接口实现
+    $$ = NULL;
+  }
   ;
-/*
+
 FunctionDeclarationList
   : FunctionDeclaration {
-    $$ = new_linked_list();
-    linked_list_add_tail($$, $1);
+    /*$$ = new_linked_list();
+    linked_list_add_tail($$, $1);*/
   }
   | FunctionDeclarationList FunctionDeclaration {
-    linked_list_add_tail($1, $2);
-    $$ = $1;
+    /*linked_list_add_tail($1, $2);
+    $$ = $1;*/
   }
-  ;*/
+  ;
 
 /*-------------------------------------------------------------------------*/
 
@@ -1114,11 +946,10 @@ Assignment
   : PrimaryExpressionList '=' ExpressionList {
     $$ = stmt_from_assign($1, $3);
   }
-  /*| PrimaryExpressionList TYPELESS_ASSIGN ExpressionList {
-    $$ = new_exp_assign_list($1, $3, false);
-    free_linked_list($1);
-    free_linked_list($3);
-  }*/
+  /*
+  | PrimaryExpressionList TYPELESS_ASSIGN ExpressionList {
+  }
+  */
   | PrimaryExpression CompoundAssignOperator Expression {
     $$ = stmt_from_compound_assign($1, $2, $3);
   }
@@ -1135,7 +966,7 @@ PrimaryExpressionList
   }
   ;
 
-/* 算术运算和位运算 */
+/* 组合赋值运算符：算术运算和位运算 */
 CompoundAssignOperator
   : PLUS_ASSGIN {
     $$ = OP_PLUS_ASSIGN;

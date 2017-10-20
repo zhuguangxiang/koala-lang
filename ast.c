@@ -25,6 +25,7 @@ struct type *type_from_primitive(int primitive)
   struct type *type = malloc(sizeof(*type));
   type->kind = PRIMITIVE_KIND;
   type->v.primitive = primitive;
+  init_list_head(&type->link);
   return type;
 }
 
@@ -34,6 +35,17 @@ struct type *type_from_userdef(char *mod_name, char *type_name)
   type->kind = USERDEF_TYPE;
   type->v.userdef.mod_name  = mod_name;
   type->v.userdef.type_name = type_name;
+  init_list_head(&type->link);
+  return type;
+}
+
+struct type *type_from_functype(struct clist *tlist, struct clist *rlist)
+{
+  struct type *type = malloc(sizeof(*type));
+  type->kind = FUNCTION_TYPE;
+  type->v.functype.tlist = tlist;
+  type->v.functype.rlist  = rlist;
+  init_list_head(&type->link);
   return type;
 }
 
@@ -199,6 +211,19 @@ struct atom *atom_from_array(struct type *type, int tail, struct clist *list)
   return atom;
 }
 
+struct atom *atom_from_anonymous_func(struct clist *plist,
+                                      struct clist *rlist,
+                                      struct clist *body)
+{
+  struct atom *atom = malloc(sizeof(*atom));
+  atom->kind = ANONYOUS_FUNC_KIND;
+  atom->v.anonyous_func.plist = plist;
+  atom->v.anonyous_func.rlist = rlist;
+  atom->v.anonyous_func.body  = body;
+  init_list_head(&atom->link);
+  return atom;
+}
+
 struct expr *expr_from_atom_trailers(struct clist *list, struct atom *atom)
 {
   struct atom *trailer, *temp;
@@ -285,6 +310,15 @@ void free_var(struct var *v)
   free(v);
 }
 
+struct var *new_var_with_type(char *id, struct type *type)
+{
+  struct var *v = malloc(sizeof(*v));
+  v->id   = id;
+  v->type = type;
+  init_list_head(&v->link);
+  return v;
+}
+
 int vars_add_symtable(struct clist *list, int bconst, struct type *type)
 {
   return 0;
@@ -297,10 +331,13 @@ struct stmt *stmt_from_vardecl(struct clist *varlist,
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = VARDECL_KIND;
   stmt->v.vardecl.bconst    = bconst;
-  stmt->v.vardecl.type      = type;
   stmt->v.vardecl.var_list  = varlist;
   stmt->v.vardecl.expr_list = initlist;
   init_list_head(&stmt->link);
+  struct var *var;
+  var_foreach(var, varlist) {
+    var_set_type(var, type);
+  }
   return stmt;
 }
 
@@ -324,6 +361,32 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
   stmt->v.compound_assign.left  = left;
   stmt->v.compound_assign.op    = op;
   stmt->v.compound_assign.right = right;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_seq(struct clist *list)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind  = SEQ_KIND;
+  stmt->v.seq = list;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_return(struct clist *list)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind  = RETURN_KIND;
+  stmt->v.seq = list;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_empty(void)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = EMPTY_KIND;
   init_list_head(&stmt->link);
   return stmt;
 }
@@ -504,13 +567,11 @@ void vardecl_traverse(struct stmt *stmt)
   printf("variable declaration\n");
   printf("const variable ? %s\n",
          stmt->v.vardecl.bconst ? "true" : "false");
-  if (stmt->v.vardecl.type != NULL)
-    type_traverse(stmt->v.vardecl.type);
-
   printf("variables name:\n");
   struct var *var;
   var_foreach(var, stmt->v.vardecl.var_list) {
     printf("%s ", var->id);
+    type_traverse(var->type);
   }
   putchar('\n');
 
