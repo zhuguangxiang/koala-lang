@@ -222,7 +222,7 @@ enum stmt_kind {
   EMPTY_KIND = 1, IMPORT_KIND = 2, EXPR_KIND = 3, VARDECL_KIND = 4,
   FUNCDECL_KIND = 5, ASSIGN_KIND = 6, COMPOUND_ASSIGN_KIND = 7,
   STRUCT_KIND, INTF_KIND, TYPEDEF_KIND, SEQ_KIND,
-  RETURN_KIND, IF_KIND,
+  RETURN_KIND, IF_KIND, BREAK_KIND, CONTINUE_KIND,
 };
 
 struct stmt {
@@ -297,6 +297,7 @@ struct stmt *stmt_from_empty(void);
 struct stmt *stmt_from_structure(char *id, struct clist *list);
 struct stmt *stmt_from_interface(char *id, struct clist *list);
 struct stmt *stmt_from_typedef(char *id, struct type *type);
+struct stmt *stmt_from_jump(int kind);
 
 enum member_kind {
   FIELD_KIND = 1, METHOD_KIND = 2, INTF_FUNCDECL_KIND = 3,

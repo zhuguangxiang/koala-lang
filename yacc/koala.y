@@ -165,6 +165,7 @@ int yylex(void);
 %type <list> Block
 %type <list> LocalStatements
 %type <stmt> ReturnStatement
+%type <stmt> JumpStatement
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
 %type <list> MemberDeclarations
@@ -386,7 +387,7 @@ Statement
   }
   */
   | JumpStatement {
-    $$ = NULL;
+    $$ = $1;
   }
   | ReturnStatement {
     $$ = $1;
@@ -650,8 +651,12 @@ ForIncr
 */
 
 JumpStatement
-  : BREAK ';'
-  | CONTINUE ';'
+  : BREAK ';' {
+    $$ = stmt_from_jump(BREAK_KIND);
+  }
+  | CONTINUE ';' {
+    $$ = stmt_from_jump(CONTINUE_KIND);
+  }
   ;
 
 ReturnStatement

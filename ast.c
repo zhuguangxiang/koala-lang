@@ -435,6 +435,14 @@ struct stmt *stmt_from_typedef(char *id, struct type *type)
   return stmt;
 }
 
+struct stmt *stmt_from_jump(int kind)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = kind;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
 struct member *new_structure_vardecl(char *id, struct type *t, struct expr *e)
 {
   struct member *member = malloc(sizeof(*member));
