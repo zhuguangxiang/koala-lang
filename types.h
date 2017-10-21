@@ -4,6 +4,12 @@
 #ifndef _KOALA_TYPES_H_
 #define _KOALA_TYPES_H_
 
+#include <stdlib.h>
+#include <assert.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
+
 /* stddef.h - standard type definitions */
 #include <stddef.h>
 

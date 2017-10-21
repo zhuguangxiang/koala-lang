@@ -1,24 +1,6 @@
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <string.h>
 #include "ast.h"
 #include "namei.h"
-
-struct clist *new_clist(void)
-{
-  struct clist *list = malloc(sizeof(*list));
-  init_list_head(&list->head);
-  list->count = 0;
-  return list;
-}
-
-void free_clist(struct clist *list)
-{
-  assert(clist_empty(list));
-  free(list);
-}
 
 struct type *type_from_primitive(int primitive)
 {

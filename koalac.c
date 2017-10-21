@@ -1,5 +1,4 @@
 
-#include <stdio.h>
 #include "ast.h"
 
 extern FILE *yyin;

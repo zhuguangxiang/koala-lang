@@ -1,8 +1,4 @@
 
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
-#include <stdio.h>
 #include "module_object.h"
 #include "namei.h"
 #include "gstate.h"

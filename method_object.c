@@ -1,7 +1,4 @@
 
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
 #include "method_object.h"
 #include "module_object.h"
 

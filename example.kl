@@ -23,6 +23,7 @@ func string_to_int(str string) int {
 
 # struct define test
 struct Person {
+  var bar int;
   name string = "zhuguangxiang";
   age  int = 30;
   func __init__(name string, age int) {
@@ -37,12 +38,18 @@ struct Person {
   func compare(p Person) bool {
     return 1, 2 + 3, false;
   }
+
+  foo(input int) (int, int) {
+
+  }
 }
 
 # interface define test
 interface Hello {
   func SayHello(string, int) string;
   func SayBye(string);
+  foo(int) (int);
+  bar(string) (string, Person);
 }
 
 # typedef test
@@ -114,7 +121,7 @@ while (2 > 3) {
 
 do {
   io.Print("do-while test");
-} while (a <= b)
+} while (a <= b);
 
 while (a > 3) {
   if (a == 10) {

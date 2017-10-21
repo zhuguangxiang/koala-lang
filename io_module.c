@@ -1,5 +1,4 @@
 
-#include <stdio.h>
 #include "module_object.h"
 #include "string_object.h"
 

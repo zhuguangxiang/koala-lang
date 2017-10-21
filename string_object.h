@@ -1,11 +1,12 @@
 
 #ifndef _KOALA_STRING_OBJECT_H_
 #define _KOALA_STRING_OBJECT_H_
+
+#include "object.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "object.h"
 
 struct string_object {
   OBJECT_HEAD

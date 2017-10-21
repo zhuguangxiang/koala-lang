@@ -1,8 +1,4 @@
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <string.h>
 #include "symtable.h"
 #include "hash.h"
 

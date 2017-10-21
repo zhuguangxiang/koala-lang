@@ -1,7 +1,4 @@
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
 #include "compile.h"
 #include "module_object.h"
 #include "string_object.h"

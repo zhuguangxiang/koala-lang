@@ -377,6 +377,57 @@ static inline void tailq_add_tail(struct tailq_node *n, struct tailq_head *h)
 	     pos && (n = pos->member.next, 1); \
 	     pos = n ? tailq_entry(n, __typeof__(*pos), member) : NULL)
 
+/**
+ * linked list with counting
+ */
+struct clist {
+  struct list_head head;
+  int count;
+};
+
+#define init_clist(list) do { \
+  init_list_head(&(list)->head); \
+  (list)->count = 0; \
+} while (0)
+
+#define clist_add(link, list) do { \
+  list_add((link), &(list)->head); \
+  ++(list)->count; \
+} while (0)
+
+#define clist_add_tail(link, list) do { \
+  list_add_tail((link), &(list)->head); \
+  ++(list)->count; \
+} while (0)
+
+#define clist_del(pos, list) do { \
+  list_del(pos); \
+  --(list)->count; \
+  assert((list)->count >= 0); \
+} while (0)
+
+#define clist_empty(list) \
+  (list_empty(&(list)->head) && ((list)->count == 0))
+
+#define clist_foreach(pos, list) \
+  if ((list) != NULL) list_for_each_entry(pos, &(list)->head, link)
+
+#define clist_foreach_safe(pos, list, tmp) \
+  if ((list) != NULL) list_for_each_entry_safe(pos, tmp, &(list)->head, link)
+
+static inline struct clist *new_clist(void)
+{
+  struct clist *list = malloc(sizeof(*list));
+  init_clist(list);
+  return list;
+}
+
+static inline void free_clist(struct clist *list)
+{
+  assert(clist_empty(list));
+  free(list);
+}
+
 #ifdef __cplusplus
 }
 #endif

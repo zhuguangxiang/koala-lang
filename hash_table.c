@@ -1,6 +1,4 @@
 
-#include <stdio.h>
-#include <stdlib.h>
 #include "hash_table.h"
 
 #define HT_LOAD_FACTOR      0.65

@@ -9,34 +9,6 @@
 extern "C" {
 #endif
 
-struct clist {
-  struct list_head head;
-  int count;
-};
-
-struct clist *new_clist(void);
-void free_clist(struct clist *list);
-
-#define clist_add_tail(link, list) do { \
-  list_add_tail((link), &(list)->head); \
-  ++(list)->count; \
-} while (0)
-
-#define clist_del(pos, list) do { \
-  list_del(pos); \
-  --(list)->count; \
-  assert((list)->count >= 0); \
-} while (0)
-
-#define clist_empty(list) \
-  (list_empty(&(list)->head) && ((list)->count == 0))
-
-#define clist_foreach(pos, list) \
-  if ((list) != NULL) list_for_each_entry(pos, &(list)->head, link)
-
-#define clist_foreach_safe(pos, list, tmp) \
-  if ((list) != NULL) list_for_each_entry_safe(pos, tmp, &(list)->head, link)
-
 /*-------------------------------------------------------------------------*/
 
 enum type_kind {

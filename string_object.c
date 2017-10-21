@@ -1,6 +1,4 @@
 
-#include <stdlib.h>
-#include <string.h>
 #include "string_object.h"
 
 struct object *string_from_cstr(char *cstr)

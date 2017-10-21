@@ -1,6 +1,4 @@
 
-#include <stdio.h>
-#include <assert.h>
 #include "gstate.h"
 #include "namei.h"
 #include "module_object.h"

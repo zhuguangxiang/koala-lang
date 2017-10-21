@@ -1,7 +1,4 @@
 
-#include <stdlib.h>
-#include <assert.h>
-#include <stdio.h>
 #include "integer_object.h"
 #include "tuple_object.h"
 #include "module_object.h"

@@ -1,8 +1,5 @@
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <assert.h>
+#include "types.h"
 #include "vector.h"
 
 #define VECTOR_DEFAULT_CAPACTIY 16
