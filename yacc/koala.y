@@ -174,6 +174,7 @@ int yylex(void);
 %type <stmt> ForTest
 %type <stmt> ForIncr
 %type <list> Block
+%type <stmt> GoStatement
 %type <list> LocalStatements
 %type <stmt> ReturnStatement
 %type <stmt> JumpStatement
@@ -407,6 +408,9 @@ Statement
   | Block {
     $$ = stmt_from_seq($1);
   }
+  | GoStatement {
+    $$ = $1;
+  }
   ;
 
 /*--------------------------------------------------------------------------*/
@@ -594,6 +598,15 @@ LocalStatements
 
 /*--------------------------------------------------------------------------*/
 
+GoStatement
+  : GO Atom TrailerList ';' {
+    $$ = stmt_from_go(expr_from_atom_trailers($3, $2));
+    free_clist($3);
+  }
+  ;
+
+/*--------------------------------------------------------------------------*/
+
 IfStatement
   : IF '(' Expression ')' Block OptionELSE {
     $$ = stmt_from_if(new_if_expr($3, $5), NULL, $6);
@@ -687,7 +700,7 @@ ForStatement
   }
   | FOR '(' VAR VariableList Type ':' Expression ')' Block {
     if (clist_length($4) != 1) {
-      fprintf(stderr, "syntax error\n");
+      fprintf(stderr, "syntax error, foreach usage\n");
       exit(0);
     } else {
       struct list_head *node = clist_first($4);
@@ -908,21 +921,6 @@ Trailer
   }
   | '(' ')' {
     $$ = trailer_from_call(NULL);
-  }
-  | '(' ')' '{' FunctionDeclarationList '}' {
-    // 匿名接口实现
-    $$ = NULL;
-  }
-  ;
-
-FunctionDeclarationList
-  : FunctionDeclaration {
-    /*$$ = new_linked_list();
-    linked_list_add_tail($$, $1);*/
-  }
-  | FunctionDeclarationList FunctionDeclaration {
-    /*linked_list_add_tail($1, $2);
-    $$ = $1;*/
   }
   ;
 

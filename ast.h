@@ -201,6 +201,7 @@ enum stmt_kind {
   STRUCT_KIND = 8, INTF_KIND = 9, TYPEDEF_KIND = 10, SEQ_KIND = 11,
   RETURN_KIND = 12, IF_KIND = 13, WHILE_KIND = 14, SWITCH_KIND = 15,
   FOR_TRIPLE_KIND, FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND,
+  GO_KIND,
 };
 
 struct stmt {
@@ -297,6 +298,7 @@ struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
                            struct stmt *incr, struct clist *body);
 struct stmt *stmt_from_forech(struct var *var, struct expr *expr,
                               struct clist *body, int bdecl);
+struct stmt *stmt_from_go(struct expr *expr);
 
 enum member_kind {
   FIELD_KIND = 1, METHOD_KIND = 2, INTF_FUNCDECL_KIND = 3,

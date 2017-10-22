@@ -539,6 +539,26 @@ struct stmt *stmt_from_forech(struct var *var, struct expr *expr,
   return stmt;
 }
 
+struct stmt *stmt_from_go(struct expr *expr)
+{
+  if (expr->kind != ATOM_KIND) {
+    fprintf(stderr, "syntax error:not ann atom\n");
+    exit(0);
+  }
+
+  struct atom *atom = expr->v.atom;
+  if (atom->kind != CALL_KIND) {
+    fprintf(stderr, "syntax error:not a func call\n");
+    exit(0);
+  }
+
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind   = GO_KIND;
+  stmt->v.expr = expr;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
 struct mod *new_mod(struct clist *imports, struct clist *stmts)
 {
   struct mod *mod = malloc(sizeof(*mod));
@@ -885,6 +905,11 @@ void stmt_traverse(struct stmt *stmt)
     }
     case CONTINUE_KIND: {
       printf("[continue statement]\n");
+      break;
+    }
+    case GO_KIND: {
+      printf("[go statement]\n");
+      expr_traverse(stmt->v.expr);
       break;
     }
     default:{
