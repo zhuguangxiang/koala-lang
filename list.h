@@ -409,6 +409,12 @@ struct clist {
 #define clist_empty(list) \
   (list_empty(&(list)->head) && ((list)->count == 0))
 
+#define clist_length(list) ((list)->count)
+
+#define clist_first(list) list_first(&(list)->head)
+
+#define clist_entry(ptr, type) list_entry(ptr, type, link)
+
 #define clist_foreach(pos, list) \
   if ((list) != NULL) list_for_each_entry(pos, &(list)->head, link)
 

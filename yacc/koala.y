@@ -111,7 +111,6 @@ int yylex(void);
 %precedence '('
 
 /*--------------------------------------------------------------------------*/
-
 %type <primitive> PrimitiveType
 %type <type> UserDefinedType
 %type <type> BaseType
@@ -159,7 +158,6 @@ int yylex(void);
 %type <stmt> Import
 %type <stmt> ModuleStatement
 %type <stmt> Statement
-%type <stmt> VariableConstantDeclaration
 %type <stmt> ConstDeclaration
 %type <stmt> VariableDeclaration
 %type <stmt> Assignment
@@ -171,6 +169,10 @@ int yylex(void);
 %type <stmt> SwitchStatement
 %type <list> CaseStatements
 %type <casestmt> CaseStatement
+%type <stmt> ForStatement
+%type <stmt> ForInit
+%type <stmt> ForTest
+%type <stmt> ForIncr
 %type <list> Block
 %type <list> LocalStatements
 %type <stmt> ReturnStatement
@@ -360,6 +362,9 @@ ModuleStatement
   : Statement {
     $$ = $1;
   }
+  | ConstDeclaration ';' {
+    $$ = $1;
+  }
   | FunctionDeclaration {
     $$ = $1;
   }
@@ -375,7 +380,7 @@ Statement
   | Expression ';' {
     $$ = stmt_from_expr($1);
   }
-  | VariableConstantDeclaration {
+  | VariableDeclaration ';' {
     $$ = $1;
   }
   | Assignment ';' {
@@ -390,11 +395,9 @@ Statement
   | SwitchStatement {
     $$ = $1;
   }
-  /*
   | ForStatement {
-
+    $$ = $1;
   }
-  */
   | JumpStatement {
     $$ = $1;
   }
@@ -403,15 +406,6 @@ Statement
   }
   | Block {
     $$ = stmt_from_seq($1);
-  }
-  ;
-
-VariableConstantDeclaration
-  : ConstDeclaration ';' {
-    $$ = $1;
-  }
-  | VariableDeclaration ';' {
-    $$ = $1;
   }
   ;
 
@@ -469,10 +463,10 @@ FunctionDeclaration
 ParameterList
   : ID Type {
     $$ = new_clist();
-    clist_add_tail(&new_var_with_type($1, $2)->link, $$);
+    clist_add_tail(&new_var_type($1, $2)->link, $$);
   }
   | ParameterList ',' ID Type {
-    clist_add_tail(&new_var_with_type($3, $4)->link, $1);
+    clist_add_tail(&new_var_type($3, $4)->link, $1);
     $$ = $1;
   }
   ;
@@ -681,27 +675,69 @@ CaseStatement
 
 /*--------------------------------------------------------------------------*/
 
-/*
 ForStatement
-  : FOR '(' ForInit ForExpr ForIncr ')' Block
-  //| FOR '(' ID IN ')'
+  : FOR '(' ForInit ';' ForTest ';' ForIncr ')' Block {
+    $$ = stmt_from_for($3, $5, $7, $9);
+  }
+  | FOR '(' ID ':' Expression ')' Block {
+    $$ = stmt_from_forech(new_var($3), $5, $7, 0);
+  }
+  | FOR '(' VAR ID ':' Expression ')' Block {
+    $$ = stmt_from_forech(new_var($4), $6, $8, 1);
+  }
+  | FOR '(' VAR VariableList Type ':' Expression ')' Block {
+    if (clist_length($4) != 1) {
+      fprintf(stderr, "syntax error\n");
+      exit(0);
+    } else {
+      struct list_head *node = clist_first($4);
+      assert(node != NULL);
+      clist_del(node, $4);
+      free_clist($4);
+      struct var *v = clist_entry(node, struct var);
+      var_set_type(v, $5);
+      $$ = stmt_from_forech(v, $7, $9, 1);
+    }
+  }
   ;
 
 ForInit
-  : ExpressionStatement ';'
-  | VariableDeclaration
-  | ';'
+  : Expression {
+    $$ = stmt_from_expr($1);
+  }
+  | VariableDeclaration {
+    $$ = $1;
+  }
+  | Assignment {
+    $$ = $1;
+  }
+  | %empty {
+    $$ = NULL;
+  }
   ;
 
-ForExpr
-  : Expression ';'
-  | ';'
+ForTest
+  : Expression {
+    $$ = stmt_from_expr($1);
+  }
+  | %empty {
+    $$ = NULL;
+  }
   ;
 
 ForIncr
-  : ExpressionStatement
+  : Expression {
+    $$ = stmt_from_expr($1);
+  }
+  | Assignment {
+    $$ = $1;
+  }
+  | %empty {
+    $$ = NULL;
+  }
   ;
-*/
+
+/*--------------------------------------------------------------------------*/
 
 JumpStatement
   : BREAK ';' {
@@ -906,7 +942,7 @@ UnaryExpression
     /* bit operation : bit reversal */
     $$ = expr_for_unary(OP_BIT_NOT, $2);
   }
-  | '!' UnaryExpression {
+  | NOT UnaryExpression {
     /* logic operation : not */
     $$ = expr_for_unary(OP_LNOT, $2);
   }
@@ -1047,10 +1083,6 @@ Assignment
   : PrimaryExpressionList '=' ExpressionList {
     $$ = stmt_from_assign($1, $3);
   }
-  /*
-  | PrimaryExpressionList TYPELESS_ASSIGN ExpressionList {
-  }
-  */
   | PrimaryExpression CompoundAssignOperator Expression {
     $$ = stmt_from_compound_assign($1, $2, $3);
   }

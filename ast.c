@@ -293,7 +293,7 @@ void free_var(struct var *v)
   free(v);
 }
 
-struct var *new_var_with_type(char *id, struct type *type)
+struct var *new_var_type(char *id, struct type *type)
 {
   struct var *v = malloc(sizeof(*v));
   v->id   = id;
@@ -511,6 +511,32 @@ struct member *new_interface_funcdecl(char *id, struct clist *tlist,
   member->v.intf_funcdecl.rlist = rlist;
   init_list_head(&member->link);
   return member;
+}
+
+struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
+                           struct stmt *incr, struct clist *body)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = FOR_TRIPLE_KIND;
+  stmt->v.for_triple_stmt.init = init;
+  stmt->v.for_triple_stmt.test = test;
+  stmt->v.for_triple_stmt.incr = incr;
+  stmt->v.for_triple_stmt.body = body;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct stmt *stmt_from_forech(struct var *var, struct expr *expr,
+                              struct clist *body, int bdecl)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = FOR_EACH_KIND;
+  stmt->v.for_each_stmt.bdecl = bdecl;
+  stmt->v.for_each_stmt.var   = var;
+  stmt->v.for_each_stmt.expr  = expr;
+  stmt->v.for_each_stmt.body  = body;
+  init_list_head(&stmt->link);
+  return stmt;
 }
 
 struct mod *new_mod(struct clist *imports, struct clist *stmts)
@@ -843,6 +869,14 @@ void stmt_traverse(struct stmt *stmt)
     case SWITCH_KIND: {
       printf("[switch statement]\n");
       switchstmt_traverse(stmt);
+      break;
+    }
+    case FOR_TRIPLE_KIND: {
+      printf("[for triple statement]\n");
+      break;
+    }
+    case FOR_EACH_KIND: {
+      printf("[for each statement]\n");
       break;
     }
     case BREAK_KIND: {

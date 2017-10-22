@@ -85,12 +85,13 @@ io.Print(int(32).ToString());
 
 # expression test
 2+3;2-3;2*3;3/2;4%2;
-+3;-3;!3;~3;~444;
-2 && 3; 2 || 3;
++3;-3; not 3; ~444;
+2 and 3; 2 or 3;
 2 & 3; 2 | 3; 2 ^ 3;
 2 << 3; 2 >> 3;
 2 > 3; 2 < 3; 2 >= 3; 2 <= 3;
 2 != 3; 2 == 3;
+2 | (2 and 3);
 
 # assignment test
 a,b = 1,2;
@@ -106,7 +107,7 @@ a9 >>= 9;
 a10 <<= 10;
 
 # if statement test
-if (2 > 3 && 4 < 5) {
+if (2 > 3 and 4 < 5) {
   io.Print("2 > 3");
 } else if (a <= b) {
 
@@ -150,6 +151,29 @@ switch (a.Name) {
     break;
   }
 }
+
+# for statement test
+
+for (var i = 0; i < 10; i += 1) {
+  io.Print(i);
+}
+
+for (var j int = 0; j < 10; j += 3) {
+  io.Print(j);
+}
+
+for (;;) {
+
+}
+
+for (var item : array) {
+  io.Print(item);
+}
+
+for (var k int : karr) {
+  io.Print(k);
+}
+
 /*
 1. Uses "koala/io" to replace "io"
 2. Symbols:

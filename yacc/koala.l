@@ -14,14 +14,15 @@ L   [a-zA-Z_]
 
 %%
 
-[\+\-\*\/\%&\|!=><,.;{}\[\]\(\)^~:] {echo();return yytext[0];}
+[\+\-\*\/\%&\|=><,.;{}\[\]\(\)^~:] {echo();return yytext[0];}
 
 "=="                      {return EQ;}
 "!="                      {return NE;}
 ">="                      {return GE;}
 "<="                      {return LE;}
-"&&"                      {return AND;}
-"||"                      {return OR;}
+"and"                     {return AND;}
+"or"                      {return OR;}
+"not"                     {return NOT;}
 ">>"                      {return RSHIFT;}
 "<<"                      {return LSHIFT;}
 ":="                      {return TYPELESS_ASSIGN;}

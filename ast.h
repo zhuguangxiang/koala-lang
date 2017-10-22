@@ -169,7 +169,7 @@ struct var {
 };
 
 struct var *new_var(char *id);
-struct var *new_var_with_type(char *id, struct type *type);
+struct var *new_var_type(char *id, struct type *type);
 #define var_set_type(v, t) ((v)->type = (t))
 
 struct if_expr {
@@ -199,8 +199,8 @@ enum stmt_kind {
   EMPTY_KIND = 1, IMPORT_KIND = 2, EXPR_KIND = 3, VARDECL_KIND = 4,
   FUNCDECL_KIND = 5, ASSIGN_KIND = 6, COMPOUND_ASSIGN_KIND = 7,
   STRUCT_KIND = 8, INTF_KIND = 9, TYPEDEF_KIND = 10, SEQ_KIND = 11,
-  RETURN_KIND = 12, IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_KIND,
-  BREAK_KIND, CONTINUE_KIND,
+  RETURN_KIND = 12, IF_KIND = 13, WHILE_KIND = 14, SWITCH_KIND = 15,
+  FOR_TRIPLE_KIND, FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND,
 };
 
 struct stmt {
@@ -254,6 +254,18 @@ struct stmt {
       struct expr *expr;
       struct clist *case_list;
     } switch_stmt;
+    struct {
+      struct stmt *init;
+      struct stmt *test;
+      struct stmt *incr;
+      struct clist *body;
+    } for_triple_stmt;
+    struct {
+      int bdecl;
+      struct var *var;
+      struct expr *expr;
+      struct clist *body;
+    } for_each_stmt;
   } v;
   struct list_head link;
 };
@@ -281,6 +293,10 @@ struct stmt *stmt_from_if(struct if_expr *if_part, struct clist *elseif_list,
                           struct if_expr *else_part);
 struct stmt *stmt_from_while(struct expr *test, struct clist *body, int b);
 struct stmt *stmt_from_switch(struct expr *expr, struct clist *case_list);
+struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
+                           struct stmt *incr, struct clist *body);
+struct stmt *stmt_from_forech(struct var *var, struct expr *expr,
+                              struct clist *body, int bdecl);
 
 enum member_kind {
   FIELD_KIND = 1, METHOD_KIND = 2, INTF_FUNCDECL_KIND = 3,
