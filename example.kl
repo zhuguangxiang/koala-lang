@@ -129,6 +129,27 @@ while (a > 3) {
   }
   a += 1;
 }
+
+# switch-case test
+switch (a.Name) {
+  default : {
+    2 + 3 + "rose";
+    break;
+  }
+  case 3 : {
+    123.ToString();
+    break;
+  }
+  case "zhuguangxiang" : {
+    break;
+  }
+  case "jackey" : {
+    break;
+  }
+  default : {
+    break;
+  }
+}
 /*
 1. Uses "koala/io" to replace "io"
 2. Symbols:

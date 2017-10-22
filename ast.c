@@ -457,6 +457,25 @@ struct stmt *stmt_from_while(struct expr *test, struct clist *body, int b)
   return stmt;
 }
 
+struct stmt *stmt_from_switch(struct expr *expr, struct clist *case_list)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = SWITCH_KIND;
+  stmt->v.switch_stmt.expr = expr;
+  stmt->v.switch_stmt.case_list = case_list;
+  init_list_head(&stmt->link);
+  return stmt;
+}
+
+struct case_stmt *new_case_stmt(struct expr *expr, struct clist *body)
+{
+  struct case_stmt *cas = malloc(sizeof(*cas));
+  cas->expr = expr;
+  cas->body = body;
+  init_list_head(&cas->link);
+  return cas;
+}
+
 struct member *new_structure_vardecl(char *id, struct type *t, struct expr *e)
 {
   struct member *member = malloc(sizeof(*member));
@@ -647,6 +666,8 @@ void atom_traverse(struct atom *atom)
 
 void expr_traverse(struct expr *exp)
 {
+  if (exp == NULL) return;
+
   switch (exp->kind) {
     case ATOM_KIND: {
       atom_traverse(exp->v.atom);
@@ -737,6 +758,22 @@ void whilestmt_traverse(struct stmt *whilestmt)
   printf("end of while statement\n");
 }
 
+void switchstmt_traverse(struct stmt *stmt)
+{
+  printf("switch-expr:\n");
+  expr_traverse(stmt->v.switch_stmt.expr);
+  printf("case-list:\n");
+  struct case_stmt *pos;
+  struct stmt *s;
+  clist_foreach(pos, stmt->v.switch_stmt.case_list) {
+    expr_traverse(pos->expr);
+    clist_foreach(s, pos->body) {
+      stmt_traverse(s);
+    }
+  }
+  printf("end of switch\n");
+}
+
 void stmt_traverse(struct stmt *stmt)
 {
   switch (stmt->kind) {
@@ -801,6 +838,11 @@ void stmt_traverse(struct stmt *stmt)
     case WHILE_KIND: {
       printf("[while statement]\n");
       whilestmt_traverse(stmt);
+      break;
+    }
+    case SWITCH_KIND: {
+      printf("[switch statement]\n");
+      switchstmt_traverse(stmt);
       break;
     }
     case BREAK_KIND: {

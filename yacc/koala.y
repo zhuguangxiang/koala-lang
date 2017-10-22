@@ -29,6 +29,7 @@ int yylex(void);
   int assign_op;
   struct member *member;
   struct if_expr *ifexpr;
+  struct case_stmt *casestmt;
 }
 
 %token ELLIPSIS
@@ -167,6 +168,9 @@ int yylex(void);
 %type <ifexpr> ElseIfStatement
 %type <ifexpr> OptionELSE
 %type <stmt> WhileStatement
+%type <stmt> SwitchStatement
+%type <list> CaseStatements
+%type <casestmt> CaseStatement
 %type <list> Block
 %type <list> LocalStatements
 %type <stmt> ReturnStatement
@@ -383,10 +387,10 @@ Statement
   | WhileStatement {
     $$ = $1;
   }
-  /*
   | SwitchStatement {
-
+    $$ = $1;
   }
+  /*
   | ForStatement {
 
   }
@@ -644,16 +648,36 @@ WhileStatement
 
 /*--------------------------------------------------------------------------*/
 
-/*
 SwitchStatement
-  : SWITCH Common_ParentExpression '{' CaseStatement '}'
+  : SWITCH '(' Expression ')' '{' CaseStatements '}' {
+    $$ = stmt_from_switch($3, $6);
+  }
+  ;
+
+CaseStatements
+  : CaseStatement {
+    $$ = new_clist();
+    clist_add_tail(&($1)->link, $$);
+  }
+  | CaseStatements CaseStatement {
+    if (($2)->expr == NULL) {
+      /* default case */
+      clist_add(&($2)->link, $1);
+    } else {
+      clist_add_tail(&($2)->link, $1);
+    }
+    $$ = $1;
+  }
   ;
 
 CaseStatement
-  : CASE Expression ':' Block
-  | DEFAULT ':' Block
+  : CASE Expression ':' Block {
+    $$ = new_case_stmt($2, $4);
+  }
+  | DEFAULT ':' Block {
+    $$ = new_case_stmt(NULL, $3);
+  }
   ;
-*/
 
 /*--------------------------------------------------------------------------*/
 

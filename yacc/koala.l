@@ -94,6 +94,7 @@ L   [a-zA-Z_]
 (\"(\\.|[^"\\])*\")       {
                             char *tmp = malloc(yyleng-1);
                             strncpy(tmp, yytext+1, yyleng-2);
+                            tmp[yyleng - 2] = 0;
                             echo();
                             yylval.string_const = tmp;
                             return STRING_CONST;
