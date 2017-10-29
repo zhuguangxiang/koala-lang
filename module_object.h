@@ -2,7 +2,7 @@
 #ifndef _KOALA_MODULE_OBJECT_H_
 #define _KOALA_MODULE_OBJECT_H_
 
-#include "object.h"
+#include "Object.h"
 #include "namei.h"
 
 #ifdef __cplusplus
@@ -16,15 +16,15 @@ struct module_object {
   struct vector *vec;
 };
 
-extern struct klass_object module_klass;
-int module_add(struct object *mo, struct namei *ni, struct object *ob);
-int module_add_cfunctions(struct object *mo, struct cfunc_struct *cfuncs);
-int module_get(struct object *mo, struct namei *ni,
-               struct object **ob, int *index);
-struct object *new_module(char *name);
-struct object *load_module(char *mod_name);
-struct object *find_module(char *name);
-void module_display(struct object *mo);
+extern struct Klass module_klass;
+int module_add(struct Object *mo, struct namei *ni, struct Object *ob);
+int module_add_cfunctions(struct Object *mo, struct cfunc_struct *cfuncs);
+int module_get(struct Object *mo, struct namei *ni,
+               struct Object **ob, int *index);
+struct Object *new_module(char *name);
+struct Object *load_module(char *mod_name);
+struct Object *find_module(char *name);
+void module_display(struct Object *mo);
 
 #ifdef __cplusplus
 }

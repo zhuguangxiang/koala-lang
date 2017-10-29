@@ -10,13 +10,13 @@
 extern "C" {
 #endif
 
-struct compiler {
+struct Compiler {
   struct symtable *symtable;
-  struct object *obj;
-  struct object *arg;
+  struct Object *obj;
+  struct Object *arg;
 };
 
-int compiler_module(struct mod *mod);
+int compiler_module(struct sequence *stmts);
 
 #ifdef __cplusplus
 }

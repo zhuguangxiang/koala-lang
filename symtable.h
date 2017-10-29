@@ -27,6 +27,7 @@ struct symbol {
     char *mod_path;
     struct type *var_type;
   } v;
+  int used_count;
 };
 
 struct symbol *new_symbol(char *name, enum symbol_kind kind);

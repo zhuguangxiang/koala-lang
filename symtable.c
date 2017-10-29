@@ -8,6 +8,7 @@ struct symbol *new_symbol(char *name, enum symbol_kind kind)
   sym->name = name;
   sym->kind = kind;
   init_hash_node(&sym->hnode, sym->name);
+  sym->used_count = 0;
   return sym;
 }
 

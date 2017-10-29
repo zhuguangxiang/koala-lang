@@ -4,23 +4,30 @@
 #include "string_object.h"
 #include "method_object.h"
 
-void init_compiler(struct compiler *c)
+#define COMPILER_INFO   "[Compiler][Info] "
+#define COMPILER_ERROR  "[Compiler][Error] "
+
+void init_compiler(struct Compiler *c)
 {
   c->symtable = new_symtable();
 }
 
-static int compiler_import(struct compiler *cp, struct stmt *stmt)
+#if 0
+
+static int compiler_import(struct Compiler *cp, struct stmt *stmt)
 {
-  struct symbol *sym = new_symbol(stmt->v.import.alias, MODREF_KIND);
+  struct symbol *sym = new_symbol(stmt->import.id, MODREF_KIND);
   if (sym != NULL) {
-    sym->v.mod_path = stmt->v.import.path;
+    sym->v.mod_path = stmt->import.path;
+    printf(COMPILER_INFO"new import %s->%s\n", sym->name, sym->v.mod_path);
     return symtable_add(cp->symtable, sym);
   } else {
     return -1;
   }
 }
 
-static int compiler_expr(struct compiler *cp, struct expr *expr);
+
+static int compiler_expr(struct Compiler *cp, struct expr *expr);
 
 static void call(struct object *ob, struct object *arg)
 {
@@ -29,7 +36,7 @@ static void call(struct object *ob, struct object *arg)
   fn(NULL, arg);
 }
 
-static int compiler_atom(struct compiler *cp, struct atom *atom)
+static int compiler_atom(struct Compiler *cp, struct atom *atom)
 {
   switch (atom->kind) {
     case NAME_KIND: {
@@ -146,6 +153,7 @@ static int compiler_atom(struct compiler *cp, struct atom *atom)
       break;
     }
     default: {
+      fprintf(stderr, "[ERROR] unkown atom kind:%d\n", atom->kind);
       assert(0);
       break;
     }
@@ -154,7 +162,7 @@ static int compiler_atom(struct compiler *cp, struct atom *atom)
   return 0;
 }
 
-static int compiler_expr(struct compiler *cp, struct expr *expr)
+static int compiler_expr(struct Compiler *cp, struct expr *expr)
 {
   int res = -1;
   switch (expr->kind) {
@@ -171,14 +179,69 @@ static int compiler_expr(struct compiler *cp, struct expr *expr)
   return res;
 }
 
-void stmt_call_test(struct compiler *cp)
+void stmt_call_test(struct Compiler *cp)
 {
   if (OB_KLASS(cp->obj) == &method_klass) {
 
   }
 }
 
-static int compiler_stmt(struct compiler *cp, struct stmt *stmt)
+static struct type *expr_get_type(struct expr *expr)
+{
+  switch (expr->kind) {
+    case ATOM_KIND: {
+      return expr->v.atom->type;
+      break;
+    }
+    default: {
+      assert(0);
+    }
+  }
+}
+
+static void type_check_equal(struct type *t1, struct type *t2)
+{
+  assert(t1->kind == t2->kind);
+  assert(t1->dims == t2->dims);
+  switch (t1->kind) {
+    case PRIMITIVE_KIND: {
+      assert(t1->v.primitive == t2->v.primitive);
+      break;
+    }
+    default: {
+      assert(0);
+    }
+  }
+
+}
+
+static void var_type_check(struct var *var, struct expr *expr)
+{
+  if (var->type != NULL) {
+    type_check_equal(var->type, expr_get_type(expr));
+  }
+}
+
+static int compiler_vardecl(struct Compiler *cp, struct stmt *stmt)
+{
+  struct sequence *var_seq = stmt->v.vardecl.var_seq;
+  struct sequence *expr_seq = stmt->v.vardecl.expr_seq;
+  int var_count = seq_size(var_seq);
+  int expr_count = seq_size(expr_seq);
+  if (var_count != expr_count) {
+    printf(COMPILER_ERROR"var decl list length is not equal.%d != %d\n",
+           var_count, expr_count);
+    return -1;
+  }
+  struct var *var;
+  for (int i = 0; i < var_count; i++) {
+    var = seq_get(var_seq, i);
+    var_type_check(var, seq_get(expr_seq, i));
+  }
+  return 0;
+}
+
+static int compiler_stmt(struct Compiler *cp, struct stmt *stmt)
 {
   int res = -1;
   switch (stmt->kind) {
@@ -190,6 +253,10 @@ static int compiler_stmt(struct compiler *cp, struct stmt *stmt)
       res = compiler_expr(cp, stmt->v.expr);
       break;
     }
+    case VARDECL_KIND: {
+      res = compiler_vardecl(cp, stmt);
+      break;
+    }
     default:{
       assert(0);
     }
@@ -199,9 +266,9 @@ static int compiler_stmt(struct compiler *cp, struct stmt *stmt)
   return res;
 }
 
-int compiler_module(struct mod *mod)
+int compiler_module(struct sequence *stmts)
 {
-  struct compiler c;
+  struct Compiler c;
   init_compiler(&c);
 
   symtable_begin_scope(c.symtable);
@@ -225,3 +292,4 @@ int compiler_module(struct mod *mod)
 
   return 0;
 }
+#endif

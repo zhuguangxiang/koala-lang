@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "types.h"
 #include "compile.h"
 
 int yyerror(const char *str);
@@ -14,22 +13,20 @@ int yylex(void);
 %}
 
 %union {
-  char *ident;
+  char *id;
   int64_t ival;
   float64_t fval;
   char *string_const;
   int dims;
   int primitive;
   struct expr *expr;
-  struct atom *atom;
-  struct clist *list;
+  struct sequence *sequence;
   struct stmt *stmt;
   struct type *type;
-  struct array_tail *array_tail;
-  int assign_op;
-  struct member *member;
-  struct if_expr *ifexpr;
-  struct case_stmt *casestmt;
+  int operator;
+  struct field *field;
+  struct intf_func *intf_func;
+  struct test_block *testblock;
 }
 
 %token ELLIPSIS
@@ -74,15 +71,16 @@ int yylex(void);
 %token RETURN
 %token STRUCT
 %token INTERFACE
-%token TYPEDEF
 %token CONST
 %token IMPORT
 %token AS
 %token GO
 %token DEFER
+%token NEWLINE
 
-%token BYTE
 %token CHAR
+%token BYTE
+%token SHORT
 %token INTEGER
 %token FLOAT
 %token BOOL
@@ -95,13 +93,15 @@ int yylex(void);
 %token TOKEN_TRUE
 %token TOKEN_FALSE
 
+%token <ival> BYTE_CONST
+%token <ival> CHAR_CONST
 %token <ival> INT_CONST
 %token <ival> HEX_CONST
 %token <ival> OCT_CONST
 %token <fval> FLOAT_CONST
 %token <string_const> STRING_CONST
 
-%token <ident> ID
+%token <id> ID
 
 /*--------------------------------------------------------------------------*/
 
@@ -117,18 +117,17 @@ int yylex(void);
 %type <type> Type
 %type <type> FunctionType
 %type <type> TypeName
-%type <list> TypeNameListOrEmpty
-%type <list> TypeNameList
-%type <list> ReturnTypeList
-%type <list> TypeList
-%type <list> ParameterList
-%type <list> ParameterListOrEmpty
-
-%type <assign_op> CompoundAssignOperator
-%type <list> VariableList
-%type <list> VariableInitializerList
-%type <list> ExpressionList
-%type <list> PrimaryExpressionList
+%type <sequence> TypeNameListOrEmpty
+%type <sequence> TypeNameList
+%type <sequence> ReturnTypeList
+%type <sequence> TypeList
+%type <sequence> ParameterList
+%type <sequence> ParameterListOrEmpty
+%type <operator> UnaryOperator
+%type <operator> CompoundAssignOperator
+%type <sequence> VariableList
+%type <sequence> ExpressionList
+%type <sequence> PrimaryExpressionList
 
 %type <expr> Expression
 %type <expr> LogicalOrExpression
@@ -143,18 +142,15 @@ int yylex(void);
 %type <expr> MultiplicativeExpression
 %type <expr> UnaryExpression
 %type <expr> PrimaryExpression
-%type <atom> Atom
-%type <atom> ArrayAtom
-%type <atom> AnonymousFunctionDeclaration
-%type <atom> Constant
-%type <atom> Trailer
-%type <list> TrailerList
-%type <list> DimExprList
-%type <list> ArrayTailList
-%type <array_tail> ArrayTail
-
-%type <list> Imports
-%type <list> ModuleStatements
+%type <expr> Atom
+%type <expr> ArrayDeclaration
+%type <expr> AnonymousFunctionDeclaration
+%type <expr> CONSTANT
+%type <sequence> DimExprList
+%type <sequence> ArrayInitializerList
+%type <expr> ArrayInitializer
+%type <sequence> Imports
+%type <sequence> ModuleStatements
 %type <stmt> Import
 %type <stmt> ModuleStatement
 %type <stmt> Statement
@@ -162,32 +158,30 @@ int yylex(void);
 %type <stmt> VariableDeclaration
 %type <stmt> Assignment
 %type <stmt> IfStatement
-%type <list> ElseIfStatements
-%type <ifexpr> ElseIfStatement
-%type <ifexpr> OptionELSE
+%type <sequence> ElseIfStatements
+%type <testblock> ElseIfStatement
+%type <testblock> OptionELSE
 %type <stmt> WhileStatement
 %type <stmt> SwitchStatement
-%type <list> CaseStatements
-%type <casestmt> CaseStatement
+%type <sequence> CaseStatements
+%type <testblock> CaseStatement
 %type <stmt> ForStatement
 %type <stmt> ForInit
 %type <stmt> ForTest
 %type <stmt> ForIncr
-%type <list> Block
+%type <sequence> Block
 %type <stmt> GoStatement
-%type <list> LocalStatements
+%type <sequence> LocalStatements
 %type <stmt> ReturnStatement
 %type <stmt> JumpStatement
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
-%type <list> MemberDeclarations
-%type <list> InterfaceFunctionDeclarations
-%type <member> MemberDeclaration
-%type <member> FieldDeclaration
-%type <member> MethodDeclaration
-%type <member> InterfaceFunctionDeclaration
+%type <sequence> FieldDeclarations
+%type <field> FieldDeclaration
+%type <sequence> IntfFuncDecls
+%type <intf_func> IntfFuncDecl
 
-%start CompileModule
+%start CompileUnit
 
 %%
 
@@ -196,7 +190,7 @@ Type
     $$ = $1;
   }
   | DIMS BaseType {
-    type_set_dims($2, $1);
+    $2->dims = $1;
     $$ = $2;
   }
   ;
@@ -220,6 +214,9 @@ PrimitiveType
   }
   | BYTE {
     $$ = TYPE_BYTE;
+  }
+  | SHORT {
+    $$ = TYPE_SHORT;
   }
   | INTEGER {
     $$ = TYPE_INT;
@@ -269,11 +266,11 @@ TypeNameListOrEmpty
 
 TypeNameList
   : TypeName {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | TypeNameList ',' TypeName {
-    clist_add_tail(&($3)->link, $1);
+    seq_append($1, $3);
     $$ = $1;
   }
   ;
@@ -289,8 +286,8 @@ TypeName
 
 ReturnTypeList
   : Type {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | '(' TypeList ')' {
     $$ = $2;
@@ -299,36 +296,36 @@ ReturnTypeList
 
 TypeList
   : Type {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | TypeList ',' Type {
-    clist_add_tail(&($3)->link, $1);
+    seq_append($1, $3);
     $$ = $1;
   }
   ;
 
 /*--------------------------------------------------------------------------*/
-CompileModule
-  : Imports ModuleStatements {;
-    struct mod *mod = new_mod($1, $2);
-    mod_traverse(mod);
-    //compiler_module(mod);
+CompileUnit
+  : Imports ModuleStatements {
+    ast_traverse($1);
+    ast_traverse($2);
+    //compiler_module($1);
+    //compiler_module($2);
   }
   | ModuleStatements {
-    //struct mod *mod = new_mod(NULL, $1);
-    //mod_traverse(mod);
-    //compiler_module(mod);
+    ast_traverse($1);
+    //compiler_module($1);
   }
   ;
 
 Imports
   : Import {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | Imports Import {
-    clist_add_tail(&($2)->link, $1);
+    seq_append($1, $2);
     $$ = $1;
   }
   ;
@@ -344,16 +341,11 @@ Import
 
 ModuleStatements
   : ModuleStatement {
-    if ($1 != NULL) {
-      $$ = new_clist();
-      clist_add_tail(&($1)->link, $$);
-    } else {
-      printf("[ERROR] Statement is NULL\n");
-    }
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | ModuleStatements ModuleStatement {
-    assert($2 != NULL);
-    clist_add_tail(&($2)->link, $1);
+    seq_append($1, $2);
     $$ = $1;
   }
   ;
@@ -406,7 +398,7 @@ Statement
     $$ = $1;
   }
   | Block {
-    $$ = stmt_from_seq($1);
+    $$ = stmt_from_block($1);
   }
   | GoStatement {
     $$ = $1;
@@ -416,10 +408,10 @@ Statement
 /*--------------------------------------------------------------------------*/
 
 ConstDeclaration
-  : CONST VariableList '=' VariableInitializerList {
+  : CONST VariableList '=' ExpressionList {
     $$ = stmt_from_vardecl($2, $4, 1, NULL);
   }
-  | CONST VariableList Type '=' VariableInitializerList {
+  | CONST VariableList Type '=' ExpressionList {
     $$ = stmt_from_vardecl($2, $5, 1, $3);
   }
   ;
@@ -428,27 +420,21 @@ VariableDeclaration
   : VAR VariableList Type {
     $$ = stmt_from_vardecl($2, NULL, 0, $3);
   }
-  | VAR VariableList '=' VariableInitializerList {
+  | VAR VariableList '=' ExpressionList {
     $$ = stmt_from_vardecl($2, $4, 0, NULL);
   }
-  | VAR VariableList Type '=' VariableInitializerList {
+  | VAR VariableList Type '=' ExpressionList {
     $$ = stmt_from_vardecl($2, $5, 0, $3);
   }
   ;
 
 VariableList
   : ID {
-    $$ = new_clist();
-    clist_add_tail(&new_var($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, expr_from_name($1));
   }
   | VariableList ',' ID {
-    clist_add_tail(&new_var($3)->link, $1);
-    $$ = $1;
-  }
-  ;
-
-VariableInitializerList
-  : ExpressionList {
+    seq_append($1, expr_from_name($3));
     $$ = $1;
   }
   ;
@@ -457,20 +443,26 @@ VariableInitializerList
 
 FunctionDeclaration
   : FUNC ID '(' ParameterListOrEmpty ')' Block {
-    $$ = stmt_from_funcdecl($2, $4, NULL, $6);
+    $$ = stmt_from_funcdecl(NULL, $2, $4, NULL, $6);
   }
   | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = stmt_from_funcdecl($2, $4, $6, $7);
+    $$ = stmt_from_funcdecl(NULL, $2, $4, $6, $7);
+  }
+  | FUNC ID '.' ID '(' ParameterListOrEmpty ')' Block {
+    $$ = stmt_from_funcdecl($2, $4, $6, NULL, $8);
+  }
+  | FUNC ID '.' ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
+    $$ = stmt_from_funcdecl($2, $4, $6, $8, $9);
   }
   ;
 
 ParameterList
   : ID Type {
-    $$ = new_clist();
-    clist_add_tail(&new_var_type($1, $2)->link, $$);
+    $$ = seq_new();
+    seq_append($$, expr_from_name_type($1, $2));
   }
   | ParameterList ',' ID Type {
-    clist_add_tail(&new_var_type($3, $4)->link, $1);
+    seq_append($$, expr_from_name_type($3, $4));
     $$ = $1;
   }
   ;
@@ -487,90 +479,51 @@ ParameterListOrEmpty
 /*--------------------------------------------------------------------------*/
 
 TypeDeclaration
-  : STRUCT ID '{' MemberDeclarations '}' {
+  : STRUCT ID '{' FieldDeclarations '}' {
     $$ = stmt_from_structure($2, $4);
   }
-  | INTERFACE ID '{' InterfaceFunctionDeclarations '}' {
+  | INTERFACE ID '{' IntfFuncDecls '}' {
     $$ = stmt_from_interface($2, $4);
   }
-  | TYPEDEF ID Type ';' {
-    $$ = stmt_from_typedef($2, $3);
-  }
   ;
 
-MemberDeclarations
-  : MemberDeclaration {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
-  }
-  | MemberDeclarations MemberDeclaration {
-    clist_add_tail(&($2)->link, $1);
-    $$ = $1;
-  }
-  ;
-
-MemberDeclaration
+FieldDeclarations
   : FieldDeclaration {
-    $$ = $1;
+    $$ = seq_new();
+    seq_append($$, $1);
   }
-  | MethodDeclaration {
+  | FieldDeclarations FieldDeclaration {
+    seq_append($1, $2);
     $$ = $1;
   }
   ;
 
 FieldDeclaration
-  : VAR ID Type ';' {
-    $$ = new_structure_vardecl($2, $3, NULL);
-  }
-  | ID Type ';' {
-    $$ = new_structure_vardecl($1, $2, NULL);
-  }
-  | VAR ID Type '=' Expression ';' {
-    $$ = new_structure_vardecl($2, $3, $5);
+  : ID Type ';' {
+    $$ = new_struct_field($1, $2, NULL);
   }
   | ID Type '=' Expression ';' {
-    $$ = new_structure_vardecl($1, $2, $4);
+    $$ = new_struct_field($1, $2, $4);
   }
   ;
 
-MethodDeclaration
-  : FUNC ID '(' ParameterListOrEmpty ')' Block {
-    $$ = new_structure_funcdecl($2, $4, NULL, $6);
+IntfFuncDecls
+  : IntfFuncDecl {
+    $$ = seq_new();
+    seq_append($$, $1);
   }
-  | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = new_structure_funcdecl($2, $4, $6, $7);
-  }
-  | ID '(' ParameterListOrEmpty ')' Block {
-    $$ = new_structure_funcdecl($1, $3, NULL, $5);
-  }
-  | ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = new_structure_funcdecl($1, $3, $5, $6);
-  }
-  ;
-
-InterfaceFunctionDeclarations
-  : InterfaceFunctionDeclaration ';' {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
-  }
-  | InterfaceFunctionDeclarations InterfaceFunctionDeclaration ';' {
-    clist_add_tail(&($2)->link, $1);
+  | IntfFuncDecls IntfFuncDecl {
+    seq_append($1, $2);
     $$ = $1;
   }
   ;
 
-InterfaceFunctionDeclaration
-  : FUNC ID '(' TypeNameListOrEmpty ')' ReturnTypeList {
-    $$ = new_interface_funcdecl($2, $4, $6);
+IntfFuncDecl
+  : ID '(' TypeNameListOrEmpty ')' ReturnTypeList ';'{
+    $$ = new_intf_func($1, $3, $5);
   }
-  | FUNC ID '(' TypeNameListOrEmpty ')' {
-    $$ = new_interface_funcdecl($2, $4, NULL);
-  }
-  | ID '(' TypeNameListOrEmpty ')' ReturnTypeList {
-    $$ = new_interface_funcdecl($1, $3, $5);
-  }
-  | ID '(' TypeNameListOrEmpty ')' {
-    $$ = new_interface_funcdecl($1, $3, NULL);
+  | ID '(' TypeNameListOrEmpty ')' ';' {
+    $$ = new_intf_func($1, $3, NULL);
   }
   ;
 
@@ -587,11 +540,11 @@ Block
 
 LocalStatements
   : Statement {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | LocalStatements Statement {
-    clist_add_tail(&($2)->link, $1);
+    seq_append($1, $2);
     $$ = $1;
   }
   ;
@@ -599,9 +552,12 @@ LocalStatements
 /*--------------------------------------------------------------------------*/
 
 GoStatement
-  : GO Atom TrailerList ';' {
-    $$ = stmt_from_go(expr_from_atom_trailers($3, $2));
-    free_clist($3);
+  : GO PrimaryExpression '(' ExpressionList ')' ';' {
+    /*$$ = stmt_from_go(expr_from_atom_trailers($3, $2));
+    free_clist($3);*/
+  }
+  | GO PrimaryExpression '(' ')' ';' {
+
   }
   ;
 
@@ -609,33 +565,33 @@ GoStatement
 
 IfStatement
   : IF '(' Expression ')' Block OptionELSE {
-    $$ = stmt_from_if(new_if_expr($3, $5), NULL, $6);
+    $$ = stmt_from_if(new_test_block($3, $5), NULL, $6);
   }
   | IF '(' Expression ')' Block ElseIfStatements OptionELSE {
-    $$ = stmt_from_if(new_if_expr($3, $5), $6, $7);
+    $$ = stmt_from_if(new_test_block($3, $5), $6, $7);
   }
   ;
 
 ElseIfStatements
   : ElseIfStatement {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | ElseIfStatements ElseIfStatement {
-    clist_add_tail(&($2)->link, $1);
+    seq_append($1, $2);
     $$ = $1;
   }
   ;
 
 ElseIfStatement
   : ELSE IF '(' Expression ')' Block {
-    $$ = new_if_expr($4, $6);
+    $$ = new_test_block($4, $6);
   }
   ;
 
 OptionELSE
   : ELSE Block {
-    $$ = new_if_expr(NULL, $2);
+    $$ = new_test_block(NULL, $2);
   }
   | %empty {
     $$ = NULL;
@@ -663,15 +619,23 @@ SwitchStatement
 
 CaseStatements
   : CaseStatement {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | CaseStatements CaseStatement {
-    if (($2)->expr == NULL) {
+    if ($2->test == NULL) {
       /* default case */
-      clist_add(&($2)->link, $1);
+      //clist_add(&($2)->link, $1);
+      //seq_append($1, $2);
+      struct test_block *tb = seq_get($1, 0);
+      if (tb != NULL && tb->test == NULL) {
+        fprintf(stderr, "[ERROR] default case needs only one\n");
+        exit(0);
+      } else {
+        seq_insert($1, 0, $2);
+      }
     } else {
-      clist_add_tail(&($2)->link, $1);
+      seq_append($1, $2);
     }
     $$ = $1;
   }
@@ -679,10 +643,10 @@ CaseStatements
 
 CaseStatement
   : CASE Expression ':' Block {
-    $$ = new_case_stmt($2, $4);
+    $$ = new_test_block($2, $4);
   }
   | DEFAULT ':' Block {
-    $$ = new_case_stmt(NULL, $3);
+    $$ = new_test_block(NULL, $3);
   }
   ;
 
@@ -693,12 +657,13 @@ ForStatement
     $$ = stmt_from_for($3, $5, $7, $9);
   }
   | FOR '(' ID ':' Expression ')' Block {
-    $$ = stmt_from_forech(new_var($3), $5, $7, 0);
+    $$ = stmt_from_foreach(expr_from_name($3), $5, $7, 0);
   }
   | FOR '(' VAR ID ':' Expression ')' Block {
-    $$ = stmt_from_forech(new_var($4), $6, $8, 1);
+    $$ = stmt_from_foreach(expr_from_name($4), $6, $8, 1);
   }
   | FOR '(' VAR VariableList Type ':' Expression ')' Block {
+    /*
     if (clist_length($4) != 1) {
       fprintf(stderr, "syntax error, foreach usage\n");
       exit(0);
@@ -709,8 +674,10 @@ ForStatement
       free_clist($4);
       struct var *v = clist_entry(node, struct var);
       var_set_type(v, $5);
-      $$ = stmt_from_forech(v, $7, $9, 1);
+      $$ = stmt_from_foreach(v, $7, $9, 1);
     }
+    */
+    $$ = NULL;
   }
   ;
 
@@ -766,7 +733,7 @@ ReturnStatement
     $$ = stmt_from_return(NULL);
   }
   | RETURN ExpressionList ';' {
-    $$ = stmt_from_return($2);
+    $$ = NULL; //stmt_from_return($2);
   }
   ;
 
@@ -774,31 +741,39 @@ ReturnStatement
 
 PrimaryExpression
   : Atom {
-    $$ = expr_from_atom($1);
+    $$ = $1;
   }
-  | Atom TrailerList {
-    $$ = expr_from_atom_trailers($2, $1);
-    free_clist($2);
+  | PrimaryExpression '.' ID {
+    $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
+  }
+  | PrimaryExpression '[' Expression ']' {
+    $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
+  }
+  | PrimaryExpression '(' ExpressionList ')' {
+    $$ = expr_from_trailer(CALL_KIND, $3, $1);
+  }
+  | PrimaryExpression '(' ')' {
+    $$ = expr_from_trailer(CALL_KIND, NULL, $1);
   }
   ;
 
 Atom
   : ID {
-    $$ = atom_from_name($1);
+    $$ = expr_from_name($1);
   }
-  | Constant {
+  | CONSTANT {
     $$ = $1;
   }
   | SELF {
-    $$ = atom_from_self();
+    $$ = expr_from_self();
   }
-  | PrimitiveType '(' Constant ')' {
+  | PrimitiveType '(' CONSTANT ')' {
     $$ = $3;
   }
   | '(' Expression ')' {
-    $$ = atom_from_expr($2);
+    $$ = $2;
   }
-  | ArrayAtom {
+  | ArrayDeclaration {
     $$ = $1;
   }
   | AnonymousFunctionDeclaration {
@@ -808,119 +783,78 @@ Atom
 
 AnonymousFunctionDeclaration
   : FUNC '(' ParameterListOrEmpty ')' Block {
-    $$ = atom_from_anonymous_func($3, NULL, $5);
+    $$ = expr_from_anonymous_func($3, NULL, $5);
   }
   | FUNC '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = atom_from_anonymous_func($3, $5, $6);
+    $$ = expr_from_anonymous_func($3, $5, $6);
   }
   ;
 
 /* 常量(当做对象)允许访问成员变量和成员方法 */
-Constant
+CONSTANT
   : INT_CONST {
-    $$ = atom_from_int($1);
+    $$ = expr_from_int($1);
   }
   | FLOAT_CONST {
-    $$ = atom_from_float($1);
+    $$ = expr_from_float($1);
   }
   | STRING_CONST {
-    $$ = atom_from_string($1);
+    $$ = expr_from_string($1);
   }
   | TOKEN_NULL {
-    $$ = atom_from_null();
+    $$ = expr_from_null();
   }
   | TOKEN_TRUE {
-    $$ = atom_from_bool(1);
+    $$ = expr_from_bool(1);
   }
   | TOKEN_FALSE {
-    $$ = atom_from_bool(0);
+    $$ = expr_from_bool(0);
   }
   ;
 
-ArrayAtom
-  /*
-    [20][30]int             √
-    [20][]int               √
-    {{1,2}, {3}, {4,5,6}}   ×
-    {}                      ×
-    [][]int{}               ×
-    [][]int{{1,2},{3}}      √
-    [3][][]int              √
-    [3][][2]int             ×
-    [20][30]int{}           ×
-    [20][]int{}             ×
-    --------------------------
-    [20]int                 √
-    {12,3}                  ×
-    []int{1,2}              √
-    [3]int{1,2,3}           ×
-   */
+ArrayDeclaration
   : DimExprList Type {
-    type_inc_dims($2, ($1)->count);
-    $$ = atom_from_array($2, 0, $1);
+    //type_inc_dims($2, ($1)->count);
+    /*$$ = expr_from_array0($3, $1, $2);*/
+    printf("array declaration\n");
   }
-  | DIMS BaseType '{' ArrayTailList '}' {
-    type_set_dims($2, $1);
-    $$ = atom_from_array($2, 1, $4);
+  | DIMS BaseType '{' ArrayInitializerList '}' {
+    //type_set_dims($2, $1);
+    /*$$ = expr_from_array1($2, $1, $4);*/
+    printf("array declaration 2\n");
   }
   ;
 
 DimExprList
   : '[' Expression ']' {
-    $$ = new_clist();
-    clist_add_tail(&($2)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $2);
+    printf("DimExprList\n");
   }
   | DimExprList '[' Expression ']' {
-    clist_add_tail(&($3)->link, $1);
+    seq_append($1, $3);
+    $$ = $1;
+    printf("DimExprList 2\n");
+  }
+  ;
+
+ArrayInitializerList
+  : ArrayInitializer {
+    $$ = seq_new();
+    seq_append($$, $1);
+  }
+  | ArrayInitializerList ',' ArrayInitializer {
+    seq_append($1, $3);
     $$ = $1;
   }
   ;
 
-ArrayTailList
-  : ArrayTail {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
-  }
-  | ArrayTailList ',' ArrayTail {
-    clist_add_tail(&($3)->link, $1);
-    $$ = $1;
-  }
-  ;
-
-ArrayTail
+ArrayInitializer
   : Expression {
-    $$ = array_tail_from_expr($1);
+    /*$$ = expr_from_array_tail_with_expr($1);*/
   }
-  | '{' ArrayTailList '}' {
-    $$ = array_tail_from_list($2);
-  }
-  ;
-
-/*-------------------------------------------------------------------------*/
-
-TrailerList
-  : Trailer {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
-  }
-  | TrailerList Trailer {
-    clist_add_tail(&($2)->link, $1);
-    $$ = $1;
-  }
-  ;
-
-Trailer
-  : '.' ID {
-    $$ = trailer_from_attribute($2);
-  }
-  | '[' Expression ']' {
-    $$ = trailer_from_subscript($2);
-  }
-  | '(' ExpressionList ')' {
-    $$ = trailer_from_call($2);
-  }
-  | '(' ')' {
-    $$ = trailer_from_call(NULL);
+  | '{' ArrayInitializerList '}' {
+    /*$$ = expr_from_array_tail_with_list($2);*/
   }
   ;
 
@@ -930,19 +864,23 @@ UnaryExpression
   : PrimaryExpression {
     $$ = $1;
   }
-  | '+' UnaryExpression {
-    $$ = expr_for_unary(OP_PLUS, $2);;
+  | UnaryOperator UnaryExpression {
+    $$ = expr_from_unary($1, $2);
   }
-  | '-' UnaryExpression {
-    $$ = expr_for_unary(OP_MINUS, $2);
+  ;
+
+UnaryOperator
+  : '+' {
+    $$ = OP_PLUS;
   }
-  | '~' UnaryExpression {
-    /* bit operation : bit reversal */
-    $$ = expr_for_unary(OP_BIT_NOT, $2);
+  | '-' {
+    $$ = OP_MINUS;
   }
-  | NOT UnaryExpression {
-    /* logic operation : not */
-    $$ = expr_for_unary(OP_LNOT, $2);
+  | '~' {
+    $$ = OP_BIT_NOT;
+  }
+  | NOT {
+    $$ = OP_LNOT;
   }
   ;
 
@@ -951,13 +889,13 @@ MultiplicativeExpression
     $$ = $1;
   }
   | MultiplicativeExpression '*' UnaryExpression {
-    $$ = expr_for_binary(OP_MULT, $1, $3);
+    $$ = expr_from_binary(OP_MULT, $1, $3);
   }
   | MultiplicativeExpression '/' UnaryExpression {
-    $$ = expr_for_binary(OP_DIV, $1, $3);
+    $$ = expr_from_binary(OP_DIV, $1, $3);
   }
   | MultiplicativeExpression '%' UnaryExpression {
-    $$ = expr_for_binary(OP_MOD, $1, $3);
+    $$ = expr_from_binary(OP_MOD, $1, $3);
   }
   ;
 
@@ -966,10 +904,10 @@ AdditiveExpression
     $$ = $1;
   }
   | AdditiveExpression '+' MultiplicativeExpression {
-    $$ = expr_for_binary(OP_ADD, $1, $3);
+    $$ = expr_from_binary(OP_ADD, $1, $3);
   }
   | AdditiveExpression '-' MultiplicativeExpression {
-    $$ = expr_for_binary(OP_SUB, $1, $3);
+    $$ = expr_from_binary(OP_SUB, $1, $3);
   }
   ;
 
@@ -978,10 +916,10 @@ ShiftExpression
     $$ = $1;
   }
   | ShiftExpression LSHIFT AdditiveExpression {
-    $$ = expr_for_binary(OP_LSHIFT, $1, $3);
+    $$ = expr_from_binary(OP_LSHIFT, $1, $3);
   }
   | ShiftExpression RSHIFT AdditiveExpression {
-    $$ = expr_for_binary(OP_RSHIFT, $1, $3);
+    $$ = expr_from_binary(OP_RSHIFT, $1, $3);
   }
   ;
 
@@ -990,16 +928,16 @@ RelationalExpression
     $$ = $1;
   }
   | RelationalExpression '<' ShiftExpression {
-    $$ = expr_for_binary(OP_LT, $1, $3);
+    $$ = expr_from_binary(OP_LT, $1, $3);
   }
   | RelationalExpression '>' ShiftExpression {
-    $$ = expr_for_binary(OP_GT, $1, $3);
+    $$ = expr_from_binary(OP_GT, $1, $3);
   }
   | RelationalExpression LE  ShiftExpression {
-    $$ = expr_for_binary(OP_LE, $1, $3);
+    $$ = expr_from_binary(OP_LE, $1, $3);
   }
   | RelationalExpression GE  ShiftExpression {
-    $$ = expr_for_binary(OP_GE, $1, $3);
+    $$ = expr_from_binary(OP_GE, $1, $3);
   }
   ;
 
@@ -1008,10 +946,10 @@ EqualityExpression
     $$ = $1;
   }
   | EqualityExpression EQ RelationalExpression {
-    $$ = expr_for_binary(OP_EQ, $1, $3);
+    $$ = expr_from_binary(OP_EQ, $1, $3);
   }
   | EqualityExpression NE RelationalExpression {
-    $$ = expr_for_binary(OP_NEQ, $1, $3);
+    $$ = expr_from_binary(OP_NEQ, $1, $3);
   }
   ;
 
@@ -1020,7 +958,7 @@ AndExpression
     $$ = $1;
   }
   | AndExpression '&' EqualityExpression {
-    $$ = expr_for_binary(OP_BIT_AND, $1, $3);
+    $$ = expr_from_binary(OP_BIT_AND, $1, $3);
   }
   ;
 
@@ -1029,7 +967,7 @@ ExclusiveOrExpression
     $$ = $1;
   }
   | ExclusiveOrExpression '^' AndExpression {
-    $$ = expr_for_binary(OP_BIT_XOR, $1, $3);
+    $$ = expr_from_binary(OP_BIT_XOR, $1, $3);
   }
   ;
 
@@ -1038,7 +976,7 @@ InclusiveOrExpression
     $$ = $1;
   }
   | InclusiveOrExpression '|' ExclusiveOrExpression {
-    $$ = expr_for_binary(OP_BIT_OR, $1, $3);
+    $$ = expr_from_binary(OP_BIT_OR, $1, $3);
   }
   ;
 
@@ -1047,7 +985,7 @@ LogicalAndExpression
     $$ = $1;
   }
   | LogicalAndExpression AND InclusiveOrExpression {
-    $$ = expr_for_binary(OP_LAND, $1, $3);
+    $$ = expr_from_binary(OP_LAND, $1, $3);
   }
   ;
 
@@ -1056,7 +994,7 @@ LogicalOrExpression
     $$ = $1;
   }
   | LogicalOrExpression OR LogicalAndExpression {
-    $$ = expr_for_binary(OP_LOR, $1, $3);
+    $$ = expr_from_binary(OP_LOR, $1, $3);
   }
   ;
 
@@ -1068,11 +1006,11 @@ Expression
 
 ExpressionList
   : Expression {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | ExpressionList ',' Expression {
-    clist_add_tail(&($3)->link, $1);
+    seq_append($1, $3);
     $$ = $1;
   }
   ;
@@ -1084,15 +1022,18 @@ Assignment
   | PrimaryExpression CompoundAssignOperator Expression {
     $$ = stmt_from_compound_assign($1, $2, $3);
   }
+  | PrimaryExpressionList TYPELESS_ASSIGN ExpressionList {
+
+  }
   ;
 
 PrimaryExpressionList
   : PrimaryExpression {
-    $$ = new_clist();
-    clist_add_tail(&($1)->link, $$);
+    $$ = seq_new();
+    seq_append($$, $1);
   }
   | PrimaryExpressionList ',' PrimaryExpression {
-    clist_add_tail(&($3)->link, $1);
+    seq_append($1, $3);
     $$ = $1;
   }
   ;

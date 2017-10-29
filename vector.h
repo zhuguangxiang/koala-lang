@@ -13,6 +13,8 @@ struct vector {
 struct vector *vector_create(void);
 void vector_destroy(struct vector *vec,
                     void (*fini)(void *, void *), void *arg);
+int vector_init(struct vector *vec, int size);
+void vector_fini(struct vector *vec, void (*fini)(void *, void *), void *arg);
 int vector_set(struct vector *vec, int index, void *obj);
 void *vector_get(struct vector *vec, int index);
 

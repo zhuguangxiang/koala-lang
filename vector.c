@@ -4,13 +4,13 @@
 
 #define VECTOR_DEFAULT_CAPACTIY 16
 
-int vector_init(struct vector *vec)
+int vector_init(struct vector *vec, int size)
 {
-  void **objs = (void **)calloc(VECTOR_DEFAULT_CAPACTIY, sizeof(void *));
+  void **objs = (void **)calloc(size, sizeof(void *));
   if (objs == NULL) return -1;
 
   vec->objs     = objs;
-  vec->capacity = VECTOR_DEFAULT_CAPACTIY;
+  vec->capacity = size;
 
   return 0;
 }
@@ -79,7 +79,7 @@ struct vector *vector_create(void)
 {
   struct vector *vec = malloc(sizeof(*vec));
   if (vec == NULL) return NULL;
-  if (vector_init(vec)) {
+  if (vector_init(vec, VECTOR_DEFAULT_CAPACTIY)) {
     fprintf(stderr, "[ERROR] init vector failed\n");
     free(vec);
     return NULL;

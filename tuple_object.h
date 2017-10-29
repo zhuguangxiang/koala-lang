@@ -8,10 +8,10 @@
 extern "C" {
 #endif
 
-struct tuple_object {
-  OBJECT_HEAD
+struct tuple {
+  GCOBJECT_HEAD
   size_t size;
-  struct object *items[0];
+  struct object items[0];
 };
 
 extern struct klass_object tuple_klass;

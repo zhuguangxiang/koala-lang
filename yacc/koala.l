@@ -55,19 +55,19 @@ L   [a-zA-Z_]
 "return"                  {return RETURN;}
 "struct"                  {return STRUCT;}
 "interface"               {return INTERFACE;}
-"typedef"                 {return TYPEDEF;}
 "const"                   {return CONST;}
 "import"                  {return IMPORT;}
 "as"                      {return AS;}
 "go"                      {return GO;}
 "defer"                   {return DEFER;}
 
-"byte"                    {return BYTE;}
 "char"                    {return CHAR;}
+"byte"                    {return BYTE;}
+"short"                   {return SHORT;}
 "int"                     {return INTEGER;}
 "float"                   {return FLOAT;}
 "bool"                    {return BOOL;}
-"String"                  {return STRING;}
+"string"                  {return STRING;}
 "Any"                     {return ANY;}
 "[]"+                     {
                             yylval.dims = yyleng/2;
@@ -105,13 +105,12 @@ L   [a-zA-Z_]
                             char *tmp = malloc(yyleng+1);
                             strncpy(tmp, yytext, yyleng+1);
                             echo();
-                            yylval.ident = tmp;
+                            yylval.id = tmp;
                             return ID;
                           }
 
 [\t\n ]+                  {}
-
-"/*"([^\*]|(\*)*[^\*/])*(\*)*"*/"   {echo();}
+"/*"(([^\*]*(\*[^\/])?)*)"*/"       {echo();}
 "#"[^\n]*                           {echo();}
 "//"[^\n]*                          {echo();}
 
