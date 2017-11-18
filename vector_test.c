@@ -1,9 +1,6 @@
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
-#include <assert.h>
 #include "types.h"
 #include "vector.h"
 /* gcc -g -std=c99 vector.c vector_test.c */
