@@ -22,6 +22,8 @@ extern "C" {
 #define TYPE_NAME     9
 
 typedef struct object Object;
+typedef Object *(*cfunc)(Object *ob, Object *args);
+typedef struct name_struct Name;
 
 typedef struct tvalue {
   int type;
@@ -91,7 +93,7 @@ typedef void (*markfunc)(Object *ob);
 typedef Object *(*allocfunc)(Klass *klass, int num);
 typedef void (*freefunc)(Object *ob);
 
-typedef uint32_t (*hashfunc)(TValue *tv);
+typedef uint32 (*hashfunc)(TValue *tv);
 typedef int (*cmpfunc)(TValue *tv1, TValue *tv2);
 
 typedef Object *(*strfunc)(TValue *tv);
@@ -129,8 +131,6 @@ struct klass {
 #define ACCESS_PRIVATE  1
 #define ACCESS_RDONLY   2
 
-typedef Object *(*cfunc)(Object *ob, Object *args);
-
 typedef struct method_struct {
   char *name;
   char *signature;
@@ -145,12 +145,12 @@ typedef struct member_struct {
   uint16 offset;
 } MemberStruct;
 
-typedef struct name_struct {
+struct name_struct {
   char *name;
   char *signature;
   uint8 type;
   uint8 access;
-} Name;
+};
 
 #define name_isprivate(n) ((n)->access & ACCESS_PRIVATE)
 #define name_ispublic(n)  (!name_isprivate(n))

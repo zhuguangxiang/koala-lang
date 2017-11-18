@@ -1,5 +1,6 @@
 
 #include "tableobject.h"
+#include "tupleobject.h"
 
 struct entry {
   struct hash_node hnode;
@@ -38,7 +39,7 @@ static uint32 entry_hash(void *k)
   TValue *tv = k;
 
   if (tval_isint(tv)) {
-    return hash_uint32((uint32_t)TVAL_IVAL(tv), 0);
+    return hash_uint32((uint32)TVAL_IVAL(tv), 0);
   }
 
   if (tval_isname(tv)) {
@@ -71,7 +72,7 @@ static void free_entry(struct entry *e) {
 Object *Table_New(void)
 {
   TableObject *table = malloc(sizeof(*table));
-  INIT_OBJECT_HEAD(table, &Table_Klass);
+  init_object_head(table, &Table_Klass);
   int res = hash_table_init(&table->table, entry_hash, entry_equal);
   assert(!res);
   return (Object *)table;
@@ -120,7 +121,7 @@ static Object *table_put(Object *ob, Object *args)
 {
   TValue *key, *value;
   if (!Tuple_Get_Range(args, 0, 1, &key, &value)) return NULL;
-  TValue v = {TYPE_INT, Table_Put(ob, key, value)};
+  TValue v = {.type = TYPE_INT, .ival = Table_Put(ob, key, value)};
   return Tuple_Pack(&v);
 }
 

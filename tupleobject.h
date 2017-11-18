@@ -11,10 +11,10 @@ extern "C" {
 typedef StructObject TupleObject;
 
 extern Klass Tuple_Klass;
-void init_tuple_klass(void);
+void Init_Tuple_Klass(void);
 
 Object *Tuple_New(int size);
-int Tuple_Get(Object *ob, int index, TValue *val);
+int Tuple_Get(Object *ob, int index, TValue **val);
 int Tuple_Set(Object *ob, int index, TValue *val);
 int Tuple_Get_Range(Object *ob, int min, int max, ...);
 int Tuple_Size(Object *ob);

@@ -14,7 +14,7 @@ Object *Tuple_New(int size)
   return (Object *)tuple;
 }
 
-int Tuple_Get(Object *ob, int index, TValue *val)
+int Tuple_Get(Object *ob, int index, TValue **val)
 {
   assert(OB_KLASS(ob) == &Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
@@ -24,7 +24,7 @@ int Tuple_Get(Object *ob, int index, TValue *val)
     return -1;
   }
 
-  *val = tuple->items[index];
+  *val = tuple->items + index;
   return 0;
 }
 
@@ -44,7 +44,7 @@ int Tuple_Get_Range(Object *ob, int min, int max, ...)
   int ret;
   va_list vp;
   va_start(vp, max);
-  ret = get_args(ob, min, max, vp);
+  ret = get_args((TupleObject *)ob, min, max, vp);
   va_end(vp);
   return ret;
 }
@@ -94,7 +94,7 @@ Object *Tuple_Pack_Range(int count, ...)
   Object *tuple = Tuple_New(count);
   va_list vp;
   va_start(vp, count);
-  set_args(tuple, 0, count - 1, vp);
+  set_args((TupleObject *)tuple, 0, count - 1, vp);
   va_end(vp);
   return tuple;
 }
@@ -107,7 +107,7 @@ static Object *tuple_get(Object *ob, Object *args)
   assert(OB_KLASS(ob) == &Tuple_Klass);
   assert(OB_KLASS(args) == &Tuple_Klass);
 
-  if (Tupe_Get(args, 0, &val)) return NULL;
+  if (Tuple_Get(args, 0, &val)) return NULL;
   assert(tval_isint(val));
 
   if (Tuple_Get(ob, TVAL_IVAL(val), &val)) return NULL;
@@ -118,7 +118,7 @@ static Object *tuple_get(Object *ob, Object *args)
 static Object *tuple_size(Object *ob, Object *args)
 {
   TupleObject *tuple = (TupleObject *)ob;
-  TValue val = {TYPE_INT, tuple->size};
+  TValue val = {.type = TYPE_INT, .ival = tuple->size};
   return Tuple_Pack(&val);
 }
 

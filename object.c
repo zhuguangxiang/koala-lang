@@ -23,13 +23,13 @@ static int klass_add_member(Klass *klass, MemberStruct *m)
   }
 
   TValue name = {
-    TYPE_NAME,
-    Name_New(m->name, NT_VAR, m->signature, m->access)
+    .type = TYPE_NAME,
+    .name = Name_New(m->name, NT_VAR, m->signature, m->access)
   };
 
   TValue member = {
-    TYPE_FUNC,
-    m->offset
+    .type = TYPE_FUNC,
+    .ival = m->offset
   };
 
   int res = Table_Put(klass->table, &name, &member);
@@ -44,7 +44,7 @@ int Klass_Add_Members(Klass *klass, MemberStruct *members)
 {
   MemberStruct *m = members;
   while (m->name != NULL) {
-    klass_add_method(klass, m);
+    klass_add_member(klass, m);
     ++m;
   }
   return 0;
@@ -60,13 +60,13 @@ static int klass_add_method(Klass *klass, MethodStruct *m)
   }
 
   TValue name = {
-    TYPE_NAME,
-    Name_New(m->name, NT_FUNC, m->signature, m->access)
+    .type = TYPE_NAME,
+    .name = Name_New(m->name, NT_FUNC, m->signature, m->access)
   };
 
   TValue meth = {
-    TYPE_FUNC,
-    m->func
+    .type = TYPE_FUNC,
+    .func = m->func
   };
 
   int res = Table_Put(klass->table, &name, &meth);

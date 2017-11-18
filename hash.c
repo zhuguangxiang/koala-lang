@@ -11,7 +11,7 @@ uint64 hash_uint64(uint64 val, int bits)
   uint64 hash = val;
 
   /*  Sigh, gcc can't optimise this alone like it does for 32 bits. */
-  uint64_t n = hash;
+  uint64 n = hash;
   n <<= 18;
   hash -= n;
   n <<= 33;

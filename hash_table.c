@@ -10,7 +10,7 @@
  * Each prime is roughly double the previous value, and as far as
  * possible from the nearest powers of two.
  */
-uint32_t good_primes[] = {
+uint32 good_primes[] = {
   19,
   31,
   53,
@@ -45,9 +45,9 @@ uint32_t good_primes[] = {
 #define prime_array_length()  nr_elts(good_primes)
 #define get_nr_entries(table) good_primes[((table)->prime_index)]
 
-static uint32_t get_proper_prime(struct hash_table *table)
+static uint32 get_proper_prime(struct hash_table *table)
 {
-  uint32_t new_prime_index = table->prime_index;
+  uint32 new_prime_index = table->prime_index;
 
   while (new_prime_index < prime_array_length() &&
          table->nr_nodes >= get_prime(new_prime_index) * HT_LOAD_FACTOR)
@@ -135,9 +135,9 @@ void hash_table_destroy(struct hash_table *table,
 }
 
 static struct hash_node *__hash_table_find(struct hash_table *table,
-                                           uint32_t hash, void *key)
+                                           uint32 hash, void *key)
 {
-  uint32_t idx  = hash % get_nr_entries(table);
+  uint32 idx  = hash % get_nr_entries(table);
   struct hash_node *hnode;
 
   hlist_for_each_entry(hnode, table->entries + idx, link) {
@@ -172,12 +172,12 @@ int hash_table_remove(struct hash_table *table, struct hash_node *hnode)
 }
 
 static void hash_table_expand(struct hash_table *table,
-                              uint32_t new_prime_index)
+                              uint32 new_prime_index)
 {
   struct hash_node *hnode;
   struct hlist_node *nxt;
   int nr_entries = get_nr_entries(table);
-  uint32_t index;
+  uint32 index;
   int new_nr_entries = get_prime(new_prime_index);
   struct hlist_head *entries = new_entries(new_nr_entries);
   if (entries == NULL) {
@@ -200,7 +200,7 @@ static void hash_table_expand(struct hash_table *table,
 
 static void hash_table_maybe_expand(struct hash_table *table)
 {
-  uint32_t new_prime_index;
+  uint32 new_prime_index;
 
   if (table->prime_index >= prime_array_length()) return;
 
@@ -216,7 +216,7 @@ int hash_table_insert(struct hash_table *table, struct hash_node *hnode)
 {
   if (!hash_node_unhashed(hnode)) return -1;
 
-  uint32_t hash = hnode->hash = table->hash(hnode->key);
+  uint32 hash = hnode->hash = table->hash(hnode->key);
   if (NULL != __hash_table_find(table, hash, hnode->key)) {
     fprintf(stderr, "[WARN] duplicated\n");
     return -1;
@@ -224,7 +224,7 @@ int hash_table_insert(struct hash_table *table, struct hash_node *hnode)
 
   hash_table_maybe_expand(table);
 
-  uint32_t index = hash % get_nr_entries(table);
+  uint32 index = hash % get_nr_entries(table);
 
   hlist_add_head(&hnode->link, table->entries + index);
   ++table->nr_nodes;
