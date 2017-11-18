@@ -11,6 +11,7 @@
  * possible from the nearest powers of two.
  */
 uint32_t good_primes[] = {
+  19,
   31,
   53,
   97,
@@ -155,6 +156,14 @@ struct hash_node *hash_table_find(struct hash_table *table, void *key)
 int hash_table_remove(struct hash_table *table, struct hash_node *hnode)
 {
   if (hash_node_unhashed(hnode)) return -1;
+
+  struct hash_node *temp = __hash_table_find(table, hnode->hash, hnode->key);
+  if (temp == NULL) {
+    fprintf(stderr, "[ERROR]not the hash table node\n");
+    return -1;
+  }
+
+  assert(temp == hnode);
 
   hlist_del(&hnode->link);
   --table->nr_nodes;

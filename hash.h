@@ -10,11 +10,11 @@
 extern "C" {
 #endif
 
-uint64_t hash_uint64(uint64_t val, int bits);
-uint32_t hash_uint32(uint32_t val, int bits);
+uint64 hash_uint64(uint64 val, int bits);
+uint32 hash_uint32(uint32 val, int bits);
 
-uint32_t hash_nstring(const char *str, int len);
-uint32_t hash_string(const char *str);
+uint32 hash_nstring(const char *str, int len);
+uint32 hash_string(const char *str);
 
 #ifdef __cplusplus
 }

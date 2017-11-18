@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#define VECTOR_DEFAULT_CAPACTIY 16
+
 struct vector {
   int capacity;
   void **objs;

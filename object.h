@@ -2,109 +2,169 @@
 #ifndef _KOALA_OBJECT_H_
 #define _KOALA_OBJECT_H_
 
-#include "namei.h"
-#include "list.h"
-#include "hash_table.h"
-#include "vector.h"
+#include "types.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define TYPE_CHAR   1
-#define TYPE_BYTE   2
-#define TYPE_SHORT  3
-#define TYPE_INT    4
-#define TYPE_FLOAT  5
-#define TYPE_BOOL   6
-#define TYPE_STRING 7
-#define TYPE_ANY    8
-#define TYPE_DEFINE 9
+/*-------------------------------------------------------------------------*/
 
-typedef struct TValue (*cfunc_t)(struct TValue ob, struct TValue args);
+#define TYPE_NIL      0
+#define TYPE_CHAR     1
+#define TYPE_INT      2
+#define TYPE_FLOAT    3
+#define TYPE_BOOL     4
+#define TYPE_OBJECT   5
+#define TYPE_STRING   6
+#define TYPE_ANY      7
+#define TYPE_FUNC     8
+#define TYPE_NAME     9
 
-union Value {
-  struct Object *gc;
-  void *ptr;
-  int bval;
-  uint16_t ch;
-  int64_t ival;
-  float64_t fval;
-  cfunc_t func;
-};
+typedef struct object Object;
 
-#define TVALUE_HEAD int type; union Value value;
+typedef struct tvalue {
+  int type;
+  union {
+    Object *ob;
+    uint16 ch;
+    int64 ival;
+    float64 fval;
+    int bval;
+    cfunc func;
+    Name *name;
+  };
+} TValue;
 
-struct TValue {
-  TVALUE_HEAD
-};
+/* Macros to initialize tvalue */
+#define init_nil_tval(tv) do { \
+  (tv)->type = TYPE_NIL; (tv)->ob = NULL; \
+} while (0)
+
+/* Macros to test type */
+#define tval_isnil(tv)  ((tv)->type == TYPE_NIL)
+#define tval_isint(tv)  ((tv)->type == TYPE_INT)
+#define tval_isbool(tv) ((tv)->type == TYPE_BOOL)
+#define tval_isobject(tv) \
+  ((tv)->type == TYPE_OBJECT || (tv)->type == TYPE_STRING)
+#define tval_isany(tv)  ((tv)->type == TYPE_ANY)
+#define tval_isname(tv) ((tv)->type == TYPE_NAME)
+
+/* Macros to access values */
+#define TVAL_IVAL(tv) ((tv)->ival)
+#define TVAL_OVAL(tv) ((tv)->ob)
+
+/*-------------------------------------------------------------------------*/
+
+typedef struct klass Klass;
 
 #define OBJECT_HEAD \
-  struct Object *ob_next; int ob_mark; struct Klass *ob_klass;
+  Object *ob_next; int ob_ref; Klass *ob_klass;
 
-struct Object {
+struct object {
   OBJECT_HEAD
 };
 
 #define OBJECT_HEAD_INIT(klass) \
-  .ob_next = NULL, .ob_mark = 1, .ob_klass = klass
+  .ob_next = NULL, .ob_ref = 1, .ob_klass = klass
 
 #define init_object_head(ob, klass)  do {  \
-  struct Object *o = (struct Object *)ob;  \
-  o->ob_next = NULL; o->ob_mark = 1; o->ob_klass = klass; \
+  Object *o = (Object *)ob;  \
+  o->ob_next = NULL; o->ob_ref = 1; o->ob_klass = klass; \
 } while (0)
 
-#define OB_KLASS(ob)  (((struct Object *)(ob))->ob_klass)
+#define OB_KLASS(ob)  (((Object *)(ob))->ob_klass)
 
-typedef void (*scan_fn_t)(struct Object *ob);
+#define ob_klass_equal(ob1, ob2) (OB_KLASS(ob1) == OB_KLASS(ob2))
 
-typedef struct Object *(*new_fn_t)(struct Object *klass, struct Object *args);
+#define ob_incref(ob) (((Object *)ob)->ob_ref++)
+#define ob_decref(ob) do { \
+  if (--((Object *)ob)->ob_ref == 0) { \
+    OB_KLASS(ob)->ob_free((Object *)ob); \
+  } \
+} while (0)
 
-typedef void (*free_fn_t)(struct Object *ob);
+/*-------------------------------------------------------------------------*/
 
-struct object_metainfo {
-  int nr_fields;
-  int nr_methods;
-  struct hash_table *namei_table;
-  struct vector *methods_vector;
-};
+typedef void (*markfunc)(Object *ob);
 
-struct Klass {
+typedef Object *(*allocfunc)(Klass *klass, int num);
+typedef void (*freefunc)(Object *ob);
+
+typedef uint32_t (*hashfunc)(TValue *tv);
+typedef int (*cmpfunc)(TValue *tv1, TValue *tv2);
+
+typedef Object *(*strfunc)(TValue *tv);
+
+struct klass {
   OBJECT_HEAD
   const char *name;
-  size_t bsize;
-  size_t isize;
+  int bsize;
+  int isize;
 
-  scan_fn_t   ob_scan;
-  new_fn_t    ob_new;
-  free_fn_t   ob_free;
+  markfunc  ob_mark;
 
-  //NumberOperations *nu_ops;
+  allocfunc ob_alloc;
+  freefunc  ob_free;
 
+  hashfunc  ob_hash;
+  cmpfunc   ob_cmp;
+
+  strfunc   ob_tostr;
+
+  int nr_vars;
+  int nr_meths;
+  Object *table;
 };
 
-struct cfunc_struct {
+/*-------------------------------------------------------------------------*/
+
+#define NT_VAR      1
+#define NT_FUNC     2
+#define NT_STRUCT   3
+#define NT_INTF     4
+#define NT_MODULE   5
+
+#define ACCESS_PUBLIC   0
+#define ACCESS_PRIVATE  1
+#define ACCESS_RDONLY   2
+
+typedef Object *(*cfunc)(Object *ob, Object *args);
+
+typedef struct method_struct {
   char *name;
   char *signature;
-  int access;
-  cfunc_t func;
-};
+  uint8 access;
+  cfunc func;
+} MethodStruct;
 
-struct linkage_struct {
-  char *str;
-  int index;
-};
+typedef struct member_struct {
+  char *name;
+  char *signature;
+  uint8 access;
+  uint16 offset;
+} MemberStruct;
 
-extern struct Klass klass_klass;
-// int klass_add_method(struct object *ko, struct namei *ni, struct object *ob);
-// int klass_add_field(struct object *ko, struct namei *ni);
-// int klass_add_cfunctions(struct object *ko, struct cfunc_struct *funcs);
-// int klass_get(struct object *ko, struct namei *namei,
-//               struct object **ob, int *index);
-//
-// void init_klass_klass(void);
-// void init_klass(char *module, char *klass, int access, struct object *ko);
-// void klass_display(struct object *ob);
+typedef struct name_struct {
+  char *name;
+  char *signature;
+  uint8 type;
+  uint8 access;
+} Name;
+
+#define name_isprivate(n) ((n)->access & ACCESS_PRIVATE)
+#define name_ispublic(n)  (!name_isprivate(n))
+#define name_isconst(n)   ((n)->access & ACCESS_RDONLY)
+
+/*-------------------------------------------------------------------------*/
+
+extern Klass Klass_Klass;
+Klass *Klass_New(const char *name, int bsize, int isize);
+int Klass_Add_Methods(Klass *klass, MethodStruct *meths);
+int Ineger_Compare(TValue *tv1, TValue *tv2);
+Name *Name_New(char *name, uint8 type, char *signature, uint8 access);
+int Name_Compare(TValue *tv1, TValue *tv2);
+uint32 Name_Hash(TValue *tv);
 
 #ifdef __cplusplus
 }

@@ -2,8 +2,6 @@
 #include "types.h"
 #include "vector.h"
 
-#define VECTOR_DEFAULT_CAPACTIY 16
-
 int vector_init(struct vector *vec, int size)
 {
   void **objs = (void **)calloc(size, sizeof(void *));

@@ -1,167 +1,177 @@
 
-#include <stdio.h>
 #include "object.h"
-#include "namei.h"
-#include "method_object.h"
-#include "module_object.h"
+#include "tableobject.h"
 
-static struct object_metainfo *new_metainfo()
+Klass *Klass_New(const char *name, int bsize, int isize)
 {
-  struct object_metainfo *meta = malloc(sizeof(*meta));
-  meta->nr_fields      = 0;
-  meta->nr_methods     = 0;
-  meta->namei_table    = NULL;
-  meta->methods_vector = NULL;
-  return meta;
+  Klass *klass = malloc(sizeof(*klass));
+  memset(klass, 0, sizeof(*klass));
+  init_object_head(klass, &Klass_Klass);
+  klass->name = name;
+  klass->bsize = bsize;
+  klass->isize = isize;
+  return klass;
 }
 
-static void free_metainfo(struct object_metainfo *meta)
+static int klass_add_member(Klass *klass, MemberStruct *m)
 {
-  /*
-  if (meta->namei_table)
-    hash_table_destroy();
-  if (meta->methods_vector)
-    vector_destroy();
-  */
-  free(meta);
-}
-
-static struct object_metainfo *klass_get_metainfo(struct object *ob)
-{
-  struct klass_object *kob = (struct klass_object *)ob;
-  if (!kob->ob_meta)
-    kob->ob_meta = new_metainfo();
-  return kob->ob_meta;
-}
-
-static struct hash_table *meta_get_table(struct object_metainfo *meta)
-{
-  if (!meta->namei_table)
-    meta->namei_table = hash_table_create(namei_hash, namei_equal);
-  return meta->namei_table;
-}
-
-static struct vector *meta_get_vector(struct object_metainfo *meta)
-{
-  if (!meta->methods_vector)
-    meta->methods_vector = vector_create();
-  return meta->methods_vector;
-}
-
-static int meta_add_method(struct object_metainfo *meta,
-                           struct namei *ni, struct object *ob)
-{
-  int res = hash_table_insert(meta_get_table(meta), &ni->hnode);
-  assert(!res);
-  ni->offset = ++meta->nr_methods;
-  res = vector_set(meta_get_vector(meta), ni->offset, ob);
-  assert(!res);
-  return 0;
-}
-
-static int meta_add_field(struct object_metainfo *meta, struct namei *ni)
-{
-  int res = hash_table_insert(meta_get_table(meta), &ni->hnode);
-  assert(!res);
-  ni->offset = ++meta->nr_fields;
-  return 0;
-}
-
-void free_klass(struct object *ob)
-{
-  assert(OB_KLASS(ob) == &klass_klass);
-  free(ob);
-}
-
-struct klass_object klass_klass = {
-  OBJECT_HEAD_INIT(&klass_klass),
-  .name  = "Klass",
-  .bsize = sizeof(struct klass_object),
-};
-
-int klass_get(struct object *ko, struct namei *ni,
-              struct object **ob, int *index)
-{
-  assert(OB_KLASS(ko) == &klass_klass);
-  struct object_metainfo *meta = ((struct klass_object *)ko)->ob_meta;
-  if (meta == NULL || meta->namei_table == NULL) return -1;
-  struct hash_node *hnode = hash_table_find(meta_get_table(meta), ni);
-  if (hnode == NULL) return -1;
-  assert(meta->methods_vector != NULL);
-  struct namei *temp = hnode_to_namei(hnode);
-  if (index != NULL) *index = temp->offset;
-  if (ob != NULL) *ob = vector_get(meta_get_vector(meta), temp->offset);
-  return 0;
-}
-
-int klass_add_method(struct object *ko, struct namei *ni, struct object *ob)
-{
-  assert(OB_KLASS(ko) == &klass_klass);
-  assert(OB_KLASS(ob) == &method_klass);
-  return meta_add_method(klass_get_metainfo(ko), ni, ob);
-}
-
-int klass_add_field(struct object *ko, struct namei *ni)
-{
-  assert(OB_KLASS(ko) == &klass_klass);
-  return meta_add_field(klass_get_metainfo(ko), ni);
-}
-
-int klass_add_cfunctions(struct object *ko, struct cfunc_struct *funcs)
-{
-  struct namei *ni;
-  struct object *fo;
-  struct cfunc_struct *cf = funcs;
-  while (cf->name != NULL) {
-    ni = new_func_namei(cf->name, cf->signature, cf->access);
-    fo = new_cfunc(cf->func);
-    klass_add_method(ko, ni, fo);
-    ++cf;
+  if (klass->table == NULL) {
+    klass->table = Table_New();
+    assert(klass->table);
+    klass->nr_vars = 0;
+    klass->nr_meths = 0;
   }
 
+  TValue name = {
+    TYPE_NAME,
+    Name_New(m->name, NT_VAR, m->signature, m->access)
+  };
+
+  TValue member = {
+    TYPE_FUNC,
+    m->offset
+  };
+
+  int res = Table_Put(klass->table, &name, &member);
+  if (!res) {
+    ++klass->nr_vars;
+  }
+
+  return res;
+}
+
+int Klass_Add_Members(Klass *klass, MemberStruct *members)
+{
+  MemberStruct *m = members;
+  while (m->name != NULL) {
+    klass_add_method(klass, m);
+    ++m;
+  }
   return 0;
 }
 
-static struct cfunc_struct klass_functions[] = {
-  {"GetFields", "(V)([Okoala/lang.Field;)", 0, NULL},
-  {"GetMethods", "(V)([Okoala/lang.Method;)", 0, NULL},
-  {"GetField", "(Okoala/lang.String;)(Okoala/lang.Field;)", 0, NULL},
-  {"GetMethod", "(Okoala/lang.String;[Okoala/lang.Klass;)(Okoala/lang.Method;)", 0, NULL},
-  {"NewInstance", "(V)(V)", 0, NULL},
+static int klass_add_method(Klass *klass, MethodStruct *m)
+{
+  if (klass->table == NULL) {
+    klass->table = Table_New();
+    assert(klass->table);
+    klass->nr_vars = 0;
+    klass->nr_meths = 0;
+  }
+
+  TValue name = {
+    TYPE_NAME,
+    Name_New(m->name, NT_FUNC, m->signature, m->access)
+  };
+
+  TValue meth = {
+    TYPE_FUNC,
+    m->func
+  };
+
+  int res = Table_Put(klass->table, &name, &meth);
+  if (!res) {
+    ++klass->nr_meths;
+  }
+
+  return res;
+}
+
+int Klass_Add_Methods(Klass *klass, MethodStruct *meths)
+{
+  MethodStruct *meth = meths;
+  while (meth->name != NULL) {
+    klass_add_method(klass, meth);
+    ++meth;
+  }
+  return 0;
+}
+
+static MethodStruct klass_methods[] = {
+  {
+    "GetField",
+    "(Okoala/lang.String;)(Okoala/reflect.Field;)",
+    ACCESS_PUBLIC,
+    NULL
+  },
+  {
+    "GetMethod",
+    "(Okoala/lang.String;)(Okoala/reflect.Method;)",
+    ACCESS_PUBLIC,
+    NULL
+  },
+  {
+    "NewInstance",
+    "(V)(V)",
+    ACCESS_PUBLIC,
+    NULL
+  },
   {NULL, NULL, 0, NULL}
 };
 
-void init_klass_klass(void)
+void Init_Klass_Klass(void)
 {
-  struct object *ko = (struct object *)&klass_klass;
-  klass_add_cfunctions(ko, klass_functions);
-  struct object *mo = new_module("koala/lang");
-  assert(mo);
-  module_add(mo, new_klass_namei("Klass", 0), ko);
+  Klass_Add_Methods(&Klass_Klass, klass_methods);
 }
 
-static void klass_visit(struct hlist_head *head, int size, void *arg)
+/*-------------------------------------------------------------------------*/
+
+static void klass_mark(Object *ob)
 {
-  struct hash_node *hnode;
-  struct namei *ni;
-  for (int i = 0; i < size; i++) {
-    hash_list_for_each(hnode, head) {
-      ni = hnode_to_namei(hnode);
-      namei_display(ni);
-    }
-    ++head;
-  }
+  assert(OB_KLASS(ob) == &Klass_Klass);
+  ob_incref(ob);
+  //FIXME
 }
 
-void klass_display(struct object *ob)
+static void klass_free(Object *ob)
 {
-  assert(OB_KLASS(ob) == &klass_klass);
-  struct klass_object *ko = (struct klass_object *)ob;
+  // Klass_Klass cannot be freed.
+  assert(ob != (Object *)&Klass_Klass);
+  assert(OB_KLASS(ob) == &Klass_Klass);
+  free(ob);
+}
 
-  if (ko->ob_meta && ko->ob_meta->namei_table) {
-    hash_table_traverse(meta_get_table(klass_get_metainfo(ob)),
-                        klass_visit, NULL);
-  } else {
-    fprintf(stdout, "no metainfo\n");
-  }
+Klass Klass_Klass = {
+  OBJECT_HEAD_INIT(&Klass_Klass),
+  .name  = "Klass",
+  .bsize = sizeof(Klass),
+
+  .ob_mark = klass_mark,
+
+  .ob_free = klass_free,
+};
+
+/*-------------------------------------------------------------------------*/
+
+int Ineger_Compare(TValue *tv1, TValue *tv2)
+{
+  return TVAL_IVAL(tv1) - TVAL_IVAL(tv2);
+}
+
+Name *Name_New(char *name, uint8 type, char *signature, uint8 access)
+{
+  Name *n = malloc(sizeof(*n));
+  n->name = name;
+  n->type = type;
+  n->signature = signature;
+  n->access = access;
+  return n;
+}
+
+void Name_Free(Name *name)
+{
+  free(name);
+}
+
+int Name_Compare(TValue *tv1, TValue *tv2)
+{
+  Name *n1 = tv1->name;
+  Name *n2 = tv2->name;
+  return !strcmp(n1->name, n2->name);
+}
+
+uint32 Name_Hash(TValue *tv)
+{
+  Name *n = tv->name;
+  return hash_string(n->name);
 }

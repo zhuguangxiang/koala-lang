@@ -13,17 +13,22 @@
 /* stddef.h - standard type definitions */
 #include <stddef.h>
 
-/*
- * http://www.gnu.org/software/libc/manual/html_node/Integers.html
- */
-#include <stdint.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef float   float32_t;
-typedef double  float64_t;
+typedef signed char  int8;
+typedef signed short int16;
+typedef signed int   int32;
+typedef signed long long int64;
+
+typedef unsigned char  uint8;
+typedef unsigned short uint16;
+typedef unsigned int   uint32;
+typedef unsigned long long uint64;
+
+typedef float   float32;
+typedef double  float64;
 
 /* Get the min(max) one of the two numbers */
 #define min(a, b) ((a) > (b) ? (b) : (a))

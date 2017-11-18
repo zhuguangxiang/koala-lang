@@ -11,7 +11,7 @@ extern "C" {
 
 struct hash_node {
   struct hlist_node link;     /* conflict list */
-  uint32_t hash;              /* hash value */
+  uint32 hash;                /* hash value */
   void *key;                  /* hash key */
 };
 
@@ -26,12 +26,12 @@ struct hash_node {
 #define hash_list_for_each(hnode, head) \
   hlist_for_each_entry(hnode, head, link)
 
-typedef uint32_t (*ht_hash_t)(void *key);
+typedef uint32 (*ht_hash_t)(void *key);
 typedef int (*ht_equal_t)(void *key1, void *key2);
 
 struct hash_table {
-  uint32_t prime_index;         /* prime array index, internal used */
-  uint32_t nr_nodes;            /* number of nodes in hash table */
+  uint32 prime_index;           /* prime array index, internal used */
+  uint32 nr_nodes;              /* number of nodes in hash table */
   ht_hash_t hash;               /* hash function */
   ht_equal_t equal;             /* equal function */
   struct hlist_head *entries;   /* conflict list array */
@@ -59,6 +59,12 @@ int hash_table_insert(struct hash_table *table, struct hash_node *hnode);
 /* Traverse all nodes in the hash table */
 void hash_table_traverse(struct hash_table *table,
   void (*visit)(struct hlist_head *, int, void *), void *arg);
+
+int hash_table_init(struct hash_table *table,
+                    ht_hash_t hash, ht_equal_t equal);
+
+void hash_table_fini(struct hash_table *table,
+                     void (*fini)(struct hash_node *, void *), void *arg);
 
 #ifdef __cplusplus
 }

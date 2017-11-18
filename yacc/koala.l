@@ -2,7 +2,9 @@
 %{
 #include "types.h"
 #include "koala_yacc.h"
+
 static void echo();
+
 %}
 
 %option nounput
@@ -46,7 +48,7 @@ L   [a-zA-Z_]
 "in"                      {return IN;}
 "switch"                  {return SWITCH;}
 "case"                    {return CASE;}
-'fallthrough'             {return FALLTHROUGH;}
+"fallthrough"             {return FALLTHROUGH;}
 "break"                   {return BREAK;}
 "continue"                {return CONTINUE;}
 "default"                 {return DEFAULT;}
@@ -108,8 +110,8 @@ L   [a-zA-Z_]
                             yylval.id = tmp;
                             return ID;
                           }
-
-[\t\n ]+                  {}
+[\n]                      {}
+[\t ]+                    {}
 "/*"(([^\*]*(\*[^\/])?)*)"*/"       {echo();}
 "#"[^\n]*                           {echo();}
 "//"[^\n]*                          {echo();}

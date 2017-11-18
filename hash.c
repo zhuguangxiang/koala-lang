@@ -6,9 +6,9 @@
 /*  2^63 + 2^61 - 2^57 + 2^54 - 2^51 - 2^18 + 1 */
 #define GOLDEN_RATIO_PRIME_64 0x9e37fffffffc0001UL
 
-uint64_t hash_uint64(uint64_t val, int bits)
+uint64 hash_uint64(uint64 val, int bits)
 {
-  uint64_t hash = val;
+  uint64 hash = val;
 
   /*  Sigh, gcc can't optimise this alone like it does for 32 bits. */
   uint64_t n = hash;
@@ -29,20 +29,20 @@ uint64_t hash_uint64(uint64_t val, int bits)
   return hash >> (64 - bits);
 }
 
-uint32_t hash_uint32(uint32_t val, int bits)
+uint32 hash_uint32(uint32 val, int bits)
 {
   /* On some cpus multiply is faster, on others gcc will do shifts */
-  uint32_t hash = val * GOLDEN_RATIO_PRIME_32;
+  uint32 hash = val * GOLDEN_RATIO_PRIME_32;
 
   /* High bits are more random, so use them. */
   return hash >> (32 - bits);
 }
 
 /* BKDR */
-uint32_t hash_string(const char *str)
+uint32 hash_string(const char *str)
 {
-  uint32_t seed = 131; /* 31, 131, 1313, 13131, 131313, etc */
-  uint32_t val = 0;
+  uint32 seed = 131; /* 31, 131, 1313, 13131, 131313, etc */
+  uint32 val = 0;
 
   while (*str) {
     val = val * seed + (*str++);
@@ -51,10 +51,10 @@ uint32_t hash_string(const char *str)
   return val;
 }
 
-uint32_t hash_nstring(const char *str, int len)
+uint32 hash_nstring(const char *str, int len)
 {
-  uint32_t seed = 131; /* 31, 131, 1313, 13131, 131313, etc */
-  uint32_t val = 0;
+  uint32 seed = 131; /* 31, 131, 1313, 13131, 131313, etc */
+  uint32 val = 0;
 
   while ((*str) && (len)) {
     val = val * seed + (*str++);

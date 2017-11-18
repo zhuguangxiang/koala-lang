@@ -112,7 +112,7 @@ int yylex(void);
 
 /*--------------------------------------------------------------------------*/
 %type <primitive> PrimitiveType
-%type <type> UserDefinedType
+%type <type> StructedType
 %type <type> BaseType
 %type <type> Type
 %type <type> FunctionType
@@ -153,7 +153,7 @@ int yylex(void);
 %type <sequence> ModuleStatements
 %type <stmt> Import
 %type <stmt> ModuleStatement
-%type <stmt> Statement
+%type <stmt> LocalStatement
 %type <stmt> ConstDeclaration
 %type <stmt> VariableDeclaration
 %type <stmt> Assignment
@@ -199,7 +199,7 @@ BaseType
   : PrimitiveType {
     $$ = type_from_primitive($1);
   }
-  | UserDefinedType {
+  | StructedType {
     $$ = $1;
   }
 
@@ -235,7 +235,7 @@ PrimitiveType
   }
   ;
 
-UserDefinedType
+StructedType
   : ID {
     // type in local module
     $$ = type_from_userdef(NULL, $1);
@@ -322,10 +322,14 @@ CompileUnit
 Imports
   : Import {
     $$ = seq_new();
-    seq_append($$, $1);
+    if ($1 != NULL) {
+      seq_append($$, $1);
+    }
   }
   | Imports Import {
-    seq_append($1, $2);
+    if ($2 != NULL) {
+      seq_append($1, $2);
+    }
     $$ = $1;
   }
   ;
@@ -350,12 +354,8 @@ ModuleStatements
   }
   ;
 
-/*--------------------------------------------------------------------------*/
 ModuleStatement
-  : Statement {
-    $$ = $1;
-  }
-  | ConstDeclaration ';' {
+  : ConstDeclaration {
     $$ = $1;
   }
   | FunctionDeclaration {
@@ -366,7 +366,148 @@ ModuleStatement
   }
   ;
 
-Statement
+/*--------------------------------------------------------------------------*/
+
+ConstDeclaration
+  : CONST VariableList '=' ExpressionList ';' {
+    $$ = stmt_from_vardecl($2, $4, 1, NULL);
+  }
+  | CONST VariableList Type '=' ExpressionList ';' {
+    $$ = stmt_from_vardecl($2, $5, 1, $3);
+  }
+  ;
+
+VariableDeclaration
+  : VAR VariableList Type {
+    $$ = stmt_from_vardecl($2, NULL, 0, $3);
+  }
+  | VAR VariableList '=' ExpressionList {
+    $$ = stmt_from_vardecl($2, $4, 0, NULL);
+  }
+  | VAR VariableList Type '=' ExpressionList {
+    $$ = stmt_from_vardecl($2, $5, 0, $3);
+  }
+  ;
+
+VariableList
+  : ID {
+    $$ = seq_new();
+    seq_append($$, new_var($1, NULL));
+  }
+  | VariableList ',' ID {
+    seq_append($1, new_var($3, NULL));
+    $$ = $1;
+  }
+  ;
+
+/*--------------------------------------------------------------------------*/
+
+FunctionDeclaration
+  : FUNC ID '(' ParameterListOrEmpty ')' Block {
+    $$ = stmt_from_funcdecl(NULL, $2, $4, NULL, $6);
+  }
+  | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
+    $$ = stmt_from_funcdecl(NULL, $2, $4, $6, $7);
+  }
+  | FUNC ID '.' ID '(' ParameterListOrEmpty ')' Block {
+    $$ = stmt_from_funcdecl($2, $4, $6, NULL, $8);
+  }
+  | FUNC ID '.' ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
+    $$ = stmt_from_funcdecl($2, $4, $6, $8, $9);
+  }
+  ;
+
+ParameterList
+  : ID Type {
+    $$ = seq_new();
+    seq_append($$, new_var($1, $2));
+  }
+  | ParameterList ',' ID Type {
+    seq_append($$, new_var($3, $4));
+    $$ = $1;
+  }
+  ;
+
+ParameterListOrEmpty
+  : ParameterList {
+    $$ = $1;
+  }
+  | %empty {
+    $$ = NULL;
+  }
+  ;
+
+/*--------------------------------------------------------------------------*/
+
+TypeDeclaration
+  : STRUCT ID '{' FieldDeclarations '}' {
+    $$ = stmt_from_structure($2, $4);
+  }
+  | INTERFACE ID '{' IntfFuncDecls '}' {
+    $$ = stmt_from_interface($2, $4);
+  }
+  ;
+
+FieldDeclarations
+  : FieldDeclaration {
+    $$ = seq_new();
+    seq_append($$, $1);
+  }
+  | FieldDeclarations FieldDeclaration {
+    seq_append($1, $2);
+    $$ = $1;
+  }
+  ;
+
+FieldDeclaration
+  : ID Type ';' {
+    $$ = new_struct_field($1, $2, NULL);
+  }
+  ;
+
+IntfFuncDecls
+  : IntfFuncDecl {
+    $$ = seq_new();
+    seq_append($$, $1);
+  }
+  | IntfFuncDecls IntfFuncDecl {
+    seq_append($1, $2);
+    $$ = $1;
+  }
+  ;
+
+IntfFuncDecl
+  : FUNC ID '(' TypeNameListOrEmpty ')' ReturnTypeList ';'{
+    $$ = new_intf_func($2, $4, $6);
+  }
+  | FUNC ID '(' TypeNameListOrEmpty ')' ';' {
+    $$ = new_intf_func($2, $4, NULL);
+  }
+  ;
+
+/*--------------------------------------------------------------------------*/
+
+Block
+  : '{' LocalStatements '}' {
+    $$ = $2;
+  }
+  | '{' '}' {
+    $$ = NULL;
+  }
+  ;
+
+LocalStatements
+  : LocalStatement {
+    $$ = seq_new();
+    seq_append($$, $1);
+  }
+  | LocalStatements LocalStatement {
+    seq_append($1, $2);
+    $$ = $1;
+  }
+  ;
+
+LocalStatement
   : ';' {
     $$ = stmt_from_empty();
   }
@@ -407,157 +548,12 @@ Statement
 
 /*--------------------------------------------------------------------------*/
 
-ConstDeclaration
-  : CONST VariableList '=' ExpressionList {
-    $$ = stmt_from_vardecl($2, $4, 1, NULL);
-  }
-  | CONST VariableList Type '=' ExpressionList {
-    $$ = stmt_from_vardecl($2, $5, 1, $3);
-  }
-  ;
-
-VariableDeclaration
-  : VAR VariableList Type {
-    $$ = stmt_from_vardecl($2, NULL, 0, $3);
-  }
-  | VAR VariableList '=' ExpressionList {
-    $$ = stmt_from_vardecl($2, $4, 0, NULL);
-  }
-  | VAR VariableList Type '=' ExpressionList {
-    $$ = stmt_from_vardecl($2, $5, 0, $3);
-  }
-  ;
-
-VariableList
-  : ID {
-    $$ = seq_new();
-    seq_append($$, expr_from_name($1));
-  }
-  | VariableList ',' ID {
-    seq_append($1, expr_from_name($3));
-    $$ = $1;
-  }
-  ;
-
-/*--------------------------------------------------------------------------*/
-
-FunctionDeclaration
-  : FUNC ID '(' ParameterListOrEmpty ')' Block {
-    $$ = stmt_from_funcdecl(NULL, $2, $4, NULL, $6);
-  }
-  | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = stmt_from_funcdecl(NULL, $2, $4, $6, $7);
-  }
-  | FUNC ID '.' ID '(' ParameterListOrEmpty ')' Block {
-    $$ = stmt_from_funcdecl($2, $4, $6, NULL, $8);
-  }
-  | FUNC ID '.' ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = stmt_from_funcdecl($2, $4, $6, $8, $9);
-  }
-  ;
-
-ParameterList
-  : ID Type {
-    $$ = seq_new();
-    seq_append($$, expr_from_name_type($1, $2));
-  }
-  | ParameterList ',' ID Type {
-    seq_append($$, expr_from_name_type($3, $4));
-    $$ = $1;
-  }
-  ;
-
-ParameterListOrEmpty
-  : ParameterList {
-    $$ = $1;
-  }
-  | %empty {
-    $$ = NULL;
-  }
-  ;
-
-/*--------------------------------------------------------------------------*/
-
-TypeDeclaration
-  : STRUCT ID '{' FieldDeclarations '}' {
-    $$ = stmt_from_structure($2, $4);
-  }
-  | INTERFACE ID '{' IntfFuncDecls '}' {
-    $$ = stmt_from_interface($2, $4);
-  }
-  ;
-
-FieldDeclarations
-  : FieldDeclaration {
-    $$ = seq_new();
-    seq_append($$, $1);
-  }
-  | FieldDeclarations FieldDeclaration {
-    seq_append($1, $2);
-    $$ = $1;
-  }
-  ;
-
-FieldDeclaration
-  : ID Type ';' {
-    $$ = new_struct_field($1, $2, NULL);
-  }
-  | ID Type '=' Expression ';' {
-    $$ = new_struct_field($1, $2, $4);
-  }
-  ;
-
-IntfFuncDecls
-  : IntfFuncDecl {
-    $$ = seq_new();
-    seq_append($$, $1);
-  }
-  | IntfFuncDecls IntfFuncDecl {
-    seq_append($1, $2);
-    $$ = $1;
-  }
-  ;
-
-IntfFuncDecl
-  : ID '(' TypeNameListOrEmpty ')' ReturnTypeList ';'{
-    $$ = new_intf_func($1, $3, $5);
-  }
-  | ID '(' TypeNameListOrEmpty ')' ';' {
-    $$ = new_intf_func($1, $3, NULL);
-  }
-  ;
-
-/*--------------------------------------------------------------------------*/
-
-Block
-  : '{' LocalStatements '}' {
-    $$ = $2;
-  }
-  | '{' '}' {
-    $$ = NULL;
-  }
-  ;
-
-LocalStatements
-  : Statement {
-    $$ = seq_new();
-    seq_append($$, $1);
-  }
-  | LocalStatements Statement {
-    seq_append($1, $2);
-    $$ = $1;
-  }
-  ;
-
-/*--------------------------------------------------------------------------*/
-
 GoStatement
   : GO PrimaryExpression '(' ExpressionList ')' ';' {
-    /*$$ = stmt_from_go(expr_from_atom_trailers($3, $2));
-    free_clist($3);*/
+    $$ = stmt_from_go(expr_from_trailer(CALL_KIND, $4, $2));
   }
   | GO PrimaryExpression '(' ')' ';' {
-
+    $$ = stmt_from_go(expr_from_trailer(CALL_KIND, NULL, $2));
   }
   ;
 
@@ -625,8 +621,6 @@ CaseStatements
   | CaseStatements CaseStatement {
     if ($2->test == NULL) {
       /* default case */
-      //clist_add(&($2)->link, $1);
-      //seq_append($1, $2);
       struct test_block *tb = seq_get($1, 0);
       if (tb != NULL && tb->test == NULL) {
         fprintf(stderr, "[ERROR] default case needs only one\n");
@@ -657,27 +651,22 @@ ForStatement
     $$ = stmt_from_for($3, $5, $7, $9);
   }
   | FOR '(' ID ':' Expression ')' Block {
-    $$ = stmt_from_foreach(expr_from_name($3), $5, $7, 0);
+    $$ = stmt_from_foreach(new_var($3, NULL), $5, $7, 0);
   }
   | FOR '(' VAR ID ':' Expression ')' Block {
-    $$ = stmt_from_foreach(expr_from_name($4), $6, $8, 1);
+    $$ = stmt_from_foreach(new_var($4, NULL), $6, $8, 1);
   }
   | FOR '(' VAR VariableList Type ':' Expression ')' Block {
-    /*
-    if (clist_length($4) != 1) {
-      fprintf(stderr, "syntax error, foreach usage\n");
+    if (seq_size($4) != 1) {
+      fprintf(stderr, "[ERROR]syntax error, foreach usage\n");
       exit(0);
     } else {
-      struct list_head *node = clist_first($4);
-      assert(node != NULL);
-      clist_del(node, $4);
-      free_clist($4);
-      struct var *v = clist_entry(node, struct var);
-      var_set_type(v, $5);
+      struct var *v = seq_get($4, 0);
+      assert(v != NULL);
+      v->type = $5;
+      seq_free($4);
       $$ = stmt_from_foreach(v, $7, $9, 1);
     }
-    */
-    $$ = NULL;
   }
   ;
 
@@ -814,14 +803,12 @@ CONSTANT
 
 ArrayDeclaration
   : DimExprList Type {
-    //type_inc_dims($2, ($1)->count);
-    /*$$ = expr_from_array0($3, $1, $2);*/
-    printf("array declaration\n");
+    $2->dims += $1->count;
+    $$ = expr_from_array($2, $1, NULL);
   }
   | DIMS BaseType '{' ArrayInitializerList '}' {
-    //type_set_dims($2, $1);
-    /*$$ = expr_from_array1($2, $1, $4);*/
-    printf("array declaration 2\n");
+    $2->dims = $1;
+    $$ = expr_from_array($2, NULL, $4);
   }
   ;
 
@@ -829,12 +816,10 @@ DimExprList
   : '[' Expression ']' {
     $$ = seq_new();
     seq_append($$, $2);
-    printf("DimExprList\n");
   }
   | DimExprList '[' Expression ']' {
     seq_append($1, $3);
     $$ = $1;
-    printf("DimExprList 2\n");
   }
   ;
 
@@ -851,10 +836,10 @@ ArrayInitializerList
 
 ArrayInitializer
   : Expression {
-    /*$$ = expr_from_array_tail_with_expr($1);*/
+    $$ = $1;
   }
   | '{' ArrayInitializerList '}' {
-    /*$$ = expr_from_array_tail_with_list($2);*/
+    $$ = expr_from_array_with_tseq($2);
   }
   ;
 
