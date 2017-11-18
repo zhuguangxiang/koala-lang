@@ -18,11 +18,9 @@ extern "C" {
 #define TYPE_OBJECT   5
 #define TYPE_STRING   6
 #define TYPE_ANY      7
-#define TYPE_FUNC     8
-#define TYPE_NAME     9
+#define TYPE_NAME     8
 
 typedef struct object Object;
-typedef Object *(*cfunc)(Object *ob, Object *args);
 typedef struct name_struct Name;
 
 typedef struct tvalue {
@@ -33,7 +31,6 @@ typedef struct tvalue {
     int64 ival;
     float64 fval;
     int bval;
-    cfunc func;
     Name *name;
   };
 } TValue;
@@ -131,6 +128,8 @@ struct klass {
 #define ACCESS_PRIVATE  1
 #define ACCESS_RDONLY   2
 
+typedef Object *(*cfunc)(Object *ob, Object *args);
+
 typedef struct method_struct {
   char *name;
   char *signature;
@@ -159,8 +158,11 @@ struct name_struct {
 /*-------------------------------------------------------------------------*/
 
 extern Klass Klass_Klass;
+void Init_Klass_Klass(void);
 Klass *Klass_New(const char *name, int bsize, int isize);
 int Klass_Add_Methods(Klass *klass, MethodStruct *meths);
+TValue *Klass_Get(Klass *klass, char *name);
+
 int Ineger_Compare(TValue *tv1, TValue *tv2);
 Name *Name_New(char *name, uint8 type, char *signature, uint8 access);
 int Name_Compare(TValue *tv1, TValue *tv2);

@@ -1,25 +1,26 @@
 
 #include "object.h"
 #include "tableobject.h"
+#include "methodobject.h"
 
 Klass *Klass_New(const char *name, int bsize, int isize)
 {
-  Klass *klass = malloc(sizeof(*klass));
-  memset(klass, 0, sizeof(*klass));
-  init_object_head(klass, &Klass_Klass);
-  klass->name = name;
-  klass->bsize = bsize;
-  klass->isize = isize;
-  return klass;
+  Klass *klazz = malloc(sizeof(*klazz));
+  memset(klazz, 0, sizeof(*klazz));
+  init_object_head(klazz, &Klass_Klass);
+  klazz->name = name;
+  klazz->bsize = bsize;
+  klazz->isize = isize;
+  return klazz;
 }
 
-static int klass_add_member(Klass *klass, MemberStruct *m)
+static int klass_add_member(Klass *klazz, MemberStruct *m)
 {
-  if (klass->table == NULL) {
-    klass->table = Table_New();
-    assert(klass->table);
-    klass->nr_vars = 0;
-    klass->nr_meths = 0;
+  if (klazz->table == NULL) {
+    klazz->table = Table_New();
+    assert(klazz->table);
+    klazz->nr_vars = 0;
+    klazz->nr_meths = 0;
   }
 
   TValue name = {
@@ -28,35 +29,35 @@ static int klass_add_member(Klass *klass, MemberStruct *m)
   };
 
   TValue member = {
-    .type = TYPE_FUNC,
+    .type = TYPE_INT,
     .ival = m->offset
   };
 
-  int res = Table_Put(klass->table, &name, &member);
+  int res = Table_Put(klazz->table, &name, &member);
   if (!res) {
-    ++klass->nr_vars;
+    ++klazz->nr_vars;
   }
 
   return res;
 }
 
-int Klass_Add_Members(Klass *klass, MemberStruct *members)
+int Klass_Add_Members(Klass *klazz, MemberStruct *members)
 {
   MemberStruct *m = members;
   while (m->name != NULL) {
-    klass_add_member(klass, m);
+    klass_add_member(klazz, m);
     ++m;
   }
   return 0;
 }
 
-static int klass_add_method(Klass *klass, MethodStruct *m)
+static int klass_add_method(Klass *klazz, MethodStruct *m)
 {
-  if (klass->table == NULL) {
-    klass->table = Table_New();
-    assert(klass->table);
-    klass->nr_vars = 0;
-    klass->nr_meths = 0;
+  if (klazz->table == NULL) {
+    klazz->table = Table_New();
+    assert(klazz->table);
+    klazz->nr_vars = 0;
+    klazz->nr_meths = 0;
   }
 
   TValue name = {
@@ -65,27 +66,37 @@ static int klass_add_method(Klass *klass, MethodStruct *m)
   };
 
   TValue meth = {
-    .type = TYPE_FUNC,
-    .func = m->func
+    .type = TYPE_OBJECT,
+    .ob   = CMethod_New(m->func)
   };
 
-  int res = Table_Put(klass->table, &name, &meth);
+  int res = Table_Put(klazz->table, &name, &meth);
   if (!res) {
-    ++klass->nr_meths;
+    ++klazz->nr_meths;
   }
 
   return res;
 }
 
-int Klass_Add_Methods(Klass *klass, MethodStruct *meths)
+int Klass_Add_Methods(Klass *klazz, MethodStruct *meths)
 {
   MethodStruct *meth = meths;
   while (meth->name != NULL) {
-    klass_add_method(klass, meth);
+    klass_add_method(klazz, meth);
     ++meth;
   }
   return 0;
 }
+
+TValue *Klass_Get(Klass *klazz, char *name)
+{
+  if (klazz->table == NULL) return NULL;
+  Name n = {name};
+  TValue key = {.type = TYPE_NAME, .name = &n};
+  return Table_Get(klazz->table, &key);
+}
+
+/*-------------------------------------------------------------------------*/
 
 static MethodStruct klass_methods[] = {
   {
@@ -167,7 +178,7 @@ int Name_Compare(TValue *tv1, TValue *tv2)
 {
   Name *n1 = tv1->name;
   Name *n2 = tv2->name;
-  return !strcmp(n1->name, n2->name);
+  return strcmp(n1->name, n2->name);
 }
 
 uint32 Name_Hash(TValue *tv)

@@ -14,39 +14,34 @@ Object *Tuple_New(int size)
   return (Object *)tuple;
 }
 
-int Tuple_Get(Object *ob, int index, TValue **val)
+TValue *Tuple_Get(Object *ob, int index)
 {
   assert(OB_KLASS(ob) == &Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
 
   if (index < 0 || index >= tuple->size) {
     fprintf(stderr, "[ERROR] index %d out of bound\n", index);
-    return -1;
+    return NULL;
   }
 
-  *val = tuple->items + index;
-  return 0;
+  return tuple->items + index;
 }
 
-static int get_args(TupleObject *tuple, int min, int max, va_list ap)
+Object *Tuple_Get_Slice(Object *ob, int min, int max)
 {
+  assert(OB_KLASS(ob) == &Tuple_Klass);
+  if (min > max) {
+    return NULL;
+  }
+
+  Object *tuple = Tuple_New(max - min + 1);
   int index = min;
+  int i = 0;
   while (index <= max) {
-    TValue **val = va_arg(ap, TValue **);
-    *val = (tuple->items + index);
-    ++index;
+    Tuple_Set(tuple, i, Tuple_Get(ob, index));
+    ++i; index++;
   }
-  return 0;
-}
-
-int Tuple_Get_Range(Object *ob, int min, int max, ...)
-{
-  int ret;
-  va_list vp;
-  va_start(vp, max);
-  ret = get_args((TupleObject *)ob, min, max, vp);
-  va_end(vp);
-  return ret;
+  return tuple;
 }
 
 int Tuple_Size(Object *ob)
@@ -89,7 +84,7 @@ static int set_args(TupleObject *tuple, int min, int max, va_list ap)
   return 0;
 }
 
-Object *Tuple_Pack_Range(int count, ...)
+Object *Tuple_Pack_Many(int count, ...)
 {
   Object *tuple = Tuple_New(count);
   va_list vp;
@@ -107,16 +102,18 @@ static Object *tuple_get(Object *ob, Object *args)
   assert(OB_KLASS(ob) == &Tuple_Klass);
   assert(OB_KLASS(args) == &Tuple_Klass);
 
-  if (Tuple_Get(args, 0, &val)) return NULL;
+  if (!(val = Tuple_Get(args, 0))) return NULL;
   assert(tval_isint(val));
 
-  if (Tuple_Get(ob, TVAL_IVAL(val), &val)) return NULL;
+  if (!(val = Tuple_Get(ob, TVAL_IVAL(val)))) return NULL;
 
   return Tuple_Pack(val);
 }
 
 static Object *tuple_size(Object *ob, Object *args)
 {
+  assert(OB_KLASS(ob) == &Tuple_Klass);
+  assert(args == NULL);
   TupleObject *tuple = (TupleObject *)ob;
   TValue val = {.type = TYPE_INT, .ival = tuple->size};
   return Tuple_Pack(&val);

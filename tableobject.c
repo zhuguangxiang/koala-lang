@@ -113,14 +113,17 @@ static Object *table_init(Object *ob, Object *args)
 static Object *table_get(Object *ob, Object *args)
 {
   TValue *key;
-  if (!Tuple_Get(args, 0, &key)) return NULL;
+  if (!(key =Tuple_Get(args, 0))) return NULL;
   return Tuple_Pack(Table_Get(ob, key));
 }
 
 static Object *table_put(Object *ob, Object *args)
 {
-  TValue *key, *value;
-  if (!Tuple_Get_Range(args, 0, 1, &key, &value)) return NULL;
+  Object *tuple = Tuple_Get_Slice(args, 0, 1);
+  if (!tuple) return NULL;
+
+  TValue *key = Tuple_Get(tuple, 0);
+  TValue *value = Tuple_Get(tuple, 1);
   TValue v = {.type = TYPE_INT, .ival = Table_Put(ob, key, value)};
   return Tuple_Pack(&v);
 }
@@ -154,9 +157,9 @@ void Init_Table_Klass(void)
 
 /*-------------------------------------------------------------------------*/
 
-static Object *table_alloc(Klass *klass, int num)
+static Object *table_alloc(Klass *klazz, int num)
 {
-  assert(klass == &Table_Klass);
+  assert(klazz == &Table_Klass);
   return Table_New();
 }
 
