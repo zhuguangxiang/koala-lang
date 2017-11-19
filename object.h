@@ -47,7 +47,6 @@ typedef struct tvalue {
 #define tval_isint(v)     ((v).type == TYPE_INT)
 #define tval_isbool(v)    ((v).type == TYPE_BOOL)
 #define tval_isobject(v)  ((v).type == TYPE_OBJECT)
-#define tval_isstring(v)  ((v).type == TYPE_STRING)
 #define tval_isany(v)     ((v).type == TYPE_ANY)
 
 /* Macros to access type */
@@ -160,8 +159,6 @@ TValue Klass_Get(Klass *klazz, char *name);
 
 TValue TValue_Build(char ch, ...);
 int TValue_Parse(TValue val, char ch, ...);
-
-Object *Object_Get_Method(Object *ob, char *name);
 
 uint32 Integer_Hash(TValue v);
 int Ineger_Compare(TValue v1, TValue v2);

@@ -105,8 +105,9 @@ int Table_Put(Object *ob, TValue key, TValue value)
 
 static Object *table_init(Object *ob, Object *args)
 {
+  UNUSED_PARAMETER(args);
   assert(OB_KLASS(ob) == &Table_Klass);
-  return NULL;
+  return Tuple_Build("z", TRUE);
 }
 
 static Object *table_get(Object *ob, Object *args)
@@ -114,7 +115,7 @@ static Object *table_get(Object *ob, Object *args)
   TValue key;
   key = Tuple_Get(args, 0);
   if (tval_isnil(key)) return NULL;
-  return Tuple_Build_One(Table_Get(ob, key));
+  return Tuple_From_TValues(1, Table_Get(ob, key));
 }
 
 static Object *table_put(Object *ob, Object *args)
@@ -124,13 +125,13 @@ static Object *table_put(Object *ob, Object *args)
 
   TValue key = Tuple_Get(tuple, 0);
   TValue value = Tuple_Get(tuple, 1);
-  return Tuple_Build_One(TValue_Build('i', Table_Put(ob, key, value)));
+  return Tuple_Build("i", Table_Put(ob, key, value));
 }
 
 static MethodStruct table_methods[] = {
   {
     "__init__",
-    "(V)(V)",
+    "(V)(Z)",
     ACCESS_PRIVATE,
     table_init
   },
@@ -158,6 +159,7 @@ void Init_Table_Klass(void)
 
 static void table_visit(struct hlist_head *hlist, int size, void *arg)
 {
+  UNUSED_PARAMETER(arg);
   struct entry *e;
   struct hash_node *pos;
   Object *ob;
@@ -186,12 +188,14 @@ static void table_mark(Object *ob)
 
 static Object *table_alloc(Klass *klazz, int num)
 {
+  UNUSED_PARAMETER(num);
   assert(klazz == &Table_Klass);
   return Table_New();
 }
 
 static void table_fini(struct hash_node *hnode, void *arg)
 {
+  UNUSED_PARAMETER(arg);
   struct entry *e = container_of(hnode, struct entry, hnode);
   free_entry(e);
 }

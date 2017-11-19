@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+/* Basic types */
 typedef signed char  int8;
 typedef signed short int16;
 typedef signed int   int32;
@@ -30,6 +31,10 @@ typedef unsigned long long uint64;
 typedef float   float32;
 typedef double  float64;
 
+/* Bool values */
+#define TRUE 1
+#define FALSE (!TRUE)
+
 /* Get the min(max) one of the two numbers */
 #define min(a, b) ((a) > (b) ? (b) : (a))
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -40,6 +45,9 @@ typedef double  float64;
 /* Get the struct address from its member's address */
 #define container_of(ptr, type, member) \
   ((type *)((char *)ptr - offsetof(type, member)))
+
+/* For -Wunused-parameter */
+#define UNUSED_PARAMETER(var) ((var) = (var))
 
 #ifdef __cplusplus
 }

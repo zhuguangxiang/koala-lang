@@ -49,7 +49,9 @@ static Object *method_invoke(Object *ob, Object *args)
     TValue v = Tuple_Get(args, 0);
     assert(tval_isobject(v));
     Object *newargs = Tuple_Get_Slice(args, 1, Tuple_Size(args) - 1);
-    return m->cf(TVAL_OBJECT(v), newargs);
+    Object *res = Method_Invoke(ob, TVAL_OBJECT(v), newargs);
+    //ob_decref(newargs);
+    return res;
   } else {
     // new frame and execute it
     return NULL;

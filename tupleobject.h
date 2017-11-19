@@ -18,8 +18,7 @@ TValue Tuple_Get(Object *ob, int index);
 Object *Tuple_Get_Slice(Object *ob, int min, int max);
 int Tuple_Set(Object *ob, int index, TValue val);
 int Tuple_Size(Object *ob);
-Object *Tuple_Build_One(TValue v);
-Object *Tuple_Build_Many(int count, ...);
+Object *Tuple_From_TValues(int count, ...);
 Object *Tuple_Build(char *format, ...);
 int Tuple_Parse(Object *ob, char *format, ...);
 

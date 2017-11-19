@@ -1,8 +1,10 @@
 
 #include "object.h"
 #include "nameobject.h"
+#include "tupleobject.h"
 #include "tableobject.h"
 #include "methodobject.h"
+#include "stringobject.h"
 #include "kstate.h"
 
 Klass *Klass_New(const char *name, int bsize, int isize)
@@ -88,6 +90,14 @@ TValue Klass_Get(Klass *klazz, char *name)
 
 /*-------------------------------------------------------------------------*/
 
+static Object *klass_get_method(Object *klazz, Object *args)
+{
+  assert(OB_KLASS(klazz) == &Klass_Klass);
+  char *str = NULL;
+  Tuple_Parse(args, "s", &str);
+  return Tuple_From_TValues(1, Klass_Get((Klass *)klazz, str));
+}
+
 static MethodStruct klass_methods[] = {
   {
     "GetField",
@@ -99,7 +109,7 @@ static MethodStruct klass_methods[] = {
     "GetMethod",
     "(Okoala/lang.String;)(Okoala/reflect.Method;)",
     ACCESS_PUBLIC,
-    NULL
+    klass_get_method
   },
   {
     "NewInstance",
@@ -117,15 +127,7 @@ void Init_Klass_Klass(void)
 
 /*-------------------------------------------------------------------------*/
 
-Object *Object_Get_Method(Object *ob, char *name)
-{
-  TValue v = Klass_Get(OB_KLASS(ob), name);
-  if (tval_isnil(v)) return NULL;
-  if (tval_isobject(v)) return TVAL_OBJECT(v);
-  return NULL;
-}
-
-static TValue va_build_value(char ch, va_list *ap)
+TValue Va_Build_Value(char ch, va_list *ap)
 {
   TValue val = NIL_TVAL_INIT;
 
@@ -167,7 +169,9 @@ static TValue va_build_value(char ch, va_list *ap)
     }
 
     case 's': {
-      //char *ch = va_arg(*ap, char *);
+      char *str = va_arg(*ap, char *);
+      val.type = TYPE_OBJECT;
+      val.ob = String_New(str);
       break;
     }
 
@@ -193,23 +197,25 @@ TValue TValue_Build(char ch, ...)
   TValue val;
   va_list vp;
   va_start(vp, ch);
-  val = va_build_value(ch, &vp);
+  val = Va_Build_Value(ch, &vp);
   va_end(vp);
   return val;
 }
 
-static int va_parse_value(TValue val, char ch, va_list *ap)
+int Va_Parse_Value(TValue val, char ch, va_list *ap)
 {
   switch (ch) {
     case 'i': {
       int32 *i = va_arg(*ap, int32 *);
       *i = (int32)TVAL_INT(val);
+      assert(TVAL_TYPE(val) == TYPE_INT);
       break;
     }
 
     case 'l': {
       int64 *i = va_arg(*ap, int64 *);
       *i = TVAL_INT(val);
+      assert(TVAL_TYPE(val) == TYPE_INT);
       break;
     }
 
@@ -217,29 +223,36 @@ static int va_parse_value(TValue val, char ch, va_list *ap)
     case 'd': {
       float64 *f = va_arg(*ap, float64 *);
       *f = TVAL_FLOAT(val);
+      assert(TVAL_TYPE(val) == TYPE_FLOAT);
       break;
     }
 
     case 'b': {
       uint8 *ch = va_arg(*ap, uint8 *);
       *ch = TVAL_BYTE(val);
+      assert(TVAL_TYPE(val) == TYPE_BYTE);
       break;
     }
 
     case 'z': {
       int *i = va_arg(*ap, int *);
       *i = TVAL_BOOL(val);
+      assert(TVAL_TYPE(val) == TYPE_BOOL);
       break;
     }
 
     case 's': {
-      //char *ch = va_arg(*ap, char *);
+      char **str = va_arg(*ap, char **);
+      assert(TVAL_TYPE(val) == TYPE_OBJECT);
+      assert(OB_KLASS(TVAL_OBJECT(val)) == &String_Klass);
+      *str = String_To_CString(TVAL_OBJECT(val));
       break;
     }
 
     case 'O': {
       Object **o = va_arg(*ap, Object **);
       *o = TVAL_OBJECT(val);
+      assert(TVAL_TYPE(val) == TYPE_OBJECT);
       break;
     }
 
@@ -258,7 +271,7 @@ int TValue_Parse(TValue val, char ch, ...)
   int res;
   va_list vp;
   va_start(vp, ch);
-  res = va_parse_value(val, ch, &vp);
+  res = Va_Parse_Value(val, ch, &vp);
   va_end(vp);
   return res;
 }
