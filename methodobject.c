@@ -1,12 +1,14 @@
 
 #include "methodobject.h"
 #include "tupleobject.h"
+#include "kstate.h"
 
 static MethodObject *method_new(int type)
 {
   MethodObject *m = malloc(sizeof(*m));
   init_object_head(m, &Method_Klass);
   m->type = type;
+  Object_Add_GCList((Object *)m);
   return m;
 }
 
@@ -59,8 +61,17 @@ void Init_Method_Klass(void)
 
 /*-------------------------------------------------------------------------*/
 
+static void method_free(Object *ob)
+{
+  assert(OB_KLASS(ob) == &Method_Klass);
+  MethodObject *m = (MethodObject *)ob;
+  free(m);
+}
+
 Klass Method_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass),
   .name  = "Method",
   .bsize = sizeof(MethodObject),
+
+  .ob_free = method_free
 };

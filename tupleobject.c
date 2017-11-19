@@ -1,5 +1,6 @@
 
 #include "tupleobject.h"
+#include "kstate.h"
 
 Object *Tuple_New(int size)
 {
@@ -11,6 +12,7 @@ Object *Tuple_New(int size)
   for (int i = 0; i < size; i++) {
     init_nil_tval(tuple->items + i);
   }
+  Object_Add_GCList((Object *)tuple);
   return (Object *)tuple;
 }
 

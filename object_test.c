@@ -3,6 +3,7 @@
 #include "tupleobject.h"
 #include "tableobject.h"
 #include "methodobject.h"
+#include "kstate.h"
 
 /* gcc -g -std=c99 object_test.c -lkoala -L. */
 
@@ -60,5 +61,7 @@ int main(int argc, char *argv[])
 
   test_object();
   test_method();
+  Object_Clean();
+  Object_Clean();
   return 0;
 }

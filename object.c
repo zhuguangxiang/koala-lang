@@ -2,6 +2,7 @@
 #include "object.h"
 #include "tableobject.h"
 #include "methodobject.h"
+#include "kstate.h"
 
 Klass *Klass_New(const char *name, int bsize, int isize)
 {
@@ -11,6 +12,7 @@ Klass *Klass_New(const char *name, int bsize, int isize)
   klazz->name = name;
   klazz->bsize = bsize;
   klazz->isize = isize;
+  Object_Add_GCList((Object *)klazz);
   return klazz;
 }
 

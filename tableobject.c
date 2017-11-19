@@ -1,6 +1,7 @@
 
 #include "tableobject.h"
 #include "tupleobject.h"
+#include "kstate.h"
 
 struct entry {
   struct hash_node hnode;
@@ -75,11 +76,14 @@ Object *Table_New(void)
   init_object_head(table, &Table_Klass);
   int res = hash_table_init(&table->table, entry_hash, entry_equal);
   assert(!res);
+  Object_Add_GCList((Object *)table);
   return (Object *)table;
 }
 
 TValue *Table_Get(Object *ob, TValue *key)
 {
+  assert(OB_KLASS(ob) == &Table_Klass);
+
   TableObject *table = (TableObject *)ob;
   struct hash_node *hnode = hash_table_find(&table->table, key);
   if (hnode != NULL) {
@@ -92,6 +96,8 @@ TValue *Table_Get(Object *ob, TValue *key)
 
 int Table_Put(Object *ob, TValue *key, TValue *value)
 {
+  assert(OB_KLASS(ob) == &Table_Klass);
+
   TableObject *table = (TableObject *)ob;
   struct entry *e = new_entry(key, value);
   int res = hash_table_insert(&table->table, &e->hnode);
@@ -107,13 +113,14 @@ int Table_Put(Object *ob, TValue *key, TValue *value)
 
 static Object *table_init(Object *ob, Object *args)
 {
+  assert(OB_KLASS(ob) == &Table_Klass);
   return NULL;
 }
 
 static Object *table_get(Object *ob, Object *args)
 {
   TValue *key;
-  if (!(key =Tuple_Get(args, 0))) return NULL;
+  if (!(key = Tuple_Get(args, 0))) return NULL;
   return Tuple_Pack(Table_Get(ob, key));
 }
 
@@ -157,10 +164,60 @@ void Init_Table_Klass(void)
 
 /*-------------------------------------------------------------------------*/
 
+static void table_visit(struct hlist_head *hlist, int size, void *arg)
+{
+  struct entry *e;
+  struct hash_node *pos;
+  Object *ob;
+  for (int i = 0; i < size; i++) {
+    hlist_for_each_entry(pos, hlist + i, link) {
+      e = container_of(pos, struct entry, hnode);
+      if (tval_isobject(&e->key)) {
+        ob = TVAL_OVAL(&e->key);
+        OB_KLASS(ob)->ob_mark(ob);
+      }
+
+      if (tval_isobject(&e->val)) {
+        ob = TVAL_OVAL(&e->val);
+        OB_KLASS(ob)->ob_mark(ob);
+      }
+    }
+  }
+}
+
+static void table_mark(Object *ob)
+{
+  assert(OB_KLASS(ob) == &Table_Klass);
+  TableObject *table = (TableObject *)ob;
+  hash_table_traverse(&table->table, table_visit, NULL);
+}
+
 static Object *table_alloc(Klass *klazz, int num)
 {
   assert(klazz == &Table_Klass);
   return Table_New();
+}
+
+static void table_fini(struct hash_node *hnode, void *arg)
+{
+  struct entry *e = container_of(hnode, struct entry, hnode);
+  if (tval_isname(&e->key)) {
+    Name_Free(e->key.name);
+  }
+
+  if (tval_isname(&e->val)) {
+    Name_Free(e->val.name);
+  }
+
+  free_entry(e);
+}
+
+static void table_free(Object *ob)
+{
+  assert(OB_KLASS(ob) == &Table_Klass);
+  TableObject *table = (TableObject *)ob;
+  hash_table_fini(&table->table, table_fini, NULL);
+  free(ob);
 }
 
 Klass Table_Klass = {
@@ -168,6 +225,8 @@ Klass Table_Klass = {
   .name  = "Table",
   .bsize = sizeof(TableObject),
 
-  .ob_alloc = table_alloc,
+  .ob_mark  = table_mark,
 
+  .ob_alloc = table_alloc,
+  .ob_free  = table_free,
 };

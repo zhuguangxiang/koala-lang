@@ -7,13 +7,8 @@ extern void koala_main(char *arg);
 
 int yyerror(const char *str)
 {
-  fprintf(stderr, "%s\n", str);
+  //fprintf(stderr, "%s\n", str);
   return 0;
-}
-
-void yyecho(char *str)
-{
-  fprintf(stderr, "%s\n", str);
 }
 
 int main(int argc, char *argv[])

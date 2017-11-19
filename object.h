@@ -164,7 +164,9 @@ int Klass_Add_Methods(Klass *klass, MethodStruct *meths);
 TValue *Klass_Get(Klass *klass, char *name);
 
 int Ineger_Compare(TValue *tv1, TValue *tv2);
+
 Name *Name_New(char *name, uint8 type, char *signature, uint8 access);
+void Name_Free(Name *name);
 int Name_Compare(TValue *tv1, TValue *tv2);
 uint32 Name_Hash(TValue *tv);
 
