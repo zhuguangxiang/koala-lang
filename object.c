@@ -1,5 +1,6 @@
 
 #include "object.h"
+#include "nameobject.h"
 #include "tableobject.h"
 #include "methodobject.h"
 #include "kstate.h"
@@ -25,17 +26,11 @@ static int klass_add_member(Klass *klazz, MemberStruct *m)
     klazz->nr_meths = 0;
   }
 
-  TValue name = {
-    .type = TYPE_NAME,
-    .name = Name_New(m->name, NT_VAR, m->signature, m->access)
-  };
+  Object *o = Name_New(m->name, NT_VAR, m->signature, m->access);
+  TValue name = TValue_Build('O', o);
+  TValue member = TValue_Build('i', m->offset);
 
-  TValue member = {
-    .type = TYPE_INT,
-    .ival = m->offset
-  };
-
-  int res = Table_Put(klazz->table, &name, &member);
+  int res = Table_Put(klazz->table, name, member);
   if (!res) {
     ++klazz->nr_vars;
   }
@@ -62,17 +57,11 @@ static int klass_add_method(Klass *klazz, MethodStruct *m)
     klazz->nr_meths = 0;
   }
 
-  TValue name = {
-    .type = TYPE_NAME,
-    .name = Name_New(m->name, NT_FUNC, m->signature, m->access)
-  };
+  Object *o = Name_New(m->name, NT_VAR, m->signature, m->access);
+  TValue name = TValue_Build('O', o);
+  TValue meth = TValue_Build('O', CMethod_New(m->func));
 
-  TValue meth = {
-    .type = TYPE_OBJECT,
-    .ob   = CMethod_New(m->func)
-  };
-
-  int res = Table_Put(klazz->table, &name, &meth);
+  int res = Table_Put(klazz->table, name, meth);
   if (!res) {
     ++klazz->nr_meths;
   }
@@ -90,12 +79,11 @@ int Klass_Add_Methods(Klass *klazz, MethodStruct *meths)
   return 0;
 }
 
-TValue *Klass_Get(Klass *klazz, char *name)
+TValue Klass_Get(Klass *klazz, char *name)
 {
-  if (klazz->table == NULL) return NULL;
-  Name n = {name};
-  TValue key = {.type = TYPE_NAME, .name = &n};
-  return Table_Get(klazz->table, &key);
+  if (klazz->table == NULL) return TVAL_NIL;
+  Object *n = Name_New(name, 0, NULL, 0);
+  return Table_Get(klazz->table, TValue_Build('O', n));
 }
 
 /*-------------------------------------------------------------------------*/
@@ -129,6 +117,154 @@ void Init_Klass_Klass(void)
 
 /*-------------------------------------------------------------------------*/
 
+Object *Object_Get_Method(Object *ob, char *name)
+{
+  TValue v = Klass_Get(OB_KLASS(ob), name);
+  if (tval_isnil(v)) return NULL;
+  if (tval_isobject(v)) return TVAL_OBJECT(v);
+  return NULL;
+}
+
+static TValue va_build_value(char ch, va_list *ap)
+{
+  TValue val = NIL_TVAL_INIT;
+
+  switch (ch) {
+    case 'i': {
+      uint32 i = va_arg(*ap, uint32);
+      val.type = TYPE_INT;
+      val.ival = (int64)i;
+      break;
+    }
+
+    case 'l': {
+      uint64 i = va_arg(*ap, uint64);
+      val.type = TYPE_INT;
+      val.ival = (int64)i;
+      break;
+    }
+
+    case 'f':
+    case 'd': {
+      float64 f = va_arg(*ap, float64);
+      val.type = TYPE_FLOAT;
+      val.fval = f;
+      break;
+    }
+
+    case 'b': {
+      uint32 i = va_arg(*ap, uint32);
+      val.type = TYPE_BYTE;
+      val.ival = (int64)i;
+      break;
+    }
+
+    case 'z': {
+      int i = va_arg(*ap, int);
+      val.type = TYPE_BOOL;
+      val.bval = i;
+      break;
+    }
+
+    case 's': {
+      //char *ch = va_arg(*ap, char *);
+      break;
+    }
+
+    case 'O': {
+      Object *o = va_arg(*ap, Object *);
+      val.type = TYPE_OBJECT;
+      val.ob = o;
+      break;
+    }
+
+    default: {
+      fprintf(stderr, "[ERROR] unsupported type: %d\n", ch);
+      assert(0);
+      break;
+    }
+  }
+
+  return val;
+}
+
+TValue TValue_Build(char ch, ...)
+{
+  TValue val;
+  va_list vp;
+  va_start(vp, ch);
+  val = va_build_value(ch, &vp);
+  va_end(vp);
+  return val;
+}
+
+static int va_parse_value(TValue val, char ch, va_list *ap)
+{
+  switch (ch) {
+    case 'i': {
+      int32 *i = va_arg(*ap, int32 *);
+      *i = (int32)TVAL_INT(val);
+      break;
+    }
+
+    case 'l': {
+      int64 *i = va_arg(*ap, int64 *);
+      *i = TVAL_INT(val);
+      break;
+    }
+
+    case 'f':
+    case 'd': {
+      float64 *f = va_arg(*ap, float64 *);
+      *f = TVAL_FLOAT(val);
+      break;
+    }
+
+    case 'b': {
+      uint8 *ch = va_arg(*ap, uint8 *);
+      *ch = TVAL_BYTE(val);
+      break;
+    }
+
+    case 'z': {
+      int *i = va_arg(*ap, int *);
+      *i = TVAL_BOOL(val);
+      break;
+    }
+
+    case 's': {
+      //char *ch = va_arg(*ap, char *);
+      break;
+    }
+
+    case 'O': {
+      Object **o = va_arg(*ap, Object **);
+      *o = TVAL_OBJECT(val);
+      break;
+    }
+
+    default: {
+      fprintf(stderr, "[ERROR] unsupported type: %d\n", ch);
+      assert(0);
+      break;
+    }
+  }
+
+  return 0;
+}
+
+int TValue_Parse(TValue val, char ch, ...)
+{
+  int res;
+  va_list vp;
+  va_start(vp, ch);
+  res = va_parse_value(val, ch, &vp);
+  va_end(vp);
+  return res;
+}
+
+/*-------------------------------------------------------------------------*/
+
 static void klass_mark(Object *ob)
 {
   assert(OB_KLASS(ob) == &Klass_Klass);
@@ -156,35 +292,12 @@ Klass Klass_Klass = {
 
 /*-------------------------------------------------------------------------*/
 
-int Ineger_Compare(TValue *tv1, TValue *tv2)
+uint32 Integer_Hash(TValue v)
 {
-  return TVAL_IVAL(tv1) - TVAL_IVAL(tv2);
+  return hash_uint32((uint32)TVAL_INT(v), 0);
 }
 
-Name *Name_New(char *name, uint8 type, char *signature, uint8 access)
+int Ineger_Compare(TValue v1, TValue v2)
 {
-  Name *n = malloc(sizeof(*n));
-  n->name = name;
-  n->type = type;
-  n->signature = signature;
-  n->access = access;
-  return n;
-}
-
-void Name_Free(Name *name)
-{
-  free(name);
-}
-
-int Name_Compare(TValue *tv1, TValue *tv2)
-{
-  Name *n1 = tv1->name;
-  Name *n2 = tv2->name;
-  return strcmp(n1->name, n2->name);
-}
-
-uint32 Name_Hash(TValue *tv)
-{
-  Name *n = tv->name;
-  return hash_string(n->name);
+  return TVAL_INT(v1) - TVAL_INT(v2);
 }

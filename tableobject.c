@@ -11,20 +11,16 @@ struct entry {
 
 static int entry_equal(void *k1, void *k2)
 {
-  TValue *tv1 = k1;
-  TValue *tv2 = k2;
+  TValue v1 = *(TValue *)k1;
+  TValue v2 = *(TValue *)k2;
 
-  if (tval_isint(tv1) && tval_isint(tv2)) {
-    return !Ineger_Compare(tv1, tv2);
+  if (tval_isint(v1) && tval_isint(v2)) {
+    return !Ineger_Compare(v1, v2);
   }
 
-  if (tval_isname(tv1) && tval_isname(tv2)) {
-    return !Name_Compare(tv1, tv2);
-  }
-
-  if (tval_isobject(tv1) && tval_isobject(tv2)) {
-    if (ob_klass_equal(TVAL_OVAL(tv1), TVAL_OVAL(tv2))) {
-      return OB_KLASS(TVAL_OVAL(tv1))->ob_cmp(tv1, tv2);
+  if (tval_isobject(v1) && tval_isobject(v2)) {
+    if (ob_klass_eq(TVAL_OBJECT(v1), TVAL_OBJECT(v2))) {
+      return OB_KLASS(TVAL_OBJECT(v1))->ob_cmp(v1, v2);
     } else {
       fprintf(stderr, "[WARN] the two key types are not the same.\n");
       return 0;
@@ -37,18 +33,14 @@ static int entry_equal(void *k1, void *k2)
 
 static uint32 entry_hash(void *k)
 {
-  TValue *tv = k;
+  TValue v = *(TValue *)k;
 
-  if (tval_isint(tv)) {
-    return hash_uint32((uint32)TVAL_IVAL(tv), 0);
+  if (tval_isint(v)) {
+    return Integer_Hash(v);
   }
 
-  if (tval_isname(tv)) {
-    return Name_Hash(tv);
-  }
-
-  if (tval_isobject(tv)) {
-    return OB_KLASS(TVAL_OVAL(tv))->ob_hash(tv);
+  if (tval_isobject(v)) {
+    return OB_KLASS(TVAL_OBJECT(v))->ob_hash(v);
   }
 
   fprintf(stderr, "[WARN] unsupported type for hashing\n");
@@ -80,26 +72,26 @@ Object *Table_New(void)
   return (Object *)table;
 }
 
-TValue *Table_Get(Object *ob, TValue *key)
+TValue Table_Get(Object *ob, TValue key)
 {
   assert(OB_KLASS(ob) == &Table_Klass);
 
   TableObject *table = (TableObject *)ob;
-  struct hash_node *hnode = hash_table_find(&table->table, key);
+  struct hash_node *hnode = hash_table_find(&table->table, &key);
   if (hnode != NULL) {
     struct entry *e = container_of(hnode, struct entry, hnode);
-    return &e->val;
+    return e->val;
   } else {
-    return NULL;
+    return TVAL_NIL;
   }
 }
 
-int Table_Put(Object *ob, TValue *key, TValue *value)
+int Table_Put(Object *ob, TValue key, TValue value)
 {
   assert(OB_KLASS(ob) == &Table_Klass);
 
   TableObject *table = (TableObject *)ob;
-  struct entry *e = new_entry(key, value);
+  struct entry *e = new_entry(&key, &value);
   int res = hash_table_insert(&table->table, &e->hnode);
   if (res) {
     free_entry(e);
@@ -119,9 +111,10 @@ static Object *table_init(Object *ob, Object *args)
 
 static Object *table_get(Object *ob, Object *args)
 {
-  TValue *key;
-  if (!(key = Tuple_Get(args, 0))) return NULL;
-  return Tuple_Pack(Table_Get(ob, key));
+  TValue key;
+  key = Tuple_Get(args, 0);
+  if (tval_isnil(key)) return NULL;
+  return Tuple_Build_One(Table_Get(ob, key));
 }
 
 static Object *table_put(Object *ob, Object *args)
@@ -129,10 +122,9 @@ static Object *table_put(Object *ob, Object *args)
   Object *tuple = Tuple_Get_Slice(args, 0, 1);
   if (!tuple) return NULL;
 
-  TValue *key = Tuple_Get(tuple, 0);
-  TValue *value = Tuple_Get(tuple, 1);
-  TValue v = {.type = TYPE_INT, .ival = Table_Put(ob, key, value)};
-  return Tuple_Pack(&v);
+  TValue key = Tuple_Get(tuple, 0);
+  TValue value = Tuple_Get(tuple, 1);
+  return Tuple_Build_One(TValue_Build('i', Table_Put(ob, key, value)));
 }
 
 static MethodStruct table_methods[] = {
@@ -172,13 +164,13 @@ static void table_visit(struct hlist_head *hlist, int size, void *arg)
   for (int i = 0; i < size; i++) {
     hlist_for_each_entry(pos, hlist + i, link) {
       e = container_of(pos, struct entry, hnode);
-      if (tval_isobject(&e->key)) {
-        ob = TVAL_OVAL(&e->key);
+      if (tval_isobject(e->key)) {
+        ob = TVAL_OBJECT(e->key);
         OB_KLASS(ob)->ob_mark(ob);
       }
 
-      if (tval_isobject(&e->val)) {
-        ob = TVAL_OVAL(&e->val);
+      if (tval_isobject(e->val)) {
+        ob = TVAL_OBJECT(e->val);
         OB_KLASS(ob)->ob_mark(ob);
       }
     }
@@ -201,14 +193,6 @@ static Object *table_alloc(Klass *klazz, int num)
 static void table_fini(struct hash_node *hnode, void *arg)
 {
   struct entry *e = container_of(hnode, struct entry, hnode);
-  if (tval_isname(&e->key)) {
-    Name_Free(e->key.name);
-  }
-
-  if (tval_isname(&e->val)) {
-    Name_Free(e->val.name);
-  }
-
   free_entry(e);
 }
 

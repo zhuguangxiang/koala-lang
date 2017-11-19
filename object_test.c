@@ -9,47 +9,50 @@
 
 void test_object(void)
 {
-  TValue *tv = Klass_Get(&Klass_Klass, "GetMethod");
-  assert(tval_isobject(tv));
-  Object *ob = TVAL_OVAL(tv);
+  TValue v = Klass_Get(&Klass_Klass, "GetMethod");
+  assert(tval_isobject(v));
+  Object *ob = TVAL_OBJECT(v);
   assert(OB_KLASS(ob) == &Method_Klass);
   MethodObject *m = (MethodObject *)ob;
   assert(m->type == METH_CFUNC);
+
+  ob = Tuple_Build_Many(2, TValue_Build('i', 100), TValue_Build('f', 3.14));
+  Object *m1 = Object_Get_Method(ob, "Size");
+  Method_Invoke(m1, ob, NULL);
+  m1 = Object_Get_Method(ob, "Get");
+  //Method_Invoke(m1, ob, Tuple_Pack_Format("i", 0));
 }
 
 void test_method(void)
 {
   /*
-    var klazz = Tuple.klass;
+    var klazz = Tuple.klazz;
     var m Method = klazz.GetMethod("Size");
     var tuple = Tuple(123, true);
     var size = m.invoke(tuple);
    */
 
   // var tuple = Tuple(123, true);
-  TValue tv1 = {.type = TYPE_INT, .ival = 123};
-  TValue tv2 = {.type = TYPE_BOOL, .bval = 1};
-  Object *tuple = Tuple_Pack_Many(2, &tv1, &tv2);
+  Object *tuple = Tuple_Build_Many(2, TValue_Build('i', 123), TValue_Build('z', 1));
 
-  // var klazz = Tuple.klass;
+  // var klazz = Tuple.klazz;
   // var m Method = klazz.GetMethod("Size");
-  TValue *tv = Klass_Get(&Tuple_Klass, "Size");
-  assert(tval_isobject(tv));
-  Object *ob = TVAL_OVAL(tv);
+  TValue v = Klass_Get(&Tuple_Klass, "Size");
+  assert(tval_isobject(v));
+  Object *ob = TVAL_OBJECT(v);
   assert(OB_KLASS(ob) == &Method_Klass);
   MethodObject *m_Size = (MethodObject *)ob;
   assert(m_Size->type == METH_CFUNC);
 
   // var size = m.invoke(tuple);
   Klass *klazz = OB_KLASS(m_Size);
-  tv = Klass_Get(klazz, "Invoke");
-  MethodObject *m_Invoke = (MethodObject *)TVAL_OVAL(tv);
+  v = Klass_Get(klazz, "Invoke");
+  MethodObject *m_Invoke = (MethodObject *)TVAL_OBJECT(v);
   assert(m_Invoke && m_Invoke->type == METH_CFUNC);
   cfunc cf = m_Invoke->cf;
-  TValue tv3 = {.type = TYPE_OBJECT, .ob = tuple};
-  tuple = cf((Object *)m_Size, Tuple_Pack(&tv3));
-  TValue *tv4 = Tuple_Get(tuple, 0);
-  assert(tv4 && tv4->type == TYPE_INT && tv4->ival == 2);
+  tuple = cf((Object *)m_Size, Tuple_Build_One(TValue_Build('O', tuple)));
+  TValue v4 = Tuple_Get(tuple, 0);
+  assert(TVAL_TYPE(v4) == TYPE_INT && TVAL_INT(v4) == 2);
 }
 
 int main(int argc, char *argv[])

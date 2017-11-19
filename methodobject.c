@@ -28,16 +28,28 @@ Object *KMethod_New(uint8 *codes, Object *k, Object *up)
   return (Object *)m;
 }
 
+Object *Method_Invoke(Object *mob, Object *ob, Object *args)
+{
+  assert(OB_KLASS(mob) == &Method_Klass);
+  MethodObject *m = (MethodObject *)mob;
+  if (m->type == METH_CFUNC) {
+    return m->cf(ob, args);
+  } else {
+    // new frame and execute it
+    return NULL;
+  }
+}
+
 /*-------------------------------------------------------------------------*/
 static Object *method_invoke(Object *ob, Object *args)
 {
   assert(OB_KLASS(ob) == &Method_Klass);
   MethodObject *m = (MethodObject *)ob;
   if (m->type == METH_CFUNC) {
-    TValue *tv = Tuple_Get(args, 0);
-    assert(tval_isobject(tv));
+    TValue v = Tuple_Get(args, 0);
+    assert(tval_isobject(v));
     Object *newargs = Tuple_Get_Slice(args, 1, Tuple_Size(args) - 1);
-    return m->cf(TVAL_OVAL(tv), newargs);
+    return m->cf(TVAL_OBJECT(v), newargs);
   } else {
     // new frame and execute it
     return NULL;

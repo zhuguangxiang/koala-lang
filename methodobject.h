@@ -29,6 +29,7 @@ extern Klass Method_Klass;
 void Init_Method_Klass(void);
 Object *KMethod_New(uint8 *codes, Object *k, Object *up);
 Object *CMethod_New(cfunc cf);
+Object *Method_Invoke(Object *mob, Object *ob, Object *args);
 
 #ifdef __cplusplus
 }

@@ -18,8 +18,8 @@ typedef struct tableobject {
 extern Klass Table_Klass;
 void Init_Table_Klass(void);
 Object *Table_New(void);
-TValue *Table_Get(Object *ob, TValue *key);
-int Table_Put(Object *ob, TValue *key, TValue *value);
+TValue Table_Get(Object *ob, TValue key);
+int Table_Put(Object *ob, TValue key, TValue value);
 
 #ifdef __cplusplus
 }

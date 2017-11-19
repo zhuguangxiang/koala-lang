@@ -7,22 +7,22 @@ static void struct_mark(Object *ob)
   assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
   ob_incref(ob);
   for (int i = 0; i < sob->size; i++) {
-    if (tval_isobject(sob->items + i)) {
-      Object *temp = TVAL_OVAL(sob->items + i);
+    if (tval_isobject(sob->items[i])) {
+      Object *temp = TVAL_OBJECT(sob->items[i]);
       OB_KLASS(temp)->ob_mark(temp);
     }
   }
 }
 
-static Object *struct_alloc(Klass *klass, int num)
+static Object *struct_alloc(Klass *klazz, int num)
 {
-  assert(OB_KLASS(klass) == &Klass_Klass);
-  size_t size = klass->bsize + klass->isize * num;
+  assert(OB_KLASS(klazz) == &Klass_Klass);
+  size_t size = klazz->bsize + klazz->isize * num;
   StructObject *ob = malloc(size);
-  init_object_head(ob, klass);
+  init_object_head(ob, klazz);
   ob->size = num;
   for (int i = 0; i < num; i++) {
-    init_nil_tval(ob->items + i);
+    init_nil_tval(ob->items[i]);
   }
   return (Object *)ob;
 }
@@ -33,44 +33,45 @@ static void struct_free(Object *ob)
   free(ob);
 }
 
-static uint32_t struct_hash(TValue *tv)
+static uint32 struct_hash(TValue v)
 {
-  assert(tval_isobject(tv));
-  Object *ob = TVAL_OVAL(tv);
-  assert(OB_KLASS(OB_KLASS(ob)) == &Struct_Klass);
-  return (uint32_t)ob;
+  assert(tval_isobject(v));
+  Object *ob = TVAL_OBJECT(v);
+  assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
+  return (uint32)ob;
 }
 
-static int struct_compare(TValue *tv1, TValue *tv2)
+static int struct_compare(TValue v1, TValue v2)
 {
-  assert(tval_isobject(tv1) && tval_isobject(tv2));
-  Object *ob1 = TVAL_OVAL(tv1);
-  assert(OB_KLASS(OB_KLASS(ob1)) == &Struct_Klass);
-  Object *ob2 = TVAL_OVAL(tv2);
-  assert(OB_KLASS(OB_KLASS(ob2)) == &Struct_Klass);
+  assert(tval_isobject(v1) && tval_isobject(v2));
+  Object *ob1 = TVAL_OBJECT(v1);
+  assert(OB_KLASS(OB_KLASS(ob1)) == &Klass_Klass);
+  Object *ob2 = TVAL_OBJECT(v2);
+  assert(OB_KLASS(OB_KLASS(ob2)) == &Klass_Klass);
   return ob1 != ob2;
 }
 
-static Object *struct_tostring(TValue *tv)
+static Object *struct_tostring(TValue v)
 {
-  assert(tval_isobject(tv));
-  Object *ob = TVAL_OVAL(tv);
-  assert(OB_KLASS(OB_KLASS(ob)) == &Struct_Klass);
+  assert(tval_isobject(v));
+  Object *ob = TVAL_OBJECT(v);
+  assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
   return NULL;
 }
 
 Klass *Struct_Klass_New(const char *name)
 {
-  Klass *klass = Klass_New(name, sizeof(StructObject), sizeof(TValue));
+  Klass *klazz = Klass_New(name, sizeof(StructObject), sizeof(TValue));
 
-  klass->ob_mark = struct_mark;
+  klazz->ob_mark  = struct_mark;
 
-  klass->ob_alloc = struct_alloc;
+  klazz->ob_alloc = struct_alloc;
+  klazz->ob_free  = struct_free,
 
-  klass->ob_hash = struct_hash;
-  klass->ob_cmp = struct_compare;
+  klazz->ob_hash  = struct_hash;
+  klazz->ob_cmp   = struct_compare;
 
-  klass->ob_tostr = struct_tostring;
+  klazz->ob_tostr = struct_tostring;
 
-  return klass;
+  return klazz;
 }
