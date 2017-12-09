@@ -1,8 +1,8 @@
 
 #include "stringobject.h"
 #include "tupleobject.h"
+#include "nameobject.h"
 #include "hash.h"
-#include "kstate.h"
 
 Object *String_New(char *str)
 {
@@ -45,9 +45,9 @@ static Object *string_tostring(Object *ob, Object *args)
 }
 
 static MethodStruct string_methods[] = {
-  {"Length", "(V)(I)", ACCESS_PUBLIC, string_length},
-  {"ToString", "(V)(Okoala/lang.String)", ACCESS_PUBLIC, string_tostring},
-  {NULL, NULL, 0, NULL}
+  {"Length", "I", NULL, ACCESS_PUBLIC, string_length},
+  {"ToString", "S", NULL, ACCESS_PUBLIC, string_tostring},
+  {NULL, NULL, NULL, 0, NULL}
 };
 
 void Init_String_Klass(void)

@@ -12,7 +12,7 @@ extern "C" {
 
 typedef struct object Object;
 
-#define TYPE_NIL      0
+#define TYPE_ANY      0
 #define TYPE_BYTE     1
 #define TYPE_CHAR     2
 #define TYPE_INT      3
@@ -20,7 +20,6 @@ typedef struct object Object;
 #define TYPE_BOOL     5
 #define TYPE_OBJECT   6
 #define TYPE_STRING   7
-#define TYPE_ANY      8
 
 typedef struct tvalue {
   int type;
@@ -36,14 +35,14 @@ typedef struct tvalue {
 
 /* Macros to initialize tvalue */
 #define init_nil_tval(v) do { \
-  (v).type = TYPE_NIL; (v).ob = NULL; \
+  (v).type = TYPE_ANY; (v).ob = NULL; \
 } while (0)
 
-#define NIL_TVAL_INIT {.type = TYPE_NIL, .ob = NULL}
+#define NIL_TVAL_INIT {.type = TYPE_ANY, .ob = NULL}
 #define TVAL_NIL ({TValue val = NIL_TVAL_INIT; val;})
 
 /* Macros to test type */
-#define tval_isnil(v)     ((v).type == TYPE_NIL)
+#define tval_isany(v)     ((v).type == TYPE_ANY)
 #define tval_isint(v)     ((v).type == TYPE_INT)
 #define tval_isbool(v)    ((v).type == TYPE_BOOL)
 #define tval_isobject(v)  ((v).type == TYPE_OBJECT)
@@ -79,6 +78,7 @@ struct object {
 } while (0)
 
 #define OB_KLASS(ob)  (((Object *)(ob))->ob_klass)
+#define OB_CHECK_KLASS(ob, klazz) assert(OB_KLASS(ob) == &(klazz))
 #define ob_klass_eq(ob1, ob2) (OB_KLASS(ob1) == OB_KLASS(ob2))
 
 #define ob_incref(ob) (((Object *)ob)->ob_ref++)
@@ -116,35 +116,26 @@ struct klass {
 
   strfunc   ob_tostr;
 
-  int nr_vars;
-  int nr_meths;
+  int nr_fields;
+  int nr_methods;
   Object *table;
 };
 
 /*-------------------------------------------------------------------------*/
 
-#define NT_VAR      1
-#define NT_FUNC     2
-#define NT_STRUCT   3
-#define NT_INTF     4
-#define NT_MODULE   5
-
-#define ACCESS_PUBLIC   0
-#define ACCESS_PRIVATE  1
-#define ACCESS_RDONLY   2
-
 typedef Object *(*cfunc)(Object *ob, Object *args);
 
 typedef struct method_struct {
   char *name;
-  char *signature;
+  char *rdesc;
+  char *pdesc;
   uint8 access;
   cfunc func;
 } MethodStruct;
 
 typedef struct member_struct {
   char *name;
-  char *signature;
+  char *desc;
   uint8 access;
   uint16 offset;
 } MemberStruct;

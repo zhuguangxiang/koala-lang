@@ -1,6 +1,6 @@
 
 #include "tupleobject.h"
-#include "kstate.h"
+#include "nameobject.h"
 
 Object *Tuple_New(int size)
 {
@@ -150,7 +150,7 @@ static Object *tuple_get(Object *ob, Object *args)
   if (!tval_isint(val)) return NULL;
 
   val = Tuple_Get(ob, TVAL_INT(val));
-  if (tval_isnil(val)) return NULL;
+  if (tval_isany(val)) return NULL;
 
   return Tuple_From_TValues(1, val);
 }
@@ -164,9 +164,9 @@ static Object *tuple_size(Object *ob, Object *args)
 }
 
 static MethodStruct tuple_methods[] = {
-  {"Get", "(I)(Okoala/lang.Any)", ACCESS_PUBLIC, tuple_get},
-  {"Size", "(V)(I)", ACCESS_PUBLIC, tuple_size},
-  {NULL, NULL, 0, NULL}
+  {"Get", "Okoala/lang.Any", "I", ACCESS_PUBLIC, tuple_get},
+  {"Size", "I", NULL, ACCESS_PUBLIC, tuple_size},
+  {NULL, NULL, NULL, 0, NULL}
 };
 
 void Init_Tuple_Klass(void)

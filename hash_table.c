@@ -235,5 +235,7 @@ int hash_table_insert(struct hash_table *table, struct hash_node *hnode)
 void hash_table_traverse(struct hash_table *table,
   void (*visit)(struct hlist_head *, int, void *), void *arg)
 {
-  visit(table->entries, get_nr_entries(table), arg);
+  if (table != NULL) {
+    visit(table->entries, get_nr_entries(table), arg);
+  }
 }

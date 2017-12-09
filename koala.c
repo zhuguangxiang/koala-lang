@@ -1,39 +1,73 @@
 
-#include "module_object.h"
-#include "method_object.h"
-#include "tuple_object.h"
-#include "integer_object.h"
-#include "io_module.h"
-#include "sys_module.h"
-#include "gstate.h"
+#include "globalstate.h"
+#include "nameobject.h"
+#include "moduleobject.h"
+#include "tupleobject.h"
+#include "tableobject.h"
+#include "stringobject.h"
+#include "methodobject.h"
 
-void init_lang_module(void)
+// koala/lang.klc
+static void init_lang_module(void)
 {
-  /* koala/lang.kl */
-  init_klass_klass();
-  init_method_klass();
-  //init_field_klass();
-  init_integer_klass();
-  init_tuple_klass();
-  /*
+  Object *ob = Module_New("lang", 0);
 
-  init_float_klass();
-  init_string_klass();
-  init_table_klass();
-  init_tuple_klass();
-  init_list_klass();
-  */
+  Init_Klass_Klass();
+  Init_Name_Klass();
+  Init_Module_Klass();
+  Init_Tuple_Klass();
+  Init_Table_Klass();
+  Init_String_Klass();
+
+  Module_Add_Klass(ob, &Klass_Klass,  0, 0);
+  Module_Add_Klass(ob, &Name_Klass,   0, 0);
+  Module_Add_Klass(ob, &Module_Klass, 0, 0);
+  Module_Add_Klass(ob, &Tuple_Klass,  0, 0);
+  Module_Add_Klass(ob, &Table_Klass,  0, 0);
+  Module_Add_Klass(ob, &String_Klass, 0, 0);
+
+  GState_Add_Module("koala/lang", ob);
 }
 
-void init_modules(void)
+// koala/reflect.klc
+static void init_reflect_module(void)
+{
+  Object *ob = Module_New("reflect", 0);
+
+  Init_Method_Klass();
+
+  Module_Add_Klass(ob, &Method_Klass, 0, 0);
+
+  GState_Add_Module("koala/reflect", ob);
+}
+
+static void init_modules(void)
 {
   init_lang_module();
-  init_io_module();
-  init_sys_module();
+  init_reflect_module();
+  //init_io_module();
+  //init_sys_module();
 }
 
-void koala_main(char *arg)
+/*-------------------------------------------------------------------------*/
+
+void Koala_Initialize(void)
 {
-  init_gstate();
+  Init_GlobalState();
   init_modules();
+}
+
+void Koala_Run_String(char *str)
+{
+
+}
+
+void Koala_Run_File(char *path_name)
+{
+
+}
+
+void Koala_Finalize(void)
+{
+
 }

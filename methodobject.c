@@ -1,7 +1,7 @@
 
 #include "methodobject.h"
 #include "tupleobject.h"
-#include "kstate.h"
+#include "nameobject.h"
 
 static MethodObject *method_new(int type)
 {
@@ -61,11 +61,12 @@ static Object *method_invoke(Object *ob, Object *args)
 static MethodStruct method_methods[] = {
   {
     "Invoke",
-    "(Okoala/lang.Object;[Okoala/lang.Any;)(Okoala/lang.Any;)",
+    "Okoala/lang.Any;",
+    "Okoala/lang.Any;[Okoala/lang.Any;",
     ACCESS_PUBLIC,
     method_invoke
   },
-  {NULL, NULL, 0, NULL}
+  {NULL, NULL, NULL, 0, NULL}
 };
 
 void Init_Method_Klass(void)

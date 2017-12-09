@@ -1,7 +1,7 @@
 
 #include "tableobject.h"
 #include "tupleobject.h"
-#include "kstate.h"
+#include "nameobject.h"
 
 struct entry {
   struct hash_node hnode;
@@ -101,6 +101,33 @@ int Table_Put(Object *ob, TValue key, TValue value)
   }
 }
 
+struct visit_struct {
+  Table_Visit visit;
+  void *arg;
+};
+
+static void table_visit(struct hlist_head *head, int size, void *arg)
+{
+  struct visit_struct *vs = arg;
+  struct hash_node *hnode;
+  struct entry *entry;
+  for (int i = 0; i < size; i++) {
+    hash_list_for_each(hnode, head) {
+      entry = container_of(hnode, struct entry, hnode);
+      vs->visit(entry->key, entry->val, vs->arg);
+    }
+    ++head;
+  }
+}
+
+void Table_Traverse(Object *ob, Table_Visit visit, void *arg)
+{
+  assert(OB_KLASS(ob) == &Table_Klass);
+  TableObject *table = (TableObject *)ob;
+  struct visit_struct vs = {visit, arg};
+  hash_table_traverse(&table->table, table_visit, &vs);
+}
+
 /*-------------------------------------------------------------------------*/
 
 static Object *table_init(Object *ob, Object *args)
@@ -114,7 +141,7 @@ static Object *table_get(Object *ob, Object *args)
 {
   TValue key;
   key = Tuple_Get(args, 0);
-  if (tval_isnil(key)) return NULL;
+  if (tval_isany(key)) return NULL;
   return Tuple_From_TValues(1, Table_Get(ob, key));
 }
 
@@ -131,23 +158,26 @@ static Object *table_put(Object *ob, Object *args)
 static MethodStruct table_methods[] = {
   {
     "__init__",
-    "(V)(Z)",
+    "Z",
+    NULL,
     ACCESS_PRIVATE,
     table_init
   },
   {
     "Put",
-    "(Okoala/lang.Any;Okoala/lang.Any;)(I)",
+    "I",
+    "Okoala/lang.Any;Okoala/lang.Any;",
     ACCESS_PUBLIC,
     table_put
   },
   {
     "Get",
-    "(Okoala/lang.Any;)(Okoala/lang.Any;)",
+    "Okoala/lang.Any;",
+    "Okoala/lang.Any;",
     ACCESS_PUBLIC,
     table_get
   },
-  {NULL, NULL, 0, NULL}
+  {NULL, NULL, NULL, 0, NULL}
 };
 
 void Init_Table_Klass(void)
@@ -157,33 +187,25 @@ void Init_Table_Klass(void)
 
 /*-------------------------------------------------------------------------*/
 
-static void table_visit(struct hlist_head *hlist, int size, void *arg)
+static void entry_visit(TValue key, TValue val, void *arg)
 {
   UNUSED_PARAMETER(arg);
-  struct entry *e;
-  struct hash_node *pos;
   Object *ob;
-  for (int i = 0; i < size; i++) {
-    hlist_for_each_entry(pos, hlist + i, link) {
-      e = container_of(pos, struct entry, hnode);
-      if (tval_isobject(e->key)) {
-        ob = TVAL_OBJECT(e->key);
-        OB_KLASS(ob)->ob_mark(ob);
-      }
 
-      if (tval_isobject(e->val)) {
-        ob = TVAL_OBJECT(e->val);
-        OB_KLASS(ob)->ob_mark(ob);
-      }
-    }
+  if (tval_isobject(key)) {
+    ob = TVAL_OBJECT(key);
+    OB_KLASS(ob)->ob_mark(ob);
+  }
+
+  if (tval_isobject(val)) {
+    ob = TVAL_OBJECT(val);
+    OB_KLASS(ob)->ob_mark(ob);
   }
 }
 
 static void table_mark(Object *ob)
 {
-  assert(OB_KLASS(ob) == &Table_Klass);
-  TableObject *table = (TableObject *)ob;
-  hash_table_traverse(&table->table, table_visit, NULL);
+  Table_Traverse(ob, table_visit, NULL);
 }
 
 static Object *table_alloc(Klass *klazz, int num)

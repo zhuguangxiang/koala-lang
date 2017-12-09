@@ -4,7 +4,9 @@
 #include "tableobject.h"
 #include "methodobject.h"
 #include "stringobject.h"
-#include "kstate.h"
+#include "moduleobject.h"
+#include "globalstate.h"
+#include "koala.h"
 
 /* gcc -g -std=c99 object_test.c -lkoala -L. */
 
@@ -24,7 +26,10 @@ void test_object(void)
   Object *m1;
   res = TValue_Parse(v, 'O', &m1);
   assert(!res);
-  Method_Invoke(m1, ob, NULL);
+  ob = Method_Invoke(m1, ob, NULL);
+  v = Tuple_Get(ob, 0);
+  assert(v.type == TYPE_INT);
+  assert(v.ival == 2);
 }
 
 void test_method(void)
@@ -79,22 +84,29 @@ void test_klass_get_method(void)
   assert(TVAL_TYPE(v) == TYPE_INT && TVAL_INT(v) == 2);
 }
 
+void test_module(void)
+{
+  Object *ob = GState_Find_Module("koala/lang");
+  Module_Display(ob);
+  ob = GState_Find_Module("koala/reflect");
+  Module_Display(ob);
+}
+
 int main(int argc, char *argv[])
 {
   UNUSED_PARAMETER(argc);
   UNUSED_PARAMETER(argv);
 
-  Init_Klass_Klass();
-  Init_Tuple_Klass();
-  Init_Table_Klass();
-  Init_String_Klass();
-  Init_Method_Klass();
+  Koala_Initialize();
 
   test_object();
   test_method();
   test_klass_get_method();
+  test_module();
   Object_Clean();
   Object_Clean();
+
+  Koala_Finalize();
 
   return 0;
 }

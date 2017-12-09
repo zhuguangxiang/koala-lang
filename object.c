@@ -5,7 +5,6 @@
 #include "tableobject.h"
 #include "methodobject.h"
 #include "stringobject.h"
-#include "kstate.h"
 
 Klass *Klass_New(const char *name, int bsize, int isize)
 {
@@ -24,17 +23,17 @@ static int klass_add_member(Klass *klazz, MemberStruct *m)
   if (klazz->table == NULL) {
     klazz->table = Table_New();
     assert(klazz->table);
-    klazz->nr_vars = 0;
-    klazz->nr_meths = 0;
+    klazz->nr_fields  = 0;
+    klazz->nr_methods = 0;
   }
 
-  Object *o = Name_New(m->name, NT_VAR, m->signature, m->access);
+  Object *o = Name_New(m->name, NT_VAR, m->access, m->desc, NULL);
   TValue name = TValue_Build('O', o);
   TValue member = TValue_Build('i', m->offset);
 
   int res = Table_Put(klazz->table, name, member);
   if (!res) {
-    ++klazz->nr_vars;
+    ++klazz->nr_fields;
   }
 
   return res;
@@ -55,17 +54,17 @@ static int klass_add_method(Klass *klazz, MethodStruct *m)
   if (klazz->table == NULL) {
     klazz->table = Table_New();
     assert(klazz->table);
-    klazz->nr_vars = 0;
-    klazz->nr_meths = 0;
+    klazz->nr_fields  = 0;
+    klazz->nr_methods = 0;
   }
 
-  Object *o = Name_New(m->name, NT_VAR, m->signature, m->access);
+  Object *o = Name_New(m->name, NT_VAR, m->access, m->rdesc, m->pdesc);
   TValue name = TValue_Build('O', o);
   TValue meth = TValue_Build('O', CMethod_New(m->func));
 
   int res = Table_Put(klazz->table, name, meth);
   if (!res) {
-    ++klazz->nr_meths;
+    ++klazz->nr_methods;
   }
 
   return res;
@@ -73,10 +72,10 @@ static int klass_add_method(Klass *klazz, MethodStruct *m)
 
 int Klass_Add_Methods(Klass *klazz, MethodStruct *meths)
 {
-  MethodStruct *meth = meths;
-  while (meth->name != NULL) {
-    klass_add_method(klazz, meth);
-    ++meth;
+  MethodStruct *m = meths;
+  while (m->name != NULL) {
+    klass_add_method(klazz, m);
+    ++m;
   }
   return 0;
 }
@@ -84,7 +83,7 @@ int Klass_Add_Methods(Klass *klazz, MethodStruct *meths)
 TValue Klass_Get(Klass *klazz, char *name)
 {
   if (klazz->table == NULL) return TVAL_NIL;
-  Object *n = Name_New(name, 0, NULL, 0);
+  Object *n = Name_New(name, 0, 0, NULL, NULL);
   return Table_Get(klazz->table, TValue_Build('O', n));
 }
 
@@ -101,23 +100,26 @@ static Object *klass_get_method(Object *klazz, Object *args)
 static MethodStruct klass_methods[] = {
   {
     "GetField",
-    "(Okoala/lang.String;)(Okoala/reflect.Field;)",
+    "Okoala/reflect.Field;",
+    "S",
     ACCESS_PUBLIC,
     NULL
   },
   {
     "GetMethod",
-    "(Okoala/lang.String;)(Okoala/reflect.Method;)",
+    "Okoala/reflect.Method;",
+    "S",
     ACCESS_PUBLIC,
     klass_get_method
   },
   {
     "NewInstance",
-    "(V)(V)",
+    NULL,
+    NULL,
     ACCESS_PUBLIC,
     NULL
   },
-  {NULL, NULL, 0, NULL}
+  {NULL, NULL, NULL, 0, NULL}
 };
 
 void Init_Klass_Klass(void)
@@ -295,7 +297,7 @@ static void klass_free(Object *ob)
 
 Klass Klass_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass),
-  .name  = "Klass",
+  .name  = "Class",
   .bsize = sizeof(Klass),
 
   .ob_mark = klass_mark,

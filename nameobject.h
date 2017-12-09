@@ -8,22 +8,46 @@
 extern "C" {
 #endif
 
-typedef struct name_struct {
+#define NT_CONST    1
+#define NT_VAR      2
+#define NT_FUNC     3
+#define NT_KLASS    4
+#define NT_INTF     5
+#define NT_FIELD    6
+#define NT_METHOD   7
+#define NT_MODULE   8
+
+#define ACCESS_PUBLIC   0
+#define ACCESS_PRIVATE  1
+
+typedef struct typeindex {
+  int offset;
+  int size;
+} TypeIndex;
+
+typedef struct typelist {
+  char *desc;
+  int size;
+  TypeIndex index[1];
+} TypeList;
+
+typedef struct nameobject {
   OBJECT_HEAD
   char *name;
-  char *signature;
   uint8 type;
   uint8 access;
+  uint8 unused;
+  uint8 size;
+  TypeList *tlist[1];
 } NameObject;
 
+/* Exported symbols */
 extern Klass Name_Klass;
 void Init_Name_Klass(void);
-Object *Name_New(char *name, uint8 type, char *signature, uint8 access);
+Object *Name_New(char *name, uint8 type, uint8 access,
+                 char *desc, char *pdesc);
 void Name_Free(Object *ob);
-
-#define name_isprivate(n) ((n)->access & ACCESS_PRIVATE)
-#define name_ispublic(n)  (!name_isprivate(n))
-#define name_isconst(n)   ((n)->access & ACCESS_RDONLY)
+void Name_Display(Object *ob);
 
 #ifdef __cplusplus
 }
