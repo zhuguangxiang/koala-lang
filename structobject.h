@@ -14,7 +14,7 @@ typedef struct structobject {
   TValue items[0];
 } StructObject;
 
-Klass *Struct_Klass_New(const char *name);
+Klass *Struct_Klass_New(char *name);
 
 #ifdef __cplusplus
 }

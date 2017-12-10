@@ -18,7 +18,7 @@ typedef struct tableobject {
 extern Klass Table_Klass;
 void Init_Table_Klass(void);
 Object *Table_New(void);
-TValue Table_Get(Object *ob, TValue key);
+int Table_Get(Object *ob, TValue key, TValue *rk, TValue *rv);
 int Table_Put(Object *ob, TValue key, TValue value);
 typedef void (*Table_Visit)(TValue key, TValue val, void *arg);
 void Table_Traverse(Object *ob, Table_Visit visit, void *arg);

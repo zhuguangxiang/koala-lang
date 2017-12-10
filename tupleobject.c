@@ -23,7 +23,7 @@ TValue Tuple_Get(Object *ob, int index)
 
   if (index < 0 || index >= tuple->size) {
     fprintf(stderr, "[ERROR] index %d out of bound\n", index);
-    return TVAL_NIL;
+    return NIL_TVAL;
   }
 
   return tuple->items[index];
@@ -48,6 +48,8 @@ Object *Tuple_Get_Slice(Object *ob, int min, int max)
 
 int Tuple_Size(Object *ob)
 {
+  if (ob == NULL) return 0;
+
   assert(OB_KLASS(ob) == &Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
   return tuple->size;
@@ -147,10 +149,10 @@ static Object *tuple_get(Object *ob, Object *args)
   assert(OB_KLASS(args) == &Tuple_Klass);
 
   val = Tuple_Get(args, 0);
-  if (!tval_isint(val)) return NULL;
+  if (!TVAL_ISINT(val)) return NULL;
 
-  val = Tuple_Get(ob, TVAL_INT(val));
-  if (tval_isany(val)) return NULL;
+  val = Tuple_Get(ob, INT_TVAL(val));
+  if (TVAL_ISANY(val)) return NULL;
 
   return Tuple_From_TValues(1, val);
 }
@@ -164,7 +166,7 @@ static Object *tuple_size(Object *ob, Object *args)
 }
 
 static MethodStruct tuple_methods[] = {
-  {"Get", "Okoala/lang.Any", "I", ACCESS_PUBLIC, tuple_get},
+  {"Get", "T", "I", ACCESS_PUBLIC, tuple_get},
   {"Size", "I", NULL, ACCESS_PUBLIC, tuple_size},
   {NULL, NULL, NULL, 0, NULL}
 };

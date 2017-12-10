@@ -13,13 +13,16 @@ extern "C" {
 
 typedef struct methodobject {
   OBJECT_HEAD
-  int type;
+  uint16 type;
+  uint16 nr_paras;
+  uint16 nr_locals;
+  uint16 nr_rets;
   union {
-    cfunc cf;         // c language function
+    cfunc cf;           // c language function
     struct {
-      Object *up;     // tuple for closure
-      Object *k;      // constant tuple
-      uint8 *codes;   // koala's instructions
+      Object *closure;  // tuple for closure
+      Object *k;        // constant tuple
+      uint8 *codes;     // koala's instructions
     } kf;
   };
 } MethodObject;
@@ -27,7 +30,7 @@ typedef struct methodobject {
 /* Exported symbols */
 extern Klass Method_Klass;
 void Init_Method_Klass(void);
-Object *KMethod_New(uint8 *codes, Object *k, Object *up);
+Object *KMethod_New(uint8 *codes, Object *k, Object *closure);
 Object *CMethod_New(cfunc cf);
 Object *Method_Invoke(Object *mob, Object *ob, Object *args);
 

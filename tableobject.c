@@ -14,13 +14,13 @@ static int entry_equal(void *k1, void *k2)
   TValue v1 = *(TValue *)k1;
   TValue v2 = *(TValue *)k2;
 
-  if (tval_isint(v1) && tval_isint(v2)) {
+  if (TVAL_ISINT(v1) && TVAL_ISINT(v2)) {
     return !Ineger_Compare(v1, v2);
   }
 
-  if (tval_isobject(v1) && tval_isobject(v2)) {
-    if (ob_klass_eq(TVAL_OBJECT(v1), TVAL_OBJECT(v2))) {
-      return OB_KLASS(TVAL_OBJECT(v1))->ob_cmp(v1, v2);
+  if (TVAL_ISOBJECT(v1) && TVAL_ISOBJECT(v2)) {
+    if (OB_KLASS_EQUAL(OBJECT_TVAL(v1), OBJECT_TVAL(v2))) {
+      return OB_KLASS(OBJECT_TVAL(v1))->ob_cmp(v1, v2);
     } else {
       fprintf(stderr, "[WARN] the two key types are not the same.\n");
       return 0;
@@ -35,12 +35,12 @@ static uint32 entry_hash(void *k)
 {
   TValue v = *(TValue *)k;
 
-  if (tval_isint(v)) {
+  if (TVAL_ISINT(v)) {
     return Integer_Hash(v);
   }
 
-  if (tval_isobject(v)) {
-    return OB_KLASS(TVAL_OBJECT(v))->ob_hash(v);
+  if (TVAL_ISOBJECT(v)) {
+    return OB_KLASS(OBJECT_TVAL(v))->ob_hash(v);
   }
 
   fprintf(stderr, "[WARN] unsupported type for hashing\n");
@@ -72,7 +72,7 @@ Object *Table_New(void)
   return (Object *)table;
 }
 
-TValue Table_Get(Object *ob, TValue key)
+int Table_Get(Object *ob, TValue key, TValue *rk, TValue *rv)
 {
   assert(OB_KLASS(ob) == &Table_Klass);
 
@@ -80,9 +80,11 @@ TValue Table_Get(Object *ob, TValue key)
   struct hash_node *hnode = hash_table_find(&table->table, &key);
   if (hnode != NULL) {
     struct entry *e = container_of(hnode, struct entry, hnode);
-    return e->val;
+    if (rk != NULL) *rk = e->key;
+    if (rv != NULL) *rv = e->val;
+    return 0;
   } else {
-    return TVAL_NIL;
+    return -1;
   }
 }
 
@@ -139,10 +141,11 @@ static Object *table_init(Object *ob, Object *args)
 
 static Object *table_get(Object *ob, Object *args)
 {
-  TValue key;
+  TValue key, v;
   key = Tuple_Get(args, 0);
-  if (tval_isany(key)) return NULL;
-  return Tuple_From_TValues(1, Table_Get(ob, key));
+  if (TVAL_ISANY(key)) return NULL;
+  if (Table_Get(ob, key, NULL, &v)) return NULL;
+  return Tuple_From_TValues(1, v);
 }
 
 static Object *table_put(Object *ob, Object *args)
@@ -166,14 +169,14 @@ static MethodStruct table_methods[] = {
   {
     "Put",
     "I",
-    "Okoala/lang.Any;Okoala/lang.Any;",
+    "TT",
     ACCESS_PUBLIC,
     table_put
   },
   {
     "Get",
-    "Okoala/lang.Any;",
-    "Okoala/lang.Any;",
+    "T",
+    "T",
     ACCESS_PUBLIC,
     table_get
   },
@@ -192,20 +195,20 @@ static void entry_visit(TValue key, TValue val, void *arg)
   UNUSED_PARAMETER(arg);
   Object *ob;
 
-  if (tval_isobject(key)) {
-    ob = TVAL_OBJECT(key);
+  if (TVAL_ISOBJECT(key)) {
+    ob = OBJECT_TVAL(key);
     OB_KLASS(ob)->ob_mark(ob);
   }
 
-  if (tval_isobject(val)) {
-    ob = TVAL_OBJECT(val);
+  if (TVAL_ISOBJECT(val)) {
+    ob = OBJECT_TVAL(val);
     OB_KLASS(ob)->ob_mark(ob);
   }
 }
 
 static void table_mark(Object *ob)
 {
-  Table_Traverse(ob, table_visit, NULL);
+  Table_Traverse(ob, entry_visit, NULL);
 }
 
 static Object *table_alloc(Klass *klazz, int num)

@@ -40,7 +40,7 @@ typedef double  float64;
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 /* Count the number of elements in an array. */
-#define nr_elts(arr)  (sizeof(arr) / sizeof((arr)[0]))
+#define nr_elts(arr)  ((int)(sizeof(arr) / sizeof((arr)[0])))
 
 /* Get the struct address from its member's address */
 #define container_of(ptr, type, member) \

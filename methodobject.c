@@ -19,12 +19,12 @@ Object *CMethod_New(cfunc cf)
   return (Object *)m;
 }
 
-Object *KMethod_New(uint8 *codes, Object *k, Object *up)
+Object *KMethod_New(uint8 *codes, Object *k, Object *closure)
 {
   MethodObject *m = method_new(METH_KFUNC);
   m->kf.codes = codes;
   m->kf.k = k;
-  m->kf.up = up;
+  m->kf.closure = closure;
   return (Object *)m;
 }
 
@@ -47,9 +47,9 @@ static Object *method_invoke(Object *ob, Object *args)
   MethodObject *m = (MethodObject *)ob;
   if (m->type == METH_CFUNC) {
     TValue v = Tuple_Get(args, 0);
-    assert(tval_isobject(v));
+    assert(TVAL_ISOBJECT(v));
     Object *newargs = Tuple_Get_Slice(args, 1, Tuple_Size(args) - 1);
-    Object *res = Method_Invoke(ob, TVAL_OBJECT(v), newargs);
+    Object *res = Method_Invoke(ob, OBJECT_TVAL(v), newargs);
     //ob_decref(newargs);
     return res;
   } else {
@@ -61,8 +61,8 @@ static Object *method_invoke(Object *ob, Object *args)
 static MethodStruct method_methods[] = {
   {
     "Invoke",
-    "Okoala/lang.Any;",
-    "Okoala/lang.Any;[Okoala/lang.Any;",
+    "T",
+    "T[T",
     ACCESS_PUBLIC,
     method_invoke
   },

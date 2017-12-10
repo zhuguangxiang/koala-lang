@@ -59,8 +59,8 @@ void Init_String_Klass(void)
 
 static int string_equal(TValue v1, TValue v2)
 {
-  Object *ob1 = TVAL_OBJECT(v1);
-  Object *ob2 = TVAL_OBJECT(v2);
+  Object *ob1 = OBJECT_TVAL(v1);
+  Object *ob2 = OBJECT_TVAL(v2);
   assert(OB_KLASS(ob1) == &String_Klass);
   assert(OB_KLASS(ob2) == &String_Klass);
   StringObject *s1 = (StringObject *)ob1;
@@ -70,7 +70,7 @@ static int string_equal(TValue v1, TValue v2)
 
 static uint32 string_hash(TValue v)
 {
-  Object *ob = TVAL_OBJECT(v);
+  Object *ob = OBJECT_TVAL(v);
   assert(OB_KLASS(ob) == &String_Klass);
   StringObject *s = (StringObject *)ob;
   return hash_string(s->str);

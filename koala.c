@@ -46,7 +46,6 @@ static void init_modules(void)
   init_lang_module();
   init_reflect_module();
   //init_io_module();
-  //init_sys_module();
 }
 
 /*-------------------------------------------------------------------------*/
@@ -69,5 +68,5 @@ void Koala_Run_File(char *path_name)
 
 void Koala_Finalize(void)
 {
-
+  Fini_GlobalState();
 }

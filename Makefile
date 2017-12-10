@@ -10,10 +10,10 @@ include $(TOPDIR)/config.mk
 
 ######################################
 
-KOALA_LIB_FILES = hash_table.c hash.c vector.c \
+KOALA_LIB_FILES = hash_table.c hash.c \
 object.c nameobject.c tupleobject.c tableobject.c methodobject.c \
-structobject.c stringobject.c \
-kstate.c
+stringobject.c moduleobject.c structobject.c \
+globalstate.c coroutine.c koala.c
 
 KOALA_LIB = koala
 

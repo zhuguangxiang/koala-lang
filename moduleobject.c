@@ -73,8 +73,16 @@ int Module_Add_Klass(Object *ob, Klass *klazz, uint8 access, int intf)
   return Table_Put(__get_table(ob), key, val);
 }
 
+int Module_Get(Object *ob, char *name, TValue *k, TValue *v)
+{
+  OB_CHECK_KLASS(ob, Module_Klass);
+  ModuleObject *mo = (ModuleObject *)ob;
+  return 0;
+}
+
 Object *Load_Module(char *path_name)
 {
+  UNUSED_PARAMETER(path_name);
   return NULL;
 }
 

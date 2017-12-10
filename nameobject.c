@@ -10,7 +10,7 @@ static void parse_desc(TypeList *tlist, char *desc)
   int is_arr = 0;
 
   while ((ch = *t)) {
-    if (ch == 'I' || ch == 'F' || ch == 'Z' || ch == 'S') {
+    if (ch == 'I' || ch == 'F' || ch == 'Z' || ch == 'S' || ch == 'T') {
       assert(idx < tlist->size);
 
       if (is_arr) {
@@ -64,7 +64,7 @@ static int count_desc(char *desc)
   int cnt = 0;
 
   while ((ch = *t)) {
-    if (ch == 'I' || ch == 'F' || ch == 'Z' || ch == 'S') {
+    if (ch == 'I' || ch == 'F' || ch == 'Z' || ch == 'S' || ch == 'T') {
       ++cnt;
       ++t;
     } else if (ch == 'O') {
@@ -155,8 +155,8 @@ void Init_Name_Klass(void)
 
 static int name_equal(TValue v1, TValue v2)
 {
-  Object *ob1 = TVAL_OBJECT(v1);
-  Object *ob2 = TVAL_OBJECT(v2);
+  Object *ob1 = OBJECT_TVAL(v1);
+  Object *ob2 = OBJECT_TVAL(v2);
   assert((OB_KLASS(ob1) == &Name_Klass) && (OB_KLASS(ob2) == &Name_Klass));
   NameObject *n1 = (NameObject *)ob1;
   NameObject *n2 = (NameObject *)ob2;
@@ -165,7 +165,7 @@ static int name_equal(TValue v1, TValue v2)
 
 static uint32 name_hash(TValue v)
 {
-  Object *ob = TVAL_OBJECT(v);
+  Object *ob = OBJECT_TVAL(v);
   assert(OB_KLASS(ob) == &Name_Klass);
   NameObject *n = (NameObject *)ob;
   return hash_string(n->name);

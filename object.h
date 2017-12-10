@@ -39,24 +39,24 @@ typedef struct tvalue {
 } while (0)
 
 #define NIL_TVAL_INIT {.type = TYPE_ANY, .ob = NULL}
-#define TVAL_NIL ({TValue val = NIL_TVAL_INIT; val;})
 
 /* Macros to test type */
-#define tval_isany(v)     ((v).type == TYPE_ANY)
-#define tval_isint(v)     ((v).type == TYPE_INT)
-#define tval_isbool(v)    ((v).type == TYPE_BOOL)
-#define tval_isobject(v)  ((v).type == TYPE_OBJECT)
-#define tval_isany(v)     ((v).type == TYPE_ANY)
+#define TVAL_ISANY(v)     ((v).type == TYPE_ANY)
+#define TVAL_ISINT(v)     ((v).type == TYPE_INT)
+#define TVAL_ISBOOL(v)    ((v).type == TYPE_BOOL)
+#define TVAL_ISOBJECT(v)  ((v).type == TYPE_OBJECT)
 
 /* Macros to access type */
 #define TVAL_TYPE(v)      ((v).type)
 
 /* Macros to access values */
-#define TVAL_BYTE(v)      ((v).byte)
-#define TVAL_INT(v)       ((v).ival)
-#define TVAL_FLOAT(v)     ((v).fval)
-#define TVAL_BOOL(v)      ((v).bval)
-#define TVAL_OBJECT(v)    ((v).ob)
+extern TValue NilTVal;
+#define NIL_TVAL          NilTVal
+#define BYTE_TVAL(v)      ((v).byte)
+#define INT_TVAL(v)       ((v).ival)
+#define FLOAT_TVAL(v)     ((v).fval)
+#define BOOL_TVAL(v)      ((v).bval)
+#define OBJECT_TVAL(v)    ((v).ob)
 
 /*-------------------------------------------------------------------------*/
 
@@ -79,7 +79,7 @@ struct object {
 
 #define OB_KLASS(ob)  (((Object *)(ob))->ob_klass)
 #define OB_CHECK_KLASS(ob, klazz) assert(OB_KLASS(ob) == &(klazz))
-#define ob_klass_eq(ob1, ob2) (OB_KLASS(ob1) == OB_KLASS(ob2))
+#define OB_KLASS_EQUAL(ob1, ob2)  (OB_KLASS(ob1) == OB_KLASS(ob2))
 
 #define ob_incref(ob) (((Object *)ob)->ob_ref++)
 #define ob_decref(ob) do { \
@@ -102,7 +102,7 @@ typedef Object *(*strfunc)(TValue v);
 
 struct klass {
   OBJECT_HEAD
-  const char *name;
+  char *name;
   int bsize;
   int isize;
 
@@ -133,20 +133,19 @@ typedef struct method_struct {
   cfunc func;
 } MethodStruct;
 
-typedef struct member_struct {
+typedef struct field_struct {
   char *name;
   char *desc;
   uint8 access;
-  uint16 offset;
-} MemberStruct;
+} FieldStruct;
 
 /*-------------------------------------------------------------------------*/
 
 extern Klass Klass_Klass;
 void Init_Klass_Klass(void);
-Klass *Klass_New(const char *name, int bsize, int isize);
+Klass *Klass_New(char *name, int bsize, int isize);
 int Klass_Add_Methods(Klass *klazz, MethodStruct *meths);
-TValue Klass_Get(Klass *klazz, char *name);
+int Klass_Get(Klass *klazz, char *name, TValue *k, TValue *v);
 
 TValue TValue_Build(char ch, ...);
 int TValue_Parse(TValue val, char ch, ...);
