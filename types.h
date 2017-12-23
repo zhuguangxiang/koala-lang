@@ -39,6 +39,10 @@ typedef double  float64;
 #define min(a, b) ((a) > (b) ? (b) : (a))
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
+/* Get the aligned value */
+#define ALIGN_DOWN(val, size) ((val) & (~((size)-1)))
+#define ALIGN_UP(val, size)   (((val)+(size)-1) & ~((size)-1))
+
 /* Count the number of elements in an array. */
 #define nr_elts(arr)  ((int)(sizeof(arr) / sizeof((arr)[0])))
 

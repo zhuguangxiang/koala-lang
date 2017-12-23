@@ -20,10 +20,12 @@ typedef struct object Object;
 #define TYPE_BOOL     5
 #define TYPE_OBJECT   6
 #define TYPE_STRING   7
+#define TYPE_PTR      8
 
 typedef struct tvalue {
   int type;
   union {
+    void *ptr;
     Object *ob;
     uint8 byte;
     uint16 ch;
@@ -38,13 +40,16 @@ typedef struct tvalue {
   (v).type = TYPE_ANY; (v).ob = NULL; \
 } while (0)
 
-#define NIL_TVAL_INIT {.type = TYPE_ANY, .ob = NULL}
+#define TVAL_INIT_INT(v)    {.type = TYPE_INT, .ival = (v)}
+#define TVAL_INIT_PTR(v)    {.type = TYPE_PTR, .ptr = (v)}
+#define TVAL_INIT_OBJ(t, v) {.type = t, .ob = (v)}
+#define TVAL_INIT_NIL       TVAL_INIT_OBJ(TYPE_ANY, NULL)
 
 /* Macros to test type */
 #define TVAL_ISANY(v)     ((v).type == TYPE_ANY)
 #define TVAL_ISINT(v)     ((v).type == TYPE_INT)
 #define TVAL_ISBOOL(v)    ((v).type == TYPE_BOOL)
-#define TVAL_ISOBJECT(v)  ((v).type == TYPE_OBJECT)
+#define TVAL_ISOBJ(v)     ((v).type == TYPE_OBJECT)
 
 /* Macros to access type */
 #define TVAL_TYPE(v)      ((v).type)

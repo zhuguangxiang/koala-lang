@@ -6,7 +6,7 @@
 #include "methodobject.h"
 #include "stringobject.h"
 
-TValue NilTVal = NIL_TVAL_INIT;
+TValue NilTVal = TVAL_INIT_NIL;
 
 Klass *Klass_New(char *name, int bsize, int isize)
 {
@@ -91,14 +91,14 @@ int Klass_Get(Klass *klazz, char *name, TValue *k, TValue *v)
 
 /*-------------------------------------------------------------------------*/
 
-static Object *klass_get_method(Object *klazz, Object *args)
+static Object *__klass_get_method(Object *klazz, Object *args)
 {
   assert(OB_KLASS(klazz) == &Klass_Klass);
   char *str = NULL;
   Tuple_Parse(args, "s", &str);
   TValue v;
   if (Klass_Get((Klass *)klazz, str, NULL, &v)) return NULL;
-  return Tuple_From_TValues(1, v);
+  return Tuple_From_Va_TValues(1, v);
 }
 
 static MethodStruct klass_methods[] = {
@@ -114,7 +114,7 @@ static MethodStruct klass_methods[] = {
     "Okoala/reflect.Method;",
     "S",
     ACCESS_PUBLIC,
-    klass_get_method
+    __klass_get_method
   },
   {
     "NewInstance",
@@ -135,7 +135,7 @@ void Init_Klass_Klass(void)
 
 TValue Va_Build_Value(char ch, va_list *ap)
 {
-  TValue val = NIL_TVAL_INIT;
+  TValue val = TVAL_INIT_NIL;
 
   switch (ch) {
     case 'i': {

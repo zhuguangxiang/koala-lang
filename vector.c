@@ -2,18 +2,20 @@
 #include "types.h"
 #include "vector.h"
 
-int vector_init(struct vector *vec, int size)
+int Vector_Init(Vector *vec, int capacity)
 {
-  void **objs = (void **)calloc(size, sizeof(void *));
+  if (capacity <= 0) capacity = VECTOR_DEFAULT_CAPACTIY;
+
+  void **objs = (void **)calloc(capacity, sizeof(void *));
   if (objs == NULL) return -1;
 
-  vec->objs     = objs;
-  vec->capacity = size;
+  vec->capacity = capacity;
+  vec->objs = objs;
 
   return 0;
 }
 
-void vector_fini(struct vector *vec, void (*fini)(void *, void *), void *arg)
+void Vector_Fini(Vector *vec, void (*fini)(void *, void *), void *arg)
 {
   if (vec->objs == NULL) return;
 
@@ -27,14 +29,13 @@ void vector_fini(struct vector *vec, void (*fini)(void *, void *), void *arg)
   vec->objs = NULL;
 }
 
-static int vector_expand(struct vector *vec)
+static int vector_expand(Vector *vec)
 {
   int new_capactiy = vec->capacity * 2;
   void **objs = (void **)calloc(new_capactiy, sizeof(void *));
   if (objs == NULL) return -1;
 
   memcpy(objs, vec->objs, vec->capacity * sizeof(void *));
-
   free(vec->objs);
   vec->objs = objs;
   vec->capacity = new_capactiy;
@@ -42,11 +43,11 @@ static int vector_expand(struct vector *vec)
   return 0;
 }
 
-int vector_set(struct vector *vec, int index, void *obj)
+int Vector_Set(Vector *vec, int index, void *obj)
 {
   if (index >= vec->capacity) {
     if (index >= 2 * vec->capacity) {
-      fprintf(stderr, "[ERROR] are you kidding me? more than double?");
+      fprintf(stderr, "[ERROR] are you kidding me? more than double?\n");
       return -1;
     }
 
@@ -60,10 +61,10 @@ int vector_set(struct vector *vec, int index, void *obj)
   }
 
   vec->objs[index] = obj;
-  return 0;
+  return index;
 }
 
-void *vector_get(struct vector *vec, int index)
+void *Vector_Get(Vector *vec, int index)
 {
   if (index < vec->capacity) {
     return vec->objs[index];
@@ -73,11 +74,11 @@ void *vector_get(struct vector *vec, int index)
   }
 }
 
-struct vector *vector_create(void)
+Vector *Vector_Create(void)
 {
-  struct vector *vec = malloc(sizeof(*vec));
+  Vector *vec = malloc(sizeof(*vec));
   if (vec == NULL) return NULL;
-  if (vector_init(vec, VECTOR_DEFAULT_CAPACTIY)) {
+  if (Vector_Init(vec, VECTOR_DEFAULT_CAPACTIY)) {
     fprintf(stderr, "[ERROR] init vector failed\n");
     free(vec);
     return NULL;
@@ -86,9 +87,8 @@ struct vector *vector_create(void)
   }
 }
 
-void vector_destroy(struct vector *vec,
-                    void (*fini)(void *, void *), void *arg)
+void Vector_Destroy(Vector *vec, void (*fini)(void *, void *), void *arg)
 {
-  vector_fini(vec, fini, arg);
+  Vector_Fini(vec, fini, arg);
   free(vec);
 }

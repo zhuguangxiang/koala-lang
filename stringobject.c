@@ -29,7 +29,7 @@ char *String_To_CString(Object *ob)
 
 /*-------------------------------------------------------------------------*/
 
-static Object *string_length(Object *ob, Object *args)
+static Object *__string_length(Object *ob, Object *args)
 {
   UNUSED_PARAMETER(args);
   assert(OB_KLASS(ob) == &String_Klass);
@@ -37,7 +37,7 @@ static Object *string_length(Object *ob, Object *args)
   return Tuple_Build("i", s->len);
 }
 
-static Object *string_tostring(Object *ob, Object *args)
+static Object *__string_tostring(Object *ob, Object *args)
 {
   UNUSED_PARAMETER(args);
   assert(OB_KLASS(ob) == &String_Klass);
@@ -45,8 +45,8 @@ static Object *string_tostring(Object *ob, Object *args)
 }
 
 static MethodStruct string_methods[] = {
-  {"Length", "I", NULL, ACCESS_PUBLIC, string_length},
-  {"ToString", "S", NULL, ACCESS_PUBLIC, string_tostring},
+  {"Length", "I", NULL, ACCESS_PUBLIC, __string_length},
+  {"ToString", "S", NULL, ACCESS_PUBLIC, __string_tostring},
   {NULL, NULL, NULL, 0, NULL}
 };
 

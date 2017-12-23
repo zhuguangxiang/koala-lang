@@ -19,7 +19,7 @@ Object *CMethod_New(cfunc cf)
   return (Object *)m;
 }
 
-Object *KMethod_New(uint8 *codes, Object *k, Object *closure)
+Object *KMethod_New(Instruction *codes, TValue *k, Object *closure)
 {
   MethodObject *m = method_new(METH_KFUNC);
   m->kf.codes = codes;
@@ -28,10 +28,18 @@ Object *KMethod_New(uint8 *codes, Object *k, Object *closure)
   return (Object *)m;
 }
 
-Object *Method_Invoke(Object *mob, Object *ob, Object *args)
+void Method_Set_Info(Object *ob, int nr_rets, int nr_args, int nr_locals)
 {
-  assert(OB_KLASS(mob) == &Method_Klass);
-  MethodObject *m = (MethodObject *)mob;
+  MethodObject *m = (MethodObject *)ob;
+  m->nr_rets = nr_rets;
+  m->nr_args = nr_args;
+  m->nr_locals = nr_locals;
+}
+
+Object *Method_Invoke(Object *method, Object *ob, Object *args)
+{
+  assert(OB_KLASS(method) == &Method_Klass);
+  MethodObject *m = (MethodObject *)method;
   if (m->type == METH_CFUNC) {
     return m->cf(ob, args);
   } else {
@@ -41,13 +49,13 @@ Object *Method_Invoke(Object *mob, Object *ob, Object *args)
 }
 
 /*-------------------------------------------------------------------------*/
-static Object *method_invoke(Object *ob, Object *args)
+static Object *__method_invoke(Object *ob, Object *args)
 {
   assert(OB_KLASS(ob) == &Method_Klass);
   MethodObject *m = (MethodObject *)ob;
   if (m->type == METH_CFUNC) {
     TValue v = Tuple_Get(args, 0);
-    assert(TVAL_ISOBJECT(v));
+    assert(TVAL_ISOBJ(v));
     Object *newargs = Tuple_Get_Slice(args, 1, Tuple_Size(args) - 1);
     Object *res = Method_Invoke(ob, OBJECT_TVAL(v), newargs);
     //ob_decref(newargs);
@@ -64,7 +72,7 @@ static MethodStruct method_methods[] = {
     "T",
     "T[T",
     ACCESS_PUBLIC,
-    method_invoke
+    __method_invoke
   },
   {NULL, NULL, NULL, 0, NULL}
 };

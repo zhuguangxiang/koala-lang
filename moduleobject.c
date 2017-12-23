@@ -55,12 +55,12 @@ int Module_Add_Variable(Object *ob, char *name, char *desc,
 }
 
 int Module_Add_Function(Object *ob, char *name, char *desc, char *pdesc,
-                        uint8 access, Object *code)
+                        uint8 access, Object *method)
 {
   int type = NT_FUNC;
   Object *no = Name_New(name, type, access, desc, pdesc);
   TValue key = TValue_Build('O', no);
-  TValue val = TValue_Build('O', code);
+  TValue val = TValue_Build('O', method);
   return Table_Put(__get_table(ob), key, val);
 }
 
@@ -76,8 +76,9 @@ int Module_Add_Klass(Object *ob, Klass *klazz, uint8 access, int intf)
 int Module_Get(Object *ob, char *name, TValue *k, TValue *v)
 {
   OB_CHECK_KLASS(ob, Module_Klass);
-  ModuleObject *mo = (ModuleObject *)ob;
-  return 0;
+  Object *no = Name_New(name, 0, 0, NULL, NULL);
+  TValue key = TValue_Build('O', no);
+  return Table_Get(__get_table(ob), key, k, v);
 }
 
 Object *Load_Module(char *path_name)

@@ -18,7 +18,7 @@ static int entry_equal(void *k1, void *k2)
     return !Ineger_Compare(v1, v2);
   }
 
-  if (TVAL_ISOBJECT(v1) && TVAL_ISOBJECT(v2)) {
+  if (TVAL_ISOBJ(v1) && TVAL_ISOBJ(v2)) {
     if (OB_KLASS_EQUAL(OBJECT_TVAL(v1), OBJECT_TVAL(v2))) {
       return OB_KLASS(OBJECT_TVAL(v1))->ob_cmp(v1, v2);
     } else {
@@ -39,7 +39,7 @@ static uint32 entry_hash(void *k)
     return Integer_Hash(v);
   }
 
-  if (TVAL_ISOBJECT(v)) {
+  if (TVAL_ISOBJ(v)) {
     return OB_KLASS(OBJECT_TVAL(v))->ob_hash(v);
   }
 
@@ -132,23 +132,23 @@ void Table_Traverse(Object *ob, Table_Visit visit, void *arg)
 
 /*-------------------------------------------------------------------------*/
 
-static Object *table_init(Object *ob, Object *args)
+static Object *__table_init(Object *ob, Object *args)
 {
   UNUSED_PARAMETER(args);
   assert(OB_KLASS(ob) == &Table_Klass);
   return Tuple_Build("z", TRUE);
 }
 
-static Object *table_get(Object *ob, Object *args)
+static Object *__table_get(Object *ob, Object *args)
 {
   TValue key, v;
   key = Tuple_Get(args, 0);
   if (TVAL_ISANY(key)) return NULL;
   if (Table_Get(ob, key, NULL, &v)) return NULL;
-  return Tuple_From_TValues(1, v);
+  return Tuple_From_Va_TValues(1, v);
 }
 
-static Object *table_put(Object *ob, Object *args)
+static Object *__table_put(Object *ob, Object *args)
 {
   Object *tuple = Tuple_Get_Slice(args, 0, 1);
   if (!tuple) return NULL;
@@ -164,21 +164,21 @@ static MethodStruct table_methods[] = {
     "Z",
     NULL,
     ACCESS_PRIVATE,
-    table_init
+    __table_init
   },
   {
     "Put",
     "I",
     "TT",
     ACCESS_PUBLIC,
-    table_put
+    __table_put
   },
   {
     "Get",
     "T",
     "T",
     ACCESS_PUBLIC,
-    table_get
+    __table_get
   },
   {NULL, NULL, NULL, 0, NULL}
 };
@@ -195,12 +195,12 @@ static void entry_visit(TValue key, TValue val, void *arg)
   UNUSED_PARAMETER(arg);
   Object *ob;
 
-  if (TVAL_ISOBJECT(key)) {
+  if (TVAL_ISOBJ(key)) {
     ob = OBJECT_TVAL(key);
     OB_KLASS(ob)->ob_mark(ob);
   }
 
-  if (TVAL_ISOBJECT(val)) {
+  if (TVAL_ISOBJ(val)) {
     ob = OBJECT_TVAL(val);
     OB_KLASS(ob)->ob_mark(ob);
   }

@@ -90,7 +90,7 @@ CoRoutine *GState_Next_CoRoutine(ThreadState *thread)
       rt = container_of(entry, CoRoutine, ready_link);
       assert(rt->state == STATE_READY);
       rt->state = STATE_RUNNING;
-      thread->current = rt;
+      thread->rt = rt;
       return rt;
     }
   }

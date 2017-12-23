@@ -80,13 +80,23 @@ static int get_args(Object *tuple, int min, int max, va_list *ap)
   return 0;
 }
 
-Object *Tuple_From_TValues(int count, ...)
+Object *Tuple_From_Va_TValues(int count, ...)
 {
   Object *tuple = Tuple_New(count);
   va_list vp;
   va_start(vp, count);
   get_args(tuple, 0, count - 1, &vp);
   va_end(vp);
+  return tuple;
+}
+
+Object *Tuple_From_TValues(TValue *arr, int size)
+{
+  if (size <= 0) return NULL;
+  Object *tuple = Tuple_New(size);
+  for (int i = 0; i < size; i++) {
+    Tuple_Set(tuple, i, arr[i]);
+  }
   return tuple;
 }
 
@@ -142,7 +152,7 @@ int Tuple_Parse(Object *ob, char *format, ...)
 
 /*-------------------------------------------------------------------------*/
 
-static Object *tuple_get(Object *ob, Object *args)
+static Object *__tuple_get(Object *ob, Object *args)
 {
   TValue val;
   assert(OB_KLASS(ob) == &Tuple_Klass);
@@ -154,10 +164,10 @@ static Object *tuple_get(Object *ob, Object *args)
   val = Tuple_Get(ob, INT_TVAL(val));
   if (TVAL_ISANY(val)) return NULL;
 
-  return Tuple_From_TValues(1, val);
+  return Tuple_From_Va_TValues(1, val);
 }
 
-static Object *tuple_size(Object *ob, Object *args)
+static Object *__tuple_size(Object *ob, Object *args)
 {
   assert(OB_KLASS(ob) == &Tuple_Klass);
   assert(args == NULL);
@@ -166,8 +176,8 @@ static Object *tuple_size(Object *ob, Object *args)
 }
 
 static MethodStruct tuple_methods[] = {
-  {"Get", "T", "I", ACCESS_PUBLIC, tuple_get},
-  {"Size", "I", NULL, ACCESS_PUBLIC, tuple_size},
+  {"Get", "T", "I", ACCESS_PUBLIC, __tuple_get},
+  {"Size", "I", NULL, ACCESS_PUBLIC, __tuple_size},
   {NULL, NULL, NULL, 0, NULL}
 };
 

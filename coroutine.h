@@ -53,8 +53,24 @@ static inline TValue CoRoutine_StackPop(CoRoutine *rt)
 
 static inline void CoRoutine_StackPush(CoRoutine *rt, TValue v)
 {
-  assert(rt->top < (nr_elts(rt->stack) - 1));
+  assert(rt->top < nr_elts(rt->stack) - 1);
   rt->stack[++rt->top] = v;
+}
+
+static inline TValue CoRoutine_StackGet(CoRoutine *rt, int index)
+{
+  assert(index >= 0 && index <= rt->top);
+  return rt->stack[index];
+}
+
+static inline int CoRoutine_StackSize(CoRoutine *rt)
+{
+  return rt->top + 1;
+}
+
+static inline void CoRoutine_StackClear(CoRoutine *rt)
+{
+  rt->top = -1;
 }
 
 #ifdef __cplusplus

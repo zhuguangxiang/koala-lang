@@ -17,7 +17,7 @@ typedef struct globalstate GlobalState;
 typedef struct threadstate {
   pthread_t id;
   GlobalState *gstate;
-  CoRoutine *current;
+  CoRoutine *rt;
 } ThreadState;
 
 #define NR_THREAD   2

@@ -1,26 +1,26 @@
 
 #ifndef _KOALA_VECTOR_H_
 #define _KOALA_VECTOR_H_
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define VECTOR_DEFAULT_CAPACTIY 16
 
-struct vector {
+typedef struct vector {
   int capacity;
   void **objs;
-};
+} Vector;
 
-struct vector *vector_create(void);
-void vector_destroy(struct vector *vec,
-                    void (*fini)(void *, void *), void *arg);
-int vector_init(struct vector *vec, int size);
-void vector_fini(struct vector *vec, void (*fini)(void *, void *), void *arg);
-int vector_set(struct vector *vec, int index, void *obj);
-void *vector_get(struct vector *vec, int index);
+Vector *Vector_Create(void);
+void Vector_Destroy(Vector *vec, void (*fini)(void *, void *), void *arg);
+int Vector_Init(Vector *vec, int size);
+void Vector_Fini(Vector *vec, void (*fini)(void *, void *), void *arg);
+int Vector_Set(Vector *vec, int index, void *obj);
+void *Vector_Get(Vector *vec, int index);
 
-#define vector_size(vec)  ((vec)->capacity)
+#define Vector_Size(vec)  ((vec)->capacity)
 
 #ifdef __cplusplus
 }
