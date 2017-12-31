@@ -6,6 +6,7 @@
 /*
  ./build_lib.sh
  gcc -g -std=c99 vector_test.c -lkoala -L.
+ valgrind ./a.out
  */
 int random_string(char *data, int len)
 {
