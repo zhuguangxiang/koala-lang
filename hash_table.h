@@ -26,14 +26,16 @@ struct hash_node {
 #define hash_list_for_each(hnode, head) \
   hlist_for_each_entry(hnode, head, link)
 
-typedef uint32 (*ht_hash_t)(void *key);
-typedef int (*ht_equal_t)(void *key1, void *key2);
+typedef uint32 (*ht_hash_func)(void *key);
+typedef int (*ht_equal_func)(void *key1, void *key2);
+typedef void (*ht_fini_func)(struct hash_node *hnode, void *arg);
+typedef void (*ht_visit_func)(struct hlist_head *hlist, int count, void *arg);
 
 struct hash_table {
   uint32 prime_index;           /* prime array index, internal used */
   uint32 nr_nodes;              /* number of nodes in hash table */
-  ht_hash_t hash;               /* hash function */
-  ht_equal_t equal;             /* equal function */
+  ht_hash_func hash;            /* hash function */
+  ht_equal_func equal;          /* equal function */
   struct hlist_head *entries;   /* conflict list array */
 };
 
@@ -41,11 +43,11 @@ struct hash_table {
  * Create a hash table,
  * which is automatically resized, although this incurs a performance penalty.
  */
-struct hash_table *hash_table_create(ht_hash_t hash, ht_equal_t equal);
+struct hash_table *hash_table_create(ht_hash_func hash, ht_equal_func equal);
 
 /* Free a hash table */
 void hash_table_destroy(struct hash_table *table,
-                        void (*fini)(struct hash_node *, void *), void *arg);
+                        ht_fini_func fini, void *arg);
 
 /* Find a node with its key  */
 struct hash_node *hash_table_find(struct hash_table *table, void *key);
@@ -58,13 +60,13 @@ int hash_table_insert(struct hash_table *table, struct hash_node *hnode);
 
 /* Traverse all nodes in the hash table */
 void hash_table_traverse(struct hash_table *table,
-  void (*visit)(struct hlist_head *, int, void *), void *arg);
+                         ht_visit_func visit, void *arg);
 
-int hash_table_init(struct hash_table *table,
-                    ht_hash_t hash, ht_equal_t equal);
+int hash_table_initialize(struct hash_table *table,
+                          ht_hash_func hash, ht_equal_func equal);
 
-void hash_table_fini(struct hash_table *table,
-                     void (*fini)(struct hash_node *, void *), void *arg);
+void hash_table_finalize(struct hash_table *table,
+                         ht_fini_func fini, void *arg);
 
 #ifdef __cplusplus
 }

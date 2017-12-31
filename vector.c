@@ -1,35 +1,44 @@
 
 #include "types.h"
+#include "debug.h"
 #include "vector.h"
 
-int Vector_Init(Vector *vec, int capacity)
+#define DEFAULT_CAPACTIY 16
+
+int vector_initialize(struct vector *vec, int capacity)
 {
-  if (capacity <= 0) capacity = VECTOR_DEFAULT_CAPACTIY;
+  if (capacity <= 0) capacity = DEFAULT_CAPACTIY;
 
   void **objs = (void **)calloc(capacity, sizeof(void *));
   if (objs == NULL) return -1;
 
   vec->capacity = capacity;
+  vec->size = 0;
   vec->objs = objs;
 
   return 0;
 }
 
-void Vector_Fini(Vector *vec, void (*fini)(void *, void *), void *arg)
+void vector_finalize(struct vector *vec, vec_fini_func fini, void *arg)
 {
   if (vec->objs == NULL) return;
 
   if (fini != NULL) {
-    fprintf(stdout, "[INFO] fini objs.\n");
-    for (int i = 0; i < vec->capacity; i++)
-      fini(vec->objs[i], arg);
+    debug_info("finalizing objs.\n");
+    for (int i = 0; i < vec->capacity; i++) {
+      void *obj = vec->objs[i];
+      if (obj != NULL) fini(obj, arg);
+    }
   }
 
   free(vec->objs);
+
+  vec->capacity = 0;
+  vec->size = 0;
   vec->objs = NULL;
 }
 
-static int vector_expand(Vector *vec)
+static int __vector_expand(struct vector *vec)
 {
   int new_capactiy = vec->capacity * 2;
   void **objs = (void **)calloc(new_capactiy, sizeof(void *));
@@ -43,43 +52,47 @@ static int vector_expand(Vector *vec)
   return 0;
 }
 
-int Vector_Set(Vector *vec, int index, void *obj)
+int vector_set(struct vector *vec, int index, void *obj)
 {
   if (index >= vec->capacity) {
     if (index >= 2 * vec->capacity) {
-      fprintf(stderr, "[ERROR] are you kidding me? more than double?\n");
+      debug_error("Are you kidding me? Is need expand double size?\n");
       return -1;
     }
 
-    int res = vector_expand(vec);
+    int res = __vector_expand(vec);
     if (res != 0) {
-      fprintf(stderr, "[ERROR] expand vector failed\n");
+      debug_error("expanded vector failed\n");
       return res;
     } else {
-      fprintf(stderr, "[INFO] expand vector successfully\n");
+      debug_info("expanded vector successfully\n");
     }
   }
 
+  if (vec->objs[index] == NULL)
+    ++vec->size;
+  else
+    debug_warn("Position %d already has an item.\n", index);
   vec->objs[index] = obj;
   return index;
 }
 
-void *Vector_Get(Vector *vec, int index)
+void *vector_get(struct vector *vec, int index)
 {
   if (index < vec->capacity) {
     return vec->objs[index];
   } else {
-    fprintf(stderr, "[ERROR] para index %d out of bound\n", index);
+    debug_error("argument's index is %d out of bound\n", index);
     return NULL;
   }
 }
 
-Vector *Vector_Create(void)
+struct vector *vector_create(void)
 {
-  Vector *vec = malloc(sizeof(*vec));
+  struct vector *vec = malloc(sizeof(*vec));
   if (vec == NULL) return NULL;
-  if (Vector_Init(vec, VECTOR_DEFAULT_CAPACTIY)) {
-    fprintf(stderr, "[ERROR] init vector failed\n");
+  if (vector_initialize(vec, DEFAULT_CAPACTIY)) {
+    debug_error("initialize vector failed\n");
     free(vec);
     return NULL;
   } else {
@@ -87,8 +100,8 @@ Vector *Vector_Create(void)
   }
 }
 
-void Vector_Destroy(Vector *vec, void (*fini)(void *, void *), void *arg)
+void vector_destroy(struct vector *vec, vec_fini_func fini, void *arg)
 {
-  Vector_Fini(vec, fini, arg);
+  vector_finalize(vec, fini, arg);
   free(vec);
 }

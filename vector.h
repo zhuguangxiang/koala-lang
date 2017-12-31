@@ -6,21 +6,21 @@
 extern "C" {
 #endif
 
-#define VECTOR_DEFAULT_CAPACTIY 16
-
-typedef struct vector {
+struct vector {
   int capacity;
+  int size;
   void **objs;
-} Vector;
+};
 
-Vector *Vector_Create(void);
-void Vector_Destroy(Vector *vec, void (*fini)(void *, void *), void *arg);
-int Vector_Init(Vector *vec, int size);
-void Vector_Fini(Vector *vec, void (*fini)(void *, void *), void *arg);
-int Vector_Set(Vector *vec, int index, void *obj);
-void *Vector_Get(Vector *vec, int index);
+typedef void (*vec_fini_func)(void *obj, void *arg);
 
-#define Vector_Size(vec)  ((vec)->capacity)
+struct vector *vector_create(void);
+void vector_destroy(struct vector *vec, vec_fini_func fini, void *arg);
+int vector_initialize(struct vector *vec, int capacity);
+void vector_finalize(struct vector *vec, vec_fini_func fini, void *arg);
+int vector_set(struct vector *vec, int index, void *obj);
+void *vector_get(struct vector *vec, int index);
+#define vector_size(vec)  ((vec)->size)
 
 #ifdef __cplusplus
 }
