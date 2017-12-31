@@ -3,7 +3,10 @@
 #include <time.h>
 #include "types.h"
 #include "vector.h"
-/* gcc -g -std=c99 vector.c vector_test.c */
+/*
+ ./build_lib.sh
+ gcc -g -std=c99 vector_test.c -lkoala -L.
+ */
 int random_string(char *data, int len)
 {
   static const char char_set[] = "0123456789abcdefghijklmnopqrstuvwxyz" \
@@ -31,10 +34,10 @@ void test_vector_set(void) {
   int res;
   for (int i = 0; i < 30; i++) {
     res = vector_set(vec, i, strings+i);
-    assert(res == 0);
+    assert(res >= 0);
   }
 
-  for (int i = 0; i < vector_size(vec); i++) {
+  for (int i = 0; i < vector_capacity(vec); i++) {
     char **s = (char **)vector_get(vec, i);
     if (s) printf("%s\n", *s);
   }
