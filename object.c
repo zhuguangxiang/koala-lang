@@ -1,278 +1,149 @@
 
 #include "object.h"
-#include "nameobject.h"
-#include "tupleobject.h"
-#include "tableobject.h"
-#include "methodobject.h"
 #include "stringobject.h"
+#include "debug.h"
 
-TValue NilTVal = TVAL_INIT_NIL;
+TValue NilValue  = NIL_VALUE_INIT();
+TValue TrueValue = BOOL_VALUE_INIT(1);
+TValue FalseValue = BOOL_VALUE_INIT(0);
 
-Klass *Klass_New(char *name, int bsize, int isize)
+static void va_integer_build(TValue *v, va_list *ap)
 {
-  Klass *klazz = malloc(sizeof(*klazz));
-  memset(klazz, 0, sizeof(*klazz));
-  init_object_head(klazz, &Klass_Klass);
-  klazz->name = name;
-  klazz->bsize = bsize;
-  klazz->isize = isize;
-  Object_Add_GCList((Object *)klazz);
-  return klazz;
+  v->type = TYPE_INT;
+  v->ival = (int64)va_arg(*ap, uint32);
 }
 
-static void __check_table(Klass *klazz)
+static void va_integer_parse(TValue *v, va_list *ap)
 {
-  if (klazz->table == NULL) {
-    klazz->table = Table_New();
-    assert(klazz->table);
-    klazz->nr_fields  = 0;
-    klazz->nr_methods = 0;
-  }
+  VALUE_ASSERT_TYPE(v, TYPE_INT);
+  int32 *i = va_arg(*ap, int32 *);
+  *i = (int32)VALUE_INT(v);
 }
 
-static int klass_add_field(Klass *klazz, FieldStruct *f)
+static void va_long_build(TValue *v, va_list *ap)
 {
-  __check_table(klazz);
-
-  Object *o = Name_New(f->name, NT_VAR, f->access, f->desc, NULL);
-  TValue name = TValue_Build('O', o);
-  TValue member = TValue_Build('i', klazz->nr_fields);
-
-  int res = Table_Put(klazz->table, name, member);
-  if (!res) {
-    ++klazz->nr_fields;
-  }
-
-  return res;
+  v->type = TYPE_INT;
+  v->ival = va_arg(*ap, uint64);
 }
 
-int Klass_Add_Members(Klass *klazz, FieldStruct *fields)
+static void va_long_parse(TValue *v, va_list *ap)
 {
-  FieldStruct *f = fields;
-  while (f->name != NULL) {
-    klass_add_field(klazz, f);
-    ++f;
-  }
-  return 0;
+  VALUE_ASSERT_TYPE(v, TYPE_INT);
+  int64 *i = va_arg(*ap, int64 *);
+  *i = VALUE_INT(v);
 }
 
-static int klass_add_method(Klass *klazz, MethodStruct *m)
+static void va_float_build(TValue *v, va_list *ap)
 {
-  __check_table(klazz);
-
-  Object *o = Name_New(m->name, NT_METHOD, m->access, m->rdesc, m->pdesc);
-  TValue name = TValue_Build('O', o);
-  TValue meth = TValue_Build('O', CMethod_New(m->func));
-
-  int res = Table_Put(klazz->table, name, meth);
-  if (!res) {
-    ++klazz->nr_methods;
-  }
-
-  return res;
+  v->type = TYPE_FLOAT;
+  v->fval = va_arg(*ap, float64);
 }
 
-int Klass_Add_Methods(Klass *klazz, MethodStruct *meths)
+static void va_float_parse(TValue *v, va_list *ap)
 {
-  MethodStruct *m = meths;
-  while (m->name != NULL) {
-    klass_add_method(klazz, m);
-    ++m;
-  }
-  return 0;
+  VALUE_ASSERT_TYPE(v, TYPE_FLOAT);
+  float64 *f = va_arg(*ap, float64 *);
+  *f = VALUE_FLOAT(v);
 }
 
-int Klass_Get(Klass *klazz, char *name, TValue *k, TValue *v)
+static void va_bool_build(TValue *v, va_list *ap)
 {
-  if (klazz->table == NULL) return -1;
-  Object *n = Name_New(name, 0, 0, NULL, NULL);
-  return Table_Get(klazz->table, TValue_Build('O', n), k, v);
+  v->type = TYPE_BOOL;
+  v->bval = va_arg(*ap, int);
 }
 
-/*-------------------------------------------------------------------------*/
-
-static Object *__klass_get_method(Object *klazz, Object *args)
+static void va_bool_parse(TValue *v, va_list *ap)
 {
-  assert(OB_KLASS(klazz) == &Klass_Klass);
-  char *str = NULL;
-  Tuple_Parse(args, "s", &str);
-  TValue v;
-  if (Klass_Get((Klass *)klazz, str, NULL, &v)) return NULL;
-  return Tuple_From_Va_TValues(1, v);
+  VALUE_ASSERT_TYPE(v, TYPE_BOOL);
+  int *i = va_arg(*ap, int *);
+  *i = VALUE_BOOL(v);
 }
 
-static MethodStruct klass_methods[] = {
-  {
-    "GetField",
-    "Okoala/reflect.Field;",
-    "S",
-    ACCESS_PUBLIC,
-    NULL
-  },
-  {
-    "GetMethod",
-    "Okoala/reflect.Method;",
-    "S",
-    ACCESS_PUBLIC,
-    __klass_get_method
-  },
-  {
-    "NewInstance",
-    NULL,
-    NULL,
-    ACCESS_PUBLIC,
-    NULL
-  },
-  {NULL, NULL, NULL, 0, NULL}
+static void va_string_build(TValue *v, va_list *ap)
+{
+  v->type = TYPE_OBJECT;
+  v->ob = String_New(va_arg(*ap, char *));
+}
+
+static void va_string_parse(TValue *v, va_list *ap)
+{
+  VALUE_ASSERT_TYPE(v, TYPE_OBJECT);
+  Object *ob = VALUE_OBJECT(v);
+  OB_ASSERT_KLASS(ob, String_Klass);
+  char **str = va_arg(*ap, char **);
+  *str = String_To_CString(ob);
+}
+
+static void va_object_build(TValue *v, va_list *ap)
+{
+  v->type = TYPE_OBJECT;
+  v->ob = va_arg(*ap, Object *);
+}
+
+static void va_object_parse(TValue *v, va_list *ap)
+{
+  VALUE_ASSERT_TYPE(v, TYPE_OBJECT);
+  Object **o = va_arg(*ap, Object **);
+  *o = VALUE_OBJECT(v);
+}
+
+typedef void (*va_build_t)(TValue *v, va_list *ap);
+typedef void (*va_parse_t)(TValue *v, va_list *ap);
+
+typedef struct {
+  char ch;
+  va_build_t build;
+  va_parse_t parse;
+} va_convert_t;
+
+static va_convert_t va_convert_func[] = {
+  {'i', va_integer_build, va_integer_parse},
+  {'l', va_long_build,    va_long_parse},
+  {'f', va_float_build,   va_float_parse},
+  {'d', va_float_build,   va_float_parse},
+  {'z', va_bool_build,    va_bool_parse},
+  {'s', va_string_build,  va_string_parse},
+  {'O', va_object_build,  va_object_parse},
 };
 
-void Init_Klass_Klass(void)
+va_convert_t *get_convert(char ch)
 {
-  Klass_Add_Methods(&Klass_Klass, klass_methods);
-}
-
-/*-------------------------------------------------------------------------*/
-
-TValue Va_Build_Value(char ch, va_list *ap)
-{
-  TValue val = TVAL_INIT_NIL;
-
-  switch (ch) {
-    case 'i': {
-      uint32 i = va_arg(*ap, uint32);
-      val.type = TYPE_INT;
-      val.ival = (int64)i;
-      break;
-    }
-
-    case 'l': {
-      uint64 i = va_arg(*ap, uint64);
-      val.type = TYPE_INT;
-      val.ival = (int64)i;
-      break;
-    }
-
-    case 'f':
-    case 'd': {
-      float64 f = va_arg(*ap, float64);
-      val.type = TYPE_FLOAT;
-      val.fval = f;
-      break;
-    }
-
-    case 'b': {
-      uint32 i = va_arg(*ap, uint32);
-      val.type = TYPE_BYTE;
-      val.ival = (int64)i;
-      break;
-    }
-
-    case 'z': {
-      int i = va_arg(*ap, int);
-      val.type = TYPE_BOOL;
-      val.bval = i;
-      break;
-    }
-
-    case 's': {
-      char *str = va_arg(*ap, char *);
-      val.type = TYPE_OBJECT;
-      val.ob = String_New(str);
-      break;
-    }
-
-    case 'O': {
-      Object *o = va_arg(*ap, Object *);
-      val.type = TYPE_OBJECT;
-      val.ob = o;
-      break;
-    }
-
-    default: {
-      fprintf(stderr, "[ERROR] unsupported type: %d\n", ch);
-      assert(0);
-      break;
+  va_convert_t *convert;
+  for (int i = 0; i < nr_elts(va_convert_func); i++) {
+    convert = va_convert_func + i;
+    if (convert->ch == ch) {
+      return convert;
     }
   }
-
-  return val;
+  debug_error("unsupported type: %d\n", ch);
+  assert(0);
+  return NULL;
 }
 
-TValue TValue_Build(char ch, ...)
+int Va_Build_Value(TValue *ret, char ch, va_list *ap)
 {
-  TValue val;
-  va_list vp;
-  va_start(vp, ch);
-  val = Va_Build_Value(ch, &vp);
-  va_end(vp);
-  return val;
-}
-
-int Va_Parse_Value(TValue val, char ch, va_list *ap)
-{
-  switch (ch) {
-    case 'i': {
-      int32 *i = va_arg(*ap, int32 *);
-      *i = (int32)INT_TVAL(val);
-      assert(TVAL_TYPE(val) == TYPE_INT);
-      break;
-    }
-
-    case 'l': {
-      int64 *i = va_arg(*ap, int64 *);
-      *i = INT_TVAL(val);
-      assert(TVAL_TYPE(val) == TYPE_INT);
-      break;
-    }
-
-    case 'f':
-    case 'd': {
-      float64 *f = va_arg(*ap, float64 *);
-      *f = FLOAT_TVAL(val);
-      assert(TVAL_TYPE(val) == TYPE_FLOAT);
-      break;
-    }
-
-    case 'b': {
-      uint8 *ch = va_arg(*ap, uint8 *);
-      *ch = BYTE_TVAL(val);
-      assert(TVAL_TYPE(val) == TYPE_BYTE);
-      break;
-    }
-
-    case 'z': {
-      int *i = va_arg(*ap, int *);
-      *i = BOOL_TVAL(val);
-      assert(TVAL_TYPE(val) == TYPE_BOOL);
-      break;
-    }
-
-    case 's': {
-      char **str = va_arg(*ap, char **);
-      assert(TVAL_TYPE(val) == TYPE_OBJECT);
-      assert(OB_KLASS(OBJECT_TVAL(val)) == &String_Klass);
-      *str = String_To_CString(OBJECT_TVAL(val));
-      break;
-    }
-
-    case 'O': {
-      Object **o = va_arg(*ap, Object **);
-      *o = OBJECT_TVAL(val);
-      assert(TVAL_TYPE(val) == TYPE_OBJECT);
-      break;
-    }
-
-    default: {
-      fprintf(stderr, "[ERROR] unsupported type: %d\n", ch);
-      assert(0);
-      break;
-    }
-  }
-
+  va_convert_t *convert = get_convert(ch);
+  convert->build(ret, ap);
   return 0;
 }
 
-int TValue_Parse(TValue val, char ch, ...)
+int TValue_Build(TValue *ret, char ch, ...)
+{
+  va_list vp;
+  va_start(vp, ch);
+  int res = Va_Build_Value(ret, ch, &vp);
+  va_end(vp);
+  return res;
+}
+
+int Va_Parse_Value(TValue *val, char ch, va_list *ap)
+{
+  va_convert_t *convert = get_convert(ch);
+  convert->parse(val, ap);
+  return 0;
+}
+
+int TValue_Parse(TValue *val, char ch, ...)
 {
   int res;
   va_list vp;
@@ -284,18 +155,149 @@ int TValue_Parse(TValue val, char ch, ...)
 
 /*-------------------------------------------------------------------------*/
 
+Klass *Klass_New(char *name, int bsize, int isize)
+{
+  Klass *klazz = malloc(sizeof(*klazz));
+  memset(klazz, 0, sizeof(*klazz));
+  init_object_head(klazz, &Klass_Klass);
+  klazz->name  = name;
+  klazz->bsize = bsize;
+  klazz->isize = isize;
+  //Object_Add_GCList((Object *)klazz);
+  return klazz;
+}
+
+// static int metainfo_set_field(MetaInfo *mi, Object *key)
+// {
+//   if (mi->map == NULL) mi->map = Map_New();
+//   assert(mi->map != NULL);
+//   TValue name = TValue_Build('o', key);
+//   TValue index = TValue_Build('i', mi->nr_fields);
+//   int res = Map_Put(mi->map, &name, &index);
+//   if (!res) ++mi->nr_fields;
+//   return res;
+// }
+
+// static int metainfo_set_cmethod(MetaInfo *mi, Object *key, Object *meth)
+// {
+//   if (mi->map == NULL) mi->map = Map_New();
+//   assert(mi->map != NULL);
+//   TValue name = TValue_Build('o', key);
+//   TValue value = TValue_Build('o', meth);
+//   int res = Map_Put(mi->map, &name, &value);
+//   if (!res) ++mi->nr_methods;
+//   return res;
+// }
+
+// static int metainfo_get(MetaInfo *mi, Object *key, TValue *k, TValue *v)
+// {
+//   if (mi->map == NULL) return -1;
+//   TValue name = TValue_Build('o', key);
+//   return Map_Get(mi->map, &name, k, v);
+// }
+
+// static int klass_add_field(Klass *klazz, FieldStruct *f)
+// {
+//   Object *n = Symbol_New(f->name, SYM_FIELD, f->access, f->desc, NULL);
+//   return metainfo_set_field(&klazz->metainfo, n);
+// }
+
+// int Klass_Add_Fields(Klass *klazz, FieldStruct *fields)
+// {
+//   int res;
+//   FieldStruct *f = fields;
+//   while (f->name != NULL) {
+//     res = klass_add_field(klazz, f);
+//     assert(!res);
+//     ++f;
+//   }
+//   return 0;
+// }
+
+// static int klass_add_cmethod(Klass *klazz, CMethodStruct *m)
+// {
+//   Object *n = Symbol_New(m->name, SYM_METHOD, m->access, m->rdesc, m->pdesc);
+//   return metainfo_set_cmethod(&klazz->metainfo, n, CMethod_New(m->func));
+// }
+
+// int Klass_Add_CMethods(Klass *klazz, CMethodStruct *meths)
+// {
+//   int res;
+//   CMethodStruct *m = meths;
+//   while (m->name != NULL) {
+//     res = klass_add_cmethod(klazz, m);
+//     assert(!res);
+//     ++m;
+//   }
+//   return 0;
+// }
+
+// int Klass_Get(Klass *klazz, char *name, TValue *k, TValue *v)
+// {
+//   Object *n = Symbol_New(name, 0, 0, NULL, NULL);
+//   return metainfo_get(&klazz->metainfo, n, k, v);
+// }
+
+/*-------------------------------------------------------------------------*/
+
+// static Object *__klass_get_method(Object *klazz, Object *args)
+// {
+//   assert(OB_KLASS(klazz) == &Klass_Klass);
+//   char *str = NULL;
+//   Tuple_Parse(args, "s", &str);
+//   TValue v;
+//   if (Klass_Get((Klass *)klazz, str, NULL, &v)) return NULL;
+//   return Tuple_From_Va_TValues(1, &v);
+// }
+
+// static CMethodStruct klass_cmethods[] = {
+//   {
+//     "GetField",
+//     "okoala/reflect.Field;",
+//     "s",
+//     ACCESS_PUBLIC,
+//     NULL
+//   },
+//   {
+//     "GetMethod",
+//     "okoala/reflect.Method;",
+//     "s",
+//     ACCESS_PUBLIC,
+//     __klass_get_method
+//   },
+//   {
+//     "NewInstance",
+//     NULL,
+//     NULL,
+//     ACCESS_PUBLIC,
+//     NULL
+//   },
+//   {NULL, NULL, NULL, 0, NULL}
+// };
+
+void Init_Klass_Klass(void)
+{
+  //Klass_Add_CMethods(&Klass_Klass, klass_cmethods);
+}
+
+/*-------------------------------------------------------------------------*/
+
 static void klass_mark(Object *ob)
 {
-  assert(OB_KLASS(ob) == &Klass_Klass);
-  ob_incref(ob);
+  OB_ASSERT_KLASS(ob, Klass_Klass);
+  //ob_incref(ob);
   //FIXME
 }
 
 static void klass_free(Object *ob)
 {
   // Klass_Klass cannot be freed.
-  assert(ob != (Object *)&Klass_Klass);
-  assert(OB_KLASS(ob) == &Klass_Klass);
+  if (ob == (Object *)&Klass_Klass) {
+    debug_error("Klass_Klass cannot be freed\n");
+    assert(0);
+  }
+
+  OB_ASSERT_KLASS(ob, Klass_Klass);
   free(ob);
 }
 
@@ -308,15 +310,3 @@ Klass Klass_Klass = {
 
   .ob_free = klass_free,
 };
-
-/*-------------------------------------------------------------------------*/
-
-uint32 Integer_Hash(TValue v)
-{
-  return hash_uint32((uint32)INT_TVAL(v), 0);
-}
-
-int Ineger_Compare(TValue v1, TValue v2)
-{
-  return INT_TVAL(v1) - INT_TVAL(v2);
-}

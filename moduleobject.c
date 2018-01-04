@@ -1,101 +1,145 @@
 
 #include "moduleobject.h"
-#include "nameobject.h"
-#include "tableobject.h"
-#include "tupleobject.h"
+#include "symbol.h"
+#include "debug.h"
 
-Object *Module_New(char *name, int nr_vars)
+#define ATOM_ITEM_MAX   (ITEM_CONST + 1)
+
+static uint32 htable_hash(void *key)
 {
-  ModuleObject *ob = malloc(sizeof(*ob));
-  init_object_head(ob, &Module_Klass);
-  ob->name  = name;
-  ob->avail = 0;
-  ob->table = NULL;
-  if (nr_vars > 0)
-    ob->tuple = Tuple_New(nr_vars);
-  else
-    ob->tuple = NULL;
+  ItemEntry *e = key;
+  assert(e->type > 0 && e->type < ATOM_ITEM_MAX);
+  item_hash_t hash_fn = item_func[e->type].ihash;
+  assert(hash_fn != NULL);
+  return hash_fn(e->data);
+}
 
-  Object_Add_GCList((Object *)ob);
+static int htable_equal(void *k1, void *k2)
+{
+  ItemEntry *e1 = k1;
+  ItemEntry *e2 = k2;
+  assert(e1->type > 0 && e1->type < ATOM_ITEM_MAX);
+  assert(e2->type > 0 && e2->type < ATOM_ITEM_MAX);
+  if (e1->type != e2->type) return 0;
+  item_equal_t equal_fn = item_func[e1->type].iequal;
+  assert(equal_fn != NULL);
+  return equal_fn(e1->data, e2->data);
+}
+
+Object *Module_New(char *name, int nr_locals)
+{
+  int size = sizeof(ModuleObject) + sizeof(TValue) * nr_locals;
+  ModuleObject *ob = malloc(size);
+  init_object_head(ob, &Module_Klass);
+
+  ob->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
+  ob->itable = ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
+  ob->name = name;
+  ob->avail_index = 0;
+  ob->size = nr_locals;
+  for (int i = 0; i < nr_locals; i++)
+    init_nil_value(ob->locals + i);
   return (Object *)ob;
 }
 
 void Module_Free(Object *ob)
 {
-  OB_CHECK_KLASS(ob, Module_Klass);
+  OB_ASSERT_KLASS(ob, Module_Klass);
   free(ob);
 }
 
-static Object *__get_table(Object *ob)
+int Module_Add_Var(Object *ob, char *name, char *desc, uint8 access)
 {
   ModuleObject *mo = (ModuleObject *)ob;
-  if (mo->table == NULL) mo->table = Table_New();
-  return mo->table;
+  assert(mo->avail_index < mo->size);
+  int name_index = StringItem_Set(mo->itable, name);
+  int desc_index = TypeItem_Set(mo->itable, desc);
+  Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
+  sym->value.index = mo->avail_index++;
+  return HashTable_Insert(mo->stable, &sym->hnode);
 }
 
-int Module_Add_Variable(Object *ob, char *name, char *desc,
-                        uint8 access, int k)
+int Module_Add_Func(Object *ob, char *name, char *rdesc[], int rsz,
+                    char *pdesc[], int psz, uint8 access, Object *method)
 {
   ModuleObject *mo = (ModuleObject *)ob;
+  int name_index = StringItem_Set(mo->itable, name);
+  int desc_index = ProtoItem_Set(mo->itable, rdesc, rsz, pdesc, psz);
+  Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
+  sym->value.method = method;
+  return HashTable_Insert(mo->stable, &sym->hnode);
+}
 
-  if (mo->tuple == NULL) {
-    fprintf(stderr, "[ERROR]please set number of variables in this module.\n");
-    return -1;
+// static int Module_Add_Klass(Object *ob, Klass *klazz, uint8 access, int kind)
+// {
+//   ModuleObject *mo = (ModuleObject *)ob;
+//   int name_index = StringItem_Set(mo->itemvec, klazz->name);
+//   Symbol *sym = Symbol_New(name_index, kind, access);
+//   return hash_table_insert(&mo->symtbl, &sym->hnode);
+// }
+
+// int Module_Add_Class(Object *ob, Klass *klazz, uint8 access)
+// {
+//   return Module_Add_Klass(ob, klazz, access, SYM_CLASS);
+// }
+
+// int Module_Add_Intf(Object *ob, Klass *klazz, uint8 access)
+// {
+//   return Module_Add_Klass(ob, klazz, access, SYM_INTF);
+// }
+
+Symbol *__module_get(ModuleObject *mo, char *name)
+{
+  int index = StringItem_Get(mo->itable, name);
+  if (index < 0) return NULL;
+  Symbol sym = {.name_index = index};
+  HashNode *hnode = HashTable_Find(mo->stable, &sym);
+  if (hnode != NULL) {
+    return container_of(hnode, Symbol, hnode);
+  } else {
+    return NULL;
+  }
+}
+
+int Module_Get_VarValue(Object *ob, char *name, TValue *v)
+{
+  OB_ASSERT_KLASS(ob, Module_Klass);
+  ModuleObject *mo = (ModuleObject *)ob;
+  struct symbol *s = __module_get(mo, name);
+  if (s != NULL) {
+    if (s->kind == SYM_VAR) {
+      assert(s->value.index < mo->size);
+      *v = mo->locals[s->value.index];
+      return 0;
+    } else {
+      debug_error("symbol is not a variable\n");
+    }
   }
 
-  if (mo->avail >= Tuple_Size(mo->tuple)) {
-    fprintf(stderr, "[ERROR]there is no space for vars.");
-    return -1;
+  return -1;
+}
+
+int Module_Get_FuncValue(Object *ob, char *name, Object **func)
+{
+  OB_ASSERT_KLASS(ob, Module_Klass);
+  ModuleObject *mo = (ModuleObject *)ob;
+  Symbol *s = __module_get(mo, name);
+  if (s != NULL) {
+    if (s->kind == SYM_FUNC) {
+      *func = s->value.method;
+      return 0;
+    } else {
+      debug_error("symbol is not a function\n");
+    }
   }
-  int type = (k == 0) ? NT_VAR : NT_CONST;
-  Object *no = Name_New(name, type, access, desc, NULL);
-  TValue key = TValue_Build('O', no);
-  TValue val = TValue_Build('i', mo->avail++);
-  return Table_Put(__get_table(ob), key, val);
+
+  return -1;
 }
 
-int Module_Add_Function(Object *ob, char *name, char *desc, char *pdesc,
-                        uint8 access, Object *method)
+Object *Load_Module(char *path)
 {
-  int type = NT_FUNC;
-  Object *no = Name_New(name, type, access, desc, pdesc);
-  TValue key = TValue_Build('O', no);
-  TValue val = TValue_Build('O', method);
-  return Table_Put(__get_table(ob), key, val);
-}
-
-int Module_Add_Klass(Object *ob, Klass *klazz, uint8 access, int intf)
-{
-  int type = (intf == 0) ? NT_KLASS : NT_INTF;
-  Object *no = Name_New(klazz->name, type, access, NULL, NULL);
-  TValue key = TValue_Build('O', no);
-  TValue val = TValue_Build('O', klazz);
-  return Table_Put(__get_table(ob), key, val);
-}
-
-int Module_Get(Object *ob, char *name, TValue *k, TValue *v)
-{
-  OB_CHECK_KLASS(ob, Module_Klass);
-  Object *no = Name_New(name, 0, 0, NULL, NULL);
-  TValue key = TValue_Build('O', no);
-  return Table_Get(__get_table(ob), key, k, v);
-}
-
-Object *Load_Module(char *path_name)
-{
-  UNUSED_PARAMETER(path_name);
+  UNUSED_PARAMETER(path);
   return NULL;
-}
-
-/*-------------------------------------------------------------------------*/
-
-static MethodStruct module_methods[] = {
-  {NULL, NULL, NULL, 0, NULL}
-};
-
-void Init_Module_Klass(void)
-{
-  Klass_Add_Methods(&Module_Klass, module_methods);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -115,17 +159,17 @@ Klass Module_Klass = {
 
 /*-------------------------------------------------------------------------*/
 
-static void module_visit(TValue key, TValue val, void *arg)
-{
-  UNUSED_PARAMETER(val);
-  UNUSED_PARAMETER(arg);
-  Object *ob = NULL;
-  TValue_Parse(key, 'O', &ob);
-  Name_Display(ob);
-}
+// static void module_visit(TValue *key, TValue *val, void *arg)
+// {
+//   UNUSED_PARAMETER(val);
+//   UNUSED_PARAMETER(arg);
+//   Object *ob = NULL;
+//   TValue_Parse(key, 'O', &ob);
+//   //Symbol_Display(ob);
+// }
 
 void Module_Display(Object *ob)
 {
   assert(OB_KLASS(ob) == &Module_Klass);
-  Table_Traverse(__get_table(ob), module_visit, NULL);
+  //Map_Traverse(__get_map(ob), module_visit, NULL);
 }

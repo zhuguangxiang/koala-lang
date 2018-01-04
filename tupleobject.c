@@ -1,6 +1,6 @@
 
 #include "tupleobject.h"
-#include "nameobject.h"
+#include "symbol.h"
 
 Object *Tuple_New(int size)
 {
@@ -10,20 +10,20 @@ Object *Tuple_New(int size)
   init_object_head(tuple, &Tuple_Klass);
   tuple->size = size;
   for (int i = 0; i < size; i++) {
-    init_nil_tval(tuple->items[i]);
+    init_nil_value(tuple->items + i);
   }
-  Object_Add_GCList((Object *)tuple);
+  //Object_Add_GCList(tuple);
   return (Object *)tuple;
 }
 
 TValue Tuple_Get(Object *ob, int index)
 {
-  assert(OB_KLASS(ob) == &Tuple_Klass);
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
 
   if (index < 0 || index >= tuple->size) {
-    fprintf(stderr, "[ERROR] index %d out of bound\n", index);
-    return NIL_TVAL;
+    printf("[ERROR] index %d out of bound\n", index);
+    return NilValue;
   }
 
   return tuple->items[index];
@@ -31,16 +31,15 @@ TValue Tuple_Get(Object *ob, int index)
 
 Object *Tuple_Get_Slice(Object *ob, int min, int max)
 {
-  assert(OB_KLASS(ob) == &Tuple_Klass);
-  if (min > max) {
-    return NULL;
-  }
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
+  if (min > max) return NULL;
 
   Object *tuple = Tuple_New(max - min + 1);
   int index = min;
   int i = 0;
+  TValue val = Tuple_Get(ob, index);
   while (index <= max) {
-    Tuple_Set(tuple, i, Tuple_Get(ob, index));
+    Tuple_Set(tuple, i, &val);
     ++i; index++;
   }
   return tuple;
@@ -49,23 +48,22 @@ Object *Tuple_Get_Slice(Object *ob, int min, int max)
 int Tuple_Size(Object *ob)
 {
   if (ob == NULL) return 0;
-
-  assert(OB_KLASS(ob) == &Tuple_Klass);
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
   return tuple->size;
 }
 
-int Tuple_Set(Object *ob, int index, TValue val)
+int Tuple_Set(Object *ob, int index, TValue *val)
 {
-  assert(OB_KLASS(ob) == &Tuple_Klass);
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
 
   if (index < 0 || index >= tuple->size) {
-    fprintf(stderr, "[ERROR] index %d out of bound\n", index);
+    printf("[ERROR] index %d out of bound\n", index);
     return -1;
   }
 
-  tuple->items[index] = val;
+  tuple->items[index] = *val;
   return 0;
 }
 
@@ -73,7 +71,7 @@ static int get_args(Object *tuple, int min, int max, va_list *ap)
 {
   int index = min;
   while (index <= max) {
-    TValue val = va_arg(*ap, TValue);
+    TValue *val = va_arg(*ap, TValue *);
     Tuple_Set(tuple, index, val);
     ++index;
   }
@@ -95,7 +93,7 @@ Object *Tuple_From_TValues(TValue *arr, int size)
   if (size <= 0) return NULL;
   Object *tuple = Tuple_New(size);
   for (int i = 0; i < size; i++) {
-    Tuple_Set(tuple, i, arr[i]);
+    Tuple_Set(tuple, i, arr + i);
   }
   return tuple;
 }
@@ -108,8 +106,6 @@ static int count_format(char *format)
   return fmt - format;
 }
 
-extern TValue Va_Build_Value(char ch, va_list *ap);
-
 Object *Tuple_Build(char *format, ...)
 {
   va_list vp;
@@ -118,32 +114,33 @@ Object *Tuple_Build(char *format, ...)
   int i = 0;
   int n = count_format(format);
   if (n <= 0) return NULL;
-
+  TValue val;
   Object *ob = Tuple_New(n);
 
   va_start(vp, format);
   while ((ch = *fmt++)) {
-    Tuple_Set(ob, i++, Va_Build_Value(ch, &vp));
+    Va_Build_Value(&val, ch, &vp);
+    Tuple_Set(ob, i++, &val);
   }
   va_end(vp);
 
   return ob;
 }
 
-extern int Va_Parse_Value(TValue val, char ch, va_list *ap);
-
 int Tuple_Parse(Object *ob, char *format, ...)
 {
-  assert(OB_KLASS(ob) == &Tuple_Klass);
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
 
   va_list vp;
   char *fmt = format;
   char ch;
   int i = 0;
+  TValue val;
 
   va_start(vp, format);
   while ((ch = *fmt++)) {
-    Va_Parse_Value(Tuple_Get(ob, i++), ch, &vp);
+    val = Tuple_Get(ob, i++);
+    Va_Parse_Value(&val, ch, &vp);
   }
   va_end(vp);
 
@@ -151,46 +148,47 @@ int Tuple_Parse(Object *ob, char *format, ...)
 }
 
 /*-------------------------------------------------------------------------*/
-
+/*
 static Object *__tuple_get(Object *ob, Object *args)
 {
   TValue val;
-  assert(OB_KLASS(ob) == &Tuple_Klass);
-  assert(OB_KLASS(args) == &Tuple_Klass);
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
+  OB_ASSERT_KLASS(args, Tuple_Klass);
 
   val = Tuple_Get(args, 0);
-  if (!TVAL_ISINT(val)) return NULL;
+  if (!VALUE_ISINT(&val)) return NULL;
 
-  val = Tuple_Get(ob, INT_TVAL(val));
-  if (TVAL_ISANY(val)) return NULL;
+  val = Tuple_Get(ob, VALUE_INT(&val));
+  if (VALUE_ISNIL(&val)) return NULL;
 
-  return Tuple_From_Va_TValues(1, val);
+  return Tuple_From_Va_TValues(1, &val);
 }
 
 static Object *__tuple_size(Object *ob, Object *args)
 {
-  assert(OB_KLASS(ob) == &Tuple_Klass);
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
   assert(args == NULL);
   TupleObject *tuple = (TupleObject *)ob;
   return Tuple_Build("i", tuple->size);
 }
+*/
 
-static MethodStruct tuple_methods[] = {
-  {"Get", "T", "I", ACCESS_PUBLIC, __tuple_get},
-  {"Size", "I", NULL, ACCESS_PUBLIC, __tuple_size},
-  {NULL, NULL, NULL, 0, NULL}
-};
+// static CMethodStruct tuple_cmethods[] = {
+//   {"Get", "a", "i", ACCESS_PUBLIC, __tuple_get},
+//   {"Size", "i", "v", ACCESS_PUBLIC, __tuple_size},
+//   {NULL, NULL, NULL, 0, NULL}
+// };
 
 void Init_Tuple_Klass(void)
 {
-  Klass_Add_Methods(&Tuple_Klass, tuple_methods);
+  //Klass_Add_CMethods(&Tuple_Klass, tuple_cmethods);
 }
 
 /*-------------------------------------------------------------------------*/
 
 static void tuple_free(Object *ob)
 {
-  assert(OB_KLASS(ob) == &Tuple_Klass);
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
   free(ob);
 }
 

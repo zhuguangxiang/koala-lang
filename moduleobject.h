@@ -11,22 +11,26 @@ extern "C" {
 typedef struct moduleobject {
   OBJECT_HEAD
   char *name;
-  int avail;
-  Object *table;
-  Object *tuple;
+  HashTable *stable;
+  ItemTable *itable;
+  int avail_index;
+  int size;
+  TValue locals[0];
 } ModuleObject;
 
 /* Exported symbols */
 extern Klass Module_Klass;
 void Init_Module_Klass(void);
-Object *Module_New(char *name, int nr_vars);
-int Module_Add_Variable(Object *ob, char *name, char *desc,
-                        uint8 access, int k);
-int Module_Add_Function(Object *ob, char *name, char *desc, char *pdesc,
-                        uint8 access, Object *method);
-int Module_Add_Klass(Object *ob, Klass *klazz, uint8 access, int intf);
-int Module_Get(Object *ob, char *name, TValue *k, TValue *v);
-Object *Load_Module(char *path_name);
+Object *Module_New(char *name, int nr_locals);
+int Module_Add_Var(Object *ob, char *name, char *desc, uint8 access);
+int Module_Add_Func(Object *ob, char *name, char *rdesc[], int rsz,
+                    char *pdesc[], int psz, uint8 access, Object *method);
+int Module_Add_Class(Object *ob, Klass *klazz, uint8 access);
+int Module_Add_Intf(Object *ob, Klass *klazz, uint8 access);
+int Module_Get_VarValue(Object *ob, char *name, TValue *val);
+int Module_Get_FuncValue(Object *ob, char *name, Object **func);
+
+Object *Load_Module(char *path);
 void Module_Display(Object *ob);
 
 #ifdef __cplusplus

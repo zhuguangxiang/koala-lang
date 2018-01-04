@@ -1,6 +1,6 @@
 
 #include "debug.h"
-#include "hash_table.h"
+#include "hashtable.h"
 
 #define HT_LOAD_FACTOR      0.65
 #define DEFAULT_PRIME_INDEX 0
@@ -46,7 +46,7 @@ static uint32 good_primes[] = {
 #define prime_array_length()  nr_elts(good_primes)
 #define get_nr_entries(table) good_primes[((table)->prime_index)]
 
-static uint32 get_proper_prime(struct hash_table *table)
+static uint32 get_proper_prime(HashTable *table)
 {
   uint32 new_prime_index = table->prime_index;
 
@@ -78,8 +78,8 @@ static void free_entries(struct hlist_head *entries)
   if (entries != NULL) free(entries);
 }
 
-int hash_table_initialize(struct hash_table *table,
-                          ht_hash_func hash, ht_equal_func equal)
+int HashTable_Initialize(HashTable *table,
+                         ht_hash_func hash, ht_equal_func equal)
 {
   struct hlist_head *entries = new_entries(get_prime(DEFAULT_PRIME_INDEX));
   if (entries == NULL) return -1;
@@ -93,10 +93,9 @@ int hash_table_initialize(struct hash_table *table,
   return 0;
 }
 
-void hash_table_finalize(struct hash_table *table,
-                         ht_fini_func fini, void *arg)
+void HashTable_Finalize(HashTable *table, ht_fini_func fini, void *arg)
 {
-  struct hash_node *hnode;
+  HashNode *hnode;
   struct hlist_node *nxt;
   int nr_entries = get_nr_entries(table);
 
@@ -113,12 +112,12 @@ void hash_table_finalize(struct hash_table *table,
   table->entries     = NULL;
 }
 
-struct hash_table *hash_table_create(ht_hash_func hash, ht_equal_func equal)
+HashTable *HashTable_create(ht_hash_func hash, ht_equal_func equal)
 {
-  struct hash_table *table = malloc(sizeof(*table));
+  HashTable *table = malloc(sizeof(*table));
   if (table == NULL) return NULL;
 
-  if (hash_table_initialize(table, hash, equal)) {
+  if (HashTable_Initialize(table, hash, equal)) {
     free(table);
     return NULL;
   }
@@ -126,17 +125,15 @@ struct hash_table *hash_table_create(ht_hash_func hash, ht_equal_func equal)
   return table;
 }
 
-void hash_table_destroy(struct hash_table *table,
-                        ht_fini_func fini, void *arg)
+void HashTable_Destroy(HashTable *table, ht_fini_func fini, void *arg)
 {
   if (table != NULL) {
-    hash_table_finalize(table, fini, arg);
+    HashTable_Finalize(table, fini, arg);
     free(table);
   }
 }
 
-static struct hash_node *__hash_table_find(struct hash_table *table,
-                                           uint32 hash, void *key)
+static HashNode *__hash_table_find(HashTable *table, uint32 hash, void *key)
 {
   uint32 idx  = hash % get_nr_entries(table);
   struct hash_node *hnode;
@@ -149,16 +146,16 @@ static struct hash_node *__hash_table_find(struct hash_table *table,
   return NULL;
 }
 
-struct hash_node *hash_table_find(struct hash_table *table, void *key)
+HashNode *HashTable_Find(HashTable *table, void *key)
 {
   return __hash_table_find(table, table->hash(key), key);
 }
 
-int hash_table_remove(struct hash_table *table, struct hash_node *hnode)
+int HashTable_Remove(HashTable *table, HashNode *hnode)
 {
   if (hash_node_unhashed(hnode)) return -1;
 
-  struct hash_node *temp = __hash_table_find(table, hnode->hash, hnode->key);
+  HashNode *temp = __hash_table_find(table, hnode->hash, hnode->key);
   if (temp == NULL) {
     debug_error("it is not in the hash table\n");
     return -1;
@@ -172,10 +169,10 @@ int hash_table_remove(struct hash_table *table, struct hash_node *hnode)
   return 0;
 }
 
-static void hash_table_expand(struct hash_table *table,
+static void hash_table_expand(HashTable *table,
                               uint32 new_prime_index)
 {
-  struct hash_node *hnode;
+  HashNode *hnode;
   struct hlist_node *nxt;
   int nr_entries = get_nr_entries(table);
   uint32 index;
@@ -196,10 +193,10 @@ static void hash_table_expand(struct hash_table *table,
 
   free_entries(table->entries);
   table->prime_index = new_prime_index;
-  table->entries     = entries;
+  table->entries = entries;
 }
 
-static void hash_table_maybe_expand(struct hash_table *table)
+static void hash_table_maybe_expand(HashTable *table)
 {
   uint32 new_prime_index;
 
@@ -213,7 +210,7 @@ static void hash_table_maybe_expand(struct hash_table *table)
   hash_table_expand(table, new_prime_index);
 }
 
-int hash_table_insert(struct hash_table *table, struct hash_node *hnode)
+int HashTable_Insert(HashTable *table, HashNode *hnode)
 {
   if (!hash_node_unhashed(hnode)) return -1;
 
@@ -233,8 +230,7 @@ int hash_table_insert(struct hash_table *table, struct hash_node *hnode)
   return 0;
 }
 
-void hash_table_traverse(struct hash_table *table,
-                         ht_visit_func visit, void *arg)
+void HashTable_Traverse(HashTable *table, ht_visit_func visit, void *arg)
 {
   if (table != NULL) {
     visit(table->entries, get_nr_entries(table), arg);
