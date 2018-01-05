@@ -24,7 +24,7 @@ int ItemTable_Initialize(ItemTable *table,
   HashTable_Initialize(&table->table, hash, equal);
   table->size = size;
   for (int i = 0; i < size; i++)
-    Vector_Initialize(table->items + i, 0, sizeof(void *));
+    Vector_Initialize(table->items + i, 0, sizeof(void **));
   return 0;
 }
 
@@ -54,7 +54,7 @@ int ItemTable_Append(ItemTable *table, int type, void *data, int unique)
   Vector *vec = table->items + type;
   int index = Vector_Set(vec, Vector_Size(vec), data);
   if (unique) {
-    ItemEntry *e = itementry_new(type, index, data);
+    ItemEntry *e = itementry_new(type, index, *(void **)data);
     int res = HashTable_Insert(&table->table, &e->hnode);
     assert(!res);
   }
@@ -72,7 +72,8 @@ int ItemTable_Index(ItemTable *table, int type, void *data)
 void *ItemTable_Get(ItemTable *table, int type, int index)
 {
   assert(type >= 0 && type < table->size);
-  return Vector_Get(table->items + type, index);
+  void **data = Vector_Get(table->items + type, index);
+  return *data;
 }
 
 int ItemTable_Size(ItemTable *table, int type)

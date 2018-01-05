@@ -59,9 +59,15 @@ static char *access_tostr(int access)
   return to_str(str, nr_elts(str), access);
 }
 
-void Symbol_Display(Symbol *sym, ItemTable *table)
+static char *get_name(int index, ItemTable *itable)
 {
-  UNUSED_PARAMETER(table);
-  debug_info("%d%-8s%-10s\n",
-         sym->name_index, type_tostr(sym->kind), access_tostr(sym->access));
+  StringItem *item = ItemTable_Get(itable, ITEM_STRING, index);
+  return item->data;
+}
+
+void Symbol_Display(Symbol *sym, ItemTable *itable)
+{
+  printf("%s %s %s\n",
+         access_tostr(sym->access), type_tostr(sym->kind),
+         get_name(sym->name_index, itable));
 }

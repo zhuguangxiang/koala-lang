@@ -31,7 +31,6 @@ Object *Module_New(char *name, int nr_locals)
   int size = sizeof(ModuleObject) + sizeof(TValue) * nr_locals;
   ModuleObject *ob = malloc(size);
   init_object_head(ob, &Module_Klass);
-
   ob->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
   ob->itable = ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
   ob->name = name;
@@ -70,23 +69,23 @@ int Module_Add_Func(Object *ob, char *name, char *rdesc[], int rsz,
   return HashTable_Insert(mo->stable, &sym->hnode);
 }
 
-// static int Module_Add_Klass(Object *ob, Klass *klazz, uint8 access, int kind)
-// {
-//   ModuleObject *mo = (ModuleObject *)ob;
-//   int name_index = StringItem_Set(mo->itemvec, klazz->name);
-//   Symbol *sym = Symbol_New(name_index, kind, access);
-//   return hash_table_insert(&mo->symtbl, &sym->hnode);
-// }
+static int module_add_klass(Object *ob, Klass *klazz, uint8 access, int kind)
+{
+  ModuleObject *mo = (ModuleObject *)ob;
+  int name_index = StringItem_Set(mo->itable, klazz->name);
+  Symbol *sym = Symbol_New(name_index, kind, access, name_index);
+  return HashTable_Insert(mo->stable, &sym->hnode);
+}
 
-// int Module_Add_Class(Object *ob, Klass *klazz, uint8 access)
-// {
-//   return Module_Add_Klass(ob, klazz, access, SYM_CLASS);
-// }
+int Module_Add_Class(Object *ob, Klass *klazz, uint8 access)
+{
+  return module_add_klass(ob, klazz, access, SYM_CLASS);
+}
 
-// int Module_Add_Intf(Object *ob, Klass *klazz, uint8 access)
-// {
-//   return Module_Add_Klass(ob, klazz, access, SYM_INTF);
-// }
+int Module_Add_Intf(Object *ob, Klass *klazz, uint8 access)
+{
+  return module_add_klass(ob, klazz, access, SYM_INTF);
+}
 
 Symbol *__module_get(ModuleObject *mo, char *name)
 {
@@ -159,17 +158,26 @@ Klass Module_Klass = {
 
 /*-------------------------------------------------------------------------*/
 
-// static void module_visit(TValue *key, TValue *val, void *arg)
-// {
-//   UNUSED_PARAMETER(val);
-//   UNUSED_PARAMETER(arg);
-//   Object *ob = NULL;
-//   TValue_Parse(key, 'O', &ob);
-//   //Symbol_Display(ob);
-// }
+static void module_visit(struct hlist_head *head, int size, void *arg)
+{
+  Symbol *sym;
+  ItemTable *itable = arg;
+  HashNode *hnode;
+  for (int i = 0; i < size; i++) {
+    if (!hlist_empty(head)) {
+      hlist_for_each_entry(hnode, head, link) {
+        sym = container_of(hnode, Symbol, hnode);
+        Symbol_Display(sym, itable);
+      }
+      printf("\n");
+    }
+    head++;
+  }
+}
 
 void Module_Display(Object *ob)
 {
   assert(OB_KLASS(ob) == &Module_Klass);
-  //Map_Traverse(__get_map(ob), module_visit, NULL);
+  ModuleObject *mo = (ModuleObject *)ob;
+  HashTable_Traverse(mo->stable, module_visit, mo->itable);
 }

@@ -126,7 +126,7 @@ struct visit_struct {
   void *arg;
 };
 
-static void map_visit(struct hlist_head *head, int size, void *arg)
+static void table_visit(struct hlist_head *head, int size, void *arg)
 {
   struct visit_struct *vs = arg;
   HashNode *hnode;
@@ -145,7 +145,7 @@ void Table_Traverse(Object *ob, table_visit_func visit, void *arg)
   OB_ASSERT_KLASS(ob, Table_Klass);
   TableObject *table = (TableObject *)ob;
   struct visit_struct vs = {visit, arg};
-  HashTable_Traverse(&table->table, map_visit, &vs);
+  HashTable_Traverse(&table->table, table_visit, &vs);
 }
 
 /*-------------------------------------------------------------------------*/

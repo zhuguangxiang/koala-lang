@@ -11,9 +11,9 @@ include $(TOPDIR)/config.mk
 ######################################
 
 KOALA_LIB_FILES = hashtable.c hash.c vector.c itemtable.c symbol.c \
-object.c tupleobject.c moduleobject.c \
-codeformat.c
-##stringobject.c mapobject.c methodobject.c  globalstate.c coroutine.c koala.c
+object.c stringobject.c tupleobject.c tableobject.c moduleobject.c \
+codeformat.c debug.c gstate.c koala.c
+## methodobject.c coroutine.c
 
 KOALA_LIB = koala
 
@@ -35,8 +35,7 @@ lib:
 	@$(AR) -r lib$(KOALA_LIB).a $(patsubst %.c, %.o, $(KOALA_LIB_FILES))
 	@$(RM) *.o
 
-test: lib
-	@$(CC) $(CFLAGS) object_test.c -l$(KOALA_LIB) -L.
-
+testmodule: lib
+	@$(CC) $(CFLAGS) test_module.c -l$(KOALA_LIB) -L.
 format: lib
-	@$(CC) $(CFLAGS) codeformattest.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_codeformat.c -l$(KOALA_LIB) -L.

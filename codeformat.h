@@ -77,9 +77,6 @@ typedef struct const_item {
   } value;
 } ConstItem;
 
-#define FLAGS_ACCESS_PRIVATE 1
-#define FLAGS_ACCESS_CONST   2
-
 typedef struct var_item {
   uint32 name_index;  //->StringItem
   uint32 type_index;  //->TypeItem

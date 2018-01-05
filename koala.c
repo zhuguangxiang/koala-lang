@@ -1,11 +1,8 @@
 
-#include "globalstate.h"
-#include "nameobject.h"
-#include "moduleobject.h"
-#include "tupleobject.h"
-#include "tableobject.h"
-#include "stringobject.h"
-#include "methodobject.h"
+#include "koala.h"
+#include "symbol.h"
+
+GState gs;
 
 // koala/lang.klc
 static void init_lang_module(void)
@@ -13,38 +10,23 @@ static void init_lang_module(void)
   Object *ob = Module_New("lang", 0);
 
   Init_Klass_Klass();
-  Init_Name_Klass();
-  Init_Module_Klass();
+  Init_String_Klass();
   Init_Tuple_Klass();
   Init_Table_Klass();
-  Init_String_Klass();
+  // Init_Module_Klass();
 
-  Module_Add_Klass(ob, &Klass_Klass,  0, 0);
-  Module_Add_Klass(ob, &Name_Klass,   0, 0);
-  Module_Add_Klass(ob, &Module_Klass, 0, 0);
-  Module_Add_Klass(ob, &Tuple_Klass,  0, 0);
-  Module_Add_Klass(ob, &Table_Klass,  0, 0);
-  Module_Add_Klass(ob, &String_Klass, 0, 0);
+  Module_Add_Class(ob, &Klass_Klass,  ACCESS_PUBLIC);
+  Module_Add_Class(ob, &String_Klass, ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Tuple_Klass,  ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Table_Klass,  ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
 
-  GState_Add_Module("koala/lang", ob);
-}
-
-// koala/reflect.klc
-static void init_reflect_module(void)
-{
-  Object *ob = Module_New("reflect", 0);
-
-  Init_Method_Klass();
-
-  Module_Add_Klass(ob, &Method_Klass, 0, 0);
-
-  GState_Add_Module("koala/reflect", ob);
+  GState_Add_Module(&gs, "koala/lang", ob);
 }
 
 static void init_modules(void)
 {
   init_lang_module();
-  init_reflect_module();
   //init_io_module();
 }
 
@@ -52,21 +34,26 @@ static void init_modules(void)
 
 void Koala_Initialize(void)
 {
-  Init_GlobalState();
+  GState_Initialize(&gs);
   init_modules();
 }
 
 void Koala_Run_String(char *str)
 {
-
+  UNUSED_PARAMETER(str);
 }
 
-void Koala_Run_File(char *path_name)
+void Koala_Run_File(char *path)
 {
+  UNUSED_PARAMETER(path);
+}
 
+void Koala_Run_Module(Object *ob)
+{
+  UNUSED_PARAMETER(ob);
 }
 
 void Koala_Finalize(void)
 {
-  Fini_GlobalState();
+  GState_Finalize(&gs);
 }

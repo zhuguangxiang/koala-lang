@@ -103,7 +103,7 @@ int StringItem_Set(ItemTable *itemtable, char *str)
 
   if (index < 0) {
     StringItem *item = StringItem_New(str);
-    index = ItemTable_Append(itemtable, ITEM_STRING, item, 1);
+    index = ItemTable_Append(itemtable, ITEM_STRING, &item, 1);
   }
 
   return index;
@@ -127,7 +127,7 @@ int TypeItem_Set(ItemTable *itemtable, char *str)
     int str_index = StringItem_Set(itemtable, str);
     assert(str_index >= 0);
     TypeItem *item = TypeItem_New(str_index);
-    index = ItemTable_Append(itemtable, ITEM_TYPE, item, 1);
+    index = ItemTable_Append(itemtable, ITEM_TYPE, &item, 1);
   }
   return index;
 }
@@ -164,7 +164,7 @@ int TypeListItem_Set(ItemTable *itemtable, char *desc[], int sz)
       desc_index[i] = index;
     }
     TypeListItem *item = TypeListItem_New(sz, desc_index);
-    index = ItemTable_Append(itemtable, ITEM_TYPELIST, item, 1);
+    index = ItemTable_Append(itemtable, ITEM_TYPELIST, &item, 1);
   }
   return index;
 }
@@ -183,7 +183,7 @@ int ProtoItem_Set(ItemTable *itemtable, char *rdesc[], int rsz,
   int index = ProtoItem_Get(itemtable, rindex, pindex);
   if (index < 0) {
     ProtoItem *item = ProtoItem_New(rindex, pindex);
-    index = ItemTable_Append(itemtable, ITEM_PROTO, item, 1);
+    index = ItemTable_Append(itemtable, ITEM_PROTO, &item, 1);
   }
   return index;
 }
@@ -193,7 +193,7 @@ int ProtoItem_Set(ItemTable *itemtable, char *rdesc[], int rsz,
 static int codeitem_set(ItemTable *itemtable, uint8 *code, int csz)
 {
   CodeItem *item = CodeItem_New(code, csz);
-  return ItemTable_Append(itemtable, ITEM_CODE, item, 0);
+  return ItemTable_Append(itemtable, ITEM_CODE, &item, 0);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -706,7 +706,7 @@ void KLCImage_Add_Var(KLCImage *image, char *name, int flags, char *desc)
   int type_index = TypeItem_Set(image->table, desc);
   int name_index = StringItem_Set(image->table, name);
   VarItem *varitem = VarItem_New(name_index, type_index, flags);
-  ItemTable_Append(image->table, ITEM_VAR, varitem, 0);
+  ItemTable_Append(image->table, ITEM_VAR, &varitem, 0);
 }
 
 void KLCImage_Add_Func(KLCImage *image, char *name, int flags, int nr_locals,
@@ -718,7 +718,7 @@ void KLCImage_Add_Func(KLCImage *image, char *name, int flags, int nr_locals,
   int code_index = codeitem_set(image->table, code, csz);
   FuncItem *funcitem = FuncItem_New(name_index, proto_index, flags,
                                     rsz, psz, nr_locals, code_index);
-  ItemTable_Append(image->table, ITEM_FUNC, funcitem, 0);
+  ItemTable_Append(image->table, ITEM_FUNC, &funcitem, 0);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -739,7 +739,7 @@ void KLCImage_Finish(KLCImage *image)
     if (size > 0) {
       offset += length;
       mapitem = MapItem_New(i, offset, size);
-      ItemTable_Append(image->table, ITEM_MAP, mapitem, 0);
+      ItemTable_Append(image->table, ITEM_MAP, &mapitem, 0);
 
       length = 0;
       for (int j = 0; j < size; j++) {
@@ -839,7 +839,7 @@ KLCImage *KLCImage_Read_File(char *path)
   for (int i = 0; i < nr_elts(mapitems); i++) {
     mapitem = mapitems + i;
     mapitem = MapItem_New(mapitem->type, mapitem->offset, mapitem->size);
-    ItemTable_Append(image->table, ITEM_MAP, mapitem, 0);
+    ItemTable_Append(image->table, ITEM_MAP, &mapitem, 0);
   }
 
   return image;

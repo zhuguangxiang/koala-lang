@@ -17,9 +17,9 @@ extern "C" {
 #define SYM_INTF      6
 #define SYM_IMETHOD   7
 
-#define SYM_ACC_PUBLIC   0
-#define SYM_ACC_PRIVATE  1
-#define SYM_ACC_CONST    2
+#define ACCESS_PUBLIC   0
+#define ACCESS_PRIVATE  1
+#define ACCESS_CONST    2
 
 typedef struct symbol {
   HashNode hnode;

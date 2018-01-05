@@ -28,8 +28,8 @@ typedef struct hash_node {
 
 typedef uint32 (*ht_hash_func)(void *key);
 typedef int (*ht_equal_func)(void *key1, void *key2);
-typedef void (*ht_fini_func)(struct hash_node *hnode, void *arg);
-typedef void (*ht_visit_func)(struct hlist_head *hlist, int count, void *arg);
+typedef void (*ht_fini_func)(HashNode *hnode, void *arg);
+typedef void (*ht_visit_func)(struct hlist_head *hlist, int size, void *arg);
 
 typedef struct hash_table {
   uint32 prime_index;           /* prime array index, internal used */
