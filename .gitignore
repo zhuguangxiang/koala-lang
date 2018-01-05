@@ -6,3 +6,5 @@ koala_lex.c
 .vscode
 *.a
 *.o
+koalac
+koala
