@@ -4,7 +4,7 @@
 #include <assert.h>
 
 struct integer_struct {
-  int32_t value;
+  int value;
   struct list_head node;
 };
 
@@ -18,7 +18,7 @@ void test_list(void)
 
   for (i = 1; i <= 100; i++) {
     int_ptr = malloc(sizeof(*int_ptr));
-    INIT_LIST_HEAD(&int_ptr->node);
+    init_list_head(&int_ptr->node);
     int_ptr->value = i;
 
     list_add_tail(&int_ptr->node, &integer_list);
@@ -38,7 +38,7 @@ void test_list(void)
 
   for (i = 1; i <= 100; i++) {
     int_ptr = malloc(sizeof(*int_ptr));
-    INIT_LIST_HEAD(&int_ptr->node);
+    init_list_head(&int_ptr->node);
     int_ptr->value = i;
 
     list_add(&int_ptr->node, &integer_list);
@@ -71,7 +71,7 @@ void test_hlist(void)
 
   for (i = 1; i <= 100; i++) {
     int_ptr = malloc(sizeof(*int_ptr));
-    INIT_HLIST_NODE(&int_ptr->hnode);
+    init_hlist_node(&int_ptr->hnode);
     int_ptr->value = i;
 
     assert(hlist_unhashed(&int_ptr->hnode));
