@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-typedef struct structobject {
+typedef struct struct_object {
   OBJECT_HEAD
   int size;
   TValue items[0];

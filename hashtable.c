@@ -112,7 +112,7 @@ void HashTable_Finalize(HashTable *table, ht_fini_func fini, void *arg)
   table->entries     = NULL;
 }
 
-HashTable *HashTable_create(ht_hash_func hash, ht_equal_func equal)
+HashTable *HashTable_Create(ht_hash_func hash, ht_equal_func equal)
 {
   HashTable *table = malloc(sizeof(*table));
   if (table == NULL) return NULL;
