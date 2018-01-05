@@ -65,6 +65,8 @@ int HashTable_Initialize(HashTable *table,
 
 void HashTable_Finalize(HashTable *table, ht_fini_func fini, void *arg);
 
+#define HashTable_Count(table)  ((table)->nr_nodes)
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,7 @@
 
 #include "tupleobject.h"
 #include "symbol.h"
+#include "debug.h"
 
 Object *Tuple_New(int size)
 {
@@ -16,17 +17,18 @@ Object *Tuple_New(int size)
   return (Object *)tuple;
 }
 
-TValue Tuple_Get(Object *ob, int index)
+int Tuple_Get(Object *ob, int index, TValue *ret)
 {
   OB_ASSERT_KLASS(ob, Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
 
   if (index < 0 || index >= tuple->size) {
-    printf("[ERROR] index %d out of bound\n", index);
-    return NilValue;
+    debug_error("index %d out of bound\n", index);
+    return -1;
   }
 
-  return tuple->items[index];
+  *ret = tuple->items[index];
+  return 0;
 }
 
 Object *Tuple_Get_Slice(Object *ob, int min, int max)
@@ -36,8 +38,10 @@ Object *Tuple_Get_Slice(Object *ob, int min, int max)
 
   Object *tuple = Tuple_New(max - min + 1);
   int index = min;
+  TValue val;
+  if (Tuple_Get(ob, index, &val) < 0) return NULL;
+
   int i = 0;
-  TValue val = Tuple_Get(ob, index);
   while (index <= max) {
     Tuple_Set(tuple, i, &val);
     ++i; index++;
@@ -59,7 +63,7 @@ int Tuple_Set(Object *ob, int index, TValue *val)
   TupleObject *tuple = (TupleObject *)ob;
 
   if (index < 0 || index >= tuple->size) {
-    printf("[ERROR] index %d out of bound\n", index);
+    debug_error("index %d out of bound\n", index);
     return -1;
   }
 
@@ -135,11 +139,13 @@ int Tuple_Parse(Object *ob, char *format, ...)
   char *fmt = format;
   char ch;
   int i = 0;
+  int res;
   TValue val;
 
   va_start(vp, format);
   while ((ch = *fmt++)) {
-    val = Tuple_Get(ob, i++);
+    res = Tuple_Get(ob, i++, &val);
+    assert(res >= 0);
     Va_Parse_Value(&val, ch, &vp);
   }
   va_end(vp);
