@@ -6,22 +6,27 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include "hash_table.h"
+#include "hashtable.h"
 
+/*
+ ./build_lib.sh
+ gcc -g -std=c99 test_hashtable.c -lkoala -L.
+ valgrind ./a.out
+ */
 struct number {
-  uint32_t value;
+  uint32 value;
   struct hash_node hnode;
 };
 
 struct number number_mem[2000000];
 int mem_num_idx;
 
-uint32_t number_hash(void *key) {
-  return hash_uint32(*(uint32_t *)key, 32);
+uint32 number_hash(void *key) {
+  return hash_uint32(*(uint32 *)key, 32);
 }
 
 int number_equal(void *k1, void *k2) {
-  int res = (*(uint32_t *)k1 - *(uint32_t *)k2 == 0);
+  int res = (*(uint32 *)k1 - *(uint32 *)k2 == 0);
   return res;
 }
 
@@ -33,11 +38,11 @@ void number_free(struct hash_node *hnode) {
   //printf("free:0x%x\t", num->value);
 }
 
-uint32_t idx = 0;
-uint32_t values[2000000];
+int idx = 0;
+int values[2000000];
 
-int check(uint32_t val) {
-  uint32_t i = 0;
+int check(uint32 val) {
+  int i = 0;
   for (i = 0; i < idx; i++) {
     if (values[i] == val) {
       printf("%d-%d\n", idx, val);
@@ -71,7 +76,7 @@ void test_number_hash_table(void) {
   int failed;
   int i;
   int value = 100;
-  table = hash_table_create(number_hash, number_equal);
+  table = HashTable_Create(number_hash, number_equal);
   assert(table);
 
   srand(time(NULL) + getpid());
@@ -94,7 +99,7 @@ void test_number_hash_table(void) {
     assert(num);
     num->value = value;
     init_hash_node(&num->hnode, &num->value);
-    failed = hash_table_insert(table, &num->hnode);
+    failed = HashTable_Insert(table, &num->hnode);
     //assert(!failed);
     if (failed != 0) {
       //srand(time(NULL) + getpid());
@@ -102,23 +107,23 @@ void test_number_hash_table(void) {
       duplicated++;
     }
 
-    struct hash_node *hnode = hash_table_find(table, &value);
+    struct hash_node *hnode = HashTable_Find(table, &value);
     assert(hnode != NULL);
   }
 
-  hash_table_traverse(table, number_show, NULL);
+  HashTable_Traverse(table, number_show, NULL);
 
   value = 100;
   for (i = 0; i < 1000000; i++) {
     value++;
-    struct hash_node *hnode = hash_table_find(table, &value);
+    struct hash_node *hnode = HashTable_Find(table, &value);
     assert(hnode != NULL);
-    int res = hash_table_remove(table, hnode);
+    int res = HashTable_Remove(table, hnode);
     assert(res == 0);
   }
   printf("num:%d\n", table->nr_nodes);
   printf("duplicated:%d\n", duplicated);
-  hash_table_destroy(table, NULL, NULL);
+  HashTable_Destroy(table, NULL, NULL);
 }
 /*---------------------------------------------------------------------------
 string test
@@ -128,8 +133,8 @@ struct string {
   struct hash_node hnode;
 };
 
-uint32_t string_hash_fn(void *key) {
-  uint32_t rt = hash_string(*(char **)key);
+uint32 string_hash_fn(void *key) {
+  uint32 rt = hash_string(*(char **)key);
   return rt;
 }
 
@@ -184,7 +189,7 @@ void test_string_hash_table(void) {
     //struct ht_iterator iter;
     struct hash_node *hnode;
 
-    string_hash = hash_table_create(string_hash_fn, string_equal_fn);
+    string_hash = HashTable_Create(string_hash_fn, string_equal_fn);
 
     srand(time(NULL));
 
@@ -192,18 +197,11 @@ void test_string_hash_table(void) {
         str = string_alloc(10);
         assert(str);
         init_hash_node(&str->hnode, &str->value);
-        failed = hash_table_insert(string_hash, &str->hnode);
+        failed = HashTable_Insert(string_hash, &str->hnode);
         assert(!failed);
     }
 
-#if 0
-    ht_iterator_init(&string_hash, &iter);
-    while ((hnode = ht_iterator_next(&iter))) {
-        printf("%s\n", ((struct string *)hnode)->value);
-    }
-#endif
-
-    hash_table_destroy(string_hash, NULL, NULL);
+    HashTable_Destroy(string_hash, NULL, NULL);
 }
 
 int main(int argc, char *argv[]) {

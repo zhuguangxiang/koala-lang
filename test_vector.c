@@ -5,7 +5,7 @@
 #include "vector.h"
 /*
  ./build_lib.sh
- gcc -g -std=c99 vector_test.c -lkoala -L.
+ gcc -g -std=c99 test_vector.c -lkoala -L.
  valgrind ./a.out
  */
 int random_string(char *data, int len)
@@ -29,21 +29,21 @@ char mem[30][10];
 char *strings[30];
 
 void test_vector_set(void) {
-  struct vector *vec;
-  vec = vector_create();
+  Vector *vec;
+  vec = Vector_Create(sizeof(char *));
   assert(vec);
   int res;
   for (int i = 0; i < 30; i++) {
-    res = vector_set(vec, i, strings+i);
+    res = Vector_Set(vec, i, strings+i);
     assert(res >= 0);
   }
 
-  for (int i = 0; i < vector_capacity(vec); i++) {
-    char **s = (char **)vector_get(vec, i);
-    if (s) printf("%s\n", *s);
+  for (int i = 0; i < Vector_Capacity(vec); i++) {
+    char **s = (char **)Vector_Get(vec, i);
+    if (s && *s) printf("%s\n", *s);
   }
 
-  vector_destroy(vec, NULL, NULL);
+  Vector_Destroy(vec, NULL, NULL);
 }
 
 void init_strings(void) {

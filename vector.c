@@ -92,7 +92,7 @@ int Vector_Set(Vector *vec, int index, void *obj)
 void *Vector_Get(Vector *vec, int index)
 {
   if (index < vec->capacity) {
-    return (void *)((char *)vec->objs + index);
+    return (void *)((char *)vec->objs + index * vec->isize);
   } else {
     debug_error("argument's index is %d out of bound\n", index);
     return NULL;

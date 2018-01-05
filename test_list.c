@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <assert.h>
 
+/*
+ gcc -g -std=c99 test_list.c
+ valgrind ./a.out
+ */
 struct integer_struct {
   int value;
   struct list_head node;
