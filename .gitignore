@@ -4,3 +4,5 @@ koala_lex.c
 *.klc
 *.kl
 .vscode
+*.a
+*.o
