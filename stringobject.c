@@ -1,6 +1,7 @@
 
 #include "stringobject.h"
 #include "tupleobject.h"
+#include "moduleobject.h"
 #include "symbol.h"
 #include "hash.h"
 
@@ -31,7 +32,7 @@ char *String_To_CString(Object *ob)
 
 static Object *__string_length(Object *ob, Object *args)
 {
-  UNUSED_PARAMETER(args);
+  assert(args == NULL);
   OB_ASSERT_KLASS(ob, String_Klass);
   StringObject *s = (StringObject *)ob;
   return Tuple_Build("i", s->len);
@@ -39,20 +40,23 @@ static Object *__string_length(Object *ob, Object *args)
 
 static Object *__string_tostring(Object *ob, Object *args)
 {
-  UNUSED_PARAMETER(args);
+  assert(args == NULL);
   OB_ASSERT_KLASS(ob, String_Klass);
   return Tuple_Build("O", ob);
 }
 
-// static CMethodStruct string_cmethods[] = {
-//   {"Length", "i", "v", ACCESS_PUBLIC, __string_length},
-//   {"ToString", "s", "v", ACCESS_PUBLIC, __string_tostring},
-//   {NULL, NULL, NULL, 0, NULL}
-// };
+static FunctionStruct string_functions[] = {
+  {"Length", "i", "v", ACCESS_PUBLIC, __string_length},
+  {"ToString", "s", "v", ACCESS_PUBLIC, __string_tostring},
+  {NULL}
+};
 
-void Init_String_Klass(void)
+void Init_String_Klass(Object *ob)
 {
-  //Klass_Add_CMethods(&String_Klass, string_cmethods);
+  ModuleObject *mo = (ModuleObject *)ob;
+  String_Klass.itable = mo->itable;
+  Klass_Add_CFunctions(&String_Klass, string_functions);
+  Module_Add_Class(ob, &String_Klass, ACCESS_PUBLIC);
 }
 
 /*-------------------------------------------------------------------------*/

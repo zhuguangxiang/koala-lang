@@ -1,6 +1,7 @@
 
 #include "methodobject.h"
 #include "tupleobject.h"
+#include "moduleobject.h"
 #include "symbol.h"
 
 static MethodObject *method_new(int type)
@@ -69,9 +70,12 @@ Object *Method_Invoke(Object *method, Object *ob, Object *args)
 //   {NULL, NULL, NULL, 0, NULL}
 // };
 
-void Init_Method_Klass(void)
+void Init_Method_Klass(Object *ob)
 {
-  //Klass_Add_CMethods(&Method_Klass, method_cmethods);
+  ModuleObject *mo = (ModuleObject *)ob;
+  Method_Klass.itable = mo->itable;
+  //Klass_Add_CFunctions(&Method_Klass, method_functions);
+  Module_Add_Class(ob, &Method_Klass, ACCESS_PUBLIC);
 }
 
 /*-------------------------------------------------------------------------*/

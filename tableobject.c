@@ -1,6 +1,7 @@
 
 #include "tableobject.h"
 #include "tupleobject.h"
+#include "moduleobject.h"
 #include "symbol.h"
 #include "debug.h"
 
@@ -150,13 +151,6 @@ void Table_Traverse(Object *ob, table_visit_func visit, void *arg)
 
 /*-------------------------------------------------------------------------*/
 
-static Object *__table_init(Object *ob, Object *args)
-{
-  UNUSED_PARAMETER(args);
-  OB_ASSERT_KLASS(ob, Table_Klass);
-  return Tuple_Build("z", 1);
-}
-
 static Object *__table_get(Object *ob, Object *args)
 {
   TValue key, val;
@@ -176,34 +170,18 @@ static Object *__table_put(Object *ob, Object *args)
   return Tuple_Build("i", Table_Put(ob, &key, &val));
 }
 
-// static CMethodStruct map_cmethods[] = {
-//   {
-//     "__init__",
-//     "z",
-//     "v",
-//     ACCESS_PRIVATE,
-//     __map_init
-//   },
-//   {
-//     "Put",
-//     "a",
-//     "aa",
-//     ACCESS_PUBLIC,
-//     __map_put
-//   },
-//   {
-//     "Get",
-//     "a",
-//     "a",
-//     ACCESS_PUBLIC,
-//     __map_get
-//   },
-//   {NULL, NULL, NULL, 0, NULL}
-// };
+static FunctionStruct table_functions[] = {
+  {"Put", "z", "AA", ACCESS_PUBLIC, __table_put},
+  {"Get", "A", "A", ACCESS_PUBLIC, __table_get},
+  {NULL}
+};
 
-void Init_Table_Klass(void)
+void Init_Table_Klass(Object *ob)
 {
-  //Klass_Add_CMethods(&Table_Klass, map_cmethods);
+  ModuleObject *mo = (ModuleObject *)ob;
+  Table_Klass.itable = mo->itable;
+  Klass_Add_CFunctions(&Table_Klass, table_functions);
+  Module_Add_Class(ob, &Table_Klass,  ACCESS_PUBLIC);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -229,14 +207,7 @@ static void table_mark(Object *ob)
   Table_Traverse(ob, entry_visit, NULL);
 }
 
-static Object *table_alloc(Klass *klazz, int num)
-{
-  UNUSED_PARAMETER(num);
-  OB_ASSERT_KLASS(klazz, Table_Klass);
-  return Table_New();
-}
-
-static void table_fini(struct hash_node *hnode, void *arg)
+static void table_finalize(struct hash_node *hnode, void *arg)
 {
   UNUSED_PARAMETER(arg);
   struct entry *e = container_of(hnode, struct entry, hnode);
@@ -247,7 +218,7 @@ static void table_free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Table_Klass);
   TableObject *table = (TableObject *)ob;
-  HashTable_Finalize(&table->table, table_fini, NULL);
+  HashTable_Finalize(&table->table, table_finalize, NULL);
   free(ob);
 }
 
@@ -257,7 +228,5 @@ Klass Table_Klass = {
   .bsize = sizeof(TableObject),
 
   .ob_mark  = table_mark,
-
-  .ob_alloc = table_alloc,
   .ob_free  = table_free,
 };

@@ -11,7 +11,7 @@ extern "C" {
 typedef StructObject TupleObject;
 
 extern Klass Tuple_Klass;
-void Init_Tuple_Klass(void);
+void Init_Tuple_Klass(Object *ob);
 
 Object *Tuple_New(int size);
 int Tuple_Get(Object *ob, int index, TValue *ret);

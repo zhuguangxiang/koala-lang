@@ -30,7 +30,7 @@ typedef struct methodobject {
 
 /* Exported symbols */
 extern Klass Method_Klass;
-void Init_Method_Klass(void);
+void Init_Method_Klass(Object *ob);
 Object *KMethod_New(Instruction *codes, TValue *k, Object *closure);
 Object *CMethod_New(cfunc cf);
 Object *Method_Invoke(Object *method, Object *ob, Object *args);

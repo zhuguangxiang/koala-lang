@@ -123,13 +123,13 @@ struct klass {
 };
 
 extern Klass Klass_Klass;
-void Init_Klass_Klass(void);
+void Init_Klass_Klass(Object *ob);
 Klass *Klass_New(char *name, int bsize, int isize, Klass *parent);
 int Klass_Add_Field(Klass *klazz, char *name, char *desc, uint8 access);
-int Klass_Add_Method(Klass *klazz, char *name, char *rdesc[], int rsz,
-                     char *pdesc[], int psz, uint8 access, Object *method);
-int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc[], int rsz,
-                      char *pdesc[], int psz, uint8 access);
+int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
+                     uint8 access, Object *method);
+int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc, char *pdesc,
+                     uint8 access);
 Symbol *Klass_Get(Klass *klazz, char *name);
 Object *Klass_Get_Method(Klass *klazz, char *name);
 
@@ -139,10 +139,8 @@ typedef Object *(*cfunc)(Object *ob, Object *args);
 
 typedef struct function_struct {
   char *name;
-  int rsz;
-  char **rdesc;
-  int psz;
-  char **pdesc;
+  char *rdesc;
+  char *pdesc;
   int access;
   cfunc func;
 } FunctionStruct;

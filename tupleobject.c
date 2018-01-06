@@ -1,5 +1,6 @@
 
 #include "tupleobject.h"
+#include "moduleobject.h"
 #include "symbol.h"
 #include "debug.h"
 
@@ -154,20 +155,21 @@ int Tuple_Parse(Object *ob, char *format, ...)
 }
 
 /*-------------------------------------------------------------------------*/
-/*
+
 static Object *__tuple_get(Object *ob, Object *args)
 {
   TValue val;
   OB_ASSERT_KLASS(ob, Tuple_Klass);
   OB_ASSERT_KLASS(args, Tuple_Klass);
+  assert(Tuple_Size(args) == 1);
 
-  val = Tuple_Get(args, 0);
+  if (Tuple_Get(args, 0, &val) < 0) return NULL;
   if (!VALUE_ISINT(&val)) return NULL;
 
-  val = Tuple_Get(ob, VALUE_INT(&val));
+  if (Tuple_Get(ob, VALUE_INT(&val), &val) < 0) return NULL;
   if (VALUE_ISNIL(&val)) return NULL;
 
-  return Tuple_From_Va_TValues(1, &val);
+  return Tuple_From_TValues(&val, 1);
 }
 
 static Object *__tuple_size(Object *ob, Object *args)
@@ -177,17 +179,19 @@ static Object *__tuple_size(Object *ob, Object *args)
   TupleObject *tuple = (TupleObject *)ob;
   return Tuple_Build("i", tuple->size);
 }
-*/
 
-// static CMethodStruct tuple_cmethods[] = {
-//   {"Get", "a", "i", ACCESS_PUBLIC, __tuple_get},
-//   {"Size", "i", "v", ACCESS_PUBLIC, __tuple_size},
-//   {NULL, NULL, NULL, 0, NULL}
-// };
+static FunctionStruct tuple_functions[] = {
+  {"Get", "A", "i", ACCESS_PUBLIC, __tuple_get},
+  {"Size", "i", "v", ACCESS_PUBLIC, __tuple_size},
+  {NULL}
+};
 
-void Init_Tuple_Klass(void)
+void Init_Tuple_Klass(Object *ob)
 {
-  //Klass_Add_CMethods(&Tuple_Klass, tuple_cmethods);
+  ModuleObject *mo = (ModuleObject *)ob;
+  Tuple_Klass.itable = mo->itable;
+  Klass_Add_CFunctions(&Tuple_Klass, tuple_functions);
+  Module_Add_Class(ob, &Tuple_Klass,  ACCESS_PUBLIC);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -197,6 +201,7 @@ static void tuple_free(Object *ob)
   OB_ASSERT_KLASS(ob, Tuple_Klass);
   free(ob);
 }
+
 
 Klass Tuple_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass),

@@ -9,17 +9,12 @@ static void init_lang_module(void)
 {
   Object *ob = Module_New("lang", 0);
 
-  Init_Klass_Klass();
-  Init_String_Klass();
-  Init_Tuple_Klass();
-  Init_Table_Klass();
-  // Init_Module_Klass();
-
-  Module_Add_Class(ob, &Klass_Klass,  ACCESS_PUBLIC);
-  Module_Add_Class(ob, &String_Klass, ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Tuple_Klass,  ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Table_Klass,  ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
+  Init_Klass_Klass(ob);
+  Init_String_Klass(ob);
+  Init_Tuple_Klass(ob);
+  Init_Table_Klass(ob);
+  Init_Module_Klass(ob);
+  Init_Method_Klass(ob);
 
   GState_Add_Module(&gs, "koala/lang", ob);
 }

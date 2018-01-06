@@ -32,7 +32,7 @@ Object *Module_New(char *name, int nr_locals)
   int size = sizeof(ModuleObject) + sizeof(TValue) * nr_locals;
   ModuleObject *ob = malloc(size);
   init_object_head(ob, &Module_Klass);
-  ob->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
+  ob->stable = NULL;
   ob->itable = ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
   ob->name = name;
   ob->avail_index = 0;
@@ -48,35 +48,43 @@ void Module_Free(Object *ob)
   free(ob);
 }
 
+static HashTable *__get_table(ModuleObject *mo)
+{
+  if (mo->stable == NULL)
+    mo->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
+  return mo->stable;
+}
+
 int Module_Add_Var(Object *ob, char *name, char *desc, uint8 access)
 {
   ModuleObject *mo = (ModuleObject *)ob;
   assert(mo->avail_index < mo->size);
-  int name_index = StringItem_Set(mo->itable, name);
-  int desc_index = TypeItem_Set(mo->itable, desc);
+  int name_index = StringItem_Set(mo->itable, name, strlen(name));
+  int desc_index = TypeItem_Set(mo->itable, desc, strlen(desc));
   Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
   sym->value.index = mo->avail_index++;
-  return HashTable_Insert(mo->stable, &sym->hnode);
+  return HashTable_Insert(__get_table(mo), &sym->hnode);
 }
 
-int Module_Add_Func(Object *ob, char *name, char *rdesc[], int rsz,
-                    char *pdesc[], int psz, uint8 access, Object *method)
+int Module_Add_Func(Object *ob, char *name, char *rdesc, char *pdesc,
+                    uint8 access, Object *method)
 {
   ModuleObject *mo = (ModuleObject *)ob;
-  int name_index = StringItem_Set(mo->itable, name);
-  int desc_index = ProtoItem_Set(mo->itable, rdesc, rsz, pdesc, psz);
+  int name_index = StringItem_Set(mo->itable, name, strlen(name));
+  int desc_index = ProtoItem_Set(mo->itable, rdesc, pdesc, NULL, NULL);
   Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
   sym->value.obj = method;
-  return HashTable_Insert(mo->stable, &sym->hnode);
+  return HashTable_Insert(__get_table(mo), &sym->hnode);
 }
 
 static int module_add_klass(Object *ob, Klass *klazz, uint8 access, int kind)
 {
   ModuleObject *mo = (ModuleObject *)ob;
-  int name_index = StringItem_Set(mo->itable, klazz->name);
+  int name_index = StringItem_Set(mo->itable, klazz->name,
+                                  strlen(klazz->name));
   Symbol *sym = Symbol_New(name_index, kind, access, name_index);
   sym->value.obj = klazz;
-  return HashTable_Insert(mo->stable, &sym->hnode);
+  return HashTable_Insert(__get_table(mo), &sym->hnode);
 }
 
 int Module_Add_Class(Object *ob, Klass *klazz, uint8 access)
@@ -91,10 +99,10 @@ int Module_Add_Interface(Object *ob, Klass *klazz, uint8 access)
 
 static Symbol *__module_get(ModuleObject *mo, char *name)
 {
-  int index = StringItem_Get(mo->itable, name);
+  int index = StringItem_Get(mo->itable, name, strlen(name));
   if (index < 0) return NULL;
   Symbol sym = {.name_index = index};
-  HashNode *hnode = HashTable_Find(mo->stable, &sym);
+  HashNode *hnode = HashTable_Find(__get_table(mo), &sym);
   if (hnode != NULL) {
     return container_of(hnode, Symbol, hnode);
   } else {
@@ -179,7 +187,7 @@ int Module_Add_CFunctions(Object *ob, FunctionStruct *funcs)
   Object *meth;
   while (f->name != NULL) {
     meth = CMethod_New(f->func);
-    res = Module_Add_Func(ob, f->name, f->rdesc, f->rsz, f->pdesc, f->psz,
+    res = Module_Add_Func(ob, f->name, f->rdesc, f->pdesc,
                           (uint8)f->access, meth);
     assert(res == 0);
     ++f;
@@ -191,6 +199,16 @@ Object *Load_Module(char *path)
 {
   UNUSED_PARAMETER(path);
   return NULL;
+}
+
+/*-------------------------------------------------------------------------*/
+
+void Init_Module_Klass(Object *ob)
+{
+  ModuleObject *mo = (ModuleObject *)ob;
+  Module_Klass.itable = mo->itable;
+  //Klass_Add_CFunctions(&Module_Klass, module_functions);
+  Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -231,5 +249,5 @@ void Module_Display(Object *ob)
   assert(OB_KLASS(ob) == &Module_Klass);
   ModuleObject *mo = (ModuleObject *)ob;
   printf("package:%s\n", mo->name);
-  HashTable_Traverse(mo->stable, module_visit, mo->itable);
+  HashTable_Traverse(__get_table(mo), module_visit, mo->itable);
 }

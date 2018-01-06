@@ -2,6 +2,7 @@
 #include "object.h"
 #include "stringobject.h"
 #include "methodobject.h"
+#include "moduleobject.h"
 #include "debug.h"
 
 TValue NilValue  = NIL_VALUE_INIT();
@@ -168,45 +169,52 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
   return klazz;
 }
 
+static HashTable *__get_table(Klass *klazz)
+{
+  if (klazz->stable == NULL)
+    klazz->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
+  return klazz->stable;
+}
+
 int Klass_Add_Field(Klass *klazz, char *name, char *desc, uint8 access)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  int name_index = StringItem_Set(klazz->itable, name);
-  int desc_index = TypeItem_Set(klazz->itable, desc);
+  int name_index = StringItem_Set(klazz->itable, name, strlen(name));
+  int desc_index = TypeItem_Set(klazz->itable, desc, strlen(desc));
   Symbol *sym = Symbol_New(name_index, SYM_FIELD, access, desc_index);
   sym->value.index = klazz->avail_index++;
-  return HashTable_Insert(klazz->stable, &sym->hnode);
+  return HashTable_Insert(__get_table(klazz), &sym->hnode);
 }
 
-int Klass_Add_Method(Klass *klazz, char *name, char *rdesc[], int rsz,
-                     char *pdesc[], int psz, uint8 access, Object *method)
+int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
+                     uint8 access, Object *method)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  int name_index = StringItem_Set(klazz->itable, name);
-  int desc_index = ProtoItem_Set(klazz->itable, rdesc, rsz, pdesc, psz);
+  int name_index = StringItem_Set(klazz->itable, name, strlen(name));
+  int desc_index = ProtoItem_Set(klazz->itable, rdesc, pdesc, NULL, NULL);
   Symbol *sym = Symbol_New(name_index, SYM_METHOD, access, desc_index);
   sym->value.obj = method;
-  return HashTable_Insert(klazz->stable, &sym->hnode);
+  return HashTable_Insert(__get_table(klazz), &sym->hnode);
 }
 
-int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc[], int rsz,
-                      char *pdesc[], int psz, uint8 access)
+int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc, char *pdesc,
+                      uint8 access)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  int name_index = StringItem_Set(klazz->itable, name);
-  int desc_index = ProtoItem_Set(klazz->itable, rdesc, rsz, pdesc, psz);
+  int name_index = StringItem_Set(klazz->itable, name, strlen(name));
+  int desc_index = ProtoItem_Set(klazz->itable, rdesc, pdesc, NULL, NULL);
   Symbol *sym = Symbol_New(name_index, SYM_IMETHOD, access, desc_index);
   sym->value.index = klazz->avail_index++;
-  return HashTable_Insert(klazz->stable, &sym->hnode);
+  return HashTable_Insert(__get_table(klazz), &sym->hnode);
 }
 
 Symbol *Klass_Get(Klass *klazz, char *name)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  int index = StringItem_Get(klazz->itable, name);
+  int index = StringItem_Get(klazz->itable, name, strlen(name));
   if (index < 0) return NULL;
   Symbol sym = {.name_index = index};
-  HashNode *hnode = HashTable_Find(klazz->stable, &sym);
+  HashNode *hnode = HashTable_Find(__get_table(klazz), &sym);
   if (hnode != NULL) {
     return container_of(hnode, Symbol, hnode);
   } else {
@@ -231,7 +239,7 @@ int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs)
   Object *meth;
   while (f->name != NULL) {
     meth = CMethod_New(f->func);
-    res = Klass_Add_Method(klazz, f->name, f->rdesc, f->rsz, f->pdesc, f->psz,
+    res = Klass_Add_Method(klazz, f->name, f->rdesc, f->pdesc,
                            (uint8)f->access, meth);
     assert(res == 0);
     ++f;
@@ -278,9 +286,12 @@ int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs)
 //   {NULL, NULL, NULL, 0, NULL}
 // };
 
-void Init_Klass_Klass(void)
+void Init_Klass_Klass(Object *ob)
 {
-  //Klass_Add_CMethods(&Klass_Klass, klass_cmethods);
+  ModuleObject *mo = (ModuleObject *)ob;
+  String_Klass.itable = mo->itable;
+  //Klass_Add_CFunctions(&Klass_Klass, klass_functions);
+  Module_Add_Class(ob, &Klass_Klass, ACCESS_PUBLIC);
 }
 
 /*-------------------------------------------------------------------------*/

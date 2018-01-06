@@ -140,8 +140,7 @@ void KLCImage_Free(KLCImage *image);
 void KLCImage_Finish(KLCImage *image);
 void KLCImage_Add_Var(KLCImage *image, char *name, int flags, char *desc);
 void KLCImage_Add_Func(KLCImage *image, char *name, int flags, int nr_locals,
-                       char *desc[], int rsz, char *pdesc[], int psz,
-                       uint8 *code, int csz);
+                       char *rdesclist, char *pdesclist, uint8 *code, int csz);
 void KLCImage_Write_File(KLCImage *image, char *path);
 KLCImage *KLCImage_Read_File(char *path);
 void KLCImage_Display(KLCImage *image);
@@ -161,15 +160,15 @@ static inline int Count_Funcs(KLCImage *image)
   return ItemTable_Size(image->table, ITEM_FUNC);
 }
 
-int StringItem_Get(ItemTable *itemtable, char *str);
-int StringItem_Set(ItemTable *itemtable, char *str);
-int TypeItem_Get(ItemTable *itemtable, char *str);
-int TypeItem_Set(ItemTable *itemtable, char *str);
-int TypeListItem_Get(ItemTable *itemtable, char *desc[], int sz);
-int TypeListItem_Set(ItemTable *itemtable, char *desc[], int sz);
+int StringItem_Get(ItemTable *itemtable, char *str, int len);
+int StringItem_Set(ItemTable *itemtable, char *str, int len);
+int TypeItem_Get(ItemTable *itemtable, char *str, int len);
+int TypeItem_Set(ItemTable *itemtable, char *str, int len);
+int TypeListItem_Get(ItemTable *itemtable, char *desclist, int *size);
+int TypeListItem_Set(ItemTable *itemtable, char *desclist, int *size);
 int ProtoItem_Get(ItemTable *itemtable, int rindex, int pindex);
-int ProtoItem_Set(ItemTable *itemtable, char *rdesc[], int rsz,
-                  char *pdesc[], int psz);
+int ProtoItem_Set(ItemTable *itemtable, char *rdesclist, char *pdesclist,
+                  int *rsz, int *psz);
 
 typedef int (*item_length_t)(void *);
 typedef void (*item_fwrite_t)(FILE *, void *);
@@ -187,6 +186,22 @@ struct item_funcs {
 };
 
 extern struct item_funcs item_func[];
+
+typedef struct desc_index {
+  int offset;
+  int length;
+} DescIndex;
+
+typedef struct desc_list {
+  char *desclist;
+  int size;
+  DescIndex index[0];
+} DescList;
+
+DescList *DescList_Parse(char *desclist);
+void DescList_Free(DescList *dlist);
+char *DescList_Desc(DescList *dlist, int index);
+int DescList_Length(DescList *dlist, int index);
 
 #ifdef __cplusplus
 }

@@ -3,8 +3,6 @@
 #include "symbol.h"
 #include "debug.h"
 
-/*-------------------------------------------------------------------------*/
-
 Symbol *Symbol_New(int name_index, uint8 kind, uint8 access, int desc_index)
 {
   struct symbol *sym = calloc(1, sizeof(struct symbol));
