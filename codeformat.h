@@ -30,7 +30,7 @@ typedef struct image_header {
 #define ITEM_FUNC       7
 #define ITEM_FIELD      8
 #define ITEM_METHOD     9
-#define ITEM_STRUCT     10
+#define ITEM_CLASS      10
 #define ITEM_IMETHOD    11
 #define ITEM_INTF       12
 #define ITEM_CODE       13

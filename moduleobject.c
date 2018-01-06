@@ -1,5 +1,6 @@
 
 #include "moduleobject.h"
+#include "methodobject.h"
 #include "symbol.h"
 #include "debug.h"
 
@@ -65,7 +66,7 @@ int Module_Add_Func(Object *ob, char *name, char *rdesc[], int rsz,
   int name_index = StringItem_Set(mo->itable, name);
   int desc_index = ProtoItem_Set(mo->itable, rdesc, rsz, pdesc, psz);
   Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
-  sym->value.method = method;
+  sym->value.obj = method;
   return HashTable_Insert(mo->stable, &sym->hnode);
 }
 
@@ -74,6 +75,7 @@ static int module_add_klass(Object *ob, Klass *klazz, uint8 access, int kind)
   ModuleObject *mo = (ModuleObject *)ob;
   int name_index = StringItem_Set(mo->itable, klazz->name);
   Symbol *sym = Symbol_New(name_index, kind, access, name_index);
+  sym->value.obj = klazz;
   return HashTable_Insert(mo->stable, &sym->hnode);
 }
 
@@ -82,12 +84,12 @@ int Module_Add_Class(Object *ob, Klass *klazz, uint8 access)
   return module_add_klass(ob, klazz, access, SYM_CLASS);
 }
 
-int Module_Add_Intf(Object *ob, Klass *klazz, uint8 access)
+int Module_Add_Interface(Object *ob, Klass *klazz, uint8 access)
 {
   return module_add_klass(ob, klazz, access, SYM_INTF);
 }
 
-Symbol *__module_get(ModuleObject *mo, char *name)
+static Symbol *__module_get(ModuleObject *mo, char *name)
 {
   int index = StringItem_Get(mo->itable, name);
   if (index < 0) return NULL;
@@ -100,7 +102,7 @@ Symbol *__module_get(ModuleObject *mo, char *name)
   }
 }
 
-int Module_Get_VarValue(Object *ob, char *name, TValue *v)
+int Module_Get_Value(Object *ob, char *name, TValue *v)
 {
   OB_ASSERT_KLASS(ob, Module_Klass);
   ModuleObject *mo = (ModuleObject *)ob;
@@ -118,14 +120,14 @@ int Module_Get_VarValue(Object *ob, char *name, TValue *v)
   return -1;
 }
 
-int Module_Get_FuncValue(Object *ob, char *name, Object **func)
+int Module_Get_Function(Object *ob, char *name, Object **func)
 {
   OB_ASSERT_KLASS(ob, Module_Klass);
   ModuleObject *mo = (ModuleObject *)ob;
   Symbol *s = __module_get(mo, name);
   if (s != NULL) {
     if (s->kind == SYM_FUNC) {
-      *func = s->value.method;
+      *func = s->value.obj;
       return 0;
     } else {
       debug_error("symbol is not a function\n");
@@ -133,6 +135,56 @@ int Module_Get_FuncValue(Object *ob, char *name, Object **func)
   }
 
   return -1;
+}
+
+int Module_Get_Class(Object *ob, char *name, Object **klazz)
+{
+  OB_ASSERT_KLASS(ob, Module_Klass);
+  ModuleObject *mo = (ModuleObject *)ob;
+  Symbol *s = __module_get(mo, name);
+  if (s != NULL) {
+    if (s->kind == SYM_CLASS) {
+      *klazz = s->value.obj;
+      return 0;
+    } else {
+      debug_error("symbol is not a class\n");
+    }
+  }
+
+  return -1;
+}
+
+int Module_Get_Interface(Object *ob, char *name, Object **klazz)
+{
+  OB_ASSERT_KLASS(ob, Module_Klass);
+  ModuleObject *mo = (ModuleObject *)ob;
+  Symbol *s = __module_get(mo, name);
+  if (s != NULL) {
+    if (s->kind == SYM_INTF) {
+      *klazz = s->value.obj;
+      return 0;
+    } else {
+      debug_error("symbol is not a interface\n");
+    }
+  }
+
+  return -1;
+}
+
+int Module_Add_CFunctions(Object *ob, FunctionStruct *funcs)
+{
+  OB_ASSERT_KLASS(ob, Module_Klass);
+  int res;
+  FunctionStruct *f = funcs;
+  Object *meth;
+  while (f->name != NULL) {
+    meth = CMethod_New(f->func);
+    res = Module_Add_Func(ob, f->name, f->rdesc, f->rsz, f->pdesc, f->psz,
+                          (uint8)f->access, meth);
+    assert(res == 0);
+    ++f;
+  }
+  return 0;
 }
 
 Object *Load_Module(char *path)
@@ -169,7 +221,6 @@ static void module_visit(struct hlist_head *head, int size, void *arg)
         sym = container_of(hnode, Symbol, hnode);
         Symbol_Display(sym, itable);
       }
-      printf("\n");
     }
     head++;
   }
@@ -179,5 +230,6 @@ void Module_Display(Object *ob)
 {
   assert(OB_KLASS(ob) == &Module_Klass);
   ModuleObject *mo = (ModuleObject *)ob;
+  printf("package:%s\n", mo->name);
   HashTable_Traverse(mo->stable, module_visit, mo->itable);
 }

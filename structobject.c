@@ -1,6 +1,25 @@
 
 #include "structobject.h"
 
+int StructObject_Get_Value(Object *ob, char *name, TValue *ret)
+{
+  Symbol *s = Klass_Get(OB_KLASS(ob), name);
+  if (s == NULL) -1;
+  if (s->kind != SYM_FIELD || s->kind != SYM_IMETHOD) return -1;
+  int index = s->value.index;
+  StructObject *so = (StructObject *)ob;
+  assert(index >= 0 && index < so->size);
+  *ret = so->items[index];
+  return 0;
+}
+
+Object *StructObject_Get_Method(Object *ob, char *name)
+{
+  return Klass_Get_Method(OB_KLASS(ob), name);
+}
+
+/*-------------------------------------------------------------------------*/
+
 static void struct_mark(Object *ob)
 {
   StructObject *sob = (StructObject *)ob;
@@ -61,8 +80,8 @@ static Object *struct_tostring(TValue *v)
 
 Klass *Struct_Klass_New(char *name)
 {
-  Klass *klazz = Klass_New(name, sizeof(StructObject), sizeof(TValue));
-
+  Klass *klazz = Klass_New(name, sizeof(StructObject), sizeof(TValue),
+                           &Klass_Klass);
   klazz->ob_mark  = struct_mark;
 
   klazz->ob_alloc = struct_alloc;

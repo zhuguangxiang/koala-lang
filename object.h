@@ -88,7 +88,7 @@ struct object {
 #define OB_KLASS(ob) (((Object *)(ob))->ob_klass)
 #define OB_ASSERT_KLASS(ob, klazz)  assert(OB_KLASS(ob) == &(klazz))
 #define OB_KLASS_EQUAL(ob1, ob2)    (OB_KLASS(ob1) == OB_KLASS(ob2))
-
+#define KLASS_ASSERT(klazz, expected) assert(((Klass *)klazz) == &(expected))
 /*-------------------------------------------------------------------------*/
 
 typedef void (*markfunc)(Object *ob);
@@ -124,30 +124,30 @@ struct klass {
 
 extern Klass Klass_Klass;
 void Init_Klass_Klass(void);
-Klass *Klass_New(char *name, int bsize, int isize);
+Klass *Klass_New(char *name, int bsize, int isize, Klass *parent);
 int Klass_Add_Field(Klass *klazz, char *name, char *desc, uint8 access);
 int Klass_Add_Method(Klass *klazz, char *name, char *rdesc[], int rsz,
                      char *pdesc[], int psz, uint8 access, Object *method);
+int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc[], int rsz,
+                      char *pdesc[], int psz, uint8 access);
+Symbol *Klass_Get(Klass *klazz, char *name);
+Object *Klass_Get_Method(Klass *klazz, char *name);
 
 /*-------------------------------------------------------------------------*/
 
 typedef Object *(*cfunc)(Object *ob, Object *args);
 
-typedef struct method_struct {
+typedef struct function_struct {
   char *name;
   int rsz;
-  int psz;
   char **rdesc;
+  int psz;
   char **pdesc;
-  uint8 access;
+  int access;
   cfunc func;
-} CMethodStruct;
+} FunctionStruct;
 
-typedef struct field_struct {
-  char *name;
-  char *desc;
-  uint8 access;
-} FieldStruct;
+int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs);
 
 #ifdef __cplusplus
 }

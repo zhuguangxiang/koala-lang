@@ -1,6 +1,7 @@
 
 #include "object.h"
 #include "stringobject.h"
+#include "methodobject.h"
 #include "debug.h"
 
 TValue NilValue  = NIL_VALUE_INIT();
@@ -155,11 +156,11 @@ int TValue_Parse(TValue *val, char ch, ...)
 
 /*-------------------------------------------------------------------------*/
 
-Klass *Klass_New(char *name, int bsize, int isize)
+Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
 {
   Klass *klazz = malloc(sizeof(*klazz));
   memset(klazz, 0, sizeof(*klazz));
-  init_object_head(klazz, &Klass_Klass);
+  init_object_head(klazz, parent);
   klazz->name  = name;
   klazz->bsize = bsize;
   klazz->isize = isize;
@@ -167,76 +168,78 @@ Klass *Klass_New(char *name, int bsize, int isize)
   return klazz;
 }
 
-// static int metainfo_set_field(MetaInfo *mi, Object *key)
-// {
-//   if (mi->map == NULL) mi->map = Map_New();
-//   assert(mi->map != NULL);
-//   TValue name = TValue_Build('o', key);
-//   TValue index = TValue_Build('i', mi->nr_fields);
-//   int res = Map_Put(mi->map, &name, &index);
-//   if (!res) ++mi->nr_fields;
-//   return res;
-// }
+int Klass_Add_Field(Klass *klazz, char *name, char *desc, uint8 access)
+{
+  OB_ASSERT_KLASS(klazz, Klass_Klass);
+  int name_index = StringItem_Set(klazz->itable, name);
+  int desc_index = TypeItem_Set(klazz->itable, desc);
+  Symbol *sym = Symbol_New(name_index, SYM_FIELD, access, desc_index);
+  sym->value.index = klazz->avail_index++;
+  return HashTable_Insert(klazz->stable, &sym->hnode);
+}
 
-// static int metainfo_set_cmethod(MetaInfo *mi, Object *key, Object *meth)
-// {
-//   if (mi->map == NULL) mi->map = Map_New();
-//   assert(mi->map != NULL);
-//   TValue name = TValue_Build('o', key);
-//   TValue value = TValue_Build('o', meth);
-//   int res = Map_Put(mi->map, &name, &value);
-//   if (!res) ++mi->nr_methods;
-//   return res;
-// }
+int Klass_Add_Method(Klass *klazz, char *name, char *rdesc[], int rsz,
+                     char *pdesc[], int psz, uint8 access, Object *method)
+{
+  OB_ASSERT_KLASS(klazz, Klass_Klass);
+  int name_index = StringItem_Set(klazz->itable, name);
+  int desc_index = ProtoItem_Set(klazz->itable, rdesc, rsz, pdesc, psz);
+  Symbol *sym = Symbol_New(name_index, SYM_METHOD, access, desc_index);
+  sym->value.obj = method;
+  return HashTable_Insert(klazz->stable, &sym->hnode);
+}
 
-// static int metainfo_get(MetaInfo *mi, Object *key, TValue *k, TValue *v)
-// {
-//   if (mi->map == NULL) return -1;
-//   TValue name = TValue_Build('o', key);
-//   return Map_Get(mi->map, &name, k, v);
-// }
+int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc[], int rsz,
+                      char *pdesc[], int psz, uint8 access)
+{
+  OB_ASSERT_KLASS(klazz, Klass_Klass);
+  int name_index = StringItem_Set(klazz->itable, name);
+  int desc_index = ProtoItem_Set(klazz->itable, rdesc, rsz, pdesc, psz);
+  Symbol *sym = Symbol_New(name_index, SYM_IMETHOD, access, desc_index);
+  sym->value.index = klazz->avail_index++;
+  return HashTable_Insert(klazz->stable, &sym->hnode);
+}
 
-// static int klass_add_field(Klass *klazz, FieldStruct *f)
-// {
-//   Object *n = Symbol_New(f->name, SYM_FIELD, f->access, f->desc, NULL);
-//   return metainfo_set_field(&klazz->metainfo, n);
-// }
+Symbol *Klass_Get(Klass *klazz, char *name)
+{
+  OB_ASSERT_KLASS(klazz, Klass_Klass);
+  int index = StringItem_Get(klazz->itable, name);
+  if (index < 0) return NULL;
+  Symbol sym = {.name_index = index};
+  HashNode *hnode = HashTable_Find(klazz->stable, &sym);
+  if (hnode != NULL) {
+    return container_of(hnode, Symbol, hnode);
+  } else {
+    return NULL;
+  }
+}
 
-// int Klass_Add_Fields(Klass *klazz, FieldStruct *fields)
-// {
-//   int res;
-//   FieldStruct *f = fields;
-//   while (f->name != NULL) {
-//     res = klass_add_field(klazz, f);
-//     assert(!res);
-//     ++f;
-//   }
-//   return 0;
-// }
+Object *Klass_Get_Method(Klass *klazz, char *name)
+{
+  Symbol *s = Klass_Get(klazz, name);
+  if (s == NULL) return NULL;
+  if (s->kind != SYM_METHOD) return NULL;
+  Object *ob = s->value.obj;
+  OB_ASSERT_KLASS(ob, Method_Klass);
+  return ob;
+}
 
-// static int klass_add_cmethod(Klass *klazz, CMethodStruct *m)
-// {
-//   Object *n = Symbol_New(m->name, SYM_METHOD, m->access, m->rdesc, m->pdesc);
-//   return metainfo_set_cmethod(&klazz->metainfo, n, CMethod_New(m->func));
-// }
+int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs)
+{
+  int res;
+  FunctionStruct *f = funcs;
+  Object *meth;
+  while (f->name != NULL) {
+    meth = CMethod_New(f->func);
+    res = Klass_Add_Method(klazz, f->name, f->rdesc, f->rsz, f->pdesc, f->psz,
+                           (uint8)f->access, meth);
+    assert(res == 0);
+    ++f;
+  }
+  return 0;
+}
 
-// int Klass_Add_CMethods(Klass *klazz, CMethodStruct *meths)
-// {
-//   int res;
-//   CMethodStruct *m = meths;
-//   while (m->name != NULL) {
-//     res = klass_add_cmethod(klazz, m);
-//     assert(!res);
-//     ++m;
-//   }
-//   return 0;
-// }
 
-// int Klass_Get(Klass *klazz, char *name, TValue *k, TValue *v)
-// {
-//   Object *n = Symbol_New(name, 0, 0, NULL, NULL);
-//   return metainfo_get(&klazz->metainfo, n, k, v);
-// }
 
 /*-------------------------------------------------------------------------*/
 
@@ -250,7 +253,7 @@ Klass *Klass_New(char *name, int bsize, int isize)
 //   return Tuple_From_Va_TValues(1, &v);
 // }
 
-// static CMethodStruct klass_cmethods[] = {
+// static FunctionStruct klass_cmethods[] = {
 //   {
 //     "GetField",
 //     "okoala/reflect.Field;",

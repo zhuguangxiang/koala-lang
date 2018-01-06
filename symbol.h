@@ -29,7 +29,7 @@ typedef struct symbol {
   uint16 unused;
   int desc_index;
   union {
-    void *method;
+    void *obj;
     int index;
   } value;
 } Symbol;

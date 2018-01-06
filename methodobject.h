@@ -33,7 +33,6 @@ extern Klass Method_Klass;
 void Init_Method_Klass(void);
 Object *KMethod_New(Instruction *codes, TValue *k, Object *closure);
 Object *CMethod_New(cfunc cf);
-void Method_Set_Info(Object *ob, int nr_rets, int nr_args, int nr_locals);
 Object *Method_Invoke(Object *method, Object *ob, Object *args);
 
 #ifdef __cplusplus

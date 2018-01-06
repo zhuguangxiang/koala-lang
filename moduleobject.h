@@ -26,10 +26,12 @@ int Module_Add_Var(Object *ob, char *name, char *desc, uint8 access);
 int Module_Add_Func(Object *ob, char *name, char *rdesc[], int rsz,
                     char *pdesc[], int psz, uint8 access, Object *method);
 int Module_Add_Class(Object *ob, Klass *klazz, uint8 access);
-int Module_Add_Intf(Object *ob, Klass *klazz, uint8 access);
-int Module_Get_VarValue(Object *ob, char *name, TValue *val);
-int Module_Get_FuncValue(Object *ob, char *name, Object **func);
-
+int Module_Add_Interface(Object *ob, Klass *klazz, uint8 access);
+int Module_Get_Value(Object *ob, char *name, TValue *val);
+int Module_Get_Function(Object *ob, char *name, Object **func);
+int Module_Get_Class(Object *ob, char *name, Object **klazz);
+int Module_Get_Interface(Object *ob, char *name, Object **klazz);
+int Module_Add_CFunctions(Object *ob, FunctionStruct *funcs);
 Object *Load_Module(char *path);
 void Module_Display(Object *ob);
 
