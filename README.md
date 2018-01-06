@@ -1,4 +1,4 @@
-编程约束：
+## 编程约束：
 对外开放的接口：大写_下划线
 内部接口：static 小写或__xx
 
@@ -12,6 +12,12 @@ O -> Object
 -----
 A -> any
 -----
+i[A[Okoala/lang.String;vzs
+
+## 类
+var s = "hello";
+var klazz = String.class or s.GetClass() or Class.ForName("koala/lang.String")
+
 ## 包管理
 
 

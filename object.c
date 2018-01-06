@@ -218,7 +218,8 @@ Symbol *Klass_Get(Klass *klazz, char *name)
   if (hnode != NULL) {
     return container_of(hnode, Symbol, hnode);
   } else {
-    return NULL;
+    if (klazz == &Klass_Klass) return NULL;
+    return Klass_Get(OB_KLASS(klazz), name);
   }
 }
 

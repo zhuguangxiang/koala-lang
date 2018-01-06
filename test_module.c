@@ -4,32 +4,6 @@
 
 /* gcc -g -std=c99 test_module.c -lkoala -L. */
 
-// void test_object(void)
-// {
-//   TValue k = AnyValue, v = AnyValue;
-//   Klass_Get(&Klass_Klass, "GetMethod", &k, &v);
-//   assert(TV_ISOBJECT(&k) && TV_ISOBJECT(&v));
-//   Object *ob;
-//   int res = TValue_Parse(&v, 'o', &ob);
-//   assert(!res);
-//   assert(OB_KLASS(ob) == &Method_Klass);
-//   MethodObject *m = (MethodObject *)ob;
-//   assert(m->type == METH_CFUNC);
-
-//   ob = Tuple_Build("if", 100, 3.14);
-//   k = AnyValue; v = AnyValue;
-//   Klass_Get(OB_KLASS(ob), "Size", &k, &v);
-
-//   Object *m1;
-//   res = TValue_Parse(&v, 'o', &m1);
-//   assert(!res);
-
-//   ob = Method_Invoke(m1, ob, NULL);
-//   v = Tuple_Get(ob, 0);
-//   assert(TV_TYPE(&v) == TYPE_INT);
-//   assert(TV_INT(&v) == 2);
-// }
-
 // void test_method(void)
 // {
 //   /*
@@ -85,33 +59,13 @@
 //   assert(TV_TYPE(&v) == TYPE_INT && TV_INT(&v) == 2);
 // }
 
-// void test_string(void)
-// {
-//   /*
-//    * var s = string("hello");
-//    * var len = s.Length();
-//    */
-//   Object *ob = String_New("hello");
-//   Object *method = NULL;
-//   TValue k = AnyValue, v = AnyValue;
-//   Klass_Get(OB_KLASS(ob), "Length", &k, &v);
-//   TValue_Parse(&v, 'o', &method);
-//   ob = Method_Invoke(method, ob, NULL);
-//   int size = 0;
-//   Tuple_Parse(ob, "i", &size);
-//   assert(size == 5);
-// }
-
 void test_module(void)
 {
   Object *ob = GState_Find_Module(&gs, "koala/lang");
   Module_Display(ob);
-  // TValue v = AnyValue;
-  // Module_Get(ob, "String", NULL, &v);
-  // TValue_Parse(&v, 'o', &ob);
-  // OB_ASSERT_KLASS(ob, Klass_Klass);
-  // ob = GState_Find_Module("koala/reflect");
-  // Module_Display(ob);
+  Object *klazz;
+  Module_Get_Class(ob, "Tuple", &klazz);
+  KLASS_ASSERT(klazz, Tuple_Klass);
 }
 
 // void test_coroutine(void)

@@ -41,6 +41,22 @@ extern TValue FalseValue;
   (v)->type = TYPE_NIL; (v)->ival = 0; \
 } while (0)
 
+#define set_int_value(v, _v) do { \
+  (v)->type = TYPE_INT; (v)->ival = _v; \
+} while (0)
+
+#define set_float_value(v, _v) do { \
+  (v)->type = TYPE_FLOAT; (v)->fval = _v; \
+} while (0)
+
+#define set_bool_value(v, _v) do { \
+  (v)->type = TYPE_BOOL; (v)->bval = _v; \
+} while (0)
+
+#define set_object_value(v, _v) do { \
+  (v)->type = TYPE_OBJECT; (v)->ob = _v; \
+} while (0)
+
 #define NIL_VALUE_INIT()      {.type = TYPE_NIL,    .ival = 0}
 #define INT_VALUE_INIT(v)     {.type = TYPE_INT,    .ival = (v)}
 #define FLOAT_VALUE_INIT(v)   {.type = TYPE_FLOAT,  .fval = (v)}

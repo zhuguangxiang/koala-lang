@@ -40,12 +40,11 @@ Object *Tuple_Get_Slice(Object *ob, int min, int max)
   Object *tuple = Tuple_New(max - min + 1);
   int index = min;
   TValue val;
-  if (Tuple_Get(ob, index, &val) < 0) return NULL;
-
   int i = 0;
   while (index <= max) {
+    if (Tuple_Get(ob, index, &val) < 0) return NULL;
     Tuple_Set(tuple, i, &val);
-    ++i; index++;
+    i++; index++;
   }
   return tuple;
 }
