@@ -8,16 +8,15 @@ extern "C" {
 
 typedef struct vector {
   int capacity;
-  int isize;
   int size;
-  void *objs;
+  void **objs;
 } Vector;
 
 typedef void (*vec_fini_func)(void *obj, void *arg);
 
-Vector *Vector_Create(int isize);
+Vector *Vector_Create(void);
 void Vector_Destroy(Vector *vec, vec_fini_func fini, void *arg);
-int Vector_Initialize(Vector *vec, int capacity, int isize);
+int Vector_Initialize(Vector *vec, int capacity);
 void Vector_Finalize(Vector *vec, vec_fini_func fini, void *arg);
 int Vector_Set(Vector *vec, int index, void *obj);
 void *Vector_Get(Vector *vec, int index);

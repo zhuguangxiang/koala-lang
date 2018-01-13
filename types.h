@@ -49,6 +49,10 @@ typedef double  float64;
 /* For -Wunused-parameter */
 #define UNUSED_PARAMETER(var) ((var) = (var))
 
+/* Assert macros */
+#define ASSERT_NOERROR(res)   assert((res) == 0)
+#define ASSERT_POINTER(ptr)   assert((ptr) != NULL)
+
 #ifdef __cplusplus
 }
 #endif
