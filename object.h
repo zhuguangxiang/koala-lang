@@ -87,7 +87,7 @@ int TValue_Parse(TValue *val, char ch, ...);
 /*-------------------------------------------------------------------------*/
 
 #define OBJECT_HEAD \
-  Object *ob_next; int ob_ref; Klass *ob_klass;
+  struct list_head ob_link; Object *ob_next; int ob_ref; Klass *ob_klass;
 
 struct object {
   OBJECT_HEAD
@@ -96,8 +96,8 @@ struct object {
 #define OBJECT_HEAD_INIT(klazz) \
   .ob_next = NULL, .ob_ref = 1, .ob_klass = klazz
 
-#define init_object_head(ob, klazz)  do {  \
-  Object *o = (Object *)ob;  \
+#define init_object_head(ob, klazz) do { \
+  Object *o = (Object *)ob; \
   o->ob_next = NULL; o->ob_ref = 1; o->ob_klass = klazz; \
 } while (0)
 

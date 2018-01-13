@@ -26,9 +26,9 @@ OBJDUMP = $(CROSS_COMPILE)objdump
 DBGFLAGS = -g
 OPTFLAGS = #-O2
 
-CPPFLAGS = -std=c99 $(DBGFLAGS) $(OPTFLAGS) -I$(TOPDIR) -Wbad-function-cast
+CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I$(TOPDIR) -Wbad-function-cast
 
-CFLAGS = $(CPPFLAGS) -W -Wall -Wpointer-arith -Wstrict-prototypes -pthread
+CFLAGS = $(CPPFLAGS) -W -Wall -Wpointer-arith -Wstrict-prototypes -pthread -lrt
 
 #########################################################################
 

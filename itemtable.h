@@ -27,9 +27,9 @@ typedef struct item_table {
 typedef void (*item_fini_t)(int type, void *data, void *arg);
 ItemTable *ItemTable_Create(ht_hash_func hash, ht_equal_func equal, int size);
 void ItemTable_Destroy(ItemTable *table, item_fini_t fini, void *arg);
-int ItemTable_Initialize(ItemTable *table,
-                         ht_hash_func hash, ht_equal_func equal, int size);
-void ItemTable_Finalize(ItemTable *table, item_fini_t fini, void *arg);
+int ItemTable_Init(ItemTable *table,
+                   ht_hash_func hash, ht_equal_func equal, int size);
+void ItemTable_Fini(ItemTable *table, item_fini_t fini, void *arg);
 int ItemTable_Append(ItemTable *table, int type, void *data, int unique);
 int ItemTable_Index(ItemTable *table, int type, void *data);
 void *ItemTable_Get(ItemTable *table, int type, int index);

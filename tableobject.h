@@ -14,7 +14,7 @@ typedef struct tableobject {
   HashTable table;
 } TableObject;
 
-/* Exported symbols */
+/* Exported APIs */
 extern Klass Table_Klass;
 void Init_Table_Klass(Object *ob);
 Object *Table_New(void);

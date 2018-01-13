@@ -4,49 +4,53 @@
 
 void task1_func(struct task *self)
 {
+  int i = 1;
   while (1) {
     struct thread *thread = task_owner_thread(self);
     printf("task1 is running in %s\n", thread->name);
-    task_sleep(self, 2);
-    task_yield(self);
+    task_sleep(self, i++);
+    if (i >= 10) i = 1;
     printf("task1 is finished in %s\n", thread->name);
-    task_sleep(self, 1);
+    task_yield(self);
   }
 }
 
 void task2_func(struct task *self)
 {
+  int i = 1;
   while (1) {
     struct thread *thread = task_owner_thread(self);
     printf("task2 is running in %s\n", thread->name);
-    task_sleep(self, 2);
-    task_yield(self);
+    task_sleep(self, i++);
+    if (i >= 10) i = 1;
     printf("task2 is finished in %s\n", thread->name);
-    task_sleep(self, 1);
+    task_yield(self);
   }
 }
 
 void task3_func(struct task *self)
 {
+  int i = 1;
   while (1) {
     struct thread *thread = task_owner_thread(self);
     printf("task3 is running in %s\n", thread->name);
-    task_sleep(self, 2);
-    task_yield(self);
+    task_sleep(self, i++);
+    if (i >= 10) i = 1;
     printf("task3 is finished in %s\n", thread->name);
-    task_sleep(self, 1);
+    task_yield(self);
   }
 }
 
 void task4_func(struct task *self)
 {
+  int i = 1;
   while (1) {
     struct thread *thread = task_owner_thread(self);
     printf("task4 is running in %s\n", thread->name);
-    task_sleep(self, 2);
-    task_yield(self);
+    task_sleep(self, i++);
+    if (i >= 10) i = 1;
     printf("task4 is finished in %s\n", thread->name);
-    task_sleep(self, 1);
+    task_yield(self);
   }
 }
 

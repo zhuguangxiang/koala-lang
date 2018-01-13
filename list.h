@@ -29,6 +29,9 @@ static inline void init_list_head(struct list_head *list)
 	list->prev = list;
 }
 
+#define list_unlinked(node) \
+	((node)->next == (node) && (node)->prev == (node))
+
 /*
  * Insert a new entry between two known consecutive entries.
  */

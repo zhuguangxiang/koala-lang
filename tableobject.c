@@ -80,7 +80,7 @@ Object *Table_New(void)
 {
   TableObject *table = malloc(sizeof(*table));
   init_object_head(table, &Table_Klass);
-  int res = HashTable_Initialize(&table->table, entry_hash, entry_equal);
+  int res = HashTable_Init(&table->table, entry_hash, entry_equal);
   assert(!res);
   //Object_Add_GCList(table);
   return (Object *)table;
@@ -218,7 +218,7 @@ static void table_free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Table_Klass);
   TableObject *table = (TableObject *)ob;
-  HashTable_Finalize(&table->table, table_finalize, NULL);
+  HashTable_Fini(&table->table, table_finalize, NULL);
   free(ob);
 }
 

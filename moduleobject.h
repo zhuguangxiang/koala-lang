@@ -18,7 +18,7 @@ typedef struct moduleobject {
   TValue locals[0];
 } ModuleObject;
 
-/* Exported symbols */
+/* Exported APIs */
 extern Klass Module_Klass;
 void Init_Module_Klass(Object *ob);
 Object *Module_New(char *name, int nr_locals);

@@ -4,6 +4,7 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <signal.h>
 #include <time.h>
 
 #ifdef __linux__

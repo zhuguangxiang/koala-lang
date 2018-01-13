@@ -60,10 +60,9 @@ int HashTable_Insert(HashTable *table, HashNode *hnode);
 /* Traverse all nodes in the hash table */
 void HashTable_Traverse(HashTable *table, ht_visit_func visit, void *arg);
 
-int HashTable_Initialize(HashTable *table,
-                         ht_hash_func hash, ht_equal_func equal);
+int HashTable_Init(HashTable *table, ht_hash_func hash, ht_equal_func equal);
 
-void HashTable_Finalize(HashTable *table, ht_fini_func fini, void *arg);
+void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg);
 
 #define HashTable_Count(table)  ((table)->nr_nodes)
 

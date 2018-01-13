@@ -78,8 +78,7 @@ static void free_entries(struct hlist_head *entries)
   if (entries != NULL) free(entries);
 }
 
-int HashTable_Initialize(HashTable *table,
-                         ht_hash_func hash, ht_equal_func equal)
+int HashTable_Init(HashTable *table, ht_hash_func hash, ht_equal_func equal)
 {
   struct hlist_head *entries = new_entries(get_prime(DEFAULT_PRIME_INDEX));
   if (entries == NULL) return -1;
@@ -93,7 +92,7 @@ int HashTable_Initialize(HashTable *table,
   return 0;
 }
 
-void HashTable_Finalize(HashTable *table, ht_fini_func fini, void *arg)
+void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg)
 {
   HashNode *hnode;
   struct hlist_node *nxt;
@@ -117,7 +116,7 @@ HashTable *HashTable_Create(ht_hash_func hash, ht_equal_func equal)
   HashTable *table = malloc(sizeof(*table));
   if (table == NULL) return NULL;
 
-  if (HashTable_Initialize(table, hash, equal)) {
+  if (HashTable_Init(table, hash, equal)) {
     free(table);
     return NULL;
   }
@@ -128,7 +127,7 @@ HashTable *HashTable_Create(ht_hash_func hash, ht_equal_func equal)
 void HashTable_Destroy(HashTable *table, ht_fini_func fini, void *arg)
 {
   if (table != NULL) {
-    HashTable_Finalize(table, fini, arg);
+    HashTable_Fini(table, fini, arg);
     free(table);
   }
 }

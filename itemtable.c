@@ -4,7 +4,7 @@
 ItemTable *ItemTable_Create(ht_hash_func hash, ht_equal_func equal, int size)
 {
   ItemTable *table = malloc(sizeof(ItemTable) + size * sizeof(struct vector));
-  ItemTable_Initialize(table, hash, equal, size);
+  ItemTable_Init(table, hash, equal, size);
   return table;
 }
 
@@ -18,13 +18,13 @@ static ItemEntry *itementry_new(int type, int index, void *data)
   return e;
 }
 
-int ItemTable_Initialize(ItemTable *table,
-                         ht_hash_func hash, ht_equal_func equal, int size)
+int ItemTable_Init(ItemTable *table,
+                   ht_hash_func hash, ht_equal_func equal, int size)
 {
-  HashTable_Initialize(&table->table, hash, equal);
+  HashTable_Init(&table->table, hash, equal);
   table->size = size;
   for (int i = 0; i < size; i++)
-    Vector_Initialize(table->items + i, 0, sizeof(void **));
+    Vector_Init(table->items + i, 0);
   return 0;
 }
 
@@ -40,12 +40,12 @@ static void item_fini(void *data, void *arg)
   itemdata->fini(itemdata->type, data, itemdata->arg);
 }
 
-void ItemTable_Finalize(ItemTable *table, item_fini_t fini, void *arg)
+void ItemTable_Fini(ItemTable *table, item_fini_t fini, void *arg)
 {
   ItemData itemdata = {fini, arg, 0};
   for (int i = 0; i < table->size; i++) {
     itemdata.type = i;
-    Vector_Finalize(table->items + i, item_fini, &itemdata);
+    Vector_Fini(table->items + i, item_fini, &itemdata);
   }
 }
 

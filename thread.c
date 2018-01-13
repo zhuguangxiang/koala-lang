@@ -2,7 +2,6 @@
 #include "debug.h"
 #include "thread.h"
 #include <unistd.h>
-#include <signal.h>
 #include <errno.h>
 
 struct scheduler sched;
@@ -31,7 +30,7 @@ int task_init(struct task *tsk, short prio, task_func run, void *arg)
 {
   init_list_head(&tsk->link);
   init_task_ucontext(&tsk->ctx);
-  makecontext(&tsk->ctx, (void (*)())task_wrapper, 1, tsk);
+  makecontext(&tsk->ctx, (void (*)(void))task_wrapper, 1, tsk);
   tsk->state = STATE_READY;
   tsk->prio = prio;
   tsk->run = run;
@@ -91,13 +90,18 @@ void task_yield(struct task *tsk)
   swapcontext(&tsk->ctx, &thread->ctx);
 }
 
-void task_suspend(struct task *tsk, int timeout)
+void task_suspend(struct task *tsk, int second)
 {
   assert(tsk->state == STATE_RUNNING);
   assert(list_unlinked(&tsk->link));
   tsk->state = STATE_SUSPEND;
+  tsk->sleep = second;
   pthread_mutex_lock(&sched.lock);
-  list_add_tail(&tsk->link, &sched.readylist[tsk->prio]);
+  if (second > 0) {
+    task_add_sleeplist(tsk);
+  } else {
+    list_add_tail(&tsk->link, &sched.readylist[tsk->prio]);
+  }
   pthread_mutex_unlock(&sched.lock);
   struct thread *thread = tsk->thread;
   assert(thread != NULL);
@@ -138,8 +142,9 @@ static void *task_thread_func(void *arg)
   return NULL;
 }
 
-void timer_signal_handler(int v)
+void timer_signal_handler(int signo)
 {
+  UNUSED_PARAMETER(signo);
   sched.clock++;
   int ret = timer_getoverrun(sched.timer);
   if (ret < 0) {
@@ -152,6 +157,7 @@ void timer_signal_handler(int v)
 
 static void *timer_thread_func(void *arg)
 {
+  UNUSED_PARAMETER(arg);
   while (1) {
     sem_wait(&sched.timer_sem);
 
