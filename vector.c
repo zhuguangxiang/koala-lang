@@ -5,7 +5,7 @@
 
 #define DEFAULT_CAPACTIY 16
 
-int Vector_Initialize(Vector *vec, int capacity)
+int Vector_Init(Vector *vec, int capacity)
 {
   if (capacity <= 0) capacity = DEFAULT_CAPACTIY;
 
@@ -19,7 +19,7 @@ int Vector_Initialize(Vector *vec, int capacity)
   return 0;
 }
 
-void Vector_Finalize(Vector *vec, vec_fini_func fini, void *arg)
+void Vector_Fini(Vector *vec, vec_fini_func fini, void *arg)
 {
   if (vec->objs == NULL) return;
 
@@ -88,11 +88,11 @@ void *Vector_Get(Vector *vec, int index)
   }
 }
 
-Vector *Vector_Create(int isize)
+Vector *Vector_Create(void)
 {
   Vector *vec = malloc(sizeof(*vec));
   if (vec == NULL) return NULL;
-  if (Vector_Initialize(vec, DEFAULT_CAPACTIY)) {
+  if (Vector_Init(vec, DEFAULT_CAPACTIY)) {
     debug_error("initialize vector failed\n");
     free(vec);
     return NULL;
@@ -103,6 +103,6 @@ Vector *Vector_Create(int isize)
 
 void Vector_Destroy(Vector *vec, vec_fini_func fini, void *arg)
 {
-  Vector_Finalize(vec, fini, arg);
+  Vector_Fini(vec, fini, arg);
   free(vec);
 }
