@@ -104,6 +104,7 @@ struct object {
 #define OB_KLASS(ob) (((Object *)(ob))->ob_klass)
 #define OB_ASSERT_KLASS(ob, klazz)  assert(OB_KLASS(ob) == &(klazz))
 #define OB_KLASS_EQUAL(ob1, ob2)    (OB_KLASS(ob1) == OB_KLASS(ob2))
+#define OB_CHECK_KLASS(ob, klazz)   (OB_KLASS(ob) == &(klazz))
 #define KLASS_ASSERT(klazz, expected) assert(((Klass *)klazz) == &(expected))
 /*-------------------------------------------------------------------------*/
 

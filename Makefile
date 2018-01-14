@@ -12,8 +12,8 @@ include $(TOPDIR)/config.mk
 
 KOALA_LIB_FILES = hashtable.c hash.c vector.c itemtable.c symbol.c \
 object.c stringobject.c tupleobject.c tableobject.c moduleobject.c \
-methodobject.c codeformat.c debug.c routine.c thread.c #kstate.c koala.c
-##coroutine.c
+methodobject.c codeformat.c debug.c routine.c thread.c frameloop.c
+#kstate.c koala.c
 
 KOALA_LIB = koala
 

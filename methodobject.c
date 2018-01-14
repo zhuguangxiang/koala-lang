@@ -20,7 +20,7 @@ Object *CMethod_New(cfunc cf)
   return (Object *)m;
 }
 
-Object *KMethod_New(uint8 *codes, TValue *k, Object *closure)
+Object *KMethod_New(uint8 *codes, ConstItem *k, Object *closure)
 {
   MethodObject *m = method_new(METH_KFUNC);
   m->kf.codes = codes;

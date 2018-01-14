@@ -3,7 +3,6 @@
 #define _KOALA_METHODOBJECT_H_
 
 #include "object.h"
-#include "opcode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,7 +13,7 @@ extern "C" {
 
 typedef struct methodobject {
   OBJECT_HEAD
-  Object *frame;
+  Object *owner;
   uint16 type;
   uint16 nr_args;
   uint16 nr_locals;
@@ -23,8 +22,8 @@ typedef struct methodobject {
     cfunc cf;             // c language function
     struct {
       Object *closure;    // tuple for closure
-      TValue *k;          // constant array
-      uint8 *codes; // koala's instructions
+      ConstItem *k;       // constant pool
+      uint8 *codes;       // koala's instructions
     } kf;
   };
 } MethodObject;
@@ -32,7 +31,7 @@ typedef struct methodobject {
 /* Exported APIs */
 extern Klass Method_Klass;
 void Init_Method_Klass(Object *ob);
-Object *KMethod_New(uint8 *codes, TValue *k, Object *closure);
+Object *KMethod_New(uint8 *codes, ConstItem *k, Object *closure);
 Object *CMethod_New(cfunc cf);
 Object *Method_Invoke(Object *method, Object *ob, Object *args);
 

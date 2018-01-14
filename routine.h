@@ -13,9 +13,8 @@ extern "C" {
 
 typedef struct routine {
   OBJECT_HEAD
-  struct list_head rt_link;
-  void *ks;
   struct task task;
+  struct list_head rt_link;
   struct list_head frame_list;
   int top;
   TValue stack[ROUTINE_STACK_SIZE];
@@ -34,8 +33,9 @@ typedef struct frame {
 /* Exported APIs */
 extern Klass Routine_Klass;
 extern Klass Frame_Klass;
-Object *Routine_New(Object *func, Object *obj, Object *args);
+Object *Routine_New(Object *func, Object *args);
 void Routine_Run(Routine *rt, short prio);
+void Frame_Free(Frame *frame);
 
 static inline TValue rt_stack_pop(Routine *rt)
 {
