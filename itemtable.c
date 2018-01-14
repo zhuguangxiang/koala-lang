@@ -56,7 +56,7 @@ int ItemTable_Append(ItemTable *table, int type, void *data, int unique)
   if (unique) {
     ItemEntry *e = itementry_new(type, index, *(void **)data);
     int res = HashTable_Insert(&table->table, &e->hnode);
-    assert(!res);
+    ASSERT(!res);
   }
   return index;
 }
@@ -71,13 +71,13 @@ int ItemTable_Index(ItemTable *table, int type, void *data)
 
 void *ItemTable_Get(ItemTable *table, int type, int index)
 {
-  assert(type >= 0 && type < table->size);
+  ASSERT(type >= 0 && type < table->size);
   void **data = Vector_Get(table->items + type, index);
   return *data;
 }
 
 int ItemTable_Size(ItemTable *table, int type)
 {
-  assert(type >= 0 && type < table->size);
+  ASSERT(type >= 0 && type < table->size);
   return Vector_Size(table->items + type);
 }

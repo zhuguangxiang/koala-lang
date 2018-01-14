@@ -7,7 +7,7 @@ void test_string(void)
 {
   Object *ob = String_New("hello");
   char *s = String_To_CString(ob);
-  assert(strcmp(s, "hello") == 0);
+  ASSERT(strcmp(s, "hello") == 0);
   String_Free(ob);
 }
 

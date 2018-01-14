@@ -31,7 +31,7 @@ Object *KMethod_New(uint8 *codes, ConstItem *k, Object *closure)
 
 Object *Method_Invoke(Object *method, Object *ob, Object *args)
 {
-  assert(OB_KLASS(method) == &Method_Klass);
+  OB_ASSERT_KLASS(method, Method_Klass);
   MethodObject *m = (MethodObject *)method;
   if (m->type == METH_CFUNC) {
     return m->cf(ob, args);
@@ -44,11 +44,11 @@ Object *Method_Invoke(Object *method, Object *ob, Object *args)
 /*-------------------------------------------------------------------------*/
 // static Object *__method_invoke(Object *ob, Object *args)
 // {
-//   assert(OB_KLASS(ob) == &Method_Klass);
+//   ASSERT(OB_KLASS(ob) == &Method_Klass);
 //   MethodObject *m = (MethodObject *)ob;
 //   if (m->type == METH_CFUNC) {
 //     TValue v = Tuple_Get(args, 0);
-//     assert(TV_ISOBJECT(&v));
+//     ASSERT(TV_ISOBJECT(&v));
 //     Object *newargs = Tuple_Get_Slice(args, 1, Tuple_Size(args) - 1);
 //     Object *res = Method_Invoke(ob, TV_OBJECT(&v), newargs);
 //     //ob_decref(newargs);
@@ -82,7 +82,7 @@ void Init_Method_Klass(Object *ob)
 
 static void method_free(Object *ob)
 {
-  assert(OB_KLASS(ob) == &Method_Klass);
+  OB_ASSERT_KLASS(ob, Method_Klass);
   MethodObject *m = (MethodObject *)ob;
   free(m);
 }

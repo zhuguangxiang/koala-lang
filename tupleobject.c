@@ -8,7 +8,7 @@ Object *Tuple_New(int size)
 {
   int sz = sizeof(TupleObject) + size * sizeof(TValue);
   TupleObject *tuple = malloc(sz);
-  assert(tuple);
+  ASSERT_PTR(tuple);
   init_object_head(tuple, &Tuple_Klass);
   tuple->size = size;
   for (int i = 0; i < size; i++) {
@@ -145,7 +145,7 @@ int Tuple_Parse(Object *ob, char *format, ...)
   va_start(vp, format);
   while ((ch = *fmt++)) {
     res = Tuple_Get(ob, i++, &val);
-    assert(res >= 0);
+    ASSERT(res >= 0);
     Va_Parse_Value(&val, ch, &vp);
   }
   va_end(vp);
@@ -160,7 +160,7 @@ static Object *__tuple_get(Object *ob, Object *args)
   TValue val;
   OB_ASSERT_KLASS(ob, Tuple_Klass);
   OB_ASSERT_KLASS(args, Tuple_Klass);
-  assert(Tuple_Size(args) == 1);
+  ASSERT(Tuple_Size(args) == 1);
 
   if (Tuple_Get(args, 0, &val) < 0) return NULL;
   if (!VALUE_ISINT(&val)) return NULL;
@@ -174,7 +174,7 @@ static Object *__tuple_get(Object *ob, Object *args)
 static Object *__tuple_size(Object *ob, Object *args)
 {
   OB_ASSERT_KLASS(ob, Tuple_Klass);
-  assert(args == NULL);
+  ASSERT(args == NULL);
   TupleObject *tuple = (TupleObject *)ob;
   return Tuple_Build("i", tuple->size);
 }

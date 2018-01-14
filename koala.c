@@ -2,34 +2,37 @@
 #include "koala.h"
 #include "symbol.h"
 
-GState gs;
+KoalaState ks;
 
-// koala/lang.klc
+/* koala/lang.klc */
 static void init_lang_module(void)
 {
-  Object *ob = Module_New("lang", 0);
-
+  Object *ob = Module_New("lang", "koala/lang", 0);
   Init_Klass_Klass(ob);
   Init_String_Klass(ob);
   Init_Tuple_Klass(ob);
   Init_Table_Klass(ob);
   Init_Module_Klass(ob);
   Init_Method_Klass(ob);
+}
 
-  GState_Add_Module(&gs, "koala/lang", ob);
+/* koala/io.klc */
+static void init_io_module(void)
+{
+
 }
 
 static void init_modules(void)
 {
   init_lang_module();
-  //init_io_module();
+  init_io_module();
 }
 
 /*-------------------------------------------------------------------------*/
 
-void Koala_Initialize(void)
+void Koala_Init(void)
 {
-  GState_Initialize(&gs);
+  KState_Init(&ks);
   init_modules();
 }
 
@@ -48,7 +51,7 @@ void Koala_Run_Module(Object *ob)
   UNUSED_PARAMETER(ob);
 }
 
-void Koala_Finalize(void)
+void Koala_Fini(void)
 {
-  GState_Finalize(&gs);
+  KState_Fini(&ks);
 }

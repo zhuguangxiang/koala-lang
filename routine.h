@@ -45,13 +45,13 @@ static inline TValue rt_stack_pop(Routine *rt)
 
 static inline void rt_stack_push(Routine *rt, TValue *v)
 {
-  assert(rt->top < ROUTINE_STACK_SIZE - 1);
+  ASSERT(rt->top < ROUTINE_STACK_SIZE - 1);
   rt->stack[++rt->top] = *v;
 }
 
 static inline TValue rt_stack_get(Routine *rt, int index)
 {
-  assert(index >= 0 && index <= rt->top);
+  ASSERT(index >= 0 && index <= rt->top);
   return rt->stack[index];
 }
 

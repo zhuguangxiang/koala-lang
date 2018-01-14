@@ -1,6 +1,6 @@
 
 %{
-#include "types.h"
+#include "common.h"
 #include "koala_yacc.h"
 
 static void echo();

@@ -4,7 +4,7 @@
 #ifndef _KOALA_HASH_H_
 #define _KOALA_HASH_H_
 
-#include "types.h"
+#include "common.h"
 
 #ifdef __cplusplus
 extern "C" {

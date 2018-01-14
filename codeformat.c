@@ -126,7 +126,7 @@ int TypeItem_Set(ItemTable *itemtable, char *str, int len)
   int index = TypeItem_Get(itemtable, str, len);
   if (index < 0) {
     int str_index = StringItem_Set(itemtable, str, len);
-    assert(str_index >= 0);
+    ASSERT(str_index >= 0);
     TypeItem *item = TypeItem_New(str_index);
     index = ItemTable_Append(itemtable, ITEM_TYPE, &item, 1);
   }
@@ -526,7 +526,7 @@ uint32 constitem_hash(void *k)
     }
     default: {
       printf("[ERROR]unsupported %d const type\n", item->type);
-      assert(0);
+      ASSERT(0);
       break;
     }
   }
@@ -559,7 +559,7 @@ int constitem_equal(void *k1, void *k2)
     }
     default: {
       printf("[ERROR]unsupported %d const type\n", item1->type);
-      assert(0);
+      ASSERT(0);
       break;
     }
   }
@@ -691,7 +691,7 @@ static int desclist_count(char *desclist)
       desc++;
     } else {
       debug_error("unknown type:%c\n", ch);
-      assert(0);
+      ASSERT(0);
     }
   }
 
@@ -712,7 +712,7 @@ DescList *DescList_Parse(char *desclist)
 
   while ((ch = *desc)) {
     if (desc_primitive(ch)) {
-      assert(idx < dlist->size);
+      ASSERT(idx < dlist->size);
 
       if (isarr) {
         dlist->index[idx].length = 2;
@@ -725,7 +725,7 @@ DescList *DescList_Parse(char *desclist)
       idx++;
       desc++;
     } else if (ch == 'O') {
-      assert(idx < dlist->size);
+      ASSERT(idx < dlist->size);
       desc++;
 
       if (!isarr) {
@@ -748,13 +748,13 @@ DescList *DescList_Parse(char *desclist)
       isarr = 0;
       idx++;
     } else if (ch == '[') {
-      assert(idx < dlist->size);
+      ASSERT(idx < dlist->size);
       isarr = 1;
       dlist->index[idx].offset = desc - desclist;
       desc++;
     } else {
       fprintf(stderr, "unknown type:%c\n", ch);
-      assert(0);
+      ASSERT(0);
     }
   }
 
@@ -768,13 +768,13 @@ void DescList_Free(DescList *dlist)
 
 char *DescList_Desc(DescList *dlist, int index)
 {
-  assert(index >= 0 && index < dlist->size);
+  ASSERT(index >= 0 && index < dlist->size);
   return dlist->desclist + dlist->index[index].offset;
 }
 
 int DescList_Length(DescList *dlist, int index)
 {
-  assert(index >= 0 && index < dlist->size);
+  ASSERT(index >= 0 && index < dlist->size);
   return dlist->index[index].length;
 }
 
@@ -799,7 +799,7 @@ static uint32 htable_hash(void *key)
 {
   ItemEntry *e = key;
   item_hash_t hash_fn = item_func[e->type].ihash;
-  assert(hash_fn != NULL);
+  ASSERT(hash_fn != NULL);
   return hash_fn(e->data);
 }
 
@@ -809,7 +809,7 @@ static int htable_equal(void *k1, void *k2)
   ItemEntry *e2 = k2;
   if (e1->type != e2->type) return 0;
   item_equal_t equal_fn = item_func[e1->type].iequal;
-  assert(equal_fn != NULL);
+  ASSERT_PTR(equal_fn);
   return equal_fn(e1->data, e2->data);
 }
 
@@ -899,7 +899,7 @@ static void __image_write_item(FILE *fp, KLCImage *image, int type, int size)
 {
   void *o;
   item_fwrite_t iwrite = item_func[type].iwrite;
-  assert(iwrite);
+  ASSERT_PTR(iwrite);
   for (int i = 0; i < size; i++) {
     o = ItemTable_Get(image->table, type, i);
     iwrite(fp, o);
@@ -925,7 +925,7 @@ static void __image_write_items(FILE *fp, KLCImage *image)
 void KLCImage_Write_File(KLCImage *image, char *path)
 {
   FILE *fp = fopen(path, "w");
-  assert(fp != NULL);
+  ASSERT_PTR(fp);
   __image_write_header(fp, image);
   __image_write_pkgname(fp, image);
   __image_write_items(fp, image);
@@ -960,12 +960,12 @@ KLCImage *KLCImage_Read_File(char *path)
   }
 
   KLCImage *image = KLCImage_New(pkg_name);
-  assert(image);
+  ASSERT_PTR(image);
   image->header = header;
 
   MapItem mapitems[header.map_size];
   sz = fseek(fp, header.map_offset, SEEK_SET);
-  assert(sz == 0);
+  ASSERT(sz == 0);
   sz = fread(mapitems, sizeof(MapItem), header.map_size, fp);
   if (sz < (int)header.map_size) {
     printf("[ERROR] file %s is not a valid .klc file\n", path);

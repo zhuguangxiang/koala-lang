@@ -7,16 +7,16 @@
 #include "tableobject.h"
 #include "moduleobject.h"
 #include "methodobject.h"
-#include "gstate.h"
+#include "kstate.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Exported symbols */
-extern GState gs;
-void Koala_Initialize(void);
-void Koala_Finalize(void);
+/* Exported APIs */
+extern KoalaState ks;
+void Koala_Init(void);
+void Koala_Fini(void);
 
 #ifdef __cplusplus
 }

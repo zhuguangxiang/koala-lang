@@ -4,7 +4,7 @@
 #ifndef _KOALA_LIST_H_
 #define _KOALA_LIST_H_
 
-#include "types.h"
+#include "common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -406,7 +406,7 @@ struct clist {
 #define clist_del(pos, list) do { \
   list_del(pos); \
   --(list)->count; \
-  assert((list)->count >= 0); \
+  ASSERT((list)->count >= 0); \
 } while (0)
 
 #define clist_empty(list) \
@@ -433,7 +433,7 @@ static inline struct clist *new_clist(void)
 
 static inline void free_clist(struct clist *list)
 {
-  assert(clist_empty(list));
+  ASSERT(clist_empty(list));
   free(list);
 }
 

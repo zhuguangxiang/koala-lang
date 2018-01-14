@@ -32,7 +32,7 @@ char *String_To_CString(Object *ob)
 
 static Object *__string_length(Object *ob, Object *args)
 {
-  assert(args == NULL);
+  ASSERT(args == NULL);
   OB_ASSERT_KLASS(ob, String_Klass);
   StringObject *s = (StringObject *)ob;
   return Tuple_Build("i", s->len);
@@ -40,7 +40,7 @@ static Object *__string_length(Object *ob, Object *args)
 
 static Object *__string_tostring(Object *ob, Object *args)
 {
-  assert(args == NULL);
+  ASSERT(args == NULL);
   OB_ASSERT_KLASS(ob, String_Klass);
   return Tuple_Build("O", ob);
 }

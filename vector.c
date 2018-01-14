@@ -1,5 +1,5 @@
 
-#include "types.h"
+#include "common.h"
 #include "debug.h"
 #include "vector.h"
 

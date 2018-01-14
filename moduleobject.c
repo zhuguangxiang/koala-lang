@@ -1,44 +1,21 @@
 
-#include "moduleobject.h"
-#include "methodobject.h"
 #include "symbol.h"
 #include "debug.h"
+#include "koala.h"
 
-#define ATOM_ITEM_MAX   (ITEM_CONST + 1)
-
-static uint32 htable_hash(void *key)
-{
-  ItemEntry *e = key;
-  assert(e->type > 0 && e->type < ATOM_ITEM_MAX);
-  item_hash_t hash_fn = item_func[e->type].ihash;
-  assert(hash_fn != NULL);
-  return hash_fn(e->data);
-}
-
-static int htable_equal(void *k1, void *k2)
-{
-  ItemEntry *e1 = k1;
-  ItemEntry *e2 = k2;
-  assert(e1->type > 0 && e1->type < ATOM_ITEM_MAX);
-  assert(e2->type > 0 && e2->type < ATOM_ITEM_MAX);
-  if (e1->type != e2->type) return 0;
-  item_equal_t equal_fn = item_func[e1->type].iequal;
-  assert(equal_fn != NULL);
-  return equal_fn(e1->data, e2->data);
-}
-
-Object *Module_New(char *name, int nr_locals)
+Object *Module_New(char *name, char *path, int nr_locals)
 {
   int size = sizeof(ModuleObject) + sizeof(TValue) * nr_locals;
   ModuleObject *ob = malloc(size);
   init_object_head(ob, &Module_Klass);
   ob->stable = NULL;
-  ob->itable = ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
+  ob->itable = NULL;
   ob->name = name;
   ob->avail_index = 0;
   ob->size = nr_locals;
   for (int i = 0; i < nr_locals; i++)
     init_nil_value(ob->locals + i);
+  KState_Add_Module(&ks, path, (Object *)ob);
   return (Object *)ob;
 }
 
@@ -58,7 +35,7 @@ static HashTable *__get_table(ModuleObject *mo)
 int Module_Add_Var(Object *ob, char *name, char *desc, uint8 access)
 {
   ModuleObject *mo = (ModuleObject *)ob;
-  assert(mo->avail_index < mo->size);
+  ASSERT(mo->avail_index < mo->size);
   int name_index = StringItem_Set(mo->itable, name, strlen(name));
   int desc_index = TypeItem_Set(mo->itable, desc, strlen(desc));
   Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
@@ -117,7 +94,7 @@ int Module_Get_Value(Object *ob, char *name, TValue *v)
   struct symbol *s = __module_get(mo, name);
   if (s != NULL) {
     if (s->kind == SYM_VAR) {
-      assert(s->value.index < mo->size);
+      ASSERT(s->value.index < mo->size);
       *v = mo->locals[s->value.index];
       return 0;
     } else {
@@ -189,7 +166,7 @@ int Module_Add_CFunctions(Object *ob, FunctionStruct *funcs)
     meth = CMethod_New(f->func);
     res = Module_Add_Func(ob, f->name, f->rdesc, f->pdesc,
                           (uint8)f->access, meth);
-    assert(res == 0);
+    ASSERT(res == 0);
     ++f;
   }
   return 0;
@@ -246,7 +223,7 @@ static void module_visit(struct hlist_head *head, int size, void *arg)
 
 void Module_Display(Object *ob)
 {
-  assert(OB_KLASS(ob) == &Module_Klass);
+  OB_ASSERT_KLASS(ob, Module_Klass);
   ModuleObject *mo = (ModuleObject *)ob;
   printf("package:%s\n", mo->name);
   HashTable_Traverse(__get_table(mo), module_visit, mo->itable);

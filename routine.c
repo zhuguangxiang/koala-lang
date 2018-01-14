@@ -17,7 +17,7 @@ Frame *frame_new(Routine *rt, Object *func)
   else if (mo->type == METH_KFUNC)
     nr_locals = 1 + mo->nr_args + mo->nr_locals;
   else
-    assert(0);
+    ASSERT(0);
 
   Frame *frame = malloc(sizeof(*frame) + nr_locals * sizeof(TValue));
   frame->rt = rt;
@@ -58,7 +58,7 @@ void frame_run(Frame *frame)
     if (result != NULL) {
       TValue val;
       int size = Tuple_Size(result);
-      assert(size == mo->nr_rets);
+      ASSERT(size == mo->nr_rets);
       if (size > 0) {
         for (int i = 0; i < size; i++) {
           Tuple_Get(result, i, &val);
@@ -73,14 +73,14 @@ void frame_run(Frame *frame)
   } else if (mo->type == METH_KFUNC) {
     int stk_size = rt_stack_size(rt);
     int nr_paras = mo->nr_args;
-    assert(stk_size == nr_paras);
+    ASSERT(stk_size == nr_paras);
     set_object_value(&frame->locals[0], mo->owner);
     for (int i = 0; i < stk_size; i++)
       frame->locals[i+1] = rt_stack_get(rt, i);
     rt_stack_clear(rt);
     koala_frame_loop(frame);
   } else {
-    assert(0);
+    ASSERT(0);
   }
 }
 
@@ -104,7 +104,7 @@ Object *Routine_New(Object *func, Object *args)
   int size = Tuple_Size(args);
   for (i = 0; i < size; i++) {
     Tuple_Get(args, i, &val);
-    assert(!VALUE_ISNIL(&val));
+    ASSERT(!VALUE_ISNIL(&val));
     rt_stack_push(rt, &val);
   }
 

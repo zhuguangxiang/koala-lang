@@ -21,7 +21,7 @@ typedef struct moduleobject {
 /* Exported APIs */
 extern Klass Module_Klass;
 void Init_Module_Klass(Object *ob);
-Object *Module_New(char *name, int nr_locals);
+Object *Module_New(char *name, char *path, int nr_locals);
 int Module_Add_Var(Object *ob, char *name, char *desc, uint8 access);
 int Module_Add_Func(Object *ob, char *name, char *rdesc, char *pdesc,
                     uint8 access, Object *method);

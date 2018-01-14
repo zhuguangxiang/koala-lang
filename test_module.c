@@ -20,21 +20,21 @@
 //   // var m Method = klazz.GetMethod("Size");
 //   TValue k = AnyValue, v = AnyValue;
 //   Klass_Get(&Tuple_Klass, "Size", &k, &v);
-//   assert(TV_ISOBJECT(&v));
+//   ASSERT(TV_ISOBJECT(&v));
 //   Object *ob = TV_OBJECT(&v);
-//   assert(OB_KLASS(ob) == &Method_Klass);
+//   ASSERT(OB_KLASS(ob) == &Method_Klass);
 //   MethodObject *m_Size = (MethodObject *)ob;
-//   assert(m_Size->type == METH_CFUNC);
+//   ASSERT(m_Size->type == METH_CFUNC);
 
 //   // var size = m.invoke(tuple);
 //   Klass *klazz = OB_KLASS(m_Size);
 //   k = AnyValue; v = AnyValue;
 //   Klass_Get(klazz, "Invoke", &k, &v);
 //   MethodObject *m_Invoke = (MethodObject *)TV_OBJECT(&v);
-//   assert(m_Invoke && m_Invoke->type == METH_CFUNC);
+//   ASSERT(m_Invoke && m_Invoke->type == METH_CFUNC);
 //   tuple = Method_Invoke((Object *)m_Invoke, (Object *)m_Size, Tuple_Build("o", tuple));
 //   TValue v4 = Tuple_Get(tuple, 0);
-//   assert(TV_TYPE(&v4) == TYPE_INT && TV_INT(&v4) == 2);
+//   ASSERT(TV_TYPE(&v4) == TYPE_INT && TV_INT(&v4) == 2);
 // }
 
 // void test_klass_get_method(void)
@@ -45,18 +45,18 @@
 //   TValue k = AnyValue, v = AnyValue;
 //   Klass_Get(OB_KLASS(ob), "GetMethod", &k, &v);
 //   MethodObject *meth = (MethodObject *)TV_OBJECT(&v);  //clazz.GetMethod()
-//   assert(OB_KLASS(meth) == &Method_Klass);
+//   ASSERT(OB_KLASS(meth) == &Method_Klass);
 //   // call clazz.GetMethod()
 //   ob = Method_Invoke((Object *)meth, ob, Tuple_Build("o", String_New("Size")));
 //   v = Tuple_Get(ob, 0);
 //   meth = (MethodObject *)TV_OBJECT(&v);  //tuple.Size()
-//   assert(OB_KLASS(meth) == &Method_Klass);
+//   ASSERT(OB_KLASS(meth) == &Method_Klass);
 //   // var tuple = Tuple(123, true);
 //   Object *tuple = Tuple_Build("iz", 123, TRUE);
 //   // var i int = m.invoke(tuple);
 //   ob = Method_Invoke((Object *)meth, tuple, NULL);
 //   v = Tuple_Get(ob, 0);
-//   assert(TV_TYPE(&v) == TYPE_INT && TV_INT(&v) == 2);
+//   ASSERT(TV_TYPE(&v) == TYPE_INT && TV_INT(&v) == 2);
 // }
 
 void test_module(void)
@@ -94,7 +94,7 @@ void test_module(void)
 //    *  return a,b,a+b;
 //    * }
 //    */
-//   Instruction codes[] = {
+//   uint8 codes[] = {
 //     OP_LOAD, 1,
 //     OP_LOAD, 2,
 //     OP_LOAD, 1,
@@ -111,7 +111,7 @@ void test_module(void)
 
 //   Object *ob = CoRoutine_New(1, mo, NULL, args);
 //   sleep(3);
-//   assert(((CoRoutine *)ob)->state == STATE_DEAD);
+//   ASSERT(((CoRoutine *)ob)->state == STATE_DEAD);
 //   OB_ASSERT_KLASS(ob, CoRoutine_Klass);
 //   CoRoutine *rt = (CoRoutine *)ob;
 //   int a = 0, b = 0, c = 0;
@@ -141,7 +141,7 @@ void test_module(void)
 //   Object *mod = Module_New("test", 0, 0);
 
 //   // add function
-//   static Instruction codes[] = {
+//   static uint8 codes[] = {
 //     OP_LOAD, 1,
 //     OP_LOAD, 2,
 //     OP_LOAD, 1,
@@ -155,7 +155,7 @@ void test_module(void)
 //   Method_Set_Info(method, 3, 2, 0);
 //   Module_Add_Function(mod, "add", "iii", "ii", 0, method);
 
-//   static Instruction codes1[] = {
+//   static uint8 codes1[] = {
 //     OP_LOADK, 0, 0,
 //     OP_LOADK, 1, 0,
 //     OP_GO, 2,
@@ -199,7 +199,7 @@ void test_module(void)
 //   Object *mod = Module_New("test2", 2, 0);
 
 //   // add function
-//   static Instruction codes[] = {
+//   static uint8 codes[] = {
 //     OP_LOAD, 1,
 //     OP_LOAD, 2,
 //     OP_LOAD, 1,
@@ -214,7 +214,7 @@ void test_module(void)
 //   Module_Add_Function(mod, "add", "iii", "ii", 0, method);
 //   Module_Add_Variable(mod, "result", "i", 0, 0);
 
-//   static Instruction codes1[] = {
+//   static uint8 codes1[] = {
 //     OP_LOADK, 0, 0,
 //     OP_LOADK, 1, 0,
 //     OP_CALL,  2,

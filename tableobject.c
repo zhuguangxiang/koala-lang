@@ -81,7 +81,7 @@ Object *Table_New(void)
   TableObject *table = malloc(sizeof(*table));
   init_object_head(table, &Table_Klass);
   int res = HashTable_Init(&table->table, entry_hash, entry_equal);
-  assert(!res);
+  ASSERT(!res);
   //Object_Add_GCList(table);
   return (Object *)table;
 }

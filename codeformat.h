@@ -2,7 +2,7 @@
 #ifndef _KOALA_CODEFORMAT_H_
 #define _KOALA_CODEFORMAT_H_
 
-#include "types.h"
+#include "common.h"
 #include "itemtable.h"
 
 #ifdef __cplusplus

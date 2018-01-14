@@ -1,8 +1,8 @@
 /*
- * types.h - define basic types and useful micros.
+ * common.h - define basic types and useful micros.
  */
-#ifndef _KOALA_TYPES_H_
-#define _KOALA_TYPES_H_
+#ifndef _KOALA_COMMON_H_
+#define _KOALA_COMMON_H_
 
 #include <stdlib.h>
 #include <assert.h>
@@ -50,10 +50,10 @@ typedef double  float64;
 #define UNUSED_PARAMETER(var) ((var) = (var))
 
 /* Assert macros */
-#define ASSERT_NOERROR(res)   assert((res) == 0)
-#define ASSERT_POINTER(ptr)   assert((ptr) != NULL)
+#define ASSERT(val)     assert(val)
+#define ASSERT_PTR(ptr) assert((ptr) != NULL)
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_TYPES_H_ */
+#endif /* _KOALA_COMMON_H_ */

@@ -2,7 +2,7 @@
 #ifndef _KOALA_OBJECT_H_
 #define _KOALA_OBJECT_H_
 
-#include "types.h"
+#include "common.h"
 #include "codeformat.h"
 #include "symbol.h"
 
@@ -78,7 +78,7 @@ extern TValue FalseValue;
 #define VALUE_ISOBJECT(v)  (VALUE_TYPE(v) == TYPE_OBJECT)
 
 /* TValue utils's functions */
-#define VALUE_ASSERT_TYPE(v, t)  assert(VALUE_TYPE(v) == (t))
+#define VALUE_ASSERT_TYPE(v, t)  ASSERT(VALUE_TYPE(v) == (t))
 int Va_Build_Value(TValue *ret, char ch, va_list *ap);
 int TValue_Build(TValue *ret, char ch, ...);
 int Va_Parse_Value(TValue *val, char ch, va_list *ap);
@@ -102,10 +102,10 @@ struct object {
 } while (0)
 
 #define OB_KLASS(ob) (((Object *)(ob))->ob_klass)
-#define OB_ASSERT_KLASS(ob, klazz)  assert(OB_KLASS(ob) == &(klazz))
+#define OB_ASSERT_KLASS(ob, klazz)  ASSERT(OB_KLASS(ob) == &(klazz))
 #define OB_KLASS_EQUAL(ob1, ob2)    (OB_KLASS(ob1) == OB_KLASS(ob2))
 #define OB_CHECK_KLASS(ob, klazz)   (OB_KLASS(ob) == &(klazz))
-#define KLASS_ASSERT(klazz, expected) assert(((Klass *)klazz) == &(expected))
+#define KLASS_ASSERT(klazz, expected) ASSERT(((Klass *)klazz) == &(expected))
 /*-------------------------------------------------------------------------*/
 
 typedef void (*markfunc)(Object *ob);

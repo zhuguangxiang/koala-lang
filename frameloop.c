@@ -52,7 +52,7 @@ static int ConstItemToTValue(ConstItem *k, ItemTable *itable, TValue *ret)
     default: {
       debug_error("unknown const type:%d\n", k->type);
       *ret = NilValue;
-      assert(0);
+      ASSERT(0);
       break;
     }
   }
@@ -75,7 +75,7 @@ void koala_frame_loop(Frame *frame)
     itable = ((Klass *)meth->owner)->itable;
   else {
     debug_error("which is method owner?\n");
-    assert(0);
+    ASSERT(0);
   }
 
   uint8 inst;
@@ -106,7 +106,7 @@ void koala_frame_loop(Frame *frame)
         //method name is full path
         index = fetch_arg4(frame, codes);
         ConstItemToTValue(k + index, itable, &val);
-        assert(VALUE_ISOBJECT(&val));
+        ASSERT(VALUE_ISOBJECT(&val));
         //frame_new(rt, KState_Find_Method());
         loopflag = 0;
         break;
@@ -129,7 +129,7 @@ void koala_frame_loop(Frame *frame)
       }
       default: {
         debug_error("unknown instruction:%d\n", inst);
-        assert(0);
+        ASSERT(0);
       }
     }
   }

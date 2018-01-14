@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "common.h"
 #include "hashtable.h"
 
 /*
@@ -77,7 +78,7 @@ void test_number_hash_table(void) {
   int i;
   int value = 100;
   table = HashTable_Create(number_hash, number_equal);
-  assert(table);
+  ASSERT(table);
 
   srand(time(NULL) + getpid());
 
@@ -87,20 +88,12 @@ void test_number_hash_table(void) {
 
   for (i = 0; i < 1000000; i++) {
     value++; //= rand();
-    #if 0
-    if (check(value) != 0) {
-      srand(time(NULL) + getpid());
-      duplicated++;
-      continue;
-    }
-    #endif
-
     num = number_alloc();
-    assert(num);
+    ASSERT(num);
     num->value = value;
     init_hash_node(&num->hnode, &num->value);
     failed = HashTable_Insert(table, &num->hnode);
-    //assert(!failed);
+    //ASSERT(!failed);
     if (failed != 0) {
       //srand(time(NULL) + getpid());
       sleep(1);
@@ -108,7 +101,7 @@ void test_number_hash_table(void) {
     }
 
     struct hash_node *hnode = HashTable_Find(table, &value);
-    assert(hnode != NULL);
+    ASSERT(hnode != NULL);
   }
 
   HashTable_Traverse(table, number_show, NULL);
@@ -117,9 +110,9 @@ void test_number_hash_table(void) {
   for (i = 0; i < 1000000; i++) {
     value++;
     struct hash_node *hnode = HashTable_Find(table, &value);
-    assert(hnode != NULL);
+    ASSERT_PTR(hnode);
     int res = HashTable_Remove(table, hnode);
-    assert(res == 0);
+    ASSERT(res == 0);
   }
   printf("num:%d\n", table->nr_nodes);
   printf("duplicated:%d\n", duplicated);
@@ -195,10 +188,10 @@ void test_string_hash_table(void) {
 
     for (i = 0; i < 1000000; i++ ) {
         str = string_alloc(10);
-        assert(str);
+        ASSERT_PTR(str);
         init_hash_node(&str->hnode, &str->value);
         failed = HashTable_Insert(string_hash, &str->hnode);
-        assert(!failed);
+        ASSERT(!failed);
     }
 
     HashTable_Destroy(string_hash, NULL, NULL);

@@ -1,7 +1,7 @@
 
 #include <unistd.h>
 #include <time.h>
-#include "types.h"
+#include "common.h"
 #include "vector.h"
 /*
  ./build_lib.sh
@@ -31,11 +31,11 @@ char *strings[30];
 void test_vector_set(void) {
   Vector *vec;
   vec = Vector_Create(sizeof(char *));
-  assert(vec);
+  ASSERT_PTR(vec);
   int res;
   for (int i = 0; i < 30; i++) {
     res = Vector_Set(vec, i, strings+i);
-    assert(res >= 0);
+    ASSERT(res >= 0);
   }
 
   for (int i = 0; i < Vector_Capacity(vec); i++) {

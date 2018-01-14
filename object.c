@@ -118,7 +118,7 @@ va_convert_t *get_convert(char ch)
     }
   }
   debug_error("unsupported type: %d\n", ch);
-  assert(0);
+  ASSERT(0);
   return NULL;
 }
 
@@ -242,7 +242,7 @@ int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs)
     meth = CMethod_New(f->func);
     res = Klass_Add_Method(klazz, f->name, f->rdesc, f->pdesc,
                            (uint8)f->access, meth);
-    assert(res == 0);
+    ASSERT(res == 0);
     ++f;
   }
   return 0;
@@ -254,7 +254,7 @@ int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs)
 
 // static Object *__klass_get_method(Object *klazz, Object *args)
 // {
-//   assert(OB_KLASS(klazz) == &Klass_Klass);
+//   ASSERT(OB_KLASS(klazz) == &Klass_Klass);
 //   char *str = NULL;
 //   Tuple_Parse(args, "s", &str);
 //   TValue v;
@@ -309,7 +309,7 @@ static void klass_free(Object *ob)
   // Klass_Klass cannot be freed.
   if (ob == (Object *)&Klass_Klass) {
     debug_error("Klass_Klass cannot be freed\n");
-    assert(0);
+    ASSERT(0);
   }
 
   OB_ASSERT_KLASS(ob, Klass_Klass);
