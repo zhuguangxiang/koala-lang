@@ -7,6 +7,7 @@
 #include "tableobject.h"
 #include "moduleobject.h"
 #include "methodobject.h"
+#include "routine.h"
 #include "kstate.h"
 
 #ifdef __cplusplus

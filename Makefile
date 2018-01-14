@@ -54,3 +54,5 @@ testhashtable: lib
 	@$(CC) $(CFLAGS) test_hashtable.c -l$(KOALA_LIB) -L. -lrt
 testcode: lib
 	@$(CC) $(CFLAGS) test_kcodeformat.c -l$(KOALA_LIB) -L. -lrt
+testrt: lib
+	@$(CC) $(CFLAGS) test_routine.c -l$(KOALA_LIB) -L. -lrt

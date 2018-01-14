@@ -105,55 +105,52 @@ int Module_Get_Value(Object *ob, char *name, TValue *v)
   return -1;
 }
 
-int Module_Get_Function(Object *ob, char *name, Object **func)
+Object *Module_Get_Function(Object *ob, char *name)
 {
   OB_ASSERT_KLASS(ob, Module_Klass);
   ModuleObject *mo = (ModuleObject *)ob;
   Symbol *s = __module_get(mo, name);
   if (s != NULL) {
     if (s->kind == SYM_FUNC) {
-      *func = s->value.obj;
-      return 0;
+      return s->value.obj;
     } else {
       debug_error("symbol is not a function\n");
     }
   }
 
-  return -1;
+  return NULL;
 }
 
-int Module_Get_Class(Object *ob, char *name, Object **klazz)
+Object *Module_Get_Class(Object *ob, char *name)
 {
   OB_ASSERT_KLASS(ob, Module_Klass);
   ModuleObject *mo = (ModuleObject *)ob;
   Symbol *s = __module_get(mo, name);
   if (s != NULL) {
     if (s->kind == SYM_CLASS) {
-      *klazz = s->value.obj;
-      return 0;
+      return s->value.obj;
     } else {
       debug_error("symbol is not a class\n");
     }
   }
 
-  return -1;
+  return NULL;
 }
 
-int Module_Get_Interface(Object *ob, char *name, Object **klazz)
+Object *Module_Get_Interface(Object *ob, char *name)
 {
   OB_ASSERT_KLASS(ob, Module_Klass);
   ModuleObject *mo = (ModuleObject *)ob;
   Symbol *s = __module_get(mo, name);
   if (s != NULL) {
     if (s->kind == SYM_INTF) {
-      *klazz = s->value.obj;
-      return 0;
+      return s->value.obj;
     } else {
       debug_error("symbol is not a interface\n");
     }
   }
 
-  return -1;
+  return NULL;
 }
 
 int Module_Add_CFunctions(Object *ob, FunctionStruct *funcs)

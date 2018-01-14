@@ -40,7 +40,7 @@ void test_object(void)
   s = String_To_CString(ob);
   ASSERT(strcmp(s, "hello") == 0);
 
-  ob = KState_Find_Module(&ks, "koala/lang");
+  ob = KState_Get_Module(&ks, "koala/lang");
   Object *klazz;
   Module_Get_Class(ob, "Tuple", &klazz);
   KLASS_ASSERT(klazz, Tuple_Klass);

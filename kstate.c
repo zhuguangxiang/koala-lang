@@ -104,7 +104,7 @@ int KState_Add_Module(KoalaState *ks, char *path, Object *mo)
   return 0;
 }
 
-Object *KState_Find_Module(KoalaState *ks, char *path)
+Object *KState_Get_Module(KoalaState *ks, char *path)
 {
   struct mod_entry e = {.path = path};
   HashNode *hnode = HashTable_Find(&ks->modules, &e);

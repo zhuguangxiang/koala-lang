@@ -60,7 +60,7 @@
 
 void test_module(void)
 {
-  Object *ob = KState_Find_Module(&ks, "koala/lang");
+  Object *ob = KState_Get_Module(&ks, "koala/lang");
   Module_Display(ob);
   Object *klazz;
   Module_Get_Class(ob, "Tuple", &klazz);

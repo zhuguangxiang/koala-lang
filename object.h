@@ -87,7 +87,7 @@ int TValue_Parse(TValue *val, char ch, ...);
 /*-------------------------------------------------------------------------*/
 
 #define OBJECT_HEAD \
-  struct list_head ob_link; Object *ob_next; int ob_ref; Klass *ob_klass;
+  Object *ob_next; int ob_ref; Klass *ob_klass;
 
 struct object {
   OBJECT_HEAD

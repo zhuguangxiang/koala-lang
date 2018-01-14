@@ -45,20 +45,22 @@ void frame_run(Frame *frame)
   MethodObject *mo = (MethodObject *)frame->func;
   if (mo->type == METH_CFUNC) {
     /* Get object and arguments */
-    Object *args = NULL;
     int stk_size = rt_stack_size(rt);
-    if (stk_size > 0) {
-      args = Tuple_From_TValues(rt->stack + 1, stk_size - 1);
-    }
+    ASSERT(stk_size > 0);
+    TValue val = rt_stack_get(rt, 0);
+    ASSERT(VALUE_ISOBJECT(&val));
+    Object *obj = VALUE_OBJECT(&val);
+    Object *args = Tuple_From_TValues(rt->stack + 1, stk_size - 1);
+    rt_stack_clear(rt);
 
     /* Call C's function */
-    Object *result = mo->cf(mo->owner, args);
+    Object *result = mo->cf(obj, args);
 
     /* Save result */
     if (result != NULL) {
       TValue val;
       int size = Tuple_Size(result);
-      ASSERT(size == mo->nr_rets);
+      //ASSERT(size == mo->nr_rets);
       if (size > 0) {
         for (int i = 0; i < size; i++) {
           Tuple_Get(result, i, &val);
@@ -86,8 +88,10 @@ void frame_run(Frame *frame)
 
 /*-------------------------------------------------------------------------*/
 // go func(123, "abc"), or go mod.func(), not allowed go obj.method(123,"abc")
-Object *Routine_New(Object *func, Object *args)
+Object *Routine_New(Object *func, Object *obj, Object *args)
 {
+  ASSERT_PTR(func);
+  ASSERT_PTR(obj);
   OB_ASSERT_KLASS(func, Method_Klass);
 
   Routine *rt = malloc(sizeof(*rt));
@@ -101,11 +105,16 @@ Object *Routine_New(Object *func, Object *args)
     init_nil_value(&rt->stack[i]);
 
   TValue val;
-  int size = Tuple_Size(args);
-  for (i = 0; i < size; i++) {
-    Tuple_Get(args, i, &val);
-    ASSERT(!VALUE_ISNIL(&val));
-    rt_stack_push(rt, &val);
+  set_object_value(&val, obj);
+  rt_stack_push(rt, &val);
+
+  if (args != NULL) {
+    int size = Tuple_Size(args);
+    for (i = 0; i < size; i++) {
+      Tuple_Get(args, i, &val);
+      ASSERT(!VALUE_ISNIL(&val));
+      rt_stack_push(rt, &val);
+    }
   }
 
   frame_new(rt, func);
@@ -123,9 +132,53 @@ static void routine_task_func(struct task *tsk)
   }
 }
 
-void Routine_Run(Routine *rt, short prio)
+void Routine_Run(Object *ob, short prio)
 {
+  OB_ASSERT_KLASS(ob, Routine_Klass);
+  Routine *rt = (Routine *)ob;
   task_init(&rt->task, "routine", prio, routine_task_func, rt);
+}
+
+int Routine_State(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, Routine_Klass);
+  Routine *rt = (Routine *)ob;
+  return rt->task.state;
+}
+
+/*-------------------------------------------------------------------------*/
+
+TValue rt_stack_pop(void *ob)
+{
+  Routine *rt = ob;
+  if (rt->top >= 0) return rt->stack[rt->top--];
+  else return NilValue;
+}
+
+void rt_stack_push(void *ob, TValue *v)
+{
+  Routine *rt = ob;
+  ASSERT(rt->top < ROUTINE_STACK_SIZE - 1);
+  rt->stack[++rt->top] = *v;
+}
+
+TValue rt_stack_get(void *ob, int index)
+{
+  Routine *rt = ob;
+  ASSERT(index >= 0 && index <= rt->top);
+  return rt->stack[index];
+}
+
+int rt_stack_size(void *ob)
+{
+  Routine *rt = ob;
+  return rt->top + 1;
+}
+
+void rt_stack_clear(void *ob)
+{
+  Routine *rt = ob;
+  rt->top = -1;
 }
 
 /*-------------------------------------------------------------------------*/

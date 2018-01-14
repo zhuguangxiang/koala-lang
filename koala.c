@@ -32,6 +32,7 @@ void Koala_Init(void)
   KState_Init(&ks);
   Init_Modules();
   sched_init();
+  schedule();
 }
 
 void Koala_Run_String(char *str)

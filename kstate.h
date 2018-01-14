@@ -31,7 +31,7 @@ void KState_Init(KoalaState *ks);
 void KState_Fini(KoalaState *ks);
 int KState_Add_Module(KoalaState *ks, char *path, Object *mo);
 int KState_Load_Module(KoalaState *ks, char *path);
-Object *KState_Find_Module(KoalaState *ks, char *path);
+Object *KState_Get_Module(KoalaState *ks, char *path);
 
 #ifdef __cplusplus
 }
