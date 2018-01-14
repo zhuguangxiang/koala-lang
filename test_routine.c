@@ -54,6 +54,6 @@ int main(int argc, char *argv[]) {
   test_routine();
   Koala_Fini();
 
-  thread_forever();
+  //thread_forever();
   return 0;
 }
