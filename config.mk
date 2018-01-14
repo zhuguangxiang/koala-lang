@@ -28,7 +28,7 @@ OPTFLAGS = #-O2
 
 CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I$(TOPDIR) -Wbad-function-cast
 
-CFLAGS = $(CPPFLAGS) -W -Wall -Wpointer-arith -Wstrict-prototypes -pthread -lrt
+CFLAGS = $(CPPFLAGS) -W -Wall -Wpointer-arith -Wstrict-prototypes -pthread
 
 #########################################################################
 

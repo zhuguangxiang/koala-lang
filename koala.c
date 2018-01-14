@@ -1,5 +1,7 @@
 
+#include "koala.h"
 #include "mod_io.h"
+#include "thread.h"
 
 KoalaState ks;
 
@@ -29,6 +31,7 @@ void Koala_Init(void)
 {
   KState_Init(&ks);
   Init_Modules();
+  sched_init();
 }
 
 void Koala_Run_String(char *str)

@@ -37,20 +37,20 @@ lib:
 	@$(RM) *.o
 
 testvector: lib
-	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt
 testtuple: lib
-	@$(CC) $(CFLAGS) test_tuple.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_tuple.c -l$(KOALA_LIB) -L. -lrt
 testthread: lib
 	@$(CC) $(CFLAGS) test_thread.c -l$(KOALA_LIB) -L. -lrt
 teststring: lib
-	@$(CC) $(CFLAGS) test_string.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_string.c -l$(KOALA_LIB) -L. -lrt
 testobject: lib
-	@$(CC) $(CFLAGS) test_object.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_object.c -l$(KOALA_LIB) -L. -lrt
 testmodule: lib
-	@$(CC) $(CFLAGS) test_module.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_module.c -l$(KOALA_LIB) -L. -lrt
 testlist: lib
-	@$(CC) $(CFLAGS) test_list.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_list.c -l$(KOALA_LIB) -L. -lrt
 testhashtable: lib
-	@$(CC) $(CFLAGS) test_hashtable.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_hashtable.c -l$(KOALA_LIB) -L. -lrt
 testcode: lib
-	@$(CC) $(CFLAGS) test_kcodeformat.c -l$(KOALA_LIB) -L.
+	@$(CC) $(CFLAGS) test_kcodeformat.c -l$(KOALA_LIB) -L. -lrt
