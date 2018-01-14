@@ -125,7 +125,7 @@ static void routine_task_func(struct task *tsk)
 
 void Routine_Run(Routine *rt, short prio)
 {
-  task_init(&rt->task, prio, routine_task_func, rt);
+  task_init(&rt->task, "routine", prio, routine_task_func, rt);
 }
 
 /*-------------------------------------------------------------------------*/

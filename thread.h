@@ -6,15 +6,7 @@
 #include <semaphore.h>
 #include <signal.h>
 #include <time.h>
-
-#ifdef __linux__
 #include <ucontext.h>
-#elif __APPLE__
-#include <sys/ucontext.h>
-#else
-#error "Unsupported Operating System"
-#endif
-
 #include "list.h"
 
 #ifdef __cplusplus
@@ -30,7 +22,13 @@ extern "C" {
 #define PRIO_NORMAL  1
 #define PRIO_LOW     2
 
+#define NAME_SIZE  16
+#define NR_PRIORITY 3
+#define NR_THREADS  1
+#define TASK_STACK_SIZE 8192
+
 struct task {
+  char name[NAME_SIZE];
   struct list_head link;
   short state;
   short prio;
@@ -48,36 +46,37 @@ struct locker {
   struct list_head wait_list;
 };
 
-#define THREAD_NAME_SIZE  16
-
 struct thread {
-  char name[THREAD_NAME_SIZE];
+  char name[NAME_SIZE];
   pthread_t id;
   ucontext_t ctx;
   struct task *current;
+  int runsize;
+  struct list_head runlist;
+  pthread_mutex_t lock;
+  pthread_cond_t cond;
 };
-
-#define NR_PRIORITY 3
-#define NR_THREADS  2
-#define TASK_STACK_SIZE 8192
 
 struct scheduler {
   struct list_head readylist[NR_PRIORITY];
   struct list_head suspendlist;
   struct list_head sleeplist;
-  pthread_mutex_t lock;
-  pthread_cond_t cond;
   uint64 idgen;
   sem_t timer_sem;
-  pthread_t timer_thread;
   timer_t timer;
   uint64 tick;
   uint64 clock;
+  pthread_t timer_thread;
+  pthread_t mover_thread;
+  pthread_mutex_t lock;
+  pthread_cond_t cond;
+  pthread_mutex_t sleeplock;
   struct thread threads[NR_THREADS];
 };
 
 typedef void (*task_func)(struct task *);
-int task_init(struct task *tsk, short prio, task_func run, void *arg);
+int task_init(struct task *tsk, char *name, short prio,
+              task_func run, void *arg);
 void task_sleep(struct task *tsk, int second);
 void task_exit(struct task *tsk);
 void task_yield(struct task *tsk);

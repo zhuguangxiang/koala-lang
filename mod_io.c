@@ -6,6 +6,7 @@ static Object *__io_print(Object *ob, Object *args)
   UNUSED_PARAMETER(ob);
   OB_ASSERT_KLASS(args, String_Klass);
   fprintf(stdout, "%s", String_To_CString(args));
+  fflush(stdout);
   return NULL;
 }
 
