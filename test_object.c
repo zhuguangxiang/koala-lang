@@ -40,7 +40,7 @@ void test_object(void)
   s = String_To_CString(ob);
   ASSERT(strcmp(s, "hello") == 0);
 
-  ob = GState_Find_Module(&gs, "koala/lang");
+  ob = KState_Find_Module(&ks, "koala/lang");
   Object *klazz;
   Module_Get_Class(ob, "Tuple", &klazz);
   KLASS_ASSERT(klazz, Tuple_Klass);
@@ -53,9 +53,9 @@ int main(int argc, char *argv[]) {
   UNUSED_PARAMETER(argc);
   UNUSED_PARAMETER(argv);
 
-  Koala_Initialize();
+  Koala_Init();
   test_object();
-  Koala_Finalize();
+  Koala_Fini();
 
   return 0;
 }

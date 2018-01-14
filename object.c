@@ -252,46 +252,10 @@ int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs)
 
 /*-------------------------------------------------------------------------*/
 
-// static Object *__klass_get_method(Object *klazz, Object *args)
-// {
-//   ASSERT(OB_KLASS(klazz) == &Klass_Klass);
-//   char *str = NULL;
-//   Tuple_Parse(args, "s", &str);
-//   TValue v;
-//   if (Klass_Get((Klass *)klazz, str, NULL, &v)) return NULL;
-//   return Tuple_From_Va_TValues(1, &v);
-// }
-
-// static FunctionStruct klass_cmethods[] = {
-//   {
-//     "GetField",
-//     "okoala/reflect.Field;",
-//     "s",
-//     ACCESS_PUBLIC,
-//     NULL
-//   },
-//   {
-//     "GetMethod",
-//     "okoala/reflect.Method;",
-//     "s",
-//     ACCESS_PUBLIC,
-//     __klass_get_method
-//   },
-//   {
-//     "NewInstance",
-//     NULL,
-//     NULL,
-//     ACCESS_PUBLIC,
-//     NULL
-//   },
-//   {NULL, NULL, NULL, 0, NULL}
-// };
-
 void Init_Klass_Klass(Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
   String_Klass.itable = mo->itable;
-  //Klass_Add_CFunctions(&Klass_Klass, klass_functions);
   Module_Add_Class(ob, &Klass_Klass, ACCESS_PUBLIC);
 }
 

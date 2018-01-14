@@ -15,9 +15,9 @@ int main(int argc, char *argv[]) {
   UNUSED_PARAMETER(argc);
   UNUSED_PARAMETER(argv);
 
-  Koala_Initialize();
+  Koala_Init();
   test_string();
-  Koala_Finalize();
+  Koala_Fini();
 
   return 0;
 }

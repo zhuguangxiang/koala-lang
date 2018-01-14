@@ -1,7 +1,7 @@
 
 #include "list.h"
 #include <stdlib.h>
-#include <ASSERT.h>
+#include <assert.h>
 
 /*
  gcc -g -std=c99 test_list.c
@@ -100,6 +100,8 @@ void test_hlist(void)
 
 int main(int argc, char *argv[])
 {
+  UNUSED_PARAMETER(argc);
+  UNUSED_PARAMETER(argv);
   test_list();
   test_hlist();
 }

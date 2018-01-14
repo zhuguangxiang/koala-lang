@@ -5,7 +5,7 @@
 
 Symbol *Symbol_New(int name_index, uint8 kind, uint8 access, int desc_index)
 {
-  struct symbol *sym = calloc(1, sizeof(struct symbol));
+  Symbol *sym = calloc(1, sizeof(Symbol));
   init_hash_node(&sym->hnode, sym);
   sym->name_index = name_index;
   sym->kind = kind;

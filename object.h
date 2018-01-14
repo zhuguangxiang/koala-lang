@@ -3,7 +3,7 @@
 #define _KOALA_OBJECT_H_
 
 #include "common.h"
-#include "codeformat.h"
+#include "kcodeformat.h"
 #include "symbol.h"
 
 #ifdef __cplusplus

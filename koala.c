@@ -1,11 +1,9 @@
 
-#include "koala.h"
-#include "symbol.h"
+#include "mod_io.h"
 
 KoalaState ks;
 
-/* koala/lang.klc */
-static void init_lang_module(void)
+static void Init_Lang_Module(void)
 {
   Object *ob = Module_New("lang", "koala/lang", 0);
   Init_Klass_Klass(ob);
@@ -16,16 +14,13 @@ static void init_lang_module(void)
   Init_Method_Klass(ob);
 }
 
-/* koala/io.klc */
-static void init_io_module(void)
+static void Init_Modules(void)
 {
+  /* koala/lang.klc */
+  Init_Lang_Module();
 
-}
-
-static void init_modules(void)
-{
-  init_lang_module();
-  init_io_module();
+  /* koala/io.klc */
+  Init_IO_Module();
 }
 
 /*-------------------------------------------------------------------------*/
@@ -33,7 +28,7 @@ static void init_modules(void)
 void Koala_Init(void)
 {
   KState_Init(&ks);
-  init_modules();
+  Init_Modules();
 }
 
 void Koala_Run_String(char *str)

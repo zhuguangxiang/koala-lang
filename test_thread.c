@@ -58,6 +58,9 @@ extern struct scheduler sched;
 
 int main(int argc, char *argv[])
 {
+  UNUSED_PARAMETER(argc);
+  UNUSED_PARAMETER(argv);
+
   sched_init();
 
   struct task task1, task2, task3, task4;

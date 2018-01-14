@@ -36,11 +36,11 @@ struct number *number_alloc(void) {
 }
 
 void number_free(struct hash_node *hnode) {
-  //printf("free:0x%x\t", num->value);
+  UNUSED_PARAMETER(hnode);
 }
 
 int idx = 0;
-int values[2000000];
+uint32 values[2000000];
 
 int check(uint32 val) {
   int i = 0;
@@ -56,6 +56,7 @@ int check(uint32 val) {
 
 void number_show(struct hlist_head *head, int size, void *arg)
 {
+  UNUSED_PARAMETER(arg);
   struct number *num;
   struct hash_node *hnode;
   for (int i = 0; i < size; i++) {
@@ -156,7 +157,8 @@ int string_idx;
 
 struct string *string_alloc(int len) {
     int failed;
-    struct string *str = (struct string *)&string_mem[string_idx * (sizeof(struct string) + 20)];   //malloc(sizeof(*str) + len + 1);
+    struct string *str = (struct string *)&string_mem[
+      string_idx * (sizeof(struct string) + 20)];
     if (!str)
         return NULL;
     failed = random_string((char *)(str + 1), len);
@@ -171,7 +173,7 @@ struct string *string_alloc(int len) {
 }
 
 void string_free(struct hash_node *hnode) {
-    //free(str);
+  UNUSED_PARAMETER(hnode);
 }
 
 void test_string_hash_table(void) {
@@ -179,8 +181,6 @@ void test_string_hash_table(void) {
     int failed;
     struct hash_table *string_hash;
     int i;
-    //struct ht_iterator iter;
-    struct hash_node *hnode;
 
     string_hash = HashTable_Create(string_hash_fn, string_equal_fn);
 
@@ -198,6 +198,8 @@ void test_string_hash_table(void) {
 }
 
 int main(int argc, char *argv[]) {
+  UNUSED_PARAMETER(argc);
+  UNUSED_PARAMETER(argv);
   printf("start:%d\n", (unsigned)time(0));
   test_number_hash_table();
   printf("end:%d\n", (unsigned)time(0));

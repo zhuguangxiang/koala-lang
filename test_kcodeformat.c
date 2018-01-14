@@ -1,12 +1,12 @@
 
-#include "codeformat.h"
+#include "kcodeformat.h"
 #include "object.h"
 #include "moduleobject.h"
 #include "symbol.h"
 
 /*
  make lib
- gcc -g -std=c99 test_codeformat.c -lkoala -L.
+ gcc -g -std=c99 test_kcodeformat.c -lkoala -L.
  */
 int main(int argc, char *argv[])
 {

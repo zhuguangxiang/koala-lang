@@ -42,6 +42,7 @@ static int mod_entry_equal(void *k1, void *k2)
 
 static void mod_entry_fini(HashNode *hnode, void *arg)
 {
+  UNUSED_PARAMETER(arg);
   struct mod_entry *e = container_of(hnode, struct mod_entry, hnode);
   free_mod_entry(e);
 }
@@ -77,6 +78,8 @@ void KState_Init(KoalaState *ks)
 
   ks->itable = ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
 
+  ks->gcs = NULL;
+
   ks->nr_rts = 0;
   init_list_head(&ks->rt_list);
 }
@@ -84,14 +87,6 @@ void KState_Init(KoalaState *ks)
 void KState_Fini(KoalaState *ks)
 {
   HashTable_Fini(&ks->modules, mod_entry_fini, ks);
-}
-
-KoalaState *KState_Create(void)
-{
-  KoalaState *ks = malloc(sizeof(*ks));
-  ASSERT_PTR(ks);
-  KState_Init(ks);
-  return ks;
 }
 
 /*-------------------------------------------------------------------------*/

@@ -2,7 +2,7 @@
 #ifndef _KOALA_SYMBOL_H_
 #define _KOALA_SYMBOL_H_
 
-#include "codeformat.h"
+#include "kcodeformat.h"
 #include "itemtable.h"
 
 #ifdef __cplusplus

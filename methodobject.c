@@ -42,39 +42,11 @@ Object *Method_Invoke(Object *method, Object *ob, Object *args)
 }
 
 /*-------------------------------------------------------------------------*/
-// static Object *__method_invoke(Object *ob, Object *args)
-// {
-//   ASSERT(OB_KLASS(ob) == &Method_Klass);
-//   MethodObject *m = (MethodObject *)ob;
-//   if (m->type == METH_CFUNC) {
-//     TValue v = Tuple_Get(args, 0);
-//     ASSERT(TV_ISOBJECT(&v));
-//     Object *newargs = Tuple_Get_Slice(args, 1, Tuple_Size(args) - 1);
-//     Object *res = Method_Invoke(ob, TV_OBJECT(&v), newargs);
-//     //ob_decref(newargs);
-//     return res;
-//   } else {
-//     // new frame and execute it
-//     return NULL;
-//   }
-// }
-
-// static CMethodStruct method_cmethods[] = {
-//   {
-//     "Invoke",
-//     "a",
-//     "a[a",
-//     ACCESS_PUBLIC,
-//     __method_invoke
-//   },
-//   {NULL, NULL, NULL, 0, NULL}
-// };
 
 void Init_Method_Klass(Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
   Method_Klass.itable = mo->itable;
-  //Klass_Add_CFunctions(&Method_Klass, method_functions);
   Module_Add_Class(ob, &Method_Klass, ACCESS_PUBLIC);
 }
 

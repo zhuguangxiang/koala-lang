@@ -171,7 +171,7 @@ static Object *__table_put(Object *ob, Object *args)
 }
 
 static FunctionStruct table_functions[] = {
-  {"Put", "z", "AA", ACCESS_PUBLIC, __table_put},
+  {"Put", "i", "AA", ACCESS_PUBLIC, __table_put},
   {"Get", "A", "A", ACCESS_PUBLIC, __table_get},
   {NULL}
 };

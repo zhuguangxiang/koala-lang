@@ -184,7 +184,6 @@ void Init_Module_Klass(Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
   Module_Klass.itable = mo->itable;
-  //Klass_Add_CFunctions(&Module_Klass, module_functions);
   Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
 }
 

@@ -1,6 +1,5 @@
 
 #include "koala.h"
-#include <unistd.h>
 
 /* gcc -g -std=c99 test_module.c -lkoala -L. */
 
@@ -61,7 +60,7 @@
 
 void test_module(void)
 {
-  Object *ob = GState_Find_Module(&gs, "koala/lang");
+  Object *ob = KState_Find_Module(&ks, "koala/lang");
   Module_Display(ob);
   Object *klazz;
   Module_Get_Class(ob, "Tuple", &klazz);
@@ -242,9 +241,9 @@ int main(int argc, char *argv[])
   UNUSED_PARAMETER(argc);
   UNUSED_PARAMETER(argv);
 
-  Koala_Initialize();
+  Koala_Init();
   test_module();
-  Koala_Finalize();
+  Koala_Fini();
 
   return 0;
 }

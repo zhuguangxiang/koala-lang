@@ -30,17 +30,17 @@ char *strings[30];
 
 void test_vector_set(void) {
   Vector *vec;
-  vec = Vector_Create(sizeof(char *));
+  vec = Vector_Create();
   ASSERT_PTR(vec);
   int res;
   for (int i = 0; i < 30; i++) {
-    res = Vector_Set(vec, i, strings+i);
+    res = Vector_Set(vec, i, strings[i]);
     ASSERT(res >= 0);
   }
 
   for (int i = 0; i < Vector_Capacity(vec); i++) {
-    char **s = (char **)Vector_Get(vec, i);
-    if (s && *s) printf("%s\n", *s);
+    char *s = (char *)Vector_Get(vec, i);
+    if (s) printf("%s\n", s);
   }
 
   Vector_Destroy(vec, NULL, NULL);
@@ -55,6 +55,8 @@ void init_strings(void) {
 }
 
 int main(int argc, char *argv[]) {
+  UNUSED_PARAMETER(argc);
+  UNUSED_PARAMETER(argv);
   init_strings();
   test_vector_set();
   return 0;
