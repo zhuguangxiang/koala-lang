@@ -14,6 +14,7 @@ void test_routine(void)
   TValue val = rt_stack_pop(rt);
   ASSERT(VALUE_ISINT(&val));
   printf("size:%lld\n", VALUE_INT(&val));
+  assert(VALUE_INT(&val) == 10);
   assert(rt_stack_size(rt) == 0);
 
   method = Klass_Get_Method((Klass *)klazz, "Get");
@@ -32,6 +33,7 @@ void test_routine(void)
   val = rt_stack_pop(rt);
   ASSERT(VALUE_ISINT(&val));
   printf("int value:%lld\n", VALUE_INT(&val));
+  assert(VALUE_INT(&val) == 100);
   assert(rt_stack_size(rt) == 0);
 
   set_int_value(&val, 1);
@@ -43,6 +45,7 @@ void test_routine(void)
   val = rt_stack_pop(rt);
   ASSERT(VALUE_ISBOOL(&val));
   printf("bool value:%d\n", VALUE_BOOL(&val));
+  assert(VALUE_BOOL(&val) == 1);
   assert(rt_stack_size(rt) == 0);
 }
 
