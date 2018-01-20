@@ -14,7 +14,7 @@ extern Klass Tuple_Klass;
 void Init_Tuple_Klass(Object *ob);
 
 Object *Tuple_New(int size);
-int Tuple_Get(Object *ob, int index, TValue *ret);
+TValue Tuple_Get(Object *ob, int index);
 Object *Tuple_Get_Slice(Object *ob, int min, int max);
 int Tuple_Set(Object *ob, int index, TValue *val);
 int Tuple_Size(Object *ob);

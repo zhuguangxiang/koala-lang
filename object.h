@@ -3,7 +3,7 @@
 #define _KOALA_OBJECT_H_
 
 #include "common.h"
-#include "kcodeformat.h"
+#include "codeformat.h"
 #include "symbol.h"
 
 #ifdef __cplusplus
@@ -20,6 +20,7 @@ typedef struct klass Klass;
 #define TYPE_FLOAT  2
 #define TYPE_BOOL   3
 #define TYPE_OBJECT 4
+#define TYPE_CSTR   5
 
 typedef struct value {
   int type;
@@ -28,6 +29,7 @@ typedef struct value {
     float64 fval;
     int bval;
     struct object *ob;
+    char *cstr;
   };
 } TValue;
 
@@ -37,24 +39,32 @@ extern TValue TrueValue;
 extern TValue FalseValue;
 
 /* Macros to initialize struct value */
-#define init_nil_value(v) do { \
-  (v)->type = TYPE_NIL; (v)->ival = 0; \
+#define initnilvalue(v) do { \
+  (v)->type = TYPE_NIL; (v)->ival = (int64)0; \
 } while (0)
 
-#define set_int_value(v, _v) do { \
-  (v)->type = TYPE_INT; (v)->ival = _v; \
+#define setivalue(v, _v) do { \
+  (v)->type = TYPE_INT; (v)->ival = (int64)_v; \
 } while (0)
 
-#define set_float_value(v, _v) do { \
-  (v)->type = TYPE_FLOAT; (v)->fval = _v; \
+#define setfltvalue(v, _v) do { \
+  (v)->type = TYPE_FLOAT; (v)->fval = (float64)_v; \
 } while (0)
 
-#define set_bool_value(v, _v) do { \
-  (v)->type = TYPE_BOOL; (v)->bval = _v; \
+#define setbvalue(v, _v) do { \
+  (v)->type = TYPE_BOOL; (v)->bval = (int)_v; \
 } while (0)
 
-#define set_object_value(v, _v) do { \
-  (v)->type = TYPE_OBJECT; (v)->ob = _v; \
+#define setobjvalue(v, _v) do { \
+  (v)->type = TYPE_OBJECT; (v)->ob = (Object *)_v; \
+} while (0)
+
+#define setcstrvalue(v, _v) do { \
+  (v)->type = TYPE_CSTR; (v)->cstr = (void *)_v; \
+} while (0)
+
+#define setkstrvalue(v, _v) do { \
+  (v)->type = TYPE_OBJECT; (v)->ob = String_New(_v); \
 } while (0)
 
 #define NIL_VALUE_INIT()      {.type = TYPE_NIL,    .ival = 0}
@@ -63,24 +73,36 @@ extern TValue FalseValue;
 #define BOOL_VALUE_INIT(v)    {.type = TYPE_BOOL,   .bval = (v)}
 #define OBJECT_VALUE_INIT(v)  {.type = TYPE_OBJECT, .ob   = (v)}
 
+/* Macros to test type */
+#define VALUE_ISNIL(v)      (VALUE_TYPE(v) == TYPE_NIL)
+#define VALUE_ISINT(v)      (VALUE_TYPE(v) == TYPE_INT)
+#define VALUE_ISFLOAT(v)    (VALUE_TYPE(v) == TYPE_FLOAT)
+#define VALUE_ISBOOL(v)     (VALUE_TYPE(v) == TYPE_BOOL)
+#define VALUE_ISOBJECT(v)   (VALUE_TYPE(v) == TYPE_OBJECT)
+#define VALUE_ISSTRING(v)   (OB_CHECK_KLASS(VALUE_OBJECT(v), String_Klass))
+#define VALUE_ISCSTR(v)     (VALUE_TYPE(v) == TYPE_CSTR)
+
 /* Macros to access type & values */
 #define VALUE_TYPE(v)   ((v)->type)
-#define VALUE_INT(v)    ((v)->ival)
-#define VALUE_FLOAT(v)  ((v)->fval)
-#define VALUE_BOOL(v)   ((v)->bval)
-#define VALUE_OBJECT(v) ((v)->ob)
+#define VALUE_INT(v)    (ASSERT(VALUE_ISINT(v)), (v)->ival)
+#define VALUE_FLOAT(v)  (ASSERT(VALUE_ISFLOAT(v)), (v)->fval)
+#define VALUE_BOOL(v)   (ASSERT(VALUE_ISBOOL(v)), (v)->bval)
+#define VALUE_OBJECT(v) (ASSERT(VALUE_ISOBJECT(v)), (v)->ob)
+#define VALUE_STRING(v) (ASSERT(VALUE_ISSTRING(v)), (v)->ob)
+#define VALUE_CSTR(v)   (ASSERT(VALUE_ISCSTR(v)), (v)->cstr)
 
-/* Macros to test type */
-#define VALUE_ISNIL(v)     (VALUE_TYPE(v) == TYPE_NIL)
-#define VALUE_ISINT(v)     (VALUE_TYPE(v) == TYPE_INT)
-#define VALUE_ISFLOAT(v)   (VALUE_TYPE(v) == TYPE_FLOAT)
-#define VALUE_ISBOOL(v)    (VALUE_TYPE(v) == TYPE_BOOL)
-#define VALUE_ISOBJECT(v)  (VALUE_TYPE(v) == TYPE_OBJECT)
+/* Assert for TValue */
+#define VALUE_ASSERT(v)         (ASSERT(!VALUE_ISNIL(v)))
+#define VALUE_ASSERT_INT(v)     (ASSERT(VALUE_ISINT(v)))
+#define VALUE_ASSERT_FLOAT(v)   (ASSERT(VALUE_ISFLOAT(v)))
+#define VALUE_ASSERT_BOOL(v)    (ASSERT(VALUE_ISBOOL(v)))
+#define VALUE_ASSERT_OBJECT(v)  (ASSERT(VALUE_ISOBJECT(v)))
+#define VALUE_ASSERT_STRING(v)  (ASSERT(VALUE_ISSTRING(v)))
+#define VALUE_ASSERT_CSTR(v)    (ASSERT(VALUE_ISCSTR(v)))
 
 /* TValue utils's functions */
-#define VALUE_ASSERT_TYPE(v, t)  ASSERT(VALUE_TYPE(v) == (t))
-int Va_Build_Value(TValue *ret, char ch, va_list *ap);
-int TValue_Build(TValue *ret, char ch, ...);
+TValue Va_Build_Value(char ch, va_list *ap);
+TValue TValue_Build(char ch, ...);
 int Va_Parse_Value(TValue *val, char ch, va_list *ap);
 int TValue_Parse(TValue *val, char ch, ...);
 
@@ -106,6 +128,9 @@ struct object {
 #define OB_KLASS_EQUAL(ob1, ob2)    (OB_KLASS(ob1) == OB_KLASS(ob2))
 #define OB_CHECK_KLASS(ob, klazz)   (OB_KLASS(ob) == &(klazz))
 #define KLASS_ASSERT(klazz, expected) ASSERT(((Klass *)klazz) == &(expected))
+#define OB_TYPE_OF(ob, ctype, klazz) \
+  (OB_ASSERT_KLASS(ob, klazz), ((ctype *)ob))
+
 /*-------------------------------------------------------------------------*/
 
 typedef void (*markfunc)(Object *ob);
@@ -151,7 +176,10 @@ Symbol *Klass_Get(Klass *klazz, char *name);
 Object *Klass_Get_Method(Klass *klazz, char *name);
 
 /*-------------------------------------------------------------------------*/
-
+/*
+  All functions's proto, including c function and koala function
+  'args' and 'return' are both Tuple.
+ */
 typedef Object *(*cfunc)(Object *ob, Object *args);
 
 typedef struct function_struct {

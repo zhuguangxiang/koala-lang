@@ -18,7 +18,7 @@ extern Klass String_Klass;
 void Init_String_Klass(Object *ob);
 Object *String_New(char *str);
 void String_Free(Object *ob);
-char *String_To_CString(Object *ob);
+char *String_RawString(Object *ob);
 
 #ifdef __cplusplus
 }

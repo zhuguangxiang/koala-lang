@@ -12,24 +12,22 @@ Object *Tuple_New(int size)
   init_object_head(tuple, &Tuple_Klass);
   tuple->size = size;
   for (int i = 0; i < size; i++) {
-    init_nil_value(tuple->items + i);
+    initnilvalue(tuple->items + i);
   }
-  //Object_Add_GCList(tuple);
   return (Object *)tuple;
 }
 
-int Tuple_Get(Object *ob, int index, TValue *ret)
+TValue Tuple_Get(Object *ob, int index)
 {
   OB_ASSERT_KLASS(ob, Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
 
   if (index < 0 || index >= tuple->size) {
     debug_error("index %d out of bound\n", index);
-    return -1;
+    return NilValue;
   }
 
-  *ret = tuple->items[index];
-  return 0;
+  return tuple->items[index];
 }
 
 Object *Tuple_Get_Slice(Object *ob, int min, int max)
@@ -42,7 +40,8 @@ Object *Tuple_Get_Slice(Object *ob, int min, int max)
   TValue val;
   int i = 0;
   while (index <= max) {
-    if (Tuple_Get(ob, index, &val) < 0) return NULL;
+    val = Tuple_Get(ob, index);
+    if (VALUE_ISNIL(&val)) return NULL;
     Tuple_Set(tuple, i, &val);
     i++; index++;
   }
@@ -123,7 +122,7 @@ Object *Tuple_Build(char *format, ...)
 
   va_start(vp, format);
   while ((ch = *fmt++)) {
-    Va_Build_Value(&val, ch, &vp);
+    val = Va_Build_Value(ch, &vp);
     Tuple_Set(ob, i++, &val);
   }
   va_end(vp);
@@ -133,19 +132,15 @@ Object *Tuple_Build(char *format, ...)
 
 int Tuple_Parse(Object *ob, char *format, ...)
 {
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
-
   va_list vp;
   char *fmt = format;
   char ch;
   int i = 0;
-  int res;
   TValue val;
 
   va_start(vp, format);
   while ((ch = *fmt++)) {
-    res = Tuple_Get(ob, i++, &val);
-    ASSERT(res >= 0);
+    val = Tuple_Get(ob, i++);
     Va_Parse_Value(&val, ch, &vp);
   }
   va_end(vp);
@@ -162,10 +157,10 @@ static Object *__tuple_get(Object *ob, Object *args)
   OB_ASSERT_KLASS(args, Tuple_Klass);
   ASSERT(Tuple_Size(args) == 1);
 
-  if (Tuple_Get(args, 0, &val) < 0) return NULL;
+  val = Tuple_Get(args, 0);
   if (!VALUE_ISINT(&val)) return NULL;
 
-  if (Tuple_Get(ob, VALUE_INT(&val), &val) < 0) return NULL;
+  val = Tuple_Get(ob, VALUE_INT(&val));
   if (VALUE_ISNIL(&val)) return NULL;
 
   return Tuple_From_TValues(&val, 1);

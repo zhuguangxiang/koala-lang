@@ -3,6 +3,31 @@
 #include "debug.h"
 #include "koala.h"
 
+#define ATOM_ITEM_MAX   (ITEM_CONST + 1)
+
+static uint32 htable_hash(void *key)
+{
+  ItemEntry *e = key;
+  ASSERT(e->type > 0 && e->type < ATOM_ITEM_MAX);
+  item_hash_t hash_fn = item_func[e->type].ihash;
+  ASSERT(hash_fn != NULL);
+  return hash_fn(e->data);
+}
+
+static int htable_equal(void *k1, void *k2)
+{
+  ItemEntry *e1 = k1;
+  ItemEntry *e2 = k2;
+  ASSERT(e1->type > 0 && e1->type < ATOM_ITEM_MAX);
+  ASSERT(e2->type > 0 && e2->type < ATOM_ITEM_MAX);
+  if (e1->type != e2->type) return 0;
+  item_equal_t equal_fn = item_func[e1->type].iequal;
+  ASSERT(equal_fn != NULL);
+  return equal_fn(e1->data, e2->data);
+}
+
+/*-------------------------------------------------------------------------*/
+
 Object *Module_New(char *name, char *path, int nr_locals)
 {
   int size = sizeof(ModuleObject) + sizeof(TValue) * nr_locals;
@@ -13,9 +38,13 @@ Object *Module_New(char *name, char *path, int nr_locals)
   ob->name = name;
   ob->avail_index = 0;
   ob->size = nr_locals;
+  ob->itable = ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
   for (int i = 0; i < nr_locals; i++)
-    init_nil_value(ob->locals + i);
-  KState_Add_Module(&ks, path, (Object *)ob);
+    initnilvalue(ob->locals + i);
+  if (Koala_Add_Module(path, (Object *)ob) < 0) {
+    Module_Free((Object *)ob);
+    return NULL;
+  }
   return (Object *)ob;
 }
 
@@ -87,22 +116,34 @@ static Symbol *__module_get(ModuleObject *mo, char *name)
   }
 }
 
-int Module_Get_Value(Object *ob, char *name, TValue *v)
+static int __get_value_index(ModuleObject *mob, char *name)
 {
-  OB_ASSERT_KLASS(ob, Module_Klass);
-  ModuleObject *mo = (ModuleObject *)ob;
-  struct symbol *s = __module_get(mo, name);
+  struct symbol *s = __module_get(mob, name);
   if (s != NULL) {
     if (s->kind == SYM_VAR) {
-      ASSERT(s->value.index < mo->size);
-      *v = mo->locals[s->value.index];
-      return 0;
+      ASSERT(s->value.index < mob->size);
+      return s->value.index;
     } else {
       debug_error("symbol is not a variable\n");
     }
   }
-
   return -1;
+}
+
+TValue Module_Get_Value(Object *ob, char *name)
+{
+  ModuleObject *mob = OB_TYPE_OF(ob, ModuleObject, Module_Klass);
+  int index = __get_value_index(mob, name);
+  if (index < 0) return NilValue;
+  return mob->locals[index];
+}
+
+void Module_Set_Value(Object *ob, char *name, TValue *val)
+{
+  ModuleObject *mob = OB_TYPE_OF(ob, ModuleObject, Module_Klass);
+  int index = __get_value_index(mob, name);
+  if (index < 0) return;
+  mob->locals[index] = *val;
 }
 
 Object *Module_Get_Function(Object *ob, char *name)
@@ -169,18 +210,10 @@ int Module_Add_CFunctions(Object *ob, FunctionStruct *funcs)
   return 0;
 }
 
-Object *Load_Module(char *path)
-{
-  UNUSED_PARAMETER(path);
-  return NULL;
-}
-
 /*-------------------------------------------------------------------------*/
 
 void Init_Module_Klass(Object *ob)
 {
-  ModuleObject *mo = (ModuleObject *)ob;
-  Module_Klass.itable = mo->itable;
   Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
 }
 

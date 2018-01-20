@@ -12,9 +12,8 @@ include $(TOPDIR)/config.mk
 
 KOALA_LIB_FILES = debug.c hashtable.c hash.c vector.c itemtable.c symbol.c \
 object.c stringobject.c tupleobject.c tableobject.c moduleobject.c \
-methodobject.c routine.c frameloop.c thread.c kcodeformat.c \
-mod_io.c \
-kstate.c koala.c
+methodobject.c routine.c frameloop.c thread.c codeformat.c \
+mod_io.c koala.c
 
 KOALA_LIB = koala
 
@@ -53,6 +52,8 @@ testlist: lib
 testhashtable: lib
 	@$(CC) $(CFLAGS) test_hashtable.c -l$(KOALA_LIB) -L. -lrt
 testcode: lib
-	@$(CC) $(CFLAGS) test_kcodeformat.c -l$(KOALA_LIB) -L. -lrt
+	@$(CC) $(CFLAGS) test_codeformat.c -l$(KOALA_LIB) -L. -lrt
 testrt: lib
 	@$(CC) $(CFLAGS) test_routine.c -l$(KOALA_LIB) -L. -lrt
+testloop: lib
+	@$(CC) $(CFLAGS) test_frameloop.c -l$(KOALA_LIB) -L. -lrt

@@ -8,14 +8,16 @@
 #include "moduleobject.h"
 #include "methodobject.h"
 #include "routine.h"
-#include "kstate.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* Exported APIs */
-extern KoalaState ks;
+extern HashTable modules;
+int Koala_Add_Module(char *path, Object *mo);
+Object *Koala_Get_Module(char *path);
+Object *Koala_Load_Module(char *path);
 void Koala_Init(void);
 void Koala_Fini(void);
 

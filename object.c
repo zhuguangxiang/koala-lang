@@ -17,7 +17,7 @@ static void va_integer_build(TValue *v, va_list *ap)
 
 static void va_integer_parse(TValue *v, va_list *ap)
 {
-  VALUE_ASSERT_TYPE(v, TYPE_INT);
+  ASSERT(VALUE_TYPE(v) == TYPE_INT);
   int32 *i = va_arg(*ap, int32 *);
   *i = (int32)VALUE_INT(v);
 }
@@ -30,7 +30,7 @@ static void va_long_build(TValue *v, va_list *ap)
 
 static void va_long_parse(TValue *v, va_list *ap)
 {
-  VALUE_ASSERT_TYPE(v, TYPE_INT);
+  ASSERT(VALUE_TYPE(v) == TYPE_INT);
   int64 *i = va_arg(*ap, int64 *);
   *i = VALUE_INT(v);
 }
@@ -43,7 +43,7 @@ static void va_float_build(TValue *v, va_list *ap)
 
 static void va_float_parse(TValue *v, va_list *ap)
 {
-  VALUE_ASSERT_TYPE(v, TYPE_FLOAT);
+  ASSERT(VALUE_TYPE(v) == TYPE_FLOAT);
   float64 *f = va_arg(*ap, float64 *);
   *f = VALUE_FLOAT(v);
 }
@@ -56,7 +56,7 @@ static void va_bool_build(TValue *v, va_list *ap)
 
 static void va_bool_parse(TValue *v, va_list *ap)
 {
-  VALUE_ASSERT_TYPE(v, TYPE_BOOL);
+  ASSERT(VALUE_TYPE(v) == TYPE_BOOL);
   int *i = va_arg(*ap, int *);
   *i = VALUE_BOOL(v);
 }
@@ -69,11 +69,10 @@ static void va_string_build(TValue *v, va_list *ap)
 
 static void va_string_parse(TValue *v, va_list *ap)
 {
-  VALUE_ASSERT_TYPE(v, TYPE_OBJECT);
-  Object *ob = VALUE_OBJECT(v);
-  OB_ASSERT_KLASS(ob, String_Klass);
+  ASSERT(VALUE_TYPE(v) == TYPE_OBJECT);
+  Object *ob = VALUE_STRING(v);
   char **str = va_arg(*ap, char **);
-  *str = String_To_CString(ob);
+  *str = String_RawString(ob);
 }
 
 static void va_object_build(TValue *v, va_list *ap)
@@ -84,7 +83,7 @@ static void va_object_build(TValue *v, va_list *ap)
 
 static void va_object_parse(TValue *v, va_list *ap)
 {
-  VALUE_ASSERT_TYPE(v, TYPE_OBJECT);
+  ASSERT(VALUE_TYPE(v) == TYPE_OBJECT);
   Object **o = va_arg(*ap, Object **);
   *o = VALUE_OBJECT(v);
 }
@@ -122,20 +121,21 @@ va_convert_t *get_convert(char ch)
   return NULL;
 }
 
-int Va_Build_Value(TValue *ret, char ch, va_list *ap)
+TValue Va_Build_Value(char ch, va_list *ap)
 {
+  TValue val = NilValue;
   va_convert_t *convert = get_convert(ch);
-  convert->build(ret, ap);
-  return 0;
+  convert->build(&val, ap);
+  return val;
 }
 
-int TValue_Build(TValue *ret, char ch, ...)
+TValue TValue_Build(char ch, ...)
 {
   va_list vp;
   va_start(vp, ch);
-  int res = Va_Build_Value(ret, ch, &vp);
+  TValue val = Va_Build_Value(ch, &vp);
   va_end(vp);
-  return res;
+  return val;
 }
 
 int Va_Parse_Value(TValue *val, char ch, va_list *ap)

@@ -27,13 +27,18 @@ int Module_Add_Func(Object *ob, char *name, char *rdesc, char *pdesc,
                     uint8 access, Object *method);
 int Module_Add_Class(Object *ob, Klass *klazz, uint8 access);
 int Module_Add_Interface(Object *ob, Klass *klazz, uint8 access);
-int Module_Get_Value(Object *ob, char *name, TValue *val);
+TValue Module_Get_Value(Object *ob, char *name);
+void Module_Set_Value(Object *ob, char *name, TValue *val);
 Object *Module_Get_Function(Object *ob, char *name);
 Object *Module_Get_Class(Object *ob, char *name);
 Object *Module_Get_Interface(Object *ob, char *name);
 int Module_Add_CFunctions(Object *ob, FunctionStruct *funcs);
-Object *Load_Module(char *path);
 void Module_Display(Object *ob);
+static inline ItemTable *Module_ItemTable(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, Module_Klass);
+  return ((ModuleObject *)ob)->itable;
+}
 
 #ifdef __cplusplus
 }

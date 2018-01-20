@@ -1,5 +1,5 @@
 
-#include "kcodeformat.h"
+#include "codeformat.h"
 #include "hash.h"
 #include "debug.h"
 
@@ -509,7 +509,7 @@ uint32 constitem_hash(void *k)
   ConstItem *item = k;
   switch (item->type) {
     case CONST_INT: {
-      hash = hash_uint32((uint32)item->value.ival, 32);
+      hash = hash_uint32((uint32)item->ival, 32);
       break;
     }
     case CONST_FLOAT: {
@@ -521,7 +521,7 @@ uint32 constitem_hash(void *k)
       break;
     }
     case CONST_STRING: {
-      hash = hash_uint32(item->value.string_index, 32);
+      hash = hash_uint32(item->string_index, 32);
       break;
     }
     default: {
@@ -542,11 +542,11 @@ int constitem_equal(void *k1, void *k2)
   if (item1->type != item2->type) return 0;
   switch (item1->type) {
     case CONST_INT: {
-      res = (item1->value.ival == item2->value.ival);
+      res = (item1->ival == item2->ival);
       break;
     }
     case CONST_FLOAT: {
-      res = (item1->value.fval == item2->value.fval);
+      res = (item1->fval == item2->fval);
       break;
     }
     case CONST_BOOL: {
@@ -554,7 +554,7 @@ int constitem_equal(void *k1, void *k2)
       break;
     }
     case CONST_STRING: {
-      res = (item1->value.string_index == item2->value.string_index);
+      res = (item1->string_index == item2->string_index);
       break;
     }
     default: {

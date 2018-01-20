@@ -2,9 +2,7 @@
 #include "routine.h"
 #include "opcode.h"
 #include "debug.h"
-#include "methodobject.h"
-#include "moduleobject.h"
-#include "stringobject.h"
+#include "koala.h"
 
 #define NEXT_CODE(f, codes) codes[f->pc++]
 
@@ -28,38 +26,83 @@ static inline uint32 fetch_arg4(Frame *frame, uint8 *codes)
   return (h2 << 24) + (h1 << 16) + (l2 << 8) + (l1 << 0);
 }
 
-static int ConstItemToTValue(ConstItem *k, ItemTable *itable, TValue *ret)
+static TValue const_to_tvalue(ConstItem *k, ItemTable *itable)
 {
+  TValue ret = NilValue;
+
   switch (k->type) {
     case CONST_INT: {
-      set_int_value(ret, k->value.ival);
+      setivalue(&ret, k->ival);
       break;
     }
     case CONST_FLOAT: {
-      set_float_value(ret, k->value.fval);
+      setfltvalue(&ret, k->fval);
       break;
     }
     case CONST_BOOL: {
-      set_bool_value(ret, k->value.bval);
+      setbvalue(&ret, k->bval);
       break;
     }
     case CONST_STRING: {
       StringItem *stritem;
-      stritem = ItemTable_Get(itable, ITEM_STRING, k->value.string_index);
-      set_object_value(ret, String_New(stritem->data));
+      stritem = ItemTable_Get(itable, ITEM_STRING, k->string_index);
+      setcstrvalue(&ret, stritem->data);
       break;
     }
     default: {
-      debug_error("unknown const type:%d\n", k->type);
-      *ret = NilValue;
-      ASSERT(0);
+      ASSERT_MSG("unknown const type:%d\n", k->type);
       break;
     }
   }
+  return ret;
+}
+
+static Object *__get_func(Object *ob, char *name)
+{
+  if (OB_CHECK_KLASS(ob, Module_Klass)) {
+    return Module_Get_Function(ob, name);
+  } else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
+    return Klass_Get_Method(OB_KLASS(ob), name);
+  } else {
+    ASSERT_MSG("invalid object klass in '__get_func'\n");
+    return NULL;
+  }
+}
+
+static void __set_value(Object *ob, char *name, TValue *val)
+{
+  if (OB_CHECK_KLASS(ob, Module_Klass)) {
+    Module_Set_Value(ob, name, val);
+  } else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
+
+  } else {
+    ASSERT_MSG("invalid object klass in '__set_value'\n");
+  }
+}
+
+static TValue __get_value(Object *ob, char *name)
+{
+  if (OB_CHECK_KLASS(ob, Module_Klass)) {
+    return Module_Get_Value(ob, name);
+  } else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
+    return NilValue;
+  } else {
+    ASSERT_MSG("invalid object klass in '__get_value'\n");
+    return NilValue;
+  }
+}
+
+#define TOP()   ValueStack_Top(&rt->stack)
+#define POP()   ValueStack_Pop(&rt->stack)
+#define PUSH(v) ValueStack_Push(&rt->stack, (v))
+
+int tonumber(TValue *v)
+{
+  UNUSED_PARAMETER(v);
   return 0;
 }
 
-void koala_frame_loop(Frame *frame)
+void Frame_Loop(Frame *frame)
 {
   int loopflag = 1;
   Routine *rt = frame->rt;
@@ -67,16 +110,7 @@ void koala_frame_loop(Frame *frame)
   ConstItem *k = meth->kf.k;
   uint8 *codes = meth->kf.codes;
   TValue *locals = frame->locals;
-  ItemTable *itable;
-
-  if (OB_CHECK_KLASS(meth->owner, Module_Klass))
-    itable = ((ModuleObject *)meth->owner)->itable;
-  else if (OB_CHECK_KLASS(meth->owner, Klass_Klass))
-    itable = ((Klass *)meth->owner)->itable;
-  else {
-    debug_error("which is method owner?\n");
-    ASSERT(0);
-  }
+  ItemTable *itable = meth->kf.itable;
 
   uint8 inst;
   uint32 index;
@@ -87,49 +121,128 @@ void koala_frame_loop(Frame *frame)
     switch (inst) {
       case OP_LOADK: {
         index = fetch_arg4(frame, codes);
-        ConstItemToTValue(k + index, itable, &val);
-        rt_stack_push(rt, &val);
+        val = const_to_tvalue(k + index, itable);
+        PUSH(&val);
+        break;
+      }
+      case OP_LOADM: {
+        index = fetch_arg4(frame, codes);
+        val = const_to_tvalue(k + index, itable);
+        char *path = VALUE_CSTR(&val);
+        debug_info("load module '%s'\n", path);
+        Object *ob = Koala_Load_Module(path);
+        ASSERT_PTR(ob);
+        setobjvalue(&val, ob);
+        PUSH(&val);
         break;
       }
       case OP_LOAD: {
         index = fetch_arg4(frame, codes);
-        rt_stack_push(rt, locals + index);
+        PUSH(locals + index);
         break;
       }
       case OP_STORE: {
         index = fetch_arg4(frame, codes);
-        val = rt_stack_pop(rt);
+        val = POP();
         locals[index] = val;
         break;
       }
-      case OP_CALL: {
-        //method name is full path
+      case OP_SETFIELD: {
         index = fetch_arg4(frame, codes);
-        ConstItemToTValue(k + index, itable, &val);
-        ASSERT(VALUE_ISOBJECT(&val));
-        //frame_new(rt, KState_Find_Method());
+        val = const_to_tvalue(k + index, itable);
+        char *name = VALUE_CSTR(&val);
+        debug_info("setfield '%s'\n", name);
+        val= POP();
+        Object *ob = VALUE_OBJECT(&val);
+        val = POP();
+        VALUE_ASSERT(&val);
+        __set_value(ob, name, &val);
+        break;
+      }
+      case OP_GETFIELD: {
+        index = fetch_arg4(frame, codes);
+        val = const_to_tvalue(k + index, itable);
+        char *name = VALUE_CSTR(&val);
+        debug_info("getfield '%s'\n", name);
+        val = POP();
+        Object *ob = VALUE_OBJECT(&val);
+        val = __get_value(ob, name);
+        PUSH(&val);
+        break;
+      }
+      case OP_CALL: {
+        index = fetch_arg4(frame, codes);
+        val = const_to_tvalue(k + index, itable);
+        char *name = VALUE_CSTR(&val);
+        debug_info("%s()\n", name);
+        Object *ob = VALUE_OBJECT(TOP());
+        Frame *f = Frame_New(__get_func(ob, name));
+        Routine_Add_Frame(rt, f);
         loopflag = 0;
         break;
       }
       case OP_RET: {
-        list_del(&frame->link);
+        frame->state = FRAME_EXIT;
         Frame_Free(frame);
         loopflag = 0;
         break;
       }
-      case OP_GO: {
-
-        break;
-      }
       case OP_ADD: {
+        TValue v1 = POP();
+        TValue v2 = POP();
+        val = NilValue;
+        // v2 is left value
+        if (VALUE_ISINT(&v2) && VALUE_ISINT(&v1)) {
+          uint64 i = (uint64)VALUE_INT(&v2) + (uint64)VALUE_INT(&v1);
+          setivalue(&val, i);
+        } else if (tonumber(&v2) && tonumber(&v1)) {
+
+        }
+        PUSH(&val);
         break;
       }
       case OP_SUB: {
+        TValue v1 = POP();
+        TValue v2 = POP();
+        val = NilValue;
+        // v2 is left value
+        if (VALUE_ISINT(&v2) && VALUE_ISINT(&v1)) {
+          uint64 i = (uint64)VALUE_INT(&v2) - (uint64)VALUE_INT(&v1);
+          setivalue(&val, i);
+        } else if (tonumber(&v2) && tonumber(&v1)) {
+
+        }
+        PUSH(&val);
+        break;
+      }
+      case OP_MUL: {
+        TValue v1 = POP();
+        TValue v2 = POP();
+        val = NilValue;
+        // v2 is left value
+        if (VALUE_ISINT(&v2) && VALUE_ISINT(&v1)) {
+          uint64 i = (uint64)VALUE_INT(&v2) * (uint64)VALUE_INT(&v1);
+          setivalue(&val, i);
+        } else if (tonumber(&v2) && tonumber(&v1)) {
+
+        }
+        PUSH(&val);
+        break;
+      }
+      case OP_DIV: {
+        /* float division (always with floats) */
+        TValue v1 = POP();
+        TValue v2 = POP();
+        val = NilValue;
+        // v2 is left value
+        if (tonumber(&v2) && tonumber(&v1)) {
+
+        }
+        PUSH(&val);
         break;
       }
       default: {
-        debug_error("unknown instruction:%d\n", inst);
-        ASSERT(0);
+        ASSERT_MSG("unknown instruction:%d\n", inst);
       }
     }
   }

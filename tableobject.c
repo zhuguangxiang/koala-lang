@@ -154,7 +154,7 @@ void Table_Traverse(Object *ob, table_visit_func visit, void *arg)
 static Object *__table_get(Object *ob, Object *args)
 {
   TValue key, val;
-  if (Tuple_Get(args, 0, &key) < 0) return NULL;
+  key = Tuple_Get(args, 0);
   if (VALUE_ISNIL(&key)) return NULL;
   if (Table_Get(ob, &key, NULL, &val)) return NULL;
   return Tuple_From_Va_TValues(1, &val);
@@ -165,8 +165,10 @@ static Object *__table_put(Object *ob, Object *args)
   Object *tuple = Tuple_Get_Slice(args, 0, 1);
   if (!tuple) return NULL;
   TValue key, val;
-  if (Tuple_Get(tuple, 0, &key) < 0) return NULL;
-  if (Tuple_Get(tuple, 1, &val) < 0) return NULL;
+  key = Tuple_Get(args, 0);
+  if (VALUE_ISNIL(&key)) return NULL;
+  val = Tuple_Get(args, 1);
+  if (VALUE_ISNIL(&val)) return NULL;
   return Tuple_Build("i", Table_Put(ob, &key, &val));
 }
 

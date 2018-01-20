@@ -74,8 +74,18 @@ typedef struct const_item {
     float64 fval;         // float32 or float64
     int bval;             // bool
     uint32 string_index;  //->StringItem
-  } value;
+  };
 } ConstItem;
+
+#define CONST_IVAL_INIT(_v)   {.type = CONST_INT,   .ival = (int64)(_v)}
+#define CONST_FVAL_INIT(_v)   {.type = CONST_FLOAT, .fval = (float64)(_v)}
+#define CONST_BVAL_INIT(_v)   {.type = CONST_BOOL,  .bval = (int)(_v)}
+#define CONST_STRVAL_INIT(_v) \
+  {.type = CONST_STRING, .string_index = (uint32)(_v)}
+
+#define const_setstrvalue(v, _v) do { \
+  (v)->type = CONST_STRING; (v)->string_index = (uint32)(_v); \
+} while (0)
 
 typedef struct var_item {
   uint32 name_index;  //->StringItem

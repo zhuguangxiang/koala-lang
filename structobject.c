@@ -1,16 +1,15 @@
 
 #include "structobject.h"
 
-int StructObject_Get_Value(Object *ob, char *name, TValue *ret)
+TValue StructObject_Get_Value(Object *ob, char *name)
 {
   Symbol *s = Klass_Get(OB_KLASS(ob), name);
-  if (s == NULL) -1;
+  if (s == NULL) NilValue;
   if (s->kind != SYM_FIELD || s->kind != SYM_IMETHOD) return -1;
   int index = s->value.index;
   StructObject *so = (StructObject *)ob;
   ASSERT(index >= 0 && index < so->size);
-  *ret = so->items[index];
-  return 0;
+  return so->items[index];
 }
 
 Object *StructObject_Get_Method(Object *ob, char *name)
@@ -41,7 +40,7 @@ static Object *struct_alloc(Klass *klazz, int num)
   init_object_head(ob, klazz);
   ob->size = num;
   for (int i = 0; i < num; i++) {
-    init_nil_value(ob->items + i);
+    initnilvalue(ob->items + i);
   }
   return (Object *)ob;
 }

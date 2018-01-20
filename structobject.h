@@ -15,7 +15,7 @@ typedef struct structobject {
 } StructObject;
 
 Klass *Struct_Klass_New(char *name);
-int StructObject_Get_Value(Object *ob, char *name, TValue *ret);
+TValue StructObject_Get_Value(Object *ob, char *name);
 Object *StructObject_Get_Method(Object *ob, char *name);
 
 #ifdef __cplusplus

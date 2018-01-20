@@ -20,7 +20,9 @@ var klazz = String.class or s.GetClass() or Class.ForName("koala/lang.String")
 
 ## 包管理
 
-
+## 函数调用
+|  object  |
+|  arg0-N  |
 
 ## 编译
 编译文件
@@ -192,3 +194,4 @@ code_area:
  yyy
  zzz
 
+handle SIGUSR1 nostop noprint

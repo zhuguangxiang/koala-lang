@@ -23,7 +23,7 @@ OBJDUMP = $(CROSS_COMPILE)objdump
 #
 ############################
 
-DBGFLAGS = -g
+DBGFLAGS = -g #-DNDEBUG
 OPTFLAGS = #-O2
 
 CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I$(TOPDIR) -Wbad-function-cast

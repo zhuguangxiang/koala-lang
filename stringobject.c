@@ -7,12 +7,12 @@
 
 Object *String_New(char *str)
 {
-  StringObject *s = malloc(sizeof(*s));
-  init_object_head(s, &String_Klass);
-  s->len = strlen(str);
-  s->str = str;
+  StringObject *sobj = malloc(sizeof(*sobj));
+  init_object_head(sobj, &String_Klass);
+  sobj->len = strlen(str);
+  sobj->str = str;
   //Object_Add_GCList(s);
-  return (Object *)s;
+  return (Object *)sobj;
 }
 
 void String_Free(Object *ob)
@@ -21,11 +21,54 @@ void String_Free(Object *ob)
   free(ob);
 }
 
-char *String_To_CString(Object *ob)
+char *String_RawString(Object *ob)
 {
   OB_ASSERT_KLASS(ob, String_Klass);
-  StringObject *s = (StringObject *)ob;
-  return s->str;
+  StringObject *sobj = (StringObject *)ob;
+  return sobj->str;
+}
+
+static int isneg(char **s)
+{
+  if (**s == '-') {
+    (*s)++;
+    return 1;
+  } else if (**s == '+') {
+    (*s)++;
+  }
+  return 0;
+}
+
+static int hexavalue(int c)
+{
+  if (isdigit(c)) return c - '0';
+  else return (tolower(c) - 'a') + 10;
+}
+
+TValue String_ToInteger(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, String_Klass);
+  StringObject *sobj = (StringObject *)ob;
+  char *s = sobj->str;
+  while (isspace(*s)) s++;  /* skip prefix spaces */
+  int neg = isneg(&s);
+  uint64 a = 0;
+  if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {  /* hex? */
+    s += 2;  /* skip '0x' */
+    while (isxdigit(*s)) {
+      a = a * 16 + hexavalue(*s);
+      s++;
+    }
+  } else {  /* decimal */
+    while (isdigit(*s)) {
+      int d = *s - '0';
+      a = a * 10 + d;
+      s++;
+    }
+  }
+  while (isspace(*s)) s++;  /* skip trailing spaces */
+  if (*s != '\0') return NilValue;
+  else { TValue val; setivalue(&val, neg ? 0ul - a : a); return val;}
 }
 
 /*-------------------------------------------------------------------------*/
