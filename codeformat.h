@@ -208,6 +208,7 @@ typedef struct desc_list {
   DescIndex index[0];
 } DescList;
 
+int Desc_Count(char *descstr);
 DescList *DescList_Parse(char *desclist);
 void DescList_Free(DescList *dlist);
 char *DescList_Desc(DescList *dlist, int index);

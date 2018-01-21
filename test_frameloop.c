@@ -23,8 +23,9 @@ Object *init_test_module(void)
     OP_RET
   };
 
-  Object *method = Method_New(codes, NULL, Module_ItemTable(module));
-  Method_Set_Proto(method, 1, 2, 0);
+  MethodProto proto = METHOD_PROTO_INIT(1, 2, 0);
+
+  Object *method = Method_New(&proto, codes, NULL, Module_ItemTable(module));
   Module_Add_Func(module, "add", "i", "ii", ACCESS_PRIVATE, method);
 
   static uint8 __init__[] = {
@@ -65,8 +66,8 @@ Object *init_test_module(void)
   const_setstrvalue(&k[5], index4);
   const_setstrvalue(&k[6], index5);
 
-  method = Method_New(__init__, k, Module_ItemTable(module));
-  Method_Set_Proto(method, 0, 0, 0);
+  Init_Method_Proro(&proto, 0, 0, 0);
+  method = Method_New(&proto, __init__, k, Module_ItemTable(module));
   Module_Add_Func(module, "__init__", "v", "v", ACCESS_PRIVATE, method);
   return module;
 }
@@ -75,7 +76,7 @@ void test_frameloop(void)
 {
   Object *module = init_test_module();
   Object *method = Module_Get_Function(module, "__init__");
-  Object *rt = Routine_Create(method, module, NULL);
+  Routine *rt = Routine_Create(method, module, NULL);
   Routine_Run(rt, PRIO_NORMAL);
   while (Routine_State(rt) != STATE_DEAD);
 }

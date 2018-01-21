@@ -116,8 +116,7 @@ va_convert_t *get_convert(char ch)
       return convert;
     }
   }
-  debug_error("unsupported type: %d\n", ch);
-  ASSERT(0);
+  ASSERT_MSG("unsupported type: %d\n", ch);
   return NULL;
 }
 
@@ -165,7 +164,6 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
   klazz->name  = name;
   klazz->bsize = bsize;
   klazz->isize = isize;
-  //Object_Add_GCList((Object *)klazz);
   return klazz;
 }
 
@@ -176,7 +174,7 @@ static HashTable *__get_table(Klass *klazz)
   return klazz->stable;
 }
 
-int Klass_Add_Field(Klass *klazz, char *name, char *desc, uint8 access)
+int Klass_Add_Field(Klass *klazz, char *name, char *desc, int access)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
   int name_index = StringItem_Set(klazz->itable, name, strlen(name));
@@ -187,7 +185,7 @@ int Klass_Add_Field(Klass *klazz, char *name, char *desc, uint8 access)
 }
 
 int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
-                     uint8 access, Object *method)
+                     int access, Object *method)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
   int name_index = StringItem_Set(klazz->itable, name, strlen(name));
@@ -198,7 +196,7 @@ int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
 }
 
 int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc, char *pdesc,
-                      uint8 access)
+                      int access)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
   int name_index = StringItem_Set(klazz->itable, name, strlen(name));
@@ -228,35 +226,26 @@ Object *Klass_Get_Method(Klass *klazz, char *name)
   Symbol *s = Klass_Get(klazz, name);
   if (s == NULL) return NULL;
   if (s->kind != SYM_METHOD) return NULL;
-  Object *ob = s->value.obj;
-  OB_ASSERT_KLASS(ob, Method_Klass);
-  return ob;
+  Object *temp = s->value.obj;
+  OB_ASSERT_KLASS(temp, Method_Klass);
+  return temp;
 }
 
-int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs)
+int Klass_Add_CFunctions(Klass *klazz, FuncStruct *funcs)
 {
   int res;
-  FunctionStruct *f = funcs;
+  FuncStruct *f = funcs;
   Object *meth;
+  MethodProto proto;
   while (f->name != NULL) {
-    meth = CMethod_New(f->func);
+    FuncStruct_Get_Proto(&proto, f);
+    meth = CMethod_New(f->func, &proto);
     res = Klass_Add_Method(klazz, f->name, f->rdesc, f->pdesc,
-                           (uint8)f->access, meth);
+                           f->access, meth);
     ASSERT(res == 0);
     ++f;
   }
   return 0;
-}
-
-
-
-/*-------------------------------------------------------------------------*/
-
-void Init_Klass_Klass(Object *ob)
-{
-  ModuleObject *mo = (ModuleObject *)ob;
-  String_Klass.itable = mo->itable;
-  Module_Add_Class(ob, &Klass_Klass, ACCESS_PUBLIC);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -272,8 +261,7 @@ static void klass_free(Object *ob)
 {
   // Klass_Klass cannot be freed.
   if (ob == (Object *)&Klass_Klass) {
-    debug_error("Klass_Klass cannot be freed\n");
-    ASSERT(0);
+    ASSERT_MSG("Klass_Klass cannot be freed\n");
   }
 
   OB_ASSERT_KLASS(ob, Klass_Klass);

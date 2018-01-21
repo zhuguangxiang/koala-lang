@@ -525,8 +525,7 @@ uint32 constitem_hash(void *k)
       break;
     }
     default: {
-      printf("[ERROR]unsupported %d const type\n", item->type);
-      ASSERT(0);
+      ASSERT_MSG("unsupported %d const type\n", item->type);
       break;
     }
   }
@@ -558,8 +557,7 @@ int constitem_equal(void *k1, void *k2)
       break;
     }
     default: {
-      printf("[ERROR]unsupported %d const type\n", item1->type);
-      ASSERT(0);
+      ASSERT_MSG("unsupported %d const type\n", item1->type);
       break;
     }
   }
@@ -664,7 +662,7 @@ struct item_funcs item_func[ITEM_MAX] = {
 static int desc_primitive(char ch)
 {
   static char chs[] = {
-    'i', 'l', 'f', 'd', 'z', 's', 'v', 'A'
+    'i', 'l', 'f', 'd', 'z', 's', 'A'
   };
 
   for (int i = 0; i < nr_elts(chs); i++) {
@@ -674,9 +672,26 @@ static int desc_primitive(char ch)
   return 0;
 }
 
-static int desclist_count(char *desclist)
+static int desc_void(char *descstr)
 {
-  char *desc = desclist;
+  char *desc = descstr;
+  char ch;
+
+  while ((ch = *desc++)) {
+    if (ch == 'v') {
+      ASSERT(strlen(descstr) == 1);
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+int Desc_Count(char *descstr)
+{
+  if (desc_void(descstr)) return 0;
+
+  char *desc = descstr;
   char ch;
   int count = 0;
 
@@ -690,8 +705,7 @@ static int desclist_count(char *desclist)
     } else if (ch == '[') {
       desc++;
     } else {
-      debug_error("unknown type:%c\n", ch);
-      ASSERT(0);
+      ASSERT_MSG("unknown type:%c\n", ch);
     }
   }
 
@@ -700,10 +714,11 @@ static int desclist_count(char *desclist)
 
 DescList *DescList_Parse(char *desclist)
 {
-  int count = desclist_count(desclist);
+  int count = Desc_Count(desclist);
   DescList *dlist = malloc(sizeof(*dlist) + sizeof(DescIndex) * count);
   dlist->desclist = desclist;
   dlist->size = count;
+  if (count == 0) return dlist;
 
   char *desc = desclist;
   char ch;
@@ -753,8 +768,7 @@ DescList *DescList_Parse(char *desclist)
       dlist->index[idx].offset = desc - desclist;
       desc++;
     } else {
-      fprintf(stderr, "unknown type:%c\n", ch);
-      ASSERT(0);
+      ASSERT_MSG("unknown type:%c\n", ch);
     }
   }
 
@@ -799,7 +813,7 @@ static uint32 htable_hash(void *key)
 {
   ItemEntry *e = key;
   item_hash_t hash_fn = item_func[e->type].ihash;
-  ASSERT(hash_fn != NULL);
+  ASSERT_PTR(hash_fn);
   return hash_fn(e->data);
 }
 

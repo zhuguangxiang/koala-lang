@@ -35,7 +35,7 @@ typedef struct symbol {
 } Symbol;
 
 /* Exported APIs */
-Symbol *Symbol_New(int name_index, uint8 kind, uint8 access, int desc_index);
+Symbol *Symbol_New(int name_index, int kind, int access, int desc_index);
 void Symbol_Free(Symbol *sym);
 void Symbol_Display(Symbol *sym, ItemTable *table);
 uint32 Symbol_Hash(void *k);

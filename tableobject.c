@@ -88,8 +88,7 @@ Object *Table_New(void)
 
 int Table_Get(Object *ob, TValue *key, TValue *rk, TValue *rv)
 {
-  OB_ASSERT_KLASS(ob, Table_Klass);
-  TableObject *table = (TableObject *)ob;
+  TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
   HashNode *hnode = HashTable_Find(&table->table, key);
   if (hnode != NULL) {
     struct entry *e = container_of(hnode, struct entry, hnode);
@@ -103,8 +102,7 @@ int Table_Get(Object *ob, TValue *key, TValue *rk, TValue *rv)
 
 int Table_Put(Object *ob, TValue *key, TValue *value)
 {
-  OB_ASSERT_KLASS(ob, Table_Klass);
-  TableObject *table = (TableObject *)ob;
+  TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
   struct entry *e = new_entry(key, value);
   int res = HashTable_Insert(&table->table, &e->hnode);
   if (res) {
@@ -117,8 +115,7 @@ int Table_Put(Object *ob, TValue *key, TValue *value)
 
 int Table_Count(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, Table_Klass);
-  TableObject *table = (TableObject *)ob;
+  TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
   return HashTable_Count(&table->table);
 }
 
@@ -143,8 +140,7 @@ static void table_visit(struct hlist_head *head, int size, void *arg)
 
 void Table_Traverse(Object *ob, table_visit_func visit, void *arg)
 {
-  OB_ASSERT_KLASS(ob, Table_Klass);
-  TableObject *table = (TableObject *)ob;
+  TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
   struct visit_struct vs = {visit, arg};
   HashTable_Traverse(&table->table, table_visit, &vs);
 }
@@ -172,18 +168,15 @@ static Object *__table_put(Object *ob, Object *args)
   return Tuple_Build("i", Table_Put(ob, &key, &val));
 }
 
-static FunctionStruct table_functions[] = {
+static FuncStruct table_funcs[] = {
   {"Put", "i", "AA", ACCESS_PUBLIC, __table_put},
   {"Get", "A", "A", ACCESS_PUBLIC, __table_get},
   {NULL}
 };
 
-void Init_Table_Klass(Object *ob)
+void Init_Table_Klass(void)
 {
-  ModuleObject *mo = (ModuleObject *)ob;
-  Table_Klass.itable = mo->itable;
-  Klass_Add_CFunctions(&Table_Klass, table_functions);
-  Module_Add_Class(ob, &Table_Klass,  ACCESS_PUBLIC);
+  Klass_Add_CFunctions(&Table_Klass, table_funcs);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -218,8 +211,7 @@ static void table_finalize(struct hash_node *hnode, void *arg)
 
 static void table_free(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, Table_Klass);
-  TableObject *table = (TableObject *)ob;
+  TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
   HashTable_Fini(&table->table, table_finalize, NULL);
   free(ob);
 }

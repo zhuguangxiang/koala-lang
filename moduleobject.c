@@ -10,7 +10,7 @@ static uint32 htable_hash(void *key)
   ItemEntry *e = key;
   ASSERT(e->type > 0 && e->type < ATOM_ITEM_MAX);
   item_hash_t hash_fn = item_func[e->type].ihash;
-  ASSERT(hash_fn != NULL);
+  ASSERT_PTR(hash_fn);
   return hash_fn(e->data);
 }
 
@@ -22,7 +22,7 @@ static int htable_equal(void *k1, void *k2)
   ASSERT(e2->type > 0 && e2->type < ATOM_ITEM_MAX);
   if (e1->type != e2->type) return 0;
   item_equal_t equal_fn = item_func[e1->type].iequal;
-  ASSERT(equal_fn != NULL);
+  ASSERT_PTR(equal_fn);
   return equal_fn(e1->data, e2->data);
 }
 
@@ -54,61 +54,70 @@ void Module_Free(Object *ob)
   free(ob);
 }
 
-static HashTable *__get_table(ModuleObject *mo)
+static HashTable *__get_table(ModuleObject *mob)
 {
-  if (mo->stable == NULL)
-    mo->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
-  return mo->stable;
+  if (mob->stable == NULL)
+    mob->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
+  return mob->stable;
 }
 
-int Module_Add_Var(Object *ob, char *name, char *desc, uint8 access)
+int Module_Add_Var(Object *ob, char *name, char *desc, int access)
 {
-  ModuleObject *mo = (ModuleObject *)ob;
-  ASSERT(mo->avail_index < mo->size);
-  int name_index = StringItem_Set(mo->itable, name, strlen(name));
-  int desc_index = TypeItem_Set(mo->itable, desc, strlen(desc));
+  ModuleObject *mob = (ModuleObject *)ob;
+  ASSERT(mob->avail_index < mob->size);
+  int name_index = StringItem_Set(mob->itable, name, strlen(name));
+  int desc_index = TypeItem_Set(mob->itable, desc, strlen(desc));
   Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
-  sym->value.index = mo->avail_index++;
-  return HashTable_Insert(__get_table(mo), &sym->hnode);
+  sym->value.index = mob->avail_index++;
+  return HashTable_Insert(__get_table(mob), &sym->hnode);
 }
 
 int Module_Add_Func(Object *ob, char *name, char *rdesc, char *pdesc,
-                    uint8 access, Object *method)
+                    int access, Object *method)
 {
-  ModuleObject *mo = (ModuleObject *)ob;
-  int name_index = StringItem_Set(mo->itable, name, strlen(name));
-  int desc_index = ProtoItem_Set(mo->itable, rdesc, pdesc, NULL, NULL);
+  ModuleObject *mob = (ModuleObject *)ob;
+  int name_index = StringItem_Set(mob->itable, name, strlen(name));
+  int desc_index = ProtoItem_Set(mob->itable, rdesc, pdesc, NULL, NULL);
   Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
   sym->value.obj = method;
-  return HashTable_Insert(__get_table(mo), &sym->hnode);
+  return HashTable_Insert(__get_table(mob), &sym->hnode);
 }
 
-static int module_add_klass(Object *ob, Klass *klazz, uint8 access, int kind)
+int Module_Add_CFunc(Object *ob, FuncStruct *f)
 {
-  ModuleObject *mo = (ModuleObject *)ob;
-  int name_index = StringItem_Set(mo->itable, klazz->name,
+  MethodProto proto;
+  FuncStruct_Get_Proto(&proto, f);
+  Object *meth = CMethod_New(f->func, &proto);
+  return Module_Add_Func(ob, f->name, f->rdesc, f->pdesc, f->access, meth);
+}
+
+static int module_add_klass(Object *ob, Klass *klazz, int access, int kind)
+{
+  ModuleObject *mob = (ModuleObject *)ob;
+  int name_index = StringItem_Set(mob->itable, klazz->name,
                                   strlen(klazz->name));
   Symbol *sym = Symbol_New(name_index, kind, access, name_index);
   sym->value.obj = klazz;
-  return HashTable_Insert(__get_table(mo), &sym->hnode);
+  klazz->itable = mob->itable;
+  return HashTable_Insert(__get_table(mob), &sym->hnode);
 }
 
-int Module_Add_Class(Object *ob, Klass *klazz, uint8 access)
+int Module_Add_Class(Object *ob, Klass *klazz, int access)
 {
   return module_add_klass(ob, klazz, access, SYM_CLASS);
 }
 
-int Module_Add_Interface(Object *ob, Klass *klazz, uint8 access)
+int Module_Add_Interface(Object *ob, Klass *klazz, int access)
 {
   return module_add_klass(ob, klazz, access, SYM_INTF);
 }
 
-static Symbol *__module_get(ModuleObject *mo, char *name)
+static Symbol *__module_get(ModuleObject *mob, char *name)
 {
-  int index = StringItem_Get(mo->itable, name, strlen(name));
+  int index = StringItem_Get(mob->itable, name, strlen(name));
   if (index < 0) return NULL;
   Symbol sym = {.name_index = index};
-  HashNode *hnode = HashTable_Find(__get_table(mo), &sym);
+  HashNode *hnode = HashTable_Find(__get_table(mob), &sym);
   if (hnode != NULL) {
     return container_of(hnode, Symbol, hnode);
   } else {
@@ -148,9 +157,8 @@ void Module_Set_Value(Object *ob, char *name, TValue *val)
 
 Object *Module_Get_Function(Object *ob, char *name)
 {
-  OB_ASSERT_KLASS(ob, Module_Klass);
-  ModuleObject *mo = (ModuleObject *)ob;
-  Symbol *s = __module_get(mo, name);
+  ModuleObject *mob = OB_TYPE_OF(ob, ModuleObject, Module_Klass);
+  Symbol *s = __module_get(mob, name);
   if (s != NULL) {
     if (s->kind == SYM_FUNC) {
       return s->value.obj;
@@ -162,11 +170,10 @@ Object *Module_Get_Function(Object *ob, char *name)
   return NULL;
 }
 
-Object *Module_Get_Class(Object *ob, char *name)
+Klass *Module_Get_Class(Object *ob, char *name)
 {
-  OB_ASSERT_KLASS(ob, Module_Klass);
-  ModuleObject *mo = (ModuleObject *)ob;
-  Symbol *s = __module_get(mo, name);
+  ModuleObject *mob = OB_TYPE_OF(ob, ModuleObject, Module_Klass);
+  Symbol *s = __module_get(mob, name);
   if (s != NULL) {
     if (s->kind == SYM_CLASS) {
       return s->value.obj;
@@ -178,11 +185,10 @@ Object *Module_Get_Class(Object *ob, char *name)
   return NULL;
 }
 
-Object *Module_Get_Interface(Object *ob, char *name)
+Klass *Module_Get_Intf(Object *ob, char *name)
 {
-  OB_ASSERT_KLASS(ob, Module_Klass);
-  ModuleObject *mo = (ModuleObject *)ob;
-  Symbol *s = __module_get(mo, name);
+  ModuleObject *mob = OB_TYPE_OF(ob, ModuleObject, Module_Klass);
+  Symbol *s = __module_get(mob, name);
   if (s != NULL) {
     if (s->kind == SYM_INTF) {
       return s->value.obj;
@@ -194,27 +200,17 @@ Object *Module_Get_Interface(Object *ob, char *name)
   return NULL;
 }
 
-int Module_Add_CFunctions(Object *ob, FunctionStruct *funcs)
+int Module_Add_CFunctions(Object *ob, FuncStruct *funcs)
 {
   OB_ASSERT_KLASS(ob, Module_Klass);
   int res;
-  FunctionStruct *f = funcs;
-  Object *meth;
+  FuncStruct *f = funcs;
   while (f->name != NULL) {
-    meth = CMethod_New(f->func);
-    res = Module_Add_Func(ob, f->name, f->rdesc, f->pdesc,
-                          (uint8)f->access, meth);
+    res = Module_Add_CFunc(ob, f);
     ASSERT(res == 0);
     ++f;
   }
   return 0;
-}
-
-/*-------------------------------------------------------------------------*/
-
-void Init_Module_Klass(Object *ob)
-{
-  Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -252,8 +248,7 @@ static void module_visit(struct hlist_head *head, int size, void *arg)
 
 void Module_Display(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, Module_Klass);
-  ModuleObject *mo = (ModuleObject *)ob;
-  printf("package:%s\n", mo->name);
-  HashTable_Traverse(__get_table(mo), module_visit, mo->itable);
+  ModuleObject *mob = OB_TYPE_OF(ob, ModuleObject, Module_Klass);
+  printf("package:%s\n", mob->name);
+  HashTable_Traverse(__get_table(mob), module_visit, mob->itable);
 }

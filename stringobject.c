@@ -23,8 +23,7 @@ void String_Free(Object *ob)
 
 char *String_RawString(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, String_Klass);
-  StringObject *sobj = (StringObject *)ob;
+  StringObject *sobj = OB_TYPE_OF(ob, StringObject, String_Klass);
   return sobj->str;
 }
 
@@ -47,8 +46,7 @@ static int hexavalue(int c)
 
 TValue String_ToInteger(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, String_Klass);
-  StringObject *sobj = (StringObject *)ob;
+  StringObject *sobj = OB_TYPE_OF(ob, StringObject, String_Klass);
   char *s = sobj->str;
   while (isspace(*s)) s++;  /* skip prefix spaces */
   int neg = isneg(&s);
@@ -76,9 +74,8 @@ TValue String_ToInteger(Object *ob)
 static Object *__string_length(Object *ob, Object *args)
 {
   ASSERT(args == NULL);
-  OB_ASSERT_KLASS(ob, String_Klass);
-  StringObject *s = (StringObject *)ob;
-  return Tuple_Build("i", s->len);
+  StringObject *sobj = OB_TYPE_OF(ob, StringObject, String_Klass);
+  return Tuple_Build("i", sobj->len);
 }
 
 static Object *__string_tostring(Object *ob, Object *args)
@@ -88,18 +85,15 @@ static Object *__string_tostring(Object *ob, Object *args)
   return Tuple_Build("O", ob);
 }
 
-static FunctionStruct string_functions[] = {
+static FuncStruct string_funcs[] = {
   {"Length", "i", "v", ACCESS_PUBLIC, __string_length},
   {"ToString", "s", "v", ACCESS_PUBLIC, __string_tostring},
   {NULL}
 };
 
-void Init_String_Klass(Object *ob)
+void Init_String_Klass(void)
 {
-  ModuleObject *mo = (ModuleObject *)ob;
-  String_Klass.itable = mo->itable;
-  Klass_Add_CFunctions(&String_Klass, string_functions);
-  Module_Add_Class(ob, &String_Klass, ACCESS_PUBLIC);
+  Klass_Add_CFunctions(&String_Klass, string_funcs);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -108,18 +102,15 @@ static int string_equal(TValue *v1, TValue *v2)
 {
   Object *ob1 = VALUE_OBJECT(v1);
   Object *ob2 = VALUE_OBJECT(v2);
-  OB_ASSERT_KLASS(ob1, String_Klass);
-  OB_ASSERT_KLASS(ob2, String_Klass);
-  StringObject *s1 = (StringObject *)ob1;
-  StringObject *s2 = (StringObject *)ob2;
+  StringObject *s1 = OB_TYPE_OF(ob1, StringObject, String_Klass);
+  StringObject *s2 = OB_TYPE_OF(ob2, StringObject, String_Klass);
   return !strcmp(s1->str, s2->str);
 }
 
 static uint32 string_hash(TValue *v)
 {
   Object *ob = VALUE_OBJECT(v);
-  OB_ASSERT_KLASS(ob, String_Klass);
-  StringObject *s = (StringObject *)ob;
+  StringObject *s = OB_TYPE_OF(ob, StringObject, String_Klass);
   return hash_string(s->str);
 }
 

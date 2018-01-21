@@ -16,7 +16,7 @@ typedef struct tableobject {
 
 /* Exported APIs */
 extern Klass Table_Klass;
-void Init_Table_Klass(Object *ob);
+void Init_Table_Klass(void);
 Object *Table_New(void);
 int Table_Get(Object *ob, TValue *key, TValue *rk, TValue *rv);
 int Table_Put(Object *ob, TValue *key, TValue *value);

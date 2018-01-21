@@ -90,13 +90,13 @@ static Object *__io_print(Object *ob, Object *args)
   return NULL;
 }
 
-static FunctionStruct io_functions[] = {
-  {"Print", "v", "s", ACCESS_PUBLIC, __io_print},
+static FuncStruct io_funcs[] = {
+  {"Print", "v", "[A", ACCESS_PUBLIC, __io_print},
   {NULL}
 };
 
 void Init_IO_Module(void)
 {
   Object *ob = Module_New("io", "koala/io", 0);
-  Module_Add_CFunctions(ob, io_functions);
+  Module_Add_CFunctions(ob, io_funcs);
 }

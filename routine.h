@@ -76,9 +76,9 @@ typedef struct frame {
 /* Exported APIs */
 extern Klass Routine_Klass;
 extern Klass Frame_Klass;
-Object *Routine_Create(Object *func, Object *obj, Object *args);
-void Routine_Run(Object *rt, short prio);
-int Routine_State(Object *rt);
+Routine *Routine_Create(Object *func, Object *obj, Object *args);
+void Routine_Run(Routine *rt, short prio);
+int Routine_State(Routine *rt);
 void Frame_Loop(Frame *frame);
 Frame *Frame_New(Object *func);
 void Frame_Free(Frame *frame);

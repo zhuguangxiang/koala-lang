@@ -9,9 +9,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
-
-/* stddef.h - standard type definitions */
-#include <stddef.h>
+#include <stddef.h> /* stddef.h - standard type definitions */
+#include <ctype.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,6 +51,9 @@ typedef double  float64;
 /* Assert macros */
 #define ASSERT(val)     assert(val)
 #define ASSERT_PTR(ptr) assert((ptr) != NULL)
+#define ASSERT_MSG(fmt, ...)  do { \
+  debug_error(fmt, ##__VA_ARGS__); ASSERT(0); \
+} while (0)
 
 #ifdef __cplusplus
 }

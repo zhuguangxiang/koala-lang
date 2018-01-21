@@ -15,7 +15,7 @@ typedef struct stringobject {
 } StringObject;
 
 extern Klass String_Klass;
-void Init_String_Klass(Object *ob);
+void Init_String_Klass(void);
 Object *String_New(char *str);
 void String_Free(Object *ob);
 char *String_RawString(Object *ob);

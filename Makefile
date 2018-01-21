@@ -32,28 +32,39 @@ all:
 lib:
 	@$(RM) lib*.a
 	@$(CC) -c $(CFLAGS) $(KOALA_LIB_FILES)
-	@$(AR) -r lib$(KOALA_LIB).a $(patsubst %.c, %.o, $(KOALA_LIB_FILES))
+	@$(AR) -rc lib$(KOALA_LIB).a $(patsubst %.c, %.o, $(KOALA_LIB_FILES))
 	@$(RM) *.o
 
 testvector: lib
 	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testtuple: lib
 	@$(CC) $(CFLAGS) test_tuple.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testthread: lib
 	@$(CC) $(CFLAGS) test_thread.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 teststring: lib
 	@$(CC) $(CFLAGS) test_string.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testobject: lib
 	@$(CC) $(CFLAGS) test_object.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testmodule: lib
 	@$(CC) $(CFLAGS) test_module.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testlist: lib
 	@$(CC) $(CFLAGS) test_list.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testhashtable: lib
 	@$(CC) $(CFLAGS) test_hashtable.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testcode: lib
 	@$(CC) $(CFLAGS) test_codeformat.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testrt: lib
 	@$(CC) $(CFLAGS) test_routine.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
 testloop: lib
 	@$(CC) $(CFLAGS) test_frameloop.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out

@@ -3,13 +3,13 @@
 #include "symbol.h"
 #include "debug.h"
 
-Symbol *Symbol_New(int name_index, uint8 kind, uint8 access, int desc_index)
+Symbol *Symbol_New(int name_index, int kind, int access, int desc_index)
 {
   Symbol *sym = calloc(1, sizeof(Symbol));
   init_hash_node(&sym->hnode, sym);
   sym->name_index = name_index;
-  sym->kind = kind;
-  sym->access = access;
+  sym->kind = (uint8)kind;
+  sym->access = (uint8)access;
   sym->desc_index = desc_index;
   return sym;
 }

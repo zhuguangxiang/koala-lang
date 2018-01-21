@@ -60,7 +60,7 @@ void run_cframe(Frame *f)
   if (result != NULL) {
     sz = Tuple_Size(result);
     ASSERT(sz == meth->nr_rets);
-    for (i = sz; i > 0; i--) {
+    for (i = sz - 1; i >= 0; i--) {
       val = Tuple_Get(result, i);
       ValueStack_Push(&rt->stack, &val);
     }
@@ -107,7 +107,7 @@ void run_kframe(Frame *f)
     Parameters are stored reversely in the stack,
     including a module or an object.
  */
-Object *Routine_Create(Object *func, Object *obj, Object *args)
+Routine *Routine_Create(Object *func, Object *obj, Object *args)
 {
   OB_ASSERT_KLASS(func, Method_Klass);
   Routine *rt = malloc(sizeof(*rt));
@@ -126,7 +126,7 @@ Object *Routine_Create(Object *func, Object *obj, Object *args)
   setobjvalue(&val, obj);
   ValueStack_Push(&rt->stack, &val);
   rt->func = func;
-  return (Object *)rt;
+  return rt;
 }
 
 static void routine_task_func(struct task *tsk)
@@ -152,17 +152,13 @@ static void routine_task_func(struct task *tsk)
   }
 }
 
-void Routine_Run(Object *ob, short prio)
+void Routine_Run(Routine *rt, short prio)
 {
-  OB_ASSERT_KLASS(ob, Routine_Klass);
-  Routine *rt = (Routine *)ob;
   task_init(&rt->task, "routine", prio, routine_task_func, rt);
 }
 
-int Routine_State(Object *ob)
+int Routine_State(Routine *rt)
 {
-  OB_ASSERT_KLASS(ob, Routine_Klass);
-  Routine *rt = (Routine *)ob;
   return rt->task.state;
 }
 

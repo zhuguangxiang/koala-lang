@@ -47,19 +47,26 @@ static void mod_entry_fini(HashNode *hnode, void *arg)
   free_mod_entry(e);
 }
 
+/*-------------------------------------------------------------------------*/
+
 static void Init_Lang_Module(void)
 {
   Object *ob = Module_New("lang", "koala/lang", 0);
-  Init_Klass_Klass(ob);
-  Init_String_Klass(ob);
-  Init_Tuple_Klass(ob);
-  Init_Table_Klass(ob);
-  Init_Module_Klass(ob);
-  Init_Method_Klass(ob);
+  Module_Add_Class(ob, &Klass_Klass, ACCESS_PUBLIC);
+  Module_Add_Class(ob, &String_Klass, ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Tuple_Klass,  ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Table_Klass,  ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Method_Klass, ACCESS_PUBLIC);
+  Init_String_Klass();
+  Init_Tuple_Klass();
+  Init_Table_Klass();
 }
 
 static void Init_Modules(void)
 {
+  HashTable_Init(&modules, mod_entry_hash, mod_entry_equal);
+
   /* koala/lang.klc */
   Init_Lang_Module();
 
@@ -103,7 +110,6 @@ Object *Koala_Load_Module(char *path)
 
 void Koala_Init(void)
 {
-  HashTable_Init(&modules, mod_entry_hash, mod_entry_equal);
   Init_Modules();
   sched_init();
   schedule();

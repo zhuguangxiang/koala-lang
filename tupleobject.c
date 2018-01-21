@@ -19,8 +19,7 @@ Object *Tuple_New(int size)
 
 TValue Tuple_Get(Object *ob, int index)
 {
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
-  TupleObject *tuple = (TupleObject *)ob;
+  TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
 
   if (index < 0 || index >= tuple->size) {
     debug_error("index %d out of bound\n", index);
@@ -51,15 +50,13 @@ Object *Tuple_Get_Slice(Object *ob, int min, int max)
 int Tuple_Size(Object *ob)
 {
   if (ob == NULL) return 0;
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
-  TupleObject *tuple = (TupleObject *)ob;
+  TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
   return tuple->size;
 }
 
 int Tuple_Set(Object *ob, int index, TValue *val)
 {
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
-  TupleObject *tuple = (TupleObject *)ob;
+  TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
 
   if (index < 0 || index >= tuple->size) {
     debug_error("index %d out of bound\n", index);
@@ -168,24 +165,20 @@ static Object *__tuple_get(Object *ob, Object *args)
 
 static Object *__tuple_size(Object *ob, Object *args)
 {
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
   ASSERT(args == NULL);
-  TupleObject *tuple = (TupleObject *)ob;
+  TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
   return Tuple_Build("i", tuple->size);
 }
 
-static FunctionStruct tuple_functions[] = {
+static FuncStruct tuple_funcs[] = {
   {"Get", "A", "i", ACCESS_PUBLIC, __tuple_get},
   {"Size", "i", "v", ACCESS_PUBLIC, __tuple_size},
   {NULL}
 };
 
-void Init_Tuple_Klass(Object *ob)
+void Init_Tuple_Klass(void)
 {
-  ModuleObject *mo = (ModuleObject *)ob;
-  Tuple_Klass.itable = mo->itable;
-  Klass_Add_CFunctions(&Tuple_Klass, tuple_functions);
-  Module_Add_Class(ob, &Tuple_Klass,  ACCESS_PUBLIC);
+  Klass_Add_CFunctions(&Tuple_Klass, tuple_funcs);
 }
 
 /*-------------------------------------------------------------------------*/

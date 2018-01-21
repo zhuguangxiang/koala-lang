@@ -165,32 +165,14 @@ struct klass {
 };
 
 extern Klass Klass_Klass;
-void Init_Klass_Klass(Object *ob);
 Klass *Klass_New(char *name, int bsize, int isize, Klass *parent);
-int Klass_Add_Field(Klass *klazz, char *name, char *desc, uint8 access);
+int Klass_Add_Field(Klass *klazz, char *name, char *desc, int access);
 int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
-                     uint8 access, Object *method);
+                     int access, Object *method);
 int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc, char *pdesc,
-                     uint8 access);
+                      int access);
 Symbol *Klass_Get(Klass *klazz, char *name);
 Object *Klass_Get_Method(Klass *klazz, char *name);
-
-/*-------------------------------------------------------------------------*/
-/*
-  All functions's proto, including c function and koala function
-  'args' and 'return' are both Tuple.
- */
-typedef Object *(*cfunc)(Object *ob, Object *args);
-
-typedef struct function_struct {
-  char *name;
-  char *rdesc;
-  char *pdesc;
-  int access;
-  cfunc func;
-} FunctionStruct;
-
-int Klass_Add_CFunctions(Klass *klazz, FunctionStruct *funcs);
 
 #ifdef __cplusplus
 }
