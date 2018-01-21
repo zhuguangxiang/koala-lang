@@ -6,21 +6,52 @@
 #include <string.h>
 #include <assert.h>
 #include "compile.h"
+#include "ast.h"
+#include "koala_yacc.h"
 
-int yyerror(const char *str);
 int yylex(void);
+extern FILE *yyin;
+
+int yyerror(const char *str)
+{
+  fprintf(stderr, "syntax error: %s\n", str);
+  return 0;
+}
+
+static struct compiler cp;
+
+int main(int argc, char *argv[])
+{
+  if (argc < 2) {
+    printf("error: no input files\n");
+    return -1;
+  }
+
+  init_compiler(&cp);
+
+  yyin = fopen(argv[1], "r");
+  yyparse();
+  fclose(yyin);
+
+  fini_compiler(&cp);
+
+  return 0;
+}
+
+//#define YYERROR_VERBOSE 1
+#define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
 
 %}
 
 %union {
   char *id;
-  int64_t ival;
-  float64_t fval;
+  int64 ival;
+  float64 fval;
   char *string_const;
   int dims;
   int primitive;
   struct expr *expr;
-  struct sequence *sequence;
+  Vector *vector;
   struct stmt *stmt;
   struct type *type;
   int operator;
@@ -54,6 +85,7 @@ int yylex(void);
 %token LSHIFT
 %token RSHIFT
 
+%token PACKAGE
 %token IF
 %token ELSE
 %token WHILE
@@ -100,8 +132,9 @@ int yylex(void);
 %token <ival> OCT_CONST
 %token <fval> FLOAT_CONST
 %token <string_const> STRING_CONST
-
 %token <id> ID
+
+%type <id> Package
 
 /*--------------------------------------------------------------------------*/
 
@@ -117,17 +150,17 @@ int yylex(void);
 %type <type> Type
 %type <type> FunctionType
 %type <type> TypeName
-%type <sequence> TypeNameListOrEmpty
-%type <sequence> TypeNameList
-%type <sequence> ReturnTypeList
-%type <sequence> TypeList
-%type <sequence> ParameterList
-%type <sequence> ParameterListOrEmpty
+%type <vector> TypeNameListOrEmpty
+%type <vector> TypeNameList
+%type <vector> ReturnTypeList
+%type <vector> TypeList
+%type <vector> ParameterList
+%type <vector> ParameterListOrEmpty
 %type <operator> UnaryOperator
 %type <operator> CompoundAssignOperator
-%type <sequence> VariableList
-%type <sequence> ExpressionList
-%type <sequence> PrimaryExpressionList
+%type <vector> VariableList
+%type <vector> ExpressionList
+%type <vector> PrimaryExpressionList
 
 %type <expr> Expression
 %type <expr> LogicalOrExpression
@@ -146,11 +179,11 @@ int yylex(void);
 %type <expr> ArrayDeclaration
 %type <expr> AnonymousFunctionDeclaration
 %type <expr> CONSTANT
-%type <sequence> DimExprList
-%type <sequence> ArrayInitializerList
+%type <vector> DimExprList
+%type <vector> ArrayInitializerList
 %type <expr> ArrayInitializer
-%type <sequence> Imports
-%type <sequence> ModuleStatements
+%type <vector> Imports
+%type <vector> ModuleStatements
 %type <stmt> Import
 %type <stmt> ModuleStatement
 %type <stmt> LocalStatement
@@ -158,27 +191,27 @@ int yylex(void);
 %type <stmt> VariableDeclaration
 %type <stmt> Assignment
 %type <stmt> IfStatement
-%type <sequence> ElseIfStatements
+%type <vector> ElseIfStatements
 %type <testblock> ElseIfStatement
 %type <testblock> OptionELSE
 %type <stmt> WhileStatement
 %type <stmt> SwitchStatement
-%type <sequence> CaseStatements
+%type <vector> CaseStatements
 %type <testblock> CaseStatement
 %type <stmt> ForStatement
 %type <stmt> ForInit
 %type <stmt> ForTest
 %type <stmt> ForIncr
-%type <sequence> Block
+%type <vector> Block
 %type <stmt> GoStatement
-%type <sequence> LocalStatements
+%type <vector> LocalStatements
 %type <stmt> ReturnStatement
 %type <stmt> JumpStatement
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
-%type <sequence> FieldDeclarations
+%type <vector> FieldDeclarations
 %type <field> FieldDeclaration
-%type <sequence> IntfFuncDecls
+%type <vector> IntfFuncDecls
 %type <intf_func> IntfFuncDecl
 
 %start CompileUnit
@@ -209,29 +242,20 @@ BaseType
   ;
 
 PrimitiveType
-  : CHAR {
-    $$ = TYPE_CHAR;
-  }
-  | BYTE {
-    $$ = TYPE_BYTE;
-  }
-  | SHORT {
-    $$ = TYPE_SHORT;
-  }
-  | INTEGER {
-    $$ = TYPE_INT;
+  : INTEGER {
+    $$ = PRIMITIVE_INT;
   }
   | FLOAT {
-    $$ = TYPE_FLOAT;
+    $$ = PRIMITIVE_FLOAT;
   }
   | BOOL {
-    $$ = TYPE_BOOL;
+    $$ = PRIMITIVE_BOOL;
   }
   | STRING {
-    $$ = TYPE_STRING;
+    $$ = PRIMITIVE_STRING;
   }
   | ANY {
-    $$ = TYPE_ANY;
+    $$ = PRIMITIVE_ANY;
   }
   ;
 
@@ -266,11 +290,11 @@ TypeNameListOrEmpty
 
 TypeNameList
   : TypeName {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | TypeNameList ',' TypeName {
-    seq_append($1, $3);
+    Vector_Appand($1, $3);
     $$ = $1;
   }
   ;
@@ -286,51 +310,62 @@ TypeName
 
 ReturnTypeList
   : Type {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | '(' TypeList ')' {
     $$ = $2;
+  }
+  | error {
+    yyerror("return declaration is not correct");
+    $$ = NULL;
   }
   ;
 
 TypeList
   : Type {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | TypeList ',' Type {
-    seq_append($1, $3);
+    Vector_Appand($1, $3);
     $$ = $1;
   }
   ;
 
 /*--------------------------------------------------------------------------*/
+
 CompileUnit
   : Imports ModuleStatements {
-    ast_traverse($1);
-    ast_traverse($2);
-    //compiler_module($1);
-    //compiler_module($2);
+    ast_traverse(cp.stmts);
   }
   | ModuleStatements {
-    ast_traverse($1);
-    //compiler_module($1);
+    ast_traverse(cp.stmts);
+  }
+  | Package Imports ModuleStatements {
+    cp.package = $1;
+    printf("package : %s\n", cp.package);
+    ast_traverse(cp.stmts);
+  }
+  | Package ModuleStatements {
+    cp.package = $1;
+    printf("package : %s\n", cp.package);
+    ast_traverse(cp.stmts);
+  }
+  ;
+
+Package
+  : PACKAGE ID ';' {
+    $$ = $2;
   }
   ;
 
 Imports
   : Import {
-    $$ = seq_new();
-    if ($1 != NULL) {
-      seq_append($$, $1);
-    }
+    if ($1 != NULL) Vector_Appand(cp.stmts, $1);
   }
   | Imports Import {
-    if ($2 != NULL) {
-      seq_append($1, $2);
-    }
-    $$ = $1;
+    if ($2 != NULL) Vector_Appand(cp.stmts, $2);
   }
   ;
 
@@ -345,24 +380,35 @@ Import
 
 ModuleStatements
   : ModuleStatement {
-    $$ = seq_new();
-    seq_append($$, $1);
+    if ($1 != NULL) Vector_Appand(cp.stmts, $1);
   }
   | ModuleStatements ModuleStatement {
-    seq_append($1, $2);
-    $$ = $1;
+    if ($2 != NULL) Vector_Appand(cp.stmts, $2);
   }
   ;
 
 ModuleStatement
-  : ConstDeclaration {
+  : VariableDeclaration ';' {
+    printf("var decl\n");
+    $$ = $1;
+  }
+  | ConstDeclaration {
+    printf("const decl\n");
     $$ = $1;
   }
   | FunctionDeclaration {
+    printf("func decl\n");
     $$ = $1;
   }
   | TypeDeclaration {
+    printf("type decl\n");
     $$ = $1;
+  }
+  | error {
+    yyerror("non-declaration statement outside function body");
+    yyerrok;
+    yyclearin;
+    $$ = NULL;
   }
   ;
 
@@ -391,11 +437,11 @@ VariableDeclaration
 
 VariableList
   : ID {
-    $$ = seq_new();
-    seq_append($$, new_var($1, NULL));
+    $$ = Vector_Create();
+    Vector_Appand($$, new_var($1, NULL));
   }
   | VariableList ',' ID {
-    seq_append($1, new_var($3, NULL));
+    Vector_Appand($1, new_var($3, NULL));
     $$ = $1;
   }
   ;
@@ -419,12 +465,16 @@ FunctionDeclaration
 
 ParameterList
   : ID Type {
-    $$ = seq_new();
-    seq_append($$, new_var($1, $2));
+    $$ = Vector_Create();
+    Vector_Appand($$, new_var($1, $2));
   }
   | ParameterList ',' ID Type {
-    seq_append($$, new_var($3, $4));
+    Vector_Appand($$, new_var($3, $4));
     $$ = $1;
+  }
+  | error {
+    yyerror("parameter declaration is not correct");
+    $$ = NULL;
   }
   ;
 
@@ -450,11 +500,11 @@ TypeDeclaration
 
 FieldDeclarations
   : FieldDeclaration {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | FieldDeclarations FieldDeclaration {
-    seq_append($1, $2);
+    Vector_Appand($1, $2);
     $$ = $1;
   }
   ;
@@ -467,11 +517,11 @@ FieldDeclaration
 
 IntfFuncDecls
   : IntfFuncDecl {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | IntfFuncDecls IntfFuncDecl {
-    seq_append($1, $2);
+    Vector_Appand($1, $2);
     $$ = $1;
   }
   ;
@@ -498,11 +548,11 @@ Block
 
 LocalStatements
   : LocalStatement {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | LocalStatements LocalStatement {
-    seq_append($1, $2);
+    Vector_Appand($1, $2);
     $$ = $1;
   }
   ;
@@ -570,11 +620,11 @@ IfStatement
 
 ElseIfStatements
   : ElseIfStatement {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | ElseIfStatements ElseIfStatement {
-    seq_append($1, $2);
+    Vector_Appand($1, $2);
     $$ = $1;
   }
   ;
@@ -615,21 +665,21 @@ SwitchStatement
 
 CaseStatements
   : CaseStatement {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | CaseStatements CaseStatement {
     if ($2->test == NULL) {
       /* default case */
-      struct test_block *tb = seq_get($1, 0);
+      struct test_block *tb = Vector_Get($1, 0);
       if (tb != NULL && tb->test == NULL) {
         fprintf(stderr, "[ERROR] default case needs only one\n");
         exit(0);
       } else {
-        seq_insert($1, 0, $2);
+        Vector_Set($1, 0, $2);
       }
     } else {
-      seq_append($1, $2);
+      Vector_Appand($1, $2);
     }
     $$ = $1;
   }
@@ -657,14 +707,14 @@ ForStatement
     $$ = stmt_from_foreach(new_var($4, NULL), $6, $8, 1);
   }
   | FOR '(' VAR VariableList Type ':' Expression ')' Block {
-    if (seq_size($4) != 1) {
+    if (Vector_Size($4) != 1) {
       fprintf(stderr, "[ERROR]syntax error, foreach usage\n");
       exit(0);
     } else {
-      struct var *v = seq_get($4, 0);
+      struct var *v = Vector_Get($4, 0);
       assert(v != NULL);
       v->type = $5;
-      seq_free($4);
+      Vector_Destroy($4, NULL, NULL);
       $$ = stmt_from_foreach(v, $7, $9, 1);
     }
   }
@@ -722,7 +772,7 @@ ReturnStatement
     $$ = stmt_from_return(NULL);
   }
   | RETURN ExpressionList ';' {
-    $$ = NULL; //stmt_from_return($2);
+    $$ = stmt_from_return($2);
   }
   ;
 
@@ -803,7 +853,7 @@ CONSTANT
 
 ArrayDeclaration
   : DimExprList Type {
-    $2->dims += $1->count;
+    $2->dims += Vector_Size($1);
     $$ = expr_from_array($2, $1, NULL);
   }
   | DIMS BaseType '{' ArrayInitializerList '}' {
@@ -814,22 +864,22 @@ ArrayDeclaration
 
 DimExprList
   : '[' Expression ']' {
-    $$ = seq_new();
-    seq_append($$, $2);
+    $$ = Vector_Create();
+    Vector_Appand($$, $2);
   }
   | DimExprList '[' Expression ']' {
-    seq_append($1, $3);
+    Vector_Appand($1, $3);
     $$ = $1;
   }
   ;
 
 ArrayInitializerList
   : ArrayInitializer {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | ArrayInitializerList ',' ArrayInitializer {
-    seq_append($1, $3);
+    Vector_Appand($1, $3);
     $$ = $1;
   }
   ;
@@ -991,11 +1041,11 @@ Expression
 
 ExpressionList
   : Expression {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | ExpressionList ',' Expression {
-    seq_append($1, $3);
+    Vector_Appand($1, $3);
     $$ = $1;
   }
   ;
@@ -1014,11 +1064,11 @@ Assignment
 
 PrimaryExpressionList
   : PrimaryExpression {
-    $$ = seq_new();
-    seq_append($$, $1);
+    $$ = Vector_Create();
+    Vector_Appand($$, $1);
   }
   | PrimaryExpressionList ',' PrimaryExpression {
-    seq_append($1, $3);
+    Vector_Appand($1, $3);
     $$ = $1;
   }
   ;

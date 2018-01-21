@@ -2,7 +2,7 @@
 #ifndef _KOALA_AST_H_
 #define _KOALA_AST_H_
 
-#include "types.h"
+#include "common.h"
 #include "list.h"
 #include "vector.h"
 
@@ -12,19 +12,11 @@ extern "C" {
 
 /*-------------------------------------------------------------------------*/
 
-struct sequence {
-  int count;
-  struct vector vec;
-};
-
-struct sequence *seq_new(void);
-void seq_free(struct sequence *seq);
-#define seq_size(seq) ((seq)->count)
-int seq_insert(struct sequence *seq, int index, void *obj);
-int seq_append(struct sequence *seq, void *obj);
-void *seq_get(struct sequence *seq, int index);
-
-/*-------------------------------------------------------------------------*/
+#define PRIMITIVE_INT     1
+#define PRIMITIVE_FLOAT   2
+#define PRIMITIVE_BOOL    3
+#define PRIMITIVE_STRING  4
+#define PRIMITIVE_ANY     5
 
 enum type_kind {
   PRIMITIVE_KIND = 1, USERDEF_TYPE = 2, FUNCTION_TYPE = 3,
@@ -35,12 +27,12 @@ struct type {
   union {
     int primitive;
     struct {
-      char *mod_name;
-      char *type_name;
+      char *mod;
+      char *type;
     } userdef;
     struct {
-      struct sequence *tseq;
-      struct sequence *rseq;
+      Vector *tseq;
+      Vector *rseq;
     } functype;
   };
   int dims;
@@ -48,7 +40,7 @@ struct type {
 
 struct type *type_from_primitive(int primitive);
 struct type *type_from_userdef(char *mod_name, char *type_name);
-struct type *type_from_functype(struct sequence *tseq, struct sequence *rseq);
+struct type *type_from_functype(Vector *tseq, Vector *rseq);
 
 /*-------------------------------------------------------------------------*/
 
@@ -72,9 +64,13 @@ enum operator_kind {
 enum expr_kind {
   NAME_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, STRING_KIND = 4, BOOL_KIND = 5,
   SELF_KIND = 6, NULL_KIND = 7, EXP_KIND = 8,
-  NEW_PRIMITIVE_KIND, ARRAY_KIND, ANONYOUS_FUNC_KIND,
+  ARRAY_KIND, ANONYOUS_FUNC_KIND,
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND,
   UNARY_KIND, BINARY_KIND, SEQ_KIND
+};
+
+enum expr_ctx {
+  LOAD = 1, STORE = 2,
 };
 
 struct expr {
@@ -83,27 +79,27 @@ struct expr {
   union {
     struct {
       char *id;
+      enum expr_ctx ctx;
     } name;
-    int64_t ival;
-    float64_t fval;
+    int64 ival;
+    float64 fval;
     char *str;
     int bval;
     struct expr *exp;
     struct {
-      struct type *type;
       /* one of pointers is null, and another is not null */
-      struct sequence *dseq;
-      struct sequence *tseq;
+      Vector *dseq;
+      Vector *tseq;
     } array;
     struct {
-      struct sequence *pseq;
-      struct sequence *rseq;
-      struct sequence *body;
+      Vector *pseq;
+      Vector *rseq;
+      Vector *body;
     } anonyous_func;
     /* Trailer */
     struct {
       struct expr *left;
-      struct expr *id;
+      char *id;
     } attribute;
     struct {
       struct expr *left;
@@ -111,7 +107,7 @@ struct expr {
     } subscript;
     struct {
       struct expr *left;
-      struct sequence *pseq;   /* expression list */
+      Vector *pseq;   /* expression list */
     } call;
     /* arithmetic operation */
     struct {
@@ -123,8 +119,8 @@ struct expr {
       enum operator_kind op;
       struct expr *right;
     } bin_op;
-    /* expression is also an expr sequence */
-    struct sequence *seq;
+    /* expression is also an expr sequence, for array initializer */
+    Vector *seq;
   };
 };
 
@@ -132,19 +128,18 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
                                struct expr *left);
 struct expr *expr_from_name(char *id);
 struct expr *expr_from_name_type(char *id, struct type *type);
-struct expr *expr_from_int(int64_t ival);
-struct expr *expr_from_float(float64_t fval);
+struct expr *expr_from_int(int64 ival);
+struct expr *expr_from_float(float64 fval);
 struct expr *expr_from_string(char *str);
 struct expr *expr_from_bool(int bval);
 struct expr *expr_from_self(void);
 struct expr *expr_from_expr(struct expr *exp);
 struct expr *expr_from_null(void);
-struct expr *expr_from_array0(struct type *type, struct sequence *seq);
-struct expr *expr_from_anonymous_func(struct sequence *pseq,
-                                      struct sequence *rseq,
-                                      struct sequence *body);
+struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq);
+struct expr *expr_from_array_with_tseq(Vector *tseq);
+struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body);
 struct expr *expr_from_binary(enum operator_kind kind,
-                             struct expr *left, struct expr *right);
+                              struct expr *left, struct expr *right);
 struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr);
 
 void expr_traverse(struct expr *exp);
@@ -153,10 +148,10 @@ void expr_traverse(struct expr *exp);
 
 struct test_block {
   struct expr *test;
-  struct sequence *body;
+  Vector *body;
 };
 
-struct test_block *new_test_block(struct expr *test, struct sequence *body);
+struct test_block *new_test_block(struct expr *test, Vector *body);
 
 enum assign_operator {
   OP_PLUS_ASSIGN = 1, OP_MINUS_ASSIGN = 2,
@@ -168,7 +163,7 @@ enum assign_operator {
 enum stmt_kind {
   EMPTY_KIND = 1, IMPORT_KIND, EXPR_KIND, VARDECL_KIND,
   FUNCDECL_KIND = 5, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
-  STRUCT_KIND = 8, INTF_KIND, RETURN_KIND,
+  CLASS_KIND = 8, INTF_KIND, RETURN_KIND,
   IF_KIND = 11, WHILE_KIND, SWITCH_KIND,
   FOR_TRIPLE_KIND = 14, FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND,
   GO_KIND = 18, BLOCK_KIND
@@ -184,19 +179,19 @@ struct stmt {
     struct expr *expr;
     struct {
       int bconst;
-      struct sequence *var_seq;
-      struct sequence *expr_seq;
+      Vector *var_seq;
+      Vector *expr_seq;
     } vardecl;
     struct {
       char *sid;
       char *fid;
-      struct sequence *pseq;
-      struct sequence *rseq;
-      struct sequence *body;
+      Vector *pseq;
+      Vector *rseq;
+      Vector *body;
     } funcdecl;
     struct {
-      struct sequence *left_seq;
-      struct sequence *right_seq;
+      Vector *left_seq;
+      Vector *right_seq;
     } assign;
     struct {
       struct expr *left;
@@ -205,7 +200,7 @@ struct stmt {
     } compound_assign;
     struct {
       char *id;
-      struct sequence *seq;
+      Vector *seq;
     } structure;
     struct {
       char *id;
@@ -213,70 +208,66 @@ struct stmt {
     } user_typedef;
     struct {
       struct test_block *if_part;
-      struct sequence *elseif_seq;
+      Vector *elseif_seq;
       struct test_block *else_part;
     } if_stmt;
     struct {
       int btest;
       struct expr *test;
-      struct sequence *body;
+      Vector *body;
     } while_stmt;
     struct {
       struct expr *expr;
-      struct sequence *case_seq;
+      Vector *case_seq;
     } switch_stmt;
     struct {
       struct stmt *init;
       struct stmt *test;
       struct stmt *incr;
-      struct sequence *body;
+      Vector *body;
     } for_triple_stmt;
     struct {
       int bdecl;
-      struct expr *var;
+      struct var *var;
       struct expr *expr;
-      struct sequence *body;
+      Vector *body;
     } for_each_stmt;
     struct expr *go_stmt;
-    struct sequence *seq;
+    Vector *seq;
   };
 };
 
 struct stmt *stmt_from_expr(struct expr *expr);
 struct stmt *stmt_from_import(char *id, char *path);
-struct stmt *stmt_from_vardecl(struct sequence *varseq,
-                               struct sequence *initseq,
+struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
                                int bconst, struct type *type);
 struct stmt *stmt_from_funcdecl(char *sid, char *fid,
-                                struct sequence *pseq,
-                                struct sequence *rseq,
-                                struct sequence *body);
-struct stmt *stmt_from_assign(struct sequence *left_seq,
-                              struct sequence *right_seq);
+                                Vector *pseq, Vector *rseq, Vector *body);
+struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq);
 struct stmt *stmt_from_compound_assign(struct expr *left,
                                        enum assign_operator op,
                                        struct expr *right);
-struct stmt *stmt_from_block(struct sequence *seq);
-struct stmt *stmt_from_return(struct sequence *seq);
+struct stmt *stmt_from_block(Vector *seq);
+struct stmt *stmt_from_return(Vector *seq);
 struct stmt *stmt_from_empty(void);
-struct stmt *stmt_from_structure(char *id, struct sequence *seq);
-struct stmt *stmt_from_interface(char *id, struct sequence *seq);
+struct stmt *stmt_from_structure(char *id, Vector *seq);
+struct stmt *stmt_from_interface(char *id, Vector *seq);
 struct stmt *stmt_from_jump(int kind);
 struct stmt *stmt_from_if(struct test_block *if_part,
-                          struct sequence *elseif_seq,
-                          struct test_block *else_part);
-struct stmt *stmt_from_while(struct expr *test, struct sequence *body, int b);
-struct stmt *stmt_from_switch(struct expr *expr, struct sequence *case_seq);
+                          Vector *elseif_seq, struct test_block *else_part);
+struct stmt *stmt_from_while(struct expr *test, Vector *body, int b);
+struct stmt *stmt_from_switch(struct expr *expr, Vector *case_seq);
 struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
-                           struct stmt *incr, struct sequence *body);
-struct stmt *stmt_from_foreach(struct expr *var, struct expr *expr,
-                              struct sequence *body, int bdecl);
+                           struct stmt *incr, Vector *body);
+struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
+                               Vector *body, int bdecl);
 struct stmt *stmt_from_go(struct expr *expr);
 
 /*-------------------------------------------------------------------------*/
 
-enum member_kind {
-  FIELD_KIND = 1, METHOD_KIND = 2, INTF_FUNCDECL_KIND = 3,
+struct var {
+  char *id;
+  struct type *type;
 };
 
 struct field {
@@ -285,19 +276,24 @@ struct field {
   struct expr *expr;
 };
 
-struct intf_func {
-  char *id;
-  struct sequence *tseq;
-  struct sequence *rseq;
+struct func_proto {
+  Vector *pseq;
+  Vector *rseq;
 };
 
+struct intf_func {
+  char *id;
+  struct func_proto proto;
+};
+
+struct var *new_var(char *id, struct type *type);
 struct field *new_struct_field(char *id, struct type *t, struct expr *e);
-struct intf_func *new_intf_func(char *id, struct sequence *pseq,
-                                struct sequence *rseq);
+struct intf_func *new_intf_func(char *id, Vector *pseq,
+                                Vector *rseq);
 
 /*-------------------------------------------------------------------------*/
 
-void ast_traverse(struct sequence *seq);
+void ast_traverse(Vector *seq);
 
 #ifdef __cplusplus
 }

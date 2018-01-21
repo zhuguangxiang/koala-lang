@@ -2,9 +2,9 @@ a.out
 koala_yacc.*
 koala_lex.c
 *.klc
-*.kl
 .vscode
 *.a
 *.o
 koalac
 koala
+.gdbinit

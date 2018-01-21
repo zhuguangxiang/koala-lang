@@ -4,7 +4,7 @@
 #include "mod_io.h"
 #include "thread.h"
 
-HashTable modules;
+static HashTable modules;
 
 struct mod_entry {
   HashNode hnode;
@@ -49,33 +49,6 @@ static void mod_entry_fini(HashNode *hnode, void *arg)
 
 /*-------------------------------------------------------------------------*/
 
-static void Init_Lang_Module(void)
-{
-  Object *ob = Module_New("lang", "koala/lang", 0);
-  Module_Add_Class(ob, &Klass_Klass, ACCESS_PUBLIC);
-  Module_Add_Class(ob, &String_Klass, ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Tuple_Klass,  ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Table_Klass,  ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Method_Klass, ACCESS_PUBLIC);
-  Init_String_Klass();
-  Init_Tuple_Klass();
-  Init_Table_Klass();
-}
-
-static void Init_Modules(void)
-{
-  HashTable_Init(&modules, mod_entry_hash, mod_entry_equal);
-
-  /* koala/lang.klc */
-  Init_Lang_Module();
-
-  /* koala/io.klc */
-  Init_IO_Module();
-}
-
-/*-------------------------------------------------------------------------*/
-
 int Koala_Add_Module(char *path, Object *mo)
 {
   struct mod_entry *e = new_mod_entry(path, mo);
@@ -108,16 +81,9 @@ Object *Koala_Load_Module(char *path)
   return ob;
 }
 
-void Koala_Init(void)
+void Koala_Run_Module(Object *ob)
 {
-  Init_Modules();
-  sched_init();
-  schedule();
-}
-
-void Koala_Run_String(char *str)
-{
-  UNUSED_PARAMETER(str);
+  UNUSED_PARAMETER(ob);
 }
 
 void Koala_Run_File(char *path)
@@ -125,9 +91,39 @@ void Koala_Run_File(char *path)
   UNUSED_PARAMETER(path);
 }
 
-void Koala_Run_Module(Object *ob)
+/*-------------------------------------------------------------------------*/
+static void Init_Lang_Module(void)
 {
-  UNUSED_PARAMETER(ob);
+  Object *ob = Module_New("lang", "koala/lang", 0);
+  Module_Add_Class(ob, &Klass_Klass, ACCESS_PUBLIC);
+  Module_Add_Class(ob, &String_Klass, ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Tuple_Klass,  ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Table_Klass,  ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
+  Module_Add_Class(ob, &Method_Klass, ACCESS_PUBLIC);
+  Init_String_Klass();
+  Init_Tuple_Klass();
+  Init_Table_Klass();
+}
+
+static void Init_Modules(void)
+{
+  HashTable_Init(&modules, mod_entry_hash, mod_entry_equal);
+
+  /* koala/lang.klc */
+  Init_Lang_Module();
+
+  /* koala/io.klc */
+  Init_IO_Module();
+}
+
+/*-------------------------------------------------------------------------*/
+
+void Koala_Init(void)
+{
+  Init_Modules();
+  sched_init();
+  schedule();
 }
 
 void Koala_Fini(void)

@@ -96,6 +96,7 @@ run demo(.klc) 123 "abc" -kpath pkg/
  repo
 
 koala build
+同一个目录下的原文件的包一样，Java也是，golang也是
  1. 强制package名和目录名一样
  2. 强制项目结构
  3. 同一个包的不同文件一起编译
@@ -195,3 +196,6 @@ code_area:
  zzz
 
 handle SIGUSR1 nostop noprint
+
+package一样，路径不同，可以访问内部符号吗？
+包相同，导入路径不同，不能访问内部符号

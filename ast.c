@@ -1,57 +1,5 @@
 
 #include "ast.h"
-#include "namei.h"
-#include "object.h"
-
-#define SEQ_DEFAULT_SIZE 16
-
-struct sequence *seq_new(void)
-{
-  struct sequence *seq = malloc(sizeof(*seq));
-  seq->count = 0;
-  vector_init(&seq->vec, SEQ_DEFAULT_SIZE);
-  return seq;
-}
-
-void seq_free(struct sequence *seq)
-{
-  vector_fini(&seq->vec, NULL, NULL);
-  free(seq);
-}
-
-int seq_insert(struct sequence *seq, int index, void *obj)
-{
-  seq_append(seq, obj);
-  if (index < 0 || index > seq->count) {
-    fprintf(stderr,
-      "[ERROR] index %d out of bound(0-%d)\n", index, seq->count);
-    return -1;
-  }
-
-  for (int i = seq->count - 1; i > index; i--) {
-    vector_set(&seq->vec, i, vector_get(&seq->vec, i - 1));
-  }
-
-  vector_set(&seq->vec, index, obj);
-
-  return 0;
-}
-
-int seq_append(struct sequence *seq, void *obj)
-{
-  int res = vector_set(&seq->vec, seq->count, obj);
-  assert(!res);
-  ++seq->count;
-  return 0;
-}
-
-void *seq_get(struct sequence *seq, int index)
-{
-  assert(index < seq->count);
-  void *obj = vector_get(&seq->vec, index);
-  assert(obj != NULL);
-  return obj;
-}
 
 struct type *type_from_primitive(int primitive)
 {
@@ -65,12 +13,12 @@ struct type *type_from_userdef(char *mod_name, char *type_name)
 {
   struct type *type = malloc(sizeof(*type));
   type->kind = USERDEF_TYPE;
-  type->userdef.mod_name  = mod_name;
-  type->userdef.type_name = type_name;
+  type->userdef.mod = mod_name;
+  type->userdef.type = type_name;
   return type;
 }
 
-struct type *type_from_functype(struct sequence *tseq, struct sequence *rseq)
+struct type *type_from_functype(Vector *tseq, Vector *rseq)
 {
   struct type *type = malloc(sizeof(*type));
   type->kind = FUNCTION_TYPE;
@@ -79,83 +27,22 @@ struct type *type_from_functype(struct sequence *tseq, struct sequence *rseq)
   return type;
 }
 
-#if 0
-struct array_tail *array_tail_from_expr(struct expr *expr)
+char *type_tostring(struct type *t)
 {
-  struct array_tail *tail = malloc(sizeof(*tail));
-  init_list_head(&tail->link);
-  tail->list   = NULL;
-  tail->expr   = expr;
-  return tail;
-}
-
-struct array_tail *array_tail_from_list(struct clist *list)
-{
-  struct array_tail *tail = malloc(sizeof(*tail));
-  init_list_head(&tail->link);
-  tail->list   = list;
-  tail->expr   = NULL;
-  return tail;
-}
-
-struct expr *trailer_from_attribute(char *id)
-{
-  struct expr *expr = malloc(sizeof(*expr));
-  expr->kind = ATTRIBUTE_KIND;
-  expr->v.attribute.expr = NULL;
-  expr->v.attribute.id   = id;
-  expr->v.attribute.type = 0;
-  init_list_head(&expr->link);
-  return expr;
-}
-
-struct expr *trailer_from_subscript(struct expr *idx)
-{
-  struct expr *expr = malloc(sizeof(*expr));
-  expr->kind = SUBSCRIPT_KIND;
-  expr->v.subscript.expr = NULL;
-  expr->v.subscript.index = idx;
-  init_list_head(&expr->link);
-  return expr;
-}
-
-struct expr *trailer_from_call(struct clist *para)
-{
-  struct expr *expr = malloc(sizeof(*expr));
-  expr->kind = CALL_KIND;
-  expr->v.call.expr = NULL;
-  expr->v.call.list = para;
-  init_list_head(&expr->link);
-  return expr;
-}
-
-static void trailer_set_left_expr(struct expr *expr, struct expr *left_expr)
-{
-  switch (expr->kind) {
-    case ATTRIBUTE_KIND:
-      expr->v.attribute.expr = left_expr;
+  switch (t->kind) {
+    case PRIMITIVE_KIND: {
+      if (t->primitive == PRIMITIVE_INT) return "int";
+      else if (t->primitive == PRIMITIVE_FLOAT) return "float";
+      else if (t->primitive == PRIMITIVE_BOOL) return "bool";
+      else if (t->primitive == PRIMITIVE_STRING) return "string";
+      else return NULL;
       break;
-    case SUBSCRIPT_KIND:
-      expr->v.subscript.expr = left_expr;
-      break;
-    case CALL_KIND:
-      expr->v.call.expr = left_expr;
-      if (left_expr->kind == NAME_KIND) {
-        left_expr->v.name.type = NT_FUNC;
-      } else if (left_expr->kind == ATTRIBUTE_KIND) {
-        left_expr->v.attribute.type = NT_FUNC;
-      } else {
-        printf("[DEBUG] call left_expr kind:%d\n", left_expr->kind);
-      }
-      break;
-    case INTF_IMPL_KIND:
-    default:
+    }
+    default: {
       assert(0);
-      break;
+    }
   }
 }
-
-#endif
 
 struct expr *expr_from_name(char *id)
 {
@@ -175,20 +62,20 @@ struct expr *expr_from_name_type(char *id, struct type *type)
   return expr;
 }
 
-struct expr *expr_from_int(int64_t ival)
+struct expr *expr_from_int(int64 ival)
 {
   struct expr *expr = malloc(sizeof(*expr));
   expr->kind = INT_KIND;
-  expr->type = type_from_primitive(TYPE_INT);
+  expr->type = type_from_primitive(PRIMITIVE_INT);
   expr->ival = ival;
   return expr;
 }
 
-struct expr *expr_from_float(float64_t fval)
+struct expr *expr_from_float(float64 fval)
 {
   struct expr *expr = malloc(sizeof(*expr));
   expr->kind = FLOAT_KIND;
-  expr->type = type_from_primitive(TYPE_FLOAT);
+  expr->type = type_from_primitive(PRIMITIVE_FLOAT);
   expr->fval = fval;
   return expr;
 }
@@ -197,7 +84,7 @@ struct expr *expr_from_string(char *str)
 {
   struct expr *expr = malloc(sizeof(*expr));
   expr->kind = STRING_KIND;
-  expr->type = type_from_primitive(TYPE_STRING);
+  expr->type = type_from_primitive(PRIMITIVE_STRING);
   expr->str  = str;
   return expr;
 }
@@ -206,7 +93,7 @@ struct expr *expr_from_bool(int bval)
 {
   struct expr *expr = malloc(sizeof(*expr));
   expr->kind = BOOL_KIND;
-  expr->type = type_from_primitive(TYPE_BOOL);
+  expr->type = type_from_primitive(PRIMITIVE_BOOL);
   expr->bval = bval;
   return expr;
 }
@@ -236,26 +123,25 @@ struct expr *expr_from_null(void)
   return expr;
 }
 
-// struct expr *expr_from_array(struct type *type, int tail, struct clist *list)
-// {
-//   struct expr *expr = malloc(sizeof(*expr));
-//   expr->kind = ARRAY_KIND;
-//   expr->type = type;
-//   expr->v.array.type = type;
-//   if (tail) {
-//     expr->v.array.tail_list = list;
-//     expr->v.array.dim_list  = NULL;
-//   } else {
-//     expr->v.array.tail_list = NULL;
-//     expr->v.array.dim_list  = list;
-//   }
-//   init_list_head(&expr->link);
-//   return expr;
-// }
+struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq)
+{
+  struct expr *expr = malloc(sizeof(*expr));
+  expr->kind = ARRAY_KIND;
+  expr->type = type;
+  expr->array.dseq = dseq;
+  expr->array.tseq = tseq;
+  return expr;
+}
 
-struct expr *expr_from_anonymous_func(struct sequence *pseq,
-                                      struct sequence *rseq,
-                                      struct sequence *body)
+struct expr *expr_from_array_with_tseq(Vector *tseq)
+{
+  struct expr *e = malloc(sizeof(*e));
+  e->kind = SEQ_KIND;
+  e->seq  = tseq;
+  return e;
+}
+
+struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body)
 {
   struct expr *expr = malloc(sizeof(*expr));
   expr->kind = ANONYOUS_FUNC_KIND;
@@ -288,36 +174,11 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
     }
     default: {
       fprintf(stderr, "[ERROR]unkown expression kind %d\n", kind);
-      assert(0);
+      ASSERT(0);
     }
   }
   return expr;
 }
-
-#if 0
-
-struct expr *expr_from_expr_trailers(struct clist *list, struct expr *expr)
-{
-  struct expr *trailer, *temp;
-  clist_foreach_safe(trailer, list, temp) {
-    clist_del(&trailer->link, list);
-    trailer_set_left_expr(trailer, expr);
-    expr = trailer;
-  }
-
-  return expr_from_expr(expr);
-}
-
-struct expr *expr_from_expr(struct expr *expr)
-{
-  struct expr *exp = malloc(sizeof(*exp));
-  exp->kind   = ATOM_KIND;
-  exp->v.expr = expr;
-  init_list_head(&exp->link);
-  return exp;
-}
-
-#endif
 
 struct expr *expr_from_binary(enum operator_kind kind,
                               struct expr *left, struct expr *right)
@@ -372,8 +233,7 @@ int vars_add_symtable(struct clist *list, int bconst, struct type *type)
   return 0;
 }
 
-struct stmt *stmt_from_vardecl(struct sequence *varseq,
-                               struct sequence *initseq,
+struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
                                int bconst, struct type *type)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
@@ -383,10 +243,9 @@ struct stmt *stmt_from_vardecl(struct sequence *varseq,
   stmt->vardecl.expr_seq = initseq;
 
   if (type != NULL) {
-    struct expr *var;
-    for (int i = 0; i < seq_size(varseq); i++) {
-      var = seq_get(varseq, i);
-      assert(var->kind == NAME_KIND);
+    struct var *var;
+    for (int i = 0; i < Vector_Size(varseq); i++) {
+      var = Vector_Get(varseq, i);
       var->type = type;
     }
   }
@@ -394,8 +253,7 @@ struct stmt *stmt_from_vardecl(struct sequence *varseq,
 }
 
 struct stmt *stmt_from_funcdecl(char *sid, char *fid,
-                                struct sequence *pseq, struct sequence *rseq,
-                                struct sequence *body)
+                                Vector *pseq, Vector *rseq, Vector *body)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = FUNCDECL_KIND;
@@ -407,8 +265,7 @@ struct stmt *stmt_from_funcdecl(char *sid, char *fid,
   return stmt;
 }
 
-struct stmt *stmt_from_assign(struct sequence *left_seq,
-                              struct sequence *right_seq)
+struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = ASSIGN_KIND;
@@ -429,7 +286,7 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
   return stmt;
 }
 
-struct stmt *stmt_from_block(struct sequence *block)
+struct stmt *stmt_from_block(Vector *block)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = BLOCK_KIND;
@@ -437,7 +294,7 @@ struct stmt *stmt_from_block(struct sequence *block)
   return stmt;
 }
 
-struct stmt *stmt_from_return(struct sequence *seq)
+struct stmt *stmt_from_return(Vector *seq)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = RETURN_KIND;
@@ -452,16 +309,16 @@ struct stmt *stmt_from_empty(void)
   return stmt;
 }
 
-struct stmt *stmt_from_structure(char *id, struct sequence *seq)
+struct stmt *stmt_from_structure(char *id, Vector *seq)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
-  stmt->kind = STRUCT_KIND;
+  stmt->kind = CLASS_KIND;
   stmt->structure.id  = id;
   stmt->structure.seq = seq;
   return stmt;
 }
 
-struct stmt *stmt_from_interface(char *id, struct sequence *seq)
+struct stmt *stmt_from_interface(char *id, Vector *seq)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = INTF_KIND;
@@ -478,7 +335,7 @@ struct stmt *stmt_from_jump(int kind)
 }
 
 struct stmt *stmt_from_if(struct test_block *if_part,
-                          struct sequence *elseif_seq,
+                          Vector *elseif_seq,
                           struct test_block *else_part)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
@@ -489,7 +346,7 @@ struct stmt *stmt_from_if(struct test_block *if_part,
   return stmt;
 }
 
-struct test_block *new_test_block(struct expr *test, struct sequence *body)
+struct test_block *new_test_block(struct expr *test, Vector *body)
 {
   struct test_block *tb = malloc(sizeof(*tb));
   tb->test = test;
@@ -497,7 +354,7 @@ struct test_block *new_test_block(struct expr *test, struct sequence *body)
   return tb;
 }
 
-struct stmt *stmt_from_while(struct expr *test, struct sequence *body, int b)
+struct stmt *stmt_from_while(struct expr *test, Vector *body, int b)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = WHILE_KIND;
@@ -507,7 +364,7 @@ struct stmt *stmt_from_while(struct expr *test, struct sequence *body, int b)
   return stmt;
 }
 
-struct stmt *stmt_from_switch(struct expr *expr, struct sequence *case_seq)
+struct stmt *stmt_from_switch(struct expr *expr, Vector *case_seq)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = SWITCH_KIND;
@@ -517,7 +374,7 @@ struct stmt *stmt_from_switch(struct expr *expr, struct sequence *case_seq)
 }
 
 struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
-                           struct stmt *incr, struct sequence *body)
+                           struct stmt *incr, Vector *body)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = FOR_TRIPLE_KIND;
@@ -528,8 +385,8 @@ struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
   return stmt;
 }
 
-struct stmt *stmt_from_foreach(struct expr *var, struct expr *expr,
-                              struct sequence *body, int bdecl)
+struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
+                               Vector *body, int bdecl)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = FOR_EACH_KIND;
@@ -553,69 +410,55 @@ struct stmt *stmt_from_go(struct expr *expr)
   return stmt;
 }
 
+struct var *new_var(char *id, struct type *type)
+{
+  struct var *v = malloc(sizeof(*v));
+  v->id   = id;
+  v->type = type;
+  return v;
+}
+
 struct field *new_struct_field(char *id, struct type *t, struct expr *e)
 {
   return NULL;
 }
 
-struct intf_func *new_intf_func(char *id, struct sequence *pseq,
-                                struct sequence *rseq)
+struct intf_func *new_intf_func(char *id, Vector *pseq, Vector *rseq)
 {
   return NULL;
 }
 
-#if 0
+/*--------------------------------------------------------------------------*/
+
 void type_traverse(struct type *type)
 {
   if (type != NULL) {
-    printf("type_kind:%d\n", type->kind);
-    printf("type_dims:%d\n", type->dims);
+    printf("type kind & dims: %d:%d\n", type->kind, type->dims);
   } else {
     printf("no type declared\n");
   }
 }
 
-void array_tail_traverse(struct array_tail *tail)
-{
-  if (tail->list) {
-    printf("subarray,length:%d\n", tail->list->count);
-    assert(!tail->expr);
-    int count = 0;
-    struct array_tail *t;
-    clist_foreach(t, tail->list) {
-      count++;
-      array_tail_traverse(t);
-    }
-    printf("real subcount222:%d\n", count);
-  } else {
-    printf("tail expr\n");
-    assert(tail->expr);
-    expr_traverse(tail->expr);
-    printf("tail expr end\n");
-  }
-}
-
 void array_traverse(struct expr *expr)
 {
-  type_traverse(expr->v.array.type);
-  if (expr->v.array.tail_list != NULL) {
-    printf("array tail list, length:%d\n", expr->v.array.tail_list->count);
-    int count = 0;
-    struct array_tail *tail;
-    clist_foreach(tail, expr->v.array.tail_list) {
-      count++;
-      printf("start subarray\n");
-      array_tail_traverse(tail);
-      printf("end subarray\n");
+  type_traverse(expr->type);
+  if (expr->array.tseq != NULL) {
+    printf("array init's list, length:%d\n", Vector_Size(expr->array.tseq));
+    for (int i = 0; i < Vector_Size(expr->array.tseq); i++) {
+      expr_traverse(Vector_Get(expr->array.tseq, i));
     }
-    printf("real count:%d\n", count);
   } else {
-    printf("array dim list, length:%d\n", expr->v.array.dim_list->count);
+    printf("array dim's list, length:%d\n", Vector_Size(expr->array.dseq));
+    for (int i = 0; i < Vector_Size(expr->array.dseq); i++) {
+      expr_traverse(Vector_Get(expr->array.dseq, i));
+    }
   }
 }
 
 void expr_traverse(struct expr *expr)
 {
+  if (expr == NULL) return;
+
   switch (expr->kind) {
     case NAME_KIND: {
       /*
@@ -626,45 +469,36 @@ void expr_traverse(struct expr *expr)
       function:
       module variable -> external module name
       */
-      printf("[id]\n");
-      printf("%s, %s\n", expr->v.name.id, ni_type_string(expr->v.name.type));
+      printf("[id]%s\n", expr->name.id);
       break;
     }
     case INT_KIND: {
-      printf("[integer]\n");
-      printf("%lld\n", expr->v.ival);
+      printf("[int]%lld\n", expr->ival);
       break;
     }
     case FLOAT_KIND: {
-      printf("[float]\n");
-      printf("%f\n", expr->v.fval);
+      printf("[float]%f\n", expr->fval);
       break;
     }
     case STRING_KIND: {
-      printf("[string]\n");
-      printf("%s\n", expr->v.str);
+      printf("[string]%s\n", expr->str);
       break;
     }
     case BOOL_KIND: {
-      printf("[boolean]\n");
-      printf("%s\n", expr->v.bval ? "true" : "false");
+      printf("%s\n", expr->bval ? "true" : "false");
       break;
     }
     case SELF_KIND: {
-      printf("[self]\n");
+      printf("self\n");
       break;
     }
     case NULL_KIND: {
-      printf("[null]\n");
+      printf("null\n");
       break;
     }
     case EXP_KIND: {
       printf("[sub-expr]\n");
-      expr_traverse(expr->v.exp);
-      break;
-    }
-    case NEW_PRIMITIVE_KIND: {
-      printf("[new primitive object]\n");
+      expr_traverse(expr->exp);
       break;
     }
     case ARRAY_KIND: {
@@ -677,153 +511,116 @@ void expr_traverse(struct expr *expr)
       break;
     }
     case ATTRIBUTE_KIND: {
-      expr_traverse(expr->v.attribute.expr);
-      printf("[attribute]\n");
-      printf("%s, %s\n", expr->v.attribute.id,
-             ni_type_string(expr->v.attribute.type));
+      expr_traverse(expr->attribute.left);
+      printf("[attribute].%s\n", expr->attribute.id);
       break;
     }
     case SUBSCRIPT_KIND: {
-      expr_traverse(expr->v.subscript.expr);
+      expr_traverse(expr->subscript.left);
       printf("[subscript]\n");
-      expr_traverse(expr->v.subscript.index);
+      expr_traverse(expr->subscript.index);
       break;
     }
     case CALL_KIND: {
-      expr_traverse(expr->v.call.expr);
-      printf("[func call]\n");
-      printf("paras:\n");
-      struct expr *expr;
-      clist_foreach(expr, expr->v.call.list) {
-        expr_traverse(expr);
+      expr_traverse(expr->call.left);
+      printf("[func call]paras:\n");
+      struct expr *temp;
+      for (int i = 0; i < Vector_Size(expr->call.pseq); i++) {
+        temp = Vector_Get(expr->call.pseq, i);
+        expr_traverse(temp);
       }
-      break;
-    }
-    case INTF_IMPL_KIND:
-    default: {
-      printf("[ERROR] unknown expr kind :%d\n", expr->kind);
-      assert(0);
-      break;
-    }
-  }
-}
-
-void expr_traverse(struct expr *exp)
-{
-  if (exp == NULL) return;
-
-  switch (exp->kind) {
-    case ATOM_KIND: {
-      expr_traverse(exp->v.expr);
+      printf("[end func call]\n");
       break;
     }
     case UNARY_KIND: {
-      printf("unary expr,op:%d\n", exp->v.unary_op.op);
-      expr_traverse(exp->v.unary_op.operand);
+      printf("[unary expr]op:%d\n", expr->unary_op.op);
+      expr_traverse(expr->unary_op.operand);
       break;
     }
     case BINARY_KIND: {
-      printf("binary expr,op:%d\n", exp->v.bin_op.op);
-      expr_traverse(exp->v.bin_op.left);
-      expr_traverse(exp->v.bin_op.right);
+      printf("[binary expr]op:%d\n", expr->bin_op.op);
+      expr_traverse(expr->bin_op.left);
+      expr_traverse(expr->bin_op.right);
+      break;
+    }
+    case SEQ_KIND: {
+      printf("[seq]\n");
+      for (int i = 0; i < Vector_Size(expr->seq); i++) {
+        expr_traverse(Vector_Get(expr->seq, i));
+      }
+      printf("[end seq]\n");
       break;
     }
     default: {
-      assert(0);
+      ASSERT(0);
       break;
     }
   }
 }
 
+/*--------------------------------------------------------------------------*/
+
 void vardecl_traverse(struct stmt *stmt)
 {
-  printf("variable declaration\n");
   printf("const variable ? %s\n",
-         stmt->v.vardecl.bconst ? "true" : "false");
+         stmt->vardecl.bconst ? "true" : "false");
   printf("variables name:\n");
   struct var *var;
-  struct sequence *var_seq = stmt->v.vardecl.var_seq;
-  for (int i = 0; i < seq_size(var_seq); i++) {
-    var = seq_get(var_seq, i);
+  for (int i = 0; i < Vector_Size(stmt->vardecl.var_seq); i++) {
+    var = Vector_Get(stmt->vardecl.var_seq, i);
     printf("%s ", var->id);
-    type_traverse(var->type);
   }
 
   putchar('\n');
 
+  printf("initializers's list:\n");
   struct expr *expr;
-  struct sequence *expr_seq = stmt->v.vardecl.expr_seq;
-  for (int i = 0; i < seq_size(expr_seq); i++) {
-    expr = seq_get(expr_seq, i);
+  for (int i = 0; i < Vector_Size(stmt->vardecl.expr_seq); i++) {
+    expr = Vector_Get(stmt->vardecl.expr_seq, i);
     expr_traverse(expr);
   }
-
-  printf("end variable declaration\n");
 }
 
 void stmt_traverse(struct stmt *stmt);
 
-void ifexpr_traverse(struct if_expr *ifexpr)
+void func_traverse(struct stmt *stmt)
 {
-  if (ifexpr == NULL) return;
-
-  if (ifexpr->test != NULL) {
-    printf("test part:\n");
-    expr_traverse(ifexpr->test);
-  }
-
-  if (ifexpr->body != NULL) {
-    printf("body part:\n");
-    struct stmt *pos;
-    clist_foreach(pos, ifexpr->body) {
-      stmt_traverse(pos);
+  Vector *vec = stmt->funcdecl.pseq;
+  struct var *var;
+  printf("[function]\n");
+  printf("params:");
+  if (vec != NULL) {
+    for (int i = 0; i < Vector_Size(vec); i++) {
+      var = Vector_Get(vec, i);
+      printf(" %s %s", var->id, type_tostring(var->type));
+      if (i + 1 != Vector_Size(vec))
+        printf(",");
     }
+    printf("\n");
   }
-}
 
-void ifstmt_traverse(struct stmt *ifstmt)
-{
-  printf("if-condition:\n");
-  ifexpr_traverse(ifstmt->v.if_stmt.if_part);
-  printf("else-if-list:\n");
-  struct if_expr *pos;
-  clist_foreach(pos, ifstmt->v.if_stmt.elseif_list) {
-    ifexpr_traverse(pos);
-  }
-  printf("else:\n");
-  ifexpr_traverse(ifstmt->v.if_stmt.else_part);
-  printf("end of if statement\n");
-}
-
-void whilestmt_traverse(struct stmt *whilestmt)
-{
-  printf("while condition: first test ? %d\n", whilestmt->v.while_stmt.btest);
-  expr_traverse(whilestmt->v.while_stmt.test);
-  printf("while body:\n");
-  struct stmt *pos;
-  clist_foreach(pos, whilestmt->v.while_stmt.body) {
-    stmt_traverse(pos);
-  }
-  printf("end of while statement\n");
-}
-
-void switchstmt_traverse(struct stmt *stmt)
-{
-  printf("switch-expr:\n");
-  expr_traverse(stmt->v.switch_stmt.expr);
-  printf("case-list:\n");
-  struct case_stmt *pos;
-  struct stmt *s;
-  clist_foreach(pos, stmt->v.switch_stmt.case_list) {
-    expr_traverse(pos->expr);
-    clist_foreach(s, pos->body) {
-      stmt_traverse(s);
+  vec = stmt->funcdecl.rseq;
+  struct type *t;
+  printf("returns:");
+  if (vec != NULL) {
+    for (int i = 0; i < Vector_Size(vec); i++) {
+      t = Vector_Get(vec, i);
+      printf(" %s", type_tostring(t));
+      if (i + 1 != Vector_Size(vec))
+        printf(",");
     }
+    printf("\n");
   }
-  printf("end of switch\n");
+
+  vec = stmt->funcdecl.body;
+  if (vec != NULL) {
+    for (int i = 0; i < Vector_Size(vec); i++)
+      stmt_traverse(Vector_Get(vec, i));
+  }
+  printf("[end function]\n");
 }
 
-#endif
+/*--------------------------------------------------------------------------*/
 
 void stmt_traverse(struct stmt *stmt)
 {
@@ -833,22 +630,24 @@ void stmt_traverse(struct stmt *stmt)
       break;
     }
     case IMPORT_KIND: {
-      printf("[import]\n");
-      printf("%s:%s\n", stmt->import.id, stmt->import.path);
+      printf("[import]%s:%s\n", stmt->import.id, stmt->import.path);
       break;
     }
     case EXPR_KIND: {
       printf("[expr]\n");
-      //expr_traverse(stmt->v.expr);
+      expr_traverse(stmt->expr);
+      printf("[end expr]\n");
       break;
     }
     case VARDECL_KIND: {
       printf("[var decl]\n");
-      //vardecl_traverse(stmt);
+      vardecl_traverse(stmt);
+      printf("[end var decl]\n");
       break;
     }
     case FUNCDECL_KIND: {
-      printf("[functin decl]:%s.%s\n", stmt->funcdecl.sid, stmt->funcdecl.fid);
+      printf("[func decl]:%s.%s\n", stmt->funcdecl.sid, stmt->funcdecl.fid);
+      func_traverse(stmt);
       break;
     }
     case ASSIGN_KIND: {
@@ -869,7 +668,7 @@ void stmt_traverse(struct stmt *stmt)
       // expr_traverse(stmt->v.compound_assign.right);
       break;
     }
-    case STRUCT_KIND: {
+    case CLASS_KIND: {
       printf("[structure]:%s\n", stmt->structure.id);
       break;
     }
@@ -908,20 +707,31 @@ void stmt_traverse(struct stmt *stmt)
       printf("[continue statement]\n");
       break;
     }
+    case RETURN_KIND: {
+      printf("[return statement]\n");
+      struct expr *exp;
+      for (int i = 0; i < Vector_Size(stmt->seq); i++) {
+        exp = Vector_Get(stmt->seq, i);
+        expr_traverse(exp);
+      }
+      printf("[end return statement]\n");
+      break;
+    }
     case GO_KIND: {
       printf("[go statement]\n");
-      // expr_traverse(stmt->v.expr);
+      expr_traverse(stmt->go_stmt);
+      printf("[end go statement]\n");
       break;
     }
     default:{
       printf("[ERROR] unknown stmt kind :%d\n", stmt->kind);
-      assert(0);
+      ASSERT(0);
     }
   }
 }
 
-void ast_traverse(struct sequence *seq)
+void ast_traverse(Vector *vec)
 {
-  for (int i = 0; i < seq_size(seq); i++)
-    stmt_traverse(seq_get(seq, i));
+  for (int i = 0; i < Vector_Size(vec); i++)
+    stmt_traverse(Vector_Get(vec, i));
 }

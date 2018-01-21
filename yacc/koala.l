@@ -1,6 +1,6 @@
 
 %{
-#include "common.h"
+#include "compile.h"
 #include "koala_yacc.h"
 
 static void echo();
@@ -9,6 +9,7 @@ static void echo();
 
 %option nounput
 %option noinput
+%option yylineno
 
 D   [0-9]
 H   [a-fA-F0-9]
@@ -40,6 +41,7 @@ L   [a-zA-Z_]
 "<<="                     {return LSHIFT_ASSIGN;}
 "..."                     {return ELLIPSIS;}
 
+"package"                 {return PACKAGE;}
 "if"                      {return IF;}
 "else"                    {return ELSE;}
 "while"                   {return WHILE;}

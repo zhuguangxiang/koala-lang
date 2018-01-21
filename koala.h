@@ -14,7 +14,6 @@ extern "C" {
 #endif
 
 /* Exported APIs */
-extern HashTable modules;
 int Koala_Add_Module(char *path, Object *mo);
 Object *Koala_Get_Module(char *path);
 Object *Koala_Load_Module(char *path);

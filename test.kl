@@ -1,0 +1,18 @@
+
+package test;
+
+import "koala/io";
+
+func main(args []string) {
+  io.Print("hello, world\n");
+}
+
+var str = string("hello");
+const SIZE = 4096;
+
+func AddAndSub(a int, b int) (int, int) {
+  io.Print(str);
+  var c int = a + b;
+  var d int = a - b;
+  return c, d;
+}

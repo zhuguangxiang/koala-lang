@@ -2,21 +2,29 @@
 #ifndef _KOALA_COMPILE_H_
 #define _KOALA_COMPILE_H_
 
-#include "symtable.h"
-#include "ast.h"
-#include "object.h"
+#include "koala.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct Compiler {
-  struct symtable *symtable;
-  struct Object *obj;
-  struct Object *arg;
+struct scope_context {
+  struct list_head link;
+  int scope;
+  HashTable stable;
+  ItemTable *itable;
 };
 
-int compiler_module(struct sequence *stmts);
+struct compiler {
+  char *package;
+  Vector *stmts;
+  int scope;
+  struct list_head scopes;
+};
+
+int init_compiler(struct compiler *cp);
+int fini_compiler(struct compiler *cp);
+int compile(struct compiler *cp);
 
 #ifdef __cplusplus
 }

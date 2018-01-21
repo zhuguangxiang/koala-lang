@@ -52,7 +52,7 @@ void ItemTable_Fini(ItemTable *table, item_fini_t fini, void *arg)
 int ItemTable_Append(ItemTable *table, int type, void *data, int unique)
 {
   Vector *vec = table->items + type;
-  int index = Vector_Set(vec, Vector_Size(vec), data);
+  int index = Vector_Appand(vec, data);
   if (unique) {
     ItemEntry *e = itementry_new(type, index, data);
     int res = HashTable_Insert(&table->table, &e->hnode);
