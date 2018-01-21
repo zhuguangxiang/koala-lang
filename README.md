@@ -199,3 +199,6 @@ handle SIGUSR1 nostop noprint
 
 package一样，路径不同，可以访问内部符号吗？
 包相同，导入路径不同，不能访问内部符号
+
+git remote add origin git@github.com:zhuguangxiang/koala-language.git
+git push -u origin master --tags
