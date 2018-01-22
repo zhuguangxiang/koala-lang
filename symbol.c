@@ -1,7 +1,38 @@
 
-#include "hash.h"
 #include "symbol.h"
+#include "hash.h"
 #include "debug.h"
+#include "codeformat.h"
+
+#define ATOM_ITEM_MAX   (ITEM_CONST + 1)
+
+static uint32 htable_hash(void *key)
+{
+  ItemEntry *e = key;
+  ASSERT(e->type > 0 && e->type < ATOM_ITEM_MAX);
+  item_hash_t hash_fn = item_func[e->type].ihash;
+  ASSERT_PTR(hash_fn);
+  return hash_fn(e->data);
+}
+
+static int htable_equal(void *k1, void *k2)
+{
+  ItemEntry *e1 = k1;
+  ItemEntry *e2 = k2;
+  ASSERT(e1->type > 0 && e1->type < ATOM_ITEM_MAX);
+  ASSERT(e2->type > 0 && e2->type < ATOM_ITEM_MAX);
+  if (e1->type != e2->type) return 0;
+  item_equal_t equal_fn = item_func[e1->type].iequal;
+  ASSERT_PTR(equal_fn);
+  return equal_fn(e1->data, e2->data);
+}
+
+ItemTable *SItemTable_Create(void)
+{
+  return ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
+}
+
+/*-------------------------------------------------------------------------*/
 
 Symbol *Symbol_New(int name_index, int kind, int access, int desc_index)
 {
@@ -19,17 +50,22 @@ void Symbol_Free(Symbol *sym)
   free(sym);
 }
 
-uint32 Symbol_Hash(void *k)
+uint32 symbol_hash(void *k)
 {
   Symbol *s = k;
   return hash_uint32(s->name_index, 0);
 }
 
-int Symbol_Equal(void *k1, void *k2)
+int symbol_equal(void *k1, void *k2)
 {
   Symbol *s1 = k1;
   Symbol *s2 = k2;
   return s1->name_index == s2->name_index;
+}
+
+HashTable *SHashTable_Create(void)
+{
+  return HashTable_Create(symbol_hash, symbol_equal);
 }
 
 /*-------------------------------------------------------------------------*/

@@ -1,30 +1,5 @@
 
-#include "symbol.h"
-#include "debug.h"
 #include "koala.h"
-
-#define ATOM_ITEM_MAX   (ITEM_CONST + 1)
-
-static uint32 htable_hash(void *key)
-{
-  ItemEntry *e = key;
-  ASSERT(e->type > 0 && e->type < ATOM_ITEM_MAX);
-  item_hash_t hash_fn = item_func[e->type].ihash;
-  ASSERT_PTR(hash_fn);
-  return hash_fn(e->data);
-}
-
-static int htable_equal(void *k1, void *k2)
-{
-  ItemEntry *e1 = k1;
-  ItemEntry *e2 = k2;
-  ASSERT(e1->type > 0 && e1->type < ATOM_ITEM_MAX);
-  ASSERT(e2->type > 0 && e2->type < ATOM_ITEM_MAX);
-  if (e1->type != e2->type) return 0;
-  item_equal_t equal_fn = item_func[e1->type].iequal;
-  ASSERT_PTR(equal_fn);
-  return equal_fn(e1->data, e2->data);
-}
 
 /*-------------------------------------------------------------------------*/
 
@@ -38,7 +13,7 @@ Object *Module_New(char *name, char *path, int nr_locals)
   ob->name = name;
   ob->avail_index = 0;
   ob->size = nr_locals;
-  ob->itable = ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
+  ob->itable = SItemTable_Create();
   for (int i = 0; i < nr_locals; i++)
     initnilvalue(ob->locals + i);
   if (Koala_Add_Module(path, (Object *)ob) < 0) {
@@ -57,7 +32,7 @@ void Module_Free(Object *ob)
 static HashTable *__get_table(ModuleObject *mob)
 {
   if (mob->stable == NULL)
-    mob->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
+    mob->stable = SHashTable_Create();
   return mob->stable;
 }
 
@@ -68,7 +43,7 @@ int Module_Add_Var(Object *ob, char *name, char *desc, int access)
   int name_index = StringItem_Set(mob->itable, name, strlen(name));
   int desc_index = TypeItem_Set(mob->itable, desc, strlen(desc));
   Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
-  sym->value.index = mob->avail_index++;
+  sym->index = mob->avail_index++;
   return HashTable_Insert(__get_table(mob), &sym->hnode);
 }
 
@@ -79,7 +54,7 @@ int Module_Add_Func(Object *ob, char *name, char *rdesc, char *pdesc,
   int name_index = StringItem_Set(mob->itable, name, strlen(name));
   int desc_index = ProtoItem_Set(mob->itable, rdesc, pdesc, NULL, NULL);
   Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
-  sym->value.obj = method;
+  sym->obj = method;
   return HashTable_Insert(__get_table(mob), &sym->hnode);
 }
 
@@ -97,7 +72,7 @@ static int module_add_klass(Object *ob, Klass *klazz, int access, int kind)
   int name_index = StringItem_Set(mob->itable, klazz->name,
                                   strlen(klazz->name));
   Symbol *sym = Symbol_New(name_index, kind, access, name_index);
-  sym->value.obj = klazz;
+  sym->obj = klazz;
   klazz->itable = mob->itable;
   return HashTable_Insert(__get_table(mob), &sym->hnode);
 }
@@ -130,8 +105,8 @@ static int __get_value_index(ModuleObject *mob, char *name)
   struct symbol *s = __module_get(mob, name);
   if (s != NULL) {
     if (s->kind == SYM_VAR) {
-      ASSERT(s->value.index < mob->size);
-      return s->value.index;
+      ASSERT(s->index < mob->size);
+      return s->index;
     } else {
       debug_error("symbol is not a variable\n");
     }
@@ -161,7 +136,7 @@ Object *Module_Get_Function(Object *ob, char *name)
   Symbol *s = __module_get(mob, name);
   if (s != NULL) {
     if (s->kind == SYM_FUNC) {
-      return s->value.obj;
+      return s->obj;
     } else {
       debug_error("symbol is not a function\n");
     }
@@ -176,7 +151,7 @@ Klass *Module_Get_Class(Object *ob, char *name)
   Symbol *s = __module_get(mob, name);
   if (s != NULL) {
     if (s->kind == SYM_CLASS) {
-      return s->value.obj;
+      return s->obj;
     } else {
       debug_error("symbol is not a class\n");
     }
@@ -191,7 +166,7 @@ Klass *Module_Get_Intf(Object *ob, char *name)
   Symbol *s = __module_get(mob, name);
   if (s != NULL) {
     if (s->kind == SYM_INTF) {
-      return s->value.obj;
+      return s->obj;
     } else {
       debug_error("symbol is not a interface\n");
     }

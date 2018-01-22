@@ -1,7 +1,7 @@
 
+#include "vector.h"
 #include "common.h"
 #include "debug.h"
-#include "vector.h"
 
 #define DEFAULT_CAPACTIY 16
 

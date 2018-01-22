@@ -2,7 +2,7 @@
 #ifndef _KOALA_SYMBOL_H_
 #define _KOALA_SYMBOL_H_
 
-#include "codeformat.h"
+#include "common.h"
 #include "itemtable.h"
 
 #ifdef __cplusplus
@@ -29,17 +29,17 @@ typedef struct symbol {
   uint16 unused;
   int desc_index;
   union {
-    void *obj;
-    int index;
-  } value;
+    void *obj;  /* method or klass */
+    int index;  /* variable's index of array */
+  };
 } Symbol;
 
 /* Exported APIs */
 Symbol *Symbol_New(int name_index, int kind, int access, int desc_index);
 void Symbol_Free(Symbol *sym);
 void Symbol_Display(Symbol *sym, ItemTable *table);
-uint32 Symbol_Hash(void *k);
-int Symbol_Equal(void *k1, void *k2);
+ItemTable *SItemTable_Create(void);
+HashTable *SHashTable_Create(void);
 
 #ifdef __cplusplus
 }

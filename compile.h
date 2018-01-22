@@ -10,21 +10,22 @@ extern "C" {
 
 struct scope_context {
   struct list_head link;
-  int scope;
   HashTable stable;
   ItemTable *itable;
 };
 
 struct compiler {
   char *package;
-  Vector *stmts;
+  HashTable *stable;
+  ItemTable *itable;
+  ModuleObject *module;
   int scope;
   struct list_head scopes;
 };
 
 int init_compiler(struct compiler *cp);
 int fini_compiler(struct compiler *cp);
-int compile(struct compiler *cp);
+int compile(struct compiler *cp, Vector *stmts);
 
 #ifdef __cplusplus
 }

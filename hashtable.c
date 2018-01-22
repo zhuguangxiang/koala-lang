@@ -1,6 +1,6 @@
 
-#include "debug.h"
 #include "hashtable.h"
+#include "debug.h"
 
 #define HT_LOAD_FACTOR      0.65
 #define DEFAULT_PRIME_INDEX 0

@@ -170,7 +170,7 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
 static HashTable *__get_table(Klass *klazz)
 {
   if (klazz->stable == NULL)
-    klazz->stable = HashTable_Create(Symbol_Hash, Symbol_Equal);
+    klazz->stable = SHashTable_Create();
   return klazz->stable;
 }
 
@@ -180,7 +180,7 @@ int Klass_Add_Field(Klass *klazz, char *name, char *desc, int access)
   int name_index = StringItem_Set(klazz->itable, name, strlen(name));
   int desc_index = TypeItem_Set(klazz->itable, desc, strlen(desc));
   Symbol *sym = Symbol_New(name_index, SYM_FIELD, access, desc_index);
-  sym->value.index = klazz->avail_index++;
+  sym->index = klazz->avail_index++;
   return HashTable_Insert(__get_table(klazz), &sym->hnode);
 }
 
@@ -191,7 +191,7 @@ int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
   int name_index = StringItem_Set(klazz->itable, name, strlen(name));
   int desc_index = ProtoItem_Set(klazz->itable, rdesc, pdesc, NULL, NULL);
   Symbol *sym = Symbol_New(name_index, SYM_METHOD, access, desc_index);
-  sym->value.obj = method;
+  sym->obj = method;
   return HashTable_Insert(__get_table(klazz), &sym->hnode);
 }
 
@@ -202,7 +202,7 @@ int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc, char *pdesc,
   int name_index = StringItem_Set(klazz->itable, name, strlen(name));
   int desc_index = ProtoItem_Set(klazz->itable, rdesc, pdesc, NULL, NULL);
   Symbol *sym = Symbol_New(name_index, SYM_IMETHOD, access, desc_index);
-  sym->value.index = klazz->avail_index++;
+  sym->index = klazz->avail_index++;
   return HashTable_Insert(__get_table(klazz), &sym->hnode);
 }
 
@@ -226,7 +226,7 @@ Object *Klass_Get_Method(Klass *klazz, char *name)
   Symbol *s = Klass_Get(klazz, name);
   if (s == NULL) return NULL;
   if (s->kind != SYM_METHOD) return NULL;
-  Object *temp = s->value.obj;
+  Object *temp = s->obj;
   OB_ASSERT_KLASS(temp, Method_Klass);
   return temp;
 }
