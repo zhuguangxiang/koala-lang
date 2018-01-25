@@ -86,13 +86,14 @@ static Object *__string_tostring(Object *ob, Object *args)
 }
 
 static FuncStruct string_funcs[] = {
-  {"Length", "i", "v", ACCESS_PUBLIC, __string_length},
-  {"ToString", "s", "v", ACCESS_PUBLIC, __string_tostring},
+  {"Length", "i", "v", __string_length},
+  {"ToString", "s", "v", __string_tostring},
   {NULL}
 };
 
-void Init_String_Klass(void)
+void Init_String_Klass(Object *ob)
 {
+  Module_Add_Class(ob, &String_Klass);
   Klass_Add_CFunctions(&String_Klass, string_funcs);
 }
 

@@ -12,11 +12,11 @@ extern "C" {
 
 /*-------------------------------------------------------------------------*/
 
-#define PRIMITIVE_INT     1
-#define PRIMITIVE_FLOAT   2
-#define PRIMITIVE_BOOL    3
-#define PRIMITIVE_STRING  4
-#define PRIMITIVE_ANY     5
+#define PRIMITIVE_INT     'i'
+#define PRIMITIVE_FLOAT   'f'
+#define PRIMITIVE_BOOL    'z'
+#define PRIMITIVE_STRING  's'
+#define PRIMITIVE_ANY     'A'
 
 enum type_kind {
   PRIMITIVE_KIND = 1, USERDEF_TYPE = 2, FUNCTION_TYPE = 3,
@@ -166,7 +166,7 @@ enum stmt_kind {
   CLASS_KIND = 8, INTF_KIND, RETURN_KIND,
   IF_KIND = 11, WHILE_KIND, SWITCH_KIND,
   FOR_TRIPLE_KIND = 14, FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND,
-  GO_KIND = 18, BLOCK_KIND
+  GO_KIND = 18, BLOCK_KIND, STMT_KIND_MAX
 };
 
 struct stmt {

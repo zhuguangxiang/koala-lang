@@ -25,8 +25,8 @@ Object *init_test_module(void)
 
   MethodProto proto = METHOD_PROTO_INIT(1, 2, 0);
 
-  Object *method = Method_New(&proto, codes, NULL, Module_ItemTable(module));
-  Module_Add_Func(module, "add", "i", "ii", ACCESS_PRIVATE, method);
+  Object *method = Method_New(&proto, codes, NULL, Module_STable(module)->itable);
+  Module_Add_Func(module, "add", "i", "ii", method);
 
   static uint8 __init__[] = {
     /* var result = add(-123, 456) */
@@ -48,7 +48,7 @@ Object *init_test_module(void)
     OP_RET,
   };
 
-  ItemTable *itable = Module_ItemTable(module);
+  ItemTable *itable = Module_STable(module)->itable;
   int index1 = StringItem_Set(itable, "add", 3);
   int index2 = StringItem_Set(itable, "result", 6);
   int index3 = StringItem_Set(itable, "koala/io", 8);
@@ -67,8 +67,8 @@ Object *init_test_module(void)
   const_setstrvalue(&k[6], index5);
 
   Init_Method_Proro(&proto, 0, 0, 0);
-  method = Method_New(&proto, __init__, k, Module_ItemTable(module));
-  Module_Add_Func(module, "__init__", "v", "v", ACCESS_PRIVATE, method);
+  method = Method_New(&proto, __init__, k, Module_STable(module)->itable);
+  Module_Add_Func(module, "__init__", "v", "v", method);
   return module;
 }
 

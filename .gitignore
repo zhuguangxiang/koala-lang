@@ -5,6 +5,7 @@ koala_lex.c
 .vscode
 *.a
 *.o
+*.so
 koalac
 koala
 .gdbinit

@@ -158,7 +158,7 @@ int TValue_Parse(TValue *val, char ch, ...)
 
 Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
 {
-  Klass *klazz = malloc(sizeof(*klazz));
+  Klass *klazz = calloc(1, sizeof(*klazz));
   memset(klazz, 0, sizeof(*klazz));
   init_object_head(klazz, parent);
   klazz->name  = name;
@@ -167,63 +167,42 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
   return klazz;
 }
 
-static HashTable *__get_table(Klass *klazz)
-{
-  if (klazz->stable == NULL)
-    klazz->stable = SHashTable_Create();
-  return klazz->stable;
-}
-
-int Klass_Add_Field(Klass *klazz, char *name, char *desc, int access)
+int Klass_Add_Field(Klass *klazz, char *name, char *desc)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  int name_index = StringItem_Set(klazz->itable, name, strlen(name));
-  int desc_index = TypeItem_Set(klazz->itable, desc, strlen(desc));
-  Symbol *sym = Symbol_New(name_index, SYM_FIELD, access, desc_index);
-  sym->index = klazz->avail_index++;
-  return HashTable_Insert(__get_table(klazz), &sym->hnode);
+  Symbol *sym = STable_Add_Field(&klazz->stable, name, desc);
+  if (sym != NULL) {
+    sym->index = klazz->avail_index++;
+    return 0;
+  }
+  return -1;
 }
 
 int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
-                     int access, Object *method)
+                     Object *method)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  int name_index = StringItem_Set(klazz->itable, name, strlen(name));
-  int desc_index = ProtoItem_Set(klazz->itable, rdesc, pdesc, NULL, NULL);
-  Symbol *sym = Symbol_New(name_index, SYM_METHOD, access, desc_index);
-  sym->obj = method;
-  return HashTable_Insert(__get_table(klazz), &sym->hnode);
-}
-
-int Klass_Add_IMethod(Klass *klazz, char *name, char *rdesc, char *pdesc,
-                      int access)
-{
-  OB_ASSERT_KLASS(klazz, Klass_Klass);
-  int name_index = StringItem_Set(klazz->itable, name, strlen(name));
-  int desc_index = ProtoItem_Set(klazz->itable, rdesc, pdesc, NULL, NULL);
-  Symbol *sym = Symbol_New(name_index, SYM_IMETHOD, access, desc_index);
-  sym->index = klazz->avail_index++;
-  return HashTable_Insert(__get_table(klazz), &sym->hnode);
-}
-
-Symbol *Klass_Get(Klass *klazz, char *name)
-{
-  OB_ASSERT_KLASS(klazz, Klass_Klass);
-  int index = StringItem_Get(klazz->itable, name, strlen(name));
-  if (index < 0) return NULL;
-  Symbol sym = {.name_index = index};
-  HashNode *hnode = HashTable_Find(__get_table(klazz), &sym);
-  if (hnode != NULL) {
-    return container_of(hnode, Symbol, hnode);
-  } else {
-    if (klazz == &Klass_Klass) return NULL;
-    return Klass_Get(OB_KLASS(klazz), name);
+  Symbol *sym = STable_Add_Method(&klazz->stable, name, rdesc, pdesc);
+  if (sym != NULL) {
+    sym->obj = method;
+    return 0;
   }
+  return -1;
 }
+
+// int Klass_Add_IProto(Klass *klazz, char *name, char *rdesc, char *pdesc)
+// {
+//   OB_ASSERT_KLASS(klazz, Klass_Klass);
+//   int name_index = StringItem_Set(klazz->itable, name, strlen(name));
+//   int desc_index = ProtoItem_Set(klazz->itable, rdesc, pdesc, NULL, NULL);
+//   Symbol *sym = Symbol_New(name_index, SYM_IMETHOD, access, desc_index);
+//   sym->index = klazz->avail_index++;
+//   return HashTable_Insert(__get_table(klazz), &sym->hnode);
+// }
 
 Object *Klass_Get_Method(Klass *klazz, char *name)
 {
-  Symbol *s = Klass_Get(klazz, name);
+  Symbol *s = STable_Get(&klazz->stable, name);
   if (s == NULL) return NULL;
   if (s->kind != SYM_METHOD) return NULL;
   Object *temp = s->obj;
@@ -240,12 +219,16 @@ int Klass_Add_CFunctions(Klass *klazz, FuncStruct *funcs)
   while (f->name != NULL) {
     FuncStruct_Get_Proto(&proto, f);
     meth = CMethod_New(f->func, &proto);
-    res = Klass_Add_Method(klazz, f->name, f->rdesc, f->pdesc,
-                           f->access, meth);
+    res = Klass_Add_Method(klazz, f->name, f->rdesc, f->pdesc, meth);
     ASSERT(res == 0);
     ++f;
   }
   return 0;
+}
+
+void Init_Klass_Klass(Object *ob)
+{
+  Module_Add_Class(ob, &Klass_Klass);
 }
 
 /*-------------------------------------------------------------------------*/

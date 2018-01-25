@@ -570,6 +570,21 @@ void constitem_display(KLCImage *image, void *o)
   UNUSED_PARAMETER(o);
 }
 
+typedef int (*item_length_t)(void *);
+typedef void (*item_fwrite_t)(FILE *, void *);
+typedef uint32 (*item_hash_t)(void *);
+typedef int (*item_equal_t)(void *, void *);
+typedef void (*item_display_t)(KLCImage *, void *);
+
+struct item_funcs {
+  item_length_t   ilength;
+  item_fwrite_t   iwrite;
+  item_fwrite_t   iread;
+  item_hash_t     ihash;
+  item_equal_t    iequal;
+  item_display_t  idisplay;
+};
+
 struct item_funcs item_func[ITEM_MAX] = {
   {
     mapitem_length,
@@ -809,18 +824,21 @@ static void init_header(ImageHeader *h, int pkg_size)
   h->pkg_size    = pkg_size;
 }
 
-static uint32 htable_hash(void *key)
+uint32 item_hash(void *key)
 {
   ItemEntry *e = key;
+  ASSERT(e->type > 0 && e->type < ITEM_MAX);
   item_hash_t hash_fn = item_func[e->type].ihash;
   ASSERT_PTR(hash_fn);
   return hash_fn(e->data);
 }
 
-static int htable_equal(void *k1, void *k2)
+int item_equal(void *k1, void *k2)
 {
   ItemEntry *e1 = k1;
   ItemEntry *e2 = k2;
+  ASSERT(e1->type > 0 && e1->type < ITEM_MAX);
+  ASSERT(e2->type > 0 && e2->type < ITEM_MAX);
   if (e1->type != e2->type) return 0;
   item_equal_t equal_fn = item_func[e1->type].iequal;
   ASSERT_PTR(equal_fn);
@@ -832,10 +850,9 @@ void KLCImage_Init(KLCImage *image, char *package)
   int pkg_size = ALIGN_UP(strlen(package) + 1, 4);
   image->package = malloc(pkg_size);
   strcpy(image->package, package);
-
   init_header(&image->header, pkg_size);
-
-  image->table = ItemTable_Create(htable_hash, htable_equal, ITEM_MAX);
+  HashInfo hashinfo = HashInfo_Init(item_hash, item_equal);
+  image->table = ItemTable_Create(&hashinfo, ITEM_MAX);
 }
 
 KLCImage *KLCImage_New(char *package)

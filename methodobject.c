@@ -42,6 +42,11 @@ Object *Method_New(MethodProto *proto, uint8 *codes,
   return (Object *)m;
 }
 
+void Init_Method_Klass(Object *ob)
+{
+  Module_Add_Class(ob, &Method_Klass);
+}
+
 /*-------------------------------------------------------------------------*/
 
 static void method_free(Object *ob)

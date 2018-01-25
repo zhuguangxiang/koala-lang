@@ -6,7 +6,6 @@
 #include <string.h>
 #include <assert.h>
 #include "compile.h"
-#include "ast.h"
 #include "koala_yacc.h"
 
 int yylex(void);
@@ -101,7 +100,7 @@ int main(int argc, char *argv[])
 %token VAR
 %token FUNC
 %token RETURN
-%token STRUCT
+%token CLASS
 %token INTERFACE
 %token CONST
 %token IMPORT
@@ -209,7 +208,7 @@ int main(int argc, char *argv[])
 %type <stmt> JumpStatement
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
-%type <vector> FieldDeclarations
+%type <vector> MemberDeclarations
 %type <field> FieldDeclaration
 %type <vector> IntfFuncDecls
 %type <intf_func> IntfFuncDecl
@@ -346,6 +345,7 @@ CompileUnit
     cp.package = $1;
     printf("package : %s\n", cp.package);
     ast_traverse(cp.stmts);
+    compile(&cp);
   }
   | Package ModuleStatements {
     cp.package = $1;
@@ -425,12 +425,15 @@ ConstDeclaration
 
 VariableDeclaration
   : VAR VariableList Type {
+    printf("var1\n");
     $$ = stmt_from_vardecl($2, NULL, 0, $3);
   }
   | VAR VariableList '=' ExpressionList {
+    printf("var2\n");
     $$ = stmt_from_vardecl($2, $4, 0, NULL);
   }
   | VAR VariableList Type '=' ExpressionList {
+    printf("var3\n");
     $$ = stmt_from_vardecl($2, $5, 0, $3);
   }
   ;
@@ -450,16 +453,12 @@ VariableList
 
 FunctionDeclaration
   : FUNC ID '(' ParameterListOrEmpty ')' Block {
+    printf("func1\n");
     $$ = stmt_from_funcdecl(NULL, $2, $4, NULL, $6);
   }
   | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
+    printf("func2\n");
     $$ = stmt_from_funcdecl(NULL, $2, $4, $6, $7);
-  }
-  | FUNC ID '.' ID '(' ParameterListOrEmpty ')' Block {
-    $$ = stmt_from_funcdecl($2, $4, $6, NULL, $8);
-  }
-  | FUNC ID '.' ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = stmt_from_funcdecl($2, $4, $6, $8, $9);
   }
   ;
 
@@ -490,28 +489,39 @@ ParameterListOrEmpty
 /*--------------------------------------------------------------------------*/
 
 TypeDeclaration
-  : STRUCT ID '{' FieldDeclarations '}' {
-    $$ = stmt_from_structure($2, $4);
+  : CLASS ID '{' MemberDeclarations '}' {
+    //$$ = stmt_from_structure($2, $4);
+  }
+  | CLASS ID ':' StructedType '{' '}' {
+
   }
   | INTERFACE ID '{' IntfFuncDecls '}' {
     $$ = stmt_from_interface($2, $4);
   }
   ;
 
-FieldDeclarations
-  : FieldDeclaration {
-    $$ = Vector_Create();
-    Vector_Appand($$, $1);
+MemberDeclarations
+  : MemberDeclaration {
+    //$$ = Vector_Create();
+    //Vector_Appand($$, $1);
   }
-  | FieldDeclarations FieldDeclaration {
-    Vector_Appand($1, $2);
-    $$ = $1;
+  | MemberDeclarations MemberDeclaration {
+    //Vector_Appand($1, $2);
+    //$$ = $1;
   }
+  ;
+
+MemberDeclaration
+  : FieldDeclaration
+  | FunctionDeclaration
   ;
 
 FieldDeclaration
   : ID Type ';' {
     $$ = new_struct_field($1, $2, NULL);
+  }
+  | ID Type '=' Expression ';' {
+
   }
   ;
 
@@ -539,6 +549,7 @@ IntfFuncDecl
 
 Block
   : '{' LocalStatements '}' {
+    printf("codeblock\n");
     $$ = $2;
   }
   | '{' '}' {

@@ -57,7 +57,7 @@ L   [a-zA-Z_]
 "var"                     {return VAR;}
 "func"                    {return FUNC;}
 "return"                  {return RETURN;}
-"struct"                  {return STRUCT;}
+"class"                   {return CLASS;}
 "interface"               {return INTERFACE;}
 "const"                   {return CONST;}
 "import"                  {return IMPORT;}

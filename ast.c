@@ -27,7 +27,7 @@ struct type *type_from_functype(Vector *tseq, Vector *rseq)
   return type;
 }
 
-char *type_tostring(struct type *t)
+static char *type_tostring(struct type *t)
 {
   switch (t->kind) {
     case PRIMITIVE_KIND: {
@@ -226,11 +226,6 @@ struct stmt *stmt_from_import(char *id, char *path)
   }
   stmt->import.path = path;
   return stmt;
-}
-
-int vars_add_symtable(struct clist *list, int bconst, struct type *type)
-{
-  return 0;
 }
 
 struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,

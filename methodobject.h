@@ -31,7 +31,6 @@ typedef struct funcstruct {
   char *name;
   char *rdesc;
   char *pdesc;
-  int access;
   cfunc func;
 } FuncStruct;
 
@@ -62,6 +61,7 @@ typedef struct methodobject {
 
 /* Exported APIs */
 extern Klass Method_Klass;
+void Init_Method_Klass(Object *ob);
 Object *Method_New(MethodProto *proto, uint8 *codes,
                    ConstItem *k, ItemTable *itable);
 Object *CMethod_New(cfunc cf, MethodProto *proto);

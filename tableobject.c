@@ -66,7 +66,7 @@ static struct entry *new_entry(TValue *key, TValue *value)
   struct entry *entry = malloc(sizeof(*entry));
   entry->key = *key;
   entry->val = *value;
-  init_hash_node(&entry->hnode, &entry->key);
+  Init_HashNode(&entry->hnode, &entry->key);
   return entry;
 }
 
@@ -80,7 +80,8 @@ Object *Table_New(void)
 {
   TableObject *table = malloc(sizeof(*table));
   init_object_head(table, &Table_Klass);
-  int res = HashTable_Init(&table->table, entry_hash, entry_equal);
+  HashInfo hashinfo = HashInfo_Init(entry_hash, entry_equal);
+  int res = HashTable_Init(&table->table, &hashinfo);
   ASSERT(!res);
   //Object_Add_GCList(table);
   return (Object *)table;
@@ -130,7 +131,7 @@ static void table_visit(struct hlist_head *head, int size, void *arg)
   HashNode *hnode;
   struct entry *entry;
   for (int i = 0; i < size; i++) {
-    hash_list_for_each(hnode, head) {
+    HashList_ForEach(hnode, head) {
       entry = container_of(hnode, struct entry, hnode);
       vs->visit(&entry->key, &entry->val, vs->arg);
     }
@@ -169,13 +170,14 @@ static Object *__table_put(Object *ob, Object *args)
 }
 
 static FuncStruct table_funcs[] = {
-  {"Put", "i", "AA", ACCESS_PUBLIC, __table_put},
-  {"Get", "A", "A", ACCESS_PUBLIC, __table_get},
+  {"Put", "i", "AA", __table_put},
+  {"Get", "A", "A", __table_get},
   {NULL}
 };
 
-void Init_Table_Klass(void)
+void Init_Table_Klass(Object *ob)
 {
+  Module_Add_Class(ob, &Table_Klass);
   Klass_Add_CFunctions(&Table_Klass, table_funcs);
 }
 

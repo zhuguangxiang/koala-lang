@@ -26,19 +26,20 @@ KOALA_FILES =
 KOALA  = koala
 
 ######################################
+##@$(CC) -c $(CFLAGS) $(KOALA_LIB_FILES)
+##@$(AR) -rc lib$(KOALA_LIB).a $(patsubst %.c, %.o, $(KOALA_LIB_FILES))
 
 all:
 
 lib:
-	@$(CC) -c $(CFLAGS) $(KOALA_LIB_FILES)
-	@$(AR) -rc lib$(KOALA_LIB).a $(patsubst %.c, %.o, $(KOALA_LIB_FILES))
+	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALA_LIB).so $(KOALA_LIB_FILES)
 	@$(RM) *.o
 
 compiler:
 	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
 	@flex -o koala_lex.c yacc/koala.l
 	@gcc -g -std=gnu99 -Wall koala_yacc.c koala_lex.c ast.c compile.c \
-	-L. -lkoala
+	-L. -lkoala -pthread -lrt
 
 testvector: lib
 	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt

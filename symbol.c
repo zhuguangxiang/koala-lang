@@ -4,32 +4,96 @@
 #include "debug.h"
 #include "codeformat.h"
 
-#define ATOM_ITEM_MAX   (ITEM_CONST + 1)
-
-static uint32 htable_hash(void *key)
+static uint32 symbol_hash(void *k)
 {
-  ItemEntry *e = key;
-  ASSERT(e->type > 0 && e->type < ATOM_ITEM_MAX);
-  item_hash_t hash_fn = item_func[e->type].ihash;
-  ASSERT_PTR(hash_fn);
-  return hash_fn(e->data);
+  Symbol *s = k;
+  return hash_uint32(s->name_index, 0);
 }
 
-static int htable_equal(void *k1, void *k2)
+static int symbol_equal(void *k1, void *k2)
 {
-  ItemEntry *e1 = k1;
-  ItemEntry *e2 = k2;
-  ASSERT(e1->type > 0 && e1->type < ATOM_ITEM_MAX);
-  ASSERT(e2->type > 0 && e2->type < ATOM_ITEM_MAX);
-  if (e1->type != e2->type) return 0;
-  item_equal_t equal_fn = item_func[e1->type].iequal;
-  ASSERT_PTR(equal_fn);
-  return equal_fn(e1->data, e2->data);
+  Symbol *s1 = k1;
+  Symbol *s2 = k2;
+  return s1->name_index == s2->name_index;
 }
 
-ItemTable *SItemTable_Create(void)
+static HashTable *__get_hashtable(STable *stbl)
 {
-  return ItemTable_Create(htable_hash, htable_equal, ATOM_ITEM_MAX);
+  if (stbl->htable == NULL) {
+    HashInfo hashinfo = HashInfo_Init(symbol_hash, symbol_equal);
+    stbl->htable = HashTable_Create(&hashinfo);
+  }
+  return stbl->htable;
+}
+
+int STable_Init(STable *stbl)
+{
+  HashInfo hashinfo = HashInfo_Init(item_hash, item_equal);
+  stbl->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
+  return 0;
+}
+
+void STable_Fini(STable *stbl)
+{
+  free(stbl);
+}
+
+Symbol *STable_Add_Var(STable *stbl, char *name, char *desc, int bconst)
+{
+  int access = bconst ? ACCESS_CONST : 0;
+  access |= isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+  int name_index = StringItem_Set(stbl->itable, name, strlen(name));
+  int desc_index = -1;
+  if (desc != NULL) {
+    desc_index = TypeItem_Set(stbl->itable, desc, strlen(desc));
+  }
+  Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
+  if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
+    debug_error("add a variable failed.\n");
+    Symbol_Free(sym);
+    return NULL;
+  }
+  return sym;
+}
+
+Symbol *STable_Add_Func(STable *stbl, char *name, char *rdesc, char *pdesc)
+{
+  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+  int name_index = StringItem_Set(stbl->itable, name, strlen(name));
+  int desc_index = ProtoItem_Set(stbl->itable, rdesc, pdesc, NULL, NULL);
+  Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
+  if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
+    debug_error("add a function failed.\n");
+    Symbol_Free(sym);
+    return NULL;
+  }
+  return sym;
+}
+
+Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
+{
+  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+  int name_index = StringItem_Set(stbl->itable, name, strlen(name));
+  Symbol *sym = Symbol_New(name_index, kind, access, name_index);
+  if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
+    debug_error("add a function failed.\n");
+    Symbol_Free(sym);
+    return NULL;
+  }
+  return sym;
+}
+
+Symbol *STable_Get(STable *stbl, char *name)
+{
+  int index = StringItem_Get(stbl->itable, name, strlen(name));
+  if (index < 0) return NULL;
+  Symbol sym = {.name_index = index};
+  HashNode *hnode = HashTable_Find(__get_hashtable(stbl), &sym);
+  if (hnode != NULL) {
+    return container_of(hnode, Symbol, hnode);
+  } else {
+    return NULL;
+  }
 }
 
 /*-------------------------------------------------------------------------*/
@@ -37,7 +101,7 @@ ItemTable *SItemTable_Create(void)
 Symbol *Symbol_New(int name_index, int kind, int access, int desc_index)
 {
   Symbol *sym = calloc(1, sizeof(Symbol));
-  init_hash_node(&sym->hnode, sym);
+  Init_HashNode(&sym->hnode, sym);
   sym->name_index = name_index;
   sym->kind = (uint8)kind;
   sym->access = (uint8)access;
@@ -50,24 +114,6 @@ void Symbol_Free(Symbol *sym)
   free(sym);
 }
 
-uint32 symbol_hash(void *k)
-{
-  Symbol *s = k;
-  return hash_uint32(s->name_index, 0);
-}
-
-int symbol_equal(void *k1, void *k2)
-{
-  Symbol *s1 = k1;
-  Symbol *s2 = k2;
-  return s1->name_index == s2->name_index;
-}
-
-HashTable *SHashTable_Create(void)
-{
-  return HashTable_Create(symbol_hash, symbol_equal);
-}
-
 /*-------------------------------------------------------------------------*/
 
 static inline char *to_str(char *str[], int size, int idx)
@@ -78,7 +124,7 @@ static inline char *to_str(char *str[], int size, int idx)
 static char *type_tostr(int kind)
 {
   static char *kind_str[] = {
-    "", "var", "func", "class", "field", "method", "interface", "imethod"
+    "", "var", "func", "class", "field", "method", "interface", "iproto"
   };
 
   return to_str(kind_str, nr_elts(kind_str), kind);
@@ -93,15 +139,68 @@ static char *access_tostr(int access)
   return to_str(str, nr_elts(str), access);
 }
 
-static char *get_name(int index, ItemTable *itable)
+static char *get_name(int index, STable *stbl)
 {
-  StringItem *item = ItemTable_Get(itable, ITEM_STRING, index);
+  StringItem *item = ItemTable_Get(stbl->itable, ITEM_STRING, index);
   return item->data;
 }
 
-void Symbol_Display(Symbol *sym, ItemTable *itable)
+static char *desc_tostr(int index, STable *stbl)
 {
-  printf("%s %s %s\n",
-         access_tostr(sym->access), type_tostr(sym->kind),
-         get_name(sym->name_index, itable));
+  static char ch[] = {
+    'i', 'f', 'z', 's', 'A'
+  };
+
+  static char *str[] = {
+    "int", "float", "bool", "string", "Any"
+  };
+
+  TypeItem *item = ItemTable_Get(stbl->itable, ITEM_TYPE, index);
+  StringItem *sitem = ItemTable_Get(stbl->itable, ITEM_STRING, item->desc_index);
+
+  char *s = sitem->data;
+  if (s == NULL) return NULL;
+  if (s[1] == '\0') {
+    for (int i = 0; i < nr_elts(ch); i++) {
+      if (ch[i] == *s) {
+        return str[i];
+      }
+    }
+  }
+  return NULL;
+}
+
+void Symbol_Display(Symbol *sym, STable *stbl)
+{
+  char *str = "var";
+  if (sym->kind == 1 && sym->access & ACCESS_CONST)
+    str = "const";
+  else
+    str = type_tostr(sym->kind);
+  printf("%s %s %s %s\n",
+         access_tostr(sym->access & 1),
+         str,
+         get_name(sym->name_index, stbl),
+         desc_tostr(sym->desc_index, stbl));
+}
+
+void Symbol_Visit(HashList *head, int size, void *arg)
+{
+  Symbol *sym;
+  STable *stbl = arg;
+  HashNode *hnode;
+  for (int i = 0; i < size; i++) {
+    if (!HashList_Empty(head)) {
+      HashList_ForEach(hnode, head) {
+        sym = container_of(hnode, Symbol, hnode);
+        Symbol_Display(sym, stbl);
+      }
+    }
+    head++;
+  }
+}
+
+void STable_Display(STable *stbl)
+{
+  HashTable_Traverse(__get_hashtable(stbl), Symbol_Visit, stbl);
 }

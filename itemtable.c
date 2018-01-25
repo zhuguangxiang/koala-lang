@@ -1,30 +1,29 @@
 
 #include "itemtable.h"
 
-ItemTable *ItemTable_Create(ht_hash_func hash, ht_equal_func equal, int size)
+ItemTable *ItemTable_Create(HashInfo *hashinfo, int size)
 {
   ItemTable *table = malloc(sizeof(ItemTable) + size * sizeof(struct vector));
-  ItemTable_Init(table, hash, equal, size);
+  ItemTable_Init(table, hashinfo, size);
   return table;
 }
 
 static ItemEntry *itementry_new(int type, int index, void *data)
 {
   ItemEntry *e = malloc(sizeof(*e));
-  init_hash_node(&e->hnode, e);
+  Init_HashNode(&e->hnode, e);
   e->type  = type;
   e->index = index;
   e->data  = data;
   return e;
 }
 
-int ItemTable_Init(ItemTable *table,
-                   ht_hash_func hash, ht_equal_func equal, int size)
+int ItemTable_Init(ItemTable *table, HashInfo *hashinfo, int size)
 {
-  HashTable_Init(&table->table, hash, equal);
+  HashTable_Init(&table->table, hashinfo);
   table->size = size;
   for (int i = 0; i < size; i++)
-    Vector_Init(table->items + i, 0);
+    Vector_Init(table->items + i);
   return 0;
 }
 

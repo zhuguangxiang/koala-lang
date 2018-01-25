@@ -171,13 +171,14 @@ static Object *__tuple_size(Object *ob, Object *args)
 }
 
 static FuncStruct tuple_funcs[] = {
-  {"Get", "A", "i", ACCESS_PUBLIC, __tuple_get},
-  {"Size", "i", "v", ACCESS_PUBLIC, __tuple_size},
+  {"Get", "A", "i", __tuple_get},
+  {"Size", "i", "v", __tuple_size},
   {NULL}
 };
 
-void Init_Tuple_Klass(void)
+void Init_Tuple_Klass(Object *ob)
 {
+  Module_Add_Class(ob, &Tuple_Klass);
   Klass_Add_CFunctions(&Tuple_Klass, tuple_funcs);
 }
 

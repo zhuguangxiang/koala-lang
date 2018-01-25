@@ -28,12 +28,12 @@ typedef struct image_header {
 #define ITEM_CONST      5
 #define ITEM_VAR        6
 #define ITEM_FUNC       7
-#define ITEM_FIELD      8
-#define ITEM_METHOD     9
-#define ITEM_CLASS      10
-#define ITEM_IMETHOD    11
+#define ITEM_CODE       8
+#define ITEM_CLASS      9
+#define ITEM_FIELD      10
+#define ITEM_METHOD     11
 #define ITEM_INTF       12
-#define ITEM_CODE       13
+#define ITEM_IMETH      13
 #define ITEM_MAX        14
 
 typedef struct map_item {
@@ -177,25 +177,10 @@ int TypeItem_Set(ItemTable *itemtable, char *str, int len);
 int TypeListItem_Get(ItemTable *itemtable, char *desclist, int *size);
 int TypeListItem_Set(ItemTable *itemtable, char *desclist, int *size);
 int ProtoItem_Get(ItemTable *itemtable, int rindex, int pindex);
-int ProtoItem_Set(ItemTable *itemtable, char *rdesclist, char *pdesclist,
+int ProtoItem_Set(ItemTable *itemtable, char *rdes, char *pdesc,
                   int *rsz, int *psz);
-
-typedef int (*item_length_t)(void *);
-typedef void (*item_fwrite_t)(FILE *, void *);
-typedef uint32 (*item_hash_t)(void *);
-typedef int (*item_equal_t)(void *, void *);
-typedef void (*item_display_t)(KLCImage *, void *);
-
-struct item_funcs {
-  item_length_t   ilength;
-  item_fwrite_t   iwrite;
-  item_fwrite_t   iread;
-  item_hash_t     ihash;
-  item_equal_t    iequal;
-  item_display_t  idisplay;
-};
-
-extern struct item_funcs item_func[];
+uint32 item_hash(void *key);
+int item_equal(void *k1, void *k2);
 
 typedef struct desc_index {
   int offset;

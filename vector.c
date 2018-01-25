@@ -5,17 +5,11 @@
 
 #define DEFAULT_CAPACTIY 16
 
-int Vector_Init(Vector *vec, int capacity)
+int Vector_Init(Vector *vec)
 {
-  if (capacity <= 0) capacity = DEFAULT_CAPACTIY;
-
-  void **objs = calloc(capacity, sizeof(void **));
-  if (objs == NULL) return -1;
-
-  vec->capacity = capacity;
+  vec->capacity = 0;
   vec->size  = 0;
-  vec->objs  = objs;
-
+  vec->objs  = NULL;
   return 0;
 }
 
@@ -54,6 +48,17 @@ static int __vector_expand(Vector *vec)
 
 int Vector_Set(Vector *vec, int index, void *obj)
 {
+  if (vec->objs == NULL) {
+    void **objs = calloc(DEFAULT_CAPACTIY, sizeof(void **));
+    if (objs == NULL) {
+      debug_error("calloc failed\n");
+      return -1;
+    }
+    vec->capacity = DEFAULT_CAPACTIY;
+    vec->size = 0;
+    vec->objs = objs;
+  }
+
   if (index >= vec->capacity) {
     if (index >= 2 * vec->capacity) {
       debug_error("Are you kidding me? Is need expand double size?\n");
@@ -80,6 +85,11 @@ int Vector_Set(Vector *vec, int index, void *obj)
 
 void *Vector_Get(Vector *vec, int index)
 {
+  if (vec->objs == NULL) {
+    debug_warn("vector is empty\n");
+    return NULL;
+  }
+
   if (index < vec->capacity) {
     return vec->objs[index];
   } else {
@@ -88,17 +98,12 @@ void *Vector_Get(Vector *vec, int index)
   }
 }
 
-Vector *Vector_Create(void)
+Vector *Vector_Create()
 {
   Vector *vec = malloc(sizeof(*vec));
   if (vec == NULL) return NULL;
-  if (Vector_Init(vec, DEFAULT_CAPACTIY)) {
-    debug_error("initialize vector failed\n");
-    free(vec);
-    return NULL;
-  } else {
-    return vec;
-  }
+  Vector_Init(vec);
+  return vec;
 }
 
 void Vector_Destroy(Vector *vec, vec_fini_func fini, void *arg)

@@ -91,7 +91,7 @@ static Object *__io_print(Object *ob, Object *args)
 }
 
 static FuncStruct io_funcs[] = {
-  {"Print", "v", "[A", ACCESS_PUBLIC, __io_print},
+  {"Print", "v", "[A", __io_print},
   {NULL}
 };
 

@@ -3,29 +3,31 @@
 #define _KOALA_COMPILE_H_
 
 #include "koala.h"
+#include "ast.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct scope_context {
+struct scope {
   struct list_head link;
-  HashTable stable;
+  HashTable *stable;
   ItemTable *itable;
 };
 
 struct compiler {
+  int count;
   char *package;
-  HashTable *stable;
-  ItemTable *itable;
+  Vector *stmts;
   ModuleObject *module;
+  int avail_index;
   int scope;
   struct list_head scopes;
 };
 
 int init_compiler(struct compiler *cp);
 int fini_compiler(struct compiler *cp);
-int compile(struct compiler *cp, Vector *stmts);
+int compile(struct compiler *cp);
 
 #ifdef __cplusplus
 }

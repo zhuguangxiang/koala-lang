@@ -15,7 +15,7 @@ struct mod_entry {
 static struct mod_entry *new_mod_entry(char *path, Object *mo)
 {
   struct mod_entry *e = malloc(sizeof(*e));
-  init_hash_node(&e->hnode, e);
+  Init_HashNode(&e->hnode, e);
   e->path = path;
   e->mo = mo;
   return e;
@@ -23,7 +23,7 @@ static struct mod_entry *new_mod_entry(char *path, Object *mo)
 
 static void free_mod_entry(struct mod_entry *e)
 {
-  ASSERT(hash_node_unhashed(&e->hnode));
+  ASSERT(HashNode_Unhashed(&e->hnode));
   free(e);
 }
 
@@ -95,20 +95,18 @@ void Koala_Run_File(char *path)
 static void Init_Lang_Module(void)
 {
   Object *ob = Module_New("lang", "koala/lang", 0);
-  Module_Add_Class(ob, &Klass_Klass, ACCESS_PUBLIC);
-  Module_Add_Class(ob, &String_Klass, ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Tuple_Klass,  ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Table_Klass,  ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Module_Klass, ACCESS_PUBLIC);
-  Module_Add_Class(ob, &Method_Klass, ACCESS_PUBLIC);
-  Init_String_Klass();
-  Init_Tuple_Klass();
-  Init_Table_Klass();
+  Init_Klass_Klass(ob);
+  Init_String_Klass(ob);
+  Init_Tuple_Klass(ob);
+  Init_Table_Klass(ob);
+  Init_Module_Klass(ob);
+  Init_Method_Klass(ob);
 }
 
 static void Init_Modules(void)
 {
-  HashTable_Init(&modules, mod_entry_hash, mod_entry_equal);
+  HashInfo hashinfo = HashInfo_Init(mod_entry_hash, mod_entry_equal);
+  HashTable_Init(&modules, &hashinfo);
 
   /* koala/lang.klc */
   Init_Lang_Module();

@@ -78,15 +78,15 @@ static void free_entries(struct hlist_head *entries)
   if (entries != NULL) free(entries);
 }
 
-int HashTable_Init(HashTable *table, ht_hash_func hash, ht_equal_func equal)
+int HashTable_Init(HashTable *table, HashInfo *hashinfo)
 {
   struct hlist_head *entries = new_entries(get_prime(DEFAULT_PRIME_INDEX));
   if (entries == NULL) return -1;
 
   table->prime_index  = DEFAULT_PRIME_INDEX;
   table->nr_nodes     = 0;
-  table->hash         = hash;
-  table->equal        = equal;
+  table->hash         = hashinfo->hash;
+  table->equal        = hashinfo->equal;
   table->entries      = entries;
 
   return 0;
@@ -111,12 +111,12 @@ void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg)
   table->entries     = NULL;
 }
 
-HashTable *HashTable_Create(ht_hash_func hash, ht_equal_func equal)
+HashTable *HashTable_Create(HashInfo *hashinfo)
 {
   HashTable *table = malloc(sizeof(*table));
   if (table == NULL) return NULL;
 
-  if (HashTable_Init(table, hash, equal)) {
+  if (HashTable_Init(table, hashinfo)) {
     free(table);
     return NULL;
   }
@@ -152,7 +152,7 @@ HashNode *HashTable_Find(HashTable *table, void *key)
 
 int HashTable_Remove(HashTable *table, HashNode *hnode)
 {
-  if (hash_node_unhashed(hnode)) return -1;
+  if (HashNode_Unhashed(hnode)) return -1;
 
   HashNode *temp = __hash_table_find(table, hnode->hash, hnode->key);
   if (temp == NULL) {
@@ -211,7 +211,7 @@ static void hash_table_maybe_expand(HashTable *table)
 
 int HashTable_Insert(HashTable *table, HashNode *hnode)
 {
-  if (!hash_node_unhashed(hnode)) return -1;
+  if (!HashNode_Unhashed(hnode)) return -1;
 
   uint32 hash = hnode->hash = table->hash(hnode->key);
   if (NULL != __hash_table_find(table, hash, hnode->key)) {

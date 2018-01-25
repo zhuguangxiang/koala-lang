@@ -60,9 +60,9 @@ void number_show(struct hlist_head *head, int size, void *arg)
   struct number *num;
   struct hash_node *hnode;
   for (int i = 0; i < size; i++) {
-    if (!hlist_empty(head)) {
+    if (!HashList_Empty(head)) {
       fprintf(stdout, "[%d]:", i);
-      hlist_for_each_entry(hnode, head, link) {
+      HashList_ForEach(hnode, head) {
         num = container_of(hnode, struct number, hnode);
         fprintf(stdout, "%d\t", num->value);
       }
@@ -78,7 +78,8 @@ void test_number_hash_table(void) {
   int failed;
   int i;
   int value = 100;
-  table = HashTable_Create(number_hash, number_equal);
+  HashInfo hashinfo = HashInfo_Init(number_hash, number_equal);
+  table = HashTable_Create(&hashinfo);
   ASSERT(table);
 
   srand(time(NULL) + getpid());
@@ -92,7 +93,7 @@ void test_number_hash_table(void) {
     num = number_alloc();
     ASSERT(num);
     num->value = value;
-    init_hash_node(&num->hnode, &num->value);
+    Init_HashNode(&num->hnode, &num->value);
     failed = HashTable_Insert(table, &num->hnode);
     //ASSERT(!failed);
     if (failed != 0) {
@@ -181,15 +182,15 @@ void test_string_hash_table(void) {
     int failed;
     struct hash_table *string_hash;
     int i;
-
-    string_hash = HashTable_Create(string_hash_fn, string_equal_fn);
+    HashInfo hashinfo = HashInfo_Init(string_hash_fn, string_equal_fn);
+    string_hash = HashTable_Create(&hashinfo);
 
     srand(time(NULL));
 
     for (i = 0; i < 1000000; i++ ) {
         str = string_alloc(10);
         ASSERT_PTR(str);
-        init_hash_node(&str->hnode, &str->value);
+        Init_HashNode(&str->hnode, &str->value);
         failed = HashTable_Insert(string_hash, &str->hnode);
         ASSERT(!failed);
     }
