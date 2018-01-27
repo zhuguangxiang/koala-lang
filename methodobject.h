@@ -8,34 +8,22 @@
 extern "C" {
 #endif
 
-typedef struct methodproto {
-  uint16 nr_rets;
-  uint16 nr_args;
-  uint16 nr_locals;
-} MethodProto;
-
-#define METHOD_PROTO_INIT(rets, args, locals) {(rets), (args), (locals)}
-#define Init_Method_Proro(proto, rets, args, locals) do { \
-  (proto)->nr_rets = (rets); \
-  (proto)->nr_args = (args); \
-  (proto)->nr_locals = (locals); \
-} while (0)
-
 /*
   All functions's proto, including c function and koala function
   'args' and 'return' are both Tuple.
  */
 typedef Object *(*cfunc)(Object *ob, Object *args);
 
-typedef struct funcstruct {
+typedef struct funcdef {
   char *name;
+  int rsz;
   char *rdesc;
+  int psz;
   char *pdesc;
-  cfunc func;
-} FuncStruct;
+  cfunc fn;
+} FuncDef;
 
-int Klass_Add_CFunctions(Klass *klazz, FuncStruct *funcs);
-void FuncStruct_Get_Proto(MethodProto *proto, FuncStruct *f);
+int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);
 
 /*-------------------------------------------------------------------------*/
 
@@ -45,13 +33,13 @@ void FuncStruct_Get_Proto(MethodProto *proto, FuncStruct *f);
 typedef struct methodobject {
   OBJECT_HEAD
   uint16 type;
-  uint16 nr_rets;
-  uint16 nr_args;
-  uint16 nr_locals;
+  uint16 rets;
+  uint16 args;
+  uint16 locals;
   union {
     cfunc cf;             // c language function
     struct {
-      //Object *closure;    // tuple for closure
+      //Object *closure;  // tuple for closure
       ItemTable *itable;  // item table with const string
       ConstItem *k;       // constant pool
       uint8 *codes;       // koala's instructions
@@ -62,9 +50,8 @@ typedef struct methodobject {
 /* Exported APIs */
 extern Klass Method_Klass;
 void Init_Method_Klass(Object *ob);
-Object *Method_New(MethodProto *proto, uint8 *codes,
-                   ConstItem *k, ItemTable *itable);
-Object *CMethod_New(cfunc cf, MethodProto *proto);
+Object *Method_New(FuncInfo *info, ConstItem *k, ItemTable *itable);
+Object *CMethod_New(cfunc cf, ProtoInfo *proto);
 void Module_Free(Object *ob);
 
 #ifdef __cplusplus

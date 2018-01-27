@@ -14,7 +14,8 @@ Object *init_test_module(void)
    * io.Print("-123 + 456 = ", result);
    */
   Object *module = Module_New("test", "/", 1);
-  Module_Add_Var(module, "result", "i", ACCESS_PRIVATE);
+  Decl_Primitive_Desc(desc, 0, PRIMITIVE_INT);
+  Module_Add_Var(module, "result", &desc, ACCESS_PRIVATE);
 
   static uint8 codes[] = {
     OP_LOAD, 2, 0, 0, 0,
@@ -23,10 +24,10 @@ Object *init_test_module(void)
     OP_RET
   };
 
-  MethodProto proto = METHOD_PROTO_INIT(1, 2, 0);
-
-  Object *method = Method_New(&proto, codes, NULL, Module_STable(module)->itable);
-  Module_Add_Func(module, "add", "i", "ii", method);
+  FuncInfo funcinfo;
+  Init_FuncInfo(1, "i", 2, "ii", 0, codes, 0, &funcinfo);
+  Object *meth = Method_New(&funcinfo, NULL, Module_STable(module)->itable);
+  Module_Add_Func(module, "add", &funcinfo.proto, meth);
 
   static uint8 __init__[] = {
     /* var result = add(-123, 456) */
@@ -49,11 +50,11 @@ Object *init_test_module(void)
   };
 
   ItemTable *itable = Module_STable(module)->itable;
-  int index1 = StringItem_Set(itable, "add", 3);
-  int index2 = StringItem_Set(itable, "result", 6);
-  int index3 = StringItem_Set(itable, "koala/io", 8);
-  int index4 = StringItem_Set(itable, "Print", 5);
-  int index5 = StringItem_Set(itable, "-123 + 456 = ", 13);
+  int index1 = StringItem_Set(itable, "add");
+  int index2 = StringItem_Set(itable, "result");
+  int index3 = StringItem_Set(itable, "koala/io");
+  int index4 = StringItem_Set(itable, "Print");
+  int index5 = StringItem_Set(itable, "-123 + 456 = ");
 
   static ConstItem k[10] = {
     CONST_IVAL_INIT(456),
@@ -66,9 +67,9 @@ Object *init_test_module(void)
   const_setstrvalue(&k[5], index4);
   const_setstrvalue(&k[6], index5);
 
-  Init_Method_Proro(&proto, 0, 0, 0);
-  method = Method_New(&proto, __init__, k, Module_STable(module)->itable);
-  Module_Add_Func(module, "__init__", "v", "v", method);
+  Init_FuncInfo(0, NULL, 0, NULL, 0, __init__, 0, &funcinfo);
+  meth = Method_New(&funcinfo, k, Module_STable(module)->itable);
+  Module_Add_Func(module, "__init__", &funcinfo.proto, meth);
   return module;
 }
 

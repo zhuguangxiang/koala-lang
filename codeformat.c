@@ -11,6 +11,117 @@ static int version_build = 1; // 2 bytes
 
 /*-------------------------------------------------------------------------*/
 
+void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
+                    ProtoInfo *proto)
+{
+  proto->rsz = rsz;
+  proto->rdesc = CStr_To_DescList(rsz, rdesc);
+  proto->psz = psz;
+  proto->pdesc = CStr_To_DescList(psz, pdesc);
+}
+
+void Init_FuncInfo(int rsz, char *rdesc, int psz, char *pdesc,
+                   int locals, uint8 *codes, int csz,
+                   FuncInfo *funcinfo)
+{
+  Init_ProtoInfo(rsz, rdesc, psz, pdesc, &funcinfo->proto);
+  funcinfo->locals = locals;
+  funcinfo->csz    = csz;
+  funcinfo->codes  = codes;
+}
+
+static int desc_primitive(char ch)
+{
+  static char chs[] = {
+    PRIMITIVE_INT,
+    PRIMITIVE_FLOAT,
+    PRIMITIVE_BOOL,
+    PRIMITIVE_STRING,
+    PRIMITIVE_ANY
+  };
+
+  for (int i = 0; i < nr_elts(chs); i++) {
+    if (ch == chs[i]) return 1;
+  }
+
+  return 0;
+}
+
+int CStr_To_Desc(char *str, TypeDesc *desc)
+{
+  if (str == NULL) return -1;
+  char ch = str[0];
+  if (ch == '\0') return -1;
+
+  if (str[1] == '\0') {
+    ASSERT(desc_primitive(ch));
+    desc->dims = 0;
+    desc->kind = TYPE_PRIMITIVE;
+    desc->primitive = ch;
+  } else {
+    int dims;
+    while ((ch = *str) == '[') {
+      dims++; str++;
+    }
+    desc->dims = dims;
+    desc->kind = TYPE_DEFINED;
+    desc->str = strdup(str);
+  }
+
+  return 0;
+}
+
+TypeDesc *CStr_To_DescList(int count, char *str)
+{
+  if (count == 0) return NULL;
+  int sz = sizeof(TypeDesc) * count;
+  TypeDesc *desc = malloc(sz);
+
+  char ch;
+  int idx = 0;
+  int dims = 0;
+
+  while ((ch = *str) != '\0') {
+    if (desc_primitive(ch)) {
+      ASSERT(idx < count);
+
+      desc[idx].dims = dims;
+      desc[idx].kind = TYPE_PRIMITIVE;
+      desc[idx].primitive = ch;
+
+      dims = 0;
+      idx++;
+      str++;
+    } else if (ch == 'O') {
+      ASSERT(idx < count);
+
+      desc[idx].dims = dims;
+      desc[idx].kind = TYPE_DEFINED;
+
+      int cnt = 0;
+      while ((ch = *str) != ';') {
+        cnt++; str++;
+      }
+      desc[idx].str = strndup(str, cnt);
+
+      dims = 0;
+      idx++;
+    } else if (ch == '[') {
+      ASSERT(idx < count);
+
+      while ((ch = *str) == '[') {
+        dims++; str++;
+      }
+    } else {
+      ASSERT_MSG("unknown type:%c\n", ch);
+    }
+  }
+
+  return desc;
+}
+
+/*-------------------------------------------------------------------------*/
+
 MapItem *MapItem_New(int type, int offset, int size)
 {
   MapItem *item = malloc(sizeof(*item));
@@ -21,8 +132,9 @@ MapItem *MapItem_New(int type, int offset, int size)
   return item;
 }
 
-StringItem *StringItem_New(char *name, int len)
+StringItem *StringItem_New(char *name)
 {
+  int len = strlen(name);
   StringItem *item = malloc(sizeof(StringItem) + len + 1);
   item->length = len + 1;
   memcpy(item->data, name, len);
@@ -30,19 +142,30 @@ StringItem *StringItem_New(char *name, int len)
   return item;
 }
 
-TypeItem *TypeItem_New(uint32 index)
+TypeItem *TypeItem_Primitive_New(int dims, int primitive)
 {
   TypeItem *item = malloc(sizeof(*item));
-  item->desc_index = index;
+  item->dims = dims;
+  item->kind = TYPE_PRIMITIVE;
+  item->primitive = primitive;
   return item;
 }
 
-TypeListItem *TypeListItem_New(int size, uint32 type_index[])
+TypeItem *TypeItem_Structed_New(int dims, uint32 index)
+{
+  TypeItem *item = malloc(sizeof(*item));
+  item->dims = dims;
+  item->kind = TYPE_DEFINED;
+  item->index = index;
+  return item;
+}
+
+TypeListItem *TypeListItem_New(int size, uint32 index[])
 {
   TypeListItem *item = malloc(sizeof(*item) + size * sizeof(uint32));
   item->size = size;
   for (int i = 0; i < size; i++) {
-    item->desc_index[i] = type_index[i];
+    item->index[i] = index[i];
   }
   return item;
 }
@@ -59,158 +182,157 @@ VarItem *VarItem_New(uint32 name_index, uint32 type_index, int flags)
 ProtoItem *ProtoItem_New(int rindex, int pindex)
 {
   ProtoItem *item = malloc(sizeof(*item));
-  item->return_index = rindex;
-  item->parameter_index = pindex;
+  item->rindex = rindex;
+  item->pindex = pindex;
   return item;
 }
 
 FuncItem *FuncItem_New(int name_index, int proto_index, int flags,
-                       int rsz, int psz, int nr_locals, int code_index)
+                       int rsz, int psz, int locals, int code_index)
 {
   FuncItem *item = malloc(sizeof(*item));
   item->name_index = name_index;
   item->proto_index = proto_index;
   item->flags = flags;
-  item->nr_returns = rsz;
-  item->nr_paras = psz;
-  item->nr_returns = nr_locals;
+  item->rets = rsz;
+  item->args = psz;
+  item->locals = locals;
   item->code_index = code_index;
   return item;
 }
 
-CodeItem *CodeItem_New(uint8 *code, int size)
+CodeItem *CodeItem_New(uint8 *codes, int size)
 {
   CodeItem *item = malloc(sizeof(*item) + size);
   item->size = size;
-  memcpy(item->insts, code, size);
+  memcpy(item->codes, codes, size);
   return item;
 }
 
 /*-------------------------------------------------------------------------*/
 
-int StringItem_Get(ItemTable *itemtable, char *str, int len)
+int StringItem_Get(ItemTable *itable, char *str)
 {
+  int len = strlen(str);
   uint8 data[sizeof(StringItem) + len + 1];
   StringItem *item = (StringItem *)data;
   item->length = len + 1;
   memcpy(item->data, str, len);
   item->data[len] = 0;
-  return ItemTable_Index(itemtable, ITEM_STRING, item);
+  return ItemTable_Index(itable, ITEM_STRING, item);
 }
 
-int StringItem_Set(ItemTable *itemtable, char *str, int len)
+int StringItem_Set(ItemTable *itable, char *str)
 {
-  int index = StringItem_Get(itemtable, str, len);
+  int index = StringItem_Get(itable, str);
 
   if (index < 0) {
-    StringItem *item = StringItem_New(str, len);
-    index = ItemTable_Append(itemtable, ITEM_STRING, item, 1);
+    StringItem *item = StringItem_New(str);
+    index = ItemTable_Append(itable, ITEM_STRING, item, 1);
   }
 
   return index;
 }
 
-int TypeItem_Get(ItemTable *itemtable, char *str, int len)
+int TypeItem_Get(ItemTable *itable, TypeDesc *desc)
 {
-  int str_index = StringItem_Get(itemtable, str, len);
-  if (str_index < 0) {
-    return str_index;
+  TypeItem item;
+  if (desc->kind == TYPE_DEFINED) {
+    int index = StringItem_Get(itable, desc->str);
+    if (index < 0) return index;
+    item.dims = desc->dims;
+    item.kind = TYPE_DEFINED;
+    item.index = index;
+  } else {
+    ASSERT(desc->kind == TYPE_PRIMITIVE);
+    item.dims = desc->dims;
+    item.kind = TYPE_PRIMITIVE;
+    item.primitive = desc->primitive;
   }
-
-  TypeItem item = {str_index};
-  return ItemTable_Index(itemtable, ITEM_TYPE, &item);
+  return ItemTable_Index(itable, ITEM_TYPE, &item);
 }
 
-int TypeItem_Set(ItemTable *itemtable, char *str, int len)
+int TypeItem_Set(ItemTable *itable, TypeDesc *desc)
 {
-  int index = TypeItem_Get(itemtable, str, len);
+  TypeItem *item;
+  int index = TypeItem_Get(itable, desc);
   if (index < 0) {
-    int str_index = StringItem_Set(itemtable, str, len);
-    ASSERT(str_index >= 0);
-    TypeItem *item = TypeItem_New(str_index);
-    index = ItemTable_Append(itemtable, ITEM_TYPE, item, 1);
+    if (desc->kind == TYPE_DEFINED) {
+      int index = StringItem_Set(itable, desc->str);
+      ASSERT(index >= 0);
+      item = TypeItem_Structed_New(desc->dims, index);
+    } else {
+      ASSERT(desc->kind == TYPE_PRIMITIVE);
+      item = TypeItem_Primitive_New(desc->dims, desc->primitive);
+    }
+    index = ItemTable_Append(itable, ITEM_TYPE, item, 1);
   }
   return index;
 }
 
-int TypeListItem_Get(ItemTable *itemtable, char *desclist, int *size)
+#define FILL_INDEXES() \
+  for (int i = 0; i < sz; i++) { \
+    index = TypeItem_Get(itable, desc + i); \
+    if (index < 0) return -1; \
+    indexes[i] = index; \
+  }
+
+int TypeListItem_Get(ItemTable *itable, TypeDesc *desc, int sz)
 {
   int index;
-  DescList *dlist = DescList_Parse(desclist);
-  uint32 desc_index[dlist->size];
+  uint32 indexes[sz];
 
-  for (int i = 0; i < dlist->size; i++) {
-    index = StringItem_Get(itemtable, DescList_Desc(dlist, i),
-                           DescList_Length(dlist, i));
-    if (index < 0) {
-      DescList_Free(dlist);
-      return -1;
-    }
-    desc_index[i] = index;
-  }
+  FILL_INDEXES();
 
-  uint8 data[sizeof(TypeListItem) + sizeof(uint32) * dlist->size];
+  uint8 data[sizeof(TypeListItem) + sizeof(uint32) * sz];
   TypeListItem *item = (TypeListItem *)data;
-  item->size = dlist->size;
-  for (int i = 0; i < dlist->size; i++) {
-    item->desc_index[i] = desc_index[i];
+  item->size = sz;
+  for (int i = 0; i < sz; i++) {
+    item->index[i] = indexes[i];
   }
 
-  if (size) *size = dlist->size;
-  DescList_Free(dlist);
-  return ItemTable_Index(itemtable, ITEM_TYPELIST, item);
+  return ItemTable_Index(itable, ITEM_TYPELIST, item);
 }
 
-int TypeListItem_Set(ItemTable *itemtable, char *desclist, int *size)
+int TypeListItem_Set(ItemTable *itable, TypeDesc *desc, int sz)
 {
-  int index = TypeListItem_Get(itemtable, desclist, size);
+  int index = TypeListItem_Get(itable, desc, sz);
   if (index < 0) {
     int index;
-    DescList *dlist = DescList_Parse(desclist);
-    uint32 desc_index[dlist->size];
-    for (int i = 0; i < dlist->size; i++) {
-      index = StringItem_Set(itemtable, DescList_Desc(dlist, i),
-                             DescList_Length(dlist, i));
-      if (index < 0) {
-        DescList_Free(dlist);
-        return -1;
-      }
-      desc_index[i] = index;
-    }
+    uint32 indexes[sz];
 
-    TypeListItem *item = TypeListItem_New(dlist->size, desc_index);
-    index = ItemTable_Append(itemtable, ITEM_TYPELIST, item, 1);
-    if (size) *size = dlist->size;
-    DescList_Free(dlist);
+    FILL_INDEXES();
+
+    TypeListItem *item = TypeListItem_New(sz, indexes);
+    index = ItemTable_Append(itable, ITEM_TYPELIST, item, 1);
   }
   return index;
 }
 
-int ProtoItem_Get(ItemTable *itemtable, int rindex, int pindex)
+int ProtoItem_Get(ItemTable *itable, int rindex, int pindex)
 {
   ProtoItem item = {rindex, pindex};
-  return ItemTable_Index(itemtable, ITEM_PROTO, &item);
+  return ItemTable_Index(itable, ITEM_PROTO, &item);
 }
 
-int ProtoItem_Set(ItemTable *itemtable, char *rdesclist, char *pdesclist,
-                  int *rsz, int *psz)
+int ProtoItem_Set(ItemTable *itable, ProtoInfo *proto)
 {
-  int rindex = TypeListItem_Set(itemtable, rdesclist, rsz);
-  int pindex = TypeListItem_Set(itemtable, pdesclist, psz);
-  int index = ProtoItem_Get(itemtable, rindex, pindex);
+  int rindex = TypeListItem_Set(itable, proto->rdesc, proto->rsz);
+  int pindex = TypeListItem_Set(itable, proto->pdesc, proto->psz);
+  int index = ProtoItem_Get(itable, rindex, pindex);
   if (index < 0) {
     ProtoItem *item = ProtoItem_New(rindex, pindex);
-    index = ItemTable_Append(itemtable, ITEM_PROTO, item, 1);
+    index = ItemTable_Append(itable, ITEM_PROTO, item, 1);
   }
   return index;
 }
 
 /*-------------------------------------------------------------------------*/
 
-static int codeitem_set(ItemTable *itemtable, uint8 *code, int csz)
+static int codeitem_set(ItemTable *itable, uint8 *code, int sz)
 {
-  CodeItem *item = CodeItem_New(code, csz);
-  return ItemTable_Append(itemtable, ITEM_CODE, item, 0);
+  CodeItem *item = CodeItem_New(code, sz);
+  return ItemTable_Append(itable, ITEM_CODE, item, 0);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -290,24 +412,30 @@ void typeitem_write(FILE *fp, void *o)
 uint32 typeitem_hash(void *k)
 {
   TypeItem *item = k;
-  return hash_uint32(item->desc_index, 32);
+  return hash_uint32(item->index, 32);
 }
 
 int typeitem_equal(void *k1, void *k2)
 {
   TypeItem *item1 = k1;
   TypeItem *item2 = k2;
-  return item1->desc_index == item2->desc_index;
+  if (item1->kind != item2->kind) return 0;
+  if (item1->dims != item2->dims) return 0;
+  if (item1->index != item2->index) return 0;
+  return 1;
 }
 
 void typeitem_display(KLCImage *image, void *o)
 {
   TypeItem *item = o;
-  StringItem *stritem;
 
-  printf("  desc_index:%d\n", item->desc_index);
-  stritem = ItemTable_Get(image->table, ITEM_STRING, item->desc_index);
-  printf("  (%s)\n", stritem->data);
+  printf("  index:%d\n", item->index);
+  if (item->kind == TYPE_DEFINED) {
+    StringItem *str = ItemTable_Get(image->itable, ITEM_STRING, item->index);
+    printf("  (%s)\n", str->data);
+  } else {
+    printf("  (%c)\n", item->primitive);
+  }
 }
 
 int typelistitem_length(void *o)
@@ -327,7 +455,7 @@ uint32 typelistitem_hash(void *k)
   TypeListItem *item = k;
   uint32 total = 0;
   for (int i = 0; i < (int)item->size; i++)
-    total += item->desc_index[i];
+    total += item->index[i];
   return hash_uint32(total, 32);
 }
 
@@ -336,7 +464,7 @@ int typelistitem_equal(void *k1, void *k2)
   TypeListItem *item1 = k1;
   TypeListItem *item2 = k2;
   if (item1->size != item2->size) return 0;
-  return memcmp(item1, item2, sizeof(TypeListItem) + item1->size) == 0;
+  return !memcmp(item1, item2, sizeof(TypeListItem) + item1->size);
 }
 
 void typelistitem_display(KLCImage *image, void *o)
@@ -382,12 +510,16 @@ void varitem_display(KLCImage *image, void *o)
   TypeItem *typeitem;
 
   printf("  name_index:%d\n", item->name_index);
-  stritem = ItemTable_Get(image->table, ITEM_STRING, item->name_index);
+  stritem = ItemTable_Get(image->itable, ITEM_STRING, item->name_index);
   printf("  (%s)\n", stritem->data);
   printf("  type_index:%d\n", item->type_index);
-  typeitem = ItemTable_Get(image->table, ITEM_TYPE, item->type_index);
-  stritem = ItemTable_Get(image->table, ITEM_STRING, typeitem->desc_index);
-  printf("  (%s)\n", stritem->data);
+  typeitem = ItemTable_Get(image->itable, ITEM_TYPE, item->type_index);
+  if (typeitem->kind == TYPE_DEFINED) {
+    stritem = ItemTable_Get(image->itable, ITEM_STRING, typeitem->index);
+    printf("  (%s)\n", stritem->data);
+  } else {
+    printf("  (%c)\n", typeitem->primitive);
+  }
   printf("  flags:0x%x\n", item->flags);
 
 }
@@ -423,7 +555,7 @@ void protoitem_write(FILE *fp, void *o)
 uint32 protoitem_hash(void *k)
 {
   ProtoItem *item = k;
-  uint32 total = item->return_index + item->parameter_index;
+  uint32 total = item->rindex + item->pindex;
   return hash_uint32(total, 32);
 }
 
@@ -431,8 +563,7 @@ int protoitem_equal(void *k1, void *k2)
 {
   ProtoItem *item1 = k1;
   ProtoItem *item2 = k2;
-  if (item1->return_index == item2->return_index &&
-      item1->parameter_index == item2->parameter_index) {
+  if (item1->rindex == item2->rindex && item1->pindex == item2->pindex) {
     return 1;
   } else {
     return 0;
@@ -674,141 +805,6 @@ struct item_funcs item_func[ITEM_MAX] = {
 
 /*-------------------------------------------------------------------------*/
 
-static int desc_primitive(char ch)
-{
-  static char chs[] = {
-    'i', 'l', 'f', 'd', 'z', 's', 'A'
-  };
-
-  for (int i = 0; i < nr_elts(chs); i++) {
-    if (ch == chs[i]) return 1;
-  }
-
-  return 0;
-}
-
-static int desc_void(char *descstr)
-{
-  char *desc = descstr;
-  char ch;
-
-  while ((ch = *desc++)) {
-    if (ch == 'v') {
-      ASSERT(strlen(descstr) == 1);
-      return 1;
-    }
-  }
-
-  return 0;
-}
-
-int Desc_Count(char *descstr)
-{
-  if (desc_void(descstr)) return 0;
-
-  char *desc = descstr;
-  char ch;
-  int count = 0;
-
-  while ((ch = *desc)) {
-    if (desc_primitive(ch)) {
-      count++;
-      desc++;
-    } else if (ch == 'O') {
-      while (ch != ';') ch = *desc++;
-      count++;
-    } else if (ch == '[') {
-      desc++;
-    } else {
-      ASSERT_MSG("unknown type:%c\n", ch);
-    }
-  }
-
-  return count;
-}
-
-DescList *DescList_Parse(char *desclist)
-{
-  int count = Desc_Count(desclist);
-  DescList *dlist = malloc(sizeof(*dlist) + sizeof(DescIndex) * count);
-  dlist->desclist = desclist;
-  dlist->size = count;
-  if (count == 0) return dlist;
-
-  char *desc = desclist;
-  char ch;
-  int idx = 0;
-  int isarr = 0;
-
-  while ((ch = *desc)) {
-    if (desc_primitive(ch)) {
-      ASSERT(idx < dlist->size);
-
-      if (isarr) {
-        dlist->index[idx].length = 2;
-      } else {
-        dlist->index[idx].offset = desc - desclist;
-        dlist->index[idx].length = 1;
-      }
-
-      isarr = 0;
-      idx++;
-      desc++;
-    } else if (ch == 'O') {
-      ASSERT(idx < dlist->size);
-      desc++;
-
-      if (!isarr) {
-        dlist->index[idx].offset = desc - desclist;
-      }
-
-      ch = *desc;
-      int cnt = 0;
-      while (ch != ';') {
-        cnt++;
-        ch = *desc++;
-      }
-
-      if (isarr) {
-        dlist->index[idx].length = cnt + 1;
-      } else {
-        dlist->index[idx].length = cnt;
-      }
-
-      isarr = 0;
-      idx++;
-    } else if (ch == '[') {
-      ASSERT(idx < dlist->size);
-      isarr = 1;
-      dlist->index[idx].offset = desc - desclist;
-      desc++;
-    } else {
-      ASSERT_MSG("unknown type:%c\n", ch);
-    }
-  }
-
-  return dlist;
-}
-
-void DescList_Free(DescList *dlist)
-{
-  free(dlist);
-}
-
-char *DescList_Desc(DescList *dlist, int index)
-{
-  ASSERT(index >= 0 && index < dlist->size);
-  return dlist->desclist + dlist->index[index].offset;
-}
-
-int DescList_Length(DescList *dlist, int index)
-{
-  ASSERT(index >= 0 && index < dlist->size);
-  return dlist->index[index].length;
-}
-
-/*-------------------------------------------------------------------------*/
-
 static void init_header(ImageHeader *h, int pkg_size)
 {
   strcpy((char *)h->magic, "KLC");
@@ -852,7 +848,7 @@ void KLCImage_Init(KLCImage *image, char *package)
   strcpy(image->package, package);
   init_header(&image->header, pkg_size);
   HashInfo hashinfo = HashInfo_Init(item_hash, item_equal);
-  image->table = ItemTable_Create(&hashinfo, ITEM_MAX);
+  image->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
 }
 
 KLCImage *KLCImage_New(char *package)
@@ -868,25 +864,23 @@ void KLCImage_Free(KLCImage *image)
   free(image);
 }
 
-void KLCImage_Add_Var(KLCImage *image, char *name, int flags, char *desc)
+void KLCImage_Add_Var(KLCImage *image, char *name, int flags, TypeDesc *desc)
 {
-  int type_index = TypeItem_Set(image->table, desc, strlen(desc));
-  int name_index = StringItem_Set(image->table, name, strlen(name));
+  int type_index = TypeItem_Set(image->itable, desc);
+  int name_index = StringItem_Set(image->itable, name);
   VarItem *varitem = VarItem_New(name_index, type_index, flags);
-  ItemTable_Append(image->table, ITEM_VAR, varitem, 0);
+  ItemTable_Append(image->itable, ITEM_VAR, varitem, 0);
 }
 
-void KLCImage_Add_Func(KLCImage *image, char *name, int flags, int nr_locals,
-                       char *rdesclist, char *pdesclist, uint8 *code, int csz)
+void KLCImage_Add_Func(KLCImage *image, char *name, int flags, FuncInfo *info)
 {
-  int rsz, psz;
-  int name_index = StringItem_Set(image->table, name, strlen(name));
-  int proto_index = ProtoItem_Set(image->table, rdesclist, pdesclist,
-                                  &rsz, &psz);
-  int code_index = codeitem_set(image->table, code, csz);
+  int name_index = StringItem_Set(image->itable, name);
+  int proto_index = ProtoItem_Set(image->itable, &info->proto);
+  int code_index = codeitem_set(image->itable, info->codes, info->csz);
   FuncItem *funcitem = FuncItem_New(name_index, proto_index, flags,
-                                    rsz, psz, nr_locals, code_index);
-  ItemTable_Append(image->table, ITEM_FUNC, funcitem, 0);
+                                    info->proto.rsz, info->proto.psz,
+                                    info->locals, code_index);
+  ItemTable_Append(image->itable, ITEM_FUNC, funcitem, 0);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -898,27 +892,27 @@ void KLCImage_Finish(KLCImage *image)
   void *item;
 
   for (int i = 1; i < ITEM_MAX; i++) {
-    size = ItemTable_Size(image->table, i);
+    size = ItemTable_Size(image->itable, i);
     if (size > 0) offset += sizeof(MapItem);
   }
 
   for (int i = 1; i < ITEM_MAX; i++) {
-    size = ItemTable_Size(image->table, i);
+    size = ItemTable_Size(image->itable, i);
     if (size > 0) {
       offset += length;
       mapitem = MapItem_New(i, offset, size);
-      ItemTable_Append(image->table, ITEM_MAP, mapitem, 0);
+      ItemTable_Append(image->itable, ITEM_MAP, mapitem, 0);
 
       length = 0;
       for (int j = 0; j < size; j++) {
-        item = ItemTable_Get(image->table, i, j);
+        item = ItemTable_Get(image->itable, i, j);
         length += item_func[i].ilength(item);
       }
     }
   }
 
   image->header.file_size = offset + length + image->header.pkg_size;
-  image->header.map_size = ItemTable_Size(image->table, 0);
+  image->header.map_size = ItemTable_Size(image->itable, 0);
 }
 
 static void __image_write_header(FILE *fp, KLCImage *image)
@@ -932,7 +926,7 @@ static void __image_write_item(FILE *fp, KLCImage *image, int type, int size)
   item_fwrite_t iwrite = item_func[type].iwrite;
   ASSERT_PTR(iwrite);
   for (int i = 0; i < size; i++) {
-    o = ItemTable_Get(image->table, type, i);
+    o = ItemTable_Get(image->itable, type, i);
     iwrite(fp, o);
   }
 }
@@ -946,7 +940,7 @@ static void __image_write_items(FILE *fp, KLCImage *image)
 {
   int size;
   for (int i = 0; i < ITEM_MAX; i++) {
-    size = ItemTable_Size(image->table, i);
+    size = ItemTable_Size(image->itable, i);
     if (size > 0) {
       __image_write_item(fp, image, i, size);
     }
@@ -1007,7 +1001,7 @@ KLCImage *KLCImage_Read_File(char *path)
   for (int i = 0; i < nr_elts(mapitems); i++) {
     mapitem = mapitems + i;
     mapitem = MapItem_New(mapitem->type, mapitem->offset, mapitem->size);
-    ItemTable_Append(image->table, ITEM_MAP, mapitem, 0);
+    ItemTable_Append(image->itable, ITEM_MAP, mapitem, 0);
   }
 
   return image;
@@ -1037,21 +1031,21 @@ void KLCImage_Display(KLCImage *image)
   printf("--------------------\n");
 
   printf("mapitems:\n");
-  size = ItemTable_Size(image->table, 0);
+  size = ItemTable_Size(image->itable, 0);
   for (int j = 0; j < size; j++) {
     printf("[%d]\n", j);
-    item = ItemTable_Get(image->table, 0, j);
+    item = ItemTable_Get(image->itable, 0, j);
     item_func[0].idisplay(image, item);
   }
   printf("--------------------\n");
 
   for (int i = 1; i < ITEM_MAX; i++) {
-    size = ItemTable_Size(image->table, i);
+    size = ItemTable_Size(image->itable, i);
     if (size > 0) {
       printf("%sitems:\n", mapitem_string[i]);
       for (int j = 0; j < size; j++) {
         printf("[%d]\n", j);
-        item = ItemTable_Get(image->table, i, j);
+        item = ItemTable_Get(image->itable, i, j);
         item_func[i].idisplay(image, item);
       }
       printf("--------------------\n");

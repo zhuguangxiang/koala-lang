@@ -9,7 +9,7 @@ Object *Module_New(char *name, char *path, int nr_locals)
   ModuleObject *ob = malloc(size);
   init_object_head(ob, &Module_Klass);
   ob->name = name;
-  ob->avail_index = 0;
+  ob->avail = 0;
   ob->size = nr_locals;
   STable_Init(&ob->stable);
   for (int i = 0; i < nr_locals; i++)
@@ -29,36 +29,35 @@ void Module_Free(Object *ob)
 
 #define OBJECT_TO_MODULE(ob) OB_TYPE_OF(ob, ModuleObject, Module_Klass)
 
-int Module_Add_Var(Object *ob, char *name, char *desc, int bconst)
+int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 {
   ModuleObject *mob = OBJECT_TO_MODULE(ob);
-  ASSERT(mob->avail_index < mob->size);
+  ASSERT(mob->avail < mob->size);
   Symbol *sym = STable_Add_Var(&mob->stable, name, desc, bconst);
   if (sym != NULL) {
-    sym->index = mob->avail_index++;
+    sym->index = mob->avail++;
     return 0;
   }
   return -1;
 }
 
-int Module_Add_Func(Object *ob, char *name, char *rdesc, char *pdesc,
-                    Object *method)
+int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth)
 {
   ModuleObject *mob = OBJECT_TO_MODULE(ob);
-  Symbol *sym = STable_Add_Func(&mob->stable, name, rdesc, pdesc);
+  Symbol *sym = STable_Add_Func(&mob->stable, name, proto);
   if (sym != NULL) {
-    sym->obj = method;
+    sym->obj = meth;
     return 0;
   }
   return -1;
 }
 
-int Module_Add_CFunc(Object *ob, FuncStruct *f)
+int Module_Add_CFunc(Object *ob, FuncDef *f)
 {
-  MethodProto proto;
-  FuncStruct_Get_Proto(&proto, f);
-  Object *meth = CMethod_New(f->func, &proto);
-  return Module_Add_Func(ob, f->name, f->rdesc, f->pdesc, meth);
+  ProtoInfo proto;
+  Init_ProtoInfo(f->rsz, f->rdesc, f->psz, f->pdesc, &proto);
+  Object *meth = CMethod_New(f->fn, &proto);
+  return Module_Add_Func(ob, f->name, &proto, meth);
 }
 
 int Module_Add_Class(Object *ob, Klass *klazz)
@@ -132,7 +131,7 @@ Object *Module_Get_Function(Object *ob, char *name)
 
 Klass *Module_Get_Class(Object *ob, char *name)
 {
-  ModuleObject *mob = OB_TYPE_OF(ob, ModuleObject, Module_Klass);
+  ModuleObject *mob = OBJECT_TO_MODULE(ob);
   Symbol *s = STable_Get(&mob->stable, name);
   if (s != NULL) {
     if (s->kind == SYM_CLASS) {
@@ -160,10 +159,10 @@ Klass *Module_Get_Intf(Object *ob, char *name)
   return NULL;
 }
 
-int Module_Add_CFunctions(Object *ob, FuncStruct *funcs)
+int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
 {
   int res;
-  FuncStruct *f = funcs;
+  FuncDef *f = funcs;
   while (f->name != NULL) {
     res = Module_Add_CFunc(ob, f);
     ASSERT(res == 0);
@@ -196,7 +195,7 @@ Klass Module_Klass = {
 
 void Module_Display(Object *ob)
 {
-  ModuleObject *mob = OB_TYPE_OF(ob, ModuleObject, Module_Klass);
+  ModuleObject *mob = OBJECT_TO_MODULE(ob);
   printf("package:%s\n", mob->name);
   STable_Display(&mob->stable);
 }

@@ -1,5 +1,4 @@
 
-#include "object.h"
 #include "stringobject.h"
 #include "methodobject.h"
 #include "moduleobject.h"
@@ -167,24 +166,23 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
   return klazz;
 }
 
-int Klass_Add_Field(Klass *klazz, char *name, char *desc)
+int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
   Symbol *sym = STable_Add_Field(&klazz->stable, name, desc);
   if (sym != NULL) {
-    sym->index = klazz->avail_index++;
+    sym->index = klazz->avail++;
     return 0;
   }
   return -1;
 }
 
-int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
-                     Object *method)
+int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  Symbol *sym = STable_Add_Method(&klazz->stable, name, rdesc, pdesc);
+  Symbol *sym = STable_Add_Method(&klazz->stable, name, proto);
   if (sym != NULL) {
-    sym->obj = method;
+    sym->obj = meth;
     return 0;
   }
   return -1;
@@ -210,16 +208,17 @@ Object *Klass_Get_Method(Klass *klazz, char *name)
   return temp;
 }
 
-int Klass_Add_CFunctions(Klass *klazz, FuncStruct *funcs)
+int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 {
   int res;
-  FuncStruct *f = funcs;
+  FuncDef *f = funcs;
   Object *meth;
-  MethodProto proto;
+  ProtoInfo proto;
+
   while (f->name != NULL) {
-    FuncStruct_Get_Proto(&proto, f);
-    meth = CMethod_New(f->func, &proto);
-    res = Klass_Add_Method(klazz, f->name, f->rdesc, f->pdesc, meth);
+    Init_ProtoInfo(f->rsz, f->rdesc, f->psz, f->pdesc, &proto);
+    meth = CMethod_New(f->fn, &proto);
+    res = Klass_Add_Method(klazz, f->name, &proto, meth);
     ASSERT(res == 0);
     ++f;
   }

@@ -2,7 +2,6 @@
 #include "symbol.h"
 #include "hash.h"
 #include "debug.h"
-#include "codeformat.h"
 
 static uint32 symbol_hash(void *k)
 {
@@ -38,14 +37,14 @@ void STable_Fini(STable *stbl)
   free(stbl);
 }
 
-Symbol *STable_Add_Var(STable *stbl, char *name, char *desc, int bconst)
+Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
 {
   int access = bconst ? ACCESS_CONST : 0;
   access |= isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int name_index = StringItem_Set(stbl->itable, name, strlen(name));
+  int name_index = StringItem_Set(stbl->itable, name);
   int desc_index = -1;
   if (desc != NULL) {
-    desc_index = TypeItem_Set(stbl->itable, desc, strlen(desc));
+    desc_index = TypeItem_Set(stbl->itable, desc);
   }
   Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
@@ -56,11 +55,11 @@ Symbol *STable_Add_Var(STable *stbl, char *name, char *desc, int bconst)
   return sym;
 }
 
-Symbol *STable_Add_Func(STable *stbl, char *name, char *rdesc, char *pdesc)
+Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int name_index = StringItem_Set(stbl->itable, name, strlen(name));
-  int desc_index = ProtoItem_Set(stbl->itable, rdesc, pdesc, NULL, NULL);
+  int name_index = StringItem_Set(stbl->itable, name);
+  int desc_index = ProtoItem_Set(stbl->itable, proto);
   Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
     debug_error("add a function failed.\n");
@@ -73,8 +72,8 @@ Symbol *STable_Add_Func(STable *stbl, char *name, char *rdesc, char *pdesc)
 Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int name_index = StringItem_Set(stbl->itable, name, strlen(name));
-  Symbol *sym = Symbol_New(name_index, kind, access, name_index);
+  int name_index = StringItem_Set(stbl->itable, name);
+  Symbol *sym = Symbol_New(name_index, kind, access, -1);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
     debug_error("add a function failed.\n");
     Symbol_Free(sym);
@@ -85,7 +84,7 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
 
 Symbol *STable_Get(STable *stbl, char *name)
 {
-  int index = StringItem_Get(stbl->itable, name, strlen(name));
+  int index = StringItem_Get(stbl->itable, name);
   if (index < 0) return NULL;
   Symbol sym = {.name_index = index};
   HashNode *hnode = HashTable_Find(__get_hashtable(stbl), &sym);
@@ -147,6 +146,8 @@ static char *get_name(int index, STable *stbl)
 
 static char *desc_tostr(int index, STable *stbl)
 {
+  if (index < 0) return "";
+
   static char ch[] = {
     'i', 'f', 'z', 's', 'A'
   };
@@ -156,7 +157,7 @@ static char *desc_tostr(int index, STable *stbl)
   };
 
   TypeItem *item = ItemTable_Get(stbl->itable, ITEM_TYPE, index);
-  StringItem *sitem = ItemTable_Get(stbl->itable, ITEM_STRING, item->desc_index);
+  StringItem *sitem = ItemTable_Get(stbl->itable, ITEM_STRING, item->index);
 
   char *s = sitem->data;
   if (s == NULL) return NULL;

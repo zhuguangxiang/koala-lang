@@ -14,8 +14,10 @@ int main(int argc, char *argv[])
   UNUSED_PARAMETER(argv);
 
   KLCImage *image = KLCImage_New("lang");
-  KLCImage_Add_Var(image, "greeting", ACCESS_PRIVATE, "Okoala/lang.String;");
-  KLCImage_Add_Var(image, "message", ACCESS_PRIVATE, "Okoala/lang.Integer;");
+  Decl_Defined_Desc(desc, 0, "koala/lang.String");
+  KLCImage_Add_Var(image, "greeting", ACCESS_PRIVATE, &desc);
+  Init_Defined_Desc(&desc, 0, "koala/lang.Integer");
+  KLCImage_Add_Var(image, "message", ACCESS_PRIVATE, &desc);
   // char *rdesc[] = {
   //   "Okoala/io.Socket;",
   // };

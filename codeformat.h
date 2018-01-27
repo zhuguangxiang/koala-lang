@@ -9,6 +9,61 @@
 extern "C" {
 #endif
 
+#define TYPE_PRIMITIVE  1
+#define TYPE_DEFINED    2
+
+#define PRIMITIVE_INT     'i'
+#define PRIMITIVE_FLOAT   'f'
+#define PRIMITIVE_BOOL    'b'
+#define PRIMITIVE_STRING  's'
+#define PRIMITIVE_ANY     'A'
+
+/* Type's descriptor */
+typedef struct typedesc {
+  short dims;
+  short kind;
+  union {
+    int primitive;
+    char *str;
+  };
+} TypeDesc;
+
+#define Decl_Primitive_Desc(desc, d, p) \
+  TypeDesc desc = {.dims = (d), .kind = TYPE_PRIMITIVE, .primitive = (p)}
+#define Decl_Defined_Desc(desc, d, s)  \
+  TypeDesc desc = {.dims = (d), .kind = TYPE_DEFINED, .str = (s)}
+#define Init_Primitive_Desc(desc, d, p) do { \
+  (desc)->dims = (d); (desc)->kind = TYPE_PRIMITIVE; \
+  (desc)->primitive = (p); \
+} while (0)
+#define Init_Defined_Desc(desc, d, s) do { \
+  (desc)->dims = (d); (desc)->kind = TYPE_DEFINED; \
+  (desc)->str = (s); \
+} while (0)
+
+typedef struct protoinfo {
+  int rsz;
+  int psz;
+  TypeDesc *rdesc;
+  TypeDesc *pdesc;
+} ProtoInfo;
+
+typedef struct funcinfo {
+  ProtoInfo proto;
+  int locals;
+  int csz;
+  uint8 *codes;
+} FuncInfo;
+
+int CStr_To_Desc(char *str, TypeDesc *desc);
+TypeDesc *CStr_To_DescList(int count, char *str);
+void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
+                    ProtoInfo *proto);
+void Init_FuncInfo(int rsz, char *rdesc, int psz, char *pdesc,
+                   int locals, uint8 *codes, int csz,
+                   FuncInfo *funcinfo);
+/*-------------------------------------------------------------------------*/
+
 typedef struct image_header {
   uint8 magic[4];
   uint8 version[4];
@@ -49,17 +104,22 @@ typedef struct string_item {
 } StringItem;
 
 typedef struct type_item {
-  uint32 desc_index;  //->StringItem
+  short dims;
+  short kind;
+  union {
+    int primitive;
+    uint32 index;   //->StringItem
+  };
 } TypeItem;
 
 typedef struct typelist_item {
   uint32 size;
-  uint32 desc_index[0];   //->StringItem
+  uint32 index[0];  //->TypeItem
 } TypeListItem;
 
 typedef struct proto_item {
-  uint32 return_index;    //->TypeListItem
-  uint32 parameter_index; //->TypeListItem
+  uint32 rindex;  //->TypeListItem
+  uint32 pindex;  //->TypeListItem
 } ProtoItem;
 
 #define CONST_INT     1
@@ -97,15 +157,15 @@ typedef struct func_item {
   uint32 name_index;    //->StringItem
   uint32 proto_index;   //->ProtoItem
   uint16 flags;         //access
-  uint16 nr_returns;    //number of returns
-  uint16 nr_paras;      //number of parameters
-  uint16 nr_locals;     //number of lcoal variabls
+  uint16 rets;          //number of returns
+  uint16 args;          //number of parameters
+  uint16 locals;        //number of lcoal variabls
   uint32 code_index;    //->CodeItem
 } FuncItem;
 
 typedef struct code_item {
   uint32 size;
-  uint8 insts[0];
+  uint8 codes[0];
 } CodeItem;
 
 typedef struct struct_item {
@@ -142,62 +202,37 @@ typedef struct struct_item {
 typedef struct klcimage {
   ImageHeader header;
   char *package;
-  ItemTable *table;
+  ItemTable *itable;
 } KLCImage;
 
 KLCImage *KLCImage_New(char *pkg_name);
 void KLCImage_Free(KLCImage *image);
 void KLCImage_Finish(KLCImage *image);
-void KLCImage_Add_Var(KLCImage *image, char *name, int flags, char *desc);
-void KLCImage_Add_Func(KLCImage *image, char *name, int flags, int nr_locals,
-                       char *rdesclist, char *pdesclist, uint8 *code, int csz);
+void KLCImage_Add_Var(KLCImage *image, char *name, int flags, TypeDesc *desc);
+void KLCImage_Add_Func(KLCImage *image, char *name, int flags, FuncInfo *info);
 void KLCImage_Write_File(KLCImage *image, char *path);
 KLCImage *KLCImage_Read_File(char *path);
 void KLCImage_Display(KLCImage *image);
 
-static inline int Count_Vars(KLCImage *image)
-{
-  return ItemTable_Size(image->table, ITEM_VAR);
-}
+#define KLCImage_Count_Vars(image) \
+  ItemTable_Size((image)->itable, ITEM_VAR)
 
-static inline int Count_Konsts(KLCImage *image)
-{
-  return ItemTable_Size(image->table, ITEM_CONST);
-}
+#define KLCImage_Count_Consts(image) \
+  ItemTable_Size((image)->itable, ITEM_CONST)
 
-static inline int Count_Funcs(KLCImage *image)
-{
-  return ItemTable_Size(image->table, ITEM_FUNC);
-}
+#define KLCImage_Count_Functions(image) \
+  ItemTable_Size((image)->itable, ITEM_FUNC)
 
-int StringItem_Get(ItemTable *itemtable, char *str, int len);
-int StringItem_Set(ItemTable *itemtable, char *str, int len);
-int TypeItem_Get(ItemTable *itemtable, char *str, int len);
-int TypeItem_Set(ItemTable *itemtable, char *str, int len);
-int TypeListItem_Get(ItemTable *itemtable, char *desclist, int *size);
-int TypeListItem_Set(ItemTable *itemtable, char *desclist, int *size);
-int ProtoItem_Get(ItemTable *itemtable, int rindex, int pindex);
-int ProtoItem_Set(ItemTable *itemtable, char *rdes, char *pdesc,
-                  int *rsz, int *psz);
+int StringItem_Get(ItemTable *itable, char *str);
+int StringItem_Set(ItemTable *itable, char *str);
+int TypeItem_Get(ItemTable *itable, TypeDesc *desc);
+int TypeItem_Set(ItemTable *itable, TypeDesc *desc);
+int TypeListItem_Get(ItemTable *itable, TypeDesc *desc, int sz);
+int TypeListItem_Set(ItemTable *itable, TypeDesc *desc, int sz);
+int ProtoItem_Get(ItemTable *itable, int rindex, int pindex);
+int ProtoItem_Set(ItemTable *itable, ProtoInfo *proto);
 uint32 item_hash(void *key);
 int item_equal(void *k1, void *k2);
-
-typedef struct desc_index {
-  int offset;
-  int length;
-} DescIndex;
-
-typedef struct desc_list {
-  char *desclist;
-  int size;
-  DescIndex index[0];
-} DescList;
-
-int Desc_Count(char *descstr);
-DescList *DescList_Parse(char *desclist);
-void DescList_Free(DescList *dlist);
-char *DescList_Desc(DescList *dlist, int index);
-int DescList_Length(DescList *dlist, int index);
 
 #ifdef __cplusplus
 }

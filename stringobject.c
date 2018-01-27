@@ -85,9 +85,9 @@ static Object *__string_tostring(Object *ob, Object *args)
   return Tuple_Build("O", ob);
 }
 
-static FuncStruct string_funcs[] = {
-  {"Length", "i", "v", __string_length},
-  {"ToString", "s", "v", __string_tostring},
+static FuncDef string_funcs[] = {
+  {"Length", 1, "i", 0, NULL, __string_length},
+  {"ToString", 1, "s", 0, NULL, __string_tostring},
   {NULL}
 };
 

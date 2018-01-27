@@ -3,7 +3,7 @@
 #define _KOALA_SYMBOL_H_
 
 #include "common.h"
-#include "itemtable.h"
+#include "codeformat.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,8 +51,8 @@ void Symbol_Free(Symbol *sym);
 
 int STable_Init(STable *stbl);
 void STable_Fini(STable *stbl);
-Symbol *STable_Add_Var(STable *stbl, char *name, char *desc, int bconst);
-Symbol *STable_Add_Func(STable *stbl, char *name, char *rdesc, char *pdesc);
+Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
+Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto);
 Symbol *STable_Add_Klass(STable *stbl, char *name, int kind);
 #define STable_Add_Class(stbl, name) ({ \
   Symbol *sym = STable_Add_Klass(stbl, name, SYM_CLASS); sym; \
@@ -61,16 +61,16 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind);
   Symbol *sym = STable_Add_Var(stbl, name, desc, 0); \
   sym->kind = SYM_FIELD; sym; \
 })
-#define STable_Add_Method(stbl, name, rdesc, pdesc) ({ \
-  Symbol *sym = STable_Add_Func(stbl, name, rdesc, pdesc); \
+#define STable_Add_Method(stbl, name, proto) ({ \
+  Symbol *sym = STable_Add_Func(stbl, name, proto); \
   sym->kind = SYM_METHOD; sym; \
 })
 #define STable_Add_Interface(stbl, name) ({ \
   Symbol *sym = STable_Add_Klass(stbl, name, SYM_INTF); \
   sym->kind = SYM_INTF; sym; \
 })
-#define STable_Add_IProto(stbl, name, rdesc, pdesc) ({ \
-  Symbol *sym = STable_Add_Func(stbl, name, rdesc, pdesc); \
+#define STable_Add_IProto(stbl, name, proto) ({ \
+  Symbol *sym = STable_Add_Func(stbl, name, proto); \
   sym->kind = SYM_IPROTO; sym; \
 })
 Symbol *STable_Get(STable *stbl, char *name);

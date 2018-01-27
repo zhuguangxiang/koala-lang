@@ -454,11 +454,11 @@ VariableList
 FunctionDeclaration
   : FUNC ID '(' ParameterListOrEmpty ')' Block {
     printf("func1\n");
-    $$ = stmt_from_funcdecl(NULL, $2, $4, NULL, $6);
+    $$ = stmt_from_funcdecl($2, $4, NULL, $6);
   }
   | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
     printf("func2\n");
-    $$ = stmt_from_funcdecl(NULL, $2, $4, $6, $7);
+    $$ = stmt_from_funcdecl($2, $4, $6, $7);
   }
   ;
 

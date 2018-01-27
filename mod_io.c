@@ -90,8 +90,8 @@ static Object *__io_print(Object *ob, Object *args)
   return NULL;
 }
 
-static FuncStruct io_funcs[] = {
-  {"Print", "v", "[A", __io_print},
+static FuncDef io_funcs[] = {
+  {"Print", 0, NULL, 1, "[A", __io_print},
   {NULL}
 };
 

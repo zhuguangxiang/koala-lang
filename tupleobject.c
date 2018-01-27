@@ -170,9 +170,9 @@ static Object *__tuple_size(Object *ob, Object *args)
   return Tuple_Build("i", tuple->size);
 }
 
-static FuncStruct tuple_funcs[] = {
-  {"Get", "A", "i", __tuple_get},
-  {"Size", "i", "v", __tuple_size},
+static FuncDef tuple_funcs[] = {
+  {"Get", 1, "A", 1, "i", __tuple_get},
+  {"Size", 1, "i", 0, NULL, __tuple_size},
   {NULL}
 };
 

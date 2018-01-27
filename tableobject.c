@@ -169,9 +169,9 @@ static Object *__table_put(Object *ob, Object *args)
   return Tuple_Build("i", Table_Put(ob, &key, &val));
 }
 
-static FuncStruct table_funcs[] = {
-  {"Put", "i", "AA", __table_put},
-  {"Get", "A", "A", __table_get},
+static FuncDef table_funcs[] = {
+  {"Put", 1, "i", 2, "AA", __table_put},
+  {"Get", 1, "A", 1, "A", __table_get},
   {NULL}
 };
 

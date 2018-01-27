@@ -74,7 +74,7 @@ testhashtable: lib
 	@./a.out
 
 testcode: lib
-	@$(CC) $(CFLAGS) test_codeformat.c -l$(KOALA_LIB) -L. -lrt
+	@$(CC) $(CFLAGS) test_codeformat.c -L. -l$(KOALA_LIB) -lrt
 	@./a.out
 
 testrt: lib

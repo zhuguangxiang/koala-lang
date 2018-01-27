@@ -160,16 +160,14 @@ struct klass {
   strfunc ob_tostr;
 
   STable stable;
-  uint32 avail_index;
+  uint32 avail;
 };
 
 extern Klass Klass_Klass;
 void Init_Klass_Klass(Object *ob);
 Klass *Klass_New(char *name, int bsize, int isize, Klass *parent);
-int Klass_Add_Field(Klass *klazz, char *name, char *desc);
-int Klass_Add_Method(Klass *klazz, char *name, char *rdesc, char *pdesc,
-                     Object *method);
-int Klass_Add_IProto(Klass *klazz, char *name, char *rdesc, char *pdesc);
+int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
+int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth);
 Symbol *Klass_Get(Klass *klazz, char *name);
 Object *Klass_Get_Method(Klass *klazz, char *name);
 

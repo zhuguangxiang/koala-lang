@@ -9,7 +9,7 @@ Frame *Frame_New(Object *func)
   MethodObject *meth = OB_TYPE_OF(func, MethodObject, Method_Klass);
 
   int locals = 0;
-  if (meth->type == METH_KFUNC) locals = 1 + meth->nr_locals;
+  if (meth->type == METH_KFUNC) locals = 1 + meth->locals;
   Frame *f = malloc(sizeof(Frame) + locals * sizeof(TValue));
   f->state = FRAME_READY;
   init_list_head(&f->link);
@@ -59,7 +59,7 @@ void run_cframe(Frame *f)
   /* Save the result */
   if (result != NULL) {
     sz = Tuple_Size(result);
-    ASSERT(sz == meth->nr_rets);
+    ASSERT(sz == meth->rets);
     for (i = sz - 1; i >= 0; i--) {
       val = Tuple_Get(result, i);
       ValueStack_Push(&rt->stack, &val);
@@ -81,7 +81,7 @@ void run_kframe(Frame *f)
   if (f->state == FRAME_READY) {
     /* Prepare parameters */
     sz = ValueStack_Size(&rt->stack);
-    ASSERT((sz == (meth->nr_args + 1)) && (sz <= f->size));
+    ASSERT((sz == (meth->args + 1)) && (sz <= f->size));
     i = 0;
     val = ValueStack_Pop(&rt->stack);
     while (!VALUE_ISNIL(&val)) {

@@ -4,13 +4,6 @@
 #include "moduleobject.h"
 #include "symbol.h"
 
-void FuncStruct_Get_Proto(MethodProto *proto, FuncStruct *f)
-{
-  proto->nr_rets = Desc_Count(f->rdesc);
-  proto->nr_args = Desc_Count(f->pdesc);
-  proto->nr_locals = 0;
-}
-
 static MethodObject *__method_new(int type)
 {
   MethodObject *m = malloc(sizeof(*m));
@@ -19,24 +12,23 @@ static MethodObject *__method_new(int type)
   return m;
 }
 
-Object *CMethod_New(cfunc cf, MethodProto *proto)
+Object *CMethod_New(cfunc cf, ProtoInfo *proto)
 {
   MethodObject *m = __method_new(METH_CFUNC);
   m->cf = cf;
-  m->nr_rets = proto->nr_rets;
-  m->nr_args = proto->nr_args;
-  m->nr_locals = proto->nr_locals;
+  m->rets = proto->rsz;
+  m->args = proto->psz;
+  m->locals = 0;
   return (Object *)m;
 }
 
-Object *Method_New(MethodProto *proto, uint8 *codes,
-                   ConstItem *k, ItemTable *itable)
+Object *Method_New(FuncInfo *info, ConstItem *k, ItemTable *itable)
 {
   MethodObject *m = __method_new(METH_KFUNC);
-  m->nr_rets = proto->nr_rets;
-  m->nr_args = proto->nr_args;
-  m->nr_locals = proto->nr_args + proto->nr_locals;
-  m->kf.codes = codes;
+  m->rets = info->proto.rsz;
+  m->args = info->proto.psz;
+  m->locals = info->proto.psz + info->locals;
+  m->kf.codes = info->codes;
   m->kf.itable = itable;
   m->kf.k = k;
   return (Object *)m;
