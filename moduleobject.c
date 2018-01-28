@@ -98,6 +98,12 @@ static int __get_value_index(ModuleObject *mob, char *name)
   return -1;
 }
 
+Symbol *Module_Get_Symbol(Object *ob, char *name)
+{
+  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  return STable_Get(&mob->stable, name);
+}
+
 TValue Module_Get_Value(Object *ob, char *name)
 {
   ModuleObject *mob = OBJECT_TO_MODULE(ob);

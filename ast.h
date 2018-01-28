@@ -70,10 +70,10 @@ enum expr_ctx {
 struct expr {
   enum expr_kind kind;
   struct type *type;
+  enum expr_ctx ctx;
   union {
     struct {
       char *id;
-      enum expr_ctx ctx;
     } name;
     int64 ival;
     float64 fval;

@@ -92,7 +92,6 @@ Symbol *parser_find_symbol(ParserContext *ctx, char *name)
 
   /* find global symbol table */
   return STable_Get(&ctx->stable, name);
-  if (sym != NULL) return sym;
 }
 
 char *type_full_path(ParserContext *ctx, struct type *type)

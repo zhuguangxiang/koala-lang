@@ -45,9 +45,15 @@ static char *type_tostring(struct type *t)
   }
 }
 
+struct expr *expr_new(void)
+{
+  struct expr *exp = calloc(1, sizeof(*exp));
+  return exp;
+}
+
 struct expr *expr_from_name(char *id)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = NAME_KIND;
   expr->type = NULL;
   expr->name.id = id;
@@ -56,7 +62,7 @@ struct expr *expr_from_name(char *id)
 
 struct expr *expr_from_name_type(char *id, struct type *type)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = NAME_KIND;
   expr->type = type;
   expr->name.id = id;
@@ -65,7 +71,7 @@ struct expr *expr_from_name_type(char *id, struct type *type)
 
 struct expr *expr_from_int(int64 ival)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = INT_KIND;
   expr->type = type_from_primitive(PRIMITIVE_INT);
   expr->ival = ival;
@@ -74,7 +80,7 @@ struct expr *expr_from_int(int64 ival)
 
 struct expr *expr_from_float(float64 fval)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = FLOAT_KIND;
   expr->type = type_from_primitive(PRIMITIVE_FLOAT);
   expr->fval = fval;
@@ -83,7 +89,7 @@ struct expr *expr_from_float(float64 fval)
 
 struct expr *expr_from_string(char *str)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = STRING_KIND;
   expr->type = type_from_primitive(PRIMITIVE_STRING);
   expr->str  = str;
@@ -92,7 +98,7 @@ struct expr *expr_from_string(char *str)
 
 struct expr *expr_from_bool(int bval)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = BOOL_KIND;
   expr->type = type_from_primitive(PRIMITIVE_BOOL);
   expr->bval = bval;
@@ -101,7 +107,7 @@ struct expr *expr_from_bool(int bval)
 
 struct expr *expr_from_self(void)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = SELF_KIND;
   expr->type = NULL;
   return expr;
@@ -109,7 +115,7 @@ struct expr *expr_from_self(void)
 
 struct expr *expr_from_expr(struct expr *exp)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = EXP_KIND;
   expr->type = NULL;
   expr->exp  = exp;
@@ -118,7 +124,7 @@ struct expr *expr_from_expr(struct expr *exp)
 
 struct expr *expr_from_null(void)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = NULL_KIND;
   expr->type = NULL;
   return expr;
@@ -126,7 +132,7 @@ struct expr *expr_from_null(void)
 
 struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = ARRAY_KIND;
   expr->type = type;
   expr->array.dseq = dseq;
@@ -136,7 +142,7 @@ struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq)
 
 struct expr *expr_from_array_with_tseq(Vector *tseq)
 {
-  struct expr *e = malloc(sizeof(*e));
+  struct expr *e = expr_new();
   e->kind = SEQ_KIND;
   e->seq  = tseq;
   return e;
@@ -144,7 +150,7 @@ struct expr *expr_from_array_with_tseq(Vector *tseq)
 
 struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = ANONYOUS_FUNC_KIND;
   expr->anonyous_func.pseq = pseq;
   expr->anonyous_func.rseq = rseq;
@@ -155,7 +161,7 @@ struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body)
 struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
                                struct expr *left)
 {
-  struct expr *expr = malloc(sizeof(*expr));
+  struct expr *expr = expr_new();
   expr->kind = kind;
   switch (kind) {
     case ATTRIBUTE_KIND: {
@@ -184,7 +190,7 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
 struct expr *expr_from_binary(enum operator_kind kind,
                               struct expr *left, struct expr *right)
 {
-  struct expr *exp = malloc(sizeof(*exp));
+  struct expr *exp = expr_new();
   exp->kind = BINARY_KIND;
   exp->bin_op.left  = left;
   exp->bin_op.op    = kind;
@@ -194,7 +200,7 @@ struct expr *expr_from_binary(enum operator_kind kind,
 
 struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr)
 {
-  struct expr *exp = malloc(sizeof(*exp));
+  struct expr *exp = expr_new();
   exp->kind = UNARY_KIND;
   exp->unary_op.op = kind;
   exp->unary_op.operand = expr;

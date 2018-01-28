@@ -31,6 +31,7 @@ void Module_Set_Value(Object *ob, char *name, TValue *val);
 Object *Module_Get_Function(Object *ob, char *name);
 Klass *Module_Get_Class(Object *ob, char *name);
 Klass *Module_Get_Intf(Object *ob, char *name);
+Symbol *Module_Get_Symbol(Object *ob, char *name);
 int Module_Add_CFunctions(Object *ob, FuncDef *funcs);
 void Module_Show(Object *ob);
 #define Module_STable(ob) (&((ModuleObject *)(ob))->stable)
