@@ -10,9 +10,9 @@ include $(TOPDIR)/config.mk
 
 ######################################
 
-KOALA_LIB_FILES = debug.c hashtable.c hash.c vector.c itemtable.c symbol.c \
-object.c stringobject.c tupleobject.c tableobject.c moduleobject.c \
-methodobject.c routine.c frameloop.c thread.c codeformat.c \
+KOALA_LIB_FILES = debug.c hashtable.c hash.c vector.c buffer.c \
+itemtable.c symbol.c object.c stringobject.c tupleobject.c tableobject.c \
+moduleobject.c methodobject.c routine.c frameloop.c thread.c codeformat.c \
 mod_io.c koala.c
 
 KOALA_LIB = koala
@@ -84,4 +84,7 @@ testrt: lib
 
 testloop: lib
 	@$(CC) $(CFLAGS) test_frameloop.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
+testbuf: lib
+	@$(CC) $(CFLAGS) test_buffer.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out

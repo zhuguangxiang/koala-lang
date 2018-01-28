@@ -154,13 +154,13 @@ typedef struct var_item {
 } VarItem;
 
 typedef struct func_item {
-  int32 name_index;    //->StringItem
-  int32 proto_index;   //->ProtoItem
-  uint16 flags;         //access
-  uint16 rets;          //number of returns
-  uint16 args;          //number of parameters
-  uint16 locals;        //number of lcoal variabls
-  uint32 code_index;    //->CodeItem
+  int32 name_index;   //->StringItem
+  int32 proto_index;  //->ProtoItem
+  uint16 flags;       //access
+  uint16 rets;        //number of returns
+  uint16 args;        //number of parameters
+  uint16 locals;      //number of lcoal variabls
+  int32 code_index;   //->CodeItem
 } FuncItem;
 
 typedef struct code_item {

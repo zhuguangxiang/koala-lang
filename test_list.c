@@ -104,4 +104,5 @@ int main(int argc, char *argv[])
   UNUSED_PARAMETER(argv);
   test_list();
   test_hlist();
+  return 0;
 }

@@ -197,6 +197,7 @@ int expr_id_handler(ParserContext *ctx, struct expr *exp)
 int expr_attr_handler(ParserContext *ctx, struct expr *exp)
 {
   debug_info("attribute\n");
+  expr_set_ctx(exp->attribute.left, CTX_LOAD);
   expr_handler(ctx, exp->attribute.left);
   debug_info("%s\n", exp->attribute.id);
   //OP_GETFIELD

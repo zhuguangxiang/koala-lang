@@ -64,7 +64,7 @@ enum expr_kind {
 };
 
 enum expr_ctx {
-  LOAD = 1, STORE = 2,
+  CTX_LOAD = 1, CTX_STORE = 2,
 };
 
 struct expr {
@@ -117,6 +117,11 @@ struct expr {
     Vector *seq;
   };
 };
+
+static inline void expr_set_ctx(struct expr *exp, int ctx)
+{
+  exp->ctx = ctx;
+}
 
 struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
                                struct expr *left);
