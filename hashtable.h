@@ -40,7 +40,9 @@ typedef struct hashinfo {
   ht_equal_func equal;
 } HashInfo;
 
-#define HashInfo_Init(h, e) {.hash = (h), .equal = (e)}
+#define Decl_HashInfo(hashinfo, h, e) \
+  HashInfo hashinfo = {.hash = (h), .equal = (e)}
+
 #define Init_HashInfo(info, h, e) do { \
   (info)->hash = (h); (info)->equal = (e); \
 } while (0)
@@ -64,6 +66,11 @@ void HashTable_Destroy(HashTable *table, ht_fini_func fini, void *arg);
 
 /* Find a node with its key  */
 HashNode *HashTable_Find(HashTable *table, void *key);
+
+#define HashTable_FindObject(table, key, type) ({ \
+  HashNode *node = HashTable_Find(table, key); \
+  (node != NULL) ? container_of(node, type, hnode) : NULL; \
+})
 
 /* Remove a node from the hash table by its node */
 int HashTable_Remove(HashTable *table, HashNode *hnode);

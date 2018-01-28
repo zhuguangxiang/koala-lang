@@ -33,6 +33,7 @@ all:
 
 lib:
 	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALA_LIB).so $(KOALA_LIB_FILES)
+	@cp lib$(KOALA_LIB).so /usr/lib/koala-lang/
 	@$(RM) *.o
 
 compiler:

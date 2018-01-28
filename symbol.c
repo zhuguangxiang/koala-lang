@@ -19,7 +19,7 @@ static int symbol_equal(void *k1, void *k2)
 static HashTable *__get_hashtable(STable *stbl)
 {
   if (stbl->htable == NULL) {
-    HashInfo hashinfo = HashInfo_Init(symbol_hash, symbol_equal);
+    Decl_HashInfo(hashinfo, symbol_hash, symbol_equal);
     stbl->htable = HashTable_Create(&hashinfo);
   }
   return stbl->htable;
@@ -27,13 +27,15 @@ static HashTable *__get_hashtable(STable *stbl)
 
 int STable_Init(STable *stbl)
 {
-  HashInfo hashinfo = HashInfo_Init(item_hash, item_equal);
+  Decl_HashInfo(hashinfo, item_hash, item_equal);
   stbl->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
+  Vector_Init(&stbl->vector);
   return 0;
 }
 
 void STable_Fini(STable *stbl)
 {
+  Vector_Fini(&stbl->vector, NULL, NULL);
   free(stbl);
 }
 
@@ -52,6 +54,7 @@ Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
     Symbol_Free(sym);
     return NULL;
   }
+  Vector_Appand(&stbl->vector, sym);
   return sym;
 }
 
@@ -66,6 +69,7 @@ Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
     Symbol_Free(sym);
     return NULL;
   }
+  Vector_Appand(&stbl->vector, sym);
   return sym;
 }
 
@@ -79,6 +83,7 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
     Symbol_Free(sym);
     return NULL;
   }
+  Vector_Appand(&stbl->vector, sym);
   return sym;
 }
 
@@ -94,8 +99,6 @@ Symbol *STable_Get(STable *stbl, char *name)
     return NULL;
   }
 }
-
-/*-------------------------------------------------------------------------*/
 
 Symbol *Symbol_New(int name_index, int kind, int access, int desc_index)
 {
@@ -129,24 +132,19 @@ static char *type_tostr(int kind)
   return to_str(kind_str, nr_elts(kind_str), kind);
 }
 
-static char *access_tostr(int access)
+static char *name_tostr(int index, STable *stbl)
 {
-  static char *str[] = {
-    "public", "private"
-  };
-
-  return to_str(str, nr_elts(str), access);
-}
-
-static char *get_name(int index, STable *stbl)
-{
+  if (index < 0) return "";
   StringItem *item = ItemTable_Get(stbl->itable, ITEM_STRING, index);
+  ASSERT_PTR(item);
   return item->data;
 }
 
-static char *desc_tostr(int index, STable *stbl)
+/*-------------------------------------------------------------------------*/
+
+static void desc_show(int index, STable *stbl)
 {
-  if (index < 0) return "";
+  if (index < 0) return;
 
   static char ch[] = {
     'i', 'f', 'z', 's', 'A'
@@ -156,52 +154,107 @@ static char *desc_tostr(int index, STable *stbl)
     "int", "float", "bool", "string", "Any"
   };
 
-  TypeItem *item = ItemTable_Get(stbl->itable, ITEM_TYPE, index);
-  StringItem *sitem = ItemTable_Get(stbl->itable, ITEM_STRING, item->index);
-
-  char *s = sitem->data;
-  if (s == NULL) return NULL;
-  if (s[1] == '\0') {
-    for (int i = 0; i < nr_elts(ch); i++) {
-      if (ch[i] == *s) {
-        return str[i];
+  TypeItem *type = ItemTable_Get(stbl->itable, ITEM_TYPE, index);
+  ASSERT_PTR(type);
+  int dims = type->dims;
+  while (dims-- > 0) printf("[]");
+  if (type->kind == TYPE_PRIMITIVE) {
+    for (int i = 0; nr_elts(ch); i++) {
+      if (ch[i] == type->primitive) {
+        printf("%s", str[i]); return;
       }
     }
+  } else {
+    StringItem *item = ItemTable_Get(stbl->itable, ITEM_STRING, type->index);
+    ASSERT_PTR(item);
+    char *s = item->data;
+    ASSERT_PTR(s);
+    printf("%s", s);
   }
-  return NULL;
 }
 
-void Symbol_Display(Symbol *sym, STable *stbl)
+static void symbol_var_show(Symbol *sym, STable *stbl)
 {
-  char *str = "var";
+  ASSERT(sym->kind == SYM_VAR);
+  char *str;
   if (sym->kind == 1 && sym->access & ACCESS_CONST)
     str = "const";
   else
     str = type_tostr(sym->kind);
-  printf("%s %s %s %s\n",
-         access_tostr(sym->access & 1),
-         str,
-         get_name(sym->name_index, stbl),
-         desc_tostr(sym->desc_index, stbl));
+  /* show's format: "type name desc;" */
+  printf("%s %s ", str, name_tostr(sym->name_index, stbl));
+  desc_show(sym->desc_index, stbl);
+  puts(";"); /* with newline */
 }
 
-void Symbol_Visit(HashList *head, int size, void *arg)
+static void typelist_show(TypeListItem *typelist, STable *stbl)
 {
-  Symbol *sym;
-  STable *stbl = arg;
-  HashNode *hnode;
-  for (int i = 0; i < size; i++) {
-    if (!HashList_Empty(head)) {
-      HashList_ForEach(hnode, head) {
-        sym = container_of(hnode, Symbol, hnode);
-        Symbol_Display(sym, stbl);
-      }
-    }
-    head++;
+  int sz = typelist->size;
+  for (int i = 0; i < sz; i++) {
+    desc_show(typelist->index[i], stbl);
+    if (i < sz - 1) printf(", ");
   }
 }
 
-void STable_Display(STable *stbl)
+static void proto_show(Symbol *sym, STable *stbl)
 {
-  HashTable_Traverse(__get_hashtable(stbl), Symbol_Visit, stbl);
+  int index = sym->desc_index;
+  if (index < 0) return;
+  ProtoItem *proto = ItemTable_Get(stbl->itable, ITEM_PROTO, index);
+  ASSERT_PTR(proto);
+
+  TypeListItem *typelist;
+  if (proto->pindex >= 0) {
+    typelist = ItemTable_Get(stbl->itable, ITEM_TYPELIST, proto->pindex);
+    ASSERT_PTR(typelist);
+    printf("(");
+    typelist_show(typelist, stbl);
+    printf(")");
+  } else {
+    printf("()");
+  }
+
+  if (proto->rindex >= 0) {
+    printf(" ");
+    typelist = ItemTable_Get(stbl->itable, ITEM_TYPELIST, proto->rindex);
+    ASSERT_PTR(typelist);
+    if (typelist->size > 1) printf("(");
+    typelist_show(typelist, stbl);
+    if (typelist->size > 1) printf(")");
+  }
+
+  puts(";");  /* with newline */
+}
+
+static void symbol_func_show(Symbol *sym, STable *stbl)
+{
+  ASSERT(sym->kind == SYM_FUNC);
+  /* show's format: "func name args rets;" */
+  printf("func %s", name_tostr(sym->name_index, stbl));
+  proto_show(sym, stbl);
+}
+
+typedef void (*symbol_show_func)(Symbol *sym, STable *stbl);
+
+static symbol_show_func show_funcs[] = {
+  NULL,
+  symbol_var_show,
+  symbol_func_show,
+};
+
+static void symbol_show(Symbol *sym, STable *stbl)
+{
+  symbol_show_func show = show_funcs[sym->kind];
+  ASSERT_PTR(show);
+  show(sym, stbl);
+}
+
+void STable_Show(STable *stbl)
+{
+  int sz = Vector_Size(&stbl->vector);
+  Symbol *sym;
+  for (int i = 0; i < sz; i++) {
+    sym = Vector_Get(&stbl->vector, i);
+     symbol_show(sym, stbl);
+  }
 }

@@ -12,12 +12,6 @@ extern "C" {
 
 /*-------------------------------------------------------------------------*/
 
-#define PRIMITIVE_INT     'i'
-#define PRIMITIVE_FLOAT   'f'
-#define PRIMITIVE_BOOL    'z'
-#define PRIMITIVE_STRING  's'
-#define PRIMITIVE_ANY     'A'
-
 enum type_kind {
   PRIMITIVE_KIND = 1, USERDEF_TYPE = 2, FUNCTION_TYPE = 3,
 };
@@ -183,8 +177,7 @@ struct stmt {
       Vector *expr_seq;
     } vardecl;
     struct {
-      char *sid;
-      char *fid;
+      char *id;
       Vector *pseq;
       Vector *rseq;
       Vector *body;
@@ -241,8 +234,8 @@ struct stmt *stmt_from_expr(struct expr *expr);
 struct stmt *stmt_from_import(char *id, char *path);
 struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
                                int bconst, struct type *type);
-struct stmt *stmt_from_funcdecl(char *sid, char *fid,
-                                Vector *pseq, Vector *rseq, Vector *body);
+struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
+                                Vector *body);
 struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq);
 struct stmt *stmt_from_compound_assign(struct expr *left,
                                        enum assign_operator op,

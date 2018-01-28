@@ -9,25 +9,30 @@
 extern "C" {
 #endif
 
-struct scope {
+typedef struct scope {
   struct list_head link;
-  HashTable *stable;
-  ItemTable *itable;
-};
+  STable stable;
+} ScopeContext;
 
-struct compiler {
-  int count;
+typedef struct import {
+  HashNode hnode;
+  char *id;
+  char *path;
+} Import;
+
+typedef struct compilecontext {
+  int times;
   char *package;
+  HashTable imports;
   Vector *stmts;
-  ModuleObject *module;
-  int avail_index;
+  STable stable;
   int scope;
   struct list_head scopes;
-};
+} CompileContext;
 
-int init_compiler(struct compiler *cp);
-int fini_compiler(struct compiler *cp);
-int compile(struct compiler *cp);
+int init_compiler(CompileContext *ctx);
+int fini_compiler(CompileContext *ctx);
+int compile(CompileContext *ctx);
 
 #ifdef __cplusplus
 }

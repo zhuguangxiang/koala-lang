@@ -80,7 +80,7 @@ Object *Table_New(void)
 {
   TableObject *table = malloc(sizeof(*table));
   init_object_head(table, &Table_Klass);
-  HashInfo hashinfo = HashInfo_Init(entry_hash, entry_equal);
+  Decl_HashInfo(hashinfo, entry_hash, entry_equal);
   int res = HashTable_Init(&table->table, &hashinfo);
   ASSERT(!res);
   //Object_Add_GCList(table);

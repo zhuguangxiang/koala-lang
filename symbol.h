@@ -37,6 +37,7 @@ typedef struct symbol {
 typedef struct symboltable {
   HashTable *htable;
   ItemTable *itable;
+  Vector vector;
 } STable;
 
 /* Exported APIs */
@@ -74,10 +75,7 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind);
   sym->kind = SYM_IPROTO; sym; \
 })
 Symbol *STable_Get(STable *stbl, char *name);
-
-void Symbol_Display(Symbol *sym, STable *stbl);
-void Symbol_Visit(HashList *head, int size, void *arg);
-void STable_Display(STable *stbl);
+void STable_Show(STable *stbl);
 
 #ifdef __cplusplus
 }

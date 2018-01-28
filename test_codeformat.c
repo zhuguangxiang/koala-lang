@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
   //                  pdesc, nr_elts(pdesc));
   KLCImage_Finish(image);
 
-  KLCImage_Display(image);
+  KLCImage_Show(image);
   KLCImage_Write_File(image, "lang.klc");
 
   // int nr_var = Count_Vars(filp);
@@ -76,8 +76,8 @@ int main(int argc, char *argv[])
   //   Module_Add_Variable(ob, name_stritem->data, desc_stritem->data, access, konst);
   // }
 
-  //Module_Display(ob);
+  //Module_Show(ob);
   //image = KLCImage_Read_File("lang.klc");
-  //KLCImage_Display(image);
+  //KLCImage_Show(image);
   return 0;
 }

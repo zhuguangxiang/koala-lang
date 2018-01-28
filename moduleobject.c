@@ -193,9 +193,9 @@ Klass Module_Klass = {
 
 /*-------------------------------------------------------------------------*/
 
-void Module_Display(Object *ob)
+void Module_Show(Object *ob)
 {
   ModuleObject *mob = OBJECT_TO_MODULE(ob);
   printf("package:%s\n", mob->name);
-  STable_Display(&mob->stable);
+  STable_Show(&mob->stable);
 }

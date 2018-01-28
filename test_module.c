@@ -6,7 +6,7 @@
 void test_module(void)
 {
   Object *ob = Koala_Get_Module("koala/lang");
-  Module_Display(ob);
+  Module_Show(ob);
   Klass *klazz = Module_Get_Class(ob, "Tuple");
   KLASS_ASSERT(klazz, Tuple_Klass);
 }

@@ -30,13 +30,13 @@ typedef struct typedesc {
 
 #define Decl_Primitive_Desc(desc, d, p) \
   TypeDesc desc = {.dims = (d), .kind = TYPE_PRIMITIVE, .primitive = (p)}
-#define Decl_Defined_Desc(desc, d, s)  \
+#define Decl_UserDef_Desc(desc, d, s)  \
   TypeDesc desc = {.dims = (d), .kind = TYPE_DEFINED, .str = (s)}
 #define Init_Primitive_Desc(desc, d, p) do { \
   (desc)->dims = (d); (desc)->kind = TYPE_PRIMITIVE; \
   (desc)->primitive = (p); \
 } while (0)
-#define Init_Defined_Desc(desc, d, s) do { \
+#define Init_UserDef_Desc(desc, d, s) do { \
   (desc)->dims = (d); (desc)->kind = TYPE_DEFINED; \
   (desc)->str = (s); \
 } while (0)
@@ -108,18 +108,18 @@ typedef struct type_item {
   short kind;
   union {
     int primitive;
-    uint32 index;   //->StringItem
+    int32 index;   //->StringItem
   };
 } TypeItem;
 
 typedef struct typelist_item {
-  uint32 size;
-  uint32 index[0];  //->TypeItem
+  int32 size;
+  int32 index[0];  //->TypeItem
 } TypeListItem;
 
 typedef struct proto_item {
-  uint32 rindex;  //->TypeListItem
-  uint32 pindex;  //->TypeListItem
+  int32 rindex;  //->TypeListItem
+  int32 pindex;  //->TypeListItem
 } ProtoItem;
 
 #define CONST_INT     1
@@ -133,7 +133,7 @@ typedef struct const_item {
     int64 ival;          // int32 or int64
     float64 fval;         // float32 or float64
     int bval;             // bool
-    uint32 string_index;  //->StringItem
+    int32 string_index;  //->StringItem
   };
 } ConstItem;
 
@@ -148,14 +148,14 @@ typedef struct const_item {
 } while (0)
 
 typedef struct var_item {
-  uint32 name_index;  //->StringItem
-  uint32 type_index;  //->TypeItem
-  uint32 flags;       //access and constant
+  int32 name_index;  //->StringItem
+  int32 type_index;  //->TypeItem
+  int32 flags;       //access and constant
 } VarItem;
 
 typedef struct func_item {
-  uint32 name_index;    //->StringItem
-  uint32 proto_index;   //->ProtoItem
+  int32 name_index;    //->StringItem
+  int32 proto_index;   //->ProtoItem
   uint16 flags;         //access
   uint16 rets;          //number of returns
   uint16 args;          //number of parameters
@@ -169,11 +169,11 @@ typedef struct code_item {
 } CodeItem;
 
 typedef struct struct_item {
-  uint32 name_index;    //->StringItem
-  uint32 pname_index;   //->StringItem
+  int32 name_index;    //->StringItem
+  int32 pname_index;   //->StringItem
   int flags;
-  uint32 fields_off;    //->FieldListItem
-  uint32 methods_off;   //->MethodListItem
+  int32 fields_off;    //->FieldListItem
+  int32 methods_off;   //->MethodListItem
 } StructItem;
 
 // typedef VarItem FieldItem;
@@ -212,7 +212,7 @@ void KLCImage_Add_Var(KLCImage *image, char *name, int flags, TypeDesc *desc);
 void KLCImage_Add_Func(KLCImage *image, char *name, int flags, FuncInfo *info);
 void KLCImage_Write_File(KLCImage *image, char *path);
 KLCImage *KLCImage_Read_File(char *path);
-void KLCImage_Display(KLCImage *image);
+void KLCImage_Show(KLCImage *image);
 
 #define KLCImage_Count_Vars(image) \
   ItemTable_Size((image)->itable, ITEM_VAR)
@@ -229,7 +229,7 @@ int TypeItem_Get(ItemTable *itable, TypeDesc *desc);
 int TypeItem_Set(ItemTable *itable, TypeDesc *desc);
 int TypeListItem_Get(ItemTable *itable, TypeDesc *desc, int sz);
 int TypeListItem_Set(ItemTable *itable, TypeDesc *desc, int sz);
-int ProtoItem_Get(ItemTable *itable, int rindex, int pindex);
+int ProtoItem_Get(ItemTable *itable, int32 rindex, int32 pindex);
 int ProtoItem_Set(ItemTable *itable, ProtoInfo *proto);
 uint32 item_hash(void *key);
 int item_equal(void *k1, void *k2);

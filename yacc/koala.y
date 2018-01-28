@@ -17,7 +17,7 @@ int yyerror(const char *str)
   return 0;
 }
 
-static struct compiler cp;
+static CompileContext ctx;
 
 int main(int argc, char *argv[])
 {
@@ -26,13 +26,13 @@ int main(int argc, char *argv[])
     return -1;
   }
 
-  init_compiler(&cp);
+  init_compiler(&ctx);
 
   yyin = fopen(argv[1], "r");
   yyparse();
   fclose(yyin);
 
-  fini_compiler(&cp);
+  fini_compiler(&ctx);
 
   return 0;
 }
@@ -336,21 +336,21 @@ TypeList
 
 CompileUnit
   : Imports ModuleStatements {
-    ast_traverse(cp.stmts);
+    ast_traverse(ctx.stmts);
   }
   | ModuleStatements {
-    ast_traverse(cp.stmts);
+    ast_traverse(ctx.stmts);
   }
   | Package Imports ModuleStatements {
-    cp.package = $1;
-    printf("package : %s\n", cp.package);
-    ast_traverse(cp.stmts);
-    compile(&cp);
+    ctx.package = $1;
+    printf("package : %s\n", ctx.package);
+    ast_traverse(ctx.stmts);
+    compile(&ctx);
   }
   | Package ModuleStatements {
-    cp.package = $1;
-    printf("package : %s\n", cp.package);
-    ast_traverse(cp.stmts);
+    ctx.package = $1;
+    printf("package : %s\n", ctx.package);
+    ast_traverse(ctx.stmts);
   }
   ;
 
@@ -362,10 +362,10 @@ Package
 
 Imports
   : Import {
-    if ($1 != NULL) Vector_Appand(cp.stmts, $1);
+    if ($1 != NULL) Vector_Appand(ctx.stmts, $1);
   }
   | Imports Import {
-    if ($2 != NULL) Vector_Appand(cp.stmts, $2);
+    if ($2 != NULL) Vector_Appand(ctx.stmts, $2);
   }
   ;
 
@@ -380,10 +380,10 @@ Import
 
 ModuleStatements
   : ModuleStatement {
-    if ($1 != NULL) Vector_Appand(cp.stmts, $1);
+    if ($1 != NULL) Vector_Appand(ctx.stmts, $1);
   }
   | ModuleStatements ModuleStatement {
-    if ($2 != NULL) Vector_Appand(cp.stmts, $2);
+    if ($2 != NULL) Vector_Appand(ctx.stmts, $2);
   }
   ;
 

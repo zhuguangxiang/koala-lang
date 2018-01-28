@@ -1,5 +1,6 @@
 
 #include "ast.h"
+#include "codeformat.h"
 
 struct type *type_from_primitive(int primitive)
 {
@@ -247,13 +248,12 @@ struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
   return stmt;
 }
 
-struct stmt *stmt_from_funcdecl(char *sid, char *fid,
-                                Vector *pseq, Vector *rseq, Vector *body)
+struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
+                                Vector *body)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = FUNCDECL_KIND;
-  stmt->funcdecl.sid  = sid;
-  stmt->funcdecl.fid  = fid;
+  stmt->funcdecl.id = id;
   stmt->funcdecl.pseq = pseq;
   stmt->funcdecl.rseq = rseq;
   stmt->funcdecl.body = body;
@@ -641,7 +641,7 @@ void stmt_traverse(struct stmt *stmt)
       break;
     }
     case FUNCDECL_KIND: {
-      printf("[func decl]:%s.%s\n", stmt->funcdecl.sid, stmt->funcdecl.fid);
+      printf("[func decl]:%s\n", stmt->funcdecl.id);
       func_traverse(stmt);
       break;
     }

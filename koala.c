@@ -105,7 +105,7 @@ static void Init_Lang_Module(void)
 
 static void Init_Modules(void)
 {
-  HashInfo hashinfo = HashInfo_Init(mod_entry_hash, mod_entry_equal);
+  Decl_HashInfo(hashinfo, mod_entry_hash, mod_entry_equal);
   HashTable_Init(&modules, &hashinfo);
 
   /* koala/lang.klc */

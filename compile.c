@@ -1,69 +1,112 @@
 
 #include "compile.h"
+#include "hash.h"
 
-int init_compiler(struct compiler *cp)
+Import *import_new(char *id, char *path)
+{
+  Import *import = malloc(sizeof(Import));
+  import->id = id;
+  import->path = path;
+  Init_HashNode(&import->hnode, import);
+  return import;
+}
+
+uint32 import_hash(void *k)
+{
+  Import *import = k;
+  return hash_string(import->id);
+}
+
+int import_equal(void *k1, void *k2)
+{
+  Import *import1 = k1;
+  Import *import2 = k2;
+  return !strcmp(import1->id, import2->id);
+}
+
+int init_compiler(CompileContext *ctx)
 {
   Koala_Init();
-  cp->stmts = Vector_Create();
-  cp->module = (ModuleObject *)Module_New(cp->package, "/", 0);
-  cp->scope = 0;
-  init_list_head(&cp->scopes);
+  Decl_HashInfo(hashinfo, import_hash, import_equal);
+  HashTable_Init(&ctx->imports, &hashinfo);
+  ctx->stmts = Vector_Create();
+  STable_Init(&ctx->stable);
+  ctx->scope = 0;
+  init_list_head(&ctx->scopes);
   return 0;
 }
 
-int fini_compiler(struct compiler *cp)
+int fini_compiler(CompileContext *ctx)
 {
   Koala_Fini();
   return 0;
 }
 
-static void scope_enter(struct compiler *cp)
+static void scope_enter(CompileContext *ctx)
 {
-
+  UNUSED_PARAMETER(ctx);
 }
 
-static void scope_exit(struct compiler *cp)
+static void scope_exit(CompileContext *ctx)
 {
-
+  UNUSED_PARAMETER(ctx);
 }
 
-static struct scope *get_scope(struct compiler *cp)
+static struct scope *get_scope(CompileContext *ctx)
 {
-  if (cp->scope == 0) return NULL;
-  struct list_head *first = list_first(&cp->scopes);
+  if (ctx->scope == 0) return NULL;
+  struct list_head *first = list_first(&ctx->scopes);
   if (first != NULL) return container_of(first, struct scope, link);
-  ASSERT(0);
-  return NULL;
+  ASSERT(0); return NULL;
 }
 
-static char *typestring(struct type *t)
+char *type_full_path(CompileContext *ctx, struct type *type)
 {
-  switch (t->kind) {
-    case PRIMITIVE_KIND: {
-      if (t->primitive == PRIMITIVE_INT) return "i";
-      else if (t->primitive == PRIMITIVE_FLOAT) return "f";
-      else if (t->primitive == PRIMITIVE_BOOL) return "z";
-      else if (t->primitive == PRIMITIVE_STRING) return "s";
-      else if (t->primitive == PRIMITIVE_ANY) return "A";
-      else return NULL;
-      break;
-    }
-    default: {
-      assert(0);
-    }
-  }
+  Import temp = {.id = type->userdef.mod};
+  Import *import = HashTable_FindObject(&ctx->imports, &temp, Import);
+  ASSERT_PTR(import);
+  int len = strlen(import->path) + strlen(type->userdef.type) + 2;
+  char *fullpath = malloc(len);
+  sprintf(fullpath, "%s.%s", import->path, type->userdef.type);
+  fullpath[len - 1] = '\0';
+  return fullpath;
 }
 
-void add_variable(struct compiler *cp, struct var *var, int bconst)
+int type_to_desc(CompileContext *ctx, struct type *type, TypeDesc *desc)
 {
-  char *desc;
-  if (var->type != NULL) {
-    desc = typestring(var->type);
+  if (type == NULL) return -1;
+
+  if (type->kind == PRIMITIVE_KIND) {
+    Init_Primitive_Desc(desc, type->dims, type->primitive);
+  } else if (type->kind == USERDEF_TYPE) {
+    Init_UserDef_Desc(desc, type->dims, type_full_path(ctx, type));
+  } else {
+    ASSERT(0);
   }
-  STable_Add_Var(&cp->module->stable, var->id, desc, bconst);
+  return 0;
 }
 
-void add_variables(struct stmt *stmt, struct compiler *cp)
+TypeDesc *types_to_desclist(CompileContext *ctx, int sz, struct type **type)
+{
+  if (sz == 0) return NULL;
+
+  int res;
+  TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
+  for (int i = 0; i < sz; i++) {
+    res = type_to_desc(ctx, type[i], desc + i);
+    ASSERT(res >= 0);
+  }
+  return desc;
+}
+
+void add_variable(CompileContext *ctx, struct var *var, int bconst)
+{
+  TypeDesc desc;
+  int res = type_to_desc(ctx, var->type, &desc);
+  STable_Add_Var(&ctx->stable, var->id, res < 0 ? NULL : &desc, bconst);
+}
+
+void add_variables(CompileContext *ctx, struct stmt *stmt)
 {
   ASSERT(stmt->kind == VARDECL_KIND);
   int bconst = stmt->vardecl.bconst;
@@ -72,41 +115,81 @@ void add_variables(struct stmt *stmt, struct compiler *cp)
   for (int i = 0; i < Vector_Size(vec); i++) {
     var = Vector_Get(vec, i);
     ASSERT_PTR(var);
-    add_variable(cp, var, bconst);
+    add_variable(ctx, var, bconst);
   }
 }
 
-int import_stmt_handler(struct stmt *stmt, struct compiler *cp)
+void add_function(CompileContext *ctx, struct stmt *stmt)
 {
-  return 0;
+  ASSERT(stmt->kind == FUNCDECL_KIND);
+  ProtoInfo proto = {0};
+
+  Vector *vec = stmt->funcdecl.pseq;
+  if (vec != NULL) {
+    int psz = Vector_Size(vec);
+    struct type *types[psz];
+    struct var *var;
+    for (int i = 0; i < psz; i++) {
+      var = Vector_Get(vec, i);
+      types[i] = var->type;
+    }
+    proto.psz = psz;
+    proto.pdesc = types_to_desclist(ctx, psz, types);
+  }
+
+  vec = stmt->funcdecl.rseq;
+  if (vec != NULL) {
+    int rsz = Vector_Size(vec);
+    struct type *types[rsz];
+    for (int i = 0; i < rsz; i++) {
+      types[i] = Vector_Get(vec, i);
+    }
+    proto.rsz = rsz;
+    proto.rdesc = types_to_desclist(ctx, rsz, types);
+  }
+
+  STable_Add_Func(&ctx->stable, stmt->funcdecl.id, &proto);
 }
 
-int vardecl_stmt_handler(struct stmt *stmt, struct compiler *cp)
+int import_stmt_handler(CompileContext *ctx, struct stmt *stmt)
 {
-  if (cp->count == 1) {
-    add_variables(stmt, cp);
+  if (ctx->times == 1) {
+    ASSERT(stmt->kind == IMPORT_KIND);
+    Import *import = import_new(stmt->import.id, stmt->import.path);
+    return HashTable_Insert(&ctx->imports, &import->hnode);
+  } else {
+    debug_info("compile import stmt 2rd time\n");
     return 0;
-  } else if (cp->count == 2) {
+  }
+}
+
+int vardecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
+{
+  if (ctx->times == 1) {
+    add_variables(ctx, stmt);
+    return 0;
+  } else if (ctx->times == 2) {
     return 0;
   } else {
-    ASSERT_MSG("cannot 3rd time for compiler\n");
+    ASSERT_MSG("cannot compile source file with 3rd time\n");
     return 0;
   }
 }
 
-int funcdecl_stmt_handler(struct stmt *stmt, struct compiler *cp)
+int funcdecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
 {
-  if (cp->count == 1) {
+  if (ctx->times == 1) {
+    add_function(ctx, stmt);
     return 0;
-  } else if (cp->count == 2) {
+  } else if (ctx->times == 2) {
     return 0;
   } else {
-    ASSERT_MSG("cannot 3rd time for compiler\n");
+    ASSERT_MSG("cannot compile source file with 3rd time\n");
     return 0;
   }
 }
 
-typedef int (*stmt_handler_t)(struct stmt *, struct compiler *);
+typedef int (*stmt_handler_t)(CompileContext *, struct stmt *);
 
 static stmt_handler_t stmt_handlers[] = {
   NULL, /* INVALID */
@@ -117,37 +200,39 @@ static stmt_handler_t stmt_handlers[] = {
   funcdecl_stmt_handler,
 };
 
-int stmt_handler(struct stmt *stmt, struct compiler *cp)
+int stmt_handler(CompileContext *ctx, struct stmt *stmt)
 {
   ASSERT(stmt->kind > 0 && stmt->kind < STMT_KIND_MAX);
   stmt_handler_t handler = stmt_handlers[stmt->kind];
   ASSERT_PTR(handler);
-  return handler(stmt, cp);
+  return handler(ctx, stmt);
 }
 
-static void symbol_display(struct compiler *cp)
+static void show(CompileContext *ctx)
 {
-  printf("package:%s\n", cp->package);
-  STable_Display(&cp->module->stable);
+  printf("package:%s\n", ctx->package);
+  STable_Show(&ctx->stable);
 }
 
-int compile(struct compiler *cp)
+int compile(CompileContext *ctx)
 {
   struct stmt *stmt;
-  Vector *vec = cp->stmts;
+  Vector *vec = ctx->stmts;
   printf("-----------------------\n");
-  cp->count = 1;
+
+  ctx->times = 1;
   for (int i = 0; i < Vector_Size(vec); i++) {
     stmt = Vector_Get(vec, i);
-    stmt_handler(stmt, cp);
-  }
-  cp->count = 2;
-  for (int i = 0; i < Vector_Size(vec); i++) {
-    stmt = Vector_Get(vec, i);
-    stmt_handler(stmt, cp);
+    stmt_handler(ctx, stmt);
   }
 
-  symbol_display(cp);
+  ctx->times = 2;
+  for (int i = 0; i < Vector_Size(vec); i++) {
+    stmt = Vector_Get(vec, i);
+    stmt_handler(ctx, stmt);
+  }
+
+  show(ctx);
 
   return 0;
 }

@@ -202,3 +202,5 @@ package一样，路径不同，可以访问内部符号吗？
 
 git remote add origin git@github.com:zhuguangxiang/koala-language.git
 git push -u origin master --tags
+
+export LD_LIBRARY_PATH="/home/zgx/koala-lang"
