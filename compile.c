@@ -24,7 +24,7 @@ int import_equal(void *k1, void *k2)
   return !strcmp(import1->id, import2->id);
 }
 
-int init_compiler(CompileContext *ctx)
+int init_compiler(ParserContext *ctx)
 {
   Koala_Init();
   Decl_HashInfo(hashinfo, import_hash, import_equal);
@@ -37,7 +37,7 @@ int init_compiler(CompileContext *ctx)
   return 0;
 }
 
-int fini_compiler(CompileContext *ctx)
+int fini_compiler(ParserContext *ctx)
 {
   Koala_Fini();
   return 0;
@@ -58,21 +58,21 @@ static void scope_free(ScopeContext *scope)
   free(scope);
 }
 
-static ScopeContext *get_scope(CompileContext *ctx)
+static ScopeContext *get_scope(ParserContext *ctx)
 {
   struct list_head *first = list_first(&ctx->scopes);
   if (first != NULL) return container_of(first, ScopeContext, link);
   else return NULL;
 }
 
-static void scope_enter(CompileContext *ctx)
+static void scope_enter(ParserContext *ctx)
 {
   ctx->scope++;
   ScopeContext *scope = scope_new();
   list_add(&scope->link, &ctx->scopes);
 }
 
-static void scope_exit(CompileContext *ctx)
+static void scope_exit(ParserContext *ctx)
 {
   ctx->scope--;
   ScopeContext *scope = get_scope(ctx);
@@ -81,7 +81,21 @@ static void scope_exit(CompileContext *ctx)
   scope_free(scope);
 }
 
-char *type_full_path(CompileContext *ctx, struct type *type)
+Symbol *parser_find_symbol(ParserContext *ctx, char *name)
+{
+  ScopeContext *scope;
+  Symbol *sym;
+  list_for_each_entry(scope, &ctx->scopes, link) {
+    sym = STable_Get(&scope->stable, name);
+    if (sym != NULL) return sym;
+  }
+
+  /* find global symbol table */
+  return STable_Get(&ctx->stable, name);
+  if (sym != NULL) return sym;
+}
+
+char *type_full_path(ParserContext *ctx, struct type *type)
 {
   Import temp = {.id = type->userdef.mod};
   Import *import = HashTable_FindObject(&ctx->imports, &temp, Import);
@@ -93,7 +107,7 @@ char *type_full_path(CompileContext *ctx, struct type *type)
   return fullpath;
 }
 
-int type_to_desc(CompileContext *ctx, struct type *type, TypeDesc *desc)
+int type_to_desc(ParserContext *ctx, struct type *type, TypeDesc *desc)
 {
   if (type == NULL) return -1;
 
@@ -107,14 +121,14 @@ int type_to_desc(CompileContext *ctx, struct type *type, TypeDesc *desc)
   return 0;
 }
 
-void parse_variable(CompileContext *ctx, struct var *var)
+void parse_variable(ParserContext *ctx, struct var *var)
 {
   TypeDesc desc;
   int res = type_to_desc(ctx, var->type, &desc);
   STable_Add_Var(&ctx->stable, var->id, res < 0 ? NULL : &desc, var->bconst);
 }
 
-void parse_variables(CompileContext *ctx, struct stmt *stmt)
+void parse_variables(ParserContext *ctx, struct stmt *stmt)
 {
   ASSERT(stmt->kind == VARDECL_KIND);
   Vector *vec = stmt->vardecl.var_seq;
@@ -129,7 +143,7 @@ void parse_variables(CompileContext *ctx, struct stmt *stmt)
   Vector_Appand(&ctx->__initstmts__, init);
 }
 
-int parse_args(CompileContext *ctx, struct stmt *stmt, TypeDesc **ret)
+int parse_args(ParserContext *ctx, struct stmt *stmt, TypeDesc **ret)
 {
   Vector *vec = stmt->funcdecl.pseq;
   if (vec != NULL) {
@@ -157,7 +171,142 @@ int parse_args(CompileContext *ctx, struct stmt *stmt, TypeDesc **ret)
   return 0;
 }
 
-int parse_rets(CompileContext *ctx, struct stmt *stmt, TypeDesc **ret)
+/*--------------------------------------------------------------------------*/
+
+int expr_handler(ParserContext *ctx, struct expr *exp);
+
+int expr_id_handler(ParserContext *ctx, struct expr *exp)
+{
+  char *name = exp->name.id;
+  Symbol *sym = parser_find_symbol(ctx, name);
+  if (sym == NULL) {
+    Import k = {.id = name};
+    Import *import = HashTable_FindObject(&ctx->imports, &k, Import);
+    if (import == NULL) {
+      debug_error("cannot find symbol:%s\n", name);
+    } else {
+      debug_info("external symbol, its module's path: %s\n", import->path);
+      //OP_LOADM
+    }
+  } else {
+    debug_info("find symbol, position: '%d'\n", sym->index);
+    //OP_LOAD
+  }
+  return 0;
+}
+
+int expr_attr_handler(ParserContext *ctx, struct expr *exp)
+{
+  debug_info("attribute\n");
+  expr_handler(ctx, exp->attribute.left);
+  debug_info("%s\n", exp->attribute.id);
+  //OP_GETFIELD
+  return 0;
+}
+
+int expr_subscribe_handler(ParserContext *ctx, struct expr *exp)
+{
+  debug_info("subscribe\n");
+  expr_handler(ctx, exp->subscript.left);
+  expr_handler(ctx, exp->subscript.index);
+  return 0;
+}
+
+int expr_call_handler(ParserContext *ctx, struct expr *exp)
+{
+  debug_info("call\n");
+  expr_handler(ctx, exp->call.left);
+
+  Vector *vec = exp->call.pseq;
+  if (vec == NULL) {
+    debug_info("no args' function call\n");
+    return 0;
+  }
+
+  struct expr *e;
+  int sz = Vector_Size(vec);
+  for (int i = 0; i < sz; i++) {
+    e = Vector_Get(vec, i);
+  }
+  return 0;
+}
+
+static expr_handler_t expr_handlers[] = {
+  NULL,
+  expr_id_handler, NULL, NULL, NULL,
+  NULL, NULL, NULL, NULL,
+  NULL, NULL, expr_attr_handler, expr_subscribe_handler,
+  expr_call_handler, NULL, NULL, NULL,
+};
+
+int expr_handler(ParserContext *ctx, struct expr *exp)
+{
+  ASSERT(exp->kind > 0 && exp->kind < EXPR_KIND_MAX);
+  //printf("expr kind:%d\n", exp->kind);
+  expr_handler_t handler = expr_handlers[exp->kind];
+  ASSERT_PTR(handler);
+  return handler(ctx, exp);
+}
+
+int expr_stmt_handler(ParserContext *ctx, struct stmt *stmt)
+{
+  debug_info("expression\n");
+  struct expr *exp = stmt->expr;
+  return expr_handler(ctx, exp);
+}
+
+int local_vardecl_stmt_handler(ParserContext *ctx, struct stmt *stmt)
+{
+  debug_info("local var decl\n");
+  return 0;
+}
+
+int expr_assign_handler(ParserContext *ctx, struct stmt *stmt)
+{
+  debug_info("=\n");
+  return 0;
+}
+
+int ret_stmt_handler(ParserContext *ctx, struct stmt *stmt)
+{
+  debug_info("return\n");
+  return 0;
+}
+
+static stmt_handler_t localstmt_handlers[] = {
+  NULL, /* INVALID */
+  NULL, expr_stmt_handler, local_vardecl_stmt_handler, NULL,
+  NULL, expr_assign_handler, NULL, NULL,
+  NULL, ret_stmt_handler, NULL, NULL,
+  NULL, NULL, NULL, NULL,
+  NULL, NULL, NULL,
+};
+
+int localstmt_handler(ParserContext *ctx, struct stmt *stmt)
+{
+  ASSERT(stmt->kind > 0 && stmt->kind < STMT_KIND_MAX);
+  //printf("localstmt kind:%d\n", stmt->kind);
+  stmt_handler_t handler = localstmt_handlers[stmt->kind];
+  ASSERT_PTR(handler);
+  return handler(ctx, stmt);
+}
+
+int parse_body(ParserContext *ctx, struct stmt *stmt)
+{
+  Vector *vec = stmt->funcdecl.body;
+  if (vec == NULL) return 0;
+  int sz = Vector_Size(vec);
+  struct stmt *temp;
+  for (int i = 0; i < sz; i++) {
+    temp = Vector_Get(vec, i);
+    localstmt_handler(ctx, temp);
+  }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+
+int parse_rets(ParserContext *ctx, struct stmt *stmt, TypeDesc **ret)
 {
   Vector *vec = stmt->funcdecl.rseq;
   if (vec != NULL) {
@@ -179,18 +328,7 @@ int parse_rets(CompileContext *ctx, struct stmt *stmt, TypeDesc **ret)
   return 0;
 }
 
-int parse_body(CompileContext *ctx, struct stmt *stmt)
-{
-  Vector *vec = stmt->funcdecl.body;
-  if (vec == NULL) return 0;
-  int sz = Vector_Size(vec);
-  struct stmt *temp;
-  for (int i = 0; i < sz; i++) {
-    temp = Vector_Get(vec, i);
-  }
-}
-
-void parse_function(CompileContext *ctx, struct stmt *stmt)
+void parse_function(ParserContext *ctx, struct stmt *stmt)
 {
   ASSERT(stmt->kind == FUNCDECL_KIND);
   ProtoInfo proto;
@@ -199,10 +337,10 @@ void parse_function(CompileContext *ctx, struct stmt *stmt)
   STable_Add_Func(&ctx->stable, stmt->funcdecl.id, &proto);
 }
 
-int func_generate_code(CompileContext *ctx, struct stmt *stmt)
+int func_generate_code(ParserContext *ctx, struct stmt *stmt)
 {
   ASSERT(stmt->kind == FUNCDECL_KIND);
-  printf("parsing func %s\n", stmt->funcdecl.id);
+  debug_info("parsing func %s\n", stmt->funcdecl.id);
   scope_enter(ctx);
   parse_args(ctx, stmt, NULL);
   parse_body(ctx, stmt);
@@ -210,7 +348,7 @@ int func_generate_code(CompileContext *ctx, struct stmt *stmt)
   return 0;
 }
 
-int import_stmt_handler(CompileContext *ctx, struct stmt *stmt)
+int import_stmt_handler(ParserContext *ctx, struct stmt *stmt)
 {
   if (ctx->state == PARSING_SYMBOLS) {
     ASSERT(stmt->kind == IMPORT_KIND);
@@ -220,7 +358,7 @@ int import_stmt_handler(CompileContext *ctx, struct stmt *stmt)
   return 0;
 }
 
-int vardecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
+int vardecl_stmt_handler(ParserContext *ctx, struct stmt *stmt)
 {
   if (ctx->state == PARSING_SYMBOLS) {
     parse_variables(ctx, stmt);
@@ -228,7 +366,7 @@ int vardecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
   return 0;
 }
 
-int initdecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
+int initdecl_stmt_handler(ParserContext *ctx, struct stmt *stmt)
 {
   if (ctx->state == PARSING_INITFUNC) {
     //func_generate_code(ctx, stmt);
@@ -236,7 +374,7 @@ int initdecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
   return 0;
 }
 
-int funcdecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
+int funcdecl_stmt_handler(ParserContext *ctx, struct stmt *stmt)
 {
   if (ctx->state == PARSING_SYMBOLS) {
     parse_function(ctx, stmt);
@@ -248,8 +386,6 @@ int funcdecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
   return 0;
 }
 
-typedef int (*stmt_handler_t)(CompileContext *, struct stmt *);
-
 static stmt_handler_t stmt_handlers[] = {
   NULL, /* INVALID */
   import_stmt_handler,
@@ -259,7 +395,7 @@ static stmt_handler_t stmt_handlers[] = {
   funcdecl_stmt_handler,
 };
 
-int stmt_handler(CompileContext *ctx, struct stmt *stmt)
+int stmt_handler(ParserContext *ctx, struct stmt *stmt)
 {
   ASSERT(stmt->kind > 0 && stmt->kind < STMT_KIND_MAX);
   stmt_handler_t handler = stmt_handlers[stmt->kind];
@@ -267,13 +403,13 @@ int stmt_handler(CompileContext *ctx, struct stmt *stmt)
   return handler(ctx, stmt);
 }
 
-static void show(CompileContext *ctx)
+static void show(ParserContext *ctx)
 {
   printf("package:%s\n", ctx->package);
   STable_Show(&ctx->stable);
 }
 
-int compile(CompileContext *ctx)
+int compile(ParserContext *ctx)
 {
   int i;
   struct stmt *stmt;

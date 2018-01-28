@@ -523,9 +523,14 @@ void expr_traverse(struct expr *expr)
       expr_traverse(expr->call.left);
       printf("[func call]paras:\n");
       struct expr *temp;
-      for (int i = 0; i < Vector_Size(expr->call.pseq); i++) {
-        temp = Vector_Get(expr->call.pseq, i);
-        expr_traverse(temp);
+      Vector *vec = expr->call.pseq;
+      if (vec != NULL) {
+        for (int i = 0; i < Vector_Size(vec); i++) {
+          temp = Vector_Get(vec, i);
+          expr_traverse(temp);
+        }
+      } else {
+        printf("no args\n");
       }
       printf("[end func call]\n");
       break;
@@ -571,9 +576,14 @@ void vardecl_traverse(struct stmt *stmt)
 
   printf("initializers's list:\n");
   struct expr *expr;
-  for (int i = 0; i < Vector_Size(stmt->vardecl.expr_seq); i++) {
-    expr = Vector_Get(stmt->vardecl.expr_seq, i);
-    expr_traverse(expr);
+  Vector *vec = stmt->vardecl.expr_seq;
+  if (vec != NULL) {
+    for (int i = 0; i < Vector_Size(vec); i++) {
+      expr = Vector_Get(vec, i);
+      expr_traverse(expr);
+    }
+  } else {
+    printf("no initialized list\n");
   }
 }
 

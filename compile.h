@@ -33,11 +33,13 @@ typedef struct compilecontext {
   Vector __initstmts__;
   int scope;
   struct list_head scopes;
-} CompileContext;
+} ParserContext;
 
-int init_compiler(CompileContext *ctx);
-int fini_compiler(CompileContext *ctx);
-int compile(CompileContext *ctx);
+typedef int (*stmt_handler_t)(ParserContext *, struct stmt *);
+typedef int (*expr_handler_t)(ParserContext *, struct expr *);
+int init_compiler(ParserContext *ctx);
+int fini_compiler(ParserContext *ctx);
+int compile(ParserContext *ctx);
 
 #ifdef __cplusplus
 }

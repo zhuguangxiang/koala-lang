@@ -17,7 +17,7 @@ int yyerror(const char *str)
   return 0;
 }
 
-static CompileContext ctx;
+static ParserContext ctx;
 
 int main(int argc, char *argv[])
 {

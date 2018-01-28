@@ -8,7 +8,11 @@ var hello lang.String = string("hello");
 const SIZE int = 4096;
 
 func main(args []string) {
+  var val int;
+  args[0] = "world";
+  val.v1.v2;
   io.Print("hello, world\n");
+  io.Close();
 }
 
 func Sub(a3 int, b4 int) int {
@@ -17,6 +21,7 @@ func Sub(a3 int, b4 int) int {
 
 func Add(a1 int, b2 int) (int) {
   var r int = a1 + b2;
+  r = 100;
   return r;
 }
 
