@@ -234,7 +234,6 @@ struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
   stmt->kind = VARDECL_KIND;
-  stmt->vardecl.bconst   = bconst;
   stmt->vardecl.var_seq  = varseq;
   stmt->vardecl.expr_seq = initseq;
 
@@ -242,9 +241,19 @@ struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
     struct var *var;
     for (int i = 0; i < Vector_Size(varseq); i++) {
       var = Vector_Get(varseq, i);
+      var->bconst = bconst;
       var->type = type;
     }
   }
+  return stmt;
+}
+
+struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq)
+{
+  struct stmt *stmt = malloc(sizeof(*stmt));
+  stmt->kind = INIT_ASSIGN_KIND;
+  stmt->assign.left_seq  = var_seq;
+  stmt->assign.right_seq = expr_seq;
   return stmt;
 }
 
@@ -402,6 +411,7 @@ struct var *new_var(char *id, struct type *type)
 {
   struct var *v = malloc(sizeof(*v));
   v->id   = id;
+  v->bconst = 0;
   v->type = type;
   return v;
 }
@@ -550,13 +560,11 @@ void expr_traverse(struct expr *expr)
 
 void vardecl_traverse(struct stmt *stmt)
 {
-  printf("const variable ? %s\n",
-         stmt->vardecl.bconst ? "true" : "false");
-  printf("variables name:\n");
+  printf("variables:\n");
   struct var *var;
   for (int i = 0; i < Vector_Size(stmt->vardecl.var_seq); i++) {
     var = Vector_Get(stmt->vardecl.var_seq, i);
-    printf("%s ", var->id);
+    printf("%s %s ", var->id, var->bconst ? "const":"");
   }
 
   putchar('\n');

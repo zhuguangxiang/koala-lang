@@ -336,21 +336,21 @@ TypeList
 
 CompileUnit
   : Imports ModuleStatements {
-    ast_traverse(ctx.stmts);
+    ast_traverse(&ctx.stmts);
   }
   | ModuleStatements {
-    ast_traverse(ctx.stmts);
+    ast_traverse(&ctx.stmts);
   }
   | Package Imports ModuleStatements {
     ctx.package = $1;
     printf("package : %s\n", ctx.package);
-    ast_traverse(ctx.stmts);
+    ast_traverse(&ctx.stmts);
     compile(&ctx);
   }
   | Package ModuleStatements {
     ctx.package = $1;
     printf("package : %s\n", ctx.package);
-    ast_traverse(ctx.stmts);
+    ast_traverse(&ctx.stmts);
   }
   ;
 
@@ -362,10 +362,10 @@ Package
 
 Imports
   : Import {
-    if ($1 != NULL) Vector_Appand(ctx.stmts, $1);
+    if ($1 != NULL) Vector_Appand(&ctx.stmts, $1);
   }
   | Imports Import {
-    if ($2 != NULL) Vector_Appand(ctx.stmts, $2);
+    if ($2 != NULL) Vector_Appand(&ctx.stmts, $2);
   }
   ;
 
@@ -380,10 +380,10 @@ Import
 
 ModuleStatements
   : ModuleStatement {
-    if ($1 != NULL) Vector_Appand(ctx.stmts, $1);
+    if ($1 != NULL) Vector_Appand(&ctx.stmts, $1);
   }
   | ModuleStatements ModuleStatement {
-    if ($2 != NULL) Vector_Appand(ctx.stmts, $2);
+    if ($2 != NULL) Vector_Appand(&ctx.stmts, $2);
   }
   ;
 

@@ -27,6 +27,7 @@ static HashTable *__get_hashtable(STable *stbl)
 
 int STable_Init(STable *stbl)
 {
+  stbl->htable = NULL;
   Decl_HashInfo(hashinfo, item_hash, item_equal);
   stbl->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
   Vector_Init(&stbl->vector);
@@ -36,7 +37,6 @@ int STable_Init(STable *stbl)
 void STable_Fini(STable *stbl)
 {
   Vector_Fini(&stbl->vector, NULL, NULL);
-  free(stbl);
 }
 
 Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
@@ -50,11 +50,13 @@ Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
   }
   Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    debug_error("add a variable failed.\n");
+    debug_error("add '%s' variable failed.\n", name);
     Symbol_Free(sym);
     return NULL;
   }
-  Vector_Appand(&stbl->vector, sym);
+  int index = Vector_Appand(&stbl->vector, sym);
+  ASSERT(index >= 0);
+  Symbol_Set_Index(sym, index);
   return sym;
 }
 

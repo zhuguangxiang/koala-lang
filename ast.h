@@ -155,12 +155,12 @@ enum assign_operator {
 };
 
 enum stmt_kind {
-  IMPORT_KIND = 1, EXPR_KIND, VARDECL_KIND,
-  FUNCDECL_KIND = 4, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
-  CLASS_KIND = 7, INTF_KIND, RETURN_KIND,
-  IF_KIND = 10, WHILE_KIND, SWITCH_KIND,
-  FOR_TRIPLE_KIND = 13, FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND,
-  GO_KIND = 17, BLOCK_KIND, STMT_KIND_MAX
+  IMPORT_KIND = 1, EXPR_KIND, VARDECL_KIND, INIT_ASSIGN_KIND,
+  FUNCDECL_KIND = 5, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
+  CLASS_KIND = 8, INTF_KIND, RETURN_KIND,
+  IF_KIND = 11, WHILE_KIND, SWITCH_KIND,
+  FOR_TRIPLE_KIND = 14, FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND,
+  GO_KIND = 18, BLOCK_KIND, STMT_KIND_MAX
 };
 
 struct stmt {
@@ -172,7 +172,6 @@ struct stmt {
     } import;
     struct expr *expr;
     struct {
-      int bconst;
       Vector *var_seq;
       Vector *expr_seq;
     } vardecl;
@@ -234,6 +233,7 @@ struct stmt *stmt_from_expr(struct expr *expr);
 struct stmt *stmt_from_import(char *id, char *path);
 struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
                                int bconst, struct type *type);
+struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
                                 Vector *body);
 struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq);
@@ -260,6 +260,7 @@ struct stmt *stmt_from_go(struct expr *expr);
 
 struct var {
   char *id;
+  int bconst;
   struct type *type;
 };
 

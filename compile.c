@@ -29,8 +29,9 @@ int init_compiler(CompileContext *ctx)
   Koala_Init();
   Decl_HashInfo(hashinfo, import_hash, import_equal);
   HashTable_Init(&ctx->imports, &hashinfo);
-  ctx->stmts = Vector_Create();
+  Vector_Init(&ctx->stmts);
   STable_Init(&ctx->stable);
+  Vector_Init(&ctx->__initstmts__);
   ctx->scope = 0;
   init_list_head(&ctx->scopes);
   return 0;
@@ -42,22 +43,42 @@ int fini_compiler(CompileContext *ctx)
   return 0;
 }
 
+static ScopeContext *scope_new(void)
+{
+  ScopeContext *scope = malloc(sizeof(ScopeContext));
+  init_list_head(&scope->link);
+  STable_Init(&scope->stable);
+  return scope;
+}
+
+static void scope_free(ScopeContext *scope)
+{
+  ASSERT(list_unlinked(&scope->link));
+  STable_Fini(&scope->stable);
+  free(scope);
+}
+
+static ScopeContext *get_scope(CompileContext *ctx)
+{
+  struct list_head *first = list_first(&ctx->scopes);
+  if (first != NULL) return container_of(first, ScopeContext, link);
+  else return NULL;
+}
+
 static void scope_enter(CompileContext *ctx)
 {
-  UNUSED_PARAMETER(ctx);
+  ctx->scope++;
+  ScopeContext *scope = scope_new();
+  list_add(&scope->link, &ctx->scopes);
 }
 
 static void scope_exit(CompileContext *ctx)
 {
-  UNUSED_PARAMETER(ctx);
-}
-
-static struct scope *get_scope(CompileContext *ctx)
-{
-  if (ctx->scope == 0) return NULL;
-  struct list_head *first = list_first(&ctx->scopes);
-  if (first != NULL) return container_of(first, struct scope, link);
-  ASSERT(0); return NULL;
+  ctx->scope--;
+  ScopeContext *scope = get_scope(ctx);
+  ASSERT_PTR(scope);
+  list_del(&scope->link);
+  scope_free(scope);
 }
 
 char *type_full_path(CompileContext *ctx, struct type *type)
@@ -86,107 +107,145 @@ int type_to_desc(CompileContext *ctx, struct type *type, TypeDesc *desc)
   return 0;
 }
 
-TypeDesc *types_to_desclist(CompileContext *ctx, int sz, struct type **type)
-{
-  if (sz == 0) return NULL;
-
-  int res;
-  TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
-  for (int i = 0; i < sz; i++) {
-    res = type_to_desc(ctx, type[i], desc + i);
-    ASSERT(res >= 0);
-  }
-  return desc;
-}
-
-void add_variable(CompileContext *ctx, struct var *var, int bconst)
+void parse_variable(CompileContext *ctx, struct var *var)
 {
   TypeDesc desc;
   int res = type_to_desc(ctx, var->type, &desc);
-  STable_Add_Var(&ctx->stable, var->id, res < 0 ? NULL : &desc, bconst);
+  STable_Add_Var(&ctx->stable, var->id, res < 0 ? NULL : &desc, var->bconst);
 }
 
-void add_variables(CompileContext *ctx, struct stmt *stmt)
+void parse_variables(CompileContext *ctx, struct stmt *stmt)
 {
   ASSERT(stmt->kind == VARDECL_KIND);
-  int bconst = stmt->vardecl.bconst;
   Vector *vec = stmt->vardecl.var_seq;
   struct var *var;
   for (int i = 0; i < Vector_Size(vec); i++) {
     var = Vector_Get(vec, i);
     ASSERT_PTR(var);
-    add_variable(ctx, var, bconst);
+    parse_variable(ctx, var);
+  }
+  struct stmt *init;
+  init = stmt_from_initassign(stmt->vardecl.var_seq, stmt->vardecl.expr_seq);
+  Vector_Appand(&ctx->__initstmts__, init);
+}
+
+int parse_args(CompileContext *ctx, struct stmt *stmt, TypeDesc **ret)
+{
+  Vector *vec = stmt->funcdecl.pseq;
+  if (vec != NULL) {
+    int sz = Vector_Size(vec);
+    struct type *type;
+    struct var *var;
+    TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
+    ASSERT_PTR(desc);
+    ScopeContext *scope;
+    for (int i = 0; i < sz; i++) {
+      var = Vector_Get(vec, i);
+      type = var->type;
+      type_to_desc(ctx, type, desc + i);
+      scope = get_scope(ctx);
+      if (scope != NULL)
+        STable_Add_Var(&scope->stable, var->id, desc + i, 0);
+    }
+    if (ret != NULL)
+      *ret = desc;
+    else
+      free(desc);
+    return sz;
+  }
+  if (ret != NULL) *ret = NULL;
+  return 0;
+}
+
+int parse_rets(CompileContext *ctx, struct stmt *stmt, TypeDesc **ret)
+{
+  Vector *vec = stmt->funcdecl.rseq;
+  if (vec != NULL) {
+    int sz = Vector_Size(vec);
+    struct type *type;
+    TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
+    ASSERT_PTR(desc);
+    for (int i = 0; i < sz; i++) {
+      type = Vector_Get(vec, i);
+      type_to_desc(ctx, type, desc + i);
+    }
+    if (ret != NULL)
+      *ret = desc;
+    else
+      free(desc);
+    return sz;
+  }
+  if (ret != NULL) *ret = NULL;
+  return 0;
+}
+
+int parse_body(CompileContext *ctx, struct stmt *stmt)
+{
+  Vector *vec = stmt->funcdecl.body;
+  if (vec == NULL) return 0;
+  int sz = Vector_Size(vec);
+  struct stmt *temp;
+  for (int i = 0; i < sz; i++) {
+    temp = Vector_Get(vec, i);
   }
 }
 
-void add_function(CompileContext *ctx, struct stmt *stmt)
+void parse_function(CompileContext *ctx, struct stmt *stmt)
 {
   ASSERT(stmt->kind == FUNCDECL_KIND);
-  ProtoInfo proto = {0};
-
-  Vector *vec = stmt->funcdecl.pseq;
-  if (vec != NULL) {
-    int psz = Vector_Size(vec);
-    struct type *types[psz];
-    struct var *var;
-    for (int i = 0; i < psz; i++) {
-      var = Vector_Get(vec, i);
-      types[i] = var->type;
-    }
-    proto.psz = psz;
-    proto.pdesc = types_to_desclist(ctx, psz, types);
-  }
-
-  vec = stmt->funcdecl.rseq;
-  if (vec != NULL) {
-    int rsz = Vector_Size(vec);
-    struct type *types[rsz];
-    for (int i = 0; i < rsz; i++) {
-      types[i] = Vector_Get(vec, i);
-    }
-    proto.rsz = rsz;
-    proto.rdesc = types_to_desclist(ctx, rsz, types);
-  }
-
+  ProtoInfo proto;
+  proto.psz = parse_args(ctx, stmt, &proto.pdesc);
+  proto.rsz = parse_rets(ctx, stmt, &proto.rdesc);
   STable_Add_Func(&ctx->stable, stmt->funcdecl.id, &proto);
+}
+
+int func_generate_code(CompileContext *ctx, struct stmt *stmt)
+{
+  ASSERT(stmt->kind == FUNCDECL_KIND);
+  printf("parsing func %s\n", stmt->funcdecl.id);
+  scope_enter(ctx);
+  parse_args(ctx, stmt, NULL);
+  parse_body(ctx, stmt);
+  scope_exit(ctx);
+  return 0;
 }
 
 int import_stmt_handler(CompileContext *ctx, struct stmt *stmt)
 {
-  if (ctx->times == 1) {
+  if (ctx->state == PARSING_SYMBOLS) {
     ASSERT(stmt->kind == IMPORT_KIND);
     Import *import = import_new(stmt->import.id, stmt->import.path);
     return HashTable_Insert(&ctx->imports, &import->hnode);
-  } else {
-    debug_info("compile import stmt 2rd time\n");
-    return 0;
   }
+  return 0;
 }
 
 int vardecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
 {
-  if (ctx->times == 1) {
-    add_variables(ctx, stmt);
-    return 0;
-  } else if (ctx->times == 2) {
-    return 0;
-  } else {
-    ASSERT_MSG("cannot compile source file with 3rd time\n");
-    return 0;
+  if (ctx->state == PARSING_SYMBOLS) {
+    parse_variables(ctx, stmt);
   }
+  return 0;
+}
+
+int initdecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
+{
+  if (ctx->state == PARSING_INITFUNC) {
+    //func_generate_code(ctx, stmt);
+  }
+  return 0;
 }
 
 int funcdecl_stmt_handler(CompileContext *ctx, struct stmt *stmt)
 {
-  if (ctx->times == 1) {
-    add_function(ctx, stmt);
-    return 0;
-  } else if (ctx->times == 2) {
-    return 0;
+  if (ctx->state == PARSING_SYMBOLS) {
+    parse_function(ctx, stmt);
+  } else if (ctx->state == PARSING_FUNCTIONS) {
+    func_generate_code(ctx, stmt);
   } else {
     ASSERT_MSG("cannot compile source file with 3rd time\n");
-    return 0;
   }
+  return 0;
 }
 
 typedef int (*stmt_handler_t)(CompileContext *, struct stmt *);
@@ -196,6 +255,7 @@ static stmt_handler_t stmt_handlers[] = {
   import_stmt_handler,
   NULL,
   vardecl_stmt_handler,
+  initdecl_stmt_handler,
   funcdecl_stmt_handler,
 };
 
@@ -215,22 +275,36 @@ static void show(CompileContext *ctx)
 
 int compile(CompileContext *ctx)
 {
+  int i;
   struct stmt *stmt;
-  Vector *vec = ctx->stmts;
+  Vector *vec = &ctx->stmts;
   printf("-----------------------\n");
 
-  ctx->times = 1;
-  for (int i = 0; i < Vector_Size(vec); i++) {
+  /* save all symbols */
+  ctx->state = PARSING_SYMBOLS;
+  for (i = 0; i < Vector_Size(vec); i++) {
     stmt = Vector_Get(vec, i);
     stmt_handler(ctx, stmt);
   }
 
-  ctx->times = 2;
-  for (int i = 0; i < Vector_Size(vec); i++) {
+  /* compile all functions */
+  ctx->state = PARSING_FUNCTIONS;
+  for (i = 0; i < Vector_Size(vec); i++) {
     stmt = Vector_Get(vec, i);
     stmt_handler(ctx, stmt);
   }
 
+  /* compile __init__ function */
+  ctx->state = PARSING_INITFUNC;
+  vec = &ctx->__initstmts__;
+  for (i = 0; i < Vector_Size(vec); i++) {
+    stmt = Vector_Get(vec, i);
+    stmt_handler(ctx, stmt);
+  }
+
+  /* generate .klc image file */
+
+  /* show all symbols */
   show(ctx);
 
   return 0;

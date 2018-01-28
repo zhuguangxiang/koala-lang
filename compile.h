@@ -20,12 +20,17 @@ typedef struct import {
   char *path;
 } Import;
 
+typedef enum parse_state {
+  PARSING_SYMBOLS = 1, PARSING_FUNCTIONS = 2, PARSING_INITFUNC = 3
+} PARSE_STATE;
+
 typedef struct compilecontext {
-  int times;
+  PARSE_STATE state;
   char *package;
   HashTable imports;
-  Vector *stmts;
+  Vector stmts;
   STable stable;
+  Vector __initstmts__;
   int scope;
   struct list_head scopes;
 } CompileContext;
