@@ -1,9 +1,9 @@
 
 package test;
 
-import "koala/io";
+import "koala/io";;
 
-var hello string = string("hello");
+var hello string = string("hello");;
 const SIZE int = 4096;
 
 func main(args []string) {

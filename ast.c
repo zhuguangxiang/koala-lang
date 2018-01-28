@@ -297,13 +297,6 @@ struct stmt *stmt_from_return(Vector *seq)
   return stmt;
 }
 
-struct stmt *stmt_from_empty(void)
-{
-  struct stmt *stmt = malloc(sizeof(*stmt));
-  stmt->kind = EMPTY_KIND;
-  return stmt;
-}
-
 struct stmt *stmt_from_structure(char *id, Vector *seq)
 {
   struct stmt *stmt = malloc(sizeof(*stmt));
@@ -620,10 +613,6 @@ void func_traverse(struct stmt *stmt)
 void stmt_traverse(struct stmt *stmt)
 {
   switch (stmt->kind) {
-    case EMPTY_KIND: {
-      printf("[empty statement]\n");
-      break;
-    }
     case IMPORT_KIND: {
       printf("[import]%s:%s\n", stmt->import.id, stmt->import.path);
       break;

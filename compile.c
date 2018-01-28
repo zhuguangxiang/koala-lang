@@ -193,7 +193,6 @@ typedef int (*stmt_handler_t)(CompileContext *, struct stmt *);
 
 static stmt_handler_t stmt_handlers[] = {
   NULL, /* INVALID */
-  NULL, /* EMPTY_KIND */
   import_stmt_handler,
   NULL,
   vardecl_stmt_handler,

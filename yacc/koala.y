@@ -388,7 +388,11 @@ ModuleStatements
   ;
 
 ModuleStatement
-  : VariableDeclaration ';' {
+  : ';' {
+    printf("empty statement\n");
+    $$ = NULL;
+  }
+  | VariableDeclaration ';' {
     printf("var decl\n");
     $$ = $1;
   }
@@ -570,7 +574,7 @@ LocalStatements
 
 LocalStatement
   : ';' {
-    $$ = stmt_from_empty();
+    $$ = NULL;
   }
   | Expression ';' {
     $$ = stmt_from_expr($1);
