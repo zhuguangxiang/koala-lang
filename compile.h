@@ -18,14 +18,15 @@ typedef struct import {
   HashNode hnode;
   char *id;
   char *path;
+  STable *stbl;
 } Import;
 
-typedef enum parse_state {
+typedef enum parser_state {
   PARSING_SYMBOLS = 1, PARSING_FUNCTIONS = 2, PARSING_INITFUNC = 3
-} PARSE_STATE;
+} PARSER_STATE;
 
-typedef struct compilecontext {
-  PARSE_STATE state;
+typedef struct parser_context {
+  PARSER_STATE state;
   char *package;
   HashTable imports;
   Vector stmts;

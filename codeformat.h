@@ -44,24 +44,34 @@ typedef struct typedesc {
 typedef struct protoinfo {
   int rsz;
   int psz;
+  int vargs;
   TypeDesc *rdesc;
   TypeDesc *pdesc;
 } ProtoInfo;
 
-typedef struct funcinfo {
-  ProtoInfo proto;
-  int locals;
+typedef struct const_item ConstItem;
+
+typedef struct codeinfo {
   int csz;
   uint8 *codes;
+  int ksz;
+  ConstItem *k;
+} CodeInfo;
+
+typedef struct funcinfo {
+  ProtoInfo *proto;
+  CodeInfo *code;
+  int locals;
 } FuncInfo;
 
 int CStr_To_Desc(char *str, TypeDesc *desc);
 TypeDesc *CStr_To_DescList(int count, char *str);
 void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
                     ProtoInfo *proto);
-void Init_FuncInfo(int rsz, char *rdesc, int psz, char *pdesc,
-                   int locals, uint8 *codes, int csz,
+void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto);
+void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
                    FuncInfo *funcinfo);
+
 /*-------------------------------------------------------------------------*/
 
 typedef struct image_header {
@@ -127,7 +137,7 @@ typedef struct proto_item {
 #define CONST_BOOL    3
 #define CONST_STRING  4
 
-typedef struct const_item {
+struct const_item {
   int type;
   union {
     int64 ival;          // int32 or int64
@@ -135,7 +145,7 @@ typedef struct const_item {
     int bval;             // bool
     int32 string_index;  //->StringItem
   };
-} ConstItem;
+};
 
 #define CONST_IVAL_INIT(_v)   {.type = CONST_INT,   .ival = (int64)(_v)}
 #define CONST_FVAL_INIT(_v)   {.type = CONST_FLOAT, .fval = (float64)(_v)}
@@ -156,15 +166,19 @@ typedef struct var_item {
 typedef struct func_item {
   int32 name_index;   //->StringItem
   int32 proto_index;  //->ProtoItem
-  uint16 flags;       //access
-  uint16 rets;        //number of returns
-  uint16 args;        //number of parameters
-  uint16 locals;      //number of lcoal variabls
+  int8 access;        //access
+  int8 vargs;         //variable args
+  int16 rets;         //number of returns
+  int16 args;         //number of parameters
+  int16 locals;       //number of lcoal variabls
   int32 code_index;   //->CodeItem
 } FuncItem;
 
 typedef struct code_item {
-  uint32 size;
+  uint32 size; //includes sizeof(CodeItem)
+  uint32 ksz;
+  uint32 koffset;
+  uint32 csz;
   uint8 codes[0];
 } CodeItem;
 
@@ -208,8 +222,8 @@ typedef struct klcimage {
 KLCImage *KLCImage_New(char *pkg_name);
 void KLCImage_Free(KLCImage *image);
 void KLCImage_Finish(KLCImage *image);
-void KLCImage_Add_Var(KLCImage *image, char *name, int flags, TypeDesc *desc);
-void KLCImage_Add_Func(KLCImage *image, char *name, int flags, FuncInfo *info);
+void KLCImage_Add_Var(KLCImage *image, char *name, TypeDesc *desc, int bconst);
+void KLCImage_Add_Func(KLCImage *image, char *name, FuncInfo *info);
 void KLCImage_Write_File(KLCImage *image, char *path);
 KLCImage *KLCImage_Read_File(char *path);
 void KLCImage_Show(KLCImage *image);

@@ -24,10 +24,14 @@ Object *init_test_module(void)
     OP_RET
   };
 
+  ProtoInfo proto;
+  CodeInfo codeinfo;
   FuncInfo funcinfo;
-  Init_FuncInfo(1, "i", 2, "ii", 0, codes, 0, &funcinfo);
-  Object *meth = Method_New(&funcinfo, NULL, Module_STable(module)->itable);
-  Module_Add_Func(module, "add", &funcinfo.proto, meth);
+  Init_ProtoInfo(1, "i", 2, "ii", &proto);
+  Init_CodeInfo(codes, 0, NULL, 0, &codeinfo);
+  Init_FuncInfo(&proto, &codeinfo, 0, &funcinfo);
+  Object *meth = Method_New(&funcinfo, Module_ItemTable(module));
+  Module_Add_Func(module, "add", &proto, meth);
 
   static uint8 __init__[] = {
     /* var result = add(-123, 456) */
@@ -49,7 +53,7 @@ Object *init_test_module(void)
     OP_RET,
   };
 
-  ItemTable *itable = Module_STable(module)->itable;
+  ItemTable *itable = Module_ItemTable(module);
   int index1 = StringItem_Set(itable, "add");
   int index2 = StringItem_Set(itable, "result");
   int index3 = StringItem_Set(itable, "koala/io");
@@ -67,9 +71,11 @@ Object *init_test_module(void)
   const_setstrvalue(&k[5], index4);
   const_setstrvalue(&k[6], index5);
 
-  Init_FuncInfo(0, NULL, 0, NULL, 0, __init__, 0, &funcinfo);
-  meth = Method_New(&funcinfo, k, Module_STable(module)->itable);
-  Module_Add_Func(module, "__init__", &funcinfo.proto, meth);
+  Init_ProtoInfo(0, NULL, 0, NULL, &proto);
+  Init_CodeInfo(__init__, 0, k, 10, &codeinfo);
+  Init_FuncInfo(&proto, &codeinfo, 0, &funcinfo);
+  meth = Method_New(&funcinfo, Module_ItemTable(module));
+  Module_Add_Func(module, "__init__", &proto, meth);
   return module;
 }
 

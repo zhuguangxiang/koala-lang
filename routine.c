@@ -8,15 +8,15 @@ Frame *Frame_New(Object *func)
 {
   MethodObject *meth = OB_TYPE_OF(func, MethodObject, Method_Klass);
 
-  int locals = 0;
-  if (meth->type == METH_KFUNC) locals = 1 + meth->locals;
-  Frame *f = malloc(sizeof(Frame) + locals * sizeof(TValue));
+  int size = 0;
+  if (METH_ISKFUNC(meth)) size = 1 + meth->locals;
+  Frame *f = malloc(sizeof(Frame) + size * sizeof(TValue));
   f->state = FRAME_READY;
   init_list_head(&f->link);
   f->func = func;
   f->pc = 0;
-  f->size = locals;
-  for (int i = 0; i < locals; i++)
+  f->size = size;
+  for (int i = 0; i < size; i++)
     initnilvalue(&f->locals[i]);
   return f;
 }
@@ -141,12 +141,12 @@ static void routine_task_func(struct task *tsk)
   while (node != NULL) {
     f = container_of(node, Frame, link);
     meth = (MethodObject *)f->func;
-    if (meth->type == METH_CFUNC) {
+    if (METH_ISCFUNC(meth)) {
       run_cframe(f);
-    } else if (meth->type == METH_KFUNC) {
+    } else if (METH_ISKFUNC(meth)) {
       run_kframe(f);
     } else {
-      ASSERT_MSG("invalid method type:%d\n", meth->type);
+      ASSERT_MSG("invalid method flags:%x\n", meth->flags);
     }
     node = list_first(&rt->frames);
   }

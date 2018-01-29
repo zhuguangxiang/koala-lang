@@ -30,7 +30,7 @@ int init_compiler(ParserContext *ctx)
   Decl_HashInfo(hashinfo, import_hash, import_equal);
   HashTable_Init(&ctx->imports, &hashinfo);
   Vector_Init(&ctx->stmts);
-  STable_Init(&ctx->stable);
+  STable_Init(&ctx->stable, NULL);
   Vector_Init(&ctx->__initstmts__);
   ctx->scope = 0;
   init_list_head(&ctx->scopes);
@@ -43,11 +43,11 @@ int fini_compiler(ParserContext *ctx)
   return 0;
 }
 
-static ScopeContext *scope_new(void)
+static ScopeContext *scope_new(ParserContext *ctx)
 {
   ScopeContext *scope = malloc(sizeof(ScopeContext));
   init_list_head(&scope->link);
-  STable_Init(&scope->stable);
+  STable_Init(&scope->stable, ctx->stable.itable);
   return scope;
 }
 
@@ -68,7 +68,7 @@ static ScopeContext *get_scope(ParserContext *ctx)
 static void scope_enter(ParserContext *ctx)
 {
   ctx->scope++;
-  ScopeContext *scope = scope_new();
+  ScopeContext *scope = scope_new(ctx);
   list_add(&scope->link, &ctx->scopes);
 }
 

@@ -23,6 +23,7 @@ extern "C" {
 
 typedef struct symbol {
   HashNode hnode;
+  struct list_head link;
   int name_index;
   uint8 kind;
   uint8 access;
@@ -30,27 +31,21 @@ typedef struct symbol {
   int desc_index;
   union {
     void *obj;  /* method or klass */
-    int index;  /* variable's index of array */
+    int index;  /* variable's index */
   };
 } Symbol;
 
 typedef struct symboltable {
   HashTable *htable;
   ItemTable *itable;
-  Vector vector;
+  int next_index;
+  struct list_head head;
 } STable;
 
 /* Exported APIs */
 Symbol *Symbol_New(int name_index, int kind, int access, int desc_index);
-#define Symbol_Set_Index(symbol, index) do { \
-  (symbol)->index = (index); \
-} while (0)
-#define Symbol_Set_Object(symbol, object) do { \
-  (symbol)->obj = (object); \
-} while (0)
 void Symbol_Free(Symbol *sym);
-
-int STable_Init(STable *stbl);
+int STable_Init(STable *stbl, ItemTable *itable);
 void STable_Fini(STable *stbl);
 Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
 Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto);

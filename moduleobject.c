@@ -9,9 +9,9 @@ Object *Module_New(char *name, char *path, int nr_locals)
   ModuleObject *ob = malloc(size);
   init_object_head(ob, &Module_Klass);
   ob->name = name;
-  ob->avail = 0;
+  ob->next_index = 0;
   ob->size = nr_locals;
-  STable_Init(&ob->stable);
+  STable_Init(&ob->stable, NULL);
   for (int i = 0; i < nr_locals; i++)
     initnilvalue(ob->locals + i);
   if (Koala_Add_Module(path, (Object *)ob) < 0) {
@@ -27,15 +27,13 @@ void Module_Free(Object *ob)
   free(ob);
 }
 
-#define OBJECT_TO_MODULE(ob) OB_TYPE_OF(ob, ModuleObject, Module_Klass)
-
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
-  ASSERT(mob->avail < mob->size);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
+  ASSERT(mob->next_index < mob->size);
   Symbol *sym = STable_Add_Var(&mob->stable, name, desc, bconst);
   if (sym != NULL) {
-    sym->index = mob->avail++;
+    sym->index = mob->next_index++;
     return 0;
   }
   return -1;
@@ -43,7 +41,7 @@ int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 
 int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *sym = STable_Add_Func(&mob->stable, name, proto);
   if (sym != NULL) {
     sym->obj = meth;
@@ -56,17 +54,17 @@ int Module_Add_CFunc(Object *ob, FuncDef *f)
 {
   ProtoInfo proto;
   Init_ProtoInfo(f->rsz, f->rdesc, f->psz, f->pdesc, &proto);
-  Object *meth = CMethod_New(f->fn, &proto);
+  Object *meth = CFunc_New(f->fn, &proto);
   return Module_Add_Func(ob, f->name, &proto, meth);
 }
 
 int Module_Add_Class(Object *ob, Klass *klazz)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *sym = STable_Add_Class(&mob->stable, klazz->name);
   if (sym != NULL) {
     sym->obj = klazz;
-    klazz->stable.itable = mob->stable.itable;
+    STable_Init(&klazz->stable, mob->stable.itable);
     return 0;
   }
   return -1;
@@ -74,11 +72,11 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 
 int Module_Add_Interface(Object *ob, Klass *klazz)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *sym = STable_Add_Interface(&mob->stable, klazz->name);
   if (sym != NULL) {
     sym->obj = klazz;
-    klazz->stable.itable = mob->stable.itable;
+    STable_Init(&klazz->stable, mob->stable.itable);
     return 0;
   }
   return -1;
@@ -100,13 +98,13 @@ static int __get_value_index(ModuleObject *mob, char *name)
 
 Symbol *Module_Get_Symbol(Object *ob, char *name)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   return STable_Get(&mob->stable, name);
 }
 
 TValue Module_Get_Value(Object *ob, char *name)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
   if (index < 0) return NilValue;
   return mob->locals[index];
@@ -114,7 +112,7 @@ TValue Module_Get_Value(Object *ob, char *name)
 
 void Module_Set_Value(Object *ob, char *name, TValue *val)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
   if (index < 0) return;
   mob->locals[index] = *val;
@@ -122,7 +120,7 @@ void Module_Set_Value(Object *ob, char *name, TValue *val)
 
 Object *Module_Get_Function(Object *ob, char *name)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *s = STable_Get(&mob->stable, name);
   if (s != NULL) {
     if (s->kind == SYM_FUNC) {
@@ -137,7 +135,7 @@ Object *Module_Get_Function(Object *ob, char *name)
 
 Klass *Module_Get_Class(Object *ob, char *name)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *s = STable_Get(&mob->stable, name);
   if (s != NULL) {
     if (s->kind == SYM_CLASS) {
@@ -152,7 +150,7 @@ Klass *Module_Get_Class(Object *ob, char *name)
 
 Klass *Module_Get_Intf(Object *ob, char *name)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *s = STable_Get(&mob->stable, name);
   if (s != NULL) {
     if (s->kind == SYM_INTF) {
@@ -201,7 +199,7 @@ Klass Module_Klass = {
 
 void Module_Show(Object *ob)
 {
-  ModuleObject *mob = OBJECT_TO_MODULE(ob);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   printf("package:%s\n", mob->name);
   STable_Show(&mob->stable);
 }

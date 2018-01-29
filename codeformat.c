@@ -1,5 +1,6 @@
 
 #include "codeformat.h"
+#include "symbol.h"
 #include "hash.h"
 #include "debug.h"
 
@@ -110,14 +111,18 @@ void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
   proto->pdesc = CStr_To_DescList(psz, pdesc);
 }
 
-void Init_FuncInfo(int rsz, char *rdesc, int psz, char *pdesc,
-                   int locals, uint8 *codes, int csz,
+void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto)
+{
+  Init_ProtoInfo(rsz, rdesc, 0, NULL, proto);
+  proto->vargs = 1;
+}
+
+void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
                    FuncInfo *funcinfo)
 {
-  Init_ProtoInfo(rsz, rdesc, psz, pdesc, &funcinfo->proto);
+  funcinfo->proto  = proto;
+  funcinfo->code   = code;
   funcinfo->locals = locals;
-  funcinfo->csz    = csz;
-  funcinfo->codes  = codes;
 }
 
 /*-------------------------------------------------------------------------*/
@@ -187,13 +192,14 @@ ProtoItem *ProtoItem_New(int32 rindex, int32 pindex)
   return item;
 }
 
-FuncItem *FuncItem_New(int name_index, int proto_index, int flags,
+FuncItem *FuncItem_New(int name_index, int proto_index, int access, int vargs,
                        int rsz, int psz, int locals, int code_index)
 {
   FuncItem *item = malloc(sizeof(*item));
   item->name_index = name_index;
   item->proto_index = proto_index;
-  item->flags = flags;
+  item->access = access;
+  item->vargs = vargs;
   item->rets = rsz;
   item->args = psz;
   item->locals = locals;
@@ -201,11 +207,19 @@ FuncItem *FuncItem_New(int name_index, int proto_index, int flags,
   return item;
 }
 
-CodeItem *CodeItem_New(uint8 *codes, int size)
+CodeItem *CodeItem_New(CodeInfo *codeinfo)
 {
-  CodeItem *item = malloc(sizeof(*item) + size);
+  int size = sizeof(CodeItem) + sizeof(uint8) * codeinfo->csz;
+  size = ALIGN_UP(size, sizeof(ConstItem));
+  int koffset = size;
+  size += sizeof(ConstItem) * codeinfo->ksz;
+  CodeItem *item = malloc(size);
   item->size = size;
-  memcpy(item->codes, codes, size);
+  item->csz = codeinfo->csz;
+  memcpy(item->codes, codeinfo->codes, codeinfo->csz);
+  item->ksz = codeinfo->ksz;
+  memcpy((char *)item + koffset, codeinfo->k,
+         sizeof(ConstItem) * codeinfo->ksz);
   return item;
 }
 
@@ -327,9 +341,9 @@ int ProtoItem_Set(ItemTable *itable, ProtoInfo *proto)
 
 /*-------------------------------------------------------------------------*/
 
-static int codeitem_set(ItemTable *itable, uint8 *code, int sz)
+static int codeitem_set(ItemTable *itable, CodeInfo *codeinfo)
 {
-  CodeItem *item = CodeItem_New(code, sz);
+  CodeItem *item = CodeItem_New(codeinfo);
   return ItemTable_Append(itable, ITEM_CODE, item, 0);
 }
 
@@ -607,13 +621,13 @@ void methoditem_show(KLCImage *image, void *o)
 int codeitem_length(void *o)
 {
   CodeItem *item = o;
-  return sizeof(CodeItem) + item->size;
+  return item->size;
 }
 
 void codeitem_write(FILE *fp, void *o)
 {
   CodeItem *item = o;
-  fwrite(o, sizeof(CodeItem) + item->size, 1, fp);
+  fwrite(o, item->size, 1, fp);
 }
 
 void codeitem_show(KLCImage *image, void *o)
@@ -863,21 +877,25 @@ void KLCImage_Free(KLCImage *image)
   free(image);
 }
 
-void KLCImage_Add_Var(KLCImage *image, char *name, int flags, TypeDesc *desc)
+void KLCImage_Add_Var(KLCImage *image, char *name, TypeDesc *desc, int bconst)
 {
+  int flags = bconst ? ACCESS_CONST : 0;
+  flags |= isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
   int type_index = TypeItem_Set(image->itable, desc);
   int name_index = StringItem_Set(image->itable, name);
   VarItem *varitem = VarItem_New(name_index, type_index, flags);
   ItemTable_Append(image->itable, ITEM_VAR, varitem, 0);
 }
 
-void KLCImage_Add_Func(KLCImage *image, char *name, int flags, FuncInfo *info)
+void KLCImage_Add_Func(KLCImage *image, char *name, FuncInfo *info)
 {
+  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
   int name_index = StringItem_Set(image->itable, name);
-  int proto_index = ProtoItem_Set(image->itable, &info->proto);
-  int code_index = codeitem_set(image->itable, info->codes, info->csz);
-  FuncItem *funcitem = FuncItem_New(name_index, proto_index, flags,
-                                    info->proto.rsz, info->proto.psz,
+  int proto_index = ProtoItem_Set(image->itable, info->proto);
+  int code_index = codeitem_set(image->itable, info->code);
+  FuncItem *funcitem = FuncItem_New(name_index, proto_index, access,
+                                    info->proto->vargs,
+                                    info->proto->rsz, info->proto->psz,
                                     info->locals, code_index);
   ItemTable_Append(image->itable, ITEM_FUNC, funcitem, 0);
 }

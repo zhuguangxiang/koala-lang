@@ -6,29 +6,36 @@
 
 #define NEXT_CODE(f, codes) codes[f->pc++]
 
-static inline uint8 fetch_code(Frame *frame, uint8 *codes)
+static uint8 fetch_code(Frame *frame, CodeInfo *codeinfo)
 {
-  return NEXT_CODE(frame, codes);
+  ASSERT(frame->pc < codeinfo->csz);
+  return NEXT_CODE(frame, codeinfo->codes);
 }
 
-static inline uint8 fetch_arg1(Frame *frame, uint8 *codes)
+/*
+static uint8 fetch_arg1(Frame *frame, CodeInfo *codeinfo)
 {
-  return NEXT_CODE(frame, codes);
+  ASSERT(frame->pc < codeinfo->csz);
+  return NEXT_CODE(frame, codeinfo->codes);
 }
+*/
 
-static inline uint32 fetch_arg4(Frame *frame, uint8 *codes)
+static uint32 fetch_arg4(Frame *frame, CodeInfo *codeinfo)
 {
+  ASSERT(frame->pc < codeinfo->csz);
   //endian?
-  uint8 l1 = NEXT_CODE(frame, codes);
-  uint8 l2 = NEXT_CODE(frame, codes);
-  uint8 h1 = NEXT_CODE(frame, codes);
-  uint8 h2 = NEXT_CODE(frame, codes);
+  uint8 l1 = NEXT_CODE(frame, codeinfo->codes);
+  uint8 l2 = NEXT_CODE(frame, codeinfo->codes);
+  uint8 h1 = NEXT_CODE(frame, codeinfo->codes);
+  uint8 h2 = NEXT_CODE(frame, codeinfo->codes);
   return (h2 << 24) + (h1 << 16) + (l2 << 8) + (l1 << 0);
 }
 
-static TValue const_to_tvalue(ConstItem *k, ItemTable *itable)
+static TValue index_value(int index, CodeInfo *codeinfo, ItemTable *itable)
 {
   TValue ret = NilValue;
+  ASSERT(index < codeinfo->ksz);
+  ConstItem *k = codeinfo->k + index;
 
   switch (k->type) {
     case CONST_INT: {
@@ -107,8 +114,7 @@ void Frame_Loop(Frame *frame)
   int loopflag = 1;
   Routine *rt = frame->rt;
   MethodObject *meth = (MethodObject *)frame->func;
-  ConstItem *k = meth->kf.k;
-  uint8 *codes = meth->kf.codes;
+  CodeInfo *codeinfo = meth->kf.code;
   TValue *locals = frame->locals;
   ItemTable *itable = meth->kf.itable;
 
@@ -117,17 +123,17 @@ void Frame_Loop(Frame *frame)
   TValue val;
 
   while (loopflag) {
-    inst = fetch_code(frame, codes);
+    inst = fetch_code(frame, codeinfo);
     switch (inst) {
       case OP_LOADK: {
-        index = fetch_arg4(frame, codes);
-        val = const_to_tvalue(k + index, itable);
+        index = fetch_arg4(frame, codeinfo);
+        val = index_value(index, codeinfo, itable);
         PUSH(&val);
         break;
       }
       case OP_LOADM: {
-        index = fetch_arg4(frame, codes);
-        val = const_to_tvalue(k + index, itable);
+        index = fetch_arg4(frame, codeinfo);
+        val = index_value(index, codeinfo, itable);
         char *path = VALUE_CSTR(&val);
         debug_info("load module '%s'\n", path);
         Object *ob = Koala_Load_Module(path);
@@ -137,19 +143,19 @@ void Frame_Loop(Frame *frame)
         break;
       }
       case OP_LOAD: {
-        index = fetch_arg4(frame, codes);
+        index = fetch_arg4(frame, codeinfo);
         PUSH(locals + index);
         break;
       }
       case OP_STORE: {
-        index = fetch_arg4(frame, codes);
+        index = fetch_arg4(frame, codeinfo);
         val = POP();
         locals[index] = val;
         break;
       }
       case OP_SETFIELD: {
-        index = fetch_arg4(frame, codes);
-        val = const_to_tvalue(k + index, itable);
+        index = fetch_arg4(frame, codeinfo);
+        val = index_value(index, codeinfo, itable);
         char *name = VALUE_CSTR(&val);
         debug_info("setfield '%s'\n", name);
         val= POP();
@@ -160,8 +166,8 @@ void Frame_Loop(Frame *frame)
         break;
       }
       case OP_GETFIELD: {
-        index = fetch_arg4(frame, codes);
-        val = const_to_tvalue(k + index, itable);
+        index = fetch_arg4(frame, codeinfo);
+        val = index_value(index, codeinfo, itable);
         char *name = VALUE_CSTR(&val);
         debug_info("getfield '%s'\n", name);
         val = POP();
@@ -171,8 +177,8 @@ void Frame_Loop(Frame *frame)
         break;
       }
       case OP_CALL: {
-        index = fetch_arg4(frame, codes);
-        val = const_to_tvalue(k + index, itable);
+        index = fetch_arg4(frame, codeinfo);
+        val = index_value(index, codeinfo, itable);
         char *name = VALUE_CSTR(&val);
         debug_info("%s()\n", name);
         Object *ob = VALUE_OBJECT(TOP());

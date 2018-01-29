@@ -25,18 +25,22 @@ static HashTable *__get_hashtable(STable *stbl)
   return stbl->htable;
 }
 
-int STable_Init(STable *stbl)
+int STable_Init(STable *stbl, ItemTable *itable)
 {
   stbl->htable = NULL;
   Decl_HashInfo(hashinfo, item_hash, item_equal);
-  stbl->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
-  Vector_Init(&stbl->vector);
+  if (itable == NULL)
+    stbl->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
+  else
+    stbl->itable = itable;
+  stbl->next_index = 0;
+  init_list_head(&stbl->head);
   return 0;
 }
 
 void STable_Fini(STable *stbl)
 {
-  Vector_Fini(&stbl->vector, NULL, NULL);
+  UNUSED_PARAMETER(stbl);
 }
 
 Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
@@ -54,9 +58,8 @@ Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
     Symbol_Free(sym);
     return NULL;
   }
-  int index = Vector_Appand(&stbl->vector, sym);
-  ASSERT(index >= 0);
-  Symbol_Set_Index(sym, index);
+  list_add_tail(&sym->link, &stbl->head);
+  sym->index = stbl->next_index++;
   return sym;
 }
 
@@ -71,7 +74,7 @@ Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
     Symbol_Free(sym);
     return NULL;
   }
-  Vector_Appand(&stbl->vector, sym);
+  list_add_tail(&sym->link, &stbl->head);
   return sym;
 }
 
@@ -85,7 +88,7 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
     Symbol_Free(sym);
     return NULL;
   }
-  Vector_Appand(&stbl->vector, sym);
+  list_add_tail(&sym->link, &stbl->head);
   return sym;
 }
 
@@ -106,6 +109,7 @@ Symbol *Symbol_New(int name_index, int kind, int access, int desc_index)
 {
   Symbol *sym = calloc(1, sizeof(Symbol));
   Init_HashNode(&sym->hnode, sym);
+  init_list_head(&sym->link);
   sym->name_index = name_index;
   sym->kind = (uint8)kind;
   sym->access = (uint8)access;
@@ -253,10 +257,7 @@ static void symbol_show(Symbol *sym, STable *stbl)
 
 void STable_Show(STable *stbl)
 {
-  int sz = Vector_Size(&stbl->vector);
   Symbol *sym;
-  for (int i = 0; i < sz; i++) {
-    sym = Vector_Get(&stbl->vector, i);
-     symbol_show(sym, stbl);
-  }
+  list_for_each_entry(sym, &stbl->head, link)
+    symbol_show(sym, stbl);
 }

@@ -27,22 +27,22 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);
 
 /*-------------------------------------------------------------------------*/
 
-#define METH_CFUNC  1
-#define METH_KFUNC  2
+#define METH_CFUNC    1
+#define METH_KFUNC    2
+#define METH_VARGS    4
 
 typedef struct methodobject {
   OBJECT_HEAD
-  uint16 type;
-  uint16 rets;
-  uint16 args;
-  uint16 locals;
+  short flags;
+  short rets;
+  short args;
+  short locals;
   union {
     cfunc cf;             // c language function
     struct {
       //Object *closure;  // tuple for closure
-      ItemTable *itable;  // item table with const string
-      ConstItem *k;       // constant pool
-      uint8 *codes;       // koala's instructions
+      ItemTable *itable;  // constant pool
+      CodeInfo *code;     // codeinfo
     } kf;
   };
 } MethodObject;
@@ -50,9 +50,11 @@ typedef struct methodobject {
 /* Exported APIs */
 extern Klass Method_Klass;
 void Init_Method_Klass(Object *ob);
-Object *Method_New(FuncInfo *info, ConstItem *k, ItemTable *itable);
-Object *CMethod_New(cfunc cf, ProtoInfo *proto);
-void Module_Free(Object *ob);
+Object *Method_New(FuncInfo *info, ItemTable *itable);
+Object *CFunc_New(cfunc cf, ProtoInfo *proto);
+#define METH_ISCFUNC(meth)  ((meth)->flags & METH_CFUNC)
+#define METH_ISKFUNC(meth)  ((meth)->flags & METH_KFUNC)
+#define METH_ISVARGS(meth)  ((meth)->flags & METH_VARGS)
 
 #ifdef __cplusplus
 }

@@ -4,17 +4,18 @@
 #include "moduleobject.h"
 #include "symbol.h"
 
-static MethodObject *__method_new(int type)
+static MethodObject *__method_new(void)
 {
   MethodObject *m = malloc(sizeof(*m));
   init_object_head(m, &Method_Klass);
-  m->type = type;
   return m;
 }
 
-Object *CMethod_New(cfunc cf, ProtoInfo *proto)
+Object *CFunc_New(cfunc cf, ProtoInfo *proto)
 {
-  MethodObject *m = __method_new(METH_CFUNC);
+  MethodObject *m = __method_new();
+  m->flags = METH_CFUNC;
+  if (proto->vargs) m->flags &= METH_VARGS;
   m->cf = cf;
   m->rets = proto->rsz;
   m->args = proto->psz;
@@ -22,15 +23,16 @@ Object *CMethod_New(cfunc cf, ProtoInfo *proto)
   return (Object *)m;
 }
 
-Object *Method_New(FuncInfo *info, ConstItem *k, ItemTable *itable)
+Object *Method_New(FuncInfo *info, ItemTable *itable)
 {
-  MethodObject *m = __method_new(METH_KFUNC);
-  m->rets = info->proto.rsz;
-  m->args = info->proto.psz;
-  m->locals = info->proto.psz + info->locals;
-  m->kf.codes = info->codes;
+  MethodObject *m = __method_new();
+  m->flags = METH_KFUNC;
+  if (info->proto->vargs) m->flags &= METH_VARGS;
+  m->rets = info->proto->rsz;
+  m->args = info->proto->psz;
+  m->locals = info->proto->psz + info->locals;
+  m->kf.code = info->code;
   m->kf.itable = itable;
-  m->kf.k = k;
   return (Object *)m;
 }
 

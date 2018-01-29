@@ -171,7 +171,7 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
   OB_ASSERT_KLASS(klazz, Klass_Klass);
   Symbol *sym = STable_Add_Field(&klazz->stable, name, desc);
   if (sym != NULL) {
-    sym->index = klazz->avail++;
+    sym->index = klazz->next_index++;
     return 0;
   }
   return -1;
@@ -203,9 +203,8 @@ Object *Klass_Get_Method(Klass *klazz, char *name)
   Symbol *s = STable_Get(&klazz->stable, name);
   if (s == NULL) return NULL;
   if (s->kind != SYM_METHOD) return NULL;
-  Object *temp = s->obj;
-  OB_ASSERT_KLASS(temp, Method_Klass);
-  return temp;
+  OB_ASSERT_KLASS(s->obj, Method_Klass);
+  return s->obj;
 }
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
@@ -217,7 +216,7 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 
   while (f->name != NULL) {
     Init_ProtoInfo(f->rsz, f->rdesc, f->psz, f->pdesc, &proto);
-    meth = CMethod_New(f->fn, &proto);
+    meth = CFunc_New(f->fn, &proto);
     res = Klass_Add_Method(klazz, f->name, &proto, meth);
     ASSERT(res == 0);
     ++f;

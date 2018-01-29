@@ -160,7 +160,7 @@ struct klass {
   strfunc ob_tostr;
 
   STable stable;
-  uint32 avail;
+  int next_index;
 };
 
 extern Klass Klass_Klass;
