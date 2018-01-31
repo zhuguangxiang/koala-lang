@@ -290,10 +290,10 @@ TypeNameListOrEmpty
 TypeNameList
   : TypeName {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | TypeNameList ',' TypeName {
-    Vector_Appand($1, $3);
+    Vector_Append($1, $3);
     $$ = $1;
   }
   ;
@@ -310,7 +310,7 @@ TypeName
 ReturnTypeList
   : Type {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | '(' TypeList ')' {
     $$ = $2;
@@ -324,10 +324,10 @@ ReturnTypeList
 TypeList
   : Type {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | TypeList ',' Type {
-    Vector_Appand($1, $3);
+    Vector_Append($1, $3);
     $$ = $1;
   }
   ;
@@ -362,10 +362,10 @@ Package
 
 Imports
   : Import {
-    if ($1 != NULL) Vector_Appand(&ctx.stmts, $1);
+    if ($1 != NULL) Vector_Append(&ctx.stmts, $1);
   }
   | Imports Import {
-    if ($2 != NULL) Vector_Appand(&ctx.stmts, $2);
+    if ($2 != NULL) Vector_Append(&ctx.stmts, $2);
   }
   ;
 
@@ -380,10 +380,10 @@ Import
 
 ModuleStatements
   : ModuleStatement {
-    if ($1 != NULL) Vector_Appand(&ctx.stmts, $1);
+    if ($1 != NULL) Vector_Append(&ctx.stmts, $1);
   }
   | ModuleStatements ModuleStatement {
-    if ($2 != NULL) Vector_Appand(&ctx.stmts, $2);
+    if ($2 != NULL) Vector_Append(&ctx.stmts, $2);
   }
   ;
 
@@ -445,10 +445,10 @@ VariableDeclaration
 VariableList
   : ID {
     $$ = Vector_Create();
-    Vector_Appand($$, new_var($1, NULL));
+    Vector_Append($$, new_var($1, NULL));
   }
   | VariableList ',' ID {
-    Vector_Appand($1, new_var($3, NULL));
+    Vector_Append($1, new_var($3, NULL));
     $$ = $1;
   }
   ;
@@ -469,10 +469,10 @@ FunctionDeclaration
 ParameterList
   : ID Type {
     $$ = Vector_Create();
-    Vector_Appand($$, new_var($1, $2));
+    Vector_Append($$, new_var($1, $2));
   }
   | ParameterList ',' ID Type {
-    Vector_Appand($$, new_var($3, $4));
+    Vector_Append($$, new_var($3, $4));
     $$ = $1;
   }
   | error {
@@ -507,10 +507,10 @@ TypeDeclaration
 MemberDeclarations
   : MemberDeclaration {
     //$$ = Vector_Create();
-    //Vector_Appand($$, $1);
+    //Vector_Append($$, $1);
   }
   | MemberDeclarations MemberDeclaration {
-    //Vector_Appand($1, $2);
+    //Vector_Append($1, $2);
     //$$ = $1;
   }
   ;
@@ -532,10 +532,10 @@ FieldDeclaration
 IntfFuncDecls
   : IntfFuncDecl {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | IntfFuncDecls IntfFuncDecl {
-    Vector_Appand($1, $2);
+    Vector_Append($1, $2);
     $$ = $1;
   }
   ;
@@ -564,10 +564,10 @@ Block
 LocalStatements
   : LocalStatement {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | LocalStatements LocalStatement {
-    Vector_Appand($1, $2);
+    Vector_Append($1, $2);
     $$ = $1;
   }
   ;
@@ -636,10 +636,10 @@ IfStatement
 ElseIfStatements
   : ElseIfStatement {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | ElseIfStatements ElseIfStatement {
-    Vector_Appand($1, $2);
+    Vector_Append($1, $2);
     $$ = $1;
   }
   ;
@@ -681,7 +681,7 @@ SwitchStatement
 CaseStatements
   : CaseStatement {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | CaseStatements CaseStatement {
     if ($2->test == NULL) {
@@ -694,7 +694,7 @@ CaseStatements
         Vector_Set($1, 0, $2);
       }
     } else {
-      Vector_Appand($1, $2);
+      Vector_Append($1, $2);
     }
     $$ = $1;
   }
@@ -880,10 +880,10 @@ ArrayDeclaration
 DimExprList
   : '[' Expression ']' {
     $$ = Vector_Create();
-    Vector_Appand($$, $2);
+    Vector_Append($$, $2);
   }
   | DimExprList '[' Expression ']' {
-    Vector_Appand($1, $3);
+    Vector_Append($1, $3);
     $$ = $1;
   }
   ;
@@ -891,10 +891,10 @@ DimExprList
 ArrayInitializerList
   : ArrayInitializer {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | ArrayInitializerList ',' ArrayInitializer {
-    Vector_Appand($1, $3);
+    Vector_Append($1, $3);
     $$ = $1;
   }
   ;
@@ -1057,10 +1057,10 @@ Expression
 ExpressionList
   : Expression {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | ExpressionList ',' Expression {
-    Vector_Appand($1, $3);
+    Vector_Append($1, $3);
     $$ = $1;
   }
   ;
@@ -1080,10 +1080,10 @@ Assignment
 PrimaryExpressionList
   : PrimaryExpression {
     $$ = Vector_Create();
-    Vector_Appand($$, $1);
+    Vector_Append($$, $1);
   }
   | PrimaryExpressionList ',' PrimaryExpression {
-    Vector_Appand($1, $3);
+    Vector_Append($1, $3);
     $$ = $1;
   }
   ;

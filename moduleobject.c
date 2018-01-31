@@ -8,9 +8,8 @@ Object *Module_New(char *name, char *path)
   ModuleObject *ob = malloc(sizeof(ModuleObject));
   init_object_head(ob, &Module_Klass);
   ob->name = name;
-  ob->next_index = 0;
   STable_Init(&ob->stable, NULL);
-  Vector_Init(&ob->vec, sizeof(TValue));
+  ob->tuple = NULL;
   if (Koala_Add_Module(path, (Object *)ob) < 0) {
     Module_Free((Object *)ob);
     return NULL;
@@ -93,20 +92,28 @@ Symbol *Module_Get_Symbol(Object *ob, char *name)
   return STable_Get(&mob->stable, name);
 }
 
+Object *__get_tuple(ModuleObject *mob)
+{
+  if (mob->tuple == NULL) {
+    mob->tuple = Tuple_New(mob->stable.next_index);
+  }
+  return mob->tuple;
+}
+
 TValue Module_Get_Value(Object *ob, char *name)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
   if (index < 0) return NilValue;
-  return *(TValue *)Vector_Get(&mob->vec, index);
+  return Tuple_Get(__get_tuple(mob), index);
 }
 
-void Module_Set_Value(Object *ob, char *name, TValue *val)
+int Module_Set_Value(Object *ob, char *name, TValue *val)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
-  if (index < 0) return;
-  Vector_Set(&mob->vec, index, val);
+  if (index < 0) return -1;
+  return Tuple_Set(__get_tuple(mob), index, val);
 }
 
 Object *Module_Get_Function(Object *ob, char *name)

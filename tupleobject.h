@@ -2,13 +2,17 @@
 #ifndef _KOALA_TUPLEOBJECT_H_
 #define _KOALA_TUPLEOBJECT_H_
 
-#include "structobject.h"
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef StructObject TupleObject;
+typedef struct tupleobject {
+  OBJECT_HEAD
+  int size;
+  TValue items[0];
+} TupleObject;
 
 extern Klass Tuple_Klass;
 void Init_Tuple_Klass(Object *ob);

@@ -170,11 +170,7 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
   Symbol *sym = STable_Add_Field(&klazz->stable, name, desc);
-  if (sym != NULL) {
-    sym->index = klazz->next_index++;
-    return 0;
-  }
-  return -1;
+  return (sym != NULL) ? 0 : -1;
 }
 
 int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)

@@ -2,9 +2,14 @@
 #include "ast.h"
 #include "codeformat.h"
 
+struct type *type_new(void)
+{
+  return calloc(1, sizeof(struct type));
+}
+
 struct type *type_from_primitive(int primitive)
 {
-  struct type *type = malloc(sizeof(*type));
+  struct type *type = type_new();
   type->kind = PRIMITIVE_KIND;
   type->primitive = primitive;
   return type;
@@ -12,7 +17,7 @@ struct type *type_from_primitive(int primitive)
 
 struct type *type_from_userdef(char *mod_name, char *type_name)
 {
-  struct type *type = malloc(sizeof(*type));
+  struct type *type = type_new();
   type->kind = USERDEF_TYPE;
   type->userdef.mod = mod_name;
   type->userdef.type = type_name;
@@ -21,7 +26,7 @@ struct type *type_from_userdef(char *mod_name, char *type_name)
 
 struct type *type_from_functype(Vector *tseq, Vector *rseq)
 {
-  struct type *type = malloc(sizeof(*type));
+  struct type *type = type_new();
   type->kind = FUNCTION_TYPE;
   type->functype.tseq = tseq;
   type->functype.rseq = rseq;
@@ -47,8 +52,7 @@ static char *type_tostring(struct type *t)
 
 struct expr *expr_new(void)
 {
-  struct expr *exp = calloc(1, sizeof(*exp));
-  return exp;
+  return calloc(1, sizeof(struct expr));
 }
 
 struct expr *expr_from_name(char *id)
@@ -207,9 +211,14 @@ struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr)
   return exp;
 }
 
+struct stmt *stmt_new(void)
+{
+  return calloc(1, sizeof(struct stmt));;
+}
+
 struct stmt *stmt_from_expr(struct expr *expr)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = EXPR_KIND;
   stmt->expr = expr;
   return stmt;
@@ -217,20 +226,9 @@ struct stmt *stmt_from_expr(struct expr *expr)
 
 struct stmt *stmt_from_import(char *id, char *path)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = IMPORT_KIND;
-  if (id == NULL) {
-    char *s = strrchr(path, '/');
-    if (s == NULL)
-      s = path;
-    else
-      s += 1;
-    char *tmp = malloc(strlen(s) + 1);
-    strcpy(tmp, s);
-    stmt->import.id = tmp;
-  } else {
-    stmt->import.id = id;
-  }
+  stmt->import.id = id;
   stmt->import.path = path;
   return stmt;
 }
@@ -238,7 +236,7 @@ struct stmt *stmt_from_import(char *id, char *path)
 struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
                                int bconst, struct type *type)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = VARDECL_KIND;
   stmt->vardecl.var_seq  = varseq;
   stmt->vardecl.expr_seq = initseq;
@@ -256,7 +254,7 @@ struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
 
 struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = INIT_ASSIGN_KIND;
   stmt->assign.left_seq  = var_seq;
   stmt->assign.right_seq = expr_seq;
@@ -266,7 +264,7 @@ struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq)
 struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
                                 Vector *body)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = FUNCDECL_KIND;
   stmt->funcdecl.id = id;
   stmt->funcdecl.pseq = pseq;
@@ -277,7 +275,7 @@ struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
 
 struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = ASSIGN_KIND;
   stmt->assign.left_seq  = left_seq;
   stmt->assign.right_seq = right_seq;
@@ -288,7 +286,7 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
                                        enum assign_operator op,
                                        struct expr *right)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = COMPOUND_ASSIGN_KIND;
   stmt->compound_assign.left  = left;
   stmt->compound_assign.op    = op;
@@ -298,7 +296,7 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 
 struct stmt *stmt_from_block(Vector *block)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = BLOCK_KIND;
   stmt->seq  = block;
   return stmt;
@@ -306,7 +304,7 @@ struct stmt *stmt_from_block(Vector *block)
 
 struct stmt *stmt_from_return(Vector *seq)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = RETURN_KIND;
   stmt->seq  = seq;
   return stmt;
@@ -314,7 +312,7 @@ struct stmt *stmt_from_return(Vector *seq)
 
 struct stmt *stmt_from_structure(char *id, Vector *seq)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = CLASS_KIND;
   stmt->structure.id  = id;
   stmt->structure.seq = seq;
@@ -323,7 +321,7 @@ struct stmt *stmt_from_structure(char *id, Vector *seq)
 
 struct stmt *stmt_from_interface(char *id, Vector *seq)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = INTF_KIND;
   stmt->structure.id  = id;
   stmt->structure.seq = seq;
@@ -332,7 +330,7 @@ struct stmt *stmt_from_interface(char *id, Vector *seq)
 
 struct stmt *stmt_from_jump(int kind)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = kind;
   return stmt;
 }
@@ -341,7 +339,7 @@ struct stmt *stmt_from_if(struct test_block *if_part,
                           Vector *elseif_seq,
                           struct test_block *else_part)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = IF_KIND;
   stmt->if_stmt.if_part    = if_part;
   stmt->if_stmt.elseif_seq = elseif_seq;
@@ -351,7 +349,7 @@ struct stmt *stmt_from_if(struct test_block *if_part,
 
 struct test_block *new_test_block(struct expr *test, Vector *body)
 {
-  struct test_block *tb = malloc(sizeof(*tb));
+  struct test_block *tb = malloc(sizeof(struct test_block));
   tb->test = test;
   tb->body = body;
   return tb;
@@ -359,7 +357,7 @@ struct test_block *new_test_block(struct expr *test, Vector *body)
 
 struct stmt *stmt_from_while(struct expr *test, Vector *body, int b)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = WHILE_KIND;
   stmt->while_stmt.btest = b;
   stmt->while_stmt.test  = test;
@@ -369,7 +367,7 @@ struct stmt *stmt_from_while(struct expr *test, Vector *body, int b)
 
 struct stmt *stmt_from_switch(struct expr *expr, Vector *case_seq)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = SWITCH_KIND;
   stmt->switch_stmt.expr = expr;
   stmt->switch_stmt.case_seq = case_seq;
@@ -379,7 +377,7 @@ struct stmt *stmt_from_switch(struct expr *expr, Vector *case_seq)
 struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
                            struct stmt *incr, Vector *body)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = FOR_TRIPLE_KIND;
   stmt->for_triple_stmt.init = init;
   stmt->for_triple_stmt.test = test;
@@ -391,7 +389,7 @@ struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
 struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
                                Vector *body, int bdecl)
 {
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind = FOR_EACH_KIND;
   stmt->for_each_stmt.bdecl = bdecl;
   stmt->for_each_stmt.var   = var;
@@ -407,7 +405,7 @@ struct stmt *stmt_from_go(struct expr *expr)
     exit(0);
   }
 
-  struct stmt *stmt = malloc(sizeof(*stmt));
+  struct stmt *stmt = stmt_new();
   stmt->kind    = GO_KIND;
   stmt->go_stmt = expr;
   return stmt;
@@ -415,7 +413,7 @@ struct stmt *stmt_from_go(struct expr *expr)
 
 struct var *new_var(char *id, struct type *type)
 {
-  struct var *v = malloc(sizeof(*v));
+  struct var *v = malloc(sizeof(struct var));
   v->id   = id;
   v->bconst = 0;
   v->type = type;
