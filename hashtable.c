@@ -44,27 +44,27 @@ static uint32 good_primes[] = {
 
 #define get_prime(idx)        good_primes[idx]
 #define prime_array_length()  nr_elts(good_primes)
-#define get_nr_entries(table) good_primes[((table)->prime_index)]
+#define get_nr_entries(table) good_primes[((table)->prime)]
 
 static uint32 get_proper_prime(HashTable *table)
 {
-  uint32 new_prime_index = table->prime_index;
+  uint32 new_prime = table->prime;
 
-  while (new_prime_index < prime_array_length() &&
-         table->nr_nodes >= get_prime(new_prime_index) * HT_LOAD_FACTOR)
-    ++new_prime_index;
+  while (new_prime < prime_array_length() &&
+         table->nodes >= get_prime(new_prime) * HT_LOAD_FACTOR)
+    ++new_prime;
 
-  if (new_prime_index >= prime_array_length())
-    new_prime_index = prime_array_length() - 1;
+  if (new_prime >= prime_array_length())
+    new_prime = prime_array_length() - 1;
 
-  return new_prime_index;
+  return new_prime;
 }
 
 static struct hlist_head *new_entries(int nr_entries)
 {
   struct hlist_head *entries;
 
-  entries = malloc(sizeof(struct hlist_head) * nr_entries);
+  entries = calloc(nr_entries, sizeof(struct hlist_head));
   if (entries == NULL) return NULL;
 
   for (int i = 0; i < nr_entries; i++)
@@ -78,37 +78,38 @@ static void free_entries(struct hlist_head *entries)
   if (entries != NULL) free(entries);
 }
 
+int HashTable_SlotSize(HashTable *table)
+{
+  return get_nr_entries(table);
+}
+
 int HashTable_Init(HashTable *table, HashInfo *hashinfo)
 {
   struct hlist_head *entries = new_entries(get_prime(DEFAULT_PRIME_INDEX));
   if (entries == NULL) return -1;
 
-  table->prime_index  = DEFAULT_PRIME_INDEX;
-  table->nr_nodes     = 0;
-  table->hash         = hashinfo->hash;
-  table->equal        = hashinfo->equal;
-  table->entries      = entries;
-
+  table->prime = DEFAULT_PRIME_INDEX;
+  table->nodes = 0;
+  table->hash = hashinfo->hash;
+  table->equal = hashinfo->equal;
+  table->entries = entries;
+  init_list_head(&table->head);
   return 0;
 }
 
 void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg)
 {
-  HashNode *hnode;
-  struct hlist_node *nxt;
-  int nr_entries = get_nr_entries(table);
-
-  for (int i = 0; i < nr_entries; i++) {
-    hlist_for_each_entry_safe(hnode, nxt, table->entries + i, link) {
-      hlist_del(&hnode->link);
-      if (fini != NULL) fini(hnode, arg);
-    }
+  HashNode *hnode, *nxt;
+  list_for_each_entry_safe(hnode, nxt, &table->head, llink) {
+    list_del(&hnode->llink);
+    hlist_del(&hnode->hlink);
+    if (fini != NULL) fini(hnode, arg);
   }
 
   free_entries(table->entries);
-  table->prime_index = 0;
-  table->nr_nodes    = 0;
-  table->entries     = NULL;
+  table->prime = 0;
+  table->nodes = 0;
+  table->entries = NULL;
 }
 
 HashTable *HashTable_Create(HashInfo *hashinfo)
@@ -137,7 +138,7 @@ static HashNode *__hash_table_find(HashTable *table, uint32 hash, void *key)
   uint32 idx  = hash % get_nr_entries(table);
   struct hash_node *hnode;
 
-  hlist_for_each_entry(hnode, table->entries + idx, link) {
+  hlist_for_each_entry(hnode, table->entries + idx, hlink) {
     if (table->equal(hnode->key, key))
       return hnode;
   }
@@ -162,20 +163,21 @@ int HashTable_Remove(HashTable *table, HashNode *hnode)
 
   ASSERT(temp == hnode);
 
-  hlist_del(&hnode->link);
-  --table->nr_nodes;
+  hlist_del(&hnode->hlink);
+  list_del(&hnode->llink);
+  --table->nodes;
 
   return 0;
 }
 
 static void hash_table_expand(HashTable *table,
-                              uint32 new_prime_index)
+                              uint32 new_prime)
 {
   HashNode *hnode;
   struct hlist_node *nxt;
   int nr_entries = get_nr_entries(table);
   uint32 index;
-  int new_nr_entries = get_prime(new_prime_index);
+  int new_nr_entries = get_prime(new_prime);
   struct hlist_head *entries = new_entries(new_nr_entries);
   if (entries == NULL) {
     debug_error("expand table failed\n");
@@ -183,30 +185,30 @@ static void hash_table_expand(HashTable *table,
   }
 
   for (int i = 0; i < nr_entries; i++) {
-    hlist_for_each_entry_safe(hnode, nxt, table->entries + i, link) {
-      hlist_del(&hnode->link);
+    hlist_for_each_entry_safe(hnode, nxt, table->entries + i, hlink) {
+      hlist_del(&hnode->hlink);
       index = hnode->hash % new_nr_entries;
-      hlist_add_head(&hnode->link, entries + index);
+      hlist_add_head(&hnode->hlink, entries + index);
     }
   }
 
   free_entries(table->entries);
-  table->prime_index = new_prime_index;
+  table->prime = new_prime;
   table->entries = entries;
 }
 
 static void hash_table_maybe_expand(HashTable *table)
 {
-  uint32 new_prime_index;
+  int new_prime;
 
-  if (table->prime_index >= prime_array_length()) return;
+  if (table->prime >= prime_array_length()) return;
 
-  if (table->nr_nodes < get_nr_entries(table) * HT_LOAD_FACTOR) return;
+  if (table->nodes < get_nr_entries(table) * HT_LOAD_FACTOR) return;
 
-  new_prime_index = get_proper_prime(table);
-  if (new_prime_index <= table->prime_index) return;
+  new_prime = get_proper_prime(table);
+  if (new_prime <= table->prime) return;
 
-  hash_table_expand(table, new_prime_index);
+  hash_table_expand(table, new_prime);
 }
 
 int HashTable_Insert(HashTable *table, HashNode *hnode)
@@ -223,15 +225,18 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
 
   uint32 index = hash % get_nr_entries(table);
 
-  hlist_add_head(&hnode->link, table->entries + index);
-  ++table->nr_nodes;
+  hlist_add_head(&hnode->hlink, table->entries + index);
+  list_add_tail(&hnode->llink, &table->head);
+  ++table->nodes;
 
   return 0;
 }
 
 void HashTable_Traverse(HashTable *table, ht_visit_func visit, void *arg)
 {
-  if (table != NULL) {
-    visit(table->entries, get_nr_entries(table), arg);
-  }
+  if (table == NULL) return;
+
+  HashNode *hnode;
+  list_for_each_entry(hnode, &table->head, llink)
+    visit(hnode, arg);
 }

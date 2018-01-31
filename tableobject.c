@@ -117,7 +117,7 @@ int Table_Put(Object *ob, TValue *key, TValue *value)
 int Table_Count(Object *ob)
 {
   TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
-  return HashTable_Count(&table->table);
+  return HashTable_NodeCount(&table->table);
 }
 
 struct visit_struct {
@@ -125,18 +125,11 @@ struct visit_struct {
   void *arg;
 };
 
-static void table_visit(struct hlist_head *head, int size, void *arg)
+static void table_visit(HashNode *hnode, void *arg)
 {
   struct visit_struct *vs = arg;
-  HashNode *hnode;
-  struct entry *entry;
-  for (int i = 0; i < size; i++) {
-    HashList_ForEach(hnode, head) {
-      entry = container_of(hnode, struct entry, hnode);
-      vs->visit(&entry->key, &entry->val, vs->arg);
-    }
-    ++head;
-  }
+  struct entry *entry = container_of(hnode, struct entry, hnode);
+  vs->visit(&entry->key, &entry->val, vs->arg);
 }
 
 void Table_Traverse(Object *ob, table_visit_func visit, void *arg)

@@ -34,7 +34,6 @@ int STable_Init(STable *stbl, ItemTable *itable)
   else
     stbl->itable = itable;
   stbl->next_index = 0;
-  init_list_head(&stbl->head);
   return 0;
 }
 
@@ -58,7 +57,6 @@ Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
     Symbol_Free(sym);
     return NULL;
   }
-  list_add_tail(&sym->link, &stbl->head);
   sym->index = stbl->next_index++;
   return sym;
 }
@@ -74,7 +72,6 @@ Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
     Symbol_Free(sym);
     return NULL;
   }
-  list_add_tail(&sym->link, &stbl->head);
   return sym;
 }
 
@@ -88,7 +85,6 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
     Symbol_Free(sym);
     return NULL;
   }
-  list_add_tail(&sym->link, &stbl->head);
   return sym;
 }
 
@@ -109,7 +105,6 @@ Symbol *Symbol_New(int name_index, int kind, int access, int desc_index)
 {
   Symbol *sym = calloc(1, sizeof(Symbol));
   Init_HashNode(&sym->hnode, sym);
-  init_list_head(&sym->link);
   sym->name_index = name_index;
   sym->kind = (uint8)kind;
   sym->access = (uint8)access;
@@ -255,8 +250,10 @@ static symbol_show_func show_funcs[] = {
   symbol_class_show,
 };
 
-static void symbol_show(Symbol *sym, STable *stbl)
+static void symbol_show(HashNode *hnode, void *arg)
 {
+  Symbol *sym = container_of(hnode, Symbol, hnode);
+  STable *stbl = arg;
   symbol_show_func show = show_funcs[sym->kind];
   ASSERT_PTR(show);
   show(sym, stbl);
@@ -264,7 +261,5 @@ static void symbol_show(Symbol *sym, STable *stbl)
 
 void STable_Show(STable *stbl)
 {
-  Symbol *sym;
-  list_for_each_entry(sym, &stbl->head, link)
-    symbol_show(sym, stbl);
+  HashTable_Traverse(stbl->htable, symbol_show, stbl);
 }

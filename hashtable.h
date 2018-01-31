@@ -12,28 +12,27 @@ extern "C" {
 typedef struct hlist_head HashList;
 
 typedef struct hash_node {
-  struct hlist_node link;     /* conflict list */
+  struct hlist_node hlink;    /* conflict list */
+  struct list_head llink;     /* list node */
   uint32 hash;                /* hash value */
   void *key;                  /* hash key */
 } HashNode;
 
 #define Init_HashNode(hnode, k) do {  \
-  init_hlist_node(&(hnode)->link);    \
+  init_hlist_node(&(hnode)->hlink);   \
+  init_list_head(&(hnode)->llink);    \
   (hnode)->hash  = 0;                 \
   (hnode)->key   = k;                 \
 } while (0)
 
-#define HashNode_Unhashed(hnode) hlist_unhashed(&(hnode)->link)
-
+#define HashNode_Unhashed(hnode) hlist_unhashed(&(hnode)->hlink)
 #define HashList_ForEach(hnode, head) \
-  hlist_for_each_entry(hnode, head, link)
-
+  hlist_for_each_entry(hnode, head, hlink)
 #define HashList_Empty(head) hlist_empty(head)
-
 typedef uint32 (*ht_hash_func)(void *key);
 typedef int (*ht_equal_func)(void *key1, void *key2);
 typedef void (*ht_fini_func)(HashNode *hnode, void *arg);
-typedef void (*ht_visit_func)(HashList *hlist, int size, void *arg);
+typedef void (*ht_visit_func)(HashNode *hnode, void *arg);
 
 typedef struct hashinfo {
   ht_hash_func hash;
@@ -48,11 +47,12 @@ typedef struct hashinfo {
 } while (0)
 
 typedef struct hash_table {
-  uint32 prime_index;           /* prime array index, internal used */
-  uint32 nr_nodes;              /* number of nodes in hash table */
+  int prime;                    /* prime array index, internal used */
+  int nodes;                    /* number of nodes in hash table */
   ht_hash_func hash;            /* hash function */
   ht_equal_func equal;          /* equal function */
   struct hlist_head *entries;   /* conflict list array */
+  struct list_head head;        /* list head */
 } HashTable;
 
 /**
@@ -85,7 +85,8 @@ int HashTable_Init(HashTable *table, HashInfo *hashinfo);
 
 void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg);
 
-#define HashTable_Count(table)  ((table)->nr_nodes)
+#define HashTable_NodeCount(table)  ((table)->nodes)
+int HashTable_SlotSize(HashTable *table);
 
 #ifdef __cplusplus
 }

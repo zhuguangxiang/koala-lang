@@ -54,12 +54,14 @@ int check(uint32 val) {
   return 0;
 }
 
-void number_show(struct hlist_head *head, int size, void *arg)
+void number_show(HashTable *table)
 {
-  UNUSED_PARAMETER(arg);
   struct number *num;
-  struct hash_node *hnode;
+  HashNode *hnode;
+  int size = HashTable_SlotSize(table);
+  struct hlist_head *head;
   for (int i = 0; i < size; i++) {
+    head = table->entries + i;
     if (!HashList_Empty(head)) {
       fprintf(stdout, "[%d]:", i);
       HashList_ForEach(hnode, head) {
@@ -68,7 +70,6 @@ void number_show(struct hlist_head *head, int size, void *arg)
       }
       fprintf(stdout, "\n");
     }
-    head++;
   }
 }
 
@@ -106,7 +107,7 @@ void test_number_hash_table(void) {
     ASSERT(hnode != NULL);
   }
 
-  HashTable_Traverse(table, number_show, NULL);
+  number_show(table);
 
   value = 100;
   for (i = 0; i < 1000000; i++) {
@@ -116,7 +117,7 @@ void test_number_hash_table(void) {
     int res = HashTable_Remove(table, hnode);
     ASSERT(res == 0);
   }
-  printf("num:%d\n", table->nr_nodes);
+  printf("num:%d\n", table->nodes);
   printf("duplicated:%d\n", duplicated);
   HashTable_Destroy(table, NULL, NULL);
 }

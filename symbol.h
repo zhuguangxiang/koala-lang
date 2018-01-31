@@ -23,7 +23,6 @@ extern "C" {
 
 typedef struct symbol {
   HashNode hnode;
-  struct list_head link;
   int name_index;
   int8 kind;
   int8 access;
@@ -39,7 +38,6 @@ typedef struct symboltable {
   HashTable *htable;
   ItemTable *itable;
   int next_index;
-  struct list_head head;
 } STable;
 
 /* Exported APIs */
