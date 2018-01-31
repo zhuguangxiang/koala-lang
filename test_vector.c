@@ -29,16 +29,16 @@ char mem[30][10];
 char *strings[30];
 
 void test_vector_set(void) {
-  Vector *vec = Vector_Create(sizeof(char *));
+  Vector *vec = Vector_Create();
   ASSERT_PTR(vec);
   int res;
   for (int i = 0; i < 30; i++) {
-    res = Vector_Set(vec, i, &strings[i]);
+    res = Vector_Set(vec, i, strings[i]);
     ASSERT(res >= 0);
   }
 
   for (int i = 0; i < Vector_Capacity(vec); i++) {
-    char *s = *(char **)Vector_Get(vec, i);
+    char *s = Vector_Get(vec, i);
     if (s) printf("%s\n", s);
   }
 

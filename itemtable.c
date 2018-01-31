@@ -71,7 +71,7 @@ int ItemTable_Index(ItemTable *table, int type, void *data)
 void *ItemTable_Get(ItemTable *table, int type, int index)
 {
   ASSERT(type >= 0 && type < table->size);
-  return *(void **)Vector_Get(table->items + type, index);
+  return Vector_Get(table->items + type, index);
 }
 
 int ItemTable_Size(ItemTable *table, int type)
