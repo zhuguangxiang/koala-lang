@@ -42,7 +42,7 @@ typedef struct methodobject {
     struct {
       //Object *closure;  // tuple for closure
       ItemTable *itable;  // constant pool
-      CodeInfo *code;     // codeinfo
+      CodeInfo codeinfo;  // codeinfo
     } kf;
   };
 } MethodObject;

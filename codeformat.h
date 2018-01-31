@@ -9,71 +9,6 @@
 extern "C" {
 #endif
 
-#define TYPE_PRIMITIVE  1
-#define TYPE_DEFINED    2
-
-#define PRIMITIVE_INT     'i'
-#define PRIMITIVE_FLOAT   'f'
-#define PRIMITIVE_BOOL    'b'
-#define PRIMITIVE_STRING  's'
-#define PRIMITIVE_ANY     'A'
-
-/* Type's descriptor */
-typedef struct typedesc {
-  short dims;
-  short kind;
-  union {
-    int primitive;
-    char *str;
-  };
-} TypeDesc;
-
-#define Decl_Primitive_Desc(desc, d, p) \
-  TypeDesc desc = {.dims = (d), .kind = TYPE_PRIMITIVE, .primitive = (p)}
-#define Decl_UserDef_Desc(desc, d, s)  \
-  TypeDesc desc = {.dims = (d), .kind = TYPE_DEFINED, .str = (s)}
-#define Init_Primitive_Desc(desc, d, p) do { \
-  (desc)->dims = (d); (desc)->kind = TYPE_PRIMITIVE; \
-  (desc)->primitive = (p); \
-} while (0)
-#define Init_UserDef_Desc(desc, d, s) do { \
-  (desc)->dims = (d); (desc)->kind = TYPE_DEFINED; \
-  (desc)->str = (s); \
-} while (0)
-
-typedef struct protoinfo {
-  int rsz;
-  int psz;
-  int vargs;
-  TypeDesc *rdesc;
-  TypeDesc *pdesc;
-} ProtoInfo;
-
-typedef struct const_item ConstItem;
-
-typedef struct codeinfo {
-  int csz;
-  uint8 *codes;
-  int ksz;
-  ConstItem *k;
-} CodeInfo;
-
-typedef struct funcinfo {
-  ProtoInfo *proto;
-  CodeInfo *code;
-  int locals;
-} FuncInfo;
-
-int CStr_To_Desc(char *str, TypeDesc *desc);
-TypeDesc *CStr_To_DescList(int count, char *str);
-void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
-                    ProtoInfo *proto);
-void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto);
-void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
-                   FuncInfo *funcinfo);
-
-/*-------------------------------------------------------------------------*/
-
 typedef struct image_header {
   uint8 magic[4];
   uint8 version[4];
@@ -137,7 +72,7 @@ typedef struct proto_item {
 #define CONST_BOOL    3
 #define CONST_STRING  4
 
-struct const_item {
+typedef struct const_item {
   int type;
   union {
     int64 ival;          // int32 or int64
@@ -145,7 +80,7 @@ struct const_item {
     int bval;             // bool
     int32 string_index;  //->StringItem
   };
-};
+} ConstItem;
 
 #define CONST_IVAL_INIT(_v)   {.type = CONST_INT,   .ival = (int64)(_v)}
 #define CONST_FVAL_INIT(_v)   {.type = CONST_FLOAT, .fval = (float64)(_v)}
@@ -213,28 +148,95 @@ typedef struct struct_item {
 //   uint32 proto_index;   //->ProtoItem
 // } IMethodItem;
 
-typedef struct klcimage {
+typedef struct kimage {
   ImageHeader header;
   char *package;
   ItemTable *itable;
-} KLCImage;
+} KImage;
 
-KLCImage *KLCImage_New(char *pkg_name);
-void KLCImage_Free(KLCImage *image);
-void KLCImage_Finish(KLCImage *image);
-void KLCImage_Add_Var(KLCImage *image, char *name, TypeDesc *desc, int bconst);
-void KLCImage_Add_Func(KLCImage *image, char *name, FuncInfo *info);
-void KLCImage_Write_File(KLCImage *image, char *path);
-KLCImage *KLCImage_Read_File(char *path);
-void KLCImage_Show(KLCImage *image);
+/*-------------------------------------------------------------------------*/
 
-#define KLCImage_Count_Vars(image) \
+#define TYPE_PRIMITIVE  1
+#define TYPE_DEFINED    2
+
+#define PRIMITIVE_INT     'i'
+#define PRIMITIVE_FLOAT   'f'
+#define PRIMITIVE_BOOL    'b'
+#define PRIMITIVE_STRING  's'
+#define PRIMITIVE_ANY     'A'
+
+/* Type's descriptor */
+typedef struct typedesc {
+  short dims;
+  short kind;
+  union {
+    int primitive;
+    char *str;
+  };
+} TypeDesc;
+
+#define Decl_Primitive_Desc(desc, d, p) \
+  TypeDesc desc = {.dims = (d), .kind = TYPE_PRIMITIVE, .primitive = (p)}
+#define Decl_UserDef_Desc(desc, d, s) \
+  TypeDesc desc = {.dims = (d), .kind = TYPE_DEFINED, .str = (s)}
+#define Init_Primitive_Desc(desc, d, p) do { \
+  (desc)->dims = (d); (desc)->kind = TYPE_PRIMITIVE; \
+  (desc)->primitive = (p); \
+} while (0)
+#define Init_UserDef_Desc(desc, d, s) do { \
+  (desc)->dims = (d); (desc)->kind = TYPE_DEFINED; \
+  (desc)->str = (s); \
+} while (0)
+
+typedef struct protoinfo {
+  int rsz;
+  int psz;
+  int vargs;
+  TypeDesc *rdesc;
+  TypeDesc *pdesc;
+} ProtoInfo;
+
+typedef struct codeinfo {
+  int csz;
+  uint8 *codes;
+  int ksz;
+  ConstItem *k;
+} CodeInfo;
+
+typedef struct funcinfo {
+  ProtoInfo *proto;
+  CodeInfo *code;
+  int locals;
+} FuncInfo;
+
+int CStr_To_Desc(char *str, TypeDesc *desc);
+TypeDesc *CStr_To_DescList(int count, char *str);
+void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
+                    ProtoInfo *proto);
+void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto);
+void Init_CodeInfo(uint8 *codes, int csz, ConstItem *k, int ksz,
+                   CodeInfo *codeinfo);
+void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
+                   FuncInfo *funcinfo);
+
+/*-------------------------------------------------------------------------*/
+
+KImage *KImage_New(char *pkg_name);
+void KImage_Free(KImage *image);
+void KImage_Finish(KImage *image);
+void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
+void KImage_Add_Func(KImage *image, char *name, FuncInfo *info);
+void KImage_Write_File(KImage *image, char *path);
+KImage *KImage_Read_File(char *path);
+void KImage_Show(KImage *image);
+
+#define KImage_Count_Vars(image) \
   ItemTable_Size((image)->itable, ITEM_VAR)
 
-#define KLCImage_Count_Consts(image) \
+#define KImage_Count_Consts(image) \
   ItemTable_Size((image)->itable, ITEM_CONST)
 
-#define KLCImage_Count_Functions(image) \
+#define KImage_Count_Functions(image) \
   ItemTable_Size((image)->itable, ITEM_FUNC)
 
 int StringItem_Get(ItemTable *itable, char *str);

@@ -240,12 +240,19 @@ static void symbol_func_show(Symbol *sym, STable *stbl)
   proto_show(sym, stbl);
 }
 
+static void symbol_class_show(Symbol *sym, STable *stbl)
+{
+  ASSERT(sym->kind == SYM_CLASS);
+  printf("class %s;\n", name_tostr(sym->name_index, stbl));
+}
+
 typedef void (*symbol_show_func)(Symbol *sym, STable *stbl);
 
 static symbol_show_func show_funcs[] = {
   NULL,
   symbol_var_show,
   symbol_func_show,
+  symbol_class_show,
 };
 
 static void symbol_show(Symbol *sym, STable *stbl)

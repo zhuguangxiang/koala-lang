@@ -3,17 +3,14 @@
 
 /*-------------------------------------------------------------------------*/
 
-Object *Module_New(char *name, char *path, int nr_locals)
+Object *Module_New(char *name, char *path)
 {
-  int size = sizeof(ModuleObject) + sizeof(TValue) * nr_locals;
-  ModuleObject *ob = malloc(size);
+  ModuleObject *ob = malloc(sizeof(ModuleObject));
   init_object_head(ob, &Module_Klass);
   ob->name = name;
   ob->next_index = 0;
-  ob->size = nr_locals;
   STable_Init(&ob->stable, NULL);
-  for (int i = 0; i < nr_locals; i++)
-    initnilvalue(ob->locals + i);
+  Vector_Init(&ob->vec, sizeof(TValue));
   if (Koala_Add_Module(path, (Object *)ob) < 0) {
     Module_Free((Object *)ob);
     return NULL;
@@ -30,13 +27,8 @@ void Module_Free(Object *ob)
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  ASSERT(mob->next_index < mob->size);
   Symbol *sym = STable_Add_Var(&mob->stable, name, desc, bconst);
-  if (sym != NULL) {
-    sym->index = mob->next_index++;
-    return 0;
-  }
-  return -1;
+  return (sym != NULL) ? 0 : -1;
 }
 
 int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth)
@@ -87,7 +79,6 @@ static int __get_value_index(ModuleObject *mob, char *name)
   struct symbol *s = STable_Get(&mob->stable, name);
   if (s != NULL) {
     if (s->kind == SYM_VAR) {
-      ASSERT(s->index < mob->size);
       return s->index;
     } else {
       debug_error("symbol is not a variable\n");
@@ -107,7 +98,7 @@ TValue Module_Get_Value(Object *ob, char *name)
   ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
   if (index < 0) return NilValue;
-  return mob->locals[index];
+  return *(TValue *)Vector_Get(&mob->vec, index);
 }
 
 void Module_Set_Value(Object *ob, char *name, TValue *val)
@@ -115,7 +106,7 @@ void Module_Set_Value(Object *ob, char *name, TValue *val)
   ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
   if (index < 0) return;
-  mob->locals[index] = *val;
+  Vector_Set(&mob->vec, index, val);
 }
 
 Object *Module_Get_Function(Object *ob, char *name)

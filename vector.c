@@ -5,8 +5,9 @@
 
 #define DEFAULT_CAPACTIY 16
 
-int Vector_Init(Vector *vec)
+int Vector_Init(Vector *vec, int objsize)
 {
+  vec->objsize = objsize;
   vec->capacity = 0;
   vec->size  = 0;
   vec->objs  = NULL;
@@ -20,13 +21,13 @@ void Vector_Fini(Vector *vec, vec_fini_func fini, void *arg)
   if (fini != NULL) {
     debug_info("finalizing objs.\n");
     for (int i = 0; i < vec->capacity; i++) {
-      void *obj = vec->objs[i];
-      if (obj != NULL) fini(obj, arg);
+      void *obj = vec->objs + i * vec->objsize;
+      fini(obj, arg);
     }
   }
 
   free(vec->objs);
-
+  vec->objsize = 0;
   vec->capacity = 0;
   vec->size = 0;
   vec->objs = NULL;
@@ -35,10 +36,10 @@ void Vector_Fini(Vector *vec, vec_fini_func fini, void *arg)
 static int __vector_expand(Vector *vec)
 {
   int new_capactiy = vec->capacity * 2;
-  void **objs = calloc(new_capactiy, sizeof(void **));
+  void *objs = calloc(new_capactiy, vec->objsize);
   if (objs == NULL) return -1;
 
-  memcpy(objs, vec->objs, vec->capacity * sizeof(void **));
+  memcpy(objs, vec->objs, vec->capacity * vec->objsize);
   free(vec->objs);
   vec->objs = objs;
   vec->capacity = new_capactiy;
@@ -49,7 +50,7 @@ static int __vector_expand(Vector *vec)
 int Vector_Set(Vector *vec, int index, void *obj)
 {
   if (vec->objs == NULL) {
-    void **objs = calloc(DEFAULT_CAPACTIY, sizeof(void **));
+    void *objs = calloc(DEFAULT_CAPACTIY, vec->objsize);
     if (objs == NULL) {
       debug_error("calloc failed\n");
       return -1;
@@ -74,12 +75,8 @@ int Vector_Set(Vector *vec, int index, void *obj)
     }
   }
 
-  if (vec->objs[index] == NULL)
-    ++vec->size;
-  else
-    debug_warn("Position %d already has an item.\n", index);
-
-  vec->objs[index] = obj;
+  memcpy(vec->objs + index * vec->objsize, obj, vec->objsize);
+  ++vec->size;
   return index;
 }
 
@@ -91,18 +88,18 @@ void *Vector_Get(Vector *vec, int index)
   }
 
   if (index < vec->capacity) {
-    return vec->objs[index];
+    return vec->objs + index * vec->objsize;
   } else {
     debug_error("argument's index is %d out of bound\n", index);
     return NULL;
   }
 }
 
-Vector *Vector_Create()
+Vector *Vector_Create(int objsize)
 {
-  Vector *vec = malloc(sizeof(*vec));
+  Vector *vec = malloc(sizeof(Vector));
   if (vec == NULL) return NULL;
-  Vector_Init(vec);
+  Vector_Init(vec, objsize);
   return vec;
 }
 

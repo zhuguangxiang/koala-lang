@@ -13,9 +13,9 @@ Object *init_test_module(void)
    * var result = add(-123, 456);
    * io.Print("-123 + 456 = ", result);
    */
-  Object *module = Module_New("test", "/", 1);
+  Object *module = Module_New("test", "/");
   Decl_Primitive_Desc(desc, 0, PRIMITIVE_INT);
-  Module_Add_Var(module, "result", &desc, ACCESS_PRIVATE);
+  Module_Add_Var(module, "result", &desc, 0);
 
   static uint8 codes[] = {
     OP_LOAD, 2, 0, 0, 0,
@@ -28,7 +28,7 @@ Object *init_test_module(void)
   CodeInfo codeinfo;
   FuncInfo funcinfo;
   Init_ProtoInfo(1, "i", 2, "ii", &proto);
-  Init_CodeInfo(codes, 0, NULL, 0, &codeinfo);
+  Init_CodeInfo(codes, sizeof(codes), NULL, 0, &codeinfo);
   Init_FuncInfo(&proto, &codeinfo, 0, &funcinfo);
   Object *meth = Method_New(&funcinfo, Module_ItemTable(module));
   Module_Add_Func(module, "add", &proto, meth);
@@ -72,7 +72,7 @@ Object *init_test_module(void)
   const_setstrvalue(&k[6], index5);
 
   Init_ProtoInfo(0, NULL, 0, NULL, &proto);
-  Init_CodeInfo(__init__, 0, k, 10, &codeinfo);
+  Init_CodeInfo(__init__, sizeof(__init__), k, 10, &codeinfo);
   Init_FuncInfo(&proto, &codeinfo, 0, &funcinfo);
   meth = Method_New(&funcinfo, Module_ItemTable(module));
   Module_Add_Func(module, "__init__", &proto, meth);

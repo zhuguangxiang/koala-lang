@@ -7,7 +7,7 @@
 
 Object *String_New(char *str)
 {
-  StringObject *sobj = malloc(sizeof(*sobj));
+  StringObject *sobj = malloc(sizeof(StringObject));
   init_object_head(sobj, &String_Klass);
   sobj->len = strlen(str);
   sobj->str = str;

@@ -14,7 +14,7 @@ struct mod_entry {
 
 static struct mod_entry *new_mod_entry(char *path, Object *mo)
 {
-  struct mod_entry *e = malloc(sizeof(*e));
+  struct mod_entry *e = malloc(sizeof(struct mod_entry));
   Init_HashNode(&e->hnode, e);
   e->path = path;
   e->mo = mo;
@@ -94,7 +94,7 @@ void Koala_Run_File(char *path)
 /*-------------------------------------------------------------------------*/
 static void Init_Lang_Module(void)
 {
-  Object *ob = Module_New("lang", "koala/lang", 0);
+  Object *ob = Module_New("lang", "koala/lang");
   Init_Klass_Klass(ob);
   Init_String_Klass(ob);
   Init_Tuple_Klass(ob);

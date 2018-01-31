@@ -7,20 +7,21 @@ extern "C" {
 #endif
 
 typedef struct vector {
+  int objsize;
   int capacity;
   int size;
-  void **objs;
+  char *objs;
 } Vector;
 
 typedef void (*vec_fini_func)(void *obj, void *arg);
 
-Vector *Vector_Create(void);
+Vector *Vector_Create(int objsize);
 void Vector_Destroy(Vector *vec, vec_fini_func fini, void *arg);
-int Vector_Init(Vector *vec);
+int Vector_Init(Vector *vec, int objsize);
 void Vector_Fini(Vector *vec, vec_fini_func fini, void *arg);
 int Vector_Set(Vector *vec, int index, void *obj);
 void *Vector_Get(Vector *vec, int index);
-#define Vector_Appand(vec, obj) Vector_Set(vec, Vector_Size(vec), obj)
+#define Vector_Append(vec, obj) Vector_Set(vec, Vector_Size(vec), obj)
 #define Vector_Size(vec)      ((vec)->size)
 #define Vector_Capacity(vec)  ((vec)->capacity)
 

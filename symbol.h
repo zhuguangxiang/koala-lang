@@ -25,9 +25,9 @@ typedef struct symbol {
   HashNode hnode;
   struct list_head link;
   int name_index;
-  uint8 kind;
-  uint8 access;
-  uint16 unused;
+  int8 kind;
+  int8 access;
+  int16 refcnt; /* for compiler */
   int desc_index;
   union {
     void *obj;  /* method or klass */

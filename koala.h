@@ -9,6 +9,7 @@
 #include "moduleobject.h"
 #include "methodobject.h"
 #include "routine.h"
+#include "buffer.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -426,7 +426,7 @@ struct clist {
 
 static inline struct clist *new_clist(void)
 {
-  struct clist *list = malloc(sizeof(*list));
+  struct clist *list = malloc(sizeof(struct clist));
   init_clist(list);
   return list;
 }

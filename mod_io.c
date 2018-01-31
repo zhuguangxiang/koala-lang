@@ -97,6 +97,6 @@ static FuncDef io_funcs[] = {
 
 void Init_IO_Module(void)
 {
-  Object *ob = Module_New("io", "koala/io", 0);
+  Object *ob = Module_New("io", "koala/io");
   Module_Add_CFunctions(ob, io_funcs);
 }

@@ -110,7 +110,7 @@ void run_kframe(Frame *f)
 Routine *Routine_Create(Object *func, Object *obj, Object *args)
 {
   OB_ASSERT_KLASS(func, Method_Klass);
-  Routine *rt = malloc(sizeof(*rt));
+  Routine *rt = malloc(sizeof(Routine));
   init_object_head(rt, &Routine_Klass);
   init_list_head(&rt->link);
   init_list_head(&rt->frames);

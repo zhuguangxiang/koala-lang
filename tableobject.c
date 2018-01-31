@@ -63,7 +63,7 @@ static uint32 entry_hash(void *k)
 
 static struct entry *new_entry(TValue *key, TValue *value)
 {
-  struct entry *entry = malloc(sizeof(*entry));
+  struct entry *entry = malloc(sizeof(struct entry));
   entry->key = *key;
   entry->val = *value;
   Init_HashNode(&entry->hnode, &entry->key);
@@ -78,7 +78,7 @@ static void free_entry(struct entry *e) {
 
 Object *Table_New(void)
 {
-  TableObject *table = malloc(sizeof(*table));
+  TableObject *table = malloc(sizeof(TableObject));
   init_object_head(table, &Table_Klass);
   Decl_HashInfo(hashinfo, entry_hash, entry_equal);
   int res = HashTable_Init(&table->table, &hashinfo);

@@ -108,6 +108,7 @@ void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
   proto->rsz = rsz;
   proto->rdesc = CStr_To_DescList(rsz, rdesc);
   proto->psz = psz;
+  proto->vargs = 0;
   proto->pdesc = CStr_To_DescList(psz, pdesc);
 }
 
@@ -115,6 +116,15 @@ void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto)
 {
   Init_ProtoInfo(rsz, rdesc, 0, NULL, proto);
   proto->vargs = 1;
+}
+
+void Init_CodeInfo(uint8 *codes, int csz, ConstItem *k, int ksz,
+                   CodeInfo *codeinfo)
+{
+  codeinfo->codes = codes;
+  codeinfo->csz = csz;
+  codeinfo->k = k;
+  codeinfo->ksz = ksz;
 }
 
 void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
@@ -129,7 +139,7 @@ void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
 
 MapItem *MapItem_New(int type, int offset, int size)
 {
-  MapItem *item = malloc(sizeof(*item));
+  MapItem *item = malloc(sizeof(MapItem));
   item->type   = type;
   item->unused = 0;
   item->offset = offset;
@@ -149,7 +159,7 @@ StringItem *StringItem_New(char *name)
 
 TypeItem *TypeItem_Primitive_New(int dims, int primitive)
 {
-  TypeItem *item = malloc(sizeof(*item));
+  TypeItem *item = malloc(sizeof(TypeItem));
   item->dims = dims;
   item->kind = TYPE_PRIMITIVE;
   item->primitive = primitive;
@@ -158,7 +168,7 @@ TypeItem *TypeItem_Primitive_New(int dims, int primitive)
 
 TypeItem *TypeItem_Structed_New(int dims, int32 index)
 {
-  TypeItem *item = malloc(sizeof(*item));
+  TypeItem *item = malloc(sizeof(TypeItem));
   item->dims = dims;
   item->kind = TYPE_DEFINED;
   item->index = index;
@@ -167,7 +177,7 @@ TypeItem *TypeItem_Structed_New(int dims, int32 index)
 
 TypeListItem *TypeListItem_New(int size, int32 index[])
 {
-  TypeListItem *item = malloc(sizeof(*item) + size * sizeof(uint32));
+  TypeListItem *item = malloc(sizeof(TypeListItem) + size * sizeof(uint32));
   item->size = size;
   for (int i = 0; i < size; i++) {
     item->index[i] = index[i];
@@ -177,7 +187,7 @@ TypeListItem *TypeListItem_New(int size, int32 index[])
 
 VarItem *VarItem_New(int32 name_index, int32 type_index, int flags)
 {
-  VarItem *item = malloc(sizeof(*item));
+  VarItem *item = malloc(sizeof(VarItem));
   item->name_index = name_index;
   item->type_index = type_index;
   item->flags = flags;
@@ -186,7 +196,7 @@ VarItem *VarItem_New(int32 name_index, int32 type_index, int flags)
 
 ProtoItem *ProtoItem_New(int32 rindex, int32 pindex)
 {
-  ProtoItem *item = malloc(sizeof(*item));
+  ProtoItem *item = malloc(sizeof(ProtoItem));
   item->rindex = rindex;
   item->pindex = pindex;
   return item;
@@ -195,7 +205,7 @@ ProtoItem *ProtoItem_New(int32 rindex, int32 pindex)
 FuncItem *FuncItem_New(int name_index, int proto_index, int access, int vargs,
                        int rsz, int psz, int locals, int code_index)
 {
-  FuncItem *item = malloc(sizeof(*item));
+  FuncItem *item = malloc(sizeof(FuncItem));
   item->name_index = name_index;
   item->proto_index = proto_index;
   item->access = access;
@@ -363,7 +373,7 @@ int mapitem_length(void *o)
   return sizeof(MapItem);
 }
 
-void mapitem_show(KLCImage *image, void *o)
+void mapitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   MapItem *item = o;
@@ -402,7 +412,7 @@ void stringitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(StringItem) + item->length * sizeof(char), 1, fp);
 }
 
-void stringitem_show(KLCImage *image, void *o)
+void stringitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   StringItem *item = o;
@@ -437,7 +447,7 @@ int typeitem_equal(void *k1, void *k2)
   return 1;
 }
 
-void typeitem_show(KLCImage *image, void *o)
+void typeitem_show(KImage *image, void *o)
 {
   TypeItem *item = o;
 
@@ -479,7 +489,7 @@ int typelistitem_equal(void *k1, void *k2)
   return !memcmp(item1, item2, sizeof(TypeListItem) + item1->size);
 }
 
-void typelistitem_show(KLCImage *image, void *o)
+void typelistitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -491,7 +501,7 @@ int structitem_length(void *o)
   return 0;
 }
 
-void structitem_show(KLCImage *image, void *o)
+void structitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -503,7 +513,7 @@ int intfitem_length(void *o)
   return 0;
 }
 
-void intfitem_show(KLCImage *image, void *o)
+void intfitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -515,7 +525,7 @@ int varitem_length(void *o)
   return sizeof(VarItem);
 }
 
-void varitem_show(KLCImage *image, void *o)
+void varitem_show(KImage *image, void *o)
 {
   VarItem *item = o;
   StringItem *stritem;
@@ -547,7 +557,7 @@ int fielditem_length(void *o)
   return 0;
 }
 
-void fielditem_show(KLCImage *image, void *o)
+void fielditem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -583,7 +593,7 @@ int protoitem_equal(void *k1, void *k2)
   }
 }
 
-void protoitem_show(KLCImage *image, void *o)
+void protoitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -595,7 +605,7 @@ int funcitem_length(void *o)
   return sizeof(FuncItem);
 }
 
-void funcitem_show(KLCImage *image, void *o)
+void funcitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -612,7 +622,7 @@ int methoditem_length(void *o)
   return 0;
 }
 
-void methoditem_show(KLCImage *image, void *o)
+void methoditem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -630,7 +640,7 @@ void codeitem_write(FILE *fp, void *o)
   fwrite(o, item->size, 1, fp);
 }
 
-void codeitem_show(KLCImage *image, void *o)
+void codeitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -708,7 +718,7 @@ int constitem_equal(void *k1, void *k2)
   return res;
 }
 
-void constitem_show(KLCImage *image, void *o)
+void constitem_show(KImage *image, void *o)
 {
   UNUSED_PARAMETER(image);
   UNUSED_PARAMETER(o);
@@ -718,7 +728,7 @@ typedef int (*item_length_t)(void *);
 typedef void (*item_fwrite_t)(FILE *, void *);
 typedef uint32 (*item_hash_t)(void *);
 typedef int (*item_equal_t)(void *, void *);
-typedef void (*item_show_t)(KLCImage *, void *);
+typedef void (*item_show_t)(KImage *, void *);
 
 struct item_funcs {
   item_length_t   ilength;
@@ -854,7 +864,7 @@ int item_equal(void *k1, void *k2)
   return equal_fn(e1->data, e2->data);
 }
 
-void KLCImage_Init(KLCImage *image, char *package)
+void KImage_Init(KImage *image, char *package)
 {
   int pkg_size = ALIGN_UP(strlen(package) + 1, 4);
   image->package = malloc(pkg_size);
@@ -864,20 +874,20 @@ void KLCImage_Init(KLCImage *image, char *package)
   image->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
 }
 
-KLCImage *KLCImage_New(char *package)
+KImage *KImage_New(char *package)
 {
-  KLCImage *image = malloc(sizeof(*image));
-  memset(image, 0, sizeof(*image));
-  KLCImage_Init(image, package);
+  KImage *image = malloc(sizeof(KImage));
+  memset(image, 0, sizeof(KImage));
+  KImage_Init(image, package);
   return image;
 }
 
-void KLCImage_Free(KLCImage *image)
+void KImage_Free(KImage *image)
 {
   free(image);
 }
 
-void KLCImage_Add_Var(KLCImage *image, char *name, TypeDesc *desc, int bconst)
+void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
 {
   int flags = bconst ? ACCESS_CONST : 0;
   flags |= isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
@@ -887,7 +897,7 @@ void KLCImage_Add_Var(KLCImage *image, char *name, TypeDesc *desc, int bconst)
   ItemTable_Append(image->itable, ITEM_VAR, varitem, 0);
 }
 
-void KLCImage_Add_Func(KLCImage *image, char *name, FuncInfo *info)
+void KImage_Add_Func(KImage *image, char *name, FuncInfo *info)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
   int name_index = StringItem_Set(image->itable, name);
@@ -902,7 +912,7 @@ void KLCImage_Add_Func(KLCImage *image, char *name, FuncInfo *info)
 
 /*-------------------------------------------------------------------------*/
 
-void KLCImage_Finish(KLCImage *image)
+void KImage_Finish(KImage *image)
 {
   int size, length = 0, offset = image->header.header_size;
   MapItem *mapitem;
@@ -932,12 +942,12 @@ void KLCImage_Finish(KLCImage *image)
   image->header.map_size = ItemTable_Size(image->itable, 0);
 }
 
-static void __image_write_header(FILE *fp, KLCImage *image)
+static void __image_write_header(FILE *fp, KImage *image)
 {
   fwrite(&image->header, image->header.header_size, 1, fp);
 }
 
-static void __image_write_item(FILE *fp, KLCImage *image, int type, int size)
+static void __image_write_item(FILE *fp, KImage *image, int type, int size)
 {
   void *o;
   item_fwrite_t iwrite = item_func[type].iwrite;
@@ -948,12 +958,12 @@ static void __image_write_item(FILE *fp, KLCImage *image, int type, int size)
   }
 }
 
-static void __image_write_pkgname(FILE *fp, KLCImage *image)
+static void __image_write_pkgname(FILE *fp, KImage *image)
 {
   fwrite(image->package, image->header.pkg_size, 1, fp);
 }
 
-static void __image_write_items(FILE *fp, KLCImage *image)
+static void __image_write_items(FILE *fp, KImage *image)
 {
   int size;
   for (int i = 0; i < ITEM_MAX; i++) {
@@ -964,7 +974,7 @@ static void __image_write_items(FILE *fp, KLCImage *image)
   }
 }
 
-void KLCImage_Write_File(KLCImage *image, char *path)
+void KImage_Write_File(KImage *image, char *path)
 {
   FILE *fp = fopen(path, "w");
   ASSERT_PTR(fp);
@@ -974,7 +984,7 @@ void KLCImage_Write_File(KLCImage *image, char *path)
   fclose(fp);
 }
 
-KLCImage *KLCImage_Read_File(char *path)
+KImage *KImage_Read_File(char *path)
 {
   FILE *fp = fopen(path, "r");
   if (fp == NULL) {
@@ -1001,7 +1011,7 @@ KLCImage *KLCImage_Read_File(char *path)
     return NULL;
   }
 
-  KLCImage *image = KLCImage_New(pkg_name);
+  KImage *image = KImage_New(pkg_name);
   ASSERT_PTR(image);
   image->header = header;
 
@@ -1037,7 +1047,7 @@ void header_show(ImageHeader *h)
   printf("--------------------\n");
 }
 
-void KLCImage_Show(KLCImage *image)
+void KImage_Show(KImage *image)
 {
   void *item;
   ImageHeader *h = &image->header;

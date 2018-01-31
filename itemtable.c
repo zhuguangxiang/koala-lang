@@ -3,14 +3,14 @@
 
 ItemTable *ItemTable_Create(HashInfo *hashinfo, int size)
 {
-  ItemTable *table = malloc(sizeof(ItemTable) + size * sizeof(struct vector));
+  ItemTable *table = malloc(sizeof(ItemTable) + size * sizeof(Vector));
   ItemTable_Init(table, hashinfo, size);
   return table;
 }
 
 static ItemEntry *itementry_new(int type, int index, void *data)
 {
-  ItemEntry *e = malloc(sizeof(*e));
+  ItemEntry *e = malloc(sizeof(ItemEntry));
   Init_HashNode(&e->hnode, e);
   e->type  = type;
   e->index = index;
@@ -23,7 +23,7 @@ int ItemTable_Init(ItemTable *table, HashInfo *hashinfo, int size)
   HashTable_Init(&table->table, hashinfo);
   table->size = size;
   for (int i = 0; i < size; i++)
-    Vector_Init(table->items + i);
+    Vector_Init(table->items + i, sizeof(void *));
   return 0;
 }
 
@@ -51,7 +51,7 @@ void ItemTable_Fini(ItemTable *table, item_fini_t fini, void *arg)
 int ItemTable_Append(ItemTable *table, int type, void *data, int unique)
 {
   Vector *vec = table->items + type;
-  int index = Vector_Appand(vec, data);
+  int index = Vector_Append(vec, &data);
   if (unique) {
     ItemEntry *e = itementry_new(type, index, data);
     int res = HashTable_Insert(&table->table, &e->hnode);
@@ -71,7 +71,7 @@ int ItemTable_Index(ItemTable *table, int type, void *data)
 void *ItemTable_Get(ItemTable *table, int type, int index)
 {
   ASSERT(type >= 0 && type < table->size);
-  return Vector_Get(table->items + type, index);
+  return *(void **)Vector_Get(table->items + type, index);
 }
 
 int ItemTable_Size(ItemTable *table, int type)

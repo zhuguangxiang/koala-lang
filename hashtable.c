@@ -113,7 +113,7 @@ void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg)
 
 HashTable *HashTable_Create(HashInfo *hashinfo)
 {
-  HashTable *table = malloc(sizeof(*table));
+  HashTable *table = malloc(sizeof(HashTable));
   if (table == NULL) return NULL;
 
   if (HashTable_Init(table, hashinfo)) {

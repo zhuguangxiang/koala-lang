@@ -114,7 +114,7 @@ void Frame_Loop(Frame *frame)
   int loopflag = 1;
   Routine *rt = frame->rt;
   MethodObject *meth = (MethodObject *)frame->func;
-  CodeInfo *codeinfo = meth->kf.code;
+  CodeInfo *codeinfo = &meth->kf.codeinfo;
   TValue *locals = frame->locals;
   ItemTable *itable = meth->kf.itable;
 

@@ -157,8 +157,8 @@ int TValue_Parse(TValue *val, char ch, ...)
 
 Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
 {
-  Klass *klazz = calloc(1, sizeof(*klazz));
-  memset(klazz, 0, sizeof(*klazz));
+  Klass *klazz = calloc(1, sizeof(Klass));
+  memset(klazz, 0, sizeof(Klass));
   init_object_head(klazz, parent);
   klazz->name  = name;
   klazz->bsize = bsize;

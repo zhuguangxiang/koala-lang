@@ -13,11 +13,11 @@ int main(int argc, char *argv[])
   UNUSED_PARAMETER(argc);
   UNUSED_PARAMETER(argv);
 
-  KLCImage *image = KLCImage_New("lang");
-  Decl_Defined_Desc(desc, 0, "koala/lang.String");
-  KLCImage_Add_Var(image, "greeting", ACCESS_PRIVATE, &desc);
-  Init_Defined_Desc(&desc, 0, "koala/lang.Integer");
-  KLCImage_Add_Var(image, "message", ACCESS_PRIVATE, &desc);
+  KImage *image = KImage_New("lang");
+  Decl_UserDef_Desc(desc, 0, "koala/lang.String");
+  KImage_Add_Var(image, "greeting", &desc, 0);
+  Init_UserDef_Desc(&desc, 0, "koala/lang.Integer");
+  KImage_Add_Var(image, "message", &desc, 0);
   // char *rdesc[] = {
   //   "Okoala/io.Socket;",
   // };
@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
   //   "Okoala/lang.Integer;"
   // };
 
-  // KLCImage_Add_Func(image, "SayHello", 0, 3,
+  // KImage_Add_Func(image, "SayHello", 0, 3,
   //                   rdesc, nr_elts(rdesc), pdesc, nr_elts(pdesc),
   //                   NULL, 0);
 
@@ -35,10 +35,10 @@ int main(int argc, char *argv[])
   //                  NULL, 0,
   //                  rdesc, nr_elts(rdesc),
   //                  pdesc, nr_elts(pdesc));
-  KLCImage_Finish(image);
+  KImage_Finish(image);
 
-  KLCImage_Show(image);
-  KLCImage_Write_File(image, "lang.klc");
+  KImage_Show(image);
+  KImage_Write_File(image, "lang.klc");
 
   // int nr_var = Count_Vars(filp);
   // int nr_konsts = Count_Konsts(filp);
@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
   // }
 
   //Module_Show(ob);
-  //image = KLCImage_Read_File("lang.klc");
-  //KLCImage_Show(image);
+  //image = KImage_Read_File("lang.klc");
+  //KImage_Show(image);
   return 0;
 }

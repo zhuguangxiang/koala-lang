@@ -6,7 +6,7 @@
 
 static MethodObject *__method_new(void)
 {
-  MethodObject *m = malloc(sizeof(*m));
+  MethodObject *m = malloc(sizeof(MethodObject));
   init_object_head(m, &Method_Klass);
   return m;
 }
@@ -15,7 +15,7 @@ Object *CFunc_New(cfunc cf, ProtoInfo *proto)
 {
   MethodObject *m = __method_new();
   m->flags = METH_CFUNC;
-  if (proto->vargs) m->flags &= METH_VARGS;
+  if (proto->vargs) m->flags |= METH_VARGS;
   m->cf = cf;
   m->rets = proto->rsz;
   m->args = proto->psz;
@@ -27,11 +27,11 @@ Object *Method_New(FuncInfo *info, ItemTable *itable)
 {
   MethodObject *m = __method_new();
   m->flags = METH_KFUNC;
-  if (info->proto->vargs) m->flags &= METH_VARGS;
+  if (info->proto->vargs) m->flags |= METH_VARGS;
   m->rets = info->proto->rsz;
   m->args = info->proto->psz;
   m->locals = info->proto->psz + info->locals;
-  m->kf.code = info->code;
+  m->kf.codeinfo = *info->code;
   m->kf.itable = itable;
   return (Object *)m;
 }
