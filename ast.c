@@ -1,64 +1,98 @@
 
 #include "ast.h"
 #include "codeformat.h"
+#include "log.h"
 
-struct type *type_new(void)
+struct type *type_new(int kind)
 {
-  return calloc(1, sizeof(struct type));
+  struct type *type = calloc(1, sizeof(struct type));
+  type->kind = kind;
+  return type;
 }
 
 struct type *type_from_primitive(int primitive)
 {
-  struct type *type = type_new();
-  type->kind = PRIMITIVE_KIND;
+  struct type *type = type_new(PRIMITIVE_KIND);
   type->primitive = primitive;
   return type;
 }
 
 struct type *type_from_userdef(char *mod_name, char *type_name)
 {
-  struct type *type = type_new();
-  type->kind = USERDEF_TYPE;
-  type->userdef.mod = mod_name;
-  type->userdef.type = type_name;
-  return type;
+  if (!strcmp(mod_name, "lang") && !strcmp(type_name, "String")) {
+    return type_from_primitive(PRIMITIVE_STRING);
+  } else {
+    struct type *type = type_new(USERDEF_KIND);
+    type->userdef.mod = mod_name;
+    type->userdef.type = type_name;
+    return type;
+  }
 }
 
 struct type *type_from_functype(Vector *tseq, Vector *rseq)
 {
-  struct type *type = type_new();
-  type->kind = FUNCTION_TYPE;
+  struct type *type = type_new(FUNCTION_KIND);
   type->functype.tseq = tseq;
   type->functype.rseq = rseq;
   return type;
 }
 
+int type_check(struct type *t1, struct type *t2)
+{
+  if (t1->kind != t2->kind) return 0;
+  if (t1->dims != t2->dims) return 0;
+
+  int kind = t1->kind;
+  int eq = 0;
+  switch (kind) {
+    case PRIMITIVE_KIND: {
+      eq = t1->primitive == t2->primitive;
+      break;
+    }
+    case USERDEF_KIND: {
+      eq = !strcmp(t1->userdef.mod, t2->userdef.mod) &&
+            !strcmp(t1->userdef.type, t2->userdef.type);
+      break;
+    }
+    case FUNCTION_KIND: {
+      eq = 0;
+      break;
+    }
+    default: {
+      ASSERT_MSG(0, "unknown type's kind %d\n", kind);
+    }
+  }
+  return eq;
+}
+
 static char *type_tostring(struct type *t)
 {
+  char *str = "";
   switch (t->kind) {
     case PRIMITIVE_KIND: {
-      if (t->primitive == PRIMITIVE_INT) return "int";
-      else if (t->primitive == PRIMITIVE_FLOAT) return "float";
-      else if (t->primitive == PRIMITIVE_BOOL) return "bool";
-      else if (t->primitive == PRIMITIVE_STRING) return "string";
-      else return NULL;
+      str = primitive_tostring(t->primitive);
       break;
     }
     default: {
       assert(0);
+      break;
     }
   }
+  return str;
 }
 
-struct expr *expr_new(void)
+/*-------------------------------------------------------------------------*/
+
+struct expr *expr_new(int kind)
 {
-  return calloc(1, sizeof(struct expr));
+  struct expr *exp = calloc(1, sizeof(struct expr));
+  exp->kind = kind;
+  return exp;
 }
 
 struct expr *expr_from_name(char *id)
 {
-  struct expr *expr = expr_new();
-  expr->kind = NAME_KIND;
+  struct expr *expr = expr_new(NAME_KIND);
   expr->type = NULL;
   expr->name.id = id;
   return expr;
@@ -66,8 +100,7 @@ struct expr *expr_from_name(char *id)
 
 struct expr *expr_from_name_type(char *id, struct type *type)
 {
-  struct expr *expr = expr_new();
-  expr->kind = NAME_KIND;
+  struct expr *expr = expr_new(NAME_KIND);
   expr->type = type;
   expr->name.id = id;
   return expr;
@@ -75,8 +108,7 @@ struct expr *expr_from_name_type(char *id, struct type *type)
 
 struct expr *expr_from_int(int64 ival)
 {
-  struct expr *expr = expr_new();
-  expr->kind = INT_KIND;
+  struct expr *expr = expr_new(INT_KIND);
   expr->type = type_from_primitive(PRIMITIVE_INT);
   expr->ival = ival;
   return expr;
@@ -84,8 +116,7 @@ struct expr *expr_from_int(int64 ival)
 
 struct expr *expr_from_float(float64 fval)
 {
-  struct expr *expr = expr_new();
-  expr->kind = FLOAT_KIND;
+  struct expr *expr = expr_new(FLOAT_KIND);
   expr->type = type_from_primitive(PRIMITIVE_FLOAT);
   expr->fval = fval;
   return expr;
@@ -93,8 +124,7 @@ struct expr *expr_from_float(float64 fval)
 
 struct expr *expr_from_string(char *str)
 {
-  struct expr *expr = expr_new();
-  expr->kind = STRING_KIND;
+  struct expr *expr = expr_new(STRING_KIND);
   expr->type = type_from_primitive(PRIMITIVE_STRING);
   expr->str  = str;
   return expr;
@@ -102,8 +132,7 @@ struct expr *expr_from_string(char *str)
 
 struct expr *expr_from_bool(int bval)
 {
-  struct expr *expr = expr_new();
-  expr->kind = BOOL_KIND;
+  struct expr *expr = expr_new(BOOL_KIND);
   expr->type = type_from_primitive(PRIMITIVE_BOOL);
   expr->bval = bval;
   return expr;
@@ -111,33 +140,29 @@ struct expr *expr_from_bool(int bval)
 
 struct expr *expr_from_self(void)
 {
-  struct expr *expr = expr_new();
-  expr->kind = SELF_KIND;
+  struct expr *expr = expr_new(SELF_KIND);
   expr->type = NULL;
   return expr;
 }
 
 struct expr *expr_from_expr(struct expr *exp)
 {
-  struct expr *expr = expr_new();
-  expr->kind = EXP_KIND;
+  struct expr *expr = expr_new(EXP_KIND);
   expr->type = NULL;
   expr->exp  = exp;
   return expr;
 }
 
-struct expr *expr_from_null(void)
+struct expr *expr_from_nil(void)
 {
-  struct expr *expr = expr_new();
-  expr->kind = NULL_KIND;
+  struct expr *expr = expr_new(NIL_KIND);
   expr->type = NULL;
   return expr;
 }
 
 struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq)
 {
-  struct expr *expr = expr_new();
-  expr->kind = ARRAY_KIND;
+  struct expr *expr = expr_new(ARRAY_KIND);
   expr->type = type;
   expr->array.dseq = dseq;
   expr->array.tseq = tseq;
@@ -146,16 +171,14 @@ struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq)
 
 struct expr *expr_from_array_with_tseq(Vector *tseq)
 {
-  struct expr *e = expr_new();
-  e->kind = SEQ_KIND;
-  e->seq  = tseq;
+  struct expr *e = expr_new(SEQ_KIND);
+  e->seq = tseq;
   return e;
 }
 
 struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body)
 {
-  struct expr *expr = expr_new();
-  expr->kind = ANONYOUS_FUNC_KIND;
+  struct expr *expr = expr_new(ANONYOUS_FUNC_KIND);
   expr->anonyous_func.pseq = pseq;
   expr->anonyous_func.rseq = rseq;
   expr->anonyous_func.body = body;
@@ -165,8 +188,7 @@ struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body)
 struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
                                struct expr *left)
 {
-  struct expr *expr = expr_new();
-  expr->kind = kind;
+  struct expr *expr = expr_new(kind);
   switch (kind) {
     case ATTRIBUTE_KIND: {
       expr->attribute.left = left;
@@ -194,8 +216,8 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
 struct expr *expr_from_binary(enum operator_kind kind,
                               struct expr *left, struct expr *right)
 {
-  struct expr *exp = expr_new();
-  exp->kind = BINARY_KIND;
+  struct expr *exp = expr_new(BINARY_KIND);
+  exp->type = left->type;
   exp->bin_op.left  = left;
   exp->bin_op.op    = kind;
   exp->bin_op.right = right;
@@ -204,68 +226,77 @@ struct expr *expr_from_binary(enum operator_kind kind,
 
 struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr)
 {
-  struct expr *exp = expr_new();
-  exp->kind = UNARY_KIND;
+  struct expr *exp = expr_new(UNARY_KIND);
+  exp->type = expr->type;
   exp->unary_op.op = kind;
   exp->unary_op.operand = expr;
   return exp;
 }
 
-struct stmt *stmt_new(void)
+/*--------------------------------------------------------------------------*/
+
+struct stmt *stmt_new(int kind)
 {
-  return calloc(1, sizeof(struct stmt));;
+  struct stmt *stmt = calloc(1, sizeof(struct stmt));
+  stmt->kind = kind;
+  return stmt;
 }
 
 struct stmt *stmt_from_expr(struct expr *expr)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = EXPR_KIND;
+  struct stmt *stmt = stmt_new(EXPR_KIND);
   stmt->expr = expr;
   return stmt;
 }
 
 struct stmt *stmt_from_import(char *id, char *path)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = IMPORT_KIND;
+  struct stmt *stmt = stmt_new(IMPORT_KIND);
   stmt->import.id = id;
   stmt->import.path = path;
   return stmt;
 }
 
-struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
-                               int bconst, struct type *type)
+Vector *handle_vardecl_stmt(Vector *varvec, Vector *expvec,
+                            int bconst, struct type *type)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = VARDECL_KIND;
-  stmt->vardecl.var_seq  = varseq;
-  stmt->vardecl.expr_seq = initseq;
+  Vector *vec = Vector_Create();
+  int vsz = Vector_Size(varvec);
+  int esz = (expvec != NULL) ? Vector_Size(expvec) : 0;
+  int error = 0;
+  if (esz != vsz) {
+    if (esz != 0)
+      error("cannot assign %d values to %d variables\n", esz, vsz);
+    error = 1;
+  }
 
-  if (type != NULL) {
-    struct var *var;
-    for (int i = 0; i < Vector_Size(varseq); i++) {
-      var = Vector_Get(varseq, i);
-      var->bconst = bconst;
-      var->type = type;
+  struct stmt *stmt;
+  struct var *var;
+  for (int i = 0; i < vsz; i++) {
+    var = Vector_Get(varvec, i);
+    var->bconst = bconst;
+    var->type = type;
+    stmt = stmt_new(VARDECL_KIND);
+    stmt->vardecl.var = var;
+    Vector_Append(vec, stmt);
+    if (!error) {
+      stmt->vardecl.exp = Vector_Get(expvec, i);
+      if (var->type == NULL) {
+        ASSERT_PTR(stmt->vardecl.exp);
+        var->type = stmt->vardecl.exp->type;
+      }
     }
   }
-  return stmt;
-}
 
-struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq)
-{
-  struct stmt *stmt = stmt_new();
-  stmt->kind = INIT_ASSIGN_KIND;
-  stmt->assign.left_seq  = var_seq;
-  stmt->assign.right_seq = expr_seq;
-  return stmt;
+  Vector_Destroy(varvec, NULL, NULL);
+  Vector_Destroy(expvec, NULL, NULL);
+  return vec;
 }
 
 struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
                                 Vector *body)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = FUNCDECL_KIND;
+  struct stmt *stmt = stmt_new(FUNCDECL_KIND);
   stmt->funcdecl.id = id;
   stmt->funcdecl.pseq = pseq;
   stmt->funcdecl.rseq = rseq;
@@ -275,8 +306,7 @@ struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
 
 struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = ASSIGN_KIND;
+  struct stmt *stmt = stmt_new(ASSIGN_KIND);
   stmt->assign.left_seq  = left_seq;
   stmt->assign.right_seq = right_seq;
   return stmt;
@@ -286,8 +316,7 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
                                        enum assign_operator op,
                                        struct expr *right)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = COMPOUND_ASSIGN_KIND;
+  struct stmt *stmt = stmt_new(COMPOUND_ASSIGN_KIND);
   stmt->compound_assign.left  = left;
   stmt->compound_assign.op    = op;
   stmt->compound_assign.right = right;
@@ -296,24 +325,21 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 
 struct stmt *stmt_from_block(Vector *block)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = BLOCK_KIND;
+  struct stmt *stmt = stmt_new(BLOCK_KIND);
   stmt->seq  = block;
   return stmt;
 }
 
 struct stmt *stmt_from_return(Vector *seq)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = RETURN_KIND;
+  struct stmt *stmt = stmt_new(RETURN_KIND);
   stmt->seq  = seq;
   return stmt;
 }
 
 struct stmt *stmt_from_structure(char *id, Vector *seq)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = CLASS_KIND;
+  struct stmt *stmt = stmt_new(CLASS_KIND);
   stmt->structure.id  = id;
   stmt->structure.seq = seq;
   return stmt;
@@ -321,8 +347,7 @@ struct stmt *stmt_from_structure(char *id, Vector *seq)
 
 struct stmt *stmt_from_interface(char *id, Vector *seq)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = INTF_KIND;
+  struct stmt *stmt = stmt_new(INTF_KIND);
   stmt->structure.id  = id;
   stmt->structure.seq = seq;
   return stmt;
@@ -330,8 +355,7 @@ struct stmt *stmt_from_interface(char *id, Vector *seq)
 
 struct stmt *stmt_from_jump(int kind)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = kind;
+  struct stmt *stmt = stmt_new(kind);
   return stmt;
 }
 
@@ -339,8 +363,7 @@ struct stmt *stmt_from_if(struct test_block *if_part,
                           Vector *elseif_seq,
                           struct test_block *else_part)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = IF_KIND;
+  struct stmt *stmt = stmt_new(IF_KIND);
   stmt->if_stmt.if_part    = if_part;
   stmt->if_stmt.elseif_seq = elseif_seq;
   stmt->if_stmt.else_part  = else_part;
@@ -357,8 +380,7 @@ struct test_block *new_test_block(struct expr *test, Vector *body)
 
 struct stmt *stmt_from_while(struct expr *test, Vector *body, int b)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = WHILE_KIND;
+  struct stmt *stmt = stmt_new(WHILE_KIND);
   stmt->while_stmt.btest = b;
   stmt->while_stmt.test  = test;
   stmt->while_stmt.body  = body;
@@ -367,8 +389,7 @@ struct stmt *stmt_from_while(struct expr *test, Vector *body, int b)
 
 struct stmt *stmt_from_switch(struct expr *expr, Vector *case_seq)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = SWITCH_KIND;
+  struct stmt *stmt = stmt_new(SWITCH_KIND);
   stmt->switch_stmt.expr = expr;
   stmt->switch_stmt.case_seq = case_seq;
   return stmt;
@@ -377,8 +398,7 @@ struct stmt *stmt_from_switch(struct expr *expr, Vector *case_seq)
 struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
                            struct stmt *incr, Vector *body)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = FOR_TRIPLE_KIND;
+  struct stmt *stmt = stmt_new(FOR_TRIPLE_KIND);
   stmt->for_triple_stmt.init = init;
   stmt->for_triple_stmt.test = test;
   stmt->for_triple_stmt.incr = incr;
@@ -389,8 +409,7 @@ struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
 struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
                                Vector *body, int bdecl)
 {
-  struct stmt *stmt = stmt_new();
-  stmt->kind = FOR_EACH_KIND;
+  struct stmt *stmt = stmt_new(FOR_EACH_KIND);
   stmt->for_each_stmt.bdecl = bdecl;
   stmt->for_each_stmt.var   = var;
   stmt->for_each_stmt.expr  = expr;
@@ -405,8 +424,7 @@ struct stmt *stmt_from_go(struct expr *expr)
     exit(0);
   }
 
-  struct stmt *stmt = stmt_new();
-  stmt->kind    = GO_KIND;
+  struct stmt *stmt = stmt_new(GO_KIND);
   stmt->go_stmt = expr;
   return stmt;
 }
@@ -494,8 +512,8 @@ void expr_traverse(struct expr *expr)
       printf("self\n");
       break;
     }
-    case NULL_KIND: {
-      printf("null\n");
+    case NIL_KIND: {
+      printf("nil\n");
       break;
     }
     case EXP_KIND: {
@@ -569,25 +587,17 @@ void expr_traverse(struct expr *expr)
 
 void vardecl_traverse(struct stmt *stmt)
 {
-  printf("variables:\n");
-  struct var *var;
-  for (int i = 0; i < Vector_Size(stmt->vardecl.var_seq); i++) {
-    var = Vector_Get(stmt->vardecl.var_seq, i);
-    printf("%s %s ", var->id, var->bconst ? "const":"");
-  }
-
+  printf("variable:\n");
+  struct var *var = stmt->vardecl.var;
+  printf("%s %s ", var->id, var->bconst ? "const":"");
   putchar('\n');
 
-  printf("initializers's list:\n");
-  struct expr *expr;
-  Vector *vec = stmt->vardecl.expr_seq;
-  if (vec != NULL) {
-    for (int i = 0; i < Vector_Size(vec); i++) {
-      expr = Vector_Get(vec, i);
-      expr_traverse(expr);
-    }
+  printf("initializer:\n");
+  struct expr *exp = stmt->vardecl.exp;
+  if (exp != NULL) {
+    expr_traverse(exp);
   } else {
-    printf("no initialized list\n");
+    printf("var is not initialized\n");
   }
 }
 

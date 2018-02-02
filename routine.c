@@ -1,6 +1,6 @@
 
 #include "routine.h"
-#include "debug.h"
+#include "log.h"
 #include "methodobject.h"
 #include "tupleobject.h"
 
@@ -146,7 +146,7 @@ static void routine_task_func(struct task *tsk)
     } else if (METH_ISKFUNC(meth)) {
       run_kframe(f);
     } else {
-      ASSERT_MSG("invalid method flags:%x\n", meth->flags);
+      ASSERT_MSG(0, "invalid method flags:%x\n", meth->flags);
     }
     node = list_first(&rt->frames);
   }

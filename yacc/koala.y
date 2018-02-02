@@ -5,11 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "compile.h"
+#include "parser.h"
 #include "koala_yacc.h"
 
 int yylex(void);
-extern FILE *yyin;
 
 int yyerror(const char *str)
 {
@@ -17,25 +16,8 @@ int yyerror(const char *str)
   return 0;
 }
 
-static ParserContext ctx;
-
-int main(int argc, char *argv[])
-{
-  if (argc < 2) {
-    printf("error: no input files\n");
-    return -1;
-  }
-
-  init_compiler(&ctx);
-
-  yyin = fopen(argv[1], "r");
-  yyparse();
-  fclose(yyin);
-
-  fini_compiler(&ctx);
-
-  return 0;
-}
+extern Parser parser;
+static int vardeclflag = 0;
 
 //#define YYERROR_VERBOSE 1
 #define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
@@ -43,6 +25,7 @@ int main(int argc, char *argv[])
 %}
 
 %union {
+  void *general;
   char *id;
   int64 ival;
   float64 fval;
@@ -120,7 +103,7 @@ int main(int argc, char *argv[])
 %token <dims> DIMS
 
 %token SELF
-%token TOKEN_NULL
+%token TOKEN_NIL
 %token TOKEN_TRUE
 %token TOKEN_FALSE
 
@@ -181,13 +164,11 @@ int main(int argc, char *argv[])
 %type <vector> DimExprList
 %type <vector> ArrayInitializerList
 %type <expr> ArrayInitializer
-%type <vector> Imports
-%type <vector> ModuleStatements
 %type <stmt> Import
-%type <stmt> ModuleStatement
+%type <general> ModuleStatement
+%type <general> VariableDeclaration
+%type <general> ConstDeclaration
 %type <stmt> LocalStatement
-%type <stmt> ConstDeclaration
-%type <stmt> VariableDeclaration
 %type <stmt> Assignment
 %type <stmt> IfStatement
 %type <vector> ElseIfStatements
@@ -336,21 +317,20 @@ TypeList
 
 CompileUnit
   : Imports ModuleStatements {
-    ast_traverse(&ctx.stmts);
+    ast_traverse(&parser.stmts);
   }
   | ModuleStatements {
-    ast_traverse(&ctx.stmts);
+    ast_traverse(&parser.stmts);
   }
   | Package Imports ModuleStatements {
-    ctx.package = $1;
-    printf("package : %s\n", ctx.package);
-    ast_traverse(&ctx.stmts);
-    compile(&ctx);
+    parser.package = $1;
+    ast_traverse(&parser.stmts);
+    parse(&parser);
   }
   | Package ModuleStatements {
-    ctx.package = $1;
-    printf("package : %s\n", ctx.package);
-    ast_traverse(&ctx.stmts);
+    parser.package = $1;
+    ast_traverse(&parser.stmts);
+    parse(&parser);
   }
   ;
 
@@ -362,10 +342,10 @@ Package
 
 Imports
   : Import {
-    if ($1 != NULL) Vector_Append(&ctx.stmts, $1);
+    if ($1 != NULL) Vector_Append(&parser.stmts, $1);
   }
   | Imports Import {
-    if ($2 != NULL) Vector_Append(&ctx.stmts, $2);
+    if ($2 != NULL) Vector_Append(&parser.stmts, $2);
   }
   ;
 
@@ -380,10 +360,26 @@ Import
 
 ModuleStatements
   : ModuleStatement {
-    if ($1 != NULL) Vector_Append(&ctx.stmts, $1);
+    if ($1 != NULL) {
+      if (vardeclflag) {
+        vardeclflag = 0;
+        Vector_Append_All(&parser.stmts, $1);
+        Vector_Destroy($1, NULL, NULL);
+      } else {
+        Vector_Append(&parser.stmts, $1);
+      }
+    }
   }
   | ModuleStatements ModuleStatement {
-    if ($2 != NULL) Vector_Append(&ctx.stmts, $2);
+    if ($2 != NULL) {
+      if (vardeclflag) {
+        vardeclflag = 0;
+        Vector_Append_All(&parser.stmts, $2);
+        Vector_Destroy($2, NULL, NULL);
+      } else {
+        Vector_Append(&parser.stmts, $2);
+      }
+    }
   }
   ;
 
@@ -393,19 +389,17 @@ ModuleStatement
     $$ = NULL;
   }
   | VariableDeclaration ';' {
-    printf("var decl\n");
+    vardeclflag = 1;
     $$ = $1;
   }
   | ConstDeclaration {
-    printf("const decl\n");
+    vardeclflag = 1;
     $$ = $1;
   }
   | FunctionDeclaration {
-    printf("func decl\n");
     $$ = $1;
   }
   | TypeDeclaration {
-    printf("type decl\n");
     $$ = $1;
   }
   | error {
@@ -420,25 +414,22 @@ ModuleStatement
 
 ConstDeclaration
   : CONST VariableList '=' ExpressionList ';' {
-    $$ = stmt_from_vardecl($2, $4, 1, NULL);
+    $$ = handle_vardecl_stmt($2, $4, 1, NULL);
   }
   | CONST VariableList Type '=' ExpressionList ';' {
-    $$ = stmt_from_vardecl($2, $5, 1, $3);
+    $$ = handle_vardecl_stmt($2, $5, 1, $3);
   }
   ;
 
 VariableDeclaration
   : VAR VariableList Type {
-    printf("var1\n");
-    $$ = stmt_from_vardecl($2, NULL, 0, $3);
+    $$ = handle_vardecl_stmt($2, NULL, 0, $3);
   }
   | VAR VariableList '=' ExpressionList {
-    printf("var2\n");
-    $$ = stmt_from_vardecl($2, $4, 0, NULL);
+    $$ = handle_vardecl_stmt($2, $4, 0, NULL);
   }
   | VAR VariableList Type '=' ExpressionList {
-    printf("var3\n");
-    $$ = stmt_from_vardecl($2, $5, 0, $3);
+    $$ = handle_vardecl_stmt($2, $5, 0, $3);
   }
   ;
 
@@ -855,8 +846,8 @@ CONSTANT
   | STRING_CONST {
     $$ = expr_from_string($1);
   }
-  | TOKEN_NULL {
-    $$ = expr_from_null();
+  | TOKEN_NIL {
+    $$ = expr_from_nil();
   }
   | TOKEN_TRUE {
     $$ = expr_from_bool(1);

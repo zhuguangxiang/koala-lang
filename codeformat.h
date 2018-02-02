@@ -75,10 +75,10 @@ typedef struct proto_item {
 typedef struct const_item {
   int type;
   union {
-    int64 ival;          // int32 or int64
-    float64 fval;         // float32 or float64
-    int bval;             // bool
-    int32 string_index;  //->StringItem
+    int64 ival;   // int32 or int64
+    float64 fval; // float32 or float64
+    int bval;     // bool
+    int32 index;  //->StringItem
   };
 } ConstItem;
 
@@ -86,11 +86,16 @@ typedef struct const_item {
 #define CONST_FVAL_INIT(_v)   {.type = CONST_FLOAT, .fval = (float64)(_v)}
 #define CONST_BVAL_INIT(_v)   {.type = CONST_BOOL,  .bval = (int)(_v)}
 #define CONST_STRVAL_INIT(_v) \
-  {.type = CONST_STRING, .string_index = (uint32)(_v)}
+  {.type = CONST_STRING, .index = (int32)(_v)}
 
 #define const_setstrvalue(v, _v) do { \
-  (v)->type = CONST_STRING; (v)->string_index = (uint32)(_v); \
+  (v)->type = CONST_STRING; (v)->index = (int32)(_v); \
 } while (0)
+
+ConstItem *ConstItem_Int_New(int64 val);
+ConstItem *ConstItem_Float_New(float64 val);
+ConstItem *ConstItem_Bool_New(int val);
+ConstItem *ConstItem_String_New(int32 val);
 
 typedef struct var_item {
   int32 name_index;  //->StringItem
@@ -187,6 +192,7 @@ typedef struct typedesc {
   (desc)->dims = (d); (desc)->kind = TYPE_DEFINED; \
   (desc)->str = (s); \
 } while (0)
+char *primitive_tostring(int type);
 
 typedef struct protoinfo {
   int rsz;
@@ -247,8 +253,14 @@ int TypeListItem_Get(ItemTable *itable, TypeDesc *desc, int sz);
 int TypeListItem_Set(ItemTable *itable, TypeDesc *desc, int sz);
 int ProtoItem_Get(ItemTable *itable, int32 rindex, int32 pindex);
 int ProtoItem_Set(ItemTable *itable, ProtoInfo *proto);
+int ConstItem_Get(ItemTable *itable, ConstItem *item);
+int ConstItem_Set_Int(ItemTable *itable, int64 val);
+int ConstItem_Set_Float(ItemTable *itable, float64 val);
+int ConstItem_Set_Bool(ItemTable *itable, int val);
+int ConstItem_Set_String(ItemTable *itable, int32 val);
 uint32 item_hash(void *key);
 int item_equal(void *k1, void *k2);
+void ItemTable_Show(ItemTable *itable);
 
 #ifdef __cplusplus
 }

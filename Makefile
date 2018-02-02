@@ -10,7 +10,7 @@ include $(TOPDIR)/config.mk
 
 ######################################
 
-KOALA_LIB_FILES = debug.c hashtable.c hash.c vector.c buffer.c \
+KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c \
 itemtable.c symbol.c object.c stringobject.c tupleobject.c tableobject.c \
 moduleobject.c methodobject.c routine.c frameloop.c thread.c codeformat.c \
 mod_io.c koala.c
@@ -36,11 +36,11 @@ lib:
 	@cp lib$(KOALA_LIB).so /usr/lib/koala-lang/
 	@$(RM) *.o
 
-compiler:
+parser:
 	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
 	@flex -o koala_lex.c yacc/koala.l
-	@gcc -g -std=gnu99 -Wall koala_yacc.c koala_lex.c ast.c compile.c \
-	-L. -lkoala -pthread -lrt
+	@gcc -g -std=gnu99 -Wall koala_yacc.c koala_lex.c ast.c parser.c \
+	codegen.c -L. -lkoala -pthread -lrt
 
 testvector: lib
 	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt

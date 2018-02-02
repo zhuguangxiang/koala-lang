@@ -1,6 +1,6 @@
 
 #include "hashtable.h"
-#include "debug.h"
+#include "log.h"
 
 #define HT_LOAD_FACTOR      0.65
 #define DEFAULT_PRIME_INDEX 0
@@ -157,7 +157,7 @@ int HashTable_Remove(HashTable *table, HashNode *hnode)
 
   HashNode *temp = __hash_table_find(table, hnode->hash, hnode->key);
   if (temp == NULL) {
-    debug_error("it is not in the hash table\n");
+    error("it is not in the hash table\n");
     return -1;
   }
 
@@ -180,7 +180,7 @@ static void hash_table_expand(HashTable *table,
   int new_nr_entries = get_prime(new_prime);
   struct hlist_head *entries = new_entries(new_nr_entries);
   if (entries == NULL) {
-    debug_error("expand table failed\n");
+    error("expand table failed\n");
     return;
   }
 
@@ -217,7 +217,7 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
 
   uint32 hash = hnode->hash = table->hash(hnode->key);
   if (NULL != __hash_table_find(table, hash, hnode->key)) {
-    debug_error("key is duplicated\n");
+    error("key is duplicated\n");
     return -1;
   }
 

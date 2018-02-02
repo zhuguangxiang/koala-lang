@@ -18,6 +18,8 @@ int main(int argc, char *argv[])
   KImage_Add_Var(image, "greeting", &desc, 0);
   Init_UserDef_Desc(&desc, 0, "koala/lang.Integer");
   KImage_Add_Var(image, "message", &desc, 0);
+  Init_Primitive_Desc(&desc, 0, PRIMITIVE_FLOAT);
+  KImage_Add_Var(image, "weight", &desc, 0);
   // char *rdesc[] = {
   //   "Okoala/io.Socket;",
   // };

@@ -2,7 +2,7 @@
 #include "stringobject.h"
 #include "methodobject.h"
 #include "moduleobject.h"
-#include "debug.h"
+#include "log.h"
 
 TValue NilValue  = NIL_VALUE_INIT();
 TValue TrueValue = BOOL_VALUE_INIT(1);
@@ -115,7 +115,7 @@ va_convert_t *get_convert(char ch)
       return convert;
     }
   }
-  ASSERT_MSG("unsupported type: %d\n", ch);
+  ASSERT_MSG(0, "unsupported type: %d\n", ch);
   return NULL;
 }
 
@@ -238,7 +238,7 @@ static void klass_free(Object *ob)
 {
   // Klass_Klass cannot be freed.
   if (ob == (Object *)&Klass_Klass) {
-    ASSERT_MSG("Klass_Klass cannot be freed\n");
+    ASSERT_MSG(0, "Klass_Klass cannot be freed\n");
   }
 
   OB_ASSERT_KLASS(ob, Klass_Klass);

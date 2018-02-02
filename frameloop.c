@@ -1,7 +1,7 @@
 
 #include "routine.h"
 #include "opcode.h"
-#include "debug.h"
+#include "log.h"
 #include "koala.h"
 
 #define NEXT_CODE(f, codes) codes[f->pc++]
@@ -52,12 +52,12 @@ static TValue index_value(int index, CodeInfo *codeinfo, ItemTable *itable)
     }
     case CONST_STRING: {
       StringItem *stritem;
-      stritem = ItemTable_Get(itable, ITEM_STRING, k->string_index);
+      stritem = ItemTable_Get(itable, ITEM_STRING, k->index);
       setcstrvalue(&ret, stritem->data);
       break;
     }
     default: {
-      ASSERT_MSG("unknown const type:%d\n", k->type);
+      ASSERT_MSG(0, "unknown const type:%d\n", k->type);
       break;
     }
   }
@@ -71,30 +71,30 @@ static Object *__get_func(Object *ob, char *name)
   } else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
     return Klass_Get_Method(OB_KLASS(ob), name);
   } else {
-    ASSERT_MSG("invalid object klass in '__get_func'\n");
+    ASSERT_MSG(0, "invalid object klass in '__get_func'\n");
     return NULL;
   }
 }
 
-static void __set_value(Object *ob, char *name, TValue *val)
+static void __set_value(Object *ob, int index, TValue *val)
 {
   if (OB_CHECK_KLASS(ob, Module_Klass)) {
-    Module_Set_Value(ob, name, val);
+    Module_Set_Value_ByIndex(ob, index, val);
   } else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
 
   } else {
-    ASSERT_MSG("invalid object klass in '__set_value'\n");
+    ASSERT_MSG(0, "invalid object klass in '__set_value'\n");
   }
 }
 
-static TValue __get_value(Object *ob, char *name)
+static TValue __get_value(Object *ob, int index)
 {
   if (OB_CHECK_KLASS(ob, Module_Klass)) {
-    return Module_Get_Value(ob, name);
+    return Module_Get_Value_ByIndex(ob, index);
   } else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
     return NilValue;
   } else {
-    ASSERT_MSG("invalid object klass in '__get_value'\n");
+    ASSERT_MSG(0, "invalid object klass in '__get_value'\n");
     return NilValue;
   }
 }
@@ -135,7 +135,7 @@ void Frame_Loop(Frame *frame)
         index = fetch_arg4(frame, codeinfo);
         val = index_value(index, codeinfo, itable);
         char *path = VALUE_CSTR(&val);
-        debug_info("load module '%s'\n", path);
+        info("load module '%s'\n", path);
         Object *ob = Koala_Load_Module(path);
         ASSERT_PTR(ob);
         setobjvalue(&val, ob);
@@ -155,24 +155,20 @@ void Frame_Loop(Frame *frame)
       }
       case OP_SETFIELD: {
         index = fetch_arg4(frame, codeinfo);
-        val = index_value(index, codeinfo, itable);
-        char *name = VALUE_CSTR(&val);
-        debug_info("setfield '%s'\n", name);
-        val= POP();
+        info("setfield '%d'\n", index);
+        val = POP();
         Object *ob = VALUE_OBJECT(&val);
         val = POP();
         VALUE_ASSERT(&val);
-        __set_value(ob, name, &val);
+        __set_value(ob, index, &val);
         break;
       }
       case OP_GETFIELD: {
         index = fetch_arg4(frame, codeinfo);
-        val = index_value(index, codeinfo, itable);
-        char *name = VALUE_CSTR(&val);
-        debug_info("getfield '%s'\n", name);
+        info("getfield '%d'\n", index);
         val = POP();
         Object *ob = VALUE_OBJECT(&val);
-        val = __get_value(ob, name);
+        val = __get_value(ob, index);
         PUSH(&val);
         break;
       }
@@ -180,7 +176,7 @@ void Frame_Loop(Frame *frame)
         index = fetch_arg4(frame, codeinfo);
         val = index_value(index, codeinfo, itable);
         char *name = VALUE_CSTR(&val);
-        debug_info("%s()\n", name);
+        info("%s()\n", name);
         Object *ob = VALUE_OBJECT(TOP());
         Frame *f = Frame_New(__get_func(ob, name));
         Routine_Add_Frame(rt, f);
@@ -248,7 +244,7 @@ void Frame_Loop(Frame *frame)
         break;
       }
       default: {
-        ASSERT_MSG("unknown instruction:%d\n", inst);
+        ASSERT_MSG(0, "unknown instruction:%d\n", inst);
       }
     }
   }

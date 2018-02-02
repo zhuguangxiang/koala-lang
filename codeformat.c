@@ -2,7 +2,7 @@
 #include "codeformat.h"
 #include "symbol.h"
 #include "hash.h"
-#include "debug.h"
+#include "log.h"
 
 static int version_major = 0; // 1 byte
 static int version_minor = 1; // 1 byte
@@ -11,6 +11,28 @@ static int version_build = 1; // 2 bytes
 #define ENDIAN_TAG  0x1a2b3c4d
 
 /*-------------------------------------------------------------------------*/
+char *primitive_tostring(int type)
+{
+  char *str = "";
+  switch (type) {
+    case PRIMITIVE_INT:
+      str = "int";
+      break;
+    case PRIMITIVE_FLOAT:
+      str = "float";
+      break;
+    case PRIMITIVE_BOOL:
+      str = "bool";
+      break;
+    case PRIMITIVE_STRING:
+      str = "string";
+      break;
+    default:
+      assert(0);
+      break;
+  }
+  return str;
+}
 
 static int desc_primitive(char ch)
 {
@@ -95,7 +117,7 @@ TypeDesc *CStr_To_DescList(int count, char *str)
         dims++; str++;
       }
     } else {
-      ASSERT_MSG("unknown type:%c\n", ch);
+      ASSERT_MSG(0, "unknown type:%c\n", ch);
     }
   }
 
@@ -199,6 +221,41 @@ ProtoItem *ProtoItem_New(int32 rindex, int32 pindex)
   ProtoItem *item = malloc(sizeof(ProtoItem));
   item->rindex = rindex;
   item->pindex = pindex;
+  return item;
+}
+
+ConstItem *ConstItem_New(int type)
+{
+  ConstItem *item = malloc(sizeof(ConstItem));
+  item->type = type;
+  return item;
+}
+
+ConstItem *ConstItem_Int_New(int64 val)
+{
+  ConstItem *item = ConstItem_New(CONST_INT);
+  item->ival = val;
+  return item;
+}
+
+ConstItem *ConstItem_Float_New(float64 val)
+{
+  ConstItem *item = ConstItem_New(CONST_FLOAT);
+  item->fval = val;
+  return item;
+}
+
+ConstItem *ConstItem_Bool_New(int val)
+{
+  ConstItem *item = ConstItem_New(CONST_INT);
+  item->bval = val;
+  return item;
+}
+
+ConstItem *ConstItem_String_New(int32 val)
+{
+  ConstItem *item = ConstItem_New(CONST_STRING);
+  item->index = val;
   return item;
 }
 
@@ -349,6 +406,55 @@ int ProtoItem_Set(ItemTable *itable, ProtoInfo *proto)
   return index;
 }
 
+int ConstItem_Get(ItemTable *itable, ConstItem *item)
+{
+  return ItemTable_Index(itable, ITEM_CONST, item);
+}
+
+int ConstItem_Set_Int(ItemTable *itable, int64 val)
+{
+  ConstItem k = CONST_IVAL_INIT(val);
+  int index = ConstItem_Get(itable, &k);
+  if (index < 0) {
+    ConstItem *item = ConstItem_Int_New(val);
+    index = ItemTable_Append(itable, ITEM_CONST, item, 1);
+  }
+  return index;
+}
+
+int ConstItem_Set_Float(ItemTable *itable, float64 val)
+{
+  ConstItem k = CONST_FVAL_INIT(val);
+  int index = ConstItem_Get(itable, &k);
+  if (index < 0) {
+    ConstItem *item = ConstItem_Float_New(val);
+    index = ItemTable_Append(itable, ITEM_CONST, item, 1);
+  }
+  return index;
+}
+
+int ConstItem_Set_Bool(ItemTable *itable, int val)
+{
+  ConstItem k = CONST_BVAL_INIT(val);
+  int index = ConstItem_Get(itable, &k);
+  if (index < 0) {
+    ConstItem *item = ConstItem_Bool_New(val);
+    index = ItemTable_Append(itable, ITEM_CONST, item, 1);
+  }
+  return index;
+}
+
+int ConstItem_Set_String(ItemTable *itable, int32 val)
+{
+  ConstItem k = CONST_STRVAL_INIT(val);
+  int index = ConstItem_Get(itable, &k);
+  if (index < 0) {
+    ConstItem *item = ConstItem_String_New(val);
+    index = ItemTable_Append(itable, ITEM_CONST, item, 1);
+  }
+  return index;
+}
+
 /*-------------------------------------------------------------------------*/
 
 static int codeitem_set(ItemTable *itable, CodeInfo *codeinfo)
@@ -373,9 +479,9 @@ int mapitem_length(void *o)
   return sizeof(MapItem);
 }
 
-void mapitem_show(KImage *image, void *o)
+void mapitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   MapItem *item = o;
   printf("  type:%s\n", mapitem_string[item->type]);
   printf("  offset:0x%x\n", item->offset);
@@ -412,9 +518,9 @@ void stringitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(StringItem) + item->length * sizeof(char), 1, fp);
 }
 
-void stringitem_show(KImage *image, void *o)
+void stringitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   StringItem *item = o;
   printf("  length:%d\n", item->length);
   printf("  string:%s\n", item->data);
@@ -447,16 +553,16 @@ int typeitem_equal(void *k1, void *k2)
   return 1;
 }
 
-void typeitem_show(KImage *image, void *o)
+void typeitem_show(ItemTable *itable, void *o)
 {
   TypeItem *item = o;
 
-  printf("  index:%d\n", item->index);
   if (item->kind == TYPE_DEFINED) {
-    StringItem *str = ItemTable_Get(image->itable, ITEM_STRING, item->index);
+    StringItem *str = ItemTable_Get(itable, ITEM_STRING, item->index);
+    printf("  index:%d\n", item->index);
     printf("  (%s)\n", str->data);
   } else {
-    printf("  (%c)\n", item->primitive);
+    printf("  (%s)\n", primitive_tostring(item->primitive));
   }
 }
 
@@ -489,9 +595,9 @@ int typelistitem_equal(void *k1, void *k2)
   return !memcmp(item1, item2, sizeof(TypeListItem) + item1->size);
 }
 
-void typelistitem_show(KImage *image, void *o)
+void typelistitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   UNUSED_PARAMETER(o);
 }
 
@@ -501,9 +607,9 @@ int structitem_length(void *o)
   return 0;
 }
 
-void structitem_show(KImage *image, void *o)
+void structitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   UNUSED_PARAMETER(o);
 }
 
@@ -513,9 +619,9 @@ int intfitem_length(void *o)
   return 0;
 }
 
-void intfitem_show(KImage *image, void *o)
+void intfitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   UNUSED_PARAMETER(o);
 }
 
@@ -525,19 +631,19 @@ int varitem_length(void *o)
   return sizeof(VarItem);
 }
 
-void varitem_show(KImage *image, void *o)
+void varitem_show(ItemTable *itable, void *o)
 {
   VarItem *item = o;
   StringItem *stritem;
   TypeItem *typeitem;
 
   printf("  name_index:%d\n", item->name_index);
-  stritem = ItemTable_Get(image->itable, ITEM_STRING, item->name_index);
+  stritem = ItemTable_Get(itable, ITEM_STRING, item->name_index);
   printf("  (%s)\n", stritem->data);
   printf("  type_index:%d\n", item->type_index);
-  typeitem = ItemTable_Get(image->itable, ITEM_TYPE, item->type_index);
+  typeitem = ItemTable_Get(itable, ITEM_TYPE, item->type_index);
   if (typeitem->kind == TYPE_DEFINED) {
-    stritem = ItemTable_Get(image->itable, ITEM_STRING, typeitem->index);
+    stritem = ItemTable_Get(itable, ITEM_STRING, typeitem->index);
     printf("  (%s)\n", stritem->data);
   } else {
     printf("  (%c)\n", typeitem->primitive);
@@ -557,9 +663,9 @@ int fielditem_length(void *o)
   return 0;
 }
 
-void fielditem_show(KImage *image, void *o)
+void fielditem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   UNUSED_PARAMETER(o);
 }
 
@@ -593,9 +699,9 @@ int protoitem_equal(void *k1, void *k2)
   }
 }
 
-void protoitem_show(KImage *image, void *o)
+void protoitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   UNUSED_PARAMETER(o);
 }
 
@@ -605,9 +711,9 @@ int funcitem_length(void *o)
   return sizeof(FuncItem);
 }
 
-void funcitem_show(KImage *image, void *o)
+void funcitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   UNUSED_PARAMETER(o);
 }
 
@@ -622,9 +728,9 @@ int methoditem_length(void *o)
   return 0;
 }
 
-void methoditem_show(KImage *image, void *o)
+void methoditem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   UNUSED_PARAMETER(o);
 }
 
@@ -640,9 +746,9 @@ void codeitem_write(FILE *fp, void *o)
   fwrite(o, item->size, 1, fp);
 }
 
-void codeitem_show(KImage *image, void *o)
+void codeitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
+  UNUSED_PARAMETER(itable);
   UNUSED_PARAMETER(o);
 }
 
@@ -675,11 +781,11 @@ uint32 constitem_hash(void *k)
       break;
     }
     case CONST_STRING: {
-      hash = hash_uint32(item->string_index, 32);
+      hash = hash_uint32((uint32)item->index, 32);
       break;
     }
     default: {
-      ASSERT_MSG("unsupported %d const type\n", item->type);
+      ASSERT_MSG(0, "unsupported %d const type\n", item->type);
       break;
     }
   }
@@ -707,28 +813,45 @@ int constitem_equal(void *k1, void *k2)
       break;
     }
     case CONST_STRING: {
-      res = (item1->string_index == item2->string_index);
+      res = (item1->index == item2->index);
       break;
     }
     default: {
-      ASSERT_MSG("unsupported %d const type\n", item1->type);
+      ASSERT_MSG(0, "unsupported const type %d\n", item1->type);
       break;
     }
   }
   return res;
 }
 
-void constitem_show(KImage *image, void *o)
+void constitem_show(ItemTable *itable, void *o)
 {
-  UNUSED_PARAMETER(image);
-  UNUSED_PARAMETER(o);
+  UNUSED_PARAMETER(itable);
+  ConstItem *item = o;
+  switch (item->type) {
+    case CONST_INT:
+      printf("    %lld\n", item->ival);
+      break;
+    case CONST_FLOAT:
+      printf("    %f\n", item->fval);
+      break;
+    case CONST_BOOL:
+      printf("    %s\n", item->bval ? "true" : "false");
+      break;
+    case CONST_STRING:
+      printf("    %d\n", item->index);
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
 }
 
 typedef int (*item_length_t)(void *);
 typedef void (*item_fwrite_t)(FILE *, void *);
 typedef uint32 (*item_hash_t)(void *);
 typedef int (*item_equal_t)(void *, void *);
-typedef void (*item_show_t)(KImage *, void *);
+typedef void (*item_show_t)(ItemTable *, void *);
 
 struct item_funcs {
   item_length_t   ilength;
@@ -1047,35 +1170,40 @@ void header_show(ImageHeader *h)
   printf("--------------------\n");
 }
 
-void KImage_Show(KImage *image)
+void ItemTable_Show(ItemTable *itable)
 {
   void *item;
-  ImageHeader *h = &image->header;
-  header_show(h);
   int size;
-
-  printf("package:%s\n", image->package);
-  printf("--------------------\n");
-
   printf("mapitems:\n");
-  size = ItemTable_Size(image->itable, 0);
+  size = ItemTable_Size(itable, 0);
   for (int j = 0; j < size; j++) {
     printf("[%d]\n", j);
-    item = ItemTable_Get(image->itable, 0, j);
-    item_func[0].ishow(image, item);
+    item = ItemTable_Get(itable, 0, j);
+    item_func[0].ishow(itable, item);
   }
   printf("--------------------\n");
 
   for (int i = 1; i < ITEM_MAX; i++) {
-    size = ItemTable_Size(image->itable, i);
+    size = ItemTable_Size(itable, i);
     if (size > 0) {
       printf("%sitems:\n", mapitem_string[i]);
       for (int j = 0; j < size; j++) {
         printf("[%d]\n", j);
-        item = ItemTable_Get(image->itable, i, j);
-        item_func[i].ishow(image, item);
+        item = ItemTable_Get(itable, i, j);
+        item_func[i].ishow(itable, item);
       }
       printf("--------------------\n");
     }
   }
+}
+
+void KImage_Show(KImage *image)
+{
+  ImageHeader *h = &image->header;
+  header_show(h);
+
+  printf("package:%s\n", image->package);
+  printf("--------------------\n");
+
+  ItemTable_Show(image->itable);
 }

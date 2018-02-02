@@ -40,11 +40,11 @@ Object *init_test_module(void)
     OP_LOAD, 0, 0, 0, 0,
     OP_CALL, 2, 0, 0, 0,
     OP_LOAD, 0, 0, 0, 0,
-    OP_SETFIELD, 3, 0, 0, 0,
+    OP_SETFIELD, 0, 0, 0, 0,
 
     /* io.Print("-123 + 456 = ", result) */
     OP_LOAD, 0, 0, 0, 0,
-    OP_GETFIELD, 3, 0, 0, 0,
+    OP_GETFIELD, 0, 0, 0, 0,
     OP_LOADK, 6, 0, 0, 0,
     OP_LOADM, 4, 0, 0, 0,
     OP_CALL, 5, 0, 0, 0,
@@ -58,10 +58,10 @@ Object *init_test_module(void)
   int index2 = StringItem_Set(itable, "result");
   int index3 = StringItem_Set(itable, "koala/io");
   int index4 = StringItem_Set(itable, "Print");
-  int index5 = StringItem_Set(itable, "-123 + 456 = ");
+  int index5 = StringItem_Set(itable, "-123 + 368 = ");
 
   static ConstItem k[10] = {
-    CONST_IVAL_INIT(456),
+    CONST_IVAL_INIT(368),
     CONST_IVAL_INIT(-123),
   };
 

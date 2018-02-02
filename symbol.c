@@ -1,7 +1,7 @@
 
 #include "symbol.h"
 #include "hash.h"
-#include "debug.h"
+#include "log.h"
 
 static uint32 symbol_hash(void *k)
 {
@@ -53,7 +53,7 @@ Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
   }
   Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    debug_error("add '%s' variable failed.\n", name);
+    error("add '%s' variable failed.\n", name);
     Symbol_Free(sym);
     return NULL;
   }
@@ -68,7 +68,7 @@ Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
   int desc_index = ProtoItem_Set(stbl->itable, proto);
   Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    debug_error("add a function failed.\n");
+    error("add a function failed.\n");
     Symbol_Free(sym);
     return NULL;
   }
@@ -81,7 +81,7 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
   int name_index = StringItem_Set(stbl->itable, name);
   Symbol *sym = Symbol_New(name_index, kind, access, -1);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    debug_error("add a function failed.\n");
+    error("add a function failed.\n");
     Symbol_Free(sym);
     return NULL;
   }
@@ -262,4 +262,5 @@ static void symbol_show(HashNode *hnode, void *arg)
 void STable_Show(STable *stbl)
 {
   HashTable_Traverse(stbl->htable, symbol_show, stbl);
+  ItemTable_Show(stbl->itable);
 }

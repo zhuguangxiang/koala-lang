@@ -27,15 +27,21 @@ int Module_Add_CFunc(Object *ob, FuncDef *f);
 int Module_Add_Class(Object *ob, Klass *klazz);
 int Module_Add_Interface(Object *ob, Klass *klazz);
 TValue Module_Get_Value(Object *ob, char *name);
+TValue Module_Get_Value_ByIndex(Object *ob, int index);
 int Module_Set_Value(Object *ob, char *name, TValue *val);
+int Module_Set_Value_ByIndex(Object *ob, int index, TValue *val);
 Object *Module_Get_Function(Object *ob, char *name);
 Klass *Module_Get_Class(Object *ob, char *name);
 Klass *Module_Get_Intf(Object *ob, char *name);
+Klass *Module_Get_Klass(Object *ob, char *name);
 Symbol *Module_Get_Symbol(Object *ob, char *name);
 int Module_Add_CFunctions(Object *ob, FuncDef *funcs);
 void Module_Show(Object *ob);
 #define Moudle_Name(ob) (((ModuleObject *)(ob))->name)
 #define Module_ItemTable(ob) (((ModuleObject *)(ob))->stable.itable)
+#define Module_STable(ob) (&((ModuleObject *)(ob))->stable)
+STable *Object_STable(Object *ob);
+ItemTable *Object_ItemTable(Object *ob);
 
 #ifdef __cplusplus
 }

@@ -80,7 +80,7 @@ static int __get_value_index(ModuleObject *mob, char *name)
     if (s->kind == SYM_VAR) {
       return s->index;
     } else {
-      debug_error("symbol is not a variable\n");
+      error("symbol is not a variable\n");
     }
   }
   return -1;
@@ -108,11 +108,22 @@ TValue Module_Get_Value(Object *ob, char *name)
   return Tuple_Get(__get_tuple(mob), index);
 }
 
+TValue Module_Get_Value_ByIndex(Object *ob, int index)
+{
+  ModuleObject *mob = OBJ_TO_MOD(ob);
+  return Tuple_Get(__get_tuple(mob), index);
+}
+
 int Module_Set_Value(Object *ob, char *name, TValue *val)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
-  if (index < 0) return -1;
+  return Tuple_Set(__get_tuple(mob), index, val);
+}
+
+int Module_Set_Value_ByIndex(Object *ob, int index, TValue *val)
+{
+  ModuleObject *mob = OBJ_TO_MOD(ob);
   return Tuple_Set(__get_tuple(mob), index, val);
 }
 
@@ -124,7 +135,7 @@ Object *Module_Get_Function(Object *ob, char *name)
     if (s->kind == SYM_FUNC) {
       return s->obj;
     } else {
-      debug_error("symbol is not a function\n");
+      error("symbol is not a function\n");
     }
   }
 
@@ -139,10 +150,9 @@ Klass *Module_Get_Class(Object *ob, char *name)
     if (s->kind == SYM_CLASS) {
       return s->obj;
     } else {
-      debug_error("symbol is not a class\n");
+      error("symbol is not a class\n");
     }
   }
-
   return NULL;
 }
 
@@ -154,10 +164,23 @@ Klass *Module_Get_Intf(Object *ob, char *name)
     if (s->kind == SYM_INTF) {
       return s->obj;
     } else {
-      debug_error("symbol is not a interface\n");
+      error("symbol is not a interface\n");
     }
   }
+  return NULL;
+}
 
+Klass *Module_Get_Klass(Object *ob, char *name)
+{
+  ModuleObject *mob = OBJ_TO_MOD(ob);
+  Symbol *s = STable_Get(&mob->stable, name);
+  if (s != NULL) {
+    if (s->kind == SYM_CLASS || s->kind == SYM_INTF) {
+      return s->obj;
+    } else {
+      error("symbol is not a class\n");
+    }
+  }
   return NULL;
 }
 
@@ -171,6 +194,30 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
     ++f;
   }
   return 0;
+}
+
+STable *Object_STable(Object *ob)
+{
+  if (OB_CHECK_KLASS(ob, Module_Klass)) {
+    return Module_STable(ob);
+  } else if (OB_CHECK_KLASS(ob, Klass_Klass)) {
+    return Klass_STable(ob);
+  } else {
+    ASSERT_MSG(0, "unknown class");
+    return NULL;
+  }
+}
+
+ItemTable *Object_ItemTable(Object *ob)
+{
+  if (OB_CHECK_KLASS(ob, Module_Klass)) {
+    return Module_ItemTable(ob);
+  } else if (OB_CHECK_KLASS(ob, Klass_Klass)) {
+    return Klass_ItemTable(ob);
+  } else {
+    ASSERT_MSG(0, "unknown class");
+    return NULL;
+  }
 }
 
 void Init_Module_Klass(Object *ob)

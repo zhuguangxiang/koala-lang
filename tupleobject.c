@@ -2,7 +2,7 @@
 #include "tupleobject.h"
 #include "moduleobject.h"
 #include "symbol.h"
-#include "debug.h"
+#include "log.h"
 
 Object *Tuple_New(int size)
 {
@@ -22,7 +22,7 @@ TValue Tuple_Get(Object *ob, int index)
   TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
 
   if (index < 0 || index >= tuple->size) {
-    debug_error("index %d out of bound\n", index);
+    error("index %d out of bound\n", index);
     return NilValue;
   }
 
@@ -59,7 +59,7 @@ int Tuple_Set(Object *ob, int index, TValue *val)
   TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
 
   if (index < 0 || index >= tuple->size) {
-    debug_error("index %d out of bound\n", index);
+    error("index %d out of bound\n", index);
     return -1;
   }
 

@@ -17,9 +17,9 @@ typedef struct block {
 } Block;
 
 typedef struct buffer {
-  int size;
-  int blocks;
-  int bsize;
+  int size;   /* total bytes in buffer */
+  int blocks; /* number of blocks */
+  int bsize;  /* Block size */
   struct list_head head;
 } Buffer;
 
@@ -27,6 +27,21 @@ int Buffer_Init(Buffer *buf, int bsize);
 int Buffer_Fini(Buffer *buf);
 int Buffer_Write(Buffer *buf, uint8 *data, int sz);
 uint8 *Buffer_RawData(Buffer *buf);
+
+static inline int Buffer_Write_Byte(Buffer *buf, uint8 data)
+{
+  return Buffer_Write(buf, &data, 1);
+}
+
+static inline int Buffer_Write_2Bytes(Buffer *buf, uint16 data)
+{
+  return Buffer_Write(buf, (uint8 *)&data, 2);
+}
+
+static inline int Buffer_Write_4Bytes(Buffer *buf, uint32 data)
+{
+  return Buffer_Write(buf, (uint8 *)&data, 4);
+}
 
 #ifdef __cplusplus
 }

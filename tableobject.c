@@ -3,7 +3,7 @@
 #include "tupleobject.h"
 #include "moduleobject.h"
 #include "symbol.h"
-#include "debug.h"
+#include "log.h"
 
 struct entry {
   HashNode hnode;
@@ -36,12 +36,12 @@ static int entry_equal(void *k1, void *k2)
     if (OB_KLASS_EQUAL(o1, o2)) {
       return OB_KLASS(o1)->ob_cmp(v1, v2);
     } else {
-      debug_warn("the two key types are not the same.\n");
+      warn("the two key types are not the same.\n");
       return 0;
     }
   }
 
-  debug_warn("unsupported type as table's key\n");
+  warn("unsupported type as table's key\n");
   return 0;
 }
 
@@ -57,7 +57,7 @@ static uint32 entry_hash(void *k)
     return OB_KLASS(VALUE_OBJECT(v))->ob_hash(v);
   }
 
-  debug_warn("unsupported type for hashing\n");
+  warn("unsupported type for hashing\n");
   return 0;
 }
 

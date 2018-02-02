@@ -169,6 +169,8 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth);
 Symbol *Klass_Get(Klass *klazz, char *name);
 Object *Klass_Get_Method(Klass *klazz, char *name);
+#define Klass_ItemTable(ob) (((Klass *)(ob))->stable.itable)
+#define Klass_STable(ob) (&((Klass *)(ob))->stable)
 
 #ifdef __cplusplus
 }

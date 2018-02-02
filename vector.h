@@ -23,6 +23,7 @@ void *Vector_Get(Vector *vec, int index);
 #define Vector_Append(vec, obj) Vector_Set(vec, Vector_Size(vec), obj)
 #define Vector_Size(vec)      ((vec)->size)
 #define Vector_Capacity(vec)  ((vec)->capacity)
+int Vector_Append_All(Vector *vec, Vector *from);
 
 #ifdef __cplusplus
 }

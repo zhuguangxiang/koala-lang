@@ -2,7 +2,7 @@
 #ifndef _KOALA_HEADER_H_
 #define _KOALA_HEADER_H_
 
-#include "debug.h"
+#include "log.h"
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "tableobject.h"

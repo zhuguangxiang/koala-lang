@@ -1,6 +1,6 @@
 
 #include "buffer.h"
-#include "debug.h"
+#include "log.h"
 
 Block *block_new(int bsize)
 {
@@ -51,9 +51,9 @@ int Buffer_Write(Buffer *buf, uint8 *data, int size)
       block = container_of(last, Block, link);
       left = buf->bsize - block->used;
       ASSERT(left >= 0);
-      debug_info("left of block-%d is %d\n", buf->blocks, left);
+      info("left of block-%d is %d\n", buf->blocks, left);
     } else {
-      debug_info("buffer is empty\n");
+      info("buffer is empty\n");
       left = 0;
     }
 
@@ -61,7 +61,7 @@ int Buffer_Write(Buffer *buf, uint8 *data, int size)
       block = block_new(buf->bsize);
       list_add_tail(&block->link, &buf->head);
       buf->blocks++;
-      debug_info("new block-%d\n", buf->blocks);
+      info("new block-%d\n", buf->blocks);
     } else {
       sz = min(left, size);
       memcpy(block->data + block->used, data, sz);
@@ -70,7 +70,7 @@ int Buffer_Write(Buffer *buf, uint8 *data, int size)
       size -= sz;
       ASSERT(size >= 0);
       buf->size += sz;
-      debug_info("write %d-bytes into block-%d\n", sz, buf->blocks);
+      info("write %d-bytes into block-%d\n", sz, buf->blocks);
     }
   }
   return 0;

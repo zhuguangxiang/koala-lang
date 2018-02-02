@@ -13,7 +13,7 @@ extern "C" {
 /*-------------------------------------------------------------------------*/
 
 enum type_kind {
-  PRIMITIVE_KIND = 1, USERDEF_TYPE = 2, FUNCTION_TYPE = 3,
+  PRIMITIVE_KIND = 1, USERDEF_KIND = 2, FUNCTION_KIND = 3,
 };
 
 struct type {
@@ -35,6 +35,7 @@ struct type {
 struct type *type_from_primitive(int primitive);
 struct type *type_from_userdef(char *mod_name, char *type_name);
 struct type *type_from_functype(Vector *tseq, Vector *rseq);
+int type_check(struct type *t1, struct type *t2);
 
 /*-------------------------------------------------------------------------*/
 
@@ -56,8 +57,8 @@ enum operator_kind {
 };
 
 enum expr_kind {
-  NAME_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, STRING_KIND = 4,
-  BOOL_KIND = 5, SELF_KIND = 6, NULL_KIND = 7, EXP_KIND = 8,
+  NAME_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
+  STRING_KIND = 5, SELF_KIND = 6, NIL_KIND = 7, EXP_KIND = 8,
   ARRAY_KIND = 9, ANONYOUS_FUNC_KIND, ATTRIBUTE_KIND, SUBSCRIPT_KIND,
   CALL_KIND = 13, UNARY_KIND, BINARY_KIND, SEQ_KIND,
   EXPR_KIND_MAX = 17
@@ -118,11 +119,6 @@ struct expr {
   };
 };
 
-static inline void expr_set_ctx(struct expr *exp, int ctx)
-{
-  exp->ctx = ctx;
-}
-
 struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
                                struct expr *left);
 struct expr *expr_from_name(char *id);
@@ -133,7 +129,7 @@ struct expr *expr_from_string(char *str);
 struct expr *expr_from_bool(int bval);
 struct expr *expr_from_self(void);
 struct expr *expr_from_expr(struct expr *exp);
-struct expr *expr_from_null(void);
+struct expr *expr_from_nil(void);
 struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq);
 struct expr *expr_from_array_with_tseq(Vector *tseq);
 struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body);
@@ -160,12 +156,11 @@ enum assign_operator {
 };
 
 enum stmt_kind {
-  IMPORT_KIND = 1, EXPR_KIND, VARDECL_KIND, INIT_ASSIGN_KIND,
-  FUNCDECL_KIND = 5, ASSIGN_KIND, COMPOUND_ASSIGN_KIND, CLASS_KIND,
-  INTF_KIND = 9, RETURN_KIND, IF_KIND, WHILE_KIND,
-  SWITCH_KIND = 13, FOR_TRIPLE_KIND, FOR_EACH_KIND, BREAK_KIND,
-  CONTINUE_KIND = 17, GO_KIND, BLOCK_KIND,
-  STMT_KIND_MAX = 20
+  IMPORT_KIND = 1, VARDECL_KIND, FUNCDECL_KIND, CLASS_KIND, INTF_KIND,
+  EXPR_KIND = 6, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
+  RETURN_KIND, IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
+  FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND, BLOCK_KIND,
+  STMT_KIND_MAX = 19
 };
 
 struct stmt {
@@ -177,8 +172,8 @@ struct stmt {
     } import;
     struct expr *expr;
     struct {
-      Vector *var_seq;
-      Vector *expr_seq;
+      struct var *var;
+      struct expr *exp;
     } vardecl;
     struct {
       char *id;
@@ -236,8 +231,8 @@ struct stmt {
 
 struct stmt *stmt_from_expr(struct expr *expr);
 struct stmt *stmt_from_import(char *id, char *path);
-struct stmt *stmt_from_vardecl(Vector *varseq, Vector *initseq,
-                               int bconst, struct type *type);
+Vector *handle_vardecl_stmt(Vector *varvec, Vector *expvec,
+                            int bconst, struct type *type);
 struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
                                 Vector *body);

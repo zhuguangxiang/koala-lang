@@ -1,5 +1,5 @@
 
-#include "debug.h"
+#include "log.h"
 #include "thread.h"
 #include <unistd.h>
 #include <errno.h>
@@ -144,7 +144,7 @@ void timer_signal_handler(int signo)
   sched.clock++;
   int ret = timer_getoverrun(sched.timer);
   if (ret < 0) {
-    debug_error("errno:%d\n", errno);
+    error("errno:%d\n", errno);
     return;
   }
   sched.clock = sched.clock + ret;

@@ -1,12 +1,17 @@
 
 package test;
 
-import "koala/lang";
+import "koala/io";
+import "github.com/nio";
 import "koala/io";
 
-var hello lang.String = string("hello");
-const SIZE int = 4096;
+var hi []string = nil; //= string("hello, world");
+var good lang.String = "good luck";
+const SIZE = 4096;
+var a, b int = 100, 100;
+var str = "good luck";
 
+/*
 func main(args []string) {
   var val int;
   args[0] = "world";
@@ -24,5 +29,4 @@ func Add(a1 int, b2 int) (int) {
   r = 100;
   return r;
 }
-
-
+*/

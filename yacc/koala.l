@@ -1,6 +1,6 @@
 
 %{
-#include "compile.h"
+#include "parser.h"
 #include "koala_yacc.h"
 
 static void echo();
@@ -81,7 +81,7 @@ L   [a-zA-Z_]
 "self"                    {return SELF;}
 "true"                    {return TOKEN_TRUE;}
 "false"                   {return TOKEN_FALSE;}
-"null"                    {return TOKEN_NULL;}
+"nil"                     {return TOKEN_NIL;}
 
 ([1-9][0-9]*|[0])         {
                             echo();

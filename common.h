@@ -51,8 +51,11 @@ typedef double  float64;
 /* Assert macros */
 #define ASSERT(val)     assert(val)
 #define ASSERT_PTR(ptr) assert((ptr) != NULL)
-#define ASSERT_MSG(fmt, ...)  do { \
-  debug_error(fmt, ##__VA_ARGS__); ASSERT(0); \
+#define ASSERT_MSG(val, fmt, ...)  do { \
+  if (!(val)) { \
+    printf("Assertion Message: '" fmt "'\n", ##__VA_ARGS__); \
+    ASSERT(val); \
+  } \
 } while (0)
 
 #ifdef __cplusplus
