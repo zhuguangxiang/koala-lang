@@ -2,8 +2,7 @@
 #ifndef _KOALA_CODEFORMAT_H_
 #define _KOALA_CODEFORMAT_H_
 
-#include "common.h"
-#include "itemtable.h"
+#include "atom.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -100,7 +99,10 @@ ConstItem *ConstItem_String_New(int32 val);
 typedef struct var_item {
   int32 name_index;  //->StringItem
   int32 type_index;  //->TypeItem
-  int32 flags;       //access and constant
+  int32 flags;       //access
+#define VAR_FLAG_PUBLIC   0
+#define VAR_FLAG_PRIVATE  1
+#define VAR_FLAG_CONST    2
 } VarItem;
 
 typedef struct func_item {
@@ -156,7 +158,7 @@ typedef struct struct_item {
 typedef struct kimage {
   ImageHeader header;
   char *package;
-  ItemTable *itable;
+  AtomTable *table;
 } KImage;
 
 /*-------------------------------------------------------------------------*/
@@ -215,8 +217,8 @@ typedef struct funcinfo {
   int locals;
 } FuncInfo;
 
-int CStr_To_Desc(char *str, TypeDesc *desc);
-TypeDesc *CStr_To_DescList(int count, char *str);
+int String_To_Desc(char *str, TypeDesc *desc);
+TypeDesc *String_To_DescList(int count, char *str);
 void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
                     ProtoInfo *proto);
 void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto);
@@ -230,37 +232,41 @@ void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
 KImage *KImage_New(char *pkg_name);
 void KImage_Free(KImage *image);
 void KImage_Finish(KImage *image);
-void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
+void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
+#define KImage_Add_Var(image, name, desc) \
+  __KImage_Add_Var(image, name, desc, 0)
+#define KImage_Add_Const(image, name, desc) \
+  __KImage_Add_Var(image, name, desc, 1)
 void KImage_Add_Func(KImage *image, char *name, FuncInfo *info);
 void KImage_Write_File(KImage *image, char *path);
 KImage *KImage_Read_File(char *path);
 void KImage_Show(KImage *image);
 
 #define KImage_Count_Vars(image) \
-  ItemTable_Size((image)->itable, ITEM_VAR)
+  ItemTable_Size((image)->table, ITEM_VAR)
 
 #define KImage_Count_Consts(image) \
-  ItemTable_Size((image)->itable, ITEM_CONST)
+  ItemTable_Size((image)->table, ITEM_CONST)
 
 #define KImage_Count_Functions(image) \
-  ItemTable_Size((image)->itable, ITEM_FUNC)
+  ItemTable_Size((image)->table, ITEM_FUNC)
 
-int StringItem_Get(ItemTable *itable, char *str);
-int StringItem_Set(ItemTable *itable, char *str);
-int TypeItem_Get(ItemTable *itable, TypeDesc *desc);
-int TypeItem_Set(ItemTable *itable, TypeDesc *desc);
-int TypeListItem_Get(ItemTable *itable, TypeDesc *desc, int sz);
-int TypeListItem_Set(ItemTable *itable, TypeDesc *desc, int sz);
-int ProtoItem_Get(ItemTable *itable, int32 rindex, int32 pindex);
-int ProtoItem_Set(ItemTable *itable, ProtoInfo *proto);
-int ConstItem_Get(ItemTable *itable, ConstItem *item);
-int ConstItem_Set_Int(ItemTable *itable, int64 val);
-int ConstItem_Set_Float(ItemTable *itable, float64 val);
-int ConstItem_Set_Bool(ItemTable *itable, int val);
-int ConstItem_Set_String(ItemTable *itable, int32 val);
+int StringItem_Get(AtomTable *table, char *str);
+int StringItem_Set(AtomTable *table, char *str);
+int TypeItem_Get(AtomTable *table, TypeDesc *desc);
+int TypeItem_Set(AtomTable *table, TypeDesc *desc);
+int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz);
+int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz);
+int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex);
+int ProtoItem_Set(AtomTable *table, ProtoInfo *proto);
+int ConstItem_Get(AtomTable *table, ConstItem *item);
+int ConstItem_Set_Int(AtomTable *table, int64 val);
+int ConstItem_Set_Float(AtomTable *table, float64 val);
+int ConstItem_Set_Bool(AtomTable *table, int val);
+int ConstItem_Set_String(AtomTable *table, int32 val);
 uint32 item_hash(void *key);
 int item_equal(void *k1, void *k2);
-void ItemTable_Show(ItemTable *itable);
+void AtomTable_Show(AtomTable *table, int max);
 
 #ifdef __cplusplus
 }

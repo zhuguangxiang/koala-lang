@@ -19,24 +19,24 @@ extern int loglevel;
 #ifdef NDEBUG
 #define debug(format, ...) ((void)0)
 #else
-#define debug(format, ...) do {             \
-  __debug("[DEBUG]"format, ##__VA_ARGS__);  \
+#define debug(format, ...) do { \
+  __debug("[DEBUG]" format "\n", ##__VA_ARGS__); \
 } while (0)
 #endif
 
-#define info(format, ...) do {        \
-  if (loglevel >= LOG_LEVEL_INFO)      \
-    __debug("[INFO]"format, ##__VA_ARGS__); \
+#define info(format, ...) do { \
+  if (loglevel >= LOG_LEVEL_INFO) \
+    __debug("[INFO]" format "\n", ##__VA_ARGS__); \
 } while (0)
 
-#define warn(format, ...) do {        \
-  if (loglevel >= LOG_LEVEL_WARN)      \
-    __debug("[WARN]"format, ##__VA_ARGS__); \
+#define warn(format, ...) do { \
+  if (loglevel >= LOG_LEVEL_WARN) \
+    __debug("[WARN]" format "\n", ##__VA_ARGS__); \
 } while (0)
 
-#define error(format, ...) do {       \
-  if (loglevel >= LOG_LEVEL_ERROR)     \
-    __debug("[ERROR]"format, ##__VA_ARGS__);\
+#define error(format, ...) do { \
+  if (loglevel >= LOG_LEVEL_ERROR) \
+    __debug("[ERROR]" format "\n", ##__VA_ARGS__);\
 } while (0)
 
 #ifdef __cplusplus

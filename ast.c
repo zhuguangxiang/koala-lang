@@ -1,5 +1,5 @@
 
-#include "ast.h"
+#include "parser.h"
 #include "codeformat.h"
 #include "log.h"
 
@@ -17,23 +17,24 @@ struct type *type_from_primitive(int primitive)
   return type;
 }
 
-struct type *type_from_userdef(char *mod_name, char *type_name)
+struct type *type_from_userdef(char *mod, char *type)
 {
-  if (!strcmp(mod_name, "lang") && !strcmp(type_name, "String")) {
+  if (mod != NULL && type != NULL &&
+      !strcmp(mod, "lang") && !strcmp(type, "String")) {
     return type_from_primitive(PRIMITIVE_STRING);
   } else {
-    struct type *type = type_new(USERDEF_KIND);
-    type->userdef.mod = mod_name;
-    type->userdef.type = type_name;
-    return type;
+    struct type *t = type_new(USERDEF_KIND);
+    t->userdef.mod = mod;
+    t->userdef.type = type;
+    return t;
   }
 }
 
-struct type *type_from_functype(Vector *tseq, Vector *rseq)
+struct type *type_from_functype(Vector *pvec, Vector *rvec)
 {
   struct type *type = type_new(FUNCTION_KIND);
-  type->functype.tseq = tseq;
-  type->functype.rseq = rseq;
+  type->functype.pvec = pvec;
+  type->functype.rvec = rvec;
   return type;
 }
 
@@ -74,7 +75,7 @@ static char *type_tostring(struct type *t)
       break;
     }
     default: {
-      assert(0);
+      ASSERT(0);
       break;
     }
   }
@@ -172,15 +173,15 @@ struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq)
 struct expr *expr_from_array_with_tseq(Vector *tseq)
 {
   struct expr *e = expr_new(SEQ_KIND);
-  e->seq = tseq;
+  e->vec = tseq;
   return e;
 }
 
-struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body)
+struct expr *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body)
 {
   struct expr *expr = expr_new(ANONYOUS_FUNC_KIND);
-  expr->anonyous_func.pseq = pseq;
-  expr->anonyous_func.rseq = rseq;
+  expr->anonyous_func.pvec = pvec;
+  expr->anonyous_func.rvec = rvec;
   expr->anonyous_func.body = body;
   return expr;
 }
@@ -202,7 +203,7 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
     }
     case CALL_KIND: {
       expr->call.left = left;
-      expr->call.pseq = trailer;
+      expr->call.pvec = trailer;
       break;
     }
     default: {
@@ -257,16 +258,16 @@ struct stmt *stmt_from_import(char *id, char *path)
   return stmt;
 }
 
-Vector *handle_vardecl_stmt(Vector *varvec, Vector *expvec,
-                            int bconst, struct type *type)
+Vector *do_vardecl_stmt(Vector *varvec, Vector *expvec,
+                        int bconst, struct type *type)
 {
-  Vector *vec = Vector_Create();
+  Vector *vec = Vector_New();
   int vsz = Vector_Size(varvec);
   int esz = (expvec != NULL) ? Vector_Size(expvec) : 0;
   int error = 0;
   if (esz != vsz) {
     if (esz != 0)
-      error("cannot assign %d values to %d variables\n", esz, vsz);
+      error("cannot assign %d values to %d variables", esz, vsz);
     error = 1;
   }
 
@@ -282,24 +283,27 @@ Vector *handle_vardecl_stmt(Vector *varvec, Vector *expvec,
     if (!error) {
       stmt->vardecl.exp = Vector_Get(expvec, i);
       if (var->type == NULL) {
-        ASSERT_PTR(stmt->vardecl.exp);
+        ASSERT_MSG(stmt->vardecl.exp->type != NULL,
+                   "Expression(its type is void) is not used as value");
         var->type = stmt->vardecl.exp->type;
       }
     }
+    /* add symbol to symbol table */
+    parse_vardecl(&parser, var);
   }
 
-  Vector_Destroy(varvec, NULL, NULL);
-  Vector_Destroy(expvec, NULL, NULL);
+  Vector_Free(varvec, NULL, NULL);
+  Vector_Free(expvec, NULL, NULL);
   return vec;
 }
 
-struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
+struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
                                 Vector *body)
 {
   struct stmt *stmt = stmt_new(FUNCDECL_KIND);
   stmt->funcdecl.id = id;
-  stmt->funcdecl.pseq = pseq;
-  stmt->funcdecl.rseq = rseq;
+  stmt->funcdecl.pvec = pvec;
+  stmt->funcdecl.rvec = rvec;
   stmt->funcdecl.body = body;
   return stmt;
 }
@@ -326,30 +330,30 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 struct stmt *stmt_from_block(Vector *block)
 {
   struct stmt *stmt = stmt_new(BLOCK_KIND);
-  stmt->seq  = block;
+  stmt->vec  = block;
   return stmt;
 }
 
-struct stmt *stmt_from_return(Vector *seq)
+struct stmt *stmt_from_return(Vector *vec)
 {
   struct stmt *stmt = stmt_new(RETURN_KIND);
-  stmt->seq  = seq;
+  stmt->vec  = vec;
   return stmt;
 }
 
-struct stmt *stmt_from_structure(char *id, Vector *seq)
+struct stmt *stmt_from_structure(char *id, Vector *vec)
 {
   struct stmt *stmt = stmt_new(CLASS_KIND);
   stmt->structure.id  = id;
-  stmt->structure.seq = seq;
+  stmt->structure.vec = vec;
   return stmt;
 }
 
-struct stmt *stmt_from_interface(char *id, Vector *seq)
+struct stmt *stmt_from_interface(char *id, Vector *vec)
 {
   struct stmt *stmt = stmt_new(INTF_KIND);
   stmt->structure.id  = id;
-  stmt->structure.seq = seq;
+  stmt->structure.vec = vec;
   return stmt;
 }
 
@@ -443,9 +447,14 @@ struct field *new_struct_field(char *id, struct type *t, struct expr *e)
   return NULL;
 }
 
-struct intf_func *new_intf_func(char *id, Vector *pseq, Vector *rseq)
+struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec)
 {
   return NULL;
+}
+
+void mod_fini(struct mod *mod)
+{
+
 }
 
 /*--------------------------------------------------------------------------*/
@@ -545,7 +554,7 @@ void expr_traverse(struct expr *expr)
       expr_traverse(expr->call.left);
       printf("[func call]paras:\n");
       struct expr *temp;
-      Vector *vec = expr->call.pseq;
+      Vector *vec = expr->call.pvec;
       if (vec != NULL) {
         for (int i = 0; i < Vector_Size(vec); i++) {
           temp = Vector_Get(vec, i);
@@ -569,11 +578,11 @@ void expr_traverse(struct expr *expr)
       break;
     }
     case SEQ_KIND: {
-      printf("[seq]\n");
-      for (int i = 0; i < Vector_Size(expr->seq); i++) {
-        expr_traverse(Vector_Get(expr->seq, i));
+      printf("[vec]\n");
+      for (int i = 0; i < Vector_Size(expr->vec); i++) {
+        expr_traverse(Vector_Get(expr->vec, i));
       }
-      printf("[end seq]\n");
+      printf("[end vec]\n");
       break;
     }
     default: {
@@ -605,7 +614,7 @@ void stmt_traverse(struct stmt *stmt);
 
 void func_traverse(struct stmt *stmt)
 {
-  Vector *vec = stmt->funcdecl.pseq;
+  Vector *vec = stmt->funcdecl.pvec;
   struct var *var;
   printf("[function]\n");
   printf("params:");
@@ -619,7 +628,7 @@ void func_traverse(struct stmt *stmt)
     printf("\n");
   }
 
-  vec = stmt->funcdecl.rseq;
+  vec = stmt->funcdecl.rvec;
   struct type *t;
   printf("returns:");
   if (vec != NULL) {
@@ -726,8 +735,8 @@ void stmt_traverse(struct stmt *stmt)
     case RETURN_KIND: {
       printf("[return statement]\n");
       struct expr *exp;
-      for (int i = 0; i < Vector_Size(stmt->seq); i++) {
-        exp = Vector_Get(stmt->seq, i);
+      for (int i = 0; i < Vector_Size(stmt->vec); i++) {
+        exp = Vector_Get(stmt->vec, i);
         expr_traverse(exp);
       }
       printf("[end return statement]\n");

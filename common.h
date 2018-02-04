@@ -53,7 +53,7 @@ typedef double  float64;
 #define ASSERT_PTR(ptr) assert((ptr) != NULL)
 #define ASSERT_MSG(val, fmt, ...)  do { \
   if (!(val)) { \
-    printf("Assertion Message: '" fmt "'\n", ##__VA_ARGS__); \
+    printf("Assertion Message: " fmt "\n", ##__VA_ARGS__); \
     ASSERT(val); \
   } \
 } while (0)

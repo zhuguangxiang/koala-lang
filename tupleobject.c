@@ -22,7 +22,7 @@ TValue Tuple_Get(Object *ob, int index)
   TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
 
   if (index < 0 || index >= tuple->size) {
-    error("index %d out of bound\n", index);
+    error("index %d out of bound", index);
     return NilValue;
   }
 
@@ -59,7 +59,7 @@ int Tuple_Set(Object *ob, int index, TValue *val)
   TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
 
   if (index < 0 || index >= tuple->size) {
-    error("index %d out of bound\n", index);
+    error("index %d out of bound", index);
     return -1;
   }
 

@@ -23,10 +23,17 @@ void Module_Free(Object *ob)
   free(ob);
 }
 
-int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
+int Module_Add_Var(Object *ob, char *name, TypeDesc *desc)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *sym = STable_Add_Var(&mob->stable, name, desc, bconst);
+  Symbol *sym = STable_Add_Var(&mob->stable, name, desc);
+  return (sym != NULL) ? 0 : -1;
+}
+
+int Module_Add_Const(Object *ob, char *name, TypeDesc *desc)
+{
+  ModuleObject *mob = OBJ_TO_MOD(ob);
+  Symbol *sym = STable_Add_Const(&mob->stable, name, desc);
   return (sym != NULL) ? 0 : -1;
 }
 
@@ -55,7 +62,7 @@ int Module_Add_Class(Object *ob, Klass *klazz)
   Symbol *sym = STable_Add_Class(&mob->stable, klazz->name);
   if (sym != NULL) {
     sym->obj = klazz;
-    STable_Init(&klazz->stable, mob->stable.itable);
+    STable_Init(&klazz->stable, Module_AtomTable(mob));
     return 0;
   }
   return -1;
@@ -67,7 +74,7 @@ int Module_Add_Interface(Object *ob, Klass *klazz)
   Symbol *sym = STable_Add_Interface(&mob->stable, klazz->name);
   if (sym != NULL) {
     sym->obj = klazz;
-    STable_Init(&klazz->stable, mob->stable.itable);
+    STable_Init(&klazz->stable, Module_AtomTable(mob));
     return 0;
   }
   return -1;
@@ -80,7 +87,7 @@ static int __get_value_index(ModuleObject *mob, char *name)
     if (s->kind == SYM_VAR) {
       return s->index;
     } else {
-      error("symbol is not a variable\n");
+      error("symbol is not a variable");
     }
   }
   return -1;
@@ -95,7 +102,7 @@ Symbol *Module_Get_Symbol(Object *ob, char *name)
 Object *__get_tuple(ModuleObject *mob)
 {
   if (mob->tuple == NULL) {
-    mob->tuple = Tuple_New(mob->stable.next_index);
+    mob->tuple = Tuple_New(mob->stable.nextindex);
   }
   return mob->tuple;
 }
@@ -135,7 +142,7 @@ Object *Module_Get_Function(Object *ob, char *name)
     if (s->kind == SYM_FUNC) {
       return s->obj;
     } else {
-      error("symbol is not a function\n");
+      error("symbol is not a function");
     }
   }
 
@@ -150,7 +157,7 @@ Klass *Module_Get_Class(Object *ob, char *name)
     if (s->kind == SYM_CLASS) {
       return s->obj;
     } else {
-      error("symbol is not a class\n");
+      error("symbol is not a class");
     }
   }
   return NULL;
@@ -164,7 +171,7 @@ Klass *Module_Get_Intf(Object *ob, char *name)
     if (s->kind == SYM_INTF) {
       return s->obj;
     } else {
-      error("symbol is not a interface\n");
+      error("symbol is not a interface");
     }
   }
   return NULL;
@@ -178,7 +185,7 @@ Klass *Module_Get_Klass(Object *ob, char *name)
     if (s->kind == SYM_CLASS || s->kind == SYM_INTF) {
       return s->obj;
     } else {
-      error("symbol is not a class\n");
+      error("symbol is not a class");
     }
   }
   return NULL;
@@ -208,12 +215,18 @@ STable *Object_STable(Object *ob)
   }
 }
 
-ItemTable *Object_ItemTable(Object *ob)
+STable *Module_Get_STable(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, Module_Klass);
+  return Module_STable(ob);
+}
+
+AtomTable *Object_AtomTable(Object *ob)
 {
   if (OB_CHECK_KLASS(ob, Module_Klass)) {
-    return Module_ItemTable(ob);
+    return Module_AtomTable(ob);
   } else if (OB_CHECK_KLASS(ob, Klass_Klass)) {
-    return Klass_ItemTable(ob);
+    return Klass_AtomTable(ob);
   } else {
     ASSERT_MSG(0, "unknown class");
     return NULL;

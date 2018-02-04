@@ -1,109 +1,129 @@
 
 #include "parser.h"
+#include "koala.h"
 #include "hash.h"
 #include "codegen.h"
 
-Import *import_new(char *id, char *path, Object *ob)
+ParserState parser;
+
+/*-------------------------------------------------------------------------*/
+
+static Import *import_new(char *id, char *path, STable *stable, char *pkg)
 {
   Import *import = malloc(sizeof(Import));
   if (id == NULL)
-    import->id = Moudle_Name(ob);
+    import->id = pkg;
   else
     import->id = id;
   import->path = path;
   Init_HashNode(&import->hnode, import);
-  import->module = ob;
+  import->stable = stable;
   import->refcnt = 0;
   return import;
 }
 
-uint32 import_hash(void *k)
+static void import_free(Import *import)
+{
+  free(import);
+}
+
+static uint32 import_hash(void *k)
 {
   Import *import = k;
   return hash_string(import->id);
 }
 
-int import_equal(void *k1, void *k2)
+static int import_equal(void *k1, void *k2)
 {
   Import *import1 = k1;
   Import *import2 = k2;
   return !strcmp(import1->id, import2->id);
 }
 
-void init_imports(Parser *parser)
+static void init_imports(ParserState *parser)
 {
   Decl_HashInfo(hashinfo, import_hash, import_equal);
   HashTable_Init(&parser->imports, &hashinfo);
-  struct stmt *stmt = stmt_from_import("lang", "koala/lang");
-  Vector_Append(&parser->stmts, stmt);
+  Object *ob = Koala_Get_Module("koala/lang");
+  ASSERT_MSG(ob != NULL, "cannot load module 'koala/lang'");
+  STable *stable = Module_Get_STable(ob);
+  ASSERT_PTR(stable);
+  Import *import = import_new("lang", "koala/lang", stable, NULL);
+  import->refcnt = 1;
+  HashTable_Insert(&parser->imports, &import->hnode);
 }
 
 /*-------------------------------------------------------------------------*/
 
-static Scope *scope_new(Parser *parser)
-{
-  Scope *scope = malloc(sizeof(Scope));
-  init_list_head(&scope->link);
-  STable_Init(&scope->stable, Module_ItemTable(parser->module));
-  return scope;
-}
+// static Scope *scope_new(Parser *parser)
+// {
+//   Scope *scope = malloc(sizeof(Scope));
+//   init_list_head(&scope->link);
+//   STable_Init(&scope->stable, Module_ItemTable(parser->module));
+//   return scope;
+// }
 
-static void scope_free(Scope *scope)
-{
-  ASSERT(list_unlinked(&scope->link));
-  STable_Fini(&scope->stable);
-  free(scope);
-}
+// static void scope_free(Scope *scope)
+// {
+//   ASSERT(list_unlinked(&scope->link));
+//   STable_Fini(&scope->stable);
+//   free(scope);
+// }
 
-static Scope *get_scope(Parser *parser)
-{
-  struct list_head *first = NULL; //list_first(&parser->scopes);
-  if (first != NULL) return container_of(first, Scope, link);
-  else return NULL;
-}
+// static Scope *get_scope(Parser *parser)
+// {
+//   struct list_head *first = NULL; //list_first(&parser->scopes);
+//   if (first != NULL) return container_of(first, Scope, link);
+//   else return NULL;
+// }
 
-static void scope_enter(Parser *parser)
-{
-  //parser->scope++;
-  Scope *scope = scope_new(parser);
-  //list_add(&scope->link, &parser->scopes);
-}
+// static void scope_enter(Parser *parser)
+// {
+//   //parser->scope++;
+//   Scope *scope = scope_new(parser);
+//   //list_add(&scope->link, &parser->scopes);
+// }
 
-static void scope_exit(Parser *parser)
-{
-  //parser->scope--;
-  Scope *scope = get_scope(parser);
-  ASSERT_PTR(scope);
-  list_del(&scope->link);
-  scope_free(scope);
-}
+// static void scope_exit(Parser *parser)
+// {
+//   //parser->scope--;
+//   Scope *scope = get_scope(parser);
+//   ASSERT_PTR(scope);
+//   list_del(&scope->link);
+//   scope_free(scope);
+// }
 
-Symbol *parser_find_symbol(Parser *parser, char *name)
-{
-  Scope *scope;
-  Symbol *sym;
-  // list_for_each_entry(scope, &parser->scopes, link) {
-  //   sym = STable_Get(&scope->stable, name);
-  //   if (sym != NULL) return sym;
-  // }
+// Symbol *parser_find_symbol(Parser *parser, char *name)
+// {
+//   Scope *scope;
+//   Symbol *sym;
+//   // list_for_each_entry(scope, &parser->scopes, link) {
+//   //   sym = STable_Get(&scope->stable, name);
+//   //   if (sym != NULL) return sym;
+//   // }
 
-  /* find global symbol table */
-  return NULL;//STable_Get(&parser->stable, name);
-}
+//   /* find global symbol table */
+//   return NULL;//STable_Get(&parser->stable, name);
+// }
 
 /*-------------------------------------------------------------------------*/
 
-char *type_get_fullpath(Parser *parser, struct type *type)
+char *type_get_fullpath(ParserState *parser, struct type *type)
 {
   Import temp = {.id = type->userdef.mod};
   Import *import = HashTable_FindObject(&parser->imports, &temp, Import);
   if (import == NULL) return NULL;
   import->refcnt = 1;
 
-  Klass *klazz = Module_Get_Klass(import->module, type->userdef.type);
-  if (klazz == NULL) {
-    error("cannot find type: %s.%s\n", import->path, type->userdef.type);
+  Symbol *symbol = STable_Get(import->stable, type->userdef.type);
+  if (symbol == NULL) {
+    error("cannot find type: %s.%s", import->path, type->userdef.type);
     return NULL;
+  } else {
+    if (symbol->kind != SYM_CLASS && symbol->kind != SYM_INTF) {
+      error("symbol(%d) is not class or interface", symbol->kind);
+      return NULL;
+    }
   }
 
   int len = strlen(import->path) + strlen(type->userdef.type) + 2;
@@ -113,7 +133,7 @@ char *type_get_fullpath(Parser *parser, struct type *type)
   return fullpath;
 }
 
-int type_to_desc(Parser *parser, struct type *type, TypeDesc *desc)
+int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
 {
   ASSERT_PTR(type);
   if (type->kind == PRIMITIVE_KIND) {
@@ -130,55 +150,55 @@ int type_to_desc(Parser *parser, struct type *type, TypeDesc *desc)
 
 /*-------------------------------------------------------------------------*/
 
-int parse_args(Parser *parser, struct stmt *stmt, TypeDesc **ret)
-{
-  Vector *vec = stmt->funcdecl.pseq;
-  if (vec != NULL) {
-    int sz = Vector_Size(vec);
-    struct type *type;
-    struct var *var;
-    TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
-    ASSERT_PTR(desc);
-    Scope *scope;
-    for (int i = 0; i < sz; i++) {
-      var = Vector_Get(vec, i);
-      type = var->type;
-      type_to_desc(parser, type, desc + i);
-      scope = get_scope(parser);
-      if (scope != NULL)
-        STable_Add_Var(&scope->stable, var->id, desc + i, 0);
-    }
-    if (ret != NULL)
-      *ret = desc;
-    else
-      free(desc);
-    return sz;
-  }
-  if (ret != NULL) *ret = NULL;
-  return 0;
-}
+// int parse_args(Parser *parser, struct stmt *stmt, TypeDesc **ret)
+// {
+//   Vector *vec = stmt->funcdecl.pseq;
+//   if (vec != NULL) {
+//     int sz = Vector_Size(vec);
+//     struct type *type;
+//     struct var *var;
+//     TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
+//     ASSERT_PTR(desc);
+//     Scope *scope;
+//     for (int i = 0; i < sz; i++) {
+//       var = Vector_Get(vec, i);
+//       type = var->type;
+//       type_to_desc(parser, type, desc + i);
+//       scope = get_scope(parser);
+//       if (scope != NULL)
+//         STable_Add_Var(&scope->stable, var->id, desc + i, 0);
+//     }
+//     if (ret != NULL)
+//       *ret = desc;
+//     else
+//       free(desc);
+//     return sz;
+//   }
+//   if (ret != NULL) *ret = NULL;
+//   return 0;
+// }
 
-int parse_rets(Parser *parser, struct stmt *stmt, TypeDesc **ret)
-{
-  Vector *vec = stmt->funcdecl.rseq;
-  if (vec != NULL) {
-    int sz = Vector_Size(vec);
-    struct type *type;
-    TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
-    ASSERT_PTR(desc);
-    for (int i = 0; i < sz; i++) {
-      type = Vector_Get(vec, i);
-      type_to_desc(parser, type, desc + i);
-    }
-    if (ret != NULL)
-      *ret = desc;
-    else
-      free(desc);
-    return sz;
-  }
-  if (ret != NULL) *ret = NULL;
-  return 0;
-}
+// int parse_rets(Parser *parser, struct stmt *stmt, TypeDesc **ret)
+// {
+//   Vector *vec = stmt->funcdecl.rseq;
+//   if (vec != NULL) {
+//     int sz = Vector_Size(vec);
+//     struct type *type;
+//     TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
+//     ASSERT_PTR(desc);
+//     for (int i = 0; i < sz; i++) {
+//       type = Vector_Get(vec, i);
+//       type_to_desc(parser, type, desc + i);
+//     }
+//     if (ret != NULL)
+//       *ret = desc;
+//     else
+//       free(desc);
+//     return sz;
+//   }
+//   if (ret != NULL) *ret = NULL;
+//   return 0;
+// }
 
 /*--------------------------------------------------------------------------*/
 
@@ -338,166 +358,186 @@ int parse_rets(Parser *parser, struct stmt *stmt, TypeDesc **ret)
 
 /*--------------------------------------------------------------------------*/
 
-void init_funcdata(FuncData *func, Object *owner)
-{
-  func->owner = owner;
-  func->scope = 0;
-  init_list_head(&func->scopes);
-  Buffer_Init(&func->buf, 128);
-  Decl_HashInfo(hashinfo, item_hash, item_equal);
-  func->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
-  func->stacksize = 0;
-}
+// void init_funcdata(FuncData *func, Object *owner)
+// {
+//   func->owner = owner;
+//   func->scope = 0;
+//   init_list_head(&func->scopes);
+//   Buffer_Init(&func->buf, 128);
+//   Decl_HashInfo(hashinfo, item_hash, item_equal);
+//   func->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
+//   func->stacksize = 0;
+// }
 
 /*--------------------------------------------------------------------------*/
 
-void generate_initfunc_code(Parser *parser, struct stmt *stmt)
-{
-  expr_generate_code(&parser->func, stmt->vardecl.exp);
-  FuncData *func = &parser->func;
-  struct var *var = stmt->vardecl.var;
-  Symbol *sym = STable_Get(Object_STable(func->owner), var->id);
-  ASSERT_PTR(sym); ASSERT(sym->name_index >= 0);
-  int index = ConstItem_Set_String(func->itable, sym->name_index);
-  Buffer_Write_Byte(&func->buf, OP_SETFIELD);
-  Buffer_Write_4Bytes(&func->buf, index);
-}
+// void generate_initfunc_code(Parser *parser, struct stmt *stmt)
+// {
+//   expr_generate_code(&parser->func, stmt->vardecl.exp);
+//   FuncData *func = &parser->func;
+//   struct var *var = stmt->vardecl.var;
+//   Symbol *sym = STable_Get(Object_STable(func->owner), var->id);
+//   ASSERT_PTR(sym); ASSERT(sym->name_index >= 0);
+//   int index = ConstItem_Set_String(func->itable, sym->name_index);
+//   Buffer_Write_Byte(&func->buf, OP_SETFIELD);
+//   Buffer_Write_4Bytes(&func->buf, index);
+// }
 
 /*--------------------------------------------------------------------------*/
 
-void import_stmt_handler(Parser *parser, struct stmt *stmt)
+void parse_import(ParserState *parser, char *id, char *path)
 {
-  Object *ob = Koala_Load_Module(stmt->import.path);
+  Object *ob = Koala_Load_Module(path);
   if (ob == NULL) {
-    error("cannot load module %s\n", stmt->import.path);
+    error("cannot load module %s", path);
     return;
   }
-  Import *import = import_new(stmt->import.id, stmt->import.path, ob);
+  STable *stable = Module_Get_STable(ob);
+  ASSERT_PTR(stable);
+  Import *import = import_new(id, path, stable, Module_Name(ob));
   if (HashTable_Insert(&parser->imports, &import->hnode) < 0) {
-    error("package '%s' imported is duplicated\n", stmt->import.path);
+    error("imported package '%s' is duplicated", path);
+    import_free(import);
   }
 }
 
-void parse_vardecl_symbol(Parser *parser, struct stmt *stmt)
+void parse_vardecl(ParserState *parser, struct var *var)
 {
-  struct var *var = stmt->vardecl.var;
   TypeDesc desc;
   int res = type_to_desc(parser, var->type, &desc);
   ASSERT(res >= 0);
-  Module_Add_Var(parser->module, var->id, &desc, var->bconst);
-  Vector_Append(&parser->__initstmts__, stmt);
+  if (var->bconst)
+    STable_Add_Const(&parser->u->stable, var->id, &desc);
+  else
+    STable_Add_Var(&parser->u->stable, var->id, &desc);
 }
 
-void symbol_funcdecl_handler(Parser *parser, struct stmt *stmt)
+// void symbol_funcdecl_handler(Parser *parser, struct stmt *stmt)
+// {
+//   ProtoInfo proto;
+//   proto.psz = parse_args(parser, stmt, &proto.pdesc);
+//   proto.rsz = parse_rets(parser, stmt, &proto.rdesc);
+//   Module_Add_Func(parser->module, stmt->funcdecl.id, &proto, NULL);
+// }
+
+// void parse_initfunc(Parser *parser)
+// {
+//   struct stmt *stmt;
+//   Vector *vec = &parser->__initstmts__;
+//   if (Vector_Size(vec) > 0) {
+//     debug("add __init__ function to '%s' module\n",
+//           Moudle_Name(parser->module));
+//     init_funcdata(&parser->func, parser->module);
+//   }
+
+//   for (int i = 0; i < Vector_Size(vec); i++) {
+//     stmt = Vector_Get(vec, i);
+//     if (stmt->vardecl.exp == NULL) {
+//       debug("variable declaration is not need generate code\n");
+//       continue;
+//     }
+//     if (stmt->vardecl.exp->kind == NIL_KIND) {
+//       debug("null value\n");
+//       continue;
+//     }
+
+//     ASSERT_PTR(stmt->vardecl.exp->type);
+
+//     if (!type_check(stmt->vardecl.var->type, stmt->vardecl.exp->type)) {
+//       error("typecheck failed\n");
+//     } else {
+//       //generate code
+//       info("generate code\n");
+//       generate_initfunc_code(parser, stmt);
+//     }
+//   }
+
+//   if (Vector_Size(vec) > 0) {
+//     ItemTable_Show(parser->func.itable);
+//   }
+// }
+
+/*--------------------------------------------------------------------------*/
+
+// void parse_symbols(Parser *parser)
+// {
+//   static stmt_parser_t parsers[] = {
+//     NULL, /* INVALID */
+//     import_stmt_handler,
+//     parse_vardecl_symbol,
+//     NULL, //funcdecl_stmt_handler,
+//     NULL,
+//     NULL,
+//   };
+//   struct stmt *stmt;
+//   Vector *vec = &parser->stmts;
+//   for (int i = 0; i < Vector_Size(vec); i++) {
+//     stmt = Vector_Get(vec, i);
+//     ASSERT(stmt->kind > 0 && stmt->kind < nr_elts(parsers));
+//     stmt_parser_t fn_parser = parsers[stmt->kind];
+//     ASSERT_PTR(fn_parser);
+//     fn_parser(parser, stmt);
+//   }
+// }
+
+/*--------------------------------------------------------------------------*/
+void parser_enter_scope(ParserState *parser)
 {
-  ProtoInfo proto;
-  proto.psz = parse_args(parser, stmt, &proto.pdesc);
-  proto.rsz = parse_rets(parser, stmt, &proto.rdesc);
-  Module_Add_Func(parser->module, stmt->funcdecl.id, &proto, NULL);
+  AtomTable *atable = NULL;
+  ParserUnit *u = malloc(sizeof(ParserUnit));
+  init_list_head(&u->link);
+  if (parser->u != NULL) atable = parser->u->stable.atable;
+  STable_Init(&u->stable, atable);
+  u->up = parser->u;
+  u->block = NULL;
+  init_list_head(&u->blocks);
+
+  /* Push the old ParserUnit on the stack. */
+  if (parser->u != NULL) {
+    list_add(&u->link, &parser->ustack);
+  }
+
+  parser->u = u;
+  parser->scope++;
 }
 
-void parse_initfunc(Parser *parser)
+void parser_exit_scope(ParserState *parser)
 {
-  struct stmt *stmt;
-  Vector *vec = &parser->__initstmts__;
-  if (Vector_Size(vec) > 0) {
-    debug("add __init__ function to '%s' module\n",
-          Moudle_Name(parser->module));
-    init_funcdata(&parser->func, parser->module);
-  }
 
-  for (int i = 0; i < Vector_Size(vec); i++) {
-    stmt = Vector_Get(vec, i);
-    if (stmt->vardecl.exp == NULL) {
-      debug("variable declaration is not need generate code\n");
-      continue;
-    }
-    if (stmt->vardecl.exp->kind == NIL_KIND) {
-      debug("null value\n");
-      continue;
-    }
-
-    ASSERT_PTR(stmt->vardecl.exp->type);
-
-    if (!type_check(stmt->vardecl.var->type, stmt->vardecl.exp->type)) {
-      error("typecheck failed\n");
-    } else {
-      //generate code
-      info("generate code\n");
-      generate_initfunc_code(parser, stmt);
-    }
-  }
-
-  if (Vector_Size(vec) > 0) {
-    ItemTable_Show(parser->func.itable);
-  }
 }
 
 /*--------------------------------------------------------------------------*/
 
-void parse_symbols(Parser *parser)
+static void parser_body(ParserState *parser, Vector *stmts)
 {
-  static stmt_parser_t parsers[] = {
-    NULL, /* INVALID */
-    import_stmt_handler,
-    parse_vardecl_symbol,
-    NULL, //funcdecl_stmt_handler,
-    NULL,
-    NULL,
-  };
-  struct stmt *stmt;
-  Vector *vec = &parser->stmts;
-  for (int i = 0; i < Vector_Size(vec); i++) {
-    stmt = Vector_Get(vec, i);
-    ASSERT(stmt->kind > 0 && stmt->kind < nr_elts(parsers));
-    stmt_parser_t fn_parser = parsers[stmt->kind];
-    ASSERT_PTR(fn_parser);
-    fn_parser(parser, stmt);
-  }
+
 }
 
-void init_module(Parser *parser)
+void parse_module(ParserState *parser, struct mod *mod)
 {
-  parser->module = Module_New(parser->package, "/");
+  debug("-----------------------");
+  parser->package = mod->package;
+  parser_body(parser, &mod->stmts);
+  printf("package:%s\n", parser->package);
+  ASSERT_PTR(parser->u);
+  STable_Show(&parser->u->stable);
+  debug("-----------------------");
 }
 
-void fini_module(Parser *parser)
+static void init_parser(ParserState *parser)
 {
-  UNUSED_PARAMETER(parser);
+  Koala_Init();
+  memset(parser, 0, sizeof(ParserState));
+  init_imports(parser);
+  init_list_head(&parser->ustack);
+  Vector_Init(&parser->errors);
+  parser_enter_scope(parser);
 }
 
-void parse(Parser *parser)
+static void fini_parser(ParserState *parser)
 {
-  debug("-----------------------\n");
-  init_module(parser);
-
-  /* parse all module's symbols */
-  parse_symbols(parser);
-
-  /* parse all functions */
-
-  /* parse __init__ function */
-  parse_initfunc(parser);
-
-  /* generate .klc image file */
-
-  /* show module */
-  debug("-----------------------\n");
-  Module_Show(parser->module);
-  fini_module(parser);
-}
-
-Parser parser;
-
-void init_parser(void)
-{
-  Vector_Init(&parser.stmts);
-  Vector_Init(&parser.__initstmts__);
-  init_imports(&parser);
-}
-
-void fini_parser(void)
-{
+  parser_exit_scope(parser);
+  Koala_Fini();
 }
 
 int main(int argc, char *argv[])
@@ -510,15 +550,13 @@ int main(int argc, char *argv[])
     return -1;
   }
 
-  Koala_Init();
-  init_parser();
+  init_parser(&parser);
 
   yyin = fopen(argv[1], "r");
   yyparse();
   fclose(yyin);
 
-  fini_parser();
-  Koala_Fini();
+  fini_parser(&parser);
 
   return 0;
 }

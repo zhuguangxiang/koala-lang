@@ -204,3 +204,10 @@ git remote add origin git@github.com:zhuguangxiang/koala-language.git
 git push -u origin master --tags
 
 export LD_LIBRARY_PATH="/home/zgx/koala-lang"
+
+Version Log:
+v0.5.1:
+1. vector.c
+2. add listobject.c
+3. parse.c divides add symbols, type check, code gen three parts.
+'add symbols' is in building AST.

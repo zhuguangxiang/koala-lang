@@ -53,7 +53,7 @@ int Koala_Add_Module(char *path, Object *mo)
 {
   struct mod_entry *e = new_mod_entry(path, mo);
   if (HashTable_Insert(&modules, &e->hnode) < 0) {
-    error("add module '%s' failed\n", path);
+    error("add module '%s' failed", path);
     free_mod_entry(e);
     return -1;
   }

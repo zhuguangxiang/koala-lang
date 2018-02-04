@@ -107,7 +107,7 @@ void run_kframe(Frame *f)
     Parameters are stored reversely in the stack,
     including a module or an object.
  */
-Routine *Routine_Create(Object *func, Object *obj, Object *args)
+Routine *Routine_New(Object *func, Object *obj, Object *args)
 {
   OB_ASSERT_KLASS(func, Method_Klass);
   Routine *rt = malloc(sizeof(Routine));

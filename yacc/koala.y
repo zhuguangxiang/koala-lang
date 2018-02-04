@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 #include "parser.h"
 #include "koala_yacc.h"
 
@@ -16,7 +15,7 @@ int yyerror(const char *str)
   return 0;
 }
 
-extern Parser parser;
+static decl_mod(mod);
 static int vardeclflag = 0;
 
 //#define YYERROR_VERBOSE 1
@@ -164,7 +163,6 @@ static int vardeclflag = 0;
 %type <vector> DimExprList
 %type <vector> ArrayInitializerList
 %type <expr> ArrayInitializer
-%type <stmt> Import
 %type <general> ModuleStatement
 %type <general> VariableDeclaration
 %type <general> ConstDeclaration
@@ -270,7 +268,7 @@ TypeNameListOrEmpty
 
 TypeNameList
   : TypeName {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | TypeNameList ',' TypeName {
@@ -290,7 +288,7 @@ TypeName
 
 ReturnTypeList
   : Type {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | '(' TypeList ')' {
@@ -304,7 +302,7 @@ ReturnTypeList
 
 TypeList
   : Type {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | TypeList ',' Type {
@@ -317,20 +315,22 @@ TypeList
 
 CompileUnit
   : Imports ModuleStatements {
-    ast_traverse(&parser.stmts);
+    mod.package = NULL;
+    ast_traverse(&mod.stmts);
   }
   | ModuleStatements {
-    ast_traverse(&parser.stmts);
+    mod.package = NULL;;
+    ast_traverse(&mod.stmts);
   }
   | Package Imports ModuleStatements {
-    parser.package = $1;
-    ast_traverse(&parser.stmts);
-    parse(&parser);
+    mod.package = $1;
+    ast_traverse(&mod.stmts);
+    parse_module(&parser, &mod);
   }
   | Package ModuleStatements {
-    parser.package = $1;
-    ast_traverse(&parser.stmts);
-    parse(&parser);
+    mod.package = $1;
+    ast_traverse(&mod.stmts);
+    parse_module(&parser, &mod);
   }
   ;
 
@@ -341,20 +341,16 @@ Package
   ;
 
 Imports
-  : Import {
-    if ($1 != NULL) Vector_Append(&parser.stmts, $1);
-  }
-  | Imports Import {
-    if ($2 != NULL) Vector_Append(&parser.stmts, $2);
-  }
+  : Import
+  | Imports Import
   ;
 
 Import
   : IMPORT STRING_CONST ';' {
-    $$ = stmt_from_import(NULL, $2);
+    parse_import(&parser, NULL, $2);
   }
   | IMPORT ID STRING_CONST ';' {
-    $$ = stmt_from_import($2, $3);
+    parse_import(&parser, $2, $3);
   }
   ;
 
@@ -363,10 +359,10 @@ ModuleStatements
     if ($1 != NULL) {
       if (vardeclflag) {
         vardeclflag = 0;
-        Vector_Append_All(&parser.stmts, $1);
-        Vector_Destroy($1, NULL, NULL);
+        Vector_Concat(&mod.stmts, $1);
+        Vector_Free($1, NULL, NULL);
       } else {
-        Vector_Append(&parser.stmts, $1);
+        Vector_Append(&mod.stmts, $1);
       }
     }
   }
@@ -374,10 +370,10 @@ ModuleStatements
     if ($2 != NULL) {
       if (vardeclflag) {
         vardeclflag = 0;
-        Vector_Append_All(&parser.stmts, $2);
-        Vector_Destroy($2, NULL, NULL);
+        Vector_Concat(&mod.stmts, $2);
+        Vector_Free($2, NULL, NULL);
       } else {
-        Vector_Append(&parser.stmts, $2);
+        Vector_Append(&mod.stmts, $2);
       }
     }
   }
@@ -414,28 +410,28 @@ ModuleStatement
 
 ConstDeclaration
   : CONST VariableList '=' ExpressionList ';' {
-    $$ = handle_vardecl_stmt($2, $4, 1, NULL);
+    $$ = do_vardecl_stmt($2, $4, 1, NULL);
   }
   | CONST VariableList Type '=' ExpressionList ';' {
-    $$ = handle_vardecl_stmt($2, $5, 1, $3);
+    $$ = do_vardecl_stmt($2, $5, 1, $3);
   }
   ;
 
 VariableDeclaration
   : VAR VariableList Type {
-    $$ = handle_vardecl_stmt($2, NULL, 0, $3);
+    $$ = do_vardecl_stmt($2, NULL, 0, $3);
   }
   | VAR VariableList '=' ExpressionList {
-    $$ = handle_vardecl_stmt($2, $4, 0, NULL);
+    $$ = do_vardecl_stmt($2, $4, 0, NULL);
   }
   | VAR VariableList Type '=' ExpressionList {
-    $$ = handle_vardecl_stmt($2, $5, 0, $3);
+    $$ = do_vardecl_stmt($2, $5, 0, $3);
   }
   ;
 
 VariableList
   : ID {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, new_var($1, NULL));
   }
   | VariableList ',' ID {
@@ -459,7 +455,7 @@ FunctionDeclaration
 
 ParameterList
   : ID Type {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, new_var($1, $2));
   }
   | ParameterList ',' ID Type {
@@ -497,7 +493,7 @@ TypeDeclaration
 
 MemberDeclarations
   : MemberDeclaration {
-    //$$ = Vector_Create();
+    //$$ = Vector_New();
     //Vector_Append($$, $1);
   }
   | MemberDeclarations MemberDeclaration {
@@ -522,7 +518,7 @@ FieldDeclaration
 
 IntfFuncDecls
   : IntfFuncDecl {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | IntfFuncDecls IntfFuncDecl {
@@ -554,7 +550,7 @@ Block
 
 LocalStatements
   : LocalStatement {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | LocalStatements LocalStatement {
@@ -626,7 +622,7 @@ IfStatement
 
 ElseIfStatements
   : ElseIfStatement {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | ElseIfStatements ElseIfStatement {
@@ -671,7 +667,7 @@ SwitchStatement
 
 CaseStatements
   : CaseStatement {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | CaseStatements CaseStatement {
@@ -718,9 +714,9 @@ ForStatement
       exit(0);
     } else {
       struct var *v = Vector_Get($4, 0);
-      assert(v != NULL);
+      ASSERT_PTR(v);
       v->type = $5;
-      Vector_Destroy($4, NULL, NULL);
+      Vector_Free($4, NULL, NULL);
       $$ = stmt_from_foreach(v, $7, $9, 1);
     }
   }
@@ -870,7 +866,7 @@ ArrayDeclaration
 
 DimExprList
   : '[' Expression ']' {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $2);
   }
   | DimExprList '[' Expression ']' {
@@ -881,7 +877,7 @@ DimExprList
 
 ArrayInitializerList
   : ArrayInitializer {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | ArrayInitializerList ',' ArrayInitializer {
@@ -1047,7 +1043,7 @@ Expression
 
 ExpressionList
   : Expression {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | ExpressionList ',' Expression {
@@ -1070,7 +1066,7 @@ Assignment
 
 PrimaryExpressionList
   : PrimaryExpression {
-    $$ = Vector_Create();
+    $$ = Vector_New();
     Vector_Append($$, $1);
   }
   | PrimaryExpressionList ',' PrimaryExpression {

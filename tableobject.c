@@ -36,12 +36,12 @@ static int entry_equal(void *k1, void *k2)
     if (OB_KLASS_EQUAL(o1, o2)) {
       return OB_KLASS(o1)->ob_cmp(v1, v2);
     } else {
-      warn("the two key types are not the same.\n");
+      warn("the two key types are not the same.");
       return 0;
     }
   }
 
-  warn("unsupported type as table's key\n");
+  warn("unsupported type as table's key");
   return 0;
 }
 
@@ -57,7 +57,7 @@ static uint32 entry_hash(void *k)
     return OB_KLASS(VALUE_OBJECT(v))->ob_hash(v);
   }
 
-  warn("unsupported type for hashing\n");
+  warn("unsupported type for hashing");
   return 0;
 }
 

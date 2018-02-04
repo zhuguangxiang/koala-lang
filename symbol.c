@@ -3,37 +3,39 @@
 #include "hash.h"
 #include "log.h"
 
+#define SYM_ATOM_MAX (ITEM_CONST + 1)
+
 static uint32 symbol_hash(void *k)
 {
   Symbol *s = k;
-  return hash_uint32(s->name_index, 0);
+  return hash_uint32(s->nameindex, 0);
 }
 
 static int symbol_equal(void *k1, void *k2)
 {
   Symbol *s1 = k1;
   Symbol *s2 = k2;
-  return s1->name_index == s2->name_index;
+  return s1->nameindex == s2->nameindex;
 }
 
 static HashTable *__get_hashtable(STable *stbl)
 {
   if (stbl->htable == NULL) {
     Decl_HashInfo(hashinfo, symbol_hash, symbol_equal);
-    stbl->htable = HashTable_Create(&hashinfo);
+    stbl->htable = HashTable_New(&hashinfo);
   }
   return stbl->htable;
 }
 
-int STable_Init(STable *stbl, ItemTable *itable)
+int STable_Init(STable *stbl, AtomTable *atable)
 {
   stbl->htable = NULL;
   Decl_HashInfo(hashinfo, item_hash, item_equal);
-  if (itable == NULL)
-    stbl->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
+  if (atable == NULL)
+    stbl->atable = AtomTable_New(&hashinfo, SYM_ATOM_MAX);
   else
-    stbl->itable = itable;
-  stbl->next_index = 0;
+    stbl->atable = atable;
+  stbl->nextindex = 0;
   return 0;
 }
 
@@ -42,33 +44,32 @@ void STable_Fini(STable *stbl)
   UNUSED_PARAMETER(stbl);
 }
 
-Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
+Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc)
 {
-  int access = bconst ? ACCESS_CONST : 0;
-  access |= isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int name_index = StringItem_Set(stbl->itable, name);
+  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+  int nameindex = StringItem_Set(stbl->atable, name);
   int desc_index = -1;
   if (desc != NULL) {
-    desc_index = TypeItem_Set(stbl->itable, desc);
+    desc_index = TypeItem_Set(stbl->atable, desc);
   }
-  Symbol *sym = Symbol_New(name_index, SYM_VAR, access, desc_index);
+  Symbol *sym = Symbol_New(nameindex, SYM_VAR, access, desc_index);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    error("add '%s' variable failed.\n", name);
+    error("add '%s' variable failed.", name);
     Symbol_Free(sym);
     return NULL;
   }
-  sym->index = stbl->next_index++;
+  sym->index = stbl->nextindex++;
   return sym;
 }
 
 Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int name_index = StringItem_Set(stbl->itable, name);
-  int desc_index = ProtoItem_Set(stbl->itable, proto);
-  Symbol *sym = Symbol_New(name_index, SYM_FUNC, access, desc_index);
+  int nameindex = StringItem_Set(stbl->atable, name);
+  int desc_index = ProtoItem_Set(stbl->atable, proto);
+  Symbol *sym = Symbol_New(nameindex, SYM_FUNC, access, desc_index);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    error("add a function failed.\n");
+    error("add a function failed.");
     Symbol_Free(sym);
     return NULL;
   }
@@ -78,10 +79,10 @@ Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
 Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int name_index = StringItem_Set(stbl->itable, name);
-  Symbol *sym = Symbol_New(name_index, kind, access, -1);
+  int nameindex = StringItem_Set(stbl->atable, name);
+  Symbol *sym = Symbol_New(nameindex, kind, access, -1);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    error("add a function failed.\n");
+    error("add a function failed.");
     Symbol_Free(sym);
     return NULL;
   }
@@ -90,9 +91,9 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
 
 Symbol *STable_Get(STable *stbl, char *name)
 {
-  int index = StringItem_Get(stbl->itable, name);
+  int index = StringItem_Get(stbl->atable, name);
   if (index < 0) return NULL;
-  Symbol sym = {.name_index = index};
+  Symbol sym = {.nameindex = index};
   HashNode *hnode = HashTable_Find(__get_hashtable(stbl), &sym);
   if (hnode != NULL) {
     return container_of(hnode, Symbol, hnode);
@@ -101,14 +102,14 @@ Symbol *STable_Get(STable *stbl, char *name)
   }
 }
 
-Symbol *Symbol_New(int name_index, int kind, int access, int desc_index)
+Symbol *Symbol_New(int nameindex, int kind, int access, int descindex)
 {
   Symbol *sym = calloc(1, sizeof(Symbol));
   Init_HashNode(&sym->hnode, sym);
-  sym->name_index = name_index;
+  sym->nameindex = nameindex;
   sym->kind = (uint8)kind;
   sym->access = (uint8)access;
-  sym->desc_index = desc_index;
+  sym->descindex = descindex;
   return sym;
 }
 
@@ -119,29 +120,13 @@ void Symbol_Free(Symbol *sym)
 
 /*-------------------------------------------------------------------------*/
 
-static inline char *to_str(char *str[], int size, int idx)
-{
-  return (idx >= 0 && idx < size) ? str[idx] : "";
-}
-
-static char *type_tostr(int kind)
-{
-  static char *kind_str[] = {
-    "", "var", "func", "class", "field", "method", "interface", "iproto"
-  };
-
-  return to_str(kind_str, nr_elts(kind_str), kind);
-}
-
 static char *name_tostr(int index, STable *stbl)
 {
   if (index < 0) return "";
-  StringItem *item = ItemTable_Get(stbl->itable, ITEM_STRING, index);
+  StringItem *item = AtomTable_Get(stbl->atable, ITEM_STRING, index);
   ASSERT_PTR(item);
   return item->data;
 }
-
-/*-------------------------------------------------------------------------*/
 
 static void desc_show(int index, STable *stbl)
 {
@@ -155,7 +140,7 @@ static void desc_show(int index, STable *stbl)
     "int", "float", "bool", "string", "Any"
   };
 
-  TypeItem *type = ItemTable_Get(stbl->itable, ITEM_TYPE, index);
+  TypeItem *type = AtomTable_Get(stbl->atable, ITEM_TYPE, index);
   ASSERT_PTR(type);
   int dims = type->dims;
   while (dims-- > 0) printf("[]");
@@ -166,7 +151,7 @@ static void desc_show(int index, STable *stbl)
       }
     }
   } else {
-    StringItem *item = ItemTable_Get(stbl->itable, ITEM_STRING, type->index);
+    StringItem *item = AtomTable_Get(stbl->atable, ITEM_STRING, type->index);
     ASSERT_PTR(item);
     char *s = item->data;
     ASSERT_PTR(s);
@@ -176,15 +161,17 @@ static void desc_show(int index, STable *stbl)
 
 static void symbol_var_show(Symbol *sym, STable *stbl)
 {
-  ASSERT(sym->kind == SYM_VAR);
-  char *str;
-  if (sym->kind == 1 && sym->access & ACCESS_CONST)
-    str = "const";
-  else
-    str = type_tostr(sym->kind);
   /* show's format: "type name desc;" */
-  printf("%s %s ", str, name_tostr(sym->name_index, stbl));
-  desc_show(sym->desc_index, stbl);
+  printf("var %s ", name_tostr(sym->nameindex, stbl));
+  desc_show(sym->descindex, stbl);
+  puts(";"); /* with newline */
+}
+
+static void symbol_const_show(Symbol *sym, STable *stbl)
+{
+  /* show's format: "type name desc;" */
+  printf("const %s ", name_tostr(sym->nameindex, stbl));
+  desc_show(sym->descindex, stbl);
   puts(";"); /* with newline */
 }
 
@@ -199,14 +186,14 @@ static void typelist_show(TypeListItem *typelist, STable *stbl)
 
 static void proto_show(Symbol *sym, STable *stbl)
 {
-  int index = sym->desc_index;
+  int index = sym->descindex;
   if (index < 0) return;
-  ProtoItem *proto = ItemTable_Get(stbl->itable, ITEM_PROTO, index);
+  ProtoItem *proto = AtomTable_Get(stbl->atable, ITEM_PROTO, index);
   ASSERT_PTR(proto);
 
   TypeListItem *typelist;
   if (proto->pindex >= 0) {
-    typelist = ItemTable_Get(stbl->itable, ITEM_TYPELIST, proto->pindex);
+    typelist = AtomTable_Get(stbl->atable, ITEM_TYPELIST, proto->pindex);
     ASSERT_PTR(typelist);
     printf("(");
     typelist_show(typelist, stbl);
@@ -217,7 +204,7 @@ static void proto_show(Symbol *sym, STable *stbl)
 
   if (proto->rindex >= 0) {
     printf(" ");
-    typelist = ItemTable_Get(stbl->itable, ITEM_TYPELIST, proto->rindex);
+    typelist = AtomTable_Get(stbl->atable, ITEM_TYPELIST, proto->rindex);
     ASSERT_PTR(typelist);
     if (typelist->size > 1) printf("(");
     typelist_show(typelist, stbl);
@@ -229,16 +216,14 @@ static void proto_show(Symbol *sym, STable *stbl)
 
 static void symbol_func_show(Symbol *sym, STable *stbl)
 {
-  ASSERT(sym->kind == SYM_FUNC);
   /* show's format: "func name args rets;" */
-  printf("func %s", name_tostr(sym->name_index, stbl));
+  printf("func %s\n", name_tostr(sym->nameindex, stbl));
   proto_show(sym, stbl);
 }
 
 static void symbol_class_show(Symbol *sym, STable *stbl)
 {
-  ASSERT(sym->kind == SYM_CLASS);
-  printf("class %s;\n", name_tostr(sym->name_index, stbl));
+  printf("class %s;\n", name_tostr(sym->nameindex, stbl));
 }
 
 typedef void (*symbol_show_func)(Symbol *sym, STable *stbl);
@@ -246,6 +231,7 @@ typedef void (*symbol_show_func)(Symbol *sym, STable *stbl);
 static symbol_show_func show_funcs[] = {
   NULL,
   symbol_var_show,
+  symbol_const_show,
   symbol_func_show,
   symbol_class_show,
 };
@@ -262,5 +248,5 @@ static void symbol_show(HashNode *hnode, void *arg)
 void STable_Show(STable *stbl)
 {
   HashTable_Traverse(stbl->htable, symbol_show, stbl);
-  ItemTable_Show(stbl->itable);
+  AtomTable_Show(stbl->atable, SYM_ATOM_MAX);
 }

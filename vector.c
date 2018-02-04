@@ -3,122 +3,129 @@
 #include "common.h"
 #include "log.h"
 
-#define DEFAULT_CAPACTIY 16
+#define MIN_ALLOCATED 8
 
-int Vector_Init(Vector *vec)
+Vector *Vector_New(void)
 {
-  vec->capacity = 0;
-  vec->size  = 0;
-  vec->objs  = NULL;
-  return 0;
-}
-
-void Vector_Fini(Vector *vec, vec_fini_func fini, void *arg)
-{
-  if (vec->objs == NULL) return;
-
-  if (fini != NULL) {
-    info("finalizing objs.\n");
-    for (int i = 0; i < vec->capacity; i++) {
-      void *obj = vec->objs[i];
-      if (obj != NULL) fini(obj, arg);
-    }
-  }
-
-  free(vec->objs);
-
-  vec->capacity = 0;
-  vec->size = 0;
-  vec->objs = NULL;
-}
-
-static int __vector_expand(Vector *vec)
-{
-  int new_capactiy = vec->capacity * 2;
-  void **objs = calloc(new_capactiy, sizeof(void **));
-  if (objs == NULL) return -1;
-
-  memcpy(objs, vec->objs, vec->capacity * sizeof(void **));
-  free(vec->objs);
-  vec->objs = objs;
-  vec->capacity = new_capactiy;
-
-  return 0;
-}
-
-int Vector_Set(Vector *vec, int index, void *obj)
-{
-  if (vec->objs == NULL) {
-    void **objs = calloc(DEFAULT_CAPACTIY, sizeof(void **));
-    if (objs == NULL) {
-      error("calloc failed\n");
-      return -1;
-    }
-    vec->capacity = DEFAULT_CAPACTIY;
-    vec->size = 0;
-    vec->objs = objs;
-  }
-
-  if (index >= vec->capacity) {
-    if (index >= 2 * vec->capacity) {
-      error("Are you kidding me? Is need expand double size?\n");
-      return -1;
-    }
-
-    int res = __vector_expand(vec);
-    if (res != 0) {
-      error("expanded vector failed\n");
-      return res;
-    } else {
-      info("expanded vector successfully\n");
-    }
-  }
-
-  if (vec->objs[index] == NULL)
-    ++vec->size;
-  else
-    warn("Position %d already has an item.\n", index);
-
-  vec->objs[index] = obj;
-  return index;
-}
-
-void *Vector_Get(Vector *vec, int index)
-{
-  if (vec->objs == NULL) {
-    warn("vector is empty\n");
-    return NULL;
-  }
-
-  if (index < vec->capacity) {
-    return vec->objs[index];
-  } else {
-    error("argument's index is %d out of bound\n", index);
-    return NULL;
-  }
-}
-
-int Vector_Append_All(Vector *vec, Vector *from)
-{
-  void *obj;
-  for (int i = 0; i < Vector_Size(from); i++) {
-    obj = Vector_Get(from, i);
-    Vector_Append(vec, obj);
-  }
-  return 0;
-}
-
-Vector *Vector_Create()
-{
-  Vector *vec = malloc(sizeof(*vec));
+  Vector *vec = malloc(sizeof(Vector));
   if (vec == NULL) return NULL;
   Vector_Init(vec);
   return vec;
 }
 
-void Vector_Destroy(Vector *vec, vec_fini_func fini, void *arg)
+void Vector_Free(Vector *vec, itemfunc fn, void *arg)
 {
   if (vec == NULL) return;
-  Vector_Fini(vec, fini, arg);
+  Vector_Fini(vec, fn, arg);
   free(vec);
+}
+
+int Vector_Init(Vector *vec)
+{
+  vec->allocated = 0;
+  vec->size = 0;
+  vec->items = NULL;
+  return 0;
+}
+
+void Vector_Fini(Vector *vec, itemfunc fn, void *arg)
+{
+  if (vec->items == NULL) return;
+
+  if (fn != NULL) {
+    info("finalizing objs...");
+    for (int i = 0; i < Vector_Size(vec); i++) {
+      fn(vec->items[i], arg);
+    }
+  }
+
+  free(vec->items);
+
+  vec->allocated = 0;
+  vec->size = 0;
+  vec->items = NULL;
+}
+
+static int vector_expand(Vector *vec, int newsize)
+{
+  int allocated = vec->allocated;
+  if (newsize <= allocated) {
+    vec->size = newsize;
+    return 0;
+  }
+
+  int new_allocated = (allocated == 0) ? MIN_ALLOCATED : allocated << 1;
+  info("vec allocated:%d", new_allocated);
+  void *items = calloc(new_allocated, sizeof(void *));
+  if (items == NULL) return -1;
+
+  if (vec->items != NULL) {
+    memcpy(items, vec->items, Vector_Size(vec) * sizeof(void *));
+    free(vec->items);
+  }
+  vec->allocated = new_allocated;
+  vec->size = newsize;
+  vec->items = items;
+  return 0;
+}
+
+int Vector_Insert(Vector *vec, int where, void *item)
+{
+  int n = Vector_Size(vec);
+  if (vector_expand(vec, n + 1) < 0) return -1;
+  if (where < 0) where = 0;
+  if (where > n) where = n;
+  void **items = vec->items;
+  for (int i = n; i > where; i--)
+    items[i] = items[i-1];
+  items[where] = item;
+  return 0;
+}
+
+void *Vector_Set(Vector *vec, int index, void *item)
+{
+  if (vec->items == NULL) {
+    error("vec is empty");
+    return NULL;
+  }
+
+  if (index < 0 || index >= Vector_Size(vec)) {
+    error("index(%d) is out of range(0-%d)", index, Vector_Size(vec));
+    return NULL;
+  }
+
+  void *old = vec->items[index];
+  vec->items[index] = item;
+  return old;
+}
+
+void *Vector_Get(Vector *vec, int index)
+{
+  if (vec->items == NULL) {
+    error("vec is empty");
+    return NULL;
+  }
+
+  if (index < 0 || index >= Vector_Size(vec)) {
+    error("index(%d) is out of range(0-%d)", index, Vector_Size(vec));
+    return NULL;
+  }
+
+  return vec->items[index];
+}
+
+int Vector_Append(Vector *vec, void *item)
+{
+  int n = Vector_Size(vec);
+  if (vector_expand(vec, n + 1) < 0) return -1;
+  vec->items[n] = item;
+  return 0;
+}
+
+int Vector_Concat(Vector *dest, Vector *src)
+{
+  for (int i = 0; i < Vector_Size(src); i++) {
+    Vector_Append(dest, src->items[i]);
+  }
+  return 0;
 }

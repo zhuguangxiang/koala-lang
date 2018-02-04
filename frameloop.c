@@ -31,7 +31,7 @@ static uint32 fetch_arg4(Frame *frame, CodeInfo *codeinfo)
   return (h2 << 24) + (h1 << 16) + (l2 << 8) + (l1 << 0);
 }
 
-static TValue index_value(int index, CodeInfo *codeinfo, ItemTable *itable)
+static TValue index_value(int index, CodeInfo *codeinfo, AtomTable *atable)
 {
   TValue ret = NilValue;
   ASSERT(index < codeinfo->ksz);
@@ -52,7 +52,7 @@ static TValue index_value(int index, CodeInfo *codeinfo, ItemTable *itable)
     }
     case CONST_STRING: {
       StringItem *stritem;
-      stritem = ItemTable_Get(itable, ITEM_STRING, k->index);
+      stritem = AtomTable_Get(atable, ITEM_STRING, k->index);
       setcstrvalue(&ret, stritem->data);
       break;
     }
@@ -116,7 +116,7 @@ void Frame_Loop(Frame *frame)
   MethodObject *meth = (MethodObject *)frame->func;
   CodeInfo *codeinfo = &meth->kf.codeinfo;
   TValue *locals = frame->locals;
-  ItemTable *itable = meth->kf.itable;
+  AtomTable *atable = meth->kf.atable;
 
   uint8 inst;
   uint32 index;
@@ -127,15 +127,15 @@ void Frame_Loop(Frame *frame)
     switch (inst) {
       case OP_LOADK: {
         index = fetch_arg4(frame, codeinfo);
-        val = index_value(index, codeinfo, itable);
+        val = index_value(index, codeinfo, atable);
         PUSH(&val);
         break;
       }
       case OP_LOADM: {
         index = fetch_arg4(frame, codeinfo);
-        val = index_value(index, codeinfo, itable);
+        val = index_value(index, codeinfo, atable);
         char *path = VALUE_CSTR(&val);
-        info("load module '%s'\n", path);
+        info("load module '%s'", path);
         Object *ob = Koala_Load_Module(path);
         ASSERT_PTR(ob);
         setobjvalue(&val, ob);
@@ -155,7 +155,7 @@ void Frame_Loop(Frame *frame)
       }
       case OP_SETFIELD: {
         index = fetch_arg4(frame, codeinfo);
-        info("setfield '%d'\n", index);
+        info("setfield '%d'", index);
         val = POP();
         Object *ob = VALUE_OBJECT(&val);
         val = POP();
@@ -165,7 +165,7 @@ void Frame_Loop(Frame *frame)
       }
       case OP_GETFIELD: {
         index = fetch_arg4(frame, codeinfo);
-        info("getfield '%d'\n", index);
+        info("getfield '%d'", index);
         val = POP();
         Object *ob = VALUE_OBJECT(&val);
         val = __get_value(ob, index);
@@ -174,9 +174,9 @@ void Frame_Loop(Frame *frame)
       }
       case OP_CALL: {
         index = fetch_arg4(frame, codeinfo);
-        val = index_value(index, codeinfo, itable);
+        val = index_value(index, codeinfo, atable);
         char *name = VALUE_CSTR(&val);
-        info("%s()\n", name);
+        info("%s()", name);
         Object *ob = VALUE_OBJECT(TOP());
         Frame *f = Frame_New(__get_func(ob, name));
         Routine_Add_Frame(rt, f);

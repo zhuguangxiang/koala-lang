@@ -8,7 +8,7 @@ void test_routine(void)
   ASSERT_PTR(klazz);
   Object *method = Klass_Get_Method(klazz, "Size");
   Object *tuple = Tuple_New(10);
-  Routine *rt = Routine_Create(method, tuple, NULL);
+  Routine *rt = Routine_New(method, tuple, NULL);
   Routine_Run(rt, PRIO_NORMAL);
   while (Routine_State(rt) != STATE_DEAD);
   TValue val = ValueStack_Pop(&rt->stack);
@@ -27,7 +27,7 @@ void test_routine(void)
   setivalue(&val, 0);
   Tuple_Set(args, 0, &val);
 
-  rt = Routine_Create(method, tuple, args);
+  rt = Routine_New(method, tuple, args);
   Routine_Run(rt, PRIO_NORMAL);
   while (Routine_State(rt) != STATE_DEAD);
   val = ValueStack_Pop(&rt->stack);
@@ -39,7 +39,7 @@ void test_routine(void)
   setivalue(&val, 1);
   Tuple_Set(args, 0, &val);
 
-  rt = Routine_Create(method, tuple, args);
+  rt = Routine_New(method, tuple, args);
   Routine_Run(rt, PRIO_NORMAL);
   while (Routine_State(rt) != STATE_DEAD);
   val = ValueStack_Pop(&rt->stack);

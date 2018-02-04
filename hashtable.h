@@ -29,14 +29,13 @@ typedef struct hash_node {
 #define HashList_ForEach(hnode, head) \
   hlist_for_each_entry(hnode, head, hlink)
 #define HashList_Empty(head) hlist_empty(head)
-typedef uint32 (*ht_hash_func)(void *key);
-typedef int (*ht_equal_func)(void *key1, void *key2);
-typedef void (*ht_fini_func)(HashNode *hnode, void *arg);
-typedef void (*ht_visit_func)(HashNode *hnode, void *arg);
+typedef uint32 (*ht_hashfunc)(void *key);
+typedef int (*ht_equalfunc)(void *key1, void *key2);
+typedef void (*ht_visitfunc)(HashNode *hnode, void *arg);
 
 typedef struct hashinfo {
-  ht_hash_func hash;
-  ht_equal_func equal;
+  ht_hashfunc hash;
+  ht_equalfunc equal;
 } HashInfo;
 
 #define Decl_HashInfo(hashinfo, h, e) \
@@ -47,22 +46,22 @@ typedef struct hashinfo {
 } while (0)
 
 typedef struct hash_table {
-  int prime;                    /* prime array index, internal used */
-  int nodes;                    /* number of nodes in hash table */
-  ht_hash_func hash;            /* hash function */
-  ht_equal_func equal;          /* equal function */
-  struct hlist_head *entries;   /* conflict list array */
-  struct list_head head;        /* list head */
+  int prime;                  /* prime array index, internal used */
+  int nodes;                  /* number of nodes in hash table */
+  ht_hashfunc hash;           /* hash function */
+  ht_equalfunc equal;         /* equal function */
+  struct hlist_head *entries; /* conflict list array */
+  struct list_head head;      /* list head */
 } HashTable;
 
 /**
  * Create a hash table,
  * which is automatically resized, although this incurs a performance penalty.
  */
-HashTable *HashTable_Create(HashInfo *hashinfo);
+HashTable *HashTable_New(HashInfo *hashinfo);
 
 /* Free a hash table */
-void HashTable_Destroy(HashTable *table, ht_fini_func fini, void *arg);
+void HashTable_Free(HashTable *table, ht_visitfunc fn, void *arg);
 
 /* Find a node with its key  */
 HashNode *HashTable_Find(HashTable *table, void *key);
@@ -79,11 +78,11 @@ int HashTable_Remove(HashTable *table, HashNode *hnode);
 int HashTable_Insert(HashTable *table, HashNode *hnode);
 
 /* Traverse all nodes in the hash table */
-void HashTable_Traverse(HashTable *table, ht_visit_func visit, void *arg);
+void HashTable_Traverse(HashTable *table, ht_visitfunc fn, void *arg);
 
 int HashTable_Init(HashTable *table, HashInfo *hashinfo);
 
-void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg);
+void HashTable_Fini(HashTable *table, ht_visitfunc fn, void *arg);
 
 #define HashTable_NodeCount(table)  ((table)->nodes)
 int HashTable_SlotSize(HashTable *table);

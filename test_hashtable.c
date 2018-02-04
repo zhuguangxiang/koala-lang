@@ -80,7 +80,7 @@ void test_number_hash_table(void) {
   int i;
   int value = 100;
   Decl_HashInfo(hashinfo, number_hash, number_equal);
-  table = HashTable_Create(&hashinfo);
+  table = HashTable_New(&hashinfo);
   ASSERT(table);
 
   srand(time(NULL) + getpid());
@@ -119,7 +119,7 @@ void test_number_hash_table(void) {
   }
   printf("num:%d\n", table->nodes);
   printf("duplicated:%d\n", duplicated);
-  HashTable_Destroy(table, NULL, NULL);
+  HashTable_Free(table, NULL, NULL);
 }
 /*---------------------------------------------------------------------------
 string test
@@ -184,7 +184,7 @@ void test_string_hash_table(void) {
     struct hash_table *string_hash;
     int i;
     Decl_HashInfo(hashinfo, string_hash_fn, string_equal_fn);
-    string_hash = HashTable_Create(&hashinfo);
+    string_hash = HashTable_New(&hashinfo);
 
     srand(time(NULL));
 
@@ -196,7 +196,7 @@ void test_string_hash_table(void) {
         ASSERT(!failed);
     }
 
-    HashTable_Destroy(string_hash, NULL, NULL);
+    HashTable_Free(string_hash, NULL, NULL);
 }
 
 int main(int argc, char *argv[]) {

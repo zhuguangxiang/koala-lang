@@ -97,13 +97,13 @@ int HashTable_Init(HashTable *table, HashInfo *hashinfo)
   return 0;
 }
 
-void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg)
+void HashTable_Fini(HashTable *table, ht_visitfunc fn, void *arg)
 {
   HashNode *hnode, *nxt;
   list_for_each_entry_safe(hnode, nxt, &table->head, llink) {
     list_del(&hnode->llink);
     hlist_del(&hnode->hlink);
-    if (fini != NULL) fini(hnode, arg);
+    if (fn != NULL) fn(hnode, arg);
   }
 
   free_entries(table->entries);
@@ -112,7 +112,7 @@ void HashTable_Fini(HashTable *table, ht_fini_func fini, void *arg)
   table->entries = NULL;
 }
 
-HashTable *HashTable_Create(HashInfo *hashinfo)
+HashTable *HashTable_New(HashInfo *hashinfo)
 {
   HashTable *table = malloc(sizeof(HashTable));
   if (table == NULL) return NULL;
@@ -125,10 +125,10 @@ HashTable *HashTable_Create(HashInfo *hashinfo)
   return table;
 }
 
-void HashTable_Destroy(HashTable *table, ht_fini_func fini, void *arg)
+void HashTable_Free(HashTable *table, ht_visitfunc fn, void *arg)
 {
   if (table != NULL) {
-    HashTable_Fini(table, fini, arg);
+    HashTable_Fini(table, fn, arg);
     free(table);
   }
 }
@@ -157,7 +157,7 @@ int HashTable_Remove(HashTable *table, HashNode *hnode)
 
   HashNode *temp = __hash_table_find(table, hnode->hash, hnode->key);
   if (temp == NULL) {
-    error("it is not in the hash table\n");
+    error("it is not in the hash table");
     return -1;
   }
 
@@ -180,7 +180,7 @@ static void hash_table_expand(HashTable *table,
   int new_nr_entries = get_prime(new_prime);
   struct hlist_head *entries = new_entries(new_nr_entries);
   if (entries == NULL) {
-    error("expand table failed\n");
+    error("expand table failed");
     return;
   }
 
@@ -217,7 +217,7 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
 
   uint32 hash = hnode->hash = table->hash(hnode->key);
   if (NULL != __hash_table_find(table, hash, hnode->key)) {
-    error("key is duplicated\n");
+    error("key is duplicated");
     return -1;
   }
 
@@ -232,11 +232,11 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
   return 0;
 }
 
-void HashTable_Traverse(HashTable *table, ht_visit_func visit, void *arg)
+void HashTable_Traverse(HashTable *table, ht_visitfunc fn, void *arg)
 {
   if (table == NULL) return;
 
   HashNode *hnode;
   list_for_each_entry(hnode, &table->head, llink)
-    visit(hnode, arg);
+    fn(hnode, arg);
 }

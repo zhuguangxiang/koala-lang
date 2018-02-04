@@ -187,8 +187,8 @@ int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)
 // int Klass_Add_IProto(Klass *klazz, char *name, char *rdesc, char *pdesc)
 // {
 //   OB_ASSERT_KLASS(klazz, Klass_Klass);
-//   int name_index = StringItem_Set(klazz->itable, name, strlen(name));
-//   int desc_index = ProtoItem_Set(klazz->itable, rdesc, pdesc, NULL, NULL);
+//   int name_index = StringItem_Set(klazz->atable, name, strlen(name));
+//   int desc_index = ProtoItem_Set(klazz->atable, rdesc, pdesc, NULL, NULL);
 //   Symbol *sym = Symbol_New(name_index, SYM_IMETHOD, access, desc_index);
 //   sym->index = klazz->avail_index++;
 //   return HashTable_Insert(__get_table(klazz), &sym->hnode);

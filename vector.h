@@ -6,24 +6,28 @@
 extern "C" {
 #endif
 
+/*
+  'items' contains space for 'allocated' elements.
+  The number currently in use is 'size'.
+ */
 typedef struct vector {
-  int capacity;
+  int allocated;
   int size;
-  void **objs;
+  void **items;
 } Vector;
 
-typedef void (*vec_fini_func)(void *obj, void *arg);
-
-Vector *Vector_Create(void);
-void Vector_Destroy(Vector *vec, vec_fini_func fini, void *arg);
+#define VECTOR_INIT {.allocated = 0, .size = 0, .items = NULL}
+typedef void (*itemfunc)(void *item, void *arg);
+Vector *Vector_New(void);
+void Vector_Free(Vector *vec, itemfunc fn, void *arg);
 int Vector_Init(Vector *vec);
-void Vector_Fini(Vector *vec, vec_fini_func fini, void *arg);
-int Vector_Set(Vector *vec, int index, void *obj);
+void Vector_Fini(Vector *vec, itemfunc fn, void *arg);
+int Vector_Insert(Vector *vec, int index, void *item);
+void *Vector_Set(Vector *vec, int index, void *item);
 void *Vector_Get(Vector *vec, int index);
-#define Vector_Append(vec, obj) Vector_Set(vec, Vector_Size(vec), obj)
-#define Vector_Size(vec)      ((vec)->size)
-#define Vector_Capacity(vec)  ((vec)->capacity)
-int Vector_Append_All(Vector *vec, Vector *from);
+int Vector_Append(Vector *vec, void *item);
+#define Vector_Size(vec) (((Vector *)(vec))->size)
+int Vector_Concat(Vector *dest, Vector *src);
 
 #ifdef __cplusplus
 }

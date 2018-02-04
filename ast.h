@@ -25,16 +25,16 @@ struct type {
       char *type;
     } userdef;
     struct {
-      Vector *tseq;
-      Vector *rseq;
+      Vector *pvec;
+      Vector *rvec;
     } functype;
   };
   int dims;
 };
 
 struct type *type_from_primitive(int primitive);
-struct type *type_from_userdef(char *mod_name, char *type_name);
-struct type *type_from_functype(Vector *tseq, Vector *rseq);
+struct type *type_from_userdef(char *mod, char *type);
+struct type *type_from_functype(Vector *pvec, Vector *rvec);
 int type_check(struct type *t1, struct type *t2);
 
 /*-------------------------------------------------------------------------*/
@@ -87,8 +87,8 @@ struct expr {
       Vector *tseq;
     } array;
     struct {
-      Vector *pseq;
-      Vector *rseq;
+      Vector *pvec;
+      Vector *rvec;
       Vector *body;
     } anonyous_func;
     /* Trailer */
@@ -102,7 +102,7 @@ struct expr {
     } subscript;
     struct {
       struct expr *left;
-      Vector *pseq;   /* expression list */
+      Vector *pvec;   /* expression list */
     } call;
     /* arithmetic operation */
     struct {
@@ -115,7 +115,7 @@ struct expr {
       struct expr *right;
     } bin_op;
     /* expression is also an expr sequence, for array initializer */
-    Vector *seq;
+    Vector *vec;
   };
 };
 
@@ -132,12 +132,40 @@ struct expr *expr_from_expr(struct expr *exp);
 struct expr *expr_from_nil(void);
 struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq);
 struct expr *expr_from_array_with_tseq(Vector *tseq);
-struct expr *expr_from_anonymous_func(Vector *pseq, Vector *rseq, Vector *body);
+struct expr *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body);
 struct expr *expr_from_binary(enum operator_kind kind,
                               struct expr *left, struct expr *right);
 struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr);
 
 void expr_traverse(struct expr *exp);
+
+/*-------------------------------------------------------------------------*/
+
+struct var {
+  char *id;
+  int bconst;
+  struct type *type;
+};
+
+struct field {
+  char *id;
+  struct type *type;
+  struct expr *expr;
+};
+
+struct func_proto {
+  Vector *pvec;
+  Vector *rvec;
+};
+
+struct intf_func {
+  char *id;
+  struct func_proto proto;
+};
+
+struct var *new_var(char *id, struct type *type);
+struct field *new_struct_field(char *id, struct type *t, struct expr *e);
+struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec);
 
 /*-------------------------------------------------------------------------*/
 
@@ -177,8 +205,8 @@ struct stmt {
     } vardecl;
     struct {
       char *id;
-      Vector *pseq;
-      Vector *rseq;
+      Vector *pvec;
+      Vector *rvec;
       Vector *body;
     } funcdecl;
     struct {
@@ -192,7 +220,7 @@ struct stmt {
     } compound_assign;
     struct {
       char *id;
-      Vector *seq;
+      Vector *vec;
     } structure;
     struct {
       char *id;
@@ -225,26 +253,26 @@ struct stmt {
       Vector *body;
     } for_each_stmt;
     struct expr *go_stmt;
-    Vector *seq;
+    Vector *vec;
   };
 };
 
 struct stmt *stmt_from_expr(struct expr *expr);
 struct stmt *stmt_from_import(char *id, char *path);
-Vector *handle_vardecl_stmt(Vector *varvec, Vector *expvec,
+Vector *do_vardecl_stmt(Vector *varvec, Vector *expvec,
                             int bconst, struct type *type);
 struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq);
-struct stmt *stmt_from_funcdecl(char *id, Vector *pseq, Vector *rseq,
+struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
                                 Vector *body);
 struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq);
 struct stmt *stmt_from_compound_assign(struct expr *left,
                                        enum assign_operator op,
                                        struct expr *right);
-struct stmt *stmt_from_block(Vector *seq);
-struct stmt *stmt_from_return(Vector *seq);
+struct stmt *stmt_from_block(Vector *vec);
+struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
-struct stmt *stmt_from_structure(char *id, Vector *seq);
-struct stmt *stmt_from_interface(char *id, Vector *seq);
+struct stmt *stmt_from_structure(char *id, Vector *vec);
+struct stmt *stmt_from_interface(char *id, Vector *vec);
 struct stmt *stmt_from_jump(int kind);
 struct stmt *stmt_from_if(struct test_block *if_part,
                           Vector *elseif_seq, struct test_block *else_part);
@@ -258,36 +286,20 @@ struct stmt *stmt_from_go(struct expr *expr);
 
 /*-------------------------------------------------------------------------*/
 
-struct var {
-  char *id;
-  int bconst;
-  struct type *type;
+struct mod {
+  char *package;
+  Vector stmts;
+  Vector errors;
 };
 
-struct field {
-  char *id;
-  struct type *type;
-  struct expr *expr;
-};
-
-struct func_proto {
-  Vector *pseq;
-  Vector *rseq;
-};
-
-struct intf_func {
-  char *id;
-  struct func_proto proto;
-};
-
-struct var *new_var(char *id, struct type *type);
-struct field *new_struct_field(char *id, struct type *t, struct expr *e);
-struct intf_func *new_intf_func(char *id, Vector *pseq,
-                                Vector *rseq);
+#define decl_mod(name) \
+  struct mod name = \
+  {.package = NULL, .stmts = VECTOR_INIT, .errors = VECTOR_INIT}
+void mod_fini(struct mod *mod);
 
 /*-------------------------------------------------------------------------*/
 
-void ast_traverse(Vector *seq);
+void ast_traverse(Vector *vec);
 
 #ifdef __cplusplus
 }

@@ -21,7 +21,8 @@ extern Klass Module_Klass;
 void Init_Module_Klass(Object *ob);
 Object *Module_New(char *name, char *path);
 void Module_Free(Object *ob);
-int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst);
+int Module_Add_Var(Object *ob, char *name, TypeDesc *desc);
+int Module_Add_Const(Object *ob, char *name, TypeDesc *desc);
 int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth);
 int Module_Add_CFunc(Object *ob, FuncDef *f);
 int Module_Add_Class(Object *ob, Klass *klazz);
@@ -37,12 +38,12 @@ Klass *Module_Get_Klass(Object *ob, char *name);
 Symbol *Module_Get_Symbol(Object *ob, char *name);
 int Module_Add_CFunctions(Object *ob, FuncDef *funcs);
 void Module_Show(Object *ob);
-#define Moudle_Name(ob) (((ModuleObject *)(ob))->name)
-#define Module_ItemTable(ob) (((ModuleObject *)(ob))->stable.itable)
+#define Module_Name(ob) (((ModuleObject *)(ob))->name)
+#define Module_AtomTable(ob) (((ModuleObject *)(ob))->stable.atable)
 #define Module_STable(ob) (&((ModuleObject *)(ob))->stable)
 STable *Object_STable(Object *ob);
-ItemTable *Object_ItemTable(Object *ob);
-
+AtomTable *Object_ItemTable(Object *ob);
+STable *Module_Get_STable(Object *ob);
 #ifdef __cplusplus
 }
 #endif

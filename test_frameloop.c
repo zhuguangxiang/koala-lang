@@ -15,7 +15,7 @@ Object *init_test_module(void)
    */
   Object *module = Module_New("test", "/");
   Decl_Primitive_Desc(desc, 0, PRIMITIVE_INT);
-  Module_Add_Var(module, "result", &desc, 0);
+  Module_Add_Var(module, "result", &desc);
 
   static uint8 codes[] = {
     OP_LOAD, 2, 0, 0, 0,
@@ -30,7 +30,7 @@ Object *init_test_module(void)
   Init_ProtoInfo(1, "i", 2, "ii", &proto);
   Init_CodeInfo(codes, sizeof(codes), NULL, 0, &codeinfo);
   Init_FuncInfo(&proto, &codeinfo, 0, &funcinfo);
-  Object *meth = Method_New(&funcinfo, Module_ItemTable(module));
+  Object *meth = Method_New(&funcinfo, Module_AtomTable(module));
   Module_Add_Func(module, "add", &proto, meth);
 
   static uint8 __init__[] = {
@@ -53,7 +53,7 @@ Object *init_test_module(void)
     OP_RET,
   };
 
-  ItemTable *itable = Module_ItemTable(module);
+  AtomTable *itable = Module_AtomTable(module);
   int index1 = StringItem_Set(itable, "add");
   int index2 = StringItem_Set(itable, "result");
   int index3 = StringItem_Set(itable, "koala/io");
@@ -74,7 +74,7 @@ Object *init_test_module(void)
   Init_ProtoInfo(0, NULL, 0, NULL, &proto);
   Init_CodeInfo(__init__, sizeof(__init__), k, 10, &codeinfo);
   Init_FuncInfo(&proto, &codeinfo, 0, &funcinfo);
-  meth = Method_New(&funcinfo, Module_ItemTable(module));
+  meth = Method_New(&funcinfo, Module_AtomTable(module));
   Module_Add_Func(module, "__init__", &proto, meth);
   return module;
 }
@@ -83,7 +83,7 @@ void test_frameloop(void)
 {
   Object *module = init_test_module();
   Object *method = Module_Get_Function(module, "__init__");
-  Routine *rt = Routine_Create(method, module, NULL);
+  Routine *rt = Routine_New(method, module, NULL);
   Routine_Run(rt, PRIO_NORMAL);
   while (Routine_State(rt) != STATE_DEAD);
 }
