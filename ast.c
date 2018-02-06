@@ -243,10 +243,10 @@ struct stmt *stmt_new(int kind)
   return stmt;
 }
 
-struct stmt *stmt_from_expr(struct expr *expr)
+struct stmt *stmt_from_expr(struct expr *exp)
 {
   struct stmt *stmt = stmt_new(EXPR_KIND);
-  stmt->expr = expr;
+  stmt->exp = exp;
   return stmt;
 }
 
@@ -258,8 +258,8 @@ struct stmt *stmt_from_import(char *id, char *path)
   return stmt;
 }
 
-Vector *stmt_from_vardecl(Vector *varvec, Vector *expvec,
-                          int bconst, struct type *type)
+struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
+                               int bconst, struct type *type)
 {
   Vector *vec = Vector_New();
   int vsz = Vector_Size(varvec);
@@ -292,7 +292,7 @@ Vector *stmt_from_vardecl(Vector *varvec, Vector *expvec,
 
   Vector_Free(varvec, NULL, NULL);
   Vector_Free(expvec, NULL, NULL);
-  return vec;
+  return stmt_from_vardecllist(vec);
 }
 
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
@@ -306,12 +306,32 @@ struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
   return stmt;
 }
 
-struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq)
+struct stmt *stmt_from_assign(Vector *left, Vector *right)
 {
-  struct stmt *stmt = stmt_new(ASSIGN_KIND);
-  stmt->assign.left_seq  = left_seq;
-  stmt->assign.right_seq = right_seq;
-  return stmt;
+  Vector *vec = Vector_New();
+  int vsz = Vector_Size(left);
+  int esz = (right != NULL) ? Vector_Size(right) : 0;
+  int error = 0;
+  if (esz != vsz) {
+    if (esz != 0)
+      error("cannot assign %d values to %d variables", esz, vsz);
+    error = 1;
+  }
+
+  struct stmt *stmt;
+  for (int i = 0; i < vsz; i++) {
+    stmt = stmt_new(ASSIGN_KIND);
+    stmt->assign.left = Vector_Get(left, i);
+    Vector_Append(vec, stmt);
+    if (!error) {
+      stmt->assign.right = Vector_Get(right, i);
+      // check lvalue & rvalue's type
+    }
+  }
+
+  Vector_Free(left, NULL, NULL);
+  Vector_Free(right, NULL, NULL);
+  return stmt_from_vardecllist(vec);
 }
 
 struct stmt *stmt_from_compound_assign(struct expr *left,
@@ -335,7 +355,7 @@ struct stmt *stmt_from_block(Vector *block)
 struct stmt *stmt_from_return(Vector *vec)
 {
   struct stmt *stmt = stmt_new(RETURN_KIND);
-  stmt->vec  = vec;
+  stmt->vec = vec;
   return stmt;
 }
 
@@ -428,6 +448,13 @@ struct stmt *stmt_from_go(struct expr *expr)
 
   struct stmt *stmt = stmt_new(GO_KIND);
   stmt->go_stmt = expr;
+  return stmt;
+}
+
+struct stmt *stmt_from_vardecllist(Vector *vec)
+{
+  struct stmt *stmt = stmt_new(VARDECL_LIST_KIND);
+  stmt->vec = vec;
   return stmt;
 }
 
@@ -658,7 +685,7 @@ void stmt_traverse(struct stmt *stmt)
     }
     case EXPR_KIND: {
       printf("[expr]\n");
-      expr_traverse(stmt->expr);
+      expr_traverse(stmt->exp);
       printf("[end expr]\n");
       break;
     }
@@ -744,6 +771,10 @@ void stmt_traverse(struct stmt *stmt)
       printf("[go statement]\n");
       expr_traverse(stmt->go_stmt);
       printf("[end go statement]\n");
+      break;
+    }
+    case VARDECL_LIST_KIND: {
+      printf("varlistdecl\n");
       break;
     }
     default:{

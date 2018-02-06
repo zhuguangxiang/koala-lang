@@ -72,6 +72,8 @@ struct expr {
   enum expr_kind kind;
   struct type *type;
   enum expr_ctx ctx;
+  Symbol *sym;
+  char *symname;
   union {
     struct {
       char *id;
@@ -114,7 +116,6 @@ struct expr {
       enum operator_kind op;
       struct expr *right;
     } bin_op;
-    /* expression is also an expr sequence, for array initializer */
     Vector *vec;
   };
 };
@@ -188,7 +189,13 @@ enum stmt_kind {
   EXPR_KIND = 6, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
   RETURN_KIND, IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
   FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND, BLOCK_KIND,
-  STMT_KIND_MAX = 19
+  VARDECL_LIST_KIND,
+  STMT_KIND_MAX = 20
+};
+
+struct assign {
+  struct expr *left;
+  struct expr *right;
 };
 
 struct stmt {
@@ -198,7 +205,6 @@ struct stmt {
       char *id;
       char *path;
     } import;
-    struct expr *expr;
     struct {
       struct var *var;
       struct expr *exp;
@@ -209,10 +215,7 @@ struct stmt {
       Vector *rvec;
       Vector *body;
     } funcdecl;
-    struct {
-      Vector *left_seq;
-      Vector *right_seq;
-    } assign;
+    struct assign assign;
     struct {
       struct expr *left;
       enum assign_operator op;
@@ -253,18 +256,18 @@ struct stmt {
       Vector *body;
     } for_each_stmt;
     struct expr *go_stmt;
+    struct expr *exp;
     Vector *vec;
   };
 };
 
-struct stmt *stmt_from_expr(struct expr *expr);
+struct stmt *stmt_from_expr(struct expr *exp);
 struct stmt *stmt_from_import(char *id, char *path);
-Vector *stmt_from_vardecl(Vector *varvec, Vector *expvec,
-                          int bconst, struct type *type);
-struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq);
+struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
+                               int bconst, struct type *type);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
                                 Vector *body);
-struct stmt *stmt_from_assign(Vector *left_seq, Vector *right_seq);
+struct stmt *stmt_from_assign(Vector *left, Vector *right);
 struct stmt *stmt_from_compound_assign(struct expr *left,
                                        enum assign_operator op,
                                        struct expr *right);
@@ -283,6 +286,7 @@ struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
 struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
                                Vector *body, int bdecl);
 struct stmt *stmt_from_go(struct expr *expr);
+struct stmt *stmt_from_vardecllist(Vector *vec);
 
 /*-------------------------------------------------------------------------*/
 

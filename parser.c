@@ -5,83 +5,53 @@
 #include "codegen.h"
 
 extern FILE *yyin;
-extern int yyparse(ParserState *parser);
-static void parse_body(ParserState *parser, Vector *stmts);
+extern int yyparse(ParserState *ps);
+static void parse_body(ParserState *ps, Vector *stmts);
+static void parser_visit_expr(ParserState *ps, struct expr *exp);
 
 /*-------------------------------------------------------------------------*/
 
-static Import *import_new(char *id, char *path, STable *stable, char *pkg)
+static void init_imports(ParserState *ps)
 {
-  Import *import = malloc(sizeof(Import));
-  if (id == NULL)
-    import->id = pkg;
-  else
-    import->id = id;
-  import->path = path;
-  Init_HashNode(&import->hnode, import);
-  import->stable = stable;
-  import->refcnt = 0;
-  return import;
+  STable_Init(&ps->extstbl, NULL);
+  Symbol *sym = parse_import(ps, "lang", "koala/lang");
+  sym->refcnt++;
 }
 
-static void import_free(Import *import)
+static void visit_import(HashNode *hnode, void *arg)
 {
-  free(import);
+  STable *stbl = arg;
+  Symbol *sym = container_of(hnode, Symbol, hnode);
+  if (sym->refcnt == 0) {
+    StringItem *item;
+    item = AtomTable_Get(stbl->atable, ITEM_STRING, sym->nameindex);
+    char *id = item->data;
+    item = AtomTable_Get(stbl->atable, ITEM_STRING, sym->descindex);
+    char *path = item->data;
+    error("package '%s <- %s' is never used", id, path);
+  }
 }
 
-static uint32 import_hash(void *k)
+static void check_imports(ParserState *ps)
 {
-  Import *import = k;
-  return hash_string(import->id);
-}
-
-static int import_equal(void *k1, void *k2)
-{
-  Import *import1 = k1;
-  Import *import2 = k2;
-  return !strcmp(import1->id, import2->id);
-}
-
-static void init_imports(ParserState *parser)
-{
-  Decl_HashInfo(hashinfo, import_hash, import_equal);
-  HashTable_Init(&parser->imports, &hashinfo);
-  Object *ob = Koala_Get_Module("koala/lang");
-  ASSERT_MSG(ob != NULL, "cannot load module 'koala/lang'");
-  STable *stable = Module_Get_STable(ob);
-  ASSERT_PTR(stable);
-  Import *import = import_new("lang", "koala/lang", stable, NULL);
-  import->refcnt = 1;
-  HashTable_Insert(&parser->imports, &import->hnode);
+  STable *stbl = &ps->extstbl;
+  HashTable_Traverse(stbl->htable, visit_import, stbl);
 }
 
 /*-------------------------------------------------------------------------*/
 
-// Symbol *parser_find_symbol(Parser *parser, char *name)
-// {
-//   Scope *scope;
-//   Symbol *sym;
-//   // list_for_each_entry(scope, &parser->scopes, link) {
-//   //   sym = STable_Get(&scope->stable, name);
-//   //   if (sym != NULL) return sym;
-//   // }
-
-//   /* find global symbol table */
-//   return NULL;//STable_Get(&parser->stable, name);
-// }
-
-/*-------------------------------------------------------------------------*/
-
-char *type_fullpath(ParserState *parser, struct type *type)
+char *type_fullpath(ParserState *ps, struct type *type)
 {
-  Import temp = {.id = type->userdef.mod};
-  Import *import = HashTable_FindObject(&parser->imports, &temp, Import);
-  if (import == NULL) return NULL;
-  import->refcnt = 1;
-
-  Symbol *symbol = STable_Get(import->stable, type->userdef.type);
+  Symbol *symbol = STable_Get(&ps->extstbl, type->userdef.mod);
+  if (symbol == NULL) return NULL;
+  ASSERT(symbol->kind == SYM_STABLE);
+  symbol->refcnt = 1;
+  STable *stbl = symbol->obj;
+  StringItem *item;
+  item = AtomTable_Get(stbl->atable, ITEM_STRING, symbol->descindex);
+  symbol = STable_Get(stbl, type->userdef.type);
   if (symbol == NULL) {
-    error("cannot find type: %s.%s", import->path, type->userdef.type);
+    error("cannot find type: %s.%s", item->data, type->userdef.type);
     return NULL;
   } else {
     if (symbol->kind != SYM_CLASS && symbol->kind != SYM_INTF) {
@@ -90,20 +60,20 @@ char *type_fullpath(ParserState *parser, struct type *type)
     }
   }
 
-  int len = strlen(import->path) + strlen(type->userdef.type) + 2;
+  int len = strlen(item->data) + strlen(type->userdef.type) + 2;
   char *fullpath = malloc(len);
-  sprintf(fullpath, "%s.%s", import->path, type->userdef.type);
+  sprintf(fullpath, "%s.%s", item->data, type->userdef.type);
   fullpath[len - 1] = '\0';
   return fullpath;
 }
 
-int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
+int type_to_desc(ParserState *ps, struct type *type, TypeDesc *desc)
 {
   ASSERT_PTR(type);
   if (type->kind == PRIMITIVE_KIND) {
     Init_Primitive_Desc(desc, type->dims, type->primitive);
   } else if (type->kind == USERDEF_KIND) {
-    char *path = type_fullpath(parser, type);
+    char *path = type_fullpath(ps, type);
     if (path == NULL) return -1;
     Init_UserDef_Desc(desc, type->dims, path);
   } else {
@@ -112,35 +82,91 @@ int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
   return 0;
 }
 
-#define proto_args(parser, vec, sz, desc) do { \
+int type_check_desc(struct type *type, TypeDesc *desc)
+{
+  ASSERT_PTR(type);
+  ASSERT_PTR(desc);
+  return 1;
+}
+
+static int check_return_types(ParserUnit *u, Vector *vec)
+{
+  if (vec == NULL) {
+    return (u->proto.rsz == 0) ? 1 : 0;
+  } else {
+    int sz = Vector_Size(vec);
+    if (u->proto.rsz != sz) return 0;
+    Vector_ForEach(exp, struct expr, vec) {
+      if (!type_check_desc(exp->type, u->proto.rdesc + i))
+        return 0;
+    }
+    return 1;
+  }
+}
+
+/*--------------------------------------------------------------------------*/
+
+#define proto_args(ps, vec, sz, desc) do { \
   sz = Vector_Size(vec); \
   desc = malloc(sizeof(TypeDesc) * sz); \
   ASSERT_PTR(desc); \
   Vector_ForEach(var, struct var, vec) { \
-    type_to_desc(parser, var->type, desc + i); \
+    type_to_desc(ps, var->type, desc + i); \
   } \
 } while (0)
 
-#define proto_rets(parser, vec, sz, desc) do { \
+#define proto_rets(ps, vec, sz, desc) do { \
   sz = Vector_Size(vec); \
   desc = malloc(sizeof(TypeDesc) * sz); \
   ASSERT_PTR(desc); \
   Vector_ForEach(type, struct type, vec) { \
-    type_to_desc(parser, type, desc + i); \
+    type_to_desc(ps, type, desc + i); \
   } \
 } while (0)
 
+Symbol *parser_find_symbol(ParserState *ps, char *name)
+{
+  ParserUnit *u = ps->u;
+  Symbol *sym = STable_Get(&u->stbl, name);
+  if (sym != NULL) {
+    debug("symbol '%s' is found in current scope", name);
+    sym->refcnt++;
+    return sym;
+  }
+
+  if (!list_empty(&ps->ustack)) {
+    list_for_each_entry(u, &ps->ustack, link) {
+      sym = STable_Get(&u->stbl, name);
+      if (sym != NULL) {
+        debug("symbol '%s' is found in parent scope", name);
+        sym->refcnt++;
+        return sym;
+      }
+    }
+  }
+
+  sym = STable_Get(&ps->extstbl, name);
+  if (sym != NULL) {
+    debug("symbol '%s' is found in external scope", name);
+    sym->refcnt++;
+    return sym;
+  }
+
+  error("cannot find symbol:%s", name);
+  return NULL;
+}
+
 /*--------------------------------------------------------------------------*/
 
-// int expr_handler(Parser *parser, struct expr *exp);
+// int expr_handler(Parser *ps, struct expr *exp);
 
-// int expr_id_handler(Parser *parser, struct expr *exp)
+// int expr_id_handler(Parser *ps, struct expr *exp)
 // {
 //   char *name = exp->name.id;
-//   Symbol *sym = parser_find_symbol(parser, name);
+//   Symbol *sym = parser_find_symbol(ps, name);
 //   if (sym == NULL) {
 //     Import k = {.id = name};
-//     Import *import = HashTable_FindObject(&parser->imports, &k, Import);
+//     Import *import = HashTable_FindObject(&ps->imports, &k, Import);
 //     if (import == NULL) {
 //       error("cannot find symbol:%s\n", name);
 //     } else {
@@ -154,40 +180,40 @@ int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
 //   return 0;
 // }
 
-// int expr_attr_handler(Parser *parser, struct expr *exp)
+// int expr_attr_handler(Parser *ps, struct expr *exp)
 // {
-//   info("attribute\n");
-//   expr_set_ctx(exp->attribute.left, CTX_LOAD);
-//   expr_handler(parser, exp->attribute.left);
-//   info("%s\n", exp->attribute.id);
-//   //OP_GETFIELD
-//   return 0;
+  // info("attribute\n");
+  // expr_set_ctx(exp->attribute.left, CTX_LOAD);
+  // expr_handler(ps, exp->attribute.left);
+  // info("%s\n", exp->attribute.id);
+  // //OP_GETFIELD
+  // return 0;
 // }
 
-// int expr_subscribe_handler(Parser *parser, struct expr *exp)
+// int expr_subscribe_handler(Parser *ps, struct expr *exp)
 // {
 //   info("subscribe\n");
-//   expr_handler(parser, exp->subscript.left);
-//   expr_handler(parser, exp->subscript.index);
+//   expr_handler(ps, exp->subscript.left);
+//   expr_handler(ps, exp->subscript.index);
 //   return 0;
 // }
 
-// int expr_call_handler(Parser *parser, struct expr *exp)
+// int expr_call_handler(Parser *ps, struct expr *exp)
 // {
-//   info("call\n");
-//   expr_handler(parser, exp->call.left);
+  // info("call\n");
+  // expr_handler(ps, exp->call.left);
 
-//   Vector *vec = exp->call.pseq;
-//   if (vec == NULL) {
-//     info("no args' function call\n");
-//     return 0;
-//   }
+  // Vector *vec = exp->call.pseq;
+  // if (vec == NULL) {
+  //   info("no args' function call\n");
+  //   return 0;
+  // }
 
-//   struct expr *e;
-//   int sz = Vector_Size(vec);
-//   for (int i = 0; i < sz; i++) {
-//     e = Vector_Get(vec, i);
-//   }
+  // struct expr *e;
+  // int sz = Vector_Size(vec);
+  // for (int i = 0; i < sz; i++) {
+  //   e = Vector_Get(vec, i);
+  // }
 //   return 0;
 // }
 
@@ -199,35 +225,35 @@ int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
 //   expr_call_handler, NULL, NULL, NULL,
 // };
 
-// int expr_handler(Parser *parser, struct expr *exp)
+// int expr_handler(Parser *ps, struct expr *exp)
 // {
 //   ASSERT(exp->kind > 0 && exp->kind < EXPR_KIND_MAX);
 //   //printf("expr kind:%d\n", exp->kind);
 //   expr_handler_t handler = expr_handlers[exp->kind];
 //   ASSERT_PTR(handler);
-//   return handler(parser, exp);
+//   return handler(ps, exp);
 // }
 
-// int expr_stmt_handler(Parser *parser, struct stmt *stmt)
+// int expr_stmt_handler(Parser *ps, struct stmt *stmt)
 // {
 //   info("expression\n");
 //   struct expr *exp = stmt->expr;
-//   return expr_handler(parser, exp);
+//   return expr_handler(ps, exp);
 // }
 
-// int local_vardecl_stmt_handler(Parser *parser, struct stmt *stmt)
+// int local_vardecl_stmt_handler(Parser *ps, struct stmt *stmt)
 // {
 //   info("local var decl\n");
 //   return 0;
 // }
 
-// int expr_assign_handler(Parser *parser, struct stmt *stmt)
+// int expr_assign_handler(Parser *ps, struct stmt *stmt)
 // {
 //   info("=\n");
 //   return 0;
 // }
 
-// int ret_stmt_handler(Parser *parser, struct stmt *stmt)
+// int ret_stmt_handler(Parser *ps, struct stmt *stmt)
 // {
 //   info("return\n");
 //   return 0;
@@ -242,69 +268,132 @@ int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
 //   NULL, NULL, NULL,
 // };
 
-// int localstmt_handler(Parser *parser, struct stmt *stmt)
+// int localstmt_handler(Parser *ps, struct stmt *stmt)
 // {
 //   ASSERT(stmt->kind > 0 && stmt->kind < STMT_KIND_MAX);
 //   //printf("localstmt kind:%d\n", stmt->kind);
 //   stmt_handler_t handler = localstmt_handlers[stmt->kind];
 //   ASSERT_PTR(handler);
-//   return handler(parser, stmt);
+//   return handler(ps, stmt);
 // }
 
-// int parse_body(Parser *parser, struct stmt *stmt)
-// {
-//   Vector *vec = stmt->funcdecl.body;
-//   if (vec == NULL) return 0;
-//   int sz = Vector_Size(vec);
-//   struct stmt *temp;
-//   for (int i = 0; i < sz; i++) {
-//     temp = Vector_Get(vec, i);
-//     localstmt_handler(parser, temp);
-//   }
-//   return 0;
-// }
+void parse_dotacess(ParserState *ps, struct expr *exp)
+{
+  debug("dot expr");
+  struct expr *left = exp->attribute.left;
+  left->ctx = CTX_LOAD;
+  parser_visit_expr(ps, left);
+
+  debug(".%s", exp->attribute.id);
+  if (left->sym == NULL) {
+    error("undefined: <symbol-name>");
+    return;
+  }
+
+  ASSERT(left->sym->kind == SYM_STABLE);
+  STable *stbl = left->sym->obj;
+  Symbol *sym = STable_Get(stbl, exp->attribute.id);
+  if (sym == NULL) {
+    error("cannot find symbol '%s' in '%s'", exp->attribute.id, left->symname);
+    exp->sym = NULL; exp->symname = NULL;
+    return;
+  }
+
+  exp->sym = sym;
+  exp->symname = exp->attribute.id;
+
+  //OP_GETFIELD
+}
+
+void parse_call(ParserState *ps, struct expr *exp)
+{
+  debug("call expr");
+  struct expr *left = exp->call.left;
+  left->ctx = CTX_LOAD;
+  parser_visit_expr(ps, left);
+
+  if (left->sym == NULL) {
+    error("undefined: <symbol-name>");
+    return;
+  }
+
+  Symbol *sym = left->sym;
+  ASSERT(sym->kind == SYM_FUNC);
+
+  /* check arguments */
+
+  debug("call %s()", left->symname);
+}
+
+static void parser_visit_expr(ParserState *ps, struct expr *exp)
+{
+  switch (exp->kind) {
+    case NAME_KIND: {
+      char *load = exp->ctx == CTX_STORE ? "store": "load";
+      debug("name:%s(%s)", exp->name.id, load);
+      exp->sym = parser_find_symbol(ps, exp->name.id);
+      exp->symname = exp->name.id;
+      break;
+    }
+    case INT_KIND: {
+      if (exp->ctx == CTX_STORE) {
+        error("cannot assign to %lld", exp->ival);
+      }
+      break;
+    }
+    case FLOAT_KIND: {
+      if (exp->ctx == CTX_STORE) {
+        error("cannot assign to %f", exp->fval);
+      }
+      break;
+    }
+    case BOOL_KIND: {
+      if (exp->ctx == CTX_STORE) {
+        error("cannot assign to %s", exp->bval ? "true":"false");
+      }
+      break;
+    }
+    case STRING_KIND: {
+      if (exp->ctx == CTX_STORE) {
+        error("cannot assign to %s", exp->str);
+      }
+      break;
+    }
+    case ATTRIBUTE_KIND: {
+      parse_dotacess(ps, exp);
+      break;
+    }
+    case CALL_KIND: {
+      parse_call(ps, exp);
+      break;
+    }
+    case BINARY_KIND:
+      break;
+    default:
+      ASSERT_MSG(0, "unknown expression type: %d", exp->kind);
+      break;
+  }
+}
 
 // /*--------------------------------------------------------------------------*/
 
-// void parse_function(Parser *parser, struct stmt *stmt)
-// {
-//   ASSERT(stmt->kind == FUNCDECL_KIND);
-//   ProtoInfo proto;
-//   proto.psz = parse_args(parser, stmt, &proto.pdesc);
-//   proto.rsz = parse_rets(parser, stmt, &proto.rdesc);
-//   //STable_Add_Func(&parser->stable, stmt->funcdecl.id, &proto);
-// }
-
-// int func_generate_code(Parser *parser, struct stmt *stmt)
+// int func_generate_code(Parser *ps, struct stmt *stmt)
 // {
 //   ASSERT(stmt->kind == FUNCDECL_KIND);
 //   info("parsing func %s\n", stmt->funcdecl.id);
-//   scope_enter(parser);
-//   parse_args(parser, stmt, NULL);
-//   parse_body(parser, stmt);
-//   scope_exit(parser);
+//   scope_enter(ps);
+//   parse_args(ps, stmt, NULL);
+//   parse_body(ps, stmt);
+//   scope_exit(ps);
 //   return 0;
 // }
 
 /*--------------------------------------------------------------------------*/
 
-// void init_funcdata(FuncData *func, Object *owner)
+// void generate_initfunc_code(Parser *ps, struct stmt *stmt)
 // {
-//   func->owner = owner;
-//   func->scope = 0;
-//   init_list_head(&func->scopes);
-//   Buffer_Init(&func->buf, 128);
-//   Decl_HashInfo(hashinfo, item_hash, item_equal);
-//   func->itable = ItemTable_Create(&hashinfo, ITEM_MAX);
-//   func->stacksize = 0;
-// }
-
-/*--------------------------------------------------------------------------*/
-
-// void generate_initfunc_code(Parser *parser, struct stmt *stmt)
-// {
-//   expr_generate_code(&parser->func, stmt->vardecl.exp);
-//   FuncData *func = &parser->func;
+//   expr_generate_code(&ps->func, stmt->vardecl.exp);
+//   FuncData *func = &ps->func;
 //   struct var *var = stmt->vardecl.var;
 //   Symbol *sym = STable_Get(Object_STable(func->owner), var->id);
 //   ASSERT_PTR(sym); ASSERT(sym->name_index >= 0);
@@ -315,71 +404,23 @@ int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
 
 /*--------------------------------------------------------------------------*/
 
-// void symbol_funcdecl_handler(Parser *parser, struct stmt *stmt)
-// {
-//   ProtoInfo proto;
-//   proto.psz = parse_args(parser, stmt, &proto.pdesc);
-//   proto.rsz = parse_rets(parser, stmt, &proto.rdesc);
-//   Module_Add_Func(parser->module, stmt->funcdecl.id, &proto, NULL);
-// }
-
-// void parse_initfunc(Parser *parser)
-// {
-//   struct stmt *stmt;
-//   Vector *vec = &parser->__initstmts__;
-//   if (Vector_Size(vec) > 0) {
-//     debug("add __init__ function to '%s' module\n",
-//           Moudle_Name(parser->module));
-//     init_funcdata(&parser->func, parser->module);
-//   }
-
-  // for (int i = 0; i < Vector_Size(vec); i++) {
-  //   stmt = Vector_Get(vec, i);
-  //   if (stmt->vardecl.exp == NULL) {
-  //     debug("variable declaration is not need generate code\n");
-  //     continue;
-  //   }
-  //   if (stmt->vardecl.exp->kind == NIL_KIND) {
-  //     debug("null value\n");
-  //     continue;
-  //   }
-
-  //   ASSERT_PTR(stmt->vardecl.exp->type);
-
-  //   if (!type_check(stmt->vardecl.var->type, stmt->vardecl.exp->type)) {
-  //     error("typecheck failed\n");
-  //   } else {
-  //     //generate code
-  //     info("generate code\n");
-  //     generate_initfunc_code(parser, stmt);
-  //   }
-  // }
-
-  // if (Vector_Size(vec) > 0) {
-  //   ItemTable_Show(parser->func.itable);
-  // }
-// }
-
-/*--------------------------------------------------------------------------*/
-
-static void parser_enter_scope(ParserState *parser, int scope_type)
+static void parser_enter_scope(ParserState *ps, int scope)
 {
   AtomTable *atable = NULL;
-  ParserUnit *u = malloc(sizeof(ParserUnit));
+  ParserUnit *u = calloc(1, sizeof(ParserUnit));
   init_list_head(&u->link);
-  if (parser->u != NULL) atable = parser->u->stable.atable;
-  STable_Init(&u->stable, atable);
-  u->scope = scope_type;
-  u->block = NULL;
+  if (ps->u != NULL) atable = ps->u->stbl.atable;
+  STable_Init(&u->stbl, atable);
+  u->scope = scope;
   init_list_head(&u->blocks);
 
   /* Push the old ParserUnit on the stack. */
-  if (parser->u != NULL) {
-    list_add(&parser->u->link, &parser->ustack);
+  if (ps->u != NULL) {
+    list_add(&ps->u->link, &ps->ustack);
   }
 
-  parser->u = u;
-  parser->nestlevel++;
+  ps->u = u;
+  ps->nestlevel++;
 }
 
 static void parser_unit_free(ParserUnit *u)
@@ -389,37 +430,37 @@ static void parser_unit_free(ParserUnit *u)
     list_del(&b->link);
     free(b);
   }
-  STable_Fini(&u->stable);
+  STable_Fini(&u->stbl);
   free(u);
 }
 
-static void parser_exit_scope(ParserState *parser)
+static void parser_exit_scope(ParserState *ps)
 {
-  STable_Show(&parser->u->stable, 0);
+  STable_Show(&ps->u->stbl, 0);
 
-  parser->nestlevel--;
-  parser_unit_free(parser->u);
+  ps->nestlevel--;
+  parser_unit_free(ps->u);
   /* Restore c->u to the parent unit. */
-  struct list_head *first = list_first(&parser->ustack);
+  struct list_head *first = list_first(&ps->ustack);
   if (first != NULL) {
     list_del(first);
-    parser->u = container_of(first, ParserUnit, link);
+    ps->u = container_of(first, ParserUnit, link);
   } else {
-    parser->u = NULL;
+    ps->u = NULL;
   }
 }
 
-int parent_scope(ParserState *parser)
+ParserUnit *parent_scope(ParserState *ps)
 {
-  ParserUnit *u = list_first_entry(&parser->ustack, ParserUnit, link);
-  return u->scope;
+  ASSERT(!list_empty(&ps->ustack));
+  return list_first_entry(&ps->ustack, ParserUnit, link);
 }
 
 /*--------------------------------------------------------------------------*/
 
-void parse_variable(ParserState *parser, struct var *var, struct expr *exp)
+void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
-  ParserUnit *u = parser->u;
+  ParserUnit *u = ps->u;
   ASSERT_PTR(u);
 
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
@@ -433,66 +474,121 @@ void parse_variable(ParserState *parser, struct var *var, struct expr *exp)
       return;
     }
 
+    if (exp->kind == SELF_KIND) {
+      error("cannot use keyword 'self'");
+      return;
+    }
+
     ASSERT_PTR(exp->type);
 
     if (!type_check(var->type, exp->type)) {
       error("typecheck failed");
     } else {
+      // parse exp
+      debug("parse exp");
+      exp->ctx = CTX_LOAD;  /* rvalue */
+      parser_visit_expr(ps, exp);
+
       //generate code
       debug("generate code");
     }
   } else if (u->scope == SCOPE_FUNCTION) {
     debug("parse func vardecl, '%s'", var->id);
-    ASSERT(!list_empty(&parser->ustack));
+    ASSERT(!list_empty(&ps->ustack));
     TypeDesc desc;
-    int res = type_to_desc(parser, var->type, &desc);
+    int res = type_to_desc(ps, var->type, &desc);
     ASSERT(res >= 0);
-    int parent = parent_scope(parser);
-    ASSERT(parent == SCOPE_MODULE || parent == SCOPE_CLASS);
-    STable_Add_Var(&u->stable, var->id, &desc, var->bconst);
+    ParserUnit *parent = parent_scope(ps);
+    ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
+    STable_Add_Var(&u->stbl, var->id, &desc, var->bconst);
   } else if (u->scope == SCOPE_BLOCK) {
     debug("parse block vardecl");
-    ASSERT(!list_empty(&parser->ustack));
+    ASSERT(!list_empty(&ps->ustack));
   } else {
     ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
   }
 }
 
-void parse_function(ParserState *parser, struct stmt *stmt)
+void parse_function(ParserState *ps, struct stmt *stmt)
 {
-  parser_enter_scope(parser, SCOPE_FUNCTION);
+  parser_enter_scope(ps, SCOPE_FUNCTION);
 
-  ASSERT(!list_empty(&parser->ustack));
-  int parent = parent_scope(parser);
-  if (parent == SCOPE_MODULE) {
+  ParserUnit *parent = parent_scope(ps);
+  Symbol *sym = STable_Get(&parent->stbl, stmt->funcdecl.id);
+  ASSERT_PTR(sym);
+  FuncSym_Get_Proto(&parent->stbl, sym, &ps->u->proto);
+
+  if (parent->scope == SCOPE_MODULE) {
     debug("parse function, '%s'", stmt->funcdecl.id);
     Vector_ForEach(var, struct var, stmt->funcdecl.pvec) {
-      parse_variable(parser, var, NULL);
+      parse_variable(ps, var, NULL);
     }
-    parse_body(parser, stmt->funcdecl.body);
-  } else if (parent == SCOPE_CLASS) {
+    parse_body(ps, stmt->funcdecl.body);
+  } else if (parent->scope == SCOPE_CLASS) {
     debug("parse method, '%s'", stmt->funcdecl.id);
   } else {
-    ASSERT_MSG(0, "unknown parent scope type:%d", parent);
+    ASSERT_MSG(0, "unknown parent scope type:%d", parent->scope);
   }
 
-  parser_exit_scope(parser);
+  parser_exit_scope(ps);
 }
 
-void parser_visit_stmt(ParserState *parser, struct stmt *stmt)
+void parse_assign(ParserState *ps, struct stmt *stmt)
+{
+  struct expr *r = stmt->assign.right;
+  struct expr *l = stmt->assign.left;
+  r->ctx = CTX_LOAD;
+  parser_visit_expr(ps, r);
+  l->ctx = CTX_STORE;
+  parser_visit_expr(ps, l);
+}
+
+void paser_return(ParserState *ps, struct stmt *stmt)
+{
+  ParserUnit *u = ps->u;
+  ASSERT_PTR(u);
+  if (u->scope == SCOPE_FUNCTION) {
+    debug("return in function");
+    check_return_types(u, stmt->vec);
+  } else if (u->scope == SCOPE_BLOCK) {
+    debug("return in some block");
+    check_return_types(u, stmt->vec);
+  } else {
+    ASSERT_MSG(0, "invalid scope:%d", u->scope);
+  }
+
+}
+
+void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 {
   switch (stmt->kind) {
     case VARDECL_KIND: {
-      struct var *var = stmt->vardecl.var;
-      struct expr *exp = stmt->vardecl.exp;
-      parse_variable(parser, var, exp);
+      parse_variable(ps, stmt->vardecl.var, stmt->vardecl.exp);
       break;
     }
     case FUNCDECL_KIND:
-      parse_function(parser, stmt);
+      parse_function(ps, stmt);
       break;
     case CLASS_KIND:
       break;
+    case INTF_KIND:
+      break;
+    case EXPR_KIND: {
+      parser_visit_expr(ps, stmt->exp);
+      break;
+    }
+    case ASSIGN_KIND: {
+      parse_assign(ps, stmt);
+      break;
+    }
+    case RETURN_KIND: {
+      paser_return(ps, stmt);
+      break;
+    }
+    case VARDECL_LIST_KIND: {
+      parse_body(ps, stmt->vec);
+      break;
+    }
     default:
       ASSERT_MSG(0, "unknown statement type: %d", stmt->kind);
       break;
@@ -502,114 +598,118 @@ void parser_visit_stmt(ParserState *parser, struct stmt *stmt)
 /*--------------------------------------------------------------------------*/
 
 /* parse a sequence of statements */
-static void parse_body(ParserState *parser, Vector *stmts)
+static void parse_body(ParserState *ps, Vector *stmts)
 {
   if (stmts == NULL) return;
-
   Vector_ForEach(stmt, struct stmt, stmts) {
-    parser_visit_stmt(parser, stmt);
+    parser_visit_stmt(ps, stmt);
   }
 }
 
-static void init_parser(ParserState *parser)
+static void init_parser(ParserState *ps)
 {
   Koala_Init();
-  memset(parser, 0, sizeof(ParserState));
-  init_imports(parser);
-  init_list_head(&parser->ustack);
-  Vector_Init(&parser->errors);
-  parser_enter_scope(parser, SCOPE_MODULE);
+  memset(ps, 0, sizeof(ParserState));
+  init_imports(ps);
+  init_list_head(&ps->ustack);
+  Vector_Init(&ps->errors);
+  parser_enter_scope(ps, SCOPE_MODULE);
 }
 
-static void fini_parser(ParserState *parser)
+static void fini_parser(ParserState *ps)
 {
-  parser_exit_scope(parser);
+  parser_exit_scope(ps);
   Koala_Fini();
 }
 
 int main(int argc, char *argv[])
 {
-  ParserState parser;
+  ParserState ps;
 
   if (argc < 2) {
     printf("error: no input files\n");
     return -1;
   }
 
-  init_parser(&parser);
+  init_parser(&ps);
 
   yyin = fopen(argv[1], "r");
-  yyparse(&parser);
+  yyparse(&ps);
   fclose(yyin);
 
-  fini_parser(&parser);
+  fini_parser(&ps);
 
   return 0;
 }
 
 /*--------------------------------------------------------------------------*/
 
-void parse_import(ParserState *parser, char *id, char *path)
+Symbol *parse_import(ParserState *ps, char *id, char *path)
 {
   Object *ob = Koala_Load_Module(path);
   if (ob == NULL) {
     error("load module '%s' failed", path);
-    return;
+    return NULL;
   }
-  debug("add import %s.%s", id, path);
-  STable *stable = Module_Get_STable(ob);
-  ASSERT_PTR(stable);
-  Import *import = import_new(id, path, stable, Module_Name(ob));
-  if (HashTable_Insert(&parser->imports, &import->hnode) < 0) {
+  if (id == NULL) id = Module_Name(ob);
+  debug("add import %s <- %s", id, path);
+  STable *stbl = &ps->extstbl;
+  int descindex = StringItem_Set(stbl->atable, path);
+  Symbol *sym = STable_Add_Symbol(stbl, SYM_STABLE, 0, id, descindex);
+  if (sym == NULL) {
     error("package '%s' is duplicated", path);
-    import_free(import);
+    return NULL;
   }
+  sym->obj = Module_Get_STable(ob);
+  return sym;
 }
 
-void parse_vardecl(ParserState *parser, Vector *stmts)
+void parse_vardecl(ParserState *ps, struct stmt *s)
 {
+  ASSERT(s->kind == VARDECL_LIST_KIND);
   struct var *var;
   TypeDesc desc;
   int res;
-  Vector_ForEach(stmt, struct stmt, stmts) {
+  Vector_ForEach(stmt, struct stmt, s->vec) {
     var = stmt->vardecl.var;
-    res = type_to_desc(parser, var->type, &desc);
+    res = type_to_desc(ps, var->type, &desc);
     ASSERT(res >= 0);
     debug("add var %s bconst ? %s", var->id, var->bconst ? "true":"false");
-    STable_Add_Var(&parser->u->stable, var->id, &desc, var->bconst);
+    STable_Add_Var(&ps->u->stbl, var->id, &desc, var->bconst);
   }
 }
 
-void parse_funcdecl(ParserState *parser, struct stmt *stmt)
+void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 {
   ProtoInfo proto = {0};
   int sz;
   TypeDesc *desc = NULL;
   if (stmt->funcdecl.pvec != NULL) {
-    proto_args(parser, stmt->funcdecl.pvec, sz, desc);
+    proto_args(ps, stmt->funcdecl.pvec, sz, desc);
     proto.psz = sz; proto.pdesc = desc;
   }
 
   if (stmt->funcdecl.rvec != NULL) {
-    proto_rets(parser, stmt->funcdecl.rvec, sz, desc);
+    proto_rets(ps, stmt->funcdecl.rvec, sz, desc);
     proto.rsz = sz; proto.rdesc = desc;
   }
 
   debug("add func %s", stmt->funcdecl.id);
-  STable_Add_Func(&parser->u->stable, stmt->funcdecl.id, &proto);
+  STable_Add_Func(&ps->u->stbl, stmt->funcdecl.id, &proto);
 }
 
-void parse_typedecl(ParserState *parser, struct stmt *stmt)
+void parse_typedecl(ParserState *ps, struct stmt *stmt)
 {
 
 }
 
-void parse_module(ParserState *parser, struct mod *mod)
+void parse_module(ParserState *ps, struct mod *mod)
 {
   debug("==begin==================");
-  parser->package = mod->package;
-  parse_body(parser, &mod->stmts);
+  ps->package = mod->package;
+  parse_body(ps, &mod->stmts);
   debug("==end===================");
-  printf("package:%s\n", parser->package);
-  STable_Show(&parser->u->stable, 1);
+  printf("package:%s\n", ps->package);
+  STable_Show(&ps->u->stbl, 1);
+  check_imports(ps);
 }

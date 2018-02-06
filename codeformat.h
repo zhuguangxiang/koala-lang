@@ -51,7 +51,7 @@ typedef struct type_item {
   short dims;
   short kind;
   union {
-    int primitive;
+    char primitive;
     int32 index;   //->StringItem
   };
 } TypeItem;
@@ -259,6 +259,7 @@ int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz);
 int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz);
 int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex);
 int ProtoItem_Set(AtomTable *table, ProtoInfo *proto);
+int ProtoItem_ToProto(AtomTable *table, ProtoItem *item, ProtoInfo *proto);
 int ConstItem_Get(AtomTable *table, ConstItem *item);
 int ConstItem_Set_Int(AtomTable *table, int64 val);
 int ConstItem_Set_Float(AtomTable *table, float64 val);

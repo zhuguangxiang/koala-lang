@@ -101,6 +101,11 @@ void *Vector_Set(Vector *vec, int index, void *item)
 
 void *Vector_Get(Vector *vec, int index)
 {
+  if (vec == NULL) {
+    error("parameter is NULL");
+    return NULL;
+  }
+
   if (vec->items == NULL) {
     error("vec is empty");
     return NULL;

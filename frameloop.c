@@ -51,9 +51,9 @@ static TValue index_value(int index, CodeInfo *codeinfo, AtomTable *atable)
       break;
     }
     case CONST_STRING: {
-      StringItem *stritem;
-      stritem = AtomTable_Get(atable, ITEM_STRING, k->index);
-      setcstrvalue(&ret, stritem->data);
+      StringItem *item;
+      item = AtomTable_Get(atable, ITEM_STRING, k->index);
+      setcstrvalue(&ret, item->data);
       break;
     }
     default: {

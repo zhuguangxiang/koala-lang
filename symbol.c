@@ -47,17 +47,13 @@ void STable_Fini(STable *stbl)
 Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int nameindex = StringItem_Set(stbl->atable, name);
-  int desc_index = -1;
+  int descindex = -1;
   if (desc != NULL) {
-    desc_index = TypeItem_Set(stbl->atable, desc);
+    descindex = TypeItem_Set(stbl->atable, desc);
+    ASSERT(descindex >= 0);
   }
-  Symbol *sym = Symbol_New(nameindex, SYM_VAR, access, desc_index);
-  if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    error("add '%s' variable failed.", name);
-    Symbol_Free(sym);
-    return NULL;
-  }
+  Symbol *sym = STable_Add_Symbol(stbl, SYM_VAR, access, name, descindex);
+  if (sym == NULL) return NULL;
   sym->index = stbl->nextindex++;
   sym->bconst = bconst;
   return sym;
@@ -66,24 +62,32 @@ Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
 Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int nameindex = StringItem_Set(stbl->atable, name);
-  int desc_index = ProtoItem_Set(stbl->atable, proto);
-  Symbol *sym = Symbol_New(nameindex, SYM_FUNC, access, desc_index);
-  if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    error("add a function failed.");
-    Symbol_Free(sym);
-    return NULL;
-  }
-  return sym;
+  int descindex = ProtoItem_Set(stbl->atable, proto);
+  ASSERT(descindex >= 0);
+  return STable_Add_Symbol(stbl, SYM_FUNC, access, name, descindex);
+}
+
+int FuncSym_Get_Proto(STable *stbl, Symbol *sym, ProtoInfo *proto)
+{
+  ASSERT(sym->kind == SYM_FUNC);
+  ProtoItem *item = AtomTable_Get(stbl->atable, ITEM_PROTO, sym->descindex);
+  ASSERT_PTR(item);
+  return ProtoItem_ToProto(stbl->atable, item, proto);
 }
 
 Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+  return STable_Add_Symbol(stbl, kind, access, name, -1);
+}
+
+Symbol *STable_Add_Symbol(STable *stbl, int kind, int access,
+                          char *name, int descindex)
+{
   int nameindex = StringItem_Set(stbl->atable, name);
-  Symbol *sym = Symbol_New(nameindex, kind, access, -1);
+  ASSERT(nameindex >= 0);
+  Symbol *sym = Symbol_New(nameindex, kind, access, descindex);
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    error("add a function failed.");
     Symbol_Free(sym);
     return NULL;
   }

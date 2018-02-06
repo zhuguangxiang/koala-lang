@@ -13,6 +13,7 @@ extern "C" {
 #define SYM_CLASS   3
 #define SYM_INTF    4
 #define SYM_IFUNC   5
+#define SYM_STABLE  6
 
 #define ACCESS_PUBLIC   0
 #define ACCESS_PRIVATE  1
@@ -26,7 +27,7 @@ typedef struct symbol {
   int8 refcnt; /* for compiler */
   int descindex;
   union {
-    void *obj;  /* method or klass */
+    void *obj;  /* method or klass or STable */
     int index;  /* variable's index */
   };
 } Symbol;
@@ -56,8 +57,11 @@ Symbol *STable_Add_Klass(STable *stbl, char *name, int kind);
   Symbol *sym = STable_Add_Func(stbl, name, proto); \
   sym->kind = SYM_IFUNC; sym; \
 })
+Symbol *STable_Add_Symbol(STable *stbl, int kind, int access,
+                          char *name, int descindex);
 Symbol *STable_Get(STable *stbl, char *name);
 void STable_Show(STable *stbl, int showAtom);
+int FuncSym_Get_Proto(STable *stbl, Symbol *sym, ProtoInfo *proto);
 
 #ifdef __cplusplus
 }

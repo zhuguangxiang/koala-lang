@@ -159,8 +159,9 @@ static decl_mod(mod);
 %type <vector> DimExprList
 %type <vector> ArrayInitializerList
 %type <expr> ArrayInitializer
-%type <vector> VariableDeclaration
-%type <vector> ConstDeclaration
+%type <stmt> VariableDeclaration
+%type <stmt> ConstDeclaration
+%type <stmt> ModuleStatement
 %type <stmt> LocalStatement
 %type <stmt> Assignment
 %type <stmt> IfStatement
@@ -350,31 +351,34 @@ Import
   ;
 
 ModuleStatements
-  : ModuleStatement
-  | ModuleStatements ModuleStatement
+  : ModuleStatement {
+    if ($1 != NULL) Vector_Append(&mod.stmts, $1);
+  }
+  | ModuleStatements ModuleStatement {
+    if ($2 != NULL) Vector_Append(&mod.stmts, $2);
+  }
   ;
 
 ModuleStatement
   : ';' {
     printf("empty statement\n");
+    $$ = NULL;
   }
   | VariableDeclaration ';' {
     parse_vardecl(parser, $1);
-    Vector_Concat(&mod.stmts, $1);
-    Vector_Free($1, NULL, NULL);
+    $$ = $1;
   }
   | ConstDeclaration {
     parse_vardecl(parser, $1);
-    Vector_Concat(&mod.stmts, $1);
-    Vector_Free($1, NULL, NULL);
+    $$ = $1;
   }
   | FunctionDeclaration {
     parse_funcdecl(parser, $1);
-    Vector_Append(&mod.stmts, $1);
+    $$ = $1;
   }
   | TypeDeclaration {
     parse_typedecl(parser, $1);
-    Vector_Append(&mod.stmts, $1);
+    $$ = $1;
   }
   | error {
     yyerror(parser, "non-declaration statement outside function body");
@@ -515,7 +519,7 @@ IntfFuncDecl
 
 Block
   : '{' LocalStatements '}' {
-    $$ = NULL;
+    $$ = $2;
   }
   | '{' '}' {
     $$ = NULL;
@@ -524,24 +528,27 @@ Block
 
 LocalStatements
   : LocalStatement {
-    $$ = NULL;
+    $$ = Vector_New();
+    if ($1 != NULL) Vector_Append($$, $1);
   }
   | LocalStatements LocalStatement {
-    $$ = NULL;
+    if ($2 != NULL) Vector_Append($1, $2);
+    $$ = $1;
   }
   ;
 
 LocalStatement
   : ';' {
+    $$ = NULL;
   }
   | Expression ';' {
-    stmt_from_expr($1);
+    $$ = stmt_from_expr($1);
   }
   | VariableDeclaration ';' {
-
+    $$ = $1;
   }
   | Assignment ';' {
-
+    $$ = $1;
   }
   | IfStatement {
 
@@ -559,7 +566,7 @@ LocalStatement
 
   }
   | ReturnStatement {
-
+    $$ = $1;
   }
   | Block {
     stmt_from_block($1);

@@ -11,14 +11,6 @@
 extern "C" {
 #endif
 
-typedef struct import {
-  HashNode hnode;
-  char *id;
-  char *path;
-  STable *stable;
-  int refcnt;
-} Import;
-
 typedef struct error {
   char *msg;
   int line;
@@ -34,7 +26,7 @@ typedef struct codeblock {
   /* upper code block for seraching symbols */
   struct codeblock *up;
   /* symbol table */
-  STable stable;
+  STable stbl;
   /* struct instr list */
   Vector instvec;
   /* true if a OP_RET opcode is inserted. */
@@ -51,14 +43,15 @@ enum {
 typedef struct parserunit {
   int scope;
   struct list_head link;
-  STable stable;
+  ProtoInfo proto;
+  STable stbl;
   CodeBlock *block;
   struct list_head blocks;
 } ParserUnit;
 
 typedef struct parserstate {
   char *package;
-  HashTable imports;
+  STable extstbl; /* external symbol table */
   ParserUnit *u;
   int nestlevel;
   struct list_head ustack;
@@ -66,8 +59,8 @@ typedef struct parserstate {
 } ParserState;
 
 void parse_module(ParserState *parser, struct mod *mod);
-void parse_import(ParserState *parser, char *id, char *path);
-void parse_vardecl(ParserState *parser, Vector *stmts);
+Symbol *parse_import(ParserState *parser, char *id, char *path);
+void parse_vardecl(ParserState *parser, struct stmt *stmt);
 void parse_funcdecl(ParserState *parser, struct stmt *stmt);
 void parse_typedecl(ParserState *parser, struct stmt *stmt);
 

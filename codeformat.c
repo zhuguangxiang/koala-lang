@@ -181,7 +181,7 @@ StringItem *StringItem_New(char *name)
   return item;
 }
 
-TypeItem *TypeItem_Primitive_New(int dims, int primitive)
+TypeItem *TypeItem_Primitive_New(int dims, char primitive)
 {
   TypeItem *item = malloc(sizeof(TypeItem));
   item->dims = dims;
@@ -190,7 +190,7 @@ TypeItem *TypeItem_Primitive_New(int dims, int primitive)
   return item;
 }
 
-TypeItem *TypeItem_Structed_New(int dims, int32 index)
+TypeItem *TypeItem_Defined_New(int dims, int32 index)
 {
   TypeItem *item = malloc(sizeof(TypeItem));
   item->dims = dims;
@@ -319,10 +319,13 @@ int StringItem_Set(AtomTable *table, char *str)
 
 int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
-  TypeItem item;
+  TypeItem item = {0};
   if (desc->kind == TYPE_DEFINED) {
     int index = StringItem_Get(table, desc->str);
-    if (index < 0) return index;
+    if (index < 0) {
+      warn("cannot find string: %s", desc->str);
+      return index;
+    }
     item.dims = desc->dims;
     item.kind = TYPE_DEFINED;
     item.index = index;
@@ -337,13 +340,13 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 
 int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 {
-  TypeItem *item;
+  TypeItem *item = NULL;
   int index = TypeItem_Get(table, desc);
   if (index < 0) {
     if (desc->kind == TYPE_DEFINED) {
       int index = StringItem_Set(table, desc->str);
       ASSERT(index >= 0);
-      item = TypeItem_Structed_New(desc->dims, index);
+      item = TypeItem_Defined_New(desc->dims, index);
     } else {
       ASSERT(desc->kind == TYPE_PRIMITIVE);
       item = TypeItem_Primitive_New(desc->dims, desc->primitive);
@@ -351,6 +354,23 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
     index = AtomTable_Append(table, ITEM_TYPE, item, 1);
   }
   return index;
+}
+
+int TypeItem_ToDesc(AtomTable *table, int index, TypeDesc *desc)
+{
+  TypeItem *item = AtomTable_Get(table, ITEM_TYPE, index);
+  ASSERT_PTR(item);
+  desc->dims = item->dims;
+  desc->kind = item->kind;
+  if (item->kind == TYPE_PRIMITIVE) {
+    desc->primitive = item->primitive;
+  } else if (item->kind == TYPE_DEFINED) {
+    StringItem *s = AtomTable_Get(table, ITEM_STRING, item->index);
+    desc->str = s->data;
+  } else {
+    ASSERT_MSG(0, "invalid TypeItem kind:%d", item->kind);
+  }
+  return 0;
 }
 
 int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz)
@@ -390,6 +410,19 @@ int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz)
   return index;
 }
 
+int TypeListItem_ToDescList(AtomTable *table, TypeListItem *item,
+                            TypeDesc **descs)
+{
+  int sz = item->size;
+  TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
+  ASSERT_PTR(desc);
+  for (int i = 0; i < sz; i++) {
+    TypeItem_ToDesc(table, item->index[i], desc + i);
+  }
+  *descs = desc;
+  return sz;
+}
+
 int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex)
 {
   ProtoItem item = {rindex, pindex};
@@ -406,6 +439,29 @@ int ProtoItem_Set(AtomTable *table, ProtoInfo *proto)
     index = AtomTable_Append(table, ITEM_PROTO, item, 1);
   }
   return index;
+}
+
+int ProtoItem_ToProto(AtomTable *table, ProtoItem *item, ProtoInfo *proto)
+{
+  TypeListItem *t;
+
+  if (item->rindex < 0) {
+    proto->rsz = 0;
+    proto->rdesc = NULL;
+  } else {
+    t = AtomTable_Get(table, ITEM_TYPELIST, item->rindex);
+    proto->rsz = TypeListItem_ToDescList(table, t, &proto->rdesc);
+  }
+
+  if (item->pindex < 0) {
+    proto->psz = 0;
+    proto->pdesc = NULL;
+  } else {
+    t = AtomTable_Get(table, ITEM_TYPELIST, item->pindex);
+    proto->psz = TypeListItem_ToDescList(table, t, &proto->pdesc);
+  }
+
+  return 0;
 }
 
 int ConstItem_Get(AtomTable *table, ConstItem *item)
