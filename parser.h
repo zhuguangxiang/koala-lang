@@ -41,9 +41,16 @@ typedef struct codeblock {
   int bret;
 } CodeBlock;
 
+enum {
+  SCOPE_MODULE = 1,
+  SCOPE_CLASS,
+  SCOPE_FUNCTION,
+  SCOPE_BLOCK,
+};
+
 typedef struct parserunit {
+  int scope;
   struct list_head link;
-  struct parserunit *up;
   STable stable;
   CodeBlock *block;
   struct list_head blocks;
@@ -53,15 +60,16 @@ typedef struct parserstate {
   char *package;
   HashTable imports;
   ParserUnit *u;
-  int scope;
+  int nestlevel;
   struct list_head ustack;
   Vector errors;
 } ParserState;
 
-extern ParserState parser;
 void parse_module(ParserState *parser, struct mod *mod);
 void parse_import(ParserState *parser, char *id, char *path);
-void parse_vardecl(ParserState *parser, struct var *var);
+void parse_vardecl(ParserState *parser, Vector *stmts);
+void parse_funcdecl(ParserState *parser, struct stmt *stmt);
+void parse_typedecl(ParserState *parser, struct stmt *stmt);
 
 #ifdef __cplusplus
 }

@@ -28,6 +28,9 @@ void *Vector_Get(Vector *vec, int index);
 int Vector_Append(Vector *vec, void *item);
 #define Vector_Size(vec) (((Vector *)(vec))->size)
 int Vector_Concat(Vector *dest, Vector *src);
+#define Vector_ForEach(item, type, vec) \
+  type *item; \
+  for (int i = 0, l; l = (i < (vec)->size), item = (vec)->items[i], l; i++)
 
 #ifdef __cplusplus
 }

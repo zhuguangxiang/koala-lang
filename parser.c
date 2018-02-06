@@ -4,7 +4,9 @@
 #include "hash.h"
 #include "codegen.h"
 
-ParserState parser;
+extern FILE *yyin;
+extern int yyparse(ParserState *parser);
+static void parse_body(ParserState *parser, Vector *stmts);
 
 /*-------------------------------------------------------------------------*/
 
@@ -55,44 +57,6 @@ static void init_imports(ParserState *parser)
 
 /*-------------------------------------------------------------------------*/
 
-// static Scope *scope_new(Parser *parser)
-// {
-//   Scope *scope = malloc(sizeof(Scope));
-//   init_list_head(&scope->link);
-//   STable_Init(&scope->stable, Module_ItemTable(parser->module));
-//   return scope;
-// }
-
-// static void scope_free(Scope *scope)
-// {
-//   ASSERT(list_unlinked(&scope->link));
-//   STable_Fini(&scope->stable);
-//   free(scope);
-// }
-
-// static Scope *get_scope(Parser *parser)
-// {
-//   struct list_head *first = NULL; //list_first(&parser->scopes);
-//   if (first != NULL) return container_of(first, Scope, link);
-//   else return NULL;
-// }
-
-// static void scope_enter(Parser *parser)
-// {
-//   //parser->scope++;
-//   Scope *scope = scope_new(parser);
-//   //list_add(&scope->link, &parser->scopes);
-// }
-
-// static void scope_exit(Parser *parser)
-// {
-//   //parser->scope--;
-//   Scope *scope = get_scope(parser);
-//   ASSERT_PTR(scope);
-//   list_del(&scope->link);
-//   scope_free(scope);
-// }
-
 // Symbol *parser_find_symbol(Parser *parser, char *name)
 // {
 //   Scope *scope;
@@ -108,7 +72,7 @@ static void init_imports(ParserState *parser)
 
 /*-------------------------------------------------------------------------*/
 
-char *type_get_fullpath(ParserState *parser, struct type *type)
+char *type_fullpath(ParserState *parser, struct type *type)
 {
   Import temp = {.id = type->userdef.mod};
   Import *import = HashTable_FindObject(&parser->imports, &temp, Import);
@@ -139,7 +103,7 @@ int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
   if (type->kind == PRIMITIVE_KIND) {
     Init_Primitive_Desc(desc, type->dims, type->primitive);
   } else if (type->kind == USERDEF_KIND) {
-    char *path = type_get_fullpath(parser, type);
+    char *path = type_fullpath(parser, type);
     if (path == NULL) return -1;
     Init_UserDef_Desc(desc, type->dims, path);
   } else {
@@ -148,57 +112,23 @@ int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
   return 0;
 }
 
-/*-------------------------------------------------------------------------*/
+#define proto_args(parser, vec, sz, desc) do { \
+  sz = Vector_Size(vec); \
+  desc = malloc(sizeof(TypeDesc) * sz); \
+  ASSERT_PTR(desc); \
+  Vector_ForEach(var, struct var, vec) { \
+    type_to_desc(parser, var->type, desc + i); \
+  } \
+} while (0)
 
-// int parse_args(Parser *parser, struct stmt *stmt, TypeDesc **ret)
-// {
-//   Vector *vec = stmt->funcdecl.pseq;
-//   if (vec != NULL) {
-//     int sz = Vector_Size(vec);
-//     struct type *type;
-//     struct var *var;
-//     TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
-//     ASSERT_PTR(desc);
-//     Scope *scope;
-//     for (int i = 0; i < sz; i++) {
-//       var = Vector_Get(vec, i);
-//       type = var->type;
-//       type_to_desc(parser, type, desc + i);
-//       scope = get_scope(parser);
-//       if (scope != NULL)
-//         STable_Add_Var(&scope->stable, var->id, desc + i, 0);
-//     }
-//     if (ret != NULL)
-//       *ret = desc;
-//     else
-//       free(desc);
-//     return sz;
-//   }
-//   if (ret != NULL) *ret = NULL;
-//   return 0;
-// }
-
-// int parse_rets(Parser *parser, struct stmt *stmt, TypeDesc **ret)
-// {
-//   Vector *vec = stmt->funcdecl.rseq;
-//   if (vec != NULL) {
-//     int sz = Vector_Size(vec);
-//     struct type *type;
-//     TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
-//     ASSERT_PTR(desc);
-//     for (int i = 0; i < sz; i++) {
-//       type = Vector_Get(vec, i);
-//       type_to_desc(parser, type, desc + i);
-//     }
-//     if (ret != NULL)
-//       *ret = desc;
-//     else
-//       free(desc);
-//     return sz;
-//   }
-//   if (ret != NULL) *ret = NULL;
-//   return 0;
-// }
+#define proto_rets(parser, vec, sz, desc) do { \
+  sz = Vector_Size(vec); \
+  desc = malloc(sizeof(TypeDesc) * sz); \
+  ASSERT_PTR(desc); \
+  Vector_ForEach(type, struct type, vec) { \
+    type_to_desc(parser, type, desc + i); \
+  } \
+} while (0)
 
 /*--------------------------------------------------------------------------*/
 
@@ -385,33 +315,6 @@ int type_to_desc(ParserState *parser, struct type *type, TypeDesc *desc)
 
 /*--------------------------------------------------------------------------*/
 
-void parse_import(ParserState *parser, char *id, char *path)
-{
-  Object *ob = Koala_Load_Module(path);
-  if (ob == NULL) {
-    error("cannot load module %s", path);
-    return;
-  }
-  STable *stable = Module_Get_STable(ob);
-  ASSERT_PTR(stable);
-  Import *import = import_new(id, path, stable, Module_Name(ob));
-  if (HashTable_Insert(&parser->imports, &import->hnode) < 0) {
-    error("imported package '%s' is duplicated", path);
-    import_free(import);
-  }
-}
-
-void parse_vardecl(ParserState *parser, struct var *var)
-{
-  TypeDesc desc;
-  int res = type_to_desc(parser, var->type, &desc);
-  ASSERT(res >= 0);
-  if (var->bconst)
-    STable_Add_Const(&parser->u->stable, var->id, &desc);
-  else
-    STable_Add_Var(&parser->u->stable, var->id, &desc);
-}
-
 // void symbol_funcdecl_handler(Parser *parser, struct stmt *stmt)
 // {
 //   ProtoInfo proto;
@@ -430,98 +333,182 @@ void parse_vardecl(ParserState *parser, struct var *var)
 //     init_funcdata(&parser->func, parser->module);
 //   }
 
-//   for (int i = 0; i < Vector_Size(vec); i++) {
-//     stmt = Vector_Get(vec, i);
-//     if (stmt->vardecl.exp == NULL) {
-//       debug("variable declaration is not need generate code\n");
-//       continue;
-//     }
-//     if (stmt->vardecl.exp->kind == NIL_KIND) {
-//       debug("null value\n");
-//       continue;
-//     }
+  // for (int i = 0; i < Vector_Size(vec); i++) {
+  //   stmt = Vector_Get(vec, i);
+  //   if (stmt->vardecl.exp == NULL) {
+  //     debug("variable declaration is not need generate code\n");
+  //     continue;
+  //   }
+  //   if (stmt->vardecl.exp->kind == NIL_KIND) {
+  //     debug("null value\n");
+  //     continue;
+  //   }
 
-//     ASSERT_PTR(stmt->vardecl.exp->type);
+  //   ASSERT_PTR(stmt->vardecl.exp->type);
 
-//     if (!type_check(stmt->vardecl.var->type, stmt->vardecl.exp->type)) {
-//       error("typecheck failed\n");
-//     } else {
-//       //generate code
-//       info("generate code\n");
-//       generate_initfunc_code(parser, stmt);
-//     }
-//   }
+  //   if (!type_check(stmt->vardecl.var->type, stmt->vardecl.exp->type)) {
+  //     error("typecheck failed\n");
+  //   } else {
+  //     //generate code
+  //     info("generate code\n");
+  //     generate_initfunc_code(parser, stmt);
+  //   }
+  // }
 
-//   if (Vector_Size(vec) > 0) {
-//     ItemTable_Show(parser->func.itable);
-//   }
+  // if (Vector_Size(vec) > 0) {
+  //   ItemTable_Show(parser->func.itable);
+  // }
 // }
 
 /*--------------------------------------------------------------------------*/
 
-// void parse_symbols(Parser *parser)
-// {
-//   static stmt_parser_t parsers[] = {
-//     NULL, /* INVALID */
-//     import_stmt_handler,
-//     parse_vardecl_symbol,
-//     NULL, //funcdecl_stmt_handler,
-//     NULL,
-//     NULL,
-//   };
-//   struct stmt *stmt;
-//   Vector *vec = &parser->stmts;
-//   for (int i = 0; i < Vector_Size(vec); i++) {
-//     stmt = Vector_Get(vec, i);
-//     ASSERT(stmt->kind > 0 && stmt->kind < nr_elts(parsers));
-//     stmt_parser_t fn_parser = parsers[stmt->kind];
-//     ASSERT_PTR(fn_parser);
-//     fn_parser(parser, stmt);
-//   }
-// }
-
-/*--------------------------------------------------------------------------*/
-void parser_enter_scope(ParserState *parser)
+static void parser_enter_scope(ParserState *parser, int scope_type)
 {
   AtomTable *atable = NULL;
   ParserUnit *u = malloc(sizeof(ParserUnit));
   init_list_head(&u->link);
   if (parser->u != NULL) atable = parser->u->stable.atable;
   STable_Init(&u->stable, atable);
-  u->up = parser->u;
+  u->scope = scope_type;
   u->block = NULL;
   init_list_head(&u->blocks);
 
   /* Push the old ParserUnit on the stack. */
   if (parser->u != NULL) {
-    list_add(&u->link, &parser->ustack);
+    list_add(&parser->u->link, &parser->ustack);
   }
 
   parser->u = u;
-  parser->scope++;
+  parser->nestlevel++;
 }
 
-void parser_exit_scope(ParserState *parser)
+static void parser_unit_free(ParserUnit *u)
 {
+  CodeBlock *b, *n;
+  list_for_each_entry_safe(b, n, &u->blocks, link) {
+    list_del(&b->link);
+    free(b);
+  }
+  STable_Fini(&u->stable);
+  free(u);
+}
 
+static void parser_exit_scope(ParserState *parser)
+{
+  STable_Show(&parser->u->stable, 0);
+
+  parser->nestlevel--;
+  parser_unit_free(parser->u);
+  /* Restore c->u to the parent unit. */
+  struct list_head *first = list_first(&parser->ustack);
+  if (first != NULL) {
+    list_del(first);
+    parser->u = container_of(first, ParserUnit, link);
+  } else {
+    parser->u = NULL;
+  }
+}
+
+int parent_scope(ParserState *parser)
+{
+  ParserUnit *u = list_first_entry(&parser->ustack, ParserUnit, link);
+  return u->scope;
 }
 
 /*--------------------------------------------------------------------------*/
 
-static void parser_body(ParserState *parser, Vector *stmts)
+void parse_variable(ParserState *parser, struct var *var, struct expr *exp)
 {
+  ParserUnit *u = parser->u;
+  ASSERT_PTR(u);
 
+  if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+    if (exp == NULL) {
+      debug("variable declaration is not need generate code");
+      return;
+    }
+
+    if (exp->kind == NIL_KIND) {
+      debug("nil value");
+      return;
+    }
+
+    ASSERT_PTR(exp->type);
+
+    if (!type_check(var->type, exp->type)) {
+      error("typecheck failed");
+    } else {
+      //generate code
+      debug("generate code");
+    }
+  } else if (u->scope == SCOPE_FUNCTION) {
+    debug("parse func vardecl, '%s'", var->id);
+    ASSERT(!list_empty(&parser->ustack));
+    TypeDesc desc;
+    int res = type_to_desc(parser, var->type, &desc);
+    ASSERT(res >= 0);
+    int parent = parent_scope(parser);
+    ASSERT(parent == SCOPE_MODULE || parent == SCOPE_CLASS);
+    STable_Add_Var(&u->stable, var->id, &desc, var->bconst);
+  } else if (u->scope == SCOPE_BLOCK) {
+    debug("parse block vardecl");
+    ASSERT(!list_empty(&parser->ustack));
+  } else {
+    ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
+  }
 }
 
-void parse_module(ParserState *parser, struct mod *mod)
+void parse_function(ParserState *parser, struct stmt *stmt)
 {
-  debug("-----------------------");
-  parser->package = mod->package;
-  parser_body(parser, &mod->stmts);
-  printf("package:%s\n", parser->package);
-  ASSERT_PTR(parser->u);
-  STable_Show(&parser->u->stable);
-  debug("-----------------------");
+  parser_enter_scope(parser, SCOPE_FUNCTION);
+
+  ASSERT(!list_empty(&parser->ustack));
+  int parent = parent_scope(parser);
+  if (parent == SCOPE_MODULE) {
+    debug("parse function, '%s'", stmt->funcdecl.id);
+    Vector_ForEach(var, struct var, stmt->funcdecl.pvec) {
+      parse_variable(parser, var, NULL);
+    }
+    parse_body(parser, stmt->funcdecl.body);
+  } else if (parent == SCOPE_CLASS) {
+    debug("parse method, '%s'", stmt->funcdecl.id);
+  } else {
+    ASSERT_MSG(0, "unknown parent scope type:%d", parent);
+  }
+
+  parser_exit_scope(parser);
+}
+
+void parser_visit_stmt(ParserState *parser, struct stmt *stmt)
+{
+  switch (stmt->kind) {
+    case VARDECL_KIND: {
+      struct var *var = stmt->vardecl.var;
+      struct expr *exp = stmt->vardecl.exp;
+      parse_variable(parser, var, exp);
+      break;
+    }
+    case FUNCDECL_KIND:
+      parse_function(parser, stmt);
+      break;
+    case CLASS_KIND:
+      break;
+    default:
+      ASSERT_MSG(0, "unknown statement type: %d", stmt->kind);
+      break;
+  }
+}
+
+/*--------------------------------------------------------------------------*/
+
+/* parse a sequence of statements */
+static void parse_body(ParserState *parser, Vector *stmts)
+{
+  if (stmts == NULL) return;
+
+  Vector_ForEach(stmt, struct stmt, stmts) {
+    parser_visit_stmt(parser, stmt);
+  }
 }
 
 static void init_parser(ParserState *parser)
@@ -531,7 +518,7 @@ static void init_parser(ParserState *parser)
   init_imports(parser);
   init_list_head(&parser->ustack);
   Vector_Init(&parser->errors);
-  parser_enter_scope(parser);
+  parser_enter_scope(parser, SCOPE_MODULE);
 }
 
 static void fini_parser(ParserState *parser)
@@ -542,8 +529,7 @@ static void fini_parser(ParserState *parser)
 
 int main(int argc, char *argv[])
 {
-  extern FILE *yyin;
-  int yyparse(void);
+  ParserState parser;
 
   if (argc < 2) {
     printf("error: no input files\n");
@@ -553,10 +539,77 @@ int main(int argc, char *argv[])
   init_parser(&parser);
 
   yyin = fopen(argv[1], "r");
-  yyparse();
+  yyparse(&parser);
   fclose(yyin);
 
   fini_parser(&parser);
 
   return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+
+void parse_import(ParserState *parser, char *id, char *path)
+{
+  Object *ob = Koala_Load_Module(path);
+  if (ob == NULL) {
+    error("load module '%s' failed", path);
+    return;
+  }
+  debug("add import %s.%s", id, path);
+  STable *stable = Module_Get_STable(ob);
+  ASSERT_PTR(stable);
+  Import *import = import_new(id, path, stable, Module_Name(ob));
+  if (HashTable_Insert(&parser->imports, &import->hnode) < 0) {
+    error("package '%s' is duplicated", path);
+    import_free(import);
+  }
+}
+
+void parse_vardecl(ParserState *parser, Vector *stmts)
+{
+  struct var *var;
+  TypeDesc desc;
+  int res;
+  Vector_ForEach(stmt, struct stmt, stmts) {
+    var = stmt->vardecl.var;
+    res = type_to_desc(parser, var->type, &desc);
+    ASSERT(res >= 0);
+    debug("add var %s bconst ? %s", var->id, var->bconst ? "true":"false");
+    STable_Add_Var(&parser->u->stable, var->id, &desc, var->bconst);
+  }
+}
+
+void parse_funcdecl(ParserState *parser, struct stmt *stmt)
+{
+  ProtoInfo proto = {0};
+  int sz;
+  TypeDesc *desc = NULL;
+  if (stmt->funcdecl.pvec != NULL) {
+    proto_args(parser, stmt->funcdecl.pvec, sz, desc);
+    proto.psz = sz; proto.pdesc = desc;
+  }
+
+  if (stmt->funcdecl.rvec != NULL) {
+    proto_rets(parser, stmt->funcdecl.rvec, sz, desc);
+    proto.rsz = sz; proto.rdesc = desc;
+  }
+
+  debug("add func %s", stmt->funcdecl.id);
+  STable_Add_Func(&parser->u->stable, stmt->funcdecl.id, &proto);
+}
+
+void parse_typedecl(ParserState *parser, struct stmt *stmt)
+{
+
+}
+
+void parse_module(ParserState *parser, struct mod *mod)
+{
+  debug("==begin==================");
+  parser->package = mod->package;
+  parse_body(parser, &mod->stmts);
+  debug("==end===================");
+  printf("package:%s\n", parser->package);
+  STable_Show(&parser->u->stable, 1);
 }

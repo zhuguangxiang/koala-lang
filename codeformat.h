@@ -177,7 +177,7 @@ typedef struct typedesc {
   short dims;
   short kind;
   union {
-    int primitive;
+    char primitive;
     char *str;
   };
 } TypeDesc;

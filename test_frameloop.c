@@ -15,7 +15,7 @@ Object *init_test_module(void)
    */
   Object *module = Module_New("test", "/");
   Decl_Primitive_Desc(desc, 0, PRIMITIVE_INT);
-  Module_Add_Var(module, "result", &desc);
+  Module_Add_Var(module, "result", &desc, 0);
 
   static uint8 codes[] = {
     OP_LOAD, 2, 0, 0, 0,

@@ -44,7 +44,7 @@ void STable_Fini(STable *stbl)
   UNUSED_PARAMETER(stbl);
 }
 
-Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc)
+Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
   int nameindex = StringItem_Set(stbl->atable, name);
@@ -59,6 +59,7 @@ Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc)
     return NULL;
   }
   sym->index = stbl->nextindex++;
+  sym->bconst = bconst;
   return sym;
 }
 
@@ -162,15 +163,8 @@ static void desc_show(int index, STable *stbl)
 static void symbol_var_show(Symbol *sym, STable *stbl)
 {
   /* show's format: "type name desc;" */
-  printf("var %s ", name_tostr(sym->nameindex, stbl));
-  desc_show(sym->descindex, stbl);
-  puts(";"); /* with newline */
-}
-
-static void symbol_const_show(Symbol *sym, STable *stbl)
-{
-  /* show's format: "type name desc;" */
-  printf("const %s ", name_tostr(sym->nameindex, stbl));
+  char *type = sym->bconst ? "const":"var";
+  printf("%s %s ", type, name_tostr(sym->nameindex, stbl));
   desc_show(sym->descindex, stbl);
   puts(";"); /* with newline */
 }
@@ -217,7 +211,7 @@ static void proto_show(Symbol *sym, STable *stbl)
 static void symbol_func_show(Symbol *sym, STable *stbl)
 {
   /* show's format: "func name args rets;" */
-  printf("func %s\n", name_tostr(sym->nameindex, stbl));
+  printf("func %s", name_tostr(sym->nameindex, stbl));
   proto_show(sym, stbl);
 }
 
@@ -226,14 +220,19 @@ static void symbol_class_show(Symbol *sym, STable *stbl)
   printf("class %s;\n", name_tostr(sym->nameindex, stbl));
 }
 
+static void symbol_intf_show(Symbol *sym, STable *stbl)
+{
+  printf("interface %s;\n", name_tostr(sym->nameindex, stbl));
+}
+
 typedef void (*symbol_show_func)(Symbol *sym, STable *stbl);
 
 static symbol_show_func show_funcs[] = {
   NULL,
   symbol_var_show,
-  symbol_const_show,
   symbol_func_show,
   symbol_class_show,
+  symbol_intf_show
 };
 
 static void symbol_show(HashNode *hnode, void *arg)
@@ -245,8 +244,8 @@ static void symbol_show(HashNode *hnode, void *arg)
   show(sym, stbl);
 }
 
-void STable_Show(STable *stbl)
+void STable_Show(STable *stbl, int showAtom)
 {
   HashTable_Traverse(stbl->htable, symbol_show, stbl);
-  AtomTable_Show(stbl->atable, SYM_ATOM_MAX);
+  if (showAtom) AtomTable_Show(stbl->atable, SYM_ATOM_MAX);
 }

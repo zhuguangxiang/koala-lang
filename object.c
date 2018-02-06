@@ -169,14 +169,14 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  Symbol *sym = STable_Add_Field(&klazz->stable, name, desc);
+  Symbol *sym = STable_Add_Var(&klazz->stable, name, desc, 0);
   return (sym != NULL) ? 0 : -1;
 }
 
 int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  Symbol *sym = STable_Add_Method(&klazz->stable, name, proto);
+  Symbol *sym = STable_Add_Func(&klazz->stable, name, proto);
   if (sym != NULL) {
     sym->obj = meth;
     return 0;
@@ -198,7 +198,7 @@ Object *Klass_Get_Method(Klass *klazz, char *name)
 {
   Symbol *s = STable_Get(&klazz->stable, name);
   if (s == NULL) return NULL;
-  if (s->kind != SYM_METHOD) return NULL;
+  if (s->kind != SYM_FUNC) return NULL;
   OB_ASSERT_KLASS(s->obj, Method_Klass);
   return s->obj;
 }

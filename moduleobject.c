@@ -23,17 +23,10 @@ void Module_Free(Object *ob)
   free(ob);
 }
 
-int Module_Add_Var(Object *ob, char *name, TypeDesc *desc)
+int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *sym = STable_Add_Var(&mob->stable, name, desc);
-  return (sym != NULL) ? 0 : -1;
-}
-
-int Module_Add_Const(Object *ob, char *name, TypeDesc *desc)
-{
-  ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *sym = STable_Add_Const(&mob->stable, name, desc);
+  Symbol *sym = STable_Add_Var(&mob->stable, name, desc, bconst);
   return (sym != NULL) ? 0 : -1;
 }
 
@@ -259,5 +252,5 @@ void Module_Show(Object *ob)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   printf("package:%s\n", mob->name);
-  STable_Show(&mob->stable);
+  STable_Show(&mob->stable, 1);
 }

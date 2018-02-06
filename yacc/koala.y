@@ -9,14 +9,13 @@
 
 int yylex(void);
 
-int yyerror(const char *str)
+int yyerror(ParserState *parser, const char *str)
 {
   fprintf(stderr, "syntax error: %s\n", str);
   return 0;
 }
 
 static decl_mod(mod);
-static int vardeclflag = 0;
 
 //#define YYERROR_VERBOSE 1
 #define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
@@ -24,7 +23,6 @@ static int vardeclflag = 0;
 %}
 
 %union {
-  void *general;
   char *id;
   int64 ival;
   float64 fval;
@@ -115,8 +113,6 @@ static int vardeclflag = 0;
 %token <string_const> STRING_CONST
 %token <id> ID
 
-%type <id> Package
-
 /*--------------------------------------------------------------------------*/
 
 %precedence ID
@@ -163,9 +159,8 @@ static int vardeclflag = 0;
 %type <vector> DimExprList
 %type <vector> ArrayInitializerList
 %type <expr> ArrayInitializer
-%type <general> ModuleStatement
-%type <general> VariableDeclaration
-%type <general> ConstDeclaration
+%type <vector> VariableDeclaration
+%type <vector> ConstDeclaration
 %type <stmt> LocalStatement
 %type <stmt> Assignment
 %type <stmt> IfStatement
@@ -193,6 +188,8 @@ static int vardeclflag = 0;
 %type <intf_func> IntfFuncDecl
 
 %start CompileUnit
+
+%parse-param {ParserState *parser}
 
 %%
 
@@ -295,7 +292,7 @@ ReturnTypeList
     $$ = $2;
   }
   | error {
-    yyerror("return declaration is not correct");
+    yyerror(parser, "return declaration is not correct");
     $$ = NULL;
   }
   ;
@@ -323,20 +320,18 @@ CompileUnit
     ast_traverse(&mod.stmts);
   }
   | Package Imports ModuleStatements {
-    mod.package = $1;
     ast_traverse(&mod.stmts);
-    parse_module(&parser, &mod);
+    parse_module(parser, &mod);
   }
   | Package ModuleStatements {
-    mod.package = $1;
     ast_traverse(&mod.stmts);
-    parse_module(&parser, &mod);
+    parse_module(parser, &mod);
   }
   ;
 
 Package
   : PACKAGE ID ';' {
-    $$ = $2;
+    mod.package = $2;
   }
   ;
 
@@ -347,62 +342,44 @@ Imports
 
 Import
   : IMPORT STRING_CONST ';' {
-    parse_import(&parser, NULL, $2);
+    parse_import(parser, NULL, $2);
   }
   | IMPORT ID STRING_CONST ';' {
-    parse_import(&parser, $2, $3);
+    parse_import(parser, $2, $3);
   }
   ;
 
 ModuleStatements
-  : ModuleStatement {
-    if ($1 != NULL) {
-      if (vardeclflag) {
-        vardeclflag = 0;
-        Vector_Concat(&mod.stmts, $1);
-        Vector_Free($1, NULL, NULL);
-      } else {
-        Vector_Append(&mod.stmts, $1);
-      }
-    }
-  }
-  | ModuleStatements ModuleStatement {
-    if ($2 != NULL) {
-      if (vardeclflag) {
-        vardeclflag = 0;
-        Vector_Concat(&mod.stmts, $2);
-        Vector_Free($2, NULL, NULL);
-      } else {
-        Vector_Append(&mod.stmts, $2);
-      }
-    }
-  }
+  : ModuleStatement
+  | ModuleStatements ModuleStatement
   ;
 
 ModuleStatement
   : ';' {
     printf("empty statement\n");
-    $$ = NULL;
   }
   | VariableDeclaration ';' {
-    vardeclflag = 1;
-    $$ = $1;
+    parse_vardecl(parser, $1);
+    Vector_Concat(&mod.stmts, $1);
+    Vector_Free($1, NULL, NULL);
   }
   | ConstDeclaration {
-    vardeclflag = 1;
-    $$ = $1;
+    parse_vardecl(parser, $1);
+    Vector_Concat(&mod.stmts, $1);
+    Vector_Free($1, NULL, NULL);
   }
   | FunctionDeclaration {
-    $$ = $1;
+    parse_funcdecl(parser, $1);
+    Vector_Append(&mod.stmts, $1);
   }
   | TypeDeclaration {
-    $$ = $1;
+    parse_typedecl(parser, $1);
+    Vector_Append(&mod.stmts, $1);
   }
   | error {
-    yyerror("non-declaration statement outside function body");
+    yyerror(parser, "non-declaration statement outside function body");
     yyerrok;
     yyclearin;
-    $$ = NULL;
   }
   ;
 
@@ -410,22 +387,22 @@ ModuleStatement
 
 ConstDeclaration
   : CONST VariableList '=' ExpressionList ';' {
-    $$ = do_vardecl_stmt($2, $4, 1, NULL);
+    $$ = stmt_from_vardecl($2, $4, 1, NULL);
   }
   | CONST VariableList Type '=' ExpressionList ';' {
-    $$ = do_vardecl_stmt($2, $5, 1, $3);
+    $$ = stmt_from_vardecl($2, $5, 1, $3);
   }
   ;
 
 VariableDeclaration
   : VAR VariableList Type {
-    $$ = do_vardecl_stmt($2, NULL, 0, $3);
+    $$ = stmt_from_vardecl($2, NULL, 0, $3);
   }
   | VAR VariableList '=' ExpressionList {
-    $$ = do_vardecl_stmt($2, $4, 0, NULL);
+    $$ = stmt_from_vardecl($2, $4, 0, NULL);
   }
   | VAR VariableList Type '=' ExpressionList {
-    $$ = do_vardecl_stmt($2, $5, 0, $3);
+    $$ = stmt_from_vardecl($2, $5, 0, $3);
   }
   ;
 
@@ -444,11 +421,9 @@ VariableList
 
 FunctionDeclaration
   : FUNC ID '(' ParameterListOrEmpty ')' Block {
-    printf("func1\n");
     $$ = stmt_from_funcdecl($2, $4, NULL, $6);
   }
   | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    printf("func2\n");
     $$ = stmt_from_funcdecl($2, $4, $6, $7);
   }
   ;
@@ -463,7 +438,7 @@ ParameterList
     $$ = $1;
   }
   | error {
-    yyerror("parameter declaration is not correct");
+    yyerror(parser, "parameter declaration is not correct");
     $$ = NULL;
   }
   ;
@@ -540,8 +515,7 @@ IntfFuncDecl
 
 Block
   : '{' LocalStatements '}' {
-    printf("codeblock\n");
-    $$ = $2;
+    $$ = NULL;
   }
   | '{' '}' {
     $$ = NULL;
@@ -550,51 +524,47 @@ Block
 
 LocalStatements
   : LocalStatement {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
+    $$ = NULL;
   }
   | LocalStatements LocalStatement {
-    Vector_Append($1, $2);
-    $$ = $1;
+    $$ = NULL;
   }
   ;
 
 LocalStatement
   : ';' {
-    $$ = NULL;
   }
   | Expression ';' {
-    $$ = stmt_from_expr($1);
+    stmt_from_expr($1);
   }
   | VariableDeclaration ';' {
-    $$ = $1;
+
   }
   | Assignment ';' {
-    $$ = $1;
+
   }
   | IfStatement {
-    $$ = $1;
+
   }
   | WhileStatement {
-    $$ = $1;
+
   }
   | SwitchStatement {
-    $$ = $1;
+
   }
   | ForStatement {
-    $$ = $1;
+
   }
   | JumpStatement {
-    $$ = $1;
+
   }
   | ReturnStatement {
-    $$ = $1;
+
   }
   | Block {
-    $$ = stmt_from_block($1);
+    stmt_from_block($1);
   }
   | GoStatement {
-    $$ = $1;
   }
   ;
 
@@ -727,7 +697,7 @@ ForInit
     $$ = stmt_from_expr($1);
   }
   | VariableDeclaration {
-    $$ = $1;
+    //$$ = $1;
   }
   | Assignment {
     $$ = $1;

@@ -258,8 +258,8 @@ struct stmt *stmt_from_import(char *id, char *path)
   return stmt;
 }
 
-Vector *do_vardecl_stmt(Vector *varvec, Vector *expvec,
-                        int bconst, struct type *type)
+Vector *stmt_from_vardecl(Vector *varvec, Vector *expvec,
+                          int bconst, struct type *type)
 {
   Vector *vec = Vector_New();
   int vsz = Vector_Size(varvec);
@@ -288,8 +288,6 @@ Vector *do_vardecl_stmt(Vector *varvec, Vector *expvec,
         var->type = stmt->vardecl.exp->type;
       }
     }
-    /* add symbol to symbol table */
-    parse_vardecl(&parser, var);
   }
 
   Vector_Free(varvec, NULL, NULL);

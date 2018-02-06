@@ -201,7 +201,7 @@ TypeItem *TypeItem_Structed_New(int dims, int32 index)
 
 TypeListItem *TypeListItem_New(int size, int32 index[])
 {
-  TypeListItem *item = malloc(sizeof(TypeListItem) + size * sizeof(uint32));
+  TypeListItem *item = malloc(sizeof(TypeListItem) + size * sizeof(int32));
   item->size = size;
   for (int i = 0; i < size; i++) {
     item->index[i] = index[i];
@@ -363,7 +363,7 @@ int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz)
     if (index < 0) return -1;
     indexes[i] = index;
   }
-  uint8 data[sizeof(TypeListItem) + sizeof(uint32) * sz];
+  uint8 data[sizeof(TypeListItem) + sizeof(int32) * sz];
   TypeListItem *item = (TypeListItem *)data;
   item->size = sz;
   for (int i = 0; i < sz; i++) {
@@ -571,20 +571,20 @@ void typeitem_show(AtomTable *table, void *o)
 int typelistitem_length(void *o)
 {
   TypeListItem *item = o;
-  return sizeof(TypeListItem) + item->size * sizeof(uint32);
+  return sizeof(TypeListItem) + item->size * sizeof(int32);
 }
 
 void typelistitem_write(FILE *fp, void *o)
 {
   TypeListItem *item = o;
-  fwrite(o, sizeof(TypeListItem) + item->size * sizeof(uint32), 1, fp);
+  fwrite(o, sizeof(TypeListItem) + item->size * sizeof(int32), 1, fp);
 }
 
 uint32 typelistitem_hash(void *k)
 {
   TypeListItem *item = k;
   uint32 total = 0;
-  for (int i = 0; i < (int)item->size; i++)
+  for (int i = 0; i < item->size; i++)
     total += item->index[i];
   return hash_uint32(total, 32);
 }
@@ -594,7 +594,10 @@ int typelistitem_equal(void *k1, void *k2)
   TypeListItem *item1 = k1;
   TypeListItem *item2 = k2;
   if (item1->size != item2->size) return 0;
-  return !memcmp(item1, item2, sizeof(TypeListItem) + item1->size);
+  for (int i = 0; i < item1->size; i++) {
+    if (item1->index[i] != item2->index[i]) return 0;
+  }
+  return 1;
 }
 
 void typelistitem_show(AtomTable *table, void *o)

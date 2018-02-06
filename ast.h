@@ -259,8 +259,8 @@ struct stmt {
 
 struct stmt *stmt_from_expr(struct expr *expr);
 struct stmt *stmt_from_import(char *id, char *path);
-Vector *do_vardecl_stmt(Vector *varvec, Vector *expvec,
-                            int bconst, struct type *type);
+Vector *stmt_from_vardecl(Vector *varvec, Vector *expvec,
+                          int bconst, struct type *type);
 struct stmt *stmt_from_initassign(Vector *var_seq, Vector *expr_seq);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
                                 Vector *body);
