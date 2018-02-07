@@ -238,11 +238,11 @@ PrimitiveType
 StructedType
   : ID {
     // type in local module
-    $$ = type_from_userdef(NULL, $1);
+    $$ = type_from_structed(NULL, $1);
   }
   | ID '.' ID {
     // type in external module
-    $$ = type_from_userdef($1, $3);
+    $$ = type_from_structed($1, $3);
   }
   ;
 

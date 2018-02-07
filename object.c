@@ -211,7 +211,7 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
   ProtoInfo proto = {0};
 
   while (f->name != NULL) {
-    Init_ProtoInfo(f->rsz, f->rdesc, f->psz, f->pdesc, &proto);
+    Init_ProtoInfo(&f->type, &proto);
     meth = CFunc_New(f->fn, &proto);
     res = Klass_Add_Method(klazz, f->name, &proto, meth);
     ASSERT(res == 0);

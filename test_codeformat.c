@@ -11,11 +11,11 @@ int main(int argc, char *argv[])
   UNUSED_PARAMETER(argv);
 
   KImage *image = KImage_New("lang");
-  Decl_UserDef_Desc(desc, 0, "koala/lang.String");
+  DECL_STRUCTED_DESC(desc, 0, "koala/lang.String");
   KImage_Add_Var(image, "greeting", &desc);
-  Init_UserDef_Desc(&desc, 0, "koala/lang.Integer");
+  INIT_STRUCTED_DESC(&desc, 0, "koala/lang.Integer");
   KImage_Add_Var(image, "message", &desc);
-  Init_Primitive_Desc(&desc, 0, PRIMITIVE_FLOAT);
+  INIT_PRIMITIVE_DESC(&desc, 0, PRIMITIVE_FLOAT);
   KImage_Add_Var(image, "weight", &desc);
   // char *rdesc[] = {
   //   "Okoala/io.Socket;",

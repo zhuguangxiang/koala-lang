@@ -33,9 +33,10 @@ struct type {
 };
 
 struct type *type_from_primitive(int primitive);
-struct type *type_from_userdef(char *mod, char *type);
+struct type *type_from_structed(char *mod, char *type);
 struct type *type_from_functype(Vector *pvec, Vector *rvec);
 int type_check(struct type *t1, struct type *t2);
+char *type_tostring(struct type *t);
 
 /*-------------------------------------------------------------------------*/
 
@@ -73,7 +74,6 @@ struct expr {
   struct type *type;
   enum expr_ctx ctx;
   Symbol *sym;
-  char *symname;
   union {
     struct {
       char *id;

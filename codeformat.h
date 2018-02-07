@@ -164,7 +164,8 @@ typedef struct kimage {
 /*-------------------------------------------------------------------------*/
 
 #define TYPE_PRIMITIVE  1
-#define TYPE_DEFINED    2
+#define TYPE_STRUCTED   2
+#define TYPE_PROTO      3
 
 #define PRIMITIVE_INT     'i'
 #define PRIMITIVE_FLOAT   'f'
@@ -182,16 +183,16 @@ typedef struct typedesc {
   };
 } TypeDesc;
 
-#define Decl_Primitive_Desc(desc, d, p) \
+#define DECL_PRIMITIVE_DESC(desc, d, p) \
   TypeDesc desc = {.dims = (d), .kind = TYPE_PRIMITIVE, .primitive = (p)}
-#define Decl_UserDef_Desc(desc, d, s) \
-  TypeDesc desc = {.dims = (d), .kind = TYPE_DEFINED, .str = (s)}
-#define Init_Primitive_Desc(desc, d, p) do { \
+#define DECL_STRUCTED_DESC(desc, d, s) \
+  TypeDesc desc = {.dims = (d), .kind = TYPE_STRUCTED, .str = (s)}
+#define INIT_PRIMITIVE_DESC(desc, d, p) do { \
   (desc)->dims = (d); (desc)->kind = TYPE_PRIMITIVE; \
   (desc)->primitive = (p); \
 } while (0)
-#define Init_UserDef_Desc(desc, d, s) do { \
-  (desc)->dims = (d); (desc)->kind = TYPE_DEFINED; \
+#define INIT_STRUCTED_DESC(desc, d, s) do { \
+  (desc)->dims = (d); (desc)->kind = TYPE_STRUCTED; \
   (desc)->str = (s); \
 } while (0)
 char *primitive_tostring(int type);
@@ -217,10 +218,22 @@ typedef struct funcinfo {
   int locals;
 } FuncInfo;
 
+typedef struct functype {
+  int rsz;
+  char *rdesc;
+  int psz;
+  char *pdesc;
+} FuncType;
+
+#define DECL_FUNCTYPE_INIT(name, rsz, rdesc, psz, pdesc) \
+  FuncType name = {rsz, rdesc, psz, pdesc}
+#define INIT_FUNCTYPE(name, _rsz, _rdesc, _psz, _pdesc) do {\
+  (name)->rsz = (_rsz); (name)->rdesc = (_rdesc); \
+  (name)->psz = (_psz); (name)->pdesc = (_pdesc); \
+} while (0)
 int String_To_Desc(char *str, TypeDesc *desc);
 TypeDesc *String_To_DescList(int count, char *str);
-void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
-                    ProtoInfo *proto);
+void Init_ProtoInfo(FuncType *type, ProtoInfo *proto);
 void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto);
 void Init_CodeInfo(uint8 *codes, int csz, ConstItem *k, int ksz,
                    CodeInfo *codeinfo);

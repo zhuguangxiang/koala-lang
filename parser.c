@@ -2,6 +2,7 @@
 #include "parser.h"
 #include "koala.h"
 #include "hash.h"
+#include "ast.h"
 
 extern FILE *yyin;
 extern int yyparse(ParserState *ps);
@@ -62,11 +63,11 @@ int type_to_desc(ParserState *ps, struct type *type, TypeDesc *desc)
 {
   ASSERT_PTR(type);
   if (type->kind == PRIMITIVE_KIND) {
-    Init_Primitive_Desc(desc, type->dims, type->primitive);
+    INIT_PRIMITIVE_DESC(desc, type->dims, type->primitive);
   } else if (type->kind == USERDEF_KIND) {
     char *path = type_fullpath(ps, type);
     if (path == NULL) return -1;
-    Init_UserDef_Desc(desc, type->dims, path);
+    INIT_STRUCTED_DESC(desc, type->dims, path);
   } else {
     ASSERT(0);
   }
@@ -285,13 +286,13 @@ void parse_dotacess(ParserState *ps, struct expr *exp)
   SymTable *stbl = left->sym->obj;
   Symbol *sym = STbl_Get(stbl, exp->attribute.id);
   if (sym == NULL) {
-    error("cannot find symbol '%s' in '%s'", exp->attribute.id, left->symname);
-    exp->sym = NULL; exp->symname = NULL;
+    error("cannot find symbol '%s' in '%s'",
+          exp->attribute.id, left->sym->str);
+    exp->sym = NULL;
     return;
   }
 
   exp->sym = sym;
-  exp->symname = exp->attribute.id;
 
   //OP_GETFIELD
 }
@@ -313,7 +314,7 @@ void parse_call(ParserState *ps, struct expr *exp)
 
   /* check arguments */
 
-  debug("call %s()", left->symname);
+  debug("call %s()", left->sym->str);
 }
 
 static void parser_visit_expr(ParserState *ps, struct expr *exp)
@@ -321,9 +322,9 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
   switch (exp->kind) {
     case NAME_KIND: {
       char *load = exp->ctx == CTX_STORE ? "store": "load";
-      debug("name:%s(%s)", exp->name.id, load);
+      debug("name:%s(%s), type:%s",
+            exp->name.id, load, type_tostring(exp->type));
       exp->sym = parser_find_symbol(ps, exp->name.id);
-      exp->symname = exp->name.id;
       break;
     }
     case INT_KIND: {
@@ -358,15 +359,74 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       parse_call(ps, exp);
       break;
     }
-    case BINARY_KIND:
+    case BINARY_KIND: {
       break;
+    }
     default:
       ASSERT_MSG(0, "unknown expression type: %d", exp->kind);
       break;
   }
 }
 
-// /*--------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
+struct type *fill_expr_type(ParserState *ps, struct expr *exp)
+{
+  struct type *type = NULL;
+
+  switch (exp->kind) {
+    case NAME_KIND: {
+      if (exp->type == NULL) {
+
+      }
+      char *load = exp->ctx == CTX_STORE ? "store": "load";
+      debug("name:%s(%s), type:%s",
+            exp->name.id, load, type_tostring(exp->type));
+      break;
+    }
+    case INT_KIND: {
+      if (exp->ctx == CTX_STORE) {
+        error("cannot assign to %lld", exp->ival);
+      }
+      break;
+    }
+    case FLOAT_KIND: {
+      if (exp->ctx == CTX_STORE) {
+        error("cannot assign to %f", exp->fval);
+      }
+      break;
+    }
+    case BOOL_KIND: {
+      if (exp->ctx == CTX_STORE) {
+        error("cannot assign to %s", exp->bval ? "true":"false");
+      }
+      break;
+    }
+    case STRING_KIND: {
+      if (exp->ctx == CTX_STORE) {
+        error("cannot assign to %s", exp->str);
+      }
+      break;
+    }
+    case ATTRIBUTE_KIND: {
+      break;
+    }
+    case CALL_KIND: {
+      break;
+    }
+    case BINARY_KIND: {
+      exp->type = fill_expr_type(ps, exp->bin_op.left);
+      break;
+    }
+    default:
+      ASSERT_MSG(0, "unsupported expression type: %d", exp->kind);
+      break;
+  }
+
+  return type;
+}
+
+/*--------------------------------------------------------------------------*/
 
 // int func_generate_code(Parser *ps, struct stmt *stmt)
 // {
@@ -654,12 +714,12 @@ Symbol *parse_import(ParserState *ps, char *id, char *path)
     return NULL;
   }
   if (id == NULL) id = Module_Name(ob);
-  debug("add import %s <- %s", id, path);
   Symbol *sym = add_import(&ps->extstbl, id, path);
   if (sym == NULL) {
-    error("package '%s' is duplicated", path);
+    debug("add import '%s <- %s' failed", id, path);
     return NULL;
   }
+  debug("add import '%s <- %s' successful", id, path);
   sym->obj = Module_Get_STable(ob);
   return sym;
 }
@@ -670,12 +730,18 @@ void parse_vardecl(ParserState *ps, struct stmt *s)
   struct var *var;
   TypeDesc desc;
   int res;
+  Symbol *sym;
+
   Vector_ForEach(stmt, struct stmt, s->vec) {
     var = stmt->vardecl.var;
     res = type_to_desc(ps, var->type, &desc);
     ASSERT(res >= 0);
-    debug("add var %s bconst ? %s", var->id, var->bconst ? "true":"false");
-    STbl_Add_Var(&ps->u->stbl, var->id, &desc, var->bconst);
+    sym = STbl_Add_Var(&ps->u->stbl, var->id, &desc, var->bconst);
+    if (sym != NULL) {
+      debug("add '%s %s' successful", var->bconst ? "const":"var", var->id);
+    } else {
+      debug("add '%s %s' failed", var->bconst ? "const":"var", var->id);
+    }
   }
 }
 
@@ -684,6 +750,8 @@ void parse_funcdecl(ParserState *ps, struct stmt *stmt)
   ProtoInfo proto = {0};
   int sz;
   TypeDesc *desc = NULL;
+  Symbol *sym;
+
   if (stmt->funcdecl.pvec != NULL) {
     proto_args(ps, stmt->funcdecl.pvec, sz, desc);
     proto.psz = sz; proto.pdesc = desc;
@@ -694,8 +762,12 @@ void parse_funcdecl(ParserState *ps, struct stmt *stmt)
     proto.rsz = sz; proto.rdesc = desc;
   }
 
-  debug("add func %s", stmt->funcdecl.id);
-  STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, &proto);
+  sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, &proto);
+  if (sym != NULL) {
+    debug("add 'func %s' successful", stmt->funcdecl.id);
+  } else {
+    debug("add 'func %s' failed", stmt->funcdecl.id);
+  }
 }
 
 void parse_typedecl(ParserState *ps, struct stmt *stmt)

@@ -70,7 +70,7 @@ int String_To_Desc(char *str, TypeDesc *desc)
       dims++; str++;
     }
     desc->dims = dims;
-    desc->kind = TYPE_DEFINED;
+    desc->kind = TYPE_STRUCTED;
     desc->str = strdup(str);
   }
 
@@ -102,7 +102,7 @@ TypeDesc *String_To_DescList(int count, char *str)
       ASSERT(idx < count);
 
       desc[idx].dims = dims;
-      desc[idx].kind = TYPE_DEFINED;
+      desc[idx].kind = TYPE_STRUCTED;
 
       int cnt = 0;
       while ((ch = *str) != ';') {
@@ -126,19 +126,19 @@ TypeDesc *String_To_DescList(int count, char *str)
   return desc;
 }
 
-void Init_ProtoInfo(int rsz, char *rdesc, int psz, char *pdesc,
-                    ProtoInfo *proto)
+void Init_ProtoInfo(FuncType *type, ProtoInfo *proto)
 {
-  proto->rsz = rsz;
-  proto->rdesc = String_To_DescList(rsz, rdesc);
-  proto->psz = psz;
+  proto->rsz = type->rsz;
+  proto->rdesc = String_To_DescList(type->rsz, type->rdesc);
+  proto->psz = type->psz;
   proto->vargs = 0;
-  proto->pdesc = String_To_DescList(psz, pdesc);
+  proto->pdesc = String_To_DescList(type->psz, type->pdesc);
 }
 
 void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto)
 {
-  Init_ProtoInfo(rsz, rdesc, 0, NULL, proto);
+  FuncType type = {rsz, rdesc, 0, NULL};
+  Init_ProtoInfo(&type, proto);
   proto->vargs = 1;
 }
 
@@ -194,7 +194,7 @@ TypeItem *TypeItem_Defined_New(int dims, int32 index)
 {
   TypeItem *item = malloc(sizeof(TypeItem));
   item->dims = dims;
-  item->kind = TYPE_DEFINED;
+  item->kind = TYPE_STRUCTED;
   item->index = index;
   return item;
 }
@@ -320,14 +320,14 @@ int StringItem_Set(AtomTable *table, char *str)
 int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
   TypeItem item = {0};
-  if (desc->kind == TYPE_DEFINED) {
+  if (desc->kind == TYPE_STRUCTED) {
     int index = StringItem_Get(table, desc->str);
     if (index < 0) {
       warn("cannot find string: %s", desc->str);
       return index;
     }
     item.dims = desc->dims;
-    item.kind = TYPE_DEFINED;
+    item.kind = TYPE_STRUCTED;
     item.index = index;
   } else {
     ASSERT(desc->kind == TYPE_PRIMITIVE);
@@ -343,7 +343,7 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
   TypeItem *item = NULL;
   int index = TypeItem_Get(table, desc);
   if (index < 0) {
-    if (desc->kind == TYPE_DEFINED) {
+    if (desc->kind == TYPE_STRUCTED) {
       int index = StringItem_Set(table, desc->str);
       ASSERT(index >= 0);
       item = TypeItem_Defined_New(desc->dims, index);
@@ -562,7 +562,7 @@ void typeitem_show(AtomTable *table, void *o)
 {
   TypeItem *item = o;
 
-  if (item->kind == TYPE_DEFINED) {
+  if (item->kind == TYPE_STRUCTED) {
     StringItem *str = AtomTable_Get(table, ITEM_STRING, item->index);
     printf("  index:%d\n", item->index);
     printf("  (%s)\n", str->data);
@@ -675,7 +675,7 @@ void varitem_show(AtomTable *table, void *o)
   printf("  (%s)\n", stritem->data);
   printf("  type_index:%d\n", item->type_index);
   typeitem = AtomTable_Get(table, ITEM_TYPE, item->type_index);
-  if (typeitem->kind == TYPE_DEFINED) {
+  if (typeitem->kind == TYPE_STRUCTED) {
     stritem = AtomTable_Get(table, ITEM_STRING, typeitem->index);
     printf("  (%s)\n", stritem->data);
   } else {

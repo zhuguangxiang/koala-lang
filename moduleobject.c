@@ -44,7 +44,7 @@ int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth)
 int Module_Add_CFunc(Object *ob, FuncDef *f)
 {
   ProtoInfo proto;
-  Init_ProtoInfo(f->rsz, f->rdesc, f->psz, f->pdesc, &proto);
+  Init_ProtoInfo(&f->type, &proto);
   Object *meth = CFunc_New(f->fn, &proto);
   return Module_Add_Func(ob, f->name, &proto, meth);
 }

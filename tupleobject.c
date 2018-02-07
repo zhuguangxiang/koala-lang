@@ -171,8 +171,8 @@ static Object *__tuple_size(Object *ob, Object *args)
 }
 
 static FuncDef tuple_funcs[] = {
-  {"Get", 1, "A", 1, "i", __tuple_get},
-  {"Size", 1, "i", 0, NULL, __tuple_size},
+  {"Get", {1, "A", 1, "i"}, __tuple_get},
+  {"Size", {1, "i", 0, NULL}, __tuple_size},
   {NULL}
 };
 

@@ -17,7 +17,7 @@ struct type *type_from_primitive(int primitive)
   return type;
 }
 
-struct type *type_from_userdef(char *mod, char *type)
+struct type *type_from_structed(char *mod, char *type)
 {
   if (mod != NULL && type != NULL &&
       !strcmp(mod, "lang") && !strcmp(type, "String")) {
@@ -66,7 +66,7 @@ int type_check(struct type *t1, struct type *t2)
   return eq;
 }
 
-static char *type_tostring(struct type *t)
+char *type_tostring(struct type *t)
 {
   char *str = "";
   switch (t->kind) {

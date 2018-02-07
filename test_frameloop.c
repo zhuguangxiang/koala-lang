@@ -14,7 +14,7 @@ Object *init_test_module(void)
    * io.Print("-123 + 456 = ", result);
    */
   Object *module = Module_New("test", "/");
-  Decl_Primitive_Desc(desc, 0, PRIMITIVE_INT);
+  DECL_PRIMITIVE_DESC(desc, 0, PRIMITIVE_INT);
   Module_Add_Var(module, "result", &desc, 0);
 
   static uint8 codes[] = {
@@ -27,7 +27,8 @@ Object *init_test_module(void)
   ProtoInfo proto;
   CodeInfo codeinfo;
   FuncInfo funcinfo;
-  Init_ProtoInfo(1, "i", 2, "ii", &proto);
+  DECL_FUNCTYPE_INIT(functype, 1, "i", 2, "ii");
+  Init_ProtoInfo(&functype, &proto);
   Init_CodeInfo(codes, sizeof(codes), NULL, 0, &codeinfo);
   Init_FuncInfo(&proto, &codeinfo, 0, &funcinfo);
   Object *meth = Method_New(&funcinfo, Module_AtomTable(module));
@@ -71,7 +72,8 @@ Object *init_test_module(void)
   const_setstrvalue(&k[5], index4);
   const_setstrvalue(&k[6], index5);
 
-  Init_ProtoInfo(0, NULL, 0, NULL, &proto);
+  INIT_FUNCTYPE(&functype, 0, NULL, 0, NULL);
+  Init_ProtoInfo(&functype, &proto);
   Init_CodeInfo(__init__, sizeof(__init__), k, 10, &codeinfo);
   Init_FuncInfo(&proto, &codeinfo, 0, &funcinfo);
   meth = Method_New(&funcinfo, Module_AtomTable(module));

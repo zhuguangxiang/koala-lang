@@ -16,10 +16,7 @@ typedef Object *(*cfunc)(Object *ob, Object *args);
 
 typedef struct funcdef {
   char *name;
-  int rsz;
-  char *rdesc;
-  int psz;
-  char *pdesc;
+  FuncType type;
   cfunc fn;
 } FuncDef;
 
