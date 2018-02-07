@@ -26,7 +26,7 @@ typedef struct codeblock {
   /* upper code block for seraching symbols */
   struct codeblock *up;
   /* symbol table */
-  STable stbl;
+  SymTable stbl;
   /* struct instr list */
   Vector instvec;
   /* true if a OP_RET opcode is inserted. */
@@ -44,14 +44,14 @@ typedef struct parserunit {
   int scope;
   struct list_head link;
   ProtoInfo proto;
-  STable stbl;
+  SymTable stbl;
   CodeBlock *block;
   struct list_head blocks;
 } ParserUnit;
 
 typedef struct parserstate {
   char *package;
-  STable extstbl; /* external symbol table */
+  SymTable extstbl; /* external symbol table */
   ParserUnit *u;
   int nestlevel;
   struct list_head ustack;

@@ -356,23 +356,6 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
   return index;
 }
 
-int TypeItem_ToDesc(AtomTable *table, int index, TypeDesc *desc)
-{
-  TypeItem *item = AtomTable_Get(table, ITEM_TYPE, index);
-  ASSERT_PTR(item);
-  desc->dims = item->dims;
-  desc->kind = item->kind;
-  if (item->kind == TYPE_PRIMITIVE) {
-    desc->primitive = item->primitive;
-  } else if (item->kind == TYPE_DEFINED) {
-    StringItem *s = AtomTable_Get(table, ITEM_STRING, item->index);
-    desc->str = s->data;
-  } else {
-    ASSERT_MSG(0, "invalid TypeItem kind:%d", item->kind);
-  }
-  return 0;
-}
-
 int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz)
 {
   if (sz <= 0) return -1;
@@ -410,19 +393,6 @@ int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz)
   return index;
 }
 
-int TypeListItem_ToDescList(AtomTable *table, TypeListItem *item,
-                            TypeDesc **descs)
-{
-  int sz = item->size;
-  TypeDesc *desc = malloc(sizeof(TypeDesc) * sz);
-  ASSERT_PTR(desc);
-  for (int i = 0; i < sz; i++) {
-    TypeItem_ToDesc(table, item->index[i], desc + i);
-  }
-  *descs = desc;
-  return sz;
-}
-
 int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex)
 {
   ProtoItem item = {rindex, pindex};
@@ -439,29 +409,6 @@ int ProtoItem_Set(AtomTable *table, ProtoInfo *proto)
     index = AtomTable_Append(table, ITEM_PROTO, item, 1);
   }
   return index;
-}
-
-int ProtoItem_ToProto(AtomTable *table, ProtoItem *item, ProtoInfo *proto)
-{
-  TypeListItem *t;
-
-  if (item->rindex < 0) {
-    proto->rsz = 0;
-    proto->rdesc = NULL;
-  } else {
-    t = AtomTable_Get(table, ITEM_TYPELIST, item->rindex);
-    proto->rsz = TypeListItem_ToDescList(table, t, &proto->rdesc);
-  }
-
-  if (item->pindex < 0) {
-    proto->psz = 0;
-    proto->pdesc = NULL;
-  } else {
-    t = AtomTable_Get(table, ITEM_TYPELIST, item->pindex);
-    proto->psz = TypeListItem_ToDescList(table, t, &proto->pdesc);
-  }
-
-  return 0;
 }
 
 int ConstItem_Get(AtomTable *table, ConstItem *item)
@@ -1257,7 +1204,7 @@ void header_show(ImageHeader *h)
   printf("--------------------\n");
 }
 
-void AtomTable_Show(AtomTable *table, int max)
+void AtomTable_Show(AtomTable *table)
 {
   void *item;
   int size;
@@ -1270,7 +1217,7 @@ void AtomTable_Show(AtomTable *table, int max)
   }
   printf("--------------------\n");
 
-  for (int i = 1; i < max; i++) {
+  for (int i = 1; i < table->size; i++) {
     size = AtomTable_Size(table, i);
     if (size > 0) {
       printf("%s:\n", mapitem_string[i]);
@@ -1292,5 +1239,5 @@ void KImage_Show(KImage *image)
   printf("package:%s\n", image->package);
   printf("--------------------\n");
 
-  AtomTable_Show(image->table, ITEM_MAX);
+  AtomTable_Show(image->table);
 }

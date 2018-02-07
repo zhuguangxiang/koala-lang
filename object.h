@@ -159,7 +159,7 @@ struct klass {
 
   strfunc ob_tostr;
 
-  STable stable;
+  SymTable stbl;
 };
 
 extern Klass Klass_Klass;
@@ -169,8 +169,8 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth);
 Symbol *Klass_Get(Klass *klazz, char *name);
 Object *Klass_Get_Method(Klass *klazz, char *name);
-#define Klass_AtomTable(ob) (((Klass *)(ob))->stable.atable)
-#define Klass_STable(ob) (&((Klass *)(ob))->stable)
+#define Klass_AtomTable(ob) (((Klass *)(ob))->stbl.atbl)
+#define Klass_STable(ob) (&((Klass *)(ob))->stbl)
 
 #ifdef __cplusplus
 }

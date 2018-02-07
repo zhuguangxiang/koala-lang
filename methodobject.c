@@ -23,7 +23,7 @@ Object *CFunc_New(cfunc cf, ProtoInfo *proto)
   return (Object *)m;
 }
 
-Object *Method_New(FuncInfo *info, AtomTable *atable)
+Object *Method_New(FuncInfo *info, AtomTable *atbl)
 {
   MethodObject *m = __method_new();
   m->flags = METH_KFUNC;
@@ -32,7 +32,7 @@ Object *Method_New(FuncInfo *info, AtomTable *atable)
   m->args = info->proto->psz;
   m->locals = info->proto->psz + info->locals;
   m->kf.codeinfo = *info->code;
-  m->kf.atable = atable;
+  m->kf.atbl = atbl;
   return (Object *)m;
 }
 

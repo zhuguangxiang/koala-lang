@@ -169,14 +169,14 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  Symbol *sym = STable_Add_Var(&klazz->stable, name, desc, 0);
+  Symbol *sym = STbl_Add_Var(&klazz->stbl, name, desc, 0);
   return (sym != NULL) ? 0 : -1;
 }
 
 int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  Symbol *sym = STable_Add_Func(&klazz->stable, name, proto);
+  Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
   if (sym != NULL) {
     sym->obj = meth;
     return 0;
@@ -187,8 +187,8 @@ int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)
 // int Klass_Add_IProto(Klass *klazz, char *name, char *rdesc, char *pdesc)
 // {
 //   OB_ASSERT_KLASS(klazz, Klass_Klass);
-//   int name_index = StringItem_Set(klazz->atable, name, strlen(name));
-//   int desc_index = ProtoItem_Set(klazz->atable, rdesc, pdesc, NULL, NULL);
+//   int name_index = StringItem_Set(klazz->atbl, name, strlen(name));
+//   int desc_index = ProtoItem_Set(klazz->atbl, rdesc, pdesc, NULL, NULL);
 //   Symbol *sym = Symbol_New(name_index, SYM_IMETHOD, access, desc_index);
 //   sym->index = klazz->avail_index++;
 //   return HashTable_Insert(__get_table(klazz), &sym->hnode);
@@ -196,9 +196,9 @@ int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)
 
 Object *Klass_Get_Method(Klass *klazz, char *name)
 {
-  Symbol *s = STable_Get(&klazz->stable, name);
+  Symbol *s = STbl_Get(&klazz->stbl, name);
   if (s == NULL) return NULL;
-  if (s->kind != SYM_FUNC) return NULL;
+  if (s->kind != SYM_PROTO) return NULL;
   OB_ASSERT_KLASS(s->obj, Method_Klass);
   return s->obj;
 }

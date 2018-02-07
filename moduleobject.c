@@ -8,7 +8,7 @@ Object *Module_New(char *name, char *path)
   ModuleObject *ob = malloc(sizeof(ModuleObject));
   init_object_head(ob, &Module_Klass);
   ob->name = name;
-  STable_Init(&ob->stable, NULL);
+  STbl_Init(&ob->stbl, NULL);
   ob->tuple = NULL;
   if (Koala_Add_Module(path, (Object *)ob) < 0) {
     Module_Free((Object *)ob);
@@ -26,14 +26,14 @@ void Module_Free(Object *ob)
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *sym = STable_Add_Var(&mob->stable, name, desc, bconst);
+  Symbol *sym = STbl_Add_Var(&mob->stbl, name, desc, bconst);
   return (sym != NULL) ? 0 : -1;
 }
 
 int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *sym = STable_Add_Func(&mob->stable, name, proto);
+  Symbol *sym = STbl_Add_Proto(&mob->stbl, name, proto);
   if (sym != NULL) {
     sym->obj = meth;
     return 0;
@@ -52,10 +52,10 @@ int Module_Add_CFunc(Object *ob, FuncDef *f)
 int Module_Add_Class(Object *ob, Klass *klazz)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *sym = STable_Add_Class(&mob->stable, klazz->name);
+  Symbol *sym = STbl_Add_Class(&mob->stbl, klazz->name);
   if (sym != NULL) {
     sym->obj = klazz;
-    STable_Init(&klazz->stable, Module_AtomTable(mob));
+    STbl_Init(&klazz->stbl, Module_AtomTable(mob));
     return 0;
   }
   return -1;
@@ -64,10 +64,10 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 int Module_Add_Interface(Object *ob, Klass *klazz)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *sym = STable_Add_Interface(&mob->stable, klazz->name);
+  Symbol *sym = STbl_Add_Intf(&mob->stbl, klazz->name);
   if (sym != NULL) {
     sym->obj = klazz;
-    STable_Init(&klazz->stable, Module_AtomTable(mob));
+    STbl_Init(&klazz->stbl, Module_AtomTable(mob));
     return 0;
   }
   return -1;
@@ -75,10 +75,10 @@ int Module_Add_Interface(Object *ob, Klass *klazz)
 
 static int __get_value_index(ModuleObject *mob, char *name)
 {
-  struct symbol *s = STable_Get(&mob->stable, name);
-  if (s != NULL) {
-    if (s->kind == SYM_VAR) {
-      return s->index;
+  Symbol *sym = STbl_Get(&mob->stbl, name);
+  if (sym != NULL) {
+    if (sym->kind == SYM_VAR) {
+      return sym->index;
     } else {
       error("symbol is not a variable");
     }
@@ -89,13 +89,13 @@ static int __get_value_index(ModuleObject *mob, char *name)
 Symbol *Module_Get_Symbol(Object *ob, char *name)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  return STable_Get(&mob->stable, name);
+  return STbl_Get(&mob->stbl, name);
 }
 
 Object *__get_tuple(ModuleObject *mob)
 {
   if (mob->tuple == NULL) {
-    mob->tuple = Tuple_New(mob->stable.nextindex);
+    mob->tuple = Tuple_New(mob->stbl.next);
   }
   return mob->tuple;
 }
@@ -130,10 +130,10 @@ int Module_Set_Value_ByIndex(Object *ob, int index, TValue *val)
 Object *Module_Get_Function(Object *ob, char *name)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *s = STable_Get(&mob->stable, name);
-  if (s != NULL) {
-    if (s->kind == SYM_FUNC) {
-      return s->obj;
+  Symbol *sym = STbl_Get(&mob->stbl, name);
+  if (sym != NULL) {
+    if (sym->kind == SYM_PROTO) {
+      return sym->obj;
     } else {
       error("symbol is not a function");
     }
@@ -145,10 +145,10 @@ Object *Module_Get_Function(Object *ob, char *name)
 Klass *Module_Get_Class(Object *ob, char *name)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *s = STable_Get(&mob->stable, name);
-  if (s != NULL) {
-    if (s->kind == SYM_CLASS) {
-      return s->obj;
+  Symbol *sym = STbl_Get(&mob->stbl, name);
+  if (sym != NULL) {
+    if (sym->kind == SYM_CLASS) {
+      return sym->obj;
     } else {
       error("symbol is not a class");
     }
@@ -159,10 +159,10 @@ Klass *Module_Get_Class(Object *ob, char *name)
 Klass *Module_Get_Intf(Object *ob, char *name)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *s = STable_Get(&mob->stable, name);
-  if (s != NULL) {
-    if (s->kind == SYM_INTF) {
-      return s->obj;
+  Symbol *sym = STbl_Get(&mob->stbl, name);
+  if (sym != NULL) {
+    if (sym->kind == SYM_INTF) {
+      return sym->obj;
     } else {
       error("symbol is not a interface");
     }
@@ -173,10 +173,10 @@ Klass *Module_Get_Intf(Object *ob, char *name)
 Klass *Module_Get_Klass(Object *ob, char *name)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  Symbol *s = STable_Get(&mob->stable, name);
-  if (s != NULL) {
-    if (s->kind == SYM_CLASS || s->kind == SYM_INTF) {
-      return s->obj;
+  Symbol *sym = STbl_Get(&mob->stbl, name);
+  if (sym != NULL) {
+    if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
+      return sym->obj;
     } else {
       error("symbol is not a class");
     }
@@ -196,7 +196,7 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
   return 0;
 }
 
-STable *Object_STable(Object *ob)
+SymTable *Object_STable(Object *ob)
 {
   if (OB_CHECK_KLASS(ob, Module_Klass)) {
     return Module_STable(ob);
@@ -208,7 +208,7 @@ STable *Object_STable(Object *ob)
   }
 }
 
-STable *Module_Get_STable(Object *ob)
+SymTable *Module_Get_STable(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Module_Klass);
   return Module_STable(ob);
@@ -251,6 +251,6 @@ Klass Module_Klass = {
 void Module_Show(Object *ob)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  printf("package:%s\n", mob->name);
-  STable_Show(&mob->stable, 1);
+  printf("package:%sym\n", mob->name);
+  STbl_Show(&mob->stbl);
 }

@@ -41,7 +41,7 @@ typedef struct methodobject {
     cfunc cf;             // c language function
     struct {
       //Object *closure;  // tuple for closure
-      AtomTable *atable;  // constant pool
+      AtomTable *atbl;  // constant pool
       CodeInfo codeinfo;  // codeinfo
     } kf;
   };
@@ -50,7 +50,7 @@ typedef struct methodobject {
 /* Exported APIs */
 extern Klass Method_Klass;
 void Init_Method_Klass(Object *ob);
-Object *Method_New(FuncInfo *info, AtomTable *atable);
+Object *Method_New(FuncInfo *info, AtomTable *atbl);
 Object *CFunc_New(cfunc cf, ProtoInfo *proto);
 #define METH_ISCFUNC(meth)  ((meth)->flags & METH_CFUNC)
 #define METH_ISKFUNC(meth)  ((meth)->flags & METH_KFUNC)

@@ -31,7 +31,7 @@ static uint32 fetch_arg4(Frame *frame, CodeInfo *codeinfo)
   return (h2 << 24) + (h1 << 16) + (l2 << 8) + (l1 << 0);
 }
 
-static TValue index_value(int index, CodeInfo *codeinfo, AtomTable *atable)
+static TValue index_value(int index, CodeInfo *codeinfo, AtomTable *atbl)
 {
   TValue ret = NilValue;
   ASSERT(index < codeinfo->ksz);
@@ -52,7 +52,7 @@ static TValue index_value(int index, CodeInfo *codeinfo, AtomTable *atable)
     }
     case CONST_STRING: {
       StringItem *item;
-      item = AtomTable_Get(atable, ITEM_STRING, k->index);
+      item = AtomTable_Get(atbl, ITEM_STRING, k->index);
       setcstrvalue(&ret, item->data);
       break;
     }
@@ -116,7 +116,7 @@ void Frame_Loop(Frame *frame)
   MethodObject *meth = (MethodObject *)frame->func;
   CodeInfo *codeinfo = &meth->kf.codeinfo;
   TValue *locals = frame->locals;
-  AtomTable *atable = meth->kf.atable;
+  AtomTable *atbl = meth->kf.atbl;
 
   uint8 inst;
   uint32 index;
@@ -127,13 +127,13 @@ void Frame_Loop(Frame *frame)
     switch (inst) {
       case OP_LOADK: {
         index = fetch_arg4(frame, codeinfo);
-        val = index_value(index, codeinfo, atable);
+        val = index_value(index, codeinfo, atbl);
         PUSH(&val);
         break;
       }
       case OP_LOADM: {
         index = fetch_arg4(frame, codeinfo);
-        val = index_value(index, codeinfo, atable);
+        val = index_value(index, codeinfo, atbl);
         char *path = VALUE_CSTR(&val);
         info("load module '%s'", path);
         Object *ob = Koala_Load_Module(path);
@@ -174,7 +174,7 @@ void Frame_Loop(Frame *frame)
       }
       case OP_CALL: {
         index = fetch_arg4(frame, codeinfo);
-        val = index_value(index, codeinfo, atable);
+        val = index_value(index, codeinfo, atbl);
         char *name = VALUE_CSTR(&val);
         info("%s()", name);
         Object *ob = VALUE_OBJECT(TOP());

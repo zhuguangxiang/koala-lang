@@ -3,102 +3,123 @@
 #include "hash.h"
 #include "log.h"
 
-#define SYM_ATOM_MAX (ITEM_CONST + 1)
+Symbol *symbol_new(void)
+{
+  Symbol *sym = calloc(1, sizeof(Symbol));
+  Init_HashNode(&sym->hnode, sym);
+  return sym;
+}
+
+void symbol_free(Symbol *sym)
+{
+  free(sym);
+}
 
 static uint32 symbol_hash(void *k)
 {
   Symbol *s = k;
-  return hash_uint32(s->nameindex, 0);
+  return hash_uint32(s->name, 0);
 }
 
 static int symbol_equal(void *k1, void *k2)
 {
   Symbol *s1 = k1;
   Symbol *s2 = k2;
-  return s1->nameindex == s2->nameindex;
+  return s1->name == s2->name;
 }
 
-static HashTable *__get_hashtable(STable *stbl)
+#define SYMBOL_ACCESS(name) \
+  (isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE)
+
+/*-------------------------------------------------------------------------*/
+
+#define SYM_ATOM_MAX (ITEM_CONST + 1)
+
+static HashTable *__get_hashtable(SymTable *stbl)
 {
-  if (stbl->htable == NULL) {
+  if (stbl->htbl == NULL) {
     Decl_HashInfo(hashinfo, symbol_hash, symbol_equal);
-    stbl->htable = HashTable_New(&hashinfo);
+    stbl->htbl = HashTable_New(&hashinfo);
   }
-  return stbl->htable;
+  return stbl->htbl;
 }
 
-int STable_Init(STable *stbl, AtomTable *atable)
+int STbl_Init(SymTable *stbl, AtomTable *atbl)
 {
-  stbl->htable = NULL;
-  Decl_HashInfo(hashinfo, item_hash, item_equal);
-  if (atable == NULL)
-    stbl->atable = AtomTable_New(&hashinfo, SYM_ATOM_MAX);
-  else
-    stbl->atable = atable;
-  stbl->nextindex = 0;
+  stbl->htbl = NULL;
+  if (atbl == NULL) {
+    Decl_HashInfo(hashinfo, item_hash, item_equal);
+    stbl->atbl = AtomTable_New(&hashinfo, SYM_ATOM_MAX);
+  } else {
+    stbl->atbl = atbl;
+  }
+  stbl->next = 0;
   return 0;
 }
 
-void STable_Fini(STable *stbl)
+void STbl_Fini(SymTable *stbl)
 {
   UNUSED_PARAMETER(stbl);
 }
 
-Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
+Symbol *STbl_Add_Var(SymTable *stbl, char *name, TypeDesc *desc, bool konst)
 {
-  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int descindex = -1;
-  if (desc != NULL) {
-    descindex = TypeItem_Set(stbl->atable, desc);
-    ASSERT(descindex >= 0);
-  }
-  Symbol *sym = STable_Add_Symbol(stbl, SYM_VAR, access, name, descindex);
+  Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_VAR, konst);
   if (sym == NULL) return NULL;
-  sym->index = stbl->nextindex++;
-  sym->bconst = bconst;
+
+  idx_t idx = -1;
+  if (desc != NULL) {
+    idx = TypeItem_Set(stbl->atbl, desc);
+    ASSERT(idx >= 0);
+  }
+  sym->desc  = idx;
+  sym->type  = desc;
+  sym->index = stbl->next++;
   return sym;
 }
 
-Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto)
+Symbol *STbl_Add_Proto(SymTable *stbl, char *name, ProtoInfo *proto)
 {
-  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int descindex = ProtoItem_Set(stbl->atable, proto);
-  ASSERT(descindex >= 0);
-  return STable_Add_Symbol(stbl, SYM_FUNC, access, name, descindex);
+  Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_PROTO, 0);
+  if (sym == NULL) return NULL;
+
+  idx_t idx = ProtoItem_Set(stbl->atbl, proto);
+  ASSERT(idx >= 0);
+  sym->desc = idx;
+  sym->proto = *proto;
+  return sym;
 }
 
-int FuncSym_Get_Proto(STable *stbl, Symbol *sym, ProtoInfo *proto)
+Symbol *STbl_Add_IProto(SymTable *stbl, char *name, ProtoInfo *proto)
 {
-  ASSERT(sym->kind == SYM_FUNC);
-  ProtoItem *item = AtomTable_Get(stbl->atable, ITEM_PROTO, sym->descindex);
-  ASSERT_PTR(item);
-  return ProtoItem_ToProto(stbl->atable, item, proto);
+  Symbol *sym = STbl_Add_Proto(stbl, name, proto);
+  if (sym == NULL) return NULL;
+  sym->kind = SYM_IPROTO;
+  return sym;
 }
 
-Symbol *STable_Add_Klass(STable *stbl, char *name, int kind)
+Symbol *STbl_Add_Symbol(SymTable *stbl, char *name, int kind, bool konst)
 {
-  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  return STable_Add_Symbol(stbl, kind, access, name, -1);
-}
-
-Symbol *STable_Add_Symbol(STable *stbl, int kind, int access,
-                          char *name, int descindex)
-{
-  int nameindex = StringItem_Set(stbl->atable, name);
-  ASSERT(nameindex >= 0);
-  Symbol *sym = Symbol_New(nameindex, kind, access, descindex);
+  Symbol *sym = symbol_new();
+  idx_t idx = StringItem_Set(stbl->atbl, name);
+  ASSERT(idx >= 0);
+  sym->name = idx;
   if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-    Symbol_Free(sym);
+    symbol_free(sym);
     return NULL;
   }
+  sym->kind = kind;
+  sym->konst = konst;
+  sym->access = SYMBOL_ACCESS(name);
+  sym->str = name;
   return sym;
 }
 
-Symbol *STable_Get(STable *stbl, char *name)
+Symbol *STbl_Get(SymTable *stbl, char *name)
 {
-  int index = StringItem_Get(stbl->atable, name);
+  idx_t index = StringItem_Get(stbl->atbl, name);
   if (index < 0) return NULL;
-  Symbol sym = {.nameindex = index};
+  Symbol sym = {.name = index};
   HashNode *hnode = HashTable_Find(__get_hashtable(stbl), &sym);
   if (hnode != NULL) {
     return container_of(hnode, Symbol, hnode);
@@ -107,33 +128,17 @@ Symbol *STable_Get(STable *stbl, char *name)
   }
 }
 
-Symbol *Symbol_New(int nameindex, int kind, int access, int descindex)
-{
-  Symbol *sym = calloc(1, sizeof(Symbol));
-  Init_HashNode(&sym->hnode, sym);
-  sym->nameindex = nameindex;
-  sym->kind = (uint8)kind;
-  sym->access = (uint8)access;
-  sym->descindex = descindex;
-  return sym;
-}
-
-void Symbol_Free(Symbol *sym)
-{
-  free(sym);
-}
-
 /*-------------------------------------------------------------------------*/
 
-static char *name_tostr(int index, STable *stbl)
+static char *name_tostr(int index, SymTable *stbl)
 {
   if (index < 0) return "";
-  StringItem *item = AtomTable_Get(stbl->atable, ITEM_STRING, index);
+  StringItem *item = AtomTable_Get(stbl->atbl, ITEM_STRING, index);
   ASSERT_PTR(item);
   return item->data;
 }
 
-static void desc_show(int index, STable *stbl)
+static void desc_show(int index, SymTable *stbl)
 {
   if (index < 0) return;
 
@@ -145,7 +150,7 @@ static void desc_show(int index, STable *stbl)
     "int", "float", "bool", "string", "Any"
   };
 
-  TypeItem *type = AtomTable_Get(stbl->atable, ITEM_TYPE, index);
+  TypeItem *type = AtomTable_Get(stbl->atbl, ITEM_TYPE, index);
   ASSERT_PTR(type);
   int dims = type->dims;
   while (dims-- > 0) printf("[]");
@@ -156,7 +161,7 @@ static void desc_show(int index, STable *stbl)
       }
     }
   } else {
-    StringItem *item = AtomTable_Get(stbl->atable, ITEM_STRING, type->index);
+    StringItem *item = AtomTable_Get(stbl->atbl, ITEM_STRING, type->index);
     ASSERT_PTR(item);
     char *s = item->data;
     ASSERT_PTR(s);
@@ -164,16 +169,16 @@ static void desc_show(int index, STable *stbl)
   }
 }
 
-static void symbol_var_show(Symbol *sym, STable *stbl)
+static void symbol_var_show(Symbol *sym, SymTable *stbl)
 {
   /* show's format: "type name desc;" */
-  char *type = sym->bconst ? "const":"var";
-  printf("%s %s ", type, name_tostr(sym->nameindex, stbl));
-  desc_show(sym->descindex, stbl);
+  char *type = sym->konst ? "const":"var";
+  printf("%s %s ", type, name_tostr(sym->name, stbl));
+  desc_show(sym->desc, stbl);
   puts(";"); /* with newline */
 }
 
-static void typelist_show(TypeListItem *typelist, STable *stbl)
+static void typelist_show(TypeListItem *typelist, SymTable *stbl)
 {
   int sz = typelist->size;
   for (int i = 0; i < sz; i++) {
@@ -182,16 +187,16 @@ static void typelist_show(TypeListItem *typelist, STable *stbl)
   }
 }
 
-static void proto_show(Symbol *sym, STable *stbl)
+static void proto_show(Symbol *sym, SymTable *stbl)
 {
-  int index = sym->descindex;
+  int index = sym->desc;
   if (index < 0) return;
-  ProtoItem *proto = AtomTable_Get(stbl->atable, ITEM_PROTO, index);
+  ProtoItem *proto = AtomTable_Get(stbl->atbl, ITEM_PROTO, index);
   ASSERT_PTR(proto);
 
   TypeListItem *typelist;
   if (proto->pindex >= 0) {
-    typelist = AtomTable_Get(stbl->atable, ITEM_TYPELIST, proto->pindex);
+    typelist = AtomTable_Get(stbl->atbl, ITEM_TYPELIST, proto->pindex);
     ASSERT_PTR(typelist);
     printf("(");
     typelist_show(typelist, stbl);
@@ -202,7 +207,7 @@ static void proto_show(Symbol *sym, STable *stbl)
 
   if (proto->rindex >= 0) {
     printf(" ");
-    typelist = AtomTable_Get(stbl->atable, ITEM_TYPELIST, proto->rindex);
+    typelist = AtomTable_Get(stbl->atbl, ITEM_TYPELIST, proto->rindex);
     ASSERT_PTR(typelist);
     if (typelist->size > 1) printf("(");
     typelist_show(typelist, stbl);
@@ -212,24 +217,24 @@ static void proto_show(Symbol *sym, STable *stbl)
   puts(";");  /* with newline */
 }
 
-static void symbol_func_show(Symbol *sym, STable *stbl)
+static void symbol_func_show(Symbol *sym, SymTable *stbl)
 {
   /* show's format: "func name args rets;" */
-  printf("func %s", name_tostr(sym->nameindex, stbl));
+  printf("func %s", name_tostr(sym->name, stbl));
   proto_show(sym, stbl);
 }
 
-static void symbol_class_show(Symbol *sym, STable *stbl)
+static void symbol_class_show(Symbol *sym, SymTable *stbl)
 {
-  printf("class %s;\n", name_tostr(sym->nameindex, stbl));
+  printf("class %s;\n", name_tostr(sym->name, stbl));
 }
 
-static void symbol_intf_show(Symbol *sym, STable *stbl)
+static void symbol_intf_show(Symbol *sym, SymTable *stbl)
 {
-  printf("interface %s;\n", name_tostr(sym->nameindex, stbl));
+  printf("interface %s;\n", name_tostr(sym->name, stbl));
 }
 
-typedef void (*symbol_show_func)(Symbol *sym, STable *stbl);
+typedef void (*symbol_show_func)(Symbol *sym, SymTable *stbl);
 
 static symbol_show_func show_funcs[] = {
   NULL,
@@ -242,14 +247,24 @@ static symbol_show_func show_funcs[] = {
 static void symbol_show(HashNode *hnode, void *arg)
 {
   Symbol *sym = container_of(hnode, Symbol, hnode);
-  STable *stbl = arg;
+  SymTable *stbl = arg;
   symbol_show_func show = show_funcs[sym->kind];
   ASSERT_PTR(show);
   show(sym, stbl);
 }
 
-void STable_Show(STable *stbl, int showAtom)
+void STbl_Show_HTable(SymTable *stbl)
 {
-  HashTable_Traverse(stbl->htable, symbol_show, stbl);
-  if (showAtom) AtomTable_Show(stbl->atable, SYM_ATOM_MAX);
+  HashTable_Traverse(stbl->htbl, symbol_show, stbl);
+}
+
+void STbl_Show_ATable(SymTable *stbl)
+{
+  AtomTable_Show(stbl->atbl);
+}
+
+void STbl_Show(SymTable *stbl)
+{
+  HashTable_Traverse(stbl->htbl, symbol_show, stbl);
+  AtomTable_Show(stbl->atbl);
 }

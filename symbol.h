@@ -9,10 +9,10 @@ extern "C" {
 #endif
 
 #define SYM_VAR     1
-#define SYM_FUNC    2
+#define SYM_PROTO   2
 #define SYM_CLASS   3
 #define SYM_INTF    4
-#define SYM_IFUNC   5
+#define SYM_IPROTO  5
 #define SYM_STABLE  6
 
 #define ACCESS_PUBLIC   0
@@ -20,48 +20,43 @@ extern "C" {
 
 typedef struct symbol {
   HashNode hnode;
-  int nameindex;
+  idx_t name;
   int8 kind;
   int8 access;
-  int8 bconst;
-  int8 refcnt; /* for compiler */
-  int descindex;
+  bool konst;
+  int8 refcnt;    /* for compiler */
+  idx_t desc;
+  char *str;      /* -> name */
+  union {         /* -> desc */
+    ProtoInfo proto;
+    TypeDesc *type;
+    void *ptr;
+  };
   union {
-    void *obj;  /* method or klass or STable */
-    int index;  /* variable's index */
+    void *obj;    /* method or klass or SymTable */
+    idx_t index;  /* variable's index */
   };
 } Symbol;
 
 typedef struct symboltable {
-  HashTable *htable;
-  AtomTable *atable;
-  int nextindex;
-} STable;
+  HashTable *htbl;
+  AtomTable *atbl;
+  idx_t next;
+} SymTable;
 
 /* Exported APIs */
-Symbol *Symbol_New(int nameindex, int kind, int access, int descindex);
-void Symbol_Free(Symbol *sym);
-int STable_Init(STable *stbl, AtomTable *atable);
-void STable_Fini(STable *stbl);
-Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
-Symbol *STable_Add_Func(STable *stbl, char *name, ProtoInfo *proto);
-Symbol *STable_Add_Klass(STable *stbl, char *name, int kind);
-#define STable_Add_Class(stbl, name) ({ \
-  Symbol *sym = STable_Add_Klass(stbl, name, SYM_CLASS); sym; \
-})
-#define STable_Add_Interface(stbl, name) ({ \
-  Symbol *sym = STable_Add_Klass(stbl, name, SYM_INTF); \
-  sym->kind = SYM_INTF; sym; \
-})
-#define STable_Add_IFunc(stbl, name, proto) ({ \
-  Symbol *sym = STable_Add_Func(stbl, name, proto); \
-  sym->kind = SYM_IFUNC; sym; \
-})
-Symbol *STable_Add_Symbol(STable *stbl, int kind, int access,
-                          char *name, int descindex);
-Symbol *STable_Get(STable *stbl, char *name);
-void STable_Show(STable *stbl, int showAtom);
-int FuncSym_Get_Proto(STable *stbl, Symbol *sym, ProtoInfo *proto);
+int STbl_Init(SymTable *stbl, AtomTable *atbl);
+void STbl_Fini(SymTable *stbl);
+Symbol *STbl_Add_Var(SymTable *stbl, char *name, TypeDesc *desc, bool konst);
+Symbol *STbl_Add_Proto(SymTable *stbl, char *name, ProtoInfo *proto);
+Symbol *STbl_Add_IProto(SymTable *stbl, char *name, ProtoInfo *proto);
+#define STbl_Add_Class(stbl, name) STbl_Add_Symbol(stbl, name, SYM_CLASS, 0)
+#define STbl_Add_Intf(stbl, name) STbl_Add_Symbol(stbl, name, SYM_INTF, 0)
+Symbol *STbl_Add_Symbol(SymTable *stbl, char *name, int kind, bool konst);
+Symbol *STbl_Get(SymTable *stbl, char *name);
+void STbl_Show(SymTable *stbl);
+void STbl_Show_HTable(SymTable *stbl);
+void STbl_Show_ATable(SymTable *stbl);
 
 #ifdef __cplusplus
 }

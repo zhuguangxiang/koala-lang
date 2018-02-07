@@ -30,6 +30,9 @@ typedef unsigned long long uint64;
 typedef float   float32;
 typedef double  float64;
 
+typedef int32 idx_t;
+typedef int8 bool;
+
 /* Get the min(max) one of the two numbers */
 #define min(a, b) ((a) > (b) ? (b) : (a))
 #define max(a, b) ((a) > (b) ? (a) : (b))
