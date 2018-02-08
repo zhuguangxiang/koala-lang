@@ -5,38 +5,11 @@
 #include "common.h"
 #include "list.h"
 #include "vector.h"
+#include "symbol.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/*-------------------------------------------------------------------------*/
-
-enum type_kind {
-  PRIMITIVE_KIND = 1, USERDEF_KIND = 2, FUNCTION_KIND = 3,
-};
-
-struct type {
-  enum type_kind kind;
-  union {
-    int primitive;
-    struct {
-      char *mod;
-      char *type;
-    } userdef;
-    struct {
-      Vector *pvec;
-      Vector *rvec;
-    } functype;
-  };
-  int dims;
-};
-
-struct type *type_from_primitive(int primitive);
-struct type *type_from_structed(char *mod, char *type);
-struct type *type_from_functype(Vector *pvec, Vector *rvec);
-int type_check(struct type *t1, struct type *t2);
-char *type_tostring(struct type *t);
 
 /*-------------------------------------------------------------------------*/
 
@@ -71,7 +44,7 @@ enum expr_ctx {
 
 struct expr {
   enum expr_kind kind;
-  struct type *type;
+  TypeDesc *type;
   enum expr_ctx ctx;
   Symbol *sym;
   union {
@@ -123,7 +96,6 @@ struct expr {
 struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
                                struct expr *left);
 struct expr *expr_from_name(char *id);
-struct expr *expr_from_name_type(char *id, struct type *type);
 struct expr *expr_from_int(int64 ival);
 struct expr *expr_from_float(float64 fval);
 struct expr *expr_from_string(char *str);
@@ -131,7 +103,7 @@ struct expr *expr_from_bool(int bval);
 struct expr *expr_from_self(void);
 struct expr *expr_from_expr(struct expr *exp);
 struct expr *expr_from_nil(void);
-struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq);
+struct expr *expr_from_array(TypeDesc *type, Vector *dseq, Vector *tseq);
 struct expr *expr_from_array_with_tseq(Vector *tseq);
 struct expr *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body);
 struct expr *expr_from_binary(enum operator_kind kind,
@@ -145,12 +117,12 @@ void expr_traverse(struct expr *exp);
 struct var {
   char *id;
   int bconst;
-  struct type *type;
+  TypeDesc *type;
 };
 
 struct field {
   char *id;
-  struct type *type;
+  TypeDesc *type;
   struct expr *expr;
 };
 
@@ -164,8 +136,8 @@ struct intf_func {
   struct func_proto proto;
 };
 
-struct var *new_var(char *id, struct type *type);
-struct field *new_struct_field(char *id, struct type *t, struct expr *e);
+struct var *new_var(char *id, TypeDesc *type);
+struct field *new_struct_field(char *id, TypeDesc *type, struct expr *e);
 struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec);
 
 /*-------------------------------------------------------------------------*/
@@ -227,7 +199,7 @@ struct stmt {
     } structure;
     struct {
       char *id;
-      struct type *type;
+      TypeDesc *type;
     } user_typedef;
     struct {
       struct test_block *if_part;
@@ -264,7 +236,7 @@ struct stmt {
 struct stmt *stmt_from_expr(struct expr *exp);
 struct stmt *stmt_from_import(char *id, char *path);
 struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
-                               int bconst, struct type *type);
+                               int bconst, TypeDesc *type);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
                                 Vector *body);
 struct stmt *stmt_from_assign(Vector *left, Vector *right);

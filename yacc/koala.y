@@ -32,7 +32,7 @@ static decl_mod(mod);
   struct expr *expr;
   Vector *vector;
   struct stmt *stmt;
-  struct type *type;
+  TypeDesc *type;
   int operator;
   struct field *field;
   struct intf_func *intf_func;
@@ -122,7 +122,7 @@ static decl_mod(mod);
 
 /*--------------------------------------------------------------------------*/
 %type <primitive> PrimitiveType
-%type <type> StructedType
+%type <type> UserDefType
 %type <type> BaseType
 %type <type> Type
 %type <type> FunctionType
@@ -206,9 +206,9 @@ Type
 
 BaseType
   : PrimitiveType {
-    $$ = type_from_primitive($1);
+    $$ = TypeDesc_From_Primitive($1);
   }
-  | StructedType {
+  | UserDefType {
     $$ = $1;
   }
 
@@ -235,23 +235,28 @@ PrimitiveType
   }
   ;
 
-StructedType
+UserDefType
   : ID {
     // type in local module
-    $$ = type_from_structed(NULL, $1);
+    $$ = TypeDesc_From_UserDef(NULL, $1);
   }
   | ID '.' ID {
     // type in external module
-    $$ = type_from_structed($1, $3);
+    if (!strcmp($1, "lang") && !strcmp($3, "String")) {
+      $$ = TypeDesc_From_Primitive(PRIMITIVE_STRING);
+    } else {
+      char *path = userdef_get_path(parser, $1);
+      $$ = TypeDesc_From_UserDef(path, $3);
+    }
   }
   ;
 
 FunctionType
   : FUNC '(' TypeNameListOrEmpty ')' ReturnTypeList {
-    $$ = type_from_functype($3, $5);
+    $$ = TypeDesc_From_Proto($3, $5);
   }
   | FUNC '(' TypeNameListOrEmpty ')' {
-    $$ = type_from_functype($3, NULL);
+    $$ = TypeDesc_From_Proto($3, NULL);
   }
   ;
 
@@ -462,7 +467,7 @@ TypeDeclaration
   : CLASS ID '{' MemberDeclarations '}' {
     //$$ = stmt_from_structure($2, $4);
   }
-  | CLASS ID ':' StructedType '{' '}' {
+  | CLASS ID ':' UserDefType '{' '}' {
 
   }
   | INTERFACE ID '{' IntfFuncDecls '}' {

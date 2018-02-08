@@ -3,85 +3,6 @@
 #include "codeformat.h"
 #include "log.h"
 
-struct type *type_new(int kind)
-{
-  struct type *type = calloc(1, sizeof(struct type));
-  type->kind = kind;
-  return type;
-}
-
-struct type *type_from_primitive(int primitive)
-{
-  struct type *type = type_new(PRIMITIVE_KIND);
-  type->primitive = primitive;
-  return type;
-}
-
-struct type *type_from_structed(char *mod, char *type)
-{
-  if (mod != NULL && type != NULL &&
-      !strcmp(mod, "lang") && !strcmp(type, "String")) {
-    return type_from_primitive(PRIMITIVE_STRING);
-  } else {
-    struct type *t = type_new(USERDEF_KIND);
-    t->userdef.mod = mod;
-    t->userdef.type = type;
-    return t;
-  }
-}
-
-struct type *type_from_functype(Vector *pvec, Vector *rvec)
-{
-  struct type *type = type_new(FUNCTION_KIND);
-  type->functype.pvec = pvec;
-  type->functype.rvec = rvec;
-  return type;
-}
-
-int type_check(struct type *t1, struct type *t2)
-{
-  if (t1->kind != t2->kind) return 0;
-  if (t1->dims != t2->dims) return 0;
-
-  int kind = t1->kind;
-  int eq = 0;
-  switch (kind) {
-    case PRIMITIVE_KIND: {
-      eq = t1->primitive == t2->primitive;
-      break;
-    }
-    case USERDEF_KIND: {
-      eq = !strcmp(t1->userdef.mod, t2->userdef.mod) &&
-            !strcmp(t1->userdef.type, t2->userdef.type);
-      break;
-    }
-    case FUNCTION_KIND: {
-      eq = 0;
-      break;
-    }
-    default: {
-      ASSERT_MSG(0, "unknown type's kind %d\n", kind);
-    }
-  }
-  return eq;
-}
-
-char *type_tostring(struct type *t)
-{
-  char *str = "";
-  switch (t->kind) {
-    case PRIMITIVE_KIND: {
-      str = primitive_tostring(t->primitive);
-      break;
-    }
-    default: {
-      ASSERT(0);
-      break;
-    }
-  }
-  return str;
-}
-
 /*-------------------------------------------------------------------------*/
 
 struct expr *expr_new(int kind)
@@ -94,15 +15,6 @@ struct expr *expr_new(int kind)
 struct expr *expr_from_name(char *id)
 {
   struct expr *expr = expr_new(NAME_KIND);
-  expr->type = NULL;
-  expr->name.id = id;
-  return expr;
-}
-
-struct expr *expr_from_name_type(char *id, struct type *type)
-{
-  struct expr *expr = expr_new(NAME_KIND);
-  expr->type = type;
   expr->name.id = id;
   return expr;
 }
@@ -110,7 +22,7 @@ struct expr *expr_from_name_type(char *id, struct type *type)
 struct expr *expr_from_int(int64 ival)
 {
   struct expr *expr = expr_new(INT_KIND);
-  expr->type = type_from_primitive(PRIMITIVE_INT);
+  expr->type = TypeDesc_From_Primitive(PRIMITIVE_INT);
   expr->ival = ival;
   return expr;
 }
@@ -118,7 +30,7 @@ struct expr *expr_from_int(int64 ival)
 struct expr *expr_from_float(float64 fval)
 {
   struct expr *expr = expr_new(FLOAT_KIND);
-  expr->type = type_from_primitive(PRIMITIVE_FLOAT);
+  expr->type = TypeDesc_From_Primitive(PRIMITIVE_FLOAT);
   expr->fval = fval;
   return expr;
 }
@@ -126,7 +38,7 @@ struct expr *expr_from_float(float64 fval)
 struct expr *expr_from_string(char *str)
 {
   struct expr *expr = expr_new(STRING_KIND);
-  expr->type = type_from_primitive(PRIMITIVE_STRING);
+  expr->type = TypeDesc_From_Primitive(PRIMITIVE_STRING);
   expr->str  = str;
   return expr;
 }
@@ -134,7 +46,7 @@ struct expr *expr_from_string(char *str)
 struct expr *expr_from_bool(int bval)
 {
   struct expr *expr = expr_new(BOOL_KIND);
-  expr->type = type_from_primitive(PRIMITIVE_BOOL);
+  expr->type = TypeDesc_From_Primitive(PRIMITIVE_BOOL);
   expr->bval = bval;
   return expr;
 }
@@ -161,7 +73,7 @@ struct expr *expr_from_nil(void)
   return expr;
 }
 
-struct expr *expr_from_array(struct type *type, Vector *dseq, Vector *tseq)
+struct expr *expr_from_array(TypeDesc *type, Vector *dseq, Vector *tseq)
 {
   struct expr *expr = expr_new(ARRAY_KIND);
   expr->type = type;
@@ -259,7 +171,7 @@ struct stmt *stmt_from_import(char *id, char *path)
 }
 
 struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
-                               int bconst, struct type *type)
+                               int bconst, TypeDesc *type)
 {
   Vector *vec = Vector_New();
   int vsz = Vector_Size(varvec);
@@ -458,7 +370,7 @@ struct stmt *stmt_from_vardecllist(Vector *vec)
   return stmt;
 }
 
-struct var *new_var(char *id, struct type *type)
+struct var *new_var(char *id, TypeDesc *type)
 {
   struct var *v = malloc(sizeof(struct var));
   v->id   = id;
@@ -467,7 +379,7 @@ struct var *new_var(char *id, struct type *type)
   return v;
 }
 
-struct field *new_struct_field(char *id, struct type *t, struct expr *e)
+struct field *new_struct_field(char *id, TypeDesc *type, struct expr *e)
 {
   return NULL;
 }
@@ -484,7 +396,7 @@ void mod_fini(struct mod *mod)
 
 /*--------------------------------------------------------------------------*/
 
-void type_traverse(struct type *type)
+void type_traverse(TypeDesc *type)
 {
   if (type != NULL) {
     printf("type kind & dims: %d:%d\n", type->kind, type->dims);
@@ -646,7 +558,7 @@ void func_traverse(struct stmt *stmt)
   if (vec != NULL) {
     for (int i = 0; i < Vector_Size(vec); i++) {
       var = Vector_Get(vec, i);
-      printf(" %s %s", var->id, type_tostring(var->type));
+      printf(" %s %s", var->id, TypeDesc_ToString(var->type));
       if (i + 1 != Vector_Size(vec))
         printf(",");
     }
@@ -654,12 +566,11 @@ void func_traverse(struct stmt *stmt)
   }
 
   vec = stmt->funcdecl.rvec;
-  struct type *t;
   printf("returns:");
   if (vec != NULL) {
-    for (int i = 0; i < Vector_Size(vec); i++) {
+    Vector_ForEach(t, TypeDesc, vec) {
       t = Vector_Get(vec, i);
-      printf(" %s", type_tostring(t));
+      printf(" %s", TypeDesc_ToString(t));
       if (i + 1 != Vector_Size(vec))
         printf(",");
     }

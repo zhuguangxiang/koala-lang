@@ -34,51 +34,16 @@ static void check_imports(ParserState *ps)
 
 /*-------------------------------------------------------------------------*/
 
-char *type_fullpath(ParserState *ps, struct type *type)
+char *userdef_get_path(ParserState *ps, char *mod)
 {
-  Symbol *sym = STbl_Get(&ps->extstbl, type->userdef.mod);
-  if (sym == NULL) return NULL;
-  ASSERT(sym->kind == SYM_STABLE);
-  char *pkg = sym->str;
-  sym->refcnt = 1;
-  sym = STbl_Get(sym->obj, type->userdef.type);
+  Symbol *sym = STbl_Get(&ps->extstbl, mod);
   if (sym == NULL) {
-    error("cannot find type: %s.%s", pkg, type->userdef.type);
+    error("cannot find module:%s", mod);
     return NULL;
-  } else {
-    if (sym->kind != SYM_CLASS && sym->kind != SYM_INTF) {
-      error("symbol(%d) is not class or interface", sym->kind);
-      return NULL;
-    }
   }
-
-  int len = strlen(pkg) + strlen(type->userdef.type) + 2;
-  char *fullpath = malloc(len);
-  sprintf(fullpath, "%s.%s", pkg, type->userdef.type);
-  fullpath[len - 1] = '\0';
-  return fullpath;
-}
-
-int type_to_desc(ParserState *ps, struct type *type, TypeDesc *desc)
-{
-  ASSERT_PTR(type);
-  if (type->kind == PRIMITIVE_KIND) {
-    INIT_PRIMITIVE_DESC(desc, type->dims, type->primitive);
-  } else if (type->kind == USERDEF_KIND) {
-    char *path = type_fullpath(ps, type);
-    if (path == NULL) return -1;
-    INIT_STRUCTED_DESC(desc, type->dims, path);
-  } else {
-    ASSERT(0);
-  }
-  return 0;
-}
-
-int type_check_desc(struct type *type, TypeDesc *desc)
-{
-  ASSERT_PTR(type);
-  ASSERT_PTR(desc);
-  return 1;
+  ASSERT(sym->kind == SYM_STABLE);
+  sym->refcnt = 1;
+  return sym->ptr;
 }
 
 static int check_return_types(ParserUnit *u, Vector *vec)
@@ -89,7 +54,7 @@ static int check_return_types(ParserUnit *u, Vector *vec)
     int sz = Vector_Size(vec);
     if (u->proto.rsz != sz) return 0;
     Vector_ForEach(exp, struct expr, vec) {
-      if (!type_check_desc(exp->type, u->proto.rdesc + i))
+      if (!TypeDesc_Check(exp->type, u->proto.rdesc + i))
         return 0;
     }
     return 1;
@@ -97,24 +62,6 @@ static int check_return_types(ParserUnit *u, Vector *vec)
 }
 
 /*--------------------------------------------------------------------------*/
-
-#define proto_args(ps, vec, sz, desc) do { \
-  sz = Vector_Size(vec); \
-  desc = malloc(sizeof(TypeDesc) * sz); \
-  ASSERT_PTR(desc); \
-  Vector_ForEach(var, struct var, vec) { \
-    type_to_desc(ps, var->type, desc + i); \
-  } \
-} while (0)
-
-#define proto_rets(ps, vec, sz, desc) do { \
-  sz = Vector_Size(vec); \
-  desc = malloc(sizeof(TypeDesc) * sz); \
-  ASSERT_PTR(desc); \
-  Vector_ForEach(type, struct type, vec) { \
-    type_to_desc(ps, type, desc + i); \
-  } \
-} while (0)
 
 Symbol *parser_find_symbol(ParserState *ps, char *name)
 {
@@ -150,38 +97,6 @@ Symbol *parser_find_symbol(ParserState *ps, char *name)
 
 /*--------------------------------------------------------------------------*/
 
-// int expr_handler(Parser *ps, struct expr *exp);
-
-// int expr_id_handler(Parser *ps, struct expr *exp)
-// {
-//   char *name = exp->name.id;
-//   Symbol *sym = parser_find_symbol(ps, name);
-//   if (sym == NULL) {
-//     Import k = {.id = name};
-//     Import *import = HashTable_FindObject(&ps->imports, &k, Import);
-//     if (import == NULL) {
-//       error("cannot find symbol:%s\n", name);
-//     } else {
-//       info("external symbol, its module's path: %s\n", import->path);
-//       //OP_LOADM
-//     }
-//   } else {
-//     info("find symbol, position: '%d'\n", sym->index);
-//     //OP_LOAD
-//   }
-//   return 0;
-// }
-
-// int expr_attr_handler(Parser *ps, struct expr *exp)
-// {
-  // info("attribute\n");
-  // expr_set_ctx(exp->attribute.left, CTX_LOAD);
-  // expr_handler(ps, exp->attribute.left);
-  // info("%s\n", exp->attribute.id);
-  // //OP_GETFIELD
-  // return 0;
-// }
-
 // int expr_subscribe_handler(Parser *ps, struct expr *exp)
 // {
 //   info("subscribe\n");
@@ -207,66 +122,6 @@ Symbol *parser_find_symbol(ParserState *ps, char *name)
   //   e = Vector_Get(vec, i);
   // }
 //   return 0;
-// }
-
-// static expr_handler_t expr_handlers[] = {
-//   NULL,
-//   expr_id_handler, NULL, NULL, NULL,
-//   NULL, NULL, NULL, NULL,
-//   NULL, NULL, expr_attr_handler, expr_subscribe_handler,
-//   expr_call_handler, NULL, NULL, NULL,
-// };
-
-// int expr_handler(Parser *ps, struct expr *exp)
-// {
-//   ASSERT(exp->kind > 0 && exp->kind < EXPR_KIND_MAX);
-//   //printf("expr kind:%d\n", exp->kind);
-//   expr_handler_t handler = expr_handlers[exp->kind];
-//   ASSERT_PTR(handler);
-//   return handler(ps, exp);
-// }
-
-// int expr_stmt_handler(Parser *ps, struct stmt *stmt)
-// {
-//   info("expression\n");
-//   struct expr *exp = stmt->expr;
-//   return expr_handler(ps, exp);
-// }
-
-// int local_vardecl_stmt_handler(Parser *ps, struct stmt *stmt)
-// {
-//   info("local var decl\n");
-//   return 0;
-// }
-
-// int expr_assign_handler(Parser *ps, struct stmt *stmt)
-// {
-//   info("=\n");
-//   return 0;
-// }
-
-// int ret_stmt_handler(Parser *ps, struct stmt *stmt)
-// {
-//   info("return\n");
-//   return 0;
-// }
-
-// static stmt_handler_t localstmt_handlers[] = {
-//   NULL, /* INVALID */
-//   NULL, expr_stmt_handler, local_vardecl_stmt_handler, NULL,
-//   NULL, expr_assign_handler, NULL, NULL,
-//   NULL, ret_stmt_handler, NULL, NULL,
-//   NULL, NULL, NULL, NULL,
-//   NULL, NULL, NULL,
-// };
-
-// int localstmt_handler(Parser *ps, struct stmt *stmt)
-// {
-//   ASSERT(stmt->kind > 0 && stmt->kind < STMT_KIND_MAX);
-//   //printf("localstmt kind:%d\n", stmt->kind);
-//   stmt_handler_t handler = localstmt_handlers[stmt->kind];
-//   ASSERT_PTR(handler);
-//   return handler(ps, stmt);
 // }
 
 void parse_dotacess(ParserState *ps, struct expr *exp)
@@ -321,10 +176,13 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 {
   switch (exp->kind) {
     case NAME_KIND: {
-      char *load = exp->ctx == CTX_STORE ? "store": "load";
-      debug("name:%s(%s), type:%s",
-            exp->name.id, load, type_tostring(exp->type));
       exp->sym = parser_find_symbol(ps, exp->name.id);
+      if (exp->type == NULL) {
+        //exp->type = desc_to_type(exp->sym);
+      }
+      char *load = exp->ctx == CTX_STORE ? "store": "load";
+      debug("name:%s(%s)",
+            exp->name.id, load); //type_tostring(exp->type));
       break;
     }
     case INT_KIND: {
@@ -360,70 +218,15 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       break;
     }
     case BINARY_KIND: {
+      parser_visit_expr(ps, exp->bin_op.left);
+      exp->type = exp->bin_op.left->type;
+      parser_visit_expr(ps, exp->bin_op.right);
       break;
     }
     default:
       ASSERT_MSG(0, "unknown expression type: %d", exp->kind);
       break;
   }
-}
-
-/*--------------------------------------------------------------------------*/
-
-struct type *fill_expr_type(ParserState *ps, struct expr *exp)
-{
-  struct type *type = NULL;
-
-  switch (exp->kind) {
-    case NAME_KIND: {
-      if (exp->type == NULL) {
-
-      }
-      char *load = exp->ctx == CTX_STORE ? "store": "load";
-      debug("name:%s(%s), type:%s",
-            exp->name.id, load, type_tostring(exp->type));
-      break;
-    }
-    case INT_KIND: {
-      if (exp->ctx == CTX_STORE) {
-        error("cannot assign to %lld", exp->ival);
-      }
-      break;
-    }
-    case FLOAT_KIND: {
-      if (exp->ctx == CTX_STORE) {
-        error("cannot assign to %f", exp->fval);
-      }
-      break;
-    }
-    case BOOL_KIND: {
-      if (exp->ctx == CTX_STORE) {
-        error("cannot assign to %s", exp->bval ? "true":"false");
-      }
-      break;
-    }
-    case STRING_KIND: {
-      if (exp->ctx == CTX_STORE) {
-        error("cannot assign to %s", exp->str);
-      }
-      break;
-    }
-    case ATTRIBUTE_KIND: {
-      break;
-    }
-    case CALL_KIND: {
-      break;
-    }
-    case BINARY_KIND: {
-      exp->type = fill_expr_type(ps, exp->bin_op.left);
-      break;
-    }
-    default:
-      ASSERT_MSG(0, "unsupported expression type: %d", exp->kind);
-      break;
-  }
-
-  return type;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -532,7 +335,7 @@ void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 
     ASSERT_PTR(exp->type);
 
-    if (!type_check(var->type, exp->type)) {
+    if (!TypeDesc_Check(var->type, exp->type)) {
       error("typecheck failed");
     } else {
       // parse exp
@@ -546,12 +349,9 @@ void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
   } else if (u->scope == SCOPE_FUNCTION) {
     debug("parse func vardecl, '%s'", var->id);
     ASSERT(!list_empty(&ps->ustack));
-    TypeDesc desc;
-    int res = type_to_desc(ps, var->type, &desc);
-    ASSERT(res >= 0);
     ParserUnit *parent = parent_scope(ps);
     ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
-    STbl_Add_Var(&u->stbl, var->id, &desc, var->bconst);
+    STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
   } else if (u->scope == SCOPE_BLOCK) {
     debug("parse block vardecl");
     ASSERT(!list_empty(&ps->ustack));
@@ -728,15 +528,11 @@ void parse_vardecl(ParserState *ps, struct stmt *s)
 {
   ASSERT(s->kind == VARDECL_LIST_KIND);
   struct var *var;
-  TypeDesc desc;
-  int res;
   Symbol *sym;
 
   Vector_ForEach(stmt, struct stmt, s->vec) {
     var = stmt->vardecl.var;
-    res = type_to_desc(ps, var->type, &desc);
-    ASSERT(res >= 0);
-    sym = STbl_Add_Var(&ps->u->stbl, var->id, &desc, var->bconst);
+    sym = STbl_Add_Var(&ps->u->stbl, var->id, var->type, var->bconst);
     if (sym != NULL) {
       debug("add '%s %s' successful", var->bconst ? "const":"var", var->id);
     } else {
@@ -745,22 +541,37 @@ void parse_vardecl(ParserState *ps, struct stmt *s)
   }
 }
 
+static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
+{
+  int sz;
+  TypeDesc *desc = NULL;
+  if (vec == NULL || Vector_Size(vec) == 0) {
+    sz = 0;
+  } else {
+    sz = Vector_Size(vec);
+    desc = malloc(sizeof(TypeDesc) * sz);
+    ASSERT_PTR(desc);
+    Vector_ForEach(var, struct var, vec) {
+      memcpy(desc + i, var->type, sizeof(TypeDesc));
+    }
+  }
+
+  *arr = desc;
+  return sz;
+}
+
 void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 {
-  ProtoInfo proto = {0};
+  ProtoInfo proto;
   int sz;
   TypeDesc *desc = NULL;
   Symbol *sym;
 
-  if (stmt->funcdecl.pvec != NULL) {
-    proto_args(ps, stmt->funcdecl.pvec, sz, desc);
-    proto.psz = sz; proto.pdesc = desc;
-  }
+  sz = TypeDesc_Vec_To_Arr(stmt->funcdecl.rvec, &desc);
+  proto.rsz = sz; proto.rdesc = desc;
 
-  if (stmt->funcdecl.rvec != NULL) {
-    proto_rets(ps, stmt->funcdecl.rvec, sz, desc);
-    proto.rsz = sz; proto.rdesc = desc;
-  }
+  sz = var_vec_to_arr(stmt->funcdecl.pvec, &desc);
+  proto.psz = sz; proto.pdesc = desc;
 
   sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, &proto);
   if (sym != NULL) {

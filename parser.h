@@ -3,7 +3,6 @@
 #define _KOALA_PARSER_H_
 
 #include "hashtable.h"
-#include "symbol.h"
 #include "object.h"
 #include "ast.h"
 
@@ -58,6 +57,7 @@ typedef struct parserstate {
   Vector errors;
 } ParserState;
 
+char *userdef_get_path(ParserState *ps, char *mod);
 void parse_module(ParserState *parser, struct mod *mod);
 Symbol *parse_import(ParserState *parser, char *id, char *path);
 void parse_vardecl(ParserState *parser, struct stmt *stmt);
