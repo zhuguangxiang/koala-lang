@@ -39,8 +39,9 @@ lib:
 parser:
 	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
 	@flex -o koala_lex.c yacc/koala.l
-	@gcc -g -std=gnu99 -Wall koala_yacc.c koala_lex.c ast.c parser.c \
+	@gcc -g -std=gnu99 -Wall -o koalac koala_yacc.c koala_lex.c ast.c parser.c \
 	-L. -lkoala -pthread -lrt
+	@rm koala_yacc.c koala_lex.c
 
 testvector: lib
 	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt
@@ -85,9 +86,14 @@ testrt: lib
 testloop: lib
 	@$(CC) $(CFLAGS) test_frameloop.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
+
 testbuf: lib
 	@$(CC) $(CFLAGS) test_buffer.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
+
+testtest-0.5.1.kl: parser lib
+	@./koalac test-0.5.1.kl
+
 test: testbuf testloop testrt testcode testlist testmodule \
-testobject teststring testtuple testvector
+testobject teststring testtuple testvector testtest-0.5.1.kl
 	@echo "Test Down!"
