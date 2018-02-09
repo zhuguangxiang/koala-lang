@@ -13,6 +13,8 @@ const ARRAY_SIZE = 4096;
 var a, b int = 100, 100;
 var good = "good luck";     // error: redefined
 
+var t lang.Tuple;
+
 func Main(args []string) {
   io.Print("hello, world\n");
 }
@@ -24,5 +26,6 @@ func Sub(a int, b int) int {
 
 func Add(a int, b int) (int) {
   var r int = a + b;
+  t.Get(100);
   return r;
 }

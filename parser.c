@@ -127,7 +127,7 @@ Symbol *parser_find_symbol(ParserState *ps, char *name)
 //   return 0;
 // }
 
-void parse_dotacess(ParserState *ps, struct expr *exp)
+void parse_dotaccess(ParserState *ps, struct expr *exp)
 {
   debug("dot expr");
   struct expr *left = exp->attribute.left;
@@ -140,7 +140,7 @@ void parse_dotacess(ParserState *ps, struct expr *exp)
     return;
   }
 
-  ASSERT(left->sym->kind == SYM_STABLE);
+  ASSERT_MSG(left->sym->kind == SYM_STABLE, "symbol kind:%d", left->sym->kind);
   SymTable *stbl = left->sym->obj;
   Symbol *sym = STbl_Get(stbl, exp->attribute.id);
   if (sym == NULL) {
@@ -174,8 +174,6 @@ static int check_call_args(ProtoInfo *proto, Vector *vec)
 
   return 1;
 }
-
-void expr_traverse(struct expr *expr);
 
 void parse_call(ParserState *ps, struct expr *exp)
 {
@@ -237,7 +235,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       break;
     }
     case ATTRIBUTE_KIND: {
-      parse_dotacess(ps, exp);
+      parse_dotaccess(ps, exp);
       break;
     }
     case CALL_KIND: {
@@ -535,7 +533,7 @@ static Symbol *add_import(SymTable *stbl, char *id, char *path)
   idx_t idx = StringItem_Set(stbl->atbl, path);
   ASSERT(idx >= 0);
   sym->desc = idx;
-  sym->type = TypeDesc_From_Package(path);
+  sym->type = TypeDesc_From_PkgPath(path);
   return sym;
 }
 

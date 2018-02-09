@@ -14,7 +14,8 @@ Object *init_test_module(void)
    * io.Print("-123 + 456 = ", result);
    */
   Object *module = Module_New("test", "/");
-  DECL_PRIMITIVE_DESC(desc, 0, PRIMITIVE_INT);
+  TypeDesc desc;
+  INIT_PRIMITIVE_DESC(&desc, 0, PRIMITIVE_INT);
   Module_Add_Var(module, "result", &desc, 0);
 
   static uint8 codes[] = {

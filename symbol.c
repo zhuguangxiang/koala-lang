@@ -132,127 +132,75 @@ Symbol *STbl_Get(SymTable *stbl, char *name)
 
 /*-------------------------------------------------------------------------*/
 
-static char *name_tostr(int index, SymTable *stbl)
+static void desc_show(TypeDesc *type)
 {
-  if (index < 0) return "";
-  StringItem *item = AtomTable_Get(stbl->atbl, ITEM_STRING, index);
-  ASSERT_PTR(item);
-  return item->data;
+  char *str = TypeDesc_ToString(type);
+  printf("%s", str);
+  if (type->kind == TYPE_USERDEF)
+    free(str);
 }
 
-static void desc_show(int index, SymTable *stbl)
-{
-  if (index < 0) return;
+// static void proto_show(Symbol *sym, SymTable *stbl)
+// {
+//   int index = sym->desc;
+//   if (index < 0) return;
+//   ProtoItem *proto = AtomTable_Get(stbl->atbl, ITEM_PROTO, index);
+//   ASSERT_PTR(proto);
 
-  static char ch[] = {
-    'i', 'f', 'z', 's', 'A'
-  };
+//   TypeListItem *typelist;
+//   if (proto->pindex >= 0) {
+//     typelist = AtomTable_Get(stbl->atbl, ITEM_TYPELIST, proto->pindex);
+//     ASSERT_PTR(typelist);
+//     printf("(");
+//     typelist_show(typelist, stbl);
+//     printf(")");
+//   } else {
+//     printf("()");
+//   }
 
-  static char *str[] = {
-    "int", "float", "bool", "string", "Any"
-  };
+//   if (proto->rindex >= 0) {
+//     printf(" ");
+//     typelist = AtomTable_Get(stbl->atbl, ITEM_TYPELIST, proto->rindex);
+//     ASSERT_PTR(typelist);
+//     if (typelist->size > 1) printf("(");
+//     typelist_show(typelist, stbl);
+//     if (typelist->size > 1) printf(")");
+//   }
 
-  TypeItem *type = AtomTable_Get(stbl->atbl, ITEM_TYPE, index);
-  ASSERT_PTR(type);
-  int dims = type->dims;
-  while (dims-- > 0) printf("[]");
-  if (type->kind == TYPE_PRIMITIVE) {
-    for (int i = 0; nr_elts(ch); i++) {
-      if (ch[i] == type->primitive) {
-        printf("%s", str[i]); return;
-      }
-    }
-  } else {
-    StringItem *item = AtomTable_Get(stbl->atbl, ITEM_STRING, type->index);
-    ASSERT_PTR(item);
-    char *s = item->data;
-    ASSERT_PTR(s);
-    printf("%s", s);
-  }
-}
-
-static void symbol_var_show(Symbol *sym, SymTable *stbl)
-{
-  /* show's format: "type name desc;" */
-  char *type = sym->konst ? "const":"var";
-  printf("%s %s ", type, name_tostr(sym->name, stbl));
-  desc_show(sym->desc, stbl);
-  puts(";"); /* with newline */
-}
-
-static void typelist_show(TypeListItem *typelist, SymTable *stbl)
-{
-  int sz = typelist->size;
-  for (int i = 0; i < sz; i++) {
-    desc_show(typelist->index[i], stbl);
-    if (i < sz - 1) printf(", ");
-  }
-}
-
-static void proto_show(Symbol *sym, SymTable *stbl)
-{
-  int index = sym->desc;
-  if (index < 0) return;
-  ProtoItem *proto = AtomTable_Get(stbl->atbl, ITEM_PROTO, index);
-  ASSERT_PTR(proto);
-
-  TypeListItem *typelist;
-  if (proto->pindex >= 0) {
-    typelist = AtomTable_Get(stbl->atbl, ITEM_TYPELIST, proto->pindex);
-    ASSERT_PTR(typelist);
-    printf("(");
-    typelist_show(typelist, stbl);
-    printf(")");
-  } else {
-    printf("()");
-  }
-
-  if (proto->rindex >= 0) {
-    printf(" ");
-    typelist = AtomTable_Get(stbl->atbl, ITEM_TYPELIST, proto->rindex);
-    ASSERT_PTR(typelist);
-    if (typelist->size > 1) printf("(");
-    typelist_show(typelist, stbl);
-    if (typelist->size > 1) printf(")");
-  }
-
-  puts(";");  /* with newline */
-}
-
-static void symbol_func_show(Symbol *sym, SymTable *stbl)
-{
-  /* show's format: "func name args rets;" */
-  printf("func %s", name_tostr(sym->name, stbl));
-  proto_show(sym, stbl);
-}
-
-static void symbol_class_show(Symbol *sym, SymTable *stbl)
-{
-  printf("class %s;\n", name_tostr(sym->name, stbl));
-}
-
-static void symbol_intf_show(Symbol *sym, SymTable *stbl)
-{
-  printf("interface %s;\n", name_tostr(sym->name, stbl));
-}
-
-typedef void (*symbol_show_func)(Symbol *sym, SymTable *stbl);
-
-static symbol_show_func show_funcs[] = {
-  NULL,
-  symbol_var_show,
-  symbol_func_show,
-  symbol_class_show,
-  symbol_intf_show
-};
+//   puts(";");  /* with newline */
+// }
 
 static void symbol_show(HashNode *hnode, void *arg)
 {
+  UNUSED_PARAMETER(arg);
   Symbol *sym = container_of(hnode, Symbol, hnode);
-  SymTable *stbl = arg;
-  symbol_show_func show = show_funcs[sym->kind];
-  ASSERT_PTR(show);
-  show(sym, stbl);
+  switch (sym->kind) {
+    case SYM_VAR: {
+      /* show's format: "type name desc;" */
+      printf("%s %s ", sym->konst ? "const":"var", sym->str);
+      desc_show(sym->type);
+      puts(";"); /* with newline */
+      break;
+    }
+    case SYM_PROTO: {
+      /* show's format: "func name args rets;" */
+      printf("func %s", sym->str);
+      desc_show(sym->type);
+      break;
+    }
+    case SYM_CLASS: {
+      printf("class %s;\n", sym->str);
+      break;
+    }
+    case SYM_INTF: {
+      printf("interface %s;\n", sym->str);
+      break;
+    }
+    default: {
+      ASSERT(0);
+      break;
+    }
+  }
 }
 
 void STbl_Show(SymTable *stbl, int detail)

@@ -91,7 +91,7 @@ testbuf: lib
 	@$(CC) $(CFLAGS) test_buffer.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testtest-0.5.1.kl: parser lib
+testtest-0.5.1.kl:
 	@./koalac test-0.5.1.kl
 
 test: testbuf testloop testrt testcode testlist testmodule \

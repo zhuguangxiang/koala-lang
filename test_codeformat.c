@@ -11,7 +11,8 @@ int main(int argc, char *argv[])
   UNUSED_PARAMETER(argv);
 
   KImage *image = KImage_New("lang");
-  DECL_USERDEF_DESC(desc, 0, "koala/lang.String");
+  TypeDesc desc;
+  INIT_USERDEF_DESC(&desc, 0, "koala/lang.String");
   KImage_Add_Var(image, "greeting", &desc);
   INIT_USERDEF_DESC(&desc, 0, "koala/lang.Integer");
   KImage_Add_Var(image, "message", &desc);

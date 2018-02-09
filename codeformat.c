@@ -54,31 +54,13 @@ static int desc_primitive(char ch)
   return 0;
 }
 
-/*
-int String_To_Desc(char *str, TypeDesc *desc)
+void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc)
 {
-  if (str == NULL) return -1;
-  char ch = str[0];
-  if (ch == '\0') return -1;
-
-  if (str[1] == '\0') {
-    ASSERT(desc_primitive(ch));
-    desc->dims = 0;
-    desc->kind = TYPE_PRIMITIVE;
-    desc->primitive = ch;
-  } else {
-    int dims;
-    while ((ch = *str) == '[') {
-      dims++; str++;
-    }
-    desc->dims = dims;
-    desc->kind = TYPE_USERDEF;
-    desc->str = strdup(str);
-  }
-
-  return 0;
+  char *tmp = strchr(fulltype, '.');
+  ASSERT_PTR(tmp);
+  desc->type = strndup(tmp + 1, fulltype + len - tmp - 1);
+  desc->path = strndup(fulltype, tmp - fulltype);
 }
-*/
 
 TypeDesc *String_To_DescList(int count, char *str)
 {
@@ -89,6 +71,7 @@ TypeDesc *String_To_DescList(int count, char *str)
   char ch;
   int idx = 0;
   int dims = 0;
+  char *start;
 
   while ((ch = *str) != '\0') {
     if (desc_primitive(ch)) {
@@ -108,13 +91,15 @@ TypeDesc *String_To_DescList(int count, char *str)
       desc[idx].kind = TYPE_USERDEF;
 
       int cnt = 0;
+      start = str + 1;
       while ((ch = *str) != ';') {
         cnt++; str++;
       }
-      desc[idx].type = strndup(str, cnt + 1);
+      FullType_To_TypeDesc(start, str - start, desc + idx);
 
       dims = 0;
       idx++;
+      str++;
     } else if (ch == '[') {
       ASSERT(idx < count);
 
@@ -147,18 +132,9 @@ TypeDesc *TypeDesc_From_Primitive(int primitive)
 
 TypeDesc *TypeDesc_From_UserDef(char *path, char *type)
 {
-  int len = (path != NULL) ? strlen(path) : 0;
-  ASSERT_PTR(type);
-  len += strlen(type) + 2;
-  char *data = malloc(len);
-  if (path != NULL)
-    snprintf(data, len, "%s.%s", path, type);
-  else
-    strcpy(data, type);
-  data[len] = '\0';
-
   TypeDesc *desc = TypeDesc_New(TYPE_USERDEF);
-  desc->type = data;
+  desc->path = path;
+  desc->type = type;
   return desc;
 }
 
@@ -167,6 +143,7 @@ void TypeDesc_Free(void *item, void *arg)
   UNUSED_PARAMETER(arg);
   TypeDesc *desc = item;
   if (desc->kind == TYPE_USERDEF) {
+    free(desc->path);
     free(desc->type);
   } else if (desc->kind == TYPE_PROTO) {
     ProtoInfo *proto = desc->proto;
@@ -219,9 +196,9 @@ TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec)
   return type;
 }
 
-TypeDesc *TypeDesc_From_Package(char *path)
+TypeDesc *TypeDesc_From_PkgPath(char *path)
 {
-  TypeDesc *type = TypeDesc_New(TYPE_PACKAGE);
+  TypeDesc *type = TypeDesc_New(TYPE_PKGPATH);
   type->path = path;
   return type;
 }
@@ -239,7 +216,7 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
       break;
     }
     case TYPE_USERDEF: {
-      eq = !strcmp(t1->type, t2->type);
+      eq = !strcmp(t1->path, t2->path) && !strcmp(t1->type, t2->type);
       break;
     }
     case TYPE_PROTO: {
@@ -253,6 +230,7 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
   return eq;
 }
 
+/* For print only */
 char *TypeDesc_ToString(TypeDesc *desc)
 {
   char *str = "";
@@ -263,10 +241,15 @@ char *TypeDesc_ToString(TypeDesc *desc)
       break;
     }
     case TYPE_USERDEF: {
-      str = desc->type;
+      int sz = strlen(desc->path) + strlen(desc->type) + 1;
+      str = malloc(sz);
+      sprintf(str, "%s.%s", desc->path, desc->type);
       break;
     }
-    case TYPE_PACKAGE: {
+    case TYPE_PROTO: {
+      break;
+    }
+    case TYPE_PKGPATH: {
       str = desc->path;
       break;
     }
@@ -351,12 +334,13 @@ TypeItem *TypeItem_Primitive_New(int dims, char primitive)
   return item;
 }
 
-TypeItem *TypeItem_Defined_New(int dims, int32 index)
+TypeItem *TypeItem_Defined_New(int dims, int32 pathindex, int32 typeindex)
 {
   TypeItem *item = malloc(sizeof(TypeItem));
   item->dims = dims;
   item->kind = TYPE_USERDEF;
-  item->index = index;
+  item->pathindex = pathindex;
+  item->typeindex = typeindex;
   return item;
 }
 
@@ -482,14 +466,18 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
   TypeItem item = {0};
   if (desc->kind == TYPE_USERDEF) {
-    int index = StringItem_Get(table, desc->type);
-    if (index < 0) {
-      warn("cannot find string: %s", desc->type);
-      return index;
+    int pathindex = StringItem_Get(table, desc->path);
+    if (pathindex < 0) {
+      return pathindex;
+    }
+    int typeindex = StringItem_Get(table, desc->type);
+    if (typeindex < 0) {
+      return typeindex;
     }
     item.dims = desc->dims;
     item.kind = TYPE_USERDEF;
-    item.index = index;
+    item.pathindex = pathindex;
+    item.typeindex = typeindex;
   } else {
     ASSERT(desc->kind == TYPE_PRIMITIVE);
     item.dims = desc->dims;
@@ -505,9 +493,11 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
   int index = TypeItem_Get(table, desc);
   if (index < 0) {
     if (desc->kind == TYPE_USERDEF) {
-      int index = StringItem_Set(table, desc->type);
-      ASSERT(index >= 0);
-      item = TypeItem_Defined_New(desc->dims, index);
+      int pathindex = StringItem_Set(table, desc->path);
+      ASSERT(pathindex >= 0);
+      int typeindex = StringItem_Set(table, desc->type);
+      ASSERT(typeindex >= 0);
+      item = TypeItem_Defined_New(desc->dims, pathindex, typeindex);
     } else {
       ASSERT(desc->kind == TYPE_PRIMITIVE);
       item = TypeItem_Primitive_New(desc->dims, desc->primitive);
@@ -706,7 +696,7 @@ void typeitem_write(FILE *fp, void *o)
 uint32 typeitem_hash(void *k)
 {
   TypeItem *item = k;
-  return hash_uint32(item->index, 32);
+  return hash_uint32(item->pathindex + item->typeindex, 32);
 }
 
 int typeitem_equal(void *k1, void *k2)
@@ -715,7 +705,8 @@ int typeitem_equal(void *k1, void *k2)
   TypeItem *item2 = k2;
   if (item1->kind != item2->kind) return 0;
   if (item1->dims != item2->dims) return 0;
-  if (item1->index != item2->index) return 0;
+  if (item1->pathindex != item2->pathindex) return 0;
+  if (item1->typeindex != item2->typeindex) return 0;
   return 1;
 }
 
@@ -724,8 +715,11 @@ void typeitem_show(AtomTable *table, void *o)
   TypeItem *item = o;
 
   if (item->kind == TYPE_USERDEF) {
-    StringItem *str = AtomTable_Get(table, ITEM_STRING, item->index);
-    printf("  index:%d\n", item->index);
+    StringItem *str = AtomTable_Get(table, ITEM_STRING, item->pathindex);
+    printf("  pathindex:%d\n", item->pathindex);
+    printf("  (%s)\n", str->data);
+    str = AtomTable_Get(table, ITEM_STRING, item->typeindex);
+    printf("  typeindex:%d\n", item->typeindex);
     printf("  (%s)\n", str->data);
   } else {
     printf("  (%s)\n", primitive_tostring(item->primitive));
@@ -828,19 +822,21 @@ static char *var_flags_tostring(int flags)
 void varitem_show(AtomTable *table, void *o)
 {
   VarItem *item = o;
-  StringItem *stritem;
-  TypeItem *typeitem;
+  StringItem *str1;
+  StringItem *str2;
+  TypeItem *type;
 
   printf("  name_index:%d\n", item->name_index);
-  stritem = AtomTable_Get(table, ITEM_STRING, item->name_index);
-  printf("  (%s)\n", stritem->data);
+  str1 = AtomTable_Get(table, ITEM_STRING, item->name_index);
+  printf("  (%s)\n", str1->data);
   printf("  type_index:%d\n", item->type_index);
-  typeitem = AtomTable_Get(table, ITEM_TYPE, item->type_index);
-  if (typeitem->kind == TYPE_USERDEF) {
-    stritem = AtomTable_Get(table, ITEM_STRING, typeitem->index);
-    printf("  (%s)\n", stritem->data);
+  type = AtomTable_Get(table, ITEM_TYPE, item->type_index);
+  if (type->kind == TYPE_USERDEF) {
+    str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
+    str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
+    printf("  (%s.%s)\n", str1->data, str2->data);
   } else {
-    printf("  (%c)\n", typeitem->primitive);
+    printf("  (%c)\n", type->primitive);
   }
   printf("  flags:%s\n", var_flags_tostring(item->flags));
 

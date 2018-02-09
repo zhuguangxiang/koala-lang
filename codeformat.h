@@ -50,10 +50,12 @@ typedef struct string_item {
 typedef struct type_item {
   short dims;
   short kind;
-  int32 pkg;      //->StringItem
   union {
     char primitive;
-    int32 index;  //->StringItem
+    struct {
+      int32 pathindex;  //->StringItem
+      int32 typeindex;  //->StringItem
+    };
   };
 } TypeItem;
 
@@ -169,7 +171,7 @@ typedef struct protoinfo ProtoInfo;
 #define TYPE_PRIMITIVE  1
 #define TYPE_USERDEF    2
 #define TYPE_PROTO      3
-#define TYPE_PACKAGE    4
+#define TYPE_PKGPATH    4
 
 #define PRIMITIVE_INT     'i'
 #define PRIMITIVE_FLOAT   'f'
@@ -183,31 +185,31 @@ typedef struct typedesc {
   short kind;
   union {
     char primitive;
-    char *type;
+    struct {
+      char *path;
+      char *type;
+    };
     ProtoInfo *proto;
-    char *path;
   };
 } TypeDesc;
 
-#define DECL_PRIMITIVE_DESC(desc, d, p) \
-  TypeDesc desc = {.dims = (d), .kind = TYPE_PRIMITIVE, .primitive = (p)}
-#define DECL_USERDEF_DESC(desc, d, _type) \
-  TypeDesc desc = {.dims = (d), .kind = TYPE_USERDEF, .type = _type}
 #define INIT_PRIMITIVE_DESC(desc, d, p) do { \
   (desc)->dims = (d); (desc)->kind = TYPE_PRIMITIVE; \
   (desc)->primitive = (p); \
 } while (0)
-#define INIT_USERDEF_DESC(desc, d, _type) do { \
-  (desc)->dims = (d); (desc)->kind = TYPE_USERDEF; (desc)->type = (_type); \
+#define INIT_USERDEF_DESC(desc, d, fulltype) do { \
+  (desc)->dims = (d); (desc)->kind = TYPE_USERDEF; \
+  FullType_To_TypeDesc(fulltype, strlen(fulltype), desc); \
 } while (0)
 TypeDesc *TypeDesc_New(int kind);
 TypeDesc *TypeDesc_From_Primitive(int primitive);
 TypeDesc *TypeDesc_From_UserDef(char *path, char *type);
 TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec);
-TypeDesc *TypeDesc_From_Package(char *path);
+TypeDesc *TypeDesc_From_PkgPath(char *path);
 int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr);
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2);
 char *TypeDesc_ToString(TypeDesc *desc);
+void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc);
 
 /*-------------------------------------------------------------------------*/
 

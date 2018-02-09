@@ -29,7 +29,7 @@ typedef struct symbol {
   char *str;      /* -> name */
   TypeDesc *type; /* -> desc */
   union {
-    void *obj;    /* method or klass or SymTable */
+    void *obj;    /* method or klass */
     idx_t index;  /* variable's index */
   };
 } Symbol;
