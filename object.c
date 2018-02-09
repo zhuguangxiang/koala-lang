@@ -208,7 +208,7 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
   int res;
   FuncDef *f = funcs;
   Object *meth;
-  ProtoInfo proto = {0};
+  ProtoInfo proto;
 
   while (f->name != NULL) {
     Init_ProtoInfo(&f->type, &proto);

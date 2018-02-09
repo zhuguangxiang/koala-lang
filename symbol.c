@@ -86,7 +86,9 @@ Symbol *STbl_Add_Proto(SymTable *stbl, char *name, ProtoInfo *proto)
   idx_t idx = ProtoItem_Set(stbl->atbl, proto);
   ASSERT(idx >= 0);
   sym->desc = idx;
-  sym->proto = *proto;
+  TypeDesc *type = TypeDesc_New(TYPE_PROTO);
+  type->proto = ProtoInfo_Dup(proto);
+  sym->type = type;
   return sym;
 }
 
@@ -253,18 +255,8 @@ static void symbol_show(HashNode *hnode, void *arg)
   show(sym, stbl);
 }
 
-void STbl_Show_HTable(SymTable *stbl)
+void STbl_Show(SymTable *stbl, int detail)
 {
   HashTable_Traverse(stbl->htbl, symbol_show, stbl);
-}
-
-void STbl_Show_ATable(SymTable *stbl)
-{
-  AtomTable_Show(stbl->atbl);
-}
-
-void STbl_Show(SymTable *stbl)
-{
-  HashTable_Traverse(stbl->htbl, symbol_show, stbl);
-  AtomTable_Show(stbl->atbl);
+  if (detail) AtomTable_Show(stbl->atbl);
 }

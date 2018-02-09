@@ -427,14 +427,6 @@ void expr_traverse(struct expr *expr)
 
   switch (expr->kind) {
     case NAME_KIND: {
-      /*
-      id scope
-      method:
-      local variable -> field variable -> module variable
-      -> external module name
-      function:
-      module variable -> external module name
-      */
       printf("[id]%s\n", expr->name.id);
       break;
     }
@@ -697,6 +689,6 @@ void stmt_traverse(struct stmt *stmt)
 
 void ast_traverse(Vector *vec)
 {
-  for (int i = 0; i < Vector_Size(vec); i++)
-    stmt_traverse(Vector_Get(vec, i));
+  Vector_ForEach(stmt, struct stmt, vec)
+    stmt_traverse(stmt);
 }

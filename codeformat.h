@@ -50,9 +50,10 @@ typedef struct string_item {
 typedef struct type_item {
   short dims;
   short kind;
+  int32 pkg;      //->StringItem
   union {
     char primitive;
-    int32 index;   //->StringItem
+    int32 index;  //->StringItem
   };
 } TypeItem;
 
@@ -163,9 +164,12 @@ typedef struct kimage {
 
 /*-------------------------------------------------------------------------*/
 
+typedef struct protoinfo ProtoInfo;
+
 #define TYPE_PRIMITIVE  1
 #define TYPE_USERDEF    2
 #define TYPE_PROTO      3
+#define TYPE_PACKAGE    4
 
 #define PRIMITIVE_INT     'i'
 #define PRIMITIVE_FLOAT   'f'
@@ -180,7 +184,8 @@ typedef struct typedesc {
   union {
     char primitive;
     char *type;
-    void *proto;
+    ProtoInfo *proto;
+    char *path;
   };
 } TypeDesc;
 
@@ -195,22 +200,24 @@ typedef struct typedesc {
 #define INIT_USERDEF_DESC(desc, d, _type) do { \
   (desc)->dims = (d); (desc)->kind = TYPE_USERDEF; (desc)->type = (_type); \
 } while (0)
+TypeDesc *TypeDesc_New(int kind);
 TypeDesc *TypeDesc_From_Primitive(int primitive);
 TypeDesc *TypeDesc_From_UserDef(char *path, char *type);
 TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec);
+TypeDesc *TypeDesc_From_Package(char *path);
 int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr);
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2);
 char *TypeDesc_ToString(TypeDesc *desc);
 
 /*-------------------------------------------------------------------------*/
 
-typedef struct protoinfo {
+struct protoinfo {
   int rsz;
   int psz;
   int vargs;
   TypeDesc *rdesc;
   TypeDesc *pdesc;
-} ProtoInfo;
+};
 
 typedef struct codeinfo {
   int csz;
@@ -239,7 +246,7 @@ typedef struct funcinfo {
   (name)->psz = (_psz); (name)->pdesc = (_pdesc); \
 } while (0)
 void Init_ProtoInfo(FuncType *type, ProtoInfo *proto);
-void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto);
+ProtoInfo *ProtoInfo_Dup(ProtoInfo *proto);
 void Init_CodeInfo(uint8 *codes, int csz, ConstItem *k, int ksz,
                    CodeInfo *codeinfo);
 void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,

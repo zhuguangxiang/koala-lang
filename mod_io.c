@@ -91,7 +91,7 @@ static Object *__io_print(Object *ob, Object *args)
 }
 
 static FuncDef io_funcs[] = {
-  {"Print", {0, NULL, 1, "[A"}, __io_print},
+  {"Print", {0, NULL, 1, "..."}, __io_print},
   {NULL}
 };
 

@@ -38,7 +38,7 @@ typedef struct methodobject {
     cfunc cf;             // c language function
     struct {
       //Object *closure;  // tuple for closure
-      AtomTable *atbl;  // constant pool
+      AtomTable *atbl;    // constant pool
       CodeInfo codeinfo;  // codeinfo
     } kf;
   };

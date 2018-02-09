@@ -219,6 +219,13 @@ TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec)
   return type;
 }
 
+TypeDesc *TypeDesc_From_Package(char *path)
+{
+  TypeDesc *type = TypeDesc_New(TYPE_PACKAGE);
+  type->path = path;
+  return type;
+}
+
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 {
   if (t1->kind != t2->kind) return 0;
@@ -249,9 +256,18 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 char *TypeDesc_ToString(TypeDesc *desc)
 {
   char *str = "";
+  ASSERT_PTR(desc);
   switch (desc->kind) {
     case TYPE_PRIMITIVE: {
       str = primitive_tostring(desc->primitive);
+      break;
+    }
+    case TYPE_USERDEF: {
+      str = desc->type;
+      break;
+    }
+    case TYPE_PACKAGE: {
+      str = desc->path;
       break;
     }
     default: {
@@ -268,16 +284,23 @@ void Init_ProtoInfo(FuncType *type, ProtoInfo *proto)
 {
   proto->rsz = type->rsz;
   proto->rdesc = String_To_DescList(type->rsz, type->rdesc);
-  proto->psz = type->psz;
-  proto->vargs = 0;
-  proto->pdesc = String_To_DescList(type->psz, type->pdesc);
+
+  if (type->psz && !strcmp(type->pdesc, "...")) {
+    proto->vargs = 1;
+    proto->psz = 0;
+    proto->pdesc = NULL;
+  } else {
+    proto->vargs = 0;
+    proto->psz = type->psz;
+    proto->pdesc = String_To_DescList(type->psz, type->pdesc);
+  }
 }
 
-void Init_Vargs_ProtoInfo(int rsz, char *rdesc, ProtoInfo *proto)
+ProtoInfo *ProtoInfo_Dup(ProtoInfo *proto)
 {
-  FuncType type = {rsz, rdesc, 0, NULL};
-  Init_ProtoInfo(&type, proto);
-  proto->vargs = 1;
+  ProtoInfo *p = malloc(sizeof(ProtoInfo));
+  memcpy(p, proto, sizeof(ProtoInfo));
+  return p;
 }
 
 void Init_CodeInfo(uint8 *codes, int csz, ConstItem *k, int ksz,

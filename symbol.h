@@ -27,11 +27,7 @@ typedef struct symbol {
   int8 refcnt;    /* for compiler */
   idx_t desc;
   char *str;      /* -> name */
-  union {         /* -> desc */
-    ProtoInfo proto;
-    TypeDesc *type;
-    void *ptr;
-  };
+  TypeDesc *type; /* -> desc */
   union {
     void *obj;    /* method or klass or SymTable */
     idx_t index;  /* variable's index */
@@ -54,9 +50,7 @@ Symbol *STbl_Add_IProto(SymTable *stbl, char *name, ProtoInfo *proto);
 #define STbl_Add_Intf(stbl, name) STbl_Add_Symbol(stbl, name, SYM_INTF, 0)
 Symbol *STbl_Add_Symbol(SymTable *stbl, char *name, int kind, bool konst);
 Symbol *STbl_Get(SymTable *stbl, char *name);
-void STbl_Show(SymTable *stbl);
-void STbl_Show_HTable(SymTable *stbl);
-void STbl_Show_ATable(SymTable *stbl);
+void STbl_Show(SymTable *stbl, int detail);
 
 #ifdef __cplusplus
 }

@@ -30,7 +30,8 @@ int Vector_Append(Vector *vec, void *item);
 int Vector_Concat(Vector *dest, Vector *src);
 #define Vector_ForEach(item, type, vec) \
   type *item; \
-  for (int i = 0, l; l = (i < (vec)->size), item = (vec)->items[i], l; i++)
+  for (int i = 0, f; f = ((vec) != NULL && (i < (vec)->size)), \
+  item = (vec)->items[i], f; i++)
 
 #ifdef __cplusplus
 }

@@ -217,7 +217,6 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
 
   uint32 hash = hnode->hash = table->hash(hnode->key);
   if (NULL != __hash_table_find(table, hash, hnode->key)) {
-    error("key is duplicated");
     return -1;
   }
 

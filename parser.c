@@ -22,7 +22,8 @@ static void visit_import(HashNode *hnode, void *arg)
 {
   Symbol *sym = container_of(hnode, Symbol, hnode);
   if (sym->refcnt == 0) {
-    error("package '%s <- %s' is never used", sym->str, (char *)sym->ptr);
+    error("package '%s <- %s' is never used",
+          sym->str, TypeDesc_ToString(sym->type));
   }
 }
 
@@ -43,7 +44,7 @@ char *userdef_get_path(ParserState *ps, char *mod)
   }
   ASSERT(sym->kind == SYM_STABLE);
   sym->refcnt = 1;
-  return sym->ptr;
+  return sym->type->path;
 }
 
 static int check_return_types(ParserUnit *u, Vector *vec)
@@ -54,8 +55,10 @@ static int check_return_types(ParserUnit *u, Vector *vec)
     int sz = Vector_Size(vec);
     if (u->proto.rsz != sz) return 0;
     Vector_ForEach(exp, struct expr, vec) {
-      if (!TypeDesc_Check(exp->type, u->proto.rdesc + i))
+      if (!TypeDesc_Check(exp->type, u->proto.rdesc + i)) {
+        error("type check failed");
         return 0;
+      }
     }
     return 1;
   }
@@ -152,6 +155,28 @@ void parse_dotacess(ParserState *ps, struct expr *exp)
   //OP_GETFIELD
 }
 
+static int check_call_args(ProtoInfo *proto, Vector *vec)
+{
+  if (proto->vargs) {
+    debug("arguments are vargs");
+    return 1;
+  }
+
+  int sz = (vec == NULL) ? 0: Vector_Size(vec);
+  if (proto->psz != sz) {
+    return 0;
+  }
+
+  Vector_ForEach(exp, struct expr, vec) {
+    if (!TypeDesc_Check(exp->type, proto->pdesc + i))
+      return 0;
+  }
+
+  return 1;
+}
+
+void expr_traverse(struct expr *expr);
+
 void parse_call(ParserState *ps, struct expr *exp)
 {
   debug("call expr");
@@ -166,10 +191,12 @@ void parse_call(ParserState *ps, struct expr *exp)
 
   Symbol *sym = left->sym;
   ASSERT(sym->kind == SYM_PROTO);
+  debug("call %s()", left->sym->str);
 
   /* check arguments */
-
-  debug("call %s()", left->sym->str);
+  if (!check_call_args(sym->type->proto, exp->call.pvec)) {
+    error("arguments are not matched.");
+  }
 }
 
 static void parser_visit_expr(ParserState *ps, struct expr *exp)
@@ -178,11 +205,11 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
     case NAME_KIND: {
       exp->sym = parser_find_symbol(ps, exp->name.id);
       if (exp->type == NULL) {
-        //exp->type = desc_to_type(exp->sym);
+        exp->type = exp->sym->type;
       }
       char *load = exp->ctx == CTX_STORE ? "store": "load";
-      debug("name:%s(%s)",
-            exp->name.id, load); //type_tostring(exp->type));
+      debug("name:%s(%s), type:%s",
+            exp->name.id, load, TypeDesc_ToString(exp->type));
       break;
     }
     case INT_KIND: {
@@ -290,7 +317,10 @@ static void parser_unit_free(ParserUnit *u)
 
 static void parser_exit_scope(ParserState *ps)
 {
-  STbl_Show_HTable(&ps->u->stbl);
+  printf("-------------------------\n");
+  printf("scope-%d symbols:\n", ps->nestlevel);
+  STbl_Show(&ps->u->stbl, 0);
+  printf("-------------------------\n");
 
   ps->nestlevel--;
   parser_unit_free(ps->u);
@@ -367,7 +397,7 @@ void parse_function(ParserState *ps, struct stmt *stmt)
   ParserUnit *parent = parent_scope(ps);
   Symbol *sym = STbl_Get(&parent->stbl, stmt->funcdecl.id);
   ASSERT_PTR(sym);
-  ps->u->proto = sym->proto;
+  ps->u->proto = *sym->type->proto;
 
   if (parent->scope == SCOPE_MODULE) {
     debug("parse function, '%s'", stmt->funcdecl.id);
@@ -400,6 +430,9 @@ void paser_return(ParserState *ps, struct stmt *stmt)
   ASSERT_PTR(u);
   if (u->scope == SCOPE_FUNCTION) {
     debug("return in function");
+    Vector_ForEach(e, struct expr, stmt->vec) {
+      parser_visit_expr(ps, e);
+    }
     check_return_types(u, stmt->vec);
   } else if (u->scope == SCOPE_BLOCK) {
     debug("return in some block");
@@ -502,7 +535,7 @@ static Symbol *add_import(SymTable *stbl, char *id, char *path)
   idx_t idx = StringItem_Set(stbl->atbl, path);
   ASSERT(idx >= 0);
   sym->desc = idx;
-  sym->ptr = path;
+  sym->type = TypeDesc_From_Package(path);
   return sym;
 }
 
@@ -593,6 +626,6 @@ void parse_module(ParserState *ps, struct mod *mod)
   parse_body(ps, &mod->stmts);
   debug("==end===================");
   printf("package:%s\n", ps->package);
-  STbl_Show(&ps->u->stbl);
+  STbl_Show(&ps->u->stbl, 0);
   check_imports(ps);
 }
