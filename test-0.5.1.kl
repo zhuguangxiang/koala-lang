@@ -4,7 +4,7 @@ package test;
 import "koala/io";
 import "github.com/nio";    // error: load failed
 import "koala/io";          // error: load duplicated
-import lang2 "koala/lang";  // error: unused import
+import lang2 "koala/lang";  // error: load duplicated
 
 var array []string = nil;
 var greeting = string("hello, world");
@@ -13,7 +13,9 @@ const ARRAY_SIZE = 4096;
 var a, b int = 100, 100;
 var good = "good luck";     // error: redefined
 
-var t lang.Tuple;
+var tuple lang.Tuple;
+var array lang.Array;
+var table lang.Table;
 
 func Main(args []string) {
   io.Print("hello, world\n");
@@ -26,6 +28,11 @@ func Sub(a int, b int) int {
 
 func Add(a int, b int) (int) {
   var r int = a + b;
-  t.Get(100);
   return r;
+}
+
+func check() {
+  tuple.Get(100);
+  array.Size();
+  table.Put();
 }

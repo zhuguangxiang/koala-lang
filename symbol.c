@@ -38,7 +38,8 @@ static int symbol_equal(void *k1, void *k2)
 static HashTable *__get_hashtable(SymTable *stbl)
 {
   if (stbl->htbl == NULL) {
-    Decl_HashInfo(hashinfo, symbol_hash, symbol_equal);
+    HashInfo hashinfo;
+    Init_HashInfo(&hashinfo, symbol_hash, symbol_equal);
     stbl->htbl = HashTable_New(&hashinfo);
   }
   return stbl->htbl;
@@ -48,7 +49,8 @@ int STbl_Init(SymTable *stbl, AtomTable *atbl)
 {
   stbl->htbl = NULL;
   if (atbl == NULL) {
-    Decl_HashInfo(hashinfo, item_hash, item_equal);
+    HashInfo hashinfo;
+    Init_HashInfo(&hashinfo, item_hash, item_equal);
     stbl->atbl = AtomTable_New(&hashinfo, SYM_ATOM_MAX);
   } else {
     stbl->atbl = atbl;
@@ -140,36 +142,6 @@ static void desc_show(TypeDesc *type)
     free(str);
 }
 
-// static void proto_show(Symbol *sym, SymTable *stbl)
-// {
-//   int index = sym->desc;
-//   if (index < 0) return;
-//   ProtoItem *proto = AtomTable_Get(stbl->atbl, ITEM_PROTO, index);
-//   ASSERT_PTR(proto);
-
-//   TypeListItem *typelist;
-//   if (proto->pindex >= 0) {
-//     typelist = AtomTable_Get(stbl->atbl, ITEM_TYPELIST, proto->pindex);
-//     ASSERT_PTR(typelist);
-//     printf("(");
-//     typelist_show(typelist, stbl);
-//     printf(")");
-//   } else {
-//     printf("()");
-//   }
-
-//   if (proto->rindex >= 0) {
-//     printf(" ");
-//     typelist = AtomTable_Get(stbl->atbl, ITEM_TYPELIST, proto->rindex);
-//     ASSERT_PTR(typelist);
-//     if (typelist->size > 1) printf("(");
-//     typelist_show(typelist, stbl);
-//     if (typelist->size > 1) printf(")");
-//   }
-
-//   puts(";");  /* with newline */
-// }
-
 static void symbol_show(HashNode *hnode, void *arg)
 {
   UNUSED_PARAMETER(arg);
@@ -184,7 +156,7 @@ static void symbol_show(HashNode *hnode, void *arg)
     }
     case SYM_PROTO: {
       /* show's format: "func name args rets;" */
-      printf("func %s", sym->str);
+      printf("func %s\n", sym->str);
       desc_show(sym->type);
       break;
     }

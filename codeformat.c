@@ -1183,7 +1183,8 @@ void KImage_Init(KImage *image, char *package)
   image->package = malloc(pkg_size);
   strcpy(image->package, package);
   init_header(&image->header, pkg_size);
-  Decl_HashInfo(hashinfo, item_hash, item_equal);
+  HashInfo hashinfo;
+  Init_HashInfo(&hashinfo, item_hash, item_equal);
   image->table = AtomTable_New(&hashinfo, ITEM_MAX);
 }
 

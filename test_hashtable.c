@@ -79,7 +79,8 @@ void test_number_hash_table(void) {
   int failed;
   int i;
   int value = 100;
-  Decl_HashInfo(hashinfo, number_hash, number_equal);
+  HashInfo hashinfo;
+  Init_HashInfo(&hashinfo, number_hash, number_equal);
   table = HashTable_New(&hashinfo);
   ASSERT(table);
 
@@ -183,7 +184,8 @@ void test_string_hash_table(void) {
     int failed;
     struct hash_table *string_hash;
     int i;
-    Decl_HashInfo(hashinfo, string_hash_fn, string_equal_fn);
+    HashInfo hashinfo;
+    Init_HashInfo(&hashinfo, string_hash_fn, string_equal_fn);
     string_hash = HashTable_New(&hashinfo);
 
     srand(time(NULL));

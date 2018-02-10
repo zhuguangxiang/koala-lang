@@ -11,8 +11,37 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp);
 
 /*-------------------------------------------------------------------------*/
 
+static Import *import_new(char *path)
+{
+  Import *import = malloc(sizeof(Import));
+  import->path = path;
+  Init_HashNode(&import->hnode, import);
+  return import;
+}
+
+static void import_free(Import *import)
+{
+  free(import);
+}
+
+static uint32 import_hash(void *k)
+{
+  Import *import = k;
+  return hash_string(import->path);
+}
+
+static int import_equal(void *k1, void *k2)
+{
+  Import *import1 = k1;
+  Import *import2 = k2;
+  return !strcmp(import1->path, import2->path);
+}
+
 static void init_imports(ParserState *ps)
 {
+  HashInfo hashinfo;
+  Init_HashInfo(&hashinfo, import_hash, import_equal);
+  HashTable_Init(&ps->imports, &hashinfo);
   STbl_Init(&ps->extstbl, NULL);
   Symbol *sym = parse_import(ps, "lang", "koala/lang");
   sym->refcnt++;
@@ -66,35 +95,63 @@ static int check_return_types(ParserUnit *u, Vector *vec)
 
 /*--------------------------------------------------------------------------*/
 
-Symbol *parser_find_symbol(ParserState *ps, char *name)
+static Symbol *find_id_symbol(ParserState *ps, char *id)
 {
   ParserUnit *u = ps->u;
-  Symbol *sym = STbl_Get(&u->stbl, name);
+  Symbol *sym = STbl_Get(&u->stbl, id);
   if (sym != NULL) {
-    debug("symbol '%s' is found in current scope", name);
+    debug("symbol '%s' is found in current scope", id);
     sym->refcnt++;
     return sym;
   }
 
   if (!list_empty(&ps->ustack)) {
     list_for_each_entry(u, &ps->ustack, link) {
-      sym = STbl_Get(&u->stbl, name);
+      sym = STbl_Get(&u->stbl, id);
       if (sym != NULL) {
-        debug("symbol '%s' is found in parent scope", name);
+        debug("symbol '%s' is found in parent scope", id);
         sym->refcnt++;
         return sym;
       }
     }
   }
 
-  sym = STbl_Get(&ps->extstbl, name);
+  sym = STbl_Get(&ps->extstbl, id);
   if (sym != NULL) {
-    debug("symbol '%s' is found in external scope", name);
+    debug("symbol '%s' is found in external scope", id);
+    ASSERT(sym->kind == SYM_STABLE);
     sym->refcnt++;
     return sym;
   }
 
-  error("cannot find symbol:%s", name);
+  error("cannot find symbol:%s", id);
+  return NULL;
+}
+
+static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
+{
+  if (desc->kind != TYPE_USERDEF) {
+    error("type(%s) is not class or interface", TypeDesc_ToString(desc));
+    return NULL;
+  }
+
+  Import key = {.path = desc->path};
+  Import *import = HashTable_FindObject(&ps->imports, &key, Import);
+  if (import == NULL) {
+    error("cannot find '%s.%s'", desc->path, desc->type);
+    return NULL;
+  }
+
+  Symbol *sym = import->sym;
+  ASSERT(sym->kind == SYM_STABLE);
+  sym = STbl_Get(sym->obj, desc->type);
+  if (sym != NULL) {
+    debug("find '%s.%s'", desc->path, desc->type);
+    sym->refcnt++;
+    return sym;
+  }
+
+  error("cannot find '%s.%s'", desc->path, desc->type);
   return NULL;
 }
 
@@ -135,19 +192,37 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
   parser_visit_expr(ps, left);
 
   debug(".%s", exp->attribute.id);
-  if (left->sym == NULL) {
-    error("undefined: <symbol-name>");
+
+  Symbol *leftsym = left->sym;
+  if (leftsym == NULL) {
+    error("cannot find '%s' in '%s'", exp->attribute.id, left->str);
     return;
   }
 
-  ASSERT_MSG(left->sym->kind == SYM_STABLE, "symbol kind:%d", left->sym->kind);
-  SymTable *stbl = left->sym->obj;
-  Symbol *sym = STbl_Get(stbl, exp->attribute.id);
-  if (sym == NULL) {
-    error("cannot find symbol '%s' in '%s'",
-          exp->attribute.id, left->sym->str);
-    exp->sym = NULL;
-    return;
+  Symbol *sym = NULL;
+  if (leftsym->kind == SYM_STABLE) {
+    debug("symbol '%s' is a module", leftsym->str);
+    sym = STbl_Get(leftsym->obj, exp->attribute.id);
+    if (sym == NULL) {
+      error("cannot find symbol '%s' in '%s'", exp->attribute.id, left->str);
+      exp->sym = NULL;
+      return;
+    }
+  } else if (leftsym->kind == SYM_VAR) {
+    sym = find_userdef_symbol(ps, leftsym->type);
+    if (sym == NULL) {
+      error("cannot find symbol '%s' in '%s'", exp->attribute.id,
+            TypeDesc_ToString(leftsym->type));
+      return;
+    }
+    ASSERT(sym->kind == SYM_CLASS || sym->kind == SYM_INTF);
+    Klass *klazz = sym->obj;
+    sym = STbl_Get(&klazz->stbl, exp->attribute.id);
+    if (sym == NULL) {
+      error("cannot find '%s' in '%s'", exp->attribute.id, klazz->name);
+    }
+  } else {
+    ASSERT(0);
   }
 
   exp->sym = sym;
@@ -183,17 +258,19 @@ void parse_call(ParserState *ps, struct expr *exp)
   parser_visit_expr(ps, left);
 
   if (left->sym == NULL) {
-    error("undefined: <symbol-name>");
+    error("func is not found");
     return;
   }
 
   Symbol *sym = left->sym;
-  ASSERT(sym->kind == SYM_PROTO);
-  debug("call %s()", left->sym->str);
+  if (sym->kind == SYM_PROTO) {
+    debug("call %s()", left->sym->str);
+    /* check arguments */
+    if (!check_call_args(sym->type->proto, exp->call.pvec)) {
+      error("arguments are not matched.");
+    }
+  } else {
 
-  /* check arguments */
-  if (!check_call_args(sym->type->proto, exp->call.pvec)) {
-    error("arguments are not matched.");
   }
 }
 
@@ -201,7 +278,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 {
   switch (exp->kind) {
     case NAME_KIND: {
-      exp->sym = parser_find_symbol(ps, exp->name.id);
+      exp->sym = find_id_symbol(ps, exp->name.id);
       if (exp->type == NULL) {
         exp->type = exp->sym->type;
       }
@@ -539,19 +616,49 @@ static Symbol *add_import(SymTable *stbl, char *id, char *path)
 
 Symbol *parse_import(ParserState *ps, char *id, char *path)
 {
+  Import key = {.path = path};
+  Import *import = HashTable_FindObject(&ps->imports, &key, Import);
+  Symbol *sym;
+  if (import != NULL) {
+    sym = import->sym;
+    if (sym != NULL && sym->refcnt > 0) {
+      warn("find auto imported module '%s'", path);
+      if (id != NULL) {
+        if (strcmp(id, sym->str)) {
+          warn("imported as '%s' is different with auto imported as '%s'",
+                id, sym->str);
+        } else {
+          warn("imported as '%s' is the same with auto imported as '%s'",
+                id, sym->str);
+        }
+      }
+      return sym;
+    }
+  }
+
+  import = import_new(path);
+  if (HashTable_Insert(&ps->imports, &import->hnode) < 0) {
+    error("module '%s' is imported duplicated", path);
+    return NULL;
+  }
   Object *ob = Koala_Load_Module(path);
   if (ob == NULL) {
     error("load module '%s' failed", path);
+    HashTable_Remove(&ps->imports, &import->hnode);
+    import_free(import);
     return NULL;
   }
   if (id == NULL) id = Module_Name(ob);
-  Symbol *sym = add_import(&ps->extstbl, id, path);
+  sym = add_import(&ps->extstbl, id, path);
   if (sym == NULL) {
     debug("add import '%s <- %s' failed", id, path);
+    HashTable_Remove(&ps->imports, &import->hnode);
+    import_free(import);
     return NULL;
   }
   debug("add import '%s <- %s' successful", id, path);
   sym->obj = Module_Get_STable(ob);
+  import->sym = sym;
   return sym;
 }
 
@@ -563,11 +670,20 @@ void parse_vardecl(ParserState *ps, struct stmt *s)
 
   Vector_ForEach(stmt, struct stmt, s->vec) {
     var = stmt->vardecl.var;
+    if (var->type->kind == TYPE_USERDEF) {
+      if (!find_userdef_symbol(ps, var->type)) {
+        error("add '%s %s' failed, because cannot find it's type:%s.%s",
+              var->bconst ? "const":"var", var->id,
+              var->type->path, var->type->type);
+        continue;
+      }
+    }
     sym = STbl_Add_Var(&ps->u->stbl, var->id, var->type, var->bconst);
     if (sym != NULL) {
       debug("add '%s %s' successful", var->bconst ? "const":"var", var->id);
     } else {
-      debug("add '%s %s' failed", var->bconst ? "const":"var", var->id);
+      error("add '%s %s' failed, because it'name is duplicated",
+            var->bconst ? "const":"var", var->id);
     }
   }
 }
@@ -624,6 +740,6 @@ void parse_module(ParserState *ps, struct mod *mod)
   parse_body(ps, &mod->stmts);
   debug("==end===================");
   printf("package:%s\n", ps->package);
-  STbl_Show(&ps->u->stbl, 0);
+  STbl_Show(&ps->u->stbl, 1);
   check_imports(ps);
 }

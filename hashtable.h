@@ -38,9 +38,6 @@ typedef struct hashinfo {
   ht_equalfunc equal;
 } HashInfo;
 
-#define Decl_HashInfo(hashinfo, h, e) \
-  HashInfo hashinfo = {.hash = (h), .equal = (e)}
-
 #define Init_HashInfo(info, h, e) do { \
   (info)->hash = (h); (info)->equal = (e); \
 } while (0)

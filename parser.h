@@ -10,6 +10,12 @@
 extern "C" {
 #endif
 
+typedef struct import {
+  HashNode hnode;
+  char *path;
+  Symbol *sym;
+} Import;
+
 typedef struct error {
   char *msg;
   int line;
@@ -50,7 +56,8 @@ typedef struct parserunit {
 
 typedef struct parserstate {
   char *package;
-  SymTable extstbl; /* external symbol table */
+  HashTable imports;  /* external types */
+  SymTable extstbl;   /* external symbol table */
   ParserUnit *u;
   int nestlevel;
   struct list_head ustack;
