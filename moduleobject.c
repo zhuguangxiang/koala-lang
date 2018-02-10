@@ -233,6 +233,6 @@ Klass Module_Klass = {
 void Module_Show(Object *ob)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  printf("package:%sym\n", mob->name);
+  printf("package:%s\n", mob->name);
   STbl_Show(&mob->stbl, 1);
 }

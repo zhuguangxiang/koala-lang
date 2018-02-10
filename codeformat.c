@@ -233,24 +233,41 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 /* For print only */
 char *TypeDesc_ToString(TypeDesc *desc)
 {
+  char *tmp;
   char *str = "";
+
   ASSERT_PTR(desc);
+
+  int sz = desc->dims * 2;
+  int dims = desc->dims;
+  int count = 0;
+
   switch (desc->kind) {
     case TYPE_PRIMITIVE: {
-      str = primitive_tostring(desc->primitive);
+      tmp = primitive_tostring(desc->primitive);
+      sz += strlen(tmp) + 1;
+      str = malloc(sz);
+      while (dims-- > 0) count += sprintf(str, "%s", "[]");
+      strcpy(str + count, tmp);
       break;
     }
     case TYPE_USERDEF: {
-      int sz = strlen(desc->path) + strlen(desc->type) + 1;
+      sz += strlen(desc->path) + strlen(desc->type) + 1;
       str = malloc(sz);
-      sprintf(str, "%s.%s", desc->path, desc->type);
+      while (dims-- > 0) count += sprintf(str, "%s", "[]");
+      sprintf(str + count, "%s.%s", desc->path, desc->type);
       break;
     }
     case TYPE_PROTO: {
+      sz = 1;
+      str = malloc(1);
+      str[0] = '\0';
       break;
     }
     case TYPE_PKGPATH: {
-      str = desc->path;
+      sz = strlen(desc->path) + 1;
+      str = malloc(sz);
+      strcpy(str, desc->path);
       break;
     }
     default: {

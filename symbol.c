@@ -171,8 +171,7 @@ static void desc_show(TypeDesc *type)
 {
   char *str = TypeDesc_ToString(type);
   printf("%s", str);
-  if (type->kind == TYPE_USERDEF)
-    free(str);
+  free(str);
 }
 
 static void symbol_show(HashNode *hnode, void *arg)
@@ -189,8 +188,9 @@ static void symbol_show(HashNode *hnode, void *arg)
     }
     case SYM_PROTO: {
       /* show's format: "func name args rets;" */
-      printf("func %s\n", sym->str);
+      printf("func %s", sym->str);
       desc_show(sym->type);
+      puts(""); /* with newline */
       break;
     }
     case SYM_CLASS: {
