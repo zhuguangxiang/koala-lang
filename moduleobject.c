@@ -82,12 +82,6 @@ static int __get_value_index(ModuleObject *mob, char *name)
   return -1;
 }
 
-Symbol *Module_Get_Symbol(Object *ob, char *name)
-{
-  ModuleObject *mob = OBJ_TO_MOD(ob);
-  return STbl_Get(&mob->stbl, name);
-}
-
 Object *__get_tuple(ModuleObject *mob)
 {
   if (mob->tuple == NULL) {
@@ -192,34 +186,31 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
   return 0;
 }
 
-SymTable *Object_STable(Object *ob)
+static void symbol_visit(Symbol *sym, void *arg)
 {
-  if (OB_CHECK_KLASS(ob, Module_Klass)) {
-    return Module_STable(ob);
-  } else if (OB_CHECK_KLASS(ob, Klass_Klass)) {
-    return Klass_STable(ob);
+  SymTable *stbl = arg;
+  Symbol *tmp;
+  if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
+    tmp = STbl_Add_Symbol(stbl, sym->str, SYM_STABLE, 0);
+    tmp->obj = STbl_New(stbl->atbl);
+    STbl_Traverse(Klass_STable(sym->obj), symbol_visit, tmp->obj);
+  } else if (sym->kind == SYM_VAR) {
+    STbl_Add_Var(stbl, sym->str, sym->type, sym->konst);
+  } else if (sym->kind == SYM_PROTO) {
+    STbl_Add_Proto(stbl, sym->str, sym->type->proto);
+  } else if (sym->kind == SYM_IPROTO) {
+    STbl_Add_IProto(stbl, sym->str, sym->type->proto);
   } else {
-    ASSERT_MSG(0, "unknown class");
-    return NULL;
+    ASSERT(0);
   }
 }
 
-SymTable *Module_Get_STable(Object *ob)
+SymTable *Module_Get_STable(Object *ob, AtomTable *atbl)
 {
-  OB_ASSERT_KLASS(ob, Module_Klass);
-  return Module_STable(ob);
-}
-
-AtomTable *Object_AtomTable(Object *ob)
-{
-  if (OB_CHECK_KLASS(ob, Module_Klass)) {
-    return Module_AtomTable(ob);
-  } else if (OB_CHECK_KLASS(ob, Klass_Klass)) {
-    return Klass_AtomTable(ob);
-  } else {
-    ASSERT_MSG(0, "unknown class");
-    return NULL;
-  }
+  ModuleObject *mob = OBJ_TO_MOD(ob);
+  SymTable *stbl = STbl_New(atbl);
+  STbl_Traverse(&mob->stbl, symbol_visit, stbl);
+  return stbl;
 }
 
 /*-------------------------------------------------------------------------*/

@@ -33,15 +33,12 @@ Object *Module_Get_Function(Object *ob, char *name);
 Klass *Module_Get_Class(Object *ob, char *name);
 Klass *Module_Get_Intf(Object *ob, char *name);
 Klass *Module_Get_Klass(Object *ob, char *name);
-Symbol *Module_Get_Symbol(Object *ob, char *name);
 int Module_Add_CFunctions(Object *ob, FuncDef *funcs);
 void Module_Show(Object *ob);
 #define Module_Name(ob) (((ModuleObject *)(ob))->name)
 #define Module_AtomTable(ob) (((ModuleObject *)(ob))->stbl.atbl)
-#define Module_STable(ob) (&((ModuleObject *)(ob))->stbl)
-SymTable *Object_STable(Object *ob);
-AtomTable *Object_ItemTable(Object *ob);
-SymTable *Module_Get_STable(Object *ob);
+SymTable *Module_Get_STable(Object *ob, AtomTable *atbl);
+
 #ifdef __cplusplus
 }
 #endif

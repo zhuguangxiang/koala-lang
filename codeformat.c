@@ -710,18 +710,27 @@ int typeitem_equal(void *k1, void *k2)
   return 1;
 }
 
+void array_show(int dims)
+{
+  int newline = dims;
+  while (dims-- > 0) printf("  []");
+  if (newline > 0) puts(""); /* with newline */
+}
+
 void typeitem_show(AtomTable *table, void *o)
 {
   TypeItem *item = o;
 
   if (item->kind == TYPE_USERDEF) {
+    array_show(item->dims);
     StringItem *str = AtomTable_Get(table, ITEM_STRING, item->pathindex);
     printf("  pathindex:%d\n", item->pathindex);
     printf("  (%s)\n", str->data);
     str = AtomTable_Get(table, ITEM_STRING, item->typeindex);
     printf("  typeindex:%d\n", item->typeindex);
     printf("  (%s)\n", str->data);
-  } else {
+  } else if (item->kind == TYPE_PRIMITIVE) {
+    array_show(item->dims);
     printf("  (%s)\n", primitive_tostring(item->primitive));
   }
 }
@@ -761,7 +770,10 @@ int typelistitem_equal(void *k1, void *k2)
 void typelistitem_show(AtomTable *table, void *o)
 {
   UNUSED_PARAMETER(table);
-  UNUSED_PARAMETER(o);
+  TypeListItem *item = o;
+  for (int i = 0; i < item->size; i++) {
+    printf("  index:%d\n", item->index[i]);
+  }
 }
 
 int structitem_length(void *o)
@@ -892,7 +904,9 @@ int protoitem_equal(void *k1, void *k2)
 void protoitem_show(AtomTable *table, void *o)
 {
   UNUSED_PARAMETER(table);
-  UNUSED_PARAMETER(o);
+  ProtoItem *item = o;
+  printf("  rindex:%d\n", item->rindex);
+  printf("  pindex:%d\n", item->pindex);
 }
 
 int funcitem_length(void *o)

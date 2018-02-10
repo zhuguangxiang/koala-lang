@@ -167,7 +167,6 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth);
 Object *Klass_Get_Method(Klass *klazz, char *name);
-#define Klass_AtomTable(ob) (((Klass *)(ob))->stbl.atbl)
 #define Klass_STable(ob) (&((Klass *)(ob))->stbl)
 
 #ifdef __cplusplus

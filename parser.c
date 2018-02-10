@@ -215,11 +215,11 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
             TypeDesc_ToString(leftsym->type));
       return;
     }
-    ASSERT(sym->kind == SYM_CLASS || sym->kind == SYM_INTF);
-    Klass *klazz = sym->obj;
-    sym = STbl_Get(&klazz->stbl, exp->attribute.id);
+    ASSERT(sym->kind == SYM_STABLE);
+    char *typename = sym->str;
+    sym = STbl_Get(sym->obj, exp->attribute.id);
     if (sym == NULL) {
-      error("cannot find '%s' in '%s'", exp->attribute.id, klazz->name);
+      error("cannot find '%s' in '%s'", exp->attribute.id, typename);
     }
   } else {
     ASSERT(0);
@@ -657,7 +657,7 @@ Symbol *parse_import(ParserState *ps, char *id, char *path)
     return NULL;
   }
   debug("add import '%s <- %s' successful", id, path);
-  sym->obj = Module_Get_STable(ob);
+  sym->obj = Module_Get_STable(ob, ps->extstbl.atbl);
   import->sym = sym;
   return sym;
 }

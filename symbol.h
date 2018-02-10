@@ -43,6 +43,8 @@ typedef struct symboltable {
 /* Exported APIs */
 int STbl_Init(SymTable *stbl, AtomTable *atbl);
 void STbl_Fini(SymTable *stbl);
+SymTable *STbl_New(AtomTable *atbl);
+void STbl_Free(SymTable *stbl);
 Symbol *STbl_Add_Var(SymTable *stbl, char *name, TypeDesc *desc, bool konst);
 Symbol *STbl_Add_Proto(SymTable *stbl, char *name, ProtoInfo *proto);
 Symbol *STbl_Add_IProto(SymTable *stbl, char *name, ProtoInfo *proto);
@@ -50,6 +52,8 @@ Symbol *STbl_Add_IProto(SymTable *stbl, char *name, ProtoInfo *proto);
 #define STbl_Add_Intf(stbl, name) STbl_Add_Symbol(stbl, name, SYM_INTF, 0)
 Symbol *STbl_Add_Symbol(SymTable *stbl, char *name, int kind, bool konst);
 Symbol *STbl_Get(SymTable *stbl, char *name);
+typedef void (*symbolfunc)(Symbol *sym, void *arg);
+void STbl_Traverse(SymTable *stbl, symbolfunc fn, void *arg);
 void STbl_Show(SymTable *stbl, int detail);
 
 #ifdef __cplusplus

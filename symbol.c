@@ -3,14 +3,14 @@
 #include "hash.h"
 #include "log.h"
 
-Symbol *symbol_new(void)
+static Symbol *symbol_new(void)
 {
   Symbol *sym = calloc(1, sizeof(Symbol));
   Init_HashNode(&sym->hnode, sym);
   return sym;
 }
 
-void symbol_free(Symbol *sym)
+static void symbol_free(Symbol *sym)
 {
   free(sym);
 }
@@ -62,6 +62,19 @@ int STbl_Init(SymTable *stbl, AtomTable *atbl)
 void STbl_Fini(SymTable *stbl)
 {
   UNUSED_PARAMETER(stbl);
+}
+
+SymTable *STbl_New(AtomTable *atbl)
+{
+  SymTable *stbl = malloc(sizeof(SymTable));
+  STbl_Init(stbl, atbl);
+  return stbl;
+}
+
+void STbl_Free(SymTable *stbl)
+{
+  STbl_Fini(stbl);
+  free(stbl);
 }
 
 Symbol *STbl_Add_Var(SymTable *stbl, char *name, TypeDesc *desc, bool konst)
@@ -130,6 +143,26 @@ Symbol *STbl_Get(SymTable *stbl, char *name)
   } else {
     return NULL;
   }
+}
+
+/*-------------------------------------------------------------------------*/
+
+struct visit_entry {
+  symbolfunc fn;
+  void *arg;
+};
+
+static void symbol_visit(HashNode *hnode, void *arg)
+{
+  struct visit_entry *data = arg;
+  Symbol *sym = container_of(hnode, Symbol, hnode);
+  data->fn(sym, data->arg);
+}
+
+void STbl_Traverse(SymTable *stbl, symbolfunc fn, void *arg)
+{
+  struct visit_entry data = {fn, arg};
+  HashTable_Traverse(stbl->htbl, symbol_visit, &data);
 }
 
 /*-------------------------------------------------------------------------*/
