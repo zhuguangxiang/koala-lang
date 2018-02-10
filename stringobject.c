@@ -91,9 +91,8 @@ static FuncDef string_funcs[] = {
   {NULL}
 };
 
-void Init_String_Klass(Object *ob)
+void Init_String_Klass(void)
 {
-  Module_Add_Class(ob, &String_Klass);
   Klass_Add_CFunctions(&String_Klass, string_funcs);
 }
 

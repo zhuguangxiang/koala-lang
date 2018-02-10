@@ -49,7 +49,7 @@ static void mod_entry_fini(HashNode *hnode, void *arg)
 
 /*-------------------------------------------------------------------------*/
 
-int Koala_Add_Module(char *path, Object *mo)
+static int koala_add_module(char *path, Object *mo)
 {
   struct mod_entry *e = new_mod_entry(path, mo);
   if (HashTable_Insert(&modules, &e->hnode) < 0) {
@@ -58,6 +58,16 @@ int Koala_Add_Module(char *path, Object *mo)
     return -1;
   }
   return 0;
+}
+
+Object *Koala_New_Module(char *name, char *path)
+{
+  Object *ob = Module_New(name);
+  if (koala_add_module(path, ob) < 0) {
+    Module_Free(ob);
+    return NULL;
+  }
+  return ob;
 }
 
 Object *Koala_Get_Module(char *path)
@@ -92,15 +102,20 @@ void Koala_Run_File(char *path)
 }
 
 /*-------------------------------------------------------------------------*/
+
 static void Init_Lang_Module(void)
 {
-  Object *ob = Module_New("lang", "koala/lang");
-  Init_Klass_Klass(ob);
-  Init_String_Klass(ob);
-  Init_Tuple_Klass(ob);
-  Init_Table_Klass(ob);
-  Init_Module_Klass(ob);
-  Init_Method_Klass(ob);
+  Object *ob = Koala_New_Module("lang", "koala/lang");
+  ASSERT_PTR(ob);
+  Module_Add_Class(ob, &Klass_Klass);
+  Module_Add_Class(ob, &String_Klass);
+  Module_Add_Class(ob, &Tuple_Klass);
+  Module_Add_Class(ob, &Table_Klass);
+  Module_Add_Class(ob, &Module_Klass);
+  Module_Add_Class(ob, &Method_Klass);
+  Init_String_Klass();
+  Init_Tuple_Klass();
+  Init_Table_Klass();
 }
 
 static void Init_Modules(void)

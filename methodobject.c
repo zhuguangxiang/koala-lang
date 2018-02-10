@@ -36,11 +36,6 @@ Object *Method_New(FuncInfo *info, AtomTable *atbl)
   return (Object *)m;
 }
 
-void Init_Method_Klass(Object *ob)
-{
-  Module_Add_Class(ob, &Method_Klass);
-}
-
 /*-------------------------------------------------------------------------*/
 
 static void method_free(Object *ob)

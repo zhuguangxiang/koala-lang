@@ -220,11 +220,6 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
   return 0;
 }
 
-void Init_Klass_Klass(Object *ob)
-{
-  Module_Add_Class(ob, &Klass_Klass);
-}
-
 /*-------------------------------------------------------------------------*/
 
 static void klass_mark(Object *ob)

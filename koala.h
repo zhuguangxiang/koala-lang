@@ -16,7 +16,7 @@ extern "C" {
 #endif
 
 /* Exported APIs */
-int Koala_Add_Module(char *path, Object *mo);
+Object *Koala_New_Module(char *name, char *path);
 Object *Koala_Get_Module(char *path);
 Object *Koala_Load_Module(char *path);
 void Koala_Init(void);

@@ -3,17 +3,13 @@
 
 /*-------------------------------------------------------------------------*/
 
-Object *Module_New(char *name, char *path)
+Object *Module_New(char *name)
 {
   ModuleObject *ob = malloc(sizeof(ModuleObject));
   init_object_head(ob, &Module_Klass);
   ob->name = name;
   STbl_Init(&ob->stbl, NULL);
   ob->tuple = NULL;
-  if (Koala_Add_Module(path, (Object *)ob) < 0) {
-    Module_Free((Object *)ob);
-    return NULL;
-  }
   return (Object *)ob;
 }
 
@@ -224,11 +220,6 @@ AtomTable *Object_AtomTable(Object *ob)
     ASSERT_MSG(0, "unknown class");
     return NULL;
   }
-}
-
-void Init_Module_Klass(Object *ob)
-{
-  Module_Add_Class(ob, &Module_Klass);
 }
 
 /*-------------------------------------------------------------------------*/

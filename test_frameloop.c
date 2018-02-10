@@ -13,7 +13,7 @@ Object *init_test_module(void)
    * var result = add(-123, 456);
    * io.Print("-123 + 456 = ", result);
    */
-  Object *module = Module_New("test", "/");
+  Object *module = Koala_New_Module("test", "/");
   TypeDesc desc;
   INIT_PRIMITIVE_DESC(&desc, 0, PRIMITIVE_INT);
   Module_Add_Var(module, "result", &desc, 0);

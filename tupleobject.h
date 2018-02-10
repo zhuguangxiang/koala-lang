@@ -15,7 +15,7 @@ typedef struct tupleobject {
 } TupleObject;
 
 extern Klass Tuple_Klass;
-void Init_Tuple_Klass(Object *ob);
+void Init_Tuple_Klass(void);
 Object *Tuple_New(int size);
 TValue Tuple_Get(Object *ob, int index);
 Object *Tuple_Get_Slice(Object *ob, int min, int max);

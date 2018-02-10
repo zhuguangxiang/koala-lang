@@ -176,9 +176,8 @@ static FuncDef tuple_funcs[] = {
   {NULL}
 };
 
-void Init_Tuple_Klass(Object *ob)
+void Init_Tuple_Klass(void)
 {
-  Module_Add_Class(ob, &Tuple_Klass);
   Klass_Add_CFunctions(&Tuple_Klass, tuple_funcs);
 }
 

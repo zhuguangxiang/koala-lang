@@ -169,9 +169,8 @@ static FuncDef table_funcs[] = {
   {NULL}
 };
 
-void Init_Table_Klass(Object *ob)
+void Init_Table_Klass(void)
 {
-  Module_Add_Class(ob, &Table_Klass);
   Klass_Add_CFunctions(&Table_Klass, table_funcs);
 }
 

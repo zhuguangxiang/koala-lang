@@ -18,8 +18,7 @@ typedef struct moduleobject {
 /* Exported APIs */
 extern Klass Module_Klass;
 #define OBJ_TO_MOD(ob) OB_TYPE_OF(ob, ModuleObject, Module_Klass)
-void Init_Module_Klass(Object *ob);
-Object *Module_New(char *name, char *path);
+Object *Module_New(char *name);
 void Module_Free(Object *ob);
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst);
 int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth);
