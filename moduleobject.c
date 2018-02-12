@@ -26,7 +26,7 @@ int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
   return (sym != NULL) ? 0 : -1;
 }
 
-int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *code)
+int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *sym = STbl_Add_Proto(&mob->stbl, name, proto);
@@ -44,7 +44,7 @@ int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *code)
 
 int Module_Add_CFunc(Object *ob, FuncDef *f)
 {
-  ProtoInfo *proto = ProtoInfo_New(f->rsz, f->rdesc, f->psz, f->pdesc);
+  Proto *proto = Proto_New(f->rsz, f->rdesc, f->psz, f->pdesc);
   Object *code = CFunc_New(f->fn);
   return Module_Add_Func(ob, f->name, proto, code);
 }

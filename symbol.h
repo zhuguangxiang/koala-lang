@@ -25,7 +25,7 @@ typedef struct symbol {
   int8 access;
   bool konst;
   int8 refcnt;    /* for compiler */
-  idx_t desc;
+  idx_t desc;     /* variable's type or func's proto */
   char *str;      /* -> name */
   TypeDesc *type; /* -> desc */
   union {
@@ -46,8 +46,8 @@ void STbl_Fini(SymTable *stbl);
 SymTable *STbl_New(AtomTable *atbl);
 void STbl_Free(SymTable *stbl);
 Symbol *STbl_Add_Var(SymTable *stbl, char *name, TypeDesc *desc, bool konst);
-Symbol *STbl_Add_Proto(SymTable *stbl, char *name, ProtoInfo *proto);
-Symbol *STbl_Add_IProto(SymTable *stbl, char *name, ProtoInfo *proto);
+Symbol *STbl_Add_Proto(SymTable *stbl, char *name, Proto *proto);
+Symbol *STbl_Add_IProto(SymTable *stbl, char *name, Proto *proto);
 #define STbl_Add_Class(stbl, name) STbl_Add_Symbol(stbl, name, SYM_CLASS, 0)
 #define STbl_Add_Intf(stbl, name) STbl_Add_Symbol(stbl, name, SYM_INTF, 0)
 Symbol *STbl_Add_Symbol(SymTable *stbl, char *name, int kind, bool konst);

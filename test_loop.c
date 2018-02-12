@@ -27,7 +27,7 @@ Object *init_test_module(void)
     OP_RET
   };
 
-  ProtoInfo *proto = ProtoInfo_New(1, "i", 2, "ii");
+  Proto *proto = Proto_New(1, "i", 2, "ii");
   Object *code = KFunc_New(2, codes, sizeof(codes));
   Module_Add_Func(module, "add", proto, code);
 
@@ -81,7 +81,7 @@ Object *init_test_module(void)
 
   uint8 *__init__ = Buffer_RawData(&buf);
 
-  proto = ProtoInfo_New(0, NULL, 0, NULL);
+  proto = Proto_New(0, NULL, 0, NULL);
   code = KFunc_New(0, __init__, Buffer_Size(&buf));
   Module_Add_Func(module, "__init__", proto, code);
   return module;

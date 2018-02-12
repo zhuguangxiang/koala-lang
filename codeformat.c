@@ -154,7 +154,7 @@ void TypeDesc_Free(void *item, void *arg)
     free(desc->path);
     free(desc->type);
   } else if (desc->kind == TYPE_PROTO) {
-    ProtoInfo *proto = desc->proto;
+    Proto *proto = desc->proto;
     if (proto->rdesc) free(proto->rdesc);
     if (proto->pdesc) free(proto->pdesc);
     free(proto);
@@ -184,7 +184,7 @@ int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr)
 
 TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec)
 {
-  ProtoInfo *proto = malloc(sizeof(ProtoInfo));
+  Proto *proto = malloc(sizeof(Proto));
   int sz;
   TypeDesc *desc = NULL;
 
@@ -297,9 +297,9 @@ char *TypeDesc_ToString(TypeDesc *desc)
   return str;
 }
 
-ProtoInfo *ProtoInfo_New(int rsz, char *rdesc, int psz, char *pdesc)
+Proto *Proto_New(int rsz, char *rdesc, int psz, char *pdesc)
 {
-  ProtoInfo *proto = malloc(sizeof(ProtoInfo));
+  Proto *proto = malloc(sizeof(Proto));
   proto->rsz = rsz;
   proto->rdesc = String_To_DescList(rsz, rdesc);
   proto->psz = psz;
@@ -307,7 +307,7 @@ ProtoInfo *ProtoInfo_New(int rsz, char *rdesc, int psz, char *pdesc)
   return proto;
 }
 
-int ProtoInfo_With_Vargs(ProtoInfo *proto)
+int Proto_With_Vargs(Proto *proto)
 {
   if (proto->psz > 0) {
     TypeDesc *desc = proto->pdesc + proto->psz - 1;
@@ -554,7 +554,7 @@ int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex)
   return AtomTable_Index(table, ITEM_PROTO, &item);
 }
 
-int ProtoItem_Set(AtomTable *table, ProtoInfo *proto)
+int ProtoItem_Set(AtomTable *table, Proto *proto)
 {
   int rindex = TypeListItem_Set(table, proto->rdesc, proto->rsz);
   int pindex = TypeListItem_Set(table, proto->pdesc, proto->psz);
@@ -1235,7 +1235,7 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
   AtomTable_Append(image->table, ITEM_VAR, varitem, 0);
 }
 
-void KImage_Add_Func(KImage *image, char *name, ProtoInfo *proto, int locvars,
+void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
                      uint8 *codes, int csz)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;

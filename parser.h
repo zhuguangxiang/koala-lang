@@ -48,7 +48,7 @@ enum {
 typedef struct parserunit {
   int scope;
   struct list_head link;
-  ProtoInfo proto;
+  Proto proto;
   SymTable stbl;
   CodeBlock *block;
   struct list_head blocks;

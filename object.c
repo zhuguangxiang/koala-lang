@@ -173,7 +173,7 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
   return (sym != NULL) ? 0 : -1;
 }
 
-int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)
+int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *meth)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
   Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
@@ -198,10 +198,10 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
   int res;
   FuncDef *f = funcs;
   Object *meth;
-  ProtoInfo *proto;
+  Proto *proto;
 
   while (f->name != NULL) {
-    proto = ProtoInfo_New(f->rsz, f->rdesc, f->psz, f->pdesc);
+    proto = Proto_New(f->rsz, f->rdesc, f->psz, f->pdesc);
     meth = CFunc_New(f->fn);
     res = Klass_Add_Method(klazz, f->name, proto, meth);
     ASSERT(res == 0);

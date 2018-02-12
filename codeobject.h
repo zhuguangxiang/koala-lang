@@ -20,7 +20,7 @@ typedef struct codeobject {
     cfunc cf;
     struct {
       SymTable *stbl;
-      ProtoInfo *proto;
+      Proto *proto;
       int locvars;
       int size;
       uint8 *codes;

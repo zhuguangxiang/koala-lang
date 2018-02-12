@@ -91,7 +91,7 @@ Symbol *STbl_Add_Var(SymTable *stbl, char *name, TypeDesc *desc, bool konst)
   return sym;
 }
 
-Symbol *STbl_Add_Proto(SymTable *stbl, char *name, ProtoInfo *proto)
+Symbol *STbl_Add_Proto(SymTable *stbl, char *name, Proto *proto)
 {
   Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_PROTO, 0);
   if (sym == NULL) return NULL;
@@ -105,7 +105,7 @@ Symbol *STbl_Add_Proto(SymTable *stbl, char *name, ProtoInfo *proto)
   return sym;
 }
 
-Symbol *STbl_Add_IProto(SymTable *stbl, char *name, ProtoInfo *proto)
+Symbol *STbl_Add_IProto(SymTable *stbl, char *name, Proto *proto)
 {
   Symbol *sym = STbl_Add_Proto(stbl, name, proto);
   if (sym == NULL) return NULL;

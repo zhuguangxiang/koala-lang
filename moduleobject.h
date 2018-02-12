@@ -21,7 +21,7 @@ extern Klass Module_Klass;
 Object *Module_New(char *name);
 void Module_Free(Object *ob);
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst);
-int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *code);
+int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code);
 int Module_Add_CFunc(Object *ob, FuncDef *f);
 int Module_Add_Class(Object *ob, Klass *klazz);
 int Module_Add_Interface(Object *ob, Klass *klazz);

@@ -160,7 +160,7 @@ typedef struct kimage {
 
 /*-------------------------------------------------------------------------*/
 
-typedef struct protoinfo ProtoInfo;
+typedef struct proto Proto;
 
 #define TYPE_PRIMITIVE  1
 #define TYPE_USERDEF    2
@@ -184,11 +184,11 @@ typedef struct typedesc {
       char *path;
       char *type;
     };
-    ProtoInfo *proto;
+    Proto *proto;
   };
 } TypeDesc;
 
-struct protoinfo {
+struct proto {
   int rsz;
   int psz;
   TypeDesc *rdesc;
@@ -212,8 +212,8 @@ int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr);
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2);
 char *TypeDesc_ToString(TypeDesc *desc);
 void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc);
-ProtoInfo *ProtoInfo_New(int rsz, char *rdesc, int psz, char *pdesc);
-int ProtoInfo_With_Vargs(ProtoInfo *proto);
+Proto *Proto_New(int rsz, char *rdesc, int psz, char *pdesc);
+int Proto_With_Vargs(Proto *proto);
 
 /*-------------------------------------------------------------------------*/
 
@@ -225,7 +225,7 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
   __KImage_Add_Var(image, name, desc, 0)
 #define KImage_Add_Const(image, name, desc) \
   __KImage_Add_Var(image, name, desc, 1)
-void KImage_Add_Func(KImage *image, char *name, ProtoInfo *proto, int locvars,
+void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
                      uint8 *codes, int csz);
 void KImage_Write_File(KImage *image, char *path);
 KImage *KImage_Read_File(char *path);
@@ -247,7 +247,7 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc);
 int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz);
 int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz);
 int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex);
-int ProtoItem_Set(AtomTable *table, ProtoInfo *proto);
+int ProtoItem_Set(AtomTable *table, Proto *proto);
 int ConstItem_Get(AtomTable *table, ConstItem *item);
 int ConstItem_Set_Int(AtomTable *table, int64 val);
 int ConstItem_Set_Float(AtomTable *table, float64 val);

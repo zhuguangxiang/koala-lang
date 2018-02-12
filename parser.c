@@ -230,11 +230,11 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
   //OP_GETFIELD
 }
 
-static int check_call_args(ProtoInfo *proto, Vector *vec)
+static int check_call_args(Proto *proto, Vector *vec)
 {
   int sz = (vec == NULL) ? 0: Vector_Size(vec);
 
-  if (ProtoInfo_With_Vargs(proto)) {
+  if (Proto_With_Vargs(proto)) {
     if (proto->psz -1 > sz) {
       return 0;
     } else {
@@ -721,7 +721,7 @@ static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
 
 void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 {
-  ProtoInfo proto;
+  Proto proto;
   int sz;
   TypeDesc *desc = NULL;
   Symbol *sym;
