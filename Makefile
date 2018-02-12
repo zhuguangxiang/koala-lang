@@ -12,7 +12,7 @@ include $(TOPDIR)/config.mk
 
 KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c \
 atom.c symbol.c object.c stringobject.c tupleobject.c tableobject.c \
-moduleobject.c methodobject.c routine.c frameloop.c thread.c codeformat.c \
+moduleobject.c codeobject.c codeformat.c routine.c thread.c \
 mod_io.c koala.c
 
 KOALA_LIB = koala
@@ -41,6 +41,7 @@ parser:
 	@flex -o koala_lex.c yacc/koala.l
 	@gcc -g -std=gnu99 -Wall -o koalac koala_yacc.c koala_lex.c ast.c parser.c \
 	-L. -lkoala -pthread -lrt
+	@cp koalac /usr/local/bin
 	@rm koala_yacc.c koala_lex.c
 
 testvector: lib
@@ -75,16 +76,16 @@ testhashtable: lib
 	@$(CC) $(CFLAGS) test_hashtable.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testcode: lib
+testformat: lib
 	@$(CC) $(CFLAGS) test_codeformat.c -L. -l$(KOALA_LIB) -lrt
 	@./a.out
 
-testrt: lib
+testroutine: lib
 	@$(CC) $(CFLAGS) test_routine.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
 testloop: lib
-	@$(CC) $(CFLAGS) test_frameloop.c -l$(KOALA_LIB) -L. -lrt
+	@$(CC) $(CFLAGS) test_loop.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
 testbuf: lib
@@ -92,8 +93,8 @@ testbuf: lib
 	@./a.out
 
 testtest-0.5.1.kl:
-	@./koalac test-0.5.1.kl
+	@koalac test-0.5.1.kl
 
-test: testbuf testloop testrt testcode testlist testmodule \
+test: testbuf testloop testroutine testformat testlist testmodule \
 testobject teststring testtuple testvector testtest-0.5.1.kl
 	@echo "Test Down!"

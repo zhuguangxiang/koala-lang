@@ -232,12 +232,24 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
 
 static int check_call_args(ProtoInfo *proto, Vector *vec)
 {
-  if (proto->vargs) {
-    debug("arguments are vargs");
-    return 1;
+  int sz = (vec == NULL) ? 0: Vector_Size(vec);
+
+  if (ProtoInfo_With_Vargs(proto)) {
+    if (proto->psz -1 > sz) {
+      return 0;
+    } else {
+      TypeDesc *desc;
+      Vector_ForEach(exp, struct expr, vec) {
+        if (i < proto->psz - 1)
+          desc = proto->pdesc + i;
+        else
+          desc = proto->pdesc + proto->psz - 1;
+        if (!TypeDesc_Check(exp->type, desc))
+          return 0;
+      }
+    }
   }
 
-  int sz = (vec == NULL) ? 0: Vector_Size(vec);
   if (proto->psz != sz) {
     return 0;
   }

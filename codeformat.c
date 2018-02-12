@@ -62,31 +62,38 @@ void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc)
   desc->path = strndup(fulltype, tmp - fulltype);
 }
 
-TypeDesc *String_To_DescList(int count, char *str)
+static TypeDesc *String_To_DescList(int count, char *str)
 {
   if (count == 0) return NULL;
-  int sz = sizeof(TypeDesc) * count;
-  TypeDesc *desc = malloc(sz);
+  TypeDesc *desc = malloc(sizeof(TypeDesc) * count);
 
   char ch;
   int idx = 0;
   int dims = 0;
+  int varg = 0;
+  int vcnt = 0;
   char *start;
 
   while ((ch = *str) != '\0') {
-    if (desc_primitive(ch)) {
+    if (ch == '.') {
+      ASSERT(str[1] == '.' && str[2] == '.');
+      varg = 1;
+      str += 3;
+      vcnt++;
+    } else if (desc_primitive(ch)) {
       ASSERT(idx < count);
 
+      desc[idx].varg = varg;
       desc[idx].dims = dims;
       desc[idx].kind = TYPE_PRIMITIVE;
       desc[idx].primitive = ch;
 
-      dims = 0;
-      idx++;
-      str++;
+      varg = 0; dims = 0;
+      idx++; str++;
     } else if (ch == 'O') {
       ASSERT(idx < count);
 
+      desc[idx].varg = varg;
       desc[idx].dims = dims;
       desc[idx].kind = TYPE_USERDEF;
 
@@ -97,12 +104,10 @@ TypeDesc *String_To_DescList(int count, char *str)
       }
       FullType_To_TypeDesc(start, str - start, desc + idx);
 
-      dims = 0;
-      idx++;
-      str++;
+      varg = 0; dims = 0;
+      idx++; str++;
     } else if (ch == '[') {
-      ASSERT(idx < count);
-
+      ASSERT(varg == 0);
       while ((ch = *str) == '[') {
         dims++; str++;
       }
@@ -111,6 +116,9 @@ TypeDesc *String_To_DescList(int count, char *str)
     }
   }
 
+  /* varg and dims are only one valid */
+  ASSERT(desc->varg == 0 || desc->dims == 0);
+  ASSERT(vcnt <= 1);
   return desc;
 }
 
@@ -278,46 +286,24 @@ char *TypeDesc_ToString(TypeDesc *desc)
   return str;
 }
 
-/*-------------------------------------------------------------------------*/
-
-void Init_ProtoInfo(FuncType *type, ProtoInfo *proto)
+ProtoInfo *ProtoInfo_New(int rsz, char *rdesc, int psz, char *pdesc)
 {
-  proto->rsz = type->rsz;
-  proto->rdesc = String_To_DescList(type->rsz, type->rdesc);
+  ProtoInfo *proto = malloc(sizeof(ProtoInfo));
+  proto->rsz = rsz;
+  proto->rdesc = String_To_DescList(rsz, rdesc);
+  proto->psz = psz;
+  proto->pdesc = String_To_DescList(psz, pdesc);
+  return proto;
+}
 
-  if (type->psz && !strcmp(type->pdesc, "...")) {
-    proto->vargs = 1;
-    proto->psz = 0;
-    proto->pdesc = NULL;
+int ProtoInfo_With_Vargs(ProtoInfo *proto)
+{
+  if (proto->psz > 0) {
+    TypeDesc *desc = proto->pdesc + proto->psz - 1;
+    return (desc->varg) ? 1 : 0;
   } else {
-    proto->vargs = 0;
-    proto->psz = type->psz;
-    proto->pdesc = String_To_DescList(type->psz, type->pdesc);
+    return 0;
   }
-}
-
-ProtoInfo *ProtoInfo_Dup(ProtoInfo *proto)
-{
-  ProtoInfo *p = malloc(sizeof(ProtoInfo));
-  memcpy(p, proto, sizeof(ProtoInfo));
-  return p;
-}
-
-void Init_CodeInfo(uint8 *codes, int csz, ConstItem *k, int ksz,
-                   CodeInfo *codeinfo)
-{
-  codeinfo->codes = codes;
-  codeinfo->csz = csz;
-  codeinfo->k = k;
-  codeinfo->ksz = ksz;
-}
-
-void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
-                   FuncInfo *funcinfo)
-{
-  funcinfo->proto  = proto;
-  funcinfo->code   = code;
-  funcinfo->locals = locals;
 }
 
 /*-------------------------------------------------------------------------*/
@@ -371,11 +357,11 @@ TypeListItem *TypeListItem_New(int size, int32 index[])
   return item;
 }
 
-VarItem *VarItem_New(int32 name_index, int32 type_index, int flags)
+VarItem *VarItem_New(int32 nameindex, int32 typeindex, int flags)
 {
   VarItem *item = malloc(sizeof(VarItem));
-  item->name_index = name_index;
-  item->type_index = type_index;
+  item->nameindex = nameindex;
+  item->typeindex = typeindex;
   item->flags = flags;
   return item;
 }
@@ -423,34 +409,24 @@ ConstItem *ConstItem_String_New(int32 val)
   return item;
 }
 
-FuncItem *FuncItem_New(int name_index, int proto_index, int access, int vargs,
-                       int rsz, int psz, int locals, int code_index)
+FuncItem *FuncItem_New(int nameindex, int protoindex, int access,
+                       int locvars, int codeindex)
 {
   FuncItem *item = malloc(sizeof(FuncItem));
-  item->name_index = name_index;
-  item->proto_index = proto_index;
+  item->nameindex = nameindex;
+  item->protoindex = protoindex;
   item->access = access;
-  item->vargs = vargs;
-  item->rets = rsz;
-  item->args = psz;
-  item->locals = locals;
-  item->code_index = code_index;
+  item->locvars = locvars;
+  item->codeindex = codeindex;
   return item;
 }
 
-CodeItem *CodeItem_New(CodeInfo *codeinfo)
+CodeItem *CodeItem_New(uint8 *codes, int size)
 {
-  int size = sizeof(CodeItem) + sizeof(uint8) * codeinfo->csz;
-  size = ALIGN_UP(size, sizeof(ConstItem));
-  int koffset = size;
-  size += sizeof(ConstItem) * codeinfo->ksz;
-  CodeItem *item = malloc(size);
+  int sz = sizeof(CodeItem) + sizeof(uint8) * size;
+  CodeItem *item = calloc(1, sz);
   item->size = size;
-  item->csz = codeinfo->csz;
-  memcpy(item->codes, codeinfo->codes, codeinfo->csz);
-  item->ksz = codeinfo->ksz;
-  memcpy((char *)item + koffset, codeinfo->k,
-         sizeof(ConstItem) * codeinfo->ksz);
+  memcpy(item->codes, codes, size);
   return item;
 }
 
@@ -617,12 +593,14 @@ int ConstItem_Set_Bool(AtomTable *table, int val)
   return index;
 }
 
-int ConstItem_Set_String(AtomTable *table, int32 val)
+int ConstItem_Set_String(AtomTable *table, char *str)
 {
-  ConstItem k = CONST_STRVAL_INIT(val);
+  int32 idx = StringItem_Set(table, str);
+  ASSERT(idx >= 0);
+  ConstItem k = CONST_STRVAL_INIT(idx);
   int index = ConstItem_Get(table, &k);
   if (index < 0) {
-    ConstItem *item = ConstItem_String_New(val);
+    ConstItem *item = ConstItem_String_New(idx);
     index = AtomTable_Append(table, ITEM_CONST, item, 1);
   }
   return index;
@@ -630,9 +608,9 @@ int ConstItem_Set_String(AtomTable *table, int32 val)
 
 /*-------------------------------------------------------------------------*/
 
-static int codeitem_set(AtomTable *table, CodeInfo *codeinfo)
+static int codeitem_set(AtomTable *table, uint8 *codes, int size)
 {
-  CodeItem *item = CodeItem_New(codeinfo);
+  CodeItem *item = CodeItem_New(codes, size);
   return AtomTable_Append(table, ITEM_CODE, item, 0);
 }
 
@@ -855,11 +833,11 @@ void varitem_show(AtomTable *table, void *o)
   StringItem *str2;
   TypeItem *type;
 
-  printf("  name_index:%d\n", item->name_index);
-  str1 = AtomTable_Get(table, ITEM_STRING, item->name_index);
+  printf("  name_index:%d\n", item->nameindex);
+  str1 = AtomTable_Get(table, ITEM_STRING, item->nameindex);
   printf("  (%s)\n", str1->data);
-  printf("  type_index:%d\n", item->type_index);
-  type = AtomTable_Get(table, ITEM_TYPE, item->type_index);
+  printf("  type_index:%d\n", item->typeindex);
+  type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
   if (type->kind == TYPE_USERDEF) {
     str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
     str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
@@ -1242,16 +1220,15 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
   AtomTable_Append(image->table, ITEM_VAR, varitem, 0);
 }
 
-void KImage_Add_Func(KImage *image, char *name, FuncInfo *info)
+void KImage_Add_Func(KImage *image, char *name, ProtoInfo *proto, int locvars,
+                     uint8 *codes, int csz)
 {
   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  int name_index = StringItem_Set(image->table, name);
-  int proto_index = ProtoItem_Set(image->table, info->proto);
-  int code_index = codeitem_set(image->table, info->code);
-  FuncItem *funcitem = FuncItem_New(name_index, proto_index, access,
-                                    info->proto->vargs,
-                                    info->proto->rsz, info->proto->psz,
-                                    info->locals, code_index);
+  int nameindex = StringItem_Set(image->table, name);
+  int protoindex = ProtoItem_Set(image->table, proto);
+  int codeindex = codeitem_set(image->table, codes, csz);
+  FuncItem *funcitem = FuncItem_New(nameindex, protoindex, access,
+                                    locvars, codeindex);
   AtomTable_Append(image->table, ITEM_FUNC, funcitem, 0);
 }
 

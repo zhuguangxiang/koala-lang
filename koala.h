@@ -7,7 +7,7 @@
 #include "tupleobject.h"
 #include "tableobject.h"
 #include "moduleobject.h"
-#include "methodobject.h"
+#include "codeobject.h"
 #include "routine.h"
 #include "buffer.h"
 

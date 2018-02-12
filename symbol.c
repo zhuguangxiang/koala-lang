@@ -33,8 +33,6 @@ static int symbol_equal(void *k1, void *k2)
 
 /*-------------------------------------------------------------------------*/
 
-#define SYM_ATOM_MAX (ITEM_CONST + 1)
-
 static HashTable *__get_hashtable(SymTable *stbl)
 {
   if (stbl->htbl == NULL) {
@@ -51,7 +49,7 @@ int STbl_Init(SymTable *stbl, AtomTable *atbl)
   if (atbl == NULL) {
     HashInfo hashinfo;
     Init_HashInfo(&hashinfo, item_hash, item_equal);
-    stbl->atbl = AtomTable_New(&hashinfo, SYM_ATOM_MAX);
+    stbl->atbl = AtomTable_New(&hashinfo, ITEM_MAX);
   } else {
     stbl->atbl = atbl;
   }
@@ -102,7 +100,7 @@ Symbol *STbl_Add_Proto(SymTable *stbl, char *name, ProtoInfo *proto)
   ASSERT(idx >= 0);
   sym->desc = idx;
   TypeDesc *type = TypeDesc_New(TYPE_PROTO);
-  type->proto = ProtoInfo_Dup(proto);
+  type->proto = proto;
   sym->type = type;
   return sym;
 }

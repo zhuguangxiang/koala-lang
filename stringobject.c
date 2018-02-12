@@ -86,8 +86,8 @@ static Object *__string_tostring(Object *ob, Object *args)
 }
 
 static FuncDef string_funcs[] = {
-  {"Length", {1, "i", 0, NULL}, __string_length},
-  {"ToString", {1, "s", 0, NULL}, __string_tostring},
+  {"Length", 1, "i", 0, NULL, __string_length},
+  {"ToString", 1, "s", 0, NULL, __string_tostring},
   {NULL}
 };
 

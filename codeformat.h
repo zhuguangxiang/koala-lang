@@ -100,40 +100,34 @@ ConstItem *ConstItem_Bool_New(int val);
 ConstItem *ConstItem_String_New(int32 val);
 
 typedef struct var_item {
-  int32 name_index;  //->StringItem
-  int32 type_index;  //->TypeItem
-  int32 flags;       //access
+  int32 nameindex;  //->StringItem
+  int32 typeindex;  //->TypeItem
+  int32 flags;      //access
 #define VAR_FLAG_PUBLIC   0
 #define VAR_FLAG_PRIVATE  1
 #define VAR_FLAG_CONST    2
 } VarItem;
 
 typedef struct func_item {
-  int32 name_index;   //->StringItem
-  int32 proto_index;  //->ProtoItem
-  int8 access;        //access
-  int8 vargs;         //variable args
-  int16 rets;         //number of returns
-  int16 args;         //number of parameters
-  int16 locals;       //number of lcoal variabls
-  int32 code_index;   //->CodeItem
+  int32 nameindex;  //->StringItem
+  int32 protoindex; //->ProtoItem
+  int16 access;     //access
+  int16 locvars;    //number of lcoal variables
+  int32 codeindex;  //->CodeItem
 } FuncItem;
 
 typedef struct code_item {
-  uint32 size; //includes sizeof(CodeItem)
-  uint32 ksz;
-  uint32 koffset;
-  uint32 csz;
+  int32 size;
   uint8 codes[0];
 } CodeItem;
 
-typedef struct struct_item {
-  int32 name_index;    //->StringItem
-  int32 pname_index;   //->StringItem
-  int flags;
-  int32 fields_off;    //->FieldListItem
-  int32 methods_off;   //->MethodListItem
-} StructItem;
+// typedef struct struct_item {
+//   int32 name_index;    //->StringItem
+//   int32 pname_index;   //->StringItem
+//   int flags;
+//   int32 fields_off;    //->FieldListItem
+//   int32 methods_off;   //->MethodListItem
+// } StructItem;
 
 // typedef VarItem FieldItem;
 // typedef FuncItem MethodItem;
@@ -181,8 +175,9 @@ typedef struct protoinfo ProtoInfo;
 
 /* Type's descriptor */
 typedef struct typedesc {
-  short dims;
-  short kind;
+  int8 varg;
+  int8 dims;
+  int16 kind;
   union {
     char primitive;
     struct {
@@ -193,11 +188,18 @@ typedef struct typedesc {
   };
 } TypeDesc;
 
-#define INIT_PRIMITIVE_DESC(desc, d, p) do { \
+struct protoinfo {
+  int rsz;
+  int psz;
+  TypeDesc *rdesc;
+  TypeDesc *pdesc;
+};
+
+#define Init_Primitive_Desc(desc, d, p) do { \
   (desc)->dims = (d); (desc)->kind = TYPE_PRIMITIVE; \
   (desc)->primitive = (p); \
 } while (0)
-#define INIT_USERDEF_DESC(desc, d, fulltype) do { \
+#define Init_UserDef_Desc(desc, d, fulltype) do { \
   (desc)->dims = (d); (desc)->kind = TYPE_USERDEF; \
   FullType_To_TypeDesc(fulltype, strlen(fulltype), desc); \
 } while (0)
@@ -210,49 +212,8 @@ int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr);
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2);
 char *TypeDesc_ToString(TypeDesc *desc);
 void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc);
-
-/*-------------------------------------------------------------------------*/
-
-struct protoinfo {
-  int rsz;
-  int psz;
-  int vargs;
-  TypeDesc *rdesc;
-  TypeDesc *pdesc;
-};
-
-typedef struct codeinfo {
-  int csz;
-  uint8 *codes;
-  int ksz;
-  ConstItem *k;
-} CodeInfo;
-
-typedef struct functype {
-  int rsz;
-  char *rdesc;
-  int psz;
-  char *pdesc;
-} FuncType;
-
-typedef struct funcinfo {
-  ProtoInfo *proto;
-  CodeInfo *code;
-  int locals;
-} FuncInfo;
-
-#define DECL_FUNCTYPE_INIT(name, rsz, rdesc, psz, pdesc) \
-  FuncType name = {rsz, rdesc, psz, pdesc}
-#define INIT_FUNCTYPE(name, _rsz, _rdesc, _psz, _pdesc) do {\
-  (name)->rsz = (_rsz); (name)->rdesc = (_rdesc); \
-  (name)->psz = (_psz); (name)->pdesc = (_pdesc); \
-} while (0)
-void Init_ProtoInfo(FuncType *type, ProtoInfo *proto);
-ProtoInfo *ProtoInfo_Dup(ProtoInfo *proto);
-void Init_CodeInfo(uint8 *codes, int csz, ConstItem *k, int ksz,
-                   CodeInfo *codeinfo);
-void Init_FuncInfo(ProtoInfo *proto, CodeInfo *code, int locals,
-                   FuncInfo *funcinfo);
+ProtoInfo *ProtoInfo_New(int rsz, char *rdesc, int psz, char *pdesc);
+int ProtoInfo_With_Vargs(ProtoInfo *proto);
 
 /*-------------------------------------------------------------------------*/
 
@@ -264,7 +225,8 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
   __KImage_Add_Var(image, name, desc, 0)
 #define KImage_Add_Const(image, name, desc) \
   __KImage_Add_Var(image, name, desc, 1)
-void KImage_Add_Func(KImage *image, char *name, FuncInfo *info);
+void KImage_Add_Func(KImage *image, char *name, ProtoInfo *proto, int locvars,
+                     uint8 *codes, int csz);
 void KImage_Write_File(KImage *image, char *path);
 KImage *KImage_Read_File(char *path);
 void KImage_Show(KImage *image);
@@ -290,7 +252,7 @@ int ConstItem_Get(AtomTable *table, ConstItem *item);
 int ConstItem_Set_Int(AtomTable *table, int64 val);
 int ConstItem_Set_Float(AtomTable *table, float64 val);
 int ConstItem_Set_Bool(AtomTable *table, int val);
-int ConstItem_Set_String(AtomTable *table, int32 val);
+int ConstItem_Set_String(AtomTable *table, char *str);
 uint32 item_hash(void *key);
 int item_equal(void *k1, void *k2);
 void AtomTable_Show(AtomTable *table);

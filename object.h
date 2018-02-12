@@ -3,7 +3,6 @@
 #define _KOALA_OBJECT_H_
 
 #include "common.h"
-#include "codeformat.h"
 #include "symbol.h"
 
 #ifdef __cplusplus
@@ -28,7 +27,7 @@ typedef struct value {
     int64 ival;
     float64 fval;
     int bval;
-    struct object *ob;
+    Object *ob;
     char *cstr;
   };
 } TValue;
@@ -168,6 +167,25 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth);
 Object *Klass_Get_Method(Klass *klazz, char *name);
 #define Klass_STable(ob) (&((Klass *)(ob))->stbl)
+
+/*-------------------------------------------------------------------------*/
+
+/*
+  All functions's proto, including c function and koala function
+  'args' and 'return' are both Tuple.
+ */
+typedef Object *(*cfunc)(Object *ob, Object *args);
+
+typedef struct funcdef {
+  char *name;
+  int rsz;
+  char *rdesc;
+  int psz;
+  char *pdesc;
+  cfunc fn;
+} FuncDef;
+
+int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);
 
 #ifdef __cplusplus
 }

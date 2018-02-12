@@ -12,11 +12,11 @@ int main(int argc, char *argv[])
 
   KImage *image = KImage_New("lang");
   TypeDesc desc;
-  INIT_USERDEF_DESC(&desc, 0, "koala/lang.String");
+  Init_UserDef_Desc(&desc, 0, "koala/lang.String");
   KImage_Add_Var(image, "greeting", &desc);
-  INIT_USERDEF_DESC(&desc, 0, "koala/lang.Integer");
+  Init_UserDef_Desc(&desc, 0, "koala/lang.Integer");
   KImage_Add_Var(image, "message", &desc);
-  INIT_PRIMITIVE_DESC(&desc, 0, PRIMITIVE_FLOAT);
+  Init_Primitive_Desc(&desc, 0, PRIMITIVE_FLOAT);
   KImage_Add_Var(image, "weight", &desc);
   KImage_Finish(image);
 

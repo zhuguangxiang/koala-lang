@@ -1,6 +1,6 @@
 
+#include "codeobject.h"
 #include "stringobject.h"
-#include "methodobject.h"
 #include "moduleobject.h"
 #include "log.h"
 
@@ -184,22 +184,12 @@ int Klass_Add_Method(Klass *klazz, char *name, ProtoInfo *proto, Object *meth)
   return -1;
 }
 
-// int Klass_Add_IProto(Klass *klazz, char *name, char *rdesc, char *pdesc)
-// {
-//   OB_ASSERT_KLASS(klazz, Klass_Klass);
-//   int name_index = StringItem_Set(klazz->atbl, name, strlen(name));
-//   int desc_index = ProtoItem_Set(klazz->atbl, rdesc, pdesc, NULL, NULL);
-//   Symbol *sym = Symbol_New(name_index, SYM_IMETHOD, access, desc_index);
-//   sym->index = klazz->avail_index++;
-//   return HashTable_Insert(__get_table(klazz), &sym->hnode);
-// }
-
 Object *Klass_Get_Method(Klass *klazz, char *name)
 {
   Symbol *s = STbl_Get(&klazz->stbl, name);
   if (s == NULL) return NULL;
   if (s->kind != SYM_PROTO) return NULL;
-  OB_ASSERT_KLASS(s->obj, Method_Klass);
+  OB_ASSERT_KLASS(s->obj, Code_Klass);
   return s->obj;
 }
 
@@ -208,12 +198,12 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
   int res;
   FuncDef *f = funcs;
   Object *meth;
-  ProtoInfo proto;
+  ProtoInfo *proto;
 
   while (f->name != NULL) {
-    Init_ProtoInfo(&f->type, &proto);
-    meth = CFunc_New(f->fn, &proto);
-    res = Klass_Add_Method(klazz, f->name, &proto, meth);
+    proto = ProtoInfo_New(f->rsz, f->rdesc, f->psz, f->pdesc);
+    meth = CFunc_New(f->fn);
+    res = Klass_Add_Method(klazz, f->name, proto, meth);
     ASSERT(res == 0);
     ++f;
   }

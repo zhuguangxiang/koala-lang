@@ -45,7 +45,7 @@ void test_object(void)
   KLASS_ASSERT(klazz, Tuple_Klass);
   ob = Klass_Get_Method(klazz, "Get");
   ASSERT_PTR(ob);
-  OB_ASSERT_KLASS(ob, Method_Klass);
+  OB_ASSERT_KLASS(ob, Code_Klass);
 }
 
 int main(int argc, char *argv[]) {

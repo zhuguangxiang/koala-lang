@@ -111,8 +111,6 @@ static void Init_Lang_Module(void)
   Module_Add_Class(ob, &String_Klass);
   Module_Add_Class(ob, &Tuple_Klass);
   Module_Add_Class(ob, &Table_Klass);
-  Module_Add_Class(ob, &Module_Klass);
-  Module_Add_Class(ob, &Method_Klass);
   Init_String_Klass();
   Init_Tuple_Klass();
   Init_Table_Klass();

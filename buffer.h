@@ -27,6 +27,7 @@ int Buffer_Init(Buffer *buf, int bsize);
 int Buffer_Fini(Buffer *buf);
 int Buffer_Write(Buffer *buf, uint8 *data, int sz);
 uint8 *Buffer_RawData(Buffer *buf);
+#define Buffer_Size(buf)  ((buf)->size)
 
 static inline int Buffer_Write_Byte(Buffer *buf, uint8 data)
 {

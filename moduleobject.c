@@ -26,12 +26,17 @@ int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
   return (sym != NULL) ? 0 : -1;
 }
 
-int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth)
+int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *code)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *sym = STbl_Add_Proto(&mob->stbl, name, proto);
   if (sym != NULL) {
-    sym->obj = meth;
+    sym->obj = code;
+    if (CODE_ISKFUNC(code)) {
+      CodeObject *co = OB_TYPE_OF(code, CodeObject, Code_Klass);
+      co->kf.stbl = &mob->stbl;
+      co->kf.proto = proto;
+    }
     return 0;
   }
   return -1;
@@ -39,10 +44,9 @@ int Module_Add_Func(Object *ob, char *name, ProtoInfo *proto, Object *meth)
 
 int Module_Add_CFunc(Object *ob, FuncDef *f)
 {
-  ProtoInfo proto;
-  Init_ProtoInfo(&f->type, &proto);
-  Object *meth = CFunc_New(f->fn, &proto);
-  return Module_Add_Func(ob, f->name, &proto, meth);
+  ProtoInfo *proto = ProtoInfo_New(f->rsz, f->rdesc, f->psz, f->pdesc);
+  Object *code = CFunc_New(f->fn);
+  return Module_Add_Func(ob, f->name, proto, code);
 }
 
 int Module_Add_Class(Object *ob, Klass *klazz)
@@ -82,7 +86,7 @@ static int __get_value_index(ModuleObject *mob, char *name)
   return -1;
 }
 
-Object *__get_tuple(ModuleObject *mob)
+static Object *__get_tuple(ModuleObject *mob)
 {
   if (mob->tuple == NULL) {
     mob->tuple = Tuple_New(mob->stbl.next);
@@ -98,22 +102,11 @@ TValue Module_Get_Value(Object *ob, char *name)
   return Tuple_Get(__get_tuple(mob), index);
 }
 
-TValue Module_Get_Value_ByIndex(Object *ob, int index)
-{
-  ModuleObject *mob = OBJ_TO_MOD(ob);
-  return Tuple_Get(__get_tuple(mob), index);
-}
-
 int Module_Set_Value(Object *ob, char *name, TValue *val)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
-  return Tuple_Set(__get_tuple(mob), index, val);
-}
-
-int Module_Set_Value_ByIndex(Object *ob, int index, TValue *val)
-{
-  ModuleObject *mob = OBJ_TO_MOD(ob);
+  ASSERT(index >= 0);
   return Tuple_Set(__get_tuple(mob), index, val);
 }
 
@@ -205,6 +198,7 @@ static void symbol_visit(Symbol *sym, void *arg)
   }
 }
 
+/* for compiler only */
 SymTable *Module_Get_STable(Object *ob, AtomTable *atbl)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);

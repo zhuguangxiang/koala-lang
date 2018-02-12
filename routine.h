@@ -9,80 +9,67 @@
 extern "C" {
 #endif
 
-#define VALUE_STACK_SIZE  32
-typedef struct valuestack {
+#define STACK_SIZE  32
+
+typedef struct frame Frame;
+
+typedef struct routine {
+  struct task task;
+  struct list_head link;
+  Frame *frame;
+  struct list_head frames;
   int top;
-  TValue stack[VALUE_STACK_SIZE];
-} ValueStack;
+  TValue stack[STACK_SIZE];
+} Routine;
 
-static inline TValue *ValueStack_Top(ValueStack *vs)
-{
-  ASSERT(vs->top >= -1 && vs->top < (nr_elts(vs->stack) - 1));
-  if (vs->top >= 0) return vs->stack + vs->top;
-  else return NULL;
-}
+struct frame {
+  struct list_head link;
+  Routine *rt;
+  Object *code;
+  int pc;
+  int size;
+  TValue locvars[0];
+};
 
-static inline TValue ValueStack_Pop(ValueStack *vs)
+/* Exported APIs */
+Routine *Routine_New(Object *code, Object *obj, Object *args);
+void Routine_Run(Routine *rt, int prio);
+int Routine_State(Routine *rt);
+
+/*-------------------------------------------------------------------------*/
+
+static inline TValue rt_stack_top(Routine *rt)
 {
-  ASSERT(vs->top >= -1 && vs->top < (nr_elts(vs->stack) - 1));
-  if (vs->top >= 0) return vs->stack[vs->top--];
+  ASSERT(rt->top >= -1 && rt->top <= STACK_SIZE-1);
+  if (rt->top >= 0) return rt->stack[rt->top];
   else return NilValue;
 }
 
-static inline void ValueStack_Push(ValueStack *vs, TValue *v)
+static inline TValue rt_stack_pop(Routine *rt)
 {
-  ASSERT(vs->top >= -1 && vs->top < (nr_elts(vs->stack) - 1));
-  vs->stack[++vs->top] = *v;
+  ASSERT(rt->top >= -1 && rt->top <= STACK_SIZE-1);
+  if (rt->top >= 0) return rt->stack[rt->top--];
+  else return NilValue;
 }
 
-static inline int ValueStack_Size(ValueStack *vs)
+static inline void rt_stack_push(Routine *rt, TValue *v)
 {
-  ASSERT(vs->top >= -1 && vs->top < (nr_elts(vs->stack) - 1));
-  return vs->top + 1;
+  ASSERT(rt->top >= -1 && rt->top < STACK_SIZE-1);
+  rt->stack[++rt->top] = *v;
 }
 
-static inline void Value_Stack_Init(ValueStack *vs)
+static inline int rt_stack_size(Routine *rt)
 {
-  vs->top = -1;
-  for (int i = 0; i < nr_elts(vs->stack); i++)
-    initnilvalue(vs->stack + i);
+  ASSERT(rt->top >= -1 && rt->top <= STACK_SIZE-1);
+  return rt->top + 1;
 }
-/*-------------------------------------------------------------------------*/
 
-typedef struct routine {
-  OBJECT_HEAD
-  struct task task;
-  struct list_head link;
-  struct list_head frames;
-  Object *func;
-  ValueStack stack;
-} Routine;
-
-#define FRAME_READY   1
-#define FRAME_RUNNING 2
-#define FRAME_EXIT    3
-
-typedef struct frame {
-  OBJECT_HEAD
-  struct list_head link;
-  int state;
-  Routine *rt;
-  Object *func;
-  int pc;
-  int size;
-  TValue locals[0];
-} Frame;
-
-/* Exported APIs */
-extern Klass Routine_Klass;
-extern Klass Frame_Klass;
-Routine *Routine_New(Object *func, Object *obj, Object *args);
-void Routine_Run(Routine *rt, short prio);
-int Routine_State(Routine *rt);
-void Frame_Loop(Frame *frame);
-Frame *Frame_New(Object *func);
-void Frame_Free(Frame *frame);
-void Routine_Add_Frame(Routine *rt, Frame *f);
+static inline void rt_stack_init(Routine *rt)
+{
+  rt->top = -1;
+  for (int i = 0; i <= STACK_SIZE-1; i++)
+    initnilvalue(rt->stack + i);
+}
 
 #ifdef __cplusplus
 }
