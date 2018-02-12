@@ -211,8 +211,19 @@ TypeDesc *TypeDesc_From_PkgPath(char *path)
   return type;
 }
 
+static inline int TypeDesc_IsAny(TypeDesc *t)
+{
+  if ((t->kind == TYPE_PRIMITIVE) && (t->primitive == PRIMITIVE_ANY))
+    return 1;
+  else
+    return 0;
+}
+
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 {
+  if (TypeDesc_IsAny(t1) || TypeDesc_IsAny(t2))
+    return 1;
+
   if (t1->kind != t2->kind) return 0;
   if (t1->dims != t2->dims) return 0;
 
@@ -705,29 +716,33 @@ int typeitem_equal(void *k1, void *k2)
   return 1;
 }
 
-void array_show(int dims)
+char *array_string(int dims)
 {
-  int newline = dims;
-  while (dims-- > 0) printf("  []");
-  if (newline > 0) puts(""); /* with newline */
+  char *data = malloc(dims * 2 + 1);
+  int i = 0;
+  while (dims-- > 0) {
+    data[i] = '['; data[i+1] = ']';
+    i += 2;
+  }
+  data[i] = '\0';
+  return data;
 }
 
 void typeitem_show(AtomTable *table, void *o)
 {
   TypeItem *item = o;
-
+  char *arrstr = array_string(item->dims);
   if (item->kind == TYPE_USERDEF) {
-    array_show(item->dims);
     StringItem *str = AtomTable_Get(table, ITEM_STRING, item->pathindex);
     printf("  pathindex:%d\n", item->pathindex);
     printf("  (%s)\n", str->data);
     str = AtomTable_Get(table, ITEM_STRING, item->typeindex);
     printf("  typeindex:%d\n", item->typeindex);
-    printf("  (%s)\n", str->data);
+    printf("  (%s%s)\n", arrstr, str->data);
   } else if (item->kind == TYPE_PRIMITIVE) {
-    array_show(item->dims);
-    printf("  (%s)\n", primitive_tostring(item->primitive));
+    printf("  (%s%s)\n", arrstr, primitive_tostring(item->primitive));
   }
+  free(arrstr);
 }
 
 int typelistitem_length(void *o)
