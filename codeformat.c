@@ -1065,16 +1065,18 @@ void constitem_show(AtomTable *table, void *o)
   ConstItem *item = o;
   switch (item->type) {
     case CONST_INT:
-      printf("    %lld\n", item->ival);
+      printf("  int:%lld\n", item->ival);
       break;
     case CONST_FLOAT:
-      printf("    %f\n", item->fval);
+      printf("  float:%f\n", item->fval);
       break;
     case CONST_BOOL:
-      printf("    %s\n", item->bval ? "true" : "false");
+      printf("  bool:%s\n", item->bval ? "true" : "false");
       break;
     case CONST_STRING:
-      printf("    %d\n", item->index);
+      printf("  index:%d\n", item->index);
+      StringItem *str = AtomTable_Get(table, ITEM_STRING, item->index);
+      printf("  (str:%s)\n", str->data);
       break;
     default:
       ASSERT(0);
