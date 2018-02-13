@@ -51,8 +51,8 @@ static void visit_import(HashNode *hnode, void *arg)
 {
   Symbol *sym = container_of(hnode, Symbol, hnode);
   if (sym->refcnt == 0) {
-    error("package '%s <- %s' is never used",
-          sym->str, TypeDesc_ToString(sym->type));
+    warn("package '%s <- %s' is never used",
+         sym->str, TypeDesc_ToString(sym->type));
   }
 }
 
@@ -60,6 +60,32 @@ static void check_imports(ParserState *ps)
 {
   SymTable *stbl = &ps->extstbl;
   HashTable_Traverse(stbl->htbl, visit_import, NULL);
+}
+
+static void visit_symbol(HashNode *hnode, void *arg)
+{
+  Symbol *sym = container_of(hnode, Symbol, hnode);
+  if ((sym->access == ACCESS_PRIVATE) && (sym->refcnt == 0)) {
+    if (sym->kind == SYM_VAR) {
+      warn("variable '%s' is never used", sym->str);
+    } else if (sym->kind == SYM_PROTO) {
+      warn("function '%s' is never used", sym->str);
+    }
+  }
+}
+
+static void check_variables(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+  ASSERT_PTR(u);
+  SymTable *stbl = &u->stbl;
+  HashTable_Traverse(stbl->htbl, visit_symbol, NULL);
+}
+
+static void check_unused_symbols(ParserState *ps)
+{
+  check_imports(ps);
+  check_variables(ps);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -186,7 +212,6 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 
 void parse_dotaccess(ParserState *ps, struct expr *exp)
 {
-  debug("dot expr");
   struct expr *left = exp->attribute.left;
   left->ctx = CTX_LOAD;
   parser_visit_expr(ps, left);
@@ -264,7 +289,6 @@ static int check_call_args(Proto *proto, Vector *vec)
 
 void parse_call(ParserState *ps, struct expr *exp)
 {
-  debug("call expr");
   struct expr *left = exp->call.left;
   left->ctx = CTX_LOAD;
   parser_visit_expr(ps, left);
@@ -332,6 +356,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       break;
     }
     case BINARY_KIND: {
+      debug("binary_op:%d", exp->bin_op.op);
       parser_visit_expr(ps, exp->bin_op.left);
       exp->type = exp->bin_op.left->type;
       parser_visit_expr(ps, exp->bin_op.right);
@@ -407,6 +432,7 @@ static void parser_exit_scope(ParserState *ps)
   printf("-------------------------\n");
   printf("scope-%d symbols:\n", ps->nestlevel);
   STbl_Show(&ps->u->stbl, 0);
+  check_unused_symbols(ps);
   printf("-------------------------\n");
 
   ps->nestlevel--;
@@ -469,6 +495,11 @@ void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
     ParserUnit *parent = parent_scope(ps);
     ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
     STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
+    if (exp != NULL) {
+      parser_visit_expr(ps, exp);
+      if (!TypeDesc_Check(var->type, exp->type))
+        error("typecheck failed");
+    }
   } else if (u->scope == SCOPE_BLOCK) {
     debug("parse block vardecl");
     ASSERT(!list_empty(&ps->ustack));
@@ -754,4 +785,5 @@ void parse_module(ParserState *ps, struct mod *mod)
   printf("package:%s\n", ps->package);
   STbl_Show(&ps->u->stbl, 1);
   check_imports(ps);
+  check_unused_symbols(ps);
 }
