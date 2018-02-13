@@ -49,9 +49,8 @@ static void init_imports(ParserState *ps)
   sym->refcnt++;
 }
 
-static void visit_import(HashNode *hnode, void *arg)
+static void import_visit_symbol(Symbol *sym, void *arg)
 {
-  Symbol *sym = container_of(hnode, Symbol, hnode);
   if (sym->refcnt == 0) {
     warn("package '%s <- %s' is never used",
          sym->str, TypeDesc_ToString(sym->type));
@@ -60,13 +59,13 @@ static void visit_import(HashNode *hnode, void *arg)
 
 static void check_imports(ParserState *ps)
 {
-  SymTable *stbl = &ps->extstbl;
-  HashTable_Traverse(stbl->htbl, visit_import, NULL);
+  STbl_Traverse(&ps->extstbl, import_visit_symbol, NULL);
 }
 
-static void visit_symbol(HashNode *hnode, void *arg)
+static void check_visit_symbol(Symbol *sym, void *arg)
 {
-  Symbol *sym = container_of(hnode, Symbol, hnode);
+  UNUSED_PARAMETER(arg);
+
   if ((sym->access == ACCESS_PRIVATE) && (sym->refcnt == 0)) {
     if (sym->kind == SYM_VAR) {
       warn("variable '%s' is never used", sym->str);
@@ -80,8 +79,7 @@ static void check_variables(ParserState *ps)
 {
   ParserUnit *u = ps->u;
   ASSERT_PTR(u);
-  SymTable *stbl = &u->stbl;
-  HashTable_Traverse(stbl->htbl, visit_symbol, NULL);
+  STbl_Traverse(&u->stbl, check_visit_symbol, NULL);
 }
 
 static void check_unused_symbols(ParserState *ps)
