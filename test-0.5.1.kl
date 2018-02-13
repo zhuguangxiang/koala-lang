@@ -1,38 +1,9 @@
 
 package test;
 
+import "koala/lang";  //warn: load duplicated
 import "koala/io";
-import "github.com/nio";    // error: load failed
-import "koala/io";          // error: load duplicated
-import lang2 "koala/lang";  // error: load duplicated
 
-var array []string = nil;
-var greeting = string("hello, world");
-var good lang.String = "good luck";
-const ARRAY_SIZE = 4096;
-var a, b int = 100, 100;
-var good = "good luck";     // error: redefined
-
-var tuple lang.Tuple;
-var array lang.Array;
-var table lang.Table;
-
-func Main(args []string) {
+func Main(args []string) {  //warn: args is unused
   io.Print("hello, world\n");
-}
-
-func Sub(a int, b int) int {
-  //100 = 200;    // error: cannot assign to 100
-  return a - b;
-}
-
-func Add(a int, b int) (int) {
-  var r int = a + b;
-  return r;
-}
-
-func check() {
-  tuple.Get(100);
-  array.Size();
-  table.Put();
 }
