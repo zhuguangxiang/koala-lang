@@ -2,6 +2,8 @@
 #ifndef _KOALA_OPCODE_H_
 #define _KOALA_OPCODE_H_
 
+#include "common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -157,6 +159,8 @@ extern "C" {
 #define OP2_SUB   54
 #define OP2_MUL   55
 #define OP2_DIV   56
+
+char *OPCode_ToString(uint8 op);
 
 #ifdef __cplusplus
 }

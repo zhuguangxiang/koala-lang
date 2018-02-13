@@ -31,7 +31,7 @@ int Vector_Concat(Vector *dest, Vector *src);
 #define Vector_ForEach(item, type, vec) \
   type *item; \
   if ((vec) != NULL) \
-    for (int i = 0, f; f = (i < (vec)->size), item = (vec)->items[i], f; i++)
+    for (int i = 0; (i >= (vec)->size) ? 0 : (item = (vec)->items[i]); i++)
 
 #ifdef __cplusplus
 }

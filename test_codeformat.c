@@ -22,5 +22,8 @@ int main(int argc, char *argv[])
 
   KImage_Show(image);
   KImage_Write_File(image, "lang.klc");
+
+  image = KImage_Read_File("lang.klc");
+  KImage_Show(image);
   return 0;
 }

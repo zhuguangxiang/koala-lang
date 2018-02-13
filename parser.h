@@ -21,22 +21,10 @@ typedef struct error {
   int line;
 } Error;
 
-typedef struct instr {
-  uint8 opcode;
-  uint32 oparg;
-} Instr;
-
-typedef struct codeblock {
-  struct list_head link;
-  /* upper code block for seraching symbols */
-  struct codeblock *up;
-  /* symbol table */
-  SymTable stbl;
-  /* struct instr list */
-  Vector instvec;
-  /* true if a OP_RET opcode is inserted. */
-  int bret;
-} CodeBlock;
+typedef struct inst {
+  uint8 op;
+  TValue val;
+} Inst;
 
 enum {
   SCOPE_MODULE = 1,
@@ -48,10 +36,11 @@ enum {
 typedef struct parserunit {
   int scope;
   struct list_head link;
-  Proto proto;
+  Symbol *sym;
   SymTable stbl;
-  CodeBlock *block;
-  struct list_head blocks;
+  Vector insts;
+   /* true if a OP_RET opcode is inserted. */
+  int bret;
 } ParserUnit;
 
 typedef struct parserstate {

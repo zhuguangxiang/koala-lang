@@ -339,6 +339,13 @@ StringItem *StringItem_New(char *name)
   return item;
 }
 
+StringItem *StringItem_New_Empty(int len)
+{
+  StringItem *item = malloc(sizeof(StringItem) + len);
+  item->length = len;
+  return item;
+}
+
 TypeItem *TypeItem_Primitive_New(int dims, char primitive)
 {
   TypeItem *item = malloc(sizeof(TypeItem));
@@ -358,6 +365,13 @@ TypeItem *TypeItem_Defined_New(int dims, int32 pathindex, int32 typeindex)
   return item;
 }
 
+TypeItem *TypeItem_Copy(TypeItem *i)
+{
+  TypeItem *item = malloc(sizeof(TypeItem));
+  memcpy(item, i, sizeof(TypeItem));
+  return item;
+}
+
 TypeListItem *TypeListItem_New(int size, int32 index[])
 {
   TypeListItem *item = malloc(sizeof(TypeListItem) + size * sizeof(int32));
@@ -374,6 +388,13 @@ VarItem *VarItem_New(int32 nameindex, int32 typeindex, int flags)
   item->nameindex = nameindex;
   item->typeindex = typeindex;
   item->flags = flags;
+  return item;
+}
+
+VarItem *VarItem_Copy(VarItem *v)
+{
+  VarItem *item = malloc(sizeof(VarItem));
+  memcpy(item, v, sizeof(VarItem));
   return item;
 }
 
@@ -1251,9 +1272,11 @@ void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 
 void KImage_Finish(KImage *image)
 {
-  int size, length = 0, offset = image->header.header_size;
+  int size, length = 0, offset;
   MapItem *mapitem;
   void *item;
+
+  offset = image->header.header_size + image->header.pkg_size;
 
   for (int i = 1; i < ITEM_MAX; i++) {
     size = AtomTable_Size(image->table, i);
@@ -1361,11 +1384,57 @@ KImage *KImage_Read_File(char *path)
     return NULL;
   }
 
-  MapItem *mapitem;
+  MapItem *map;
   for (int i = 0; i < nr_elts(mapitems); i++) {
-    mapitem = mapitems + i;
-    mapitem = MapItem_New(mapitem->type, mapitem->offset, mapitem->size);
-    AtomTable_Append(image->table, ITEM_MAP, mapitem, 0);
+    map = mapitems + i;
+    map = MapItem_New(map->type, map->offset, map->size);
+    AtomTable_Append(image->table, ITEM_MAP, map, 0);
+  }
+
+  for (int i = 0; i < nr_elts(mapitems); i++) {
+    map = mapitems + i;
+    sz = fseek(fp, map->offset, SEEK_SET);
+    ASSERT(sz == 0);
+    switch (map->type) {
+      case ITEM_STRING: {
+        StringItem *item;
+        uint32 len;
+        for (int i = 0; i < map->size; i++) {
+          sz = fread(&len, 4, 1, fp);
+          ASSERT(sz == 1);
+          item = StringItem_New_Empty(len);
+          sz = fread(item->data, len, 1, fp);
+          ASSERT(sz == 1);
+          AtomTable_Append(image->table, ITEM_STRING, item, 1);
+        }
+        break;
+      }
+      case ITEM_TYPE: {
+        TypeItem *item;
+        TypeItem items[map->size];
+        sz = fread(items, sizeof(TypeItem), map->size, fp);
+        ASSERT(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = TypeItem_Copy(items + i);
+          AtomTable_Append(image->table, ITEM_TYPE, item, 1);
+        }
+        break;
+      }
+      case ITEM_VAR: {
+        VarItem *item;
+        VarItem items[map->size];
+        sz = fread(items, sizeof(VarItem), map->size, fp);
+        ASSERT(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = VarItem_Copy(items + i);
+          AtomTable_Append(image->table, ITEM_VAR, item, 0);
+        }
+        break;
+      }
+      default: {
+        ASSERT_MSG(0, "unknown map type:%d", map->type);
+      }
+    }
   }
 
   return image;
@@ -1381,7 +1450,9 @@ void header_show(ImageHeader *h)
   printf("version:%d.%d.%d\n", h->version[0] - '0', h->version[1] - '0', 0);
   printf("header_size:%d\n", h->header_size);
   printf("endian_tag:0x%x\n", h->endian_tag);
+  printf("map_offset:0x%x\n", h->map_offset);
   printf("map_size:%d\n", h->map_size);
+  printf("pkg_size:%d\n", h->pkg_size);
   printf("--------------------\n");
 }
 

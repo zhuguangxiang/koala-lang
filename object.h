@@ -71,6 +71,7 @@ extern TValue FalseValue;
 #define FLOAT_VALUE_INIT(v)   {.type = TYPE_FLOAT,  .fval = (v)}
 #define BOOL_VALUE_INIT(v)    {.type = TYPE_BOOL,   .bval = (v)}
 #define OBJECT_VALUE_INIT(v)  {.type = TYPE_OBJECT, .ob   = (v)}
+#define CSTR_VALUE_INIT(v)    {.type = TYPE_CSTR,   .cstr = (v)}
 
 /* Macros to test type */
 #define VALUE_ISNIL(v)      (VALUE_TYPE(v) == TYPE_NIL)
@@ -104,6 +105,7 @@ TValue Va_Build_Value(char ch, va_list *ap);
 TValue TValue_Build(char ch, ...);
 int Va_Parse_Value(TValue *val, char ch, va_list *ap);
 int TValue_Parse(TValue *val, char ch, ...);
+int TValue_Print(char *buf, int sz, TValue *val);
 
 /*-------------------------------------------------------------------------*/
 

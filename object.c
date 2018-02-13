@@ -239,3 +239,75 @@ Klass Klass_Klass = {
 
   .ob_free = klass_free,
 };
+
+/*-------------------------------------------------------------------------*/
+
+static int NilValue_Print(char *buf, int sz, TValue *val)
+{
+  UNUSED_PARAMETER(val);
+  return snprintf(buf, sz, "(nil)");
+}
+
+static int IntValue_Print(char *buf, int sz, TValue *val)
+{
+  return snprintf(buf, sz, "%lld", VALUE_INT(val));
+}
+
+static int FltValue_Print(char *buf, int sz, TValue *val)
+{
+  return snprintf(buf, sz, "%f", VALUE_FLOAT(val));
+}
+
+static int BoolValue_Print(char *buf, int sz, TValue *val)
+{
+  return snprintf(buf, sz, "%s", VALUE_BOOL(val) ? "true" : "false");
+}
+
+static int ObjValue_Print(char *buf, int sz, TValue *val)
+{
+  Object *ob = VALUE_OBJECT(val);
+  Klass *klazz = OB_KLASS(ob);
+  ob = klazz->ob_tostr(val);
+  OB_ASSERT_KLASS(ob, String_Klass);
+  return snprintf(buf, sz, "%s", String_RawString(ob));
+}
+
+static int CStrValue_Print(char *buf, int sz, TValue *val)
+{
+  return snprintf(buf, sz, "%s", VALUE_CSTR(val));
+}
+
+int TValue_Print(char *buf, int sz, TValue *val)
+{
+  int count = 0;
+  switch (val->type) {
+    case TYPE_NIL: {
+      count = NilValue_Print(buf, sz, val);
+      break;
+    }
+    case TYPE_INT: {
+      count = IntValue_Print(buf, sz, val);
+      break;
+    }
+    case TYPE_FLOAT: {
+      count = FltValue_Print(buf, sz, val);
+      break;
+    }
+    case TYPE_BOOL: {
+      count = BoolValue_Print(buf, sz, val);
+      break;
+    }
+    case TYPE_OBJECT: {
+      count = ObjValue_Print(buf, sz, val);
+      break;
+    }
+    case TYPE_CSTR: {
+      count = CStrValue_Print(buf, sz, val);
+      break;
+    }
+    default: {
+      ASSERT(0);
+    }
+  }
+  return count;
+}

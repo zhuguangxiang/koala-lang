@@ -39,7 +39,7 @@ typedef struct map_item {
   uint16 type;
   uint16 unused;
   uint32 offset;
-  uint32 size;
+  int32 size;
 } MapItem;
 
 typedef struct string_item {
