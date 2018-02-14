@@ -21,32 +21,41 @@ typedef struct error {
   int line;
 } Error;
 
-typedef struct inst {
+typedef struct code {
+  struct list_head link;
   uint8 op;
-  TValue val;
-} Inst;
+  TValue arg;
+} Code;
+
+typedef struct codeblock {
+  char *name; /* for debugging */
+  struct list_head link;
+  STable stbl;
+  struct list_head codes;
+   /* true if a OP_RET opcode is inserted. */
+  int bret;
+} CodeBlock;
 
 enum {
   SCOPE_MODULE = 1,
   SCOPE_CLASS,
   SCOPE_FUNCTION,
-  SCOPE_BLOCK,
+  SCOPE_BLOCK
 };
 
 typedef struct parserunit {
   int scope;
   struct list_head link;
   Symbol *sym;
-  SymTable stbl;
-  Vector insts;
-   /* true if a OP_RET opcode is inserted. */
-  int bret;
+  STable stbl;
+  CodeBlock *block;
 } ParserUnit;
 
 typedef struct parserstate {
+  char *outfile;
   char *package;
   HashTable imports;  /* external types */
-  SymTable extstbl;   /* external symbol table */
+  STable extstbl;   /* external symbol table */
   ParserUnit *u;
   int nestlevel;
   struct list_head ustack;

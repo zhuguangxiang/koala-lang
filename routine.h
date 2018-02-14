@@ -14,7 +14,6 @@ extern "C" {
 typedef struct frame Frame;
 
 typedef struct routine {
-  struct task task;
   struct list_head link;
   Frame *frame;
   struct list_head frames;
@@ -32,9 +31,8 @@ struct frame {
 };
 
 /* Exported APIs */
-Routine *Routine_New(Object *code, Object *obj, Object *args);
-void Routine_Run(Routine *rt, int prio);
-int Routine_State(Routine *rt);
+Routine *Routine_New(Object *code, Object *ob, Object *args);
+void Routine_Run(Routine *rt);
 
 /*-------------------------------------------------------------------------*/
 

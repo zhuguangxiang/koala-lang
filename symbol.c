@@ -33,7 +33,7 @@ static int symbol_equal(void *k1, void *k2)
 
 /*-------------------------------------------------------------------------*/
 
-static HashTable *__get_hashtable(SymTable *stbl)
+static HashTable *__get_hashtable(STable *stbl)
 {
   if (stbl->htbl == NULL) {
     HashInfo hashinfo;
@@ -43,7 +43,7 @@ static HashTable *__get_hashtable(SymTable *stbl)
   return stbl->htbl;
 }
 
-int STbl_Init(SymTable *stbl, AtomTable *atbl)
+int STbl_Init(STable *stbl, AtomTable *atbl)
 {
   stbl->htbl = NULL;
   if (atbl == NULL) {
@@ -57,25 +57,25 @@ int STbl_Init(SymTable *stbl, AtomTable *atbl)
   return 0;
 }
 
-void STbl_Fini(SymTable *stbl)
+void STbl_Fini(STable *stbl)
 {
   UNUSED_PARAMETER(stbl);
 }
 
-SymTable *STbl_New(AtomTable *atbl)
+STable *STbl_New(AtomTable *atbl)
 {
-  SymTable *stbl = malloc(sizeof(SymTable));
+  STable *stbl = malloc(sizeof(STable));
   STbl_Init(stbl, atbl);
   return stbl;
 }
 
-void STbl_Free(SymTable *stbl)
+void STbl_Free(STable *stbl)
 {
   STbl_Fini(stbl);
   free(stbl);
 }
 
-Symbol *STbl_Add_Var(SymTable *stbl, char *name, TypeDesc *desc, bool konst)
+Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, bool konst)
 {
   Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_VAR, konst);
   if (sym == NULL) return NULL;
@@ -91,7 +91,7 @@ Symbol *STbl_Add_Var(SymTable *stbl, char *name, TypeDesc *desc, bool konst)
   return sym;
 }
 
-Symbol *STbl_Add_Proto(SymTable *stbl, char *name, Proto *proto)
+Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto)
 {
   Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_PROTO, 0);
   if (sym == NULL) return NULL;
@@ -105,7 +105,7 @@ Symbol *STbl_Add_Proto(SymTable *stbl, char *name, Proto *proto)
   return sym;
 }
 
-Symbol *STbl_Add_IProto(SymTable *stbl, char *name, Proto *proto)
+Symbol *STbl_Add_IProto(STable *stbl, char *name, Proto *proto)
 {
   Symbol *sym = STbl_Add_Proto(stbl, name, proto);
   if (sym == NULL) return NULL;
@@ -113,7 +113,7 @@ Symbol *STbl_Add_IProto(SymTable *stbl, char *name, Proto *proto)
   return sym;
 }
 
-Symbol *STbl_Add_Symbol(SymTable *stbl, char *name, int kind, bool konst)
+Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, bool konst)
 {
   Symbol *sym = symbol_new();
   idx_t idx = StringItem_Set(stbl->atbl, name);
@@ -130,7 +130,7 @@ Symbol *STbl_Add_Symbol(SymTable *stbl, char *name, int kind, bool konst)
   return sym;
 }
 
-Symbol *STbl_Get(SymTable *stbl, char *name)
+Symbol *STbl_Get(STable *stbl, char *name)
 {
   idx_t index = StringItem_Get(stbl->atbl, name);
   if (index < 0) return NULL;
@@ -157,7 +157,7 @@ static void symbol_visit(HashNode *hnode, void *arg)
   data->fn(sym, data->arg);
 }
 
-void STbl_Traverse(SymTable *stbl, symbolfunc fn, void *arg)
+void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg)
 {
   struct visit_entry data = {fn, arg};
   HashTable_Traverse(stbl->htbl, symbol_visit, &data);
@@ -206,7 +206,7 @@ static void symbol_show(HashNode *hnode, void *arg)
   }
 }
 
-void STbl_Show(SymTable *stbl, int detail)
+void STbl_Show(STable *stbl, int detail)
 {
   HashTable_Traverse(stbl->htbl, symbol_show, stbl);
   if (detail) AtomTable_Show(stbl->atbl);

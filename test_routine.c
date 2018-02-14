@@ -9,8 +9,7 @@ void test_routine(void)
   Object *code = Klass_Get_Method(klazz, "Size");
   Object *tuple = Tuple_New(10);
   Routine *rt = Routine_New(code, tuple, NULL);
-  Routine_Run(rt, PRIO_NORMAL);
-  while (Routine_State(rt) != STATE_DEAD);
+  Routine_Run(rt);
   TValue val = rt_stack_pop(rt);
   ASSERT(VALUE_ISINT(&val));
   printf("size:%lld\n", VALUE_INT(&val));
@@ -28,8 +27,7 @@ void test_routine(void)
   Tuple_Set(args, 0, &val);
 
   rt = Routine_New(code, tuple, args);
-  Routine_Run(rt, PRIO_NORMAL);
-  while (Routine_State(rt) != STATE_DEAD);
+  Routine_Run(rt);
   val = rt_stack_pop(rt);
   ASSERT(VALUE_ISINT(&val));
   printf("int value:%lld\n", VALUE_INT(&val));
@@ -40,8 +38,7 @@ void test_routine(void)
   Tuple_Set(args, 0, &val);
 
   rt = Routine_New(code, tuple, args);
-  Routine_Run(rt, PRIO_NORMAL);
-  while (Routine_State(rt) != STATE_DEAD);
+  Routine_Run(rt);
   val = rt_stack_pop(rt);
   ASSERT(VALUE_ISBOOL(&val));
   printf("bool value:%d\n", VALUE_BOOL(&val));

@@ -171,7 +171,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 
   Symbol *sym = import->sym;
   ASSERT(sym->kind == SYM_STABLE);
-  sym = STbl_Get(sym->obj, desc->type);
+  sym = STbl_Get(sym->stbl, desc->type);
   if (sym != NULL) {
     debug("find '%s.%s'", desc->path, desc->type);
     sym->refcnt++;
@@ -183,50 +183,65 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 }
 
 /*--------------------------------------------------------------------------*/
-static Inst *inst_new(uint8 op, TValue *val)
+
+static inline Code *code_new(uint8 op, TValue *val)
 {
-  Inst *i = malloc(sizeof(Inst));
-  i->op = op;
+  Code *code = malloc(sizeof(Code));
+  init_list_head(&code->link);
+  code->op = op;
   if (val != NULL)
-    i->val = *val;
+    code->arg = *val;
   else
-    initnilvalue(&i->val);
-  return i;
+    initnilvalue(&code->arg);
+  return code;
 }
 
-static void inst_free(void *item, void *arg)
+static inline void code_free(void *item, void *arg)
 {
   UNUSED_PARAMETER(arg);
   free(item);
 }
 
-static void code_insert(ParserState *ps, int index, Inst *inst)
+static CodeBlock *codeblock_new(AtomTable *atbl)
 {
-  ParserUnit *u = ps->u;
-  Vector_Insert(&u->insts, index, inst);
+  CodeBlock *b = calloc(1, sizeof(CodeBlock));
+  init_list_head(&b->link);
+  STbl_Init(&b->stbl, atbl);
+  init_list_head(&b->codes);
+  b->bret = 0;
+  return b;
 }
 
-static void code_append(ParserState *ps, Inst *inst)
+static void codeblock_free(CodeBlock *b)
 {
-  ParserUnit *u = ps->u;
-  Vector_Append(&u->insts, inst);
+
 }
 
-static void code_gen(SymTable *stbl, Buffer *buf, Inst *inst)
+static inline void code_add(CodeBlock *b, Code *code)
+{
+  list_add(&code->link, &b->codes);
+}
+
+static inline void code_add_tail(CodeBlock *b, Code *code)
+{
+  list_add_tail(&code->link, &b->codes);
+}
+
+static void code_gen(AtomTable *atbl, Buffer *buf, Code *code)
 {
   int index;
-  Buffer_Write_Byte(buf, inst->op);
-  switch (inst->op) {
+  Buffer_Write_Byte(buf, code->op);
+  switch (code->op) {
     case OP_HALT: {
       break;
     }
     case OP_LOADK: {
-      index = ConstItem_Set_String(stbl->atbl, inst->val.cstr);
+      index = ConstItem_Set_String(atbl, code->arg.cstr);
       Buffer_Write_4Bytes(buf, index);
       break;
     }
     case OP_LOADM: {
-      index = ConstItem_Set_String(stbl->atbl, inst->val.cstr);
+      index = ConstItem_Set_String(atbl, code->arg.cstr);
       Buffer_Write_4Bytes(buf, index);
       break;
     }
@@ -243,7 +258,7 @@ static void code_gen(SymTable *stbl, Buffer *buf, Inst *inst)
       break;
     }
     case OP_CALL: {
-      index = ConstItem_Set_String(stbl->atbl, inst->val.cstr);
+      index = ConstItem_Set_String(atbl, code->arg.cstr);
       Buffer_Write_4Bytes(buf, index);
       break;
     }
@@ -260,26 +275,15 @@ static void code_gen(SymTable *stbl, Buffer *buf, Inst *inst)
 static void code_merge(ParserState *ps)
 {
   ParserUnit *u = ps->u;
-  ParserUnit *parent = parent_scope(ps);
-  if (parent == NULL) {
-    debug("a module");
-    return;
-  }
 
-  if (parent->scope == SCOPE_MODULE) {
-    if (u->scope == SCOPE_FUNCTION) {
-      debug("save code to function");
-      code_append(ps, inst_new(OP_RET, NULL));
-      Buffer buf;
-      Buffer_Init(&buf, 32);
-      Vector_ForEach(inst, Inst, &u->insts) {
-        code_gen(&u->stbl, &buf, inst);
-      }
-      uint8 *data = Buffer_RawData(&buf);
-      Object *code = KFunc_New(u->stbl.next, data, Buffer_Size(&buf));
-      u->sym->obj = code;
-      Buffer_Fini(&buf);
-    }
+  if (u->scope == SCOPE_FUNCTION) {
+    debug("save code to function");
+    u->sym->obj = u->block;
+    u->sym->locvars = u->stbl.next;
+  } else if (u->scope == SCOPE_BLOCK) {
+    debug("merge code to parent's block");
+  } else {
+    debug("no codes' scope:%d", u->scope);
   }
 }
 
@@ -292,7 +296,21 @@ static void code_visit_symbol(Symbol *sym, void *arg)
       break;
     }
     case SYM_PROTO: {
-
+      CodeBlock *b = sym->obj;
+      int locvars = sym->locvars;
+      code_add_tail(b, code_new(OP_RET, NULL));
+      AtomTable *atbl = image->table;
+      Buffer buf;
+      Buffer_Init(&buf, 32);
+      Code *code;
+      list_for_each_entry(code, &b->codes, link) {
+        code_gen(atbl, &buf, code);
+      }
+      uint8 *data = Buffer_RawData(&buf);
+      int size = Buffer_Size(&buf);
+      Code_Show(data, size);
+      Buffer_Fini(&buf);
+      KImage_Add_Func(image, sym->str, sym->type->proto, locvars, data, size);
       break;
     }
     default: {
@@ -303,21 +321,31 @@ static void code_visit_symbol(Symbol *sym, void *arg)
 
 static void code_to_image(ParserState *ps)
 {
+  printf("----------write to image--------------------\n");
   ParserUnit *u = ps->u;
   KImage *image = KImage_New(ps->package);
   STbl_Traverse(&u->stbl, code_visit_symbol, image);
+  KImage_Finish(image);
+  KImage_Show(image);
+  KImage_Write_File(image, ps->outfile);
+  image = KImage_Read_File(ps->outfile);
+  KImage_Show(image);
+  printf("----------end--------------------\n");
 }
 
-static void code_show(Vector *insts)
+static void codeblock_show(CodeBlock *block)
 {
   char buf[64];
 
   printf("-----------------------\n");
-  Vector_ForEach(inst, Inst, insts) {
-    printf("opcode:%s\n", OPCode_ToString(inst->op));
-    TValue_Print(buf, sizeof(buf), &inst->val);
-    printf("arg:%s\n", buf);
-    printf("-----------------------\n");
+  if (!list_empty(&block->codes)) {
+    Code *code;
+    list_for_each_entry(code, &block->codes, link) {
+      printf("opcode:%s\n", OPCode_ToString(code->op));
+      TValue_Print(buf, sizeof(buf), &code->arg);
+      printf("arg:%s\n", buf);
+      printf("-----------------------\n");
+    }
   }
   printf("-----------------------\n");
 }
@@ -341,7 +369,7 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
   Symbol *sym = NULL;
   if (leftsym->kind == SYM_STABLE) {
     debug("symbol '%s' is a module", leftsym->str);
-    sym = STbl_Get(leftsym->obj, exp->attribute.id);
+    sym = STbl_Get(leftsym->stbl, exp->attribute.id);
     if (sym == NULL) {
       error("cannot find symbol '%s' in '%s'", exp->attribute.id, left->str);
       exp->sym = NULL;
@@ -356,7 +384,7 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
     }
     ASSERT(sym->kind == SYM_STABLE);
     char *typename = sym->str;
-    sym = STbl_Get(sym->obj, exp->attribute.id);
+    sym = STbl_Get(sym->stbl, exp->attribute.id);
     if (sym == NULL) {
       error("cannot find '%s' in '%s'", exp->attribute.id, typename);
     }
@@ -371,7 +399,7 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
     ASSERT(0);
   } else if (sym->kind == SYM_PROTO) {
     TValue val = CSTR_VALUE_INIT(exp->attribute.id);
-    code_append(ps, inst_new(OP_CALL, &val));
+    code_add_tail(ps->u->block, code_new(OP_CALL, &val));
   } else {
     ASSERT(0);
   }
@@ -449,7 +477,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
             exp->name.id, load, TypeDesc_ToString(exp->type));
       if (exp->sym->kind == SYM_STABLE) {
         TValue val = CSTR_VALUE_INIT(exp->type->path);
-        code_append(ps, inst_new(OP_LOADM, &val));
+        code_add_tail(ps->u->block, code_new(OP_LOADM, &val));
       } else if (exp->sym->kind == SYM_VAR) {
 
       } else {
@@ -480,7 +508,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
         error("cannot assign to %s", exp->str);
       } else {
         TValue val = CSTR_VALUE_INIT(exp->str);
-        code_insert(ps, 0, inst_new(OP_LOADK, &val));
+        code_add(ps->u->block, code_new(OP_LOADK, &val));
       }
       break;
     }
@@ -514,6 +542,7 @@ static void parser_enter_scope(ParserState *ps, int scope)
   init_list_head(&u->link);
   if (ps->u != NULL) atbl = ps->u->stbl.atbl;
   STbl_Init(&u->stbl, atbl);
+  u->block = codeblock_new(atbl);
   u->scope = scope;
 
   /* Push the old ParserUnit on the stack. */
@@ -528,7 +557,7 @@ static void parser_enter_scope(ParserState *ps, int scope)
 static void parser_unit_free(ParserUnit *u)
 {
   STbl_Fini(&u->stbl);
-  Vector_Fini(&u->insts, inst_free, NULL);
+  codeblock_free(u->block);
   free(u);
 }
 
@@ -538,7 +567,7 @@ static void parser_exit_scope(ParserState *ps)
   printf("scope-%d symbols:\n", ps->nestlevel);
   STbl_Show(&ps->u->stbl, 0);
   check_unused_symbols(ps);
-  code_show(&ps->u->insts);
+  codeblock_show(ps->u->block);
   printf("-------------------------\n");
 
   code_merge(ps);
@@ -608,9 +637,6 @@ void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
       if (!TypeDesc_Check(var->type, exp->type))
         error("typecheck failed");
     }
-  } else if (u->scope == SCOPE_BLOCK) {
-    debug("parse block vardecl");
-    ASSERT(!list_empty(&ps->ustack));
   } else {
     ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
   }
@@ -659,9 +685,6 @@ void paser_return(ParserState *ps, struct stmt *stmt)
     Vector_ForEach(e, struct expr, stmt->vec) {
       parser_visit_expr(ps, e);
     }
-    check_return_types(u, stmt->vec);
-  } else if (u->scope == SCOPE_BLOCK) {
-    debug("return in some block");
     check_return_types(u, stmt->vec);
   } else {
     ASSERT_MSG(0, "invalid scope:%d", u->scope);
@@ -743,6 +766,19 @@ int main(int argc, char *argv[])
 
   init_parser(&ps);
 
+  char *srcfile = argv[1];
+  int len = strlen(srcfile);
+  char *outfile = malloc(len + 4 + 1);
+  char *tmp = strrchr(srcfile, '.');
+  if (tmp != NULL) {
+    memcpy(outfile, srcfile, tmp - srcfile);
+    outfile[tmp - srcfile] = 0;
+  } else {
+    strcpy(outfile, srcfile);
+  }
+  strcat(outfile, ".klc");
+  ps.outfile = outfile;
+
   yyin = fopen(argv[1], "r");
   yyparse(&ps);
   fclose(yyin);
@@ -754,7 +790,7 @@ int main(int argc, char *argv[])
 
 /*--------------------------------------------------------------------------*/
 
-static Symbol *add_import(SymTable *stbl, char *id, char *path)
+static Symbol *add_import(STable *stbl, char *id, char *path)
 {
   Symbol *sym = STbl_Add_Symbol(stbl, id, SYM_STABLE, 0);
   if (sym == NULL) return NULL;
@@ -808,7 +844,7 @@ Symbol *parse_import(ParserState *ps, char *id, char *path)
     return NULL;
   }
   debug("add import '%s <- %s' successful", id, path);
-  sym->obj = Module_Get_STable(ob, ps->extstbl.atbl);
+  sym->stbl = Module_To_STable(ob, ps->extstbl.atbl);
   import->sym = sym;
   return sym;
 }
@@ -839,10 +875,15 @@ void parse_vardecl(ParserState *ps, struct stmt *s)
   }
 }
 
-static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
+static Proto *funcdecl_to_proto(struct stmt *stmt)
 {
+  Proto *proto = malloc(sizeof(Proto));
+  Vector *vec;
   int sz;
-  TypeDesc *desc = NULL;
+  TypeDesc *desc;
+
+  vec = stmt->funcdecl.pvec;
+  desc = NULL;
   if (vec == NULL || Vector_Size(vec) == 0) {
     sz = 0;
   } else {
@@ -853,25 +894,34 @@ static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
       memcpy(desc + i, var->type, sizeof(TypeDesc));
     }
   }
+  proto->psz = sz;
+  proto->pdesc = desc;
 
-  *arr = desc;
-  return sz;
+  vec = stmt->funcdecl.rvec;
+  desc = NULL;
+  if (vec == NULL || Vector_Size(vec) == 0) {
+    sz = 0;
+  } else {
+    sz = Vector_Size(vec);
+    desc = malloc(sizeof(TypeDesc) * sz);
+    ASSERT_PTR(desc);
+    Vector_ForEach(d, TypeDesc, vec) {
+      memcpy(desc + i, d, sizeof(TypeDesc));
+    }
+  }
+  proto->rsz = sz;
+  proto->rdesc = desc;
+
+  return proto;
 }
 
 void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 {
-  Proto proto;
-  int sz;
-  TypeDesc *desc = NULL;
+  Proto *proto;
   Symbol *sym;
 
-  sz = TypeDesc_Vec_To_Arr(stmt->funcdecl.rvec, &desc);
-  proto.rsz = sz; proto.rdesc = desc;
-
-  sz = var_vec_to_arr(stmt->funcdecl.pvec, &desc);
-  proto.psz = sz; proto.pdesc = desc;
-
-  sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, &proto);
+  proto = funcdecl_to_proto(stmt);
+  sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, proto);
   if (sym != NULL) {
     debug("add 'func %s' successful", stmt->funcdecl.id);
   } else {

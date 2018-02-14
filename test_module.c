@@ -9,6 +9,8 @@ void test_module(void)
   Module_Show(ob);
   Klass *klazz = Module_Get_Class(ob, "Tuple");
   KLASS_ASSERT(klazz, Tuple_Klass);
+  ob = Koala_Get_Module("koala/io");
+  Module_Show(ob);
 }
 
 int main(int argc, char *argv[])

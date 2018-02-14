@@ -2,6 +2,7 @@
 #include "symbol.h"
 #include "hash.h"
 #include "log.h"
+#include "opcode.h"
 
 static int version_major = 0; // 1 byte
 static int version_minor = 1; // 1 byte
@@ -88,6 +89,9 @@ static TypeDesc *String_To_DescList(int count, char *str)
       desc[idx].kind = TYPE_PRIMITIVE;
       desc[idx].primitive = ch;
 
+      /* varg and dims are only one valid */
+      ASSERT(varg == 0 || dims == 0);
+
       varg = 0; dims = 0;
       idx++; str++;
     } else if (ch == 'O') {
@@ -104,6 +108,9 @@ static TypeDesc *String_To_DescList(int count, char *str)
       }
       FullType_To_TypeDesc(start, str - start, desc + idx);
 
+      /* varg and dims are only one valid */
+      ASSERT(varg == 0 || dims == 0);
+
       varg = 0; dims = 0;
       idx++; str++;
     } else if (ch == '[') {
@@ -116,8 +123,6 @@ static TypeDesc *String_To_DescList(int count, char *str)
     }
   }
 
-  /* varg and dims are only one valid */
-  ASSERT(desc->varg == 0 || desc->dims == 0);
   ASSERT(vcnt <= 1);
   return desc;
 }
@@ -317,6 +322,65 @@ int Proto_With_Vargs(Proto *proto)
   }
 }
 
+int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc)
+{
+  desc->kind = item->kind;
+  desc->dims = item->dims;
+  desc->varg = item->varg;
+
+  switch (item->kind) {
+    case TYPE_PRIMITIVE: {
+      desc->primitive = item->primitive;
+      break;
+    }
+    case TYPE_USERDEF: {
+      desc->path = StringItem_Index(atbl, item->pathindex);
+      desc->type = StringItem_Index(atbl, item->typeindex);
+      break;
+    }
+    default: {
+      ASSERT(0);
+    }
+  }
+
+  return 0;
+}
+
+int TypeListItem_To_DescList(AtomTable *atbl, TypeListItem *item,
+                             TypeDesc **desc)
+{
+  if (item == NULL) {
+    *desc = NULL;
+    return 0;
+  }
+
+  TypeDesc *type = malloc(sizeof(TypeDesc) * item->size);
+  TypeItem *typeitem;
+
+  for (int i = 0; i < item->size; i++) {
+    typeitem = TypeItem_Index(atbl, item->index[i]);
+    TypeItem_To_Desc(atbl, typeitem, type + i);
+  }
+
+  *desc = type;
+  return item->size;
+}
+
+Proto *Proto_From_ProtoItem(ProtoItem *item, AtomTable *atbl)
+{
+  Proto *proto = malloc(sizeof(Proto));
+
+  TypeListItem *typelist = NULL;
+  if (item->rindex >= 0) typelist = TypeListItem_Index(atbl, item->rindex);
+  proto->rsz = TypeListItem_To_DescList(atbl, typelist, &proto->rdesc);
+
+  typelist = NULL;
+  if (item->pindex >= 0) typelist = TypeListItem_Index(atbl, item->pindex);
+  proto->psz = TypeListItem_To_DescList(atbl, typelist, &proto->pdesc);
+
+  return proto;
+}
+
 /*-------------------------------------------------------------------------*/
 
 MapItem *MapItem_New(int type, int offset, int size)
@@ -339,36 +403,25 @@ StringItem *StringItem_New(char *name)
   return item;
 }
 
-StringItem *StringItem_New_Empty(int len)
-{
-  StringItem *item = malloc(sizeof(StringItem) + len);
-  item->length = len;
-  return item;
-}
-
-TypeItem *TypeItem_Primitive_New(int dims, char primitive)
+TypeItem *TypeItem_Primitive_New(int varg, int dims, char primitive)
 {
   TypeItem *item = malloc(sizeof(TypeItem));
+  item->varg = varg;
   item->dims = dims;
   item->kind = TYPE_PRIMITIVE;
   item->primitive = primitive;
   return item;
 }
 
-TypeItem *TypeItem_Defined_New(int dims, int32 pathindex, int32 typeindex)
+TypeItem *TypeItem_Defined_New(int varg, int dims, int32 pathindex,
+                               int32 typeindex)
 {
   TypeItem *item = malloc(sizeof(TypeItem));
+  item->varg = varg;
   item->dims = dims;
   item->kind = TYPE_USERDEF;
   item->pathindex = pathindex;
   item->typeindex = typeindex;
-  return item;
-}
-
-TypeItem *TypeItem_Copy(TypeItem *i)
-{
-  TypeItem *item = malloc(sizeof(TypeItem));
-  memcpy(item, i, sizeof(TypeItem));
   return item;
 }
 
@@ -388,13 +441,6 @@ VarItem *VarItem_New(int32 nameindex, int32 typeindex, int flags)
   item->nameindex = nameindex;
   item->typeindex = typeindex;
   item->flags = flags;
-  return item;
-}
-
-VarItem *VarItem_Copy(VarItem *v)
-{
-  VarItem *item = malloc(sizeof(VarItem));
-  memcpy(item, v, sizeof(VarItem));
   return item;
 }
 
@@ -462,6 +508,20 @@ CodeItem *CodeItem_New(uint8 *codes, int size)
   return item;
 }
 
+void *VaItem_New(int bsize, int isize, int len)
+{
+  int32 *data = malloc(bsize + isize * len);
+  data[0] = len;
+  return data;
+}
+
+void *Item_Copy(int size, void *src)
+{
+  void *dest = malloc(size);
+  memcpy(dest, src, size);
+  return dest;
+}
+
 /*-------------------------------------------------------------------------*/
 
 int StringItem_Get(AtomTable *table, char *str)
@@ -499,12 +559,14 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
     if (typeindex < 0) {
       return typeindex;
     }
+    item.varg = desc->varg;
     item.dims = desc->dims;
     item.kind = TYPE_USERDEF;
     item.pathindex = pathindex;
     item.typeindex = typeindex;
   } else {
     ASSERT(desc->kind == TYPE_PRIMITIVE);
+    item.varg = desc->varg;
     item.dims = desc->dims;
     item.kind = TYPE_PRIMITIVE;
     item.primitive = desc->primitive;
@@ -522,10 +584,10 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
       ASSERT(pathindex >= 0);
       int typeindex = StringItem_Set(table, desc->type);
       ASSERT(typeindex >= 0);
-      item = TypeItem_Defined_New(desc->dims, pathindex, typeindex);
+      item = TypeItem_Defined_New(desc->varg, desc->dims, pathindex, typeindex);
     } else {
       ASSERT(desc->kind == TYPE_PRIMITIVE);
-      item = TypeItem_Primitive_New(desc->dims, desc->primitive);
+      item = TypeItem_Primitive_New(desc->varg, desc->dims, desc->primitive);
     }
     index = AtomTable_Append(table, ITEM_TYPE, item, 1);
   }
@@ -650,10 +712,9 @@ static int codeitem_set(AtomTable *table, uint8 *codes, int size)
 
 char *mapitem_string[] = {
   "map", "string", "type", "typelist", "proto", "const",
-  "variable", "function",
-  "field", "method", "class",
-  "imethod", "interface",
-  "code",
+  "variable", "function", "code",
+  "class", "field", "method",
+  "interface", "imeth",
 };
 
 int mapitem_length(void *o)
@@ -679,7 +740,7 @@ void mapitem_write(FILE *fp, void *o)
 int stringitem_length(void *o)
 {
   StringItem *item = o;
-  return sizeof(StringItem) + item->length;
+  return sizeof(StringItem) + item->length * sizeof(char);
 }
 
 uint32 stringitem_hash(void *k)
@@ -731,6 +792,7 @@ int typeitem_equal(void *k1, void *k2)
   TypeItem *item1 = k1;
   TypeItem *item2 = k2;
   if (item1->kind != item2->kind) return 0;
+  if (item1->varg != item2->varg) return 0;
   if (item1->dims != item2->dims) return 0;
   if (item1->pathindex != item2->pathindex) return 0;
   if (item1->typeindex != item2->typeindex) return 0;
@@ -869,10 +931,10 @@ void varitem_show(AtomTable *table, void *o)
   StringItem *str2;
   TypeItem *type;
 
-  printf("  name_index:%d\n", item->nameindex);
+  printf("  nameindex:%d\n", item->nameindex);
   str1 = AtomTable_Get(table, ITEM_STRING, item->nameindex);
   printf("  (%s)\n", str1->data);
-  printf("  type_index:%d\n", item->typeindex);
+  printf("  typeindex:%d\n", item->typeindex);
   type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
   if (type->kind == TYPE_USERDEF) {
     str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
@@ -948,8 +1010,15 @@ int funcitem_length(void *o)
 
 void funcitem_show(AtomTable *table, void *o)
 {
-  UNUSED_PARAMETER(table);
-  UNUSED_PARAMETER(o);
+  FuncItem *item = o;
+  StringItem *str;
+  printf("  nameindex:%d\n", item->nameindex);
+  str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+  printf("  (%s)\n", str->data);
+  printf("  protoindex:%d\n", item->protoindex);
+  printf("  access:0x%x\n", item->access);
+  printf("  locvars:%d\n", item->locvars);
+  printf("  codeindex:%d\n", item->codeindex);
 }
 
 void funcitem_write(FILE *fp, void *o)
@@ -972,19 +1041,21 @@ void methoditem_show(AtomTable *table, void *o)
 int codeitem_length(void *o)
 {
   CodeItem *item = o;
-  return item->size;
+  return sizeof(CodeItem) + sizeof(uint8) * item->size;
 }
 
 void codeitem_write(FILE *fp, void *o)
 {
   CodeItem *item = o;
-  fwrite(o, item->size, 1, fp);
+  fwrite(o, sizeof(CodeItem) + sizeof(uint8) * item->size, 1, fp);
 }
 
 void codeitem_show(AtomTable *table, void *o)
 {
   UNUSED_PARAMETER(table);
-  UNUSED_PARAMETER(o);
+  CodeItem *item = o;
+  printf("  size:%d\n", item->size);
+  Code_Show(item->codes, item->size);
 }
 
 int constitem_length(void *o)
@@ -1061,7 +1132,6 @@ int constitem_equal(void *k1, void *k2)
 
 void constitem_show(AtomTable *table, void *o)
 {
-  UNUSED_PARAMETER(table);
   ConstItem *item = o;
   switch (item->type) {
     case CONST_INT:
@@ -1147,36 +1217,6 @@ struct item_funcs item_func[ITEM_MAX] = {
     funcitem_write, NULL,
     NULL, NULL,
     funcitem_show
-  },
-  {
-    fielditem_length,
-    NULL, NULL,
-    NULL, NULL,
-    fielditem_show
-  },
-  {
-    methoditem_length,
-    NULL, NULL,
-    NULL, NULL,
-    methoditem_show
-  },
-  {
-    structitem_length,
-    NULL, NULL,
-    NULL, NULL,
-    structitem_show
-  },
-  {
-    NULL,
-    NULL, NULL,
-    NULL, NULL,
-    NULL
-  },
-  {
-    intfitem_length,
-    NULL, NULL,
-    NULL, NULL,
-    intfitem_show
   },
   {
     codeitem_length,
@@ -1343,33 +1383,45 @@ void KImage_Write_File(KImage *image, char *path)
   __image_write_header(fp, image);
   __image_write_pkgname(fp, image);
   __image_write_items(fp, image);
+  fflush(fp);
   fclose(fp);
+}
+
+static int header_check(ImageHeader *header)
+{
+  char *magic = (char *)header->magic;
+  if (magic[0] != 'K') return -1;
+  if (magic[1] != 'L') return -1;
+  if (magic[2] != 'C') return -1;
+  return 0;
 }
 
 KImage *KImage_Read_File(char *path)
 {
   FILE *fp = fopen(path, "r");
   if (fp == NULL) {
-    printf("[ERROR] cannot open file:%s\n", path);
+    printf("error: cannot open %s file\n", path);
     return NULL;
   }
 
   ImageHeader header;
   int sz = fread(&header, sizeof(ImageHeader), 1, fp);
   if (sz < 1) {
-    printf("[ERROR] file %s is not a valid .klc file\n", path);
+    printf("error: file %s is not a valid .klc file\n", path);
+    fclose(fp);
     return NULL;
   }
 
-  // if (header_check(&header) < 0) {
-  //   printf("[ERROR] file %s is not a valid .klc file\n", path);
-  //   return NULL;
-  // }
+  if (header_check(&header) < 0) {
+    printf("error: file %s is not a valid .klc file\n", path);
+    return NULL;
+  }
 
   char pkg_name[header.pkg_size];
   sz = fread(pkg_name, sizeof(pkg_name), 1, fp);
   if (sz < 1) {
-    printf("[ERROR] read file %s error\n", path);
+    printf("error: read file %s error\n", path);
+    fclose(fp);
     return NULL;
   }
 
@@ -1382,7 +1434,8 @@ KImage *KImage_Read_File(char *path)
   ASSERT(sz == 0);
   sz = fread(mapitems, sizeof(MapItem), header.map_size, fp);
   if (sz < (int)header.map_size) {
-    printf("[ERROR] file %s is not a valid .klc file\n", path);
+    printf("error: file %s is not a valid .klc file\n", path);
+    fclose(fp);
     return NULL;
   }
 
@@ -1404,7 +1457,7 @@ KImage *KImage_Read_File(char *path)
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
           ASSERT(sz == 1);
-          item = StringItem_New_Empty(len);
+          item = VaItem_New(sizeof(StringItem), sizeof(char), len);
           sz = fread(item->data, len, 1, fp);
           ASSERT(sz == 1);
           AtomTable_Append(image->table, ITEM_STRING, item, 1);
@@ -1417,8 +1470,43 @@ KImage *KImage_Read_File(char *path)
         sz = fread(items, sizeof(TypeItem), map->size, fp);
         ASSERT(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = TypeItem_Copy(items + i);
+          item = Item_Copy(sizeof(TypeItem), items + i);
           AtomTable_Append(image->table, ITEM_TYPE, item, 1);
+        }
+        break;
+      }
+      case ITEM_TYPELIST: {
+        TypeListItem *item;
+        uint32 len;
+        for (int i = 0; i < map->size; i++) {
+          sz = fread(&len, 4, 1, fp);
+          ASSERT(sz == 1);
+          item = VaItem_New(sizeof(TypeListItem), sizeof(int32), len);
+          sz = fread(item->index, len, 1, fp);
+          ASSERT(sz == 1);
+          AtomTable_Append(image->table, ITEM_TYPELIST, item, 1);
+        }
+        break;
+      }
+      case ITEM_PROTO: {
+        ProtoItem *item;
+        ProtoItem items[map->size];
+        sz = fread(items, sizeof(ProtoItem), map->size, fp);
+        ASSERT(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = Item_Copy(sizeof(ProtoItem), items + i);
+          AtomTable_Append(image->table, ITEM_PROTO, item, 1);
+        }
+        break;
+      }
+      case ITEM_CONST: {
+        ConstItem *item;
+        ConstItem items[map->size];
+        sz = fread(items, sizeof(ConstItem), map->size, fp);
+        ASSERT(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = Item_Copy(sizeof(ConstItem), items + i);
+          AtomTable_Append(image->table, ITEM_CONST, item, 1);
         }
         break;
       }
@@ -1428,8 +1516,32 @@ KImage *KImage_Read_File(char *path)
         sz = fread(items, sizeof(VarItem), map->size, fp);
         ASSERT(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = VarItem_Copy(items + i);
+          item = Item_Copy(sizeof(VarItem), items + i);
           AtomTable_Append(image->table, ITEM_VAR, item, 0);
+        }
+        break;
+      }
+      case ITEM_FUNC: {
+        FuncItem *item;
+        FuncItem items[map->size];
+        sz = fread(items, sizeof(FuncItem), map->size, fp);
+        ASSERT(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = Item_Copy(sizeof(FuncItem), items + i);
+          AtomTable_Append(image->table, ITEM_FUNC, item, 0);
+        }
+        break;
+      }
+      case ITEM_CODE: {
+        CodeItem *item;
+        uint32 len;
+        for (int i = 0; i < map->size; i++) {
+          sz = fread(&len, 4, 1, fp);
+          ASSERT(sz == 1);
+          item = VaItem_New(sizeof(CodeItem), sizeof(uint8), len);
+          sz = fread(item->codes, len, 1, fp);
+          ASSERT(sz == 1);
+          AtomTable_Append(image->table, ITEM_CODE, item, 0);
         }
         break;
       }
@@ -1439,6 +1551,7 @@ KImage *KImage_Read_File(char *path)
     }
   }
 
+  fclose(fp);
   return image;
 }
 
@@ -1487,6 +1600,8 @@ void AtomTable_Show(AtomTable *table)
 
 void KImage_Show(KImage *image)
 {
+  if (image == NULL) return;
+
   ImageHeader *h = &image->header;
   header_show(h);
 

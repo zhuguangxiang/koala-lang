@@ -118,7 +118,7 @@ static void start_kframe(Frame *f)
   Stack:
     Parameters are stored reversely in the stack, including a module.
  */
-Routine *Routine_New(Object *code, Object *obj, Object *args)
+Routine *Routine_New(Object *code, Object *ob, Object *args)
 {
   Routine *rt = malloc(sizeof(Routine));
   init_list_head(&rt->link);
@@ -133,7 +133,7 @@ Routine *Routine_New(Object *code, Object *obj, Object *args)
     VALUE_ASSERT(&val);
     PUSH(&val);
   }
-  setobjvalue(&val, obj);
+  setobjvalue(&val, ob);
   PUSH(&val);
 
   /* new frame */
@@ -142,6 +142,7 @@ Routine *Routine_New(Object *code, Object *obj, Object *args)
   return rt;
 }
 
+/*
 static void routine_task_func(struct task *tsk)
 {
   Routine *rt = tsk->arg;
@@ -161,15 +162,26 @@ static void routine_task_func(struct task *tsk)
     f = rt->frame;
   }
 }
+*/
 
-void Routine_Run(Routine *rt, int prio)
+void Routine_Run(Routine *rt)
 {
-  task_init(&rt->task, "routine", prio, routine_task_func, rt);
-}
+  //task_init(&rt->task, "routine", prio, routine_task_func, rt);
+  Frame *f = rt->frame;
 
-int Routine_State(Routine *rt)
-{
-  return rt->task.state;
+  while (f != NULL) {
+    if (CODE_ISCFUNC(f->code)) {
+      start_cframe(f);
+    } else if (CODE_ISKFUNC(f->code)) {
+      if (f->pc == 0)
+        start_kframe(f);
+      else
+        frame_loop(f);
+    } else {
+      ASSERT(0);
+    }
+    f = rt->frame;
+  }
 }
 
 /*-------------------------------------------------------------------------*/
@@ -207,7 +219,7 @@ static inline uint8 fetch_code(Frame *frame, CodeObject *code)
   return fetch_byte(frame, code);
 }
 
-static TValue index_const(int index, SymTable *stbl)
+static TValue index_const(int index, STable *stbl)
 {
   TValue res = NilValue;
   ConstItem *k = AtomTable_Get(stbl->atbl, ITEM_CONST, index);
@@ -298,7 +310,7 @@ static void frame_loop(Frame *frame)
   int loopflag = 1;
   Routine *rt = frame->rt;
   CodeObject *code = (CodeObject *)frame->code;
-  SymTable *stbl = code->kf.stbl;
+  STable *stbl = code->kf.stbl;
 
   uint8 inst;
   int32 index;

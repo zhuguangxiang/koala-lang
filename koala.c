@@ -62,7 +62,7 @@ static int koala_add_module(char *path, Object *mo)
 
 Object *Koala_New_Module(char *name, char *path)
 {
-  Object *ob = Module_New(name);
+  Object *ob = Module_New(name, NULL);
   if (koala_add_module(path, ob) < 0) {
     Module_Free(ob);
     return NULL;
@@ -78,17 +78,34 @@ Object *Koala_Get_Module(char *path)
   return (Object *)(container_of(hnode, struct mod_entry, hnode)->mo);
 }
 
-static Object *__load_module_file(char *path)
+void Run_Code(Object *code, Object *ob, Object *args)
 {
-  UNUSED_PARAMETER(path);
-  return NULL;
+  Routine *rt = Routine_New(code, ob, args);
+  Routine_Run(rt);
+}
+
+static Object *load_module_file(char *path)
+{
+  KImage *image = KImage_Read_File(path);
+  if (image == NULL) return NULL;
+  Object *ob = Module_From_Image(image);
+  if (ob != NULL) {
+    /* initialize this module */
+    Object *code = Module_Get_Function(ob, "__init__");
+    if (code == NULL) {
+      warn("cannot find '__init__' in module '%s'.", path);
+    } else {
+      Run_Code(code, ob, NULL);
+    }
+  }
+  return ob;
 }
 
 Object *Koala_Load_Module(char *path)
 {
   Object *ob = Koala_Get_Module(path);
-  if (ob == NULL) return __load_module_file(path);
-  return ob;
+  if (ob == NULL) return load_module_file(path);
+  else return ob;
 }
 
 void Koala_Run_Module(Object *ob)

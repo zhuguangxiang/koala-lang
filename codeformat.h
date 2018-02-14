@@ -43,13 +43,14 @@ typedef struct map_item {
 } MapItem;
 
 typedef struct string_item {
-  uint32 length;
+  int32 length;
   char data[0];
 } StringItem;
 
 typedef struct type_item {
-  short dims;
-  short kind;
+  int8 kind;
+  int8 varg;
+  int16 dims;
   union {
     char primitive;
     struct {
@@ -121,40 +122,10 @@ typedef struct code_item {
   uint8 codes[0];
 } CodeItem;
 
-// typedef struct struct_item {
-//   int32 name_index;    //->StringItem
-//   int32 pname_index;   //->StringItem
-//   int flags;
-//   int32 fields_off;    //->FieldListItem
-//   int32 methods_off;   //->MethodListItem
-// } StructItem;
-
-// typedef VarItem FieldItem;
-// typedef FuncItem MethodItem;
-// typedef struct field_list_item {
-//   uint32 size;
-//   uint32 field_index[0];
-// } FieldListItem;
-
-// typedef struct method_list_item {
-//   uint32 size;
-//   uint32 method_index[0];
-// } MethodListItem;
-
-// typedef struct intf_item {
-//   uint32 name_index;        //->StringItem
-//   uint32 size;
-//   uint32 imethod_index[0];  //->IMethodItem
-// } IntfItem;
-
-// typedef struct imethod_item {
-//   uint32 name_index;    //->StringItem
-//   uint32 proto_index;   //->ProtoItem
-// } IMethodItem;
-
 typedef struct kimage {
   ImageHeader header;
   char *package;
+  int bused;  /* for free this structure */
   AtomTable *table;
 } KImage;
 
@@ -175,9 +146,9 @@ typedef struct proto Proto;
 
 /* Type's descriptor */
 typedef struct typedesc {
+  int8 kind;
   int8 varg;
-  int8 dims;
-  int16 kind;
+  int16 dims;
   union {
     char primitive;
     struct {
@@ -214,6 +185,8 @@ char *TypeDesc_ToString(TypeDesc *desc);
 void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc);
 Proto *Proto_New(int rsz, char *rdesc, int psz, char *pdesc);
 int Proto_With_Vargs(Proto *proto);
+int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc);
+Proto *Proto_From_ProtoItem(ProtoItem *item, AtomTable *atbl);
 
 /*-------------------------------------------------------------------------*/
 
@@ -242,17 +215,35 @@ void KImage_Show(KImage *image);
 
 int StringItem_Get(AtomTable *table, char *str);
 int StringItem_Set(AtomTable *table, char *str);
+#define StringItem_Index(table, index) \
+  AtomTable_Get(table, ITEM_STRING, index)
+
 int TypeItem_Get(AtomTable *table, TypeDesc *desc);
 int TypeItem_Set(AtomTable *table, TypeDesc *desc);
+#define TypeItem_Index(table, index) \
+  AtomTable_Get(table, ITEM_TYPE, index)
+
 int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz);
 int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz);
+#define TypeListItem_Index(table, index) \
+  AtomTable_Get(table, ITEM_TYPELIST, index)
+
 int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex);
 int ProtoItem_Set(AtomTable *table, Proto *proto);
+#define ProtoItem_Index(table, index) \
+  AtomTable_Get(table, ITEM_PROTO, index)
+
 int ConstItem_Get(AtomTable *table, ConstItem *item);
 int ConstItem_Set_Int(AtomTable *table, int64 val);
 int ConstItem_Set_Float(AtomTable *table, float64 val);
 int ConstItem_Set_Bool(AtomTable *table, int val);
 int ConstItem_Set_String(AtomTable *table, char *str);
+#define ConstItem_Index(table, index) \
+  AtomTable_Get(table, ITEM_CONST, index)
+
+#define CodeItem_Index(table, index) \
+  AtomTable_Get(table, ITEM_CODE, index)
+
 uint32 item_hash(void *key);
 int item_equal(void *k1, void *k2);
 void AtomTable_Show(AtomTable *table);

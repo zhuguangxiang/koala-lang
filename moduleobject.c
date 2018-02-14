@@ -3,12 +3,14 @@
 
 /*-------------------------------------------------------------------------*/
 
-Object *Module_New(char *name)
+Object *Module_New(char *name, AtomTable *atbl)
 {
   ModuleObject *ob = malloc(sizeof(ModuleObject));
   init_object_head(ob, &Module_Klass);
-  ob->name = name;
-  STbl_Init(&ob->stbl, NULL);
+  int len = strlen(name);
+  ob->name = malloc(len + 1);
+  strcpy(ob->name, name);
+  STbl_Init(&ob->stbl, atbl);
   ob->tuple = NULL;
   return (Object *)ob;
 }
@@ -179,14 +181,14 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
   return 0;
 }
 
-static void symbol_visit(Symbol *sym, void *arg)
+static void mod_symbol_visit(Symbol *sym, void *arg)
 {
-  SymTable *stbl = arg;
+  STable *stbl = arg;
   Symbol *tmp;
   if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
     tmp = STbl_Add_Symbol(stbl, sym->str, SYM_STABLE, 0);
-    tmp->obj = STbl_New(stbl->atbl);
-    STbl_Traverse(Klass_STable(sym->obj), symbol_visit, tmp->obj);
+    tmp->stbl = STbl_New(stbl->atbl);
+    STbl_Traverse(Klass_STable(sym->obj), mod_symbol_visit, tmp->stbl);
   } else if (sym->kind == SYM_VAR) {
     STbl_Add_Var(stbl, sym->str, sym->type, sym->konst);
   } else if (sym->kind == SYM_PROTO) {
@@ -199,11 +201,11 @@ static void symbol_visit(Symbol *sym, void *arg)
 }
 
 /* for compiler only */
-SymTable *Module_Get_STable(Object *ob, AtomTable *atbl)
+STable *Module_To_STable(Object *ob, AtomTable *atbl)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
-  SymTable *stbl = STbl_New(atbl);
-  STbl_Traverse(&mob->stbl, symbol_visit, stbl);
+  STable *stbl = STbl_New(atbl);
+  STbl_Traverse(&mob->stbl, mod_symbol_visit, stbl);
   return stbl;
 }
 
@@ -229,4 +231,44 @@ void Module_Show(Object *ob)
   ModuleObject *mob = OBJ_TO_MOD(ob);
   printf("package:%s\n", mob->name);
   STbl_Show(&mob->stbl, 1);
+}
+
+Object *Module_From_Image(KImage *image)
+{
+  Object *ob = Module_New(image->package, image->table);
+  AtomTable *table = image->table;
+  int sz;
+  VarItem *var;
+  FuncItem *func;
+  StringItem *name;
+  TypeItem *type;
+  ProtoItem *protoitem;
+  CodeItem *codeitem;
+  TypeDesc desc;
+  Proto *proto;
+  Object *code;
+
+  //load variables
+  sz = AtomTable_Size(table, ITEM_VAR);
+  for (int i = 0; i < sz; i++) {
+    var = AtomTable_Get(table, ITEM_VAR, i);
+    name = StringItem_Index(table, var->nameindex);
+    type = TypeItem_Index(table, var->typeindex);
+    TypeItem_To_Desc(table, type, &desc);
+    Module_Add_Var(ob, name->data, &desc, var->flags & VAR_FLAG_CONST);
+  }
+
+  //load functions
+  sz = AtomTable_Size(table, ITEM_FUNC);
+  for (int i = 0; i < sz; i++) {
+    func = AtomTable_Get(table, ITEM_FUNC, i);
+    name = StringItem_Index(table, func->nameindex);
+    protoitem = ProtoItem_Index(table, func->protoindex);
+    proto = Proto_From_ProtoItem(protoitem, table);
+    codeitem = CodeItem_Index(table, func->codeindex);
+    code = KFunc_New(func->locvars, codeitem->codes, codeitem->size);
+    Module_Add_Func(ob, name->data, proto, code);
+  }
+
+  return ob;
 }

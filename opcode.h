@@ -161,6 +161,7 @@ extern "C" {
 #define OP2_DIV   56
 
 char *OPCode_ToString(uint8 op);
+void Code_Show(uint8 *code, int32 size);
 
 #ifdef __cplusplus
 }

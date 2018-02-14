@@ -11,14 +11,14 @@ extern "C" {
 typedef struct moduleobject {
   OBJECT_HEAD
   char *name;
-  SymTable stbl;
+  STable stbl;
   Object *tuple;
 } ModuleObject;
 
 /* Exported APIs */
 extern Klass Module_Klass;
 #define OBJ_TO_MOD(ob) OB_TYPE_OF(ob, ModuleObject, Module_Klass)
-Object *Module_New(char *name);
+Object *Module_New(char *name, AtomTable *atbl);
 void Module_Free(Object *ob);
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst);
 int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code);
@@ -36,7 +36,8 @@ void Module_Show(Object *ob);
 #define Module_Name(ob) (((ModuleObject *)(ob))->name)
 #define Module_AtomTable(ob) (((ModuleObject *)(ob))->stbl.atbl)
 /* for compiler only */
-SymTable *Module_Get_STable(Object *ob, AtomTable *atbl);
+STable *Module_To_STable(Object *ob, AtomTable *atbl);
+Object *Module_From_Image(KImage *image);
 
 #ifdef __cplusplus
 }

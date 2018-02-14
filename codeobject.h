@@ -19,7 +19,7 @@ typedef struct codeobject {
   union {
     cfunc cf;
     struct {
-      SymTable *stbl;
+      STable *stbl;
       Proto *proto;
       int locvars;
       int size;

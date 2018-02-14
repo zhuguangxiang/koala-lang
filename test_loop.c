@@ -92,8 +92,7 @@ void test_frameloop(void)
   Object *module = init_test_module();
   Object *method = Module_Get_Function(module, "__init__");
   Routine *rt = Routine_New(method, module, NULL);
-  Routine_Run(rt, PRIO_NORMAL);
-  while (Routine_State(rt) != STATE_DEAD);
+  Routine_Run(rt);
 }
 
 int main(int argc, char *argv[])

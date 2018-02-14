@@ -160,7 +160,7 @@ struct klass {
 
   strfunc ob_tostr;
 
-  SymTable stbl;
+  STable stbl;
 };
 
 extern Klass Klass_Klass;

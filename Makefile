@@ -44,6 +44,11 @@ parser:
 	@cp koalac /usr/local/bin
 	@rm koala_yacc.c koala_lex.c
 
+vm:
+	@gcc -g -std=gnu99 -Wall -o koala main.c \
+	-L. -lkoala -pthread -lrt
+	@cp koala /usr/local/bin
+
 testvector: lib
 	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
