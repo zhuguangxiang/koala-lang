@@ -39,14 +39,13 @@ lib:
 parser:
 	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
 	@flex -o koala_lex.c yacc/koala.l
-	@gcc -g -std=gnu99 -Wall -o koalac koala_yacc.c koala_lex.c ast.c parser.c \
+	@gcc $(CFLAGS) -o koalac koala_yacc.c koala_lex.c ast.c parser.c \
 	-L. -lkoala -pthread -lrt
 	@cp koalac /usr/local/bin
 	@rm koala_yacc.c koala_lex.c
 
 vm:
-	@gcc -g -std=gnu99 -Wall -o koala main.c \
-	-L. -lkoala -pthread -lrt
+	@gcc $(CFLAGS) -o koala main.c -L. -lkoala -pthread -lrt
 	@cp koala /usr/local/bin
 
 testvector: lib

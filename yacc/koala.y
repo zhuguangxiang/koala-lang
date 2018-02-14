@@ -11,6 +11,7 @@ int yylex(void);
 
 int yyerror(ParserState *parser, const char *str)
 {
+  UNUSED_PARAMETER(parser);
   fprintf(stderr, "syntax error: %s\n", str);
   return 0;
 }
@@ -493,7 +494,7 @@ MemberDeclaration
 
 FieldDeclaration
   : ID Type ';' {
-    $$ = new_struct_field($1, $2, NULL);
+    $$ = NULL; //new_struct_field($1, $2, NULL);
   }
   | ID Type '=' Expression ';' {
 
@@ -513,10 +514,10 @@ IntfFuncDecls
 
 IntfFuncDecl
   : FUNC ID '(' TypeNameListOrEmpty ')' ReturnTypeList ';'{
-    $$ = new_intf_func($2, $4, $6);
+    $$ = NULL; //new_intf_func($2, $4, $6);
   }
   | FUNC ID '(' TypeNameListOrEmpty ')' ';' {
-    $$ = new_intf_func($2, $4, NULL);
+    $$ = NULL; //new_intf_func($2, $4, NULL);
   }
   ;
 

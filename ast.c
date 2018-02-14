@@ -379,20 +379,20 @@ struct var *new_var(char *id, TypeDesc *type)
   return v;
 }
 
-struct field *new_struct_field(char *id, TypeDesc *type, struct expr *e)
-{
-  return NULL;
-}
+// struct field *new_struct_field(char *id, TypeDesc *type, struct expr *e)
+// {
+//   return NULL;
+// }
 
-struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec)
-{
-  return NULL;
-}
+// struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec)
+// {
+//   return NULL;
+// }
 
-void mod_fini(struct mod *mod)
-{
+// void mod_fini(struct mod *mod)
+// {
 
-}
+// }
 
 /*--------------------------------------------------------------------------*/
 

@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
     if (code != NULL) {
       Run_Code(code, ob, NULL);
     } else {
-      error("There isn't 'Main' func in module '%s'", Module_Name(ob));
+      printf("error:There isn't 'Main' func in module '%s'", Module_Name(ob));
     }
   }
   Koala_Fini();

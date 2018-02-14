@@ -16,7 +16,7 @@ extern int loglevel;
 
 #define __debug(format, ...) printf(format, ##__VA_ARGS__)
 
-#ifdef NDEBUG
+#ifdef LOG_NDEBUG
 #define debug(format, ...) ((void)0)
 #else
 #define debug(format, ...) do { \

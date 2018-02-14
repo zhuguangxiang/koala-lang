@@ -3,7 +3,13 @@
 #include "parser.h"
 #include "koala_yacc.h"
 
-static void echo();
+static void echo(void) {
+  //fprintf(stdout, ">>>%s\n", yytext);
+}
+
+int yywrap(void) {
+  return 1;
+}
 
 char escchar(char ch)
 {
@@ -166,11 +172,3 @@ L   [a-zA-Z_]
 .                         {}
 
 %%
-
-static void echo() {
-  //fprintf(stdout, ">>>%s\n", yytext);
-}
-
-int yywrap() {
-  return 1;
-}

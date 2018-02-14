@@ -93,7 +93,7 @@ static Object *load_module_file(char *path)
     /* initialize this module */
     Object *code = Module_Get_Function(ob, "__init__");
     if (code == NULL) {
-      warn("cannot find '__init__' in module '%s'.", path);
+      debug("cannot find '__init__' in module '%s'.", path);
     } else {
       Run_Code(code, ob, NULL);
     }

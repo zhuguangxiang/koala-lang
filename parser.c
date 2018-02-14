@@ -51,6 +51,7 @@ static void init_imports(ParserState *ps)
 
 static void import_visit_symbol(Symbol *sym, void *arg)
 {
+  UNUSED_PARAMETER(arg);
   if (sym->refcnt == 0) {
     warn("package '%s <- %s' is never used",
          sym->str, TypeDesc_ToString(sym->type));
@@ -214,7 +215,7 @@ static CodeBlock *codeblock_new(AtomTable *atbl)
 
 static void codeblock_free(CodeBlock *b)
 {
-
+  UNUSED_PARAMETER(b);
 }
 
 static inline void code_add(CodeBlock *b, Code *code)
@@ -283,7 +284,7 @@ static void code_merge(ParserState *ps)
   } else if (u->scope == SCOPE_BLOCK) {
     debug("merge code to parent's block");
   } else {
-    debug("no codes' scope:%d", u->scope);
+    debug("no codes in scope:%d", u->scope);
   }
 }
 
@@ -472,9 +473,9 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       if (exp->type == NULL) {
         exp->type = exp->sym->type;
       }
-      char *load = exp->ctx == CTX_STORE ? "store": "load";
       debug("name:%s(%s), type:%s",
-            exp->name.id, load, TypeDesc_ToString(exp->type));
+            exp->name.id, exp->ctx == CTX_STORE ? "store": "load",
+            TypeDesc_ToString(exp->type));
       if (exp->sym->kind == SYM_STABLE) {
         TValue val = CSTR_VALUE_INIT(exp->type->path);
         code_add_tail(ps->u->block, code_new(OP_LOADM, &val));
@@ -931,7 +932,8 @@ void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 
 void parse_typedecl(ParserState *ps, struct stmt *stmt)
 {
-
+  UNUSED_PARAMETER(ps);
+  UNUSED_PARAMETER(stmt);
 }
 
 void parse_module(ParserState *ps, struct mod *mod)
