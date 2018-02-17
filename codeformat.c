@@ -178,9 +178,9 @@ int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr)
     sz = Vector_Size(vec);
     desc = malloc(sizeof(TypeDesc) * sz);
     ASSERT_PTR(desc);
-    Vector_ForEach(d, TypeDesc, vec) {
+    TypeDesc *d;
+    Vector_ForEach(d, vec)
       memcpy(desc + i, d, sizeof(TypeDesc));
-    }
   }
 
   *arr = desc;
@@ -244,7 +244,8 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
       break;
     }
     case TYPE_PROTO: {
-      ASSERT(0);
+      //FIXME: ASSERT(0);
+      eq = 1;
       break;
     }
     default: {
@@ -255,6 +256,7 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 }
 
 /* For print only */
+//FIXME: memory free
 char *TypeDesc_ToString(TypeDesc *desc)
 {
   char *tmp;
@@ -1458,7 +1460,7 @@ KImage *KImage_Read_File(char *path)
           sz = fread(&len, 4, 1, fp);
           ASSERT(sz == 1);
           item = VaItem_New(sizeof(StringItem), sizeof(char), len);
-          sz = fread(item->data, len, 1, fp);
+          sz = fread(item->data, sizeof(char) * len, 1, fp);
           ASSERT(sz == 1);
           AtomTable_Append(image->table, ITEM_STRING, item, 1);
         }
@@ -1482,7 +1484,7 @@ KImage *KImage_Read_File(char *path)
           sz = fread(&len, 4, 1, fp);
           ASSERT(sz == 1);
           item = VaItem_New(sizeof(TypeListItem), sizeof(int32), len);
-          sz = fread(item->index, len, 1, fp);
+          sz = fread(item->index, sizeof(int32) * len, 1, fp);
           ASSERT(sz == 1);
           AtomTable_Append(image->table, ITEM_TYPELIST, item, 1);
         }
@@ -1539,7 +1541,7 @@ KImage *KImage_Read_File(char *path)
           sz = fread(&len, 4, 1, fp);
           ASSERT(sz == 1);
           item = VaItem_New(sizeof(CodeItem), sizeof(uint8), len);
-          sz = fread(item->codes, len, 1, fp);
+          sz = fread(item->codes, sizeof(uint8) * len, 1, fp);
           ASSERT(sz == 1);
           AtomTable_Append(image->table, ITEM_CODE, item, 0);
         }

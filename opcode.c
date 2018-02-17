@@ -48,10 +48,10 @@ void Code_Show(uint8 *code, int32 size)
     if (op == NULL) break;
     i++;
     printf("op:%-12s", op->str);
-    if (op->argsize == 4) arg = *(int *)(code + i);
-    else if (op->argsize == 2) arg = *(short *)(code + i);
+    if (op->argsize == 4) arg = *(int32 *)(code + i);
+    else if (op->argsize == 2) arg = *(int16 *)(code + i);
     else arg = -1;
-    printf("arg:%x\n", arg);
+    printf("arg:%d\n", arg);
     i += op->argsize;
   }
   printf("-------------------------------------\n");

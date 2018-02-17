@@ -7,9 +7,9 @@
 
 extern FILE *yyin;
 extern int yyparse(ParserState *ps);
-static void parse_body(ParserState *ps, Vector *stmts);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static ParserUnit *parent_scope(ParserState *ps);
+static void gen_code(ParserState *ps);
 
 /*-------------------------------------------------------------------------*/
 
@@ -111,7 +111,8 @@ static int check_return_types(ParserUnit *u, Vector *vec)
   } else {
     int sz = Vector_Size(vec);
     if (proto->rsz != sz) return 0;
-    Vector_ForEach(exp, struct expr, vec) {
+    struct expr *exp;
+    Vector_ForEach(exp, vec) {
       if (!TypeDesc_Check(exp->type, proto->rdesc + i)) {
         error("type check failed");
         return 0;
@@ -163,6 +164,9 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
     return NULL;
   }
 
+  // find in current module
+
+  // find in external imported module
   Import key = {.path = desc->path};
   Import *import = HashTable_FindObject(&ps->imports, &key, Import);
   if (import == NULL) {
@@ -185,22 +189,22 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 
 /*--------------------------------------------------------------------------*/
 
-static inline Code *code_new(uint8 op, TValue *val)
+static inline Inst *inst_new(uint8 op, TValue *val)
 {
-  Code *code = malloc(sizeof(Code));
-  init_list_head(&code->link);
-  code->op = op;
+  Inst *i = malloc(sizeof(Inst));
+  init_list_head(&i->link);
+  i->op = op;
   if (val != NULL)
-    code->arg = *val;
+    i->arg = *val;
   else
-    initnilvalue(&code->arg);
-  return code;
+    initnilvalue(&i->arg);
+  return i;
 }
 
-static inline void code_free(void *item, void *arg)
+static inline void inst_free(Inst *i)
 {
-  UNUSED_PARAMETER(arg);
-  free(item);
+  list_del(&i->link);
+  free(i);
 }
 
 static CodeBlock *codeblock_new(AtomTable *atbl)
@@ -208,45 +212,73 @@ static CodeBlock *codeblock_new(AtomTable *atbl)
   CodeBlock *b = calloc(1, sizeof(CodeBlock));
   init_list_head(&b->link);
   STbl_Init(&b->stbl, atbl);
-  init_list_head(&b->codes);
-  b->bret = 0;
+  init_list_head(&b->insts);
   return b;
 }
 
 static void codeblock_free(CodeBlock *b)
 {
-  UNUSED_PARAMETER(b);
+  if (b == NULL) return;
+  ASSERT(list_unlinked(&b->link));
+  STbl_Fini(&b->stbl);
+
+  Inst *i, *n;
+  list_for_each_entry_safe(i, n, &b->insts, link) {
+    inst_free(i);
+  }
+
+  free(b);
 }
 
-static inline void code_add(CodeBlock *b, Code *code)
+static inline void inst_add(CodeBlock *b, uint8 op, TValue *val)
 {
-  list_add(&code->link, &b->codes);
+  char buf[32];
+  TValue_Print(buf, 32, val);
+  debug("inst '%s %s' add head", OPCode_ToString(op),buf);
+  Inst *i = inst_new(op, val);
+  list_add(&i->link, &b->insts);
 }
 
-static inline void code_add_tail(CodeBlock *b, Code *code)
+static inline void inst_add_tail(CodeBlock *b, uint8 op, TValue *val)
 {
-  list_add_tail(&code->link, &b->codes);
+  char buf[32];
+  TValue_Print(buf, 32, val);
+  debug("inst '%s %s' add tail", OPCode_ToString(op), buf);
+  Inst *i = inst_new(op, val);
+  list_add_tail(&i->link, &b->insts);
 }
 
-static void code_gen(AtomTable *atbl, Buffer *buf, Code *code)
+static void inst_gen(AtomTable *atbl, Buffer *buf, Inst *i)
 {
-  int index;
-  Buffer_Write_Byte(buf, code->op);
-  switch (code->op) {
+  int index = -1;
+  Buffer_Write_Byte(buf, i->op);
+  switch (i->op) {
     case OP_HALT: {
       break;
     }
     case OP_LOADK: {
-      index = ConstItem_Set_String(atbl, code->arg.cstr);
+      TValue *val = &i->arg;
+      if (VALUE_ISINT(val)) {
+        index = ConstItem_Set_Int(atbl, VALUE_INT(val));
+      } else if (VALUE_ISFLOAT(val)) {
+        index = ConstItem_Set_Float(atbl, VALUE_FLOAT(val));
+      } else if (VALUE_ISBOOL(val)) {
+        index = ConstItem_Set_Bool(atbl, VALUE_BOOL(val));
+      } else if (VALUE_ISCSTR(val)) {
+        index = ConstItem_Set_String(atbl, VALUE_CSTR(val));
+      } else {
+        ASSERT(0);
+      }
       Buffer_Write_4Bytes(buf, index);
       break;
     }
     case OP_LOADM: {
-      index = ConstItem_Set_String(atbl, code->arg.cstr);
+      index = ConstItem_Set_String(atbl, i->arg.cstr);
       Buffer_Write_4Bytes(buf, index);
       break;
     }
     case OP_LOAD: {
+      Buffer_Write_2Bytes(buf, i->arg.ival);
       break;
     }
     case OP_STORE: {
@@ -259,11 +291,14 @@ static void code_gen(AtomTable *atbl, Buffer *buf, Code *code)
       break;
     }
     case OP_CALL: {
-      index = ConstItem_Set_String(atbl, code->arg.cstr);
+      index = ConstItem_Set_String(atbl, i->arg.cstr);
       Buffer_Write_4Bytes(buf, index);
       break;
     }
     case OP_RET: {
+      break;
+    }
+    case OP_ADD: {
       break;
     }
     default: {
@@ -273,13 +308,38 @@ static void code_gen(AtomTable *atbl, Buffer *buf, Code *code)
   }
 }
 
-static void code_merge(ParserState *ps)
+static void block_merge_up(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+  CodeBlock *b = u->block;
+  ASSERT_PTR(b);
+  if (list_empty(&u->blocks)) {
+    debug("no up code block");
+    return;
+  }
+
+  debug("merge code block up");
+
+  CodeBlock *nxt = list_first_entry(&u->blocks, CodeBlock, link);
+  list_del(&nxt->link);
+  u->block = nxt;
+
+  Inst *i, *n;
+  list_for_each_entry_safe(i, n, &b->insts, link) {
+    list_del(&i->link);
+    list_add_tail(&i->link, &u->block->insts);
+  }
+  codeblock_free(b);
+}
+
+static void save_code(ParserState *ps)
 {
   ParserUnit *u = ps->u;
 
   if (u->scope == SCOPE_FUNCTION) {
     debug("save code to function");
-    u->sym->obj = u->block;
+    u->sym->ptr = u->block;
+    u->block = NULL;
     u->sym->locvars = u->stbl.next;
   } else if (u->scope == SCOPE_BLOCK) {
     debug("merge code to parent's block");
@@ -288,7 +348,7 @@ static void code_merge(ParserState *ps)
   }
 }
 
-static void code_visit_symbol(Symbol *sym, void *arg)
+static void code_gen(Symbol *sym, void *arg)
 {
   KImage *image = arg;
   switch (sym->kind) {
@@ -297,15 +357,15 @@ static void code_visit_symbol(Symbol *sym, void *arg)
       break;
     }
     case SYM_PROTO: {
-      CodeBlock *b = sym->obj;
+      CodeBlock *b = sym->ptr;
       int locvars = sym->locvars;
-      code_add_tail(b, code_new(OP_RET, NULL));
+      inst_add_tail(b, OP_RET, NULL);
       AtomTable *atbl = image->table;
       Buffer buf;
       Buffer_Init(&buf, 32);
-      Code *code;
-      list_for_each_entry(code, &b->codes, link) {
-        code_gen(atbl, &buf, code);
+      Inst *i;
+      list_for_each_entry(i, &b->insts, link) {
+        inst_gen(atbl, &buf, i);
       }
       uint8 *data = Buffer_RawData(&buf);
       int size = Buffer_Size(&buf);
@@ -322,28 +382,29 @@ static void code_visit_symbol(Symbol *sym, void *arg)
 
 static void code_to_image(ParserState *ps)
 {
-  printf("----------write to image--------------------\n");
-  ParserUnit *u = ps->u;
-  KImage *image = KImage_New(ps->package);
-  STbl_Traverse(&u->stbl, code_visit_symbol, image);
-  KImage_Finish(image);
-  KImage_Show(image);
-  KImage_Write_File(image, ps->outfile);
-  image = KImage_Read_File(ps->outfile);
-  KImage_Show(image);
-  printf("----------end--------------------\n");
+  //printf("----------write to image--------------------\n");
+  //ParserUnit *u = ps->u;
+  //KImage *image = KImage_New(ps->package);
+  //STbl_Traverse(&u->stbl, code_gen, image);
+  //KImage_Finish(image);
+  //KImage_Show(image);
+  //KImage_Write_File(image, ps->outfile);
+  //image = KImage_Read_File(ps->outfile);
+  //KImage_Show(image);
+  //printf("----------end--------------------\n");
 }
 
 static void codeblock_show(CodeBlock *block)
 {
-  char buf[64];
+  if (block == NULL) return;
 
+  char buf[64];
   printf("-----------------------\n");
-  if (!list_empty(&block->codes)) {
-    Code *code;
-    list_for_each_entry(code, &block->codes, link) {
-      printf("opcode:%s\n", OPCode_ToString(code->op));
-      TValue_Print(buf, sizeof(buf), &code->arg);
+  if (!list_empty(&block->insts)) {
+    Inst *i;
+    list_for_each_entry(i, &block->insts, link) {
+      printf("opcode:%s\n", OPCode_ToString(i->op));
+      TValue_Print(buf, sizeof(buf), &i->arg);
       printf("arg:%s\n", buf);
       printf("-----------------------\n");
     }
@@ -356,7 +417,7 @@ static void codeblock_show(CodeBlock *block)
 void parse_dotaccess(ParserState *ps, struct expr *exp)
 {
   struct expr *left = exp->attribute.left;
-  left->ctx = CTX_LOAD;
+  left->ctx = EXPR_LOAD;
   parser_visit_expr(ps, left);
 
   debug(".%s", exp->attribute.id);
@@ -377,6 +438,8 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
       return;
     }
   } else if (leftsym->kind == SYM_VAR) {
+    debug("symbol '%s' is variable", leftsym->str);
+    ASSERT(leftsym->type != NULL);
     sym = find_userdef_symbol(ps, leftsym->type);
     if (sym == NULL) {
       error("cannot find symbol '%s' in '%s'", exp->attribute.id,
@@ -395,44 +458,68 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
 
   exp->sym = sym;
 
-  // generate instruction
-  if (sym->kind == SYM_VAR) {
-    ASSERT(0);
-  } else if (sym->kind == SYM_PROTO) {
-    TValue val = CSTR_VALUE_INIT(exp->attribute.id);
-    code_add_tail(ps->u->block, code_new(OP_CALL, &val));
+  // // generate code
+  // if (sym->kind == SYM_VAR) {
+  //   ASSERT(0);
+  // } else if (sym->kind == SYM_PROTO) {
+  //   TValue val = CSTR_VALUE_INIT(exp->attribute.id);
+  //   inst_add_tail(ps->u->block, OP_CALL, &val);
+  // } else {
+  //   ASSERT(0);
+  // }
+}
+
+static int check_call_varg(Proto *proto, Vector *vec)
+{
+  int sz = (vec == NULL) ? 0: Vector_Size(vec);
+  if (proto->psz -1 > sz) {
+      return 0;
   } else {
-    ASSERT(0);
+    TypeDesc *desc;
+    struct expr *exp;
+    Vector_ForEach(exp, vec) {
+      if (i < proto->psz - 1)
+        desc = proto->pdesc + i;
+      else
+        desc = proto->pdesc + proto->psz - 1;
+
+      TypeDesc *d = exp->type;
+      if (d->kind == TYPE_PROTO) {
+        Proto *p = d->proto;
+        /* allow only one return value as function argument */
+        if (p->rsz != 1) return 0;
+        if (!TypeDesc_Check(p->rdesc, desc)) return 0;
+      } else {
+        ASSERT(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
+        if (!TypeDesc_Check(d, desc)) return 0;
+      }
+    }
+    return 1;
   }
 }
 
 static int check_call_args(Proto *proto, Vector *vec)
 {
+  if (Proto_With_Vargs(proto))
+    return check_call_varg(proto, vec);
+
   int sz = (vec == NULL) ? 0: Vector_Size(vec);
-
-  if (Proto_With_Vargs(proto)) {
-    if (proto->psz -1 > sz) {
-      return 0;
-    } else {
-      TypeDesc *desc;
-      Vector_ForEach(exp, struct expr, vec) {
-        if (i < proto->psz - 1)
-          desc = proto->pdesc + i;
-        else
-          desc = proto->pdesc + proto->psz - 1;
-        if (!TypeDesc_Check(exp->type, desc))
-          return 0;
-      }
-    }
-  }
-
-  if (proto->psz != sz) {
+  if (proto->psz != sz)
     return 0;
-  }
 
-  Vector_ForEach(exp, struct expr, vec) {
-    if (!TypeDesc_Check(exp->type, proto->pdesc + i))
-      return 0;
+  TypeDesc *d;
+  struct expr *exp;
+  Vector_ForEach(exp, vec) {
+    d = exp->type;
+    if (d->kind == TYPE_PROTO) {
+      Proto *p = d->proto;
+      /* allow only one return value as function argument */
+      if (p->rsz != 1) return 0;
+      if (!TypeDesc_Check(p->rdesc, proto->pdesc + i)) return 0;
+    } else {
+      ASSERT(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
+      if (!TypeDesc_Check(d, proto->pdesc + i)) return 0;
+    }
   }
 
   return 1;
@@ -440,8 +527,25 @@ static int check_call_args(Proto *proto, Vector *vec)
 
 void parse_call(ParserState *ps, struct expr *exp)
 {
+  if (exp->call.args != NULL) {
+    ParserUnit *u = ps->u;
+    struct expr *e;
+    Vector_ForEach_Reverse(e, exp->call.args) {
+      // if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
+      //   CodeBlock *block = codeblock_new(u->stbl.atbl);
+      //   if (u->block != NULL) list_add(&u->block->link, &u->blocks);
+      //   u->block = block;
+      // }
+      parser_visit_expr(ps, e);
+      // if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
+      //   block_merge_up(ps);
+      // }
+    }
+  }
+
   struct expr *left = exp->call.left;
-  left->ctx = CTX_LOAD;
+
+  left->ctx = EXPR_LOAD;
   parser_visit_expr(ps, left);
 
   if (left->sym == NULL) {
@@ -450,67 +554,219 @@ void parse_call(ParserState *ps, struct expr *exp)
   }
 
   Symbol *sym = left->sym;
-  if (sym->kind == SYM_PROTO) {
-    debug("call %s()", left->sym->str);
-    /* check arguments */
-    if (!check_call_args(sym->type->proto, exp->call.pvec)) {
-      error("arguments are not matched.");
+  ASSERT(sym != NULL && sym->kind == SYM_PROTO);
+  debug("call %s()", sym->str);
+
+  /* return type */
+  exp->type = sym->type;
+
+  /* check arguments */
+  if (!check_call_args(sym->type->proto, exp->call.args)) {
+    error("arguments are not matched.");
+  }
+
+  /* generate code for arguments */
+  // if (exp->call.params != NULL) {
+  //   struct expr *e;
+  //   ParserUnit *u = ps->u;
+  //   Vector_ForEach_Reverse(e, exp->call.params) {
+  //     if (e->bconst == 1) {
+  //       e->gencode = 1;
+  //       debug("second visit parameter");
+  //       if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
+  //         CodeBlock *block = codeblock_new(u->stbl.atbl);
+  //         if (u->block != NULL) list_add(&u->block->link, &u->blocks);
+  //         u->block = block;
+  //       }
+  //       parser_visit_expr(ps, e);
+  //       debug("end second visit parameter");
+  //       if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
+  //         block_merge_up(ps);
+  //       }
+  //     }
+  //   }
+  // }
+}
+
+/*--------------------------------------------------------------------------*/
+
+#if 0
+static struct expr *optimize_binary_add(struct expr *l, struct expr *r)
+{
+  struct expr *e;
+  if (l->kind == INT_KIND) {
+    int64 val;
+    if (r->kind == INT_KIND) {
+      val = l->ival + r->ival;
+    } else if (r->kind == FLOAT_KIND) {
+      val = l->ival + r->fval;
     } else {
-      Vector_ForEach(e, struct expr, exp->call.pvec) {
-        parser_visit_expr(ps, e);
+      ASSERT(0);
+    }
+    e = expr_from_int(val);
+  } else if (l->kind == FLOAT_KIND) {
+    float64 val;
+    if (r->kind == INT_KIND) {
+      val = l->fval + r->ival;
+    } else if (r->kind == FLOAT_KIND) {
+      val = l->fval + r->fval;
+    } else {
+      ASSERT(0);
+    }
+    e = expr_from_float(val);
+  } else {
+    ASSERT_MSG(0, "unsupported optimized type:%d", l->kind);
+  }
+  return e;
+}
+
+static struct expr *optimize_binary_sub(struct expr *l, struct expr *r)
+{
+  struct expr *e;
+  if (l->kind == INT_KIND) {
+    int64 val;
+    if (r->kind == INT_KIND) {
+      val = l->ival - r->ival;
+    } else if (r->kind == FLOAT_KIND) {
+      val = l->ival - r->fval;
+    } else {
+      ASSERT(0);
+    }
+    e = expr_from_int(val);
+  } else if (l->kind == FLOAT_KIND) {
+    float64 val;
+    if (r->kind == INT_KIND) {
+      val = l->fval - r->ival;
+    } else if (r->kind == FLOAT_KIND) {
+      val = l->fval - r->fval;
+    } else {
+      ASSERT(0);
+    }
+    e = expr_from_float(val);
+  } else {
+    ASSERT_MSG(0, "unsupported optimized type:%d", l->kind);
+  }
+  return e;
+}
+
+static int optimize_binary_expr(ParserState *ps, struct expr **exp)
+{
+  if (ps->olevel <= 0) return 0;
+
+  int ret = 0;
+  struct expr *origin = *exp;
+  struct expr *left = origin->binary.left;
+  struct expr *right = origin->binary.right;
+  if (left->bconst && right->bconst) {
+    ret = 1;
+    struct expr *e = NULL;
+    switch (origin->binary.op) {
+      case BINARY_ADD: {
+        debug("optimize add");
+        e = optimize_binary_add(left, right);
+        break;
+      }
+      case BINARY_SUB: {
+        debug("optimize sub");
+        e = optimize_binary_sub(left, right);
+        break;
+      }
+      default: {
+        ASSERT(0);
       }
     }
-  } else {
-    ASSERT(0);
+    //free origin, left and right expression
+    *exp = e;
   }
+
+  return ret;
 }
+
+#endif
+
+/*--------------------------------------------------------------------------*/
 
 static void parser_visit_expr(ParserState *ps, struct expr *exp)
 {
   switch (exp->kind) {
     case NAME_KIND: {
-      exp->sym = find_id_symbol(ps, exp->name.id);
+      exp->sym = find_id_symbol(ps, exp->id);
       if (exp->type == NULL) {
+        debug("set id's type as it's symbol's type");
         exp->type = exp->sym->type;
       }
-      debug("name:%s(%s), type:%s",
-            exp->name.id, exp->ctx == CTX_STORE ? "store": "load",
-            TypeDesc_ToString(exp->type));
+#if 0
       if (exp->sym->kind == SYM_STABLE) {
-        TValue val = CSTR_VALUE_INIT(exp->type->path);
-        code_add_tail(ps->u->block, code_new(OP_LOADM, &val));
+        // generate code
+        // if (exp->gencode) {
+        //   TValue val = CSTR_VALUE_INIT(exp->type->path);
+        //   inst_add_tail(ps->u->block, OP_LOADM, &val);
+        // }
       } else if (exp->sym->kind == SYM_VAR) {
+        debug("symbol '%s' is variable", exp->name.id);
+          // generate code
+        if (exp->gencode) {
+          if (exp->ctx == CTX_LOAD) {
+            debug("load var's index:%d", exp->sym->index);
+            TValue val = INT_VALUE_INIT(exp->sym->index);
+            inst_add_tail(ps->u->block, OP_LOAD, &val);
+          } else if (exp->ctx == CTX_STORE) {
+            debug("store var's index:%d", exp->sym->index);
+            TValue val = INT_VALUE_INIT(exp->sym->index);
+            inst_add_tail(ps->u->block, OP_STORE, &val);
+          } else {
+            ASSERT_MSG(0, "unknown ctx:%d", exp->ctx);
+          }
+        }
+      } else if (exp->sym->kind == SYM_PROTO) {
+        debug("symbol '%s' is function", exp->name.id);
+        // generate code
+        // this object
+        TValue val = INT_VALUE_INIT(0);
+        inst_add_tail(ps->u->block, OP_LOAD, &val);
 
+        setcstrvalue(&val, exp->name.id);
+        inst_add_tail(ps->u->block, OP_CALL, &val);
       } else {
         ASSERT(0);
       }
+#endif
       break;
     }
     case INT_KIND: {
-      if (exp->ctx == CTX_STORE) {
+      if (exp->ctx == EXPR_STORE) {
         error("cannot assign to %lld", exp->ival);
       }
+      // if (exp->gencode) {
+      //   // generate code
+      //   TValue val = INT_VALUE_INIT(exp->ival);
+      //   inst_add(ps->u->block, OP_LOADK, &val);
+      // }
+      // exp->bconst = 1;
       break;
     }
     case FLOAT_KIND: {
-      if (exp->ctx == CTX_STORE) {
+      if (exp->ctx == EXPR_STORE) {
         error("cannot assign to %f", exp->fval);
       }
+      //exp->bconst = 1;
       break;
     }
     case BOOL_KIND: {
-      if (exp->ctx == CTX_STORE) {
+      if (exp->ctx == EXPR_STORE) {
         error("cannot assign to %s", exp->bval ? "true":"false");
       }
+      //exp->bconst = 1;
       break;
     }
     case STRING_KIND: {
-      if (exp->ctx == CTX_STORE) {
+      if (exp->ctx == EXPR_STORE) {
         error("cannot assign to %s", exp->str);
-      } else {
-        TValue val = CSTR_VALUE_INIT(exp->str);
-        code_add(ps->u->block, code_new(OP_LOADK, &val));
       }
+      // } else {
+      //   TValue val = CSTR_VALUE_INIT(exp->str);
+      //   inst_add(ps->u->block, OP_LOADK, &val);
+      // }
       break;
     }
     case ATTRIBUTE_KIND: {
@@ -522,10 +778,22 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       break;
     }
     case BINARY_KIND: {
-      debug("binary_op:%d", exp->bin_op.op);
-      parser_visit_expr(ps, exp->bin_op.left);
-      exp->type = exp->bin_op.left->type;
-      parser_visit_expr(ps, exp->bin_op.right);
+      debug("binary_op:%d", exp->binary.op);
+      parser_visit_expr(ps, exp->binary.left);
+      exp->type = exp->binary.left->type;
+      parser_visit_expr(ps, exp->binary.right);
+      // if (optimize_binary_expr(ps, &exp)) {
+      //   exp->gencode = 1;
+      //   parser_visit_expr(ps, exp);
+      // } else {
+      //   exp->binary.left->gencode = 1;
+      //   exp->binary.right->gencode = 1;
+      //   parser_visit_expr(ps, exp->binary.right);
+      //   parser_visit_expr(ps, exp->binary.left);
+      //   // generate code
+      //   debug("add 'OP_ADD' inst");
+      //   inst_add_tail(ps->u->block, OP_ADD, NULL);
+      // }
       break;
     }
     default:
@@ -541,9 +809,10 @@ static void parser_enter_scope(ParserState *ps, int scope)
   AtomTable *atbl = NULL;
   ParserUnit *u = calloc(1, sizeof(ParserUnit));
   init_list_head(&u->link);
+  init_list_head(&u->blocks);
   if (ps->u != NULL) atbl = ps->u->stbl.atbl;
   STbl_Init(&u->stbl, atbl);
-  u->block = codeblock_new(atbl);
+  u->block = NULL;
   u->scope = scope;
 
   /* Push the old ParserUnit on the stack. */
@@ -571,8 +840,7 @@ static void parser_exit_scope(ParserState *ps)
   codeblock_show(ps->u->block);
   printf("-------------------------\n");
 
-  code_merge(ps);
-
+  save_code(ps);
   ps->nestlevel--;
   parser_unit_free(ps->u);
   /* Restore c->u to the parent unit. */
@@ -596,11 +864,10 @@ static ParserUnit *parent_scope(ParserState *ps)
 void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
   ParserUnit *u = ps->u;
-  ASSERT_PTR(u);
 
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
     if (exp == NULL) {
-      debug("variable declaration is not need generate code");
+      debug("variable hasn't an initialized expression");
       return;
     }
 
@@ -614,30 +881,37 @@ void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
       return;
     }
 
-    ASSERT_PTR(exp->type);
+    if (exp->type == NULL) {
+      debug("parse expression, and set its type");
+      parser_visit_expr(ps, exp);
+    }
 
+    ASSERT_PTR(exp->type);
     if (!TypeDesc_Check(var->type, exp->type)) {
       error("typecheck failed");
-    } else {
-      // parse exp
-      debug("parse exp");
-      exp->ctx = CTX_LOAD;  /* rvalue */
-      parser_visit_expr(ps, exp);
-
-      //generate code
-      debug("generate code");
     }
+
   } else if (u->scope == SCOPE_FUNCTION) {
-    debug("parse func vardecl, '%s'", var->id);
+    debug("parse variable '%s' declaration in function", var->id);
     ASSERT(!list_empty(&ps->ustack));
     ParserUnit *parent = parent_scope(ps);
     ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
-    STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
     if (exp != NULL) {
+      /* visit right's expression firstly */
+      // exp->ctx = CTX_LOAD;
       parser_visit_expr(ps, exp);
+
+      if (var->type == NULL) {
+        /* variable' type is not set in building AST */
+        debug("var '%s' type is not set, using right's type", var->id);
+        ASSERT(exp->type);
+        var->type = exp->type;
+      }
+
       if (!TypeDesc_Check(var->type, exp->type))
         error("typecheck failed");
     }
+    STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
   } else {
     ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
   }
@@ -654,8 +928,10 @@ void parse_function(ParserState *ps, struct stmt *stmt)
 
   if (parent->scope == SCOPE_MODULE) {
     debug("parse function, '%s'", stmt->funcdecl.id);
-    Vector_ForEach(var, struct var, stmt->funcdecl.pvec) {
-      parse_variable(ps, var, NULL);
+    if (stmt->funcdecl.pvec != NULL) {
+      struct var *var;
+      Vector_ForEach(var, stmt->funcdecl.pvec)
+        parse_variable(ps, var, NULL);
     }
     parse_body(ps, stmt->funcdecl.body);
   } else if (parent->scope == SCOPE_CLASS) {
@@ -671,9 +947,9 @@ void parse_assign(ParserState *ps, struct stmt *stmt)
 {
   struct expr *r = stmt->assign.right;
   struct expr *l = stmt->assign.left;
-  r->ctx = CTX_LOAD;
+  r->ctx = EXPR_LOAD;
   parser_visit_expr(ps, r);
-  l->ctx = CTX_STORE;
+  l->ctx = EXPR_STORE;
   parser_visit_expr(ps, l);
 }
 
@@ -683,8 +959,10 @@ void paser_return(ParserState *ps, struct stmt *stmt)
   ASSERT_PTR(u);
   if (u->scope == SCOPE_FUNCTION) {
     debug("return in function");
-    Vector_ForEach(e, struct expr, stmt->vec) {
-      parser_visit_expr(ps, e);
+    if (stmt->vec != NULL) {
+      struct expr *e;
+      Vector_ForEach(e, stmt->vec)
+        parser_visit_expr(ps, e);
     }
     check_return_types(u, stmt->vec);
   } else {
@@ -719,7 +997,7 @@ void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
       paser_return(ps, stmt);
       break;
     }
-    case VARDECL_LIST_KIND: {
+    case LIST_KIND: {
       parse_body(ps, stmt->vec);
       break;
     }
@@ -732,18 +1010,34 @@ void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 /*--------------------------------------------------------------------------*/
 
 /* parse a sequence of statements */
-static void parse_body(ParserState *ps, Vector *stmts)
+void parse_body(ParserState *ps, Vector *stmts)
 {
-  if (stmts == NULL) return;
-  Vector_ForEach(stmt, struct stmt, stmts) {
+  debug("=====parser body begin=====");
+
+  ParserUnit *u = ps->u;
+  struct stmt *stmt;
+  Vector_ForEach(stmt, stmts) {
+    // if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
+    //   CodeBlock *block = codeblock_new(u->stbl.atbl);
+    //   if (u->block != NULL) list_add(&u->block->link, &u->blocks);
+    //   u->block = block;
+    // }
+
     parser_visit_stmt(ps, stmt);
+
+    // if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
+    //   block_merge_up(ps);
+    // }
   }
+
+  debug("=====parser body end=====");
 }
 
 static void init_parser(ParserState *ps)
 {
   Koala_Init();
   memset(ps, 0, sizeof(ParserState));
+  Vector_Init(&ps->stmts);
   init_imports(ps);
   init_list_head(&ps->ustack);
   Vector_Init(&ps->errors);
@@ -752,7 +1046,15 @@ static void init_parser(ParserState *ps)
 
 static void fini_parser(ParserState *ps)
 {
+  printf("package:%s\n", ps->package);
+  STbl_Show(&ps->u->stbl, 1);
+  check_imports(ps);
+  check_unused_symbols(ps);
+
   parser_exit_scope(ps);
+
+  gen_code(ps);
+
   Koala_Fini();
 }
 
@@ -850,27 +1152,29 @@ Symbol *parse_import(ParserState *ps, char *id, char *path)
   return sym;
 }
 
-void parse_vardecl(ParserState *ps, struct stmt *s)
+void parse_vardecls(ParserState *ps, struct stmt *stmt)
 {
-  ASSERT(s->kind == VARDECL_LIST_KIND);
   struct var *var;
   Symbol *sym;
-
-  Vector_ForEach(stmt, struct stmt, s->vec) {
-    var = stmt->vardecl.var;
-    if (var->type->kind == TYPE_USERDEF) {
-      if (!find_userdef_symbol(ps, var->type)) {
-        error("add '%s %s' failed, because cannot find it's type:%s.%s",
-              var->bconst ? "const":"var", var->id,
-              var->type->path, var->type->type);
-        continue;
-      }
+  struct stmt *s;
+  Vector_ForEach(s, stmt->vec) {
+    var = s->vardecl.var;
+    if (var->type == NULL) {
+      debug("'%s %s' type isnot set", var->bconst ? "const":"var", var->id);
     }
+    // if (var->type->kind == TYPE_USERDEF) {
+    //   if (!find_userdef_symbol(ps, var->type)) {
+    //     error("add '%s %s' failed, because cannot find it's type:%s.%s",
+    //           var->bconst ? "const":"var", var->id,
+    //           var->type->path, var->type->type);
+    //     continue;
+    //   }
+    // }
     sym = STbl_Add_Var(&ps->u->stbl, var->id, var->type, var->bconst);
     if (sym != NULL) {
-      debug("add '%s %s' successful", var->bconst ? "const":"var", var->id);
+      debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
     } else {
-      error("add '%s %s' failed, because it'name is duplicated",
+      error("add %s '%s' failed, it'name is duplicated",
             var->bconst ? "const":"var", var->id);
     }
   }
@@ -891,9 +1195,9 @@ static Proto *funcdecl_to_proto(struct stmt *stmt)
     sz = Vector_Size(vec);
     desc = malloc(sizeof(TypeDesc) * sz);
     ASSERT_PTR(desc);
-    Vector_ForEach(var, struct var, vec) {
+    struct var *var;
+    Vector_ForEach(var, vec)
       memcpy(desc + i, var->type, sizeof(TypeDesc));
-    }
   }
   proto->psz = sz;
   proto->pdesc = desc;
@@ -906,9 +1210,9 @@ static Proto *funcdecl_to_proto(struct stmt *stmt)
     sz = Vector_Size(vec);
     desc = malloc(sizeof(TypeDesc) * sz);
     ASSERT_PTR(desc);
-    Vector_ForEach(d, TypeDesc, vec) {
+    TypeDesc *d;
+    Vector_ForEach(d, vec)
       memcpy(desc + i, d, sizeof(TypeDesc));
-    }
   }
   proto->rsz = sz;
   proto->rdesc = desc;
@@ -924,9 +1228,9 @@ void parse_funcdecl(ParserState *ps, struct stmt *stmt)
   proto = funcdecl_to_proto(stmt);
   sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, proto);
   if (sym != NULL) {
-    debug("add 'func %s' successful", stmt->funcdecl.id);
+    debug("add func '%s' successful", stmt->funcdecl.id);
   } else {
-    debug("add 'func %s' failed", stmt->funcdecl.id);
+    debug("add func '%s' failed", stmt->funcdecl.id);
   }
 }
 
@@ -936,15 +1240,10 @@ void parse_typedecl(ParserState *ps, struct stmt *stmt)
   UNUSED_PARAMETER(stmt);
 }
 
-void parse_module(ParserState *ps, struct mod *mod)
+/*--------------------------------------------------------------------------*/
+
+static void gen_code(ParserState *ps)
 {
-  debug("==begin==================");
-  ps->package = mod->package;
-  parse_body(ps, &mod->stmts);
-  debug("==end===================");
-  printf("package:%s\n", ps->package);
-  STbl_Show(&ps->u->stbl, 1);
-  check_imports(ps);
-  check_unused_symbols(ps);
-  code_to_image(ps);
+  debug("=====code generator begin=====");
+  debug("=====code generator end=====");
 }

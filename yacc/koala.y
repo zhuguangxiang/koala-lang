@@ -16,8 +16,6 @@ int yyerror(ParserState *parser, const char *str)
   return 0;
 }
 
-static decl_mod(mod);
-
 //#define YYERROR_VERBOSE 1
 #define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
 
@@ -162,7 +160,6 @@ static decl_mod(mod);
 %type <expr> ArrayInitializer
 %type <stmt> VariableDeclaration
 %type <stmt> ConstDeclaration
-%type <stmt> ModuleStatement
 %type <stmt> LocalStatement
 %type <stmt> Assignment
 %type <stmt> IfStatement
@@ -318,27 +315,19 @@ TypeList
 /*--------------------------------------------------------------------------*/
 
 CompileUnit
-  : Imports ModuleStatements {
-    mod.package = NULL;
-    ast_traverse(&mod.stmts);
-  }
-  | ModuleStatements {
-    mod.package = NULL;;
-    ast_traverse(&mod.stmts);
-  }
-  | Package Imports ModuleStatements {
-    ast_traverse(&mod.stmts);
-    parse_module(parser, &mod);
+  : Package Imports ModuleStatements {
+    ast_traverse(&parser->stmts);
+    parse_body(parser, &parser->stmts);
   }
   | Package ModuleStatements {
-    ast_traverse(&mod.stmts);
-    parse_module(parser, &mod);
+    ast_traverse(&parser->stmts);
+    parse_body(parser, &parser->stmts);
   }
   ;
 
 Package
   : PACKAGE ID ';' {
-    mod.package = $2;
+    parser->package = $2;
   }
   ;
 
@@ -357,34 +346,29 @@ Import
   ;
 
 ModuleStatements
-  : ModuleStatement {
-    if ($1 != NULL) Vector_Append(&mod.stmts, $1);
-  }
-  | ModuleStatements ModuleStatement {
-    if ($2 != NULL) Vector_Append(&mod.stmts, $2);
-  }
+  : ModuleStatement
+  | ModuleStatements ModuleStatement
   ;
 
 ModuleStatement
   : ';' {
     printf("empty statement\n");
-    $$ = NULL;
   }
   | VariableDeclaration ';' {
-    parse_vardecl(parser, $1);
-    $$ = $1;
+    parse_vardecls(parser, $1);
+    Vector_Append(&parser->stmts, $1);
   }
   | ConstDeclaration {
-    parse_vardecl(parser, $1);
-    $$ = $1;
+    parse_vardecls(parser, $1);
+    Vector_Append(&parser->stmts, $1);
   }
   | FunctionDeclaration {
     parse_funcdecl(parser, $1);
-    $$ = $1;
+    Vector_Append(&parser->stmts, $1);
   }
   | TypeDeclaration {
     parse_typedecl(parser, $1);
-    $$ = $1;
+    Vector_Append(&parser->stmts, $1);
   }
   | error {
     yyerror(parser, "non-declaration statement outside function body");
@@ -783,7 +767,7 @@ PrimaryExpression
 
 Atom
   : ID {
-    $$ = expr_from_name($1);
+    $$ = expr_from_id($1);
   }
   | CONSTANT {
     $$ = $1;
@@ -909,13 +893,13 @@ MultiplicativeExpression
     $$ = $1;
   }
   | MultiplicativeExpression '*' UnaryExpression {
-    $$ = expr_from_binary(OP_MULT, $1, $3);
+    $$ = expr_from_binary(BINARY_MULT, $1, $3);
   }
   | MultiplicativeExpression '/' UnaryExpression {
-    $$ = expr_from_binary(OP_DIV, $1, $3);
+    $$ = expr_from_binary(BINARY_DIV, $1, $3);
   }
   | MultiplicativeExpression '%' UnaryExpression {
-    $$ = expr_from_binary(OP_MOD, $1, $3);
+    $$ = expr_from_binary(BINARY_MOD, $1, $3);
   }
   ;
 
@@ -924,10 +908,10 @@ AdditiveExpression
     $$ = $1;
   }
   | AdditiveExpression '+' MultiplicativeExpression {
-    $$ = expr_from_binary(OP_ADD, $1, $3);
+    $$ = expr_from_binary(BINARY_ADD, $1, $3);
   }
   | AdditiveExpression '-' MultiplicativeExpression {
-    $$ = expr_from_binary(OP_SUB, $1, $3);
+    $$ = expr_from_binary(BINARY_SUB, $1, $3);
   }
   ;
 
@@ -936,10 +920,10 @@ ShiftExpression
     $$ = $1;
   }
   | ShiftExpression LSHIFT AdditiveExpression {
-    $$ = expr_from_binary(OP_LSHIFT, $1, $3);
+    $$ = expr_from_binary(BINARY_LSHIFT, $1, $3);
   }
   | ShiftExpression RSHIFT AdditiveExpression {
-    $$ = expr_from_binary(OP_RSHIFT, $1, $3);
+    $$ = expr_from_binary(BINARY_RSHIFT, $1, $3);
   }
   ;
 
@@ -948,16 +932,16 @@ RelationalExpression
     $$ = $1;
   }
   | RelationalExpression '<' ShiftExpression {
-    $$ = expr_from_binary(OP_LT, $1, $3);
+    $$ = expr_from_binary(BINARY_LT, $1, $3);
   }
   | RelationalExpression '>' ShiftExpression {
-    $$ = expr_from_binary(OP_GT, $1, $3);
+    $$ = expr_from_binary(BINARY_GT, $1, $3);
   }
   | RelationalExpression LE  ShiftExpression {
-    $$ = expr_from_binary(OP_LE, $1, $3);
+    $$ = expr_from_binary(BINARY_LE, $1, $3);
   }
   | RelationalExpression GE  ShiftExpression {
-    $$ = expr_from_binary(OP_GE, $1, $3);
+    $$ = expr_from_binary(BINARY_GE, $1, $3);
   }
   ;
 
@@ -966,10 +950,10 @@ EqualityExpression
     $$ = $1;
   }
   | EqualityExpression EQ RelationalExpression {
-    $$ = expr_from_binary(OP_EQ, $1, $3);
+    $$ = expr_from_binary(BINARY_EQ, $1, $3);
   }
   | EqualityExpression NE RelationalExpression {
-    $$ = expr_from_binary(OP_NEQ, $1, $3);
+    $$ = expr_from_binary(BINARY_NEQ, $1, $3);
   }
   ;
 
@@ -978,7 +962,7 @@ AndExpression
     $$ = $1;
   }
   | AndExpression '&' EqualityExpression {
-    $$ = expr_from_binary(OP_BIT_AND, $1, $3);
+    $$ = expr_from_binary(BINARY_BIT_AND, $1, $3);
   }
   ;
 
@@ -987,7 +971,7 @@ ExclusiveOrExpression
     $$ = $1;
   }
   | ExclusiveOrExpression '^' AndExpression {
-    $$ = expr_from_binary(OP_BIT_XOR, $1, $3);
+    $$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);
   }
   ;
 
@@ -996,7 +980,7 @@ InclusiveOrExpression
     $$ = $1;
   }
   | InclusiveOrExpression '|' ExclusiveOrExpression {
-    $$ = expr_from_binary(OP_BIT_OR, $1, $3);
+    $$ = expr_from_binary(BINARY_BIT_OR, $1, $3);
   }
   ;
 
@@ -1005,7 +989,7 @@ LogicalAndExpression
     $$ = $1;
   }
   | LogicalAndExpression AND InclusiveOrExpression {
-    $$ = expr_from_binary(OP_LAND, $1, $3);
+    $$ = expr_from_binary(BINARY_LAND, $1, $3);
   }
   ;
 
@@ -1014,7 +998,7 @@ LogicalOrExpression
     $$ = $1;
   }
   | LogicalOrExpression OR LogicalAndExpression {
-    $$ = expr_from_binary(OP_LOR, $1, $3);
+    $$ = expr_from_binary(BINARY_LOR, $1, $3);
   }
   ;
 

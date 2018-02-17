@@ -34,9 +34,9 @@ void Vector_Fini(Vector *vec, itemfunc fn, void *arg)
 
   if (fn != NULL) {
     info("finalizing objs...");
-    Vector_ForEach(item, void, vec) {
+    void *item;
+    Vector_ForEach(item, vec)
       fn(item, arg);
-    }
   }
 
   free(vec->items);
@@ -129,8 +129,8 @@ int Vector_Append(Vector *vec, void *item)
 
 int Vector_Concat(Vector *dest, Vector *src)
 {
-  Vector_ForEach(item, void, src) {
+  void *item;
+  Vector_ForEach(item, src)
     Vector_Append(dest, item);
-  }
   return 0;
 }

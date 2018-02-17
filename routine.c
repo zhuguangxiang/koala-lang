@@ -32,24 +32,22 @@ static void frame_new(Routine *rt, Object *code)
 
 static void frame_free(Frame *f)
 {
-  list_del(&f->link);
+  ASSERT(list_unlinked(&f->link));
   free(f);
 }
 
 static void restore_previous_frame(Frame *f)
 {
-  Frame *old = f;
-
   Routine *rt = f->rt;
   if (!list_empty(&rt->frames)) {
-    f = list_first_entry(&rt->frames, Frame, link);
-    list_del(&f->link);
-    rt->frame = f;
+    Frame *nf = list_first_entry(&rt->frames, Frame, link);
+    list_del(&nf->link);
+    rt->frame = nf;
   } else {
     rt->frame = NULL;
   }
 
-  frame_free(old);
+  frame_free(f);
 }
 
 static void start_cframe(Frame *f)
@@ -96,13 +94,14 @@ static void start_kframe(Frame *f)
   TValue val;
 
   /* Prepare parameters */
-  //int sz = rt_stack_size(rt);
-  //ASSERT((sz == (meth->args + 1)) && (sz <= f->size));
+  int sz = rt_stack_size(rt);
+  //ASSERT(sz == (KFunc_Argc(f->code) + 1) && (sz <= f->size));
+  int count = min(sz, KFunc_Argc(f->code) + 1);
   int i = 0;
-  val = rt_stack_pop(rt);
-  while (!VALUE_ISNIL(&val)) {
-    f->locvars[i++] = val;
+  while (count-- > 0) {
     val = rt_stack_pop(rt);
+    ASSERT(!VALUE_ISNIL(&val));
+    f->locvars[i++] = val;
   }
 
   /* Call frame_loop() to execute instructions */

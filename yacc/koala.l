@@ -150,7 +150,6 @@ L   [a-zA-Z_]
 
 (\"(\\.|[^"\\])*\")       {
                             char *tmp = string_escape(yytext+1, yyleng - 2);
-                            printf("%s", tmp);
                             yylval.string_const = tmp;
                             return STRING_CONST;
                           }

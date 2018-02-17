@@ -28,10 +28,11 @@ void *Vector_Get(Vector *vec, int index);
 int Vector_Append(Vector *vec, void *item);
 #define Vector_Size(vec) (((Vector *)(vec))->size)
 int Vector_Concat(Vector *dest, Vector *src);
-#define Vector_ForEach(item, type, vec) \
-  type *item; \
-  if ((vec) != NULL) \
-    for (int i = 0; (i >= (vec)->size) ? 0 : (item = (vec)->items[i]); i++)
+#define Vector_ForEach(item, vec) \
+  for (int i = 0; (i < (vec)->size) && (item = (vec)->items[i], 1); i++)
+
+#define Vector_ForEach_Reverse(item, vec) \
+  for (int i = (vec)->size - 1; (i >= 0) && (item = (vec)->items[i], 1); i--)
 
 #ifdef __cplusplus
 }

@@ -173,12 +173,12 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
   return (sym != NULL) ? 0 : -1;
 }
 
-int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *meth)
+int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
   Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
   if (sym != NULL) {
-    sym->obj = meth;
+    sym->ptr = code;
     return 0;
   }
   return -1;
@@ -186,11 +186,11 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *meth)
 
 Object *Klass_Get_Method(Klass *klazz, char *name)
 {
-  Symbol *s = STbl_Get(&klazz->stbl, name);
-  if (s == NULL) return NULL;
-  if (s->kind != SYM_PROTO) return NULL;
-  OB_ASSERT_KLASS(s->obj, Code_Klass);
-  return s->obj;
+  Symbol *sym = STbl_Get(&klazz->stbl, name);
+  if (sym == NULL) return NULL;
+  if (sym->kind != SYM_PROTO) return NULL;
+  OB_ASSERT_KLASS(sym->ptr, Code_Klass);
+  return sym->ptr;
 }
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
@@ -279,6 +279,11 @@ static int CStrValue_Print(char *buf, int sz, TValue *val)
 
 int TValue_Print(char *buf, int sz, TValue *val)
 {
+  if (val == NULL) {
+    buf[0] = '\0';
+    return 0;
+  }
+
   int count = 0;
   switch (val->type) {
     case TYPE_NIL: {

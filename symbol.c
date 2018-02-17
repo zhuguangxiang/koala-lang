@@ -53,7 +53,8 @@ int STbl_Init(STable *stbl, AtomTable *atbl)
   } else {
     stbl->atbl = atbl;
   }
-  stbl->next = 0;
+  //FIXME: start from 1st position, because position-0 is for object
+  stbl->next = 1;
   return 0;
 }
 

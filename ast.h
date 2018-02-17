@@ -17,17 +17,17 @@ enum unary_op_kind {
   OP_PLUS = 1, OP_MINUS = 2, OP_BIT_NOT = 3, OP_LNOT = 4
 };
 
-enum operator_kind {
-  OP_MULT = 1, OP_DIV = 2, OP_MOD = 3,
-  OP_ADD = 4, OP_SUB = 5,
-  OP_LSHIFT, OP_RSHIFT,
-  OP_GT, OP_GE, OP_LT, OP_LE,
-  OP_EQ, OP_NEQ,
-  OP_BIT_AND,
-  OP_BIT_XOR,
-  OP_BIT_OR,
-  OP_LAND,
-  OP_LOR,
+enum binary_op_kind {
+  BINARY_ADD = 1, BINARY_SUB,
+  BINARY_MULT, BINARY_DIV, BINARY_MOD,
+  BINARY_LSHIFT, BINARY_RSHIFT,
+  BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE,
+  BINARY_EQ, BINARY_NEQ,
+  BINARY_BIT_AND,
+  BINARY_BIT_XOR,
+  BINARY_BIT_OR,
+  BINARY_LAND,
+  BINARY_LOR,
 };
 
 enum expr_kind {
@@ -39,7 +39,7 @@ enum expr_kind {
 };
 
 enum expr_ctx {
-  CTX_LOAD = 1, CTX_STORE = 2,
+  EXPR_INVALID = 0, EXPR_LOAD = 1, EXPR_STORE = 2,
 };
 
 struct expr {
@@ -48,9 +48,7 @@ struct expr {
   enum expr_ctx ctx;
   Symbol *sym;
   union {
-    struct {
-      char *id;
-    } name;
+    char *id;
     int64 ival;
     float64 fval;
     char *str;
@@ -77,25 +75,25 @@ struct expr {
     } subscript;
     struct {
       struct expr *left;
-      Vector *pvec;   /* expression list */
+      Vector *args;     /* arguments list */
     } call;
     /* arithmetic operation */
     struct {
       enum unary_op_kind op;
       struct expr *operand;
-    } unary_op;
+    } unary;
     struct {
       struct expr *left;
-      enum operator_kind op;
+      enum binary_op_kind op;
       struct expr *right;
-    } bin_op;
+    } binary;
     Vector *vec;
   };
 };
 
 struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
                                struct expr *left);
-struct expr *expr_from_name(char *id);
+struct expr *expr_from_id(char *id);
 struct expr *expr_from_int(int64 ival);
 struct expr *expr_from_float(float64 fval);
 struct expr *expr_from_string(char *str);
@@ -106,7 +104,7 @@ struct expr *expr_from_nil(void);
 struct expr *expr_from_array(TypeDesc *type, Vector *dseq, Vector *tseq);
 struct expr *expr_from_array_with_tseq(Vector *tseq);
 struct expr *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body);
-struct expr *expr_from_binary(enum operator_kind kind,
+struct expr *expr_from_binary(enum binary_op_kind kind,
                               struct expr *left, struct expr *right);
 struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr);
 
@@ -120,25 +118,7 @@ struct var {
   TypeDesc *type;
 };
 
-struct field {
-  char *id;
-  TypeDesc *type;
-  struct expr *expr;
-};
-
-struct func_proto {
-  Vector *pvec;
-  Vector *rvec;
-};
-
-struct intf_func {
-  char *id;
-  struct func_proto proto;
-};
-
 struct var *new_var(char *id, TypeDesc *type);
-struct field *new_struct_field(char *id, TypeDesc *type, struct expr *e);
-struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec);
 
 /*-------------------------------------------------------------------------*/
 
@@ -161,8 +141,7 @@ enum stmt_kind {
   EXPR_KIND = 6, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
   RETURN_KIND, IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
   FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND, BLOCK_KIND,
-  VARDECL_LIST_KIND,
-  STMT_KIND_MAX = 20
+  LIST_KIND, STMT_KIND_MAX = 20
 };
 
 struct assign {
@@ -258,20 +237,7 @@ struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
 struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
                                Vector *body, int bdecl);
 struct stmt *stmt_from_go(struct expr *expr);
-struct stmt *stmt_from_vardecllist(Vector *vec);
-
-/*-------------------------------------------------------------------------*/
-
-struct mod {
-  char *package;
-  Vector stmts;
-  Vector errors;
-};
-
-#define decl_mod(name) \
-  struct mod name = \
-  {.package = NULL, .stmts = VECTOR_INIT, .errors = VECTOR_INIT}
-void mod_fini(struct mod *mod);
+struct stmt *stmt_from_vardecl_list(Vector *vec);
 
 /*-------------------------------------------------------------------------*/
 

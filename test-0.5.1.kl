@@ -1,4 +1,7 @@
 
+/*
+  This test is for classic 'hello, world' program
+ */
 package test;
 
 import "koala/lang";  //warn: load duplicated

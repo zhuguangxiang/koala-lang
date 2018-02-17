@@ -101,7 +101,7 @@ extern "C" {
 
 /*
   Arthmetic operation: add, sub, mul, div
-  Args are in stack. Result is also saved in stack.
+  All args, include object, are in stack. Result is also saved in stack.
  */
 #define OP_ADD  9
 #define OP_SUB  10

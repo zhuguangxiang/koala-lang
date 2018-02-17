@@ -5,7 +5,7 @@ static Object *__io_print(Object *ob, Object *args)
 {
   UNUSED_PARAMETER(ob);
   if (args == NULL) {
-    fprintf(stdout, "(nil)");
+    fprintf(stdout, "(nil)\n");
     return NULL;
   }
 
@@ -21,7 +21,7 @@ static Object *__io_print(Object *ob, Object *args)
     avail = TValue_Print(buf, BUF_SIZE - (buf - temp), &val);
     buf += avail;
     if (i + 1 < sz) {
-      avail = snprintf(buf, BUF_SIZE - (buf - temp), ",");
+      avail = snprintf(buf, BUF_SIZE - (buf - temp), " ");
       buf += avail;
     }
   }

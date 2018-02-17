@@ -12,10 +12,10 @@ struct expr *expr_new(int kind)
   return exp;
 }
 
-struct expr *expr_from_name(char *id)
+struct expr *expr_from_id(char *id)
 {
   struct expr *expr = expr_new(NAME_KIND);
-  expr->name.id = id;
+  expr->id = id;
   return expr;
 }
 
@@ -104,18 +104,19 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
   struct expr *expr = expr_new(kind);
   switch (kind) {
     case ATTRIBUTE_KIND: {
+      expr->ctx = EXPR_LOAD;
       expr->attribute.left = left;
-      expr->attribute.id   = trailer;
+      expr->attribute.id = trailer;
       break;
     }
     case SUBSCRIPT_KIND: {
-      expr->subscript.left  = left;
+      expr->subscript.left = left;
       expr->subscript.index = trailer;
       break;
     }
     case CALL_KIND: {
       expr->call.left = left;
-      expr->call.pvec = trailer;
+      expr->call.args = trailer;
       break;
     }
     default: {
@@ -126,14 +127,14 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
   return expr;
 }
 
-struct expr *expr_from_binary(enum operator_kind kind,
+struct expr *expr_from_binary(enum binary_op_kind kind,
                               struct expr *left, struct expr *right)
 {
   struct expr *exp = expr_new(BINARY_KIND);
   exp->type = left->type;
-  exp->bin_op.left  = left;
-  exp->bin_op.op    = kind;
-  exp->bin_op.right = right;
+  exp->binary.left = left;
+  exp->binary.op = kind;
+  exp->binary.right = right;
   return exp;
 }
 
@@ -141,8 +142,8 @@ struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr)
 {
   struct expr *exp = expr_new(UNARY_KIND);
   exp->type = expr->type;
-  exp->unary_op.op = kind;
-  exp->unary_op.operand = expr;
+  exp->unary.op = kind;
+  exp->unary.operand = expr;
   return exp;
 }
 
@@ -195,8 +196,7 @@ struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
     if (!error) {
       stmt->vardecl.exp = Vector_Get(expvec, i);
       if (var->type == NULL) {
-        ASSERT_MSG(stmt->vardecl.exp->type != NULL,
-                   "Expression(its type is void) is not used as value");
+        warn("variable '%s' type is not set, using right's type", var->id);
         var->type = stmt->vardecl.exp->type;
       }
     }
@@ -204,7 +204,7 @@ struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
 
   Vector_Free(varvec, NULL, NULL);
   Vector_Free(expvec, NULL, NULL);
-  return stmt_from_vardecllist(vec);
+  return stmt_from_vardecl_list(vec);
 }
 
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
@@ -243,7 +243,7 @@ struct stmt *stmt_from_assign(Vector *left, Vector *right)
 
   Vector_Free(left, NULL, NULL);
   Vector_Free(right, NULL, NULL);
-  return stmt_from_vardecllist(vec);
+  return stmt_from_vardecl_list(vec);
 }
 
 struct stmt *stmt_from_compound_assign(struct expr *left,
@@ -363,9 +363,9 @@ struct stmt *stmt_from_go(struct expr *expr)
   return stmt;
 }
 
-struct stmt *stmt_from_vardecllist(Vector *vec)
+struct stmt *stmt_from_vardecl_list(Vector *vec)
 {
-  struct stmt *stmt = stmt_new(VARDECL_LIST_KIND);
+  struct stmt *stmt = stmt_new(LIST_KIND);
   stmt->vec = vec;
   return stmt;
 }
@@ -373,26 +373,11 @@ struct stmt *stmt_from_vardecllist(Vector *vec)
 struct var *new_var(char *id, TypeDesc *type)
 {
   struct var *v = malloc(sizeof(struct var));
-  v->id   = id;
+  v->id = id;
   v->bconst = 0;
   v->type = type;
   return v;
 }
-
-// struct field *new_struct_field(char *id, TypeDesc *type, struct expr *e)
-// {
-//   return NULL;
-// }
-
-// struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec)
-// {
-//   return NULL;
-// }
-
-// void mod_fini(struct mod *mod)
-// {
-
-// }
 
 /*--------------------------------------------------------------------------*/
 
@@ -427,7 +412,7 @@ void expr_traverse(struct expr *expr)
 
   switch (expr->kind) {
     case NAME_KIND: {
-      printf("[id]%s\n", expr->name.id);
+      printf("[id]%s\n", expr->id);
       break;
     }
     case INT_KIND: {
@@ -483,7 +468,7 @@ void expr_traverse(struct expr *expr)
       expr_traverse(expr->call.left);
       printf("[func call]paras:\n");
       struct expr *temp;
-      Vector *vec = expr->call.pvec;
+      Vector *vec = expr->call.args;
       if (vec != NULL) {
         for (int i = 0; i < Vector_Size(vec); i++) {
           temp = Vector_Get(vec, i);
@@ -496,14 +481,14 @@ void expr_traverse(struct expr *expr)
       break;
     }
     case UNARY_KIND: {
-      printf("[unary expr]op:%d\n", expr->unary_op.op);
-      expr_traverse(expr->unary_op.operand);
+      printf("[unary expr]op:%d\n", expr->unary.op);
+      expr_traverse(expr->unary.operand);
       break;
     }
     case BINARY_KIND: {
-      printf("[binary expr]op:%d\n", expr->bin_op.op);
-      expr_traverse(expr->bin_op.left);
-      expr_traverse(expr->bin_op.right);
+      printf("[binary expr]op:%d\n", expr->binary.op);
+      expr_traverse(expr->binary.left);
+      expr_traverse(expr->binary.right);
       break;
     }
     case SEQ_KIND: {
@@ -560,7 +545,8 @@ void func_traverse(struct stmt *stmt)
   vec = stmt->funcdecl.rvec;
   printf("returns:");
   if (vec != NULL) {
-    Vector_ForEach(t, TypeDesc, vec) {
+    TypeDesc *t;
+    Vector_ForEach(t, vec) {
       t = Vector_Get(vec, i);
       printf(" %s", TypeDesc_ToString(t));
       if (i + 1 != Vector_Size(vec))
@@ -676,8 +662,8 @@ void stmt_traverse(struct stmt *stmt)
       printf("[end go statement]\n");
       break;
     }
-    case VARDECL_LIST_KIND: {
-      printf("varlistdecl\n");
+    case LIST_KIND: {
+      printf("var decl list\n");
       break;
     }
     default:{
@@ -689,6 +675,7 @@ void stmt_traverse(struct stmt *stmt)
 
 void ast_traverse(Vector *vec)
 {
-  Vector_ForEach(stmt, struct stmt, vec)
-    stmt_traverse(stmt);
+  struct stmt *s;
+  Vector_ForEach(s, vec)
+    stmt_traverse(s);
 }

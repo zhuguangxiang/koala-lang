@@ -33,7 +33,7 @@ typedef struct symbol {
   int32 locvars;  /* for compiler's function */
   STable *stbl;   /* for compiler's import */
   union {
-    void *obj;    /* method, klass or CodeBlock */
+    void *ptr;    /* CodeObject, klass or CodeBlock */
     idx_t index;  /* variable's index */
   };
 } Symbol;

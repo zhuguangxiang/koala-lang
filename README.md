@@ -205,6 +205,12 @@ git push -u origin master --tags
 
 export LD_LIBRARY_PATH="/home/zgx/koala-lang"
 
+Steps for compiler
+1. build AST, variable declaration list is seperated into many single ones.
+2. semantic analysis, all expressions' types are analysed and set if it's empty.
+3. optimization expression
+4. code generation
+
 Version Log:
 v0.5.1:
 1. vector.c

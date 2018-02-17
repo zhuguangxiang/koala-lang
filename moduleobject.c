@@ -33,7 +33,7 @@ int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
   ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *sym = STbl_Add_Proto(&mob->stbl, name, proto);
   if (sym != NULL) {
-    sym->obj = code;
+    sym->ptr = code;
     if (CODE_ISKFUNC(code)) {
       CodeObject *co = OB_TYPE_OF(code, CodeObject, Code_Klass);
       co->kf.stbl = &mob->stbl;
@@ -56,7 +56,7 @@ int Module_Add_Class(Object *ob, Klass *klazz)
   ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *sym = STbl_Add_Class(&mob->stbl, klazz->name);
   if (sym != NULL) {
-    sym->obj = klazz;
+    sym->ptr = klazz;
     STbl_Init(&klazz->stbl, Module_AtomTable(mob));
     return 0;
   }
@@ -68,7 +68,7 @@ int Module_Add_Interface(Object *ob, Klass *klazz)
   ModuleObject *mob = OBJ_TO_MOD(ob);
   Symbol *sym = STbl_Add_Intf(&mob->stbl, klazz->name);
   if (sym != NULL) {
-    sym->obj = klazz;
+    sym->ptr = klazz;
     STbl_Init(&klazz->stbl, Module_AtomTable(mob));
     return 0;
   }
@@ -118,7 +118,7 @@ Object *Module_Get_Function(Object *ob, char *name)
   Symbol *sym = STbl_Get(&mob->stbl, name);
   if (sym != NULL) {
     if (sym->kind == SYM_PROTO) {
-      return sym->obj;
+      return sym->ptr;
     } else {
       error("symbol is not a function");
     }
@@ -133,7 +133,7 @@ Klass *Module_Get_Class(Object *ob, char *name)
   Symbol *sym = STbl_Get(&mob->stbl, name);
   if (sym != NULL) {
     if (sym->kind == SYM_CLASS) {
-      return sym->obj;
+      return sym->ptr;
     } else {
       error("symbol is not a class");
     }
@@ -147,7 +147,7 @@ Klass *Module_Get_Intf(Object *ob, char *name)
   Symbol *sym = STbl_Get(&mob->stbl, name);
   if (sym != NULL) {
     if (sym->kind == SYM_INTF) {
-      return sym->obj;
+      return sym->ptr;
     } else {
       error("symbol is not a interface");
     }
@@ -161,7 +161,7 @@ Klass *Module_Get_Klass(Object *ob, char *name)
   Symbol *sym = STbl_Get(&mob->stbl, name);
   if (sym != NULL) {
     if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
-      return sym->obj;
+      return sym->ptr;
     } else {
       error("symbol is not a class");
     }
@@ -188,7 +188,7 @@ static void mod_symbol_visit(Symbol *sym, void *arg)
   if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
     tmp = STbl_Add_Symbol(stbl, sym->str, SYM_STABLE, 0);
     tmp->stbl = STbl_New(stbl->atbl);
-    STbl_Traverse(Klass_STable(sym->obj), mod_symbol_visit, tmp->stbl);
+    STbl_Traverse(Klass_STable(sym->ptr), mod_symbol_visit, tmp->stbl);
   } else if (sym->kind == SYM_VAR) {
     STbl_Add_Var(stbl, sym->str, sym->type, sym->konst);
   } else if (sym->kind == SYM_PROTO) {

@@ -20,5 +20,7 @@ int main(int argc, char *argv[])
   }
   Koala_Fini();
 
+  puts("\nKoala Machine Exits");
+
   return 0;
 }
