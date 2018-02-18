@@ -61,6 +61,7 @@ typedef struct parserstate {
   ParserUnit *u;
   int nestlevel;
   struct list_head ustack;
+  ParserUnit mu;      /* module parser unit */
   int olevel;         /* optimization level */
   int codegen;        /* for code generator */
   Vector errors;

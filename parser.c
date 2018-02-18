@@ -778,24 +778,21 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 
 /*--------------------------------------------------------------------------*/
 
-static void parser_enter_scope(ParserState *ps, int scope)
+static void init_parser_unit(ParserUnit *u, AtomTable *atbl, int scope)
 {
-  AtomTable *atbl = NULL;
-  ParserUnit *u = calloc(1, sizeof(ParserUnit));
   init_list_head(&u->link);
   init_list_head(&u->blocks);
-  if (ps->u != NULL) atbl = ps->u->stbl.atbl;
   STbl_Init(&u->stbl, atbl);
+  u->sym = NULL;
   u->block = NULL;
   u->scope = scope;
+}
 
-  /* Push the old ParserUnit on the stack. */
-  if (ps->u != NULL) {
-    list_add(&ps->u->link, &ps->ustack);
-  }
-
-  ps->u = u;
-  ps->nestlevel++;
+static ParserUnit *parser_unit_new(AtomTable *atbl, int scope)
+{
+  ParserUnit *u = calloc(1, sizeof(ParserUnit));
+  init_parser_unit(u, atbl, scope);
+  return u;
 }
 
 static void parser_unit_free(ParserUnit *u)
@@ -803,6 +800,20 @@ static void parser_unit_free(ParserUnit *u)
   STbl_Fini(&u->stbl);
   codeblock_free(u->block);
   free(u);
+}
+
+static void parser_enter_scope(ParserState *ps, int scope)
+{
+  AtomTable *atbl = NULL;
+  if (ps->u != NULL) atbl = ps->u->stbl.atbl;
+  ParserUnit *u = parser_unit_new(atbl, scope);
+
+  /* Push the old ParserUnit on the stack. */
+  if (ps->u != NULL) {
+    list_add(&ps->u->link, &ps->ustack);
+  }
+  ps->u = u;
+  ps->nestlevel++;
 }
 
 static void enter_codeblock(ParserState *ps)
@@ -1225,21 +1236,13 @@ static void init_parser(ParserState *ps)
   init_imports(ps);
   init_list_head(&ps->ustack);
   Vector_Init(&ps->errors);
-  parser_enter_scope(ps, SCOPE_MODULE);
+  init_parser_unit(&ps->mu, NULL, SCOPE_MODULE);
+  ps->u = &ps->mu;
 }
 
 static void fini_parser(ParserState *ps)
 {
-  printf("package:%s\n", ps->package);
-  STbl_Show(&ps->u->stbl, 1);
-  check_imports(ps);
-
-  parser_exit_scope(ps);
-
-  debug("=====code generator begin=====");
-  //Code_Generate(ps);
-  debug("=====code generator end=====");
-
+  UNUSED_PARAMETER(ps);
   Koala_Fini();
 }
 
@@ -1270,6 +1273,18 @@ int main(int argc, char *argv[])
   yyin = fopen(argv[1], "r");
   yyparse(&ps);
   fclose(yyin);
+
+  //generate_code(&ps);
+
+  printf("-------------------------\n");
+  printf("scope-%d symbols:\n", ps.nestlevel);
+  STbl_Show(&ps.u->stbl, 0);
+  printf("-------------------------\n");
+  check_unused_symbols(&ps);
+
+  printf("package:%s\n", ps.package);
+  STbl_Show(&ps.u->stbl, 1);
+  check_imports(&ps);
 
   fini_parser(&ps);
 
