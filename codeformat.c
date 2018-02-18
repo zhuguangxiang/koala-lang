@@ -170,14 +170,11 @@ void TypeDesc_Free(void *item, void *arg)
 
 int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr)
 {
-  int sz;
+  int sz = 0;
   TypeDesc *desc = NULL;
-  if (vec == NULL || Vector_Size(vec) == 0) {
-    sz = 0;
-  } else {
+  if (vec != NULL && Vector_Size(vec) != 0) {
     sz = Vector_Size(vec);
     desc = malloc(sizeof(TypeDesc) * sz);
-    ASSERT_PTR(desc);
     TypeDesc *d;
     Vector_ForEach(d, vec)
       memcpy(desc + i, d, sizeof(TypeDesc));

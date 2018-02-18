@@ -1,15 +1,12 @@
 
 #include "parser.h"
 #include "koala.h"
-#include "hash.h"
-#include "ast.h"
 #include "opcode.h"
 
 extern FILE *yyin;
 extern int yyparse(ParserState *ps);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static ParserUnit *parent_scope(ParserState *ps);
-static void gen_code(ParserState *ps);
 
 /*-------------------------------------------------------------------------*/
 
@@ -45,11 +42,11 @@ static void init_imports(ParserState *ps)
   Init_HashInfo(&hashinfo, import_hash, import_equal);
   HashTable_Init(&ps->imports, &hashinfo);
   STbl_Init(&ps->extstbl, NULL);
-  Symbol *sym = parse_import(ps, "lang", "koala/lang");
+  Symbol *sym = Parse_Import(ps, "lang", "koala/lang");
   sym->refcnt++;
 }
 
-static void import_visit_symbol(Symbol *sym, void *arg)
+static void check_import(Symbol *sym, void *arg)
 {
   UNUSED_PARAMETER(arg);
   if (sym->refcnt == 0) {
@@ -60,10 +57,10 @@ static void import_visit_symbol(Symbol *sym, void *arg)
 
 static void check_imports(ParserState *ps)
 {
-  STbl_Traverse(&ps->extstbl, import_visit_symbol, NULL);
+  STbl_Traverse(&ps->extstbl, check_import, NULL);
 }
 
-static void check_visit_symbol(Symbol *sym, void *arg)
+static void check_symbol(Symbol *sym, void *arg)
 {
   UNUSED_PARAMETER(arg);
 
@@ -80,7 +77,7 @@ static void check_variables(ParserState *ps)
 {
   ParserUnit *u = ps->u;
   ASSERT_PTR(u);
-  STbl_Traverse(&u->stbl, check_visit_symbol, NULL);
+  STbl_Traverse(&u->stbl, check_symbol, NULL);
 }
 
 static void check_unused_symbols(ParserState *ps)
@@ -91,7 +88,7 @@ static void check_unused_symbols(ParserState *ps)
 
 /*-------------------------------------------------------------------------*/
 
-char *userdef_get_path(ParserState *ps, char *mod)
+char *UserDef_Get_Path(ParserState *ps, char *mod)
 {
   Symbol *sym = STbl_Get(&ps->extstbl, mod);
   if (sym == NULL) {
@@ -308,46 +305,6 @@ static void inst_gen(AtomTable *atbl, Buffer *buf, Inst *i)
   }
 }
 
-static void block_merge_up(ParserState *ps)
-{
-  ParserUnit *u = ps->u;
-  CodeBlock *b = u->block;
-  ASSERT_PTR(b);
-  if (list_empty(&u->blocks)) {
-    debug("no up code block");
-    return;
-  }
-
-  debug("merge code block up");
-
-  CodeBlock *nxt = list_first_entry(&u->blocks, CodeBlock, link);
-  list_del(&nxt->link);
-  u->block = nxt;
-
-  Inst *i, *n;
-  list_for_each_entry_safe(i, n, &b->insts, link) {
-    list_del(&i->link);
-    list_add_tail(&i->link, &u->block->insts);
-  }
-  codeblock_free(b);
-}
-
-static void save_code(ParserState *ps)
-{
-  ParserUnit *u = ps->u;
-
-  if (u->scope == SCOPE_FUNCTION) {
-    debug("save code to function");
-    u->sym->ptr = u->block;
-    u->block = NULL;
-    u->sym->locvars = u->stbl.next;
-  } else if (u->scope == SCOPE_BLOCK) {
-    debug("merge code to parent's block");
-  } else {
-    debug("no codes in scope:%d", u->scope);
-  }
-}
-
 static void code_gen(Symbol *sym, void *arg)
 {
   KImage *image = arg;
@@ -414,12 +371,15 @@ static void codeblock_show(CodeBlock *block)
 
 /*--------------------------------------------------------------------------*/
 
-void parse_dotaccess(ParserState *ps, struct expr *exp)
+static void parse_dotaccess(ParserState *ps, struct expr *exp)
 {
-  struct expr *left = exp->attribute.left;
-  left->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, left);
+  if (ps->codegen) {
+    return;
+  }
 
+  struct expr *left = exp->attribute.left;
+  parser_visit_expr(ps, left);
+  left->ctx = EXPR_LOAD;
   debug(".%s", exp->attribute.id);
 
   Symbol *leftsym = left->sym;
@@ -433,17 +393,17 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
     debug("symbol '%s' is a module", leftsym->str);
     sym = STbl_Get(leftsym->stbl, exp->attribute.id);
     if (sym == NULL) {
-      error("cannot find symbol '%s' in '%s'", exp->attribute.id, left->str);
+      error("cannot find '%s' in '%s'", exp->attribute.id, left->str);
       exp->sym = NULL;
       return;
     }
   } else if (leftsym->kind == SYM_VAR) {
-    debug("symbol '%s' is variable", leftsym->str);
+    debug("symbol '%s' is a variable", leftsym->str);
     ASSERT(leftsym->type != NULL);
     sym = find_userdef_symbol(ps, leftsym->type);
     if (sym == NULL) {
-      error("cannot find symbol '%s' in '%s'", exp->attribute.id,
-            TypeDesc_ToString(leftsym->type));
+      char *typestr = TypeDesc_ToString(leftsym->type);
+      error("cannot find '%s' in '%s'", exp->attribute.id, typestr);
       return;
     }
     ASSERT(sym->kind == SYM_STABLE);
@@ -456,6 +416,7 @@ void parse_dotaccess(ParserState *ps, struct expr *exp)
     ASSERT(0);
   }
 
+  // set expression's symbol
   exp->sym = sym;
 
   // // generate code
@@ -525,12 +486,15 @@ static int check_call_args(Proto *proto, Vector *vec)
   return 1;
 }
 
-void parse_call(ParserState *ps, struct expr *exp)
+static void parse_call(ParserState *ps, struct expr *exp)
 {
+  if (ps->codegen) {
+    return;
+  }
+
   if (exp->call.args != NULL) {
-    ParserUnit *u = ps->u;
     struct expr *e;
-    Vector_ForEach_Reverse(e, exp->call.args) {
+    Vector_ForEach(e, exp->call.args) {
       // if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
       //   CodeBlock *block = codeblock_new(u->stbl.atbl);
       //   if (u->block != NULL) list_add(&u->block->link, &u->blocks);
@@ -544,24 +508,22 @@ void parse_call(ParserState *ps, struct expr *exp)
   }
 
   struct expr *left = exp->call.left;
-
-  left->ctx = EXPR_LOAD;
   parser_visit_expr(ps, left);
-
   if (left->sym == NULL) {
     error("func is not found");
     return;
   }
+  left->ctx = EXPR_LOAD;
 
   Symbol *sym = left->sym;
   ASSERT(sym != NULL && sym->kind == SYM_PROTO);
   debug("call %s()", sym->str);
 
-  /* return type */
+  /* function type */
   exp->type = sym->type;
 
   /* check arguments */
-  if (!check_call_args(sym->type->proto, exp->call.args)) {
+  if (!check_call_args(exp->type->proto, exp->call.args)) {
     error("arguments are not matched.");
   }
 
@@ -690,10 +652,19 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 {
   switch (exp->kind) {
     case NAME_KIND: {
-      exp->sym = find_id_symbol(ps, exp->id);
-      if (exp->type == NULL) {
-        debug("set id's type as it's symbol's type");
-        exp->type = exp->sym->type;
+      if (ps->codegen) {
+      } else {
+        Symbol *sym = find_id_symbol(ps, exp->id);
+        if (sym == NULL) {
+          error("cannot find symbol '%s'", exp->id);
+        } else {
+          exp->sym = sym;
+          if (exp->type == NULL) {
+            char *typestr = TypeDesc_ToString(sym->type);
+            debug("id '%s' is as '%s'", exp->id, typestr);
+            exp->type = sym->type;
+          }
+        }
       }
 #if 0
       if (exp->sym->kind == SYM_STABLE) {
@@ -780,8 +751,11 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
     case BINARY_KIND: {
       debug("binary_op:%d", exp->binary.op);
       parser_visit_expr(ps, exp->binary.left);
-      exp->type = exp->binary.left->type;
       parser_visit_expr(ps, exp->binary.right);
+      if (ps->codegen) {
+      } else {
+        exp->type = exp->binary.left->type;
+      }
       // if (optimize_binary_expr(ps, &exp)) {
       //   exp->gencode = 1;
       //   parser_visit_expr(ps, exp);
@@ -831,18 +805,69 @@ static void parser_unit_free(ParserUnit *u)
   free(u);
 }
 
+static void enter_codeblock(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+  CodeBlock *block = codeblock_new(u->stbl.atbl);
+  if (u->block != NULL) list_add(&u->block->link, &u->blocks);
+  u->block = block;
+}
+
+static void merge_codeblock(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+  CodeBlock *b = u->block;
+
+  if (list_empty(&u->blocks)) {
+    debug("no up code block");
+    return;
+  }
+
+  debug("merge code block up");
+
+  CodeBlock *nxt = list_first_entry(&u->blocks, CodeBlock, link);
+  list_del(&nxt->link);
+  u->block = nxt;
+
+  Inst *i, *n;
+  list_for_each_entry_safe(i, n, &b->insts, link) {
+    list_del(&i->link);
+    list_add_tail(&i->link, &u->block->insts);
+  }
+  codeblock_free(b);
+}
+
+static void save_code(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+
+  if (u->scope == SCOPE_FUNCTION) {
+    debug("save code to function");
+    u->sym->ptr = u->block;
+    u->block = NULL;
+    u->sym->locvars = u->stbl.next;
+  } else if (u->scope == SCOPE_BLOCK) {
+    debug("merge code to parent's block");
+  } else {
+    debug("no codes in scope:%d", u->scope);
+  }
+}
+
 static void parser_exit_scope(ParserState *ps)
 {
   printf("-------------------------\n");
   printf("scope-%d symbols:\n", ps->nestlevel);
   STbl_Show(&ps->u->stbl, 0);
-  check_unused_symbols(ps);
-  codeblock_show(ps->u->block);
+  //codeblock_show(ps->u->block);
   printf("-------------------------\n");
 
+  check_unused_symbols(ps);
+
   save_code(ps);
+
   ps->nestlevel--;
   parser_unit_free(ps->u);
+
   /* Restore c->u to the parent unit. */
   struct list_head *first = list_first(&ps->ustack);
   if (first != NULL) {
@@ -861,63 +886,55 @@ static ParserUnit *parent_scope(ParserState *ps)
 
 /*--------------------------------------------------------------------------*/
 
-void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
+static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
-  ParserUnit *u = ps->u;
-
-  if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+  if (ps->codegen) {
+  } else {
     if (exp == NULL) {
-      debug("variable hasn't an initialized expression");
-      return;
-    }
-
-    if (exp->kind == NIL_KIND) {
-      debug("nil value");
-      return;
-    }
-
-    if (exp->kind == SELF_KIND) {
-      error("cannot use keyword 'self'");
-      return;
-    }
-
-    if (exp->type == NULL) {
-      debug("parse expression, and set its type");
-      parser_visit_expr(ps, exp);
-    }
-
-    ASSERT_PTR(exp->type);
-    if (!TypeDesc_Check(var->type, exp->type)) {
-      error("typecheck failed");
-    }
-
-  } else if (u->scope == SCOPE_FUNCTION) {
-    debug("parse variable '%s' declaration in function", var->id);
-    ASSERT(!list_empty(&ps->ustack));
-    ParserUnit *parent = parent_scope(ps);
-    ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
-    if (exp != NULL) {
-      /* visit right's expression firstly */
-      // exp->ctx = CTX_LOAD;
-      parser_visit_expr(ps, exp);
-
-      if (var->type == NULL) {
-        /* variable' type is not set in building AST */
-        debug("var '%s' type is not set, using right's type", var->id);
-        ASSERT(exp->type);
-        var->type = exp->type;
+      ASSERT(var->type != NULL);
+    } else {
+      if (exp->kind == NIL_KIND) {
+        debug("nil value");
       }
 
-      if (!TypeDesc_Check(var->type, exp->type))
-        error("typecheck failed");
+      if (exp->kind == SELF_KIND) {
+        error("cannot use keyword 'self'");
+      }
+
+      if (exp->type == NULL) {
+        debug("parse right expr, and set its type");
+        parser_visit_expr(ps, exp);
+      }
+
+      ASSERT_PTR(exp->type);
+
+      if (var->type == NULL) {
+        debug("using its right type as var '%s' type", var->id);
+        var->type = exp->type;
+      } else {
+        if (!TypeDesc_Check(var->type, exp->type)) {
+          error("typecheck failed");
+        }
+      }
     }
-    STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
-  } else {
-    ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
+
+    ParserUnit *u = ps->u;
+    if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+      debug("parse variable '%s' declaration in module or class", var->id);
+    } else if (u->scope == SCOPE_FUNCTION) {
+      debug("parse variable '%s' declaration in function", var->id);
+      ASSERT(!list_empty(&ps->ustack));
+      ParserUnit *parent = parent_scope(ps);
+      ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
+      STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
+    } else {
+      ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
+    }
+
   }
 }
 
-void parse_function(ParserState *ps, struct stmt *stmt)
+static void parse_function(ParserState *ps, struct stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_FUNCTION);
 
@@ -927,15 +944,16 @@ void parse_function(ParserState *ps, struct stmt *stmt)
   ps->u->sym = sym;
 
   if (parent->scope == SCOPE_MODULE) {
-    debug("parse function, '%s'", stmt->funcdecl.id);
+    debug("parse function '%s'", stmt->funcdecl.id);
     if (stmt->funcdecl.pvec != NULL) {
       struct var *var;
       Vector_ForEach(var, stmt->funcdecl.pvec)
         parse_variable(ps, var, NULL);
     }
-    parse_body(ps, stmt->funcdecl.body);
+    Parse_Body(ps, stmt->funcdecl.body);
+    debug("end function '%s'", stmt->funcdecl.id);
   } else if (parent->scope == SCOPE_CLASS) {
-    debug("parse method, '%s'", stmt->funcdecl.id);
+    debug("parse method '%s'", stmt->funcdecl.id);
   } else {
     ASSERT_MSG(0, "unknown parent scope type:%d", parent->scope);
   }
@@ -943,7 +961,7 @@ void parse_function(ParserState *ps, struct stmt *stmt)
   parser_exit_scope(ps);
 }
 
-void parse_assign(ParserState *ps, struct stmt *stmt)
+static void parse_assign(ParserState *ps, struct stmt *stmt)
 {
   struct expr *r = stmt->assign.right;
   struct expr *l = stmt->assign.left;
@@ -953,29 +971,39 @@ void parse_assign(ParserState *ps, struct stmt *stmt)
   parser_visit_expr(ps, l);
 }
 
-void paser_return(ParserState *ps, struct stmt *stmt)
+static void paser_return(ParserState *ps, struct stmt *stmt)
 {
   ParserUnit *u = ps->u;
-  ASSERT_PTR(u);
+
   if (u->scope == SCOPE_FUNCTION) {
     debug("return in function");
     if (stmt->vec != NULL) {
       struct expr *e;
-      Vector_ForEach(e, stmt->vec)
+      Vector_ForEach(e, stmt->vec) {
         parser_visit_expr(ps, e);
+      }
     }
-    check_return_types(u, stmt->vec);
+
+    if (ps->codegen) {
+    } else {
+      check_return_types(u, stmt->vec);
+    }
   } else {
     ASSERT_MSG(0, "invalid scope:%d", u->scope);
   }
 
 }
 
-void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
+static void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 {
+  if (ps->codegen) enter_codeblock(ps);
+
   switch (stmt->kind) {
-    case VARDECL_KIND: {
-      parse_variable(ps, stmt->vardecl.var, stmt->vardecl.exp);
+    case VARDECL_LIST_KIND: {
+      struct stmt *s;
+      Vector_ForEach(s, stmt->vec) {
+        parse_variable(ps, s->vardecl.var, s->vardecl.exp);
+      }
       break;
     }
     case FUNCDECL_KIND:
@@ -997,101 +1025,25 @@ void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
       paser_return(ps, stmt);
       break;
     }
-    case LIST_KIND: {
-      parse_body(ps, stmt->vec);
-      break;
-    }
     default:
       ASSERT_MSG(0, "unknown statement type: %d", stmt->kind);
       break;
   }
+
+  if (ps->codegen) merge_codeblock(ps);
 }
 
 /*--------------------------------------------------------------------------*/
 
-/* parse a sequence of statements */
-void parse_body(ParserState *ps, Vector *stmts)
+void Parse_Body(ParserState *ps, Vector *stmts)
 {
   debug("=====parser body begin=====");
-
-  ParserUnit *u = ps->u;
   struct stmt *stmt;
   Vector_ForEach(stmt, stmts) {
-    // if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
-    //   CodeBlock *block = codeblock_new(u->stbl.atbl);
-    //   if (u->block != NULL) list_add(&u->block->link, &u->blocks);
-    //   u->block = block;
-    // }
-
     parser_visit_stmt(ps, stmt);
-
-    // if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_BLOCK) {
-    //   block_merge_up(ps);
-    // }
   }
-
   debug("=====parser body end=====");
 }
-
-static void init_parser(ParserState *ps)
-{
-  Koala_Init();
-  memset(ps, 0, sizeof(ParserState));
-  Vector_Init(&ps->stmts);
-  init_imports(ps);
-  init_list_head(&ps->ustack);
-  Vector_Init(&ps->errors);
-  parser_enter_scope(ps, SCOPE_MODULE);
-}
-
-static void fini_parser(ParserState *ps)
-{
-  printf("package:%s\n", ps->package);
-  STbl_Show(&ps->u->stbl, 1);
-  check_imports(ps);
-  check_unused_symbols(ps);
-
-  parser_exit_scope(ps);
-
-  gen_code(ps);
-
-  Koala_Fini();
-}
-
-int main(int argc, char *argv[])
-{
-  ParserState ps;
-
-  if (argc < 2) {
-    printf("error: no input files\n");
-    return -1;
-  }
-
-  init_parser(&ps);
-
-  char *srcfile = argv[1];
-  int len = strlen(srcfile);
-  char *outfile = malloc(len + 4 + 1);
-  char *tmp = strrchr(srcfile, '.');
-  if (tmp != NULL) {
-    memcpy(outfile, srcfile, tmp - srcfile);
-    outfile[tmp - srcfile] = 0;
-  } else {
-    strcpy(outfile, srcfile);
-  }
-  strcat(outfile, ".klc");
-  ps.outfile = outfile;
-
-  yyin = fopen(argv[1], "r");
-  yyparse(&ps);
-  fclose(yyin);
-
-  fini_parser(&ps);
-
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
 
 static Symbol *add_import(STable *stbl, char *id, char *path)
 {
@@ -1104,7 +1056,7 @@ static Symbol *add_import(STable *stbl, char *id, char *path)
   return sym;
 }
 
-Symbol *parse_import(ParserState *ps, char *id, char *path)
+Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 {
   Import key = {.path = path};
   Import *import = HashTable_FindObject(&ps->imports, &key, Import);
@@ -1152,79 +1104,102 @@ Symbol *parse_import(ParserState *ps, char *id, char *path)
   return sym;
 }
 
-void parse_vardecls(ParserState *ps, struct stmt *stmt)
+#define parser_add_stmt(ps, stmt) Vector_Append(&(ps)->stmts, stmt)
+#define var_tostring(var) (var)->bconst ? "const" : "var", (var)->id
+
+static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 {
-  struct var *var;
-  Symbol *sym;
-  struct stmt *s;
-  Vector_ForEach(s, stmt->vec) {
-    var = s->vardecl.var;
-    if (var->type == NULL) {
-      debug("'%s %s' type isnot set", var->bconst ? "const":"var", var->id);
-    }
-    // if (var->type->kind == TYPE_USERDEF) {
-    //   if (!find_userdef_symbol(ps, var->type)) {
-    //     error("add '%s %s' failed, because cannot find it's type:%s.%s",
-    //           var->bconst ? "const":"var", var->id,
-    //           var->type->path, var->type->type);
-    //     continue;
-    //   }
-    // }
-    sym = STbl_Add_Var(&ps->u->stbl, var->id, var->type, var->bconst);
-    if (sym != NULL) {
-      debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
+  struct var *var = stmt->vardecl.var;
+  if (var->type == NULL) {
+    debug("'%s %s' type is not set", var_tostring(var));
+  } else {
+    TypeDesc *desc = var->type;
+    if (desc->kind == TYPE_USERDEF) {
+      if (!find_userdef_symbol(ps, desc)) {
+        char *typestr = TypeDesc_ToString(desc);
+        warn("cannot find type:'%s'", typestr);
+        free(typestr);
+      }
+    } else if (desc->kind == TYPE_PROTO) {
+      debug("var's type is proto");
     } else {
-      error("add %s '%s' failed, it'name is duplicated",
-            var->bconst ? "const":"var", var->id);
+      ASSERT(desc->kind == TYPE_PRIMITIVE);
     }
   }
+
+  Symbol *sym = STbl_Add_Var(&ps->u->stbl, var->id, var->type, var->bconst);
+  if (sym != NULL) {
+    debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
+  } else {
+    error("add %s '%s' failed, it'name is duplicated",
+          var->bconst ? "const":"var", var->id);
+  }
+
+  struct expr *exp = stmt->vardecl.exp;
+  if (exp == NULL) {
+    debug("There is not a initial expr for var '%s'", var->id);
+    return;
+  }
+
+  ParserUnit *u = ps->u;
+  sym = STbl_Get(&u->stbl, "__init__");
+  if (sym == NULL) {
+    Proto *proto = Proto_New(0, NULL, 0, NULL);
+    STbl_Add_Proto(&u->stbl, "__init__", proto);
+  } else {
+    debug("func __init__ exist");
+  }
+}
+
+void Parse_VarDecls(ParserState *ps, struct stmt *stmt)
+{
+  parser_add_stmt(ps, stmt);
+
+  struct stmt *s;
+  Vector_ForEach(s, stmt->vec) {
+    parse_vardecl(ps, s);
+  }
+}
+
+static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
+{
+  int sz = 0;
+  TypeDesc *desc = NULL;
+  if (vec != NULL && Vector_Size(vec) != 0) {
+    sz = Vector_Size(vec);
+    desc = malloc(sizeof(TypeDesc) * sz);
+    struct var *var;
+    Vector_ForEach(var, vec)
+      memcpy(desc + i, var->type, sizeof(TypeDesc));
+  }
+
+  *arr = desc;
+  return sz;
 }
 
 static Proto *funcdecl_to_proto(struct stmt *stmt)
 {
   Proto *proto = malloc(sizeof(Proto));
-  Vector *vec;
   int sz;
   TypeDesc *desc;
 
-  vec = stmt->funcdecl.pvec;
-  desc = NULL;
-  if (vec == NULL || Vector_Size(vec) == 0) {
-    sz = 0;
-  } else {
-    sz = Vector_Size(vec);
-    desc = malloc(sizeof(TypeDesc) * sz);
-    ASSERT_PTR(desc);
-    struct var *var;
-    Vector_ForEach(var, vec)
-      memcpy(desc + i, var->type, sizeof(TypeDesc));
-  }
+  sz = var_vec_to_arr(stmt->funcdecl.pvec, &desc);
   proto->psz = sz;
   proto->pdesc = desc;
 
-  vec = stmt->funcdecl.rvec;
-  desc = NULL;
-  if (vec == NULL || Vector_Size(vec) == 0) {
-    sz = 0;
-  } else {
-    sz = Vector_Size(vec);
-    desc = malloc(sizeof(TypeDesc) * sz);
-    ASSERT_PTR(desc);
-    TypeDesc *d;
-    Vector_ForEach(d, vec)
-      memcpy(desc + i, d, sizeof(TypeDesc));
-  }
+  sz = TypeDesc_Vec_To_Arr(stmt->funcdecl.rvec, &desc);
   proto->rsz = sz;
   proto->rdesc = desc;
 
   return proto;
 }
 
-void parse_funcdecl(ParserState *ps, struct stmt *stmt)
+void Parse_Proto(ParserState *ps, struct stmt *stmt)
 {
+  parser_add_stmt(ps, stmt);
+
   Proto *proto;
   Symbol *sym;
-
   proto = funcdecl_to_proto(stmt);
   sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, proto);
   if (sym != NULL) {
@@ -1242,8 +1217,61 @@ void parse_typedecl(ParserState *ps, struct stmt *stmt)
 
 /*--------------------------------------------------------------------------*/
 
-static void gen_code(ParserState *ps)
+static void init_parser(ParserState *ps)
 {
+  Koala_Init();
+  memset(ps, 0, sizeof(ParserState));
+  Vector_Init(&ps->stmts);
+  init_imports(ps);
+  init_list_head(&ps->ustack);
+  Vector_Init(&ps->errors);
+  parser_enter_scope(ps, SCOPE_MODULE);
+}
+
+static void fini_parser(ParserState *ps)
+{
+  printf("package:%s\n", ps->package);
+  STbl_Show(&ps->u->stbl, 1);
+  check_imports(ps);
+
+  parser_exit_scope(ps);
+
   debug("=====code generator begin=====");
+  //Code_Generate(ps);
   debug("=====code generator end=====");
+
+  Koala_Fini();
+}
+
+int main(int argc, char *argv[])
+{
+  ParserState ps;
+
+  if (argc < 2) {
+    printf("error: no input files\n");
+    return -1;
+  }
+
+  init_parser(&ps);
+
+  char *srcfile = argv[1];
+  int len = strlen(srcfile);
+  char *outfile = malloc(len + 4 + 1);
+  char *tmp = strrchr(srcfile, '.');
+  if (tmp != NULL) {
+    memcpy(outfile, srcfile, tmp - srcfile);
+    outfile[tmp - srcfile] = 0;
+  } else {
+    strcpy(outfile, srcfile);
+  }
+  strcat(outfile, ".klc");
+  ps.outfile = outfile;
+
+  yyin = fopen(argv[1], "r");
+  yyparse(&ps);
+  fclose(yyin);
+
+  fini_parser(&ps);
+
+  return 0;
 }

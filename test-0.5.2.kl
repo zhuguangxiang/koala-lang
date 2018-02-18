@@ -1,0 +1,19 @@
+
+/*
+  This test is for module's variable intialization and arthmetic operations
+ */
+package test;
+
+import "koala/io";
+
+var greeting = string("hello, world");
+
+func Main(args []string) {
+  io.Print("hello, world\n");
+  io.Print(2+3);
+}
+
+func number_add(a int, b int) int {
+  var result = a + b;
+  return result;
+}

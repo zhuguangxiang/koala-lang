@@ -2,9 +2,9 @@
 #ifndef _KOALA_PARSER_H_
 #define _KOALA_PARSER_H_
 
+#include "ast.h"
 #include "hashtable.h"
 #include "object.h"
-#include "ast.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,15 +62,16 @@ typedef struct parserstate {
   int nestlevel;
   struct list_head ustack;
   int olevel;         /* optimization level */
+  int codegen;        /* for code generator */
   Vector errors;
 } ParserState;
 
-char *userdef_get_path(ParserState *ps, char *mod);
-Symbol *parse_import(ParserState *parser, char *id, char *path);
-void parse_vardecls(ParserState *parser, struct stmt *stmt);
-void parse_funcdecl(ParserState *parser, struct stmt *stmt);
-void parse_typedecl(ParserState *parser, struct stmt *stmt);
-void parse_body(ParserState *ps, Vector *stmts);
+char *UserDef_Get_Path(ParserState *ps, char *mod);
+Symbol *Parse_Import(ParserState *ps, char *id, char *path);
+void Parse_VarDecls(ParserState *ps, struct stmt *stmt);
+void Parse_Proto(ParserState *ps, struct stmt *stmt);
+void parse_typedecl(ParserState *ps, struct stmt *stmt);
+void Parse_Body(ParserState *ps, Vector *stmts);
 
 #ifdef __cplusplus
 }

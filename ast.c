@@ -1,5 +1,5 @@
 
-#include "parser.h"
+#include "ast.h"
 #include "codeformat.h"
 #include "log.h"
 
@@ -39,7 +39,7 @@ struct expr *expr_from_string(char *str)
 {
   struct expr *expr = expr_new(STRING_KIND);
   expr->type = TypeDesc_From_Primitive(PRIMITIVE_STRING);
-  expr->str  = str;
+  expr->str = str;
   return expr;
 }
 
@@ -156,6 +156,18 @@ struct stmt *stmt_new(int kind)
   return stmt;
 }
 
+void stmt_free(struct stmt *stmt)
+{
+  free(stmt);
+}
+
+struct stmt *stmt_from_vector(int kind, Vector *vec)
+{
+  struct stmt *stmt = stmt_new(kind);
+  stmt->vec = vec;
+  return stmt;
+}
+
 struct stmt *stmt_from_expr(struct expr *exp)
 {
   struct stmt *stmt = stmt_new(EXPR_KIND);
@@ -196,15 +208,18 @@ struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
     if (!error) {
       stmt->vardecl.exp = Vector_Get(expvec, i);
       if (var->type == NULL) {
-        warn("variable '%s' type is not set, using right's type", var->id);
+        debug("variable '%s' type is not set", var->id);
         var->type = stmt->vardecl.exp->type;
+        if (var->type == NULL) {
+          debug("right expr's type is also null");
+        }
       }
     }
   }
 
   Vector_Free(varvec, NULL, NULL);
   Vector_Free(expvec, NULL, NULL);
-  return stmt_from_vardecl_list(vec);
+  return stmt_from_vector(VARDECL_LIST_KIND, vec);
 }
 
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
@@ -243,7 +258,7 @@ struct stmt *stmt_from_assign(Vector *left, Vector *right)
 
   Vector_Free(left, NULL, NULL);
   Vector_Free(right, NULL, NULL);
-  return stmt_from_vardecl_list(vec);
+  return stmt_from_vector(ASSIGN_LIST_KIND, vec);
 }
 
 struct stmt *stmt_from_compound_assign(struct expr *left,
@@ -259,16 +274,12 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 
 struct stmt *stmt_from_block(Vector *block)
 {
-  struct stmt *stmt = stmt_new(BLOCK_KIND);
-  stmt->vec  = block;
-  return stmt;
+  return stmt_from_vector(BLOCK_KIND, block);
 }
 
 struct stmt *stmt_from_return(Vector *vec)
 {
-  struct stmt *stmt = stmt_new(RETURN_KIND);
-  stmt->vec = vec;
-  return stmt;
+  return stmt_from_vector(RETURN_KIND, vec);
 }
 
 struct stmt *stmt_from_structure(char *id, Vector *vec)
@@ -360,13 +371,6 @@ struct stmt *stmt_from_go(struct expr *expr)
 
   struct stmt *stmt = stmt_new(GO_KIND);
   stmt->go_stmt = expr;
-  return stmt;
-}
-
-struct stmt *stmt_from_vardecl_list(Vector *vec)
-{
-  struct stmt *stmt = stmt_new(LIST_KIND);
-  stmt->vec = vec;
   return stmt;
 }
 
@@ -662,7 +666,7 @@ void stmt_traverse(struct stmt *stmt)
       printf("[end go statement]\n");
       break;
     }
-    case LIST_KIND: {
+    case VARDECL_LIST_KIND: {
       printf("var decl list\n");
       break;
     }

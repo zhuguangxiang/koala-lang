@@ -97,9 +97,15 @@ testbuf: lib
 	@./a.out
 
 test-0.5.1:
+	@$(RM) test-0.5.1.klc
 	@koalac test-0.5.1.kl
 	@koala test-0.5.1.klc
 
+test-0.5.2:
+	@$(RM) test-0.5.2.klc
+	@koalac test-0.5.2.kl
+	@koala test-0.5.2.klc
+
 test: testbuf testloop testroutine testformat testlist testmodule \
-testobject teststring testtuple testvector testtest-0.5.1.kl
+testobject teststring testtuple testvector test-0.5.1 test-0.5.2
 	@echo "Test Down!"

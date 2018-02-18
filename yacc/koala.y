@@ -243,7 +243,7 @@ UserDefType
     if (!strcmp($1, "lang") && !strcmp($3, "String")) {
       $$ = TypeDesc_From_Primitive(PRIMITIVE_STRING);
     } else {
-      char *path = userdef_get_path(parser, $1);
+      char *path = UserDef_Get_Path(parser, $1);
       $$ = TypeDesc_From_UserDef(path, $3);
     }
   }
@@ -317,11 +317,11 @@ TypeList
 CompileUnit
   : Package Imports ModuleStatements {
     ast_traverse(&parser->stmts);
-    parse_body(parser, &parser->stmts);
+    Parse_Body(parser, &parser->stmts);
   }
   | Package ModuleStatements {
     ast_traverse(&parser->stmts);
-    parse_body(parser, &parser->stmts);
+    Parse_Body(parser, &parser->stmts);
   }
   ;
 
@@ -338,10 +338,10 @@ Imports
 
 Import
   : IMPORT STRING_CONST ';' {
-    parse_import(parser, NULL, $2);
+    Parse_Import(parser, NULL, $2);
   }
   | IMPORT ID STRING_CONST ';' {
-    parse_import(parser, $2, $3);
+    Parse_Import(parser, $2, $3);
   }
   ;
 
@@ -355,20 +355,16 @@ ModuleStatement
     printf("empty statement\n");
   }
   | VariableDeclaration ';' {
-    parse_vardecls(parser, $1);
-    Vector_Append(&parser->stmts, $1);
+    Parse_VarDecls(parser, $1);
   }
   | ConstDeclaration {
-    parse_vardecls(parser, $1);
-    Vector_Append(&parser->stmts, $1);
+    Parse_VarDecls(parser, $1);
   }
   | FunctionDeclaration {
-    parse_funcdecl(parser, $1);
-    Vector_Append(&parser->stmts, $1);
+    Parse_Proto(parser, $1);
   }
   | TypeDeclaration {
     parse_typedecl(parser, $1);
-    Vector_Append(&parser->stmts, $1);
   }
   | error {
     yyerror(parser, "non-declaration statement outside function body");
