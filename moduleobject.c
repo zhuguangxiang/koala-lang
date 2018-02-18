@@ -17,7 +17,8 @@ Object *Module_New(char *name, AtomTable *atbl)
 
 void Module_Free(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, Module_Klass);
+  ModuleObject *mob = OBJ_TO_MOD(ob);
+  STbl_Fini(&mob->stbl);
   free(ob);
 }
 

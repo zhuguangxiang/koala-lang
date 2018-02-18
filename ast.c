@@ -536,10 +536,13 @@ void func_traverse(struct stmt *stmt)
   struct var *var;
   printf("[function]\n");
   printf("params:");
+  char *typestr;
   if (vec != NULL) {
     for (int i = 0; i < Vector_Size(vec); i++) {
       var = Vector_Get(vec, i);
-      printf(" %s %s", var->id, TypeDesc_ToString(var->type));
+      typestr = TypeDesc_ToString(var->type);
+      printf(" %s %s", var->id, typestr);
+      free(typestr);
       if (i + 1 != Vector_Size(vec))
         printf(",");
     }

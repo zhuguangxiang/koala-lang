@@ -12,6 +12,9 @@ static Symbol *symbol_new(void)
 
 static void symbol_free(Symbol *sym)
 {
+  if (sym->kind == SYM_STABLE) {
+    STbl_Free(sym->stbl);
+  }
   free(sym);
 }
 
@@ -26,6 +29,13 @@ static int symbol_equal(void *k1, void *k2)
   Symbol *s1 = k1;
   Symbol *s2 = k2;
   return s1->name == s2->name;
+}
+
+static void ht_symbol_free(HashNode *hnode, void *arg)
+{
+  UNUSED_PARAMETER(arg);
+  Symbol *sym = container_of(hnode, Symbol, hnode);
+  symbol_free(sym);
 }
 
 #define SYMBOL_ACCESS(name) \
@@ -60,7 +70,11 @@ int STbl_Init(STable *stbl, AtomTable *atbl)
 
 void STbl_Fini(STable *stbl)
 {
-  UNUSED_PARAMETER(stbl);
+  HashTable_Free(stbl->htbl, ht_symbol_free, NULL);
+  //AtomTable_Free(stbl->atbl, NULL, NULL);
+  stbl->htbl = NULL;
+  stbl->atbl = NULL;
+  stbl->next = 1;
 }
 
 STable *STbl_New(AtomTable *atbl)
@@ -129,6 +143,12 @@ Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, bool konst)
   sym->access = SYMBOL_ACCESS(name);
   sym->str = name;
   return sym;
+}
+
+void STbl_Delete(STable *stbl, Symbol *sym)
+{
+  HashTable_Remove(__get_hashtable(stbl), &sym->hnode);
+  symbol_free(sym);
 }
 
 Symbol *STbl_Get(STable *stbl, char *name)

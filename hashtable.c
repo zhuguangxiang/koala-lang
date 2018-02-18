@@ -136,9 +136,10 @@ void HashTable_Free(HashTable *table, ht_visitfunc fn, void *arg)
 static HashNode *__hash_table_find(HashTable *table, uint32 hash, void *key)
 {
   uint32 idx  = hash % get_nr_entries(table);
-  struct hash_node *hnode;
-
-  hlist_for_each_entry(hnode, table->entries + idx, hlink) {
+  HashNode *hnode;
+  struct hlist_node *node;
+  hlist_for_each(node, table->entries + idx) {
+    hnode = hlist_entry(node, HashNode, hlink);
     if (table->equal(hnode->key, key))
       return hnode;
   }
@@ -174,6 +175,7 @@ static void hash_table_expand(HashTable *table,
                               uint32 new_prime)
 {
   HashNode *hnode;
+  struct hlist_node *node;
   struct hlist_node *nxt;
   int nr_entries = get_nr_entries(table);
   uint32 index;
@@ -185,8 +187,9 @@ static void hash_table_expand(HashTable *table,
   }
 
   for (int i = 0; i < nr_entries; i++) {
-    hlist_for_each_entry_safe(hnode, nxt, table->entries + i, hlink) {
-      hlist_del(&hnode->hlink);
+    hlist_for_each_safe(node, nxt, table->entries + i) {
+      hlist_del(node);
+      hnode = hlist_entry(node, HashNode, hlink);
       index = hnode->hash % new_nr_entries;
       hlist_add_head(&hnode->hlink, entries + index);
     }
@@ -217,6 +220,7 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
 
   uint32 hash = hnode->hash = table->hash(hnode->key);
   if (NULL != __hash_table_find(table, hash, hnode->key)) {
+    error("key is duplicated");
     return -1;
   }
 

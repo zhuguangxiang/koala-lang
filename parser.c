@@ -7,6 +7,7 @@ extern FILE *yyin;
 extern int yyparse(ParserState *ps);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static ParserUnit *parent_scope(ParserState *ps);
+static void delete_expr_symbol(ParserUnit *u, struct expr *exp);
 
 /*-------------------------------------------------------------------------*/
 
@@ -44,6 +45,19 @@ static void init_imports(ParserState *ps)
   STbl_Init(&ps->extstbl, NULL);
   Symbol *sym = Parse_Import(ps, "lang", "koala/lang");
   sym->refcnt++;
+}
+
+static void ht_import_free(HashNode *hnode, void *arg)
+{
+  Import *import = container_of(hnode, Import, hnode);
+  free(import->path);
+  import_free(import);
+}
+
+static void fini_imports(ParserState *ps)
+{
+  HashTable_Fini(&ps->imports, ht_import_free, NULL);
+  STbl_Fini(&ps->extstbl);
 }
 
 static void check_import(Symbol *sym, void *arg)
@@ -662,6 +676,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
           if (exp->type == NULL) {
             char *typestr = TypeDesc_ToString(sym->type);
             debug("id '%s' is as '%s'", exp->id, typestr);
+            free(typestr);
             exp->type = sym->type;
           }
         }
@@ -778,6 +793,12 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 
 /*--------------------------------------------------------------------------*/
 
+static void delete_expr_symbol(ParserUnit *u, struct expr *exp)
+{
+  STbl_Delete(&u->stbl, exp->sym);
+  exp->sym = NULL;
+}
+
 static void init_parser_unit(ParserUnit *u, AtomTable *atbl, int scope)
 {
   init_list_head(&u->link);
@@ -786,6 +807,11 @@ static void init_parser_unit(ParserUnit *u, AtomTable *atbl, int scope)
   u->sym = NULL;
   u->block = NULL;
   u->scope = scope;
+}
+
+static void fini_parser_unit(ParserUnit *u)
+{
+  STbl_Fini(&u->stbl);
 }
 
 static ParserUnit *parser_unit_new(AtomTable *atbl, int scope)
@@ -1240,9 +1266,18 @@ static void init_parser(ParserState *ps)
   ps->u = &ps->mu;
 }
 
+static void vec_stmt_free(void *item, void *arg)
+{
+  UNUSED_PARAMETER(arg);
+  stmt_free(item);
+}
+
 static void fini_parser(ParserState *ps)
 {
-  UNUSED_PARAMETER(ps);
+  Vector_Fini(&ps->stmts, vec_stmt_free, NULL);
+  fini_imports(ps);
+  Vector_Fini(&ps->errors, NULL, NULL);
+  fini_parser_unit(&ps->mu);
   Koala_Fini();
 }
 

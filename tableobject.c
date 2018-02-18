@@ -118,7 +118,7 @@ int Table_Put(Object *ob, TValue *key, TValue *value)
 int Table_Count(Object *ob)
 {
   TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
-  return HashTable_NodeCount(&table->table);
+  return HashTable_Count(&table->table);
 }
 
 struct visit_struct {

@@ -404,7 +404,7 @@ StringItem *StringItem_New(char *name)
 
 TypeItem *TypeItem_Primitive_New(int varg, int dims, char primitive)
 {
-  TypeItem *item = malloc(sizeof(TypeItem));
+  TypeItem *item = calloc(1, sizeof(TypeItem));
   item->varg = varg;
   item->dims = dims;
   item->kind = TYPE_PRIMITIVE;
@@ -415,7 +415,7 @@ TypeItem *TypeItem_Primitive_New(int varg, int dims, char primitive)
 TypeItem *TypeItem_Defined_New(int varg, int dims, int32 pathindex,
                                int32 typeindex)
 {
-  TypeItem *item = malloc(sizeof(TypeItem));
+  TypeItem *item = calloc(1, sizeof(TypeItem));
   item->varg = varg;
   item->dims = dims;
   item->kind = TYPE_USERDEF;
@@ -1158,14 +1158,16 @@ typedef void (*item_fwrite_t)(FILE *, void *);
 typedef uint32 (*item_hash_t)(void *);
 typedef int (*item_equal_t)(void *, void *);
 typedef void (*item_show_t)(AtomTable *, void *);
+typedef void (*item_free_t)(void *);
 
 struct item_funcs {
-  item_length_t   ilength;
-  item_fwrite_t   iwrite;
-  item_fwrite_t   iread;
-  item_hash_t     ihash;
-  item_equal_t    iequal;
-  item_show_t  ishow;
+  item_length_t ilength;
+  item_fwrite_t iwrite;
+  item_fwrite_t iread;
+  item_hash_t   ihash;
+  item_equal_t  iequal;
+  item_show_t   ishow;
+  item_free_t   ifree;
 };
 
 struct item_funcs item_func[ITEM_MAX] = {
@@ -1173,55 +1175,64 @@ struct item_funcs item_func[ITEM_MAX] = {
     mapitem_length,
     mapitem_write, NULL,
     NULL, NULL,
-    mapitem_show
+    mapitem_show,
+    NULL
   },
   {
     stringitem_length,
     stringitem_write, NULL,
     stringitem_hash, stringitem_equal,
-    stringitem_show
+    stringitem_show,
+    NULL
   },
   {
     typeitem_length,
     typeitem_write, NULL,
     typeitem_hash, typeitem_equal,
-    typeitem_show
+    typeitem_show,
+    NULL
   },
   {
     typelistitem_length,
     typelistitem_write, NULL,
     typelistitem_hash, typelistitem_equal,
-    typelistitem_show
+    typelistitem_show,
+    NULL
   },
   {
     protoitem_length,
     protoitem_write, NULL,
     protoitem_hash, protoitem_equal,
-    protoitem_show
+    protoitem_show,
+    NULL
   },
   {
     constitem_length,
     constitem_write, NULL,
     constitem_hash, constitem_equal,
-    constitem_show
+    constitem_show,
+    NULL
   },
   {
     varitem_length,
     varitem_write, NULL,
     NULL, NULL,
-    varitem_show
+    varitem_show,
+    NULL
   },
   {
     funcitem_length,
     funcitem_write, NULL,
     NULL, NULL,
-    funcitem_show
+    funcitem_show,
+    NULL
   },
   {
     codeitem_length,
     codeitem_write, NULL,
     NULL, NULL,
-    codeitem_show
+    codeitem_show,
+    NULL
   }
 };
 

@@ -59,6 +59,8 @@ Symbol *STbl_Get(STable *stbl, char *name);
 typedef void (*symbolfunc)(Symbol *sym, void *arg);
 void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg);
 void STbl_Show(STable *stbl, int detail);
+void STbl_Delete(STable *stbl, Symbol *sym);
+#define STbl_Count(stbl) HashTable_Count((stbl)->htbl)
 
 #ifdef __cplusplus
 }

@@ -280,16 +280,6 @@ static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
 	for (pos = (head)->first; pos && ({ n = pos->next; 1; }); \
 	     pos = n)
 
-#define hlist_for_each_entry(pos, head, member) \
-	for (pos = hlist_entry((head)->first, __typeof__(*(pos)), member); \
-	     pos;	\
-	     pos = hlist_entry((pos)->member.next, __typeof__(*(pos)), member))
-
-#define hlist_for_each_entry_safe(pos, n, head, member) \
-	for (pos = hlist_entry((head)->first, __typeof__(*pos), member); \
-	     pos && ({ n = pos->member.next; 1; }); \
-	     pos = hlist_entry(n, __typeof__(*pos), member))
-
 /* Tail queue:
  * Double linked lists with a last node has not a pointer of list head.
  */

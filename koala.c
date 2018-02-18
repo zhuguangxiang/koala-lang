@@ -9,21 +9,22 @@ static HashTable modules;
 struct mod_entry {
   HashNode hnode;
   char *path;
-  Object *mo;
+  Object *ob;
 };
 
-static struct mod_entry *new_mod_entry(char *path, Object *mo)
+static struct mod_entry *new_mod_entry(char *path, Object *ob)
 {
   struct mod_entry *e = malloc(sizeof(struct mod_entry));
   Init_HashNode(&e->hnode, e);
   e->path = path;
-  e->mo = mo;
+  e->ob = ob;
   return e;
 }
 
 static void free_mod_entry(struct mod_entry *e)
 {
   ASSERT(HashNode_Unhashed(&e->hnode));
+  Module_Free(e->ob);
   free(e);
 }
 
@@ -49,9 +50,9 @@ static void mod_entry_fini(HashNode *hnode, void *arg)
 
 /*-------------------------------------------------------------------------*/
 
-static int koala_add_module(char *path, Object *mo)
+static int koala_add_module(char *path, Object *ob)
 {
-  struct mod_entry *e = new_mod_entry(path, mo);
+  struct mod_entry *e = new_mod_entry(path, ob);
   if (HashTable_Insert(&modules, &e->hnode) < 0) {
     error("add module '%s' failed", path);
     free_mod_entry(e);
@@ -75,7 +76,7 @@ Object *Koala_Get_Module(char *path)
   struct mod_entry e = {.path = path};
   HashNode *hnode = HashTable_Find(&modules, &e);
   if (hnode == NULL) return NULL;
-  return (Object *)(container_of(hnode, struct mod_entry, hnode)->mo);
+  return (Object *)(container_of(hnode, struct mod_entry, hnode)->ob);
 }
 
 void Run_Code(Object *code, Object *ob, Object *args)
@@ -151,8 +152,8 @@ static void Init_Modules(void)
 void Koala_Init(void)
 {
   Init_Modules();
-  sched_init();
-  schedule();
+  //sched_init();
+  //schedule();
 }
 
 void Koala_Fini(void)

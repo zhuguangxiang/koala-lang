@@ -238,6 +238,7 @@ struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
                                Vector *body, int bdecl);
 struct stmt *stmt_from_go(struct expr *expr);
 struct stmt *stmt_from_vardecl_list(Vector *vec);
+void stmt_free(struct stmt *stmt);
 
 /*-------------------------------------------------------------------------*/
 

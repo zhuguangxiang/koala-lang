@@ -12,15 +12,15 @@ extern "C" {
 typedef struct hlist_head HashList;
 
 typedef struct hash_node {
-  struct hlist_node hlink;    /* conflict list */
   struct list_head llink;     /* list node */
+  struct hlist_node hlink;    /* conflict list */
   uint32 hash;                /* hash value */
   void *key;                  /* hash key */
 } HashNode;
 
 #define Init_HashNode(hnode, k) do {  \
-  init_hlist_node(&(hnode)->hlink);   \
   init_list_head(&(hnode)->llink);    \
+  init_hlist_node(&(hnode)->hlink);   \
   (hnode)->hash  = 0;                 \
   (hnode)->key   = k;                 \
 } while (0)
@@ -81,7 +81,7 @@ int HashTable_Init(HashTable *table, HashInfo *hashinfo);
 
 void HashTable_Fini(HashTable *table, ht_visitfunc fn, void *arg);
 
-#define HashTable_NodeCount(table)  ((table)->nodes)
+#define HashTable_Count(table)  ((table)->nodes)
 int HashTable_SlotSize(HashTable *table);
 
 #ifdef __cplusplus
