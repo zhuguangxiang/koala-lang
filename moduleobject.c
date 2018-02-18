@@ -102,6 +102,7 @@ TValue Module_Get_Value(Object *ob, char *name)
   ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
   if (index < 0) return NilValue;
+  ASSERT(index < mob->stbl.next);
   return Tuple_Get(__get_tuple(mob), index);
 }
 
@@ -109,7 +110,7 @@ int Module_Set_Value(Object *ob, char *name, TValue *val)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   int index = __get_value_index(mob, name);
-  ASSERT(index >= 0);
+  ASSERT(index >= 0 && index < mob->stbl.next);
   return Tuple_Set(__get_tuple(mob), index, val);
 }
 

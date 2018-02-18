@@ -296,12 +296,17 @@ static void inst_gen(AtomTable *atbl, Buffer *buf, Inst *i)
       break;
     }
     case OP_STORE: {
+      Buffer_Write_2Bytes(buf, i->arg.ival);
       break;
     }
     case OP_GETFIELD: {
+      index = ConstItem_Set_String(atbl, i->arg.cstr);
+      Buffer_Write_4Bytes(buf, index);
       break;
     }
     case OP_SETFIELD: {
+      index = ConstItem_Set_String(atbl, i->arg.cstr);
+      Buffer_Write_4Bytes(buf, index);
       break;
     }
     case OP_CALL: {
@@ -312,7 +317,8 @@ static void inst_gen(AtomTable *atbl, Buffer *buf, Inst *i)
     case OP_RET: {
       break;
     }
-    case OP_ADD: {
+    case OP_ADD:
+    case OP_SUB: {
       break;
     }
     default: {
@@ -327,10 +333,15 @@ static void code_gen(Symbol *sym, void *arg)
   KImage *image = arg;
   switch (sym->kind) {
     case SYM_VAR: {
-
+      debug("%s %s:", sym->konst ? "const" : "var", sym->str);
+      if (sym->konst)
+        KImage_Add_Const(image, sym->str, sym->type);
+      else
+        KImage_Add_Var(image, sym->str, sym->type);
       break;
     }
     case SYM_PROTO: {
+      debug("func %s:", sym->str);
       CodeBlock *b = sym->ptr;
       int locvars = sym->locvars;
       inst_add_tail(b, OP_RET, NULL);
@@ -354,9 +365,9 @@ static void code_gen(Symbol *sym, void *arg)
   }
 }
 
-static void code_to_image(ParserState *ps)
+static void generate_image(ParserState *ps)
 {
-  printf("----------write to image--------------------\n");
+  printf("----------generate_image--------------------\n");
   ParserUnit *u = ps->u;
   KImage *image = KImage_New(ps->package);
   STbl_Traverse(&u->stbl, code_gen, image);
@@ -365,7 +376,7 @@ static void code_to_image(ParserState *ps)
   KImage_Write_File(image, ps->outfile);
   image = KImage_Read_File(ps->outfile);
   KImage_Show(image);
-  printf("----------end--------------------\n");
+  printf("----------generate_image end----------------\n");
 }
 
 static void codeblock_show(CodeBlock *block)
@@ -433,7 +444,7 @@ static void parse_dotaccess(ParserState *ps, struct expr *exp)
   exp->sym = sym;
 
   // generate code
-  if (ps->codegen) {
+  if (ps->gencode) {
     if (sym->kind == SYM_VAR) {
       ASSERT(0);
     } else if (sym->kind == SYM_PROTO) {
@@ -503,7 +514,7 @@ static int check_call_args(Proto *proto, Vector *vec)
 
 static void parse_call(ParserState *ps, struct expr *exp)
 {
-  if (ps->codegen) {
+  if (ps->gencode) {
     if (exp->call.args != NULL) {
       struct expr *e;
       Vector_ForEach_Reverse(e, exp->call.args) {
@@ -519,6 +530,7 @@ static void parse_call(ParserState *ps, struct expr *exp)
       struct expr *e;
       Vector_ForEach(e, exp->call.args) {
         parser_visit_expr(ps, e);
+        e->ctx = EXPR_LOAD;
       }
     }
 
@@ -652,19 +664,44 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
         break;
       }
 
-      if (ps->codegen) {
+      if (ps->gencode) {
         if (sym->kind == SYM_STABLE) {
           TValue val = CSTR_VALUE_INIT(exp->type->path);
           inst_add_tail(ps->u->block, OP_LOADM, &val);
         } else if (sym->kind == SYM_VAR) {
           debug("symbol '%s' is variable", exp->id);
+          ParserUnit *u = ps->u;
+          Symbol *parent;
+          Symbol *usym = u->sym;
           if (exp->ctx == EXPR_LOAD) {
-            debug("load var's index:%d", exp->sym->index);
-            TValue val = INT_VALUE_INIT(exp->sym->index);
-            inst_add_tail(ps->u->block, OP_LOAD, &val);
+            debug("load var's index:%d", sym->index);
+            if (sym->up == NULL) {
+              debug("id '%s' is module's variable", exp->id);
+              if (usym->kind == SYM_PROTO) {
+                if (usym->up == NULL) {
+                  debug("id '%s' in function '%s'", exp->id, usym->str);
+                  TValue val = INT_VALUE_INIT(0);
+                  inst_add_tail(ps->u->block, OP_LOAD, &val);
+                  setcstrvalue(&val, sym->str);
+                  inst_add_tail(ps->u->block, OP_GETFIELD, &val);
+                } else {
+                  parent = usym->up;
+                  ASSERT(parent->kind == SYM_CLASS);
+                  debug("id '%s' is referenced in method '%s'",
+                        exp->id, usym->str);
+                }
+              } else {
+                ASSERT(0);
+                TValue val = INT_VALUE_INIT(sym->index);
+                inst_add_tail(ps->u->block, OP_LOAD, &val);
+              }
+            } else {
+              TValue val = INT_VALUE_INIT(sym->index);
+              inst_add_tail(ps->u->block, OP_LOAD, &val);
+            }
           } else if (exp->ctx == EXPR_STORE) {
-            debug("store var's index:%d", exp->sym->index);
-            TValue val = INT_VALUE_INIT(exp->sym->index);
+            debug("store var's index:%d", sym->index);
+            TValue val = INT_VALUE_INIT(sym->index);
             inst_add_tail(ps->u->block, OP_STORE, &val);
           } else {
             ASSERT_MSG(0, "unknown ctx:%d", exp->ctx);
@@ -694,26 +731,23 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       if (exp->ctx == EXPR_STORE) {
         error("cannot assign to %lld", exp->ival);
       }
-      // if (exp->gencode) {
-      //   // generate code
-      //   TValue val = INT_VALUE_INIT(exp->ival);
-      //   inst_add(ps->u->block, OP_LOADK, &val);
-      // }
-      // exp->bconst = 1;
+      if (ps->gencode) {
+        //printf("ival=%lld\n", exp->ival);
+        TValue val = INT_VALUE_INIT(exp->ival);
+        inst_add(ps->u->block, OP_LOADK, &val);
+      }
       break;
     }
     case FLOAT_KIND: {
       if (exp->ctx == EXPR_STORE) {
         error("cannot assign to %f", exp->fval);
       }
-      //exp->bconst = 1;
       break;
     }
     case BOOL_KIND: {
       if (exp->ctx == EXPR_STORE) {
         error("cannot assign to %s", exp->bval ? "true":"false");
       }
-      //exp->bconst = 1;
       break;
     }
     case STRING_KIND: {
@@ -721,7 +755,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
         error("cannot assign to %s", exp->str);
         break;
       }
-      if (ps->codegen) {
+      if (ps->gencode) {
         TValue val = CSTR_VALUE_INIT(exp->str);
         inst_add(ps->u->block, OP_LOADK, &val);
       }
@@ -737,9 +771,18 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
     }
     case BINARY_KIND: {
       debug("binary_op:%d", exp->binary.op);
-      parser_visit_expr(ps, exp->binary.left);
+      exp->binary.right->ctx = EXPR_LOAD;
       parser_visit_expr(ps, exp->binary.right);
-      if (ps->codegen) {
+      exp->binary.left->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, exp->binary.left);
+      if (ps->gencode) {
+        if (exp->binary.op == BINARY_ADD) {
+          debug("add 'OP_ADD' inst");
+          inst_add_tail(ps->u->block, OP_ADD, NULL);
+        } else if (exp->binary.op == BINARY_SUB) {
+          debug("add 'OP_SUB' inst");
+          inst_add_tail(ps->u->block, OP_SUB, NULL);
+        }
       } else {
         exp->type = exp->binary.left->type;
       }
@@ -848,18 +891,33 @@ static void merge_codeblock(ParserState *ps)
 
 static void save_code(ParserState *ps)
 {
-  if (!ps->codegen) return;
+  if (!ps->gencode) return;
 
   ParserUnit *u = ps->u;
   if (u->scope == SCOPE_FUNCTION) {
-    debug("save code to function");
+    debug("save code to function '%s'", u->sym->str);
     u->sym->ptr = u->block;
     u->block = NULL;
     u->sym->locvars = u->stbl.next;
   } else if (u->scope == SCOPE_BLOCK) {
     debug("merge code to parent's block");
+  } else if (u->scope == SCOPE_MODULE) {
+    debug("save code to module __init__ function");
+    if (u->block != NULL) {
+      ASSERT(u == &ps->mu);
+      Symbol *sym = STbl_Get(&u->stbl, "__init__");
+      if (sym == NULL) {
+        Proto *proto = Proto_New(0, NULL, 0, NULL);
+        sym = STbl_Add_Proto(&u->stbl, "__init__", proto);
+        ASSERT_PTR(sym);
+      }
+      sym->ptr = u->block;
+      sym->locvars = u->stbl.next;
+      u->sym = sym;
+      ASSERT(list_empty(&u->blocks));
+    }
   } else {
-    debug("no codes in scope:%d", u->scope);
+    ASSERT_MSG(0, "no codes in scope:%d", u->scope);
   }
 }
 
@@ -898,9 +956,40 @@ static ParserUnit *parent_scope(ParserState *ps)
 
 static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
-  if (ps->codegen) {
+  ParserUnit *u = ps->u;
+  if (ps->gencode) {
     if (exp != NULL) {
-
+      enter_codeblock(ps);
+      parser_visit_expr(ps, exp);
+      if ((u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS)) {
+        // module's or class's variable
+        TValue val = INT_VALUE_INIT(0);
+        inst_add_tail(ps->u->block, OP_LOAD, &val);
+        setcstrvalue(&val, var->id);
+        inst_add_tail(ps->u->block, OP_SETFIELD, &val);
+      } else if (u->scope == SCOPE_FUNCTION) {
+        Symbol *sym = STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
+        sym->up = u->sym;
+        // local variable
+        TValue val = INT_VALUE_INIT(sym->index);
+        inst_add_tail(ps->u->block, OP_STORE, &val);
+      } else {
+        ASSERT(0);
+      }
+      merge_codeblock(ps);
+    } else {
+      if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+        debug("parse variable '%s' declaration in module or class", var->id);
+      } else if (u->scope == SCOPE_FUNCTION) {
+        debug("parse variable '%s' declaration in function", var->id);
+        ASSERT(!list_empty(&ps->ustack));
+        ParserUnit *parent = parent_scope(ps);
+        ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
+        Symbol *sym = STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
+        sym->up = u->sym;
+      } else {
+        ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
+      }
     }
   } else {
     if (exp == NULL) {
@@ -930,19 +1019,19 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
         }
       }
     }
-  }
 
-  ParserUnit *u = ps->u;
-  if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
-    debug("parse variable '%s' declaration in module or class", var->id);
-  } else if (u->scope == SCOPE_FUNCTION) {
-    debug("parse variable '%s' declaration in function", var->id);
-    ASSERT(!list_empty(&ps->ustack));
-    ParserUnit *parent = parent_scope(ps);
-    ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
-    STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
-  } else {
-    ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
+    if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+      debug("parse variable '%s' declaration in module or class", var->id);
+    } else if (u->scope == SCOPE_FUNCTION) {
+      debug("parse variable '%s' declaration in function", var->id);
+      ASSERT(!list_empty(&ps->ustack));
+      ParserUnit *parent = parent_scope(ps);
+      ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
+      Symbol *sym = STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
+      sym->up = u->sym;
+    } else {
+      ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
+    }
   }
 }
 
@@ -986,29 +1075,27 @@ static void parse_assign(ParserState *ps, struct stmt *stmt)
 static void paser_return(ParserState *ps, struct stmt *stmt)
 {
   ParserUnit *u = ps->u;
-
   if (u->scope == SCOPE_FUNCTION) {
     debug("return in function");
     if (stmt->vec != NULL) {
       struct expr *e;
       Vector_ForEach(e, stmt->vec) {
+        e->ctx = EXPR_LOAD;
         parser_visit_expr(ps, e);
       }
     }
 
-    if (ps->codegen) {
-    } else {
+    if (!ps->gencode) {
       check_return_types(u, stmt->vec);
     }
   } else {
     ASSERT_MSG(0, "invalid scope:%d", u->scope);
   }
-
 }
 
 static void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 {
-  if (ps->codegen) enter_codeblock(ps);
+  if (ps->gencode) enter_codeblock(ps);
 
   switch (stmt->kind) {
     case VARDECL_LIST_KIND: {
@@ -1042,7 +1129,7 @@ static void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
       break;
   }
 
-  if (ps->codegen) merge_codeblock(ps);
+  if (ps->gencode) merge_codeblock(ps);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1050,11 +1137,10 @@ static void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 static void generate_code(ParserState *ps)
 {
   printf("-------code generator----------\n");
-  ps->codegen = 1;
+  ps->gencode = 1;
   Parse_Body(ps, &ps->stmts);
   codeblock_show(ps->u->block);
   printf("-------code generator end------\n");
-  code_to_image(ps);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1129,13 +1215,12 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 }
 
 #define parser_add_stmt(ps, stmt) Vector_Append(&(ps)->stmts, stmt)
-#define var_tostring(var) (var)->bconst ? "const" : "var", (var)->id
 
 static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 {
   struct var *var = stmt->vardecl.var;
   if (var->type == NULL) {
-    debug("'%s %s' type is not set", var_tostring(var));
+    debug("'%s %s' type is not set", var->bconst ? "const" : "var", var->id);
   } else {
     TypeDesc *desc = var->type;
     if (desc->kind == TYPE_USERDEF) {
@@ -1154,24 +1239,14 @@ static void parse_vardecl(ParserState *ps, struct stmt *stmt)
   Symbol *sym = STbl_Add_Var(&ps->u->stbl, var->id, var->type, var->bconst);
   if (sym != NULL) {
     debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
+    sym->up = ps->u->sym;
   } else {
     error("add %s '%s' failed, it'name is duplicated",
           var->bconst ? "const":"var", var->id);
   }
 
-  struct expr *exp = stmt->vardecl.exp;
-  if (exp == NULL) {
+  if (stmt->vardecl.exp == NULL) {
     debug("There is not a initial expr for var '%s'", var->id);
-    return;
-  }
-
-  ParserUnit *u = ps->u;
-  sym = STbl_Get(&u->stbl, "__init__");
-  if (sym == NULL) {
-    Proto *proto = Proto_New(0, NULL, 0, NULL);
-    STbl_Add_Proto(&u->stbl, "__init__", proto);
-  } else {
-    debug("func __init__ exist");
   }
 }
 
@@ -1228,6 +1303,7 @@ void Parse_Proto(ParserState *ps, struct stmt *stmt)
   sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, proto);
   if (sym != NULL) {
     debug("add func '%s' successful", stmt->funcdecl.id);
+    sym->up = ps->u->sym;
   } else {
     debug("add func '%s' failed", stmt->funcdecl.id);
   }
@@ -1303,6 +1379,8 @@ int main(int argc, char *argv[])
   check_unused_symbols(&ps);
 
   generate_code(&ps);
+  save_code(&ps);
+  generate_image(&ps);
 
   printf("package:%s\n", ps.package);
   STbl_Show(&ps.u->stbl, 1);

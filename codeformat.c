@@ -367,7 +367,7 @@ int TypeListItem_To_DescList(AtomTable *atbl, TypeListItem *item,
 
 Proto *Proto_From_ProtoItem(ProtoItem *item, AtomTable *atbl)
 {
-  Proto *proto = malloc(sizeof(Proto));
+  Proto *proto = calloc(1, sizeof(Proto));
 
   TypeListItem *typelist = NULL;
   if (item->rindex >= 0) typelist = TypeListItem_Index(atbl, item->rindex);

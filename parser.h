@@ -63,7 +63,7 @@ typedef struct parserstate {
   struct list_head ustack;
   ParserUnit mu;      /* module parser unit */
   int olevel;         /* optimization level */
-  int codegen;        /* for code generator */
+  int gencode;        /* for code generator */
   Vector errors;
 } ParserState;
 

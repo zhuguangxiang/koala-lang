@@ -6,14 +6,15 @@ package test;
 
 import "koala/io";
 
-var greeting = string("hello, world");
+var greeting = string("hello, world\n");
 
 func Main(args []string) {
   io.Print("hello, world\n");
-  io.Print(2+3);
+  io.Print(1+2, 3+4, greeting, 5-6);
+  io.Print(number_sub(10, 20));
 }
 
-func number_add(a int, b int) int {
-  var result = a + b;
+func number_sub(a int, b int) int {
+  var result = a - b;
   return result;
 }

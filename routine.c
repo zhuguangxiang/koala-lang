@@ -392,11 +392,12 @@ static void frame_loop(Frame *frame)
         break;
       }
       case OP_ADD: {
-        TValue v2 = POP();
         TValue v1 = POP();
+        TValue v2 = POP();
         val = NilValue;
         // v1 is left value
         if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
+          //printf("+++%lld\n", VALUE_INT(&v1));
           uint64 i = (uint64)VALUE_INT(&v1) + (uint64)VALUE_INT(&v2);
           setivalue(&val, i);
         } else if (tonumber(&v2) && tonumber(&v1)) {
@@ -405,20 +406,22 @@ static void frame_loop(Frame *frame)
         PUSH(&val);
         break;
       }
-      // case OP_SUB: {
-      //   TValue v1 = POP();
-      //   TValue v2 = POP();
-      //   val = NilValue;
-      //   // v2 is left value
-      //   if (VALUE_ISINT(&v2) && VALUE_ISINT(&v1)) {
-      //     uint64 i = (uint64)VALUE_INT(&v2) - (uint64)VALUE_INT(&v1);
-      //     setivalue(&val, i);
-      //   } else if (tonumber(&v2) && tonumber(&v1)) {
+      case OP_SUB: {
+        TValue v1 = POP();
+        TValue v2 = POP();
+        val = NilValue;
+        // v1 is left value
+        if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
+          //printf("---%lld\n", VALUE_INT(&v1));
+          uint64 i = (uint64)VALUE_INT(&v1) - (uint64)VALUE_INT(&v2);
+          //printf("%lld\n", (int64)i);
+          setivalue(&val, i);
+        } else if (tonumber(&v2) && tonumber(&v1)) {
 
-      //   }
-      //   PUSH(&val);
-      //   break;
-      // }
+        }
+        PUSH(&val);
+        break;
+      }
       // case OP_MUL: {
       //   TValue v1 = POP();
       //   TValue v2 = POP();

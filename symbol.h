@@ -25,12 +25,13 @@ typedef struct symbol {
   idx_t name;
   int8 kind;
   int8 access;
-  bool konst;
+  int8 konst;
   int8 refcnt;    /* for compiler */
   idx_t desc;     /* variable's type or func's proto */
   char *str;      /* -> name */
   TypeDesc *type; /* -> desc */
   int32 locvars;  /* for compiler's function */
+  struct symbol *up;  /* for compiler's id */
   STable *stbl;   /* for compiler's import */
   union {
     void *ptr;    /* CodeObject, klass or CodeBlock */
