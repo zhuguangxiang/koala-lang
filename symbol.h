@@ -62,6 +62,7 @@ void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg);
 void STbl_Show(STable *stbl, int detail);
 void STbl_Delete(STable *stbl, Symbol *sym);
 #define STbl_Count(stbl) HashTable_Count((stbl)->htbl)
+int STbl_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc);
 
 #ifdef __cplusplus
 }

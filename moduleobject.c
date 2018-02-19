@@ -89,10 +89,46 @@ static int __get_value_index(ModuleObject *mob, char *name)
   return -1;
 }
 
+static void init_mod_var(Symbol *sym, void *arg)
+{
+  ModuleObject *mob = arg;
+  if (sym->kind == SYM_VAR) {
+    TValue val = NIL_VALUE_INIT();
+    TypeDesc *type = sym->type;
+    ASSERT_PTR(type);
+    switch (type->kind) {
+      case TYPE_PRIMITIVE: {
+        if (type->primitive == PRIMITIVE_INT) {
+          setivalue(&val, 0);
+        } else if (type->primitive == PRIMITIVE_FLOAT) {
+          setfltvalue(&val, 0.0);
+        } else if (type->primitive == PRIMITIVE_BOOL) {
+          setbvalue(&val, 0);
+        } else if (type->primitive == PRIMITIVE_STRING) {
+          setcstrvalue(&val, NULL);
+        }
+        break;
+      }
+      case TYPE_USERDEF: {
+        break;
+      }
+      case TYPE_PROTO: {
+        break;
+      }
+      default: {
+        ASSERT(0);
+        break;
+      }
+    }
+    Tuple_Set(mob->tuple, sym->index, &val);
+  }
+}
+
 static Object *__get_tuple(ModuleObject *mob)
 {
   if (mob->tuple == NULL) {
     mob->tuple = Tuple_New(mob->stbl.next);
+    STbl_Traverse(&mob->stbl, init_mod_var, mob);
   }
   return mob->tuple;
 }
@@ -183,14 +219,14 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
   return 0;
 }
 
-static void mod_symbol_visit(Symbol *sym, void *arg)
+static void mod_to_stbl(Symbol *sym, void *arg)
 {
   STable *stbl = arg;
   Symbol *tmp;
   if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
     tmp = STbl_Add_Symbol(stbl, sym->str, SYM_STABLE, 0);
     tmp->stbl = STbl_New(stbl->atbl);
-    STbl_Traverse(Klass_STable(sym->ptr), mod_symbol_visit, tmp->stbl);
+    STbl_Traverse(Klass_STable(sym->ptr), mod_to_stbl, tmp->stbl);
   } else if (sym->kind == SYM_VAR) {
     STbl_Add_Var(stbl, sym->str, sym->type, sym->konst);
   } else if (sym->kind == SYM_PROTO) {
@@ -207,7 +243,7 @@ STable *Module_To_STable(Object *ob, AtomTable *atbl)
 {
   ModuleObject *mob = OBJ_TO_MOD(ob);
   STable *stbl = STbl_New(atbl);
-  STbl_Traverse(&mob->stbl, mod_symbol_visit, stbl);
+  STbl_Traverse(&mob->stbl, mod_to_stbl, stbl);
   return stbl;
 }
 
@@ -246,7 +282,7 @@ Object *Module_From_Image(KImage *image)
   TypeItem *type;
   ProtoItem *protoitem;
   CodeItem *codeitem;
-  TypeDesc desc;
+  TypeDesc *desc;
   Proto *proto;
   Object *code;
 
@@ -256,8 +292,9 @@ Object *Module_From_Image(KImage *image)
     var = AtomTable_Get(table, ITEM_VAR, i);
     name = StringItem_Index(table, var->nameindex);
     type = TypeItem_Index(table, var->typeindex);
-    TypeItem_To_Desc(table, type, &desc);
-    Module_Add_Var(ob, name->data, &desc, var->flags & VAR_FLAG_CONST);
+    desc = TypeDesc_New(0);
+    TypeItem_To_Desc(table, type, desc);
+    Module_Add_Var(ob, name->data, desc, var->flags & VAR_FLAG_CONST);
   }
 
   //load functions

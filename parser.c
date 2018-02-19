@@ -462,6 +462,11 @@ static int check_call_varg(Proto *proto, Vector *vec)
         desc = proto->pdesc + proto->psz - 1;
 
       TypeDesc *d = exp->type;
+      if (d == NULL) {
+        error("expr's type is null");
+        return 0;
+      }
+
       if (d->kind == TYPE_PROTO) {
         Proto *p = d->proto;
         /* allow only one return value as function argument */
@@ -489,6 +494,10 @@ static int check_call_args(Proto *proto, Vector *vec)
   struct expr *exp;
   Vector_ForEach(exp, vec) {
     d = exp->type;
+    if (d == NULL) {
+      error("expr's type is null");
+      return 0;
+    }
     if (d->kind == TYPE_PROTO) {
       Proto *p = d->proto;
       /* allow only one return value as function argument */
@@ -651,7 +660,6 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
     case NAME_KIND: {
       Symbol *sym = find_id_symbol(ps, exp->id);
       if (sym == NULL) {
-        error("cannot find symbol '%s'", exp->id);
         break;
       }
 
@@ -662,24 +670,29 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
         } else if (sym->kind == SYM_VAR) {
           debug("symbol '%s' is variable", exp->id);
           ParserUnit *u = ps->u;
-          Symbol *parent;
-          Symbol *usym = u->sym;
+          Symbol *cur = u->sym;
           if (exp->ctx == EXPR_LOAD) {
             debug("load var's index:%d", sym->index);
             if (sym->up == NULL) {
               debug("id '%s' is module's variable", exp->id);
-              if (usym->kind == SYM_PROTO) {
-                if (usym->up == NULL) {
-                  debug("id '%s' in function '%s'", exp->id, usym->str);
+              if (cur == NULL) {
+                debug("current scope is module");
+                TValue val = INT_VALUE_INIT(0);
+                inst_append(ps->u->block, OP_LOAD, &val);
+                setcstrvalue(&val, sym->str);
+                inst_append(ps->u->block, OP_GETFIELD, &val);
+              } else if (cur->kind == SYM_PROTO) {
+                if (cur->up == NULL) {
+                  debug("id '%s' in function '%s'", exp->id, cur->str);
                   TValue val = INT_VALUE_INIT(0);
                   inst_append(ps->u->block, OP_LOAD, &val);
                   setcstrvalue(&val, sym->str);
                   inst_append(ps->u->block, OP_GETFIELD, &val);
                 } else {
-                  parent = usym->up;
+                  Symbol *parent = cur->up;
                   ASSERT(parent->kind == SYM_CLASS);
                   debug("id '%s' is referenced in method '%s'",
-                        exp->id, usym->str);
+                        exp->id, cur->str);
                 }
               } else {
                 ASSERT(0);
@@ -902,6 +915,7 @@ static void save_code(ParserState *ps)
         sym = STbl_Add_Proto(&u->stbl, "__init__", proto);
         ASSERT_PTR(sym);
       }
+
       sym->ptr = u->block;
       sym->locvars = u->stbl.next;
       u->sym = sym;
@@ -999,22 +1013,39 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
         parser_visit_expr(ps, exp);
       }
 
-      ASSERT_PTR(exp->type);
-
-      if (var->type == NULL) {
-        debug("using its right type as var '%s' type", var->id);
-        var->type = exp->type;
+      if (exp->type == NULL) {
+        error("cannot resolve var '%s' type", var->id);
       } else {
-        if (!TypeDesc_Check(var->type, exp->type)) {
-          error("typecheck failed");
+        if (var->type == NULL) {
+          debug("using its right type as var '%s' type", var->id);
+          var->type = exp->type;
+          if (var->type == NULL) {
+            error("var '%s' type is null", var->id);
+          }
+        } else {
+          if (!TypeDesc_Check(var->type, exp->type)) {
+            error("typecheck failed");
+          }
         }
       }
     }
 
+    debug("parse variable '%s' declaration", var->id);
+
     if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
-      debug("parse variable '%s' declaration in module or class", var->id);
+      debug("in module or class");
+      Symbol *sym = STbl_Get(&u->stbl, var->id);
+      ASSERT_PTR(sym);
+      if (sym->kind == SYM_VAR) {
+        if (sym->type == NULL) {
+          debug("update symbol '%s' type", var->id);
+          STbl_Update_Symbol(&u->stbl, sym, var->type);
+        } else {
+          debug("no need update symbol '%s'", var->id);
+        }
+      }
     } else if (u->scope == SCOPE_FUNCTION) {
-      debug("parse variable '%s' declaration in function", var->id);
+      debug("in function");
       ASSERT(!list_empty(&ps->ustack));
       ParserUnit *parent = parent_scope(ps);
       ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);

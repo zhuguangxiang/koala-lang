@@ -208,10 +208,10 @@ struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
     if (!error) {
       stmt->vardecl.exp = Vector_Get(expvec, i);
       if (var->type == NULL) {
-        debug("variable '%s' type is not set", var->id);
+        warn("variable '%s' type is not set", var->id);
         var->type = stmt->vardecl.exp->type;
         if (var->type == NULL) {
-          debug("right expr's type is also null");
+          warn("right expr's type is also null");
         }
       }
     }

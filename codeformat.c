@@ -259,7 +259,10 @@ char *TypeDesc_ToString(TypeDesc *desc)
   char *tmp;
   char *str = "";
 
-  ASSERT_PTR(desc);
+  if (desc == NULL) {
+    warn("desc is null");
+    return NULL;
+  }
 
   int sz = desc->dims * 2;
   int dims = desc->dims;

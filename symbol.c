@@ -106,6 +106,19 @@ Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, bool konst)
   return sym;
 }
 
+int STbl_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc)
+{
+  idx_t idx = -1;
+  if (desc != NULL) {
+    idx = TypeItem_Set(stbl->atbl, desc);
+    ASSERT(idx >= 0);
+  }
+
+  sym->desc = idx;
+  sym->type = desc;
+  return 0;
+}
+
 Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto)
 {
   Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_PROTO, 0);
