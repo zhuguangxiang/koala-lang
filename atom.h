@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-typedef struct atomentry{
+typedef struct atomentry {
 	HashNode hnode;
 	int type;
 	int index;

@@ -151,10 +151,8 @@ TypeDesc *TypeDesc_From_UserDef(char *path, char *type)
 	return desc;
 }
 
-void TypeDesc_Free(void *item, void *arg)
+void TypeDesc_Free(TypeDesc *desc)
 {
-	UNUSED_PARAMETER(arg);
-	TypeDesc *desc = item;
 	if (desc->kind == TYPE_USERDEF) {
 		free(desc->path);
 		free(desc->type);
@@ -166,6 +164,12 @@ void TypeDesc_Free(void *item, void *arg)
 	}
 
 	free(desc);
+}
+
+static void item_type_free(void *item, void *arg)
+{
+	UNUSED_PARAMETER(arg);
+	TypeDesc_Free(item);
 }
 
 int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr)
@@ -201,8 +205,8 @@ TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec)
 	TypeDesc *type = TypeDesc_New(TYPE_PROTO);
 	type->proto = proto;
 
-	Vector_Free(rvec, TypeDesc_Free, NULL);
-	Vector_Free(pvec, TypeDesc_Free, NULL);
+	Vector_Free(rvec, item_type_free, NULL);
+	Vector_Free(pvec, item_type_free, NULL);
 	return type;
 }
 
@@ -772,6 +776,11 @@ void stringitem_show(AtomTable *table, void *o)
 	printf("  string:%s\n", item->data);
 }
 
+void stringitem_free(void *o)
+{
+	free(o);
+}
+
 int typeitem_length(void *o)
 {
 	UNUSED_PARAMETER(o);
@@ -830,6 +839,11 @@ void typeitem_show(AtomTable *table, void *o)
 	free(arrstr);
 }
 
+void typeitem_free(void *o)
+{
+	free(o);
+}
+
 int typelistitem_length(void *o)
 {
 	TypeListItem *item = o;
@@ -869,6 +883,11 @@ void typelistitem_show(AtomTable *table, void *o)
 	for (int i = 0; i < item->size; i++) {
 		printf("  index:%d\n", item->index[i]);
 	}
+}
+
+void typelistitem_free(void *o)
+{
+	free(o);
 }
 
 int structitem_length(void *o)
@@ -925,7 +944,6 @@ static char *var_flags_tostring(int flags)
 	return str;
 }
 
-
 void varitem_show(AtomTable *table, void *o)
 {
 	VarItem *item = o;
@@ -952,6 +970,11 @@ void varitem_show(AtomTable *table, void *o)
 void varitem_write(FILE *fp, void *o)
 {
 	fwrite(o, sizeof(VarItem), 1, fp);
+}
+
+void varitem_free(void *o)
+{
+	free(o);
 }
 
 int fielditem_length(void *o)
@@ -1004,6 +1027,11 @@ void protoitem_show(AtomTable *table, void *o)
 	printf("  pindex:%d\n", item->pindex);
 }
 
+void protoitem_free(void *o)
+{
+	free(o);
+}
+
 int funcitem_length(void *o)
 {
 	UNUSED_PARAMETER(o);
@@ -1026,6 +1054,11 @@ void funcitem_show(AtomTable *table, void *o)
 void funcitem_write(FILE *fp, void *o)
 {
 	fwrite(o, sizeof(FuncItem), 1, fp);
+}
+
+void funcitem_free(void *o)
+{
+	free(o);
 }
 
 int methoditem_length(void *o)
@@ -1058,6 +1091,11 @@ void codeitem_show(AtomTable *table, void *o)
 	CodeItem *item = o;
 	printf("  size:%d\n", item->size);
 	Code_Show(item->codes, item->size);
+}
+
+void codeitem_free(void *o)
+{
+	free(o);
 }
 
 int constitem_length(void *o)
@@ -1156,6 +1194,11 @@ void constitem_show(AtomTable *table, void *o)
 	}
 }
 
+void constitem_free(void *o)
+{
+	free(o);
+}
+
 typedef int (*item_length_t)(void *);
 typedef void (*item_fwrite_t)(FILE *, void *);
 typedef uint32 (*item_hash_t)(void *);
@@ -1186,56 +1229,56 @@ struct item_funcs item_func[ITEM_MAX] = {
 		stringitem_write, NULL,
 		stringitem_hash, stringitem_equal,
 		stringitem_show,
-		NULL
+		stringitem_free
 	},
 	{
 		typeitem_length,
 		typeitem_write, NULL,
 		typeitem_hash, typeitem_equal,
 		typeitem_show,
-		NULL
+		typeitem_free
 	},
 	{
 		typelistitem_length,
 		typelistitem_write, NULL,
 		typelistitem_hash, typelistitem_equal,
 		typelistitem_show,
-		NULL
+		typelistitem_free
 	},
 	{
 		protoitem_length,
 		protoitem_write, NULL,
 		protoitem_hash, protoitem_equal,
 		protoitem_show,
-		NULL
+		protoitem_free
 	},
 	{
 		constitem_length,
 		constitem_write, NULL,
 		constitem_hash, constitem_equal,
 		constitem_show,
-		NULL
+		constitem_free
 	},
 	{
 		varitem_length,
 		varitem_write, NULL,
 		NULL, NULL,
 		varitem_show,
-		NULL
+		varitem_free
 	},
 	{
 		funcitem_length,
 		funcitem_write, NULL,
 		NULL, NULL,
 		funcitem_show,
-		NULL
+		funcitem_free
 	},
 	{
 		codeitem_length,
 		codeitem_write, NULL,
 		NULL, NULL,
 		codeitem_show,
-		NULL
+		codeitem_free
 	}
 };
 
@@ -1260,9 +1303,9 @@ uint32 item_hash(void *key)
 {
 	AtomEntry *e = key;
 	assert(e->type > 0 && e->type < ITEM_MAX);
-	item_hash_t hash_fn = item_func[e->type].ihash;
-	assert(hash_fn);
-	return hash_fn(e->data);
+	item_hash_t fn = item_func[e->type].ihash;
+	assert(fn);
+	return fn(e->data);
 }
 
 int item_equal(void *k1, void *k2)
@@ -1272,9 +1315,18 @@ int item_equal(void *k1, void *k2)
 	assert(e1->type > 0 && e1->type < ITEM_MAX);
 	assert(e2->type > 0 && e2->type < ITEM_MAX);
 	if (e1->type != e2->type) return 0;
-	item_equal_t equal_fn = item_func[e1->type].iequal;
-	assert(equal_fn);
-	return equal_fn(e1->data, e2->data);
+	item_equal_t fn = item_func[e1->type].iequal;
+	assert(fn);
+	return fn(e1->data, e2->data);
+}
+
+void item_free(int type, void *data, void *arg)
+{
+	UNUSED_PARAMETER(arg);
+	assert(type > 0 && type < ITEM_MAX);
+	item_free_t fn = item_func[type].ifree;
+	assert(fn);
+	return fn(data);
 }
 
 void KImage_Init(KImage *image, char *package)

@@ -127,10 +127,9 @@ HashTable *HashTable_New(HashInfo *hashinfo)
 
 void HashTable_Free(HashTable *table, ht_visitfunc fn, void *arg)
 {
-	if (table) {
-		HashTable_Fini(table, fn, arg);
-		free(table);
-	}
+	if (!table) return;
+	HashTable_Fini(table, fn, arg);
+	free(table);
 }
 
 static HashNode *__hash_table_find(HashTable *table, uint32 hash, void *key)

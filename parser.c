@@ -229,7 +229,7 @@ static CodeBlock *codeblock_new(AtomTable *atbl)
 	return b;
 }
 
-static void codeblock_free(CodeBlock *b)
+void CodeBlock_Free(CodeBlock *b)
 {
 	if (!b) return;
 	assert(list_unlinked(&b->link));
@@ -332,7 +332,7 @@ static void code_gen(Symbol *sym, void *arg)
 		}
 		case SYM_PROTO: {
 			debug("func %s:", sym->str);
-			CodeBlock *b = sym->ptr;
+			CodeBlock *b = sym->block;
 			int locvars = sym->locvars;
 			inst_append(b, OP_RET, NULL);
 			AtomTable *atbl = image->table;
@@ -836,7 +836,7 @@ static ParserUnit *parser_unit_new(AtomTable *atbl, int scope)
 static void parser_unit_free(ParserUnit *u)
 {
 	STbl_Fini(&u->stbl);
-	codeblock_free(u->block);
+	CodeBlock_Free(u->block);
 	free(u);
 }
 
@@ -883,7 +883,7 @@ static void merge_codeblock(ParserState *ps)
 		list_del(&i->link);
 		list_add_tail(&i->link, &u->block->insts);
 	}
-	codeblock_free(b);
+	CodeBlock_Free(b);
 }
 
 static void save_code(ParserState *ps)
@@ -893,7 +893,7 @@ static void save_code(ParserState *ps)
 	ParserUnit *u = ps->u;
 	if (u->scope == SCOPE_FUNCTION) {
 		debug("save code to function '%s'", u->sym->str);
-		u->sym->ptr = u->block;
+		u->sym->block = u->block;
 		u->block = NULL;
 		u->sym->locvars = u->stbl.next;
 	} else if (u->scope == SCOPE_BLOCK) {
@@ -909,7 +909,7 @@ static void save_code(ParserState *ps)
 				assert(sym);
 			}
 
-			sym->ptr = u->block;
+			sym->block = u->block;
 			sym->locvars = u->stbl.next;
 			u->sym = sym;
 			assert(list_empty(&u->blocks));
@@ -1359,6 +1359,7 @@ static void fini_parser(ParserState *ps)
 	fini_imports(ps);
 	Vector_Fini(&ps->errors, NULL, NULL);
 	fini_parser_unit(&ps->mu);
+	free(ps->package);
 	Koala_Fini();
 }
 

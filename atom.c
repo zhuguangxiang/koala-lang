@@ -8,6 +8,13 @@ AtomTable *AtomTable_New(HashInfo *hashinfo, int size)
 	return table;
 }
 
+void AtomTable_Free(AtomTable *table, atomfunc fn, void *arg)
+{
+	if (!table) return;
+	AtomTable_Fini(table, fn, arg);
+	free(table);
+}
+
 static AtomEntry *itementry_new(int type, int index, void *data)
 {
 	AtomEntry *e = malloc(sizeof(AtomEntry));
@@ -16,6 +23,11 @@ static AtomEntry *itementry_new(int type, int index, void *data)
 	e->index = index;
 	e->data  = data;
 	return e;
+}
+
+static void itementry_free(AtomEntry *e)
+{
+	free(e);
 }
 
 int AtomTable_Init(AtomTable *table, HashInfo *hashinfo, int size)
@@ -39,6 +51,13 @@ static void atomdata_fini(void *data, void *arg)
 	atomdata->fn(atomdata->type, data, atomdata->arg);
 }
 
+static void ht_atomentry_free(HashNode *hnode, void *arg)
+{
+	UNUSED_PARAMETER(arg);
+	AtomEntry *e = container_of(hnode, AtomEntry, hnode);
+	itementry_free(e);
+}
+
 void AtomTable_Fini(AtomTable *table, atomfunc fn, void *arg)
 {
 	AtomData itemdata = {fn, arg, 0};
@@ -46,6 +65,8 @@ void AtomTable_Fini(AtomTable *table, atomfunc fn, void *arg)
 		itemdata.type = i;
 		Vector_Fini(table->items + i, atomdata_fini, &itemdata);
 	}
+
+	HashTable_Fini(&table->table, ht_atomentry_free, NULL);
 }
 
 int AtomTable_Append(AtomTable *table, int type, void *data, int unique)

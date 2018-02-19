@@ -7,9 +7,7 @@ Object *Module_New(char *name, AtomTable *atbl)
 {
 	ModuleObject *ob = malloc(sizeof(ModuleObject));
 	init_object_head(ob, &Module_Klass);
-	int len = strlen(name);
-	ob->name = malloc(len + 1);
-	strcpy(ob->name, name);
+	ob->name = strdup(name);
 	STbl_Init(&ob->stbl, atbl);
 	ob->tuple = NULL;
 	return (Object *)ob;
@@ -18,6 +16,8 @@ Object *Module_New(char *name, AtomTable *atbl)
 void Module_Free(Object *ob)
 {
 	ModuleObject *mob = OBJ_TO_MOD(ob);
+	free(mob->name);
+	if (mob->tuple) Tuple_Free(mob->tuple);
 	STbl_Fini(&mob->stbl);
 	free(ob);
 }
@@ -34,7 +34,7 @@ int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 	ModuleObject *mob = OBJ_TO_MOD(ob);
 	Symbol *sym = STbl_Add_Proto(&mob->stbl, name, proto);
 	if (sym) {
-		sym->ptr = code;
+		sym->code = code;
 		if (CODE_ISKFUNC(code)) {
 			CodeObject *co = OB_TYPE_OF(code, CodeObject, Code_Klass);
 			co->kf.stbl = &mob->stbl;
@@ -57,7 +57,7 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 	ModuleObject *mob = OBJ_TO_MOD(ob);
 	Symbol *sym = STbl_Add_Class(&mob->stbl, klazz->name);
 	if (sym) {
-		sym->ptr = klazz;
+		sym->klazz = klazz;
 		STbl_Init(&klazz->stbl, Module_AtomTable(mob));
 		return 0;
 	}
@@ -69,7 +69,7 @@ int Module_Add_Interface(Object *ob, Klass *klazz)
 	ModuleObject *mob = OBJ_TO_MOD(ob);
 	Symbol *sym = STbl_Add_Intf(&mob->stbl, klazz->name);
 	if (sym) {
-		sym->ptr = klazz;
+		sym->klazz = klazz;
 		STbl_Init(&klazz->stbl, Module_AtomTable(mob));
 		return 0;
 	}
@@ -159,7 +159,7 @@ Object *Module_Get_Function(Object *ob, char *name)
 	Symbol *sym = STbl_Get(&mob->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_PROTO) {
-			return sym->ptr;
+			return sym->code;
 		} else {
 			error("symbol is not a function");
 		}
@@ -174,7 +174,7 @@ Klass *Module_Get_Class(Object *ob, char *name)
 	Symbol *sym = STbl_Get(&mob->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_CLASS) {
-			return sym->ptr;
+			return sym->klazz;
 		} else {
 			error("symbol is not a class");
 		}
@@ -188,7 +188,7 @@ Klass *Module_Get_Intf(Object *ob, char *name)
 	Symbol *sym = STbl_Get(&mob->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_INTF) {
-			return sym->ptr;
+			return sym->klazz;
 		} else {
 			error("symbol is not a interface");
 		}
@@ -202,7 +202,7 @@ Klass *Module_Get_Klass(Object *ob, char *name)
 	Symbol *sym = STbl_Get(&mob->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
-			return sym->ptr;
+			return sym->klazz;
 		} else {
 			error("symbol is not a class");
 		}
@@ -229,7 +229,7 @@ static void mod_to_stbl(Symbol *sym, void *arg)
 	if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
 		tmp = STbl_Add_Symbol(stbl, sym->str, SYM_STABLE, 0);
 		tmp->stbl = STbl_New(stbl->atbl);
-		STbl_Traverse(Klass_STable(sym->ptr), mod_to_stbl, tmp->stbl);
+		STbl_Traverse(Klass_STable(sym->klazz), mod_to_stbl, tmp->stbl);
 	} else if (sym->kind == SYM_VAR) {
 		STbl_Add_Var(stbl, sym->str, sym->type, sym->konst);
 	} else if (sym->kind == SYM_PROTO) {

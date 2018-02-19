@@ -184,8 +184,9 @@ static inline void list_del(struct list_head *entry)
  * @member:	the name of the list_head within the struct.
  */
 #define list_for_each_entry(pos, head, member) \
+	if (!list_empty(head)) \
 	for (pos = list_first_entry(head, __typeof__(*pos), member); \
-			 &pos->member != (head); \
+			 pos && &pos->member != (head); \
 			 pos = list_next_entry(pos, member))
 
 /**
@@ -196,6 +197,7 @@ static inline void list_del(struct list_head *entry)
  * @member:	the name of the list_head within the struct.
  */
 #define list_for_each_entry_safe(pos, n, head, member) \
+	if (!list_empty(head)) \
 	for (pos = list_first_entry(head, typeof(*pos), member), \
 			 n = list_next_entry(pos, member); \
 			 &pos->member != (head); \
@@ -279,6 +281,19 @@ static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
 #define hlist_for_each_safe(pos, n, head) \
 	for (pos = (head)->first; pos && ({ n = pos->next; 1; }); \
 			 pos = n)
+
+#define hlist_entry_s(ptr, type, member) \
+	(ptr) ? container_of(ptr, type, member) : NULL
+
+#define hlist_for_each_entry(pos, head, member) \
+	for (pos = hlist_entry_s((head)->first, __typeof__(*(pos)), member); \
+	     pos; \
+	     pos = hlist_entry_s((pos)->member.next, __typeof__(*(pos)), member))
+
+#define hlist_for_each_entry_safe(pos, n, head, member) \
+	for (pos = hlist_entry_s((head)->first, __typeof__(*pos), member); \
+	     pos && ({ n = pos->member.next; 1; }); \
+	     pos = hlist_entry_s(n, __typeof__(*pos), member))
 
 /* Tail queue:
  * Double linked lists with a last node has not a pointer of list head.

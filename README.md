@@ -209,6 +209,12 @@ git tag -a v0.5.2 -m 'v0.5.2 release'
 
 export LD_LIBRARY_PATH="/home/zgx/koala-lang"
 
+find . -name "*.[ch]" | xargs cat | wc -l
+
+find . -name "*.[ch]"| xargs cat | grep -v ^$ | wc -l
+
+valgrind --leak-check=full --show-leak-kinds=all ./a.out
+
 Steps for compiler
 1. build AST, variable declaration list is seperated into many single ones.
 2. semantic analysis, all expressions' types are analysed and set if it's empty.

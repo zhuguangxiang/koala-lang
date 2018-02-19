@@ -175,6 +175,7 @@ struct proto {
   FullType_To_TypeDesc(fulltype, strlen(fulltype), desc); \
 } while (0)
 TypeDesc *TypeDesc_New(int kind);
+void TypeDesc_Free(TypeDesc *desc);
 TypeDesc *TypeDesc_From_Primitive(int primitive);
 TypeDesc *TypeDesc_From_UserDef(char *path, char *type);
 TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec);
@@ -246,6 +247,7 @@ int ConstItem_Set_String(AtomTable *table, char *str);
 
 uint32 item_hash(void *key);
 int item_equal(void *k1, void *k2);
+void item_free(int type, void *data, void *arg);
 void AtomTable_Show(AtomTable *table);
 
 #ifdef __cplusplus

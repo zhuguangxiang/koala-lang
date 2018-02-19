@@ -19,6 +19,12 @@ Object *CFunc_New(cfunc cf)
 	return (Object *)code;
 }
 
+void CodeObject_Free(Object *ob)
+{
+	OB_ASSERT_KLASS(ob, Code_Klass);
+	free(ob);
+}
+
 Object *KFunc_New(int locvars, uint8 *codes, int size)
 {
 	CodeObject *code = codeobject_new(CODE_KLANG);

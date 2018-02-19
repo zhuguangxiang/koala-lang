@@ -17,6 +17,12 @@ Object *Tuple_New(int size)
 	return (Object *)tuple;
 }
 
+void Tuple_Free(Object *ob)
+{
+	OB_ASSERT_KLASS(ob, Tuple_Klass);
+	free(ob);
+}
+
 TValue Tuple_Get(Object *ob, int index)
 {
 	TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
@@ -185,10 +191,8 @@ void Init_Tuple_Klass(void)
 
 static void tuple_free(Object *ob)
 {
-	OB_ASSERT_KLASS(ob, Tuple_Klass);
-	free(ob);
+	Tuple_Free(ob);
 }
-
 
 Klass Tuple_Klass = {
 	OBJECT_HEAD_INIT(&Klass_Klass),

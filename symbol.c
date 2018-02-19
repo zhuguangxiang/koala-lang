@@ -1,5 +1,6 @@
 
 #include "symbol.h"
+#include "codeobject.h"
 #include "hash.h"
 #include "log.h"
 
@@ -14,7 +15,13 @@ static void symbol_free(Symbol *sym)
 {
 	if (sym->kind == SYM_STABLE) {
 		STbl_Free(sym->stbl);
+	} else if (sym->kind == SYM_PROTO) {
+		TypeDesc_Free(sym->type);
 	}
+
+	if (sym->code) CodeObject_Free(sym->code);
+	//if (sym->block) CodeBlock_Free(sym->block);
+
 	free(sym);
 }
 
@@ -60,8 +67,10 @@ int STbl_Init(STable *stbl, AtomTable *atbl)
 		HashInfo hashinfo;
 		Init_HashInfo(&hashinfo, item_hash, item_equal);
 		stbl->atbl = AtomTable_New(&hashinfo, ITEM_MAX);
+		stbl->flag = 1;
 	} else {
 		stbl->atbl = atbl;
+		stbl->flag = 0;
 	}
 	//FIXME: start from 1st position, because position-0 is for object
 	stbl->next = 1;
@@ -71,8 +80,8 @@ int STbl_Init(STable *stbl, AtomTable *atbl)
 void STbl_Fini(STable *stbl)
 {
 	HashTable_Free(stbl->htbl, ht_symbol_free, NULL);
-	//AtomTable_Free(stbl->atbl, NULL, NULL);
 	stbl->htbl = NULL;
+	if (stbl->flag) AtomTable_Free(stbl->atbl, item_free, NULL);
 	stbl->atbl = NULL;
 	stbl->next = 1;
 }

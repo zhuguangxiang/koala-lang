@@ -106,6 +106,6 @@ test-0.5.2:
 	@koalac test-0.5.2.kl
 	@koala test-0.5.2.klc
 
-test: testbuf testloop testroutine testformat testlist testmodule \
-testobject teststring testtuple testvector test-0.5.1 test-0.5.2
+test: testbuf testloop testroutine testformat testhashtable testlist \
+testmodule testobject teststring testtuple testvector test-0.5.1 test-0.5.2
 	@echo "Test Down!"

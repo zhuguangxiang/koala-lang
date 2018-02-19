@@ -33,15 +33,16 @@ typedef struct symbol {
 	int32 locvars;  /* for compiler's function */
 	struct symbol *up;  /* for compiler's id */
 	STable *stbl;   /* for compiler's import */
-	union {
-		void *ptr;    /* CodeObject, klass or CodeBlock */
-		idx_t index;  /* variable's index */
-	};
+	void *code;     /* CodeObject */
+	void *klazz;    /* Klass */
+	void *block;    /* CodeBlock */
+	idx_t index;    /* variable's index */
 } Symbol;
 
 struct symboltable {
 	HashTable *htbl;
 	AtomTable *atbl;
+	int flag;
 	idx_t next;
 };
 

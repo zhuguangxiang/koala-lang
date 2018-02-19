@@ -166,6 +166,11 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
 	return klazz;
 }
 
+void Fini_Klass(Klass *klazz)
+{
+	STbl_Fini(&klazz->stbl);
+}
+
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 {
 	OB_ASSERT_KLASS(klazz, Klass_Klass);
@@ -178,7 +183,7 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 	OB_ASSERT_KLASS(klazz, Klass_Klass);
 	Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
 	if (sym) {
-		sym->ptr = code;
+		sym->code = code;
 		return 0;
 	}
 	return -1;
@@ -189,8 +194,8 @@ Object *Klass_Get_Method(Klass *klazz, char *name)
 	Symbol *sym = STbl_Get(&klazz->stbl, name);
 	if (!sym) return NULL;
 	if (sym->kind != SYM_PROTO) return NULL;
-	OB_ASSERT_KLASS(sym->ptr, Code_Klass);
-	return sym->ptr;
+	OB_ASSERT_KLASS(sym->code, Code_Klass);
+	return sym->code;
 }
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)

@@ -82,9 +82,11 @@ uint8 *Buffer_RawData(Buffer *buf)
 	Block *block;
 	uint8 *data = malloc(ALIGN_UP(buf->size, 4));
 	assert(data);
+
 	list_for_each_entry(block, &buf->head, link) {
 		memcpy(data + size, block->data, block->used);
 		size += block->used;
 	}
+
 	return data;
 }

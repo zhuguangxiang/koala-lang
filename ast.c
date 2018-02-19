@@ -209,7 +209,7 @@ struct stmt *stmt_from_vardecl(Vector *vars, Vector *exps,
 
 			if (var->type && rexp->type) {
 				if (TypeDesc_Check(var->type, rexp->type)) {
-					error("[vardecl]type check failed");
+					error("type check failed");
 					vec_stmt_free(vec);
 					return NULL;
 				}
@@ -218,7 +218,7 @@ struct stmt *stmt_from_vardecl(Vector *vars, Vector *exps,
 			if (!var->type) var->type = rexp->type;
 		}
 
-		if (!var->type) warn("[vardecl]'%s' type isnot set", var->id);
+		if (!var->type) warn("'%s' type isnot set", var->id);
 
 		if (vsz > 1) {
 			if (vec) Vector_Append(vec, stmt);
@@ -246,7 +246,7 @@ struct stmt *stmt_from_assign(Vector *left, Vector *right)
 	int vsz = Vector_Size(left);
 	int esz = (right != NULL) ? Vector_Size(right) : 0;
 	if (esz != vsz) {
-		error("[assignment]cannot assign %d values to %d variables", esz, vsz);
+		error("cannot assign %d values to %d variables", esz, vsz);
 		return NULL;
 	}
 
@@ -259,7 +259,7 @@ struct stmt *stmt_from_assign(Vector *left, Vector *right)
 		rexp = Vector_Get(right, i);
 		if ((lexp->type != NULL) && (rexp->type != NULL)) {
 			if (TypeDesc_Check(lexp->type, rexp->type)) {
-				error("[assignment]type check failed");
+				error("type check failed");
 				vec_stmt_free(vec);
 				return NULL;
 			}

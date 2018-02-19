@@ -165,6 +165,7 @@ struct klass {
 
 extern Klass Klass_Klass;
 Klass *Klass_New(char *name, int bsize, int isize, Klass *parent);
+void Fini_Klass(Klass *klazz);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code);
 Object *Klass_Get_Method(Klass *klazz, char *name);

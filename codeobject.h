@@ -32,6 +32,7 @@ typedef struct codeobject {
 extern Klass Code_Klass;
 Object *KFunc_New(int locvars, uint8 *codes, int size);
 Object *CFunc_New(cfunc cf);
+void CodeObject_Free(Object *ob);
 #define CODE_ISKFUNC(code)  (((CodeObject *)(code))->flags == CODE_KLANG)
 #define CODE_ISCFUNC(code)  (((CodeObject *)(code))->flags == CODE_CLANG)
 static inline int KFunc_Argc(Object *ob)
