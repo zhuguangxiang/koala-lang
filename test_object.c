@@ -36,7 +36,7 @@ void test_object(void)
 
 	Object *ob;
 	TValue_Parse(&val, 'O', &ob);
-	ASSERT_PTR(ob);
+	ASSERT(ob);
 	s = String_RawString(ob);
 	ASSERT(strcmp(s, "hello") == 0);
 
@@ -44,7 +44,7 @@ void test_object(void)
 	Klass *klazz = Module_Get_Class(ob, "Tuple");
 	KLASS_ASSERT(klazz, Tuple_Klass);
 	ob = Klass_Get_Method(klazz, "Get");
-	ASSERT_PTR(ob);
+	ASSERT(ob);
 	OB_ASSERT_KLASS(ob, Code_Klass);
 }
 

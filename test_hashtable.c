@@ -114,7 +114,7 @@ void test_number_hash_table(void) {
 	for (i = 0; i < 1000000; i++) {
 		value++;
 		struct hash_node *hnode = HashTable_Find(table, &value);
-		ASSERT_PTR(hnode);
+		ASSERT(hnode);
 		int res = HashTable_Remove(table, hnode);
 		ASSERT(res == 0);
 	}
@@ -192,7 +192,7 @@ void test_string_hash_table(void) {
 
 		for (i = 0; i < 1000000; i++ ) {
 				str = string_alloc(10);
-				ASSERT_PTR(str);
+				ASSERT(str);
 				Init_HashNode(&str->hnode, &str->value);
 				failed = HashTable_Insert(string_hash, &str->hnode);
 				ASSERT(!failed);

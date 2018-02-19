@@ -5,7 +5,7 @@
 Block *block_new(int bsize)
 {
 	Block *block = malloc(sizeof(Block) + sizeof(uint8) * bsize);
-	ASSERT_PTR(block);
+	ASSERT(block);
 	block->used = 0;
 	init_list_head(&block->link);
 	return block;
@@ -81,7 +81,7 @@ uint8 *Buffer_RawData(Buffer *buf)
 	int size = 0;
 	Block *block;
 	uint8 *data = malloc(ALIGN_UP(buf->size, 4));
-	ASSERT_PTR(data);
+	ASSERT(data);
 	list_for_each_entry(block, &buf->head, link) {
 		memcpy(data + size, block->data, block->used);
 		size += block->used;

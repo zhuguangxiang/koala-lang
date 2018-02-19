@@ -124,7 +124,7 @@ void Koala_Run_File(char *path)
 static void Init_Lang_Module(void)
 {
 	Object *ob = Koala_New_Module("lang", "koala/lang");
-	ASSERT_PTR(ob);
+	ASSERT(ob);
 	Module_Add_Class(ob, &Klass_Klass);
 	Module_Add_Class(ob, &String_Klass);
 	Module_Add_Class(ob, &Tuple_Klass);

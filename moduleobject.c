@@ -96,7 +96,7 @@ static void init_mod_var(Symbol *sym, void *arg)
 	if (sym->kind == SYM_VAR) {
 		TValue val = NIL_VALUE_INIT();
 		TypeDesc *type = sym->type;
-		ASSERT_PTR(type);
+		ASSERT(type);
 		switch (type->kind) {
 			case TYPE_PRIMITIVE: {
 				if (type->primitive == PRIMITIVE_INT) {

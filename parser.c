@@ -92,7 +92,7 @@ static void check_symbol(Symbol *sym, void *arg)
 static void check_variables(ParserState *ps)
 {
 	ParserUnit *u = ps->u;
-	ASSERT_PTR(u);
+	ASSERT(u);
 	STbl_Traverse(&u->stbl, check_symbol, NULL);
 }
 
@@ -906,7 +906,7 @@ static void save_code(ParserState *ps)
 			if (!sym) {
 				Proto *proto = Proto_New(0, NULL, 0, NULL);
 				sym = STbl_Add_Proto(&u->stbl, "__init__", proto);
-				ASSERT_PTR(sym);
+				ASSERT(sym);
 			}
 
 			sym->ptr = u->block;
@@ -1028,7 +1028,7 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 		if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
 			debug("in module or class");
 			Symbol *sym = STbl_Get(&u->stbl, var->id);
-			ASSERT_PTR(sym);
+			ASSERT(sym);
 			if (sym->kind == SYM_VAR) {
 				if (!sym->type) {
 					debug("update symbol '%s' type", var->id);
@@ -1056,7 +1056,7 @@ static void parse_function(ParserState *ps, struct stmt *stmt)
 
 	ParserUnit *parent = parent_scope(ps);
 	Symbol *sym = STbl_Get(&parent->stbl, stmt->funcdecl.id);
-	ASSERT_PTR(sym);
+	ASSERT(sym);
 	ps->u->sym = sym;
 
 	if (parent->scope == SCOPE_MODULE) {

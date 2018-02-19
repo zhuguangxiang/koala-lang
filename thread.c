@@ -67,7 +67,7 @@ void task_sleep(struct task *tsk, int second)
 	task_add_sleeplist(tsk);
 	pthread_mutex_unlock(&sched.sleeplock);
 	struct thread *thread = tsk->thread;
-	ASSERT_PTR(thread);
+	ASSERT(thread);
 	swapcontext(&tsk->ctx, &thread->ctx);
 }
 
@@ -77,7 +77,7 @@ void task_exit(struct task *tsk)
 	ASSERT(list_unlinked(&tsk->link));
 	tsk->state = STATE_DEAD;
 	struct thread *thread = tsk->thread;
-	ASSERT_PTR(thread);
+	ASSERT(thread);
 	setcontext(&thread->ctx);
 }
 
@@ -91,7 +91,7 @@ void task_yield(struct task *tsk)
 	pthread_cond_signal(&sched.cond);
 	pthread_mutex_unlock(&sched.lock);
 	struct thread *thread = tsk->thread;
-	ASSERT_PTR(thread);
+	ASSERT(thread);
 	swapcontext(&tsk->ctx, &thread->ctx);
 }
 
@@ -109,7 +109,7 @@ void task_suspend(struct task *tsk, int second)
 	}
 	pthread_mutex_unlock(&sched.sleeplock);
 	struct thread *thread = tsk->thread;
-	ASSERT_PTR(thread);
+	ASSERT(thread);
 	swapcontext(&tsk->ctx, &thread->ctx);
 }
 

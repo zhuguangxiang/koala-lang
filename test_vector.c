@@ -36,7 +36,7 @@ void string_check(char *s, int index)
 void test_vector_append(void)
 {
 	Vector *vec = Vector_New();
-	ASSERT_PTR(vec);
+	ASSERT(vec);
 	int res;
 	int i;
 	for (i = 0; i < 30; i++) {
@@ -56,7 +56,7 @@ void test_vector_append(void)
 void test_vector_insert(void)
 {
 	Vector *vec = Vector_New();
-	ASSERT_PTR(vec);
+	ASSERT(vec);
 	int res;
 	int i;
 	for (i = 0; i < 30; i++) {
@@ -105,7 +105,7 @@ void test_vector_insert(void)
 void test_vector_concat(void)
 {
 	Vector *vec = Vector_New();
-	ASSERT_PTR(vec);
+	ASSERT(vec);
 	int res;
 	int i;
 	for (i = 0; i < 30; i++) {
@@ -119,7 +119,7 @@ void test_vector_concat(void)
 	}
 
 	Vector *vec2 = Vector_New();
-	ASSERT_PTR(vec2);
+	ASSERT(vec2);
 	for (i = 30; i < 40; i++) {
 		res = Vector_Insert(vec2, i, strings[i]);
 		ASSERT(res >= 0);

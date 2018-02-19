@@ -8,7 +8,7 @@ Object *Tuple_New(int size)
 {
 	int sz = sizeof(TupleObject) + size * sizeof(TValue);
 	TupleObject *tuple = malloc(sz);
-	ASSERT_PTR(tuple);
+	ASSERT(tuple);
 	init_object_head(tuple, &Tuple_Klass);
 	tuple->size = size;
 	for (int i = 0; i < size; i++) {

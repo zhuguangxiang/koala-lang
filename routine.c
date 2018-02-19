@@ -335,7 +335,7 @@ static void frame_loop(Frame *frame)
 				char *path = VALUE_CSTR(&val);
 				debug("load module '%s'", path);
 				ob = Koala_Load_Module(path);
-				ASSERT_PTR(ob);
+				ASSERT(ob);
 				setobjvalue(&val, ob);
 				PUSH(&val);
 				break;

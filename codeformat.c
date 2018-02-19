@@ -58,7 +58,7 @@ static int desc_primitive(char ch)
 void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc)
 {
 	char *tmp = strchr(fulltype, '.');
-	ASSERT_PTR(tmp);
+	ASSERT(tmp);
 	desc->type = strndup(tmp + 1, fulltype + len - tmp - 1);
 	desc->path = strndup(fulltype, tmp - fulltype);
 }
@@ -1261,7 +1261,7 @@ uint32 item_hash(void *key)
 	AtomEntry *e = key;
 	ASSERT(e->type > 0 && e->type < ITEM_MAX);
 	item_hash_t hash_fn = item_func[e->type].ihash;
-	ASSERT_PTR(hash_fn);
+	ASSERT(hash_fn);
 	return hash_fn(e->data);
 }
 
@@ -1273,7 +1273,7 @@ int item_equal(void *k1, void *k2)
 	ASSERT(e2->type > 0 && e2->type < ITEM_MAX);
 	if (e1->type != e2->type) return 0;
 	item_equal_t equal_fn = item_func[e1->type].iequal;
-	ASSERT_PTR(equal_fn);
+	ASSERT(equal_fn);
 	return equal_fn(e1->data, e2->data);
 }
 
@@ -1366,7 +1366,7 @@ static void __image_write_item(FILE *fp, KImage *image, int type, int size)
 {
 	void *o;
 	item_fwrite_t iwrite = item_func[type].iwrite;
-	ASSERT_PTR(iwrite);
+	ASSERT(iwrite);
 	for (int i = 0; i < size; i++) {
 		o = AtomTable_Get(image->table, type, i);
 		iwrite(fp, o);
@@ -1392,7 +1392,7 @@ static void __image_write_items(FILE *fp, KImage *image)
 void KImage_Write_File(KImage *image, char *path)
 {
 	FILE *fp = fopen(path, "w");
-	ASSERT_PTR(fp);
+	ASSERT(fp);
 	__image_write_header(fp, image);
 	__image_write_pkgname(fp, image);
 	__image_write_items(fp, image);
@@ -1439,7 +1439,7 @@ KImage *KImage_Read_File(char *path)
 	}
 
 	KImage *image = KImage_New(pkg_name);
-	ASSERT_PTR(image);
+	ASSERT(image);
 	image->header = header;
 
 	MapItem mapitems[header.map_size];

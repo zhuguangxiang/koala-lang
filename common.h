@@ -39,7 +39,7 @@ typedef int8 bool;
 
 /* Get the aligned value */
 #define ALIGN_DOWN(val, size) ((val) & (~((size)-1)))
-#define ALIGN_UP(val, size)   (((val)+(size)-1) & ~((size)-1))
+#define ALIGN_UP(val, size) (((val)+(size)-1) & ~((size)-1))
 
 /* Count the number of elements in an array. */
 #define nr_elts(arr)  ((int)(sizeof(arr) / sizeof((arr)[0])))
@@ -52,12 +52,10 @@ typedef int8 bool;
 #define UNUSED_PARAMETER(var) ((var) = (var))
 
 /* Assert macros */
-#define ASSERT(val)     assert(val)
-#define ASSERT_PTR(ptr) assert((ptr) != NULL)
-#define ASSERT_MSG(val, fmt, ...)  do { \
+#define ASSERT(val) assert(val)
+#define ASSERT_MSG(val, fmt, ...) do { \
 	if (!(val)) { \
-		printf("Assertion Message: " fmt "\n", ##__VA_ARGS__); \
-		ASSERT(val); \
+		printf("Assertion Message: " fmt "\n", ##__VA_ARGS__); ASSERT(val); \
 	} \
 } while (0)
 

@@ -5,7 +5,7 @@ void test_routine(void)
 {
 	Object *lang = Koala_Get_Module("koala/lang");
 	Klass *klazz = Module_Get_Class(lang, "Tuple");
-	ASSERT_PTR(klazz);
+	ASSERT(klazz);
 	Object *code = Klass_Get_Method(klazz, "Size");
 	Object *tuple = Tuple_New(10);
 	Routine *rt = Routine_New(code, tuple, NULL);
