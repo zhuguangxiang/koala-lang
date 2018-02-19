@@ -59,46 +59,46 @@ static void task_add_sleeplist(struct task *tsk)
 
 void task_sleep(struct task *tsk, int second)
 {
-	ASSERT(tsk->state == STATE_RUNNING);
-	ASSERT(list_unlinked(&tsk->link));
+	assert(tsk->state == STATE_RUNNING);
+	assert(list_unlinked(&tsk->link));
 	tsk->state = STATE_SUSPEND;
 	tsk->sleep = sched.clock + second;
 	pthread_mutex_lock(&sched.sleeplock);
 	task_add_sleeplist(tsk);
 	pthread_mutex_unlock(&sched.sleeplock);
 	struct thread *thread = tsk->thread;
-	ASSERT(thread);
+	assert(thread);
 	swapcontext(&tsk->ctx, &thread->ctx);
 }
 
 void task_exit(struct task *tsk)
 {
-	ASSERT(tsk->state == STATE_RUNNING);
-	ASSERT(list_unlinked(&tsk->link));
+	assert(tsk->state == STATE_RUNNING);
+	assert(list_unlinked(&tsk->link));
 	tsk->state = STATE_DEAD;
 	struct thread *thread = tsk->thread;
-	ASSERT(thread);
+	assert(thread);
 	setcontext(&thread->ctx);
 }
 
 void task_yield(struct task *tsk)
 {
-	ASSERT(tsk->state == STATE_RUNNING);
-	ASSERT(list_unlinked(&tsk->link));
+	assert(tsk->state == STATE_RUNNING);
+	assert(list_unlinked(&tsk->link));
 	tsk->state = STATE_READY;
 	pthread_mutex_lock(&sched.lock);
 	list_add_tail(&tsk->link, &sched.readylist[tsk->prio]);
 	pthread_cond_signal(&sched.cond);
 	pthread_mutex_unlock(&sched.lock);
 	struct thread *thread = tsk->thread;
-	ASSERT(thread);
+	assert(thread);
 	swapcontext(&tsk->ctx, &thread->ctx);
 }
 
 void task_suspend(struct task *tsk, int second)
 {
-	ASSERT(tsk->state == STATE_RUNNING);
-	ASSERT(list_unlinked(&tsk->link));
+	assert(tsk->state == STATE_RUNNING);
+	assert(list_unlinked(&tsk->link));
 	tsk->state = STATE_SUSPEND;
 	tsk->sleep = sched.clock + second;
 	pthread_mutex_lock(&sched.sleeplock);
@@ -109,7 +109,7 @@ void task_suspend(struct task *tsk, int second)
 	}
 	pthread_mutex_unlock(&sched.sleeplock);
 	struct thread *thread = tsk->thread;
-	ASSERT(thread);
+	assert(thread);
 	swapcontext(&tsk->ctx, &thread->ctx);
 }
 

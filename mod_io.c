@@ -40,6 +40,6 @@ static FuncDef io_funcs[] = {
 void Init_IO_Module(void)
 {
 	Object *ob = Koala_New_Module("io", "koala/io");
-	ASSERT(ob);
+	assert(ob);
 	Module_Add_CFunctions(ob, io_funcs);
 }

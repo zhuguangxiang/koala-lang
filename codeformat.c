@@ -32,7 +32,7 @@ static char *primitive_tostring(int type)
 			str = "Any";
 			break;
 		default:
-			ASSERT_MSG(0, "unknown primitive %c", type);
+			assertm(0, "unknown primitive %c", type);
 			break;
 	}
 	return str;
@@ -58,7 +58,7 @@ static int desc_primitive(char ch)
 void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc)
 {
 	char *tmp = strchr(fulltype, '.');
-	ASSERT(tmp);
+	assert(tmp);
 	desc->type = strndup(tmp + 1, fulltype + len - tmp - 1);
 	desc->path = strndup(fulltype, tmp - fulltype);
 }
@@ -77,12 +77,12 @@ static TypeDesc *String_To_DescList(int count, char *str)
 
 	while ((ch = *str) != '\0') {
 		if (ch == '.') {
-			ASSERT(str[1] == '.' && str[2] == '.');
+			assert(str[1] == '.' && str[2] == '.');
 			varg = 1;
 			str += 3;
 			vcnt++;
 		} else if (desc_primitive(ch)) {
-			ASSERT(idx < count);
+			assert(idx < count);
 
 			desc[idx].varg = varg;
 			desc[idx].dims = dims;
@@ -90,12 +90,12 @@ static TypeDesc *String_To_DescList(int count, char *str)
 			desc[idx].primitive = ch;
 
 			/* varg and dims are only one valid */
-			ASSERT(varg == 0 || dims == 0);
+			assert(varg == 0 || dims == 0);
 
 			varg = 0; dims = 0;
 			idx++; str++;
 		} else if (ch == 'O') {
-			ASSERT(idx < count);
+			assert(idx < count);
 
 			desc[idx].varg = varg;
 			desc[idx].dims = dims;
@@ -109,21 +109,21 @@ static TypeDesc *String_To_DescList(int count, char *str)
 			FullType_To_TypeDesc(start, str - start, desc + idx);
 
 			/* varg and dims are only one valid */
-			ASSERT(varg == 0 || dims == 0);
+			assert(varg == 0 || dims == 0);
 
 			varg = 0; dims = 0;
 			idx++; str++;
 		} else if (ch == '[') {
-			ASSERT(varg == 0);
+			assert(varg == 0);
 			while ((ch = *str) == '[') {
 				dims++; str++;
 			}
 		} else {
-			ASSERT_MSG(0, "unknown type:%c\n", ch);
+			assertm(0, "unknown type:%c\n", ch);
 		}
 	}
 
-	ASSERT(vcnt <= 1);
+	assert(vcnt <= 1);
 	return desc;
 }
 
@@ -241,12 +241,12 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 			break;
 		}
 		case TYPE_PROTO: {
-			//FIXME: ASSERT(0);
+			//FIXME: assert(0);
 			eq = 1;
 			break;
 		}
 		default: {
-			ASSERT_MSG(0, "unknown type's kind %d\n", kind);
+			assertm(0, "unknown type's kind %d\n", kind);
 		}
 	}
 	return eq;
@@ -297,7 +297,7 @@ char *TypeDesc_ToString(TypeDesc *desc)
 			break;
 		}
 		default: {
-			ASSERT(0);
+			assert(0);
 			break;
 		}
 	}
@@ -341,7 +341,7 @@ int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc)
 			break;
 		}
 		default: {
-			ASSERT(0);
+			assert(0);
 		}
 	}
 
@@ -567,7 +567,7 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 		item.pathindex = pathindex;
 		item.typeindex = typeindex;
 	} else {
-		ASSERT(desc->kind == TYPE_PRIMITIVE);
+		assert(desc->kind == TYPE_PRIMITIVE);
 		item.varg = desc->varg;
 		item.dims = desc->dims;
 		item.kind = TYPE_PRIMITIVE;
@@ -583,12 +583,12 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 	if (index < 0) {
 		if (desc->kind == TYPE_USERDEF) {
 			int pathindex = StringItem_Set(table, desc->path);
-			ASSERT(pathindex >= 0);
+			assert(pathindex >= 0);
 			int typeindex = StringItem_Set(table, desc->type);
-			ASSERT(typeindex >= 0);
+			assert(typeindex >= 0);
 			item = TypeItem_Defined_New(desc->varg, desc->dims, pathindex, typeindex);
 		} else {
-			ASSERT(desc->kind == TYPE_PRIMITIVE);
+			assert(desc->kind == TYPE_PRIMITIVE);
 			item = TypeItem_Primitive_New(desc->varg, desc->dims, desc->primitive);
 		}
 		index = AtomTable_Append(table, ITEM_TYPE, item, 1);
@@ -624,7 +624,7 @@ int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz)
 		int32 indexes[sz];
 		for (int i = 0; i < sz; i++) {
 			index = TypeItem_Set(table, desc + i);
-			if (index < 0) {ASSERT(0); return -1;}
+			if (index < 0) {assert(0); return -1;}
 			indexes[i] = index;
 		}
 		TypeListItem *item = TypeListItem_New(sz, indexes);
@@ -692,7 +692,7 @@ int ConstItem_Set_Bool(AtomTable *table, int val)
 int ConstItem_Set_String(AtomTable *table, char *str)
 {
 	int32 idx = StringItem_Set(table, str);
-	ASSERT(idx >= 0);
+	assert(idx >= 0);
 	ConstItem k = CONST_STRVAL_INIT(idx);
 	int index = ConstItem_Get(table, &k);
 	if (index < 0) {
@@ -918,7 +918,7 @@ static char *var_flags_tostring(int flags)
 			str = "const,private";
 			break;
 		default:
-			ASSERT_MSG(0, "invalid access %d\n", flags);
+			assertm(0, "invalid access %d\n", flags);
 			str = "";
 			break;
 	}
@@ -1093,7 +1093,7 @@ uint32 constitem_hash(void *k)
 			break;
 		}
 		default: {
-			ASSERT_MSG(0, "unsupported %d const type\n", item->type);
+			assertm(0, "unsupported %d const type\n", item->type);
 			break;
 		}
 	}
@@ -1125,7 +1125,7 @@ int constitem_equal(void *k1, void *k2)
 			break;
 		}
 		default: {
-			ASSERT_MSG(0, "unsupported const type %d\n", item1->type);
+			assertm(0, "unsupported const type %d\n", item1->type);
 			break;
 		}
 	}
@@ -1151,7 +1151,7 @@ void constitem_show(AtomTable *table, void *o)
 			printf("  (str:%s)\n", str->data);
 			break;
 		default:
-			ASSERT(0);
+			assert(0);
 			break;
 	}
 }
@@ -1259,9 +1259,9 @@ static void init_header(ImageHeader *h, int pkg_size)
 uint32 item_hash(void *key)
 {
 	AtomEntry *e = key;
-	ASSERT(e->type > 0 && e->type < ITEM_MAX);
+	assert(e->type > 0 && e->type < ITEM_MAX);
 	item_hash_t hash_fn = item_func[e->type].ihash;
-	ASSERT(hash_fn);
+	assert(hash_fn);
 	return hash_fn(e->data);
 }
 
@@ -1269,11 +1269,11 @@ int item_equal(void *k1, void *k2)
 {
 	AtomEntry *e1 = k1;
 	AtomEntry *e2 = k2;
-	ASSERT(e1->type > 0 && e1->type < ITEM_MAX);
-	ASSERT(e2->type > 0 && e2->type < ITEM_MAX);
+	assert(e1->type > 0 && e1->type < ITEM_MAX);
+	assert(e2->type > 0 && e2->type < ITEM_MAX);
 	if (e1->type != e2->type) return 0;
 	item_equal_t equal_fn = item_func[e1->type].iequal;
-	ASSERT(equal_fn);
+	assert(equal_fn);
 	return equal_fn(e1->data, e2->data);
 }
 
@@ -1366,7 +1366,7 @@ static void __image_write_item(FILE *fp, KImage *image, int type, int size)
 {
 	void *o;
 	item_fwrite_t iwrite = item_func[type].iwrite;
-	ASSERT(iwrite);
+	assert(iwrite);
 	for (int i = 0; i < size; i++) {
 		o = AtomTable_Get(image->table, type, i);
 		iwrite(fp, o);
@@ -1392,7 +1392,7 @@ static void __image_write_items(FILE *fp, KImage *image)
 void KImage_Write_File(KImage *image, char *path)
 {
 	FILE *fp = fopen(path, "w");
-	ASSERT(fp);
+	assert(fp);
 	__image_write_header(fp, image);
 	__image_write_pkgname(fp, image);
 	__image_write_items(fp, image);
@@ -1439,12 +1439,12 @@ KImage *KImage_Read_File(char *path)
 	}
 
 	KImage *image = KImage_New(pkg_name);
-	ASSERT(image);
+	assert(image);
 	image->header = header;
 
 	MapItem mapitems[header.map_size];
 	sz = fseek(fp, header.map_offset, SEEK_SET);
-	ASSERT(sz == 0);
+	assert(sz == 0);
 	sz = fread(mapitems, sizeof(MapItem), header.map_size, fp);
 	if (sz < (int)header.map_size) {
 		printf("error: file %s is not a valid .klc file\n", path);
@@ -1462,17 +1462,17 @@ KImage *KImage_Read_File(char *path)
 	for (int i = 0; i < nr_elts(mapitems); i++) {
 		map = mapitems + i;
 		sz = fseek(fp, map->offset, SEEK_SET);
-		ASSERT(sz == 0);
+		assert(sz == 0);
 		switch (map->type) {
 			case ITEM_STRING: {
 				StringItem *item;
 				uint32 len;
 				for (int i = 0; i < map->size; i++) {
 					sz = fread(&len, 4, 1, fp);
-					ASSERT(sz == 1);
+					assert(sz == 1);
 					item = VaItem_New(sizeof(StringItem), sizeof(char), len);
 					sz = fread(item->data, sizeof(char) * len, 1, fp);
-					ASSERT(sz == 1);
+					assert(sz == 1);
 					AtomTable_Append(image->table, ITEM_STRING, item, 1);
 				}
 				break;
@@ -1481,7 +1481,7 @@ KImage *KImage_Read_File(char *path)
 				TypeItem *item;
 				TypeItem items[map->size];
 				sz = fread(items, sizeof(TypeItem), map->size, fp);
-				ASSERT(sz == map->size);
+				assert(sz == map->size);
 				for (int i = 0; i < map->size; i++) {
 					item = Item_Copy(sizeof(TypeItem), items + i);
 					AtomTable_Append(image->table, ITEM_TYPE, item, 1);
@@ -1493,10 +1493,10 @@ KImage *KImage_Read_File(char *path)
 				uint32 len;
 				for (int i = 0; i < map->size; i++) {
 					sz = fread(&len, 4, 1, fp);
-					ASSERT(sz == 1);
+					assert(sz == 1);
 					item = VaItem_New(sizeof(TypeListItem), sizeof(int32), len);
 					sz = fread(item->index, sizeof(int32) * len, 1, fp);
-					ASSERT(sz == 1);
+					assert(sz == 1);
 					AtomTable_Append(image->table, ITEM_TYPELIST, item, 1);
 				}
 				break;
@@ -1505,7 +1505,7 @@ KImage *KImage_Read_File(char *path)
 				ProtoItem *item;
 				ProtoItem items[map->size];
 				sz = fread(items, sizeof(ProtoItem), map->size, fp);
-				ASSERT(sz == map->size);
+				assert(sz == map->size);
 				for (int i = 0; i < map->size; i++) {
 					item = Item_Copy(sizeof(ProtoItem), items + i);
 					AtomTable_Append(image->table, ITEM_PROTO, item, 1);
@@ -1516,7 +1516,7 @@ KImage *KImage_Read_File(char *path)
 				ConstItem *item;
 				ConstItem items[map->size];
 				sz = fread(items, sizeof(ConstItem), map->size, fp);
-				ASSERT(sz == map->size);
+				assert(sz == map->size);
 				for (int i = 0; i < map->size; i++) {
 					item = Item_Copy(sizeof(ConstItem), items + i);
 					AtomTable_Append(image->table, ITEM_CONST, item, 1);
@@ -1527,7 +1527,7 @@ KImage *KImage_Read_File(char *path)
 				VarItem *item;
 				VarItem items[map->size];
 				sz = fread(items, sizeof(VarItem), map->size, fp);
-				ASSERT(sz == map->size);
+				assert(sz == map->size);
 				for (int i = 0; i < map->size; i++) {
 					item = Item_Copy(sizeof(VarItem), items + i);
 					AtomTable_Append(image->table, ITEM_VAR, item, 0);
@@ -1538,7 +1538,7 @@ KImage *KImage_Read_File(char *path)
 				FuncItem *item;
 				FuncItem items[map->size];
 				sz = fread(items, sizeof(FuncItem), map->size, fp);
-				ASSERT(sz == map->size);
+				assert(sz == map->size);
 				for (int i = 0; i < map->size; i++) {
 					item = Item_Copy(sizeof(FuncItem), items + i);
 					AtomTable_Append(image->table, ITEM_FUNC, item, 0);
@@ -1550,16 +1550,16 @@ KImage *KImage_Read_File(char *path)
 				uint32 len;
 				for (int i = 0; i < map->size; i++) {
 					sz = fread(&len, 4, 1, fp);
-					ASSERT(sz == 1);
+					assert(sz == 1);
 					item = VaItem_New(sizeof(CodeItem), sizeof(uint8), len);
 					sz = fread(item->codes, sizeof(uint8) * len, 1, fp);
-					ASSERT(sz == 1);
+					assert(sz == 1);
 					AtomTable_Append(image->table, ITEM_CODE, item, 0);
 				}
 				break;
 			}
 			default: {
-				ASSERT_MSG(0, "unknown map type:%d", map->type);
+				assertm(0, "unknown map type:%d", map->type);
 			}
 		}
 	}

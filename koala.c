@@ -23,7 +23,7 @@ static struct mod_entry *new_mod_entry(char *path, Object *ob)
 
 static void free_mod_entry(struct mod_entry *e)
 {
-	ASSERT(HashNode_Unhashed(&e->hnode));
+	assert(HashNode_Unhashed(&e->hnode));
 	Module_Free(e->ob);
 	free(e);
 }
@@ -124,7 +124,7 @@ void Koala_Run_File(char *path)
 static void Init_Lang_Module(void)
 {
 	Object *ob = Koala_New_Module("lang", "koala/lang");
-	ASSERT(ob);
+	assert(ob);
 	Module_Add_Class(ob, &Klass_Klass);
 	Module_Add_Class(ob, &String_Klass);
 	Module_Add_Class(ob, &Tuple_Klass);

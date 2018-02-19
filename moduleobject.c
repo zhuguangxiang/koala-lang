@@ -96,7 +96,7 @@ static void init_mod_var(Symbol *sym, void *arg)
 	if (sym->kind == SYM_VAR) {
 		TValue val = NIL_VALUE_INIT();
 		TypeDesc *type = sym->type;
-		ASSERT(type);
+		assert(type);
 		switch (type->kind) {
 			case TYPE_PRIMITIVE: {
 				if (type->primitive == PRIMITIVE_INT) {
@@ -117,7 +117,7 @@ static void init_mod_var(Symbol *sym, void *arg)
 				break;
 			}
 			default: {
-				ASSERT(0);
+				assert(0);
 				break;
 			}
 		}
@@ -141,7 +141,7 @@ TValue Module_Get_Value(Object *ob, char *name)
 	ModuleObject *mob = OBJ_TO_MOD(ob);
 	int index = __get_value_index(mob, name);
 	if (index < 0) return NilValue;
-	ASSERT(index < mob->stbl.next);
+	assert(index < mob->stbl.next);
 	return Tuple_Get(__get_tuple(mob), index);
 }
 
@@ -149,7 +149,7 @@ int Module_Set_Value(Object *ob, char *name, TValue *val)
 {
 	ModuleObject *mob = OBJ_TO_MOD(ob);
 	int index = __get_value_index(mob, name);
-	ASSERT(index >= 0 && index < mob->stbl.next);
+	assert(index >= 0 && index < mob->stbl.next);
 	return Tuple_Set(__get_tuple(mob), index, val);
 }
 
@@ -216,7 +216,7 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
 	FuncDef *f = funcs;
 	while (f->name) {
 		res = Module_Add_CFunc(ob, f);
-		ASSERT(res == 0);
+		assert(res == 0);
 		++f;
 	}
 	return 0;
@@ -237,7 +237,7 @@ static void mod_to_stbl(Symbol *sym, void *arg)
 	} else if (sym->kind == SYM_IPROTO) {
 		STbl_Add_IProto(stbl, sym->str, sym->type->proto);
 	} else {
-		ASSERT(0);
+		assert(0);
 	}
 }
 

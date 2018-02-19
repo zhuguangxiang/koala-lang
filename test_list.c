@@ -18,7 +18,7 @@ void test_list(void)
 	struct integer_struct *int_ptr;
 	LIST_HEAD(integer_list);
 
-	ASSERT(list_empty(&integer_list));
+	assert(list_empty(&integer_list));
 
 	for (i = 1; i <= 100; i++) {
 		int_ptr = malloc(sizeof(*int_ptr));
@@ -32,13 +32,13 @@ void test_list(void)
 	i = 1;
 	list_for_each_safe(pos, nxt, &integer_list) {
 		int_ptr = list_entry(pos, struct integer_struct, node);
-		ASSERT(int_ptr->value == i);
+		assert(int_ptr->value == i);
 		list_del(pos);
 		free(int_ptr);
 		i++;
 	}
 
-	ASSERT(list_empty(&integer_list));
+	assert(list_empty(&integer_list));
 
 	for (i = 1; i <= 100; i++) {
 		int_ptr = malloc(sizeof(*int_ptr));
@@ -51,13 +51,13 @@ void test_list(void)
 	i = 1;
 	list_for_each_prev_safe(pos, nxt, &integer_list) {
 		int_ptr = list_entry(pos, struct integer_struct, node);
-		ASSERT(int_ptr->value == i);
+		assert(int_ptr->value == i);
 		list_del(pos);
 		free(int_ptr);
 		i++;
 	}
 
-	ASSERT(list_empty(&integer_list));
+	assert(list_empty(&integer_list));
 }
 
 struct integer_struct2 {
@@ -71,14 +71,14 @@ void test_hlist(void)
 	struct integer_struct2 *int_ptr;
 	HLIST_HEAD(integer_list);
 
-	ASSERT(hlist_empty(&integer_list));
+	assert(hlist_empty(&integer_list));
 
 	for (i = 1; i <= 100; i++) {
 		int_ptr = malloc(sizeof(*int_ptr));
 		init_hlist_node(&int_ptr->hnode);
 		int_ptr->value = i;
 
-		ASSERT(hlist_unhashed(&int_ptr->hnode));
+		assert(hlist_unhashed(&int_ptr->hnode));
 
 		hlist_add_head(&int_ptr->hnode, &integer_list);
 	}
@@ -87,15 +87,15 @@ void test_hlist(void)
 	i = 100;
 	hlist_for_each_safe(pos, nxt, &integer_list) {
 		int_ptr = hlist_entry(pos, struct integer_struct2, hnode);
-		ASSERT(int_ptr->value == i);
-		ASSERT(!hlist_unhashed(pos));
+		assert(int_ptr->value == i);
+		assert(!hlist_unhashed(pos));
 		hlist_del(pos);
-		ASSERT(hlist_unhashed(pos));
+		assert(hlist_unhashed(pos));
 		free(int_ptr);
 		i--;
 	}
 
-	ASSERT(hlist_empty(&integer_list));
+	assert(hlist_empty(&integer_list));
 }
 
 int main(int argc, char *argv[])

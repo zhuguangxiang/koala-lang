@@ -53,11 +53,11 @@ int AtomTable_Append(AtomTable *table, int type, void *data, int unique)
 	Vector *vec = table->items + type;
 	Vector_Append(vec, data);
 	int index = Vector_Size(vec) - 1;
-	ASSERT(index >= 0);
+	assert(index >= 0);
 	if (unique) {
 		AtomEntry *e = itementry_new(type, index, data);
 		int res = HashTable_Insert(&table->table, &e->hnode);
-		ASSERT(!res);
+		assert(!res);
 	}
 	return index;
 }
@@ -74,12 +74,12 @@ int AtomTable_Index(AtomTable *table, int type, void *data)
 
 void *AtomTable_Get(AtomTable *table, int type, int index)
 {
-	ASSERT(type >= 0 && type < table->size);
+	assert(type >= 0 && type < table->size);
 	return Vector_Get(table->items + type, index);
 }
 
 int AtomTable_Size(AtomTable *table, int type)
 {
-	ASSERT(type >= 0 && type < table->size);
+	assert(type >= 0 && type < table->size);
 	return Vector_Size(table->items + type);
 }

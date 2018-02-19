@@ -162,7 +162,7 @@ int HashTable_Remove(HashTable *table, HashNode *hnode)
 		return -1;
 	}
 
-	ASSERT(temp == hnode);
+	assert(temp == hnode);
 
 	hlist_del(&hnode->hlink);
 	list_del(&hnode->llink);

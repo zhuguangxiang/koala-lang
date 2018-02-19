@@ -32,7 +32,7 @@ static void frame_new(Routine *rt, Object *code)
 
 static void frame_free(Frame *f)
 {
-	ASSERT(list_unlinked(&f->link));
+	assert(list_unlinked(&f->link));
 	free(f);
 }
 
@@ -95,12 +95,12 @@ static void start_kframe(Frame *f)
 
 	/* Prepare parameters */
 	int sz = rt_stack_size(rt);
-	//ASSERT(sz == (KFunc_Argc(f->code) + 1) && (sz <= f->size));
+	//assert(sz == (KFunc_Argc(f->code) + 1) && (sz <= f->size));
 	int count = min(sz, KFunc_Argc(f->code) + 1);
 	int i = 0;
 	while (count-- > 0) {
 		val = rt_stack_pop(rt);
-		ASSERT(!VALUE_ISNIL(&val));
+		assert(!VALUE_ISNIL(&val));
 		f->locvars[i++] = val;
 	}
 
@@ -156,7 +156,7 @@ static void routine_task_func(struct task *tsk)
 			else
 				frame_loop(f);
 		} else {
-			ASSERT(0);
+			assert(0);
 		}
 		f = rt->frame;
 	}
@@ -177,7 +177,7 @@ void Routine_Run(Routine *rt)
 			else
 				frame_loop(f);
 		} else {
-			ASSERT(0);
+			assert(0);
 		}
 		f = rt->frame;
 	}
@@ -189,13 +189,13 @@ void Routine_Run(Routine *rt)
 
 static inline uint8 fetch_byte(Frame *frame, CodeObject *code)
 {
-	ASSERT(frame->pc < code->kf.size);
+	assert(frame->pc < code->kf.size);
 	return NEXT_CODE(frame, code->kf.codes);
 }
 
 static inline uint16 fetch_2bytes(Frame *frame, CodeObject *code)
 {
-	ASSERT(frame->pc < code->kf.size);
+	assert(frame->pc < code->kf.size);
 	//endian?
 	uint8 l = NEXT_CODE(frame, code->kf.codes);
 	uint8 h = NEXT_CODE(frame, code->kf.codes);
@@ -204,7 +204,7 @@ static inline uint16 fetch_2bytes(Frame *frame, CodeObject *code)
 
 static inline uint32 fetch_4bytes(Frame *frame, CodeObject *code)
 {
-	ASSERT(frame->pc < code->kf.size);
+	assert(frame->pc < code->kf.size);
 	//endian?
 	uint8 l1 = NEXT_CODE(frame, code->kf.codes);
 	uint8 l2 = NEXT_CODE(frame, code->kf.codes);
@@ -243,7 +243,7 @@ static TValue index_const(int index, STable *stbl)
 			break;
 		}
 		default: {
-			ASSERT_MSG(0, "unknown const type:%d\n", k->type);
+			assertm(0, "unknown const type:%d\n", k->type);
 			break;
 		}
 	}
@@ -252,13 +252,13 @@ static TValue index_const(int index, STable *stbl)
 
 static inline TValue load(Frame *f, int index)
 {
-	ASSERT(index < f->size);
+	assert(index < f->size);
 	return f->locvars[index];
 }
 
 static inline void store(Frame *f, int index, TValue *val)
 {
-	ASSERT(index < f->size);
+	assert(index < f->size);
 	f->locvars[index] = *val;
 }
 
@@ -269,7 +269,7 @@ static Object *getcode(Object *ob, char *name)
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
 		return Klass_Get_Method(OB_KLASS(ob), name);
 	} else {
-		ASSERT(0);
+		assert(0);
 		return NULL;
 	}
 }
@@ -279,9 +279,9 @@ static void setfield(Object *ob, char *field, TValue *val)
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		Module_Set_Value(ob, field, val);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		ASSERT(0);
+		assert(0);
 	} else {
-		ASSERT(0);
+		assert(0);
 	}
 }
 
@@ -290,10 +290,10 @@ static TValue getfield(Object *ob, char *field)
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		return Module_Get_Value(ob, field);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		ASSERT(0);
+		assert(0);
 		return NilValue;
 	} else {
-		ASSERT(0);
+		assert(0);
 		return NilValue;
 	}
 }
@@ -335,7 +335,7 @@ static void frame_loop(Frame *frame)
 				char *path = VALUE_CSTR(&val);
 				debug("load module '%s'", path);
 				ob = Koala_Load_Module(path);
-				ASSERT(ob);
+				assert(ob);
 				setobjvalue(&val, ob);
 				PUSH(&val);
 				break;
@@ -449,7 +449,7 @@ static void frame_loop(Frame *frame)
 			//   break;
 			// }
 			default: {
-				ASSERT_MSG(0, "unknown instruction:%d\n", inst);
+				assertm(0, "unknown instruction:%d\n", inst);
 			}
 		}
 	}

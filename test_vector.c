@@ -30,18 +30,18 @@ char *strings[40];
 
 void string_check(char *s, int index)
 {
-	ASSERT(strcmp(s, strings[index]) == 0);
+	assert(strcmp(s, strings[index]) == 0);
 }
 
 void test_vector_append(void)
 {
 	Vector *vec = Vector_New();
-	ASSERT(vec);
+	assert(vec);
 	int res;
 	int i;
 	for (i = 0; i < 30; i++) {
 		res = Vector_Append(vec, strings[i]);
-		ASSERT(res >= 0);
+		assert(res >= 0);
 	}
 
 	for (i = 0; i < Vector_Size(vec); i++) {
@@ -56,12 +56,12 @@ void test_vector_append(void)
 void test_vector_insert(void)
 {
 	Vector *vec = Vector_New();
-	ASSERT(vec);
+	assert(vec);
 	int res;
 	int i;
 	for (i = 0; i < 30; i++) {
 		res = Vector_Insert(vec, i, strings[i]);
-		ASSERT(res >= 0);
+		assert(res >= 0);
 	}
 
 	for (i = 0; i < Vector_Size(vec); i++) {
@@ -69,22 +69,22 @@ void test_vector_insert(void)
 		string_check(s, i);
 	}
 
-	ASSERT(Vector_Size(vec) == 30);
+	assert(Vector_Size(vec) == 30);
 
 	res = Vector_Insert(vec, -1, strings[30]);
-	ASSERT(res >= 0);
+	assert(res >= 0);
 
-	ASSERT(Vector_Size(vec) == 31);
+	assert(Vector_Size(vec) == 31);
 
 	res = Vector_Insert(vec, 10, strings[31]);
-	ASSERT(res >= 0);
+	assert(res >= 0);
 
-	ASSERT(Vector_Size(vec) == 32);
+	assert(Vector_Size(vec) == 32);
 
 	res = Vector_Insert(vec, 20, strings[32]);
-	ASSERT(res >= 0);
+	assert(res >= 0);
 
-	ASSERT(Vector_Size(vec) == 33);
+	assert(Vector_Size(vec) == 33);
 
 	for (i = 0; i < Vector_Size(vec); i++) {
 		char *s = Vector_Get(vec, i);
@@ -105,12 +105,12 @@ void test_vector_insert(void)
 void test_vector_concat(void)
 {
 	Vector *vec = Vector_New();
-	ASSERT(vec);
+	assert(vec);
 	int res;
 	int i;
 	for (i = 0; i < 30; i++) {
 		res = Vector_Insert(vec, i, strings[i]);
-		ASSERT(res >= 0);
+		assert(res >= 0);
 	}
 
 	for (i = 0; i < Vector_Size(vec); i++) {
@@ -119,10 +119,10 @@ void test_vector_concat(void)
 	}
 
 	Vector *vec2 = Vector_New();
-	ASSERT(vec2);
+	assert(vec2);
 	for (i = 30; i < 40; i++) {
 		res = Vector_Insert(vec2, i, strings[i]);
-		ASSERT(res >= 0);
+		assert(res >= 0);
 	}
 
 	Vector_Concat(vec, vec2);

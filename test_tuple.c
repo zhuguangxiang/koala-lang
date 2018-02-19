@@ -20,67 +20,67 @@ void test_tuple(void)
 	setobjvalue(&val, String_New("hello,world"));
 	Tuple_Set(tuple, 3, &val);
 
-	ASSERT(Tuple_Size(tuple) == 8);
+	assert(Tuple_Size(tuple) == 8);
 
 	val = Tuple_Get(tuple, 0);
-	ASSERT(VALUE_ISINT(&val));
-	ASSERT(VALUE_INT(&val) == 100);
+	assert(VALUE_ISINT(&val));
+	assert(VALUE_INT(&val) == 100);
 
 	val = Tuple_Get(tuple, 1);
-	ASSERT(VALUE_ISFLOAT(&val));
-	//ASSERT(VALUE_FLOAT(&val) == 100.123);
+	assert(VALUE_ISFLOAT(&val));
+	//assert(VALUE_FLOAT(&val) == 100.123);
 
 	val = Tuple_Get(tuple, 2);
-	ASSERT(VALUE_ISBOOL(&val));
-	ASSERT(VALUE_BOOL(&val) == 1);
+	assert(VALUE_ISBOOL(&val));
+	assert(VALUE_BOOL(&val) == 1);
 
 	val = Tuple_Get(tuple, 3);
-	ASSERT(VALUE_ISOBJECT(&val));
+	assert(VALUE_ISOBJECT(&val));
 	OB_ASSERT_KLASS(VALUE_OBJECT(&val), String_Klass);
 	char *s = String_RawString(VALUE_OBJECT(&val));
-	ASSERT(strcmp(s, "hello,world") == 0);
+	assert(strcmp(s, "hello,world") == 0);
 
 	val = Tuple_Get(tuple, 4);
-	ASSERT(VALUE_ISNIL(&val));
+	assert(VALUE_ISNIL(&val));
 
 	tuple = Tuple_Get_Slice(tuple, 2, 3);
-	ASSERT(Tuple_Size(tuple) == 2);
+	assert(Tuple_Size(tuple) == 2);
 
 	val = Tuple_Get(tuple, 0);
-	ASSERT(VALUE_ISBOOL(&val));
-	ASSERT(VALUE_BOOL(&val) == 1);
+	assert(VALUE_ISBOOL(&val));
+	assert(VALUE_BOOL(&val) == 1);
 
 	val = Tuple_Get(tuple, 1);
-	ASSERT(VALUE_ISOBJECT(&val));
+	assert(VALUE_ISOBJECT(&val));
 	OB_ASSERT_KLASS(VALUE_OBJECT(&val), String_Klass);
 	s = String_RawString(VALUE_OBJECT(&val));
-	ASSERT(strcmp(s, "hello,world") == 0);
+	assert(strcmp(s, "hello,world") == 0);
 
 	Object *ob = Tuple_Build("ifzsO", 200, 200.234, 1, "jimmy", tuple);
 	OB_ASSERT_KLASS(ob, Tuple_Klass);
-	ASSERT(Tuple_Size(ob) == 5);
+	assert(Tuple_Size(ob) == 5);
 
 	val = Tuple_Get(ob, 0);
-	ASSERT(VALUE_ISINT(&val));
-	ASSERT(VALUE_INT(&val) == 200);
+	assert(VALUE_ISINT(&val));
+	assert(VALUE_INT(&val) == 200);
 
 	val = Tuple_Get(ob, 1);
-	ASSERT(VALUE_ISFLOAT(&val));
+	assert(VALUE_ISFLOAT(&val));
 
 	val = Tuple_Get(ob, 2);
-	ASSERT(VALUE_ISBOOL(&val));
-	ASSERT(VALUE_BOOL(&val) == 1);
+	assert(VALUE_ISBOOL(&val));
+	assert(VALUE_BOOL(&val) == 1);
 
 	val = Tuple_Get(ob, 3);
-	ASSERT(VALUE_ISOBJECT(&val));
+	assert(VALUE_ISOBJECT(&val));
 	OB_ASSERT_KLASS(VALUE_OBJECT(&val), String_Klass);
 	s = String_RawString(VALUE_OBJECT(&val));
-	ASSERT(strcmp(s, "jimmy") == 0);
+	assert(strcmp(s, "jimmy") == 0);
 
 	val = Tuple_Get(ob, 4);
-	ASSERT(VALUE_ISOBJECT(&val));
+	assert(VALUE_ISOBJECT(&val));
 	OB_ASSERT_KLASS(VALUE_OBJECT(&val), Tuple_Klass);
-	ASSERT(VALUE_OBJECT(&val) == tuple);
+	assert(VALUE_OBJECT(&val) == tuple);
 
 	int ival;
 	float fval;
@@ -88,11 +88,11 @@ void test_tuple(void)
 	char *sval;
 	Object *obj;
 	Tuple_Parse(ob, "ifzsO", &ival, &fval, &bval, &sval, &obj);
-	ASSERT(ival == 200);
-	ASSERT(fval != 0.0);
-	ASSERT(bval == 1);
-	ASSERT(strcmp(sval, "jimmy") == 0);
-	ASSERT(obj == tuple);
+	assert(ival == 200);
+	assert(fval != 0.0);
+	assert(bval == 1);
+	assert(strcmp(sval, "jimmy") == 0);
+	assert(obj == tuple);
 }
 
 int main(int argc, char *argv[]) {

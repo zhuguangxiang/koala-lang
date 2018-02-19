@@ -8,7 +8,7 @@ TValue StructObject_Get_Value(Object *ob, char *name)
 	if (s->kind != SYM_FIELD || s->kind != SYM_IMETHOD) return -1;
 	int index = s->value.index;
 	StructObject *so = (StructObject *)ob;
-	ASSERT(index >= 0 && index < so->size);
+	assert(index >= 0 && index < so->size);
 	return so->items[index];
 }
 
@@ -22,7 +22,7 @@ Object *StructObject_Get_Method(Object *ob, char *name)
 static void struct_mark(Object *ob)
 {
 	StructObject *sob = (StructObject *)ob;
-	ASSERT(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
+	assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
 	//ob_incref(ob);
 	for (int i = 0; i < sob->size; i++) {
 		if (VALUE_ISOBJECT(sob->items + i)) {
@@ -34,7 +34,7 @@ static void struct_mark(Object *ob)
 
 static Object *struct_alloc(Klass *klazz, int num)
 {
-	ASSERT(OB_KLASS(klazz) == &Klass_Klass);
+	assert(OB_KLASS(klazz) == &Klass_Klass);
 	size_t size = klazz->bsize + klazz->isize * num;
 	StructObject *ob = malloc(size);
 	init_object_head(ob, klazz);
@@ -47,33 +47,33 @@ static Object *struct_alloc(Klass *klazz, int num)
 
 static void struct_free(Object *ob)
 {
-	ASSERT(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
+	assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
 	free(ob);
 }
 
 static uint32 struct_hash(TValue *v)
 {
-	ASSERT(VALUE_ISOBJECT(v));
+	assert(VALUE_ISOBJECT(v));
 	Object *ob = VALUE_OBJECT(v);
-	ASSERT(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
+	assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
 	return (uint32)ob;
 }
 
 static int struct_compare(TValue *v1, TValue *v2)
 {
-	ASSERT(VALUE_ISOBJECT(v1) && VALUE_ISOBJECT(v2));
+	assert(VALUE_ISOBJECT(v1) && VALUE_ISOBJECT(v2));
 	Object *ob1 = VALUE_OBJECT(v1);
-	ASSERT(OB_KLASS(OB_KLASS(ob1)) == &Klass_Klass);
+	assert(OB_KLASS(OB_KLASS(ob1)) == &Klass_Klass);
 	Object *ob2 = VALUE_OBJECT(v2);
-	ASSERT(OB_KLASS(OB_KLASS(ob2)) == &Klass_Klass);
+	assert(OB_KLASS(OB_KLASS(ob2)) == &Klass_Klass);
 	return ob1 != ob2;
 }
 
 static Object *struct_tostring(TValue *v)
 {
-	ASSERT(VALUE_ISOBJECT(v));
+	assert(VALUE_ISOBJECT(v));
 	Object *ob = VALUE_OBJECT(v);
-	ASSERT(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
+	assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass);
 	return NULL;
 }
 

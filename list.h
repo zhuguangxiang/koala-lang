@@ -396,7 +396,7 @@ struct clist {
 #define clist_del(pos, list) do { \
 	list_del(pos); \
 	--(list)->count; \
-	ASSERT((list)->count >= 0); \
+	assert((list)->count >= 0); \
 } while (0)
 
 #define clist_empty(list) \
@@ -423,7 +423,7 @@ static inline struct clist *new_clist(void)
 
 static inline void free_clist(struct clist *list)
 {
-	ASSERT(clist_empty(list));
+	assert(clist_empty(list));
 	free(list);
 }
 

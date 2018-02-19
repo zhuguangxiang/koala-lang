@@ -98,7 +98,7 @@ Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, bool konst)
 	idx_t idx = -1;
 	if (desc) {
 		idx = TypeItem_Set(stbl->atbl, desc);
-		ASSERT(idx >= 0);
+		assert(idx >= 0);
 	}
 	sym->desc  = idx;
 	sym->type  = desc;
@@ -111,7 +111,7 @@ int STbl_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc)
 	idx_t idx = -1;
 	if (desc) {
 		idx = TypeItem_Set(stbl->atbl, desc);
-		ASSERT(idx >= 0);
+		assert(idx >= 0);
 	}
 
 	sym->desc = idx;
@@ -125,7 +125,7 @@ Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto)
 	if (!sym) return NULL;
 
 	idx_t idx = ProtoItem_Set(stbl->atbl, proto);
-	ASSERT(idx >= 0);
+	assert(idx >= 0);
 	sym->desc = idx;
 	TypeDesc *type = TypeDesc_New(TYPE_PROTO);
 	type->proto = proto;
@@ -145,7 +145,7 @@ Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, bool konst)
 {
 	Symbol *sym = symbol_new();
 	idx_t idx = StringItem_Set(stbl->atbl, name);
-	ASSERT(idx >= 0);
+	assert(idx >= 0);
 	sym->name = idx;
 	if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
 		symbol_free(sym);
@@ -234,7 +234,7 @@ static void symbol_show(HashNode *hnode, void *arg)
 			break;
 		}
 		default: {
-			ASSERT(0);
+			assert(0);
 			break;
 		}
 	}

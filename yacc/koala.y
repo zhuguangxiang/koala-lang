@@ -677,7 +677,7 @@ ForStatement
       exit(0);
     } else {
       struct var *v = Vector_Get($4, 0);
-      ASSERT(v);
+      assert(v);
       v->type = $5;
       Vector_Free($4, NULL, NULL);
       $$ = stmt_from_foreach(v, $7, $9, 1);

@@ -73,14 +73,14 @@ TValue String_ToInteger(Object *ob)
 
 static Object *__string_length(Object *ob, Object *args)
 {
-	ASSERT(!args);
+	assert(!args);
 	StringObject *sobj = OB_TYPE_OF(ob, StringObject, String_Klass);
 	return Tuple_Build("i", sobj->len);
 }
 
 static Object *__string_tostring(Object *ob, Object *args)
 {
-	ASSERT(!args);
+	assert(!args);
 	OB_ASSERT_KLASS(ob, String_Klass);
 	return Tuple_Build("O", ob);
 }

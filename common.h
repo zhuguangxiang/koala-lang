@@ -52,10 +52,9 @@ typedef int8 bool;
 #define UNUSED_PARAMETER(var) ((var) = (var))
 
 /* Assert macros */
-#define ASSERT(val) assert(val)
-#define ASSERT_MSG(val, fmt, ...) do { \
+#define assertm(val, fmt, ...) do { \
 	if (!(val)) { \
-		printf("Assertion Message: " fmt "\n", ##__VA_ARGS__); ASSERT(val); \
+		printf(fmt "\n", ##__VA_ARGS__); assert(val); \
 	} \
 } while (0)
 

@@ -82,7 +82,7 @@ void test_number_hash_table(void) {
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, number_hash, number_equal);
 	table = HashTable_New(&hashinfo);
-	ASSERT(table);
+	assert(table);
 
 	srand(time(NULL) + getpid());
 
@@ -93,11 +93,11 @@ void test_number_hash_table(void) {
 	for (i = 0; i < 1000000; i++) {
 		value++; //= rand();
 		num = number_alloc();
-		ASSERT(num);
+		assert(num);
 		num->value = value;
 		Init_HashNode(&num->hnode, &num->value);
 		failed = HashTable_Insert(table, &num->hnode);
-		//ASSERT(!failed);
+		//assert(!failed);
 		if (failed != 0) {
 			//srand(time(NULL) + getpid());
 			sleep(1);
@@ -105,7 +105,7 @@ void test_number_hash_table(void) {
 		}
 
 		struct hash_node *hnode = HashTable_Find(table, &value);
-		ASSERT(hnode);
+		assert(hnode);
 	}
 
 	number_show(table);
@@ -114,9 +114,9 @@ void test_number_hash_table(void) {
 	for (i = 0; i < 1000000; i++) {
 		value++;
 		struct hash_node *hnode = HashTable_Find(table, &value);
-		ASSERT(hnode);
+		assert(hnode);
 		int res = HashTable_Remove(table, hnode);
-		ASSERT(res == 0);
+		assert(res == 0);
 	}
 	printf("num:%d\n", table->nodes);
 	printf("duplicated:%d\n", duplicated);
@@ -192,10 +192,10 @@ void test_string_hash_table(void) {
 
 		for (i = 0; i < 1000000; i++ ) {
 				str = string_alloc(10);
-				ASSERT(str);
+				assert(str);
 				Init_HashNode(&str->hnode, &str->value);
 				failed = HashTable_Insert(string_hash, &str->hnode);
-				ASSERT(!failed);
+				assert(!failed);
 		}
 
 		HashTable_Free(string_hash, NULL, NULL);

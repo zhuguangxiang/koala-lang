@@ -33,23 +33,23 @@ void test_buffer(void)
 		Buffer_Write(&buf, data, 10);
 		i++;
 	}
-	ASSERT(buf.blocks == 7);
-	ASSERT(buf.size == 100);
+	assert(buf.blocks == 7);
+	assert(buf.size == 100);
 
 	Block *block;
 	int all = 0;
 	list_for_each_entry(block, &buf.head, link) {
 		all += block->used;
 	}
-	ASSERT(all == 100);
+	assert(all == 100);
 
 	struct list_head *last = list_last(&buf.head);
 	block = container_of(last, Block, link);
-	ASSERT(block->used == (100 % 16));
+	assert(block->used == (100 % 16));
 
 	uint8 *d = Buffer_RawData(&buf);
 	int diff = memcmp(saved_data, d, 100);
-	ASSERT(!diff);
+	assert(!diff);
 	free(d);
 	Buffer_Fini(&buf);
 }

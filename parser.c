@@ -92,7 +92,7 @@ static void check_symbol(Symbol *sym, void *arg)
 static void check_variables(ParserState *ps)
 {
 	ParserUnit *u = ps->u;
-	ASSERT(u);
+	assert(u);
 	STbl_Traverse(&u->stbl, check_symbol, NULL);
 }
 
@@ -111,7 +111,7 @@ char *UserDef_Get_Path(ParserState *ps, char *mod)
 		error("cannot find module:%s", mod);
 		return NULL;
 	}
-	ASSERT(sym->kind == SYM_STABLE);
+	assert(sym->kind == SYM_STABLE);
 	sym->refcnt = 1;
 	return sym->type->path;
 }
@@ -161,7 +161,7 @@ static Symbol *find_id_symbol(ParserState *ps, char *id)
 	sym = STbl_Get(&ps->extstbl, id);
 	if (sym) {
 		debug("symbol '%s' is found in external scope", id);
-		ASSERT(sym->kind == SYM_STABLE);
+		assert(sym->kind == SYM_STABLE);
 		sym->refcnt++;
 		return sym;
 	}
@@ -188,7 +188,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	}
 
 	Symbol *sym = import->sym;
-	ASSERT(sym->kind == SYM_STABLE);
+	assert(sym->kind == SYM_STABLE);
 	sym = STbl_Get(sym->stbl, desc->type);
 	if (sym) {
 		debug("find '%s.%s'", desc->path, desc->type);
@@ -232,7 +232,7 @@ static CodeBlock *codeblock_new(AtomTable *atbl)
 static void codeblock_free(CodeBlock *b)
 {
 	if (!b) return;
-	ASSERT(list_unlinked(&b->link));
+	assert(list_unlinked(&b->link));
 	STbl_Fini(&b->stbl);
 
 	Inst *i, *n;
@@ -271,7 +271,7 @@ static void inst_gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			} else if (VALUE_ISCSTR(val)) {
 				index = ConstItem_Set_String(atbl, VALUE_CSTR(val));
 			} else {
-				ASSERT(0);
+				assert(0);
 			}
 			Buffer_Write_4Bytes(buf, index);
 			break;
@@ -312,7 +312,7 @@ static void inst_gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			break;
 		}
 		default: {
-			ASSERT(0);
+			assert(0);
 			break;
 		}
 	}
@@ -350,7 +350,7 @@ static void code_gen(Symbol *sym, void *arg)
 			break;
 		}
 		default: {
-			ASSERT_MSG(0, "unknown symbol kind:%d", sym->kind);
+			assertm(0, "unknown symbol kind:%d", sym->kind);
 		}
 	}
 }
@@ -413,21 +413,21 @@ static void parse_dotaccess(ParserState *ps, struct expr *exp)
 		}
 	} else if (leftsym->kind == SYM_VAR) {
 		debug("symbol '%s' is a variable", leftsym->str);
-		ASSERT(leftsym->type);
+		assert(leftsym->type);
 		sym = find_userdef_symbol(ps, leftsym->type);
 		if (!sym) {
 			char *typestr = TypeDesc_ToString(leftsym->type);
 			error("cannot find '%s' in '%s'", exp->attribute.id, typestr);
 			return;
 		}
-		ASSERT(sym->kind == SYM_STABLE);
+		assert(sym->kind == SYM_STABLE);
 		char *typename = sym->str;
 		sym = STbl_Get(sym->stbl, exp->attribute.id);
 		if (!sym) {
 			error("cannot find '%s' in '%s'", exp->attribute.id, typename);
 		}
 	} else {
-		ASSERT(0);
+		assert(0);
 	}
 
 	// set expression's symbol
@@ -436,12 +436,12 @@ static void parse_dotaccess(ParserState *ps, struct expr *exp)
 	// generate code
 	if (ps->gencode) {
 		if (sym->kind == SYM_VAR) {
-			ASSERT(0);
+			assert(0);
 		} else if (sym->kind == SYM_PROTO) {
 			TValue val = CSTR_VALUE_INIT(exp->attribute.id);
 			inst_append(ps->u->block, OP_CALL, &val);
 		} else {
-			ASSERT(0);
+			assert(0);
 		}
 	}
 }
@@ -472,7 +472,7 @@ static int check_call_varg(Proto *proto, Vector *vec)
 				if (p->rsz != 1) return 0;
 				if (!TypeDesc_Check(p->rdesc, desc)) return 0;
 			} else {
-				ASSERT(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
+				assert(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
 				if (!TypeDesc_Check(d, desc)) return 0;
 			}
 		}
@@ -503,7 +503,7 @@ static int check_call_args(Proto *proto, Vector *vec)
 			if (p->rsz != 1) return 0;
 			if (!TypeDesc_Check(p->rdesc, proto->pdesc + i)) return 0;
 		} else {
-			ASSERT(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
+			assert(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
 			if (!TypeDesc_Check(d, proto->pdesc + i)) return 0;
 		}
 	}
@@ -542,7 +542,7 @@ static void parse_call(ParserState *ps, struct expr *exp)
 		left->ctx = EXPR_LOAD;
 
 		Symbol *sym = left->sym;
-		ASSERT(sym && sym->kind == SYM_PROTO);
+		assert(sym && sym->kind == SYM_PROTO);
 		debug("call %s()", sym->str);
 
 		/* function type */
@@ -568,7 +568,7 @@ static struct expr *optimize_binary_add(struct expr *l, struct expr *r)
 		} else if (r->kind == FLOAT_KIND) {
 			val = l->ival + r->fval;
 		} else {
-			ASSERT(0);
+			assert(0);
 		}
 		e = expr_from_int(val);
 	} else if (l->kind == FLOAT_KIND) {
@@ -578,11 +578,11 @@ static struct expr *optimize_binary_add(struct expr *l, struct expr *r)
 		} else if (r->kind == FLOAT_KIND) {
 			val = l->fval + r->fval;
 		} else {
-			ASSERT(0);
+			assert(0);
 		}
 		e = expr_from_float(val);
 	} else {
-		ASSERT_MSG(0, "unsupported optimized type:%d", l->kind);
+		assertm(0, "unsupported optimized type:%d", l->kind);
 	}
 	return e;
 }
@@ -597,7 +597,7 @@ static struct expr *optimize_binary_sub(struct expr *l, struct expr *r)
 		} else if (r->kind == FLOAT_KIND) {
 			val = l->ival - r->fval;
 		} else {
-			ASSERT(0);
+			assert(0);
 		}
 		e = expr_from_int(val);
 	} else if (l->kind == FLOAT_KIND) {
@@ -607,11 +607,11 @@ static struct expr *optimize_binary_sub(struct expr *l, struct expr *r)
 		} else if (r->kind == FLOAT_KIND) {
 			val = l->fval - r->fval;
 		} else {
-			ASSERT(0);
+			assert(0);
 		}
 		e = expr_from_float(val);
 	} else {
-		ASSERT_MSG(0, "unsupported optimized type:%d", l->kind);
+		assertm(0, "unsupported optimized type:%d", l->kind);
 	}
 	return e;
 }
@@ -639,7 +639,7 @@ static int optimize_binary_expr(ParserState *ps, struct expr **exp)
 				break;
 			}
 			default: {
-				ASSERT(0);
+				assert(0);
 			}
 		}
 		//free origin, left and right expression
@@ -689,12 +689,12 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 									inst_append(ps->u->block, OP_GETFIELD, &val);
 								} else {
 									Symbol *parent = cur->up;
-									ASSERT(parent->kind == SYM_CLASS);
+									assert(parent->kind == SYM_CLASS);
 									debug("id '%s' is referenced in method '%s'",
 												exp->id, cur->str);
 								}
 							} else {
-								ASSERT(0);
+								assert(0);
 								TValue val = INT_VALUE_INIT(sym->index);
 								inst_append(ps->u->block, OP_LOAD, &val);
 							}
@@ -707,7 +707,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 						TValue val = INT_VALUE_INIT(sym->index);
 						inst_append(ps->u->block, OP_STORE, &val);
 					} else {
-						ASSERT_MSG(0, "unknown ctx:%d", exp->ctx);
+						assertm(0, "unknown ctx:%d", exp->ctx);
 					}
 				} else if (sym->kind == SYM_PROTO) {
 					debug("symbol '%s' is function", exp->id);
@@ -717,7 +717,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 					setcstrvalue(&val, exp->id);
 					inst_append(ps->u->block, OP_CALL, &val);
 				} else {
-					ASSERT(0);
+					assert(0);
 				}
 			} else {
 				exp->sym = sym;
@@ -804,7 +804,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			break;
 		}
 		default:
-			ASSERT_MSG(0, "unknown expression type: %d", exp->kind);
+			assertm(0, "unknown expression type: %d", exp->kind);
 			break;
 	}
 }
@@ -901,21 +901,21 @@ static void save_code(ParserState *ps)
 	} else if (u->scope == SCOPE_MODULE) {
 		debug("save code to module __init__ function");
 		if (u->block) {
-			ASSERT(u == &ps->mu);
+			assert(u == &ps->mu);
 			Symbol *sym = STbl_Get(&u->stbl, "__init__");
 			if (!sym) {
 				Proto *proto = Proto_New(0, NULL, 0, NULL);
 				sym = STbl_Add_Proto(&u->stbl, "__init__", proto);
-				ASSERT(sym);
+				assert(sym);
 			}
 
 			sym->ptr = u->block;
 			sym->locvars = u->stbl.next;
 			u->sym = sym;
-			ASSERT(list_empty(&u->blocks));
+			assert(list_empty(&u->blocks));
 		}
 	} else {
-		ASSERT_MSG(0, "no codes in scope:%d", u->scope);
+		assertm(0, "no codes in scope:%d", u->scope);
 	}
 }
 
@@ -972,7 +972,7 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 				TValue val = INT_VALUE_INIT(sym->index);
 				inst_append(ps->u->block, OP_STORE, &val);
 			} else {
-				ASSERT(0);
+				assert(0);
 			}
 			merge_codeblock(ps);
 		} else {
@@ -980,18 +980,18 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 				debug("parse variable '%s' declaration in module or class", var->id);
 			} else if (u->scope == SCOPE_FUNCTION) {
 				debug("parse variable '%s' declaration in function", var->id);
-				ASSERT(!list_empty(&ps->ustack));
+				assert(!list_empty(&ps->ustack));
 				ParserUnit *parent = parent_scope(ps);
-				ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
+				assert(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
 				Symbol *sym = STbl_Add_Var(&u->stbl, var->id, var->type, var->konst);
 				sym->up = u->sym;
 			} else {
-				ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
+				assertm(0, "unknown unit scope:%d", u->scope);
 			}
 		}
 	} else {
 		if (!exp) {
-			ASSERT(var->type);
+			assert(var->type);
 		} else {
 			if (exp->kind == NIL_KIND) {
 				debug("nil value");
@@ -1028,7 +1028,7 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 		if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
 			debug("in module or class");
 			Symbol *sym = STbl_Get(&u->stbl, var->id);
-			ASSERT(sym);
+			assert(sym);
 			if (sym->kind == SYM_VAR) {
 				if (!sym->type) {
 					debug("update symbol '%s' type", var->id);
@@ -1039,13 +1039,13 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 			}
 		} else if (u->scope == SCOPE_FUNCTION) {
 			debug("in function");
-			ASSERT(!list_empty(&ps->ustack));
+			assert(!list_empty(&ps->ustack));
 			ParserUnit *parent = parent_scope(ps);
-			ASSERT(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
+			assert(parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS);
 			Symbol *sym = STbl_Add_Var(&u->stbl, var->id, var->type, var->konst);
 			sym->up = u->sym;
 		} else {
-			ASSERT_MSG(0, "unknown unit scope:%d", u->scope);
+			assertm(0, "unknown unit scope:%d", u->scope);
 		}
 	}
 }
@@ -1056,7 +1056,7 @@ static void parse_function(ParserState *ps, struct stmt *stmt)
 
 	ParserUnit *parent = parent_scope(ps);
 	Symbol *sym = STbl_Get(&parent->stbl, stmt->funcdecl.id);
-	ASSERT(sym);
+	assert(sym);
 	ps->u->sym = sym;
 
 	if (parent->scope == SCOPE_MODULE) {
@@ -1071,7 +1071,7 @@ static void parse_function(ParserState *ps, struct stmt *stmt)
 	} else if (parent->scope == SCOPE_CLASS) {
 		debug("parse method '%s'", stmt->funcdecl.id);
 	} else {
-		ASSERT_MSG(0, "unknown parent scope type:%d", parent->scope);
+		assertm(0, "unknown parent scope type:%d", parent->scope);
 	}
 
 	parser_exit_scope(ps);
@@ -1104,7 +1104,7 @@ static void paser_return(ParserState *ps, struct stmt *stmt)
 			check_return_types(u, stmt->vec);
 		}
 	} else {
-		ASSERT_MSG(0, "invalid scope:%d", u->scope);
+		assertm(0, "invalid scope:%d", u->scope);
 	}
 }
 
@@ -1144,7 +1144,7 @@ static void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 			break;
 		}
 		default:
-			ASSERT_MSG(0, "unknown statement type: %d", stmt->kind);
+			assertm(0, "unknown statement type: %d", stmt->kind);
 			break;
 	}
 
@@ -1179,7 +1179,7 @@ static Symbol *add_import(STable *stbl, char *id, char *path)
 	Symbol *sym = STbl_Add_Symbol(stbl, id, SYM_STABLE, 0);
 	if (!sym) return NULL;
 	idx_t idx = StringItem_Set(stbl->atbl, path);
-	ASSERT(idx >= 0);
+	assert(idx >= 0);
 	sym->desc = idx;
 	sym->type = TypeDesc_From_PkgPath(path);
 	return sym;
@@ -1251,7 +1251,7 @@ static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 		} else if (desc->kind == TYPE_PROTO) {
 			debug("var's type is proto");
 		} else {
-			ASSERT(desc->kind == TYPE_PRIMITIVE);
+			assert(desc->kind == TYPE_PRIMITIVE);
 		}
 	}
 
@@ -1279,7 +1279,7 @@ void Parse_VarDecls(ParserState *ps, struct stmt *stmt)
 			parse_vardecl(ps, s);
 		}
 	} else {
-		ASSERT(stmt->kind == VARDECL_KIND);
+		assert(stmt->kind == VARDECL_KIND);
 		parse_vardecl(ps, stmt);
 	}
 }

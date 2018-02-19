@@ -38,27 +38,27 @@ void Routine_Run(Routine *rt);
 
 static inline TValue rt_stack_top(Routine *rt)
 {
-	ASSERT(rt->top >= -1 && rt->top <= STACK_SIZE-1);
+	assert(rt->top >= -1 && rt->top <= STACK_SIZE-1);
 	if (rt->top >= 0) return rt->stack[rt->top];
 	else return NilValue;
 }
 
 static inline TValue rt_stack_pop(Routine *rt)
 {
-	ASSERT(rt->top >= -1 && rt->top <= STACK_SIZE-1);
+	assert(rt->top >= -1 && rt->top <= STACK_SIZE-1);
 	if (rt->top >= 0) return rt->stack[rt->top--];
 	else return NilValue;
 }
 
 static inline void rt_stack_push(Routine *rt, TValue *v)
 {
-	ASSERT(rt->top >= -1 && rt->top < STACK_SIZE-1);
+	assert(rt->top >= -1 && rt->top < STACK_SIZE-1);
 	rt->stack[++rt->top] = *v;
 }
 
 static inline int rt_stack_size(Routine *rt)
 {
-	ASSERT(rt->top >= -1 && rt->top <= STACK_SIZE-1);
+	assert(rt->top >= -1 && rt->top <= STACK_SIZE-1);
 	return rt->top + 1;
 }
 

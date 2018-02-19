@@ -5,7 +5,7 @@
 Block *block_new(int bsize)
 {
 	Block *block = malloc(sizeof(Block) + sizeof(uint8) * bsize);
-	ASSERT(block);
+	assert(block);
 	block->used = 0;
 	init_list_head(&block->link);
 	return block;
@@ -50,7 +50,7 @@ int Buffer_Write(Buffer *buf, uint8 *data, int size)
 		if (last) {
 			block = container_of(last, Block, link);
 			left = buf->bsize - block->used;
-			ASSERT(left >= 0);
+			assert(left >= 0);
 			info("left of block-%d is %d", buf->blocks, left);
 		} else {
 			info("buffer is empty");
@@ -68,7 +68,7 @@ int Buffer_Write(Buffer *buf, uint8 *data, int size)
 			block->used += sz;
 			data += sz;
 			size -= sz;
-			ASSERT(size >= 0);
+			assert(size >= 0);
 			buf->size += sz;
 			info("write %d-bytes into block-%d", sz, buf->blocks);
 		}
@@ -81,7 +81,7 @@ uint8 *Buffer_RawData(Buffer *buf)
 	int size = 0;
 	Block *block;
 	uint8 *data = malloc(ALIGN_UP(buf->size, 4));
-	ASSERT(data);
+	assert(data);
 	list_for_each_entry(block, &buf->head, link) {
 		memcpy(data + size, block->data, block->used);
 		size += block->used;

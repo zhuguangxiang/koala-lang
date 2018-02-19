@@ -83,7 +83,7 @@ Object *Table_New(void)
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, entry_hash, entry_equal);
 	int res = HashTable_Init(&table->table, &hashinfo);
-	ASSERT(!res);
+	assert(!res);
 	//Object_Add_GCList(table);
 	return (Object *)table;
 }

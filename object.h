@@ -84,21 +84,21 @@ extern TValue FalseValue;
 
 /* Macros to access type & values */
 #define VALUE_TYPE(v)   ((v)->type)
-#define VALUE_INT(v)    (ASSERT(VALUE_ISINT(v)), (v)->ival)
-#define VALUE_FLOAT(v)  (ASSERT(VALUE_ISFLOAT(v)), (v)->fval)
-#define VALUE_BOOL(v)   (ASSERT(VALUE_ISBOOL(v)), (v)->bval)
-#define VALUE_OBJECT(v) (ASSERT(VALUE_ISOBJECT(v)), (v)->ob)
-#define VALUE_STRING(v) (ASSERT(VALUE_ISSTRING(v)), (v)->ob)
-#define VALUE_CSTR(v)   (ASSERT(VALUE_ISCSTR(v)), (v)->cstr)
+#define VALUE_INT(v)    (assert(VALUE_ISINT(v)), (v)->ival)
+#define VALUE_FLOAT(v)  (assert(VALUE_ISFLOAT(v)), (v)->fval)
+#define VALUE_BOOL(v)   (assert(VALUE_ISBOOL(v)), (v)->bval)
+#define VALUE_OBJECT(v) (assert(VALUE_ISOBJECT(v)), (v)->ob)
+#define VALUE_STRING(v) (assert(VALUE_ISSTRING(v)), (v)->ob)
+#define VALUE_CSTR(v)   (assert(VALUE_ISCSTR(v)), (v)->cstr)
 
 /* Assert for TValue */
-#define VALUE_ASSERT(v)         (ASSERT(!VALUE_ISNIL(v)))
-#define VALUE_ASSERT_INT(v)     (ASSERT(VALUE_ISINT(v)))
-#define VALUE_ASSERT_FLOAT(v)   (ASSERT(VALUE_ISFLOAT(v)))
-#define VALUE_ASSERT_BOOL(v)    (ASSERT(VALUE_ISBOOL(v)))
-#define VALUE_ASSERT_OBJECT(v)  (ASSERT(VALUE_ISOBJECT(v)))
-#define VALUE_ASSERT_STRING(v)  (ASSERT(VALUE_ISSTRING(v)))
-#define VALUE_ASSERT_CSTR(v)    (ASSERT(VALUE_ISCSTR(v)))
+#define VALUE_ASSERT(v)         (assert(!VALUE_ISNIL(v)))
+#define VALUE_ASSERT_INT(v)     (assert(VALUE_ISINT(v)))
+#define VALUE_ASSERT_FLOAT(v)   (assert(VALUE_ISFLOAT(v)))
+#define VALUE_ASSERT_BOOL(v)    (assert(VALUE_ISBOOL(v)))
+#define VALUE_ASSERT_OBJECT(v)  (assert(VALUE_ISOBJECT(v)))
+#define VALUE_ASSERT_STRING(v)  (assert(VALUE_ISSTRING(v)))
+#define VALUE_ASSERT_CSTR(v)    (assert(VALUE_ISCSTR(v)))
 
 /* TValue utils's functions */
 TValue Va_Build_Value(char ch, va_list *ap);
@@ -125,10 +125,10 @@ struct object {
 } while (0)
 
 #define OB_KLASS(ob) (((Object *)(ob))->ob_klass)
-#define OB_ASSERT_KLASS(ob, klazz)  ASSERT(OB_KLASS(ob) == &(klazz))
+#define OB_ASSERT_KLASS(ob, klazz)  assert(OB_KLASS(ob) == &(klazz))
 #define OB_KLASS_EQUAL(ob1, ob2)    (OB_KLASS(ob1) == OB_KLASS(ob2))
 #define OB_CHECK_KLASS(ob, klazz)   (OB_KLASS(ob) == &(klazz))
-#define KLASS_ASSERT(klazz, expected) ASSERT(((Klass *)klazz) == &(expected))
+#define KLASS_ASSERT(klazz, expected) assert(((Klass *)klazz) == &(expected))
 #define OB_TYPE_OF(ob, ctype, klazz) \
 	(OB_ASSERT_KLASS(ob, klazz), ((ctype *)ob))
 

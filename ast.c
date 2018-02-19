@@ -120,7 +120,7 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
 			break;
 		}
 		default: {
-			ASSERT_MSG(0, "unkown expression kind %d\n", kind);
+			assertm(0, "unkown expression kind %d\n", kind);
 		}
 	}
 	return expr;
@@ -382,7 +382,7 @@ struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
 struct stmt *stmt_from_go(struct expr *expr)
 {
 	if (expr->kind != CALL_KIND) {
-		ASSERT_MSG(0, "syntax error:not a func call\n");
+		assertm(0, "syntax error:not a func call\n");
 		exit(0);
 	}
 
@@ -545,7 +545,7 @@ void expr_traverse(struct expr *expr)
 			break;
 		}
 		default: {
-			ASSERT(0);
+			assert(0);
 			break;
 		}
 	}
@@ -716,7 +716,7 @@ void stmt_traverse(struct stmt *stmt)
 		}
 		default:{
 			printf("[ERROR] unknown stmt kind :%d\n", stmt->kind);
-			ASSERT(0);
+			assert(0);
 		}
 	}
 }

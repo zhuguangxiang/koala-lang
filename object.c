@@ -16,7 +16,7 @@ static void va_integer_build(TValue *v, va_list *ap)
 
 static void va_integer_parse(TValue *v, va_list *ap)
 {
-	ASSERT(VALUE_TYPE(v) == TYPE_INT);
+	assert(VALUE_TYPE(v) == TYPE_INT);
 	int32 *i = va_arg(*ap, int32 *);
 	*i = (int32)VALUE_INT(v);
 }
@@ -29,7 +29,7 @@ static void va_long_build(TValue *v, va_list *ap)
 
 static void va_long_parse(TValue *v, va_list *ap)
 {
-	ASSERT(VALUE_TYPE(v) == TYPE_INT);
+	assert(VALUE_TYPE(v) == TYPE_INT);
 	int64 *i = va_arg(*ap, int64 *);
 	*i = VALUE_INT(v);
 }
@@ -42,7 +42,7 @@ static void va_float_build(TValue *v, va_list *ap)
 
 static void va_float_parse(TValue *v, va_list *ap)
 {
-	ASSERT(VALUE_TYPE(v) == TYPE_FLOAT);
+	assert(VALUE_TYPE(v) == TYPE_FLOAT);
 	float64 *f = va_arg(*ap, float64 *);
 	*f = VALUE_FLOAT(v);
 }
@@ -55,7 +55,7 @@ static void va_bool_build(TValue *v, va_list *ap)
 
 static void va_bool_parse(TValue *v, va_list *ap)
 {
-	ASSERT(VALUE_TYPE(v) == TYPE_BOOL);
+	assert(VALUE_TYPE(v) == TYPE_BOOL);
 	int *i = va_arg(*ap, int *);
 	*i = VALUE_BOOL(v);
 }
@@ -68,7 +68,7 @@ static void va_string_build(TValue *v, va_list *ap)
 
 static void va_string_parse(TValue *v, va_list *ap)
 {
-	ASSERT(VALUE_TYPE(v) == TYPE_OBJECT);
+	assert(VALUE_TYPE(v) == TYPE_OBJECT);
 	Object *ob = VALUE_STRING(v);
 	char **str = va_arg(*ap, char **);
 	*str = String_RawString(ob);
@@ -82,7 +82,7 @@ static void va_object_build(TValue *v, va_list *ap)
 
 static void va_object_parse(TValue *v, va_list *ap)
 {
-	ASSERT(VALUE_TYPE(v) == TYPE_OBJECT);
+	assert(VALUE_TYPE(v) == TYPE_OBJECT);
 	Object **o = va_arg(*ap, Object **);
 	*o = VALUE_OBJECT(v);
 }
@@ -115,7 +115,7 @@ va_convert_t *get_convert(char ch)
 			return convert;
 		}
 	}
-	ASSERT_MSG(0, "unsupported type: %d\n", ch);
+	assertm(0, "unsupported type: %d\n", ch);
 	return NULL;
 }
 
@@ -204,7 +204,7 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 		proto = Proto_New(f->rsz, f->rdesc, f->psz, f->pdesc);
 		meth = CFunc_New(f->fn);
 		res = Klass_Add_Method(klazz, f->name, proto, meth);
-		ASSERT(res == 0);
+		assert(res == 0);
 		++f;
 	}
 	return 0;
@@ -223,7 +223,7 @@ static void klass_free(Object *ob)
 {
 	// Klass_Klass cannot be freed.
 	if (ob == (Object *)&Klass_Klass) {
-		ASSERT_MSG(0, "Klass_Klass cannot be freed\n");
+		assertm(0, "Klass_Klass cannot be freed\n");
 	}
 
 	OB_ASSERT_KLASS(ob, Klass_Klass);
@@ -311,7 +311,7 @@ int TValue_Print(char *buf, int sz, TValue *val)
 			break;
 		}
 		default: {
-			ASSERT(0);
+			assert(0);
 		}
 	}
 	return count;
