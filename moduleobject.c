@@ -89,6 +89,7 @@ static int __get_value_index(ModuleObject *mob, char *name)
   return -1;
 }
 
+#if 0
 static void init_mod_var(Symbol *sym, void *arg)
 {
   ModuleObject *mob = arg;
@@ -124,11 +125,13 @@ static void init_mod_var(Symbol *sym, void *arg)
   }
 }
 
+#endif
+
 static Object *__get_tuple(ModuleObject *mob)
 {
   if (mob->tuple == NULL) {
     mob->tuple = Tuple_New(mob->stbl.next);
-    STbl_Traverse(&mob->stbl, init_mod_var, mob);
+    //STbl_Traverse(&mob->stbl, init_mod_var, mob);
   }
   return mob->tuple;
 }
