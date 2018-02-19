@@ -377,22 +377,22 @@ ModuleStatement
 
 ConstDeclaration
   : CONST VariableList '=' ExpressionList ';' {
-    $$ = stmt_from_vardecl($2, $4, 1, NULL);
+    $$ = stmt_from_vardecl($2, $4, NULL, 1);
   }
   | CONST VariableList Type '=' ExpressionList ';' {
-    $$ = stmt_from_vardecl($2, $5, 1, $3);
+    $$ = stmt_from_vardecl($2, $5, $3, 1);
   }
   ;
 
 VariableDeclaration
   : VAR VariableList Type {
-    $$ = stmt_from_vardecl($2, NULL, 0, $3);
+    $$ = stmt_from_vardecl($2, NULL, $3, 0);
   }
   | VAR VariableList '=' ExpressionList {
-    $$ = stmt_from_vardecl($2, $4, 0, NULL);
+    $$ = stmt_from_vardecl($2, $4, NULL, 0);
   }
   | VAR VariableList Type '=' ExpressionList {
-    $$ = stmt_from_vardecl($2, $5, 0, $3);
+    $$ = stmt_from_vardecl($2, $5, $3, 0);
   }
   ;
 

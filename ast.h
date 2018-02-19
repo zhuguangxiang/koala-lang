@@ -114,11 +114,12 @@ void expr_traverse(struct expr *exp);
 
 struct var {
   char *id;
-  int bconst;
+  int konst;
   TypeDesc *type;
 };
 
 struct var *new_var(char *id, TypeDesc *type);
+void free_var(struct var *v);
 
 /*-------------------------------------------------------------------------*/
 
@@ -215,7 +216,7 @@ struct stmt {
 struct stmt *stmt_from_expr(struct expr *exp);
 struct stmt *stmt_from_import(char *id, char *path);
 struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
-                               int bconst, TypeDesc *type);
+                               TypeDesc *type, int konst);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
                                 Vector *body);
 struct stmt *stmt_from_assign(Vector *left, Vector *right);
@@ -239,6 +240,8 @@ struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
 struct stmt *stmt_from_go(struct expr *expr);
 struct stmt *stmt_from_vardecl_list(Vector *vec);
 void stmt_free(struct stmt *stmt);
+void vec_stmt_free(Vector *stmts);
+void vec_stmt_fini(Vector *stmts);
 
 /*-------------------------------------------------------------------------*/
 
