@@ -8,7 +8,7 @@ Object *Tuple_New(int size)
 {
 	int sz = sizeof(TupleObject) + size * sizeof(TValue);
 	TupleObject *tuple = malloc(sz);
-	ASSERT(tuple);
+	assert(tuple);
 	init_object_head(tuple, &Tuple_Klass);
 	tuple->size = size;
 	for (int i = 0; i < size; i++) {
@@ -152,7 +152,7 @@ static Object *__tuple_get(Object *ob, Object *args)
 	TValue val;
 	OB_ASSERT_KLASS(ob, Tuple_Klass);
 	OB_ASSERT_KLASS(args, Tuple_Klass);
-	ASSERT(Tuple_Size(args) == 1);
+	assert(Tuple_Size(args) == 1);
 
 	val = Tuple_Get(args, 0);
 	if (!VALUE_ISINT(&val)) return NULL;
@@ -165,7 +165,7 @@ static Object *__tuple_get(Object *ob, Object *args)
 
 static Object *__tuple_size(Object *ob, Object *args)
 {
-	ASSERT(!args);
+	assert(!args);
 	TupleObject *tuple = OB_TYPE_OF(ob, TupleObject, Tuple_Klass);
 	return Tuple_Build("i", tuple->size);
 }
