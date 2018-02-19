@@ -244,20 +244,11 @@ static void codeblock_free(CodeBlock *b)
   free(b);
 }
 
-static inline void inst_add(CodeBlock *b, uint8 op, TValue *val)
+static inline void inst_append(CodeBlock *b, uint8 op, TValue *val)
 {
   char buf[32];
   TValue_Print(buf, 32, val);
-  debug("inst '%s %s' add head", OPCode_ToString(op),buf);
-  Inst *i = inst_new(op, val);
-  list_add(&i->link, &b->insts);
-}
-
-static inline void inst_add_tail(CodeBlock *b, uint8 op, TValue *val)
-{
-  char buf[32];
-  TValue_Print(buf, 32, val);
-  debug("inst '%s %s' add tail", OPCode_ToString(op), buf);
+  debug("inst:'%s %s'", OPCode_ToString(op), buf);
   Inst *i = inst_new(op, val);
   list_add_tail(&i->link, &b->insts);
 }
@@ -344,7 +335,7 @@ static void code_gen(Symbol *sym, void *arg)
       debug("func %s:", sym->str);
       CodeBlock *b = sym->ptr;
       int locvars = sym->locvars;
-      inst_add_tail(b, OP_RET, NULL);
+      inst_append(b, OP_RET, NULL);
       AtomTable *atbl = image->table;
       Buffer buf;
       Buffer_Init(&buf, 32);
@@ -449,7 +440,7 @@ static void parse_dotaccess(ParserState *ps, struct expr *exp)
       ASSERT(0);
     } else if (sym->kind == SYM_PROTO) {
       TValue val = CSTR_VALUE_INIT(exp->attribute.id);
-      inst_add_tail(ps->u->block, OP_CALL, &val);
+      inst_append(ps->u->block, OP_CALL, &val);
     } else {
       ASSERT(0);
     }
@@ -667,7 +658,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       if (ps->gencode) {
         if (sym->kind == SYM_STABLE) {
           TValue val = CSTR_VALUE_INIT(exp->type->path);
-          inst_add_tail(ps->u->block, OP_LOADM, &val);
+          inst_append(ps->u->block, OP_LOADM, &val);
         } else if (sym->kind == SYM_VAR) {
           debug("symbol '%s' is variable", exp->id);
           ParserUnit *u = ps->u;
@@ -681,9 +672,9 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
                 if (usym->up == NULL) {
                   debug("id '%s' in function '%s'", exp->id, usym->str);
                   TValue val = INT_VALUE_INIT(0);
-                  inst_add_tail(ps->u->block, OP_LOAD, &val);
+                  inst_append(ps->u->block, OP_LOAD, &val);
                   setcstrvalue(&val, sym->str);
-                  inst_add_tail(ps->u->block, OP_GETFIELD, &val);
+                  inst_append(ps->u->block, OP_GETFIELD, &val);
                 } else {
                   parent = usym->up;
                   ASSERT(parent->kind == SYM_CLASS);
@@ -693,16 +684,16 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
               } else {
                 ASSERT(0);
                 TValue val = INT_VALUE_INIT(sym->index);
-                inst_add_tail(ps->u->block, OP_LOAD, &val);
+                inst_append(ps->u->block, OP_LOAD, &val);
               }
             } else {
               TValue val = INT_VALUE_INIT(sym->index);
-              inst_add_tail(ps->u->block, OP_LOAD, &val);
+              inst_append(ps->u->block, OP_LOAD, &val);
             }
           } else if (exp->ctx == EXPR_STORE) {
             debug("store var's index:%d", sym->index);
             TValue val = INT_VALUE_INIT(sym->index);
-            inst_add_tail(ps->u->block, OP_STORE, &val);
+            inst_append(ps->u->block, OP_STORE, &val);
           } else {
             ASSERT_MSG(0, "unknown ctx:%d", exp->ctx);
           }
@@ -710,9 +701,9 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
           debug("symbol '%s' is function", exp->id);
           // self object
           TValue val = INT_VALUE_INIT(0);
-          inst_add_tail(ps->u->block, OP_LOAD, &val);
+          inst_append(ps->u->block, OP_LOAD, &val);
           setcstrvalue(&val, exp->id);
-          inst_add_tail(ps->u->block, OP_CALL, &val);
+          inst_append(ps->u->block, OP_CALL, &val);
         } else {
           ASSERT(0);
         }
@@ -734,7 +725,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       if (ps->gencode) {
         //printf("ival=%lld\n", exp->ival);
         TValue val = INT_VALUE_INIT(exp->ival);
-        inst_add(ps->u->block, OP_LOADK, &val);
+        inst_append(ps->u->block, OP_LOADK, &val);
       }
       break;
     }
@@ -757,7 +748,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       }
       if (ps->gencode) {
         TValue val = CSTR_VALUE_INIT(exp->str);
-        inst_add(ps->u->block, OP_LOADK, &val);
+        inst_append(ps->u->block, OP_LOADK, &val);
       }
       break;
     }
@@ -778,10 +769,10 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       if (ps->gencode) {
         if (exp->binary.op == BINARY_ADD) {
           debug("add 'OP_ADD' inst");
-          inst_add_tail(ps->u->block, OP_ADD, NULL);
+          inst_append(ps->u->block, OP_ADD, NULL);
         } else if (exp->binary.op == BINARY_SUB) {
           debug("add 'OP_SUB' inst");
-          inst_add_tail(ps->u->block, OP_SUB, NULL);
+          inst_append(ps->u->block, OP_SUB, NULL);
         }
       } else {
         exp->type = exp->binary.left->type;
@@ -796,7 +787,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       //   parser_visit_expr(ps, exp->binary.left);
       //   // generate code
       //   debug("add 'OP_ADD' inst");
-      //   inst_add_tail(ps->u->block, OP_ADD, NULL);
+      //   inst_append(ps->u->block, OP_ADD, NULL);
       // }
       break;
     }
@@ -964,15 +955,15 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
       if ((u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS)) {
         // module's or class's variable
         TValue val = INT_VALUE_INIT(0);
-        inst_add_tail(ps->u->block, OP_LOAD, &val);
+        inst_append(ps->u->block, OP_LOAD, &val);
         setcstrvalue(&val, var->id);
-        inst_add_tail(ps->u->block, OP_SETFIELD, &val);
+        inst_append(ps->u->block, OP_SETFIELD, &val);
       } else if (u->scope == SCOPE_FUNCTION) {
         Symbol *sym = STbl_Add_Var(&u->stbl, var->id, var->type, var->bconst);
         sym->up = u->sym;
         // local variable
         TValue val = INT_VALUE_INIT(sym->index);
-        inst_add_tail(ps->u->block, OP_STORE, &val);
+        inst_append(ps->u->block, OP_STORE, &val);
       } else {
         ASSERT(0);
       }
