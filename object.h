@@ -22,14 +22,14 @@ typedef struct klass Klass;
 #define TYPE_CSTR   5
 
 typedef struct value {
-  int type;
-  union {
-    int64 ival;
-    float64 fval;
-    int bval;
-    Object *ob;
-    char *cstr;
-  };
+	int type;
+	union {
+		int64 ival;
+		float64 fval;
+		int bval;
+		Object *ob;
+		char *cstr;
+	};
 } TValue;
 
 /* Constant values */
@@ -39,31 +39,31 @@ extern TValue FalseValue;
 
 /* Macros to initialize struct value */
 #define initnilvalue(v) do { \
-  (v)->type = TYPE_NIL; (v)->ival = (int64)0; \
+	(v)->type = TYPE_NIL; (v)->ival = (int64)0; \
 } while (0)
 
 #define setivalue(v, _v) do { \
-  (v)->type = TYPE_INT; (v)->ival = (int64)_v; \
+	(v)->type = TYPE_INT; (v)->ival = (int64)_v; \
 } while (0)
 
 #define setfltvalue(v, _v) do { \
-  (v)->type = TYPE_FLOAT; (v)->fval = (float64)_v; \
+	(v)->type = TYPE_FLOAT; (v)->fval = (float64)_v; \
 } while (0)
 
 #define setbvalue(v, _v) do { \
-  (v)->type = TYPE_BOOL; (v)->bval = (int)_v; \
+	(v)->type = TYPE_BOOL; (v)->bval = (int)_v; \
 } while (0)
 
 #define setobjvalue(v, _v) do { \
-  (v)->type = TYPE_OBJECT; (v)->ob = (Object *)_v; \
+	(v)->type = TYPE_OBJECT; (v)->ob = (Object *)_v; \
 } while (0)
 
 #define setcstrvalue(v, _v) do { \
-  (v)->type = TYPE_CSTR; (v)->cstr = (void *)_v; \
+	(v)->type = TYPE_CSTR; (v)->cstr = (void *)_v; \
 } while (0)
 
 #define setkstrvalue(v, _v) do { \
-  (v)->type = TYPE_OBJECT; (v)->ob = String_New(_v); \
+	(v)->type = TYPE_OBJECT; (v)->ob = String_New(_v); \
 } while (0)
 
 #define NIL_VALUE_INIT()      {.type = TYPE_NIL,    .ival = 0}
@@ -110,18 +110,18 @@ int TValue_Print(char *buf, int sz, TValue *val);
 /*-------------------------------------------------------------------------*/
 
 #define OBJECT_HEAD \
-  Object *ob_next; int ob_ref; Klass *ob_klass;
+	Object *ob_next; int ob_ref; Klass *ob_klass;
 
 struct object {
-  OBJECT_HEAD
+	OBJECT_HEAD
 };
 
 #define OBJECT_HEAD_INIT(klazz) \
-  .ob_next = NULL, .ob_ref = 1, .ob_klass = klazz
+	.ob_next = NULL, .ob_ref = 1, .ob_klass = klazz
 
 #define init_object_head(ob, klazz) do { \
-  Object *o = (Object *)ob; \
-  o->ob_next = NULL; o->ob_ref = 1; o->ob_klass = klazz; \
+	Object *o = (Object *)ob; \
+	o->ob_next = NULL; o->ob_ref = 1; o->ob_klass = klazz; \
 } while (0)
 
 #define OB_KLASS(ob) (((Object *)(ob))->ob_klass)
@@ -130,7 +130,7 @@ struct object {
 #define OB_CHECK_KLASS(ob, klazz)   (OB_KLASS(ob) == &(klazz))
 #define KLASS_ASSERT(klazz, expected) ASSERT(((Klass *)klazz) == &(expected))
 #define OB_TYPE_OF(ob, ctype, klazz) \
-  (OB_ASSERT_KLASS(ob, klazz), ((ctype *)ob))
+	(OB_ASSERT_KLASS(ob, klazz), ((ctype *)ob))
 
 /*-------------------------------------------------------------------------*/
 
@@ -145,22 +145,22 @@ typedef int (*cmpfunc)(TValue *v1, TValue *v2);
 typedef Object *(*strfunc)(TValue *v);
 
 struct klass {
-  OBJECT_HEAD
-  char *name;
-  int bsize;
-  int isize;
+	OBJECT_HEAD
+	char *name;
+	int bsize;
+	int isize;
 
-  markfunc ob_mark;
+	markfunc ob_mark;
 
-  allocfunc ob_alloc;
-  freefunc ob_free;
+	allocfunc ob_alloc;
+	freefunc ob_free;
 
-  hashfunc ob_hash;
-  cmpfunc ob_cmp;
+	hashfunc ob_hash;
+	cmpfunc ob_cmp;
 
-  strfunc ob_tostr;
+	strfunc ob_tostr;
 
-  STable stbl;
+	STable stbl;
 };
 
 extern Klass Klass_Klass;
@@ -173,18 +173,18 @@ Object *Klass_Get_Method(Klass *klazz, char *name);
 /*-------------------------------------------------------------------------*/
 
 /*
-  All functions's proto, including c function and koala function
-  'args' and 'return' are both Tuple.
+	All functions's proto, including c function and koala function
+	'args' and 'return' are both Tuple.
  */
 typedef Object *(*cfunc)(Object *ob, Object *args);
 
 typedef struct funcdef {
-  char *name;
-  int rsz;
-  char *rdesc;
-  int psz;
-  char *pdesc;
-  cfunc fn;
+	char *name;
+	int rsz;
+	char *rdesc;
+	int psz;
+	char *pdesc;
+	cfunc fn;
 } FuncDef;
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);

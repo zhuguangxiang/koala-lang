@@ -9,9 +9,9 @@ extern "C" {
 #endif
 
 typedef struct stringobject {
-  OBJECT_HEAD
-  int len;
-  char *str;
+	OBJECT_HEAD
+	int len;
+	char *str;
 } StringObject;
 
 extern Klass String_Klass;

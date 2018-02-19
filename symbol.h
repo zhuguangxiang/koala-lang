@@ -21,28 +21,28 @@ extern "C" {
 typedef struct symboltable STable;
 
 typedef struct symbol {
-  HashNode hnode;
-  idx_t name;
-  int8 kind;
-  int8 access;
-  int8 konst;
-  int8 refcnt;    /* for compiler */
-  idx_t desc;     /* variable's type or func's proto */
-  char *str;      /* -> name */
-  TypeDesc *type; /* -> desc */
-  int32 locvars;  /* for compiler's function */
-  struct symbol *up;  /* for compiler's id */
-  STable *stbl;   /* for compiler's import */
-  union {
-    void *ptr;    /* CodeObject, klass or CodeBlock */
-    idx_t index;  /* variable's index */
-  };
+	HashNode hnode;
+	idx_t name;
+	int8 kind;
+	int8 access;
+	int8 konst;
+	int8 refcnt;    /* for compiler */
+	idx_t desc;     /* variable's type or func's proto */
+	char *str;      /* -> name */
+	TypeDesc *type; /* -> desc */
+	int32 locvars;  /* for compiler's function */
+	struct symbol *up;  /* for compiler's id */
+	STable *stbl;   /* for compiler's import */
+	union {
+		void *ptr;    /* CodeObject, klass or CodeBlock */
+		idx_t index;  /* variable's index */
+	};
 } Symbol;
 
 struct symboltable {
-  HashTable *htbl;
-  AtomTable *atbl;
-  idx_t next;
+	HashTable *htbl;
+	AtomTable *atbl;
+	idx_t next;
 };
 
 /* Exported APIs */

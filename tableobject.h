@@ -10,8 +10,8 @@ extern "C" {
 #endif
 
 typedef struct tableobject {
-  OBJECT_HEAD
-  HashTable table;
+	OBJECT_HEAD
+	HashTable table;
 } TableObject;
 
 /* Exported APIs */

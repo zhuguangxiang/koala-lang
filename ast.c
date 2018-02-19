@@ -120,8 +120,7 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
 			break;
 		}
 		default: {
-			fprintf(stderr, "[ERROR]unkown expression kind %d\n", kind);
-			ASSERT(0);
+			ASSERT_MSG(0, "unkown expression kind %d\n", kind);
 		}
 	}
 	return expr;
@@ -383,7 +382,7 @@ struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
 struct stmt *stmt_from_go(struct expr *expr)
 {
 	if (expr->kind != CALL_KIND) {
-		fprintf(stderr, "syntax error:not a func call\n");
+		ASSERT_MSG(0, "syntax error:not a func call\n");
 		exit(0);
 	}
 

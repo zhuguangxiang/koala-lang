@@ -8,14 +8,13 @@
 Vector *Vector_New(void)
 {
 	Vector *vec = malloc(sizeof(Vector));
-	if (vec == NULL) return NULL;
 	Vector_Init(vec);
 	return vec;
 }
 
 void Vector_Free(Vector *vec, itemfunc fn, void *arg)
 {
-	if (vec == NULL) return;
+	if (!vec) return;
 	Vector_Fini(vec, fn, arg);
 	free(vec);
 }
@@ -30,9 +29,9 @@ int Vector_Init(Vector *vec)
 
 void Vector_Fini(Vector *vec, itemfunc fn, void *arg)
 {
-	if (vec->items == NULL) return;
+	if (!vec->items) return;
 
-	if (fn != NULL) {
+	if (fn) {
 		info("finalizing objs...");
 		void *item;
 		Vector_ForEach(item, vec)
@@ -57,9 +56,9 @@ static int vector_expand(Vector *vec, int newsize)
 	int new_allocated = (allocated == 0) ? MIN_ALLOCATED : allocated << 1;
 	info("vec allocated:%d", new_allocated);
 	void *items = calloc(new_allocated, sizeof(void *));
-	if (items == NULL) return -1;
+	if (!items) return -1;
 
-	if (vec->items != NULL) {
+	if (vec->items) {
 		memcpy(items, vec->items, Vector_Size(vec) * sizeof(void *));
 		free(vec->items);
 	}
@@ -84,7 +83,7 @@ int Vector_Insert(Vector *vec, int where, void *item)
 
 void *Vector_Set(Vector *vec, int index, void *item)
 {
-	if (vec->items == NULL) {
+	if (!vec->items) {
 		error("vec is empty");
 		return NULL;
 	}
@@ -101,13 +100,8 @@ void *Vector_Set(Vector *vec, int index, void *item)
 
 void *Vector_Get(Vector *vec, int index)
 {
-	if (vec == NULL) {
-		error("parameter is NULL");
-		return NULL;
-	}
-
-	if (vec->items == NULL) {
-		error("vec is empty");
+	if (!vec || !vec->items) {
+		error("vec is null or empty");
 		return NULL;
 	}
 

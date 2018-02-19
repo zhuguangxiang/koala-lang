@@ -172,7 +172,7 @@ int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr)
 {
 	int sz = 0;
 	TypeDesc *desc = NULL;
-	if (vec != NULL && Vector_Size(vec) != 0) {
+	if (vec && Vector_Size(vec) != 0) {
 		sz = Vector_Size(vec);
 		desc = malloc(sizeof(TypeDesc) * sz);
 		TypeDesc *d;
@@ -259,7 +259,7 @@ char *TypeDesc_ToString(TypeDesc *desc)
 	char *tmp;
 	char *str = "";
 
-	if (desc == NULL) {
+	if (!desc) {
 		warn("desc is null");
 		return NULL;
 	}
@@ -351,7 +351,7 @@ int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc)
 int TypeListItem_To_DescList(AtomTable *atbl, TypeListItem *item,
 														 TypeDesc **desc)
 {
-	if (item == NULL) {
+	if (!item) {
 		*desc = NULL;
 		return 0;
 	}
@@ -1412,7 +1412,7 @@ static int header_check(ImageHeader *header)
 KImage *KImage_Read_File(char *path)
 {
 	FILE *fp = fopen(path, "r");
-	if (fp == NULL) {
+	if (!fp) {
 		printf("error: cannot open %s file\n", path);
 		return NULL;
 	}
@@ -1613,7 +1613,7 @@ void AtomTable_Show(AtomTable *table)
 
 void KImage_Show(KImage *image)
 {
-	if (image == NULL) return;
+	if (!image) return;
 
 	ImageHeader *h = &image->header;
 	header_show(h);

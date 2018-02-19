@@ -46,7 +46,7 @@ typedef int8 bool;
 
 /* Get the struct address from its member's address */
 #define container_of(ptr, type, member) \
-  ((type *)((char *)ptr - offsetof(type, member)))
+	((type *)((char *)ptr - offsetof(type, member)))
 
 /* For -Wunused-parameter */
 #define UNUSED_PARAMETER(var) ((var) = (var))
@@ -55,10 +55,10 @@ typedef int8 bool;
 #define ASSERT(val)     assert(val)
 #define ASSERT_PTR(ptr) assert((ptr) != NULL)
 #define ASSERT_MSG(val, fmt, ...)  do { \
-  if (!(val)) { \
-    printf("Assertion Message: " fmt "\n", ##__VA_ARGS__); \
-    ASSERT(val); \
-  } \
+	if (!(val)) { \
+		printf("Assertion Message: " fmt "\n", ##__VA_ARGS__); \
+		ASSERT(val); \
+	} \
 } while (0)
 
 #ifdef __cplusplus

@@ -15,7 +15,7 @@ extern "C" {
  * Some functions ("__xxx") are used internally.
  */
 struct list_head {
-  struct list_head *next, *prev;
+	struct list_head *next, *prev;
 };
 
 #define LIST_HEAD_INIT(name) {&(name), &(name)}
@@ -36,13 +36,13 @@ static inline void init_list_head(struct list_head *list)
  * Insert a new entry between two known consecutive entries.
  */
 static inline void __list_add(struct list_head *entry,
-			                        struct list_head *prev,
-			                        struct list_head *next)
+															struct list_head *prev,
+															struct list_head *next)
 {
-  entry->next = next;
-  entry->prev = prev;
-  prev->next = entry;
-  next->prev = entry;
+	entry->next = next;
+	entry->prev = prev;
+	prev->next = entry;
+	next->prev = entry;
 }
 
 /**
@@ -62,7 +62,7 @@ static inline void list_add(struct list_head *entry, struct list_head *head)
  * @head: list head to add it before
  */
 static inline void list_add_tail(struct list_head *entry,
-                                 struct list_head *head)
+																 struct list_head *head)
 {
 	__list_add(entry, head->prev, head);
 }
@@ -86,7 +86,7 @@ static inline void __list_del(struct list_head *prev, struct list_head *next)
 static inline void list_del(struct list_head *entry)
 {
 	__list_del(entry->prev, entry->next);
-  init_list_head(entry);
+	init_list_head(entry);
 }
 
 /**
@@ -144,7 +144,7 @@ static inline void list_del(struct list_head *entry)
  */
 #define list_for_each_safe(pos, n, head) \
 	for (pos = (head)->next, n = pos->next; pos != (head); \
-		   pos = n, n = pos->next)
+			 pos = n, n = pos->next)
 
 /**
  * list_for_each_prev_safe - iterate over a list backwards safe
@@ -155,8 +155,8 @@ static inline void list_del(struct list_head *entry)
  */
 #define list_for_each_prev_safe(pos, n, head) \
 	for (pos = (head)->prev, n = pos->prev; \
-	     pos != (head); \
-	     pos = n, n = pos->prev)
+			 pos != (head); \
+			 pos = n, n = pos->prev)
 
 /**
  * list_first_entry - get the first element from a list
@@ -185,8 +185,8 @@ static inline void list_del(struct list_head *entry)
  */
 #define list_for_each_entry(pos, head, member) \
 	for (pos = list_first_entry(head, __typeof__(*pos), member); \
-	     &pos->member != (head); \
-	     pos = list_next_entry(pos, member))
+			 &pos->member != (head); \
+			 pos = list_next_entry(pos, member))
 
 /**
  * list_for_each_entry_safe - iterate over list of given type safe against removal of list entry
@@ -197,9 +197,9 @@ static inline void list_del(struct list_head *entry)
  */
 #define list_for_each_entry_safe(pos, n, head, member) \
 	for (pos = list_first_entry(head, typeof(*pos), member), \
-		   n = list_next_entry(pos, member); \
-	     &pos->member != (head); \
-	     pos = n, n = list_next_entry(n, member))
+			 n = list_next_entry(pos, member); \
+			 &pos->member != (head); \
+			 pos = n, n = list_next_entry(n, member))
 
 /**
 * list_merge_tail - move 'from' list to the tail of 'to'
@@ -209,12 +209,12 @@ static inline void list_del(struct list_head *entry)
 static inline
 struct list_head *list_merge_tail(struct list_head *from, struct list_head *to)
 {
-  struct list_head *pos, *nxt;
-  list_for_each_safe(pos, nxt, from) {
-    list_del(pos);
-    list_add_tail(pos, to);
-  }
-  return to;
+	struct list_head *pos, *nxt;
+	list_for_each_safe(pos, nxt, from) {
+		list_del(pos);
+		list_add_tail(pos, to);
+	}
+	return to;
 }
 
 /*
@@ -224,11 +224,11 @@ struct list_head *list_merge_tail(struct list_head *from, struct list_head *to)
  * You lose the ability to access the tail in O(1).
  */
 struct hlist_head {
-  struct hlist_node *first;
+	struct hlist_node *first;
 };
 
 struct hlist_node {
-  struct hlist_node *next, **pprev;
+	struct hlist_node *next, **pprev;
 };
 
 #define HLIST_HEAD_INIT   {.first = NULL}
@@ -253,13 +253,13 @@ static inline int hlist_empty(const struct hlist_head *head)
 static inline void hlist_del(struct hlist_node *n)
 {
 	if (!hlist_unhashed(n)) {
-    struct hlist_node *next = n->next;
-  	struct hlist_node **pprev = n->pprev;
+		struct hlist_node *next = n->next;
+		struct hlist_node **pprev = n->pprev;
 
-  	*pprev = next;
-  	if (next) next->pprev = pprev;
-    init_hlist_node(n);
-  }
+		*pprev = next;
+		if (next) next->pprev = pprev;
+		init_hlist_node(n);
+	}
 }
 
 static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
@@ -278,25 +278,25 @@ static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
 
 #define hlist_for_each_safe(pos, n, head) \
 	for (pos = (head)->first; pos && ({ n = pos->next; 1; }); \
-	     pos = n)
+			 pos = n)
 
 /* Tail queue:
  * Double linked lists with a last node has not a pointer of list head.
  */
 struct tailq_head {
-  struct tailq_node *first;
-  struct tailq_node **last;
+	struct tailq_node *first;
+	struct tailq_node **last;
 };
 
 struct tailq_node {
-  struct tailq_node *next, **pprev;
+	struct tailq_node *next, **pprev;
 };
 
 #define TAILQ_HEAD_INIT(name)   {.first = NULL, .last = &(name).first}
 #define TAILQ_HEAD(name)  struct tailq_head name = TAILQ_HEAD_INIT(name)
 #define init_tailq_head(ptr) do { \
-  (ptr)->first = NULL; \
-  (ptr)->last  = &(ptr)->first; \
+	(ptr)->first = NULL; \
+	(ptr)->last  = &(ptr)->first; \
 } while (0)
 
 static inline void init_tailq_node(struct tailq_node *node)
@@ -318,17 +318,17 @@ static inline int tailq_empty(const struct tailq_head *head)
 static inline void tailq_del(struct tailq_node *n, struct tailq_head *h)
 {
 	if (!tailq_unhashed(n)) {
-    struct tailq_node *next = n->next;
-  	struct tailq_node **pprev = n->pprev;
+		struct tailq_node *next = n->next;
+		struct tailq_node **pprev = n->pprev;
 
-  	*pprev = next;
-  	if (next)
-      next->pprev = pprev;
-    else
-      h->last = pprev;
+		*pprev = next;
+		if (next)
+			next->pprev = pprev;
+		else
+			h->last = pprev;
 
-    init_tailq_node(n);
-  }
+		init_tailq_node(n);
+	}
 }
 
 static inline void tailq_add_head(struct tailq_node *n, struct tailq_head *h)
@@ -336,18 +336,18 @@ static inline void tailq_add_head(struct tailq_node *n, struct tailq_head *h)
 	struct tailq_node *first = h->first;
 	n->next = first;
 	if (first)
-    first->pprev = &n->next;
-  else
-    h->last = &n->next;
+		first->pprev = &n->next;
+	else
+		h->last = &n->next;
 	h->first = n;
 	n->pprev = &h->first;
 }
 
 static inline void tailq_add_tail(struct tailq_node *n, struct tailq_head *h)
 {
-  n->pprev = h->last;
-  *h->last = n;
-  h->last = &n->next;
+	n->pprev = h->last;
+	*h->last = n;
+	h->last = &n->next;
 }
 
 #define tailq_entry(ptr, type, member) container_of(ptr, type, member)
@@ -357,50 +357,50 @@ static inline void tailq_add_tail(struct tailq_node *n, struct tailq_head *h)
 
 #define tailq_for_each_safe(pos, n, head) \
 	for (pos = (head)->first; pos && (n = pos->next, 1); \
-	     pos = n)
+			 pos = n)
 
 #define tailq_for_each_entry(pos, head, member) \
 	for (pos = tailq_entry((head)->first, __typeof__(*(pos)), member); \
-	     pos;	\
-	     pos = (pos)->member.next ? \
-       tailq_entry((pos)->member.next, __typeof__(*(pos)), member) : NULL)
+			 pos;	\
+			 pos = (pos)->member.next ? \
+			 tailq_entry((pos)->member.next, __typeof__(*(pos)), member) : NULL)
 
 #define tailq_for_each_entry_safe(pos, n, head, member) \
 	for (pos = tailq_entry((head)->first, __typeof__(*pos), member); \
-	     pos && (n = pos->member.next, 1); \
-	     pos = n ? tailq_entry(n, __typeof__(*pos), member) : NULL)
+			 pos && (n = pos->member.next, 1); \
+			 pos = n ? tailq_entry(n, __typeof__(*pos), member) : NULL)
 
 /**
  * linked list with counting
  */
 struct clist {
-  struct list_head head;
-  int count;
+	struct list_head head;
+	int count;
 };
 
 #define init_clist(list) do { \
-  init_list_head(&(list)->head); \
-  (list)->count = 0; \
+	init_list_head(&(list)->head); \
+	(list)->count = 0; \
 } while (0)
 
 #define clist_add(link, list) do { \
-  list_add((link), &(list)->head); \
-  ++(list)->count; \
+	list_add((link), &(list)->head); \
+	++(list)->count; \
 } while (0)
 
 #define clist_add_tail(link, list) do { \
-  list_add_tail((link), &(list)->head); \
-  ++(list)->count; \
+	list_add_tail((link), &(list)->head); \
+	++(list)->count; \
 } while (0)
 
 #define clist_del(pos, list) do { \
-  list_del(pos); \
-  --(list)->count; \
-  ASSERT((list)->count >= 0); \
+	list_del(pos); \
+	--(list)->count; \
+	ASSERT((list)->count >= 0); \
 } while (0)
 
 #define clist_empty(list) \
-  (list_empty(&(list)->head) && ((list)->count == 0))
+	(list_empty(&(list)->head) && ((list)->count == 0))
 
 #define clist_length(list) ((list)->count)
 
@@ -409,22 +409,22 @@ struct clist {
 #define clist_entry(ptr, type) list_entry(ptr, type, link)
 
 #define clist_foreach(pos, list) \
-  if ((list) != NULL) list_for_each_entry(pos, &(list)->head, link)
+	if (list) list_for_each_entry(pos, &(list)->head, link)
 
 #define clist_foreach_safe(pos, list, tmp) \
-  if ((list) != NULL) list_for_each_entry_safe(pos, tmp, &(list)->head, link)
+	if (list) list_for_each_entry_safe(pos, tmp, &(list)->head, link)
 
 static inline struct clist *new_clist(void)
 {
-  struct clist *list = malloc(sizeof(struct clist));
-  init_clist(list);
-  return list;
+	struct clist *list = malloc(sizeof(struct clist));
+	init_clist(list);
+	return list;
 }
 
 static inline void free_clist(struct clist *list)
 {
-  ASSERT(clist_empty(list));
-  free(list);
+	ASSERT(clist_empty(list));
+	free(list);
 }
 
 #ifdef __cplusplus

@@ -1,6 +1,6 @@
 
 /*
-  This test is for module's variable intialization and arthmetic operations
+	This test is for module's variable intialization and arthmetic operations
  */
 package test;
 
@@ -11,13 +11,13 @@ var number = 2;
 var value = number + 8;
 
 func Main(args []string) {
-  io.Print("hello, world\n");
-  io.Print(1+2, 3+4, greeting, 5-6, "\n");
-  io.Print(number_sub(10, 20));
-  io.Print("\nvalue =", value);
+	io.Print("hello, world\n");
+	io.Print(1+2, 3+4, greeting, 5-6, "\n");
+	io.Print(number_sub(10, 20));
+	io.Print("\nvalue =", value);
 }
 
 func number_sub(a int, b int) int {
-  var result = a - b;
-  return result;
+	var result = a - b;
+	return result;
 }

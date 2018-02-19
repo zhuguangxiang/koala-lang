@@ -14,18 +14,18 @@ extern "C" {
 #define CODE_CLANG  1
 
 typedef struct codeobject {
-  OBJECT_HEAD
-  int flags;
-  union {
-    cfunc cf;
-    struct {
-      STable *stbl;
-      Proto *proto;
-      int locvars;
-      int size;
-      uint8 *codes;
-    } kf;
-  };
+	OBJECT_HEAD
+	int flags;
+	union {
+		cfunc cf;
+		struct {
+			STable *stbl;
+			Proto *proto;
+			int locvars;
+			int size;
+			uint8 *codes;
+		} kf;
+	};
 } CodeObject;
 
 /* Exported APIs */
@@ -36,16 +36,16 @@ Object *CFunc_New(cfunc cf);
 #define CODE_ISCFUNC(code)  (((CodeObject *)(code))->flags == CODE_CLANG)
 static inline int KFunc_Argc(Object *ob)
 {
-  CodeObject *code = (CodeObject *)ob;
-  Proto *p = code->kf.proto;
-  if (p->psz <= 0) return 0;
+	CodeObject *code = (CodeObject *)ob;
+	Proto *p = code->kf.proto;
+	if (p->psz <= 0) return 0;
 
-  TypeDesc *desc = p->pdesc + p->psz - 1;
-  if (desc->varg) {
-    return 32;
-  } else {
-    return p->psz;
-  }
+	TypeDesc *desc = p->pdesc + p->psz - 1;
+	if (desc->varg) {
+		return 32;
+	} else {
+		return p->psz;
+	}
 }
 
 #ifdef __cplusplus

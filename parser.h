@@ -11,60 +11,60 @@ extern "C" {
 #endif
 
 typedef struct import {
-  HashNode hnode;
-  char *path;
-  Symbol *sym;
+	HashNode hnode;
+	char *path;
+	Symbol *sym;
 } Import;
 
 typedef struct error {
-  char *msg;
-  int line;
+	char *msg;
+	int line;
 } Error;
 
 typedef struct inst {
-  struct list_head link;
-  uint8 op;
-  TValue arg;
+	struct list_head link;
+	uint8 op;
+	TValue arg;
 } Inst;
 
 typedef struct codeblock {
-  char *name; /* for debugging */
-  struct list_head link;
-  STable stbl;
-  struct list_head insts;
-   /* true if a OP_RET opcode is inserted. */
-  int bret;
+	char *name; /* for debugging */
+	struct list_head link;
+	STable stbl;
+	struct list_head insts;
+	 /* true if a OP_RET opcode is inserted. */
+	int bret;
 } CodeBlock;
 
 enum {
-  SCOPE_MODULE = 1,
-  SCOPE_CLASS,
-  SCOPE_FUNCTION,
-  SCOPE_BLOCK
+	SCOPE_MODULE = 1,
+	SCOPE_CLASS,
+	SCOPE_FUNCTION,
+	SCOPE_BLOCK
 };
 
 typedef struct parserunit {
-  int scope;
-  struct list_head link;
-  Symbol *sym;
-  STable stbl;
-  CodeBlock *block;
-  struct list_head blocks;
+	int scope;
+	struct list_head link;
+	Symbol *sym;
+	STable stbl;
+	CodeBlock *block;
+	struct list_head blocks;
 } ParserUnit;
 
 typedef struct parserstate {
-  Vector stmts;       /* all statements */
-  char *outfile;
-  char *package;
-  HashTable imports;  /* external types */
-  STable extstbl;     /* external symbol table */
-  ParserUnit *u;
-  int nestlevel;
-  struct list_head ustack;
-  ParserUnit mu;      /* module parser unit */
-  int olevel;         /* optimization level */
-  int gencode;        /* for code generator */
-  Vector errors;
+	Vector stmts;       /* all statements */
+	char *outfile;
+	char *package;
+	HashTable imports;  /* external types */
+	STable extstbl;     /* external symbol table */
+	ParserUnit *u;
+	int nestlevel;
+	struct list_head ustack;
+	ParserUnit mu;      /* module parser unit */
+	int olevel;         /* optimization level */
+	int gencode;        /* for code generator */
+	Vector errors;
 } ParserState;
 
 char *UserDef_Get_Path(ParserState *ps, char *mod);

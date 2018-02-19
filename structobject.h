@@ -9,9 +9,9 @@ extern "C" {
 #endif
 
 typedef struct structobject {
-  OBJECT_HEAD
-  int size;
-  TValue items[0];
+	OBJECT_HEAD
+	int size;
+	TValue items[0];
 } StructObject;
 
 Klass *Struct_Klass_New(char *name);

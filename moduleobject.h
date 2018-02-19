@@ -9,10 +9,10 @@ extern "C" {
 #endif
 
 typedef struct moduleobject {
-  OBJECT_HEAD
-  char *name;
-  STable stbl;
-  Object *tuple;
+	OBJECT_HEAD
+	char *name;
+	STable stbl;
+	Object *tuple;
 } ModuleObject;
 
 /* Exported APIs */

@@ -107,7 +107,7 @@ static void check_unused_symbols(ParserState *ps)
 char *UserDef_Get_Path(ParserState *ps, char *mod)
 {
 	Symbol *sym = STbl_Get(&ps->extstbl, mod);
-	if (sym == NULL) {
+	if (!sym) {
 		error("cannot find module:%s", mod);
 		return NULL;
 	}
@@ -119,7 +119,7 @@ char *UserDef_Get_Path(ParserState *ps, char *mod)
 static int check_return_types(ParserUnit *u, Vector *vec)
 {
 	Proto *proto = u->sym->type->proto;
-	if (vec == NULL) {
+	if (!vec) {
 		return (proto->rsz == 0) ? 1 : 0;
 	} else {
 		int sz = Vector_Size(vec);
@@ -141,7 +141,7 @@ static Symbol *find_id_symbol(ParserState *ps, char *id)
 {
 	ParserUnit *u = ps->u;
 	Symbol *sym = STbl_Get(&u->stbl, id);
-	if (sym != NULL) {
+	if (sym) {
 		debug("symbol '%s' is found in current scope", id);
 		sym->refcnt++;
 		return sym;
@@ -150,7 +150,7 @@ static Symbol *find_id_symbol(ParserState *ps, char *id)
 	if (!list_empty(&ps->ustack)) {
 		list_for_each_entry(u, &ps->ustack, link) {
 			sym = STbl_Get(&u->stbl, id);
-			if (sym != NULL) {
+			if (sym) {
 				debug("symbol '%s' is found in parent scope", id);
 				sym->refcnt++;
 				return sym;
@@ -159,7 +159,7 @@ static Symbol *find_id_symbol(ParserState *ps, char *id)
 	}
 
 	sym = STbl_Get(&ps->extstbl, id);
-	if (sym != NULL) {
+	if (sym) {
 		debug("symbol '%s' is found in external scope", id);
 		ASSERT(sym->kind == SYM_STABLE);
 		sym->refcnt++;
@@ -182,7 +182,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	// find in external imported module
 	Import key = {.path = desc->path};
 	Import *import = HashTable_FindObject(&ps->imports, &key, Import);
-	if (import == NULL) {
+	if (!import) {
 		error("cannot find '%s.%s'", desc->path, desc->type);
 		return NULL;
 	}
@@ -190,7 +190,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	Symbol *sym = import->sym;
 	ASSERT(sym->kind == SYM_STABLE);
 	sym = STbl_Get(sym->stbl, desc->type);
-	if (sym != NULL) {
+	if (sym) {
 		debug("find '%s.%s'", desc->path, desc->type);
 		sym->refcnt++;
 		return sym;
@@ -207,7 +207,7 @@ static inline Inst *inst_new(uint8 op, TValue *val)
 	Inst *i = malloc(sizeof(Inst));
 	init_list_head(&i->link);
 	i->op = op;
-	if (val != NULL)
+	if (val)
 		i->arg = *val;
 	else
 		initnilvalue(&i->arg);
@@ -231,7 +231,7 @@ static CodeBlock *codeblock_new(AtomTable *atbl)
 
 static void codeblock_free(CodeBlock *b)
 {
-	if (b == NULL) return;
+	if (!b) return;
 	ASSERT(list_unlinked(&b->link));
 	STbl_Fini(&b->stbl);
 
@@ -371,7 +371,7 @@ static void generate_image(ParserState *ps)
 
 static void codeblock_show(CodeBlock *block)
 {
-	if (block == NULL) return;
+	if (!block) return;
 
 	char buf[64];
 	printf("---------codeblock_show--------------\n");
@@ -397,7 +397,7 @@ static void parse_dotaccess(ParserState *ps, struct expr *exp)
 	debug(".%s", exp->attribute.id);
 
 	Symbol *leftsym = left->sym;
-	if (leftsym == NULL) {
+	if (!leftsym) {
 		error("cannot find '%s' in '%s'", exp->attribute.id, left->str);
 		return;
 	}
@@ -406,16 +406,16 @@ static void parse_dotaccess(ParserState *ps, struct expr *exp)
 	if (leftsym->kind == SYM_STABLE) {
 		debug("symbol '%s' is a module", leftsym->str);
 		sym = STbl_Get(leftsym->stbl, exp->attribute.id);
-		if (sym == NULL) {
+		if (!sym) {
 			error("cannot find '%s' in '%s'", exp->attribute.id, left->str);
 			exp->sym = NULL;
 			return;
 		}
 	} else if (leftsym->kind == SYM_VAR) {
 		debug("symbol '%s' is a variable", leftsym->str);
-		ASSERT(leftsym->type != NULL);
+		ASSERT(leftsym->type);
 		sym = find_userdef_symbol(ps, leftsym->type);
-		if (sym == NULL) {
+		if (!sym) {
 			char *typestr = TypeDesc_ToString(leftsym->type);
 			error("cannot find '%s' in '%s'", exp->attribute.id, typestr);
 			return;
@@ -423,7 +423,7 @@ static void parse_dotaccess(ParserState *ps, struct expr *exp)
 		ASSERT(sym->kind == SYM_STABLE);
 		char *typename = sym->str;
 		sym = STbl_Get(sym->stbl, exp->attribute.id);
-		if (sym == NULL) {
+		if (!sym) {
 			error("cannot find '%s' in '%s'", exp->attribute.id, typename);
 		}
 	} else {
@@ -448,7 +448,7 @@ static void parse_dotaccess(ParserState *ps, struct expr *exp)
 
 static int check_call_varg(Proto *proto, Vector *vec)
 {
-	int sz = (vec == NULL) ? 0: Vector_Size(vec);
+	int sz = !vec ? 0: Vector_Size(vec);
 	if (proto->psz -1 > sz) {
 			return 0;
 	} else {
@@ -461,7 +461,7 @@ static int check_call_varg(Proto *proto, Vector *vec)
 				desc = proto->pdesc + proto->psz - 1;
 
 			TypeDesc *d = exp->type;
-			if (d == NULL) {
+			if (!d) {
 				error("expr's type is null");
 				return 0;
 			}
@@ -485,7 +485,7 @@ static int check_call_args(Proto *proto, Vector *vec)
 	if (Proto_With_Vargs(proto))
 		return check_call_varg(proto, vec);
 
-	int sz = (vec == NULL) ? 0: Vector_Size(vec);
+	int sz = !vec ? 0: Vector_Size(vec);
 	if (proto->psz != sz)
 		return 0;
 
@@ -493,7 +493,7 @@ static int check_call_args(Proto *proto, Vector *vec)
 	struct expr *exp;
 	Vector_ForEach(exp, vec) {
 		d = exp->type;
-		if (d == NULL) {
+		if (!d) {
 			error("expr's type is null");
 			return 0;
 		}
@@ -514,7 +514,7 @@ static int check_call_args(Proto *proto, Vector *vec)
 static void parse_call(ParserState *ps, struct expr *exp)
 {
 	if (ps->gencode) {
-		if (exp->call.args != NULL) {
+		if (exp->call.args) {
 			struct expr *e;
 			Vector_ForEach_Reverse(e, exp->call.args) {
 				enter_codeblock(ps);
@@ -525,7 +525,7 @@ static void parse_call(ParserState *ps, struct expr *exp)
 		parser_visit_expr(ps, exp->call.left);
 	} else {
 
-		if (exp->call.args != NULL) {
+		if (exp->call.args) {
 			struct expr *e;
 			Vector_ForEach(e, exp->call.args) {
 				parser_visit_expr(ps, e);
@@ -535,14 +535,14 @@ static void parse_call(ParserState *ps, struct expr *exp)
 
 		struct expr *left = exp->call.left;
 		parser_visit_expr(ps, left);
-		if (left->sym == NULL) {
+		if (!left->sym) {
 			error("func is not found");
 			return;
 		}
 		left->ctx = EXPR_LOAD;
 
 		Symbol *sym = left->sym;
-		ASSERT(sym != NULL && sym->kind == SYM_PROTO);
+		ASSERT(sym && sym->kind == SYM_PROTO);
 		debug("call %s()", sym->str);
 
 		/* function type */
@@ -658,7 +658,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 	switch (exp->kind) {
 		case NAME_KIND: {
 			Symbol *sym = find_id_symbol(ps, exp->id);
-			if (sym == NULL) {
+			if (!sym) {
 				break;
 			}
 
@@ -672,16 +672,16 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 					Symbol *cur = u->sym;
 					if (exp->ctx == EXPR_LOAD) {
 						debug("load var's index:%d", sym->index);
-						if (sym->up == NULL) {
+						if (!sym->up) {
 							debug("id '%s' is module's variable", exp->id);
-							if (cur == NULL) {
+							if (!cur) {
 								debug("current scope is module");
 								TValue val = INT_VALUE_INIT(0);
 								inst_append(ps->u->block, OP_LOAD, &val);
 								setcstrvalue(&val, sym->str);
 								inst_append(ps->u->block, OP_GETFIELD, &val);
 							} else if (cur->kind == SYM_PROTO) {
-								if (cur->up == NULL) {
+								if (!cur->up) {
 									debug("id '%s' in function '%s'", exp->id, cur->str);
 									TValue val = INT_VALUE_INIT(0);
 									inst_append(ps->u->block, OP_LOAD, &val);
@@ -721,7 +721,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 				}
 			} else {
 				exp->sym = sym;
-				if (exp->type == NULL) {
+				if (!exp->type) {
 					char *typestr = TypeDesc_ToString(sym->type);
 					debug("id '%s' is as '%s'", exp->id, typestr);
 					free(typestr);
@@ -843,11 +843,11 @@ static void parser_unit_free(ParserUnit *u)
 static void parser_enter_scope(ParserState *ps, int scope)
 {
 	AtomTable *atbl = NULL;
-	if (ps->u != NULL) atbl = ps->u->stbl.atbl;
+	if (ps->u) atbl = ps->u->stbl.atbl;
 	ParserUnit *u = parser_unit_new(atbl, scope);
 
 	/* Push the old ParserUnit on the stack. */
-	if (ps->u != NULL) {
+	if (ps->u) {
 		list_add(&ps->u->link, &ps->ustack);
 	}
 	ps->u = u;
@@ -858,7 +858,7 @@ static void enter_codeblock(ParserState *ps)
 {
 	ParserUnit *u = ps->u;
 	CodeBlock *block = codeblock_new(u->stbl.atbl);
-	if (u->block != NULL) list_add(&u->block->link, &u->blocks);
+	if (u->block) list_add(&u->block->link, &u->blocks);
 	u->block = block;
 }
 
@@ -900,10 +900,10 @@ static void save_code(ParserState *ps)
 		debug("merge code to parent's block");
 	} else if (u->scope == SCOPE_MODULE) {
 		debug("save code to module __init__ function");
-		if (u->block != NULL) {
+		if (u->block) {
 			ASSERT(u == &ps->mu);
 			Symbol *sym = STbl_Get(&u->stbl, "__init__");
-			if (sym == NULL) {
+			if (!sym) {
 				Proto *proto = Proto_New(0, NULL, 0, NULL);
 				sym = STbl_Add_Proto(&u->stbl, "__init__", proto);
 				ASSERT_PTR(sym);
@@ -936,7 +936,7 @@ static void parser_exit_scope(ParserState *ps)
 
 	/* Restore c->u to the parent unit. */
 	struct list_head *first = list_first(&ps->ustack);
-	if (first != NULL) {
+	if (first) {
 		list_del(first);
 		ps->u = container_of(first, ParserUnit, link);
 	} else {
@@ -956,7 +956,7 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
 	ParserUnit *u = ps->u;
 	if (ps->gencode) {
-		if (exp != NULL) {
+		if (exp) {
 			enter_codeblock(ps);
 			parser_visit_expr(ps, exp);
 			if ((u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS)) {
@@ -990,8 +990,8 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 			}
 		}
 	} else {
-		if (exp == NULL) {
-			ASSERT(var->type != NULL);
+		if (!exp) {
+			ASSERT(var->type);
 		} else {
 			if (exp->kind == NIL_KIND) {
 				debug("nil value");
@@ -1001,18 +1001,18 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 				error("cannot use keyword 'self'");
 			}
 
-			if (exp->type == NULL) {
+			if (!exp->type) {
 				debug("parse right expr, and set its type");
 				parser_visit_expr(ps, exp);
 			}
 
-			if (exp->type == NULL) {
+			if (!exp->type) {
 				error("cannot resolve var '%s' type", var->id);
 			} else {
-				if (var->type == NULL) {
+				if (!var->type) {
 					debug("using its right type as var '%s' type", var->id);
 					var->type = exp->type;
-					if (var->type == NULL) {
+					if (!var->type) {
 						error("var '%s' type is null", var->id);
 					}
 				} else {
@@ -1030,7 +1030,7 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 			Symbol *sym = STbl_Get(&u->stbl, var->id);
 			ASSERT_PTR(sym);
 			if (sym->kind == SYM_VAR) {
-				if (sym->type == NULL) {
+				if (!sym->type) {
 					debug("update symbol '%s' type", var->id);
 					STbl_Update_Symbol(&u->stbl, sym, var->type);
 				} else {
@@ -1061,7 +1061,7 @@ static void parse_function(ParserState *ps, struct stmt *stmt)
 
 	if (parent->scope == SCOPE_MODULE) {
 		debug("parse function '%s'", stmt->funcdecl.id);
-		if (stmt->funcdecl.pvec != NULL) {
+		if (stmt->funcdecl.pvec) {
 			struct var *var;
 			Vector_ForEach(var, stmt->funcdecl.pvec)
 				parse_variable(ps, var, NULL);
@@ -1092,7 +1092,7 @@ static void paser_return(ParserState *ps, struct stmt *stmt)
 	ParserUnit *u = ps->u;
 	if (u->scope == SCOPE_FUNCTION) {
 		debug("return in function");
-		if (stmt->vec != NULL) {
+		if (stmt->vec) {
 			struct expr *e;
 			Vector_ForEach(e, stmt->vec) {
 				e->ctx = EXPR_LOAD;
@@ -1177,7 +1177,7 @@ void Parse_Body(ParserState *ps, Vector *stmts)
 static Symbol *add_import(STable *stbl, char *id, char *path)
 {
 	Symbol *sym = STbl_Add_Symbol(stbl, id, SYM_STABLE, 0);
-	if (sym == NULL) return NULL;
+	if (!sym) return NULL;
 	idx_t idx = StringItem_Set(stbl->atbl, path);
 	ASSERT(idx >= 0);
 	sym->desc = idx;
@@ -1190,11 +1190,11 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 	Import key = {.path = path};
 	Import *import = HashTable_FindObject(&ps->imports, &key, Import);
 	Symbol *sym;
-	if (import != NULL) {
+	if (import) {
 		sym = import->sym;
-		if (sym != NULL && sym->refcnt > 0) {
+		if (sym && sym->refcnt > 0) {
 			warn("find auto imported module '%s'", path);
-			if (id != NULL) {
+			if (id) {
 				if (strcmp(id, sym->str)) {
 					warn("imported as '%s' is different with auto imported as '%s'",
 								id, sym->str);
@@ -1213,15 +1213,15 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 		return NULL;
 	}
 	Object *ob = Koala_Load_Module(path);
-	if (ob == NULL) {
+	if (!ob) {
 		error("load module '%s' failed", path);
 		HashTable_Remove(&ps->imports, &import->hnode);
 		import_free(import);
 		return NULL;
 	}
-	if (id == NULL) id = Module_Name(ob);
+	if (!id) id = Module_Name(ob);
 	sym = add_import(&ps->extstbl, id, path);
-	if (sym == NULL) {
+	if (!sym) {
 		debug("add import '%s <- %s' failed", id, path);
 		HashTable_Remove(&ps->imports, &import->hnode);
 		import_free(import);
@@ -1238,7 +1238,7 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 {
 	struct var *var = stmt->vardecl.var;
-	if (var->type == NULL) {
+	if (!var->type) {
 		debug("'%s %s' type is not set", var->konst ? "const" : "var", var->id);
 	} else {
 		TypeDesc *desc = var->type;
@@ -1256,7 +1256,7 @@ static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 	}
 
 	Symbol *sym = STbl_Add_Var(&ps->u->stbl, var->id, var->type, var->konst);
-	if (sym != NULL) {
+	if (sym) {
 		debug("add %s '%s' successful", var->konst ? "const":"var", var->id);
 		sym->up = ps->u->sym;
 	} else {
@@ -1264,7 +1264,7 @@ static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 					var->konst ? "const":"var", var->id);
 	}
 
-	if (stmt->vardecl.exp == NULL) {
+	if (!stmt->vardecl.exp) {
 		debug("There is not a initial expr for var '%s'", var->id);
 	}
 }
@@ -1288,7 +1288,7 @@ static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
 {
 	int sz = 0;
 	TypeDesc *desc = NULL;
-	if (vec != NULL && Vector_Size(vec) != 0) {
+	if (vec && Vector_Size(vec) != 0) {
 		sz = Vector_Size(vec);
 		desc = malloc(sizeof(TypeDesc) * sz);
 		struct var *var;
@@ -1325,7 +1325,7 @@ void Parse_Proto(ParserState *ps, struct stmt *stmt)
 	Symbol *sym;
 	proto = funcdecl_to_proto(stmt);
 	sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, proto);
-	if (sym != NULL) {
+	if (sym) {
 		debug("add func '%s' successful", stmt->funcdecl.id);
 		sym->up = ps->u->sym;
 	} else {
@@ -1377,7 +1377,7 @@ int main(int argc, char *argv[])
 	int len = strlen(srcfile);
 	char *outfile = malloc(len + 4 + 1);
 	char *tmp = strrchr(srcfile, '.');
-	if (tmp != NULL) {
+	if (tmp) {
 		memcpy(outfile, srcfile, tmp - srcfile);
 		outfile[tmp - srcfile] = 0;
 	} else {

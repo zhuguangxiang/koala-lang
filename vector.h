@@ -7,13 +7,13 @@ extern "C" {
 #endif
 
 /*
-  'items' contains space for 'allocated' elements.
-  The number currently in use is 'size'.
+	'items' contains space for 'allocated' elements.
+	The number currently in use is 'size'.
  */
 typedef struct vector {
-  int allocated;
-  int size;
-  void **items;
+	int allocated;
+	int size;
+	void **items;
 } Vector;
 
 #define VECTOR_INIT {.allocated = 0, .size = 0, .items = NULL}
@@ -29,10 +29,10 @@ int Vector_Append(Vector *vec, void *item);
 #define Vector_Size(vec) (((Vector *)(vec))->size)
 int Vector_Concat(Vector *dest, Vector *src);
 #define Vector_ForEach(item, vec) \
-  for (int i = 0; (i < (vec)->size) && (item = (vec)->items[i], 1); i++)
+	for (int i = 0; (i < (vec)->size) && (item = (vec)->items[i], 1); i++)
 
 #define Vector_ForEach_Reverse(item, vec) \
-  for (int i = (vec)->size - 1; (i >= 0) && (item = (vec)->items[i], 1); i--)
+	for (int i = (vec)->size - 1; (i >= 0) && (item = (vec)->items[i], 1); i--)
 
 #ifdef __cplusplus
 }

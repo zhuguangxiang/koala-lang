@@ -28,55 +28,55 @@ extern "C" {
 #define TASK_STACK_SIZE 8192
 
 struct task {
-  char name[NAME_SIZE];
-  struct list_head link;
-  short state;
-  short prio;
-  uint64 sleep;
-  uint64 id;
-  ucontext_t ctx;
-  void *thread;
-  void (*run)(struct task *);
-  void *arg;
+	char name[NAME_SIZE];
+	struct list_head link;
+	short state;
+	short prio;
+	uint64 sleep;
+	uint64 id;
+	ucontext_t ctx;
+	void *thread;
+	void (*run)(struct task *);
+	void *arg;
 };
 
 struct locker {
-  pthread_mutex_t lock;
-  int locked;
-  struct list_head wait_list;
+	pthread_mutex_t lock;
+	int locked;
+	struct list_head wait_list;
 };
 
 struct thread {
-  char name[NAME_SIZE];
-  pthread_t id;
-  ucontext_t ctx;
-  struct task *current;
-  int runsize;
-  struct list_head runlist;
-  pthread_mutex_t lock;
-  pthread_cond_t cond;
+	char name[NAME_SIZE];
+	pthread_t id;
+	ucontext_t ctx;
+	struct task *current;
+	int runsize;
+	struct list_head runlist;
+	pthread_mutex_t lock;
+	pthread_cond_t cond;
 };
 
 struct scheduler {
-  struct list_head readylist[NR_PRIORITY];
-  struct list_head suspendlist;
-  struct list_head sleeplist;
-  uint64 idgen;
-  sem_t timer_sem;
-  timer_t timer;
-  uint64 tick;
-  uint64 clock;
-  pthread_t timer_thread;
-  pthread_t mover_thread;
-  pthread_mutex_t lock;
-  pthread_cond_t cond;
-  pthread_mutex_t sleeplock;
-  struct thread threads[NR_THREADS];
+	struct list_head readylist[NR_PRIORITY];
+	struct list_head suspendlist;
+	struct list_head sleeplist;
+	uint64 idgen;
+	sem_t timer_sem;
+	timer_t timer;
+	uint64 tick;
+	uint64 clock;
+	pthread_t timer_thread;
+	pthread_t mover_thread;
+	pthread_mutex_t lock;
+	pthread_cond_t cond;
+	pthread_mutex_t sleeplock;
+	struct thread threads[NR_THREADS];
 };
 
 typedef void (*task_func)(struct task *);
 int task_init(struct task *tsk, char *name, short prio,
-              task_func run, void *arg);
+							task_func run, void *arg);
 void task_sleep(struct task *tsk, int second);
 void task_exit(struct task *tsk);
 void task_yield(struct task *tsk);
