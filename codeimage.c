@@ -151,6 +151,13 @@ TypeDesc *TypeDesc_From_UserDef(char *path, char *type)
 	return desc;
 }
 
+TypeDesc *TypeDesc_From_Proto(Proto *proto)
+{
+	TypeDesc *desc = TypeDesc_New(TYPE_PROTO);
+	desc->proto = proto;
+	return desc;
+}
+
 void TypeDesc_Free(TypeDesc *desc)
 {
 	if (desc->kind == TYPE_USERDEF) {
@@ -161,6 +168,10 @@ void TypeDesc_Free(TypeDesc *desc)
 		if (proto->rdesc) free(proto->rdesc);
 		if (proto->pdesc) free(proto->pdesc);
 		free(proto);
+	} else if (desc->kind == TYPE_PRIMITIVE) {
+		debug("primitive type, just free TypeDesc itself");
+	} else {
+		assertm(0, "invalid TypeDesc kind:%d", desc->kind);
 	}
 
 	free(desc);
@@ -174,6 +185,7 @@ static void item_type_free(void *item, void *arg)
 
 int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr)
 {
+	//FIXME
 	int sz = 0;
 	TypeDesc *desc = NULL;
 	if (vec && Vector_Size(vec) != 0) {
@@ -188,7 +200,7 @@ int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr)
 	return sz;
 }
 
-TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec)
+TypeDesc *TypeDesc_From_Vectors(Vector *rvec, Vector *pvec)
 {
 	Proto *proto = malloc(sizeof(Proto));
 	int sz;
@@ -207,13 +219,6 @@ TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec)
 
 	Vector_Free(rvec, item_type_free, NULL);
 	Vector_Free(pvec, item_type_free, NULL);
-	return type;
-}
-
-TypeDesc *TypeDesc_From_PkgPath(char *path)
-{
-	TypeDesc *type = TypeDesc_New(TYPE_PKGPATH);
-	type->path = path;
 	return type;
 }
 
@@ -294,12 +299,6 @@ char *TypeDesc_ToString(TypeDesc *desc)
 			str[0] = '\0';
 			break;
 		}
-		case TYPE_PKGPATH: {
-			sz = strlen(desc->path) + 1;
-			str = malloc(sz);
-			strcpy(str, desc->path);
-			break;
-		}
 		default: {
 			assert(0);
 			break;
@@ -308,17 +307,37 @@ char *TypeDesc_ToString(TypeDesc *desc)
 	return str;
 }
 
-Proto *Proto_New(int rsz, char *rdesc, int psz, char *pdesc)
+int Init_Proto(Proto *proto, int rsz, char *rdesc, int psz, char *pdesc)
 {
-	Proto *proto = malloc(sizeof(Proto));
 	proto->rsz = rsz;
 	proto->rdesc = String_To_DescList(rsz, rdesc);
 	proto->psz = psz;
 	proto->pdesc = String_To_DescList(psz, pdesc);
+	return 0;
+}
+
+void Fini_Proto(Proto *proto)
+{
+	free(proto->pdesc);
+	proto->pdesc = NULL;
+	free(proto->rdesc);
+	proto->rdesc = NULL;
+}
+
+Proto *Proto_New(int rsz, char *rdesc, int psz, char *pdesc)
+{
+	Proto *proto = malloc(sizeof(Proto));
+	Init_Proto(proto, rsz, rdesc, psz, pdesc);
 	return proto;
 }
 
-int Proto_With_Vargs(Proto *proto)
+void Proto_Free(Proto *proto)
+{
+	Fini_Proto(proto);
+	free(proto);
+}
+
+int Proto_Has_Vargs(Proto *proto)
 {
 	if (proto->psz > 0) {
 		TypeDesc *desc = proto->pdesc + proto->psz - 1;
@@ -326,6 +345,12 @@ int Proto_With_Vargs(Proto *proto)
 	} else {
 		return 0;
 	}
+}
+
+Proto *Proto_Dup(Proto *proto)
+{
+	//FIXME:
+	return proto;
 }
 
 int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc)
@@ -441,12 +466,12 @@ TypeListItem *TypeListItem_New(int size, int32 index[])
 	return item;
 }
 
-VarItem *VarItem_New(int32 nameindex, int32 typeindex, int flags)
+VarItem *VarItem_New(int32 nameindex, int32 typeindex, int access)
 {
 	VarItem *item = malloc(sizeof(VarItem));
 	item->nameindex = nameindex;
 	item->typeindex = typeindex;
-	item->flags = flags;
+	item->access = access;
 	return item;
 }
 
@@ -920,10 +945,10 @@ int varitem_length(void *o)
 	return sizeof(VarItem);
 }
 
-static char *var_flags_tostring(int flags)
+static char *access_tostring(int access)
 {
 	char *str;
-	switch (flags) {
+	switch (access) {
 		case 0:
 			str = "var,public";
 			break;
@@ -937,7 +962,7 @@ static char *var_flags_tostring(int flags)
 			str = "const,private";
 			break;
 		default:
-			assertm(0, "invalid access %d\n", flags);
+			assertm(0, "invalid access %d\n", access);
 			str = "";
 			break;
 	}
@@ -963,7 +988,7 @@ void varitem_show(AtomTable *table, void *o)
 	} else {
 		printf("  (%c)\n", type->primitive);
 	}
-	printf("  flags:%s\n", var_flags_tostring(item->flags));
+	printf("  flags:%s\n", access_tostring(item->access));
 
 }
 
@@ -1355,18 +1380,17 @@ void KImage_Free(KImage *image)
 
 void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
 {
-	int flags = bconst ? VAR_FLAG_CONST : 0;
-	flags |= isupper(name[0]) ? VAR_FLAG_PUBLIC : VAR_FLAG_PRIVATE;
+	int access = SYMBOL_ACCESS(name, bconst);
 	int type_index = TypeItem_Set(image->table, desc);
 	int name_index = StringItem_Set(image->table, name);
-	VarItem *varitem = VarItem_New(name_index, type_index, flags);
+	VarItem *varitem = VarItem_New(name_index, type_index, access);
 	AtomTable_Append(image->table, ITEM_VAR, varitem, 0);
 }
 
 void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 										 uint8 *codes, int csz)
 {
-	int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+	int access = SYMBOL_ACCESS(name, 0);
 	int nameindex = StringItem_Set(image->table, name);
 	int protoindex = ProtoItem_Set(image->table, proto);
 	int codeindex = codeitem_set(image->table, codes, csz);

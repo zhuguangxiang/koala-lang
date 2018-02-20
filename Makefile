@@ -11,9 +11,9 @@ include $(TOPDIR)/config.mk
 ######################################
 
 KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c \
-atom.c symbol.c object.c stringobject.c tupleobject.c tableobject.c \
-moduleobject.c codeobject.c codeformat.c opcode.c routine.c thread.c \
-mod_io.c kstate.c
+atomtable.c codeblock.c symbol.c object.c stringobject.c tupleobject.c \
+tableobject.c moduleobject.c codeobject.c codeimage.c opcode.c \
+routine.c thread.c mod_io.c koalastate.c
 KOALA_LIB = koala
 
 KOALAC_FILES = koala_yacc.c koala_lex.c ast.c parser.c
@@ -80,8 +80,8 @@ testhashtable: lib
 	@$(CC) $(CFLAGS) test_hashtable.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testformat: lib
-	@$(CC) $(CFLAGS) test_codeformat.c -L. -l$(KOALA_LIB) -lrt
+testimage: lib
+	@$(CC) $(CFLAGS) test_codeimage.c -L. -l$(KOALA_LIB) -lrt
 	@./a.out
 
 testroutine: lib
@@ -111,7 +111,7 @@ test-0.5.3:
 	@$(KOALAC) test-0.5.3.kl
 	@$(KOALA) test-0.5.3.klc
 
-test: testbuf testloop testroutine testformat testhashtable testlist \
+test: testbuf testloop testroutine testimage testhashtable testlist \
 	testmodule testobject teststring testtuple testvector \
 	test-0.5.1 test-0.5.2 test-0.5.3
 	@echo "Test Down!"

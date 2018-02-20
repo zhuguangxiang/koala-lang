@@ -21,7 +21,11 @@ Object *CFunc_New(cfunc cf)
 
 void CodeObject_Free(Object *ob)
 {
-	OB_ASSERT_KLASS(ob, Code_Klass);
+	CodeObject *code = OB_TYPE_OF(ob, CodeObject, Code_Klass);
+	if (CODE_ISKFUNC(code)) {
+		//FIXME
+		//Proto_Free(code->kf.proto);
+	}
 	free(ob);
 }
 

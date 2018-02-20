@@ -3,7 +3,7 @@
 #include "moduleobject.h"
 #include "codeobject.h"
 #include "tupleobject.h"
-#include "kstate.h"
+#include "koalastate.h"
 #include "opcode.h"
 #include "log.h"
 
@@ -222,10 +222,10 @@ static inline uint8 fetch_code(Frame *frame, CodeObject *code)
 	return fetch_byte(frame, code);
 }
 
-static TValue index_const(int index, STable *stbl)
+static TValue index_const(int index, AtomTable *atbl)
 {
 	TValue res = NilValue;
-	ConstItem *k = AtomTable_Get(stbl->atbl, ITEM_CONST, index);
+	ConstItem *k = AtomTable_Get(atbl, ITEM_CONST, index);
 
 	switch (k->type) {
 		case CONST_INT: {
@@ -242,7 +242,7 @@ static TValue index_const(int index, STable *stbl)
 		}
 		case CONST_STRING: {
 			StringItem *item;
-			item = AtomTable_Get(stbl->atbl, ITEM_STRING, k->index);
+			item = AtomTable_Get(atbl, ITEM_STRING, k->index);
 			setcstrvalue(&res, item->data);
 			break;
 		}
@@ -313,7 +313,7 @@ static void frame_loop(Frame *frame)
 	int loopflag = 1;
 	Routine *rt = frame->rt;
 	CodeObject *code = (CodeObject *)frame->code;
-	STable *stbl = code->kf.stbl;
+	AtomTable *atbl = code->kf.atbl;
 
 	uint8 inst;
 	int32 index;
@@ -329,13 +329,13 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_LOADK: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, stbl);
+				val = index_const(index, atbl);
 				PUSH(&val);
 				break;
 			}
 			case OP_LOADM: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, stbl);
+				val = index_const(index, atbl);
 				char *path = VALUE_CSTR(&val);
 				debug("load module '%s'", path);
 				ob = Koala_Load_Module(path);
@@ -358,7 +358,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_GETFIELD: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, stbl);
+				val = index_const(index, atbl);
 				char *field = VALUE_CSTR(&val);
 				debug("getfield '%s'", field);
 				val = POP();
@@ -369,7 +369,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_SETFIELD: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, stbl);
+				val = index_const(index, atbl);
 				char *field = VALUE_CSTR(&val);
 				debug("setfield '%s'", field);
 				val = POP();
@@ -381,7 +381,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_CALL: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, stbl);
+				val = index_const(index, atbl);
 				char *name = VALUE_CSTR(&val);
 				debug("call %s()", name);
 				val = TOP();

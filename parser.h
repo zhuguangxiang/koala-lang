@@ -3,6 +3,7 @@
 #define _KOALA_PARSER_H_
 
 #include "ast.h"
+#include "codeblock.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,21 +19,6 @@ typedef struct error {
 	char *msg;
 	int line;
 } Error;
-
-typedef struct inst {
-	struct list_head link;
-	uint8 op;
-	TValue arg;
-} Inst;
-
-typedef struct codeblock {
-	char *name; /* for debugging */
-	struct list_head link;
-	STable stbl;
-	struct list_head insts;
-	 /* true if a OP_RET opcode is inserted. */
-	int bret;
-} CodeBlock;
 
 enum {
 	SCOPE_MODULE = 1,

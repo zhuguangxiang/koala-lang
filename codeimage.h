@@ -1,8 +1,8 @@
 
-#ifndef _KOALA_CODEFORMAT_H_
-#define _KOALA_CODEFORMAT_H_
+#ifndef _KOALA_CODEIMAGE_H_
+#define _KOALA_CODEIMAGE_H_
 
-#include "atom.h"
+#include "atomtable.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,16 +103,13 @@ ConstItem *ConstItem_String_New(int32 val);
 typedef struct var_item {
   int32 nameindex;  //->StringItem
   int32 typeindex;  //->TypeItem
-  int32 flags;      //access
-#define VAR_FLAG_PUBLIC   0
-#define VAR_FLAG_PRIVATE  1
-#define VAR_FLAG_CONST    2
+  int32 access;     //symbol access
 } VarItem;
 
 typedef struct func_item {
   int32 nameindex;  //->StringItem
   int32 protoindex; //->ProtoItem
-  int16 access;     //access
+  int16 access;     //symbol access
   int16 locvars;    //number of lcoal variables
   int32 codeindex;  //->CodeItem
 } FuncItem;
@@ -131,12 +128,9 @@ typedef struct kimage {
 
 /*-------------------------------------------------------------------------*/
 
-typedef struct proto Proto;
-
 #define TYPE_PRIMITIVE  1
 #define TYPE_USERDEF    2
 #define TYPE_PROTO      3
-#define TYPE_PKGPATH    4
 
 #define PRIMITIVE_INT     'i'
 #define PRIMITIVE_FLOAT   'f'
@@ -155,16 +149,16 @@ typedef struct typedesc {
       char *path;
       char *type;
     };
-    Proto *proto;
+    void *proto;
   };
 } TypeDesc;
 
-struct proto {
+typedef struct proto {
   int rsz;
   int psz;
   TypeDesc *rdesc;
   TypeDesc *pdesc;
-};
+} Proto;
 
 #define Init_Primitive_Desc(desc, d, p) do { \
   (desc)->dims = (d); (desc)->kind = TYPE_PRIMITIVE; \
@@ -178,16 +172,20 @@ TypeDesc *TypeDesc_New(int kind);
 void TypeDesc_Free(TypeDesc *desc);
 TypeDesc *TypeDesc_From_Primitive(int primitive);
 TypeDesc *TypeDesc_From_UserDef(char *path, char *type);
-TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec);
-TypeDesc *TypeDesc_From_PkgPath(char *path);
+TypeDesc *TypeDesc_From_Proto(Proto *proto);
+TypeDesc *TypeDesc_From_Vectors(Vector *rvec, Vector *pvec);
 int TypeDesc_Vec_To_Arr(Vector *vec, TypeDesc **arr);
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2);
 char *TypeDesc_ToString(TypeDesc *desc);
 void FullType_To_TypeDesc(char *fulltype, int len, TypeDesc *desc);
 Proto *Proto_New(int rsz, char *rdesc, int psz, char *pdesc);
-int Proto_With_Vargs(Proto *proto);
+void Proto_Free(Proto *proto);
+int Proto_Has_Vargs(Proto *proto);
 int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc);
 Proto *Proto_From_ProtoItem(ProtoItem *item, AtomTable *atbl);
+void Fini_Proto(Proto *proto);
+int Init_Proto(Proto *proto, int rsz, char *rdesc, int psz, char *pdesc);
+Proto *Proto_Dup(Proto *proto);
 
 /*-------------------------------------------------------------------------*/
 
@@ -253,4 +251,4 @@ void AtomTable_Show(AtomTable *table);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_CODEFORMAT_H_ */
+#endif /* _KOALA_CODEIMAGE_H_ */

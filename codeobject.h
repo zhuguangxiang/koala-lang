@@ -19,8 +19,8 @@ typedef struct codeobject {
 	union {
 		cfunc cf;
 		struct {
-			STable *stbl;
-			Proto *proto;
+			AtomTable *atbl;  /* for const access, not free it */
+			Proto *proto;     /* for runtime to check args */
 			int locvars;
 			int size;
 			uint8 *codes;

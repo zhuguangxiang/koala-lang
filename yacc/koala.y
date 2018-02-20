@@ -251,10 +251,10 @@ UserDefType
 
 FunctionType
   : FUNC '(' TypeNameListOrEmpty ')' ReturnTypeList {
-    $$ = TypeDesc_From_Proto($3, $5);
+    $$ = TypeDesc_From_Vectors($3, $5);
   }
   | FUNC '(' TypeNameListOrEmpty ')' {
-    $$ = TypeDesc_From_Proto($3, NULL);
+    $$ = TypeDesc_From_Vectors($3, NULL);
   }
   ;
 
@@ -678,7 +678,7 @@ ForStatement
     } else {
       struct var *v = Vector_Get($4, 0);
       assert(v);
-      v->type = $5;
+      v->desc = $5;
       Vector_Free($4, NULL, NULL);
       $$ = stmt_from_foreach(v, $7, $9, 1);
     }

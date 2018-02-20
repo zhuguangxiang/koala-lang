@@ -1,5 +1,5 @@
 
-#include "atom.h"
+#include "atomtable.h"
 
 AtomTable *AtomTable_New(HashInfo *hashinfo, int size)
 {
@@ -83,10 +83,9 @@ int AtomTable_Append(AtomTable *table, int type, void *data, int unique)
 	return index;
 }
 
-#define ATOM_ENTRY_INIT(t, i, d)  {.type = (t), .index = (i), .data = (d)}
-
 int AtomTable_Index(AtomTable *table, int type, void *data)
 {
+	#define ATOM_ENTRY_INIT(t, i, d) {.type = (t), .index = (i), .data = (d)}
 	AtomEntry e = ATOM_ENTRY_INIT(type, 0, data);
 	HashNode *hnode = HashTable_Find(&table->table, &e);
 	if (!hnode) return -1;

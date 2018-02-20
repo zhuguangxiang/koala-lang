@@ -20,7 +20,7 @@ struct expr *expr_from_id(char *id)
 struct expr *expr_from_int(int64 ival)
 {
 	struct expr *expr = expr_new(INT_KIND);
-	expr->type = TypeDesc_From_Primitive(PRIMITIVE_INT);
+	expr->desc = TypeDesc_From_Primitive(PRIMITIVE_INT);
 	expr->ival = ival;
 	return expr;
 }
@@ -28,7 +28,7 @@ struct expr *expr_from_int(int64 ival)
 struct expr *expr_from_float(float64 fval)
 {
 	struct expr *expr = expr_new(FLOAT_KIND);
-	expr->type = TypeDesc_From_Primitive(PRIMITIVE_FLOAT);
+	expr->desc = TypeDesc_From_Primitive(PRIMITIVE_FLOAT);
 	expr->fval = fval;
 	return expr;
 }
@@ -36,7 +36,7 @@ struct expr *expr_from_float(float64 fval)
 struct expr *expr_from_string(char *str)
 {
 	struct expr *expr = expr_new(STRING_KIND);
-	expr->type = TypeDesc_From_Primitive(PRIMITIVE_STRING);
+	expr->desc = TypeDesc_From_Primitive(PRIMITIVE_STRING);
 	expr->str = str;
 	return expr;
 }
@@ -44,7 +44,7 @@ struct expr *expr_from_string(char *str)
 struct expr *expr_from_bool(int bval)
 {
 	struct expr *expr = expr_new(BOOL_KIND);
-	expr->type = TypeDesc_From_Primitive(PRIMITIVE_BOOL);
+	expr->desc = TypeDesc_From_Primitive(PRIMITIVE_BOOL);
 	expr->bval = bval;
 	return expr;
 }
@@ -52,14 +52,14 @@ struct expr *expr_from_bool(int bval)
 struct expr *expr_from_self(void)
 {
 	struct expr *expr = expr_new(SELF_KIND);
-	expr->type = NULL;
+	expr->desc = NULL;
 	return expr;
 }
 
 struct expr *expr_from_expr(struct expr *exp)
 {
 	struct expr *expr = expr_new(EXP_KIND);
-	expr->type = NULL;
+	expr->desc = NULL;
 	expr->exp  = exp;
 	return expr;
 }
@@ -67,14 +67,14 @@ struct expr *expr_from_expr(struct expr *exp)
 struct expr *expr_from_nil(void)
 {
 	struct expr *expr = expr_new(NIL_KIND);
-	expr->type = NULL;
+	expr->desc = NULL;
 	return expr;
 }
 
-struct expr *expr_from_array(TypeDesc *type, Vector *dseq, Vector *tseq)
+struct expr *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq)
 {
 	struct expr *expr = expr_new(ARRAY_KIND);
-	expr->type = type;
+	expr->desc = desc;
 	expr->array.dseq = dseq;
 	expr->array.tseq = tseq;
 	return expr;
@@ -128,7 +128,7 @@ struct expr *expr_from_binary(enum binary_op_kind kind,
 															struct expr *left, struct expr *right)
 {
 	struct expr *exp = expr_new(BINARY_KIND);
-	exp->type = left->type;
+	exp->desc = left->desc;
 	exp->binary.left = left;
 	exp->binary.op = kind;
 	exp->binary.right = right;
@@ -138,7 +138,7 @@ struct expr *expr_from_binary(enum binary_op_kind kind,
 struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr)
 {
 	struct expr *exp = expr_new(UNARY_KIND);
-	exp->type = expr->type;
+	exp->desc = expr->desc;
 	exp->unary.op = kind;
 	exp->unary.operand = expr;
 	return exp;
@@ -181,7 +181,7 @@ struct stmt *stmt_from_import(char *id, char *path)
 }
 
 struct stmt *stmt_from_vardecl(Vector *vars, Vector *exps,
-															 TypeDesc *type, int konst)
+															 TypeDesc *desc, int bconst)
 {
 	int vsz = Vector_Size(vars);
 	int esz = (exps != NULL) ? Vector_Size(exps) : 0;
@@ -196,8 +196,8 @@ struct stmt *stmt_from_vardecl(Vector *vars, Vector *exps,
 	Vector *vec = NULL;
 	for (int i = 0; i < vsz; i++) {
 		var = Vector_Get(vars, i);
-		var->konst = konst;
-		var->type  = type;
+		var->bconst = bconst;
+		var->desc = desc;
 		stmt = stmt_new(VARDECL_KIND);
 		stmt->vardecl.var = var;
 
@@ -205,18 +205,18 @@ struct stmt *stmt_from_vardecl(Vector *vars, Vector *exps,
 			rexp = Vector_Get(exps, i);
 			stmt->vardecl.exp = rexp;
 
-			if (var->type && rexp->type) {
-				if (TypeDesc_Check(var->type, rexp->type)) {
+			if (var->desc && rexp->desc) {
+				if (TypeDesc_Check(var->desc, rexp->desc)) {
 					error("type check failed");
 					vec_stmt_free(vec);
 					return NULL;
 				}
 			}
 
-			if (!var->type) var->type = rexp->type;
+			if (!var->desc) var->desc = rexp->desc;
 		}
 
-		if (!var->type) warn("'%s' type isnot set", var->id);
+		if (!var->desc) warn("'%s' type isnot set", var->id);
 
 		if (vsz > 1) {
 			if (vec) Vector_Append(vec, stmt);
@@ -255,8 +255,8 @@ struct stmt *stmt_from_assign(Vector *left, Vector *right)
 	for (int i = 0; i < vsz; i++) {
 		lexp = Vector_Get(left, i);
 		rexp = Vector_Get(right, i);
-		if ((lexp->type != NULL) && (rexp->type != NULL)) {
-			if (TypeDesc_Check(lexp->type, rexp->type)) {
+		if ((lexp->desc != NULL) && (rexp->desc != NULL)) {
+			if (TypeDesc_Check(lexp->desc, rexp->desc)) {
 				error("type check failed");
 				vec_stmt_free(vec);
 				return NULL;
@@ -389,11 +389,11 @@ struct stmt *stmt_from_go(struct expr *expr)
 	return stmt;
 }
 
-struct var *new_var(char *id, TypeDesc *type)
+struct var *new_var(char *id, TypeDesc *desc)
 {
 	struct var *v = calloc(1, sizeof(struct var));
 	v->id = id;
-	v->type = type;
+	v->desc = desc;
 	return v;
 }
 
@@ -424,10 +424,10 @@ void vec_stmt_fini(Vector *stmts)
 
 /*--------------------------------------------------------------------------*/
 
-void type_traverse(TypeDesc *type)
+void type_traverse(TypeDesc *desc)
 {
-	if (type != NULL) {
-		printf("type kind & dims: %d:%d\n", type->kind, type->dims);
+	if (desc != NULL) {
+		printf("type kind & dims: %d:%d\n", desc->kind, desc->dims);
 	} else {
 		printf("no type declared\n");
 	}
@@ -435,7 +435,7 @@ void type_traverse(TypeDesc *type)
 
 void array_traverse(struct expr *expr)
 {
-	type_traverse(expr->type);
+	type_traverse(expr->desc);
 	if (expr->array.tseq != NULL) {
 		printf("array init's list, length:%d\n", Vector_Size(expr->array.tseq));
 		for (int i = 0; i < Vector_Size(expr->array.tseq); i++) {
@@ -555,7 +555,7 @@ void vardecl_traverse(struct stmt *stmt)
 {
 	printf("variable:\n");
 	struct var *var = stmt->vardecl.var;
-	printf("%s %s ", var->id, var->konst ? "const":"");
+	printf("%s %s ", var->id, var->bconst ? "const":"");
 	putchar('\n');
 
 	printf("initializer:\n");
@@ -579,7 +579,7 @@ void func_traverse(struct stmt *stmt)
 	if (vec != NULL) {
 		for (int i = 0; i < Vector_Size(vec); i++) {
 			var = Vector_Get(vec, i);
-			typestr = TypeDesc_ToString(var->type);
+			typestr = TypeDesc_ToString(var->desc);
 			printf(" %s %s", var->id, typestr);
 			free(typestr);
 			if (i + 1 != Vector_Size(vec))
@@ -591,10 +591,10 @@ void func_traverse(struct stmt *stmt)
 	vec = stmt->funcdecl.rvec;
 	printf("returns:");
 	if (vec != NULL) {
-		TypeDesc *t;
-		Vector_ForEach(t, vec) {
-			t = Vector_Get(vec, i);
-			printf(" %s", TypeDesc_ToString(t));
+		TypeDesc *d;
+		Vector_ForEach(d, vec) {
+			d = Vector_Get(vec, i);
+			printf(" %s", TypeDesc_ToString(d));
 			if (i + 1 != Vector_Size(vec))
 				printf(",");
 		}

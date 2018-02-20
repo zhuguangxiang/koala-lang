@@ -13,9 +13,8 @@ Object *init_test_module(void)
 	 * io.Print("-123 + 456 = ", result);
 	 */
 	Object *module = Koala_New_Module("test", "/");
-	TypeDesc desc;
-	Init_Primitive_Desc(&desc, 0, PRIMITIVE_INT);
-	Module_Add_Var(module, "result", &desc, 0);
+	TypeDesc *desc = TypeDesc_From_Primitive(PRIMITIVE_INT);
+	Module_Add_Var(module, "result", desc, 0);
 
 	AtomTable *atbl = Module_AtomTable(module);
 

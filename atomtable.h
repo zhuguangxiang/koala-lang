@@ -1,6 +1,6 @@
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#ifndef _KOALA_ATOMTABLE_H_
+#define _KOALA_ATOMTABLE_H_
 
 #include "hashtable.h"
 #include "vector.h"
@@ -35,4 +35,4 @@ int AtomTable_Size(AtomTable *table, int type);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_ATOM_H_ */
+#endif /* _KOALA_ATOMTABLE_H_ */

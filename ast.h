@@ -41,7 +41,7 @@ enum expr_ctx {
 
 struct expr {
 	enum expr_kind kind;
-	TypeDesc *type;
+	TypeDesc *desc;
 	enum expr_ctx ctx;
 	Symbol *sym;
 	union {
@@ -98,7 +98,7 @@ struct expr *expr_from_bool(int bval);
 struct expr *expr_from_self(void);
 struct expr *expr_from_expr(struct expr *exp);
 struct expr *expr_from_nil(void);
-struct expr *expr_from_array(TypeDesc *type, Vector *dseq, Vector *tseq);
+struct expr *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq);
 struct expr *expr_from_array_with_tseq(Vector *tseq);
 struct expr *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body);
 struct expr *expr_from_binary(enum binary_op_kind kind,
@@ -111,11 +111,11 @@ void expr_traverse(struct expr *exp);
 
 struct var {
 	char *id;
-	int konst;
-	TypeDesc *type;
+	int bconst;
+	TypeDesc *desc;
 };
 
-struct var *new_var(char *id, TypeDesc *type);
+struct var *new_var(char *id, TypeDesc *desc);
 void free_var(struct var *v);
 
 /*-------------------------------------------------------------------------*/
@@ -176,7 +176,7 @@ struct stmt {
 		} structure;
 		struct {
 			char *id;
-			TypeDesc *type;
+			TypeDesc *desc;
 		} user_typedef;
 		struct {
 			struct test_block *if_part;
@@ -213,7 +213,7 @@ struct stmt {
 struct stmt *stmt_from_expr(struct expr *exp);
 struct stmt *stmt_from_import(char *id, char *path);
 struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
-															 TypeDesc *type, int konst);
+															 TypeDesc *desc, int bconst);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
 																Vector *body);
 struct stmt *stmt_from_assign(Vector *left, Vector *right);

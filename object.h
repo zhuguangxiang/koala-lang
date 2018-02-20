@@ -147,6 +147,7 @@ typedef Object *(*strfunc)(TValue *v);
 struct klass {
 	OBJECT_HEAD
 	char *name;
+	int dynamic;
 	int bsize;
 	int isize;
 

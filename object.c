@@ -160,7 +160,8 @@ Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
 	Klass *klazz = calloc(1, sizeof(Klass));
 	memset(klazz, 0, sizeof(Klass));
 	init_object_head(klazz, parent);
-	klazz->name  = name;
+	klazz->name = name;
+	klazz->dynamic = 1;
 	klazz->bsize = bsize;
 	klazz->isize = isize;
 	return klazz;
@@ -183,7 +184,12 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 	OB_ASSERT_KLASS(klazz, Klass_Klass);
 	Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
 	if (sym) {
-		sym->code = code;
+		sym->ob = code;
+		if (CODE_ISKFUNC(code)) {
+			CodeObject *co = (CodeObject *)code;
+			co->kf.atbl = klazz->stbl.atbl;
+			co->kf.proto = Proto_Dup(proto);
+		}
 		return 0;
 	}
 	return -1;
@@ -194,8 +200,8 @@ Object *Klass_Get_Method(Klass *klazz, char *name)
 	Symbol *sym = STbl_Get(&klazz->stbl, name);
 	if (!sym) return NULL;
 	if (sym->kind != SYM_PROTO) return NULL;
-	OB_ASSERT_KLASS(sym->code, Code_Klass);
-	return sym->code;
+	OB_ASSERT_KLASS(sym->ob, Code_Klass);
+	return sym->ob;
 }
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)

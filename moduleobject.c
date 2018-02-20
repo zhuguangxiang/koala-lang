@@ -36,11 +36,11 @@ int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	Symbol *sym = STbl_Add_Proto(&m->stbl, name, proto);
 	if (sym) {
-		sym->code = code;
+		sym->ob = code;
 		if (CODE_ISKFUNC(code)) {
-			CodeObject *co = OB_TYPE_OF(code, CodeObject, Code_Klass);
-			co->kf.stbl = &m->stbl;
-			co->kf.proto = proto;
+			CodeObject *co = (CodeObject *)code;
+			co->kf.atbl = m->stbl.atbl;
+			co->kf.proto = Proto_Dup(proto);
 		}
 		return 0;
 	}
@@ -59,7 +59,7 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	Symbol *sym = STbl_Add_Class(&m->stbl, klazz->name);
 	if (sym) {
-		sym->klazz = klazz;
+		sym->ob = klazz;
 		STbl_Init(&klazz->stbl, Module_AtomTable(m));
 		return 0;
 	}
@@ -71,7 +71,7 @@ int Module_Add_Interface(Object *ob, Klass *klazz)
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	Symbol *sym = STbl_Add_Intf(&m->stbl, klazz->name);
 	if (sym) {
-		sym->klazz = klazz;
+		sym->ob = klazz;
 		STbl_Init(&klazz->stbl, Module_AtomTable(m));
 		return 0;
 	}
@@ -132,7 +132,7 @@ static void init_mod_var(Symbol *sym, void *arg)
 static Object *__get_tuple(ModuleObject *m)
 {
 	if (!m->tuple) {
-		m->tuple = Tuple_New(m->stbl.next);
+		m->tuple = Tuple_New(m->stbl.varcnt);
 		//STbl_Traverse(&mob->stbl, init_mod_var, mob);
 	}
 	return m->tuple;
@@ -143,7 +143,7 @@ TValue Module_Get_Value(Object *ob, char *name)
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	int index = __get_value_index(m, name);
 	if (index < 0) return NilValue;
-	assert(index < m->stbl.next);
+	assert(index < m->stbl.varcnt);
 	return Tuple_Get(__get_tuple(m), index);
 }
 
@@ -151,7 +151,7 @@ int Module_Set_Value(Object *ob, char *name, TValue *val)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	int index = __get_value_index(m, name);
-	assert(index >= 0 && index < m->stbl.next);
+	assert(index >= 0 && index < m->stbl.varcnt);
 	return Tuple_Set(__get_tuple(m), index, val);
 }
 
@@ -161,7 +161,7 @@ Object *Module_Get_Function(Object *ob, char *name)
 	Symbol *sym = STbl_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_PROTO) {
-			return sym->code;
+			return sym->ob;
 		} else {
 			error("symbol is not a function");
 		}
@@ -176,7 +176,7 @@ Klass *Module_Get_Class(Object *ob, char *name)
 	Symbol *sym = STbl_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_CLASS) {
-			return sym->klazz;
+			return sym->ob;
 		} else {
 			error("symbol is not a class");
 		}
@@ -190,23 +190,9 @@ Klass *Module_Get_Intf(Object *ob, char *name)
 	Symbol *sym = STbl_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_INTF) {
-			return sym->klazz;
+			return sym->ob;
 		} else {
 			error("symbol is not a interface");
-		}
-	}
-	return NULL;
-}
-
-Klass *Module_Get_Klass(Object *ob, char *name)
-{
-	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Get(&m->stbl, name);
-	if (sym) {
-		if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
-			return sym->klazz;
-		} else {
-			error("symbol is not a class");
 		}
 	}
 	return NULL;
@@ -227,17 +213,19 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
 static void mod_to_stbl(Symbol *sym, void *arg)
 {
 	STable *stbl = arg;
-	Symbol *tmp;
+
 	if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
-		tmp = STbl_Add_Symbol(stbl, sym->str, SYM_STABLE, 0);
-		tmp->stbl = STbl_New(stbl->atbl);
-		STbl_Traverse(Klass_STable(sym->klazz), mod_to_stbl, tmp->stbl);
+		Symbol *s = STbl_Add_Symbol(stbl, sym->name, SYM_STABLE, 0);
+		s->ptr = STbl_New(stbl->atbl);
+		STbl_Traverse(Klass_STable(sym->ob), mod_to_stbl, s->ptr);
 	} else if (sym->kind == SYM_VAR) {
-		STbl_Add_Var(stbl, sym->str, sym->type, sym->konst);
+		STbl_Add_Var(stbl, sym->name, sym->desc, sym->access & ACCESS_CONST);
 	} else if (sym->kind == SYM_PROTO) {
-		STbl_Add_Proto(stbl, sym->str, sym->type->proto);
+		//FIXME
+		STbl_Add_Proto(stbl, sym->name, sym->desc->proto);
 	} else if (sym->kind == SYM_IPROTO) {
-		STbl_Add_IProto(stbl, sym->str, sym->type->proto);
+		//FIXME
+		STbl_Add_IProto(stbl, sym->name, sym->desc->proto);
 	} else {
 		assert(0);
 	}
@@ -299,7 +287,7 @@ Object *Module_From_Image(KImage *image)
 		type = TypeItem_Index(table, var->typeindex);
 		desc = TypeDesc_New(0);
 		TypeItem_To_Desc(table, type, desc);
-		Module_Add_Var(m, name->data, desc, var->flags & VAR_FLAG_CONST);
+		Module_Add_Var(m, name->data, desc, var->access & ACCESS_CONST);
 	}
 
 	//load functions

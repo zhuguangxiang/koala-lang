@@ -1,5 +1,5 @@
 
-#include "kstate.h"
+#include "koalastate.h"
 #include "moduleobject.h"
 #include "stringobject.h"
 #include "tupleobject.h"
@@ -139,14 +139,6 @@ static void Init_Lang_Module(void)
 	Init_Table_Klass();
 }
 
-static void Fini_Lang_Module(void)
-{
-	Fini_Klass(&Table_Klass);
-	Fini_Klass(&Tuple_Klass);
-	Fini_Klass(&String_Klass);
-	Fini_Klass(&Klass_Klass);
-}
-
 static void Init_Modules(void)
 {
 	HashInfo hashinfo;
@@ -171,6 +163,5 @@ void Koala_Init(void)
 
 void Koala_Fini(void)
 {
-	Fini_Lang_Module();
 	HashTable_Fini(&gs.modules, mod_entry_fini, NULL);
 }

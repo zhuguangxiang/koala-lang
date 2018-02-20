@@ -1,8 +1,9 @@
 
-#include "symbol.h"
+#include "object.h"
 #include "codeobject.h"
 #include "hash.h"
 #include "log.h"
+#include "codeblock.h"
 
 static Symbol *symbol_new(void)
 {
@@ -13,29 +14,42 @@ static Symbol *symbol_new(void)
 
 static void symbol_free(Symbol *sym)
 {
-	if (sym->kind == SYM_STABLE) {
-		STbl_Free(sym->stbl);
+	if (sym->kind == SYM_VAR) {
+		//FIXME:share with struct var
+		//TypeDesc_Free(sym->desc);
 	} else if (sym->kind == SYM_PROTO) {
-		TypeDesc_Free(sym->type);
+		TypeDesc_Free(sym->desc);
+		if (sym->ob) CodeObject_Free(sym->ob);
+		if (sym->ptr) CodeBlock_Free(sym->ptr);
+	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
+		Klass *klazz = sym->ob;
+		if (klazz->dynamic) {
+			//Klass_Free(klazz);
+		} else {
+			Fini_Klass(klazz);
+		}
+	} else if (sym->kind == SYM_STABLE) {
+		STbl_Free(sym->ptr);
+		free(sym->path);
+	} else {
+		assert(0);
 	}
 
-	if (sym->code) CodeObject_Free(sym->code);
-	//if (sym->block) CodeBlock_Free(sym->block);
-
+	free(sym->name);
 	free(sym);
 }
 
 static uint32 symbol_hash(void *k)
 {
 	Symbol *s = k;
-	return hash_uint32(s->name, 0);
+	return hash_uint32(s->nameidx, 0);
 }
 
 static int symbol_equal(void *k1, void *k2)
 {
 	Symbol *s1 = k1;
 	Symbol *s2 = k2;
-	return s1->name == s2->name;
+	return s1->nameidx == s2->nameidx;
 }
 
 static void ht_symbol_free(HashNode *hnode, void *arg)
@@ -44,9 +58,6 @@ static void ht_symbol_free(HashNode *hnode, void *arg)
 	Symbol *sym = container_of(hnode, Symbol, hnode);
 	symbol_free(sym);
 }
-
-#define SYMBOL_ACCESS(name) \
-	(isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE)
 
 /*-------------------------------------------------------------------------*/
 
@@ -73,7 +84,7 @@ int STbl_Init(STable *stbl, AtomTable *atbl)
 		stbl->flag = 0;
 	}
 	//FIXME: start from 1st position, because position-0 is for object
-	stbl->next = 1;
+	stbl->varcnt = 1;
 	return 0;
 }
 
@@ -83,7 +94,7 @@ void STbl_Fini(STable *stbl)
 	stbl->htbl = NULL;
 	if (stbl->flag) AtomTable_Free(stbl->atbl, item_free, NULL);
 	stbl->atbl = NULL;
-	stbl->next = 1;
+	stbl->varcnt = 1;
 }
 
 STable *STbl_New(AtomTable *atbl)
@@ -99,32 +110,30 @@ void STbl_Free(STable *stbl)
 	free(stbl);
 }
 
-Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, bool konst)
+/*-------------------------------------------------------------------------*/
+
+Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
 {
-	Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_VAR, konst);
+	Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_VAR, bconst);
 	if (!sym) return NULL;
 
-	idx_t idx = -1;
+	int32 idx = -1;
 	if (desc) {
 		idx = TypeItem_Set(stbl->atbl, desc);
 		assert(idx >= 0);
 	}
-	sym->desc  = idx;
-	sym->type  = desc;
-	sym->index = stbl->next++;
+	sym->descidx = idx;
+	sym->desc = desc;
+	sym->index = stbl->varcnt++;
 	return sym;
 }
 
 int STbl_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc)
 {
-	idx_t idx = -1;
-	if (desc) {
-		idx = TypeItem_Set(stbl->atbl, desc);
-		assert(idx >= 0);
-	}
-
-	sym->desc = idx;
-	sym->type = desc;
+	int32 idx = TypeItem_Set(stbl->atbl, desc);
+	assert(idx >= 0);
+	sym->descidx = idx;
+	sym->desc = desc;
 	return 0;
 }
 
@@ -133,51 +142,34 @@ Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto)
 	Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_PROTO, 0);
 	if (!sym) return NULL;
 
-	idx_t idx = ProtoItem_Set(stbl->atbl, proto);
+	int32 idx = ProtoItem_Set(stbl->atbl, proto);
 	assert(idx >= 0);
-	sym->desc = idx;
-	TypeDesc *type = TypeDesc_New(TYPE_PROTO);
-	type->proto = proto;
-	sym->type = type;
+	sym->descidx = idx;
+	sym->desc = TypeDesc_From_Proto(proto);
 	return sym;
 }
 
-Symbol *STbl_Add_IProto(STable *stbl, char *name, Proto *proto)
-{
-	Symbol *sym = STbl_Add_Proto(stbl, name, proto);
-	if (!sym) return NULL;
-	sym->kind = SYM_IPROTO;
-	return sym;
-}
-
-Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, bool konst)
+Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
 {
 	Symbol *sym = symbol_new();
-	idx_t idx = StringItem_Set(stbl->atbl, name);
+	int32 idx = StringItem_Set(stbl->atbl, name);
 	assert(idx >= 0);
-	sym->name = idx;
+	sym->nameidx = idx;
+	sym->kind = kind;
+	sym->access = SYMBOL_ACCESS(name, bconst);
 	if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
 		symbol_free(sym);
 		return NULL;
 	}
-	sym->kind = kind;
-	sym->konst = konst;
-	sym->access = SYMBOL_ACCESS(name);
-	sym->str = name;
+	sym->name = strdup(name);
 	return sym;
-}
-
-void STbl_Delete(STable *stbl, Symbol *sym)
-{
-	HashTable_Remove(__get_hashtable(stbl), &sym->hnode);
-	symbol_free(sym);
 }
 
 Symbol *STbl_Get(STable *stbl, char *name)
 {
-	idx_t index = StringItem_Get(stbl->atbl, name);
+	int32 index = StringItem_Get(stbl->atbl, name);
 	if (index < 0) return NULL;
-	Symbol sym = {.name = index};
+	Symbol sym = {.nameidx = index};
 	HashNode *hnode = HashTable_Find(__get_hashtable(stbl), &sym);
 	if (hnode) {
 		return container_of(hnode, Symbol, hnode);
@@ -208,9 +200,9 @@ void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg)
 
 /*-------------------------------------------------------------------------*/
 
-static void desc_show(TypeDesc *type)
+static void desc_show(TypeDesc *desc)
 {
-	char *str = TypeDesc_ToString(type);
+	char *str = TypeDesc_ToString(desc);
 	printf("%s", str);
 	free(str);
 }
@@ -222,24 +214,25 @@ static void symbol_show(HashNode *hnode, void *arg)
 	switch (sym->kind) {
 		case SYM_VAR: {
 			/* show's format: "type name desc;" */
-			printf("%s %s ", sym->konst ? "const":"var", sym->str);
-			desc_show(sym->type);
+			printf("%s %s ", sym->access & ACCESS_CONST ? "const":"var", sym->name);
+			desc_show(sym->desc);
 			puts(";"); /* with newline */
 			break;
 		}
 		case SYM_PROTO: {
 			/* show's format: "func name args rets;" */
-			printf("func %s", sym->str);
-			desc_show(sym->type);
+			printf("func %s", sym->name);
+			//FIXME
+			//proto_show(sym->proto);
 			puts(""); /* with newline */
 			break;
 		}
 		case SYM_CLASS: {
-			printf("class %s;\n", sym->str);
+			printf("class %s;\n", sym->name);
 			break;
 		}
 		case SYM_INTF: {
-			printf("interface %s;\n", sym->str);
+			printf("interface %s;\n", sym->name);
 			break;
 		}
 		default: {
