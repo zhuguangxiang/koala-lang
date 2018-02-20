@@ -26,7 +26,7 @@ KOALA  = koala
 ##@$(CC) -c $(CFLAGS) $(KOALA_LIB_FILES)
 ##@$(AR) -rc lib$(KOALA_LIB).a $(patsubst %.c, %.o, $(KOALA_LIB_FILES))
 
-all:
+all: lib koalac koala test
 
 lib:
 	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALA_LIB).so $(KOALA_LIB_FILES) \
@@ -106,6 +106,18 @@ test-0.5.2:
 	@$(KOALAC) test-0.5.2.kl
 	@$(KOALA) test-0.5.2.klc
 
+test-0.5.3:
+	@$(RM) test-0.5.3.klc
+	@$(KOALAC) test-0.5.3.kl
+	@$(KOALA) test-0.5.3.klc
+
 test: testbuf testloop testroutine testformat testhashtable testlist \
-	testmodule testobject teststring testtuple testvector test-0.5.1 test-0.5.2
+	testmodule testobject teststring testtuple testvector \
+	test-0.5.1 test-0.5.2 test-0.5.3
 	@echo "Test Down!"
+
+.PHONY: test
+.PHONY: lib
+.PHONY: koalac
+.PHONY: koala
+.PHONY: all
