@@ -1,7 +1,11 @@
 
 #include "routine.h"
-#include "koala.h"
+#include "moduleobject.h"
+#include "codeobject.h"
+#include "tupleobject.h"
+#include "kstate.h"
 #include "opcode.h"
+#include "log.h"
 
 #define TOP()   rt_stack_top(rt)
 #define POP()   rt_stack_pop(rt)

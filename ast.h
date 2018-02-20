@@ -2,10 +2,7 @@
 #ifndef _KOALA_AST_H_
 #define _KOALA_AST_H_
 
-#include "common.h"
-#include "list.h"
-#include "vector.h"
-#include "symbol.h"
+#include "koala.h"
 
 #ifdef __cplusplus
 extern "C" {

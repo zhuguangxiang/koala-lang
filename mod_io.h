@@ -2,8 +2,6 @@
 #ifndef _KOALA_IO_H_
 #define _KOALA_IO_H_
 
-#include "koala.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

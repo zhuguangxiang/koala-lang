@@ -1,5 +1,7 @@
 
-#include "mod_io.h"
+#include "moduleobject.h"
+#include "tupleobject.h"
+#include "kstate.h"
 
 static Object *__io_print(Object *ob, Object *args)
 {

@@ -3,8 +3,6 @@
 #define _KOALA_PARSER_H_
 
 #include "ast.h"
-#include "hashtable.h"
-#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {

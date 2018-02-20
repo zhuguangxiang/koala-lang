@@ -2,7 +2,6 @@
 #ifndef _KOALA_TABLEOBJECT_H_
 #define _KOALA_TABLEOBJECT_H_
 
-#include "hashtable.h"
 #include "object.h"
 
 #ifdef __cplusplus

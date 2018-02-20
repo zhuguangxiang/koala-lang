@@ -1,7 +1,5 @@
 
-#include "ast.h"
-#include "codeformat.h"
-#include "log.h"
+#include "parser.h"
 
 /*-------------------------------------------------------------------------*/
 

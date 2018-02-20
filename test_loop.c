@@ -1,6 +1,5 @@
 
 #include "koala.h"
-#include "opcode.h"
 
 Object *init_test_module(void)
 {

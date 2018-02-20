@@ -1,43 +1,45 @@
 
-#include "koala.h"
+#include "moduleobject.h"
+#include "tupleobject.h"
+#include "log.h"
 
 /*-------------------------------------------------------------------------*/
 
 Object *Module_New(char *name, AtomTable *atbl)
 {
-	ModuleObject *ob = malloc(sizeof(ModuleObject));
-	init_object_head(ob, &Module_Klass);
-	ob->name = strdup(name);
-	STbl_Init(&ob->stbl, atbl);
-	ob->tuple = NULL;
-	return (Object *)ob;
+	ModuleObject *m = malloc(sizeof(ModuleObject));
+	init_object_head(m, &Module_Klass);
+	m->name = strdup(name);
+	STbl_Init(&m->stbl, atbl);
+	m->tuple = NULL;
+	return (Object *)m;
 }
 
 void Module_Free(Object *ob)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	free(mob->name);
-	if (mob->tuple) Tuple_Free(mob->tuple);
-	STbl_Fini(&mob->stbl);
-	free(ob);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	free(m->name);
+	if (m->tuple) Tuple_Free(m->tuple);
+	STbl_Fini(&m->stbl);
+	free(m);
 }
 
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Add_Var(&mob->stbl, name, desc, bconst);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STbl_Add_Var(&m->stbl, name, desc, bconst);
 	return sym ? 0 : -1;
 }
 
 int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Add_Proto(&mob->stbl, name, proto);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STbl_Add_Proto(&m->stbl, name, proto);
 	if (sym) {
 		sym->code = code;
 		if (CODE_ISKFUNC(code)) {
 			CodeObject *co = OB_TYPE_OF(code, CodeObject, Code_Klass);
-			co->kf.stbl = &mob->stbl;
+			co->kf.stbl = &m->stbl;
 			co->kf.proto = proto;
 		}
 		return 0;
@@ -54,11 +56,11 @@ int Module_Add_CFunc(Object *ob, FuncDef *f)
 
 int Module_Add_Class(Object *ob, Klass *klazz)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Add_Class(&mob->stbl, klazz->name);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STbl_Add_Class(&m->stbl, klazz->name);
 	if (sym) {
 		sym->klazz = klazz;
-		STbl_Init(&klazz->stbl, Module_AtomTable(mob));
+		STbl_Init(&klazz->stbl, Module_AtomTable(m));
 		return 0;
 	}
 	return -1;
@@ -66,19 +68,19 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 
 int Module_Add_Interface(Object *ob, Klass *klazz)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Add_Intf(&mob->stbl, klazz->name);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STbl_Add_Intf(&m->stbl, klazz->name);
 	if (sym) {
 		sym->klazz = klazz;
-		STbl_Init(&klazz->stbl, Module_AtomTable(mob));
+		STbl_Init(&klazz->stbl, Module_AtomTable(m));
 		return 0;
 	}
 	return -1;
 }
 
-static int __get_value_index(ModuleObject *mob, char *name)
+static int __get_value_index(ModuleObject *m, char *name)
 {
-	Symbol *sym = STbl_Get(&mob->stbl, name);
+	Symbol *sym = STbl_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_VAR) {
 			return sym->index;
@@ -127,36 +129,36 @@ static void init_mod_var(Symbol *sym, void *arg)
 
 #endif
 
-static Object *__get_tuple(ModuleObject *mob)
+static Object *__get_tuple(ModuleObject *m)
 {
-	if (!mob->tuple) {
-		mob->tuple = Tuple_New(mob->stbl.next);
+	if (!m->tuple) {
+		m->tuple = Tuple_New(m->stbl.next);
 		//STbl_Traverse(&mob->stbl, init_mod_var, mob);
 	}
-	return mob->tuple;
+	return m->tuple;
 }
 
 TValue Module_Get_Value(Object *ob, char *name)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	int index = __get_value_index(mob, name);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	int index = __get_value_index(m, name);
 	if (index < 0) return NilValue;
-	assert(index < mob->stbl.next);
-	return Tuple_Get(__get_tuple(mob), index);
+	assert(index < m->stbl.next);
+	return Tuple_Get(__get_tuple(m), index);
 }
 
 int Module_Set_Value(Object *ob, char *name, TValue *val)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	int index = __get_value_index(mob, name);
-	assert(index >= 0 && index < mob->stbl.next);
-	return Tuple_Set(__get_tuple(mob), index, val);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	int index = __get_value_index(m, name);
+	assert(index >= 0 && index < m->stbl.next);
+	return Tuple_Set(__get_tuple(m), index, val);
 }
 
 Object *Module_Get_Function(Object *ob, char *name)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Get(&mob->stbl, name);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STbl_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_PROTO) {
 			return sym->code;
@@ -170,8 +172,8 @@ Object *Module_Get_Function(Object *ob, char *name)
 
 Klass *Module_Get_Class(Object *ob, char *name)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Get(&mob->stbl, name);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STbl_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_CLASS) {
 			return sym->klazz;
@@ -184,8 +186,8 @@ Klass *Module_Get_Class(Object *ob, char *name)
 
 Klass *Module_Get_Intf(Object *ob, char *name)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Get(&mob->stbl, name);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STbl_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_INTF) {
 			return sym->klazz;
@@ -198,8 +200,8 @@ Klass *Module_Get_Intf(Object *ob, char *name)
 
 Klass *Module_Get_Klass(Object *ob, char *name)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Get(&mob->stbl, name);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STbl_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
 			return sym->klazz;
@@ -244,9 +246,9 @@ static void mod_to_stbl(Symbol *sym, void *arg)
 /* for compiler only */
 STable *Module_To_STable(Object *ob, AtomTable *atbl)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
+	ModuleObject *m = OBJ_TO_MOD(ob);
 	STable *stbl = STbl_New(atbl);
-	STbl_Traverse(&mob->stbl, mod_to_stbl, stbl);
+	STbl_Traverse(&m->stbl, mod_to_stbl, stbl);
 	return stbl;
 }
 
@@ -269,14 +271,14 @@ Klass Module_Klass = {
 
 void Module_Show(Object *ob)
 {
-	ModuleObject *mob = OBJ_TO_MOD(ob);
-	printf("package:%s\n", mob->name);
-	STbl_Show(&mob->stbl, 1);
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	printf("package:%s\n", m->name);
+	STbl_Show(&m->stbl, 1);
 }
 
 Object *Module_From_Image(KImage *image)
 {
-	Object *ob = Module_New(image->package, image->table);
+	Object *m = Module_New(image->package, image->table);
 	AtomTable *table = image->table;
 	int sz;
 	VarItem *var;
@@ -297,7 +299,7 @@ Object *Module_From_Image(KImage *image)
 		type = TypeItem_Index(table, var->typeindex);
 		desc = TypeDesc_New(0);
 		TypeItem_To_Desc(table, type, desc);
-		Module_Add_Var(ob, name->data, desc, var->flags & VAR_FLAG_CONST);
+		Module_Add_Var(m, name->data, desc, var->flags & VAR_FLAG_CONST);
 	}
 
 	//load functions
@@ -309,8 +311,8 @@ Object *Module_From_Image(KImage *image)
 		proto = Proto_From_ProtoItem(protoitem, table);
 		codeitem = CodeItem_Index(table, func->codeindex);
 		code = KFunc_New(func->locvars, codeitem->codes, codeitem->size);
-		Module_Add_Func(ob, name->data, proto, code);
+		Module_Add_Func(m, name->data, proto, code);
 	}
 
-	return ob;
+	return m;
 }

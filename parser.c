@@ -1,7 +1,5 @@
 
 #include "parser.h"
-#include "koala.h"
-#include "opcode.h"
 
 extern FILE *yyin;
 extern int yyparse(ParserState *ps);
