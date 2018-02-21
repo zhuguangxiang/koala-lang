@@ -210,14 +210,14 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
 	return 0;
 }
 
-static void mod_to_stbl(Symbol *sym, void *arg)
+static void __to_stbl_fn(Symbol *sym, void *arg)
 {
 	STable *stbl = arg;
 
 	if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
 		Symbol *s = STbl_Add_Symbol(stbl, sym->name, SYM_STABLE, 0);
 		s->ptr = STbl_New(stbl->atbl);
-		STbl_Traverse(Klass_STable(sym->ob), mod_to_stbl, s->ptr);
+		STbl_Traverse(Klass_STable(sym->ob), __to_stbl_fn, s->ptr);
 	} else if (sym->kind == SYM_VAR) {
 		STbl_Add_Var(stbl, sym->name, sym->desc, sym->access & ACCESS_CONST);
 	} else if (sym->kind == SYM_PROTO) {
@@ -236,7 +236,7 @@ STable *Module_To_STable(Object *ob, AtomTable *atbl)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	STable *stbl = STbl_New(atbl);
-	STbl_Traverse(&m->stbl, mod_to_stbl, stbl);
+	STbl_Traverse(&m->stbl, __to_stbl_fn, stbl);
 	return stbl;
 }
 

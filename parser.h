@@ -51,12 +51,11 @@ typedef struct parserstate {
 	Vector errors;
 } ParserState;
 
-char *UserDef_Get_Path(ParserState *ps, char *mod);
 Symbol *Parse_Import(ParserState *ps, char *id, char *path);
 void Parse_VarDecls(ParserState *ps, struct stmt *stmt);
 void Parse_Proto(ParserState *ps, struct stmt *stmt);
-void parse_typedecl(ParserState *ps, struct stmt *stmt);
-void Parse_Body(ParserState *ps, Vector *stmts);
+void Parse_UserDef(ParserState *ps, struct stmt *stmt);
+char *UserDef_Get_Path(ParserState *ps, char *mod);
 
 #ifdef __cplusplus
 }

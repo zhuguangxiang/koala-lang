@@ -317,11 +317,9 @@ TypeList
 CompileUnit
   : Package Imports ModuleStatements {
     ast_traverse(&parser->stmts);
-    Parse_Body(parser, &parser->stmts);
   }
   | Package ModuleStatements {
     ast_traverse(&parser->stmts);
-    Parse_Body(parser, &parser->stmts);
   }
   ;
 
@@ -364,7 +362,7 @@ ModuleStatement
     Parse_Proto(parser, $1);
   }
   | TypeDeclaration {
-    parse_typedecl(parser, $1);
+    Parse_UserDef(parser, $1);
   }
   | error {
     yyerror(parser, "non-declaration statement outside function body");

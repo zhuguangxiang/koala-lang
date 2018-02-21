@@ -4,6 +4,7 @@
 判断为NULL或非NULL: if (!ptr) or if (ptr)
 使用TAB作为为缩进，默认TAB为2空格长度
 入参检查：尽量减少判空，可以是调用者负责，也可以是函数提供者负责
+CALLBACK: __xxx_fn
 
 ## libkoala.so：
 1. 类型子系统

@@ -58,7 +58,7 @@ void number_show(HashTable *table)
 {
 	struct number *num;
 	HashNode *hnode;
-	int size = HashTable_SlotSize(table);
+	int size = HTable_SlotSize(table);
 	struct hlist_head *head;
 	for (int i = 0; i < size; i++) {
 		head = table->entries + i;
@@ -81,7 +81,7 @@ void test_number_hash_table(void) {
 	int value = 100;
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, number_hash, number_equal);
-	table = HashTable_New(&hashinfo);
+	table = HTable_New(&hashinfo);
 	assert(table);
 
 	srand(time(NULL) + getpid());
@@ -96,7 +96,7 @@ void test_number_hash_table(void) {
 		assert(num);
 		num->value = value;
 		Init_HashNode(&num->hnode, &num->value);
-		failed = HashTable_Insert(table, &num->hnode);
+		failed = HTable_Insert(table, &num->hnode);
 		//assert(!failed);
 		if (failed != 0) {
 			//srand(time(NULL) + getpid());
@@ -104,7 +104,7 @@ void test_number_hash_table(void) {
 			duplicated++;
 		}
 
-		struct hash_node *hnode = HashTable_Find(table, &value);
+		struct hash_node *hnode = HTable_Find(table, &value);
 		assert(hnode);
 	}
 
@@ -113,14 +113,14 @@ void test_number_hash_table(void) {
 	value = 100;
 	for (i = 0; i < 1000000; i++) {
 		value++;
-		struct hash_node *hnode = HashTable_Find(table, &value);
+		struct hash_node *hnode = HTable_Find(table, &value);
 		assert(hnode);
-		int res = HashTable_Remove(table, hnode);
+		int res = HTable_Remove(table, hnode);
 		assert(res == 0);
 	}
 	printf("num:%d\n", table->nodes);
 	printf("duplicated:%d\n", duplicated);
-	HashTable_Free(table, NULL, NULL);
+	HTable_Free(table, NULL, NULL);
 }
 /*---------------------------------------------------------------------------
 string test
@@ -186,7 +186,7 @@ void test_string_hash_table(void) {
 		int i;
 		HashInfo hashinfo;
 		Init_HashInfo(&hashinfo, string_hash_fn, string_equal_fn);
-		string_hash = HashTable_New(&hashinfo);
+		string_hash = HTable_New(&hashinfo);
 
 		srand(time(NULL));
 
@@ -194,11 +194,11 @@ void test_string_hash_table(void) {
 				str = string_alloc(10);
 				assert(str);
 				Init_HashNode(&str->hnode, &str->value);
-				failed = HashTable_Insert(string_hash, &str->hnode);
+				failed = HTable_Insert(string_hash, &str->hnode);
 				assert(!failed);
 		}
 
-		HashTable_Free(string_hash, NULL, NULL);
+		HTable_Free(string_hash, NULL, NULL);
 }
 
 int main(int argc, char *argv[]) {

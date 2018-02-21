@@ -52,13 +52,6 @@ static int symbol_equal(void *k1, void *k2)
 	return s1->nameidx == s2->nameidx;
 }
 
-static void ht_symbol_free(HashNode *hnode, void *arg)
-{
-	UNUSED_PARAMETER(arg);
-	Symbol *sym = container_of(hnode, Symbol, hnode);
-	symbol_free(sym);
-}
-
 /*-------------------------------------------------------------------------*/
 
 static HashTable *__get_hashtable(STable *stbl)
@@ -66,7 +59,7 @@ static HashTable *__get_hashtable(STable *stbl)
 	if (!stbl->htbl) {
 		HashInfo hashinfo;
 		Init_HashInfo(&hashinfo, symbol_hash, symbol_equal);
-		stbl->htbl = HashTable_New(&hashinfo);
+		stbl->htbl = HTable_New(&hashinfo);
 	}
 	return stbl->htbl;
 }
@@ -88,9 +81,16 @@ int STbl_Init(STable *stbl, AtomTable *atbl)
 	return 0;
 }
 
+static void __symbol_free_fn(HashNode *hnode, void *arg)
+{
+	UNUSED_PARAMETER(arg);
+	Symbol *sym = container_of(hnode, Symbol, hnode);
+	symbol_free(sym);
+}
+
 void STbl_Fini(STable *stbl)
 {
-	HashTable_Free(stbl->htbl, ht_symbol_free, NULL);
+	HTable_Free(stbl->htbl, __symbol_free_fn, NULL);
 	stbl->htbl = NULL;
 	if (stbl->flag) AtomTable_Free(stbl->atbl, item_free, NULL);
 	stbl->atbl = NULL;
@@ -157,7 +157,7 @@ Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
 	sym->nameidx = idx;
 	sym->kind = kind;
 	sym->access = SYMBOL_ACCESS(name, bconst);
-	if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
+	if (HTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
 		symbol_free(sym);
 		return NULL;
 	}
@@ -170,7 +170,7 @@ Symbol *STbl_Get(STable *stbl, char *name)
 	int32 index = StringItem_Get(stbl->atbl, name);
 	if (index < 0) return NULL;
 	Symbol sym = {.nameidx = index};
-	HashNode *hnode = HashTable_Find(__get_hashtable(stbl), &sym);
+	HashNode *hnode = HTable_Find(__get_hashtable(stbl), &sym);
 	if (hnode) {
 		return container_of(hnode, Symbol, hnode);
 	} else {
@@ -185,7 +185,7 @@ struct visit_entry {
 	void *arg;
 };
 
-static void symbol_visit(HashNode *hnode, void *arg)
+static void __symbol_visit_fn(HashNode *hnode, void *arg)
 {
 	struct visit_entry *data = arg;
 	Symbol *sym = container_of(hnode, Symbol, hnode);
@@ -195,7 +195,7 @@ static void symbol_visit(HashNode *hnode, void *arg)
 void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg)
 {
 	struct visit_entry data = {fn, arg};
-	HashTable_Traverse(stbl->htbl, symbol_visit, &data);
+	HTable_Traverse(stbl->htbl, __symbol_visit_fn, &data);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -207,7 +207,7 @@ static void desc_show(TypeDesc *desc)
 	free(str);
 }
 
-static void symbol_show(HashNode *hnode, void *arg)
+static void __symbol_show_fn(HashNode *hnode, void *arg)
 {
 	UNUSED_PARAMETER(arg);
 	Symbol *sym = container_of(hnode, Symbol, hnode);
@@ -244,6 +244,6 @@ static void symbol_show(HashNode *hnode, void *arg)
 
 void STbl_Show(STable *stbl, int detail)
 {
-	HashTable_Traverse(stbl->htbl, symbol_show, stbl);
+	HTable_Traverse(stbl->htbl, __symbol_show_fn, stbl);
 	if (detail) AtomTable_Show(stbl->atbl);
 }

@@ -10,7 +10,7 @@ extern "C" {
 
 typedef struct tableobject {
 	OBJECT_HEAD
-	HashTable table;
+	HashTable tbl;
 } TableObject;
 
 /* Exported APIs */

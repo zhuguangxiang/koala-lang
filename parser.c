@@ -1,139 +1,17 @@
 
 #include "parser.h"
+#include "analyser.h"
 
 extern FILE *yyin;
 extern int yyparse(ParserState *ps);
+static void parse_statements(ParserState *ps, Vector *stmts);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
-static ParserUnit *parent_scope(ParserState *ps);
+static void parser_visit_stmt(ParserState *ps, struct stmt *stmt);
 static void enter_codeblock(ParserState *ps);
 static void merge_codeblock(ParserState *ps);
 
 /*-------------------------------------------------------------------------*/
-
-static Import *import_new(char *path)
-{
-	Import *import = malloc(sizeof(Import));
-	import->path = strdup(path);
-	Init_HashNode(&import->hnode, import);
-	return import;
-}
-
-static void import_free(Import *import)
-{
-	free(import);
-}
-
-static uint32 import_hash(void *k)
-{
-	Import *import = k;
-	return hash_string(import->path);
-}
-
-static int import_equal(void *k1, void *k2)
-{
-	Import *import1 = k1;
-	Import *import2 = k2;
-	return !strcmp(import1->path, import2->path);
-}
-
-static void init_imports(ParserState *ps)
-{
-	HashInfo hashinfo;
-	Init_HashInfo(&hashinfo, import_hash, import_equal);
-	HashTable_Init(&ps->imports, &hashinfo);
-	STbl_Init(&ps->extstbl, NULL);
-	Symbol *sym = Parse_Import(ps, "lang", "koala/lang");
-	sym->refcnt++;
-}
-
-static void ht_import_free(HashNode *hnode, void *arg)
-{
-	UNUSED_PARAMETER(arg);
-	Import *import = container_of(hnode, Import, hnode);
-	//free(import->path);
-	import_free(import);
-}
-
-static void fini_imports(ParserState *ps)
-{
-	HashTable_Fini(&ps->imports, ht_import_free, NULL);
-	STbl_Fini(&ps->extstbl);
-}
-
-static void check_import(Symbol *sym, void *arg)
-{
-	UNUSED_PARAMETER(arg);
-	if (sym->refcnt == 0) {
-		warn("package '%s <- %s' is never used",
-				 sym->name, TypeDesc_ToString(sym->desc));
-	}
-}
-
-static void check_imports(ParserState *ps)
-{
-	STbl_Traverse(&ps->extstbl, check_import, NULL);
-}
-
-static void check_symbol(Symbol *sym, void *arg)
-{
-	UNUSED_PARAMETER(arg);
-
-	if ((sym->access == ACCESS_PRIVATE) && (sym->refcnt == 0)) {
-		if (sym->kind == SYM_VAR) {
-			warn("variable '%s' is never used", sym->name);
-		} else if (sym->kind == SYM_PROTO) {
-			warn("function '%s' is never used", sym->name);
-		}
-	}
-}
-
-static void check_variables(ParserState *ps)
-{
-	ParserUnit *u = ps->u;
-	assert(u);
-	STbl_Traverse(&u->stbl, check_symbol, NULL);
-}
-
-static void check_unused_symbols(ParserState *ps)
-{
-	check_imports(ps);
-	check_variables(ps);
-}
-
-/*-------------------------------------------------------------------------*/
-
-char *UserDef_Get_Path(ParserState *ps, char *mod)
-{
-	Symbol *sym = STbl_Get(&ps->extstbl, mod);
-	if (!sym) {
-		error("cannot find module:%s", mod);
-		return NULL;
-	}
-	assert(sym->kind == SYM_STABLE);
-	sym->refcnt = 1;
-	return sym->desc->path;
-}
-
-static int check_return_types(ParserUnit *u, Vector *vec)
-{
-	Proto *proto = u->sym->desc->proto;;
-	if (!vec) {
-		return (proto->rsz == 0) ? 1 : 0;
-	} else {
-		int sz = Vector_Size(vec);
-		if (proto->rsz != sz) return 0;
-		struct expr *exp;
-		Vector_ForEach(exp, vec) {
-			if (!TypeDesc_Check(exp->desc, proto->rdesc + i)) {
-				error("type check failed");
-				return 0;
-			}
-		}
-		return 1;
-	}
-}
-
-/*--------------------------------------------------------------------------*/
+// Symbol
 
 static Symbol *find_id_symbol(ParserState *ps, char *id)
 {
@@ -179,7 +57,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 
 	// find in external imported module
 	Import key = {.path = desc->path};
-	Import *import = HashTable_FindObject(&ps->imports, &key, Import);
+	Import *import = HTable_FindObject(&ps->imports, &key, Import);
 	if (!import) {
 		error("cannot find '%s.%s'", desc->path, desc->type);
 		return NULL;
@@ -198,7 +76,300 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	return NULL;
 }
 
+/*-------------------------------------------------------------------------*/
+// External imported modules management
+
+static Import *import_new(char *path)
+{
+	Import *import = malloc(sizeof(Import));
+	import->path = strdup(path);
+	Init_HashNode(&import->hnode, import);
+	return import;
+}
+
+static void import_free(Import *import)
+{
+	free(import);
+}
+
+static uint32 import_hash(void *k)
+{
+	Import *import = k;
+	return hash_string(import->path);
+}
+
+static int import_equal(void *k1, void *k2)
+{
+	Import *import1 = k1;
+	Import *import2 = k2;
+	return !strcmp(import1->path, import2->path);
+}
+
+static void init_imports(ParserState *ps)
+{
+	HashInfo hashinfo;
+	Init_HashInfo(&hashinfo, import_hash, import_equal);
+	HTable_Init(&ps->imports, &hashinfo);
+	STbl_Init(&ps->extstbl, NULL);
+	Symbol *sym = Parse_Import(ps, "lang", "koala/lang");
+	sym->refcnt++;
+}
+
+static void __import_free_fn(HashNode *hnode, void *arg)
+{
+	UNUSED_PARAMETER(arg);
+	Import *import = container_of(hnode, Import, hnode);
+	//free(import->path);
+	import_free(import);
+}
+
+static void fini_imports(ParserState *ps)
+{
+	HTable_Fini(&ps->imports, __import_free_fn, NULL);
+	STbl_Fini(&ps->extstbl);
+}
+
+/*-------------------------------------------------------------------------*/
+
+static ParserUnit *parent_scope(ParserState *ps)
+{
+	if (list_empty(&ps->ustack)) return NULL;
+	return list_first_entry(&ps->ustack, ParserUnit, link);
+}
+
 /*--------------------------------------------------------------------------*/
+// API used by yacc
+
+static Symbol *add_import(STable *stbl, char *id, char *path)
+{
+	Symbol *sym = STbl_Add_Symbol(stbl, id, SYM_STABLE, 0);
+	if (!sym) return NULL;
+	sym->path = strdup(path);
+	return sym;
+}
+
+Symbol *Parse_Import(ParserState *ps, char *id, char *path)
+{
+	Import key = {.path = path};
+	Import *import = HTable_FindObject(&ps->imports, &key, Import);
+	Symbol *sym;
+	if (import) {
+		sym = import->sym;
+		if (sym && sym->refcnt > 0) {
+			warn("find auto imported module '%s'", path);
+			if (id) {
+				if (strcmp(id, sym->name)) {
+					warn("imported as '%s' is different with auto imported as '%s'",
+								id, sym->name);
+				} else {
+					warn("imported as '%s' is the same with auto imported as '%s'",
+								id, sym->name);
+				}
+			}
+			return sym;
+		}
+	}
+
+	import = import_new(path);
+	if (HTable_Insert(&ps->imports, &import->hnode) < 0) {
+		error("module '%s' is imported duplicated", path);
+		return NULL;
+	}
+	Object *ob = Koala_Load_Module(path);
+	if (!ob) {
+		error("load module '%s' failed", path);
+		HTable_Remove(&ps->imports, &import->hnode);
+		import_free(import);
+		return NULL;
+	}
+	if (!id) id = Module_Name(ob);
+	sym = add_import(&ps->extstbl, id, path);
+	if (!sym) {
+		debug("add import '%s <- %s' failed", id, path);
+		HTable_Remove(&ps->imports, &import->hnode);
+		import_free(import);
+		return NULL;
+	}
+
+	sym->ptr = Module_To_STable(ob, ps->extstbl.atbl);
+	import->sym = sym;
+	debug("add import '%s <- %s' successful", id, path);
+	return sym;
+}
+
+static inline void __add_stmt(ParserState *ps, struct stmt *stmt)
+{
+	Vector_Append(&(ps)->stmts, stmt);
+}
+
+static void parse_vardecl(ParserState *ps, struct stmt *stmt)
+{
+	__add_stmt(ps, stmt);
+
+	struct var *var = stmt->vardecl.var;
+	if (!var->desc) {
+		debug("'%s %s' type is not set", var->bconst ? "const" : "var", var->id);
+	} else {
+		TypeDesc *desc = var->desc;
+		if (desc->kind == TYPE_USERDEF) {
+			if (!find_userdef_symbol(ps, desc)) {
+				char *typestr = TypeDesc_ToString(desc);
+				warn("cannot find type:'%s'", typestr);
+				free(typestr);
+			}
+		} else if (desc->kind == TYPE_PROTO) {
+			debug("var's type is proto");
+		} else {
+			assert(desc->kind == TYPE_PRIMITIVE);
+		}
+	}
+
+	Symbol *sym = STbl_Add_Var(&ps->u->stbl, var->id, var->desc, var->bconst);
+	if (sym) {
+		debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
+		sym->up = ps->u->sym;
+	} else {
+		error("add %s '%s' failed, it'name is duplicated",
+					var->bconst ? "const":"var", var->id);
+	}
+
+	if (!stmt->vardecl.exp) {
+		debug("There is not a initial expr for var '%s'", var->id);
+	}
+}
+
+void Parse_VarDecls(ParserState *ps, struct stmt *stmt)
+{
+	if (stmt->kind == VARDECL_LIST_KIND) {
+		struct stmt *s;
+		Vector_ForEach(s, stmt->vec) {
+			parse_vardecl(ps, s);
+		}
+	} else {
+		assert(stmt->kind == VARDECL_KIND);
+		parse_vardecl(ps, stmt);
+	}
+}
+
+static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
+{
+	int sz = 0;
+	TypeDesc *desc = NULL;
+	if (vec && Vector_Size(vec) != 0) {
+		sz = Vector_Size(vec);
+		desc = malloc(sizeof(TypeDesc) * sz);
+		struct var *var;
+		Vector_ForEach(var, vec)
+			memcpy(desc + i, var->desc, sizeof(TypeDesc));
+	}
+
+	*arr = desc;
+	return sz;
+}
+
+static Proto *funcdecl_to_proto(struct stmt *stmt)
+{
+	Proto *proto = malloc(sizeof(Proto));
+	int sz;
+	TypeDesc *desc;
+
+	sz = var_vec_to_arr(stmt->funcdecl.pvec, &desc);
+	proto->psz = sz;
+	proto->pdesc = desc;
+
+	sz = TypeDesc_Vec_To_Arr(stmt->funcdecl.rvec, &desc);
+	proto->rsz = sz;
+	proto->rdesc = desc;
+
+	return proto;
+}
+
+void Parse_Proto(ParserState *ps, struct stmt *stmt)
+{
+	__add_stmt(ps, stmt);
+
+	Proto *proto;
+	Symbol *sym;
+	proto = funcdecl_to_proto(stmt);
+	sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, proto);
+	if (sym) {
+		debug("add func '%s' successful", stmt->funcdecl.id);
+		sym->up = ps->u->sym;
+	} else {
+		debug("add func '%s' failed", stmt->funcdecl.id);
+	}
+}
+
+void Parse_UserDef(ParserState *ps, struct stmt *stmt)
+{
+	UNUSED_PARAMETER(ps);
+	UNUSED_PARAMETER(stmt);
+}
+
+/*-------------------------------------------------------------------------*/
+
+static void check_symbol(Symbol *sym, void *arg)
+{
+	UNUSED_PARAMETER(arg);
+
+	if ((sym->access == ACCESS_PRIVATE) && (sym->refcnt == 0)) {
+		if (sym->kind == SYM_VAR) {
+			warn("variable '%s' is never used", sym->name);
+		} else if (sym->kind == SYM_PROTO) {
+			warn("function '%s' is never used", sym->name);
+		}
+	}
+}
+
+static void check_variables(ParserState *ps)
+{
+	ParserUnit *u = ps->u;
+	assert(u);
+	STbl_Traverse(&u->stbl, check_symbol, NULL);
+}
+
+static void check_unused_symbols(ParserState *ps)
+{
+	Check_Imports(ps);
+	check_variables(ps);
+}
+
+/*-------------------------------------------------------------------------*/
+
+char *UserDef_Get_Path(ParserState *ps, char *mod)
+{
+	Symbol *sym = STbl_Get(&ps->extstbl, mod);
+	if (!sym) {
+		error("cannot find module:%s", mod);
+		return NULL;
+	}
+	assert(sym->kind == SYM_STABLE);
+	sym->refcnt = 1;
+	return sym->desc->path;
+}
+
+static int check_return_types(ParserUnit *u, Vector *vec)
+{
+	Proto *proto = u->sym->desc->proto;;
+	if (!vec) {
+		return (proto->rsz == 0) ? 1 : 0;
+	} else {
+		int sz = Vector_Size(vec);
+		if (proto->rsz != sz) return 0;
+		struct expr *exp;
+		Vector_ForEach(exp, vec) {
+			if (!TypeDesc_Check(exp->desc, proto->rdesc + i)) {
+				error("type check failed");
+				return 0;
+			}
+		}
+		return 1;
+	}
+}
+
+/*--------------------------------------------------------------------------*/
+
+
 
 static void sym_gen_code(Symbol *sym, void *arg)
 {
@@ -810,12 +981,6 @@ static void parser_exit_scope(ParserState *ps)
 	}
 }
 
-static ParserUnit *parent_scope(ParserState *ps)
-{
-	if (list_empty(&ps->ustack)) return NULL;
-	return list_first_entry(&ps->ustack, ParserUnit, link);
-}
-
 /*--------------------------------------------------------------------------*/
 
 static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
@@ -932,7 +1097,7 @@ static void parse_function(ParserState *ps, struct stmt *stmt)
 			Vector_ForEach(var, stmt->funcdecl.pvec)
 				parse_variable(ps, var, NULL);
 		}
-		Parse_Body(ps, stmt->funcdecl.body);
+		parse_statements(ps, stmt->funcdecl.body);
 		debug("end function '%s'", stmt->funcdecl.id);
 	} else if (parent->scope == SCOPE_CLASS) {
 		debug("parse method '%s'", stmt->funcdecl.id);
@@ -1002,13 +1167,6 @@ static void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 			paser_return(ps, stmt);
 			break;
 		}
-		case VARDECL_LIST_KIND: {
-			struct stmt *s;
-			Vector_ForEach(s, stmt->vec) {
-				parse_variable(ps, s->vardecl.var, s->vardecl.exp);
-			}
-			break;
-		}
 		default:
 			assertm(0, "unknown statement type: %d", stmt->kind);
 			break;
@@ -1019,191 +1177,22 @@ static void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 
 /*--------------------------------------------------------------------------*/
 
+static void parse_statements(ParserState *ps, Vector *stmts)
+{
+	struct stmt *s;
+	Vector_ForEach(s, stmts) {
+		parser_visit_stmt(ps, s);
+	}
+}
+
 static void generate_code(ParserState *ps)
 {
 	printf("-------code generator----------\n");
 	ps->gencode = 1;
-	Parse_Body(ps, &ps->stmts);
+	parse_statements(ps, &ps->stmts);
 	CodeBlock_Show(ps->u->block);
 	printf("-------code generator end------\n");
 }
-
-/*--------------------------------------------------------------------------*/
-
-void Parse_Body(ParserState *ps, Vector *stmts)
-{
-	debug("=====parser body begin=====");
-	struct stmt *stmt;
-	Vector_ForEach(stmt, stmts) {
-		parser_visit_stmt(ps, stmt);
-	}
-	debug("=====parser body end=====");
-}
-
-static Symbol *add_import(STable *stbl, char *id, char *path)
-{
-	Symbol *sym = STbl_Add_Symbol(stbl, id, SYM_STABLE, 0);
-	if (!sym) return NULL;
-	sym->path = strdup(path);
-	return sym;
-}
-
-Symbol *Parse_Import(ParserState *ps, char *id, char *path)
-{
-	Import key = {.path = path};
-	Import *import = HashTable_FindObject(&ps->imports, &key, Import);
-	Symbol *sym;
-	if (import) {
-		sym = import->sym;
-		if (sym && sym->refcnt > 0) {
-			warn("find auto imported module '%s'", path);
-			if (id) {
-				if (strcmp(id, sym->name)) {
-					warn("imported as '%s' is different with auto imported as '%s'",
-								id, sym->name);
-				} else {
-					warn("imported as '%s' is the same with auto imported as '%s'",
-								id, sym->name);
-				}
-			}
-			return sym;
-		}
-	}
-
-	import = import_new(path);
-	if (HashTable_Insert(&ps->imports, &import->hnode) < 0) {
-		error("module '%s' is imported duplicated", path);
-		return NULL;
-	}
-	Object *ob = Koala_Load_Module(path);
-	if (!ob) {
-		error("load module '%s' failed", path);
-		HashTable_Remove(&ps->imports, &import->hnode);
-		import_free(import);
-		return NULL;
-	}
-	if (!id) id = Module_Name(ob);
-	sym = add_import(&ps->extstbl, id, path);
-	if (!sym) {
-		debug("add import '%s <- %s' failed", id, path);
-		HashTable_Remove(&ps->imports, &import->hnode);
-		import_free(import);
-		return NULL;
-	}
-
-	sym->ptr = Module_To_STable(ob, ps->extstbl.atbl);
-	import->sym = sym;
-	debug("add import '%s <- %s' successful", id, path);
-	return sym;
-}
-
-#define parser_add_stmt(ps, stmt) Vector_Append(&(ps)->stmts, stmt)
-
-static void parse_vardecl(ParserState *ps, struct stmt *stmt)
-{
-	struct var *var = stmt->vardecl.var;
-	if (!var->desc) {
-		debug("'%s %s' type is not set", var->bconst ? "const" : "var", var->id);
-	} else {
-		TypeDesc *desc = var->desc;
-		if (desc->kind == TYPE_USERDEF) {
-			if (!find_userdef_symbol(ps, desc)) {
-				char *typestr = TypeDesc_ToString(desc);
-				warn("cannot find type:'%s'", typestr);
-				free(typestr);
-			}
-		} else if (desc->kind == TYPE_PROTO) {
-			debug("var's type is proto");
-		} else {
-			assert(desc->kind == TYPE_PRIMITIVE);
-		}
-	}
-
-	Symbol *sym = STbl_Add_Var(&ps->u->stbl, var->id, var->desc, var->bconst);
-	if (sym) {
-		debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
-		sym->up = ps->u->sym;
-	} else {
-		error("add %s '%s' failed, it'name is duplicated",
-					var->bconst ? "const":"var", var->id);
-	}
-
-	if (!stmt->vardecl.exp) {
-		debug("There is not a initial expr for var '%s'", var->id);
-	}
-}
-
-void Parse_VarDecls(ParserState *ps, struct stmt *stmt)
-{
-	parser_add_stmt(ps, stmt);
-
-	if (stmt->kind == VARDECL_LIST_KIND) {
-		struct stmt *s;
-		Vector_ForEach(s, stmt->vec) {
-			parse_vardecl(ps, s);
-		}
-	} else {
-		assert(stmt->kind == VARDECL_KIND);
-		parse_vardecl(ps, stmt);
-	}
-}
-
-static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
-{
-	int sz = 0;
-	TypeDesc *desc = NULL;
-	if (vec && Vector_Size(vec) != 0) {
-		sz = Vector_Size(vec);
-		desc = malloc(sizeof(TypeDesc) * sz);
-		struct var *var;
-		Vector_ForEach(var, vec)
-			memcpy(desc + i, var->desc, sizeof(TypeDesc));
-	}
-
-	*arr = desc;
-	return sz;
-}
-
-static Proto *funcdecl_to_proto(struct stmt *stmt)
-{
-	Proto *proto = malloc(sizeof(Proto));
-	int sz;
-	TypeDesc *desc;
-
-	sz = var_vec_to_arr(stmt->funcdecl.pvec, &desc);
-	proto->psz = sz;
-	proto->pdesc = desc;
-
-	sz = TypeDesc_Vec_To_Arr(stmt->funcdecl.rvec, &desc);
-	proto->rsz = sz;
-	proto->rdesc = desc;
-
-	return proto;
-}
-
-void Parse_Proto(ParserState *ps, struct stmt *stmt)
-{
-	parser_add_stmt(ps, stmt);
-
-	Proto *proto;
-	Symbol *sym;
-	proto = funcdecl_to_proto(stmt);
-	sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, proto);
-	if (sym) {
-		debug("add func '%s' successful", stmt->funcdecl.id);
-		sym->up = ps->u->sym;
-	} else {
-		debug("add func '%s' failed", stmt->funcdecl.id);
-	}
-}
-
-void parse_typedecl(ParserState *ps, struct stmt *stmt)
-{
-	UNUSED_PARAMETER(ps);
-	UNUSED_PARAMETER(stmt);
-}
-
-/*--------------------------------------------------------------------------*/
 
 static void init_parser(ParserState *ps)
 {
@@ -1255,6 +1244,8 @@ int main(int argc, char *argv[])
 	yyparse(&ps);
 	fclose(yyin);
 
+	parse_statements(&ps, &ps.stmts);
+
 	printf("-------------------------\n");
 	printf("scope-%d symbols:\n", ps.nestlevel);
 	STbl_Show(&ps.u->stbl, 0);
@@ -1267,7 +1258,7 @@ int main(int argc, char *argv[])
 
 	printf("package:%s\n", ps.package);
 	STbl_Show(&ps.u->stbl, 1);
-	check_imports(&ps);
+	Check_Imports(&ps);
 
 	fini_parser(&ps);
 

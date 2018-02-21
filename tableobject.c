@@ -82,7 +82,7 @@ Object *Table_New(void)
 	init_object_head(table, &Table_Klass);
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, entry_hash, entry_equal);
-	int res = HashTable_Init(&table->table, &hashinfo);
+	int res = HTable_Init(&table->tbl, &hashinfo);
 	assert(!res);
 	//Object_Add_GCList(table);
 	return (Object *)table;
@@ -91,7 +91,7 @@ Object *Table_New(void)
 int Table_Get(Object *ob, TValue *key, TValue *rk, TValue *rv)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
-	HashNode *hnode = HashTable_Find(&table->table, key);
+	HashNode *hnode = HTable_Find(&table->tbl, key);
 	if (hnode) {
 		struct entry *e = container_of(hnode, struct entry, hnode);
 		if (rk) *rk = e->key;
@@ -106,7 +106,7 @@ int Table_Put(Object *ob, TValue *key, TValue *value)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
 	struct entry *e = new_entry(key, value);
-	int res = HashTable_Insert(&table->table, &e->hnode);
+	int res = HTable_Insert(&table->tbl, &e->hnode);
 	if (res) {
 		free_entry(e);
 		return -1;
@@ -118,7 +118,7 @@ int Table_Put(Object *ob, TValue *key, TValue *value)
 int Table_Count(Object *ob)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
-	return HashTable_Count(&table->table);
+	return HTable_Count(&table->tbl);
 }
 
 struct visit_struct {
@@ -126,7 +126,7 @@ struct visit_struct {
 	void *arg;
 };
 
-static void table_visit(HashNode *hnode, void *arg)
+static void __table_visit_fn(HashNode *hnode, void *arg)
 {
 	struct visit_struct *vs = arg;
 	struct entry *entry = container_of(hnode, struct entry, hnode);
@@ -137,7 +137,7 @@ void Table_Traverse(Object *ob, table_visit_func visit, void *arg)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
 	struct visit_struct vs = {visit, arg};
-	HashTable_Traverse(&table->table, table_visit, &vs);
+	HTable_Traverse(&table->tbl, __table_visit_fn, &vs);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -197,7 +197,7 @@ static void table_mark(Object *ob)
 	Table_Traverse(ob, entry_visit, NULL);
 }
 
-static void table_finalize(struct hash_node *hnode, void *arg)
+static void __entry_free_fn(struct hash_node *hnode, void *arg)
 {
 	UNUSED_PARAMETER(arg);
 	struct entry *e = container_of(hnode, struct entry, hnode);
@@ -207,7 +207,7 @@ static void table_finalize(struct hash_node *hnode, void *arg)
 static void table_free(Object *ob)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
-	HashTable_Fini(&table->table, table_finalize, NULL);
+	HTable_Fini(&table->tbl, __entry_free_fn, NULL);
 	free(ob);
 }
 

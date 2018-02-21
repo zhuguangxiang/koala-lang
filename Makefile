@@ -16,7 +16,7 @@ tableobject.c moduleobject.c codeobject.c codeimage.c opcode.c \
 routine.c thread.c mod_io.c koalastate.c
 KOALA_LIB = koala
 
-KOALAC_FILES = koala_yacc.c koala_lex.c ast.c parser.c
+KOALAC_FILES = koala_yacc.c koala_lex.c ast.c parser.c analyser.c
 KOALAC = koalac
 
 KOALA_FILES = koala.c
