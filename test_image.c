@@ -1,5 +1,5 @@
 
-#include "koalaimage.h"
+#include "kimage.h"
 
 /*
  make lib
@@ -12,11 +12,11 @@ int main(int argc, char *argv[])
 
 	KImage *image = KImage_New("lang");
 	TypeDesc desc;
-	Init_UserDef_Desc(&desc, 0, "koala/lang.String");
+	Init_UserDef_TypeDesc(&desc, 0, "koala/lang.String");
 	KImage_Add_Var(image, "greeting", &desc);
-	Init_UserDef_Desc(&desc, 0, "koala/lang.Integer");
+	Init_UserDef_TypeDesc(&desc, 0, "koala/lang.Integer");
 	KImage_Add_Var(image, "message", &desc);
-	Init_Primitive_Desc(&desc, 0, PRIMITIVE_FLOAT);
+	Init_Primitive_TypeDesc(&desc, 0, PRIMITIVE_FLOAT);
 	KImage_Add_Var(image, "weight", &desc);
 	KImage_Finish(image);
 

@@ -10,7 +10,7 @@
 #include "codeobject.h"
 #include "routine.h"
 #include "buffer.h"
-#include "koalastate.h"
+#include "kstate.h"
 #include "opcode.h"
 
 #endif /* _KOALA_HEADER_H_ */

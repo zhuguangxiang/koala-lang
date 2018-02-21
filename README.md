@@ -24,6 +24,13 @@ Init&Fini: Init_xxx, Fini_xxx, xxx_Init, xxx_Fini, xxx_Initialize, xxx_Finalize
     5. 语义分析(类型检查)
 4. Koala Code(.klc)
 
+## libs
+1. libts.so
+2. libmod.so
+3. librt.so
+4. libcommon.so
+5. libcore.so
+
 i,l -> int
 f,d -> float
 z -> bool

@@ -128,3 +128,20 @@ int Vector_Concat(Vector *dest, Vector *src)
 		Vector_Append(dest, item);
 	return 0;
 }
+
+int Vector_ToArray(Vector *vec, int bsz, copyfunc fn, void **arr)
+{
+	if (!vec) {
+		*arr = NULL;
+		return 0;
+	}
+
+	void *data = malloc(bsz * vec->size);
+	void *item;
+	Vector_ForEach(item, vec) {
+		memcpy((char *)data + i * bsz, item, bsz);
+		if (fn) fn((char *)data + i * bsz, item);
+	}
+	*arr = data;
+	return vec->size;
+}

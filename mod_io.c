@@ -1,7 +1,7 @@
 
 #include "moduleobject.h"
 #include "tupleobject.h"
-#include "koalastate.h"
+#include "kstate.h"
 
 static Object *__io_print(Object *ob, Object *args)
 {

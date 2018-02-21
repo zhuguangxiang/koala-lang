@@ -250,10 +250,10 @@ UserDefType
 
 FunctionType
   : FUNC '(' TypeNameListOrEmpty ')' ReturnTypeList {
-    $$ = TypeDesc_From_Vectors($3, $5);
+    $$ = TypeDesc_From_FuncType($3, $5);
   }
   | FUNC '(' TypeNameListOrEmpty ')' {
-    $$ = TypeDesc_From_Vectors($3, NULL);
+    $$ = TypeDesc_From_FuncType($3, NULL);
   }
   ;
 

@@ -1,6 +1,6 @@
 
 #include "parser.h"
-#include "koalastate.h"
+#include "kstate.h"
 #include "analyser.h"
 #include "codegen.h"
 #include "opcode.h"
@@ -291,7 +291,7 @@ static Proto *funcdecl_to_proto(struct stmt *stmt)
 	proto->psz = sz;
 	proto->pdesc = desc;
 
-	sz = TypeDesc_Vec_To_Arr(stmt->funcdecl.rvec, &desc);
+	sz = TypeVec_ToTypeArray(stmt->funcdecl.rvec, &desc);
 	proto->rsz = sz;
 	proto->rdesc = desc;
 
