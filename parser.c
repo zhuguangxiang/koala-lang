@@ -1132,36 +1132,54 @@ static inline void generate_code(ParserState *ps)
 	printf("-------generate code end------\n");
 }
 
-KImage *Compile(FILE *in)
+static void compile(ParserState *ps, FILE *in)
 {
 	extern FILE *yyin;
 	extern int yyparse(ParserState *ps);
 
+	yyin = in;
+	yyparse(ps);
+	fclose(yyin);
+
+	Analyse(ps);
+
+	printf("-------------------------\n");
+	printf("scope-%d symbols:\n", ps->nestlevel);
+	STbl_Show(&ps->u->stbl, 0);
+	printf("-------------------------\n");
+
+	Check_Unused_Imports(ps);
+	Check_Unused_Symbols(ps);
+
+	generate_code(ps);
+	save_code(ps);
+}
+
+KImage *Compile_ToImage(FILE *in)
+{
 	KImage *image;
 	ParserState ps;
 
 	init_parser(&ps);
 
-	yyin = in;
-	yyparse(&ps);
-	fclose(yyin);
-
-	Analyse(&ps);
-
-	printf("-------------------------\n");
-	printf("scope-%d symbols:\n", ps.nestlevel);
-	STbl_Show(&ps.u->stbl, 0);
-	printf("-------------------------\n");
-
-	Check_Unused_Symbols(&ps);
-	Check_Unused_Imports(&ps);
-
-	generate_code(&ps);
-	save_code(&ps);
+	compile(&ps, in);
 
 	image = Generate_Image(&ps);
 
 	fini_parser(&ps);
 
 	return image;
+}
+
+Object *Compile_ToModule(FILE *in)
+{
+	ParserState ps;
+
+	init_parser(&ps);
+
+	compile(&ps, in);
+
+	fini_parser(&ps);
+
+	return NULL;
 }

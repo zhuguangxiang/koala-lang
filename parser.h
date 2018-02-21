@@ -50,7 +50,8 @@ typedef struct parserstate {
 	Vector errors;
 } ParserState;
 
-KImage *Compile(FILE *in);
+KImage *Compile_ToImage(FILE *in);
+Object *Compile_ToModule(FILE *in);
 void Parse_Statements(ParserState *ps, Vector *stmts);
 
 // API used by yacc

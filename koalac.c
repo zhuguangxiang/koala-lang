@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 
 	in = fopen(argv[1], "r");
 	Koala_Initialize();
-	image = Compile(in);
+	image = Compile_ToImage(in);
 	KImage_Write_File(image, outfile);
 	Koala_Finalize();
 

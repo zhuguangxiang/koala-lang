@@ -10,6 +10,9 @@ int main(int argc, char *argv[])
 	}
 
 	Koala_Initialize();
+	// if (interactive) {
+	// 	Compile_ToModule();
+	// }
 	Koala_Run(argv[1]);
 	Koala_Finalize();
 

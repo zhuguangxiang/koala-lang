@@ -4,7 +4,7 @@
 
 #include "common.h"
 #include "vector.h"
-#include "kimage.h"
+#include "ktype.h"
 #include "symbol.h"
 
 #ifdef __cplusplus
