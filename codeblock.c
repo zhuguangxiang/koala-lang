@@ -125,7 +125,7 @@ void CodeBlock_Show(CodeBlock *block)
 
 	char buf[64];
 
-	printf("---------CodeBlock_Show---------------\n");
+	printf("---------CodeBlock---------------\n");
 	if (!list_empty(&block->insts)) {
 		Inst *i;
 		list_for_each_entry(i, &block->insts, link) {
@@ -135,5 +135,5 @@ void CodeBlock_Show(CodeBlock *block)
 			printf("-----------------------\n");
 		}
 	}
-	printf("--------CodeBlock_Show End------------\n");
+	printf("--------CodeBlock End------------\n");
 }

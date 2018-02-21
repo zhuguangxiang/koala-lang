@@ -8,7 +8,9 @@
 extern "C" {
 #endif
 
-void Check_Imports(ParserState *ps);
+void Analyse(ParserState *ps);
+void Check_Unused_Imports(ParserState *ps);
+void Check_Unused_Symbols(ParserState *ps);
 
 #ifdef __cplusplus
 }

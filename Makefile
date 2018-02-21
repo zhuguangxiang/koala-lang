@@ -11,12 +11,13 @@ include $(TOPDIR)/config.mk
 ######################################
 
 KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c \
-atomtable.c codeblock.c symbol.c object.c stringobject.c tupleobject.c \
-tableobject.c moduleobject.c codeobject.c codeimage.c opcode.c \
-routine.c thread.c mod_io.c koalastate.c
+atomtable.c symbol.c object.c stringobject.c tupleobject.c \
+tableobject.c moduleobject.c codeobject.c opcode.c koalaimage.c codegen.c \
+routine.c thread.c mod_io.c koalastate.c codeblock.c \
+koala_yacc.c koala_lex.c ast.c parser.c analyser.c
 KOALA_LIB = koala
 
-KOALAC_FILES = koala_yacc.c koala_lex.c ast.c parser.c analyser.c
+KOALAC_FILES =  koalac.c
 KOALAC = koalac
 
 KOALA_FILES = koala.c
@@ -29,24 +30,23 @@ KOALA  = koala
 all: lib koalac koala test
 
 lib:
+	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
+	@flex -o koala_lex.c yacc/koala.l
 	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALA_LIB).so $(KOALA_LIB_FILES) \
 	-pthread
 	@cp lib$(KOALA_LIB).so /usr/lib/koala-lang/
-	@$(RM) *.o
-	@$(RM) lib$(KOALA_LIB).so
+	@$(RM) *.o lib$(KOALA_LIB).so
+	@$(RM) koala_yacc.h koala_yacc.c koala_yacc.output koala_lex.c
 
 koalac:
-	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
-	@flex -o koala_lex.c yacc/koala.l
-	@gcc $(CFLAGS) -o $(KOALAC) $(KOALAC_FILES) \
-	-L. -l$(KOALA_LIB) -pthread -lrt
+	@gcc $(CFLAGS) -o $(KOALAC) $(KOALAC_FILES) -L. -l$(KOALA_LIB) -pthread -lrt
 	@cp $(KOALAC) /usr/local/bin
-	@rm koala_yacc.c koala_lex.c $(KOALAC)
+	@$(RM) $(KOALAC)
 
 koala:
 	@gcc $(CFLAGS) -o $(KOALA) $(KOALA_FILES) -L. -l$(KOALA_LIB) -pthread -lrt
 	@cp $(KOALA) /usr/local/bin
-	@rm $(KOALA)
+	@$(RM) $(KOALA)
 
 testvector: lib
 	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt
@@ -81,7 +81,7 @@ testhashtable: lib
 	@./a.out
 
 testimage: lib
-	@$(CC) $(CFLAGS) test_codeimage.c -L. -l$(KOALA_LIB) -lrt
+	@$(CC) $(CFLAGS) test_image.c -L. -l$(KOALA_LIB) -lrt
 	@./a.out
 
 testroutine: lib
@@ -116,8 +116,4 @@ test: testbuf testloop testroutine testimage testhashtable testlist \
 	test-0.5.1 test-0.5.2 test-0.5.3
 	@echo "Test Down!"
 
-.PHONY: test
-.PHONY: lib
-.PHONY: koalac
-.PHONY: koala
 .PHONY: all

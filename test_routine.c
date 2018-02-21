@@ -50,9 +50,9 @@ int main(int argc, char *argv[]) {
 	UNUSED_PARAMETER(argc);
 	UNUSED_PARAMETER(argv);
 
-	Koala_Init();
+	Koala_Initialize();
 	test_routine();
-	Koala_Fini();
+	Koala_Finalize();
 
 	//thread_forever();
 	return 0;

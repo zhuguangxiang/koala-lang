@@ -98,9 +98,9 @@ int main(int argc, char *argv[])
 	UNUSED_PARAMETER(argc);
 	UNUSED_PARAMETER(argv);
 
-	Koala_Init();
+	Koala_Initialize();
 	test_frameloop();
-	Koala_Fini();
+	Koala_Finalize();
 
 	return 0;
 }

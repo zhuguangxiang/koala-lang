@@ -1,5 +1,5 @@
 
-#include "codeimage.h"
+#include "koalaimage.h"
 
 /*
  make lib

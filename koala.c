@@ -1,6 +1,7 @@
 
 #include "koala.h"
 
+/* run koala as interpreter or virtual machine */
 int main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -8,9 +9,9 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	Koala_Init();
+	Koala_Initialize();
 	Koala_Run(argv[1]);
-	Koala_Fini();
+	Koala_Finalize();
 
 	puts("\nKoala Machine Exits");
 

@@ -1,6 +1,6 @@
 
-#ifndef _KOALA_CODEIMAGE_H_
-#define _KOALA_CODEIMAGE_H_
+#ifndef _KOALA_IMAGE_H_
+#define _KOALA_IMAGE_H_
 
 #include "atomtable.h"
 
@@ -251,4 +251,4 @@ void AtomTable_Show(AtomTable *table);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_CODEIMAGE_H_ */
+#endif /* _KOALA_IMAGE_H_ */

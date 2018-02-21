@@ -1,10 +1,12 @@
 
 #include "parser.h"
+#include "koalastate.h"
 #include "analyser.h"
+#include "codegen.h"
+#include "opcode.h"
+#include "moduleobject.h"
+#include "log.h"
 
-extern FILE *yyin;
-extern int yyparse(ParserState *ps);
-static void parse_statements(ParserState *ps, Vector *stmts);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static void parser_visit_stmt(ParserState *ps, struct stmt *stmt);
 static void enter_codeblock(ParserState *ps);
@@ -197,6 +199,18 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 	return sym;
 }
 
+char *Import_Get_Path(ParserState *ps, char *id)
+{
+	Symbol *sym = STbl_Get(&ps->extstbl, id);
+	if (!sym) {
+		error("cannot find module:%s", id);
+		return NULL;
+	}
+	assert(sym->kind == SYM_STABLE);
+	sym->refcnt = 1;
+	return sym->desc->path;
+}
+
 static inline void __add_stmt(ParserState *ps, struct stmt *stmt)
 {
 	Vector_Append(&(ps)->stmts, stmt);
@@ -308,46 +322,6 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 
 /*-------------------------------------------------------------------------*/
 
-static void check_symbol(Symbol *sym, void *arg)
-{
-	UNUSED_PARAMETER(arg);
-
-	if ((sym->access == ACCESS_PRIVATE) && (sym->refcnt == 0)) {
-		if (sym->kind == SYM_VAR) {
-			warn("variable '%s' is never used", sym->name);
-		} else if (sym->kind == SYM_PROTO) {
-			warn("function '%s' is never used", sym->name);
-		}
-	}
-}
-
-static void check_variables(ParserState *ps)
-{
-	ParserUnit *u = ps->u;
-	assert(u);
-	STbl_Traverse(&u->stbl, check_symbol, NULL);
-}
-
-static void check_unused_symbols(ParserState *ps)
-{
-	Check_Imports(ps);
-	check_variables(ps);
-}
-
-/*-------------------------------------------------------------------------*/
-
-char *UserDef_Get_Path(ParserState *ps, char *mod)
-{
-	Symbol *sym = STbl_Get(&ps->extstbl, mod);
-	if (!sym) {
-		error("cannot find module:%s", mod);
-		return NULL;
-	}
-	assert(sym->kind == SYM_STABLE);
-	sym->refcnt = 1;
-	return sym->desc->path;
-}
-
 static int check_return_types(ParserUnit *u, Vector *vec)
 {
 	Proto *proto = u->sym->desc->proto;;
@@ -365,61 +339,6 @@ static int check_return_types(ParserUnit *u, Vector *vec)
 		}
 		return 1;
 	}
-}
-
-/*--------------------------------------------------------------------------*/
-
-
-
-static void sym_gen_code(Symbol *sym, void *arg)
-{
-	KImage *image = arg;
-	switch (sym->kind) {
-		case SYM_VAR: {
-			debug("%s %s:", sym->access & ACCESS_CONST ? "const" : "var", sym->name);
-			if (sym->access & ACCESS_CONST)
-				KImage_Add_Const(image, sym->name, sym->desc);
-			else
-				KImage_Add_Var(image, sym->name, sym->desc);
-			break;
-		}
-		case SYM_PROTO: {
-			debug("func %s:", sym->name);
-			CodeBlock *b = sym->ptr;
-			int locvars = sym->locvars;
-			Inst_Append(b, OP_RET, NULL);
-			AtomTable *atbl = image->table;
-			Buffer buf;
-			Buffer_Init(&buf, 32);
-			Inst *i;
-			list_for_each_entry(i, &b->insts, link) {
-				Inst_Gen(atbl, &buf, i);
-			}
-			uint8 *data = Buffer_RawData(&buf);
-			int size = Buffer_Size(&buf);
-			Code_Show(data, size);
-			Buffer_Fini(&buf);
-			KImage_Add_Func(image, sym->name, sym->desc->proto, locvars, data, size);
-			break;
-		}
-		default: {
-			assertm(0, "unknown symbol kind:%d", sym->kind);
-		}
-	}
-}
-
-static void generate_image(ParserState *ps)
-{
-	printf("----------generate_image--------------------\n");
-	ParserUnit *u = ps->u;
-	KImage *image = KImage_New(ps->package);
-	STbl_Traverse(&u->stbl, sym_gen_code, image);
-	KImage_Finish(image);
-	KImage_Show(image);
-	KImage_Write_File(image, ps->outfile);
-	image = KImage_Read_File(ps->outfile);
-	KImage_Show(image);
-	printf("----------generate_image end----------------\n");
 }
 
 /*--------------------------------------------------------------------------*/
@@ -693,7 +612,7 @@ static int optimize_binary_expr(ParserState *ps, struct expr **exp)
 static void parser_visit_expr(ParserState *ps, struct expr *exp)
 {
 	switch (exp->kind) {
-		case NAME_KIND: {
+		case ID_KIND: {
 			Symbol *sym = find_id_symbol(ps, exp->id);
 			if (!sym) {
 				break;
@@ -963,8 +882,7 @@ static void parser_exit_scope(ParserState *ps)
 	STbl_Show(&ps->u->stbl, 0);
 	CodeBlock_Show(ps->u->block);
 	printf("-------------------------\n");
-
-	check_unused_symbols(ps);
+	Check_Unused_Symbols(ps);
 
 	save_code(ps);
 
@@ -982,6 +900,14 @@ static void parser_exit_scope(ParserState *ps)
 }
 
 /*--------------------------------------------------------------------------*/
+
+void Parse_Statements(ParserState *ps, Vector *stmts)
+{
+	struct stmt *s;
+	Vector_ForEach(s, stmts) {
+		parser_visit_stmt(ps, s);
+	}
+}
 
 static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
@@ -1097,7 +1023,7 @@ static void parse_function(ParserState *ps, struct stmt *stmt)
 			Vector_ForEach(var, stmt->funcdecl.pvec)
 				parse_variable(ps, var, NULL);
 		}
-		parse_statements(ps, stmt->funcdecl.body);
+		Parse_Statements(ps, stmt->funcdecl.body);
 		debug("end function '%s'", stmt->funcdecl.id);
 	} else if (parent->scope == SCOPE_CLASS) {
 		debug("parse method '%s'", stmt->funcdecl.id);
@@ -1177,26 +1103,8 @@ static void parser_visit_stmt(ParserState *ps, struct stmt *stmt)
 
 /*--------------------------------------------------------------------------*/
 
-static void parse_statements(ParserState *ps, Vector *stmts)
-{
-	struct stmt *s;
-	Vector_ForEach(s, stmts) {
-		parser_visit_stmt(ps, s);
-	}
-}
-
-static void generate_code(ParserState *ps)
-{
-	printf("-------code generator----------\n");
-	ps->gencode = 1;
-	parse_statements(ps, &ps->stmts);
-	CodeBlock_Show(ps->u->block);
-	printf("-------code generator end------\n");
-}
-
 static void init_parser(ParserState *ps)
 {
-	Koala_Init();
 	memset(ps, 0, sizeof(ParserState));
 	Vector_Init(&ps->stmts);
 	init_imports(ps);
@@ -1213,54 +1121,47 @@ static void fini_parser(ParserState *ps)
 	Vector_Fini(&ps->errors, NULL, NULL);
 	fini_parser_unit(&ps->mu);
 	free(ps->package);
-	Koala_Fini();
 }
 
-int main(int argc, char *argv[])
+static inline void generate_code(ParserState *ps)
 {
-	ParserState ps;
+	printf("-------generate code----------\n");
+	ps->gencode = 1;
+	Parse_Statements(ps, &ps->stmts);
+	CodeBlock_Show(ps->u->block);
+	printf("-------generate code end------\n");
+}
 
-	if (argc < 2) {
-		printf("error: no input files\n");
-		return -1;
-	}
+KImage *Compile(FILE *in)
+{
+	extern FILE *yyin;
+	extern int yyparse(ParserState *ps);
+
+	KImage *image;
+	ParserState ps;
 
 	init_parser(&ps);
 
-	char *srcfile = argv[1];
-	int len = strlen(srcfile);
-	char *outfile = malloc(len + 4 + 1);
-	char *tmp = strrchr(srcfile, '.');
-	if (tmp) {
-		memcpy(outfile, srcfile, tmp - srcfile);
-		outfile[tmp - srcfile] = 0;
-	} else {
-		strcpy(outfile, srcfile);
-	}
-	strcat(outfile, ".klc");
-	ps.outfile = outfile;
-
-	yyin = fopen(argv[1], "r");
+	yyin = in;
 	yyparse(&ps);
 	fclose(yyin);
 
-	parse_statements(&ps, &ps.stmts);
+	Analyse(&ps);
 
 	printf("-------------------------\n");
 	printf("scope-%d symbols:\n", ps.nestlevel);
 	STbl_Show(&ps.u->stbl, 0);
 	printf("-------------------------\n");
-	check_unused_symbols(&ps);
+
+	Check_Unused_Symbols(&ps);
+	Check_Unused_Imports(&ps);
 
 	generate_code(&ps);
 	save_code(&ps);
-	generate_image(&ps);
 
-	printf("package:%s\n", ps.package);
-	STbl_Show(&ps.u->stbl, 1);
-	Check_Imports(&ps);
+	image = Generate_Image(&ps);
 
 	fini_parser(&ps);
 
-	return 0;
+	return image;
 }

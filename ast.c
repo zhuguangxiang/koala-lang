@@ -1,5 +1,6 @@
 
 #include "parser.h"
+#include "log.h"
 
 /*-------------------------------------------------------------------------*/
 
@@ -12,7 +13,7 @@ struct expr *expr_new(int kind)
 
 struct expr *expr_from_id(char *id)
 {
-	struct expr *expr = expr_new(NAME_KIND);
+	struct expr *expr = expr_new(ID_KIND);
 	expr->id = id;
 	return expr;
 }
@@ -454,7 +455,7 @@ void expr_traverse(struct expr *expr)
 	if (expr == NULL) return;
 
 	switch (expr->kind) {
-		case NAME_KIND: {
+		case ID_KIND: {
 			printf("[id]%s\n", expr->id);
 			break;
 		}

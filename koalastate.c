@@ -147,7 +147,7 @@ static void Init_Modules(void)
 
 /*-------------------------------------------------------------------------*/
 
-void Koala_Init(void)
+void Koala_Initialize(void)
 {
 	Init_Modules();
 	//sched_init();
@@ -161,7 +161,7 @@ static void __mod_entry_free_fn(HashNode *hnode, void *arg)
 	free_mod_entry(e);
 }
 
-void Koala_Fini(void)
+void Koala_Finalize(void)
 {
 	HTable_Fini(&gs.modules, __mod_entry_free_fn, NULL);
 }

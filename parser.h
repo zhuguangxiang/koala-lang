@@ -38,7 +38,6 @@ typedef struct parserunit {
 
 typedef struct parserstate {
 	Vector stmts;       /* all statements */
-	char *outfile;
 	char *package;
 	HashTable imports;  /* external types */
 	STable extstbl;     /* external symbol table */
@@ -51,11 +50,15 @@ typedef struct parserstate {
 	Vector errors;
 } ParserState;
 
+KImage *Compile(FILE *in);
+void Parse_Statements(ParserState *ps, Vector *stmts);
+
+// API used by yacc
 Symbol *Parse_Import(ParserState *ps, char *id, char *path);
 void Parse_VarDecls(ParserState *ps, struct stmt *stmt);
 void Parse_Proto(ParserState *ps, struct stmt *stmt);
 void Parse_UserDef(ParserState *ps, struct stmt *stmt);
-char *UserDef_Get_Path(ParserState *ps, char *mod);
+char *Import_Get_Path(ParserState *ps, char *id);
 
 #ifdef __cplusplus
 }

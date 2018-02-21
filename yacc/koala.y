@@ -243,8 +243,7 @@ UserDefType
     if (!strcmp($1, "lang") && !strcmp($3, "String")) {
       $$ = TypeDesc_From_Primitive(PRIMITIVE_STRING);
     } else {
-      char *path = UserDef_Get_Path(parser, $1);
-      $$ = TypeDesc_From_UserDef(path, $3);
+      $$ = TypeDesc_From_UserDef(Import_Get_Path(parser, $1), $3);
     }
   }
   ;

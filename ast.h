@@ -2,7 +2,10 @@
 #ifndef _KOALA_AST_H_
 #define _KOALA_AST_H_
 
-#include "koala.h"
+#include "common.h"
+#include "vector.h"
+#include "koalaimage.h"
+#include "symbol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,7 +31,7 @@ enum binary_op_kind {
 };
 
 enum expr_kind {
-	NAME_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
+	ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
 	STRING_KIND = 5, SELF_KIND = 6, NIL_KIND = 7, EXP_KIND = 8,
 	ARRAY_KIND = 9, ANONYOUS_FUNC_KIND, ATTRIBUTE_KIND, SUBSCRIPT_KIND,
 	CALL_KIND = 13, UNARY_KIND, BINARY_KIND, SEQ_KIND,
