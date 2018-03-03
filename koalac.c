@@ -24,8 +24,8 @@ int main(int argc, char *argv[])
 
 	FILE *in = fopen(argv[1], "r");
 
-	ParserState ps;
 	Koala_Initialize();
+	ParserState ps;
 	init_parser(&ps);
 	parser_module(&ps, in);
 	codegen_klc(&ps, outfile);

@@ -144,9 +144,8 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 void codegen_klc(ParserState *ps, char *out)
 {
 	printf("----------codegen------------\n");
-	ParserUnit *u = ps->u;
 	KImage *image = KImage_New(ps->package);
-	STbl_Traverse(&u->stbl, __gen_code_fn, image);
+	STbl_Traverse(ps->stbl, __gen_code_fn, image);
 	KImage_Finish(image);
 	KImage_Show(image);
 	KImage_Write_File(image, out);

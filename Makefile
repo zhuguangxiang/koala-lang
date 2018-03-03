@@ -111,9 +111,11 @@ test-0.5.3:
 	@$(KOALAC) test-0.5.3.kl
 	@$(KOALA) test-0.5.3.klc
 
+testkl: test-0.5.1 test-0.5.2 test-0.5.3
+	@echo "Test Koala Down!"
+
 test: testbuf testloop testroutine testimage testhashtable testlist \
-	testmodule testobject teststring testtuple testvector \
-	test-0.5.1 test-0.5.2 test-0.5.3
+	testmodule testobject teststring testtuple testvector testkl
 	@echo "Test Down!"
 
 .PHONY: all

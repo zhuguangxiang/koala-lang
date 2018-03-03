@@ -54,7 +54,7 @@ typedef struct parserunit {
 	int scope;
 	struct list_head link;
 	Symbol *sym;
-	STable stbl;
+	STable *stbl;
 	CodeBlock *block;
 	struct list_head blocks;
 } ParserUnit;
@@ -63,7 +63,8 @@ typedef struct parserstate {
 	Vector stmts;       /* all statements */
 	char *package;
 	HashTable imports;  /* external types */
-	STable extstbl;     /* external symbol table */
+	STable *extstbl;    /* external symbol table */
+	STable *stbl;       /* current module's symbol table */
 	ParserUnit *u;
 	int nestlevel;
 	struct list_head ustack;

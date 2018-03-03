@@ -106,6 +106,7 @@ STable *STbl_New(AtomTable *atbl)
 
 void STbl_Free(STable *stbl)
 {
+	if (!stbl) return;
 	STbl_Fini(stbl);
 	free(stbl);
 }

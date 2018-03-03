@@ -15,7 +15,7 @@ static void __unused_import_fn(Symbol *sym, void *arg)
 
 void check_unused_imports(ParserState *ps)
 {
-	STbl_Traverse(&ps->extstbl, __unused_import_fn, ps);
+	STbl_Traverse(ps->extstbl, __unused_import_fn, ps);
 }
 
 static void __unused_symbol_fn(Symbol *sym, void *arg)
@@ -37,7 +37,7 @@ static void __unused_symbol_fn(Symbol *sym, void *arg)
 void check_unused_symbols(ParserState *ps)
 {
 	ParserUnit *u = ps->u;
-	STbl_Traverse(&u->stbl, __unused_symbol_fn, ps);
+	STbl_Traverse(u->stbl, __unused_symbol_fn, ps);
 }
 
 static int check_call_varg(Proto *proto, Vector *vec)

@@ -64,7 +64,7 @@ void parser_body(ParserState *ps, Vector *stmts);
 static Symbol *find_id_symbol(ParserState *ps, char *id)
 {
 	ParserUnit *u = ps->u;
-	Symbol *sym = STbl_Get(&u->stbl, id);
+	Symbol *sym = STbl_Get(u->stbl, id);
 	if (sym) {
 		debug("symbol '%s' is found in current scope", id);
 		sym->refcnt++;
@@ -73,7 +73,7 @@ static Symbol *find_id_symbol(ParserState *ps, char *id)
 
 	if (!list_empty(&ps->ustack)) {
 		list_for_each_entry(u, &ps->ustack, link) {
-			sym = STbl_Get(&u->stbl, id);
+			sym = STbl_Get(u->stbl, id);
 			if (sym) {
 				debug("symbol '%s' is found in parent scope", id);
 				sym->refcnt++;
@@ -82,7 +82,7 @@ static Symbol *find_id_symbol(ParserState *ps, char *id)
 		}
 	}
 
-	sym = STbl_Get(&ps->extstbl, id);
+	sym = STbl_Get(ps->extstbl, id);
 	if (sym) {
 		debug("symbol '%s' is found in external scope", id);
 		assert(sym->kind == SYM_STABLE);
@@ -158,7 +158,7 @@ static void init_imports(ParserState *ps)
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, import_hash, import_equal);
 	HTable_Init(&ps->imports, &hashinfo);
-	STbl_Init(&ps->extstbl, NULL);
+	ps->extstbl = STbl_New(NULL);
 	Symbol *sym = Parse_Import(ps, "lang", "koala/lang");
 	sym->refcnt++;
 }
@@ -174,7 +174,7 @@ static void __import_free_fn(HashNode *hnode, void *arg)
 static void fini_imports(ParserState *ps)
 {
 	HTable_Fini(&ps->imports, __import_free_fn, NULL);
-	STbl_Fini(&ps->extstbl);
+	STbl_Free(ps->extstbl);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -231,7 +231,7 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 		return NULL;
 	}
 	if (!id) id = Module_Name(ob);
-	sym = add_import(&ps->extstbl, id, path);
+	sym = add_import(ps->extstbl, id, path);
 	if (!sym) {
 		debug("add import '%s <- %s' failed", id, path);
 		HTable_Remove(&ps->imports, &import->hnode);
@@ -239,7 +239,7 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 		return NULL;
 	}
 
-	sym->ptr = Module_To_STable(ob, ps->extstbl.atbl);
+	sym->ptr = Module_To_STable(ob, ps->extstbl->atbl);
 	import->sym = sym;
 	debug("add import '%s <- %s' successful", id, path);
 	return sym;
@@ -247,7 +247,7 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 
 char *Import_Get_Path(ParserState *ps, char *id)
 {
-	Symbol *sym = STbl_Get(&ps->extstbl, id);
+	Symbol *sym = STbl_Get(ps->extstbl, id);
 	if (!sym) {
 		error("cannot find module:%s", id);
 		return NULL;
@@ -284,7 +284,7 @@ static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 		}
 	}
 
-	Symbol *sym = STbl_Add_Var(&ps->u->stbl, var->id, var->desc, var->bconst);
+	Symbol *sym = STbl_Add_Var(ps->u->stbl, var->id, var->desc, var->bconst);
 	if (sym) {
 		debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
 		sym->up = ps->u->sym;
@@ -351,7 +351,7 @@ void Parse_Proto(ParserState *ps, struct stmt *stmt)
 	Proto *proto;
 	Symbol *sym;
 	proto = funcdecl_to_proto(stmt);
-	sym = STbl_Add_Proto(&ps->u->stbl, stmt->funcdecl.id, proto);
+	sym = STbl_Add_Proto(ps->u->stbl, stmt->funcdecl.id, proto);
 	if (sym) {
 		debug("add func '%s' successful", stmt->funcdecl.id);
 		sym->up = ps->u->sym;
@@ -489,64 +489,62 @@ void parser_show_scope(ParserState *ps)
 {
 	debug("------scope show-------------");
 	debug("scope-%d symbols:", ps->nestlevel);
-	STbl_Show(&ps->u->stbl, 0);
+	STbl_Show(ps->u->stbl, 0);
 	debug("-----scope show end----------");
 }
 
 static void parser_new_block(ParserUnit *u)
 {
-	CodeBlock *block = codeblock_new(u->stbl.atbl);
+	CodeBlock *block = codeblock_new(u->stbl->atbl);
 	if (u->block) list_add(&u->block->link, &u->blocks);
 	u->block = block;
 }
 
-static void parser_finish_unit(ParserUnit *u)
+/*--------------------------------------------------------------------------*/
+
+static void parser_save_code(ParserUnit *u)
 {
 	// save code to symbol
 	if (u->scope == SCOPE_FUNCTION) {
 		debug("save code to function '%s'", u->sym->name);
 		u->sym->ptr = u->block;
 		u->block = NULL;
-		u->sym->locvars = u->stbl.varcnt;
+		u->sym->locvars = u->stbl->varcnt;
 	} else if (u->scope == SCOPE_BLOCK) {
 		debug("merge code to parent's block");
 	} else if (u->scope == SCOPE_MODULE) {
-		debug("save code to module __init__ function");
 		if (u->block) {
-			Symbol *sym = STbl_Get(&u->stbl, "__init__");
-			if (!sym) {
-				Proto *proto = Proto_New(0, NULL, 0, NULL);
-				sym = STbl_Add_Proto(&u->stbl, "__init__", proto);
-				assert(sym);
-			}
-
+			debug("save code to module __init__ function");
+			Proto *proto = Proto_New(0, NULL, 0, NULL);
+			Symbol *sym = STbl_Add_Proto(u->stbl, "__init__", proto);
+			assert(sym);
 			sym->ptr = u->block;
-			sym->locvars = u->stbl.varcnt;
+			sym->locvars = u->stbl->varcnt;
 			u->sym = sym;
 			assert(list_empty(&u->blocks));
 			u->block = NULL;
+		} else {
+			debug("module has not __init__ function");
 		}
 	} else {
 		assertm(0, "no codes in scope:%d", u->scope);
 	}
 }
 
-static ParserUnit *parser_new_unit(AtomTable *atbl, int scope)
+static void parser_init_unit(ParserUnit *u, AtomTable *atbl, int scope)
 {
-	ParserUnit *u = calloc(1, sizeof(ParserUnit));
 	init_list_head(&u->link);
 	init_list_head(&u->blocks);
-	STbl_Init(&u->stbl, atbl);
+	u->stbl = STbl_New(atbl);
 	u->sym = NULL;
 	u->block = NULL;
 	u->scope = scope;
-	return u;
 }
 
-static void parser_free_unit(ParserUnit *u)
+static void parser_fini_unit(ParserUnit *u)
 {
-	parser_finish_unit(u);
 	CodeBlock *b = u->block;
+	assert(!b);
 	while (b) {
 		codeblock_free(b);
 		if (!list_empty(&u->blocks)) {
@@ -556,14 +554,26 @@ static void parser_free_unit(ParserUnit *u)
 			b = NULL;
 		}
 	}
-	STbl_Fini(&u->stbl);
+	STbl_Free(u->stbl);
+}
+
+static ParserUnit *parser_new_unit(AtomTable *atbl, int scope)
+{
+	ParserUnit *u = calloc(1, sizeof(ParserUnit));
+	parser_init_unit(u, atbl, scope);
+	return u;
+}
+
+static void parser_free_unit(ParserUnit *u)
+{
+	parser_fini_unit(u);
 	free(u);
 }
 
 static void parser_enter_scope(ParserState *ps, int scope)
 {
 	AtomTable *atbl = NULL;
-	if (ps->u) atbl = ps->u->stbl.atbl;
+	if (ps->u) atbl = ps->u->stbl->atbl;
 	ParserUnit *u = parser_new_unit(atbl, scope);
 
 	/* Push the old ParserUnit on the stack. */
@@ -582,7 +592,14 @@ static void parser_exit_scope(ParserState *ps)
 
 	check_unused_symbols(ps);
 
+	parser_save_code(ps->u);
+	if (ps->nestlevel == 1) {
+		//save module's symbol to ps
+		ps->stbl = ps->u->stbl;
+		ps->u->stbl = NULL;
+	}
 	parser_free_unit(ps->u);
+
 	ps->nestlevel--;
 
 	/* Restore c->u to the parent unit. */
@@ -921,15 +938,15 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 	Symbol *sym;
 	if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
 		debug("var '%s' decl in module or class", var->id);
-		sym = STbl_Get(&u->stbl, var->id);
+		sym = STbl_Get(u->stbl, var->id);
 		assert(sym);
 		if (sym->kind == SYM_VAR && !sym->desc) {
 			debug("update symbol '%s' type", var->id);
-			STbl_Update_Symbol(&u->stbl, sym, var->desc);
+			STbl_Update_Symbol(u->stbl, sym, var->desc);
 		}
 	} else if (u->scope == SCOPE_FUNCTION) {
 		debug("var '%s' decl in function", var->id);
-		sym = STbl_Add_Var(&u->stbl, var->id, var->desc, var->bconst);
+		sym = STbl_Add_Var(u->stbl, var->id, var->desc, var->bconst);
 		sym->up = u->sym;
 	} else {
 		assertm(0, "unknown unit scope:%d", u->scope);
@@ -958,7 +975,7 @@ static void parser_function(ParserState *ps, struct stmt *stmt)
 	parser_enter_scope(ps, SCOPE_FUNCTION);
 
 	ParserUnit *parent = parent_scope(ps);
-	Symbol *sym = STbl_Get(&parent->stbl, stmt->funcdecl.id);
+	Symbol *sym = STbl_Get(parent->stbl, stmt->funcdecl.id);
 	assert(sym);
 	ps->u->sym = sym;
 
@@ -1110,7 +1127,6 @@ void init_parser(ParserState *ps)
 	init_imports(ps);
 	init_list_head(&ps->ustack);
 	Vector_Init(&ps->errors);
-	parser_enter_scope(ps, SCOPE_MODULE);
 }
 
 void fini_parser(ParserState *ps)
@@ -1118,7 +1134,6 @@ void fini_parser(ParserState *ps)
 	vec_stmt_fini(&ps->stmts);
 	fini_imports(ps);
 	Vector_Fini(&ps->errors, NULL, NULL);
-	parser_exit_scope(ps);
 	free(ps->package);
 }
 
@@ -1127,16 +1142,15 @@ void parser_module(ParserState *ps, FILE *in)
 	extern FILE *yyin;
 	extern int yyparse(ParserState *ps);
 
+	parser_enter_scope(ps, SCOPE_MODULE);
+
 	yyin = in;
 	yyparse(ps);
 	fclose(yyin);
 
 	parser_body(ps, &ps->stmts);
 
-	parser_show_scope(ps);
-
 	check_unused_imports(ps);
-	check_unused_symbols(ps);
 
-	parser_finish_unit(ps->u);
+	parser_exit_scope(ps);
 }
