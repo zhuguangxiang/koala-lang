@@ -182,9 +182,9 @@ struct stmt {
 			TypeDesc *desc;
 		} user_typedef;
 		struct {
-			struct test_block *if_part;
-			Vector *elseif_seq;
-			struct test_block *else_part;
+			struct expr *test;
+			Vector *body;
+			struct stmt *orelse;
 		} if_stmt;
 		struct {
 			int btest;
@@ -216,27 +216,26 @@ struct stmt {
 struct stmt *stmt_from_expr(struct expr *exp);
 struct stmt *stmt_from_import(char *id, char *path);
 struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
-															 TypeDesc *desc, int bconst);
+	TypeDesc *desc, int bconst);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
-																Vector *body);
+	Vector *body);
 struct stmt *stmt_from_assign(Vector *left, Vector *right);
 struct stmt *stmt_from_compound_assign(struct expr *left,
-																			 enum assign_operator op,
-																			 struct expr *right);
+	enum assign_operator op, struct expr *right);
 struct stmt *stmt_from_block(Vector *vec);
 struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
 struct stmt *stmt_from_structure(char *id, Vector *vec);
 struct stmt *stmt_from_interface(char *id, Vector *vec);
 struct stmt *stmt_from_jump(int kind);
-struct stmt *stmt_from_if(struct test_block *if_part,
-													Vector *elseif_seq, struct test_block *else_part);
+struct stmt *stmt_from_if(struct expr *test, Vector *body,
+	struct stmt *orelse);
 struct stmt *stmt_from_while(struct expr *test, Vector *body, int b);
 struct stmt *stmt_from_switch(struct expr *expr, Vector *case_seq);
 struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
-													 struct stmt *incr, Vector *body);
+	struct stmt *incr, Vector *body);
 struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
-															 Vector *body, int bdecl);
+	Vector *body, int bdecl);
 struct stmt *stmt_from_go(struct expr *expr);
 struct stmt *stmt_from_vardecl_list(Vector *vec);
 void stmt_free(struct stmt *stmt);

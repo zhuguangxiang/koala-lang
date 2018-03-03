@@ -149,7 +149,10 @@ L   [a-zA-Z_]
                           }
 
 (\"(\\.|[^"\\])*\")       {
-                            char *tmp = string_escape(yytext+1, yyleng - 2);
+                            //char *tmp = string_escape(yytext+1, yyleng - 2);
+                            char *tmp = malloc(yyleng-1);
+                            strncpy(tmp, yytext+1, yyleng-2);
+                            tmp[yyleng - 2] = 0;
                             yylval.string_const = tmp;
                             return STRING_CONST;
                           }

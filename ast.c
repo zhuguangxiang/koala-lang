@@ -320,14 +320,13 @@ struct stmt *stmt_from_jump(int kind)
 	return stmt;
 }
 
-struct stmt *stmt_from_if(struct test_block *if_part,
-													Vector *elseif_seq,
-													struct test_block *else_part)
+struct stmt *stmt_from_if(struct expr *test, Vector *body,
+	struct stmt *orelse)
 {
 	struct stmt *stmt = stmt_new(IF_KIND);
-	stmt->if_stmt.if_part    = if_part;
-	stmt->if_stmt.elseif_seq = elseif_seq;
-	stmt->if_stmt.else_part  = else_part;
+	stmt->if_stmt.test = test;
+	stmt->if_stmt.body = body;
+	stmt->if_stmt.orelse = orelse;
 	return stmt;
 }
 

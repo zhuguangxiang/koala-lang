@@ -27,8 +27,8 @@ int main(int argc, char *argv[])
 	ParserState ps;
 	Koala_Initialize();
 	init_parser(&ps);
-	parse(&ps, in);
-	gencode(&ps, outfile);
+	parser_module(&ps, in);
+	codegen_klc(&ps, outfile);
 	fini_parser(&ps);
 	Koala_Finalize();
 	return 0;

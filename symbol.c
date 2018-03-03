@@ -3,7 +3,7 @@
 #include "codeobject.h"
 #include "hash.h"
 #include "log.h"
-#include "codeblock.h"
+#include "parser.h"
 
 static Symbol *symbol_new(void)
 {
@@ -20,7 +20,7 @@ static void symbol_free(Symbol *sym)
 	} else if (sym->kind == SYM_PROTO) {
 		TypeDesc_Free(sym->desc);
 		if (sym->ob) CodeObject_Free(sym->ob);
-		if (sym->ptr) CodeBlock_Free(sym->ptr);
+		if (sym->ptr) codeblock_free(sym->ptr);
 	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
 		Klass *klazz = sym->ob;
 		if (klazz->dynamic) {

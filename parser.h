@@ -3,11 +3,32 @@
 #define _KOALA_PARSER_H_
 
 #include "ast.h"
-#include "codeblock.h"
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct inst {
+	struct list_head link;
+	uint8 op;
+	TValue arg;
+} Inst;
+
+typedef struct codeblock {
+	char *name; /* for debugging */
+	struct list_head link;
+	STable stbl;
+	struct list_head insts;
+	 /* true if a OP_RET opcode is inserted. */
+	int bret;
+} CodeBlock;
+
+CodeBlock *codeblock_new(AtomTable *atbl);
+void codeblock_free(CodeBlock *b);
+void codeblock_show(CodeBlock *block);
+
+/*-------------------------------------------------------------------------*/
 
 typedef struct import {
 	HashNode hnode;
@@ -46,14 +67,13 @@ typedef struct parserstate {
 	ParserUnit *u;
 	int nestlevel;
 	struct list_head ustack;
-	ParserUnit mu;      /* module parser unit */
 	int olevel;         /* optimization level */
 	Vector errors;
 } ParserState;
 
 void init_parser(ParserState *ps);
 void fini_parser(ParserState *ps);
-void parse(ParserState *ps, FILE *in);
+void parser_module(ParserState *ps, FILE *in);
 
 // API used by yacc
 Symbol *Parse_Import(ParserState *ps, char *id, char *path);

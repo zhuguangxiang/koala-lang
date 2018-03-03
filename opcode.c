@@ -42,7 +42,7 @@ void Code_Show(uint8 *code, int32 size)
 	int i = 0;
 	struct opcode *op;
 	int arg;
-	printf("-------------------------------------\n");
+	printf("------code show--------\n");
 	while (i < size) {
 		op = get_opcode(code[i]);
 		if (!op) break;
@@ -54,5 +54,5 @@ void Code_Show(uint8 *code, int32 size)
 		printf("arg:%d\n", arg);
 		i += op->argsize;
 	}
-	printf("-------------------------------------\n");
+	printf("------code show end----\n");
 }

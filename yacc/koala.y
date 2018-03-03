@@ -163,9 +163,9 @@ int yyerror(ParserState *parser, const char *str)
 %type <stmt> LocalStatement
 %type <stmt> Assignment
 %type <stmt> IfStatement
-%type <vector> ElseIfStatements
-%type <testblock> ElseIfStatement
-%type <testblock> OptionELSE
+//%type <vector> ElseIfStatements
+%type <stmt> OrElseStatement
+//%type <testblock> OptionELSE
 %type <stmt> WhileStatement
 %type <stmt> SwitchStatement
 %type <vector> CaseStatements
@@ -315,10 +315,10 @@ TypeList
 
 CompileUnit
   : Package Imports ModuleStatements {
-    ast_traverse(&parser->stmts);
+    //ast_traverse(&parser->stmts);
   }
   | Package ModuleStatements {
-    ast_traverse(&parser->stmts);
+    //ast_traverse(&parser->stmts);
   }
   ;
 
@@ -572,37 +572,20 @@ GoStatement
 /*--------------------------------------------------------------------------*/
 
 IfStatement
-  : IF '(' Expression ')' Block OptionELSE {
-    $$ = stmt_from_if(new_test_block($3, $5), NULL, $6);
-  }
-  | IF '(' Expression ')' Block ElseIfStatements OptionELSE {
-    $$ = stmt_from_if(new_test_block($3, $5), $6, $7);
+  : IF '(' Expression ')' Block OrElseStatement {
+    $$ = stmt_from_if($3, $5, $6);
   }
   ;
 
-ElseIfStatements
-  : ElseIfStatement {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
-  }
-  | ElseIfStatements ElseIfStatement {
-    Vector_Append($1, $2);
-    $$ = $1;
-  }
-  ;
-
-ElseIfStatement
-  : ELSE IF '(' Expression ')' Block {
-    $$ = new_test_block($4, $6);
-  }
-  ;
-
-OptionELSE
-  : ELSE Block {
-    $$ = new_test_block(NULL, $2);
-  }
-  | %empty {
+OrElseStatement
+  : %empty {
     $$ = NULL;
+  }
+  | ELSE Block {
+    $$ = stmt_from_if(NULL, $2, NULL);
+  }
+  | ELSE IfStatement {
+    $$ = $2;
   }
   ;
 

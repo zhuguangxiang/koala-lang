@@ -1309,7 +1309,7 @@ KImage *KImage_Read_File(char *path)
 
 void header_show(ImageHeader *h)
 {
-	printf("--------------------\n");
+	printf("------klc header-------------\n");
 	printf("header:\n");
 	printf("magic:%s\n", (char *)h->magic);
 	printf("version:%d.%d.%d\n", h->version[0] - '0', h->version[1] - '0', 0);
@@ -1318,7 +1318,7 @@ void header_show(ImageHeader *h)
 	printf("map_offset:0x%x\n", h->map_offset);
 	printf("map_size:%d\n", h->map_size);
 	printf("pkg_size:%d\n", h->pkg_size);
-	printf("--------------------\n");
+	printf("------klc header end---------\n");
 }
 
 void AtomTable_Show(AtomTable *table)
@@ -1356,7 +1356,6 @@ void KImage_Show(KImage *image)
 	header_show(h);
 
 	printf("package:%s\n", image->package);
-	printf("--------------------\n");
 
 	AtomTable_Show(image->table);
 }

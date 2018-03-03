@@ -1,5 +1,6 @@
 
 #include "parser.h"
+#include "codegen.h"
 #include "koala_state.h"
 #include "checker.h"
 #include "codegen.h"
@@ -7,8 +8,55 @@
 #include "moduleobject.h"
 #include "log.h"
 
-void visit_expr(ParserState *ps, struct expr *exp);
-void parse_statements(ParserState *ps, Vector *stmts);
+CodeBlock *codeblock_new(AtomTable *atbl)
+{
+	CodeBlock *b = calloc(1, sizeof(CodeBlock));
+	init_list_head(&b->link);
+	STbl_Init(&b->stbl, atbl);
+	init_list_head(&b->insts);
+	return b;
+}
+
+void codeblock_free(CodeBlock *b)
+{
+	if (!b) return;
+	assert(list_unlinked(&b->link));
+	STbl_Fini(&b->stbl);
+
+	Inst *i, *n;
+	list_for_each_entry_safe(i, n, &b->insts, link) {
+		list_del(&i->link);
+		Inst_Free(i);
+	}
+
+	free(b);
+}
+
+void codeblock_show(CodeBlock *block)
+{
+	if (!block) return;
+
+	char buf[64];
+
+	debug("---------CodeBlock-------");
+	if (!list_empty(&block->insts)) {
+		int cnt = 0;
+		Inst *i;
+		list_for_each_entry(i, &block->insts, link) {
+			printf("[%d]:\n", cnt++);
+			printf("  opcode:%s\n", OPCode_ToString(i->op));
+			TValue_Print(buf, sizeof(buf), &i->arg);
+			printf("  arg:%s\n", buf);
+			printf("-----------------\n");
+		}
+	}
+	debug("--------CodeBlock End----");
+}
+
+/*-------------------------------------------------------------------------*/
+
+static void parser_visit_expr(ParserState *ps, struct expr *exp);
+void parser_body(ParserState *ps, Vector *stmts);
 
 /*-------------------------------------------------------------------------*/
 // Symbol
@@ -437,6 +485,21 @@ static int optimize_binary_expr(ParserState *ps, struct expr **exp)
 
 /*--------------------------------------------------------------------------*/
 
+void parser_show_scope(ParserState *ps)
+{
+	debug("------scope show-------------");
+	debug("scope-%d symbols:", ps->nestlevel);
+	STbl_Show(&ps->u->stbl, 0);
+	debug("-----scope show end----------");
+}
+
+static void parser_new_block(ParserUnit *u)
+{
+	CodeBlock *block = codeblock_new(u->stbl.atbl);
+	if (u->block) list_add(&u->block->link, &u->blocks);
+	u->block = block;
+}
+
 static void parser_finish_unit(ParserUnit *u)
 {
 	// save code to symbol
@@ -468,34 +531,32 @@ static void parser_finish_unit(ParserUnit *u)
 	}
 }
 
-static void init_parser_unit(ParserUnit *u, AtomTable *atbl, int scope)
+static ParserUnit *parser_new_unit(AtomTable *atbl, int scope)
 {
+	ParserUnit *u = calloc(1, sizeof(ParserUnit));
 	init_list_head(&u->link);
 	init_list_head(&u->blocks);
 	STbl_Init(&u->stbl, atbl);
 	u->sym = NULL;
 	u->block = NULL;
 	u->scope = scope;
-}
-
-static void fini_parser_unit(ParserUnit *u)
-{
-	parser_finish_unit(u);
-	// free symbol table
-	STbl_Fini(&u->stbl);
-}
-
-static ParserUnit *parser_enter_unit(AtomTable *atbl, int scope)
-{
-	ParserUnit *u = calloc(1, sizeof(ParserUnit));
-	init_parser_unit(u, atbl, scope);
 	return u;
 }
 
-static void parser_exit_unit(ParserUnit *u)
+static void parser_free_unit(ParserUnit *u)
 {
-	fini_parser_unit(u);
-	CodeBlock_Free(u->block);
+	parser_finish_unit(u);
+	CodeBlock *b = u->block;
+	while (b) {
+		codeblock_free(b);
+		if (!list_empty(&u->blocks)) {
+			b = list_first_entry(&u->blocks, CodeBlock, link);
+			list_del(&b->link);
+		} else {
+			b = NULL;
+		}
+	}
+	STbl_Fini(&u->stbl);
 	free(u);
 }
 
@@ -503,7 +564,7 @@ static void parser_enter_scope(ParserState *ps, int scope)
 {
 	AtomTable *atbl = NULL;
 	if (ps->u) atbl = ps->u->stbl.atbl;
-	ParserUnit *u = parser_enter_unit(atbl, scope);
+	ParserUnit *u = parser_new_unit(atbl, scope);
 
 	/* Push the old ParserUnit on the stack. */
 	if (ps->u) {
@@ -511,18 +572,17 @@ static void parser_enter_scope(ParserState *ps, int scope)
 	}
 	ps->u = u;
 	ps->nestlevel++;
+	parser_new_block(ps->u);
 }
 
 static void parser_exit_scope(ParserState *ps)
 {
-	printf("-------------------------\n");
-	printf("scope-%d symbols:\n", ps->nestlevel);
-	STbl_Show(&ps->u->stbl, 0);
-	CodeBlock_Show(ps->u->block);
-	printf("-------------------------\n");
+	parser_show_scope(ps);
+	codeblock_show(ps->u->block);
+
 	check_unused_symbols(ps);
 
-	parser_exit_unit(ps->u);
+	parser_free_unit(ps->u);
 	ps->nestlevel--;
 
 	/* Restore c->u to the parent unit. */
@@ -535,14 +595,8 @@ static void parser_exit_scope(ParserState *ps)
 	}
 }
 
-static void parser_enter_codeblock(ParserUnit *u)
-{
-	CodeBlock *block = CodeBlock_New(u->stbl.atbl);
-	if (u->block) list_add(&u->block->link, &u->blocks);
-	u->block = block;
-}
-
-static void parser_exit_codeblock(ParserUnit *u)
+/*
+static void merge_codeblock(ParserUnit *u)
 {
 	CodeBlock *b = u->block;
 
@@ -563,12 +617,13 @@ static void parser_exit_codeblock(ParserUnit *u)
 		list_add_tail(&i->link, &u->block->insts);
 	}
 
-	CodeBlock_Free(b);
+	codeblock_free(b);
 }
+*/
 
 /*--------------------------------------------------------------------------*/
 
-static void expr_parse_id(ParserState *ps, struct expr *exp)
+static void parser_ident(ParserState *ps, struct expr *exp)
 {
 	Symbol *sym = find_id_symbol(ps, exp->id);
 	if (!sym) {
@@ -661,47 +716,11 @@ static void expr_parse_id(ParserState *ps, struct expr *exp)
 	}
 }
 
-static void expr_parse_int(ParserState *ps, struct expr *exp)
-{
-	if (exp->ctx == EXPR_STORE) {
-		error("cannot assign to %lld", exp->ival);
-		return;
-	}
-	TValue val = INT_VALUE_INIT(exp->ival);
-	Inst_Append(ps->u->block, OP_LOADK, &val);
-}
-
-static void expr_parse_float(ParserState *ps, struct expr *exp)
-{
-	UNUSED_PARAMETER(ps);
-	if (exp->ctx == EXPR_STORE) {
-		error("cannot assign to %f", exp->fval);
-	}
-}
-
-static void expr_parse_bool(ParserState *ps, struct expr *exp)
-{
-	UNUSED_PARAMETER(ps);
-	if (exp->ctx == EXPR_STORE) {
-		error("cannot assign to %s", exp->bval ? "true":"false");
-	}
-}
-
-static void expr_parse_string(ParserState *ps, struct expr *exp)
-{
-	if (exp->ctx == EXPR_STORE) {
-		error("cannot assign to %s", exp->str);
-		return;
-	}
-	TValue val = CSTR_VALUE_INIT(exp->str);
-	Inst_Append(ps->u->block, OP_LOADK, &val);
-}
-
-void expr_parse_attribute(ParserState *ps, struct expr *exp)
+void parser_attribute(ParserState *ps, struct expr *exp)
 {
 	struct expr *left = exp->attribute.left;
 	left->ctx = EXPR_LOAD;
-	visit_expr(ps, left);
+	parser_visit_expr(ps, left);
 
 	debug(".%s", exp->attribute.id);
 
@@ -747,7 +766,6 @@ void expr_parse_attribute(ParserState *ps, struct expr *exp)
 
 	// generate code
 	ParserUnit *u = ps->u;
-	//parser_enter_codeblock(u);
 	if (sym->kind == SYM_VAR) {
 		assert(0);
 	} else if (sym->kind == SYM_PROTO) {
@@ -756,22 +774,21 @@ void expr_parse_attribute(ParserState *ps, struct expr *exp)
 	} else {
 		assert(0);
 	}
-	//parser_exit_codeblock(u);
 }
 
-static void expr_parse_call(ParserState *ps, struct expr *exp)
+static void parser_call(ParserState *ps, struct expr *exp)
 {
 	if (exp->call.args) {
 		struct expr *e;
 		Vector_ForEach_Reverse(e, exp->call.args) {
 			e->ctx = EXPR_LOAD;
-			visit_expr(ps, e);
+			parser_visit_expr(ps, e);
 		}
 	}
 
 	struct expr *left = exp->call.left;
 	left->ctx = EXPR_LOAD;
-	visit_expr(ps, left);
+	parser_visit_expr(ps, left);
 	if (!left->sym) {
 		error("func is not found");
 		return;
@@ -790,13 +807,14 @@ static void expr_parse_call(ParserState *ps, struct expr *exp)
 	}
 }
 
-static void expr_parse_binary(ParserState *ps, struct expr *exp)
+/*
+static void parser_binary(ParserState *ps, struct expr *exp)
 {
 	debug("binary_op:%d", exp->binary.op);
 	exp->binary.right->ctx = EXPR_LOAD;
-	visit_expr(ps, exp->binary.right);
+	parser_visit_expr(ps, exp->binary.right);
 	exp->binary.left->ctx = EXPR_LOAD;
-	visit_expr(ps, exp->binary.left);
+	parser_visit_expr(ps, exp->binary.left);
 	exp->desc = exp->binary.left->desc;
 
 	// generate code
@@ -820,49 +838,71 @@ static void expr_parse_binary(ParserState *ps, struct expr *exp)
 	//   Inst_Append(ps->u->block, OP_ADD, NULL);
 	// }
 }
+*/
 
-typedef void (*visit_expr_fn)(ParserState *ps, struct expr *exp);
-
-static visit_expr_fn exprfuncs[] = {
-	NULL,  //INVALID
-	expr_parse_id,     //ID_KIND
-	expr_parse_int,    //INT_KIND
-	expr_parse_float,  //FLOAT_KIND
-	expr_parse_bool,   //BOOL_KIND
-	expr_parse_string, //STRING_KIND
-	NULL,  //SELF_KIND
-	NULL,  //NIL_KIND
-	NULL,  //EXP_KIND
-	NULL,  //ARRAY_KIND
-	NULL,  //ANONYOUS_FUNC_KIND
-	expr_parse_attribute,  //ATTRIBUTE_KIND
-	NULL,  //SUBSCRIPT_KIND
-	expr_parse_call,  //CALL_KIND
-	NULL,  //UNARY_KIND
-	expr_parse_binary,  //BINARY_KIND
-};
-
-void visit_expr(ParserState *ps, struct expr *exp)
+static void parser_visit_expr(ParserState *ps, struct expr *exp)
 {
-	int kind = exp->kind;
-	assert(kind > 0 && kind < EXPR_KIND_MAX);
-	visit_expr_fn fn = exprfuncs[kind];
-	assert(fn);
-	//parser_enter_codeblock(ps->u);
-	fn(ps, exp);
-	//parser_exit_codeblock(ps->u);
+	switch (exp->kind) {
+		case ID_KIND: {
+			parser_ident(ps, exp);
+			break;
+		}
+		case INT_KIND: {
+			assert(exp->ctx == EXPR_LOAD);
+			TValue val = INT_VALUE_INIT(exp->ival);
+			Inst_Append(ps->u->block, OP_LOADK, &val);
+			break;
+		}
+		case FLOAT_KIND: {
+			assert(exp->ctx == EXPR_LOAD);
+			break;
+		}
+		case BOOL_KIND: {
+			assert(exp->ctx == EXPR_LOAD);
+			break;
+		}
+		case STRING_KIND: {
+			assert(exp->ctx == EXPR_LOAD);
+			TValue val = CSTR_VALUE_INIT(exp->str);
+			Inst_Append(ps->u->block, OP_LOADK, &val);
+			break;
+		}
+		case ATTRIBUTE_KIND: {
+			parser_attribute(ps, exp);
+			break;
+		}
+		case CALL_KIND: {
+			parser_call(ps, exp);
+			break;
+		}
+		case BINARY_KIND: {
+			debug("binary_op:%d", exp->binary.op);
+			exp->binary.right->ctx = EXPR_LOAD;
+			parser_visit_expr(ps, exp->binary.right);
+			exp->binary.left->ctx = EXPR_LOAD;
+			parser_visit_expr(ps, exp->binary.left);
+			exp->desc = exp->binary.left->desc;
+			codegen_binary(ps, exp->binary.op);
+			break;
+		}
+		default: {
+			assert(0);
+			break;
+		}
+	}
 }
 
 /*--------------------------------------------------------------------------*/
 
-static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
+static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
 	ParserUnit *u = ps->u;
 
 	debug("parse variable '%s' declaration", var->id);
 
 	if (exp) {
-		visit_expr(ps, exp);
+		exp->ctx = EXPR_LOAD;
+		parser_visit_expr(ps, exp);
 		if (!exp->desc) {
 			error("cannot resolve var '%s' type", var->id);
 			return;
@@ -897,7 +937,6 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 
 	//generate code
 	if (exp) {
-		//parser_enter_codeblock(u);
 		if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
 			// module's or class's variable
 			TValue val = INT_VALUE_INIT(0);
@@ -911,18 +950,10 @@ static void parse_variable(ParserState *ps, struct var *var, struct expr *exp)
 		} else {
 			assert(0);
 		}
-		//parser_exit_codeblock(u);
 	}
 }
 
-static void stmt_parse_variable(ParserState *ps, struct stmt *stmt)
-{
-	struct var *var = stmt->vardecl.var;
-	struct expr *exp = stmt->vardecl.exp;
-	parse_variable(ps, var, exp);
-}
-
-void stmt_parse_function(ParserState *ps, struct stmt *stmt)
+static void parser_function(ParserState *ps, struct stmt *stmt)
 {
 	parser_enter_scope(ps, SCOPE_FUNCTION);
 
@@ -932,14 +963,14 @@ void stmt_parse_function(ParserState *ps, struct stmt *stmt)
 	ps->u->sym = sym;
 
 	if (parent->scope == SCOPE_MODULE) {
-		debug("parse function '%s'", stmt->funcdecl.id);
+		debug("------parse function '%s'--------", stmt->funcdecl.id);
 		if (stmt->funcdecl.pvec) {
 			struct var *var;
 			Vector_ForEach(var, stmt->funcdecl.pvec)
-				parse_variable(ps, var, NULL);
+				parser_variable(ps, var, NULL);
 		}
-		parse_statements(ps, stmt->funcdecl.body);
-		debug("end function '%s'", stmt->funcdecl.id);
+		parser_body(ps, stmt->funcdecl.body);
+		debug("------parse function '%s' end----", stmt->funcdecl.id);
 	} else if (parent->scope == SCOPE_CLASS) {
 		debug("parse method '%s'", stmt->funcdecl.id);
 	} else {
@@ -949,18 +980,18 @@ void stmt_parse_function(ParserState *ps, struct stmt *stmt)
 	parser_exit_scope(ps);
 }
 
-static void stmt_parse_assign(ParserState *ps, struct stmt *stmt)
+static void parser_assign(ParserState *ps, struct stmt *stmt)
 {
 	struct expr *r = stmt->assign.right;
 	struct expr *l = stmt->assign.left;
 	//check_assignment(l, r);
 	r->ctx = EXPR_LOAD;
-	visit_expr(ps, r);
+	parser_visit_expr(ps, r);
 	l->ctx = EXPR_STORE;
-	visit_expr(ps, l);
+	parser_visit_expr(ps, l);
 }
 
-static void stmt_parse_return(ParserState *ps, struct stmt *stmt)
+static void parser_return(ParserState *ps, struct stmt *stmt)
 {
 	ParserUnit *u = ps->u;
 	if (u->scope == SCOPE_FUNCTION) {
@@ -969,7 +1000,7 @@ static void stmt_parse_return(ParserState *ps, struct stmt *stmt)
 			struct expr *e;
 			Vector_ForEach(e, stmt->vec) {
 				e->ctx = EXPR_LOAD;
-				visit_expr(ps, e);
+				parser_visit_expr(ps, e);
 			}
 		}
 		check_return_types(u, stmt->vec);
@@ -978,39 +1009,96 @@ static void stmt_parse_return(ParserState *ps, struct stmt *stmt)
 	}
 }
 
+/*
+static void stmt_parse_testblock(ParserState *ps, struct test_block *block)
+{
+	enter_codeblock(ps->u);
+	parser_visit_expr(ps, block->test);
+	assert(block->test->desc);
+	// if (!TypeDesc_IsBool(block->test->desc)) {
+	// 	error("if-stmt condition is not bool");
+	// 	return;
+	// }
+
+	enter_codeblock(ps->u);
+
+	enter_codeblock(ps->u);
+	parser_body(ps, block->body);
+
+	// generate code
+	//TValue val = INT_VALUE_INIT(0);
+	//Inst_Append(ps->u->block, OP_JUMP_FALSE, &val);
+}
+
+static void stmt_parse_if(ParserState *ps, struct stmt *stmt)
+{
+	// if
+	struct test_block *ifblock = stmt->if_stmt.if_part;
+	enter_codeblock(ps->u);
+	stmt_parse_testblock(ps, ifblock);
+
+	// else if
+	Vector *elifblocks = stmt->if_stmt.elseif_parts;
+	struct test_block *block;
+	Vector_ForEach(block, elifblocks) {
+		enter_codeblock(ps->u);
+		stmt_parse_testblock(ps, block);
+	}
+
+	// else
+	struct test_block *elseblcok = stmt->if_stmt.else_part;
+	enter_codeblock(ps->u);
+	stmt_parse_testblock(ps, elseblcok);
+	merge_codeblock(ps->u);
+}
+*/
+
 void stmt_parse_expr(ParserState *ps, struct stmt *stmt)
 {
 	assert(stmt->kind == EXPR_KIND);
-	visit_expr(ps, stmt->exp);
+	parser_visit_expr(ps, stmt->exp);
 }
 
-typedef void (*visit_stmt_fn)(ParserState *ps, struct stmt *stmt);
-
-static visit_stmt_fn stmtfuncs[] = {
-	NULL,  //INVALID
-	NULL,  //IMPORT_KIND
-	stmt_parse_variable,  //VARDECL_KIND
-	stmt_parse_function,  //FUNCDECL_KIND
-	NULL,  //CLASS_KIND
-	NULL,  //INTF_KIND
-	stmt_parse_expr,  //EXPR_KIND
-	stmt_parse_assign,  //ASSIGN_KIND
-	NULL,  //COMPOUND_ASSIGN_KIND
-	stmt_parse_return,  //RETURN_KIND
-};
-
-void parse_statements(ParserState *ps, Vector *stmts)
+static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 {
+	switch (stmt->kind) {
+		case VARDECL_KIND: {
+			struct var *var = stmt->vardecl.var;
+			struct expr *exp = stmt->vardecl.exp;
+			parser_variable(ps, var, exp);
+			break;
+		}
+		case FUNCDECL_KIND: {
+			parser_function(ps, stmt);
+			break;
+		}
+		case EXPR_KIND: {
+			parser_visit_expr(ps, stmt->exp);
+			break;
+		}
+		case ASSIGN_KIND: {
+			parser_assign(ps, stmt);
+			break;
+		}
+		case RETURN_KIND: {
+			parser_return(ps, stmt);
+			break;
+		}
+		default: {
+			assert(0);
+			break;
+		}
+	}
+}
+
+void parser_body(ParserState *ps, Vector *stmts)
+{
+	debug("------parse body-------");
 	struct stmt *s;
 	Vector_ForEach(s, stmts) {
-		int kind = s->kind;
-		assert(kind > IMPORT_KIND && kind < STMT_KIND_MAX);
-		visit_stmt_fn fn = stmtfuncs[kind];
-		assert(fn);
-		parser_enter_codeblock(ps->u);
-		fn(ps, s);
-		parser_exit_codeblock(ps->u);
+		parser_vist_stmt(ps, s);
 	}
+	debug("------parse body end---");
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1022,8 +1110,7 @@ void init_parser(ParserState *ps)
 	init_imports(ps);
 	init_list_head(&ps->ustack);
 	Vector_Init(&ps->errors);
-	init_parser_unit(&ps->mu, NULL, SCOPE_MODULE);
-	ps->u = &ps->mu;
+	parser_enter_scope(ps, SCOPE_MODULE);
 }
 
 void fini_parser(ParserState *ps)
@@ -1031,11 +1118,11 @@ void fini_parser(ParserState *ps)
 	vec_stmt_fini(&ps->stmts);
 	fini_imports(ps);
 	Vector_Fini(&ps->errors, NULL, NULL);
-	fini_parser_unit(&ps->mu);
+	parser_exit_scope(ps);
 	free(ps->package);
 }
 
-void parse(ParserState *ps, FILE *in)
+void parser_module(ParserState *ps, FILE *in)
 {
 	extern FILE *yyin;
 	extern int yyparse(ParserState *ps);
@@ -1044,14 +1131,9 @@ void parse(ParserState *ps, FILE *in)
 	yyparse(ps);
 	fclose(yyin);
 
-	printf("-------parse-------\n");
-	parse_statements(ps, &ps->stmts);
-	printf("-------parse End---\n");
+	parser_body(ps, &ps->stmts);
 
-	printf("-------------------------\n");
-	printf("scope-%d symbols:\n", ps->nestlevel);
-	STbl_Show(&ps->u->stbl, 0);
-	printf("-------------------------\n");
+	parser_show_scope(ps);
 
 	check_unused_imports(ps);
 	check_unused_symbols(ps);

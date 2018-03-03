@@ -13,7 +13,7 @@ include $(TOPDIR)/config.mk
 KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c \
 atomtable.c symbol.c object.c stringobject.c tupleobject.c \
 tableobject.c moduleobject.c codeobject.c opcode.c klc.c codegen.c \
-routine.c thread.c mod_io.c koala_state.c codeblock.c \
+routine.c thread.c mod_io.c koala_state.c \
 koala_yacc.c koala_lex.c ast.c parser.c checker.c koala_type.c
 KOALA_LIB = koala
 
