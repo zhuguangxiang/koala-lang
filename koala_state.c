@@ -1,5 +1,5 @@
 
-#include "kstate.h"
+#include "koala_state.h"
 #include "moduleobject.h"
 #include "stringobject.h"
 #include "tupleobject.h"

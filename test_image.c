@@ -1,5 +1,5 @@
 
-#include "kimage.h"
+#include "klc.h"
 
 /*
  make lib

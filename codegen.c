@@ -41,14 +41,14 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 	}
 }
 
-KImage *Generate_Image(ParserState *ps)
+void gencode(ParserState *ps, char *out)
 {
-	printf("----------generate image--------------------\n");
+	printf("----------generate--------------------\n");
 	ParserUnit *u = ps->u;
 	KImage *image = KImage_New(ps->package);
 	STbl_Traverse(&u->stbl, __gen_code_fn, image);
 	KImage_Finish(image);
 	KImage_Show(image);
-	printf("----------generate image end----------------\n");
-	return image;
+	KImage_Write_File(image, out);
+	printf("----------generate end----------------\n");
 }

@@ -2,7 +2,7 @@
 #ifndef _KOALA_SYMBOL_H_
 #define _KOALA_SYMBOL_H_
 
-#include "kimage.h"
+#include "klc.h"
 
 #ifdef __cplusplus
 extern "C" {

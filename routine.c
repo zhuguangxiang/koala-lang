@@ -3,7 +3,7 @@
 #include "moduleobject.h"
 #include "codeobject.h"
 #include "tupleobject.h"
-#include "kstate.h"
+#include "koala_state.h"
 #include "opcode.h"
 #include "log.h"
 

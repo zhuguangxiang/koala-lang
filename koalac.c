@@ -1,6 +1,7 @@
 
 #include "parser.h"
 #include "koala.h"
+#include "codegen.h"
 
 int main(int argc, char *argv[])
 {
@@ -21,14 +22,14 @@ int main(int argc, char *argv[])
 	}
 	strcat(outfile, ".klc");
 
-	FILE *in;
-	KImage *image;
+	FILE *in = fopen(argv[1], "r");
 
-	in = fopen(argv[1], "r");
+	ParserState ps;
 	Koala_Initialize();
-	image = Compile_ToImage(in);
-	KImage_Write_File(image, outfile);
+	init_parser(&ps);
+	parse(&ps, in);
+	gencode(&ps, outfile);
+	fini_parser(&ps);
 	Koala_Finalize();
-
 	return 0;
 }

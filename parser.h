@@ -24,6 +24,8 @@ enum {
 	SCOPE_MODULE = 1,
 	SCOPE_CLASS,
 	SCOPE_FUNCTION,
+	SCOPE_METHOD,
+	SCOPE_CLOSURE,
 	SCOPE_BLOCK
 };
 
@@ -46,13 +48,12 @@ typedef struct parserstate {
 	struct list_head ustack;
 	ParserUnit mu;      /* module parser unit */
 	int olevel;         /* optimization level */
-	int gencode;        /* for code generator */
 	Vector errors;
 } ParserState;
 
-KImage *Compile_ToImage(FILE *in);
-Object *Compile_ToModule(FILE *in);
-void Parse_Statements(ParserState *ps, Vector *stmts);
+void init_parser(ParserState *ps);
+void fini_parser(ParserState *ps);
+void parse(ParserState *ps, FILE *in);
 
 // API used by yacc
 Symbol *Parse_Import(ParserState *ps, char *id, char *path);

@@ -1,9 +1,9 @@
 
-#ifndef _KOALA_IMAGE_H_
-#define _KOALA_IMAGE_H_
+#ifndef _KOALA_CODE_FORMAT_H_
+#define _KOALA_CODE_FORMAT_H_
 
 #include "atomtable.h"
-#include "ktype.h"
+#include "koala_type.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -195,4 +195,4 @@ void AtomTable_Show(AtomTable *table);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_IMAGE_H_ */
+#endif /* _KOALA_CODE_FORMAT_H_ */

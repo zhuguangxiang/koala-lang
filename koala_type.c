@@ -1,5 +1,5 @@
 
-#include "ktype.h"
+#include "koala_type.h"
 #include "log.h"
 
 char *Primitive_ToString(int type)

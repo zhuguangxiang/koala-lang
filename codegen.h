@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-KImage *Generate_Image(ParserState *ps);
+void gencode(ParserState *ps, char *out);
 
 #ifdef __cplusplus
 }

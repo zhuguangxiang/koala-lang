@@ -4,7 +4,7 @@
 
 #include "common.h"
 #include "vector.h"
-#include "ktype.h"
+#include "koala_type.h"
 #include "symbol.h"
 
 #ifdef __cplusplus
