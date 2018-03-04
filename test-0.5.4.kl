@@ -10,6 +10,7 @@ func Main(args []string) {
 	testif(10, 10);
 	testif(10, 20);
 	testif(21, 11);
+	testif2(201);
 }
 
 func testif(a int, b int) {
@@ -19,5 +20,21 @@ func testif(a int, b int) {
 		io.Print(a, "<", b, "\n");
 	} else {
 		io.Print(a, "==", b, "\n");
+	}
+}
+
+func testif2(a int) {
+	if (a > 120) {
+		io.Print(">200");
+	}
+
+	var b int = 300;
+
+	b = 100;
+
+	if (a > b) {
+		io.Print("a > b");
+	} else {
+		io.Print("a < b");
 	}
 }

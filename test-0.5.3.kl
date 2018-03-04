@@ -13,8 +13,8 @@ var value = number + 8;
 func Main(args []string) {
 	io.Print("hello, world\n");
 	io.Print(1+2, 3+4, greeting, 5-6, "\n");
-	//var res int = number_sub(10, 20);
-	io.Print(number_sub(10, 20), "\n");
+	var res = number_sub(10, 20);
+	io.Print(res, "\n");
 	io.Print("\nvalue =", value, "\n");
 }
 

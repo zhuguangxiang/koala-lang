@@ -8,11 +8,17 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	puts("\n+----------------------------+");
+	puts("|   Koala Machine Starting   |");
+	puts("+----------------------------+");
+
 	Koala_Initialize();
 	Koala_Run(argv[1]);
 	Koala_Finalize();
 
-	puts("\nKoala Machine Exits");
+	puts("\n+----------------------------+");
+	puts("|   Koala Machine Exited     |");
+	puts("+----------------------------+");
 
 	return 0;
 }

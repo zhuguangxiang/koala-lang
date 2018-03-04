@@ -261,8 +261,8 @@ char *TypeDesc_ToString(TypeDesc *desc)
 		}
 		case TYPE_PROTO: {
 			sz = 1;
-			str = malloc(1);
-			str[0] = '\0';
+			str = malloc(10);
+			strcpy(str, "proto");
 			break;
 		}
 		default: {

@@ -13,7 +13,7 @@ static struct opcode {
 	{OP_STORE,    "store",    2},
 	{OP_GETFIELD, "getfield", 4},
 	{OP_SETFIELD, "setfield", 4},
-	{OP_CALL,     "call",     4},
+	{OP_CALL,     "call",     8},
 	{OP_RET,      "return",   0},
 	{OP_ADD,      "add",      0},
 	{OP_SUB,      "sub",      0},

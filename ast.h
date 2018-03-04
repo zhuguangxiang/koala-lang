@@ -52,6 +52,7 @@ struct expr {
 	TypeDesc *desc;
 	enum expr_ctx ctx;
 	Symbol *sym;
+	int argc;
 	union {
 		char *id;
 		int64 ival;

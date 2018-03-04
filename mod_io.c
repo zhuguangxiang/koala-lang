@@ -2,6 +2,7 @@
 #include "moduleobject.h"
 #include "tupleobject.h"
 #include "koala_state.h"
+#include "log.h"
 
 static Object *__io_print(Object *ob, Object *args)
 {
@@ -13,9 +14,10 @@ static Object *__io_print(Object *ob, Object *args)
 
 #define BUF_SIZE  512
 
-	char temp[BUF_SIZE];
+	char temp[BUF_SIZE] = {0};
 	char *buf = temp;
 	int sz = Tuple_Size(args);
+	debug("io.Print, argc:%d", sz);
 	TValue val;
 	int avail = 0;
 	for (int i = 0; i < sz; i++) {

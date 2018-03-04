@@ -483,7 +483,7 @@ static void parser_new_block(ParserUnit *u)
 
 /*--------------------------------------------------------------------------*/
 
-static void parser_save_code(ParserState *ps)
+static void parser_merge(ParserState *ps)
 {
 	ParserUnit *u = ps->u;
 	// save code to symbol
@@ -497,7 +497,13 @@ static void parser_save_code(ParserState *ps)
 		debug("merge code to parent's block(%d)", parent->scope);
 		assert(list_empty(&u->blocks));
 		assert(list_empty(&parent->blocks));
-		parent->block->next = u->block;
+		if (!parent->block->next) {
+			assert(!parent->block->tail);
+			parent->block->tail = u->block;
+			parent->block->next = u->block;
+		} else {
+			parent->block->tail->next = u->block;
+		}
 		u->block = NULL;
 	} else if (u->scope == SCOPE_MODULE) {
 		if (u->block && u->block->bytes > 0) {
@@ -580,7 +586,7 @@ static void parser_exit_scope(ParserState *ps)
 
 	check_unused_symbols(ps);
 
-	parser_save_code(ps);
+	parser_merge(ps);
 
 	if (ps->nestlevel == 1) {
 		//save module's symbol to ps
@@ -672,7 +678,8 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 				TValue val = INT_VALUE_INIT(0);
 				Inst_Append(u->block, OP_LOAD, &val);
 				setcstrvalue(&val, sym->name);
-				Inst_Append(u->block, OP_CALL, &val);
+				Inst *i = Inst_Append(u->block, OP_CALL, &val);
+				i->argc = exp->argc;
 			} else {
 				assert(0);
 			}
@@ -703,7 +710,8 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 				TValue val = INT_VALUE_INIT(0);
 				Inst_Append(u->block, OP_LOAD, &val);
 				setcstrvalue(&val, sym->name);
-				Inst_Append(u->block, OP_CALL, &val);
+				Inst *i = Inst_Append(u->block, OP_CALL, &val);
+				i->argc = exp->argc;
 			} else {
 				assert(0);
 			}
@@ -799,7 +807,8 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		assert(0);
 	} else if (sym->kind == SYM_PROTO) {
 		TValue val = CSTR_VALUE_INIT(exp->attribute.id);
-		Inst_Append(u->block, OP_CALL, &val);
+		Inst *i = Inst_Append(u->block, OP_CALL, &val);
+		i->argc = exp->argc;
 	} else {
 		assert(0);
 	}
@@ -807,16 +816,20 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 
 static void parser_call(ParserState *ps, struct expr *exp)
 {
+	int argc = 0;
+
 	if (exp->call.args) {
 		struct expr *e;
 		Vector_ForEach_Reverse(e, exp->call.args) {
 			e->ctx = EXPR_LOAD;
 			parser_visit_expr(ps, e);
 		}
+		argc = Vector_Size(exp->call.args);
 	}
 
 	struct expr *left = exp->call.left;
 	left->ctx = EXPR_LOAD;
+	left->argc = argc;
 	parser_visit_expr(ps, left);
 	if (!left->sym) {
 		error("func is not found");
@@ -941,13 +954,30 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 			return;
 		}
 
-		if (!var->desc) {
-			var->desc = exp->desc;
-		}
+		if (exp->desc->kind == TYPE_PROTO) {
+			Proto *proto = exp->desc->proto;
+			if (proto->rsz != 1) {
+				error("function's returns is not one:%d", proto->rsz);
+				return;
+			}
 
-		if (!TypeDesc_Check(var->desc, exp->desc)) {
-			error("typecheck failed");
-			return;
+			if (!var->desc) {
+				var->desc = proto->rdesc;
+			}
+
+			if (!TypeDesc_Check(var->desc, proto->rdesc)) {
+				error("typecheck failed");
+				return;
+			}
+		} else {
+			if (!var->desc) {
+				var->desc = exp->desc;
+			}
+
+			if (!TypeDesc_Check(var->desc, exp->desc)) {
+				error("typecheck failed");
+				return;
+			}
 		}
 	}
 
@@ -1120,6 +1150,10 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 		}
 		case IF_KIND: {
 			parser_if(ps, stmt);
+			break;
+		}
+		case VARDECL_LIST_KIND: {
+			assert(0);
 			break;
 		}
 		default: {

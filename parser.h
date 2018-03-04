@@ -15,6 +15,7 @@ typedef struct codeblock {
 	int bytes;
 	struct list_head insts;
 	struct codeblock *next;  /* control flow */
+	struct codeblock *tail;  /* function merge block */
 	 /* true if a OP_RET opcode is inserted. */
 	int bret;
 } CodeBlock;
@@ -22,6 +23,7 @@ typedef struct codeblock {
 typedef struct inst {
 	struct list_head link;
 	int bytes;
+	int argc;
 	uint8 op;
 	TValue arg;
 } Inst;

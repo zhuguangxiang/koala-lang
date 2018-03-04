@@ -15,7 +15,7 @@ static void frame_loop(Frame *frame);
 
 /*-------------------------------------------------------------------------*/
 
-static void frame_new(Routine *rt, Object *code)
+static void frame_new(Routine *rt, Object *code, int argc)
 {
 	CodeObject *cob = OB_TYPE_OF(code, CodeObject, Code_Klass);
 
@@ -24,6 +24,7 @@ static void frame_new(Routine *rt, Object *code)
 	Frame *f = malloc(sizeof(Frame) + size * sizeof(TValue));
 	init_list_head(&f->link);
 	f->rt = rt;
+	f->argc = argc;
 	f->code = code;
 	f->pc = 0;
 	f->size = size;
@@ -65,15 +66,18 @@ static void start_cframe(Frame *f)
 	/* Prepare parameters */
 	int sz = rt_stack_size(rt);
 	//FIXME: check arguments
+	assert(f->argc <= sz);
+
 	val = rt_stack_pop(rt);
 	obj = VALUE_OBJECT(&val);
-	if (sz > 1) args = Tuple_New(sz - 1);
+	if (f->argc > 0) args = Tuple_New(f->argc);
 
+	int count = f->argc;
 	int i = 0;
-	val = rt_stack_pop(rt);
-	while (!VALUE_ISNIL(&val)) {
-		Tuple_Set(args, i++, &val);
+	while (count-- > 0) {
 		val = rt_stack_pop(rt);
+		assert(!VALUE_ISNIL(&val));
+		Tuple_Set(args, i++, &val);
 	}
 
 	/* Call c function */
@@ -99,8 +103,9 @@ static void start_kframe(Frame *f)
 
 	/* Prepare parameters */
 	int sz = rt_stack_size(rt);
+	assert(f->argc <= sz);
 	//assert(sz == (KFunc_Argc(f->code) + 1) && (sz <= f->size));
-	int count = min(sz, KFunc_Argc(f->code) + 1);
+	int count = min(f->argc, KFunc_Argc(f->code)) + 1;
 	int i = 0;
 	while (count-- > 0) {
 		val = rt_stack_pop(rt);
@@ -140,7 +145,7 @@ Routine *Routine_New(Object *code, Object *ob, Object *args)
 	PUSH(&val);
 
 	/* new frame */
-	frame_new(rt, code);
+	frame_new(rt, code, size);
 
 	return rt;
 }
@@ -386,8 +391,9 @@ static void frame_loop(Frame *frame)
 				char *name = VALUE_CSTR(&val);
 				debug("call %s()", name);
 				val = TOP();
-				Object *ob = VALUE_OBJECT(&val);
-				frame_new(rt, getcode(ob, name));
+				int argc = fetch_4bytes(frame, code);
+				debug("OP_CALL, argc:%d", argc);
+				frame_new(rt, getcode(VALUE_OBJECT(&val), name), argc);
 				loopflag = 0;
 				break;
 			}

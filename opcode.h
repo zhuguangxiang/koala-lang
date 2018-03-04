@@ -83,6 +83,7 @@ extern "C" {
 	Parameters passed to function are already prepared in stack
 	All parameters are pushed into stack from right to left
 	arg0: 4 bytes, index of constant pool, function's name
+	arg1: 4 bytes, number of arguments
 	-------------------------------------------------------
 	obj = top()
 	func = get_func(obj, arg0)

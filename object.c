@@ -307,7 +307,7 @@ static char escchar(char ch)
 
 static char *string_escape(char *escstr, int len)
 {
-  char *str = malloc(len + 1);
+  char *str = calloc(1, len + 1);
   char ch, escch;
   int i = 0;
   while ((ch = *escstr) && (len > 0)) {
@@ -335,7 +335,9 @@ static int CStrValue_Print(char *buf, int sz, TValue *val, int escape)
 	if (!escape) return snprintf(buf, sz, "%s", str);
 	// handle esc characters
 	char *escstr = string_escape(str, strlen(str));
-	return snprintf(buf, sz, "%s", escstr);
+	int cnt = snprintf(buf, sz, "%s", escstr);
+	free(escstr);
+	return cnt;
 }
 
 int TValue_Print(char *buf, int sz, TValue *val, int escape)

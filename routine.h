@@ -24,6 +24,7 @@ typedef struct routine {
 struct frame {
 	struct list_head link;
 	Routine *rt;
+	int argc;
 	Object *code;
 	int pc;
 	int size;

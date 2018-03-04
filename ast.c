@@ -207,7 +207,7 @@ struct stmt *stmt_from_vardecl(Vector *vars, Vector *exps,
 			stmt->vardecl.exp = rexp;
 
 			if (var->desc && rexp->desc) {
-				if (TypeDesc_Check(var->desc, rexp->desc)) {
+				if (!TypeDesc_Check(var->desc, rexp->desc)) {
 					error("type check failed");
 					vec_stmt_free(vec);
 					return NULL;
@@ -257,7 +257,7 @@ struct stmt *stmt_from_assign(Vector *left, Vector *right)
 		lexp = Vector_Get(left, i);
 		rexp = Vector_Get(right, i);
 		if ((lexp->desc != NULL) && (rexp->desc != NULL)) {
-			if (TypeDesc_Check(lexp->desc, rexp->desc)) {
+			if (!TypeDesc_Check(lexp->desc, rexp->desc)) {
 				error("type check failed");
 				vec_stmt_free(vec);
 				return NULL;
