@@ -11,52 +11,6 @@ int yywrap(void) {
   return 1;
 }
 
-char escchar(char ch)
-{
-  static struct escmap {
-    char esc;
-    char ch;
-  } escmaps[] = {
-    {'a', 7},
-    {'b', 8},
-    {'f', 12},
-    {'n', 10},
-    {'r', 13},
-    {'t', 9},
-    {'v', 11}
-  };
-
-  for (int i = 0; i < nr_elts(escmaps); i++) {
-    if (escmaps[i].esc == ch) return escmaps[i].ch;
-  }
-
-  return 0;
-}
-
-char *string_escape(char *escstr, int len)
-{
-  char *str = malloc(len + 1);
-  char ch, escch;
-  int i = 0;
-  while ((ch = *escstr) && (len > 0)) {
-    if (ch != '\\') {
-      ++escstr; len--;
-      str[i++] = ch;
-    } else {
-      ++escstr; len--;
-      ch = *escstr;
-      escch = escchar(ch);
-      if (escch > 0) {
-        ++escstr; len--;
-        str[i] = escch;
-      } else {
-        str[i] = '\\';
-      }
-    }
-  }
-  return str;
-}
-
 %}
 
 %option nounput
@@ -149,7 +103,6 @@ L   [a-zA-Z_]
                           }
 
 (\"(\\.|[^"\\])*\")       {
-                            //char *tmp = string_escape(yytext+1, yyleng - 2);
                             char *tmp = malloc(yyleng-1);
                             strncpy(tmp, yytext+1, yyleng-2);
                             tmp[yyleng - 2] = 0;

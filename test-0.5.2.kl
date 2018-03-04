@@ -14,7 +14,7 @@ func Main(args []string) {
 	io.Print("hello, world\n");
 	io.Print(1+2, 3+4, greeting, 5-6, "\n");
 	io.Print(number_sub(10, 20), "\n");
-	io.Print("\nvalue =", value);
+	io.Print("\nvalue =", value, "\n");
 }
 
 func number_sub(a int, b int) int {

@@ -20,7 +20,7 @@ static Object *__io_print(Object *ob, Object *args)
 	int avail = 0;
 	for (int i = 0; i < sz; i++) {
 		val = Tuple_Get(args, i);
-		avail = TValue_Print(buf, BUF_SIZE - (buf - temp), &val);
+		avail = TValue_Print(buf, BUF_SIZE - (buf - temp), &val, 1);
 		buf += avail;
 		if (i + 1 < sz) {
 			avail = snprintf(buf, BUF_SIZE - (buf - temp), " ");

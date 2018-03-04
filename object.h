@@ -105,7 +105,7 @@ TValue Va_Build_Value(char ch, va_list *ap);
 TValue TValue_Build(char ch, ...);
 int Va_Parse_Value(TValue *val, char ch, va_list *ap);
 int TValue_Parse(TValue *val, char ch, ...);
-int TValue_Print(char *buf, int sz, TValue *val);
+int TValue_Print(char *buf, int sz, TValue *val, int escape);
 
 /*-------------------------------------------------------------------------*/
 

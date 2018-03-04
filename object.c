@@ -283,12 +283,62 @@ static int ObjValue_Print(char *buf, int sz, TValue *val)
 	return snprintf(buf, sz, "%s", String_RawString(ob));
 }
 
-static int CStrValue_Print(char *buf, int sz, TValue *val)
+static char escchar(char ch)
 {
-	return snprintf(buf, sz, "%s", VALUE_CSTR(val));
+  static struct escmap {
+    char esc;
+    char ch;
+  } escmaps[] = {
+    {'a', 7},
+    {'b', 8},
+    {'f', 12},
+    {'n', 10},
+    {'r', 13},
+    {'t', 9},
+    {'v', 11}
+  };
+
+  for (int i = 0; i < nr_elts(escmaps); i++) {
+    if (escmaps[i].esc == ch) return escmaps[i].ch;
+  }
+
+  return 0;
 }
 
-int TValue_Print(char *buf, int sz, TValue *val)
+static char *string_escape(char *escstr, int len)
+{
+  char *str = malloc(len + 1);
+  char ch, escch;
+  int i = 0;
+  while ((ch = *escstr) && (len > 0)) {
+    if (ch != '\\') {
+      ++escstr; len--;
+      str[i++] = ch;
+    } else {
+      ++escstr; len--;
+      ch = *escstr;
+      escch = escchar(ch);
+      if (escch > 0) {
+        ++escstr; len--;
+        str[i] = escch;
+      } else {
+        str[i] = '\\';
+      }
+    }
+  }
+  return str;
+}
+
+static int CStrValue_Print(char *buf, int sz, TValue *val, int escape)
+{
+	char *str = VALUE_CSTR(val);
+	if (!escape) return snprintf(buf, sz, "%s", str);
+	// handle esc characters
+	char *escstr = string_escape(str, strlen(str));
+	return snprintf(buf, sz, "%s", escstr);
+}
+
+int TValue_Print(char *buf, int sz, TValue *val, int escape)
 {
 	if (!val) {
 		buf[0] = '\0';
@@ -318,7 +368,7 @@ int TValue_Print(char *buf, int sz, TValue *val)
 			break;
 		}
 		case TYPE_CSTR: {
-			count = CStrValue_Print(buf, sz, val);
+			count = CStrValue_Print(buf, sz, val, escape);
 			break;
 		}
 		default: {

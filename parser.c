@@ -46,7 +46,7 @@ static void codeblock_show(CodeBlock *block)
 		list_for_each_entry(i, &block->insts, link) {
 			printf("[%d]:\n", cnt++);
 			printf("  opcode:%s\n", opcode_string(i->op));
-			TValue_Print(buf, sizeof(buf), &i->arg);
+			TValue_Print(buf, sizeof(buf), &i->arg, 0);
 			printf("  arg:%s\n", buf);
 			printf("  bytes:%d\n", i->bytes);
 			printf("-----------------\n");
