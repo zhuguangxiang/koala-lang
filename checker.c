@@ -104,3 +104,22 @@ int check_call_args(Proto *proto, Vector *vec)
 
 	return 1;
 }
+
+int check_return_types(ParserUnit *u, Vector *vec)
+{
+	Proto *proto = u->sym->desc->proto;;
+	if (!vec) {
+		return (proto->rsz == 0) ? 1 : 0;
+	} else {
+		int sz = Vector_Size(vec);
+		if (proto->rsz != sz) return 0;
+		struct expr *exp;
+		Vector_ForEach(exp, vec) {
+			if (!TypeDesc_Check(exp->desc, proto->rdesc + i)) {
+				error("type check failed");
+				return 0;
+			}
+		}
+		return 1;
+	}
+}

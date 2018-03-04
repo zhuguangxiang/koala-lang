@@ -8,6 +8,7 @@ Inst *Inst_New(uint8 op, TValue *val)
 	Inst *i = malloc(sizeof(Inst));
 	init_list_head(&i->link);
 	i->op = op;
+	i->bytes = 1 + opcode_argsize(op);
 	if (val)
 		i->arg = *val;
 	else
@@ -24,18 +25,21 @@ void Inst_Add(CodeBlock *b, uint8 op, TValue *val)
 {
 	char buf[64];
 	TValue_Print(buf, 32, val);
-	debug("inst:'%s %s'", OPCode_ToString(op), buf);
+	debug("inst:'%s %s'", opcode_string(op), buf);
 	Inst *i = Inst_New(op, val);
 	list_add(&i->link, &b->insts);
+	b->bytes += i->bytes;
 }
 
-void Inst_Append(CodeBlock *b, uint8 op, TValue *val)
+Inst *Inst_Append(CodeBlock *b, uint8 op, TValue *val)
 {
 	char buf[64];
 	TValue_Print(buf, 32, val);
-	debug("inst:'%s %s'", OPCode_ToString(op), buf);
+	debug("inst:'%s %s'", opcode_string(op), buf);
 	Inst *i = Inst_New(op, val);
 	list_add_tail(&i->link, &b->insts);
+	b->bytes += i->bytes;
+	return i;
 }
 
 void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
@@ -97,6 +101,15 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 		case OP_SUB: {
 			break;
 		}
+		case OP_GT:
+		case OP_LT: {
+			break;
+		}
+		case OP_JUMP:
+		case OP_JUMP_FALSE: {
+			Buffer_Write_4Bytes(buf, i->arg.ival);
+			break;
+		}
 		default: {
 			assert(0);
 			break;
@@ -120,18 +133,31 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			debug("func %s:", sym->name);
 			CodeBlock *b = sym->ptr;
 			int locvars = sym->locvars;
-			Inst_Append(b, OP_RET, NULL);
 			AtomTable *atbl = image->table;
+
 			Buffer buf;
 			Buffer_Init(&buf, 32);
 			Inst *i;
 			list_for_each_entry(i, &b->insts, link) {
 				Inst_Gen(atbl, &buf, i);
 			}
+
+			CodeBlock *nb = b->next;
+			while (nb) {
+				list_for_each_entry(i, &nb->insts, link) {
+					Inst_Gen(atbl, &buf, i);
+				}
+				nb = nb->next;
+			}
+
+			Inst *iret = Inst_New(OP_RET, NULL);
+			Inst_Gen(atbl, &buf, iret);
+
 			uint8 *data = Buffer_RawData(&buf);
 			int size = Buffer_Size(&buf);
-			Code_Show(data, size);
+			code_show(data, size);
 			Buffer_Fini(&buf);
+
 			KImage_Add_Func(image, sym->name, sym->desc->proto, locvars, data, size);
 			break;
 		}
@@ -163,6 +189,16 @@ void codegen_binary(ParserState *ps, int op)
 		case BINARY_SUB: {
 			debug("add 'OP_SUB'");
 			Inst_Append(ps->u->block, OP_SUB, NULL);
+			break;
+		}
+		case BINARY_GT: {
+			debug("add 'OP_GT'");
+			Inst_Append(ps->u->block, OP_GT, NULL);
+			break;
+		}
+		case BINARY_LT: {
+			debug("add 'OP_LT'");
+			Inst_Append(ps->u->block, OP_LT, NULL);
 			break;
 		}
 		default: {

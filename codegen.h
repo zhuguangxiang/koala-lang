@@ -12,7 +12,7 @@ extern "C" {
 Inst *Inst_New(uint8 op, TValue *val);
 void Inst_Free(Inst *i);
 void Inst_Add(CodeBlock *b, uint8 op, TValue *val);
-void Inst_Append(CodeBlock *b, uint8 op, TValue *val);
+Inst *Inst_Append(CodeBlock *b, uint8 op, TValue *val);
 void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i);
 
 void codegen_binary(ParserState *ps, int op);

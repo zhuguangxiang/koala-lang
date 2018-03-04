@@ -776,7 +776,7 @@ void codeitem_show(AtomTable *table, void *o)
 	UNUSED_PARAMETER(table);
 	CodeItem *item = o;
 	printf("  size:%d\n", item->size);
-	Code_Show(item->codes, item->size);
+	code_show(item->codes, item->size);
 }
 
 void codeitem_free(void *o)

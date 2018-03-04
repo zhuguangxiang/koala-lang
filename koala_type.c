@@ -319,3 +319,11 @@ Proto *Proto_Dup(Proto *proto)
 	//FIXME:
 	return proto;
 }
+
+int TypeDesc_IsBool(TypeDesc *desc)
+{
+	if (desc->kind == TYPE_PRIMITIVE && desc->primitive == PRIMITIVE_BOOL)
+		return 1;
+	else
+		return 0;
+}

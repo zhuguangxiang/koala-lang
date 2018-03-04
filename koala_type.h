@@ -73,7 +73,7 @@ int Init_Proto(Proto *proto, int rsz, char *rdesc, int psz, char *pdesc);
 void Fini_Proto(Proto *proto);
 int Proto_Has_Vargs(Proto *proto);
 Proto *Proto_Dup(Proto *proto);
-
+int TypeDesc_IsBool(TypeDesc *desc);
 char *Primitive_ToString(int type);
 
 #ifdef __cplusplus

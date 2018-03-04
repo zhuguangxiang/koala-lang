@@ -18,6 +18,7 @@ func Main(args []string) {
 }
 
 func number_sub(a int, b int) int {
+	io.Print("a = ", a, "b = ", b, "\n");
 	var result int;
 	result = a - b;
 	return result;

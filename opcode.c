@@ -19,9 +19,13 @@ static struct opcode {
 	{OP_SUB,      "sub",      0},
 	{OP_MUL,      "mul",      0},
 	{OP_DIV,      "div",      0},
+	{OP_GT,       "gt",       0},
+	{OP_LT,       "lt",       0},
+	{OP_JUMP,     "jump",     4},
+	{OP_JUMP_FALSE,  "jump_false",  4},
 };
 
-struct opcode *get_opcode(uint8 op)
+static struct opcode *get_opcode(uint8 op)
 {
 	for (int i = 0; i < nr_elts(opcodes); i++) {
 		if (opcodes[i].code == op) {
@@ -31,13 +35,19 @@ struct opcode *get_opcode(uint8 op)
 	return NULL;
 }
 
-char *OPCode_ToString(uint8 op)
+int opcode_argsize(uint8 op)
+{
+	struct opcode *opcode = get_opcode(op);
+	return opcode->argsize;
+}
+
+char *opcode_string(uint8 op)
 {
 	struct opcode *opcode = get_opcode(op);
 	return opcode ? opcode->str: "";
 }
 
-void Code_Show(uint8 *code, int32 size)
+void code_show(uint8 *code, int32 size)
 {
 	int i = 0;
 	struct opcode *op;

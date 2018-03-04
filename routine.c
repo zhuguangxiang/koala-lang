@@ -317,6 +317,7 @@ static void frame_loop(Frame *frame)
 
 	uint8 inst;
 	int32 index;
+	int32 offset;
 	TValue val;
 	Object *ob;
 
@@ -411,10 +412,10 @@ static void frame_loop(Frame *frame)
 				break;
 			}
 			case OP_SUB: {
+				// v1 is left value
 				TValue v1 = POP();
 				TValue v2 = POP();
 				val = NilValue;
-				// v1 is left value
 				if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
 					//printf("---%lld\n", VALUE_INT(&v1));
 					uint64 i = (uint64)VALUE_INT(&v1) - (uint64)VALUE_INT(&v2);
@@ -452,6 +453,52 @@ static void frame_loop(Frame *frame)
 			//   PUSH(&val);
 			//   break;
 			// }
+			case OP_GT: {
+				// v1 is left value
+				TValue v1 = POP();
+				TValue v2 = POP();
+				val = NilValue;
+				if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
+					int res = VALUE_INT(&v1) - VALUE_INT(&v2);
+					if (res > 0) {
+						setbvalue(&val, 1);
+					} else {
+						setbvalue(&val, 0);
+					}
+				}
+				PUSH(&val);
+				break;
+			}
+			case OP_LT: {
+				// v1 is left value
+				TValue v1 = POP();
+				TValue v2 = POP();
+				val = NilValue;
+				if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
+					int res = VALUE_INT(&v1) - VALUE_INT(&v2);
+					if (res < 0) {
+						setbvalue(&val, 1);
+					} else {
+						setbvalue(&val, 0);
+					}
+				}
+				PUSH(&val);
+				break;
+			}
+			case OP_JUMP: {
+				offset = fetch_4bytes(frame, code);
+				frame->pc += offset;
+				break;
+			}
+			case OP_JUMP_FALSE: {
+				val = POP();
+				assert(val.type == TYPE_BOOL);
+				offset = fetch_4bytes(frame, code);
+				if (!val.bval) {
+					frame->pc += offset;
+				}
+				break;
+			}
 			default: {
 				assertm(0, "unknown instruction:%d\n", inst);
 			}

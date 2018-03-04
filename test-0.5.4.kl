@@ -1,0 +1,23 @@
+
+/*
+	This test is for if statement
+ */
+package test;
+
+import "koala/io";
+
+func Main(args []string) {
+	testif(10, 10);
+	testif(10, 20);
+	testif(21, 11);
+}
+
+func testif(a int, b int) {
+	if (a > b) {
+		io.Print(a, ">", b, "\n");
+	} else if (a < b) {
+		io.Print(a, "<", b, "\n");
+	} else {
+		io.Print(a, "==", b, "\n");
+	}
+}

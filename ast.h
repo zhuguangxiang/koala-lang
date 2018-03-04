@@ -19,7 +19,7 @@ enum unary_op_kind {
 
 enum binary_op_kind {
 	BINARY_ADD = 1, BINARY_SUB,
-	BINARY_MULT, BINARY_DIV, BINARY_MOD,
+	BINARY_MULT, BINARY_DIV, BINARY_MOD, BINARY_QUOT, BINARY_POWER,
 	BINARY_LSHIFT, BINARY_RSHIFT,
 	BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE,
 	BINARY_EQ, BINARY_NEQ,
@@ -29,6 +29,11 @@ enum binary_op_kind {
 	BINARY_LAND,
 	BINARY_LOR,
 };
+
+int binop_arithmetic(int op);
+int binop_relation(int op);
+int binop_logic(int op);
+int binop_bit(int op);
 
 enum expr_kind {
 	ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,

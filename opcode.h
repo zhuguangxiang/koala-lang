@@ -103,20 +103,36 @@ extern "C" {
 	Arthmetic operation: add, sub, mul, div
 	All args, include object, are in stack. Result is also saved in stack.
  */
-#define OP_ADD  9
-#define OP_SUB  10
-#define OP_MUL  11
-#define OP_DIV  12
+#define OP_ADD  10
+#define OP_SUB  11
+#define OP_MUL  12
+#define OP_DIV  13
+
+/*
+	Relation operation: gt, lt, eq, gte, lte
+ */
+#define OP_GT  20
+#define OP_GE  21
+#define OP_LT  22
+#define OP_LE  23
+#define OP_EQ  24
+#define OP_NEQ 25
 
 /*
 	New object
  */
-#define OP_NEW    13
-#define OP_STRING 14
-#define OP_LIST   15
-#define OP_TUPLE  16
-#define OP_TABLE  17
-#define OP_ARRAY  18
+// #define OP_NEW    13
+// #define OP_STRING 14
+// #define OP_LIST   15
+// #define OP_TUPLE  16
+// #define OP_TABLE  17
+// #define OP_ARRAY  18
+
+/*
+	Control flow, with relative 4 bytes offset
+*/
+#define OP_JUMP  30
+#define OP_JUMP_FALSE  31
 
 /*
 	Load constant from constant pool to locvars directly
@@ -160,8 +176,9 @@ extern "C" {
 #define OP2_MUL   55
 #define OP2_DIV   56
 
-char *OPCode_ToString(uint8 op);
-void Code_Show(uint8 *code, int32 size);
+int opcode_argsize(uint8 op);
+char *opcode_string(uint8 op);
+void code_show(uint8 *code, int32 size);
 
 #ifdef __cplusplus
 }

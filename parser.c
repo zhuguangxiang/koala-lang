@@ -8,7 +8,7 @@
 #include "moduleobject.h"
 #include "log.h"
 
-CodeBlock *codeblock_new(AtomTable *atbl)
+static CodeBlock *codeblock_new(AtomTable *atbl)
 {
 	CodeBlock *b = calloc(1, sizeof(CodeBlock));
 	init_list_head(&b->link);
@@ -32,21 +32,23 @@ void codeblock_free(CodeBlock *b)
 	free(b);
 }
 
-void codeblock_show(CodeBlock *block)
+static void codeblock_show(CodeBlock *block)
 {
 	if (!block) return;
 
 	char buf[64];
 
 	debug("---------CodeBlock-------");
+	debug("insts:%d", block->bytes);
 	if (!list_empty(&block->insts)) {
 		int cnt = 0;
 		Inst *i;
 		list_for_each_entry(i, &block->insts, link) {
 			printf("[%d]:\n", cnt++);
-			printf("  opcode:%s\n", OPCode_ToString(i->op));
+			printf("  opcode:%s\n", opcode_string(i->op));
 			TValue_Print(buf, sizeof(buf), &i->arg);
 			printf("  arg:%s\n", buf);
+			printf("  bytes:%d\n", i->bytes);
 			printf("-----------------\n");
 		}
 	}
@@ -56,7 +58,7 @@ void codeblock_show(CodeBlock *block)
 /*-------------------------------------------------------------------------*/
 
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
-void parser_body(ParserState *ps, Vector *stmts);
+static void parser_body(ParserState *ps, Vector *stmts);
 
 /*-------------------------------------------------------------------------*/
 // Symbol
@@ -366,27 +368,6 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 	UNUSED_PARAMETER(stmt);
 }
 
-/*-------------------------------------------------------------------------*/
-
-static int check_return_types(ParserUnit *u, Vector *vec)
-{
-	Proto *proto = u->sym->desc->proto;;
-	if (!vec) {
-		return (proto->rsz == 0) ? 1 : 0;
-	} else {
-		int sz = Vector_Size(vec);
-		if (proto->rsz != sz) return 0;
-		struct expr *exp;
-		Vector_ForEach(exp, vec) {
-			if (!TypeDesc_Check(exp->desc, proto->rdesc + i)) {
-				error("type check failed");
-				return 0;
-			}
-		}
-		return 1;
-	}
-}
-
 /*--------------------------------------------------------------------------*/
 
 #if 0
@@ -485,7 +466,7 @@ static int optimize_binary_expr(ParserState *ps, struct expr **exp)
 
 /*--------------------------------------------------------------------------*/
 
-void parser_show_scope(ParserState *ps)
+static void parser_show_scope(ParserState *ps)
 {
 	debug("------scope show-------------");
 	debug("scope-%d symbols:", ps->nestlevel);
@@ -502,8 +483,9 @@ static void parser_new_block(ParserUnit *u)
 
 /*--------------------------------------------------------------------------*/
 
-static void parser_save_code(ParserUnit *u)
+static void parser_save_code(ParserState *ps)
 {
+	ParserUnit *u = ps->u;
 	// save code to symbol
 	if (u->scope == SCOPE_FUNCTION) {
 		debug("save code to function '%s'", u->sym->name);
@@ -511,9 +493,14 @@ static void parser_save_code(ParserUnit *u)
 		u->block = NULL;
 		u->sym->locvars = u->stbl->varcnt;
 	} else if (u->scope == SCOPE_BLOCK) {
-		debug("merge code to parent's block");
+		ParserUnit *parent = parent_scope(ps);
+		debug("merge code to parent's block(%d)", parent->scope);
+		assert(list_empty(&u->blocks));
+		assert(list_empty(&parent->blocks));
+		parent->block->next = u->block;
+		u->block = NULL;
 	} else if (u->scope == SCOPE_MODULE) {
-		if (u->block) {
+		if (u->block && u->block->bytes > 0) {
 			debug("save code to module __init__ function");
 			Proto *proto = Proto_New(0, NULL, 0, NULL);
 			Symbol *sym = STbl_Add_Proto(u->stbl, "__init__", proto);
@@ -525,6 +512,7 @@ static void parser_save_code(ParserUnit *u)
 			u->block = NULL;
 		} else {
 			debug("module has not __init__ function");
+			u->block = NULL;
 		}
 	} else {
 		assertm(0, "no codes in scope:%d", u->scope);
@@ -592,7 +580,8 @@ static void parser_exit_scope(ParserState *ps)
 
 	check_unused_symbols(ps);
 
-	parser_save_code(ps->u);
+	parser_save_code(ps);
+
 	if (ps->nestlevel == 1) {
 		//save module's symbol to ps
 		ps->stbl = ps->u->stbl;
@@ -724,6 +713,29 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 			break;
 		}
 		case SCOPE_BLOCK: {
+			if (sym->kind == SYM_VAR) {
+				debug("symbol '%s' is variable", sym->name);
+				int opcode;
+				//FIXME
+				if (sym->up == u->sym || u->sym == NULL) {
+					// local's variable
+					debug("symbol '%s' is local variable", sym->name);
+					opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
+					TValue val = INT_VALUE_INIT(sym->index);
+					Inst_Append(u->block, opcode, &val);
+				} else {
+					// up's variable(module or class)
+					debug("symbol '%s' is module or class variable", sym->name);
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+
+					opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
+					setcstrvalue(&val, sym->name);
+					Inst_Append(u->block, opcode, &val);
+				}
+			} else {
+				assert(0);
+			}
 			break;
 		}
 		default: {
@@ -733,7 +745,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 	}
 }
 
-void parser_attribute(ParserState *ps, struct expr *exp)
+static void parser_attribute(ParserState *ps, struct expr *exp)
 {
 	struct expr *left = exp->attribute.left;
 	left->ctx = EXPR_LOAD;
@@ -898,7 +910,11 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			parser_visit_expr(ps, exp->binary.right);
 			exp->binary.left->ctx = EXPR_LOAD;
 			parser_visit_expr(ps, exp->binary.left);
-			exp->desc = exp->binary.left->desc;
+			if (binop_relation(exp->binary.op)) {
+				exp->desc = TypeDesc_From_Primitive(PRIMITIVE_BOOL);
+			} else {
+				exp->desc = exp->binary.left->desc;
+			}
 			codegen_binary(ps, exp->binary.op);
 			break;
 		}
@@ -1026,54 +1042,55 @@ static void parser_return(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-/*
-static void stmt_parse_testblock(ParserState *ps, struct test_block *block)
+static void parser_if(ParserState *ps, struct stmt *stmt)
 {
-	enter_codeblock(ps->u);
-	parser_visit_expr(ps, block->test);
-	assert(block->test->desc);
-	// if (!TypeDesc_IsBool(block->test->desc)) {
-	// 	error("if-stmt condition is not bool");
-	// 	return;
-	// }
-
-	enter_codeblock(ps->u);
-
-	enter_codeblock(ps->u);
-	parser_body(ps, block->body);
-
-	// generate code
-	//TValue val = INT_VALUE_INIT(0);
-	//Inst_Append(ps->u->block, OP_JUMP_FALSE, &val);
-}
-
-static void stmt_parse_if(ParserState *ps, struct stmt *stmt)
-{
-	// if
-	struct test_block *ifblock = stmt->if_stmt.if_part;
-	enter_codeblock(ps->u);
-	stmt_parse_testblock(ps, ifblock);
-
-	// else if
-	Vector *elifblocks = stmt->if_stmt.elseif_parts;
-	struct test_block *block;
-	Vector_ForEach(block, elifblocks) {
-		enter_codeblock(ps->u);
-		stmt_parse_testblock(ps, block);
+	parser_enter_scope(ps, SCOPE_BLOCK);
+	int testsize = 0;
+	struct expr *test = stmt->if_stmt.test;
+	if (test) {
+		// ELSE branch has not 'test'
+		parser_visit_expr(ps, test);
+		assert(test->desc);
+		if (!TypeDesc_IsBool(test->desc)) {
+			error("if-stmt condition is not bool");
+			return;
+		}
+		testsize = ps->u->block->bytes;
 	}
 
-	// else
-	struct test_block *elseblcok = stmt->if_stmt.else_part;
-	enter_codeblock(ps->u);
-	stmt_parse_testblock(ps, elseblcok);
-	merge_codeblock(ps->u);
-}
-*/
+	CodeBlock *b = ps->u->block;
+	Inst *jumpfalse = NULL;
+	if (test) {
+		jumpfalse = Inst_Append(b, OP_JUMP_FALSE, NULL);
+	}
 
-void stmt_parse_expr(ParserState *ps, struct stmt *stmt)
-{
-	assert(stmt->kind == EXPR_KIND);
-	parser_visit_expr(ps, stmt->exp);
+	parser_body(ps, stmt->if_stmt.body);
+
+	if (test) {
+		// ELSE branch has not 'test'
+		int offset = b->bytes;
+		if (stmt->if_stmt.orelse) {
+			offset -= testsize;
+			assert(offset >= 0);
+		}
+		TValue val = INT_VALUE_INIT(offset);
+		jumpfalse->arg = val;
+	}
+
+	if (stmt->if_stmt.orelse) {
+		parser_if(ps, stmt->if_stmt.orelse);
+		assert(b->next);
+		CodeBlock *nb = b->next;
+		int offset = 0;
+		while (nb) {
+			offset += nb->bytes;
+			nb = nb->next;
+		}
+		TValue val = INT_VALUE_INIT(offset);
+		Inst_Append(b, OP_JUMP, &val);
+	}
+
+	parser_exit_scope(ps);
 }
 
 static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
@@ -1101,6 +1118,10 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 			parser_return(ps, stmt);
 			break;
 		}
+		case IF_KIND: {
+			parser_if(ps, stmt);
+			break;
+		}
 		default: {
 			assert(0);
 			break;
@@ -1108,7 +1129,7 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-void parser_body(ParserState *ps, Vector *stmts)
+static void parser_body(ParserState *ps, Vector *stmts)
 {
 	debug("------parse body-------");
 	struct stmt *s;

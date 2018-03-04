@@ -9,24 +9,24 @@
 extern "C" {
 #endif
 
-typedef struct inst {
-	struct list_head link;
-	uint8 op;
-	TValue arg;
-} Inst;
-
 typedef struct codeblock {
-	char *name; /* for debugging */
 	struct list_head link;
 	STable stbl;
+	int bytes;
 	struct list_head insts;
+	struct codeblock *next;  /* control flow */
 	 /* true if a OP_RET opcode is inserted. */
 	int bret;
 } CodeBlock;
 
-CodeBlock *codeblock_new(AtomTable *atbl);
+typedef struct inst {
+	struct list_head link;
+	int bytes;
+	uint8 op;
+	TValue arg;
+} Inst;
+
 void codeblock_free(CodeBlock *b);
-void codeblock_show(CodeBlock *block);
 
 /*-------------------------------------------------------------------------*/
 
@@ -41,7 +41,7 @@ typedef struct error {
 	int line;
 } Error;
 
-enum {
+enum scope {
 	SCOPE_MODULE = 1,
 	SCOPE_CLASS,
 	SCOPE_FUNCTION,
@@ -51,7 +51,7 @@ enum {
 };
 
 typedef struct parserunit {
-	int scope;
+	enum scope scope;
 	struct list_head link;
 	Symbol *sym;
 	STable *stbl;

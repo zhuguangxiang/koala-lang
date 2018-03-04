@@ -1,12 +1,14 @@
 
 #include "log.h"
 
+int loglevel =
 #if defined(LOG_INFO)
-int loglevel = LOG_LEVEL_INFO;
+LOG_LEVEL_INFO
 #elif defined(LOG_WARN)
-int loglevel = LOG_LEVEL_WARN;
+LOG_LEVEL_WARN
 #elif defined(LOG_ERROR)
-int loglevel = LOG_LEVEL_ERROR;
+LOG_LEVEL_ERROR
 #else
-int loglevel = LOG_LEVEL_INFO;
+LOG_LEVEL_INFO
 #endif
+;

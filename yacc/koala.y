@@ -315,10 +315,10 @@ TypeList
 
 CompileUnit
   : Package Imports ModuleStatements {
-    //ast_traverse(&parser->stmts);
+    ast_traverse(&parser->stmts);
   }
   | Package ModuleStatements {
-    //ast_traverse(&parser->stmts);
+    ast_traverse(&parser->stmts);
   }
   ;
 
@@ -534,7 +534,7 @@ LocalStatement
     $$ = $1;
   }
   | IfStatement {
-
+    $$ = $1;
   }
   | WhileStatement {
 

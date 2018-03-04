@@ -389,6 +389,42 @@ struct stmt *stmt_from_go(struct expr *expr)
 	return stmt;
 }
 
+/*--------------------------------------------------------------------------*/
+
+int binop_arithmetic(int op)
+{
+	if (op >= BINARY_ADD && op <= BINARY_RSHIFT)
+		return 1;
+	else
+		return 0;
+}
+
+int binop_relation(int op)
+{
+	if (op >= BINARY_GT && op <= BINARY_NEQ)
+		return 1;
+	else
+		return 0;
+}
+
+int binop_logic(int op)
+{
+	if (op == BINARY_LAND || op == BINARY_LOR)
+		return 1;
+	else
+		return 0;
+}
+
+int binop_bit(int op)
+{
+	if (op == BINARY_BIT_AND || op == BINARY_BIT_XOR || op == BINARY_BIT_OR)
+		return 1;
+	else
+		return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+
 struct var *new_var(char *id, TypeDesc *desc)
 {
 	struct var *v = calloc(1, sizeof(struct var));

@@ -11,6 +11,7 @@ extern "C" {
 void check_unused_imports(ParserState *ps);
 void check_unused_symbols(ParserState *ps);
 int check_call_args(Proto *proto, Vector *vec);
+int check_return_types(ParserUnit *u, Vector *vec);
 
 #ifdef __cplusplus
 }
