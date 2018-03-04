@@ -36,8 +36,17 @@ static Object *__io_print(Object *ob, Object *args)
 	return NULL;
 }
 
+static Object *__io_println(Object *ob, Object *args)
+{
+	__io_print(ob, args);
+	fwrite("\n", 1, 1, stdout);
+	fflush(stdout);
+	return NULL;
+}
+
 static FuncDef io_funcs[] = {
 	{"Print", 0, NULL, 1, "...A", __io_print},
+	{"Println", 0, NULL, 1, "...A", __io_println},
 	{NULL}
 };
 

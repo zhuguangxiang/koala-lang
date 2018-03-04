@@ -255,3 +255,8 @@ v0.5.1:
 3. parse.c divides add symbols, type check, code gen three parts.
 'add symbols' is in building AST.
 4. koalac test-0.5.1.kl & koala test-0.5.1.klc OK!!!
+
+v0.5.5:
+1. bugfix: control flow: if-else statement
+2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
+3. new: io.Println support

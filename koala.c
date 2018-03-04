@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 
 	puts("\n+----------------------------+");
 	puts("|   Koala Machine Starting   |");
-	puts("+----------------------------+");
+	puts("+----------------------------+\n");
 
 	Koala_Initialize();
 	Koala_Run(argv[1]);
