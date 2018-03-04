@@ -92,6 +92,7 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 		case OP_CALL: {
 			index = ConstItem_Set_String(atbl, i->arg.cstr);
 			Buffer_Write_4Bytes(buf, index);
+			Buffer_Write_4Bytes(buf, i->argc);
 			break;
 		}
 		case OP_RET: {
