@@ -491,6 +491,22 @@ static void frame_loop(Frame *frame)
 				PUSH(&val);
 				break;
 			}
+			case OP_EQ: {
+				// v1 is left value
+				TValue v1 = POP();
+				TValue v2 = POP();
+				val = NilValue;
+				if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
+					int res = VALUE_INT(&v1) - VALUE_INT(&v2);
+					if (!res) {
+						setbvalue(&val, 1);
+					} else {
+						setbvalue(&val, 0);
+					}
+				}
+				PUSH(&val);
+				break;
+			}
 			case OP_JUMP: {
 				offset = fetch_4bytes(frame, code);
 				frame->pc += offset;

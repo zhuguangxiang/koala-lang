@@ -103,7 +103,11 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			break;
 		}
 		case OP_GT:
-		case OP_LT: {
+		case OP_GE:
+		case OP_LT:
+		case OP_LE:
+		case OP_EQ:
+		case OP_NEQ: {
 			break;
 		}
 		case OP_JUMP:
@@ -200,6 +204,11 @@ void codegen_binary(ParserState *ps, int op)
 		case BINARY_LT: {
 			debug("add 'OP_LT'");
 			Inst_Append(ps->u->block, OP_LT, NULL);
+			break;
+		}
+		case BINARY_EQ: {
+			debug("add 'OP_EQ'");
+			Inst_Append(ps->u->block, OP_EQ, NULL);
 			break;
 		}
 		default: {

@@ -537,17 +537,10 @@ static void parser_init_unit(ParserUnit *u, AtomTable *atbl, int scope)
 
 static void parser_fini_unit(ParserUnit *u)
 {
+	list_del(&u->link);
 	CodeBlock *b = u->block;
 	assert(!b);
-	while (b) {
-		codeblock_free(b);
-		if (!list_empty(&u->blocks)) {
-			b = list_first_entry(&u->blocks, CodeBlock, link);
-			list_del(&b->link);
-		} else {
-			b = NULL;
-		}
-	}
+
 	STbl_Free(u->stbl);
 }
 
@@ -1099,8 +1092,14 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 	if (test) {
 		// ELSE branch has not 'test'
 		int offset = b->bytes;
+		debug("offset:%d", offset);
 		if (stmt->if_stmt.orelse) {
 			offset -= testsize;
+			assert(offset >= 0);
+			debug("offset2:%d", offset);
+		} else {
+			offset -= testsize + 1 + opcode_argsize(OP_JUMP_FALSE);
+			debug("offset3:%d", offset);
 			assert(offset >= 0);
 		}
 		TValue val = INT_VALUE_INIT(offset);
@@ -1121,6 +1120,8 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 	}
 
 	parser_exit_scope(ps);
+
+	//ps->u->block = ps->u->block->tail;
 }
 
 static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
