@@ -26,13 +26,13 @@ func testif(a int, b int) {
 
 
 func testif2(a int) {
-	if (a > 120) {
+	if (a > 200) {
 		io.Print("> 200");
 	}
 
 	var b int = 300;
 
-	b = 100;
+	b = b - 150;
 
 	if (a > b) {
 		io.Print("a > b");

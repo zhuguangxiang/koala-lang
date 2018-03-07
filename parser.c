@@ -8,11 +8,11 @@
 #include "moduleobject.h"
 #include "log.h"
 
-static CodeBlock *codeblock_new(AtomTable *atbl)
+static CodeBlock *codeblock_new(void)
 {
 	CodeBlock *b = calloc(1, sizeof(CodeBlock));
-	init_list_head(&b->link);
-	STbl_Init(&b->stbl, atbl);
+	//init_list_head(&b->link);
+	//STbl_Init(&b->stbl, atbl);
 	init_list_head(&b->insts);
 	return b;
 }
@@ -20,8 +20,8 @@ static CodeBlock *codeblock_new(AtomTable *atbl)
 void codeblock_free(CodeBlock *b)
 {
 	if (!b) return;
-	assert(list_unlinked(&b->link));
-	STbl_Fini(&b->stbl);
+	//assert(list_unlinked(&b->link));
+	//STbl_Fini(&b->stbl);
 
 	Inst *i, *n;
 	list_for_each_entry_safe(i, n, &b->insts, link) {
@@ -30,6 +30,31 @@ void codeblock_free(CodeBlock *b)
 	}
 
 	free(b);
+}
+
+static void codeblock_merge(CodeBlock *from, CodeBlock *to)
+{
+	Inst *i, *n;
+	list_for_each_entry_safe(i, n, &from->insts, link) {
+		list_del(&i->link);
+		from->bytes -= i->bytes;
+		list_add_tail(&i->link, &to->insts);
+		to->bytes += i->bytes;
+	}
+	assert(!from->bytes);
+
+	CodeBlock *b = from->next;
+	while (b) {
+		list_for_each_entry_safe(i, n, &b->insts, link) {
+			list_del(&i->link);
+			b->bytes -= i->bytes;
+			list_add_tail(&i->link, &to->insts);
+			to->bytes += i->bytes;
+		}
+		assert(!b->bytes);
+		//FIXME: codeblock_free(b);
+		b = b->next;
+	}
 }
 
 static void codeblock_show(CodeBlock *block)
@@ -476,8 +501,9 @@ static void parser_show_scope(ParserState *ps)
 
 static void parser_new_block(ParserUnit *u)
 {
-	CodeBlock *block = codeblock_new(u->stbl->atbl);
-	if (u->block) list_add(&u->block->link, &u->blocks);
+	CodeBlock *block = codeblock_new();
+	assert(!u->block);
+	//if (u->block) list_add(&u->block->link, &u->blocks);
 	u->block = block;
 }
 
@@ -495,16 +521,16 @@ static void parser_merge(ParserState *ps)
 	} else if (u->scope == SCOPE_BLOCK) {
 		ParserUnit *parent = parent_scope(ps);
 		debug("merge code to parent's block(%d)", parent->scope);
-		assert(list_empty(&u->blocks));
-		assert(list_empty(&parent->blocks));
-		if (!parent->block->next) {
-			assert(!parent->block->tail);
-			parent->block->tail = u->block;
-			parent->block->next = u->block;
+		assert(parent->block);
+		//assert(list_empty(&u->blocks));
+		//assert(list_empty(&parent->blocks));
+		if (parent->scope == SCOPE_FUNCTION) {
+			codeblock_merge(u->block, parent->block);
 		} else {
-			parent->block->tail->next = u->block;
+			assert(parent->scope == SCOPE_BLOCK);
+			parent->block->next = u->block;
+			u->block = NULL;
 		}
-		u->block = NULL;
 	} else if (u->scope == SCOPE_MODULE) {
 		if (u->block && u->block->bytes > 0) {
 			debug("save code to module __init__ function");
@@ -514,7 +540,7 @@ static void parser_merge(ParserState *ps)
 			sym->ptr = u->block;
 			sym->locvars = u->stbl->varcnt;
 			u->sym = sym;
-			assert(list_empty(&u->blocks));
+			//assert(list_empty(&u->blocks));
 			u->block = NULL;
 		} else {
 			debug("module has not __init__ function");
@@ -528,7 +554,7 @@ static void parser_merge(ParserState *ps)
 static void parser_init_unit(ParserUnit *u, AtomTable *atbl, int scope)
 {
 	init_list_head(&u->link);
-	init_list_head(&u->blocks);
+	//init_list_head(&u->blocks);
 	u->stbl = STbl_New(atbl);
 	u->sym = NULL;
 	u->block = NULL;
@@ -539,8 +565,10 @@ static void parser_fini_unit(ParserUnit *u)
 {
 	list_del(&u->link);
 	CodeBlock *b = u->block;
-	assert(!b);
-
+	//FIXME:
+	if (b) {
+		assert(list_empty(&b->insts));
+	}
 	STbl_Free(u->stbl);
 }
 
@@ -932,6 +960,13 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 }
 
 /*--------------------------------------------------------------------------*/
+static ParserUnit *get_function_unit(ParserState *ps) {
+	ParserUnit *u;
+	list_for_each_entry(u, &ps->ustack, link) {
+		if (u->scope == SCOPE_FUNCTION) return u;
+	}
+	return NULL;
+}
 
 static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
@@ -950,7 +985,8 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		if (exp->desc->kind == TYPE_PROTO) {
 			Proto *proto = exp->desc->proto;
 			if (proto->rsz != 1) {
-				error("function's returns is not one:%d", proto->rsz);
+				//FIXME
+				error("function's returns is not 1:%d", proto->rsz);
 				return;
 			}
 
@@ -987,6 +1023,19 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		debug("var '%s' decl in function", var->id);
 		sym = STbl_Add_Var(u->stbl, var->id, var->desc, var->bconst);
 		sym->up = u->sym;
+	} else if (u->scope == SCOPE_BLOCK) {
+		debug("var '%s' decl in block", var->id);
+		ParserUnit *fu = get_function_unit(ps);
+		assert(fu);
+		sym = STbl_Get(fu->stbl, var->id);
+		if (sym) {
+			error("var '%s' is already defined in this scope", var->id);
+			return;
+		}
+		sym = STbl_Add_Var(u->stbl, var->id, var->desc, var->bconst);
+		assert(sym);
+		sym->index = fu->stbl->varcnt++;
+		sym->up = NULL;
 	} else {
 		assertm(0, "unknown unit scope:%d", u->scope);
 	}
@@ -1001,6 +1050,10 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 			Inst_Append(ps->u->block, OP_SETFIELD, &val);
 		} else if (u->scope == SCOPE_FUNCTION) {
 			// local's variable
+			TValue val = INT_VALUE_INIT(sym->index);
+			Inst_Append(ps->u->block, OP_STORE, &val);
+		} else if (u->scope == SCOPE_BLOCK) {
+			// local's variable in block
 			TValue val = INT_VALUE_INIT(sym->index);
 			Inst_Append(ps->u->block, OP_STORE, &val);
 		} else {
@@ -1052,17 +1105,21 @@ static void parser_return(ParserState *ps, struct stmt *stmt)
 	ParserUnit *u = ps->u;
 	if (u->scope == SCOPE_FUNCTION) {
 		debug("return in function");
-		if (stmt->vec) {
-			struct expr *e;
-			Vector_ForEach(e, stmt->vec) {
-				e->ctx = EXPR_LOAD;
-				parser_visit_expr(ps, e);
-			}
-		}
-		check_return_types(u, stmt->vec);
+	} else if (u->scope == SCOPE_BLOCK) {
+		debug("return in block");
+		u = get_function_unit(ps);
 	} else {
 		assertm(0, "invalid scope:%d", u->scope);
 	}
+
+	if (stmt->vec) {
+		struct expr *e;
+		Vector_ForEach(e, stmt->vec) {
+			e->ctx = EXPR_LOAD;
+			parser_visit_expr(ps, e);
+		}
+	}
+	check_return_types(u->sym, stmt->vec);
 }
 
 static void parser_if(ParserState *ps, struct stmt *stmt)

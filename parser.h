@@ -9,17 +9,6 @@
 extern "C" {
 #endif
 
-typedef struct codeblock {
-	struct list_head link;
-	STable stbl;
-	int bytes;
-	struct list_head insts;
-	struct codeblock *next;  /* control flow */
-	struct codeblock *tail;  /* function merge block */
-	 /* true if a OP_RET opcode is inserted. */
-	int bret;
-} CodeBlock;
-
 typedef struct inst {
 	struct list_head link;
 	int bytes;
@@ -27,6 +16,14 @@ typedef struct inst {
 	uint8 op;
 	TValue arg;
 } Inst;
+
+typedef struct codeblock {
+	//struct list_head link;
+	int bytes;
+	struct list_head insts;
+	struct codeblock *next;  /* control flow */
+	int bret;  /* true if an OP_RET opcode needs be inserted. */
+} CodeBlock;
 
 void codeblock_free(CodeBlock *b);
 
@@ -58,7 +55,7 @@ typedef struct parserunit {
 	Symbol *sym;
 	STable *stbl;
 	CodeBlock *block;
-	struct list_head blocks;
+	//struct list_head blocks;
 } ParserUnit;
 
 typedef struct parserstate {

@@ -147,14 +147,7 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				Inst_Gen(atbl, &buf, i);
 			}
 
-			CodeBlock *nb = b->next;
-			while (nb) {
-				list_for_each_entry(i, &nb->insts, link) {
-					Inst_Gen(atbl, &buf, i);
-				}
-				nb = nb->next;
-			}
-
+			//FIXME:
 			Inst *iret = Inst_New(OP_RET, NULL);
 			Inst_Gen(atbl, &buf, iret);
 

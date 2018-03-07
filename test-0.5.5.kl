@@ -6,25 +6,64 @@ package test;
 
 import "koala/io";
 
+
 func Main(args []string) {
-	testif(10, 10);
-	testif(10, 20);
-	testif(21, 11);
-	testif2(201);
+	testif(10, 5);
+	testif(5, 50);
+	testifelse(12, 20);
+	testifelse(13, 13);
+	testifelseif(14, 20);
+	testifelseif(15, 15);
+	testifelseif(15, 5);
+	testifelseifelse(16, 20);
+	testifelseifelse(17, 10);
+	testifelseifelse(18, 18);
+	testifmore(201);
+	testifmoreandmore(50);
+	testifmoreandmore(180);
+
+	var subabs = sub_abs(123, 145);
+	io.Println("|123 - 145| =", subabs);
 }
 
 func testif(a int, b int) {
+	io.Println("----testif----");
 	if (a > b) {
 		io.Println(a, ">", b);
-	} else if (a < b) {
+	}
+}
+
+func testifelse(a int, b int) {
+	io.Println("----testifelse----");
+	if (a < b) {
 		io.Println(a, "<", b);
 	} else {
 		io.Println(a, "==", b);
 	}
 }
 
-func testif2(a int) {
-	if (a > 120) {
+func testifelseif(a int, b int) {
+	io.Println("----testifelseif----");
+	if (a < b) {
+		io.Println(a, "<", b);
+	} else if (a == b) {
+		io.Println(a, "==", b);
+	}
+}
+
+func testifelseifelse(a int, b int) {
+	io.Println("----testifelseifelse----");
+	if (a < b) {
+		io.Println(a, "<", b);
+	} else if (a > b) {
+		io.Println(a, ">", b);
+	} else {
+		io.Println(a, "==", b);
+	}
+}
+
+func testifmore(a int) {
+	if (a > 200) {
 		io.Println("> 200");
 	}
 
@@ -33,8 +72,36 @@ func testif2(a int) {
 	b = 100;
 
 	if (a > b) {
-		io.Println("a > b");
+		var str = "good luck";
+		io.Println("a > b", str);
+		io.Println("a = ", a);
 	} else {
 		io.Println("a < b");
+	}
+}
+
+func testifmoreandmore(v1 int) {
+	if (v1 < 100) {
+		io.Println("< 100");
+	} else {
+		var temp = 200;
+		if (v1 > temp) {
+			io.Println("> 200");
+		} else {
+			temp = 150;
+			if (v1 < temp - 100) {
+				io.Println("< 50");
+			} else {
+				io.Println("guess argument's value?");
+			}
+		}
+	}
+}
+
+func sub_abs(v1 int, v2 int) int {
+	if (v1 > v2) {
+		return v1 - v2;
+	} else {
+		return v2 - v1;
 	}
 }
