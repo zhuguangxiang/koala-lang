@@ -258,5 +258,8 @@ v0.5.1:
 
 v0.5.5:
 1. bugfix: control flow: if-else statement
-2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
-3. new: io.Println support
+2. new: io.Println support
+3. new: nested if-else statements and var decl in nested blocks ok
+
+v0.5.6:
+1. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
