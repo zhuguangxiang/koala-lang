@@ -21,16 +21,6 @@ void Inst_Free(Inst *i)
 	free(i);
 }
 
-void Inst_Add(CodeBlock *b, uint8 op, TValue *val)
-{
-	char buf[64];
-	TValue_Print(buf, 32, val, 0);
-	debug("inst:'%s %s'", opcode_string(op), buf);
-	Inst *i = Inst_New(op, val);
-	list_add(&i->link, &b->insts);
-	b->bytes += i->bytes;
-}
-
 Inst *Inst_Append(CodeBlock *b, uint8 op, TValue *val)
 {
 	char buf[64];
@@ -39,6 +29,7 @@ Inst *Inst_Append(CodeBlock *b, uint8 op, TValue *val)
 	Inst *i = Inst_New(op, val);
 	list_add_tail(&i->link, &b->insts);
 	b->bytes += i->bytes;
+	i->upbytes = b->bytes;
 	return i;
 }
 

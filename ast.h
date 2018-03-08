@@ -188,6 +188,7 @@ struct stmt {
 			TypeDesc *desc;
 		} user_typedef;
 		struct {
+			int belse;
 			struct expr *test;
 			Vector *body;
 			struct stmt *orelse;
@@ -197,6 +198,9 @@ struct stmt {
 			struct expr *test;
 			Vector *body;
 		} while_stmt;
+		struct {
+			int level;
+		} jump_stmt;
 		struct {
 			struct expr *expr;
 			Vector *case_seq;
@@ -233,7 +237,7 @@ struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
 struct stmt *stmt_from_structure(char *id, Vector *vec);
 struct stmt *stmt_from_interface(char *id, Vector *vec);
-struct stmt *stmt_from_jump(int kind);
+struct stmt *stmt_from_jump(int kind, int level);
 struct stmt *stmt_from_if(struct expr *test, Vector *body,
 	struct stmt *orelse);
 struct stmt *stmt_from_while(struct expr *test, Vector *body, int btest);

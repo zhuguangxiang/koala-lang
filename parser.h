@@ -15,7 +15,16 @@ typedef struct inst {
 	int argc;
 	uint8 op;
 	TValue arg;
+	int upbytes;  // break and continue statements
 } Inst;
+
+#define JMP_BREAK    1
+#define JMP_CONTINUE 2
+
+typedef struct jmp_inst {
+	Inst *inst;
+	int type;
+} JmpInst;
 
 typedef struct codeblock {
 	//struct list_head link;
@@ -51,11 +60,13 @@ enum scope {
 
 typedef struct parserunit {
 	enum scope scope;
+	int8 merge;
+	int8 loop;
 	struct list_head link;
 	Symbol *sym;
 	STable *stbl;
 	CodeBlock *block;
-	//struct list_head blocks;
+	Vector jmps;
 } ParserUnit;
 
 typedef struct parserstate {

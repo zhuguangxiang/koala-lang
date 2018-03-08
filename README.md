@@ -266,4 +266,7 @@ v0.5.6:
 
 v0.5.7:
 1. feature: break, countinue statement
+
+v0.5.8:
+1. feature: break n, continue n statement
 2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)

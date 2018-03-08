@@ -314,9 +314,14 @@ struct stmt *stmt_from_interface(char *id, Vector *vec)
 	return stmt;
 }
 
-struct stmt *stmt_from_jump(int kind)
+struct stmt *stmt_from_jump(int kind, int level)
 {
+	if (level <= 0) {
+		error("break or continue level must be > 0");
+		return NULL;
+	}
 	struct stmt *stmt = stmt_new(kind);
+	stmt->jump_stmt.level = level;
 	return stmt;
 }
 

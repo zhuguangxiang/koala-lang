@@ -8,6 +8,19 @@
 #include "moduleobject.h"
 #include "log.h"
 
+static JmpInst *JmpInst_New(Inst *inst, int type)
+{
+	JmpInst *jmp = malloc(sizeof(JmpInst));
+	jmp->inst = inst;
+	jmp->type = type;
+	return jmp;
+}
+
+static void JmpInst_Free(JmpInst *jmp)
+{
+	free(jmp);
+}
+
 static CodeBlock *codeblock_new(void)
 {
 	CodeBlock *b = calloc(1, sizeof(CodeBlock));
@@ -40,6 +53,7 @@ static void codeblock_merge(CodeBlock *from, CodeBlock *to)
 		from->bytes -= i->bytes;
 		list_add_tail(&i->link, &to->insts);
 		to->bytes += i->bytes;
+		i->upbytes = to->bytes;
 	}
 	assert(!from->bytes);
 
@@ -50,6 +64,7 @@ static void codeblock_merge(CodeBlock *from, CodeBlock *to)
 			b->bytes -= i->bytes;
 			list_add_tail(&i->link, &to->insts);
 			to->bytes += i->bytes;
+			i->upbytes = to->bytes;
 		}
 		assert(!b->bytes);
 		//FIXME: codeblock_free(b);
@@ -503,7 +518,6 @@ static void parser_new_block(ParserUnit *u)
 {
 	CodeBlock *block = codeblock_new();
 	assert(!u->block);
-	//if (u->block) list_add(&u->block->link, &u->blocks);
 	u->block = block;
 }
 
@@ -519,14 +533,32 @@ static void parser_merge(ParserState *ps)
 		u->block = NULL;
 		u->sym->locvars = u->stbl->varcnt;
 	} else if (u->scope == SCOPE_BLOCK) {
+		if (u->loop) {
+			// loop-statement check break or continue statement
+			int offset;
+			TValue val;
+			JmpInst *jmp;
+			Vector_ForEach(jmp, &u->jmps) {
+				if (jmp->type == JMP_BREAK) {
+					offset = u->block->bytes - jmp->inst->upbytes;
+				} else {
+					assert(jmp->type == JMP_CONTINUE);
+					offset = 0 - jmp->inst->upbytes;
+				}
+				setivalue(&val, offset);
+				jmp->inst->arg = val;
+			}
+			u->merge = 1;
+		}
+
 		ParserUnit *parent = parent_scope(ps);
 		debug("merge code to parent's block(%d)", parent->scope);
 		assert(parent->block);
-		//assert(list_empty(&u->blocks));
-		//assert(list_empty(&parent->blocks));
-		if (parent->scope == SCOPE_FUNCTION) {
+		if (u->merge || parent->scope == SCOPE_FUNCTION) {
+			debug("merge code to up block");
 			codeblock_merge(u->block, parent->block);
 		} else {
+			debug("set block as up block's next");
 			assert(parent->scope == SCOPE_BLOCK);
 			parent->block->next = u->block;
 			u->block = NULL;
@@ -540,7 +572,6 @@ static void parser_merge(ParserState *ps)
 			sym->ptr = u->block;
 			sym->locvars = u->stbl->varcnt;
 			u->sym = sym;
-			//assert(list_empty(&u->blocks));
 			u->block = NULL;
 		} else {
 			debug("module has not __init__ function");
@@ -554,11 +585,16 @@ static void parser_merge(ParserState *ps)
 static void parser_init_unit(ParserUnit *u, AtomTable *atbl, int scope)
 {
 	init_list_head(&u->link);
-	//init_list_head(&u->blocks);
 	u->stbl = STbl_New(atbl);
 	u->sym = NULL;
 	u->block = NULL;
 	u->scope = scope;
+	Vector_Init(&u->jmps);
+}
+
+static void vec_jmpinst_free_fn(void *item, void *arg)
+{
+	JmpInst_Free(item);
 }
 
 static void parser_fini_unit(ParserUnit *u)
@@ -569,6 +605,9 @@ static void parser_fini_unit(ParserUnit *u)
 	if (b) {
 		assert(list_empty(&b->insts));
 	}
+
+	Vector_Fini(&u->jmps, vec_jmpinst_free_fn, NULL);
+
 	STbl_Free(u->stbl);
 }
 
@@ -1103,11 +1142,15 @@ static void parser_assign(ParserState *ps, struct stmt *stmt)
 static void parser_return(ParserState *ps, struct stmt *stmt)
 {
 	ParserUnit *u = ps->u;
+	Symbol *sym = NULL;
 	if (u->scope == SCOPE_FUNCTION) {
 		debug("return in function");
+		sym = u->sym;
 	} else if (u->scope == SCOPE_BLOCK) {
 		debug("return in block");
-		u = get_function_unit(ps);
+		ParserUnit *parent = get_function_unit(ps);
+		assert(parent);
+		sym = parent->sym;
 	} else {
 		assertm(0, "invalid scope:%d", u->scope);
 	}
@@ -1119,7 +1162,9 @@ static void parser_return(ParserState *ps, struct stmt *stmt)
 			parser_visit_expr(ps, e);
 		}
 	}
-	check_return_types(u->sym, stmt->vec);
+	check_return_types(sym, stmt->vec);
+
+	Inst_Append(u->block, OP_RET, NULL);
 }
 
 static void parser_if(ParserState *ps, struct stmt *stmt)
@@ -1176,6 +1221,11 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 		Inst_Append(b, OP_JUMP, &val);
 	}
 
+	if (stmt->if_stmt.belse)
+		ps->u->merge = 0;
+	else
+		ps->u->merge = 1;
+
 	parser_exit_scope(ps);
 }
 
@@ -1183,6 +1233,7 @@ static void parser_while(ParserState *ps, struct stmt *stmt)
 {
 	parser_enter_scope(ps, SCOPE_BLOCK);
 	ParserUnit *u = ps->u;
+	u->loop = 1;
 	CodeBlock *b = u->block;
 	Inst *jmp;
 	int jmpsize = 0;
@@ -1216,6 +1267,76 @@ static void parser_while(ParserState *ps, struct stmt *stmt)
 	parser_exit_scope(ps);
 }
 
+static void parser_break(ParserState *ps, struct stmt *stmt)
+{
+	ParserUnit *u = ps->u;
+	if (u->scope != SCOPE_BLOCK) {
+		error("break statement not within a loop or switch");
+		return;
+	}
+
+	CodeBlock *b = u->block;
+	// current block is a loop
+	if (u->loop) {
+		Inst *i = Inst_Append(b, OP_JUMP, NULL);
+		JmpInst *jmp = JmpInst_New(i, JMP_BREAK);
+		Vector_Append(&u->jmps, jmp);
+	} else {
+		ParserUnit *parent;
+		list_for_each_entry(parent, &ps->ustack, link) {
+			if (parent->scope != SCOPE_BLOCK) {
+				error("break statement is not within a block");
+				break;
+			}
+
+			if (parent->loop) {
+				Inst *i = Inst_Append(b, OP_JUMP, NULL);
+				//FIXME:
+				JmpInst *jmp = JmpInst_New(i, JMP_BREAK);
+				Vector_Append(&parent->jmps, jmp);
+				return;
+			}
+		}
+
+		error("break statement not within a loop or switch");
+	}
+}
+
+static void parser_continue(ParserState *ps, struct stmt *stmt)
+{
+	ParserUnit *u = ps->u;
+	if (u->scope != SCOPE_BLOCK) {
+		error("continue statement not within a loop");
+		return;
+	}
+
+	CodeBlock *b = u->block;
+	// current block is a loop
+	if (u->loop) {
+		Inst *i = Inst_Append(b, OP_JUMP, NULL);
+		JmpInst *jmp = JmpInst_New(i, JMP_CONTINUE);
+		Vector_Append(&u->jmps, jmp);
+	} else {
+		ParserUnit *parent;
+		list_for_each_entry(parent, &ps->ustack, link) {
+			if (parent->scope != SCOPE_BLOCK) {
+				error("break statement is not within a block");
+				break;
+			}
+
+			if (parent->loop) {
+				Inst *i = Inst_Append(b, OP_JUMP, NULL);
+				//FIXME:
+				JmpInst *jmp = JmpInst_New(i, JMP_CONTINUE);
+				Vector_Append(&parent->jmps, jmp);
+				return;
+			}
+		}
+
+		error("continue statement not within a loop");
+	}
+}
+
 static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 {
 	switch (stmt->kind) {
@@ -1247,6 +1368,14 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 		}
 		case WHILE_KIND: {
 			parser_while(ps, stmt);
+			break;
+		}
+		case BREAK_KIND: {
+			parser_break(ps, stmt);
+			break;
+		}
+		case CONTINUE_KIND: {
+			parser_continue(ps, stmt);
 			break;
 		}
 		case VARDECL_LIST_KIND: {

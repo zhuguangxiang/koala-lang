@@ -19,7 +19,7 @@ func Main(args []string) {
 	testifelseifelse(18, 18);
 	testifmore(201);
 	testifmoreandmore(50);
-	testifmoreandmore(180);
+	testifmoreandmore(220);
 
 	var subabs = sub_abs(123, 145);
 	io.Println("|123 - 145| =", subabs);
@@ -94,6 +94,7 @@ func testifmoreandmore(v1 int) {
 				io.Println("guess argument's value?");
 			}
 		}
+		temp = 300;
 	}
 }
 

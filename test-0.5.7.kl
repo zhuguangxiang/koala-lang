@@ -1,0 +1,70 @@
+
+/*
+	This test is for if statement
+ */
+package test;
+
+import "koala/io";
+
+func Main(args []string) {
+	testbreak(20, 5);
+	testbreakmore(20, 5);
+	testcontinue(20, 5);
+	testcontinuemore(20, 5);
+}
+
+func testbreak(a int, b int) {
+	io.Println("----testbreak----");
+	while (a > b) {
+		io.Println(a, ">", b);
+		a = a - 1;
+		break;
+	}
+	io.Println("----testbreak end----");
+}
+
+func testbreakmore(a int, b int) {
+	io.Println("----testbreakmore----");
+	while (a > b) {
+		io.Println(a, ">", b);
+		a = a - 1;
+		if (a < 10) {
+			io.Println("a < 10 break");
+			break;
+		}
+		io.Println("a =", a, "b = ", b);
+	}
+
+	io.Println(">>>>> a =", a, "b = ", b);
+	io.Println("----testbreakmore end----");
+}
+
+func testcontinue(a int, b int) {
+	io.Println("----testcontinue----");
+	while (a > b) {
+		io.Println(a, ">", b);
+		a = a - 1;
+		continue;
+		//FIXME:
+		io.Println("NOT PRINTED");
+	}
+
+	io.Println(">>>>> a =", a, "b = ", b);
+	io.Println("----testcontinue end----");
+}
+
+func testcontinuemore(a int, b int) {
+	io.Println("----testcontinuemore----");
+	while (a > b) {
+		io.Println(a, ">", b);
+		a = a - 1;
+		if (a < 10) {
+			io.Println("a < 10 continue");
+			continue;
+		}
+		io.Println("a =", a, "b = ", b);
+	}
+
+	io.Println(">>>>> a =", a, "b = ", b);
+	io.Println("----testcontinuemore end----");
+}

@@ -546,7 +546,7 @@ LocalStatement
 
   }
   | JumpStatement {
-
+    $$ = $1;
   }
   | ReturnStatement {
     $$ = $1;
@@ -574,6 +574,7 @@ GoStatement
 IfStatement
   : IF '(' Expression ')' Block OrElseStatement {
     $$ = stmt_from_if($3, $5, $6);
+    $$->if_stmt.belse = 0;
   }
   ;
 
@@ -583,9 +584,11 @@ OrElseStatement
   }
   | ELSE Block {
     $$ = stmt_from_if(NULL, $2, NULL);
+    $$->if_stmt.belse = 1;
   }
   | ELSE IfStatement {
     $$ = $2;
+    $$->if_stmt.belse = 1;
   }
   ;
 
@@ -705,10 +708,16 @@ ForIncr
 
 JumpStatement
   : BREAK ';' {
-    $$ = stmt_from_jump(BREAK_KIND);
+    $$ = stmt_from_jump(BREAK_KIND, 1);
+  }
+  | BREAK INT_CONST ';' {
+    $$ = stmt_from_jump(BREAK_KIND, $2);
   }
   | CONTINUE ';' {
-    $$ = stmt_from_jump(CONTINUE_KIND);
+    $$ = stmt_from_jump(CONTINUE_KIND, 1);
+  }
+  | CONTINUE INT_CONST ';' {
+    $$ = stmt_from_jump(CONTINUE_KIND, $2);
   }
   ;
 
