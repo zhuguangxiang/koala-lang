@@ -1177,8 +1177,43 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 	}
 
 	parser_exit_scope(ps);
+}
 
-	//ps->u->block = ps->u->block->tail;
+static void parser_while(ParserState *ps, struct stmt *stmt)
+{
+	parser_enter_scope(ps, SCOPE_BLOCK);
+	ParserUnit *u = ps->u;
+	CodeBlock *b = u->block;
+	Inst *jmp;
+	int jmpsize = 0;
+	int bodysize = 0;
+
+	if (stmt->while_stmt.btest) {
+		jmp = Inst_Append(u->block, OP_JUMP, NULL);
+		jmpsize = 1 + opcode_argsize(OP_JUMP);
+	}
+
+	parser_body(ps, stmt->while_stmt.body);
+	bodysize = u->block->bytes - jmpsize;
+
+	struct expr *test = stmt->while_stmt.test;
+	parser_visit_expr(ps, test);
+	assert(test->desc);
+	if (!TypeDesc_IsBool(test->desc)) {
+		error("while-stmt condition is not bool");
+	}
+
+	int offset = 0 - (u->block->bytes - jmpsize +
+		1 + opcode_argsize(OP_JUMP_TRUE));
+	TValue val = INT_VALUE_INIT(offset);
+	Inst_Append(b, OP_JUMP_TRUE, &val);
+
+	if (stmt->while_stmt.btest) {
+		TValue val = INT_VALUE_INIT(bodysize);
+		jmp->arg = val;
+	}
+
+	parser_exit_scope(ps);
 }
 
 static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
@@ -1210,6 +1245,10 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 			parser_if(ps, stmt);
 			break;
 		}
+		case WHILE_KIND: {
+			parser_while(ps, stmt);
+			break;
+		}
 		case VARDECL_LIST_KIND: {
 			assert(0);
 			break;
@@ -1224,9 +1263,11 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 static void parser_body(ParserState *ps, Vector *stmts)
 {
 	debug("------parse body-------");
-	struct stmt *s;
-	Vector_ForEach(s, stmts) {
-		parser_vist_stmt(ps, s);
+	if (stmts) {
+		struct stmt *s;
+		Vector_ForEach(s, stmts) {
+			parser_vist_stmt(ps, s);
+		}
 	}
 	debug("------parse body end---");
 }

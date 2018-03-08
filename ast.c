@@ -338,10 +338,10 @@ struct test_block *new_test_block(struct expr *test, Vector *body)
 	return tb;
 }
 
-struct stmt *stmt_from_while(struct expr *test, Vector *body, int b)
+struct stmt *stmt_from_while(struct expr *test, Vector *body, int btest)
 {
 	struct stmt *stmt = stmt_new(WHILE_KIND);
-	stmt->while_stmt.btest = b;
+	stmt->while_stmt.btest = btest;
 	stmt->while_stmt.test  = test;
 	stmt->while_stmt.body  = body;
 	return stmt;

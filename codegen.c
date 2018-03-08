@@ -111,6 +111,7 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			break;
 		}
 		case OP_JUMP:
+		case OP_JUMP_TRUE:
 		case OP_JUMP_FALSE: {
 			Buffer_Write_4Bytes(buf, i->arg.ival);
 			break;

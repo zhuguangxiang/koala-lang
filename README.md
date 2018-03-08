@@ -262,4 +262,8 @@ v0.5.5:
 3. new: nested if-else statements and var decl in nested blocks ok
 
 v0.5.6:
-1. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
+1. feature: while-stmt, do-while-stmt
+
+v0.5.7:
+1. feature: break, countinue statement
+2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)

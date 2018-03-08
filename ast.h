@@ -236,7 +236,7 @@ struct stmt *stmt_from_interface(char *id, Vector *vec);
 struct stmt *stmt_from_jump(int kind);
 struct stmt *stmt_from_if(struct expr *test, Vector *body,
 	struct stmt *orelse);
-struct stmt *stmt_from_while(struct expr *test, Vector *body, int b);
+struct stmt *stmt_from_while(struct expr *test, Vector *body, int btest);
 struct stmt *stmt_from_switch(struct expr *expr, Vector *case_seq);
 struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
 	struct stmt *incr, Vector *body);

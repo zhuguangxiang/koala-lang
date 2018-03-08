@@ -537,7 +537,7 @@ LocalStatement
     $$ = $1;
   }
   | WhileStatement {
-
+    $$ = $1;
   }
   | SwitchStatement {
 
@@ -593,10 +593,10 @@ OrElseStatement
 
 WhileStatement
   : WHILE '(' Expression ')' Block {
-    $$ = stmt_from_while($3, $5, 0);
+    $$ = stmt_from_while($3, $5, 1);
   }
   | DO Block WHILE '(' Expression ')' {
-    $$ = stmt_from_while($5, $2, 1);
+    $$ = stmt_from_while($5, $2, 0);
   }
   ;
 

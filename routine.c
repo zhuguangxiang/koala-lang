@@ -512,6 +512,15 @@ static void frame_loop(Frame *frame)
 				frame->pc += offset;
 				break;
 			}
+			case OP_JUMP_TRUE: {
+				val = POP();
+				assert(val.type == TYPE_BOOL);
+				offset = fetch_4bytes(frame, code);
+				if (val.bval) {
+					frame->pc += offset;
+				}
+				break;
+			}
 			case OP_JUMP_FALSE: {
 				val = POP();
 				assert(val.type == TYPE_BOOL);

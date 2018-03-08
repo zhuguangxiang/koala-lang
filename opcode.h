@@ -133,7 +133,8 @@ extern "C" {
 	Control flow, with relative 4 bytes offset
 */
 #define OP_JUMP  30
-#define OP_JUMP_FALSE  31
+#define OP_JUMP_TRUE  31
+#define OP_JUMP_FALSE 32
 
 /*
 	Load constant from constant pool to locvars directly
