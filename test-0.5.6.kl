@@ -1,0 +1,48 @@
+
+/*
+	This test is for if statement
+ */
+package test;
+
+import "koala/io";
+
+func Main(args []string) {
+	testwhile(10, 5);
+	testwhilemore(20, 15);
+	testdowhile(10, 5);
+}
+
+func testwhile(a int, b int) {
+	io.Println("----testwhile----");
+	while (a > b) {
+		io.Println(a, ">", b);
+		a = a - 1;
+	}
+	io.Println("----testwhile end----");
+}
+
+func testwhilemore(a int, b int) {
+	io.Println("----testwhilemore----");
+	var hello = "hello, world";
+	var count int = 0;
+	while (a > b) {
+		hello = "hello, world and good luck";
+		var hi = "hello";
+		io.Println(a, ">", b);
+		io.Println("say", hi, count, "times");
+		a = a - 1;
+		count = count + 1;
+	}
+	io.Println(hello);
+	io.Println("count =", count);
+	io.Println("----testwhilemore end----");
+}
+
+func testdowhile(a int, b int) {
+	io.Println("----testdowhile----");
+	do {
+		io.Println(a, ">", b);
+		a = a - 1;
+	} while (a > b);
+	io.Println("----testdowhile end----");
+}
