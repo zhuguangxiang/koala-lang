@@ -119,7 +119,7 @@ TypeDesc *TypeDesc_New(int kind)
 void TypeDesc_Free(TypeDesc *desc)
 {
 	if (desc->kind == TYPE_USERDEF) {
-		free(desc->path);
+		if (desc->path) free(desc->path);
 		free(desc->type);
 	} else if (desc->kind == TYPE_PROTO) {
 		Proto_Free(desc->proto);
@@ -176,8 +176,12 @@ TypeDesc *TypeDesc_From_FuncType(Vector *rvec, Vector *pvec)
 
 int TypeVec_ToTypeArray(Vector *vec, TypeDesc **desc)
 {
+	if (!vec) {
+		*desc = NULL;
+		return 0;
+	}
 	//FIXME
-	return Vector_ToArray(vec, sizeof(TypeDesc), NULL, (void **)&desc);
+	return Vector_ToArray(vec, sizeof(TypeDesc), NULL, (void **)desc);
 }
 
 void FullPath_To_TypeDesc(char *fullpath, int len, TypeDesc *desc)
@@ -198,6 +202,8 @@ static inline int type_isany(TypeDesc *t)
 
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 {
+	if (t1 == t2) return 1;
+
 	if (type_isany(t1) || type_isany(t2))
 		return 1;
 
@@ -212,7 +218,11 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 			break;
 		}
 		case TYPE_USERDEF: {
-			eq = !strcmp(t1->path, t2->path) && !strcmp(t1->type, t2->type);
+			if (t1->path && t2->path) {
+				eq = !strcmp(t1->path, t2->path) && !strcmp(t1->type, t2->type);
+			} else {
+				eq = !strcmp(t1->type, t2->type);
+			}
 			break;
 		}
 		case TYPE_PROTO: {
@@ -253,10 +263,14 @@ char *TypeDesc_ToString(TypeDesc *desc)
 			break;
 		}
 		case TYPE_USERDEF: {
-			sz += strlen(desc->path) + strlen(desc->type) + 1;
+			if (desc->path) sz += strlen(desc->path);
+			sz += strlen(desc->type) + 1;
 			str = malloc(sz);
 			while (dims-- > 0) count += sprintf(str, "%s", "[]");
-			sprintf(str + count, "%s.%s", desc->path, desc->type);
+			if (desc->path)
+				sprintf(str + count, "%s.%s", desc->path, desc->type);
+			else
+				sprintf(str + count, "%s", desc->type);
 			break;
 		}
 		case TYPE_PROTO: {

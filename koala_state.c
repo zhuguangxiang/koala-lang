@@ -4,6 +4,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "tableobject.h"
+#include "classobject.h"
 #include "mod_io.h"
 #include "routine.h"
 #include "log.h"
@@ -82,19 +83,235 @@ Object *Koala_Get_Module(char *path)
 	return (Object *)(container_of(hnode, struct mod_entry, hnode)->ob);
 }
 
+/*-------------------------------------------------------------------------*/
+
+static Object *load_module(char *path);
+
+struct classindex {
+	int index;
+	Klass *klazz;
+};
+
+static Klass *get_klazz(struct classindex *indexes, int size, int index)
+{
+	struct classindex *clsidx;
+	for (int i = 0; i < size; i++) {
+		clsidx = indexes + i;
+		if (clsidx->index == index) {
+			return clsidx->klazz;
+		}
+	}
+	return NULL;
+}
+
+static void load_variables(AtomTable *table, Object *m)
+{
+	int sz = AtomTable_Size(table, ITEM_VAR);
+	VarItem *var;
+	StringItem *id;
+	TypeItem *type;
+	TypeDesc *desc;
+
+	for (int i = 0; i < sz; i++) {
+		var = AtomTable_Get(table, ITEM_VAR, i);
+		id = StringItem_Index(table, var->nameindex);
+		type = TypeItem_Index(table, var->typeindex);
+		//FIXME
+		desc = TypeDesc_New(0);
+		TypeItem_To_Desc(table, type, desc);
+		Module_Add_Var(m, id->data, desc, var->access & ACCESS_CONST);
+	}
+}
+
+static void load_functions(AtomTable *table, Object *m)
+{
+	int sz = AtomTable_Size(table, ITEM_FUNC);
+	FuncItem *func;
+	StringItem *id;
+	ProtoItem *protoitem;
+	Proto *proto;
+	CodeItem *codeitem;
+	Object *code;
+
+	for (int i = 0; i < sz; i++) {
+		func = AtomTable_Get(table, ITEM_FUNC, i);
+		id = StringItem_Index(table, func->nameindex);
+		protoitem = ProtoItem_Index(table, func->protoindex);
+		proto = Proto_From_ProtoItem(protoitem, table);
+		codeitem = CodeItem_Index(table, func->codeindex);
+		code = KFunc_New(func->locvars, codeitem->codes, codeitem->size);
+		Module_Add_Func(m, id->data, proto, code);
+	}
+}
+
+static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
+{
+	TypeItem *type = TypeItem_Index(table, cls->classindex);
+	assert(type->protoindex == -1);
+	StringItem *id = StringItem_Index(table, type->typeindex);
+	if (cls->superindex >= 0) {
+		type = TypeItem_Index(table, cls->superindex);
+	} else {
+		type = NULL;
+	}
+
+	Klass *super = NULL;
+	if (type) {
+		Object *ob = NULL;
+		if (type->pathindex >= 0) {
+			id = StringItem_Index(table, type->pathindex);
+			ob = load_module(id->data);
+			if (!ob) {
+				error("cannot load module '%s'", id->data);
+				exit(-1);
+			}
+		}
+		id = StringItem_Index(table, type->typeindex);
+		super = Module_Get_Class(ob, id->data);
+	}
+
+	Klass *klazz = Class_New(id->data, super);
+	Module_Add_Class(m, klazz);
+	return klazz;
+}
+
+static void load_field(FieldItem *fld, AtomTable *table, Klass *klazz)
+{
+	StringItem *id;
+	TypeItem *type;
+	TypeDesc *desc;
+
+	id = StringItem_Index(table, fld->nameindex);
+	type = TypeItem_Index(table, fld->typeindex);
+	//FIXME
+	desc = TypeDesc_New(0);
+	TypeItem_To_Desc(table, type, desc);
+	Klass_Add_Field(klazz, id->data, desc);
+}
+
+static void load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
+{
+	StringItem *id;
+	ProtoItem *protoitem;
+	Proto *proto;
+	CodeItem *codeitem;
+	Object *code;
+
+	id = StringItem_Index(table, mth->nameindex);
+	protoitem = ProtoItem_Index(table, mth->protoindex);
+	proto = Proto_From_ProtoItem(protoitem, table);
+	codeitem = CodeItem_Index(table, mth->codeindex);
+	code = KFunc_New(mth->locvars, codeitem->codes, codeitem->size);
+	Klass_Add_Method(klazz, id->data, proto, code);
+}
+
+static void load_classes(AtomTable *table, Object *m)
+{
+	int sz = AtomTable_Size(table, ITEM_CLASS);
+	int num = sz;
+	ClassItem *cls;
+	Klass *klazz;
+	struct classindex indexes[num];
+	for (int i = 0; i < sz; i++) {
+		cls = AtomTable_Get(table, ITEM_CLASS, i);
+		klazz = load_class(cls, table, m);
+		indexes[i].index = cls->classindex;
+		indexes[i].klazz = klazz;
+	}
+
+	sz = AtomTable_Size(table, ITEM_FIELD);
+	FieldItem *fld;
+	for (int i = 0; i < sz; i++) {
+		fld = AtomTable_Get(table, ITEM_FIELD, i);
+		load_field(fld, table, get_klazz(indexes, num, fld->classindex));
+	}
+
+	sz = AtomTable_Size(table, ITEM_METHOD);
+	MethodItem *mth;
+	for (int i = 0; i < sz; i++) {
+		mth = AtomTable_Get(table, ITEM_METHOD, i);
+		load_method(mth, table, get_klazz(indexes, num, fld->classindex));
+	}
+}
+
+static Klass *load_interface(IntfItem *intf, AtomTable *table, Object *m)
+{
+	TypeItem *type = TypeItem_Index(table, intf->classindex);
+	assert(type->protoindex == -1);
+	StringItem *id = StringItem_Index(table, type->typeindex);
+	Klass *klazz = Class_New(id->data, NULL);
+	Module_Add_Interface(m, klazz);
+	return klazz;
+}
+
+static void load_imethod(IMethItem *imth, AtomTable *table, Klass *klazz)
+{
+	StringItem *id;
+	ProtoItem *protoitem;
+	Proto *proto;
+	TypeDesc *desc;
+
+	id = StringItem_Index(table, imth->nameindex);
+	protoitem = ProtoItem_Index(table, imth->protoindex);
+	proto = Proto_From_ProtoItem(protoitem, table);
+	desc = TypeDesc_From_Proto(proto);
+	Klass_Add_Field(klazz, id->data, desc);
+}
+
+static void load_interfaces(AtomTable *table, Object *m)
+{
+	int sz = AtomTable_Size(table, ITEM_INTF);
+	int num = sz;
+	IntfItem *intf;
+	Klass *klazz;
+	struct classindex indexes[num];
+	for (int i = 0; i < sz; i++) {
+		intf = AtomTable_Get(table, ITEM_INTF, i);
+		klazz = load_interface(intf, table, m);
+		indexes[i].index = intf->classindex;
+		indexes[i].klazz = klazz;
+	}
+
+	sz = AtomTable_Size(table, ITEM_IMETH);
+	IMethItem *imth;
+	for (int i = 0; i < sz; i++) {
+		imth = AtomTable_Get(table, ITEM_IMETH, i);
+		load_imethod(imth, table, get_klazz(indexes, num, imth->classindex));
+	}
+}
+
+static Object *module_from_image(KImage *image)
+{
+	AtomTable *table = image->table;
+	char *package = image->package;
+	debug("load module '%s' from klc image", package);
+	Object *m = Module_New(package, table);
+
+	load_variables(table, m);
+	load_functions(table, m);
+	load_classes(table, m);
+	load_interfaces(table, m);
+	return m;
+}
+
+/*-------------------------------------------------------------------------*/
+
 static Object *load_module(char *path)
 {
+	debug("loading module '%s'", path);
 	KImage *image = KImage_Read_File(path);
 	if (!image) return NULL;
-	Object *ob = Module_From_Image(image);
+	Object *ob = module_from_image(image);
 	if (ob) {
-		/* initialize this module */
 		Object *code = Module_Get_Function(ob, "__init__");
 		if (code) {
+			debug("run __init__ in module '%s'", path);
+			//FIXME: new routine ?
 			run_code(code, ob, NULL);
 		} else {
-			debug("cannot find '__init__' in module '%s'.", path);
+			debug("cannot find '__init__' in module '%s'", path);
 		}
+		debug("load module '%s' successfully", path);
 	}
 	return ob;
 }

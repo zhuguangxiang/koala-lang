@@ -155,18 +155,6 @@ int TValue_Parse(TValue *val, char ch, ...)
 
 /*-------------------------------------------------------------------------*/
 
-Klass *Klass_New(char *name, int bsize, int isize, Klass *parent)
-{
-	Klass *klazz = calloc(1, sizeof(Klass));
-	memset(klazz, 0, sizeof(Klass));
-	init_object_head(klazz, parent);
-	klazz->name = name;
-	klazz->dynamic = 1;
-	klazz->bsize = bsize;
-	klazz->isize = isize;
-	return klazz;
-}
-
 void Fini_Klass(Klass *klazz)
 {
 	STbl_Fini(&klazz->stbl);
@@ -193,6 +181,11 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 		return 0;
 	}
 	return -1;
+}
+
+Symbol *Klass_Get_FieldSymbol(Klass *klazz, char *name)
+{
+	return STbl_Get(&klazz->stbl, name);
 }
 
 Object *Klass_Get_Method(Klass *klazz, char *name)
@@ -243,11 +236,9 @@ static void klass_free(Object *ob)
 
 Klass Klass_Klass = {
 	OBJECT_HEAD_INIT(&Klass_Klass),
-	.name  = "Class",
-	.bsize = sizeof(Klass),
-
+	.name = "Class",
+	.size = sizeof(Klass),
 	.ob_mark = klass_mark,
-
 	.ob_free = klass_free,
 };
 

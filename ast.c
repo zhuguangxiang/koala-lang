@@ -181,8 +181,17 @@ struct stmt *stmt_from_import(char *id, char *path)
 	return stmt;
 }
 
-struct stmt *stmt_from_vardecl(Vector *vars, Vector *exps,
-															 TypeDesc *desc, int bconst)
+struct stmt *stmt_from_vardecl(struct var *var, struct expr *exp, int bconst)
+{
+	struct stmt *stmt = stmt_new(VARDECL_KIND);
+	var->bconst = bconst;
+	stmt->vardecl.var = var;
+	stmt->vardecl.exp = exp;
+	return stmt;
+}
+
+struct stmt *stmt_from_varlistdecl(Vector *vars, Vector *exps,
+	TypeDesc *desc, int bconst)
 {
 	int vsz = Vector_Size(vars);
 	int esz = (exps != NULL) ? Vector_Size(exps) : 0;
@@ -298,19 +307,20 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 	return stmt;
 }
 
-struct stmt *stmt_from_structure(char *id, Vector *vec)
+struct stmt *stmt_from_class(char *id, TypeDesc *parent, Vector *vec)
 {
 	struct stmt *stmt = stmt_new(CLASS_KIND);
-	stmt->structure.id  = id;
-	stmt->structure.vec = vec;
+	stmt->class_type.id = id;
+	stmt->class_type.parent = parent;
+	stmt->class_type.vec = vec;
 	return stmt;
 }
 
 struct stmt *stmt_from_interface(char *id, Vector *vec)
 {
 	struct stmt *stmt = stmt_new(INTF_KIND);
-	stmt->structure.id  = id;
-	stmt->structure.vec = vec;
+	stmt->class_type.id = id;
+	stmt->class_type.vec = vec;
 	return stmt;
 }
 
@@ -614,14 +624,14 @@ void func_traverse(struct stmt *stmt)
 {
 	Vector *vec = stmt->funcdecl.pvec;
 	struct var *var;
-	printf("[function]\n");
-	printf("params:");
+	printf("[function]:%s\n", stmt->funcdecl.id);
+	printf("  params:");
 	char *typestr;
 	if (vec != NULL) {
 		for (int i = 0; i < Vector_Size(vec); i++) {
 			var = Vector_Get(vec, i);
 			typestr = TypeDesc_ToString(var->desc);
-			printf(" %s %s", var->id, typestr);
+			printf("  %s %s", var->id, typestr);
 			free(typestr);
 			if (i + 1 != Vector_Size(vec))
 				printf(",");
@@ -630,12 +640,12 @@ void func_traverse(struct stmt *stmt)
 	}
 
 	vec = stmt->funcdecl.rvec;
-	printf("returns:");
+	printf("  returns:\n");
 	if (vec != NULL) {
 		TypeDesc *d;
 		Vector_ForEach(d, vec) {
 			d = Vector_Get(vec, i);
-			printf(" %s", TypeDesc_ToString(d));
+			printf("  %s", TypeDesc_ToString(d));
 			if (i + 1 != Vector_Size(vec))
 				printf(",");
 		}
@@ -648,6 +658,29 @@ void func_traverse(struct stmt *stmt)
 			stmt_traverse(Vector_Get(vec, i));
 	}
 	printf("[end function]\n");
+}
+
+void class_traverse(struct stmt *stmt)
+{
+	Vector *vec = stmt->class_type.vec;
+	struct var *var;
+	char *typestr;
+	printf("[class]:%s\n", stmt->class_type.id);
+	if (vec != NULL) {
+		struct stmt *s;
+		for (int i = 0; i < Vector_Size(vec); i++) {
+			s = Vector_Get(vec, i);
+			if (s->kind == VARDECL_KIND) {
+				var = s->vardecl.var;
+				typestr = TypeDesc_ToString(var->desc);
+				printf("  %s %s\n", var->id, typestr);
+				free(typestr);
+			} else if (s->kind == FUNCDECL_KIND) {
+				printf("method: %s\n", s->funcdecl.id);
+			}
+		}
+	}
+	printf("[end class]\n");
 }
 
 /*--------------------------------------------------------------------------*/
@@ -672,7 +705,6 @@ void stmt_traverse(struct stmt *stmt)
 			break;
 		}
 		case FUNCDECL_KIND: {
-			printf("[func decl]:%s\n", stmt->funcdecl.id);
 			func_traverse(stmt);
 			break;
 		}
@@ -695,11 +727,11 @@ void stmt_traverse(struct stmt *stmt)
 			break;
 		}
 		case CLASS_KIND: {
-			printf("[structure]:%s\n", stmt->structure.id);
+			class_traverse(stmt);
 			break;
 		}
 		case INTF_KIND: {
-			printf("[interface]:%s\n", stmt->structure.id);
+			printf("[interface]:%s\n", stmt->class_type.id);
 			break;
 		}
 		case IF_KIND: {

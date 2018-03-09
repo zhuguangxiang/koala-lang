@@ -80,10 +80,11 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
-		case OP_CALL: {
+		case OP_CALL:
+		case OP_NEW: {
 			index = ConstItem_Set_String(atbl, i->arg.cstr);
 			Buffer_Write_4Bytes(buf, index);
-			Buffer_Write_4Bytes(buf, i->argc);
+			Buffer_Write_2Bytes(buf, i->argc);
 			break;
 		}
 		case OP_RET: {
@@ -114,23 +115,35 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 	}
 }
 
+struct gencode_struct {
+	int bcls;
+	KImage *image;
+	char *clazz;
+};
+
 static void __gen_code_fn(Symbol *sym, void *arg)
 {
-	KImage *image = arg;
+	struct gencode_struct *tmp = arg;
 	switch (sym->kind) {
 		case SYM_VAR: {
-			debug("%s %s:", sym->access & ACCESS_CONST ? "const" : "var", sym->name);
-			if (sym->access & ACCESS_CONST)
-				KImage_Add_Const(image, sym->name, sym->desc);
-			else
-				KImage_Add_Var(image, sym->name, sym->desc);
+			if (tmp->bcls) {
+				debug("add var '%s' into class", sym->name);
+				KImage_Add_Field(tmp->image, tmp->clazz, sym->name, sym->desc);
+			} else {
+				debug("%s %s:", sym->access & ACCESS_CONST ? "const" : "var",
+					sym->name);
+				if (sym->access & ACCESS_CONST)
+					KImage_Add_Const(tmp->image, sym->name, sym->desc);
+				else
+					KImage_Add_Var(tmp->image, sym->name, sym->desc);
+			}
 			break;
 		}
 		case SYM_PROTO: {
-			debug("func %s:", sym->name);
+			debug(">>>> func %s:", sym->name);
 			CodeBlock *b = sym->ptr;
 			int locvars = sym->locvars;
-			AtomTable *atbl = image->table;
+			AtomTable *atbl = tmp->image->table;
 
 			Buffer buf;
 			Buffer_Init(&buf, 32);
@@ -140,6 +153,13 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			}
 
 			//FIXME:
+			if (!strcmp(sym->name, "__init__")) {
+				//load self
+				TValue val = INT_VALUE_INIT(0);
+				Inst *iret = Inst_New(OP_LOAD, &val);
+				Inst_Gen(atbl, &buf, iret);
+			}
+
 			Inst *iret = Inst_New(OP_RET, NULL);
 			Inst_Gen(atbl, &buf, iret);
 
@@ -148,7 +168,20 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			code_show(data, size);
 			Buffer_Fini(&buf);
 
-			KImage_Add_Func(image, sym->name, sym->desc->proto, locvars, data, size);
+			if (tmp->bcls) {
+				KImage_Add_Method(tmp->image, tmp->clazz, sym->name,
+					sym->desc->proto, locvars, data, size);
+			} else {
+				KImage_Add_Func(tmp->image, sym->name, sym->desc->proto, locvars,
+					data, size);
+			}
+			break;
+		}
+		case SYM_CLASS: {
+			debug("class %s:", sym->name);
+			KImage_Add_Class(tmp->image, sym->name, NULL, NULL);
+			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
+			STbl_Traverse(sym->ptr, __gen_code_fn, &tmp2);
 			break;
 		}
 		default: {
@@ -161,7 +194,8 @@ void codegen_klc(ParserState *ps, char *out)
 {
 	printf("----------codegen------------\n");
 	KImage *image = KImage_New(ps->package);
-	STbl_Traverse(ps->stbl, __gen_code_fn, image);
+	struct gencode_struct tmp = {0, image, NULL};
+	STbl_Traverse(ps->stbl, __gen_code_fn, &tmp);
 	KImage_Finish(image);
 	KImage_Show(image);
 	KImage_Write_File(image, out);

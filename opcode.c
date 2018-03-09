@@ -13,7 +13,7 @@ static struct opcode {
 	{OP_STORE,    "store",    2},
 	{OP_GETFIELD, "getfield", 4},
 	{OP_SETFIELD, "setfield", 4},
-	{OP_CALL,     "call",     8},
+	{OP_CALL,     "call",     6},
 	{OP_RET,      "return",   0},
 	{OP_ADD,      "add",      0},
 	{OP_SUB,      "sub",      0},
@@ -28,6 +28,7 @@ static struct opcode {
 	{OP_JUMP,     "jump",     4},
 	{OP_JUMP_TRUE,   "jump_true",   4},
 	{OP_JUMP_FALSE,  "jump_false",  4},
+	{OP_NEW,      "new",      6},
 };
 
 static struct opcode *get_opcode(uint8 op)

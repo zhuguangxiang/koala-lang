@@ -268,5 +268,17 @@ v0.5.7:
 1. feature: break, countinue statement
 
 v0.5.8:
-1. feature: break n, continue n statement
-2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
+1. feature: class statement
+
+v0.5.9:
+1. feature: interface statement
+
+v0.6.0:
+1. bugfix: ???
+2. refactor: symbol table
+3. feature: break n, continue n statement
+4. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
+5. feature: error handle
+
+v0.6.1:
+1. feature: access control

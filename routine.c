@@ -3,6 +3,7 @@
 #include "moduleobject.h"
 #include "codeobject.h"
 #include "tupleobject.h"
+#include "classobject.h"
 #include "koala_state.h"
 #include "opcode.h"
 #include "log.h"
@@ -288,7 +289,8 @@ static void setfield(Object *ob, char *field, TValue *val)
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		Module_Set_Value(ob, field, val);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		assert(0);
+		int res = Object_Set_Value(ob, field, val);
+		assert(!res);
 	} else {
 		assert(0);
 	}
@@ -299,8 +301,9 @@ static TValue getfield(Object *ob, char *field)
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		return Module_Get_Value(ob, field);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		assert(0);
-		return NilValue;
+		TValue val = Object_Get_Value(ob, field);
+		VALUE_ASSERT(&val);
+		return val;
 	} else {
 		assert(0);
 		return NilValue;
@@ -391,7 +394,7 @@ static void frame_loop(Frame *frame)
 				char *name = VALUE_CSTR(&val);
 				debug("call %s()", name);
 				val = TOP();
-				int argc = fetch_4bytes(frame, code);
+				int argc = fetch_2bytes(frame, code);
 				debug("OP_CALL, argc:%d", argc);
 				frame_new(rt, getcode(VALUE_OBJECT(&val), name), argc);
 				loopflag = 0;
@@ -527,6 +530,27 @@ static void frame_loop(Frame *frame)
 				offset = fetch_4bytes(frame, code);
 				if (!val.bval) {
 					frame->pc += offset;
+				}
+				break;
+			}
+			case OP_NEW: {
+				index = fetch_4bytes(frame, code);
+				val = index_const(index, atbl);
+				char *name = VALUE_CSTR(&val);
+				debug("new object %s", name);
+				val = POP();
+				int argc = fetch_2bytes(frame, code);
+				debug("OP_NEW, argc:%d", argc);
+				ob = VALUE_OBJECT(&val);
+				Klass *klazz = Module_Get_Class(ob, name);
+				assert(klazz);
+				ob = klazz->ob_alloc(klazz, klazz->stbl.varcnt);
+				setobjvalue(&val, ob);
+				PUSH(&val);
+				ob = getcode(ob, "__init__");
+				if (ob)	{
+					frame_new(rt, ob, argc);
+					loopflag = 0;
 				}
 				break;
 			}

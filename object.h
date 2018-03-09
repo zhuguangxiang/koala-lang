@@ -140,16 +140,15 @@ typedef Object *(*allocfunc)(Klass *klazz, int nr);
 typedef void (*freefunc)(Object *ob);
 
 typedef uint32 (*hashfunc)(TValue *v);
-typedef int (*cmpfunc)(TValue *v1, TValue *v2);
+typedef int (*equalfunc)(TValue *v1, TValue *v2);
 
 typedef Object *(*strfunc)(TValue *v);
 
 struct klass {
 	OBJECT_HEAD
+	Klass *super;
 	char *name;
-	int dynamic;
-	int bsize;
-	int isize;
+	int size;
 
 	markfunc ob_mark;
 
@@ -157,7 +156,7 @@ struct klass {
 	freefunc ob_free;
 
 	hashfunc ob_hash;
-	cmpfunc ob_cmp;
+	equalfunc ob_eq;
 
 	strfunc ob_tostr;
 
@@ -165,9 +164,9 @@ struct klass {
 };
 
 extern Klass Klass_Klass;
-Klass *Klass_New(char *name, int bsize, int isize, Klass *parent);
 void Fini_Klass(Klass *klazz);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
+Symbol *Klass_Get_FieldSymbol(Klass *klazz, char *name);
 int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code);
 Object *Klass_Get_Method(Klass *klazz, char *name);
 #define Klass_STable(ob) (&((Klass *)(ob))->stbl)

@@ -56,7 +56,7 @@ struct symbol {
 
 	/* extra for compiler */
 	Symbol *up;
-	void *ptr;      /* CodeBlock and STable(import) */
+	void *ptr;      /* CodeBlock and STable(import, class, interface) */
 	char *path;     /* used for import */
 	int32 locvars;  /* used in compiler, for function */
 

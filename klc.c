@@ -24,7 +24,11 @@ int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc)
 			break;
 		}
 		case TYPE_USERDEF: {
-			desc->path = StringItem_Index(atbl, item->pathindex);
+			if (item->pathindex >= 0) {
+				desc->path = StringItem_Index(atbl, item->pathindex);
+			} else {
+				desc->path = NULL;
+			}
 			desc->type = StringItem_Index(atbl, item->typeindex);
 			break;
 		}
@@ -105,7 +109,7 @@ TypeItem *TypeItem_Primitive_New(int varg, int dims, char primitive)
 	return item;
 }
 
-TypeItem *TypeItem_Defined_New(int varg, int dims, int32 pathindex,
+TypeItem *TypeItem_UserDef_New(int varg, int dims, int32 pathindex,
 															 int32 typeindex)
 {
 	TypeItem *item = calloc(1, sizeof(TypeItem));
@@ -124,15 +128,6 @@ TypeListItem *TypeListItem_New(int size, int32 index[])
 	for (int i = 0; i < size; i++) {
 		item->index[i] = index[i];
 	}
-	return item;
-}
-
-VarItem *VarItem_New(int32 nameindex, int32 typeindex, int access)
-{
-	VarItem *item = malloc(sizeof(VarItem));
-	item->nameindex = nameindex;
-	item->typeindex = typeindex;
-	item->access = access;
 	return item;
 }
 
@@ -179,6 +174,15 @@ ConstItem *ConstItem_String_New(int32 val)
 	return item;
 }
 
+VarItem *VarItem_New(int32 nameindex, int32 typeindex, int access)
+{
+	VarItem *item = malloc(sizeof(VarItem));
+	item->nameindex = nameindex;
+	item->typeindex = typeindex;
+	item->access = access;
+	return item;
+}
+
 FuncItem *FuncItem_New(int nameindex, int protoindex, int access,
 											 int locvars, int codeindex)
 {
@@ -199,6 +203,60 @@ CodeItem *CodeItem_New(uint8 *codes, int size)
 	memcpy(item->codes, codes, size);
 	return item;
 }
+
+ClassItem *ClassItem_New(int classindex, int access, int superindex)
+{
+	ClassItem *item = malloc(sizeof(ClassItem));
+	item->classindex = classindex;
+	item->access = access;
+	item->superindex = superindex;
+	return item;
+}
+
+FieldItem *FieldItem_New(int classindex, int nameindex, int typeindex,
+	int access)
+{
+	FieldItem *item = malloc(sizeof(FieldItem));
+	item->classindex = classindex;
+	item->nameindex = nameindex;
+	item->typeindex = typeindex;
+	item->access = access;
+	return item;
+}
+
+MethodItem *MethodItem_New(int classindex, int nameindex, int protoindex,
+	int access, int locvars, int codeindex)
+{
+	MethodItem *item = malloc(sizeof(MethodItem));
+	item->classindex = classindex;
+	item->nameindex = nameindex;
+	item->protoindex = protoindex;
+	item->access = access;
+	item->locvars = locvars;
+	item->codeindex = codeindex;
+	return item;
+}
+
+IntfItem *IntfItem_New(int classindex, int access)
+{
+	IntfItem *item = malloc(sizeof(IntfItem));
+	item->classindex = classindex;
+	item->access = access;
+	return item;
+}
+
+IMethItem *IMethItem_New(int classindex, int nameindex, int protoindex,
+	int access)
+{
+	IMethItem *item = malloc(sizeof(IMethItem));
+	item->classindex = classindex;
+	item->nameindex = nameindex;
+	item->protoindex = protoindex;
+	item->access = access;
+	return item;
+}
+
+/*-------------------------------------------------------------------------*/
 
 void *VaItem_New(int bsize, int isize, int len)
 {
@@ -239,17 +297,25 @@ int StringItem_Set(AtomTable *table, char *str)
 	return index;
 }
 
+/*-------------------------------------------------------------------------*/
+
 int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
 	TypeItem item = {0};
 	if (desc->kind == TYPE_USERDEF) {
-		int pathindex = StringItem_Get(table, desc->path);
-		if (pathindex < 0) {
-			return pathindex;
+		int pathindex = -1;
+		if (desc->path) {
+			pathindex = StringItem_Get(table, desc->path);
+			if (pathindex < 0) {
+				return pathindex;
+			}
 		}
-		int typeindex = StringItem_Get(table, desc->type);
-		if (typeindex < 0) {
-			return typeindex;
+		int typeindex = -1;
+		if (desc->type) {
+			typeindex = StringItem_Get(table, desc->type);
+			if (typeindex < 0) {
+				return typeindex;
+			}
 		}
 		item.varg = desc->varg;
 		item.dims = desc->dims;
@@ -272,19 +338,29 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 	int index = TypeItem_Get(table, desc);
 	if (index < 0) {
 		if (desc->kind == TYPE_USERDEF) {
-			int pathindex = StringItem_Set(table, desc->path);
-			assert(pathindex >= 0);
-			int typeindex = StringItem_Set(table, desc->type);
-			assert(typeindex >= 0);
-			item = TypeItem_Defined_New(desc->varg, desc->dims, pathindex, typeindex);
+			int pathindex = -1;
+			if (desc->path) {
+				pathindex = StringItem_Set(table, desc->path);
+				assert(pathindex >= 0);
+			}
+			int typeindex = -1;
+			if (desc->type) {
+				typeindex = StringItem_Set(table, desc->type);
+				assert(typeindex >= 0);
+			}
+			item = TypeItem_UserDef_New(desc->varg, desc->dims, pathindex,
+																	typeindex);
 		} else {
 			assert(desc->kind == TYPE_PRIMITIVE);
 			item = TypeItem_Primitive_New(desc->varg, desc->dims, desc->primitive);
 		}
+
 		index = AtomTable_Append(table, ITEM_TYPE, item, 1);
 	}
 	return index;
 }
+
+/*-------------------------------------------------------------------------*/
 
 int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz)
 {
@@ -323,6 +399,8 @@ int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz)
 	return index;
 }
 
+/*-------------------------------------------------------------------------*/
+
 int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex)
 {
 	ProtoItem item = {rindex, pindex};
@@ -340,6 +418,8 @@ int ProtoItem_Set(AtomTable *table, Proto *proto)
 	}
 	return index;
 }
+
+/*-------------------------------------------------------------------------*/
 
 int ConstItem_Get(AtomTable *table, ConstItem *item)
 {
@@ -429,10 +509,18 @@ void mapitem_write(FILE *fp, void *o)
 	fwrite(o, sizeof(MapItem), 1, fp);
 }
 
+/*-------------------------------------------------------------------------*/
+
 int stringitem_length(void *o)
 {
 	StringItem *item = o;
 	return sizeof(StringItem) + item->length * sizeof(char);
+}
+
+void stringitem_write(FILE *fp, void *o)
+{
+	StringItem *item = o;
+	fwrite(o, sizeof(StringItem) + item->length * sizeof(char), 1, fp);
 }
 
 uint32 stringitem_hash(void *k)
@@ -448,12 +536,6 @@ int stringitem_equal(void *k1, void *k2)
 	return strcmp(item1->data, item2->data) == 0;
 }
 
-void stringitem_write(FILE *fp, void *o)
-{
-	StringItem *item = o;
-	fwrite(o, sizeof(StringItem) + item->length * sizeof(char), 1, fp);
-}
-
 void stringitem_show(AtomTable *table, void *o)
 {
 	UNUSED_PARAMETER(table);
@@ -466,6 +548,8 @@ void stringitem_free(void *o)
 {
 	free(o);
 }
+
+/*-------------------------------------------------------------------------*/
 
 int typeitem_length(void *o)
 {
@@ -513,12 +597,21 @@ void typeitem_show(AtomTable *table, void *o)
 	TypeItem *item = o;
 	char *arrstr = array_string(item->dims);
 	if (item->kind == TYPE_USERDEF) {
-		StringItem *str = AtomTable_Get(table, ITEM_STRING, item->pathindex);
-		printf("  pathindex:%d\n", item->pathindex);
-		printf("  (%s)\n", str->data);
-		str = AtomTable_Get(table, ITEM_STRING, item->typeindex);
-		printf("  typeindex:%d\n", item->typeindex);
-		printf("  (%s%s)\n", arrstr, str->data);
+		StringItem *str;
+		if (item->pathindex >= 0) {
+			str = AtomTable_Get(table, ITEM_STRING, item->pathindex);
+			printf("  pathindex:%d\n", item->pathindex);
+			printf("  (%s)\n", str->data);
+		} else {
+			printf("  pathindex:%d\n", item->pathindex);
+		}
+		if (item->typeindex >= 0) {
+			str = AtomTable_Get(table, ITEM_STRING, item->typeindex);
+			printf("  typeindex:%d\n", item->typeindex);
+			printf("  (%s%s)\n", arrstr, str->data);
+		} else {
+			printf("  typeindex:%d\n", item->typeindex);
+		}
 	} else if (item->kind == TYPE_PRIMITIVE) {
 		printf("  (%s%s)\n", arrstr, Primitive_ToString(item->primitive));
 	}
@@ -529,6 +622,8 @@ void typeitem_free(void *o)
 {
 	free(o);
 }
+
+/*-------------------------------------------------------------------------*/
 
 int typelistitem_length(void *o)
 {
@@ -576,104 +671,7 @@ void typelistitem_free(void *o)
 	free(o);
 }
 
-int structitem_length(void *o)
-{
-	UNUSED_PARAMETER(o);
-	return 0;
-}
-
-void structitem_show(AtomTable *table, void *o)
-{
-	UNUSED_PARAMETER(table);
-	UNUSED_PARAMETER(o);
-}
-
-int intfitem_length(void *o)
-{
-	UNUSED_PARAMETER(o);
-	return 0;
-}
-
-void intfitem_show(AtomTable *table, void *o)
-{
-	UNUSED_PARAMETER(table);
-	UNUSED_PARAMETER(o);
-}
-
-int varitem_length(void *o)
-{
-	UNUSED_PARAMETER(o);
-	return sizeof(VarItem);
-}
-
-static char *access_tostring(int access)
-{
-	char *str;
-	switch (access) {
-		case 0:
-			str = "var,public";
-			break;
-		case 1:
-			str = "var,private";
-			break;
-		case 2:
-			str = "const,public";
-			break;
-		case 3:
-			str = "const,private";
-			break;
-		default:
-			assertm(0, "invalid access %d\n", access);
-			str = "";
-			break;
-	}
-	return str;
-}
-
-void varitem_show(AtomTable *table, void *o)
-{
-	VarItem *item = o;
-	StringItem *str1;
-	StringItem *str2;
-	TypeItem *type;
-
-	printf("  nameindex:%d\n", item->nameindex);
-	str1 = AtomTable_Get(table, ITEM_STRING, item->nameindex);
-	printf("  (%s)\n", str1->data);
-	printf("  typeindex:%d\n", item->typeindex);
-	type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
-	if (type->kind == TYPE_USERDEF) {
-		str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
-		str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
-		printf("  (%s.%s)\n", str1->data, str2->data);
-	} else {
-		printf("  (%c)\n", type->primitive);
-	}
-	printf("  flags:%s\n", access_tostring(item->access));
-
-}
-
-void varitem_write(FILE *fp, void *o)
-{
-	fwrite(o, sizeof(VarItem), 1, fp);
-}
-
-void varitem_free(void *o)
-{
-	free(o);
-}
-
-int fielditem_length(void *o)
-{
-	UNUSED_PARAMETER(o);
-	return 0;
-}
-
-void fielditem_show(AtomTable *table, void *o)
-{
-	UNUSED_PARAMETER(table);
-	UNUSED_PARAMETER(o);
-}
+/*-------------------------------------------------------------------------*/
 
 int protoitem_length(void *o)
 {
@@ -718,71 +716,7 @@ void protoitem_free(void *o)
 	free(o);
 }
 
-int funcitem_length(void *o)
-{
-	UNUSED_PARAMETER(o);
-	return sizeof(FuncItem);
-}
-
-void funcitem_show(AtomTable *table, void *o)
-{
-	FuncItem *item = o;
-	StringItem *str;
-	printf("  nameindex:%d\n", item->nameindex);
-	str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
-	printf("  (%s)\n", str->data);
-	printf("  protoindex:%d\n", item->protoindex);
-	printf("  access:0x%x\n", item->access);
-	printf("  locvars:%d\n", item->locvars);
-	printf("  codeindex:%d\n", item->codeindex);
-}
-
-void funcitem_write(FILE *fp, void *o)
-{
-	fwrite(o, sizeof(FuncItem), 1, fp);
-}
-
-void funcitem_free(void *o)
-{
-	free(o);
-}
-
-int methoditem_length(void *o)
-{
-	UNUSED_PARAMETER(o);
-	return 0;
-}
-
-void methoditem_show(AtomTable *table, void *o)
-{
-	UNUSED_PARAMETER(table);
-	UNUSED_PARAMETER(o);
-}
-
-int codeitem_length(void *o)
-{
-	CodeItem *item = o;
-	return sizeof(CodeItem) + sizeof(uint8) * item->size;
-}
-
-void codeitem_write(FILE *fp, void *o)
-{
-	CodeItem *item = o;
-	fwrite(o, sizeof(CodeItem) + sizeof(uint8) * item->size, 1, fp);
-}
-
-void codeitem_show(AtomTable *table, void *o)
-{
-	UNUSED_PARAMETER(table);
-	CodeItem *item = o;
-	printf("  size:%d\n", item->size);
-	code_show(item->codes, item->size);
-}
-
-void codeitem_free(void *o)
-{
-	free(o);
-}
+/*-------------------------------------------------------------------------*/
 
 int constitem_length(void *o)
 {
@@ -885,6 +819,273 @@ void constitem_free(void *o)
 	free(o);
 }
 
+/*-------------------------------------------------------------------------*/
+
+int varitem_length(void *o)
+{
+	UNUSED_PARAMETER(o);
+	return sizeof(VarItem);
+}
+
+void varitem_write(FILE *fp, void *o)
+{
+	fwrite(o, sizeof(VarItem), 1, fp);
+}
+
+static char *access_tostring(int access)
+{
+	char *str;
+	switch (access) {
+		case 0:
+			str = "var,public";
+			break;
+		case 1:
+			str = "var,private";
+			break;
+		case 2:
+			str = "const,public";
+			break;
+		case 3:
+			str = "const,private";
+			break;
+		default:
+			assertm(0, "invalid access %d\n", access);
+			str = "";
+			break;
+	}
+	return str;
+}
+
+void varitem_show(AtomTable *table, void *o)
+{
+	VarItem *item = o;
+	StringItem *str1;
+	StringItem *str2;
+	TypeItem *type;
+
+	printf("  nameindex:%d\n", item->nameindex);
+	str1 = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+	printf("  (%s)\n", str1->data);
+	printf("  typeindex:%d\n", item->typeindex);
+	type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
+	if (type->kind == TYPE_USERDEF) {
+		str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
+		if (type->pathindex >= 0) {
+			str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
+			printf("  (%s.%s)\n", str1->data, str2->data);
+		} else {
+			printf("  (%s)\n", str2->data);
+		}
+	} else {
+		printf("  (%c)\n", type->primitive);
+	}
+	printf("  flags:%s\n", access_tostring(item->access));
+
+}
+
+void varitem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
+int funcitem_length(void *o)
+{
+	UNUSED_PARAMETER(o);
+	return sizeof(FuncItem);
+}
+
+void funcitem_write(FILE *fp, void *o)
+{
+	fwrite(o, sizeof(FuncItem), 1, fp);
+}
+
+void funcitem_show(AtomTable *table, void *o)
+{
+	FuncItem *item = o;
+	StringItem *str;
+	printf("  nameindex:%d\n", item->nameindex);
+	str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+	printf("  (%s)\n", str->data);
+	printf("  protoindex:%d\n", item->protoindex);
+	printf("  access:0x%x\n", item->access);
+	printf("  locvars:%d\n", item->locvars);
+	printf("  codeindex:%d\n", item->codeindex);
+}
+
+void funcitem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
+int codeitem_length(void *o)
+{
+	CodeItem *item = o;
+	return sizeof(CodeItem) + sizeof(uint8) * item->size;
+}
+
+void codeitem_write(FILE *fp, void *o)
+{
+	CodeItem *item = o;
+	fwrite(o, sizeof(CodeItem) + sizeof(uint8) * item->size, 1, fp);
+}
+
+void codeitem_show(AtomTable *table, void *o)
+{
+	UNUSED_PARAMETER(table);
+	CodeItem *item = o;
+	printf("  size:%d\n", item->size);
+	code_show(item->codes, item->size);
+}
+
+void codeitem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
+int classitem_length(void *o)
+{
+	UNUSED_PARAMETER(o);
+	return sizeof(ClassItem);
+}
+
+void classitem_write(FILE *fp, void *o)
+{
+	fwrite(o, sizeof(ClassItem), 1, fp);
+}
+
+void classitem_show(AtomTable *table, void *o)
+{
+	ClassItem *item = o;
+	printf("  classindex:%d\n", item->classindex);
+	TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->classindex);
+	typeitem_show(table, type);
+	if (item->superindex >= 0) {
+		type = AtomTable_Get(table, ITEM_TYPE, item->superindex);
+		typeitem_show(table, type);
+	}
+}
+
+void classitem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
+int fielditem_length(void *o)
+{
+	UNUSED_PARAMETER(o);
+	return sizeof(FieldItem);
+}
+
+void fielditem_write(FILE *fp, void *o)
+{
+	fwrite(o, sizeof(FieldItem), 1, fp);
+}
+
+void fielditem_show(AtomTable *table, void *o)
+{
+	FieldItem *item = o;
+	printf("  classindex:%d\n", item->classindex);
+	StringItem *id = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+	stringitem_show(table, id);
+	TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
+	typeitem_show(table, type);
+}
+
+void fielditem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
+int methoditem_length(void *o)
+{
+	UNUSED_PARAMETER(o);
+	return sizeof(MethodItem);
+}
+
+void methoditem_write(FILE *fp, void *o)
+{
+	fwrite(o, sizeof(MethodItem), 1, fp);
+}
+
+void methoditem_show(AtomTable *table, void *o)
+{
+	MethodItem *item = o;
+	printf("  classindex:%d\n", item->classindex);
+	StringItem *str;
+	printf("  nameindex:%d\n", item->nameindex);
+	str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+	printf("  (%s)\n", str->data);
+	printf("  protoindex:%d\n", item->protoindex);
+	printf("  access:0x%x\n", item->access);
+	printf("  locvars:%d\n", item->locvars);
+	printf("  codeindex:%d\n", item->codeindex);
+}
+
+void methoditem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
+int intfitem_length(void *o)
+{
+	UNUSED_PARAMETER(o);
+	return sizeof(IntfItem);
+}
+
+void intfitem_write(FILE *fp, void *o)
+{
+	fwrite(o, sizeof(IntfItem), 1, fp);
+}
+
+void intfitem_show(AtomTable *table, void *o)
+{
+	UNUSED_PARAMETER(table);
+	UNUSED_PARAMETER(o);
+}
+
+void intfitem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
+int imethitem_length(void *o)
+{
+	UNUSED_PARAMETER(o);
+	return sizeof(IMethItem);
+}
+
+void imethitem_write(FILE *fp, void *o)
+{
+	fwrite(o, sizeof(IMethItem), 1, fp);
+}
+
+void imethitem_show(AtomTable *table, void *o)
+{
+	UNUSED_PARAMETER(table);
+	UNUSED_PARAMETER(o);
+}
+
+void imethitem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
 typedef int (*item_length_t)(void *);
 typedef void (*item_fwrite_t)(FILE *, void *);
 typedef uint32 (*item_hash_t)(void *);
@@ -965,6 +1166,41 @@ struct item_funcs item_func[ITEM_MAX] = {
 		NULL, NULL,
 		codeitem_show,
 		codeitem_free
+	},
+	{
+		classitem_length,
+		classitem_write, NULL,
+		NULL, NULL,
+		classitem_show,
+		classitem_free
+	},
+	{
+		fielditem_length,
+		fielditem_write, NULL,
+		NULL, NULL,
+		fielditem_show,
+		fielditem_free
+	},
+	{
+		methoditem_length,
+		methoditem_write, NULL,
+		NULL, NULL,
+		methoditem_show,
+		methoditem_free
+	},
+	{
+		intfitem_length,
+		intfitem_write, NULL,
+		NULL, NULL,
+		intfitem_show,
+		intfitem_free
+	},
+	{
+		imethitem_length,
+		imethitem_write, NULL,
+		NULL, NULL,
+		imethitem_show,
+		imethitem_free
 	}
 };
 
@@ -1049,7 +1285,7 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
 }
 
 void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
-										 uint8 *codes, int csz)
+	uint8 *codes, int csz)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	int nameindex = StringItem_Set(image->table, name);
@@ -1058,6 +1294,79 @@ void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 	FuncItem *funcitem = FuncItem_New(nameindex, protoindex, access,
 																		locvars, codeindex);
 	AtomTable_Append(image->table, ITEM_FUNC, funcitem, 0);
+}
+
+void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype)
+{
+	int access = SYMBOL_ACCESS(name, 0);
+	TypeDesc tmp;
+	Init_UserDef_TypeDesc(&tmp, 0, NULL, name);
+	int classindex = TypeItem_Set(image->table, &tmp);
+
+	int superindex = -1;
+	if (stype) {
+		Init_UserDef_TypeDesc(&tmp, 0, spath, stype);
+		superindex = TypeItem_Set(image->table, &tmp);
+	}
+
+	ClassItem *classitem = ClassItem_New(classindex, access, superindex);
+	AtomTable_Append(image->table, ITEM_CLASS, classitem, 0);
+}
+
+void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
+{
+	int access = SYMBOL_ACCESS(name, 0);
+	TypeDesc tmp;
+	Init_UserDef_TypeDesc(&tmp, 0, NULL, clazz);
+	int classindex = TypeItem_Set(image->table, &tmp);
+
+	int nameindex = StringItem_Set(image->table, name);
+	int typeindex = TypeItem_Set(image->table, desc);
+
+	FieldItem *fielditem = FieldItem_New(classindex, nameindex, typeindex,
+																			 access);
+	AtomTable_Append(image->table, ITEM_FIELD, fielditem, 0);
+}
+
+void KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
+	int locvars, uint8 *codes, int csz)
+{
+	int access = SYMBOL_ACCESS(name, 0);
+	TypeDesc tmp;
+	Init_UserDef_TypeDesc(&tmp, 0, NULL, clazz);
+	int classindex = TypeItem_Set(image->table, &tmp);
+
+	int nameindex = StringItem_Set(image->table, name);
+	int protoindex = ProtoItem_Set(image->table, proto);
+	int codeindex = codeitem_set(image->table, codes, csz);
+	MethodItem *methitem = MethodItem_New(classindex, nameindex, protoindex,
+																				access, locvars, codeindex);
+	AtomTable_Append(image->table, ITEM_METHOD, methitem, 0);
+}
+
+void KImage_Add_Intf(KImage *image, char *name)
+{
+	int access = SYMBOL_ACCESS(name, 0);
+	TypeDesc tmp;
+	Init_UserDef_TypeDesc(&tmp, 0, NULL, name);
+	int classindex = TypeItem_Set(image->table, &tmp);
+
+	IntfItem *intfitem = IntfItem_New(classindex, access);
+	AtomTable_Append(image->table, ITEM_INTF, intfitem, 0);
+}
+
+void KImage_Add_IMeth(KImage *image, char *intf, char *name, Proto *proto)
+{
+	int access = SYMBOL_ACCESS(name, 0);
+	TypeDesc tmp;
+	Init_UserDef_TypeDesc(&tmp, 0, NULL, intf);
+	int classindex = TypeItem_Set(image->table, &tmp);
+	int nameindex = StringItem_Set(image->table, name);
+	int protoindex = ProtoItem_Set(image->table, proto);
+
+	IMethItem *imethitem = IMethItem_New(classindex, nameindex, protoindex,
+																			 access);
+	AtomTable_Append(image->table, ITEM_IMETH, imethitem, 0);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -1292,6 +1601,39 @@ KImage *KImage_Read_File(char *path)
 					sz = fread(item->codes, sizeof(uint8) * len, 1, fp);
 					assert(sz == 1);
 					AtomTable_Append(image->table, ITEM_CODE, item, 0);
+				}
+				break;
+			}
+			case ITEM_CLASS: {
+				ClassItem *item;
+				ClassItem items[map->size];
+				sz = fread(items, sizeof(ClassItem), map->size, fp);
+				assert(sz == map->size);
+				for (int i = 0; i < map->size; i++) {
+					item = Item_Copy(sizeof(ClassItem), items + i);
+					AtomTable_Append(image->table, ITEM_CLASS, item, 0);
+				}
+				break;
+			}
+			case ITEM_FIELD: {
+				FieldItem *item;
+				FieldItem items[map->size];
+				sz = fread(items, sizeof(FieldItem), map->size, fp);
+				assert(sz == map->size);
+				for (int i = 0; i < map->size; i++) {
+					item = Item_Copy(sizeof(FieldItem), items + i);
+					AtomTable_Append(image->table, ITEM_FIELD, item, 0);
+				}
+				break;
+			}
+			case ITEM_METHOD: {
+				MethodItem *item;
+				MethodItem items[map->size];
+				sz = fread(items, sizeof(MethodItem), map->size, fp);
+				assert(sz == map->size);
+				for (int i = 0; i < map->size; i++) {
+					item = Item_Copy(sizeof(MethodItem), items + i);
+					AtomTable_Append(image->table, ITEM_METHOD, item, 0);
 				}
 				break;
 			}

@@ -23,11 +23,12 @@ static void symbol_free(Symbol *sym)
 		if (sym->ptr) codeblock_free(sym->ptr);
 	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
 		Klass *klazz = sym->ob;
-		if (klazz->dynamic) {
+		//FIXME
+		//if (klazz->dynamic) {
 			//Klass_Free(klazz);
-		} else {
+		//} else {
 			Fini_Klass(klazz);
-		}
+		//}
 	} else if (sym->kind == SYM_STABLE) {
 		STbl_Free(sym->ptr);
 		free(sym->path);

@@ -58,6 +58,7 @@ typedef struct type_item {
 			int32 pathindex;  //->StringItem
 			int32 typeindex;  //->StringItem
 		};
+		int32 protoindex;   //->ProtoItem
 	};
 } TypeItem;
 
@@ -104,13 +105,13 @@ ConstItem *ConstItem_String_New(int32 val);
 typedef struct var_item {
 	int32 nameindex;  //->StringItem
 	int32 typeindex;  //->TypeItem
-	int32 access;     //symbol access
+	int32 access;     //symbol access, FIXME
 } VarItem;
 
 typedef struct func_item {
 	int32 nameindex;  //->StringItem
 	int32 protoindex; //->ProtoItem
-	int16 access;     //symbol access
+	int16 access;     //symbol access, FIXME
 	int16 locvars;    //number of lcoal variables
 	int32 codeindex;  //->CodeItem
 } FuncItem;
@@ -119,6 +120,40 @@ typedef struct code_item {
 	int32 size;
 	uint8 codes[0];
 } CodeItem;
+
+typedef struct class_item {
+	int32 classindex; //->TypeItem
+	int32 access;     //symbol access, FIXME
+	int32 superindex; //->TypeItem
+} ClassItem;
+
+typedef struct feild_item {
+	int32 classindex; //->TypeItem
+	int32 nameindex;  //->StringItem
+	int32 typeindex;  //->TypeItem
+	int32 access;     //symbol access, FIXME
+} FieldItem;
+
+typedef struct method_item {
+	int32 classindex; //->TypeItem
+	int32 nameindex;  //->StringItem
+	int32 protoindex; //->ProtoItem
+	int16 access;     //symbol access, FIXME
+	int16 locvars;    //number of lcoal variables
+	int32 codeindex;  //->CodeItem
+} MethodItem;
+
+typedef struct intf_item {
+	int32 classindex; //->TypeItem
+	int32 access;     //symbol access, FIXME
+} IntfItem;
+
+typedef struct imeth_item {
+	int32 classindex; //->TypeItem
+	int32 nameindex;  //->StringItem
+	int32 protoindex; //->ProtoItem
+	int32 access;     //symbol access, FIXME
+} IMethItem;
 
 typedef struct kimage {
 	ImageHeader header;
@@ -142,7 +177,11 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
 #define KImage_Add_Const(image, name, desc) \
 	__KImage_Add_Var(image, name, desc, 1)
 void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
-										 uint8 *codes, int csz);
+	uint8 *codes, int csz);
+void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype);
+void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc);
+void KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
+	int locvars, uint8 *codes, int csz);
 void KImage_Write_File(KImage *image, char *path);
 KImage *KImage_Read_File(char *path);
 void KImage_Show(KImage *image);

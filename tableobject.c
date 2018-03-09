@@ -34,7 +34,7 @@ static int entry_equal(void *k1, void *k2)
 		Object *o1 = VALUE_OBJECT(v1);
 		Object *o2 = VALUE_OBJECT(v2);
 		if (OB_KLASS_EQUAL(o1, o2)) {
-			return OB_KLASS(o1)->ob_cmp(v1, v2);
+			return OB_KLASS(o1)->ob_eq(v1, v2);
 		} else {
 			warn("the two key types are not the same.");
 			return 0;
@@ -213,9 +213,8 @@ static void table_free(Object *ob)
 
 Klass Table_Klass = {
 	OBJECT_HEAD_INIT(&Klass_Klass),
-	.name  = "Table",
-	.bsize = sizeof(TableObject),
-
-	.ob_mark  = table_mark,
-	.ob_free  = table_free,
+	.name = "Table",
+	.size = sizeof(TableObject),
+	.ob_mark = table_mark,
+	.ob_free = table_free,
 };

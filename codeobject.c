@@ -42,6 +42,6 @@ Object *KFunc_New(int locvars, uint8 *codes, int size)
 
 Klass Code_Klass = {
 	OBJECT_HEAD_INIT(&Klass_Klass),
-	.name  = "Code",
-	.bsize = sizeof(CodeObject),
+	.name = "Code",
+	.size = sizeof(CodeObject),
 };

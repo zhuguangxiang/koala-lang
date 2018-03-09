@@ -36,7 +36,6 @@ void Module_Show(Object *ob);
 #define Module_AtomTable(ob) (((ModuleObject *)(ob))->stbl.atbl)
 /* for compiler only */
 STable *Module_To_STable(Object *ob, AtomTable *atbl);
-Object *Module_From_Image(KImage *image);
 
 #ifdef __cplusplus
 }

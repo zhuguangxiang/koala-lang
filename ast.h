@@ -181,8 +181,9 @@ struct stmt {
 		} compound_assign;
 		struct {
 			char *id;
+			TypeDesc *parent;
 			Vector *vec;
-		} structure;
+		} class_type;
 		struct {
 			char *id;
 			TypeDesc *desc;
@@ -225,8 +226,9 @@ struct stmt {
 
 struct stmt *stmt_from_expr(struct expr *exp);
 struct stmt *stmt_from_import(char *id, char *path);
-struct stmt *stmt_from_vardecl(Vector *varvec, Vector *expvec,
+struct stmt *stmt_from_varlistdecl(Vector *varvec, Vector *expvec,
 	TypeDesc *desc, int bconst);
+struct stmt *stmt_from_vardecl(struct var *var, struct expr *exp, int bconst);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
 	Vector *body);
 struct stmt *stmt_from_assign(Vector *left, Vector *right);
@@ -235,7 +237,7 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 struct stmt *stmt_from_block(Vector *vec);
 struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
-struct stmt *stmt_from_structure(char *id, Vector *vec);
+struct stmt *stmt_from_class(char *id, TypeDesc *parent, Vector *vec);
 struct stmt *stmt_from_interface(char *id, Vector *vec);
 struct stmt *stmt_from_jump(int kind, int level);
 struct stmt *stmt_from_if(struct expr *test, Vector *body,

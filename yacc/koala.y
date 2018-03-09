@@ -182,7 +182,8 @@ int yyerror(ParserState *parser, const char *str)
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
 %type <vector> MemberDeclarations
-%type <field> FieldDeclaration
+%type <stmt> MemberDeclaration
+%type <stmt> FieldDeclaration
 %type <vector> IntfFuncDecls
 %type <intf_func> IntfFuncDecl
 
@@ -374,22 +375,22 @@ ModuleStatement
 
 ConstDeclaration
   : CONST VariableList '=' ExpressionList ';' {
-    $$ = stmt_from_vardecl($2, $4, NULL, 1);
+    $$ = stmt_from_varlistdecl($2, $4, NULL, 1);
   }
   | CONST VariableList Type '=' ExpressionList ';' {
-    $$ = stmt_from_vardecl($2, $5, $3, 1);
+    $$ = stmt_from_varlistdecl($2, $5, $3, 1);
   }
   ;
 
 VariableDeclaration
   : VAR VariableList Type {
-    $$ = stmt_from_vardecl($2, NULL, $3, 0);
+    $$ = stmt_from_varlistdecl($2, NULL, $3, 0);
   }
   | VAR VariableList '=' ExpressionList {
-    $$ = stmt_from_vardecl($2, $4, NULL, 0);
+    $$ = stmt_from_varlistdecl($2, $4, NULL, 0);
   }
   | VAR VariableList Type '=' ExpressionList {
-    $$ = stmt_from_vardecl($2, $5, $3, 0);
+    $$ = stmt_from_varlistdecl($2, $5, $3, 0);
   }
   ;
 
@@ -443,38 +444,42 @@ ParameterListOrEmpty
 
 TypeDeclaration
   : CLASS ID '{' MemberDeclarations '}' {
-    //$$ = stmt_from_structure($2, $4);
+    $$ = stmt_from_class($2, NULL, $4);
   }
   | CLASS ID ':' UserDefType '{' '}' {
-
+    $$ = NULL;
   }
   | INTERFACE ID '{' IntfFuncDecls '}' {
-    $$ = stmt_from_interface($2, $4);
+    $$ = NULL; //stmt_from_interface($2, $4);
   }
   ;
 
 MemberDeclarations
   : MemberDeclaration {
-    //$$ = Vector_New();
-    //Vector_Append($$, $1);
+    $$ = Vector_New();
+    Vector_Append($$, $1);
   }
   | MemberDeclarations MemberDeclaration {
-    //Vector_Append($1, $2);
-    //$$ = $1;
+    Vector_Append($1, $2);
+    $$ = $1;
   }
   ;
 
 MemberDeclaration
-  : FieldDeclaration
-  | FunctionDeclaration
+  : FieldDeclaration {
+    $$ = $1;
+  }
+  | FunctionDeclaration {
+    $$ = $1;
+  }
   ;
 
 FieldDeclaration
   : ID Type ';' {
-    $$ = NULL; //new_struct_field($1, $2, NULL);
+    $$ = stmt_from_vardecl(new_var($1, $2), NULL, 0);
   }
   | ID Type '=' Expression ';' {
-
+    $$ = stmt_from_vardecl(new_var($1, $2), $4, 0);
   }
   ;
 

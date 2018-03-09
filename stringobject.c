@@ -122,11 +122,9 @@ static void string_free(Object *ob)
 
 Klass String_Klass = {
 	OBJECT_HEAD_INIT(&Klass_Klass),
-	.name  = "String",
-	.bsize = sizeof(StringObject),
-
+	.name = "String",
+	.size = sizeof(StringObject),
 	.ob_free = string_free,
-
 	.ob_hash = string_hash,
-	.ob_cmp  = string_equal
+	.ob_eq = string_equal
 };

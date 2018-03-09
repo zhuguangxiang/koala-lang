@@ -91,49 +91,10 @@ static int __get_value_index(ModuleObject *m, char *name)
 	return -1;
 }
 
-#if 0
-static void init_mod_var(Symbol *sym, void *arg)
-{
-	ModuleObject *mob = arg;
-	if (sym->kind == SYM_VAR) {
-		TValue val = NIL_VALUE_INIT();
-		TypeDesc *type = sym->type;
-		assert(type);
-		switch (type->kind) {
-			case TYPE_PRIMITIVE: {
-				if (type->primitive == PRIMITIVE_INT) {
-					setivalue(&val, 0);
-				} else if (type->primitive == PRIMITIVE_FLOAT) {
-					setfltvalue(&val, 0.0);
-				} else if (type->primitive == PRIMITIVE_BOOL) {
-					setbvalue(&val, 0);
-				} else if (type->primitive == PRIMITIVE_STRING) {
-					setcstrvalue(&val, NULL);
-				}
-				break;
-			}
-			case TYPE_USERDEF: {
-				break;
-			}
-			case TYPE_PROTO: {
-				break;
-			}
-			default: {
-				assert(0);
-				break;
-			}
-		}
-		Tuple_Set(mob->tuple, sym->index, &val);
-	}
-}
-
-#endif
-
 static Object *__get_tuple(ModuleObject *m)
 {
 	if (!m->tuple) {
 		m->tuple = Tuple_New(m->stbl.varcnt);
-		//STbl_Traverse(&mob->stbl, init_mod_var, mob);
 	}
 	return m->tuple;
 }
@@ -249,8 +210,8 @@ static void module_free(Object *ob)
 
 Klass Module_Klass = {
 	OBJECT_HEAD_INIT(&Klass_Klass),
-	.name  = "Module",
-	.bsize = sizeof(ModuleObject),
+	.name = "Module",
+	.size = sizeof(ModuleObject),
 
 	.ob_free = module_free
 };
@@ -262,45 +223,4 @@ void Module_Show(Object *ob)
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	printf("package:%s\n", m->name);
 	STbl_Show(&m->stbl, 1);
-}
-
-Object *Module_From_Image(KImage *image)
-{
-	Object *m = Module_New(image->package, image->table);
-	AtomTable *table = image->table;
-	int sz;
-	VarItem *var;
-	FuncItem *func;
-	StringItem *name;
-	TypeItem *type;
-	ProtoItem *protoitem;
-	CodeItem *codeitem;
-	TypeDesc *desc;
-	Proto *proto;
-	Object *code;
-
-	//load variables
-	sz = AtomTable_Size(table, ITEM_VAR);
-	for (int i = 0; i < sz; i++) {
-		var = AtomTable_Get(table, ITEM_VAR, i);
-		name = StringItem_Index(table, var->nameindex);
-		type = TypeItem_Index(table, var->typeindex);
-		desc = TypeDesc_New(0);
-		TypeItem_To_Desc(table, type, desc);
-		Module_Add_Var(m, name->data, desc, var->access & ACCESS_CONST);
-	}
-
-	//load functions
-	sz = AtomTable_Size(table, ITEM_FUNC);
-	for (int i = 0; i < sz; i++) {
-		func = AtomTable_Get(table, ITEM_FUNC, i);
-		name = StringItem_Index(table, func->nameindex);
-		protoitem = ProtoItem_Index(table, func->protoindex);
-		proto = Proto_From_ProtoItem(protoitem, table);
-		codeitem = CodeItem_Index(table, func->codeindex);
-		code = KFunc_New(func->locvars, codeitem->codes, codeitem->size);
-		Module_Add_Func(m, name->data, proto, code);
-	}
-
-	return m;
 }

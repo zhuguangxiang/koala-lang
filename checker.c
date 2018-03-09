@@ -76,6 +76,10 @@ static int check_call_varg(Proto *proto, Vector *vec)
 
 int check_call_args(Proto *proto, Vector *vec)
 {
+	if (!vec && !proto->psz) {
+		return 1;
+	}
+
 	if (Proto_Has_Vargs(proto))
 		return check_call_varg(proto, vec);
 

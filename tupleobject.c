@@ -197,8 +197,6 @@ static void tuple_free(Object *ob)
 Klass Tuple_Klass = {
 	OBJECT_HEAD_INIT(&Klass_Klass),
 	.name = "Tuple",
-	.bsize = sizeof(TupleObject),
-	.isize = sizeof(TValue),
-
-	.ob_free  = tuple_free,
+	.size = sizeof(TupleObject),
+	.ob_free = tuple_free,
 };

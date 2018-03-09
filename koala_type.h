@@ -42,16 +42,20 @@ typedef struct proto {
 } Proto;
 
 #define Init_Primitive_TypeDesc(desc, d, p) do { \
+	(desc)->varg = 0; \
 	(desc)->dims = (d); \
 	(desc)->kind = TYPE_PRIMITIVE; \
 	(desc)->primitive = (p); \
 } while (0)
-#define Init_UserDef_TypeDesc(desc, d, fulltype) do { \
+#define Init_UserDef_TypeDesc(desc, d, p, t) do { \
+	(desc)->varg = 0; \
 	(desc)->dims = (d); \
 	(desc)->kind = TYPE_USERDEF; \
-	FullPath_To_TypeDesc(fulltype, strlen(fulltype), desc); \
+	(desc)->path = (p); \
+	(desc)->type = (t); \
 } while (0)
-#define Init_Proto_TypeDesc(desc, d, r, p) do { \
+#define Init_Proto_TypeDesc(desc, d, p) do { \
+	(desc)->varg = 0; \
 	(desc)->dims = (d); \
 	(desc)->kind = TYPE_PROTO; \
 	(dec)->proto = (p); \

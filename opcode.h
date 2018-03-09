@@ -83,7 +83,7 @@ extern "C" {
 	Parameters passed to function are already prepared in stack
 	All parameters are pushed into stack from right to left
 	arg0: 4 bytes, index of constant pool, function's name
-	arg1: 4 bytes, number of arguments
+	arg1: 2 bytes, number of arguments
 	-------------------------------------------------------
 	obj = top()
 	func = get_func(obj, arg0)
@@ -120,21 +120,21 @@ extern "C" {
 #define OP_NEQ 25
 
 /*
-	New object
- */
-// #define OP_NEW    13
-// #define OP_STRING 14
-// #define OP_LIST   15
-// #define OP_TUPLE  16
-// #define OP_TABLE  17
-// #define OP_ARRAY  18
-
-/*
 	Control flow, with relative 4 bytes offset
 */
 #define OP_JUMP  30
 #define OP_JUMP_TRUE  31
 #define OP_JUMP_FALSE 32
+
+/*
+	New object: like OP_CALL
+ */
+#define OP_NEW  50
+// #define OP_STRING 14
+// #define OP_LIST   15
+// #define OP_TUPLE  16
+// #define OP_TABLE  17
+// #define OP_ARRAY  18
 
 /*
 	Load constant from constant pool to locvars directly
