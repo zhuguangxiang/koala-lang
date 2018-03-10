@@ -168,7 +168,7 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 
 			uint8 *data = Buffer_RawData(&buf);
 			int size = Buffer_Size(&buf);
-			code_show(data, size);
+			//code_show(data, size);
 			Buffer_Fini(&buf);
 
 			if (tmp->bcls) {

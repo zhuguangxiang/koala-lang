@@ -170,7 +170,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 
 	// find in external imported module
 	Import key = {.path = desc->path};
-	Import *import = HTable_FindObject(&ps->imports, &key, Import);
+	Import *import = HashTable_Find(&ps->imports, &key);
 	if (!import) {
 		error("cannot find '%s.%s'", desc->path, desc->type);
 		return NULL;
@@ -222,7 +222,7 @@ static void init_imports(ParserState *ps)
 {
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, import_hash, import_equal);
-	HTable_Init(&ps->imports, &hashinfo);
+	HashTable_Init(&ps->imports, &hashinfo);
 	ps->extstbl = STbl_New(NULL);
 	Symbol *sym = Parse_Import(ps, "lang", "koala/lang");
 	sym->refcnt++;
@@ -238,7 +238,7 @@ static void __import_free_fn(HashNode *hnode, void *arg)
 
 static void fini_imports(ParserState *ps)
 {
-	HTable_Fini(&ps->imports, __import_free_fn, NULL);
+	HashTable_Fini(&ps->imports, __import_free_fn, NULL);
 	STbl_Free(ps->extstbl);
 }
 
@@ -264,7 +264,7 @@ static Symbol *add_import(STable *stbl, char *id, char *path)
 Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 {
 	Import key = {.path = path};
-	Import *import = HTable_FindObject(&ps->imports, &key, Import);
+	Import *import = HashTable_Find(&ps->imports, &key);
 	Symbol *sym;
 	if (import) {
 		sym = import->sym;
@@ -284,14 +284,14 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 	}
 
 	import = import_new(path);
-	if (HTable_Insert(&ps->imports, &import->hnode) < 0) {
+	if (HashTable_Insert(&ps->imports, &import->hnode) < 0) {
 		error("module '%s' is imported duplicated", path);
 		return NULL;
 	}
 	Object *ob = Koala_Load_Module(path);
 	if (!ob) {
 		error("load module '%s' failed", path);
-		HTable_Remove(&ps->imports, &import->hnode);
+		HashTable_Remove(&ps->imports, &import->hnode);
 		import_free(import);
 		return NULL;
 	}
@@ -299,7 +299,7 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 	sym = add_import(ps->extstbl, id, path);
 	if (!sym) {
 		debug("add import '%s <- %s' failed", id, path);
-		HTable_Remove(&ps->imports, &import->hnode);
+		HashTable_Remove(&ps->imports, &import->hnode);
 		import_free(import);
 		return NULL;
 	}

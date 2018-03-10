@@ -51,7 +51,7 @@ KoalaState gs;
 static int add_module(char *path, Object *ob)
 {
 	struct mod_entry *e = new_mod_entry(path, ob);
-	if (HTable_Insert(&gs.modules, &e->hnode) < 0) {
+	if (HashTable_Insert(&gs.modules, &e->hnode) < 0) {
 		error("add module '%s' failed", path);
 		free_mod_entry(e);
 		return -1;
@@ -78,9 +78,9 @@ static void run_code(Object *code, Object *ob, Object *args)
 Object *Koala_Get_Module(char *path)
 {
 	struct mod_entry e = {.path = path};
-	HashNode *hnode = HTable_Find(&gs.modules, &e);
-	if (!hnode) return NULL;
-	return (Object *)(container_of(hnode, struct mod_entry, hnode)->ob);
+	struct mod_entry *entry = HashTable_Find(&gs.modules, &e);
+	if (!entry) return NULL;
+	return entry->ob;
 }
 
 /*-------------------------------------------------------------------------*/
@@ -361,7 +361,7 @@ static void Init_Modules(void)
 {
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, mod_entry_hash, mod_entry_equal);
-	HTable_Init(&gs.modules, &hashinfo);
+	HashTable_Init(&gs.modules, &hashinfo);
 
 	/* koala/lang.klc */
 	Init_Lang_Module();
@@ -388,5 +388,5 @@ static void __mod_entry_free_fn(HashNode *hnode, void *arg)
 
 void Koala_Finalize(void)
 {
-	HTable_Fini(&gs.modules, __mod_entry_free_fn, NULL);
+	HashTable_Fini(&gs.modules, __mod_entry_free_fn, NULL);
 }

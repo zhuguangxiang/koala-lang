@@ -80,7 +80,7 @@ Symbol *STbl_Get(STable *stbl, char *name);
 typedef void (*symbolfunc)(Symbol *sym, void *arg);
 void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg);
 void STbl_Show(STable *stbl, int detail);
-#define STbl_Count(stbl) HTable_Count((stbl)->htbl)
+#define STbl_Count(stbl) HashTable_Count((stbl)->htbl)
 int STbl_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc);
 #define SYMBOL_ACCESS(name, bconst) ({ \
 	int access = isupper(name[0]) ? ACCESS_PRIVATE : ACCESS_PUBLIC; \

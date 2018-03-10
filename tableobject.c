@@ -23,8 +23,10 @@ static int Ineger_Compare(TValue *v1, TValue *v2)
 
 static int entry_equal(void *k1, void *k2)
 {
-	TValue *v1 = k1;
-	TValue *v2 = k2;
+	struct entry *e1 = k1;
+	struct entry *e2 = k2;
+	TValue *v1 = &e1->key;
+	TValue *v2 = &e2->key;
 
 	if (VALUE_ISINT(v1) && VALUE_ISINT(v2)) {
 		return !Ineger_Compare(v1, v2);
@@ -47,7 +49,8 @@ static int entry_equal(void *k1, void *k2)
 
 static uint32 entry_hash(void *k)
 {
-	TValue *v = k;
+	struct entry *e = k;
+	TValue *v = &e->key;
 
 	if (VALUE_ISINT(v)) {
 		return Integer_Hash(v);
@@ -66,7 +69,7 @@ static struct entry *new_entry(TValue *key, TValue *value)
 	struct entry *entry = malloc(sizeof(struct entry));
 	entry->key = *key;
 	entry->val = *value;
-	Init_HashNode(&entry->hnode, &entry->key);
+	Init_HashNode(&entry->hnode, entry);
 	return entry;
 }
 
@@ -82,7 +85,7 @@ Object *Table_New(void)
 	init_object_head(table, &Table_Klass);
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, entry_hash, entry_equal);
-	int res = HTable_Init(&table->tbl, &hashinfo);
+	int res = HashTable_Init(&table->tbl, &hashinfo);
 	assert(!res);
 	//Object_Add_GCList(table);
 	return (Object *)table;
@@ -91,22 +94,19 @@ Object *Table_New(void)
 int Table_Get(Object *ob, TValue *key, TValue *rk, TValue *rv)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
-	HashNode *hnode = HTable_Find(&table->tbl, key);
-	if (hnode) {
-		struct entry *e = container_of(hnode, struct entry, hnode);
-		if (rk) *rk = e->key;
-		if (rv) *rv = e->val;
-		return 0;
-	} else {
-		return -1;
-	}
+	struct entry e = {.key = *key};
+	struct entry *res = HashTable_Find(&table->tbl, &e);
+	if (!res) return -1;
+	if (rk) *rk = res->key;
+	if (rv) *rv = res->val;
+	return 0;
 }
 
 int Table_Put(Object *ob, TValue *key, TValue *value)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
 	struct entry *e = new_entry(key, value);
-	int res = HTable_Insert(&table->tbl, &e->hnode);
+	int res = HashTable_Insert(&table->tbl, &e->hnode);
 	if (res) {
 		free_entry(e);
 		return -1;
@@ -118,7 +118,7 @@ int Table_Put(Object *ob, TValue *key, TValue *value)
 int Table_Count(Object *ob)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
-	return HTable_Count(&table->tbl);
+	return HashTable_Count(&table->tbl);
 }
 
 struct visit_struct {
@@ -137,7 +137,7 @@ void Table_Traverse(Object *ob, table_visit_func visit, void *arg)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
 	struct visit_struct vs = {visit, arg};
-	HTable_Traverse(&table->tbl, __table_visit_fn, &vs);
+	HashTable_Traverse(&table->tbl, __table_visit_fn, &vs);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -207,7 +207,7 @@ static void __entry_free_fn(struct hash_node *hnode, void *arg)
 static void table_free(Object *ob)
 {
 	TableObject *table = OB_TYPE_OF(ob, TableObject, Table_Klass);
-	HTable_Fini(&table->tbl, __entry_free_fn, NULL);
+	HashTable_Fini(&table->tbl, __entry_free_fn, NULL);
 	free(ob);
 }
 

@@ -78,12 +78,12 @@ static void free_entries(struct hlist_head *entries)
 	if (entries) free(entries);
 }
 
-int HTable_SlotSize(HashTable *table)
+int HashTable_SlotSize(HashTable *table)
 {
 	return get_nr_entries(table);
 }
 
-int HTable_Init(HashTable *table, HashInfo *hashinfo)
+int HashTable_Init(HashTable *table, HashInfo *hashinfo)
 {
 	struct hlist_head *entries = new_entries(get_prime(DEFAULT_PRIME_INDEX));
 	if (!entries) return -1;
@@ -97,7 +97,7 @@ int HTable_Init(HashTable *table, HashInfo *hashinfo)
 	return 0;
 }
 
-void HTable_Fini(HashTable *table, ht_visitfunc fn, void *arg)
+void HashTable_Fini(HashTable *table, ht_visitfunc fn, void *arg)
 {
 	HashNode *hnode, *nxt;
 	list_for_each_entry_safe(hnode, nxt, &table->head, llink) {
@@ -112,12 +112,12 @@ void HTable_Fini(HashTable *table, ht_visitfunc fn, void *arg)
 	table->entries = NULL;
 }
 
-HashTable *HTable_New(HashInfo *hashinfo)
+HashTable *HashTable_New(HashInfo *hashinfo)
 {
 	HashTable *table = malloc(sizeof(HashTable));
 	if (!table) return NULL;
 
-	if (HTable_Init(table, hashinfo)) {
+	if (HashTable_Init(table, hashinfo)) {
 		free(table);
 		return NULL;
 	}
@@ -125,14 +125,14 @@ HashTable *HTable_New(HashInfo *hashinfo)
 	return table;
 }
 
-void HTable_Free(HashTable *table, ht_visitfunc fn, void *arg)
+void HashTable_Free(HashTable *table, ht_visitfunc fn, void *arg)
 {
 	if (!table) return;
-	HTable_Fini(table, fn, arg);
+	HashTable_Fini(table, fn, arg);
 	free(table);
 }
 
-static HashNode *__htable_find(HashTable *table, uint32 hash, void *key)
+HashNode *__HashTable_Find(HashTable *table, uint32 hash, void *key)
 {
 	uint32 idx  = hash % get_nr_entries(table);
 	HashNode *hnode;
@@ -146,16 +146,11 @@ static HashNode *__htable_find(HashTable *table, uint32 hash, void *key)
 	return NULL;
 }
 
-HashNode *HTable_Find(HashTable *table, void *key)
-{
-	return __htable_find(table, table->hash(key), key);
-}
-
-int HTable_Remove(HashTable *table, HashNode *hnode)
+int HashTable_Remove(HashTable *table, HashNode *hnode)
 {
 	if (HashNode_Unhashed(hnode)) return -1;
 
-	HashNode *temp = __htable_find(table, hnode->hash, hnode->key);
+	HashNode *temp = __HashTable_Find(table, hnode->hash, hnode->key);
 	if (!temp) {
 		error("it is not in the hash table");
 		return -1;
@@ -212,12 +207,12 @@ static void htable_maybe_expand(HashTable *table)
 	htable_expand(table, new_prime);
 }
 
-int HTable_Insert(HashTable *table, HashNode *hnode)
+int HashTable_Insert(HashTable *table, HashNode *hnode)
 {
 	if (!HashNode_Unhashed(hnode)) return -1;
 
 	uint32 hash = hnode->hash = table->hash(hnode->key);
-	if (__htable_find(table, hash, hnode->key)) {
+	if (__HashTable_Find(table, hash, hnode->key)) {
 		error("key is duplicated");
 		return -1;
 	}
@@ -233,7 +228,7 @@ int HTable_Insert(HashTable *table, HashNode *hnode)
 	return 0;
 }
 
-void HTable_Traverse(HashTable *table, ht_visitfunc fn, void *arg)
+void HashTable_Traverse(HashTable *table, ht_visitfunc fn, void *arg)
 {
 	if (!table) return;
 

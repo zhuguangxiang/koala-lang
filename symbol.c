@@ -60,7 +60,7 @@ static HashTable *__get_hashtable(STable *stbl)
 	if (!stbl->htbl) {
 		HashInfo hashinfo;
 		Init_HashInfo(&hashinfo, symbol_hash, symbol_equal);
-		stbl->htbl = HTable_New(&hashinfo);
+		stbl->htbl = HashTable_New(&hashinfo);
 	}
 	return stbl->htbl;
 }
@@ -91,7 +91,7 @@ static void __symbol_free_fn(HashNode *hnode, void *arg)
 
 void STbl_Fini(STable *stbl)
 {
-	HTable_Free(stbl->htbl, __symbol_free_fn, NULL);
+	HashTable_Free(stbl->htbl, __symbol_free_fn, NULL);
 	stbl->htbl = NULL;
 	if (stbl->flag) AtomTable_Free(stbl->atbl, item_free, NULL);
 	stbl->atbl = NULL;
@@ -159,7 +159,7 @@ Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
 	sym->nameidx = idx;
 	sym->kind = kind;
 	sym->access = SYMBOL_ACCESS(name, bconst);
-	if (HTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
+	if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
 		Symbol_Free(sym);
 		return NULL;
 	}
@@ -171,13 +171,8 @@ Symbol *STbl_Get(STable *stbl, char *name)
 {
 	int32 index = StringItem_Get(stbl->atbl, name);
 	if (index < 0) return NULL;
-	Symbol sym = {.nameidx = index};
-	HashNode *hnode = HTable_Find(__get_hashtable(stbl), &sym);
-	if (hnode) {
-		return container_of(hnode, Symbol, hnode);
-	} else {
-		return NULL;
-	}
+	Symbol key = {.nameidx = index};
+	return HashTable_Find(__get_hashtable(stbl), &key);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -197,7 +192,7 @@ static void __symbol_visit_fn(HashNode *hnode, void *arg)
 void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg)
 {
 	struct visit_entry data = {fn, arg};
-	HTable_Traverse(stbl->htbl, __symbol_visit_fn, &data);
+	HashTable_Traverse(stbl->htbl, __symbol_visit_fn, &data);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -246,6 +241,6 @@ static void __symbol_show_fn(HashNode *hnode, void *arg)
 
 void STbl_Show(STable *stbl, int detail)
 {
-	HTable_Traverse(stbl->htbl, __symbol_show_fn, stbl);
+	HashTable_Traverse(stbl->htbl, __symbol_show_fn, stbl);
 	if (detail) AtomTable_Show(stbl->atbl);
 }

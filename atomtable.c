@@ -32,7 +32,7 @@ static void itementry_free(AtomEntry *e)
 
 int AtomTable_Init(AtomTable *table, HashInfo *hashinfo, int size)
 {
-	HTable_Init(&table->table, hashinfo);
+	HashTable_Init(&table->table, hashinfo);
 	table->size = size;
 	for (int i = 0; i < size; i++)
 		Vector_Init(table->items + i);
@@ -66,7 +66,7 @@ void AtomTable_Fini(AtomTable *table, atomfunc fn, void *arg)
 		Vector_Fini(table->items + i, atomdata_fini, &itemdata);
 	}
 
-	HTable_Fini(&table->table, __atomentry_free_fn, NULL);
+	HashTable_Fini(&table->table, __atomentry_free_fn, NULL);
 }
 
 int AtomTable_Append(AtomTable *table, int type, void *data, int unique)
@@ -77,7 +77,7 @@ int AtomTable_Append(AtomTable *table, int type, void *data, int unique)
 	assert(index >= 0);
 	if (unique) {
 		AtomEntry *e = itementry_new(type, index, data);
-		int res = HTable_Insert(&table->table, &e->hnode);
+		int res = HashTable_Insert(&table->table, &e->hnode);
 		assert(!res);
 	}
 	return index;
@@ -85,11 +85,10 @@ int AtomTable_Append(AtomTable *table, int type, void *data, int unique)
 
 int AtomTable_Index(AtomTable *table, int type, void *data)
 {
-	#define ATOM_ENTRY_INIT(t, i, d) {.type = (t), .index = (i), .data = (d)}
-	AtomEntry e = ATOM_ENTRY_INIT(type, 0, data);
-	HashNode *hnode = HTable_Find(&table->table, &e);
-	if (!hnode) return -1;
-	return container_of(hnode, AtomEntry, hnode)->index;
+	AtomEntry e = {.type = type, .index = 0, .data = data};
+	AtomEntry *res = HashTable_Find(&table->table, &e);
+	if (!res) return -1;
+	return res->index;
 }
 
 void *AtomTable_Get(AtomTable *table, int type, int index)

@@ -274,14 +274,63 @@ symbol in class and module, please use MODULE.SYMBOL to access module's symbol
 3. run module-name, not module's file name,  module-name is trimmed ".klc"
 
 v0.5.9:
-1. feature: interface statement
+1. feature: external module's access and management
+    1). installed path:
+    2). searching path: relative path & absolute path
+2. feature: koala arguments:
+    1). -MMAX = 100M
+    2). -KPATH = /home/user/krepo, default:~/.koala-repo
+    3). -Config = ~/koala.properties
+3. feature: koalac arguments:
+    1). -O0, -O1, -O2, -On
+    2). -KOALAPATH
+4. feature: properties file, argument format
 
 v0.6.0:
-1. bugfix: ???
-2. refactor: symbol table
-3. feature: break n, continue n statement
-4. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
-5. feature: error handle
+1. feature: interface statement
 
 v0.6.1:
+1. feature: object inheritance
+
+v0.6.2:
+1. feature: error handle
+
+v0.6.3:
+1. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
+
+v0.6.4:
 1. feature: access control
+
+v0.6.5:
+1. feature: for statement
+
+v0.6.6:
+1. feature: break n, continue n statement
+
+v0.6.7:
+1. refactor: symbol table
+
+v0.6.8:
+1. reactor: string object
+
+v0.6.9:
+1. feature: array object
+
+v0.7.0:
+1. refactor: klass's operations
+
+v1.0.1:
+1. refactor: type system, maybe add char? or byte?
+2. bugfix: FIXME???
+3. feature: coroutine, mutex access
+4. feature: gc
+5. feature: switch statement
+6. feature: go statement
+7. refactor: parser_ident()
+8. write paper about koala language
+9. VSCode plugin for koala
+10. koala debugger and shell
+11. optimization
+12. like maven??? kar management
+13. standard library
+100. ... ...

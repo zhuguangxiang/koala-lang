@@ -55,34 +55,33 @@ typedef struct hash_table {
  * Create a hash table,
  * which is automatically resized, although this incurs a performance penalty.
  */
-HashTable *HTable_New(HashInfo *hashinfo);
+HashTable *HashTable_New(HashInfo *hashinfo);
 
 /* Free a hash table */
-void HTable_Free(HashTable *table, ht_visitfunc fn, void *arg);
+void HashTable_Free(HashTable *table, ht_visitfunc fn, void *arg);
 
 /* Find a node with its key  */
-HashNode *HTable_Find(HashTable *table, void *key);
-
-#define HTable_FindObject(table, key, type) ({ \
-	HashNode *node = HTable_Find(table, key); \
-	(node) ? container_of(node, type, hnode) : NULL; \
+HashNode *__HashTable_Find(HashTable *table, uint32 hash, void *key);
+#define HashTable_Find(table, key) ({ \
+	HashNode *node = __HashTable_Find(table, (table)->hash(key), key); \
+	(node) ? container_of(node, typeof(*key), hnode) : NULL; \
 })
 
 /* Remove a node from the hash table by its node */
-int HTable_Remove(HashTable *table, HashNode *hnode);
+int HashTable_Remove(HashTable *table, HashNode *hnode);
 
 /* Insert a node to the hash table */
-int HTable_Insert(HashTable *table, HashNode *hnode);
+int HashTable_Insert(HashTable *table, HashNode *hnode);
 
 /* Traverse all nodes in the hash table */
-void HTable_Traverse(HashTable *table, ht_visitfunc fn, void *arg);
+void HashTable_Traverse(HashTable *table, ht_visitfunc fn, void *arg);
 
-int HTable_Init(HashTable *table, HashInfo *hashinfo);
+int HashTable_Init(HashTable *table, HashInfo *hashinfo);
 
-void HTable_Fini(HashTable *table, ht_visitfunc fn, void *arg);
+void HashTable_Fini(HashTable *table, ht_visitfunc fn, void *arg);
 
-#define HTable_Count(table)  ((table)->nodes)
-int HTable_SlotSize(HashTable *table);
+#define HashTable_Count(table)  ((table)->nodes)
+int HashTable_SlotSize(HashTable *table);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,18 @@
 
 #include "koala.h"
 
+/*
+	koala --help
+	Usage: koala [options] module...
+	Options:
+		-h, --help
+		-v, --version
+		--config FILE
+		-o FILE
+	Example:
+		koala --config koala.properties test
+		koala test(default: ~/koala.properties and ./koala.properties)
+ */
 int main(int argc, char *argv[])
 {
 	if (argc < 2) {

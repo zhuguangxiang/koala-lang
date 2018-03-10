@@ -3,6 +3,7 @@
 #define _KOALA_STATE_H_
 
 #include "object.h"
+#include "properties.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -10,6 +11,7 @@ extern "C" {
 
 typedef struct koalastate {
 	HashTable modules;
+	Properties config;
 } KoalaState;
 
 /* Exported APIs */

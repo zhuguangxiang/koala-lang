@@ -10,7 +10,7 @@ include $(TOPDIR)/config.mk
 
 ######################################
 
-KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c \
+KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c properties.c \
 atomtable.c symbol.c object.c stringobject.c tupleobject.c \
 tableobject.c moduleobject.c classobject.c codeobject.c opcode.c codegen.c \
 klc.c routine.c thread.c mod_io.c koala_state.c \
@@ -96,6 +96,10 @@ testbuf: lib
 	@$(CC) $(CFLAGS) test_buffer.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
+testprop: lib
+	@$(CC) $(CFLAGS) test_properties.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
+
 test-0.5.1:
 	@$(RM) test-0.5.1.klc
 	@$(KOALAC) test-0.5.1.kl
@@ -136,16 +140,11 @@ test-0.5.8:
 	@$(KOALAC) test-0.5.8.kl
 	@$(KOALA) test-0.5.8
 
-test-0.5.9:
-	@$(RM) test-0.5.9.klc
-	@$(KOALAC) test-0.5.9.kl
-	@$(KOALA) test-0.5.9
-
 testkl: test-0.5.1 test-0.5.2 test-0.5.3 test-0.5.4 test-0.5.5 test-0.5.6 \
-	test-0.5.7 test-0.5.8 test-0.5.9
+	test-0.5.7 test-0.5.8
 	@echo "Test Koala Down!"
 
-test: testbuf testloop testroutine testimage testhashtable testlist \
+test: testprop testbuf testroutine testimage testhashtable testlist \
 	testmodule testobject teststring testtuple testvector testkl
 	@echo "Test Down!"
 
