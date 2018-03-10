@@ -230,7 +230,7 @@ static void load_classes(AtomTable *table, Object *m)
 	MethodItem *mth;
 	for (int i = 0; i < sz; i++) {
 		mth = AtomTable_Get(table, ITEM_METHOD, i);
-		load_method(mth, table, get_klazz(indexes, num, fld->classindex));
+		load_method(mth, table, get_klazz(indexes, num, mth->classindex));
 	}
 }
 
@@ -284,7 +284,7 @@ static Object *module_from_image(KImage *image)
 {
 	AtomTable *table = image->table;
 	char *package = image->package;
-	debug("load module '%s' from klc", package);
+	debug("load module '%s' from image", package);
 	Object *m = Module_New(package, table);
 
 	load_variables(table, m);

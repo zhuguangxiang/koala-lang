@@ -136,8 +136,13 @@ test-0.5.8:
 	@$(KOALAC) test-0.5.8.kl
 	@$(KOALA) test-0.5.8
 
+test-0.5.9:
+	@$(RM) test-0.5.9.klc
+	@$(KOALAC) test-0.5.9.kl
+	@$(KOALA) test-0.5.9
+
 testkl: test-0.5.1 test-0.5.2 test-0.5.3 test-0.5.4 test-0.5.5 test-0.5.6 \
-	test-0.5.7 test-0.5.8
+	test-0.5.7 test-0.5.8 test-0.5.9
 	@echo "Test Koala Down!"
 
 test: testbuf testloop testroutine testimage testhashtable testlist \

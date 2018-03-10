@@ -164,6 +164,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 		if (!sym) {
 			error("cannot find : %s", desc->type);
 		}
+		sym->refcnt++;
 		return sym;
 	}
 
@@ -794,9 +795,9 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 	} else if (sym->kind == SYM_CLASS) {
 		// reference a class, not check id's scope
 		debug("symbol '%s' is class", sym->name);
-		// self object
-		TValue val = INT_VALUE_INIT(0);
-		Inst_Append(u->block, OP_LOAD, &val);
+		// load current module
+		TValue val = CSTR_VALUE_INIT(ps->path);
+		Inst_Append(u->block, OP_LOADM, &val);
 		// new object
 		setcstrvalue(&val, sym->name);
 		Inst *i = Inst_Append(u->block, OP_NEW, &val);

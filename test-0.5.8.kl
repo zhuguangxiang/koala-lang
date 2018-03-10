@@ -12,10 +12,10 @@ class Person {
 	name string;
 	age int;
 
-	func __init__(name string, age int) {
-		io.Println("Person(", name, ",", age, ")");
+	func __init__(name string, _age int) {
+		io.Println("Person(", name, ",", _age, ")");
 		self.name = name;
-		self.age = age;
+		age = _age;
 	}
 
 	func SayHello() {
@@ -47,6 +47,11 @@ class Person {
 		io.Println("mod var:", test.name);
 		test.name = "扬州";
 	}
+
+	func TestOtherClass() {
+		var town HomeTown = HomeTown("横泾", 123456);
+		io.Println(town.name, town.number);
+	}
 }
 
 func Main(args []string) {
@@ -60,9 +65,24 @@ func Main(args []string) {
 	person.TestAccessVar();
 	io.Println(name);
 	io.Println(test.name);
+
+	var town HomeTown = HomeTown("高邮", 8234561);
+	io.Println(town.name, town.number);
+
+	person.TestOtherClass();
 }
 
 func sub(v1 int, v2 int) int {
 	io.Println("call sub in module");
 	return v1 - v2;
+}
+
+class HomeTown {
+	name string;
+	number int;
+
+	func __init__(name string, nu int) {
+		self.name = name;
+		number = nu;
+	}
 }

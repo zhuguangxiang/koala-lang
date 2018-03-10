@@ -269,6 +269,9 @@ v0.5.7:
 
 v0.5.8:
 1. feature: class statement
+2. function in class can access symbol in module, if there is the same
+symbol in class and module, please use MODULE.SYMBOL to access module's symbol
+3. run module-name, not module's file name,  module-name is trimmed ".klc"
 
 v0.5.9:
 1. feature: interface statement
