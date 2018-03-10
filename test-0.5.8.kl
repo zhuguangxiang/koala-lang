@@ -51,6 +51,7 @@ class Person {
 	func TestOtherClass() {
 		var town HomeTown = HomeTown("横泾", 123456);
 		io.Println(town.name, town.number);
+		town.ToString();
 	}
 }
 
@@ -84,5 +85,9 @@ class HomeTown {
 	func __init__(name string, nu int) {
 		self.name = name;
 		number = nu;
+	}
+
+	func ToString() {
+		io.Println(name, number);
 	}
 }
