@@ -14,7 +14,6 @@ int main(int argc, char *argv[])
 	int len = strlen(srcfile);
 	char *outfile = malloc(len + 4 + 1);
 	char *tmp = strrchr(srcfile, '.');
-	char *path = strndup(srcfile, tmp - srcfile);
 	if (tmp) {
 		memcpy(outfile, srcfile, tmp - srcfile);
 		outfile[tmp - srcfile] = 0;
@@ -27,7 +26,7 @@ int main(int argc, char *argv[])
 
 	Koala_Initialize();
 	ParserState ps;
-	init_parser(&ps, path);
+	init_parser(&ps);
 	parser_module(&ps, in);
 	codegen_klc(&ps, outfile);
 	fini_parser(&ps);

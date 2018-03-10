@@ -33,13 +33,19 @@ extern "C" {
 #define OP_LOADM  2
 
 /*
+	Get the module in which the klass is
+	arg: it is loaded into stack
+ */
+#define OP_GETM   3
+
+/*
 	Load data from locvars to stack
 	arg: 2 bytes, index of locvars
 	-------------------------------------------------------
 	val = load(arg)
 	push(val)
  */
-#define OP_LOAD   3
+#define OP_LOAD   4
 
 /*
 	Store data from stack to locvars
@@ -48,7 +54,7 @@ extern "C" {
 	val = pop()
 	store(val, arg)
  */
-#define OP_STORE  4
+#define OP_STORE  5
 
 /*
 	Get the field from object
@@ -61,7 +67,7 @@ extern "C" {
 	val = getfield(obj, arg0)
 	push(val)
  */
-#define OP_GETFIELD 5
+#define OP_GETFIELD 6
 
 /*
 	Set the field of object
@@ -76,7 +82,7 @@ extern "C" {
 	val = pop()
 	setfield(obj, arg0, val)
  */
-#define OP_SETFIELD 6
+#define OP_SETFIELD 7
 
 /*
 	Call a function
@@ -91,14 +97,14 @@ extern "C" {
 	push_func_stack(f)
 	return
  */
-#define OP_CALL 7
+#define OP_CALL 8
 
 /*
 	Function's return
 	Return values are already stored in stack
 	no args
  */
-#define OP_RET  8
+#define OP_RET  9
 
 /*
 	Arthmetic operation: add, sub, mul, div

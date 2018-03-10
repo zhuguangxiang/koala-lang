@@ -61,6 +61,7 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 	if (sym) {
 		sym->ob = klazz;
 		STbl_Init(&klazz->stbl, Module_AtomTable(m));
+		klazz->module = ob;
 		return 0;
 	}
 	return -1;

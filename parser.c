@@ -796,8 +796,10 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 		// reference a class, not check id's scope
 		debug("symbol '%s' is class", sym->name);
 		// load current module
-		TValue val = CSTR_VALUE_INIT(ps->path);
-		Inst_Append(u->block, OP_LOADM, &val);
+		TValue val = INT_VALUE_INIT(0);
+		Inst_Append(u->block, OP_LOAD, &val);
+
+		Inst_Append(u->block, OP_GETM, NULL);
 		// new object
 		setcstrvalue(&val, sym->name);
 		Inst *i = Inst_Append(u->block, OP_NEW, &val);
@@ -870,8 +872,11 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 					i->argc = exp->argc;
 				} else {
 					// module's function, load current module
-					TValue val = CSTR_VALUE_INIT(ps->path);
-					Inst_Append(u->block, OP_LOADM, &val);
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+
+					Inst_Append(u->block, OP_GETM, NULL);
+
 					// function call
 					setcstrvalue(&val, sym->name);
 					Inst *i = Inst_Append(u->block, OP_CALL, &val);
@@ -880,8 +885,10 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 			} else if (sym->kind == SYM_MODULE) {
 				assert(exp->ctx == EXPR_LOAD);
 				// load current module
-				TValue val = CSTR_VALUE_INIT(ps->path);
-				Inst_Append(u->block, OP_LOADM, &val);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+
+				Inst_Append(u->block, OP_GETM, NULL);
 			} else {
 				assert(0);
 			}
@@ -1605,11 +1612,10 @@ static void parser_body(ParserState *ps, Vector *stmts)
 
 /*--------------------------------------------------------------------------*/
 
-void init_parser(ParserState *ps, char *path)
+void init_parser(ParserState *ps)
 {
 	memset(ps, 0, sizeof(ParserState));
 	Vector_Init(&ps->stmts);
-	ps->path = path;
 	init_imports(ps);
 	Symbol *sym = Symbol_New();
 	sym->kind = SYM_MODULE;

@@ -62,6 +62,9 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
+		case OP_GETM: {
+			break;
+		}
 		case OP_LOAD: {
 			Buffer_Write_2Bytes(buf, i->arg.ival);
 			break;

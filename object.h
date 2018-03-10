@@ -147,6 +147,7 @@ typedef Object *(*strfunc)(TValue *v);
 struct klass {
 	OBJECT_HEAD
 	Klass *super;
+	Object *module;
 	char *name;
 	int size;
 

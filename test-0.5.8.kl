@@ -40,6 +40,8 @@ class Person {
 			please use MOUDLE.FUNCTION() to call module's function.
 		 */
 		io.Println("29 - 35 =", test.sub(29, 35));
+
+		io.Println("29 + 35 =", add(29, 35));
 	}
 
 	func TestAccessVar() {
@@ -62,6 +64,7 @@ func Main(args []string) {
 	person.TestCallFunc();
 	person.SayHello();
 	io.Println(">>>>age:", person.GetAge());
+	io.Println(">>>>age:", person.age);
 	person.TestCallFunc();
 	person.TestAccessVar();
 	io.Println(name);
@@ -76,6 +79,10 @@ func Main(args []string) {
 func sub(v1 int, v2 int) int {
 	io.Println("call sub in module");
 	return v1 - v2;
+}
+
+func add(v1 int, v2 int) int {
+	return v1 + v2;
 }
 
 class HomeTown {

@@ -77,7 +77,7 @@ static void start_cframe(Frame *f)
 	int i = 0;
 	while (count-- > 0) {
 		val = rt_stack_pop(rt);
-		assert(!VALUE_ISNIL(&val));
+		VALUE_ASSERT(&val);
 		Tuple_Set(args, i++, &val);
 	}
 
@@ -110,7 +110,7 @@ static void start_kframe(Frame *f)
 	int i = 0;
 	while (count-- > 0) {
 		val = rt_stack_pop(rt);
-		assert(!VALUE_ISNIL(&val));
+		VALUE_ASSERT(&val);
 		f->locvars[i++] = val;
 	}
 
@@ -356,6 +356,19 @@ static void frame_loop(Frame *frame)
 				PUSH(&val);
 				break;
 			}
+			case OP_GETM: {
+				val = TOP();
+				ob = VALUE_OBJECT(&val);
+				if (!OB_CHECK_KLASS(ob, Module_Klass)) {
+					val = POP();
+					Klass *klazz = OB_KLASS(ob);
+					OB_ASSERT_KLASS(klazz, Klass_Klass);
+					assert(klazz->module);
+					setobjvalue(&val, klazz->module);
+					PUSH(&val);
+				}
+				break;
+			}
 			case OP_LOAD: {
 				index = fetch_2bytes(frame, code);
 				val = load(frame, index);
@@ -520,7 +533,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_JUMP_TRUE: {
 				val = POP();
-				assert(val.type == TYPE_BOOL);
+				VALUE_ASSERT_BOOL(&val);
 				offset = fetch_4bytes(frame, code);
 				if (val.bval) {
 					frame->pc += offset;
@@ -529,7 +542,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_JUMP_FALSE: {
 				val = POP();
-				assert(val.type == TYPE_BOOL);
+				VALUE_ASSERT_BOOL(&val);
 				offset = fetch_4bytes(frame, code);
 				if (!val.bval) {
 					frame->pc += offset;

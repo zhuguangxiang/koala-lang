@@ -9,6 +9,7 @@ static struct opcode {
 	{OP_HALT,     "halt",     0},
 	{OP_LOADK,    "loadk",    4},
 	{OP_LOADM,    "loadm",    4},
+	{OP_GETM,     "getm",     1},
 	{OP_LOAD,     "load",     2},
 	{OP_STORE,    "store",    2},
 	{OP_GETFIELD, "getfield", 4},
