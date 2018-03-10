@@ -99,42 +99,42 @@ testbuf: lib
 test-0.5.1:
 	@$(RM) test-0.5.1.klc
 	@$(KOALAC) test-0.5.1.kl
-	@$(KOALA) test-0.5.1.klc
+	@$(KOALA) test-0.5.1
 
 test-0.5.2:
 	@$(RM) test-0.5.2.klc
 	@$(KOALAC) test-0.5.2.kl
-	@$(KOALA) test-0.5.2.klc
+	@$(KOALA) test-0.5.2
 
 test-0.5.3:
 	@$(RM) test-0.5.3.klc
 	@$(KOALAC) test-0.5.3.kl
-	@$(KOALA) test-0.5.3.klc
+	@$(KOALA) test-0.5.3
 
 test-0.5.4:
 	@$(RM) test-0.5.4.klc
 	@$(KOALAC) test-0.5.4.kl
-	@$(KOALA) test-0.5.4.klc
+	@$(KOALA) test-0.5.4
 
 test-0.5.5:
 	@$(RM) test-0.5.5.klc
 	@$(KOALAC) test-0.5.5.kl
-	@$(KOALA) test-0.5.5.klc
+	@$(KOALA) test-0.5.5
 
 test-0.5.6:
 	@$(RM) test-0.5.6.klc
 	@$(KOALAC) test-0.5.6.kl
-	@$(KOALA) test-0.5.6.klc
+	@$(KOALA) test-0.5.6
 
 test-0.5.7:
 	@$(RM) test-0.5.7.klc
 	@$(KOALAC) test-0.5.7.kl
-	@$(KOALA) test-0.5.7.klc
+	@$(KOALA) test-0.5.7
 
 test-0.5.8:
 	@$(RM) test-0.5.8.klc
 	@$(KOALAC) test-0.5.8.kl
-	@$(KOALA) test-0.5.8.klc
+	@$(KOALA) test-0.5.8
 
 testkl: test-0.5.1 test-0.5.2 test-0.5.3 test-0.5.4 test-0.5.5 test-0.5.6 \
 	test-0.5.7 test-0.5.8

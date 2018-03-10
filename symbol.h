@@ -29,6 +29,7 @@ void STbl_Fini(STable *stbl);
 #define SYM_INTF    4
 #define SYM_IPROTO  5
 #define SYM_STABLE  6  /* for compiler */
+#define SYM_MODULE  7
 
 #define ACCESS_PUBLIC   0
 #define ACCESS_PRIVATE  (1 << 0)
@@ -63,6 +64,8 @@ struct symbol {
 };
 
 /* Exported APIs */
+Symbol *Symbol_New(void);
+void Symbol_Free(Symbol *sym);
 Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
 Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto);
 #define STbl_Add_IProto(stbl, name, proto) ({ \

@@ -5,14 +5,14 @@
 #include "log.h"
 #include "parser.h"
 
-static Symbol *symbol_new(void)
+Symbol *Symbol_New(void)
 {
 	Symbol *sym = calloc(1, sizeof(Symbol));
 	Init_HashNode(&sym->hnode, sym);
 	return sym;
 }
 
-static void symbol_free(Symbol *sym)
+void Symbol_Free(Symbol *sym)
 {
 	if (sym->kind == SYM_VAR) {
 		//FIXME:share with struct var
@@ -86,7 +86,7 @@ static void __symbol_free_fn(HashNode *hnode, void *arg)
 {
 	UNUSED_PARAMETER(arg);
 	Symbol *sym = container_of(hnode, Symbol, hnode);
-	symbol_free(sym);
+	Symbol_Free(sym);
 }
 
 void STbl_Fini(STable *stbl)
@@ -153,14 +153,14 @@ Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto)
 
 Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
 {
-	Symbol *sym = symbol_new();
+	Symbol *sym = Symbol_New();
 	int32 idx = StringItem_Set(stbl->atbl, name);
 	assert(idx >= 0);
 	sym->nameidx = idx;
 	sym->kind = kind;
 	sym->access = SYMBOL_ACCESS(name, bconst);
 	if (HTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
-		symbol_free(sym);
+		Symbol_Free(sym);
 		return NULL;
 	}
 	sym->name = strdup(name);

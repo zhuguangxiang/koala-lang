@@ -274,14 +274,17 @@ static inline void store(Frame *f, int index, TValue *val)
 
 static Object *getcode(Object *ob, char *name)
 {
+	Object *code = NULL;
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
-		return Module_Get_Function(ob, name);
+		code = Module_Get_Function(ob, name);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		return Klass_Get_Method(OB_KLASS(ob), name);
+		code = Klass_Get_Method(OB_KLASS(ob), name);
 	} else {
 		assert(0);
-		return NULL;
 	}
+
+	assert(code);
+	return code;
 }
 
 static void setfield(Object *ob, char *field, TValue *val)

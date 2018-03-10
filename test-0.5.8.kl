@@ -6,6 +6,8 @@ package test;
 
 import "koala/io";
 
+var name = "南京";
+
 class Person {
 	name string;
 	age int;
@@ -24,12 +26,43 @@ class Person {
 	func GetAge() int {
 		return self.age;
 	}
+
+	func sub(v1 int, v2 int) int {
+		io.Println("call sub in class");
+		return v1 - v2;
+	}
+
+	func TestCallFunc() {
+		// call class's sub
+		io.Println("29 - 35 =", sub(29, 35));
+		/*
+			if func is both in class and module,
+			please use MOUDLE.FUNCTION() to call module's function.
+		 */
+		io.Println("29 - 35 =", test.sub(29, 35));
+	}
+
+	func TestAccessVar() {
+		io.Println("local:", name);
+		io.Println("mod var:", test.name);
+		test.name = "扬州";
+	}
 }
 
 func Main(args []string) {
 	var name = "James";
 	var age = 122;
 	var person = Person(name, age);
+	person.TestCallFunc();
 	person.SayHello();
 	io.Println(">>>>age:", person.GetAge());
+	person.TestCallFunc();
+	person.TestAccessVar();
+	io.Println(name);
+	io.Println(test.name);
+}
+
+func sub(v1 int, v2 int) int {
+	io.Println("call sub in module");
+	return v1 - v2;
 }

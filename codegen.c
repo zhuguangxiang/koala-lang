@@ -195,7 +195,7 @@ void codegen_klc(ParserState *ps, char *out)
 	printf("----------codegen------------\n");
 	KImage *image = KImage_New(ps->package);
 	struct gencode_struct tmp = {0, image, NULL};
-	STbl_Traverse(ps->stbl, __gen_code_fn, &tmp);
+	STbl_Traverse(ps->sym->ptr, __gen_code_fn, &tmp);
 	KImage_Finish(image);
 	KImage_Show(image);
 	KImage_Write_File(image, out);

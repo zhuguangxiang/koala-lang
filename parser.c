@@ -104,9 +104,11 @@ static void parser_body(ParserState *ps, Vector *stmts);
 /*-------------------------------------------------------------------------*/
 // Symbol
 
-static Symbol *find_id_symbol(ParserState *ps, char *id)
+static Symbol *find_ident_symbol(ParserState *ps, char *id)
 {
 	ParserUnit *u = ps->u;
+
+	// find ident from local scope
 	Symbol *sym = STbl_Get(u->stbl, id);
 	if (sym) {
 		debug("symbol '%s' is found in current scope", id);
@@ -114,6 +116,7 @@ static Symbol *find_id_symbol(ParserState *ps, char *id)
 		return sym;
 	}
 
+	// find ident from parent scope
 	if (!list_empty(&ps->ustack)) {
 		list_for_each_entry(u, &ps->ustack, link) {
 			sym = STbl_Get(u->stbl, id);
@@ -125,6 +128,16 @@ static Symbol *find_id_symbol(ParserState *ps, char *id)
 		}
 	}
 
+	// ident is current module's name
+	if (!strcmp(id, ps->package)) {
+		sym = ps->sym;
+		assert(sym);
+		debug("symbol '%s' is current module", id);
+		sym->refcnt++;
+		return sym;
+	}
+
+	// find ident from external module
 	sym = STbl_Get(ps->extstbl, id);
 	if (sym) {
 		debug("symbol '%s' is found in external scope", id);
@@ -147,7 +160,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	// find in current module
 	if (!desc->path) {
 		debug("type '%s' is in current module", desc->type);
-		Symbol *sym = STbl_Get(ps->stbl, desc->type);
+		Symbol *sym = STbl_Get(ps->sym->ptr, desc->type);
 		if (!sym) {
 			error("cannot find : %s", desc->type);
 		}
@@ -431,6 +444,7 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 		debug("add class '%s' successful", sym->name);
 		struct stmt *s;
 		parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
+		ps->u->sym = sym;
 		Vector_ForEach(s, stmt->class_type.vec) {
 			if (s->kind == VARDECL_KIND) {
 				parse_vardecl(ps, s);
@@ -694,7 +708,7 @@ static void parser_exit_scope(ParserState *ps)
 
 	if (u->scope == SCOPE_MODULE) {
 		//save module's symbol to ps
-		assert(ps->stbl == u->stbl);
+		assert(ps->sym->ptr == u->stbl);
 		u->stbl = NULL;
 	} else if (u->scope == SCOPE_CLASS) {
 		assert(!list_empty(&ps->ustack));
@@ -750,7 +764,7 @@ static void merge_codeblock(ParserUnit *u)
 
 static void parser_ident(ParserState *ps, struct expr *exp)
 {
-	Symbol *sym = find_id_symbol(ps, exp->id);
+	Symbol *sym = find_ident_symbol(ps, exp->id);
 	if (!sym) {
 		error("cannot find ident:%s", exp->id);
 		return;
@@ -758,10 +772,14 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 
 	exp->sym = sym;
 	if (!exp->desc) {
-		char *typestr = TypeDesc_ToString(sym->desc);
-		debug("ident '%s' is as '%s'", exp->id, typestr);
-		free(typestr);
-		exp->desc = sym->desc;
+		if (sym == ps->sym) {
+			debug("ident '%s' is as Module", ps->package);
+		} else {
+			char *typestr = TypeDesc_ToString(sym->desc);
+			debug("ident '%s' is as '%s'", exp->id, typestr);
+			free(typestr);
+			exp->desc = sym->desc;
+		}
 	}
 
 	// generate code
@@ -784,6 +802,17 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 		Inst *i = Inst_Append(u->block, OP_NEW, &val);
 		i->argc = exp->argc;
 		return;
+	} else {
+		if (sym->kind == SYM_PROTO) {
+			if (sym->up) {
+				debug("symbol '%s' in class '%s' is func ", sym->name, sym->up->name);
+			} else {
+				debug("symbol '%s' in module '%s' is func ", sym->name, ps->package);
+			}
+		} else if (sym->kind == SYM_MODULE) {
+			assert(sym == ps->sym);
+			debug("symbol '%s' is module", ps->package);
+		}
 	}
 
 	switch (u->scope) {
@@ -830,13 +859,28 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 				}
 			} else if (sym->kind == SYM_PROTO) {
 				debug("symbol '%s' is function", sym->name);
-				// self object
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-				// function call
-				setcstrvalue(&val, sym->name);
-				Inst *i = Inst_Append(u->block, OP_CALL, &val);
-				i->argc = exp->argc;
+				if (sym->up) {
+					// self object
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					// function call
+					setcstrvalue(&val, sym->name);
+					Inst *i = Inst_Append(u->block, OP_CALL, &val);
+					i->argc = exp->argc;
+				} else {
+					// module's function, load current module
+					TValue val = CSTR_VALUE_INIT(ps->path);
+					Inst_Append(u->block, OP_LOADM, &val);
+					// function call
+					setcstrvalue(&val, sym->name);
+					Inst *i = Inst_Append(u->block, OP_CALL, &val);
+					i->argc = exp->argc;
+				}
+			} else if (sym->kind == SYM_MODULE) {
+				assert(exp->ctx == EXPR_LOAD);
+				// load current module
+				TValue val = CSTR_VALUE_INIT(ps->path);
+				Inst_Append(u->block, OP_LOADM, &val);
 			} else {
 				assert(0);
 			}
@@ -921,6 +965,14 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		}
 	} else if (leftsym->kind == SYM_CLASS) {
 		debug("symbol '%s' is a class", leftsym->name);
+		char *typename = leftsym->name;
+		sym = STbl_Get(leftsym->ptr, exp->attribute.id);
+		if (!sym) {
+			error("cannot find '%s' in '%s'", exp->attribute.id, typename);
+			return;
+		}
+	} else if (leftsym->kind == SYM_MODULE) {
+		debug("symbol '%s' is a module", leftsym->name);
 		char *typename = leftsym->name;
 		sym = STbl_Get(leftsym->ptr, exp->attribute.id);
 		if (!sym) {
@@ -1552,12 +1604,16 @@ static void parser_body(ParserState *ps, Vector *stmts)
 
 /*--------------------------------------------------------------------------*/
 
-void init_parser(ParserState *ps)
+void init_parser(ParserState *ps, char *path)
 {
 	memset(ps, 0, sizeof(ParserState));
 	Vector_Init(&ps->stmts);
+	ps->path = path;
 	init_imports(ps);
-	ps->stbl = STbl_New(NULL);
+	Symbol *sym = Symbol_New();
+	sym->kind = SYM_MODULE;
+	sym->ptr = STbl_New(NULL);
+	ps->sym = sym;
 	init_list_head(&ps->ustack);
 	Vector_Init(&ps->errors);
 }
@@ -1575,7 +1631,7 @@ void parser_module(ParserState *ps, FILE *in)
 	extern FILE *yyin;
 	extern int yyparse(ParserState *ps);
 
-	parser_enter_scope(ps, ps->stbl, SCOPE_MODULE);
+	parser_enter_scope(ps, ps->sym->ptr, SCOPE_MODULE);
 
 	yyin = in;
 	yyparse(ps);

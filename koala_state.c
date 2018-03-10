@@ -284,7 +284,7 @@ static Object *module_from_image(KImage *image)
 {
 	AtomTable *table = image->table;
 	char *package = image->package;
-	debug("load module '%s' from klc image", package);
+	debug("load module '%s' from klc", package);
 	Object *m = Module_New(package, table);
 
 	load_variables(table, m);
@@ -299,20 +299,28 @@ static Object *module_from_image(KImage *image)
 static Object *load_module(char *path)
 {
 	debug("loading module '%s'", path);
-	KImage *image = KImage_Read_File(path);
+	char file[strlen(path) + 4 + 1];
+	sprintf(file, "%s.klc", path);
+	KImage *image = KImage_Read_File(file);
 	if (!image) return NULL;
 	Object *ob = module_from_image(image);
 	if (ob) {
-		Object *code = Module_Get_Function(ob, "__init__");
-		if (code) {
-			debug("run __init__ in module '%s'", path);
-			//FIXME: new routine ?
-			run_code(code, ob, NULL);
+		if (add_module(path, ob) < 0) {
+			Module_Free(ob);
+			ob = NULL;
 		} else {
-			debug("cannot find '__init__' in module '%s'", path);
+			Object *code = Module_Get_Function(ob, "__init__");
+			if (code) {
+				debug("run __init__ in module '%s'", path);
+				//FIXME: new routine ?
+				run_code(code, ob, NULL);
+			} else {
+				debug("cannot find '__init__' in module '%s'", path);
+			}
+			debug("load module '%s' successfully", path);
 		}
-		debug("load module '%s' successfully", path);
 	}
+
 	return ob;
 }
 

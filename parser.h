@@ -72,9 +72,10 @@ typedef struct parserunit {
 typedef struct parserstate {
 	Vector stmts;       /* all statements */
 	char *package;
+	char *path;
 	HashTable imports;  /* external types */
 	STable *extstbl;    /* external symbol table */
-	STable *stbl;       /* current module's symbol table */
+	Symbol *sym;        /* current module's symbol */
 	ParserUnit *u;
 	int nestlevel;
 	struct list_head ustack;
@@ -82,7 +83,7 @@ typedef struct parserstate {
 	Vector errors;
 } ParserState;
 
-void init_parser(ParserState *ps);
+void init_parser(ParserState *ps, char *path);
 void fini_parser(ParserState *ps);
 void parser_module(ParserState *ps, FILE *in);
 
