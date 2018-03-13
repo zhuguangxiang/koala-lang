@@ -13,6 +13,7 @@
 		koala --config koala.properties test
 		koala test(default: ~/koala.properties and ./koala.properties)
  */
+
 int main(int argc, char *argv[])
 {
 	if (argc < 2) {
@@ -34,3 +35,4 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
+

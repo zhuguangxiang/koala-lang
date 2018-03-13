@@ -1,0 +1,32 @@
+
+package test1;
+
+import "koala/io";
+import "test/town";
+
+class Person {
+	name string;
+	age int;
+	town test2.HomeTown;
+
+	func __init__(name string, _age int) {
+		io.Println("Person(", name, ",", _age, ")");
+		self.name = name;
+		age = _age;
+		town = test2.HomeTown("GaoYou", 123456);
+	}
+
+	func SayHello() {
+		io.Println(">hello,", self.name);
+		io.Println(">>hello,", name);
+		town.ToString();
+	}
+
+	func GetAge() int {
+		return self.age;
+	}
+
+	func GetName() string {
+		return name;
+	}
+}

@@ -1,6 +1,7 @@
 
 #include "properties.h"
 #include "hash.h"
+#include "log.h"
 
 PropEntry *PropEntry_New(char *key)
 {
@@ -66,7 +67,25 @@ int Properties_Put(Properties *prop, char *key, char *val)
 	return 0;
 }
 
-PropEntry *Properties_Get(Properties *prop, char *key)
+char **Properties_Get(Properties *prop, char *key)
+{
+	PropEntry *e = Properties_Get_Entry(prop, key);
+	if (!e) return NULL;
+	if (e->count > 1) {
+		warn("multi-values with key '%s'", key);
+	}
+
+	char **res = malloc(sizeof(char *) * (e->count + 1));
+	char *val;
+	int i = 0;
+	while ((val = Properties_Next(prop, e, i))) {
+		res[i++] = val;
+	}
+	res[i] = NULL;
+	return res;
+}
+
+PropEntry *Properties_Get_Entry(Properties *prop, char *key)
 {
 	PropEntry e = {.key = key};
 	return HashTable_Find(&prop->table, &e);

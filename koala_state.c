@@ -299,29 +299,38 @@ static Object *module_from_image(KImage *image)
 static Object *load_module(char *path)
 {
 	debug("loading module '%s'", path);
-	char file[strlen(path) + 4 + 1];
-	sprintf(file, "%s.klc", path);
-	KImage *image = KImage_Read_File(file);
-	if (!image) return NULL;
-	Object *ob = module_from_image(image);
-	if (ob) {
-		if (add_module(path, ob) < 0) {
-			Module_Free(ob);
-			ob = NULL;
-		} else {
-			Object *code = Module_Get_Function(ob, "__init__");
-			if (code) {
-				debug("run __init__ in module '%s'", path);
-				//FIXME: new routine ?
-				run_code(code, ob, NULL);
-			} else {
-				debug("cannot find '__init__' in module '%s'", path);
-			}
-			debug("load module '%s' successfully", path);
-		}
-	}
+	char **loadpathes = Properties_Get(&gs.config, "koala.path");
+	char **loadpath = loadpathes;
 
-	return ob;
+	while (loadpath && *loadpath) {
+		char file[strlen(*loadpath) + strlen(path) + 4 + 1];
+		sprintf(file, "%s%s.klc", *loadpath, path);
+		KImage *image = KImage_Read_File(file);
+		if (image) {
+			Object *ob = module_from_image(image);
+			if (ob) {
+				if (add_module(path, ob) < 0) {
+					Module_Free(ob);
+					ob = NULL;
+				} else {
+					Object *code = Module_Get_Function(ob, "__init__");
+					if (code) {
+						debug("run __init__ in module '%s'", path);
+						//FIXME: new routine ?
+						run_code(code, ob, NULL);
+					} else {
+						debug("cannot find '__init__' in module '%s'", path);
+					}
+					debug("load module '%s' successfully", path);
+				}
+				free(loadpathes);
+				return ob;
+			}
+		}
+		loadpath++;
+	}
+	free(loadpathes);
+	return NULL;
 }
 
 Object *Koala_Load_Module(char *path)
@@ -359,10 +368,6 @@ static void Init_Lang_Module(void)
 
 static void Init_Modules(void)
 {
-	HashInfo hashinfo;
-	Init_HashInfo(&hashinfo, mod_entry_hash, mod_entry_equal);
-	HashTable_Init(&gs.modules, &hashinfo);
-
 	/* koala/lang.klc */
 	Init_Lang_Module();
 
@@ -374,6 +379,13 @@ static void Init_Modules(void)
 
 void Koala_Initialize(void)
 {
+	HashInfo hashinfo;
+	Init_HashInfo(&hashinfo, mod_entry_hash, mod_entry_equal);
+	HashTable_Init(&gs.modules, &hashinfo);
+	Properties_Init(&gs.config);
+	Properties_Put(&gs.config, "koala.path", "./");
+	Properties_Put(&gs.config, "koala.path", "/home/zgx/koala-repo/");
+
 	Init_Modules();
 	//sched_init();
 	//schedule();

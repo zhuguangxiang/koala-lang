@@ -1,0 +1,9 @@
+
+package test;
+
+import "test/person";
+
+func Main(args []string) {
+	var person = test1.Person("ZhanSan", 32);
+	person.SayHello();
+}

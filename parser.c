@@ -319,7 +319,7 @@ char *Import_Get_Path(ParserState *ps, char *id)
 	}
 	assert(sym->kind == SYM_STABLE);
 	sym->refcnt = 1;
-	return sym->desc->path;
+	return sym->path;
 }
 
 static inline void __add_stmt(ParserState *ps, struct stmt *stmt)
@@ -947,13 +947,19 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 
 	Symbol *sym = NULL;
 	if (leftsym->kind == SYM_STABLE) {
-		debug("symbol '%s' is a module", leftsym->name);
+		debug(">>>>symbol '%s' is a module", leftsym->name);
 		sym = STbl_Get(leftsym->ptr, exp->attribute.id);
 		if (!sym) {
 			//FIXME:
 			error("cannot find '%s' in '%s'", exp->attribute.id, left->str);
 			exp->sym = NULL;
 			return;
+		}
+		if (sym->kind == SYM_STABLE) {
+			if (!sym->desc) {
+				warn("symbol '%s' desc is null", sym->name);
+				sym->desc = TypeDesc_From_UserDef(leftsym->path, sym->name);
+			}
 		}
 	} else if (leftsym->kind == SYM_VAR) {
 		debug("symbol '%s' is a variable", leftsym->name);
@@ -1012,6 +1018,12 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		TValue val = CSTR_VALUE_INIT(exp->attribute.id);
 		Inst *i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
+	} else if (sym->kind == SYM_STABLE) {
+		// new object
+		TValue val;
+		setcstrvalue(&val, sym->name);
+		Inst *i = Inst_Append(u->block, OP_NEW, &val);
+		i->argc = exp->argc;
 	} else {
 		assert(0);
 	}
@@ -1051,7 +1063,7 @@ static void parser_call(ParserState *ps, struct expr *exp)
 		if (!check_call_args(exp->desc->proto, exp->call.args)) {
 			error("arguments are not matched.");
 		}
-	} else if (sym->kind == SYM_CLASS) {
+	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_STABLE) {
 		debug("new object '%s'", sym->name);
 		/* class type */
 		exp->desc = sym->desc;

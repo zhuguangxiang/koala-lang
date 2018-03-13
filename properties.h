@@ -26,7 +26,8 @@ void Properties_Free(Properties *prop);
 int Properties_Init(Properties *prop);
 void Properties_Fini(Properties *prop);
 int Properties_Put(Properties *prop, char *key, char *val);
-PropEntry *Properties_Get(Properties *prop, char *key);
+char **Properties_Get(Properties *prop, char *key);
+PropEntry *Properties_Get_Entry(Properties *prop, char *key);
 char *Properties_Next(Properties *prop, PropEntry *entry, int next);
 
 #ifdef __cplusplus
