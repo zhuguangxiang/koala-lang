@@ -1,0 +1,65 @@
+
+/*
+	This test is for class statement
+ */
+package test;
+
+import "koala/io";
+
+class Animal {
+	name string;
+	age int;
+
+	func __init__(name string, _age int) {
+		self.name = name;
+		age = _age;
+	}
+
+	func SayHello() {
+		io.Println("call Animal SayHello");
+	}
+
+	func AnimalFunc() {
+		io.Println("Animal:", name, age);
+	}
+}
+
+class Dog : Animal {
+	color string;
+
+	func __init__(color string) {
+		//super(name, age);
+		self.color = color;
+		name = "DOG";
+		age = 122;
+	}
+
+	func SayHello() {
+		io.Println("call Dog SayHello");
+		name = "NanJing";
+	}
+
+	func DogFunc() {
+		io.Println("Dog Wang:", name, color);
+	}
+}
+
+class Cat : Animal {
+	func SayHello() {
+		io.Println("call Cat SayHello");
+	}
+}
+
+func Main(args []string) {
+	var name = "James";
+	var age = 122;
+
+	var animal Animal = Dog(name, age, "BLACK");
+	animal.SayHello();
+	//animal.DogFunc(); //error
+
+	animal = Cat();
+	animal.SayHello();
+
+	//var cat Cat = typeof(animal, Cat).CatFunc();
+}
