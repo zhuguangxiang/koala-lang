@@ -26,15 +26,16 @@ typedef struct image_header {
 #define ITEM_TYPELIST   3
 #define ITEM_PROTO      4
 #define ITEM_CONST      5
-#define ITEM_VAR        6
-#define ITEM_FUNC       7
-#define ITEM_CODE       8
-#define ITEM_CLASS      9
-#define ITEM_FIELD      10
-#define ITEM_METHOD     11
-#define ITEM_INTF       12
-#define ITEM_IMETH      13
-#define ITEM_MAX        14
+#define ITEM_LOCVAR     6
+#define ITEM_VAR        7
+#define ITEM_FUNC       8
+#define ITEM_CODE       9
+#define ITEM_CLASS      10
+#define ITEM_FIELD      11
+#define ITEM_METHOD     12
+#define ITEM_INTF       13
+#define ITEM_IMETH      14
+#define ITEM_MAX        15
 
 typedef struct map_item {
 	uint16 type;
@@ -101,6 +102,15 @@ ConstItem *ConstItem_Int_New(int64 val);
 ConstItem *ConstItem_Float_New(float64 val);
 ConstItem *ConstItem_Bool_New(int val);
 ConstItem *ConstItem_String_New(int32 val);
+
+#define FUNCLOCVAR  1
+#define METHLOCVAR  2
+typedef struct local_var_item {
+	int32 nameindex;  //->StringItem
+	int32 typeindex;  //->TypeItem
+	int16 flags;      //in function or method
+	int16 index;      //->Index of FuncItem or MethodItem
+} LocVarItem;
 
 typedef struct var_item {
 	int32 nameindex;  //->StringItem
@@ -171,16 +181,18 @@ Proto *Proto_From_ProtoItem(ProtoItem *item, AtomTable *atbl);
 KImage *KImage_New(char *pkg_name);
 void KImage_Free(KImage *image);
 void KImage_Finish(KImage *image);
+void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
+	int flags, int index);
 void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
 #define KImage_Add_Var(image, name, desc) \
 	__KImage_Add_Var(image, name, desc, 0)
 #define KImage_Add_Const(image, name, desc) \
 	__KImage_Add_Var(image, name, desc, 1)
-void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
+int KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 	uint8 *codes, int csz);
 void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype);
 void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc);
-void KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
+int KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
 	int locvars, uint8 *codes, int csz);
 void KImage_Write_File(KImage *image, char *path);
 KImage *KImage_Read_File(char *path);

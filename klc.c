@@ -174,6 +174,17 @@ ConstItem *ConstItem_String_New(int32 val)
 	return item;
 }
 
+LocVarItem *LocVarItem_New(int32 nameindex, int32 typeindex,
+	int flags, int index)
+{
+	LocVarItem *item = malloc(sizeof(LocVarItem));
+	item->nameindex = nameindex;
+	item->typeindex = typeindex;
+	item->flags = flags;
+	item->index = index;
+	return item;
+}
+
 VarItem *VarItem_New(int32 nameindex, int32 typeindex, int access)
 {
 	VarItem *item = malloc(sizeof(VarItem));
@@ -483,7 +494,7 @@ static int codeitem_set(AtomTable *table, uint8 *codes, int size)
 /*-------------------------------------------------------------------------*/
 
 char *mapitem_string[] = {
-	"map", "string", "type", "typelist", "proto", "const",
+	"map", "string", "type", "typelist", "proto", "const", "locvar",
 	"variable", "function", "code",
 	"class", "field", "method",
 	"interface", "imeth",
@@ -821,6 +832,57 @@ void constitem_free(void *o)
 
 /*-------------------------------------------------------------------------*/
 
+int locvaritem_length(void *o)
+{
+	UNUSED_PARAMETER(o);
+	return sizeof(LocVarItem);
+}
+
+void locvaritem_write(FILE *fp, void *o)
+{
+	fwrite(o, sizeof(LocVarItem), 1, fp);
+}
+
+static char *locvaritem_flags_tostring(int flags)
+{
+	if (flags == FUNCLOCVAR) return "funclocvar";
+	else if (flags == METHLOCVAR) return "methlocvar";
+	else return "";
+}
+
+void locvaritem_show(AtomTable *table, void *o)
+{
+	LocVarItem *item = o;
+	StringItem *str1;
+	StringItem *str2;
+	TypeItem *type;
+
+	printf("  nameindex:%d\n", item->nameindex);
+	str1 = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+	printf("  (%s)\n", str1->data);
+	printf("  typeindex:%d\n", item->typeindex);
+	type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
+	if (type->kind == TYPE_USERDEF) {
+		str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
+		if (type->pathindex >= 0) {
+			str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
+			printf("  (%s.%s)\n", str1->data, str2->data);
+		} else {
+			printf("  (%s)\n", str2->data);
+		}
+	} else {
+		printf("  (%c)\n", type->primitive);
+	}
+	printf("  flags:%s\n", locvaritem_flags_tostring(item->flags));
+}
+
+void locvaritem_free(void *o)
+{
+	free(o);
+}
+
+/*-------------------------------------------------------------------------*/
+
 int varitem_length(void *o)
 {
 	UNUSED_PARAMETER(o);
@@ -966,6 +1028,7 @@ void classitem_show(AtomTable *table, void *o)
 	TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->classindex);
 	typeitem_show(table, type);
 	if (item->superindex >= 0) {
+		printf("  superinfo:\n");
 		type = AtomTable_Get(table, ITEM_TYPE, item->superindex);
 		typeitem_show(table, type);
 	}
@@ -1147,6 +1210,13 @@ struct item_funcs item_func[ITEM_MAX] = {
 		constitem_free
 	},
 	{
+		locvaritem_length,
+		locvaritem_write, NULL,
+		NULL, NULL,
+		locvaritem_show,
+		locvaritem_free
+	},
+	{
 		varitem_length,
 		varitem_write, NULL,
 		NULL, NULL,
@@ -1275,6 +1345,15 @@ void KImage_Free(KImage *image)
 	free(image);
 }
 
+void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
+	int flags, int index)
+{
+	int typeindex = TypeItem_Set(image->table, desc);
+	int nameindex = StringItem_Set(image->table, name);
+	LocVarItem *item = LocVarItem_New(nameindex, typeindex, flags, index);
+	AtomTable_Append(image->table, ITEM_LOCVAR, item, 0);
+}
+
 void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
 {
 	int access = SYMBOL_ACCESS(name, bconst);
@@ -1284,7 +1363,7 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
 	AtomTable_Append(image->table, ITEM_VAR, varitem, 0);
 }
 
-void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
+int KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 	uint8 *codes, int csz)
 {
 	int access = SYMBOL_ACCESS(name, 0);
@@ -1293,7 +1372,7 @@ void KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 	int codeindex = codeitem_set(image->table, codes, csz);
 	FuncItem *funcitem = FuncItem_New(nameindex, protoindex, access,
 																		locvars, codeindex);
-	AtomTable_Append(image->table, ITEM_FUNC, funcitem, 0);
+	return AtomTable_Append(image->table, ITEM_FUNC, funcitem, 0);
 }
 
 void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype)
@@ -1328,7 +1407,7 @@ void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
 	AtomTable_Append(image->table, ITEM_FIELD, fielditem, 0);
 }
 
-void KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
+int KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
 	int locvars, uint8 *codes, int csz)
 {
 	int access = SYMBOL_ACCESS(name, 0);
@@ -1341,7 +1420,7 @@ void KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
 	int codeindex = codeitem_set(image->table, codes, csz);
 	MethodItem *methitem = MethodItem_New(classindex, nameindex, protoindex,
 																				access, locvars, codeindex);
-	AtomTable_Append(image->table, ITEM_METHOD, methitem, 0);
+	return AtomTable_Append(image->table, ITEM_METHOD, methitem, 0);
 }
 
 void KImage_Add_Intf(KImage *image, char *name)
@@ -1566,6 +1645,17 @@ KImage *KImage_Read_File(char *path)
 				for (int i = 0; i < map->size; i++) {
 					item = Item_Copy(sizeof(ConstItem), items + i);
 					AtomTable_Append(image->table, ITEM_CONST, item, 1);
+				}
+				break;
+			}
+			case ITEM_LOCVAR: {
+				LocVarItem *item;
+				LocVarItem items[map->size];
+				sz = fread(items, sizeof(LocVarItem), map->size, fp);
+				assert(sz == map->size);
+				for (int i = 0; i < map->size; i++) {
+					item = Item_Copy(sizeof(LocVarItem), items + i);
+					AtomTable_Append(image->table, ITEM_LOCVAR, item, 0);
 				}
 				break;
 			}

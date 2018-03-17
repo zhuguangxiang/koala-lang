@@ -519,6 +519,7 @@ static void parser_show_scope(ParserState *ps)
 	debug("------scope show-------------");
 	debug("scope-%d symbols:", ps->nestlevel);
 	STbl_Show(ps->u->stbl, 0);
+	codeblock_show(ps->u->block);
 	debug("-----scope show end----------");
 }
 
@@ -539,7 +540,9 @@ static void parser_merge(ParserState *ps)
 		debug("save code to function '%s'", u->sym->name);
 		u->sym->ptr = u->block;
 		u->block = NULL;
+		u->sym->stbl = u->stbl;
 		u->sym->locvars = u->stbl->varcnt;
+		u->stbl = NULL;
 	} else if (u->scope == SCOPE_BLOCK) {
 		if (u->loop) {
 			// loop-statement check break or continue statement
@@ -579,7 +582,9 @@ static void parser_merge(ParserState *ps)
 			Symbol *sym = STbl_Add_Proto(u->stbl, "__init__", proto);
 			assert(sym);
 			sym->ptr = u->block;
+			//sym->stbl = u->stbl;
 			sym->locvars = u->stbl->varcnt;
+			//u->stbl = NULL;
 			u->sym = sym;
 			u->block = NULL;
 		} else {
@@ -619,7 +624,8 @@ static void parser_fini_unit(ParserUnit *u)
 	}
 
 	Vector_Fini(&u->jmps, vec_jmpinst_free_fn, NULL);
-
+	//FIXME
+	//assert(!u->stbl);
 	STbl_Free(u->stbl);
 }
 
@@ -655,7 +661,6 @@ static void parser_enter_scope(ParserState *ps, STable *stbl, int scope)
 static void parser_exit_scope(ParserState *ps)
 {
 	parser_show_scope(ps);
-	codeblock_show(ps->u->block);
 
 	check_unused_symbols(ps);
 
@@ -665,7 +670,7 @@ static void parser_exit_scope(ParserState *ps)
 
 	if (u->scope == SCOPE_MODULE) {
 		//save module's symbol to ps
-		assert(ps->sym->ptr == u->stbl);
+		//assert(ps->sym->ptr == u->stbl);
 		u->stbl = NULL;
 	} else if (u->scope == SCOPE_CLASS) {
 		assert(!list_empty(&ps->ustack));
@@ -818,6 +823,8 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 		case SCOPE_METHOD: {
 			if (sym->up->kind == SYM_CLASS) {
 				debug("symbol '%s' in class '%s'", sym->name, sym->up->name);
+				debug("symbol '%s' is inherited ? %s", sym->name,
+					sym->inherited ? "true" : "false");
 				if (sym->kind == SYM_VAR) {
 					debug("symbol '%s' is variable", sym->name);
 					int opcode;
@@ -880,6 +887,8 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 				Inst_Append(u->block, opcode, &val);
 			} else if (up->kind == SYM_CLASS) {
 				debug("symbol '%s' is class variable", sym->name);
+				debug("symbol '%s' is inherited ? %s", sym->name,
+					sym->inherited ? "true" : "false");
 				TValue val = INT_VALUE_INIT(0);
 				Inst_Append(u->block, OP_LOAD, &val);
 				int opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
@@ -905,19 +914,16 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 	}
 }
 
+#if 0
 static void parser_superclass_ident(ParserState *ps, Symbol *sym,
 	struct expr *exp)
 {
 	ParserUnit *u = ps->u;
-	sym = sym; exp = exp;
 	switch (u->scope) {
-		case SCOPE_MODULE:
-		case SCOPE_CLASS: {
-
-			break;
-		}
-		case SCOPE_FUNCTION:
+		case SCOPE_METHOD:
 		case SCOPE_BLOCK: {
+			ParserUnit *pu = get_class_unit(ps);
+			assert(ps);
 			break;
 		}
 		default: {
@@ -926,6 +932,7 @@ static void parser_superclass_ident(ParserState *ps, Symbol *sym,
 		}
 	}
 }
+#endif
 
 static void parser_ident(ParserState *ps, struct expr *exp)
 {
@@ -953,7 +960,9 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 			parser_upscope_ident(ps, sym, exp);
 			return;
 		}
+	}
 
+#if 0
 		// find ident from super class
 		if (up->sym && up->sym->kind == SYM_CLASS && up->sym->super) {
 			debug("find '%s' from super class '%s'", id, up->sym->super->name);
@@ -968,6 +977,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 			}
 		}
 	}
+#endif
 
 	// ident is current module's name
 	if (!strcmp(id, ps->package)) {
@@ -1257,6 +1267,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 }
 
 /*--------------------------------------------------------------------------*/
+
 static ParserUnit *get_function_unit(ParserState *ps) {
 	ParserUnit *u;
 	list_for_each_entry(u, &ps->ustack, link) {
@@ -1299,11 +1310,12 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 			if (!var->desc) {
 				var->desc = exp->desc;
 			}
-
+			/*
 			if (!TypeDesc_Check(var->desc, exp->desc)) {
 				error("typecheck failed");
 				return;
 			}
+			*/
 		}
 	}
 
@@ -1329,6 +1341,7 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 			error("var '%s' is already defined in this scope", var->id);
 			return;
 		}
+		//FIXME: need add to function's symbol table? how to handle different block has the same variable
 		sym = STbl_Add_Var(u->stbl, var->id, var->desc, var->bconst);
 		assert(sym);
 		sym->index = fu->stbl->varcnt++;
@@ -1384,6 +1397,43 @@ static void parser_function(ParserState *ps, struct stmt *stmt, int scope)
 	parser_exit_scope(ps);
 }
 
+void sym_inherit_fn(Symbol *sym, void *arg)
+{
+	Symbol *subsym = arg;
+	STable *stbl = subsym->ptr;
+	Symbol *s;
+
+	if (STbl_Get(stbl, sym->name)) {
+		debug("symbol '%s' exist in subclass '%s'", sym->name, subsym->name);
+		return;
+	}
+
+	if (sym->kind == SYM_VAR) {
+		debug("inherit variable '%s' from super class", sym->name);
+		s = STbl_Add_Var(stbl, sym->name, sym->desc, sym->access & ACCESS_CONST);
+		if (s) {
+			s->up = subsym;
+			s->inherited = 1;
+			s->super = sym;
+		}
+	} else if (sym->kind == SYM_PROTO) {
+		debug("inherit function '%s' from super class", sym->name);
+		s = STbl_Add_Proto(stbl, sym->name, sym->desc->proto);
+		if (s) {
+			s->up = subsym;
+			s->inherited = 1;
+			s->super = sym;
+		}
+	} else {
+		assertm(0, "invalid symbol kind:%d", sym->kind);
+	}
+}
+
+static void parser_class_inheritance(Symbol *sym)
+{
+	STbl_Traverse(sym->super->ptr, sym_inherit_fn, sym);
+}
+
 static void parser_class(ParserState *ps, struct stmt *stmt)
 {
 	debug("------parse class-------");
@@ -1405,6 +1455,7 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 		}
 		free(typestr);
 		assert(sym->super->ptr);
+		parser_class_inheritance(sym);
 	}
 
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);

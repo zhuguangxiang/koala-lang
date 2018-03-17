@@ -45,7 +45,7 @@ struct symbol {
 	int8 kind;
 	int8 access;
 	int8 refcnt;
-	int8 unused;
+	int8 inherited;
 
 	char *name;     /* ->nameidx */
 	TypeDesc *desc; /* ->descidx */
@@ -54,6 +54,8 @@ struct symbol {
 		void *ob;     /* CodeObject or Klass */
 		int32 index;  /* variable */
 	};
+
+	STable *stbl;
 
 	/* extra for compiler */
 	Symbol *super;

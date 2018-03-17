@@ -28,7 +28,6 @@ class Person {
 	}
 }
 
-
 func Main(args []string) {
 	var name = "James";
 	var age = 122;

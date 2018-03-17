@@ -149,28 +149,62 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 	TypeItem *type = TypeItem_Index(table, cls->classindex);
 	assert(type->protoindex == -1);
 	StringItem *id = StringItem_Index(table, type->typeindex);
+	assert(id);
+	char *cls_name = id->data;
+	Klass *klazz;
+	Klass *super = NULL;
+
+	klazz = Module_Get_Class(m, cls_name);
+	if (klazz) {
+		debug("class '%s' is already loaded", cls_name);
+		return klazz;
+	}
+
 	if (cls->superindex >= 0) {
 		type = TypeItem_Index(table, cls->superindex);
-	} else {
-		type = NULL;
-	}
-
-	Klass *super = NULL;
-	if (type) {
-		Object *ob = NULL;
+		assert(type);
+		id = StringItem_Index(table, type->typeindex);
+		assert(id);
+		char *super_name = id->data;
 		if (type->pathindex >= 0) {
+			char *path;
 			id = StringItem_Index(table, type->pathindex);
-			ob = load_module(id->data);
+			assert(id);
+			path = id->data;
+			Object *ob = Koala_Load_Module(path);
 			if (!ob) {
-				error("cannot load module '%s'", id->data);
+				error("cannot load module '%s'", path);
 				exit(-1);
 			}
+			super = Module_Get_Class(ob, super_name);
+			if (!super) {
+				error("cannot find super class '%s.%s'", path, super_name);
+				exit(-1);
+			}
+		} else {
+			debug("super class '%s' in current module", super_name);
+			super = Module_Get_Class(m, super_name);
+			if (!super) {
+				int sz = AtomTable_Size(table, ITEM_CLASS);
+				for (int i = 0; i < sz; i++) {
+					cls = AtomTable_Get(table, ITEM_CLASS, i);
+					type = TypeItem_Index(table, cls->classindex);
+					assert(type->protoindex == -1);
+					id = StringItem_Index(table, type->typeindex);
+					if (!strcmp(super_name, id->data)) {
+						super = load_class(cls, table, m);
+						break;
+					}
+				}
+				if (!super) {
+					error("cannot find super class '%s'", super_name);
+					exit(-1);
+				}
+			}
 		}
-		id = StringItem_Index(table, type->typeindex);
-		super = Module_Get_Class(ob, id->data);
 	}
 
-	Klass *klazz = Class_New(id->data, super);
+	klazz = Class_New(cls_name, super);
 	Module_Add_Class(m, klazz);
 	return klazz;
 }
@@ -182,6 +216,7 @@ static void load_field(FieldItem *fld, AtomTable *table, Klass *klazz)
 	TypeDesc *desc;
 
 	id = StringItem_Index(table, fld->nameindex);
+	debug("load field:'%s'", id->data);
 	type = TypeItem_Index(table, fld->typeindex);
 	//FIXME
 	desc = TypeDesc_New(0);
@@ -203,6 +238,18 @@ static void load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
 	codeitem = CodeItem_Index(table, mth->codeindex);
 	code = KFunc_New(mth->locvars, codeitem->codes, codeitem->size);
 	Klass_Add_Method(klazz, id->data, proto, code);
+}
+
+static void load_method_fn(Symbol *sym, void *arg)
+{
+	if (sym->kind == SYM_PROTO && strcmp(sym->name, "__init__")) {
+		if (Klass_Get_Method(arg, sym->name)) {
+			debug("subclass has the same method '%s'", sym->name);
+		} else {
+			debug("load method '%s' from super", sym->name);
+			Klass_Add_Method(arg, sym->name, sym->desc->proto, sym->ob);
+		}
+	}
 }
 
 static void load_classes(AtomTable *table, Object *m)
@@ -231,6 +278,14 @@ static void load_classes(AtomTable *table, Object *m)
 	for (int i = 0; i < sz; i++) {
 		mth = AtomTable_Get(table, ITEM_METHOD, i);
 		load_method(mth, table, get_klazz(indexes, num, mth->classindex));
+	}
+
+	//handle inheritance
+	for (int i = 0; i < num; i++) {
+		klazz = indexes[i].klazz;
+		if (klazz->super) {
+			STbl_Traverse(&klazz->super->stbl, load_method_fn, klazz);
+		}
 	}
 }
 

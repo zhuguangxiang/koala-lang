@@ -118,6 +118,31 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 	}
 }
 
+struct locvar_struct {
+	KImage *image;
+	int index;
+	int flags;
+	Symbol *sym;
+};
+
+static void locvar_fn(Symbol *sym, void *arg)
+{
+	struct locvar_struct *loc = arg;
+	debug("locvar '%s' in '%s'", sym->name, loc->sym->name);
+	KImage_Add_LocVar(loc->image, sym->name, sym->desc, loc->flags, loc->index);
+}
+
+static void add_locvar(KImage *image, int index, Symbol *sym, int flags)
+{
+	if (sym->stbl) {
+		debug("add '%s' locvars", sym->name);
+		struct locvar_struct loc = {image, index, flags, sym};
+		STbl_Traverse(sym->stbl, locvar_fn, &loc);
+	} else {
+		debug("'%s' has not locvars", sym->name);
+	}
+}
+
 struct gencode_struct {
 	int bcls;
 	KImage *image;
@@ -143,6 +168,11 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			break;
 		}
 		case SYM_PROTO: {
+			if (sym->inherited) {
+				assert(tmp->bcls);
+				break;
+			}
+
 			debug(">>>> func %s:", sym->name);
 			CodeBlock *b = sym->ptr;
 			int locvars = sym->locvars;
@@ -171,18 +201,27 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			//code_show(data, size);
 			Buffer_Fini(&buf);
 
+			int index;
 			if (tmp->bcls) {
-				KImage_Add_Method(tmp->image, tmp->clazz, sym->name,
+				index = KImage_Add_Method(tmp->image, tmp->clazz, sym->name,
 					sym->desc->proto, locvars, data, size);
+				add_locvar(tmp->image, index, sym, METHLOCVAR);
 			} else {
-				KImage_Add_Func(tmp->image, sym->name, sym->desc->proto, locvars,
+				index = KImage_Add_Func(tmp->image, sym->name, sym->desc->proto, locvars,
 					data, size);
+				add_locvar(tmp->image, index, sym, FUNCLOCVAR);
 			}
 			break;
 		}
 		case SYM_CLASS: {
 			debug("class %s:", sym->name);
-			KImage_Add_Class(tmp->image, sym->name, NULL, NULL);
+			char *path = NULL;
+			char *type = NULL;
+			if (sym->super) {
+				path = sym->super->desc->path;
+				type = sym->super->desc->type;
+			}
+			KImage_Add_Class(tmp->image, sym->name, path, type);
 			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
 			STbl_Traverse(sym->ptr, __gen_code_fn, &tmp2);
 			break;

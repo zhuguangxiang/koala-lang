@@ -18,7 +18,7 @@ void Symbol_Free(Symbol *sym)
 		//FIXME:share with struct var
 		//TypeDesc_Free(sym->desc);
 	} else if (sym->kind == SYM_PROTO) {
-		TypeDesc_Free(sym->desc);
+		if (sym->desc) TypeDesc_Free(sym->desc);
 		if (sym->ob) CodeObject_Free(sym->ob);
 		if (sym->ptr) codeblock_free(sym->ptr);
 	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
