@@ -23,6 +23,7 @@ typedef struct klass Klass;
 
 typedef struct value {
 	int type;
+	Klass *klazz;
 	union {
 		int64 ival;
 		float64 fval;

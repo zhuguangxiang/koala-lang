@@ -102,53 +102,6 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static void parser_body(ParserState *ps, Vector *stmts);
 
 /*-------------------------------------------------------------------------*/
-// Symbol
-
-static Symbol *find_ident_symbol(ParserState *ps, char *id)
-{
-	ParserUnit *u = ps->u;
-
-	// find ident from local scope
-	Symbol *sym = STbl_Get(u->stbl, id);
-	if (sym) {
-		debug("symbol '%s' is found in current scope", id);
-		sym->refcnt++;
-		return sym;
-	}
-
-	// find ident from parent scope
-	if (!list_empty(&ps->ustack)) {
-		list_for_each_entry(u, &ps->ustack, link) {
-			sym = STbl_Get(u->stbl, id);
-			if (sym) {
-				debug("symbol '%s' is found in parent scope", id);
-				sym->refcnt++;
-				return sym;
-			}
-		}
-	}
-
-	// ident is current module's name
-	if (!strcmp(id, ps->package)) {
-		sym = ps->sym;
-		assert(sym);
-		debug("symbol '%s' is current module", id);
-		sym->refcnt++;
-		return sym;
-	}
-
-	// find ident from external module
-	sym = STbl_Get(ps->extstbl, id);
-	if (sym) {
-		debug("symbol '%s' is found in external scope", id);
-		assert(sym->kind == SYM_STABLE);
-		sym->refcnt++;
-		return sym;
-	}
-
-	error("cannot find symbol:%s", id);
-	return NULL;
-}
 
 static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 {
@@ -440,6 +393,7 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 	Symbol *sym;
 	if (stmt->kind == CLASS_KIND) {
 		sym = STbl_Add_Class(ps->u->stbl, stmt->class_type.id);
+		sym->up = ps->u->sym;
 		sym->ptr = STbl_New(ps->u->stbl->atbl);
 		sym->desc = TypeDesc_From_UserDef(NULL, stmt->class_type.id);
 		debug("add class '%s' successful", sym->name);
@@ -456,6 +410,7 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 		}
 		parser_exit_scope(ps);
 		debug("end class '%s'", sym->name);
+	} else if (stmt->kind == INTF_KIND) {
 	} else {
 		assert(0);
 	}
@@ -580,7 +535,7 @@ static void parser_merge(ParserState *ps)
 {
 	ParserUnit *u = ps->u;
 	// save code to symbol
-	if (u->scope == SCOPE_FUNCTION) {
+	if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
 		debug("save code to function '%s'", u->sym->name);
 		u->sym->ptr = u->block;
 		u->block = NULL;
@@ -607,7 +562,8 @@ static void parser_merge(ParserState *ps)
 		ParserUnit *parent = parent_scope(ps);
 		debug("merge code to parent's block(%d)", parent->scope);
 		assert(parent->block);
-		if (u->merge || parent->scope == SCOPE_FUNCTION) {
+		if (u->merge || parent->scope == SCOPE_FUNCTION ||
+			u->scope == SCOPE_METHOD) {
 			debug("merge code to up block");
 			codeblock_merge(u->block, parent->block);
 		} else {
@@ -735,45 +691,13 @@ static void parser_exit_scope(ParserState *ps)
 	}
 }
 
-/*
-static void merge_codeblock(ParserUnit *u)
-{
-	CodeBlock *b = u->block;
-
-	if (list_empty(&u->blocks)) {
-		debug("no up code block");
-		return;
-	}
-
-	debug("merge code block up");
-
-	CodeBlock *nxt = list_first_entry(&u->blocks, CodeBlock, link);
-	list_del(&nxt->link);
-	u->block = nxt;
-
-	Inst *i, *n;
-	list_for_each_entry_safe(i, n, &b->insts, link) {
-		list_del(&i->link);
-		list_add_tail(&i->link, &u->block->insts);
-	}
-
-	codeblock_free(b);
-}
-*/
-
 /*--------------------------------------------------------------------------*/
 
-static void parser_ident(ParserState *ps, struct expr *exp)
+static void parser_expr_desc(ParserState *ps, struct expr *exp, Symbol *sym)
 {
-	Symbol *sym = find_ident_symbol(ps, exp->id);
-	if (!sym) {
-		error("cannot find ident:%s", exp->id);
-		return;
-	}
-
 	exp->sym = sym;
 	if (!exp->desc) {
-		if (sym == ps->sym) {
+		if (sym->kind == SYM_MODULE) {
 			debug("ident '%s' is as Module", ps->package);
 		} else {
 			char *typestr = TypeDesc_ToString(sym->desc);
@@ -782,42 +706,12 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 			exp->desc = sym->desc;
 		}
 	}
+}
 
-	// generate code
+static void parser_curscope_ident(ParserState *ps, Symbol *sym,
+	struct expr *exp)
+{
 	ParserUnit *u = ps->u;
-
-	if (sym->kind == SYM_STABLE) {
-		// reference a module, not check id's scope
-		debug("symbol '%s' is module", sym->name);
-		TValue val = CSTR_VALUE_INIT(sym->path);
-		Inst_Append(u->block, OP_LOADM, &val);
-		return;
-	} else if (sym->kind == SYM_CLASS) {
-		// reference a class, not check id's scope
-		debug("symbol '%s' is class", sym->name);
-		// load current module
-		TValue val = INT_VALUE_INIT(0);
-		Inst_Append(u->block, OP_LOAD, &val);
-
-		Inst_Append(u->block, OP_GETM, NULL);
-		// new object
-		setcstrvalue(&val, sym->name);
-		Inst *i = Inst_Append(u->block, OP_NEW, &val);
-		i->argc = exp->argc;
-		return;
-	} else {
-		if (sym->kind == SYM_PROTO) {
-			if (sym->up) {
-				debug("symbol '%s' in class '%s' is func ", sym->name, sym->up->name);
-			} else {
-				debug("symbol '%s' in module '%s' is func ", sym->name, ps->package);
-			}
-		} else if (sym->kind == SYM_MODULE) {
-			assert(sym == ps->sym);
-			debug("symbol '%s' is module", ps->package);
-		}
-	}
-
 	switch (u->scope) {
 		case SCOPE_MODULE:
 		case SCOPE_CLASS: {
@@ -830,104 +724,280 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 				Inst_Append(u->block, OP_GETFIELD, &val);
 			} else if (sym->kind == SYM_PROTO) {
 				debug("symbol '%s' is function", sym->name);
-				// self object
 				TValue val = INT_VALUE_INIT(0);
 				Inst_Append(u->block, OP_LOAD, &val);
 				setcstrvalue(&val, sym->name);
 				Inst *i = Inst_Append(u->block, OP_CALL, &val);
 				i->argc = exp->argc;
 			} else {
-				assert(0);
+				assertm(0, "invalid symbol kind :%d", sym->kind);
 			}
 			break;
 		}
 		case SCOPE_FUNCTION:
-		case SCOPE_METHOD: {
-			if (sym->kind == SYM_VAR) {
-				debug("symbol '%s' is variable", sym->name);
-				int opcode;
-				if (sym->up == u->sym) {
-					// local's variable
-					opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
-					TValue val = INT_VALUE_INIT(sym->index);
-					Inst_Append(u->block, opcode, &val);
-				} else {
-					// up's variable(module or class)
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-
-					opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
-					setcstrvalue(&val, sym->name);
-					Inst_Append(u->block, opcode, &val);
-				}
-			} else if (sym->kind == SYM_PROTO) {
-				debug("symbol '%s' is function", sym->name);
-				if (sym->up) {
-					// self object
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					// function call
-					setcstrvalue(&val, sym->name);
-					Inst *i = Inst_Append(u->block, OP_CALL, &val);
-					i->argc = exp->argc;
-				} else {
-					// module's function, load current module
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-
-					Inst_Append(u->block, OP_GETM, NULL);
-
-					// function call
-					setcstrvalue(&val, sym->name);
-					Inst *i = Inst_Append(u->block, OP_CALL, &val);
-					i->argc = exp->argc;
-				}
-			} else if (sym->kind == SYM_MODULE) {
-				assert(exp->ctx == EXPR_LOAD);
-				// load current module
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-
-				Inst_Append(u->block, OP_GETM, NULL);
-			} else {
-				assert(0);
-			}
-			break;
-		}
-		case SCOPE_CLOSURE: {
-			break;
-		}
+		case SCOPE_METHOD:
 		case SCOPE_BLOCK: {
 			if (sym->kind == SYM_VAR) {
 				debug("symbol '%s' is variable", sym->name);
 				int opcode;
-				//FIXME
-				if (sym->up == u->sym || u->sym == NULL) {
-					// local's variable
-					debug("symbol '%s' is local variable", sym->name);
-					opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
-					TValue val = INT_VALUE_INIT(sym->index);
-					Inst_Append(u->block, opcode, &val);
-				} else {
-					// up's variable(module or class)
-					debug("symbol '%s' is module or class variable", sym->name);
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-
-					opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
-					setcstrvalue(&val, sym->name);
-					Inst_Append(u->block, opcode, &val);
-				}
+				debug("local's variable");
+				opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
+				TValue val = INT_VALUE_INIT(sym->index);
+				Inst_Append(u->block, opcode, &val);
 			} else {
-				assert(0);
+				assertm(0, "invalid symbol kind :%d", sym->kind);
 			}
 			break;
 		}
 		default: {
-			assert(0);
+			assertm(0, "invalid scope:%d", u->scope);
 			break;
 		}
 	}
+}
+
+static void parser_upscope_ident(ParserState *ps, Symbol *sym,
+	struct expr *exp)
+{
+	ParserUnit *u = ps->u;
+	switch (u->scope) {
+		case SCOPE_CLASS: {
+			assert(sym->up->kind == SYM_MODULE);
+			debug("symbol '%s' in module '%s'", sym->name, ps->package);
+			if (sym->kind == SYM_VAR) {
+				debug("symbol '%s' is variable", sym->name);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				Inst_Append(u->block, OP_GETM, NULL);
+				setcstrvalue(&val, sym->name);
+				Inst_Append(u->block, OP_GETFIELD, &val);
+			} else if (sym->kind == SYM_PROTO) {
+				debug("symbol '%s' is function", sym->name);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				Inst_Append(u->block, OP_GETM, NULL);
+				setcstrvalue(&val, sym->name);
+				Inst *i = Inst_Append(u->block, OP_CALL, &val);
+				i->argc = exp->argc;
+			} else {
+				assertm(0, "invalid symbol kind :%d", sym->kind);
+			}
+			break;
+		}
+		case SCOPE_FUNCTION: {
+			assert(sym->up->kind == SYM_MODULE);
+			debug("symbol '%s' in module '%s'", sym->name, ps->package);
+			if (sym->kind == SYM_VAR) {
+				debug("symbol '%s' is variable", sym->name);
+				int opcode;
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
+				setcstrvalue(&val, sym->name);
+				Inst_Append(u->block, opcode, &val);
+			} else if (sym->kind == SYM_PROTO) {
+				debug("symbol '%s' is function", sym->name);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				setcstrvalue(&val, sym->name);
+				Inst *i = Inst_Append(u->block, OP_CALL, &val);
+				i->argc = exp->argc;
+			} else if (sym->kind == SYM_CLASS) {
+				debug("symbol '%s' is class", sym->name);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				Inst_Append(u->block, OP_GETM, NULL);
+				setcstrvalue(&val, sym->name);
+				Inst *i = Inst_Append(u->block, OP_NEW, &val);
+				i->argc = exp->argc;
+			} else {
+				assertm(0, "invalid symbol kind :%d", sym->kind);
+			}
+			break;
+		}
+		case SCOPE_METHOD: {
+			if (sym->up->kind == SYM_CLASS) {
+				debug("symbol '%s' in class '%s'", sym->name, sym->up->name);
+				if (sym->kind == SYM_VAR) {
+					debug("symbol '%s' is variable", sym->name);
+					int opcode;
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
+					setcstrvalue(&val, sym->name);
+					Inst_Append(u->block, opcode, &val);
+				} else if (sym->kind == SYM_PROTO) {
+					debug("symbol '%s' is function", sym->name);
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					setcstrvalue(&val, sym->name);
+					Inst *i = Inst_Append(u->block, OP_CALL, &val);
+					i->argc = exp->argc;
+				} else {
+					assertm(0, "invalid symbol kind :%d", sym->kind);
+				}
+			} else {
+				assert(sym->up->kind == SYM_MODULE);
+				debug("symbol '%s' in module '%s'", sym->name, ps->package);
+				if (sym->kind == SYM_VAR) {
+					debug("symbol '%s' is variable", sym->name);
+					int opcode;
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
+					Inst_Append(u->block, OP_GETM, NULL);
+					setcstrvalue(&val, sym->name);
+					Inst_Append(u->block, opcode, &val);
+				} else if (sym->kind == SYM_PROTO) {
+					debug("symbol '%s' is function", sym->name);
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					Inst_Append(u->block, OP_GETM, NULL);
+					setcstrvalue(&val, sym->name);
+					Inst *i = Inst_Append(u->block, OP_CALL, &val);
+					i->argc = exp->argc;
+				} else if (sym->kind == SYM_CLASS) {
+					debug("symbol '%s' is class", sym->name);
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					Inst_Append(u->block, OP_GETM, NULL);
+					setcstrvalue(&val, sym->name);
+					Inst *i = Inst_Append(u->block, OP_NEW, &val);
+					i->argc = exp->argc;
+				} else {
+					assertm(0, "invalid symbol kind :%d", sym->kind);
+				}
+			}
+			break;
+		}
+		case SCOPE_BLOCK: {
+			Symbol *up = sym->up;
+			if (!up || up->kind == SYM_PROTO) {
+				debug("symbol '%s' is local variable", sym->name);
+				// local's variable
+				int opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
+				TValue val = INT_VALUE_INIT(sym->index);
+				Inst_Append(u->block, opcode, &val);
+			} else if (up->kind == SYM_CLASS) {
+				debug("symbol '%s' is class variable", sym->name);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				int opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
+				setcstrvalue(&val, sym->name);
+				Inst_Append(u->block, opcode, &val);
+			} else if (up->kind == SYM_MODULE) {
+				debug("symbol '%s' is module variable", sym->name);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				Inst_Append(u->block, OP_GETM, NULL);
+				int opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
+				setcstrvalue(&val, sym->name);
+				Inst_Append(u->block, opcode, &val);
+			} else {
+				assertm(0, "invalid up symbol kind :%d", up->kind);
+			}
+			break;
+		}
+		default: {
+			assertm(0, "invalid scope:%d", u->scope);
+			break;
+		}
+	}
+}
+
+static void parser_superclass_ident(ParserState *ps, Symbol *sym,
+	struct expr *exp)
+{
+	ParserUnit *u = ps->u;
+	sym = sym; exp = exp;
+	switch (u->scope) {
+		case SCOPE_MODULE:
+		case SCOPE_CLASS: {
+
+			break;
+		}
+		case SCOPE_FUNCTION:
+		case SCOPE_BLOCK: {
+			break;
+		}
+		default: {
+			assertm(0, "invalid scope:%d", u->scope);
+			break;
+		}
+	}
+}
+
+static void parser_ident(ParserState *ps, struct expr *exp)
+{
+	ParserUnit *u = ps->u;
+	char *id = exp->id;
+
+	// find ident from local scope
+	Symbol *sym = STbl_Get(u->stbl, id);
+	if (sym) {
+		debug("symbol '%s' is found in local scope", id);
+		sym->refcnt++;
+		parser_expr_desc(ps, exp, sym);
+		parser_curscope_ident(ps, sym, exp);
+		return;
+	}
+
+	// find ident from parent scope
+	ParserUnit *up;
+	list_for_each_entry(up, &ps->ustack, link) {
+		sym = STbl_Get(up->stbl, id);
+		if (sym) {
+			debug("symbol '%s' is found in up scope", id);
+			sym->refcnt++;
+			parser_expr_desc(ps, exp, sym);
+			parser_upscope_ident(ps, sym, exp);
+			return;
+		}
+
+		// find ident from super class
+		if (up->sym && up->sym->kind == SYM_CLASS && up->sym->super) {
+			debug("find '%s' from super class '%s'", id, up->sym->super->name);
+			sym = STbl_Get(up->sym->super->ptr, id);
+			if (sym) {
+				debug("symbol '%s' is found in super class '%s'", id,
+					u->sym->super->name);
+				sym->refcnt++;
+				parser_expr_desc(ps, exp, sym);
+				parser_superclass_ident(ps, sym, exp);
+				return;
+			}
+		}
+	}
+
+	// ident is current module's name
+	if (!strcmp(id, ps->package)) {
+		sym = ps->sym;
+		assert(sym);
+		debug("symbol '%s' is current module", id);
+		sym->refcnt++;
+		parser_expr_desc(ps, exp, sym);
+		assert(exp->ctx == EXPR_LOAD);
+		TValue val = INT_VALUE_INIT(0);
+		Inst_Append(u->block, OP_LOAD, &val);
+		Inst_Append(u->block, OP_GETM, NULL);
+		return;
+	}
+
+	// find ident from external module
+	sym = STbl_Get(ps->extstbl, id);
+	if (sym) {
+		debug("symbol '%s' is found in external scope", id);
+		assert(sym->kind == SYM_STABLE);
+		sym->refcnt++;
+		parser_expr_desc(ps, exp, sym);
+		assert(exp->ctx == EXPR_LOAD);
+		debug("symbol '%s' is module", sym->name);
+		TValue val = CSTR_VALUE_INIT(sym->path);
+		Inst_Append(u->block, OP_LOADM, &val);
+		return;
+	}
+
+	error("cannot find symbol:%s", id);
 }
 
 static void parser_attribute(ParserState *ps, struct expr *exp)
@@ -1109,7 +1179,7 @@ static void parser_binary(ParserState *ps, struct expr *exp)
 
 static ParserUnit *get_class_unit(ParserState *ps)
 {
-	assert(ps->u->scope == SCOPE_FUNCTION);
+	assert(ps->u->scope == SCOPE_METHOD);
 	ParserUnit *u;
 	list_for_each_entry(u, &ps->ustack, link) {
 		if (u->scope == SCOPE_CLASS) return u;
@@ -1190,7 +1260,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 static ParserUnit *get_function_unit(ParserState *ps) {
 	ParserUnit *u;
 	list_for_each_entry(u, &ps->ustack, link) {
-		if (u->scope == SCOPE_FUNCTION) return u;
+		if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) return u;
 	}
 	return NULL;
 }
@@ -1246,7 +1316,7 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 			debug("update symbol '%s' type", var->id);
 			STbl_Update_Symbol(u->stbl, sym, var->desc);
 		}
-	} else if (u->scope == SCOPE_FUNCTION) {
+	} else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
 		debug("var '%s' decl in function", var->id);
 		sym = STbl_Add_Var(u->stbl, var->id, var->desc, var->bconst);
 		sym->up = u->sym;
@@ -1275,7 +1345,7 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 			Inst_Append(ps->u->block, OP_LOAD, &val);
 			setcstrvalue(&val, var->id);
 			Inst_Append(ps->u->block, OP_SETFIELD, &val);
-		} else if (u->scope == SCOPE_FUNCTION) {
+		} else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
 			// local's variable
 			TValue val = INT_VALUE_INIT(sym->index);
 			Inst_Append(ps->u->block, OP_STORE, &val);
@@ -1289,9 +1359,9 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 	}
 }
 
-static void parser_function(ParserState *ps, struct stmt *stmt)
+static void parser_function(ParserState *ps, struct stmt *stmt, int scope)
 {
-	parser_enter_scope(ps, NULL, SCOPE_FUNCTION);
+	parser_enter_scope(ps, NULL, scope);
 
 	ParserUnit *parent = parent_scope(ps);
 	Symbol *sym = STbl_Get(parent->stbl, stmt->funcdecl.id);
@@ -1323,6 +1393,20 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 	Symbol *sym = STbl_Get(u->stbl, stmt->class_type.id);
 	assert(sym && sym->ptr);
 
+	if (stmt->class_type.parent) {
+		//FIXME
+		char *typestr = TypeDesc_ToString(stmt->class_type.parent);
+		debug("class with super '%s'", typestr);
+		sym->super = find_userdef_symbol(ps, stmt->class_type.parent);
+		if (!sym->super) {
+			error("cannot find super class '%s'", typestr);
+			free(typestr);
+			return;
+		}
+		free(typestr);
+		assert(sym->super->ptr);
+	}
+
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
 	ps->u->sym = sym;
 
@@ -1330,9 +1414,10 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 	Vector_ForEach(s, stmt->class_type.vec) {
 		if (s->kind == VARDECL_KIND) {
 			parser_variable(ps, s->vardecl.var, s->vardecl.exp);
+		} else if (s->kind == FUNCDECL_KIND) {
+			parser_function(ps, s, SCOPE_METHOD);
 		} else {
-			assert(s->kind == FUNCDECL_KIND);
-			parser_function(ps, s);
+			assertm(0, "invalid symbol kind:%d", s->kind);
 		}
 	}
 
@@ -1356,7 +1441,7 @@ static void parser_return(ParserState *ps, struct stmt *stmt)
 {
 	ParserUnit *u = ps->u;
 	Symbol *sym = NULL;
-	if (u->scope == SCOPE_FUNCTION) {
+	if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
 		debug("return in function");
 		sym = u->sym;
 	} else if (u->scope == SCOPE_BLOCK) {
@@ -1564,7 +1649,7 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 			break;
 		}
 		case FUNCDECL_KIND: {
-			parser_function(ps, stmt);
+			parser_function(ps, stmt, SCOPE_FUNCTION);
 			break;
 		}
 		case CLASS_KIND: {
@@ -1651,6 +1736,7 @@ void parser_module(ParserState *ps, FILE *in)
 	extern int yyparse(ParserState *ps);
 
 	parser_enter_scope(ps, ps->sym->ptr, SCOPE_MODULE);
+	ps->u->sym = ps->sym;
 
 	yyin = in;
 	yyparse(ps);

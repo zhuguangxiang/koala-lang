@@ -1,0 +1,37 @@
+
+/*
+	This test is for class statement
+ */
+package test;
+
+import "koala/io";
+
+var name = "南京";
+var global int = 123;
+
+class Person {
+	name string;
+	age int;
+
+	func __init__(name string, _age int) {
+		io.Println("Person(", name, ",", _age, ")");
+		self.name = name;
+		age = _age;
+	}
+
+	func SayHello() {
+		if (age > 100) {
+			if (age < 130) {
+				io.Println("hello,", global);
+			}
+		}
+	}
+}
+
+
+func Main(args []string) {
+	var name = "James";
+	var age = 122;
+	var person = Person(name, age);
+	person.SayHello();
+}

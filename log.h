@@ -20,7 +20,8 @@ extern int loglevel;
 #define debug(format, ...) ((void)0)
 #else
 #define debug(format, ...) do { \
-	__debug("[DEBUG]" format "\n", ##__VA_ARGS__); \
+	__debug("[DEBUG][%s:%d]" format "\n", \
+	__FILE__, __LINE__, ##__VA_ARGS__); \
 } while (0)
 #endif
 

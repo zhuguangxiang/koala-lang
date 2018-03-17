@@ -283,7 +283,9 @@ static Object *getcode(Object *ob, char *name)
 		assert(0);
 	}
 
-	assert(code);
+	if (!code) {
+		warn("cannot find function '%s'", name);
+	}
 	return code;
 }
 

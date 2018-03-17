@@ -153,6 +153,13 @@ int Tuple_Parse(Object *ob, char *format, ...)
 
 /*-------------------------------------------------------------------------*/
 
+static Object *__tuple_init(Object *ob, Object *args)
+{
+	UNUSED_PARAMETER(ob);
+	UNUSED_PARAMETER(args);
+	return NULL;
+}
+
 static Object *__tuple_get(Object *ob, Object *args)
 {
 	TValue val;
@@ -177,6 +184,7 @@ static Object *__tuple_size(Object *ob, Object *args)
 }
 
 static FuncDef tuple_funcs[] = {
+	{"__init__", 0, NULL, 1, "...A", __tuple_init},
 	{"Get", 1, "A", 1, "i", __tuple_get},
 	{"Size", 1, "i", 0, NULL, __tuple_size},
 	{NULL}

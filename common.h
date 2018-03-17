@@ -51,7 +51,8 @@ typedef double  float64;
 /* Assert macros */
 #define assertm(val, fmt, ...) do { \
 	if (!(val)) { \
-		printf(fmt "\n", ##__VA_ARGS__); assert(val); \
+		printf("[%s:%d]" fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
+		assert(val); \
 	} \
 } while (0)
 

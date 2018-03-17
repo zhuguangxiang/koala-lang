@@ -446,8 +446,8 @@ TypeDeclaration
   : CLASS ID '{' MemberDeclarations '}' {
     $$ = stmt_from_class($2, NULL, $4);
   }
-  | CLASS ID ':' UserDefType '{' '}' {
-    $$ = NULL;
+  | CLASS ID ':' UserDefType '{' MemberDeclarations '}' {
+    $$ = stmt_from_class($2, $4, $6);
   }
   | INTERFACE ID '{' IntfFuncDecls '}' {
     $$ = NULL; //stmt_from_interface($2, $4);

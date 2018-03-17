@@ -7,6 +7,7 @@ package test;
 import "koala/io";
 
 var name = "南京";
+var global int = 100;
 
 class Person {
 	name string;
@@ -21,6 +22,8 @@ class Person {
 	func SayHello() {
 		io.Println("hello,", self.name);
 		io.Println("hello,", name);
+		io.Println("hello,", test.name);
+		io.Println("hello,", global);
 	}
 
 	func GetAge() int {
@@ -35,6 +38,7 @@ class Person {
 	func TestCallFunc() {
 		// call class's sub
 		io.Println("29 - 35 =", sub(29, 35));
+		io.Println("29 - 35 =", self.sub(29, 35));
 		/*
 			if func is both in class and module,
 			please use MOUDLE.FUNCTION() to call module's function.

@@ -165,6 +165,14 @@ __.PKG包含编译器和虚拟机版本号
 
 ## 类型系统
 
+## 类，封装，继承和多态
+1. 类继承支持单继承
+2. 接口不支持继承
+3. obj, ok = typeof(object, class) or typeof(object)返回类型
+4. var type Class = typeof(obj);
+5. 向上转换，向下转换
+6. super, self
+7. obj, _ = type(v, class);
 
 ## QA
   xml封装

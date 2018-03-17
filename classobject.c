@@ -10,9 +10,9 @@ TValue Object_Get_Value(Object *ob, char *name)
 	if (sym->kind != SYM_VAR && sym->kind != SYM_IPROTO)
 		return NilValue;
 	int index = sym->index;
-	KlassObject *kob = (KlassObject *)ob;
-	assert(index >= 0 && index < kob->size);
-	return kob->items[index];
+	ClassObject *cob = (ClassObject *)ob;
+	assert(index >= 0 && index < cob->size);
+	return cob->items[index];
 }
 
 int Object_Set_Value(Object *ob, char *name, TValue *val)
@@ -29,9 +29,9 @@ int Object_Set_Value(Object *ob, char *name, TValue *val)
 	}
 
 	int index = sym->index;
-	KlassObject *kob = (KlassObject *)ob;
-	assert(index >= 0 && index < kob->size);
-	kob->items[index] = *val;
+	ClassObject *cob = (ClassObject *)ob;
+	assert(index >= 0 && index < cob->size);
+	cob->items[index] = *val;
 	return 0;
 }
 
@@ -45,13 +45,13 @@ Object *Object_Get_Method(Object *ob, char *name)
 static void object_mark(Object *ob)
 {
 	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
-	KlassObject *kob = (KlassObject *)ob;
+	ClassObject *cob = (ClassObject *)ob;
 
 	//FIXME: inc_ref
 
-	for (int i = 0; i < kob->size; i++) {
-		if (VALUE_ISOBJECT(kob->items + i)) {
-			Object *tmp = VALUE_OBJECT(kob->items + i);
+	for (int i = 0; i < cob->size; i++) {
+		if (VALUE_ISOBJECT(cob->items + i)) {
+			Object *tmp = VALUE_OBJECT(cob->items + i);
 			OB_KLASS(tmp)->ob_mark(tmp);
 		}
 	}
@@ -61,7 +61,7 @@ static Object *object_alloc(Klass *klazz, int nr)
 {
 	OB_ASSERT_KLASS(klazz, Klass_Klass);
 	int size = klazz->size + sizeof(TValue) * nr;
-	KlassObject *ob = calloc(1, size);
+	ClassObject *ob = calloc(1, size);
 	init_object_head(ob, klazz);
 	ob->size = nr;
 	for (int i = 0; i < nr; i++) {
@@ -100,19 +100,19 @@ static Object *object_tostring(TValue *v)
 	return NULL;
 }
 
-static Klass *klass_new(char *name, int size, Klass *super)
+static Klass *klass_new(char *name, Klass *super)
 {
 	Klass *klazz = calloc(1, sizeof(Klass));
 	init_object_head(klazz, &Klass_Klass);
 	klazz->super = super;
 	klazz->name = name;
-	klazz->size = size;
+	klazz->size = sizeof(ClassObject);
 	return klazz;
 }
 
 Klass *Class_New(char *name, Klass *super)
 {
-	Klass *klazz = klass_new(name, sizeof(KlassObject), super);
+	Klass *klazz = klass_new(name, super);
 	klazz->ob_mark = object_mark;
 
 	klazz->ob_alloc = object_alloc;

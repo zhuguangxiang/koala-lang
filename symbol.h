@@ -56,6 +56,7 @@ struct symbol {
 	};
 
 	/* extra for compiler */
+	Symbol *super;
 	Symbol *up;
 	void *ptr;      /* CodeBlock and STable(import, class, interface) */
 	char *path;     /* used for import */

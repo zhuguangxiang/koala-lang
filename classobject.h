@@ -8,12 +8,12 @@
 extern "C" {
 #endif
 
-typedef struct klassobject {
+typedef struct classobject {
 	OBJECT_HEAD
 	Object *super;
 	int size;
 	TValue items[0];
-} KlassObject;
+} ClassObject;
 
 TValue Object_Get_Value(Object *ob, char *name);
 int Object_Set_Value(Object *ob, char *name, TValue *val);
