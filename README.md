@@ -256,7 +256,7 @@ Steps for compiler
 3. optimization expression
 4. code generation
 
-Version Log:
+#### Version Log:
 v0.5.1:
 1. vector.c
 2. add listobject.c
@@ -294,17 +294,22 @@ v0.5.9:
     2). -KOALAPATH
 4. feature: properties file, argument format
 
+v0.5.10:
+1. feature: object inheritance, super keyword
+2. feature: object memory model
+3. feature: object init method, every object has default init func, whatever
+there is an defined init func with different arguments. subclass no need call
+super's init.
+4. new: func call arguments check
+
 v0.6.0:
 1. feature: interface statement
+2. feature: subclass casts to base class, and base class casts to realclass
 
 v0.6.1:
-1. feature: object inheritance
-
-v0.6.2:
 1. feature: error handle
-
-v0.6.3:
-1. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
+2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
+3. new: assignment type check
 
 v0.6.4:
 1. feature: access control

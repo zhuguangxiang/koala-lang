@@ -56,13 +56,9 @@ func Main(args []string) {
 
 	var animal Animal = Dog(name, age, "Black");
 	animal.SayHello();
-	//animal.DogFunc(); //error
 	animal.AnimalFunc();
 
 	animal = Cat();
 	animal.SayHello();
-
 	animal.AnimalFunc();
-
-	//var cat Cat = typeof(animal, Cat).CatFunc();
 }

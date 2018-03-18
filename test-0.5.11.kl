@@ -10,17 +10,14 @@ import an "test/animal";
 class Dog : an.Animal {
 	color string;
 
-	func __init__(color string) {
-		//super(name, age);
+	func __init__(name string, age int, color string) {
 		self.color = color;
-		//name = "DOG";
-		//age = 122;
+		self.name = name;
+		self.age = age;
 	}
 
 	func SayHello() {
 		io.Println("Dog: SayHello");
-		name = "DOG";
-		age = 123;
 	}
 
 	func DogFunc() {
@@ -37,7 +34,7 @@ class Cat : an.Animal {
 }
 
 func Main(args []string) {
-	var name = "James";
+	var name = "DOG";
 	var age = 122;
 
 	var animal an.Animal = Dog(name, age, "BLACK");
