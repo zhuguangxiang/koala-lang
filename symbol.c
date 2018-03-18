@@ -5,10 +5,12 @@
 #include "log.h"
 #include "parser.h"
 
-Symbol *Symbol_New(void)
+Symbol *Symbol_New(int kind)
 {
 	Symbol *sym = calloc(1, sizeof(Symbol));
 	Init_HashNode(&sym->hnode, sym);
+	Vector_Init(&sym->locvec);
+	sym->kind = kind;
 	return sym;
 }
 
@@ -153,11 +155,10 @@ Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto)
 
 Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
 {
-	Symbol *sym = Symbol_New();
+	Symbol *sym = Symbol_New(kind);
 	int32 idx = StringItem_Set(stbl->atbl, name);
 	assert(idx >= 0);
 	sym->nameidx = idx;
-	sym->kind = kind;
 	sym->access = SYMBOL_ACCESS(name, bconst);
 	if (HashTable_Insert(__get_hashtable(stbl), &sym->hnode) < 0) {
 		Symbol_Free(sym);

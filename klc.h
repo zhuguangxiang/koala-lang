@@ -108,6 +108,7 @@ ConstItem *ConstItem_String_New(int32 val);
 typedef struct local_var_item {
 	int32 nameindex;  //->StringItem
 	int32 typeindex;  //->TypeItem
+	int32 pos;        //index of locvars
 	int16 flags;      //in function or method
 	int16 index;      //->Index of FuncItem or MethodItem
 } LocVarItem;
@@ -181,7 +182,7 @@ Proto *Proto_From_ProtoItem(ProtoItem *item, AtomTable *atbl);
 KImage *KImage_New(char *pkg_name);
 void KImage_Free(KImage *image);
 void KImage_Finish(KImage *image);
-void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
+void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc, int pos,
 	int flags, int index);
 void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
 #define KImage_Add_Var(image, name, desc) \
@@ -210,12 +211,12 @@ void KImage_Show(KImage *image);
 int StringItem_Get(AtomTable *table, char *str);
 int StringItem_Set(AtomTable *table, char *str);
 #define StringItem_Index(table, index) \
-	AtomTable_Get(table, ITEM_STRING, index)
+	(StringItem *)AtomTable_Get(table, ITEM_STRING, index)
 
 int TypeItem_Get(AtomTable *table, TypeDesc *desc);
 int TypeItem_Set(AtomTable *table, TypeDesc *desc);
 #define TypeItem_Index(table, index) \
-	AtomTable_Get(table, ITEM_TYPE, index)
+	(TypeItem *)AtomTable_Get(table, ITEM_TYPE, index)
 
 int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz);
 int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz);

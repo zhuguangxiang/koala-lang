@@ -40,7 +40,7 @@ extern TValue FalseValue;
 
 /* Macros to initialize struct value */
 #define initnilvalue(v) do { \
-	(v)->type = TYPE_NIL; (v)->ival = (int64)0; \
+	(v)->type = TYPE_NIL; (v)->klazz = NULL; (v)->ival = (int64)0; \
 } while (0)
 
 #define setivalue(v, _v) do { \
@@ -55,8 +55,13 @@ extern TValue FalseValue;
 	(v)->type = TYPE_BOOL; (v)->bval = (int)_v; \
 } while (0)
 
+#define setobjtype(v, _klazz) do { \
+	(v)->type = TYPE_OBJECT; (v)->klazz = (_klazz); \
+} while (0)
+
 #define setobjvalue(v, _v) do { \
-	(v)->type = TYPE_OBJECT; (v)->ob = (Object *)_v; \
+	setobjtype(v, ((Object *)_v)->ob_klass); \
+	(v)->ob = (Object *)_v; \
 } while (0)
 
 #define setcstrvalue(v, _v) do { \
@@ -107,6 +112,8 @@ TValue TValue_Build(char ch, ...);
 int Va_Parse_Value(TValue *val, char ch, va_list *ap);
 int TValue_Parse(TValue *val, char ch, ...);
 int TValue_Print(char *buf, int sz, TValue *val, int escape);
+void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *module);
+int TValue_Type_Check(TValue *v1, TValue *v2);
 
 /*-------------------------------------------------------------------------*/
 

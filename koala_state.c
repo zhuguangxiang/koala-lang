@@ -92,6 +92,11 @@ struct classindex {
 	Klass *klazz;
 };
 
+struct locvarindex {
+	int index;
+	Object *func;
+};
+
 static Klass *get_klazz(struct classindex *indexes, int size, int index)
 {
 	struct classindex *clsidx;
@@ -99,6 +104,18 @@ static Klass *get_klazz(struct classindex *indexes, int size, int index)
 		clsidx = indexes + i;
 		if (clsidx->index == index) {
 			return clsidx->klazz;
+		}
+	}
+	return NULL;
+}
+
+static Object *get_kfunc(struct locvarindex *indexes, int size, int index)
+{
+	struct locvarindex *locvaridx;
+	for (int i = 0; i < size; i++) {
+		locvaridx = indexes + i;
+		if (locvaridx->index == index) {
+			return locvaridx->func;
 		}
 	}
 	return NULL;
@@ -123,15 +140,27 @@ static void load_variables(AtomTable *table, Object *m)
 	}
 }
 
+static void load_locvar(LocVarItem *locvar, AtomTable *table, Object *code)
+{
+	StringItem *stritem = StringItem_Index(table, locvar->nameindex);;
+	TypeItem *typeitem = TypeItem_Index(table, locvar->typeindex);
+	char *name = stritem->data;
+	TypeDesc *desc = TypeDesc_New(0);
+	TypeItem_To_Desc(table, typeitem, desc);
+	KFunc_Add_LocVar(code, name, desc, locvar->pos);
+}
+
 static void load_functions(AtomTable *table, Object *m)
 {
 	int sz = AtomTable_Size(table, ITEM_FUNC);
+	int num = sz;
 	FuncItem *func;
 	StringItem *id;
 	ProtoItem *protoitem;
 	Proto *proto;
 	CodeItem *codeitem;
 	Object *code;
+	struct locvarindex indexes[num];
 
 	for (int i = 0; i < sz; i++) {
 		func = AtomTable_Get(table, ITEM_FUNC, i);
@@ -141,6 +170,18 @@ static void load_functions(AtomTable *table, Object *m)
 		codeitem = CodeItem_Index(table, func->codeindex);
 		code = KFunc_New(func->locvars, codeitem->codes, codeitem->size);
 		Module_Add_Func(m, id->data, proto, code);
+		indexes[i].index = i;
+		indexes[i].func = code;
+	}
+
+	// handle locvars
+	sz = AtomTable_Size(table, ITEM_LOCVAR);
+	LocVarItem *locvar;
+	for (int i = 0; i < sz; i++) {
+		locvar = AtomTable_Get(table, ITEM_LOCVAR, i);
+		if (locvar->flags == FUNCLOCVAR) {
+			load_locvar(locvar, table, get_kfunc(indexes, num, locvar->index));
+		}
 	}
 }
 
@@ -224,7 +265,7 @@ static void load_field(FieldItem *fld, AtomTable *table, Klass *klazz)
 	Klass_Add_Field(klazz, id->data, desc);
 }
 
-static void load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
+static Object *load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
 {
 	StringItem *id;
 	ProtoItem *protoitem;
@@ -238,6 +279,7 @@ static void load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
 	codeitem = CodeItem_Index(table, mth->codeindex);
 	code = KFunc_New(mth->locvars, codeitem->codes, codeitem->size);
 	Klass_Add_Method(klazz, id->data, proto, code);
+	return code;
 }
 
 static void load_method_fn(Symbol *sym, void *arg)
@@ -274,10 +316,25 @@ static void load_classes(AtomTable *table, Object *m)
 	}
 
 	sz = AtomTable_Size(table, ITEM_METHOD);
+	int locnum = sz;
+	struct locvarindex locindexes[locnum];
+	Object *ob;
 	MethodItem *mth;
 	for (int i = 0; i < sz; i++) {
 		mth = AtomTable_Get(table, ITEM_METHOD, i);
-		load_method(mth, table, get_klazz(indexes, num, mth->classindex));
+		ob = load_method(mth, table, get_klazz(indexes, num, mth->classindex));
+		locindexes[i].index = i;
+		locindexes[i].func = ob;
+	}
+
+	// handle locvars
+	sz = AtomTable_Size(table, ITEM_LOCVAR);
+	LocVarItem *locvar;
+	for (int i = 0; i < sz; i++) {
+		locvar = AtomTable_Get(table, ITEM_LOCVAR, i);
+		if (locvar->flags == METHLOCVAR) {
+			load_locvar(locvar, table, get_kfunc(locindexes, locnum, locvar->index));
+		}
 	}
 
 	//handle inheritance

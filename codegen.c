@@ -118,29 +118,21 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 	}
 }
 
-struct locvar_struct {
-	KImage *image;
-	int index;
-	int flags;
-	Symbol *sym;
-};
-
-static void locvar_fn(Symbol *sym, void *arg)
-{
-	struct locvar_struct *loc = arg;
-	debug("locvar '%s' in '%s'", sym->name, loc->sym->name);
-	KImage_Add_LocVar(loc->image, sym->name, sym->desc, loc->flags, loc->index);
-}
-
 static void add_locvar(KImage *image, int index, Symbol *sym, int flags)
 {
-	if (sym->stbl) {
-		debug("add '%s' locvars", sym->name);
-		struct locvar_struct loc = {image, index, flags, sym};
-		STbl_Traverse(sym->stbl, locvar_fn, &loc);
-	} else {
+	if (Vector_Size(&sym->locvec) <= 0) {
 		debug("'%s' has not locvars", sym->name);
+		return;
 	}
+
+	Symbol *item;
+	debug("add '%s' locvars", sym->name);
+	Vector_ForEach(item, &sym->locvec) {
+		debug("locvar '%s'", item->name);
+		KImage_Add_LocVar(image, item->name, item->desc, item->index,
+			flags, index);
+	}
+	debug("----------------------");
 }
 
 struct gencode_struct {

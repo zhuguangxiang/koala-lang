@@ -28,6 +28,8 @@ static void __unused_symbol_fn(Symbol *sym, void *arg)
 			warn("variable '%s' is never used", sym->name);
 		} else if (sym->kind == SYM_PROTO) {
 			warn("function '%s' is never used", sym->name);
+		} else if (sym->kind == SYM_CLASS) {
+			warn("class '%s' is never used", sym->name);
 		} else {
 			error("which symbol: %d", sym->kind);
 		}

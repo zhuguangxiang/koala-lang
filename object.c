@@ -2,6 +2,7 @@
 #include "codeobject.h"
 #include "stringobject.h"
 #include "moduleobject.h"
+#include "koala_state.h"
 #include "log.h"
 
 TValue NilValue  = NIL_VALUE_INIT();
@@ -369,4 +370,105 @@ int TValue_Print(char *buf, int sz, TValue *val, int escape)
 		}
 	}
 	return count;
+}
+
+static int check_inheritance(Klass *k1, Klass *k2)
+{
+	Klass *base = k1->super;
+	while (base) {
+		if (base == k2) return 0;
+		base = base->super;
+	}
+
+	base = k2->super;
+	while (base) {
+		if (base == k1) return 0;
+		base = base->super;
+	}
+
+	return -1;
+}
+
+int TValue_Type_Check(TValue *v1, TValue *v2)
+{
+	if (v1->type != v2->type) {
+		error("v1's type %d vs v2's type %d", v1->type, v2->type);
+		return -1;
+	}
+
+	if (v1->type == TYPE_OBJECT) {
+		if (v1->klazz == NULL || v2->klazz == NULL) {
+			error("object klazz is not set");
+			return -1;
+		}
+		if (v1->klazz != v2->klazz) {
+			if (!check_inheritance(v1->klazz, v2->klazz)) return 0;
+			error("v1's klazz '%s' vs v2's klazz '%s'",
+				v1->klazz->name, v2->klazz->name);
+			return -1;
+		}
+	}
+	return 0;
+}
+
+static void TValue_Set_Primitive(TValue *val, int primitive)
+{
+	switch (primitive) {
+		case PRIMITIVE_INT:
+			setivalue(val, 0);
+			break;
+		case PRIMITIVE_FLOAT:
+			setfltvalue(val, 0.0);
+			break;
+		case PRIMITIVE_BOOL:
+			setbvalue(val, 0);
+			break;
+		case PRIMITIVE_STRING:
+			setcstrvalue(val, NULL);
+			break;
+		case PRIMITIVE_ANY:
+		default:
+			assertm(0, "unknown primitive %c", primitive);
+			break;
+	}
+}
+
+void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
+{
+	assert(ob);
+	assert(desc);
+
+	switch (desc->kind) {
+		case TYPE_PRIMITIVE: {
+			TValue_Set_Primitive(val, desc->primitive);
+			break;
+		}
+		case TYPE_USERDEF: {
+			Object *module = NULL;
+			if (desc->path) {
+				module = Koala_Load_Module(desc->path);
+			} else {
+				if (OB_CHECK_KLASS(ob, Module_Klass)) {
+					module = ob;
+				} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
+					module = OB_KLASS(ob)->module;
+				} else {
+					assert(0);
+				}
+			}
+
+			Klass *klazz = Module_Get_Class(module, desc->type);
+			assert(klazz);
+			debug("find class: %s", klazz->name);
+			setobjtype(val, klazz);
+			break;
+		}
+		case TYPE_PROTO: {
+			break;
+		}
+		default: {
+			assert(0);
+			break;
+		}
+	}
 }

@@ -540,7 +540,6 @@ static void parser_merge(ParserState *ps)
 		debug("save code to function '%s'", u->sym->name);
 		u->sym->ptr = u->block;
 		u->block = NULL;
-		u->sym->stbl = u->stbl;
 		u->sym->locvars = u->stbl->varcnt;
 		u->stbl = NULL;
 	} else if (u->scope == SCOPE_BLOCK) {
@@ -626,7 +625,7 @@ static void parser_fini_unit(ParserUnit *u)
 	Vector_Fini(&u->jmps, vec_jmpinst_free_fn, NULL);
 	//FIXME
 	//assert(!u->stbl);
-	STbl_Free(u->stbl);
+	//STbl_Free(u->stbl);
 }
 
 static ParserUnit *parser_new_unit(STable *stbl, int scope)
@@ -1268,12 +1267,23 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 
 /*--------------------------------------------------------------------------*/
 
-static ParserUnit *get_function_unit(ParserState *ps) {
+static ParserUnit *get_function_unit(ParserState *ps)
+{
 	ParserUnit *u;
 	list_for_each_entry(u, &ps->ustack, link) {
 		if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) return u;
 	}
 	return NULL;
+}
+
+static int check_symbol_inherit(Symbol *base, Symbol *sub)
+{
+	Symbol *up = sub->super;
+	while (up) {
+		if (up == base) return 0;
+		up = up->super;
+	}
+	return -1;
 }
 
 static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
@@ -1303,19 +1313,29 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 			}
 
 			if (!TypeDesc_Check(var->desc, proto->rdesc)) {
-				error("typecheck failed");
+				error("proto typecheck failed");
 				return;
 			}
 		} else {
 			if (!var->desc) {
 				var->desc = exp->desc;
 			}
-			/*
+
 			if (!TypeDesc_Check(var->desc, exp->desc)) {
-				error("typecheck failed");
-				return;
+				//literal check failed
+				if (var->desc->kind == TYPE_USERDEF &&
+					exp->desc->kind == TYPE_USERDEF) {
+					Symbol *s1 = find_userdef_symbol(ps, var->desc);
+					Symbol *s2 = find_userdef_symbol(ps, exp->desc);
+					if (check_symbol_inherit(s1, s2)) {
+						error("check inheritance failed");
+						return;
+					}
+				} else {
+					error("typecheck failed");
+					return;
+				}
 			}
-			*/
 		}
 	}
 
@@ -1332,11 +1352,12 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		debug("var '%s' decl in function", var->id);
 		sym = STbl_Add_Var(u->stbl, var->id, var->desc, var->bconst);
 		sym->up = u->sym;
+		Vector_Append(&u->sym->locvec, sym);
 	} else if (u->scope == SCOPE_BLOCK) {
 		debug("var '%s' decl in block", var->id);
-		ParserUnit *fu = get_function_unit(ps);
-		assert(fu);
-		sym = STbl_Get(fu->stbl, var->id);
+		ParserUnit *pu = get_function_unit(ps);
+		assert(pu);
+		sym = STbl_Get(pu->stbl, var->id);
 		if (sym) {
 			error("var '%s' is already defined in this scope", var->id);
 			return;
@@ -1344,8 +1365,9 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		//FIXME: need add to function's symbol table? how to handle different block has the same variable
 		sym = STbl_Add_Var(u->stbl, var->id, var->desc, var->bconst);
 		assert(sym);
-		sym->index = fu->stbl->varcnt++;
+		sym->index = pu->stbl->varcnt++;
 		sym->up = NULL;
+		Vector_Append(&pu->sym->locvec, sym);
 	} else {
 		assertm(0, "unknown unit scope:%d", u->scope);
 	}
@@ -1765,8 +1787,7 @@ void init_parser(ParserState *ps)
 	memset(ps, 0, sizeof(ParserState));
 	Vector_Init(&ps->stmts);
 	init_imports(ps);
-	Symbol *sym = Symbol_New();
-	sym->kind = SYM_MODULE;
+	Symbol *sym = Symbol_New(SYM_MODULE);
 	sym->ptr = STbl_New(NULL);
 	ps->sym = sym;
 	init_list_head(&ps->ustack);

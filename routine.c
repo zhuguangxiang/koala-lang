@@ -16,21 +16,37 @@ static void frame_loop(Frame *frame);
 
 /*-------------------------------------------------------------------------*/
 
-static void frame_new(Routine *rt, Object *code, int argc)
+static void frame_new(Routine *rt, Object *ob, Object *cob, int argc)
 {
-	CodeObject *cob = OB_TYPE_OF(code, CodeObject, Code_Klass);
+	CodeObject *code = OB_TYPE_OF(cob, CodeObject, Code_Klass);
 
 	int size = 0;
-	if (CODE_ISKFUNC(code)) size = 1 + cob->kf.locvars;
+	if (CODE_ISKFUNC(code)) size = code->kf.locvars;
+
 	Frame *f = malloc(sizeof(Frame) + size * sizeof(TValue));
 	init_list_head(&f->link);
 	f->rt = rt;
 	f->argc = argc;
-	f->code = code;
+	f->code = (Object *)code;
 	f->pc = 0;
 	f->size = size;
 	for (int i = 0; i < size; i++)
 		initnilvalue(&f->locvars[i]);
+
+	debug("loc vars : %d", size);
+	if (size > 0 && Vector_Size(&code->kf.locvec) > 0) {
+		Symbol *item;
+		debug("----Set LocVar's Type-----");
+		Vector_ForEach(item, &code->kf.locvec) {
+			char *typestr = TypeDesc_ToString(item->desc);
+			debug("set [%d] as '%s' type", item->index, typestr);
+			free(typestr); //FIXME
+			assert(item->index >= 0 && item->index < size);
+			TValue_Set_TypeDesc(f->locvars + item->index, item->desc, ob);
+		}
+		debug("----Set LocVar's Type End-");
+	}
+
 	if (rt->frame)
 		list_add(&rt->frame->link, &rt->frames);
 	rt->frame = f;
@@ -146,7 +162,7 @@ Routine *Routine_New(Object *code, Object *ob, Object *args)
 	PUSH(&val);
 
 	/* new frame */
-	frame_new(rt, code, size);
+	frame_new(rt, ob, code, size);
 
 	return rt;
 }
@@ -269,7 +285,34 @@ static inline TValue load(Frame *f, int index)
 static inline void store(Frame *f, int index, TValue *val)
 {
 	assert(index < f->size);
-	f->locvars[index] = *val;
+	assert(!TValue_Type_Check(f->locvars + index, val));
+	int type = VALUE_TYPE(&f->locvars[index]);
+	switch (type) {
+		case TYPE_INT: {
+			f->locvars[index].ival = val->ival;
+			break;
+		}
+		case TYPE_FLOAT: {
+			f->locvars[index].fval = val->fval;
+			break;
+		}
+		case TYPE_BOOL: {
+			f->locvars[index].bval = val->bval;
+			break;
+		}
+		case TYPE_OBJECT: {
+			f->locvars[index].ob = val->ob;
+			break;
+		}
+		case TYPE_CSTR: {
+			f->locvars[index].cstr = val->cstr;
+			break;
+		}
+		default: {
+			assertm(0, "unsupport value's type: %d", type);
+			break;
+		}
+	}
 }
 
 static Object *getcode(Object *ob, char *name)
@@ -313,6 +356,31 @@ static TValue getfield(Object *ob, char *field)
 		assert(0);
 		return NilValue;
 	}
+}
+
+static int check_call(TValue *val, char *name)
+{
+	VALUE_ASSERT_OBJECT(val);
+	Klass *klazz = val->klazz;
+	assert(klazz);
+	//module not check
+	if (klazz == &Module_Klass) return 0;
+
+	if (OB_KLASS(klazz) == &Klass_Klass) {
+		Symbol *sym = Klass_Get_FieldSymbol(klazz, name);
+		if (!sym) {
+			error("cannot find '%s' in '%s'", name, klazz->name);
+			return -1;
+		}
+		if (sym->kind != SYM_PROTO) {
+			error("symbol '%s' is not method", name);
+			return -1;
+		}
+		return 0;
+	}
+
+	assert(0);
+	return -1;
 }
 
 int tonumber(TValue *v)
@@ -411,10 +479,12 @@ static void frame_loop(Frame *frame)
 				val = index_const(index, atbl);
 				char *name = VALUE_CSTR(&val);
 				debug("call %s()", name);
-				val = TOP();
 				int argc = fetch_2bytes(frame, code);
 				debug("OP_CALL, argc:%d", argc);
-				frame_new(rt, getcode(VALUE_OBJECT(&val), name), argc);
+				val = TOP();
+				ob = VALUE_OBJECT(&val);
+				assert(!check_call(&val, name));
+				frame_new(rt, ob, getcode(ob, name), argc);
 				loopflag = 0;
 				break;
 			}
@@ -565,9 +635,9 @@ static void frame_loop(Frame *frame)
 				ob = klazz->ob_alloc(klazz, klazz->stbl.varcnt);
 				setobjvalue(&val, ob);
 				PUSH(&val);
-				ob = getcode(ob, "__init__");
-				if (ob)	{
-					frame_new(rt, ob, argc);
+				Object *cob = getcode(ob, "__init__");
+				if (cob)	{
+					frame_new(rt, ob, cob, argc);
 					loopflag = 0;
 				}
 				break;

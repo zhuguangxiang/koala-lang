@@ -24,12 +24,15 @@ int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc)
 			break;
 		}
 		case TYPE_USERDEF: {
+			StringItem *stritem;
 			if (item->pathindex >= 0) {
-				desc->path = StringItem_Index(atbl, item->pathindex);
+				stritem = StringItem_Index(atbl, item->pathindex);
+				desc->path = stritem->data;
 			} else {
 				desc->path = NULL;
 			}
-			desc->type = StringItem_Index(atbl, item->typeindex);
+			stritem = StringItem_Index(atbl, item->typeindex);
+			desc->type = stritem->data;
 			break;
 		}
 		default: {
@@ -174,12 +177,13 @@ ConstItem *ConstItem_String_New(int32 val)
 	return item;
 }
 
-LocVarItem *LocVarItem_New(int32 nameindex, int32 typeindex,
+LocVarItem *LocVarItem_New(int32 nameindex, int32 typeindex, int32 pos,
 	int flags, int index)
 {
 	LocVarItem *item = malloc(sizeof(LocVarItem));
 	item->nameindex = nameindex;
 	item->typeindex = typeindex;
+	item->pos = pos;
 	item->flags = flags;
 	item->index = index;
 	return item;
@@ -845,8 +849,8 @@ void locvaritem_write(FILE *fp, void *o)
 
 static char *locvaritem_flags_tostring(int flags)
 {
-	if (flags == FUNCLOCVAR) return "funclocvar";
-	else if (flags == METHLOCVAR) return "methlocvar";
+	if (flags == FUNCLOCVAR) return "in-func";
+	else if (flags == METHLOCVAR) return "in-meth";
 	else return "";
 }
 
@@ -873,6 +877,7 @@ void locvaritem_show(AtomTable *table, void *o)
 	} else {
 		printf("  (%c)\n", type->primitive);
 	}
+	printf("  index:%d\n", item->index);
 	printf("  flags:%s\n", locvaritem_flags_tostring(item->flags));
 }
 
@@ -1345,12 +1350,12 @@ void KImage_Free(KImage *image)
 	free(image);
 }
 
-void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
+void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc, int pos,
 	int flags, int index)
 {
 	int typeindex = TypeItem_Set(image->table, desc);
 	int nameindex = StringItem_Set(image->table, name);
-	LocVarItem *item = LocVarItem_New(nameindex, typeindex, flags, index);
+	LocVarItem *item = LocVarItem_New(nameindex, typeindex, pos, flags, index);
 	AtomTable_Append(image->table, ITEM_LOCVAR, item, 0);
 }
 
@@ -1767,6 +1772,7 @@ void AtomTable_Show(AtomTable *table)
 	printf("--------------------\n");
 
 	for (int i = 1; i < table->size; i++) {
+		if (i == ITEM_CODE) continue;
 		size = AtomTable_Size(table, i);
 		if (size > 0) {
 			printf("%s:\n", mapitem_string[i]);

@@ -21,6 +21,7 @@ typedef struct codeobject {
 		struct {
 			AtomTable *atbl;  /* for const access, not free it */
 			Proto *proto;     /* for runtime to check args */
+			Vector locvec;    /* local variables */
 			int locvars;
 			int size;
 			uint8 *codes;
@@ -48,6 +49,7 @@ static inline int KFunc_Argc(Object *ob)
 		return p->psz;
 	}
 }
+int KFunc_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos);
 
 #ifdef __cplusplus
 }

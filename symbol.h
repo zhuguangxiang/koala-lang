@@ -55,7 +55,7 @@ struct symbol {
 		int32 index;  /* variable */
 	};
 
-	STable *stbl;
+	Vector locvec;  /* save locvars for function and method */
 
 	/* extra for compiler */
 	Symbol *super;
@@ -67,7 +67,7 @@ struct symbol {
 };
 
 /* Exported APIs */
-Symbol *Symbol_New(void);
+Symbol *Symbol_New(int kind);
 void Symbol_Free(Symbol *sym);
 Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
 Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto);
