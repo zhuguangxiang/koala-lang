@@ -1124,13 +1124,33 @@ static void parser_call(ParserState *ps, struct expr *exp)
 		/* check arguments */
 		if (!check_call_args(exp->desc->proto, exp->call.args)) {
 			error("arguments are not matched.");
+			return;
 		}
 	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_STABLE) {
 		debug("new object '%s'", sym->name);
 		/* class type */
 		exp->desc = sym->desc;
 		/* get __init__ function */
-		/* check arguments and returns(no returns) */
+		Symbol *__init__ = STbl_Get(sym->ptr, "__init__");
+		if (__init__) {
+			Proto *proto = __init__->desc->proto;
+			/* check arguments and returns(no returns) */
+			if (!check_call_args(proto, exp->call.args)) {
+				error("Arguments of __init__ are not matched.");
+				return;
+			}
+			/* check no returns */
+			if (proto->rsz) {
+				error("Returns of __init__ must be 0");
+				return;
+			}
+		} else {
+			debug("'%s' class is not defined __init__", sym->name);
+			if (argc) {
+				error("There is no __init__, but pass %d arguments", argc);
+				return;
+			}
+		}
 	} else {
 		assert(0);
 	}
@@ -1422,12 +1442,16 @@ void sym_inherit_fn(Symbol *sym, void *arg)
 			s->super = sym;
 		}
 	} else if (sym->kind == SYM_PROTO) {
-		debug("inherit function '%s' from super class", sym->name);
-		s = STbl_Add_Proto(stbl, sym->name, sym->desc->proto);
-		if (s) {
-			s->up = subsym;
-			s->inherited = 1;
-			s->super = sym;
+		if (strcmp(sym->name, "__init__")) {
+			debug("inherit function '%s' from super class", sym->name);
+			s = STbl_Add_Proto(stbl, sym->name, sym->desc->proto);
+			if (s) {
+				s->up = subsym;
+				s->inherited = 1;
+				s->super = sym;
+			}
+		} else {
+			debug("__init__ function is not inherited");
 		}
 	} else {
 		assertm(0, "invalid symbol kind:%d", sym->kind);

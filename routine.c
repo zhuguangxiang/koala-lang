@@ -285,7 +285,7 @@ static inline TValue load(Frame *f, int index)
 static inline void store(Frame *f, int index, TValue *val)
 {
 	assert(index < f->size);
-	assert(!TValue_Type_Check(f->locvars + index, val));
+	assert(!TValue_Check(f->locvars + index, val));
 	int type = VALUE_TYPE(&f->locvars[index]);
 	switch (type) {
 		case TYPE_INT: {
@@ -381,6 +381,26 @@ static int check_call(TValue *val, char *name)
 
 	assert(0);
 	return -1;
+}
+
+static void check_args(Routine *rt, int argc, Proto *proto, char *name)
+{
+	if (argc != proto->psz) {
+		error("%s argc: expected %d, but %d", name, proto->psz, argc);
+		exit(-1);
+	}
+
+	TValue *val;
+	TypeDesc *desc;
+	int pos = rt->top - 1;
+	for (int i = 0; i < proto->psz; i++) {
+		val = rt_stack_get(rt, pos--);
+		desc = proto->pdesc + i;
+		if (TValue_Check_TypeDesc(val, desc)) {
+			error("'%s' args type check failed", name);
+			exit(-1);
+		}
+	}
 }
 
 int tonumber(TValue *v)
@@ -484,7 +504,14 @@ static void frame_loop(Frame *frame)
 				val = TOP();
 				ob = VALUE_OBJECT(&val);
 				assert(!check_call(&val, name));
-				frame_new(rt, ob, getcode(ob, name), argc);
+				Object *tmp = getcode(ob, name);
+				assert(tmp);
+				if (CODE_ISKFUNC(tmp)) {
+					//FIXME: for c function
+					CodeObject *code = OB_TYPE_OF(tmp, CodeObject, Code_Klass);
+					check_args(rt, argc, code->kf.proto, name);
+				}
+				frame_new(rt, ob, tmp, argc);
 				loopflag = 0;
 				break;
 			}
@@ -635,10 +662,23 @@ static void frame_loop(Frame *frame)
 				ob = klazz->ob_alloc(klazz, klazz->stbl.varcnt);
 				setobjvalue(&val, ob);
 				PUSH(&val);
-				Object *cob = getcode(ob, "__init__");
-				if (cob)	{
-					frame_new(rt, ob, cob, argc);
+				Object *__init__ = getcode(ob, "__init__");
+				if (__init__)	{
+					CodeObject *code = OB_TYPE_OF(__init__, CodeObject, Code_Klass);
+					debug("__init__ argc: %d", code->kf.proto->psz);
+					check_args(rt, argc, code->kf.proto, name);
+					if (code->kf.proto->rsz) {
+						error("__init__ must be no any returns");
+						exit(-1);
+					}
+					frame_new(rt, ob, __init__, argc);
 					loopflag = 0;
+				} else {
+					debug("no __init__");
+					if (argc) {
+						error("no __init__, but %d", argc);
+						exit(-1);
+					}
 				}
 				break;
 			}

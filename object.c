@@ -400,7 +400,7 @@ static int check_inheritance(Klass *k1, Klass *k2)
 	return -1;
 }
 
-int TValue_Type_Check(TValue *v1, TValue *v2)
+int TValue_Check(TValue *v1, TValue *v2)
 {
 	if (v1->type != v2->type) {
 		error("v1's type %d vs v2's type %d", v1->type, v2->type);
@@ -420,6 +420,34 @@ int TValue_Type_Check(TValue *v1, TValue *v2)
 		}
 	}
 	return 0;
+}
+
+int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
+{
+	switch (desc->kind) {
+		case TYPE_PRIMITIVE: {
+			if (desc->primitive == PRIMITIVE_INT && VALUE_ISINT(val))
+				return 0;
+			if (desc->primitive == PRIMITIVE_FLOAT && VALUE_ISFLOAT(val))
+				return 0;
+			if (desc->primitive == PRIMITIVE_BOOL && VALUE_ISBOOL(val))
+				return 0;
+			if (desc->primitive == PRIMITIVE_STRING && VALUE_ISCSTR(val))
+				return 0;
+			break;
+		}
+		case TYPE_USERDEF: {
+			break;
+		}
+		case TYPE_PROTO: {
+			break;
+		}
+		default: {
+			assertm(0, "unknown type's kind %d\n", desc->kind);
+			break;
+		}
+	}
+	return -1;
 }
 
 static void TValue_Set_Primitive(TValue *val, int primitive)

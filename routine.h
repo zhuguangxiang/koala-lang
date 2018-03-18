@@ -70,6 +70,12 @@ static inline void rt_stack_init(Routine *rt)
 		initnilvalue(rt->stack + i);
 }
 
+static inline TValue *rt_stack_get(Routine *rt, int index)
+{
+	assert(index > -1 && index <= rt->top);
+	return rt->stack + index;
+}
+
 #ifdef __cplusplus
 }
 #endif

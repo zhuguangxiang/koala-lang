@@ -113,7 +113,8 @@ int Va_Parse_Value(TValue *val, char ch, va_list *ap);
 int TValue_Parse(TValue *val, char ch, ...);
 int TValue_Print(char *buf, int sz, TValue *val, int escape);
 void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *module);
-int TValue_Type_Check(TValue *v1, TValue *v2);
+int TValue_Check(TValue *v1, TValue *v2);
+int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc);
 
 /*-------------------------------------------------------------------------*/
 

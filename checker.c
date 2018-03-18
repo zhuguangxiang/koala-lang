@@ -86,8 +86,10 @@ int check_call_args(Proto *proto, Vector *vec)
 		return check_call_varg(proto, vec);
 
 	int sz = !vec ? 0: Vector_Size(vec);
-	if (proto->psz != sz)
+	if (proto->psz != sz) {
+		error("func argc: expected %d, but %d", proto->psz, sz);
 		return 0;
+	}
 
 	TypeDesc *d;
 	struct expr *exp;
