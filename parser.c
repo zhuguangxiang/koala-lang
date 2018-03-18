@@ -659,7 +659,9 @@ static void parser_enter_scope(ParserState *ps, STable *stbl, int scope)
 
 static void parser_exit_scope(ParserState *ps)
 {
+#if !LOG_NDEBUG
 	parser_show_scope(ps);
+#endif
 
 	check_unused_symbols(ps);
 
