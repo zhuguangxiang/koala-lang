@@ -282,14 +282,14 @@ static Object *load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
 	return code;
 }
 
-static void load_method_fn(Symbol *sym, void *arg)
+static void inherit_method_fn(Symbol *sym, void *arg)
 {
 	if (sym->kind == SYM_PROTO && strcmp(sym->name, "__init__")) {
 		if (Klass_Get_Method(arg, sym->name)) {
 			debug("subclass has the same method '%s'", sym->name);
 		} else {
 			debug("load method '%s' from super", sym->name);
-			Klass_Add_Method(arg, sym->name, sym->desc->proto, sym->ob);
+			Klass_Inherit_Method(arg, sym->name, sym->desc->proto, sym->ob);
 		}
 	}
 }
@@ -341,7 +341,7 @@ static void load_classes(AtomTable *table, Object *m)
 	for (int i = 0; i < num; i++) {
 		klazz = indexes[i].klazz;
 		if (klazz->super) {
-			STbl_Traverse(&klazz->super->stbl, load_method_fn, klazz);
+			STbl_Traverse(&klazz->super->stbl, inherit_method_fn, klazz);
 		}
 	}
 }

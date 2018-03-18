@@ -5,33 +5,16 @@
 package test;
 
 import "koala/io";
+import an "test/animal";
 
-class Animal {
-	name string;
-	age int;
-
-	func __init__(name string, _age int) {
-		self.name = name;
-		age = _age;
-	}
-
-	func SayHello() {
-		io.Println("call Animal SayHello");
-	}
-
-	func AnimalFunc() {
-		io.Println("Animal:", name, age);
-	}
-}
-
-class Dog : Animal {
+class Dog : an.Animal {
 	color string;
 
 	func __init__(color string) {
 		//super(name, age);
 		self.color = color;
-		name = "DOG";
-		age = 122;
+		//name = "DOG";
+		//age = 122;
 	}
 
 	func SayHello() {
@@ -45,7 +28,7 @@ class Dog : Animal {
 	}
 }
 
-class Cat : Animal {
+class Cat : an.Animal {
 	func SayHello() {
 		io.Println("Cat: SayHello");
 		name = "CAT";
@@ -57,15 +40,15 @@ func Main(args []string) {
 	var name = "James";
 	var age = 122;
 
-	var animal Animal = Dog(name, age, "BLACK");
+	var animal an.Animal = Dog(name, age, "BLACK");
 	animal.SayHello();
-	//animal.DogFunc(); //error
 	animal.AnimalFunc();
 
 	animal = Cat();
 	animal.SayHello();
-
 	animal.AnimalFunc();
 
-	//var cat Cat = typeof(animal, Cat).CatFunc();
+	animal = an.Animal("Animal", 200);
+	animal.SayHello();
+	animal.AnimalFunc();
 }

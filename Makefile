@@ -159,8 +159,15 @@ test-0.5.10:
 	@$(KOALAC) test-0.5.10.kl
 	@$(KOALA) test-0.5.10
 
+test-0.5.11:
+	@cd test/ && $(KOALAC) animal.kl
+	@cd test/ && mv animal.klc ~/koala-repo/test
+	@$(RM) test-0.5.11.klc
+	@$(KOALAC) test-0.5.11.kl
+	@$(KOALA) test-0.5.11
+
 testkl: test-0.5.1 test-0.5.2 test-0.5.3 test-0.5.4 test-0.5.5 test-0.5.6 \
-	test-0.5.7 test-0.5.8 test-test test-0.5.9 test-0.5.10
+	test-0.5.7 test-0.5.8 test-test test-0.5.9 test-0.5.10 test-0.5.11
 	@echo "Test Koala Down!"
 
 test: testprop testbuf testroutine testimage testhashtable testlist \

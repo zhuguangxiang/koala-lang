@@ -172,14 +172,23 @@ int Module_Add_CFunctions(Object *ob, FuncDef *funcs)
 	return 0;
 }
 
+struct path_stbl_struct {
+	char *path;
+	STable *stbl;
+};
+
 static void __to_stbl_fn(Symbol *sym, void *arg)
 {
-	STable *stbl = arg;
+	struct path_stbl_struct *path_struct = arg;
+	STable *stbl = path_struct->stbl;
+	char *path = path_struct->path;
 
 	if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
 		Symbol *s = STbl_Add_Symbol(stbl, sym->name, SYM_STABLE, 0);
+		s->desc = TypeDesc_From_UserDef(strdup(path), sym->name);
 		s->ptr = STbl_New(stbl->atbl);
-		STbl_Traverse(Klass_STable(sym->ob), __to_stbl_fn, s->ptr);
+		struct path_stbl_struct tmp = {path, s->ptr};
+		STbl_Traverse(Klass_STable(sym->ob), __to_stbl_fn, &tmp);
 	} else if (sym->kind == SYM_VAR) {
 		STbl_Add_Var(stbl, sym->name, sym->desc, sym->access & ACCESS_CONST);
 	} else if (sym->kind == SYM_PROTO) {
@@ -194,11 +203,12 @@ static void __to_stbl_fn(Symbol *sym, void *arg)
 }
 
 /* for compiler only */
-STable *Module_To_STable(Object *ob, AtomTable *atbl)
+STable *Module_To_STable(Object *ob, AtomTable *atbl, char *path)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	STable *stbl = STbl_New(atbl);
-	STbl_Traverse(&m->stbl, __to_stbl_fn, stbl);
+	struct path_stbl_struct path_struct = {path, stbl};
+	STbl_Traverse(&m->stbl, __to_stbl_fn, &path_struct);
 	return stbl;
 }
 

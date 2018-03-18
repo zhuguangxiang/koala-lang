@@ -35,7 +35,7 @@ void Module_Show(Object *ob);
 #define Module_Name(ob) (((ModuleObject *)(ob))->name)
 #define Module_AtomTable(ob) (((ModuleObject *)(ob))->stbl.atbl)
 /* for compiler only */
-STable *Module_To_STable(Object *ob, AtomTable *atbl);
+STable *Module_To_STable(Object *ob, AtomTable *atbl, char *path);
 
 #ifdef __cplusplus
 }

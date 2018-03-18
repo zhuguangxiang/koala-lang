@@ -184,6 +184,17 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 	return -1;
 }
 
+int Klass_Inherit_Method(Klass *klazz, char *name, Proto *proto, Object *code)
+{
+	OB_ASSERT_KLASS(klazz, Klass_Klass);
+	Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
+	if (sym) {
+		sym->ob = code;
+		return 0;
+	}
+	return -1;
+}
+
 Symbol *Klass_Get_FieldSymbol(Klass *klazz, char *name)
 {
 	return STbl_Get(&klazz->stbl, name);

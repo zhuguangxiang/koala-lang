@@ -257,7 +257,7 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 		return NULL;
 	}
 
-	sym->ptr = Module_To_STable(ob, ps->extstbl->atbl);
+	sym->ptr = Module_To_STable(ob, ps->extstbl->atbl, path);
 	import->sym = sym;
 	debug("add import '%s <- %s' successful", id, path);
 	return sym;
@@ -960,23 +960,6 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 			return;
 		}
 	}
-
-#if 0
-		// find ident from super class
-		if (up->sym && up->sym->kind == SYM_CLASS && up->sym->super) {
-			debug("find '%s' from super class '%s'", id, up->sym->super->name);
-			sym = STbl_Get(up->sym->super->ptr, id);
-			if (sym) {
-				debug("symbol '%s' is found in super class '%s'", id,
-					u->sym->super->name);
-				sym->refcnt++;
-				parser_expr_desc(ps, exp, sym);
-				parser_superclass_ident(ps, sym, exp);
-				return;
-			}
-		}
-	}
-#endif
 
 	// ident is current module's name
 	if (!strcmp(id, ps->package)) {
