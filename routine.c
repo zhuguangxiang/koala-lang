@@ -669,10 +669,9 @@ static void frame_loop(Frame *frame)
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
 				char *name = VALUE_CSTR(&val);
-				debug("new object %s", name);
 				val = POP();
 				int argc = fetch_2bytes(frame, code);
-				debug("OP_NEW, argc:%d", argc);
+				debug("OP_NEW, %s, argc:%d", name, argc);
 				ob = VALUE_OBJECT(&val);
 				Klass *klazz = Module_Get_Class(ob, name);
 				assert(klazz);
@@ -682,7 +681,7 @@ static void frame_loop(Frame *frame)
 				Object *__init__ = getcode(ob, "__init__");
 				if (__init__)	{
 					CodeObject *code = OB_TYPE_OF(__init__, CodeObject, Code_Klass);
-					debug("__init__ argc: %d", code->kf.proto->psz);
+					debug("__init__'s argc: %d", code->kf.proto->psz);
 					check_args(rt, argc, code->kf.proto, name);
 					if (code->kf.proto->rsz) {
 						error("__init__ must be no any returns");

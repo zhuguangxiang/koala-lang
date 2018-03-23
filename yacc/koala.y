@@ -99,6 +99,7 @@ int yyerror(ParserState *parser, const char *str)
 %token <dims> DIMS
 
 %token SELF
+%token SUPER
 %token TOKEN_NIL
 %token TOKEN_TRUE
 %token TOKEN_FALSE
@@ -764,6 +765,9 @@ Atom
   }
   | SELF {
     $$ = expr_from_self();
+  }
+  | SUPER {
+    $$ = expr_from_super();
   }
   | PrimitiveType '(' CONSTANT ')' {
     $$ = $3;

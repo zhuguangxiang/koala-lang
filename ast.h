@@ -37,9 +37,9 @@ int binop_bit(int op);
 
 enum expr_kind {
 	ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
-	STRING_KIND = 5, SELF_KIND = 6, NIL_KIND = 7, EXP_KIND = 8,
-	ARRAY_KIND = 9, ANONYOUS_FUNC_KIND, ATTRIBUTE_KIND, SUBSCRIPT_KIND,
-	CALL_KIND = 13, UNARY_KIND, BINARY_KIND, SEQ_KIND,
+	STRING_KIND = 5, SELF_KIND = 6, SUPER_KIND = 7, NIL_KIND = 8, EXP_KIND = 9,
+	ARRAY_KIND = 10, ANONYOUS_FUNC_KIND, ATTRIBUTE_KIND, SUBSCRIPT_KIND,
+	CALL_KIND = 14, UNARY_KIND, BINARY_KIND, SEQ_KIND,
 	EXPR_KIND_MAX
 };
 
@@ -105,6 +105,7 @@ struct expr *expr_from_float(float64 fval);
 struct expr *expr_from_string(char *str);
 struct expr *expr_from_bool(int bval);
 struct expr *expr_from_self(void);
+struct expr *expr_from_super(void);
 struct expr *expr_from_expr(struct expr *exp);
 struct expr *expr_from_nil(void);
 struct expr *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq);

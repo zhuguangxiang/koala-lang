@@ -1439,6 +1439,7 @@ void sym_inherit_fn(Symbol *sym, void *arg)
 	Symbol *s;
 
 	if (STbl_Get(stbl, sym->name)) {
+		//FIXME: the same name's field
 		debug("symbol '%s' exist in subclass '%s'", sym->name, subsym->name);
 		return;
 	}
