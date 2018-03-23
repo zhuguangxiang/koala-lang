@@ -1098,8 +1098,9 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 			Inst_Append(ps->u->block, OP_SETFIELD, &val);
 		}
 	} else if (sym->kind == SYM_PROTO) {
+		int opcode = exp->super ? OP_SUPER_CALL: OP_CALL;
 		TValue val = CSTR_VALUE_INIT(exp->attribute.id);
-		Inst *i = Inst_Append(u->block, OP_CALL, &val);
+		Inst *i = Inst_Append(u->block, opcode, &val);
 		i->argc = exp->argc;
 	} else if (sym->kind == SYM_STABLE) {
 		// new object
@@ -1203,13 +1204,18 @@ static void parser_super(ParserState *ps, struct expr *exp)
 	exp->sym = cu->sym->super;
 
 	struct expr *r = exp->right;
+	r->super = 1;
 	if (r->kind == CALL_KIND) {
 		assert(u->scope == SCOPE_METHOD);
 		assert(!strcmp(u->sym->name, "__init__"));
 		TValue val = INT_VALUE_INIT(0);
 		Inst_Append(u->block, OP_LOAD, &val);
-		Inst *i = Inst_Append(u->block, OP_SUPER, NULL);
+		setcstrvalue(&val, "__init__");
+		Inst *i = Inst_Append(u->block, OP_SUPER_CALL, &val);
 		i->argc = exp->argc;
+	} else if (r->kind == ATTRIBUTE_KIND) {
+		TValue val = INT_VALUE_INIT(0);
+		Inst_Append(ps->u->block, OP_LOAD, &val);
 	} else {
 		assert(0);
 	}

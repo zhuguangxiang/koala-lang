@@ -84,13 +84,10 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			break;
 		}
 		case OP_CALL:
+		case OP_SUPER_CALL:
 		case OP_NEW: {
 			index = ConstItem_Set_String(atbl, i->arg.cstr);
 			Buffer_Write_4Bytes(buf, index);
-			Buffer_Write_2Bytes(buf, i->argc);
-			break;
-		}
-		case OP_SUPER: {
 			Buffer_Write_2Bytes(buf, i->argc);
 			break;
 		}

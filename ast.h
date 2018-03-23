@@ -54,6 +54,7 @@ struct expr {
 	Symbol *sym;
 	int argc;
 	struct expr *right;  //for super(); super.name;
+	int super;
 	union {
 		char *id;
 		int64 ival;
