@@ -31,7 +31,7 @@ typedef struct codeblock {
 	int bytes;
 	struct list_head insts;
 	struct codeblock *next;  /* control flow */
-	int bret;  /* true if an OP_RET opcode needs be inserted. */
+	int bret;  /* false, no OP_RET, needs add one */
 } CodeBlock;
 
 void codeblock_free(CodeBlock *b);

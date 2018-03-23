@@ -537,11 +537,15 @@ static void parser_merge(ParserState *ps)
 	ParserUnit *u = ps->u;
 	// save code to symbol
 	if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
-		debug("save code to function '%s'", u->sym->name);
+		if (strcmp(u->sym->name, "__init__") && !u->block->bret) {
+			debug("add 'return' to function '%s'", u->sym->name);
+			Inst_Append(u->block, OP_RET, NULL);
+		}
 		u->sym->ptr = u->block;
 		u->block = NULL;
 		u->sym->locvars = u->stbl->varcnt;
 		u->stbl = NULL;
+		debug("save code to function '%s'", u->sym->name);
 	} else if (u->scope == SCOPE_BLOCK) {
 		if (u->loop) {
 			// loop-statement check break or continue statement
@@ -575,21 +579,20 @@ static void parser_merge(ParserState *ps)
 			u->block = NULL;
 		}
 	} else if (u->scope == SCOPE_MODULE) {
+		Proto *proto = Proto_New(0, NULL, 0, NULL);
+		Symbol *sym = STbl_Add_Proto(u->stbl, "__init__", proto);
+		assert(sym);
+		debug("add 'return' to function '__init__'");
+		Inst_Append(u->block, OP_RET, NULL);
 		if (u->block && u->block->bytes > 0) {
-			debug("save code to module __init__ function");
-			Proto *proto = Proto_New(0, NULL, 0, NULL);
-			Symbol *sym = STbl_Add_Proto(u->stbl, "__init__", proto);
-			assert(sym);
 			sym->ptr = u->block;
 			//sym->stbl = u->stbl;
 			sym->locvars = u->stbl->varcnt;
 			//u->stbl = NULL;
-			u->sym = sym;
-			u->block = NULL;
-		} else {
-			debug("module has not __init__ function");
-			u->block = NULL;
 		}
+		u->sym = sym;
+		u->block = NULL;
+		debug("save code to module '__init__' function");
 	} else if (u->scope == SCOPE_CLASS) {
 		debug(">>>> class");
 	} else {
@@ -1545,6 +1548,7 @@ static void parser_return(ParserState *ps, struct stmt *stmt)
 	check_return_types(sym, stmt->vec);
 
 	Inst_Append(u->block, OP_RET, NULL);
+	u->block->bret = 1;
 }
 
 static void parser_if(ParserState *ps, struct stmt *stmt)

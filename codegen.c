@@ -177,16 +177,11 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				Inst_Gen(atbl, &buf, i);
 			}
 
-			//FIXME:
-			if (!strcmp(sym->name, "__init__")) {
-				//load self
+			if (tmp->bcls && !strcmp(sym->name, "__init__")) {
 				TValue val = INT_VALUE_INIT(0);
-				Inst *iret = Inst_New(OP_LOAD, &val);
-				Inst_Gen(atbl, &buf, iret);
+				Inst_Gen(atbl, &buf, Inst_New(OP_LOAD, &val));
+				Inst_Gen(atbl, &buf, Inst_New(OP_RET, NULL));
 			}
-
-			Inst *iret = Inst_New(OP_RET, NULL);
-			Inst_Gen(atbl, &buf, iret);
 
 			uint8 *data = Buffer_RawData(&buf);
 			int size = Buffer_Size(&buf);

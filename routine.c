@@ -145,7 +145,7 @@ static void start_kframe(Frame *f)
  */
 Routine *Routine_New(Object *code, Object *ob, Object *args)
 {
-	Routine *rt = malloc(sizeof(Routine));
+	Routine *rt = calloc(1, sizeof(Routine));
 	init_list_head(&rt->link);
 	init_list_head(&rt->frames);
 	rt_stack_init(rt);
@@ -207,6 +207,23 @@ void Routine_Run(Routine *rt)
 		}
 		f = rt->frame;
 	}
+}
+
+void Call_KFunc(Routine *rt, Object *code, Object *ob, Object *args)
+{
+	/* prepare parameters */
+	TValue val;
+	int size = Tuple_Size(args);
+	for (int i = size - 1; i >= 0; i--) {
+		val = Tuple_Get(args, i);
+		VALUE_ASSERT(&val);
+		PUSH(&val);
+	}
+	setobjvalue(&val, ob);
+	PUSH(&val);
+
+	/* new frame */
+	frame_new(rt, ob, code, size);
 }
 
 /*-------------------------------------------------------------------------*/
