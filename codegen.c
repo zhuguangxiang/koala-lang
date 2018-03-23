@@ -177,12 +177,6 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				Inst_Gen(atbl, &buf, i);
 			}
 
-			if (tmp->bcls && !strcmp(sym->name, "__init__")) {
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Gen(atbl, &buf, Inst_New(OP_LOAD, &val));
-				Inst_Gen(atbl, &buf, Inst_New(OP_RET, NULL));
-			}
-
 			uint8 *data = Buffer_RawData(&buf);
 			int size = Buffer_Size(&buf);
 			//code_show(data, size);

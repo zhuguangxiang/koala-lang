@@ -537,7 +537,12 @@ static void parser_merge(ParserState *ps)
 	ParserUnit *u = ps->u;
 	// save code to symbol
 	if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
-		if (strcmp(u->sym->name, "__init__") && !u->block->bret) {
+		if (u->scope == SCOPE_METHOD && !strcmp(u->sym->name, "__init__")) {
+			debug("class __init__ function");
+			TValue val = INT_VALUE_INIT(0);
+			Inst_Append(u->block, OP_LOAD, &val);
+		}
+		if (!u->block->bret) {
 			debug("add 'return' to function '%s'", u->sym->name);
 			Inst_Append(u->block, OP_RET, NULL);
 		}
