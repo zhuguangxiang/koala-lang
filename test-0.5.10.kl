@@ -27,9 +27,10 @@ class Animal {
 
 class Dog : Animal {
 	color string;
+	name string;
 
 	func __init__(name string, age int, color string) {
-		super(name, age); //-->> super.__init__(name, age)
+		super("DOGAnimal", age); //-->> super.__init__(name, age)
 		io.Println("Dog constructor");
 		self.color = color;
 		self.name = name;
@@ -38,8 +39,9 @@ class Dog : Animal {
 
 	func SayHello() {
 		io.Println("Dog: SayHello");
-		io.Println("Dog Wang:", name, age, color);
+		io.Println("Dog Wang:", name, super.name, age, self.color);
 		super.SayHello();
+		AnimalFunc();
 	}
 
 	func DogFunc() {

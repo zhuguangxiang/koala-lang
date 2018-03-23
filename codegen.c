@@ -73,12 +73,14 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			Buffer_Write_2Bytes(buf, i->arg.ival);
 			break;
 		}
-		case OP_GETFIELD: {
+		case OP_GETFIELD:
+		case OP_SUPER_GETFIELD: {
 			index = ConstItem_Set_String(atbl, i->arg.cstr);
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
-		case OP_SETFIELD: {
+		case OP_SETFIELD:
+		case OP_SUPER_SETFIELD: {
 			index = ConstItem_Set_String(atbl, i->arg.cstr);
 			Buffer_Write_4Bytes(buf, index);
 			break;

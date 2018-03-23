@@ -11,9 +11,8 @@ class Dog : an.Animal {
 	color string;
 
 	func __init__(name string, age int, color string) {
+		super(name, age);
 		self.color = color;
-		self.name = name;
-		self.age = age;
 	}
 
 	func SayHello() {

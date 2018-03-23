@@ -718,6 +718,29 @@ static void frame_loop(Frame *frame)
 				loopflag = 0;
 				break;
 			}
+			case OP_SUPER_GETFIELD: {
+				index = fetch_4bytes(frame, code);
+				val = index_const(index, atbl);
+				char *field = VALUE_CSTR(&val);
+				debug("super getfield '%s'", field);
+				val = POP();
+				ob = VALUE_OBJECT(&val);
+				val = getfield(ob, field);
+				PUSH(&val);
+				break;
+			}
+			case OP_SUPER_SETFIELD: {
+				index = fetch_4bytes(frame, code);
+				val = index_const(index, atbl);
+				char *field = VALUE_CSTR(&val);
+				debug("super setfield '%s'", field);
+				val = POP();
+				ob = VALUE_OBJECT(&val);
+				val = POP();
+				VALUE_ASSERT(&val);
+				setfield(ob, field, &val);
+				break;
+			}
 			default: {
 				assertm(0, "unknown instruction:%d\n", inst);
 			}

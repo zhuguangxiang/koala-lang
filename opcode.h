@@ -135,8 +135,10 @@ extern "C" {
 /*
 	New object: like OP_CALL
  */
-#define OP_NEW    50
+#define OP_NEW  50
 #define OP_SUPER_CALL  51
+#define OP_SUPER_GETFIELD  52
+#define OP_SUPER_SETFIELD  53
 
 // #define OP_STRING 14
 // #define OP_LIST   15

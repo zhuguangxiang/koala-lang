@@ -1087,18 +1087,21 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 	// generate code
 	ParserUnit *u = ps->u;
 	if (sym->kind == SYM_VAR) {
+		int opcode;
 		if (exp->ctx == EXPR_LOAD) {
 			debug("load:%s", sym->name);
+			opcode = exp->super ? OP_SUPER_GETFIELD : OP_GETFIELD;
 			TValue val = CSTR_VALUE_INIT(sym->name);
-			Inst_Append(ps->u->block, OP_GETFIELD, &val);
+			Inst_Append(ps->u->block, opcode, &val);
 		} else {
 			assert(exp->ctx == EXPR_STORE);
 			debug("store:%s", sym->name);
+			opcode = exp->super ? OP_SUPER_SETFIELD : OP_SETFIELD;
 			TValue val = CSTR_VALUE_INIT(sym->name);
 			Inst_Append(ps->u->block, OP_SETFIELD, &val);
 		}
 	} else if (sym->kind == SYM_PROTO) {
-		int opcode = exp->super ? OP_SUPER_CALL: OP_CALL;
+		int opcode = exp->super ? OP_SUPER_CALL : OP_CALL;
 		TValue val = CSTR_VALUE_INIT(exp->attribute.id);
 		Inst *i = Inst_Append(u->block, opcode, &val);
 		i->argc = exp->argc;
