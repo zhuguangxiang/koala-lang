@@ -90,6 +90,10 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			Buffer_Write_2Bytes(buf, i->argc);
 			break;
 		}
+		case OP_SUPER: {
+			Buffer_Write_2Bytes(buf, i->argc);
+			break;
+		}
 		case OP_RET: {
 			break;
 		}

@@ -948,6 +948,16 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 	ParserUnit *u = ps->u;
 	char *id = exp->id;
 
+	// if ident is 'super'
+	if (!strcmp(id, "super")) {
+		debug("ident is super");
+		assert(0);
+		assert(u->scope == SCOPE_METHOD);
+		assert(!strcmp(u->sym->name, "__init__"));
+		assert(list_empty(&u->block->insts));
+		return;
+	}
+
 	// find ident from local scope
 	Symbol *sym = STbl_Get(u->stbl, id);
 	if (sym) {
@@ -1005,6 +1015,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 static void parser_attribute(ParserState *ps, struct expr *exp)
 {
 	struct expr *left = exp->attribute.left;
+	left->right = exp;
 	left->ctx = EXPR_LOAD;
 	parser_visit_expr(ps, left);
 
@@ -1105,6 +1116,13 @@ static void parser_call(ParserState *ps, struct expr *exp)
 {
 	int argc = 0;
 
+	//check super()
+	if (exp->call.left->kind == SUPER_KIND) {
+		assert(ps->u->scope == SCOPE_METHOD);
+		assert(!strcmp(ps->u->sym->name, "__init__"));
+		assert(list_empty(&ps->u->block->insts));
+	}
+
 	if (exp->call.args) {
 		struct expr *e;
 		Vector_ForEach_Reverse(e, exp->call.args) {
@@ -1115,11 +1133,12 @@ static void parser_call(ParserState *ps, struct expr *exp)
 	}
 
 	struct expr *left = exp->call.left;
+	left->right = exp;
 	left->ctx = EXPR_LOAD;
 	left->argc = argc;
 	parser_visit_expr(ps, left);
 	if (!left->sym) {
-		error("func is not found");
+		error("left symbol is not found");
 		return;
 	}
 
@@ -1137,7 +1156,7 @@ static void parser_call(ParserState *ps, struct expr *exp)
 			return;
 		}
 	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_STABLE) {
-		debug("new object '%s'", sym->name);
+		debug("object is '%s'", sym->name);
 		/* class type */
 		exp->desc = sym->desc;
 		/* get __init__ function */
@@ -1161,6 +1180,36 @@ static void parser_call(ParserState *ps, struct expr *exp)
 				return;
 			}
 		}
+	} else {
+		assert(0);
+	}
+}
+
+static ParserUnit *get_class_unit(ParserState *ps)
+{
+	assert(ps->u->scope == SCOPE_METHOD);
+	ParserUnit *u;
+	list_for_each_entry(u, &ps->ustack, link) {
+		if (u->scope == SCOPE_CLASS) return u;
+	}
+	return NULL;
+}
+
+static void parser_super(ParserState *ps, struct expr *exp)
+{
+	ParserUnit *u = ps->u;
+	ParserUnit *cu = get_class_unit(ps);
+	assert(cu->sym->super);
+	exp->sym = cu->sym->super;
+
+	struct expr *r = exp->right;
+	if (r->kind == CALL_KIND) {
+		assert(u->scope == SCOPE_METHOD);
+		assert(!strcmp(u->sym->name, "__init__"));
+		TValue val = INT_VALUE_INIT(0);
+		Inst_Append(u->block, OP_LOAD, &val);
+		Inst *i = Inst_Append(u->block, OP_SUPER, NULL);
+		i->argc = exp->argc;
 	} else {
 		assert(0);
 	}
@@ -1199,16 +1248,6 @@ static void parser_binary(ParserState *ps, struct expr *exp)
 }
 */
 
-static ParserUnit *get_class_unit(ParserState *ps)
-{
-	assert(ps->u->scope == SCOPE_METHOD);
-	ParserUnit *u;
-	list_for_each_entry(u, &ps->ustack, link) {
-		if (u->scope == SCOPE_CLASS) return u;
-	}
-	return NULL;
-}
-
 static void parser_visit_expr(ParserState *ps, struct expr *exp)
 {
 	switch (exp->kind) {
@@ -1239,6 +1278,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 		case SELF_KIND: {
 			if (exp->ctx == EXPR_STORE) {
 				debug("store self");
+				assert(0);
 			} else {
 				assert(exp->ctx == EXPR_LOAD);
 				debug("load self");
@@ -1246,6 +1286,17 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 				exp->sym = cu->sym;
 				TValue val = INT_VALUE_INIT(0);
 				Inst_Append(ps->u->block, OP_LOAD, &val);
+			}
+			break;
+		}
+		case SUPER_KIND: {
+			if (exp->ctx == EXPR_STORE) {
+				debug("store super");
+				assert(0);
+			} else {
+				assert(exp->ctx == EXPR_LOAD);
+				debug("load super");
+				parser_super(ps, exp);
 			}
 			break;
 		}

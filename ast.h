@@ -53,6 +53,7 @@ struct expr {
 	enum expr_ctx ctx;
 	Symbol *sym;
 	int argc;
+	struct expr *right;  //for super(); super.name;
 	union {
 		char *id;
 		int64 ival;

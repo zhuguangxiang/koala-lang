@@ -515,9 +515,8 @@ static void frame_loop(Frame *frame)
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
 				char *name = VALUE_CSTR(&val);
-				debug("call %s()", name);
 				int argc = fetch_2bytes(frame, code);
-				debug("OP_CALL, argc:%d", argc);
+				debug("OP_CALL, %s, argc:%d", name, argc);
 				val = TOP();
 				ob = VALUE_OBJECT(&val);
 				assert(!check_call(&val, name));
@@ -683,6 +682,32 @@ static void frame_loop(Frame *frame)
 					CodeObject *code = OB_TYPE_OF(__init__, CodeObject, Code_Klass);
 					debug("__init__'s argc: %d", code->kf.proto->psz);
 					check_args(rt, argc, code->kf.proto, name);
+					if (code->kf.proto->rsz) {
+						error("__init__ must be no any returns");
+						exit(-1);
+					}
+					frame_new(rt, ob, __init__, argc);
+					loopflag = 0;
+				} else {
+					debug("no __init__");
+					if (argc) {
+						error("no __init__, but %d", argc);
+						exit(-1);
+					}
+				}
+				break;
+			}
+			case OP_SUPER: {
+				int argc = fetch_2bytes(frame, code);
+				debug("OP_SUPER, argc:%d", argc);
+				val = TOP();
+				ob = VALUE_OBJECT(&val);
+				Klass *klazz = OB_KLASS(ob)->super;
+				Object *__init__ = Klass_Get_Method(klazz, "__init__");
+				if (__init__)	{
+					CodeObject *code = OB_TYPE_OF(__init__, CodeObject, Code_Klass);
+					debug("__init__'s argc: %d", code->kf.proto->psz);
+					check_args(rt, argc, code->kf.proto, "super");
 					if (code->kf.proto->rsz) {
 						error("__init__ must be no any returns");
 						exit(-1);

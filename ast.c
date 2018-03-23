@@ -59,7 +59,7 @@ struct expr *expr_from_self(void)
 
 struct expr *expr_from_super(void)
 {
-	struct expr *expr = expr_new(SELF_KIND);
+	struct expr *expr = expr_new(SUPER_KIND);
 	expr->desc = NULL;
 	return expr;
 }
