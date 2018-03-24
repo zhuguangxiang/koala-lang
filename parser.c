@@ -100,6 +100,7 @@ static void parser_enter_scope(ParserState *ps, STable *stbl, int scope);
 static void parser_exit_scope(ParserState *ps);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static void parser_body(ParserState *ps, Vector *stmts);
+static ParserUnit *get_class_unit(ParserState *ps);
 
 /*-------------------------------------------------------------------------*/
 
@@ -948,16 +949,6 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 	ParserUnit *u = ps->u;
 	char *id = exp->id;
 
-	// if ident is 'super'
-	if (!strcmp(id, "super")) {
-		debug("ident is super");
-		assert(0);
-		assert(u->scope == SCOPE_METHOD);
-		assert(!strcmp(u->sym->name, "__init__"));
-		assert(list_empty(&u->block->insts));
-		return;
-	}
-
 	// find ident from local scope
 	Symbol *sym = STbl_Get(u->stbl, id);
 	if (sym) {
@@ -977,6 +968,48 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 			sym->refcnt++;
 			parser_expr_desc(ps, exp, sym);
 			parser_upscope_ident(ps, sym, exp);
+			return;
+		}
+	}
+
+	// ident is in super class
+	Symbol *super = NULL;
+	ParserUnit *cu = get_class_unit(ps);
+	if (cu) {
+		super = cu->sym->super;
+	}
+
+	if (super) {
+		sym = STbl_Get(super->ptr, id);
+		if (sym) {
+			debug("symbol '%s' is found in super '%s' class", id, super->name);
+			sym->refcnt++;
+			parser_expr_desc(ps, exp, sym);
+
+			TValue val;
+			setcstrvalue(&val, id);
+
+			if (sym->kind == SYM_VAR) {
+				if (exp->ctx == EXPR_LOAD) {
+					debug("load:%s", val.cstr);
+					TValue val2 = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val2);
+					Inst_Append(ps->u->block, OP_GETFIELD, &val);
+				} else {
+					assert(exp->ctx == EXPR_STORE);
+					debug("store:%s", val.cstr);
+					TValue val2 = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val2);
+					Inst_Append(ps->u->block, OP_SETFIELD, &val);
+				}
+			} else if (sym->kind == SYM_PROTO) {
+				TValue val2 = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val2);
+				Inst *i = Inst_Append(u->block, OP_CALL, &val);
+				i->argc = exp->argc;
+			} else {
+				assert(0);
+			}
 			return;
 		}
 	}
@@ -1019,7 +1052,10 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 	left->ctx = EXPR_LOAD;
 	parser_visit_expr(ps, left);
 
-	debug(".%s", exp->attribute.id);
+	if (exp->supername)
+		debug(">>>(%s).%s", exp->supername, exp->attribute.id);
+	else
+		debug(">>>.%s", exp->attribute.id);
 
 	Symbol *leftsym = left->sym;
 	if (!leftsym) {
@@ -1062,11 +1098,25 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		}
 	} else if (leftsym->kind == SYM_CLASS) {
 		debug("symbol '%s' is a class", leftsym->name);
-		char *typename = leftsym->name;
 		sym = STbl_Get(leftsym->ptr, exp->attribute.id);
 		if (!sym) {
-			error("cannot find '%s' in '%s'", exp->attribute.id, typename);
-			return;
+			if (!leftsym->super) {
+				error("cannot find '%s' in '%s' class",
+					exp->attribute.id, leftsym->name);
+				return;
+			}
+
+			sym = STbl_Get(leftsym->super->ptr, exp->attribute.id);
+			if (!sym) {
+				error("cannot find '%s' in super '%s' class",
+					exp->attribute.id, leftsym->super->name);
+				return;
+			}
+
+			debug("find '%s' in super '%s' class",
+				exp->attribute.id, leftsym->super->name);
+		} else {
+			debug("find '%s' in '%s' class", exp->attribute.id, leftsym->name);
 		}
 	} else if (leftsym->kind == SYM_MODULE) {
 		debug("symbol '%s' is a module", leftsym->name);
@@ -1087,23 +1137,37 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 	// generate code
 	ParserUnit *u = ps->u;
 	if (sym->kind == SYM_VAR) {
-		int opcode;
+		TValue val;
+		if (exp->supername) {
+			char *namebuf = malloc(strlen(exp->supername) + 1 +
+				strlen(exp->attribute.id) + 1);
+			assert(namebuf);
+			sprintf(namebuf, "%s.%s", exp->supername, exp->attribute.id);
+			setcstrvalue(&val, namebuf);
+		} else {
+			setcstrvalue(&val, exp->attribute.id);
+		}
+
 		if (exp->ctx == EXPR_LOAD) {
-			debug("load:%s", sym->name);
-			opcode = exp->super ? OP_SUPER_GETFIELD : OP_GETFIELD;
-			TValue val = CSTR_VALUE_INIT(sym->name);
-			Inst_Append(ps->u->block, opcode, &val);
+			debug("load:%s", val.cstr);
+			Inst_Append(ps->u->block, OP_GETFIELD, &val);
 		} else {
 			assert(exp->ctx == EXPR_STORE);
-			debug("store:%s", sym->name);
-			opcode = exp->super ? OP_SUPER_SETFIELD : OP_SETFIELD;
-			TValue val = CSTR_VALUE_INIT(sym->name);
+			debug("store:%s", val.cstr);
 			Inst_Append(ps->u->block, OP_SETFIELD, &val);
 		}
 	} else if (sym->kind == SYM_PROTO) {
-		int opcode = exp->super ? OP_SUPER_CALL : OP_CALL;
-		TValue val = CSTR_VALUE_INIT(exp->attribute.id);
-		Inst *i = Inst_Append(u->block, opcode, &val);
+		TValue val;
+		if (exp->supername) {
+			char *namebuf = malloc(strlen(exp->supername) + 1 +
+				strlen(exp->attribute.id) + 1);
+			assert(namebuf);
+			sprintf(namebuf, "%s.%s", exp->supername, exp->attribute.id);
+			setcstrvalue(&val, namebuf);
+		} else {
+			setcstrvalue(&val, exp->attribute.id);
+		}
+		Inst *i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
 	} else if (sym->kind == SYM_STABLE) {
 		// new object
@@ -1142,7 +1206,7 @@ static void parser_call(ParserState *ps, struct expr *exp)
 	left->argc = argc;
 	parser_visit_expr(ps, left);
 	if (!left->sym) {
-		error("left symbol is not found");
+		error("left symbol is not found in call");
 		return;
 	}
 
@@ -1191,7 +1255,7 @@ static void parser_call(ParserState *ps, struct expr *exp)
 
 static ParserUnit *get_class_unit(ParserState *ps)
 {
-	assert(ps->u->scope == SCOPE_METHOD);
+	if (ps->u->scope != SCOPE_METHOD) return NULL;
 	ParserUnit *u;
 	list_for_each_entry(u, &ps->ustack, link) {
 		if (u->scope == SCOPE_CLASS) return u;
@@ -1205,16 +1269,20 @@ static void parser_super(ParserState *ps, struct expr *exp)
 	ParserUnit *cu = get_class_unit(ps);
 	assert(cu->sym->super);
 	exp->sym = cu->sym->super;
+	Symbol *super = cu->sym->super;
 
 	struct expr *r = exp->right;
-	r->super = 1;
+	r->supername = super->name;
 	if (r->kind == CALL_KIND) {
 		assert(u->scope == SCOPE_METHOD);
 		assert(!strcmp(u->sym->name, "__init__"));
+		char *namebuf = malloc(strlen(super->name) + 1 + strlen(u->sym->name) + 1);
+		assert(namebuf);
+		sprintf(namebuf, "%s.%s", super->name, u->sym->name);
 		TValue val = INT_VALUE_INIT(0);
 		Inst_Append(u->block, OP_LOAD, &val);
-		setcstrvalue(&val, "__init__");
-		Inst *i = Inst_Append(u->block, OP_SUPER_CALL, &val);
+		setcstrvalue(&val, namebuf);
+		Inst *i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
 	} else if (r->kind == ATTRIBUTE_KIND) {
 		TValue val = INT_VALUE_INIT(0);
@@ -1495,41 +1563,39 @@ static void parser_function(ParserState *ps, struct stmt *stmt, int scope)
 void sym_inherit_fn(Symbol *sym, void *arg)
 {
 	Symbol *subsym = arg;
+	Symbol *supersym = subsym->super;
 	STable *stbl = subsym->ptr;
 	Symbol *s;
 
+	char namebuf[strlen(supersym->name) + 1 + strlen(sym->name) + 1];
+	sprintf(namebuf, "%s.%s", supersym->name, sym->name);
+
 	if (STbl_Get(stbl, sym->name)) {
-		//FIXME: the same name's field
 		debug("symbol '%s' exist in subclass '%s'", sym->name, subsym->name);
-		return;
 	}
 
 	if (sym->kind == SYM_VAR) {
-		debug("inherit variable '%s' from super class", sym->name);
-		s = STbl_Add_Var(stbl, sym->name, sym->desc, sym->access & ACCESS_CONST);
+		debug("inherit variable '%s' from super class", namebuf);
+		s = STbl_Add_Var(stbl, namebuf, sym->desc, sym->access & ACCESS_CONST);
 		if (s) {
 			s->up = subsym;
 			s->inherited = 1;
 			s->super = sym;
 		}
 	} else if (sym->kind == SYM_PROTO) {
-		if (strcmp(sym->name, "__init__")) {
-			debug("inherit function '%s' from super class", sym->name);
-			s = STbl_Add_Proto(stbl, sym->name, sym->desc->proto);
-			if (s) {
-				s->up = subsym;
-				s->inherited = 1;
-				s->super = sym;
-			}
-		} else {
-			debug("__init__ function is not inherited");
+		debug("inherit function '%s' from super class", namebuf);
+		s = STbl_Add_Proto(stbl, namebuf, sym->desc->proto);
+		if (s) {
+			s->up = subsym;
+			s->inherited = 1;
+			s->super = sym;
 		}
 	} else {
 		assertm(0, "invalid symbol kind:%d", sym->kind);
 	}
 }
 
-static void parser_class_inheritance(Symbol *sym)
+void parser_class_inheritance(Symbol *sym)
 {
 	STbl_Traverse(sym->super->ptr, sym_inherit_fn, sym);
 }
@@ -1555,7 +1621,7 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 		}
 		free(typestr);
 		assert(sym->super->ptr);
-		parser_class_inheritance(sym);
+		//parser_class_inheritance(sym);
 	}
 
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);

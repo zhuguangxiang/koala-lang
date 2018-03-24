@@ -2,23 +2,71 @@
 #include "classobject.h"
 #include "log.h"
 
-TValue Object_Get_Value(Object *ob, char *name)
+TValue Object_Get_Value(Object *ob, Klass *klazz, char *name)
 {
 	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
-	Symbol *sym = Klass_Get_FieldSymbol(OB_KLASS(ob), name);
-	if (!sym) return NilValue;
-	if (sym->kind != SYM_VAR && sym->kind != SYM_IPROTO)
+	Symbol *sym;
+
+	char *dot = strchr(name, '.');
+	if (dot) {
+		char *classname = strndup(name, dot - name);
+		char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
+		while (klazz) {
+			if (!strcmp(klazz->name, classname))
+				break;
+			klazz = klazz->super;
+		}
+		sym = Klass_Get_FieldSymbol(klazz, funcname);
+		free(classname);
+		free(funcname);
+	} else {
+		while (klazz) {
+			sym = Klass_Get_FieldSymbol(klazz, name);
+			if (sym) break;
+			klazz = klazz->super;
+		}
+	}
+
+	if (!sym) {
+		error("cannot find field : %s", name);
 		return NilValue;
+	}
+	if (sym->kind != SYM_VAR && sym->kind != SYM_IPROTO) {
+		error("field '%s' is not a var and imethod", name);
+		return NilValue;
+	}
+
 	int index = sym->index;
 	ClassObject *cob = (ClassObject *)ob;
 	assert(index >= 0 && index < cob->size);
 	return cob->items[index];
 }
 
-int Object_Set_Value(Object *ob, char *name, TValue *val)
+int Object_Set_Value(Object *ob, Klass *klazz, char *name, TValue *val)
 {
 	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
-	Symbol *sym = Klass_Get_FieldSymbol(OB_KLASS(ob), name);
+	Symbol *sym;
+
+	char *dot = strchr(name, '.');
+	if (dot) {
+		char *classname = strndup(name, dot - name);
+		char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
+		while (klazz) {
+			if (!strcmp(klazz->name, classname))
+				break;
+			klazz = klazz->super;
+		}
+		sym = Klass_Get_FieldSymbol(klazz, funcname);
+		free(classname);
+		free(funcname);
+	} else {
+		while (klazz) {
+			sym = Klass_Get_FieldSymbol(klazz, name);
+			if (sym) break;
+			klazz = klazz->super;
+		}
+	}
+
 	if (!sym) {
 		error("cannot find field : %s", name);
 		return -1;
@@ -57,14 +105,23 @@ static void object_mark(Object *ob)
 	}
 }
 
-static Object *object_alloc(Klass *klazz, int nr)
+static Object *object_alloc(Klass *klazz)
 {
 	OB_ASSERT_KLASS(klazz, Klass_Klass);
-	int size = klazz->size + sizeof(TValue) * nr;
+	int nrfields = klazz->stbl.varcnt;
+	Klass *super = klazz->super;
+	while (super) {
+		nrfields += super->stbl.varcnt;
+		super = super->super;
+	}
+
+	debug("number of object's fields:%d", nrfields);
+
+	int size = klazz->size + sizeof(TValue) * nrfields;
 	ClassObject *ob = calloc(1, size);
 	init_object_head(ob, klazz);
-	ob->size = nr;
-	for (int i = 0; i < nr; i++) {
+	ob->size = nrfields;
+	for (int i = 0; i < nrfields; i++) {
 		initnilvalue(ob->items + i);
 	}
 	return (Object *)ob;

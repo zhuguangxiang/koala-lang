@@ -282,15 +282,14 @@ static Object *load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
 	return code;
 }
 
-static void inherit_method_fn(Symbol *sym, void *arg)
+void update_fields_fn(Symbol *sym, void *arg)
 {
-	if (sym->kind == SYM_PROTO && strcmp(sym->name, "__init__")) {
-		if (Klass_Get_Method(arg, sym->name)) {
-			debug("subclass has the same method '%s'", sym->name);
-		} else {
-			debug("load method '%s' from super", sym->name);
-			Klass_Inherit_Method(arg, sym->name, sym->desc->proto, sym->ob);
-		}
+	int nrfields = *(int *)arg;
+
+	if (sym->kind == SYM_VAR) {
+		debug("update field '%s' index from %d to %d",
+			sym->name, sym->index, nrfields + sym->index);
+		sym->index += nrfields;
 	}
 }
 
@@ -307,6 +306,14 @@ static void load_classes(AtomTable *table, Object *m)
 		indexes[i].index = cls->classindex;
 		indexes[i].klazz = klazz;
 	}
+
+	//handle field and method inheritance
+	// for (int i = 0; i < num; i++) {
+	// 	klazz = indexes[i].klazz;
+	// 	if (klazz->super) {
+	// 		STbl_Traverse(&klazz->super->stbl, inherit_super_fn, klazz);
+	// 	}
+	// }
 
 	sz = AtomTable_Size(table, ITEM_FIELD);
 	FieldItem *fld;
@@ -337,11 +344,19 @@ static void load_classes(AtomTable *table, Object *m)
 		}
 	}
 
-	//handle inheritance
+	//update subclass's fields index
 	for (int i = 0; i < num; i++) {
 		klazz = indexes[i].klazz;
 		if (klazz->super) {
-			STbl_Traverse(&klazz->super->stbl, inherit_method_fn, klazz);
+			Klass *super = klazz->super;
+			int nrfields = super->stbl.varcnt;
+			Klass *k = super->super;
+			while (k) {
+				nrfields += k->stbl.varcnt;
+				k = k->super;
+			}
+			debug("'%s' super class nrfields:%d", klazz->name, nrfields);
+			STbl_Traverse(&klazz->stbl, update_fields_fn, &nrfields);
 		}
 	}
 }

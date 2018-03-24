@@ -10,13 +10,12 @@ extern "C" {
 
 typedef struct classobject {
 	OBJECT_HEAD
-	Object *super;
 	int size;
 	TValue items[0];
 } ClassObject;
 
-TValue Object_Get_Value(Object *ob, char *name);
-int Object_Set_Value(Object *ob, char *name, TValue *val);
+TValue Object_Get_Value(Object *ob, Klass *klazz, char *name);
+int Object_Set_Value(Object *ob, Klass *klazz, char *name, TValue *val);
 Object *Object_Get_Method(Object *ob, char *name);
 Klass *Class_New(char *name, Klass *super);
 

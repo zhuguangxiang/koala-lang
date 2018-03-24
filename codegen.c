@@ -73,20 +73,17 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			Buffer_Write_2Bytes(buf, i->arg.ival);
 			break;
 		}
-		case OP_GETFIELD:
-		case OP_SUPER_GETFIELD: {
+		case OP_GETFIELD: {
 			index = ConstItem_Set_String(atbl, i->arg.cstr);
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
-		case OP_SETFIELD:
-		case OP_SUPER_SETFIELD: {
+		case OP_SETFIELD: {
 			index = ConstItem_Set_String(atbl, i->arg.cstr);
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
 		case OP_CALL:
-		case OP_SUPER_CALL:
 		case OP_NEW: {
 			index = ConstItem_Set_String(atbl, i->arg.cstr);
 			Buffer_Write_4Bytes(buf, index);
@@ -149,6 +146,11 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 	struct gencode_struct *tmp = arg;
 	switch (sym->kind) {
 		case SYM_VAR: {
+			if (sym->inherited) {
+				assert(tmp->bcls);
+				break;
+			}
+
 			if (tmp->bcls) {
 				debug("add var '%s' into class", sym->name);
 				KImage_Add_Field(tmp->image, tmp->clazz, sym->name, sym->desc);

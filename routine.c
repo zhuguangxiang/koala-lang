@@ -338,7 +338,35 @@ static Object *getcode(Object *ob, char *name)
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		code = Module_Get_Function(ob, name);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		code = Klass_Get_Method(OB_KLASS(ob), name);
+		char *dot = strchr(name, '.');
+		Klass *klazz;
+		if (dot) {
+			char *classname = strndup(name, dot - name);
+			char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
+			klazz = OB_KLASS(ob)->super;
+			while (klazz) {
+				if (!strcmp(klazz->name, classname)) {
+					code = Klass_Get_Method(klazz, funcname);
+					break;
+				}
+				klazz = klazz->super;
+			}
+			free(classname);
+			free(funcname);
+		} else {
+			klazz = OB_KLASS(ob);
+			if (!strcmp(name, "__init__")) {
+				//__init__ method is allowed to be searched only in current class
+				code = Klass_Get_Method(klazz, name);
+			} else {
+				while (klazz) {
+					code = Klass_Get_Method(klazz, name);
+					if (code)
+						break;
+					klazz = klazz->super;
+				}
+			}
+		}
 	} else {
 		assert(0);
 	}
@@ -349,24 +377,26 @@ static Object *getcode(Object *ob, char *name)
 	return code;
 }
 
-static void setfield(Object *ob, char *field, TValue *val)
+static void setfield(Object *ob, Object *owner, char *field, TValue *val)
 {
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		Module_Set_Value(ob, field, val);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		int res = Object_Set_Value(ob, field, val);
+		OB_ASSERT_KLASS(owner, Klass_Klass);
+		int res = Object_Set_Value(ob, (Klass *)owner, field, val);
 		assert(!res);
 	} else {
 		assert(0);
 	}
 }
 
-static TValue getfield(Object *ob, char *field)
+static TValue getfield(Object *ob, Object *owner, char *field)
 {
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		return Module_Get_Value(ob, field);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		TValue val = Object_Get_Value(ob, field);
+		OB_ASSERT_KLASS(owner, Klass_Klass);
+		TValue val = Object_Get_Value(ob, (Klass *)owner, field);
 		VALUE_ASSERT(&val);
 		return val;
 	} else {
@@ -375,7 +405,7 @@ static TValue getfield(Object *ob, char *field)
 	}
 }
 
-static int check_call(TValue *val, char *name)
+static int check_virtual_call(TValue *val, char *name)
 {
 	VALUE_ASSERT_OBJECT(val);
 	Klass *klazz = val->klazz;
@@ -384,9 +414,10 @@ static int check_call(TValue *val, char *name)
 	if (klazz == &Module_Klass) return 0;
 
 	if (OB_KLASS(klazz) == &Klass_Klass) {
+		if (strchr(name, '.')) return 0;
 		Symbol *sym = Klass_Get_FieldSymbol(klazz, name);
 		if (!sym) {
-			error("cannot find '%s' in '%s'", name, klazz->name);
+			error("cannot find '%s' in '%s' class", name, klazz->name);
 			return -1;
 		}
 		if (sym->kind != SYM_PROTO) {
@@ -495,7 +526,7 @@ static void frame_loop(Frame *frame)
 				debug("getfield '%s'", field);
 				val = POP();
 				ob = VALUE_OBJECT(&val);
-				val = getfield(ob, field);
+				val = getfield(ob, code->owner, field);
 				PUSH(&val);
 				break;
 			}
@@ -508,7 +539,7 @@ static void frame_loop(Frame *frame)
 				ob = VALUE_OBJECT(&val);
 				val = POP();
 				VALUE_ASSERT(&val);
-				setfield(ob, field, &val);
+				setfield(ob, code->owner, field, &val);
 				break;
 			}
 			case OP_CALL: {
@@ -519,7 +550,7 @@ static void frame_loop(Frame *frame)
 				debug("OP_CALL, %s, argc:%d", name, argc);
 				val = TOP();
 				ob = VALUE_OBJECT(&val);
-				assert(!check_call(&val, name));
+				assert(!check_virtual_call(&val, name));
 				Object *meth = getcode(ob, name);
 				assert(meth);
 				if (CODE_ISKFUNC(meth)) {
@@ -674,7 +705,7 @@ static void frame_loop(Frame *frame)
 				ob = VALUE_OBJECT(&val);
 				Klass *klazz = Module_Get_Class(ob, name);
 				assert(klazz);
-				ob = klazz->ob_alloc(klazz, klazz->stbl.varcnt);
+				ob = klazz->ob_alloc(klazz);
 				setobjvalue(&val, ob);
 				PUSH(&val);
 				Object *__init__ = getcode(ob, "__init__");
@@ -695,50 +726,6 @@ static void frame_loop(Frame *frame)
 						exit(-1);
 					}
 				}
-				break;
-			}
-			case OP_SUPER_CALL: {
-				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
-				char *name = VALUE_CSTR(&val);
-				int argc = fetch_2bytes(frame, code);
-				debug("OP_SUPER_CALL, %s, argc:%d", name, argc);
-				val = TOP();
-				ob = VALUE_OBJECT(&val);
-				assert(!check_call(&val, name));
-				Klass *klazz = OB_KLASS(ob)->super;
-				Object *meth = Klass_Get_Method(klazz, name);
-				assert(meth);
-				if (CODE_ISKFUNC(meth)) {
-					//FIXME: for c function
-					CodeObject *code = OB_TYPE_OF(meth, CodeObject, Code_Klass);
-					check_args(rt, argc, code->kf.proto, name);
-				}
-				frame_new(rt, ob, meth, argc);
-				loopflag = 0;
-				break;
-			}
-			case OP_SUPER_GETFIELD: {
-				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
-				char *field = VALUE_CSTR(&val);
-				debug("super getfield '%s'", field);
-				val = POP();
-				ob = VALUE_OBJECT(&val);
-				val = getfield(ob, field);
-				PUSH(&val);
-				break;
-			}
-			case OP_SUPER_SETFIELD: {
-				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
-				char *field = VALUE_CSTR(&val);
-				debug("super setfield '%s'", field);
-				val = POP();
-				ob = VALUE_OBJECT(&val);
-				val = POP();
-				VALUE_ASSERT(&val);
-				setfield(ob, field, &val);
 				break;
 			}
 			default: {

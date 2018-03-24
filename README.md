@@ -301,6 +301,13 @@ v0.5.10:
 there is an defined init func with different arguments. subclass no need call
 super's init.
 4. new: func call arguments check
+5. subclass includes parent's symbols using namespace class name
+6. fields and methods are not copied to subclass, and only fields memory is
+allocated in subobject.
+7. xxx function will be searched in super class, except __init__ function.
+8. if field is with classname, then search the field from classname's class
+9. if field is not with classname, then it can be serached in super class.
+10. test-0.5.11.kl ok
 
 v0.6.0:
 1. feature: interface statement

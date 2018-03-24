@@ -145,7 +145,7 @@ struct object {
 
 typedef void (*markfunc)(Object *ob);
 
-typedef Object *(*allocfunc)(Klass *klazz, int nr);
+typedef Object *(*allocfunc)(Klass *klazz);
 typedef void (*freefunc)(Object *ob);
 
 typedef uint32 (*hashfunc)(TValue *v);

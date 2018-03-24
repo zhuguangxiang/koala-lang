@@ -11,9 +11,9 @@ class Animal {
 	age int;
 
 	func __init__(name string, _age int) {
-		io.Println("Animal:", name, _age);
 		self.name = name;
 		age = _age;
+		io.Println("Animal:", self.name, age);
 	}
 
 	func SayHello() {
@@ -21,7 +21,7 @@ class Animal {
 	}
 
 	func AnimalFunc() {
-		io.Println("Animal:", name, age);
+		io.Println("AnimalFunc()", name, age);
 	}
 }
 
@@ -30,17 +30,18 @@ class Dog : Animal {
 	name string;
 
 	func __init__(name string, age int, color string) {
-		super("DOGAnimal", age); //-->> super.__init__(name, age)
+		super("DOGAnimal", age); //-->> Animal.__init__(name, age)
 		io.Println("Dog constructor");
 		self.color = color;
-		self.name = name;
-		self.age = age;
+		self.name = name; //-->> name
+		self.age = age;   //-->> age
+		super.age = age;  //-->> Animal.age
 	}
 
 	func SayHello() {
 		io.Println("Dog: SayHello");
 		io.Println("Dog Wang:", name, super.name, age, self.color);
-		super.SayHello();
+		super.SayHello(); //-->> Animal.SayHello()
 		AnimalFunc();
 	}
 

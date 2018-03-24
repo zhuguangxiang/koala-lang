@@ -30,9 +30,6 @@ static struct opcode {
 	{OP_JUMP_TRUE,   "jump_true",   4},
 	{OP_JUMP_FALSE,  "jump_false",  4},
 	{OP_NEW,      "new",      6},
-	{OP_SUPER_CALL,  "callsuper",   6},
-	{OP_SUPER_GETFIELD,  "super_getfield",   4},
-	{OP_SUPER_SETFIELD,  "super_setfield",   4},
 };
 
 static struct opcode *get_opcode(uint8 op)

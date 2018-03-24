@@ -173,9 +173,10 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 	OB_ASSERT_KLASS(klazz, Klass_Klass);
 	Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
 	if (sym) {
+		CodeObject *co = (CodeObject *)code;
 		sym->ob = code;
+		co->owner = (Object *)klazz;
 		if (CODE_ISKFUNC(code)) {
-			CodeObject *co = (CodeObject *)code;
 			co->kf.atbl = klazz->stbl.atbl;
 			co->kf.proto = Proto_Dup(proto);
 		}

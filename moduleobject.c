@@ -36,9 +36,10 @@ int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	Symbol *sym = STbl_Add_Proto(&m->stbl, name, proto);
 	if (sym) {
+		CodeObject *co = (CodeObject *)code;
 		sym->ob = code;
+		co->owner = ob;
 		if (CODE_ISKFUNC(code)) {
-			CodeObject *co = (CodeObject *)code;
 			co->kf.atbl = m->stbl.atbl;
 			co->kf.proto = Proto_Dup(proto);
 		}
