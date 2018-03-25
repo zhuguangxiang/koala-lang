@@ -89,6 +89,7 @@ L   [a-zA-Z_]
 "true"                    {return TOKEN_TRUE;}
 "false"                   {return TOKEN_FALSE;}
 "nil"                     {return TOKEN_NIL;}
+"typeof"                  {return TYPEOF;}
 
 ([1-9][0-9]*|[0])         {
                             echo();

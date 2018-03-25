@@ -285,6 +285,7 @@ static inline TValue load(Frame *f, int index)
 
 static inline void store(Frame *f, int index, TValue *val)
 {
+	VALUE_ASSERT(val);
 	assert(index < f->size);
 	assert(!TValue_Check(f->locvars + index, val));
 	int type = VALUE_TYPE(&f->locvars[index]);
@@ -327,15 +328,14 @@ static Object *getcode(Object *ob, char *name, Object **rob)
 			debug("'%s' is not found", name);
 			assert(!strcmp(name, "__init__"));
 		}
-	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
+	} else {
+		Check_Klass(OB_KLASS(ob));
 		debug("getcode '%s' in class", name);
 		code = Object_Get_Method(ob, name, rob);
 		if (!code) {
 			debug("'%s' is not found", name);
 			assert(!strcmp(name, "__init__"));
 		}
-	} else {
-		assert(0);
 	}
 	return code;
 }
@@ -344,11 +344,10 @@ static void setfield(Object *ob, char *field, TValue *val)
 {
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		Module_Set_Value(ob, field, val);
-	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
+	} else {
+		Check_Klass(OB_KLASS(ob));
 		int res = Object_Set_Value(ob, field, val);
 		assert(!res);
-	} else {
-		assert(0);
 	}
 }
 
@@ -356,13 +355,11 @@ static TValue getfield(Object *ob, char *field)
 {
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		return Module_Get_Value(ob, field);
-	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
+	} else {
+		Check_Klass(OB_KLASS(ob));
 		TValue val = Object_Get_Value(ob, field);
 		VALUE_ASSERT(&val);
 		return val;
-	} else {
-		assert(0);
-		return NilValue;
 	}
 }
 
@@ -374,22 +371,19 @@ static int check_virtual_call(TValue *val, char *name)
 	//module not check
 	if (klazz == &Module_Klass) return 0;
 
-	if (OB_KLASS(klazz) == &Klass_Klass) {
-		if (strchr(name, '.')) return 0;
-		Symbol *sym = Klass_Get_FieldSymbol(klazz, name);
-		if (!sym) {
-			error("cannot find '%s' in '%s' class", name, klazz->name);
-			return -1;
-		}
-		if (sym->kind != SYM_PROTO) {
-			error("symbol '%s' is not method", name);
-			return -1;
-		}
-		return 0;
-	}
+	Check_Klass(klazz);
 
-	assert(0);
-	return -1;
+	if (strchr(name, '.')) return 0;
+	Symbol *sym = Klass_Get_FieldSymbol(klazz, name);
+	if (!sym) {
+		error("cannot find '%s' in '%s' class", name, klazz->name);
+		return -1;
+	}
+	if (sym->kind != SYM_PROTO) {
+		error("symbol '%s' is not method", name);
+		return -1;
+	}
+	return 0;
 }
 
 static void check_args(Routine *rt, int argc, Proto *proto, char *name)

@@ -16,10 +16,10 @@ typedef struct symboltable {
 } STable;
 
 /* Exported APIs */
-STable *STbl_New(AtomTable *atbl);
-void STbl_Free(STable *stbl);
-int STbl_Init(STable *stbl, AtomTable *atbl);
-void STbl_Fini(STable *stbl);
+STable *STable_New(AtomTable *atbl);
+void STable_Free(STable *stbl);
+int STable_Init(STable *stbl, AtomTable *atbl);
+void STable_Fini(STable *stbl);
 
 /*-------------------------------------------------------------------------*/
 
@@ -69,22 +69,22 @@ struct symbol {
 /* Exported APIs */
 Symbol *Symbol_New(int kind);
 void Symbol_Free(Symbol *sym);
-Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
-Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto);
-#define STbl_Add_IProto(stbl, name, proto) ({ \
-	Symbol *__sym = STbl_Add_Proto(stbl, name, proto); \
+Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
+Symbol *STable_Add_Proto(STable *stbl, char *name, Proto *proto);
+#define STable_Add_IProto(stbl, name, proto) ({ \
+	Symbol *__sym = STable_Add_Proto(stbl, name, proto); \
 	if (__sym) __sym->kind = SYM_IPROTO; \
 	__sym; \
 })
-#define STbl_Add_Class(stbl, name) STbl_Add_Symbol(stbl, name, SYM_CLASS, 0)
-#define STbl_Add_Intf(stbl, name) STbl_Add_Symbol(stbl, name, SYM_INTF, 0)
-Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, int bconst);
-Symbol *STbl_Get(STable *stbl, char *name);
+#define STable_Add_Class(stbl, name) STable_Add_Symbol(stbl, name, SYM_CLASS, 0)
+#define STable_Add_Intf(stbl, name) STable_Add_Symbol(stbl, name, SYM_INTF, 0)
+Symbol *STable_Add_Symbol(STable *stbl, char *name, int kind, int bconst);
+Symbol *STable_Get(STable *stbl, char *name);
 typedef void (*symbolfunc)(Symbol *sym, void *arg);
-void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg);
-void STbl_Show(STable *stbl, int detail);
-#define STbl_Count(stbl) HashTable_Count((stbl)->htbl)
-int STbl_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc);
+void STable_Traverse(STable *stbl, symbolfunc fn, void *arg);
+void STable_Show(STable *stbl, int detail);
+#define STable_Count(stbl) HashTable_Count((stbl)->htbl)
+int STable_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc);
 #define SYMBOL_ACCESS(name, bconst) ({ \
 	int access = isupper(name[0]) ? ACCESS_PRIVATE : ACCESS_PUBLIC; \
 	access |= bconst ? ACCESS_CONST : 0; \

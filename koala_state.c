@@ -1,10 +1,8 @@
 
 #include "koala_state.h"
 #include "moduleobject.h"
-#include "stringobject.h"
-#include "tupleobject.h"
-#include "tableobject.h"
 #include "classobject.h"
+#include "mod_lang.h"
 #include "mod_io.h"
 #include "routine.h"
 #include "log.h"
@@ -209,6 +207,8 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 	Klass *klazz;
 	Klass *super = NULL;
 
+	debug("load class:'%s'", cls_name);
+
 	klazz = Module_Get_Class(m, cls_name);
 	if (klazz) {
 		debug("class '%s' is already loaded", cls_name);
@@ -257,6 +257,11 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 				}
 			}
 		}
+	}
+
+	if (!super) {
+		debug("class '%s' super is null, using Klass_Klass", cls_name);
+		super = &Klass_Klass;
 	}
 
 	klazz = Class_New(cls_name, super);
@@ -325,7 +330,7 @@ static void load_classes(AtomTable *table, Object *m)
 	// for (int i = 0; i < num; i++) {
 	// 	klazz = indexes[i].klazz;
 	// 	if (klazz->super) {
-	// 		STbl_Traverse(&klazz->super->stbl, inherit_super_fn, klazz);
+	// 		STable_Traverse(&klazz->super->stbl, inherit_super_fn, klazz);
 	// 	}
 	// }
 
@@ -371,7 +376,7 @@ static void load_classes(AtomTable *table, Object *m)
 				k = k->super;
 			}
 			debug("'%s' super class nrfields:%d", klazz->name, nrfields);
-			STbl_Traverse(&klazz->stbl, update_fields_fn, &nrfields);
+			STable_Traverse(&klazz->stbl, update_fields_fn, &nrfields);
 		}
 	}
 
@@ -381,9 +386,9 @@ static void load_classes(AtomTable *table, Object *m)
 		klazz = indexes[i].klazz;
 		if (klazz->super) {
 			Klass *super = klazz->super;
-			sym = STbl_Add_Symbol(&klazz->stbl, super->name, SYM_STABLE, 0);
+			sym = STable_Add_Symbol(&klazz->stbl, super->name, SYM_STABLE, 0);
 			sym->ptr = &super->stbl;
-			sym = STbl_Add_Symbol(&klazz->stbl, "super", SYM_STABLE, 0);
+			sym = STable_Add_Symbol(&klazz->stbl, "super", SYM_STABLE, 0);
 			sym->ptr = &super->stbl;
 			debug("update '%s' class's symbol table from super '%s' class",
 				klazz->name, super->name);
@@ -511,18 +516,6 @@ void Koala_Run(char *path)
 }
 
 /*-------------------------------------------------------------------------*/
-
-static void Init_Lang_Module(void)
-{
-	Object *m = Koala_New_Module("lang", "koala/lang");
-	Module_Add_Class(m, &Klass_Klass);
-	Module_Add_Class(m, &String_Klass);
-	Module_Add_Class(m, &Tuple_Klass);
-	Module_Add_Class(m, &Table_Klass);
-	Init_String_Klass();
-	Init_Tuple_Klass();
-	Init_Table_Klass();
-}
 
 static void Init_Modules(void)
 {

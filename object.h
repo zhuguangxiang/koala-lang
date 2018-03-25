@@ -110,7 +110,7 @@ extern TValue FalseValue;
 TValue Va_Build_Value(char ch, va_list *ap);
 TValue TValue_Build(int ch, ...);
 int Va_Parse_Value(TValue *val, char ch, va_list *ap);
-int TValue_Parse(TValue *val, char ch, ...);
+int TValue_Parse(TValue *val, int ch, ...);
 int TValue_Print(char *buf, int sz, TValue *val, int escape);
 void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *module);
 void TValue_Set_Value(TValue *val, TValue *v);
@@ -156,7 +156,7 @@ typedef Object *(*strfunc)(TValue *v);
 
 struct klass {
 	OBJECT_HEAD
-	Klass *super;
+	//Klass *super;
 	Object *module;
 	char *name;
 	int size;
@@ -175,13 +175,15 @@ struct klass {
 };
 
 extern Klass Klass_Klass;
+void Init_Klass_Klass(void);
 void Fini_Klass(Klass *klazz);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 Symbol *Klass_Get_FieldSymbol(Klass *klazz, char *name);
 int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code);
-int Klass_Inherit_Method(Klass *klazz, char *name, Proto *proto, Object *code);
 Object *Klass_Get_Method(Klass *klazz, char *name);
 #define Klass_STable(ob) (&((Klass *)(ob))->stbl)
+#define Klass_IsRoot(klazz) ((klazz) == &Klass_Klass)
+void Check_Klass(Klass *klazz);
 
 /*-------------------------------------------------------------------------*/
 

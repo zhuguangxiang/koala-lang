@@ -2,6 +2,7 @@
 #include "codeobject.h"
 #include "stringobject.h"
 #include "moduleobject.h"
+#include "tupleobject.h"
 #include "koala_state.h"
 #include "log.h"
 
@@ -79,6 +80,7 @@ static void va_object_build(TValue *v, va_list *ap)
 {
 	v->type = TYPE_OBJECT;
 	v->ob = va_arg(*ap, Object *);
+	v->klazz = OB_KLASS(v->ob);
 }
 
 static void va_object_parse(TValue *v, va_list *ap)
@@ -144,7 +146,7 @@ int Va_Parse_Value(TValue *val, char ch, va_list *ap)
 	return 0;
 }
 
-int TValue_Parse(TValue *val, char ch, ...)
+int TValue_Parse(TValue *val, int ch, ...)
 {
 	int res;
 	va_list vp;
@@ -158,20 +160,29 @@ int TValue_Parse(TValue *val, char ch, ...)
 
 void Fini_Klass(Klass *klazz)
 {
-	STbl_Fini(&klazz->stbl);
+	STable_Fini(&klazz->stbl);
+}
+
+void Check_Klass(Klass *klazz)
+{
+	assert(klazz);
+	while (!Klass_IsRoot(klazz)) {
+		klazz = OB_KLASS(klazz);
+		assert(klazz);
+	}
 }
 
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 {
-	OB_ASSERT_KLASS(klazz, Klass_Klass);
-	Symbol *sym = STbl_Add_Var(&klazz->stbl, name, desc, 0);
+	Check_Klass(klazz);
+	Symbol *sym = STable_Add_Var(&klazz->stbl, name, desc, 0);
 	return sym ? 0 : -1;
 }
 
 int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 {
-	OB_ASSERT_KLASS(klazz, Klass_Klass);
-	Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
+	Check_Klass(klazz);
+	Symbol *sym = STable_Add_Proto(&klazz->stbl, name, proto);
 	if (sym) {
 		CodeObject *co = (CodeObject *)code;
 		sym->ob = code;
@@ -184,25 +195,14 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 	return -1;
 }
 
-int Klass_Inherit_Method(Klass *klazz, char *name, Proto *proto, Object *code)
-{
-	OB_ASSERT_KLASS(klazz, Klass_Klass);
-	Symbol *sym = STbl_Add_Proto(&klazz->stbl, name, proto);
-	if (sym) {
-		sym->ob = code;
-		return 0;
-	}
-	return -1;
-}
-
 Symbol *Klass_Get_FieldSymbol(Klass *klazz, char *name)
 {
-	return STbl_Get(&klazz->stbl, name);
+	return STable_Get(&klazz->stbl, name);
 }
 
 Object *Klass_Get_Method(Klass *klazz, char *name)
 {
-	Symbol *sym = STbl_Get(&klazz->stbl, name);
+	Symbol *sym = STable_Get(&klazz->stbl, name);
 	if (!sym) return NULL;
 	if (sym->kind != SYM_PROTO) return NULL;
 	OB_ASSERT_KLASS(sym->ob, Code_Klass);
@@ -246,13 +246,41 @@ static void klass_free(Object *ob)
 	free(ob);
 }
 
+static Object *klass_tostring(TValue *v)
+{
+	Object *ob = VALUE_OBJECT(v);
+	Klass *klass = OB_TYPE_OF(ob, Klass, Klass_Klass);
+	return String_New(klass->name);
+}
+
 Klass Klass_Klass = {
 	OBJECT_HEAD_INIT(&Klass_Klass),
 	.name = "Class",
 	.size = sizeof(Klass),
 	.ob_mark = klass_mark,
 	.ob_free = klass_free,
+	.ob_tostr = klass_tostring,
 };
+
+/*-------------------------------------------------------------------------*/
+
+static Object *__klass_tostring(Object *ob, Object *args)
+{
+	assert(!args);
+	OB_ASSERT_KLASS(ob, Klass_Klass);
+	Klass *klazz = (Klass *)ob;
+	return Tuple_Build("O", String_New(klazz->name));
+}
+
+static FuncDef klass_funcs[] = {
+	{"ToString", 1, "s", 0, NULL, __klass_tostring},
+	{NULL}
+};
+
+void Init_Klass_Klass(void)
+{
+	Klass_Add_CFunctions(&Klass_Klass, klass_funcs);
+}
 
 /*-------------------------------------------------------------------------*/
 
@@ -282,7 +310,9 @@ static int ObjValue_Print(char *buf, int sz, TValue *val)
 	Object *ob = VALUE_OBJECT(val);
 	Klass *klazz = OB_KLASS(ob);
 	ob = klazz->ob_tostr(val);
-	OB_ASSERT_KLASS(ob, String_Klass);
+	OB_ASSERT_KLASS(ob, Tuple_Klass);
+	TValue v = Tuple_Get(ob, 0);
+	ob = VALUE_OBJECT(&v);
 	return snprintf(buf, sz, "%s", String_RawString(ob));
 }
 
@@ -385,16 +415,18 @@ int TValue_Print(char *buf, int sz, TValue *val, int escape)
 
 static int check_inheritance(Klass *k1, Klass *k2)
 {
-	Klass *base = k1->super;
-	while (base) {
-		if (base == k2) return 0;
-		base = base->super;
+	Klass *super = OB_KLASS(k1);
+	while (super) {
+		if (super == k2) return 0;
+		if (!Klass_IsRoot(super)) super = OB_KLASS(super);
+		else super = NULL;
 	}
 
-	base = k2->super;
-	while (base) {
-		if (base == k1) return 0;
-		base = base->super;
+	super = OB_KLASS(k2);
+	while (super) {
+		if (super == k1) return 0;
+		if (!Klass_IsRoot(super)) super = OB_KLASS(super);
+		else super = NULL;
 	}
 
 	return -1;
@@ -442,9 +474,9 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 			Klass *klazz = Koala_Get_Klass(ob, desc->path, desc->type);
 			if (!klazz) return -1;
 			Klass *k = OB_KLASS(val->ob);
-			while (k) {
+			while (k && !Klass_IsRoot(k)) {
 				if (k == klazz) return 0;
-				k = k->super;
+				k = OB_KLASS(k);
 			}
 			break;
 		}

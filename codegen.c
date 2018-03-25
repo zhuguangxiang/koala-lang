@@ -121,18 +121,16 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 static void add_locvar(KImage *image, int index, Symbol *sym, int flags)
 {
 	if (Vector_Size(&sym->locvec) <= 0) {
-		debug("'%s' has not locvars", sym->name);
+		debug("		no locvars");
 		return;
 	}
 
 	Symbol *item;
-	debug("add '%s' locvars", sym->name);
 	Vector_ForEach(item, &sym->locvec) {
-		debug("locvar '%s'", item->name);
+		debug("		locvar '%s'", item->name);
 		KImage_Add_LocVar(image, item->name, item->desc, item->index,
 			flags, index);
 	}
-	debug("----------------------");
 }
 
 struct gencode_struct {
@@ -152,10 +150,10 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			}
 
 			if (tmp->bcls) {
-				debug("add var '%s' into class", sym->name);
+				debug("	var '%s'", sym->name);
 				KImage_Add_Field(tmp->image, tmp->clazz, sym->name, sym->desc);
 			} else {
-				debug("%s %s:", sym->access & ACCESS_CONST ? "const" : "var",
+				debug("	%s %s:", sym->access & ACCESS_CONST ? "const" : "var",
 					sym->name);
 				if (sym->access & ACCESS_CONST)
 					KImage_Add_Const(tmp->image, sym->name, sym->desc);
@@ -169,8 +167,11 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				assert(tmp->bcls);
 				break;
 			}
-
-			debug(">>>> func %s:", sym->name);
+			if (tmp->bcls) {
+				debug("	method %s:", sym->name);
+			} else {
+				debug("func %s:", sym->name);
+			}
 			CodeBlock *b = sym->ptr;
 			int locvars = sym->locvars;
 			AtomTable *atbl = tmp->image->table;
@@ -200,6 +201,7 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			break;
 		}
 		case SYM_CLASS: {
+			debug("----------------------");
 			debug("class %s:", sym->name);
 			char *path = NULL;
 			char *type = NULL;
@@ -209,7 +211,7 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			}
 			KImage_Add_Class(tmp->image, sym->name, path, type);
 			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
-			STbl_Traverse(sym->ptr, __gen_code_fn, &tmp2);
+			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
 			break;
 		}
 		default: {
@@ -223,11 +225,10 @@ void codegen_klc(ParserState *ps, char *out)
 	printf("----------codegen------------\n");
 	KImage *image = KImage_New(ps->package);
 	struct gencode_struct tmp = {0, image, NULL};
-	STbl_Traverse(ps->sym->ptr, __gen_code_fn, &tmp);
+	STable_Traverse(ps->sym->ptr, __gen_code_fn, &tmp);
+	debug("----------------------");
 	KImage_Finish(image);
-#if !LOG_NDEBUG
 	KImage_Show(image);
-#endif
 	KImage_Write_File(image, out);
 	printf("----------codegen end--------\n");
 }

@@ -32,7 +32,7 @@ void Symbol_Free(Symbol *sym)
 			Fini_Klass(klazz);
 		//}
 	} else if (sym->kind == SYM_STABLE) {
-		STbl_Free(sym->ptr);
+		STable_Free(sym->ptr);
 		free(sym->path);
 	} else {
 		assert(0);
@@ -67,7 +67,7 @@ static HashTable *__get_hashtable(STable *stbl)
 	return stbl->htbl;
 }
 
-int STbl_Init(STable *stbl, AtomTable *atbl)
+int STable_Init(STable *stbl, AtomTable *atbl)
 {
 	stbl->htbl = NULL;
 	if (!atbl) {
@@ -91,7 +91,7 @@ static void __symbol_free_fn(HashNode *hnode, void *arg)
 	Symbol_Free(sym);
 }
 
-void STbl_Fini(STable *stbl)
+void STable_Fini(STable *stbl)
 {
 	HashTable_Free(stbl->htbl, __symbol_free_fn, NULL);
 	stbl->htbl = NULL;
@@ -100,25 +100,25 @@ void STbl_Fini(STable *stbl)
 	stbl->varcnt = 1;
 }
 
-STable *STbl_New(AtomTable *atbl)
+STable *STable_New(AtomTable *atbl)
 {
 	STable *stbl = malloc(sizeof(STable));
-	STbl_Init(stbl, atbl);
+	STable_Init(stbl, atbl);
 	return stbl;
 }
 
-void STbl_Free(STable *stbl)
+void STable_Free(STable *stbl)
 {
 	if (!stbl) return;
-	STbl_Fini(stbl);
+	STable_Fini(stbl);
 	free(stbl);
 }
 
 /*-------------------------------------------------------------------------*/
 
-Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
+Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
 {
-	Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_VAR, bconst);
+	Symbol *sym = STable_Add_Symbol(stbl, name, SYM_VAR, bconst);
 	if (!sym) return NULL;
 
 	int32 idx = -1;
@@ -132,7 +132,7 @@ Symbol *STbl_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst)
 	return sym;
 }
 
-int STbl_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc)
+int STable_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc)
 {
 	int32 idx = TypeItem_Set(stbl->atbl, desc);
 	assert(idx >= 0);
@@ -141,9 +141,9 @@ int STbl_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc)
 	return 0;
 }
 
-Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto)
+Symbol *STable_Add_Proto(STable *stbl, char *name, Proto *proto)
 {
-	Symbol *sym = STbl_Add_Symbol(stbl, name, SYM_PROTO, 0);
+	Symbol *sym = STable_Add_Symbol(stbl, name, SYM_PROTO, 0);
 	if (!sym) return NULL;
 
 	int32 idx = ProtoItem_Set(stbl->atbl, proto);
@@ -153,7 +153,7 @@ Symbol *STbl_Add_Proto(STable *stbl, char *name, Proto *proto)
 	return sym;
 }
 
-Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
+Symbol *STable_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
 {
 	Symbol *sym = Symbol_New(kind);
 	int32 idx = StringItem_Set(stbl->atbl, name);
@@ -168,8 +168,12 @@ Symbol *STbl_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
 	return sym;
 }
 
-Symbol *STbl_Get(STable *stbl, char *name)
+Symbol *STable_Get(STable *stbl, char *name)
 {
+	if (!stbl->htbl) {
+		warn("STable is empty");
+		return NULL;
+	}
 	int32 index = StringItem_Get(stbl->atbl, name);
 	if (index < 0) return NULL;
 	Symbol key = {.nameidx = index};
@@ -190,7 +194,7 @@ static void __symbol_visit_fn(HashNode *hnode, void *arg)
 	data->fn(sym, data->arg);
 }
 
-void STbl_Traverse(STable *stbl, symbolfunc fn, void *arg)
+void STable_Traverse(STable *stbl, symbolfunc fn, void *arg)
 {
 	struct visit_entry data = {fn, arg};
 	HashTable_Traverse(stbl->htbl, __symbol_visit_fn, &data);
@@ -240,7 +244,7 @@ static void __symbol_show_fn(HashNode *hnode, void *arg)
 	}
 }
 
-void STbl_Show(STable *stbl, int detail)
+void STable_Show(STable *stbl, int detail)
 {
 	HashTable_Traverse(stbl->htbl, __symbol_show_fn, stbl);
 	if (detail) AtomTable_Show(stbl->atbl);

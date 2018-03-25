@@ -64,6 +64,13 @@ struct expr *expr_from_super(void)
 	return expr;
 }
 
+struct expr *expr_from_typeof(void)
+{
+	struct expr *expr = expr_new(TYPEOF_KIND);
+	expr->desc = NULL;
+	return expr;
+}
+
 struct expr *expr_from_expr(struct expr *exp)
 {
 	struct expr *expr = expr_new(EXP_KIND);

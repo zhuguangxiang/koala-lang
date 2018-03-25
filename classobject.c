@@ -1,10 +1,12 @@
 
 #include "classobject.h"
+#include "tupleobject.h"
+#include "stringobject.h"
 #include "log.h"
 
 static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
 {
-	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
+	Check_Klass(OB_KLASS(ob));
 	ClassObject *instance = (ClassObject *)ob;
 	Object *super;
 	Symbol *sym = NULL;
@@ -59,7 +61,7 @@ int Object_Set_Value(Object *ob, char *name, TValue *val)
 
 Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 {
-	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
+	Check_Klass(OB_KLASS(ob));
 	ClassObject *instance = (ClassObject *)ob;
 	Object *super;
 	Object *code;
@@ -104,7 +106,7 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 
 static void object_mark(Object *ob)
 {
-	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
+	Check_Klass(OB_KLASS(ob));
 	ClassValue *value = (ClassValue *)((ClassObject *)ob + 1);
 
 	//FIXME: inc_ref
@@ -119,7 +121,7 @@ static void object_mark(Object *ob)
 
 static Object *object_alloc(Klass *klazz)
 {
-	OB_ASSERT_KLASS(klazz, Klass_Klass);
+	Check_Klass(klazz);
 	int nrfields = klazz->stbl.varcnt;
 	debug("number of object's fields:%d", nrfields);
 	int size = klazz->size + sizeof(ClassValue) + sizeof(TValue) * nrfields;
@@ -132,8 +134,8 @@ static Object *object_alloc(Klass *klazz)
 	}
 
 	//allocate super memory
-	Klass *super = klazz->super;
-	if (super) {
+	Klass *super = OB_KLASS(klazz);
+	if (super && !Klass_IsRoot(super)) {
 		debug("call super '%s' alloc", super->name);
 		ob->super = super->ob_alloc(super);
 	}
@@ -143,39 +145,41 @@ static Object *object_alloc(Klass *klazz)
 
 static void object_free(Object *ob)
 {
-	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
+	Check_Klass(OB_KLASS(ob));
 	free(ob);
 }
 
 static uint32 object_hash(TValue *v)
 {
 	Object *ob = VALUE_OBJECT(v);
-	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
+	Check_Klass(OB_KLASS(ob));
 	return (uint32)ob;
 }
 
 static int object_equal(TValue *v1, TValue *v2)
 {
 	Object *ob1 = VALUE_OBJECT(v1);
-	OB_ASSERT_KLASS(OB_KLASS(ob1), Klass_Klass);
+	Check_Klass(OB_KLASS(ob1));
 	Object *ob2 = VALUE_OBJECT(v2);
-	OB_ASSERT_KLASS(OB_KLASS(ob2), Klass_Klass);
+	Check_Klass(OB_KLASS(ob2));
 	return ob1 == ob2;
 }
 
 static Object *object_tostring(TValue *v)
 {
 	Object *ob = VALUE_OBJECT(v);
-	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
-	//FIXME
-	return NULL;
+	Klass *klazz = OB_KLASS(ob);
+	Check_Klass(klazz);
+	//FIXME:
+	char buf[64];
+	sprintf(buf, "%p", ob);
+	return Tuple_Build("O", String_New(buf));
 }
 
 static Klass *klass_new(char *name, Klass *super)
 {
 	Klass *klazz = calloc(1, sizeof(Klass));
-	init_object_head(klazz, &Klass_Klass);
-	klazz->super = super;
+	init_object_head(klazz, super);
 	klazz->name = name;
 	klazz->size = sizeof(ClassObject);
 	return klazz;

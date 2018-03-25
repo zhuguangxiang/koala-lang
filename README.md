@@ -309,9 +309,19 @@ allocated in subobject.
 9. if field is not with classname, then it can be serached in super class.
 10. test-0.5.11.kl ok
 
+v0.5.10-1:
+
+v0.6.0:
+1. feature: subclass casts to base class, and base class casts to realclass
+2. keyword: typeof
+   usage:
+   typeof(variable-name or object) returns a type
+   typeof(variable-name or object, type-name) is type cast to type-name
+3. test-0.6.0.kl
+4. typeof: call lang.TypeOf(...A) function
+
 v0.6.0:
 1. feature: interface statement
-2. feature: subclass casts to base class, and base class casts to realclass
 
 v0.6.1:
 1. feature: error handle

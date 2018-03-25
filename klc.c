@@ -1788,6 +1788,7 @@ void AtomTable_Show(AtomTable *table)
 
 void KImage_Show(KImage *image)
 {
+#if SHOW_ENABLED
 	if (!image) return;
 
 	ImageHeader *h = &image->header;
@@ -1796,4 +1797,7 @@ void KImage_Show(KImage *image)
 	printf("package:%s\n", image->package);
 
 	AtomTable_Show(image->table);
+#else
+	UNUSED_PARAMETER(image);
+#endif
 }

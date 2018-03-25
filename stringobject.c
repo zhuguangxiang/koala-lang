@@ -10,7 +10,7 @@ Object *String_New(char *str)
 	StringObject *sobj = malloc(sizeof(StringObject));
 	init_object_head(sobj, &String_Klass);
 	sobj->len = strlen(str);
-	sobj->str = str;
+	sobj->str = strdup(str);
 	//Object_Add_GCList(s);
 	return (Object *)sobj;
 }

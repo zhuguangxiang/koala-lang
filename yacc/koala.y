@@ -103,6 +103,7 @@ int yyerror(ParserState *parser, const char *str)
 %token TOKEN_NIL
 %token TOKEN_TRUE
 %token TOKEN_FALSE
+%token TYPEOF
 
 %token <ival> BYTE_CONST
 %token <ival> CHAR_CONST
@@ -768,6 +769,9 @@ Atom
   }
   | SUPER {
     $$ = expr_from_super();
+  }
+  | TYPEOF {
+    $$ = expr_from_typeof();
   }
   | PrimitiveType '(' CONSTANT ')' {
     $$ = $3;

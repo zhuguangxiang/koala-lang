@@ -10,7 +10,7 @@ Object *Module_New(char *name, AtomTable *atbl)
 	ModuleObject *m = malloc(sizeof(ModuleObject));
 	init_object_head(m, &Module_Klass);
 	m->name = strdup(name);
-	STbl_Init(&m->stbl, atbl);
+	STable_Init(&m->stbl, atbl);
 	m->tuple = NULL;
 	return (Object *)m;
 }
@@ -20,21 +20,21 @@ void Module_Free(Object *ob)
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	free(m->name);
 	if (m->tuple) Tuple_Free(m->tuple);
-	STbl_Fini(&m->stbl);
+	STable_Fini(&m->stbl);
 	free(m);
 }
 
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Add_Var(&m->stbl, name, desc, bconst);
+	Symbol *sym = STable_Add_Var(&m->stbl, name, desc, bconst);
 	return sym ? 0 : -1;
 }
 
 int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Add_Proto(&m->stbl, name, proto);
+	Symbol *sym = STable_Add_Proto(&m->stbl, name, proto);
 	if (sym) {
 		CodeObject *co = (CodeObject *)code;
 		sym->ob = code;
@@ -57,10 +57,10 @@ int Module_Add_CFunc(Object *ob, FuncDef *f)
 int Module_Add_Class(Object *ob, Klass *klazz)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Add_Class(&m->stbl, klazz->name);
+	Symbol *sym = STable_Add_Class(&m->stbl, klazz->name);
 	if (sym) {
 		sym->ob = klazz;
-		STbl_Init(&klazz->stbl, Module_AtomTable(m));
+		STable_Init(&klazz->stbl, Module_AtomTable(m));
 		klazz->module = ob;
 		return 0;
 	}
@@ -70,10 +70,10 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 int Module_Add_Interface(Object *ob, Klass *klazz)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Add_Intf(&m->stbl, klazz->name);
+	Symbol *sym = STable_Add_Intf(&m->stbl, klazz->name);
 	if (sym) {
 		sym->ob = klazz;
-		STbl_Init(&klazz->stbl, Module_AtomTable(m));
+		STable_Init(&klazz->stbl, Module_AtomTable(m));
 		return 0;
 	}
 	return -1;
@@ -81,7 +81,7 @@ int Module_Add_Interface(Object *ob, Klass *klazz)
 
 static int __get_value_index(ModuleObject *m, char *name)
 {
-	Symbol *sym = STbl_Get(&m->stbl, name);
+	Symbol *sym = STable_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_VAR) {
 			return sym->index;
@@ -120,7 +120,7 @@ int Module_Set_Value(Object *ob, char *name, TValue *val)
 Object *Module_Get_Function(Object *ob, char *name)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Get(&m->stbl, name);
+	Symbol *sym = STable_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_PROTO) {
 			return sym->ob;
@@ -135,7 +135,7 @@ Object *Module_Get_Function(Object *ob, char *name)
 Klass *Module_Get_Class(Object *ob, char *name)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Get(&m->stbl, name);
+	Symbol *sym = STable_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_CLASS) {
 			return sym->ob;
@@ -149,7 +149,7 @@ Klass *Module_Get_Class(Object *ob, char *name)
 Klass *Module_Get_Intf(Object *ob, char *name)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STbl_Get(&m->stbl, name);
+	Symbol *sym = STable_Get(&m->stbl, name);
 	if (sym) {
 		if (sym->kind == SYM_INTF) {
 			return sym->ob;
@@ -184,19 +184,19 @@ static void __to_stbl_fn(Symbol *sym, void *arg)
 	char *path = path_struct->path;
 
 	if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
-		Symbol *s = STbl_Add_Symbol(stbl, sym->name, SYM_STABLE, 0);
+		Symbol *s = STable_Add_Symbol(stbl, sym->name, SYM_STABLE, 0);
 		s->desc = TypeDesc_From_UserDef(strdup(path), sym->name);
-		s->ptr = STbl_New(stbl->atbl);
+		s->ptr = STable_New(stbl->atbl);
 		struct path_stbl_struct tmp = {path, s->ptr};
-		STbl_Traverse(Klass_STable(sym->ob), __to_stbl_fn, &tmp);
+		STable_Traverse(Klass_STable(sym->ob), __to_stbl_fn, &tmp);
 	} else if (sym->kind == SYM_VAR) {
-		STbl_Add_Var(stbl, sym->name, sym->desc, sym->access & ACCESS_CONST);
+		STable_Add_Var(stbl, sym->name, sym->desc, sym->access & ACCESS_CONST);
 	} else if (sym->kind == SYM_PROTO) {
 		//FIXME
-		STbl_Add_Proto(stbl, sym->name, sym->desc->proto);
+		STable_Add_Proto(stbl, sym->name, sym->desc->proto);
 	} else if (sym->kind == SYM_IPROTO) {
 		//FIXME
-		STbl_Add_IProto(stbl, sym->name, sym->desc->proto);
+		STable_Add_IProto(stbl, sym->name, sym->desc->proto);
 	} else {
 		assert(0);
 	}
@@ -206,9 +206,9 @@ static void __to_stbl_fn(Symbol *sym, void *arg)
 STable *Module_To_STable(Object *ob, AtomTable *atbl, char *path)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	STable *stbl = STbl_New(atbl);
+	STable *stbl = STable_New(atbl);
 	struct path_stbl_struct path_struct = {path, stbl};
-	STbl_Traverse(&m->stbl, __to_stbl_fn, &path_struct);
+	STable_Traverse(&m->stbl, __to_stbl_fn, &path_struct);
 	return stbl;
 }
 
@@ -233,5 +233,5 @@ void Module_Show(Object *ob)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	printf("package:%s\n", m->name);
-	STbl_Show(&m->stbl, 1);
+	STable_Show(&m->stbl, 0);
 }
