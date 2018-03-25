@@ -166,8 +166,14 @@ test-0.5.11:
 	@$(KOALAC) test-0.5.11.kl
 	@$(KOALA) test-0.5.11
 
+test-0.5.12:
+	@$(RM) test-0.5.12.klc
+	@$(KOALAC) test-0.5.12.kl
+	@$(KOALA) test-0.5.12
+
 testkl: test-0.5.1 test-0.5.2 test-0.5.3 test-0.5.4 test-0.5.5 test-0.5.6 \
-	test-0.5.7 test-0.5.8 test-test test-0.5.9 test-0.5.10 test-0.5.11
+	test-0.5.7 test-0.5.8 test-test test-0.5.9 test-0.5.10 test-0.5.11 \
+	test-0.5.12
 	@echo "Test Koala Down!"
 
 runkl:
@@ -183,6 +189,7 @@ runkl:
 	@$(KOALA) test-0.5.9
 	@$(KOALA) test-0.5.10
 	@$(KOALA) test-0.5.11
+	@$(KOALA) test-0.5.12
 
 test: testprop testbuf testroutine testimage testhashtable testlist \
 	testmodule testobject teststring testtuple testvector testkl

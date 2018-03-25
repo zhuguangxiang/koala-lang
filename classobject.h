@@ -8,16 +8,20 @@
 extern "C" {
 #endif
 
+#define CLASS_OBJECT_HEAD  OBJECT_HEAD Object *super;
 typedef struct classobject {
-	OBJECT_HEAD
-	int size;
-	TValue items[0];
+	CLASS_OBJECT_HEAD
 } ClassObject;
 
-TValue Object_Get_Value(Object *ob, Klass *klazz, char *name);
-int Object_Set_Value(Object *ob, Klass *klazz, char *name, TValue *val);
-Object *Object_Get_Method(Object *ob, char *name);
+typedef struct classvalue {
+	int size;
+	TValue items[0];
+} ClassValue;
+
+TValue Object_Get_Value(Object *ob, char *name);
+int Object_Set_Value(Object *ob, char *name, TValue *val);
 Klass *Class_New(char *name, Klass *super);
+Object *Object_Get_Method(Object *ob, char *name, Object **rob);
 
 #ifdef __cplusplus
 }

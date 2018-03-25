@@ -16,7 +16,6 @@ extern "C" {
 typedef struct codeobject {
 	OBJECT_HEAD
 	int flags;
-	Object *owner;
 	union {
 		cfunc cf;
 		struct {

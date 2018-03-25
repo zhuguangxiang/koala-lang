@@ -2,90 +2,102 @@
 #include "classobject.h"
 #include "log.h"
 
-TValue Object_Get_Value(Object *ob, Klass *klazz, char *name)
+static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
 {
 	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
-	Symbol *sym;
-
+	ClassObject *instance = (ClassObject *)ob;
+	Object *super;
+	Symbol *sym = NULL;
 	char *dot = strchr(name, '.');
 	if (dot) {
 		char *classname = strndup(name, dot - name);
-		char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
-		while (klazz) {
-			if (!strcmp(klazz->name, classname))
-				break;
-			klazz = klazz->super;
-		}
-		sym = Klass_Get_FieldSymbol(klazz, funcname);
+		char *fieldname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
+		super = instance->super;
+		assert(super && !strcmp(OB_KLASS(super)->name, classname));
+		sym = Klass_Get_FieldSymbol(OB_KLASS(super), fieldname);
+		*rob = super;
 		free(classname);
-		free(funcname);
+		free(fieldname);
 	} else {
-		while (klazz) {
-			sym = Klass_Get_FieldSymbol(klazz, name);
-			if (sym) break;
-			klazz = klazz->super;
+		super = ob;
+		while (super) {
+			sym = Klass_Get_FieldSymbol(OB_KLASS(super), name);
+			if (sym) {
+				*rob = super;
+				break;
+			}
+			super = ((ClassObject *)super)->super;
 		}
 	}
 
-	if (!sym) {
-		error("cannot find field : %s", name);
-		return NilValue;
-	}
-	if (sym->kind != SYM_VAR && sym->kind != SYM_IPROTO) {
-		error("field '%s' is not a var and imethod", name);
-		return NilValue;
-	}
-
-	int index = sym->index;
-	ClassObject *cob = (ClassObject *)ob;
-	assert(index >= 0 && index < cob->size);
-	return cob->items[index];
+	assert(sym && sym->kind == SYM_VAR);
+	return sym;
 }
 
-int Object_Set_Value(Object *ob, Klass *klazz, char *name, TValue *val)
+TValue Object_Get_Value(Object *ob, char *name)
 {
-	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
-	Symbol *sym;
-
-	char *dot = strchr(name, '.');
-	if (dot) {
-		char *classname = strndup(name, dot - name);
-		char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
-		while (klazz) {
-			if (!strcmp(klazz->name, classname))
-				break;
-			klazz = klazz->super;
-		}
-		sym = Klass_Get_FieldSymbol(klazz, funcname);
-		free(classname);
-		free(funcname);
-	} else {
-		while (klazz) {
-			sym = Klass_Get_FieldSymbol(klazz, name);
-			if (sym) break;
-			klazz = klazz->super;
-		}
-	}
-
-	if (!sym) {
-		error("cannot find field : %s", name);
-		return -1;
-	}
-	if (sym->kind != SYM_VAR && sym->kind != SYM_PROTO) {
-		error("field '%s' is not a var and imethod", name);
-		return -1;
-	}
-
+	Object *rob = NULL;
+	Symbol *sym = get_field_symbol(ob, name, &rob);
+	assert(rob);
+	ClassValue *value = (ClassValue *)((ClassObject *)rob + 1);
 	int index = sym->index;
-	ClassObject *cob = (ClassObject *)ob;
-	assert(index >= 0 && index < cob->size);
-	cob->items[index] = *val;
+	assert(index >= 0 && index < value->size);
+	return value->items[index];
+}
+
+int Object_Set_Value(Object *ob, char *name, TValue *val)
+{
+	Object *rob = NULL;
+	Symbol *sym = get_field_symbol(ob, name, &rob);
+	assert(rob);
+	ClassValue *value = (ClassValue *)((ClassObject *)rob + 1);
+	int index = sym->index;
+	assert(index >= 0 && index < value->size);
+	value->items[index] = *val;
 	return 0;
 }
 
-Object *Object_Get_Method(Object *ob, char *name)
+Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 {
-	return Klass_Get_Method(OB_KLASS(ob), name);
+	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
+	ClassObject *instance = (ClassObject *)ob;
+	Object *super;
+	Object *code;
+	char *dot = strchr(name, '.');
+	if (dot) {
+		char *classname = strndup(name, dot - name);
+		char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
+		super = instance->super;
+		assert(super);
+		assert(!strcmp(OB_KLASS(super)->name, classname));
+		code = Klass_Get_Method(OB_KLASS(super), funcname);
+		assert(code);
+		*rob = super;
+		free(classname);
+		free(funcname);
+		return code;
+	} else {
+		if (!strcmp(name, "__init__")) {
+			//__init__ method is allowed to be searched only in current class
+			code = Klass_Get_Method(OB_KLASS(ob), name);
+			//FIXME: class with no __init__ ?
+			//assert(code);
+			*rob = ob;
+			return code;
+		} else {
+			super = ob;
+			while (super) {
+				code = Klass_Get_Method(OB_KLASS(super), name);
+				if (code) {
+					*rob = super;
+					return code;
+				}
+				super = ((ClassObject *)super)->super;
+			}
+			assertm(0, "cannot find func '%s'", name);
+			return NULL;
+		}
+	}
 }
 
 /*-------------------------------------------------------------------------*/
@@ -93,13 +105,13 @@ Object *Object_Get_Method(Object *ob, char *name)
 static void object_mark(Object *ob)
 {
 	OB_ASSERT_KLASS(OB_KLASS(ob), Klass_Klass);
-	ClassObject *cob = (ClassObject *)ob;
+	ClassValue *value = (ClassValue *)((ClassObject *)ob + 1);
 
 	//FIXME: inc_ref
 
-	for (int i = 0; i < cob->size; i++) {
-		if (VALUE_ISOBJECT(cob->items + i)) {
-			Object *tmp = VALUE_OBJECT(cob->items + i);
+	for (int i = 0; i < value->size; i++) {
+		if (VALUE_ISOBJECT(value->items + i)) {
+			Object *tmp = VALUE_OBJECT(value->items + i);
 			OB_KLASS(tmp)->ob_mark(tmp);
 		}
 	}
@@ -109,21 +121,23 @@ static Object *object_alloc(Klass *klazz)
 {
 	OB_ASSERT_KLASS(klazz, Klass_Klass);
 	int nrfields = klazz->stbl.varcnt;
-	Klass *super = klazz->super;
-	while (super) {
-		nrfields += super->stbl.varcnt;
-		super = super->super;
-	}
-
 	debug("number of object's fields:%d", nrfields);
-
-	int size = klazz->size + sizeof(TValue) * nrfields;
+	int size = klazz->size + sizeof(ClassValue) + sizeof(TValue) * nrfields;
 	ClassObject *ob = calloc(1, size);
 	init_object_head(ob, klazz);
-	ob->size = nrfields;
+	ClassValue *value = (ClassValue *)(ob + 1);
+	value->size = nrfields;
 	for (int i = 0; i < nrfields; i++) {
-		initnilvalue(ob->items + i);
+		initnilvalue(value->items + i);
 	}
+
+	//allocate super memory
+	Klass *super = klazz->super;
+	if (super) {
+		debug("call super '%s' alloc", super->name);
+		ob->super = super->ob_alloc(super);
+	}
+
 	return (Object *)ob;
 }
 

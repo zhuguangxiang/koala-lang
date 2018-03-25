@@ -18,6 +18,7 @@ typedef struct koalastate {
 Object *Koala_New_Module(char *name, char *path);
 Object *Koala_Get_Module(char *path);
 Object *Koala_Load_Module(char *path);
+Klass *Koala_Get_Klass(Object *ob, char *path, char *type);
 void Koala_Initialize(void);
 void Koala_Finalize(void);
 void Koala_Run(char *path);

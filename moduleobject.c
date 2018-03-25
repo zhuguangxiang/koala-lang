@@ -38,7 +38,6 @@ int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 	if (sym) {
 		CodeObject *co = (CodeObject *)code;
 		sym->ob = code;
-		co->owner = ob;
 		if (CODE_ISKFUNC(code)) {
 			co->kf.atbl = m->stbl.atbl;
 			co->kf.proto = Proto_Dup(proto);

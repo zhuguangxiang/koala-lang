@@ -11,3 +11,7 @@ koala
 .gdbinit
 1
 2
+*.class
+*.java
+*.py
+*.pyc

@@ -128,7 +128,7 @@ TValue Va_Build_Value(char ch, va_list *ap)
 	return val;
 }
 
-TValue TValue_Build(char ch, ...)
+TValue TValue_Build(int ch, ...)
 {
 	va_list vp;
 	va_start(vp, ch);
@@ -175,7 +175,6 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 	if (sym) {
 		CodeObject *co = (CodeObject *)code;
 		sym->ob = code;
-		co->owner = (Object *)klazz;
 		if (CODE_ISKFUNC(code)) {
 			co->kf.atbl = klazz->stbl.atbl;
 			co->kf.proto = Proto_Dup(proto);
@@ -438,6 +437,15 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 			break;
 		}
 		case TYPE_USERDEF: {
+			if (!VALUE_ISOBJECT(val)) return -1;
+			Object *ob = OB_KLASS(val->ob)->module;
+			Klass *klazz = Koala_Get_Klass(ob, desc->path, desc->type);
+			if (!klazz) return -1;
+			Klass *k = OB_KLASS(val->ob);
+			while (k) {
+				if (k == klazz) return 0;
+				k = k->super;
+			}
 			break;
 		}
 		case TYPE_PROTO: {
@@ -509,6 +517,45 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 		default: {
 			assert(0);
 			break;
+		}
+	}
+}
+
+void TValue_Set_Value(TValue *val, TValue *v)
+{
+	switch (v->type) {
+		case TYPE_INT: {
+			VALUE_ASSERT_INT(val);
+			val->ival = v->ival;
+			break;
+		}
+		case TYPE_FLOAT: {
+			VALUE_ASSERT_FLOAT(val);
+			val->fval = v->fval;
+			break;
+		}
+		case TYPE_BOOL: {
+			VALUE_ASSERT_BOOL(val);
+			val->bval = v->bval;
+			break;
+		}
+		case TYPE_OBJECT: {
+			if (VALUE_ISNIL(val)) {
+				debug("TValue is nil");
+				*val = *v;
+			} else {
+				VALUE_ASSERT_OBJECT(val);
+				val->ob = v->ob;
+			}
+			break;
+		}
+		case TYPE_CSTR: {
+			VALUE_ASSERT_CSTR(val);
+			val->cstr = v->cstr;
+			break;
+		}
+		default: {
+			assert(0);
 		}
 	}
 }

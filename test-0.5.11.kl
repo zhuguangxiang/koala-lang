@@ -18,10 +18,6 @@ class Dog : an.Animal {
 	func SayHello() {
 		io.Println("Dog: SayHello");
 	}
-
-	func DogFunc() {
-		io.Println("Dog Wang:", name, color);
-	}
 }
 
 class Cat : an.Animal {

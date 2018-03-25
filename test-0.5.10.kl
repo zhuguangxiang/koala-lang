@@ -30,7 +30,7 @@ class Dog : Animal {
 	name string;
 
 	func __init__(name string, age int, color string) {
-		super("DOGAnimal", age); //-->> Animal.__init__(name, age)
+		super("Dog-Animal", age); //-->> Animal.__init__(name, age)
 		io.Println("Dog constructor");
 		self.color = color;
 		self.name = name; //-->> name

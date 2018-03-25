@@ -83,6 +83,20 @@ Object *Koala_Get_Module(char *path)
 	return entry->ob;
 }
 
+Klass *Koala_Get_Klass(Object *ob, char *path, char *type)
+{
+	if (path) {
+		//different module
+		assert(!ob);
+		ob = Koala_Get_Module(path);
+		if (!ob) return NULL;
+	} else {
+		//the same module
+		assert(ob);
+	}
+	return Module_Get_Class(ob, type);
+}
+
 /*-------------------------------------------------------------------------*/
 
 static Object *load_module(char *path);
@@ -345,6 +359,7 @@ static void load_classes(AtomTable *table, Object *m)
 	}
 
 	//update subclass's fields index
+#if 0
 	for (int i = 0; i < num; i++) {
 		klazz = indexes[i].klazz;
 		if (klazz->super) {
@@ -359,6 +374,22 @@ static void load_classes(AtomTable *table, Object *m)
 			STbl_Traverse(&klazz->stbl, update_fields_fn, &nrfields);
 		}
 	}
+
+	//update subclass's symbol table
+	Symbol *sym;
+	for (int i = 0; i < num; i++) {
+		klazz = indexes[i].klazz;
+		if (klazz->super) {
+			Klass *super = klazz->super;
+			sym = STbl_Add_Symbol(&klazz->stbl, super->name, SYM_STABLE, 0);
+			sym->ptr = &super->stbl;
+			sym = STbl_Add_Symbol(&klazz->stbl, "super", SYM_STABLE, 0);
+			sym->ptr = &super->stbl;
+			debug("update '%s' class's symbol table from super '%s' class",
+				klazz->name, super->name);
+		}
+	}
+#endif
 }
 
 static Klass *load_interface(IntfItem *intf, AtomTable *table, Object *m)

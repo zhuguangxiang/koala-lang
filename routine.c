@@ -127,7 +127,8 @@ static void start_kframe(Frame *f)
 	while (count-- > 0) {
 		val = rt_stack_pop(rt);
 		VALUE_ASSERT(&val);
-		f->locvars[i++] = val;
+		TValue_Set_Value(f->locvars + i, &val);
+		i++;
 	}
 
 	/* Call frame_loop() to execute instructions */
@@ -207,23 +208,6 @@ void Routine_Run(Routine *rt)
 		}
 		f = rt->frame;
 	}
-}
-
-void Call_KFunc(Routine *rt, Object *code, Object *ob, Object *args)
-{
-	/* prepare parameters */
-	TValue val;
-	int size = Tuple_Size(args);
-	for (int i = size - 1; i >= 0; i--) {
-		val = Tuple_Get(args, i);
-		VALUE_ASSERT(&val);
-		PUSH(&val);
-	}
-	setobjvalue(&val, ob);
-	PUSH(&val);
-
-	/* new frame */
-	frame_new(rt, ob, code, size);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -332,71 +316,48 @@ static inline void store(Frame *f, int index, TValue *val)
 	}
 }
 
-static Object *getcode(Object *ob, char *name)
+static Object *getcode(Object *ob, char *name, Object **rob)
 {
 	Object *code = NULL;
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
+		debug("getcode '%s' in module", name);
 		code = Module_Get_Function(ob, name);
+		*rob = ob;
+		if (!code) {
+			debug("'%s' is not found", name);
+			assert(!strcmp(name, "__init__"));
+		}
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		char *dot = strchr(name, '.');
-		Klass *klazz;
-		if (dot) {
-			char *classname = strndup(name, dot - name);
-			char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
-			klazz = OB_KLASS(ob)->super;
-			while (klazz) {
-				if (!strcmp(klazz->name, classname)) {
-					code = Klass_Get_Method(klazz, funcname);
-					break;
-				}
-				klazz = klazz->super;
-			}
-			free(classname);
-			free(funcname);
-		} else {
-			klazz = OB_KLASS(ob);
-			if (!strcmp(name, "__init__")) {
-				//__init__ method is allowed to be searched only in current class
-				code = Klass_Get_Method(klazz, name);
-			} else {
-				while (klazz) {
-					code = Klass_Get_Method(klazz, name);
-					if (code)
-						break;
-					klazz = klazz->super;
-				}
-			}
+		debug("getcode '%s' in class", name);
+		code = Object_Get_Method(ob, name, rob);
+		if (!code) {
+			debug("'%s' is not found", name);
+			assert(!strcmp(name, "__init__"));
 		}
 	} else {
 		assert(0);
 	}
-
-	if (!code) {
-		warn("cannot find function '%s'", name);
-	}
 	return code;
 }
 
-static void setfield(Object *ob, Object *owner, char *field, TValue *val)
+static void setfield(Object *ob, char *field, TValue *val)
 {
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		Module_Set_Value(ob, field, val);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		OB_ASSERT_KLASS(owner, Klass_Klass);
-		int res = Object_Set_Value(ob, (Klass *)owner, field, val);
+		int res = Object_Set_Value(ob, field, val);
 		assert(!res);
 	} else {
 		assert(0);
 	}
 }
 
-static TValue getfield(Object *ob, Object *owner, char *field)
+static TValue getfield(Object *ob, char *field)
 {
 	if (OB_CHECK_KLASS(ob, Module_Klass)) {
 		return Module_Get_Value(ob, field);
 	} else if (OB_CHECK_KLASS(OB_KLASS(ob), Klass_Klass)) {
-		OB_ASSERT_KLASS(owner, Klass_Klass);
-		TValue val = Object_Get_Value(ob, (Klass *)owner, field);
+		TValue val = Object_Get_Value(ob, field);
 		VALUE_ASSERT(&val);
 		return val;
 	} else {
@@ -526,7 +487,7 @@ static void frame_loop(Frame *frame)
 				debug("getfield '%s'", field);
 				val = POP();
 				ob = VALUE_OBJECT(&val);
-				val = getfield(ob, code->owner, field);
+				val = getfield(ob, field);
 				PUSH(&val);
 				break;
 			}
@@ -539,7 +500,7 @@ static void frame_loop(Frame *frame)
 				ob = VALUE_OBJECT(&val);
 				val = POP();
 				VALUE_ASSERT(&val);
-				setfield(ob, code->owner, field, &val);
+				setfield(ob, field, &val);
 				break;
 			}
 			case OP_CALL: {
@@ -551,14 +512,22 @@ static void frame_loop(Frame *frame)
 				val = TOP();
 				ob = VALUE_OBJECT(&val);
 				assert(!check_virtual_call(&val, name));
-				Object *meth = getcode(ob, name);
+				Object *rob = NULL;
+				Object *meth = getcode(ob, name, &rob);
+				assert(rob);
+				if (rob != ob) {
+					debug(">>>>>update object<<<<<");
+					POP();
+					setobjvalue(&val, rob);
+					PUSH(&val);
+				}
 				assert(meth);
 				if (CODE_ISKFUNC(meth)) {
 					//FIXME: for c function
 					CodeObject *code = OB_TYPE_OF(meth, CodeObject, Code_Klass);
 					check_args(rt, argc, code->kf.proto, name);
 				}
-				frame_new(rt, ob, meth, argc);
+				frame_new(rt, rob, meth, argc);
 				loopflag = 0;
 				break;
 			}
@@ -708,7 +677,10 @@ static void frame_loop(Frame *frame)
 				ob = klazz->ob_alloc(klazz);
 				setobjvalue(&val, ob);
 				PUSH(&val);
-				Object *__init__ = getcode(ob, "__init__");
+				Object *rob = NULL;
+				Object *__init__ = getcode(ob, "__init__", &rob);
+				assert(rob);
+				assert(rob == ob);
 				if (__init__)	{
 					CodeObject *code = OB_TYPE_OF(__init__, CodeObject, Code_Klass);
 					debug("__init__'s argc: %d", code->kf.proto->psz);
@@ -717,7 +689,7 @@ static void frame_loop(Frame *frame)
 						error("__init__ must be no any returns");
 						exit(-1);
 					}
-					frame_new(rt, ob, __init__, argc);
+					frame_new(rt, rob, __init__, argc);
 					loopflag = 0;
 				} else {
 					debug("no __init__");
