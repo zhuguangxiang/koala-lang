@@ -638,8 +638,14 @@ static void __intf_func_check_fn(Symbol *sym, void *arg)
 	while (base) {
 		method = Klass_Get_Symbol(base, sym->name);
 		if (!method) {
-			error("Is '%s' in '%s'? no", sym->name, base->name);
-			temp->result = -1;
+			if (!OB_HasBase(base)) {
+				error("Is '%s' in '%s'? no", sym->name, base->name);
+				temp->result = -1;
+				break;
+			} else {
+				debug("go super class to check '%s' is in '%s'",
+					sym->name, base->name);
+			}
 		} else {
 			debug("Is '%s' in '%s'? yes", sym->name, base->name);
 			if (!Proto_IsEqual(method->desc->proto, sym->desc->proto)) {
@@ -648,8 +654,8 @@ static void __intf_func_check_fn(Symbol *sym, void *arg)
 			} else {
 				debug("intf-func check ok");
 				temp->result = 0;
-				break;
 			}
+			break;
 		}
 		base = OB_HasBase(base) ? (Klass *)OB_Base(base) : NULL;
 	}
@@ -660,18 +666,6 @@ static int check_interface_inheritance(Klass *intf, Klass *klz)
 	struct intf_inherit_struct temp = {klz, 0};
 	STable_Traverse(&intf->stbl, __intf_func_check_fn, &temp);
 	return temp.result;
-}
-
-static int check_inheritance(Klass *k1, Klass *k2)
-{
-	if (!(k1->flags & FLAGS_INTF) && !(k2->flags & FLAGS_INTF))
-		return check_class_inheritance(k1, k2);
-	else if (k1->flags & FLAGS_INTF) {
-		return check_interface_inheritance(k1, k2);
-	} else {
-		assert(k2->flags & FLAGS_INTF);
-		return check_interface_inheritance(k2, k1);
-	}
 }
 
 int TValue_Check(TValue *v1, TValue *v2)
@@ -687,10 +681,20 @@ int TValue_Check(TValue *v1, TValue *v2)
 			return -1;
 		}
 		if (v1->klazz != v2->klazz) {
-			if (!check_inheritance(v1->klazz, v2->klazz)) return 0;
-			error("v1's klazz '%s' vs v2's klazz '%s'",
-				v1->klazz->name, v2->klazz->name);
-			return -1;
+			if (!(v1->klazz->flags & FLAGS_INTF) &&
+				!(v2->klazz->flags & FLAGS_INTF)) {
+				return check_class_inheritance(v1->klazz, v2->klazz);
+			} else if ((v1->klazz->flags & FLAGS_INTF) &&
+				!(v2->klazz->flags & FLAGS_INTF)) {
+				return check_interface_inheritance(v1->klazz, v2->klazz);
+			} else if ((v1->klazz->flags & FLAGS_INTF) &&
+				(v2->klazz->flags & FLAGS_INTF)) {
+				return check_interface_inheritance(v1->klazz, OB_KLASS(v2->ob));
+			} else {
+				assertm(0, "class '%s' <- intf '%s' is not allowed, \
+					use typeof() to down convertion", v1->klazz->name, v2->klazz->name);
+				return -1;
+			}
 		}
 	}
 	return 0;

@@ -1,0 +1,74 @@
+
+/*
+	This test is for class statement
+ */
+package test;
+
+import "koala/io";
+
+class Animal {
+	name string;
+	age int;
+
+	func __init__(name string, _age int) {
+		self.name = name;
+		age = _age;
+	}
+
+	func SayHello() {
+		io.Println("Animal: SayHello");
+		io.Println("Animal:", name, age);
+	}
+
+	func AnimalFunc() {
+		io.Println("Animal:AnimalFunc()", name, age);
+	}
+}
+
+class Dog : Animal {
+	color string;
+
+	func __init__(name string, age int, color string) {
+		super(name, age);
+		self.color = color;
+	}
+
+	func SayHello() {
+		io.Println("Dog: SayHello");
+		io.Println("Dog:", name, age, color);
+		super.SayHello();
+	}
+}
+
+interface IAnimal {
+	func SayHello();
+}
+
+interface IAnimal2 {
+	func AnimalFunc();
+}
+
+interface IAnimal3 {
+	func SayHello();
+	func AnimalFunc();
+}
+
+func Main(args []string) {
+	var ian2 IAnimal2 = Dog("Tortoise", 2300, "ColorFul");
+	ian2.AnimalFunc();
+
+	io.Println("------------1--------------");
+
+	var ian IAnimal = ian2;
+	ian.SayHello();
+
+	io.Println("------------2--------------");
+
+	var ian3 IAnimal3 = ian;
+	ian3.SayHello();
+	ian3.AnimalFunc();
+
+	io.Println("------------3--------------");
+	var ian4 IAnimal = ian3;
+	ian4.SayHello();
+}

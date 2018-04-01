@@ -63,7 +63,7 @@ struct symbol {
 	void *ptr;      /* CodeBlock and STable(import, class, interface) */
 	char *path;     /* used for import */
 	int32 locvars;  /* used in compiler, for function */
-
+	Symbol *refsym; /* used in compiler, if var is an interface */
 };
 
 /* Exported APIs */
@@ -76,8 +76,10 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, Proto *proto);
 	if (__sym) __sym->kind = SYM_IPROTO; \
 	__sym; \
 })
-#define STable_Add_Class(stbl, name) STable_Add_Symbol(stbl, name, SYM_CLASS, 0)
-#define STable_Add_Intf(stbl, name) STable_Add_Symbol(stbl, name, SYM_INTF, 0)
+#define STable_Add_Class(stbl, name) \
+	STable_Add_Symbol(stbl, name, SYM_CLASS, 0)
+#define STable_Add_Intf(stbl, name) \
+	STable_Add_Symbol(stbl, name, SYM_INTF, 0)
 Symbol *STable_Add_Symbol(STable *stbl, char *name, int kind, int bconst);
 Symbol *STable_Get(STable *stbl, char *name);
 typedef void (*symbolfunc)(Symbol *sym, void *arg);

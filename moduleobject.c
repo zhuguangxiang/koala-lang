@@ -140,7 +140,7 @@ Klass *Module_Get_Class(Object *ob, char *name)
 		if (sym->kind == SYM_CLASS) {
 			return sym->ob;
 		} else {
-			error("symbol is not a class");
+			warn("symbol is not a class");
 		}
 	}
 	return NULL;

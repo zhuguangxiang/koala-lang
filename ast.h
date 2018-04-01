@@ -125,7 +125,8 @@ void expr_traverse(struct expr *exp);
 
 struct var {
 	char *id;
-	int bconst;
+	short bconst;
+	Symbol *refsym; //for var is a int
 	TypeDesc *desc;
 };
 
@@ -200,6 +201,10 @@ struct stmt {
 		} class_type;
 		struct {
 			char *id;
+			Vector *methods;
+		} intf_type;
+		struct {
+			char *id;
 			TypeDesc *desc;
 		} user_typedef;
 		struct {
@@ -252,7 +257,7 @@ struct stmt *stmt_from_block(Vector *vec);
 struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
 struct stmt *stmt_from_class(char *id, TypeDesc *parent, Vector *vec);
-struct stmt *stmt_from_interface(char *id, Vector *vec);
+struct stmt *stmt_from_interface(char *id, Vector *methods);
 struct stmt *stmt_from_jump(int kind, int level);
 struct stmt *stmt_from_if(struct expr *test, Vector *body,
 	struct stmt *orelse);

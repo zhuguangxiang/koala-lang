@@ -315,6 +315,11 @@ v0.5.10-2:
 1. feature: interface statement
 2. test:test-0.5.13.kl
 
+v0.5.10-3:
+1. interface assignment: interface is not necessary inherited.
+It's just an interface to communication.
+2. test:test-0.5.14.kl test:test-0.5.15.kl
+
 v0.6.0:
 1. feature: subclass casts to base class, and base class casts to realclass
 2. keyword: typeof
@@ -324,13 +329,12 @@ v0.6.0:
 3. test-0.6.0.kl
 4. typeof: call lang.TypeOf(...A) function
 
-v0.6.0:
-1. feature: interface statement
-
 v0.6.1:
 1. feature: error handle
 2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
 3. new: assignment type check
+4. typealias: only allowed alias local package's type, not allowed external
+package's type
 
 v0.6.4:
 1. feature: access control

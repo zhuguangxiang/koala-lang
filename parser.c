@@ -433,9 +433,11 @@ static void parse_intf_func(ParserState *ps, struct intf_func *fn)
 
 void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 {
+	Symbol *sym;
+
 	if (stmt->kind == CLASS_KIND) {
 		__add_stmt(ps, stmt);
-		Symbol *sym = STable_Add_Class(ps->u->stbl, stmt->class_type.id);
+		sym = STable_Add_Class(ps->u->stbl, stmt->class_type.id);
 		sym->up = ps->u->sym;
 		sym->ptr = STable_New(ps->u->stbl->atbl);
 		sym->desc = TypeDesc_From_UserDef(NULL, stmt->class_type.id);
@@ -454,15 +456,15 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 		parser_exit_scope(ps);
 		debug("end class '%s'", sym->name);
 	} else if (stmt->kind == INTF_KIND) {
-		Symbol *sym = STable_Add_Intf(ps->u->stbl, stmt->class_type.id);
+		sym = STable_Add_Intf(ps->u->stbl, stmt->intf_type.id);
 		sym->up = ps->u->sym;
 		sym->ptr = STable_New(ps->u->stbl->atbl);
-		sym->desc = TypeDesc_From_UserDef(NULL, stmt->class_type.id);
+		sym->desc = TypeDesc_From_UserDef(NULL, stmt->intf_type.id);
 		debug("add interface '%s' successful", sym->name);
 		struct intf_func *fn;
 		parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
 		ps->u->sym = sym;
-		Vector_ForEach(fn, stmt->class_type.vec) {
+		Vector_ForEach(fn, stmt->intf_type.methods) {
 			parse_intf_func(ps, fn);
 		}
 		parser_exit_scope(ps);
@@ -1504,6 +1506,38 @@ static ParserUnit *get_function_unit(ParserState *ps)
 	return NULL;
 }
 
+static int __intf_cls_check(Symbol *intf, Symbol *cls)
+{
+	int result = -1;
+	Symbol *method;
+	Symbol *base = cls;
+	while (base) {
+		method = STable_Get(base->ptr, intf->name);
+		if (!method) {
+			if (!base->super) {
+				error("Is '%s' in '%s'? no", intf->name, base->name);
+				result = -1;
+				break;
+			} else {
+				debug("go super class to check '%s' is in '%s'",
+					intf->name, base->name);
+			}
+		} else {
+			debug("Is '%s' in '%s'? yes", intf->name, base->name);
+			if (!Proto_IsEqual(method->desc->proto, intf->desc->proto)) {
+				error("intf-func check failed");
+				result = -1;
+			} else {
+				debug("intf-func check ok");
+				result = 0;
+			}
+			break;
+		}
+		base = base->super;
+	}
+	return result;
+}
+
 struct intf_inherit_struct {
 	Symbol *sub;
 	int result;
@@ -1517,24 +1551,10 @@ static void __intf_func_fn(Symbol *sym, void *arg)
 	Symbol *sub = temp->sub;
 	assert(sym->kind == SYM_IPROTO);
 	assert(sub->kind == SYM_CLASS);
-
-	Symbol *method = STable_Get(sub->ptr, sym->name);
-	if (!method) {
-		error("Is '%s' in '%s'? no", sym->name, sub->name);
-		temp->result = -1;
-	} else {
-		debug("Is '%s' in '%s'? yes", sym->name, sub->name);
-		if (!Proto_IsEqual(method->desc->proto, sym->desc->proto)) {
-			error("intf-func check failed");
-			temp->result = -1;
-		} else {
-			debug("intf-func check ok");
-			temp->result = 0;
-		}
-	}
+	temp->result = __intf_cls_check(sym, sub);
 }
 
-static int check_intf_inherit(Symbol *base, Symbol *sub)
+static int check_intf_cls_inherit(Symbol *base, Symbol *sub)
 {
 	struct intf_inherit_struct temp = {sub, 0};
 	STable_Traverse(base->ptr, __intf_func_fn, &temp);
@@ -1543,16 +1563,12 @@ static int check_intf_inherit(Symbol *base, Symbol *sub)
 
 static int check_symbol_inherit(Symbol *base, Symbol *sub)
 {
-	if (base->kind == SYM_INTF) {
-		return check_intf_inherit(base, sub);
-	} else {
-		Symbol *up = sub->super;
-		while (up) {
-			if (up == base) return 0;
-			up = up->super;
-		}
-		return -1;
+	Symbol *up = sub->super;
+	while (up) {
+		if (up == base) return 0;
+		up = up->super;
 	}
+	return -1;
 }
 
 static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
@@ -1596,9 +1612,30 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 					exp->desc->kind == TYPE_USERDEF) {
 					Symbol *s1 = find_userdef_symbol(ps, var->desc);
 					Symbol *s2 = find_userdef_symbol(ps, exp->desc);
-					if (check_symbol_inherit(s1, s2)) {
-						error("check inheritance failed");
-						return;
+					if (s1->kind == SYM_INTF) {
+						if (s2->kind == SYM_CLASS) {
+							var->refsym = s2;
+							if (check_intf_cls_inherit(s1, s2)) {
+								error("check intf <- class failed");
+								return;
+							}
+						} else if (s2->kind == SYM_INTF) {
+							Symbol *id = exp->sym;
+							assert(id && id->refsym);
+							assert(id->refsym->kind == SYM_CLASS);
+							var->refsym = id->refsym;
+							if (check_intf_cls_inherit(s1, id->refsym)) {
+								error("check intf <- intf failed");
+								return;
+							}
+						} else {
+							assertm(0, "invalid:%d", s2->kind);
+						}
+					} else {
+						if (check_symbol_inherit(s1, s2)) {
+							error("check_symbol_inherit failed");
+							return;
+						}
 					}
 				} else {
 					error("typecheck failed");
@@ -1640,6 +1677,9 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 	} else {
 		assertm(0, "unknown unit scope:%d", u->scope);
 	}
+
+	//update var's symbol
+	sym->refsym = var->refsym;
 
 	//generate code
 	if (exp) {

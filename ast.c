@@ -330,11 +330,11 @@ struct stmt *stmt_from_class(char *id, TypeDesc *parent, Vector *vec)
 	return stmt;
 }
 
-struct stmt *stmt_from_interface(char *id, Vector *vec)
+struct stmt *stmt_from_interface(char *id, Vector *methods)
 {
 	struct stmt *stmt = stmt_new(INTF_KIND);
-	stmt->class_type.id = id;
-	stmt->class_type.vec = vec;
+	stmt->intf_type.id = id;
+	stmt->intf_type.methods = methods;
 	return stmt;
 }
 
@@ -456,8 +456,10 @@ int binop_bit(int op)
 
 struct var *new_var(char *id, TypeDesc *desc)
 {
-	struct var *v = calloc(1, sizeof(struct var));
+	struct var *v = malloc(sizeof(struct var));
 	v->id = id;
+	v->bconst = 0;
+	v->refsym = NULL;
 	v->desc = desc;
 	return v;
 }
