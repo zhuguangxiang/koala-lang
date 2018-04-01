@@ -8,7 +8,7 @@
 Object *Module_New(char *name, AtomTable *atbl)
 {
 	ModuleObject *m = malloc(sizeof(ModuleObject));
-	init_object_head(m, &Module_Klass);
+	Init_Object_Head(m, &Module_Klass);
 	m->name = strdup(name);
 	STable_Init(&m->stbl, atbl);
 	m->tuple = NULL;
@@ -220,10 +220,9 @@ static void module_free(Object *ob)
 }
 
 Klass Module_Klass = {
-	OBJECT_HEAD_INIT(&Klass_Klass),
+	OBJECT_HEAD_INIT(&Module_Klass, &Klass_Klass)
 	.name = "Module",
-	.size = sizeof(ModuleObject),
-
+	.basesize = sizeof(ModuleObject),
 	.ob_free = module_free
 };
 

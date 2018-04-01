@@ -9,7 +9,7 @@ Object *Tuple_New(int size)
 	int sz = sizeof(TupleObject) + size * sizeof(TValue);
 	TupleObject *tuple = malloc(sz);
 	assert(tuple);
-	init_object_head(tuple, &Tuple_Klass);
+	Init_Object_Head(tuple, &Tuple_Klass);
 	tuple->size = size;
 	for (int i = 0; i < size; i++) {
 		initnilvalue(tuple->items + i);
@@ -203,8 +203,8 @@ static void tuple_free(Object *ob)
 }
 
 Klass Tuple_Klass = {
-	OBJECT_HEAD_INIT(&Klass_Klass),
+	OBJECT_HEAD_INIT(&Tuple_Klass, &Klass_Klass)
 	.name = "Tuple",
-	.size = sizeof(TupleObject),
+	.basesize = sizeof(TupleObject),
 	.ob_free = tuple_free,
 };

@@ -8,7 +8,7 @@
 static CodeObject *codeobject_new(int flags)
 {
 	CodeObject *code = calloc(1, sizeof(CodeObject));
-	init_object_head(code, &Code_Klass);
+	Init_Object_Head(code, &Code_Klass);
 	code->flags = flags;
 	return code;
 }
@@ -70,7 +70,7 @@ int KFunc_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)
 /*-------------------------------------------------------------------------*/
 
 Klass Code_Klass = {
-	OBJECT_HEAD_INIT(&Klass_Klass),
+	OBJECT_HEAD_INIT(&Code_Klass, &Klass_Klass)
 	.name = "Code",
-	.size = sizeof(CodeObject),
+	.basesize = sizeof(CodeObject),
 };

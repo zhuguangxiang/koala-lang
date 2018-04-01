@@ -35,8 +35,8 @@ static int entry_equal(void *k1, void *k2)
 	if (VALUE_ISOBJECT(v1) && VALUE_ISOBJECT(v2)) {
 		Object *o1 = VALUE_OBJECT(v1);
 		Object *o2 = VALUE_OBJECT(v2);
-		if (OB_KLASS_EQUAL(o1, o2)) {
-			return OB_KLASS(o1)->ob_eq(v1, v2);
+		if (OB_KLASS(o1) == OB_KLASS(o2)) {
+			return OB_KLASS(o1)->ob_equal(v1, v2);
 		} else {
 			warn("the two key types are not the same.");
 			return 0;
@@ -82,7 +82,7 @@ static void free_entry(struct entry *e) {
 Object *Table_New(void)
 {
 	TableObject *table = malloc(sizeof(TableObject));
-	init_object_head(table, &Table_Klass);
+	Init_Object_Head(table, &Table_Klass);
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, entry_hash, entry_equal);
 	int res = HashTable_Init(&table->tbl, &hashinfo);
@@ -212,9 +212,9 @@ static void table_free(Object *ob)
 }
 
 Klass Table_Klass = {
-	OBJECT_HEAD_INIT(&Klass_Klass),
+	OBJECT_HEAD_INIT(&Table_Klass, &Klass_Klass)
 	.name = "Table",
-	.size = sizeof(TableObject),
+	.basesize = sizeof(TableObject),
 	.ob_mark = table_mark,
 	.ob_free = table_free,
 };

@@ -1,7 +1,6 @@
 
 #include "koala_state.h"
 #include "moduleobject.h"
-#include "classobject.h"
 #include "mod_lang.h"
 #include "mod_io.h"
 #include "routine.h"
@@ -205,7 +204,7 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 	assert(id);
 	char *cls_name = id->data;
 	Klass *klazz;
-	Klass *super = NULL;
+	Klass *base = NULL;
 
 	debug("load class:'%s'", cls_name);
 
@@ -231,15 +230,15 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 				error("cannot load module '%s'", path);
 				exit(-1);
 			}
-			super = Module_Get_Class(ob, super_name);
-			if (!super) {
-				error("cannot find super class '%s.%s'", path, super_name);
+			base = Module_Get_Class(ob, super_name);
+			if (!base) {
+				error("cannot find base class '%s.%s'", path, super_name);
 				exit(-1);
 			}
 		} else {
-			debug("super class '%s' in current module", super_name);
-			super = Module_Get_Class(m, super_name);
-			if (!super) {
+			debug("base class '%s' in current module", super_name);
+			base = Module_Get_Class(m, super_name);
+			if (!base) {
 				int sz = AtomTable_Size(table, ITEM_CLASS);
 				for (int i = 0; i < sz; i++) {
 					cls = AtomTable_Get(table, ITEM_CLASS, i);
@@ -247,24 +246,19 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 					assert(type->protoindex == -1);
 					id = StringItem_Index(table, type->typeindex);
 					if (!strcmp(super_name, id->data)) {
-						super = load_class(cls, table, m);
+						base = load_class(cls, table, m);
 						break;
 					}
 				}
-				if (!super) {
-					error("cannot find super class '%s'", super_name);
+				if (!base) {
+					error("cannot find base class '%s'", super_name);
 					exit(-1);
 				}
 			}
 		}
 	}
 
-	if (!super) {
-		debug("class '%s' super is null, using Klass_Klass", cls_name);
-		super = &Klass_Klass;
-	}
-
-	klazz = Class_New(cls_name, super);
+	klazz = Klass_New(cls_name, base, 0);
 	Module_Add_Class(m, klazz);
 	return klazz;
 }
@@ -329,8 +323,8 @@ static void load_classes(AtomTable *table, Object *m)
 	//handle field and method inheritance
 	// for (int i = 0; i < num; i++) {
 	// 	klazz = indexes[i].klazz;
-	// 	if (klazz->super) {
-	// 		STable_Traverse(&klazz->super->stbl, inherit_super_fn, klazz);
+	// 	if (klazz->base) {
+	// 		STable_Traverse(&klazz->base->stbl, inherit_super_fn, klazz);
 	// 	}
 	// }
 
@@ -367,15 +361,15 @@ static void load_classes(AtomTable *table, Object *m)
 #if 0
 	for (int i = 0; i < num; i++) {
 		klazz = indexes[i].klazz;
-		if (klazz->super) {
-			Klass *super = klazz->super;
-			int nrfields = super->stbl.varcnt;
-			Klass *k = super->super;
+		if (klazz->base) {
+			Klass *base = klazz->base;
+			int nrfields = base->stbl.varcnt;
+			Klass *k = base->base;
 			while (k) {
 				nrfields += k->stbl.varcnt;
-				k = k->super;
+				k = k->base;
 			}
-			debug("'%s' super class nrfields:%d", klazz->name, nrfields);
+			debug("'%s' base class nrfields:%d", klazz->name, nrfields);
 			STable_Traverse(&klazz->stbl, update_fields_fn, &nrfields);
 		}
 	}
@@ -384,14 +378,14 @@ static void load_classes(AtomTable *table, Object *m)
 	Symbol *sym;
 	for (int i = 0; i < num; i++) {
 		klazz = indexes[i].klazz;
-		if (klazz->super) {
-			Klass *super = klazz->super;
-			sym = STable_Add_Symbol(&klazz->stbl, super->name, SYM_STABLE, 0);
-			sym->ptr = &super->stbl;
-			sym = STable_Add_Symbol(&klazz->stbl, "super", SYM_STABLE, 0);
-			sym->ptr = &super->stbl;
-			debug("update '%s' class's symbol table from super '%s' class",
-				klazz->name, super->name);
+		if (klazz->base) {
+			Klass *base = klazz->base;
+			sym = STable_Add_Symbol(&klazz->stbl, base->name, SYM_STABLE, 0);
+			sym->ptr = &base->stbl;
+			sym = STable_Add_Symbol(&klazz->stbl, "base", SYM_STABLE, 0);
+			sym->ptr = &base->stbl;
+			debug("update '%s' class's symbol table from base '%s' class",
+				klazz->name, base->name);
 		}
 	}
 #endif
@@ -402,7 +396,7 @@ static Klass *load_interface(IntfItem *intf, AtomTable *table, Object *m)
 	TypeItem *type = TypeItem_Index(table, intf->classindex);
 	assert(type->protoindex == -1);
 	StringItem *id = StringItem_Index(table, type->typeindex);
-	Klass *klazz = Class_New(id->data, NULL);
+	Klass *klazz = Klass_New(id->data, NULL, 0);
 	Module_Add_Interface(m, klazz);
 	return klazz;
 }
@@ -517,6 +511,13 @@ void Koala_Run(char *path)
 
 /*-------------------------------------------------------------------------*/
 
+static void Init_Environment(void)
+{
+	Properties_Init(&gs.config);
+	Properties_Put(&gs.config, "koala.path", "./");
+	Properties_Put(&gs.config, "koala.path", "/home/zgx/koala-repo/");
+}
+
 static void Init_Modules(void)
 {
 	/* koala/lang.klc */
@@ -530,14 +531,17 @@ static void Init_Modules(void)
 
 void Koala_Initialize(void)
 {
+	//init gs
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, mod_entry_hash, mod_entry_equal);
 	HashTable_Init(&gs.modules, &hashinfo);
-	Properties_Init(&gs.config);
-	Properties_Put(&gs.config, "koala.path", "./");
-	Properties_Put(&gs.config, "koala.path", "/home/zgx/koala-repo/");
 
+	//init env
+	Init_Environment();
+
+	//init builtin modules
 	Init_Modules();
+
 	//sched_init();
 	//schedule();
 }

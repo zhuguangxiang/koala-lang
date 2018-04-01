@@ -8,7 +8,7 @@ void test_module(void)
 	Object *ob = Koala_Get_Module("koala/lang");
 	Module_Show(ob);
 	Klass *klazz = Module_Get_Class(ob, "Tuple");
-	KLASS_ASSERT(klazz, Tuple_Klass);
+	assert(klazz == &Tuple_Klass);
 	ob = Koala_Get_Module("koala/io");
 	Module_Show(ob);
 }

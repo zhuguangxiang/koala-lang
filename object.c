@@ -156,7 +156,110 @@ int TValue_Parse(TValue *val, int ch, ...)
 	return res;
 }
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+
+static void object_mark(Object *ob)
+{
+	Check_Klass(OB_KLASS(ob));
+	assert(OB_Head(ob) && OB_Head(ob) == ob);
+	//FIXME: ob_ref_inc
+}
+
+static Object *object_alloc(Klass *klazz)
+{
+	Check_Klass(klazz);
+
+	int totalsize = 0;
+	Klass *base = klazz;
+	while (OB_HasBase(base)) {
+		debug("number of '%s' fields:%d", base->name, base->itemsize);
+		totalsize += base->basesize + sizeof(TValue) * base->itemsize;
+		base = (Klass *)OB_Base(base);
+	}
+	debug("number of '%s' fields:%d", base->name, base->itemsize);
+	totalsize += base->basesize + sizeof(TValue) * base->itemsize;
+	Object *ob = calloc(1, totalsize);
+
+	//init base class
+	Object *next = ob;
+	base = klazz;
+	while (OB_HasBase(base)) {
+		Init_Object_Head(next, base);
+		OB_Head(next) = ob;
+		base->ob_init(next);
+		next = OB_Base(next);
+		base = (Klass *)OB_Base(base);
+	}
+	Init_Object_Head(next, base);
+	OB_Head(next) = ob;
+	base->ob_init(next);
+
+	return ob;
+}
+
+static void object_init(Object *ob)
+{
+	Klass *klazz = OB_KLASS(ob);
+	TValue *values = (TValue *)(ob + 1);
+	for (int i = 0; i < klazz->itemsize; i++) {
+		initnilvalue(values + i);
+	}
+}
+
+static void object_free(Object *ob)
+{
+	Check_Klass(OB_KLASS(ob));
+	assert(OB_Head(ob) && OB_Head(ob) == ob);
+	free(ob);
+}
+
+static uint32 object_hash(TValue *v)
+{
+	Object *ob = VALUE_OBJECT(v);
+	Check_Klass(OB_KLASS(ob));
+	assert(OB_Head(ob) && OB_Head(ob) == ob);
+	return hash_uint32((uint32)OB_Head(ob), 32);
+}
+
+static int object_equal(TValue *v1, TValue *v2)
+{
+	Object *ob1 = VALUE_OBJECT(v1);
+	Check_Klass(OB_KLASS(ob1));
+	Object *ob2 = VALUE_OBJECT(v2);
+	Check_Klass(OB_KLASS(ob2));
+	return OB_Head(ob1) == OB_Head(ob2);
+}
+
+static Object *object_tostring(TValue *v)
+{
+	Object *ob = VALUE_OBJECT(v);
+	assert(OB_Head(ob) && OB_Head(ob) == ob);
+	Klass *klazz = OB_KLASS(OB_Head(ob));
+	char buf[128];
+	snprintf(buf, 128, "%s@%x", klazz->name, (int32)OB_Head(ob));
+	return Tuple_Build("O", String_New(buf));
+}
+
+/*---------------------------------------------------------------------------*/
+
+Klass *Klass_New(char *name, Klass *base, int flags)
+{
+	Klass *klazz = calloc(1, sizeof(Klass));
+	Init_Object_Head(klazz, &Klass_Klass);
+	if (base) OB_Base(klazz) = (Object *)base;
+	klazz->name = strdup(name);
+	klazz->basesize = sizeof(Object);
+	klazz->itemsize = 1;
+	klazz->flags = flags;
+	klazz->ob_mark  = object_mark;
+	klazz->ob_alloc = object_alloc;
+	klazz->ob_init  = object_init;
+	klazz->ob_free  = object_free,
+	klazz->ob_hash  = object_hash;
+	klazz->ob_equal = object_equal;
+	klazz->ob_tostr = object_tostring;
+	return klazz;
+}
 
 void Fini_Klass(Klass *klazz)
 {
@@ -165,10 +268,9 @@ void Fini_Klass(Klass *klazz)
 
 void Check_Klass(Klass *klazz)
 {
-	assert(klazz);
-	while (!Klass_IsRoot(klazz)) {
-		klazz = OB_KLASS(klazz);
-		assert(klazz);
+	while (klazz) {
+		OB_ASSERT_KLASS(klazz, Klass_Klass);
+		klazz = OB_HasBase(klazz) ? (Klass *)OB_Base(klazz) : NULL;
 	}
 }
 
@@ -176,6 +278,7 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 {
 	Check_Klass(klazz);
 	Symbol *sym = STable_Add_Var(&klazz->stbl, name, desc, 0);
+	klazz->itemsize++;
 	return sym ? 0 : -1;
 }
 
@@ -226,63 +329,133 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 	return 0;
 }
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 static void klass_mark(Object *ob)
 {
 	OB_ASSERT_KLASS(ob, Klass_Klass);
-	//ob_incref(ob);
-	//FIXME
+	//FIXME: ob_ref_inc
 }
 
 static void klass_free(Object *ob)
 {
-	// Klass_Klass cannot be freed.
-	if (ob == (Object *)&Klass_Klass) {
-		assertm(0, "Klass_Klass cannot be freed\n");
-	}
-
 	OB_ASSERT_KLASS(ob, Klass_Klass);
+	assertm(ob != (Object *)&Klass_Klass, "Why goes here?");
 	free(ob);
 }
 
-static Object *klass_tostring(TValue *v)
-{
-	Object *ob = VALUE_OBJECT(v);
-	Klass *klass = OB_TYPE_OF(ob, Klass, Klass_Klass);
-	return String_New(klass->name);
-}
-
 Klass Klass_Klass = {
-	OBJECT_HEAD_INIT(&Klass_Klass),
-	.name = "Class",
-	.size = sizeof(Klass),
+	OBJECT_HEAD_INIT(&Klass_Klass, &Klass_Klass)
+	.name = "Klass",
+	.basesize = sizeof(Klass),
 	.ob_mark = klass_mark,
 	.ob_free = klass_free,
-	.ob_tostr = klass_tostring,
 };
 
-/*-------------------------------------------------------------------------*/
-
-static Object *__klass_tostring(Object *ob, Object *args)
-{
-	assert(!args);
-	OB_ASSERT_KLASS(ob, Klass_Klass);
-	Klass *klazz = (Klass *)ob;
-	return Tuple_Build("O", String_New(klazz->name));
-}
-
-static FuncDef klass_funcs[] = {
-	{"ToString", 1, "s", 0, NULL, __klass_tostring},
-	{NULL}
+Klass Any_Klass = {
+	OBJECT_HEAD_INIT(&Any_Klass, &Klass_Klass)
+	.name = "Any",
 };
 
-void Init_Klass_Klass(void)
+/*---------------------------------------------------------------------------*/
+
+static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
 {
-	Klass_Add_CFunctions(&Klass_Klass, klass_funcs);
+	Check_Klass(OB_KLASS(ob));
+	Object *base;
+	Symbol *sym = NULL;
+	char *dot = strchr(name, '.');
+	if (dot) {
+		char *classname = strndup(name, dot - name);
+		char *fieldname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
+		base = OB_Base(ob);
+		assert(base && !strcmp(OB_KLASS(base)->name, classname));
+		sym = Klass_Get_FieldSymbol(OB_KLASS(base), fieldname);
+		*rob = base;
+		free(classname);
+		free(fieldname);
+	} else {
+		base = ob;
+		while (base) {
+			sym = Klass_Get_FieldSymbol(OB_KLASS(base), name);
+			if (sym) {
+				*rob = base;
+				break;
+			}
+			base = OB_HasBase(ob) ? OB_Base(ob) : NULL;
+		}
+	}
+
+	assert(sym && sym->kind == SYM_VAR);
+	return sym;
 }
 
-/*-------------------------------------------------------------------------*/
+TValue Object_Get_Value(Object *ob, char *name)
+{
+	Object *rob = NULL;
+	Symbol *sym = get_field_symbol(ob, name, &rob);
+	assert(rob);
+	TValue *value = (TValue *)(rob + 1);
+	int index = sym->index;
+	assert(index >= 0 && index < rob->ob_size);
+	return value[index];
+}
+
+int Object_Set_Value(Object *ob, char *name, TValue *val)
+{
+	Object *rob = NULL;
+	Symbol *sym = get_field_symbol(ob, name, &rob);
+	assert(rob);
+	TValue *value = (TValue *)(rob + 1);
+	int index = sym->index;
+	assert(index >= 0 && index < rob->ob_size);
+	value[index] = *val;
+	return 0;
+}
+
+Object *Object_Get_Method(Object *ob, char *name, Object **rob)
+{
+	Check_Klass(OB_KLASS(ob));
+	Object *base;
+	Object *code;
+	char *dot = strchr(name, '.');
+	if (dot) {
+		char *classname = strndup(name, dot - name);
+		char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
+		base = OB_Base(ob);
+		assert(base);
+		assert(!strcmp(OB_KLASS(base)->name, classname));
+		code = Klass_Get_Method(OB_KLASS(base), funcname);
+		assert(code);
+		*rob = base;
+		free(classname);
+		free(funcname);
+		return code;
+	} else {
+		if (!strcmp(name, "__init__")) {
+			//__init__ method is allowed to be searched only in current class
+			code = Klass_Get_Method(OB_KLASS(ob), name);
+			//FIXME: class with no __init__ ?
+			//assert(code);
+			*rob = ob;
+			return code;
+		} else {
+			base = ob;
+			while (base) {
+				code = Klass_Get_Method(OB_KLASS(base), name);
+				if (code) {
+					*rob = base;
+					return code;
+				}
+				base = OB_HasBase(ob) ? OB_Base(ob) : NULL;
+			}
+			assertm(0, "cannot find func '%s'", name);
+			return NULL;
+		}
+	}
+}
+
+/*---------------------------------------------------------------------------*/
 
 static int NilValue_Print(char *buf, int sz, TValue *val)
 {
@@ -415,18 +588,16 @@ int TValue_Print(char *buf, int sz, TValue *val, int escape)
 
 static int check_inheritance(Klass *k1, Klass *k2)
 {
-	Klass *super = OB_KLASS(k1);
-	while (super) {
-		if (super == k2) return 0;
-		if (!Klass_IsRoot(super)) super = OB_KLASS(super);
-		else super = NULL;
+	Klass *base = k1;
+	while (base) {
+		if (base == k2) return 0;
+		base = OB_HasBase(base) ? (Klass *)OB_Base(base) : NULL;
 	}
 
-	super = OB_KLASS(k2);
-	while (super) {
-		if (super == k1) return 0;
-		if (!Klass_IsRoot(super)) super = OB_KLASS(super);
-		else super = NULL;
+	base = k2;
+	while (base) {
+		if (base == k1) return 0;
+		base = OB_HasBase(base) ? (Klass *)OB_Base(base) : NULL;
 	}
 
 	return -1;
@@ -474,9 +645,9 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 			Klass *klazz = Koala_Get_Klass(ob, desc->path, desc->type);
 			if (!klazz) return -1;
 			Klass *k = OB_KLASS(val->ob);
-			while (k && !Klass_IsRoot(k)) {
+			while (k) {
 				if (k == klazz) return 0;
-				k = OB_KLASS(k);
+				k = OB_HasBase(k) ? (Klass *)OB_Base(k) : NULL;
 			}
 			break;
 		}

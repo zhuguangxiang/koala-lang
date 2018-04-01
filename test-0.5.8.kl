@@ -69,7 +69,6 @@ func Main(args []string) {
 	person.SayHello();
 	io.Println(">>>>age:", person.GetAge());
 	io.Println(">>>>age:", person.age);
-	person.TestCallFunc();
 	person.TestAccessVar();
 	io.Println(name);
 	io.Println(test.name);

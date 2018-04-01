@@ -3,7 +3,6 @@
 #include "moduleobject.h"
 #include "codeobject.h"
 #include "tupleobject.h"
-#include "classobject.h"
 #include "koala_state.h"
 #include "opcode.h"
 #include "log.h"
@@ -668,6 +667,8 @@ static void frame_loop(Frame *frame)
 				ob = VALUE_OBJECT(&val);
 				Klass *klazz = Module_Get_Class(ob, name);
 				assert(klazz);
+				assert(klazz != &Klass_Klass);
+				assert(OB_Base(klazz) != (Object *)&Klass_Klass);
 				ob = klazz->ob_alloc(klazz);
 				setobjvalue(&val, ob);
 				PUSH(&val);

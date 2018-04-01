@@ -12,7 +12,7 @@ include $(TOPDIR)/config.mk
 
 KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c properties.c \
 atomtable.c symbol.c object.c stringobject.c tupleobject.c \
-tableobject.c moduleobject.c classobject.c codeobject.c opcode.c codegen.c \
+tableobject.c moduleobject.c codeobject.c opcode.c codegen.c \
 klc.c routine.c thread.c mod_lang.c mod_io.c koala_state.c \
 koala_yacc.c koala_lex.c ast.c parser.c checker.c koala_type.c
 KOALA_LIB = koala
@@ -64,7 +64,7 @@ teststring: lib
 	@$(CC) $(CFLAGS) test_string.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testobject: lib
+testobject:
 	@$(CC) $(CFLAGS) test_object.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 

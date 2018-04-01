@@ -35,11 +35,9 @@ void Init_Lang_Module(void)
 	assert(m);
 	Module_Add_CFunctions(m, lang_funcs);
 
-	Module_Add_Class(m, &Klass_Klass);
 	Module_Add_Class(m, &String_Klass);
 	Module_Add_Class(m, &Tuple_Klass);
 	Module_Add_Class(m, &Table_Klass);
-	Init_Klass_Klass();
 	Init_String_Klass();
 	Init_Tuple_Klass();
 	Init_Table_Klass();

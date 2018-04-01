@@ -834,12 +834,23 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 				i->argc = exp->argc;
 			} else if (sym->kind == SYM_CLASS) {
 				debug("symbol '%s' is class", sym->name);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-				Inst_Append(u->block, OP_GETM, NULL);
-				setcstrvalue(&val, sym->name);
-				Inst *i = Inst_Append(u->block, OP_NEW, &val);
-				i->argc = exp->argc;
+				if (exp->right && exp->right->kind == CALL_KIND) {
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					Inst_Append(u->block, OP_GETM, NULL);
+					setcstrvalue(&val, sym->name);
+					Inst *i = Inst_Append(u->block, OP_NEW, &val);
+					i->argc = exp->argc;
+				} else {
+					if (!exp->right) {
+						debug("'%s' is a class", sym->name);
+						TValue val = INT_VALUE_INIT(0);
+						Inst_Append(u->block, OP_LOAD, &val);
+						Inst_Append(u->block, OP_GETM, NULL);
+					} else {
+						assert(0);
+					}
+				}
 			} else {
 				assertm(0, "invalid symbol kind :%d", sym->kind);
 			}

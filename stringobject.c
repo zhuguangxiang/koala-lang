@@ -7,12 +7,11 @@
 
 Object *String_New(char *str)
 {
-	StringObject *sobj = malloc(sizeof(StringObject));
-	init_object_head(sobj, &String_Klass);
-	sobj->len = strlen(str);
-	sobj->str = strdup(str);
-	//Object_Add_GCList(s);
-	return (Object *)sobj;
+	StringObject *ob = malloc(sizeof(StringObject));
+	Init_Object_Head(ob, &String_Klass);
+	ob->len = strlen(str);
+	ob->str = strdup(str);
+	return (Object *)ob;
 }
 
 void String_Free(Object *ob)
@@ -121,10 +120,12 @@ static void string_free(Object *ob)
 }
 
 Klass String_Klass = {
-	OBJECT_HEAD_INIT(&Klass_Klass),
+	OBJECT_HEAD_INIT(&String_Klass, &Klass_Klass)
 	.name = "String",
-	.size = sizeof(StringObject),
-	.ob_free = string_free,
-	.ob_hash = string_hash,
-	.ob_eq = string_equal
+	.basesize = sizeof(StringObject),
+	.itemsize = 0,
+	.flags = FLAGS_FINAL,
+	.ob_free  = string_free,
+	.ob_hash  = string_hash,
+	.ob_equal = string_equal
 };
