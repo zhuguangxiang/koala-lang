@@ -36,7 +36,7 @@ lib:
 	-pthread
 	@cp lib$(KOALA_LIB).so /usr/lib/koala-lang/
 	@$(RM) *.o lib$(KOALA_LIB).so
-	@$(RM) koala_yacc.h koala_yacc.c koala_yacc.output koala_lex.c
+	##@$(RM) koala_yacc.h koala_yacc.c koala_yacc.output koala_lex.c
 
 koalac:
 	@gcc $(CFLAGS) -o $(KOALAC) $(KOALAC_FILES) -L. -l$(KOALA_LIB) -pthread -lrt
@@ -171,9 +171,14 @@ test-0.5.12:
 	@$(KOALAC) test-0.5.12.kl
 	@$(KOALA) test-0.5.12
 
+test-0.5.13:
+	@$(RM) test-0.5.13.klc
+	@$(KOALAC) test-0.5.13.kl
+	@$(KOALA) test-0.5.13
+
 testkl: test-0.5.1 test-0.5.2 test-0.5.3 test-0.5.4 test-0.5.5 test-0.5.6 \
 	test-0.5.7 test-0.5.8 test-test test-0.5.9 test-0.5.10 test-0.5.11 \
-	test-0.5.12
+	test-0.5.12 test-0.5.13
 	@echo "Test Koala Down!"
 
 runkl:
@@ -190,6 +195,7 @@ runkl:
 	@$(KOALA) test-0.5.10
 	@$(KOALA) test-0.5.11
 	@$(KOALA) test-0.5.12
+	@$(KOALA) test-0.5.13
 
 test: testprop testbuf testroutine testimage testhashtable testlist \
 	testmodule testobject teststring testtuple testvector testkl

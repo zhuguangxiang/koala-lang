@@ -195,11 +195,13 @@ extern Klass Any_Klass;
 Klass *Klass_New(char *name, Klass *super, int flags);
 void Fini_Klass(Klass *klazz);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
-Symbol *Klass_Get_FieldSymbol(Klass *klazz, char *name);
+Symbol *Klass_Get_Symbol(Klass *klazz, char *name);
 int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code);
 Object *Klass_Get_Method(Klass *klazz, char *name);
 #define Klass_STable(ob) (&((Klass *)(ob))->stbl)
 void Check_Klass(Klass *klazz);
+Klass *Intf_New(char *name);
+int Klass_Add_IMethod(Klass *klazz, char *name, Proto *proto);
 
 /*-------------------------------------------------------------------------*/
 /*

@@ -1,0 +1,37 @@
+
+/*
+	This test is for class statement
+ */
+package test;
+
+import "koala/io";
+
+class Animal {
+	name string;
+	age int;
+
+	func __init__(name string, _age int) {
+		self.name = name;
+		age = _age;
+	}
+
+	func SayHello() {
+		io.Println("Animal:", name, age);
+	}
+
+	func SetName(name string) {
+		self.name = name;
+	}
+}
+
+interface IAnimal {
+	func SayHello();
+	func SetName(name string);
+}
+
+func Main(args []string) {
+	var ian IAnimal = Animal("Tortoise", 2300);
+	ian.SayHello();
+	ian.SetName("Python");
+	ian.SayHello();
+}

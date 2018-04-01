@@ -452,7 +452,7 @@ TypeDeclaration
     $$ = stmt_from_class($2, $4, $6);
   }
   | INTERFACE ID '{' IntfFuncDecls '}' {
-    $$ = NULL; //stmt_from_interface($2, $4);
+    $$ = stmt_from_interface($2, $4);
   }
   ;
 
@@ -497,11 +497,11 @@ IntfFuncDecls
   ;
 
 IntfFuncDecl
-  : FUNC ID '(' TypeNameListOrEmpty ')' ReturnTypeList ';'{
-    $$ = NULL; //new_intf_func($2, $4, $6);
+  : FUNC ID  '(' TypeNameListOrEmpty ')' ReturnTypeList ';' {
+    $$ = new_intf_func($2, $4, $6);
   }
-  | FUNC ID '(' TypeNameListOrEmpty ')' ';' {
-    $$ = NULL; //new_intf_func($2, $4, NULL);
+  | FUNC ID  '(' TypeNameListOrEmpty ')' ';' {
+    $$ = new_intf_func($2, $4, NULL);
   }
   ;
 

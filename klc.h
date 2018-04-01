@@ -195,6 +195,8 @@ void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype);
 void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc);
 int KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
 	int locvars, uint8 *codes, int csz);
+void KImage_Add_Intf(KImage *image, char *name);
+void KImage_Add_IMeth(KImage *image, char *intf, char *name, Proto *proto);
 void KImage_Write_File(KImage *image, char *path);
 KImage *KImage_Read_File(char *path);
 void KImage_Show(KImage *image);

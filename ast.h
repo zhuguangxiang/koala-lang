@@ -133,6 +133,15 @@ struct var *new_var(char *id, TypeDesc *desc);
 void free_var(struct var *v);
 
 /*-------------------------------------------------------------------------*/
+struct intf_func {
+	char *id;
+	Vector *pvec;
+	Vector *rvec;
+};
+
+struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec);
+
+/*-------------------------------------------------------------------------*/
 
 struct test_block {
 	struct expr *test;

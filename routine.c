@@ -373,12 +373,12 @@ static int check_virtual_call(TValue *val, char *name)
 	Check_Klass(klazz);
 
 	if (strchr(name, '.')) return 0;
-	Symbol *sym = Klass_Get_FieldSymbol(klazz, name);
+	Symbol *sym = Klass_Get_Symbol(klazz, name);
 	if (!sym) {
 		error("cannot find '%s' in '%s' class", name, klazz->name);
 		return -1;
 	}
-	if (sym->kind != SYM_PROTO) {
+	if (sym->kind != SYM_PROTO && sym->kind != SYM_IPROTO) {
 		error("symbol '%s' is not method", name);
 		return -1;
 	}

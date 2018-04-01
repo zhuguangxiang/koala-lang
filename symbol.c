@@ -34,6 +34,7 @@ void Symbol_Free(Symbol *sym)
 	} else if (sym->kind == SYM_STABLE) {
 		STable_Free(sym->ptr);
 		free(sym->path);
+	} else if (sym->kind == SYM_IPROTO) {
 	} else {
 		assert(0);
 	}
@@ -235,6 +236,10 @@ static void __symbol_show_fn(HashNode *hnode, void *arg)
 		}
 		case SYM_INTF: {
 			printf("interface %s;\n", sym->name);
+			break;
+		}
+		case SYM_IPROTO: {
+			printf("func %s;\n", sym->name);
 			break;
 		}
 		default: {

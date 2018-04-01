@@ -118,16 +118,23 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 	}
 }
 
-static void add_locvar(KImage *image, int index, Symbol *sym, int flags)
+static void add_locvar(KImage *image, int index, Symbol *sym, int flags,
+	int incls)
 {
 	if (Vector_Size(&sym->locvec) <= 0) {
-		debug("		no locvars");
+		if (incls)
+			debug("		no vars");
+		else
+			debug("	no vars");
 		return;
 	}
 
 	Symbol *item;
 	Vector_ForEach(item, &sym->locvec) {
-		debug("		locvar '%s'", item->name);
+		if (incls)
+			debug("		var '%s'", item->name);
+		else
+			debug("	var '%s'", item->name);
 		KImage_Add_LocVar(image, item->name, item->desc, item->index,
 			flags, index);
 	}
@@ -168,7 +175,7 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				break;
 			}
 			if (tmp->bcls) {
-				debug("	method %s:", sym->name);
+				debug("	func %s:", sym->name);
 			} else {
 				debug("func %s:", sym->name);
 			}
@@ -192,11 +199,11 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			if (tmp->bcls) {
 				index = KImage_Add_Method(tmp->image, tmp->clazz, sym->name,
 					sym->desc->proto, locvars, data, size);
-				add_locvar(tmp->image, index, sym, METHLOCVAR);
+				add_locvar(tmp->image, index, sym, METHLOCVAR, 1);
 			} else {
 				index = KImage_Add_Func(tmp->image, sym->name, sym->desc->proto, locvars,
 					data, size);
-				add_locvar(tmp->image, index, sym, FUNCLOCVAR);
+				add_locvar(tmp->image, index, sym, FUNCLOCVAR, 0);
 			}
 			break;
 		}
@@ -210,6 +217,19 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				type = sym->super->desc->type;
 			}
 			KImage_Add_Class(tmp->image, sym->name, path, type);
+			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
+			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
+			break;
+		}
+		case SYM_IPROTO: {
+			debug("	func %s:", sym->name);
+			KImage_Add_IMeth(tmp->image, tmp->clazz, sym->name, sym->desc->proto);
+			break;
+		}
+		case SYM_INTF: {
+			debug("----------------------");
+			debug("interface %s:", sym->name);
+			KImage_Add_Intf(tmp->image, sym->name);
 			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
 			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
 			break;

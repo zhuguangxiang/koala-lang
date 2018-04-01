@@ -341,3 +341,23 @@ int TypeDesc_IsBool(TypeDesc *desc)
 	else
 		return 0;
 }
+
+int Proto_IsEqual(Proto *p1, Proto *p2)
+{
+	if (!p1 || !p2) return 0;
+	if (p1 == p2) return 1;
+	if (p1->psz != p2->psz) return 0;
+	if (p1->rsz != p2->rsz) return 0;
+
+	for (int i = 0; i < p1->psz; i++) {
+		if (!TypeDesc_Check(p1->pdesc + i, p2->pdesc + i))
+			return 0;
+	}
+
+	for (int i = 0; i < p1->rsz; i++) {
+		if (!TypeDesc_Check(p1->rdesc + i, p2->rdesc + i))
+			return 0;
+	}
+
+	return 1;
+}

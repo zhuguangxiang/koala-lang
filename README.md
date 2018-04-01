@@ -311,6 +311,10 @@ allocated in subobject.
 
 v0.5.10-1:
 
+v0.5.10-2:
+1. feature: interface statement
+2. test:test-0.5.13.kl
+
 v0.6.0:
 1. feature: subclass casts to base class, and base class casts to realclass
 2. keyword: typeof

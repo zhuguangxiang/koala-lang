@@ -469,6 +469,17 @@ void free_var(struct var *v)
 
 /*--------------------------------------------------------------------------*/
 
+struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec)
+{
+	struct intf_func *fn = malloc(sizeof(struct intf_func));
+	fn->id = id;
+	fn->pvec = pvec;
+	fn->rvec = rvec;
+	return fn;
+}
+
+/*--------------------------------------------------------------------------*/
+
 static void item_stmt_free(void *item, void *arg)
 {
 	UNUSED_PARAMETER(arg);

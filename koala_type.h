@@ -79,6 +79,7 @@ int Proto_Has_Vargs(Proto *proto);
 Proto *Proto_Dup(Proto *proto);
 int TypeDesc_IsBool(TypeDesc *desc);
 char *Primitive_ToString(int type);
+int Proto_IsEqual(Proto *p1, Proto *p2);
 
 #ifdef __cplusplus
 }

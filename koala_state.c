@@ -320,14 +320,6 @@ static void load_classes(AtomTable *table, Object *m)
 		indexes[i].klazz = klazz;
 	}
 
-	//handle field and method inheritance
-	// for (int i = 0; i < num; i++) {
-	// 	klazz = indexes[i].klazz;
-	// 	if (klazz->base) {
-	// 		STable_Traverse(&klazz->base->stbl, inherit_super_fn, klazz);
-	// 	}
-	// }
-
 	sz = AtomTable_Size(table, ITEM_FIELD);
 	FieldItem *fld;
 	for (int i = 0; i < sz; i++) {
@@ -356,39 +348,6 @@ static void load_classes(AtomTable *table, Object *m)
 			load_locvar(locvar, table, get_kfunc(locindexes, locnum, locvar->index));
 		}
 	}
-
-	//update subclass's fields index
-#if 0
-	for (int i = 0; i < num; i++) {
-		klazz = indexes[i].klazz;
-		if (klazz->base) {
-			Klass *base = klazz->base;
-			int nrfields = base->stbl.varcnt;
-			Klass *k = base->base;
-			while (k) {
-				nrfields += k->stbl.varcnt;
-				k = k->base;
-			}
-			debug("'%s' base class nrfields:%d", klazz->name, nrfields);
-			STable_Traverse(&klazz->stbl, update_fields_fn, &nrfields);
-		}
-	}
-
-	//update subclass's symbol table
-	Symbol *sym;
-	for (int i = 0; i < num; i++) {
-		klazz = indexes[i].klazz;
-		if (klazz->base) {
-			Klass *base = klazz->base;
-			sym = STable_Add_Symbol(&klazz->stbl, base->name, SYM_STABLE, 0);
-			sym->ptr = &base->stbl;
-			sym = STable_Add_Symbol(&klazz->stbl, "base", SYM_STABLE, 0);
-			sym->ptr = &base->stbl;
-			debug("update '%s' class's symbol table from base '%s' class",
-				klazz->name, base->name);
-		}
-	}
-#endif
 }
 
 static Klass *load_interface(IntfItem *intf, AtomTable *table, Object *m)
@@ -396,7 +355,7 @@ static Klass *load_interface(IntfItem *intf, AtomTable *table, Object *m)
 	TypeItem *type = TypeItem_Index(table, intf->classindex);
 	assert(type->protoindex == -1);
 	StringItem *id = StringItem_Index(table, type->typeindex);
-	Klass *klazz = Klass_New(id->data, NULL, 0);
+	Klass *klazz = Intf_New(id->data);
 	Module_Add_Interface(m, klazz);
 	return klazz;
 }
@@ -406,13 +365,11 @@ static void load_imethod(IMethItem *imth, AtomTable *table, Klass *klazz)
 	StringItem *id;
 	ProtoItem *protoitem;
 	Proto *proto;
-	TypeDesc *desc;
 
 	id = StringItem_Index(table, imth->nameindex);
 	protoitem = ProtoItem_Index(table, imth->protoindex);
 	proto = Proto_From_ProtoItem(protoitem, table);
-	desc = TypeDesc_From_Proto(proto);
-	Klass_Add_Field(klazz, id->data, desc);
+	Klass_Add_IMethod(klazz, id->data, proto);
 }
 
 static void load_interfaces(AtomTable *table, Object *m)

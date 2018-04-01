@@ -1732,6 +1732,28 @@ KImage *KImage_Read_File(char *path)
 				}
 				break;
 			}
+			case ITEM_INTF: {
+				IntfItem *item;
+				IntfItem items[map->size];
+				sz = fread(items, sizeof(IntfItem), map->size, fp);
+				assert(sz == map->size);
+				for (int i = 0; i < map->size; i++) {
+					item = Item_Copy(sizeof(IntfItem), items + i);
+					AtomTable_Append(image->table, ITEM_INTF, item, 0);
+				}
+				break;
+			}
+			case ITEM_IMETH: {
+				IMethItem *item;
+				IMethItem items[map->size];
+				sz = fread(items, sizeof(IMethItem), map->size, fp);
+				assert(sz == map->size);
+				for (int i = 0; i < map->size; i++) {
+					item = Item_Copy(sizeof(IMethItem), items + i);
+					AtomTable_Append(image->table, ITEM_IMETH, item, 0);
+				}
+				break;
+			}
 			default: {
 				assertm(0, "unknown map type:%d", map->type);
 			}

@@ -261,6 +261,15 @@ Klass *Klass_New(char *name, Klass *base, int flags)
 	return klazz;
 }
 
+Klass *Intf_New(char *name)
+{
+	Klass *klazz = calloc(1, sizeof(Klass));
+	Init_Object_Head(klazz, &Klass_Klass);
+	klazz->name = strdup(name);
+	klazz->flags = FLAGS_INTF;
+	return klazz;
+}
+
 void Fini_Klass(Klass *klazz)
 {
 	STable_Fini(&klazz->stbl);
@@ -298,7 +307,14 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 	return -1;
 }
 
-Symbol *Klass_Get_FieldSymbol(Klass *klazz, char *name)
+int Klass_Add_IMethod(Klass *klazz, char *name, Proto *proto)
+{
+	Check_Klass(klazz);
+	Symbol *sym = STable_Add_IProto(&klazz->stbl, name, proto);
+	return sym ? 0 : -1;
+}
+
+Symbol *Klass_Get_Symbol(Klass *klazz, char *name)
 {
 	return STable_Get(&klazz->stbl, name);
 }
@@ -370,14 +386,14 @@ static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
 		char *fieldname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
 		base = OB_Base(ob);
 		assert(base && !strcmp(OB_KLASS(base)->name, classname));
-		sym = Klass_Get_FieldSymbol(OB_KLASS(base), fieldname);
+		sym = Klass_Get_Symbol(OB_KLASS(base), fieldname);
 		*rob = base;
 		free(classname);
 		free(fieldname);
 	} else {
 		base = ob;
 		while (base) {
-			sym = Klass_Get_FieldSymbol(OB_KLASS(base), name);
+			sym = Klass_Get_Symbol(OB_KLASS(base), name);
 			if (sym) {
 				*rob = base;
 				break;
@@ -586,7 +602,7 @@ int TValue_Print(char *buf, int sz, TValue *val, int escape)
 	return count;
 }
 
-static int check_inheritance(Klass *k1, Klass *k2)
+static int check_class_inheritance(Klass *k1, Klass *k2)
 {
 	Klass *base = k1;
 	while (base) {
@@ -601,6 +617,61 @@ static int check_inheritance(Klass *k1, Klass *k2)
 	}
 
 	return -1;
+}
+
+struct intf_inherit_struct {
+	Klass *klz;
+	int result;
+};
+
+static void __intf_func_check_fn(Symbol *sym, void *arg)
+{
+	struct intf_inherit_struct *temp = arg;
+	if (temp->result) return;
+
+	Klass *klazz = temp->klz;
+	assert(sym->kind == SYM_IPROTO);
+	assert(!(klazz->flags & FLAGS_INTF));
+
+	Symbol *method;
+	Klass *base = klazz;
+	while (base) {
+		method = Klass_Get_Symbol(base, sym->name);
+		if (!method) {
+			error("Is '%s' in '%s'? no", sym->name, base->name);
+			temp->result = -1;
+		} else {
+			debug("Is '%s' in '%s'? yes", sym->name, base->name);
+			if (!Proto_IsEqual(method->desc->proto, sym->desc->proto)) {
+				error("intf-func check failed");
+				temp->result = -1;
+			} else {
+				debug("intf-func check ok");
+				temp->result = 0;
+				break;
+			}
+		}
+		base = OB_HasBase(base) ? (Klass *)OB_Base(base) : NULL;
+	}
+}
+
+static int check_interface_inheritance(Klass *intf, Klass *klz)
+{
+	struct intf_inherit_struct temp = {klz, 0};
+	STable_Traverse(&intf->stbl, __intf_func_check_fn, &temp);
+	return temp.result;
+}
+
+static int check_inheritance(Klass *k1, Klass *k2)
+{
+	if (!(k1->flags & FLAGS_INTF) && !(k2->flags & FLAGS_INTF))
+		return check_class_inheritance(k1, k2);
+	else if (k1->flags & FLAGS_INTF) {
+		return check_interface_inheritance(k1, k2);
+	} else {
+		assert(k2->flags & FLAGS_INTF);
+		return check_interface_inheritance(k2, k1);
+	}
 }
 
 int TValue_Check(TValue *v1, TValue *v2)
@@ -709,8 +780,9 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 			}
 
 			Klass *klazz = Module_Get_Class(module, desc->type);
+			if (!klazz) klazz = Module_Get_Intf(module, desc->type);
 			assert(klazz);
-			debug("find class: %s", klazz->name);
+			debug("find class or interface: %s", klazz->name);
 			setobjtype(val, klazz);
 			break;
 		}
