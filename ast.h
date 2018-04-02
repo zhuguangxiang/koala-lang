@@ -201,6 +201,7 @@ struct stmt {
 		} class_type;
 		struct {
 			char *id;
+			Vector *bases;
 			Vector *methods;
 		} intf_type;
 		struct {
@@ -257,7 +258,7 @@ struct stmt *stmt_from_block(Vector *vec);
 struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
 struct stmt *stmt_from_class(char *id, TypeDesc *parent, Vector *vec);
-struct stmt *stmt_from_interface(char *id, Vector *methods);
+struct stmt *stmt_from_interface(char *id, Vector *bases, Vector *methods);
 struct stmt *stmt_from_jump(int kind, int level);
 struct stmt *stmt_from_if(struct expr *test, Vector *body,
 	struct stmt *orelse);

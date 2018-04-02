@@ -330,10 +330,11 @@ struct stmt *stmt_from_class(char *id, TypeDesc *parent, Vector *vec)
 	return stmt;
 }
 
-struct stmt *stmt_from_interface(char *id, Vector *methods)
+struct stmt *stmt_from_interface(char *id, Vector *bases, Vector *methods)
 {
 	struct stmt *stmt = stmt_new(INTF_KIND);
 	stmt->intf_type.id = id;
+	stmt->intf_type.bases = bases;
 	stmt->intf_type.methods = methods;
 	return stmt;
 }

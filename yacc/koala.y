@@ -188,6 +188,8 @@ int yyerror(ParserState *parser, const char *str)
 %type <stmt> FieldDeclaration
 %type <vector> IntfFuncDecls
 %type <intf_func> IntfFuncDecl
+%type <vector> BaseInterfacesOrEmpty
+%type <vector> BaseInterfaces
 
 %start CompileUnit
 
@@ -451,8 +453,8 @@ TypeDeclaration
   | CLASS ID ':' UserDefType '{' MemberDeclarations '}' {
     $$ = stmt_from_class($2, $4, $6);
   }
-  | INTERFACE ID '{' IntfFuncDecls '}' {
-    $$ = stmt_from_interface($2, $4);
+  | INTERFACE ID BaseInterfacesOrEmpty '{' IntfFuncDecls '}' {
+    $$ = stmt_from_interface($2, $3, $5);
   }
   ;
 
@@ -502,6 +504,26 @@ IntfFuncDecl
   }
   | FUNC ID  '(' TypeNameListOrEmpty ')' ';' {
     $$ = new_intf_func($2, $4, NULL);
+  }
+  ;
+
+BaseInterfacesOrEmpty
+  : %empty {
+    $$ = NULL;
+  }
+  | ':' BaseInterfaces {
+    $$ = $2;
+  }
+  ;
+
+BaseInterfaces
+  : UserDefType {
+    $$ = Vector_New();
+    Vector_Append($$, $1);
+  }
+  | BaseInterfaces ',' UserDefType {
+    Vector_Append($1, $3);
+    $$ = $1;
   }
   ;
 
