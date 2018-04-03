@@ -63,7 +63,7 @@ struct symbol {
 	void *ptr;      /* CodeBlock and STable(import, class, interface) */
 	char *path;     /* used for import */
 	int32 locvars;  /* used in compiler, for function */
-	Symbol *refsym; /* used in compiler, if var is an interface */
+	HashTable *table; /* save base interfaces, for interface inheritance*/
 };
 
 /* Exported APIs */
@@ -92,6 +92,13 @@ int STable_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc);
 	access |= bconst ? ACCESS_CONST : 0; \
 	access; \
 })
+
+typedef struct base_symbol {
+	HashNode hnode;
+	Symbol *sym;
+} BaseSymbol;
+
+int Symbol_Add_Base(Symbol *sym, Symbol *base);
 
 #ifdef __cplusplus
 }

@@ -213,7 +213,7 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
 
 	uint32 hash = hnode->hash = table->hash(hnode->key);
 	if (__HashTable_Find(table, hash, hnode->key)) {
-		error("key is duplicated");
+		warn("key is duplicated");
 		return -1;
 	}
 

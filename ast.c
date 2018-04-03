@@ -460,7 +460,6 @@ struct var *new_var(char *id, TypeDesc *desc)
 	struct var *v = malloc(sizeof(struct var));
 	v->id = id;
 	v->bconst = 0;
-	v->refsym = NULL;
 	v->desc = desc;
 	return v;
 }

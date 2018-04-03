@@ -36,39 +36,40 @@ class Dog : Animal {
 	func SayHello() {
 		io.Println("Dog: SayHello");
 		io.Println("Dog:", name, age, color);
-		super.SayHello();
 	}
+}
+
+interface IAnimal3 : IAnimal, IAnimal2 {
+	func AnimalFunc();
 }
 
 interface IAnimal {
 	func SayHello();
 }
 
-interface IAnimal2 {
-	func AnimalFunc();
-}
-
-interface IAnimal3 {
-	func SayHello();
+interface IAnimal2 : IAnimal {
 	func AnimalFunc();
 }
 
 func Main(args []string) {
-	var ian2 IAnimal2 = Dog("Tortoise", 2300, "ColorFul");
-	ian2.AnimalFunc();
-
-	io.Println("------------1--------------");
-
-	var ian IAnimal = ian2;
-	ian.SayHello();
-
-	io.Println("------------2--------------");
-
-	var ian3 IAnimal3 = ian;
+	var ian3 IAnimal3 = Dog("Tortoise", 2300, "Colorful");
 	ian3.SayHello();
 	ian3.AnimalFunc();
 
+	io.Println("------------1--------------");
+
+	var ian2 IAnimal2 = ian3;
+	ian2.SayHello();
+	ian2.AnimalFunc();
+
+	io.Println("------------2--------------");
+
+	var ian IAnimal = ian3;
+	ian.SayHello();
+
 	io.Println("------------3--------------");
-	var ian4 IAnimal = ian3;
+	var ian4 IAnimal = ian2;
 	ian4.SayHello();
+
+	io.Println("------------4--------------");
 }

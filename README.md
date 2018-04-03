@@ -316,8 +316,7 @@ v0.5.10-2:
 2. test:test-0.5.13.kl
 
 v0.5.10-3:
-1. interface assignment: interface is not necessary inherited.
-It's just an interface to communication.
+1. interface: support inherited
 2. test:test-0.5.14.kl test:test-0.5.15.kl
 
 v0.6.0:
@@ -328,8 +327,13 @@ v0.6.0:
    typeof(variable-name or object, type-name) is type cast to type-name
 3. test-0.6.0.kl
 4. typeof: call lang.TypeOf(...A) function
+5. cast: interface <- interface, interface <- class,
+    class <- class(up & down casts), class <- interface(up & down casts)
 
 v0.6.1:
+1. feature: reflect module
+
+v0.6.2:
 1. feature: error handle
 2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
 3. new: assignment type check
@@ -343,7 +347,7 @@ v0.6.5:
 1. feature: for statement
 
 v0.6.6:
-1. feature: break n, continue n statement
+1. feature: break n, continue n statement or break LABEL?
 
 v0.6.7:
 1. refactor: symbol table

@@ -126,7 +126,6 @@ void expr_traverse(struct expr *exp);
 struct var {
 	char *id;
 	short bconst;
-	Symbol *refsym; //for var is a int
 	TypeDesc *desc;
 };
 

@@ -548,7 +548,7 @@ int stringitem_equal(void *k1, void *k2)
 {
 	StringItem *item1 = k1;
 	StringItem *item2 = k2;
-	return strcmp(item1->data, item2->data) == 0;
+	return !strcmp(item1->data, item2->data);
 }
 
 void stringitem_show(AtomTable *table, void *o)
