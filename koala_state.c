@@ -350,6 +350,7 @@ static void load_classes(AtomTable *table, Object *m)
 	}
 }
 
+#if 0
 static Klass *load_interface(IntfItem *intf, AtomTable *table, Object *m)
 {
 	TypeItem *type = TypeItem_Index(table, intf->classindex);
@@ -393,6 +394,7 @@ static void load_interfaces(AtomTable *table, Object *m)
 		load_imethod(imth, table, get_klazz(indexes, num, imth->classindex));
 	}
 }
+#endif
 
 static Object *module_from_image(KImage *image)
 {
@@ -404,7 +406,7 @@ static Object *module_from_image(KImage *image)
 	load_variables(table, m);
 	load_functions(table, m);
 	load_classes(table, m);
-	load_interfaces(table, m);
+	//load_interfaces(table, m);
 	return m;
 }
 

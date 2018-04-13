@@ -64,7 +64,9 @@ L   [a-zA-Z_]
 "func"                    {return FUNC;}
 "return"                  {return RETURN;}
 "class"                   {return CLASS;}
-"interface"               {return INTERFACE;}
+"trait"                   {return TRAIT;}
+"extends"                 {return EXTENDS;}
+"with"                    {return WITH;}
 "const"                   {return CONST;}
 "import"                  {return IMPORT;}
 "as"                      {return AS;}

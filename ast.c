@@ -132,6 +132,11 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
 			expr->call.args = trailer;
 			break;
 		}
+		case WITH_KIND: {
+			expr->with.left = left;
+			expr->with.desc = trailer;
+			break;
+		}
 		default: {
 			assertm(0, "unkown expression kind %d\n", kind);
 		}
@@ -321,21 +326,30 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 	return stmt;
 }
 
-struct stmt *stmt_from_class(char *id, TypeDesc *parent, Vector *vec)
+struct stmt *stmt_from_class(char *id, Vector *parent, Vector *body)
 {
 	struct stmt *stmt = stmt_new(CLASS_KIND);
 	stmt->class_type.id = id;
 	stmt->class_type.parent = parent;
-	stmt->class_type.vec = vec;
+	stmt->class_type.body = body;
 	return stmt;
 }
 
-struct stmt *stmt_from_interface(char *id, Vector *bases, Vector *methods)
+struct stmt *stmt_from_trait(char *id, Vector *parent, Vector *body)
 {
-	struct stmt *stmt = stmt_new(INTF_KIND);
-	stmt->intf_type.id = id;
-	stmt->intf_type.bases = bases;
-	stmt->intf_type.methods = methods;
+	struct stmt *stmt = stmt_new(TRAIT_KIND);
+	stmt->class_type.id = id;
+	stmt->class_type.parent = parent;
+	stmt->class_type.body = body;
+	return stmt;
+}
+
+struct stmt *stmt_from_funcproto(char *id, Vector *pvec, Vector *rvec)
+{
+	struct stmt *stmt = stmt_new(FUNCPROTO_KIND);
+	stmt->funcproto.id = id;
+	stmt->funcproto.pvec = pvec;
+	stmt->funcproto.rvec = rvec;
 	return stmt;
 }
 
@@ -471,17 +485,6 @@ void free_var(struct var *v)
 
 /*--------------------------------------------------------------------------*/
 
-struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec)
-{
-	struct intf_func *fn = malloc(sizeof(struct intf_func));
-	fn->id = id;
-	fn->pvec = pvec;
-	fn->rvec = rvec;
-	return fn;
-}
-
-/*--------------------------------------------------------------------------*/
-
 static void item_stmt_free(void *item, void *arg)
 {
 	UNUSED_PARAMETER(arg);
@@ -601,6 +604,10 @@ void expr_traverse(struct expr *expr)
 			printf("[end func call]\n");
 			break;
 		}
+		case WITH_KIND: {
+			printf("with %s.%s\n", expr->with.desc->path, expr->with.desc->type);
+			break;
+		}
 		case UNARY_KIND: {
 			printf("[unary expr]op:%d\n", expr->unary.op);
 			expr_traverse(expr->unary.operand);
@@ -687,16 +694,16 @@ void func_traverse(struct stmt *stmt)
 	printf("[end function]\n");
 }
 
-void class_traverse(struct stmt *stmt)
+void class_or_trait_traverse(struct stmt *stmt)
 {
-	Vector *vec = stmt->class_type.vec;
+	Vector *body = stmt->class_type.body;
 	struct var *var;
 	char *typestr;
-	printf("[class]:%s\n", stmt->class_type.id);
-	if (vec != NULL) {
+	printf("[class(trait)]:%s\n", stmt->class_type.id);
+	if (body != NULL) {
 		struct stmt *s;
-		for (int i = 0; i < Vector_Size(vec); i++) {
-			s = Vector_Get(vec, i);
+		for (int i = 0; i < Vector_Size(body); i++) {
+			s = Vector_Get(body, i);
 			if (s->kind == VARDECL_KIND) {
 				var = s->vardecl.var;
 				typestr = TypeDesc_ToString(var->desc);
@@ -704,10 +711,14 @@ void class_traverse(struct stmt *stmt)
 				free(typestr);
 			} else if (s->kind == FUNCDECL_KIND) {
 				printf("method: %s\n", s->funcdecl.id);
+			} else if (s->kind == FUNCPROTO_KIND) {
+				printf("abstract method: %s\n", s->funcproto.id);
+			} else {
+				assert(0);
 			}
 		}
 	}
-	printf("[end class]\n");
+	printf("[end class(trait)]\n");
 }
 
 /*--------------------------------------------------------------------------*/
@@ -753,12 +764,13 @@ void stmt_traverse(struct stmt *stmt)
 			// expr_traverse(stmt->v.compound_assign.right);
 			break;
 		}
-		case CLASS_KIND: {
-			class_traverse(stmt);
+		case CLASS_KIND:
+		case TRAIT_KIND: {
+			class_or_trait_traverse(stmt);
 			break;
 		}
-		case INTF_KIND: {
-			printf("[interface]:%s\n", stmt->class_type.id);
+		case FUNCPROTO_KIND: {
+			printf("[funcprotot]:%s\n", stmt->funcproto.id);
 			break;
 		}
 		case IF_KIND: {

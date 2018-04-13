@@ -320,6 +320,27 @@ v0.5.10-3:
 2. test:test-0.5.14.kl test:test-0.5.15.kl
 
 v0.6.0:
+1. trait: like java's abstract class and interface(with default)
+    a). no __init__ function
+    b). not allow new trait
+    c). trait supports calling super's virtual method, and class doesn't
+    d). trait and class are independent for compiling,
+        and class can run without any trait(class unknowns trait exists)
+    e). trait/class linearization:
+        1. T : XY with X with Y
+            T and XY can be trait or class, X and Y must be only trait
+            T -> Y -> X -> XY
+        2. XY() with X with Y
+            XY must be only class, X, Y must be only trait
+            Y -> X -> XY
+        3. if X is in linearization list, it's omitted.
+2. trait:
+    1. new functions to class
+    2. modify class's old functions
+    3. AOP
+    4. IOC
+
+v0.6.1:
 1. feature: subclass casts to base class, and base class casts to realclass
 2. keyword: typeof
    usage:
@@ -329,11 +350,23 @@ v0.6.0:
 4. typeof: call lang.TypeOf(...A) function
 5. cast: interface <- interface, interface <- class,
     class <- class(up & down casts), class <- interface(up & down casts)
-
-v0.6.1:
-1. feature: reflect module
+5. cast:
+    intf -> intf:
+        normal: check imethod implementation in real object
+        typeof: not check any imethod, simple convert it
+    intf -> class:
+        check interface's real object is subclass, using 'typeof'
+        not allowed normal
+    class -> intf: check imethod implementation
+        noraml and typeof are both ok
+    class -> class:
+        normal: check class is subclass
+        typeof: check real class is subclass or itself
 
 v0.6.2:
+1. feature: reflect module
+
+v0.6.3:
 1. feature: error handle
 2. bugfix: multi-value returns, e.g.: var a, b = fn(1, 2)
 3. new: assignment type check
@@ -344,7 +377,7 @@ v0.6.4:
 1. feature: access control
 
 v0.6.5:
-1. feature: for statement
+1. feature: for statement, switch-case statement
 
 v0.6.6:
 1. feature: break n, continue n statement or break LABEL?

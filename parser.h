@@ -89,7 +89,7 @@ void parser_module(ParserState *ps, FILE *in);
 // API used by yacc
 Symbol *Parse_Import(ParserState *ps, char *id, char *path);
 void Parse_VarDecls(ParserState *ps, struct stmt *stmt);
-void Parse_Proto(ParserState *ps, struct stmt *stmt);
+void Parse_Function(ParserState *ps, struct stmt *stmt);
 void Parse_UserDef(ParserState *ps, struct stmt *stmt);
 char *Import_Get_Path(ParserState *ps, char *id);
 

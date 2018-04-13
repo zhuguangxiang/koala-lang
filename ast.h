@@ -39,8 +39,8 @@ enum expr_kind {
 	ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
 	STRING_KIND = 5, SELF_KIND = 6, SUPER_KIND = 7, TYPEOF_KIND = 8,
 	NIL_KIND = 9, EXP_KIND = 10, ARRAY_KIND = 11, ANONYOUS_FUNC_KIND = 12,
-	ATTRIBUTE_KIND = 13, SUBSCRIPT_KIND = 14, CALL_KIND = 15, UNARY_KIND = 16,
-	BINARY_KIND = 17, SEQ_KIND = 18,
+	ATTRIBUTE_KIND = 13, SUBSCRIPT_KIND = 14, CALL_KIND = 15, WITH_KIND = 16,
+	UNARY_KIND = 17, BINARY_KIND = 18, SEQ_KIND = 19,
 	EXPR_KIND_MAX
 };
 
@@ -86,6 +86,10 @@ struct expr {
 			struct expr *left;
 			Vector *args;     /* arguments list */
 		} call;
+		struct {
+			struct expr *left;
+			TypeDesc *desc;
+		} with;
 		/* arithmetic operation */
 		struct {
 			enum unary_op_kind op;
@@ -133,15 +137,6 @@ struct var *new_var(char *id, TypeDesc *desc);
 void free_var(struct var *v);
 
 /*-------------------------------------------------------------------------*/
-struct intf_func {
-	char *id;
-	Vector *pvec;
-	Vector *rvec;
-};
-
-struct intf_func *new_intf_func(char *id, Vector *pvec, Vector *rvec);
-
-/*-------------------------------------------------------------------------*/
 
 struct test_block {
 	struct expr *test;
@@ -158,8 +153,8 @@ enum assign_operator {
 };
 
 enum stmt_kind {
-	IMPORT_KIND = 1, VARDECL_KIND, FUNCDECL_KIND, CLASS_KIND, INTF_KIND,
-	EXPR_KIND = 6, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
+	IMPORT_KIND = 1, VARDECL_KIND, FUNCDECL_KIND, FUNCPROTO_KIND, CLASS_KIND,
+	TRAIT_KIND, EXPR_KIND, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
 	RETURN_KIND, IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
 	FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND, BLOCK_KIND,
 	VARDECL_LIST_KIND, ASSIGN_LIST_KIND, STMT_KIND_MAX
@@ -195,14 +190,14 @@ struct stmt {
 		} compound_assign;
 		struct {
 			char *id;
-			TypeDesc *parent;
-			Vector *vec;
+			Vector *parent;
+			Vector *body;
 		} class_type;
 		struct {
 			char *id;
-			Vector *bases;
-			Vector *methods;
-		} intf_type;
+			Vector *pvec;
+			Vector *rvec;
+		} funcproto;
 		struct {
 			char *id;
 			TypeDesc *desc;
@@ -256,8 +251,9 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 struct stmt *stmt_from_block(Vector *vec);
 struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
-struct stmt *stmt_from_class(char *id, TypeDesc *parent, Vector *vec);
-struct stmt *stmt_from_interface(char *id, Vector *bases, Vector *methods);
+struct stmt *stmt_from_class(char *id, Vector *parent, Vector *body);
+struct stmt *stmt_from_trait(char *id, Vector *parent, Vector *body);
+struct stmt *stmt_from_funcproto(char *id, Vector *pvec, Vector *rvec);
 struct stmt *stmt_from_jump(int kind, int level);
 struct stmt *stmt_from_if(struct expr *test, Vector *body,
 	struct stmt *orelse);

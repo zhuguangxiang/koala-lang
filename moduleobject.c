@@ -67,10 +67,10 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 	return -1;
 }
 
-int Module_Add_Interface(Object *ob, Klass *klazz)
+int Module_Add_Trait(Object *ob, Klass *klazz)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	Symbol *sym = STable_Add_Intf(&m->stbl, klazz->name);
+	Symbol *sym = STable_Add_Trait(&m->stbl, klazz->name);
 	if (sym) {
 		sym->ob = klazz;
 		STable_Init(&klazz->stbl, Module_AtomTable(m));
@@ -146,15 +146,15 @@ Klass *Module_Get_Class(Object *ob, char *name)
 	return NULL;
 }
 
-Klass *Module_Get_Intf(Object *ob, char *name)
+Klass *Module_Get_ClassOrTrait(Object *ob, char *name)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	Symbol *sym = STable_Get(&m->stbl, name);
 	if (sym) {
-		if (sym->kind == SYM_INTF) {
+		if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
 			return sym->ob;
 		} else {
-			error("symbol is not a interface");
+			error("symbol is not a class or trait");
 		}
 	}
 	return NULL;

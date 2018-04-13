@@ -34,7 +34,6 @@ int yyerror(ParserState *parser, const char *str)
   TypeDesc *type;
   int operator;
   struct field *field;
-  struct intf_func *intf_func;
   struct test_block *testblock;
 }
 
@@ -80,7 +79,9 @@ int yyerror(ParserState *parser, const char *str)
 %token FUNC
 %token RETURN
 %token CLASS
-%token INTERFACE
+%token TRAIT
+%token EXTENDS
+%token WITH
 %token CONST
 %token IMPORT
 %token AS
@@ -186,10 +187,12 @@ int yyerror(ParserState *parser, const char *str)
 %type <vector> MemberDeclarations
 %type <stmt> MemberDeclaration
 %type <stmt> FieldDeclaration
-%type <vector> IntfFuncDecls
-%type <intf_func> IntfFuncDecl
-%type <vector> BaseInterfacesOrEmpty
-%type <vector> BaseInterfaces
+%type <stmt> FuncOrProtoDeclaration
+%type <vector> Extends
+%type <vector> WithTraitsOrEmpty
+%type <vector> Traits
+%type <vector> TraitMemberDeclarations
+%type <stmt> TraitMemberDeclaration
 
 %start CompileUnit
 
@@ -214,7 +217,6 @@ BaseType
   | UserDefType {
     $$ = $1;
   }
-
   | FunctionType {
     $$ = $1;
   }
@@ -320,7 +322,7 @@ TypeList
 
 CompileUnit
   : Package Imports ModuleStatements {
-    //ast_traverse(&parser->stmts);
+    ast_traverse(&parser->stmts);
   }
   | Package ModuleStatements {
     //ast_traverse(&parser->stmts);
@@ -363,7 +365,7 @@ ModuleStatement
     Parse_VarDecls(parser, $1);
   }
   | FunctionDeclaration {
-    Parse_Proto(parser, $1);
+    Parse_Function(parser, $1);
   }
   | TypeDeclaration {
     Parse_UserDef(parser, $1);
@@ -447,14 +449,48 @@ ParameterListOrEmpty
 /*--------------------------------------------------------------------------*/
 
 TypeDeclaration
-  : CLASS ID '{' MemberDeclarations '}' {
-    $$ = stmt_from_class($2, NULL, $4);
+  : CLASS ID Extends '{' MemberDeclarations '}' {
+    $$ = stmt_from_class($2, $3, $5);
   }
-  | CLASS ID ':' UserDefType '{' MemberDeclarations '}' {
-    $$ = stmt_from_class($2, $4, $6);
+  | TRAIT ID Extends '{' TraitMemberDeclarations '}' {
+    $$ = stmt_from_trait($2, $3, $5);
   }
-  | INTERFACE ID BaseInterfacesOrEmpty '{' IntfFuncDecls '}' {
-    $$ = stmt_from_interface($2, $3, $5);
+  | CLASS ID EXTENDS UserDefType WithTraitsOrEmpty ';' {
+
+  }
+  | TRAIT ID EXTENDS UserDefType WithTraitsOrEmpty ';' {
+
+  }
+  ;
+
+Extends
+  : %empty {
+    $$ = NULL;
+  }
+  | EXTENDS UserDefType WithTraitsOrEmpty {
+    if (!$3) $$ = Vector_New();
+    else $$ = $3;
+    Vector_Append($$, $2);
+  }
+  ;
+
+WithTraitsOrEmpty
+  : %empty {
+    $$ = NULL;
+  }
+  | Traits {
+    $$ = $1;
+  }
+  ;
+
+Traits
+  : WITH UserDefType {
+    $$ = Vector_New();
+    Vector_Append($$, $2);
+  }
+  | Traits WITH UserDefType {
+    Vector_Append($1, $3);
+    $$ = $1;
   }
   ;
 
@@ -478,6 +514,26 @@ MemberDeclaration
   }
   ;
 
+TraitMemberDeclarations
+  : TraitMemberDeclaration {
+    $$ = Vector_New();
+    Vector_Append($$, $1);
+  }
+  | TraitMemberDeclarations TraitMemberDeclaration {
+    Vector_Append($1, $2);
+    $$ = $1;
+  }
+  ;
+
+TraitMemberDeclaration
+  : FieldDeclaration {
+    $$ = $1;
+  }
+  | FuncOrProtoDeclaration {
+    $$ = $1;
+  }
+  ;
+
 FieldDeclaration
   : ID Type ';' {
     $$ = stmt_from_vardecl(new_var($1, $2), NULL, 0);
@@ -487,43 +543,30 @@ FieldDeclaration
   }
   ;
 
-IntfFuncDecls
-  : IntfFuncDecl {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
+FuncOrProtoDeclaration
+  : FUNC ID '(' TypeList ')' ReturnTypeList ';' {
+    $$ = stmt_from_funcproto($2, $4, $6);
   }
-  | IntfFuncDecls IntfFuncDecl {
-    Vector_Append($1, $2);
-    $$ = $1;
+  | FUNC ID '(' TypeList ')' ';' {
+    $$ = stmt_from_funcproto($2, $4, NULL);
   }
-  ;
-
-IntfFuncDecl
-  : FUNC ID  '(' TypeNameListOrEmpty ')' ReturnTypeList ';' {
-    $$ = new_intf_func($2, $4, $6);
+  | FUNC ID '(' ')' ReturnTypeList ';' {
+    $$ = stmt_from_funcproto($2, NULL, $5);
   }
-  | FUNC ID  '(' TypeNameListOrEmpty ')' ';' {
-    $$ = new_intf_func($2, $4, NULL);
+  | FUNC ID '(' ')' ';' {
+    $$ = stmt_from_funcproto($2, NULL, NULL);
   }
-  ;
-
-BaseInterfacesOrEmpty
-  : %empty {
-    $$ = NULL;
+  | FUNC ID '(' ParameterList ')' Block {
+    $$ = stmt_from_funcdecl($2, $4, NULL, $4);
   }
-  | ':' BaseInterfaces {
-    $$ = $2;
+  | FUNC ID '(' ParameterList ')' ReturnTypeList Block {
+    $$ = stmt_from_funcdecl($2, $4, $6, $7);
   }
-  ;
-
-BaseInterfaces
-  : UserDefType {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
+  | FUNC ID '(' ')' Block {
+    $$ = stmt_from_funcdecl($2, NULL, NULL, $5);
   }
-  | BaseInterfaces ',' UserDefType {
-    Vector_Append($1, $3);
-    $$ = $1;
+  | FUNC ID '(' ')' ReturnTypeList Block {
+    $$ = stmt_from_funcdecl($2, NULL, $5, $6);
   }
   ;
 
@@ -776,6 +819,11 @@ PrimaryExpression
   }
   | PrimaryExpression '(' ')' {
     $$ = expr_from_trailer(CALL_KIND, NULL, $1);
+  }
+  | PrimaryExpression WITH UserDefType {
+    //FIXME: ID.ID
+    printf("with\n");
+    $$ = expr_from_trailer(WITH_KIND, $3, $1);
   }
   ;
 

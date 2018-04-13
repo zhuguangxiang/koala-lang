@@ -783,8 +783,7 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 				}
 			}
 
-			Klass *klazz = Module_Get_Class(module, desc->type);
-			if (!klazz) klazz = Module_Get_Intf(module, desc->type);
+			Klass *klazz = Module_Get_ClassOrTrait(module, desc->type);
 			assert(klazz);
 			debug("find class or interface: %s", klazz->name);
 			setobjtype(val, klazz);

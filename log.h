@@ -27,17 +27,20 @@ extern int loglevel;
 
 #define info(format, ...) do { \
 	if (loglevel >= LOG_LEVEL_INFO) \
-		__debug("[INFO]" format "\n", ##__VA_ARGS__); \
+		__debug("[INFO][%s:%d]" format "\n", \
+		__FILE__, __LINE__, ##__VA_ARGS__); \
 } while (0)
 
 #define warn(format, ...) do { \
 	if (loglevel >= LOG_LEVEL_WARN) \
-		__debug("[WARN]" format "\n", ##__VA_ARGS__); \
+		__debug("[WARN][%s:%d]" format "\n", \
+		__FILE__, __LINE__, ##__VA_ARGS__); \
 } while (0)
 
 #define error(format, ...) do { \
 	if (loglevel >= LOG_LEVEL_ERROR) \
-		__debug("[ERROR]" format "\n", ##__VA_ARGS__);\
+		__debug("[ERROR][%s:%d]" format "\n", \
+		__FILE__, __LINE__, ##__VA_ARGS__); \
 } while (0)
 
 #ifdef __cplusplus

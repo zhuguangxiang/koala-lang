@@ -27,6 +27,7 @@ void STable_Fini(STable *stbl);
 #define SYM_PROTO   2
 #define SYM_CLASS   3
 #define SYM_INTF    4
+#define SYM_TRAIT   8
 #define SYM_IPROTO  5
 #define SYM_STABLE  6  /* for compiler */
 #define SYM_MODULE  7
@@ -59,6 +60,7 @@ struct symbol {
 
 	/* extra for compiler */
 	Symbol *super;
+	Vector supers;
 	Symbol *up;
 	void *ptr;      /* CodeBlock and STable(import, class, interface) */
 	char *path;     /* used for import */
@@ -78,8 +80,8 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, Proto *proto);
 })
 #define STable_Add_Class(stbl, name) \
 	STable_Add_Symbol(stbl, name, SYM_CLASS, 0)
-#define STable_Add_Intf(stbl, name) \
-	STable_Add_Symbol(stbl, name, SYM_INTF, 0)
+#define STable_Add_Trait(stbl, name) \
+	STable_Add_Symbol(stbl, name, SYM_TRAIT, 0)
 Symbol *STable_Add_Symbol(STable *stbl, char *name, int kind, int bconst);
 Symbol *STable_Get(STable *stbl, char *name);
 typedef void (*symbolfunc)(Symbol *sym, void *arg);

@@ -127,7 +127,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	// find in current module
 	Symbol *sym;
 	if (!desc->path) {
-		debug("type '%s' is in current module", desc->type);
+		debug("type '%s' maybe in current module", desc->type);
 		sym = STable_Get(ps->sym->ptr, desc->type);
 		if (!sym) {
 			error("cannot find %s", desc->type);
@@ -380,7 +380,7 @@ static Proto *funcdecl_to_proto(struct stmt *stmt)
 	return proto;
 }
 
-static void parse_proto(ParserState *ps, struct stmt *stmt)
+static void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 {
 	Proto *proto;
 	Symbol *sym;
@@ -394,84 +394,75 @@ static void parse_proto(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-void Parse_Proto(ParserState *ps, struct stmt *stmt)
+void Parse_Function(ParserState *ps, struct stmt *stmt)
 {
 	__add_stmt(ps, stmt);
-	parse_proto(ps, stmt);
+	parse_funcdecl(ps, stmt);
 }
 
-static Proto *intffunc_to_proto(struct intf_func *fn)
+static Proto *funcproto_to_proto(struct stmt *stmt)
 {
 	Proto *proto = malloc(sizeof(Proto));
 	int sz;
 	TypeDesc *desc;
 
-	sz = TypeVec_ToTypeArray(fn->pvec, &desc);
+	sz = TypeVec_ToTypeArray(stmt->funcproto.pvec, &desc);
 	proto->psz = sz;
 	proto->pdesc = desc;
 
-	sz = TypeVec_ToTypeArray(fn->rvec, &desc);
+	sz = TypeVec_ToTypeArray(stmt->funcproto.rvec, &desc);
 	proto->rsz = sz;
 	proto->rdesc = desc;
 
 	return proto;
 }
 
-static void parse_intf_func(ParserState *ps, struct intf_func *fn)
+static void parse_funcproto(ParserState *ps, struct stmt *stmt)
 {
 	Proto *proto;
 	Symbol *sym;
-	proto = intffunc_to_proto(fn);
-	sym = STable_Add_IProto(ps->u->stbl, fn->id, proto);
+	proto = funcproto_to_proto(stmt);
+	sym = STable_Add_IProto(ps->u->stbl, stmt->funcproto.id, proto);
 	if (sym) {
-		debug("add intf-func '%s' successful", fn->id);
+		debug("add abstract func '%s' successful", stmt->funcproto.id);
 		sym->up = ps->u->sym;
 	} else {
-		debug("add intf-func '%s' failed", fn->id);
+		debug("add abstract func '%s' failed", stmt->funcproto.id);
 	}
 }
 
 void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 {
-	Symbol *sym;
+	Symbol *sym = NULL;
 	__add_stmt(ps, stmt);
 
 	if (stmt->kind == CLASS_KIND) {
 		sym = STable_Add_Class(ps->u->stbl, stmt->class_type.id);
-		sym->up = ps->u->sym;
-		sym->ptr = STable_New(ps->u->stbl->atbl);
-		sym->desc = TypeDesc_From_UserDef(NULL, stmt->class_type.id);
-		debug("add class '%s' successful", sym->name);
-		struct stmt *s;
-		parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
-		ps->u->sym = sym;
-		Vector_ForEach(s, stmt->class_type.vec) {
-			if (s->kind == VARDECL_KIND) {
-				parse_vardecl(ps, s);
-			} else {
-				assert(s->kind == FUNCDECL_KIND);
-				parse_proto(ps, s);
-			}
-		}
-		parser_exit_scope(ps);
-		debug("end class '%s'", sym->name);
-	} else if (stmt->kind == INTF_KIND) {
-		sym = STable_Add_Intf(ps->u->stbl, stmt->intf_type.id);
-		sym->up = ps->u->sym;
-		sym->ptr = STable_New(ps->u->stbl->atbl);
-		sym->desc = TypeDesc_From_UserDef(NULL, stmt->intf_type.id);
-		debug("add interface '%s' successful", sym->name);
-		struct intf_func *fn;
-		parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
-		ps->u->sym = sym;
-		Vector_ForEach(fn, stmt->intf_type.methods) {
-			parse_intf_func(ps, fn);
-		}
-		parser_exit_scope(ps);
-		debug("end interface '%s'", sym->name);
+	} else if (stmt->kind == TRAIT_KIND) {
+		sym = STable_Add_Trait(ps->u->stbl, stmt->class_type.id);
 	} else {
 		assert(0);
 	}
+
+	sym->up = ps->u->sym;
+	sym->ptr = STable_New(ps->u->stbl->atbl);
+	sym->desc = TypeDesc_From_UserDef(NULL, stmt->class_type.id);
+	debug("add class(trait) '%s' successful", sym->name);
+	struct stmt *s;
+	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
+	ps->u->sym = sym;
+	Vector_ForEach(s, stmt->class_type.body) {
+		if (s->kind == VARDECL_KIND) {
+			parse_vardecl(ps, s);
+		} else if (s->kind == FUNCDECL_KIND) {
+			parse_funcdecl(ps, s);
+		} else {
+			assert(s->kind == FUNCPROTO_KIND);
+			parse_funcproto(ps, s);
+		}
+	}
+	parser_exit_scope(ps);
+	debug("end class(trait) '%s'", sym->name);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -661,7 +652,7 @@ static void parser_merge(ParserState *ps)
 		u->block = NULL;
 		debug("save code to module '__init__' function");
 	} else if (u->scope == SCOPE_CLASS) {
-		debug(">>>> class or interface");
+		debug(">>>> class or trait");
 	} else {
 		assertm(0, "no codes in scope:%d", u->scope);
 	}
@@ -879,12 +870,20 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 			} else if (sym->kind == SYM_CLASS) {
 				debug("symbol '%s' is class", sym->name);
 				if (exp->right && exp->right->kind == CALL_KIND) {
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					Inst_Append(u->block, OP_GETM, NULL);
-					setcstrvalue(&val, sym->name);
-					Inst *i = Inst_Append(u->block, OP_NEW, &val);
-					i->argc = exp->argc;
+					struct expr *right = exp->right;
+					if (!right->right) {
+						debug("new object :%s", exp->sym->name);
+						TValue val = INT_VALUE_INIT(0);
+						Inst_Append(u->block, OP_LOAD, &val);
+						Inst_Append(u->block, OP_GETM, NULL);
+						setcstrvalue(&val, sym->name);
+						Inst *i = Inst_Append(u->block, OP_NEW, &val);
+						i->argc = exp->argc;
+					} else {
+						struct expr *rr = right->right;
+						assert(rr->kind == WITH_KIND);
+						debug("class '%s' with trait '%s'", exp->sym->name, rr->sym->name);
+					}
 				} else {
 					if (!exp->right) {
 						debug("'%s' is a class", sym->name);
@@ -1197,6 +1196,14 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 			error("cannot find '%s' in '%s'", exp->attribute.id, typename);
 			return;
 		}
+	} else if (leftsym->kind == SYM_TRAIT) {
+		debug("symbol '%s' is a trait", leftsym->name);
+		char *typename = leftsym->name;
+		sym = STable_Get(leftsym->ptr, exp->attribute.id);
+		if (!sym) {
+			error("cannot find '%s' in '%s'", exp->attribute.id, typename);
+			return;
+		}
 	} else {
 		assert(0);
 	}
@@ -1290,6 +1297,7 @@ static void parser_call(ParserState *ps, struct expr *exp)
 	if (sym->kind == SYM_PROTO) {
 		debug("call %s()", sym->name);
 		/* function type */
+		exp->sym = sym;
 		exp->desc = sym->desc;
 		/* check arguments */
 		if (!check_call_args(exp->desc->proto, exp->call.args)) {
@@ -1297,8 +1305,9 @@ static void parser_call(ParserState *ps, struct expr *exp)
 			return;
 		}
 	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_STABLE) {
-		debug("object '%s'", sym->name);
+		debug("class '%s'", sym->name);
 		/* class type */
+		exp->sym = sym;
 		exp->desc = sym->desc;
 		/* get __init__ function */
 		Symbol *__init__ = STable_Get(sym->ptr, "__init__");
@@ -1322,16 +1331,37 @@ static void parser_call(ParserState *ps, struct expr *exp)
 			}
 		}
 	} else if (sym->kind == SYM_IPROTO) {
-		debug("call interface %s()", sym->name);
+		debug("call abstract method %s()", sym->name);
 		/* function type */
+		exp->sym = sym;
 		exp->desc = sym->desc;
 		/* check arguments */
 		if (!check_call_args(exp->desc->proto, exp->call.args)) {
-			error("interface function arguments are not matched.");
+			error("abstract method arguments are not matched.");
 			return;
 		}
 	} else {
 		assert(0);
+	}
+}
+
+static void parser_with(ParserState *ps, struct expr *exp)
+{
+	debug("with %s.%s", exp->with.desc->path, exp->with.desc->type);
+	Symbol *sym = find_userdef_symbol(ps, exp->with.desc);
+	assert(sym);
+	exp->sym = sym;
+	exp->desc = sym->desc;
+
+	struct expr *left = exp->with.left;
+	left->right = exp;
+	left->ctx = EXPR_LOAD;
+	parser_visit_expr(ps, left);
+
+	Symbol *leftsym = left->sym;
+	if (!leftsym) {
+		error("cannot find '%s' in '%s'", exp->with.desc->type, left->str);
+		return;
 	}
 }
 
@@ -1474,6 +1504,10 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			parser_call(ps, exp);
 			break;
 		}
+		case WITH_KIND: {
+			parser_with(ps, exp);
+			break;
+		}
 		case BINARY_KIND: {
 			debug("binary_op:%d", exp->binary.op);
 			exp->binary.right->ctx = EXPR_LOAD;
@@ -1525,10 +1559,10 @@ static int __intf_cls_check(Symbol *intf, Symbol *cls)
 		} else {
 			debug("Is '%s' in '%s'? yes", intf->name, base->name);
 			if (!Proto_IsEqual(method->desc->proto, intf->desc->proto)) {
-				error("intf-func check failed");
+				error("abstract func check failed");
 				result = -1;
 			} else {
-				debug("intf-func check ok");
+				debug("abstract func check ok");
 				result = 0;
 			}
 			break;
@@ -1770,37 +1804,43 @@ void parser_class_inheritance(Symbol *sym)
 
 static void parser_class(ParserState *ps, struct stmt *stmt)
 {
-	debug("------parse class-------");
-	debug("class:%s", stmt->class_type.id);
+	debug("------parse class or trait -------");
+	debug("class(trait):%s", stmt->class_type.id);
 
 	ParserUnit *u = ps->u;
 	Symbol *sym = STable_Get(u->stbl, stmt->class_type.id);
 	assert(sym && sym->ptr);
 
 	if (stmt->class_type.parent) {
-		//FIXME
-		char *typestr = TypeDesc_ToString(stmt->class_type.parent);
-		debug("class with super '%s'", typestr);
-		sym->super = find_userdef_symbol(ps, stmt->class_type.parent);
-		if (!sym->super) {
-			error("cannot find super class '%s'", typestr);
+		TypeDesc *desc;
+		Symbol *super;
+		Vector_ForEach(desc, stmt->class_type.parent) {
+			//FIXME
+			char *typestr = TypeDesc_ToString(desc);
+			debug("class or trait with super '%s'", typestr);
+			super = find_userdef_symbol(ps, desc);
+			if (!super) {
+				error("cannot find super '%s'", typestr);
+				free(typestr);
+				return;
+			}
 			free(typestr);
-			return;
+			assert(super->ptr);
+			Vector_Append(&sym->supers, super);
 		}
-		free(typestr);
-		assert(sym->super->ptr);
-		//parser_class_inheritance(sym);
 	}
 
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
 	ps->u->sym = sym;
 
 	struct stmt *s;
-	Vector_ForEach(s, stmt->class_type.vec) {
+	Vector_ForEach(s, stmt->class_type.body) {
 		if (s->kind == VARDECL_KIND) {
 			parser_variable(ps, s->vardecl.var, s->vardecl.exp);
 		} else if (s->kind == FUNCDECL_KIND) {
 			parser_function(ps, s, SCOPE_METHOD);
+		} else if (s->kind == FUNCPROTO_KIND) {
+			debug("func %s is abstract", s->funcproto.id);
 		} else {
 			assertm(0, "invalid symbol kind:%d", s->kind);
 		}
@@ -1808,93 +1848,93 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 
 	parser_exit_scope(ps);
 
-	debug("------parse class end---");
+	debug("------parse class or trait end---");
 }
 
-static void __inherit_imethod_fn(Symbol *sym, void *arg)
-{
-	struct intf_inherit_struct *temp = arg;
-	if (temp->result) return;
-	Symbol *intf = temp->sym;
-	assert(sym->kind == SYM_IPROTO);
-	assert(intf->kind == SYM_INTF);
-	Symbol *imeth = STable_Add_IProto(intf->ptr, sym->name, sym->desc->proto);
-	if (!imeth)
-		debug("The same imethod '%s' in '%s.'", sym->name, intf->name);
-	else
-		debug("Inherit imethod '%s' to '%s' successfully.", sym->name, intf->name);
-	temp->result = 0;
-}
+// static void __inherit_imethod_fn(Symbol *sym, void *arg)
+// {
+// 	struct intf_inherit_struct *temp = arg;
+// 	if (temp->result) return;
+// 	Symbol *intf = temp->sym;
+// 	assert(sym->kind == SYM_IPROTO);
+// 	assert(intf->kind == SYM_INTF);
+// 	Symbol *imeth = STable_Add_IProto(intf->ptr, sym->name, sym->desc->proto);
+// 	if (!imeth)
+// 		debug("The same imethod '%s' in '%s.'", sym->name, intf->name);
+// 	else
+// 		debug("Inherit imethod '%s' to '%s' successfully.", sym->name, intf->name);
+// 	temp->result = 0;
+// }
 
-static int inherit_imethods(Symbol *sym, Symbol *basesym)
-{
-	struct intf_inherit_struct temp = {sym, 0};
-	STable_Traverse(basesym->ptr, __inherit_imethod_fn, &temp);
-	return temp.result;
-}
+// static int inherit_imethods(Symbol *sym, Symbol *basesym)
+// {
+// 	struct intf_inherit_struct temp = {sym, 0};
+// 	STable_Traverse(basesym->ptr, __inherit_imethod_fn, &temp);
+// 	return temp.result;
+// }
 
-static void __inherit_intf_fn(HashNode *hnode, void *arg)
-{
-	Symbol *sym = arg;
-	BaseSymbol *basesym = container_of(hnode, BaseSymbol, hnode);
-	if (Symbol_Add_Base(sym, basesym->sym)) {
-		debug("The same intf '%s' in '%s'.", basesym->sym->name, sym->name);
-	} else {
-		debug("Inherit intf '%s' to '%s' successfully.",
-			basesym->sym->name, sym->name);
-	}
-}
+// static void __inherit_intf_fn(HashNode *hnode, void *arg)
+// {
+// 	Symbol *sym = arg;
+// 	BaseSymbol *basesym = container_of(hnode, BaseSymbol, hnode);
+// 	if (Symbol_Add_Base(sym, basesym->sym)) {
+// 		debug("The same intf '%s' in '%s'.", basesym->sym->name, sym->name);
+// 	} else {
+// 		debug("Inherit intf '%s' to '%s' successfully.",
+// 			basesym->sym->name, sym->name);
+// 	}
+// }
 
-static int inherit_interfaces(Symbol *sym, Symbol *basesym)
-{
-	assert(sym->kind == SYM_INTF);
-	assert(basesym->kind == SYM_INTF);
-	Symbol_Add_Base(sym, basesym);
-	HashTable_Traverse(basesym->table, __inherit_intf_fn, sym);
-	return 0;
-}
+// static int inherit_interfaces(Symbol *sym, Symbol *basesym)
+// {
+// 	assert(sym->kind == SYM_INTF);
+// 	assert(basesym->kind == SYM_INTF);
+// 	Symbol_Add_Base(sym, basesym);
+// 	HashTable_Traverse(basesym->table, __inherit_intf_fn, sym);
+// 	return 0;
+// }
 
-static void parser_interface(ParserState *ps, struct stmt *stmt)
-{
-	debug("------parse interface-------");
-	debug("interface:%s", stmt->intf_type.id);
+// static void parser_interface(ParserState *ps, struct stmt *stmt)
+// {
+// 	debug("------parse interface-------");
+// 	debug("interface:%s", stmt->intf_type.id);
 
-	ParserUnit *u = ps->u;
-	Symbol *sym = STable_Get(u->stbl, stmt->intf_type.id);
-	assert(sym && sym->ptr);
+// 	ParserUnit *u = ps->u;
+// 	Symbol *sym = STable_Get(u->stbl, stmt->intf_type.id);
+// 	assert(sym && sym->ptr);
 
-	if (!stmt->intf_type.bases) {
-		debug("------parse interface end---");
-		return;
-	}
+// 	if (!stmt->intf_type.bases) {
+// 		debug("------parse interface end---");
+// 		return;
+// 	}
 
-	TypeDesc *desc;
-	Symbol *basesym;
-	char *typestr;
-	Vector_ForEach(desc, stmt->intf_type.bases) {
-		typestr = TypeDesc_ToString(desc);
-		debug("interface with base '%s'", typestr);
-		basesym = find_userdef_symbol(ps, desc);
-		if (!basesym) {
-			error("cannot find base interface '%s'", typestr);
-			free(typestr);
-			return;
-		}
+// 	TypeDesc *desc;
+// 	Symbol *basesym;
+// 	char *typestr;
+// 	Vector_ForEach(desc, stmt->intf_type.bases) {
+// 		typestr = TypeDesc_ToString(desc);
+// 		debug("interface with base '%s'", typestr);
+// 		basesym = find_userdef_symbol(ps, desc);
+// 		if (!basesym) {
+// 			error("cannot find base interface '%s'", typestr);
+// 			free(typestr);
+// 			return;
+// 		}
 
-		if (basesym->kind != SYM_INTF) {
-			error("base '%s' is not an interface", typestr);
-			free(typestr);
-			return;
-		}
+// 		if (basesym->kind != SYM_INTF) {
+// 			error("base '%s' is not an interface", typestr);
+// 			free(typestr);
+// 			return;
+// 		}
 
-		free(typestr);
+// 		free(typestr);
 
-		inherit_imethods(sym, basesym);
-		inherit_interfaces(sym, basesym);
-	}
+// 		inherit_imethods(sym, basesym);
+// 		inherit_interfaces(sym, basesym);
+// 	}
 
-	debug("------parse interface end---");
-}
+// 	debug("------parse interface end---");
+// }
 
 static void parser_assign(ParserState *ps, struct stmt *stmt)
 {
@@ -2123,12 +2163,9 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 			parser_function(ps, stmt, SCOPE_FUNCTION);
 			break;
 		}
-		case CLASS_KIND: {
+		case CLASS_KIND:
+		case TRAIT_KIND: {
 			parser_class(ps, stmt);
-			break;
-		}
-		case INTF_KIND: {
-			parser_interface(ps, stmt);
 			break;
 		}
 		case EXPR_KIND: {

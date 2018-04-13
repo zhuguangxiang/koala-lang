@@ -226,14 +226,14 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			KImage_Add_IMeth(tmp->image, tmp->clazz, sym->name, sym->desc->proto);
 			break;
 		}
-		case SYM_INTF: {
-			debug("----------------------");
-			debug("interface %s:", sym->name);
-			KImage_Add_Intf(tmp->image, sym->name);
-			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
-			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
-			break;
-		}
+		// case SYM_TRAIT: {
+		// 	debug("----------------------");
+		// 	debug("interface %s:", sym->name);
+		// 	KImage_Add_Intf(tmp->image, sym->name);
+		// 	struct gencode_struct tmp2 = {1, tmp->image, sym->name};
+		// 	STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
+		// 	break;
+		// }
 		default: {
 			assertm(0, "unknown symbol kind:%d", sym->kind);
 		}

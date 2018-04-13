@@ -11,6 +11,7 @@ Symbol *Symbol_New(int kind)
 	Init_HashNode(&sym->hnode, sym);
 	Vector_Init(&sym->locvec);
 	sym->kind = kind;
+	Vector_Init(&sym->supers);
 	return sym;
 }
 
@@ -23,7 +24,7 @@ void Symbol_Free(Symbol *sym)
 		if (sym->desc) TypeDesc_Free(sym->desc);
 		if (sym->ob) CodeObject_Free(sym->ob);
 		if (sym->ptr) codeblock_free(sym->ptr);
-	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
+	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
 		Klass *klazz = sym->ob;
 		//FIXME
 		//if (klazz->dynamic) {
@@ -270,8 +271,8 @@ static void __symbol_show_fn(HashNode *hnode, void *arg)
 			printf("class %s;\n", sym->name);
 			break;
 		}
-		case SYM_INTF: {
-			printf("interface %s;\n", sym->name);
+		case SYM_TRAIT: {
+			printf("trait %s;\n", sym->name);
 			break;
 		}
 		case SYM_IPROTO: {
