@@ -183,7 +183,7 @@ static void __to_stbl_fn(Symbol *sym, void *arg)
 	STable *stbl = path_struct->stbl;
 	char *path = path_struct->path;
 
-	if (sym->kind == SYM_CLASS || sym->kind == SYM_INTF) {
+	if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
 		Symbol *s = STable_Add_Symbol(stbl, sym->name, SYM_STABLE, 0);
 		s->desc = TypeDesc_From_UserDef(strdup(path), sym->name);
 		s->ptr = STable_New(stbl->atbl);

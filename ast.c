@@ -326,20 +326,22 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 	return stmt;
 }
 
-struct stmt *stmt_from_class(char *id, Vector *parent, Vector *body)
+struct stmt *stmt_from_class(char *id, TypeDesc *base, Vector *traits,
+	Vector *body)
 {
 	struct stmt *stmt = stmt_new(CLASS_KIND);
 	stmt->class_type.id = id;
-	stmt->class_type.parent = parent;
+	stmt->class_type.base = base;
+	stmt->class_type.traits = traits;
 	stmt->class_type.body = body;
 	return stmt;
 }
 
-struct stmt *stmt_from_trait(char *id, Vector *parent, Vector *body)
+struct stmt *stmt_from_trait(char *id, Vector *traits, Vector *body)
 {
 	struct stmt *stmt = stmt_new(TRAIT_KIND);
 	stmt->class_type.id = id;
-	stmt->class_type.parent = parent;
+	stmt->class_type.traits = traits;
 	stmt->class_type.body = body;
 	return stmt;
 }

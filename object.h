@@ -187,6 +187,7 @@ struct klass {
 	hashfunc ob_hash;
 	equalfunc ob_equal;
 	strfunc ob_tostr;
+	Vector extends;
 	STable stbl;
 };
 

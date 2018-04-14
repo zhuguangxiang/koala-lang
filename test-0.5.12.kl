@@ -24,7 +24,7 @@ class Animal {
 	}
 }
 
-class Dog : Animal {
+class Dog extends Animal {
 	color string;
 
 	func __init__(name string, age int, color string) {
@@ -37,7 +37,7 @@ class Dog : Animal {
 	}
 }
 
-class Cat : Animal { //not call Animal.__init__, OK
+class Cat extends Animal { //not call Animal.__init__, OK
 	func SayHello() {
 		io.Println("Cat: SayHello");
 		name = "CAT";

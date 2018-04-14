@@ -190,7 +190,8 @@ struct stmt {
 		} compound_assign;
 		struct {
 			char *id;
-			Vector *parent;
+			TypeDesc *base;
+			Vector *traits;
 			Vector *body;
 		} class_type;
 		struct {
@@ -251,8 +252,9 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 struct stmt *stmt_from_block(Vector *vec);
 struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
-struct stmt *stmt_from_class(char *id, Vector *parent, Vector *body);
-struct stmt *stmt_from_trait(char *id, Vector *parent, Vector *body);
+struct stmt *stmt_from_class(char *id, TypeDesc *base, Vector *traits,
+	Vector *body);
+struct stmt *stmt_from_trait(char *id, Vector *traits, Vector *body);
 struct stmt *stmt_from_funcproto(char *id, Vector *pvec, Vector *rvec);
 struct stmt *stmt_from_jump(int kind, int level);
 struct stmt *stmt_from_if(struct expr *test, Vector *body,

@@ -26,8 +26,7 @@ void STable_Fini(STable *stbl);
 #define SYM_VAR     1
 #define SYM_PROTO   2
 #define SYM_CLASS   3
-#define SYM_INTF    4
-#define SYM_TRAIT   8
+#define SYM_TRAIT   4
 #define SYM_IPROTO  5
 #define SYM_STABLE  6  /* for compiler */
 #define SYM_MODULE  7
@@ -60,7 +59,7 @@ struct symbol {
 
 	/* extra for compiler */
 	Symbol *super;
-	Vector supers;
+	Vector extends;
 	Symbol *up;
 	void *ptr;      /* CodeBlock and STable(import, class, interface) */
 	char *path;     /* used for import */

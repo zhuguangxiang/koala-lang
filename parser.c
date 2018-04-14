@@ -870,20 +870,24 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 			} else if (sym->kind == SYM_CLASS) {
 				debug("symbol '%s' is class", sym->name);
 				if (exp->right && exp->right->kind == CALL_KIND) {
-					struct expr *right = exp->right;
-					if (!right->right) {
-						debug("new object :%s", exp->sym->name);
-						TValue val = INT_VALUE_INIT(0);
-						Inst_Append(u->block, OP_LOAD, &val);
-						Inst_Append(u->block, OP_GETM, NULL);
-						setcstrvalue(&val, sym->name);
-						Inst *i = Inst_Append(u->block, OP_NEW, &val);
-						i->argc = exp->argc;
-					} else {
-						struct expr *rr = right->right;
-						assert(rr->kind == WITH_KIND);
-						debug("class '%s' with trait '%s'", exp->sym->name, rr->sym->name);
-					}
+					//struct expr *right = exp->right;
+					// if (!right->right) {
+					debug("new object :%s", exp->sym->name);
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					Inst_Append(u->block, OP_GETM, NULL);
+					setcstrvalue(&val, sym->name);
+					Inst *i = Inst_Append(u->block, OP_NEW, &val);
+					i->argc = exp->argc;
+					// } else {
+					// 	struct expr *rr = right->right;
+					// 	if (rr->kind == WITH_KIND) {
+					// 		debug("class '%s' with trait '%s'",
+					// 			exp->sym->name, rr->sym->name);
+					// 	} else {
+					// 		debug("class '%s' rigth kind:%d", exp->sym->name, rr->kind);
+					// 	}
+					// }
 				} else {
 					if (!exp->right) {
 						debug("'%s' is a class", sym->name);
@@ -1013,6 +1017,55 @@ static void parser_superclass_ident(ParserState *ps, Symbol *sym,
 }
 #endif
 
+static int parser_ident_in_extends(ParserState *ps, struct expr *exp)
+{
+	ParserUnit *cu = get_class_unit(ps);
+	if (!cu) return -1;
+	if (!Vector_Size(&cu->sym->extends)) return -1;
+
+	ParserUnit *u = ps->u;
+	char *id = exp->id;
+
+	Symbol *sym;
+	Symbol *extend;
+	Vector_ForEach(extend, &cu->sym->extends) {
+		sym = STable_Get(extend->ptr, id);
+		if (sym) {
+			debug("symbol '%s' is found in extend '%s'", id, extend->name);
+			sym->refcnt++;
+			parser_expr_desc(ps, exp, sym);
+
+			TValue val;
+			setcstrvalue(&val, id);
+
+			if (sym->kind == SYM_VAR) {
+				if (exp->ctx == EXPR_LOAD) {
+					debug("load:%s", val.cstr);
+					TValue val2 = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val2);
+					Inst_Append(ps->u->block, OP_GETFIELD, &val);
+				} else {
+					assert(exp->ctx == EXPR_STORE);
+					debug("store:%s", val.cstr);
+					TValue val2 = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val2);
+					Inst_Append(ps->u->block, OP_SETFIELD, &val);
+				}
+			} else if (sym->kind == SYM_PROTO) {
+				TValue val2 = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val2);
+				Inst *i = Inst_Append(u->block, OP_CALL, &val);
+				i->argc = exp->argc;
+			} else {
+				assert(0);
+			}
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 static void parser_ident(ParserState *ps, struct expr *exp)
 {
 	ParserUnit *u = ps->u;
@@ -1041,47 +1094,8 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 		}
 	}
 
-	// ident is in super class
-	Symbol *super = NULL;
-	ParserUnit *cu = get_class_unit(ps);
-	if (cu) {
-		super = cu->sym->super;
-	}
-
-	if (super) {
-		sym = STable_Get(super->ptr, id);
-		if (sym) {
-			debug("symbol '%s' is found in super '%s' class", id, super->name);
-			sym->refcnt++;
-			parser_expr_desc(ps, exp, sym);
-
-			TValue val;
-			setcstrvalue(&val, id);
-
-			if (sym->kind == SYM_VAR) {
-				if (exp->ctx == EXPR_LOAD) {
-					debug("load:%s", val.cstr);
-					TValue val2 = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val2);
-					Inst_Append(ps->u->block, OP_GETFIELD, &val);
-				} else {
-					assert(exp->ctx == EXPR_STORE);
-					debug("store:%s", val.cstr);
-					TValue val2 = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val2);
-					Inst_Append(ps->u->block, OP_SETFIELD, &val);
-				}
-			} else if (sym->kind == SYM_PROTO) {
-				TValue val2 = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val2);
-				Inst *i = Inst_Append(u->block, OP_CALL, &val);
-				i->argc = exp->argc;
-			} else {
-				assert(0);
-			}
-			return;
-		}
-	}
+	// ident is in extend's class or traits ?
+	if (!parser_ident_in_extends(ps, exp)) return;
 
 	// ident is current module's name
 	if (!strcmp(id, ps->package)) {
@@ -1159,7 +1173,7 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 			return;
 		}
 		assert(sym->kind == SYM_STABLE ||
-			sym->kind == SYM_CLASS || sym->kind == SYM_INTF);
+			sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
 		char *typename = sym->name;
 		sym = STable_Get(sym->ptr, exp->attribute.id);
 		if (!sym) {
@@ -1265,7 +1279,6 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 static void parser_call(ParserState *ps, struct expr *exp)
 {
 	int argc = 0;
-
 	//check super()
 	if (exp->call.left->kind == SUPER_KIND) {
 		assert(ps->u->scope == SCOPE_METHOD);
@@ -1652,28 +1665,28 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 				//literal check failed
 				if (var->desc->kind == TYPE_USERDEF &&
 					exp->desc->kind == TYPE_USERDEF) {
-					Symbol *s1 = find_userdef_symbol(ps, var->desc);
-					Symbol *s2 = find_userdef_symbol(ps, exp->desc);
-					if (s1->kind == SYM_INTF) {
-						if (s2->kind == SYM_CLASS) {
-							if (check_intf_cls_inherit(s1, s2)) {
-								error("check intf <- class failed");
-								return;
-							}
-						} else if (s2->kind == SYM_INTF) {
-							if (check_intf_intf_inherit(s1, s2)) {
-								error("check intf <- intf failed");
-								return;
-							}
-						} else {
-							assertm(0, "invalid:%d", s2->kind);
-						}
-					} else {
-						if (check_symbol_inherit(s1, s2)) {
-							error("check_symbol_inherit(class <- class) failed");
-							return;
-						}
-					}
+					//Symbol *s1 = find_userdef_symbol(ps, var->desc);
+					//Symbol *s2 = find_userdef_symbol(ps, exp->desc);
+					// if (s1->kind == SYM_INTF) {
+					// 	if (s2->kind == SYM_CLASS) {
+					// 		if (check_intf_cls_inherit(s1, s2)) {
+					// 			error("check intf <- class failed");
+					// 			return;
+					// 		}
+					// 	} else if (s2->kind == SYM_INTF) {
+					// 		if (check_intf_intf_inherit(s1, s2)) {
+					// 			error("check intf <- intf failed");
+					// 			return;
+					// 		}
+					// 	} else {
+					// 		assertm(0, "invalid:%d", s2->kind);
+					// 	}
+					// } else {
+					// 	if (check_symbol_inherit(s1, s2)) {
+					// 		error("check_symbol_inherit(class <- class) failed");
+					// 		return;
+					// 	}
+					// }
 				} else {
 					error("typecheck failed");
 					return;
@@ -1797,9 +1810,28 @@ void sym_inherit_fn(Symbol *sym, void *arg)
 	}
 }
 
-void parser_class_inheritance(Symbol *sym)
+// flat extends' class ort traits
+static void parser_class_traits(ParserState *ps, Symbol *sym, Vector *traits)
 {
-	STable_Traverse(sym->super->ptr, sym_inherit_fn, sym);
+	if (!traits) return;
+
+	TypeDesc *desc;
+	Symbol *trait;
+	Vector_ForEach(desc, traits) {
+		//FIXME
+		char *typestr = TypeDesc_ToString(desc);
+		debug("class or trait with '%s'", typestr);
+		trait = find_userdef_symbol(ps, desc);
+		if (!trait) {
+			error("cannot find trait '%s'", typestr);
+			free(typestr);
+			return;
+		}
+		free(typestr);
+		assert(trait->ptr);
+		parser_class_traits(ps, sym, &trait->extends);
+		Vector_Append(&sym->extends, trait);
+	}
 }
 
 static void parser_class(ParserState *ps, struct stmt *stmt)
@@ -1811,23 +1843,27 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 	Symbol *sym = STable_Get(u->stbl, stmt->class_type.id);
 	assert(sym && sym->ptr);
 
-	if (stmt->class_type.parent) {
-		TypeDesc *desc;
-		Symbol *super;
-		Vector_ForEach(desc, stmt->class_type.parent) {
-			//FIXME
-			char *typestr = TypeDesc_ToString(desc);
-			debug("class or trait with super '%s'", typestr);
-			super = find_userdef_symbol(ps, desc);
-			if (!super) {
-				error("cannot find super '%s'", typestr);
-				free(typestr);
-				return;
-			}
+	parser_class_traits(ps, sym, stmt->class_type.traits);
+
+	TypeDesc *desc = stmt->class_type.base;
+	if (desc) {
+		char *typestr = TypeDesc_ToString(desc);
+		debug("class or trait with extend '%s'", typestr);
+		Symbol *super = find_userdef_symbol(ps, desc);
+		if (!super) {
+			error("cannot find extend '%s'", typestr);
 			free(typestr);
-			assert(super->ptr);
-			Vector_Append(&sym->supers, super);
+			return;
 		}
+		if (super->kind != SYM_CLASS && super->kind != SYM_STABLE) {
+			error("'%s' is not a class", typestr);
+			free(typestr);
+			return;
+		}
+		free(typestr);
+		assert(super->ptr);
+		sym->super = super;
+		Vector_Append(&sym->extends, super);
 	}
 
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);

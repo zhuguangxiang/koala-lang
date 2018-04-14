@@ -11,7 +11,7 @@ Symbol *Symbol_New(int kind)
 	Init_HashNode(&sym->hnode, sym);
 	Vector_Init(&sym->locvec);
 	sym->kind = kind;
-	Vector_Init(&sym->supers);
+	Vector_Init(&sym->extends);
 	return sym;
 }
 

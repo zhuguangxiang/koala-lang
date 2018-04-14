@@ -7,7 +7,7 @@ package test;
 import "koala/io";
 import an "test/animal";
 
-class Dog : an.Animal {
+class Dog extends an.Animal {
 	color string;
 
 	func __init__(name string, age int, color string) {
@@ -20,7 +20,7 @@ class Dog : an.Animal {
 	}
 }
 
-class Cat : an.Animal {
+class Cat extends an.Animal {
 	func SayHello() {
 		io.Println("Cat: SayHello");
 		name = "CAT";

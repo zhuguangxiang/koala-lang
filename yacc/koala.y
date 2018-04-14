@@ -188,8 +188,6 @@ int yyerror(ParserState *parser, const char *str)
 %type <stmt> MemberDeclaration
 %type <stmt> FieldDeclaration
 %type <stmt> FuncOrProtoDeclaration
-%type <vector> Extends
-%type <vector> WithTraitsOrEmpty
 %type <vector> Traits
 %type <vector> TraitMemberDeclarations
 %type <stmt> TraitMemberDeclaration
@@ -449,46 +447,38 @@ ParameterListOrEmpty
 /*--------------------------------------------------------------------------*/
 
 TypeDeclaration
-  : CLASS ID Extends '{' MemberDeclarations '}' {
-    $$ = stmt_from_class($2, $3, $5);
+  : CLASS ID '{' MemberDeclarations '}' {
+    $$ = stmt_from_class($2, NULL, NULL, $4);
   }
-  | TRAIT ID Extends '{' TraitMemberDeclarations '}' {
-    $$ = stmt_from_trait($2, $3, $5);
+  | CLASS ID EXTENDS UserDefType '{' MemberDeclarations '}' {
+    $$ = stmt_from_class($2, $4, NULL, $6);
   }
-  | CLASS ID EXTENDS UserDefType WithTraitsOrEmpty ';' {
+  | CLASS ID WITH Traits '{' MemberDeclarations '}' {
+    $$ = stmt_from_class($2, NULL, $4, $6);
+  }
+  | CLASS ID EXTENDS UserDefType WITH Traits '{' MemberDeclarations '}' {
+    $$ = stmt_from_class($2, $4, $6, $8);
+  }
+  | TRAIT ID '{' TraitMemberDeclarations '}' {
+    $$ = stmt_from_trait($2, NULL, $4);
+  }
+  | TRAIT ID WITH Traits '{' TraitMemberDeclarations '}' {
+    $$ = stmt_from_trait($2, $4, $6);
+  }
+  // | CLASS ID EXTENDS UserDefType WithTraitsOrEmpty ';' {
 
-  }
-  | TRAIT ID EXTENDS UserDefType WithTraitsOrEmpty ';' {
+  // }
+  // | TRAIT ID EXTENDS UserDefType WithTraitsOrEmpty ';' {
 
-  }
-  ;
-
-Extends
-  : %empty {
-    $$ = NULL;
-  }
-  | EXTENDS UserDefType WithTraitsOrEmpty {
-    if (!$3) $$ = Vector_New();
-    else $$ = $3;
-    Vector_Append($$, $2);
-  }
-  ;
-
-WithTraitsOrEmpty
-  : %empty {
-    $$ = NULL;
-  }
-  | Traits {
-    $$ = $1;
-  }
+  // }
   ;
 
 Traits
-  : WITH UserDefType {
+  : UserDefType {
     $$ = Vector_New();
-    Vector_Append($$, $2);
+    Vector_Append($$, $1);
   }
-  | Traits WITH UserDefType {
+  | Traits ',' UserDefType {
     Vector_Append($1, $3);
     $$ = $1;
   }
@@ -820,11 +810,11 @@ PrimaryExpression
   | PrimaryExpression '(' ')' {
     $$ = expr_from_trailer(CALL_KIND, NULL, $1);
   }
-  | PrimaryExpression WITH UserDefType {
-    //FIXME: ID.ID
-    printf("with\n");
-    $$ = expr_from_trailer(WITH_KIND, $3, $1);
-  }
+  // | PrimaryExpression WITH UserDefType {
+  //   //FIXME: ID.ID
+  //   printf("with\n");
+  //   //$$ = expr_from_trailer(WITH_KIND, $3, $1);
+  // }
   ;
 
 Atom
