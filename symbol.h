@@ -59,12 +59,11 @@ struct symbol {
 
 	/* extra for compiler */
 	Symbol *super;
-	Vector extends;
 	Symbol *up;
-	void *ptr;      /* CodeBlock and STable(import, class, interface) */
+	void *ptr;      /* CodeBlock and STable(import, class, trait) */
 	char *path;     /* used for import */
 	int32 locvars;  /* used in compiler, for function */
-	HashTable *table; /* save base interfaces, for interface inheritance*/
+	Vector traits;  /* for traits in correct order */
 };
 
 /* Exported APIs */
@@ -93,13 +92,6 @@ int STable_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc);
 	access |= bconst ? ACCESS_CONST : 0; \
 	access; \
 })
-
-typedef struct base_symbol {
-	HashNode hnode;
-	Symbol *sym;
-} BaseSymbol;
-
-int Symbol_Add_Base(Symbol *sym, Symbol *base);
 
 #ifdef __cplusplus
 }

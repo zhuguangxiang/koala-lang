@@ -23,7 +23,8 @@ static void __unused_symbol_fn(Symbol *sym, void *arg)
 	ParserState *ps = arg;
 	UNUSED_PARAMETER(ps);
 
-	if ((sym->access == ACCESS_PRIVATE) && (sym->refcnt == 0)) {
+	if ((sym->access == ACCESS_PRIVATE) && (sym->refcnt == 0) &&
+		(!isupper(sym->name[0]))) {
 		if (sym->kind == SYM_VAR) {
 			warn("variable '%s' is never used", sym->name);
 		} else if (sym->kind == SYM_PROTO) {

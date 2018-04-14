@@ -1,0 +1,51 @@
+
+package test;
+
+import "koala/io";
+
+trait TT {
+	func SayHello();
+}
+
+trait TA with TT {
+	func TAFunc();
+}
+
+trait TB1 with TT {
+	func TB1Func();
+}
+
+trait TB with TB1 with TT {
+	func TBFunc();
+
+	func TB1Func() {
+		io.Println("TB1Func in TB");
+	}
+
+	func TAFunc() {
+		io.Println("TAFunc in TB");
+	}
+}
+
+class Animal with TA with TB with TT {
+	name string;
+	age int;
+
+	func __init__(name string, _age int) {
+		self.name = name;
+		age = _age;
+	}
+
+	func SayHello() {
+		io.Println("Animal: SayHello", name, age);
+		//super.SayHello();
+	}
+
+	func TBFunc() {
+		io.Println("TBFunc in Animal");
+	}
+}
+
+func Main(args []string) {
+	Animal("Dog", 2569).SayHello();
+}

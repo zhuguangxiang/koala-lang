@@ -127,7 +127,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	// find in current module
 	Symbol *sym;
 	if (!desc->path) {
-		debug("type '%s' maybe in current module", desc->type);
+		debug("type '%s' in current module", desc->type);
 		sym = STable_Get(ps->sym->ptr, desc->type);
 		if (!sym) {
 			error("cannot find %s", desc->type);
@@ -437,21 +437,22 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 	__add_stmt(ps, stmt);
 
 	if (stmt->kind == CLASS_KIND) {
-		sym = STable_Add_Class(ps->u->stbl, stmt->class_type.id);
+		sym = STable_Add_Class(ps->u->stbl, stmt->class_info.id);
 	} else if (stmt->kind == TRAIT_KIND) {
-		sym = STable_Add_Trait(ps->u->stbl, stmt->class_type.id);
+		sym = STable_Add_Trait(ps->u->stbl, stmt->class_info.id);
 	} else {
 		assert(0);
 	}
 
 	sym->up = ps->u->sym;
 	sym->ptr = STable_New(ps->u->stbl->atbl);
-	sym->desc = TypeDesc_From_UserDef(NULL, stmt->class_type.id);
-	debug("add class(trait) '%s' successful", sym->name);
-	struct stmt *s;
+	sym->desc = TypeDesc_From_UserDef(NULL, stmt->class_info.id);
+	debug(">>>>add class(trait) '%s' successfully", sym->name);
+
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
 	ps->u->sym = sym;
-	Vector_ForEach(s, stmt->class_type.body) {
+	struct stmt *s;
+	Vector_ForEach(s, stmt->class_info.body) {
 		if (s->kind == VARDECL_KIND) {
 			parse_vardecl(ps, s);
 		} else if (s->kind == FUNCDECL_KIND) {
@@ -462,7 +463,8 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 		}
 	}
 	parser_exit_scope(ps);
-	debug("end class(trait) '%s'", sym->name);
+
+	debug(">>>>end class(trait) '%s'", sym->name);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -652,7 +654,7 @@ static void parser_merge(ParserState *ps)
 		u->block = NULL;
 		debug("save code to module '__init__' function");
 	} else if (u->scope == SCOPE_CLASS) {
-		debug(">>>> class or trait");
+		//debug("class or trait");
 	} else {
 		assertm(0, "no codes in scope:%d", u->scope);
 	}
@@ -870,8 +872,6 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 			} else if (sym->kind == SYM_CLASS) {
 				debug("symbol '%s' is class", sym->name);
 				if (exp->right && exp->right->kind == CALL_KIND) {
-					//struct expr *right = exp->right;
-					// if (!right->right) {
 					debug("new object :%s", exp->sym->name);
 					TValue val = INT_VALUE_INIT(0);
 					Inst_Append(u->block, OP_LOAD, &val);
@@ -879,15 +879,6 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 					setcstrvalue(&val, sym->name);
 					Inst *i = Inst_Append(u->block, OP_NEW, &val);
 					i->argc = exp->argc;
-					// } else {
-					// 	struct expr *rr = right->right;
-					// 	if (rr->kind == WITH_KIND) {
-					// 		debug("class '%s' with trait '%s'",
-					// 			exp->sym->name, rr->sym->name);
-					// 	} else {
-					// 		debug("class '%s' rigth kind:%d", exp->sym->name, rr->kind);
-					// 	}
-					// }
 				} else {
 					if (!exp->right) {
 						debug("'%s' is a class", sym->name);
@@ -1017,53 +1008,38 @@ static void parser_superclass_ident(ParserState *ps, Symbol *sym,
 }
 #endif
 
-static int parser_ident_in_extends(ParserState *ps, struct expr *exp)
+static void gencode_id_in_super(ParserState *ps, struct expr *exp, Symbol *sym)
 {
-	ParserUnit *cu = get_class_unit(ps);
-	if (!cu) return -1;
-	if (!Vector_Size(&cu->sym->extends)) return -1;
-
 	ParserUnit *u = ps->u;
 	char *id = exp->id;
 
-	Symbol *sym;
-	Symbol *extend;
-	Vector_ForEach(extend, &cu->sym->extends) {
-		sym = STable_Get(extend->ptr, id);
-		if (sym) {
-			debug("symbol '%s' is found in extend '%s'", id, extend->name);
-			sym->refcnt++;
-			parser_expr_desc(ps, exp, sym);
+	sym->refcnt++;
+	parser_expr_desc(ps, exp, sym);
 
-			TValue val;
-			setcstrvalue(&val, id);
+	TValue val;
+	setcstrvalue(&val, id);
 
-			if (sym->kind == SYM_VAR) {
-				if (exp->ctx == EXPR_LOAD) {
-					debug("load:%s", val.cstr);
-					TValue val2 = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val2);
-					Inst_Append(ps->u->block, OP_GETFIELD, &val);
-				} else {
-					assert(exp->ctx == EXPR_STORE);
-					debug("store:%s", val.cstr);
-					TValue val2 = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val2);
-					Inst_Append(ps->u->block, OP_SETFIELD, &val);
-				}
-			} else if (sym->kind == SYM_PROTO) {
-				TValue val2 = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val2);
-				Inst *i = Inst_Append(u->block, OP_CALL, &val);
-				i->argc = exp->argc;
-			} else {
-				assert(0);
-			}
-			return 0;
+	if (sym->kind == SYM_VAR) {
+		if (exp->ctx == EXPR_LOAD) {
+			debug("load:%s", val.cstr);
+			TValue val2 = INT_VALUE_INIT(0);
+			Inst_Append(u->block, OP_LOAD, &val2);
+			Inst_Append(ps->u->block, OP_GETFIELD, &val);
+		} else {
+			assert(exp->ctx == EXPR_STORE);
+			debug("store:%s", val.cstr);
+			TValue val2 = INT_VALUE_INIT(0);
+			Inst_Append(u->block, OP_LOAD, &val2);
+			Inst_Append(ps->u->block, OP_SETFIELD, &val);
 		}
+	} else if (sym->kind == SYM_PROTO) {
+		TValue val2 = INT_VALUE_INIT(0);
+		Inst_Append(u->block, OP_LOAD, &val2);
+		Inst *i = Inst_Append(u->block, OP_CALL, &val);
+		i->argc = exp->argc;
+	} else {
+		assert(0);
 	}
-
-	return -1;
 }
 
 static void parser_ident(ParserState *ps, struct expr *exp)
@@ -1094,8 +1070,31 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 		}
 	}
 
-	// ident is in extend's class or traits ?
-	if (!parser_ident_in_extends(ps, exp)) return;
+	// ident is in traits ?
+	ParserUnit *cu = get_class_unit(ps);
+	if (cu && Vector_Size(&cu->sym->traits) > 0) {
+		Symbol *trait;
+		Vector_ForEach(trait, &cu->sym->traits) {
+			sym = STable_Get(trait->ptr, id);
+			if (sym) {
+				debug("symbol '%s' is found in trait '%s'", id, trait->name);
+				gencode_id_in_super(ps, exp, sym);
+				return;
+			}
+		}
+	}
+
+	// ident is in super ?
+	Symbol *super = NULL;
+	if (cu && cu->sym->super) {
+		super = cu->sym->super;
+		sym = STable_Get(super->ptr, id);
+		if (sym) {
+			debug("symbol '%s' is found in super '%s'", id, super->name);
+			gencode_id_in_super(ps, exp, sym);
+			return;
+		}
+	}
 
 	// ident is current module's name
 	if (!strcmp(id, ps->package)) {
@@ -1358,26 +1357,6 @@ static void parser_call(ParserState *ps, struct expr *exp)
 	}
 }
 
-static void parser_with(ParserState *ps, struct expr *exp)
-{
-	debug("with %s.%s", exp->with.desc->path, exp->with.desc->type);
-	Symbol *sym = find_userdef_symbol(ps, exp->with.desc);
-	assert(sym);
-	exp->sym = sym;
-	exp->desc = sym->desc;
-
-	struct expr *left = exp->with.left;
-	left->right = exp;
-	left->ctx = EXPR_LOAD;
-	parser_visit_expr(ps, left);
-
-	Symbol *leftsym = left->sym;
-	if (!leftsym) {
-		error("cannot find '%s' in '%s'", exp->with.desc->type, left->str);
-		return;
-	}
-}
-
 static ParserUnit *get_class_unit(ParserState *ps)
 {
 	if (ps->u->scope != SCOPE_METHOD) return NULL;
@@ -1392,6 +1371,8 @@ static void parser_super(ParserState *ps, struct expr *exp)
 {
 	ParserUnit *u = ps->u;
 	ParserUnit *cu = get_class_unit(ps);
+
+	//NOTES: no need find traits, find in super class only
 	assert(cu->sym->super);
 	exp->sym = cu->sym->super;
 	Symbol *super = cu->sym->super;
@@ -1517,10 +1498,6 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			parser_call(ps, exp);
 			break;
 		}
-		case WITH_KIND: {
-			parser_with(ps, exp);
-			break;
-		}
 		case BINARY_KIND: {
 			debug("binary_op:%d", exp->binary.op);
 			exp->binary.right->ctx = EXPR_LOAD;
@@ -1553,6 +1530,7 @@ static ParserUnit *get_function_unit(ParserState *ps)
 	return NULL;
 }
 
+#if 0
 static int __intf_cls_check(Symbol *intf, Symbol *cls)
 {
 	int result = -1;
@@ -1625,6 +1603,7 @@ static int check_symbol_inherit(Symbol *base, Symbol *sub)
 	}
 	return -1;
 }
+#endif
 
 static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 {
@@ -1810,67 +1789,169 @@ void sym_inherit_fn(Symbol *sym, void *arg)
 	}
 }
 
-// flat extends' class ort traits
-static void parser_class_traits(ParserState *ps, Symbol *sym, Vector *traits)
+static void line_trait(Symbol *trait, Vector *to)
 {
-	if (!traits) return;
+	assert(trait->kind == SYM_TRAIT);
+	Symbol *s;
+	Vector_ForEach(s, to) {
+		if (s == trait) {
+			debug("trait '%s' is already in liner order", trait->name);
+			return;
+		}
+	}
+	debug("add trait '%s' to liner order", trait->name);
+	Vector_Append(to, trait);
+}
 
-	TypeDesc *desc;
+static void parser_order(Vector *vec, Vector *to)
+{
+	debug("------parse order -------");
+	Symbol *s;
+	Vector_ForEach(s, vec) {
+		Symbol *trait;
+		Vector_ForEach(trait, &s->traits) {
+			line_trait(trait, to);
+		}
+		line_trait(s, to);
+	}
+
+	debug("------parse order end-------");
+}
+
+struct check_trait_s {
+	int index;
+	Symbol *sym;
+};
+
+static void __check_trait_fn(Symbol *sym, void *arg)
+{
+	if (sym->kind != SYM_IPROTO) return;
+
+	struct check_trait_s *temp = arg;
+	int size = Vector_Size(&temp->sym->traits);
 	Symbol *trait;
+	Symbol *s;
+	for (int i = temp->index; i < size; i++) {
+		trait = Vector_Get(&temp->sym->traits, i);
+		s = STable_Get(trait->ptr, sym->name);
+		if (!s) {
+			debug("not found '%s' in trait '%s'", sym->name, trait->name);
+			continue;
+		}
+		if (s->kind != SYM_PROTO) {
+			debug("'%s' in trait '%s' is not a func", sym->name, trait->name);
+			continue;
+		}
+		//check function's proto
+		debug("found '%s' in trait '%s'", sym->name, trait->name);
+		return;
+	}
+
+	s = STable_Get(temp->sym->ptr, sym->name);
+	if (!s) {
+		error("'%s' has not impl in line-order in class '%s'",
+			sym->name, temp->sym->name);
+		return;
+	}
+	if (s->kind != SYM_PROTO) {
+		error("'%s' in class '%s' is not a func", sym->name, temp->sym->name);
+		return;
+	}
+	//check function's proto
+	debug("'%s' has impl in line-order in class '%s'",
+		sym->name,temp->sym->name);
+}
+
+// flat extends' traits
+static int parser_traits(ParserState *ps, Vector *traits, Symbol *sym)
+{
+	debug("------parse traits -------");
+
+	Vector syms = VECTOR_INIT;
+	TypeDesc *desc;
+	Symbol *s;
 	Vector_ForEach(desc, traits) {
 		//FIXME
 		char *typestr = TypeDesc_ToString(desc);
-		debug("class or trait with '%s'", typestr);
-		trait = find_userdef_symbol(ps, desc);
-		if (!trait) {
+		debug("trait '%s'", typestr);
+		s = find_userdef_symbol(ps, desc);
+		if (!s) {
 			error("cannot find trait '%s'", typestr);
 			free(typestr);
-			return;
+			return -1;
+		}
+		if (s->kind != SYM_TRAIT) {
+			error("symbol '%s' is a trait", typestr);
+			free(typestr);
+			return -1;
 		}
 		free(typestr);
-		assert(trait->ptr);
-		parser_class_traits(ps, sym, &trait->extends);
-		Vector_Append(&sym->extends, trait);
+		assert(s->ptr);
+		Vector_Append(&syms, s);
 	}
+
+	parser_order(&syms, &sym->traits);
+
+	Vector_Fini(&syms, NULL, NULL);
+
+	//check traits abstract funcs whether have impl in class
+	if (sym->kind == SYM_CLASS) {
+		struct check_trait_s temp = {.sym = sym};
+		Vector_ForEach(s, &sym->traits) {
+			if (s->kind == SYM_TRAIT) {
+				debug(">>>>check abstract functions in trait '%s'<<<<", s->name);
+				temp.index = i + 1;
+				STable_Traverse(s->ptr, __check_trait_fn, &temp);
+			}
+		}
+	}
+
+	debug("------parse traits end -------");
+
+	return 0;
 }
 
 static void parser_class(ParserState *ps, struct stmt *stmt)
 {
-	debug("------parse class or trait -------");
-	debug("class(trait):%s", stmt->class_type.id);
+	debug("------parse class(trait) -------");
+	debug("%s:%s", stmt->kind == CLASS_KIND ? "class" : "trait",
+		stmt->class_info.id);
 
 	ParserUnit *u = ps->u;
-	Symbol *sym = STable_Get(u->stbl, stmt->class_type.id);
+	Symbol *sym = STable_Get(u->stbl, stmt->class_info.id);
 	assert(sym && sym->ptr);
 
-	parser_class_traits(ps, sym, stmt->class_type.traits);
-
-	TypeDesc *desc = stmt->class_type.base;
+	TypeDesc *desc = stmt->class_info.super;
 	if (desc) {
 		char *typestr = TypeDesc_ToString(desc);
-		debug("class or trait with extend '%s'", typestr);
+		debug("class's super '%s'", typestr);
 		Symbol *super = find_userdef_symbol(ps, desc);
 		if (!super) {
-			error("cannot find extend '%s'", typestr);
+			error("cannot find super '%s'", typestr);
 			free(typestr);
 			return;
 		}
 		if (super->kind != SYM_CLASS && super->kind != SYM_STABLE) {
-			error("'%s' is not a class", typestr);
+			error("super '%s' is not a class", typestr);
 			free(typestr);
 			return;
 		}
 		free(typestr);
 		assert(super->ptr);
 		sym->super = super;
-		Vector_Append(&sym->extends, super);
+		// Vector_Append(&sym->extends, super);
+	}
+
+	if (stmt->class_info.traits) {
+		if (parser_traits(ps, stmt->class_info.traits, sym))
+			return;
 	}
 
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
-	ps->u->sym = sym;
 
+	ps->u->sym = sym;
 	struct stmt *s;
-	Vector_ForEach(s, stmt->class_type.body) {
+	Vector_ForEach(s, stmt->class_info.body) {
 		if (s->kind == VARDECL_KIND) {
 			parser_variable(ps, s->vardecl.var, s->vardecl.exp);
 		} else if (s->kind == FUNCDECL_KIND) {
@@ -1884,7 +1965,15 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 
 	parser_exit_scope(ps);
 
-	debug("------parse class or trait end---");
+	printf("++++++linearization order++++++\n");
+	printf("%s ", sym->name);
+	Symbol *sb;
+	Vector_ForEach_Reverse(sb, &sym->traits) {
+		printf("-> %s ", sb->name);
+	}
+	if (sym->super) printf("-> %s", sym->super->name);
+	printf("\n+++++++++++++++++++++++++++++++\n");
+	debug("------parse class(trait) end---");
 }
 
 // static void __inherit_imethod_fn(Symbol *sym, void *arg)

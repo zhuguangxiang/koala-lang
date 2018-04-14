@@ -188,6 +188,8 @@ int yyerror(ParserState *parser, const char *str)
 %type <stmt> MemberDeclaration
 %type <stmt> FieldDeclaration
 %type <stmt> FuncOrProtoDeclaration
+%type <stmt> ExtendsOrEmpty
+%type <vector> WithesOrEmpty
 %type <vector> Traits
 %type <vector> TraitMemberDeclarations
 %type <stmt> TraitMemberDeclaration
@@ -447,38 +449,53 @@ ParameterListOrEmpty
 /*--------------------------------------------------------------------------*/
 
 TypeDeclaration
-  : CLASS ID '{' MemberDeclarations '}' {
-    $$ = stmt_from_class($2, NULL, NULL, $4);
+  : CLASS ID ExtendsOrEmpty '{' MemberDeclarations '}' {
+    $$ = $3;
+    $$->class_info.id = $2;
+    $$->class_info.body = $5;
   }
-  | CLASS ID EXTENDS UserDefType '{' MemberDeclarations '}' {
-    $$ = stmt_from_class($2, $4, NULL, $6);
+  | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarations '}' {
+    $$ = stmt_from_trait($2, $3, $5);
   }
-  | CLASS ID WITH Traits '{' MemberDeclarations '}' {
-    $$ = stmt_from_class($2, NULL, $4, $6);
+  | CLASS ID ExtendsOrEmpty ';' {
+    $$ = $3;
+    $$->class_info.id = $2;
   }
-  | CLASS ID EXTENDS UserDefType WITH Traits '{' MemberDeclarations '}' {
-    $$ = stmt_from_class($2, $4, $6, $8);
+  | TRAIT ID WithesOrEmpty ';' {
+    $$ = stmt_from_trait($2, $3, NULL);
   }
-  | TRAIT ID '{' TraitMemberDeclarations '}' {
-    $$ = stmt_from_trait($2, NULL, $4);
-  }
-  | TRAIT ID WITH Traits '{' TraitMemberDeclarations '}' {
-    $$ = stmt_from_trait($2, $4, $6);
-  }
-  // | CLASS ID EXTENDS UserDefType WithTraitsOrEmpty ';' {
+  ;
 
-  // }
-  // | TRAIT ID EXTENDS UserDefType WithTraitsOrEmpty ';' {
+ExtendsOrEmpty
+  : %empty {
+    $$ = stmt_new(CLASS_KIND);
+  }
+  | EXTENDS UserDefType WithesOrEmpty {
+    $$ = stmt_new(CLASS_KIND);
+    $$->class_info.super = $2;
+    $$->class_info.traits = $3;
+  }
+  | Traits {
+    $$ = stmt_new(CLASS_KIND);
+    $$->class_info.traits = $1;
+  }
+  ;
 
-  // }
+WithesOrEmpty
+  : %empty {
+    $$ = NULL;
+  }
+  | Traits {
+    $$ = $1;
+  }
   ;
 
 Traits
-  : UserDefType {
+  : WITH UserDefType {
     $$ = Vector_New();
-    Vector_Append($$, $1);
+    Vector_Append($$, $2);
   }
-  | Traits ',' UserDefType {
+  | Traits WITH UserDefType {
     Vector_Append($1, $3);
     $$ = $1;
   }
@@ -810,11 +827,6 @@ PrimaryExpression
   | PrimaryExpression '(' ')' {
     $$ = expr_from_trailer(CALL_KIND, NULL, $1);
   }
-  // | PrimaryExpression WITH UserDefType {
-  //   //FIXME: ID.ID
-  //   printf("with\n");
-  //   //$$ = expr_from_trailer(WITH_KIND, $3, $1);
-  // }
   ;
 
 Atom

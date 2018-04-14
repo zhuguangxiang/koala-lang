@@ -39,8 +39,8 @@ enum expr_kind {
 	ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
 	STRING_KIND = 5, SELF_KIND = 6, SUPER_KIND = 7, TYPEOF_KIND = 8,
 	NIL_KIND = 9, EXP_KIND = 10, ARRAY_KIND = 11, ANONYOUS_FUNC_KIND = 12,
-	ATTRIBUTE_KIND = 13, SUBSCRIPT_KIND = 14, CALL_KIND = 15, WITH_KIND = 16,
-	UNARY_KIND = 17, BINARY_KIND = 18, SEQ_KIND = 19,
+	ATTRIBUTE_KIND = 13, SUBSCRIPT_KIND = 14, CALL_KIND = 15,
+	UNARY_KIND = 16, BINARY_KIND = 17, SEQ_KIND = 18,
 	EXPR_KIND_MAX
 };
 
@@ -86,10 +86,6 @@ struct expr {
 			struct expr *left;
 			Vector *args;     /* arguments list */
 		} call;
-		struct {
-			struct expr *left;
-			TypeDesc *desc;
-		} with;
 		/* arithmetic operation */
 		struct {
 			enum unary_op_kind op;
@@ -190,10 +186,10 @@ struct stmt {
 		} compound_assign;
 		struct {
 			char *id;
-			TypeDesc *base;
+			TypeDesc *super;
 			Vector *traits;
 			Vector *body;
-		} class_type;
+		} class_info;
 		struct {
 			char *id;
 			Vector *pvec;
@@ -239,6 +235,7 @@ struct stmt {
 	};
 };
 
+struct stmt *stmt_new(int kind);
 struct stmt *stmt_from_expr(struct expr *exp);
 struct stmt *stmt_from_import(char *id, char *path);
 struct stmt *stmt_from_varlistdecl(Vector *varvec, Vector *expvec,
@@ -252,8 +249,6 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 struct stmt *stmt_from_block(Vector *vec);
 struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
-struct stmt *stmt_from_class(char *id, TypeDesc *base, Vector *traits,
-	Vector *body);
 struct stmt *stmt_from_trait(char *id, Vector *traits, Vector *body);
 struct stmt *stmt_from_funcproto(char *id, Vector *pvec, Vector *rvec);
 struct stmt *stmt_from_jump(int kind, int level);

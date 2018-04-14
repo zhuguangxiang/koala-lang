@@ -11,7 +11,7 @@ Symbol *Symbol_New(int kind)
 	Init_HashNode(&sym->hnode, sym);
 	Vector_Init(&sym->locvec);
 	sym->kind = kind;
-	Vector_Init(&sym->extends);
+	Vector_Init(&sym->traits);
 	return sym;
 }
 
@@ -200,42 +200,6 @@ void STable_Traverse(STable *stbl, symbolfunc fn, void *arg)
 {
 	struct visit_entry data = {fn, arg};
 	HashTable_Traverse(stbl->htbl, __symbol_visit_fn, &data);
-}
-
-/*-------------------------------------------------------------------------*/
-
-static uint32 base_symbol_hash(void *key)
-{
-	BaseSymbol *basesym = key;
-	assert(basesym->sym);
-	return hash_string(basesym->sym->name);
-}
-
-static int base_symbol_equal(void *k1, void *k2)
-{
-	BaseSymbol *basesym1 = k1;
-	BaseSymbol *basesym2 = k2;
-	assert(basesym1->sym);
-	assert(basesym2->sym);
-	return !strcmp(basesym1->sym->name, basesym2->sym->name);
-}
-
-BaseSymbol *BaseSymbol_New(Symbol *base)
-{
-	BaseSymbol *basesym = malloc(sizeof(BaseSymbol));
-	Init_HashNode(&basesym->hnode, basesym);
-	basesym->sym = base;
-	return basesym;
-}
-
-int Symbol_Add_Base(Symbol *sym, Symbol *base)
-{
-	if (!sym->table) {
-		HashInfo hashinfo = {base_symbol_hash, base_symbol_equal};
-		sym->table = HashTable_New(&hashinfo);
-	}
-	BaseSymbol *basesym = BaseSymbol_New(base);
-	return HashTable_Insert(sym->table, &basesym->hnode);
 }
 
 /*-------------------------------------------------------------------------*/

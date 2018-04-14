@@ -132,11 +132,6 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
 			expr->call.args = trailer;
 			break;
 		}
-		case WITH_KIND: {
-			expr->with.left = left;
-			expr->with.desc = trailer;
-			break;
-		}
 		default: {
 			assertm(0, "unkown expression kind %d\n", kind);
 		}
@@ -326,23 +321,12 @@ struct stmt *stmt_from_compound_assign(struct expr *left,
 	return stmt;
 }
 
-struct stmt *stmt_from_class(char *id, TypeDesc *base, Vector *traits,
-	Vector *body)
-{
-	struct stmt *stmt = stmt_new(CLASS_KIND);
-	stmt->class_type.id = id;
-	stmt->class_type.base = base;
-	stmt->class_type.traits = traits;
-	stmt->class_type.body = body;
-	return stmt;
-}
-
 struct stmt *stmt_from_trait(char *id, Vector *traits, Vector *body)
 {
 	struct stmt *stmt = stmt_new(TRAIT_KIND);
-	stmt->class_type.id = id;
-	stmt->class_type.traits = traits;
-	stmt->class_type.body = body;
+	stmt->class_info.id = id;
+	stmt->class_info.traits = traits;
+	stmt->class_info.body = body;
 	return stmt;
 }
 
@@ -606,10 +590,6 @@ void expr_traverse(struct expr *expr)
 			printf("[end func call]\n");
 			break;
 		}
-		case WITH_KIND: {
-			printf("with %s.%s\n", expr->with.desc->path, expr->with.desc->type);
-			break;
-		}
 		case UNARY_KIND: {
 			printf("[unary expr]op:%d\n", expr->unary.op);
 			expr_traverse(expr->unary.operand);
@@ -698,10 +678,10 @@ void func_traverse(struct stmt *stmt)
 
 void class_or_trait_traverse(struct stmt *stmt)
 {
-	Vector *body = stmt->class_type.body;
+	Vector *body = stmt->class_info.body;
 	struct var *var;
 	char *typestr;
-	printf("[class(trait)]:%s\n", stmt->class_type.id);
+	printf("[class(trait)]:%s\n", stmt->class_info.id);
 	if (body != NULL) {
 		struct stmt *s;
 		for (int i = 0; i < Vector_Size(body); i++) {
