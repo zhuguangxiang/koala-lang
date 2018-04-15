@@ -28,8 +28,8 @@ trait TB with TB1 with TT {
 }
 
 class Animal with TA with TB with TT {
-	name string;
-	age int;
+	var name string;
+	var age int;
 
 	func __init__(name string, _age int) {
 		self.name = name;

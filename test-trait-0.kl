@@ -10,8 +10,8 @@ class THello {
 }
 
 class Animal extends THello {
-	name string;
-	age int;
+	var name string;
+	var age int;
 
 	func __init__(name string, _age int) {
 		self.name = name;

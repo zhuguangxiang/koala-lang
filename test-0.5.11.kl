@@ -8,7 +8,7 @@ import "koala/io";
 import an "test/animal";
 
 class Dog extends an.Animal {
-	color string;
+	var color string;
 
 	func __init__(name string, age int, color string) {
 		super(name, age);

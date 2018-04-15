@@ -4,8 +4,8 @@ package test2;
 import "koala/io";
 
 class HomeTown {
-	name string;
-	number int;
+	var name string;
+	var number int;
 
 	func __init__(name string, nu int) {
 		self.name = name;

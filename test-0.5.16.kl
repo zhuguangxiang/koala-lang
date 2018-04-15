@@ -7,8 +7,8 @@ package test;
 import "koala/io";
 
 class Animal {
-	name string = "CAT";
-	age int = 100;
+	var name = "CAT";
+	var age int = 100;
 
 	func __init__(age int) {
 		self.age = age;
@@ -20,7 +20,7 @@ class Animal {
 }
 
 class Human {
-	name string = "Uncle Sam";
+	var name string = "Uncle Sam";
 
 	func Say(msg string) {
 		io.Println("Human:", name, msg);

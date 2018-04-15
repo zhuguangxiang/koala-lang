@@ -10,8 +10,8 @@ var name = "南京";
 var global int = 100;
 
 class Person {
-	name string;
-	age int;
+	var name string;
+	var age int;
 
 	func __init__(name string, _age int) {
 		io.Println("Person(", name, ",", _age, ")");
@@ -89,8 +89,8 @@ func add(v1 int, v2 int) int {
 }
 
 class HomeTown {
-	name string;
-	number int;
+	var name string;
+	var number int;
 
 	func __init__(name string, nu int) {
 		self.name = name;

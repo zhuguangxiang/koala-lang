@@ -542,14 +542,14 @@ TraitMemberDeclaration
   ;
 
 FieldDeclaration
-  : ID Type ';' {
-    $$ = stmt_from_vardecl(new_var($1, $2), NULL, 0);
+  : VAR ID Type ';' {
+    $$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
   }
-  | ID '=' Expression ';' {
-    $$ = stmt_from_vardecl(new_var($1, NULL), $3, 0);
+  | VAR ID '=' Expression ';' {
+    $$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
   }
-  | ID Type '=' Expression ';' {
-    $$ = stmt_from_vardecl(new_var($1, $2), $4, 0);
+  | VAR ID Type '=' Expression ';' {
+    $$ = stmt_from_vardecl(new_var($2, $3), $5, 0);
   }
   ;
 

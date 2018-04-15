@@ -5,9 +5,9 @@ import "koala/io";
 import "test/town";
 
 class Person {
-	name string;
-	age int;
-	town test2.HomeTown;
+	var name string;
+	var age int;
+	var town test2.HomeTown;
 
 	func __init__(name string, _age int) {
 		io.Println("Person(", name, ",", _age, ")");

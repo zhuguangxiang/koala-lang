@@ -10,8 +10,8 @@ var name = "南京";
 var global int = 123;
 
 class Person {
-	name string;
-	age int;
+	var name string;
+	var age int;
 
 	func __init__(name string, _age int) {
 		io.Println("Person(", name, ",", _age, ")");
