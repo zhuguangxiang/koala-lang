@@ -34,20 +34,22 @@ class Animal with TA with TB with TT {
 	func __init__(name string, _age int) {
 		self.name = name;
 		age = _age;
+		io.Println("Animal:", self.name, age);
 	}
 
 	func SayHello() {
-		io.Println("Animal: SayHello", name, age);
+		io.Println("SayHello in Animal");
 		//super.SayHello();
 	}
 
 	func TBFunc() {
-		io.Println("Animal: SayHello", name, age);
 		io.Println("TBFunc in Animal");
 	}
 }
 
 func Main(args []string) {
 	Animal("Dog", 2569).SayHello();
-	Animal("Dog", 2570).TBFunc();
+	Animal("Dog", 2570).TAFunc();
+	var animal = Animal("Dog", 2571);
+	animal.TB1Func();
 }

@@ -156,6 +156,32 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	return NULL;
 }
 
+static Symbol *find_symbol_linear_order(Symbol *clssym, char *name)
+{
+	Symbol *sym;
+	debug(">>>>find_symbol_linear_order<<<<");
+	//find in current class
+	debug("finding '%s' in '%s'", name, clssym->name);
+	sym = STable_Get(clssym->ptr, name);
+	if (sym) {
+		debug("'%s' is found in '%s'", name, clssym->name);
+		return sym;
+	}
+	debug("'%s' is not in '%s'", name, clssym->name);
+
+	//find in linear-order traits
+	Symbol *s;
+	Vector_ForEach_Reverse(s, &clssym->traits) {
+		sym = find_symbol_linear_order(s, name);
+		if (sym) {
+			return sym;
+		}
+	}
+
+	//find in super class
+	return NULL;
+}
+
 /*-------------------------------------------------------------------------*/
 // External imported modules management
 
@@ -1167,37 +1193,42 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		assert(leftsym->desc);
 		sym = find_userdef_symbol(ps, leftsym->desc);
 		if (!sym) {
+			//FIXME: free(typestr);
 			char *typestr = TypeDesc_ToString(leftsym->desc);
 			error("cannot find '%s' in '%s'", exp->attribute.id, typestr);
+			free(typestr);
 			return;
 		}
 		assert(sym->kind == SYM_STABLE ||
 			sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
 		char *typename = sym->name;
-		sym = STable_Get(sym->ptr, exp->attribute.id);
+		sym = find_symbol_linear_order(sym, exp->attribute.id);
 		if (!sym) {
 			error("cannot find '%s' in '%s'", exp->attribute.id, typename);
 			return;
 		}
 	} else if (leftsym->kind == SYM_CLASS) {
 		debug("symbol '%s' is a class", leftsym->name);
-		sym = STable_Get(leftsym->ptr, exp->attribute.id);
+		sym = find_symbol_linear_order(leftsym, exp->attribute.id);
+		//sym = STable_Get(leftsym->ptr, exp->attribute.id);
 		if (!sym) {
-			if (!leftsym->super) {
-				error("cannot find '%s' in '%s' class",
-					exp->attribute.id, leftsym->name);
-				return;
-			}
+			error("cannot find '%s' in '%s'", exp->attribute.id, leftsym->name);
+			return;
+			// if (!leftsym->super) {
+			// 	error("cannot find '%s' in '%s' class",
+			// 		exp->attribute.id, leftsym->name);
+			// 	return;
+			// }
 
-			sym = STable_Get(leftsym->super->ptr, exp->attribute.id);
-			if (!sym) {
-				error("cannot find '%s' in super '%s' class",
-					exp->attribute.id, leftsym->super->name);
-				return;
-			}
+			// sym = STable_Get(leftsym->super->ptr, exp->attribute.id);
+			// if (!sym) {
+			// 	error("cannot find '%s' in super '%s' class",
+			// 		exp->attribute.id, leftsym->super->name);
+			// 	return;
+			// }
 
-			debug("find '%s' in super '%s' class",
-				exp->attribute.id, leftsym->super->name);
+			// debug("find '%s' in super '%s' class",
+			// 	exp->attribute.id, leftsym->super->name);
 		} else {
 			debug("find '%s' in '%s' class", exp->attribute.id, leftsym->name);
 		}
@@ -1965,14 +1996,14 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 
 	parser_exit_scope(ps);
 
-	printf("++++++linearization order++++++\n");
+	printf("++++++++++linear order++++++++++\n");
 	printf("%s ", sym->name);
 	Symbol *sb;
 	Vector_ForEach_Reverse(sb, &sym->traits) {
 		printf("-> %s ", sb->name);
 	}
 	if (sym->super) printf("-> %s", sym->super->name);
-	printf("\n+++++++++++++++++++++++++++++++\n");
+	printf("\n++++++++++++++++++++++++++++++\n");
 	debug("------parse class(trait) end---");
 }
 

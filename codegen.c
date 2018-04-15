@@ -262,7 +262,9 @@ void codegen_klc(ParserState *ps, char *out)
 	STable_Traverse(ps->sym->ptr, __gen_code_fn, &tmp);
 	debug("----------------------");
 	KImage_Finish(image);
+#if SHOW_ENABLED
 	KImage_Show(image);
+#endif
 	KImage_Write_File(image, out);
 	printf("----------codegen end--------\n");
 }

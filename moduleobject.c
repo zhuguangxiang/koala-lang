@@ -146,6 +146,20 @@ Klass *Module_Get_Class(Object *ob, char *name)
 	return NULL;
 }
 
+Klass *Module_Get_Trait(Object *ob, char *name)
+{
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	Symbol *sym = STable_Get(&m->stbl, name);
+	if (sym) {
+		if (sym->kind == SYM_TRAIT) {
+			return sym->ob;
+		} else {
+			warn("symbol is not a trait");
+		}
+	}
+	return NULL;
+}
+
 Klass *Module_Get_ClassOrTrait(Object *ob, char *name)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);

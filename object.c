@@ -242,7 +242,7 @@ static Object *object_tostring(TValue *v)
 
 /*---------------------------------------------------------------------------*/
 
-Klass *Klass_New(char *name, Klass *base, int flags)
+Klass *Klass_New(char *name, Klass *base, int flags, Vector *traits)
 {
 	Klass *klazz = calloc(1, sizeof(Klass));
 	Init_Object_Head(klazz, &Klass_Klass);
@@ -258,15 +258,19 @@ Klass *Klass_New(char *name, Klass *base, int flags)
 	klazz->ob_hash  = object_hash;
 	klazz->ob_equal = object_equal;
 	klazz->ob_tostr = object_tostring;
+	Vector_Init(&klazz->traits);
+	Vector_Concat(&klazz->traits, traits);
 	return klazz;
 }
 
-Klass *Trait_New(char *name)
+Klass *Trait_New(char *name, Vector *traits)
 {
 	Klass *klazz = calloc(1, sizeof(Klass));
 	Init_Object_Head(klazz, &Klass_Klass);
 	klazz->name = strdup(name);
 	klazz->flags = FLAGS_TRAIT;
+	Vector_Init(&klazz->traits);
+	Vector_Concat(&klazz->traits, traits);
 	return klazz;
 }
 
@@ -316,16 +320,36 @@ int Klass_Add_IMethod(Klass *klazz, char *name, Proto *proto)
 
 Symbol *Klass_Get_Symbol(Klass *klazz, char *name)
 {
-	return STable_Get(&klazz->stbl, name);
+	Symbol *sym;
+	sym = STable_Get(&klazz->stbl, name);
+	if (sym) return sym;
+
+	Klass *k;
+	Vector_ForEach_Reverse(k, &klazz->traits) {
+		sym = Klass_Get_Symbol(k, name);
+		if (sym) return sym;
+	}
+
+	return NULL;
 }
 
 Object *Klass_Get_Method(Klass *klazz, char *name)
 {
 	Symbol *sym = STable_Get(&klazz->stbl, name);
-	if (!sym) return NULL;
-	if (sym->kind != SYM_PROTO) return NULL;
-	OB_ASSERT_KLASS(sym->ob, Code_Klass);
-	return sym->ob;
+	if (sym) {
+		if (sym->kind != SYM_PROTO) return NULL;
+		OB_ASSERT_KLASS(sym->ob, Code_Klass);
+		return sym->ob;
+	}
+
+	Object *ob;
+	Klass *k;
+	Vector_ForEach_Reverse(k, &klazz->traits) {
+		ob = Klass_Get_Method(k, name);
+		if (ob) return ob;
+	}
+
+	return NULL;
 }
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)

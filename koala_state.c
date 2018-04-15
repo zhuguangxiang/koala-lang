@@ -97,6 +97,9 @@ Klass *Koala_Get_Klass(Object *ob, char *path, char *type)
 /*-------------------------------------------------------------------------*/
 
 static Object *load_module(char *path);
+static Klass *load_trait(TraitItem *trait, AtomTable *table, Object *m);
+static void load_trait_vector(int32 index, AtomTable *table, Object *m,
+	Vector *vec);
 
 struct classindex {
 	int index;
@@ -258,12 +261,11 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 		}
 	}
 
-	if (cls->traitsindex >= 0) {
-
-	}
-
-	klazz = Klass_New(cls_name, base, 0);
+	Vector traits = VECTOR_INIT;
+	load_trait_vector(cls->traitsindex, table, m, &traits);
+	klazz = Klass_New(cls_name, base, 0, &traits);
 	Module_Add_Class(m, klazz);
+	Vector_Fini(&traits, NULL, NULL);
 	return klazz;
 }
 
@@ -362,17 +364,54 @@ static void load_classes(AtomTable *table, Object *m)
 	}
 }
 
+static void load_trait_vector(int32 index, AtomTable *table, Object *m,
+	Vector *vec)
+{
+	if (index < 0) return;
+	TypeListItem *list = TypeListItem_Index(table, index);
+	assert(list);
+	TypeItem *t;
+	TypeItem *temp;
+	TraitItem *tr;
+	int sz = AtomTable_Size(table, ITEM_TRAIT);
+	for (int i = 0; i < list->size; i++) {
+		t = TypeItem_Index(table, list->index[i]);
+		for (int i = 0; i < sz; i++) {
+			tr = AtomTable_Get(table, ITEM_TRAIT, i);
+			temp = TypeItem_Index(table, tr->classindex);
+			assert(temp->protoindex == -1);
+			assert(temp->pathindex == -1);
+			if (t->typeindex == temp->typeindex) {
+				Vector_Append(vec, load_trait(tr, table, m));
+				break;
+			}
+		}
+	}
+}
+
 static Klass *load_trait(TraitItem *trait, AtomTable *table, Object *m)
 {
 	TypeItem *type = TypeItem_Index(table, trait->classindex);
 	assert(type->protoindex == -1);
 	assert(type->pathindex == -1);
 	StringItem *id = StringItem_Index(table, type->typeindex);
-	if (trait->traitsindex >= 0) {
+	assert(id);
+	char *trait_name = id->data;
+	Klass *klazz;
 
+	debug("load trait:'%s'", trait_name);
+
+	klazz = Module_Get_Trait(m, trait_name);
+	if (klazz) {
+		debug("trait '%s' is already loaded", trait_name);
+		return klazz;
 	}
-	Klass *klazz = Trait_New(id->data);
+
+	Vector traits = VECTOR_INIT;
+	load_trait_vector(trait->traitsindex, table, m, &traits);
+	klazz = Trait_New(id->data, &traits);
 	Module_Add_Trait(m, klazz);
+	Vector_Fini(&traits, NULL, NULL);
 	return klazz;
 }
 
@@ -406,7 +445,37 @@ static void load_traits(AtomTable *table, Object *m)
 	IMethItem *imth;
 	for (int i = 0; i < sz; i++) {
 		imth = AtomTable_Get(table, ITEM_IMETH, i);
-		load_imethod(imth, table, get_klazz(indexes, num, imth->classindex));
+		klazz = get_klazz(indexes, num, imth->classindex);
+		if (klazz) load_imethod(imth, table, klazz);
+	}
+
+	sz = AtomTable_Size(table, ITEM_METHOD);
+	int locnum = sz;
+	struct locvarindex locindexes[locnum];
+	Object *ob;
+	MethodItem *mth;
+	for (int i = 0; i < sz; i++) {
+		mth = AtomTable_Get(table, ITEM_METHOD, i);
+		klazz = get_klazz(indexes, num, mth->classindex);
+		if (klazz) {
+			ob = load_method(mth, table, klazz);
+			locindexes[i].index = i;
+			locindexes[i].func = ob;
+		} else {
+			locindexes[i].index = -1;
+			locindexes[i].func = NULL;
+		}
+	}
+
+	// handle locvars
+	sz = AtomTable_Size(table, ITEM_LOCVAR);
+	LocVarItem *locvar;
+	for (int i = 0; i < sz; i++) {
+		locvar = AtomTable_Get(table, ITEM_LOCVAR, i);
+		if (locvar->flags == METHLOCVAR) {
+			ob = get_kfunc(locindexes, locnum, locvar->index);
+			if (ob) load_locvar(locvar, table, ob);
+		}
 	}
 }
 
