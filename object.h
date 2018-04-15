@@ -171,7 +171,7 @@ typedef int (*equalfunc)(TValue *v1, TValue *v2);
 typedef Object *(*strfunc)(TValue *v);
 
 #define FLAGS_FINAL (1 << 0)
-#define FLAGS_INTF  (1 << 1)
+#define FLAGS_TRAIT (1 << 1)
 
 struct klass {
 	OBJECT_HEAD
@@ -187,7 +187,7 @@ struct klass {
 	hashfunc ob_hash;
 	equalfunc ob_equal;
 	strfunc ob_tostr;
-	Vector extends;
+	Vector traits;
 	STable stbl;
 };
 
@@ -201,7 +201,7 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code);
 Object *Klass_Get_Method(Klass *klazz, char *name);
 #define Klass_STable(ob) (&((Klass *)(ob))->stbl)
 void Check_Klass(Klass *klazz);
-Klass *Intf_New(char *name);
+Klass *Trait_New(char *name);
 int Klass_Add_IMethod(Klass *klazz, char *name, Proto *proto);
 
 /*-------------------------------------------------------------------------*/

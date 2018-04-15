@@ -216,22 +216,36 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				path = sym->super->desc->path;
 				type = sym->super->desc->type;
 			}
-			KImage_Add_Class(tmp->image, sym->name, path, type);
+			int size = Vector_Size(&sym->traits);
+			TypeDesc descs[size];
+			Symbol *trait;
+			for (int i = 0; i < size; i++) {
+				trait = Vector_Get(&sym->traits, i);
+				*(descs + i) = *trait->desc;
+			}
+			KImage_Add_Class(tmp->image, sym->name, path, type, descs, size);
 			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
 			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
 			break;
 		}
 		case SYM_IPROTO: {
 			debug("	abstract func %s;", sym->name);
-			//KImage_Add_IMeth(tmp->image, tmp->clazz, sym->name, sym->desc->proto);
+			KImage_Add_IMeth(tmp->image, tmp->clazz, sym->name, sym->desc->proto);
 			break;
 		}
 		case SYM_TRAIT: {
 			debug("----------------------");
 			debug("trait %s:", sym->name);
-			// KImage_Add_Intf(tmp->image, sym->name);
-			//struct gencode_struct tmp2 = {1, tmp->image, sym->name};
-			//STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
+			int size = Vector_Size(&sym->traits);
+			TypeDesc descs[size];
+			Symbol *trait;
+			for (int i = 0; i < size; i++) {
+				trait = Vector_Get(&sym->traits, i);
+				*(descs + i) = *trait->desc;
+			}
+			KImage_Add_Trait(tmp->image, sym->name, descs, size);
+			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
+			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
 			break;
 		}
 		default: {
@@ -248,7 +262,7 @@ void codegen_klc(ParserState *ps, char *out)
 	STable_Traverse(ps->sym->ptr, __gen_code_fn, &tmp);
 	debug("----------------------");
 	KImage_Finish(image);
-	//KImage_Show(image);
+	KImage_Show(image);
 	KImage_Write_File(image, out);
 	printf("----------codegen end--------\n");
 }

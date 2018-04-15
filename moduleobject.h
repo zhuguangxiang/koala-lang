@@ -24,7 +24,7 @@ int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst);
 int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code);
 int Module_Add_CFunc(Object *ob, FuncDef *f);
 int Module_Add_Class(Object *ob, Klass *klazz);
-int Module_Add_Interface(Object *ob, Klass *klazz);
+int Module_Add_Trait(Object *ob, Klass *klazz);
 TValue Module_Get_Value(Object *ob, char *name);
 int Module_Set_Value(Object *ob, char *name, TValue *val);
 Object *Module_Get_Function(Object *ob, char *name);

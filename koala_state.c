@@ -258,6 +258,10 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 		}
 	}
 
+	if (cls->traitsindex >= 0) {
+
+	}
+
 	klazz = Klass_New(cls_name, base, 0);
 	Module_Add_Class(m, klazz);
 	return klazz;
@@ -324,7 +328,8 @@ static void load_classes(AtomTable *table, Object *m)
 	FieldItem *fld;
 	for (int i = 0; i < sz; i++) {
 		fld = AtomTable_Get(table, ITEM_FIELD, i);
-		load_field(fld, table, get_klazz(indexes, num, fld->classindex));
+		klazz = get_klazz(indexes, num, fld->classindex);
+		if (klazz) load_field(fld, table, klazz);
 	}
 
 	sz = AtomTable_Size(table, ITEM_METHOD);
@@ -334,9 +339,15 @@ static void load_classes(AtomTable *table, Object *m)
 	MethodItem *mth;
 	for (int i = 0; i < sz; i++) {
 		mth = AtomTable_Get(table, ITEM_METHOD, i);
-		ob = load_method(mth, table, get_klazz(indexes, num, mth->classindex));
-		locindexes[i].index = i;
-		locindexes[i].func = ob;
+		klazz = get_klazz(indexes, num, mth->classindex);
+		if (klazz) {
+			ob = load_method(mth, table, klazz);
+			locindexes[i].index = i;
+			locindexes[i].func = ob;
+		} else {
+			locindexes[i].index = -1;
+			locindexes[i].func = NULL;
+		}
 	}
 
 	// handle locvars
@@ -345,19 +356,23 @@ static void load_classes(AtomTable *table, Object *m)
 	for (int i = 0; i < sz; i++) {
 		locvar = AtomTable_Get(table, ITEM_LOCVAR, i);
 		if (locvar->flags == METHLOCVAR) {
-			load_locvar(locvar, table, get_kfunc(locindexes, locnum, locvar->index));
+			ob = get_kfunc(locindexes, locnum, locvar->index);
+			if (ob) load_locvar(locvar, table, ob);
 		}
 	}
 }
 
-#if 0
-static Klass *load_interface(IntfItem *intf, AtomTable *table, Object *m)
+static Klass *load_trait(TraitItem *trait, AtomTable *table, Object *m)
 {
-	TypeItem *type = TypeItem_Index(table, intf->classindex);
+	TypeItem *type = TypeItem_Index(table, trait->classindex);
 	assert(type->protoindex == -1);
+	assert(type->pathindex == -1);
 	StringItem *id = StringItem_Index(table, type->typeindex);
-	Klass *klazz = Intf_New(id->data);
-	Module_Add_Interface(m, klazz);
+	if (trait->traitsindex >= 0) {
+
+	}
+	Klass *klazz = Trait_New(id->data);
+	Module_Add_Trait(m, klazz);
 	return klazz;
 }
 
@@ -373,17 +388,17 @@ static void load_imethod(IMethItem *imth, AtomTable *table, Klass *klazz)
 	Klass_Add_IMethod(klazz, id->data, proto);
 }
 
-static void load_interfaces(AtomTable *table, Object *m)
+static void load_traits(AtomTable *table, Object *m)
 {
-	int sz = AtomTable_Size(table, ITEM_INTF);
+	int sz = AtomTable_Size(table, ITEM_TRAIT);
 	int num = sz;
-	IntfItem *intf;
+	TraitItem *trait;
 	Klass *klazz;
 	struct classindex indexes[num];
 	for (int i = 0; i < sz; i++) {
-		intf = AtomTable_Get(table, ITEM_INTF, i);
-		klazz = load_interface(intf, table, m);
-		indexes[i].index = intf->classindex;
+		trait = AtomTable_Get(table, ITEM_TRAIT, i);
+		klazz = load_trait(trait, table, m);
+		indexes[i].index = trait->classindex;
 		indexes[i].klazz = klazz;
 	}
 
@@ -394,7 +409,6 @@ static void load_interfaces(AtomTable *table, Object *m)
 		load_imethod(imth, table, get_klazz(indexes, num, imth->classindex));
 	}
 }
-#endif
 
 static Object *module_from_image(KImage *image)
 {
@@ -405,8 +419,8 @@ static Object *module_from_image(KImage *image)
 
 	load_variables(table, m);
 	load_functions(table, m);
+	load_traits(table, m);
 	load_classes(table, m);
-	//load_interfaces(table, m);
 	return m;
 }
 

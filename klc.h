@@ -33,7 +33,7 @@ typedef struct image_header {
 #define ITEM_CLASS      10
 #define ITEM_FIELD      11
 #define ITEM_METHOD     12
-#define ITEM_INTF       13
+#define ITEM_TRAIT      13
 #define ITEM_IMETH      14
 #define ITEM_MAX        15
 
@@ -133,9 +133,10 @@ typedef struct code_item {
 } CodeItem;
 
 typedef struct class_item {
-	int32 classindex; //->TypeItem
-	int32 access;     //symbol access, FIXME
-	int32 superindex; //->TypeItem
+	int32 classindex;  //->TypeItem
+	int32 access;      //symbol access, FIXME
+	int32 superindex;  //->TypeItem
+	int32 traitsindex; //->TypeListItem
 } ClassItem;
 
 typedef struct feild_item {
@@ -154,10 +155,11 @@ typedef struct method_item {
 	int32 codeindex;  //->CodeItem
 } MethodItem;
 
-typedef struct intf_item {
-	int32 classindex; //->TypeItem
-	int32 access;     //symbol access, FIXME
-} IntfItem;
+typedef struct trait_item {
+	int32 classindex;  //->TypeItem
+	int32 access;      //symbol access, FIXME
+	int32 traitsindex; //->TypeListItem
+} TraitItem;
 
 typedef struct imeth_item {
 	int32 classindex; //->TypeItem
@@ -191,12 +193,13 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
 	__KImage_Add_Var(image, name, desc, 1)
 int KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 	uint8 *codes, int csz);
-void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype);
+void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype,
+	TypeDesc *traits, int size);
 void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc);
 int KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
 	int locvars, uint8 *codes, int csz);
-void KImage_Add_Intf(KImage *image, char *name);
-void KImage_Add_IMeth(KImage *image, char *intf, char *name, Proto *proto);
+void KImage_Add_Trait(KImage *image, char *name, TypeDesc *traits, int size);
+void KImage_Add_IMeth(KImage *image, char *trait, char *name, Proto *proto);
 void KImage_Write_File(KImage *image, char *path);
 KImage *KImage_Read_File(char *path);
 void KImage_Show(KImage *image);

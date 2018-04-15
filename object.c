@@ -261,12 +261,12 @@ Klass *Klass_New(char *name, Klass *base, int flags)
 	return klazz;
 }
 
-Klass *Intf_New(char *name)
+Klass *Trait_New(char *name)
 {
 	Klass *klazz = calloc(1, sizeof(Klass));
 	Init_Object_Head(klazz, &Klass_Klass);
 	klazz->name = strdup(name);
-	klazz->flags = FLAGS_INTF;
+	klazz->flags = FLAGS_TRAIT;
 	return klazz;
 }
 
@@ -602,6 +602,7 @@ int TValue_Print(char *buf, int sz, TValue *val, int escape)
 	return count;
 }
 
+#if 0
 static int check_class_inheritance(Klass *k1, Klass *k2)
 {
 	Klass *base = k1;
@@ -667,6 +668,7 @@ static int check_interface_inheritance(Klass *intf, Klass *klz)
 	STable_Traverse(&intf->stbl, __intf_func_check_fn, &temp);
 	return temp.result;
 }
+#endif
 
 int TValue_Check(TValue *v1, TValue *v2)
 {
@@ -681,20 +683,20 @@ int TValue_Check(TValue *v1, TValue *v2)
 			return -1;
 		}
 		if (v1->klazz != v2->klazz) {
-			if (!(v1->klazz->flags & FLAGS_INTF) &&
-				!(v2->klazz->flags & FLAGS_INTF)) {
-				return check_class_inheritance(v1->klazz, v2->klazz);
-			} else if ((v1->klazz->flags & FLAGS_INTF) &&
-				!(v2->klazz->flags & FLAGS_INTF)) {
-				return check_interface_inheritance(v1->klazz, v2->klazz);
-			} else if ((v1->klazz->flags & FLAGS_INTF) &&
-				(v2->klazz->flags & FLAGS_INTF)) {
-				return check_interface_inheritance(v1->klazz, OB_KLASS(v2->ob));
-			} else {
-				assertm(0, "class '%s' <- intf '%s' is not allowed, \
-					use typeof() to down convertion", v1->klazz->name, v2->klazz->name);
-				return -1;
-			}
+			// if (!(v1->klazz->flags & FLAGS_INTF) &&
+			// 	!(v2->klazz->flags & FLAGS_INTF)) {
+			// 	return check_class_inheritance(v1->klazz, v2->klazz);
+			// } else if ((v1->klazz->flags & FLAGS_INTF) &&
+			// 	!(v2->klazz->flags & FLAGS_INTF)) {
+			// 	return check_interface_inheritance(v1->klazz, v2->klazz);
+			// } else if ((v1->klazz->flags & FLAGS_INTF) &&
+			// 	(v2->klazz->flags & FLAGS_INTF)) {
+			// 	return check_interface_inheritance(v1->klazz, OB_KLASS(v2->ob));
+			// } else {
+			// 	assertm(0, "class '%s' <- intf '%s' is not allowed,
+			// 		use typeof() to down convertion", v1->klazz->name, v2->klazz->name);
+			// 	return -1;
+			// }
 		}
 	}
 	return 0;

@@ -219,12 +219,14 @@ CodeItem *CodeItem_New(uint8 *codes, int size)
 	return item;
 }
 
-ClassItem *ClassItem_New(int classindex, int access, int superindex)
+ClassItem *ClassItem_New(int classindex, int access, int superindex,
+	int traits_index)
 {
 	ClassItem *item = malloc(sizeof(ClassItem));
 	item->classindex = classindex;
 	item->access = access;
 	item->superindex = superindex;
+	item->traitsindex = traits_index;
 	return item;
 }
 
@@ -252,11 +254,12 @@ MethodItem *MethodItem_New(int classindex, int nameindex, int protoindex,
 	return item;
 }
 
-IntfItem *IntfItem_New(int classindex, int access)
+TraitItem *TraitItem_New(int classindex, int access, int traitsindex)
 {
-	IntfItem *item = malloc(sizeof(IntfItem));
+	TraitItem *item = malloc(sizeof(TraitItem));
 	item->classindex = classindex;
 	item->access = access;
+	item->traitsindex = traitsindex;
 	return item;
 }
 
@@ -501,7 +504,7 @@ char *mapitem_string[] = {
 	"map", "string", "type", "typelist", "proto", "const", "locvar",
 	"variable", "function", "code",
 	"class", "field", "method",
-	"interface", "imeth",
+	"trait", "imeth",
 };
 
 int mapitem_length(void *o)
@@ -676,8 +679,12 @@ void typelistitem_show(AtomTable *table, void *o)
 {
 	UNUSED_PARAMETER(table);
 	TypeListItem *item = o;
+	TypeItem *type;
 	for (int i = 0; i < item->size; i++) {
+		printf("  ---------\n");
 		printf("  index:%d\n", item->index[i]);
+		type = AtomTable_Get(table, ITEM_TYPE, item->index[i]);
+		typeitem_show(table, type);
 	}
 }
 
@@ -1037,6 +1044,11 @@ void classitem_show(AtomTable *table, void *o)
 		type = AtomTable_Get(table, ITEM_TYPE, item->superindex);
 		typeitem_show(table, type);
 	}
+	if (item->traitsindex >= 0) {
+		TypeListItem *typelist;
+		typelist = AtomTable_Get(table, ITEM_TYPELIST, item->traitsindex);
+		typelistitem_show(table, typelist);
+	}
 }
 
 void classitem_free(void *o)
@@ -1106,24 +1118,31 @@ void methoditem_free(void *o)
 
 /*-------------------------------------------------------------------------*/
 
-int intfitem_length(void *o)
+int traititem_length(void *o)
 {
 	UNUSED_PARAMETER(o);
-	return sizeof(IntfItem);
+	return sizeof(TraitItem);
 }
 
-void intfitem_write(FILE *fp, void *o)
+void traititem_write(FILE *fp, void *o)
 {
-	fwrite(o, sizeof(IntfItem), 1, fp);
+	fwrite(o, sizeof(TraitItem), 1, fp);
 }
 
-void intfitem_show(AtomTable *table, void *o)
+void traititem_show(AtomTable *table, void *o)
 {
-	UNUSED_PARAMETER(table);
-	UNUSED_PARAMETER(o);
+	TraitItem *item = o;
+	printf("  classindex:%d\n", item->classindex);
+	TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->classindex);
+	typeitem_show(table, type);
+	if (item->traitsindex >= 0) {
+		TypeListItem *typelist;
+		typelist = AtomTable_Get(table, ITEM_TYPELIST, item->traitsindex);
+		typelistitem_show(table, typelist);
+	}
 }
 
-void intfitem_free(void *o)
+void traititem_free(void *o)
 {
 	free(o);
 }
@@ -1143,8 +1162,14 @@ void imethitem_write(FILE *fp, void *o)
 
 void imethitem_show(AtomTable *table, void *o)
 {
-	UNUSED_PARAMETER(table);
-	UNUSED_PARAMETER(o);
+	IMethItem *item = o;
+	printf("  classindex:%d\n", item->classindex);
+	StringItem *str;
+	printf("  nameindex:%d\n", item->nameindex);
+	str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+	printf("  (%s)\n", str->data);
+	printf("  protoindex:%d\n", item->protoindex);
+	printf("  access:0x%x\n", item->access);
 }
 
 void imethitem_free(void *o)
@@ -1264,11 +1289,11 @@ struct item_funcs item_func[ITEM_MAX] = {
 		methoditem_free
 	},
 	{
-		intfitem_length,
-		intfitem_write, NULL,
+		traititem_length,
+		traititem_write, NULL,
 		NULL, NULL,
-		intfitem_show,
-		intfitem_free
+		traititem_show,
+		traititem_free
 	},
 	{
 		imethitem_length,
@@ -1380,7 +1405,8 @@ int KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 	return AtomTable_Append(image->table, ITEM_FUNC, funcitem, 0);
 }
 
-void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype)
+void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype,
+	TypeDesc *traits, int size)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
@@ -1393,7 +1419,13 @@ void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype)
 		superindex = TypeItem_Set(image->table, &tmp);
 	}
 
-	ClassItem *classitem = ClassItem_New(classindex, access, superindex);
+	int traitsindex = -1;
+	if (traits && size > 0) {
+		traitsindex = TypeListItem_Set(image->table, traits, size);
+	}
+
+	ClassItem *classitem = ClassItem_New(classindex, access, superindex,
+		traitsindex);
 	AtomTable_Append(image->table, ITEM_CLASS, classitem, 0);
 }
 
@@ -1428,22 +1460,25 @@ int KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
 	return AtomTable_Append(image->table, ITEM_METHOD, methitem, 0);
 }
 
-void KImage_Add_Intf(KImage *image, char *name)
+void KImage_Add_Trait(KImage *image, char *name, TypeDesc *traits, int size)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
 	Init_UserDef_TypeDesc(&tmp, 0, NULL, name);
 	int classindex = TypeItem_Set(image->table, &tmp);
-
-	IntfItem *intfitem = IntfItem_New(classindex, access);
-	AtomTable_Append(image->table, ITEM_INTF, intfitem, 0);
+	int traitsindex = -1;
+	if (traits && size > 0) {
+		traitsindex = TypeListItem_Set(image->table, traits, size);
+	}
+	TraitItem *traititem = TraitItem_New(classindex, access, traitsindex);
+	AtomTable_Append(image->table, ITEM_TRAIT, traititem, 0);
 }
 
-void KImage_Add_IMeth(KImage *image, char *intf, char *name, Proto *proto)
+void KImage_Add_IMeth(KImage *image, char *trait, char *name, Proto *proto)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
-	Init_UserDef_TypeDesc(&tmp, 0, NULL, intf);
+	Init_UserDef_TypeDesc(&tmp, 0, NULL, trait);
 	int classindex = TypeItem_Set(image->table, &tmp);
 	int nameindex = StringItem_Set(image->table, name);
 	int protoindex = ProtoItem_Set(image->table, proto);
@@ -1732,14 +1767,14 @@ KImage *KImage_Read_File(char *path)
 				}
 				break;
 			}
-			case ITEM_INTF: {
-				IntfItem *item;
-				IntfItem items[map->size];
-				sz = fread(items, sizeof(IntfItem), map->size, fp);
+			case ITEM_TRAIT: {
+				TraitItem *item;
+				TraitItem items[map->size];
+				sz = fread(items, sizeof(TraitItem), map->size, fp);
 				assert(sz == map->size);
 				for (int i = 0; i < map->size; i++) {
-					item = Item_Copy(sizeof(IntfItem), items + i);
-					AtomTable_Append(image->table, ITEM_INTF, item, 0);
+					item = Item_Copy(sizeof(TraitItem), items + i);
+					AtomTable_Append(image->table, ITEM_TRAIT, item, 0);
 				}
 				break;
 			}
