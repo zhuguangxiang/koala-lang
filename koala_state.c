@@ -441,6 +441,14 @@ static void load_traits(AtomTable *table, Object *m)
 		indexes[i].klazz = klazz;
 	}
 
+	sz = AtomTable_Size(table, ITEM_FIELD);
+	FieldItem *fld;
+	for (int i = 0; i < sz; i++) {
+		fld = AtomTable_Get(table, ITEM_FIELD, i);
+		klazz = get_klazz(indexes, num, fld->classindex);
+		if (klazz) load_field(fld, table, klazz);
+	}
+
 	sz = AtomTable_Size(table, ITEM_IMETH);
 	IMethItem *imth;
 	for (int i = 0; i < sz; i++) {

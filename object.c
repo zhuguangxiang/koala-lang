@@ -171,28 +171,49 @@ static Object *object_alloc(Klass *klazz)
 
 	int totalsize = 0;
 	Klass *base = klazz;
-	while (OB_HasBase(base)) {
-		debug("number of '%s' fields:%d", base->name, base->itemsize);
-		totalsize += base->basesize + sizeof(TValue) * base->itemsize;
-		base = (Klass *)OB_Base(base);
-	}
+
 	debug("number of '%s' fields:%d", base->name, base->itemsize);
 	totalsize += base->basesize + sizeof(TValue) * base->itemsize;
+
+	Klass *trait;
+	Vector_ForEach_Reverse(trait, &base->traits) {
+		debug("number of '%s' fields:%d", trait->name, trait->itemsize);
+		totalsize += trait->basesize + sizeof(TValue) * trait->itemsize;
+	}
+
+	while (OB_HasBase(base)) {
+		base = (Klass *)OB_Base(base);
+		debug("number of '%s' fields:%d", base->name, base->itemsize);
+		totalsize += base->basesize + sizeof(TValue) * base->itemsize;
+	}
+
 	Object *ob = calloc(1, totalsize);
 
 	//init base class
 	Object *next = ob;
 	base = klazz;
+	Init_Object_Head(next, base);
+	next->ob_base = NEXT_OBJECT(next, base);
+	OB_Head(next) = ob;
+	base->ob_init(next);
+
+	Vector_ForEach_Reverse(trait, &base->traits) {
+		next = OB_Base(next);
+		Init_Object_Head(next, trait);
+		next->ob_base = NEXT_OBJECT(next, trait);
+		OB_Head(next) = ob;
+		trait->ob_init(next);
+	}
+
 	while (OB_HasBase(base)) {
+		base = (Klass *)OB_Base(base);
+		next = OB_Base(next);
 		Init_Object_Head(next, base);
 		OB_Head(next) = ob;
 		base->ob_init(next);
-		next = OB_Base(next);
-		base = (Klass *)OB_Base(base);
 	}
-	Init_Object_Head(next, base);
-	OB_Head(next) = ob;
-	base->ob_init(next);
+
+	next->ob_base = next;
 
 	return ob;
 }
@@ -265,13 +286,7 @@ Klass *Klass_New(char *name, Klass *base, int flags, Vector *traits)
 
 Klass *Trait_New(char *name, Vector *traits)
 {
-	Klass *klazz = calloc(1, sizeof(Klass));
-	Init_Object_Head(klazz, &Klass_Klass);
-	klazz->name = strdup(name);
-	klazz->flags = FLAGS_TRAIT;
-	Vector_Init(&klazz->traits);
-	Vector_Concat(&klazz->traits, traits);
-	return klazz;
+	return Klass_New(name, NULL, FLAGS_TRAIT, traits);
 }
 
 void Fini_Klass(Klass *klazz)
@@ -333,20 +348,24 @@ Symbol *Klass_Get_Symbol(Klass *klazz, char *name)
 	return NULL;
 }
 
-Object *Klass_Get_Method(Klass *klazz, char *name)
+Object *Klass_Get_Method(Klass *klazz, char *name, Klass **trait)
 {
 	Symbol *sym = STable_Get(&klazz->stbl, name);
 	if (sym) {
 		if (sym->kind != SYM_PROTO) return NULL;
 		OB_ASSERT_KLASS(sym->ob, Code_Klass);
+		if (trait) *trait = klazz;
 		return sym->ob;
 	}
 
 	Object *ob;
 	Klass *k;
 	Vector_ForEach_Reverse(k, &klazz->traits) {
-		ob = Klass_Get_Method(k, name);
-		if (ob) return ob;
+		ob = Klass_Get_Method(k, name, trait);
+		if (ob) {
+			if (trait) *trait = k;
+			return ob;
+		}
 	}
 
 	return NULL;
@@ -422,11 +441,12 @@ static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
 				*rob = base;
 				break;
 			}
-			base = OB_HasBase(ob) ? OB_Base(ob) : NULL;
+			base = OB_HasBase(base) ? OB_Base(base) : NULL;
 		}
 	}
 
-	assert(sym && sym->kind == SYM_VAR);
+	assert(sym);
+	assert(sym->kind == SYM_VAR);
 	return sym;
 }
 
@@ -465,7 +485,7 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 		base = OB_Base(ob);
 		assert(base);
 		assert(!strcmp(OB_KLASS(base)->name, classname));
-		code = Klass_Get_Method(OB_KLASS(base), funcname);
+		code = Klass_Get_Method(OB_KLASS(base), funcname, NULL);
 		assert(code);
 		*rob = base;
 		free(classname);
@@ -474,20 +494,26 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 	} else {
 		if (!strcmp(name, "__init__")) {
 			//__init__ method is allowed to be searched only in current class
-			code = Klass_Get_Method(OB_KLASS(ob), name);
+			code = Klass_Get_Method(OB_KLASS(ob), name, NULL);
 			//FIXME: class with no __init__ ?
 			//assert(code);
 			*rob = ob;
 			return code;
 		} else {
+			Klass *trait = NULL;
 			base = ob;
 			while (base) {
-				code = Klass_Get_Method(OB_KLASS(base), name);
+				code = Klass_Get_Method(OB_KLASS(base), name, &trait);
 				if (code) {
-					*rob = base;
+					Object *next = base;
+					while (next) {
+						if (OB_KLASS(next) == trait) break;
+						next = OB_HasBase(next) ? OB_Base(next) : NULL;
+					}
+					*rob = next;
 					return code;
 				}
-				base = OB_HasBase(ob) ? OB_Base(ob) : NULL;
+				base = OB_HasBase(base) ? OB_Base(base) : NULL;
 			}
 			assertm(0, "cannot find func '%s'", name);
 			return NULL;

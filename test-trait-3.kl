@@ -9,10 +9,6 @@ trait TT {
 
 trait TA with TT {
 	func TAFunc();
-
-	func SayHello() {
-		io.Println("SayHello in TA");
-	}
 }
 
 trait TB1 with TT {
@@ -20,21 +16,26 @@ trait TB1 with TT {
 }
 
 trait TB with TB1 with TT {
+	var NameTB = "name in TB"; //not call trait __init__
+
 	func TBFunc();
 
 	func TB1Func() {
 		io.Println("TB1Func in TB");
+		NameTB = "NAMETB1";
+		io.Println(NameTB);
 	}
 
 	func TAFunc() {
 		io.Println("TAFunc in TB");
+		NameTB = "NAMETA";
+		io.Println(NameTB);
 	}
-
 }
 
-class Animal {
-	name string;
-	age int;
+class Animal with TA with TB with TT {
+	var name string;
+	var age int;
 
 	func __init__(name string, _age int) {
 		self.name = name;
@@ -46,18 +47,15 @@ class Animal {
 		io.Println("SayHello in Animal");
 		//super.SayHello();
 	}
-}
-
-class Dog extends Animal with TA with TB {
-	func __init__(name string, age int) {
-		super(name, age);
-	}
 
 	func TBFunc() {
-		io.Println("TBFunc in Dog");
+		io.Println("TBFunc in Animal");
 	}
 }
 
 func Main(args []string) {
-	Dog("Dog", 2390).SayHello();
+	Animal("Dog", 2569).SayHello();
+	Animal("Dog", 2570).TAFunc();
+	var animal = Animal("Dog", 2571);
+	animal.TB1Func();
 }
