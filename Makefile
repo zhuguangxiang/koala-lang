@@ -171,6 +171,11 @@ test-0.5.12:
 	@$(KOALAC) test-0.5.12.kl
 	@$(KOALA) test-0.5.12
 
+test-0.5.16:
+	@$(RM) test-0.5.16.klc
+	@$(KOALAC) test-0.5.16.kl
+	@$(KOALA) test-0.5.16
+
 test-trait-0:
 	@$(RM) test-trait-0.klc
 	@$(KOALAC) test-trait-0.kl
@@ -185,6 +190,11 @@ test-trait-2:
 	@$(RM) test-trait-2.klc
 	@$(KOALAC) test-trait-2.kl
 	@$(KOALA) test-trait-2
+
+test-trait-3:
+	@$(RM) test-trait-3.klc
+	@$(KOALAC) test-trait-3.kl
+	@$(KOALA) test-trait-3
 
 # test-0.5.13:
 # 	@$(RM) test-0.5.13.klc
@@ -203,7 +213,7 @@ test-trait-2:
 
 testkl: test-0.5.1 test-0.5.2 test-0.5.3 test-0.5.4 test-0.5.5 test-0.5.6 \
 	test-0.5.7 test-0.5.8 test-test test-0.5.9 test-0.5.10 test-0.5.11 \
-	test-0.5.12 test-trait-0 test-trait-1
+	test-0.5.12 test-0.5.16 test-trait-0 test-trait-1
 # test-0.5.13 test-0.5.14 test-0.5.15
 	@echo "Test Koala Down!"
 
@@ -221,6 +231,7 @@ runkl:
 	@$(KOALA) test-0.5.10
 	@$(KOALA) test-0.5.11
 	@$(KOALA) test-0.5.12
+	@$(KOALA) test-0.5.16
 	# @$(KOALA) test-0.5.13
 	# @$(KOALA) test-0.5.14
 	# @$(KOALA) test-0.5.15

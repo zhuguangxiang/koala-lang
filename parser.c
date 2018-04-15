@@ -680,7 +680,39 @@ static void parser_merge(ParserState *ps)
 		u->block = NULL;
 		debug("save code to module '__init__' function");
 	} else if (u->scope == SCOPE_CLASS) {
-		//debug("class or trait");
+		if (u->block && u->block->bytes > 0) {
+			debug("merge code into class or trait '%s' __init__ function",
+				u->sym->name);
+			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
+			if (sym) {
+				if (u->sym->kind == SYM_TRAIT) {
+					error("trait cannot have __init__ function");
+				} else {
+					assert(u->sym->kind == SYM_CLASS);
+					codeblock_merge(sym->ptr, u->block);
+					CodeBlock *b = sym->ptr;
+					assert(list_empty(&b->insts));
+					assert(!b->next);
+					codeblock_free(b);
+					sym->ptr = u->block;
+					sym->locvars = u->stbl->varcnt;
+					debug("save code to class '__init__'(defined) function");
+				}
+				u->block = NULL;
+			} else {
+				Proto *proto = Proto_New(0, NULL, 0, NULL);
+				Symbol *sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
+				assert(sym);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				debug("add 'return' to function '__init__'");
+				Inst_Append(u->block, OP_RET, NULL);
+				sym->ptr = u->block;
+				sym->locvars = 2; //FIXME
+				u->block = NULL;
+				debug("save code to class '__init__' function");
+			}
+		}
 	} else {
 		assertm(0, "no codes in scope:%d", u->scope);
 	}
@@ -921,7 +953,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 			break;
 		}
 		case SCOPE_METHOD: {
-			if (sym->up->kind == SYM_CLASS) {
+			if (sym->up->kind == SYM_CLASS || sym->up->kind == SYM_TRAIT) {
 				debug("symbol '%s' in class '%s'", sym->name, sym->up->name);
 				debug("symbol '%s' is inherited ? %s", sym->name,
 					sym->inherited ? "true" : "false");
@@ -1711,8 +1743,10 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		sym = STable_Get(u->stbl, var->id);
 		assert(sym);
 		if (sym->kind == SYM_VAR && !sym->desc) {
-			debug("update symbol '%s' type", var->id);
 			STable_Update_Symbol(u->stbl, sym, var->desc);
+			char *typestr = TypeDesc_ToString(var->desc);
+			debug("update symbol '%s' type as '%s'", var->id, typestr);
+			free(typestr);
 		}
 	} else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
 		debug("var '%s' decl in function", var->id);

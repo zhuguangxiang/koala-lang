@@ -1,0 +1,63 @@
+
+package test;
+
+import "koala/io";
+
+trait TT {
+	func SayHello();
+}
+
+trait TA with TT {
+	func TAFunc();
+
+	func SayHello() {
+		io.Println("SayHello in TA");
+	}
+}
+
+trait TB1 with TT {
+	func TB1Func();
+}
+
+trait TB with TB1 with TT {
+	func TBFunc();
+
+	func TB1Func() {
+		io.Println("TB1Func in TB");
+	}
+
+	func TAFunc() {
+		io.Println("TAFunc in TB");
+	}
+
+}
+
+class Animal {
+	name string;
+	age int;
+
+	func __init__(name string, _age int) {
+		self.name = name;
+		age = _age;
+		io.Println("Animal:", self.name, age);
+	}
+
+	func SayHello() {
+		io.Println("SayHello in Animal");
+		//super.SayHello();
+	}
+}
+
+class Dog extends Animal with TA with TB {
+	func __init__(name string, age int) {
+		super(name, age);
+	}
+
+	func TBFunc() {
+		io.Println("TBFunc in Dog");
+	}
+}
+
+func Main(args []string) {
+	Dog("Dog", 2390).SayHello();
+}
