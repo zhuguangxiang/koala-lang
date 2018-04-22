@@ -319,6 +319,10 @@ v0.5.10-3:
 1. interface: support inherited
 2. test:test-0.5.14.kl test:test-0.5.15.kl
 
+v0.5.11:
+1. trait ok
+2. test: test-trait-[0-6].kl
+
 v0.6.0:
 1. trait: like java's abstract class and interface(with default)
     a). no __init__ function
