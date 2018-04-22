@@ -1436,15 +1436,15 @@ static void parser_super(ParserState *ps, struct expr *exp)
 	ParserUnit *cu = get_class_unit(ps);
 
 	//NOTES: no need find traits, find in super class only
-	assert(cu->sym->super);
-	exp->sym = cu->sym->super;
-	Symbol *super = cu->sym->super;
-
+	Symbol *super;
 	struct expr *r = exp->right;
-	r->supername = super->name;
 	if (r->kind == CALL_KIND) {
 		assert(u->scope == SCOPE_METHOD);
 		assert(!strcmp(u->sym->name, "__init__"));
+		assert(cu->sym->kind == SYM_CLASS);
+		assert(cu->sym->super);
+		exp->sym = cu->sym->super;
+		super = cu->sym->super;
 		char *namebuf = malloc(strlen(super->name) + 1 + strlen(u->sym->name) + 1);
 		assert(namebuf);
 		sprintf(namebuf, "%s.%s", super->name, u->sym->name);
@@ -1456,9 +1456,28 @@ static void parser_super(ParserState *ps, struct expr *exp)
 	} else if (r->kind == ATTRIBUTE_KIND) {
 		TValue val = INT_VALUE_INIT(0);
 		Inst_Append(ps->u->block, OP_LOAD, &val);
+		Inst_Append(ps->u->block, OP_NEXT, NULL);
+
+		//find in linear-order traits
+		Symbol *s;
+		Symbol *sym;
+		Vector_ForEach_Reverse(s, &cu->sym->traits) {
+			sym = STable_Get(s->ptr, exp->right->attribute.id);
+			if (sym) break;
+		}
+		if (sym) {
+			exp->sym = s;
+			super = s;
+		} else {
+			assert(cu->sym->super);
+			exp->sym = cu->sym->super;
+			super = cu->sym->super;
+		}
 	} else {
 		assert(0);
 	}
+
+	r->supername = super->name;
 }
 
 /*
@@ -1893,9 +1912,18 @@ static void __check_trait_fn(Symbol *sym, void *arg)
 	if (sym->kind != SYM_IPROTO) return;
 
 	struct check_trait_s *temp = arg;
+	Symbol *s;
+	if (temp->sym->super) {
+		s = STable_Get(temp->sym->super->ptr, sym->name);
+		if (s) {
+			debug("'%s' has impl in super class '%s'",
+				sym->name, temp->sym->super->name);
+			return;
+		}
+	}
+
 	int size = Vector_Size(&temp->sym->traits);
 	Symbol *trait;
-	Symbol *s;
 	for (int i = temp->index; i < size; i++) {
 		trait = Vector_Get(&temp->sym->traits, i);
 		s = STable_Get(trait->ptr, sym->name);

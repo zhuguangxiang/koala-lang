@@ -567,7 +567,7 @@ FuncOrProtoDeclaration
     $$ = stmt_from_funcproto($2, NULL, NULL);
   }
   | FUNC ID '(' ParameterList ')' Block {
-    $$ = stmt_from_funcdecl($2, $4, NULL, $4);
+    $$ = stmt_from_funcdecl($2, $4, NULL, $6);
   }
   | FUNC ID '(' ParameterList ')' ReturnTypeList Block {
     $$ = stmt_from_funcdecl($2, $4, $6, $7);

@@ -1,0 +1,40 @@
+
+package test;
+
+import "koala/io";
+
+trait Integer {
+	func Add(int);
+	func Get() int;
+}
+
+class BasicInteger with Integer {
+	var value int;
+
+	func Add(a int) {
+		value = a;
+	}
+
+	func Get() int {
+		return value;
+	}
+}
+
+trait Doubling with Integer {
+	func Add(a int) {
+		var r = a + 2;
+		super.Add(r);
+	}
+}
+
+class DoublingInteger extends BasicInteger with Doubling {
+	func xy() {
+
+	}
+}
+
+func Main(args []string) {
+	var i = DoublingInteger();
+	i.Add(100);
+	io.Println(i.Get());
+}

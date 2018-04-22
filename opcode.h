@@ -115,6 +115,8 @@ extern "C" {
 #define OP_MUL  12
 #define OP_DIV  13
 
+#define OP_NEXT  14
+
 /*
 	Relation operation: gt, lt, eq, gte, lte
  */

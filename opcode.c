@@ -20,6 +20,7 @@ static struct opcode {
 	{OP_SUB,      "sub",      0},
 	{OP_MUL,      "mul",      0},
 	{OP_DIV,      "div",      0},
+	{OP_NEXT,     "next",     0},
 	{OP_GT,       "gt",       0},
 	{OP_GE,       "ge",       0},
 	{OP_LT,       "lt",       0},

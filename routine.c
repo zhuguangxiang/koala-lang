@@ -586,6 +586,14 @@ static void frame_loop(Frame *frame)
 			//   PUSH(&val);
 			//   break;
 			// }
+			case OP_NEXT: {
+				TValue val = POP();
+				ob = VALUE_OBJECT(&val);
+				ob = OB_Base(ob);
+				setobjvalue(&val, ob);
+				PUSH(&val);
+				break;
+			}
 			case OP_GT: {
 				// v1 is left value
 				TValue v1 = POP();

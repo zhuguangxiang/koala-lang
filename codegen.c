@@ -97,6 +97,7 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 		case OP_SUB: {
 			break;
 		}
+		case OP_NEXT:
 		case OP_GT:
 		case OP_GE:
 		case OP_LT:
