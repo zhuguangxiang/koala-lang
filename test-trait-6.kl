@@ -1,0 +1,51 @@
+
+package test;
+
+import "koala/io";
+
+trait Integer {
+	func Add(int);
+	func Get() int;
+}
+
+class BasicInteger with Integer {
+	var value int;
+
+	func Add(a int) {
+		io.Println("Add in BasicInteger");
+		value = a;
+	}
+
+	func Get() int {
+		return value;
+	}
+}
+
+trait Doubling with Integer {
+	func Add(a int) {
+		io.Println("Add in Doubling");
+		super.Add(a + 2);
+	}
+}
+
+trait Doubling2 with Integer with Doubling;
+
+class DoublingInteger extends BasicInteger with Doubling;
+
+class DoublingInteger2 extends BasicInteger with Doubling2;
+
+class DoublingInteger3 extends DoublingInteger2 with Doubling2;
+
+func Main(args []string) {
+	var i = DoublingInteger();
+	i.Add(100);
+	io.Println(i.Get());
+
+	i = DoublingInteger2();
+	i.Add(200);
+	io.Println(i.Get());
+
+	i = DoublingInteger3();
+	i.Add(300);
+	io.Println(i.Get());
+}

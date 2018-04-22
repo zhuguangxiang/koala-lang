@@ -363,10 +363,7 @@ Object *Klass_Get_Method(Klass *klazz, char *name, Klass **trait)
 	Klass *k;
 	Vector_ForEach_Reverse(k, &klazz->traits) {
 		ob = Klass_Get_Method(k, name, trait);
-		if (ob) {
-			if (trait) *trait = k;
-			return ob;
-		}
+		if (ob) return ob;
 	}
 
 	return NULL;

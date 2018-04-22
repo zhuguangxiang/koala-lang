@@ -477,15 +477,17 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
 	ps->u->sym = sym;
-	struct stmt *s;
-	Vector_ForEach(s, stmt->class_info.body) {
-		if (s->kind == VARDECL_KIND) {
-			parse_vardecl(ps, s);
-		} else if (s->kind == FUNCDECL_KIND) {
-			parse_funcdecl(ps, s);
-		} else {
-			assert(s->kind == FUNCPROTO_KIND);
-			parse_funcproto(ps, s);
+	if (stmt->class_info.body) {
+		struct stmt *s;
+		Vector_ForEach(s, stmt->class_info.body) {
+			if (s->kind == VARDECL_KIND) {
+				parse_vardecl(ps, s);
+			} else if (s->kind == FUNCDECL_KIND) {
+				parse_funcdecl(ps, s);
+			} else {
+				assert(s->kind == FUNCPROTO_KIND);
+				parse_funcproto(ps, s);
+			}
 		}
 	}
 	parser_exit_scope(ps);
@@ -2059,16 +2061,19 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
 
 	ps->u->sym = sym;
-	struct stmt *s;
-	Vector_ForEach(s, stmt->class_info.body) {
-		if (s->kind == VARDECL_KIND) {
-			parser_variable(ps, s->vardecl.var, s->vardecl.exp);
-		} else if (s->kind == FUNCDECL_KIND) {
-			parser_function(ps, s, SCOPE_METHOD);
-		} else if (s->kind == FUNCPROTO_KIND) {
-			debug("func %s is abstract", s->funcproto.id);
-		} else {
-			assertm(0, "invalid symbol kind:%d", s->kind);
+
+	if (stmt->class_info.body) {
+		struct stmt *s;
+		Vector_ForEach(s, stmt->class_info.body) {
+			if (s->kind == VARDECL_KIND) {
+				parser_variable(ps, s->vardecl.var, s->vardecl.exp);
+			} else if (s->kind == FUNCDECL_KIND) {
+				parser_function(ps, s, SCOPE_METHOD);
+			} else if (s->kind == FUNCPROTO_KIND) {
+				debug("func %s is abstract", s->funcproto.id);
+			} else {
+				assertm(0, "invalid symbol kind:%d", s->kind);
+			}
 		}
 	}
 
