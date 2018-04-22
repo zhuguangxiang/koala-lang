@@ -165,56 +165,56 @@ static void object_mark(Object *ob)
 	//FIXME: ob_ref_inc
 }
 
-static Object *object_alloc(Klass *klazz)
+static int get_object_size(Klass *klazz)
 {
-	Check_Klass(klazz);
+	if (klazz == &Any_Klass) return 0;
 
-	int totalsize = 0;
-	Klass *base = klazz;
+	int size = 0;
 
-	debug("number of '%s' fields:%d", base->name, base->itemsize);
-	totalsize += base->basesize + sizeof(TValue) * base->itemsize;
+	debug(">>>>fields of '%s':%d", klazz->name, klazz->itemsize);
+	size += OBJECT_SIZE(klazz);
 
 	Klass *trait;
-	Vector_ForEach_Reverse(trait, &base->traits) {
-		debug("number of '%s' fields:%d", trait->name, trait->itemsize);
-		totalsize += trait->basesize + sizeof(TValue) * trait->itemsize;
+	Vector_ForEach_Reverse(trait, &klazz->traits) {
+		debug(">>>>fields of '%s':%d", trait->name, trait->itemsize);
+		size += OBJECT_SIZE(trait);
 	}
 
-	while (OB_HasBase(base)) {
-		base = (Klass *)OB_Base(base);
-		debug("number of '%s' fields:%d", base->name, base->itemsize);
-		totalsize += base->basesize + sizeof(TValue) * base->itemsize;
+	if (OB_HasBase(klazz))
+		size += get_object_size((Klass *)OB_Base(klazz));
+
+	return size;
+}
+
+static void init_object(Object *ob, Klass *klazz)
+{
+	Object *base = ob;
+	Init_Object_Head(base, klazz);
+	base->ob_base = NEXT_OBJECT(base, klazz);
+	OB_Head(base) = ob;
+	//init_fields();
+
+	Klass *trait;
+	Vector_ForEach_Reverse(trait, &klazz->traits) {
+		base = OB_Base(base);
+		Init_Object_Head(base, trait);
+		base->ob_base = NEXT_OBJECT(base, trait);
+		OB_Head(base) = ob;
+		//init_fields();
 	}
 
-	Object *ob = calloc(1, totalsize);
-
-	//init base class
-	Object *next = ob;
-	base = klazz;
-	Init_Object_Head(next, base);
-	next->ob_base = NEXT_OBJECT(next, base);
-	OB_Head(next) = ob;
-	base->ob_init(next);
-
-	Vector_ForEach_Reverse(trait, &base->traits) {
-		next = OB_Base(next);
-		Init_Object_Head(next, trait);
-		next->ob_base = NEXT_OBJECT(next, trait);
-		OB_Head(next) = ob;
-		trait->ob_init(next);
+	if (OB_HasBase(klazz)) {
+		base = OB_Base(base);
+		init_object(base, (Klass *)OB_Base(klazz));
 	}
 
-	while (OB_HasBase(base)) {
-		base = (Klass *)OB_Base(base);
-		next = OB_Base(next);
-		Init_Object_Head(next, base);
-		OB_Head(next) = ob;
-		base->ob_init(next);
-	}
+	base->ob_base = base;
+}
 
-	next->ob_base = next;
-
+static Object *object_alloc(Klass *klazz)
+{
+	Object *ob = calloc(1, get_object_size(klazz));
+	init_object(ob, klazz);
 	return ob;
 }
 
@@ -263,15 +263,14 @@ static Object *object_tostring(TValue *v)
 
 /*---------------------------------------------------------------------------*/
 
-Klass *Klass_New(char *name, Klass *base, int flags, Vector *traits)
+Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 {
 	Klass *klazz = calloc(1, sizeof(Klass));
-	Init_Object_Head(klazz, &Klass_Klass);
+	Init_Object_Head(klazz, type);
 	if (base) OB_Base(klazz) = (Object *)base;
 	klazz->name = strdup(name);
 	klazz->basesize = sizeof(Object);
 	klazz->itemsize = 1;
-	klazz->flags = flags;
 	klazz->ob_mark  = object_mark;
 	klazz->ob_alloc = object_alloc;
 	klazz->ob_init  = object_init;
@@ -284,11 +283,6 @@ Klass *Klass_New(char *name, Klass *base, int flags, Vector *traits)
 	return klazz;
 }
 
-Klass *Trait_New(char *name, Vector *traits)
-{
-	return Klass_New(name, NULL, FLAGS_TRAIT, traits);
-}
-
 void Fini_Klass(Klass *klazz)
 {
 	STable_Fini(&klazz->stbl);
@@ -297,7 +291,7 @@ void Fini_Klass(Klass *klazz)
 void Check_Klass(Klass *klazz)
 {
 	while (klazz) {
-		OB_ASSERT_KLASS(klazz, Klass_Klass);
+		assert(OB_KLASS(klazz) == &Klass_Klass || OB_KLASS(klazz) == &Trait_Klass);
 		klazz = OB_HasBase(klazz) ? (Klass *)OB_Base(klazz) : NULL;
 	}
 }
@@ -416,6 +410,11 @@ Klass Any_Klass = {
 	.name = "Any",
 };
 
+Klass Trait_Klass = {
+	OBJECT_HEAD_INIT(&Trait_Klass, &Klass_Klass)
+	.name = "Trait",
+};
+
 /*---------------------------------------------------------------------------*/
 
 static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
@@ -427,8 +426,11 @@ static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
 	if (dot) {
 		char *classname = strndup(name, dot - name);
 		char *fieldname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
-		base = OB_Base(ob);
-		assert(base && !strcmp(OB_KLASS(base)->name, classname));
+		base = ob;
+		while (OB_HasBase(base)) {
+			if (!strcmp(OB_KLASS(base)->name, classname)) break;
+			base = OB_Base(base);
+		}
 		sym = Klass_Get_Symbol(OB_KLASS(base), fieldname);
 		*rob = base;
 		free(classname);
@@ -482,9 +484,12 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 	if (dot) {
 		char *classname = strndup(name, dot - name);
 		char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
-		base = OB_Base(ob);
+		base = ob;
 		assert(base);
-		assert(!strcmp(OB_KLASS(base)->name, classname));
+		while (OB_HasBase(base)) {
+			if (!strcmp(OB_KLASS(base)->name, classname)) break;
+			base = OB_Base(base);
+		}
 		code = Klass_Get_Method(OB_KLASS(base), funcname, NULL);
 		assert(code);
 		*rob = base;

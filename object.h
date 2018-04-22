@@ -170,9 +170,6 @@ typedef uint32 (*hashfunc)(TValue *v);
 typedef int (*equalfunc)(TValue *v1, TValue *v2);
 typedef Object *(*strfunc)(TValue *v);
 
-#define FLAGS_FINAL (1 << 0)
-#define FLAGS_TRAIT (1 << 1)
-
 struct klass {
 	OBJECT_HEAD
 	char *name;
@@ -193,7 +190,12 @@ struct klass {
 
 extern Klass Klass_Klass;
 extern Klass Any_Klass;
-Klass *Klass_New(char *name, Klass *base, int flags, Vector *traits);
+extern Klass Trait_Klass;
+Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type);
+#define Class_New(name, base, traits) \
+	Klass_New(name, base, traits, &Klass_Klass)
+#define Trait_New(name, traits) \
+	Klass_New(name, NULL, traits, &Trait_Klass)
 void Fini_Klass(Klass *klazz);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 Symbol *Klass_Get_Symbol(Klass *klazz, char *name);
@@ -201,7 +203,6 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code);
 Object *Klass_Get_Method(Klass *klazz, char *name, Klass **trait);
 #define Klass_STable(ob) (&((Klass *)(ob))->stbl)
 void Check_Klass(Klass *klazz);
-Klass *Trait_New(char *name, Vector *traits);
 int Klass_Add_IMethod(Klass *klazz, char *name, Proto *proto);
 
 /*-------------------------------------------------------------------------*/

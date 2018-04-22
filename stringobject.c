@@ -124,7 +124,6 @@ Klass String_Klass = {
 	.name = "String",
 	.basesize = sizeof(StringObject),
 	.itemsize = 0,
-	.flags = FLAGS_FINAL,
 	.ob_free  = string_free,
 	.ob_hash  = string_hash,
 	.ob_equal = string_equal

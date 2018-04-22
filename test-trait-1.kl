@@ -38,7 +38,6 @@ class Animal with TA with TB with TT {
 
 	func SayHello() {
 		io.Println("Animal: SayHello", name, age);
-		//super.SayHello();
 	}
 
 	func TBFunc() {

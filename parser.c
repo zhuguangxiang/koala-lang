@@ -1460,7 +1460,7 @@ static void parser_super(ParserState *ps, struct expr *exp)
 
 		//find in linear-order traits
 		Symbol *s;
-		Symbol *sym;
+		Symbol *sym = NULL;
 		Vector_ForEach_Reverse(s, &cu->sym->traits) {
 			sym = STable_Get(s->ptr, exp->right->attribute.id);
 			if (sym) break;

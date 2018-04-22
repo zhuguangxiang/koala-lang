@@ -39,7 +39,6 @@ class Animal with TA with TB with TT {
 
 	func SayHello() {
 		io.Println("SayHello in Animal");
-		//super.SayHello();
 	}
 
 	func TBFunc() {
@@ -48,8 +47,5 @@ class Animal with TA with TB with TT {
 }
 
 func Main(args []string) {
-	Animal("Dog", 2569).SayHello();
 	Animal("Dog", 2570).TAFunc();
-	var animal = Animal("Dog", 2571);
-	animal.TB1Func();
 }

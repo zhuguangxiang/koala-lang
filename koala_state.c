@@ -263,7 +263,7 @@ static Klass *load_class(ClassItem *cls, AtomTable *table, Object *m)
 
 	Vector traits = VECTOR_INIT;
 	load_trait_vector(cls->traitsindex, table, m, &traits);
-	klazz = Klass_New(cls_name, base, 0, &traits);
+	klazz = Class_New(cls_name, base, &traits);
 	Module_Add_Class(m, klazz);
 	Vector_Fini(&traits, NULL, NULL);
 	return klazz;

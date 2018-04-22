@@ -196,6 +196,16 @@ test-trait-3:
 	@$(KOALAC) test-trait-3.kl
 	@$(KOALA) test-trait-3
 
+test-trait-4:
+	@$(RM) test-trait-4.klc
+	@$(KOALAC) test-trait-4.kl
+	@$(KOALA) test-trait-4
+
+test-trait-5:
+	@$(RM) test-trait-5.klc
+	@$(KOALAC) test-trait-5.kl
+	@$(KOALA) test-trait-5
+
 # test-0.5.13:
 # 	@$(RM) test-0.5.13.klc
 # 	@$(KOALAC) test-0.5.13.kl
