@@ -223,7 +223,8 @@ test-trait-5:
 
 testkl: test-0.5.1 test-0.5.2 test-0.5.3 test-0.5.4 test-0.5.5 test-0.5.6 \
 	test-0.5.7 test-0.5.8 test-test test-0.5.9 test-0.5.10 test-0.5.11 \
-	test-0.5.12 test-0.5.16 test-trait-0 test-trait-1 test-trait-2 test-trait-3
+	test-0.5.12 test-0.5.16 test-trait-0 test-trait-1 test-trait-2 test-trait-3 \
+	test-trait-4 test-trait-5
 # test-0.5.13 test-0.5.14 test-0.5.15
 	@echo "Test Koala Down!"
 
@@ -249,6 +250,8 @@ runkl:
 	@$(KOALA) test-trait-1
 	@$(KOALA) test-trait-2
 	@$(KOALA) test-trait-3
+	@$(KOALA) test-trait-4
+	@$(KOALA) test-trait-5
 
 test: testprop testbuf testroutine testimage testhashtable testlist \
 	testmodule testobject teststring testtuple testvector testkl

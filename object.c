@@ -204,17 +204,24 @@ static void init_object(Object *ob, Klass *klazz)
 	}
 
 	if (OB_HasBase(klazz)) {
-		base = OB_Base(base);
-		init_object(base, (Klass *)OB_Base(klazz));
+		init_object(OB_Base(base), (Klass *)OB_Base(klazz));
+	} else {
+		base->ob_base = base;
 	}
-
-	base->ob_base = base;
 }
 
 static Object *object_alloc(Klass *klazz)
 {
 	Object *ob = calloc(1, get_object_size(klazz));
 	init_object(ob, klazz);
+	printf("++++++++line-order++++++++\n");
+	Object *base = ob;
+	printf("%s", base->ob_klass->name);
+	while (OB_HasBase(base)) {
+		base = OB_Base(base);
+		printf(" -> %s", base->ob_klass->name);
+	}
+	printf("\n++++++++++++++++++++++++++\n");
 	return ob;
 }
 

@@ -1873,29 +1873,45 @@ void sym_inherit_fn(Symbol *sym, void *arg)
 	}
 }
 
-static void line_trait(Symbol *trait, Vector *to)
+static int trait_in_super(Symbol *trait, Symbol *sym)
+{
+	if (!sym) return 0;
+
+	Symbol *t;
+	Vector_ForEach_Reverse(t, &sym->traits) {
+		if (t == trait) return 1;
+	}
+
+	return trait_in_super(trait, sym->super);
+}
+
+static void line_trait(Symbol *trait, Symbol *to)
 {
 	assert(trait->kind == SYM_TRAIT);
 	Symbol *s;
-	Vector_ForEach(s, to) {
+	Vector_ForEach(s, &to->traits) {
 		if (s == trait) {
 			debug("trait '%s' is already in liner order", trait->name);
 			return;
 		}
 	}
+
+	if (trait_in_super(trait, to->super)) {
+		debug("trait '%s' is already in super class '%s'",
+			trait->name, to->super->name);
+		return;
+	}
+
 	debug("add trait '%s' to liner order", trait->name);
-	Vector_Append(to, trait);
+	Vector_Append(&to->traits, trait);
 }
 
-static void parser_order(Vector *vec, Vector *to)
+static void parser_order(Vector *vec, Symbol *to)
 {
 	debug("------parse order -------");
 	Symbol *s;
 	Vector_ForEach(s, vec) {
-		Symbol *trait;
-		Vector_ForEach(trait, &s->traits) {
-			line_trait(trait, to);
-		}
+		parser_order(&s->traits, to);
 		line_trait(s, to);
 	}
 
@@ -1983,7 +1999,7 @@ static int parser_traits(ParserState *ps, Vector *traits, Symbol *sym)
 		Vector_Append(&syms, s);
 	}
 
-	parser_order(&syms, &sym->traits);
+	parser_order(&syms, sym);
 
 	Vector_Fini(&syms, NULL, NULL);
 
