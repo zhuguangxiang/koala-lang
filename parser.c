@@ -939,6 +939,9 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 					setcstrvalue(&val, sym->name);
 					Inst *i = Inst_Append(u->block, OP_NEW, &val);
 					i->argc = exp->argc;
+					setcstrvalue(&val, "__init__");
+					i = Inst_Append(u->block, OP_CALL, &val);
+					i->argc = exp->argc;
 				} else {
 					if (!exp->right) {
 						debug("'%s' is a class", sym->name);
@@ -974,6 +977,13 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 					setcstrvalue(&val, sym->name);
 					Inst *i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
+				} else if (sym->kind == SYM_IPROTO) {
+					debug("symbol '%s' is abstract function", sym->name);
+					TValue val = INT_VALUE_INIT(0);
+					Inst_Append(u->block, OP_LOAD, &val);
+					setcstrvalue(&val, sym->name);
+					Inst *i = Inst_Append(u->block, OP_CALL, &val);
+					i->argc = exp->argc;
 				} else {
 					assertm(0, "invalid symbol kind :%d", sym->kind);
 				}
@@ -1004,6 +1014,9 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 					Inst_Append(u->block, OP_GETM, NULL);
 					setcstrvalue(&val, sym->name);
 					Inst *i = Inst_Append(u->block, OP_NEW, &val);
+					i->argc = exp->argc;
+					setcstrvalue(&val, "__init__");
+					i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
 				} else {
 					assertm(0, "invalid symbol kind :%d", sym->kind);
@@ -1331,6 +1344,9 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		setcstrvalue(&val, sym->name);
 		Inst *i = Inst_Append(u->block, OP_NEW, &val);
 		i->argc = exp->argc;
+		setcstrvalue(&val, "__init__");
+		i = Inst_Append(u->block, OP_CALL, &val);
+		i->argc = exp->argc;
 	} else if (sym->kind == SYM_IPROTO) {
 		TValue val = CSTR_VALUE_INIT(sym->name);
 		Inst *i = Inst_Append(u->block, OP_CALL, &val);
@@ -1458,7 +1474,7 @@ static void parser_super(ParserState *ps, struct expr *exp)
 	} else if (r->kind == ATTRIBUTE_KIND) {
 		TValue val = INT_VALUE_INIT(0);
 		Inst_Append(ps->u->block, OP_LOAD, &val);
-		Inst_Append(ps->u->block, OP_NEXT, NULL);
+		//Inst_Append(ps->u->block, OP_NEXT, NULL);
 
 		//find in linear-order traits
 		Symbol *s;

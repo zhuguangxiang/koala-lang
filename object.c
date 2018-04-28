@@ -524,6 +524,22 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 				}
 				base = OB_HasBase(base) ? OB_Base(base) : NULL;
 			}
+
+			Object *head = OB_Head(ob);
+			while (head && head != ob) {
+				code = Klass_Get_Method(OB_KLASS(head), name, &trait);
+				if (code) {
+					Object *next = head;
+					while (next) {
+						if (OB_KLASS(next) == trait) break;
+						next = OB_HasBase(next) ? OB_Base(next) : NULL;
+					}
+					*rob = next;
+					return code;
+				}
+				head = OB_HasBase(head) ? OB_Base(head) : NULL;
+			}
+
 			assertm(0, "cannot find func '%s'", name);
 			return NULL;
 		}

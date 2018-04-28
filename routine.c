@@ -329,7 +329,7 @@ static Object *getcode(Object *ob, char *name, Object **rob)
 		}
 	} else {
 		Check_Klass(OB_KLASS(ob));
-		debug("getcode '%s' in class", name);
+		debug("getcode '%s' in class %s", name, OB_KLASS(ob)->name);
 		code = Object_Get_Method(ob, name, rob);
 		if (!code) {
 			debug("'%s' is not found", name);
@@ -409,6 +409,19 @@ int tonumber(TValue *v)
 {
 	UNUSED_PARAMETER(v);
 	return 1;
+}
+
+void build_traits_init_frames(Routine *rt, Object *ob)
+{
+	Object *base = ob;
+	Object *code;
+	Object *rob;
+	while (OB_HasBase(base)) {
+		base = OB_Base(base);
+		if (OB_KLASS(base)->ob_klass == &Klass_Klass) break;
+		code = getcode(base, "__init__", &rob);
+		if (code) frame_new(rt, rob, code, 0);
+	}
 }
 
 static void frame_loop(Frame *frame)
@@ -521,6 +534,9 @@ static void frame_loop(Frame *frame)
 					check_args(rt, argc, code->kf.proto, name);
 				}
 				frame_new(rt, rob, meth, argc);
+				if (!strcmp(name, "__init__")) {
+					build_traits_init_frames(rt, ob);
+				}
 				loopflag = 0;
 				break;
 			}
@@ -680,6 +696,7 @@ static void frame_loop(Frame *frame)
 				ob = klazz->ob_alloc(klazz);
 				setobjvalue(&val, ob);
 				PUSH(&val);
+				#if 0
 				Object *rob = NULL;
 				Object *__init__ = getcode(ob, "__init__", &rob);
 				assert(rob);
@@ -701,6 +718,7 @@ static void frame_loop(Frame *frame)
 						exit(-1);
 					}
 				}
+				#endif
 				break;
 			}
 			default: {
