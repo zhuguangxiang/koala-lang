@@ -159,6 +159,7 @@ struct object {
 TValue Object_Get_Value(Object *ob, char *name);
 int Object_Set_Value(Object *ob, char *name, TValue *val);
 Object *Object_Get_Method(Object *ob, char *name, Object **rob);
+TValue Object_Get_Value2(Object *ob, Klass *klazz, char *name);
 
 /*---------------------------------------------------------------------------*/
 

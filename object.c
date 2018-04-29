@@ -301,6 +301,7 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 	Vector_Concat(&klazz->traits, traits);
 
 	Vector_Init(&klazz->lines);
+	Vector_Append(&klazz->lines, &Any_Klass);
 	LineBaseKlass(klazz, base);
 	Vector_Concat(&klazz->lines, traits);
 	printf("++++++++line-order in loading++++++++\n");
@@ -344,6 +345,7 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 		if (CODE_ISKFUNC(code)) {
 			co->kf.atbl = klazz->stbl.atbl;
 			co->kf.proto = Proto_Dup(proto);
+			co->owner = (Object *)klazz;
 		}
 		return 0;
 	}
@@ -486,6 +488,7 @@ TValue Object_Get_Value(Object *ob, char *name)
 	assert(rob);
 	TValue *value = (TValue *)(rob + 1);
 	int index = sym->index;
+	debug("getvalue:%d",index);
 	assert(index >= 0 && index < rob->ob_size);
 	return value[index];
 }
@@ -567,6 +570,32 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 			return NULL;
 		}
 	}
+}
+
+int Object_Get_Field_Index(Object *ob, Klass *klazz, char *name)
+{
+	Klass *k = OB_KLASS(ob);
+	int index = 0;
+	Symbol *sym = Klass_Get_Symbol(klazz, name);
+	assert(sym);
+	index += sym->index;
+	if (k == klazz) return index;
+
+	Klass *line;
+	Vector_ForEach(line, &k->lines) {
+		if (line == klazz) break;
+		index += line->stbl.varcnt;
+	}
+	return index;
+}
+
+TValue Object_Get_Value2(Object *ob, Klass *klazz, char *name)
+{
+	int index = Object_Get_Field_Index(ob, klazz, name);
+	debug("getvalue2:%d", index);
+	TValue *value = (TValue *)(ob + 1);
+	//assert(index >= 0 && index < ob->ob_size);
+	return value[index];
 }
 
 /*---------------------------------------------------------------------------*/

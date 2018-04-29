@@ -495,6 +495,8 @@ static void frame_loop(Frame *frame)
 				ob = VALUE_OBJECT(&val);
 				val = getfield(ob, field);
 				PUSH(&val);
+				Klass *k = (Klass *)(((CodeObject *)(frame->code))->owner);
+				Object_Get_Value2(ob, k, field);
 				break;
 			}
 			case OP_SETFIELD: {
