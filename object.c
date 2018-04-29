@@ -180,8 +180,10 @@ static int get_object_size(Klass *klazz)
 		size += OBJECT_SIZE(trait);
 	}
 
-	if (OB_HasBase(klazz))
+	if (OB_HasBase(klazz)) {
+		debug(">>>>base");
 		size += get_object_size((Klass *)OB_Base(klazz));
+	}
 
 	return size;
 }
@@ -270,6 +272,16 @@ static Object *object_tostring(TValue *v)
 
 /*---------------------------------------------------------------------------*/
 
+void LineBaseKlass(Klass *klazz, Klass *base)
+{
+	if (!base) return;
+	Klass *line;
+	Vector_ForEach(line, &base->lines) {
+		Vector_Append(&klazz->lines, line);
+	}
+	Vector_Append(&klazz->lines, base);
+}
+
 Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 {
 	Klass *klazz = calloc(1, sizeof(Klass));
@@ -287,6 +299,17 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 	klazz->ob_tostr = object_tostring;
 	Vector_Init(&klazz->traits);
 	Vector_Concat(&klazz->traits, traits);
+
+	Vector_Init(&klazz->lines);
+	LineBaseKlass(klazz, base);
+	Vector_Concat(&klazz->lines, traits);
+	printf("++++++++line-order in loading++++++++\n");
+	printf("%s", klazz->name);
+	Klass *line;
+	Vector_ForEach_Reverse(line, &klazz->lines) {
+		printf(" -> %s", line->name);
+	}
+	printf("\n++++++++++++++++++++++++++\n");
 	return klazz;
 }
 

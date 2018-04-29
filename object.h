@@ -186,6 +186,7 @@ struct klass {
 	strfunc ob_tostr;
 	Vector traits;
 	STable stbl;
+	Vector lines;
 };
 
 extern Klass Klass_Klass;
