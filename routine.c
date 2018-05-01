@@ -362,28 +362,28 @@ static TValue getfield(Object *ob, char *field)
 	}
 }
 
-static int check_virtual_call(TValue *val, char *name)
-{
-	VALUE_ASSERT_OBJECT(val);
-	Klass *klazz = val->klazz;
-	assert(klazz);
-	//module not check
-	if (klazz == &Module_Klass) return 0;
+// static int check_virtual_call(TValue *val, char *name)
+// {
+// 	VALUE_ASSERT_OBJECT(val);
+// 	Klass *klazz = val->klazz;
+// 	assert(klazz);
+// 	//module not check
+// 	if (klazz == &Module_Klass) return 0;
 
-	Check_Klass(klazz);
+// 	Check_Klass(klazz);
 
-	if (strchr(name, '.')) return 0;
-	Symbol *sym = Klass_Get_Symbol(klazz, name);
-	if (!sym) {
-		error("cannot find '%s' in '%s' class", name, klazz->name);
-		return -1;
-	}
-	if (sym->kind != SYM_PROTO && sym->kind != SYM_IPROTO) {
-		error("symbol '%s' is not method", name);
-		return -1;
-	}
-	return 0;
-}
+// 	if (strchr(name, '.')) return 0;
+// 	Symbol *sym = Klass_Get_Symbol(klazz, name);
+// 	if (!sym) {
+// 		error("cannot find '%s' in '%s' class", name, klazz->name);
+// 		return -1;
+// 	}
+// 	if (sym->kind != SYM_PROTO && sym->kind != SYM_IPROTO) {
+// 		error("symbol '%s' is not method", name);
+// 		return -1;
+// 	}
+// 	return 0;
+// }
 
 static void check_args(Routine *rt, int argc, Proto *proto, char *name)
 {
@@ -495,8 +495,8 @@ static void frame_loop(Frame *frame)
 				ob = VALUE_OBJECT(&val);
 				val = getfield(ob, field);
 				PUSH(&val);
-				Klass *k = (Klass *)(((CodeObject *)(frame->code))->owner);
-				Object_Get_Value2(ob, k, field);
+				//Klass *k = (Klass *)(((CodeObject *)(frame->code))->owner);
+				//Object_Get_Value2(ob, k, field);
 				break;
 			}
 			case OP_SETFIELD: {
@@ -519,7 +519,7 @@ static void frame_loop(Frame *frame)
 				debug("OP_CALL, %s, argc:%d", name, argc);
 				val = TOP();
 				ob = VALUE_OBJECT(&val);
-				assert(!check_virtual_call(&val, name));
+				//assert(!check_virtual_call(&val, name));
 				Object *rob = NULL;
 				Object *meth = getcode(ob, name, &rob);
 				assert(rob);

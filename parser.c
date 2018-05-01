@@ -179,7 +179,10 @@ static Symbol *find_symbol_linear_order(Symbol *clssym, char *name)
 	}
 
 	//find in super class
-	return NULL;
+	if (clssym->super)
+		return find_symbol_linear_order(clssym->super, name);
+	else
+		return NULL;
 }
 
 /*-------------------------------------------------------------------------*/
