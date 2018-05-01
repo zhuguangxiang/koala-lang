@@ -411,18 +411,18 @@ int tonumber(TValue *v)
 	return 1;
 }
 
-void build_traits_init_frames(Routine *rt, Object *ob)
-{
-	Object *base = ob;
-	Object *code;
-	Object *rob;
-	while (OB_HasBase(base)) {
-		base = OB_Base(base);
-		if (OB_KLASS(base)->ob_klass == &Klass_Klass) break;
-		code = getcode(base, "__init__", &rob);
-		if (code) frame_new(rt, rob, code, 0);
-	}
-}
+// void build_traits_init_frames(Routine *rt, Object *ob)
+// {
+// 	Object *base = ob;
+// 	Object *code;
+// 	Object *rob;
+// 	while (OB_HasBase(base)) {
+// 		base = OB_Base(base);
+// 		if (OB_KLASS(base)->ob_klass == &Klass_Klass) break;
+// 		code = getcode(base, "__init__", &rob);
+// 		if (code) frame_new(rt, rob, code, 0);
+// 	}
+// }
 
 static void frame_loop(Frame *frame)
 {
@@ -537,7 +537,7 @@ static void frame_loop(Frame *frame)
 				}
 				frame_new(rt, rob, meth, argc);
 				if (!strcmp(name, "__init__")) {
-					build_traits_init_frames(rt, ob);
+					//build_traits_init_frames(rt, ob);
 				}
 				loopflag = 0;
 				break;

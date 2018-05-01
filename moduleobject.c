@@ -42,6 +42,7 @@ int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 			co->kf.atbl = m->stbl.atbl;
 			co->kf.proto = Proto_Dup(proto);
 		}
+		co->owner = (Object *)m;
 		return 0;
 	}
 	return -1;

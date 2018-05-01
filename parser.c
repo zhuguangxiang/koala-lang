@@ -615,6 +615,12 @@ static void parser_new_block(ParserUnit *u)
 
 /*--------------------------------------------------------------------------*/
 
+int check_npr_func(Symbol *sym)
+{
+	Proto *proto = sym->desc->proto;
+	return proto->psz == 0 && proto->rsz == 0 ? 0 : -1;
+}
+
 static void parser_merge(ParserState *ps)
 {
 	ParserUnit *u = ps->u;
@@ -688,7 +694,18 @@ static void parser_merge(ParserState *ps)
 			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
 			if (sym) {
 				if (u->sym->kind == SYM_TRAIT) {
-					error("trait cannot have __init__ function");
+					if(check_npr_func(sym)) {
+						error("trait cannot have __init__ function");
+					} else {
+						codeblock_merge(sym->ptr, u->block);
+						CodeBlock *b = sym->ptr;
+						assert(list_empty(&b->insts));
+						assert(!b->next);
+						codeblock_free(b);
+						sym->ptr = u->block;
+						sym->locvars = u->stbl->varcnt;
+						debug("save code to class '__init__'(defined) function");
+					}
 				} else {
 					assert(u->sym->kind == SYM_CLASS);
 					codeblock_merge(sym->ptr, u->block);

@@ -227,6 +227,33 @@ static Object *object_alloc(Klass *klazz)
 	return ob;
 }
 
+#if 0
+static int get_object_size(Klass *klazz)
+{
+	if (klazz == &Any_Klass) return 0;
+	int size = klazz->stbl.varcnt;
+	debug(">>>>fields of '%s':%d", klazz->name, klazz->itemsize);
+	Klass *line;
+	Vector_ForEach_Reverse(line, &klazz->lines) {
+		debug(">>>>fields of '%s':%d", line->name, line->itemsize);
+		size += line->stbl.varcnt;
+	}
+
+	debug(">>>>all fields:%d", size);
+	return size;
+}
+
+static Object *object_alloc(Klass *klazz)
+{
+	int nr = get_object_size(klazz);
+	int size = sizeof(Object) + sizeof(TValue) * nr;
+	Object *ob = calloc(1, size);
+	Init_Object_Head(ob, klazz);
+	ob->ob_size = nr;
+	return ob;
+}
+#endif
+
 static void object_init(Object *ob)
 {
 	Klass *klazz = OB_KLASS(ob);
@@ -304,13 +331,14 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 	Vector_Append(&klazz->lines, &Any_Klass);
 	LineBaseKlass(klazz, base);
 	Vector_Concat(&klazz->lines, traits);
-	printf("++++++++line-order in loading++++++++\n");
+
+	puts("++++++++++++++++line-order in loading++++++++++++++++");
 	printf("%s", klazz->name);
 	Klass *line;
 	Vector_ForEach_Reverse(line, &klazz->lines) {
 		printf(" -> %s", line->name);
 	}
-	printf("\n++++++++++++++++++++++++++\n");
+	puts("\n+++++++++++++++++++++++++++++++++++++++++++++++++++++");
 	return klazz;
 }
 
@@ -345,8 +373,8 @@ int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
 		if (CODE_ISKFUNC(code)) {
 			co->kf.atbl = klazz->stbl.atbl;
 			co->kf.proto = Proto_Dup(proto);
-			co->owner = (Object *)klazz;
 		}
+		co->owner = (Object *)klazz;
 		return 0;
 	}
 	return -1;
@@ -575,14 +603,14 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 int Object_Get_Field_Index(Object *ob, Klass *klazz, char *name)
 {
 	Klass *k = OB_KLASS(ob);
-	int index = 0;
-	Symbol *sym = Klass_Get_Symbol(klazz, name);
+	int index;
+	Symbol *sym = STable_Get(&klazz->stbl, name);
 	assert(sym);
-	index += sym->index;
+	index = sym->index;
 	if (k == klazz) return index;
 
 	Klass *line;
-	Vector_ForEach(line, &k->lines) {
+	Vector_ForEach_Reverse(line, &k->lines) {
 		if (line == klazz) break;
 		index += line->stbl.varcnt;
 	}
@@ -596,6 +624,71 @@ TValue Object_Get_Value2(Object *ob, Klass *klazz, char *name)
 	TValue *value = (TValue *)(ob + 1);
 	//assert(index >= 0 && index < ob->ob_size);
 	return value[index];
+}
+
+int Object_Set_Value2(Object *ob, Klass *klazz, char *name, TValue *val)
+{
+	int index = Object_Get_Field_Index(ob, klazz, name);
+	TValue *value = (TValue *)(ob + 1);
+	assert(index >= 0 && index < ob->ob_size);
+	value[index] = *val;
+	return 0;
+}
+
+Object *Object_Get_Method2(Object *ob, char *name)
+{
+	Klass *k = OB_KLASS(ob);
+	Klass *line;
+	Symbol *sym;
+
+	char *dot = strchr(name, '.');
+	if (dot) {
+		int classlength = dot - name;
+		int funclength = strlen(name) - classlength - 1;
+		char classname[classlength + 1];
+		char funcname[funclength + 1];
+		memcpy(classname, name, classlength);
+		memcpy(funcname, dot + 1, funclength);
+		classname[classlength] = 0;
+		funcname[funclength] = 0;
+
+		Vector_ForEach_Reverse(line, &k->lines) {
+			if (!strcmp(line->name, classname)) {
+				sym = STable_Get(&line->stbl, funcname);
+				if (sym) {
+					if (sym->kind == SYM_PROTO) {
+						return sym->ob;
+					} else {
+						assert(0);
+					}
+				}
+			}
+		}
+
+		return NULL;
+	}
+
+	sym = STable_Get(&k->stbl, name);
+	if (sym) {
+		if (sym->kind == SYM_PROTO) {
+			return sym->ob;
+		} else {
+			assert(0);
+		}
+	}
+
+	Vector_ForEach_Reverse(line, &k->lines) {
+		sym = STable_Get(&line->stbl, name);
+		if (sym) {
+			if (sym->kind == SYM_PROTO) {
+				return sym->ob;
+			} else {
+				assert(0);
+			}
+		}
+	}
+
+	return NULL;
 }
 
 /*---------------------------------------------------------------------------*/
