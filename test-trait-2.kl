@@ -16,14 +16,18 @@ trait TB1 with TT {
 }
 
 trait TB with TB1 with TT {
+	var NameTB = "NameInTB";
+
 	func TBFunc();
 
 	func TB1Func() {
 		io.Println("TB1Func in TB");
+		io.Println(NameTB);
 	}
 
 	func TAFunc() {
 		io.Println("TAFunc in TB");
+		io.Println(NameTB);
 	}
 }
 
@@ -47,5 +51,9 @@ class Animal with TA with TB with TT {
 }
 
 func Main(args []string) {
+	Animal("Dog", 2569).SayHello();
 	Animal("Dog", 2570).TAFunc();
+	var animal = Animal("Dog", 2571);
+	animal.TB1Func();
+	io.Println("Animal:", animal.name, animal.age);
 }

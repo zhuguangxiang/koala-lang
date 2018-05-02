@@ -1,14 +1,11 @@
 
-/*
-	This test is for class statement
- */
 package test;
 
 import "koala/io";
 
 class Animal {
-	name string;
-	age int;
+	var name string;
+	var age int;
 
 	func __init__(name string, _age int) {
 		self.name = name;
@@ -16,47 +13,35 @@ class Animal {
 	}
 
 	func SayHello() {
-		io.Println("Animal: SayHello");
 		io.Println("Animal:", name, age);
 	}
 
 	func AnimalFunc() {
-		io.Println("Animal:", name, age);
+		io.Println("AnimalFunc()", name, age);
 	}
 }
 
-class Dog : Animal {
-	color string;
+class Dog extends Animal {
+	var name string;
 
-	func __init__(name string, age int, color string) {
+	func __init__(name string, age int) {
 		super(name, age);
-		self.color = color;
+		self.name = "DOG-Self";
 	}
 
 	func SayHello() {
-		io.Println("Dog: SayHello");
-		io.Println("Dog:", name, age, color);
+		super.name = "Tortoise-Again";
+		super.SayHello();
+		io.Println("Dog:", name, age);
+		AnimalFunc();
 	}
-}
-
-class Cat : Animal {
-	func SayHello() {
-		io.Println("Cat: SayHello");
-		name = "CAT";
-		age = 123;
-	}
-}
-
-interface IAnimal {
-	func SayHello();
-	func AnimalFunc();
 }
 
 func Main(args []string) {
-	var ian IAnimal = Dog("Tortoise", 2300, "ColorFul");
-	ian.SayHello();
-	ian.AnimalFunc();
-	ian = Cat();
-	ian.SayHello();
-	ian.AnimalFunc();
+	var dog = Dog("Tortoise", 2300);
+	dog.AnimalFunc();
+	dog.age = 100;
+	dog.name = "DOG-Again";
+	dog.AnimalFunc();
+	dog.SayHello();
 }

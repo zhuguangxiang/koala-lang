@@ -542,13 +542,30 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 	if (dot) {
 		char *classname = strndup(name, dot - name);
 		char *funcname = strndup(dot + 1, strlen(name) - (dot - name) - 1);
-		base = ob;
-		assert(base);
-		while (OB_HasBase(base)) {
-			if (!strcmp(OB_KLASS(base)->name, classname)) break;
+		if (!strcmp(classname, "super")) {
+			base = ob;
+			assert(OB_HasBase(base));
 			base = OB_Base(base);
+			while (OB_HasBase(base)) {
+				code = Klass_Get_Method(OB_KLASS(base), funcname, NULL);
+				if (code) {
+					debug("find method '%s' in '%s'", name, OB_KLASS(base)->name);
+					break;
+				}
+				base = OB_Base(base);
+			}
+		} else {
+			base = ob;
+			assert(base);
+			while (OB_HasBase(base)) {
+				if (!strcmp(OB_KLASS(base)->name, classname)) {
+					debug("find method '%s' in '%s'", name, OB_KLASS(base)->name);
+					break;
+				}
+				base = OB_Base(base);
+			}
+			code = Klass_Get_Method(OB_KLASS(base), funcname, NULL);
 		}
-		code = Klass_Get_Method(OB_KLASS(base), funcname, NULL);
 		assert(code);
 		*rob = base;
 		free(classname);

@@ -103,6 +103,7 @@ static void parser_exit_scope(ParserState *ps);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static void parser_body(ParserState *ps, Vector *stmts);
 static ParserUnit *get_class_unit(ParserState *ps);
+static void parser_vist_stmt(ParserState *ps, struct stmt *stmt);
 
 /*-------------------------------------------------------------------------*/
 
@@ -178,10 +179,10 @@ static Symbol *find_symbol_linear_order(Symbol *clssym, char *name)
 		}
 	}
 
-	//find in super class
-	if (clssym->super)
-		return find_symbol_linear_order(clssym->super, name);
-	else
+	// //find in super class
+	// if (clssym->super)
+	// 	return find_symbol_linear_order(clssym->super, name);
+	// else
 		return NULL;
 }
 
@@ -691,39 +692,43 @@ static void parser_merge(ParserState *ps)
 		u->block = NULL;
 		debug("save code to module '__init__' function");
 	} else if (u->scope == SCOPE_CLASS) {
+
 		if (u->block && u->block->bytes > 0) {
 			debug("merge code into class or trait '%s' __init__ function",
 				u->sym->name);
 			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
-			if (sym) {
-				if (u->sym->kind == SYM_TRAIT) {
-					if(check_npr_func(sym)) {
-						error("trait cannot have __init__ function");
-					} else {
-						codeblock_merge(sym->ptr, u->block);
-						CodeBlock *b = sym->ptr;
-						assert(list_empty(&b->insts));
-						assert(!b->next);
-						codeblock_free(b);
-						sym->ptr = u->block;
-						sym->locvars = u->stbl->varcnt;
-						debug("save code to class '__init__'(defined) function");
-					}
-				} else {
-					assert(u->sym->kind == SYM_CLASS);
-					codeblock_merge(sym->ptr, u->block);
-					CodeBlock *b = sym->ptr;
-					assert(list_empty(&b->insts));
-					assert(!b->next);
-					codeblock_free(b);
-					sym->ptr = u->block;
-					sym->locvars = u->stbl->varcnt;
-					debug("save code to class '__init__'(defined) function");
-				}
-				u->block = NULL;
-			} else {
+			if (!sym) {
 				Proto *proto = Proto_New(0, NULL, 0, NULL);
-				Symbol *sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
+				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
+				assert(sym);
+				TValue val = INT_VALUE_INIT(0);
+				Inst_Append(u->block, OP_LOAD, &val);
+				debug("add 'return' to function '__init__'");
+				Inst_Append(u->block, OP_RET, NULL);
+			}
+
+			if (u->sym->kind == SYM_TRAIT) {
+				if(check_npr_func(sym)) {
+					error("trait cannot have __init__ function");
+					return;
+				}
+			} else {
+				assert(u->sym->kind == SYM_CLASS);
+			}
+
+			codeblock_merge(sym->ptr, u->block);
+			CodeBlock *b = sym->ptr;
+			assert(list_empty(&b->insts));
+			assert(!b->next);
+			codeblock_free(b);
+			sym->ptr = u->block;
+			sym->locvars = u->stbl->varcnt;
+			debug("save code to class '__init__'(defined) function");
+		}	else {
+			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
+			if (!sym) {
+				Proto *proto = Proto_New(0, NULL, 0, NULL);
+				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
 				TValue val = INT_VALUE_INIT(0);
 				Inst_Append(u->block, OP_LOAD, &val);
@@ -731,10 +736,11 @@ static void parser_merge(ParserState *ps)
 				Inst_Append(u->block, OP_RET, NULL);
 				sym->ptr = u->block;
 				sym->locvars = 2; //FIXME
-				u->block = NULL;
 				debug("save code to class '__init__' function");
 			}
 		}
+
+		u->block = NULL;
 	} else {
 		assertm(0, "no codes in scope:%d", u->scope);
 	}
@@ -1368,9 +1374,21 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
 	} else if (sym->kind == SYM_IPROTO) {
-		TValue val = CSTR_VALUE_INIT(sym->name);
-		Inst *i = Inst_Append(u->block, OP_CALL, &val);
-		i->argc = exp->argc;
+		if (left->kind == SUPER_KIND) {
+			//for super.xyz(), super is abstract method and not impl in traits
+			TValue val;
+			char *namebuf = malloc(strlen("super") + 1 +
+				strlen(exp->attribute.id) + 1);
+			assert(namebuf);
+			sprintf(namebuf, "super.%s", exp->attribute.id);
+			setcstrvalue(&val, namebuf);
+			Inst *i = Inst_Append(u->block, OP_CALL, &val);
+			i->argc = exp->argc;
+		} else {
+			TValue val = CSTR_VALUE_INIT(sym->name);
+			Inst *i = Inst_Append(u->block, OP_CALL, &val);
+			i->argc = exp->argc;
+		}
 	} else {
 		assert(0);
 	}
@@ -1468,6 +1486,23 @@ static ParserUnit *get_class_unit(ParserState *ps)
 	return NULL;
 }
 
+static void handle_traits(ParserState *ps, Symbol *sym)
+{
+	ParserUnit *u = ps->u;
+	Symbol *trait;
+	Vector_ForEach(trait, &sym->traits) {
+		char *namebuf = malloc(strlen(trait->name) + 1 + strlen("__init__") + 1);
+		assert(namebuf);
+		sprintf(namebuf, "%s.__init__", trait->name);
+		debug("call trait '%s' __init__ function", trait->name);
+		TValue val = INT_VALUE_INIT(0);
+		Inst_Append(u->block, OP_LOAD, &val);
+		setcstrvalue(&val, namebuf);
+		Inst *i = Inst_Append(u->block, OP_CALL, &val);
+		i->argc = 0;
+	}
+}
+
 static void parser_super(ParserState *ps, struct expr *exp)
 {
 	ParserUnit *u = ps->u;
@@ -1491,6 +1526,7 @@ static void parser_super(ParserState *ps, struct expr *exp)
 		setcstrvalue(&val, namebuf);
 		Inst *i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
+		handle_traits(ps, cu->sym);
 	} else if (r->kind == ATTRIBUTE_KIND) {
 		TValue val = INT_VALUE_INIT(0);
 		Inst_Append(ps->u->block, OP_LOAD, &val);
@@ -1851,6 +1887,31 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 	}
 }
 
+static void parser_init_function(ParserState *ps, Vector *stmts)
+{
+	debug("------parser_init_function-------");
+	if (stmts) {
+		struct stmt *s;
+		Vector_ForEach(s, stmts) {
+			if (i == 0) {
+				struct expr *exp = s->exp;
+				if (exp->kind != SUPER_KIND) {
+					ParserUnit *cu = get_class_unit(ps);
+					if (cu->sym->kind == SYM_CLASS) {
+						debug("class hanlde traits init");
+						handle_traits(ps, cu->sym);
+					} else {
+						assert(cu->sym->kind == SYM_TRAIT);
+						debug("trait needs not handle traits init");
+					}
+				}
+			}
+			parser_vist_stmt(ps, s);
+		}
+	}
+	debug("------parser_init_function end---");
+}
+
 static void parser_function(ParserState *ps, struct stmt *stmt, int scope)
 {
 	parser_enter_scope(ps, NULL, scope);
@@ -1867,7 +1928,10 @@ static void parser_function(ParserState *ps, struct stmt *stmt, int scope)
 			Vector_ForEach(var, stmt->funcdecl.pvec)
 				parser_variable(ps, var, NULL);
 		}
-		parser_body(ps, stmt->funcdecl.body);
+		if (!strcmp(stmt->funcdecl.id, "__init__"))
+			parser_init_function(ps, stmt->funcdecl.body);
+		else
+			parser_body(ps, stmt->funcdecl.body);
 		debug("------parse function '%s' end----", stmt->funcdecl.id);
 	} else {
 		assertm(0, "unknown parent scope: %d", parent->scope);

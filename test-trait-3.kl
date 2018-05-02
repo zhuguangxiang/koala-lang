@@ -9,6 +9,10 @@ trait TT {
 
 trait TA with TT {
 	func TAFunc();
+
+	func SayHello() {
+		io.Println("SayHello in TA");
+	}
 }
 
 trait TB1 with TT {
@@ -16,20 +20,17 @@ trait TB1 with TT {
 }
 
 trait TB with TB1 with TT {
-	var NameTB = "name in TB"; //not call trait __init__
 
 	func TBFunc();
 
 	func TB1Func() {
 		io.Println("TB1Func in TB");
-		NameTB = "NAMETB1";
-		io.Println(NameTB);
+		TBFunc(); //abstract method, call sub's TBFunc
 	}
 
 	func TAFunc() {
 		io.Println("TAFunc in TB");
-		NameTB = "NAMETA";
-		io.Println(NameTB);
+		super.SayHello(); //super.SayHello, abstract method, call sub's SayHello
 	}
 }
 
@@ -45,7 +46,7 @@ class Animal with TA with TB with TT {
 
 	func SayHello() {
 		io.Println("SayHello in Animal");
-		//super.SayHello();
+		super.SayHello(); //call TA.SayHello
 	}
 
 	func TBFunc() {
@@ -54,8 +55,7 @@ class Animal with TA with TB with TT {
 }
 
 func Main(args []string) {
-	Animal("Dog", 2569).SayHello();
 	Animal("Dog", 2570).TAFunc();
-	var animal = Animal("Dog", 2571);
-	animal.TB1Func();
+	Animal("Dog", 2580).SayHello();
+	Animal("Dog", 2600).TB1Func();
 }

@@ -3,58 +3,34 @@ package test;
 
 import "koala/io";
 
-trait TT {
-	func SayHello();
+trait Integer {
+	func Add(int);
+	func Get() int;
 }
 
-trait TA with TT {
-	func TAFunc();
+class BasicInteger with Integer {
+	var value int;
 
-	func SayHello() {
-		io.Println("SayHello in TA");
-	}
-}
-
-trait TB1 with TT {
-	func TB1Func();
-}
-
-trait TB with TB1 with TT {
-	//var NameTB = "name in TB";
-
-	func TBFunc();
-
-	func TB1Func() {
-		io.Println("TB1Func in TB");
+	func Add(a int) {
+		value = a;
 	}
 
-	func TAFunc() {
-		io.Println("TAFunc in TB");
-		super.SayHello();
+	func Get() int {
+		return value;
 	}
 }
 
-class Animal with TA with TB with TT {
-	var name string;
-	var age int;
-
-	func __init__(name string, _age int) {
-		self.name = name;
-		age = _age;
-		io.Println("Animal:", self.name, age);
-	}
-
-	func SayHello() {
-		io.Println("SayHello in Animal");
-		super.SayHello();
-	}
-
-	func TBFunc() {
-		io.Println("TBFunc in Animal");
+trait Plusing with Integer {
+	func Add(a int) {
+		var r = a + 2;
+		super.Add(r);
 	}
 }
+
+class PlusingInteger extends BasicInteger with Plusing;
 
 func Main(args []string) {
-	Animal("Dog", 2570).TAFunc();
-	Animal("Dog", 2580).SayHello();
+	var i = PlusingInteger();
+	i.Add(100);
+	io.Println(i.Get());
 }

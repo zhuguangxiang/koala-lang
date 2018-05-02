@@ -7,31 +7,27 @@ package test;
 import "koala/io";
 
 class Animal {
-	name string;
-	age int;
+	var name = "CAT";
+	var age int = 100;
 
-	func __init__(name string, _age int) {
-		self.name = name;
-		age = _age;
+	func __init__(age int) {
+		self.age = age;
 	}
 
-	func SayHello() {
-		io.Println("Animal:", name, age);
-	}
-
-	func SetName(name string) {
-		self.name = name;
+	func SayHello(msg string) {
+		io.Println("Animal: SayHello", name, age, msg);
 	}
 }
 
-interface IAnimal {
-	func SayHello();
-	func SetName(name string);
+class Human {
+	var name string = "Uncle Sam";
+
+	func Say(msg string) {
+		io.Println("Human:", name, msg);
+	}
 }
 
 func Main(args []string) {
-	var ian IAnimal = Animal("Tortoise", 2300);
-	ian.SayHello();
-	ian.SetName("Python");
-	ian.SayHello();
+	Animal(200).SayHello("Hello Kitty ^_^");
+	Human().Say("Hello, World ^_^");
 }
