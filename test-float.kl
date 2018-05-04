@@ -1,0 +1,9 @@
+
+package test;
+
+import "koala/io";
+
+func Main(args string[]) {
+	var v = 3.1415926535;
+	io.Println(v);
+}

@@ -1602,10 +1602,14 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 		}
 		case FLOAT_KIND: {
 			assert(exp->ctx == EXPR_LOAD);
+			TValue val = FLOAT_VALUE_INIT(exp->fval);
+			Inst_Append(ps->u->block, OP_LOADK, &val);
 			break;
 		}
 		case BOOL_KIND: {
 			assert(exp->ctx == EXPR_LOAD);
+			TValue val = BOOL_VALUE_INIT(exp->bval);
+			Inst_Append(ps->u->block, OP_LOADK, &val);
 			break;
 		}
 		case STRING_KIND: {

@@ -820,7 +820,7 @@ void constitem_show(AtomTable *table, void *o)
 			printf("  int:%lld\n", item->ival);
 			break;
 		case CONST_FLOAT:
-			printf("  float:%f\n", item->fval);
+			printf("  float:%.16lf\n", item->fval);
 			break;
 		case CONST_BOOL:
 			printf("  bool:%s\n", item->bval ? "true" : "false");

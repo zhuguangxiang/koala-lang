@@ -723,7 +723,7 @@ static int IntValue_Print(char *buf, int sz, TValue *val)
 
 static int FltValue_Print(char *buf, int sz, TValue *val)
 {
-	return snprintf(buf, sz, "%f", VALUE_FLOAT(val));
+	return snprintf(buf, sz, "%.16lf", VALUE_FLOAT(val));
 }
 
 static int BoolValue_Print(char *buf, int sz, TValue *val)
