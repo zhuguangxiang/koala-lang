@@ -1,5 +1,5 @@
 
-#include "koala_type.h"
+#include "typedesc.h"
 #include "log.h"
 
 char *Primitive_ToString(int type)
@@ -45,13 +45,12 @@ static int desc_primitive(char ch)
 	return 0;
 }
 
-static TypeDesc *str_to_typearray(int count, char *str)
+Vector *TypeString_To_Vector(char *str)
 {
-	if (count == 0) return NULL;
-	TypeDesc *desc = malloc(sizeof(TypeDesc) * count);
-
+	if (!str) return NULL;
+	Vector *v = Vector_New();
+	TypeDesc *desc;
 	char ch;
-	int idx = 0;
 	int dims = 0;
 	int varg = 0;
 	int vcnt = 0;
@@ -64,37 +63,31 @@ static TypeDesc *str_to_typearray(int count, char *str)
 			str += 3;
 			vcnt++;
 		} else if (desc_primitive(ch)) {
-			assert(idx < count);
-
-			desc[idx].varg = varg;
-			desc[idx].dims = dims;
-			desc[idx].kind = TYPE_PRIMITIVE;
-			desc[idx].primitive = ch;
+			desc = TypeDesc_From_Primitive(ch);
+			desc->varg = varg;
+			desc->dims = dims;
+			Vector_Append(v, desc);
 
 			/* varg and dims are only one valid */
 			assert(varg == 0 || dims == 0);
 
 			varg = 0; dims = 0;
-			idx++; str++;
+			str++;
 		} else if (ch == 'O') {
-			assert(idx < count);
-
-			desc[idx].varg = varg;
-			desc[idx].dims = dims;
-			desc[idx].kind = TYPE_USERDEF;
-
-			int cnt = 0;
 			start = str + 1;
 			while ((ch = *str) != ';') {
-				cnt++; str++;
+				str++;
 			}
-			FullPath_To_TypeDesc(start, str - start, desc + idx);
+			desc = TypeDesc_From_TypeNString(start, str - start);
+			desc->varg = varg;
+			desc->dims = dims;
+			Vector_Append(v, desc);
 
 			/* varg and dims are only one valid */
 			assert(varg == 0 || dims == 0);
 
 			varg = 0; dims = 0;
-			idx++; str++;
+			str++;
 		} else if (ch == '[') {
 			assert(varg == 0);
 			while ((ch = *str) == '[') {
@@ -106,8 +99,10 @@ static TypeDesc *str_to_typearray(int count, char *str)
 	}
 
 	assert(vcnt <= 1);
-	return desc;
+	return v;
 }
+
+/*---------------------------------------------------------------------------*/
 
 TypeDesc *TypeDesc_New(int kind)
 {
@@ -116,19 +111,25 @@ TypeDesc *TypeDesc_New(int kind)
 	return desc;
 }
 
+static void __typedef_free_fn(void *item, void *arg)
+{
+	UNUSED_PARAMETER(arg);
+	TypeDesc_Free(item);
+}
+
 void TypeDesc_Free(TypeDesc *desc)
 {
 	if (desc->kind == TYPE_USERDEF) {
 		if (desc->path) free(desc->path);
-		free(desc->type);
+		assert(desc->type); free(desc->type);
 	} else if (desc->kind == TYPE_PROTO) {
-		Proto_Free(desc->proto);
+		Vector_Free(desc->pdesc, __typedef_free_fn, NULL);
+		Vector_Free(desc->rdesc, __typedef_free_fn, NULL);
 	} else if (desc->kind == TYPE_PRIMITIVE) {
 		debug("primitive type, just free TypeDesc itself");
 	} else {
 		assertm(0, "invalid TypeDesc kind:%d", desc->kind);
 	}
-
 	free(desc);
 }
 
@@ -147,64 +148,48 @@ TypeDesc *TypeDesc_From_UserDef(char *path, char *type)
 	return desc;
 }
 
-TypeDesc *TypeDesc_From_Proto(Proto *proto)
+TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec)
 {
-	TypeDesc *desc = TypeDesc_New(TYPE_PROTO);
-	desc->proto = proto;
-	return desc;
-}
-
-TypeDesc *TypeDesc_From_FuncType(Vector *rvec, Vector *pvec)
-{
-	Proto *proto = malloc(sizeof(Proto));
-	int sz;
-	TypeDesc *desc;
-
-	sz = TypeVec_ToTypeArray(rvec, &desc);
-	proto->rsz = sz;
-	proto->rdesc = desc;
-
-	sz = TypeVec_ToTypeArray(pvec, &desc);
-	proto->psz = sz;
-	proto->pdesc = desc;
-
 	TypeDesc *type = TypeDesc_New(TYPE_PROTO);
-	type->proto = proto;
-
+	type->pdesc = pvec;
+	type->rdesc = rvec;
 	return type;
 }
 
-int TypeVec_ToTypeArray(Vector *vec, TypeDesc **desc)
+TypeDesc *TypeDesc_From_TypeNString(char *typestr, int len)
 {
-	if (!vec) {
-		*desc = NULL;
+	char *tmp = strchr(typestr, '.');
+	assert(tmp);
+	char *path = strndup(typestr, tmp - typestr);
+	char *type = strndup(tmp + 1, typestr + len - tmp - 1);
+	return TypeDesc_From_UserDef(path, type);
+}
+
+static int vec_type_check(Vector *v1, Vector *v2)
+{
+	if (v1 && v2) {
+		if (Vector_Size(v1) != Vector_Size(v2)) return 0;
+		TypeDesc *t1;
+		TypeDesc *t2;
+		Vector_ForEach(t1, v1) {
+			t2 = Vector_Get(v2, i);
+			if (!TypeDesc_Check(t1, t2)) return 0;
+		}
+		return 1;
+	} else if (!v1 && !v2) {
+		return 1;
+	} else {
 		return 0;
 	}
-	//FIXME
-	return Vector_ToArray(vec, sizeof(TypeDesc), NULL, (void **)desc);
-}
-
-void FullPath_To_TypeDesc(char *fullpath, int len, TypeDesc *desc)
-{
-	char *tmp = strchr(fullpath, '.');
-	assert(tmp);
-	desc->type = strndup(tmp + 1, fullpath + len - tmp - 1);
-	desc->path = strndup(fullpath, tmp - fullpath);
-}
-
-static inline int type_isany(TypeDesc *t)
-{
-	if ((t->kind == TYPE_PRIMITIVE) && (t->primitive == PRIMITIVE_ANY))
-		return 1;
-	else
-		return 0;
 }
 
 int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 {
 	if (t1 == t2) return 1;
 
-	if (type_isany(t1) || type_isany(t2))
+	// one of type is Any
+	if (((t1->kind == TYPE_PRIMITIVE) && (t1->primitive == PRIMITIVE_ANY)) ||
+			((t2->kind == TYPE_PRIMITIVE) && (t2->primitive == PRIMITIVE_ANY)))
 		return 1;
 
 	if (t1->kind != t2->kind) return 0;
@@ -220,14 +205,16 @@ int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2)
 		case TYPE_USERDEF: {
 			if (t1->path && t2->path) {
 				eq = !strcmp(t1->path, t2->path) && !strcmp(t1->type, t2->type);
-			} else {
+			} if (!t1->path && !t2->path) {
 				eq = !strcmp(t1->type, t2->type);
+			} else {
+				eq = 0;
 			}
 			break;
 		}
 		case TYPE_PROTO: {
-			//FIXME: assert(0);
-			eq = 1;
+			eq = vec_type_check(t1->pdesc, t2->pdesc);
+			if (eq) eq = vec_type_check(t1->rdesc, t2->rdesc);
 			break;
 		}
 		default: {
@@ -287,6 +274,7 @@ char *TypeDesc_ToString(TypeDesc *desc)
 	return str;
 }
 
+#if 0
 Proto *Proto_New(int rsz, char *rdesc, int psz, char *pdesc)
 {
 	Proto *proto = malloc(sizeof(Proto));
@@ -333,6 +321,7 @@ Proto *Proto_Dup(Proto *proto)
 	//FIXME:
 	return proto;
 }
+#endif
 
 int TypeDesc_IsBool(TypeDesc *desc)
 {
@@ -342,22 +331,22 @@ int TypeDesc_IsBool(TypeDesc *desc)
 		return 0;
 }
 
-int Proto_IsEqual(Proto *p1, Proto *p2)
-{
-	if (!p1 || !p2) return 0;
-	if (p1 == p2) return 1;
-	if (p1->psz != p2->psz) return 0;
-	if (p1->rsz != p2->rsz) return 0;
+// int Proto_IsEqual(Proto *p1, Proto *p2)
+// {
+// 	if (!p1 || !p2) return 0;
+// 	if (p1 == p2) return 1;
+// 	if (p1->psz != p2->psz) return 0;
+// 	if (p1->rsz != p2->rsz) return 0;
 
-	for (int i = 0; i < p1->psz; i++) {
-		if (!TypeDesc_Check(p1->pdesc + i, p2->pdesc + i))
-			return 0;
-	}
+// 	for (int i = 0; i < p1->psz; i++) {
+// 		if (!TypeDesc_Check(p1->pdesc + i, p2->pdesc + i))
+// 			return 0;
+// 	}
 
-	for (int i = 0; i < p1->rsz; i++) {
-		if (!TypeDesc_Check(p1->rdesc + i, p2->rdesc + i))
-			return 0;
-	}
+// 	for (int i = 0; i < p1->rsz; i++) {
+// 		if (!TypeDesc_Check(p1->rdesc + i, p2->rdesc + i))
+// 			return 0;
+// 	}
 
-	return 1;
-}
+// 	return 1;
+// }

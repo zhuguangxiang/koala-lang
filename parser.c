@@ -373,48 +373,19 @@ void Parse_VarDecls(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-static int var_vec_to_arr(Vector *vec, TypeDesc **arr)
-{
-	if (!vec) {
-		*arr = NULL;
-		return 0;
-	}
-	int sz = 0;
-	TypeDesc *desc = NULL;
-	if (vec && Vector_Size(vec) != 0) {
-		sz = Vector_Size(vec);
-		desc = malloc(sizeof(TypeDesc) * sz);
-		struct var *var;
-		Vector_ForEach(var, vec)
-			memcpy(desc + i, var->desc, sizeof(TypeDesc));
-	}
-
-	*arr = desc;
-	return sz;
-}
-
-static Proto *funcdecl_to_proto(struct stmt *stmt)
-{
-	Proto *proto = malloc(sizeof(Proto));
-	int sz;
-	TypeDesc *desc;
-
-	sz = var_vec_to_arr(stmt->funcdecl.pvec, &desc);
-	proto->psz = sz;
-	proto->pdesc = desc;
-
-	sz = TypeVec_ToTypeArray(stmt->funcdecl.rvec, &desc);
-	proto->rsz = sz;
-	proto->rdesc = desc;
-
-	return proto;
-}
-
 static void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 {
-	Proto *proto;
+	TypeDesc *proto;
 	Symbol *sym;
-	proto = funcdecl_to_proto(stmt);
+	Vector *pdesc = NULL;
+	if (stmt->funcdecl.pvec) {
+		pdesc = Vector_New();
+		struct var *var;
+		Vector_ForEach(var, stmt->funcdecl.pvec) {
+			Vector_Append(pdesc, var->desc);
+		}
+	}
+	proto = TypeDesc_From_Proto(stmt->funcdecl.rvec, pdesc);
 	sym = STable_Add_Proto(ps->u->stbl, stmt->funcdecl.id, proto);
 	if (sym) {
 		debug("add func '%s' successful", stmt->funcdecl.id);
@@ -430,28 +401,11 @@ void Parse_Function(ParserState *ps, struct stmt *stmt)
 	parse_funcdecl(ps, stmt);
 }
 
-static Proto *funcproto_to_proto(struct stmt *stmt)
-{
-	Proto *proto = malloc(sizeof(Proto));
-	int sz;
-	TypeDesc *desc;
-
-	sz = TypeVec_ToTypeArray(stmt->funcproto.pvec, &desc);
-	proto->psz = sz;
-	proto->pdesc = desc;
-
-	sz = TypeVec_ToTypeArray(stmt->funcproto.rvec, &desc);
-	proto->rsz = sz;
-	proto->rdesc = desc;
-
-	return proto;
-}
-
 static void parse_funcproto(ParserState *ps, struct stmt *stmt)
 {
-	Proto *proto;
+	TypeDesc *proto;
 	Symbol *sym;
-	proto = funcproto_to_proto(stmt);
+	proto = TypeDesc_From_Proto(stmt->funcproto.rvec, stmt->funcproto.pvec);
 	sym = STable_Add_IProto(ps->u->stbl, stmt->funcproto.id, proto);
 	if (sym) {
 		debug("add abstract func '%s' successful", stmt->funcproto.id);
@@ -621,8 +575,10 @@ static void parser_new_block(ParserUnit *u)
 
 int check_npr_func(Symbol *sym)
 {
-	Proto *proto = sym->desc->proto;
-	return proto->psz == 0 && proto->rsz == 0 ? 0 : -1;
+	TypeDesc *proto = sym->desc;
+	int rsz = Vector_Size(proto->rdesc);
+	int psz = Vector_Size(proto->pdesc);
+	return (rsz == 0 && psz == 0) ? 0 : -1;
 }
 
 static void parser_merge(ParserState *ps)
@@ -677,7 +633,7 @@ static void parser_merge(ParserState *ps)
 			u->block = NULL;
 		}
 	} else if (u->scope == SCOPE_MODULE) {
-		Proto *proto = Proto_New(0, NULL, 0, NULL);
+		TypeDesc *proto = TypeDesc_From_Proto(NULL, NULL);
 		Symbol *sym = STable_Add_Proto(u->stbl, "__init__", proto);
 		assert(sym);
 		debug("add 'return' to function '__init__'");
@@ -698,7 +654,7 @@ static void parser_merge(ParserState *ps)
 				u->sym->name);
 			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
 			if (!sym) {
-				Proto *proto = Proto_New(0, NULL, 0, NULL);
+				TypeDesc *proto = TypeDesc_From_Proto(NULL, NULL);
 				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
 				TValue val = INT_VALUE_INIT(0);
@@ -727,7 +683,7 @@ static void parser_merge(ParserState *ps)
 		}	else {
 			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
 			if (!sym) {
-				Proto *proto = Proto_New(0, NULL, 0, NULL);
+				TypeDesc *proto = TypeDesc_From_Proto(NULL, NULL);
 				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
 				TValue val = INT_VALUE_INIT(0);
@@ -1431,7 +1387,7 @@ static void parser_call(ParserState *ps, struct expr *exp)
 		exp->sym = sym;
 		exp->desc = sym->desc;
 		/* check arguments */
-		if (!check_call_args(exp->desc->proto, exp->call.args)) {
+		if (!check_call_args(exp->desc, exp->call.args)) {
 			error("arguments are not matched.");
 			return;
 		}
@@ -1443,14 +1399,14 @@ static void parser_call(ParserState *ps, struct expr *exp)
 		/* get __init__ function */
 		Symbol *__init__ = STable_Get(sym->ptr, "__init__");
 		if (__init__) {
-			Proto *proto = __init__->desc->proto;
+			TypeDesc *proto = __init__->desc;
 			/* check arguments and returns(no returns) */
 			if (!check_call_args(proto, exp->call.args)) {
 				error("Arguments of __init__ are not matched.");
 				return;
 			}
 			/* check no returns */
-			if (proto->rsz) {
+			if (Vector_Size(proto->rdesc) > 0) {
 				error("Returns of __init__ must be 0");
 				return;
 			}
@@ -1467,7 +1423,7 @@ static void parser_call(ParserState *ps, struct expr *exp)
 		exp->sym = sym;
 		exp->desc = sym->desc;
 		/* check arguments */
-		if (!check_call_args(exp->desc->proto, exp->call.args)) {
+		if (!check_call_args(exp->desc, exp->call.args)) {
 			error("abstract method arguments are not matched.");
 			return;
 		}
@@ -1780,18 +1736,19 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		}
 
 		if (exp->desc->kind == TYPE_PROTO) {
-			Proto *proto = exp->desc->proto;
-			if (proto->rsz != 1) {
+			TypeDesc *proto = exp->desc;
+			int rsize = Vector_Size(proto->rdesc);
+			if (rsize != 1) {
 				//FIXME
-				error("function's returns is not 1:%d", proto->rsz);
+				error("function's returns is not 1:%d", rsize);
 				return;
 			}
 
 			if (!var->desc) {
-				var->desc = proto->rdesc;
+				var->desc = Vector_Get(proto->rdesc, 0);
 			}
 
-			if (!TypeDesc_Check(var->desc, proto->rdesc)) {
+			if (!TypeDesc_Check(var->desc, Vector_Get(proto->rdesc, 0))) {
 				error("proto typecheck failed");
 				return;
 			}
@@ -1968,7 +1925,7 @@ void sym_inherit_fn(Symbol *sym, void *arg)
 		}
 	} else if (sym->kind == SYM_PROTO) {
 		debug("inherit function '%s' from super class", namebuf);
-		s = STable_Add_Proto(stbl, namebuf, sym->desc->proto);
+		s = STable_Add_Proto(stbl, namebuf, sym->desc);
 		if (s) {
 			s->up = subsym;
 			s->inherited = 1;

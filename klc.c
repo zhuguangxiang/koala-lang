@@ -12,27 +12,28 @@ static int version_build = 1; // 2 bytes
 
 /*-------------------------------------------------------------------------*/
 
-int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc)
+TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl)
 {
-	desc->kind = item->kind;
-	desc->dims = item->dims;
-	desc->varg = item->varg;
+	TypeDesc *t = TypeDesc_New(item->kind);
+	t->kind = item->kind;
+	t->dims = item->dims;
+	t->varg = item->varg;
 
 	switch (item->kind) {
 		case TYPE_PRIMITIVE: {
-			desc->primitive = item->primitive;
+			t->primitive = item->primitive;
 			break;
 		}
 		case TYPE_USERDEF: {
 			StringItem *stritem;
 			if (item->pathindex >= 0) {
 				stritem = StringItem_Index(atbl, item->pathindex);
-				desc->path = stritem->data;
+				t->path = stritem->data;
 			} else {
-				desc->path = NULL;
+				t->path = NULL;
 			}
 			stritem = StringItem_Index(atbl, item->typeindex);
-			desc->type = stritem->data;
+			t->type = stritem->data;
 			break;
 		}
 		default: {
@@ -40,42 +41,37 @@ int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc)
 		}
 	}
 
-	return 0;
+	return t;
 }
 
 /*-------------------------------------------------------------------------*/
 
-int TypeListItem_To_DescList(AtomTable *atbl, TypeListItem *item,
-														 TypeDesc **desc)
+Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
 {
-	if (!item) {
-		*desc = NULL;
-		return 0;
-	}
+	if (!item) return NULL;
 
-	TypeDesc *type = malloc(sizeof(TypeDesc) * item->size);
+	Vector *v = Vector_New();
 	TypeItem *typeitem;
-
+	TypeDesc *t;
 	for (int i = 0; i < item->size; i++) {
 		typeitem = TypeItem_Index(atbl, item->index[i]);
-		TypeItem_To_Desc(atbl, typeitem, type + i);
+		t = TypeItem_To_Desc(typeitem, atbl);
+		Vector_Append(v, t);
 	}
-
-	*desc = type;
-	return item->size;
+	return v;
 }
 
-Proto *Proto_From_ProtoItem(ProtoItem *item, AtomTable *atbl)
+TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
 {
-	Proto *proto = calloc(1, sizeof(Proto));
+	TypeDesc *proto = TypeDesc_New(TYPE_PROTO);
 
 	TypeListItem *typelist = NULL;
 	if (item->rindex >= 0) typelist = TypeListItem_Index(atbl, item->rindex);
-	proto->rsz = TypeListItem_To_DescList(atbl, typelist, &proto->rdesc);
+	proto->rdesc = TypeListItem_To_Vector(typelist, atbl);
 
 	typelist = NULL;
 	if (item->pindex >= 0) typelist = TypeListItem_Index(atbl, item->pindex);
-	proto->psz = TypeListItem_To_DescList(atbl, typelist, &proto->pdesc);
+	proto->pdesc = TypeListItem_To_Vector(typelist, atbl);
 
 	return proto;
 }
@@ -380,34 +376,35 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 
 /*-------------------------------------------------------------------------*/
 
-int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz)
+int TypeListItem_Get(AtomTable *table, Vector *desc)
 {
+	int sz = Vector_Size(desc);
 	if (sz <= 0) return -1;
-	int32 indexes[sz];
-	int index;
-	for (int i = 0; i < sz; i++) {
-		index = TypeItem_Get(table, desc + i);
-		if (index < 0) return -1;
-		indexes[i] = index;
-	}
+
 	uint8 data[sizeof(TypeListItem) + sizeof(int32) * sz];
 	TypeListItem *item = (TypeListItem *)data;
 	item->size = sz;
+
+	int index;
 	for (int i = 0; i < sz; i++) {
-		item->index[i] = indexes[i];
+		index = TypeItem_Get(table, Vector_Get(desc, i));
+		if (index < 0) return -1;
+		item->index[i] = index;
 	}
 
 	return AtomTable_Index(table, ITEM_TYPELIST, item);
 }
 
-int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz)
+int TypeListItem_Set(AtomTable *table, Vector *desc)
 {
+	int sz = Vector_Size(desc);
 	if (sz <= 0) return -1;
-	int index = TypeListItem_Get(table, desc, sz);
+
+	int index = TypeListItem_Get(table, desc);
 	if (index < 0) {
 		int32 indexes[sz];
 		for (int i = 0; i < sz; i++) {
-			index = TypeItem_Set(table, desc + i);
+			index = TypeItem_Set(table, Vector_Get(desc, i));
 			if (index < 0) {assert(0); return -1;}
 			indexes[i] = index;
 		}
@@ -425,10 +422,10 @@ int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex)
 	return AtomTable_Index(table, ITEM_PROTO, &item);
 }
 
-int ProtoItem_Set(AtomTable *table, Proto *proto)
+int ProtoItem_Set(AtomTable *table, TypeDesc *proto)
 {
-	int rindex = TypeListItem_Set(table, proto->rdesc, proto->rsz);
-	int pindex = TypeListItem_Set(table, proto->pdesc, proto->psz);
+	int rindex = TypeListItem_Set(table, proto->rdesc);
+	int pindex = TypeListItem_Set(table, proto->pdesc);
 	int index = ProtoItem_Get(table, rindex, pindex);
 	if (index < 0) {
 		ProtoItem *item = ProtoItem_New(rindex, pindex);
@@ -1393,7 +1390,7 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
 	AtomTable_Append(image->table, ITEM_VAR, varitem, 0);
 }
 
-int KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
+int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto, int locvars,
 	uint8 *codes, int csz)
 {
 	int access = SYMBOL_ACCESS(name, 0);
@@ -1406,7 +1403,7 @@ int KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
 }
 
 void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype,
-	TypeDesc *traits, int size)
+	Vector *traits)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
@@ -1419,10 +1416,7 @@ void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype,
 		superindex = TypeItem_Set(image->table, &tmp);
 	}
 
-	int traitsindex = -1;
-	if (traits && size > 0) {
-		traitsindex = TypeListItem_Set(image->table, traits, size);
-	}
+	int traitsindex = TypeListItem_Set(image->table, traits);
 
 	ClassItem *classitem = ClassItem_New(classindex, access, superindex,
 		traitsindex);
@@ -1444,7 +1438,7 @@ void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
 	AtomTable_Append(image->table, ITEM_FIELD, fielditem, 0);
 }
 
-int KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
+int KImage_Add_Method(KImage *image, char *clazz, char *name, TypeDesc *proto,
 	int locvars, uint8 *codes, int csz)
 {
 	int access = SYMBOL_ACCESS(name, 0);
@@ -1460,21 +1454,18 @@ int KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
 	return AtomTable_Append(image->table, ITEM_METHOD, methitem, 0);
 }
 
-void KImage_Add_Trait(KImage *image, char *name, TypeDesc *traits, int size)
+void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
 	Init_UserDef_TypeDesc(&tmp, 0, NULL, name);
 	int classindex = TypeItem_Set(image->table, &tmp);
-	int traitsindex = -1;
-	if (traits && size > 0) {
-		traitsindex = TypeListItem_Set(image->table, traits, size);
-	}
+	int traitsindex = TypeListItem_Set(image->table, traits);
 	TraitItem *traititem = TraitItem_New(classindex, access, traitsindex);
 	AtomTable_Append(image->table, ITEM_TRAIT, traititem, 0);
 }
 
-void KImage_Add_IMeth(KImage *image, char *trait, char *name, Proto *proto)
+void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;

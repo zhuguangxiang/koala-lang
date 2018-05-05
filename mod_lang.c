@@ -25,7 +25,7 @@ static Object *__lang_typeof(Object *ob, Object *args)
 }
 
 static FuncDef lang_funcs[] = {
-	{"TypeOf", 1, "Okoala/lang.Class;", 1, "...A", __lang_typeof},
+	{"TypeOf", "Okoala/lang.Class;", "...A", __lang_typeof},
 	{NULL}
 };
 

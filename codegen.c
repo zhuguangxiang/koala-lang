@@ -199,10 +199,10 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			int index;
 			if (tmp->bcls) {
 				index = KImage_Add_Method(tmp->image, tmp->clazz, sym->name,
-					sym->desc->proto, locvars, data, size);
+					sym->desc, locvars, data, size);
 				add_locvar(tmp->image, index, sym, METHLOCVAR, 1);
 			} else {
-				index = KImage_Add_Func(tmp->image, sym->name, sym->desc->proto, locvars,
+				index = KImage_Add_Func(tmp->image, sym->name, sym->desc, locvars,
 					data, size);
 				add_locvar(tmp->image, index, sym, FUNCLOCVAR, 0);
 			}
@@ -218,33 +218,37 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				type = sym->super->desc->type;
 			}
 			int size = Vector_Size(&sym->traits);
-			TypeDesc descs[size];
+			Vector v;
+			Vector_Init(&v);
 			Symbol *trait;
 			for (int i = 0; i < size; i++) {
 				trait = Vector_Get(&sym->traits, i);
-				*(descs + i) = *trait->desc;
+				Vector_Append(&v, trait->desc);
 			}
-			KImage_Add_Class(tmp->image, sym->name, path, type, descs, size);
+			KImage_Add_Class(tmp->image, sym->name, path, type, &v);
+			Vector_Fini(&v, NULL, NULL);
 			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
 			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
 			break;
 		}
 		case SYM_IPROTO: {
 			debug("	abstract func %s;", sym->name);
-			KImage_Add_IMeth(tmp->image, tmp->clazz, sym->name, sym->desc->proto);
+			KImage_Add_IMeth(tmp->image, tmp->clazz, sym->name, sym->desc);
 			break;
 		}
 		case SYM_TRAIT: {
 			debug("----------------------");
 			debug("trait %s:", sym->name);
 			int size = Vector_Size(&sym->traits);
-			TypeDesc descs[size];
+			Vector v;
+			Vector_Init(&v);
 			Symbol *trait;
 			for (int i = 0; i < size; i++) {
 				trait = Vector_Get(&sym->traits, i);
-				*(descs + i) = *trait->desc;
+				Vector_Append(&v, trait->desc);
 			}
-			KImage_Add_Trait(tmp->image, sym->name, descs, size);
+			KImage_Add_Trait(tmp->image, sym->name, &v);
+			Vector_Fini(&v, NULL, NULL);
 			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
 			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
 			break;

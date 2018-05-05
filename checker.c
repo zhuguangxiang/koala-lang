@@ -47,10 +47,11 @@ void check_unused_symbols(ParserState *ps)
 	STable_Traverse(u->stbl, __unused_symbol_fn, ps);
 }
 
-static int check_call_varg(Proto *proto, Vector *vec)
+#if 0
+static int check_call_varg(TypeDesc *proto, Vector *vec)
 {
-	int sz = !vec ? 0: Vector_Size(vec);
-	if (proto->psz -1 > sz) {
+	int sz = Vector_Size(vec);
+	if (Vector_Size(proto->pdesc) -1 > sz) {
 			return 0;
 	} else {
 		TypeDesc *desc;
@@ -81,37 +82,40 @@ static int check_call_varg(Proto *proto, Vector *vec)
 	}
 }
 
-int check_call_args(Proto *proto, Vector *vec)
+#endif
+
+int check_call_args(TypeDesc *proto, Vector *vec)
 {
-	if (!vec && !proto->psz) {
+	int psz = Vector_Size(proto->pdesc);
+	if (!vec && !psz) {
 		return 1;
 	}
 
-	if (Proto_Has_Vargs(proto))
-		return check_call_varg(proto, vec);
+	//if (Proto_Has_Vargs(proto)) return check_call_varg(proto, vec);
 
-	int sz = !vec ? 0: Vector_Size(vec);
-	if (proto->psz != sz) {
-		error("func argc: expected %d, but %d", proto->psz, sz);
+	int sz = Vector_Size(vec);
+	if (psz != sz) {
+		error("func argc: expected %d, but %d", psz, sz);
 		return 0;
 	}
 
-	TypeDesc *d;
+	TypeDesc *desc;
 	struct expr *exp;
 	Vector_ForEach(exp, vec) {
-		d = exp->desc;
-		if (!d) {
+		desc = exp->desc;
+		if (!desc) {
 			error("expr's type is null");
 			return 0;
 		}
-		if (d->kind == TYPE_PROTO) {
-			Proto *p = d->proto;
+		if (desc->kind == TYPE_PROTO) {
 			/* allow only one return value as function argument */
-			if (p->rsz != 1) return 0;
-			if (!TypeDesc_Check(p->rdesc, proto->pdesc + i)) return 0;
+			if (Vector_Size(desc->rdesc) != 1) return 0;
+			if (!TypeDesc_Check(Vector_Get(desc->rdesc, 0),
+				Vector_Get(proto->pdesc, i)))
+				return 0;
 		} else {
-			assert(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
-			if (!TypeDesc_Check(d, proto->pdesc + i)) return 0;
+			assert(desc->kind == TYPE_PRIMITIVE || desc->kind == TYPE_USERDEF);
+			if (!TypeDesc_Check(desc, Vector_Get(proto->pdesc, i))) return 0;
 		}
 	}
 
@@ -121,18 +125,20 @@ int check_call_args(Proto *proto, Vector *vec)
 int check_return_types(Symbol *sym, Vector *vec)
 {
 	assert(sym);
-	Proto *proto = sym->desc->proto;;
+	TypeDesc *proto = sym->desc;
+	assert(proto->kind == TYPE_PROTO);
+	int rsz = Vector_Size(proto->rdesc);
 	if (!vec) {
-		return (proto->rsz == 0) ? 1 : 0;
+		return (rsz == 0) ? 1 : 0;
 	} else {
 		int sz = Vector_Size(vec);
-		if (proto->rsz != sz) {
+		if (rsz != sz) {
 			error("number of return values is not matched func's proto");
 			return 0;
 		}
 		struct expr *exp;
 		Vector_ForEach(exp, vec) {
-			if (!TypeDesc_Check(exp->desc, proto->rdesc + i)) {
+			if (!TypeDesc_Check(exp->desc, Vector_Get(proto->rdesc, i))) {
 				error("type check failed");
 				return 0;
 			}

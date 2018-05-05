@@ -26,7 +26,7 @@ int Vector_Insert(Vector *vec, int index, void *item);
 void *Vector_Set(Vector *vec, int index, void *item);
 void *Vector_Get(Vector *vec, int index);
 int Vector_Append(Vector *vec, void *item);
-#define Vector_Size(vec) (((Vector *)(vec))->size)
+#define Vector_Size(vec) ((vec) ? (((Vector *)(vec))->size) : 0)
 int Vector_Concat(Vector *dest, Vector *src);
 #define Vector_ForEach(item, vec) \
 	for (int i = 0; (i < (vec)->size) && (item = (vec)->items[i], 1); i++)

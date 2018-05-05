@@ -5,17 +5,18 @@
 #include "symbol.h"
 #include "log.h"
 
-static CodeObject *codeobject_new(int flags)
+static CodeObject *code_new(int flags, TypeDesc *proto)
 {
 	CodeObject *code = calloc(1, sizeof(CodeObject));
 	Init_Object_Head(code, &Code_Klass);
 	code->flags = flags;
+	code->proto = proto;
 	return code;
 }
 
-Object *CFunc_New(cfunc cf)
+Object *CFunc_New(cfunc cf, TypeDesc *proto)
 {
-	CodeObject *code = codeobject_new(CODE_CLANG);
+	CodeObject *code = code_new(CODE_CLANG, proto);
 	code->cf = cf;
 	return (Object *)code;
 }
@@ -30,9 +31,9 @@ void CodeObject_Free(Object *ob)
 	free(ob);
 }
 
-Object *KFunc_New(int locvars, uint8 *codes, int size)
+Object *KFunc_New(int locvars, uint8 *codes, int size, TypeDesc *proto)
 {
-	CodeObject *code = codeobject_new(CODE_KLANG);
+	CodeObject *code = code_new(CODE_KLANG, proto);
 	code->kf.locvars = locvars;
 	code->kf.codes = codes;
 	code->kf.size = size;

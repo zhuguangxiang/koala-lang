@@ -342,7 +342,6 @@ v0.6.0:
     1. new functions to class
     2. modify class's old functions
     3. AOP
-    4. IOC
 
 v0.6.1:
 1. feature: subclass casts to base class, and base class casts to realclass

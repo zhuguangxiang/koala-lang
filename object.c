@@ -363,24 +363,22 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 	return sym ? 0 : -1;
 }
 
-int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code)
+int Klass_Add_Method(Klass *klazz, char *name, TypeDesc *proto, Object *code)
 {
 	Check_Klass(klazz);
 	Symbol *sym = STable_Add_Proto(&klazz->stbl, name, proto);
 	if (sym) {
 		CodeObject *co = (CodeObject *)code;
-		sym->ob = code;
 		if (CODE_ISKFUNC(code)) {
 			co->kf.atbl = klazz->stbl.atbl;
-			co->kf.proto = Proto_Dup(proto);
 		}
-		co->owner = (Object *)klazz;
+		sym->ob = code;
 		return 0;
 	}
 	return -1;
 }
 
-int Klass_Add_IMethod(Klass *klazz, char *name, Proto *proto)
+int Klass_Add_IMethod(Klass *klazz, char *name, TypeDesc *proto)
 {
 	Check_Klass(klazz);
 	Symbol *sym = STable_Add_IProto(&klazz->stbl, name, proto);
@@ -427,11 +425,15 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 	int res;
 	FuncDef *f = funcs;
 	Object *meth;
-	Proto *proto;
+	Vector *pdesc;
+	Vector *rdesc;
+	TypeDesc *proto;
 
 	while (f->name) {
-		proto = Proto_New(f->rsz, f->rdesc, f->psz, f->pdesc);
-		meth = CFunc_New(f->fn);
+		rdesc = TypeString_To_Vector(f->rdesc);
+		pdesc = TypeString_To_Vector(f->pdesc);
+		proto = TypeDesc_From_Proto(rdesc, pdesc);
+		meth = CFunc_New(f->fn, proto);
 		res = Klass_Add_Method(klazz, f->name, proto, meth);
 		assert(res == 0);
 		++f;

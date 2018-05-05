@@ -164,8 +164,8 @@ static Object *__table_put(Object *ob, Object *args)
 }
 
 static FuncDef table_funcs[] = {
-	{"Put", 1, "i", 2, "AA", __table_put},
-	{"Get", 1, "A", 1, "A", __table_get},
+	{"Put", "i", "AA", __table_put},
+	{"Get", "A", "A", __table_get},
 	{NULL}
 };
 

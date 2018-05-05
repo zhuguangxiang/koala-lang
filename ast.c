@@ -208,7 +208,7 @@ struct stmt *stmt_from_varlistdecl(Vector *vars, Vector *exps,
 	TypeDesc *desc, int bconst)
 {
 	int vsz = Vector_Size(vars);
-	int esz = (exps != NULL) ? Vector_Size(exps) : 0;
+	int esz = Vector_Size(exps);
 	if (esz != 0 && esz != vsz) {
 		error("cannot assign %d values to %d variables", esz, vsz);
 		return NULL;
@@ -266,7 +266,7 @@ struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
 struct stmt *stmt_from_assign(Vector *left, Vector *right)
 {
 	int vsz = Vector_Size(left);
-	int esz = (right != NULL) ? Vector_Size(right) : 0;
+	int esz = Vector_Size(right);
 	if (esz != vsz) {
 		error("cannot assign %d values to %d variables", esz, vsz);
 		return NULL;

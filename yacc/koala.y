@@ -257,10 +257,10 @@ UserDefType
 
 FunctionType
   : FUNC '(' TypeNameListOrEmpty ')' ReturnTypeList {
-    $$ = TypeDesc_From_FuncType($3, $5);
+    $$ = TypeDesc_From_Proto($3, $5);
   }
   | FUNC '(' TypeNameListOrEmpty ')' {
-    $$ = TypeDesc_From_FuncType($3, NULL);
+    $$ = TypeDesc_From_Proto($3, NULL);
   }
   ;
 
@@ -322,7 +322,7 @@ TypeList
 
 CompileUnit
   : Package Imports ModuleStatements {
-    ast_traverse(&parser->stmts);
+    //ast_traverse(&parser->stmts);
   }
   | Package ModuleStatements {
     //ast_traverse(&parser->stmts);

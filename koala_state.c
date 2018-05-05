@@ -147,9 +147,7 @@ static void load_variables(AtomTable *table, Object *m)
 		var = AtomTable_Get(table, ITEM_VAR, i);
 		id = StringItem_Index(table, var->nameindex);
 		type = TypeItem_Index(table, var->typeindex);
-		//FIXME
-		desc = TypeDesc_New(0);
-		TypeItem_To_Desc(table, type, desc);
+		desc = TypeItem_To_Desc(type, table);
 		Module_Add_Var(m, id->data, desc, var->access & ACCESS_CONST);
 	}
 }
@@ -159,8 +157,7 @@ static void load_locvar(LocVarItem *locvar, AtomTable *table, Object *code)
 	StringItem *stritem = StringItem_Index(table, locvar->nameindex);;
 	TypeItem *typeitem = TypeItem_Index(table, locvar->typeindex);
 	char *name = stritem->data;
-	TypeDesc *desc = TypeDesc_New(0);
-	TypeItem_To_Desc(table, typeitem, desc);
+	TypeDesc *desc = TypeItem_To_Desc(typeitem, table);
 	KFunc_Add_LocVar(code, name, desc, locvar->pos);
 }
 
@@ -171,7 +168,7 @@ static void load_functions(AtomTable *table, Object *m)
 	FuncItem *func;
 	StringItem *id;
 	ProtoItem *protoitem;
-	Proto *proto;
+	TypeDesc *proto;
 	CodeItem *codeitem;
 	Object *code;
 	struct locvarindex indexes[num];
@@ -180,9 +177,9 @@ static void load_functions(AtomTable *table, Object *m)
 		func = AtomTable_Get(table, ITEM_FUNC, i);
 		id = StringItem_Index(table, func->nameindex);
 		protoitem = ProtoItem_Index(table, func->protoindex);
-		proto = Proto_From_ProtoItem(protoitem, table);
+		proto = ProtoItem_To_TypeDesc(protoitem, table);
 		codeitem = CodeItem_Index(table, func->codeindex);
-		code = KFunc_New(func->locvars, codeitem->codes, codeitem->size);
+		code = KFunc_New(func->locvars, codeitem->codes, codeitem->size, proto);
 		Module_Add_Func(m, id->data, proto, code);
 		indexes[i].index = i;
 		indexes[i].func = code;
@@ -278,9 +275,7 @@ static void load_field(FieldItem *fld, AtomTable *table, Klass *klazz)
 	id = StringItem_Index(table, fld->nameindex);
 	debug("load field:'%s'", id->data);
 	type = TypeItem_Index(table, fld->typeindex);
-	//FIXME
-	desc = TypeDesc_New(0);
-	TypeItem_To_Desc(table, type, desc);
+	desc = TypeItem_To_Desc(type, table);
 	Klass_Add_Field(klazz, id->data, desc);
 }
 
@@ -288,15 +283,15 @@ static Object *load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
 {
 	StringItem *id;
 	ProtoItem *protoitem;
-	Proto *proto;
+	TypeDesc *proto;
 	CodeItem *codeitem;
 	Object *code;
 
 	id = StringItem_Index(table, mth->nameindex);
 	protoitem = ProtoItem_Index(table, mth->protoindex);
-	proto = Proto_From_ProtoItem(protoitem, table);
+	proto = ProtoItem_To_TypeDesc(protoitem, table);
 	codeitem = CodeItem_Index(table, mth->codeindex);
-	code = KFunc_New(mth->locvars, codeitem->codes, codeitem->size);
+	code = KFunc_New(mth->locvars, codeitem->codes, codeitem->size, proto);
 	Klass_Add_Method(klazz, id->data, proto, code);
 	return code;
 }
@@ -419,11 +414,11 @@ static void load_imethod(IMethItem *imth, AtomTable *table, Klass *klazz)
 {
 	StringItem *id;
 	ProtoItem *protoitem;
-	Proto *proto;
+	TypeDesc *proto;
 
 	id = StringItem_Index(table, imth->nameindex);
 	protoitem = ProtoItem_Index(table, imth->protoindex);
-	proto = Proto_From_ProtoItem(protoitem, table);
+	proto = ProtoItem_To_TypeDesc(protoitem, table);
 	Klass_Add_IMethod(klazz, id->data, proto);
 }
 

@@ -16,12 +16,11 @@ extern "C" {
 typedef struct codeobject {
 	OBJECT_HEAD
 	int flags;
-	Object *owner;
+	TypeDesc *proto;
 	union {
 		cfunc cf;
 		struct {
 			AtomTable *atbl;  /* for const access, not free it */
-			Proto *proto;     /* for runtime to check args */
 			Vector locvec;    /* local variables */
 			int locvars;
 			int size;
@@ -32,22 +31,24 @@ typedef struct codeobject {
 
 /* Exported APIs */
 extern Klass Code_Klass;
-Object *KFunc_New(int locvars, uint8 *codes, int size);
-Object *CFunc_New(cfunc cf);
+Object *KFunc_New(int locvars, uint8 *codes, int size, TypeDesc *proto);
+Object *CFunc_New(cfunc cf, TypeDesc *proto);
 void CodeObject_Free(Object *ob);
 #define CODE_ISKFUNC(code)  (((CodeObject *)(code))->flags == CODE_KLANG)
 #define CODE_ISCFUNC(code)  (((CodeObject *)(code))->flags == CODE_CLANG)
-static inline int KFunc_Argc(Object *ob)
+static inline int Func_Argc(Object *ob)
 {
 	CodeObject *code = (CodeObject *)ob;
-	Proto *p = code->kf.proto;
-	if (p->psz <= 0) return 0;
+	TypeDesc *p = code->proto;
+	assert(p->kind == TYPE_PROTO);
+	int sz = Vector_Size(p->pdesc);
+	if (sz <= 0) return 0;
 
-	TypeDesc *desc = p->pdesc + p->psz - 1;
+	TypeDesc *desc = Vector_Get(p->pdesc, sz - 1);
 	if (desc->varg) {
 		return 32;
 	} else {
-		return p->psz;
+		return sz;
 	}
 }
 int KFunc_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos);

@@ -3,7 +3,7 @@
 #define _KOALA_CODE_FORMAT_H_
 
 #include "atomtable.h"
-#include "koala_type.h"
+#include "typedesc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -177,9 +177,8 @@ typedef struct kimage {
 
 /*-------------------------------------------------------------------------*/
 
-int TypeItem_To_Desc(AtomTable *atbl, TypeItem *item, TypeDesc *desc);
-Proto *Proto_From_ProtoItem(ProtoItem *item, AtomTable *atbl);
-
+TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl);
+TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl);
 
 KImage *KImage_New(char *pkg_name);
 void KImage_Free(KImage *image);
@@ -191,15 +190,15 @@ void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst);
 	__KImage_Add_Var(image, name, desc, 0)
 #define KImage_Add_Const(image, name, desc) \
 	__KImage_Add_Var(image, name, desc, 1)
-int KImage_Add_Func(KImage *image, char *name, Proto *proto, int locvars,
+int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto, int locvars,
 	uint8 *codes, int csz);
 void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype,
-	TypeDesc *traits, int size);
+	Vector *traits);
 void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc);
-int KImage_Add_Method(KImage *image, char *clazz, char *name, Proto *proto,
+int KImage_Add_Method(KImage *image, char *clazz, char *name, TypeDesc *proto,
 	int locvars, uint8 *codes, int csz);
-void KImage_Add_Trait(KImage *image, char *name, TypeDesc *traits, int size);
-void KImage_Add_IMeth(KImage *image, char *trait, char *name, Proto *proto);
+void KImage_Add_Trait(KImage *image, char *name, Vector *traits);
+void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto);
 void KImage_Write_File(KImage *image, char *path);
 KImage *KImage_Read_File(char *path);
 void KImage_Show(KImage *image);
@@ -223,13 +222,13 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc);
 #define TypeItem_Index(table, index) \
 	(TypeItem *)AtomTable_Get(table, ITEM_TYPE, index)
 
-int TypeListItem_Get(AtomTable *table, TypeDesc *desc, int sz);
-int TypeListItem_Set(AtomTable *table, TypeDesc *desc, int sz);
+int TypeListItem_Get(AtomTable *table, Vector *desc);
+int TypeListItem_Set(AtomTable *table, Vector *desc);
 #define TypeListItem_Index(table, index) \
 	AtomTable_Get(table, ITEM_TYPELIST, index)
 
 int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex);
-int ProtoItem_Set(AtomTable *table, Proto *proto);
+int ProtoItem_Set(AtomTable *table, TypeDesc *proto);
 #define ProtoItem_Index(table, index) \
 	AtomTable_Get(table, ITEM_PROTO, index)
 

@@ -18,9 +18,9 @@ Object *Module_New(char *name, AtomTable *atbl)
 void Module_Free(Object *ob)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
-	free(m->name);
 	if (m->tuple) Tuple_Free(m->tuple);
 	STable_Fini(&m->stbl);
+	free(m->name);
 	free(m);
 }
 
@@ -31,18 +31,16 @@ int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst)
 	return sym ? 0 : -1;
 }
 
-int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
+int Module_Add_Func(Object *ob, char *name, TypeDesc *proto, Object *code)
 {
 	ModuleObject *m = OBJ_TO_MOD(ob);
 	Symbol *sym = STable_Add_Proto(&m->stbl, name, proto);
 	if (sym) {
 		CodeObject *co = (CodeObject *)code;
-		sym->ob = code;
 		if (CODE_ISKFUNC(code)) {
 			co->kf.atbl = m->stbl.atbl;
-			co->kf.proto = Proto_Dup(proto);
 		}
-		co->owner = (Object *)m;
+		sym->ob = code;
 		return 0;
 	}
 	return -1;
@@ -50,8 +48,10 @@ int Module_Add_Func(Object *ob, char *name, Proto *proto, Object *code)
 
 int Module_Add_CFunc(Object *ob, FuncDef *f)
 {
-	Proto *proto = Proto_New(f->rsz, f->rdesc, f->psz, f->pdesc);
-	Object *code = CFunc_New(f->fn);
+	Vector *rdesc = TypeString_To_Vector(f->rdesc);
+	Vector *pdesc = TypeString_To_Vector(f->pdesc);
+	TypeDesc *proto = TypeDesc_From_Proto(rdesc, pdesc);
+	Object *code = CFunc_New(f->fn, proto);
 	return Module_Add_Func(ob, f->name, proto, code);
 }
 
@@ -208,10 +208,10 @@ static void __to_stbl_fn(Symbol *sym, void *arg)
 		STable_Add_Var(stbl, sym->name, sym->desc, sym->access & ACCESS_CONST);
 	} else if (sym->kind == SYM_PROTO) {
 		//FIXME
-		STable_Add_Proto(stbl, sym->name, sym->desc->proto);
+		STable_Add_Proto(stbl, sym->name, sym->desc);
 	} else if (sym->kind == SYM_IPROTO) {
 		//FIXME
-		STable_Add_IProto(stbl, sym->name, sym->desc->proto);
+		STable_Add_IProto(stbl, sym->name, sym->desc);
 	} else {
 		assert(0);
 	}

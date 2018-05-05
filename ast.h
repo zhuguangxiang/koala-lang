@@ -2,9 +2,6 @@
 #ifndef _KOALA_AST_H_
 #define _KOALA_AST_H_
 
-#include "common.h"
-#include "vector.h"
-#include "koala_type.h"
 #include "symbol.h"
 
 #ifdef __cplusplus

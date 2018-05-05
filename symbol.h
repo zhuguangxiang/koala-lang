@@ -70,7 +70,7 @@ struct symbol {
 Symbol *Symbol_New(int kind);
 void Symbol_Free(Symbol *sym);
 Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
-Symbol *STable_Add_Proto(STable *stbl, char *name, Proto *proto);
+Symbol *STable_Add_Proto(STable *stbl, char *name, TypeDesc *proto);
 #define STable_Add_IProto(stbl, name, proto) ({ \
 	Symbol *__sym = STable_Add_Proto(stbl, name, proto); \
 	if (__sym) __sym->kind = SYM_IPROTO; \

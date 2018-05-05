@@ -203,11 +203,11 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type);
 void Fini_Klass(Klass *klazz);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 Symbol *Klass_Get_Symbol(Klass *klazz, char *name);
-int Klass_Add_Method(Klass *klazz, char *name, Proto *proto, Object *code);
+int Klass_Add_Method(Klass *klazz, char *name, TypeDesc *proto, Object *code);
 Object *Klass_Get_Method(Klass *klazz, char *name, Klass **trait);
 #define Klass_STable(ob) (&((Klass *)(ob))->stbl)
 void Check_Klass(Klass *klazz);
-int Klass_Add_IMethod(Klass *klazz, char *name, Proto *proto);
+int Klass_Add_IMethod(Klass *klazz, char *name, TypeDesc *proto);
 
 /*-------------------------------------------------------------------------*/
 /*
@@ -218,14 +218,18 @@ typedef Object *(*cfunc)(Object *ob, Object *args);
 
 typedef struct funcdef {
 	char *name;
-	int rsz;
 	char *rdesc;
-	int psz;
 	char *pdesc;
 	cfunc fn;
 } FuncDef;
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);
+
+typedef struct memberdef {
+	char *name;
+	TypeDesc *desc;
+	int offset;
+} MemeberDef;
 
 #ifdef __cplusplus
 }

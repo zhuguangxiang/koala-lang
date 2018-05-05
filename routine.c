@@ -121,7 +121,7 @@ static void start_kframe(Frame *f)
 	int sz = rt_stack_size(rt);
 	assert(f->argc <= sz);
 	//assert(sz == (KFunc_Argc(f->code) + 1) && (sz <= f->size));
-	int count = min(f->argc, KFunc_Argc(f->code)) + 1;
+	int count = min(f->argc, Func_Argc(f->code)) + 1;
 	int i = 0;
 	while (count-- > 0) {
 		val = rt_stack_pop(rt);
@@ -385,19 +385,21 @@ static TValue getfield(Object *ob, char *field)
 // 	return 0;
 // }
 
-static void check_args(Routine *rt, int argc, Proto *proto, char *name)
+static void check_args(Routine *rt, int argc, TypeDesc *proto, char *name)
 {
-	if (argc != proto->psz) {
-		error("%s argc: expected %d, but %d", name, proto->psz, argc);
+	assert(proto->kind == TYPE_PROTO);
+	int size = Vector_Size(proto->pdesc);
+	if (argc != size) {
+		error("%s argc: expected %d, but %d", name, size, argc);
 		exit(-1);
 	}
 
 	TValue *val;
 	TypeDesc *desc;
 	int pos = rt->top - 1;
-	for (int i = 0; i < proto->psz; i++) {
+	for (int i = 0; i < size; i++) {
 		val = rt_stack_get(rt, pos--);
-		desc = proto->pdesc + i;
+		desc = Vector_Get(proto->pdesc, i);
 		if (TValue_Check_TypeDesc(val, desc)) {
 			error("'%s' args type check failed", name);
 			exit(-1);
@@ -533,7 +535,7 @@ static void frame_loop(Frame *frame)
 				if (CODE_ISKFUNC(meth)) {
 					//FIXME: for c function
 					CodeObject *code = OB_TYPE_OF(meth, CodeObject, Code_Klass);
-					check_args(rt, argc, code->kf.proto, name);
+					check_args(rt, argc, code->proto, name);
 				}
 				frame_new(rt, rob, meth, argc);
 				if (!strcmp(name, "__init__")) {

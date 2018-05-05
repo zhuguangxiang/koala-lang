@@ -21,7 +21,8 @@ void Symbol_Free(Symbol *sym)
 		//FIXME:share with struct var
 		//TypeDesc_Free(sym->desc);
 	} else if (sym->kind == SYM_PROTO) {
-		if (sym->desc) TypeDesc_Free(sym->desc);
+		//FIXME: TypeDesc_Free
+		//if (sym->desc) TypeDesc_Free(sym->desc);
 		if (sym->ob) CodeObject_Free(sym->ob);
 		if (sym->ptr) codeblock_free(sym->ptr);
 	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
@@ -143,7 +144,7 @@ int STable_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc)
 	return 0;
 }
 
-Symbol *STable_Add_Proto(STable *stbl, char *name, Proto *proto)
+Symbol *STable_Add_Proto(STable *stbl, char *name, TypeDesc *proto)
 {
 	Symbol *sym = STable_Add_Symbol(stbl, name, SYM_PROTO, 0);
 	if (!sym) return NULL;
@@ -151,7 +152,7 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, Proto *proto)
 	int32 idx = ProtoItem_Set(stbl->atbl, proto);
 	assert(idx >= 0);
 	sym->descidx = idx;
-	sym->desc = TypeDesc_From_Proto(proto);
+	sym->desc = proto;
 	return sym;
 }
 
