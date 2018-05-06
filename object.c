@@ -4,6 +4,7 @@
 #include "moduleobject.h"
 #include "tupleobject.h"
 #include "koala_state.h"
+#include "hash.h"
 #include "log.h"
 
 TValue NilValue  = NIL_VALUE_INIT();
@@ -1035,4 +1036,32 @@ void TValue_Set_Value(TValue *val, TValue *v)
 		//assert(v->klazz == val->klazz);
 		val->ob = v->ob;
 	}
+}
+
+MemberDef *Member_New(int kind, char *name, TypeDesc *desc, int bconst)
+{
+	MemberDef *member = calloc(1, sizeof(MemberDef));
+	assert(member);
+	Init_HashNode(&member->hnode, member);
+	member->kind = kind;
+	member->name = name;
+	member->desc = desc;
+	member->bconst = bconst;
+	return member;
+}
+
+void Member_Free(MemberDef *m)
+{
+	//FIXME
+	free(m);
+}
+
+uint32 Member_Hash(MemberDef *m)
+{
+	return hash_string(m->name);
+}
+
+int Member_Equal(MemberDef *m1, MemberDef *m2)
+{
+	return !strcmp(m1->name, m2->name);
 }

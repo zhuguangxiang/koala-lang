@@ -11,17 +11,23 @@ extern "C" {
 typedef struct moduleobject {
 	OBJECT_HEAD
 	char *name;
-	STable stbl;
-	Object *tuple;
+	Object *consts;
+	HashTable *table;
+	int varcnt;
+	Object *values;
 } ModuleObject;
 
 /* Exported APIs */
 extern Klass Module_Klass;
 #define OBJ_TO_MOD(ob) OB_TYPE_OF(ob, ModuleObject, Module_Klass)
-Object *Module_New(char *name, AtomTable *atbl);
+Object *Module_New(char *name);
 void Module_Free(Object *ob);
+#define Module_Set_Consts(ob, _consts) do { \
+	ModuleObject *mob = (ModuleObject *)ob; \
+	mob->consts = _consts; \
+} while (0)
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst);
-int Module_Add_Func(Object *ob, char *name, TypeDesc *proto, Object *code);
+int Module_Add_Func(Object *ob, char *name, Object *code);
 int Module_Add_CFunc(Object *ob, FuncDef *f);
 int Module_Add_Class(Object *ob, Klass *klazz);
 int Module_Add_Trait(Object *ob, Klass *klazz);
@@ -32,11 +38,7 @@ Klass *Module_Get_Class(Object *ob, char *name);
 Klass *Module_Get_Trait(Object *ob, char *name);
 Klass *Module_Get_ClassOrTrait(Object *ob, char *name);
 int Module_Add_CFunctions(Object *ob, FuncDef *funcs);
-void Module_Show(Object *ob);
 #define Module_Name(ob) (((ModuleObject *)(ob))->name)
-#define Module_AtomTable(ob) (((ModuleObject *)(ob))->stbl.atbl)
-/* for compiler only */
-STable *Module_To_STable(Object *ob, AtomTable *atbl, char *path);
 
 #ifdef __cplusplus
 }

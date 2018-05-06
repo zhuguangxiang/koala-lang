@@ -19,6 +19,7 @@ Object *Tuple_New(int size)
 
 void Tuple_Free(Object *ob)
 {
+	if (!ob) return;
 	OB_ASSERT_KLASS(ob, Tuple_Klass);
 	free(ob);
 }

@@ -171,6 +171,7 @@ struct klass {
 	NumberFunctions *numops;
 	Vector traits;
 	STable stbl;
+	HashTable *table;
 	Vector lines;
 };
 
@@ -207,11 +208,40 @@ typedef struct funcdef {
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);
 
+#define MEMBER_VAR    1
+#define MEMBER_CODE   2
+#define MEMBER_PROTO  3
+#define MEMBER_CLASS  4
+#define MEMBER_TRAIT  5
+
 typedef struct memberdef {
+	HashNode hnode;
+	int kind;
 	char *name;
 	TypeDesc *desc;
-	int offset;
-} MemeberDef;
+	int bconst;
+	union {
+		int offset;
+		Object *code;
+		Klass *klazz;
+	};
+} MemberDef;
+
+MemberDef *Member_New(int kind, char *name, TypeDesc *desc, int bconst);
+void Member_Free(MemberDef *m);
+uint32 Member_Hash(MemberDef *m);
+int Member_Equal(MemberDef *m1, MemberDef *m2);
+
+#define Member_Var_New(name, desc, bconst) \
+	Member_New(MEMBER_VAR, name, desc, bconst)
+#define Member_Code_New(name, desc) \
+	Member_New(MEMBER_CODE, name, desc, 0)
+#define Member_Proto_New(name, desc) \
+	Member_New(MEMBER_PROTO, name, desc, 0)
+#define Member_Class_New(name) \
+	Member_New(MEMBER_CLASS, name, NULL, 0)
+#define Member_Trait_New(name) \
+	Member_New(MEMBER_TRAIT, name, NULL, 0)
 
 #ifdef __cplusplus
 }

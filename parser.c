@@ -284,6 +284,48 @@ static ParserUnit *parent_scope(ParserState *ps)
 }
 
 /*--------------------------------------------------------------------------*/
+
+struct path_stbl_struct {
+	char *path;
+	STable *stbl;
+};
+
+static void __to_stbl_fn(HashNode *hnode, void *arg)
+{
+	MemberDef *member = container_of(hnode, MemberDef, hnode);
+	struct path_stbl_struct *path_struct = arg;
+	STable *stbl = path_struct->stbl;
+	char *path = path_struct->path;
+
+	if (member->kind == MEMBER_CLASS || member->kind == MEMBER_TRAIT) {
+		Symbol *s = STable_Add_Symbol(stbl, member->name, SYM_STABLE, 0);
+		s->desc = TypeDesc_From_UserDef(strdup(path), member->name);
+		s->ptr = STable_New(stbl->atbl);
+		struct path_stbl_struct tmp = {path, s->ptr};
+		HashTable_Traverse(member->klazz->table, __to_stbl_fn, &tmp);
+	} else if (member->kind == MEMBER_VAR) {
+		STable_Add_Var(stbl, member->name, member->desc, member->bconst);
+	} else if (member->kind == MEMBER_CODE) {
+		//FIXME
+		STable_Add_Proto(stbl, member->name, member->desc);
+	} else if (member->kind == MEMBER_PROTO) {
+		//FIXME
+		STable_Add_IProto(stbl, member->name, member->desc);
+	} else {
+		assert(0);
+	}
+}
+
+/* for compiler only */
+STable *Module_To_STable(Object *ob, AtomTable *atbl, char *path)
+{
+	ModuleObject *m = OBJ_TO_MOD(ob);
+	STable *stbl = STable_New(atbl);
+	struct path_stbl_struct path_struct = {path, stbl};
+	HashTable_Traverse(m->table, __to_stbl_fn, &path_struct);
+	return stbl;
+}
+
 // API used by yacc
 
 static Symbol *add_import(STable *stbl, char *id, char *path)

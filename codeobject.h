@@ -21,6 +21,7 @@ typedef struct codeobject {
 		cfunc cf;
 		struct {
 			AtomTable *atbl;  /* for const access, not free it */
+			Object *consts;
 			Vector locvec;    /* local variables */
 			int locvars;
 			int size;
@@ -31,6 +32,7 @@ typedef struct codeobject {
 
 /* Exported APIs */
 extern Klass Code_Klass;
+#define OBJ_TO_CODE(ob) OB_TYPE_OF(ob, CodeObject, Code_Klass)
 Object *KFunc_New(int locvars, uint8 *codes, int size, TypeDesc *proto);
 Object *CFunc_New(cfunc cf, TypeDesc *proto);
 void CodeObject_Free(Object *ob);

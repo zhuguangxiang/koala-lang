@@ -1,6 +1,8 @@
 
 #include "koala_state.h"
 #include "moduleobject.h"
+#include "stringobject.h"
+#include "tupleobject.h"
 #include "mod_lang.h"
 #include "mod_io.h"
 #include "routine.h"
@@ -58,7 +60,7 @@ static int add_module(char *path, Object *ob)
 
 Object *Koala_New_Module(char *name, char *path)
 {
-	Object *ob = Module_New(name, NULL);
+	Object *ob = Module_New(name);
 	if (add_module(path, ob) < 0) {
 		Module_Free(ob);
 		return NULL;
@@ -180,7 +182,7 @@ static void load_functions(AtomTable *table, Object *m)
 		proto = ProtoItem_To_TypeDesc(protoitem, table);
 		codeitem = CodeItem_Index(table, func->codeindex);
 		code = KFunc_New(func->locvars, codeitem->codes, codeitem->size, proto);
-		Module_Add_Func(m, id->data, proto, code);
+		Module_Add_Func(m, id->data, code);
 		indexes[i].index = i;
 		indexes[i].func = code;
 	}
@@ -482,13 +484,49 @@ static void load_traits(AtomTable *table, Object *m)
 	}
 }
 
+static Object *__get_consts(KImage *image)
+{
+	Vector *vec = image->table->items + ITEM_CONST;
+	Object *tuple = Tuple_New(Vector_Size(vec));
+	TValue value;
+	StringItem *stritem;
+	ConstItem *item;
+	Vector_ForEach(item, vec) {
+		switch (item->type) {
+			case CONST_INT: {
+				setivalue(&value, item->ival);
+				break;
+			}
+			case CONST_FLOAT: {
+				setfltvalue(&value, item->fval);
+				break;
+			}
+			case CONST_BOOL: {
+				setbvalue(&value, item->bval);
+				break;
+			}
+			case CONST_STRING: {
+				stritem = StringItem_Index(image->table, item->index);
+				setobjvalue(&value, String_New(stritem->data));
+				break;
+			}
+			default: {
+				assert(0);
+				break;
+			}
+		}
+		Tuple_Set(tuple, i, &value);
+	}
+	return tuple;
+}
+
 static Object *module_from_image(KImage *image)
 {
 	AtomTable *table = image->table;
 	char *package = image->package;
 	debug("load module '%s' from image", package);
-	Object *m = Module_New(package, table);
-
+	Object *m = Module_New(package);
+	Module_Set_Consts(m, __get_consts(image));
 	load_variables(table, m);
 	load_functions(table, m);
 	load_traits(table, m);
