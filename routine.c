@@ -86,7 +86,7 @@ static void start_cframe(Frame *f)
 	assert(f->argc <= sz);
 
 	val = rt_stack_pop(rt);
-	obj = VALUE_OBJECT(&val);
+	obj = val.ob;
 	if (f->argc > 0) args = Tuple_New(f->argc);
 
 	int count = f->argc;
@@ -288,28 +288,15 @@ static inline void store(Frame *f, int index, TValue *val)
 	VALUE_ASSERT(val);
 	assert(index < f->size);
 	assert(!TValue_Check(f->locvars + index, val));
-	int type = VALUE_TYPE(&f->locvars[index]);
-	switch (type) {
-		case TYPE_INT: {
-			f->locvars[index].ival = val->ival;
-			break;
-		}
-		case TYPE_FLOAT: {
-			f->locvars[index].fval = val->fval;
-			break;
-		}
-		case TYPE_BOOL: {
-			f->locvars[index].bval = val->bval;
-			break;
-		}
-		case TYPE_OBJECT: {
-			f->locvars[index].ob = val->ob;
-			break;
-		}
-		default: {
-			assertm(0, "unsupport value's type: %d", type);
-			break;
-		}
+	TValue *v = &f->locvars[index];
+	if (v->klazz == &Int_Klass) {
+		v->ival = val->ival;
+	} else if (v->klazz == &Float_Klass) {
+		v->fval = val->fval;
+	} else if (v->klazz == &Bool_Klass) {
+		v->bval = val->bval;
+	} else {
+		v->ob = val->ob;
 	}
 }
 
@@ -452,7 +439,7 @@ static void frame_loop(Frame *frame)
 			case OP_LOADM: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *path = String_RawString(VALUE_OBJECT(&val));
+				char *path = String_RawString(val.ob);
 				debug("load module '%s'", path);
 				ob = Koala_Load_Module(path);
 				assert(ob);
@@ -462,7 +449,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_GETM: {
 				val = TOP();
-				ob = VALUE_OBJECT(&val);
+				ob = val.ob;
 				if (!OB_CHECK_KLASS(ob, Module_Klass)) {
 					val = POP();
 					Klass *klazz = OB_KLASS(ob);
@@ -493,10 +480,10 @@ static void frame_loop(Frame *frame)
 			case OP_GETFIELD: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *field = String_RawString(VALUE_OBJECT(&val));
+				char *field = String_RawString(val.ob);
 				debug("getfield '%s'", field);
 				val = POP();
-				ob = VALUE_OBJECT(&val);
+				ob = val.ob;
 				val = getfield(ob, field);
 				PUSH(&val);
 				//Klass *k = (Klass *)(((CodeObject *)(frame->code))->owner);
@@ -506,10 +493,10 @@ static void frame_loop(Frame *frame)
 			case OP_SETFIELD: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *field = String_RawString(VALUE_OBJECT(&val));
+				char *field = String_RawString(val.ob);
 				debug("setfield '%s'", field);
 				val = POP();
-				ob = VALUE_OBJECT(&val);
+				ob = val.ob;
 				val = POP();
 				VALUE_ASSERT(&val);
 				setfield(ob, field, &val);
@@ -518,11 +505,11 @@ static void frame_loop(Frame *frame)
 			case OP_CALL: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *name = String_RawString(VALUE_OBJECT(&val));
+				char *name = String_RawString(val.ob);
 				int argc = fetch_2bytes(frame, code);
 				debug("OP_CALL, %s, argc:%d", name, argc);
 				val = TOP();
-				ob = VALUE_OBJECT(&val);
+				ob = val.ob;
 				//assert(!check_virtual_call(&val, name));
 				Object *rob = NULL;
 				Object *meth = getcode(ob, name, &rob);
@@ -696,11 +683,11 @@ static void frame_loop(Frame *frame)
 			case OP_NEW: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *name = String_RawString(VALUE_OBJECT(&val));
+				char *name = String_RawString(val.ob);
 				val = POP();
 				int argc = fetch_2bytes(frame, code);
 				debug("OP_NEW, %s, argc:%d", name, argc);
-				ob = VALUE_OBJECT(&val);
+				ob = val.ob;
 				Klass *klazz = Module_Get_Class(ob, name);
 				assert(klazz);
 				assert(klazz != &Klass_Klass);

@@ -142,8 +142,8 @@ void Init_String_Klass(void)
 
 static int string_equal(TValue *v1, TValue *v2)
 {
-	Object *ob1 = VALUE_OBJECT(v1);
-	Object *ob2 = VALUE_OBJECT(v2);
+	Object *ob1 = v1->ob;
+	Object *ob2 = v2->ob;
 	StringObject *s1 = OB_TYPE_OF(ob1, StringObject, String_Klass);
 	StringObject *s2 = OB_TYPE_OF(ob2, StringObject, String_Klass);
 	return !strcmp(s1->str, s2->str);
@@ -151,7 +151,7 @@ static int string_equal(TValue *v1, TValue *v2)
 
 static uint32 string_hash(TValue *v)
 {
-	Object *ob = VALUE_OBJECT(v);
+	Object *ob = v->ob;
 	StringObject *s = OB_TYPE_OF(ob, StringObject, String_Klass);
 	return hash_string(s->str);
 }

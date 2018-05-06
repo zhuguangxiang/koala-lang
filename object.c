@@ -12,82 +12,79 @@ TValue FalseValue = BOOL_VALUE_INIT(0);
 
 static void va_integer_build(TValue *v, va_list *ap)
 {
-	v->type = TYPE_INT;
+	v->klazz = &Int_Klass;
 	v->ival = (int64)va_arg(*ap, uint32);
 }
 
 static void va_integer_parse(TValue *v, va_list *ap)
 {
-	assert(VALUE_TYPE(v) == TYPE_INT);
+	assert(v->klazz == &Int_Klass);
 	int32 *i = va_arg(*ap, int32 *);
 	*i = (int32)VALUE_INT(v);
 }
 
 static void va_long_build(TValue *v, va_list *ap)
 {
-	v->type = TYPE_INT;
+	v->klazz = &Int_Klass;
 	v->ival = va_arg(*ap, uint64);
 }
 
 static void va_long_parse(TValue *v, va_list *ap)
 {
-	assert(VALUE_TYPE(v) == TYPE_INT);
+	assert(v->klazz == &Int_Klass);
 	int64 *i = va_arg(*ap, int64 *);
 	*i = VALUE_INT(v);
 }
 
 static void va_float_build(TValue *v, va_list *ap)
 {
-	v->type = TYPE_FLOAT;
+	v->klazz = &Float_Klass;
 	v->fval = va_arg(*ap, float64);
 }
 
 static void va_float_parse(TValue *v, va_list *ap)
 {
-	assert(VALUE_TYPE(v) == TYPE_FLOAT);
+	assert(v->klazz == &Float_Klass);
 	float64 *f = va_arg(*ap, float64 *);
 	*f = VALUE_FLOAT(v);
 }
 
 static void va_bool_build(TValue *v, va_list *ap)
 {
-	v->type = TYPE_BOOL;
+	v->klazz = &Bool_Klass;
 	v->bval = va_arg(*ap, int);
 }
 
 static void va_bool_parse(TValue *v, va_list *ap)
 {
-	assert(VALUE_TYPE(v) == TYPE_BOOL);
+	assert(v->klazz == &Bool_Klass);
 	int *i = va_arg(*ap, int *);
 	*i = VALUE_BOOL(v);
 }
 
 static void va_string_build(TValue *v, va_list *ap)
 {
-	v->type = TYPE_OBJECT;
+	v->klazz = &String_Klass;
 	v->ob = String_New(va_arg(*ap, char *));
 }
 
 static void va_string_parse(TValue *v, va_list *ap)
 {
-	assert(VALUE_TYPE(v) == TYPE_OBJECT);
-	Object *ob = VALUE_OBJECT(v);
+	assert(v->klazz == &String_Klass);
 	char **str = va_arg(*ap, char **);
-	*str = String_RawString(ob);
+	*str = String_RawString(v->ob);
 }
 
 static void va_object_build(TValue *v, va_list *ap)
 {
-	v->type = TYPE_OBJECT;
 	v->ob = va_arg(*ap, Object *);
 	v->klazz = OB_KLASS(v->ob);
 }
 
 static void va_object_parse(TValue *v, va_list *ap)
 {
-	assert(VALUE_TYPE(v) == TYPE_OBJECT);
 	Object **o = va_arg(*ap, Object **);
-	*o = VALUE_OBJECT(v);
+	*o = v->ob;
 }
 
 typedef void (*va_build_t)(TValue *v, va_list *ap);
@@ -272,7 +269,7 @@ static void object_free(Object *ob)
 
 static uint32 object_hash(TValue *v)
 {
-	Object *ob = VALUE_OBJECT(v);
+	Object *ob = v->ob;
 	Check_Klass(OB_KLASS(ob));
 	assert(OB_Head(ob) && OB_Head(ob) == ob);
 	return hash_uint32((uint32)OB_Head(ob), 32);
@@ -280,16 +277,16 @@ static uint32 object_hash(TValue *v)
 
 static int object_equal(TValue *v1, TValue *v2)
 {
-	Object *ob1 = VALUE_OBJECT(v1);
+	Object *ob1 = v1->ob;
 	Check_Klass(OB_KLASS(ob1));
-	Object *ob2 = VALUE_OBJECT(v2);
+	Object *ob2 = v2->ob;
 	Check_Klass(OB_KLASS(ob2));
 	return OB_Head(ob1) == OB_Head(ob2);
 }
 
 static Object *object_tostring(TValue *v)
 {
-	Object *ob = VALUE_OBJECT(v);
+	Object *ob = v->ob;
 	assert(OB_Head(ob) && OB_Head(ob) == ob);
 	Klass *klazz = OB_KLASS(OB_Head(ob));
 	char buf[128];
@@ -712,37 +709,14 @@ Object *Object_Get_Method2(Object *ob, char *name)
 
 /*---------------------------------------------------------------------------*/
 
-static int NilValue_Print(char *buf, int sz, TValue *val)
+static int object_print(char *buf, int sz, TValue *val)
 {
-	UNUSED_PARAMETER(val);
-	return snprintf(buf, sz, "(nil)");
-}
-
-static int IntValue_Print(char *buf, int sz, TValue *val)
-{
-	return snprintf(buf, sz, "%lld", VALUE_INT(val));
-}
-
-static int FltValue_Print(char *buf, int sz, TValue *val)
-{
-	return snprintf(buf, sz, "%.16lf", VALUE_FLOAT(val));
-}
-
-static int BoolValue_Print(char *buf, int sz, TValue *val)
-{
-	return snprintf(buf, sz, "%s", VALUE_BOOL(val) ? "true" : "false");
-}
-
-
-static int ObjValue_Print(char *buf, int sz, TValue *val)
-{
-	Object *ob = VALUE_OBJECT(val);
+	Object *ob = val->ob;
 	Klass *klazz = OB_KLASS(ob);
 	ob = klazz->ob_tostr(val);
 	OB_ASSERT_KLASS(ob, Tuple_Klass);
 	TValue v = Tuple_Get(ob, 0);
-	ob = VALUE_OBJECT(&v);
-	return snprintf(buf, sz, "%s", String_RawString(ob));
+	return snprintf(buf, sz, "%s", String_RawString(v.ob));
 }
 
 #if 0
@@ -813,31 +787,17 @@ int TValue_Print(char *buf, int sz, TValue *val, int escape)
 		return 0;
 	}
 
-	int count = 0;
-	switch (val->type) {
-		case TYPE_NIL: {
-			count = NilValue_Print(buf, sz, val);
-			break;
-		}
-		case TYPE_INT: {
-			count = IntValue_Print(buf, sz, val);
-			break;
-		}
-		case TYPE_FLOAT: {
-			count = FltValue_Print(buf, sz, val);
-			break;
-		}
-		case TYPE_BOOL: {
-			count = BoolValue_Print(buf, sz, val);
-			break;
-		}
-		case TYPE_OBJECT: {
-			count = ObjValue_Print(buf, sz, val);
-			break;
-		}
-		default: {
-			assert(0);
-		}
+	int count;
+	if (!val->klazz) {
+		count = snprintf(buf, sz, "(nil)");
+	} else if (val->klazz == &Int_Klass) {
+		count = snprintf(buf, sz, "%lld", VALUE_INT(val));
+	} else if (val->klazz == &Float_Klass) {
+		count = snprintf(buf, sz, "%.16lf", VALUE_FLOAT(val));
+	} else if (val->klazz == &Bool_Klass) {
+		count = snprintf(buf, sz, "%s", VALUE_BOOL(val) ? "true" : "false");
+	} else {
+		count = object_print(buf, sz, val);
 	}
 	return count;
 }
@@ -912,33 +872,38 @@ static int check_interface_inheritance(Klass *intf, Klass *klz)
 
 int TValue_Check(TValue *v1, TValue *v2)
 {
-	if (v1->type != v2->type) {
-		error("v1's type %d vs v2's type %d", v1->type, v2->type);
-		return -1;
-	}
+	//FIXME
+	assert(v1->klazz);
+	assert(v2->klazz);
+	return 0;
 
-	if (v1->type == TYPE_OBJECT) {
-		if (v1->klazz == NULL || v2->klazz == NULL) {
-			error("object klazz is not set");
-			return -1;
-		}
-		if (v1->klazz != v2->klazz) {
-			// if (!(v1->klazz->flags & FLAGS_INTF) &&
-			// 	!(v2->klazz->flags & FLAGS_INTF)) {
-			// 	return check_class_inheritance(v1->klazz, v2->klazz);
-			// } else if ((v1->klazz->flags & FLAGS_INTF) &&
-			// 	!(v2->klazz->flags & FLAGS_INTF)) {
-			// 	return check_interface_inheritance(v1->klazz, v2->klazz);
-			// } else if ((v1->klazz->flags & FLAGS_INTF) &&
-			// 	(v2->klazz->flags & FLAGS_INTF)) {
-			// 	return check_interface_inheritance(v1->klazz, OB_KLASS(v2->ob));
-			// } else {
-			// 	assertm(0, "class '%s' <- intf '%s' is not allowed,
-			// 		use typeof() to down convertion", v1->klazz->name, v2->klazz->name);
-			// 	return -1;
-			// }
-		}
-	}
+	// if (v1->klazz != v2->klazz) {
+	// 	error("v1's type %s vs v2's type %s", v1->klazz->name, v2->klazz->name);
+	// 	return -1;
+	// }
+
+	// if (v1->type == TYPE_OBJECT) {
+	// 	if (v1->klazz == NULL || v2->klazz == NULL) {
+	// 		error("object klazz is not set");
+	// 		return -1;
+	// 	}
+	// 	if (v1->klazz != v2->klazz) {
+	// 		// if (!(v1->klazz->flags & FLAGS_INTF) &&
+	// 		// 	!(v2->klazz->flags & FLAGS_INTF)) {
+	// 		// 	return check_class_inheritance(v1->klazz, v2->klazz);
+	// 		// } else if ((v1->klazz->flags & FLAGS_INTF) &&
+	// 		// 	!(v2->klazz->flags & FLAGS_INTF)) {
+	// 		// 	return check_interface_inheritance(v1->klazz, v2->klazz);
+	// 		// } else if ((v1->klazz->flags & FLAGS_INTF) &&
+	// 		// 	(v2->klazz->flags & FLAGS_INTF)) {
+	// 		// 	return check_interface_inheritance(v1->klazz, OB_KLASS(v2->ob));
+	// 		// } else {
+	// 		// 	assertm(0, "class '%s' <- intf '%s' is not allowed,
+	// 		// 		use typeof() to down convertion", v1->klazz->name, v2->klazz->name);
+	// 		// 	return -1;
+	// 		// }
+	// 	}
+	// }
 	return 0;
 }
 
@@ -953,13 +918,12 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 			if (desc->primitive == PRIMITIVE_BOOL && VALUE_ISBOOL(val))
 				return 0;
 			if (desc->primitive == PRIMITIVE_STRING) {
-				Object *ob = VALUE_OBJECT(val);
+				Object *ob = val->ob;
 				if (OB_CHECK_KLASS(ob, String_Klass)) return 0;
 			}
 			break;
 		}
 		case TYPE_USERDEF: {
-			if (!VALUE_ISOBJECT(val)) return -1;
 			Object *ob = OB_KLASS(val->ob)->module;
 			Klass *klazz = Koala_Get_Klass(ob, desc->path, desc->type);
 			if (!klazz) return -1;
@@ -1051,34 +1015,24 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 
 void TValue_Set_Value(TValue *val, TValue *v)
 {
-	switch (v->type) {
-		case TYPE_INT: {
-			VALUE_ASSERT_INT(val);
-			val->ival = v->ival;
-			break;
-		}
-		case TYPE_FLOAT: {
-			VALUE_ASSERT_FLOAT(val);
-			val->fval = v->fval;
-			break;
-		}
-		case TYPE_BOOL: {
-			VALUE_ASSERT_BOOL(val);
-			val->bval = v->bval;
-			break;
-		}
-		case TYPE_OBJECT: {
-			if (VALUE_ISNIL(val)) {
-				debug("TValue is nil");
-				*val = *v;
-			} else {
-				VALUE_ASSERT_OBJECT(val);
-				val->ob = v->ob;
-			}
-			break;
-		}
-		default: {
-			assert(0);
-		}
+	if (VALUE_ISNIL(val)) {
+		debug("TValue is nil");
+		*val = *v;
+		return;
+	}
+
+	if (v->klazz == &Int_Klass) {
+		VALUE_ASSERT_INT(val);
+		val->ival = v->ival;
+	} else if (v->klazz == &Float_Klass) {
+		VALUE_ASSERT_FLOAT(val);
+		val->fval = v->fval;
+	} else if (v->klazz == &Bool_Klass) {
+		VALUE_ASSERT_BOOL(val);
+		val->bval = v->bval;
+	} else {
+		//FIXME:
+		//assert(v->klazz == val->klazz);
+		val->ob = v->ob;
 	}
 }

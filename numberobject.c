@@ -70,7 +70,7 @@ TValue Int_Add_Float(TValue *v1, TValue *v2)
 TValue Int_Add_String(TValue *v1, TValue *v2)
 {
 	TValue v;
-	StringObject *strobj = (StringObject *)VALUE_OBJECT(v2);
+	StringObject *strobj = (StringObject *)v2->ob;
 	uint64 i = 0;
 	float64 f = 0.0L;
 	if (!str2int(strobj->str, &i)) {
@@ -116,6 +116,15 @@ Klass Int_Klass = {
 Klass Float_Klass = {
 	OBJECT_HEAD_INIT(&Float_Klass, &Klass_Klass)
 	.name = "Float",
+	.ob_hash = NULL,
+	.ob_equal = NULL,
+	.ob_tostr = NULL,
+	.numops = NULL,
+};
+
+Klass Bool_Klass = {
+	OBJECT_HEAD_INIT(&Bool_Klass, &Klass_Klass)
+	.name = "Bool",
 	.ob_hash = NULL,
 	.ob_equal = NULL,
 	.ob_tostr = NULL,

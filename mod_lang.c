@@ -15,7 +15,7 @@ static Object *__lang_typeof(Object *ob, Object *args)
 	if (size == 1) {
 		debug("typeof(obj)");
 		TValue val = Tuple_Get(args, 0);
-		Object *o = VALUE_OBJECT(&val);
+		Object *o = val.ob;
 		return Tuple_Build("O", OB_KLASS(o));
 	} else {
 		assert(size == 2);

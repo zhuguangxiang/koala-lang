@@ -11,57 +11,20 @@ struct entry {
 	TValue val;
 };
 
-static uint32 Integer_Hash(TValue *v)
-{
-	return hash_uint32((uint32)VALUE_INT(v), 0);
-}
-
-static int Ineger_Compare(TValue *v1, TValue *v2)
-{
-	return VALUE_INT(v1) - VALUE_INT(v2);
-}
-
 static int entry_equal(void *k1, void *k2)
 {
 	struct entry *e1 = k1;
 	struct entry *e2 = k2;
 	TValue *v1 = &e1->key;
 	TValue *v2 = &e2->key;
-
-	if (VALUE_ISINT(v1) && VALUE_ISINT(v2)) {
-		return !Ineger_Compare(v1, v2);
-	}
-
-	if (VALUE_ISOBJECT(v1) && VALUE_ISOBJECT(v2)) {
-		Object *o1 = VALUE_OBJECT(v1);
-		Object *o2 = VALUE_OBJECT(v2);
-		if (OB_KLASS(o1) == OB_KLASS(o2)) {
-			return OB_KLASS(o1)->ob_equal(v1, v2);
-		} else {
-			warn("the two key types are not the same.");
-			return 0;
-		}
-	}
-
-	warn("unsupported type as table's key");
-	return 0;
+	return v1->klazz->ob_equal(v1, v2);
 }
 
 static uint32 entry_hash(void *k)
 {
 	struct entry *e = k;
 	TValue *v = &e->key;
-
-	if (VALUE_ISINT(v)) {
-		return Integer_Hash(v);
-	}
-
-	if (VALUE_ISOBJECT(v)) {
-		return OB_KLASS(VALUE_OBJECT(v))->ob_hash(v);
-	}
-
-	warn("unsupported type for hashing");
-	return 0;
+	return v->klazz->ob_hash(v);
 }
 
 static struct entry *new_entry(TValue *key, TValue *value)
@@ -178,18 +141,20 @@ void Init_Table_Klass(void)
 
 static void entry_visit(TValue *key, TValue *val, void *arg)
 {
+	UNUSED_PARAMETER(key);
+	UNUSED_PARAMETER(val);
 	UNUSED_PARAMETER(arg);
-	Object *ob;
+	// Object *ob;
 
-	if (VALUE_ISOBJECT(key)) {
-		ob = VALUE_OBJECT(key);
-		OB_KLASS(ob)->ob_mark(ob);
-	}
+	// if (VALUE_ISOBJECT(key)) {
+	// 	ob = VALUE_OBJECT(key);
+	// 	OB_KLASS(ob)->ob_mark(ob);
+	// }
 
-	if (VALUE_ISOBJECT(val)) {
-		ob = VALUE_OBJECT(val);
-		OB_KLASS(ob)->ob_mark(ob);
-	}
+	// if (VALUE_ISOBJECT(val)) {
+	// 	ob = VALUE_OBJECT(val);
+	// 	OB_KLASS(ob)->ob_mark(ob);
+	// }
 }
 
 static void table_mark(Object *ob)

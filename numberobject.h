@@ -10,6 +10,7 @@ extern "C" {
 
 extern Klass Int_Klass;
 extern Klass Float_Klass;
+extern Klass Bool_Klass;
 
 #ifdef __cplusplus
 }
