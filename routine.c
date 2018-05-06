@@ -5,6 +5,7 @@
 #include "tupleobject.h"
 #include "stringobject.h"
 #include "koala_state.h"
+#include "klc.h"
 #include "opcode.h"
 #include "log.h"
 
@@ -35,14 +36,14 @@ static void frame_new(Routine *rt, Object *ob, Object *cob, int argc)
 
 	debug("loc vars : %d", size);
 	if (size > 0 && Vector_Size(&code->kf.locvec) > 0) {
-		Symbol *item;
+		MemberDef *item;
 		debug("------Set LocVar's Type-------");
 		Vector_ForEach(item, &code->kf.locvec) {
 			char *typestr = TypeDesc_ToString(item->desc);
-			debug("set [%d] as '%s' type", item->index, typestr);
+			debug("set [%d] as '%s' type", item->offset, typestr);
 			free(typestr); //FIXME
-			assert(item->index >= 0 && item->index < size);
-			TValue_Set_TypeDesc(f->locvars + item->index, item->desc, ob);
+			assert(item->offset >= 0 && item->offset < size);
+			TValue_Set_TypeDesc(f->locvars + item->offset, item->desc, ob);
 		}
 		debug("------Set LocVar's Type End---");
 	}
@@ -245,36 +246,9 @@ static inline uint8 fetch_code(Frame *frame, CodeObject *code)
 	return fetch_byte(frame, code);
 }
 
-static TValue index_const(int index, AtomTable *atbl)
+static inline TValue index_const(int index, Object *consts)
 {
-	TValue res = NilValue;
-	ConstItem *k = AtomTable_Get(atbl, ITEM_CONST, index);
-
-	switch (k->type) {
-		case CONST_INT: {
-			setivalue(&res, k->ival);
-			break;
-		}
-		case CONST_FLOAT: {
-			setfltvalue(&res, k->fval);
-			break;
-		}
-		case CONST_BOOL: {
-			setbvalue(&res, k->bval);
-			break;
-		}
-		case CONST_STRING: {
-			StringItem *item;
-			item = AtomTable_Get(atbl, ITEM_STRING, k->index);
-			setobjvalue(&res, String_New(item->data));
-			break;
-		}
-		default: {
-			assertm(0, "unknown const type:%d\n", k->type);
-			break;
-		}
-	}
-	return res;
+	return Tuple_Get(consts, index);
 }
 
 static inline TValue load(Frame *f, int index)
@@ -415,7 +389,7 @@ static void frame_loop(Frame *frame)
 	int loopflag = 1;
 	Routine *rt = frame->rt;
 	CodeObject *code = (CodeObject *)frame->code;
-	AtomTable *atbl = code->kf.atbl;
+	Object *consts = code->kf.consts;
 
 	uint8 inst;
 	int32 index;
@@ -432,13 +406,13 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_LOADK: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
+				val = index_const(index, consts);
 				PUSH(&val);
 				break;
 			}
 			case OP_LOADM: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
+				val = index_const(index, consts);
 				char *path = String_RawString(val.ob);
 				debug("load module '%s'", path);
 				ob = Koala_Load_Module(path);
@@ -479,7 +453,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_GETFIELD: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
+				val = index_const(index, consts);
 				char *field = String_RawString(val.ob);
 				debug("getfield '%s'", field);
 				val = POP();
@@ -492,7 +466,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_SETFIELD: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
+				val = index_const(index, consts);
 				char *field = String_RawString(val.ob);
 				debug("setfield '%s'", field);
 				val = POP();
@@ -504,7 +478,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_CALL: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
+				val = index_const(index, consts);
 				char *name = String_RawString(val.ob);
 				int argc = fetch_2bytes(frame, code);
 				debug("OP_CALL, %s, argc:%d", name, argc);
@@ -682,7 +656,7 @@ static void frame_loop(Frame *frame)
 			}
 			case OP_NEW: {
 				index = fetch_4bytes(frame, code);
-				val = index_const(index, atbl);
+				val = index_const(index, consts);
 				char *name = String_RawString(val.ob);
 				val = POP();
 				int argc = fetch_2bytes(frame, code);

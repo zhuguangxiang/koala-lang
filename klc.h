@@ -113,6 +113,9 @@ typedef struct local_var_item {
 	int16 index;      //->Index of FuncItem or MethodItem
 } LocVarItem;
 
+#define ACCESS_PUBLIC   0
+#define ACCESS_PRIVATE  (1 << 0)
+#define ACCESS_CONST    (1 << 1)
 typedef struct var_item {
 	int32 nameindex;  //->StringItem
 	int32 typeindex;  //->TypeItem

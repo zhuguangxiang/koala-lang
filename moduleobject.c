@@ -85,6 +85,7 @@ int Module_Add_Class(Object *ob, Klass *klazz)
 	if (!res) {
 		member->klazz = klazz;
 		klazz->module = ob;
+		klazz->consts = m->consts;
 		return 0;
 	} else {
 		Member_Free(member);
@@ -100,6 +101,7 @@ int Module_Add_Trait(Object *ob, Klass *klazz)
 	if (!res) {
 		member->klazz = klazz;
 		klazz->module = ob;
+		klazz->consts = m->consts;
 		return 0;
 	} else {
 		Member_Free(member);

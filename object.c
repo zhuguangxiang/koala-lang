@@ -322,6 +322,7 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 	klazz->ob_hash  = object_hash;
 	klazz->ob_equal = object_equal;
 	klazz->ob_tostr = object_tostring;
+	klazz->varcnt = 1;
 	Vector_Init(&klazz->traits);
 	Vector_Concat(&klazz->traits, traits);
 
@@ -342,7 +343,8 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 
 void Fini_Klass(Klass *klazz)
 {
-	STable_Fini(&klazz->stbl);
+	UNUSED_PARAMETER(klazz);
+	// STable_Fini(&klazz->stbl);
 }
 
 void Check_Klass(Klass *klazz)
@@ -353,46 +355,74 @@ void Check_Klass(Klass *klazz)
 	}
 }
 
+static HashTable *__get_table(Klass *klazz)
+{
+	if (!klazz->table) {
+		HashInfo hashinfo = {
+			.hash = (ht_hashfunc)Member_Hash,
+			.equal = (ht_equalfunc)Member_Equal
+		};
+		klazz->table = HashTable_New(&hashinfo);
+	}
+	return klazz->table;
+}
+
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
 {
 	Check_Klass(klazz);
-	Symbol *sym = STable_Add_Var(&klazz->stbl, name, desc, 0);
-	klazz->itemsize++;
-	return sym ? 0 : -1;
-}
-
-int Klass_Add_Method(Klass *klazz, char *name, TypeDesc *proto, Object *code)
-{
-	Check_Klass(klazz);
-	Symbol *sym = STable_Add_Proto(&klazz->stbl, name, proto);
-	if (sym) {
-		CodeObject *co = (CodeObject *)code;
-		if (CODE_ISKFUNC(code)) {
-			co->kf.atbl = klazz->stbl.atbl;
-		}
-		sym->ob = code;
+	MemberDef *member = Member_Var_New(name, desc, 0);
+	int res = HashTable_Insert(__get_table(klazz), &member->hnode);
+	if (!res) {
+		member->offset = klazz->varcnt++;
+		klazz->itemsize++;
 		return 0;
+	} else {
+		Member_Free(member);
+		return -1;
 	}
-	return -1;
 }
 
-int Klass_Add_IMethod(Klass *klazz, char *name, TypeDesc *proto)
+int Klass_Add_Method(Klass *klazz, char *name, Object *code)
 {
 	Check_Klass(klazz);
-	Symbol *sym = STable_Add_IProto(&klazz->stbl, name, proto);
-	return sym ? 0 : -1;
+	CodeObject *co = OBJ_TO_CODE(code);
+	MemberDef *member = Member_Code_New(name, co->proto);
+	int res = HashTable_Insert(__get_table(klazz), &member->hnode);
+	if (!res) {
+		member->code = code;
+		if (CODE_ISKFUNC(code)) {
+			co->kf.consts = klazz->consts;
+		}
+		return 0;
+	} else {
+		Member_Free(member);
+		return -1;
+	}
 }
 
-Symbol *Klass_Get_Symbol(Klass *klazz, char *name)
+int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto)
 {
-	Symbol *sym;
-	sym = STable_Get(&klazz->stbl, name);
-	if (sym) return sym;
+	Check_Klass(klazz);
+	MemberDef *member = Member_Proto_New(name, proto);
+	int res = HashTable_Insert(__get_table(klazz), &member->hnode);
+	if (!res) {
+		return 0;
+	} else {
+		Member_Free(member);
+		return -1;
+	}
+}
+
+static MemberDef *Klass_Get_Member(Klass *klazz, char *name)
+{
+	MemberDef key = {.name = name};
+	MemberDef *member = HashTable_Find(__get_table(klazz), &key);
+	if (member) return member;
 
 	Klass *k;
 	Vector_ForEach_Reverse(k, &klazz->traits) {
-		sym = Klass_Get_Symbol(k, name);
-		if (sym) return sym;
+		member = Klass_Get_Member(k, name);
+		if (member) return member;
 	}
 
 	return NULL;
@@ -400,12 +430,12 @@ Symbol *Klass_Get_Symbol(Klass *klazz, char *name)
 
 Object *Klass_Get_Method(Klass *klazz, char *name, Klass **trait)
 {
-	Symbol *sym = STable_Get(&klazz->stbl, name);
-	if (sym) {
-		if (sym->kind != SYM_PROTO) return NULL;
-		OB_ASSERT_KLASS(sym->ob, Code_Klass);
+	MemberDef key = {.name = name};
+	MemberDef *member = HashTable_Find(__get_table(klazz), &key);
+	if (member) {
+		if (member->kind != MEMBER_CODE) return NULL;
 		if (trait) *trait = klazz;
-		return sym->ob;
+		return member->code;
 	}
 
 	Object *ob;
@@ -432,7 +462,7 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 		pdesc = TypeString_To_Vector(f->pdesc);
 		proto = TypeDesc_From_Proto(rdesc, pdesc);
 		meth = CFunc_New(f->fn, proto);
-		res = Klass_Add_Method(klazz, f->name, proto, meth);
+		res = Klass_Add_Method(klazz, f->name, meth);
 		assert(res == 0);
 		++f;
 	}
@@ -474,11 +504,11 @@ Klass Trait_Klass = {
 
 /*---------------------------------------------------------------------------*/
 
-static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
+static MemberDef *get_field(Object *ob, char *name, Object **rob)
 {
 	Check_Klass(OB_KLASS(ob));
 	Object *base;
-	Symbol *sym = NULL;
+	MemberDef *member = NULL;
 	char *dot = strchr(name, '.');
 	if (dot) {
 		char *classname = strndup(name, dot - name);
@@ -488,15 +518,15 @@ static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
 			if (!strcmp(OB_KLASS(base)->name, classname)) break;
 			base = OB_Base(base);
 		}
-		sym = Klass_Get_Symbol(OB_KLASS(base), fieldname);
+		member = Klass_Get_Member(OB_KLASS(base), fieldname);
 		*rob = base;
 		free(classname);
 		free(fieldname);
 	} else {
 		base = ob;
 		while (base) {
-			sym = Klass_Get_Symbol(OB_KLASS(base), name);
-			if (sym) {
+			member = Klass_Get_Member(OB_KLASS(base), name);
+			if (member) {
 				*rob = base;
 				break;
 			}
@@ -504,18 +534,18 @@ static Symbol *get_field_symbol(Object *ob, char *name, Object **rob)
 		}
 	}
 
-	assert(sym);
-	assert(sym->kind == SYM_VAR);
-	return sym;
+	assert(member);
+	assert(member->kind == MEMBER_VAR);
+	return member;
 }
 
 TValue Object_Get_Value(Object *ob, char *name)
 {
 	Object *rob = NULL;
-	Symbol *sym = get_field_symbol(ob, name, &rob);
+	MemberDef *member = get_field(ob, name, &rob);
 	assert(rob);
 	TValue *value = (TValue *)(rob + 1);
-	int index = sym->index;
+	int index = member->offset;
 	debug("getvalue:%d",index);
 	assert(index >= 0 && index < rob->ob_size);
 	return value[index];
@@ -524,10 +554,10 @@ TValue Object_Get_Value(Object *ob, char *name)
 int Object_Set_Value(Object *ob, char *name, TValue *val)
 {
 	Object *rob = NULL;
-	Symbol *sym = get_field_symbol(ob, name, &rob);
+	MemberDef *member = get_field(ob, name, &rob);
 	assert(rob);
 	TValue *value = (TValue *)(rob + 1);
-	int index = sym->index;
+	int index = member->offset;
 	assert(index >= 0 && index < rob->ob_size);
 	value[index] = *val;
 	return 0;
@@ -615,97 +645,6 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 			return NULL;
 		}
 	}
-}
-
-int Object_Get_Field_Index(Object *ob, Klass *klazz, char *name)
-{
-	Klass *k = OB_KLASS(ob);
-	int index;
-	Symbol *sym = STable_Get(&klazz->stbl, name);
-	assert(sym);
-	index = sym->index;
-	if (k == klazz) return index;
-
-	Klass *line;
-	Vector_ForEach_Reverse(line, &k->lines) {
-		if (line == klazz) break;
-		index += line->stbl.varcnt;
-	}
-	return index;
-}
-
-TValue Object_Get_Value2(Object *ob, Klass *klazz, char *name)
-{
-	int index = Object_Get_Field_Index(ob, klazz, name);
-	debug("getvalue2:%d", index);
-	TValue *value = (TValue *)(ob + 1);
-	//assert(index >= 0 && index < ob->ob_size);
-	return value[index];
-}
-
-int Object_Set_Value2(Object *ob, Klass *klazz, char *name, TValue *val)
-{
-	int index = Object_Get_Field_Index(ob, klazz, name);
-	TValue *value = (TValue *)(ob + 1);
-	assert(index >= 0 && index < ob->ob_size);
-	value[index] = *val;
-	return 0;
-}
-
-Object *Object_Get_Method2(Object *ob, char *name)
-{
-	Klass *k = OB_KLASS(ob);
-	Klass *line;
-	Symbol *sym;
-
-	char *dot = strchr(name, '.');
-	if (dot) {
-		int classlength = dot - name;
-		int funclength = strlen(name) - classlength - 1;
-		char classname[classlength + 1];
-		char funcname[funclength + 1];
-		memcpy(classname, name, classlength);
-		memcpy(funcname, dot + 1, funclength);
-		classname[classlength] = 0;
-		funcname[funclength] = 0;
-
-		Vector_ForEach_Reverse(line, &k->lines) {
-			if (!strcmp(line->name, classname)) {
-				sym = STable_Get(&line->stbl, funcname);
-				if (sym) {
-					if (sym->kind == SYM_PROTO) {
-						return sym->ob;
-					} else {
-						assert(0);
-					}
-				}
-			}
-		}
-
-		return NULL;
-	}
-
-	sym = STable_Get(&k->stbl, name);
-	if (sym) {
-		if (sym->kind == SYM_PROTO) {
-			return sym->ob;
-		} else {
-			assert(0);
-		}
-	}
-
-	Vector_ForEach_Reverse(line, &k->lines) {
-		sym = STable_Get(&line->stbl, name);
-		if (sym) {
-			if (sym->kind == SYM_PROTO) {
-				return sym->ob;
-			} else {
-				assert(0);
-			}
-		}
-	}
-
-	return NULL;
 }
 
 /*---------------------------------------------------------------------------*/

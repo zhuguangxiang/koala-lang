@@ -20,8 +20,7 @@ typedef struct codeobject {
 	union {
 		cfunc cf;
 		struct {
-			AtomTable *atbl;  /* for const access, not free it */
-			Object *consts;
+			Object *consts;   /* for const access, not free it */
 			Vector locvec;    /* local variables */
 			int locvars;
 			int size;

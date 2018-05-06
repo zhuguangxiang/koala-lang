@@ -6,6 +6,7 @@
 #include "mod_lang.h"
 #include "mod_io.h"
 #include "routine.h"
+#include "klc.h"
 #include "log.h"
 
 struct mod_entry {
@@ -294,20 +295,20 @@ static Object *load_method(MethodItem *mth, AtomTable *table, Klass *klazz)
 	proto = ProtoItem_To_TypeDesc(protoitem, table);
 	codeitem = CodeItem_Index(table, mth->codeindex);
 	code = KFunc_New(mth->locvars, codeitem->codes, codeitem->size, proto);
-	Klass_Add_Method(klazz, id->data, proto, code);
+	Klass_Add_Method(klazz, id->data, code);
 	return code;
 }
 
-void update_fields_fn(Symbol *sym, void *arg)
-{
-	int nrfields = *(int *)arg;
+// void update_fields_fn(Symbol *sym, void *arg)
+// {
+// 	int nrfields = *(int *)arg;
 
-	if (sym->kind == SYM_VAR) {
-		debug("update field '%s' index from %d to %d",
-			sym->name, sym->index, nrfields + sym->index);
-		sym->index += nrfields;
-	}
-}
+// 	if (sym->kind == SYM_VAR) {
+// 		debug("update field '%s' index from %d to %d",
+// 			sym->name, sym->index, nrfields + sym->index);
+// 		sym->index += nrfields;
+// 	}
+// }
 
 static void load_classes(AtomTable *table, Object *m)
 {
@@ -421,7 +422,7 @@ static void load_imethod(IMethItem *imth, AtomTable *table, Klass *klazz)
 	id = StringItem_Index(table, imth->nameindex);
 	protoitem = ProtoItem_Index(table, imth->protoindex);
 	proto = ProtoItem_To_TypeDesc(protoitem, table);
-	Klass_Add_IMethod(klazz, id->data, proto);
+	Klass_Add_Proto(klazz, id->data, proto);
 }
 
 static void load_traits(AtomTable *table, Object *m)

@@ -2,7 +2,6 @@
 #include "codeobject.h"
 #include "tupleobject.h"
 #include "moduleobject.h"
-#include "symbol.h"
 #include "log.h"
 
 static CodeObject *code_new(int flags, TypeDesc *proto)
@@ -44,23 +43,9 @@ int KFunc_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)
 {
 	CodeObject *code = OB_TYPE_OF(ob, CodeObject, Code_Klass);
 	if (CODE_ISKFUNC(code)) {
-		Symbol *sym = Symbol_New(SYM_VAR);
-		int32 idx = StringItem_Set(code->kf.atbl, name);
-		assert(idx >= 0);
-		sym->nameidx = idx;
-		sym->name = strdup(name);
-
-		idx = -1;
-		if (desc) {
-			idx = TypeItem_Set(code->kf.atbl, desc);
-			assert(idx >= 0);
-		}
-		sym->descidx = idx;
-		sym->desc = desc;
-		sym->index = pos;
-
-		Vector_Append(&code->kf.locvec, sym);
-
+		MemberDef *member = Member_Var_New(name, desc, 0);
+		member->offset = pos;
+		Vector_Append(&code->kf.locvec, member);
 		return 0;
 	} else {
 		error("add locvar to cfunc?");

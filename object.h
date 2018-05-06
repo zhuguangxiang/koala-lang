@@ -3,7 +3,8 @@
 #define _KOALA_OBJECT_H_
 
 #include "common.h"
-#include "symbol.h"
+#include "hashtable.h"
+#include "typedesc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -135,9 +136,6 @@ struct object {
 TValue Object_Get_Value(Object *ob, char *name);
 int Object_Set_Value(Object *ob, char *name, TValue *val);
 Object *Object_Get_Method(Object *ob, char *name, Object **rob);
-int Object_Set_Value2(Object *ob, Klass *klazz, char *name, TValue *val);
-TValue Object_Get_Value2(Object *ob, Klass *klazz, char *name);
-Object *Object_Get_Method2(Object *ob, char *name);
 
 /*---------------------------------------------------------------------------*/
 
@@ -170,8 +168,10 @@ struct klass {
 	strfunc ob_tostr;
 	NumberFunctions *numops;
 	Vector traits;
-	STable stbl;
+	// STable stbl;
+	Object *consts;
 	HashTable *table;
+	int varcnt;
 	Vector lines;
 };
 
@@ -185,12 +185,10 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type);
 	Klass_New(name, NULL, traits, &Trait_Klass)
 void Fini_Klass(Klass *klazz);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
-Symbol *Klass_Get_Symbol(Klass *klazz, char *name);
-int Klass_Add_Method(Klass *klazz, char *name, TypeDesc *proto, Object *code);
+int Klass_Add_Method(Klass *klazz, char *name, Object *code);
 Object *Klass_Get_Method(Klass *klazz, char *name, Klass **trait);
-#define Klass_STable(ob) (&((Klass *)(ob))->stbl)
 void Check_Klass(Klass *klazz);
-int Klass_Add_IMethod(Klass *klazz, char *name, TypeDesc *proto);
+int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto);
 
 /*-------------------------------------------------------------------------*/
 /*
