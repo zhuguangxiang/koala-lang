@@ -3,6 +3,7 @@
 #include "moduleobject.h"
 #include "codeobject.h"
 #include "tupleobject.h"
+#include "stringobject.h"
 #include "koala_state.h"
 #include "opcode.h"
 #include "log.h"
@@ -35,7 +36,7 @@ static void frame_new(Routine *rt, Object *ob, Object *cob, int argc)
 	debug("loc vars : %d", size);
 	if (size > 0 && Vector_Size(&code->kf.locvec) > 0) {
 		Symbol *item;
-		debug("----Set LocVar's Type-----");
+		debug("------Set LocVar's Type-------");
 		Vector_ForEach(item, &code->kf.locvec) {
 			char *typestr = TypeDesc_ToString(item->desc);
 			debug("set [%d] as '%s' type", item->index, typestr);
@@ -43,7 +44,7 @@ static void frame_new(Routine *rt, Object *ob, Object *cob, int argc)
 			assert(item->index >= 0 && item->index < size);
 			TValue_Set_TypeDesc(f->locvars + item->index, item->desc, ob);
 		}
-		debug("----Set LocVar's Type End-");
+		debug("------Set LocVar's Type End---");
 	}
 
 	if (rt->frame)
@@ -265,7 +266,7 @@ static TValue index_const(int index, AtomTable *atbl)
 		case CONST_STRING: {
 			StringItem *item;
 			item = AtomTable_Get(atbl, ITEM_STRING, k->index);
-			setcstrvalue(&res, item->data);
+			setobjvalue(&res, String_New(item->data));
 			break;
 		}
 		default: {
@@ -303,10 +304,6 @@ static inline void store(Frame *f, int index, TValue *val)
 		}
 		case TYPE_OBJECT: {
 			f->locvars[index].ob = val->ob;
-			break;
-		}
-		case TYPE_CSTR: {
-			f->locvars[index].cstr = val->cstr;
 			break;
 		}
 		default: {
@@ -455,7 +452,7 @@ static void frame_loop(Frame *frame)
 			case OP_LOADM: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *path = VALUE_CSTR(&val);
+				char *path = String_RawString(VALUE_OBJECT(&val));
 				debug("load module '%s'", path);
 				ob = Koala_Load_Module(path);
 				assert(ob);
@@ -496,7 +493,7 @@ static void frame_loop(Frame *frame)
 			case OP_GETFIELD: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *field = VALUE_CSTR(&val);
+				char *field = String_RawString(VALUE_OBJECT(&val));
 				debug("getfield '%s'", field);
 				val = POP();
 				ob = VALUE_OBJECT(&val);
@@ -509,7 +506,7 @@ static void frame_loop(Frame *frame)
 			case OP_SETFIELD: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *field = VALUE_CSTR(&val);
+				char *field = String_RawString(VALUE_OBJECT(&val));
 				debug("setfield '%s'", field);
 				val = POP();
 				ob = VALUE_OBJECT(&val);
@@ -521,7 +518,7 @@ static void frame_loop(Frame *frame)
 			case OP_CALL: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *name = VALUE_CSTR(&val);
+				char *name = String_RawString(VALUE_OBJECT(&val));
 				int argc = fetch_2bytes(frame, code);
 				debug("OP_CALL, %s, argc:%d", name, argc);
 				val = TOP();
@@ -699,7 +696,7 @@ static void frame_loop(Frame *frame)
 			case OP_NEW: {
 				index = fetch_4bytes(frame, code);
 				val = index_const(index, atbl);
-				char *name = VALUE_CSTR(&val);
+				char *name = String_RawString(VALUE_OBJECT(&val));
 				val = POP();
 				int argc = fetch_2bytes(frame, code);
 				debug("OP_NEW, %s, argc:%d", name, argc);

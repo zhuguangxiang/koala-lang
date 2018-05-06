@@ -10,6 +10,7 @@ extern "C" {
 
 typedef struct stringobject {
 	OBJECT_HEAD
+	HashNode hnode;
 	int len;
 	char *str;
 } StringObject;

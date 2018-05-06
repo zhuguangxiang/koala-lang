@@ -71,7 +71,7 @@ static void va_string_build(TValue *v, va_list *ap)
 static void va_string_parse(TValue *v, va_list *ap)
 {
 	assert(VALUE_TYPE(v) == TYPE_OBJECT);
-	Object *ob = VALUE_STRING(v);
+	Object *ob = VALUE_OBJECT(v);
 	char **str = va_arg(*ap, char **);
 	*str = String_RawString(ob);
 }
@@ -733,6 +733,7 @@ static int BoolValue_Print(char *buf, int sz, TValue *val)
 	return snprintf(buf, sz, "%s", VALUE_BOOL(val) ? "true" : "false");
 }
 
+
 static int ObjValue_Print(char *buf, int sz, TValue *val)
 {
 	Object *ob = VALUE_OBJECT(val);
@@ -744,6 +745,7 @@ static int ObjValue_Print(char *buf, int sz, TValue *val)
 	return snprintf(buf, sz, "%s", String_RawString(ob));
 }
 
+#if 0
 static char escchar(char ch)
 {
   static struct escmap {
@@ -792,7 +794,7 @@ static char *string_escape(char *escstr, int len)
 
 static int CStrValue_Print(char *buf, int sz, TValue *val, int escape)
 {
-	char *str = VALUE_CSTR(val);
+	char *str = String_RawString(VALUE_OBJECT(val));
 	if (!escape) return snprintf(buf, sz, "%s", str);
 	// handle esc characters
 	char *escstr = string_escape(str, strlen(str));
@@ -800,9 +802,12 @@ static int CStrValue_Print(char *buf, int sz, TValue *val, int escape)
 	free(escstr);
 	return cnt;
 }
+#endif
 
 int TValue_Print(char *buf, int sz, TValue *val, int escape)
 {
+	UNUSED_PARAMETER(escape);
+
 	if (!val) {
 		buf[0] = '\0';
 		return 0;
@@ -828,10 +833,6 @@ int TValue_Print(char *buf, int sz, TValue *val, int escape)
 		}
 		case TYPE_OBJECT: {
 			count = ObjValue_Print(buf, sz, val);
-			break;
-		}
-		case TYPE_CSTR: {
-			count = CStrValue_Print(buf, sz, val, escape);
 			break;
 		}
 		default: {
@@ -951,8 +952,10 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 				return 0;
 			if (desc->primitive == PRIMITIVE_BOOL && VALUE_ISBOOL(val))
 				return 0;
-			if (desc->primitive == PRIMITIVE_STRING && VALUE_ISCSTR(val))
-				return 0;
+			if (desc->primitive == PRIMITIVE_STRING) {
+				Object *ob = VALUE_OBJECT(val);
+				if (OB_CHECK_KLASS(ob, String_Klass)) return 0;
+			}
 			break;
 		}
 		case TYPE_USERDEF: {
@@ -978,25 +981,31 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 	return -1;
 }
 
-static void TValue_Set_Primitive(TValue *val, int primitive)
+static void init_primitive(TValue *val, int primitive)
 {
 	switch (primitive) {
-		case PRIMITIVE_INT:
+		case PRIMITIVE_INT: {
 			setivalue(val, 0);
 			break;
-		case PRIMITIVE_FLOAT:
+		}
+		case PRIMITIVE_FLOAT: {
 			setfltvalue(val, 0.0);
 			break;
-		case PRIMITIVE_BOOL:
+		}
+		case PRIMITIVE_BOOL: {
 			setbvalue(val, 0);
 			break;
-		case PRIMITIVE_STRING:
-			setcstrvalue(val, NULL);
+		}
+		case PRIMITIVE_STRING: {
+			setobjvalue(val, String_New(""));
 			break;
+		}
 		case PRIMITIVE_ANY:
-		default:
+		//fallthrough
+		default: {
 			assertm(0, "unknown primitive %c", primitive);
 			break;
+		}
 	}
 }
 
@@ -1007,7 +1016,7 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 
 	switch (desc->kind) {
 		case TYPE_PRIMITIVE: {
-			TValue_Set_Primitive(val, desc->primitive);
+			init_primitive(val, desc->primitive);
 			break;
 		}
 		case TYPE_USERDEF: {
@@ -1066,11 +1075,6 @@ void TValue_Set_Value(TValue *val, TValue *v)
 				VALUE_ASSERT_OBJECT(val);
 				val->ob = v->ob;
 			}
-			break;
-		}
-		case TYPE_CSTR: {
-			VALUE_ASSERT_CSTR(val);
-			val->cstr = v->cstr;
 			break;
 		}
 		default: {

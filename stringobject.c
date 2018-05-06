@@ -4,14 +4,39 @@
 #include "moduleobject.h"
 #include "symbol.h"
 #include "hash.h"
+#include "log.h"
+
+HashTable StringCache;
+
+static StringObject *__find_string(HashTable *cache, char *str, int len)
+{
+	StringObject strobj = {.len = len, .str = str};
+	return HashTable_Find(cache, &strobj);
+}
+
+static int __add_string(HashTable *cache, StringObject *strobj)
+{
+	debug("add '%s' into string cache", strobj->str);
+	return HashTable_Insert(cache, &strobj->hnode);
+}
 
 Object *String_New(char *str)
 {
-	StringObject *ob = malloc(sizeof(StringObject));
-	Init_Object_Head(ob, &String_Klass);
-	ob->len = strlen(str);
-	ob->str = strdup(str);
-	return (Object *)ob;
+	int len = strlen(str);
+	StringObject *strobj = __find_string(&StringCache, str, len);
+	if (strobj) {
+		debug("found '%s' in string cache", str);
+		return (Object *)strobj;
+	}
+
+	strobj = malloc(sizeof(StringObject) + (len + 1));
+	Init_Object_Head(strobj, &String_Klass);
+	Init_HashNode(&strobj->hnode, strobj);
+	strobj->len = len;
+	strobj->str = (char *)(strobj + 1);
+	strcpy(strobj->str, str);
+	__add_string(&StringCache, strobj);
+	return (Object *)strobj;
 }
 
 void String_Free(Object *ob)
@@ -48,6 +73,7 @@ TValue String_ToInteger(Object *ob)
 	StringObject *sobj = OB_TYPE_OF(ob, StringObject, String_Klass);
 	char *s = sobj->str;
 	while (isspace(*s)) s++;  /* skip prefix spaces */
+	//FIXME: dup with numberobject.c
 	int neg = isneg(&s);
 	uint64 a = 0;
 	if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {  /* hex? */
@@ -66,6 +92,20 @@ TValue String_ToInteger(Object *ob)
 	while (isspace(*s)) s++;  /* skip trailing spaces */
 	if (*s != '\0') return NilValue;
 	else { TValue val; setivalue(&val, neg ? 0ul - a : a); return val;}
+}
+
+static uint32 strobj_hash(void *k)
+{
+	StringObject *strobj = k;
+	return hash_nstring(strobj->str, strobj->len);
+}
+
+static int strobj_equal(void *k1, void *k2)
+{
+	StringObject *strobj1 = k1;
+	StringObject *strobj2 = k2;
+	if (strobj1->len != strobj2->len) return 0;
+	return !strcmp(strobj1->str, strobj2->str);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -92,7 +132,10 @@ static FuncDef string_funcs[] = {
 
 void Init_String_Klass(void)
 {
+	HashInfo hashinfo = {.hash = strobj_hash, .equal = strobj_equal};
+	HashTable_Init(&StringCache, &hashinfo);
 	Klass_Add_CFunctions(&String_Klass, string_funcs);
+	String_New("");
 }
 
 /*-------------------------------------------------------------------------*/
@@ -119,6 +162,11 @@ static void string_free(Object *ob)
 	String_Free(ob);
 }
 
+static Object *string_tostring(TValue *v)
+{
+	return Tuple_From_TValues(v, 1);
+}
+
 Klass String_Klass = {
 	OBJECT_HEAD_INIT(&String_Klass, &Klass_Klass)
 	.name = "String",
@@ -126,5 +174,6 @@ Klass String_Klass = {
 	.itemsize = 0,
 	.ob_free  = string_free,
 	.ob_hash  = string_hash,
-	.ob_equal = string_equal
+	.ob_equal = string_equal,
+	.ob_tostr = string_tostring,
 };

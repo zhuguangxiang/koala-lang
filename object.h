@@ -23,7 +23,6 @@ extern Klass Bool_Klass;
 #define TYPE_FLOAT  2
 #define TYPE_BOOL   3
 #define TYPE_OBJECT 4
-#define TYPE_CSTR   5
 
 typedef struct value {
 	int type;
@@ -32,7 +31,6 @@ typedef struct value {
 		int64 ival;
 		float64 fval;
 		int bval;
-		char *cstr;
 		Object *ob;
 	};
 } TValue;
@@ -59,16 +57,14 @@ extern TValue FalseValue;
 	(v)->type = TYPE_BOOL; (v)->bval = (int)_v; \
 } while (0)
 
-#define setcstrvalue(v, _v) do { \
-	(v)->type = TYPE_CSTR; (v)->cstr = (void *)_v; \
-} while (0)
-
 #define setobjtype(v, _klazz) do { \
 	(v)->type = TYPE_OBJECT; (v)->klazz = (_klazz); \
 } while (0)
 
 #define setobjvalue(v, _v) do { \
-	setobjtype(v, ((Object *)_v)->ob_klass); (v)->ob = (Object *)_v; \
+	Object *obj = (Object *)_v; \
+	(v)->type = TYPE_OBJECT; (v)->klazz = obj->ob_klass; \
+	(v)->ob = obj; \
 } while (0)
 
 #define NIL_VALUE_INIT()      {.type = TYPE_NIL,    .ival = 0}
@@ -76,7 +72,6 @@ extern TValue FalseValue;
 #define FLOAT_VALUE_INIT(v)   {.type = TYPE_FLOAT,  .fval = (v)}
 #define BOOL_VALUE_INIT(v)    {.type = TYPE_BOOL,   .bval = (v)}
 #define OBJECT_VALUE_INIT(v)  {.type = TYPE_OBJECT, .ob   = (v)}
-#define CSTR_VALUE_INIT(v)    {.type = TYPE_CSTR,   .cstr = (v)}
 
 /* Macros to test type */
 #define VALUE_ISNIL(v)      (VALUE_TYPE(v) == TYPE_NIL)
@@ -84,8 +79,6 @@ extern TValue FalseValue;
 #define VALUE_ISFLOAT(v)    (VALUE_TYPE(v) == TYPE_FLOAT)
 #define VALUE_ISBOOL(v)     (VALUE_TYPE(v) == TYPE_BOOL)
 #define VALUE_ISOBJECT(v)   (VALUE_TYPE(v) == TYPE_OBJECT)
-#define VALUE_ISSTRING(v)   (OB_CHECK_KLASS(VALUE_OBJECT(v), String_Klass))
-#define VALUE_ISCSTR(v)     (VALUE_TYPE(v) == TYPE_CSTR)
 
 /* Assert for TValue */
 #define VALUE_ASSERT(v)         (assert(!VALUE_ISNIL(v)))
@@ -93,8 +86,6 @@ extern TValue FalseValue;
 #define VALUE_ASSERT_FLOAT(v)   (assert(VALUE_ISFLOAT(v)))
 #define VALUE_ASSERT_BOOL(v)    (assert(VALUE_ISBOOL(v)))
 #define VALUE_ASSERT_OBJECT(v)  (assert(VALUE_ISOBJECT(v)))
-#define VALUE_ASSERT_STRING(v)  (assert(VALUE_ISSTRING(v)))
-#define VALUE_ASSERT_CSTR(v)    (assert(VALUE_ISCSTR(v)))
 
 /* Macros to access type & values */
 #define VALUE_TYPE(v)   ((v)->type)
@@ -102,8 +93,6 @@ extern TValue FalseValue;
 #define VALUE_FLOAT(v)  (VALUE_ASSERT_FLOAT(v), (v)->fval)
 #define VALUE_BOOL(v)   (VALUE_ASSERT_BOOL(v), (v)->bval)
 #define VALUE_OBJECT(v) (VALUE_ASSERT_OBJECT(v), (v)->ob)
-#define VALUE_STRING(v) (VALUE_ASSERT_STRING(v), (v)->ob)
-#define VALUE_CSTR(v)   (VALUE_ASSERT_CSTR(v), (v)->cstr)
 
 /* TValue utils's functions */
 TValue Va_Build_Value(char ch, va_list *ap);
