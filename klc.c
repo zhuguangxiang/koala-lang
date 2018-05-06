@@ -1,5 +1,5 @@
 
-#include "symbol.h"
+#include "klc.h"
 #include "hash.h"
 #include "log.h"
 #include "opcode.h"
@@ -1380,6 +1380,12 @@ void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc, int pos,
 	LocVarItem *item = LocVarItem_New(nameindex, typeindex, pos, flags, index);
 	AtomTable_Append(image->table, ITEM_LOCVAR, item, 0);
 }
+
+#define SYMBOL_ACCESS(name, bconst) ({ \
+	int access = isupper(name[0]) ? ACCESS_PRIVATE : ACCESS_PUBLIC; \
+	access |= bconst ? ACCESS_CONST : 0; \
+	access; \
+})
 
 void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
 {

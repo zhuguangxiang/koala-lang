@@ -2,7 +2,6 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "moduleobject.h"
-#include "symbol.h"
 #include "hash.h"
 #include "log.h"
 

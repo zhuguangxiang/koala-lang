@@ -1,7 +1,6 @@
 
 #include "tupleobject.h"
 #include "moduleobject.h"
-#include "symbol.h"
 #include "log.h"
 
 Object *Tuple_New(int size)

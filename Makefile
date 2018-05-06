@@ -11,13 +11,19 @@ include $(TOPDIR)/config.mk
 ######################################
 
 KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c properties.c \
-atomtable.c symbol.c object.c stringobject.c tupleobject.c \
-tableobject.c moduleobject.c codeobject.c opcode.c codegen.c \
+atomtable.c object.c stringobject.c tupleobject.c \
+tableobject.c moduleobject.c codeobject.c opcode.c \
 klc.c routine.c thread.c mod_lang.c mod_io.c koala_state.c \
-koala_yacc.c koala_lex.c ast.c parser.c checker.c typedesc.c numberobject.c
+typedesc.c numberobject.c
+
 KOALA_LIB = koala
 
-KOALAC_FILES =  koalac.c
+KOALAC_LIB_FILES = koala_yacc.c koala_lex.c ast.c parser.c checker.c \
+symbol.c codegen.c
+
+KOALAC_LIB = koalac
+
+KOALAC_FILES = koalac.c
 KOALAC = koalac
 
 KOALA_FILES = koala.c
@@ -34,12 +40,17 @@ lib:
 	@flex -o koala_lex.c yacc/koala.l
 	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALA_LIB).so $(KOALA_LIB_FILES) \
 	-pthread
+	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALAC_LIB).so $(KOALAC_LIB_FILES) \
+	-l$(KOALA_LIB) -pthread
 	@cp lib$(KOALA_LIB).so /usr/lib/koala-lang/
+	@cp lib$(KOALAC_LIB).so /usr/lib/koala-lang/
 	@$(RM) *.o lib$(KOALA_LIB).so
+	@$(RM) *.o lib$(KOALAC_LIB).so
 	@$(RM) koala_yacc.h koala_yacc.c koala_yacc.output koala_lex.c
 
 koalac:
-	@gcc $(CFLAGS) -o $(KOALAC) $(KOALAC_FILES) -L. -l$(KOALA_LIB) -pthread -lrt
+	@gcc $(CFLAGS) -o $(KOALAC) $(KOALAC_FILES) -L. -l$(KOALAC_LIB) \
+	-l$(KOALA_LIB) -pthread -lrt
 	@cp $(KOALAC) /usr/local/bin
 	@$(RM) $(KOALAC)
 
