@@ -482,6 +482,11 @@ static void frame_loop(Frame *frame)
 				PUSH(&val);
 				break;
 			}
+			case OP_LOAD0: {
+				val = load(frame, 0);
+				PUSH(&val);
+				break;
+			}
 			case OP_STORE: {
 				index = fetch_2bytes(frame, code);
 				val = POP();

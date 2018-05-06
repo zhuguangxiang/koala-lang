@@ -9,12 +9,28 @@
 extern "C" {
 #endif
 
+#define ARG_NIL   0
+#define ARG_INT   1
+#define ARG_FLOAT 2
+#define ARG_BOOL  3
+#define ARG_STR   4
+
+typedef struct argument {
+	int kind;
+	union {
+		int64 ival;
+		float64 fval;
+		int bval;
+		char *str;
+	};
+} Argument;
+
 typedef struct inst {
 	struct list_head link;
 	int bytes;
 	int argc;
 	uint8 op;
-	TValue arg;
+	Argument arg;
 	int upbytes;  // break and continue statements
 } Inst;
 

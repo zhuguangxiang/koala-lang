@@ -3,16 +3,13 @@
 #include "opcode.h"
 #include "log.h"
 
-Inst *Inst_New(uint8 op, TValue *val)
+Inst *Inst_New(uint8 op, Argument *val)
 {
-	Inst *i = malloc(sizeof(Inst));
+	Inst *i = calloc(1, sizeof(Inst));
 	init_list_head(&i->link);
 	i->op = op;
 	i->bytes = 1 + opcode_argsize(op);
-	if (val)
-		i->arg = *val;
-	else
-		initnilvalue(&i->arg);
+	if (val) i->arg = *val;
 	return i;
 }
 
@@ -21,16 +18,19 @@ void Inst_Free(Inst *i)
 	free(i);
 }
 
-Inst *Inst_Append(CodeBlock *b, uint8 op, TValue *val)
+Inst *Inst_Append(CodeBlock *b, uint8 op, Argument *val)
 {
-	char buf[64];
-	TValue_Print(buf, 32, val, 0);
-	debug("inst:'%s %s'", opcode_string(op), buf);
+	debug("inst:'%s'", opcode_string(op));
 	Inst *i = Inst_New(op, val);
 	list_add_tail(&i->link, &b->insts);
 	b->bytes += i->bytes;
 	i->upbytes = b->bytes;
 	return i;
+}
+
+Inst *Inst_Append_NoArg(CodeBlock *b, uint8 op)
+{
+	return Inst_Append(b, op, NULL);
 }
 
 void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
@@ -42,15 +42,15 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			break;
 		}
 		case OP_LOADK: {
-			TValue *val = &i->arg;
-			if (VALUE_ISINT(val)) {
-				index = ConstItem_Set_Int(atbl, VALUE_INT(val));
-			} else if (VALUE_ISFLOAT(val)) {
-				index = ConstItem_Set_Float(atbl, VALUE_FLOAT(val));
-			} else if (VALUE_ISBOOL(val)) {
-				index = ConstItem_Set_Bool(atbl, VALUE_BOOL(val));
-			} else if (VALUE_ISCSTR(val)) {
-				index = ConstItem_Set_String(atbl, VALUE_CSTR(val));
+			Argument *val = &i->arg;
+			if (val->kind == ARG_INT) {
+				index = ConstItem_Set_Int(atbl, val->ival);
+			} else if (val->kind == ARG_FLOAT) {
+				index = ConstItem_Set_Float(atbl, val->fval);
+			} else if (val->kind == ARG_BOOL) {
+				index = ConstItem_Set_Bool(atbl, val->bval);
+			} else if (val->kind == ARG_STR) {
+				index = ConstItem_Set_String(atbl, val->str);
 			} else {
 				assert(0);
 			}
@@ -58,11 +58,12 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			break;
 		}
 		case OP_LOADM: {
-			index = ConstItem_Set_String(atbl, i->arg.cstr);
+			index = ConstItem_Set_String(atbl, i->arg.str);
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
-		case OP_GETM: {
+		case OP_GETM:
+		case OP_LOAD0: {
 			break;
 		}
 		case OP_LOAD: {
@@ -74,18 +75,18 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			break;
 		}
 		case OP_GETFIELD: {
-			index = ConstItem_Set_String(atbl, i->arg.cstr);
+			index = ConstItem_Set_String(atbl, i->arg.str);
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
 		case OP_SETFIELD: {
-			index = ConstItem_Set_String(atbl, i->arg.cstr);
+			index = ConstItem_Set_String(atbl, i->arg.str);
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
 		case OP_CALL:
 		case OP_NEW: {
-			index = ConstItem_Set_String(atbl, i->arg.cstr);
+			index = ConstItem_Set_String(atbl, i->arg.str);
 			Buffer_Write_4Bytes(buf, index);
 			Buffer_Write_2Bytes(buf, i->argc);
 			break;

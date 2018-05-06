@@ -16,6 +16,7 @@ typedef struct klass Klass;
 
 extern Klass Int_Klass;
 extern Klass Float_Klass;
+extern Klass Bool_Klass;
 
 #define TYPE_NIL    0
 #define TYPE_INT    1
@@ -31,8 +32,8 @@ typedef struct value {
 		int64 ival;
 		float64 fval;
 		int bval;
-		Object *ob;
 		char *cstr;
+		Object *ob;
 	};
 } TValue;
 
@@ -58,16 +59,16 @@ extern TValue FalseValue;
 	(v)->type = TYPE_BOOL; (v)->bval = (int)_v; \
 } while (0)
 
+#define setcstrvalue(v, _v) do { \
+	(v)->type = TYPE_CSTR; (v)->cstr = (void *)_v; \
+} while (0)
+
 #define setobjtype(v, _klazz) do { \
 	(v)->type = TYPE_OBJECT; (v)->klazz = (_klazz); \
 } while (0)
 
 #define setobjvalue(v, _v) do { \
 	setobjtype(v, ((Object *)_v)->ob_klass); (v)->ob = (Object *)_v; \
-} while (0)
-
-#define setcstrvalue(v, _v) do { \
-	(v)->type = TYPE_CSTR; (v)->cstr = (void *)_v; \
 } while (0)
 
 #define NIL_VALUE_INIT()      {.type = TYPE_NIL,    .ival = 0}

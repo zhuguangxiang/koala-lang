@@ -73,6 +73,42 @@ static void codeblock_merge(CodeBlock *from, CodeBlock *to)
 }
 
 #if SHOW_ENABLED
+
+static void arg_print(char *buf, int sz, Argument *val)
+{
+	if (!val) {
+		buf[0] = '\0';
+		return;
+	}
+
+	switch (val->kind) {
+		case ARG_NIL: {
+			snprintf(buf, sz, "(nil)");
+			break;
+		}
+		case ARG_INT: {
+			snprintf(buf, sz, "%lld", val->ival);
+			break;
+		}
+		case ARG_FLOAT: {
+			snprintf(buf, sz, "%.16lf", val->fval);
+			break;
+		}
+		case ARG_BOOL: {
+			snprintf(buf, sz, "%s", val->bval ? "true" : "false");
+			break;
+		}
+		case ARG_STR: {
+			snprintf(buf, sz, "%s", val->str);
+			break;
+		}
+		default: {
+			assert(0);
+			break;
+		}
+	}
+}
+
 static void codeblock_show(CodeBlock *block)
 {
 	if (!block) return;
@@ -87,7 +123,7 @@ static void codeblock_show(CodeBlock *block)
 		list_for_each_entry(i, &block->insts, link) {
 			printf("[%d]:\n", cnt++);
 			printf("  opcode:%s\n", opcode_string(i->op));
-			TValue_Print(buf, sizeof(buf), &i->arg, 0);
+			arg_print(buf, sizeof(buf), &i->arg);
 			printf("  arg:%s\n", buf);
 			printf("  bytes:%d\n", i->bytes);
 			printf("-----------------\n");
@@ -588,12 +624,11 @@ static void parser_merge(ParserState *ps)
 	if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
 		if (u->scope == SCOPE_METHOD && !strcmp(u->sym->name, "__init__")) {
 			debug("class __init__ function");
-			TValue val = INT_VALUE_INIT(0);
-			Inst_Append(u->block, OP_LOAD, &val);
+			Inst_Append_NoArg(u->block, OP_LOAD0);
 		}
 		if (!u->block->bret) {
 			debug("add 'return' to function '%s'", u->sym->name);
-			Inst_Append(u->block, OP_RET, NULL);
+			Inst_Append_NoArg(u->block, OP_RET);
 		}
 		u->sym->ptr = u->block;
 		u->block = NULL;
@@ -604,7 +639,6 @@ static void parser_merge(ParserState *ps)
 		if (u->loop) {
 			// loop-statement check break or continue statement
 			int offset;
-			TValue val;
 			JmpInst *jmp;
 			Vector_ForEach(jmp, &u->jmps) {
 				if (jmp->type == JMP_BREAK) {
@@ -613,8 +647,8 @@ static void parser_merge(ParserState *ps)
 					assert(jmp->type == JMP_CONTINUE);
 					offset = 0 - jmp->inst->upbytes;
 				}
-				setivalue(&val, offset);
-				jmp->inst->arg = val;
+				jmp->inst->arg.kind = ARG_INT;
+				jmp->inst->arg.ival = offset;
 			}
 			u->merge = 1;
 		}
@@ -657,10 +691,9 @@ static void parser_merge(ParserState *ps)
 				TypeDesc *proto = TypeDesc_From_Proto(NULL, NULL);
 				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
 				debug("add 'return' to function '__init__'");
-				Inst_Append(u->block, OP_RET, NULL);
+				Inst_Append_NoArg(u->block, OP_RET);
 			}
 
 			if (u->sym->kind == SYM_TRAIT) {
@@ -686,10 +719,9 @@ static void parser_merge(ParserState *ps)
 				TypeDesc *proto = TypeDesc_From_Proto(NULL, NULL);
 				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
 				debug("add 'return' to function '__init__'");
-				Inst_Append(u->block, OP_RET, NULL);
+				Inst_Append_NoArg(u->block, OP_RET);
 				sym->ptr = u->block;
 				sym->locvars = 2; //FIXME
 				debug("save code to class '__init__' function");
@@ -827,15 +859,13 @@ static void parser_curscope_ident(ParserState *ps, Symbol *sym,
 			assert(exp->ctx == EXPR_LOAD);
 			if (sym->kind == SYM_VAR) {
 				debug("symbol '%s' is variable", sym->name);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-				setcstrvalue(&val, sym->name);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
+				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst_Append(u->block, OP_GETFIELD, &val);
 			} else if (sym->kind == SYM_PROTO) {
 				debug("symbol '%s' is function", sym->name);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-				setcstrvalue(&val, sym->name);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
+				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst *i = Inst_Append(u->block, OP_CALL, &val);
 				i->argc = exp->argc;
 			} else {
@@ -851,7 +881,7 @@ static void parser_curscope_ident(ParserState *ps, Symbol *sym,
 				int opcode;
 				debug("local's variable");
 				opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
-				TValue val = INT_VALUE_INIT(sym->index);
+				Argument val = {.kind = ARG_INT, .ival = sym->index};
 				Inst_Append(u->block, opcode, &val);
 			} else {
 				assertm(0, "invalid symbol kind :%d", sym->kind);
@@ -875,17 +905,15 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 			debug("symbol '%s' in module '%s'", sym->name, ps->package);
 			if (sym->kind == SYM_VAR) {
 				debug("symbol '%s' is variable", sym->name);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-				Inst_Append(u->block, OP_GETM, NULL);
-				setcstrvalue(&val, sym->name);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
+				Inst_Append_NoArg(u->block, OP_GETM);
+				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst_Append(u->block, OP_GETFIELD, &val);
 			} else if (sym->kind == SYM_PROTO) {
 				debug("symbol '%s' is function", sym->name);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-				Inst_Append(u->block, OP_GETM, NULL);
-				setcstrvalue(&val, sym->name);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
+				Inst_Append_NoArg(u->block, OP_GETM);
+				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst *i = Inst_Append(u->block, OP_CALL, &val);
 				i->argc = exp->argc;
 			} else {
@@ -899,37 +927,33 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 			if (sym->kind == SYM_VAR) {
 				debug("symbol '%s' is variable", sym->name);
 				int opcode;
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
 				opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
-				setcstrvalue(&val, sym->name);
+				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst_Append(u->block, opcode, &val);
 			} else if (sym->kind == SYM_PROTO) {
 				debug("symbol '%s' is function", sym->name);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-				setcstrvalue(&val, sym->name);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
+				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst *i = Inst_Append(u->block, OP_CALL, &val);
 				i->argc = exp->argc;
 			} else if (sym->kind == SYM_CLASS) {
 				debug("symbol '%s' is class", sym->name);
 				if (exp->right && exp->right->kind == CALL_KIND) {
 					debug("new object :%s", exp->sym->name);
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					Inst_Append(u->block, OP_GETM, NULL);
-					setcstrvalue(&val, sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Inst_Append_NoArg(u->block, OP_GETM);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
 					Inst *i = Inst_Append(u->block, OP_NEW, &val);
 					i->argc = exp->argc;
-					setcstrvalue(&val, "__init__");
+					val.str = "__init__";
 					i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
 				} else {
 					if (!exp->right) {
 						debug("'%s' is a class", sym->name);
-						TValue val = INT_VALUE_INIT(0);
-						Inst_Append(u->block, OP_LOAD, &val);
-						Inst_Append(u->block, OP_GETM, NULL);
+						Inst_Append_NoArg(u->block, OP_LOAD0);
+						Inst_Append_NoArg(u->block, OP_GETM);
 					} else {
 						assert(0);
 					}
@@ -946,24 +970,20 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 					sym->inherited ? "true" : "false");
 				if (sym->kind == SYM_VAR) {
 					debug("symbol '%s' is variable", sym->name);
-					int opcode;
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
-					setcstrvalue(&val, sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					int opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
+					Argument val = {.kind = ARG_STR, .str = sym->name};
 					Inst_Append(u->block, opcode, &val);
 				} else if (sym->kind == SYM_PROTO) {
 					debug("symbol '%s' is function", sym->name);
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					setcstrvalue(&val, sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
 					Inst *i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
 				} else if (sym->kind == SYM_IPROTO) {
 					debug("symbol '%s' is abstract function", sym->name);
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					setcstrvalue(&val, sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
 					Inst *i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
 				} else {
@@ -974,30 +994,26 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 				debug("symbol '%s' in module '%s'", sym->name, ps->package);
 				if (sym->kind == SYM_VAR) {
 					debug("symbol '%s' is variable", sym->name);
-					int opcode;
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
-					Inst_Append(u->block, OP_GETM, NULL);
-					setcstrvalue(&val, sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Inst_Append_NoArg(u->block, OP_GETM);
+					int opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
+					Argument val = {.kind = ARG_STR, .str = sym->name};
 					Inst_Append(u->block, opcode, &val);
 				} else if (sym->kind == SYM_PROTO) {
 					debug("symbol '%s' is function", sym->name);
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					Inst_Append(u->block, OP_GETM, NULL);
-					setcstrvalue(&val, sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Inst_Append_NoArg(u->block, OP_GETM);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
 					Inst *i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
 				} else if (sym->kind == SYM_CLASS) {
 					debug("symbol '%s' is class", sym->name);
-					TValue val = INT_VALUE_INIT(0);
-					Inst_Append(u->block, OP_LOAD, &val);
-					Inst_Append(u->block, OP_GETM, NULL);
-					setcstrvalue(&val, sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Inst_Append_NoArg(u->block, OP_GETM);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
 					Inst *i = Inst_Append(u->block, OP_NEW, &val);
 					i->argc = exp->argc;
-					setcstrvalue(&val, "__init__");
+					val.str = "__init__";
 					i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
 				} else {
@@ -1012,24 +1028,22 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 				debug("symbol '%s' is local variable", sym->name);
 				// local's variable
 				int opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
-				TValue val = INT_VALUE_INIT(sym->index);
+				Argument val = {.kind = ARG_INT, .ival = sym->index};
 				Inst_Append(u->block, opcode, &val);
 			} else if (up->kind == SYM_CLASS) {
 				debug("symbol '%s' is class variable", sym->name);
 				debug("symbol '%s' is inherited ? %s", sym->name,
 					sym->inherited ? "true" : "false");
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
 				int opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
-				setcstrvalue(&val, sym->name);
+				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst_Append(u->block, opcode, &val);
 			} else if (up->kind == SYM_MODULE) {
 				debug("symbol '%s' is module variable", sym->name);
-				TValue val = INT_VALUE_INIT(0);
-				Inst_Append(u->block, OP_LOAD, &val);
-				Inst_Append(u->block, OP_GETM, NULL);
+				Inst_Append_NoArg(u->block, OP_LOAD0);
+				Inst_Append_NoArg(u->block, OP_GETM);
 				int opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
-				setcstrvalue(&val, sym->name);
+				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst_Append(u->block, opcode, &val);
 			} else {
 				assertm(0, "invalid up symbol kind :%d", up->kind);
@@ -1071,25 +1085,21 @@ static void gencode_id_in_super(ParserState *ps, struct expr *exp, Symbol *sym)
 	sym->refcnt++;
 	parser_expr_desc(ps, exp, sym);
 
-	TValue val;
-	setcstrvalue(&val, id);
+	Argument val = {.kind = ARG_STR, .str = id};
 
 	if (sym->kind == SYM_VAR) {
 		if (exp->ctx == EXPR_LOAD) {
-			debug("load:%s", val.cstr);
-			TValue val2 = INT_VALUE_INIT(0);
-			Inst_Append(u->block, OP_LOAD, &val2);
+			debug("load:%s", val.str);
+			Inst_Append_NoArg(u->block, OP_LOAD0);
 			Inst_Append(ps->u->block, OP_GETFIELD, &val);
 		} else {
 			assert(exp->ctx == EXPR_STORE);
-			debug("store:%s", val.cstr);
-			TValue val2 = INT_VALUE_INIT(0);
-			Inst_Append(u->block, OP_LOAD, &val2);
+			debug("store:%s", val.str);
+			Inst_Append_NoArg(u->block, OP_LOAD0);
 			Inst_Append(ps->u->block, OP_SETFIELD, &val);
 		}
 	} else if (sym->kind == SYM_PROTO) {
-		TValue val2 = INT_VALUE_INIT(0);
-		Inst_Append(u->block, OP_LOAD, &val2);
+		Inst_Append_NoArg(u->block, OP_LOAD0);
 		Inst *i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
 	} else {
@@ -1159,9 +1169,8 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 		sym->refcnt++;
 		parser_expr_desc(ps, exp, sym);
 		assert(exp->ctx == EXPR_LOAD);
-		TValue val = INT_VALUE_INIT(0);
-		Inst_Append(u->block, OP_LOAD, &val);
-		Inst_Append(u->block, OP_GETM, NULL);
+		Inst_Append_NoArg(u->block, OP_LOAD0);
+		Inst_Append_NoArg(u->block, OP_GETM);
 		return;
 	}
 
@@ -1174,7 +1183,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 		parser_expr_desc(ps, exp, sym);
 		assert(exp->ctx == EXPR_LOAD);
 		debug("symbol '%s' is module", sym->name);
-		TValue val = CSTR_VALUE_INIT(sym->path);
+		Argument val = {.kind = ARG_STR, .str = sym->path};
 		Inst_Append(u->block, OP_LOADM, &val);
 		return;
 	}
@@ -1287,61 +1296,59 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 
 	// generate code
 	ParserUnit *u = ps->u;
+	Argument val = {.kind = ARG_STR, .str = NULL};
+
 	if (sym->kind == SYM_VAR) {
-		TValue val;
 		if (exp->supername) {
 			char *namebuf = malloc(strlen(exp->supername) + 1 +
 				strlen(exp->attribute.id) + 1);
 			assert(namebuf);
 			sprintf(namebuf, "%s.%s", exp->supername, exp->attribute.id);
-			setcstrvalue(&val, namebuf);
+			val.str = namebuf;
 		} else {
-			setcstrvalue(&val, exp->attribute.id);
+			val.str = exp->attribute.id;
 		}
 
 		if (exp->ctx == EXPR_LOAD) {
-			debug("load:%s", val.cstr);
+			debug("load:%s", val.str);
 			Inst_Append(ps->u->block, OP_GETFIELD, &val);
 		} else {
 			assert(exp->ctx == EXPR_STORE);
-			debug("store:%s", val.cstr);
+			debug("store:%s", val.str);
 			Inst_Append(ps->u->block, OP_SETFIELD, &val);
 		}
 	} else if (sym->kind == SYM_PROTO) {
-		TValue val;
 		if (exp->supername) {
 			char *namebuf = malloc(strlen(exp->supername) + 1 +
 				strlen(exp->attribute.id) + 1);
 			assert(namebuf);
 			sprintf(namebuf, "%s.%s", exp->supername, exp->attribute.id);
-			setcstrvalue(&val, namebuf);
+			val.str = namebuf;
 		} else {
-			setcstrvalue(&val, exp->attribute.id);
+			val.str = exp->attribute.id;
 		}
 		Inst *i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
 	} else if (sym->kind == SYM_STABLE) {
 		// new object
-		TValue val;
-		setcstrvalue(&val, sym->name);
+		val.str = sym->name;
 		Inst *i = Inst_Append(u->block, OP_NEW, &val);
 		i->argc = exp->argc;
-		setcstrvalue(&val, "__init__");
+		val.str = "__init__";
 		i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
 	} else if (sym->kind == SYM_IPROTO) {
 		if (left->kind == SUPER_KIND) {
 			//for super.xyz(), super is abstract method and not impl in traits
-			TValue val;
 			char *namebuf = malloc(strlen("super") + 1 +
 				strlen(exp->attribute.id) + 1);
 			assert(namebuf);
 			sprintf(namebuf, "super.%s", exp->attribute.id);
-			setcstrvalue(&val, namebuf);
+			val.str = namebuf;
 			Inst *i = Inst_Append(u->block, OP_CALL, &val);
 			i->argc = exp->argc;
 		} else {
-			TValue val = CSTR_VALUE_INIT(sym->name);
+			val.str = sym->name;
 			Inst *i = Inst_Append(u->block, OP_CALL, &val);
 			i->argc = exp->argc;
 		}
@@ -1446,14 +1453,15 @@ static void handle_traits(ParserState *ps, Symbol *sym)
 {
 	ParserUnit *u = ps->u;
 	Symbol *trait;
+	Argument val = {.kind = ARG_STR};
+
 	Vector_ForEach(trait, &sym->traits) {
 		char *namebuf = malloc(strlen(trait->name) + 1 + strlen("__init__") + 1);
 		assert(namebuf);
 		sprintf(namebuf, "%s.__init__", trait->name);
 		debug("call trait '%s' __init__ function", trait->name);
-		TValue val = INT_VALUE_INIT(0);
-		Inst_Append(u->block, OP_LOAD, &val);
-		setcstrvalue(&val, namebuf);
+		Inst_Append_NoArg(u->block, OP_LOAD0);
+		val.str = namebuf;
 		Inst *i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = 0;
 	}
@@ -1477,15 +1485,13 @@ static void parser_super(ParserState *ps, struct expr *exp)
 		char *namebuf = malloc(strlen(super->name) + 1 + strlen(u->sym->name) + 1);
 		assert(namebuf);
 		sprintf(namebuf, "%s.%s", super->name, u->sym->name);
-		TValue val = INT_VALUE_INIT(0);
-		Inst_Append(u->block, OP_LOAD, &val);
-		setcstrvalue(&val, namebuf);
+		Inst_Append_NoArg(u->block, OP_LOAD0);
+		Argument val = {.kind = ARG_STR, .str = namebuf};
 		Inst *i = Inst_Append(u->block, OP_CALL, &val);
 		i->argc = exp->argc;
 		handle_traits(ps, cu->sym);
 	} else if (r->kind == ATTRIBUTE_KIND) {
-		TValue val = INT_VALUE_INIT(0);
-		Inst_Append(ps->u->block, OP_LOAD, &val);
+		Inst_Append_NoArg(u->block, OP_LOAD0);
 		//find in linear-order traits
 		Symbol *s;
 		Symbol *sym = NULL;
@@ -1550,25 +1556,25 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 		}
 		case INT_KIND: {
 			assert(exp->ctx == EXPR_LOAD);
-			TValue val = INT_VALUE_INIT(exp->ival);
+			Argument val = {.kind = ARG_INT, .ival = exp->ival};
 			Inst_Append(ps->u->block, OP_LOADK, &val);
 			break;
 		}
 		case FLOAT_KIND: {
 			assert(exp->ctx == EXPR_LOAD);
-			TValue val = FLOAT_VALUE_INIT(exp->fval);
+			Argument val = {.kind = ARG_FLOAT, .fval = exp->fval};
 			Inst_Append(ps->u->block, OP_LOADK, &val);
 			break;
 		}
 		case BOOL_KIND: {
 			assert(exp->ctx == EXPR_LOAD);
-			TValue val = BOOL_VALUE_INIT(exp->bval);
+			Argument val = {.kind = ARG_BOOL, .fval = exp->bval};
 			Inst_Append(ps->u->block, OP_LOADK, &val);
 			break;
 		}
 		case STRING_KIND: {
 			assert(exp->ctx == EXPR_LOAD);
-			TValue val = CSTR_VALUE_INIT(exp->str);
+			Argument val = {.kind = ARG_STR, .str = exp->str};
 			Inst_Append(ps->u->block, OP_LOADK, &val);
 			break;
 		}
@@ -1577,8 +1583,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			debug("load self");
 			ParserUnit *cu = get_class_unit(ps);
 			exp->sym = cu->sym;
-			TValue val = INT_VALUE_INIT(0);
-			Inst_Append(ps->u->block, OP_LOAD, &val);
+			Inst_Append_NoArg(ps->u->block, OP_LOAD0);
 			break;
 		}
 		case SUPER_KIND: {
@@ -1597,9 +1602,9 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			assert(sym);
 			exp->sym = sym;
 
-			TValue val = CSTR_VALUE_INIT("koala/lang");
+			Argument val = {.kind = ARG_STR, .str = "koala/lang"};
 			Inst_Append(ps->u->block, OP_LOADM, &val);
-			setcstrvalue(&val, "TypeOf");
+			val.str = "TypeOf";
 			Inst *i = Inst_Append(ps->u->block, OP_CALL, &val);
 			i->argc = exp->argc;
 			break;
@@ -1835,17 +1840,16 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 	if (exp) {
 		if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
 			// module's or class's variable
-			TValue val = INT_VALUE_INIT(0);
-			Inst_Append(ps->u->block, OP_LOAD, &val);
-			setcstrvalue(&val, var->id);
+			Inst_Append_NoArg(ps->u->block, OP_LOAD0);
+			Argument val = {.kind = ARG_STR, .str = var->id};
 			Inst_Append(ps->u->block, OP_SETFIELD, &val);
 		} else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
 			// local's variable
-			TValue val = INT_VALUE_INIT(sym->index);
+			Argument val = {.kind = ARG_INT, .ival = sym->index};
 			Inst_Append(ps->u->block, OP_STORE, &val);
 		} else if (u->scope == SCOPE_BLOCK) {
 			// local's variable in block
-			TValue val = INT_VALUE_INIT(sym->index);
+			Argument val = {.kind = ARG_INT, .ival = sym->index};
 			Inst_Append(ps->u->block, OP_STORE, &val);
 		} else {
 			assert(0);
@@ -2318,8 +2322,8 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 			debug("offset3:%d", offset);
 			assert(offset >= 0);
 		}
-		TValue val = INT_VALUE_INIT(offset);
-		jumpfalse->arg = val;
+		jumpfalse->arg.kind = ARG_INT;
+		jumpfalse->arg.ival = offset;
 	}
 
 	if (stmt->if_stmt.orelse) {
@@ -2331,7 +2335,7 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 			offset += nb->bytes;
 			nb = nb->next;
 		}
-		TValue val = INT_VALUE_INIT(offset);
+		Argument val = {.kind = ARG_INT, .ival = offset};
 		Inst_Append(b, OP_JUMP, &val);
 	}
 
@@ -2370,12 +2374,12 @@ static void parser_while(ParserState *ps, struct stmt *stmt)
 
 	int offset = 0 - (u->block->bytes - jmpsize +
 		1 + opcode_argsize(OP_JUMP_TRUE));
-	TValue val = INT_VALUE_INIT(offset);
+	Argument val = {.kind = ARG_INT, .ival = offset};
 	Inst_Append(b, OP_JUMP_TRUE, &val);
 
 	if (stmt->while_stmt.btest) {
-		TValue val = INT_VALUE_INIT(bodysize);
-		jmp->arg = val;
+		jmp->arg.kind = ARG_INT;
+		jmp->arg.ival = bodysize;
 	}
 
 	parser_exit_scope(ps);

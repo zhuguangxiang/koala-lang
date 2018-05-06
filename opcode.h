@@ -120,6 +120,8 @@ extern "C" {
 #define OP_BNOT  16
 #define OP_LNOT  17
 
+#define OP_LOAD0 18
+
 /*
 	Relation operation: gt, lt, eq, gte, lte
  */
