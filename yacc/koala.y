@@ -948,16 +948,16 @@ UnaryExpression
 
 UnaryOperator
   : '+' {
-    $$ = OP_PLUS;
+    $$ = UNARY_PLUS;
   }
   | '-' {
-    $$ = OP_MINUS;
+    $$ = UNARY_MINUS;
   }
   | '~' {
-    $$ = OP_BIT_NOT;
+    $$ = UNARY_BIT_NOT;
   }
   | NOT {
-    $$ = OP_LNOT;
+    $$ = UNARY_LNOT;
   }
   ;
 

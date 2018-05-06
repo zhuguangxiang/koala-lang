@@ -16,6 +16,7 @@ Inst *Inst_Append(CodeBlock *b, uint8 op, TValue *val);
 void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i);
 
 void codegen_binary(ParserState *ps, int op);
+void codegen_unary(ParserState *ps, int op);
 void codegen_klc(ParserState *ps, char *out);
 
 #ifdef __cplusplus

@@ -14,6 +14,9 @@ typedef struct klass Klass;
 
 /*---------------------------------------------------------------------------*/
 
+extern Klass Int_Klass;
+extern Klass Float_Klass;
+
 #define TYPE_NIL    0
 #define TYPE_INT    1
 #define TYPE_FLOAT  2
@@ -44,11 +47,11 @@ extern TValue FalseValue;
 } while (0)
 
 #define setivalue(v, _v) do { \
-	(v)->type = TYPE_INT; (v)->ival = (int64)_v; \
+	(v)->type = TYPE_INT; (v)->klazz = &Int_Klass; (v)->ival = (int64)_v; \
 } while (0)
 
 #define setfltvalue(v, _v) do { \
-	(v)->type = TYPE_FLOAT; (v)->fval = (float64)_v; \
+	(v)->type = TYPE_FLOAT; (v)->klazz = &Float_Klass; (v)->fval = (float64)_v; \
 } while (0)
 
 #define setbvalue(v, _v) do { \
@@ -60,16 +63,11 @@ extern TValue FalseValue;
 } while (0)
 
 #define setobjvalue(v, _v) do { \
-	setobjtype(v, ((Object *)_v)->ob_klass); \
-	(v)->ob = (Object *)_v; \
+	setobjtype(v, ((Object *)_v)->ob_klass); (v)->ob = (Object *)_v; \
 } while (0)
 
 #define setcstrvalue(v, _v) do { \
 	(v)->type = TYPE_CSTR; (v)->cstr = (void *)_v; \
-} while (0)
-
-#define setkstrvalue(v, _v) do { \
-	(v)->type = TYPE_OBJECT; (v)->ob = String_New(_v); \
 } while (0)
 
 #define NIL_VALUE_INIT()      {.type = TYPE_NIL,    .ival = 0}
@@ -173,6 +171,11 @@ typedef uint32 (*hashfunc)(TValue *v);
 typedef int (*equalfunc)(TValue *v1, TValue *v2);
 typedef Object *(*strfunc)(TValue *v);
 
+typedef struct numberfunctions {
+	TValue (*add)(TValue *, TValue *);
+
+} NumberFunctions;
+
 struct klass {
 	OBJECT_HEAD
 	char *name;
@@ -187,6 +190,7 @@ struct klass {
 	hashfunc ob_hash;
 	equalfunc ob_equal;
 	strfunc ob_tostr;
+	NumberFunctions *numops;
 	Vector traits;
 	STable stbl;
 	Vector lines;

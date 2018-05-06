@@ -554,12 +554,15 @@ static void frame_loop(Frame *frame)
 				TValue v2 = POP();
 				val = NilValue;
 				// v1 is left value
-				if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
-					//printf("+++%lld\n", VALUE_INT(&v1));
-					uint64 i = (uint64)VALUE_INT(&v1) + (uint64)VALUE_INT(&v2);
-					setivalue(&val, i);
-				} else if (tonumber(&v2) && tonumber(&v1)) {
-
+				NumberFunctions *ops;
+				if (v1.klazz && v1.klazz->numops) {
+					ops = v1.klazz->numops;
+					if (ops->add) {
+						val = ops->add(&v1, &v2);
+					} else {
+						error("unsupported operation, %s", v1.klazz->name);
+						exit(-1);
+					}
 				}
 				PUSH(&val);
 				break;
@@ -606,14 +609,6 @@ static void frame_loop(Frame *frame)
 			//   PUSH(&val);
 			//   break;
 			// }
-			case OP_NEXT: {
-				TValue val = POP();
-				ob = VALUE_OBJECT(&val);
-				ob = OB_Base(ob);
-				setobjvalue(&val, ob);
-				PUSH(&val);
-				break;
-			}
 			case OP_GT: {
 				// v1 is left value
 				TValue v1 = POP();
@@ -660,6 +655,17 @@ static void frame_loop(Frame *frame)
 					}
 				}
 				PUSH(&val);
+				break;
+			}
+			case OP_MINUS: {
+				TValue v = POP();
+				if (VALUE_ISINT(&v)) {
+					uint64 i = 0UL - (uint64)VALUE_INT(&v);
+					setivalue(&v, i);
+				} else {
+					assert(0);
+				}
+				PUSH(&v);
 				break;
 			}
 			case OP_JUMP: {

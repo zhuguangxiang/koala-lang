@@ -14,7 +14,7 @@ KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c properties.c \
 atomtable.c symbol.c object.c stringobject.c tupleobject.c \
 tableobject.c moduleobject.c codeobject.c opcode.c codegen.c \
 klc.c routine.c thread.c mod_lang.c mod_io.c koala_state.c \
-koala_yacc.c koala_lex.c ast.c parser.c checker.c typedesc.c
+koala_yacc.c koala_lex.c ast.c parser.c checker.c typedesc.c numberobject.c
 KOALA_LIB = koala
 
 KOALAC_FILES =  koalac.c
@@ -100,6 +100,10 @@ testprop: lib
 	@$(CC) $(CFLAGS) test_properties.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
+testnumber: lib
+	@$(CC) $(CFLAGS) test_number.c -l$(KOALA_LIB) -L. -lrt
+	@./a.out
+
 test-0.5.1:
 	@$(RM) test-0.5.1.klc
 	@$(KOALAC) test-0.5.1.kl
@@ -180,6 +184,11 @@ test-0.5.14:
 	@$(RM) test-0.5.14.klc
 	@$(KOALAC) test-0.5.14.kl
 	@$(KOALA) test-0.5.14
+
+test-number:
+	@$(RM) test-number.klc
+	@$(KOALAC) test-number.kl
+	@$(KOALA) test-number
 
 test-trait-0:
 	@$(RM) test-trait-0.klc

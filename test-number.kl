@@ -1,0 +1,25 @@
+
+/*
+	Test for number
+ */
+package test;
+
+import "koala/io";
+
+func Main(args []string) {
+	var i1 = 100;
+	var i2 = 200;
+	io.Println("100 + 200 =", i1 + i2);
+
+	i1 = -100;
+	i2 = -200;
+	io.Println("-100 + -200 =", i1 + i2);
+
+	i1 = 100;
+	var f2 = 200.123;
+	io.Println("100 + 200.123 =", i1 + f2);
+
+	i1 = 100;
+	var s2 = "200";
+	io.Println("100 + 200 =", i1 + s2);
+}

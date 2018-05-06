@@ -115,7 +115,10 @@ extern "C" {
 #define OP_MUL  12
 #define OP_DIV  13
 
-#define OP_NEXT  14
+#define OP_PLUS  14
+#define OP_MINUS 15
+#define OP_BNOT  16
+#define OP_LNOT  17
 
 /*
 	Relation operation: gt, lt, eq, gte, lte

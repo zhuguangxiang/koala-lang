@@ -11,7 +11,7 @@ extern "C" {
 /*-------------------------------------------------------------------------*/
 
 enum unary_op_kind {
-	OP_PLUS = 1, OP_MINUS = 2, OP_BIT_NOT = 3, OP_LNOT = 4
+	UNARY_PLUS = 1, UNARY_MINUS = 2, UNARY_BIT_NOT = 3, UNARY_LNOT = 4
 };
 
 enum binary_op_kind {

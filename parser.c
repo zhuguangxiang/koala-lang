@@ -1486,8 +1486,6 @@ static void parser_super(ParserState *ps, struct expr *exp)
 	} else if (r->kind == ATTRIBUTE_KIND) {
 		TValue val = INT_VALUE_INIT(0);
 		Inst_Append(ps->u->block, OP_LOAD, &val);
-		//Inst_Append(ps->u->block, OP_NEXT, NULL);
-
 		//find in linear-order traits
 		Symbol *s;
 		Symbol *sym = NULL;
@@ -1626,6 +1624,13 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 				exp->desc = exp->binary.left->desc;
 			}
 			codegen_binary(ps, exp->binary.op);
+			break;
+		}
+		case UNARY_KIND: {
+			debug("unary_op:%d", exp->unary.op);
+			exp->unary.operand->ctx = EXPR_LOAD;
+			parser_visit_expr(ps, exp->unary.operand);
+			codegen_unary(ps, exp->unary.op);
 			break;
 		}
 		default: {

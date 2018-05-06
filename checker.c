@@ -47,20 +47,28 @@ void check_unused_symbols(ParserState *ps)
 	STable_Traverse(u->stbl, __unused_symbol_fn, ps);
 }
 
-#if 0
+static int isvarg(TypeDesc *proto)
+{
+	int sz = Vector_Size(proto->pdesc);
+	if (sz <= 0) return 0;
+
+	TypeDesc *desc = Vector_Get(proto->pdesc, sz - 1);
+	return desc->varg ? 1 : 0;
+}
+
 static int check_call_varg(TypeDesc *proto, Vector *vec)
 {
 	int sz = Vector_Size(vec);
-	if (Vector_Size(proto->pdesc) -1 > sz) {
-			return 0;
-	} else {
+	int psz = Vector_Size(proto->pdesc);
+	if (sz < psz - 1) return 0;
+
 		TypeDesc *desc;
 		struct expr *exp;
 		Vector_ForEach(exp, vec) {
-			if (i < proto->psz - 1)
-				desc = proto->pdesc + i;
+			if (i < psz - 1)
+				desc = Vector_Get(proto->pdesc, i);
 			else
-				desc = proto->pdesc + proto->psz - 1;
+				desc = Vector_Get(proto->pdesc, psz - 1);
 
 			TypeDesc *d = exp->desc;
 			if (!d) {
@@ -69,20 +77,16 @@ static int check_call_varg(TypeDesc *proto, Vector *vec)
 			}
 
 			if (d->kind == TYPE_PROTO) {
-				Proto *p = d->proto;
 				/* allow only one return value as function argument */
-				if (p->rsz != 1) return 0;
-				if (!TypeDesc_Check(p->rdesc, desc)) return 0;
+				if (Vector_Size(d->rdesc) != 1) return 0;
+				if (!TypeDesc_Check(Vector_Get(d->rdesc, 0), desc)) return 0;
 			} else {
 				assert(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
 				if (!TypeDesc_Check(d, desc)) return 0;
 			}
 		}
 		return 1;
-	}
 }
-
-#endif
 
 int check_call_args(TypeDesc *proto, Vector *vec)
 {
@@ -91,7 +95,7 @@ int check_call_args(TypeDesc *proto, Vector *vec)
 		return 1;
 	}
 
-	//if (Proto_Has_Vargs(proto)) return check_call_varg(proto, vec);
+	if (isvarg(proto)) return check_call_varg(proto, vec);
 
 	int sz = Vector_Size(vec);
 	if (psz != sz) {
