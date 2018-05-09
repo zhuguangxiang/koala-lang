@@ -2,6 +2,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "moduleobject.h"
+#include "gc.h"
 #include "hash.h"
 #include "log.h"
 
@@ -19,6 +20,16 @@ static int __add_string(HashTable *cache, StringObject *strobj)
 	return HashTable_Insert(cache, &strobj->hnode);
 }
 
+static void init_string(StringObject *strobj, char *str, int len)
+{
+	Init_Object_Head(strobj, &String_Klass);
+	Init_HashNode(&strobj->hnode, strobj);
+	strobj->len = len;
+	strobj->str = (char *)(strobj + 1);
+	strcpy(strobj->str, str);
+	__add_string(&StringCache, strobj);
+}
+
 Object *String_New(char *str)
 {
 	int len = strlen(str);
@@ -28,20 +39,32 @@ Object *String_New(char *str)
 		return (Object *)strobj;
 	}
 
+	strobj = GC_Alloc(sizeof(StringObject) + (len + 1));
+	init_string(strobj, str, len);
+	return (Object *)strobj;
+}
+
+Object *String_New_NoGC(char *str)
+{
+	int len = strlen(str);
+	StringObject *strobj = __find_string(&StringCache, str, len);
+	if (strobj) {
+		debug("found '%s' in string cache", str);
+		return (Object *)strobj;
+	}
+
 	strobj = malloc(sizeof(StringObject) + (len + 1));
-	Init_Object_Head(strobj, &String_Klass);
-	Init_HashNode(&strobj->hnode, strobj);
-	strobj->len = len;
-	strobj->str = (char *)(strobj + 1);
-	strcpy(strobj->str, str);
-	__add_string(&StringCache, strobj);
+	init_string(strobj, str, len);
 	return (Object *)strobj;
 }
 
 void String_Free(Object *ob)
 {
 	OB_ASSERT_KLASS(ob, String_Klass);
-	free(ob);
+	StringObject *strobj = (StringObject *)ob;
+	HashTable_Remove(&StringCache, &strobj->hnode);
+	debug("free string:%s", strobj->str);
+	//free(ob);
 }
 
 char *String_RawString(Object *ob)
@@ -109,6 +132,20 @@ static int strobj_equal(void *k1, void *k2)
 
 /*-------------------------------------------------------------------------*/
 
+static Object *__string_concat(Object *ob, Object *args)
+{
+	TValue v = Tuple_Get(args, 0);
+	OB_ASSERT_KLASS(ob, String_Klass);
+	StringObject *s1 = (StringObject *)ob;
+	assert(v.klazz == &String_Klass);
+	StringObject *s2 = (StringObject *)v.ob;
+	char buf[s1->len + s2->len + 1];
+	strcpy(buf, s1->str);
+	strcat(buf, s2->str);
+	Object *res = String_New(buf);
+	return Tuple_Build("O", res);
+}
+
 static Object *__string_length(Object *ob, Object *args)
 {
 	assert(!args);
@@ -124,6 +161,7 @@ static Object *__string_tostring(Object *ob, Object *args)
 }
 
 static FuncDef string_funcs[] = {
+	{"Concat", "s", "s", __string_concat},
 	{"Length", "i", NULL, __string_length},
 	{"ToString", "s", NULL, __string_tostring},
 	{NULL}
@@ -134,7 +172,7 @@ void Init_String_Klass(void)
 	HashInfo hashinfo = {.hash = strobj_hash, .equal = strobj_equal};
 	HashTable_Init(&StringCache, &hashinfo);
 	Klass_Add_CFunctions(&String_Klass, string_funcs);
-	String_New("");
+	String_New_NoGC("");
 }
 
 /*-------------------------------------------------------------------------*/

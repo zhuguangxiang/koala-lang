@@ -18,6 +18,7 @@ typedef struct stringobject {
 extern Klass String_Klass;
 void Init_String_Klass(void);
 Object *String_New(char *str);
+Object *String_New_NoGC(char *str);
 void String_Free(Object *ob);
 char *String_RawString(Object *ob);
 

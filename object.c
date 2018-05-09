@@ -3,7 +3,8 @@
 #include "stringobject.h"
 #include "moduleobject.h"
 #include "tupleobject.h"
-#include "koala_state.h"
+#include "kstate.h"
+#include "gc.h"
 #include "hash.h"
 #include "log.h"
 
@@ -212,7 +213,7 @@ static void init_object(Object *ob, Klass *klazz)
 
 static Object *object_alloc(Klass *klazz)
 {
-	Object *ob = calloc(1, get_object_size(klazz));
+	Object *ob = GC_Alloc(get_object_size(klazz));
 	init_object(ob, klazz);
 	printf("++++++++line-order++++++++\n");
 	Object *base = ob;
@@ -265,7 +266,6 @@ static void object_free(Object *ob)
 {
 	Check_Klass(OB_KLASS(ob));
 	assert(OB_Head(ob) && OB_Head(ob) == ob);
-	free(ob);
 }
 
 static uint32 object_hash(TValue *v)

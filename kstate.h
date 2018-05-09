@@ -12,9 +12,11 @@ extern "C" {
 typedef struct koalastate {
 	HashTable modules;
 	Properties config;
+	struct list_head routines;
 } KoalaState;
 
 /* Exported APIs */
+extern KoalaState gs;
 Object *Koala_New_Module(char *name, char *path);
 Object *Koala_Get_Module(char *path);
 Object *Koala_Load_Module(char *path);
@@ -22,6 +24,7 @@ Klass *Koala_Get_Klass(Object *ob, char *path, char *type);
 void Koala_Initialize(void);
 void Koala_Finalize(void);
 void Koala_Run(char *path);
+void Koala_Collect_Modules(Vector *vec);
 
 #ifdef __cplusplus
 }

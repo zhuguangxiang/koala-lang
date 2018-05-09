@@ -3,7 +3,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "tableobject.h"
-#include "koala_state.h"
+#include "kstate.h"
 #include "log.h"
 
 static Object *__lang_typeof(Object *ob, Object *args)
@@ -24,8 +24,25 @@ static Object *__lang_typeof(Object *ob, Object *args)
 	}
 }
 
+static Object *__string_concat(Object *ob, Object *args)
+{
+	OB_ASSERT_KLASS(ob, Module_Klass);
+	TValue v1 = Tuple_Get(args, 0);
+	TValue v2 = Tuple_Get(args, 1);
+	assert(v1.klazz == &String_Klass);
+	StringObject *s1 = (StringObject *)v1.ob;
+	assert(v2.klazz == &String_Klass);
+	StringObject *s2 = (StringObject *)v2.ob;
+	char buf[s1->len + s2->len + 1];
+	strcpy(buf, s1->str);
+	strcat(buf, s2->str);
+	Object *res = String_New(buf);
+	return Tuple_Build("O", res);
+}
+
 static FuncDef lang_funcs[] = {
 	{"TypeOf", "Okoala/lang.Class;", "...A", __lang_typeof},
+	{"Concat", "s", "ss", __string_concat},
 	{NULL}
 };
 

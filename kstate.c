@@ -1,11 +1,12 @@
 
-#include "koala_state.h"
+#include "kstate.h"
 #include "moduleobject.h"
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "mod_lang.h"
 #include "mod_io.h"
 #include "routine.h"
+#include "gc.h"
 #include "klc.h"
 #include "log.h"
 
@@ -42,6 +43,18 @@ static int mod_entry_equal(void *k1, void *k2)
 	struct mod_entry *e1 = k1;
 	struct mod_entry *e2 = k2;
 	return !strcmp(e1->path, e2->path);
+}
+
+static void collect_modules_fn(HashNode *hnode, void *arg)
+{
+	Vector *vec = arg;
+	struct mod_entry *e = container_of(hnode, struct mod_entry, hnode);
+	Vector_Append(vec, e->ob);
+}
+
+void Koala_Collect_Modules(Vector *vec)
+{
+	HashTable_Traverse(&gs.modules, collect_modules_fn, vec);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -508,7 +521,7 @@ static Object *__get_consts(KImage *image)
 			}
 			case CONST_STRING: {
 				stritem = StringItem_Index(image->table, item->index);
-				setobjvalue(&value, String_New(stritem->data));
+				setobjvalue(&value, String_New_NoGC(stritem->data));
 				break;
 			}
 			default: {
@@ -588,6 +601,7 @@ void Koala_Run(char *path)
 	Object *code = Module_Get_Function(ob, "Main");
 	if (code) {
 		run_code(code, ob, NULL);
+		GC_Run();
 	} else {
 		error("No 'Main' in '%s'", Module_Name(ob));
 	}
@@ -619,6 +633,7 @@ void Koala_Initialize(void)
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, mod_entry_hash, mod_entry_equal);
 	HashTable_Init(&gs.modules, &hashinfo);
+	init_list_head(&gs.routines);
 
 	//init env
 	Init_Environment();
@@ -628,6 +643,7 @@ void Koala_Initialize(void)
 
 	//sched_init();
 	//schedule();
+	GC_Init();
 }
 
 static void __mod_entry_free_fn(HashNode *hnode, void *arg)

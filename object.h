@@ -105,7 +105,7 @@ struct object {
 };
 
 #define OBJECT_HEAD_INIT(ob, klazz) \
-	.ob_next = NULL, .ob_ref = 1, .ob_klass = (klazz), \
+	.ob_klass = (klazz), \
 	.ob_base = (Object *)(ob), .ob_head = (Object *)(ob), .ob_size = 0,
 
 #define OB_KLASS(ob) (((Object *)(ob))->ob_klass)
@@ -125,8 +125,6 @@ struct object {
 
 #define Init_Object_Head(ob, klazz) do { \
 	Object *o = (Object *)(ob); \
-	o->ob_next = NULL; \
-	o->ob_ref = 1; \
 	o->ob_klass = klazz; \
 	o->ob_base = OB_HasBase(klazz) ? NEXT_OBJECT(ob, klazz) : o; \
 	o->ob_head = o; \

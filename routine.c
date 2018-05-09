@@ -4,7 +4,7 @@
 #include "codeobject.h"
 #include "tupleobject.h"
 #include "stringobject.h"
-#include "koala_state.h"
+#include "kstate.h"
 #include "klc.h"
 #include "opcode.h"
 #include "log.h"
@@ -165,6 +165,8 @@ Routine *Routine_New(Object *code, Object *ob, Object *args)
 
 	/* new frame */
 	frame_new(rt, ob, code, size);
+
+	list_add_tail(&rt->link, &gs.routines);
 
 	return rt;
 }
