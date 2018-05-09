@@ -1,0 +1,31 @@
+
+/*
+	This test is for gc
+ */
+package test;
+
+import "koala/io";
+
+class Dog {
+	var name string;
+	var age int;
+
+	func __init__(name string, age int) {
+		self.name = name;
+		self.age = age;
+	}
+
+	func SayHello() {
+		io.Println("Dog", name);
+	}
+}
+
+func Main(args []string) {
+	var dog = Dog("erha", 100);
+	dog.SayHello();
+	var s1 = "Hello";
+	var s2 = " Koala";
+	var s = lang.Concat(s1, s2);
+	io.Println(s);
+	io.Println(lang.Concat(s, " World"));
+}
