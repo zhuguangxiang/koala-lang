@@ -141,10 +141,19 @@ int check_return_types(Symbol *sym, Vector *vec)
 			return 0;
 		}
 		struct expr *exp;
+		TypeDesc *desc;
 		Vector_ForEach(exp, vec) {
-			if (!TypeDesc_Check(exp->desc, Vector_Get(proto->rdesc, i))) {
-				error("type check failed");
-				return 0;
+			desc = Vector_Get(proto->rdesc, i);
+			if (exp->desc->kind == TYPE_PROTO && desc->kind != TYPE_PROTO) {
+				if (!TypeDesc_Check(Vector_Get(exp->desc->rdesc, 0), desc)) {
+					error("type check failed");
+					return 0;
+				}
+			} else {
+				if (!TypeDesc_Check(exp->desc, desc)) {
+					error("type check failed");
+					return 0;
+				}
 			}
 		}
 		return 1;

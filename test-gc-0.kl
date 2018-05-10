@@ -15,14 +15,15 @@ class Dog {
 		self.age = age;
 	}
 
-	func SayHello() {
-		io.Println("Dog", name);
+	func ToString() string {
+		return lang.Concat("Dog ", name);
 	}
 }
 
 func Main(args []string) {
 	var dog = Dog("erha", 100);
-	dog.SayHello();
+	io.Println(dog.ToString());
+	io.Println(dog);
 	var s1 = "Hello";
 	var s2 = " Koala";
 	var s = lang.Concat(s1, s2);

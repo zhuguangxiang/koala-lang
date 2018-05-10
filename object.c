@@ -653,7 +653,14 @@ static int object_print(char *buf, int sz, TValue *val)
 {
 	Object *ob = val->ob;
 	Klass *klazz = OB_KLASS(ob);
-	ob = klazz->ob_tostr(val);
+	MemberDef key = {.name = "ToString"};
+	MemberDef *member = HashTable_Find(__get_table(klazz), &key);
+	if (member) {
+		if (member->kind != MEMBER_CODE) return 0;
+		ob = Koala_Run_Code(member->code, ob, NULL);
+	} else {
+		ob = klazz->ob_tostr(val);
+	}
 	OB_ASSERT_KLASS(ob, Tuple_Klass);
 	TValue v = Tuple_Get(ob, 0);
 	return snprintf(buf, sz, "%s", String_RawString(v.ob));

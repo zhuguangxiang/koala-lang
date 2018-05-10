@@ -25,6 +25,7 @@ void Koala_Initialize(void);
 void Koala_Finalize(void);
 void Koala_Run(char *path);
 void Koala_Collect_Modules(Vector *vec);
+Object *Koala_Run_Code(Object *code, Object *ob, Object *args);
 
 #ifdef __cplusplus
 }

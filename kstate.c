@@ -82,10 +82,11 @@ Object *Koala_New_Module(char *name, char *path)
 	return ob;
 }
 
-static void run_code(Object *code, Object *ob, Object *args)
+Object *Koala_Run_Code(Object *code, Object *ob, Object *args)
 {
 	Routine *rt = Routine_New(code, ob, args);
 	Routine_Run(rt);
+	return Tuple_From_TValues(rt->stack, rt->top + 1);
 }
 
 Object *Koala_Get_Module(char *path)
@@ -571,7 +572,7 @@ static Object *load_module(char *path)
 					if (code) {
 						debug("run __init__ in module '%s'", path);
 						//FIXME: new routine ?
-						run_code(code, ob, NULL);
+						Koala_Run_Code(code, ob, NULL);
 					} else {
 						debug("cannot find '__init__' in module '%s'", path);
 					}
@@ -600,7 +601,7 @@ void Koala_Run(char *path)
 	if (!ob) return;
 	Object *code = Module_Get_Function(ob, "Main");
 	if (code) {
-		run_code(code, ob, NULL);
+		Koala_Run_Code(code, ob, NULL);
 		GC_Run();
 	} else {
 		error("No 'Main' in '%s'", Module_Name(ob));
