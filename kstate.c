@@ -614,7 +614,12 @@ static void Init_Environment(void)
 {
 	Properties_Init(&gs.config);
 	Properties_Put(&gs.config, "koala.path", "./");
-	Properties_Put(&gs.config, "koala.path", "/home/zgx/koala-repo/");
+	char *home = getenv("HOME");
+	char *repo = "/.koala-repo/";
+	char *path = malloc(strlen(home) + strlen(repo) + 1);
+	strcpy(path, home);
+	strcat(path, repo);
+	Properties_Put(&gs.config, "koala.path", path);
 }
 
 static void Init_Modules(void)

@@ -33,18 +33,20 @@ KOALA  = koala
 ##@$(CC) -c $(CFLAGS) $(KOALA_LIB_FILES)
 ##@$(AR) -rc lib$(KOALA_LIB).a $(patsubst %.c, %.o, $(KOALA_LIB_FILES))
 
-all: lib koalac koala test
+all: koalac koala test
 
-lib:
-	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
-	@flex -o koala_lex.c yacc/koala.l
+libkoala:
 	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALA_LIB).so $(KOALA_LIB_FILES) \
 	-pthread
+	@cp lib$(KOALA_LIB).so /usr/lib/koala-lang/
+	@$(RM) *.o lib$(KOALA_LIB).so
+
+libkoalac:
+	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
+	@flex -o koala_lex.c yacc/koala.l
 	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALAC_LIB).so $(KOALAC_LIB_FILES) \
 	-l$(KOALA_LIB) -pthread
-	@cp lib$(KOALA_LIB).so /usr/lib/koala-lang/
 	@cp lib$(KOALAC_LIB).so /usr/lib/koala-lang/
-	@$(RM) *.o lib$(KOALA_LIB).so
 	@$(RM) *.o lib$(KOALAC_LIB).so
 	@$(RM) koala_yacc.h koala_yacc.c koala_yacc.output koala_lex.c
 
@@ -59,19 +61,19 @@ koala:
 	@cp $(KOALA) /usr/local/bin
 	@$(RM) $(KOALA)
 
-testvector: lib
+testvector:
 	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testtuple: lib
+testtuple:
 	@$(CC) $(CFLAGS) test_tuple.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testthread: lib
+testthread:
 	@$(CC) $(CFLAGS) test_thread.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-teststring: lib
+teststring:
 	@$(CC) $(CFLAGS) test_string.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
@@ -83,35 +85,35 @@ testmodule:
 	@$(CC) $(CFLAGS) test_module.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testlist: lib
+testlist:
 	@$(CC) $(CFLAGS) test_list.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testhashtable: lib
+testhashtable:
 	@$(CC) $(CFLAGS) test_hashtable.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testimage: lib
+testimage:
 	@$(CC) $(CFLAGS) test_image.c -L. -l$(KOALA_LIB) -lrt
 	@./a.out
 
-testroutine: lib
+testroutine:
 	@$(CC) $(CFLAGS) test_routine.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testloop: lib
+testloop:
 	@$(CC) $(CFLAGS) test_loop.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testbuf: lib
+testbuf:
 	@$(CC) $(CFLAGS) test_buffer.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testprop: lib
+testprop:
 	@$(CC) $(CFLAGS) test_properties.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
-testnumber: lib
+testnumber:
 	@$(CC) $(CFLAGS) test_number.c -l$(KOALA_LIB) -L. -lrt
 	@./a.out
 
@@ -157,9 +159,9 @@ test-0.5.8:
 
 test-test:
 	@cd test/ && $(KOALAC) town.kl
-	@cd test/ && mv town.klc ~/koala-repo/test
+	@cd test/ && mv town.klc ~/.koala-repo/test
 	@cd test/ && $(KOALAC) person.kl
-	@cd test/ && mv person.klc ~/koala-repo/test
+	@cd test/ && mv person.klc ~/.koala-repo/test
 	@cd test/ && $(RM) test.klc
 	@cd test/ && $(KOALAC) test.kl
 	@cd test/ && $(KOALA) test
@@ -176,7 +178,7 @@ test-0.5.10:
 
 test-0.5.11:
 	@cd test/ && $(KOALAC) animal.kl
-	@cd test/ && mv animal.klc ~/koala-repo/test
+	@cd test/ && mv animal.klc ~/.koala-repo/test
 	@$(RM) test-0.5.11.klc
 	@$(KOALAC) test-0.5.11.kl
 	@$(KOALA) test-0.5.11
@@ -271,7 +273,7 @@ test: testprop testbuf testroutine testimage testhashtable testlist \
 	testmodule testobject teststring testtuple testvector testkl testtrait
 	@echo "Test Down!"
 
-.PHONY: all
 .PHONY: koala
 .PHONY: koalac
-.PHONY: lib
+.PHONY: libkoala
+.PHONY: libkoalac
