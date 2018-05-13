@@ -1,65 +1,75 @@
 #####################################
+CC = gcc
 
-HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+DBGFLAGS = -g -DLOG_WARN -DSHOW_ENABLED #-DLOG_NDEBUG
+OPTFLAGS = #-O2
 
-TOPDIR = $(shell pwd)
+CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I./ -Wbad-function-cast
 
-export	TOPDIR
+CFLAGS = $(CPPFLAGS) -fPIC -W -Wall -Wpointer-arith -Wstrict-prototypes
 
-include $(TOPDIR)/config.mk
+######################################
+
+KOALA_OBJS = log.o hashtable.o hash.o vector.o buffer.o properties.o \
+atomtable.o object.o stringobject.o tupleobject.o \
+tableobject.o moduleobject.o codeobject.o opcode.o \
+klc.o routine.o thread.o mod_lang.o mod_io.o kstate.o \
+typedesc.o numberobject.o gc.o
+
+KOALAC_OBJS = koala_yacc.o koala_lex.o ast.o parser.o checker.o \
+symbol.o codegen.o
 
 ######################################
 
-KOALA_LIB_FILES = log.c hashtable.c hash.c vector.c buffer.c properties.c \
-atomtable.c object.c stringobject.c tupleobject.c \
-tableobject.c moduleobject.c codeobject.c opcode.c \
-klc.c routine.c thread.c mod_lang.c mod_io.c kstate.c \
-typedesc.c numberobject.c gc.c
+all: koala koalac
 
-KOALA_LIB = koala
+libkoala.so: $(KOALA_OBJS)
+	@echo "[SO]	$@"
+	@$(CC) -shared -o $@ $(KOALA_OBJS) -pthread
+	@cp $@ /usr/lib/koala-lang/
 
-KOALAC_LIB_FILES = koala_yacc.c koala_lex.c ast.c parser.c checker.c \
-symbol.c codegen.c
+libkoalac.so: libkoala.so koala_yacc.c koala_lex.c $(KOALAC_OBJS)
+	@echo "[SO]	$@"
+	@$(CC) -shared -o $@ $(KOALAC_OBJS) -lkoala -pthread
+	@cp $@ /usr/lib/koala-lang/
 
-KOALAC_LIB = koalac
+koalac: libkoalac.so libkoalac.so koalac.o
+	@echo "[MAIN]	$@"
+	@gcc $(CFLAGS) -o $@ koalac.o -lkoalac -lkoala -pthread -lrt
+	@cp $@ /usr/local/bin
 
-KOALAC_FILES = koalac.c
-KOALAC = koalac
+koala: libkoala.so koala.o
+	@echo "[MAIN]	$@"
+	@gcc $(CFLAGS) -o $@ koala.o -lkoala -pthread -lrt
+	@cp $@ /usr/local/bin
 
-KOALA_FILES = koala.c
-KOALA  = koala
+koala_yacc.c: yacc/koala.y
+	@echo "[YACC]	$@"
+	@bison -dvt -Wall -o $@ yacc/koala.y
+
+koala_lex.c: yacc/koala.l
+	@echo "[FLEX]	$@"
+	@flex -o $@ yacc/koala.l
 
 ######################################
-##@$(CC) -c $(CFLAGS) $(KOALA_LIB_FILES)
-##@$(AR) -rc lib$(KOALA_LIB).a $(patsubst %.c, %.o, $(KOALA_LIB_FILES))
 
-all: koalac koala test
+sinclude $(KOALA_OBJS:.o=.d) $(KOALAC_OBJS:.o=.d) koala.d koalac.d
 
-libkoala:
-	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALA_LIB).so $(KOALA_LIB_FILES) \
-	-pthread
-	@cp lib$(KOALA_LIB).so /usr/lib/koala-lang/
-	@$(RM) *.o lib$(KOALA_LIB).so
+%.o: %.c
+	@echo "[CC]	$@"
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
-libkoalac:
-	@bison -dvt -Wall -o koala_yacc.c yacc/koala.y
-	@flex -o koala_lex.c yacc/koala.l
-	@$(CC) -fPIC -shared $(CFLAGS) -o lib$(KOALAC_LIB).so $(KOALAC_LIB_FILES) \
-	-l$(KOALA_LIB) -pthread
-	@cp lib$(KOALAC_LIB).so /usr/lib/koala-lang/
-	@$(RM) *.o lib$(KOALAC_LIB).so
-	@$(RM) koala_yacc.h koala_yacc.c koala_yacc.output koala_lex.c
+%.d: %.c
+	@set -e; rm -f $@; \
+	$(CC) -MM $(CPPFLAGS) $< > $@.$$$$; \
+	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
 
-koalac:
-	@gcc $(CFLAGS) -o $(KOALAC) $(KOALAC_FILES) -L. -l$(KOALAC_LIB) \
-	-l$(KOALA_LIB) -pthread -lrt
-	@cp $(KOALAC) /usr/local/bin
-	@$(RM) $(KOALAC)
+.PHONY: clean
+clean:
+	rm -f *.so *.o *.d *.d.* koala_lex.c koala_yacc.c koala_yacc.output
 
-koala:
-	@gcc $(CFLAGS) -o $(KOALA) $(KOALA_FILES) -L. -l$(KOALA_LIB) -pthread -lrt
-	@cp $(KOALA) /usr/local/bin
-	@$(RM) $(KOALA)
+######################################
 
 testvector:
 	@$(CC) $(CFLAGS) test_vector.c -l$(KOALA_LIB) -L. -lrt
@@ -272,8 +282,3 @@ runtrait:
 test: testprop testbuf testroutine testimage testhashtable testlist \
 	testmodule testobject teststring testtuple testvector testkl testtrait
 	@echo "Test Down!"
-
-.PHONY: koala
-.PHONY: koalac
-.PHONY: libkoala
-.PHONY: libkoalac
