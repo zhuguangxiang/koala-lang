@@ -79,6 +79,8 @@ typedef struct parserunit {
 	Vector jmps;
 } ParserUnit;
 
+#define MAX_ERRORS 2
+
 typedef struct parserstate {
 	Vector stmts;       /* all statements */
 	char *package;
@@ -89,7 +91,7 @@ typedef struct parserstate {
 	int nestlevel;
 	struct list_head ustack;
 	int olevel;         /* optimization level */
-	Vector errors;
+	int errors;
 } ParserState;
 
 void init_parser(ParserState *ps);

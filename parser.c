@@ -2583,14 +2583,12 @@ void init_parser(ParserState *ps)
 	sym->ptr = STable_New(NULL);
 	ps->sym = sym;
 	init_list_head(&ps->ustack);
-	Vector_Init(&ps->errors);
 }
 
 void fini_parser(ParserState *ps)
 {
 	vec_stmt_fini(&ps->stmts);
 	fini_imports(ps);
-	Vector_Fini(&ps->errors, NULL, NULL);
 	free(ps->package);
 }
 
