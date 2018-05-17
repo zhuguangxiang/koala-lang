@@ -7,6 +7,8 @@
 #include "opcode.h"
 #include "moduleobject.h"
 #include "log.h"
+#include "lexer.h"
+#include "koala_yacc.h"
 
 static JmpInst *JmpInst_New(Inst *inst, int type)
 {
@@ -2594,15 +2596,12 @@ void fini_parser(ParserState *ps)
 
 void parser_module(ParserState *ps, FILE *in)
 {
-	extern FILE *yyin;
-	extern int yyparse(ParserState *ps);
-
 	parser_enter_scope(ps, ps->sym->ptr, SCOPE_MODULE);
 	ps->u->sym = ps->sym;
 
-	yyin = in;
-	yyparse(ps);
-	fclose(yyin);
+	LexerState *ls = Lexer_New(in);
+	yyparse(ps, ls->scanner);
+	Lexer_Destroy(ls);
 
 	parser_body(ps, &ps->stmts);
 

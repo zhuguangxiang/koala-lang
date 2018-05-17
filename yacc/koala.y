@@ -5,19 +5,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include "parser.h"
-#include "koala_yacc.h"
+#include "lexer.h"
 
-int yylex(void);
-
-int yyerror(ParserState *parser, const char *str)
+int yyerror(ParserState *parser, void *scanner, const char *str)
 {
   UNUSED_PARAMETER(parser);
-  fprintf(stderr, "syntax error: %s\n", str);
+  UNUSED_PARAMETER(scanner);
+  UNUSED_PARAMETER(str);
   return 0;
 }
 
 //#define YYERROR_VERBOSE 1
-#define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
+//#define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
+
+//#define scanner parser->scanner
 
 %}
 
@@ -166,9 +167,7 @@ int yyerror(ParserState *parser, const char *str)
 %type <stmt> LocalStatement
 %type <stmt> Assignment
 %type <stmt> IfStatement
-//%type <vector> ElseIfStatements
 %type <stmt> OrElseStatement
-//%type <testblock> OptionELSE
 %type <stmt> WhileStatement
 %type <stmt> SwitchStatement
 %type <vector> CaseStatements
@@ -197,6 +196,15 @@ int yyerror(ParserState *parser, const char *str)
 %start CompileUnit
 
 %parse-param {ParserState *parser}
+%parse-param {void *scanner}
+%define api.pure full
+%lex-param {void *scanner}
+
+%code provides {
+#define YY_DECL \
+int yylex(YYSTYPE *yylval_param, void *yyscanner)
+YY_DECL;
+}
 
 %%
 
@@ -302,7 +310,7 @@ ReturnTypeList
     $$ = $2;
   }
   | error {
-    yyerror(parser, "return declaration is not correct");
+    yyerror(parser, scanner, "return declaration is not correct");
     $$ = NULL;
   }
   ;
@@ -321,17 +329,18 @@ TypeList
 /*--------------------------------------------------------------------------*/
 
 CompileUnit
-  : Package Imports ModuleStatements {
-    //ast_traverse(&parser->stmts);
-  }
-  | Package ModuleStatements {
-    //ast_traverse(&parser->stmts);
-  }
+  : Package Imports ModuleStatements
+  | Package ModuleStatements
+  | Imports ModuleStatements
+  | ModuleStatements
   ;
 
 Package
   : PACKAGE ID ';' {
     parser->package = $2;
+  }
+  | PACKAGE error {
+
   }
   ;
 
@@ -346,6 +355,9 @@ Import
   }
   | IMPORT ID STRING_CONST ';' {
     Parse_Import(parser, $2, $3);
+  }
+  | IMPORT error {
+
   }
   ;
 
@@ -371,9 +383,12 @@ ModuleStatement
     Parse_UserDef(parser, $1);
   }
   | error {
-    yyerror(parser, "non-declaration statement outside function body");
-    yyerrok;
+    printf("error : non-declaration statement outside function body\n");
+    printf("line %d, col %d\n", Lexer_Row(scanner), Lexer_Col(scanner));
+    printf("%s", Lexer_Line(scanner));
     yyclearin;
+    yyerrok;
+    //
   }
   ;
 
@@ -432,7 +447,7 @@ ParameterList
     $$ = $1;
   }
   | error {
-    yyerror(parser, "parameter declaration is not correct");
+    yyerror(parser, scanner, "parameter declaration is not correct");
     $$ = NULL;
   }
   ;

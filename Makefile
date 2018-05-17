@@ -16,8 +16,8 @@ tableobject.o moduleobject.o codeobject.o opcode.o \
 klc.o routine.o thread.o mod_lang.o mod_io.o kstate.o \
 typedesc.o numberobject.o gc.o
 
-KOALAC_OBJS = koala_yacc.o koala_lex.o ast.o parser.o checker.o \
-symbol.o codegen.o
+KOALAC_OBJS = parser.o ast.o checker.o lexer.o \
+symbol.o codegen.o koala_lex.o koala_yacc.o
 
 ######################################
 
@@ -28,12 +28,12 @@ libkoala.so: $(KOALA_OBJS)
 	@$(CC) -shared -o $@ $(KOALA_OBJS) -pthread
 	@cp $@ /usr/lib/koala-lang/
 
-libkoalac.so: libkoala.so koala_yacc.c koala_lex.c $(KOALAC_OBJS)
+libkoalac.so: $(KOALAC_OBJS) libkoala.so
 	@echo "[SO]	$@"
 	@$(CC) -shared -o $@ $(KOALAC_OBJS) -lkoala -pthread
 	@cp $@ /usr/lib/koala-lang/
 
-koalac: libkoalac.so libkoalac.so koalac.o
+koalac: libkoalac.so koalac.o
 	@echo "[MAIN]	$@"
 	@gcc $(CFLAGS) -o $@ koalac.o -lkoalac -lkoala -pthread -lrt
 	@cp $@ /usr/local/bin
@@ -45,11 +45,16 @@ koala: libkoala.so koala.o
 
 koala_yacc.c: yacc/koala.y
 	@echo "[YACC]	$@"
-	@bison -dvt -Wall -o $@ yacc/koala.y
+	@/home/zgx/tools/bin/bison -dvt -Wall -o $@ yacc/koala.y
 
 koala_lex.c: yacc/koala.l
 	@echo "[FLEX]	$@"
-	@flex -o $@ yacc/koala.l
+	@/home/zgx/tools/bin/flex -o $@ yacc/koala.l
+
+clean:
+	rm -f *.so *.o *.d *.d.* koala_lex.* koala_yacc.*
+
+.PHONY: clean
 
 ######################################
 
@@ -64,10 +69,6 @@ sinclude $(KOALA_OBJS:.o=.d) $(KOALAC_OBJS:.o=.d) koala.d koalac.d
 	$(CC) -MM $(CPPFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
 	rm -f $@.$$$$
-
-.PHONY: clean
-clean:
-	rm -f *.so *.o *.d *.d.* koala_lex.c koala_yacc.c koala_yacc.output
 
 ######################################
 

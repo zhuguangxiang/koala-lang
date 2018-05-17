@@ -3,7 +3,6 @@
 #define _KOALA_PARSER_H_
 
 #include "ast.h"
-#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,11 +58,6 @@ typedef struct import {
 	char *path;
 	Symbol *sym;
 } Import;
-
-typedef struct error {
-	char *msg;
-	int line;
-} Error;
 
 enum scope {
 	SCOPE_MODULE = 1,

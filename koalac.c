@@ -31,5 +31,6 @@ int main(int argc, char *argv[])
 	codegen_klc(&ps, outfile);
 	fini_parser(&ps);
 	Koala_Finalize();
+	fclose(in);
 	return 0;
 }

@@ -1,6 +1,6 @@
 a.out
 koala_yacc.*
-koala_lex.c
+koala_lex.*
 *.klc
 .vscode
 *.a

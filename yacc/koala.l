@@ -1,21 +1,48 @@
 
 %{
+#include "lexer.h"
 #include "parser.h"
 #include "koala_yacc.h"
 
-static void echo(void) {
-  //fprintf(stdout, ">>>%s\n", yytext);
+#define YY_EXTRA_TYPE LexerState *
+
+#define YY_USER_ACTION { \
+	Lexer_DoUserAction(yyextra, yytext); \
+}
+/*
+	yylloc.first_line = yylloc.last_line; \
+	yylloc.first_column = yylloc.last_column; \
+	for (int i = 0; yytext[i]; i++) { \
+		if (yytext[i] == '\n') { \
+			yylloc.last_line++; \
+			yylloc.last_column = 0; \
+		} else { \
+			yylloc.last_column++; \
+		} \
+	}
+*/
+
+#define YY_INPUT(buf, result, max_size) { \
+	result = Lexer_DoYYInput(yyextra, buf, max_size, yyin); \
+	if (result <= 0) result = YY_NULL; \
 }
 
-int yywrap(void) {
-  return 1;
+/*
+int yywrap(yyscan_t yyscanner) {
+	return 1;
 }
-
+*/
 %}
 
+%option bison-bridge
+%option reentrant
+%option header-file="koala_lex.h"
 %option nounput
 %option noinput
-%option yylineno
+%option noyywrap
+%option nointeractive
+
+/* %option yylineno */
 
 D   [0-9]
 H   [a-fA-F0-9]
@@ -23,7 +50,7 @@ L   [a-zA-Z_]
 
 %%
 
-[\+\-\*\/\%&\|=><,.;{}\[\]\(\)^~:] {echo();return yytext[0];}
+[\+\-\*\/\%&\|=><,.;{}\[\]\(\)^~:] {return yytext[0];}
 
 "=="                      {return EQ;}
 "!="                      {return NE;}
@@ -82,9 +109,9 @@ L   [a-zA-Z_]
 "string"                  {return STRING;}
 "Any"                     {return ANY;}
 "[]"+                     {
-                            yylval.dims = yyleng/2;
-                            return DIMS;
-                          }
+														yylval->dims = yyleng/2;
+														return DIMS;
+													}
 
 "self"                    {return SELF;}
 "super"                   {return SUPER;}
@@ -94,38 +121,35 @@ L   [a-zA-Z_]
 "typeof"                  {return TYPEOF;}
 
 ([1-9][0-9]*|[0])         {
-                            echo();
-                            yylval.ival = atoi(yytext);
-                            return INT_CONST;
-                          }
+														yylval->ival = atoi(yytext);
+														return INT_CONST;
+													}
 0[xX]{H}+                 {return HEX_CONST;}
 0[0-7]*                   {return OCT_CONST;}
 [0-9]+[.][0-9]+           {
-                            echo();
-                            yylval.fval = atof(yytext);
-                            return FLOAT_CONST;
-                          }
+														yylval->fval = atof(yytext);
+														return FLOAT_CONST;
+													}
 
 (\"(\\.|[^"\\])*\")       {
-                            char *tmp = malloc(yyleng-1);
-                            strncpy(tmp, yytext+1, yyleng-2);
-                            tmp[yyleng - 2] = 0;
-                            yylval.string_const = tmp;
-                            return STRING_CONST;
-                          }
+														char *tmp = malloc(yyleng-1);
+														strncpy(tmp, yytext+1, yyleng-2);
+														tmp[yyleng - 2] = 0;
+														yylval->string_const = tmp;
+														return STRING_CONST;
+													}
 
 {L}({L}|{D})*             {
-                            char *tmp = malloc(yyleng+1);
-                            strncpy(tmp, yytext, yyleng+1);
-                            echo();
-                            yylval.id = tmp;
-                            return ID;
-                          }
+														char *tmp = malloc(yyleng+1);
+														strncpy(tmp, yytext, yyleng+1);
+														yylval->id = tmp;
+														return ID;
+													}
 [\n]                      {}
 [\t ]+                    {}
-"/*"(([^\*]*(\*[^\/])?)*)"*/"       {echo();}
-"#"[^\n]*                           {echo();}
-"//"[^\n]*                          {echo();}
+"/*"(([^\*]*(\*[^\/])?)*)"*/"       {}
+"#"[^\n]*                           {}
+"//"[^\n]*                          {}
 
 
 .                         {}
