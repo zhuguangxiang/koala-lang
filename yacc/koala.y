@@ -385,10 +385,16 @@ ModuleStatement
   | error {
     printf("error : non-declaration statement outside function body\n");
     printf("line %d, col %d\n", Lexer_Row(scanner), Lexer_Col(scanner));
-    printf("%s", Lexer_Line(scanner));
+    printf(" %s", Lexer_Line(scanner));
+    int sz = Lexer_Col(scanner);
+    for (int i = 0; i < sz; i++) putchar(' ');
+    puts("^");
     yyclearin;
     yyerrok;
-    //
+    if (++parser->errors >= MAX_ERRORS) {
+      printf("too many errors\n");
+      exit(-1);
+    }
   }
   ;
 

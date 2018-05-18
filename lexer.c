@@ -43,7 +43,6 @@ void Lexer_DoUserAction(LexerState *ls, char *token)
 {
 	ls->col += ls->lastlen;
 	ls->lastlen = strlen(token);
-	printf("row:%d, col:%d\n", ls->row, ls->col);
 }
 
 int Lexer_Row(void *scanner)

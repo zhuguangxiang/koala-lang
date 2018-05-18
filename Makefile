@@ -21,7 +21,7 @@ symbol.o codegen.o koala_lex.o koala_yacc.o
 
 ######################################
 
-all: koala koalac
+all: koala
 
 libkoala.so: $(KOALA_OBJS)
 	@echo "[SO]	$@"
@@ -33,14 +33,9 @@ libkoalac.so: $(KOALAC_OBJS) libkoala.so
 	@$(CC) -shared -o $@ $(KOALAC_OBJS) -lkoala -pthread
 	@cp $@ /usr/lib/koala-lang/
 
-koalac: libkoalac.so koalac.o
+koala: libkoalac.so koala.o
 	@echo "[MAIN]	$@"
-	@gcc $(CFLAGS) -o $@ koalac.o -lkoalac -lkoala -pthread -lrt
-	@cp $@ /usr/local/bin
-
-koala: libkoala.so koala.o
-	@echo "[MAIN]	$@"
-	@gcc $(CFLAGS) -o $@ koala.o -lkoala -pthread -lrt
+	@gcc $(CFLAGS) -o $@ koala.o -lkoalac -lkoala -pthread -lrt
 	@cp $@ /usr/local/bin
 
 koala_yacc.c: yacc/koala.y
