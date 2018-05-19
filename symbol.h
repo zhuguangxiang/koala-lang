@@ -62,6 +62,7 @@ struct symbol {
 	Symbol *up;
 	void *ptr;      /* CodeBlock and STable(import, class, trait) */
 	char *path;     /* used for import */
+	void *import;   /* save Import */
 	int32 locvars;  /* used in compiler, for function */
 	Vector traits;  /* for traits in correct order */
 };

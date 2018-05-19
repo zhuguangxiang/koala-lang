@@ -72,6 +72,7 @@ void codeblock_free(CodeBlock *b);
 
 typedef struct import {
 	HashNode hnode;
+	Line line;
 	char *path;
 	Symbol *sym;
 } Import;

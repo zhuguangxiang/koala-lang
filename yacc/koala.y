@@ -6,13 +6,17 @@
 #include <string.h>
 #include "parser.h"
 
-int yyerror(ParserState *parser, void *scanner, const char *str)
+#if LOG_NDEBUG
+#define yyerror(parser, scanner, errmsg) ((void)0)
+#else
+int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 {
   UNUSED_PARAMETER(parser);
   UNUSED_PARAMETER(scanner);
-  fprintf(stderr, "%s\n", str);
+  fprintf(stderr, "%s\n", errmsg);
   return 0;
 }
+#endif
 
 #define syntax_error yyerrok; Lexer_PrintError
 #define syntax_error_clearin yyclearin; syntax_error

@@ -58,7 +58,7 @@ void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...)
 		exit(-1);
 	}
 
-	fprintf(stderr, "%s:%d:%d: error: ", ps->filename, l->row, l->col);
+	fprintf(stderr, "%s:%d:%d: ", ps->filename, l->row, l->col);
 
 	va_list ap;
 	va_start(ap, fmt);
@@ -449,6 +449,12 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path)
 
 	sym->ptr = Module_To_STable(ob, ps->extstbl->atbl, path);
 	import->sym = sym;
+	Line *l = &import->line;
+	LineBuffer *lb = &ps->line;
+	l->line = strdup(lb->line);
+	l->row = lb->row;
+	l->col = 1;
+	sym->import = import;
 	debug("add import '%s <- %s' successful", id, path);
 	return sym;
 }

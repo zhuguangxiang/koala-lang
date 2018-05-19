@@ -5,12 +5,11 @@
 static void __unused_import_fn(Symbol *sym, void *arg)
 {
 	ParserState *ps = arg;
-	UNUSED_PARAMETER(ps);
-
 	if (sym->refcnt != 0) return;
 
-	warn("package '%s <- %s' is never used",
-		sym->name, TypeDesc_ToString(sym->desc));
+	Import *import = sym->import;
+	Parser_PrintError(ps, &import->line,
+		"imported and not used: '%s'", sym->name);
 }
 
 void check_unused_imports(ParserState *ps)
