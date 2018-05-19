@@ -12,7 +12,6 @@ typedef struct line {
 	char *line;
 	int row;
 	int col;
-	int dup;
 } Line;
 
 /*-------------------------------------------------------------------------*/

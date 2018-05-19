@@ -232,7 +232,7 @@ char *TypeDesc_ToString(TypeDesc *desc)
 	char *str = "";
 
 	if (!desc) {
-		warn("desc is null");
+		debug("desc is null");
 		return NULL;
 	}
 

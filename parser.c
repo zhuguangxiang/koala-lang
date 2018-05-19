@@ -45,15 +45,9 @@ void Parser_SetLine(ParserState *ps, struct expr *exp)
 {
 	Line *l = &exp->line;
 	LineBuffer *lb = &ps->line;
-	if (!lb->copy) {
-		lb->copy = 1;
-		l->line = strdup(lb->line);
-		l->row = lb->row;
-		l->col = lb->col;
-		l->dup = 0;
-	} else {
-		l->dup = 1;
-	}
+	l->line = strdup(lb->line);
+	l->row = lb->row;
+	l->col = lb->col;
 }
 
 void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...)
@@ -62,22 +56,20 @@ void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...)
 		exit(-1);
 	}
 
-	if (!l->dup) {
-		fprintf(stderr, "%s:%d:%d: error: ", ps->filename, l->row, l->col);
+	fprintf(stderr, "%s:%d:%d: error: ", ps->filename, l->row, l->col);
 
-		va_list ap;
-		va_start(ap, fmt);
-		vfprintf(stderr, fmt, ap);
-		va_end(ap);
+	va_list ap;
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
 
-		fprintf(stderr, "\n%s", l->line);
-		char ch;
-		for (int i = 0; i < l->col - 1; i++) {
-			ch = l->line[i];
-			if (!isspace(ch)) putchar(' '); else putchar(ch);
-		}
-		puts("^");
+	fprintf(stderr, "\n%s", l->line);
+	char ch;
+	for (int i = 0; i < l->col - 1; i++) {
+		ch = l->line[i];
+		if (!isspace(ch)) putchar(' '); else putchar(ch);
 	}
+	puts("^");
 }
 
 /*---------------------------------------------------------------------------*/
@@ -1304,8 +1296,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 		return;
 	}
 
-	error("cannot find symbol:%s", id);
-
+	Parser_PrintError(ps, &exp->line, "cannot find '%s'", id);
 }
 
 static void parser_attribute(ParserState *ps, struct expr *exp)
@@ -1322,8 +1313,6 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 
 	Symbol *leftsym = left->sym;
 	if (!leftsym) {
-		//FIXME:
-		error("cannot find '%s' in '%s'", exp->attribute.id, left->str);
 		return;
 	}
 
@@ -1332,8 +1321,8 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		debug(">>>>symbol '%s' is a module", leftsym->name);
 		sym = STable_Get(leftsym->ptr, exp->attribute.id);
 		if (!sym) {
-			//FIXME:
-			error("cannot find '%s' in '%s'", exp->attribute.id, left->str);
+			Parser_PrintError(ps, &exp->line, "cannot find '%s' in '%s'",
+				exp->attribute.id, left->str);
 			exp->sym = NULL;
 			return;
 		}
@@ -1499,7 +1488,6 @@ static void parser_call(ParserState *ps, struct expr *exp)
 	left->argc = argc;
 	parser_visit_expr(ps, left);
 	if (!left->sym) {
-		error("left symbol is not found in call");
 		return;
 	}
 

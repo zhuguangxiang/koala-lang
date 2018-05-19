@@ -130,7 +130,7 @@ void Lexer_DoUserAction(ParserState *ps, char *text);
 	} \
 	LineBuffer *lb = &(ps)->line; \
 	if (!lb->print) { \
-		Line l = {lb->line, lb->row, lb->col, 0}; \
+		Line l = {lb->line, lb->row, lb->col}; \
 		Parser_PrintError(ps, &l, errmsg, ##__VA_ARGS__); \
 		lb->print = 1; \
 	} \

@@ -72,7 +72,7 @@ char **Properties_Get(Properties *prop, char *key)
 	PropEntry *e = Properties_Get_Entry(prop, key);
 	if (!e) return NULL;
 	if (e->count > 1) {
-		warn("multi-values with key '%s'", key);
+		debug("multi-values with key '%s'", key);
 	}
 
 	char **res = malloc(sizeof(char *) * (e->count + 1));
