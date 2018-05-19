@@ -20,7 +20,7 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 
 #define syntax_error yyerrok; Lexer_PrintError
 #define syntax_error_clearin yyclearin; syntax_error
-#define EXPECTED "expected '%s' before '%s' token"
+#define EXPECTED "expected '%s' before '%s'"
 
 %}
 
@@ -482,7 +482,7 @@ VariableList
 
 FunctionDeclaration
   : FUNC ID ParameterListOrEmpty ReturnTypeListOrEmpty Block {
-    $$ = NULL; //stmt_from_funcdecl($2, $4, $6, $7);
+    $$ = stmt_from_funcdecl($2, $3, $4, $5);
   }
   ;
 
@@ -640,6 +640,7 @@ Block
   }
   | '{' error {
     syntax_error_clearin(parser, EXPECTED, "}", Lexer_Token);
+    $$ = NULL;
   }
   ;
 
@@ -663,12 +664,17 @@ LocalStatement
   }
   | Expression error {
     syntax_error(parser, EXPECTED, ";", Lexer_Token);
+    $$ = NULL;
   }
   | VariableDeclaration ';' {
     $$ = $1;
   }
   | Assignment ';' {
     $$ = $1;
+  }
+  | Assignment error {
+    syntax_error(parser, EXPECTED, ";", Lexer_Token);
+    $$ = NULL;
   }
   | IfStatement {
     $$ = $1;

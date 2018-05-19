@@ -1,7 +1,7 @@
 #####################################
 CC = gcc
 
-DBGFLAGS = -g -DLOG_WARN -DLOG_NDEBUG #-DSHOW_ENABLED
+DBGFLAGS = -g -DLOG_WARN -DSHOW_ENABLED #-DLOG_NDEBUG #
 OPTFLAGS = #-O2
 
 CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I./ -Wbad-function-cast
