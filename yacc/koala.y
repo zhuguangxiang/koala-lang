@@ -396,8 +396,14 @@ ModuleStatement
   | VariableDeclaration ';' {
     Parse_VarDecls(parser, $1);
   }
-  | ConstDeclaration {
+  | VariableDeclaration error {
+    syntax_error(parser, EXPECTED, ";", Lexer_Token);
+  }
+  | ConstDeclaration ';' {
     Parse_VarDecls(parser, $1);
+  }
+  | ConstDeclaration error {
+    syntax_error(parser, EXPECTED, ";", Lexer_Token);
   }
   | FunctionDeclaration {
     Parse_Function(parser, $1);
@@ -413,11 +419,23 @@ ModuleStatement
 /*--------------------------------------------------------------------------*/
 
 ConstDeclaration
-  : CONST VariableList '=' ExpressionList ';' {
+  : CONST VariableList '=' ExpressionList {
     $$ = stmt_from_varlistdecl($2, $4, NULL, 1);
   }
-  | CONST VariableList Type '=' ExpressionList ';' {
+  | CONST VariableList Type '=' ExpressionList {
     $$ = stmt_from_varlistdecl($2, $5, $3, 1);
+  }
+  | CONST VariableList '=' error {
+    syntax_error(parser, "expected right's expression-list");
+    $$ = NULL;
+  }
+  | CONST VariableList Type '=' error {
+    syntax_error(parser, "expected right's expression-list");
+    $$ = NULL;
+  }
+  | CONST error {
+    syntax_error(parser, "invalid constant declaration");
+    $$ = NULL;
   }
   ;
 
@@ -430,6 +448,22 @@ VariableDeclaration
   }
   | VAR VariableList Type '=' ExpressionList {
     $$ = stmt_from_varlistdecl($2, $5, $3, 0);
+  }
+  | VAR VariableList error {
+    syntax_error(parser, "expected 'TYPE' or '='");
+    $$ = NULL;
+  }
+  | VAR VariableList '=' error {
+    syntax_error(parser, "expected right's expression-list");
+    $$ = NULL;
+  }
+  | VAR VariableList Type '=' error {
+    syntax_error(parser, "expected right's expression-list");
+    $$ = NULL;
+  }
+  | VAR error {
+    syntax_error(parser, "invalid variable declaration");
+    $$ = NULL;
   }
   ;
 

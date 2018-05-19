@@ -512,6 +512,8 @@ static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 
 void Parse_VarDecls(ParserState *ps, struct stmt *stmt)
 {
+	if (!stmt) return;
+
 	if (stmt->kind == VARDECL_LIST_KIND) {
 		struct stmt *s;
 		Vector_ForEach(s, stmt->vec) {
