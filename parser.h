@@ -96,7 +96,7 @@ typedef struct parserunit {
 	Vector jmps;
 } ParserUnit;
 
-#define MAX_ERRORS 16
+#define MAX_ERRORS 8
 
 typedef struct parserstate {
 	char *filename;     /* compile file's name */
@@ -125,7 +125,7 @@ void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...);
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
 #define Lexer_PrintError(ps, errmsg, ...) do {\
-	if (++ps->errnum >= MAX_ERRORS) { \
+	if (ps->errnum >= MAX_ERRORS) { \
 		exit(-1); \
 	} \
 	LineBuffer *lb = &(ps)->line; \
@@ -133,6 +133,8 @@ void Lexer_DoUserAction(ParserState *ps, char *text);
 		Line l = {lb->line, lb->row, lb->col}; \
 		Parser_PrintError(ps, &l, errmsg, ##__VA_ARGS__); \
 		lb->print = 1; \
+	} else { \
+		++ps->errnum; \
 	} \
 } while (0)
 #define Lexer_Token parser->line.lasttoken

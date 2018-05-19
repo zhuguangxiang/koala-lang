@@ -14,8 +14,9 @@ int yyerror(ParserState *parser, void *scanner, const char *str)
   return 0;
 }
 
-#define SYNTAX_ERROR yyclearin; yyerrok; Lexer_PrintError
-#define EXPECTED_TOKEN "expected '%s' before '%s' token"
+#define syntax_error yyerrok; Lexer_PrintError
+#define syntax_error_clearin yyclearin; syntax_error
+#define EXPECTED "expected '%s' before '%s' token"
 
 %}
 
@@ -130,6 +131,7 @@ int yyerror(ParserState *parser, void *scanner, const char *str)
 %type <vector> TypeNameListOrEmpty
 %type <vector> TypeNameList
 %type <vector> ReturnTypeList
+%type <vector> ReturnTypeListOrEmpty
 %type <vector> TypeList
 %type <vector> ParameterList
 %type <vector> ParameterListOrEmpty
@@ -298,6 +300,15 @@ TypeName
   }
   ;
 
+ReturnTypeListOrEmpty
+  : %empty {
+    $$ = NULL;
+  }
+  | ReturnTypeList {
+    $$ = $1;
+  }
+  ;
+
 ReturnTypeList
   : Type {
     $$ = Vector_New();
@@ -305,10 +316,6 @@ ReturnTypeList
   }
   | '(' TypeList ')' {
     $$ = $2;
-  }
-  | error {
-    yyerror(parser, scanner, "return declaration is not correct");
-    $$ = NULL;
   }
   ;
 
@@ -329,7 +336,8 @@ CompileUnit
   : Package Imports ModuleStatements
   | Package ModuleStatements
   | error {
-    SYNTAX_ERROR(parser, EXPECTED_TOKEN, "package", Lexer_Token);
+    syntax_error(parser, EXPECTED, "package", Lexer_Token);
+    exit(-1);
   }
   ;
 
@@ -337,8 +345,13 @@ Package
   : PACKAGE ID ';' {
     parser->package = $2;
   }
+  | PACKAGE ID error {
+    syntax_error(parser, EXPECTED, ";", Lexer_Token);
+    exit(-1);
+  }
   | PACKAGE error {
-    SYNTAX_ERROR(parser, EXPECTED_TOKEN, "ID", Lexer_Token);
+    syntax_error(parser, EXPECTED, "package-name", Lexer_Token);
+    exit(-1);
   }
   ;
 
@@ -354,8 +367,17 @@ Import
   | IMPORT ID STRING_CONST ';' {
     Parse_Import(parser, $2, $3);
   }
+  | IMPORT STRING_CONST error {
+    syntax_error(parser, EXPECTED, ";", Lexer_Token);
+  }
+  | IMPORT ID STRING_CONST error {
+    syntax_error(parser, EXPECTED, ";", Lexer_Token);
+  }
+  | IMPORT ID error {
+    syntax_error(parser, EXPECTED, "path", Lexer_Token);
+  }
   | IMPORT error {
-    SYNTAX_ERROR(parser, EXPECTED_TOKEN, "ID", Lexer_Token);
+    syntax_error(parser, EXPECTED, "id or path", Lexer_Token);
   }
   ;
 
@@ -380,7 +402,7 @@ ModuleStatement
     Parse_UserDef(parser, $1);
   }
   | error {
-    SYNTAX_ERROR(parser, "invalid statement");
+    syntax_error_clearin(parser, "invalid statement");
   }
   ;
 
@@ -421,11 +443,8 @@ VariableList
 /*--------------------------------------------------------------------------*/
 
 FunctionDeclaration
-  : FUNC ID '(' ParameterListOrEmpty ')' Block {
-    $$ = stmt_from_funcdecl($2, $4, NULL, $6);
-  }
-  | FUNC ID '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = stmt_from_funcdecl($2, $4, $6, $7);
+  : FUNC ID ParameterListOrEmpty ReturnTypeListOrEmpty Block {
+    $$ = NULL; //stmt_from_funcdecl($2, $4, $6, $7);
   }
   ;
 
@@ -438,17 +457,13 @@ ParameterList
     Vector_Append($$, new_var($3, $4));
     $$ = $1;
   }
-  | error {
-    yyerror(parser, scanner, "parameter declaration is not correct");
-    $$ = NULL;
-  }
   ;
 
 ParameterListOrEmpty
-  : ParameterList {
-    $$ = $1;
+  : '(' ParameterList ')' {
+    $$ = $2;
   }
-  | %empty {
+  | '(' ')' {
     $$ = NULL;
   }
   ;
@@ -561,28 +576,16 @@ FieldDeclaration
   ;
 
 FuncOrProtoDeclaration
-  : FUNC ID '(' TypeList ')' ReturnTypeList ';' {
+  : FUNC ID '(' TypeList ')' ReturnTypeListOrEmpty ';' {
     $$ = stmt_from_funcproto($2, $4, $6);
   }
-  | FUNC ID '(' TypeList ')' ';' {
-    $$ = stmt_from_funcproto($2, $4, NULL);
-  }
-  | FUNC ID '(' ')' ReturnTypeList ';' {
+  | FUNC ID '(' ')' ReturnTypeListOrEmpty ';' {
     $$ = stmt_from_funcproto($2, NULL, $5);
   }
-  | FUNC ID '(' ')' ';' {
-    $$ = stmt_from_funcproto($2, NULL, NULL);
-  }
-  | FUNC ID '(' ParameterList ')' Block {
-    $$ = stmt_from_funcdecl($2, $4, NULL, $6);
-  }
-  | FUNC ID '(' ParameterList ')' ReturnTypeList Block {
+  | FUNC ID '(' ParameterList ')' ReturnTypeListOrEmpty Block {
     $$ = stmt_from_funcdecl($2, $4, $6, $7);
   }
-  | FUNC ID '(' ')' Block {
-    $$ = stmt_from_funcdecl($2, NULL, NULL, $5);
-  }
-  | FUNC ID '(' ')' ReturnTypeList Block {
+  | FUNC ID '(' ')' ReturnTypeListOrEmpty Block {
     $$ = stmt_from_funcdecl($2, NULL, $5, $6);
   }
   ;
@@ -593,8 +596,12 @@ Block
   : '{' LocalStatements '}' {
     $$ = $2;
   }
-  | '{' LocalStatements error {
-    SYNTAX_ERROR(parser, EXPECTED_TOKEN, "}", Lexer_Token);
+  | '{' '}' {
+    syntax_error_clearin(parser, "empty block");
+    $$ = NULL;
+  }
+  | '{' error {
+    syntax_error_clearin(parser, EXPECTED, "}", Lexer_Token);
   }
   ;
 
@@ -615,6 +622,9 @@ LocalStatement
   }
   | Expression ';' {
     $$ = stmt_from_expr($1);
+  }
+  | Expression error {
+    syntax_error(parser, EXPECTED, ";", Lexer_Token);
   }
   | VariableDeclaration ';' {
     $$ = $1;
@@ -875,11 +885,12 @@ Atom
   ;
 
 AnonymousFunctionDeclaration
-  : FUNC '(' ParameterListOrEmpty ')' Block {
-    $$ = expr_from_anonymous_func($3, NULL, $5);
+  : FUNC ParameterListOrEmpty ReturnTypeListOrEmpty Block {
+    $$ = expr_from_anonymous_func($2, $3, $4);
   }
-  | FUNC '(' ParameterListOrEmpty ')' ReturnTypeList Block {
-    $$ = expr_from_anonymous_func($3, $5, $6);
+  | FUNC error {
+    syntax_error_clearin(parser, "anonymous function needs no func-name");
+    $$ = NULL;
   }
   ;
 

@@ -43,11 +43,13 @@ void Lexer_DoUserAction(ParserState *ps, char *text)
 
 void Parser_SetLine(ParserState *ps, struct expr *exp)
 {
-	Line *l = &exp->line;
-	LineBuffer *lb = &ps->line;
-	l->line = strdup(lb->line);
-	l->row = lb->row;
-	l->col = lb->col;
+	if (exp) {
+		Line *l = &exp->line;
+		LineBuffer *lb = &ps->line;
+		l->line = strdup(lb->line);
+		l->row = lb->row;
+		l->col = lb->col;
+	}
 }
 
 void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...)
@@ -541,8 +543,10 @@ static void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 
 void Parse_Function(ParserState *ps, struct stmt *stmt)
 {
-	__add_stmt(ps, stmt);
-	parse_funcdecl(ps, stmt);
+	if (stmt) {
+		__add_stmt(ps, stmt);
+		parse_funcdecl(ps, stmt);
+	}
 }
 
 static void parse_funcproto(ParserState *ps, struct stmt *stmt)
