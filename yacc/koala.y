@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "parser.h"
-#include "lexer.h"
 
 int yyerror(ParserState *parser, void *scanner, const char *str)
 {
@@ -15,10 +14,7 @@ int yyerror(ParserState *parser, void *scanner, const char *str)
   return 0;
 }
 
-//#define YYERROR_VERBOSE 1
-//#define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
-
-//#define scanner parser->scanner
+#define EXPECTED_TOKEN "expected '%s' before '%s' token"
 
 %}
 
@@ -331,8 +327,11 @@ TypeList
 CompileUnit
   : Package Imports ModuleStatements
   | Package ModuleStatements
-  | Imports ModuleStatements
-  | ModuleStatements
+  | error {
+    yyclearin;
+    yyerrok;
+    Lexer_PrintError(parser, EXPECTED_TOKEN, "package", Lexer_Token);
+  }
   ;
 
 Package
@@ -340,7 +339,9 @@ Package
     parser->package = $2;
   }
   | PACKAGE error {
-
+    yyclearin;
+    yyerrok;
+    Lexer_PrintError(parser, EXPECTED_TOKEN, "ID", Lexer_Token);
   }
   ;
 
@@ -357,7 +358,9 @@ Import
     Parse_Import(parser, $2, $3);
   }
   | IMPORT error {
-
+    yyclearin;
+    yyerrok;
+    Lexer_PrintError(parser, EXPECTED_TOKEN, "ID", Lexer_Token);
   }
   ;
 
@@ -368,7 +371,6 @@ ModuleStatements
 
 ModuleStatement
   : ';' {
-    printf("empty statement\n");
   }
   | VariableDeclaration ';' {
     Parse_VarDecls(parser, $1);
@@ -383,18 +385,9 @@ ModuleStatement
     Parse_UserDef(parser, $1);
   }
   | error {
-    printf("error : non-declaration statement outside function body\n");
-    printf("line %d, col %d\n", Lexer_Row(scanner), Lexer_Col(scanner));
-    printf(" %s", Lexer_Line(scanner));
-    int sz = Lexer_Col(scanner);
-    for (int i = 0; i < sz; i++) putchar(' ');
-    puts("^");
     yyclearin;
     yyerrok;
-    if (++parser->errors >= MAX_ERRORS) {
-      printf("too many errors\n");
-      exit(-1);
-    }
+    Lexer_PrintError(parser, "invalid statement");
   }
   ;
 
@@ -838,18 +831,23 @@ ReturnStatement
 PrimaryExpression
   : Atom {
     $$ = $1;
+    Parser_SetLine(parser, $$);
   }
   | PrimaryExpression '.' ID {
     $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
+    Parser_SetLine(parser, $$);
   }
   | PrimaryExpression '[' Expression ']' {
     $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
+    Parser_SetLine(parser, $$);
   }
   | PrimaryExpression '(' ExpressionList ')' {
     $$ = expr_from_trailer(CALL_KIND, $3, $1);
+    Parser_SetLine(parser, $$);
   }
   | PrimaryExpression '(' ')' {
     $$ = expr_from_trailer(CALL_KIND, NULL, $1);
+    Parser_SetLine(parser, $$);
   }
   ;
 

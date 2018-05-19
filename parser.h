@@ -8,6 +8,23 @@
 extern "C" {
 #endif
 
+#define LINE_MAX_LEN 256
+#define TOKEN_MAX_LEN 80
+
+typedef struct line_buf {
+	char line[LINE_MAX_LEN];
+	int linelen;
+	int lineleft;
+	char lasttoken[TOKEN_MAX_LEN];
+	int lastlen;
+	int row;
+	int col;
+	char print;
+	char copy;
+} LineBuffer;
+
+/*---------------------------------------------------------------------------*/
+
 #define ARG_NIL   0
 #define ARG_INT   1
 #define ARG_FLOAT 2
@@ -51,7 +68,7 @@ typedef struct codeblock {
 
 void codeblock_free(CodeBlock *b);
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 typedef struct import {
 	HashNode hnode;
@@ -79,24 +96,46 @@ typedef struct parserunit {
 	Vector jmps;
 } ParserUnit;
 
-#define MAX_ERRORS 2
+#define MAX_ERRORS 16
 
 typedef struct parserstate {
+	char *filename;     /* compile file's name */
+	void *scanner;      /* lexer pointer */
+	LineBuffer line;    /* input line buffer */
 	Vector stmts;       /* all statements */
-	char *package;
+	char *package;      /* package name */
 	HashTable imports;  /* external types */
 	STable *extstbl;    /* external symbol table */
 	Symbol *sym;        /* current module's symbol */
 	ParserUnit *u;
 	int nestlevel;
 	struct list_head ustack;
-	int olevel;         /* optimization level */
-	int errors;
+	short olevel;       /* optimization level */
+	short wlevel;       /* warning level */
+	int errnum;         /* number of errors */
+	Vector errors;      /* error messages */
 } ParserState;
 
-void init_parser(ParserState *ps);
-void fini_parser(ParserState *ps);
+ParserState *new_parser(void *filename);
+void destroy_parser(ParserState *ps);
 void parser_module(ParserState *ps, FILE *in);
+void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...);
+
+// API used by lex
+int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
+void Lexer_DoUserAction(ParserState *ps, char *text);
+#define Lexer_PrintError(ps, errmsg, ...) do {\
+	if (++ps->errnum >= MAX_ERRORS) { \
+		exit(-1); \
+	} \
+	LineBuffer *lb = &(ps)->line; \
+	if (!lb->print) { \
+		Line l = {lb->line, lb->row, lb->col, 0}; \
+		Parser_PrintError(ps, &l, errmsg, ##__VA_ARGS__); \
+		lb->print = 1; \
+	} \
+} while (0)
+#define Lexer_Token parser->line.lasttoken
 
 // API used by yacc
 Symbol *Parse_Import(ParserState *ps, char *id, char *path);
@@ -104,6 +143,7 @@ void Parse_VarDecls(ParserState *ps, struct stmt *stmt);
 void Parse_Function(ParserState *ps, struct stmt *stmt);
 void Parse_UserDef(ParserState *ps, struct stmt *stmt);
 char *Import_Get_Path(ParserState *ps, char *id);
+void Parser_SetLine(ParserState *ps, struct expr *exp);
 
 #ifdef __cplusplus
 }

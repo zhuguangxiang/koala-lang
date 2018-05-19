@@ -8,6 +8,13 @@
 extern "C" {
 #endif
 
+typedef struct line {
+	char *line;
+	int row;
+	int col;
+	int dup;
+} Line;
+
 /*-------------------------------------------------------------------------*/
 
 enum unary_op_kind {
@@ -53,6 +60,7 @@ struct expr {
 	int argc;
 	struct expr *right;  //for super(); super.name;
 	char *supername;
+	Line line;
 	union {
 		char *id;
 		int64 ival;
@@ -115,7 +123,6 @@ struct expr *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body);
 struct expr *expr_from_binary(enum binary_op_kind kind,
 															struct expr *left, struct expr *right);
 struct expr *expr_from_unary(enum unary_op_kind kind, struct expr *expr);
-
 void expr_traverse(struct expr *exp);
 
 /*-------------------------------------------------------------------------*/
@@ -160,6 +167,7 @@ struct assign {
 
 struct stmt {
 	enum stmt_kind kind;
+	Line line;
 	union {
 		struct {
 			char *id;

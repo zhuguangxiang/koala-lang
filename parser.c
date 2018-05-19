@@ -7,8 +7,80 @@
 #include "opcode.h"
 #include "moduleobject.h"
 #include "log.h"
-#include "lexer.h"
 #include "koala_yacc.h"
+#include "koala_lex.h"
+
+int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)
+{
+	LineBuffer *lb = &ps->line;
+
+	if (lb->lineleft <= 0) {
+		if (!fgets(lb->line, LINE_MAX_LEN, in)) {
+			if (ferror(in)) clearerr(in);
+			return 0;
+		} else {
+			lb->lineleft = lb->linelen = strlen(lb->line);
+			lb->row++;
+			lb->lastlen = 0;
+			lb->col = 0;
+			lb->print = 0;
+		}
+	}
+
+	int sz = min(lb->lineleft, size);
+	memcpy(buf, lb->line, sz);
+	lb->lineleft -= sz;
+	return sz;
+}
+
+void Lexer_DoUserAction(ParserState *ps, char *text)
+{
+	LineBuffer *lb = &ps->line;
+	lb->col += lb->lastlen;
+	strncpy(lb->lasttoken, text, TOKEN_MAX_LEN);
+	lb->lastlen = strlen(text);
+}
+
+void Parser_SetLine(ParserState *ps, struct expr *exp)
+{
+	Line *l = &exp->line;
+	LineBuffer *lb = &ps->line;
+	if (!lb->copy) {
+		lb->copy = 1;
+		l->line = strdup(lb->line);
+		l->row = lb->row;
+		l->col = lb->col;
+		l->dup = 0;
+	} else {
+		l->dup = 1;
+	}
+}
+
+void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...)
+{
+	if (++ps->errnum >= MAX_ERRORS) {
+		exit(-1);
+	}
+
+	if (!l->dup) {
+		fprintf(stderr, "%s:%d:%d: error: ", ps->filename, l->row, l->col);
+
+		va_list ap;
+		va_start(ap, fmt);
+		vfprintf(stderr, fmt, ap);
+		va_end(ap);
+
+		fprintf(stderr, "\n%s", l->line);
+		char ch;
+		for (int i = 0; i < l->col - 1; i++) {
+			ch = l->line[i];
+			if (!isspace(ch)) putchar(' '); else putchar(ch);
+		}
+		puts("^");
+	}
+}
+
+/*---------------------------------------------------------------------------*/
 
 static JmpInst *JmpInst_New(Inst *inst, int type)
 {
@@ -1206,7 +1278,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 	}
 
 	// ident is current module's name
-	if (!strcmp(id, ps->package)) {
+	if (ps->package && !strcmp(id, ps->package)) {
 		sym = ps->sym;
 		assert(sym);
 		debug("symbol '%s' is current module", id);
@@ -1233,6 +1305,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
 	}
 
 	error("cannot find symbol:%s", id);
+
 }
 
 static void parser_attribute(ParserState *ps, struct expr *exp)
@@ -2574,22 +2647,28 @@ static void parser_body(ParserState *ps, Vector *stmts)
 
 /*--------------------------------------------------------------------------*/
 
-void init_parser(ParserState *ps)
+ParserState *new_parser(void *filename)
 {
-	memset(ps, 0, sizeof(ParserState));
+	ParserState *ps = calloc(1, sizeof(ParserState));
+	ps->filename = filename;
+	yylex_init_extra(ps, &ps->scanner);
 	Vector_Init(&ps->stmts);
 	init_imports(ps);
 	Symbol *sym = Symbol_New(SYM_MODULE);
 	sym->ptr = STable_New(NULL);
 	ps->sym = sym;
 	init_list_head(&ps->ustack);
+	Vector_Init(&ps->errors);
+	return ps;
 }
 
-void fini_parser(ParserState *ps)
+void destroy_parser(ParserState *ps)
 {
 	vec_stmt_fini(&ps->stmts);
 	fini_imports(ps);
 	free(ps->package);
+	yylex_destroy(ps->scanner);
+	free(ps);
 }
 
 void parser_module(ParserState *ps, FILE *in)
@@ -2597,9 +2676,8 @@ void parser_module(ParserState *ps, FILE *in)
 	parser_enter_scope(ps, ps->sym->ptr, SCOPE_MODULE);
 	ps->u->sym = ps->sym;
 
-	LexerState *ls = Lexer_New(in);
-	yyparse(ps, ls->scanner);
-	Lexer_Destroy(ls);
+	yyset_in(in, ps->scanner);
+	yyparse(ps, ps->scanner);
 
 	parser_body(ps, &ps->stmts);
 

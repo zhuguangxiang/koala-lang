@@ -1,37 +1,19 @@
 
 %{
-#include "lexer.h"
 #include "parser.h"
 #include "koala_yacc.h"
 
-#define YY_EXTRA_TYPE LexerState *
+#define YY_EXTRA_TYPE ParserState *
 
 #define YY_USER_ACTION { \
 	Lexer_DoUserAction(yyextra, yytext); \
 }
-/*
-	yylloc.first_line = yylloc.last_line; \
-	yylloc.first_column = yylloc.last_column; \
-	for (int i = 0; yytext[i]; i++) { \
-		if (yytext[i] == '\n') { \
-			yylloc.last_line++; \
-			yylloc.last_column = 0; \
-		} else { \
-			yylloc.last_column++; \
-		} \
-	}
-*/
 
 #define YY_INPUT(buf, result, max_size) { \
 	result = Lexer_DoYYInput(yyextra, buf, max_size, yyin); \
 	if (result <= 0) result = YY_NULL; \
 }
 
-/*
-int yywrap(yyscan_t yyscanner) {
-	return 1;
-}
-*/
 %}
 
 %option bison-bridge
@@ -42,7 +24,6 @@ int yywrap(yyscan_t yyscanner) {
 %option noyywrap
 %option nointeractive
 
-/* %option yylineno */
 
 D   [0-9]
 H   [a-fA-F0-9]

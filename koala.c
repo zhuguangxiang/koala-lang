@@ -126,13 +126,18 @@ static int cmd_build(char *argv[], int size)
 	memcpy(output, input, len);
 	strcpy(output + len, "klc");
 
+	ParserState *ps;
 	Koala_Initialize();
-	ParserState ps;
-	init_parser(&ps);
-	parser_module(&ps, in);
-	codegen_klc(&ps, output);
-	fini_parser(&ps);
+	ps = new_parser(input);
+	parser_module(ps, in);
+	if (ps->errnum <= 0) {
+		codegen_klc(ps, output);
+	} else {
+		fprintf(stderr, "There are %d errors.\n", ps->errnum);
+	}
+	destroy_parser(ps);
 	Koala_Finalize();
+
 	fclose(in);
 
 	return 0;

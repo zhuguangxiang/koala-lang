@@ -1,7 +1,7 @@
 #####################################
 CC = gcc
 
-DBGFLAGS = -g -DLOG_WARN -DSHOW_ENABLED #-DLOG_NDEBUG
+DBGFLAGS = -g -DLOG_WARN -DLOG_NDEBUG #-DSHOW_ENABLED
 OPTFLAGS = #-O2
 
 CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I./ -Wbad-function-cast
@@ -16,8 +16,8 @@ tableobject.o moduleobject.o codeobject.o opcode.o \
 klc.o routine.o thread.o mod_lang.o mod_io.o kstate.o \
 typedesc.o numberobject.o gc.o
 
-KOALAC_OBJS = parser.o ast.o checker.o lexer.o \
-symbol.o codegen.o koala_lex.o koala_yacc.o
+KOALAC_OBJS = parser.o ast.o checker.o symbol.o codegen.o \
+koala_lex.o koala_yacc.o
 
 ######################################
 
