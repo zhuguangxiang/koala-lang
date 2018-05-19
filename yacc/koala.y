@@ -10,10 +10,11 @@ int yyerror(ParserState *parser, void *scanner, const char *str)
 {
   UNUSED_PARAMETER(parser);
   UNUSED_PARAMETER(scanner);
-  UNUSED_PARAMETER(str);
+  fprintf(stderr, "%s\n", str);
   return 0;
 }
 
+#define SYNTAX_ERROR yyclearin; yyerrok; Lexer_PrintError
 #define EXPECTED_TOKEN "expected '%s' before '%s' token"
 
 %}
@@ -328,9 +329,7 @@ CompileUnit
   : Package Imports ModuleStatements
   | Package ModuleStatements
   | error {
-    yyclearin;
-    yyerrok;
-    Lexer_PrintError(parser, EXPECTED_TOKEN, "package", Lexer_Token);
+    SYNTAX_ERROR(parser, EXPECTED_TOKEN, "package", Lexer_Token);
   }
   ;
 
@@ -339,9 +338,7 @@ Package
     parser->package = $2;
   }
   | PACKAGE error {
-    yyclearin;
-    yyerrok;
-    Lexer_PrintError(parser, EXPECTED_TOKEN, "ID", Lexer_Token);
+    SYNTAX_ERROR(parser, EXPECTED_TOKEN, "ID", Lexer_Token);
   }
   ;
 
@@ -358,9 +355,7 @@ Import
     Parse_Import(parser, $2, $3);
   }
   | IMPORT error {
-    yyclearin;
-    yyerrok;
-    Lexer_PrintError(parser, EXPECTED_TOKEN, "ID", Lexer_Token);
+    SYNTAX_ERROR(parser, EXPECTED_TOKEN, "ID", Lexer_Token);
   }
   ;
 
@@ -385,9 +380,7 @@ ModuleStatement
     Parse_UserDef(parser, $1);
   }
   | error {
-    yyclearin;
-    yyerrok;
-    Lexer_PrintError(parser, "invalid statement");
+    SYNTAX_ERROR(parser, "invalid statement");
   }
   ;
 
@@ -600,8 +593,8 @@ Block
   : '{' LocalStatements '}' {
     $$ = $2;
   }
-  | '{' '}' {
-    $$ = NULL;
+  | '{' LocalStatements error {
+    SYNTAX_ERROR(parser, EXPECTED_TOKEN, "}", Lexer_Token);
   }
   ;
 
