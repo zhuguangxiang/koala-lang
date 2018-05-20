@@ -8,6 +8,9 @@ CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I./ -Wbad-function-cast
 
 CFLAGS = $(CPPFLAGS) -fPIC -W -Wall -Wpointer-arith -Wstrict-prototypes
 
+YACC = ~/tools/bin/bison
+FLEX = ~/tools/bin/flex
+
 ######################################
 
 KOALA_OBJS = log.o hashtable.o hash.o vector.o buffer.o properties.o \
@@ -40,11 +43,11 @@ koala: libkoalac.so koala.o
 
 koala_yacc.c: yacc/koala.y
 	@echo "[YACC]	$@"
-	@/home/zgx/tools/bin/bison -dvt -Wall -o $@ yacc/koala.y
+	@$(YACC) -dvt -Wall -o $@ yacc/koala.y
 
 koala_lex.c: yacc/koala.l
 	@echo "[FLEX]	$@"
-	@/home/zgx/tools/bin/flex -o $@ yacc/koala.l
+	@$(FLEX) -o $@ yacc/koala.l
 
 clean:
 	rm -f *.so *.o *.d *.d.* koala_lex.* koala_yacc.*
