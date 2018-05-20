@@ -91,6 +91,7 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %token GO
 %token DEFER
 %token NEWLINE
+%token TYPEALIAS
 
 %token CHAR
 %token BYTE
@@ -411,6 +412,9 @@ ModuleStatement
   | TypeDeclaration {
     Parse_UserDef(parser, $1);
   }
+  | TypeAlias {
+
+  }
   | error {
     syntax_error_clearin(parser, "invalid statement");
   }
@@ -506,7 +510,21 @@ ParameterListOrEmpty
   }
   ;
 
-/*--------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
+
+TypeAlias
+  : TYPEALIAS Type ';' {
+
+  }
+  | TYPEALIAS Type error {
+
+  }
+  | TYPEALIAS error {
+
+  }
+  ;
+
+/*---------------------------------------------------------------------------*/
 
 TypeDeclaration
   : CLASS ID ExtendsOrEmpty '{' MemberDeclarations '}' {
