@@ -1,0 +1,21 @@
+
+package test;
+
+import "koala/io";
+
+typealias addFunc func(int, int) int;
+
+func myAdd(a int, b int) int
+{
+	return a + b;
+}
+
+var add addFunc = myAdd;
+
+func Main(args []string) {
+	var a = 100;
+	var b = "hello";
+	io.Println(b);
+	var c int = add(1, 2);
+	io.Println(c);
+}

@@ -6,9 +6,7 @@
 #include <string.h>
 #include "parser.h"
 
-#if LOG_NDEBUG
-#define yyerror(parser, scanner, errmsg) ((void)0)
-#else
+#if LOG_DEBUG
 int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 {
   UNUSED_PARAMETER(parser);
@@ -16,6 +14,8 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
   fprintf(stderr, "%s\n", errmsg);
   return 0;
 }
+#else
+#define yyerror(parser, scanner, errmsg) ((void)0)
 #endif
 
 #define syntax_error yyerrok; Lexer_PrintError
@@ -133,7 +133,6 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %type <type> Type
 %type <type> FunctionType
 %type <type> TypeName
-%type <vector> TypeNameListOrEmpty
 %type <vector> TypeNameList
 %type <vector> ReturnTypeList
 %type <vector> ReturnTypeListOrEmpty
@@ -141,11 +140,9 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %type <vector> ParameterList
 %type <vector> ParameterListOrEmpty
 %type <operator> UnaryOperator
-%type <operator> CompoundAssignOperator
+%type <operator> AssignOperator
 %type <vector> VariableList
 %type <vector> ExpressionList
-%type <vector> PrimaryExpressionList
-
 %type <expr> Expression
 %type <expr> LogicalOrExpression
 %type <expr> LogicalAndExpression
@@ -187,6 +184,7 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %type <stmt> JumpStatement
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
+%type <stmt> TypeAlias
 %type <vector> MemberDeclarations
 %type <stmt> MemberDeclaration
 %type <stmt> FieldDeclaration
@@ -268,20 +266,27 @@ UserDefType
   ;
 
 FunctionType
-  : FUNC '(' TypeNameListOrEmpty ')' ReturnTypeList {
-    $$ = TypeDesc_From_Proto($3, $5);
-  }
-  | FUNC '(' TypeNameListOrEmpty ')' {
+  : FUNC '(' TypeNameList ')' {
     $$ = TypeDesc_From_Proto($3, NULL);
   }
-  ;
-
-TypeNameListOrEmpty
-  : TypeNameList {
-    $$ = $1;
+  | FUNC '(' ')' {
+    $$ = TypeDesc_From_Proto(NULL, NULL);
   }
-  | %empty {
-    $$ = NULL;
+  | FUNC '(' TypeNameList ')' '(' TypeList ')' {
+    $$ = TypeDesc_From_Proto($3, $6);
+  }
+  | FUNC '(' ')' '(' TypeList ')' {
+    $$ = TypeDesc_From_Proto(NULL, $5);
+  }
+  | FUNC '(' TypeNameList ')' Type {
+    Vector *vec = Vector_New();
+    Vector_Append(vec, $5);
+    $$ = TypeDesc_From_Proto($3, vec);
+  }
+  | FUNC '(' ')' Type {
+    Vector *vec = Vector_New();
+    Vector_Append(vec, $4);
+    $$ = TypeDesc_From_Proto(NULL, vec);
   }
   ;
 
@@ -413,7 +418,7 @@ ModuleStatement
     Parse_UserDef(parser, $1);
   }
   | TypeAlias {
-
+    Parse_TypeAlias(parser, $1);
   }
   | error {
     syntax_error_clearin(parser, "invalid statement");
@@ -513,14 +518,17 @@ ParameterListOrEmpty
 /*---------------------------------------------------------------------------*/
 
 TypeAlias
-  : TYPEALIAS Type ';' {
-
+  : TYPEALIAS ID Type ';' {
+    $$ = stmt_from_typealias($2, $3);
   }
-  | TYPEALIAS Type error {
-
+  | TYPEALIAS ID Type error {
+    syntax_error(parser, EXPECTED, ";", Lexer_Token);
+  }
+  | TYPEALIAS ID error {
+    syntax_error(parser, EXPECTED, "TYPE", Lexer_Token);
   }
   | TYPEALIAS error {
-
+    syntax_error(parser, EXPECTED, "ID", Lexer_Token);
   }
   ;
 
@@ -1178,31 +1186,17 @@ ExpressionList
   ;
 
 Assignment
-  : PrimaryExpressionList '=' ExpressionList {
-    $$ = stmt_from_assign($1, $3);
-  }
-  | PrimaryExpression CompoundAssignOperator Expression {
-    $$ = stmt_from_compound_assign($1, $2, $3);
-  }
-  | PrimaryExpressionList TYPELESS_ASSIGN ExpressionList {
-
-  }
-  ;
-
-PrimaryExpressionList
-  : PrimaryExpression {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
-  }
-  | PrimaryExpressionList ',' PrimaryExpression {
-    Vector_Append($1, $3);
-    $$ = $1;
+  : PrimaryExpression AssignOperator Expression {
+    $$ = stmt_from_assign($1, $2, $3);
   }
   ;
 
 /* 组合赋值运算符：算术运算和位运算 */
-CompoundAssignOperator
-  : PLUS_ASSGIN {
+AssignOperator
+  : '=' {
+    $$ = OP_ASSIGN;
+  }
+  | PLUS_ASSGIN {
     $$ = OP_PLUS_ASSIGN;
   }
   | MINUS_ASSIGN {

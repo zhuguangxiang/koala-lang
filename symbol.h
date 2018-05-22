@@ -30,6 +30,7 @@ void STable_Fini(STable *stbl);
 #define SYM_IPROTO  5
 #define SYM_STABLE  6  /* for compiler */
 #define SYM_MODULE  7
+#define SYM_TYPEALIAS 8
 
 #define ACCESS_PUBLIC   0
 #define ACCESS_PRIVATE  (1 << 0)
@@ -77,6 +78,7 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, TypeDesc *proto);
 	if (__sym) __sym->kind = SYM_IPROTO; \
 	__sym; \
 })
+Symbol *STable_Add_TypeAlias(STable *stbl, char *name, TypeDesc *desc);
 #define STable_Add_Class(stbl, name) \
 	STable_Add_Symbol(stbl, name, SYM_CLASS, 0)
 #define STable_Add_Trait(stbl, name) \

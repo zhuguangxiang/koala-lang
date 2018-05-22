@@ -16,13 +16,13 @@ extern int loglevel;
 
 #define __debug(format, ...) printf(format, ##__VA_ARGS__)
 
-#ifdef LOG_NDEBUG
-#define debug(format, ...) ((void)0)
-#else
+#ifdef LOG_DEBUG
 #define debug(format, ...) do { \
 	__debug("[DEBUG][%s:%d]" format "\n", \
 	__FILE__, __LINE__, ##__VA_ARGS__); \
 } while (0)
+#else
+#define debug(format, ...) ((void)0)
 #endif
 
 #define info(format, ...) do { \

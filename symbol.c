@@ -156,6 +156,28 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, TypeDesc *proto)
 	return sym;
 }
 
+Symbol *STable_Add_TypeAlias(STable *stbl, char *name, TypeDesc *desc)
+{
+	Symbol *sym = STable_Add_Symbol(stbl, name, SYM_TYPEALIAS, 0);
+	if (!sym) return NULL;
+
+	int32 idx = -1;
+	if (desc)
+	{
+		if (desc->kind == TYPE_PROTO) {
+			idx = ProtoItem_Set(stbl->atbl, desc);
+			assert(idx >= 0);
+		} else {
+			idx = TypeItem_Set(stbl->atbl, desc);
+			assert(idx >= 0);
+		}
+	}
+
+	sym->descidx = idx;
+	sym->desc = desc;
+	return sym;
+}
+
 Symbol *STable_Add_Symbol(STable *stbl, char *name, int kind, int bconst)
 {
 	Symbol *sym = Symbol_New(kind);

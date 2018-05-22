@@ -1,0 +1,11 @@
+
+package test;
+
+typealias ntfy func(i int) int;
+
+typealias StringArray []string;
+
+func Main(args []string) {
+	a = 100;
+	var b = "hello";
+}

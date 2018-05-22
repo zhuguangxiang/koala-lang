@@ -1,0 +1,11 @@
+
+package test;
+
+//import "koala/io";
+
+var a string;
+
+func Main(args []string) {
+	a = 100;
+	var b = "hello";
+}

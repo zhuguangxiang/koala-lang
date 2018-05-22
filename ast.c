@@ -263,7 +263,7 @@ struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
 	return stmt;
 }
 
-struct stmt *stmt_from_assign(Vector *left, Vector *right)
+struct stmt *stmt_from_assign2(Vector *left, Vector *right)
 {
 	int vsz = Vector_Size(left);
 	int esz = Vector_Size(right);
@@ -310,14 +310,13 @@ struct stmt *stmt_from_return(Vector *vec)
 	return stmt_from_vector(RETURN_KIND, vec);
 }
 
-struct stmt *stmt_from_compound_assign(struct expr *left,
-																			 enum assign_operator op,
-																			 struct expr *right)
+struct stmt *stmt_from_assign(struct expr *left, enum assign_operator op,
+	struct expr *right)
 {
-	struct stmt *stmt = stmt_new(COMPOUND_ASSIGN_KIND);
-	stmt->compound_assign.left  = left;
-	stmt->compound_assign.op    = op;
-	stmt->compound_assign.right = right;
+	struct stmt *stmt = stmt_new(ASSIGN_KIND);
+	stmt->assign.left  = left;
+	stmt->assign.op    = op;
+	stmt->assign.right = right;
 	return stmt;
 }
 
@@ -416,6 +415,14 @@ struct stmt *stmt_from_go(struct expr *expr)
 
 	struct stmt *stmt = stmt_new(GO_KIND);
 	stmt->go_stmt = expr;
+	return stmt;
+}
+
+struct stmt *stmt_from_typealias(char *id, TypeDesc *desc)
+{
+	struct stmt *stmt = stmt_new(TYPEALIAS_KIND);
+	stmt->typealias.id = id;
+	stmt->typealias.desc = desc;
 	return stmt;
 }
 
@@ -730,20 +737,6 @@ void stmt_traverse(struct stmt *stmt)
 		}
 		case ASSIGN_KIND: {
 			printf("[assignment list]\n");
-			// struct expr *expr;
-			// clist_foreach(expr, stmt->v.assign.left_list) {
-			//   expr_traverse(expr);
-			// }
-			//
-			// clist_foreach(expr, stmt->v.assign.right_list) {
-			//   expr_traverse(expr);
-			// }
-			break;
-		}
-		case COMPOUND_ASSIGN_KIND: {
-			printf("[compound assignment]:%d\n", stmt->compound_assign.op);
-			// expr_traverse(stmt->v.compound_assign.left);
-			// expr_traverse(stmt->v.compound_assign.right);
 			break;
 		}
 		case CLASS_KIND:

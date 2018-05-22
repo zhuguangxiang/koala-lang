@@ -145,7 +145,8 @@ struct test_block {
 struct test_block *new_test_block(struct expr *test, Vector *body);
 
 enum assign_operator {
-	OP_PLUS_ASSIGN = 1, OP_MINUS_ASSIGN = 2,
+	OP_ASSIGN = 1,
+	OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
 	OP_MULT_ASSIGN, OP_DIV_ASSIGN,
 	OP_MOD_ASSIGN, OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
 	OP_RSHIFT_ASSIGN, OP_LSHIFT_ASSIGN,
@@ -153,10 +154,10 @@ enum assign_operator {
 
 enum stmt_kind {
 	IMPORT_KIND = 1, VARDECL_KIND, FUNCDECL_KIND, FUNCPROTO_KIND, CLASS_KIND,
-	TRAIT_KIND, EXPR_KIND, ASSIGN_KIND, COMPOUND_ASSIGN_KIND,
+	TRAIT_KIND, EXPR_KIND, ASSIGN_KIND,
 	RETURN_KIND, IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
 	FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND, BLOCK_KIND,
-	VARDECL_LIST_KIND, ASSIGN_LIST_KIND, STMT_KIND_MAX
+	VARDECL_LIST_KIND, ASSIGN_LIST_KIND, TYPEALIAS_KIND, STMT_KIND_MAX
 };
 
 struct assign {
@@ -182,12 +183,11 @@ struct stmt {
 			Vector *rvec;
 			Vector *body;
 		} funcdecl;
-		struct assign assign;
 		struct {
 			struct expr *left;
 			enum assign_operator op;
 			struct expr *right;
-		} compound_assign;
+		} assign;
 		struct {
 			char *id;
 			TypeDesc *super;
@@ -203,6 +203,10 @@ struct stmt {
 			char *id;
 			TypeDesc *desc;
 		} user_typedef;
+		struct {
+			char *id;
+			TypeDesc *desc;
+		} typealias;
 		struct {
 			int belse;
 			struct expr *test;
@@ -247,9 +251,8 @@ struct stmt *stmt_from_varlistdecl(Vector *varvec, Vector *expvec,
 struct stmt *stmt_from_vardecl(struct var *var, struct expr *exp, int bconst);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
 	Vector *body);
-struct stmt *stmt_from_assign(Vector *left, Vector *right);
-struct stmt *stmt_from_compound_assign(struct expr *left,
-	enum assign_operator op, struct expr *right);
+struct stmt *stmt_from_assign(struct expr *left, enum assign_operator op,
+	struct expr *right);
 struct stmt *stmt_from_block(Vector *vec);
 struct stmt *stmt_from_return(Vector *vec);
 struct stmt *stmt_from_empty(void);
@@ -266,6 +269,7 @@ struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
 	Vector *body, int bdecl);
 struct stmt *stmt_from_go(struct expr *expr);
 struct stmt *stmt_from_vardecl_list(Vector *vec);
+struct stmt *stmt_from_typealias(char *id, TypeDesc *desc);
 void stmt_free(struct stmt *stmt);
 void vec_stmt_free(Vector *stmts);
 void vec_stmt_fini(Vector *stmts);

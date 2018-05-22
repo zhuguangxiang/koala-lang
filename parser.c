@@ -609,6 +609,12 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 	debug(">>>>end class(trait) '%s'", sym->name);
 }
 
+void Parse_TypeAlias(ParserState *ps, struct stmt *stmt)
+{
+	STable_Add_TypeAlias(ps->u->stbl, stmt->typealias.id, stmt->typealias.desc);
+	debug("add typealias '%s' successful", stmt->typealias.id);
+}
+
 /*--------------------------------------------------------------------------*/
 
 #if 0
@@ -2277,6 +2283,15 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 	debug("------parse class(trait) end---");
 }
 
+static void parser_typealias(ParserState *ps, struct stmt *stmt)
+{
+	debug("------parse typealias -------");
+	ParserUnit *u = ps->u;
+	Symbol *sym = STable_Get(u->stbl, stmt->typealias.id);
+	assert(sym);
+	debug("------parse typealias end----");
+}
+
 // static void __inherit_imethod_fn(Symbol *sym, void *arg)
 // {
 // 	struct intf_inherit_struct *temp = arg;
@@ -2587,6 +2602,10 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 		}
 		case FUNCDECL_KIND: {
 			parser_function(ps, stmt, SCOPE_FUNCTION);
+			break;
+		}
+		case TYPEALIAS_KIND: {
+			parser_typealias(ps, stmt);
 			break;
 		}
 		case CLASS_KIND:

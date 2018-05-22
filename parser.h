@@ -145,6 +145,7 @@ Symbol *Parse_Import(ParserState *ps, char *id, char *path);
 void Parse_VarDecls(ParserState *ps, struct stmt *stmt);
 void Parse_Function(ParserState *ps, struct stmt *stmt);
 void Parse_UserDef(ParserState *ps, struct stmt *stmt);
+void Parse_TypeAlias(ParserState *ps, struct stmt *stmt);
 char *Import_Get_Path(ParserState *ps, char *id);
 void Parser_SetLine(ParserState *ps, struct expr *exp);
 
