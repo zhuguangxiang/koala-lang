@@ -84,6 +84,10 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
 			Buffer_Write_4Bytes(buf, index);
 			break;
 		}
+		case OP_CALL0: {
+			Buffer_Write_2Bytes(buf, i->argc);
+			break;
+		}
 		case OP_CALL:
 		case OP_NEW: {
 			index = ConstItem_Set_String(atbl, i->arg.str);
@@ -162,7 +166,7 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 				debug("	var '%s'", sym->name);
 				KImage_Add_Field(tmp->image, tmp->clazz, sym->name, sym->desc);
 			} else {
-				debug("	%s %s:", sym->access & ACCESS_CONST ? "const" : "var",
+				debug("%s %s:", sym->access & ACCESS_CONST ? "const" : "var",
 					sym->name);
 				if (sym->access & ACCESS_CONST)
 					KImage_Add_Const(tmp->image, sym->name, sym->desc);
@@ -252,6 +256,9 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			Vector_Fini(&v, NULL, NULL);
 			struct gencode_struct tmp2 = {1, tmp->image, sym->name};
 			STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
+			break;
+		}
+		case SYM_TYPEALIAS: {
 			break;
 		}
 		default: {

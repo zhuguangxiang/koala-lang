@@ -461,6 +461,12 @@ static void frame_loop(Frame *frame)
 				val = POP();
 				ob = val.ob;
 				val = getfield(ob, field);
+				if (!val.klazz) {
+					Object *rob = NULL;
+					ob = getcode(ob, field, &rob);
+					val.klazz = &Code_Klass;
+					val.ob = ob;
+				}
 				PUSH(&val);
 				//Klass *k = (Klass *)(((CodeObject *)(frame->code))->owner);
 				//Object_Get_Value2(ob, k, field);
@@ -476,6 +482,18 @@ static void frame_loop(Frame *frame)
 				val = POP();
 				VALUE_ASSERT(&val);
 				setfield(ob, field, &val);
+				break;
+			}
+			case OP_CALL0: {
+				int argc = fetch_2bytes(frame, code);
+				debug("OP_CALL0, argc:%d", argc);
+				val = POP();
+				Object *meth = val.ob;
+				assert(OB_KLASS(meth) == &Code_Klass);
+				val = TOP();
+				ob = val.ob;
+				frame_new(rt, ob, meth, argc);
+				loopflag = 0;
 				break;
 			}
 			case OP_CALL: {

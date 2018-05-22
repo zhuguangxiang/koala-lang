@@ -139,6 +139,8 @@ extern "C" {
 #define OP_JUMP_TRUE  31
 #define OP_JUMP_FALSE 32
 
+#define OP_CALL0 40
+
 /*
 	New object: like OP_CALL
  */

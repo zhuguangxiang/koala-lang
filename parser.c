@@ -235,7 +235,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 		debug("type '%s' in current module", desc->type);
 		sym = STable_Get(ps->sym->ptr, desc->type);
 		if (!sym) {
-			error("cannot find %s", desc->type);
+			//error("cannot find %s", desc->type);
 			return NULL;
 		}
 		sym->refcnt++;
@@ -990,10 +990,18 @@ static void parser_curscope_ident(ParserState *ps, Symbol *sym,
 				Inst_Append(u->block, OP_GETFIELD, &val);
 			} else if (sym->kind == SYM_PROTO) {
 				debug("symbol '%s' is function", sym->name);
-				Inst_Append_NoArg(u->block, OP_LOAD0);
-				Argument val = {.kind = ARG_STR, .str = sym->name};
-				Inst *i = Inst_Append(u->block, OP_CALL, &val);
-				i->argc = exp->argc;
+				if (exp->right && exp->right->kind == CALL_KIND) {
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
+					Inst *i = Inst_Append(u->block, OP_CALL, &val);
+					i->argc = exp->argc;
+				} else {
+					debug("load '%s' func to reg", sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
+					Inst_Append(u->block, OP_GETFIELD, &val);
+					exp->ctx = EXPR_LOAD_FUNC;
+				}
 			} else {
 				assertm(0, "invalid symbol kind :%d", sym->kind);
 			}
@@ -1053,16 +1061,33 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 			if (sym->kind == SYM_VAR) {
 				debug("symbol '%s' is variable", sym->name);
 				int opcode;
+				if (sym->desc->kind == TYPE_PROTO &&
+					exp->right && exp->right->kind == CALL_KIND) {
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+				}
 				Inst_Append_NoArg(u->block, OP_LOAD0);
 				opcode = (exp->ctx == EXPR_LOAD) ? OP_GETFIELD : OP_SETFIELD;
 				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst_Append(u->block, opcode, &val);
+				if (sym->desc->kind == TYPE_PROTO &&
+					exp->right && exp->right->kind == CALL_KIND) {
+					Inst *i = Inst_Append(u->block, OP_CALL0, &val);
+					i->argc = exp->argc;
+				}
 			} else if (sym->kind == SYM_PROTO) {
 				debug("symbol '%s' is function", sym->name);
-				Inst_Append_NoArg(u->block, OP_LOAD0);
-				Argument val = {.kind = ARG_STR, .str = sym->name};
-				Inst *i = Inst_Append(u->block, OP_CALL, &val);
-				i->argc = exp->argc;
+				if (exp->right && exp->right->kind == CALL_KIND) {
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
+					Inst *i = Inst_Append(u->block, OP_CALL, &val);
+					i->argc = exp->argc;
+				} else {
+					debug("load '%s' func to reg", sym->name);
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+					Argument val = {.kind = ARG_STR, .str = sym->name};
+					Inst_Append(u->block, OP_GETFIELD, &val);
+					exp->ctx = EXPR_LOAD_FUNC;
+				}
 			} else if (sym->kind == SYM_CLASS) {
 				debug("symbol '%s' is class", sym->name);
 				if (exp->right && exp->right->kind == CALL_KIND) {
@@ -1557,6 +1582,20 @@ static void parser_call(ParserState *ps, struct expr *exp)
 			error("abstract method arguments are not matched.");
 			return;
 		}
+	} else if (sym->kind == SYM_VAR) {
+		if (sym->desc->kind == TYPE_PROTO) {
+			/* function type */
+			exp->sym = sym;
+			exp->desc = sym->desc;
+			/* check arguments */
+			if (!check_call_args(exp->desc, exp->call.args)) {
+				error("arguments are not matched.");
+				return;
+			}
+		} else {
+			Parser_PrintError(ps, &exp->line, "'%s' is not a func", sym->name);
+			return;
+		}
 	} else {
 		assert(0);
 	}
@@ -1860,6 +1899,25 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 
 	debug("parse variable '%s' declaration", var->id);
 
+	if (var->desc && var->desc->kind == TYPE_USERDEF) {
+		STable *stbl = ps->sym->ptr;
+		if (var->desc->path) {
+			Import key = {.path = var->desc->path};
+			Import *import = HashTable_Find(&ps->imports, &key);
+			assert(import);
+			stbl = import->sym->ptr;
+		}
+		Symbol *sym = STable_Get(stbl, var->desc->type);
+		if (!sym) {
+			Parser_PrintError(ps, &exp->line, "undefined '%s'", var->desc->type);
+			return;
+		}
+		if (sym->kind == SYM_TYPEALIAS) {
+			debug("symbol '%s' is typealias, set its real type", sym->name);
+			var->desc = sym->desc;
+			var->typealias = 1;
+		}
+	}
 	if (exp) {
 		exp->ctx = EXPR_LOAD;
 		parser_visit_expr(ps, exp);
@@ -1870,19 +1928,33 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 
 		if (exp->desc->kind == TYPE_PROTO) {
 			TypeDesc *proto = exp->desc;
-			int rsize = Vector_Size(proto->rdesc);
-			if (rsize != 1) {
-				//FIXME
-				error("function's returns is not 1:%d", rsize);
-				return;
-			}
+			if (exp->ctx == EXPR_LOAD) {
+				int rsize = Vector_Size(proto->rdesc);
+				if (rsize != 1) {
+					//FIXME
+					error("function's returns is not 1:%d", rsize);
+					return;
+				}
 
-			if (!var->desc) {
-				var->desc = Vector_Get(proto->rdesc, 0);
-			}
-
-			if (!TypeDesc_Check(var->desc, Vector_Get(proto->rdesc, 0))) {
-				error("proto typecheck failed");
+				if (!var->desc) {
+					var->desc = Vector_Get(proto->rdesc, 0);
+				} else {
+					if (!TypeDesc_Check(var->desc, Vector_Get(proto->rdesc, 0))) {
+						error("proto typecheck failed");
+						return;
+					}
+				}
+			} else if (exp->ctx == EXPR_LOAD_FUNC) {
+				if (!var->desc) {
+					var->desc = proto;
+				} else {
+					if (!TypeDesc_Check(var->desc, proto)) {
+						error("proto typecheck failed");
+						return;
+					}
+				}
+			} else {
+				assertm(0, "invalid expr context:%d", exp->ctx);
 				return;
 			}
 		} else {
@@ -1957,6 +2029,11 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		Vector_Append(&pu->sym->locvec, sym);
 	} else {
 		assertm(0, "unknown unit scope:%d", u->scope);
+	}
+
+	if (var->typealias) {
+		debug("update typealias symbol '%s' desc", sym->name);
+		sym->desc = var->desc;
 	}
 
 	//generate code

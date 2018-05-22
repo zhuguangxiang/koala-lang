@@ -267,26 +267,26 @@ UserDefType
 
 FunctionType
   : FUNC '(' TypeNameList ')' {
-    $$ = TypeDesc_From_Proto($3, NULL);
+    $$ = TypeDesc_From_Proto(NULL, $3);
   }
   | FUNC '(' ')' {
     $$ = TypeDesc_From_Proto(NULL, NULL);
   }
   | FUNC '(' TypeNameList ')' '(' TypeList ')' {
-    $$ = TypeDesc_From_Proto($3, $6);
+    $$ = TypeDesc_From_Proto($6, $3);
   }
   | FUNC '(' ')' '(' TypeList ')' {
-    $$ = TypeDesc_From_Proto(NULL, $5);
+    $$ = TypeDesc_From_Proto($5, NULL);
   }
   | FUNC '(' TypeNameList ')' Type {
     Vector *vec = Vector_New();
     Vector_Append(vec, $5);
-    $$ = TypeDesc_From_Proto($3, vec);
+    $$ = TypeDesc_From_Proto(vec, $3);
   }
   | FUNC '(' ')' Type {
     Vector *vec = Vector_New();
     Vector_Append(vec, $4);
-    $$ = TypeDesc_From_Proto(NULL, vec);
+    $$ = TypeDesc_From_Proto(vec, NULL);
   }
   ;
 

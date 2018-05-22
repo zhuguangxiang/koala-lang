@@ -49,6 +49,7 @@ enum expr_kind {
 
 enum expr_ctx {
 	EXPR_INVALID = 0, EXPR_LOAD = 1, EXPR_STORE = 2,
+	EXPR_CALL_FUNC = 3, EXPR_LOAD_FUNC = 4,
 };
 
 struct expr {
@@ -129,6 +130,7 @@ void expr_traverse(struct expr *exp);
 struct var {
 	char *id;
 	short bconst;
+	short typealias;
 	TypeDesc *desc;
 };
 

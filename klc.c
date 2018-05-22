@@ -36,6 +36,14 @@ TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl)
 			t->type = stritem->data;
 			break;
 		}
+		case TYPE_PROTO: {
+			ProtoItem *proto = AtomTable_Get(atbl, ITEM_PROTO, item->protoindex);
+			TypeDesc *temp = ProtoItem_To_TypeDesc(proto, atbl);
+			t->rdesc = temp->rdesc;
+			t->pdesc = temp->pdesc;
+			free(temp); //FIXME
+			break;
+		}
 		default: {
 			assert(0);
 		}
@@ -117,6 +125,16 @@ TypeItem *TypeItem_UserDef_New(int varg, int dims, int32 pathindex,
 	item->kind = TYPE_USERDEF;
 	item->pathindex = pathindex;
 	item->typeindex = typeindex;
+	return item;
+}
+
+TypeItem *TypeItem_Proto_New(int varg, int dims, int32 protoindex)
+{
+	TypeItem *item = calloc(1, sizeof(TypeItem));
+	item->varg = varg;
+	item->dims = dims;
+	item->kind = TYPE_PROTO;
+	item->protoindex = protoindex;
 	return item;
 }
 
@@ -336,12 +354,20 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 		item.kind = TYPE_USERDEF;
 		item.pathindex = pathindex;
 		item.typeindex = typeindex;
-	} else {
-		assert(desc->kind == TYPE_PRIMITIVE);
+	} else if (desc->kind == TYPE_PRIMITIVE) {
 		item.varg = desc->varg;
 		item.dims = desc->dims;
 		item.kind = TYPE_PRIMITIVE;
 		item.primitive = desc->primitive;
+	} else {
+		assert(desc->kind == TYPE_PROTO);
+		int rindex = TypeListItem_Get(table, desc->rdesc);
+		int pindex = TypeListItem_Get(table, desc->pdesc);
+		int protoindex = ProtoItem_Get(table, rindex, pindex);
+		item.varg = desc->varg;
+		item.dims = desc->dims;
+		item.kind = TYPE_PROTO;
+		item.protoindex = protoindex;
 	}
 	return AtomTable_Index(table, ITEM_TYPE, &item);
 }
@@ -364,9 +390,12 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 			}
 			item = TypeItem_UserDef_New(desc->varg, desc->dims, pathindex,
 																	typeindex);
-		} else {
-			assert(desc->kind == TYPE_PRIMITIVE);
+		} else if (desc->kind == TYPE_PRIMITIVE) {
 			item = TypeItem_Primitive_New(desc->varg, desc->dims, desc->primitive);
+		} else {
+			assert(desc->kind == TYPE_PROTO);
+			int protoindex = ProtoItem_Set(table, desc);
+			item = TypeItem_Proto_New(desc->varg, desc->dims, protoindex);
 		}
 
 		index = AtomTable_Append(table, ITEM_TYPE, item, 1);
