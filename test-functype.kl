@@ -3,32 +3,18 @@ package test;
 
 import "koala/io";
 
-typealias CBFunc func(int, int) int;
+func add(a int, b func(int,int) int) int {
+	return b(a+1, 1);
+}
 
-func myAdd(a int, b int) int
-{
+func plus(a int, b int) int {
 	return a + b;
 }
 
-func mySub(a int, b int) int
-{
-	return a - b;
-}
-
-var add CBFunc = myAdd;
-
-func callback(fn CBFunc) {
-	var r int = fn(1, 2);
-	io.Println(r);
-}
-
 func Main(args []string) {
-	var a = 100;
-	var b = "hello";
+	var a int = 100;
+	var b = add(a, plus);
 	io.Println(b);
-	var r int = add(1, 2);
-	io.Println(r);
-	add = mySub;
-	r = add(1, 2);
-	io.Println(r);
+	var fn func(int,int) int = plus;
+	io.Println(fn(100, 200));
 }

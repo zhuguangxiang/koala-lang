@@ -55,6 +55,7 @@ void Parser_SetLine(ParserState *ps, struct expr *exp)
 void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...)
 {
 	if (++ps->errnum >= MAX_ERRORS) {
+		fprintf(stderr, "Too many errors.\n");
 		exit(-1);
 	}
 
@@ -1012,11 +1013,20 @@ static void parser_curscope_ident(ParserState *ps, Symbol *sym,
 		case SCOPE_BLOCK: {
 			if (sym->kind == SYM_VAR) {
 				debug("symbol '%s' is variable", sym->name);
+				if (sym->desc->kind == TYPE_PROTO &&
+					exp->right && exp->right->kind == CALL_KIND) {
+					Inst_Append_NoArg(u->block, OP_LOAD0);
+				}
 				int opcode;
 				debug("local's variable");
 				opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
 				Argument val = {.kind = ARG_INT, .ival = sym->index};
 				Inst_Append(u->block, opcode, &val);
+				if (sym->desc->kind == TYPE_PROTO &&
+					exp->right && exp->right->kind == CALL_KIND) {
+					Inst *i = Inst_Append(u->block, OP_CALL0, &val);
+					i->argc = exp->argc;
+				}
 			} else {
 				assertm(0, "invalid symbol kind :%d", sym->kind);
 			}
@@ -1542,10 +1552,10 @@ static void parser_call(ParserState *ps, struct expr *exp)
 		exp->sym = sym;
 		exp->desc = sym->desc;
 		/* check arguments */
-		if (!check_call_args(exp->desc, exp->call.args)) {
-			error("arguments are not matched.");
-			return;
-		}
+		// if (!check_call_args(exp->desc, exp->call.args)) {
+		// 	error("arguments are not matched.");
+		// 	return;
+		// }
 	} else if (sym->kind == SYM_CLASS || sym->kind == SYM_STABLE) {
 		debug("class '%s'", sym->name);
 		/* class type */

@@ -362,7 +362,7 @@ static void check_args(Routine *rt, int argc, TypeDesc *proto, char *name)
 		desc = Vector_Get(proto->pdesc, i);
 		if (TValue_Check_TypeDesc(val, desc)) {
 			error("'%s' args type check failed", name);
-			exit(-1);
+			//exit(-1);
 		}
 	}
 }

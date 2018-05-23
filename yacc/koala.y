@@ -7,6 +7,7 @@
 #include "parser.h"
 
 #if LOG_DEBUG
+#define YYERROR_VERBOSE 1
 int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 {
   UNUSED_PARAMETER(parser);
@@ -492,6 +493,10 @@ VariableList
 FunctionDeclaration
   : FUNC ID ParameterListOrEmpty ReturnTypeListOrEmpty Block {
     $$ = stmt_from_funcdecl($2, $3, $4, $5);
+  }
+  | FUNC error {
+    syntax_error(parser, EXPECTED, "ID", Lexer_Token);
+    $$ = NULL;
   }
   ;
 

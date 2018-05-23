@@ -127,10 +127,11 @@ int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
 #define Lexer_PrintError(ps, errmsg, ...) do {\
 	if (ps->errnum >= MAX_ERRORS) { \
+		fprintf(stderr, "Too many errors.\n"); \
 		exit(-1); \
 	} \
 	LineBuffer *lb = &(ps)->line; \
-	if (!lb->print) { \
+	if (1) { \
 		Line l = {lb->line, lb->row, lb->col}; \
 		Parser_PrintError(ps, &l, errmsg, ##__VA_ARGS__); \
 		lb->print = 1; \

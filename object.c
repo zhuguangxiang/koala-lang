@@ -951,6 +951,7 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 			break;
 		}
 		case TYPE_PROTO: {
+			setobjtype(val, &Code_Klass);
 			break;
 		}
 		default: {
