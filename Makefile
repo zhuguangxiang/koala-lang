@@ -24,6 +24,7 @@ koala_lex.o koala_yacc.o
 
 ######################################
 
+.PHONY: all
 all: koala
 
 libkoala.so: $(KOALA_OBJS)
@@ -49,14 +50,15 @@ koala_lex.c: yacc/koala.l
 	@echo "[FLEX]	$@"
 	@$(FLEX) -o $@ yacc/koala.l
 
-clean:
-	rm -f *.so *.o *.d *.d.* koala_lex.* koala_yacc.*
-
 .PHONY: clean
+clean:
+	@rm -f *.so *.o *.d *.d.* koala_lex.* koala_yacc.*
 
 ######################################
 
+ifneq ($(MAKECMDGOALS), clean)
 sinclude $(KOALA_OBJS:.o=.d) $(KOALAC_OBJS:.o=.d) koala.d koalac.d
+endif
 
 %.o: %.c
 	@echo "[CC]	$@"
