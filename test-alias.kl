@@ -1,11 +1,18 @@
 
 package test;
 
-typealias ntfy func(i int) int;
+import "koala/io";
 
-typealias StringArray []string;
+func add(a int, b func(int,int) int) int {
+	return b(a, 1);
+}
+
+func plus(a int, b int) int {
+	return a + b;
+}
 
 func Main(args []string) {
-	a = 100;
-	var b = "hello";
+	var a int = 100;
+	var b = add(a, plus);
+	io.Println(b);
 }

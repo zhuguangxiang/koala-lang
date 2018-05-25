@@ -144,6 +144,7 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %type <operator> AssignOperator
 %type <vector> VariableList
 %type <vector> ExpressionList
+%type <vector> PrimaryExpressionList
 %type <expr> Expression
 %type <expr> LogicalOrExpression
 %type <expr> LogicalAndExpression
@@ -1191,8 +1192,19 @@ ExpressionList
   ;
 
 Assignment
-  : PrimaryExpression AssignOperator Expression {
-    $$ = stmt_from_assign($1, $2, $3);
+  : PrimaryExpressionList AssignOperator ExpressionList {
+    $$ = NULL;//stmt_from_assignlist($1, $2, $3);
+  }
+  ;
+
+PrimaryExpressionList
+  : PrimaryExpression {
+    $$ = Vector_New();
+    Vector_Append($$, $1);
+  }
+  | PrimaryExpressionList ',' PrimaryExpression {
+    Vector_Append($1, $3);
+    $$ = $1;
   }
   ;
 
@@ -1236,3 +1248,5 @@ AssignOperator
 /*--------------------------------------------------------------------------*/
 
 %%
+
+
