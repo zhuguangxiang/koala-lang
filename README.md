@@ -1,27 +1,38 @@
-## 编程约束：
-对外开放的接口：大写_下划线 或者 小写_下划线
-内部接口：static 小写 或者 static __xx
-判断为NULL或非NULL: if (!ptr) or if (ptr)
-使用TAB作为为缩进，默认TAB为2空格长度
-入参检查：尽量减少判空，可以是调用者负责，也可以是函数提供者负责
-CALLBACK: __xxx_fn
-Init&Fini: Init_xxx, Fini_xxx, xxx_Init, xxx_Fini, xxx_Initialize, xxx_Finalize
+# Koala语言的实现(C语言)
 
-## libkoala.so：
-1. 类型子系统
-    1. 模块管理
-    2. 符号管理
-    3. 语义分析(类型检查)
-2. 运行子系统
+## C语言编程约束：
+
+- 对外开放的接口：大写_下划线 或者 小写_下划线
+- 内部接口：static 小写 或者 static __xx
+- 判断为NULL或非NULL: if (!ptr) or if (ptr)
+- 使用TAB作为为缩进，默认TAB为2空格长度
+- 入参检查：尽量减少判空，可以是调用者负责，也可以是函数提供者负责
+- CALLBACK: __xxx_fn
+- Init&Fini: Init_xxx, Fini_xxx, xxx_Init, xxx_Fini, xxx_Initialize, xxx_Finalize
+
+## 类型子系统
+
+1. 模块管理
+2. 符号管理
+3. 语义分析(类型检查)
+
+## 运行子系统
+
     1. 协程
     2. 线程
     3. GC
-3. 编译子系统
+
+## 编译子系统
+
     1. AST
     2. 解析器
     3. 模块管理
     4. 符号管理
     5. 语义分析(类型检查)
+
+## 实现细节
+
+
 4. Koala Code(.klc)
 
 ## libs
