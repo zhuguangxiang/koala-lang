@@ -11,15 +11,8 @@ CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I./ -Wbad-function-cast
 
 CFLAGS = $(CPPFLAGS) -fPIC -W -Wall -Wpointer-arith -Wstrict-prototypes
 
-ifeq ($(HOST), Linux)
-YACC = ~/tools/bin/bison
-FLEX = ~/tools/bin/flex
-else ifeq ($(HOST), Darwin)
-YACC = /usr/local/Cellar/bison/3.0.4_1/bin/bison
-FLEX = /usr/local/Cellar/flex/2.6.4/bin/flex
-else
-$(error Unknown host, which machine?)
-endif
+YACC = bison
+FLEX = flex
 
 ######################################
 

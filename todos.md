@@ -9,7 +9,6 @@ import "koala/io";
 func Main(args []string) {
   io.Println("Hello, World");
 }
-
 ```
 
 ## 类型种类
@@ -37,17 +36,37 @@ Koala的编译单元为一个.kl源文件，每一个编译单元分为2步：
 
   如果构建的参数是目录，则会编译目录下所有.kl文件，这里要求所有目录下的所有的源码的package和目录名一样，并且会生成一个以目录名为名字的.klc文件
 
-  举例：koala/net目录
+  举例：net目录下的所有.kl文件都必须`package net;`进行打包
 
-    - ping.kl
-    - socket.kl
-    - http.kl
-    - ftp.kl
+    -net
+      |--ping.kl
+      |--socket.kl
+      |--http.kl
+      |--ftp.kl
 
-  net目录下的所有.kl文件都必须`package net;`进行打包
+  构建：
 
-    import "koala/net";
+    koala@Linux:~/koala$koala build net
 
-    func test() {
-      net.Ping("10.158.233.89");
-    }
+  输出：
+
+    koala@Linux:~/koala$net.klc
+    koala@Linux:~/koala$cp net.klc ~/.koala-repo/koala.org/koala/
+
+  部署:
+
+    koala@Linux:~/koala$koala install net koala.org/koala
+
+  使用：
+
+```go
+//app.kl
+package app;
+import "koala.org/koala/net";
+
+func Main(args []string) {
+  net.Ping("10.158.233.89");
+}
+
+koala@Linux:~/koala$koala run app
+```
