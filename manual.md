@@ -1,4 +1,4 @@
-# Develop Release Notes
+# Koala Language Manual
 
 ## Example
 
