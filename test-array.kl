@@ -1,0 +1,8 @@
+
+package test;
+
+import "koala/io";
+
+func Main(args []string) {
+	var m = {"Name": "James", "Age": 121, "Male": true};
+}

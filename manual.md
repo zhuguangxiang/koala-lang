@@ -1,5 +1,7 @@
 # Koala Language Manual
 
+## Introduction
+
 ## Example
 
 ```go
@@ -12,6 +14,14 @@ func Main(args []string) {
 ```
 
 ## 类型种类
+
+Array Type:
+
+```go
+var persons []Person = [3]Person{p1, p2, p3};
+var persons []Person = {{"Name": "James", "Age" : 121}, {}, {}};
+var personMap = {"Name": "James", "Age" : 121};
+```
 
 - [x] 基本类型(int, float, bool)
 - [ ] 字符串类型

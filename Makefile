@@ -32,18 +32,20 @@ all: koala
 
 libkoala.so: $(KOALA_OBJS)
 	@echo "[SO]	$@"
-	@$(CC) -shared -o $@ $(KOALA_OBJS) -pthread
-	@cp $@ /usr/lib/koala-lang/
+	@$(CC) -shared -Wl,-soname,libkoala.so.0 -o $@ $(KOALA_OBJS) -pthread
+	$(shell [ ! -f "./libkoala.so.0" ] || {ln -s libkoala.so libkoala.so.0})
+	##@cp $@ /usr/lib/koala-lang/
 
 libkoalac.so: $(KOALAC_OBJS) libkoala.so
 	@echo "[SO]	$@"
-	@$(CC) -shared -o $@ $(KOALAC_OBJS) -lkoala -pthread
-	@cp $@ /usr/lib/koala-lang/
+	@$(CC) -shared -Wl,-soname,libkoalac.so.0 -o $@ $(KOALAC_OBJS) -L. -lkoala -pthread
+	$(shell [ ! -f "./libkoalac.so.0" ] || {ln -s libkoalac.so libkoalac.so.0})
+	##@cp $@ /usr/lib/koala-lang/
 
 koala: libkoalac.so koala.o
 	@echo "[MAIN]	$@"
-	@gcc $(CFLAGS) -o $@ koala.o -lkoalac -lkoala -pthread -lrt
-	@cp $@ /usr/local/bin
+	@gcc $(CFLAGS) -o $@ koala.o -L. -lkoalac -lkoala -pthread -lrt
+	##@cp $@ /usr/local/bin
 
 koala_yacc.c: yacc/koala.y
 	@echo "[YACC]	$@"

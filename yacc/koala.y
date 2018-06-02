@@ -126,6 +126,7 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %precedence '.'
 %precedence ')'
 %precedence '('
+%precedence ']'
 
 /*--------------------------------------------------------------------------*/
 %type <primitive> PrimitiveType
@@ -958,6 +959,12 @@ Atom
   | AnonymousFunctionDeclaration {
     $$ = $1;
   }
+  | MapObject {
+    $$ = NULL;
+  }
+  | '[' CONSTANT ']'
+  | '[' MapObject ']'
+  | '[' Atom ']'
   ;
 
 AnonymousFunctionDeclaration
@@ -1004,11 +1011,11 @@ ArrayDeclaration
   ;
 
 DimExprList
-  : '[' Expression ']' {
+  : '[' CONSTANT ']' {
     $$ = Vector_New();
     Vector_Append($$, $2);
   }
-  | DimExprList '[' Expression ']' {
+  | DimExprList '[' CONSTANT ']' {
     Vector_Append($1, $3);
     $$ = $1;
   }
@@ -1032,6 +1039,20 @@ ArrayInitializer
   | '{' ArrayInitializerList '}' {
     $$ = expr_from_array_with_tseq($2);
   }
+  ;
+
+MapObject
+  : '{' KeyValueList '}'
+  ;
+
+KeyValueList
+  : KeyValue
+  | KeyValueList ',' KeyValue
+  ;
+
+KeyValue
+  : STRING_CONST ':' CONSTANT
+  | STRING_CONST ':' MapObject
   ;
 
 /*-------------------------------------------------------------------------*/
