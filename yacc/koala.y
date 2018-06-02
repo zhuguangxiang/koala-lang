@@ -126,7 +126,6 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %precedence '.'
 %precedence ')'
 %precedence '('
-%precedence ']'
 
 /*--------------------------------------------------------------------------*/
 %type <primitive> PrimitiveType
@@ -962,9 +961,6 @@ Atom
   | MapObject {
     $$ = NULL;
   }
-  | '[' CONSTANT ']'
-  | '[' MapObject ']'
-  | '[' Atom ']'
   ;
 
 AnonymousFunctionDeclaration

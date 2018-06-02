@@ -2,7 +2,6 @@ a.out
 koala_yacc.*
 koala_lex.*
 *.klc
-.vscode
 *.a
 *.o
 *.so
@@ -16,3 +15,4 @@ koala
 *.py
 *.pyc
 *.d
+libkoala*
