@@ -16,3 +16,4 @@ koala
 *.pyc
 *.d
 libkoala*
+.imdone/
