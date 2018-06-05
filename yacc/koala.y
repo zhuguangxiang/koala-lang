@@ -122,10 +122,8 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 
 /*--------------------------------------------------------------------------*/
 
-%precedence ID
-%precedence '.'
-%precedence ')'
-%precedence '('
+%precedence INT_CONST
+%precedence ']'
 
 /*--------------------------------------------------------------------------*/
 %type <primitive> PrimitiveType
@@ -158,13 +156,10 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %type <expr> MultiplicativeExpression
 %type <expr> UnaryExpression
 %type <expr> PrimaryExpression
-%type <expr> Atom
 %type <expr> ArrayDeclaration
 %type <expr> AnonymousFunctionDeclaration
 %type <expr> CONSTANT
 %type <vector> DimExprList
-%type <vector> ArrayInitializerList
-%type <expr> ArrayInitializer
 %type <stmt> VariableDeclaration
 %type <stmt> ConstDeclaration
 %type <stmt> LocalStatement
@@ -430,11 +425,11 @@ ModuleStatement
 /*--------------------------------------------------------------------------*/
 
 ConstDeclaration
-  : CONST VariableList '=' ExpressionList {
-    $$ = stmt_from_varlistdecl($2, $4, NULL, 1);
+  : CONST VariableList '=' InitializerList {
+    //$$ = stmt_from_varlistdecl($2, $4, NULL, 1);
   }
-  | CONST VariableList Type '=' ExpressionList {
-    $$ = stmt_from_varlistdecl($2, $5, $3, 1);
+  | CONST VariableList Type '=' InitializerList {
+    //$$ = stmt_from_varlistdecl($2, $5, $3, 1);
   }
   | CONST VariableList '=' error {
     syntax_error(parser, "expected right's expression-list");
@@ -454,11 +449,11 @@ VariableDeclaration
   : VAR VariableList Type {
     $$ = stmt_from_varlistdecl($2, NULL, $3, 0);
   }
-  | VAR VariableList '=' ExpressionList {
-    $$ = stmt_from_varlistdecl($2, $4, NULL, 0);
+  | VAR VariableList '=' InitializerList {
+    //$$ = stmt_from_varlistdecl($2, $4, NULL, 0);
   }
-  | VAR VariableList Type '=' ExpressionList {
-    $$ = stmt_from_varlistdecl($2, $5, $3, 0);
+  | VAR VariableList Type '=' InitializerList {
+    //$$ = stmt_from_varlistdecl($2, $5, $3, 0);
   }
   | VAR VariableList error {
     syntax_error(parser, "expected 'TYPE' or '='");
@@ -634,14 +629,14 @@ TraitMemberDeclaration
   ;
 
 FieldDeclaration
-  : VAR ID Type ';' {
-    $$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
+  : ID Type ';' {
+    //$$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
   }
-  | VAR ID '=' Expression ';' {
-    $$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
+  | ID '=' Initializer ';' {
+    //$$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
   }
-  | VAR ID Type '=' Expression ';' {
-    $$ = stmt_from_vardecl(new_var($2, $3), $5, 0);
+  | ID Type '=' Initializer ';' {
+    //$$ = stmt_from_vardecl(new_var($2, $3), $5, 0);
   }
   ;
 
@@ -908,59 +903,61 @@ ReturnStatement
 /*-------------------------------------------------------------------------*/
 
 PrimaryExpression
-  : Atom {
-    $$ = $1;
-    Parser_SetLine(parser, $$);
+  : ID {
+    /* $$ = $1;
+    Parser_SetLine(parser, $$); */
+  }
+  | CONSTANT {
+
+  }
+  | SELF {
+    /* $$ = expr_from_self(); */
+  }
+  | SUPER {
+    /* $$ = expr_from_super(); */
+  }
+  | TYPEOF {
+    /* $$ = expr_from_typeof(); */
+  }
+  | '(' Expression ')' {
+    /* $$ = $2; */
   }
   | PrimaryExpression '.' ID {
-    $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
-    Parser_SetLine(parser, $$);
+    /* $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
+    Parser_SetLine(parser, $$); */
   }
   | PrimaryExpression '[' Expression ']' {
-    $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
-    Parser_SetLine(parser, $$);
+    /* $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
+    Parser_SetLine(parser, $$); */
   }
   | PrimaryExpression '(' ExpressionList ')' {
-    $$ = expr_from_trailer(CALL_KIND, $3, $1);
-    Parser_SetLine(parser, $$);
+    /* $$ = expr_from_trailer(CALL_KIND, $3, $1);
+    Parser_SetLine(parser, $$); */
   }
   | PrimaryExpression '(' ')' {
-    $$ = expr_from_trailer(CALL_KIND, NULL, $1);
-    Parser_SetLine(parser, $$);
+    /* $$ = expr_from_trailer(CALL_KIND, NULL, $1);
+    Parser_SetLine(parser, $$); */
   }
   ;
 
-Atom
-  : ID {
-    $$ = expr_from_id($1);
-  }
-  | CONSTANT {
-    $$ = $1;
-  }
-  | SELF {
-    $$ = expr_from_self();
-  }
-  | SUPER {
-    $$ = expr_from_super();
-  }
-  | TYPEOF {
-    $$ = expr_from_typeof();
-  }
-  | PrimitiveType '(' CONSTANT ')' {
-    $$ = $3;
-  }
-  | '(' Expression ')' {
-    $$ = $2;
+Initializer
+  : Expression {
+
   }
   | ArrayDeclaration {
-    $$ = $1;
+    //$$ = $1;
   }
   | AnonymousFunctionDeclaration {
-    $$ = $1;
+    //$$ = $1;
   }
-  | MapObject {
-    $$ = NULL;
+  | MapDeclaration {
+    //$$ = NULL;
   }
+  ;
+
+InitializerList
+  : Initializer
+  | InitializerList ',' Initializer
   ;
 
 AnonymousFunctionDeclaration
@@ -1000,44 +997,24 @@ ArrayDeclaration
     $2->dims += Vector_Size($1);
     $$ = expr_from_array($2, $1, NULL);
   }
-  | DIMS BaseType '{' ArrayInitializerList '}' {
-    $2->dims = $1;
-    $$ = expr_from_array($2, NULL, $4);
+  | '[' InitializerList ']' {
+    /* $2->dims = $1; */
+    /* $$ = expr_from_array($2, NULL, $4); */
   }
   ;
 
 DimExprList
-  : '[' CONSTANT ']' {
+  : '[' INT_CONST ']' {
     $$ = Vector_New();
-    Vector_Append($$, $2);
+    //Vector_Append($$, $2);
   }
-  | DimExprList '[' CONSTANT ']' {
-    Vector_Append($1, $3);
+  | DimExprList '[' INT_CONST ']' {
+    //Vector_Append($1, $3);
     $$ = $1;
   }
   ;
 
-ArrayInitializerList
-  : ArrayInitializer {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
-  }
-  | ArrayInitializerList ',' ArrayInitializer {
-    Vector_Append($1, $3);
-    $$ = $1;
-  }
-  ;
-
-ArrayInitializer
-  : Expression {
-    $$ = $1;
-  }
-  | '{' ArrayInitializerList '}' {
-    $$ = expr_from_array_with_tseq($2);
-  }
-  ;
-
-MapObject
+MapDeclaration
   : '{' KeyValueList '}'
   ;
 
@@ -1047,8 +1024,7 @@ KeyValueList
   ;
 
 KeyValue
-  : STRING_CONST ':' CONSTANT
-  | STRING_CONST ':' MapObject
+  : STRING_CONST ':' Initializer
   ;
 
 /*-------------------------------------------------------------------------*/
@@ -1265,5 +1241,3 @@ AssignOperator
 /*--------------------------------------------------------------------------*/
 
 %%
-
-
