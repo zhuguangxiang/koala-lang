@@ -2,6 +2,45 @@
 
 ## Introduction
 
+数组和字典形式化描述
+
+数组：
+
+固定长度VS变长
+
+```go
+var arr []strng = [3]string;
+arr[0] = string("hello");
+arr[1] = "world";
+
+var arr1 []string = ["hello", "world"];
+var arr2 = ["hello", "world"]; //[]string
+var arr3 = ["hello", "world", 120, Person("ZhangSan")]; //[]Any
+var arr4 = [{"Name" : "James", "Age": 120, "Male": true}, 100]; //[]Any
+var arr5 [][]int = [[1,2,3], [4,5], [6]];
+
+```
+字典:
+
+```go
+var dict [string:string] = [string:string]();
+dict["name"] = "James";
+dict["age"] = "20";
+
+var dict2 [string:Any] = {"Name" : "James", "Age": 120, "Male": true};
+var dict3 = {"Name" : "James", "Age": 120, "Male": true};
+```
+
+对象：
+
+```go
+var o1 Person = Person(arg1, arg2);
+var o2 = Person(arg1, arg2);
+```
+
+范型：
+为什么要有范型？
+
 ## Example
 
 ```go
