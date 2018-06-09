@@ -1,4 +1,23 @@
 {
+  "workbench.activityBar.visible": false,
+  "workbench.startupEditor": "none",
+  "workbench.colorTheme": "One Dark Pro Vivid",
+  "editor.fontSize": 13,
+  "editor.fontFamily":  "'Operator Mono', Menlo",
+  "editor.tabSize": 2,
+  "editor.insertSpaces": false,
+  "files.associations": {
+    "*.h": "c",
+    "*.kl": "go",
+	},
+  "[c]": {
+    "editor.rulers": [
+        80
+    ]
+  },
+  "editor.minimap.enabled": false,
+  "terminal.integrated.fontFamily": "'Operator Mono'",
+  "terminal.integrated.fontSize": 13,
   "todo-tree.flat": true,
   "todo-tree.expanded": false
 }

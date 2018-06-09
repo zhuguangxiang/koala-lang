@@ -20,6 +20,7 @@ var arr4 = [{"Name" : "James", "Age": 120, "Male": true}, 100]; //[]Any
 var arr5 [][]int = [[1,2,3], [4,5], [6]];
 
 ```
+
 字典:
 
 ```go
