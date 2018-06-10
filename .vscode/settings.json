@@ -11,7 +11,29 @@
   "files.associations": {
     "*.h": "c",
     "*.kl": "go",
-	},
+    "__tuple": "c",
+    "tuple": "c",
+    "list": "c",
+    "__split_buffer": "c",
+    "bitset": "c",
+    "initializer_list": "c",
+    "iterator": "c",
+    "string": "c",
+    "string_view": "c",
+    "utility": "c",
+    "vector": "c",
+    "__bit_reference": "c",
+    "__functional_base": "c",
+    "atomic": "c",
+    "chrono": "c",
+    "functional": "c",
+    "limits": "c",
+    "locale": "c",
+    "memory": "c",
+    "ratio": "c",
+    "system_error": "c",
+    "type_traits": "c"
+  },
   "editor.rulers": [
       80
   ],
@@ -36,4 +58,7 @@
   "markdown.preview.fontSize": 13,
   "markdown.preview.fontFamily": "'Operator Mono'",
   // "markdown.styles": [ "github-markdown.css" ]
+  "git.confirmSync": false,
+  "window.zoomLevel": 0,
+  "editor.occurrencesHighlight": false
 }

@@ -19,14 +19,20 @@ extern Klass Int_Klass;
 extern Klass Float_Klass;
 extern Klass Bool_Klass;
 
+#define UNION_VALUE union { \
+	int64 ival; \
+	float64 fval; \
+	int bval; \
+	Object *ob; \
+}
+
 typedef struct value {
+	UNION_VALUE;
+} Value;
+
+typedef struct tvalue {
 	Klass *klazz;
-	union {
-		int64 ival;
-		float64 fval;
-		int bval;
-		Object *ob;
-	};
+	UNION_VALUE;
 } TValue;
 
 /* Constant values */

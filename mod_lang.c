@@ -3,6 +3,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "tableobject.h"
+#include "listobject.h"
 #include "kstate.h"
 #include "log.h"
 
@@ -57,5 +58,6 @@ void Init_Lang_Module(void)
 	Module_Add_Class(m, &Table_Klass);
 	Init_String_Klass();
 	Init_Tuple_Klass();
+	Init_List_Klass();
 	Init_Table_Klass();
 }

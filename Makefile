@@ -17,7 +17,7 @@ FLEX = flex
 ######################################
 
 KOALA_OBJS = log.o hashtable.o hash.o vector.o buffer.o properties.o \
-atomtable.o object.o stringobject.o tupleobject.o \
+atomtable.o object.o stringobject.o tupleobject.o listobject.o\
 tableobject.o moduleobject.o codeobject.o opcode.o \
 klc.o routine.o thread.o mod_lang.o mod_io.o kstate.o \
 typedesc.o numberobject.o gc.o

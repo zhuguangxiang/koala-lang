@@ -12,6 +12,7 @@ func Main(args [string]) {
 ```
 
 > 编译：koala build main.kl
+>  
 > 运行：koala run main
 
 ## 数据类型
