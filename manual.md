@@ -6,7 +6,7 @@
 package main;
 import "koala/io";
 
-func Main(args []string) {
+func Main(args [string]) {
   io.Println("Hello, World");
 }
 ```
@@ -134,7 +134,7 @@ Koala的编译单元为一个.kl源文件，每一个编译单元分为2步：
 package app;
 import "koala.org/koala/net";
 
-func Main(args []string) {
+func Main(args [string]) {
   net.Ping("10.158.233.89");
 }
 
