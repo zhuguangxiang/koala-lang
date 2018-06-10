@@ -1,8 +1,40 @@
-# Koala Language Manual
+# Koala语言手册
 
-## Introduction
+## 数据类型
 
 数组和字典形式化描述
+
+&emsp;&emsp;数组和字典是一种复合类型，其成员对象的类型可以理解为一种子类型。
+Koala提供了一种形式化描述（编译器内建）。
+
+>
+> Question:  
+> &emsp;是否需要提供通用的对象描述（数据类型提供）？两种类型是否需要统一的访问模式呢？  
+> Answer:  
+> &emsp;Koala不支持泛型，但是像数组和字典等容器类的数据类型又需要‘子类型’，这就出现了自相矛盾。Koala解决的办法是：使用形式化的方式描述，通用的容器类对象和形式化方式描述的对象不是同一种类型的对象，不能互相转换。
+>
+
+```go
+//定义一个整形数组变量，并且创建数组对象
+var arr [int] = [];
+//定义一个整形数组变量（没有创建数组对象）
+var arr [int];
+//定义一个整形数组变量，并且初始化为一个不为空的数组对象
+var arr3 [int] = [1,2,3];
+var arr3 = [1,2,3];
+//访问数组
+arr[0] = 100;
+val = arr[0] + arr[1];
+//二维数组
+var arr4 [[int]] = [[1,2,3], [4,5,6]];
+arr4[1][2] = 100; //-->> [[1,2,3], [4,5,100]]
+```
+
+```go
+var map [string:string] = {};
+
+
+```
 
 数组：
 
@@ -120,3 +152,26 @@ func Main(args []string) {
 
 koala@Linux:~/koala$koala run app
 ```
+
+汇编的想法：
+
+  1. 函数调用栈
+  2. 寄存器功能和分配
+  3. 通用汇编宏
+  4. NASM汇编器
+  5. example:
+
+```go
+c = a + b;
+```
+
+```asm
+
+mov eax, esp
+add eax, 18
+mov ebx, esp
+add ebx, 26
+call tvalue_add
+mov [sp + 10], eax
+
+``

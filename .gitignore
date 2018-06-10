@@ -16,4 +16,4 @@ koala
 *.pyc
 *.d
 libkoala*
-.imdone/
+.DS_Store
