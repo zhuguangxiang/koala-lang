@@ -1,2 +1,30 @@
-☐ ddd
-✔ eee @started(18-05-30 23:45) @done(18-05-30 23:47) @lasted(2m13s)
+
+Develop:
+  Type System:
+    ☐ basic(int, float, bool)
+    ☐ string
+    ☐ array
+    ☐ function(closure)
+    ☐ class
+    ☐ field&method
+    ☐ trait
+  Error Handle:
+  Control Flow:
+
+  Package:
+
+  Virtual Machine:
+
+  Koala Code File Format(klc):
+
+  Koala Code Archive File(kla):
+
+  Refactor:
+
+
+BUG:
+
+Document:
+
+
+Release:

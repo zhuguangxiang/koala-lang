@@ -102,7 +102,7 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %token BOOL
 %token STRING
 %token ANY
-/* %token <dims> DIMS */
+%token <dims> DIMS
 
 %token SELF
 %token SUPER
@@ -122,17 +122,20 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 
 /*--------------------------------------------------------------------------*/
 
-/* %precedence INT_CONST
-%precedence ']' */
+%precedence ID
+%precedence '.'
+%precedence ')'
+%precedence '('
+%precedence '['
 
 /*--------------------------------------------------------------------------*/
 %type <primitive> PrimitiveType
 %type <type> UserDefType
-%type <type> BaseType
-%type <type> ArrayType
+/* %type <type> BaseType */
 %type <type> Type
 %type <type> FunctionType
-%type <type> TypeName
+/* %type <type> TypeName */
+%type <type> Parameter
 %type <vector> TypeNameList
 %type <vector> ReturnTypeList
 %type <vector> ReturnTypeListOrEmpty
@@ -157,10 +160,9 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %type <expr> MultiplicativeExpression
 %type <expr> UnaryExpression
 %type <expr> PrimaryExpression
-%type <expr> ArrayDeclaration
+%type <expr> Atom
 %type <expr> AnonymousFunctionDeclaration
 %type <expr> CONSTANT
-/* %type <vector> DimExprList */
 %type <stmt> VariableDeclaration
 %type <stmt> ConstDeclaration
 %type <stmt> LocalStatement
@@ -209,37 +211,36 @@ YY_DECL;
 %%
 
 Type
-  : BaseType {
-    $$ = $1;
+  : PrimitiveType {
+    //$$ = $1;
   }
-  /* | DIMS BaseType {
-    $2->dims = $1;
-    $$ = $2;
-  } */
-  | ArrayType {
-    $$ = $1;
+  | UserDefType {
+
   }
-  | MapType {
+  | '[' Type ']' {
+
+  }
+  | '[' KeyType ':' Type ']' {
+
+  }
+  | FunctionType {
 
   }
   ;
 
-MapType
-  : '[' BaseType ':' Type ']'
-  ;
+KeyType
+  : INTEGER {
 
-ArrayType
-  : '[' BaseType ']' {
-    $2->dims = 1;
-    $$ = $2;
   }
-  | '[' ArrayType ']' {
-    $2->dims++;
-    $$ = $2;
+  | STRING {
+
+  }
+  | UserDefType {
+
   }
   ;
 
-BaseType
+/* BaseType
   : PrimitiveType {
     $$ = TypeDesc_From_Primitive($1);
   }
@@ -249,7 +250,7 @@ BaseType
   | FunctionType {
     $$ = $1;
   }
-  ;
+  ; */
 
 PrimitiveType
   : INTEGER {
@@ -272,15 +273,15 @@ PrimitiveType
 UserDefType
   : ID {
     // type in local module
-    $$ = TypeDesc_From_UserDef(NULL, $1);
+    /* $$ = TypeDesc_From_UserDef(NULL, $1); */
   }
   | ID '.' ID {
     // type in external module
-    if (!strcmp($1, "lang") && !strcmp($3, "String")) {
+    /* if (!strcmp($1, "lang") && !strcmp($3, "String")) {
       $$ = TypeDesc_From_Primitive(PRIMITIVE_STRING);
     } else {
       $$ = TypeDesc_From_UserDef(Import_Get_Path(parser, $1), $3);
-    }
+    } */
   }
   ;
 
@@ -292,40 +293,40 @@ FunctionType
     $$ = TypeDesc_From_Proto(NULL, NULL);
   }
   | FUNC '(' TypeNameList ')' '(' TypeList ')' {
-    $$ = TypeDesc_From_Proto($6, $3);
+    //$$ = TypeDesc_From_Proto($6, $3);
   }
   | FUNC '(' ')' '(' TypeList ')' {
-    $$ = TypeDesc_From_Proto($5, NULL);
+    //$$ = TypeDesc_From_Proto($5, NULL);
   }
   | FUNC '(' TypeNameList ')' Type {
-    Vector *vec = Vector_New();
-    Vector_Append(vec, $5);
-    $$ = TypeDesc_From_Proto(vec, $3);
+    //Vector *vec = Vector_New();
+    //Vector_Append(vec, $5);
+    //$$ = TypeDesc_From_Proto(vec, $3);
   }
   | FUNC '(' ')' Type {
-    Vector *vec = Vector_New();
-    Vector_Append(vec, $4);
-    $$ = TypeDesc_From_Proto(vec, NULL);
+    //Vector *vec = Vector_New();
+    //Vector_Append(vec, $4);
+    //$$ = TypeDesc_From_Proto(vec, NULL);
   }
   ;
 
 TypeNameList
   : TypeName {
     $$ = Vector_New();
-    Vector_Append($$, $1);
+    //Vector_Append($$, $1);
   }
   | TypeNameList ',' TypeName {
-    Vector_Append($1, $3);
+    //Vector_Append($1, $3);
     $$ = $1;
   }
   ;
 
 TypeName
-  : ID Type {
-    $$ = $2;
+  : Parameter {
+    //$$ = $2;
   }
   | Type {
-    $$ = $1;
+    //$$ = $1;
   }
   ;
 
@@ -447,11 +448,11 @@ ModuleStatement
 /*--------------------------------------------------------------------------*/
 
 ConstDeclaration
-  : CONST VariableList '=' InitializerList {
-    //$$ = stmt_from_varlistdecl($2, $4, NULL, 1);
+  : CONST VariableList '=' ExpressionList {
+    $$ = stmt_from_varlistdecl($2, $4, NULL, 1);
   }
-  | CONST VariableList Type '=' InitializerList {
-    //$$ = stmt_from_varlistdecl($2, $5, $3, 1);
+  | CONST VariableList Type '=' ExpressionList {
+    $$ = stmt_from_varlistdecl($2, $5, $3, 1);
   }
   | CONST VariableList '=' error {
     syntax_error(parser, "expected right's expression-list");
@@ -471,11 +472,11 @@ VariableDeclaration
   : VAR VariableList Type {
     $$ = stmt_from_varlistdecl($2, NULL, $3, 0);
   }
-  | VAR VariableList '=' InitializerList {
-    //$$ = stmt_from_varlistdecl($2, $4, NULL, 0);
+  | VAR VariableList '=' ExpressionList {
+    $$ = stmt_from_varlistdecl($2, $4, NULL, 0);
   }
-  | VAR VariableList Type '=' InitializerList {
-    //$$ = stmt_from_varlistdecl($2, $5, $3, 0);
+  | VAR VariableList Type '=' ExpressionList {
+    $$ = stmt_from_varlistdecl($2, $5, $3, 0);
   }
   | VAR VariableList error {
     syntax_error(parser, "expected 'TYPE' or '='");
@@ -518,13 +519,19 @@ FunctionDeclaration
   }
   ;
 
-ParameterList
+Parameter
   : ID Type {
-    $$ = Vector_New();
-    Vector_Append($$, new_var($1, $2));
+
   }
-  | ParameterList ',' ID Type {
-    Vector_Append($$, new_var($3, $4));
+  ;
+
+ParameterList
+  : Parameter {
+    $$ = Vector_New();
+    //Vector_Append($$, new_var($1, $2));
+  }
+  | ParameterList ',' Parameter {
+    //Vector_Append($$, new_var($3, $4));
     $$ = $1;
   }
   ;
@@ -542,7 +549,7 @@ ParameterListOrEmpty
 
 TypeAlias
   : TYPEALIAS ID Type ';' {
-    $$ = stmt_from_typealias($2, $3);
+    //$$ = stmt_from_typealias($2, $3);
   }
   | TYPEALIAS ID Type error {
     syntax_error(parser, EXPECTED, ";", Lexer_Token);
@@ -651,13 +658,13 @@ TraitMemberDeclaration
   ;
 
 FieldDeclaration
-  : ID Type ';' {
+  : VAR ID Type ';' {
     //$$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
   }
-  | ID '=' Initializer ';' {
-    //$$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
+  | VAR ID '=' Expression ';' {
+    $$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
   }
-  | ID Type '=' Initializer ';' {
+  | VAR ID Type '=' Expression ';' {
     //$$ = stmt_from_vardecl(new_var($2, $3), $5, 0);
   }
   ;
@@ -917,8 +924,8 @@ ReturnStatement
   : RETURN ';' {
     $$ = stmt_from_return(NULL);
   }
-  | RETURN InitializerList ';' {
-    //$$ = stmt_from_return($2);
+  | RETURN ExpressionList ';' {
+    $$ = stmt_from_return($2);
   }
   ;
 
@@ -926,69 +933,64 @@ ReturnStatement
 
 PrimaryExpression
   : Atom {
-
+    $$ = $1;
+    Parser_SetLine(parser, $$);
   }
   | PrimaryExpression '.' ID {
-    /* $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
-    Parser_SetLine(parser, $$); */
+    $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
+    Parser_SetLine(parser, $$);
   }
   | PrimaryExpression '[' Expression ']' {
-    /* $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
-    Parser_SetLine(parser, $$); */
+    $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
+    Parser_SetLine(parser, $$);
   }
   | PrimaryExpression '(' ExpressionList ')' {
-    /* $$ = expr_from_trailer(CALL_KIND, $3, $1);
-    Parser_SetLine(parser, $$); */
+    $$ = expr_from_trailer(CALL_KIND, $3, $1);
+    Parser_SetLine(parser, $$);
   }
   | PrimaryExpression '(' ')' {
-    /* $$ = expr_from_trailer(CALL_KIND, NULL, $1);
-    Parser_SetLine(parser, $$); */
-  }
-  | PrimaryExpression '[' Expression ':' Expression ']' {
-
+    $$ = expr_from_trailer(CALL_KIND, NULL, $1);
+    Parser_SetLine(parser, $$);
   }
   ;
 
 Atom
-  : ID {
-    /* $$ = $1;
-    Parser_SetLine(parser, $$); */
-  }
-  | CONSTANT {
-
+  : CONSTANT {
+    $$ = $1;
   }
   | SELF {
-    /* $$ = expr_from_self(); */
+    $$ = expr_from_self();
   }
   | SUPER {
-    /* $$ = expr_from_super(); */
+    $$ = expr_from_super();
   }
   | TYPEOF {
-    /* $$ = expr_from_typeof(); */
+    $$ = expr_from_typeof();
+  }
+  | ID {
+    $$ = expr_from_id($1);
   }
   | '(' Expression ')' {
-    /* $$ = $2; */
+    $$ = $2;
   }
-  ;
-
-Initializer
-  : Expression {
+  | '[' Type ']' {
 
   }
-  | ArrayDeclaration {
-    //$$ = $1;
+  | '[' KeyType ':' Type ']' {
+
   }
+  /* | ArrayDeclaration {
+    $$ = $1;
+  } */
   | AnonymousFunctionDeclaration {
-    //$$ = $1;
+    $$ = $1;
   }
-  | MapDeclaration {
-    //$$ = NULL;
-  }
-  ;
+  | '[' ExpressionList ']' {
 
-InitializerList
-  : Initializer
-  | InitializerList ',' Initializer
+  }
+  | '{' KeyValueList '}' {
+
+  }
   ;
 
 AnonymousFunctionDeclaration
@@ -1023,35 +1025,53 @@ CONSTANT
   }
   ;
 
+/*
 ArrayDeclaration
-  /* : DimExprList Type {
+  : DimExprList Type {
     $2->dims += Vector_Size($1);
     $$ = expr_from_array($2, $1, NULL);
-  } */
-  : '[' InitializerList ']' {
-    /* $2->dims = $1; */
-    /* $$ = expr_from_array($2, NULL, $4); */
   }
-  | '[' ']' {
-
+  | DIMS BaseType '{' ArrayInitializerList '}' {
+    $2->dims = $1;
+    $$ = expr_from_array($2, NULL, $4);
   }
   ;
-/*
+
 DimExprList
-  : '[' INT_CONST ']' {
+  : '[' CONSTANT ']' {
     $$ = Vector_New();
-    //Vector_Append($$, $2);
+    Vector_Append($$, $2);
   }
-  | DimExprList '[' INT_CONST ']' {
-    //Vector_Append($1, $3);
+  | DimExprList '[' CONSTANT ']' {
+    Vector_Append($1, $3);
     $$ = $1;
   }
-  ; */
-
-MapDeclaration
-  : '{' KeyValueList '}'
-  | '{' '}'
   ;
+
+ArrayInitializerList
+  : ArrayInitializer {
+    $$ = Vector_New();
+    Vector_Append($$, $1);
+  }
+  | ArrayInitializerList ',' ArrayInitializer {
+    Vector_Append($1, $3);
+    $$ = $1;
+  }
+  ;
+
+ArrayInitializer
+  : Expression {
+    $$ = $1;
+  }
+  | '{' ArrayInitializerList '}' {
+    $$ = expr_from_array_with_tseq($2);
+  }
+  ;
+
+MapObject
+  : '{' KeyValueList '}'
+  ;
+*/
 
 KeyValueList
   : KeyValue
@@ -1059,7 +1079,7 @@ KeyValueList
   ;
 
 KeyValue
-  : Expression ':' Initializer
+  : STRING_CONST ':' Expression
   ;
 
 /*-------------------------------------------------------------------------*/
@@ -1220,7 +1240,7 @@ ExpressionList
   ;
 
 Assignment
-  : PrimaryExpressionList AssignOperator InitializerList {
+  : PrimaryExpressionList AssignOperator ExpressionList {
     $$ = NULL;//stmt_from_assignlist($1, $2, $3);
   }
   ;

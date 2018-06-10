@@ -89,18 +89,13 @@ L   [a-zA-Z_]
 "float"                   {return FLOAT;}
 "bool"                    {return BOOL;}
 "string"                  {return STRING;}
-"Any"                     {return ANY;}
-"[]"+                     {
-														yylval->dims = yyleng/2;
-														return DIMS;
-													}
+"any"                     {return ANY;}
 
 "self"                    {return SELF;}
 "super"                   {return SUPER;}
 "true"                    {return TOKEN_TRUE;}
 "false"                   {return TOKEN_FALSE;}
 "nil"                     {return TOKEN_NIL;}
-"typeof"                  {return TYPEOF;}
 
 ([1-9][0-9]*|[0])         {
 														yylval->ival = atoi(yytext);
