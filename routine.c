@@ -4,7 +4,7 @@
 #include "codeobject.h"
 #include "tupleobject.h"
 #include "stringobject.h"
-#include "kstate.h"
+#include "vm.h"
 #include "klc.h"
 #include "opcode.h"
 #include "log.h"

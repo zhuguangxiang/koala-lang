@@ -60,5 +60,6 @@
   // "markdown.styles": [ "github-markdown.css" ]
   "git.confirmSync": false,
   "window.zoomLevel": 0,
-  "editor.occurrencesHighlight": false
+  "editor.occurrencesHighlight": false,
+  "editor.selectionHighlight": false
 }

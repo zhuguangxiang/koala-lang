@@ -1,7 +1,7 @@
 
 #include "parser.h"
 #include "codegen.h"
-#include "kstate.h"
+#include "vm.h"
 #include "checker.h"
 #include "codegen.h"
 #include "opcode.h"

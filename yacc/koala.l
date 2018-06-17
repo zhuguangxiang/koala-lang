@@ -90,6 +90,10 @@ L   [a-zA-Z_]
 "bool"                    {return BOOL;}
 "string"                  {return STRING;}
 "any"                     {return ANY;}
+"[]"+                     {
+														yylval->dims = yyleng/2;
+														return DIMS;
+													}
 
 "self"                    {return SELF;}
 "super"                   {return SUPER;}

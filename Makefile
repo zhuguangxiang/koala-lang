@@ -19,7 +19,7 @@ FLEX = flex
 KOALA_OBJS = log.o hashtable.o hash.o vector.o buffer.o properties.o \
 atomtable.o object.o stringobject.o tupleobject.o listobject.o\
 tableobject.o moduleobject.o codeobject.o opcode.o \
-klc.o routine.o thread.o mod_lang.o mod_io.o kstate.o \
+klc.o routine.o thread.o mod_lang.o mod_io.o vm.o \
 typedesc.o numberobject.o gc.o
 
 KOALAC_OBJS = parser.o ast.o checker.o symbol.o codegen.o \
@@ -31,28 +31,28 @@ koala_lex.o koala_yacc.o
 all: koala
 
 libkoala.so: $(KOALA_OBJS)
-	@echo "[SO]	$@"
+	@echo "	[SO]	$@"
 	@$(CC) -shared -Wl,-soname,libkoala.so -o $@ $(KOALA_OBJS) -pthread
 	##$(shell [ ! -f "./libkoala.so.0" ] || { ln -s libkoala.so libkoala.so.0; })
 	##@cp $@ /usr/lib/koala-lang/
 
 libkoalac.so: $(KOALAC_OBJS) libkoala.so
-	@echo "[SO]	$@"
+	@echo "	[SO]	$@"
 	@$(CC) -shared -Wl,-soname,libkoalac.so -o $@ $(KOALAC_OBJS) -L. -lkoala -pthread
 	##$(shell [ ! -f "./libkoalac.so.0" ] || { ln -s libkoalac.so libkoalac.so.0; })
 	##@cp $@ /usr/lib/koala-lang/
 
 koala: libkoalac.so koala.o
-	@echo "[MAIN]	$@"
+	@echo "	[MAIN]	$@"
 	@gcc $(CFLAGS) -o $@ koala.o -L. -lkoalac -lkoala -pthread -lrt
 	##@cp $@ /usr/local/bin
 
 koala_yacc.c: yacc/koala.y
-	@echo "[YACC]	$@"
+	@echo "	[YACC]	$@"
 	@$(YACC) -dvt -Wall -o $@ yacc/koala.y
 
 koala_lex.c: yacc/koala.l
-	@echo "[FLEX]	$@"
+	@echo "	[FLEX]	$@"
 	@$(FLEX) -o $@ yacc/koala.l
 
 .PHONY: clean
@@ -66,7 +66,7 @@ sinclude $(KOALA_OBJS:.o=.d) $(KOALAC_OBJS:.o=.d) koala.d koalac.d
 endif
 
 %.o: %.c
-	@echo "[CC]	$@"
+	@echo "	[CC]	$@"
 	@$(CC) $(CFLAGS) -c -o $@ $<
 
 %.d: %.c

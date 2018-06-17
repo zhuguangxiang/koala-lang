@@ -1,6 +1,6 @@
 
-#ifndef _KOALA_STATE_H_
-#define _KOALA_STATE_H_
+#ifndef _KOALA_VM_H_
+#define _KOALA_VM_H_
 
 #include "object.h"
 #include "properties.h"
@@ -30,4 +30,4 @@ Object *Koala_Run_Code(Object *code, Object *ob, Object *args);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_STATE_H_ */
+#endif /* _KOALA_VM_H_ */

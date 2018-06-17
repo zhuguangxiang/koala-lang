@@ -1,5 +1,4 @@
 
-#include "kstate.h"
 #include "moduleobject.h"
 #include "stringobject.h"
 #include "tupleobject.h"
@@ -9,12 +8,15 @@
 #include "gc.h"
 #include "klc.h"
 #include "log.h"
+#include "vm.h"
 
 struct mod_entry {
 	HashNode hnode;
 	char *path;
 	Object *ob;
 };
+
+KoalaState gs;
 
 static struct mod_entry *new_mod_entry(char *path, Object *ob)
 {
@@ -57,9 +59,7 @@ void Koala_Collect_Modules(Vector *vec)
 	HashTable_Traverse(&gs.modules, collect_modules_fn, vec);
 }
 
-/*-------------------------------------------------------------------------*/
-
-KoalaState gs;
+/*---------------------------------------------------------------------------*/
 
 static int add_module(char *path, Object *ob)
 {
@@ -111,7 +111,7 @@ Klass *Koala_Get_Klass(Object *ob, char *path, char *type)
 	return Module_Get_Class(ob, type);
 }
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 static Object *load_module(char *path);
 static Klass *load_trait(TraitItem *trait, AtomTable *table, Object *m);
@@ -549,7 +549,7 @@ static Object *module_from_image(KImage *image)
 	return m;
 }
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 static Object *load_module(char *path)
 {
@@ -608,7 +608,7 @@ void Koala_Run(char *path)
 	}
 }
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 static void Init_Environment(void)
 {
@@ -631,25 +631,27 @@ static void Init_Modules(void)
 	Init_IO_Module();
 }
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 void Koala_Initialize(void)
 {
-	//init gs
+	/* init gs */
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, mod_entry_hash, mod_entry_equal);
 	HashTable_Init(&gs.modules, &hashinfo);
 	init_list_head(&gs.routines);
 
-	//init env
+	/* init env */
 	Init_Environment();
 
-	//init builtin modules
+	/* init builtin modules */
 	Init_Modules();
 
-	//sched_init();
-	//schedule();
+	/* init garbage */
 	GC_Init();
+
+	/* init coroutine */
+
 }
 
 static void __mod_entry_free_fn(HashNode *hnode, void *arg)

@@ -120,21 +120,27 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %token <string_const> STRING_CONST
 %token <id> ID
 
-/*---------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
+%precedence ID
+%precedence '.'
+%precedence ')'
+%precedence '('
+%precedence '['
+
+/*--------------------------------------------------------------------------*/
 %type <primitive> PrimitiveType
 %type <type> UserDefType
 %type <type> BaseType
 %type <type> ArrayType
 %type <type> Type
 %type <type> FunctionType
+%type <vector> TypeIdList
 %type <vector> ReturnTypeList
-%type <vector> ReturnTypeListOrEmpty
 %type <vector> TypeList
 %type <vector> ParameterList
-// %type <vector> ParameterListOrEmpty
 %type <operator> UnaryOperator
-%type <operator> CompoundAssignOperator
+%type <operator> AssignOperator
 %type <vector> VariableList
 %type <vector> ExpressionList
 %type <vector> PrimaryExpressionList
@@ -154,6 +160,7 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 %type <expr> ArrayDeclaration
 %type <expr> AnonymousDeclaration
 %type <expr> CONSTANT
+/* %type <vector> DimExprList */
 %type <stmt> VariableDeclaration
 %type <stmt> ConstDeclaration
 %type <stmt> LocalStatement
@@ -250,7 +257,7 @@ PrimitiveType
 
 UserDefType
   : ID {
-    // type in local module
+    /* type in local module */
     $$ = TypeDesc_From_UserDef(NULL, $1);
   }
   | ID '.' ID {
@@ -264,20 +271,36 @@ UserDefType
   ;
 
 FunctionType
-  : FUNC '(' TypeList ')' ReturnTypeListOrEmpty {
+  : FUNC '(' TypeIdList ')' ReturnTypeList {
     // $$ = TypeDesc_From_Proto(NULL, $3);
   }
-  | FUNC '(' ')' ReturnTypeListOrEmpty {
-    $$ = TypeDesc_From_Proto(NULL, NULL);
+  | FUNC '(' TypeIdList ')' {
+
+  }
+  | FUNC '(' ')' ReturnTypeList {
+    // $$ = TypeDesc_From_Proto($5, NULL);
+  }
+  | FUNC '(' ')' {
+    // Vector *vec = Vector_New();
+    // Vector_Append(vec, $4);
+    // $$ = TypeDesc_From_Proto(vec, NULL);
   }
   ;
 
-ReturnTypeListOrEmpty
-  : %empty {
-    $$ = NULL;
+TypeIdList
+  : ID Type {
+    $$ = Vector_New();
+    //Vector_Append($$, $1);
   }
-  | ReturnTypeList {
-    $$ = $1;
+  | Type {
+
+  }
+  | TypeIdList ',' ID Type {
+    // Vector_Append($1, $3);
+    // $$ = $1;
+  }
+  | TypeIdList ',' Type {
+
   }
   ;
 
@@ -390,10 +413,10 @@ ModuleStatement
 /*--------------------------------------------------------------------------*/
 
 ConstDeclaration
-  : CONST VariableList '=' AtomExprList {
+  : CONST VariableList '=' InitializerList {
     //$$ = stmt_from_varlistdecl($2, $4, NULL, 1);
   }
-  | CONST VariableList Type '=' AtomExprList {
+  | CONST VariableList Type '=' InitializerList {
     //$$ = stmt_from_varlistdecl($2, $5, $3, 1);
   }
   | CONST VariableList '=' error {
@@ -414,10 +437,10 @@ VariableDeclaration
   : VAR VariableList Type {
     $$ = stmt_from_varlistdecl($2, NULL, $3, 0);
   }
-  | VAR VariableList '=' AtomExprList {
+  | VAR VariableList '=' InitializerList {
     //$$ = stmt_from_varlistdecl($2, $4, NULL, 0);
   }
-  | VAR VariableList Type '=' AtomExprList {
+  | VAR VariableList Type '=' InitializerList {
     //$$ = stmt_from_varlistdecl($2, $5, $3, 0);
   }
   | VAR VariableList error {
@@ -452,10 +475,16 @@ VariableList
 /*--------------------------------------------------------------------------*/
 
 FunctionDeclaration
-  : FUNC ID '(' ParameterList ')' ReturnTypeListOrEmpty Block {
+  : FUNC ID '(' ParameterList ')' ReturnTypeList Block {
     // $$ = stmt_from_funcdecl($2, $3, $4, $5);
   }
-  | FUNC ID '(' ')' ReturnTypeListOrEmpty Block {
+  | FUNC ID '(' ParameterList ')' Block {
+    // $$ = stmt_from_funcdecl($2, $3, $4, $5);
+  }
+  | FUNC ID '(' ')' ReturnTypeList Block {
+    // $$ = stmt_from_funcdecl($2, $3, $4, $5);
+  }
+  | FUNC ID '(' ')' Block {
     // $$ = stmt_from_funcdecl($2, $3, $4, $5);
   }
   | FUNC error {
@@ -474,15 +503,6 @@ ParameterList
     $$ = $1;
   }
   ;
-
-// ParameterListOrEmpty
-//   : '(' ParameterList ')' {
-//     $$ = $2;
-//   }
-//   | '(' ')' {
-//     $$ = NULL;
-//   }
-//   ;
 
 /*---------------------------------------------------------------------------*/
 
@@ -603,20 +623,26 @@ FieldDeclaration
   : ID Type ';' {
     //$$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
   }
-  | ID '=' AtomExpr ';' {
+  | ID '=' Initializer ';' {
     //$$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
   }
-  | ID Type '=' AtomExpr ';' {
+  | ID Type '=' Initializer ';' {
     //$$ = stmt_from_vardecl(new_var($2, $3), $5, 0);
   }
   ;
 
 ProtoDeclaration
-  : FUNC ID '(' TypeList ')' ReturnTypeListOrEmpty ';' {
+  : FUNC ID '(' TypeIdList ')' ReturnTypeList ';' {
     // $$ = stmt_from_funcproto($2, $4, $6);
   }
-  | FUNC ID '(' ')' ReturnTypeListOrEmpty ';' {
-    $$ = stmt_from_funcproto($2, NULL, $5);
+  | FUNC ID '(' TypeIdList ')' ';' {
+    // $$ = stmt_from_funcproto($2, $4, $6);
+  }
+  | FUNC ID '(' ')' ReturnTypeList ';' {
+    // $$ = stmt_from_funcproto($2, $4, $6);
+  }
+  | FUNC ID '(' ')' ';' {
+    // $$ = stmt_from_funcproto($2, $4, $6);
   }
   ;
 
@@ -860,7 +886,7 @@ ReturnStatement
   : RETURN ';' {
     $$ = stmt_from_return(NULL);
   }
-  | RETURN AtomExprList ';' {
+  | RETURN InitializerList ';' {
     //$$ = stmt_from_return($2);
   }
   ;
@@ -914,6 +940,47 @@ Atom
   }
   ;
 
+/*---------------------------------------------------------------------------*/
+
+InitializerList
+  : Initializer
+  | InitializerList ',' Initializer
+  ;
+
+Initializer
+  : Expression {
+
+  }
+  | ArrayDeclaration {
+    //$$ = $1;
+  }
+  | MapDeclaration {
+    //$$ = NULL;
+  }
+  | AnonymousDeclaration {
+    //$$ = $1;
+  }
+  ;
+
+AnonymousDeclaration
+  : FUNC '(' ParameterList ')' ReturnTypeList Block {
+    //$$ = expr_from_anonymous_func($2, $3, $4);
+  }
+  | FUNC '(' ParameterList ')' Block {
+
+  }
+  | FUNC '(' ')' ReturnTypeList Block {
+
+  }
+  | FUNC '(' ')' Block {
+
+  }
+  | FUNC error {
+    syntax_error_clearin(parser, "anonymous function needs no func-name");
+    $$ = NULL;
+  }
+  ;
+
 /* 常量(当做对象)允许访问成员变量和成员方法 */
 CONSTANT
   : INT_CONST {
@@ -936,30 +1003,12 @@ CONSTANT
   }
   ;
 
-/*---------------------------------------------------------------------------*/
-
-AtomExprList
-  : AtomExpr
-  | AtomExprList ',' AtomExpr
-  ;
-
-AtomExpr
-  : Expression {
-
-  }
-  | ArrayDeclaration {
-    //$$ = $1;
-  }
-  | MapDeclaration {
-    //$$ = NULL;
-  }
-  | AnonymousDeclaration {
-
-  }
-  ;
-
 ArrayDeclaration
-  : '[' AtomExprList ']' {
+  /* : DimExprList Type {
+    $2->dims += Vector_Size($1);
+    $$ = expr_from_array($2, $1, NULL);
+  } */
+  : '[' InitializerList ']' {
     /* $2->dims = $1; */
     /* $$ = expr_from_array($2, NULL, $4); */
   }
@@ -967,6 +1016,17 @@ ArrayDeclaration
 
   }
   ;
+/*
+DimExprList
+  : '[' INT_CONST ']' {
+    $$ = Vector_New();
+    //Vector_Append($$, $2);
+  }
+  | DimExprList '[' INT_CONST ']' {
+    //Vector_Append($1, $3);
+    $$ = $1;
+  }
+  ; */
 
 MapDeclaration
   : '{' KeyValueList '}'
@@ -979,20 +1039,7 @@ KeyValueList
   ;
 
 KeyValue
-  : Expression ':' AtomExpr
-  ;
-
-AnonymousDeclaration
-  : FUNC '(' ParameterList ')' ReturnTypeListOrEmpty Block {
-    // $$ = expr_from_anonymous_func($2, $3, $4);
-  }
-  | FUNC '(' ')' ReturnTypeListOrEmpty Block {
-
-  }
-  | FUNC error {
-    syntax_error_clearin(parser, "anonymous function needs no func-name");
-    $$ = NULL;
-  }
+  : Expression ':' Initializer
   ;
 
 /*---------------------------------------------------------------------------*/
@@ -1153,11 +1200,8 @@ ExpressionList
   ;
 
 Assignment
-  : PrimaryExpressionList '=' AtomExprList {
-    //$$ = stmt_from_assignlist($1, OP_ASSIGN, $3);
-  }
-  | PrimaryExpression CompoundAssignOperator Expression {
-    //$$ = stmt_from_compound_assign($1, $2, $3);
+  : PrimaryExpressionList AssignOperator InitializerList {
+    $$ = NULL;//stmt_from_assignlist($1, $2, $3);
   }
   ;
 
@@ -1173,8 +1217,11 @@ PrimaryExpressionList
   ;
 
 /* 组合赋值运算符：算术运算和位运算 */
-CompoundAssignOperator
-  : PLUS_ASSGIN {
+AssignOperator
+  : '=' {
+    $$ = OP_ASSIGN;
+  }
+  | PLUS_ASSGIN {
     $$ = OP_PLUS_ASSIGN;
   }
   | MINUS_ASSIGN {

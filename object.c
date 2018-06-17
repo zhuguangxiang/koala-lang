@@ -3,7 +3,7 @@
 #include "stringobject.h"
 #include "moduleobject.h"
 #include "tupleobject.h"
-#include "kstate.h"
+#include "vm.h"
 #include "gc.h"
 #include "hash.h"
 #include "log.h"
