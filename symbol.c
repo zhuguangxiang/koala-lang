@@ -227,23 +227,17 @@ void STable_Traverse(STable *stbl, symbolfunc fn, void *arg)
 
 /*-------------------------------------------------------------------------*/
 
-static void desc_show(TypeDesc *desc)
-{
-	char *str = TypeDesc_ToString(desc);
-	printf("%s", str);
-	free(str);
-}
-
 static void __symbol_show_fn(HashNode *hnode, void *arg)
 {
 	UNUSED_PARAMETER(arg);
 	Symbol *sym = container_of(hnode, Symbol, hnode);
 	switch (sym->kind) {
 		case SYM_VAR: {
+			char buf[64];
 			/* show's format: "type name desc;" */
 			printf("%s %s ", sym->access & ACCESS_CONST ? "const":"var", sym->name);
-			desc_show(sym->desc);
-			puts(";"); /* with newline */
+			Type_ToString(sym->desc, buf);
+			printf("%s;\n", buf); /* with newline */
 			break;
 		}
 		case SYM_PROTO: {

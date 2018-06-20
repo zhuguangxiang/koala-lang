@@ -80,7 +80,7 @@ static int check_call_varg(TypeDesc *proto, Vector *vec)
 				if (Vector_Size(d->rdesc) != 1) return 0;
 				if (!TypeDesc_Check(Vector_Get(d->rdesc, 0), desc)) return 0;
 			} else {
-				assert(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USERDEF);
+				assert(d->kind == TYPE_PRIMITIVE || d->kind == TYPE_USRDEF);
 				if (!TypeDesc_Check(d, desc)) return 0;
 			}
 		}
@@ -117,7 +117,7 @@ int check_call_args(TypeDesc *proto, Vector *vec)
 				Vector_Get(proto->pdesc, i)))
 				return 0;
 		} else {
-			assert(desc->kind == TYPE_PRIMITIVE || desc->kind == TYPE_USERDEF);
+			assert(desc->kind == TYPE_PRIMITIVE || desc->kind == TYPE_USRDEF);
 			if (!TypeDesc_Check(desc, Vector_Get(proto->pdesc, i))) return 0;
 		}
 	}

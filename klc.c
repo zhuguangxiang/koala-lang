@@ -24,7 +24,7 @@ TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl)
 			t->primitive = item->primitive;
 			break;
 		}
-		case TYPE_USERDEF: {
+		case TYPE_USRDEF: {
 			StringItem *stritem;
 			if (item->pathindex >= 0) {
 				stritem = StringItem_Index(atbl, item->pathindex);
@@ -122,7 +122,7 @@ TypeItem *TypeItem_UserDef_New(int varg, int dims, int32 pathindex,
 	TypeItem *item = calloc(1, sizeof(TypeItem));
 	item->varg = varg;
 	item->dims = dims;
-	item->kind = TYPE_USERDEF;
+	item->kind = TYPE_USRDEF;
 	item->pathindex = pathindex;
 	item->typeindex = typeindex;
 	return item;
@@ -334,7 +334,7 @@ int StringItem_Set(AtomTable *table, char *str)
 int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
 	TypeItem item = {0};
-	if (desc->kind == TYPE_USERDEF) {
+	if (desc->kind == TYPE_USRDEF) {
 		int pathindex = -1;
 		if (desc->path) {
 			pathindex = StringItem_Get(table, desc->path);
@@ -351,7 +351,7 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 		}
 		item.varg = desc->varg;
 		item.dims = desc->dims;
-		item.kind = TYPE_USERDEF;
+		item.kind = TYPE_USRDEF;
 		item.pathindex = pathindex;
 		item.typeindex = typeindex;
 	} else if (desc->kind == TYPE_PRIMITIVE) {
@@ -377,7 +377,7 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 	TypeItem *item = NULL;
 	int index = TypeItem_Get(table, desc);
 	if (index < 0) {
-		if (desc->kind == TYPE_USERDEF) {
+		if (desc->kind == TYPE_USRDEF) {
 			int pathindex = -1;
 			if (desc->path) {
 				pathindex = StringItem_Set(table, desc->path);
@@ -640,7 +640,7 @@ void typeitem_show(AtomTable *table, void *o)
 {
 	TypeItem *item = o;
 	char *arrstr = array_string(item->dims);
-	if (item->kind == TYPE_USERDEF) {
+	if (item->kind == TYPE_USRDEF) {
 		StringItem *str;
 		if (item->pathindex >= 0) {
 			str = AtomTable_Get(table, ITEM_STRING, item->pathindex);
@@ -899,7 +899,7 @@ void locvaritem_show(AtomTable *table, void *o)
 	printf("  (%s)\n", str1->data);
 	printf("  typeindex:%d\n", item->typeindex);
 	type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
-	if (type->kind == TYPE_USERDEF) {
+	if (type->kind == TYPE_USRDEF) {
 		str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
 		if (type->pathindex >= 0) {
 			str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
@@ -968,7 +968,7 @@ void varitem_show(AtomTable *table, void *o)
 	printf("  (%s)\n", str1->data);
 	printf("  typeindex:%d\n", item->typeindex);
 	type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
-	if (type->kind == TYPE_USERDEF) {
+	if (type->kind == TYPE_USRDEF) {
 		str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
 		if (type->pathindex >= 0) {
 			str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);

@@ -3,7 +3,7 @@
 #include "stringobject.h"
 #include "moduleobject.h"
 #include "tupleobject.h"
-#include "vm.h"
+#include "koalastate.h"
 #include "gc.h"
 #include "hash.h"
 #include "log.h"
@@ -870,7 +870,7 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 			}
 			break;
 		}
-		case TYPE_USERDEF: {
+		case TYPE_USRDEF: {
 			Object *ob = OB_KLASS(val->ob)->module;
 			Klass *klazz = Koala_Get_Klass(ob, desc->path, desc->type);
 			if (!klazz) return -1;
@@ -930,7 +930,7 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 			init_primitive(val, desc->primitive);
 			break;
 		}
-		case TYPE_USERDEF: {
+		case TYPE_USRDEF: {
 			Object *module = NULL;
 			if (desc->path) {
 				module = Koala_Load_Module(desc->path);

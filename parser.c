@@ -1,7 +1,7 @@
 
 #include "parser.h"
 #include "codegen.h"
-#include "vm.h"
+#include "koalastate.h"
 #include "checker.h"
 #include "codegen.h"
 #include "opcode.h"
@@ -225,16 +225,18 @@ static Symbol *find_external_package(ParserState *ps, char *path)
 
 static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 {
-	if (desc->kind != TYPE_USERDEF) {
-		error("type(%s) is not class or interface", TypeDesc_ToString(desc));
+	if (desc->kind != TYPE_USRDEF) {
+		char buf[64];
+		Type_ToString(desc, buf);
+		error("type(%s) is not class or interface", buf);
 		return NULL;
 	}
 
 	// find in current module
 	Symbol *sym;
-	if (!desc->path) {
-		debug("type '%s' in current module", desc->type);
-		sym = STable_Get(ps->sym->ptr, desc->type);
+	if (!desc->usrdef.path) {
+		debug("type '%s' in current module", desc->usrdef.type);
+		sym = STable_Get(ps->sym->ptr, desc->usrdef.type);
 		if (!sym) {
 			//error("cannot find %s", desc->type);
 			return NULL;
@@ -244,21 +246,21 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 	}
 
 	// find in external imported module
-	sym = find_external_package(ps, desc->path);
+	sym = find_external_package(ps, desc->usrdef.path);
 	if (!sym) {
-		error("cannot find '%s' package", desc->path);
+		error("cannot find '%s' package", desc->usrdef.path);
 		return NULL;
 	}
 
 	assert(sym->kind == SYM_STABLE);
-	sym = STable_Get(sym->ptr, desc->type);
+	sym = STable_Get(sym->ptr, desc->usrdef.type);
 	if (sym) {
-		debug("find '%s.%s'", desc->path, desc->type);
+		debug("find '%s.%s'", desc->usrdef.path, desc->usrdef.type);
 		sym->refcnt++;
 		return sym;
 	}
 
-	error("cannot find '%s.%s'", desc->path, desc->type);
+	error("cannot find '%s.%s'", desc->usrdef.path, desc->usrdef.type);
 	return NULL;
 }
 
@@ -368,7 +370,7 @@ static void __to_stbl_fn(HashNode *hnode, void *arg)
 
 	if (member->kind == MEMBER_CLASS || member->kind == MEMBER_TRAIT) {
 		Symbol *s = STable_Add_Symbol(stbl, member->name, SYM_STABLE, 0);
-		s->desc = TypeDesc_From_UserDef(strdup(path), member->name);
+		s->desc = Type_UsrDef_New(path, member->name);
 		s->ptr = STable_New(stbl->atbl);
 		struct path_stbl_struct tmp = {path, s->ptr};
 		HashTable_Traverse(member->klazz->table, __to_stbl_fn, &tmp);
@@ -484,16 +486,16 @@ static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 		debug("'%s %s' type is not set", var->bconst ? "const" : "var", var->id);
 	} else {
 		TypeDesc *desc = var->desc;
-		if (desc->kind == TYPE_USERDEF) {
+		if (desc->kind == TYPE_USRDEF) {
 			if (!find_userdef_symbol(ps, desc)) {
-				char *typestr = TypeDesc_ToString(desc);
-				warn("cannot find type:'%s'", typestr);
-				free(typestr);
+				char buf[64];
+				Type_ToString(desc, buf);
+				warn("cannot find type:'%s'", buf);
 			}
 		} else if (desc->kind == TYPE_PROTO) {
 			debug("var's type is proto");
 		} else {
-			assert(desc->kind == TYPE_PRIMITIVE);
+			assert(desc->kind == TYPE_PRIME);
 		}
 	}
 
@@ -540,7 +542,7 @@ static void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 			Vector_Append(pdesc, var->desc);
 		}
 	}
-	proto = TypeDesc_From_Proto(stmt->funcdecl.rvec, pdesc);
+	proto = Type_Proto_New(pdesc, stmt->funcdecl.rvec);
 	sym = STable_Add_Proto(ps->u->stbl, stmt->funcdecl.id, proto);
 	if (sym) {
 		debug("add func '%s' successful", stmt->funcdecl.id);
@@ -562,7 +564,7 @@ static void parse_funcproto(ParserState *ps, struct stmt *stmt)
 {
 	TypeDesc *proto;
 	Symbol *sym;
-	proto = TypeDesc_From_Proto(stmt->funcproto.rvec, stmt->funcproto.pvec);
+	proto = Type_Proto_New(stmt->funcproto.pvec, stmt->funcproto.rvec);
 	sym = STable_Add_IProto(ps->u->stbl, stmt->funcproto.id, proto);
 	if (sym) {
 		debug("add abstract func '%s' successful", stmt->funcproto.id);
@@ -587,7 +589,7 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 
 	sym->up = ps->u->sym;
 	sym->ptr = STable_New(ps->u->stbl->atbl);
-	sym->desc = TypeDesc_From_UserDef(NULL, stmt->class_info.id);
+	sym->desc = Type_UsrDef_New(NULL, stmt->class_info.id);
 	debug(">>>>add class(trait) '%s' successfully", sym->name);
 
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
@@ -738,9 +740,9 @@ static void parser_new_block(ParserUnit *u)
 
 int check_npr_func(Symbol *sym)
 {
-	TypeDesc *proto = sym->desc;
-	int rsz = Vector_Size(proto->rdesc);
-	int psz = Vector_Size(proto->pdesc);
+	TypeDesc *desc = sym->desc;
+	int rsz = Vector_Size(desc->proto.ret);
+	int psz = Vector_Size(desc->proto.arg);
 	return (rsz == 0 && psz == 0) ? 0 : -1;
 }
 
@@ -794,7 +796,7 @@ static void parser_merge(ParserState *ps)
 			u->block = NULL;
 		}
 	} else if (u->scope == SCOPE_MODULE) {
-		TypeDesc *proto = TypeDesc_From_Proto(NULL, NULL);
+		TypeDesc *proto = Type_Proto_New(NULL, NULL);
 		Symbol *sym = STable_Add_Proto(u->stbl, "__init__", proto);
 		assert(sym);
 		debug("add 'return' to function '__init__'");
@@ -815,7 +817,7 @@ static void parser_merge(ParserState *ps)
 				u->sym->name);
 			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
 			if (!sym) {
-				TypeDesc *proto = TypeDesc_From_Proto(NULL, NULL);
+				TypeDesc *proto = Type_Proto_New(NULL, NULL);
 				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
 				Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -843,7 +845,7 @@ static void parser_merge(ParserState *ps)
 		}	else {
 			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
 			if (!sym) {
-				TypeDesc *proto = TypeDesc_From_Proto(NULL, NULL);
+				TypeDesc *proto = Type_Proto_New(NULL, NULL);
 				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
 				Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -968,9 +970,9 @@ static void parser_expr_desc(ParserState *ps, struct expr *exp, Symbol *sym)
 		if (sym->kind == SYM_MODULE) {
 			debug("ident '%s' is as Module", ps->package);
 		} else {
-			char *typestr = TypeDesc_ToString(sym->desc);
-			debug("ident '%s' is as '%s'", exp->id, typestr);
-			free(typestr);
+			char buf[64];
+			Type_ToString(sym->desc, buf);
+			debug("ident '%s' is as '%s'", exp->id, buf);
 			exp->desc = sym->desc;
 		}
 	}
@@ -1382,7 +1384,7 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		if (sym->kind == SYM_STABLE) {
 			if (!sym->desc) {
 				warn("symbol '%s' desc is null", sym->name);
-				sym->desc = TypeDesc_From_UserDef(leftsym->path, sym->name);
+				sym->desc = Type_UsrDef_New(leftsym->path, sym->name);
 			}
 		}
 	} else if (leftsym->kind == SYM_VAR) {
@@ -1390,10 +1392,9 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		assert(leftsym->desc);
 		sym = find_userdef_symbol(ps, leftsym->desc);
 		if (!sym) {
-			//FIXME: free(typestr);
-			char *typestr = TypeDesc_ToString(leftsym->desc);
-			error("cannot find '%s' in '%s'", exp->attribute.id, typestr);
-			free(typestr);
+			char buf[64];
+			Type_ToString(leftsym->desc, buf);
+			error("cannot find '%s' in '%s'", exp->attribute.id, buf);
 			return;
 		}
 		assert(sym->kind == SYM_STABLE ||
@@ -1571,7 +1572,7 @@ static void parser_call(ParserState *ps, struct expr *exp)
 				return;
 			}
 			/* check no returns */
-			if (Vector_Size(proto->rdesc) > 0) {
+			if (Vector_Size(proto->proto.ret) > 0) {
 				error("Returns of __init__ must be 0");
 				return;
 			}
@@ -1796,7 +1797,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			exp->binary.left->ctx = EXPR_LOAD;
 			parser_visit_expr(ps, exp->binary.left);
 			if (binop_relation(exp->binary.op)) {
-				exp->desc = TypeDesc_From_Primitive(PRIMITIVE_BOOL);
+				exp->desc = &Bool_Type;
 			} else {
 				exp->desc = exp->binary.left->desc;
 			}
@@ -1909,17 +1910,18 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 
 	debug("parse variable '%s' declaration", var->id);
 
-	if (var->desc && var->desc->kind == TYPE_USERDEF) {
+	if (var->desc && var->desc->kind == TYPE_USRDEF) {
 		STable *stbl = ps->sym->ptr;
-		if (var->desc->path) {
-			Import key = {.path = var->desc->path};
+		if (var->desc->usrdef.path) {
+			Import key = {.path = var->desc->usrdef.path};
 			Import *import = HashTable_Find(&ps->imports, &key);
 			assert(import);
 			stbl = import->sym->ptr;
 		}
-		Symbol *sym = STable_Get(stbl, var->desc->type);
+		Symbol *sym = STable_Get(stbl, var->desc->usrdef.type);
 		if (!sym) {
-			Parser_PrintError(ps, &exp->line, "undefined '%s'", var->desc->type);
+			Parser_PrintError(ps, &exp->line,
+				"undefined '%s'", var->desc->usrdef.type);
 			return;
 		}
 		if (sym->kind == SYM_TYPEALIAS) {
@@ -1939,7 +1941,7 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		if (exp->desc->kind == TYPE_PROTO) {
 			TypeDesc *proto = exp->desc;
 			if (exp->ctx == EXPR_LOAD) {
-				int rsize = Vector_Size(proto->rdesc);
+				int rsize = Vector_Size(proto->proto.ret);
 				if (rsize != 1) {
 					//FIXME
 					error("function's returns is not 1:%d", rsize);
@@ -1947,9 +1949,9 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 				}
 
 				if (!var->desc) {
-					var->desc = Vector_Get(proto->rdesc, 0);
+					var->desc = Vector_Get(proto->proto.ret, 0);
 				} else {
-					if (!TypeDesc_Check(var->desc, Vector_Get(proto->rdesc, 0))) {
+					if (!Type_Equal(var->desc, Vector_Get(proto->proto.ret, 0))) {
 						error("proto typecheck failed");
 						return;
 					}
@@ -1958,7 +1960,7 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 				if (!var->desc) {
 					var->desc = proto;
 				} else {
-					if (!TypeDesc_Check(var->desc, proto)) {
+					if (!Type_Equal(var->desc, proto)) {
 						error("proto typecheck failed");
 						return;
 					}
@@ -1972,10 +1974,10 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 				var->desc = exp->desc;
 			}
 
-			if (!TypeDesc_Check(var->desc, exp->desc)) {
+			if (!Type_Equal(var->desc, exp->desc)) {
 				//literal check failed
-				if (var->desc->kind == TYPE_USERDEF &&
-					exp->desc->kind == TYPE_USERDEF) {
+				if (var->desc->kind == TYPE_USRDEF &&
+					exp->desc->kind == TYPE_USRDEF) {
 					//Symbol *s1 = find_userdef_symbol(ps, var->desc);
 					//Symbol *s2 = find_userdef_symbol(ps, exp->desc);
 					// if (s1->kind == SYM_INTF) {
@@ -2013,9 +2015,9 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		assert(sym);
 		if (sym->kind == SYM_VAR && !sym->desc) {
 			STable_Update_Symbol(u->stbl, sym, var->desc);
-			char *typestr = TypeDesc_ToString(var->desc);
-			debug("update symbol '%s' type as '%s'", var->id, typestr);
-			free(typestr);
+			char buf[64];
+			Type_ToString(var->desc, buf);
+			debug("update symbol '%s' type as '%s'", var->id, buf);
 		}
 	} else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
 		debug("var '%s' decl in function", var->id);
@@ -2261,22 +2263,19 @@ static int parser_traits(ParserState *ps, Vector *traits, Symbol *sym)
 	Vector syms = VECTOR_INIT;
 	TypeDesc *desc;
 	Symbol *s;
+	char buf[64];
 	Vector_ForEach(desc, traits) {
-		//FIXME
-		char *typestr = TypeDesc_ToString(desc);
-		debug("trait '%s'", typestr);
+		Type_ToString(desc, buf);
+		debug("trait '%s'", buf);
 		s = find_userdef_symbol(ps, desc);
 		if (!s) {
-			error("cannot find trait '%s'", typestr);
-			free(typestr);
+			error("cannot find trait '%s'", buf);
 			return -1;
 		}
 		if (s->kind != SYM_TRAIT) {
-			error("symbol '%s' is a trait", typestr);
-			free(typestr);
+			error("symbol '%s' is a trait", buf);
 			return -1;
 		}
-		free(typestr);
 		assert(s->ptr);
 		Vector_Append(&syms, s);
 	}
@@ -2314,20 +2313,18 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 
 	TypeDesc *desc = stmt->class_info.super;
 	if (desc) {
-		char *typestr = TypeDesc_ToString(desc);
-		debug("class's super '%s'", typestr);
+		char buf[64];
+		Type_ToString(desc, buf);
+		debug("class's super '%s'", buf);
 		Symbol *super = find_userdef_symbol(ps, desc);
 		if (!super) {
-			error("cannot find super '%s'", typestr);
-			free(typestr);
+			error("cannot find super '%s'", buf);
 			return;
 		}
 		if (super->kind != SYM_CLASS && super->kind != SYM_STABLE) {
-			error("super '%s' is not a class", typestr);
-			free(typestr);
+			error("super '%s' is not a class", buf);
 			return;
 		}
-		free(typestr);
 		assert(super->ptr);
 		sym->super = super;
 		// Vector_Append(&sym->extends, super);
@@ -2513,7 +2510,7 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 		// ELSE branch has not 'test'
 		parser_visit_expr(ps, test);
 		assert(test->desc);
-		if (!TypeDesc_IsBool(test->desc)) {
+		if (test->desc != &Bool_Type) {
 			error("if-stmt condition is not bool");
 			return;
 		}
@@ -2587,7 +2584,7 @@ static void parser_while(ParserState *ps, struct stmt *stmt)
 	struct expr *test = stmt->while_stmt.test;
 	parser_visit_expr(ps, test);
 	assert(test->desc);
-	if (!TypeDesc_IsBool(test->desc)) {
+	if (test->desc != &Bool_Type) {
 		error("while-stmt condition is not bool");
 	}
 

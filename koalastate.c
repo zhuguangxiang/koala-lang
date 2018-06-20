@@ -8,7 +8,7 @@
 #include "gc.h"
 #include "klc.h"
 #include "log.h"
-#include "vm.h"
+#include "koalastate.h"
 
 struct mod_entry {
 	HashNode hnode;

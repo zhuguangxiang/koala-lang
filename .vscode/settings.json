@@ -5,7 +5,7 @@
   "workbench.startupEditor": "none",
   "workbench.colorTheme": "One Dark Pro Vivid",
   "editor.fontSize": 13,
-  "editor.fontFamily":  "'Operator Mono', Menlo",
+  "editor.fontFamily":  "'Operator Mono', 'Ubuntu Mono'",
   "editor.tabSize": 2,
   "editor.insertSpaces": false,
   "files.associations": {
@@ -32,7 +32,12 @@
     "memory": "c",
     "ratio": "c",
     "system_error": "c",
-    "type_traits": "c"
+    "type_traits": "c",
+    "algorithm": "c",
+    "cstddef": "c",
+    "__functional_base_03": "c",
+    "typeinfo": "c",
+    "__locale": "c"
   },
   "editor.rulers": [
       80

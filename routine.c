@@ -4,7 +4,7 @@
 #include "codeobject.h"
 #include "tupleobject.h"
 #include "stringobject.h"
-#include "vm.h"
+#include "koalastate.h"
 #include "klc.h"
 #include "opcode.h"
 #include "log.h"
@@ -37,11 +37,11 @@ static void frame_new(Routine *rt, Object *ob, Object *cob, int argc)
 	debug("loc vars : %d", size);
 	if (size > 0 && Vector_Size(&code->kf.locvec) > 0) {
 		MemberDef *item;
+		char buf[64];
 		debug("------Set LocVar's Type-------");
 		Vector_ForEach(item, &code->kf.locvec) {
-			char *typestr = TypeDesc_ToString(item->desc);
-			debug("set [%d] as '%s' type", item->offset, typestr);
-			free(typestr); //FIXME
+			Type_ToString(item->desc, buf);
+			debug("set [%d] as '%s' type", item->offset, buf);
 			assert(item->offset >= 0 && item->offset < size);
 			TValue_Set_TypeDesc(f->locvars + item->offset, item->desc, ob);
 		}

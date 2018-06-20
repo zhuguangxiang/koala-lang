@@ -54,6 +54,7 @@ L   [a-zA-Z_]
 ">>="                     {return RSHIFT_ASSIGN;}
 "<<="                     {return LSHIFT_ASSIGN;}
 "..."                     {return ELLIPSIS;}
+"->"                      {return RIGHT_ARROW;}
 
 "package"                 {return PACKAGE;}
 "if"                      {return IF;}
@@ -84,16 +85,16 @@ L   [a-zA-Z_]
 
 "char"                    {return CHAR;}
 "byte"                    {return BYTE;}
-"short"                   {return SHORT;}
 "int"                     {return INTEGER;}
 "float"                   {return FLOAT;}
 "bool"                    {return BOOL;}
 "string"                  {return STRING;}
 "any"                     {return ANY;}
+"map"                     {return MAP;}
 "[]"+                     {
-														yylval->dims = yyleng/2;
-														return DIMS;
-													}
+                            yylval->dims = yyleng/2;
+                            return DIMS;
+                          }
 
 "self"                    {return SELF;}
 "super"                   {return SUPER;}
@@ -121,6 +122,7 @@ L   [a-zA-Z_]
 													}
 
 {L}({L}|{D})*             {
+                            assert(yyleng < 64);
 														char *tmp = malloc(yyleng+1);
 														strncpy(tmp, yytext, yyleng+1);
 														yylval->id = tmp;

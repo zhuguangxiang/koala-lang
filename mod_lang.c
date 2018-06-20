@@ -4,7 +4,7 @@
 #include "tupleobject.h"
 #include "tableobject.h"
 #include "listobject.h"
-#include "vm.h"
+#include "koalastate.h"
 #include "log.h"
 
 static Object *__lang_typeof(Object *ob, Object *args)
