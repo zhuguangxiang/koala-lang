@@ -4,7 +4,7 @@
   "workbench.activityBar.visible": false,
   "workbench.startupEditor": "none",
   "workbench.colorTheme": "One Dark Pro Vivid",
-  "editor.fontSize": 13,
+  "editor.fontSize": 16,
   "editor.fontFamily":  "'Operator Mono', 'Ubuntu Mono'",
   "editor.tabSize": 2,
   "editor.insertSpaces": false,
@@ -43,8 +43,8 @@
       80
   ],
   "editor.minimap.enabled": false,
-  "terminal.integrated.fontFamily": "'Operator Mono'",
-  "terminal.integrated.fontSize": 13,
+  "terminal.integrated.fontFamily": "'Operator Mono', 'Ubuntu Mono'",
+  "terminal.integrated.fontSize": 16,
   "todo-tree.flat": true,
   "todo-tree.expanded": false,
   "workbench.editor.enablePreview": false,
@@ -61,10 +61,14 @@
   },
   "editor.wordWrap": "wordWrapColumn",
   "markdown.preview.fontSize": 13,
-  "markdown.preview.fontFamily": "'Operator Mono'",
+  "markdown.preview.fontFamily": "'Ubuntu Mono'",
   // "markdown.styles": [ "github-markdown.css" ]
   "git.confirmSync": false,
   "window.zoomLevel": 0,
   "editor.occurrencesHighlight": false,
-  "editor.selectionHighlight": false
+  "editor.selectionHighlight": false,
+  "terminal.explorerKind": "external",
+  "terminal.integrated.lineHeight": 1.2,
+  "editor.lineHeight": 22,
+  "editor.cursorStyle": "block"
 }
