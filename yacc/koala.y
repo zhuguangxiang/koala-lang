@@ -30,8 +30,6 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 	int64 ival;
 	float64 fval;
 	char *string_const;
-	int dims;
-	int primitive;
 	struct expr *expr;
 	Vector *vector;
 	struct stmt *stmt;
@@ -123,12 +121,13 @@ int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 
 /*---------------------------------------------------------------------------*/
 
-%type <primitive> PrimitiveType
-%type <type> UserDefType
+%type <type> PrimitiveType
+%type <type> UsrDefType
 %type <type> BaseType
 %type <type> ArrayType
 %type <type> Type
 %type <type> FunctionType
+%type <type> MapType
 %type <vector> ReturnTypeList
 %type <vector> TypeList
 %type <vector> ParameterList
@@ -198,83 +197,42 @@ int yylex(YYSTYPE *yylval_param, void *yyscanner);
 
 %%
 
-Type
-	: BaseType {
-		$$ = $1;
-	}
-	| ArrayType {
-		$$ = $1;
-	}
-	;
+Type:
+	BaseType  { $$ = $1; }
+| ArrayType { $$ = $1; }
+;
 
-ArrayType
-	: '[' BaseType ']' {
-		//$2->dims = $1;
-		$$ = $2;
-	}
-	| '[' ArrayType ']' {
+ArrayType: 
+	'[' BaseType  ']' { $$ = Type_Arrray_New(1, $2); }
+| '[' ArrayType ']' { $2->array.dims++; $$ = $2;   }
+;
 
-	}
-	;
+BaseType: 
+	PrimitiveType { $$ = $1; }
+| UsrDefType   { $$ = $1; }
+| FunctionType  { $$ = $1; }
+| MapType       { $$ = $1; }
+;
 
-BaseType
-	: PrimitiveType {
-		$$ = TypeDesc_From_Primitive($1);
-	}
-	| UserDefType {
-		$$ = $1;
-	}
-	| FunctionType {
-		$$ = $1;
-	}
-	| MapType {
+MapType:
+	'[' PrimitiveType ':' Type ']' { Type_Map_New($2, $4); }
+| '[' UsrDefType   ':' Type ']' { Type_Map_New($2, $4); }
+;
 
-	}
-	;
+PrimitiveType:
+	INTEGER { $$ = &Int_Type;    }
+| FLOAT   { $$ = &Float_Type;  }
+| BOOL    { $$ = &Bool_Type;   }
+| STRING  { $$ = &String_Type; }
+| ANY     { $$ = &Any_Type;    }
+;
 
-MapType
-	: '[' KeyType ':' Type ']' {
-
+UsrDefType:
+	ID { $$ = Type_UsrDef_New(NULL, $1); /* type in local module */}
+| ID '.' ID { /* type in external module */
+		$$ = Type_UsrDef_New(Import_Get_Path(parser, $1), $3);
 	}
-	;
-
-KeyType
-	: PrimitiveType
-	| UserDefType
-	;
-
-PrimitiveType
-	: INTEGER {
-		$$ = PRIMITIVE_INT;
-	}
-	| FLOAT {
-		$$ = PRIMITIVE_FLOAT;
-	}
-	| BOOL {
-		$$ = PRIMITIVE_BOOL;
-	}
-	| STRING {
-		$$ = PRIMITIVE_STRING;
-	}
-	| ANY {
-		$$ = PRIMITIVE_ANY;
-	}
-	;
-
-UserDefType
-	: ID {
-		// type in local module
-		$$ = TypeDesc_From_UserDef(NULL, $1);
-	}
-	| ID '.' ID {
-		// type in external module
-		if (!strcmp($1, "lang") && !strcmp($3, "String")) {
-			$$ = TypeDesc_From_Primitive(PRIMITIVE_STRING);
-		} else {
-			$$ = TypeDesc_From_UserDef(Import_Get_Path(parser, $1), $3);
-		}
-	}
-	;
+;
 
 FunctionType
 	: FUNC '(' TypeList ')' RIGHT_ARROW ReturnTypeList {
@@ -543,7 +501,7 @@ ExtendsOrEmpty
 	: %empty {
 		$$ = stmt_new(CLASS_KIND);
 	}
-	| EXTENDS UserDefType WithesOrEmpty {
+	| EXTENDS UsrDefType WithesOrEmpty {
 		$$ = stmt_new(CLASS_KIND);
 		$$->class_info.super = $2;
 		$$->class_info.traits = $3;
@@ -564,11 +522,11 @@ WithesOrEmpty
 	;
 
 Traits
-	: WITH UserDefType {
+	: WITH UsrDefType {
 		$$ = Vector_New();
 		Vector_Append($$, $2);
 	}
-	| Traits WITH UserDefType {
+	| Traits WITH UsrDefType {
 		Vector_Append($1, $3);
 		$$ = $1;
 	}

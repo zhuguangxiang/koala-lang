@@ -5,7 +5,7 @@
   "workbench.startupEditor": "none",
   "workbench.colorTheme": "One Dark Pro Vivid",
   "editor.fontSize": 16,
-  "editor.fontFamily":  "'Operator Mono', 'Ubuntu Mono'",
+  "editor.fontFamily":  "'Operator Mono Light', 'Ubuntu Mono'",
   "editor.tabSize": 2,
   "editor.insertSpaces": false,
   "files.associations": {
@@ -43,7 +43,7 @@
       80
   ],
   "editor.minimap.enabled": false,
-  "terminal.integrated.fontFamily": "'Operator Mono', 'Ubuntu Mono'",
+  "terminal.integrated.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
   "terminal.integrated.fontSize": 16,
   "todo-tree.flat": true,
   "todo-tree.expanded": false,
@@ -68,7 +68,7 @@
   "editor.occurrencesHighlight": false,
   "editor.selectionHighlight": false,
   "terminal.explorerKind": "external",
-  "terminal.integrated.lineHeight": 1.2,
+  "terminal.integrated.lineHeight": 1,
   "editor.lineHeight": 22,
-  "editor.cursorStyle": "block"
+  "editor.cursorStyle": "line"
 }
