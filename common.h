@@ -56,6 +56,8 @@ typedef double  float64;
 	} \
 } while (0)
 
+#define null ((void *)0)
+
 #ifdef __cplusplus
 }
 #endif

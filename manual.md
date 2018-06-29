@@ -6,7 +6,7 @@
 package main;
 import "koala/io";
 
-func Main(args [string]) {
+func Main(args: [string]) {
   io.Println("Hello, World");
 }
 ```

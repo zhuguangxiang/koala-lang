@@ -370,7 +370,7 @@ static void __to_stbl_fn(HashNode *hnode, void *arg)
 
 	if (member->kind == MEMBER_CLASS || member->kind == MEMBER_TRAIT) {
 		Symbol *s = STable_Add_Symbol(stbl, member->name, SYM_STABLE, 0);
-		s->desc = Type_UsrDef_New(path, member->name);
+		s->desc = Type_New_UsrDef(path, member->name);
 		s->ptr = STable_New(stbl->atbl);
 		struct path_stbl_struct tmp = {path, s->ptr};
 		HashTable_Traverse(member->klazz->table, __to_stbl_fn, &tmp);
@@ -589,7 +589,7 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 
 	sym->up = ps->u->sym;
 	sym->ptr = STable_New(ps->u->stbl->atbl);
-	sym->desc = Type_UsrDef_New(NULL, stmt->class_info.id);
+	sym->desc = Type_New_UsrDef(NULL, stmt->class_info.id);
 	debug(">>>>add class(trait) '%s' successfully", sym->name);
 
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
@@ -1384,7 +1384,7 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
 		if (sym->kind == SYM_STABLE) {
 			if (!sym->desc) {
 				warn("symbol '%s' desc is null", sym->name);
-				sym->desc = Type_UsrDef_New(leftsym->path, sym->name);
+				sym->desc = Type_New_UsrDef(leftsym->path, sym->name);
 			}
 		}
 	} else if (leftsym->kind == SYM_VAR) {

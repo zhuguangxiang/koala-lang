@@ -2,29 +2,44 @@
 #include "typedesc.h"
 #include "log.h"
 
-TypeDesc Byte_Type   = { .kind = TYPE_PRIME, .prime.val = PRIME_BYTE };
-TypeDesc Char_Type   = { .kind = TYPE_PRIME, .prime.val = PRIME_CHAR };
-TypeDesc Int_Type    = { .kind = TYPE_PRIME, .prime.val = PRIME_INT };
-TypeDesc Float_Type  = { .kind = TYPE_PRIME, .prime.val = PRIME_FLOAT };
-TypeDesc Bool_Type   = { .kind = TYPE_PRIME, .prime.val = PRIME_BOOL };
-TypeDesc String_Type = { .kind = TYPE_PRIME, .prime.val = PRIME_STRING };
-TypeDesc Any_Type    = { .kind = TYPE_PRIME, .prime.val = PRIME_ANY };
-TypeDesc Varg_Type   = { .kind = TYPE_VARG };
+static TypeDesc Byte_Type = {
+	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_BYTE
+};
+static TypeDesc Char_Type = {
+	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_CHAR
+};
+static TypeDesc Int_Type = {
+	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_INT
+};
+static TypeDesc Float_Type = {
+	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_FLOAT
+};
+static TypeDesc Bool_Type = {
+	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_BOOL
+};
+static TypeDesc String_Type = {
+	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_STRING
+};
+static TypeDesc Any_Type = {
+	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_ANY
+};
+static TypeDesc Varg_Type = {
+	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_VARG
+};
 
-typedef struct prime_type_s {
+struct prime_type_s {
 	int prime;
 	char *str;
 	TypeDesc *type;
-} PrimeType;
-
-static PrimeType prime_types[] = {
-	{PRIME_BYTE,   "byte",   &Byte_Type},
-	{PRIME_CHAR,   "char",   &Char_Type},
-	{PRIME_INT,    "int",    &Int_Type},
-	{PRIME_FLOAT,  "float",  &Float_Type},
-	{PRIME_BOOL,   "bool",   &Bool_Type},
-	{PRIME_STRING, "string", &String_Type},
-	{PRIME_ANY,    "any",    &Any_Type},
+} prime_types[] = {
+	{PRIME_BYTE,   "byte",   &Byte_Type   },
+	{PRIME_CHAR,   "char",   &Char_Type   },
+	{PRIME_INT,    "int",    &Int_Type    },
+	{PRIME_FLOAT,  "float",  &Float_Type  },
+	{PRIME_BOOL,   "bool",   &Bool_Type   },
+	{PRIME_STRING, "string", &String_Type },
+	{PRIME_ANY,    "any",    &Any_Type    },
+	{PRIME_VARG,   "...",    &Varg_Type   }
 };
 
 static char *prime_tostring(int type)
@@ -49,6 +64,7 @@ static TypeDesc *type_new(int kind)
 {
 	TypeDesc *desc = calloc(1, sizeof(TypeDesc));
 	desc->kind = kind;
+	desc->refcnt = 1;
 	return desc;
 }
 
@@ -72,12 +88,13 @@ static void __type_free_fn(void *item, void *arg)
 
 void Type_Free(TypeDesc *desc)
 {
-	int kind = desc->kind;
+	--desc->refcnt;
+	if (desc->refcnt > 0) return;
 
+	int kind = desc->kind;
 	switch (kind) {
-		case TYPE_PRIME: /** fallthrough */
-		case TYPE_VARG: {
-			debug("prime or varg type, no free");
+		case TYPE_PRIME: {
+			debug("prime type, it's not need free");
 			break;
 		}
 		case TYPE_USRDEF: {
@@ -109,7 +126,14 @@ void Type_Free(TypeDesc *desc)
 	}
 }
 
-TypeDesc *Type_UsrDef_New(char *path, char *type)
+TypeDesc *Type_New_Prime(int prime)
+{
+	TypeDesc *desc = prime_type(prime);
+	++desc->refcnt;
+	return desc;
+}
+
+TypeDesc *Type_New_UsrDef(char *path, char *type)
 {
 	TypeDesc *desc = type_new(TYPE_USRDEF);
 	desc->usrdef.path = strdup(path);
@@ -117,7 +141,7 @@ TypeDesc *Type_UsrDef_New(char *path, char *type)
 	return desc;
 }
 
-TypeDesc *Type_Proto_New(Vector *arg, Vector *ret)
+TypeDesc *Type_New_Proto(Vector *arg, Vector *ret)
 {
 	TypeDesc *desc = type_new(TYPE_PROTO);
 	desc->proto.arg = arg;
@@ -125,7 +149,7 @@ TypeDesc *Type_Proto_New(Vector *arg, Vector *ret)
 	return desc;
 }
 
-TypeDesc *Type_Map_New(TypeDesc *key, TypeDesc *val)
+TypeDesc *Type_New_Map(TypeDesc *key, TypeDesc *val)
 {
 	TypeDesc *desc = type_new(TYPE_MAP);
 	desc->map.key = key;
@@ -133,7 +157,7 @@ TypeDesc *Type_Map_New(TypeDesc *key, TypeDesc *val)
 	return desc;
 }
 
-TypeDesc *Type_Array_New(int dims, TypeDesc *base)
+TypeDesc *Type_New_Array(int dims, TypeDesc *base)
 {
 	TypeDesc *desc = type_new(TYPE_ARRAY);
 	desc->array.dims = dims;
