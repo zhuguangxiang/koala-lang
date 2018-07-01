@@ -23,14 +23,61 @@ static int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 
 #define ERRMSG "expected '%s' before '%s'"
 #define syntax_error(expected) \
-	yyerrok; Lexer_PrintError(parser, ERRMSG, expected, Lexer_Token)
-#define syntax_error_clear(expected) yyclearin; syntax_error(expected)
+	yyerrok; Parser_Handle_Error(parser, ERRMSG, expected, Token)
+#define syntax_error_clear(msg) yyclearin; yyerrok; \
+	Parser_Handle_Error(parser, "%s", msg)
 
 /*---------------------------------------------------------------------------*/
 
-static void do_vardecls(ParserState *ps, Vector *vec)
+static Vector *new_vardecl_stmts(ParserState *ps, Vector *vars,
+	TypeDesc *desc, Vector *exprs, int bconst)
 {
+	int vsz = Vector_Size(vars);
+	int esz = Vector_Size(exprs);
+	if (esz != 0 && esz != vsz) {
+		Parser_Handle_Error(ps, "cannot assign %d values to %d variables",
+			esz, vsz);
+		free_vars(vars);
+		free_exprs(exprs);
+		Type_DecRef(desc);
+		return NULL;
+	}
 
+	Vector *ret = Vector_New();
+	struct var *var;
+	struct stmt *stmt;
+	struct expr *exp;
+	for (int i = 0; i < vsz; i++) {
+		var = Vector_Get(vars, i);
+		var->bconst = bconst;
+		var->desc = Type_IncRef(desc);
+
+		stmt = stmt_new(VARDECL_KIND);
+		stmt->vardecl.var = var;
+
+		if (esz > 0) {
+			exp = Vector_Get(exprs, i);
+			stmt->vardecl.exp = exp;
+			if (!var->desc && exp->desc) var->desc = Type_IncRef(exp->desc);
+		}
+
+		Vector_Append(ret, stmt);
+	}
+
+	Vector_Free(vars, NULL, NULL);
+	Vector_Free(exprs, NULL, NULL);
+	return ret;
+}
+
+static void free_vardecl_stmts(Vector *stmts)
+{
+	struct stmt *s;
+	Vector_ForEach(s, stmts) {
+		free_var(s->vardecl.var);
+		free_expr(s->vardecl.exp);
+		free_stmt(s);
+	}
+	Vector_Free(stmts, NULL, NULL);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -43,7 +90,7 @@ static void do_vardecls(ParserState *ps, Vector *vec)
 	float64 fval;
 	char *string_const;
 	struct expr *expr;
-	Vector *vector;
+	Vector *list;
 	struct stmt *stmt;
 	TypeDesc *type;
 	int operator;
@@ -137,14 +184,14 @@ static void do_vardecls(ParserState *ps, Vector *vec)
 %type <type> Type
 %type <type> FunctionType
 %type <type> MapType
-%type <vector> ReturnTypeList
-%type <vector> TypeList
-%type <vector> ParameterList
+%type <list> ReturnTypeList
+%type <list> TypeList
+%type <list> ParameterList
 %type <operator> UnaryOperator
 %type <operator> CompoundAssignOperator
-%type <vector> VariableList
-%type <vector> ExpressionList
-%type <vector> PrimaryExpressionList
+%type <list> VariableList
+%type <list> ExpressionList
+%type <list> PrimaryExpressionList
 %type <expr> Expression
 %type <expr> LogicalOrExpression
 %type <expr> LogicalAndExpression
@@ -158,39 +205,39 @@ static void do_vardecls(ParserState *ps, Vector *vec)
 %type <expr> MultiplicativeExpression
 %type <expr> UnaryExpression
 %type <expr> PrimaryExpression
-%type <expr> ArrayDeclaration
-%type <expr> AnonymousDeclaration
+%type <expr> ArrayObject
+%type <expr> AnonyFuncObject
 %type <expr> CONSTANT
-%type <stmt> VariableDeclaration
-%type <stmt> ConstDeclaration
+%type <list> VariableDeclaration
+%type <list> ConstDeclaration
 %type <stmt> LocalStatement
 %type <stmt> Assignment
 %type <stmt> IfStatement
 %type <stmt> OrElseStatement
 %type <stmt> WhileStatement
 %type <stmt> SwitchStatement
-%type <vector> CaseStatements
+%type <list> CaseStatements
 %type <testblock> CaseStatement
 %type <stmt> ForStatement
 %type <stmt> ForInit
 %type <stmt> ForTest
 %type <stmt> ForIncr
-%type <vector> Block
+%type <list> Block
 %type <stmt> GoStatement
-%type <vector> LocalStatements
+%type <list> LocalStatements
 %type <stmt> ReturnStatement
 %type <stmt> JumpStatement
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
-%type <stmt> TypeAlias
-%type <vector> MemberDeclarations
+%type <stmt> TypeAliasDeclaration
+%type <list> MemberDeclarations
 %type <stmt> MemberDeclaration
 %type <stmt> FieldDeclaration
 %type <stmt> ProtoDeclaration
 %type <stmt> ExtendsOrEmpty
-%type <vector> WithesOrEmpty
-%type <vector> Traits
-%type <vector> TraitMemberDeclarations
+%type <list> WithesOrEmpty
+%type <list> Traits
+%type <list> TraitMemberDeclarations
 %type <stmt> TraitMemberDeclaration
 
 %start CompileUnit
@@ -214,7 +261,7 @@ Type:
 ;
 
 ArrayType:
-	DIMS BaseType { $$ = Type_Arrray_New($1, $2); }
+	DIMS BaseType { $$ = Type_New_Array($1, $2); }
 ;
 
 BaseType:
@@ -225,23 +272,23 @@ BaseType:
 ;
 
 MapType:
-	'[' PrimitiveType ']' Type { Type_Map_New($2, $4); }
-| '[' UsrDefType ']' Type    { Type_Map_New($2, $4); }
+	'[' PrimitiveType ']' Type { Type_New_Map($2, $4); }
+| '[' UsrDefType ']' Type    { Type_New_Map($2, $4); }
 ;
 
 PrimitiveType:
-	INTEGER { $$ = &Int_Type;    }
-| FLOAT   { $$ = &Float_Type;  }
-| BOOL    { $$ = &Bool_Type;   }
-| STRING  { $$ = &String_Type; }
-| ANY     { $$ = &Any_Type;    }
+	INTEGER { $$ = Type_New_Prime(PRIME_INT);    }
+| FLOAT   { $$ = Type_New_Prime(PRIME_FLOAT);  }
+| BOOL    { $$ = Type_New_Prime(PRIME_BOOL);   }
+| STRING  { $$ = Type_New_Prime(PRIME_STRING); }
+| ANY     { $$ = Type_New_Prime(PRIME_ANY);    }
 ;
 
 UsrDefType:
 	ID
 	{
 		/* type in local module */
-		$$ = Type_New_UsrDef(null, $1);
+		$$ = Type_New_UsrDef(NULL, $1);
 	}
 | ID '.' ID
 	{
@@ -249,7 +296,7 @@ UsrDefType:
 		char *fullpath = Parser_Get_FullPath(parser, $1);
 		if (!fullpath) {
 			Parser_Error();
-			$$ = null;
+			$$ = NULL;
 		} else {
 			$$ = Type_New_UsrDef(fullpath, $3);
 		}
@@ -259,29 +306,29 @@ UsrDefType:
 FunctionType:
 	FUNC '(' TypeList ')' ReturnTypeList
 	{
-		$$ = Type_Proto_New($3, $5);
+		$$ = Type_New_Proto($3, $5);
 	}
 | FUNC '(' TypeList ')'
 	{
-		$$ = Type_Proto_New($3, null);
+		$$ = Type_New_Proto($3, NULL);
 	}
 | FUNC '(' ')' ReturnTypeList
 	{
-		$$ = Type_Proto_New(null, $4);
+		$$ = Type_New_Proto(NULL, $4);
 	}
 | FUNC '(' ')'
 	{
-		$$ = Type_Proto_New(null, null);
+		$$ = Type_New_Proto(NULL, NULL);
 	}
 | FUNC '(' TypeList ',' ELLIPSIS ')' ReturnTypeList
 	{
-		Vector_Append($3, &Varg_Type);
-		$$ = Type_Proto_New($3, $7);
+		Vector_Append($3, Type_New_Prime(PRIME_VARG));
+		$$ = Type_New_Proto($3, $7);
 	}
 | FUNC '(' TypeList ',' ELLIPSIS ')'
 	{
-		Vector_Append($3, &Varg_Type);
-		$$ = Type_Proto_New($3, null);
+		Vector_Append($3, Type_New_Prime(PRIME_VARG));
+		$$ = Type_New_Proto($3, NULL);
 	}
 ;
 
@@ -320,7 +367,7 @@ CompileUnit:
 ;
 
 Package:
-	PACKAGE ID ';'   { parser->package = $2;                   }
+	PACKAGE ID ';'   { Parser_Set_Package(parser, $2);         }
 | PACKAGE ID error { syntax_error(";"); exit(-1);            }
 | PACKAGE error    { syntax_error("package-name"); exit(-1); }
 ;
@@ -331,7 +378,7 @@ Imports:
 ;
 
 Import:
-	IMPORT STRING_CONST ';'      { Parser_New_Import(parser, null, $2); }
+	IMPORT STRING_CONST ';'      { Parser_New_Import(parser, NULL, $2); }
 | IMPORT ID STRING_CONST ';'   { Parser_New_Import(parser, $2, $3);   }
 | IMPORT STRING_CONST error    { syntax_error(";");                   }
 | IMPORT ID STRING_CONST error { syntax_error(";");                   }
@@ -346,77 +393,99 @@ ModuleStatements:
 
 ModuleStatement:
 	';' {}
-| VariableDeclaration ';'   { do_vardecls(parser, $1);   }
-| ConstDeclaration ';'      { do_constdecls(parser, $1); }
-| FunctionDeclaration       { do_func(parser, $1);       }
-| TypeDeclaration           { do_type(parser, $1);       }
-| TypeAlias                 { do_alias(parser, $1);      }
-| VariableDeclaration error { syntax_error(";");         }
-| ConstDeclaration error    { syntax_error(";");         }
-| error { syntax_error_clearin("invalid statement"); }
+| VariableDeclaration ';'   { Parser_New_Vars(parser, $1);  }
+| ConstDeclaration ';'      { Parser_New_Vars(parser, $1);  }
+| FunctionDeclaration       { parse_func(parser, $1);  }
+| TypeDeclaration           { parse_type(parser, $1);  }
+| TypeAliasDeclaration      { parse_alias(parser, $1); }
+| VariableDeclaration error
+	{
+		free_vardecl_stmts(parser, $1);
+		syntax_error(";");
+	}
+| ConstDeclaration error
+	{
+		free_vardecl_stmts(parser, $1);
+		syntax_error(";");
+	}
+| error { syntax_error_clear("invalid statement"); }
 ;
 
 /*---------------------------------------------------------------------------*/
 
 ConstDeclaration:
-	CONST VariableList '=' AtomExprList {
-		//$$ = stmt_from_varlistdecl($2, $4, null, 1);
+	CONST VariableList '=' ExpressionList
+	{
+		$$ = new_vardecl_stmts(parser, $2, NULL, $4, 1);
 	}
-| CONST VariableList Type '=' AtomExprList {
-		//$$ = stmt_from_varlistdecl($2, $5, $3, 1);
+| CONST VariableList Type '=' ExpressionList
+	{
+		$$ = new_vardecl_stmts(parser, $2, $3, $5, 1);
 	}
-| CONST VariableList '=' error {
-		syntax_error(parser, "expected right's expression-list");
-		$$ = null;
+| CONST VariableList '=' error
+	{
+		syntax_error("right's expression-list");
+		$$ = NULL;
 	}
-| CONST VariableList Type '=' error {
-		syntax_error(parser, "expected right's expression-list");
-		$$ = null;
+| CONST VariableList Type '=' error
+	{
+		syntax_error("right's expression-list");
+		$$ = NULL;
 	}
-| CONST error {
-		syntax_error(parser, "invalid constant declaration");
-		$$ = null;
+| CONST error
+	{
+		syntax_error("id-list");
+		$$ = NULL;
 	}
 ;
 
 VariableDeclaration:
-	VAR VariableList Type {
-		//$$ = stmt_from_varlistdecl($2, null, $3, 0);
+	VAR VariableList Type
+	{
+		$$ = new_vardecl_stmts(parser, $2, $3, NULL, 0);
 	}
-| VAR VariableList '=' AtomExprList {
-		//$$ = stmt_from_varlistdecl($2, $4, null, 0);
+| VAR VariableList '=' ExpressionList
+	{
+		$$ = new_vardecl_stmts(parser, $2, NULL, $4, 0);
 	}
-| VAR VariableList Type '=' AtomExprList {
-		//$$ = stmt_from_varlistdecl($2, $5, $3, 0);
+| VAR VariableList Type '=' ExpressionList
+	{
+		$$ = new_vardecl_stmts(parser, $2, $3, $5, 0);
 	}
-| VAR VariableList error {
-		syntax_error("expected 'TYPE' or '='");
-		$$ = null;
+| VAR VariableList error
+	{
+		syntax_error("'TYPE' or '='");
+		$$ = NULL;
 	}
-| VAR VariableList '=' error {
-		syntax_error("expected right's expression-list");
-		$$ = null;
+| VAR VariableList '=' error
+	{
+		syntax_error("right's expression-list");
+		$$ = NULL;
 	}
-| VAR VariableList Type '=' error {
-		syntax_error("expected right's expression-list");
-		$$ = null;
+| VAR VariableList Type '=' error
+	{
+		syntax_error("right's expression-list");
+		$$ = NULL;
 	}
-| VAR error {
-		syntax_error("invalid variable declaration");
-		$$ = null;
+| VAR error
+	{
+		syntax_error("id-list");
+		$$ = NULL;
 	}
 ;
 
-VariableList
-	: ID {
+VariableList:
+	ID
+	{
 		$$ = Vector_New();
-		Vector_Append($$, new_var($1, null));
+		Vector_Append($$, new_var($1, NULL));
 	}
-	| VariableList ',' ID {
-		Vector_Append($1, new_var($3, null));
+| VariableList ',' ID
+	{
+		Vector_Append($1, new_var($3, NULL));
 		$$ = $1;
 	}
-	;
+;
 
 /*---------------------------------------------------------------------------*/
 
@@ -441,7 +510,7 @@ FunctionDeclaration
 	}
 	| FUNC error {
 		syntax_error(parser, EXPECTED, "ID", Lexer_Token);
-		$$ = null;
+		$$ = NULL;
 	}
 	;
 
@@ -458,7 +527,7 @@ ParameterList
 
 /*---------------------------------------------------------------------------*/
 
-TypeAlias
+TypeAliasDeclaration
 	: TYPEALIAS ID Type ';' {
 		// $$ = stmt_from_typealias($2, $3);
 	}
@@ -489,7 +558,7 @@ TypeDeclaration
 		$$->class_info.id = $2;
 	}
 	| TRAIT ID WithesOrEmpty ';' {
-		$$ = stmt_from_trait($2, $3, null);
+		$$ = stmt_from_trait($2, $3, NULL);
 	}
 	;
 
@@ -510,7 +579,7 @@ ExtendsOrEmpty
 
 WithesOrEmpty
 	: %empty {
-		$$ = null;
+		$$ = NULL;
 	}
 	| Traits {
 		$$ = $1;
@@ -573,12 +642,12 @@ TraitMemberDeclaration
 
 FieldDeclaration
 	: ID Type ';' {
-		//$$ = stmt_from_vardecl(new_var($2, $3), null, 0);
+		//$$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
 	}
-	| ID '=' AtomExpr ';' {
-		//$$ = stmt_from_vardecl(new_var($2, null), $4, 0);
+	| ID '=' Expression ';' {
+		//$$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
 	}
-	| ID Type '=' AtomExpr ';' {
+	| ID Type '=' Expression ';' {
 		//$$ = stmt_from_vardecl(new_var($2, $3), $5, 0);
 	}
 	;
@@ -591,7 +660,7 @@ ProtoDeclaration
 
 	}
 	| FUNC ID '(' ')' ReturnTypeList ';' {
-		//$$ = stmt_from_funcproto($2, null, $5);
+		//$$ = stmt_from_funcproto($2, NULL, $5);
 	}
 	| FUNC ID '(' ')' ';' {
 
@@ -610,37 +679,30 @@ Block
 	: '{' LocalStatements '}' {
 		$$ = $2;
 	}
-	| '{' '}' {
-		syntax_error_clearin(parser, "empty block");
-		$$ = null;
-	}
-	| '{' error {
-		syntax_error_clearin(parser, EXPECTED, "}", Lexer_Token);
-		$$ = null;
-	}
+	| '{' '}' {}
 	;
 
 LocalStatements
 	: LocalStatement {
 		$$ = Vector_New();
-		if ($1 != null) Vector_Append($$, $1);
+		if ($1 != NULL) Vector_Append($$, $1);
 	}
 	| LocalStatements LocalStatement {
-		if ($2 != null) Vector_Append($1, $2);
+		if ($2 != NULL) Vector_Append($1, $2);
 		$$ = $1;
 	}
 	;
 
-LocalStatement
-	: ';' {
-		$$ = null;
+LocalStatement:
+ ';' {
+		$$ = NULL;
 	}
 	| Expression ';' {
 		$$ = stmt_from_expr($1);
 	}
 	| Expression error {
 		syntax_error(parser, EXPECTED, ";", Lexer_Token);
-		$$ = null;
+		$$ = NULL;
 	}
 	| VariableDeclaration ';' {
 		$$ = $1;
@@ -650,7 +712,7 @@ LocalStatement
 	}
 	| Assignment error {
 		syntax_error(parser, EXPECTED, ";", Lexer_Token);
-		$$ = null;
+		$$ = NULL;
 	}
 	| IfStatement {
 		$$ = $1;
@@ -684,7 +746,7 @@ GoStatement
 		$$ = stmt_from_go(expr_from_trailer(CALL_KIND, $4, $2));
 	}
 	| GO PrimaryExpression '(' ')' ';' {
-		$$ = stmt_from_go(expr_from_trailer(CALL_KIND, null, $2));
+		$$ = stmt_from_go(expr_from_trailer(CALL_KIND, NULL, $2));
 	}
 	;
 
@@ -699,10 +761,10 @@ IfStatement
 
 OrElseStatement
 	: %empty {
-		$$ = null;
+		$$ = NULL;
 	}
 	| ELSE Block {
-		$$ = stmt_from_if(null, $2, null);
+		$$ = stmt_from_if(NULL, $2, NULL);
 		$$->if_stmt.belse = 1;
 	}
 	| ELSE IfStatement {
@@ -736,10 +798,10 @@ CaseStatements
 		Vector_Append($$, $1);
 	}
 	| CaseStatements CaseStatement {
-		if ($2->test == null) {
+		if ($2->test == NULL) {
 			/* default case */
 			struct test_block *tb = Vector_Get($1, 0);
-			if (tb != null && tb->test == null) {
+			if (tb != NULL && tb->test == NULL) {
 				fprintf(stderr, "[ERROR] default case needs only one\n");
 				exit(0);
 			} else {
@@ -757,7 +819,7 @@ CaseStatement
 		$$ = new_test_block($2, $4);
 	}
 	| DEFAULT ':' Block {
-		$$ = new_test_block(null, $3);
+		$$ = new_test_block(NULL, $3);
 	}
 	;
 
@@ -768,10 +830,10 @@ ForStatement
 		$$ = stmt_from_for($3, $5, $7, $9);
 	}
 	| FOR '(' ID IN Expression ')' Block {
-		//$$ = stmt_from_foreach(new_var($3, null), $5, $7, 0);
+		//$$ = stmt_from_foreach(new_var($3, NULL), $5, $7, 0);
 	}
 	| FOR '(' VAR ID IN Expression ')' Block {
-		//$$ = stmt_from_foreach(new_var($4, null), $6, $8, 1);
+		//$$ = stmt_from_foreach(new_var($4, NULL), $6, $8, 1);
 	}
 	| FOR '(' VAR VariableList Type IN Expression ')' Block {
 		// if (Vector_Size($4) != 1) {
@@ -781,7 +843,7 @@ ForStatement
 		// 	struct var *v = Vector_Get($4, 0);
 		// 	assert(v);
 		// 	v->desc = $5;
-		// 	Vector_Free($4, null, null);
+		// 	Vector_Free($4, NULL, NULL);
 		// 	$$ = stmt_from_foreach(v, $7, $9, 1);
 		// }
 	}
@@ -798,7 +860,7 @@ ForInit
 		$$ = $1;
 	}
 	| %empty {
-		$$ = null;
+		$$ = NULL;
 	}
 	;
 
@@ -807,7 +869,7 @@ ForTest
 		$$ = stmt_from_expr($1);
 	}
 	| %empty {
-		$$ = null;
+		$$ = NULL;
 	}
 	;
 
@@ -819,7 +881,7 @@ ForIncr
 		$$ = $1;
 	}
 	| %empty {
-		$$ = null;
+		$$ = NULL;
 	}
 	;
 
@@ -842,9 +904,9 @@ JumpStatement
 
 ReturnStatement
 	: RETURN ';' {
-		$$ = stmt_from_return(null);
+		$$ = stmt_from_return(NULL);
 	}
-	| RETURN AtomExprList ';' {
+	| RETURN ExpressionList ';' {
 		//$$ = stmt_from_return($2);
 	}
 	;
@@ -868,10 +930,10 @@ PrimaryExpression
 		Parser_SetLine(parser, $$); */
 	}
 	| PrimaryExpression '(' ')' {
-		/* $$ = expr_from_trailer(CALL_KIND, null, $1);
+		/* $$ = expr_from_trailer(CALL_KIND, NULL, $1);
 		Parser_SetLine(parser, $$); */
 	}
-	| PrimaryExpression '[' Expression ':' Expression ']' {
+	| PrimaryExpression '['  Expression ':' Expression ']' {
 
 	}
 	;
@@ -895,6 +957,15 @@ Atom
 	}
 	| '(' Expression ')' {
 		/* $$ = $2; */
+	}
+	| ArrayObject {
+		//$$ = $1;
+	}
+	| DictObject {
+
+	}
+	| AnonyFuncObject {
+
 	}
 	;
 
@@ -922,51 +993,22 @@ CONSTANT
 
 /*---------------------------------------------------------------------------*/
 
-AtomExprList
-	: AtomExpr
-	| AtomExprList ',' AtomExpr
-	;
-
-AtomExpr
-	: Expression {
-
-	}
-	| ArrayDeclaration {
-		//$$ = $1;
-	}
-	| MapDeclaration {
-		//$$ = null;
-	}
-	| AnonymousDeclaration {
-
-	}
-	;
-
-ArrayDeclaration
-	: '[' AtomExprList ']' {
+ArrayObject:
+	'[' ExpressionList ']' {
 		/* $2->dims = $1; */
-		/* $$ = expr_from_array($2, null, $4); */
+		/* $$ = expr_from_array($2, NULL, $4); */
 	}
-	| '[' ']' {
+| '[' ']' {
 
 	}
-	;
+;
 
-MapDeclaration
-	: '{' KeyValueList '}'
-	| '{' '}'
-	;
+DictObject:
+	'{'  Expression ':' Expression '}' {}
+| '{' ':' '}' {}
+;
 
-KeyValueList
-	: KeyValue
-	| KeyValueList ',' KeyValue
-	;
-
-KeyValue
-	: Expression ':' AtomExpr
-	;
-
-AnonymousDeclaration
+AnonyFuncObject
 	: FUNC '(' ParameterList ')' ReturnTypeList Block {
 		// $$ = expr_from_anonymous_func($2, $3, $4);
 	}
@@ -982,12 +1024,12 @@ AnonymousDeclaration
 	| FUNC '(' ParameterList ',' ID ELLIPSIS ')' ReturnTypeList Block {
 
 	}
-	| FUNC '(' ParameterList ',' ID ELLIPSIS ')' {
+	| FUNC '(' ParameterList ',' ID ELLIPSIS ')' Block {
 
 	}
 	| FUNC error {
 		syntax_error_clearin(parser, "anonymous function needs no func-name");
-		$$ = null;
+		$$ = NULL;
 	}
 	;
 
@@ -1149,7 +1191,7 @@ ExpressionList
 	;
 
 Assignment
-	: PrimaryExpressionList '=' AtomExprList {
+	: PrimaryExpressionList '=' ExpressionList {
 		//$$ = stmt_from_assignlist($1, OP_ASSIGN, $3);
 	}
 	| PrimaryExpression CompoundAssignOperator Expression {

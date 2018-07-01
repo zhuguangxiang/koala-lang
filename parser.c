@@ -52,7 +52,7 @@ void Parser_SetLine(ParserState *ps, struct expr *exp)
 	}
 }
 
-void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...)
+void Parser_PrintError(ParserState *ps, LineInfo *l, char *fmt, ...)
 {
 	if (++ps->errnum >= MAX_ERRORS) {
 		fprintf(stderr, "Too many errors.\n");
@@ -328,7 +328,7 @@ static void init_imports(ParserState *ps)
 	Init_HashInfo(&hashinfo, import_hash, import_equal);
 	HashTable_Init(&ps->imports, &hashinfo);
 	ps->extstbl = STable_New(NULL);
-	Symbol *sym = Parse_Import(ps, "lang", "koala/lang");
+	Symbol *sym = Parser_New_Import(ps, "lang", "koala/lang");
 	sym->refcnt++;
 }
 
@@ -407,7 +407,7 @@ static Symbol *add_import(STable *stbl, char *id, char *path)
 	return sym;
 }
 
-Symbol *Parse_Import(ParserState *ps, char *id, char *path)
+Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
 {
 	Import key = {.path = path};
 	Import *import = HashTable_Find(&ps->imports, &key);
@@ -474,12 +474,14 @@ char *Import_Get_Path(ParserState *ps, char *id)
 	return sym->path;
 }
 
+/*---------------------------------------------------------------------------*/
+
 static inline void __add_stmt(ParserState *ps, struct stmt *stmt)
 {
 	Vector_Append(&(ps)->stmts, stmt);
 }
 
-static void parse_vardecl(ParserState *ps, struct stmt *stmt)
+static void parse_new_var(ParserState *ps, struct stmt *stmt)
 {
 	struct var *var = stmt->vardecl.var;
 	if (!var->desc) {
@@ -513,20 +515,14 @@ static void parse_vardecl(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-void Parse_VarDecls(ParserState *ps, struct stmt *stmt)
+void Parser_New_Vars(ParserState *ps, Vector *stmts)
 {
-	if (!stmt) return;
+	if (!stmts) return;
 
-	if (stmt->kind == VARDECL_LIST_KIND) {
-		struct stmt *s;
-		Vector_ForEach(s, stmt->vec) {
-			__add_stmt(ps, s);
-			parse_vardecl(ps, s);
-		}
-	} else {
-		assert(stmt->kind == VARDECL_KIND);
-		__add_stmt(ps, stmt);
-		parse_vardecl(ps, stmt);
+	struct stmt *s;
+	Vector_ForEach(s, stmts) {
+		__add_stmt(ps, s);
+		parse_new_var(ps, s);
 	}
 }
 
@@ -618,7 +614,7 @@ void Parse_TypeAlias(ParserState *ps, struct stmt *stmt)
 	debug("add typealias '%s' successful", stmt->typealias.id);
 }
 
-/*--------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 #if 0
 static struct expr *optimize_binary_add(struct expr *l, struct expr *r)

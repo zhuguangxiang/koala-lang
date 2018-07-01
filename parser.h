@@ -120,30 +120,30 @@ typedef struct parserstate {
 ParserState *new_parser(void *filename);
 void destroy_parser(ParserState *ps);
 void parser_module(ParserState *ps, FILE *in);
-void Parser_PrintError(ParserState *ps, Line *l, char *fmt, ...);
+void Parser_PrintError(ParserState *ps, LineInfo *l, char *fmt, ...);
 
 // API used by lex
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
-#define Lexer_PrintError(ps, errmsg, ...) do {\
+#define Parser_Handle_Error(ps, errmsg, ...) do { \
 	if (ps->errnum >= MAX_ERRORS) { \
 		fprintf(stderr, "Too many errors.\n"); \
 		exit(-1); \
 	} \
 	LineBuffer *lb = &(ps)->line; \
 	if (1) { \
-		Line l = {lb->line, lb->row, lb->col}; \
+		LineInfo l = {lb->line, lb->row, lb->col}; \
 		Parser_PrintError(ps, &l, errmsg, ##__VA_ARGS__); \
 		lb->print = 1; \
 	} else { \
 		++ps->errnum; \
 	} \
 } while (0)
-#define Lexer_Token parser->line.lasttoken
+#define Token parser->line.lasttoken
 
-// API used by yacc
-Symbol *Parse_Import(ParserState *ps, char *id, char *path);
-void Parse_VarDecls(ParserState *ps, struct stmt *stmt);
+// Exported API
+Symbol *Parser_New_Import(ParserState *ps, char *id, char *path);
+void Parser_New_Vars(ParserState *ps, Vector *stmts);
 void Parse_Function(ParserState *ps, struct stmt *stmt);
 void Parse_UserDef(ParserState *ps, struct stmt *stmt);
 void Parse_TypeAlias(ParserState *ps, struct stmt *stmt);

@@ -8,11 +8,11 @@
 extern "C" {
 #endif
 
-typedef struct line {
+typedef struct lineinfo {
 	char *line;
 	int row;
 	int col;
-} Line;
+} LineInfo;
 
 /*-------------------------------------------------------------------------*/
 

@@ -11,13 +11,17 @@
   "files.associations": {
     "*.h": "c",
     "*.c": "c",
-    "*.kl": "go"
+    "*.kl": "go",
+    "array": "c",
+    "initializer_list": "c",
+    "string_view": "c",
+    "utility": "c"
   },
   "editor.rulers": [
       80
   ],
   "editor.minimap.enabled": false,
-  "terminal.integrated.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
+  "terminal.integrated.fontFamily": "'Ubuntu Mono', 'Operator Mono Light'",
   "terminal.integrated.fontSize": 14,
   "todo-tree.flat": true,
   "todo-tree.expanded": false,
@@ -52,6 +56,5 @@
   "editor.selectionHighlight": false,
   "terminal.explorerKind": "external",
   "terminal.integrated.lineHeight": 1,
-  "editor.lineHeight": 22,
   "editor.cursorStyle": "line"
 }

@@ -81,7 +81,7 @@ L   [a-zA-Z_]
 "as"                      {return AS;}
 "go"                      {return GO;}
 "defer"                   {return DEFER;}
-"type"                    {return TYPEALIAS;}
+"typealias"               {return TYPEALIAS;}
 
 "char"                    {return CHAR;}
 "byte"                    {return BYTE;}
