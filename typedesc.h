@@ -53,8 +53,16 @@ struct typedesc {
 	};
 };
 
+extern TypeDesc Byte_Type;
+extern TypeDesc Char_Type;
+extern TypeDesc Int_Type;
+extern TypeDesc Float_Type;
+extern TypeDesc Bool_Type;
+extern TypeDesc String_Type;
+extern TypeDesc Any_Type;
+extern TypeDesc Varg_Type;
+
 void Type_Free(TypeDesc *desc);
-TypeDesc *Type_New_Prime(int prime);
 TypeDesc *Type_New_UsrDef(char *path, char *type);
 TypeDesc *Type_New_Proto(Vector *arg, Vector *ret);
 TypeDesc *Type_New_Map(TypeDesc *key, TypeDesc *val);
@@ -63,6 +71,19 @@ int TypeList_Equal(Vector *v1, Vector *v2);
 int Type_Equal(TypeDesc *t1, TypeDesc *t2);
 void Type_ToString(TypeDesc *desc, char *buf);
 Vector *String_To_TypeList(char *str);
+
+static inline TypeDesc *Type_IncRef(TypeDesc *type)
+{
+	++type->refcnt;
+	return type;
+}
+
+static inline void Type_DesRef(TypeDesc *type)
+{
+	if (--type->refcnt <= 0) {
+		Type_Free(type);
+	}
+}
 
 #ifdef __cplusplus
 }

@@ -44,7 +44,7 @@ void Lexer_DoUserAction(ParserState *ps, char *text)
 void Parser_SetLine(ParserState *ps, struct expr *exp)
 {
 	if (exp) {
-		Line *l = &exp->line;
+		LineInfo *l = &exp->line;
 		LineBuffer *lb = &ps->line;
 		l->line = strdup(lb->line);
 		l->row = lb->row;
@@ -452,7 +452,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
 
 	sym->ptr = Module_To_STable(ob, ps->extstbl->atbl, path);
 	import->sym = sym;
-	Line *l = &import->line;
+	LineInfo *l = &import->line;
 	LineBuffer *lb = &ps->line;
 	l->line = strdup(lb->line);
 	l->row = lb->row;
@@ -515,14 +515,35 @@ static void parse_new_var(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-void Parser_New_Vars(ParserState *ps, Vector *stmts)
+void Parser_New_Vars(ParserState *ps, struct stmt *stmt)
 {
-	if (!stmts) return;
+	/* the VARDECL_LIST_KIND statement maybe null */
+	if (!stmt) return;
 
+	/* must be VARDECL_LIST_KIND */
+	assert(stmt->kind == VARDECL_LIST_KIND);
+
+	struct var *var;
+	Symbol *sym;
 	struct stmt *s;
-	Vector_ForEach(s, stmts) {
+	Vector_ForEach(s, &stmt->vec) {
+		/* must be VARDCL_KIND */
+		assert(stmt->kind == VARDECL_KIND);
+
+		/* add statement for 2rd parser */
 		__add_stmt(ps, s);
-		parse_new_var(ps, s);
+
+		/* add variale's id to symbol table */
+		var = s->vardecl.var;
+		if (!var->desc) debug("var '%s' type is null", var->id);
+		sym = STable_Add_Var(ps->u->stbl, var->id, var->desc, var->bconst);
+		if (sym) {
+			debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
+			sym->up = ps->u->sym;
+		} else {
+			Parser_Do_Error(ps, "add %s '%s' failed, it'name is duplicated",
+				var->bconst ? "const":"var", var->id);
+		}
 	}
 }
 
@@ -538,7 +559,7 @@ static void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 			Vector_Append(pdesc, var->desc);
 		}
 	}
-	proto = Type_Proto_New(pdesc, stmt->funcdecl.rvec);
+	proto = Type_New_Proto(pdesc, stmt->funcdecl.rvec);
 	sym = STable_Add_Proto(ps->u->stbl, stmt->funcdecl.id, proto);
 	if (sym) {
 		debug("add func '%s' successful", stmt->funcdecl.id);
@@ -560,7 +581,7 @@ static void parse_funcproto(ParserState *ps, struct stmt *stmt)
 {
 	TypeDesc *proto;
 	Symbol *sym;
-	proto = Type_Proto_New(stmt->funcproto.pvec, stmt->funcproto.rvec);
+	proto = Type_New_Proto(stmt->funcproto.pvec, stmt->funcproto.rvec);
 	sym = STable_Add_IProto(ps->u->stbl, stmt->funcproto.id, proto);
 	if (sym) {
 		debug("add abstract func '%s' successful", stmt->funcproto.id);
@@ -594,7 +615,7 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 		struct stmt *s;
 		Vector_ForEach(s, stmt->class_info.body) {
 			if (s->kind == VARDECL_KIND) {
-				parse_vardecl(ps, s);
+				parse_new_var(ps, s);
 			} else if (s->kind == FUNCDECL_KIND) {
 				parse_funcdecl(ps, s);
 			} else {
@@ -792,7 +813,7 @@ static void parser_merge(ParserState *ps)
 			u->block = NULL;
 		}
 	} else if (u->scope == SCOPE_MODULE) {
-		TypeDesc *proto = Type_Proto_New(NULL, NULL);
+		TypeDesc *proto = Type_New_Proto(NULL, NULL);
 		Symbol *sym = STable_Add_Proto(u->stbl, "__init__", proto);
 		assert(sym);
 		debug("add 'return' to function '__init__'");
@@ -813,7 +834,7 @@ static void parser_merge(ParserState *ps)
 				u->sym->name);
 			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
 			if (!sym) {
-				TypeDesc *proto = Type_Proto_New(NULL, NULL);
+				TypeDesc *proto = Type_New_Proto(NULL, NULL);
 				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
 				Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -841,7 +862,7 @@ static void parser_merge(ParserState *ps)
 		}	else {
 			Symbol *sym = STable_Get(u->sym->ptr, "__init__");
 			if (!sym) {
-				TypeDesc *proto = Type_Proto_New(NULL, NULL);
+				TypeDesc *proto = Type_New_Proto(NULL, NULL);
 				sym = STable_Add_Proto(u->sym->ptr, "__init__", proto);
 				assert(sym);
 				Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -2484,14 +2505,12 @@ static void parser_return(ParserState *ps, struct stmt *stmt)
 		assertm(0, "invalid scope:%d", u->scope);
 	}
 
-	if (stmt->vec) {
-		struct expr *e;
-		Vector_ForEach(e, stmt->vec) {
-			e->ctx = EXPR_LOAD;
-			parser_visit_expr(ps, e);
-		}
+	struct expr *e;
+	Vector_ForEach(e, &stmt->vec) {
+		e->ctx = EXPR_LOAD;
+		parser_visit_expr(ps, e);
 	}
-	check_return_types(sym, stmt->vec);
+	check_return_types(sym, &stmt->vec);
 
 	Inst_Append(u->block, OP_RET, NULL);
 	u->block->bret = 1;

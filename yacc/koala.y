@@ -23,64 +23,12 @@ static int yyerror(ParserState *parser, void *scanner, const char *errmsg)
 
 #define ERRMSG "expected '%s' before '%s'"
 #define syntax_error(expected) \
-	yyerrok; Parser_Handle_Error(parser, ERRMSG, expected, Token)
+	yyerrok; Parser_Do_Error(parser, ERRMSG, expected, Token)
 #define syntax_error_clear(msg) yyclearin; yyerrok; \
-	Parser_Handle_Error(parser, "%s", msg)
+	Parser_Do_Error(parser, "%s", msg)
 
-/*---------------------------------------------------------------------------*/
-
-static Vector *new_vardecl_stmts(ParserState *ps, Vector *vars,
-	TypeDesc *desc, Vector *exprs, int bconst)
-{
-	int vsz = Vector_Size(vars);
-	int esz = Vector_Size(exprs);
-	if (esz != 0 && esz != vsz) {
-		Parser_Handle_Error(ps, "cannot assign %d values to %d variables",
-			esz, vsz);
-		free_vars(vars);
-		free_exprs(exprs);
-		Type_DecRef(desc);
-		return NULL;
-	}
-
-	Vector *ret = Vector_New();
-	struct var *var;
-	struct stmt *stmt;
-	struct expr *exp;
-	for (int i = 0; i < vsz; i++) {
-		var = Vector_Get(vars, i);
-		var->bconst = bconst;
-		var->desc = Type_IncRef(desc);
-
-		stmt = stmt_new(VARDECL_KIND);
-		stmt->vardecl.var = var;
-
-		if (esz > 0) {
-			exp = Vector_Get(exprs, i);
-			stmt->vardecl.exp = exp;
-			if (!var->desc && exp->desc) var->desc = Type_IncRef(exp->desc);
-		}
-
-		Vector_Append(ret, stmt);
-	}
-
-	Vector_Free(vars, NULL, NULL);
-	Vector_Free(exprs, NULL, NULL);
-	return ret;
-}
-
-static void free_vardecl_stmts(Vector *stmts)
-{
-	struct stmt *s;
-	Vector_ForEach(s, stmts) {
-		free_var(s->vardecl.var);
-		free_expr(s->vardecl.exp);
-		free_stmt(s);
-	}
-	Vector_Free(stmts, NULL, NULL);
-}
-
-/*---------------------------------------------------------------------------*/
+struct stmt *do_vardecl_list(ParserState *ps, Vector *vars, TypeDesc *desc,
+	Vector *exprs, int bconst);
 
 %}
 
@@ -187,29 +135,30 @@ static void free_vardecl_stmts(Vector *stmts)
 %type <list> ReturnTypeList
 %type <list> TypeList
 %type <list> ParameterList
-%type <operator> UnaryOperator
-%type <operator> CompoundAssignOperator
+%type <operator> UnaryOp
+%type <operator> CompAssignOp
 %type <list> VariableList
 %type <list> ExpressionList
 %type <list> PrimaryExpressionList
 %type <expr> Expression
-%type <expr> LogicalOrExpression
-%type <expr> LogicalAndExpression
-%type <expr> InclusiveOrExpression
-%type <expr> ExclusiveOrExpression
-%type <expr> AndExpression
-%type <expr> EqualityExpression
-%type <expr> RelationalExpression
-%type <expr> ShiftExpression
-%type <expr> AdditiveExpression
-%type <expr> MultiplicativeExpression
-%type <expr> UnaryExpression
-%type <expr> PrimaryExpression
+%type <expr> LogOrExpr
+%type <expr> LogAndExpr
+%type <expr> InclOrExpr
+%type <expr> ExclOrExpr
+%type <expr> AndExpr
+%type <expr> EqualityExpr
+%type <expr> RelationExpr
+%type <expr> ShiftExpr
+%type <expr> AddExpr
+%type <expr> MultiplExpr
+%type <expr> UnaryExpr
+%type <expr> PrimaryExpr
 %type <expr> ArrayObject
 %type <expr> AnonyFuncObject
+%type <expr> Atom
 %type <expr> CONSTANT
-%type <list> VariableDeclaration
-%type <list> ConstDeclaration
+%type <stmt> VariableDeclaration
+%type <stmt> ConstDeclaration
 %type <stmt> LocalStatement
 %type <stmt> Assignment
 %type <stmt> IfStatement
@@ -240,16 +189,13 @@ static void free_vardecl_stmts(Vector *stmts)
 %type <list> TraitMemberDeclarations
 %type <stmt> TraitMemberDeclaration
 
-%start CompileUnit
-
 %parse-param {ParserState *parser}
 %parse-param {void *scanner}
 %define api.pure full
 %lex-param {void *scanner}
+%code provides { int yylex(YYSTYPE *yylval_param, void *yyscanner); }
 
-%code provides {
-int yylex(YYSTYPE *yylval_param, void *yyscanner);
-}
+%start CompileUnit
 
 %%
 
@@ -277,11 +223,11 @@ MapType:
 ;
 
 PrimitiveType:
-	INTEGER { $$ = Type_New_Prime(PRIME_INT);    }
-| FLOAT   { $$ = Type_New_Prime(PRIME_FLOAT);  }
-| BOOL    { $$ = Type_New_Prime(PRIME_BOOL);   }
-| STRING  { $$ = Type_New_Prime(PRIME_STRING); }
-| ANY     { $$ = Type_New_Prime(PRIME_ANY);    }
+	INTEGER { $$ = Type_IncRef(&Int_Type);    }
+| FLOAT   { $$ = Type_IncRef(&Float_Type);  }
+| BOOL    { $$ = Type_IncRef(&Bool_Type);   }
+| STRING  { $$ = Type_IncRef(&String_Type); }
+| ANY     { $$ = Type_IncRef(&Any_Type);    }
 ;
 
 UsrDefType:
@@ -295,7 +241,7 @@ UsrDefType:
 		/* type in external module */
 		char *fullpath = Parser_Get_FullPath(parser, $1);
 		if (!fullpath) {
-			Parser_Error();
+			Parser_Handle_Error(parser, "cannot find '%s'", $1);
 			$$ = NULL;
 		} else {
 			$$ = Type_New_UsrDef(fullpath, $3);
@@ -304,32 +250,10 @@ UsrDefType:
 ;
 
 FunctionType:
-	FUNC '(' TypeList ')' ReturnTypeList
-	{
-		$$ = Type_New_Proto($3, $5);
-	}
-| FUNC '(' TypeList ')'
-	{
-		$$ = Type_New_Proto($3, NULL);
-	}
-| FUNC '(' ')' ReturnTypeList
-	{
-		$$ = Type_New_Proto(NULL, $4);
-	}
-| FUNC '(' ')'
-	{
-		$$ = Type_New_Proto(NULL, NULL);
-	}
-| FUNC '(' TypeList ',' ELLIPSIS ')' ReturnTypeList
-	{
-		Vector_Append($3, Type_New_Prime(PRIME_VARG));
-		$$ = Type_New_Proto($3, $7);
-	}
-| FUNC '(' TypeList ',' ELLIPSIS ')'
-	{
-		Vector_Append($3, Type_New_Prime(PRIME_VARG));
-		$$ = Type_New_Proto($3, NULL);
-	}
+	FUNC '(' TypeList ')' ReturnTypeList { $$ = Type_New_Proto($3, $5);     }
+| FUNC '(' TypeList ')'                { $$ = Type_New_Proto($3, NULL);   }
+| FUNC '(' ')' ReturnTypeList          { $$ = Type_New_Proto(NULL, $4);   }
+| FUNC '(' ')'                         { $$ = Type_New_Proto(NULL, NULL); }
 ;
 
 ReturnTypeList:
@@ -338,10 +262,7 @@ ReturnTypeList:
 		$$ = Vector_New();
 		Vector_Append($$, $1);
 	}
-| '(' TypeList ')'
-	{
-		$$ = $2;
-	}
+| '(' TypeList ')' { $$ = $2; }
 ;
 
 TypeList:
@@ -353,6 +274,11 @@ TypeList:
 | TypeList ',' Type
 	{
 		Vector_Append($1, $3);
+		$$ = $1;
+	}
+| TypeList ',' ELLIPSIS
+	{
+		Vector_Append($$, Type_IncRef(&Varg_Type));
 		$$ = $1;
 	}
 ;
@@ -393,22 +319,25 @@ ModuleStatements:
 
 ModuleStatement:
 	';' {}
-| VariableDeclaration ';'   { Parser_New_Vars(parser, $1);  }
-| ConstDeclaration ';'      { Parser_New_Vars(parser, $1);  }
-| FunctionDeclaration       { parse_func(parser, $1);  }
-| TypeDeclaration           { parse_type(parser, $1);  }
-| TypeAliasDeclaration      { parse_alias(parser, $1); }
+| VariableDeclaration ';'   { Parser_New_Vars(parser, $1);         }
+| ConstDeclaration ';'      { Parser_New_Vars(parser, $1);         }
+| FunctionDeclaration       { Parser_New_Func(parser, $1);         }
+| TypeDeclaration           { Parser_New_ClassOrTrait(parser, $1); }
+| TypeAliasDeclaration      { Parser_New_TypeAlias(parser, $1);    }
 | VariableDeclaration error
 	{
-		free_vardecl_stmts(parser, $1);
+		stmt_free_vardecl_list($1);
 		syntax_error(";");
 	}
 | ConstDeclaration error
 	{
-		free_vardecl_stmts(parser, $1);
+		stmt_free_vardecl_list($1);
 		syntax_error(";");
 	}
-| error { syntax_error_clear("invalid statement"); }
+| error
+	{
+		syntax_error_clear("invalid statement");
+	}
 ;
 
 /*---------------------------------------------------------------------------*/
@@ -416,20 +345,20 @@ ModuleStatement:
 ConstDeclaration:
 	CONST VariableList '=' ExpressionList
 	{
-		$$ = new_vardecl_stmts(parser, $2, NULL, $4, 1);
+		$$ = do_vardecl_list(parser, $2, NULL, $4, 1);
 	}
 | CONST VariableList Type '=' ExpressionList
 	{
-		$$ = new_vardecl_stmts(parser, $2, $3, $5, 1);
+		$$ = do_vardecl_list(parser, $2, $3, $5, 1);
 	}
 | CONST VariableList '=' error
 	{
-		syntax_error("right's expression-list");
+		syntax_error("rexpr-list");
 		$$ = NULL;
 	}
 | CONST VariableList Type '=' error
 	{
-		syntax_error("right's expression-list");
+		syntax_error("rexpr-list");
 		$$ = NULL;
 	}
 | CONST error
@@ -442,15 +371,15 @@ ConstDeclaration:
 VariableDeclaration:
 	VAR VariableList Type
 	{
-		$$ = new_vardecl_stmts(parser, $2, $3, NULL, 0);
+		$$ = do_vardecl_list(parser, $2, $3, NULL, 0);
 	}
 | VAR VariableList '=' ExpressionList
 	{
-		$$ = new_vardecl_stmts(parser, $2, NULL, $4, 0);
+		$$ = do_vardecl_list(parser, $2, NULL, $4, 0);
 	}
 | VAR VariableList Type '=' ExpressionList
 	{
-		$$ = new_vardecl_stmts(parser, $2, $3, $5, 0);
+		$$ = do_vardecl_list(parser, $2, $3, $5, 0);
 	}
 | VAR VariableList error
 	{
@@ -489,41 +418,47 @@ VariableList:
 
 /*---------------------------------------------------------------------------*/
 
-FunctionDeclaration
-	: FUNC ID '(' ParameterList ')' ReturnTypeList Block {
-		// $$ = stmt_from_funcdecl($2, $3, $4, $5);
+FunctionDeclaration:
+	FUNC ID '(' ParameterList ')' ReturnTypeList Block
+	{
+		$$ = stmt_from_funcdecl($2, $4, $6, $7);
 	}
-	| FUNC ID '(' ParameterList ')' Block {
-
+| FUNC ID '(' ParameterList ')' Block
+	{
+		$$ = stmt_from_funcdecl($2, $4, NULL, $6);
 	}
-	| FUNC ID '(' ')' ReturnTypeList Block {
-		// $$ = stmt_from_funcdecl($2, $3, $4, $5);
+| FUNC ID '(' ')' ReturnTypeList Block
+	{
+		$$ = stmt_from_funcdecl($2, NULL, $5, $6);
 	}
-	| FUNC ID '(' ')' Block {
-
+| FUNC ID '(' ')' Block
+	{
+		$$ = stmt_from_funcdecl($2, NULL, NULL, $5);
 	}
-	| FUNC ID '(' ParameterList ',' ID ELLIPSIS ')' ReturnTypeList Block {
-
-	}
-	| FUNC ID '(' ParameterList ',' ID ELLIPSIS ')' Block {
-
-	}
-	| FUNC error {
+| FUNC error
+	{
 		syntax_error(parser, EXPECTED, "ID", Lexer_Token);
 		$$ = NULL;
 	}
-	;
+;
 
-ParameterList
-	: ID Type {
+ParameterList:
+	ID Type
+	{
 		$$ = Vector_New();
-		//Vector_Append($$, new_var($1, $2));
+		Vector_Append($$, new_var($1, $2));
 	}
-	| ParameterList ',' ID Type {
-		//Vector_Append($$, new_var($3, $4));
+| ParameterList ',' ID Type
+	{
+		Vector_Append($$, new_var($3, $4));
 		$$ = $1;
 	}
-	;
+| ParameterList ',' ID ELLIPSIS
+	{
+		Vector_Append($$, new_var($3, Type_IncRef(&Varg_Type)));
+		$$ = $1;
+	}
+;
 
 /*---------------------------------------------------------------------------*/
 
@@ -532,13 +467,13 @@ TypeAliasDeclaration
 		// $$ = stmt_from_typealias($2, $3);
 	}
 	| TYPEALIAS ID Type error {
-		syntax_error(parser, EXPECTED, ";", Lexer_Token);
+		syntax_error(";");
 	}
 	| TYPEALIAS ID error {
-		syntax_error(parser, EXPECTED, "TYPE", Lexer_Token);
+		syntax_error("TYPE");
 	}
 	| TYPEALIAS error {
-		syntax_error(parser, EXPECTED, "ID", Lexer_Token);
+		syntax_error("ID");
 	}
 	;
 
@@ -546,19 +481,19 @@ TypeAliasDeclaration
 
 TypeDeclaration
 	: CLASS ID ExtendsOrEmpty '{' MemberDeclarations '}' {
-		$$ = $3;
-		$$->class_info.id = $2;
-		$$->class_info.body = $5;
+		//$$ = $3;
+		//$$->class_info.id = $2;
+		//$$->class_info.body = $5;
 	}
 	| TRAIT ID WithesOrEmpty '{' TraitMemberDeclarations '}' {
-		$$ = stmt_from_trait($2, $3, $5);
+		//$$ = stmt_from_trait($2, $3, $5);
 	}
 	| CLASS ID ExtendsOrEmpty ';' {
-		$$ = $3;
-		$$->class_info.id = $2;
+		//$$ = $3;
+		//$$->class_info.id = $2;
 	}
 	| TRAIT ID WithesOrEmpty ';' {
-		$$ = stmt_from_trait($2, $3, NULL);
+		//$$ = stmt_from_trait($2, $3, NULL);
 	}
 	;
 
@@ -665,87 +600,65 @@ ProtoDeclaration
 	| FUNC ID '(' ')' ';' {
 
 	}
-	| FUNC ID '(' TypeList ',' ELLIPSIS ')' ReturnTypeList ';' {
-
-	}
-	| FUNC ID '(' TypeList ',' ELLIPSIS ')' ';' {
-
-	}
 	;
 
 /*---------------------------------------------------------------------------*/
 
-Block
-	: '{' LocalStatements '}' {
-		$$ = $2;
-	}
-	| '{' '}' {}
-	;
+Block:
+	'{' LocalStatements '}' { $$ = $2;   }
+| '{' '}'                 { $$ = NULL; }
+;
 
-LocalStatements
-	: LocalStatement {
+LocalStatements:
+	LocalStatement
+	{
 		$$ = Vector_New();
 		if ($1 != NULL) Vector_Append($$, $1);
 	}
-	| LocalStatements LocalStatement {
+| LocalStatements LocalStatement
+	{
 		if ($2 != NULL) Vector_Append($1, $2);
 		$$ = $1;
 	}
-	;
+;
 
 LocalStatement:
- ';' {
-		$$ = NULL;
+ ';'                      { $$ = NULL;                }
+| Expression ';'          { $$ = stmt_from_expr($1);  }
+| VariableDeclaration ';' { $$ = $1;                  }
+| Assignment ';'          { $$ = $1;                  }
+| IfStatement             { $$ = $1;                  }
+| WhileStatement          { $$ = $1;                  }
+| SwitchStatement         {                           }
+| ForStatement            {                           }
+| JumpStatement           { $$ = $1;                  }
+| ReturnStatement         { $$ = $1;                  }
+| Block                   { $$ = stmt_from_block($1); }
+| GoStatement             {                           }
+| Expression error
+	{
+		//free
+		syntax_error(";"); $$ = NULL;
 	}
-	| Expression ';' {
-		$$ = stmt_from_expr($1);
+| VariableDeclaration error
+	{
+		//free
+		syntax_error(";"); $$ = NULL;
 	}
-	| Expression error {
-		syntax_error(parser, EXPECTED, ";", Lexer_Token);
-		$$ = NULL;
+| Assignment error
+	{
+		//free
+		syntax_error(";"); $$ = NULL;
 	}
-	| VariableDeclaration ';' {
-		$$ = $1;
-	}
-	| Assignment ';' {
-		$$ = $1;
-	}
-	| Assignment error {
-		syntax_error(parser, EXPECTED, ";", Lexer_Token);
-		$$ = NULL;
-	}
-	| IfStatement {
-		$$ = $1;
-	}
-	| WhileStatement {
-		$$ = $1;
-	}
-	| SwitchStatement {
-
-	}
-	| ForStatement {
-
-	}
-	| JumpStatement {
-		$$ = $1;
-	}
-	| ReturnStatement {
-		$$ = $1;
-	}
-	| Block {
-		stmt_from_block($1);
-	}
-	| GoStatement {
-	}
-	;
+;
 
 /*---------------------------------------------------------------------------*/
 
 GoStatement
-	: GO PrimaryExpression '(' ExpressionList ')' ';' {
+	: GO PrimaryExpr '(' ExpressionList ')' ';' {
 		$$ = stmt_from_go(expr_from_trailer(CALL_KIND, $4, $2));
 	}
-	| GO PrimaryExpression '(' ')' ';' {
+	| GO PrimaryExpr '(' ')' ';' {
 		$$ = stmt_from_go(expr_from_trailer(CALL_KIND, NULL, $2));
 	}
 	;
@@ -913,94 +826,85 @@ ReturnStatement
 
 /*---------------------------------------------------------------------------*/
 
-PrimaryExpression
-	: Atom {
-
+PrimaryExpr:
+	Atom
+	{
+		$$ = $1;
 	}
-	| PrimaryExpression '.' ID {
+| PrimaryExpr '.' ID
+	{
 		/* $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
 		Parser_SetLine(parser, $$); */
 	}
-	| PrimaryExpression '[' Expression ']' {
+| PrimaryExpr '[' Expression ']'
+	{
 		/* $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
 		Parser_SetLine(parser, $$); */
 	}
-	| PrimaryExpression '(' ExpressionList ')' {
+| PrimaryExpr '(' ExpressionList ')'
+	{
 		/* $$ = expr_from_trailer(CALL_KIND, $3, $1);
 		Parser_SetLine(parser, $$); */
 	}
-	| PrimaryExpression '(' ')' {
+| PrimaryExpr '(' ')'
+	{
 		/* $$ = expr_from_trailer(CALL_KIND, NULL, $1);
 		Parser_SetLine(parser, $$); */
 	}
-	| PrimaryExpression '['  Expression ':' Expression ']' {
+| PrimaryExpr '['  Expression ':' Expression ']'
+	{
 
 	}
-	;
+;
 
-Atom
-	: ID {
-		/* $$ = $1;
-		Parser_SetLine(parser, $$); */
+Atom:
+	CONSTANT
+	{
+		$$ = $1;
+		Parser_SetLine(parser, $$);
 	}
-	| CONSTANT {
-
+| SELF
+	{
+		$$ = expr_from_self();
 	}
-	| SELF {
-		/* $$ = expr_from_self(); */
-	}
-	| SUPER {
+| SUPER
+	{
 		/* $$ = expr_from_super(); */
 	}
-	| TYPEOF {
+| TYPEOF
+	{
 		/* $$ = expr_from_typeof(); */
 	}
-	| '(' Expression ')' {
-		/* $$ = $2; */
+| ID
+	{
 	}
-	| ArrayObject {
-		//$$ = $1;
+| '(' Expression ')'
+	{
+		$$ = $2;
 	}
-	| DictObject {
+| ArrayObject
+	{
+	}
+| DictObject
+	{
+	}
+| AnonyFuncObject
+	{
+	}
+;
 
-	}
-	| AnonyFuncObject {
-
-	}
-	;
-
-/* 常量(当做对象)允许访问成员变量和成员方法 */
-CONSTANT
-	: INT_CONST {
-		$$ = expr_from_int($1);
-	}
-	| FLOAT_CONST {
-		$$ = expr_from_float($1);
-	}
-	| STRING_CONST {
-		$$ = expr_from_string($1);
-	}
-	| TOKEN_NIL {
-		$$ = expr_from_nil();
-	}
-	| TOKEN_TRUE {
-		$$ = expr_from_bool(1);
-	}
-	| TOKEN_FALSE {
-		$$ = expr_from_bool(0);
-	}
-	;
-
-/*---------------------------------------------------------------------------*/
+CONSTANT:
+	INT_CONST    { $$ = expr_from_int($1);    }
+| FLOAT_CONST  { $$ = expr_from_float($1);  }
+| STRING_CONST { $$ = expr_from_string($1); }
+| TOKEN_NIL    { $$ = &NilExpr;             }
+| TOKEN_TRUE   { $$ = &TrueExpr;            }
+| TOKEN_FALSE  { $$ = &FalseExpr;           }
+;
 
 ArrayObject:
-	'[' ExpressionList ']' {
-		/* $2->dims = $1; */
-		/* $$ = expr_from_array($2, NULL, $4); */
-	}
-| '[' ']' {
-
-	}
+	'[' ExpressionList ']' {}
+| '[' ']' {}
 ;
 
 DictObject:
@@ -1008,240 +912,176 @@ DictObject:
 | '{' ':' '}' {}
 ;
 
-AnonyFuncObject
-	: FUNC '(' ParameterList ')' ReturnTypeList Block {
+AnonyFuncObject:
+	FUNC '(' ParameterList ')' ReturnTypeList Block
+	{
 		// $$ = expr_from_anonymous_func($2, $3, $4);
 	}
-	| FUNC '(' ParameterList ')' Block {
+| FUNC '(' ParameterList ')' Block
+	{
 
 	}
-	| FUNC '(' ')' ReturnTypeList Block {
+| FUNC '(' ')' ReturnTypeList Block
+	{
 
 	}
-	| FUNC '(' ')' Block {
+| FUNC '(' ')' Block
+	{
 
 	}
-	| FUNC '(' ParameterList ',' ID ELLIPSIS ')' ReturnTypeList Block {
-
-	}
-	| FUNC '(' ParameterList ',' ID ELLIPSIS ')' Block {
-
-	}
-	| FUNC error {
-		syntax_error_clearin(parser, "anonymous function needs no func-name");
+| FUNC error
+	{
+		syntax_error_clear("invalid anonymous function");
 		$$ = NULL;
 	}
-	;
+;
 
 /*---------------------------------------------------------------------------*/
 
-UnaryExpression
-	: PrimaryExpression {
-		$$ = $1;
-	}
-	| UnaryOperator UnaryExpression {
-		$$ = expr_from_unary($1, $2);
-	}
-	;
+UnaryExpr:
+	PrimaryExpr { $$ = $1; }
+| UnaryOp UnaryExpr { $$ = expr_from_unary($1, $2); }
+;
 
-UnaryOperator
-	: '+' {
-		$$ = UNARY_PLUS;
-	}
-	| '-' {
-		$$ = UNARY_MINUS;
-	}
-	| '~' {
-		$$ = UNARY_BIT_NOT;
-	}
-	| NOT {
-		$$ = UNARY_LNOT;
-	}
-	;
+UnaryOp:
+	'+' { $$ = UNARY_PLUS;    }
+| '-' { $$ = UNARY_MINUS;   }
+| '~' { $$ = UNARY_BIT_NOT; }
+| NOT { $$ = UNARY_LNOT;    }
+;
 
-MultiplicativeExpression
-	: UnaryExpression {
-		$$ = $1;
-	}
-	| MultiplicativeExpression '*' UnaryExpression {
-		$$ = expr_from_binary(BINARY_MULT, $1, $3);
-	}
-	| MultiplicativeExpression '/' UnaryExpression {
-		$$ = expr_from_binary(BINARY_DIV, $1, $3);
-	}
-	| MultiplicativeExpression '%' UnaryExpression {
-		$$ = expr_from_binary(BINARY_MOD, $1, $3);
-	}
-	;
+MultiplExpr:
+	UnaryExpr { $$ = $1; }
+| MultiplExpr '*' UnaryExpr { $$ = expr_from_binary(BINARY_MULT, $1, $3); }
+| MultiplExpr '/' UnaryExpr { $$ = expr_from_binary(BINARY_DIV, $1, $3);  }
+| MultiplExpr '%' UnaryExpr { $$ = expr_from_binary(BINARY_MOD, $1, $3);  }
+;
 
-AdditiveExpression
-	: MultiplicativeExpression {
-		$$ = $1;
-	}
-	| AdditiveExpression '+' MultiplicativeExpression {
-		$$ = expr_from_binary(BINARY_ADD, $1, $3);
-	}
-	| AdditiveExpression '-' MultiplicativeExpression {
-		$$ = expr_from_binary(BINARY_SUB, $1, $3);
-	}
-	;
+AddExpr:
+	MultiplExpr { $$ = $1; }
+| AddExpr '+' MultiplExpr { $$ = expr_from_binary(BINARY_ADD, $1, $3); }
+| AddExpr '-' MultiplExpr { $$ = expr_from_binary(BINARY_SUB, $1, $3); }
+;
 
-ShiftExpression
-	: AdditiveExpression {
-		$$ = $1;
-	}
-	| ShiftExpression LSHIFT AdditiveExpression {
-		$$ = expr_from_binary(BINARY_LSHIFT, $1, $3);
-	}
-	| ShiftExpression RSHIFT AdditiveExpression {
-		$$ = expr_from_binary(BINARY_RSHIFT, $1, $3);
-	}
-	;
+ShiftExpr:
+	AddExpr { $$ = $1; }
+| ShiftExpr LSHIFT AddExpr { $$ = expr_from_binary(BINARY_LSHIFT, $1, $3); }
+| ShiftExpr RSHIFT AddExpr { $$ = expr_from_binary(BINARY_RSHIFT, $1, $3); }
+;
 
-RelationalExpression
-	: ShiftExpression {
-		$$ = $1;
-	}
-	| RelationalExpression '<' ShiftExpression {
-		$$ = expr_from_binary(BINARY_LT, $1, $3);
-	}
-	| RelationalExpression '>' ShiftExpression {
-		$$ = expr_from_binary(BINARY_GT, $1, $3);
-	}
-	| RelationalExpression LE  ShiftExpression {
-		$$ = expr_from_binary(BINARY_LE, $1, $3);
-	}
-	| RelationalExpression GE  ShiftExpression {
-		$$ = expr_from_binary(BINARY_GE, $1, $3);
-	}
-	;
+RelationExpr:
+	ShiftExpr { $$ = $1; }
+| RelationExpr '<' ShiftExpr { $$ = expr_from_binary(BINARY_LT, $1, $3); }
+| RelationExpr '>' ShiftExpr { $$ = expr_from_binary(BINARY_GT, $1, $3); }
+| RelationExpr LE  ShiftExpr { $$ = expr_from_binary(BINARY_LE, $1, $3); }
+| RelationExpr GE  ShiftExpr { $$ = expr_from_binary(BINARY_GE, $1, $3); }
+;
 
-EqualityExpression
-	: RelationalExpression {
-		$$ = $1;
-	}
-	| EqualityExpression EQ RelationalExpression {
-		$$ = expr_from_binary(BINARY_EQ, $1, $3);
-	}
-	| EqualityExpression NE RelationalExpression {
-		$$ = expr_from_binary(BINARY_NEQ, $1, $3);
-	}
-	;
+EqualityExpr:
+	RelationExpr                 { $$ = $1; }
+| EqualityExpr EQ RelationExpr { $$ = expr_from_binary(BINARY_EQ, $1, $3);  }
+| EqualityExpr NE RelationExpr { $$ = expr_from_binary(BINARY_NEQ, $1, $3); }
+;
 
-AndExpression
-	: EqualityExpression {
-		$$ = $1;
-	}
-	| AndExpression '&' EqualityExpression {
-		$$ = expr_from_binary(BINARY_BIT_AND, $1, $3);
-	}
-	;
+AndExpr:
+	EqualityExpr { $$ = $1; }
+| AndExpr '&' EqualityExpr { $$ = expr_from_binary(BINARY_BIT_AND, $1, $3); }
+;
 
-ExclusiveOrExpression
-	: AndExpression {
-		$$ = $1;
-	}
-	| ExclusiveOrExpression '^' AndExpression {
-		$$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);
-	}
-	;
+ExclOrExpr:
+	AndExpr { $$ = $1; }
+| ExclOrExpr '^' AndExpr { $$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);}
+;
 
-InclusiveOrExpression
-	: ExclusiveOrExpression {
-		$$ = $1;
-	}
-	| InclusiveOrExpression '|' ExclusiveOrExpression {
-		$$ = expr_from_binary(BINARY_BIT_OR, $1, $3);
-	}
-	;
+InclOrExpr:
+	ExclOrExpr { $$ = $1; }
+| InclOrExpr '|' ExclOrExpr { $$ = expr_from_binary(BINARY_BIT_OR, $1, $3); }
+;
 
-LogicalAndExpression
-	: InclusiveOrExpression {
-		$$ = $1;
-	}
-	| LogicalAndExpression AND InclusiveOrExpression {
-		$$ = expr_from_binary(BINARY_LAND, $1, $3);
-	}
-	;
+LogAndExpr:
+	InclOrExpr { $$ = $1; }
+| LogAndExpr AND InclOrExpr { $$ = expr_from_binary(BINARY_LAND, $1, $3); }
+;
 
-LogicalOrExpression
-	: LogicalAndExpression {
-		$$ = $1;
-	}
-	| LogicalOrExpression OR LogicalAndExpression {
-		$$ = expr_from_binary(BINARY_LOR, $1, $3);
-	}
-	;
+LogOrExpr:
+	LogAndExpr { $$ = $1; }
+| LogOrExpr OR LogAndExpr { $$ = expr_from_binary(BINARY_LOR, $1, $3); }
+;
 
-Expression
-	: LogicalOrExpression {
-		$$ = $1;
-	}
-	;
+/*---------------------------------------------------------------------------*/
 
-ExpressionList
-	: Expression {
+Expression:
+	LogOrExpr { $$ = $1; }
+;
+
+ExpressionList:
+	Expression
+	{
 		$$ = Vector_New();
 		Vector_Append($$, $1);
 	}
-	| ExpressionList ',' Expression {
+| ExpressionList ',' Expression
+	{
 		Vector_Append($1, $3);
 		$$ = $1;
 	}
-	;
+;
 
-Assignment
-	: PrimaryExpressionList '=' ExpressionList {
+Assignment:
+	PrimaryExpressionList '=' ExpressionList
+	{
 		//$$ = stmt_from_assignlist($1, OP_ASSIGN, $3);
 	}
-	| PrimaryExpression CompoundAssignOperator Expression {
+| PrimaryExpr CompAssignOp Expression
+	{
 		//$$ = stmt_from_compound_assign($1, $2, $3);
 	}
-	;
+;
 
-PrimaryExpressionList
-	: PrimaryExpression {
+PrimaryExpressionList:
+	PrimaryExpr
+	{
 		$$ = Vector_New();
 		Vector_Append($$, $1);
 	}
-	| PrimaryExpressionList ',' PrimaryExpression {
+| PrimaryExpressionList ',' PrimaryExpr
+	{
 		Vector_Append($1, $3);
 		$$ = $1;
 	}
-	;
+;
 
 /* 组合赋值运算符：算术运算和位运算 */
-CompoundAssignOperator
-	: PLUS_ASSGIN {
-		$$ = OP_PLUS_ASSIGN;
-	}
-	| MINUS_ASSIGN {
-		$$ = OP_MINUS_ASSIGN;
-	}
-	| MULT_ASSIGN {
-		$$ = OP_MULT_ASSIGN;
-	}
-	| DIV_ASSIGN {
-		$$ = OP_DIV_ASSIGN;
-	}
-	| MOD_ASSIGN {
-		$$ = OP_MOD_ASSIGN;
-	}
-	| AND_ASSIGN {
-		$$ = OP_AND_ASSIGN;
-	}
-	| OR_ASSIGN {
-		$$ = OP_OR_ASSIGN;
-	}
-	| XOR_ASSIGN {
-		$$ = OP_XOR_ASSIGN;
-	}
-	| RSHIFT_ASSIGN {
-		$$ = OP_RSHIFT_ASSIGN;
-	}
-	| LSHIFT_ASSIGN {
-		$$ = OP_LSHIFT_ASSIGN;
-	}
-	;
+CompAssignOp:
+	PLUS_ASSGIN   { $$ = OP_PLUS_ASSIGN;   }
+| MINUS_ASSIGN  { $$ = OP_MINUS_ASSIGN;  }
+| MULT_ASSIGN   { $$ = OP_MULT_ASSIGN;   }
+| DIV_ASSIGN    { $$ = OP_DIV_ASSIGN;    }
+| MOD_ASSIGN    { $$ = OP_MOD_ASSIGN;    }
+| AND_ASSIGN    { $$ = OP_AND_ASSIGN;    }
+| OR_ASSIGN     { $$ = OP_OR_ASSIGN;     }
+| XOR_ASSIGN    { $$ = OP_XOR_ASSIGN;    }
+| RSHIFT_ASSIGN { $$ = OP_RSHIFT_ASSIGN; }
+| LSHIFT_ASSIGN { $$ = OP_LSHIFT_ASSIGN; }
+;
 
 %%
+
+struct stmt *do_vardecl_list(ParserState *ps, Vector *vars, TypeDesc *desc,
+	Vector *exprs, int bconst)
+{
+	int vsz = Vector_Size(vars);
+	int esz = Vector_Size(exprs);
+	if (esz != 0 && esz != vsz) {
+		Parser_Do_Error(ps, "cannot assign %d values to %d variables", esz, vsz);
+		free_vars(vars);
+		free_exprs(exprs);
+		Type_DecRef(desc);
+		return NULL;
+	}
+
+	struct stmt *stmt = stmt_from_vardecl_list(vars, desc, exprs, bconst);
+	Vector_Free(vars, NULL, NULL);
+	Vector_Free(exprs, NULL, NULL);
+	return stmt;
+}

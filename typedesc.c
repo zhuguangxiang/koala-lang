@@ -2,28 +2,28 @@
 #include "typedesc.h"
 #include "log.h"
 
-static TypeDesc Byte_Type = {
+TypeDesc Byte_Type = {
 	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_BYTE
 };
-static TypeDesc Char_Type = {
+TypeDesc Char_Type = {
 	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_CHAR
 };
-static TypeDesc Int_Type = {
+TypeDesc Int_Type = {
 	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_INT
 };
-static TypeDesc Float_Type = {
+TypeDesc Float_Type = {
 	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_FLOAT
 };
-static TypeDesc Bool_Type = {
+TypeDesc Bool_Type = {
 	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_BOOL
 };
-static TypeDesc String_Type = {
+TypeDesc String_Type = {
 	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_STRING
 };
-static TypeDesc Any_Type = {
+TypeDesc Any_Type = {
 	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_ANY
 };
-static TypeDesc Varg_Type = {
+TypeDesc Varg_Type = {
 	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_VARG
 };
 
@@ -124,13 +124,6 @@ void Type_Free(TypeDesc *desc)
 			assertm(0, "unknown type's kind %d\n", kind);
 		}
 	}
-}
-
-TypeDesc *Type_New_Prime(int prime)
-{
-	TypeDesc *desc = prime_type(prime);
-	++desc->refcnt;
-	return desc;
 }
 
 TypeDesc *Type_New_UsrDef(char *path, char *type)

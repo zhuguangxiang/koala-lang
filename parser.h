@@ -72,7 +72,7 @@ void codeblock_free(CodeBlock *b);
 
 typedef struct import {
 	HashNode hnode;
-	Line line;
+	LineInfo line;
 	char *path;
 	Symbol *sym;
 } Import;
@@ -125,7 +125,7 @@ void Parser_PrintError(ParserState *ps, LineInfo *l, char *fmt, ...);
 // API used by lex
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
-#define Parser_Handle_Error(ps, errmsg, ...) do { \
+#define Parser_Do_Error(ps, errmsg, ...) do { \
 	if (ps->errnum >= MAX_ERRORS) { \
 		fprintf(stderr, "Too many errors.\n"); \
 		exit(-1); \
@@ -143,7 +143,7 @@ void Lexer_DoUserAction(ParserState *ps, char *text);
 
 // Exported API
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path);
-void Parser_New_Vars(ParserState *ps, Vector *stmts);
+void Parser_New_Vars(ParserState *ps, struct stmt *stmt);
 void Parse_Function(ParserState *ps, struct stmt *stmt);
 void Parse_UserDef(ParserState *ps, struct stmt *stmt);
 void Parse_TypeAlias(ParserState *ps, struct stmt *stmt);

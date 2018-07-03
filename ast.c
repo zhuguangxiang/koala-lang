@@ -1,6 +1,18 @@
 
-#include "parser.h"
+#include "ast.h"
 #include "log.h"
+
+struct expr NilExpr = {
+
+};
+
+struct expr TrueExpr = {
+
+};
+
+struct expr FalseExpr = {
+
+};
 
 /*-------------------------------------------------------------------------*/
 
@@ -21,7 +33,7 @@ struct expr *expr_from_id(char *id)
 struct expr *expr_from_int(int64 ival)
 {
 	struct expr *expr = expr_new(INT_KIND);
-	expr->desc = TypeDesc_From_Primitive(PRIMITIVE_INT);
+	expr->desc = Type_IncRef(&Int_Type);
 	expr->ival = ival;
 	return expr;
 }
@@ -29,7 +41,7 @@ struct expr *expr_from_int(int64 ival)
 struct expr *expr_from_float(float64 fval)
 {
 	struct expr *expr = expr_new(FLOAT_KIND);
-	expr->desc = TypeDesc_From_Primitive(PRIMITIVE_FLOAT);
+	expr->desc = Type_IncRef(&Float_Type);
 	expr->fval = fval;
 	return expr;
 }
@@ -37,7 +49,7 @@ struct expr *expr_from_float(float64 fval)
 struct expr *expr_from_string(char *str)
 {
 	struct expr *expr = expr_new(STRING_KIND);
-	expr->desc = TypeDesc_From_Primitive(PRIMITIVE_STRING);
+	expr->desc = Type_IncRef(&String_Type);
 	expr->str = str;
 	return expr;
 }
@@ -45,7 +57,7 @@ struct expr *expr_from_string(char *str)
 struct expr *expr_from_bool(int bval)
 {
 	struct expr *expr = expr_new(BOOL_KIND);
-	expr->desc = TypeDesc_From_Primitive(PRIMITIVE_BOOL);
+	expr->desc = Type_IncRef(&Bool_Type);
 	expr->bval = bval;
 	return expr;
 }
@@ -173,25 +185,10 @@ void stmt_free(struct stmt *stmt)
 	free(stmt);
 }
 
-struct stmt *stmt_from_vector(int kind, Vector *vec)
-{
-	struct stmt *stmt = stmt_new(kind);
-	stmt->vec = vec;
-	return stmt;
-}
-
 struct stmt *stmt_from_expr(struct expr *exp)
 {
 	struct stmt *stmt = stmt_new(EXPR_KIND);
 	stmt->exp = exp;
-	return stmt;
-}
-
-struct stmt *stmt_from_import(char *id, char *path)
-{
-	struct stmt *stmt = stmt_new(IMPORT_KIND);
-	stmt->import.id = id;
-	stmt->import.path = path;
 	return stmt;
 }
 
@@ -204,56 +201,8 @@ struct stmt *stmt_from_vardecl(struct var *var, struct expr *exp, int bconst)
 	return stmt;
 }
 
-struct stmt *stmt_from_varlistdecl(Vector *vars, Vector *exps,
-	TypeDesc *desc, int bconst)
-{
-	int vsz = Vector_Size(vars);
-	int esz = Vector_Size(exps);
-	if (esz != 0 && esz != vsz) {
-		error("cannot assign %d values to %d variables", esz, vsz);
-		return NULL;
-	}
-
-	struct var *var;
-	struct stmt *stmt;
-	struct expr *rexp;
-	Vector *vec = NULL;
-	for (int i = 0; i < vsz; i++) {
-		var = Vector_Get(vars, i);
-		var->bconst = bconst;
-		var->desc = desc;
-		stmt = stmt_new(VARDECL_KIND);
-		stmt->vardecl.var = var;
-
-		if (esz > 0) {
-			rexp = Vector_Get(exps, i);
-			stmt->vardecl.exp = rexp;
-
-			if (var->desc && rexp->desc) {
-				if (!TypeDesc_Check(var->desc, rexp->desc)) {
-					error("type check failed");
-					vec_stmt_free(vec);
-					return NULL;
-				}
-			}
-
-			if (!var->desc) var->desc = rexp->desc;
-		}
-
-		if (!var->desc) warn("'%s' type isnot set", var->id);
-
-		if (vsz > 1) {
-			if (vec) Vector_Append(vec, stmt);
-			else vec = Vector_New();
-		}
-	}
-	if (vsz > 1) stmt = stmt_from_vector(VARDECL_LIST_KIND, vec);
-
-	return stmt;
-}
-
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
-																Vector *body)
+	Vector *body)
 {
 	struct stmt *stmt = stmt_new(FUNCDECL_KIND);
 	stmt->funcdecl.id = id;
@@ -280,7 +229,7 @@ struct stmt *stmt_from_assign2(Vector *left, Vector *right)
 		lexp = Vector_Get(left, i);
 		rexp = Vector_Get(right, i);
 		if ((lexp->desc != NULL) && (rexp->desc != NULL)) {
-			if (!TypeDesc_Check(lexp->desc, rexp->desc)) {
+			if (!Type_Equal(lexp->desc, rexp->desc)) {
 				error("type check failed");
 				vec_stmt_free(vec);
 				return NULL;
@@ -295,19 +244,20 @@ struct stmt *stmt_from_assign2(Vector *left, Vector *right)
 		}
 	}
 
-	if (vsz > 1) stmt = stmt_from_vector(ASSIGN_LIST_KIND, vec);
+	//FIXME
+	//if (vsz > 1) stmt = stmt_from_vector(ASSIGN_LIST_KIND, vec);
 
 	return stmt;
 }
 
 struct stmt *stmt_from_block(Vector *block)
 {
-	return stmt_from_vector(BLOCK_KIND, block);
+	return NULL; //stmt_from_vector(BLOCK_KIND, block);
 }
 
 struct stmt *stmt_from_return(Vector *vec)
 {
-	return stmt_from_vector(RETURN_KIND, vec);
+	return NULL; //stmt_from_vector(RETURN_KIND, vec);
 }
 
 struct stmt *stmt_from_assign(struct expr *left, enum assign_operator op,
@@ -424,6 +374,49 @@ struct stmt *stmt_from_typealias(char *id, TypeDesc *desc)
 	stmt->typealias.id = id;
 	stmt->typealias.desc = desc;
 	return stmt;
+}
+
+struct stmt *stmt_from_vardecl_list(Vector *vars, TypeDesc *desc, Vector *exprs,
+	int bconst)
+{
+	int vsz = Vector_Size(vars);
+	int esz = Vector_Size(exprs);
+
+	struct stmt *stmt = stmt_new(VARDECL_LIST_KIND);
+	Vector_Init(&stmt->vec);
+
+	struct var *var;
+	struct stmt *s;
+	struct expr *exp;
+	for (int i = 0; i < vsz; i++) {
+		var = Vector_Get(vars, i);
+		var->bconst = bconst;
+		var->desc = Type_IncRef(desc);
+
+		s = stmt_new(VARDECL_KIND);
+		s->vardecl.var = var;
+
+		if (esz > 0) {
+			exp = Vector_Get(exprs, i);
+			s->vardecl.exp = exp;
+			if (!var->desc && exp->desc) var->desc = Type_IncRef(exp->desc);
+		}
+
+		Vector_Append(&stmt->vec, s);
+	}
+
+	return stmt;
+}
+
+static void stmt_free_vardecl_list(struct stmt *stmt)
+{
+	struct stmt *s;
+	Vector_ForEach(s, &stmt->vec) {
+		free_var(s->vardecl.var);
+		free_expr(s->vardecl.exp);
+		free_stmt(s);
+	}
+	stmt_free(stmt);
 }
 
 /*---------------------------------------------------------------------------*/

@@ -60,7 +60,7 @@ struct expr {
 	int argc;
 	struct expr *right;  //for super(); super.name;
 	char *supername;
-	Line line;
+	LineInfo line;
 	union {
 		char *id;
 		int64 ival;
@@ -155,7 +155,7 @@ enum assign_operator {
 };
 
 enum stmt_kind {
-	IMPORT_KIND = 1, VARDECL_KIND, FUNCDECL_KIND, FUNCPROTO_KIND, CLASS_KIND,
+	VARDECL_KIND = 1, FUNCDECL_KIND, FUNCPROTO_KIND, CLASS_KIND,
 	TRAIT_KIND, EXPR_KIND, ASSIGN_KIND,
 	RETURN_KIND, IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
 	FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND, BLOCK_KIND,
@@ -169,12 +169,8 @@ struct assign {
 
 struct stmt {
 	enum stmt_kind kind;
-	Line line;
+	LineInfo line;
 	union {
-		struct {
-			char *id;
-			char *path;
-		} import;
 		struct {
 			struct var *var;
 			struct expr *exp;
@@ -241,15 +237,12 @@ struct stmt {
 		} for_each_stmt;
 		struct expr *go_stmt;
 		struct expr *exp;
-		Vector *vec;
+		Vector vec;
 	};
 };
 
 struct stmt *stmt_new(int kind);
 struct stmt *stmt_from_expr(struct expr *exp);
-struct stmt *stmt_from_import(char *id, char *path);
-struct stmt *stmt_from_varlistdecl(Vector *varvec, Vector *expvec,
-	TypeDesc *desc, int bconst);
 struct stmt *stmt_from_vardecl(struct var *var, struct expr *exp, int bconst);
 struct stmt *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
 	Vector *body);
@@ -270,7 +263,8 @@ struct stmt *stmt_from_for(struct stmt *init, struct stmt *test,
 struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
 	Vector *body, int bdecl);
 struct stmt *stmt_from_go(struct expr *expr);
-struct stmt *stmt_from_vardecl_list(Vector *vec);
+struct stmt *stmt_from_vardecl_list(Vector *vars, TypeDesc *desc, Vector *exprs,
+	int bconst);
 struct stmt *stmt_from_typealias(char *id, TypeDesc *desc);
 void stmt_free(struct stmt *stmt);
 void vec_stmt_free(Vector *stmts);
@@ -278,7 +272,6 @@ void vec_stmt_fini(Vector *stmts);
 
 /*-------------------------------------------------------------------------*/
 
-void ast_traverse(Vector *vec);
 
 #ifdef __cplusplus
 }
