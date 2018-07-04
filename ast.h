@@ -269,6 +269,7 @@ struct stmt *stmt_from_typealias(char *id, TypeDesc *desc);
 void stmt_free(struct stmt *stmt);
 void vec_stmt_free(Vector *stmts);
 void vec_stmt_fini(Vector *stmts);
+void stmt_free_vardecl_list(struct stmt *stmt);
 
 /*-------------------------------------------------------------------------*/
 

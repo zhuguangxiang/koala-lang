@@ -54,7 +54,6 @@ L   [a-zA-Z_]
 ">>="                     {return RSHIFT_ASSIGN;}
 "<<="                     {return LSHIFT_ASSIGN;}
 "..."                     {return ELLIPSIS;}
-"->"                      {return RIGHT_ARROW;}
 
 "package"                 {return PACKAGE;}
 "if"                      {return IF;}

@@ -37,6 +37,7 @@ struct stmt *do_vardecl_list(ParserState *ps, Vector *vars, TypeDesc *desc,
 	int64 ival;
 	float64 fval;
 	char *string_const;
+	int dims;
 	struct expr *expr;
 	Vector *list;
 	struct stmt *stmt;
@@ -241,7 +242,7 @@ UsrDefType:
 		/* type in external module */
 		char *fullpath = Parser_Get_FullPath(parser, $1);
 		if (!fullpath) {
-			Parser_Handle_Error(parser, "cannot find '%s'", $1);
+			Parser_Do_Error(parser, "cannot find '%s'", $1);
 			$$ = NULL;
 		} else {
 			$$ = Type_New_UsrDef(fullpath, $3);
@@ -437,7 +438,7 @@ FunctionDeclaration:
 	}
 | FUNC error
 	{
-		syntax_error(parser, EXPECTED, "ID", Lexer_Token);
+		syntax_error("ID");
 		$$ = NULL;
 	}
 ;
@@ -897,9 +898,9 @@ CONSTANT:
 	INT_CONST    { $$ = expr_from_int($1);    }
 | FLOAT_CONST  { $$ = expr_from_float($1);  }
 | STRING_CONST { $$ = expr_from_string($1); }
-| TOKEN_NIL    { $$ = &NilExpr;             }
-| TOKEN_TRUE   { $$ = &TrueExpr;            }
-| TOKEN_FALSE  { $$ = &FalseExpr;           }
+| TOKEN_NIL    { $$ = expr_from_nil();      }
+| TOKEN_TRUE   { $$ = expr_from_bool(1);    }
+| TOKEN_FALSE  { $$ = expr_from_bool(0);    }
 ;
 
 ArrayObject:
@@ -1074,8 +1075,9 @@ struct stmt *do_vardecl_list(ParserState *ps, Vector *vars, TypeDesc *desc,
 	int esz = Vector_Size(exprs);
 	if (esz != 0 && esz != vsz) {
 		Parser_Do_Error(ps, "cannot assign %d values to %d variables", esz, vsz);
-		free_vars(vars);
-		free_exprs(exprs);
+		//FIXME
+		//free_vars(vars);
+		//free_exprs(exprs);
 		Type_DecRef(desc);
 		return NULL;
 	}

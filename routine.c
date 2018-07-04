@@ -348,7 +348,7 @@ static TValue getfield(Object *ob, char *field)
 static void check_args(Routine *rt, int argc, TypeDesc *proto, char *name)
 {
 	assert(proto->kind == TYPE_PROTO);
-	int size = Vector_Size(proto->pdesc);
+	int size = Vector_Size(proto->proto.arg);
 	if (argc != size) {
 		error("%s argc: expected %d, but %d", name, size, argc);
 		exit(-1);
@@ -359,7 +359,7 @@ static void check_args(Routine *rt, int argc, TypeDesc *proto, char *name)
 	int pos = rt->top - 1;
 	for (int i = 0; i < size; i++) {
 		val = rt_stack_get(rt, pos--);
-		desc = Vector_Get(proto->pdesc, i);
+		desc = Vector_Get(proto->proto.arg, i);
 		if (TValue_Check_TypeDesc(val, desc)) {
 			error("'%s' args type check failed", name);
 			//exit(-1);

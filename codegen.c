@@ -219,8 +219,8 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			char *path = NULL;
 			char *type = NULL;
 			if (sym->super) {
-				path = sym->super->desc->path;
-				type = sym->super->desc->type;
+				path = sym->super->desc->usrdef.path;
+				type = sym->super->desc->usrdef.type;
 			}
 			int size = Vector_Size(&sym->traits);
 			Vector v;

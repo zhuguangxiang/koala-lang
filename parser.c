@@ -462,7 +462,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
 	return sym;
 }
 
-char *Import_Get_Path(ParserState *ps, char *id)
+char *Parser_Get_FullPath(ParserState *ps, char *id)
 {
 	Symbol *sym = STable_Get(ps->extstbl, id);
 	if (!sym) {
@@ -569,7 +569,7 @@ static void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-void Parse_Function(ParserState *ps, struct stmt *stmt)
+void Parser_New_Func(ParserState *ps, struct stmt *stmt)
 {
 	if (stmt) {
 		__add_stmt(ps, stmt);
@@ -591,7 +591,7 @@ static void parse_funcproto(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-void Parse_UserDef(ParserState *ps, struct stmt *stmt)
+void Parser_New_ClassOrTrait(ParserState *ps, struct stmt *stmt)
 {
 	Symbol *sym = NULL;
 	__add_stmt(ps, stmt);
@@ -629,7 +629,7 @@ void Parse_UserDef(ParserState *ps, struct stmt *stmt)
 	debug(">>>>end class(trait) '%s'", sym->name);
 }
 
-void Parse_TypeAlias(ParserState *ps, struct stmt *stmt)
+void Parser_New_TypeAlias(ParserState *ps, struct stmt *stmt)
 {
 	STable_Add_TypeAlias(ps->u->stbl, stmt->typealias.id, stmt->typealias.desc);
 	debug("add typealias '%s' successful", stmt->typealias.id);

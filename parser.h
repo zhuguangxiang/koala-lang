@@ -142,12 +142,16 @@ void Lexer_DoUserAction(ParserState *ps, char *text);
 #define Token parser->line.lasttoken
 
 // Exported API
+#define Parser_Set_Package(ps, name) do { \
+	(ps)->package = (name); \
+} while (0)
+
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path);
 void Parser_New_Vars(ParserState *ps, struct stmt *stmt);
-void Parse_Function(ParserState *ps, struct stmt *stmt);
-void Parse_UserDef(ParserState *ps, struct stmt *stmt);
-void Parse_TypeAlias(ParserState *ps, struct stmt *stmt);
-char *Import_Get_Path(ParserState *ps, char *id);
+void Parser_New_Func(ParserState *ps, struct stmt *stmt);
+void Parser_New_ClassOrTrait(ParserState *ps, struct stmt *stmt);
+void Parser_New_TypeAlias(ParserState *ps, struct stmt *stmt);
+char *Parser_Get_FullPath(ParserState *ps, char *id);
 void Parser_SetLine(ParserState *ps, struct expr *exp);
 
 #ifdef __cplusplus

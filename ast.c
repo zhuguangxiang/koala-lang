@@ -2,18 +2,6 @@
 #include "ast.h"
 #include "log.h"
 
-struct expr NilExpr = {
-
-};
-
-struct expr TrueExpr = {
-
-};
-
-struct expr FalseExpr = {
-
-};
-
 /*-------------------------------------------------------------------------*/
 
 struct expr *expr_new(int kind)
@@ -408,13 +396,13 @@ struct stmt *stmt_from_vardecl_list(Vector *vars, TypeDesc *desc, Vector *exprs,
 	return stmt;
 }
 
-static void stmt_free_vardecl_list(struct stmt *stmt)
+void stmt_free_vardecl_list(struct stmt *stmt)
 {
 	struct stmt *s;
 	Vector_ForEach(s, &stmt->vec) {
-		free_var(s->vardecl.var);
-		free_expr(s->vardecl.exp);
-		free_stmt(s);
+		//free_var(s->vardecl.var);
+		//free_expr(s->vardecl.exp);
+		//free_stmt(s);
 	}
 	stmt_free(stmt);
 }

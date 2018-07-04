@@ -458,9 +458,9 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 	TypeDesc *proto;
 
 	while (f->name) {
-		rdesc = TypeString_To_Vector(f->rdesc);
-		pdesc = TypeString_To_Vector(f->pdesc);
-		proto = TypeDesc_From_Proto(rdesc, pdesc);
+		rdesc = String_To_TypeList(f->rdesc);
+		pdesc = String_To_TypeList(f->pdesc);
+		proto = Type_New_Proto(rdesc, pdesc);
 		meth = CFunc_New(f->fn, proto);
 		res = Klass_Add_Method(klazz, f->name, meth);
 		assert(res == 0);
@@ -857,14 +857,14 @@ int TValue_Check(TValue *v1, TValue *v2)
 int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 {
 	switch (desc->kind) {
-		case TYPE_PRIMITIVE: {
-			if (desc->primitive == PRIMITIVE_INT && VALUE_ISINT(val))
+		case TYPE_PRIME: {
+			if (desc->prime.val == PRIME_INT && VALUE_ISINT(val))
 				return 0;
-			if (desc->primitive == PRIMITIVE_FLOAT && VALUE_ISFLOAT(val))
+			if (desc->prime.val == PRIME_FLOAT && VALUE_ISFLOAT(val))
 				return 0;
-			if (desc->primitive == PRIMITIVE_BOOL && VALUE_ISBOOL(val))
+			if (desc->prime.val == PRIME_BOOL && VALUE_ISBOOL(val))
 				return 0;
-			if (desc->primitive == PRIMITIVE_STRING) {
+			if (desc->prime.val == PRIME_STRING) {
 				Object *ob = val->ob;
 				if (OB_CHECK_KLASS(ob, String_Klass)) return 0;
 			}
@@ -872,7 +872,7 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 		}
 		case TYPE_USRDEF: {
 			Object *ob = OB_KLASS(val->ob)->module;
-			Klass *klazz = Koala_Get_Klass(ob, desc->path, desc->type);
+			Klass *klazz = Koala_Get_Klass(ob, desc->usrdef.path, desc->usrdef.type);
 			if (!klazz) return -1;
 			Klass *k = OB_KLASS(val->ob);
 			while (k) {
@@ -895,23 +895,23 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 static void init_primitive(TValue *val, int primitive)
 {
 	switch (primitive) {
-		case PRIMITIVE_INT: {
+		case PRIME_INT: {
 			setivalue(val, 0);
 			break;
 		}
-		case PRIMITIVE_FLOAT: {
+		case PRIME_FLOAT: {
 			setfltvalue(val, 0.0);
 			break;
 		}
-		case PRIMITIVE_BOOL: {
+		case PRIME_BOOL: {
 			setbvalue(val, 0);
 			break;
 		}
-		case PRIMITIVE_STRING: {
+		case PRIME_STRING: {
 			setobjvalue(val, String_New(""));
 			break;
 		}
-		case PRIMITIVE_ANY:
+		case PRIME_ANY:
 		//fallthrough
 		default: {
 			assertm(0, "unknown primitive %c", primitive);
@@ -926,14 +926,14 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 	assert(desc);
 
 	switch (desc->kind) {
-		case TYPE_PRIMITIVE: {
-			init_primitive(val, desc->primitive);
+		case TYPE_PRIME: {
+			init_primitive(val, desc->prime.val);
 			break;
 		}
 		case TYPE_USRDEF: {
 			Object *module = NULL;
-			if (desc->path) {
-				module = Koala_Load_Module(desc->path);
+			if (desc->usrdef.path) {
+				module = Koala_Load_Module(desc->usrdef.path);
 			} else {
 				if (OB_CHECK_KLASS(ob, Module_Klass)) {
 					module = ob;
@@ -944,7 +944,7 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 				}
 			}
 
-			Klass *klazz = Module_Get_ClassOrTrait(module, desc->type);
+			Klass *klazz = Module_Get_ClassOrTrait(module, desc->usrdef.type);
 			assert(klazz);
 			debug("find class or interface: %s", klazz->name);
 			setobjtype(val, klazz);

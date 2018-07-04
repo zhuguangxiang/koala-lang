@@ -62,6 +62,13 @@ extern TypeDesc String_Type;
 extern TypeDesc Any_Type;
 extern TypeDesc Varg_Type;
 
+#define Init_Type_UsrDef(desc, p, t) do { \
+	(desc)->kind = TYPE_USRDEF; \
+	(desc)->refcnt = 1; \
+	(desc)->usrdef.path = (p); \
+	(desc)->usrdef.type = (t); \
+} while (0)
+
 void Type_Free(TypeDesc *desc);
 TypeDesc *Type_New_UsrDef(char *path, char *type);
 TypeDesc *Type_New_Proto(Vector *arg, Vector *ret);
@@ -78,7 +85,7 @@ static inline TypeDesc *Type_IncRef(TypeDesc *type)
 	return type;
 }
 
-static inline void Type_DesRef(TypeDesc *type)
+static inline void Type_DecRef(TypeDesc *type)
 {
 	if (--type->refcnt <= 0) {
 		Type_Free(type);

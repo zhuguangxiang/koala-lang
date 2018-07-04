@@ -2,30 +2,17 @@
 #include "typedesc.h"
 #include "log.h"
 
-TypeDesc Byte_Type = {
-	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_BYTE
-};
-TypeDesc Char_Type = {
-	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_CHAR
-};
-TypeDesc Int_Type = {
-	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_INT
-};
-TypeDesc Float_Type = {
-	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_FLOAT
-};
-TypeDesc Bool_Type = {
-	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_BOOL
-};
-TypeDesc String_Type = {
-	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_STRING
-};
-TypeDesc Any_Type = {
-	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_ANY
-};
-TypeDesc Varg_Type = {
-	.kind = TYPE_PRIME, .refcnt = 1, .prime.val = PRIME_VARG
-};
+#define PRIME_TYPE_INIT(type) \
+	{ .kind = TYPE_PRIME, .refcnt = 1, .prime.val = (type) }
+
+TypeDesc Byte_Type   = PRIME_TYPE_INIT(PRIME_BYTE);
+TypeDesc Char_Type   = PRIME_TYPE_INIT(PRIME_CHAR);
+TypeDesc Int_Type    = PRIME_TYPE_INIT(PRIME_INT);
+TypeDesc Float_Type  = PRIME_TYPE_INIT(PRIME_FLOAT);
+TypeDesc Bool_Type   = PRIME_TYPE_INIT(PRIME_BOOL);
+TypeDesc String_Type = PRIME_TYPE_INIT(PRIME_STRING);
+TypeDesc Any_Type    = PRIME_TYPE_INIT(PRIME_ANY);
+TypeDesc Varg_Type   = PRIME_TYPE_INIT(PRIME_VARG);
 
 struct prime_type_s {
 	int prime;
@@ -212,8 +199,6 @@ int Type_Equal(TypeDesc *t1, TypeDesc *t2)
 	return eq;
 }
 
-/* For print only */
-//FIXME: memory free
 void Type_ToString(TypeDesc *desc, char *buf)
 {
 	char *tmp;
@@ -250,10 +235,6 @@ void Type_ToString(TypeDesc *desc, char *buf)
 			strcpy(buf, "array is not implemented");
 			break;
 		}
-		case TYPE_VARG: {
-			strcpy(buf, "...");
-			break;
-		}
 		default: {
 			assertm(0, "unknown type's kind %d\n", kind);
 		}
@@ -279,7 +260,7 @@ Vector *String_To_TypeList(char *str)
 			str += 3;
 			assert(!*str);
 		} else if ((desc = prime_type(ch))) {
-			if (dims > 0) desc = Type_Array_New(dims, desc);
+			if (dims > 0) desc = Type_New_Array(dims, desc);
 			Vector_Append(v, desc);
 			dims = 0;
 			str++;
@@ -287,7 +268,7 @@ Vector *String_To_TypeList(char *str)
 			char *start = str + 1;
 			while ((ch = *str) != ';') str++;
 			desc = str_to_usrdef(start, str - start);
-			if (dims > 0) desc = Type_Array_New(dims, desc);
+			if (dims > 0) desc = Type_New_Array(dims, desc);
 			Vector_Append(v, desc);
 			dims = 0;
 			str++;

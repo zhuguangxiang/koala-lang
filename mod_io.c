@@ -45,8 +45,8 @@ static Object *__io_println(Object *ob, Object *args)
 }
 
 static FuncDef io_funcs[] = {
-	{"Print", NULL, "...A", __io_print},
-	{"Println", NULL, "...A", __io_println},
+	{"Print", NULL, "...", __io_print},
+	{"Println", NULL, "...", __io_println},
 	{NULL}
 };
 

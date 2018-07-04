@@ -42,7 +42,7 @@ static Object *__string_concat(Object *ob, Object *args)
 }
 
 static FuncDef lang_funcs[] = {
-	{"TypeOf", "Okoala/lang.Class;", "...A", __lang_typeof},
+	{"TypeOf", "Okoala/lang.Class;", "...", __lang_typeof},
 	{"Concat", "s", "ss", __string_concat},
 	{NULL}
 };
