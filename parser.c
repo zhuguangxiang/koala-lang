@@ -21,7 +21,7 @@ int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)
 		} else {
 			lb->lineleft = lb->linelen = strlen(lb->line);
 			lb->row++;
-			lb->lastlen = 0;
+			lb->len = 0;
 			lb->col = 0;
 			lb->print = 0;
 		}
@@ -36,9 +36,9 @@ int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)
 void Lexer_DoUserAction(ParserState *ps, char *text)
 {
 	LineBuffer *lb = &ps->line;
-	lb->col += lb->lastlen;
-	strncpy(lb->lasttoken, text, TOKEN_MAX_LEN);
-	lb->lastlen = strlen(text);
+	lb->col += lb->len;
+	strncpy(lb->token, text, TOKEN_MAX_LEN);
+	lb->len = strlen(text);
 }
 
 void Parser_SetLine(ParserState *ps, struct expr *exp)

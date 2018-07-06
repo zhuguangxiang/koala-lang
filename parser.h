@@ -15,8 +15,8 @@ typedef struct line_buf {
 	char line[LINE_MAX_LEN];
 	int linelen;
 	int lineleft;
-	char lasttoken[TOKEN_MAX_LEN];
-	int lastlen;
+	char token[TOKEN_MAX_LEN];
+	int len;
 	int row;
 	int col;
 	char print;
@@ -132,14 +132,13 @@ void Lexer_DoUserAction(ParserState *ps, char *text);
 	} \
 	LineBuffer *lb = &(ps)->line; \
 	if (1) { \
-		LineInfo l = {lb->line, lb->row, lb->col}; \
-		Parser_PrintError(ps, &l, errmsg, ##__VA_ARGS__); \
+		LineInfo li = {lb->line, lb->row, lb->col}; \
+		Parser_PrintError(ps, &li, errmsg, ##__VA_ARGS__); \
 		lb->print = 1; \
 	} else { \
 		++ps->errnum; \
 	} \
 } while (0)
-#define Token parser->line.lasttoken
 
 // Exported API
 #define Parser_Set_Package(ps, name) do { \

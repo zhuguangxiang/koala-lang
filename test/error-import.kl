@@ -1,0 +1,7 @@
+
+import net "abc"
+import "abc"
+
+func Main(args []string) {
+	net.connect("127.0.0.1", 10080);
+}
