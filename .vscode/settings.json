@@ -4,8 +4,8 @@
   "workbench.iconTheme": "file-icons",
   "workbench.activityBar.visible": false,
   "workbench.startupEditor": "none",
-  "editor.fontSize": 14,
-  "editor.fontFamily":  "'Ubuntu Mono', 'Operator Mono Light'",
+  "editor.fontSize": 16,
+  "editor.fontFamily":  "'Operator Mono Light', 'Ubuntu Mono'",
   "editor.tabSize": 2,
   "editor.insertSpaces": false,
   "files.associations": {
@@ -26,8 +26,8 @@
       80
   ],
   "editor.minimap.enabled": false,
-  "terminal.integrated.fontFamily": "'Ubuntu Mono'",
-  "terminal.integrated.fontSize": 14,
+  "terminal.integrated.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
+  "terminal.integrated.fontSize": 16,
   "todo-tree.flat": true,
   "todo-tree.expanded": false,
   "workbench.editor.enablePreview": false,
@@ -56,9 +56,10 @@
   "markdown.preview.fontSize": 14,
   // "markdown.styles": [ "github-markdown.css" ]
   "git.confirmSync": false,
-  "window.zoomLevel": 0,
+  "window.zoomLevel": 0.5,
   "editor.occurrencesHighlight": false,
   "editor.selectionHighlight": false,
   "terminal.explorerKind": "external",
-  "editor.cursorStyle": "line"
+  "editor.cursorStyle": "line",
+  "terminal.integrated.cursorBlinking": true
 }

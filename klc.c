@@ -17,8 +17,6 @@ TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl)
 	TypeDesc *t = calloc(1, sizeof(TypeDesc));
 	t->kind = item->kind;
 	t->refcnt = 1;
-	// t->dims = item->dims;
-	// t->varg = item->varg;
 
 	switch (item->kind) {
 		case TYPE_PRIME: {
@@ -43,6 +41,13 @@ TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl)
 			t->proto.ret = temp->proto.ret;
 			t->proto.arg = temp->proto.arg;
 			free(temp); //FIXME
+			break;
+		}
+		case TYPE_ARRAY: {
+			TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
+			assert(base);
+			t->array.dims = item->array.dims;
+			t->array.base = base;
 			break;
 		}
 		default: {
@@ -105,35 +110,37 @@ StringItem *StringItem_New(char *name)
 	return item;
 }
 
-TypeItem *TypeItem_Primitive_New(int varg, int dims, char primitive)
+TypeItem *TypeItem_Primitive_New(char primitive)
 {
 	TypeItem *item = calloc(1, sizeof(TypeItem));
-	item->varg = varg;
-	item->dims = dims;
 	item->kind = TYPE_PRIME;
 	item->primitive = primitive;
 	return item;
 }
 
-TypeItem *TypeItem_UserDef_New(int varg, int dims, int32 pathindex,
-															 int32 typeindex)
+TypeItem *TypeItem_UserDef_New(int32 pathindex, int32 typeindex)
 {
 	TypeItem *item = calloc(1, sizeof(TypeItem));
-	item->varg = varg;
-	item->dims = dims;
 	item->kind = TYPE_USRDEF;
 	item->pathindex = pathindex;
 	item->typeindex = typeindex;
 	return item;
 }
 
-TypeItem *TypeItem_Proto_New(int varg, int dims, int32 protoindex)
+TypeItem *TypeItem_Proto_New(int32 protoindex)
 {
 	TypeItem *item = calloc(1, sizeof(TypeItem));
-	item->varg = varg;
-	item->dims = dims;
 	item->kind = TYPE_PROTO;
 	item->protoindex = protoindex;
+	return item;
+}
+
+TypeItem *TypeItem_Array_New(int dims, int32 typeindex)
+{
+	TypeItem *item = calloc(1, sizeof(TypeItem));
+	item->kind = TYPE_ARRAY;
+	item->array.dims = dims;
+	item->array.typeindex = typeindex;
 	return item;
 }
 
@@ -333,41 +340,55 @@ int StringItem_Set(AtomTable *table, char *str)
 int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
 	TypeItem item = {0};
-	if (desc->kind == TYPE_USRDEF) {
-		int pathindex = -1;
-		if (desc->usrdef.path) {
-			pathindex = StringItem_Get(table, desc->usrdef.path);
-			if (pathindex < 0) {
-				return pathindex;
-			}
+	switch (desc->kind) {
+		case TYPE_PRIME: {
+			item.kind = TYPE_PRIME;
+			item.primitive = desc->prime.val;
+			break;
 		}
-		int typeindex = -1;
-		if (desc->usrdef.type) {
-			typeindex = StringItem_Get(table, desc->usrdef.type);
-			if (typeindex < 0) {
-				return typeindex;
+		case TYPE_USRDEF: {
+			int pathindex = -1;
+			if (desc->usrdef.path) {
+				pathindex = StringItem_Get(table, desc->usrdef.path);
+				if (pathindex < 0) {
+					return pathindex;
+				}
 			}
+			int typeindex = -1;
+			if (desc->usrdef.type) {
+				typeindex = StringItem_Get(table, desc->usrdef.type);
+				if (typeindex < 0) {
+					return typeindex;
+				}
+			}
+			item.kind = TYPE_USRDEF;
+			item.pathindex = pathindex;
+			item.typeindex = typeindex;
+			break;
 		}
-		//item.varg = desc->varg;
-		//item.dims = desc->dims;
-		item.kind = TYPE_USRDEF;
-		item.pathindex = pathindex;
-		item.typeindex = typeindex;
-	} else if (desc->kind == TYPE_PRIME) {
-		//item.varg = desc->varg;
-		//item.dims = desc->dims;
-		item.kind = TYPE_PRIME;
-		item.primitive = desc->prime.val;
-	} else {
-		assert(desc->kind == TYPE_PROTO);
-		int rindex = TypeListItem_Get(table, desc->proto.ret);
-		int pindex = TypeListItem_Get(table, desc->proto.arg);
-		int protoindex = ProtoItem_Get(table, rindex, pindex);
-		//item.varg = desc->varg;
-		//item.dims = desc->dims;
-		item.kind = TYPE_PROTO;
-		item.protoindex = protoindex;
+		case TYPE_PROTO: {
+			int rindex = TypeListItem_Get(table, desc->proto.ret);
+			int pindex = TypeListItem_Get(table, desc->proto.arg);
+			item.kind = TYPE_PROTO;
+			item.protoindex = ProtoItem_Get(table, rindex, pindex);
+			break;
+		}
+		case TYPE_MAP: {
+			assert(0);
+			break;
+		}
+		case TYPE_ARRAY: {
+			item.kind = TYPE_ARRAY;
+			item.array.dims = desc->array.dims;
+			item.array.typeindex = TypeItem_Get(table, desc->array.base);
+			break;
+		}
+		default: {
+			assert(0);
+			break;
+		}
 	}
+
 	return AtomTable_Index(table, ITEM_TYPE, &item);
 }
 
@@ -376,28 +397,43 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 	TypeItem *item = NULL;
 	int index = TypeItem_Get(table, desc);
 	if (index < 0) {
-		if (desc->kind == TYPE_USRDEF) {
-			int pathindex = -1;
-			if (desc->usrdef.path) {
-				pathindex = StringItem_Set(table, desc->usrdef.path);
-				assert(pathindex >= 0);
+		switch (desc->kind) {
+			case TYPE_PRIME: {
+				item = TypeItem_Primitive_New(desc->prime.val);
+				break;
 			}
-			int typeindex = -1;
-			if (desc->usrdef.type) {
-				typeindex = StringItem_Set(table, desc->usrdef.type);
-				assert(typeindex >= 0);
+			case TYPE_USRDEF: {
+				int pathindex = -1;
+				if (desc->usrdef.path) {
+					pathindex = StringItem_Set(table, desc->usrdef.path);
+					assert(pathindex >= 0);
+				}
+				int typeindex = -1;
+				if (desc->usrdef.type) {
+					typeindex = StringItem_Set(table, desc->usrdef.type);
+					assert(typeindex >= 0);
+				}
+				item = TypeItem_UserDef_New(pathindex, typeindex);
+				break;
 			}
-			//FIXME
-			item = TypeItem_UserDef_New(0, 0, pathindex,
-																	typeindex);
-		} else if (desc->kind == TYPE_PRIME) {
-			//FIXME
-			item = TypeItem_Primitive_New(0, 0, desc->prime.val);
-		} else {
-			assert(desc->kind == TYPE_PROTO);
-			int protoindex = ProtoItem_Set(table, desc);
-			//FIXME
-			item = TypeItem_Proto_New(0, 0, protoindex);
+			case TYPE_PROTO: {
+				int protoindex = ProtoItem_Set(table, desc);
+				item = TypeItem_Proto_New(protoindex);
+				break;
+			}
+			case TYPE_MAP: {
+				assert(0);
+				break;
+			}
+			case TYPE_ARRAY: {
+				int typeindex = TypeItem_Set(table, desc->array.base);
+				item = TypeItem_Array_New(desc->array.dims, typeindex);
+				break;
+			}
+			default: {
+				assert(0);
+				break;
+			}
 		}
 
 		index = AtomTable_Append(table, ITEM_TYPE, item, 1);
@@ -619,8 +655,6 @@ int typeitem_equal(void *k1, void *k2)
 	TypeItem *item1 = k1;
 	TypeItem *item2 = k2;
 	if (item1->kind != item2->kind) return 0;
-	if (item1->varg != item2->varg) return 0;
-	if (item1->dims != item2->dims) return 0;
 	if (item1->pathindex != item2->pathindex) return 0;
 	if (item1->typeindex != item2->typeindex) return 0;
 	return 1;
@@ -641,7 +675,7 @@ char *array_string(int dims)
 void typeitem_show(AtomTable *table, void *o)
 {
 	TypeItem *item = o;
-	char *arrstr = array_string(item->dims);
+	//char *arrstr = array_string(item->dims);
 	if (item->kind == TYPE_USRDEF) {
 		StringItem *str;
 		if (item->pathindex >= 0) {
@@ -654,14 +688,16 @@ void typeitem_show(AtomTable *table, void *o)
 		if (item->typeindex >= 0) {
 			str = AtomTable_Get(table, ITEM_STRING, item->typeindex);
 			printf("  typeindex:%d\n", item->typeindex);
-			printf("  (%s%s)\n", arrstr, str->data);
+			//printf("  (%s%s)\n", arrstr, str->data);
 		} else {
 			printf("  typeindex:%d\n", item->typeindex);
 		}
 	} else if (item->kind == TYPE_PRIME) {
 		//printf("  (%s%s)\n", arrstr, Primitive_ToString(item->primitive));
+	} else if (item->kind == TYPE_ARRAY) {
+
 	}
-	free(arrstr);
+	//free(arrstr);
 }
 
 void typeitem_free(void *o)

@@ -4,9 +4,8 @@
  */
 package test;
 
-import "koala/lang";  //warn: load duplicated
 import "koala/io";
 
-func Main(args []string) {  //warn: args is unused
+func Main(args []string) {
 	io.Print("hello, world\n");
 }

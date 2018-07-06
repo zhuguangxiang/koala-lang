@@ -3,6 +3,7 @@
 #include "stringobject.h"
 #include "moduleobject.h"
 #include "tupleobject.h"
+#include "listobject.h"
 #include "koalastate.h"
 #include "gc.h"
 #include "hash.h"
@@ -952,6 +953,10 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 		}
 		case TYPE_PROTO: {
 			setobjtype(val, &Code_Klass);
+			break;
+		}
+		case TYPE_ARRAY: {
+			setobjtype(val, &List_Klass);
 			break;
 		}
 		default: {

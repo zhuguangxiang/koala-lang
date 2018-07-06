@@ -142,7 +142,6 @@ struct stmt *do_vardecl_list(ParserState *ps, Vector *vars, TypeDesc *desc,
 %type <list> ExpressionList
 %type <list> PrimaryExpressionList
 %type <expr> Expression
-%type <expr> LogOrExpr
 %type <expr> LogAndExpr
 %type <expr> InclOrExpr
 %type <expr> ExclOrExpr
@@ -834,23 +833,19 @@ PrimaryExpr:
 	}
 | PrimaryExpr '.' ID
 	{
-		/* $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
-		Parser_SetLine(parser, $$); */
+		$$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
 	}
 | PrimaryExpr '[' Expression ']'
 	{
-		/* $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
-		Parser_SetLine(parser, $$); */
+		$$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
 	}
 | PrimaryExpr '(' ExpressionList ')'
 	{
-		/* $$ = expr_from_trailer(CALL_KIND, $3, $1);
-		Parser_SetLine(parser, $$); */
+		$$ = expr_from_trailer(CALL_KIND, $3, $1);
 	}
 | PrimaryExpr '(' ')'
 	{
-		/* $$ = expr_from_trailer(CALL_KIND, NULL, $1);
-		Parser_SetLine(parser, $$); */
+		$$ = expr_from_trailer(CALL_KIND, NULL, $1);
 	}
 | PrimaryExpr '['  Expression ':' Expression ']'
 	{
@@ -862,7 +857,6 @@ Atom:
 	CONSTANT
 	{
 		$$ = $1;
-		Parser_SetLine(parser, $$);
 	}
 | SELF
 	{
@@ -870,7 +864,7 @@ Atom:
 	}
 | SUPER
 	{
-		/* $$ = expr_from_super(); */
+		$$ = expr_from_super();
 	}
 | TYPEOF
 	{
@@ -878,6 +872,7 @@ Atom:
 	}
 | ID
 	{
+		$$ = expr_from_id($1);
 	}
 | '(' Expression ')'
 	{
@@ -1004,15 +999,9 @@ LogAndExpr:
 | LogAndExpr AND InclOrExpr { $$ = expr_from_binary(BINARY_LAND, $1, $3); }
 ;
 
-LogOrExpr:
-	LogAndExpr { $$ = $1; }
-| LogOrExpr OR LogAndExpr { $$ = expr_from_binary(BINARY_LOR, $1, $3); }
-;
-
-/*---------------------------------------------------------------------------*/
-
 Expression:
-	LogOrExpr { $$ = $1; }
+	LogAndExpr { $$ = $1; }
+| Expression OR LogAndExpr { $$ = expr_from_binary(BINARY_LOR, $1, $3); }
 ;
 
 ExpressionList:
@@ -1028,17 +1017,6 @@ ExpressionList:
 	}
 ;
 
-Assignment:
-	PrimaryExpressionList '=' ExpressionList
-	{
-		//$$ = stmt_from_assignlist($1, OP_ASSIGN, $3);
-	}
-| PrimaryExpr CompAssignOp Expression
-	{
-		//$$ = stmt_from_compound_assign($1, $2, $3);
-	}
-;
-
 PrimaryExpressionList:
 	PrimaryExpr
 	{
@@ -1049,6 +1027,17 @@ PrimaryExpressionList:
 	{
 		Vector_Append($1, $3);
 		$$ = $1;
+	}
+;
+
+Assignment:
+	PrimaryExpressionList '=' ExpressionList
+	{
+		//$$ = stmt_from_assignlist($1, OP_ASSIGN, $3);
+	}
+| PrimaryExpr CompAssignOp Expression
+	{
+		//$$ = stmt_from_compound_assign($1, $2, $3);
 	}
 ;
 

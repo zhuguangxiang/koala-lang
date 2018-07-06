@@ -30,39 +30,34 @@ koala_lex.o koala_yacc.o
 .PHONY: all
 all: koala
 
-libkoala.so: $(KOALA_OBJS)
-	@echo "	[SO]	$@"
-	@$(CC) -shared -Wl,-soname,libkoala.so -o $@ $(KOALA_OBJS) -pthread
-	##$(shell [ ! -f "./libkoala.so.0" ] || { ln -s libkoala.so libkoala.so.0; })
-	##@cp $@ /usr/lib/koala-lang/
+libkoala.a: $(KOALA_OBJS)
+	@echo "	[AR]	$@"
+	@ar rcs $@ $^
 
-libkoalac.so: $(KOALAC_OBJS) libkoala.so
-	@echo "	[SO]	$@"
-	@$(CC) -shared -Wl,-soname,libkoalac.so -o $@ $(KOALAC_OBJS) -L. -lkoala -pthread
-	##$(shell [ ! -f "./libkoalac.so.0" ] || { ln -s libkoalac.so libkoalac.so.0; })
-	##@cp $@ /usr/lib/koala-lang/
+libkoalac.a: $(KOALAC_OBJS)
+	@echo "	[AR]	$@"
+	@ar rcs $@ $^
 
-koala: libkoalac.so main.o
-	@echo "	[MAIN]	$@"
-	@gcc $(CFLAGS) -o $@ main.o -L. -lkoalac -lkoala -pthread -lrt
-	##@cp $@ /usr/local/bin
+koala: main.o libkoala.a libkoalac.a
+	@echo "	[LD]	$@"
+	@gcc $(CFLAGS) -static -o $@ $< -L. -lkoalac -lkoala -pthread -lrt
 
 koala_yacc.c: yacc/koala.y
 	@echo "	[YACC]	$@"
-	@$(YACC) -dvt -Wall -o $@ yacc/koala.y
+	@$(YACC) -dvt -Wall -o $@ $^
 
 koala_lex.c: yacc/koala.l
 	@echo "	[FLEX]	$@"
-	@$(FLEX) -o $@ yacc/koala.l
+	@$(FLEX) -o $@ $^
 
 .PHONY: clean
 clean:
-	@rm -f *.so *.o *.d *.d.* koala_lex.* koala_yacc.*
+	@rm -f *.o *.d *.d.* koala_lex.* koala_yacc.*
 
 ######################################
 
 ifneq ($(MAKECMDGOALS), clean)
-sinclude $(KOALA_OBJS:.o=.d) $(KOALAC_OBJS:.o=.d) koala.d koalac.d
+sinclude $(KOALA_OBJS:.o=.d) $(KOALAC_OBJS:.o=.d) koala.d
 endif
 
 %.o: %.c

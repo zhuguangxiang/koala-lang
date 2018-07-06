@@ -1,0 +1,8 @@
+
+v0.6.5:
+  ✔ Type Descriptor @done(18-07-05 23:22)
+  ☐ Basic Type(int, float, bool, string, any, variable-argument)
+  ☐ Primary Expression
+  ☐ Function Call
+  ☐ Koala Code Format(.klc)
+  ☐ test/hello.kl
