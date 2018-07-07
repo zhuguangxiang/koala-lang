@@ -262,7 +262,7 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 			break;
 		}
 		default: {
-			assertm(0, "unknown symbol kind:%d", sym->kind);
+			kassert(0, "unknown symbol kind:%d", sym->kind);
 		}
 	}
 }

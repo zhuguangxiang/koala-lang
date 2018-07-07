@@ -12,15 +12,14 @@ static int version_build = 1; // 2 bytes
 
 /*-------------------------------------------------------------------------*/
 
-TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl)
+TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 {
 	TypeDesc *t = calloc(1, sizeof(TypeDesc));
 	t->kind = item->kind;
-	t->refcnt = 1;
 
 	switch (item->kind) {
-		case TYPE_PRIME: {
-			t->prime.val = item->primitive;
+		case TYPE_PRIMITIVE: {
+			t->primitive = item->primitive;
 			break;
 		}
 		case TYPE_USRDEF: {
@@ -47,7 +46,7 @@ TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl)
 			TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
 			assert(base);
 			t->array.dims = item->array.dims;
-			t->array.base = base;
+			t->array.base = TypeItem_To_TypeDesc(base, atbl);
 			break;
 		}
 		default: {
@@ -69,7 +68,7 @@ Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
 	TypeDesc *t;
 	for (int i = 0; i < item->size; i++) {
 		typeitem = TypeItem_Index(atbl, item->index[i]);
-		t = TypeItem_To_Desc(typeitem, atbl);
+		t = TypeItem_To_TypeDesc(typeitem, atbl);
 		Vector_Append(v, t);
 	}
 	return v;
@@ -113,7 +112,7 @@ StringItem *StringItem_New(char *name)
 TypeItem *TypeItem_Primitive_New(char primitive)
 {
 	TypeItem *item = calloc(1, sizeof(TypeItem));
-	item->kind = TYPE_PRIME;
+	item->kind = TYPE_PRIMITIVE;
 	item->primitive = primitive;
 	return item;
 }
@@ -341,9 +340,9 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
 	TypeItem item = {0};
 	switch (desc->kind) {
-		case TYPE_PRIME: {
-			item.kind = TYPE_PRIME;
-			item.primitive = desc->prime.val;
+		case TYPE_PRIMITIVE: {
+			item.kind = TYPE_PRIMITIVE;
+			item.primitive = desc->primitive;
 			break;
 		}
 		case TYPE_USRDEF: {
@@ -398,8 +397,8 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 	int index = TypeItem_Get(table, desc);
 	if (index < 0) {
 		switch (desc->kind) {
-			case TYPE_PRIME: {
-				item = TypeItem_Primitive_New(desc->prime.val);
+			case TYPE_PRIMITIVE: {
+				item = TypeItem_Primitive_New(desc->primitive);
 				break;
 			}
 			case TYPE_USRDEF: {
@@ -692,7 +691,7 @@ void typeitem_show(AtomTable *table, void *o)
 		} else {
 			printf("  typeindex:%d\n", item->typeindex);
 		}
-	} else if (item->kind == TYPE_PRIME) {
+	} else if (item->kind == TYPE_PRIMITIVE) {
 		//printf("  (%s%s)\n", arrstr, Primitive_ToString(item->primitive));
 	} else if (item->kind == TYPE_ARRAY) {
 
@@ -825,11 +824,11 @@ uint32 constitem_hash(void *k)
 			break;
 		}
 		case CONST_FLOAT: {
-			hash = hash_uint32((uint32)item, 32);
+			hash = hash_uint32(ptr2int(item, uint32), 32);
 			break;
 		}
 		case CONST_BOOL: {
-			hash = hash_uint32((uint32)item, 32);
+			hash = hash_uint32(ptr2int(item, uint32), 32);
 			break;
 		}
 		case CONST_STRING: {
@@ -837,7 +836,7 @@ uint32 constitem_hash(void *k)
 			break;
 		}
 		default: {
-			assertm(0, "unsupported %d const type\n", item->type);
+			kassert(0, "unsupported %d const type\n", item->type);
 			break;
 		}
 	}
@@ -869,7 +868,7 @@ int constitem_equal(void *k1, void *k2)
 			break;
 		}
 		default: {
-			assertm(0, "unsupported const type %d\n", item1->type);
+			kassert(0, "unsupported const type %d\n", item1->type);
 			break;
 		}
 	}
@@ -987,7 +986,7 @@ static char *access_tostring(int access)
 			str = "const,private";
 			break;
 		default:
-			assertm(0, "invalid access %d\n", access);
+			kassert(0, "invalid access %d\n", access);
 			str = "";
 			break;
 	}
@@ -1854,7 +1853,7 @@ KImage *KImage_Read_File(char *path)
 				break;
 			}
 			default: {
-				assertm(0, "unknown map type:%d", map->type);
+				kassert(0, "unknown map type:%d", map->type);
 			}
 		}
 	}

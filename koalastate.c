@@ -164,7 +164,7 @@ static void load_variables(AtomTable *table, Object *m)
 		var = AtomTable_Get(table, ITEM_VAR, i);
 		id = StringItem_Index(table, var->nameindex);
 		type = TypeItem_Index(table, var->typeindex);
-		desc = TypeItem_To_Desc(type, table);
+		desc = TypeItem_To_TypeDesc(type, table);
 		Module_Add_Var(m, id->data, desc, var->access & ACCESS_CONST);
 	}
 }
@@ -174,7 +174,7 @@ static void load_locvar(LocVarItem *locvar, AtomTable *table, Object *code)
 	StringItem *stritem = StringItem_Index(table, locvar->nameindex);;
 	TypeItem *typeitem = TypeItem_Index(table, locvar->typeindex);
 	char *name = stritem->data;
-	TypeDesc *desc = TypeItem_To_Desc(typeitem, table);
+	TypeDesc *desc = TypeItem_To_TypeDesc(typeitem, table);
 	KFunc_Add_LocVar(code, name, desc, locvar->pos);
 }
 
@@ -292,7 +292,7 @@ static void load_field(FieldItem *fld, AtomTable *table, Klass *klazz)
 	id = StringItem_Index(table, fld->nameindex);
 	debug("load field:'%s'", id->data);
 	type = TypeItem_Index(table, fld->typeindex);
-	desc = TypeItem_To_Desc(type, table);
+	desc = TypeItem_To_TypeDesc(type, table);
 	Klass_Add_Field(klazz, id->data, desc);
 }
 

@@ -225,11 +225,11 @@ MapType:
 ;
 
 PrimitiveType:
-	INTEGER { $$ = Type_IncRef(&Int_Type);    }
-| FLOAT   { $$ = Type_IncRef(&Float_Type);  }
-| BOOL    { $$ = Type_IncRef(&Bool_Type);   }
-| STRING  { $$ = Type_IncRef(&String_Type); }
-| ANY     { $$ = Type_IncRef(&Any_Type);    }
+	INTEGER { $$ = Type_Integer; }
+| FLOAT   { $$ = Type_Float;   }
+| BOOL    { $$ = Type_Bool;    }
+| STRING  { $$ = Type_String;  }
+| ANY     { $$ = Type_Any;     }
 ;
 
 UsrDefType:
@@ -264,7 +264,7 @@ TypeList:
 		$$ = $1;
 	}
 | TypeList ',' ELLIPSIS {
-		Vector_Append($$, Type_IncRef(&Varg_Type));
+		Vector_Append($$, Type_Varg);
 		$$ = $1;
 	}
 ;
@@ -416,7 +416,7 @@ ParameterList:
 		$$ = $1;
 	}
 | ParameterList ',' ID ELLIPSIS {
-		Vector_Append($$, new_var($3, Type_IncRef(&Varg_Type)));
+		Vector_Append($$, new_var($3, Type_Varg));
 		$$ = $1;
 	}
 ;
@@ -981,7 +981,6 @@ struct stmt *do_vardecl_list(ParserState *ps, Vector *vars, TypeDesc *desc,
 		//FIXME
 		//free_vars(vars);
 		//free_exprs(exprs);
-		Type_DecRef(desc);
 		return NULL;
 	}
 

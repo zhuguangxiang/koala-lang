@@ -17,3 +17,6 @@ koala
 *.d
 libkoala*
 .DS_Store
+GPATH
+GRTAGS
+GTAGS

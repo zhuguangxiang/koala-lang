@@ -10,18 +10,20 @@
 	"editor.tabSize": 2,
 	"editor.insertSpaces": false,
 	"files.associations": {
-			"*.h": "c",
-			"*.c": "c",
-			"*.kl": "go",
-			"array": "c",
-			"initializer_list": "c",
-			"string_view": "c",
-			"utility": "c",
-			"cmath": "c",
-			"istream": "c",
-			"ostream": "c",
-			"type_traits": "c",
-			"tuple": "c"
+		"*.h": "c",
+		"*.c": "c",
+		"*.kl": "go",
+		"array": "c",
+		"initializer_list": "c",
+		"string_view": "c",
+		"utility": "c",
+		"cmath": "c",
+		"istream": "c",
+		"ostream": "c",
+		"type_traits": "c",
+		"tuple": "c",
+		"sstream": "c",
+		"*.tcc": "c"
 	},
 	"editor.rulers": [
 			80

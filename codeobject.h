@@ -47,7 +47,7 @@ static inline int Func_Argc(Object *ob)
 	if (sz <= 0) return 0;
 
 	desc = Vector_Get(desc->proto.arg, sz - 1);
-	if (desc == &Varg_Type) {
+	if (Type_IsVarg(desc)) {
 		return 32;
 	} else {
 		return sz;

@@ -21,7 +21,7 @@ struct expr *expr_from_id(char *id)
 struct expr *expr_from_int(int64 ival)
 {
 	struct expr *expr = expr_new(INT_KIND);
-	expr->desc = Type_IncRef(&Int_Type);
+	expr->desc = Type_Integer;
 	expr->ival = ival;
 	return expr;
 }
@@ -29,7 +29,7 @@ struct expr *expr_from_int(int64 ival)
 struct expr *expr_from_float(float64 fval)
 {
 	struct expr *expr = expr_new(FLOAT_KIND);
-	expr->desc = Type_IncRef(&Float_Type);
+	expr->desc = Type_Float;
 	expr->fval = fval;
 	return expr;
 }
@@ -37,7 +37,7 @@ struct expr *expr_from_float(float64 fval)
 struct expr *expr_from_string(char *str)
 {
 	struct expr *expr = expr_new(STRING_KIND);
-	expr->desc = Type_IncRef(&String_Type);
+	expr->desc = Type_String;
 	expr->str = str;
 	return expr;
 }
@@ -45,7 +45,7 @@ struct expr *expr_from_string(char *str)
 struct expr *expr_from_bool(int bval)
 {
 	struct expr *expr = expr_new(BOOL_KIND);
-	expr->desc = Type_IncRef(&Bool_Type);
+	expr->desc = Type_Bool;
 	expr->bval = bval;
 	return expr;
 }
@@ -97,8 +97,9 @@ struct expr *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq)
 
 struct expr *expr_from_array_with_tseq(Vector *tseq)
 {
+	UNUSED_PARAMETER(tseq);
 	struct expr *e = expr_new(SEQ_KIND);
-	e->vec = tseq;
+	//e->vec = tseq;
 	return e;
 }
 
@@ -133,7 +134,7 @@ struct expr *expr_from_trailer(enum expr_kind kind, void *trailer,
 			break;
 		}
 		default: {
-			assertm(0, "unkown expression kind %d\n", kind);
+			kassert(0, "unkown expression kind %d\n", kind);
 		}
 	}
 	return expr;
@@ -240,11 +241,13 @@ struct stmt *stmt_from_assign2(Vector *left, Vector *right)
 
 struct stmt *stmt_from_block(Vector *block)
 {
+	UNUSED_PARAMETER(block);
 	return NULL; //stmt_from_vector(BLOCK_KIND, block);
 }
 
 struct stmt *stmt_from_return(Vector *vec)
 {
+	UNUSED_PARAMETER(vec);
 	return NULL; //stmt_from_vector(RETURN_KIND, vec);
 }
 
@@ -347,7 +350,7 @@ struct stmt *stmt_from_foreach(struct var *var, struct expr *expr,
 struct stmt *stmt_from_go(struct expr *expr)
 {
 	if (expr->kind != CALL_KIND) {
-		assertm(0, "syntax error:not a func call\n");
+		kassert(0, "syntax error:not a func call\n");
 		exit(0);
 	}
 
@@ -379,7 +382,7 @@ struct stmt *stmt_from_vardecl_list(Vector *vars, TypeDesc *desc, Vector *exprs,
 	for (int i = 0; i < vsz; i++) {
 		var = Vector_Get(vars, i);
 		var->bconst = bconst;
-		var->desc = Type_IncRef(desc);
+		var->desc = desc;
 
 		s = stmt_new(VARDECL_KIND);
 		s->vardecl.var = var;
@@ -387,7 +390,7 @@ struct stmt *stmt_from_vardecl_list(Vector *vars, TypeDesc *desc, Vector *exprs,
 		if (esz > 0) {
 			exp = Vector_Get(exprs, i);
 			s->vardecl.exp = exp;
-			if (!var->desc && exp->desc) var->desc = Type_IncRef(exp->desc);
+			if (!var->desc && exp->desc) var->desc = Type_Dup(exp->desc);
 		}
 
 		Vector_Append(&stmt->vec, s);
@@ -401,8 +404,8 @@ void stmt_free_vardecl_list(struct stmt *stmt)
 	struct stmt *s;
 	Vector_ForEach(s, &stmt->vec) {
 		//free_var(s->vardecl.var);
-		//free_expr(s->vardecl.exp);
-		//free_stmt(s);
+		//expr_free(s->vardecl.exp);
+		stmt_free(s);
 	}
 	stmt_free(stmt);
 }

@@ -118,7 +118,7 @@ va_convert_t *get_convert(char ch)
 			return convert;
 		}
 	}
-	assertm(0, "unsupported type: %d\n", ch);
+	kassert(0, "unsupported type: %d\n", ch);
 	return NULL;
 }
 
@@ -274,7 +274,7 @@ static uint32 object_hash(TValue *v)
 	Object *ob = v->ob;
 	Check_Klass(OB_KLASS(ob));
 	assert(OB_Head(ob) && OB_Head(ob) == ob);
-	return hash_uint32((uint32)OB_Head(ob), 32);
+	return hash_uint32(ptr2int(OB_Head(ob), uint32), 32);
 }
 
 static int object_equal(TValue *v1, TValue *v2)
@@ -292,7 +292,7 @@ static Object *object_tostring(TValue *v)
 	assert(OB_Head(ob) && OB_Head(ob) == ob);
 	Klass *klazz = OB_KLASS(OB_Head(ob));
 	char buf[128];
-	snprintf(buf, 128, "%s@%x", klazz->name, (int32)OB_Head(ob));
+	snprintf(buf, 128, "%s@%x", klazz->name, ptr2int(OB_Head(ob), uint32));
 	return Tuple_Build("O", String_New(buf));
 }
 
@@ -459,8 +459,8 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 	TypeDesc *proto;
 
 	while (f->name) {
-		rdesc = String_To_TypeList(f->rdesc);
-		pdesc = String_To_TypeList(f->pdesc);
+		rdesc = CString_To_TypeList(f->rdesc);
+		pdesc = CString_To_TypeList(f->pdesc);
 		proto = Type_New_Proto(rdesc, pdesc);
 		meth = CFunc_New(f->fn, proto);
 		res = Klass_Add_Method(klazz, f->name, meth);
@@ -481,7 +481,7 @@ static void klass_mark(Object *ob)
 static void klass_free(Object *ob)
 {
 	OB_ASSERT_KLASS(ob, Klass_Klass);
-	assertm(ob != (Object *)&Klass_Klass, "Why goes here?");
+	kassert(ob != (Object *)&Klass_Klass, "Why goes here?");
 	free(ob);
 }
 
@@ -642,7 +642,7 @@ Object *Object_Get_Method(Object *ob, char *name, Object **rob)
 				head = OB_HasBase(head) ? OB_Base(head) : NULL;
 			}
 
-			assertm(0, "cannot find func '%s'", name);
+			kassert(0, "cannot find func '%s'", name);
 			return NULL;
 		}
 	}
@@ -846,7 +846,7 @@ int TValue_Check(TValue *v1, TValue *v2)
 	// 		// 	(v2->klazz->flags & FLAGS_INTF)) {
 	// 		// 	return check_interface_inheritance(v1->klazz, OB_KLASS(v2->ob));
 	// 		// } else {
-	// 		// 	assertm(0, "class '%s' <- intf '%s' is not allowed,
+	// 		// 	kassert(0, "class '%s' <- intf '%s' is not allowed,
 	// 		// 		use typeof() to down convertion", v1->klazz->name, v2->klazz->name);
 	// 		// 	return -1;
 	// 		// }
@@ -858,14 +858,14 @@ int TValue_Check(TValue *v1, TValue *v2)
 int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 {
 	switch (desc->kind) {
-		case TYPE_PRIME: {
-			if (desc->prime.val == PRIME_INT && VALUE_ISINT(val))
+		case TYPE_PRIMITIVE: {
+			if (Type_IsInt(desc) && VALUE_ISINT(val))
 				return 0;
-			if (desc->prime.val == PRIME_FLOAT && VALUE_ISFLOAT(val))
+			if (Type_IsFloat(desc) && VALUE_ISFLOAT(val))
 				return 0;
-			if (desc->prime.val == PRIME_BOOL && VALUE_ISBOOL(val))
+			if (Type_IsBool(desc) && VALUE_ISBOOL(val))
 				return 0;
-			if (desc->prime.val == PRIME_STRING) {
+			if (Type_IsString(desc)) {
 				Object *ob = val->ob;
 				if (OB_CHECK_KLASS(ob, String_Klass)) return 0;
 			}
@@ -886,7 +886,7 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 			break;
 		}
 		default: {
-			assertm(0, "unknown type's kind %d\n", desc->kind);
+			kassert(0, "unknown type's kind %d\n", desc->kind);
 			break;
 		}
 	}
@@ -896,26 +896,26 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc)
 static void init_primitive(TValue *val, int primitive)
 {
 	switch (primitive) {
-		case PRIME_INT: {
+		case PRIMITIVE_INT: {
 			setivalue(val, 0);
 			break;
 		}
-		case PRIME_FLOAT: {
+		case PRIMITIVE_FLOAT: {
 			setfltvalue(val, 0.0);
 			break;
 		}
-		case PRIME_BOOL: {
+		case PRIMITIVE_BOOL: {
 			setbvalue(val, 0);
 			break;
 		}
-		case PRIME_STRING: {
+		case PRIMITIVE_STRING: {
 			setobjvalue(val, String_New(""));
 			break;
 		}
-		case PRIME_ANY:
+		case PRIMITIVE_ANY:
 		//fallthrough
 		default: {
-			assertm(0, "unknown primitive %c", primitive);
+			kassert(0, "unknown primitive %c", primitive);
 			break;
 		}
 	}
@@ -927,8 +927,8 @@ void TValue_Set_TypeDesc(TValue *val, TypeDesc *desc, Object *ob)
 	assert(desc);
 
 	switch (desc->kind) {
-		case TYPE_PRIME: {
-			init_primitive(val, desc->prime.val);
+		case TYPE_PRIMITIVE: {
+			init_primitive(val, desc->primitive);
 			break;
 		}
 		case TYPE_USRDEF: {

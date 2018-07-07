@@ -52,7 +52,7 @@ static int isvarg(TypeDesc *proto)
 	if (sz <= 0) return 0;
 
 	TypeDesc *desc = Vector_Get(proto->proto.arg, sz - 1);
-	return desc == &Varg_Type;
+	return desc == Type_Varg;
 }
 
 static int check_call_varg(TypeDesc *proto, Vector *vec)

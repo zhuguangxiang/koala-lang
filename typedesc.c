@@ -2,47 +2,61 @@
 #include "typedesc.h"
 #include "log.h"
 
-#define PRIME_TYPE_INIT(type) \
-	{ .kind = TYPE_PRIME, .refcnt = 1, .prime.val = (type) }
-
-TypeDesc Byte_Type   = PRIME_TYPE_INIT(PRIME_BYTE);
-TypeDesc Char_Type   = PRIME_TYPE_INIT(PRIME_CHAR);
-TypeDesc Int_Type    = PRIME_TYPE_INIT(PRIME_INT);
-TypeDesc Float_Type  = PRIME_TYPE_INIT(PRIME_FLOAT);
-TypeDesc Bool_Type   = PRIME_TYPE_INIT(PRIME_BOOL);
-TypeDesc String_Type = PRIME_TYPE_INIT(PRIME_STRING);
-TypeDesc Any_Type    = PRIME_TYPE_INIT(PRIME_ANY);
-TypeDesc Varg_Type   = PRIME_TYPE_INIT(PRIME_VARG);
-
-struct prime_type_s {
-	int prime;
-	char *str;
-	TypeDesc *type;
-} prime_types[] = {
-	{PRIME_BYTE,   "byte",   &Byte_Type   },
-	{PRIME_CHAR,   "char",   &Char_Type   },
-	{PRIME_INT,    "int",    &Int_Type    },
-	{PRIME_FLOAT,  "float",  &Float_Type  },
-	{PRIME_BOOL,   "bool",   &Bool_Type   },
-	{PRIME_STRING, "string", &String_Type },
-	{PRIME_ANY,    "any",    &Any_Type    },
-	{PRIME_VARG,   "...",    &Varg_Type   }
+TypeDesc ByteType = {
+	.kind = TYPE_PRIMITIVE,
+	.primitive = PRIMITIVE_BYTE
+};
+TypeDesc CharType = {
+	.kind = TYPE_PRIMITIVE,
+	.primitive = PRIMITIVE_CHAR
+};
+TypeDesc IntType = {
+	.kind = TYPE_PRIMITIVE,
+	.primitive = PRIMITIVE_INT
+};
+TypeDesc FloatType = {
+	.kind = TYPE_PRIMITIVE,
+	.primitive = PRIMITIVE_FLOAT
+};
+TypeDesc BoolType = {
+	.kind = TYPE_PRIMITIVE,
+	.primitive = PRIMITIVE_BOOL
+};
+TypeDesc StringType = {
+	.kind = TYPE_PRIMITIVE,
+	.primitive = PRIMITIVE_STRING
+};
+TypeDesc AnyType = {
+	.kind = TYPE_PRIMITIVE,
+	.primitive = PRIMITIVE_ANY
+};
+TypeDesc VargType = {
+	.kind = TYPE_PRIMITIVE,
+	.primitive = PRIMITIVE_VARG
 };
 
-static char *prime_tostring(int type)
-{
-	for (int i = 0; i < nr_elts(prime_types); i++) {
-		if (type == prime_types[i].prime)
-			return prime_types[i].str;
-	}
-	return NULL;
-}
+struct primitive_type_s {
+	int primitive;
+	char *str;
+	TypeDesc *type;
+} primitive_types[] = {
+	{PRIMITIVE_BYTE,   "byte",   &ByteType   },
+	{PRIMITIVE_CHAR,   "char",   &CharType   },
+	{PRIMITIVE_INT,    "int",    &IntType    },
+	{PRIMITIVE_FLOAT,  "float",  &FloatType  },
+	{PRIMITIVE_BOOL,   "bool",   &BoolType   },
+	{PRIMITIVE_STRING, "string", &StringType },
+	{PRIMITIVE_ANY,    "any",    &AnyType    },
+	{PRIMITIVE_VARG,   "...",    &VargType   }
+};
 
-static TypeDesc *prime_type(int ch)
+static struct primitive_type_s *get_primitive(int kind)
 {
-	for (int i = 0; i < nr_elts(prime_types); i++) {
-		if (ch == prime_types[i].prime)
-			return prime_types[i].type;
+	struct primitive_type_s *pt;
+	for (int i = 0; i < nr_elts(primitive_types); i++) {
+		pt = primitive_types + i;
+		if (kind == pt->primitive)
+			return pt;
 	}
 	return NULL;
 }
@@ -51,11 +65,10 @@ static TypeDesc *type_new(int kind)
 {
 	TypeDesc *desc = calloc(1, sizeof(TypeDesc));
 	desc->kind = kind;
-	desc->refcnt = 1;
 	return desc;
 }
 
-static TypeDesc *str_to_usrdef(char *str, int len)
+static TypeDesc *cnstring_to_usrdef(char *str, int len)
 {
 	char *dot = strchr(str, '.');
 	assert(dot);
@@ -67,50 +80,172 @@ static TypeDesc *str_to_usrdef(char *str, int len)
 
 /*---------------------------------------------------------------------------*/
 
+static int primitive_equal(TypeDesc *t1, TypeDesc *t2)
+{
+	return t1->primitive == t2->primitive;
+}
+
+static void primitive_tostring(TypeDesc *t, char *buf)
+{
+	strcpy(buf, get_primitive(t->primitive)->str);
+}
+
+static TypeDesc *primitive_dup(TypeDesc *desc)
+{
+	/* the same */
+	return desc;
+}
+
+static void usrdef_free(TypeDesc *t)
+{
+	if (t->usrdef.path) free(t->usrdef.path);
+	assert(t->usrdef.type); free(t->usrdef.type);
+	free(t);
+}
+
+static int usrdef_equal(TypeDesc *t1, TypeDesc *t2)
+{
+	int eq = !strcmp(t1->usrdef.type, t2->usrdef.type);
+	if (eq) {
+		if (t1->usrdef.path && t2->usrdef.path) {
+			eq = !strcmp(t1->usrdef.path, t2->usrdef.path);
+		} if (!t1->usrdef.path && !t2->usrdef.path) {
+			eq = 1;
+		} else {
+			eq = 0;
+		}
+	}
+	return eq;
+}
+
+static void usrdef_tostring(TypeDesc *t, char *buf)
+{
+	sprintf(buf, "%s.%s", t->usrdef.path, t->usrdef.type);
+}
+
+static TypeDesc *usrdef_dup(TypeDesc *desc)
+{
+	/* usrdef is duplicated path and type internally */
+	return Type_New_UsrDef(desc->usrdef.path, desc->usrdef.type);
+}
+
 static void __type_free_fn(void *item, void *arg)
 {
 	UNUSED_PARAMETER(arg);
 	Type_Free(item);
 }
 
+static void proto_free(TypeDesc *t)
+{
+	Vector_Free(t->proto.arg, __type_free_fn, NULL);
+	Vector_Free(t->proto.ret, __type_free_fn, NULL);
+	free(t);
+}
+
+static int proto_equal(TypeDesc *t1, TypeDesc *t2)
+{
+	int eq = TypeList_Equal(t1->proto.arg, t2->proto.arg);
+	if (eq) eq = TypeList_Equal(t1->proto.ret, t2->proto.ret);
+	return eq;
+}
+
+static void proto_tostring(TypeDesc *t, char *buf)
+{
+	sprintf(buf, "%s.%s", t->usrdef.path, t->usrdef.type);
+}
+
+static TypeDesc *proto_dup(TypeDesc *desc)
+{
+	/* need duplicate deeply */
+	UNUSED_PARAMETER(desc);
+	return NULL;
+}
+
+static void array_free(TypeDesc *t)
+{
+	Type_Free(t->array.base);
+	free(t);
+}
+
+static int array_equal(TypeDesc *t1, TypeDesc *t2)
+{
+	UNUSED_PARAMETER(t1);
+	UNUSED_PARAMETER(t2);
+	return 0;
+}
+
+static void array_tostring(TypeDesc *t, char *buf)
+{
+	UNUSED_PARAMETER(t);
+	UNUSED_PARAMETER(buf);
+}
+
+static TypeDesc *array_dup(TypeDesc *desc)
+{
+	/* need duplicate deeply */
+	TypeDesc *base = Type_Dup(desc->array.base);
+	return Type_New_Array(desc->array.dims, base);
+}
+
+static void map_free(TypeDesc *t)
+{
+	Type_Free(t->map.key);
+	Type_Free(t->map.val);
+	free(t);
+}
+
+static int map_equal(TypeDesc *t1, TypeDesc *t2)
+{
+	UNUSED_PARAMETER(t1);
+	UNUSED_PARAMETER(t2);
+	return 0;
+}
+
+static void map_tostring(TypeDesc *t, char *buf)
+{
+	UNUSED_PARAMETER(t);
+	UNUSED_PARAMETER(buf);
+}
+
+static TypeDesc *map_dup(TypeDesc *desc)
+{
+	/* need duplicate deeply */
+	TypeDesc *key = Type_Dup(desc->map.key);
+	TypeDesc *val = Type_Dup(desc->map.val);
+	return Type_New_Map(key, val);
+}
+
+struct type_ops_s {
+	void (*__free)(TypeDesc *t);
+	int (*__equal)(TypeDesc *t1, TypeDesc *t2);
+	void (*__tostring)(TypeDesc *t, char *buf); /* NOTES: not safe */
+	TypeDesc *(*__dup)(TypeDesc *t); /* deep copy */
+} type_ops[] = {
+	/* array[0] is not used */
+	{NULL,        NULL,            NULL,               NULL         },
+	/* Primitive needn't free */
+	{NULL,        primitive_equal, primitive_tostring, primitive_dup},
+	{usrdef_free, usrdef_equal,    usrdef_tostring,    usrdef_dup   },
+	{proto_free,  proto_equal,     proto_tostring,     proto_dup    },
+	{array_free,  array_equal,     array_tostring,     array_dup    },
+	{map_free,    map_equal,       map_tostring,       map_dup      },
+};
+
 void Type_Free(TypeDesc *desc)
 {
-	--desc->refcnt;
-	if (desc->refcnt > 0) return;
-
 	int kind = desc->kind;
-	switch (kind) {
-		case TYPE_PRIME: {
-			debug("prime type, it's not need free");
-			break;
-		}
-		case TYPE_USRDEF: {
-			if (desc->usrdef.path) free(desc->usrdef.path);
-			assert(desc->usrdef.type); free(desc->usrdef.type);
-			free(desc);
-			break;
-		}
-		case TYPE_PROTO: {
-			Vector_Free(desc->proto.arg, __type_free_fn, NULL);
-			Vector_Free(desc->proto.ret, __type_free_fn, NULL);
-			free(desc);
-			break;
-		}
-		case TYPE_MAP: {
-			Type_Free(desc->map.key);
-			Type_Free(desc->map.val);
-			free(desc);
-			break;
-		}
-		case TYPE_ARRAY: {
-			Type_Free(desc->array.base);
-			free(desc);
-			break;
-		}
-		default: {
-			assertm(0, "unknown type's kind %d\n", kind);
-		}
-	}
+	assert(kind > 0 && kind < nr_elts(type_ops));
+	struct type_ops_s *ops = type_ops + kind;
+	if (ops->__free) ops->__free(desc);
+}
+
+/** deep copy */
+TypeDesc *Type_Dup(TypeDesc *desc)
+{
+	int kind = desc->kind;
+	assert(kind > 0 && kind < nr_elts(type_ops));
+	struct type_ops_s *ops = type_ops + kind;
+	return ops->__dup(desc);
 }
 
 TypeDesc *Type_New_UsrDef(char *path, char *type)
@@ -129,19 +264,19 @@ TypeDesc *Type_New_Proto(Vector *arg, Vector *ret)
 	return desc;
 }
 
-TypeDesc *Type_New_Map(TypeDesc *key, TypeDesc *val)
-{
-	TypeDesc *desc = type_new(TYPE_MAP);
-	desc->map.key = key;
-	desc->map.val = val;
-	return desc;
-}
-
 TypeDesc *Type_New_Array(int dims, TypeDesc *base)
 {
 	TypeDesc *desc = type_new(TYPE_ARRAY);
 	desc->array.dims = dims;
 	desc->array.base = base;
+	return desc;
+}
+
+TypeDesc *Type_New_Map(TypeDesc *key, TypeDesc *val)
+{
+	TypeDesc *desc = type_new(TYPE_MAP);
+	desc->map.key = key;
+	desc->map.val = val;
 	return desc;
 }
 
@@ -166,85 +301,25 @@ int Type_Equal(TypeDesc *t1, TypeDesc *t2)
 {
 	if (t1 == t2) return 1;
 	if (t1->kind != t2->kind) return 0;
-
 	int kind = t1->kind;
-	int eq = 0;
-	switch (kind) {
-		case TYPE_PRIME: {
-			eq = (t1->prime.val == t2->prime.val);
-			break;
-		}
-		case TYPE_USRDEF: {
-			eq = !strcmp(t1->usrdef.type, t2->usrdef.type);
-			if (!eq) break;
-
-			if (t1->usrdef.path && t2->usrdef.path) {
-				eq = !strcmp(t1->usrdef.path, t2->usrdef.path);
-			} if (!t1->usrdef.path && !t2->usrdef.path) {
-				eq = 1;
-			} else {
-				eq = 0;
-			}
-			break;
-		}
-		case TYPE_PROTO: {
-			eq = TypeList_Equal(t1->proto.arg, t2->proto.arg);
-			if (eq) eq = TypeList_Equal(t1->proto.ret, t2->proto.ret);
-			break;
-		}
-		default: {
-			assertm(0, "unknown type's kind %d\n", kind);
-		}
-	}
-	return eq;
+	assert(kind > 0 && kind < nr_elts(type_ops));
+	struct type_ops_s *ops = type_ops + kind;
+	return ops->__equal(t1, t2);
 }
 
 void Type_ToString(TypeDesc *desc, char *buf)
 {
-	char *tmp;
-	char *str = "";
-
-	if (!desc) {
-		debug("desc is null");
-		return;
-	}
-
+	if (!desc) return;
 	int kind = desc->kind;
-
-	switch (kind) {
-		case TYPE_PRIME: {
-			strcpy(buf, prime_tostring(desc->prime.val));
-			break;
-		}
-		case TYPE_USRDEF: {
-			sprintf(buf, "%s.%s", desc->usrdef.path, desc->usrdef.type);
-			break;
-		}
-		case TYPE_PROTO: {
-			// FIXME
-			strcpy(buf, "proto is not implemented");
-			break;
-		}
-		case TYPE_MAP: {
-			// FIXME
-			strcpy(buf, "map is not implemented");
-			break;
-		}
-		case TYPE_ARRAY: {
-			// FIXME
-			strcpy(buf, "array is not implemented");
-			break;
-		}
-		default: {
-			assertm(0, "unknown type's kind %d\n", kind);
-		}
-	}
+	assert(kind > 0 && kind < nr_elts(type_ops));
+	struct type_ops_s *ops = type_ops + kind;
+	ops->__tostring(desc, buf);
 }
 
 /**
  * "i[sOkoala/lang.Tuple;" -->>> int, []string, koala/lang.Tuple
  */
-Vector *String_To_TypeList(char *str)
+Vector *CString_To_TypeList(char *str)
 {
 	if (!str) return NULL;
 	Vector *v = Vector_New();
@@ -255,27 +330,27 @@ Vector *String_To_TypeList(char *str)
 	while ((ch = *str) != '\0') {
 		if (ch == '.') {
 			assert(str[1] == '.' && str[2] == '.');
-			desc = &Varg_Type;
+			desc = &VargType;
 			Vector_Append(v, desc);
 			str += 3;
 			assert(!*str);
-		} else if ((desc = prime_type(ch))) {
-			if (dims > 0) desc = Type_New_Array(dims, desc);
-			Vector_Append(v, desc);
-			dims = 0;
-			str++;
 		} else if (ch == 'O') {
 			char *start = str + 1;
 			while ((ch = *str) != ';') str++;
-			desc = str_to_usrdef(start, str - start);
+			desc = cnstring_to_usrdef(start, str - start);
 			if (dims > 0) desc = Type_New_Array(dims, desc);
 			Vector_Append(v, desc);
 			dims = 0;
 			str++;
 		} else if (ch == '[') {
 			while ((ch = *str) == '[') { dims++; str++; }
+		} else if ((desc = get_primitive(ch)->type)) {
+			if (dims > 0) desc = Type_New_Array(dims, desc);
+			Vector_Append(v, desc);
+			dims = 0;
+			str++;
 		} else {
-			assertm(0, "unknown type:%c\n", ch);
+			kassert(0, "unknown type:%c\n", ch);
 		}
 	}
 

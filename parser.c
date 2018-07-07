@@ -497,7 +497,7 @@ static void parse_new_var(ParserState *ps, struct stmt *stmt)
 		} else if (desc->kind == TYPE_PROTO) {
 			debug("var's type is proto");
 		} else {
-			assert(desc->kind == TYPE_PRIME);
+			assert(desc->kind == TYPE_PRIMITIVE);
 		}
 	}
 
@@ -662,7 +662,7 @@ static struct expr *optimize_binary_add(struct expr *l, struct expr *r)
 		}
 		e = expr_from_float(val);
 	} else {
-		assertm(0, "unsupported optimized type:%d", l->kind);
+		kassert(0, "unsupported optimized type:%d", l->kind);
 	}
 	return e;
 }
@@ -691,7 +691,7 @@ static struct expr *optimize_binary_sub(struct expr *l, struct expr *r)
 		}
 		e = expr_from_float(val);
 	} else {
-		assertm(0, "unsupported optimized type:%d", l->kind);
+		kassert(0, "unsupported optimized type:%d", l->kind);
 	}
 	return e;
 }
@@ -876,7 +876,7 @@ static void parser_merge(ParserState *ps)
 
 		u->block = NULL;
 	} else {
-		assertm(0, "no codes in scope:%d", u->scope);
+		kassert(0, "no codes in scope:%d", u->scope);
 	}
 }
 
@@ -1023,7 +1023,7 @@ static void parser_curscope_ident(ParserState *ps, Symbol *sym,
 					exp->ctx = EXPR_LOAD_FUNC;
 				}
 			} else {
-				assertm(0, "invalid symbol kind :%d", sym->kind);
+				kassert(0, "invalid symbol kind :%d", sym->kind);
 			}
 			break;
 		}
@@ -1047,12 +1047,12 @@ static void parser_curscope_ident(ParserState *ps, Symbol *sym,
 					i->argc = exp->argc;
 				}
 			} else {
-				assertm(0, "invalid symbol kind :%d", sym->kind);
+				kassert(0, "invalid symbol kind :%d", sym->kind);
 			}
 			break;
 		}
 		default: {
-			assertm(0, "invalid scope:%d", u->scope);
+			kassert(0, "invalid scope:%d", u->scope);
 			break;
 		}
 	}
@@ -1080,7 +1080,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 				Inst *i = Inst_Append(u->block, OP_CALL, &val);
 				i->argc = exp->argc;
 			} else {
-				assertm(0, "invalid symbol kind :%d", sym->kind);
+				kassert(0, "invalid symbol kind :%d", sym->kind);
 			}
 			break;
 		}
@@ -1139,7 +1139,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 					}
 				}
 			} else {
-				assertm(0, "invalid symbol kind :%d", sym->kind);
+				kassert(0, "invalid symbol kind :%d", sym->kind);
 			}
 			break;
 		}
@@ -1167,7 +1167,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 					Inst *i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
 				} else {
-					assertm(0, "invalid symbol kind :%d", sym->kind);
+					kassert(0, "invalid symbol kind :%d", sym->kind);
 				}
 			} else {
 				assert(sym->up->kind == SYM_MODULE);
@@ -1197,7 +1197,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 					i = Inst_Append(u->block, OP_CALL, &val);
 					i->argc = exp->argc;
 				} else {
-					assertm(0, "invalid symbol kind :%d", sym->kind);
+					kassert(0, "invalid symbol kind :%d", sym->kind);
 				}
 			}
 			break;
@@ -1226,12 +1226,12 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
 				Argument val = {.kind = ARG_STR, .str = sym->name};
 				Inst_Append(u->block, opcode, &val);
 			} else {
-				assertm(0, "invalid up symbol kind :%d", up->kind);
+				kassert(0, "invalid up symbol kind :%d", up->kind);
 			}
 			break;
 		}
 		default: {
-			assertm(0, "invalid scope:%d", u->scope);
+			kassert(0, "invalid scope:%d", u->scope);
 			break;
 		}
 	}
@@ -1250,7 +1250,7 @@ static void parser_superclass_ident(ParserState *ps, Symbol *sym,
 			break;
 		}
 		default: {
-			assertm(0, "invalid scope:%d", u->scope);
+			kassert(0, "invalid scope:%d", u->scope);
 			break;
 		}
 	}
@@ -1814,7 +1814,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			exp->binary.left->ctx = EXPR_LOAD;
 			parser_visit_expr(ps, exp->binary.left);
 			if (binop_relation(exp->binary.op)) {
-				exp->desc = &Bool_Type;
+				exp->desc = Type_Bool;
 			} else {
 				exp->desc = exp->binary.left->desc;
 			}
@@ -1983,7 +1983,7 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 					}
 				}
 			} else {
-				assertm(0, "invalid expr context:%d", exp->ctx);
+				kassert(0, "invalid expr context:%d", exp->ctx);
 				return;
 			}
 		} else {
@@ -2009,7 +2009,7 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 					// 			return;
 					// 		}
 					// 	} else {
-					// 		assertm(0, "invalid:%d", s2->kind);
+					// 		kassert(0, "invalid:%d", s2->kind);
 					// 	}
 					// } else {
 					// 	if (check_symbol_inherit(s1, s2)) {
@@ -2057,7 +2057,7 @@ static void parser_variable(ParserState *ps, struct var *var, struct expr *exp)
 		sym->up = NULL;
 		Vector_Append(&pu->sym->locvec, sym);
 	} else {
-		assertm(0, "unknown unit scope:%d", u->scope);
+		kassert(0, "unknown unit scope:%d", u->scope);
 	}
 
 	if (var->typealias) {
@@ -2133,7 +2133,7 @@ static void parser_function(ParserState *ps, struct stmt *stmt, int scope)
 			parser_body(ps, stmt->funcdecl.body);
 		debug("------parse function '%s' end----", stmt->funcdecl.id);
 	} else {
-		assertm(0, "unknown parent scope: %d", parent->scope);
+		kassert(0, "unknown parent scope: %d", parent->scope);
 	}
 
 	parser_exit_scope(ps);
@@ -2170,7 +2170,7 @@ void sym_inherit_fn(Symbol *sym, void *arg)
 			s->super = sym;
 		}
 	} else {
-		assertm(0, "invalid symbol kind:%d", sym->kind);
+		kassert(0, "invalid symbol kind:%d", sym->kind);
 	}
 }
 
@@ -2366,7 +2366,7 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 			} else if (s->kind == FUNCPROTO_KIND) {
 				debug("func %s is abstract", s->funcproto.id);
 			} else {
-				assertm(0, "invalid symbol kind:%d", s->kind);
+				kassert(0, "invalid symbol kind:%d", s->kind);
 			}
 		}
 	}
@@ -2502,7 +2502,7 @@ static void parser_return(ParserState *ps, struct stmt *stmt)
 		assert(parent);
 		sym = parent->sym;
 	} else {
-		assertm(0, "invalid scope:%d", u->scope);
+		kassert(0, "invalid scope:%d", u->scope);
 	}
 
 	struct expr *e;
@@ -2525,10 +2525,13 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 		// ELSE branch has not 'test'
 		parser_visit_expr(ps, test);
 		assert(test->desc);
+		//FXIME
+		/*
 		if (test->desc != &Bool_Type) {
 			error("if-stmt condition is not bool");
 			return;
 		}
+		*/
 		testsize = ps->u->block->bytes;
 	}
 
@@ -2599,10 +2602,12 @@ static void parser_while(ParserState *ps, struct stmt *stmt)
 	struct expr *test = stmt->while_stmt.test;
 	parser_visit_expr(ps, test);
 	assert(test->desc);
+	//FIXME
+	/*
 	if (test->desc != &Bool_Type) {
 		error("while-stmt condition is not bool");
 	}
-
+	*/
 	int offset = 0 - (u->block->bytes - jmpsize +
 		1 + opcode_argsize(OP_JUMP_TRUE));
 	Argument val = {.kind = ARG_INT, .ival = offset};

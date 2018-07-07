@@ -16,11 +16,11 @@ typedef struct lineinfo {
 
 /*-------------------------------------------------------------------------*/
 
-enum unary_op_kind {
+typedef enum unary_op_kind {
 	UNARY_PLUS = 1, UNARY_MINUS = 2, UNARY_BIT_NOT = 3, UNARY_LNOT = 4
-};
+} UnaryOpKind;
 
-enum binary_op_kind {
+typedef enum binary_op_kind {
 	BINARY_ADD = 1, BINARY_SUB,
 	BINARY_MULT, BINARY_DIV, BINARY_MOD, BINARY_QUOT, BINARY_POWER,
 	BINARY_LSHIFT, BINARY_RSHIFT,
@@ -31,26 +31,26 @@ enum binary_op_kind {
 	BINARY_BIT_OR,
 	BINARY_LAND,
 	BINARY_LOR,
-};
+} BinaryOpKind;
 
 int binop_arithmetic(int op);
 int binop_relation(int op);
 int binop_logic(int op);
 int binop_bit(int op);
 
-enum expr_kind {
+typedef enum expr_kind {
 	ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
 	STRING_KIND = 5, SELF_KIND = 6, SUPER_KIND = 7, TYPEOF_KIND = 8,
 	NIL_KIND = 9, EXP_KIND = 10, ARRAY_KIND = 11, ANONYOUS_FUNC_KIND = 12,
 	ATTRIBUTE_KIND = 13, SUBSCRIPT_KIND = 14, CALL_KIND = 15,
 	UNARY_KIND = 16, BINARY_KIND = 17, SEQ_KIND = 18,
 	EXPR_KIND_MAX
-};
+} ExprKind;
 
-enum expr_ctx {
+typedef enum expr_ctx {
 	EXPR_INVALID = 0, EXPR_LOAD = 1, EXPR_STORE = 2,
 	EXPR_CALL_FUNC = 3, EXPR_LOAD_FUNC = 4,
-};
+} ExprCtx;
 
 struct expr {
 	enum expr_kind kind;
@@ -101,7 +101,7 @@ struct expr {
 			enum binary_op_kind op;
 			struct expr *right;
 		} binary;
-		Vector *vec;
+		Vector vec;
 	};
 };
 

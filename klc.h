@@ -182,7 +182,7 @@ typedef struct kimage {
 
 /*-------------------------------------------------------------------------*/
 
-TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl);
+TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl);
 TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl);
 
 KImage *KImage_New(char *pkg_name);

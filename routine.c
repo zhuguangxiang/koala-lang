@@ -715,7 +715,7 @@ static void frame_loop(Frame *frame)
 				break;
 			}
 			default: {
-				assertm(0, "unknown instruction:%d\n", inst);
+				kassert(0, "unknown instruction:%d\n", inst);
 			}
 		}
 	}

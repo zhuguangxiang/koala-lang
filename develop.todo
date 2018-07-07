@@ -1,8 +1,16 @@
 
 v0.6.5:
   ✔ Type Descriptor @done(18-07-05 23:22)
-  ☐ Basic Type(int, float, bool, string, any, variable-argument)
-  ☐ Primary Expression
-  ☐ Function Call
-  ☐ Koala Code Format(.klc)
+  ✔ Basic Type(int, float, bool, string, any, variable-argument) @done(18-07-07 14:30)
+  ✔ Primary Expression @done(18-07-07 14:30)
+  ☐ Assignment And Return Expression
+  ✔ Function Call @done(18-07-07 14:30)
+  ✔ Koala Code Format(.klc) @done(18-07-07 14:30)
   ✔ test/hello.kl @done(18-07-06 20:44)
+  ✔ test/error-import.kl @done(18-07-07 14:29)
+
+v0.6.5:
+  ☐ TypeDesc is used by compiler, and not for runtime
+
+v0.6.6:
+  ☐ quickly access to field and function by using index for second times

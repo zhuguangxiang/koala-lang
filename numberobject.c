@@ -95,7 +95,7 @@ TValue Int_Add(TValue *v1, TValue *v2)
 	} else if (v2->klazz == &String_Klass) {
 		return Int_Add_String(v1, v2);
 	} else {
-		assertm(0, "Int_Add:not supported with %s", v2->klazz->name);
+		kassert(0, "Int_Add:not supported with %s", v2->klazz->name);
 		return NilValue;
 	}
 }

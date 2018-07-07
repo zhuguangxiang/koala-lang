@@ -70,8 +70,8 @@ int Module_Add_Func(Object *ob, char *name, Object *code)
 
 int Module_Add_CFunc(Object *ob, FuncDef *f)
 {
-	Vector *rdesc = String_To_TypeList(f->rdesc);
-	Vector *pdesc = String_To_TypeList(f->pdesc);
+	Vector *rdesc = CString_To_TypeList(f->rdesc);
+	Vector *pdesc = CString_To_TypeList(f->pdesc);
 	TypeDesc *proto = Type_New_Proto(pdesc, rdesc);
 	Object *code = CFunc_New(f->fn, proto);
 	return Module_Add_Func(ob, f->name, code);

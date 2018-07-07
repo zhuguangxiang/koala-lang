@@ -48,13 +48,19 @@ typedef double  float64;
 /* For -Wunused-parameter */
 #define UNUSED_PARAMETER(var) ((var) = (var))
 
-/* Assert macros */
-#define assertm(val, fmt, ...) do { \
+/* Assert macros for koala */
+#define kassert(val, fmt, ...) do { \
 	if (!(val)) { \
 		printf("[%s:%d]" fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
 		assert(val); \
 	} \
 } while (0)
+
+#if __x86_64__
+#define ptr2int(ptr, inttype) (inttype)((uint64)(ptr))
+#else
+#define ptr2int(ptr, inttype) (inttype)((void *)(ptr))
+#endif
 
 #ifdef __cplusplus
 }
