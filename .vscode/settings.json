@@ -1,63 +1,65 @@
 {
-  "workbench.statusBar.visible": true,
-  "workbench.colorTheme": "Atom One Dark",
-  "workbench.iconTheme": "file-icons",
-  "workbench.activityBar.visible": false,
-  "workbench.startupEditor": "none",
-  "editor.fontSize": 14,
-  "editor.fontFamily":  "'Operator Mono Light', 'Ubuntu Mono'",
-  "editor.tabSize": 2,
-  "editor.insertSpaces": false,
-  "files.associations": {
-    "*.h": "c",
-    "*.c": "c",
-    "*.kl": "go",
-    "array": "c",
-    "initializer_list": "c",
-    "string_view": "c",
-    "utility": "c",
-    "cmath": "c",
-    "istream": "c",
-    "ostream": "c",
-    "type_traits": "c",
-    "tuple": "c"
-  },
-  "editor.rulers": [
-      80
-  ],
-  "editor.minimap.enabled": false,
-  "terminal.integrated.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
-  "terminal.integrated.fontSize": 14,
-  "todo-tree.flat": true,
-  "todo-tree.expanded": false,
-  "workbench.editor.enablePreview": false,
-  "editor.renderControlCharacters": true,
-  "editor.renderWhitespace": "all",
-  "[c]": {
-    "files.trimTrailingWhitespace": true,
-    "files.insertFinalNewline": true,
-    "files.trimFinalNewlines": true
-  },
-  "[yacc]": {
-    "files.trimTrailingWhitespace": true,
-    "files.insertFinalNewline": true,
-    "files.trimFinalNewlines": true
-  },
-  "[lex]": {
-    "files.trimTrailingWhitespace": true,
-    "files.insertFinalNewline": true,
-    "files.trimFinalNewlines": true
-  },
-  "[markdown]": {
-    "editor.wordWrap": "wordWrapColumn",
-    "editor.quickSuggestions": false
-  },
-  "editor.wordWrap": "wordWrapColumn",
-  "markdown.preview.fontSize": 14,
-  // "markdown.styles": [ "github-markdown.css" ]
-  "git.confirmSync": false,
-  "window.zoomLevel": 0.5,
-  "editor.occurrencesHighlight": false,
-  "editor.selectionHighlight": false,
-  "editor.cursorStyle": "line"
+	"workbench.startupEditor": "none",
+	"workbench.statusBar.visible": true,
+	"workbench.colorTheme": "Atom One Dark",
+	"workbench.iconTheme": "file-icons",
+	"workbench.activityBar.visible": false,
+	"editor.fontSize": 14,
+	"editor.fontFamily":  "'Operator Mono Light', 'Ubuntu Mono'",
+	"editor.fontLigatures": true,
+	"editor.tabSize": 2,
+	"editor.insertSpaces": false,
+	"files.associations": {
+			"*.h": "c",
+			"*.c": "c",
+			"*.kl": "go",
+			"array": "c",
+			"initializer_list": "c",
+			"string_view": "c",
+			"utility": "c",
+			"cmath": "c",
+			"istream": "c",
+			"ostream": "c",
+			"type_traits": "c",
+			"tuple": "c"
+	},
+	"editor.rulers": [
+			80
+	],
+	"editor.minimap.enabled": false,
+	"terminal.integrated.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
+	"terminal.integrated.fontSize": 14,
+	"todo-tree.flat": true,
+	"todo-tree.expanded": false,
+	"workbench.editor.enablePreview": false,
+	"editor.renderControlCharacters": true,
+	"editor.renderWhitespace": "all",
+	"[c]": {
+			"files.trimTrailingWhitespace": true,
+			"files.insertFinalNewline": true,
+			"files.trimFinalNewlines": true
+	},
+	"[yacc]": {
+			"files.trimTrailingWhitespace": true,
+			"files.insertFinalNewline": true,
+			"files.trimFinalNewlines": true
+	},
+	"[lex]": {
+			"files.trimTrailingWhitespace": true,
+			"files.insertFinalNewline": true,
+			"files.trimFinalNewlines": true
+	},
+	"[markdown]": {
+			"editor.wordWrap": "wordWrapColumn",
+			"editor.quickSuggestions": false
+	},
+	"editor.wordWrap": "wordWrapColumn",
+	"markdown.preview.fontSize": 14,
+	// "markdown.styles": [ "github-markdown.css" ]
+	"git.confirmSync": false,
+	"window.zoomLevel": 0.5,
+	"editor.occurrencesHighlight": false,
+	"editor.selectionHighlight": false,
+	"editor.cursorStyle": "line",
+	"terminal.integrated.scrollback": 10000
 }
