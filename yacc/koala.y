@@ -225,11 +225,11 @@ MapType:
 ;
 
 PrimitiveType:
-	INTEGER { $$ = Type_Integer; }
-| FLOAT   { $$ = Type_Float;   }
-| BOOL    { $$ = Type_Bool;    }
-| STRING  { $$ = Type_String;  }
-| ANY     { $$ = Type_Any;     }
+	INTEGER { $$ = &Int_Type;    }
+| FLOAT   { $$ = &Float_Type;  }
+| BOOL    { $$ = &Bool_Type;   }
+| STRING  { $$ = &String_Type; }
+| ANY     { $$ = &Any_Type;    }
 ;
 
 UsrDefType:
@@ -264,7 +264,7 @@ TypeList:
 		$$ = $1;
 	}
 | TypeList ',' ELLIPSIS {
-		Vector_Append($$, Type_Varg);
+		Vector_Append($$, &Varg_Type);
 		$$ = $1;
 	}
 ;
@@ -416,7 +416,7 @@ ParameterList:
 		$$ = $1;
 	}
 | ParameterList ',' ID ELLIPSIS {
-		Vector_Append($$, new_var($3, Type_Varg));
+		Vector_Append($$, new_var($3, &Varg_Type));
 		$$ = $1;
 	}
 ;

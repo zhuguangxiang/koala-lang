@@ -21,7 +21,7 @@ struct expr *expr_from_id(char *id)
 struct expr *expr_from_int(int64 ival)
 {
 	struct expr *expr = expr_new(INT_KIND);
-	expr->desc = Type_Integer;
+	expr->desc = &Int_Type;
 	expr->ival = ival;
 	return expr;
 }
@@ -29,7 +29,7 @@ struct expr *expr_from_int(int64 ival)
 struct expr *expr_from_float(float64 fval)
 {
 	struct expr *expr = expr_new(FLOAT_KIND);
-	expr->desc = Type_Float;
+	expr->desc = &Float_Type;
 	expr->fval = fval;
 	return expr;
 }
@@ -37,7 +37,7 @@ struct expr *expr_from_float(float64 fval)
 struct expr *expr_from_string(char *str)
 {
 	struct expr *expr = expr_new(STRING_KIND);
-	expr->desc = Type_String;
+	expr->desc = &String_Type;
 	expr->str = str;
 	return expr;
 }
@@ -45,7 +45,7 @@ struct expr *expr_from_string(char *str)
 struct expr *expr_from_bool(int bval)
 {
 	struct expr *expr = expr_new(BOOL_KIND);
-	expr->desc = Type_Bool;
+	expr->desc = &Bool_Type;
 	expr->bval = bval;
 	return expr;
 }

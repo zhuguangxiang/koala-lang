@@ -50,14 +50,14 @@ struct typedesc {
 	};
 };
 
-extern TypeDesc ByteType;
-extern TypeDesc CharType;
-extern TypeDesc IntType;
-extern TypeDesc FloatType;
-extern TypeDesc BoolType;
-extern TypeDesc StringType;
-extern TypeDesc AnyType;
-extern TypeDesc VargType;
+extern TypeDesc Byte_Type;
+extern TypeDesc Char_Type;
+extern TypeDesc Int_Type;
+extern TypeDesc Float_Type;
+extern TypeDesc Bool_Type;
+extern TypeDesc String_Type;
+extern TypeDesc Any_Type;
+extern TypeDesc Varg_Type;
 
 #define Init_Type_UsrDef(desc, p, t) do { \
 	(desc)->kind = TYPE_USRDEF; \
@@ -76,19 +76,11 @@ int Type_Equal(TypeDesc *t1, TypeDesc *t2);
 void Type_ToString(TypeDesc *desc, char *buf);
 Vector *CString_To_TypeList(char *str);
 
-#define Type_Byte    &ByteType
-#define Type_Integer &IntType
-#define Type_Float   &FloatType
-#define Type_Bool    &BoolType
-#define Type_String  &StringType
-#define Type_Any     &AnyType
-#define Type_Varg    &VargType
-
-#define Type_IsInt(type)    ((type) == &IntType)
-#define Type_IsFloat(type)  ((type) == &FloatType)
-#define Type_IsBool(type)   ((type) == &BoolType)
-#define Type_IsString(type) ((type) == &StringType)
-#define Type_IsVarg(type)   ((type) == &VargType)
+#define Type_IsInt(type)    ((type) == &Int_Type)
+#define Type_IsFloat(type)  ((type) == &Float_Type)
+#define Type_IsBool(type)   ((type) == &Bool_Type)
+#define Type_IsString(type) ((type) == &String_Type)
+#define Type_IsVarg(type)   ((type) == &Varg_Type)
 
 #ifdef __cplusplus
 }

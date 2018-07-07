@@ -2,35 +2,35 @@
 #include "typedesc.h"
 #include "log.h"
 
-TypeDesc ByteType = {
+TypeDesc Byte_Type = {
 	.kind = TYPE_PRIMITIVE,
 	.primitive = PRIMITIVE_BYTE
 };
-TypeDesc CharType = {
+TypeDesc Char_Type = {
 	.kind = TYPE_PRIMITIVE,
 	.primitive = PRIMITIVE_CHAR
 };
-TypeDesc IntType = {
+TypeDesc Int_Type = {
 	.kind = TYPE_PRIMITIVE,
 	.primitive = PRIMITIVE_INT
 };
-TypeDesc FloatType = {
+TypeDesc Float_Type = {
 	.kind = TYPE_PRIMITIVE,
 	.primitive = PRIMITIVE_FLOAT
 };
-TypeDesc BoolType = {
+TypeDesc Bool_Type = {
 	.kind = TYPE_PRIMITIVE,
 	.primitive = PRIMITIVE_BOOL
 };
-TypeDesc StringType = {
+TypeDesc String_Type = {
 	.kind = TYPE_PRIMITIVE,
 	.primitive = PRIMITIVE_STRING
 };
-TypeDesc AnyType = {
+TypeDesc Any_Type = {
 	.kind = TYPE_PRIMITIVE,
 	.primitive = PRIMITIVE_ANY
 };
-TypeDesc VargType = {
+TypeDesc Varg_Type = {
 	.kind = TYPE_PRIMITIVE,
 	.primitive = PRIMITIVE_VARG
 };
@@ -40,14 +40,14 @@ struct primitive_type_s {
 	char *str;
 	TypeDesc *type;
 } primitive_types[] = {
-	{PRIMITIVE_BYTE,   "byte",   &ByteType   },
-	{PRIMITIVE_CHAR,   "char",   &CharType   },
-	{PRIMITIVE_INT,    "int",    &IntType    },
-	{PRIMITIVE_FLOAT,  "float",  &FloatType  },
-	{PRIMITIVE_BOOL,   "bool",   &BoolType   },
-	{PRIMITIVE_STRING, "string", &StringType },
-	{PRIMITIVE_ANY,    "any",    &AnyType    },
-	{PRIMITIVE_VARG,   "...",    &VargType   }
+	{PRIMITIVE_BYTE,   "byte",   &Byte_Type   },
+	{PRIMITIVE_CHAR,   "char",   &Char_Type   },
+	{PRIMITIVE_INT,    "int",    &Int_Type    },
+	{PRIMITIVE_FLOAT,  "float",  &Float_Type  },
+	{PRIMITIVE_BOOL,   "bool",   &Bool_Type   },
+	{PRIMITIVE_STRING, "string", &String_Type },
+	{PRIMITIVE_ANY,    "any",    &Any_Type    },
+	{PRIMITIVE_VARG,   "...",    &Varg_Type   }
 };
 
 static struct primitive_type_s *get_primitive(int kind)
@@ -330,7 +330,7 @@ Vector *CString_To_TypeList(char *str)
 	while ((ch = *str) != '\0') {
 		if (ch == '.') {
 			assert(str[1] == '.' && str[2] == '.');
-			desc = &VargType;
+			desc = &Varg_Type;
 			Vector_Append(v, desc);
 			str += 3;
 			assert(!*str);

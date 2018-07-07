@@ -1814,7 +1814,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
 			exp->binary.left->ctx = EXPR_LOAD;
 			parser_visit_expr(ps, exp->binary.left);
 			if (binop_relation(exp->binary.op)) {
-				exp->desc = Type_Bool;
+				exp->desc = &Bool_Type;
 			} else {
 				exp->desc = exp->binary.left->desc;
 			}
