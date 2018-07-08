@@ -24,7 +24,9 @@
 		"type_traits": "c",
 		"tuple": "c",
 		"sstream": "c",
-		"*.tcc": "c"
+		"*.tcc": "c",
+		"typeinfo": "c",
+		"unordered_map": "c"
 	},
 	"editor.rulers": [
 			80
@@ -36,7 +38,7 @@
 	"todo-tree.expanded": false,
 	"workbench.editor.enablePreview": false,
 	"editor.renderControlCharacters": true,
-	"editor.renderWhitespace": "none",
+	"editor.renderWhitespace": "all",
 	"[c]": {
 			"files.trimTrailingWhitespace": true,
 			"files.insertFinalNewline": true,

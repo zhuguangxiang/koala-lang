@@ -1,7 +1,7 @@
 
-import net "abc"
-import "abc"
+import net "koala/net"
+import "koala/io"
 
 func Main(args []string) {
-	net.connect("127.0.0.1", 10080);
+	
 }

@@ -29,7 +29,7 @@ static int yyerror(ParserState *ps, void *scanner, const char *errmsg)
 
 Statement *do_vardecl_list(ParserState *ps, Vector *ids, TypeDesc *desc,
 	Vector *exprs, int bconst);
-TypeDesc *do_usrdef_type(ParserState *ps, char *path, char *type);
+TypeDesc *do_usrdef_type(ParserState *ps, char *id, char *type);
 Statement *do_assign_list(ParserState *ps, Vector *left, Vector *right);
 
 %}
@@ -409,14 +409,14 @@ FunctionDeclaration:
 ParameterList:
 	ID Type {
 		$$ = Vector_New();
-		Vector_Append($$, new_var($1, $2));
+		Vector_Append($$, stmt_from_vardecl($1, $2, 0, NULL));
 	}
 | ParameterList ',' ID Type {
-		Vector_Append($$, new_var($3, $4));
+		Vector_Append($$, stmt_from_vardecl($3, $4, 0, NULL));
 		$$ = $1;
 	}
 | ParameterList ',' ID ELLIPSIS {
-		Vector_Append($$, new_var($3, &Varg_Type));
+		Vector_Append($$, stmt_from_vardecl($3, &Varg_Type, 0, NULL));
 		$$ = $1;
 	}
 ;
@@ -967,35 +967,32 @@ CompAssignOp:
 
 %%
 
-static inline int Check_Assign_Count(ParserState *ps, Vector *l, Vector *r)
-{
-	int lsz = Vector_Size(l);
-	int rsz = Vector_Size(r);
-	if (lsz != rsz) {
-		Parser_Error(ps, "cannot assign %d values to %d variables", rsz, lsz);
-		return -1;
-	}
-	/* return count of left or right */
-	return lsz;
-}
-
 Statement *do_vardecl_list(ParserState *ps, Vector *ids, TypeDesc *desc,
 	Vector *exprs, int bconst)
 {
-	int sz = Vector_Size(exprs);
-	if (sz && Check_Assign_Count(ps, ids, exprs) < 0) {
+	int isz = Vector_Size(ids);
+	int esz = Vector_Size(exprs);
+	if (esz && esz != isz) {
+		Parser_Error(ps, "cannot assign %d values to %d variables", esz, isz);
 		//FIXME: free ids, desc and exprs
 		return NULL;
 	}
+
+	if (desc && desc->kind == TYPE_ARRAY) {
+		/* check array's base type */
+		if (!desc->array.base) return NULL;
+	}
+
+	if (!desc && !exprs) return NULL;
 
 	Statement *stmt = stmt_from_list();
 
 	char *id;
 	Statement *s;
-	Expression *exp;
-	for (int i = 0; i < sz; i++) {
+	Expression *exp = NULL;
+	for (int i = 0; i < isz; i++) {
 		id = Vector_Get(ids, i);
-		exp = Vector_Get(exprs, i);
+		if (esz > 0) exp = Vector_Get(exprs, i);
 		s = stmt_from_vardecl(id, desc, bconst, exp);
 		Vector_Append(&stmt->list, s);
 	}
@@ -1005,8 +1002,10 @@ Statement *do_vardecl_list(ParserState *ps, Vector *ids, TypeDesc *desc,
 
 Statement *do_assign_list(ParserState *ps, Vector *left, Vector *right)
 {
-	int sz = Check_Assign_Count(ps, left, right);
-	if (sz < 0) {
+	int lsz = Vector_Size(left);
+	int rsz = Vector_Size(right);
+	if (rsz != lsz) {
+		Parser_Error(ps, "cannot assign %d values to %d variables", rsz, lsz);
 		//FIXME: free left, and right
 		return NULL;
 	}
@@ -1017,7 +1016,7 @@ Statement *do_assign_list(ParserState *ps, Vector *left, Vector *right)
 	Expression *lexp;
 	Expression *rexp;
 	Statement *s;
-	for (int i = 0; i < sz; i++) {
+	for (int i = 0; i < lsz; i++) {
 		lexp = Vector_Get(left, i);
 		rexp = Vector_Get(right, i);
 		if (lexp->desc && rexp->desc) {
@@ -1038,12 +1037,15 @@ Statement *do_assign_list(ParserState *ps, Vector *left, Vector *right)
 	return stmt;
 }
 
-TypeDesc *do_usrdef_type(ParserState *ps, char *path, char *type)
+TypeDesc *do_usrdef_type(ParserState *ps, char *id, char *type)
 {
 	char *fullpath = NULL;
-	if (path) {
-		fullpath = Parser_Get_FullPath(ps, path);
-		if (!fullpath) Parser_Error(ps, "cannot find '%s'", path);
+	if (id) {
+		fullpath = Parser_Get_FullPath(ps, id);
+		if (!fullpath) {
+			Parser_Error(ps, "cannot find package: '%s'", id);
+			return NULL;
+		}
 	}
 	return Type_New_UsrDef(fullpath, type);
 }

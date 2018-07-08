@@ -183,8 +183,8 @@ struct stmt {
 		} vardecl;
 		struct {
 			char *id;
-			Vector *pvec;
-			Vector *rvec;
+			Vector *args;
+			Vector *rets;
 			Vector *body;
 		} funcdecl;
 		struct {
@@ -250,10 +250,9 @@ struct stmt {
 
 Statement *stmt_from_expr(Expression *exp);
 Statement *stmt_from_vardecl(char *id, TypeDesc *desc, int k, Expression *exp);
-Statement *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
-	Vector *body);
-Statement *stmt_from_assign(Expression *left, AssignOpKind op,
-	Expression *right);
+Statement *stmt_from_funcdecl(char *id, Vector *args, Vector *rets,
+															Vector *body);
+Statement *stmt_from_assign(Expression *l, AssignOpKind op, Expression *r);
 Statement *stmt_from_block(Vector *vec);
 Statement *stmt_from_return(Vector *vec);
 Statement *stmt_from_empty(void);

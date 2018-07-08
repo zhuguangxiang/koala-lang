@@ -8,15 +8,14 @@
 
 HashTable StringCache;
 
-static StringObject *__find_string(HashTable *cache, char *str, int len)
+static inline StringObject *__find_string(HashTable *cache, char *str, int len)
 {
 	StringObject strobj = {.len = len, .str = str};
 	return HashTable_Find(cache, &strobj);
 }
 
-static int __add_string(HashTable *cache, StringObject *strobj)
+static inline int __add_string(HashTable *cache, StringObject *strobj)
 {
-	debug("add '%s' into string cache", strobj->str);
 	return HashTable_Insert(cache, &strobj->hnode);
 }
 

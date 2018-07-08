@@ -192,13 +192,13 @@ Statement *stmt_from_vardecl(char *id, TypeDesc *desc, int k, Expression *exp)
 	return stmt;
 }
 
-Statement *stmt_from_funcdecl(char *id, Vector *pvec, Vector *rvec,
-	Vector *body)
+Statement *stmt_from_funcdecl(char *id, Vector *args, Vector *rets,
+															Vector *body)
 {
 	Statement *stmt = stmt_new(FUNCDECL_KIND);
-	stmt->funcdecl.id = id;
-	stmt->funcdecl.pvec = pvec;
-	stmt->funcdecl.rvec = rvec;
+	stmt->funcdecl.id   = id;
+	stmt->funcdecl.args = args;
+	stmt->funcdecl.rets = rets;
 	stmt->funcdecl.body = body;
 	return stmt;
 }
