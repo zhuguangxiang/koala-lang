@@ -6,12 +6,12 @@
 #define YY_EXTRA_TYPE ParserState *
 
 #define YY_USER_ACTION { \
-	Lexer_DoUserAction(yyextra, yytext); \
+  Lexer_DoUserAction(yyextra, yytext); \
 }
 
 #define YY_INPUT(buf, result, max_size) { \
-	result = Lexer_DoYYInput(yyextra, buf, max_size, yyin); \
-	if (result <= 0) result = YY_NULL; \
+  result = Lexer_DoYYInput(yyextra, buf, max_size, yyin); \
+  if (result <= 0) result = YY_NULL; \
 }
 
 %}
@@ -102,31 +102,31 @@ L   [a-zA-Z_]
 "nil"                     {return TOKEN_NIL;}
 
 ([1-9][0-9]*|[0])         {
-														yylval->ival = atoi(yytext);
-														return INT_CONST;
-													}
+                            yylval->ival = atoi(yytext);
+                            return INT_CONST;
+                          }
 0[xX]{H}+                 {return HEX_CONST;}
 0[0-7]*                   {return OCT_CONST;}
 [0-9]+[.][0-9]+           {
-														yylval->fval = atof(yytext);
-														return FLOAT_CONST;
-													}
+                            yylval->fval = atof(yytext);
+                            return FLOAT_CONST;
+                          }
 
 (\"(\\.|[^"\\])*\")       {
-														char *tmp = malloc(yyleng-1);
-														strncpy(tmp, yytext+1, yyleng-2);
-														tmp[yyleng - 2] = 0;
-														yylval->string_const = tmp;
-														return STRING_CONST;
-													}
+                            char *tmp = malloc(yyleng-1);
+                            strncpy(tmp, yytext+1, yyleng-2);
+                            tmp[yyleng - 2] = 0;
+                            yylval->string_const = tmp;
+                            return STRING_CONST;
+                          }
 
 {L}({L}|{D})*             {
                             assert(yyleng < 64);
-														char *tmp = malloc(yyleng+1);
-														strncpy(tmp, yytext, yyleng+1);
-														yylval->id = tmp;
-														return ID;
-													}
+                            char *tmp = malloc(yyleng+1);
+                            strncpy(tmp, yytext, yyleng+1);
+                            yylval->id = tmp;
+                            return ID;
+                          }
 [\n]                      {}
 [\t ]+                    {}
 "/*"(([^\*]*(\*[^\/])?)*)"*/"       {}

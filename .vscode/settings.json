@@ -44,6 +44,11 @@
 			"files.insertFinalNewline": true,
 			"files.trimFinalNewlines": true
 	},
+	"[go]": {
+		"files.trimTrailingWhitespace": true,
+		"files.insertFinalNewline": true,
+		"files.trimFinalNewlines": true
+	},
 	"[yacc]": {
 			"files.trimTrailingWhitespace": true,
 			"files.insertFinalNewline": true,
