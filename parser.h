@@ -2,6 +2,7 @@
 #ifndef _KOALA_PARSER_H_
 #define _KOALA_PARSER_H_
 
+#include "printcolor.h"
 #include "ast.h"
 
 #ifdef __cplusplus
@@ -120,21 +121,22 @@ typedef struct parserstate {
 ParserState *new_parser(void *filename);
 void destroy_parser(ParserState *ps);
 void parser_module(ParserState *ps, FILE *in);
-void Parser_PrintError(ParserState *ps, LineInfo *l, char *fmt, ...);
+void Parser_PrintError(ParserState *ps, LineInfo *line, char *fmt, ...);
 
 // API used by lex
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
-#define Parser_Do_Error(ps, errmsg, ...) do { \
+#define COLOR_ERRMSG COLOR_LIGHT_RED "error: " COLOR_WHITE
+#define Parser_Error(ps, errmsg, ...) do { \
 	if (ps->errnum >= MAX_ERRORS) { \
 		fprintf(stderr, "Too many errors.\n"); \
 		exit(-1); \
 	} \
-	LineBuffer *lb = &(ps)->line; \
+	LineBuffer *linebuf = &(ps)->line; \
 	if (1) { \
-		LineInfo li = {lb->line, lb->row, lb->col}; \
-		Parser_PrintError(ps, &li, errmsg, ##__VA_ARGS__); \
-		lb->print = 1; \
+		LineInfo line = {linebuf->line, linebuf->row, linebuf->col}; \
+		Parser_PrintError(ps, &line, COLOR_ERRMSG errmsg, ##__VA_ARGS__); \
+		linebuf->print = 1; \
 	} else { \
 		++ps->errnum; \
 	} \

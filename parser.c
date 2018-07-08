@@ -55,24 +55,25 @@ void Parser_SetLine(ParserState *ps, struct expr *exp)
 void Parser_PrintError(ParserState *ps, LineInfo *l, char *fmt, ...)
 {
 	if (++ps->errnum >= MAX_ERRORS) {
-		fprintf(stderr, "Too many errors.\n");
+		fprintf(stderr, COLOR_LIGHT_WHITE "Too many errors.\n" COLOR_NC);
 		exit(-1);
 	}
 
-	fprintf(stderr, "%s:%d:%d: ", ps->filename, l->row, l->col);
+	fprintf(stderr, COLOR_LIGHT_WHITE "./%s:%d:%d: " COLOR_NC,
+					ps->filename, l->row, l->col);
 
 	va_list ap;
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 
-	fprintf(stderr, "\n%s", l->line);
+	fprintf(stderr, COLOR_LIGHT_RED "\n%s", l->line);
 	char ch;
 	for (int i = 0; i < l->col - 1; i++) {
 		ch = l->line[i];
 		if (!isspace(ch)) putchar(' '); else putchar(ch);
 	}
-	puts("^");
+	puts("^" COLOR_NC);
 }
 
 /*---------------------------------------------------------------------------*/
@@ -208,7 +209,7 @@ static void parser_exit_scope(ParserState *ps);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static void parser_body(ParserState *ps, Vector *stmts);
 static ParserUnit *get_class_unit(ParserState *ps);
-static void parser_vist_stmt(ParserState *ps, struct stmt *stmt);
+static void parser_vist_stmt(ParserState *ps, Statement *stmt);
 
 /*-------------------------------------------------------------------------*/
 
@@ -476,78 +477,48 @@ char *Parser_Get_FullPath(ParserState *ps, char *id)
 
 /*---------------------------------------------------------------------------*/
 
-static inline void __add_stmt(ParserState *ps, struct stmt *stmt)
+static inline void __add_stmt(ParserState *ps, Statement *stmt)
 {
-	Vector_Append(&(ps)->stmts, stmt);
+	Vector_Append(&ps->stmts, stmt);
 }
 
-static void parse_new_var(ParserState *ps, struct stmt *stmt)
+static void parse_new_var(ParserState *ps, Statement *s)
 {
-	struct var *var = stmt->vardecl.var;
-	if (!var->desc) {
-		debug("'%s %s' type is not set", var->bconst ? "const" : "var", var->id);
-	} else {
-		TypeDesc *desc = var->desc;
-		if (desc->kind == TYPE_USRDEF) {
-			if (!find_userdef_symbol(ps, desc)) {
-				char buf[64];
-				Type_ToString(desc, buf);
-				warn("cannot find type:'%s'", buf);
-			}
-		} else if (desc->kind == TYPE_PROTO) {
-			debug("var's type is proto");
-		} else {
-			assert(desc->kind == TYPE_PRIMITIVE);
-		}
-	}
+#define VAR_CONST_SHOW(s) \
+	(s)->vardecl.bconst ? "const" : "var", (s)->vardecl.id
 
-	Symbol *sym = STable_Add_Var(ps->u->stbl, var->id, var->desc, var->bconst);
+#define VAR_INFO(s) \
+	(s)->vardecl.id, (s)->vardecl.desc, (s)->vardecl.bconst
+
+	/* add statement for 2rd parser */
+	__add_stmt(ps, s);
+
+	/* add variale's id to symbol table */
+	Symbol *sym = STable_Add_Var(ps->u->stbl, VAR_INFO(s));
 	if (sym) {
-		debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
+		debug("add %s '%s' successfully", VAR_CONST_SHOW(s));
 		sym->up = ps->u->sym;
 	} else {
-		error("add %s '%s' failed, it'name is duplicated",
-					var->bconst ? "const":"var", var->id);
-	}
-
-	if (!stmt->vardecl.exp) {
-		debug("There is not a initial expr for var '%s'", var->id);
+		Parser_Error(ps, "add %s '%s' failed", VAR_CONST_SHOW(s));
 	}
 }
 
-void Parser_New_Vars(ParserState *ps, struct stmt *stmt)
+void Parser_New_Vars(ParserState *ps, Statement *stmt)
 {
-	/* the VARDECL_LIST_KIND statement maybe null */
 	if (!stmt) return;
 
-	/* must be VARDECL_LIST_KIND */
-	assert(stmt->kind == VARDECL_LIST_KIND);
+	/* must be LIST_KIND */
+	assert(stmt->kind == LIST_KIND);
 
-	struct var *var;
-	Symbol *sym;
-	struct stmt *s;
-	Vector_ForEach(s, &stmt->vec) {
+	Statement *s;
+	Vector_ForEach(s, &stmt->list) {
 		/* must be VARDCL_KIND */
-		assert(stmt->kind == VARDECL_KIND);
-
-		/* add statement for 2rd parser */
-		__add_stmt(ps, s);
-
-		/* add variale's id to symbol table */
-		var = s->vardecl.var;
-		if (!var->desc) debug("var '%s' type is null", var->id);
-		sym = STable_Add_Var(ps->u->stbl, var->id, var->desc, var->bconst);
-		if (sym) {
-			debug("add %s '%s' successful", var->bconst ? "const":"var", var->id);
-			sym->up = ps->u->sym;
-		} else {
-			Parser_Do_Error(ps, "add %s '%s' failed, it'name is duplicated",
-				var->bconst ? "const":"var", var->id);
-		}
+		assert(s->kind == VARDECL_KIND);
+		parse_new_var(ps, s);
 	}
 }
 
-static void parse_funcdecl(ParserState *ps, struct stmt *stmt)
+static void parse_funcdecl(ParserState *ps, Statement *stmt)
 {
 	TypeDesc *proto;
 	Symbol *sym;
@@ -569,15 +540,14 @@ static void parse_funcdecl(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-void Parser_New_Func(ParserState *ps, struct stmt *stmt)
+void Parser_New_Func(ParserState *ps, Statement *stmt)
 {
-	if (stmt) {
-		__add_stmt(ps, stmt);
-		parse_funcdecl(ps, stmt);
-	}
+	if (!stmt) return;
+	__add_stmt(ps, stmt);
+	parse_funcdecl(ps, stmt);
 }
 
-static void parse_funcproto(ParserState *ps, struct stmt *stmt)
+static void parse_funcproto(ParserState *ps, Statement *stmt)
 {
 	TypeDesc *proto;
 	Symbol *sym;
@@ -591,7 +561,7 @@ static void parse_funcproto(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-void Parser_New_ClassOrTrait(ParserState *ps, struct stmt *stmt)
+void Parser_New_ClassOrTrait(ParserState *ps, Statement *stmt)
 {
 	Symbol *sym = NULL;
 	__add_stmt(ps, stmt);
@@ -612,7 +582,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, struct stmt *stmt)
 	parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
 	ps->u->sym = sym;
 	if (stmt->class_info.body) {
-		struct stmt *s;
+		Statement *s;
 		Vector_ForEach(s, stmt->class_info.body) {
 			if (s->kind == VARDECL_KIND) {
 				parse_new_var(ps, s);
@@ -629,7 +599,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, struct stmt *stmt)
 	debug(">>>>end class(trait) '%s'", sym->name);
 }
 
-void Parser_New_TypeAlias(ParserState *ps, struct stmt *stmt)
+void Parser_New_TypeAlias(ParserState *ps, Statement *stmt)
 {
 	STable_Add_TypeAlias(ps->u->stbl, stmt->typealias.id, stmt->typealias.desc);
 	debug("add typealias '%s' successful", stmt->typealias.id);
@@ -2090,7 +2060,7 @@ static void parser_init_function(ParserState *ps, Vector *stmts)
 {
 	debug("------parser_init_function-------");
 	if (stmts) {
-		struct stmt *s;
+		Statement *s;
 		Vector_ForEach(s, stmts) {
 			if (i == 0) {
 				struct expr *exp = s->exp;
@@ -2111,7 +2081,7 @@ static void parser_init_function(ParserState *ps, Vector *stmts)
 	debug("------parser_init_function end---");
 }
 
-static void parser_function(ParserState *ps, struct stmt *stmt, int scope)
+static void parser_function(ParserState *ps, Statement *stmt, int scope)
 {
 	parser_enter_scope(ps, NULL, scope);
 
@@ -2318,7 +2288,7 @@ static int parser_traits(ParserState *ps, Vector *traits, Symbol *sym)
 	return 0;
 }
 
-static void parser_class(ParserState *ps, struct stmt *stmt)
+static void parser_class(ParserState *ps, Statement *stmt)
 {
 	debug("------parse class(trait) -------");
 	debug("%s:%s", stmt->kind == CLASS_KIND ? "class" : "trait",
@@ -2357,10 +2327,10 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 	ps->u->sym = sym;
 
 	if (stmt->class_info.body) {
-		struct stmt *s;
+		Statement *s;
 		Vector_ForEach(s, stmt->class_info.body) {
 			if (s->kind == VARDECL_KIND) {
-				parser_variable(ps, s->vardecl.var, s->vardecl.exp);
+				//parser_variable(ps, s->vardecl.var, s->vardecl.exp);
 			} else if (s->kind == FUNCDECL_KIND) {
 				parser_function(ps, s, SCOPE_METHOD);
 			} else if (s->kind == FUNCPROTO_KIND) {
@@ -2384,7 +2354,7 @@ static void parser_class(ParserState *ps, struct stmt *stmt)
 	debug("------parse class(trait) end---");
 }
 
-static void parser_typealias(ParserState *ps, struct stmt *stmt)
+static void parser_typealias(ParserState *ps, Statement *stmt)
 {
 	debug("------parse typealias -------");
 	ParserUnit *u = ps->u;
@@ -2436,7 +2406,7 @@ static void parser_typealias(ParserState *ps, struct stmt *stmt)
 // 	return 0;
 // }
 
-// static void parser_interface(ParserState *ps, struct stmt *stmt)
+// static void parser_interface(ParserState *ps, Statement *stmt)
 // {
 // 	debug("------parse interface-------");
 // 	debug("interface:%s", stmt->intf_type.id);
@@ -2478,7 +2448,7 @@ static void parser_typealias(ParserState *ps, struct stmt *stmt)
 // 	debug("------parse interface end---");
 // }
 
-static void parser_assign(ParserState *ps, struct stmt *stmt)
+static void parser_assign(ParserState *ps, Statement *stmt)
 {
 	struct expr *r = stmt->assign.right;
 	struct expr *l = stmt->assign.left;
@@ -2489,7 +2459,7 @@ static void parser_assign(ParserState *ps, struct stmt *stmt)
 	parser_visit_expr(ps, l);
 }
 
-static void parser_return(ParserState *ps, struct stmt *stmt)
+static void parser_return(ParserState *ps, Statement *stmt)
 {
 	ParserUnit *u = ps->u;
 	Symbol *sym = NULL;
@@ -2506,17 +2476,17 @@ static void parser_return(ParserState *ps, struct stmt *stmt)
 	}
 
 	struct expr *e;
-	Vector_ForEach(e, &stmt->vec) {
+	Vector_ForEach(e, &stmt->list) {
 		e->ctx = EXPR_LOAD;
 		parser_visit_expr(ps, e);
 	}
-	check_return_types(sym, &stmt->vec);
+	check_return_types(sym, &stmt->list);
 
 	Inst_Append(u->block, OP_RET, NULL);
 	u->block->bret = 1;
 }
 
-static void parser_if(ParserState *ps, struct stmt *stmt)
+static void parser_if(ParserState *ps, Statement *stmt)
 {
 	parser_enter_scope(ps, NULL, SCOPE_BLOCK);
 	int testsize = 0;
@@ -2581,7 +2551,7 @@ static void parser_if(ParserState *ps, struct stmt *stmt)
 	parser_exit_scope(ps);
 }
 
-static void parser_while(ParserState *ps, struct stmt *stmt)
+static void parser_while(ParserState *ps, Statement *stmt)
 {
 	parser_enter_scope(ps, NULL, SCOPE_BLOCK);
 	ParserUnit *u = ps->u;
@@ -2621,7 +2591,7 @@ static void parser_while(ParserState *ps, struct stmt *stmt)
 	parser_exit_scope(ps);
 }
 
-static void parser_break(ParserState *ps, struct stmt *stmt)
+static void parser_break(ParserState *ps, Statement *stmt)
 {
 	UNUSED_PARAMETER(stmt);
 
@@ -2658,7 +2628,7 @@ static void parser_break(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-static void parser_continue(ParserState *ps, struct stmt *stmt)
+static void parser_continue(ParserState *ps, Statement *stmt)
 {
 	UNUSED_PARAMETER(stmt);
 
@@ -2695,13 +2665,13 @@ static void parser_continue(ParserState *ps, struct stmt *stmt)
 	}
 }
 
-static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
+static void parser_vist_stmt(ParserState *ps, Statement *stmt)
 {
 	switch (stmt->kind) {
 		case VARDECL_KIND: {
-			struct var *var = stmt->vardecl.var;
-			struct expr *exp = stmt->vardecl.exp;
-			parser_variable(ps, var, exp);
+			//struct var *var = stmt->vardecl.var;
+			//struct expr *exp = stmt->vardecl.exp;
+			//parser_variable(ps, var, exp);
 			break;
 		}
 		case FUNCDECL_KIND: {
@@ -2745,10 +2715,6 @@ static void parser_vist_stmt(ParserState *ps, struct stmt *stmt)
 			parser_continue(ps, stmt);
 			break;
 		}
-		case VARDECL_LIST_KIND: {
-			assert(0);
-			break;
-		}
 		default: {
 			assert(0);
 			break;
@@ -2760,7 +2726,7 @@ static void parser_body(ParserState *ps, Vector *stmts)
 {
 	debug("------parse body-------");
 	if (stmts) {
-		struct stmt *s;
+		Statement *s;
 		Vector_ForEach(s, stmts) {
 			parser_vist_stmt(ps, s);
 		}

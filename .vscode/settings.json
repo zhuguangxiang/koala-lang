@@ -7,6 +7,7 @@
 	"editor.fontSize": 14,
 	"editor.fontFamily":  "'Operator Mono Light', 'Ubuntu Mono'",
 	"editor.fontLigatures": true,
+	"editor.fontWeight": "100",
 	"editor.tabSize": 2,
 	"editor.insertSpaces": false,
 	"files.associations": {
@@ -35,7 +36,7 @@
 	"todo-tree.expanded": false,
 	"workbench.editor.enablePreview": false,
 	"editor.renderControlCharacters": true,
-	"editor.renderWhitespace": "all",
+	"editor.renderWhitespace": "none",
 	"[c]": {
 			"files.trimTrailingWhitespace": true,
 			"files.insertFinalNewline": true,
@@ -59,9 +60,9 @@
 	"markdown.preview.fontSize": 14,
 	// "markdown.styles": [ "github-markdown.css" ]
 	"git.confirmSync": false,
-	"window.zoomLevel": 0.5,
+	"window.zoomLevel": 1,
 	"editor.occurrencesHighlight": false,
 	"editor.selectionHighlight": false,
 	"editor.cursorStyle": "line",
-	"terminal.integrated.scrollback": 10000
+	"terminal.integrated.scrollback": 5000
 }
