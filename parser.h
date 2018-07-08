@@ -128,17 +128,15 @@ int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
 #define COLOR_ERRMSG COLOR_LIGHT_RED "error: " COLOR_WHITE
 #define Parser_Error(ps, errmsg, ...) do { \
-	if (ps->errnum >= MAX_ERRORS) { \
+	if (++ps->errnum >= MAX_ERRORS) { \
 		fprintf(stderr, "Too many errors.\n"); \
 		exit(-1); \
 	} \
 	LineBuffer *linebuf = &(ps)->line; \
-	if (1) { \
+	if (!linebuf->print) { \
 		LineInfo line = {linebuf->line, linebuf->row, linebuf->col}; \
 		Parser_PrintError(ps, &line, COLOR_ERRMSG errmsg, ##__VA_ARGS__); \
 		linebuf->print = 1; \
-	} else { \
-		++ps->errnum; \
 	} \
 } while (0)
 

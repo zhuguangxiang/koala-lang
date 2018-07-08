@@ -266,6 +266,8 @@ TypeDesc *Type_New_Proto(Vector *arg, Vector *ret)
 
 TypeDesc *Type_New_Array(int dims, TypeDesc *base)
 {
+	if (dims <= 0 || !base) return NULL;
+
 	TypeDesc *desc = type_new(TYPE_ARRAY);
 	desc->array.dims = dims;
 	desc->array.base = base;

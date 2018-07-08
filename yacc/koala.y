@@ -978,11 +978,6 @@ Statement *do_vardecl_list(ParserState *ps, Vector *ids, TypeDesc *desc,
 		return NULL;
 	}
 
-	if (desc && desc->kind == TYPE_ARRAY) {
-		/* check array's base type */
-		if (!desc->array.base) return NULL;
-	}
-
 	if (!desc && !exprs) return NULL;
 
 	Statement *stmt = stmt_from_list();
