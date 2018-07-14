@@ -13,15 +13,15 @@ extern "C" {
 #define TOKEN_MAX_LEN 80
 
 typedef struct line_buf {
-	char line[LINE_MAX_LEN];
-	int linelen;
-	int lineleft;
-	char token[TOKEN_MAX_LEN];
-	int len;
-	int row;
-	int col;
-	char print;
-	char copy;
+  char line[LINE_MAX_LEN];
+  int linelen;
+  int lineleft;
+  char token[TOKEN_MAX_LEN];
+  int len;
+  int row;
+  int col;
+  char print;
+  char copy;
 } LineBuffer;
 
 /*---------------------------------------------------------------------------*/
@@ -33,38 +33,38 @@ typedef struct line_buf {
 #define ARG_STR   4
 
 typedef struct argument {
-	int kind;
-	union {
-		int64 ival;
-		float64 fval;
-		int bval;
-		char *str;
-	};
+  int kind;
+  union {
+    int64 ival;
+    float64 fval;
+    int bval;
+    char *str;
+  };
 } Argument;
 
 typedef struct inst {
-	struct list_head link;
-	int bytes;
-	int argc;
-	uint8 op;
-	Argument arg;
-	int upbytes;  // break and continue statements
+  struct list_head link;
+  int bytes;
+  int argc;
+  uint8 op;
+  Argument arg;
+  int upbytes;  // break and continue statements
 } Inst;
 
 #define JMP_BREAK    1
 #define JMP_CONTINUE 2
 
 typedef struct jmp_inst {
-	Inst *inst;
-	int type;
+  Inst *inst;
+  int type;
 } JmpInst;
 
 typedef struct codeblock {
-	//struct list_head link;
-	int bytes;
-	struct list_head insts;
-	struct codeblock *next;  /* control flow */
-	int bret;  /* false, no OP_RET, needs add one */
+  //struct list_head link;
+  int bytes;
+  struct list_head insts;
+  struct codeblock *next;  /* control flow */
+  int bret;  /* false, no OP_RET, needs add one */
 } CodeBlock;
 
 void codeblock_free(CodeBlock *b);
@@ -72,50 +72,50 @@ void codeblock_free(CodeBlock *b);
 /*---------------------------------------------------------------------------*/
 
 typedef struct import {
-	HashNode hnode;
-	LineInfo line;
-	char *path;
-	Symbol *sym;
+  HashNode hnode;
+  LineInfo line;
+  char *path;
+  Symbol *sym;
 } Import;
 
 enum scope {
-	SCOPE_MODULE = 1,
-	SCOPE_CLASS,
-	SCOPE_FUNCTION,
-	SCOPE_METHOD,
-	SCOPE_CLOSURE,
-	SCOPE_BLOCK
+  SCOPE_MODULE = 1,
+  SCOPE_CLASS,
+  SCOPE_FUNCTION,
+  SCOPE_METHOD,
+  SCOPE_CLOSURE,
+  SCOPE_BLOCK
 };
 
 typedef struct parserunit {
-	enum scope scope;
-	int8 merge;
-	int8 loop;
-	struct list_head link;
-	Symbol *sym;
-	STable *stbl;
-	CodeBlock *block;
-	Vector jmps;
+  enum scope scope;
+  int8 merge;
+  int8 loop;
+  struct list_head link;
+  Symbol *sym;
+  STable *stbl;
+  CodeBlock *block;
+  Vector jmps;
 } ParserUnit;
 
 #define MAX_ERRORS 8
 
 typedef struct parserstate {
-	char *filename;     /* compile file's name */
-	void *scanner;      /* lexer pointer */
-	LineBuffer line;    /* input line buffer */
-	Vector stmts;       /* all statements */
-	char *package;      /* package name */
-	HashTable imports;  /* external types */
-	STable *extstbl;    /* external symbol table */
-	Symbol *sym;        /* current module's symbol */
-	ParserUnit *u;
-	int nestlevel;
-	struct list_head ustack;
-	short olevel;       /* optimization level */
-	short wlevel;       /* warning level */
-	int errnum;         /* number of errors */
-	Vector errors;      /* error messages */
+  char *filename;     /* compile file's name */
+  void *scanner;      /* lexer pointer */
+  LineBuffer line;    /* input line buffer */
+  Vector stmts;       /* all statements */
+  char *package;      /* package name */
+  HashTable imports;  /* external types */
+  STable *extstbl;    /* external symbol table */
+  Symbol *sym;        /* current module's symbol */
+  ParserUnit *u;
+  int nestlevel;
+  struct list_head ustack;
+  short olevel;       /* optimization level */
+  short wlevel;       /* warning level */
+  int errnum;         /* number of errors */
+  Vector errors;      /* error messages */
 } ParserState;
 
 ParserState *new_parser(void *filename);
@@ -128,22 +128,29 @@ int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
 #define COLOR_ERRMSG COLOR_LIGHT_RED "error: " COLOR_WHITE
 #define Parser_Error(ps, errmsg, ...) do { \
-	if (++ps->errnum >= MAX_ERRORS) { \
-		fprintf(stderr, "Too many errors.\n"); \
-		exit(-1); \
-	} \
-	LineBuffer *linebuf = &(ps)->line; \
-	if (!linebuf->print) { \
-		LineInfo line = {linebuf->line, linebuf->row, linebuf->col}; \
-		Parser_PrintError(ps, &line, COLOR_ERRMSG errmsg, ##__VA_ARGS__); \
-		linebuf->print = 1; \
-	} \
+  if (++ps->errnum >= MAX_ERRORS) { \
+    fprintf(stderr, "Too many errors.\n"); \
+    exit(-1); \
+  } \
+  LineBuffer *linebuf = &(ps)->line; \
+  if (!linebuf->print) { \
+    LineInfo line = {linebuf->line, linebuf->row, linebuf->col}; \
+    Parser_PrintError(ps, &line, COLOR_ERRMSG errmsg, ##__VA_ARGS__); \
+    linebuf->print = 1; \
+  } \
 } while (0)
 
 // Exported API
-#define Parser_Set_Package(ps, name) do { \
-	(ps)->package = (name); \
-} while (0)
+static inline void Parser_Set_Package(ParserState *ps, char *name)
+{
+  ps->package = name;
+}
+
+static inline void Parser_Add_Stmt(ParserState *ps, stmt_t *stmt)
+{
+  if (!stmt) return;
+  Vector_Append(&ps->stmts, stmt);
+}
 
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path);
 void Parser_New_Vars(ParserState *ps, struct stmt *stmt);

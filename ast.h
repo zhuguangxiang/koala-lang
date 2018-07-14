@@ -52,7 +52,7 @@ typedef enum expr_ctx {
   EXPR_CALL_FUNC = 3, EXPR_LOAD_FUNC = 4,
 } ExprContext;
 
-typedef struct expr Expression;
+typedef struct expr expr_t;
 
 struct expr {
   ExprKind kind;
@@ -60,7 +60,7 @@ struct expr {
   ExprContext ctx;
   Symbol *sym;
   int argc;
-  Expression *right;  //for super(); super.name;
+  expr_t *right;  //for super(); super.name;
   char *supername;
   LineInfo line;
   union {
@@ -69,7 +69,7 @@ struct expr {
     float64 fval;
     char *str;
     int bval;
-    Expression *exp;
+    expr_t *exp;
     struct {
       /* one of pointers is null, and another is not null */
       Vector *dseq;
@@ -82,82 +82,77 @@ struct expr {
     } anonyous_func;
     /* Trailer */
     struct {
-      Expression *left;
+      expr_t *left;
       char *id;
     } attribute;
     struct {
-      Expression *left;
-      Expression *index;
+      expr_t *left;
+      expr_t *index;
     } subscript;
     struct {
-      Expression *left;
+      expr_t *left;
       Vector *args;     /* arguments list */
     } call;
     /* arithmetic operation */
     struct {
       UnaryOpKind op;
-      Expression *operand;
+      expr_t *operand;
     } unary;
     struct {
-      Expression *left;
+      expr_t *left;
       BinaryOpKind op;
-      Expression *right;
+      expr_t *right;
     } binary;
     Vector list;
   };
 };
 
-Expression *expr_from_trailer(enum expr_kind kind, void *trailer,
-                               Expression *left);
-Expression *expr_from_id(char *id);
-Expression *expr_from_int(int64 ival);
-Expression *expr_from_float(float64 fval);
-Expression *expr_from_string(char *str);
-Expression *expr_from_bool(int bval);
-Expression *expr_from_self(void);
-Expression *expr_from_super(void);
-Expression *expr_from_typeof(void);
-Expression *expr_from_expr(Expression *exp);
-Expression *expr_from_nil(void);
-Expression *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq);
-Expression *expr_from_array_with_tseq(Vector *tseq);
-Expression *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body);
-Expression *expr_from_binary(enum binary_op_kind kind,
-                              Expression *left, Expression *right);
-Expression *expr_from_unary(enum unary_op_kind kind, Expression *expr);
-void expr_traverse(Expression *exp);
+expr_t *expr_from_trailer(enum expr_kind kind, void *trailer,
+                               expr_t *left);
+expr_t *expr_from_id(char *id);
+expr_t *expr_from_int(int64 ival);
+expr_t *expr_from_float(float64 fval);
+expr_t *expr_from_string(char *str);
+expr_t *expr_from_bool(int bval);
+expr_t *expr_from_self(void);
+expr_t *expr_from_super(void);
+expr_t *expr_from_typeof(void);
+expr_t *expr_from_expr(expr_t *exp);
+expr_t *expr_from_nil(void);
+expr_t *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq);
+expr_t *expr_from_array_with_tseq(Vector *tseq);
+expr_t *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body);
+expr_t *expr_from_binary(enum binary_op_kind kind,
+                              expr_t *left, expr_t *right);
+expr_t *expr_from_unary(enum unary_op_kind kind, expr_t *expr);
+void expr_traverse(expr_t *exp);
 
 /*-------------------------------------------------------------------------*/
 
 struct test_block {
-  Expression *test;
+  expr_t *test;
   Vector *body;
 };
 
-struct test_block *new_test_block(Expression *test, Vector *body);
+struct test_block *new_test_block(expr_t *test, Vector *body);
 
 typedef enum assign_op_kind {
-  OP_ASSIGN = 1,
-  OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
+  OP_ASSIGN = 1, OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
   OP_MULT_ASSIGN, OP_DIV_ASSIGN,
   OP_MOD_ASSIGN, OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
   OP_RSHIFT_ASSIGN, OP_LSHIFT_ASSIGN,
 } AssignOpKind;
 
 typedef enum stmt_kind {
-  VARDECL_KIND = 1, FUNCDECL_KIND, FUNCPROTO_KIND, CLASS_KIND,
-  TRAIT_KIND, EXPR_KIND, ASSIGN_KIND,
-  RETURN_KIND, IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
-  FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND, BLOCK_KIND,
+  VAR_KIND = 1, VARS_KIND, FUNC_KIND, PROTO_KIND, ASSIGN_KIND,
+  ASSIGNS_KIND, RETURN_KIND, EXPR_KIND, BLOCK_KIND,
+  CLASS_KIND, TRAIT_KIND,
+  IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
+  FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND,
   TYPEALIAS_KIND, LIST_KIND, STMT_KIND_MAX
 } StmtKind;
 
-struct assign {
-  Expression *left;
-  Expression *right;
-};
-
-typedef struct stmt Statement;
+typedef struct stmt stmt_t;
 
 struct stmt {
   StmtKind kind;
@@ -167,20 +162,37 @@ struct stmt {
       char *id;
       int bconst;
       TypeDesc *desc;
-      Expression *exp;
-    } vardecl;
+      expr_t *exp;
+    } var;
+    struct {
+      int bconst;
+      TypeDesc *desc;
+      Vector *ids;
+      expr_t *exp;
+    } vars;
     struct {
       char *id;
       Vector *args;
       Vector *rets;
       Vector *body;
-    } funcdecl;
+    } func;
     struct {
-      Expression *left;
+      char *id;
+      Vector *args;
+      Vector *rets;
+    } proto;
+    struct {
+      expr_t *left;
       AssignOpKind op;
-      Expression *right;
+      expr_t *right;
     } assign;
+    struct {
+      Vector *left;
+      expr_t *right;
+    } assigns;
     Vector *returns;
+    expr_t *exp;
+    Vector *block;
     struct {
       char *id;
       TypeDesc *super;
@@ -189,77 +201,70 @@ struct stmt {
     } class_info;
     struct {
       char *id;
-      Vector *pvec;
-      Vector *rvec;
-    } funcproto;
-    struct {
-      char *id;
       TypeDesc *desc;
-    } user_typedef;
+    } usrdef;
     struct {
       char *id;
       TypeDesc *desc;
     } typealias;
     struct {
       int belse;
-      Expression *test;
+      expr_t *test;
       Vector *body;
-      Statement *orelse;
+      stmt_t *orelse;
     } if_stmt;
     struct {
       int btest;
-      Expression *test;
+      expr_t *test;
       Vector *body;
     } while_stmt;
     struct {
       int level;
     } jump_stmt;
     struct {
-      Expression *expr;
+      expr_t *expr;
       Vector *case_seq;
     } switch_stmt;
     struct {
-      Statement *init;
-      Statement *test;
-      Statement *incr;
+      stmt_t *init;
+      stmt_t *test;
+      stmt_t *incr;
       Vector *body;
     } for_triple_stmt;
     struct {
       int bdecl;
       struct var *var;
-      Expression *expr;
+      expr_t *expr;
       Vector *body;
     } for_each_stmt;
-    Expression *go_stmt;
-    Expression *exp;
+    expr_t *go_stmt;
     Vector list;
   };
 };
 
-Statement *stmt_from_expr(Expression *exp);
-Statement *stmt_from_vardecl(char *id, TypeDesc *desc, int k, Expression *exp);
-Statement *stmt_from_funcdecl(char *id, Vector *args, Vector *rets,
-                              Vector *body);
-Statement *stmt_from_assign(Expression *l, AssignOpKind op, Expression *r);
-Statement *stmt_from_block(Vector *vec);
-Statement *stmt_from_return(Vector *vec);
-Statement *stmt_from_empty(void);
-Statement *stmt_from_trait(char *id, Vector *traits, Vector *body);
-Statement *stmt_from_funcproto(char *id, Vector *pvec, Vector *rvec);
-Statement *stmt_from_jump(int kind, int level);
-Statement *stmt_from_if(Expression *test, Vector *body, Statement *orelse);
-Statement *stmt_from_while(Expression *test, Vector *body, int btest);
-Statement *stmt_from_switch(Expression *expr, Vector *case_seq);
-Statement *stmt_from_for(Statement *init, Statement *test, Statement *incr,
+stmt_t *stmt_from_var(char *id, TypeDesc *desc, expr_t *exp, int bconst);
+stmt_t *stmt_from_vars(Vector *ids, TypeDesc *desc, expr_t *exp, int bconst);
+stmt_t *stmt_from_func(char *id, Vector *args, Vector *rets, Vector *body);
+stmt_t *stmt_from_proto(char *id, Vector *args, Vector *rets);
+stmt_t *stmt_from_assign(expr_t *l, AssignOpKind op, expr_t *r);
+stmt_t *stmt_from_assigns(Vector *left, expr_t *right);
+stmt_t *stmt_from_return(Vector *list);
+stmt_t *stmt_from_expr(expr_t *exp);
+stmt_t *stmt_from_block(Vector *block);
+
+stmt_t *stmt_from_trait(char *id, Vector *traits, Vector *body);
+stmt_t *stmt_from_jump(int kind, int level);
+stmt_t *stmt_from_if(expr_t *test, Vector *body, stmt_t *orelse);
+stmt_t *stmt_from_while(expr_t *test, Vector *body, int btest);
+stmt_t *stmt_from_switch(expr_t *expr, Vector *case_seq);
+stmt_t *stmt_from_for(stmt_t *init, stmt_t *test, stmt_t *incr,
                          Vector *body);
-Statement *stmt_from_foreach(struct var *var, Expression *expr, Vector *body,
-                             int bdecl);
-Statement *stmt_from_go(Expression *expr);
-Statement *stmt_from_typealias(char *id, TypeDesc *desc);
-Statement *stmt_from_list(void);
+stmt_t *stmt_from_go(expr_t *expr);
+stmt_t *stmt_from_typealias(char *id, TypeDesc *desc);
 void vec_stmt_free(Vector *stmts);
 void vec_stmt_fini(Vector *stmts);
-void stmt_free_vardecl_list(Statement *stmt);
+stmt_t *stmt_from_list(void);
+void stmt_free_list(stmt_t *stmt);
 
 /*-------------------------------------------------------------------------*/
 

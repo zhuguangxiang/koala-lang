@@ -4,118 +4,118 @@
 
 /*-------------------------------------------------------------------------*/
 
-Expression *expr_new(int kind)
+expr_t *expr_new(int kind)
 {
-  Expression *exp = calloc(1, sizeof(Expression));
+  expr_t *exp = calloc(1, sizeof(expr_t));
   exp->kind = kind;
   return exp;
 }
 
-Expression *expr_from_id(char *id)
+expr_t *expr_from_id(char *id)
 {
-  Expression *expr = expr_new(ID_KIND);
+  expr_t *expr = expr_new(ID_KIND);
   expr->id = id;
   return expr;
 }
 
-Expression *expr_from_int(int64 ival)
+expr_t *expr_from_int(int64 ival)
 {
-  Expression *expr = expr_new(INT_KIND);
+  expr_t *expr = expr_new(INT_KIND);
   expr->desc = &Int_Type;
   expr->ival = ival;
   return expr;
 }
 
-Expression *expr_from_float(float64 fval)
+expr_t *expr_from_float(float64 fval)
 {
-  Expression *expr = expr_new(FLOAT_KIND);
+  expr_t *expr = expr_new(FLOAT_KIND);
   expr->desc = &Float_Type;
   expr->fval = fval;
   return expr;
 }
 
-Expression *expr_from_string(char *str)
+expr_t *expr_from_string(char *str)
 {
-  Expression *expr = expr_new(STRING_KIND);
+  expr_t *expr = expr_new(STRING_KIND);
   expr->desc = &String_Type;
   expr->str = str;
   return expr;
 }
 
-Expression *expr_from_bool(int bval)
+expr_t *expr_from_bool(int bval)
 {
-  Expression *expr = expr_new(BOOL_KIND);
+  expr_t *expr = expr_new(BOOL_KIND);
   expr->desc = &Bool_Type;
   expr->bval = bval;
   return expr;
 }
 
-Expression *expr_from_self(void)
+expr_t *expr_from_self(void)
 {
-  Expression *expr = expr_new(SELF_KIND);
+  expr_t *expr = expr_new(SELF_KIND);
   expr->desc = NULL;
   return expr;
 }
 
-Expression *expr_from_super(void)
+expr_t *expr_from_super(void)
 {
-  Expression *expr = expr_new(SUPER_KIND);
+  expr_t *expr = expr_new(SUPER_KIND);
   expr->desc = NULL;
   return expr;
 }
 
-Expression *expr_from_typeof(void)
+expr_t *expr_from_typeof(void)
 {
-  Expression *expr = expr_new(TYPEOF_KIND);
+  expr_t *expr = expr_new(TYPEOF_KIND);
   expr->desc = NULL;
   return expr;
 }
 
-Expression *expr_from_expr(Expression *exp)
+expr_t *expr_from_expr(expr_t *exp)
 {
-  Expression *expr = expr_new(EXP_KIND);
+  expr_t *expr = expr_new(EXP_KIND);
   expr->desc = NULL;
   expr->exp  = exp;
   return expr;
 }
 
-Expression *expr_from_nil(void)
+expr_t *expr_from_nil(void)
 {
-  Expression *expr = expr_new(NIL_KIND);
+  expr_t *expr = expr_new(NIL_KIND);
   expr->desc = NULL;
   return expr;
 }
 
-Expression *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq)
+expr_t *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq)
 {
-  Expression *expr = expr_new(ARRAY_KIND);
+  expr_t *expr = expr_new(ARRAY_KIND);
   expr->desc = desc;
   expr->array.dseq = dseq;
   expr->array.tseq = tseq;
   return expr;
 }
 
-Expression *expr_from_array_with_tseq(Vector *tseq)
+expr_t *expr_from_array_with_tseq(Vector *tseq)
 {
   UNUSED_PARAMETER(tseq);
-  Expression *e = expr_new(SEQ_KIND);
+  expr_t *e = expr_new(SEQ_KIND);
   //e->vec = tseq;
   return e;
 }
 
-Expression *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body)
+expr_t *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body)
 {
-  Expression *expr = expr_new(ANONYOUS_FUNC_KIND);
+  expr_t *expr = expr_new(ANONYOUS_FUNC_KIND);
   expr->anonyous_func.pvec = pvec;
   expr->anonyous_func.rvec = rvec;
   expr->anonyous_func.body = body;
   return expr;
 }
 
-Expression *expr_from_trailer(enum expr_kind kind, void *trailer,
-                               Expression *left)
+expr_t *expr_from_trailer(enum expr_kind kind, void *trailer,
+                               expr_t *left)
 {
-  Expression *expr = expr_new(kind);
+  expr_t *expr = expr_new(kind);
   switch (kind) {
     case ATTRIBUTE_KIND: {
       expr->ctx = EXPR_LOAD;
@@ -140,10 +140,10 @@ Expression *expr_from_trailer(enum expr_kind kind, void *trailer,
   return expr;
 }
 
-Expression *expr_from_binary(enum binary_op_kind kind,
-                              Expression *left, Expression *right)
+expr_t *expr_from_binary(enum binary_op_kind kind,
+                              expr_t *left, expr_t *right)
 {
-  Expression *exp = expr_new(BINARY_KIND);
+  expr_t *exp = expr_new(BINARY_KIND);
   exp->desc = left->desc;
   exp->binary.left = left;
   exp->binary.op = kind;
@@ -151,9 +151,9 @@ Expression *expr_from_binary(enum binary_op_kind kind,
   return exp;
 }
 
-Expression *expr_from_unary(enum unary_op_kind kind, Expression *expr)
+expr_t *expr_from_unary(enum unary_op_kind kind, expr_t *expr)
 {
-  Expression *exp = expr_new(UNARY_KIND);
+  expr_t *exp = expr_new(UNARY_KIND);
   exp->desc = expr->desc;
   exp->unary.op = kind;
   exp->unary.operand = expr;
@@ -162,109 +162,127 @@ Expression *expr_from_unary(enum unary_op_kind kind, Expression *expr)
 
 /*--------------------------------------------------------------------------*/
 
-static inline Statement *stmt_new(int kind)
+static inline stmt_t *stmt_new(int kind)
 {
-  Statement *stmt = calloc(1, sizeof(Statement));
+  stmt_t *stmt = calloc(1, sizeof(stmt_t));
   stmt->kind = kind;
   return stmt;
 }
 
-static inline void stmt_free(Statement *stmt)
+static inline void stmt_free(stmt_t *stmt)
 {
   free(stmt);
 }
 
-Statement *stmt_from_expr(Expression *exp)
+stmt_t *stmt_from_var(char *id, TypeDesc *desc, expr_t *exp, int bconst)
 {
-  Statement *stmt = stmt_new(EXPR_KIND);
-  stmt->exp = exp;
+  stmt_t *stmt = stmt_new(VAR_KIND);
+  stmt->var.id     = id;
+  stmt->var.desc   = desc;
+  stmt->var.exp    = exp;
+  stmt->var.bconst = bconst;
+  if (!desc && exp && exp->desc) stmt->var.desc = Type_Dup(exp->desc);
   return stmt;
 }
 
-Statement *stmt_from_vardecl(char *id, TypeDesc *desc, int k, Expression *exp)
+stmt_t *stmt_from_vars(Vector *ids, TypeDesc *desc, expr_t *exp, int bconst)
 {
-  Statement *stmt = stmt_new(VARDECL_KIND);
-  stmt->vardecl.id = id;
-  stmt->vardecl.desc = desc;
-  stmt->vardecl.bconst = k;
-  stmt->vardecl.exp = exp;
-  if (!desc && exp->desc) stmt->vardecl.desc = Type_Dup(exp->desc);
+  stmt_t *stmt = stmt_new(VARS_KIND);
+  stmt->vars.ids    = ids;
+  stmt->vars.desc   = desc;
+  stmt->vars.exp    = exp;
+  stmt->vars.bconst = bconst;
   return stmt;
 }
 
-Statement *stmt_from_funcdecl(char *id, Vector *args, Vector *rets,
-                              Vector *body)
+stmt_t *stmt_from_func(char *id, Vector *args, Vector *rets, Vector *body)
 {
-  Statement *stmt = stmt_new(FUNCDECL_KIND);
-  stmt->funcdecl.id   = id;
-  stmt->funcdecl.args = args;
-  stmt->funcdecl.rets = rets;
-  stmt->funcdecl.body = body;
+  stmt_t *stmt = stmt_new(FUNC_KIND);
+  stmt->func.id   = id;
+  stmt->func.args = args;
+  stmt->func.rets = rets;
+  stmt->func.body = body;
   return stmt;
 }
 
-Statement *stmt_from_block(Vector *block)
+stmt_t *stmt_from_proto(char *id, Vector *args, Vector *rets)
 {
-  UNUSED_PARAMETER(block);
-  return NULL; //stmt_from_vector(BLOCK_KIND, block);
-}
-
-Statement *stmt_from_return(Vector *list)
-{
-  Statement *stmt = stmt_new(RETURN_KIND);
-  stmt->returns = list;
+  stmt_t *stmt = stmt_new(PROTO_KIND);
+  stmt->proto.id   = id;
+  stmt->proto.args = args;
+  stmt->proto.rets = rets;
   return stmt;
 }
 
-Statement *stmt_from_assign(Expression *l, AssignOpKind op, Expression *r)
+stmt_t *stmt_from_assign(expr_t *l, AssignOpKind op, expr_t *r)
 {
-  Statement *stmt = stmt_new(ASSIGN_KIND);
+  stmt_t *stmt = stmt_new(ASSIGN_KIND);
   stmt->assign.left  = l;
   stmt->assign.op    = op;
   stmt->assign.right = r;
   return stmt;
 }
 
-Statement *stmt_from_trait(char *id, Vector *traits, Vector *body)
+stmt_t *stmt_from_assigns(Vector *left, expr_t *right)
 {
-  Statement *stmt = stmt_new(TRAIT_KIND);
+  stmt_t *stmt = stmt_new(ASSIGNS_KIND);
+  stmt->assigns.left  = left;
+  stmt->assigns.right = right;
+  return stmt;
+}
+
+stmt_t *stmt_from_return(Vector *list)
+{
+  stmt_t *stmt = stmt_new(RETURN_KIND);
+  stmt->returns = list;
+  return stmt;
+}
+
+stmt_t *stmt_from_expr(expr_t *exp)
+{
+  stmt_t *stmt = stmt_new(EXPR_KIND);
+  stmt->exp = exp;
+  return stmt;
+}
+
+stmt_t *stmt_from_block(Vector *block)
+{
+  stmt_t *stmt = stmt_new(BLOCK_KIND);
+  stmt->block = block;
+  return stmt;
+}
+
+stmt_t *stmt_from_trait(char *id, Vector *traits, Vector *body)
+{
+  stmt_t *stmt = stmt_new(TRAIT_KIND);
   stmt->class_info.id = id;
   stmt->class_info.traits = traits;
   stmt->class_info.body = body;
   return stmt;
 }
 
-Statement *stmt_from_funcproto(char *id, Vector *pvec, Vector *rvec)
-{
-  Statement *stmt = stmt_new(FUNCPROTO_KIND);
-  stmt->funcproto.id = id;
-  stmt->funcproto.pvec = pvec;
-  stmt->funcproto.rvec = rvec;
-  return stmt;
-}
-
-Statement *stmt_from_jump(int kind, int level)
+stmt_t *stmt_from_jump(int kind, int level)
 {
   if (level <= 0) {
     error("break or continue level must be > 0");
     return NULL;
   }
-  Statement *stmt = stmt_new(kind);
+  stmt_t *stmt = stmt_new(kind);
   stmt->jump_stmt.level = level;
   return stmt;
 }
 
-Statement *stmt_from_if(Expression *test, Vector *body,
-  Statement *orelse)
+stmt_t *stmt_from_if(expr_t *test, Vector *body,
+  stmt_t *orelse)
 {
-  Statement *stmt = stmt_new(IF_KIND);
+  stmt_t *stmt = stmt_new(IF_KIND);
   stmt->if_stmt.test = test;
   stmt->if_stmt.body = body;
   stmt->if_stmt.orelse = orelse;
   return stmt;
 }
 
-struct test_block *new_test_block(Expression *test, Vector *body)
+struct test_block *new_test_block(expr_t *test, Vector *body)
 {
   struct test_block *tb = malloc(sizeof(struct test_block));
   tb->test = test;
@@ -272,27 +290,27 @@ struct test_block *new_test_block(Expression *test, Vector *body)
   return tb;
 }
 
-Statement *stmt_from_while(Expression *test, Vector *body, int btest)
+stmt_t *stmt_from_while(expr_t *test, Vector *body, int btest)
 {
-  Statement *stmt = stmt_new(WHILE_KIND);
+  stmt_t *stmt = stmt_new(WHILE_KIND);
   stmt->while_stmt.btest = btest;
   stmt->while_stmt.test  = test;
   stmt->while_stmt.body  = body;
   return stmt;
 }
 
-Statement *stmt_from_switch(Expression *expr, Vector *case_seq)
+stmt_t *stmt_from_switch(expr_t *expr, Vector *case_seq)
 {
-  Statement *stmt = stmt_new(SWITCH_KIND);
+  stmt_t *stmt = stmt_new(SWITCH_KIND);
   stmt->switch_stmt.expr = expr;
   stmt->switch_stmt.case_seq = case_seq;
   return stmt;
 }
 
-Statement *stmt_from_for(Statement *init, Statement *test,
-                           Statement *incr, Vector *body)
+stmt_t *stmt_from_for(stmt_t *init, stmt_t *test,
+                           stmt_t *incr, Vector *body)
 {
-  Statement *stmt = stmt_new(FOR_TRIPLE_KIND);
+  stmt_t *stmt = stmt_new(FOR_TRIPLE_KIND);
   stmt->for_triple_stmt.init = init;
   stmt->for_triple_stmt.test = test;
   stmt->for_triple_stmt.incr = incr;
@@ -300,47 +318,49 @@ Statement *stmt_from_for(Statement *init, Statement *test,
   return stmt;
 }
 
-Statement *stmt_from_foreach(struct var *var, Expression *expr,
+/*
+stmt_t *stmt_from_foreach(struct var *var, expr_t *expr,
                              Vector *body, int bdecl)
 {
-  Statement *stmt = stmt_new(FOR_EACH_KIND);
+  stmt_t *stmt = stmt_new(FOR_EACH_KIND);
   stmt->for_each_stmt.bdecl = bdecl;
   stmt->for_each_stmt.var   = var;
   stmt->for_each_stmt.expr  = expr;
   stmt->for_each_stmt.body  = body;
   return stmt;
 }
+*/
 
-Statement *stmt_from_go(Expression *expr)
+stmt_t *stmt_from_go(expr_t *expr)
 {
   if (expr->kind != CALL_KIND) {
     kassert(0, "syntax error:not a func call\n");
     exit(0);
   }
 
-  Statement *stmt = stmt_new(GO_KIND);
+  stmt_t *stmt = stmt_new(GO_KIND);
   stmt->go_stmt = expr;
   return stmt;
 }
 
-Statement *stmt_from_typealias(char *id, TypeDesc *desc)
+stmt_t *stmt_from_typealias(char *id, TypeDesc *desc)
 {
-  Statement *stmt = stmt_new(TYPEALIAS_KIND);
+  stmt_t *stmt = stmt_new(TYPEALIAS_KIND);
   stmt->typealias.id = id;
   stmt->typealias.desc = desc;
   return stmt;
 }
 
-Statement *stmt_from_list(void)
+stmt_t *stmt_from_list(void)
 {
-  Statement *stmt = stmt_new(LIST_KIND);
+  stmt_t *stmt = stmt_new(LIST_KIND);
   Vector_Init(&stmt->list);
   return stmt;
 }
 
-void stmt_free_list(Statement *stmt)
+void stmt_free_list(stmt_t *stmt)
 {
-  Statement *s;
+  stmt_t *s;
   Vector_ForEach(s, &stmt->list) {
     stmt_free(s);
   }

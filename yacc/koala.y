@@ -27,10 +27,10 @@ static int yyerror(ParserState *ps, void *scanner, const char *errmsg)
 #define syntax_error_clear(msg) yyclearin; yyerrok; \
   Parser_Error(ps, "%s", msg)
 
-Statement *do_vardecl_list(ParserState *ps, Vector *ids, TypeDesc *desc,
+stmt_t *do_vardecls(ParserState *ps, Vector *ids, TypeDesc *desc,
   Vector *exprs, int bconst);
+stmt_t *do_assignments(ParserState *ps, Vector *left, Vector *right);
 TypeDesc *do_usrdef_type(ParserState *ps, char *id, char *type);
-Statement *do_assign_list(ParserState *ps, Vector *left, Vector *right);
 
 %}
 
@@ -40,9 +40,9 @@ Statement *do_assign_list(ParserState *ps, Vector *left, Vector *right);
   float64 fval;
   char *string_const;
   int dims;
-  Expression *expr;
+  expr_t *expr;
   Vector *list;
-  Statement *stmt;
+  stmt_t *stmt;
   TypeDesc *type;
   int operator;
   struct field *field;
@@ -141,9 +141,9 @@ Statement *do_assign_list(ParserState *ps, Vector *left, Vector *right);
 %type <operator> UnaryOp
 %type <operator> CompAssignOp
 %type <list> IDList
-%type <list> ExpressionList
-%type <list> PrimaryExpressionList
-%type <expr> Expression
+%type <list> ExprList
+%type <list> PrimaryExprList
+%type <expr> Expr
 %type <expr> LogAndExpr
 %type <expr> InclOrExpr
 %type <expr> ExclOrExpr
@@ -305,8 +305,8 @@ ModuleStatements:
 
 ModuleStatement:
   ';' {}
-| VariableDeclaration ';'   { Parser_New_Vars(ps, $1);         }
-| ConstDeclaration ';'      { Parser_New_Vars(ps, $1);         }
+| VariableDeclaration ';'   { Parser_New_Vars(ps, $1);       }
+| ConstDeclaration ';'      { Parser_New_Vars(ps, $1);       }
 | FunctionDeclaration       { Parser_New_Func(ps, $1);         }
 | TypeDeclaration           { Parser_New_ClassOrTrait(ps, $1); }
 | TypeAliasDeclaration      { Parser_New_TypeAlias(ps, $1);    }
@@ -326,11 +326,11 @@ ModuleStatement:
 /*---------------------------------------------------------------------------*/
 
 ConstDeclaration:
-  CONST IDList '=' ExpressionList {
-    $$ = do_vardecl_list(ps, $2, NULL, $4, 1);
+  CONST IDList '=' ExprList {
+    $$ = do_vardecls(ps, $2, NULL, $4, 1);
   }
-| CONST IDList Type '=' ExpressionList {
-    $$ = do_vardecl_list(ps, $2, $3, $5, 1);
+| CONST IDList Type '=' ExprList {
+    $$ = do_vardecls(ps, $2, $3, $5, 1);
   }
 | CONST IDList '=' error {
     syntax_error("rexpr-list");
@@ -348,13 +348,13 @@ ConstDeclaration:
 
 VariableDeclaration:
   VAR IDList Type {
-    $$ = do_vardecl_list(ps, $2, $3, NULL, 0);
+    $$ = do_vardecls(ps, $2, $3, NULL, 0);
   }
-| VAR IDList '=' ExpressionList {
-    $$ = do_vardecl_list(ps, $2, NULL, $4, 0);
+| VAR IDList '=' ExprList {
+    $$ = do_vardecls(ps, $2, NULL, $4, 0);
   }
-| VAR IDList Type '=' ExpressionList {
-    $$ = do_vardecl_list(ps, $2, $3, $5, 0);
+| VAR IDList Type '=' ExprList {
+    $$ = do_vardecls(ps, $2, $3, $5, 0);
   }
 | VAR IDList error {
     syntax_error("'TYPE' or '='");
@@ -389,16 +389,16 @@ IDList:
 
 FunctionDeclaration:
   FUNC ID '(' ParameterList ')' ReturnTypeList Block {
-    $$ = stmt_from_funcdecl($2, $4, $6, $7);
+    $$ = stmt_from_func($2, $4, $6, $7);
   }
 | FUNC ID '(' ParameterList ')' Block {
-    $$ = stmt_from_funcdecl($2, $4, NULL, $6);
+    $$ = stmt_from_func($2, $4, NULL, $6);
   }
 | FUNC ID '(' ')' ReturnTypeList Block {
-    $$ = stmt_from_funcdecl($2, NULL, $5, $6);
+    $$ = stmt_from_func($2, NULL, $5, $6);
   }
 | FUNC ID '(' ')' Block {
-    $$ = stmt_from_funcdecl($2, NULL, NULL, $5);
+    $$ = stmt_from_func($2, NULL, NULL, $5);
   }
 | FUNC error {
     syntax_error("ID");
@@ -409,14 +409,14 @@ FunctionDeclaration:
 ParameterList:
   ID Type {
     $$ = Vector_New();
-    Vector_Append($$, stmt_from_vardecl($1, $2, 0, NULL));
+    Vector_Append($$, stmt_from_var($1, $2, NULL, 0));
   }
 | ParameterList ',' ID Type {
-    Vector_Append($$, stmt_from_vardecl($3, $4, 0, NULL));
+    Vector_Append($$, stmt_from_var($3, $4, NULL, 0));
     $$ = $1;
   }
 | ParameterList ',' ID ELLIPSIS {
-    Vector_Append($$, stmt_from_vardecl($3, &Varg_Type, 0, NULL));
+    Vector_Append($$, stmt_from_var($3, &Varg_Type, NULL, 0));
     $$ = $1;
   }
 ;
@@ -540,10 +540,10 @@ FieldDeclaration
   : ID Type ';' {
     //$$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
   }
-  | ID '=' Expression ';' {
+  | ID '=' Expr ';' {
     //$$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
   }
-  | ID Type '=' Expression ';' {
+  | ID Type '=' Expr ';' {
     //$$ = stmt_from_vardecl(new_var($2, $3), $5, 0);
   }
   ;
@@ -583,7 +583,7 @@ LocalStatements:
 
 LocalStatement:
  ';'                      { $$ = NULL;                }
-| Expression ';'          { $$ = stmt_from_expr($1);  }
+| Expr ';'                { $$ = stmt_from_expr($1);  }
 | VariableDeclaration ';' { $$ = $1;                  }
 | Assignment ';'          { $$ = $1;                  }
 | IfStatement             { $$ = $1;                  }
@@ -594,7 +594,7 @@ LocalStatement:
 | ReturnStatement         { $$ = $1;                  }
 | Block                   { $$ = stmt_from_block($1); }
 | GoStatement             {                           }
-| Expression error {
+| Expr error {
     //free
     syntax_error(";"); $$ = NULL;
   }
@@ -611,7 +611,7 @@ LocalStatement:
 /*---------------------------------------------------------------------------*/
 
 GoStatement
-  : GO PrimaryExpr '(' ExpressionList ')' ';' {
+  : GO PrimaryExpr '(' ExprList ')' ';' {
     $$ = stmt_from_go(expr_from_trailer(CALL_KIND, $4, $2));
   }
   | GO PrimaryExpr '(' ')' ';' {
@@ -622,7 +622,7 @@ GoStatement
 /*---------------------------------------------------------------------------*/
 
 IfStatement
-  : IF '(' Expression ')' Block OrElseStatement {
+  : IF '(' Expr ')' Block OrElseStatement {
     $$ = stmt_from_if($3, $5, $6);
     $$->if_stmt.belse = 0;
   }
@@ -645,10 +645,10 @@ OrElseStatement
 /*---------------------------------------------------------------------------*/
 
 WhileStatement
-  : WHILE '(' Expression ')' Block {
+  : WHILE '(' Expr ')' Block {
     $$ = stmt_from_while($3, $5, 1);
   }
-  | DO Block WHILE '(' Expression ')' {
+  | DO Block WHILE '(' Expr ')' {
     $$ = stmt_from_while($5, $2, 0);
   }
   ;
@@ -656,7 +656,7 @@ WhileStatement
 /*---------------------------------------------------------------------------*/
 
 SwitchStatement
-  : SWITCH '(' Expression ')' '{' CaseStatements '}' {
+  : SWITCH '(' Expr ')' '{' CaseStatements '}' {
     $$ = stmt_from_switch($3, $6);
   }
   ;
@@ -684,7 +684,7 @@ CaseStatements
   ;
 
 CaseStatement
-  : CASE Expression ':' Block {
+  : CASE Expr ':' Block {
     $$ = new_test_block($2, $4);
   }
   | DEFAULT ':' Block {
@@ -698,13 +698,13 @@ ForStatement
   : FOR '(' ForInit ';' ForTest ';' ForIncr ')' Block {
     $$ = stmt_from_for($3, $5, $7, $9);
   }
-  | FOR '(' ID IN Expression ')' Block {
+  | FOR '(' ID IN Expr ')' Block {
     //$$ = stmt_from_foreach(new_var($3, NULL), $5, $7, 0);
   }
-  | FOR '(' VAR ID IN Expression ')' Block {
+  | FOR '(' VAR ID IN Expr ')' Block {
     //$$ = stmt_from_foreach(new_var($4, NULL), $6, $8, 1);
   }
-  | FOR '(' VAR IDList Type IN Expression ')' Block {
+  | FOR '(' VAR IDList Type IN Expr ')' Block {
     // if (Vector_Size($4) != 1) {
     // 	fprintf(stderr, "[ERROR]syntax error, foreach usage\n");
     // 	exit(0);
@@ -719,7 +719,7 @@ ForStatement
   ;
 
 ForInit
-  : Expression {
+  : Expr {
     $$ = stmt_from_expr($1);
   }
   | VariableDeclaration {
@@ -734,7 +734,7 @@ ForInit
   ;
 
 ForTest
-  : Expression {
+  : Expr {
     $$ = stmt_from_expr($1);
   }
   | %empty {
@@ -743,7 +743,7 @@ ForTest
   ;
 
 ForIncr
-  : Expression {
+  : Expr {
     $$ = stmt_from_expr($1);
   }
   | Assignment {
@@ -772,8 +772,10 @@ JumpStatement
   ;
 
 ReturnStatement:
-  RETURN ';'                { $$ = stmt_from_return(NULL); }
-| RETURN ExpressionList ';' { $$ = stmt_from_return($2);   }
+  RETURN ';'            { $$ = stmt_from_return(NULL); }
+| RETURN ExprList ';'   { $$ = stmt_from_return($2);   }
+| RETURN error          {}
+| RETURN ExprList error {}
 ;
 
 /*---------------------------------------------------------------------------*/
@@ -785,29 +787,29 @@ PrimaryExpr:
 | PrimaryExpr '.' ID {
     $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
   }
-| PrimaryExpr '[' Expression ']' {
+| PrimaryExpr '[' Expr ']' {
     $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
   }
-| PrimaryExpr '(' ExpressionList ')' {
+| PrimaryExpr '(' ExprList ')' {
     $$ = expr_from_trailer(CALL_KIND, $3, $1);
   }
 | PrimaryExpr '(' ')' {
     $$ = expr_from_trailer(CALL_KIND, NULL, $1);
   }
-| PrimaryExpr '['  Expression ':' Expression ']' {
+| PrimaryExpr '['  Expr ':' Expr ']' {
   }
 ;
 
 Atom:
-  CONSTANT           { $$ = $1; }
-| SELF               { $$ = expr_from_self(); }
-| SUPER              { $$ = expr_from_super(); }
-| TYPEOF             { /* $$ = expr_from_typeof(); */ }
-| ID                 { $$ = expr_from_id($1); }
-| '(' Expression ')' { $$ = $2; }
-| ArrayObject        { }
-| DictObject         { }
-| AnonyFuncObject    { }
+  CONSTANT        { $$ = $1; }
+| SELF            { $$ = expr_from_self(); }
+| SUPER           { $$ = expr_from_super(); }
+| TYPEOF          { /* $$ = expr_from_typeof(); */ }
+| ID              { $$ = expr_from_id($1); }
+| '(' Expr ')'    { $$ = $2; }
+| ArrayObject     { }
+| DictObject      { }
+| AnonyFuncObject { }
 ;
 
 CONSTANT:
@@ -820,12 +822,12 @@ CONSTANT:
 ;
 
 ArrayObject:
-  '[' ExpressionList ']' {}
+  '[' ExprList ']' {}
 | '[' ']' {}
 ;
 
 DictObject:
-  '{'  Expression ':' Expression '}' {}
+  '{'  Expr ':' Expr '}' {}
 | '{' ':' '}' {}
 ;
 
@@ -915,40 +917,36 @@ LogAndExpr:
 | LogAndExpr AND InclOrExpr { $$ = expr_from_binary(BINARY_LAND, $1, $3); }
 ;
 
-Expression:
-  LogAndExpr               { $$ = $1; }
-| Expression OR LogAndExpr { $$ = expr_from_binary(BINARY_LOR, $1, $3); }
+Expr:
+  LogAndExpr         { $$ = $1; }
+| Expr OR LogAndExpr { $$ = expr_from_binary(BINARY_LOR, $1, $3); }
 ;
 
-ExpressionList:
-  Expression {
+ExprList:
+  Expr {
     $$ = Vector_New();
     Vector_Append($$, $1);
   }
-| ExpressionList ',' Expression {
+| ExprList ',' Expr {
     Vector_Append($1, $3);
     $$ = $1;
   }
 ;
 
-PrimaryExpressionList:
+PrimaryExprList:
   PrimaryExpr {
     $$ = Vector_New();
     Vector_Append($$, $1);
   }
-| PrimaryExpressionList ',' PrimaryExpr {
+| PrimaryExprList ',' PrimaryExpr {
     Vector_Append($1, $3);
     $$ = $1;
   }
 ;
 
 Assignment:
-  PrimaryExpressionList '=' ExpressionList {
-    $$ = do_assign_list(ps, $1, $3);
-  }
-| PrimaryExpr CompAssignOp Expression {
-    $$ = stmt_from_assign($1, $2, $3);
-  }
+  PrimaryExprList '=' ExprList  { $$ = do_assignments(ps, $1, $3);   }
+| PrimaryExpr CompAssignOp Expr { $$ = stmt_from_assign($1, $2, $3); }
 ;
 
 /* 组合赋值运算符：算术运算和位运算 */
@@ -967,69 +965,87 @@ CompAssignOp:
 
 %%
 
-Statement *do_vardecl_list(ParserState *ps, Vector *ids, TypeDesc *desc,
+int check_assignment(ParserState *ps, int ids, int exprs)
+{
+  if (ids < exprs) {
+    //var a = foo(), 100; whatever foo() is single or multi values
+    Parser_Error(ps, "extra expression in var declaration");
+    return -1;
+  }
+
+  if (ids > exprs) {
+    /*
+     1. exprs > 1, it has an error
+     2. exprs == 1, it's partially ok and must be a multi-values exprs
+     3. exprs == 0, it's ok
+    */
+    if (exprs > 1) {
+      Parser_Error(ps, "missing expression in var declaration");
+      return -1;
+    }
+  }
+
+  /*
+    if ids is equal with exprs, it MAYBE ok and will be checked in later
+  */
+  return 0;
+}
+
+stmt_t *do_vardecls(ParserState *ps, Vector *ids, TypeDesc *desc,
   Vector *exprs, int bconst)
 {
   int isz = Vector_Size(ids);
   int esz = Vector_Size(exprs);
-  if (esz && esz != isz) {
-    Parser_Error(ps, "cannot assign %d values to %d variables", esz, isz);
-    //FIXME: free ids, desc and exprs
+  if (check_assignment(ps, isz, esz)) {
     return NULL;
   }
 
-  if (!desc && !exprs) return NULL;
-
-  Statement *stmt = stmt_from_list();
-
-  char *id;
-  Statement *s;
-  Expression *exp = NULL;
-  for (int i = 0; i < isz; i++) {
-    id = Vector_Get(ids, i);
-    if (esz > 0) exp = Vector_Get(exprs, i);
-    s = stmt_from_vardecl(id, desc, bconst, exp);
-    Vector_Append(&stmt->list, s);
+  if (isz == esz) {
+    stmt_t *stmt = stmt_from_list();
+    char *id;
+    stmt_t *s;
+    expr_t *e;
+    Vector_ForEach(id, ids) {
+      e = Vector_Get(exprs, i);
+      s = stmt_from_var(id, desc, e, bconst);
+      Vector_Append(&stmt->list, s);
+    }
+    return stmt;
+  } else {
+    assert(isz > esz && esz <= 1);
+    expr_t *e;
+    if (esz == 1) e = Vector_Get(exprs, 0);
+    else e = NULL;
+    return stmt_from_vars(ids, desc, e, bconst);
   }
-
-  return stmt;
 }
 
-Statement *do_assign_list(ParserState *ps, Vector *left, Vector *right)
+stmt_t *do_assignments(ParserState *ps, Vector *left, Vector *right)
 {
   int lsz = Vector_Size(left);
   int rsz = Vector_Size(right);
-  if (rsz != lsz) {
-    Parser_Error(ps, "cannot assign %d values to %d variables", rsz, lsz);
-    //FIXME: free left, and right
+  if (check_assignment(ps, lsz, rsz)) {
     return NULL;
   }
 
-  Statement *stmt = stmt_from_list();
-
-  int error = 0;
-  Expression *lexp;
-  Expression *rexp;
-  Statement *s;
-  for (int i = 0; i < lsz; i++) {
-    lexp = Vector_Get(left, i);
-    rexp = Vector_Get(right, i);
-    if (lexp->desc && rexp->desc) {
-      if (!Type_Equal(lexp->desc, rexp->desc)) {
-        Parser_Error(ps, "TypeCheck failed");
-        error = 1; break;
-      }
+  if (lsz == rsz) {
+    stmt_t *stmt = stmt_from_list();
+    stmt_t *s;
+    expr_t *le;
+    expr_t *re;
+    Vector_ForEach(le, left) {
+      re = Vector_Get(right, i);
+      s = stmt_from_assign(le, OP_ASSIGN, re);
+      Vector_Append(&stmt->list, s);
     }
-    s = stmt_from_assign(lexp, OP_ASSIGN, rexp);
-    Vector_Append(&stmt->list, s);
+    return stmt;
+  } else {
+    assert(lsz > rsz && rsz <= 1);
+    expr_t *e;
+    if (rsz == 1) e = Vector_Get(right, 0);
+    else e = NULL;
+    return stmt_from_assigns(left, e);
   }
-
-  if (error) {
-    //FIXME: free list and it's elements
-    stmt = NULL;
-  }
-
-  return stmt;
 }
 
 TypeDesc *do_usrdef_type(ParserState *ps, char *id, char *type)

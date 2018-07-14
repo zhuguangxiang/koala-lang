@@ -209,7 +209,7 @@ static void parser_exit_scope(ParserState *ps);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
 static void parser_body(ParserState *ps, Vector *stmts);
 static ParserUnit *get_class_unit(ParserState *ps);
-static void parser_vist_stmt(ParserState *ps, Statement *stmt);
+static void parser_vist_stmt(ParserState *ps, stmt_t *stmt);
 
 /*-------------------------------------------------------------------------*/
 
@@ -476,92 +476,91 @@ char *Parser_Get_FullPath(ParserState *ps, char *id)
 }
 
 /*---------------------------------------------------------------------------*/
-
-static inline void __add_stmt(ParserState *ps, Statement *stmt)
+static inline void __add_stmt(ParserState *ps, stmt_t *stmt)
 {
   Vector_Append(&ps->stmts, stmt);
 }
 
-static void parse_new_var(ParserState *ps, Statement *s)
+static void __new_var(ParserState *ps, char *id, TypeDesc *desc, int bconst)
 {
-#define VAR_CONST_SHOW(s) \
-  (s)->vardecl.bconst ? "const" : "var", (s)->vardecl.id
-
-#define VAR_INFO(s) \
-  (s)->vardecl.id, (s)->vardecl.desc, (s)->vardecl.bconst
-
-  /* add statement for 2rd parser */
-  __add_stmt(ps, s);
+#define VAR_SHOW bconst ? "const" : "var", id
 
   /* add variale's id to symbol table */
-  Symbol *sym = STable_Add_Var(ps->u->stbl, VAR_INFO(s));
+  Symbol *sym = STable_Add_Var(ps->u->stbl, id, desc, bconst);
   if (sym) {
-    debug("add %s '%s' successfully", VAR_CONST_SHOW(s));
+    debug("add %s '%s' successfully", VAR_SHOW);
     sym->up = ps->u->sym;
   } else {
-    Parser_Error(ps, "add %s '%s' failed", VAR_CONST_SHOW(s));
+    Parser_Error(ps, "add %s '%s' failed", VAR_SHOW);
   }
 }
 
-void Parser_New_Vars(ParserState *ps, Statement *stmt)
+void Parser_New_Vars(ParserState *ps, stmt_t *stmt)
 {
   if (!stmt) return;
 
-  /* must be LIST_KIND */
-  assert(stmt->kind == LIST_KIND);
-
-  Statement *s;
-  Vector_ForEach(s, &stmt->list) {
-    /* must be VARDCL_KIND */
-    assert(s->kind == VARDECL_KIND);
-    parse_new_var(ps, s);
+  if (stmt->kind == LIST_KIND) {
+    stmt_t *s;
+    Vector_ForEach(s, &stmt->list) {
+      assert(s->kind == VAR_KIND);
+      /* add statement for next parser */
+      __add_stmt(ps, s);
+      __new_var(ps, s->var.id, s->var.desc, s->var.bconst);
+    }
+  } else {
+    assert(stmt->kind == VARS_KIND);
+    __add_stmt(ps, stmt);
+    char *id;
+    Vector_ForEach(id, stmt->vars.ids) {
+      __new_var(ps, id, stmt->vars.desc, stmt->vars.bconst);
+    }
   }
 }
 
-static void parse_funcdecl(ParserState *ps, Statement *stmt)
+static void parse_funcdecl(ParserState *ps, stmt_t *stmt)
 {
   TypeDesc *proto;
   Symbol *sym;
   Vector *pdesc = NULL;
-  Statement *s;
-  if (stmt->funcdecl.args) {
+  stmt_t *s;
+  if (stmt->func.args) {
     pdesc = Vector_New();
-    Vector_ForEach(s, stmt->funcdecl.args) {
-      Vector_Append(pdesc, Type_Dup(s->vardecl.desc));
+    Vector_ForEach(s, stmt->func.args) {
+      Vector_Append(pdesc, Type_Dup(s->var.desc));
     }
   }
-  proto = Type_New_Proto(pdesc, stmt->funcdecl.rets);
-  sym = STable_Add_Proto(ps->u->stbl, stmt->funcdecl.id, proto);
+  proto = Type_New_Proto(pdesc, stmt->func.rets);
+  sym = STable_Add_Proto(ps->u->stbl, stmt->func.id, proto);
   if (sym) {
-    debug("add func '%s' successfully", stmt->funcdecl.id);
+    debug("add func '%s' successfully", stmt->func.id);
     sym->up = ps->u->sym;
   } else {
-    debug("add func '%s' failed", stmt->funcdecl.id);
+    debug("add func '%s' failed", stmt->func.id);
   }
 }
 
-void Parser_New_Func(ParserState *ps, Statement *stmt)
+void Parser_New_Func(ParserState *ps, stmt_t *stmt)
 {
   if (!stmt) return;
   __add_stmt(ps, stmt);
   parse_funcdecl(ps, stmt);
 }
 
-static void parse_funcproto(ParserState *ps, Statement *stmt)
+static void parse_funcproto(ParserState *ps, stmt_t *stmt)
 {
   TypeDesc *proto;
   Symbol *sym;
-  proto = Type_New_Proto(stmt->funcproto.pvec, stmt->funcproto.rvec);
-  sym = STable_Add_IProto(ps->u->stbl, stmt->funcproto.id, proto);
+  proto = Type_New_Proto(stmt->proto.args, stmt->proto.rets);
+  sym = STable_Add_IProto(ps->u->stbl, stmt->proto.id, proto);
   if (sym) {
-    debug("add abstract func '%s' successful", stmt->funcproto.id);
+    debug("add abstract func '%s' successful", stmt->proto.id);
     sym->up = ps->u->sym;
   } else {
-    debug("add abstract func '%s' failed", stmt->funcproto.id);
+    debug("add abstract func '%s' failed", stmt->proto.id);
   }
 }
 
-void Parser_New_ClassOrTrait(ParserState *ps, Statement *stmt)
+void Parser_New_ClassOrTrait(ParserState *ps, stmt_t *stmt)
 {
   Symbol *sym = NULL;
   __add_stmt(ps, stmt);
@@ -582,14 +581,14 @@ void Parser_New_ClassOrTrait(ParserState *ps, Statement *stmt)
   parser_enter_scope(ps, sym->ptr, SCOPE_CLASS);
   ps->u->sym = sym;
   if (stmt->class_info.body) {
-    Statement *s;
+    stmt_t *s;
     Vector_ForEach(s, stmt->class_info.body) {
-      if (s->kind == VARDECL_KIND) {
-        parse_new_var(ps, s);
-      } else if (s->kind == FUNCDECL_KIND) {
+      if (s->kind == VAR_KIND) {
+        __new_var(ps, s->var.id, s->var.desc, s->var.bconst);
+      } else if (s->kind == FUNC_KIND) {
         parse_funcdecl(ps, s);
       } else {
-        assert(s->kind == FUNCPROTO_KIND);
+        assert(s->kind == PROTO_KIND);
         parse_funcproto(ps, s);
       }
     }
@@ -599,7 +598,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, Statement *stmt)
   debug(">>>>end class(trait) '%s'", sym->name);
 }
 
-void Parser_New_TypeAlias(ParserState *ps, Statement *stmt)
+void Parser_New_TypeAlias(ParserState *ps, stmt_t *stmt)
 {
   STable_Add_TypeAlias(ps->u->stbl, stmt->typealias.id, stmt->typealias.desc);
   debug("add typealias '%s' successful", stmt->typealias.id);
@@ -1891,11 +1890,11 @@ static int check_symbol_inherit(Symbol *base, Symbol *sub)
 }
 #endif
 
-static int check_variable_type(ParserState *ps, Statement *stmt)
+static int check_variable_type(ParserState *ps, stmt_t *stmt)
 {
-  char *id = stmt->vardecl.id;
-  TypeDesc *desc = stmt->vardecl.desc;
-  Expression *rexp = stmt->vardecl.exp;
+  char *id = stmt->var.id;
+  TypeDesc *desc = stmt->var.desc;
+  expr_t *rexp = stmt->var.exp;
 
   if (desc && desc->kind == TYPE_ARRAY) {
     /* check array's base type */
@@ -1934,7 +1933,7 @@ static int check_variable_type(ParserState *ps, Statement *stmt)
 
     if (!desc) {
       desc = Type_Dup(rexp->desc);
-      stmt->vardecl.desc = desc;
+      stmt->var.desc = desc;
     }
 
     if (!Type_Equal(desc, rexp->desc)) {
@@ -2016,21 +2015,21 @@ static int check_variable_type(ParserState *ps, Statement *stmt)
   return 0;
 }
 
-static void parser_variable(ParserState *ps, Statement *stmt)
+static void parser_variable(ParserState *ps, stmt_t *stmt)
 {
   ParserUnit *u = ps->u;
-  char *id = stmt->vardecl.id;
+  char *id = stmt->var.id;
 
   debug("parse variable '%s'", id);
 
   if (check_variable_type(ps, stmt)) return;
 
   /* here variable's type must be valid */
-  assert(stmt->vardecl.desc);
+  assert(stmt->var.desc);
 
-  TypeDesc *desc = stmt->vardecl.desc;
-  int bconst = stmt->vardecl.bconst;
-  Expression *rexp = stmt->vardecl.exp;
+  TypeDesc *desc = stmt->var.desc;
+  int bconst = stmt->var.bconst;
+  expr_t *rexp = stmt->var.exp;
 
   Symbol *sym;
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
@@ -2101,7 +2100,7 @@ static void parser_init_function(ParserState *ps, Vector *stmts)
 {
   debug("------parser_init_function-------");
   if (stmts) {
-    Statement *s;
+    stmt_t *s;
     Vector_ForEach(s, stmts) {
       if (i == 0) {
         struct expr *exp = s->exp;
@@ -2122,28 +2121,28 @@ static void parser_init_function(ParserState *ps, Vector *stmts)
   debug("------parser_init_function end---");
 }
 
-static void parser_function(ParserState *ps, Statement *stmt, int scope)
+static void parser_function(ParserState *ps, stmt_t *stmt, int scope)
 {
   parser_enter_scope(ps, NULL, scope);
 
   ParserUnit *parent = parent_scope(ps);
-  Symbol *sym = STable_Get(parent->stbl, stmt->funcdecl.id);
+  Symbol *sym = STable_Get(parent->stbl, stmt->func.id);
   assert(sym);
   ps->u->sym = sym;
 
   if (parent->scope == SCOPE_MODULE || parent->scope == SCOPE_CLASS) {
-    debug("------parse function '%s'--------", stmt->funcdecl.id);
-    if (stmt->funcdecl.args) {
-      Statement *s;
-      Vector_ForEach(s, stmt->funcdecl.args) {
+    debug("------parse function '%s'--------", stmt->func.id);
+    if (stmt->func.args) {
+      stmt_t *s;
+      Vector_ForEach(s, stmt->func.args) {
         parser_variable(ps, s);
       }
     }
-    if (!strcmp(stmt->funcdecl.id, "__init__"))
-      parser_init_function(ps, stmt->funcdecl.body);
+    if (!strcmp(stmt->func.id, "__init__"))
+      parser_init_function(ps, stmt->func.body);
     else
-      parser_body(ps, stmt->funcdecl.body);
-    debug("------parse function '%s' end----", stmt->funcdecl.id);
+      parser_body(ps, stmt->func.body);
+    debug("------parse function '%s' end----", stmt->func.id);
   } else {
     kassert(0, "unknown parent scope: %d", parent->scope);
   }
@@ -2330,7 +2329,7 @@ static int parser_traits(ParserState *ps, Vector *traits, Symbol *sym)
   return 0;
 }
 
-static void parser_class(ParserState *ps, Statement *stmt)
+static void parser_class(ParserState *ps, stmt_t *stmt)
 {
   debug("------parse class(trait) -------");
   debug("%s:%s", stmt->kind == CLASS_KIND ? "class" : "trait",
@@ -2369,14 +2368,14 @@ static void parser_class(ParserState *ps, Statement *stmt)
   ps->u->sym = sym;
 
   if (stmt->class_info.body) {
-    Statement *s;
+    stmt_t *s;
     Vector_ForEach(s, stmt->class_info.body) {
-      if (s->kind == VARDECL_KIND) {
+      if (s->kind == VAR_KIND) {
         //parser_variable(ps, s->vardecl.var, s->vardecl.exp);
-      } else if (s->kind == FUNCDECL_KIND) {
+      } else if (s->kind == FUNC_KIND) {
         parser_function(ps, s, SCOPE_METHOD);
-      } else if (s->kind == FUNCPROTO_KIND) {
-        debug("func %s is abstract", s->funcproto.id);
+      } else if (s->kind == PROTO_KIND) {
+        debug("func %s is abstract", s->proto.id);
       } else {
         kassert(0, "invalid symbol kind:%d", s->kind);
       }
@@ -2396,7 +2395,7 @@ static void parser_class(ParserState *ps, Statement *stmt)
   debug("------parse class(trait) end---");
 }
 
-static void parser_typealias(ParserState *ps, Statement *stmt)
+static void parser_typealias(ParserState *ps, stmt_t *stmt)
 {
   debug("------parse typealias -------");
   ParserUnit *u = ps->u;
@@ -2448,7 +2447,7 @@ static void parser_typealias(ParserState *ps, Statement *stmt)
 // 	return 0;
 // }
 
-// static void parser_interface(ParserState *ps, Statement *stmt)
+// static void parser_interface(ParserState *ps, stmt_t *stmt)
 // {
 // 	debug("------parse interface-------");
 // 	debug("interface:%s", stmt->intf_type.id);
@@ -2490,7 +2489,7 @@ static void parser_typealias(ParserState *ps, Statement *stmt)
 // 	debug("------parse interface end---");
 // }
 
-static void parser_assign(ParserState *ps, Statement *stmt)
+static void parser_assign(ParserState *ps, stmt_t *stmt)
 {
   struct expr *r = stmt->assign.right;
   struct expr *l = stmt->assign.left;
@@ -2501,7 +2500,7 @@ static void parser_assign(ParserState *ps, Statement *stmt)
   parser_visit_expr(ps, l);
 }
 
-static void parser_return(ParserState *ps, Statement *stmt)
+static void parser_return(ParserState *ps, stmt_t *stmt)
 {
   ParserUnit *u = ps->u;
   Symbol *sym = NULL;
@@ -2528,7 +2527,7 @@ static void parser_return(ParserState *ps, Statement *stmt)
   u->block->bret = 1;
 }
 
-static void parser_if(ParserState *ps, Statement *stmt)
+static void parser_if(ParserState *ps, stmt_t *stmt)
 {
   parser_enter_scope(ps, NULL, SCOPE_BLOCK);
   int testsize = 0;
@@ -2593,7 +2592,7 @@ static void parser_if(ParserState *ps, Statement *stmt)
   parser_exit_scope(ps);
 }
 
-static void parser_while(ParserState *ps, Statement *stmt)
+static void parser_while(ParserState *ps, stmt_t *stmt)
 {
   parser_enter_scope(ps, NULL, SCOPE_BLOCK);
   ParserUnit *u = ps->u;
@@ -2633,7 +2632,7 @@ static void parser_while(ParserState *ps, Statement *stmt)
   parser_exit_scope(ps);
 }
 
-static void parser_break(ParserState *ps, Statement *stmt)
+static void parser_break(ParserState *ps, stmt_t *stmt)
 {
   UNUSED_PARAMETER(stmt);
 
@@ -2670,7 +2669,7 @@ static void parser_break(ParserState *ps, Statement *stmt)
   }
 }
 
-static void parser_continue(ParserState *ps, Statement *stmt)
+static void parser_continue(ParserState *ps, stmt_t *stmt)
 {
   UNUSED_PARAMETER(stmt);
 
@@ -2707,22 +2706,22 @@ static void parser_continue(ParserState *ps, Statement *stmt)
   }
 }
 
-static void parser_list(ParserState *ps, Statement *stmt)
+static void parser_list(ParserState *ps, stmt_t *stmt)
 {
-  Statement *s;
+  stmt_t *s;
   Vector_ForEach(s, &stmt->list) {
     parser_vist_stmt(ps, s);
   }
 }
 
-static void parser_vist_stmt(ParserState *ps, Statement *stmt)
+static void parser_vist_stmt(ParserState *ps, stmt_t *stmt)
 {
   switch (stmt->kind) {
-    case VARDECL_KIND: {
+    case VAR_KIND: {
       parser_variable(ps, stmt);
       break;
     }
-    case FUNCDECL_KIND: {
+    case FUNC_KIND: {
       parser_function(ps, stmt, SCOPE_FUNCTION);
       break;
     }
@@ -2778,7 +2777,7 @@ static void parser_body(ParserState *ps, Vector *stmts)
 {
   if (!stmts) return;
 
-  Statement *s;
+  stmt_t *s;
   Vector_ForEach(s, stmts) {
     parser_vist_stmt(ps, s);
   }
