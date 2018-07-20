@@ -156,9 +156,25 @@ static void proto_tostring(TypeDesc *t, char *buf)
 
 static TypeDesc *proto_dup(TypeDesc *desc)
 {
-	/* need duplicate deeply */
-	UNUSED_PARAMETER(desc);
-	return NULL;
+	/* need deep copy */
+  Vector *arg = NULL;
+  Vector *ret = NULL;
+
+  if (desc->proto.arg) {
+    arg = Vector_New();
+    TypeDesc *item;
+    Vector_ForEach(item, desc->proto.arg)
+      Vector_Append(arg, Type_Dup(item));
+  }
+
+  if (desc->proto.ret) {
+    ret = Vector_New();
+    TypeDesc *item;
+    Vector_ForEach(item, desc->proto.ret)
+      Vector_Append(ret, item);
+  }
+
+	return Type_New_Proto(arg, ret);
 }
 
 static void array_free(TypeDesc *t)

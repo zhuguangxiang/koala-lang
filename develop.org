@@ -19,6 +19,14 @@ v0.6.6:
 v0.6.7:
   ☐ quickly access to field and function by using index for second times
 
+expression's values are the right expression' s values
+
+id is a function, it doesn't mean a function call, and it's type is itself,
+or a function call's return value's types.
+
+example:
+values of foo.bar.hello() are function hello's return values.
+
 questions:
   1. multi-assignment supports function returns multi-values?
   golang errors
@@ -31,3 +39,7 @@ questions:
   prog.go:11:9: missing expression in var declaration
   prog.go:11:22: multiple-value add() in single-value context
   prog.go:12:23: undefined: c
+
+* Task
+** TODO Expression's value supports multi-valuse
+** TODO parse variable and parse variable list combind?

@@ -160,6 +160,15 @@ expr_t *expr_from_unary(enum unary_op_kind kind, expr_t *expr)
   return exp;
 }
 
+expr_t *expr_rright_exp(expr_t *exp)
+{
+  expr_t *e = exp;
+  while (e && e->right) {
+    e = e->right;
+  }
+  return e;
+}
+
 /*--------------------------------------------------------------------------*/
 
 static inline stmt_t *stmt_new(int kind)
@@ -185,9 +194,9 @@ stmt_t *stmt_from_var(char *id, TypeDesc *desc, expr_t *exp, int bconst)
   return stmt;
 }
 
-stmt_t *stmt_from_vars(Vector *ids, TypeDesc *desc, expr_t *exp, int bconst)
+stmt_t *stmt_from_varlist(Vector *ids, TypeDesc *desc, expr_t *exp, int bconst)
 {
-  stmt_t *stmt = stmt_new(VARS_KIND);
+  stmt_t *stmt = stmt_new(VARLIST_KIND);
   stmt->vars.ids    = ids;
   stmt->vars.desc   = desc;
   stmt->vars.exp    = exp;

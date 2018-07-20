@@ -23,9 +23,9 @@ static int yyerror(ParserState *ps, void *scanner, const char *errmsg)
 
 #define ERRMSG "expected '%s' before '%s'"
 #define syntax_error(expected) \
-  yyerrok; Parser_Error(ps, ERRMSG, expected, ps->line.token)
+  yyerrok; PSError(ERRMSG, expected, ps->line.token)
 #define syntax_error_clear(msg) yyclearin; yyerrok; \
-  Parser_Error(ps, "%s", msg)
+  PSError("%s", msg)
 
 stmt_t *do_vardecls(ParserState *ps, Vector *ids, TypeDesc *desc,
   Vector *exprs, int bconst);
@@ -969,7 +969,7 @@ int check_assignment(ParserState *ps, int ids, int exprs)
 {
   if (ids < exprs) {
     //var a = foo(), 100; whatever foo() is single or multi values
-    Parser_Error(ps, "extra expression in var declaration");
+    PSError("extra expression in var declaration");
     return -1;
   }
 
@@ -980,7 +980,7 @@ int check_assignment(ParserState *ps, int ids, int exprs)
      3. exprs == 0, it's ok
     */
     if (exprs > 1) {
-      Parser_Error(ps, "missing expression in var declaration");
+      PSError("missing expression in var declaration");
       return -1;
     }
   }
@@ -1013,10 +1013,20 @@ stmt_t *do_vardecls(ParserState *ps, Vector *ids, TypeDesc *desc,
     return stmt;
   } else {
     assert(isz > esz && esz <= 1);
-    expr_t *e;
-    if (esz == 1) e = Vector_Get(exprs, 0);
-    else e = NULL;
-    return stmt_from_vars(ids, desc, e, bconst);
+    if (esz == 1) {
+      expr_t *e = Vector_Get(exprs, 0);
+      return stmt_from_varlist(ids, desc, e, bconst);
+    } else {
+      assert(!exprs);
+      stmt_t *stmt = stmt_from_list();
+      char *id;
+      stmt_t *s;
+      Vector_ForEach(id, ids) {
+        s = stmt_from_var(id, desc, NULL, bconst);
+        Vector_Append(&stmt->list, s);
+      }
+      return stmt;
+    }
   }
 }
 
@@ -1054,7 +1064,7 @@ TypeDesc *do_usrdef_type(ParserState *ps, char *id, char *type)
   if (id) {
     fullpath = Parser_Get_FullPath(ps, id);
     if (!fullpath) {
-      Parser_Error(ps, "cannot find package: '%s'", id);
+      PSError("cannot find package: '%s'", id);
       return NULL;
     }
   }

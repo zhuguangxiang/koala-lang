@@ -10,7 +10,7 @@ func add(a int, b int) (int, int) {
 func Main(args []string) {
   var a = 100;
   var b = 200;
-  var c, d = add(a, b);
+  var c, d int = add(a, b);
   io.Println(a, "+", b, "=", c);
   io.Println(a, "-", b, "=", d);
 }

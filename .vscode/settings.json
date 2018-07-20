@@ -1,10 +1,10 @@
 {
 	"workbench.startupEditor": "none",
 	"workbench.statusBar.visible": true,
-	"workbench.colorTheme": "Atom One Dark",
+	"workbench.colorTheme": "One Dark Pro Vivid",
 	"workbench.iconTheme": "file-icons",
 	"workbench.activityBar.visible": false,
-	"editor.fontSize": 14,
+	"editor.fontSize": 23,
 	"editor.fontFamily":  "'Operator Mono Light', 'Ubuntu Mono'",
 	"editor.fontLigatures": true,
 	"editor.fontWeight": "100",
@@ -26,13 +26,16 @@
 		"sstream": "c",
 		"*.tcc": "c",
 		"typeinfo": "c",
-		"unordered_map": "c"
+		"unordered_map": "c",
+		"deque": "c",
+		"vector": "c",
+		"system_error": "c"
 	},
 	"editor.rulers": [
 			80
 	],
 	"editor.minimap.enabled": false,
-	"terminal.integrated.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
+	"terminal.integrated.fontFamily": "'Ubuntu Mono'",
 	"terminal.integrated.fontSize": 14,
 	"todo-tree.flat": true,
 	"todo-tree.expanded": false,
@@ -67,9 +70,10 @@
 	"markdown.preview.fontSize": 14,
 	// "markdown.styles": [ "github-markdown.css" ]
 	"git.confirmSync": false,
-	"window.zoomLevel": 1,
+	"window.zoomLevel": 0,
 	"editor.occurrencesHighlight": false,
 	"editor.selectionHighlight": false,
 	"editor.cursorStyle": "line",
-	"terminal.integrated.scrollback": 5000
+	"terminal.integrated.scrollback": 5000,
+	"terminal.integrated.rendererType": "dom"
 }

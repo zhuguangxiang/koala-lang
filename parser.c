@@ -142,7 +142,7 @@ static void codeblock_merge(CodeBlock *from, CodeBlock *to)
   }
 }
 
-#if SHOW_ENABLED
+#if 1
 
 static void arg_print(char *buf, int sz, Argument *val)
 {
@@ -226,43 +226,30 @@ static Symbol *find_external_package(ParserState *ps, char *path)
 
 static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
 {
-  if (desc->kind != TYPE_USRDEF) {
-    char buf[64];
-    Type_ToString(desc, buf);
-    error("type(%s) is not class or interface", buf);
-    return NULL;
-  }
-
-  // find in current module
   Symbol *sym;
-  if (!desc->usrdef.path) {
-    debug("type '%s' in current module", desc->usrdef.type);
-    sym = STable_Get(ps->sym->ptr, desc->usrdef.type);
+  if (desc->usrdef.path) {
+    // find in external imported module
+    sym = find_external_package(ps, desc->usrdef.path);
     if (!sym) {
-      //error("cannot find %s", desc->type);
+      error("cannot find '%s' package", desc->usrdef.path);
       return NULL;
     }
-    sym->refcnt++;
-    return sym;
-  }
-
-  // find in external imported module
-  sym = find_external_package(ps, desc->usrdef.path);
-  if (!sym) {
-    error("cannot find '%s' package", desc->usrdef.path);
-    return NULL;
+  } else {
+    // find in current module
+    sym = ps->sym;
   }
 
   assert(sym->kind == SYM_STABLE);
+
   sym = STable_Get(sym->ptr, desc->usrdef.type);
   if (sym) {
     debug("find '%s.%s'", desc->usrdef.path, desc->usrdef.type);
     sym->refcnt++;
     return sym;
+  } else {
+    error("cannot find '%s.%s'", desc->usrdef.path, desc->usrdef.type);
+    return NULL;
   }
-
-  error("cannot find '%s.%s'", desc->usrdef.path, desc->usrdef.type);
-  return NULL;
 }
 
 static Symbol *find_symbol_linear_order(Symbol *clssym, char *name)
@@ -476,6 +463,7 @@ char *Parser_Get_FullPath(ParserState *ps, char *id)
 }
 
 /*---------------------------------------------------------------------------*/
+
 static inline void __add_stmt(ParserState *ps, stmt_t *stmt)
 {
   Vector_Append(&ps->stmts, stmt);
@@ -491,7 +479,7 @@ static void __new_var(ParserState *ps, char *id, TypeDesc *desc, int bconst)
     debug("add %s '%s' successfully", VAR_SHOW);
     sym->up = ps->u->sym;
   } else {
-    Parser_Error(ps, "add %s '%s' failed", VAR_SHOW);
+    PSError("add %s '%s' failed", VAR_SHOW);
   }
 }
 
@@ -508,7 +496,7 @@ void Parser_New_Vars(ParserState *ps, stmt_t *stmt)
       __new_var(ps, s->var.id, s->var.desc, s->var.bconst);
     }
   } else {
-    assert(stmt->kind == VARS_KIND);
+    assert(stmt->kind == VARLIST_KIND);
     __add_stmt(ps, stmt);
     char *id;
     Vector_ForEach(id, stmt->vars.ids) {
@@ -704,7 +692,7 @@ static int optimize_binary_expr(ParserState *ps, struct expr **exp)
 
 static void parser_show_scope(ParserState *ps)
 {
-#if SHOW_ENABLED
+#if 1
   debug("------scope show-------------");
   debug("scope-%d symbols:", ps->nestlevel);
   STable_Show(ps->u->stbl, 0);
@@ -1890,7 +1878,8 @@ static int check_symbol_inherit(Symbol *base, Symbol *sub)
 }
 #endif
 
-static int check_variable_type(ParserState *ps, stmt_t *stmt)
+#if 0
+int check_variable_type(ParserState *ps, stmt_t *stmt)
 {
   char *id = stmt->var.id;
   TypeDesc *desc = stmt->var.desc;
@@ -1911,7 +1900,7 @@ static int check_variable_type(ParserState *ps, stmt_t *stmt)
     }
     Symbol *sym = STable_Get(stbl, desc->usrdef.type);
     if (!sym) {
-      Parser_Error(ps, "undefined '%s'", desc->usrdef.type);
+      PSError("undefined '%s'", desc->usrdef.type);
       return -1;
     }
     /*
@@ -1937,10 +1926,10 @@ static int check_variable_type(ParserState *ps, stmt_t *stmt)
     }
 
     if (!Type_Equal(desc, rexp->desc)) {
-      Parser_Error(ps, "typecheck failed");
+      PSError("typecheck failed");
       return -1;
     }
-#if 0
+#if 1
     if (exp->desc->kind == TYPE_PROTO) {
       TypeDesc *proto = exp->desc;
       if (exp->ctx == EXPR_LOAD) {
@@ -2015,25 +2004,57 @@ static int check_variable_type(ParserState *ps, stmt_t *stmt)
   return 0;
 }
 
-static void parser_variable(ParserState *ps, stmt_t *stmt)
+#endif
+
+static void parse_variable(ParserState *ps, stmt_t *stmt)
 {
   ParserUnit *u = ps->u;
   char *id = stmt->var.id;
+  TypeDesc *desc = stmt->var.desc;
+  expr_t *rexp = stmt->var.exp;
+  int bconst = stmt->var.bconst;
 
   debug("parse variable '%s'", id);
 
-  if (check_variable_type(ps, stmt)) return;
+  // check variable's type is valid
+  if (desc) {
+    // check array's base type
+    if (desc->kind == TYPE_ARRAY) desc = desc->array.base;
+    if (desc->kind == TYPE_USRDEF) {
+      if (!find_userdef_symbol(ps, desc)) {
+        PSError("undefined '%s'", desc->usrdef.type);
+        return;
+      }
+    }
+  }
 
-  /* here variable's type must be valid */
-  assert(stmt->var.desc);
+  // visit its right expr if necessary
+  if (rexp) {
+    rexp->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, rexp);
+    expr_t *rrexp = expr_rright_exp(rexp);
+    if (!rrexp->desc) {
+      PSError("cannot resolve expr's type");
+      return;
+    }
 
-  TypeDesc *desc = stmt->var.desc;
-  int bconst = stmt->var.bconst;
-  expr_t *rexp = stmt->var.exp;
+    if (!desc) {
+      desc = Type_Dup(rrexp->desc);
+      stmt->var.desc = desc;
+    }
+
+    if (!Type_Equal(desc, rrexp->desc)) {
+      PSError("typecheck failed");
+      return;
+    }
+  }
+
+  // here variable's type must be valid
+  assert(desc);
 
   Symbol *sym;
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
-    /* module's or class's variable */
+    // module's or class's variable
     debug("variable '%s' in module or class", id);
     sym = STable_Get(u->stbl, id);
     assert(sym);
@@ -2045,7 +2066,7 @@ static void parser_variable(ParserState *ps, stmt_t *stmt)
       debug("update symbol '%s' type -> '%s'", id, buf);
 #endif
     }
-    /* generate code */
+    // generate code
     if (rexp) {
       Inst_Append_NoArg(ps->u->block, OP_LOAD0);
       Argument val = {.kind = ARG_STR, .str = id};
@@ -2096,6 +2117,122 @@ static void parser_variable(ParserState *ps, stmt_t *stmt)
 #endif
 }
 
+static void parse_varlist(ParserState *ps, stmt_t *stmt)
+{
+  TypeDesc *desc = stmt->vars.desc;
+
+  // check variable's type is valid
+  if (desc) {
+    // check array's base type
+    if (desc->kind == TYPE_ARRAY) desc = desc->array.base;
+    if (desc->kind == TYPE_USRDEF) {
+      if (!find_userdef_symbol(ps, desc)) {
+        PSError("undefined '%s'", desc->usrdef.type);
+        return;
+      }
+    }
+  }
+
+  // visit its right expr
+  expr_t *rexp = stmt->vars.exp;
+  rexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, rexp);
+  expr_t *rrexp = expr_rright_exp(rexp);
+  if (!rrexp->desc) {
+    PSError("cannot resolve expr's type");
+    return;
+  }
+
+  TypeDesc *rrdesc = rrexp->desc;
+  if (rrdesc->kind != TYPE_PROTO) {
+    PSError("missing expression in var declaration");
+    return;
+  }
+
+  int nid = Vector_Size(stmt->vars.ids);
+  int nret = Vector_Size(rrdesc->proto.ret);
+  if (nid != nret) {
+    PSError("assignment mismatch: %d variables but %d values", nid, nret);
+    return;
+  }
+
+  if (desc) {
+    TypeDesc *item;
+    Vector_ForEach(item, rrdesc->proto.ret) {
+      if (!Type_Equal(desc, item)) {
+        PSError("typecheck failed");
+        return;
+      }
+    }
+  }
+
+  char *id = Vector_Get(stmt->vars.ids, 0);
+
+  Symbol *sym;
+  ParserUnit *u = ps->u;
+  int bconst = stmt->vars.bconst;
+
+  if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+    // module's or class's variable
+    debug("varlist '%s' in module or class", id);
+    sym = STable_Get(u->stbl, id);
+    assert(sym);
+    if (sym->kind == SYM_VAR && !sym->desc) {
+      STable_Update_Symbol(u->stbl, sym, desc);
+#if LOG_DEBUG
+      char buf[64];
+      Type_ToString(desc, buf);
+      debug("update symbol '%s' type -> '%s'", id, buf);
+#endif
+    }
+    // generate code
+    if (rexp) {
+      Inst_Append_NoArg(ps->u->block, OP_LOAD0);
+      Argument val = {.kind = ARG_STR, .str = id};
+      Inst_Append(ps->u->block, OP_SETFIELD, &val);
+    }
+  } else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
+    /* local variable */
+    char *id;
+    Vector_ForEach_Reverse(id, stmt->vars.ids) {
+      debug("variable '%s' in function", id);
+      if (!desc) desc = Vector_Get(rrdesc->proto.ret, i);
+      sym = STable_Add_Var(u->stbl, id, desc, bconst);
+      sym->up = u->sym;
+      Vector_Append(&u->sym->locvec, sym);
+      /* generate code */
+      if (rexp) {
+        Argument val = {.kind = ARG_INT, .ival = sym->index};
+        Inst_Append(ps->u->block, OP_STORE, &val);
+      }
+    }
+  } else if (u->scope == SCOPE_BLOCK) {
+    /* local's variable in block */
+    debug("variable '%s' in block", id);
+    //FIXME: up -> up -> up
+    ParserUnit *pu = get_function_unit(ps);
+    assert(pu);
+    sym = STable_Get(pu->stbl, id);
+    if (sym) {
+      error("variable '%s' is already defined", id);
+      return;
+    }
+    //FIXME: need add to function's symbol table? how to handle different block has the same variable
+    sym = STable_Add_Var(u->stbl, id, desc, bconst);
+    assert(sym);
+    sym->index = pu->stbl->varcnt++;  //FIXME: why index?
+    sym->up = NULL;
+    Vector_Append(&pu->sym->locvec, sym);
+    /* generate code */
+    if (rexp) {
+      Argument val = {.kind = ARG_INT, .ival = sym->index};
+      Inst_Append(ps->u->block, OP_STORE, &val);
+    }
+  } else {
+    kassert(0, "unknown unit scope:%d", u->scope);
+  }
+}
+
 static void parser_init_function(ParserState *ps, Vector *stmts)
 {
   debug("------parser_init_function-------");
@@ -2135,7 +2272,7 @@ static void parser_function(ParserState *ps, stmt_t *stmt, int scope)
     if (stmt->func.args) {
       stmt_t *s;
       Vector_ForEach(s, stmt->func.args) {
-        parser_variable(ps, s);
+        parse_variable(ps, s);
       }
     }
     if (!strcmp(stmt->func.id, "__init__"))
@@ -2371,7 +2508,7 @@ static void parser_class(ParserState *ps, stmt_t *stmt)
     stmt_t *s;
     Vector_ForEach(s, stmt->class_info.body) {
       if (s->kind == VAR_KIND) {
-        //parser_variable(ps, s->vardecl.var, s->vardecl.exp);
+        //parse_variable(ps, s->vardecl.var, s->vardecl.exp);
       } else if (s->kind == FUNC_KIND) {
         parser_function(ps, s, SCOPE_METHOD);
       } else if (s->kind == PROTO_KIND) {
@@ -2517,11 +2654,11 @@ static void parser_return(ParserState *ps, stmt_t *stmt)
   }
 
   struct expr *e;
-  Vector_ForEach(e, &stmt->list) {
+  Vector_ForEach(e, stmt->returns) {
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
   }
-  check_return_types(sym, &stmt->list);
+  check_return_types(sym, stmt->returns);
 
   Inst_Append(u->block, OP_RET, NULL);
   u->block->bret = 1;
@@ -2718,7 +2855,11 @@ static void parser_vist_stmt(ParserState *ps, stmt_t *stmt)
 {
   switch (stmt->kind) {
     case VAR_KIND: {
-      parser_variable(ps, stmt);
+      parse_variable(ps, stmt);
+      break;
+    }
+    case VARLIST_KIND: {
+      parse_varlist(ps, stmt);
       break;
     }
     case FUNC_KIND: {

@@ -127,7 +127,7 @@ void Parser_PrintError(ParserState *ps, LineInfo *line, char *fmt, ...);
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
 #define COLOR_ERRMSG COLOR_LIGHT_RED "error: " COLOR_WHITE
-#define Parser_Error(ps, errmsg, ...) do { \
+#define PSError(errmsg, ...) do { \
   if (++ps->errnum >= MAX_ERRORS) { \
     fprintf(stderr, "Too many errors.\n"); \
     exit(-1); \
@@ -144,12 +144,6 @@ void Lexer_DoUserAction(ParserState *ps, char *text);
 static inline void Parser_Set_Package(ParserState *ps, char *name)
 {
   ps->package = name;
-}
-
-static inline void Parser_Add_Stmt(ParserState *ps, stmt_t *stmt)
-{
-  if (!stmt) return;
-  Vector_Append(&ps->stmts, stmt);
 }
 
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path);

@@ -76,7 +76,7 @@ int Type_Equal(TypeDesc *t1, TypeDesc *t2);
 void Type_ToString(TypeDesc *desc, char *buf);
 Vector *CString_To_TypeList(char *str);
 
-#define Type_IsInt(type)    ((type) == &Int_Type)
+#define Type_IsInt(type)    ((type) == &Int_Type || ((type)->kind == TYPE_PRIMITIVE && (type)->primitive == 'i'))
 #define Type_IsFloat(type)  ((type) == &Float_Type)
 #define Type_IsBool(type)   ((type) == &Bool_Type)
 #define Type_IsString(type) ((type) == &String_Type)
