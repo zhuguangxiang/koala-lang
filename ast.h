@@ -126,7 +126,7 @@ expr_t *expr_from_binary(enum binary_op_kind kind,
                               expr_t *left, expr_t *right);
 expr_t *expr_from_unary(enum unary_op_kind kind, expr_t *expr);
 void expr_traverse(expr_t *exp);
-expr_t *expr_rright_exp(expr_t *exp);
+expr_t *expr_get_rrexp(expr_t *exp);
 
 /*-------------------------------------------------------------------------*/
 
@@ -248,7 +248,7 @@ stmt_t *stmt_from_varlist(Vector *ids, TypeDesc *desc, expr_t *exp, int bconst);
 stmt_t *stmt_from_func(char *id, Vector *args, Vector *rets, Vector *body);
 stmt_t *stmt_from_proto(char *id, Vector *args, Vector *rets);
 stmt_t *stmt_from_assign(expr_t *l, AssignOpKind op, expr_t *r);
-stmt_t *stmt_from_assigns(Vector *left, expr_t *right);
+stmt_t *stmt_from_assignlist(Vector *left, expr_t *right);
 stmt_t *stmt_from_return(Vector *list);
 stmt_t *stmt_from_expr(expr_t *exp);
 stmt_t *stmt_from_block(Vector *block);

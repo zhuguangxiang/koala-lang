@@ -1054,7 +1054,7 @@ stmt_t *do_assignments(ParserState *ps, Vector *left, Vector *right)
     expr_t *e;
     if (rsz == 1) e = Vector_Get(right, 0);
     else e = NULL;
-    return stmt_from_assigns(left, e);
+    return stmt_from_assignlist(left, e);
   }
 }
 

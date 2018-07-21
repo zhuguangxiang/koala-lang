@@ -2013,6 +2013,7 @@ static void parse_variable(ParserState *ps, stmt_t *stmt)
   TypeDesc *desc = stmt->var.desc;
   expr_t *rexp = stmt->var.exp;
   int bconst = stmt->var.bconst;
+  TypeDesc *rrdesc;
 
   debug("parse variable '%s'", id);
 
@@ -2032,20 +2033,30 @@ static void parse_variable(ParserState *ps, stmt_t *stmt)
   if (rexp) {
     rexp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, rexp);
-    expr_t *rrexp = expr_rright_exp(rexp);
+    expr_t *rrexp = expr_get_rrexp(rexp);
     if (!rrexp->desc) {
       PSError("cannot resolve expr's type");
       return;
     }
 
-    if (!desc) {
-      desc = Type_Dup(rrexp->desc);
-      stmt->var.desc = desc;
+    rrdesc = rrexp->desc;
+    if (rrdesc->kind == TYPE_PROTO) {
+      int nret = Vector_Size(rrdesc->proto.ret);
+      if ( nret != 1) {
+        PSError("assignment mismatch: 1 variables but %d values", nret);
+        return;
+      }
+      rrdesc = Vector_Get(rrdesc->proto.ret, 0);
     }
 
-    if (!Type_Equal(desc, rrexp->desc)) {
-      PSError("typecheck failed");
-      return;
+    if (!desc) {
+      desc = Type_Dup(rrdesc);
+      stmt->var.desc = desc;
+    } else {
+      if (!Type_Equal(desc, rrdesc)) {
+        PSError("typecheck failed");
+        return;
+      }
     }
   }
 
@@ -2137,7 +2148,7 @@ static void parse_varlist(ParserState *ps, stmt_t *stmt)
   expr_t *rexp = stmt->vars.exp;
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
-  expr_t *rrexp = expr_rright_exp(rexp);
+  expr_t *rrexp = expr_get_rrexp(rexp);
   if (!rrexp->desc) {
     PSError("cannot resolve expr's type");
     return;
@@ -2166,15 +2177,16 @@ static void parse_varlist(ParserState *ps, stmt_t *stmt)
     }
   }
 
-  char *id = Vector_Get(stmt->vars.ids, 0);
-
   Symbol *sym;
   ParserUnit *u = ps->u;
   int bconst = stmt->vars.bconst;
-
+  char *id;
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
     // module's or class's variable
-    debug("varlist '%s' in module or class", id);
+    Vector_ForEach(id, stmt->vars.ids) {
+      debug("varlist '%s' in module or class", id); 
+    }
+
     sym = STable_Get(u->stbl, id);
     assert(sym);
     if (sym->kind == SYM_VAR && !sym->desc) {
@@ -2187,13 +2199,14 @@ static void parse_varlist(ParserState *ps, stmt_t *stmt)
     }
     // generate code
     if (rexp) {
-      Inst_Append_NoArg(ps->u->block, OP_LOAD0);
-      Argument val = {.kind = ARG_STR, .str = id};
-      Inst_Append(ps->u->block, OP_SETFIELD, &val);
+      Vector_ForEach_Reverse(id, stmt->vars.ids) {
+        Inst_Append_NoArg(ps->u->block, OP_LOAD0);
+        Argument val = {.kind = ARG_STR, .str = id};
+        Inst_Append(ps->u->block, OP_SETFIELD, &val);
+      }
     }
   } else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
     /* local variable */
-    char *id;
     Vector_ForEach_Reverse(id, stmt->vars.ids) {
       debug("variable '%s' in function", id);
       if (!desc) desc = Vector_Get(rrdesc->proto.ret, i);
@@ -2208,25 +2221,27 @@ static void parse_varlist(ParserState *ps, stmt_t *stmt)
     }
   } else if (u->scope == SCOPE_BLOCK) {
     /* local's variable in block */
-    debug("variable '%s' in block", id);
-    //FIXME: up -> up -> up
-    ParserUnit *pu = get_function_unit(ps);
-    assert(pu);
-    sym = STable_Get(pu->stbl, id);
-    if (sym) {
-      error("variable '%s' is already defined", id);
-      return;
-    }
-    //FIXME: need add to function's symbol table? how to handle different block has the same variable
-    sym = STable_Add_Var(u->stbl, id, desc, bconst);
-    assert(sym);
-    sym->index = pu->stbl->varcnt++;  //FIXME: why index?
-    sym->up = NULL;
-    Vector_Append(&pu->sym->locvec, sym);
-    /* generate code */
-    if (rexp) {
-      Argument val = {.kind = ARG_INT, .ival = sym->index};
-      Inst_Append(ps->u->block, OP_STORE, &val);
+    Vector_ForEach(id, stmt->vars.ids) {
+      debug("variable '%s' in block", id);
+      //FIXME: up -> up -> up
+      ParserUnit *pu = get_function_unit(ps);
+      assert(pu);
+      sym = STable_Get(pu->stbl, id);
+      if (sym) {
+        error("variable '%s' is already defined", id);
+        return;
+      }
+      //FIXME: need add to function's symbol table? how to handle different block has the same variable
+      sym = STable_Add_Var(u->stbl, id, desc, bconst);
+      assert(sym);
+      sym->index = pu->stbl->varcnt++;  //FIXME: why index?
+      sym->up = NULL;
+      Vector_Append(&pu->sym->locvec, sym);
+      /* generate code */
+      if (rexp) {
+        Argument val = {.kind = ARG_INT, .ival = sym->index};
+        Inst_Append(ps->u->block, OP_STORE, &val);
+      }
     }
   } else {
     kassert(0, "unknown unit scope:%d", u->scope);
@@ -2626,15 +2641,67 @@ static void parser_typealias(ParserState *ps, stmt_t *stmt)
 // 	debug("------parse interface end---");
 // }
 
-static void parser_assign(ParserState *ps, stmt_t *stmt)
+static void parse_assign(ParserState *ps, stmt_t *stmt)
 {
   struct expr *r = stmt->assign.right;
   struct expr *l = stmt->assign.left;
-  //check_assignment(l, r);
   r->ctx = EXPR_LOAD;
   parser_visit_expr(ps, r);
   l->ctx = EXPR_STORE;
   parser_visit_expr(ps, l);
+
+  expr_t *rrexp = expr_get_rrexp(r);
+  TypeDesc *rrdesc = rrexp->desc;
+  if (rrdesc->kind == TYPE_PROTO) {
+    int nret = Vector_Size(rrdesc->proto.ret);
+    if (nret != 1) {
+      PSError("assignment mismatch: 1 variables but %d values", nret);
+      return;
+    }
+    rrdesc = Vector_Get(rrdesc->proto.ret, 0);
+  }
+  if (!Type_Equal(l->desc, rrdesc)) {
+    PSError("typecheck failed");
+  }
+}
+
+static void parse_assignlist(ParserState *ps, stmt_t *stmt)
+{
+  // check count of vars and func return values
+  int nid = Vector_Size(stmt->assigns.left);
+  expr_t *exp = stmt->assigns.right;
+  exp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, exp);
+  if (!exp->desc) {
+    PSError("cannot parse expr's type");
+    return;
+  }
+
+  expr_t *rrexp = expr_get_rrexp(exp);
+  TypeDesc *rrdesc = rrexp->desc;
+  if (rrdesc->kind != TYPE_PROTO) {
+    PSError("missing expression in var declaration");
+    return;
+  }
+
+  int nret = Vector_Size(rrdesc->proto.ret);
+  if (nid != nret) {
+    PSError("assignment mismatch: %d variables but %d values", nid, nret);
+    return;
+  }
+
+  expr_t *e;
+  Vector_ForEach_Reverse(e, stmt->assigns.left) {
+    e->ctx = EXPR_STORE;
+    parser_visit_expr(ps, e);
+  }
+
+  Vector_ForEach(e, stmt->assigns.left) {
+    rrexp = expr_get_rrexp(e);
+    if (!Type_Equal(rrexp->desc, Vector_Get(rrdesc->proto.ret, i))) {
+      PSError("typecheck failed");
+    }
+  }
 }
 
 static void parser_return(ParserState *ps, stmt_t *stmt)
@@ -2866,6 +2933,14 @@ static void parser_vist_stmt(ParserState *ps, stmt_t *stmt)
       parser_function(ps, stmt, SCOPE_FUNCTION);
       break;
     }
+  case ASSIGN_KIND: {
+    parse_assign(ps, stmt);
+    break;
+  }
+  case ASSIGNS_KIND: {
+    parse_assignlist(ps, stmt);
+    break;
+  }
     case TYPEALIAS_KIND: {
       parser_typealias(ps, stmt);
       break;
@@ -2877,10 +2952,6 @@ static void parser_vist_stmt(ParserState *ps, stmt_t *stmt)
     }
     case EXPR_KIND: {
       parser_visit_expr(ps, stmt->exp);
-      break;
-    }
-    case ASSIGN_KIND: {
-      parser_assign(ps, stmt);
       break;
     }
     case RETURN_KIND: {

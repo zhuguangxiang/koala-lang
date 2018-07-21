@@ -41,5 +41,21 @@ questions:
   prog.go:12:23: undefined: c
 
 * Task
-** TODO Expression's value supports multi-valuse
+** DONE Expression's value supports multi-valuse
+   CLOSED: [2018-07-21 Sat 11:03]
 ** TODO parse variable and parse variable list combind?
+
+* todo [3/4] [75%]
+** CANCELLED tas2k
+** TODO task1
+
+** DONE tdodo [3/3]
+   CLOSED: [2018-07-21 Sat 12:07]
+   - [X] Fix bug
+   - [X] Support new feature
+   - [X] Release new version
+
+** DONE todo [2/2] [100%]
+   CLOSED: [2018-07-21 Sat 12:55]
+   - [X] Fix bug
+   - [X] Release

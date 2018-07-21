@@ -160,7 +160,7 @@ expr_t *expr_from_unary(enum unary_op_kind kind, expr_t *expr)
   return exp;
 }
 
-expr_t *expr_rright_exp(expr_t *exp)
+expr_t *expr_get_rrexp(expr_t *exp)
 {
   expr_t *e = exp;
   while (e && e->right) {
@@ -232,7 +232,7 @@ stmt_t *stmt_from_assign(expr_t *l, AssignOpKind op, expr_t *r)
   return stmt;
 }
 
-stmt_t *stmt_from_assigns(Vector *left, expr_t *right)
+stmt_t *stmt_from_assignlist(Vector *left, expr_t *right)
 {
   stmt_t *stmt = stmt_new(ASSIGNS_KIND);
   stmt->assigns.left  = left;

@@ -4,7 +4,7 @@
 	"workbench.colorTheme": "One Dark Pro Vivid",
 	"workbench.iconTheme": "file-icons",
 	"workbench.activityBar.visible": false,
-	"editor.fontSize": 23,
+	"editor.fontSize": 14,
 	"editor.fontFamily":  "'Operator Mono Light', 'Ubuntu Mono'",
 	"editor.fontLigatures": true,
 	"editor.fontWeight": "100",
@@ -70,10 +70,10 @@
 	"markdown.preview.fontSize": 14,
 	// "markdown.styles": [ "github-markdown.css" ]
 	"git.confirmSync": false,
-	"window.zoomLevel": 0,
 	"editor.occurrencesHighlight": false,
 	"editor.selectionHighlight": false,
 	"editor.cursorStyle": "line",
 	"terminal.integrated.scrollback": 5000,
-	"terminal.integrated.rendererType": "dom"
+	"terminal.integrated.rendererType": "dom",
+	"window.zoomLevel": 1.5!!
 }
