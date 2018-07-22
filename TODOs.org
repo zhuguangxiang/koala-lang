@@ -1,0 +1,29 @@
+
+* Koala-Lang Development Tasks
+** v0.6.5
+*** RUNNING basic functions refactoring [6/7] [85%]
+   - [X] type descriptor
+   - [X] basic types, include int, float, bool, string and any
+   - [X] variable argument
+   - [X] multi-value assignment and variable declaration
+   - [X] primary expressio
+   - [X] function call
+   - [ ] multi-value returns
+*** TODO tests [0/3] [0%]
+   - [ ] hello.kl
+   - [ ] simple.kl
+   - [ ] funccall.kl
+*** TODO error handling
+*** TODO release version
+** v0.6.6
+*** TODO branch statement
+*** TODO loop statement
+*** TODO tests
+*** TODO error handling
+*** TODO release version
+** v0.6.7
+*** TODO class
+*** TODO trait
+*** TODO tests
+*** TODO error handling
+*** TODO release version

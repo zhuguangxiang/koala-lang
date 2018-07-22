@@ -1,4 +1,4 @@
-a.out
+*.out
 koala_yacc.*
 koala_lex.*
 *.klc

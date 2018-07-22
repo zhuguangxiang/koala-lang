@@ -2184,7 +2184,7 @@ static void parse_varlist(ParserState *ps, stmt_t *stmt)
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
     // module's or class's variable
     Vector_ForEach(id, stmt->vars.ids) {
-      debug("varlist '%s' in module or class", id); 
+      debug("varlist '%s' in module or class", id);
     }
 
     sym = STable_Get(u->stbl, id);
