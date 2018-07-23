@@ -1,29 +1,24 @@
 
 * Koala-Lang Development Tasks
-** v0.6.5
-*** RUNNING basic functions refactoring [6/7] [85%]
+** CANCELED v0.6.5
+   CLOSED: [2018-07-24 Tue 00:14]
+  BAD NEWS: This development's progress is stopped and will be replaced by another development's plan.
+*** RUNNING basic functions refactoring [5/7]
    - [X] type descriptor
    - [X] basic types, include int, float, bool, string and any
    - [X] variable argument
    - [X] multi-value assignment and variable declaration
-   - [X] primary expressio
+   - [-] primary expression [1/4]
+     - [ ] math expression
+     - [ ] array expression
+     - [ ] dict expression
+     - [X] dot expression
+       DOT operator can be used for external module, class and trait. It will be implemented in later.
    - [X] function call
    - [ ] multi-value returns
-*** TODO tests [0/3] [0%]
+*** TODO tests [0/3]
    - [ ] hello.kl
    - [ ] simple.kl
    - [ ] funccall.kl
-*** TODO error handling
-*** TODO release version
-** v0.6.6
-*** TODO branch statement
-*** TODO loop statement
-*** TODO tests
-*** TODO error handling
-*** TODO release version
-** v0.6.7
-*** TODO class
-*** TODO trait
-*** TODO tests
 *** TODO error handling
 *** TODO release version

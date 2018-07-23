@@ -44,7 +44,7 @@ void Lexer_DoUserAction(ParserState *ps, char *text)
 void Parser_SetLine(ParserState *ps, struct expr *exp)
 {
   if (exp) {
-    LineInfo *l = &exp->line;
+    lineinfo_t *l = &exp->line;
     LineBuffer *lb = &ps->line;
     l->line = strdup(lb->line);
     l->row = lb->row;
@@ -52,7 +52,7 @@ void Parser_SetLine(ParserState *ps, struct expr *exp)
   }
 }
 
-void Parser_PrintError(ParserState *ps, LineInfo *l, char *fmt, ...)
+void Parser_PrintError(ParserState *ps, lineinfo_t *l, char *fmt, ...)
 {
   if (++ps->errnum >= MAX_ERRORS) {
     fprintf(stderr, COLOR_LIGHT_WHITE "Too many errors.\n" COLOR_NC);
@@ -363,7 +363,7 @@ static void __to_stbl_fn(HashNode *hnode, void *arg)
     struct path_stbl_struct tmp = {path, s->ptr};
     HashTable_Traverse(member->klazz->table, __to_stbl_fn, &tmp);
   } else if (member->kind == MEMBER_VAR) {
-    STable_Add_Var(stbl, member->name, member->desc, member->bconst);
+    STable_Add_Var(stbl, member->name, member->desc, member->konst);
   } else if (member->kind == MEMBER_CODE) {
     //FIXME
     STable_Add_Proto(stbl, member->name, member->desc);
@@ -440,7 +440,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
 
   sym->ptr = Module_To_STable(ob, ps->extstbl->atbl, path);
   import->sym = sym;
-  LineInfo *l = &import->line;
+  lineinfo_t *l = &import->line;
   LineBuffer *lb = &ps->line;
   l->line = strdup(lb->line);
   l->row = lb->row;
@@ -469,12 +469,12 @@ static inline void __add_stmt(ParserState *ps, stmt_t *stmt)
   Vector_Append(&ps->stmts, stmt);
 }
 
-static void __new_var(ParserState *ps, char *id, TypeDesc *desc, int bconst)
+static void __new_var(ParserState *ps, char *id, TypeDesc *desc, int konst)
 {
-#define VAR_SHOW bconst ? "const" : "var", id
+#define VAR_SHOW konst ? "const" : "var", id
 
   /* add variale's id to symbol table */
-  Symbol *sym = STable_Add_Var(ps->u->stbl, id, desc, bconst);
+  Symbol *sym = STable_Add_Var(ps->u->stbl, id, desc, konst);
   if (sym) {
     debug("add %s '%s' successfully", VAR_SHOW);
     sym->up = ps->u->sym;
@@ -493,14 +493,14 @@ void Parser_New_Vars(ParserState *ps, stmt_t *stmt)
       assert(s->kind == VAR_KIND);
       /* add statement for next parser */
       __add_stmt(ps, s);
-      __new_var(ps, s->var.id, s->var.desc, s->var.bconst);
+      __new_var(ps, s->var.id, s->var.desc, s->var.konst);
     }
   } else {
     assert(stmt->kind == VARLIST_KIND);
     __add_stmt(ps, stmt);
     char *id;
     Vector_ForEach(id, stmt->vars.ids) {
-      __new_var(ps, id, stmt->vars.desc, stmt->vars.bconst);
+      __new_var(ps, id, stmt->vars.desc, stmt->vars.konst);
     }
   }
 }
@@ -572,7 +572,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, stmt_t *stmt)
     stmt_t *s;
     Vector_ForEach(s, stmt->class_info.body) {
       if (s->kind == VAR_KIND) {
-        __new_var(ps, s->var.id, s->var.desc, s->var.bconst);
+        __new_var(ps, s->var.id, s->var.desc, s->var.konst);
       } else if (s->kind == FUNC_KIND) {
         parse_funcdecl(ps, s);
       } else {
@@ -661,7 +661,7 @@ static int optimize_binary_expr(ParserState *ps, struct expr **exp)
   struct expr *origin = *exp;
   struct expr *left = origin->binary.left;
   struct expr *right = origin->binary.right;
-  if (left->bconst && right->bconst) {
+  if (left->konst && right->konst) {
     ret = 1;
     struct expr *e = NULL;
     switch (origin->binary.op) {
@@ -2012,7 +2012,7 @@ static void parse_variable(ParserState *ps, stmt_t *stmt)
   char *id = stmt->var.id;
   TypeDesc *desc = stmt->var.desc;
   expr_t *rexp = stmt->var.exp;
-  int bconst = stmt->var.bconst;
+  int konst = stmt->var.konst;
   TypeDesc *rrdesc;
 
   debug("parse variable '%s'", id);
@@ -2086,7 +2086,7 @@ static void parse_variable(ParserState *ps, stmt_t *stmt)
   } else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
     /* local variable */
     debug("variable '%s' in function", id);
-    sym = STable_Add_Var(u->stbl, id, desc, bconst);
+    sym = STable_Add_Var(u->stbl, id, desc, konst);
     sym->up = u->sym;
     Vector_Append(&u->sym->locvec, sym);
     /* generate code */
@@ -2106,7 +2106,7 @@ static void parse_variable(ParserState *ps, stmt_t *stmt)
       return;
     }
     //FIXME: need add to function's symbol table? how to handle different block has the same variable
-    sym = STable_Add_Var(u->stbl, id, desc, bconst);
+    sym = STable_Add_Var(u->stbl, id, desc, konst);
     assert(sym);
     sym->index = pu->stbl->varcnt++;  //FIXME: why index?
     sym->up = NULL;
@@ -2179,7 +2179,7 @@ static void parse_varlist(ParserState *ps, stmt_t *stmt)
 
   Symbol *sym;
   ParserUnit *u = ps->u;
-  int bconst = stmt->vars.bconst;
+  int konst = stmt->vars.konst;
   char *id;
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
     // module's or class's variable
@@ -2210,7 +2210,7 @@ static void parse_varlist(ParserState *ps, stmt_t *stmt)
     Vector_ForEach_Reverse(id, stmt->vars.ids) {
       debug("variable '%s' in function", id);
       if (!desc) desc = Vector_Get(rrdesc->proto.ret, i);
-      sym = STable_Add_Var(u->stbl, id, desc, bconst);
+      sym = STable_Add_Var(u->stbl, id, desc, konst);
       sym->up = u->sym;
       Vector_Append(&u->sym->locvec, sym);
       /* generate code */
@@ -2232,7 +2232,7 @@ static void parse_varlist(ParserState *ps, stmt_t *stmt)
         return;
       }
       //FIXME: need add to function's symbol table? how to handle different block has the same variable
-      sym = STable_Add_Var(u->stbl, id, desc, bconst);
+      sym = STable_Add_Var(u->stbl, id, desc, konst);
       assert(sym);
       sym->index = pu->stbl->varcnt++;  //FIXME: why index?
       sym->up = NULL;

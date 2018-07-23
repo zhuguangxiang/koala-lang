@@ -2,38 +2,16 @@
 #include "typedesc.h"
 #include "log.h"
 
-TypeDesc Byte_Type = {
-  .kind = TYPE_PRIMITIVE,
-  .primitive = PRIMITIVE_BYTE
-};
-TypeDesc Char_Type = {
-  .kind = TYPE_PRIMITIVE,
-  .primitive = PRIMITIVE_CHAR
-};
-TypeDesc Int_Type = {
-  .kind = TYPE_PRIMITIVE,
-  .primitive = PRIMITIVE_INT
-};
-TypeDesc Float_Type = {
-  .kind = TYPE_PRIMITIVE,
-  .primitive = PRIMITIVE_FLOAT
-};
-TypeDesc Bool_Type = {
-  .kind = TYPE_PRIMITIVE,
-  .primitive = PRIMITIVE_BOOL
-};
-TypeDesc String_Type = {
-  .kind = TYPE_PRIMITIVE,
-  .primitive = PRIMITIVE_STRING
-};
-TypeDesc Any_Type = {
-  .kind = TYPE_PRIMITIVE,
-  .primitive = PRIMITIVE_ANY
-};
-TypeDesc Varg_Type = {
-  .kind = TYPE_PRIMITIVE,
-  .primitive = PRIMITIVE_VARG
-};
+#define PRIMITIVE_TYPE_INIT(value) { .kind = TYPE_PRIMITIVE, .primitive = (PRIMITIVE_##value) }
+
+TypeDesc Byte_Type   = PRIMITIVE_TYPE_INIT(BYTE);
+TypeDesc Char_Type   = PRIMITIVE_TYPE_INIT(CHAR);
+TypeDesc Int_Type    = PRIMITIVE_TYPE_INIT(INT);
+TypeDesc Float_Type  = PRIMITIVE_TYPE_INIT(FLOAT);
+TypeDesc Bool_Type   = PRIMITIVE_TYPE_INIT(BOOL);
+TypeDesc String_Type = PRIMITIVE_TYPE_INIT(STRING);
+TypeDesc Any_Type    = PRIMITIVE_TYPE_INIT(ANY);
+TypeDesc Varg_Type   = PRIMITIVE_TYPE_INIT(VARG);
 
 struct primitive_type_s {
   int primitive;

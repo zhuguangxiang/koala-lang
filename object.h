@@ -20,19 +20,19 @@ extern Klass Float_Klass;
 extern Klass Bool_Klass;
 
 #define UNION_VALUE union { \
-	int64 ival; \
-	float64 fval; \
-	int bval; \
-	Object *ob; \
+  int64 ival; \
+  float64 fval; \
+  int bval; \
+  Object *ob; \
 }
 
 typedef struct value {
-	UNION_VALUE;
+  UNION_VALUE;
 } Value;
 
 typedef struct tvalue {
-	Klass *klazz;
-	UNION_VALUE;
+  Klass *klazz;
+  UNION_VALUE;
 } TValue;
 
 /* Constant values */
@@ -42,29 +42,29 @@ extern TValue FalseValue;
 
 /* Macros to initialize struct value */
 #define initnilvalue(v) do { \
-	(v)->klazz = NULL; (v)->ival = (int64)0; \
+  (v)->klazz = NULL; (v)->ival = (int64)0; \
 } while (0)
 
 #define setivalue(v, _v) do { \
-	(v)->klazz = &Int_Klass; (v)->ival = (int64)_v; \
+  (v)->klazz = &Int_Klass; (v)->ival = (int64)_v; \
 } while (0)
 
 #define setfltvalue(v, _v) do { \
-	(v)->klazz = &Float_Klass; (v)->fval = (float64)_v; \
+  (v)->klazz = &Float_Klass; (v)->fval = (float64)_v; \
 } while (0)
 
 #define setbvalue(v, _v) do { \
-	(v)->klazz = &Bool_Klass; (v)->bval = (int)_v; \
+  (v)->klazz = &Bool_Klass; (v)->bval = (int)_v; \
 } while (0)
 
 #define setobjtype(v, _klazz) do { \
-	(v)->klazz = (_klazz); \
+  (v)->klazz = (_klazz); \
 } while (0)
 
 #define setobjvalue(v, _v) do { \
-	Object *obj = (Object *)_v; \
-	(v)->klazz = obj->ob_klass; \
-	(v)->ob = obj; \
+  Object *obj = (Object *)_v; \
+  (v)->klazz = obj->ob_klass; \
+  (v)->ob = obj; \
 } while (0)
 
 #define NIL_VALUE_INIT()      {.klazz = NULL,         .ival = 0}
@@ -103,38 +103,38 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc);
 /*---------------------------------------------------------------------------*/
 
 #define OBJECT_HEAD \
-	Object *ob_next; int ob_ref; Klass *ob_klass; \
-	Object *ob_base; Object *ob_head; int ob_size;
+  Object *ob_next; int ob_ref; Klass *ob_klass; \
+  Object *ob_base; Object *ob_head; int ob_size;
 
 struct object {
-	OBJECT_HEAD
+  OBJECT_HEAD
 };
 
 #define OBJECT_HEAD_INIT(ob, klazz) \
-	.ob_klass = (klazz), \
-	.ob_base = (Object *)(ob), .ob_head = (Object *)(ob), .ob_size = 0,
+  .ob_klass = (klazz), \
+  .ob_base = (Object *)(ob), .ob_head = (Object *)(ob), .ob_size = 0,
 
 #define OB_KLASS(ob) (((Object *)(ob))->ob_klass)
 #define OB_CHECK_KLASS(ob, klazz) (OB_KLASS(ob) == &(klazz))
 #define OB_ASSERT_KLASS(ob, klazz) assert(OB_CHECK_KLASS(ob, klazz))
 #define OB_TYPE_OF(ob, ctype, klazz) \
-	(OB_ASSERT_KLASS(ob, klazz), (ctype *)(ob))
+  (OB_ASSERT_KLASS(ob, klazz), (ctype *)(ob))
 #define OB_Head(ob) (((Object *)(ob))->ob_head)
 #define OB_Base(ob) (((Object *)(ob))->ob_base)
 #define OB_HasBase(ob) (OB_Base(ob) != (Object *)(ob))
 
 #define OBJECT_SIZE(klazz) \
-	((klazz)->basesize + sizeof(TValue) * (klazz)->itemsize)
+  ((klazz)->basesize + sizeof(TValue) * (klazz)->itemsize)
 
 #define NEXT_OBJECT(ob, klazz) \
-	(Object *)((char *)ob + OBJECT_SIZE(klazz))
+  (Object *)((char *)ob + OBJECT_SIZE(klazz))
 
 #define Init_Object_Head(ob, klazz) do { \
-	Object *o = (Object *)(ob); \
-	o->ob_klass = klazz; \
-	o->ob_base = OB_HasBase(klazz) ? NEXT_OBJECT(ob, klazz) : o; \
-	o->ob_head = o; \
-	o->ob_size = (klazz)->itemsize; \
+  Object *o = (Object *)(ob); \
+  o->ob_klass = klazz; \
+  o->ob_base = OB_HasBase(klazz) ? NEXT_OBJECT(ob, klazz) : o; \
+  o->ob_head = o; \
+  o->ob_size = (klazz)->itemsize; \
 } while (0)
 
 TValue Object_Get_Value(Object *ob, char *name);
@@ -152,31 +152,31 @@ typedef int (*equalfunc)(TValue *v1, TValue *v2);
 typedef Object *(*strfunc)(TValue *v);
 
 typedef struct numberfunctions {
-	TValue (*add)(TValue *, TValue *);
+  TValue (*add)(TValue *, TValue *);
 
 } NumberFunctions;
 
 struct klass {
-	OBJECT_HEAD
-	char *name;
-	int basesize;
-	int itemsize; //number of TValues
-	int flags;
-	Object *module;
-	markfunc ob_mark;
-	allocfunc ob_alloc;
-	initfunc ob_init;
-	freefunc ob_free;
-	hashfunc ob_hash;
-	equalfunc ob_equal;
-	strfunc ob_tostr;
-	NumberFunctions *numops;
-	Vector traits;
-	// STable stbl;
-	Object *consts;
-	HashTable *table;
-	int varcnt;
-	Vector lines;
+  OBJECT_HEAD
+  char *name;
+  int basesize;
+  int itemsize; //number of TValues
+  int flags;
+  Object *module;
+  markfunc ob_mark;
+  allocfunc ob_alloc;
+  initfunc ob_init;
+  freefunc ob_free;
+  hashfunc ob_hash;
+  equalfunc ob_equal;
+  strfunc ob_tostr;
+  NumberFunctions *numops;
+  Vector traits;
+  // STable stbl;
+  Object *consts;
+  HashTable *table;
+  int varcnt;
+  Vector lines;
 };
 
 extern Klass Klass_Klass;
@@ -184,9 +184,9 @@ extern Klass Any_Klass;
 extern Klass Trait_Klass;
 Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type);
 #define Class_New(name, base, traits) \
-	Klass_New(name, base, traits, &Klass_Klass)
+  Klass_New(name, base, traits, &Klass_Klass)
 #define Trait_New(name, traits) \
-	Klass_New(name, NULL, traits, &Trait_Klass)
+  Klass_New(name, NULL, traits, &Trait_Klass)
 void Fini_Klass(Klass *klazz);
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 int Klass_Add_Method(Klass *klazz, char *name, Object *code);
@@ -196,16 +196,16 @@ int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto);
 
 /*-------------------------------------------------------------------------*/
 /*
-	All functions's proto, including c function and koala function
-	'args' and 'return' are both Tuple.
+  All functions's proto, including c function and koala function
+  'args' and 'return' are both Tuple.
  */
 typedef Object *(*cfunc)(Object *ob, Object *args);
 
 typedef struct funcdef {
-	char *name;
-	char *rdesc;
-	char *pdesc;
-	cfunc fn;
+  char *name;
+  char *rdesc;
+  char *pdesc;
+  cfunc fn;
 } FuncDef;
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);
@@ -217,33 +217,33 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);
 #define MEMBER_TRAIT  5
 
 typedef struct memberdef {
-	HashNode hnode;
-	int kind;
-	char *name;
-	TypeDesc *desc;
-	int bconst;
-	union {
-		int offset;
-		Object *code;
-		Klass *klazz;
-	};
+  HashNode hnode;
+  int kind;
+  char *name;
+  TypeDesc *desc;
+  int konst;
+  union {
+    int offset;
+    Object *code;
+    Klass *klazz;
+  };
 } MemberDef;
 
-MemberDef *Member_New(int kind, char *name, TypeDesc *desc, int bconst);
+MemberDef *Member_New(int kind, char *name, TypeDesc *desc, int konst);
 void Member_Free(MemberDef *m);
 uint32 Member_Hash(MemberDef *m);
 int Member_Equal(MemberDef *m1, MemberDef *m2);
 
-#define Member_Var_New(name, desc, bconst) \
-	Member_New(MEMBER_VAR, name, desc, bconst)
+#define Member_Var_New(name, desc, konst) \
+  Member_New(MEMBER_VAR, name, desc, konst)
 #define Member_Code_New(name, desc) \
-	Member_New(MEMBER_CODE, name, desc, 0)
+  Member_New(MEMBER_CODE, name, desc, 0)
 #define Member_Proto_New(name, desc) \
-	Member_New(MEMBER_PROTO, name, desc, 0)
+  Member_New(MEMBER_PROTO, name, desc, 0)
 #define Member_Class_New(name) \
-	Member_New(MEMBER_CLASS, name, NULL, 0)
+  Member_New(MEMBER_CLASS, name, NULL, 0)
 #define Member_Trait_New(name) \
-	Member_New(MEMBER_TRAIT, name, NULL, 0)
+  Member_New(MEMBER_TRAIT, name, NULL, 0)
 
 #ifdef __cplusplus
 }

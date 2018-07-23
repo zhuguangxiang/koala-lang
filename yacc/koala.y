@@ -781,23 +781,24 @@ ReturnStatement:
 /*---------------------------------------------------------------------------*/
 
 PrimaryExpr:
-  Atom {
-    $$ = $1;
-  }
+Atom {
+  $$ = $1;
+}
 | PrimaryExpr '.' ID {
-    $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
-  }
+  $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
+}
 | PrimaryExpr '[' Expr ']' {
-    $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
-  }
+  $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
+}
 | PrimaryExpr '(' ExprList ')' {
-    $$ = expr_from_trailer(CALL_KIND, $3, $1);
-  }
+  $$ = expr_from_trailer(CALL_KIND, $3, $1);
+}
 | PrimaryExpr '(' ')' {
-    $$ = expr_from_trailer(CALL_KIND, NULL, $1);
-  }
+  $$ = expr_from_trailer(CALL_KIND, NULL, $1);
+}
 | PrimaryExpr '['  Expr ':' Expr ']' {
-  }
+
+}
 ;
 
 Atom:

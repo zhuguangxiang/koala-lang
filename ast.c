@@ -112,8 +112,7 @@ expr_t *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body)
   return expr;
 }
 
-expr_t *expr_from_trailer(enum expr_kind kind, void *trailer,
-                               expr_t *left)
+expr_t *expr_from_trailer(enum expr_kind kind, void *trailer, expr_t *left)
 {
   expr_t *expr = expr_new(kind);
   switch (kind) {
@@ -140,8 +139,7 @@ expr_t *expr_from_trailer(enum expr_kind kind, void *trailer,
   return expr;
 }
 
-expr_t *expr_from_binary(enum binary_op_kind kind,
-                              expr_t *left, expr_t *right)
+expr_t *expr_from_binary(binary_op_t kind, expr_t *left, expr_t *right)
 {
   expr_t *exp = expr_new(BINARY_KIND);
   exp->desc = left->desc;
@@ -151,7 +149,7 @@ expr_t *expr_from_binary(enum binary_op_kind kind,
   return exp;
 }
 
-expr_t *expr_from_unary(enum unary_op_kind kind, expr_t *expr)
+expr_t *expr_from_unary(unary_op_t kind, expr_t *expr)
 {
   expr_t *exp = expr_new(UNARY_KIND);
   exp->desc = expr->desc;
@@ -183,24 +181,24 @@ static inline void stmt_free(stmt_t *stmt)
   free(stmt);
 }
 
-stmt_t *stmt_from_var(char *id, TypeDesc *desc, expr_t *exp, int bconst)
+stmt_t *stmt_from_var(char *id, TypeDesc *desc, expr_t *exp, int konst)
 {
   stmt_t *stmt = stmt_new(VAR_KIND);
   stmt->var.id     = id;
   stmt->var.desc   = desc;
   stmt->var.exp    = exp;
-  stmt->var.bconst = bconst;
+  stmt->var.konst = konst;
   if (!desc && exp && exp->desc) stmt->var.desc = Type_Dup(exp->desc);
   return stmt;
 }
 
-stmt_t *stmt_from_varlist(Vector *ids, TypeDesc *desc, expr_t *exp, int bconst)
+stmt_t *stmt_from_varlist(Vector *ids, TypeDesc *desc, expr_t *exp, int konst)
 {
   stmt_t *stmt = stmt_new(VARLIST_KIND);
   stmt->vars.ids    = ids;
   stmt->vars.desc   = desc;
   stmt->vars.exp    = exp;
-  stmt->vars.bconst = bconst;
+  stmt->vars.konst = konst;
   return stmt;
 }
 
@@ -223,7 +221,7 @@ stmt_t *stmt_from_proto(char *id, Vector *args, Vector *rets)
   return stmt;
 }
 
-stmt_t *stmt_from_assign(expr_t *l, AssignOpKind op, expr_t *r)
+stmt_t *stmt_from_assign(expr_t *l, assign_op_kind_t op, expr_t *r)
 {
   stmt_t *stmt = stmt_new(ASSIGN_KIND);
   stmt->assign.left  = l;
