@@ -1782,6 +1782,7 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       debug("unary_op:%d", exp->unary.op);
       exp->unary.operand->ctx = EXPR_LOAD;
       parser_visit_expr(ps, exp->unary.operand);
+      exp->desc = Type_Dup(exp->unary.operand->desc);
       codegen_unary(ps, exp->unary.op);
       break;
     }

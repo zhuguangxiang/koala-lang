@@ -98,19 +98,20 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
     case OP_RET: {
       break;
     }
-    case OP_ADD:
-    case OP_SUB: {
-      break;
-    }
-    case OP_GT:
-    case OP_GE:
-    case OP_LT:
-    case OP_LE:
-    case OP_EQ:
-    case OP_NEQ:
-    case OP_MINUS: {
-      break;
-    }
+  case OP_ADD:
+  case OP_SUB:
+  case OP_MUL:
+  case OP_DIV:
+  case OP_MOD:
+  case OP_GT:
+  case OP_GE:
+  case OP_LT:
+  case OP_LE:
+  case OP_EQ:
+  case OP_NEQ:
+  case OP_MINUS: {
+    break;
+  }
     case OP_JUMP:
     case OP_JUMP_TRUE:
     case OP_JUMP_FALSE: {
@@ -295,6 +296,21 @@ void codegen_binary(ParserState *ps, int op)
       Inst_Append(ps->u->block, OP_SUB, NULL);
       break;
     }
+  case BINARY_MULT: {
+    debug("add 'OP_MUL'");
+    Inst_Append(ps->u->block, OP_MUL, NULL);
+    break;
+  }
+  case BINARY_DIV: {
+    debug("add 'OP_DIV'");
+    Inst_Append(ps->u->block, OP_DIV, NULL);
+    break;
+  }
+  case BINARY_MOD: {
+    debug("add 'OP_MOD'");
+    Inst_Append(ps->u->block, OP_MOD, NULL);
+    break;
+  }
     case BINARY_GT: {
       debug("add 'OP_GT'");
       Inst_Append(ps->u->block, OP_GT, NULL);

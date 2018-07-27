@@ -151,10 +151,36 @@ typedef uint32 (*hashfunc)(TValue *v);
 typedef int (*equalfunc)(TValue *v1, TValue *v2);
 typedef Object *(*strfunc)(TValue *v);
 
-typedef struct numberfunctions {
-  TValue (*add)(TValue *, TValue *);
+typedef TValue (*binaryfunc)(TValue *, TValue *);
+typedef TValue (*unaryfunc)(TValue *);
 
-} NumberFunctions;
+typedef struct number_operations {
+  binaryfunc add;
+  binaryfunc sub;
+  binaryfunc mul;
+  binaryfunc div;
+  binaryfunc mod;
+  unaryfunc  neg;
+
+  binaryfunc gt;
+  binaryfunc lt;
+  binaryfunc ge;
+  binaryfunc le;
+  binaryfunc eq;
+  //binaryfunc neq; !(a == b)
+
+  binaryfunc band;
+  binaryfunc bor;
+  binaryfunc bxor;
+  unaryfunc  binvert;
+  binaryfunc blshift;
+  binaryfunc brshift;
+
+  binaryfunc land;
+  binaryfunc lor;
+  unaryfunc  lnot;
+
+} NumberOperations;
 
 struct klass {
   OBJECT_HEAD
@@ -170,9 +196,8 @@ struct klass {
   hashfunc ob_hash;
   equalfunc ob_equal;
   strfunc ob_tostr;
-  NumberFunctions *numops;
+  NumberOperations *numops;
   Vector traits;
-  // STable stbl;
   Object *consts;
   HashTable *table;
   int varcnt;

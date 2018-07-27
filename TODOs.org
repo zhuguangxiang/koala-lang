@@ -2,23 +2,20 @@
 * Koala-Lang Development Tasks
 ** CANCELED v0.6.5
    CLOSED: [2018-07-24 Tue 00:14]
-  BAD NEWS: This development's progress is stopped and will be replaced by another development's plan.
-*** RUNNING basic functions refactoring [5/7]
-   - [X] type descriptor
-   - [X] basic types, include int, float, bool, string and any
-   - [X] variable argument
-   - [X] multi-value assignment and variable declaration
-   - [-] primary expression [1/4]
-     - [ ] math expression
-     - [ ] array expression
-     - [ ] dict expression
-     - [X] dot expression
-       DOT operator can be used for external module, class and trait. It will be implemented in later.
-   - [X] function call
-   - [ ] multi-value returns
-*** TODO tests [0/3]
-   - [ ] hello.kl
-   - [ ] simple.kl
-   - [ ] funccall.kl
-*** TODO error handling
-*** TODO release version
+   BAD NEWS: This development's progress is stopped and will be replaced by another development's plan.
+* Release 0.7.x
+  This version supports basic expression, array, dict, variable
+  and function declarations.
+** 0.7.1
+*** Features
+- +, -, *, /, % etc operators only for integer and float are supported.
+- "-a" minus expression is supported.
+- bool object only supports &&, || and !.
+- string only supports '+' operator.
+- string has many methods to operate it.
+- all operators need checked by compiler.
+- float object does not support mod operator
+- io.Println supports float type print more friendly. see: expression.kl
+** 0.7.2
+*** Features
+- index operator is supported by array type.
