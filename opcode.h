@@ -117,7 +117,7 @@ extern "C" {
 #define OP_MUL    22
 #define OP_DIV    23
 #define OP_MOD    24
-#define OP_MINUS  25
+#define OP_NEG    25
 
 #define OP_GT     26
 #define OP_GE     27
@@ -148,7 +148,7 @@ extern "C" {
 #define OP_JUMP_TRUE  17
 #define OP_JUMP_FALSE 16
 
-#define OP_CALL0 40
+#define OP_CALL0 15
 
 /*
 	New object: like OP_CALL

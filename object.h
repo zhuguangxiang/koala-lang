@@ -163,18 +163,18 @@ typedef struct number_operations {
   unaryfunc  neg;
 
   binaryfunc gt;
-  binaryfunc lt;
   binaryfunc ge;
+  binaryfunc lt;
   binaryfunc le;
   binaryfunc eq;
-  //binaryfunc neq; !(a == b)
+  binaryfunc neq;
 
   binaryfunc band;
   binaryfunc bor;
   binaryfunc bxor;
-  unaryfunc  binvert;
-  binaryfunc blshift;
-  binaryfunc brshift;
+  unaryfunc  bnot;
+  binaryfunc lshift;
+  binaryfunc rshift;
 
   binaryfunc land;
   binaryfunc lor;

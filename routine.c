@@ -425,24 +425,67 @@ int tonumber(TValue *v)
 // 	}
 // }
 
-#define do_number_operations(_op_)    \
-do {                                  \
-  TValue v1 = POP();                  \
-  TValue v2 = POP();                  \
-  val = NilValue;                     \
-  NumberOperations *ops;              \
-  if (v1.klazz && v1.klazz->numops) { \
-    ops = v1.klazz->numops;           \
-    if (ops->_op_) {                  \
-      val = ops->_op_(&v1, &v2);      \
-    } else {                          \
-      error("unknown klazz '%s'",     \
-            v1.klazz->name);          \
-      exit(-1);                       \
-    }                                 \
-  }                                   \
-  PUSH(&val);                         \
-} while (0)
+#define case_two_args_op(_case_, _op_) \
+case _case_: {                         \
+  TValue v1 = POP();                   \
+  TValue v2 = POP();                   \
+  TValue res = NilValue;               \
+  NumberOperations *ops;               \
+  if (v1.klazz && v1.klazz->numops) {  \
+    ops = v1.klazz->numops;            \
+    if (ops->_op_) {                   \
+      res = ops->_op_(&v1, &v2);       \
+    } else {                           \
+      exit(-1);                        \
+    }                                  \
+  }                                    \
+  PUSH(&res);                          \
+  break;                               \
+}
+
+#define case_one_arg_op(_case_, _op_)  \
+case _case_: {                         \
+  TValue v = POP();                    \
+  TValue res = NilValue;               \
+  NumberOperations *ops;               \
+  if (v.klazz && v.klazz->numops) {    \
+    ops = v.klazz->numops;             \
+    if (ops->_op_) {                   \
+      res = ops->_op_(&v);             \
+    } else {                           \
+      exit(-1);                        \
+    }                                  \
+  }                                    \
+  PUSH(&res);                          \
+  break;                               \
+}
+
+#define NUMBER_OPERATION_CASES      \
+/* arithmetic */                    \
+case_two_args_op(OP_ADD, add)       \
+case_two_args_op(OP_SUB, sub)       \
+case_two_args_op(OP_MUL, mul)       \
+case_two_args_op(OP_DIV, div)       \
+case_two_args_op(OP_MOD, mod)       \
+case_one_arg_op(OP_NEG, neg)        \
+/* comparison */                    \
+case_two_args_op(OP_GT, gt)         \
+case_two_args_op(OP_GE, ge)         \
+case_two_args_op(OP_LT, lt)         \
+case_two_args_op(OP_LE, le)         \
+case_two_args_op(OP_EQ, eq)         \
+case_two_args_op(OP_NEQ, neq)       \
+/* bit */                           \
+case_two_args_op(OP_BAND, band)     \
+case_two_args_op(OP_BOR, bor)       \
+case_two_args_op(OP_BXOR, bxor)     \
+case_one_arg_op(OP_BNOT, bnot)      \
+case_two_args_op(OP_LSHIFT, lshift) \
+case_two_args_op(OP_RSHIFT, rshift) \
+/* logic */                         \
+case_two_args_op(OP_LAND, land)     \
+case_two_args_op(OP_LOR, lor)       \
+case_one_arg_op(OP_LNOT, lnot)
 
 static void frame_loop(Frame *frame)
 {
@@ -460,342 +503,203 @@ static void frame_loop(Frame *frame)
   while (loopflag) {
     inst = fetch_code(frame, code);
     switch (inst) {
-    case OP_HALT: {
-      exit(0);
-      break;
-    }
-    case OP_LOADK: {
-      index = fetch_4bytes(frame, code);
-      val = index_const(index, consts);
-      PUSH(&val);
-      break;
-    }
-    case OP_LOADM: {
-      index = fetch_4bytes(frame, code);
-      val = index_const(index, consts);
-      char *path = String_RawString(val.ob);
-      debug("load module '%s'", path);
-      ob = Koala_Load_Module(path);
-      assert(ob);
-      setobjvalue(&val, ob);
-      PUSH(&val);
-      break;
-    }
-    case OP_GETM: {
-      val = TOP();
-      ob = val.ob;
-      if (!OB_CHECK_KLASS(ob, Module_Klass)) {
+      case OP_HALT: {
+        exit(0);
+        break;
+      }
+      case OP_LOADK: {
+        index = fetch_4bytes(frame, code);
+        val = index_const(index, consts);
+        PUSH(&val);
+        break;
+      }
+      case OP_LOADM: {
+        index = fetch_4bytes(frame, code);
+        val = index_const(index, consts);
+        char *path = String_RawString(val.ob);
+        debug("load module '%s'", path);
+        ob = Koala_Load_Module(path);
+        assert(ob);
+        setobjvalue(&val, ob);
+        PUSH(&val);
+        break;
+      }
+      case OP_GETM: {
+        val = TOP();
+        ob = val.ob;
+        if (!OB_CHECK_KLASS(ob, Module_Klass)) {
+          val = POP();
+          Klass *klazz = OB_KLASS(ob);
+          OB_ASSERT_KLASS(klazz, Klass_Klass);
+          assert(klazz->module);
+          setobjvalue(&val, klazz->module);
+          PUSH(&val);
+        }
+        break;
+      }
+      case OP_LOAD: {
+        index = fetch_2bytes(frame, code);
+        val = load(frame, index);
+        PUSH(&val);
+        break;
+      }
+      case OP_LOAD0: {
+        val = load(frame, 0);
+        PUSH(&val);
+        break;
+      }
+      case OP_STORE: {
+        index = fetch_2bytes(frame, code);
         val = POP();
-        Klass *klazz = OB_KLASS(ob);
-        OB_ASSERT_KLASS(klazz, Klass_Klass);
-        assert(klazz->module);
-        setobjvalue(&val, klazz->module);
+        store(frame, index, &val);
+        break;
+      }
+      case OP_GETFIELD: {
+        index = fetch_4bytes(frame, code);
+        val = index_const(index, consts);
+        char *field = String_RawString(val.ob);
+        debug("getfield '%s'", field);
+        val = POP();
+        ob = val.ob;
+        val = getfield(ob, field);
+        if (!val.klazz) {
+          Object *rob = NULL;
+          ob = getcode(ob, field, &rob);
+          val.klazz = &Code_Klass;
+          val.ob = ob;
+        }
         PUSH(&val);
+        //Klass *k = (Klass *)(((CodeObject *)(frame->code))->owner);
+        //Object_Get_Value2(ob, k, field);
+        break;
       }
-      break;
-    }
-    case OP_LOAD: {
-      index = fetch_2bytes(frame, code);
-      val = load(frame, index);
-      PUSH(&val);
-      break;
-    }
-    case OP_LOAD0: {
-      val = load(frame, 0);
-      PUSH(&val);
-      break;
-    }
-    case OP_STORE: {
-      index = fetch_2bytes(frame, code);
-      val = POP();
-      store(frame, index, &val);
-      break;
-    }
-    case OP_GETFIELD: {
-      index = fetch_4bytes(frame, code);
-      val = index_const(index, consts);
-      char *field = String_RawString(val.ob);
-      debug("getfield '%s'", field);
-      val = POP();
-      ob = val.ob;
-      val = getfield(ob, field);
-      if (!val.klazz) {
-        Object *rob = NULL;
-        ob = getcode(ob, field, &rob);
-        val.klazz = &Code_Klass;
-        val.ob = ob;
+      case OP_SETFIELD: {
+        index = fetch_4bytes(frame, code);
+        val = index_const(index, consts);
+        char *field = String_RawString(val.ob);
+        debug("setfield '%s'", field);
+        val = POP();
+        ob = val.ob;
+        val = POP();
+        VALUE_ASSERT(&val);
+        setfield(ob, field, &val);
+        break;
       }
-      PUSH(&val);
-      //Klass *k = (Klass *)(((CodeObject *)(frame->code))->owner);
-      //Object_Get_Value2(ob, k, field);
-      break;
-    }
-    case OP_SETFIELD: {
-      index = fetch_4bytes(frame, code);
-      val = index_const(index, consts);
-      char *field = String_RawString(val.ob);
-      debug("setfield '%s'", field);
-      val = POP();
-      ob = val.ob;
-      val = POP();
-      VALUE_ASSERT(&val);
-      setfield(ob, field, &val);
-      break;
-    }
-    case OP_CALL0: {
-      int argc = fetch_2bytes(frame, code);
-      debug("OP_CALL0, argc:%d", argc);
-      val = POP();
-      Object *meth = val.ob;
-      assert(OB_KLASS(meth) == &Code_Klass);
-      val = TOP();
-      ob = val.ob;
-      frame_new(rt, ob, meth, argc);
-      loopflag = 0;
-      break;
-    }
-    case OP_CALL: {
-      index = fetch_4bytes(frame, code);
-      val = index_const(index, consts);
-      char *name = String_RawString(val.ob);
-      int argc = fetch_2bytes(frame, code);
-      debug("OP_CALL, %s, argc:%d", name, argc);
-      val = TOP();
-      ob = val.ob;
-      //assert(!check_virtual_call(&val, name));
-      Object *rob = NULL;
-      Object *meth = getcode(ob, name, &rob);
-      assert(rob);
-      if (rob != ob) {
-        debug(">>>>>update object<<<<<");
-        POP();
-        setobjvalue(&val, rob);
-        PUSH(&val);
-      }
-      assert(meth);
-      if (CODE_ISKFUNC(meth)) {
-        //FIXME: for c function
-        CodeObject *code = OB_TYPE_OF(meth, CodeObject, Code_Klass);
-        check_args(rt, argc, code->proto, name);
-      }
-      frame_new(rt, rob, meth, argc);
-      if (!strcmp(name, "__init__")) {
-        //build_traits_init_frames(rt, ob);
-      }
-      loopflag = 0;
-      break;
-    }
-    case OP_RET: {
-      restore_previous_frame(frame);
-      loopflag = 0;
-      break;
-    }
-    case OP_ADD: {
-      do_number_operations(add);
-      break;
-    }
-    case OP_SUB: {
-      TValue v1 = POP();
-      TValue v2 = POP();
-      val = NilValue;
-      // v1 is left value
-      NumberOperations *ops;
-      if (v1.klazz && v1.klazz->numops) {
-        ops = v1.klazz->numops;
-        if (ops->sub) {
-          val = ops->sub(&v1, &v2);
-        } else {
-          error("unsupported operation, %s", v1.klazz->name);
-          exit(-1);
-        }
-      }
-      PUSH(&val);
-      break;
-    }
-    case OP_MUL: {
-      TValue v1 = POP();
-      TValue v2 = POP();
-      val = NilValue;
-      // v1 is left value
-      NumberOperations *ops;
-      if (v1.klazz && v1.klazz->numops) {
-        ops = v1.klazz->numops;
-        if (ops->mul) {
-          val = ops->mul(&v1, &v2);
-        } else {
-          error("unsupported operation, %s", v1.klazz->name);
-          exit(-1);
-        }
-      }
-      PUSH(&val);
-      break;
-    }
-    case OP_DIV: {
-      TValue v1 = POP();
-      TValue v2 = POP();
-      val = NilValue;
-      // v1 is left value
-      NumberOperations *ops;
-      if (v1.klazz && v1.klazz->numops) {
-        ops = v1.klazz->numops;
-        if (ops->div) {
-          val = ops->div(&v1, &v2);
-        } else {
-          error("unsupported operation, %s", v1.klazz->name);
-          exit(-1);
-        }
-      }
-      PUSH(&val);
-      break;
-    }
-    case OP_MOD: {
-      TValue v1 = POP();
-      TValue v2 = POP();
-      val = NilValue;
-      // v1 is left value
-      NumberOperations *ops;
-      if (v1.klazz && v1.klazz->numops) {
-        ops = v1.klazz->numops;
-        if (ops->mod) {
-          val = ops->mod(&v1, &v2);
-        } else {
-          error("unsupported operation, %s", v1.klazz->name);
-          exit(-1);
-        }
-      }
-      PUSH(&val);
-      break;
-    }
-    case OP_GT: {
-      // v1 is left value
-      TValue v1 = POP();
-      TValue v2 = POP();
-      val = NilValue;
-      if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
-        int res = VALUE_INT(&v1) - VALUE_INT(&v2);
-        if (res > 0) {
-          setbvalue(&val, 1);
-        } else {
-          setbvalue(&val, 0);
-        }
-      }
-      PUSH(&val);
-      break;
-    }
-    case OP_LT: {
-      // v1 is left value
-      TValue v1 = POP();
-      TValue v2 = POP();
-      val = NilValue;
-      if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
-        int res = VALUE_INT(&v1) - VALUE_INT(&v2);
-        if (res < 0) {
-          setbvalue(&val, 1);
-        } else {
-          setbvalue(&val, 0);
-        }
-      }
-      PUSH(&val);
-      break;
-    }
-    case OP_EQ: {
-      // v1 is left value
-      TValue v1 = POP();
-      TValue v2 = POP();
-      val = NilValue;
-      if (VALUE_ISINT(&v1) && VALUE_ISINT(&v2)) {
-        int res = VALUE_INT(&v1) - VALUE_INT(&v2);
-        if (!res) {
-          setbvalue(&val, 1);
-        } else {
-          setbvalue(&val, 0);
-        }
-      }
-      PUSH(&val);
-      break;
-    }
-    case OP_MINUS: {
-      TValue v = POP();
-      val = NilValue;
-      NumberOperations *ops;
-      if (v.klazz && v.klazz->numops) {
-        ops = v.klazz->numops;
-        if (ops->neg) {
-          val = ops->neg(&v);
-        } else {
-          error("unsupported operation, %s", v.klazz->name);
-          exit(-1);
-        }
-      }
-      PUSH(&val);
-      break;
-    }
-    case OP_JUMP: {
-      offset = fetch_4bytes(frame, code);
-      frame->pc += offset;
-      break;
-    }
-    case OP_JUMP_TRUE: {
-      val = POP();
-      VALUE_ASSERT_BOOL(&val);
-      offset = fetch_4bytes(frame, code);
-      if (val.bval) {
-        frame->pc += offset;
-      }
-      break;
-    }
-    case OP_JUMP_FALSE: {
-      val = POP();
-      VALUE_ASSERT_BOOL(&val);
-      offset = fetch_4bytes(frame, code);
-      if (!val.bval) {
-        frame->pc += offset;
-      }
-      break;
-    }
-    case OP_NEW: {
-      index = fetch_4bytes(frame, code);
-      val = index_const(index, consts);
-      char *name = String_RawString(val.ob);
-      val = POP();
-      int argc = fetch_2bytes(frame, code);
-      debug("OP_NEW, %s, argc:%d", name, argc);
-      ob = val.ob;
-      Klass *klazz = Module_Get_Class(ob, name);
-      assert(klazz);
-      assert(klazz != &Klass_Klass);
-      assert(OB_Base(klazz) != (Object *)&Klass_Klass);
-      ob = klazz->ob_alloc(klazz);
-      setobjvalue(&val, ob);
-      PUSH(&val);
-#if 0
-      Object *rob = NULL;
-      Object *__init__ = getcode(ob, "__init__", &rob);
-      assert(rob);
-      assert(rob == ob);
-      if (__init__)	{
-        CodeObject *code = OB_TYPE_OF(__init__, CodeObject, Code_Klass);
-        debug("__init__'s argc: %d", code->kf.proto->psz);
-        check_args(rt, argc, code->kf.proto, name);
-        if (code->kf.proto->rsz) {
-          error("__init__ must be no any returns");
-          exit(-1);
-        }
-        frame_new(rt, rob, __init__, argc);
+      case OP_CALL0: {
+        int argc = fetch_2bytes(frame, code);
+        debug("OP_CALL0, argc:%d", argc);
+        val = POP();
+        Object *meth = val.ob;
+        assert(OB_KLASS(meth) == &Code_Klass);
+        val = TOP();
+        ob = val.ob;
+        frame_new(rt, ob, meth, argc);
         loopflag = 0;
-      } else {
-        debug("no __init__");
-        if (argc) {
-          error("no __init__, but %d", argc);
-          exit(-1);
-        }
+        break;
       }
+      case OP_CALL: {
+        index = fetch_4bytes(frame, code);
+        val = index_const(index, consts);
+        char *name = String_RawString(val.ob);
+        int argc = fetch_2bytes(frame, code);
+        debug("OP_CALL, %s, argc:%d", name, argc);
+        val = TOP();
+        ob = val.ob;
+        //assert(!check_virtual_call(&val, name));
+        Object *rob = NULL;
+        Object *meth = getcode(ob, name, &rob);
+        assert(rob);
+        if (rob != ob) {
+          debug(">>>>>update object<<<<<");
+          POP();
+          setobjvalue(&val, rob);
+          PUSH(&val);
+        }
+        assert(meth);
+        if (CODE_ISKFUNC(meth)) {
+          //FIXME: for c function
+          CodeObject *code = OB_TYPE_OF(meth, CodeObject, Code_Klass);
+          check_args(rt, argc, code->proto, name);
+        }
+        frame_new(rt, rob, meth, argc);
+        if (!strcmp(name, "__init__")) {
+          //build_traits_init_frames(rt, ob);
+        }
+        loopflag = 0;
+        break;
+      }
+      case OP_RET: {
+        restore_previous_frame(frame);
+        loopflag = 0;
+        break;
+      }
+      case OP_JUMP: {
+        offset = fetch_4bytes(frame, code);
+        frame->pc += offset;
+        break;
+      }
+      case OP_JUMP_TRUE: {
+        val = POP();
+        VALUE_ASSERT_BOOL(&val);
+        offset = fetch_4bytes(frame, code);
+        if (val.bval) {
+          frame->pc += offset;
+        }
+        break;
+      }
+      case OP_JUMP_FALSE: {
+        val = POP();
+        VALUE_ASSERT_BOOL(&val);
+        offset = fetch_4bytes(frame, code);
+        if (!val.bval) {
+          frame->pc += offset;
+        }
+        break;
+      }
+      case OP_NEW: {
+        index = fetch_4bytes(frame, code);
+        val = index_const(index, consts);
+        char *name = String_RawString(val.ob);
+        val = POP();
+        int argc = fetch_2bytes(frame, code);
+        debug("OP_NEW, %s, argc:%d", name, argc);
+        ob = val.ob;
+        Klass *klazz = Module_Get_Class(ob, name);
+        assert(klazz);
+        assert(klazz != &Klass_Klass);
+        assert(OB_Base(klazz) != (Object *)&Klass_Klass);
+        ob = klazz->ob_alloc(klazz);
+        setobjvalue(&val, ob);
+        PUSH(&val);
+#if 0
+        Object *rob = NULL;
+        Object *__init__ = getcode(ob, "__init__", &rob);
+        assert(rob);
+        assert(rob == ob);
+        if (__init__)	{
+          CodeObject *code = OB_TYPE_OF(__init__, CodeObject, Code_Klass);
+          debug("__init__'s argc: %d", code->kf.proto->psz);
+          check_args(rt, argc, code->kf.proto, name);
+          if (code->kf.proto->rsz) {
+            error("__init__ must be no any returns");
+            exit(-1);
+          }
+          frame_new(rt, rob, __init__, argc);
+          loopflag = 0;
+        } else {
+          debug("no __init__");
+          if (argc) {
+            error("no __init__, but %d", argc);
+            exit(-1);
+          }
+        }
 #endif
-      break;
-    }
-    default: {
-      kassert(0, "unknown instruction:%d\n", inst);
-    }
+        break;
+      }
+      NUMBER_OPERATION_CASES
+      default: {
+        kassert(0, "unknown instruction:%d\n", inst);
+      }
     }
   }
 }

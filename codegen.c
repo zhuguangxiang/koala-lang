@@ -109,7 +109,7 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
   case OP_LE:
   case OP_EQ:
   case OP_NEQ:
-  case OP_MINUS: {
+  case OP_NEG: {
     break;
   }
     case OP_JUMP:
@@ -341,8 +341,8 @@ void codegen_unary(ParserState *ps, int op)
       break;
     }
     case UNARY_MINUS: {
-      debug("add 'OP_MINUS'");
-      Inst_Append(ps->u->block, OP_MINUS, NULL);
+      debug("add 'OP_NEG'");
+      Inst_Append(ps->u->block, OP_NEG, NULL);
       break;
     }
     case UNARY_BIT_NOT: {

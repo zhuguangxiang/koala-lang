@@ -29,7 +29,7 @@ static struct opcode {
   {OP_LE,       "le",       0},
   {OP_EQ,       "eq",       0},
   {OP_NEQ,      "neq",      0},
-  {OP_MINUS,    "minus",    0},
+  {OP_NEG,      "minus",    0},
   {OP_JUMP,     "jump",     4},
   {OP_JUMP_TRUE,   "jump_true",   4},
   {OP_JUMP_FALSE,  "jump_false",  4},
