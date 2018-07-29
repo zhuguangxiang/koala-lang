@@ -137,6 +137,30 @@ static void start_kframe(Frame *f)
 }
 
 /*-------------------------------------------------------------------------*/
+int Routine_Init(Routine *rt)
+{
+  TValue *stack = malloc(STACK_SIZE * sizeof(TValue));
+  if (!stack) {
+    assert(0);
+    return -1;
+  }
+
+  rt->stack = stack;
+  init_list_head(&rt->link);
+  rt->frame = NULL;
+  init_list_head(&rt->frames);
+  rt_stack_init(rt);
+  list_add_tail(&rt->link, &gs.routines);
+  return 0;
+}
+
+void Routine_Fini(Routine *rt)
+{
+  list_del(&rt->link);
+  assert(list_empty(&rt->frames));
+  free(rt->stack);
+}
+
 /*
   Create a new routine
   Example:
@@ -145,6 +169,7 @@ static void start_kframe(Frame *f)
   Stack:
     Parameters are stored reversely in the stack, including a module.
  */
+#if 0
 Routine *Routine_New(Object *code, Object *ob, Object *args)
 {
   Routine *rt = calloc(1, sizeof(Routine));
@@ -170,6 +195,7 @@ Routine *Routine_New(Object *code, Object *ob, Object *args)
 
   return rt;
 }
+#endif
 
 /*
 static void routine_task_func(struct task *tsk)
@@ -193,9 +219,22 @@ static void routine_task_func(struct task *tsk)
 }
 */
 
-void Routine_Run(Routine *rt)
+void Routine_Run(Routine *rt, Object *code, Object *ob, Object *args)
 {
-  //task_init(&rt->task, "routine", prio, routine_task_func, rt);
+  /* prepare arguments */
+  TValue val;
+  int size = Tuple_Size(args);
+  for (int i = size - 1; i >= 0; i--) {
+    val = Tuple_Get(args, i);
+    VALUE_ASSERT(&val);
+    PUSH(&val);
+  }
+  setobjvalue(&val, ob);
+  PUSH(&val);
+
+  /* new frame */
+  frame_new(rt, ob, code, size);
+
   Frame *f = rt->frame;
 
   while (f) {
@@ -386,6 +425,25 @@ int tonumber(TValue *v)
 // 	}
 // }
 
+#define do_number_operations(_op_)    \
+do {                                  \
+  TValue v1 = POP();                  \
+  TValue v2 = POP();                  \
+  val = NilValue;                     \
+  NumberOperations *ops;              \
+  if (v1.klazz && v1.klazz->numops) { \
+    ops = v1.klazz->numops;           \
+    if (ops->_op_) {                  \
+      val = ops->_op_(&v1, &v2);      \
+    } else {                          \
+      error("unknown klazz '%s'",     \
+            v1.klazz->name);          \
+      exit(-1);                       \
+    }                                 \
+  }                                   \
+  PUSH(&val);                         \
+} while (0)
+
 static void frame_loop(Frame *frame)
 {
   int loopflag = 1;
@@ -533,21 +591,7 @@ static void frame_loop(Frame *frame)
       break;
     }
     case OP_ADD: {
-      TValue v1 = POP();
-      TValue v2 = POP();
-      val = NilValue;
-      // v1 is left value
-      NumberOperations *ops;
-      if (v1.klazz && v1.klazz->numops) {
-        ops = v1.klazz->numops;
-        if (ops->add) {
-          val = ops->add(&v1, &v2);
-        } else {
-          error("unsupported operation, %s", v1.klazz->name);
-          exit(-1);
-        }
-      }
-      PUSH(&val);
+      do_number_operations(add);
       break;
     }
     case OP_SUB: {

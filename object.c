@@ -741,7 +741,7 @@ int TValue_Print(char *buf, int sz, TValue *val, int escape)
   } else if (val->klazz == &Int_Klass) {
     count = snprintf(buf, sz, "%lld", VALUE_INT(val));
   } else if (val->klazz == &Float_Klass) {
-    count = snprintf(buf, sz, "%.16lf", VALUE_FLOAT(val));
+    count = snprintf(buf, sz, "%lf", VALUE_FLOAT(val));
   } else if (val->klazz == &Bool_Klass) {
     count = snprintf(buf, sz, "%s", VALUE_BOOL(val) ? "true" : "false");
   } else {

@@ -137,8 +137,8 @@ struct test_block *new_test_block(expr_t *test, Vector *body);
 
 typedef enum assign_op_kind {
   OP_ASSIGN = 1, OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
-  OP_MULT_ASSIGN, OP_DIV_ASSIGN,
-  OP_MOD_ASSIGN, OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
+  OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_MOD_ASSIGN,
+  OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
   OP_RSHIFT_ASSIGN, OP_LSHIFT_ASSIGN,
 } assign_op_kind_t;
 

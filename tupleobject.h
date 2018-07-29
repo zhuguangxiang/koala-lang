@@ -24,6 +24,7 @@ int Tuple_Set(Object *ob, int index, TValue *val);
 int Tuple_Size(Object *ob);
 Object *Tuple_From_Va_TValues(int count, ...);
 Object *Tuple_From_TValues(TValue *arr, int size);
+Object *Tuple_Va_Build(char *format, va_list *vp);
 Object *Tuple_Build(char *format, ...);
 int Tuple_Parse(Object *ob, char *format, ...);
 

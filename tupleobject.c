@@ -112,9 +112,8 @@ static int count_format(char *format)
 	return fmt - format;
 }
 
-Object *Tuple_Build(char *format, ...)
+Object *Tuple_Va_Build(char *format, va_list *vp)
 {
-	va_list vp;
 	char *fmt = format;
 	char ch;
 	int i = 0;
@@ -123,11 +122,20 @@ Object *Tuple_Build(char *format, ...)
 	TValue val;
 	Object *ob = Tuple_New(n);
 
-	va_start(vp, format);
 	while ((ch = *fmt++)) {
-		val = Va_Build_Value(ch, &vp);
+		val = Va_Build_Value(ch, vp);
 		Tuple_Set(ob, i++, &val);
 	}
+
+	return ob;
+}
+
+Object *Tuple_Build(char *format, ...)
+{
+	va_list vp;
+
+	va_start(vp, format);
+  Object *ob = Tuple_Va_Build(format, &vp);
 	va_end(vp);
 
 	return ob;

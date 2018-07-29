@@ -107,37 +107,46 @@ extern "C" {
 #define OP_RET  9
 
 /*
-	Arthmetic operation: add, sub, mul, div
+	Number Operations
 	All args, include object, are in stack. Result is also saved in stack.
  */
-#define OP_ADD  10
-#define OP_SUB  11
-#define OP_MUL  12
-#define OP_DIV  13
-#define OP_MOD  14
+#define OP_NUM_START 20
 
-#define OP_MINUS 16
-#define OP_BNOT  17
-#define OP_LNOT  18
+#define OP_ADD    20
+#define OP_SUB    21
+#define OP_MUL    22
+#define OP_DIV    23
+#define OP_MOD    24
+#define OP_MINUS  25
+
+#define OP_GT     26
+#define OP_GE     27
+#define OP_LT     28
+#define OP_LE     29
+#define OP_EQ     30
+#define OP_NEQ    31
+
+#define OP_BAND   32
+#define OP_BOR    33
+#define OP_BXOR   34
+#define OP_BNOT   35
+#define OP_LSHIFT 36
+#define OP_RSHIFT 37
+
+#define OP_LAND   38
+#define OP_LOR    39
+#define OP_LNOT   40
+
+#define OP_NUM_END 40
 
 #define OP_LOAD0 19
 
 /*
-	Relation operation: gt, lt, eq, gte, lte
- */
-#define OP_GT  20
-#define OP_GE  21
-#define OP_LT  22
-#define OP_LE  23
-#define OP_EQ  24
-#define OP_NEQ 25
-
-/*
 	Control flow, with relative 4 bytes offset
 */
-#define OP_JUMP  30
-#define OP_JUMP_TRUE  31
-#define OP_JUMP_FALSE 32
+#define OP_JUMP  18
+#define OP_JUMP_TRUE  17
+#define OP_JUMP_FALSE 16
 
 #define OP_CALL0 40
 

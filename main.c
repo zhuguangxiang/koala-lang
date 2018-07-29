@@ -164,7 +164,7 @@ static int cmd_run(char *argv[], int size)
 	puts(KOALA_START);
 
 	Koala_Initialize();
-	Koala_Run(argv[0]);
+	Koala_Run(argv[0], "Main");
 	Koala_Finalize();
 
 	puts(KOALA_END);

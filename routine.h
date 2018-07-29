@@ -18,7 +18,7 @@ typedef struct routine {
 	Frame *frame;
 	struct list_head frames;
 	int top;
-	TValue stack[STACK_SIZE];
+	TValue *stack;
 } Routine;
 
 struct frame {
@@ -32,8 +32,9 @@ struct frame {
 };
 
 /* Exported APIs */
-Routine *Routine_New(Object *code, Object *ob, Object *args);
-void Routine_Run(Routine *rt);
+int Routine_Init(Routine *rt);
+void Routine_Run(Routine *rt, Object *code, Object *ob, Object *args);
+void Routine_Fini(Routine *rt);
 
 /*-------------------------------------------------------------------------*/
 
