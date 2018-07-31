@@ -71,11 +71,6 @@ struct expr {
     int bval;
     expr_t *exp;
     struct {
-      /* one of pointers is null, and another is not null */
-      Vector *dseq;
-      Vector *tseq;
-    } array;
-    struct {
       Vector *pvec;
       Vector *rvec;
       Vector *body;
@@ -103,7 +98,7 @@ struct expr {
       binary_op_t op;
       expr_t *right;
     } binary;
-    Vector list;
+    Vector *list;
   };
 };
 
@@ -118,8 +113,7 @@ expr_t *expr_from_super(void);
 expr_t *expr_from_typeof(void);
 expr_t *expr_from_expr(expr_t *exp);
 expr_t *expr_from_nil(void);
-expr_t *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq);
-expr_t *expr_from_array_with_tseq(Vector *tseq);
+expr_t *expr_from_array(Vector *explist);
 expr_t *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body);
 expr_t *expr_from_binary(binary_op_t kind, expr_t *left, expr_t *right);
 expr_t *expr_from_unary(unary_op_t kind, expr_t *expr);

@@ -27,10 +27,12 @@ static int yyerror(ParserState *ps, void *scanner, const char *errmsg)
 #define syntax_error_clear(msg) yyclearin; yyerrok; \
   PSError("%s", msg)
 
-stmt_t *do_vardecls(ParserState *ps, Vector *ids, TypeDesc *desc,
-  Vector *exprs, int bconst);
+stmt_t *do_vardecls(ParserState *ps, Vector *ids, TypeDesc *desc, Vector *exprs,
+                    int bconst);
 stmt_t *do_assignments(ParserState *ps, Vector *left, Vector *right);
 TypeDesc *do_usrdef_type(ParserState *ps, char *id, char *type);
+TypeDesc *do_array_type(TypeDesc *base);
+expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 
 %}
 
@@ -209,7 +211,7 @@ Type:
 ;
 
 ArrayType:
-  DIMS BaseType { $$ = Type_New_Array($1, $2); }
+  '[' Type ']'  { $$ = do_array_type($2); }
 ;
 
 BaseType:
@@ -220,8 +222,8 @@ BaseType:
 ;
 
 MapType:
-  '[' PrimitiveType ']' Type { Type_New_Map($2, $4); }
-| '[' UsrDefType ']' Type    { Type_New_Map($2, $4); }
+  '[' PrimitiveType ':' Type ']' { Type_New_Map($2, $4); }
+| '[' UsrDefType ':' Type ']'    { Type_New_Map($2, $4); }
 ;
 
 PrimitiveType:
@@ -808,7 +810,7 @@ Atom:
 | TYPEOF          { /* $$ = expr_from_typeof(); */ }
 | ID              { $$ = expr_from_id($1); }
 | '(' Expr ')'    { $$ = $2; }
-| ArrayObject     { }
+| ArrayObject     { $$ = $1; }
 | DictObject      { }
 | AnonyFuncObject { }
 ;
@@ -823,8 +825,8 @@ CONSTANT:
 ;
 
 ArrayObject:
-  '[' ExprList ']' {}
-| '[' ']' {}
+  '[' ExprList ']' { $$ = do_array_initializer(ps, $2); }
+| '[' ']'          { $$ = expr_from_array(NULL); }
 ;
 
 DictObject:
@@ -992,8 +994,8 @@ int check_assignment(ParserState *ps, int ids, int exprs)
   return 0;
 }
 
-stmt_t *do_vardecls(ParserState *ps, Vector *ids, TypeDesc *desc,
-  Vector *exprs, int bconst)
+stmt_t *do_vardecls(ParserState *ps, Vector *ids, TypeDesc *desc, Vector *exprs,
+                    int bconst)
 {
   int isz = Vector_Size(ids);
   int esz = Vector_Size(exprs);
@@ -1070,4 +1072,31 @@ TypeDesc *do_usrdef_type(ParserState *ps, char *id, char *type)
     }
   }
   return Type_New_UsrDef(fullpath, type);
+}
+
+TypeDesc *do_array_type(TypeDesc *base)
+{
+  if (base->kind != TYPE_ARRAY)
+    return Type_New_Array(1, base);
+  else
+    return Type_New_Array(base->array.dims + 1, base);
+}
+
+expr_t *do_array_initializer(ParserState *ps, Vector *explist)
+{
+  expr_t *e;
+  expr_t *e0 = Vector_Get(explist, 0);
+  Vector_ForEach(e, explist) {
+    if (!Type_Equal(e->desc, e0->desc)) {
+      PSError("element's type of array must be the same");
+      return NULL;
+    }
+    e->ctx = EXPR_LOAD;
+  }
+
+  expr_t *exp = expr_from_array(explist);
+  int dims = 1;
+  if (Type_IsArray(e0->desc)) dims = 1 + e0->desc->array.dims;
+  exp->desc = Type_New_Array(dims, Type_Dup(e0->desc));
+  return exp;
 }

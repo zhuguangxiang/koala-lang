@@ -155,6 +155,8 @@ extern "C" {
  */
 #define OP_NEW  50
 
+#define OP_NEWARRAY 51
+
 // #define OP_STRING 14
 // #define OP_LIST   15
 // #define OP_TUPLE  16

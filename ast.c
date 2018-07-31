@@ -86,21 +86,11 @@ expr_t *expr_from_nil(void)
   return expr;
 }
 
-expr_t *expr_from_array(TypeDesc *desc, Vector *dseq, Vector *tseq)
+expr_t *expr_from_array(Vector *explist)
 {
   expr_t *expr = expr_new(ARRAY_KIND);
-  expr->desc = desc;
-  expr->array.dseq = dseq;
-  expr->array.tseq = tseq;
+  expr->list = explist;
   return expr;
-}
-
-expr_t *expr_from_array_with_tseq(Vector *tseq)
-{
-  UNUSED_PARAMETER(tseq);
-  expr_t *e = expr_new(SEQ_KIND);
-  //e->vec = tseq;
-  return e;
 }
 
 expr_t *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body)

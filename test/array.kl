@@ -1,0 +1,6 @@
+
+package test;
+
+func Main(args [string]) {
+  var arr [int] = [1, 2, 3, 5, 9, 8, 6, 4];
+}

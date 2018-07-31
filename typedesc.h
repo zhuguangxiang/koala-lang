@@ -81,6 +81,7 @@ Vector *CString_To_TypeList(char *str);
 #define Type_IsBool(type)   ((type) == &Bool_Type)
 #define Type_IsString(type) ((type) == &String_Type)
 #define Type_IsVarg(type)   ((type) == &Varg_Type)
+#define Type_IsArray(type)  ((type)->kind == TYPE_ARRAY)
 
 #ifdef __cplusplus
 }

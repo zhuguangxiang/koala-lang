@@ -98,23 +98,27 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
     case OP_RET: {
       break;
     }
-  case OP_ADD:
-  case OP_SUB:
-  case OP_MUL:
-  case OP_DIV:
-  case OP_MOD:
-  case OP_GT:
-  case OP_GE:
-  case OP_LT:
-  case OP_LE:
-  case OP_EQ:
-  case OP_NEQ:
-  case OP_NEG: {
-    break;
-  }
+    case OP_ADD:
+    case OP_SUB:
+    case OP_MUL:
+    case OP_DIV:
+    case OP_MOD:
+    case OP_GT:
+    case OP_GE:
+    case OP_LT:
+    case OP_LE:
+    case OP_EQ:
+    case OP_NEQ:
+    case OP_NEG: {
+      break;
+    }
     case OP_JUMP:
     case OP_JUMP_TRUE:
     case OP_JUMP_FALSE: {
+      Buffer_Write_4Bytes(buf, i->arg.ival);
+      break;
+    }
+    case OP_NEWARRAY: {
       Buffer_Write_4Bytes(buf, i->arg.ival);
       break;
     }

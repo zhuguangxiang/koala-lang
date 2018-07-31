@@ -163,9 +163,8 @@ static void array_free(TypeDesc *t)
 
 static int array_equal(TypeDesc *t1, TypeDesc *t2)
 {
-  UNUSED_PARAMETER(t1);
-  UNUSED_PARAMETER(t2);
-  return 0;
+  if (t1->array.dims != t2->array.dims) return 0;
+  return Type_Equal(t1->array.base, t2->array.base);
 }
 
 static void array_tostring(TypeDesc *t, char *buf)

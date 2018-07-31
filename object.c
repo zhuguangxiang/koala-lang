@@ -1017,3 +1017,5 @@ int Member_Equal(MemberDef *m1, MemberDef *m2)
 {
   return !strcmp(m1->name, m2->name);
 }
+
+/*--------------------------------------------------------------------------*/

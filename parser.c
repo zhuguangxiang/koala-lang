@@ -1491,6 +1491,25 @@ static void parser_attribute(ParserState *ps, struct expr *exp)
   }
 }
 
+static void parser_array(ParserState *ps, expr_t *exp)
+{
+  expr_t *e;
+  int count = 0;
+  Vector_ForEach_Reverse(e, exp->list) {
+    count++;
+    parser_visit_expr(ps, e);
+  }
+
+  //FIXME: count > STACK_SIZE ?
+  Argument arg = {.kind = ARG_INT, .ival = count};
+  Inst_Append(ps->u->block, OP_NEWARRAY, &arg);
+}
+
+static void parser_subscript(ParserState *ps, expr_t *exp)
+{
+
+}
+
 static void parser_call(ParserState *ps, struct expr *exp)
 {
   int argc = 0;
@@ -1756,8 +1775,16 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       i->argc = exp->argc;
       break;
     }
+    case ARRAY_KIND: {
+      parser_array(ps, exp);
+      break;
+    }
     case ATTRIBUTE_KIND: {
       parser_attribute(ps, exp);
+      break;
+    }
+    case SUBSCRIPT_KIND: {
+      parser_subscript(ps, exp);
       break;
     }
     case CALL_KIND: {
@@ -2021,10 +2048,11 @@ static void parse_variable(ParserState *ps, stmt_t *stmt)
   // check variable's type is valid
   if (desc) {
     // check array's base type
-    if (desc->kind == TYPE_ARRAY) desc = desc->array.base;
-    if (desc->kind == TYPE_USRDEF) {
-      if (!find_userdef_symbol(ps, desc)) {
-        PSError("undefined '%s'", desc->usrdef.type);
+    TypeDesc *d = desc;
+    while (d->kind == TYPE_ARRAY) d = d->array.base;
+    if (d->kind == TYPE_USRDEF) {
+      if (!find_userdef_symbol(ps, d)) {
+        PSError("undefined '%s'", d->usrdef.type);
         return;
       }
     }
