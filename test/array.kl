@@ -1,6 +1,14 @@
 
 package test;
 
+import "koala/io";
+
 func Main(args [string]) {
-  var arr [int] = [1, 2, 3, 5, 9, 8, 6, 4];
+  var arr [int] = [1, 3, 9, 8, 6, 2];
+  var arr2 [[int]] = [[1,2], [4, 5], [8,10]];
+  io.Println(arr);
+  io.Println(arr2);
+
+  var arr3 [string] = ["hello", "world"];
+  io.Println(arr3);
 }

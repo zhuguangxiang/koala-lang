@@ -5,6 +5,7 @@
 #include "tupleobject.h"
 #include "stringobject.h"
 #include "koalastate.h"
+#include "listobject.h"
 #include "klc.h"
 #include "opcode.h"
 #include "log.h"
@@ -425,6 +426,21 @@ int tonumber(TValue *v)
 // 	}
 // }
 
+void do_new_array(Routine *rt, int count)
+{
+  assert(rt->top + 1 >= count);
+  Object *ob = List_New(NULL);
+  TValue val;
+  int i = 0;
+  while (i < count) {
+    val = POP();
+    List_Set(ob, i, &val);
+    ++i;
+  }
+  TValue v = {.klazz = &List_Klass, .ob = ob};
+  PUSH(&v);
+}
+
 #define case_two_args_op(_case_, _op_) \
 case _case_: {                         \
   TValue v1 = POP();                   \
@@ -631,6 +647,11 @@ static void frame_loop(Frame *frame)
       case OP_RET: {
         restore_previous_frame(frame);
         loopflag = 0;
+        break;
+      }
+      case OP_NEWARRAY: {
+        int count = fetch_4bytes(frame, code);
+        do_new_array(rt, count);
         break;
       }
       case OP_JUMP: {
