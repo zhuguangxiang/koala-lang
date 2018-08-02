@@ -25,3 +25,4 @@
 ** 0.7.2
 *** Features
 - index operator is supported by array type.
+- map object
