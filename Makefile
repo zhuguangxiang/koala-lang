@@ -17,9 +17,9 @@ FLEX = flex
 ######################################
 
 KOALA_OBJS = log.o hashtable.o hash.o vector.o buffer.o properties.o \
-atomtable.o object.o stringobject.o tupleobject.o \
+atomtable.o object.o stringobject.o tupleobject.o listobject.o\
 tableobject.o moduleobject.o codeobject.o opcode.o \
-klc.o routine.o thread.o mod_lang.o mod_io.o kstate.o \
+klc.o routine.o thread.o mod_lang.o mod_io.o koalastate.o \
 typedesc.o numberobject.o gc.o
 
 KOALAC_OBJS = parser.o ast.o checker.o symbol.o codegen.o \
@@ -30,43 +30,38 @@ koala_lex.o koala_yacc.o
 .PHONY: all
 all: koala
 
-libkoala.so: $(KOALA_OBJS)
-	@echo "[SO]	$@"
-	@$(CC) -shared -Wl,-soname,libkoala.so -o $@ $(KOALA_OBJS) -pthread
-	##$(shell [ ! -f "./libkoala.so.0" ] || { ln -s libkoala.so libkoala.so.0; })
-	##@cp $@ /usr/lib/koala-lang/
+libkoala.a: $(KOALA_OBJS)
+	@echo "	[AR]	$@"
+	@ar rcs $@ $^
 
-libkoalac.so: $(KOALAC_OBJS) libkoala.so
-	@echo "[SO]	$@"
-	@$(CC) -shared -Wl,-soname,libkoalac.so -o $@ $(KOALAC_OBJS) -L. -lkoala -pthread
-	##$(shell [ ! -f "./libkoalac.so.0" ] || { ln -s libkoalac.so libkoalac.so.0; })
-	##@cp $@ /usr/lib/koala-lang/
+libkoalac.a: $(KOALAC_OBJS)
+	@echo "	[AR]	$@"
+	@ar rcs $@ $^
 
-koala: libkoalac.so koala.o
-	@echo "[MAIN]	$@"
-	@gcc $(CFLAGS) -o $@ koala.o -L. -lkoalac -lkoala -pthread -lrt
-	##@cp $@ /usr/local/bin
+koala: main.o libkoala.a libkoalac.a
+	@echo "	[LD]	$@"
+	@gcc $(CFLAGS) -static -o $@ $< -L. -lkoalac -lkoala -pthread -lrt
 
 koala_yacc.c: yacc/koala.y
-	@echo "[YACC]	$@"
-	@$(YACC) -dvt -Wall -o $@ yacc/koala.y
+	@echo "	[YACC]	$@"
+	@$(YACC) -dvt -Wall -o $@ $^
 
 koala_lex.c: yacc/koala.l
-	@echo "[FLEX]	$@"
-	@$(FLEX) -o $@ yacc/koala.l
+	@echo "	[FLEX]	$@"
+	@$(FLEX) -o $@ $^
 
 .PHONY: clean
 clean:
-	@rm -f *.so *.o *.d *.d.* koala_lex.* koala_yacc.*
+	@rm -f *.o *.d *.d.* koala_lex.* koala_yacc.*
 
 ######################################
 
 ifneq ($(MAKECMDGOALS), clean)
-sinclude $(KOALA_OBJS:.o=.d) $(KOALAC_OBJS:.o=.d) koala.d koalac.d
+sinclude $(KOALA_OBJS:.o=.d) $(KOALAC_OBJS:.o=.d) koala.d
 endif
 
 %.o: %.c
-	@echo "[CC]	$@"
+	@echo "	[CC]	$@"
 	@$(CC) $(CFLAGS) -c -o $@ $<
 
 %.d: %.c

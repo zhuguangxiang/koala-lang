@@ -2,6 +2,7 @@
 #include "gc.h"
 #include "stringobject.h"
 #include "log.h"
+#include "koalastate.h"
 
 GCState gcs;
 

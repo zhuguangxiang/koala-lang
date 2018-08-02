@@ -4,7 +4,6 @@
 
 #include "list.h"
 #include "object.h"
-#include "kstate.h"
 
 #ifdef __cplusplus
 extern "C" {

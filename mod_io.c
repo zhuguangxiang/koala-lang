@@ -1,7 +1,7 @@
 
 #include "moduleobject.h"
 #include "tupleobject.h"
-#include "kstate.h"
+#include "koalastate.h"
 #include "log.h"
 
 static Object *__io_print(Object *ob, Object *args)
@@ -45,8 +45,8 @@ static Object *__io_println(Object *ob, Object *args)
 }
 
 static FuncDef io_funcs[] = {
-	{"Print", NULL, "...A", __io_print},
-	{"Println", NULL, "...A", __io_println},
+	{"Print", NULL, "...", __io_print},
+	{"Println", NULL, "...", __io_println},
 	{NULL}
 };
 

@@ -1,0 +1,11 @@
+
+/*
+  This test is for classic 'hello, world' program
+ */
+package test;
+
+import "koala/io";
+
+func Main(args []string) {
+  io.Print("hello, world\n");
+}

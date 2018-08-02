@@ -3,7 +3,8 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "tableobject.h"
-#include "kstate.h"
+#include "listobject.h"
+#include "koalastate.h"
 #include "log.h"
 
 static Object *__lang_typeof(Object *ob, Object *args)
@@ -41,7 +42,7 @@ static Object *__string_concat(Object *ob, Object *args)
 }
 
 static FuncDef lang_funcs[] = {
-	{"TypeOf", "Okoala/lang.Class;", "...A", __lang_typeof},
+	{"TypeOf", "Okoala/lang.Class;", "...", __lang_typeof},
 	{"Concat", "s", "ss", __string_concat},
 	{NULL}
 };
@@ -57,5 +58,6 @@ void Init_Lang_Module(void)
 	Module_Add_Class(m, &Table_Klass);
 	Init_String_Klass();
 	Init_Tuple_Klass();
+	Init_List_Klass();
 	Init_Table_Klass();
 }

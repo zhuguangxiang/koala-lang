@@ -1,0 +1,5 @@
+
+var a, b, c = 100, 200;
+var a = 100, 200;
+var a, b, c = foo(), 200;
+var a, b, c = foo();

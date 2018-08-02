@@ -3,6 +3,7 @@
 #define _KOALA_LOG_H_
 
 #include <stdio.h>
+#include "printcolor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,12 +15,14 @@ extern "C" {
 
 extern int loglevel;
 
-#define __debug(format, ...) printf(format, ##__VA_ARGS__)
+#define __debug(format, ...) fprintf(stderr, format, ##__VA_ARGS__)
+#define COLOR_MSG(fmt) COLOR_WHITE "./%s:%d\t%6s: " fmt COLOR_NC "\n"
+#define ERROR_MSG(fmt) \
+	COLOR_LIGHT_WHITE "./%s:%d\t" COLOR_LIGHT_RED "%6s: " COLOR_NC fmt "\n"
 
 #ifdef LOG_DEBUG
 #define debug(format, ...) do { \
-	__debug("[DEBUG][%s:%d]" format "\n", \
-	__FILE__, __LINE__, ##__VA_ARGS__); \
+	__debug(COLOR_MSG(format), __FILE__, __LINE__, "debug", ##__VA_ARGS__); \
 } while (0)
 #else
 #define debug(format, ...) ((void)0)
@@ -27,20 +30,17 @@ extern int loglevel;
 
 #define info(format, ...) do { \
 	if (loglevel >= LOG_LEVEL_INFO) \
-		__debug("[INFO][%s:%d]" format "\n", \
-		__FILE__, __LINE__, ##__VA_ARGS__); \
+		__debug(COLOR_MSG(format), __FILE__, __LINE__, "info", ##__VA_ARGS__); \
 } while (0)
 
 #define warn(format, ...) do { \
 	if (loglevel >= LOG_LEVEL_WARN) \
-		__debug("[WARN][%s:%d]" format "\n", \
-		__FILE__, __LINE__, ##__VA_ARGS__); \
+		__debug(COLOR_MSG(format), __FILE__, __LINE__, "warn", ##__VA_ARGS__); \
 } while (0)
 
 #define error(format, ...) do { \
 	if (loglevel >= LOG_LEVEL_ERROR) \
-		__debug("[ERROR][%s:%d]" format "\n", \
-		__FILE__, __LINE__, ##__VA_ARGS__); \
+		__debug(ERROR_MSG(format), __FILE__, __LINE__, "error", ##__VA_ARGS__); \
 } while (0)
 
 #ifdef __cplusplus

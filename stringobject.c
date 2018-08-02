@@ -8,15 +8,14 @@
 
 HashTable StringCache;
 
-static StringObject *__find_string(HashTable *cache, char *str, int len)
+static inline StringObject *__find_string(HashTable *cache, char *str, int len)
 {
 	StringObject strobj = {.len = len, .str = str};
 	return HashTable_Find(cache, &strobj);
 }
 
-static int __add_string(HashTable *cache, StringObject *strobj)
+static inline int __add_string(HashTable *cache, StringObject *strobj)
 {
-	debug("add '%s' into string cache", strobj->str);
 	return HashTable_Insert(cache, &strobj->hnode);
 }
 
@@ -153,17 +152,9 @@ static Object *__string_length(Object *ob, Object *args)
 	return Tuple_Build("i", sobj->len);
 }
 
-static Object *__string_tostring(Object *ob, Object *args)
-{
-	assert(!args);
-	OB_ASSERT_KLASS(ob, String_Klass);
-	return Tuple_Build("O", ob);
-}
-
 static FuncDef string_funcs[] = {
 	{"Concat", "s", "s", __string_concat},
 	{"Length", "i", NULL, __string_length},
-	{"ToString", "s", NULL, __string_tostring},
 	{NULL}
 };
 
@@ -201,7 +192,11 @@ static void string_free(Object *ob)
 
 static Object *string_tostring(TValue *v)
 {
-	return Tuple_From_TValues(v, 1);
+  char buf[128];
+  StringObject *so = v->ob;
+  snprintf(buf, 127, "\"%s\"", so->str);
+  TValue val = {.klazz = &String_Klass, .ob = String_New(buf)};
+	return Tuple_From_TValues(&val, 1);
 }
 
 Klass String_Klass = {

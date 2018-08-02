@@ -1,0 +1,27 @@
+
+package test;
+
+import "koala/io";
+
+var ga, gb = 1, "hello koala";
+
+func add(a int, b int) (int, int) {
+  return a + b, a - b;
+}
+
+func abs(a int) int {
+  return 0 - a;
+}
+
+func Main(args []string) {
+  var a = 100;
+  var b = 200;
+  a = abs(10);
+  io.Println("a =", a);
+  a, b = add(1, 2);
+  io.Println("a =", a);
+  io.Println("b =", b);
+  io.Println("ga =", ga);
+  io.Println("gb =", gb);
+}
+

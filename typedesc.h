@@ -9,62 +9,79 @@
 extern "C" {
 #endif
 
-#define TYPE_PRIMITIVE  1
-#define TYPE_USERDEF    2
-#define TYPE_PROTO      3
+#define TYPE_PRIMITIVE 1
+#define TYPE_USRDEF    2
+#define TYPE_PROTO     3
+#define TYPE_ARRAY     4
+#define TYPE_MAP       5
 
-#define PRIMITIVE_INT     'i'
-#define PRIMITIVE_FLOAT   'f'
-#define PRIMITIVE_BOOL    'b'
-#define PRIMITIVE_STRING  's'
-#define PRIMITIVE_ANY     'A'
+#define PRIMITIVE_BYTE   'b'
+#define PRIMITIVE_CHAR   'c'
+#define PRIMITIVE_INT    'i'
+#define PRIMITIVE_FLOAT  'f'
+#define PRIMITIVE_BOOL   'z'
+#define PRIMITIVE_STRING 's'
+#define PRIMITIVE_ANY    'A'
+#define PRIMITIVE_VARG   'v'
 
 /* Type's descriptor */
-typedef struct typedesc {
-	int8 kind;
-	int8 varg;
-	int16 dims;
+typedef struct typedesc TypeDesc;
+
+struct typedesc {
+	int kind;
 	union {
-		char primitive;
+		int primitive;
 		struct {
 			char *path;
 			char *type;
-		};
+		} usrdef;
 		struct {
-			Vector *pdesc;
-			Vector *rdesc;
-		};
+			Vector *arg;
+			Vector *ret;
+		} proto;
+		struct {
+			TypeDesc *key;
+			TypeDesc *val;
+		} map;
+		struct {
+			int dims;
+			TypeDesc *base;
+		} array;
 	};
-} TypeDesc;
+};
 
-#define Init_UserDef_TypeDesc(desc, d, p, t) do { \
-	(desc)->varg = 0; \
-	(desc)->dims = (d); \
-	(desc)->kind = TYPE_USERDEF; \
-	(desc)->path = (p); \
-	(desc)->type = (t); \
+extern TypeDesc Byte_Type;
+extern TypeDesc Char_Type;
+extern TypeDesc Int_Type;
+extern TypeDesc Float_Type;
+extern TypeDesc Bool_Type;
+extern TypeDesc String_Type;
+extern TypeDesc Any_Type;
+extern TypeDesc Varg_Type;
+
+#define Init_Type_UsrDef(desc, p, t) do { \
+	(desc)->kind = TYPE_USRDEF; \
+	(desc)->usrdef.path = (p); \
+	(desc)->usrdef.type = (t); \
 } while (0)
 
-TypeDesc *TypeDesc_New(int kind);
-void TypeDesc_Free(TypeDesc *desc);
-TypeDesc *TypeDesc_From_Primitive(int primitive);
-TypeDesc *TypeDesc_From_UserDef(char *path, char *type);
-TypeDesc *TypeDesc_From_Proto(Vector *rvec, Vector *pvec);
-TypeDesc *TypeDesc_From_TypeNString(char *typestr, int len);
-int TypeDesc_Check(TypeDesc *t1, TypeDesc *t2);
-Vector *TypeString_To_Vector(char *str);
+void Type_Free(TypeDesc *desc);
+TypeDesc *Type_Dup(TypeDesc *desc);
+TypeDesc *Type_New_UsrDef(char *path, char *type);
+TypeDesc *Type_New_Proto(Vector *arg, Vector *ret);
+TypeDesc *Type_New_Map(TypeDesc *key, TypeDesc *val);
+TypeDesc *Type_New_Array(int dims, TypeDesc *base);
+int TypeList_Equal(Vector *v1, Vector *v2);
+int Type_Equal(TypeDesc *t1, TypeDesc *t2);
+void Type_ToString(TypeDesc *desc, char *buf);
+Vector *CString_To_TypeList(char *str);
 
-char *TypeDesc_ToString(TypeDesc *desc);
-
-// Proto *Proto_New(int rsz, char *rdesc, int psz, char *pdesc);
-// void Proto_Free(Proto *proto);
-// int Init_Proto(Proto *proto, int rsz, char *rdesc, int psz, char *pdesc);
-// void Fini_Proto(Proto *proto);
-// int Proto_Has_Vargs(Proto *proto);
-// Proto *Proto_Dup(Proto *proto);
-int TypeDesc_IsBool(TypeDesc *desc);
-char *Primitive_ToString(int type);
-// int Proto_IsEqual(Proto *p1, Proto *p2);
+#define Type_IsInt(type)    ((type) == &Int_Type || ((type)->kind == TYPE_PRIMITIVE && (type)->primitive == 'i'))
+#define Type_IsFloat(type)  ((type) == &Float_Type)
+#define Type_IsBool(type)   ((type) == &Bool_Type)
+#define Type_IsString(type) ((type) == &String_Type)
+#define Type_IsVarg(type)   ((type) == &Varg_Type)
+#define Type_IsArray(type)  ((type)->kind == TYPE_ARRAY)
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,4 @@
-# Koala语言的实现(C语言)
+# Koala语言的实现
 
 ## C语言编程约束：
 
@@ -423,3 +423,37 @@ v1.0.1:
 12. like maven??? kar management
 13. standard library
 100. ... ...
+
+~/libuv-1.20.3$ make
+  CC       src/libuv_la-fs-poll.lo
+  CC       src/libuv_la-inet.lo
+  CC       src/libuv_la-threadpool.lo
+  CC       src/libuv_la-uv-data-getter-setters.lo
+  CC       src/libuv_la-uv-common.lo
+  CC       src/libuv_la-version.lo
+  CC       src/unix/libuv_la-async.lo
+  CC       src/unix/libuv_la-core.lo
+  CC       src/unix/libuv_la-dl.lo
+  CC       src/unix/libuv_la-fs.lo
+  CC       src/unix/libuv_la-getaddrinfo.lo
+  CC       src/unix/libuv_la-getnameinfo.lo
+  CC       src/unix/libuv_la-loop-watcher.lo
+  CC       src/unix/libuv_la-loop.lo
+  CC       src/unix/libuv_la-pipe.lo
+  CC       src/unix/libuv_la-poll.lo
+  CC       src/unix/libuv_la-process.lo
+  CC       src/unix/libuv_la-signal.lo
+  CC       src/unix/libuv_la-stream.lo
+  CC       src/unix/libuv_la-tcp.lo
+  CC       src/unix/libuv_la-thread.lo
+  CC       src/unix/libuv_la-timer.lo
+  CC       src/unix/libuv_la-tty.lo
+  CC       src/unix/libuv_la-udp.lo
+  CC       src/unix/libuv_la-linux-core.lo
+  CC       src/unix/libuv_la-linux-inotify.lo
+  CC       src/unix/libuv_la-linux-syscalls.lo
+  CC       src/unix/libuv_la-procfs-exepath.lo
+  CC       src/unix/libuv_la-proctitle.lo
+  CC       src/unix/libuv_la-sysinfo-loadavg.lo
+  CC       src/unix/libuv_la-sysinfo-memory.lo
+  CCLD     libuv.la

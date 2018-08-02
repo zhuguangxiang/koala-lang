@@ -112,9 +112,8 @@ static int count_format(char *format)
 	return fmt - format;
 }
 
-Object *Tuple_Build(char *format, ...)
+Object *Tuple_Va_Build(char *format, va_list *vp)
 {
-	va_list vp;
 	char *fmt = format;
 	char ch;
 	int i = 0;
@@ -123,11 +122,20 @@ Object *Tuple_Build(char *format, ...)
 	TValue val;
 	Object *ob = Tuple_New(n);
 
-	va_start(vp, format);
 	while ((ch = *fmt++)) {
-		val = Va_Build_Value(ch, &vp);
+		val = Va_Build_Value(ch, vp);
 		Tuple_Set(ob, i++, &val);
 	}
+
+	return ob;
+}
+
+Object *Tuple_Build(char *format, ...)
+{
+	va_list vp;
+
+	va_start(vp, format);
+  Object *ob = Tuple_Va_Build(format, &vp);
 	va_end(vp);
 
 	return ob;
@@ -151,7 +159,7 @@ int Tuple_Parse(Object *ob, char *format, ...)
 	return 0;
 }
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 static Object *__tuple_init(Object *ob, Object *args)
 {
@@ -184,7 +192,7 @@ static Object *__tuple_size(Object *ob, Object *args)
 }
 
 static FuncDef tuple_funcs[] = {
-	{"__init__", NULL, "...A", __tuple_init},
+	{"__init__", NULL, "...", __tuple_init},
 	{"Get", "A", "i", __tuple_get},
 	{"Size", "i", NULL, __tuple_size},
 	{NULL}
@@ -195,7 +203,7 @@ void Init_Tuple_Klass(void)
 	Klass_Add_CFunctions(&Tuple_Klass, tuple_funcs);
 }
 
-/*-------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------*/
 
 static void tuple_free(Object *ob)
 {

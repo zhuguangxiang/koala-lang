@@ -12,36 +12,41 @@ static int version_build = 1; // 2 bytes
 
 /*-------------------------------------------------------------------------*/
 
-TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl)
+TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 {
-	TypeDesc *t = TypeDesc_New(item->kind);
+	TypeDesc *t = calloc(1, sizeof(TypeDesc));
 	t->kind = item->kind;
-	t->dims = item->dims;
-	t->varg = item->varg;
 
 	switch (item->kind) {
 		case TYPE_PRIMITIVE: {
 			t->primitive = item->primitive;
 			break;
 		}
-		case TYPE_USERDEF: {
+		case TYPE_USRDEF: {
 			StringItem *stritem;
 			if (item->pathindex >= 0) {
 				stritem = StringItem_Index(atbl, item->pathindex);
-				t->path = stritem->data;
+				t->usrdef.path = stritem->data;
 			} else {
-				t->path = NULL;
+				t->usrdef.path = NULL;
 			}
 			stritem = StringItem_Index(atbl, item->typeindex);
-			t->type = stritem->data;
+			t->usrdef.type = stritem->data;
 			break;
 		}
 		case TYPE_PROTO: {
 			ProtoItem *proto = AtomTable_Get(atbl, ITEM_PROTO, item->protoindex);
 			TypeDesc *temp = ProtoItem_To_TypeDesc(proto, atbl);
-			t->rdesc = temp->rdesc;
-			t->pdesc = temp->pdesc;
+			t->proto.ret = temp->proto.ret;
+			t->proto.arg = temp->proto.arg;
 			free(temp); //FIXME
+			break;
+		}
+		case TYPE_ARRAY: {
+			TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
+			assert(base);
+			t->array.dims = item->array.dims;
+			t->array.base = TypeItem_To_TypeDesc(base, atbl);
 			break;
 		}
 		default: {
@@ -63,7 +68,7 @@ Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
 	TypeDesc *t;
 	for (int i = 0; i < item->size; i++) {
 		typeitem = TypeItem_Index(atbl, item->index[i]);
-		t = TypeItem_To_Desc(typeitem, atbl);
+		t = TypeItem_To_TypeDesc(typeitem, atbl);
 		Vector_Append(v, t);
 	}
 	return v;
@@ -71,17 +76,15 @@ Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
 
 TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
 {
-	TypeDesc *proto = TypeDesc_New(TYPE_PROTO);
-
 	TypeListItem *typelist = NULL;
 	if (item->rindex >= 0) typelist = TypeListItem_Index(atbl, item->rindex);
-	proto->rdesc = TypeListItem_To_Vector(typelist, atbl);
+	Vector *ret = TypeListItem_To_Vector(typelist, atbl);
 
 	typelist = NULL;
 	if (item->pindex >= 0) typelist = TypeListItem_Index(atbl, item->pindex);
-	proto->pdesc = TypeListItem_To_Vector(typelist, atbl);
+	Vector *arg = TypeListItem_To_Vector(typelist, atbl);
 
-	return proto;
+	return Type_New_Proto(arg, ret);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -106,35 +109,37 @@ StringItem *StringItem_New(char *name)
 	return item;
 }
 
-TypeItem *TypeItem_Primitive_New(int varg, int dims, char primitive)
+TypeItem *TypeItem_Primitive_New(char primitive)
 {
 	TypeItem *item = calloc(1, sizeof(TypeItem));
-	item->varg = varg;
-	item->dims = dims;
 	item->kind = TYPE_PRIMITIVE;
 	item->primitive = primitive;
 	return item;
 }
 
-TypeItem *TypeItem_UserDef_New(int varg, int dims, int32 pathindex,
-															 int32 typeindex)
+TypeItem *TypeItem_UserDef_New(int32 pathindex, int32 typeindex)
 {
 	TypeItem *item = calloc(1, sizeof(TypeItem));
-	item->varg = varg;
-	item->dims = dims;
-	item->kind = TYPE_USERDEF;
+	item->kind = TYPE_USRDEF;
 	item->pathindex = pathindex;
 	item->typeindex = typeindex;
 	return item;
 }
 
-TypeItem *TypeItem_Proto_New(int varg, int dims, int32 protoindex)
+TypeItem *TypeItem_Proto_New(int32 protoindex)
 {
 	TypeItem *item = calloc(1, sizeof(TypeItem));
-	item->varg = varg;
-	item->dims = dims;
 	item->kind = TYPE_PROTO;
 	item->protoindex = protoindex;
+	return item;
+}
+
+TypeItem *TypeItem_Array_New(int dims, int32 typeindex)
+{
+	TypeItem *item = calloc(1, sizeof(TypeItem));
+	item->kind = TYPE_ARRAY;
+	item->array.dims = dims;
+	item->array.typeindex = typeindex;
 	return item;
 }
 
@@ -334,41 +339,55 @@ int StringItem_Set(AtomTable *table, char *str)
 int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
 	TypeItem item = {0};
-	if (desc->kind == TYPE_USERDEF) {
-		int pathindex = -1;
-		if (desc->path) {
-			pathindex = StringItem_Get(table, desc->path);
-			if (pathindex < 0) {
-				return pathindex;
-			}
+	switch (desc->kind) {
+		case TYPE_PRIMITIVE: {
+			item.kind = TYPE_PRIMITIVE;
+			item.primitive = desc->primitive;
+			break;
 		}
-		int typeindex = -1;
-		if (desc->type) {
-			typeindex = StringItem_Get(table, desc->type);
-			if (typeindex < 0) {
-				return typeindex;
+		case TYPE_USRDEF: {
+			int pathindex = -1;
+			if (desc->usrdef.path) {
+				pathindex = StringItem_Get(table, desc->usrdef.path);
+				if (pathindex < 0) {
+					return pathindex;
+				}
 			}
+			int typeindex = -1;
+			if (desc->usrdef.type) {
+				typeindex = StringItem_Get(table, desc->usrdef.type);
+				if (typeindex < 0) {
+					return typeindex;
+				}
+			}
+			item.kind = TYPE_USRDEF;
+			item.pathindex = pathindex;
+			item.typeindex = typeindex;
+			break;
 		}
-		item.varg = desc->varg;
-		item.dims = desc->dims;
-		item.kind = TYPE_USERDEF;
-		item.pathindex = pathindex;
-		item.typeindex = typeindex;
-	} else if (desc->kind == TYPE_PRIMITIVE) {
-		item.varg = desc->varg;
-		item.dims = desc->dims;
-		item.kind = TYPE_PRIMITIVE;
-		item.primitive = desc->primitive;
-	} else {
-		assert(desc->kind == TYPE_PROTO);
-		int rindex = TypeListItem_Get(table, desc->rdesc);
-		int pindex = TypeListItem_Get(table, desc->pdesc);
-		int protoindex = ProtoItem_Get(table, rindex, pindex);
-		item.varg = desc->varg;
-		item.dims = desc->dims;
-		item.kind = TYPE_PROTO;
-		item.protoindex = protoindex;
+		case TYPE_PROTO: {
+			int rindex = TypeListItem_Get(table, desc->proto.ret);
+			int pindex = TypeListItem_Get(table, desc->proto.arg);
+			item.kind = TYPE_PROTO;
+			item.protoindex = ProtoItem_Get(table, rindex, pindex);
+			break;
+		}
+		case TYPE_MAP: {
+			assert(0);
+			break;
+		}
+		case TYPE_ARRAY: {
+			item.kind = TYPE_ARRAY;
+			item.array.dims = desc->array.dims;
+			item.array.typeindex = TypeItem_Get(table, desc->array.base);
+			break;
+		}
+		default: {
+			assert(0);
+			break;
+		}
 	}
+
 	return AtomTable_Index(table, ITEM_TYPE, &item);
 }
 
@@ -377,25 +396,43 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 	TypeItem *item = NULL;
 	int index = TypeItem_Get(table, desc);
 	if (index < 0) {
-		if (desc->kind == TYPE_USERDEF) {
-			int pathindex = -1;
-			if (desc->path) {
-				pathindex = StringItem_Set(table, desc->path);
-				assert(pathindex >= 0);
+		switch (desc->kind) {
+			case TYPE_PRIMITIVE: {
+				item = TypeItem_Primitive_New(desc->primitive);
+				break;
 			}
-			int typeindex = -1;
-			if (desc->type) {
-				typeindex = StringItem_Set(table, desc->type);
-				assert(typeindex >= 0);
+			case TYPE_USRDEF: {
+				int pathindex = -1;
+				if (desc->usrdef.path) {
+					pathindex = StringItem_Set(table, desc->usrdef.path);
+					assert(pathindex >= 0);
+				}
+				int typeindex = -1;
+				if (desc->usrdef.type) {
+					typeindex = StringItem_Set(table, desc->usrdef.type);
+					assert(typeindex >= 0);
+				}
+				item = TypeItem_UserDef_New(pathindex, typeindex);
+				break;
 			}
-			item = TypeItem_UserDef_New(desc->varg, desc->dims, pathindex,
-																	typeindex);
-		} else if (desc->kind == TYPE_PRIMITIVE) {
-			item = TypeItem_Primitive_New(desc->varg, desc->dims, desc->primitive);
-		} else {
-			assert(desc->kind == TYPE_PROTO);
-			int protoindex = ProtoItem_Set(table, desc);
-			item = TypeItem_Proto_New(desc->varg, desc->dims, protoindex);
+			case TYPE_PROTO: {
+				int protoindex = ProtoItem_Set(table, desc);
+				item = TypeItem_Proto_New(protoindex);
+				break;
+			}
+			case TYPE_MAP: {
+				assert(0);
+				break;
+			}
+			case TYPE_ARRAY: {
+				int typeindex = TypeItem_Set(table, desc->array.base);
+				item = TypeItem_Array_New(desc->array.dims, typeindex);
+				break;
+			}
+			default: {
+				assert(0);
+				break;
+			}
 		}
 
 		index = AtomTable_Append(table, ITEM_TYPE, item, 1);
@@ -453,8 +490,8 @@ int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex)
 
 int ProtoItem_Set(AtomTable *table, TypeDesc *proto)
 {
-	int rindex = TypeListItem_Set(table, proto->rdesc);
-	int pindex = TypeListItem_Set(table, proto->pdesc);
+	int rindex = TypeListItem_Set(table, proto->proto.ret);
+	int pindex = TypeListItem_Set(table, proto->proto.arg);
 	int index = ProtoItem_Get(table, rindex, pindex);
 	if (index < 0) {
 		ProtoItem *item = ProtoItem_New(rindex, pindex);
@@ -617,8 +654,6 @@ int typeitem_equal(void *k1, void *k2)
 	TypeItem *item1 = k1;
 	TypeItem *item2 = k2;
 	if (item1->kind != item2->kind) return 0;
-	if (item1->varg != item2->varg) return 0;
-	if (item1->dims != item2->dims) return 0;
 	if (item1->pathindex != item2->pathindex) return 0;
 	if (item1->typeindex != item2->typeindex) return 0;
 	return 1;
@@ -639,8 +674,8 @@ char *array_string(int dims)
 void typeitem_show(AtomTable *table, void *o)
 {
 	TypeItem *item = o;
-	char *arrstr = array_string(item->dims);
-	if (item->kind == TYPE_USERDEF) {
+	//char *arrstr = array_string(item->dims);
+	if (item->kind == TYPE_USRDEF) {
 		StringItem *str;
 		if (item->pathindex >= 0) {
 			str = AtomTable_Get(table, ITEM_STRING, item->pathindex);
@@ -652,14 +687,16 @@ void typeitem_show(AtomTable *table, void *o)
 		if (item->typeindex >= 0) {
 			str = AtomTable_Get(table, ITEM_STRING, item->typeindex);
 			printf("  typeindex:%d\n", item->typeindex);
-			printf("  (%s%s)\n", arrstr, str->data);
+			//printf("  (%s%s)\n", arrstr, str->data);
 		} else {
 			printf("  typeindex:%d\n", item->typeindex);
 		}
 	} else if (item->kind == TYPE_PRIMITIVE) {
-		printf("  (%s%s)\n", arrstr, Primitive_ToString(item->primitive));
+		//printf("  (%s%s)\n", arrstr, Primitive_ToString(item->primitive));
+	} else if (item->kind == TYPE_ARRAY) {
+
 	}
-	free(arrstr);
+	//free(arrstr);
 }
 
 void typeitem_free(void *o)
@@ -787,11 +824,11 @@ uint32 constitem_hash(void *k)
 			break;
 		}
 		case CONST_FLOAT: {
-			hash = hash_uint32((uint32)item, 32);
+			hash = hash_uint32(ptr2int(item, uint32), 32);
 			break;
 		}
 		case CONST_BOOL: {
-			hash = hash_uint32((uint32)item, 32);
+			hash = hash_uint32(ptr2int(item, uint32), 32);
 			break;
 		}
 		case CONST_STRING: {
@@ -799,7 +836,7 @@ uint32 constitem_hash(void *k)
 			break;
 		}
 		default: {
-			assertm(0, "unsupported %d const type\n", item->type);
+			kassert(0, "unsupported %d const type\n", item->type);
 			break;
 		}
 	}
@@ -831,7 +868,7 @@ int constitem_equal(void *k1, void *k2)
 			break;
 		}
 		default: {
-			assertm(0, "unsupported const type %d\n", item1->type);
+			kassert(0, "unsupported const type %d\n", item1->type);
 			break;
 		}
 	}
@@ -899,7 +936,7 @@ void locvaritem_show(AtomTable *table, void *o)
 	printf("  (%s)\n", str1->data);
 	printf("  typeindex:%d\n", item->typeindex);
 	type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
-	if (type->kind == TYPE_USERDEF) {
+	if (type->kind == TYPE_USRDEF) {
 		str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
 		if (type->pathindex >= 0) {
 			str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
@@ -949,7 +986,7 @@ static char *access_tostring(int access)
 			str = "const,private";
 			break;
 		default:
-			assertm(0, "invalid access %d\n", access);
+			kassert(0, "invalid access %d\n", access);
 			str = "";
 			break;
 	}
@@ -968,7 +1005,7 @@ void varitem_show(AtomTable *table, void *o)
 	printf("  (%s)\n", str1->data);
 	printf("  typeindex:%d\n", item->typeindex);
 	type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
-	if (type->kind == TYPE_USERDEF) {
+	if (type->kind == TYPE_USRDEF) {
 		str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
 		if (type->pathindex >= 0) {
 			str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
@@ -1442,12 +1479,12 @@ void KImage_Add_Class(KImage *image, char *name, char *spath, char *stype,
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
-	Init_UserDef_TypeDesc(&tmp, 0, NULL, name);
+	Init_Type_UsrDef(&tmp, NULL, name);
 	int classindex = TypeItem_Set(image->table, &tmp);
 
 	int superindex = -1;
 	if (stype) {
-		Init_UserDef_TypeDesc(&tmp, 0, spath, stype);
+		Init_Type_UsrDef(&tmp, spath, stype);
 		superindex = TypeItem_Set(image->table, &tmp);
 	}
 
@@ -1462,7 +1499,7 @@ void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
-	Init_UserDef_TypeDesc(&tmp, 0, NULL, clazz);
+	Init_Type_UsrDef(&tmp, NULL, clazz);
 	int classindex = TypeItem_Set(image->table, &tmp);
 
 	int nameindex = StringItem_Set(image->table, name);
@@ -1478,7 +1515,7 @@ int KImage_Add_Method(KImage *image, char *clazz, char *name, TypeDesc *proto,
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
-	Init_UserDef_TypeDesc(&tmp, 0, NULL, clazz);
+	Init_Type_UsrDef(&tmp, NULL, clazz);
 	int classindex = TypeItem_Set(image->table, &tmp);
 
 	int nameindex = StringItem_Set(image->table, name);
@@ -1493,7 +1530,7 @@ void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
-	Init_UserDef_TypeDesc(&tmp, 0, NULL, name);
+	Init_Type_UsrDef(&tmp, NULL, name);
 	int classindex = TypeItem_Set(image->table, &tmp);
 	int traitsindex = TypeListItem_Set(image->table, traits);
 	TraitItem *traititem = TraitItem_New(classindex, access, traitsindex);
@@ -1504,7 +1541,7 @@ void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto)
 {
 	int access = SYMBOL_ACCESS(name, 0);
 	TypeDesc tmp;
-	Init_UserDef_TypeDesc(&tmp, 0, NULL, trait);
+	Init_Type_UsrDef(&tmp, NULL, trait);
 	int classindex = TypeItem_Set(image->table, &tmp);
 	int nameindex = StringItem_Set(image->table, name);
 	int protoindex = ProtoItem_Set(image->table, proto);
@@ -1816,7 +1853,7 @@ KImage *KImage_Read_File(char *path)
 				break;
 			}
 			default: {
-				assertm(0, "unknown map type:%d", map->type);
+				kassert(0, "unknown map type:%d", map->type);
 			}
 		}
 	}

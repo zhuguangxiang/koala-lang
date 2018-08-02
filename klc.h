@@ -50,9 +50,7 @@ typedef struct string_item {
 } StringItem;
 
 typedef struct type_item {
-	int8 kind;
-	int8 varg;
-	int16 dims;
+	int kind;
 	union {
 		char primitive;
 		struct {
@@ -60,6 +58,10 @@ typedef struct type_item {
 			int32 typeindex;  //->StringItem
 		};
 		int32 protoindex;   //->ProtoItem
+		struct {
+			int dims;
+			int32 typeindex;  //->TypeItem
+		} array;
 	};
 } TypeItem;
 
@@ -180,7 +182,7 @@ typedef struct kimage {
 
 /*-------------------------------------------------------------------------*/
 
-TypeDesc *TypeItem_To_Desc(TypeItem *item, AtomTable *atbl);
+TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl);
 TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl);
 
 KImage *KImage_New(char *pkg_name);

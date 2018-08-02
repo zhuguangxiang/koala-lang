@@ -37,16 +37,17 @@ Object *CFunc_New(cfunc cf, TypeDesc *proto);
 void CodeObject_Free(Object *ob);
 #define CODE_ISKFUNC(code)  (((CodeObject *)(code))->flags == CODE_KLANG)
 #define CODE_ISCFUNC(code)  (((CodeObject *)(code))->flags == CODE_CLANG)
+// FIXME
 static inline int Func_Argc(Object *ob)
 {
 	CodeObject *code = (CodeObject *)ob;
-	TypeDesc *p = code->proto;
-	assert(p->kind == TYPE_PROTO);
-	int sz = Vector_Size(p->pdesc);
+	TypeDesc *desc = code->proto;
+	assert(desc->kind == TYPE_PROTO);
+	int sz = Vector_Size(desc->proto.arg);
 	if (sz <= 0) return 0;
 
-	TypeDesc *desc = Vector_Get(p->pdesc, sz - 1);
-	if (desc->varg) {
+	desc = Vector_Get(desc->proto.arg, sz - 1);
+	if (Type_IsVarg(desc)) {
 		return 32;
 	} else {
 		return sz;

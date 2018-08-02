@@ -4,8 +4,8 @@ package test;
 import "koala/io";
 
 func Main(args [string]) {
-	var arr2 [int] = [];
-	var arr4 [[int]] = [1, 2, [1, 2]];
+	var arr2 []int = [];
+	var arr4 [][]int = [1, 2, [1, 2]];
 	var arr5 = [];
 	var arr6 = [1,2,[3,5,7]];
 
@@ -13,11 +13,13 @@ func Main(args [string]) {
 		"SubArray": [{"Name": "ZhangSan", "Age": 100}, 123], "SubArray2": arr4};
 	var map2 = {"Name": "James", "Age": 120, "Male": true};
 	var map4 [string:int] = {};
-	var map5 [string:any] = {"Name": "James", "Age": 120, "Male": true};
+	var map5 map[string]string = {"Name": "James", "Age": 120, "Male": true};
 	var map6 = {};
 	var map7 = {"Name": "James", "Age": 120, "Male": true};
 
 	var id = 100;
 	var map8 = {id: 100, "Age": 121}; //error: keys have different types.
 	var str string = "hello";
+
+	var s set[string] = [12,3,4];
 }

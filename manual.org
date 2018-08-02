@@ -6,12 +6,13 @@
 package main;
 import "koala/io";
 
-func Main(args [string]) {
+func Main(args: [string]) {
   io.Println("Hello, World");
 }
 ```
 
 > 编译：koala build main.kl
+>  
 > 运行：koala run main
 
 ## 数据类型
