@@ -122,6 +122,10 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i)
       Buffer_Write_4Bytes(buf, i->arg.ival);
       break;
     }
+    case OP_LOAD_SUBSCR:
+    case OP_STORE_SUBSCR: {
+      break;
+    }
     default: {
       assert(0);
       break;

@@ -11,4 +11,19 @@ func Main(args [string]) {
 
   var arr3 [string] = ["hello", "world"];
   io.Println(arr3);
+
+  var i int = arr[1];
+  io.Println(i);
+
+  var arr4 = arr2[1];
+  io.Println(arr4);
+
+  i = arr2[1][1];
+  io.Println(i);
+
+  arr[1] = 100;
+  io.Println(arr);
+
+  arr2[1][1] = 101;
+  io.Println(arr2);
 }

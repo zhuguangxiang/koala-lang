@@ -1507,7 +1507,23 @@ static void parser_array(ParserState *ps, expr_t *exp)
 
 static void parser_subscript(ParserState *ps, expr_t *exp)
 {
+  expr_t *left = exp->subscript.left;
+  left->right = exp;
+  left->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, left);
 
+  expr_t *index = exp->subscript.index;
+  index->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, index);
+
+  exp->desc = left->desc->array.base;
+
+  if (exp->ctx == EXPR_LOAD) {
+    Inst_Append_NoArg(ps->u->block, OP_LOAD_SUBSCR);
+  } else {
+    assert(exp->ctx == EXPR_STORE);
+    Inst_Append_NoArg(ps->u->block, OP_STORE_SUBSCR);
+  }
 }
 
 static void parser_call(ParserState *ps, struct expr *exp)
@@ -2962,14 +2978,14 @@ static void parser_vist_stmt(ParserState *ps, stmt_t *stmt)
       parser_function(ps, stmt, SCOPE_FUNCTION);
       break;
     }
-  case ASSIGN_KIND: {
-    parse_assign(ps, stmt);
-    break;
-  }
-  case ASSIGNS_KIND: {
-    parse_assignlist(ps, stmt);
-    break;
-  }
+    case ASSIGN_KIND: {
+      parse_assign(ps, stmt);
+      break;
+    }
+    case ASSIGNS_KIND: {
+      parse_assignlist(ps, stmt);
+      break;
+    }
     case TYPEALIAS_KIND: {
       parser_typealias(ps, stmt);
       break;

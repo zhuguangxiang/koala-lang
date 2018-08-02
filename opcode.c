@@ -34,7 +34,10 @@ static struct opcode {
   {OP_JUMP_TRUE,   "jump_true",   4},
   {OP_JUMP_FALSE,  "jump_false",  4},
   {OP_NEW,      "new",      6},
-  {OP_NEWARRAY, "newarray", 2}
+  {OP_NEWARRAY, "array",    2},
+  {OP_NEWMAP,   "map",      2},
+  {OP_LOAD_SUBSCR, "load_subscr",   0},
+  {OP_STORE_SUBSCR, "store_subscr", 0}
 };
 
 static struct opcode *get_opcode(uint8 op)

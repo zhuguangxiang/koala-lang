@@ -441,6 +441,34 @@ void do_new_array(Routine *rt, int count)
   PUSH(&v);
 }
 
+TValue do_load_subscr(Routine *rt)
+{
+  TValue w = POP();
+  TValue v = POP();
+  // v[w]
+  MapOperations *ops = v.klazz->mapops;
+  if (ops && ops->get) {
+    return ops->get(&v, &w);
+  } else {
+    //FIXME: lookup __getitem__
+    return NilValue;
+  }
+}
+
+void do_store_subscr(Routine *rt)
+{
+  TValue w = POP();
+  TValue v = POP();
+  TValue u = POP();
+  // v[w] = u
+  MapOperations *ops = v.klazz->mapops;
+  if (ops && ops->set) {
+    ops->set(&v, &w, &u);
+  } else {
+    //FIXME: lookup __setitem__
+  }
+}
+
 #define case_two_args_op(_case_, _op_) \
 case _case_: {                         \
   TValue v1 = POP();                   \
@@ -652,6 +680,15 @@ static void frame_loop(Frame *frame)
       case OP_NEWARRAY: {
         int count = fetch_4bytes(frame, code);
         do_new_array(rt, count);
+        break;
+      }
+      case OP_LOAD_SUBSCR: {
+        val = do_load_subscr(rt);
+        PUSH(&val);
+        break;
+      }
+      case OP_STORE_SUBSCR: {
+        do_store_subscr(rt);
         break;
       }
       case OP_JUMP: {

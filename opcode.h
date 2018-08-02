@@ -156,6 +156,9 @@ extern "C" {
 #define OP_NEW  50
 
 #define OP_NEWARRAY 51
+#define OP_NEWMAP   52
+#define OP_LOAD_SUBSCR  53
+#define OP_STORE_SUBSCR 54
 
 // #define OP_STRING 14
 // #define OP_LIST   15

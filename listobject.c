@@ -167,10 +167,26 @@ static void list_free(Object *ob)
   List_Free(ob);
 }
 
+void list_setitem(TValue *o, TValue *k, TValue *v)
+{
+  List_Set(o->ob, k->ival, v);
+}
+
+TValue list_getitem(TValue *o, TValue *k)
+{
+  return List_Get(o->ob, k->ival);
+}
+
+MapOperations list_map_ops = {
+  .get = list_getitem,
+  .set = list_setitem
+};
+
 Klass List_Klass = {
   OBJECT_HEAD_INIT(&List_Klass, &Klass_Klass)
   .name = "List",
   .basesize = sizeof(ListObject),
+  .mapops = &list_map_ops,
   .ob_free = list_free,
   .ob_tostr = list_tostring,
 };
