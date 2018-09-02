@@ -22,7 +22,7 @@ int Lexer_NeedInsertSemiColon(ParserState *ps)
   static int tokens[] = {
     ID, INT_CONST, FLOAT_CONST, STRING_CONST,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
-    ')', '}'
+    ')', ']', '}'
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
