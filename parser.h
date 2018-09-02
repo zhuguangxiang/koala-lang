@@ -105,7 +105,6 @@ typedef struct parserstate {
   void *scanner;      /* lexer pointer */
   LineBuffer line;    /* input line buffer */
   Vector stmts;       /* all statements */
-  char *package;      /* package name */
   int lastToken;      /* save last token for if inserted semicolon or not */
   HashTable imports;  /* external types */
   STable *extstbl;    /* external symbol table */
@@ -142,10 +141,6 @@ void Lexer_DoUserAction(ParserState *ps, char *text);
 } while (0)
 
 // Exported API
-static inline void Parser_Set_Package(ParserState *ps, char *name)
-{
-  ps->package = name;
-}
 
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path);
 void Parser_New_Vars(ParserState *ps, struct stmt *stmt);

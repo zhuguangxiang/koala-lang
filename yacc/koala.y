@@ -340,7 +340,7 @@ ConstDeclaration
 VariableDeclaration
   : VAR IDList ':' Type              { $$ = do_vardecls(ps, $2, $4, NULL, 0); }
   | VAR IDList '=' ExprList          { $$ = do_vardecls(ps, $2, NULL, $4, 0); }
-  | VAR IDList ':' Type '=' ExprList { $$ = do_vardecls(ps, $2, $4, $6, 0); }
+  | VAR IDList ':' Type '=' ExprList { $$ = do_vardecls(ps, $2, $4, $6, 0);   }
   | VAR IDList error {
     syntax_error("'TYPE' or '='");
     $$ = NULL;
@@ -372,39 +372,39 @@ IDList
 
 /*----------------------------------------------------------------------------*/
 
-FunctionDeclaration:
-  FUNC ID '(' ParameterList ')' ReturnTypeList Block {
+FunctionDeclaration
+  : FUNC ID '(' ParameterList ')' ReturnTypeList Block {
     $$ = stmt_from_func($2, $4, $6, $7);
   }
-| FUNC ID '(' ParameterList ')' Block {
+  | FUNC ID '(' ParameterList ')' Block {
     $$ = stmt_from_func($2, $4, NULL, $6);
   }
-| FUNC ID '(' ')' ReturnTypeList Block {
+  | FUNC ID '(' ')' ReturnTypeList Block {
     $$ = stmt_from_func($2, NULL, $5, $6);
   }
-| FUNC ID '(' ')' Block {
+  | FUNC ID '(' ')' Block {
     $$ = stmt_from_func($2, NULL, NULL, $5);
   }
-| FUNC error {
+  | FUNC error {
     syntax_error("ID");
     $$ = NULL;
   }
-;
+  ;
 
-ParameterList:
-  ID Type {
+ParameterList
+  : ID ':' Type {
     $$ = Vector_New();
-    Vector_Append($$, stmt_from_var($1, $2, NULL, 0));
+    Vector_Append($$, stmt_from_var($1, $3, NULL, 0));
   }
-| ParameterList ',' ID Type {
-    Vector_Append($$, stmt_from_var($3, $4, NULL, 0));
+  | ParameterList ',' ID ':' Type {
+    Vector_Append($$, stmt_from_var($3, $5, NULL, 0));
     $$ = $1;
   }
-| ParameterList ',' ID ELLIPSIS {
+  | ParameterList ',' ID ':' ELLIPSIS {
     Vector_Append($$, stmt_from_var($3, &Varg_Type, NULL, 0));
     $$ = $1;
   }
-;
+  ;
 
 /*----------------------------------------------------------------------------*/
 

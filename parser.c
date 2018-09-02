@@ -76,7 +76,7 @@ void Parser_PrintError(ParserState *ps, lineinfo_t *l, char *fmt, ...)
   puts("^" COLOR_NC);
 }
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 static JmpInst *JmpInst_New(Inst *inst, int type)
 {
@@ -942,7 +942,7 @@ static void parser_expr_desc(ParserState *ps, struct expr *exp, Symbol *sym)
   exp->sym = sym;
   if (!exp->desc) {
     if (sym->kind == SYM_MODULE) {
-      debug("ident '%s' is as Module", ps->package);
+      debug("ident '%s' is as Module", ps->filename);
     } else {
       char buf[64];
       Type_ToString(sym->desc, buf);
@@ -1022,7 +1022,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
   switch (u->scope) {
     case SCOPE_CLASS: {
       assert(sym->up->kind == SYM_MODULE);
-      debug("symbol '%s' in module '%s'", sym->name, ps->package);
+      debug("symbol '%s' in module '%s'", sym->name, ps->filename);
       if (sym->kind == SYM_VAR) {
         debug("symbol '%s' is variable", sym->name);
         Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -1043,7 +1043,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
     }
     case SCOPE_FUNCTION: {
       assert(sym->up->kind == SYM_MODULE);
-      debug("symbol '%s' in module '%s'", sym->name, ps->package);
+      debug("symbol '%s' in module '%s'", sym->name, ps->filename);
       if (sym->kind == SYM_VAR) {
         debug("symbol '%s' is variable", sym->name);
         int opcode;
@@ -1128,7 +1128,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
         }
       } else {
         assert(sym->up->kind == SYM_MODULE);
-        debug("symbol '%s' in module '%s'", sym->name, ps->package);
+        debug("symbol '%s' in module '%s'", sym->name, ps->filename);
         if (sym->kind == SYM_VAR) {
           debug("symbol '%s' is variable", sym->name);
           Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -1299,6 +1299,8 @@ static void parser_ident(ParserState *ps, struct expr *exp)
   }
 
   // ident is current module's name
+  #if 0
+  FIXME
   if (ps->package && !strcmp(id, ps->package)) {
     sym = ps->sym;
     assert(sym);
@@ -1310,6 +1312,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
     Inst_Append_NoArg(u->block, OP_GETM);
     return;
   }
+  #endif
 
   // find ident from external module
   sym = STable_Get(ps->extstbl, id);
@@ -3061,7 +3064,6 @@ void destroy_parser(ParserState *ps)
 {
   vec_stmt_fini(&ps->stmts);
   fini_imports(ps);
-  free(ps->package);
   yylex_destroy(ps->scanner);
   free(ps);
 }

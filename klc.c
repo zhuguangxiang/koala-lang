@@ -45,7 +45,7 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 		case TYPE_ARRAY: {
 			TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
 			assert(base);
-			///t->array.dims = item->array.dims;
+			t->array.dims = item->array.dims;
 			t->array.base = TypeItem_To_TypeDesc(base, atbl);
 			break;
 		}
@@ -378,7 +378,7 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 		}
 		case TYPE_ARRAY: {
 			item.kind = TYPE_ARRAY;
-			//item.array.dims = desc->array.dims;
+			item.array.dims = desc->array.dims;
 			item.array.typeindex = TypeItem_Get(table, desc->array.base);
 			break;
 		}
@@ -426,7 +426,7 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 			}
 			case TYPE_ARRAY: {
 				int typeindex = TypeItem_Set(table, desc->array.base);
-				//item = TypeItem_Array_New(desc->array.dims, typeindex);
+				item = TypeItem_Array_New(desc->array.dims, typeindex);
 				break;
 			}
 			default: {
@@ -756,7 +756,7 @@ void typelistitem_free(void *o)
 	free(o);
 }
 
-/*-------------------------------------------------------------------------*/
+//*-------------------------------------------------------------------------*/
 
 int protoitem_length(void *o)
 {
@@ -1369,7 +1369,7 @@ struct item_funcs item_func[ITEM_MAX] = {
 
 /*-------------------------------------------------------------------------*/
 
-static void init_header(ImageHeader *h, int pkg_size)
+static void init_header(ImageHeader *h)
 {
 	strcpy((char *)h->magic, "KLC");
 	h->version[0] = '0' + version_major;
@@ -1379,9 +1379,8 @@ static void init_header(ImageHeader *h, int pkg_size)
 	h->file_size   = 0;
 	h->header_size = sizeof(ImageHeader);
 	h->endian_tag  = ENDIAN_TAG;
-	h->map_offset  = sizeof(ImageHeader) + pkg_size;
+	h->map_offset  = sizeof(ImageHeader);
 	h->map_size    = ITEM_MAX;
-	h->pkg_size    = pkg_size;
 }
 
 uint32 item_hash(void *key)
@@ -1414,22 +1413,19 @@ void item_free(int type, void *data, void *arg)
 	return fn(data);
 }
 
-void KImage_Init(KImage *image, char *package)
+void KImage_Init(KImage *image)
 {
-	int pkg_size = ALIGN_UP(strlen(package) + 1, 4);
-	image->package = malloc(pkg_size);
-	strcpy(image->package, package);
-	init_header(&image->header, pkg_size);
+	init_header(&image->header);
 	HashInfo hashinfo;
 	Init_HashInfo(&hashinfo, item_hash, item_equal);
 	image->table = AtomTable_New(&hashinfo, ITEM_MAX);
 }
 
-KImage *KImage_New(char *package)
+KImage *KImage_New(void)
 {
 	KImage *image = malloc(sizeof(KImage));
 	memset(image, 0, sizeof(KImage));
-	KImage_Init(image, package);
+	KImage_Init(image);
 	return image;
 }
 
@@ -1559,7 +1555,7 @@ void KImage_Finish(KImage *image)
 	MapItem *mapitem;
 	void *item;
 
-	offset = image->header.header_size + image->header.pkg_size;
+	offset = image->header.header_size;
 
 	for (int i = 1; i < ITEM_MAX; i++) {
 		size = AtomTable_Size(image->table, i);
@@ -1581,7 +1577,7 @@ void KImage_Finish(KImage *image)
 		}
 	}
 
-	image->header.file_size = offset + length + image->header.pkg_size;
+	image->header.file_size = offset + length;
 	image->header.map_size = AtomTable_Size(image->table, 0);
 }
 
@@ -1601,11 +1597,6 @@ static void __image_write_item(FILE *fp, KImage *image, int type, int size)
 	}
 }
 
-static void __image_write_pkgname(FILE *fp, KImage *image)
-{
-	fwrite(image->package, image->header.pkg_size, 1, fp);
-}
-
 static void __image_write_items(FILE *fp, KImage *image)
 {
 	int size;
@@ -1622,7 +1613,6 @@ void KImage_Write_File(KImage *image, char *path)
 	FILE *fp = fopen(path, "w");
 	assert(fp);
 	__image_write_header(fp, image);
-	__image_write_pkgname(fp, image);
 	__image_write_items(fp, image);
 	fflush(fp);
 	fclose(fp);
@@ -1658,15 +1648,7 @@ KImage *KImage_Read_File(char *path)
 		return NULL;
 	}
 
-	char pkg_name[header.pkg_size];
-	sz = fread(pkg_name, sizeof(pkg_name), 1, fp);
-	if (sz < 1) {
-		printf("error: read file %s error\n", path);
-		fclose(fp);
-		return NULL;
-	}
-
-	KImage *image = KImage_New(pkg_name);
+	KImage *image = KImage_New();
 	assert(image);
 	image->header = header;
 
@@ -1874,7 +1856,6 @@ void header_show(ImageHeader *h)
 	printf("endian_tag:0x%x\n", h->endian_tag);
 	printf("map_offset:0x%x\n", h->map_offset);
 	printf("map_size:%d\n", h->map_size);
-	printf("pkg_size:%d\n", h->pkg_size);
 	printf("------klc header end---------\n");
 }
 

@@ -538,12 +538,11 @@ static Object *__get_consts(KImage *image)
   return tuple;
 }
 
-static Object *module_from_image(KImage *image)
+static Object *module_from_image(char *path, KImage *image)
 {
   AtomTable *table = image->table;
-  char *package = image->package;
-  debug("load module '%s' from image", package);
-  Object *m = Module_New(package);
+  debug("load module '%s' from image", path);
+  Object *m = Module_New(path);
   Module_Set_Consts(m, __get_consts(image));
   load_variables(table, m);
   load_functions(table, m);
@@ -565,7 +564,7 @@ static Object *load_module(char *path)
     sprintf(file, "%s%s.klc", *loadpath, path);
     KImage *image = KImage_Read_File(file);
     if (image) {
-      Object *ob = module_from_image(image);
+      Object *ob = module_from_image(path, image);
       if (ob) {
         if (add_module(path, ob) < 0) {
           Module_Free(ob);

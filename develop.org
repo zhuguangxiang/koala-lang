@@ -1,3 +1,10 @@
+#+TITLE: Koala Language Development Notes
+#+AUTHOR: James Zhu
+#+EMAIL: zhuguangxiang@163.com
+* Why develop koala-lang?
+Just for funny, isn't it? Think about a game is written by koala language,
+how fun, very nice.
+* Language Introduction
 
 * Release 0.7.x
 ** 0.7.1

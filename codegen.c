@@ -279,7 +279,7 @@ static void __gen_code_fn(Symbol *sym, void *arg)
 void codegen_klc(ParserState *ps, char *out)
 {
   printf("----------codegen------------\n");
-  KImage *image = KImage_New(ps->package);
+  KImage *image = KImage_New();
   struct gencode_struct tmp = {0, image, NULL};
   STable_Traverse(ps->sym->ptr, __gen_code_fn, &tmp);
   debug("----------------------");

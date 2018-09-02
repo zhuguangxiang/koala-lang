@@ -169,8 +169,17 @@ static int array_equal(TypeDesc *t1, TypeDesc *t2)
 
 static void array_tostring(TypeDesc *t, char *buf)
 {
-  UNUSED_PARAMETER(t);
-  UNUSED_PARAMETER(buf);
+  char temp[t->array.dims + 1];
+  int i;
+  for (i = 0; i < t->array.dims; i++)
+    temp[i] = '[';
+  temp[i] = 0;
+  sprintf(buf, "%s", temp);
+  Type_ToString(t->array.base, buf + t->array.dims);
+  for (i = 0; i < t->array.dims; i++)
+    temp[i] = ']';
+  temp[i] = 0;
+  sprintf(buf + strlen(buf), "%s", temp);
 }
 
 static TypeDesc *array_dup(TypeDesc *desc)

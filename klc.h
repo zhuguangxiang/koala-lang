@@ -17,7 +17,6 @@ typedef struct image_header {
 	uint32 endian_tag;
 	uint32 map_offset;
 	uint32 map_size;
-	uint32 pkg_size;
 } ImageHeader;
 
 #define ITEM_MAP        0
@@ -175,7 +174,6 @@ typedef struct imeth_item {
 
 typedef struct kimage {
 	ImageHeader header;
-	char *package;
 	int bused;  /* for free this structure */
 	AtomTable *table;
 } KImage;
@@ -185,7 +183,7 @@ typedef struct kimage {
 TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl);
 TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl);
 
-KImage *KImage_New(char *pkg_name);
+KImage *KImage_New(void);
 void KImage_Free(KImage *image);
 void KImage_Finish(KImage *image);
 void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc, int pos,
