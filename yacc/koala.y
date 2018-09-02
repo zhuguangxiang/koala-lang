@@ -6,9 +6,9 @@
 #include <string.h>
 #include "parser.h"
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
-#if 0//LOG_DEBUG
+#if 0 //LOG_DEBUG
 #define YYERROR_VERBOSE 1
 static int yyerror(ParserState *ps, void *scanner, const char *errmsg)
 {
@@ -76,7 +76,6 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %token LSHIFT
 %token RSHIFT
 
-%token PACKAGE
 %token IF
 %token ELSE
 %token WHILE
@@ -91,7 +90,8 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %token DEFAULT
 %token VAR
 %token FUNC
-%token RETURN
+%token RIGHT_ARROW
+%token TOKEN_RETURN
 %token CLASS
 %token TRAIT
 %token EXTENDS
@@ -203,191 +203,174 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 
 %%
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
-Type:
-  BaseType  { $$ = $1; }
-| ArrayType { $$ = $1; }
-;
+Type
+  : BaseType  { $$ = $1; }
+  | ArrayType { $$ = $1; }
+  ;
 
-ArrayType:
-  '[' Type ']'  { $$ = do_array_type($2); }
-;
+ArrayType
+  : '[' Type ']'  { $$ = do_array_type($2); }
+  ;
 
-BaseType:
-  PrimitiveType { $$ = $1; }
-| UsrDefType    { $$ = $1; }
-| FunctionType  { $$ = $1; }
-| MapType       { $$ = $1; }
-;
+BaseType
+  : PrimitiveType { $$ = $1; }
+  | UsrDefType    { $$ = $1; }
+  | FunctionType  { $$ = $1; }
+  | MapType       { $$ = $1; }
+  ;
 
-MapType:
-  '[' PrimitiveType ':' Type ']' { Type_New_Map($2, $4); }
-| '[' UsrDefType ':' Type ']'    { Type_New_Map($2, $4); }
-;
+MapType
+  : '[' PrimitiveType ':' Type ']' { Type_New_Map($2, $4); }
+  | '['UsrDefType ':' Type ']'     { Type_New_Map($2, $4); }
+  ;
 
-PrimitiveType:
-  INTEGER { $$ = &Int_Type;    }
-| FLOAT   { $$ = &Float_Type;  }
-| BOOL    { $$ = &Bool_Type;   }
-| STRING  { $$ = &String_Type; }
-| ANY     { $$ = &Any_Type;    }
-;
+PrimitiveType
+  : INTEGER { $$ = &Int_Type;    }
+  | FLOAT   { $$ = &Float_Type;  }
+  | BOOL    { $$ = &Bool_Type;   }
+  | STRING  { $$ = &String_Type; }
+  | ANY     { $$ = &Any_Type;    }
+  ;
 
-UsrDefType:
-  ID        { $$ = do_usrdef_type(ps, NULL, $1); }
-| ID '.' ID { $$ = do_usrdef_type(ps, $1, $3);   }
-;
+UsrDefType
+  : ID        { $$ = do_usrdef_type(ps, NULL, $1); }
+  | ID '.' ID { $$ = do_usrdef_type(ps, $1, $3);   }
+  ;
 
-FunctionType:
-  FUNC '(' TypeList ')' ReturnTypeList { $$ = Type_New_Proto($3, $5);     }
-| FUNC '(' TypeList ')'                { $$ = Type_New_Proto($3, NULL);   }
-| FUNC '(' ')' ReturnTypeList          { $$ = Type_New_Proto(NULL, $4);   }
-| FUNC '(' ')'                         { $$ = Type_New_Proto(NULL, NULL); }
-;
+FunctionType
+  : FUNC '(' TypeList ')' ReturnTypeList { $$ = Type_New_Proto($3, $5);     }
+  | FUNC '(' TypeList ')'                { $$ = Type_New_Proto($3, NULL);   }
+  | FUNC '(' ')' ReturnTypeList          { $$ = Type_New_Proto(NULL, $4);   }
+  | FUNC '(' ')'                         { $$ = Type_New_Proto(NULL, NULL); }
+  ;
 
-ReturnTypeList:
-  Type {
+ReturnTypeList
+  : RIGHT_ARROW Type {
+    $$ = Vector_New();
+    Vector_Append($$, $2);
+  }
+  | RIGHT_ARROW '(' TypeList ')' {
+    $$ = $3;
+  }
+  ;
+
+TypeList
+  : Type {
     $$ = Vector_New();
     Vector_Append($$, $1);
   }
-| '(' TypeList ')' {
-    $$ = $2;
-  }
-;
-
-TypeList:
-  Type {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
-  }
-| TypeList ',' Type {
+  | TypeList ',' Type {
     Vector_Append($1, $3);
     $$ = $1;
   }
-| TypeList ',' ELLIPSIS {
+  | TypeList ',' ELLIPSIS {
     Vector_Append($$, &Varg_Type);
     $$ = $1;
   }
-;
+  ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
-CompileUnit:
-  Package Imports ModuleStatements
-| Package ModuleStatements
-| Imports ModuleStatements
-| ModuleStatements
-;
+CompileUnit
+  : Imports ModuleStatements
+  | ModuleStatements
+  ;
 
-Package:
-  PACKAGE ID ';'   { Parser_Set_Package(ps, $2);             }
-| PACKAGE ID error { syntax_error(";"); exit(-1);            }
-| PACKAGE error    { syntax_error("package-name"); exit(-1); }
-;
+Imports
+  : Import
+  | Imports Import
+  ;
 
-Imports:
-  Import
-| Imports Import
-;
+Import
+  : IMPORT STRING_CONST ';'      { Parser_New_Import(ps, NULL, $2);      }
+  | IMPORT ID STRING_CONST ';'   { Parser_New_Import(ps, $2, $3);        }
+  | IMPORT '*' STRING_CONST ';'  { }
+  | IMPORT STRING_CONST error    { syntax_error(";");                    }
+  | IMPORT ID STRING_CONST error { syntax_error(";");                    }
+  | IMPORT ID error              { syntax_error_clear("invalid import"); }
+  | IMPORT error                 { syntax_error_clear("invalid import"); }
+  ;
 
-Import:
-  IMPORT STRING_CONST ';'      { Parser_New_Import(ps, NULL, $2);      }
-| IMPORT ID STRING_CONST ';'   { Parser_New_Import(ps, $2, $3);        }
-| IMPORT STRING_CONST error    { syntax_error(";");                    }
-| IMPORT ID STRING_CONST error { syntax_error(";");                    }
-| IMPORT ID error              { syntax_error_clear("invalid import"); }
-| IMPORT error                 { syntax_error_clear("invalid import"); }
-;
+ModuleStatements
+  : ModuleStatement
+  | ModuleStatements ModuleStatement
+  ;
 
-ModuleStatements:
-  ModuleStatement
-| ModuleStatements ModuleStatement
-;
-
-ModuleStatement:
-  ';' {}
-| VariableDeclaration ';'   { Parser_New_Vars(ps, $1);       }
-| ConstDeclaration ';'      { Parser_New_Vars(ps, $1);       }
-| FunctionDeclaration       { Parser_New_Func(ps, $1);         }
-| TypeDeclaration           { Parser_New_ClassOrTrait(ps, $1); }
-| TypeAliasDeclaration      { Parser_New_TypeAlias(ps, $1);    }
-| VariableDeclaration error {
+ModuleStatement
+  : ';' {}
+  | VariableDeclaration ';'   { Parser_New_Vars(ps, $1);         }
+  | ConstDeclaration ';'      { Parser_New_Vars(ps, $1);         }
+  | FunctionDeclaration       { Parser_New_Func(ps, $1);         }
+  | TypeDeclaration           { Parser_New_ClassOrTrait(ps, $1); }
+  | TypeAliasDeclaration      { Parser_New_TypeAlias(ps, $1);    }
+  | VariableDeclaration error {
     //stmt_free_vardecl_list($1);
     syntax_error(";");
   }
-| ConstDeclaration error {
+  | ConstDeclaration error {
     //stmt_free_vardecl_list($1);
     syntax_error(";");
   }
-| error {
+  | error {
     syntax_error_clear("invalid statement");
   }
-;
+  ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
-ConstDeclaration:
-  CONST IDList '=' ExprList {
-    $$ = do_vardecls(ps, $2, NULL, $4, 1);
-  }
-| CONST IDList Type '=' ExprList {
-    $$ = do_vardecls(ps, $2, $3, $5, 1);
-  }
-| CONST IDList '=' error {
+ConstDeclaration
+  : CONST IDList '=' ExprList { $$ = do_vardecls(ps, $2, NULL, $4, 1); }
+  | CONST IDList ':' Type '=' ExprList { $$ = do_vardecls(ps, $2, $4, $6, 1); }
+  | CONST IDList '=' error {
     syntax_error("rexpr-list");
     $$ = NULL;
   }
-| CONST IDList Type '=' error {
+  | CONST IDList ':' Type '=' error {
     syntax_error("rexpr-list");
     $$ = NULL;
   }
-| CONST error {
+  | CONST error {
     syntax_error("id-list");
     $$ = NULL;
   }
-;
+  ;
 
-VariableDeclaration:
-  VAR IDList Type {
-    $$ = do_vardecls(ps, $2, $3, NULL, 0);
-  }
-| VAR IDList '=' ExprList {
-    $$ = do_vardecls(ps, $2, NULL, $4, 0);
-  }
-| VAR IDList Type '=' ExprList {
-    $$ = do_vardecls(ps, $2, $3, $5, 0);
-  }
-| VAR IDList error {
+VariableDeclaration
+  : VAR IDList ':' Type              { $$ = do_vardecls(ps, $2, $4, NULL, 0); }
+  | VAR IDList '=' ExprList          { $$ = do_vardecls(ps, $2, NULL, $4, 0); }
+  | VAR IDList ':' Type '=' ExprList { $$ = do_vardecls(ps, $2, $4, $6, 0); }
+  | VAR IDList error {
     syntax_error("'TYPE' or '='");
     $$ = NULL;
   }
-| VAR IDList '=' error {
+  | VAR IDList '=' error {
     syntax_error("right's expression-list");
     $$ = NULL;
   }
-| VAR IDList Type '=' error {
+  | VAR IDList ':' Type '=' error {
     syntax_error("right's expression-list");
     $$ = NULL;
   }
-| VAR error {
+  | VAR error {
     syntax_error("id-list");
     $$ = NULL;
   }
-;
+  ;
 
-IDList:
-  ID {
+IDList
+  : ID {
     $$ = Vector_New();
     Vector_Append($$, $1);
   }
-| IDList ',' ID {
+  | IDList ',' ID {
     Vector_Append($1, $3);
     $$ = $1;
   }
-;
+  ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 FunctionDeclaration:
   FUNC ID '(' ParameterList ')' ReturnTypeList Block {
@@ -423,7 +406,7 @@ ParameterList:
   }
 ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 TypeAliasDeclaration
   : TYPEALIAS ID Type ';' {
@@ -440,7 +423,7 @@ TypeAliasDeclaration
   }
   ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 TypeDeclaration
   : CLASS ID ExtendsOrEmpty '{' MemberDeclarations '}' {
@@ -565,7 +548,7 @@ ProtoDeclaration
   }
   ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 Block:
   '{' LocalStatements '}' { $$ = $2;   }
@@ -610,7 +593,7 @@ LocalStatement:
   }
 ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 GoStatement
   : GO PrimaryExpr '(' ExprList ')' ';' {
@@ -621,7 +604,7 @@ GoStatement
   }
   ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 IfStatement
   : IF '(' Expr ')' Block OrElseStatement {
@@ -644,7 +627,7 @@ OrElseStatement
   }
   ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 WhileStatement
   : WHILE '(' Expr ')' Block {
@@ -655,7 +638,7 @@ WhileStatement
   }
   ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 SwitchStatement
   : SWITCH '(' Expr ')' '{' CaseStatements '}' {
@@ -694,7 +677,7 @@ CaseStatement
   }
   ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 ForStatement
   : FOR '(' ForInit ';' ForTest ';' ForIncr ')' Block {
@@ -756,7 +739,7 @@ ForIncr
   }
   ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 JumpStatement
   : BREAK ';' {
@@ -774,18 +757,18 @@ JumpStatement
   ;
 
 ReturnStatement:
-  RETURN ';'            { $$ = stmt_from_return(NULL); }
-| RETURN ExprList ';'   { $$ = stmt_from_return($2);   }
-| RETURN error          {}
-| RETURN ExprList error {}
+  TOKEN_RETURN ';'            { $$ = stmt_from_return(NULL); }
+| TOKEN_RETURN ExprList ';'   { $$ = stmt_from_return($2);   }
+| TOKEN_RETURN error          {}
+| TOKEN_RETURN ExprList error {}
 ;
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 PrimaryExpr:
-Atom {
-  $$ = $1;
-}
+  Atom {
+    $$ = $1;
+  }
 | PrimaryExpr '.' ID {
   $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
 }

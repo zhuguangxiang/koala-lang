@@ -106,6 +106,7 @@ typedef struct parserstate {
   LineBuffer line;    /* input line buffer */
   Vector stmts;       /* all statements */
   char *package;      /* package name */
+  int lastToken;      /* save last token for if inserted semicolon or not */
   HashTable imports;  /* external types */
   STable *extstbl;    /* external symbol table */
   Symbol *sym;        /* current module's symbol */

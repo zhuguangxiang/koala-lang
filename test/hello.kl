@@ -1,11 +1,10 @@
 
 /*
-  This test is for classic 'hello, world' program
+  This test is 'hello, world' program
  */
-package test;
 
-import "koala/io";
+import "koala/io"; import "test"
 
-func Main(args []string) {
-  io.Print("hello, world\n");
+func Main() {
+  io.Print("hello, world\n"); return
 }

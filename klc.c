@@ -45,7 +45,7 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 		case TYPE_ARRAY: {
 			TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
 			assert(base);
-			t->array.dims = item->array.dims;
+			///t->array.dims = item->array.dims;
 			t->array.base = TypeItem_To_TypeDesc(base, atbl);
 			break;
 		}
@@ -378,7 +378,7 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 		}
 		case TYPE_ARRAY: {
 			item.kind = TYPE_ARRAY;
-			item.array.dims = desc->array.dims;
+			//item.array.dims = desc->array.dims;
 			item.array.typeindex = TypeItem_Get(table, desc->array.base);
 			break;
 		}
@@ -426,7 +426,7 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 			}
 			case TYPE_ARRAY: {
 				int typeindex = TypeItem_Set(table, desc->array.base);
-				item = TypeItem_Array_New(desc->array.dims, typeindex);
+				//item = TypeItem_Array_New(desc->array.dims, typeindex);
 				break;
 			}
 			default: {
