@@ -59,6 +59,9 @@ L   [a-zA-Z_]
 "and"                     {RETURN(AND);}
 "or"                      {RETURN(OR);}
 "not"                     {RETURN(NOT);}
+"&&"                      {RETURN(AND);}
+"||"                      {RETURN(OR);}
+"!"                       {RETURN(NOT);}
 ">>"                      {RETURN(RSHIFT);}
 "<<"                      {RETURN(LSHIFT);}
 ":="                      {RETURN(TYPELESS_ASSIGN);}
@@ -88,7 +91,6 @@ L   [a-zA-Z_]
 "default"                 {RETURN(DEFAULT);}
 "var"                     {RETURN(VAR);}
 "func"                    {RETURN(FUNC);}
-"->"                      {RETURN(RIGHT_ARROW);}
 "return"                  {RETURN(TOKEN_RETURN);}
 "class"                   {RETURN(CLASS);}
 "trait"                   {RETURN(TRAIT);}

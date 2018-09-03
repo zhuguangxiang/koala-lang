@@ -90,7 +90,6 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %token DEFAULT
 %token VAR
 %token FUNC
-%token RIGHT_ARROW
 %token TOKEN_RETURN
 %token CLASS
 %token TRAIT
@@ -247,12 +246,12 @@ FunctionType
   ;
 
 ReturnTypeList
-  : RIGHT_ARROW Type {
+  : Type {
     $$ = Vector_New();
-    Vector_Append($$, $2);
+    Vector_Append($$, $1);
   }
-  | RIGHT_ARROW '(' TypeList ')' {
-    $$ = $3;
+  | '(' TypeList ')' {
+    $$ = $2;
   }
   ;
 
@@ -321,13 +320,13 @@ ModuleStatement
 /*----------------------------------------------------------------------------*/
 
 ConstDeclaration
-  : CONST IDList '=' ExprList { $$ = do_vardecls(ps, $2, NULL, $4, 1); }
-  | CONST IDList ':' Type '=' ExprList { $$ = do_vardecls(ps, $2, $4, $6, 1); }
+  : CONST IDList '=' ExprList      { $$ = do_vardecls(ps, $2, NULL, $4, 1); }
+  | CONST IDList Type '=' ExprList { $$ = do_vardecls(ps, $2, $3, $5, 1);   }
   | CONST IDList '=' error {
     syntax_error("rexpr-list");
     $$ = NULL;
   }
-  | CONST IDList ':' Type '=' error {
+  | CONST IDList Type '=' error {
     syntax_error("rexpr-list");
     $$ = NULL;
   }
@@ -338,9 +337,9 @@ ConstDeclaration
   ;
 
 VariableDeclaration
-  : VAR IDList ':' Type              { $$ = do_vardecls(ps, $2, $4, NULL, 0); }
-  | VAR IDList '=' ExprList          { $$ = do_vardecls(ps, $2, NULL, $4, 0); }
-  | VAR IDList ':' Type '=' ExprList { $$ = do_vardecls(ps, $2, $4, $6, 0);   }
+  : VAR IDList Type              { $$ = do_vardecls(ps, $2, $3, NULL, 0); }
+  | VAR IDList '=' ExprList      { $$ = do_vardecls(ps, $2, NULL, $4, 0); }
+  | VAR IDList Type '=' ExprList { $$ = do_vardecls(ps, $2, $3, $5, 0);   }
   | VAR IDList error {
     syntax_error("'TYPE' or '='");
     $$ = NULL;
@@ -349,7 +348,7 @@ VariableDeclaration
     syntax_error("right's expression-list");
     $$ = NULL;
   }
-  | VAR IDList ':' Type '=' error {
+  | VAR IDList Type '=' error {
     syntax_error("right's expression-list");
     $$ = NULL;
   }
@@ -392,15 +391,15 @@ FunctionDeclaration
   ;
 
 ParameterList
-  : ID ':' Type {
+  : ID Type {
     $$ = Vector_New();
-    Vector_Append($$, stmt_from_var($1, $3, NULL, 0));
+    Vector_Append($$, stmt_from_var($1, $2, NULL, 0));
   }
-  | ParameterList ',' ID ':' Type {
-    Vector_Append($$, stmt_from_var($3, $5, NULL, 0));
+  | ParameterList ',' ID Type {
+    Vector_Append($$, stmt_from_var($3, $4, NULL, 0));
     $$ = $1;
   }
-  | ParameterList ',' ID ':' ELLIPSIS {
+  | ParameterList ',' ID ELLIPSIS {
     Vector_Append($$, stmt_from_var($3, &Varg_Type, NULL, 0));
     $$ = $1;
   }
@@ -522,13 +521,13 @@ TraitMemberDeclaration
   ;
 
 FieldDeclaration
-  : ID Type ';' {
+  : VAR ID Type ';' {
     //$$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
   }
-  | ID '=' Expr ';' {
+  | VAR ID '=' Expr ';' {
     //$$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);
   }
-  | ID Type '=' Expr ';' {
+  | VAR ID Type '=' Expr ';' {
     //$$ = stmt_from_vardecl(new_var($2, $3), $5, 0);
   }
   ;
@@ -550,48 +549,48 @@ ProtoDeclaration
 
 /*----------------------------------------------------------------------------*/
 
-Block:
-  '{' LocalStatements '}' { $$ = $2;   }
-| '{' '}'                 { $$ = NULL; }
-;
+Block
+  : '{' LocalStatements '}' { $$ = $2;  }
+  | '{' '}'                 {$$ = NULL; }
+  ;
 
-LocalStatements:
-  LocalStatement {
+LocalStatements
+  : LocalStatement {
     $$ = Vector_New();
     if ($1 != NULL) Vector_Append($$, $1);
   }
-| LocalStatements LocalStatement {
+  | LocalStatements LocalStatement {
     if ($2 != NULL) Vector_Append($1, $2);
     $$ = $1;
   }
-;
+  ;
 
-LocalStatement:
- ';'                      { $$ = NULL;                }
-| Expr ';'                { $$ = stmt_from_expr($1);  }
-| VariableDeclaration ';' { $$ = $1;                  }
-| Assignment ';'          { $$ = $1;                  }
-| IfStatement             { $$ = $1;                  }
-| WhileStatement          { $$ = $1;                  }
-| SwitchStatement         {                           }
-| ForStatement            {                           }
-| JumpStatement           { $$ = $1;                  }
-| ReturnStatement         { $$ = $1;                  }
-| Block                   { $$ = stmt_from_block($1); }
-| GoStatement             {                           }
-| Expr error {
+LocalStatement
+  : ';'                     { $$ = NULL;                }
+  | Expr ';'                { $$ = stmt_from_expr($1);  }
+  | VariableDeclaration ';' { $$ = $1;                  }
+  | Assignment ';'          { $$ = $1;                  }
+  | IfStatement             { $$ = $1;                  }
+  | WhileStatement          { $$ = $1;                  }
+  | SwitchStatement         {                           }
+  | ForStatement            {                           }
+  | JumpStatement           { $$ = $1;                  }
+  | ReturnStatement         { $$ = $1;                  }
+  | Block                   { $$ = stmt_from_block($1); }
+  | GoStatement             {                           }
+  | Expr error {
     //free
     syntax_error(";"); $$ = NULL;
   }
-| VariableDeclaration error {
+  | VariableDeclaration error {
     //free
     syntax_error(";"); $$ = NULL;
   }
-| Assignment error {
+  | Assignment error {
     //free
     syntax_error(";"); $$ = NULL;
   }
-;
+  ;
 
 /*----------------------------------------------------------------------------*/
 
@@ -756,198 +755,207 @@ JumpStatement
   }
   ;
 
-ReturnStatement:
-  TOKEN_RETURN ';'            { $$ = stmt_from_return(NULL); }
-| TOKEN_RETURN ExprList ';'   { $$ = stmt_from_return($2);   }
-| TOKEN_RETURN error          {}
-| TOKEN_RETURN ExprList error {}
-;
+ReturnStatement
+  : TOKEN_RETURN ';'            { $$ = stmt_from_return(NULL); }
+  | TOKEN_RETURN ExprList ';'   { $$ = stmt_from_return($2);   }
+  | TOKEN_RETURN error          {}
+  | TOKEN_RETURN ExprList error {}
+  ;
 
 /*----------------------------------------------------------------------------*/
 
-PrimaryExpr:
-  Atom {
+PrimaryExpr
+  : Atom {
     $$ = $1;
   }
-| PrimaryExpr '.' ID {
-  $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
-}
-| PrimaryExpr '[' Expr ']' {
-  $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
-}
-| PrimaryExpr '(' ExprList ')' {
-  $$ = expr_from_trailer(CALL_KIND, $3, $1);
-}
-| PrimaryExpr '(' ')' {
-  $$ = expr_from_trailer(CALL_KIND, NULL, $1);
-}
-| PrimaryExpr '['  Expr ':' Expr ']' {
+  | PrimaryExpr '.' ID {
+    $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
+  }
+  | PrimaryExpr '[' Expr ']' {
+    $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
+  }
+  | PrimaryExpr '(' ExprList ')' {
+    $$ = expr_from_trailer(CALL_KIND, $3, $1);
+  }
+  | PrimaryExpr '(' ')' {
+    $$ = expr_from_trailer(CALL_KIND, NULL, $1);
+  }
+  | PrimaryExpr '['  Expr ':' Expr ']' {
 
-}
-;
+  }
+  ;
 
-Atom:
-  CONSTANT        { $$ = $1; }
-| SELF            { $$ = expr_from_self(); }
-| SUPER           { $$ = expr_from_super(); }
-| TYPEOF          { /* $$ = expr_from_typeof(); */ }
-| ID              { $$ = expr_from_id($1); }
-| '(' Expr ')'    { $$ = $2; }
-| ArrayObject     { $$ = $1; }
-| DictObject      { }
-| AnonyFuncObject { }
-;
+Atom
+  : CONSTANT        { $$ = $1; }
+  | SELF            { $$ = expr_from_self(); }
+  | SUPER           { $$ = expr_from_super(); }
+  | TYPEOF          { /* $$ = expr_from_typeof(); */ }
+  | ID              { $$ = expr_from_id($1); }
+  | '('Expr ')'    { $$ = $2; }
+  | ArrayObject     { $$ = $1; }
+  | DictObject      { }
+  | AnonyFuncObject { }
+  ;
 
-CONSTANT:
-  INT_CONST    { $$ = expr_from_int($1);    }
-| FLOAT_CONST  { $$ = expr_from_float($1);  }
-| STRING_CONST { $$ = expr_from_string($1); }
-| TOKEN_NIL    { $$ = expr_from_nil();      }
-| TOKEN_TRUE   { $$ = expr_from_bool(1);    }
-| TOKEN_FALSE  { $$ = expr_from_bool(0);    }
-;
+CONSTANT
+  : INT_CONST    { $$ = expr_from_int($1);    }
+  | FLOAT_CONST  { $$ = expr_from_float($1);  }
+  | STRING_CONST { $$ = expr_from_string($1); }
+  | TOKEN_NIL    { $$ = expr_from_nil();      }
+  | TOKEN_TRUE   { $$ = expr_from_bool(1);    }
+  | TOKEN_FALSE  { $$ = expr_from_bool(0);    }
+  ;
 
-ArrayObject:
-  '[' ExprList ']' { $$ = do_array_initializer(ps, $2); }
-| '[' ']'          { $$ = expr_from_array(NULL); }
-;
+ArrayObject
+  : '[' ExprList ']' { $$ = do_array_initializer(ps, $2); }
+  | '[' ']'          { $$ = expr_from_array(NULL); }
+  ;
 
-DictObject:
-  '{'  Expr ':' Expr '}' {}
-| '{' ':' '}' {}
-;
+DictObject
+  : '{' KeyValuePairList '}' {}
+  | '{' ':' '}' {}
+  ;
 
-AnonyFuncObject:
-  FUNC '(' ParameterList ')' ReturnTypeList Block {
+KeyValuePair
+  : Expr ':' Expr {}
+  ;
+
+KeyValuePairList
+  : KeyValuePair
+  | KeyValuePairList ',' KeyValuePair
+  ;
+
+AnonyFuncObject
+  : FUNC '(' ParameterList ')' ReturnTypeList Block {
     // $$ = expr_from_anonymous_func($2, $3, $4);
   }
-| FUNC '(' ParameterList ')' Block {
+  | FUNC '(' ParameterList ')' Block {
 
   }
-| FUNC '(' ')' ReturnTypeList Block {
+  | FUNC '(' ')' ReturnTypeList Block {
 
   }
-| FUNC '(' ')' Block {
+  | FUNC '(' ')' Block {
 
   }
-| FUNC error {
+  | FUNC error {
     syntax_error_clear("invalid anonymous function");
     $$ = NULL;
   }
-;
+  ;
 
 /*---------------------------------------------------------------------------*/
 
-UnaryExpr:
-  PrimaryExpr       { $$ = $1; }
-| UnaryOp UnaryExpr { $$ = expr_from_unary($1, $2); }
-;
+UnaryExpr
+  : PrimaryExpr       { $$ = $1; }
+  | UnaryOp UnaryExpr { $$ = expr_from_unary($1, $2); }
+  ;
 
-UnaryOp:
-  '+' { $$ = UNARY_PLUS;    }
-| '-' { $$ = UNARY_MINUS;   }
-| '~' { $$ = UNARY_BIT_NOT; }
-| NOT { $$ = UNARY_LNOT;    }
-;
+UnaryOp
+  : '+' { $$ = UNARY_PLUS;    }
+  | '-' { $$ = UNARY_MINUS;   }
+  | '~' { $$ = UNARY_BIT_NOT; }
+  | NOT { $$ = UNARY_LNOT;    }
+  ;
 
-MultiplExpr:
-  UnaryExpr                 { $$ = $1; }
-| MultiplExpr '*' UnaryExpr { $$ = expr_from_binary(BINARY_MULT, $1, $3); }
-| MultiplExpr '/' UnaryExpr { $$ = expr_from_binary(BINARY_DIV, $1, $3);  }
-| MultiplExpr '%' UnaryExpr { $$ = expr_from_binary(BINARY_MOD, $1, $3);  }
-;
+MultiplExpr
+  : UnaryExpr                 { $$ = $1; }
+  | MultiplExpr '*' UnaryExpr { $$ = expr_from_binary(BINARY_MULT, $1, $3); }
+  | MultiplExpr '/' UnaryExpr { $$ = expr_from_binary(BINARY_DIV, $1, $3);  }
+  | MultiplExpr '%' UnaryExpr { $$ = expr_from_binary(BINARY_MOD, $1, $3);  }
+  ;
 
-AddExpr:
-  MultiplExpr             { $$ = $1; }
-| AddExpr '+' MultiplExpr { $$ = expr_from_binary(BINARY_ADD, $1, $3); }
-| AddExpr '-' MultiplExpr { $$ = expr_from_binary(BINARY_SUB, $1, $3); }
-;
+AddExpr
+  : MultiplExpr             { $$ = $1; }
+  | AddExpr '+' MultiplExpr { $$ = expr_from_binary(BINARY_ADD, $1, $3); }
+  | AddExpr '-' MultiplExpr { $$ = expr_from_binary(BINARY_SUB, $1, $3); }
+  ;
 
-ShiftExpr:
-  AddExpr                  { $$ = $1; }
-| ShiftExpr LSHIFT AddExpr { $$ = expr_from_binary(BINARY_LSHIFT, $1, $3); }
-| ShiftExpr RSHIFT AddExpr { $$ = expr_from_binary(BINARY_RSHIFT, $1, $3); }
-;
+ShiftExpr
+  : AddExpr                  { $$ = $1; }
+  | ShiftExpr LSHIFT AddExpr { $$ = expr_from_binary(BINARY_LSHIFT, $1, $3); }
+  | ShiftExpr RSHIFT AddExpr { $$ = expr_from_binary(BINARY_RSHIFT, $1, $3); }
+  ;
 
-RelationExpr:
-  ShiftExpr                  { $$ = $1; }
-| RelationExpr '<' ShiftExpr { $$ = expr_from_binary(BINARY_LT, $1, $3); }
-| RelationExpr '>' ShiftExpr { $$ = expr_from_binary(BINARY_GT, $1, $3); }
-| RelationExpr LE  ShiftExpr { $$ = expr_from_binary(BINARY_LE, $1, $3); }
-| RelationExpr GE  ShiftExpr { $$ = expr_from_binary(BINARY_GE, $1, $3); }
-;
+RelationExpr
+  : ShiftExpr                  { $$ = $1; }
+  | RelationExpr '<' ShiftExpr { $$ = expr_from_binary(BINARY_LT, $1, $3); }
+  | RelationExpr '>' ShiftExpr { $$ = expr_from_binary(BINARY_GT, $1, $3); }
+  | RelationExpr LE  ShiftExpr { $$ = expr_from_binary(BINARY_LE, $1, $3); }
+  | RelationExpr GE  ShiftExpr { $$ = expr_from_binary(BINARY_GE, $1, $3); }
+  ;
 
-EqualityExpr:
-  RelationExpr                 { $$ = $1; }
-| EqualityExpr EQ RelationExpr { $$ = expr_from_binary(BINARY_EQ, $1, $3);  }
-| EqualityExpr NE RelationExpr { $$ = expr_from_binary(BINARY_NEQ, $1, $3); }
-;
+EqualityExpr
+  : RelationExpr                 { $$ = $1; }
+  | EqualityExpr EQ RelationExpr { $$ = expr_from_binary(BINARY_EQ, $1, $3);  }
+  | EqualityExpr NE RelationExpr { $$ = expr_from_binary(BINARY_NEQ, $1, $3); }
+  ;
 
-AndExpr:
-  EqualityExpr             { $$ = $1; }
-| AndExpr '&' EqualityExpr { $$ = expr_from_binary(BINARY_BIT_AND, $1, $3); }
-;
+AndExpr
+  : EqualityExpr             { $$ = $1; }
+  | AndExpr '&' EqualityExpr { $$ = expr_from_binary(BINARY_BIT_AND, $1, $3); }
+  ;
 
-ExclOrExpr:
-  AndExpr                { $$ = $1; }
-| ExclOrExpr '^' AndExpr { $$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);}
-;
+ExclOrExpr
+  : AndExpr                { $$ = $1; }
+  | ExclOrExpr '^' AndExpr { $$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);}
+  ;
 
-InclOrExpr:
-  ExclOrExpr                { $$ = $1; }
-| InclOrExpr '|' ExclOrExpr { $$ = expr_from_binary(BINARY_BIT_OR, $1, $3); }
-;
+InclOrExpr
+  : ExclOrExpr                { $$ = $1; }
+  | InclOrExpr '|' ExclOrExpr { $$ = expr_from_binary(BINARY_BIT_OR, $1, $3); }
+  ;
 
-LogAndExpr:
-  InclOrExpr                { $$ = $1; }
-| LogAndExpr AND InclOrExpr { $$ = expr_from_binary(BINARY_LAND, $1, $3); }
-;
+LogAndExpr
+  : InclOrExpr                { $$ = $1; }
+  | LogAndExpr AND InclOrExpr { $$ = expr_from_binary(BINARY_LAND, $1, $3); }
+  ;
 
-Expr:
-  LogAndExpr         { $$ = $1; }
-| Expr OR LogAndExpr { $$ = expr_from_binary(BINARY_LOR, $1, $3); }
-;
+Expr
+  : LogAndExpr         { $$ = $1; }
+  | Expr OR LogAndExpr { $$ = expr_from_binary(BINARY_LOR, $1, $3); }
+  ;
 
-ExprList:
-  Expr {
+ExprList
+  : Expr {
     $$ = Vector_New();
     Vector_Append($$, $1);
   }
-| ExprList ',' Expr {
+  | ExprList ',' Expr {
     Vector_Append($1, $3);
     $$ = $1;
   }
-;
+  ;
 
-PrimaryExprList:
-  PrimaryExpr {
+PrimaryExprList
+  : PrimaryExpr {
     $$ = Vector_New();
     Vector_Append($$, $1);
   }
-| PrimaryExprList ',' PrimaryExpr {
+  | PrimaryExprList ',' PrimaryExpr {
     Vector_Append($1, $3);
     $$ = $1;
   }
-;
+  ;
 
-Assignment:
-  PrimaryExprList '=' ExprList  { $$ = do_assignments(ps, $1, $3);   }
-| PrimaryExpr CompAssignOp Expr { $$ = stmt_from_assign($1, $2, $3); }
-;
+Assignment
+  : PrimaryExprList '=' ExprList  { $$ = do_assignments(ps, $1, $3);   }
+  | PrimaryExpr CompAssignOp Expr { $$ = stmt_from_assign($1, $2, $3); }
+  ;
 
 /* 组合赋值运算符：算术运算和位运算 */
-CompAssignOp:
-  PLUS_ASSGIN   { $$ = OP_PLUS_ASSIGN;   }
-| MINUS_ASSIGN  { $$ = OP_MINUS_ASSIGN;  }
-| MULT_ASSIGN   { $$ = OP_MULT_ASSIGN;   }
-| DIV_ASSIGN    { $$ = OP_DIV_ASSIGN;    }
-| MOD_ASSIGN    { $$ = OP_MOD_ASSIGN;    }
-| AND_ASSIGN    { $$ = OP_AND_ASSIGN;    }
-| OR_ASSIGN     { $$ = OP_OR_ASSIGN;     }
-| XOR_ASSIGN    { $$ = OP_XOR_ASSIGN;    }
-| RSHIFT_ASSIGN { $$ = OP_RSHIFT_ASSIGN; }
-| LSHIFT_ASSIGN { $$ = OP_LSHIFT_ASSIGN; }
-;
+CompAssignOp
+  : PLUS_ASSGIN   { $$ = OP_PLUS_ASSIGN;   }
+  | MINUS_ASSIGN  { $$ = OP_MINUS_ASSIGN;  }
+  | MULT_ASSIGN   { $$ = OP_MULT_ASSIGN;   }
+  | DIV_ASSIGN    { $$ = OP_DIV_ASSIGN;    }
+  | MOD_ASSIGN    { $$ = OP_MOD_ASSIGN;    }
+  | AND_ASSIGN    { $$ = OP_AND_ASSIGN;    }
+  | OR_ASSIGN     { $$ = OP_OR_ASSIGN;     }
+  | XOR_ASSIGN    { $$ = OP_XOR_ASSIGN;    }
+  | RSHIFT_ASSIGN { $$ = OP_RSHIFT_ASSIGN; }
+  | LSHIFT_ASSIGN { $$ = OP_LSHIFT_ASSIGN; }
+  ;
 
 %%
 
