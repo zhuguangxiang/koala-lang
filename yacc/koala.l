@@ -22,7 +22,8 @@ int Lexer_NeedInsertSemiColon(ParserState *ps)
   static int tokens[] = {
     ID, INT_CONST, FLOAT_CONST, STRING_CONST,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
-    ')', ']', '}'
+    ')', ']', '}',
+    CHAR, BYTE, INTEGER, FLOAT, STRING, BOOL, ANY
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
@@ -76,6 +77,7 @@ L   [a-zA-Z_]
 ">>="                     {RETURN(RSHIFT_ASSIGN);}
 "<<="                     {RETURN(LSHIFT_ASSIGN);}
 "..."                     {RETURN(ELLIPSIS);}
+"**"                      {RETURN(POWER);}
 
 "if"                      {RETURN(IF);}
 "else"                    {RETURN(ELSE);}
@@ -102,6 +104,7 @@ L   [a-zA-Z_]
 "go"                      {RETURN(GO);}
 "defer"                   {RETURN(DEFER);}
 "typealias"               {RETURN(TYPEALIAS);}
+
 "char"                    {RETURN(CHAR);}
 "byte"                    {RETURN(BYTE);}
 "int"                     {RETURN(INTEGER);}
@@ -109,7 +112,6 @@ L   [a-zA-Z_]
 "bool"                    {RETURN(BOOL);}
 "string"                  {RETURN(STRING);}
 "any"                     {RETURN(ANY);}
-"map"                     {RETURN(MAP);}
 
 "self"                    {RETURN(SELF);}
 "super"                   {RETURN(SUPER);}

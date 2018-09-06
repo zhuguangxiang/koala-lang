@@ -51,9 +51,6 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
   struct test_block *testblock;
 }
 
-%token ELLIPSIS
-
-/* 算术运算和位运算 */
 %token TYPELESS_ASSIGN
 %token PLUS_ASSGIN
 %token MINUS_ASSIGN
@@ -65,6 +62,8 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %token XOR_ASSIGN
 %token RSHIFT_ASSIGN
 %token LSHIFT_ASSIGN
+%token POWER
+%token ELLIPSIS
 
 %token EQ
 %token NE
@@ -110,8 +109,6 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %token BOOL
 %token STRING
 %token ANY
-%token <dims> DIMS
-%token MAP
 
 %token SELF
 %token SUPER
@@ -143,7 +140,6 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %type <operator> CompAssignOp
 %type <list> IDList
 %type <list> ExprList
-%type <list> PrimaryExprList
 %type <expr> Expr
 %type <expr> LogAndExpr
 %type <expr> InclOrExpr
@@ -155,7 +151,7 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %type <expr> AddExpr
 %type <expr> MultiplExpr
 %type <expr> UnaryExpr
-%type <expr> PrimaryExpr
+%type <expr> AtomExpr
 %type <expr> ArrayObject
 %type <expr> AnonyFuncObject
 %type <expr> Atom
@@ -595,10 +591,10 @@ LocalStatement
 /*----------------------------------------------------------------------------*/
 
 GoStatement
-  : GO PrimaryExpr '(' ExprList ')' ';' {
+  : GO AtomExpr '(' ExprList ')' ';' {
     $$ = stmt_from_go(expr_from_trailer(CALL_KIND, $4, $2));
   }
-  | GO PrimaryExpr '(' ')' ';' {
+  | GO AtomExpr '(' ')' ';' {
     $$ = stmt_from_go(expr_from_trailer(CALL_KIND, NULL, $2));
   }
   ;
@@ -606,8 +602,8 @@ GoStatement
 /*----------------------------------------------------------------------------*/
 
 IfStatement
-  : IF '(' Expr ')' Block OrElseStatement {
-    $$ = stmt_from_if($3, $5, $6);
+  : IF Expr Block OrElseStatement {
+    $$ = stmt_from_if($2, $3, $4);
     $$->if_stmt.belse = 0;
   }
   ;
@@ -629,11 +625,11 @@ OrElseStatement
 /*----------------------------------------------------------------------------*/
 
 WhileStatement
-  : WHILE '(' Expr ')' Block {
-    $$ = stmt_from_while($3, $5, 1);
+  : WHILE Expr Block {
+    $$ = NULL; //stmt_from_while($2, $3, 1);
   }
-  | DO Block WHILE '(' Expr ')' {
-    $$ = stmt_from_while($5, $2, 0);
+  | DO Block WHILE Expr ';' {
+    $$ = stmt_from_while($4, $2, 0);
   }
   ;
 
@@ -679,27 +675,28 @@ CaseStatement
 /*----------------------------------------------------------------------------*/
 
 ForStatement
-  : FOR '(' ForInit ';' ForTest ';' ForIncr ')' Block {
-    $$ = stmt_from_for($3, $5, $7, $9);
+  : FOR '(' ForTripleCondition ')' Block {
+    $$ = NULL; //stmt_from_for($3, $5, $7, $9);
   }
-  | FOR '(' ID IN Expr ')' Block {
+  | FOR ForInCondition Block {
     //$$ = stmt_from_foreach(new_var($3, NULL), $5, $7, 0);
+    $$ = NULL;
   }
-  | FOR '(' VAR ID IN Expr ')' Block {
-    //$$ = stmt_from_foreach(new_var($4, NULL), $6, $8, 1);
+  | FOR Block {
+    $$ = NULL;
   }
-  | FOR '(' VAR IDList Type IN Expr ')' Block {
-    // if (Vector_Size($4) != 1) {
-    // 	fprintf(stderr, "[ERROR]syntax error, foreach usage\n");
-    // 	exit(0);
-    // } else {
-    // 	struct var *v = Vector_Get($4, 0);
-    // 	assert(v);
-    // 	v->desc = $5;
-    // 	Vector_Free($4, NULL, NULL);
-    // 	$$ = stmt_from_foreach(v, $7, $9, 1);
-    // }
-  }
+  ;
+
+
+ForTripleCondition
+  : ForInit ';' ForTest ';' ForIncr
+  ;
+
+ForInCondition
+  : ForTripleCondition
+  | ExprList IN Range
+  | VAR IDList IN Range
+  | VAR IDList Type IN Range
   ;
 
 ForInit
@@ -712,18 +709,14 @@ ForInit
   | Assignment {
     $$ = $1;
   }
-  | %empty {
-    $$ = NULL;
-  }
+  | %empty {}
   ;
 
 ForTest
   : Expr {
     $$ = stmt_from_expr($1);
   }
-  | %empty {
-    $$ = NULL;
-  }
+  | %empty {}
   ;
 
 ForIncr
@@ -733,9 +726,12 @@ ForIncr
   | Assignment {
     $$ = $1;
   }
-  | %empty {
-    $$ = NULL;
-  }
+  | %empty {}
+  ;
+
+Range
+  : Expr
+  | Expr ELLIPSIS Expr
   ;
 
 /*----------------------------------------------------------------------------*/
@@ -764,26 +760,27 @@ ReturnStatement
 
 /*----------------------------------------------------------------------------*/
 
-PrimaryExpr
+AtomExpr
   : Atom {
     $$ = $1;
   }
-  | PrimaryExpr '.' ID {
+  | AtomExpr '.' ID {
     $$ = expr_from_trailer(ATTRIBUTE_KIND, $3, $1);
   }
-  | PrimaryExpr '[' Expr ']' {
-    $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
-  }
-  | PrimaryExpr '(' ExprList ')' {
+  | AtomExpr '(' ExprList ')' {
     $$ = expr_from_trailer(CALL_KIND, $3, $1);
   }
-  | PrimaryExpr '(' ')' {
+  | AtomExpr '(' ')' {
     $$ = expr_from_trailer(CALL_KIND, NULL, $1);
   }
-  | PrimaryExpr '['  Expr ':' Expr ']' {
+  | AtomExpr '[' Expr ']' {
+    $$ = expr_from_trailer(SUBSCRIPT_KIND, $3, $1);
+  }
+  | AtomExpr '['  Expr ':' Expr ']' {
 
   }
   ;
+
 
 Atom
   : CONSTANT        { $$ = $1; }
@@ -791,7 +788,7 @@ Atom
   | SUPER           { $$ = expr_from_super(); }
   | TYPEOF          { /* $$ = expr_from_typeof(); */ }
   | ID              { $$ = expr_from_id($1); }
-  | '('Expr ')'    { $$ = $2; }
+  | '(' Expr ')'    { $$ = $2; }
   | ArrayObject     { $$ = $1; }
   | DictObject      { }
   | AnonyFuncObject { }
@@ -812,17 +809,13 @@ ArrayObject
   ;
 
 DictObject
-  : '{' KeyValuePairList '}' {}
-  | '{' ':' '}' {}
+  : '[' KVList ']' {}
+  | '[' ':' ']' {}
   ;
 
-KeyValuePair
-  : Expr ':' Expr {}
-  ;
-
-KeyValuePairList
-  : KeyValuePair
-  | KeyValuePairList ',' KeyValuePair
+KVList
+  : Expr ':' Expr
+  | KVList ',' Expr ':' Expr
   ;
 
 AnonyFuncObject
@@ -844,10 +837,12 @@ AnonyFuncObject
   }
   ;
 
+
+
 /*---------------------------------------------------------------------------*/
 
 UnaryExpr
-  : PrimaryExpr       { $$ = $1; }
+  : AtomExpr       { $$ = $1; }
   | UnaryOp UnaryExpr { $$ = expr_from_unary($1, $2); }
   ;
 
@@ -863,6 +858,7 @@ MultiplExpr
   | MultiplExpr '*' UnaryExpr { $$ = expr_from_binary(BINARY_MULT, $1, $3); }
   | MultiplExpr '/' UnaryExpr { $$ = expr_from_binary(BINARY_DIV, $1, $3);  }
   | MultiplExpr '%' UnaryExpr { $$ = expr_from_binary(BINARY_MOD, $1, $3);  }
+  | MultiplExpr POWER UnaryExpr {}
   ;
 
 AddExpr
@@ -927,20 +923,9 @@ ExprList
   }
   ;
 
-PrimaryExprList
-  : PrimaryExpr {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
-  }
-  | PrimaryExprList ',' PrimaryExpr {
-    Vector_Append($1, $3);
-    $$ = $1;
-  }
-  ;
-
 Assignment
-  : PrimaryExprList '=' ExprList  { $$ = do_assignments(ps, $1, $3);   }
-  | PrimaryExpr CompAssignOp Expr { $$ = stmt_from_assign($1, $2, $3); }
+  : ExprList '=' ExprList  { $$ = NULL; }//do_assignments(ps, $1, $3);   }
+  | AtomExpr CompAssignOp Expr { $$ = stmt_from_assign($1, $2, $3); }
   ;
 
 /* 组合赋值运算符：算术运算和位运算 */
@@ -1091,3 +1076,6 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist)
   exp->desc = Type_New_Array(dims, Type_Dup(e0->desc));
   return exp;
 }
+
+
+/******************************************************************************/

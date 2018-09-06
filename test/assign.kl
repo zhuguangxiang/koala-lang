@@ -1,19 +1,52 @@
 
-package test;
+import "koala/io"
 
-import "koala/io";
-
-var ga, gb = 1, "hello koala";
+var ga, gb = 1, "hello koala"
 
 func add(a int, b int) (int, int) {
-  return a + b, a - b;
+  return a + b, a - b
 }
 
 func abs(a int) int {
-  return 0 - a;
+  return 0 - a
 }
 
-func Main(args []string) {
+
+func testifforwhile() {
+  var a, b int
+  if a > b {
+  } else if a < b {
+  } else if (a == b) {
+  } else {
+  }
+
+  while !(a > b) {
+  }
+
+  while a > b {
+  }
+
+  while (a <= b) {
+  }
+
+
+  for ; a > b ; {
+  }
+
+  for (var c int = 0; c < 10; c += 1) {
+  }
+
+  for {
+  }
+
+  for ;; {
+  }
+
+  for a in 1...10 {
+  }
+}
+
+func Main(args [string]) {
   var a = 100;
   var b = 200;
   a = abs(10);
@@ -24,4 +57,3 @@ func Main(args []string) {
   io.Println("ga =", ga);
   io.Println("gb =", gb);
 }
-
