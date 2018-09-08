@@ -5,7 +5,9 @@
 Just for funny, isn't it? Think about a game is written by koala language,
 how fun, very nice.
 * Language Introduction
-
+数组(array)，子数组(slice)，范围(range)
+for循环
+字典，集合
 * Release 0.7.x
 ** 0.7.1
 *** Features

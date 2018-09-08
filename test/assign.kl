@@ -23,37 +23,43 @@ func testifforwhile() {
   while !(a > b) {
   }
 
+  while a > b and c <= d {
+  }
+
+  do {
+    a += 1
+  } while a != b
+
   while a > b {
   }
 
   while (a <= b) {
   }
 
-
-  for ; a > b ; {
+  while true {
   }
 
-  for (var c int = 0; c < 10; c += 1) {
+  for a := 1...10 {
   }
 
-  for {
+  for a := 1..<10 {
   }
 
-  for ;; {
-  }
-
-  for a in 1...10 {
+  for a := array[2:10] {
   }
 }
 
 func Main(args [string]) {
+
   var a = 100;
   var b = 200;
   a = abs(10);
   io.Println("a =", a);
-  a, b = add(1, 2);
   io.Println("a =", a);
   io.Println("b =", b);
   io.Println("ga =", ga);
   io.Println("gb =", gb);
+
+  a, b = 10 + 20, 10 - 29
+  a, b = add(1, 2)
 }

@@ -1,4 +1,0 @@
-* Tasks
-** TODO
-   [2018-07-22 Sun]
-   [[file:~/github.com/koala-lang/TODOs.org::*Koala-Lang%20Development%20Tasks][Koala-Lang Development Tasks]]

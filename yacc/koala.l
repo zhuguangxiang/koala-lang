@@ -78,13 +78,13 @@ L   [a-zA-Z_]
 "<<="                     {RETURN(LSHIFT_ASSIGN);}
 "..."                     {RETURN(ELLIPSIS);}
 "**"                      {RETURN(POWER);}
+"..<"                     {RETURN(DOTDOTLESS);}
 
 "if"                      {RETURN(IF);}
 "else"                    {RETURN(ELSE);}
 "while"                   {RETURN(WHILE);}
 "do"                      {RETURN(DO);}
 "for"                     {RETURN(FOR);}
-"in"                      {RETURN(IN);}
 "switch"                  {RETURN(SWITCH);}
 "case"                    {RETURN(CASE);}
 "fallthrough"             {RETURN(FALLTHROUGH);}
@@ -149,6 +149,10 @@ L   [a-zA-Z_]
 [\n]                      {
                             NEWLINE();
                           }
+
+(\'.\') {
+  printf("character>>>%s\n", yytext);
+}
 
 [\t\r ]+                  {}
 "/*"(([^\*]*(\*[^\/])?)*)"*/"       {}

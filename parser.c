@@ -59,7 +59,7 @@ void Parser_PrintError(ParserState *ps, lineinfo_t *l, char *fmt, ...)
     exit(-1);
   }
 
-  fprintf(stderr, COLOR_LIGHT_WHITE "./%s:%d:%d: " COLOR_NC,
+  fprintf(stderr, COLOR_LIGHT_WHITE "%s:%d:%d: " COLOR_NC,
           ps->filename, l->row, l->col);
 
   va_list ap;
