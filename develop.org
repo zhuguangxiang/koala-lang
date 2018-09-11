@@ -8,6 +8,10 @@ how fun, very nice.
 数组(array)，子数组(slice)，范围(range)
 for循环
 字典，集合
+class, trait
+多重继承 vs MIXIN
+trait 不能有带参数的__init__方法，不能实例化
+class extends Base with A, B {}
 * Release 0.7.x
 ** 0.7.1
 *** Features

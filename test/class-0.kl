@@ -1,0 +1,25 @@
+
+import "koala/io"
+
+trait Run {
+  func run()
+}
+
+trait Fly with Run {
+  func fly()
+}
+
+class Animal {
+  type string
+  age int
+}
+
+class Dog extends Animal with Fly {
+
+}
+
+
+func Main(args [string]) {
+  Dog() with Fly
+  (Dog() with Fly).fly()
+}

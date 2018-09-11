@@ -253,7 +253,7 @@ TypeDesc *Type_Dup(TypeDesc *desc)
 TypeDesc *Type_New_UsrDef(char *path, char *type)
 {
   TypeDesc *desc = type_new(TYPE_USRDEF);
-  desc->usrdef.path = strdup(path);
+  desc->usrdef.path = path ? strdup(path) : NULL;
   desc->usrdef.type = strdup(type);
   return desc;
 }

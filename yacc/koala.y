@@ -191,6 +191,9 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %type <list> TraitMemberDeclarations
 %type <stmt> TraitMemberDeclaration
 
+%precedence ID
+%precedence '.'
+
 %parse-param {ParserState *ps}
 %parse-param {void *scanner}
 %define api.pure full
@@ -301,7 +304,7 @@ ModuleStatement
   | VariableDeclaration ';'   { Parser_New_Vars(ps, $1);         }
   | ConstDeclaration ';'      { Parser_New_Vars(ps, $1);         }
   | FunctionDeclaration       { Parser_New_Func(ps, $1);         }
-  | TypeDeclaration           { Parser_New_ClassOrTrait(ps, $1); }
+  | TypeDeclaration           { }//Parser_New_ClassOrTrait(ps, $1); }
   | TypeAliasDeclaration      { Parser_New_TypeAlias(ps, $1);    }
   | VariableDeclaration error {
     //stmt_free_vardecl_list($1);
@@ -425,12 +428,12 @@ TypeAliasDeclaration
 /*----------------------------------------------------------------------------*/
 
 TypeDeclaration
-  : CLASS ID ExtendsOrEmpty '{' MemberDeclarations '}' {
+  : CLASS ID ExtendsOrEmpty '{' MemberDeclarationsOrEmpty '}' {
     //$$ = $3;
     //$$->class_info.id = $2;
     //$$->class_info.body = $5;
   }
-  | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarations '}' {
+  | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarationsOrEmpty '}' {
     //$$ = stmt_from_trait($2, $3, $5);
   }
   | CLASS ID ExtendsOrEmpty ';' {
@@ -448,22 +451,14 @@ ExtendsOrEmpty
   }
   | EXTENDS UsrDefType WithesOrEmpty {
     //$$ = stmt_new(CLASS_KIND);
-    $$->class_info.super = $2;
-    $$->class_info.traits = $3;
-  }
-  | Traits {
-    //$$ = stmt_new(CLASS_KIND);
-    $$->class_info.traits = $1;
+    //$$->class_info.super = $2;
+    //$$->class_info.traits = $3;
   }
   ;
 
 WithesOrEmpty
-  : %empty {
-    $$ = NULL;
-  }
-  | Traits {
-    $$ = $1;
-  }
+  : %empty { $$ = NULL; }
+  | Traits { $$ = $1;   }
   ;
 
 Traits
@@ -475,6 +470,12 @@ Traits
     Vector_Append($1, $3);
     $$ = $1;
   }
+  ;
+
+
+MemberDeclarationsOrEmpty
+  : %empty
+  | MemberDeclarations
   ;
 
 MemberDeclarations
@@ -495,6 +496,11 @@ MemberDeclaration
   | FunctionDeclaration {
     $$ = $1;
   }
+  ;
+
+TraitMemberDeclarationsOrEmpty
+  : %empty
+  | TraitMemberDeclarations
   ;
 
 TraitMemberDeclarations
@@ -731,7 +737,7 @@ PrimaryExpr
   | PrimaryExpr Selector {
     $$ = expr_from_trailer(ATTRIBUTE_KIND, $2, $1);
   }
-  | PrimaryExpr Arguments {
+  | PrimaryExpr Arguments WithesOrEmpty {
     $$ = expr_from_trailer(CALL_KIND, $2, $1);
   }
   | PrimaryExpr Index {
