@@ -99,11 +99,13 @@ L   [a-zA-Z_]
 "extends"                 {RETURN(EXTENDS);}
 "with"                    {RETURN(WITH);}
 "const"                   {RETURN(CONST);}
+"package"                 {RETURN(PACKAGE);}
 "import"                  {RETURN(IMPORT);}
 "as"                      {RETURN(AS);}
 "go"                      {RETURN(GO);}
 "defer"                   {RETURN(DEFER);}
 "typealias"               {RETURN(TYPEALIAS);}
+"syscall"                 {RETURN(SYSCALL);}
 
 "char"                    {RETURN(CHAR);}
 "byte"                    {RETURN(BYTE);}

@@ -103,7 +103,7 @@ int TValue_Check_TypeDesc(TValue *val, TypeDesc *desc);
 /*---------------------------------------------------------------------------*/
 
 #define OBJECT_HEAD \
-  Object *ob_next; int ob_ref; Klass *ob_klass; \
+  Object *ob_next; int ob_marked; Klass *ob_klass; \
   Object *ob_base; Object *ob_head; int ob_size;
 
 struct object {

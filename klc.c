@@ -1369,7 +1369,7 @@ struct item_funcs item_func[ITEM_MAX] = {
 
 /*-------------------------------------------------------------------------*/
 
-static void init_header(ImageHeader *h)
+static void init_header(ImageHeader *h, char *pkgname)
 {
   strcpy((char *)h->magic, "KLC");
   h->version[0] = '0' + version_major;
@@ -1381,6 +1381,7 @@ static void init_header(ImageHeader *h)
   h->endian_tag  = ENDIAN_TAG;
   h->map_offset  = sizeof(ImageHeader);
   h->map_size    = ITEM_MAX;
+  strcpy(h->pkgname, pkgname);
 }
 
 uint32 item_hash(void *key)
@@ -1413,19 +1414,19 @@ void item_free(int type, void *data, void *arg)
   return fn(data);
 }
 
-void KImage_Init(KImage *image)
+void KImage_Init(KImage *image, char *pkgname)
 {
-  init_header(&image->header);
+  init_header(&image->header, pkgname);
   HashInfo hashinfo;
   Init_HashInfo(&hashinfo, item_hash, item_equal);
   image->table = AtomTable_New(&hashinfo, ITEM_MAX);
 }
 
-KImage *KImage_New(void)
+KImage *KImage_New(char *pkgname)
 {
   KImage *image = malloc(sizeof(KImage));
   memset(image, 0, sizeof(KImage));
-  KImage_Init(image);
+  KImage_Init(image, pkgname);
   return image;
 }
 
@@ -1648,7 +1649,7 @@ KImage *KImage_Read_File(char *path)
     return NULL;
   }
 
-  KImage *image = KImage_New();
+  KImage *image = KImage_New(header.pkgname);
   assert(image);
   image->header = header;
 
@@ -1889,13 +1890,13 @@ void AtomTable_Show(AtomTable *table)
 
 void KImage_Show(KImage *image)
 {
-#if SHOW_ENABLED
+#if 1
   if (!image) return;
 
   ImageHeader *h = &image->header;
   header_show(h);
 
-  printf("package:%s\n", image->package);
+  printf("package:%s\n", image->header.pkgname);
 
   AtomTable_Show(image->table);
 #else

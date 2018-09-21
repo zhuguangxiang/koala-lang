@@ -8,7 +8,7 @@
 
 /*----------------------------------------------------------------------------*/
 
-#if 0 //LOG_DEBUG
+#if 1
 #define YYERROR_VERBOSE 1
 static int yyerror(ParserState *ps, void *scanner, const char *errmsg)
 {
@@ -97,12 +97,14 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %token EXTENDS
 %token WITH
 %token CONST
+%token PACKAGE
 %token IMPORT
 %token AS
 %token GO
 %token DEFER
 %token NEWLINE
 %token TYPEALIAS
+%token SYSCALL
 
 %token CHAR
 %token BYTE
@@ -181,6 +183,7 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %type <stmt> FunctionDeclaration
 %type <stmt> TypeDeclaration
 %type <stmt> TypeAliasDeclaration
+%type <list> MemberDeclarationsOrEmpty
 %type <list> MemberDeclarations
 %type <stmt> MemberDeclaration
 %type <stmt> FieldDeclaration
@@ -188,6 +191,7 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %type <stmt> ExtendsOrEmpty
 %type <list> WithesOrEmpty
 %type <list> Traits
+%type <list> TraitMemberDeclarationsOrEmpty
 %type <list> TraitMemberDeclarations
 %type <stmt> TraitMemberDeclaration
 
@@ -275,8 +279,14 @@ TypeList
 /*----------------------------------------------------------------------------*/
 
 CompileUnit
-  : Imports ModuleStatements
-  | ModuleStatements
+  : Package Imports ModuleStatements
+  | Package ModuleStatements
+  ;
+
+Package
+  : PACKAGE ID ';'   { Parser_Set_Package(ps, $2);             }
+  | PACKAGE ID error { syntax_error(";"); exit(-1);            }
+  | PACKAGE error    { syntax_error("package-name"); exit(-1); }
   ;
 
 Imports
@@ -304,7 +314,7 @@ ModuleStatement
   | VariableDeclaration ';'   { Parser_New_Vars(ps, $1);         }
   | ConstDeclaration ';'      { Parser_New_Vars(ps, $1);         }
   | FunctionDeclaration       { Parser_New_Func(ps, $1);         }
-  | TypeDeclaration           { }//Parser_New_ClassOrTrait(ps, $1); }
+  | TypeDeclaration           { Parser_New_ClassOrTrait(ps, $1); }
   | TypeAliasDeclaration      { Parser_New_TypeAlias(ps, $1);    }
   | VariableDeclaration error {
     //stmt_free_vardecl_list($1);
@@ -429,30 +439,30 @@ TypeAliasDeclaration
 
 TypeDeclaration
   : CLASS ID ExtendsOrEmpty '{' MemberDeclarationsOrEmpty '}' {
-    //$$ = $3;
-    //$$->class_info.id = $2;
-    //$$->class_info.body = $5;
+    $$ = $3;
+    $$->class_info.id = $2;
+    $$->class_info.body = $5;
   }
   | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarationsOrEmpty '}' {
-    //$$ = stmt_from_trait($2, $3, $5);
+    $$ = stmt_from_trait($2, $3, $5);
   }
   | CLASS ID ExtendsOrEmpty ';' {
-    //$$ = $3;
-    //$$->class_info.id = $2;
+    $$ = $3;
+    $$->class_info.id = $2;
   }
   | TRAIT ID WithesOrEmpty ';' {
-    //$$ = stmt_from_trait($2, $3, NULL);
+    $$ = stmt_from_trait($2, $3, NULL);
   }
   ;
 
 ExtendsOrEmpty
   : %empty {
-    //$$ = stmt_new(CLASS_KIND);
+    $$ = stmt_new(CLASS_KIND);
   }
   | EXTENDS UsrDefType WithesOrEmpty {
-    //$$ = stmt_new(CLASS_KIND);
-    //$$->class_info.super = $2;
-    //$$->class_info.traits = $3;
+    $$ = stmt_new(CLASS_KIND);
+    $$->class_info.super = $2;
+    $$->class_info.traits = $3;
   }
   ;
 
@@ -474,8 +484,8 @@ Traits
 
 
 MemberDeclarationsOrEmpty
-  : %empty
-  | MemberDeclarations
+  : %empty             { $$ = NULL; }
+  | MemberDeclarations { $$ = $1;   }
   ;
 
 MemberDeclarations
@@ -499,8 +509,8 @@ MemberDeclaration
   ;
 
 TraitMemberDeclarationsOrEmpty
-  : %empty
-  | TraitMemberDeclarations
+  : %empty                  { $$ = NULL; }
+  | TraitMemberDeclarations { $$ = $1;   }
   ;
 
 TraitMemberDeclarations
@@ -778,6 +788,7 @@ Atom
   | ArrayExpr       { $$ = $1; }
   | DictExpr        { }
   | AnonyFuncExpr   { }
+  | SysCallExpr     { }
   ;
 
 CONSTANT
@@ -825,6 +836,10 @@ AnonyFuncExpr
     syntax_error_clear("invalid anonymous function");
     $$ = NULL;
   }
+  ;
+
+SysCallExpr
+  : SYSCALL '(' ExprList ')'
   ;
 
 /*---------------------------------------------------------------------------*/

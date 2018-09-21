@@ -204,10 +204,7 @@ static void codeblock_show(CodeBlock *block)
 #endif
 
 /*-------------------------------------------------------------------------*/
-static void parser_enter_scope(ParserState *ps, STable *stbl, int scope);
-static void parser_exit_scope(ParserState *ps);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
-static void parser_body(ParserState *ps, Vector *stmts);
 static ParserUnit *get_class_unit(ParserState *ps);
 static void parser_vist_stmt(ParserState *ps, stmt_t *stmt);
 
@@ -524,6 +521,7 @@ static void parse_funcdecl(ParserState *ps, stmt_t *stmt)
     sym->up = ps->u->sym;
   } else {
     debug("add func '%s' failed", stmt->func.id);
+    PSError("%s redeclared in the package %s", stmt->func.id, ps->pkg->pkgname);
   }
 }
 
@@ -770,6 +768,7 @@ static void parser_merge(ParserState *ps)
       u->block = NULL;
     }
   } else if (u->scope == SCOPE_MODULE) {
+    #if 0
     TypeDesc *proto = Type_New_Proto(NULL, NULL);
     Symbol *sym = STable_Add_Proto(u->stbl, "__init__", proto);
     assert(sym);
@@ -784,6 +783,7 @@ static void parser_merge(ParserState *ps)
     u->sym = sym;
     u->block = NULL;
     debug("save code to module '__init__' function");
+    #endif
   } else if (u->scope == SCOPE_CLASS) {
 
     if (u->block && u->block->bytes > 0) {
@@ -881,7 +881,7 @@ static void parser_free_unit(ParserUnit *u)
   free(u);
 }
 
-static void parser_enter_scope(ParserState *ps, STable *stbl, int scope)
+void parser_enter_scope(ParserState *ps, STable *stbl, int scope)
 {
   AtomTable *atbl = NULL;
   if (ps->u) atbl = ps->u->stbl->atbl;
@@ -897,7 +897,7 @@ static void parser_enter_scope(ParserState *ps, STable *stbl, int scope)
   parser_new_block(ps->u);
 }
 
-static void parser_exit_scope(ParserState *ps)
+void parser_exit_scope(ParserState *ps)
 {
   parser_show_scope(ps);
 
@@ -3033,7 +3033,7 @@ static void parser_vist_stmt(ParserState *ps, stmt_t *stmt)
   }
 }
 
-static void parser_body(ParserState *ps, Vector *stmts)
+void parser_body(ParserState *ps, Vector *stmts)
 {
   if (!stmts) return;
 
@@ -3043,18 +3043,40 @@ static void parser_body(ParserState *ps, Vector *stmts)
   }
 }
 
-/*--------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
-ParserState *new_parser(void *filename)
+PackageInfo *New_PackageInfo(char *pkgfile)
+{
+  PackageInfo *pkg = calloc(1, sizeof(PackageInfo));
+  pkg->pkgfile = pkgfile;
+  pkg->sym = Symbol_New(SYM_MODULE);
+  pkg->sym->ptr = STable_New(NULL);
+  return pkg;
+}
+
+void Parser_Set_Package(ParserState *ps, char *pkgname)
+{
+  PackageInfo *pkg = ps->pkg;
+  assert(pkg);
+  if (!pkg->pkgname) {
+    pkg->pkgname = pkgname;
+  } else {
+    if (strcmp(pkg->pkgname, pkgname)) {
+      PSError("found existed packages %s and %s in %s", pkg->pkgname, pkgname,
+      ps->filename);
+    }
+  }
+}
+
+ParserState *new_parser(PackageInfo *pkg, char *filename)
 {
   ParserState *ps = calloc(1, sizeof(ParserState));
-  ps->filename = filename;
   yylex_init_extra(ps, &ps->scanner);
   Vector_Init(&ps->stmts);
   init_imports(ps);
-  Symbol *sym = Symbol_New(SYM_MODULE);
-  sym->ptr = STable_New(NULL);
-  ps->sym = sym;
+  ps->filename = filename;
+  ps->pkg = pkg;
+  ps->sym = pkg->sym;
   init_list_head(&ps->ustack);
   Vector_Init(&ps->errors);
   return ps;

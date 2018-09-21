@@ -235,6 +235,7 @@ struct stmt {
   };
 };
 
+stmt_t *stmt_new(int kind);
 stmt_t *stmt_from_var(char *id, TypeDesc *desc, expr_t *exp, int konst);
 stmt_t *stmt_from_varlist(Vector *ids, TypeDesc *desc, expr_t *exp, int konst);
 stmt_t *stmt_from_func(char *id, Vector *args, Vector *rets, Vector *body);

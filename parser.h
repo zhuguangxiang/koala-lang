@@ -98,10 +98,26 @@ typedef struct parserunit {
   Vector jmps;
 } ParserUnit;
 
+/*
+ * one package includes many koala source files.
+ * These files must be the same package name.
+ */
+typedef struct packageinfo {
+  char *pkgfile;     /* package saved in pkgfile */
+  char *pkgname;     /* package name */
+  Symbol *sym;       /* it's type is pacakge, includes all symbols */
+} PackageInfo;
+
+PackageInfo *New_PackageInfo(char *pkgfile);
+
 #define MAX_ERRORS 8
 
+/*
+ * one compiling module(file) has one ParserState
+ */
 typedef struct parserstate {
-  char *filename;     /* compile file's name */
+  char *filename;     /* file name for this module */
+  PackageInfo *pkg;   /* package ptr, all modules have the same pacakge */
   void *scanner;      /* lexer pointer */
   LineBuffer line;    /* input line buffer */
   Vector stmts;       /* all statements */
@@ -118,10 +134,14 @@ typedef struct parserstate {
   Vector errors;      /* error messages */
 } ParserState;
 
-ParserState *new_parser(void *filename);
+void Parser_Set_Package(ParserState *ps, char *pkgname);
+ParserState *new_parser(PackageInfo *pkg, char *filename);
 void destroy_parser(ParserState *ps);
-void parser_module(ParserState *ps, FILE *in);
+void parser_body(ParserState *ps, Vector *stmts);
+void parser_enter_scope(ParserState *ps, STable *stbl, int scope);
+void parser_exit_scope(ParserState *ps);
 void Parser_PrintError(ParserState *ps, lineinfo_t *line, char *fmt, ...);
+void check_unused_imports(ParserState *ps);
 
 // API used by lex
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
