@@ -75,5 +75,5 @@
 	"editor.cursorStyle": "line",
 	"terminal.integrated.scrollback": 5000,
 	"terminal.integrated.rendererType": "dom",
-	"window.zoomLevel": 0.2
+	"window.zoomLevel": 0
 }
