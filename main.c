@@ -122,7 +122,8 @@ static int cmd_build(char *argv[], int size)
   struct stat sb;
   if (lstat(input, &sb) == - 1) {
     printf("%s: invalid filename\n", input);
-    return 0;
+    exit(EBADF);
+    return -1;
   }
 
   if (!S_ISDIR(sb.st_mode)) {
@@ -144,6 +145,8 @@ static int cmd_build(char *argv[], int size)
   printf("path:%s\n", output);
 
   Koala_Initialize();
+  Koala_Env_Append("koala.path", "../pkg/");
+
   Vector vec;
   Vector_Init(&vec);
 

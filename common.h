@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <sys/wait.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -29,6 +29,7 @@ koala_lex.o koala_yacc.o
 
 .PHONY: all
 all: koala
+	@cp koala ~/.local/bin
 
 libkoala.a: $(KOALA_OBJS)
 	@echo "	[AR]	$@"

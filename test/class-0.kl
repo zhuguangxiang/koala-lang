@@ -1,4 +1,6 @@
 
+package test
+
 import "koala/io"
 
 trait Run {

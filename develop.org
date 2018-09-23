@@ -12,10 +12,28 @@ class, trait
 trait 不能有带参数的__init__方法，不能实例化
 class extends Base with A, B {}
 包：一个功能的集合，可以由一个或者多个文件组成。
-每一个源码都属于某一个包，有相同包名的源码可以互相访问其成员，不受文件中符号的权限限制。
-同一个包中的不同文件中的符号不能相同。包和C++中的名字空间类似，是一个抽象的概念，没有文件名或者目录名对应。
-包和路经，一个包可以部署到不同路经下，导入包的时候需要指定到具体包，这里区分了部署形态和包（源码）形态。
+每一个源码都属于某一个包，有相同包名的源码可以互相访问其成员，
+不受文件中符号的权限限制。
+同一个包中的不同文件中的符号不能相同。包和C++中的名字空间类似，是一个抽象的概念，
+没有文件名或者目录名对应。
+包和路经，一个包可以部署到不同路经下，导入包的时候需要指定到具体包，
+这里区分了部署形态和包（源码）形态。
 
+- Project And Compile
+
+#+BEGIN_SRC
+demoprj
+  |-- src
+  |-- test
+  |-- target
+        |-- pkg
+        |-- test-pkg
+  |-- .karfile
+#+END_SRC
+
+> koalac foo/bar -o foo/xxx.klc -klc ../pkg;/home/koala/pkg -kar xx.kar;/home/yy.kar
+> koala app -klc ../pkg;/home/koala/pkg -kar xx.kar;/home/yy.kar
+> kar pkg/ -o demo-v1.2.3.kar
 
 * Release 0.7.x
 ** 0.7.1

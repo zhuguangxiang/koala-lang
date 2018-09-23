@@ -1,0 +1,8 @@
+
+package bar
+
+import "koala/io"
+
+func AddBar(a int, b int) int {
+  return a + b
+}

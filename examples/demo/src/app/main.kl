@@ -1,0 +1,15 @@
+/*
+  This test is 'hello, world' program
+ */
+
+package main
+
+import "koala/io"
+import fo "foo"
+
+func main(args [string]) {
+  io.Print("hello, world\n")
+  io.Print("1000 + 200 =", fo.Add(1000, 200))
+  io.Print("100 - 200 =", fo.Sub(100, 200))
+  return
+}

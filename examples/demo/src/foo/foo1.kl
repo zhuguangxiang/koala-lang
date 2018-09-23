@@ -1,0 +1,8 @@
+
+package foo
+
+import baz "foo/baz"
+
+func Add(a int, b int) int {
+  return baz.AddBaz(a, b)
+}

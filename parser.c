@@ -421,10 +421,29 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
   }
   Object *ob = Koala_Load_Module(path);
   if (!ob) {
-    error("load module '%s' failed", path);
-    HashTable_Remove(&ps->imports, &import->hnode);
-    import_free(import);
-    return NULL;
+    warn("load modulef '%s' failed, try to compile it", path);
+    pid_t pid = fork();
+    if (pid == 0) {
+      debug("child process %d", getpid());
+      execlp("koala", "koala", "build", path, NULL);
+      assert(0); //not go here
+    }
+    int status = 0;
+    pid = wait(&status);
+    debug("child process %d return status:%d", pid, status);
+    if (WIFEXITED(status)) {
+      printf("error: child process %d\n", pid);
+      printf("error: %s\n", strerror(WEXITSTATUS(status)));
+      exit(-1);
+    }
+    ob = Koala_Load_Module(path);
+    if (!ob) {
+      error("load module '%s' failed", path);
+      HashTable_Remove(&ps->imports, &import->hnode);
+      import_free(import);
+      exit(-1);
+      return NULL;
+    }
   }
   if (!id) id = Module_Name(ob);
   sym = add_import(ps->extstbl, id, path);

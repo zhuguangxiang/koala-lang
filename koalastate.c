@@ -634,6 +634,11 @@ static void Init_Environment(void)
   Properties_Put(&gs.config, "koala.path", path);
 }
 
+void Koala_Env_Append(char *key, char *value)
+{
+  Properties_Put(&gs.config, key, value);
+}
+
 static void Init_Modules(void)
 {
   /* koala/lang.klc */
