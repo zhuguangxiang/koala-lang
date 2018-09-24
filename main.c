@@ -16,12 +16,19 @@ static void help_run(void);
 static void help_install(void);
 static void help_help(void);
 static void help_version(void);
+static void help_archive(void)
+{
+}
 
 static int cmd_build(char *argv[], int size);
 static int cmd_run(char *argv[], int size);
 static int cmd_install(char *argv[], int size);
 static int cmd_help(char *argv[], int size);
 static int cmd_version(char *argv[], int size);
+static int cmd_archive(char *argv[], int size)
+{
+  return 0;
+}
 
 struct command {
   char *name;
@@ -42,14 +49,20 @@ struct command {
     cmd_help
   },
   {
+    "archive",
+    "archive pacakges into .kar",
+    help_archive,
+    cmd_archive
+  },
+  {
     "install",
-    "compile and install packages and dependencies",
+    "build, ar and install Koala archive",
     help_install,
     cmd_install
   },
   {
     "run",
-    "compile and run Koala program",
+    "run Koala program",
     help_run,
     cmd_run
   },
@@ -167,25 +180,21 @@ static int cmd_build(char *argv[], int size)
       continue;
     }
     ps = new_parser(pkg, dent->d_name);
-    parser_enter_scope(ps, ps->sym->ptr, SCOPE_MODULE);
-    ps->u->sym = ps->sym;
+    //parser_enter_scope(ps, ps->sym->ptr, SCOPE_MODULE);
+    //ps->u->sym = ps->sym;
     yyset_in(in, ps->scanner);
     yyparse(ps, ps->scanner);
     fclose(in);
-    if (ps->errnum <= 0) {
-      Vector_Append(&vec, ps);
-    } else {
-      errnum += ps->errnum;
-      destroy_parser(ps);
-    }
+    Vector_Append(&vec, ps);
+    errnum += ps->errnum;
   }
   closedir(dir);
 
   Vector_ForEach(ps, &vec) {
-    parser_body(ps, &ps->stmts);
-    check_unused_imports(ps);
-    parser_exit_scope(ps);
-    //destroy_parser(ps);
+    if (ps->errnum <= 0)
+      parser_body(ps, &ps->stmts);
+    //parser_exit_scope(ps);
+    destroy_parser(ps);
   }
 
   if (errnum <= 0) {

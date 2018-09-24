@@ -328,7 +328,7 @@ static void __import_free_fn(HashNode *hnode, void *arg)
 static void fini_imports(ParserState *ps)
 {
   HashTable_Fini(&ps->imports, __import_free_fn, NULL);
-  STable_Free(ps->extstbl);
+  //STable_Free(ps->extstbl);
 }
 
 /*-------------------------------------------------------------------------*/
@@ -432,9 +432,9 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
     pid = wait(&status);
     debug("child process %d return status:%d", pid, status);
     if (WIFEXITED(status)) {
-      printf("error: child process %d\n", pid);
-      printf("error: %s\n", strerror(WEXITSTATUS(status)));
-      exit(-1);
+      int exitstatus = WEXITSTATUS(status);
+      debug("child process %d: %s\n", pid, strerror(exitstatus));
+      if (exitstatus) exit(-1);
     }
     ob = Koala_Load_Module(path);
     if (!ob) {
@@ -722,8 +722,8 @@ static void parser_show_scope(ParserState *ps)
 
 static void parser_new_block(ParserUnit *u)
 {
+  if (u->block) return;
   CodeBlock *block = codeblock_new();
-  assert(!u->block);
   u->block = block;
 }
 
@@ -940,8 +940,8 @@ void parser_exit_scope(ParserState *ps)
     debug(">>>> exit scope:%d", u->scope);
   }
 
+  assert(ps->u != &ps->pkg->top);
   parser_free_unit(u);
-
   ps->nestlevel--;
 
   /* Restore c->u to the parent unit. */
@@ -3070,6 +3070,7 @@ PackageInfo *New_PackageInfo(char *pkgfile)
   pkg->pkgfile = pkgfile;
   pkg->sym = Symbol_New(SYM_MODULE);
   pkg->sym->ptr = STable_New(NULL);
+  parser_init_unit(&pkg->top, pkg->sym->ptr, SCOPE_MODULE);
   return pkg;
 }
 
@@ -3098,11 +3099,18 @@ ParserState *new_parser(PackageInfo *pkg, char *filename)
   ps->sym = pkg->sym;
   init_list_head(&ps->ustack);
   Vector_Init(&ps->errors);
+  ps->u = &pkg->top;
+  ps->nestlevel++;
+  parser_new_block(ps->u);
+  ps->u->sym = ps->sym;
   return ps;
 }
 
 void destroy_parser(ParserState *ps)
 {
+  parser_show_scope(ps);
+  check_unused_symbols(ps);
+  assert(ps->u == &ps->pkg->top);
   vec_stmt_fini(&ps->stmts);
   fini_imports(ps);
   yylex_destroy(ps->scanner);

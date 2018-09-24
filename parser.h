@@ -99,13 +99,14 @@ typedef struct parserunit {
 } ParserUnit;
 
 /*
- * one package includes many koala source files.
+ * per one package which includes all source files in the same directory.
  * These files must be the same package name.
  */
 typedef struct packageinfo {
   char *pkgfile;     /* package saved in pkgfile */
   char *pkgname;     /* package name */
   Symbol *sym;       /* it's type is pacakge, includes all symbols */
+  ParserUnit top;    /* top unit for all parserstate */
 } PackageInfo;
 
 PackageInfo *New_PackageInfo(char *pkgfile);
@@ -113,7 +114,7 @@ PackageInfo *New_PackageInfo(char *pkgfile);
 #define MAX_ERRORS 8
 
 /*
- * one compiling module(file) has one ParserState
+ * ParserState per one source file
  */
 typedef struct parserstate {
   char *filename;     /* file name for this module */
