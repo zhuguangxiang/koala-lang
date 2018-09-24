@@ -4,6 +4,7 @@
 
 #include "printcolor.h"
 #include "ast.h"
+#include "options.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -115,9 +116,10 @@ typedef struct packageinfo {
   Symbol *sym;       /* it's type is pacakge, includes all symbols */
   ParserUnit top;    /* top unit for all parserstate */
   HashTable expkgs;  /* external packages, path as key */
+  struct options *options;
 } PackageInfo;
 
-PackageInfo *New_PackageInfo(char *pkgfile);
+PackageInfo *New_PackageInfo(char *pkgfile, struct options *ops);
 
 #define MAX_ERRORS 8
 

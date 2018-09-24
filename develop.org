@@ -31,9 +31,10 @@ demoprj
   |-- .karfile
 #+END_SRC
 
-> koalac foo/bar -o foo/xxx.klc -klc ../pkg;/home/koala/pkg -kar xx.kar;/home/yy.kar
-> koala app -klc ../pkg;/home/koala/pkg -kar xx.kar;/home/yy.kar
-> kar pkg/ -o demo-v1.2.3.kar
+delimiter for -klc and -kar options are both : and ;
+> koalac -pkg foo/bar -out pkg/ -klc ../pkg;/home/koala/pkg -kar xx.kar:/home/yy.kar
+> koala -pkg app -args 12:wahoho -klc ../pkg;/home/koala/pkg -kar xx.kar;/home/yy.kar
+> kar -pkg ./pkg/ -out demo-v1.2.3.kar
 
 * Release 0.7.x
 ** 0.7.1

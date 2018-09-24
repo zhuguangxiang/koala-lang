@@ -446,7 +446,12 @@ struct extpkg *load_extpkg(ParserState *ps, char *path, int *exist)
     pid_t pid = fork();
     if (pid == 0) {
       debug("child process %d", getpid());
-      execlp("koala", "koala", "build", path, NULL);
+      execlp("koalac", "koalac",
+             "-pkg", path,
+             "-out", ps->pkg->options->outpkg,
+             "-klc", ps->pkg->options->klc,
+             "-kar", "none",
+             NULL);
       assert(0); //not go here
     }
     int status = 0;
@@ -3116,7 +3121,7 @@ void parser_body(ParserState *ps, Vector *stmts)
 
 /*----------------------------------------------------------------------------*/
 
-PackageInfo *New_PackageInfo(char *pkgfile)
+PackageInfo *New_PackageInfo(char *pkgfile, struct options *ops)
 {
   PackageInfo *pkg = calloc(1, sizeof(PackageInfo));
   pkg->pkgfile = pkgfile;
@@ -3124,6 +3129,7 @@ PackageInfo *New_PackageInfo(char *pkgfile)
   pkg->sym->ptr = STable_New(NULL);
   parser_init_unit(&pkg->top, pkg->sym->ptr, SCOPE_MODULE);
   init_extpkg_hashtable(&pkg->expkgs);
+  pkg->options = ops;
   return pkg;
 }
 

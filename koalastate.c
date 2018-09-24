@@ -9,6 +9,7 @@
 #include "klc.h"
 #include "log.h"
 #include "koalastate.h"
+#include "listobject.h"
 
 struct mod_entry {
   HashNode hnode;
@@ -597,21 +598,26 @@ Object *Koala_Load_Module(char *path)
   else return ob;
 }
 
-Object *Koala_Run(char *path, char *func, ...)
+Object *Koala_Run(char *path, char *func, Vector *args)
 {
   Object *mo = Koala_Load_Module(path);
   if (!mo) return NULL;
   Object *code = Module_Get_Function(mo, func);
   if (code) {
-    Object *args = NULL;
+//FIXME: check function's arguments
+    Object *list = List_New(&String_Klass);
+    char *str;
+    TValue val;
+    Vector_ForEach(str, args) {
+      setobjvalue(&val, String_New(str));
+      List_Set(list, i, &val);
+    }
 
-    va_list ap;
-    va_start(ap, func);
-    char *fmt = va_arg(ap, char *);
-    if (fmt && *fmt) args = Tuple_Va_Build(fmt, &ap);
-    va_end(ap);
+    Object *tuple = Tuple_New(1);
+    setobjvalue(&val, list);
+    Tuple_Set(tuple, 0, &val);
 
-    Object *res = Koala_Run_Code(code, mo, args);
+    Object *res = Koala_Run_Code(code, mo, tuple);
     GC_Run();
     return res;
   } else {
@@ -625,6 +631,7 @@ Object *Koala_Run(char *path, char *func, ...)
 static void Init_Environment(void)
 {
   Properties_Init(&gs.config);
+#if 0
   Properties_Put(&gs.config, "koala.path", "./");
   char *home = getenv("HOME");
   char *repo = "/.koala-repo/";
@@ -632,6 +639,7 @@ static void Init_Environment(void)
   strcpy(path, home);
   strcat(path, repo);
   Properties_Put(&gs.config, "koala.path", path);
+#endif
 }
 
 void Koala_Env_Append(char *key, char *value)
