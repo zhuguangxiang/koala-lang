@@ -4,6 +4,7 @@
 
 #include "printcolor.h"
 #include "ast.h"
+#include "options.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -98,14 +99,41 @@ typedef struct parserunit {
   Vector jmps;
 } ParserUnit;
 
+struct extpkg {
+  HashNode hnode;
+  char *path;
+  STable *stbl;
+  char *id;
+};
+
+/*
+ * per one package which includes all source files in the same directory.
+ * These files must be the same package name.
+ */
+typedef struct packageinfo {
+  char *pkgfile;     /* package saved in pkgfile */
+  char *pkgname;     /* package name */
+  Symbol *sym;       /* it's type is pacakge, includes all symbols */
+  ParserUnit top;    /* top unit for all parserstate */
+  HashTable expkgs;  /* external packages, path as key */
+  struct options *options;
+} PackageInfo;
+
+PackageInfo *New_PackageInfo(char *pkgfile, struct options *ops);
+void parse_module_scope(PackageInfo *pkg);
+
 #define MAX_ERRORS 8
 
+/*
+ * ParserState per one source file
+ */
 typedef struct parserstate {
-  char *filename;     /* compile file's name */
+  char *filename;     /* file name for this module */
+  PackageInfo *pkg;   /* package ptr, all modules have the same pacakge */
   void *scanner;      /* lexer pointer */
   LineBuffer line;    /* input line buffer */
   Vector stmts;       /* all statements */
-  char *package;      /* package name */
+  int lastToken;      /* save last token for if inserted semicolon or not */
   HashTable imports;  /* external types */
   STable *extstbl;    /* external symbol table */
   Symbol *sym;        /* current module's symbol */
@@ -118,10 +146,14 @@ typedef struct parserstate {
   Vector errors;      /* error messages */
 } ParserState;
 
-ParserState *new_parser(void *filename);
+void Parser_Set_Package(ParserState *ps, char *pkgname);
+ParserState *new_parser(PackageInfo *pkg, char *filename);
 void destroy_parser(ParserState *ps);
-void parser_module(ParserState *ps, FILE *in);
+void parser_body(ParserState *ps, Vector *stmts);
+void parser_enter_scope(ParserState *ps, STable *stbl, int scope);
+void parser_exit_scope(ParserState *ps);
 void Parser_PrintError(ParserState *ps, lineinfo_t *line, char *fmt, ...);
+void check_unused_imports(ParserState *ps);
 
 // API used by lex
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
@@ -141,10 +173,6 @@ void Lexer_DoUserAction(ParserState *ps, char *text);
 } while (0)
 
 // Exported API
-static inline void Parser_Set_Package(ParserState *ps, char *name)
-{
-  ps->package = name;
-}
 
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path);
 void Parser_New_Vars(ParserState *ps, struct stmt *stmt);

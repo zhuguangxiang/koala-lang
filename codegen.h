@@ -17,7 +17,7 @@ void Inst_Gen(AtomTable *atbl, Buffer *buf, Inst *i);
 
 void codegen_binary(ParserState *ps, int op);
 void codegen_unary(ParserState *ps, int op);
-void codegen_klc(ParserState *ps, char *out);
+void codegen_klc(PackageInfo *pkg);
 
 #ifdef __cplusplus
 }

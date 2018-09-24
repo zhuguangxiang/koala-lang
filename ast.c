@@ -159,7 +159,7 @@ expr_t *expr_get_rrexp(expr_t *exp)
 
 /*--------------------------------------------------------------------------*/
 
-static inline stmt_t *stmt_new(int kind)
+stmt_t *stmt_new(int kind)
 {
   stmt_t *stmt = calloc(1, sizeof(stmt_t));
   stmt->kind = kind;
@@ -269,8 +269,7 @@ stmt_t *stmt_from_jump(int kind, int level)
   return stmt;
 }
 
-stmt_t *stmt_from_if(expr_t *test, Vector *body,
-  stmt_t *orelse)
+stmt_t *stmt_from_if(expr_t *test, Vector *body, stmt_t *orelse)
 {
   stmt_t *stmt = stmt_new(IF_KIND);
   stmt->if_stmt.test = test;

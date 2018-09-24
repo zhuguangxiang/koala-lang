@@ -23,10 +23,10 @@ Object *Koala_Load_Module(char *path);
 Klass *Koala_Get_Klass(Object *ob, char *path, char *type);
 void Koala_Initialize(void);
 void Koala_Finalize(void);
-//void Koala_Run(char *path, char *func);
-Object *Koala_Run(char *path, char *func, ...);
+Object *Koala_Run(char *path, char *func, Vector *args);
 void Koala_Collect_Modules(Vector *vec);
 Object *Koala_Run_Code(Object *code, Object *ob, Object *args);
+void Koala_Env_Append(char *key, char *value);
 
 #ifdef __cplusplus
 }

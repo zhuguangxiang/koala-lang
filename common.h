@@ -11,6 +11,9 @@
 #include <stdarg.h>
 #include <stddef.h> /* stddef.h - standard type definitions */
 #include <ctype.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <sys/wait.h>
 
 #ifdef __cplusplus
 extern "C" {

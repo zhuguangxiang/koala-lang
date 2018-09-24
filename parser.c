@@ -59,7 +59,7 @@ void Parser_PrintError(ParserState *ps, lineinfo_t *l, char *fmt, ...)
     exit(-1);
   }
 
-  fprintf(stderr, COLOR_LIGHT_WHITE "./%s:%d:%d: " COLOR_NC,
+  fprintf(stderr, COLOR_LIGHT_WHITE "%s:%d:%d: " COLOR_NC,
           ps->filename, l->row, l->col);
 
   va_list ap;
@@ -76,7 +76,7 @@ void Parser_PrintError(ParserState *ps, lineinfo_t *l, char *fmt, ...)
   puts("^" COLOR_NC);
 }
 
-/*---------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
 static JmpInst *JmpInst_New(Inst *inst, int type)
 {
@@ -204,10 +204,7 @@ static void codeblock_show(CodeBlock *block)
 #endif
 
 /*-------------------------------------------------------------------------*/
-static void parser_enter_scope(ParserState *ps, STable *stbl, int scope);
-static void parser_exit_scope(ParserState *ps);
 static void parser_visit_expr(ParserState *ps, struct expr *exp);
-static void parser_body(ParserState *ps, Vector *stmts);
 static ParserUnit *get_class_unit(ParserState *ps);
 static void parser_vist_stmt(ParserState *ps, stmt_t *stmt);
 
@@ -234,6 +231,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
       error("cannot find '%s' package", desc->usrdef.path);
       return NULL;
     }
+    sym->refcnt++;
   } else {
     // find in current module
     sym = ps->sym;
@@ -317,7 +315,7 @@ static void init_imports(ParserState *ps)
   HashTable_Init(&ps->imports, &hashinfo);
   ps->extstbl = STable_New(NULL);
   Symbol *sym = Parser_New_Import(ps, "lang", "koala/lang");
-  sym->refcnt++;
+  sym->refcnt = 1;
 }
 
 static void __import_free_fn(HashNode *hnode, void *arg)
@@ -331,10 +329,32 @@ static void __import_free_fn(HashNode *hnode, void *arg)
 static void fini_imports(ParserState *ps)
 {
   HashTable_Fini(&ps->imports, __import_free_fn, NULL);
-  STable_Free(ps->extstbl);
+  //STable_Free(ps->extstbl);
 }
 
-/*-------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
+
+static uint32 extpkg_hash(void *k)
+{
+  struct extpkg *ext = k;
+  return hash_string(ext->path);
+}
+
+static int extpkg_equal(void *k1, void *k2)
+{
+  struct extpkg *ext1 = k1;
+  struct extpkg *ext2 = k2;
+  return !strcmp(ext1->path, ext2->path);
+}
+
+void init_extpkg_hashtable(HashTable *table)
+{
+  HashInfo hashinfo;
+  Init_HashInfo(&hashinfo, extpkg_hash, extpkg_equal);
+  HashTable_Init(table, &hashinfo);
+}
+
+/*----------------------------------------------------------------------------*/
 
 static ParserUnit *parent_scope(ParserState *ps)
 {
@@ -395,50 +415,99 @@ static Symbol *add_import(STable *stbl, char *id, char *path)
   return sym;
 }
 
+struct extpkg *get_extpkg(ParserState *ps, char *path)
+{
+  struct extpkg key = {.path = path};
+  return HashTable_Find(&ps->pkg->expkgs, &key);
+}
+
+struct extpkg *put_extpkg(ParserState *ps, char *path, STable *stbl, char *id)
+{
+  struct extpkg *ext = malloc(sizeof(struct extpkg));
+  Init_HashNode(&ext->hnode, ext);
+  ext->path = strdup(path);
+  ext->stbl = stbl;
+  ext->id   = id;
+  HashTable_Insert(&ps->pkg->expkgs, &ext->hnode);
+  return ext;
+}
+
+struct extpkg *load_extpkg(ParserState *ps, char *path, int *exist)
+{
+  struct extpkg *extpkg = get_extpkg(ps, path);
+  if (extpkg) {
+    *exist = 1;
+    return extpkg;
+  }
+
+  Object *ob = Koala_Load_Module(path);
+  if (!ob) {
+    warn("load modulef '%s' failed, try to compile it", path);
+    pid_t pid = fork();
+    if (pid == 0) {
+      debug("child process %d", getpid());
+      execlp("koalac", "koalac",
+             "-pkg", path,
+             "-out", ps->pkg->options->outpkg,
+             "-klc", ps->pkg->options->klc,
+             "-kar", "none",
+             NULL);
+      assert(0); //not go here
+    }
+    int status = 0;
+    pid = wait(&status);
+    debug("child process %d return status:%d", pid, status);
+    if (WIFEXITED(status)) {
+      int exitstatus = WEXITSTATUS(status);
+      debug("child process %d: %s\n", pid, strerror(exitstatus));
+      if (exitstatus) exit(-1);
+    }
+    ob = Koala_Load_Module(path);
+    if (!ob) {
+      error("load module '%s' failed", path);
+      exit(-1);
+    }
+  }
+
+  STable *extstbl = Module_To_STable(ob, ps->extstbl->atbl, path);
+  if (!extstbl) {
+    error("load module '%s' failed", path);
+    exit(-1);
+  }
+
+  extpkg = put_extpkg(ps, path, extstbl, Module_Name(ob));
+  if (!extpkg) {
+    error("load module '%s' failed", path);
+    STable_Free(extstbl);
+    exit(-1);
+  }
+
+  return extpkg;
+}
+
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
 {
   Import key = {.path = path};
   Import *import = HashTable_Find(&ps->imports, &key);
   Symbol *sym;
   if (import) {
-    sym = import->sym;
-    if (sym && sym->refcnt > 0) {
-      warn("find auto imported module '%s'", path);
-      if (id) {
-        if (strcmp(id, sym->name)) {
-          warn("imported as '%s' is different with auto imported as '%s'",
-                id, sym->name);
-        } else {
-          warn("imported as '%s' is the same with auto imported as '%s'",
-                id, sym->name);
-        }
-      }
-      return sym;
-    }
+    error("package '%s' existed", path);
+    PSError("package '%s' existed", path);
+    return NULL;
   }
 
-  import = import_new(path);
-  if (HashTable_Insert(&ps->imports, &import->hnode) < 0) {
-    error("module '%s' is imported duplicated", path);
-    return NULL;
-  }
-  Object *ob = Koala_Load_Module(path);
-  if (!ob) {
-    error("load module '%s' failed", path);
-    HashTable_Remove(&ps->imports, &import->hnode);
-    import_free(import);
-    return NULL;
-  }
-  if (!id) id = Module_Name(ob);
+  int exist = 0;
+  struct extpkg *extpkg = load_extpkg(ps, path, &exist);
+  if (!extpkg) return NULL;
+
+  if (!id) id = extpkg->id;
   sym = add_import(ps->extstbl, id, path);
   if (!sym) {
     debug("add import '%s <- %s' failed", id, path);
-    HashTable_Remove(&ps->imports, &import->hnode);
-    import_free(import);
     return NULL;
   }
-
-  sym->ptr = Module_To_STable(ob, ps->extstbl->atbl, path);
+  sym->ptr = extpkg->stbl;
+  import = import_new(path);
   import->sym = sym;
   lineinfo_t *l = &import->line;
   LineBuffer *lb = &ps->line;
@@ -446,7 +515,11 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
   l->row = lb->row;
   l->col = 1;
   sym->import = import;
-  debug("add import '%s <- %s' successfully", id, path);
+  if (exist)
+    debug("package '%s <- %s' existed", id, path);
+  else
+    debug("add package '%s <- %s' successfully", id, path);
+
   return sym;
 }
 
@@ -458,7 +531,7 @@ char *Parser_Get_FullPath(ParserState *ps, char *id)
     return NULL;
   }
   assert(sym->kind == SYM_STABLE);
-  sym->refcnt = 1;
+  sym->refcnt++;
   return sym->path;
 }
 
@@ -524,6 +597,7 @@ static void parse_funcdecl(ParserState *ps, stmt_t *stmt)
     sym->up = ps->u->sym;
   } else {
     debug("add func '%s' failed", stmt->func.id);
+    PSError("%s redeclared in the package %s", stmt->func.id, ps->pkg->pkgname);
   }
 }
 
@@ -705,8 +779,8 @@ static void parser_show_scope(ParserState *ps)
 
 static void parser_new_block(ParserUnit *u)
 {
+  if (u->block) return;
   CodeBlock *block = codeblock_new();
-  assert(!u->block);
   u->block = block;
 }
 
@@ -770,6 +844,7 @@ static void parser_merge(ParserState *ps)
       u->block = NULL;
     }
   } else if (u->scope == SCOPE_MODULE) {
+    #if 0
     TypeDesc *proto = Type_New_Proto(NULL, NULL);
     Symbol *sym = STable_Add_Proto(u->stbl, "__init__", proto);
     assert(sym);
@@ -784,6 +859,7 @@ static void parser_merge(ParserState *ps)
     u->sym = sym;
     u->block = NULL;
     debug("save code to module '__init__' function");
+    #endif
   } else if (u->scope == SCOPE_CLASS) {
 
     if (u->block && u->block->bytes > 0) {
@@ -881,7 +957,7 @@ static void parser_free_unit(ParserUnit *u)
   free(u);
 }
 
-static void parser_enter_scope(ParserState *ps, STable *stbl, int scope)
+void parser_enter_scope(ParserState *ps, STable *stbl, int scope)
 {
   AtomTable *atbl = NULL;
   if (ps->u) atbl = ps->u->stbl->atbl;
@@ -897,7 +973,7 @@ static void parser_enter_scope(ParserState *ps, STable *stbl, int scope)
   parser_new_block(ps->u);
 }
 
-static void parser_exit_scope(ParserState *ps)
+void parser_exit_scope(ParserState *ps)
 {
   parser_show_scope(ps);
 
@@ -921,8 +997,8 @@ static void parser_exit_scope(ParserState *ps)
     debug(">>>> exit scope:%d", u->scope);
   }
 
+  assert(ps->u != &ps->pkg->top);
   parser_free_unit(u);
-
   ps->nestlevel--;
 
   /* Restore c->u to the parent unit. */
@@ -942,7 +1018,7 @@ static void parser_expr_desc(ParserState *ps, struct expr *exp, Symbol *sym)
   exp->sym = sym;
   if (!exp->desc) {
     if (sym->kind == SYM_MODULE) {
-      debug("ident '%s' is as Module", ps->package);
+      debug("ident '%s' is as Module", ps->filename);
     } else {
       char buf[64];
       Type_ToString(sym->desc, buf);
@@ -1022,7 +1098,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
   switch (u->scope) {
     case SCOPE_CLASS: {
       assert(sym->up->kind == SYM_MODULE);
-      debug("symbol '%s' in module '%s'", sym->name, ps->package);
+      debug("symbol '%s' in module '%s'", sym->name, ps->filename);
       if (sym->kind == SYM_VAR) {
         debug("symbol '%s' is variable", sym->name);
         Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -1043,7 +1119,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
     }
     case SCOPE_FUNCTION: {
       assert(sym->up->kind == SYM_MODULE);
-      debug("symbol '%s' in module '%s'", sym->name, ps->package);
+      debug("symbol '%s' in module '%s'", sym->name, ps->filename);
       if (sym->kind == SYM_VAR) {
         debug("symbol '%s' is variable", sym->name);
         int opcode;
@@ -1128,7 +1204,7 @@ static void parser_upscope_ident(ParserState *ps, Symbol *sym,
         }
       } else {
         assert(sym->up->kind == SYM_MODULE);
-        debug("symbol '%s' in module '%s'", sym->name, ps->package);
+        debug("symbol '%s' in module '%s'", sym->name, ps->filename);
         if (sym->kind == SYM_VAR) {
           debug("symbol '%s' is variable", sym->name);
           Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -1299,6 +1375,8 @@ static void parser_ident(ParserState *ps, struct expr *exp)
   }
 
   // ident is current module's name
+  #if 0
+  FIXME
   if (ps->package && !strcmp(id, ps->package)) {
     sym = ps->sym;
     assert(sym);
@@ -1310,6 +1388,7 @@ static void parser_ident(ParserState *ps, struct expr *exp)
     Inst_Append_NoArg(u->block, OP_GETM);
     return;
   }
+  #endif
 
   // find ident from external module
   sym = STable_Get(ps->extstbl, id);
@@ -3030,7 +3109,7 @@ static void parser_vist_stmt(ParserState *ps, stmt_t *stmt)
   }
 }
 
-static void parser_body(ParserState *ps, Vector *stmts)
+void parser_body(ParserState *ps, Vector *stmts)
 {
   if (!stmts) return;
 
@@ -3040,43 +3119,80 @@ static void parser_body(ParserState *ps, Vector *stmts)
   }
 }
 
-/*--------------------------------------------------------------------------*/
+/*----------------------------------------------------------------------------*/
 
-ParserState *new_parser(void *filename)
+PackageInfo *New_PackageInfo(char *pkgfile, struct options *ops)
+{
+  PackageInfo *pkg = calloc(1, sizeof(PackageInfo));
+  pkg->pkgfile = pkgfile;
+  pkg->sym = Symbol_New(SYM_MODULE);
+  pkg->sym->ptr = STable_New(NULL);
+  parser_init_unit(&pkg->top, pkg->sym->ptr, SCOPE_MODULE);
+  init_extpkg_hashtable(&pkg->expkgs);
+  pkg->options = ops;
+  return pkg;
+}
+
+void Parser_Set_Package(ParserState *ps, char *pkgname)
+{
+  PackageInfo *pkg = ps->pkg;
+  assert(pkg);
+  if (!pkg->pkgname) {
+    pkg->pkgname = pkgname;
+  } else {
+    if (strcmp(pkg->pkgname, pkgname)) {
+      PSError("found existed packages %s and %s in %s", pkg->pkgname, pkgname,
+      ps->filename);
+    }
+  }
+}
+
+ParserState *new_parser(PackageInfo *pkg, char *filename)
 {
   ParserState *ps = calloc(1, sizeof(ParserState));
-  ps->filename = filename;
   yylex_init_extra(ps, &ps->scanner);
+  ps->filename = filename;
+  ps->pkg = pkg;
+  ps->sym = pkg->sym;
   Vector_Init(&ps->stmts);
-  init_imports(ps);
-  Symbol *sym = Symbol_New(SYM_MODULE);
-  sym->ptr = STable_New(NULL);
-  ps->sym = sym;
   init_list_head(&ps->ustack);
   Vector_Init(&ps->errors);
+  ps->u = &pkg->top;
+  ps->nestlevel++;
+  parser_new_block(ps->u);
+  ps->u->sym = ps->sym;
+  init_imports(ps);
   return ps;
+}
+
+void parse_module_scope(PackageInfo *pkg)
+{
+  ParserUnit *u = &pkg->top;
+  assert(u->scope == SCOPE_MODULE);
+  TypeDesc *proto = Type_New_Proto(NULL, NULL);
+  Symbol *sym = STable_Add_Proto(u->stbl, "__init__", proto);
+  assert(sym);
+  debug("add 'return' to function '__init__'");
+  Inst_Append(u->block, OP_RET, NULL);
+  if (u->block && u->block->bytes > 0) {
+    sym->ptr = u->block;
+    //sym->stbl = u->stbl;
+    sym->locvars = u->stbl->varcnt;
+    //u->stbl = NULL;
+  }
+  u->sym = sym;
+  u->block = NULL;
+  debug("save code to module '__init__' function");
 }
 
 void destroy_parser(ParserState *ps)
 {
+  parser_show_scope(ps);
+  check_unused_symbols(ps);
+  check_unused_imports(ps);
+  assert(ps->u == &ps->pkg->top);
   vec_stmt_fini(&ps->stmts);
   fini_imports(ps);
-  free(ps->package);
   yylex_destroy(ps->scanner);
   free(ps);
-}
-
-void parser_module(ParserState *ps, FILE *in)
-{
-  parser_enter_scope(ps, ps->sym->ptr, SCOPE_MODULE);
-  ps->u->sym = ps->sym;
-
-  yyset_in(in, ps->scanner);
-  yyparse(ps, ps->scanner);
-
-  parser_body(ps, &ps->stmts);
-
-  check_unused_imports(ps);
-
-  parser_exit_scope(ps);
 }

@@ -276,18 +276,18 @@ static void __gen_code_fn(Symbol *sym, void *arg)
   }
 }
 
-void codegen_klc(ParserState *ps, char *out)
+void codegen_klc(PackageInfo *pkg)
 {
   printf("----------codegen------------\n");
-  KImage *image = KImage_New(ps->package);
+  KImage *image = KImage_New(pkg->pkgname);
   struct gencode_struct tmp = {0, image, NULL};
-  STable_Traverse(ps->sym->ptr, __gen_code_fn, &tmp);
+  STable_Traverse(pkg->sym->ptr, __gen_code_fn, &tmp);
   debug("----------------------");
   KImage_Finish(image);
 #if 1
   KImage_Show(image);
 #endif
-  KImage_Write_File(image, out);
+  KImage_Write_File(image, pkg->pkgfile);
   printf("----------codegen end--------\n");
 }
 

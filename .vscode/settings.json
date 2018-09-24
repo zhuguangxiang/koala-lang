@@ -1,7 +1,7 @@
 {
 	"workbench.startupEditor": "none",
 	"workbench.statusBar.visible": true,
-	"workbench.colorTheme": "One Dark Pro Vivid",
+	"workbench.colorTheme": "One Dark Pro",
 	"workbench.iconTheme": "file-icons",
 	"workbench.activityBar.visible": false,
 	"editor.fontSize": 14,
@@ -9,7 +9,7 @@
 	"editor.fontLigatures": true,
 	"editor.fontWeight": "100",
 	"editor.tabSize": 2,
-	"editor.insertSpaces": false,
+	"editor.insertSpaces": true,
 	"files.associations": {
 		"*.h": "c",
 		"*.c": "c",
@@ -75,5 +75,5 @@
 	"editor.cursorStyle": "line",
 	"terminal.integrated.scrollback": 5000,
 	"terminal.integrated.rendererType": "dom",
-	"window.zoomLevel": 1.5!!
+	"window.zoomLevel": 0
 }

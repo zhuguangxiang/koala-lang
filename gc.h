@@ -9,19 +9,29 @@
 extern "C" {
 #endif
 
-#define GC_WHITE 0
-#define GC_GRAY  1
-#define GC_BLACK 2
+#define GC_LEVEL_0 0.6
+#define GC_LEVEL_1 0.8
+
+#define GC_WHITE0 1
+#define GC_WHITE1 2
+#define GC_GRAY   3
+#define GC_BLACK  4
 
 #define GC_STOP  1
 #define GC_MARK  2
 #define GC_SWEEP 3
 
 typedef struct gcstate {
-	int state;
-	int count;
-	Object *gcobjs;
-	Vector markobjs;
+  int state;
+  int currentwhite;
+  int count;
+  Object *gcobjs;
+  Vector grayobjs;
+  Vector blackobjs;
+  int total;
+  int used;
+  int threshold0;
+  int threshold1;
 } GCState;
 
 /* Exported APIs */

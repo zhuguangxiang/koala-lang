@@ -16,9 +16,9 @@ extern "C" {
 extern int loglevel;
 
 #define __debug(format, ...) fprintf(stderr, format, ##__VA_ARGS__)
-#define COLOR_MSG(fmt) COLOR_WHITE "./%s:%d\t%6s: " fmt COLOR_NC "\n"
+#define COLOR_MSG(fmt) COLOR_WHITE "%s:%d\t%6s: " fmt COLOR_NC "\n"
 #define ERROR_MSG(fmt) \
-	COLOR_LIGHT_WHITE "./%s:%d\t" COLOR_LIGHT_RED "%6s: " COLOR_NC fmt "\n"
+	COLOR_LIGHT_WHITE "%s:%d\t" COLOR_LIGHT_RED "%6s: " COLOR_NC fmt "\n"
 
 #ifdef LOG_DEBUG
 #define debug(format, ...) do { \

@@ -469,67 +469,67 @@ void do_store_subscr(Routine *rt)
   }
 }
 
-#define case_two_args_op(_case_, _op_) \
-case _case_: {                         \
-  TValue v1 = POP();                   \
-  TValue v2 = POP();                   \
-  TValue res = NilValue;               \
-  NumberOperations *ops;               \
-  if (v1.klazz && v1.klazz->numops) {  \
-    ops = v1.klazz->numops;            \
-    if (ops->_op_) {                   \
-      res = ops->_op_(&v1, &v2);       \
-    } else {                           \
-      exit(-1);                        \
-    }                                  \
-  }                                    \
-  PUSH(&res);                          \
-  break;                               \
-}
+#define case_two_args_op(_case_, _op_)  \
+  case _case_: {                        \
+    TValue v1 = POP();                  \
+    TValue v2 = POP();                  \
+    TValue res = NilValue;              \
+    NumberOperations *ops;              \
+    if (v1.klazz && v1.klazz->numops) { \
+      ops = v1.klazz->numops;           \
+      if (ops->_op_) {                  \
+        res = ops->_op_(&v1, &v2);      \
+      } else {                          \
+        exit(-1);                       \
+      }                                 \
+    }                                   \
+    PUSH(&res);                         \
+    break;                              \
+  }
 
-#define case_one_arg_op(_case_, _op_)  \
-case _case_: {                         \
-  TValue v = POP();                    \
-  TValue res = NilValue;               \
-  NumberOperations *ops;               \
-  if (v.klazz && v.klazz->numops) {    \
-    ops = v.klazz->numops;             \
-    if (ops->_op_) {                   \
-      res = ops->_op_(&v);             \
-    } else {                           \
-      exit(-1);                        \
-    }                                  \
-  }                                    \
-  PUSH(&res);                          \
-  break;                               \
-}
+#define case_one_arg_op(_case_, _op_)   \
+  case _case_: {                        \
+    TValue v = POP();                   \
+    TValue res = NilValue;              \
+    NumberOperations *ops;              \
+    if (v.klazz && v.klazz->numops) {   \
+      ops = v.klazz->numops;            \
+      if (ops->_op_) {                  \
+        res = ops->_op_(&v);            \
+      } else {                          \
+        exit(-1);                       \
+      }                                 \
+    }                                   \
+    PUSH(&res);                         \
+    break;                              \
+  }
 
-#define NUMBER_OPERATION_CASES      \
-/* arithmetic */                    \
-case_two_args_op(OP_ADD, add)       \
-case_two_args_op(OP_SUB, sub)       \
-case_two_args_op(OP_MUL, mul)       \
-case_two_args_op(OP_DIV, div)       \
-case_two_args_op(OP_MOD, mod)       \
-case_one_arg_op(OP_NEG, neg)        \
-/* comparison */                    \
-case_two_args_op(OP_GT, gt)         \
-case_two_args_op(OP_GE, ge)         \
-case_two_args_op(OP_LT, lt)         \
-case_two_args_op(OP_LE, le)         \
-case_two_args_op(OP_EQ, eq)         \
-case_two_args_op(OP_NEQ, neq)       \
-/* bit */                           \
-case_two_args_op(OP_BAND, band)     \
-case_two_args_op(OP_BOR, bor)       \
-case_two_args_op(OP_BXOR, bxor)     \
-case_one_arg_op(OP_BNOT, bnot)      \
-case_two_args_op(OP_LSHIFT, lshift) \
-case_two_args_op(OP_RSHIFT, rshift) \
-/* logic */                         \
-case_two_args_op(OP_LAND, land)     \
-case_two_args_op(OP_LOR, lor)       \
-case_one_arg_op(OP_LNOT, lnot)
+#define NUMBER_OPERATION_CASES          \
+  /* arithmetic */                      \
+  case_two_args_op(OP_ADD, add)         \
+  case_two_args_op(OP_SUB, sub)         \
+  case_two_args_op(OP_MUL, mul)         \
+  case_two_args_op(OP_DIV, div)         \
+  case_two_args_op(OP_MOD, mod)         \
+  case_one_arg_op(OP_NEG, neg)          \
+  /* comparison */                      \
+  case_two_args_op(OP_GT, gt)           \
+  case_two_args_op(OP_GE, ge)           \
+  case_two_args_op(OP_LT, lt)           \
+  case_two_args_op(OP_LE, le)           \
+  case_two_args_op(OP_EQ, eq)           \
+  case_two_args_op(OP_NEQ, neq)         \
+  /* bit */                             \
+  case_two_args_op(OP_BAND, band)       \
+  case_two_args_op(OP_BOR, bor)         \
+  case_two_args_op(OP_BXOR, bxor)       \
+  case_one_arg_op(OP_BNOT, bnot)        \
+  case_two_args_op(OP_LSHIFT, lshift)   \
+  case_two_args_op(OP_RSHIFT, rshift)   \
+  /* logic */                           \
+  case_two_args_op(OP_LAND, land)       \
+  case_two_args_op(OP_LOR, lor)         \
+  case_one_arg_op(OP_LNOT, lnot)
 
 static void frame_loop(Frame *frame)
 {

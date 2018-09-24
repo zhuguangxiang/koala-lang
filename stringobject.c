@@ -194,7 +194,7 @@ static Object *string_tostring(TValue *v)
 {
   char buf[128];
   StringObject *so = v->ob;
-  snprintf(buf, 127, "\"%s\"", so->str);
+  snprintf(buf, 127, "%s", so->str);
   TValue val = {.klazz = &String_Klass, .ob = String_New(buf)};
 	return Tuple_From_TValues(&val, 1);
 }

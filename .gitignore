@@ -20,3 +20,5 @@ libkoala*
 GPATH
 GRTAGS
 GTAGS
+.vscode
+.vscode/settings.json
