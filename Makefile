@@ -33,7 +33,6 @@ all: koala koalac
 	@cp koalac ~/.local/bin
 	@cp libkoala.so ~/.local/lib
 	@cp libkoalac.so ~/.local/lib
-	@cp koalatools ~/.local/bin
 
 libkoala.so: $(KOALA_OBJS)
 	@echo "	[SO]	$@"

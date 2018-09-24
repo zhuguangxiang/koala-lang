@@ -4,6 +4,9 @@ package foo
 import baz "foo/baz"
 import "koala/io"
 
+var gfoo_v1 = 200
+
 func Add(a int, b int) int {
+  io.Print(gfoo_v1, gfoo_v2)
   return baz.AddBaz(a, b)
 }

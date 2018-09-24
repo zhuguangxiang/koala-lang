@@ -120,6 +120,7 @@ typedef struct packageinfo {
 } PackageInfo;
 
 PackageInfo *New_PackageInfo(char *pkgfile, struct options *ops);
+void parse_module_scope(PackageInfo *pkg);
 
 #define MAX_ERRORS 8
 

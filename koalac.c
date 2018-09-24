@@ -78,12 +78,14 @@ static int __compile(struct options *options)
   }
 
   if (errnum <= 0) {
+    parse_module_scope(pkg);
     codegen_klc(pkg);
   } else {
     fprintf(stderr, "There are %d errors.\n", errnum);
   }
 
   Vector_Fini(&vec, NULL, NULL);
+  //free packageinfo
   Koala_Finalize();
 
   return 0;

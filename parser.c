@@ -3165,6 +3165,26 @@ ParserState *new_parser(PackageInfo *pkg, char *filename)
   return ps;
 }
 
+void parse_module_scope(PackageInfo *pkg)
+{
+  ParserUnit *u = &pkg->top;
+  assert(u->scope == SCOPE_MODULE);
+  TypeDesc *proto = Type_New_Proto(NULL, NULL);
+  Symbol *sym = STable_Add_Proto(u->stbl, "__init__", proto);
+  assert(sym);
+  debug("add 'return' to function '__init__'");
+  Inst_Append(u->block, OP_RET, NULL);
+  if (u->block && u->block->bytes > 0) {
+    sym->ptr = u->block;
+    //sym->stbl = u->stbl;
+    sym->locvars = u->stbl->varcnt;
+    //u->stbl = NULL;
+  }
+  u->sym = sym;
+  u->block = NULL;
+  debug("save code to module '__init__' function");
+}
+
 void destroy_parser(ParserState *ps)
 {
   parser_show_scope(ps);
