@@ -10,16 +10,16 @@ extern "C" {
 #endif
 
 typedef struct atomentry {
-	HashNode hnode;
-	int type;
-	int index;
-	void *data;
+  HashNode hnode;
+  int type;
+  int index;
+  void *data;
 } AtomEntry;
 
 typedef struct atomtable {
-	HashTable table;
-	int size;
-	Vector items[0];
+  HashTable table;
+  int size;
+  Vector items[0];
 } AtomTable;
 
 typedef void (*atomfunc)(int type, void *data, void *arg);

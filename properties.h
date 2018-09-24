@@ -10,15 +10,15 @@ extern "C" {
 #endif
 
 typedef struct prop_entry {
-	HashNode hnode;
-	char *key;
-	int index;
-	int count;
+  HashNode hnode;
+  char *key;
+  int index;
+  int count;
 } PropEntry;
 
 typedef struct properties {
-	HashTable table;
-	Vector vec;
+  HashTable table;
+  Vector vec;
 } Properties;
 
 Properties *Properties_New(void);

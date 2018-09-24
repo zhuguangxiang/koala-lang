@@ -46,17 +46,17 @@ typedef double  float64;
 
 /* Get the struct address from its member's address */
 #define container_of(ptr, type, member) \
-	((type *)((char *)ptr - offsetof(type, member)))
+  ((type *)((char *)ptr - offsetof(type, member)))
 
 /* For -Wunused-parameter */
 #define UNUSED_PARAMETER(var) ((var) = (var))
 
 /* Assert macros for koala */
 #define kassert(val, fmt, ...) do { \
-	if (!(val)) { \
-		printf("[%s:%d]" fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
-		assert(val); \
-	} \
+  if (!(val)) { \
+    printf("[%s:%d]" fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
+    assert(val); \
+  } \
 } while (0)
 
 #if __x86_64__

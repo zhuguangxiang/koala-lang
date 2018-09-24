@@ -148,7 +148,7 @@ static Object *list_tostring(TValue *val)
 {
   //FIXME
   char buf[128];
-  ListObject *lo = val->ob;
+  ListObject *lo = OB_TYPE_OF(val->ob, ListObject, List_Klass);
   int count = 0;
   TValue *v;
   count = snprintf(buf, 127, "[");

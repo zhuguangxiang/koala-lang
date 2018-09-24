@@ -9,8 +9,8 @@ extern "C" {
 #endif
 
 typedef struct tableobject {
-	OBJECT_HEAD
-	HashTable tbl;
+  OBJECT_HEAD
+  HashTable tbl;
 } TableObject;
 
 /* Exported APIs */

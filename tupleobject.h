@@ -9,9 +9,9 @@ extern "C" {
 #endif
 
 typedef struct tupleobject {
-	OBJECT_HEAD
-	int size;
-	TValue items[0];
+  OBJECT_HEAD
+  int size;
+  TValue items[0];
 } TupleObject;
 
 extern Klass Tuple_Klass;

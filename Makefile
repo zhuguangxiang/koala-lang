@@ -9,7 +9,7 @@ OPTFLAGS = #-O2
 
 CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I./ -Wbad-function-cast
 
-CFLAGS = $(CPPFLAGS) -fPIC -W -Wall -Wpointer-arith -Wstrict-prototypes
+CFLAGS = $(CPPFLAGS) -fPIC -W -Wall -Wpointer-arith -Wstrict-prototypes -Wextra
 
 YACC = bison
 FLEX = flex
