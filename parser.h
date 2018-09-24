@@ -98,10 +98,11 @@ typedef struct parserunit {
   Vector jmps;
 } ParserUnit;
 
-struct expkgstbl {
+struct extpkg {
   HashNode hnode;
   char *path;
   STable *stbl;
+  char *id;
 };
 
 /*

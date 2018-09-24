@@ -2,6 +2,7 @@
 package foo
 
 import baz "foo/baz"
+import "koala/io"
 
 func Add(a int, b int) int {
   return baz.AddBaz(a, b)
