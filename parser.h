@@ -98,6 +98,12 @@ typedef struct parserunit {
   Vector jmps;
 } ParserUnit;
 
+struct expkgstbl {
+  HashNode hnode;
+  char *path;
+  STable *stbl;
+};
+
 /*
  * per one package which includes all source files in the same directory.
  * These files must be the same package name.
@@ -107,6 +113,7 @@ typedef struct packageinfo {
   char *pkgname;     /* package name */
   Symbol *sym;       /* it's type is pacakge, includes all symbols */
   ParserUnit top;    /* top unit for all parserstate */
+  HashTable expkgs;  /* external packages, path as key */
 } PackageInfo;
 
 PackageInfo *New_PackageInfo(char *pkgfile);

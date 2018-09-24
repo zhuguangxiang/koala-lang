@@ -231,6 +231,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
       error("cannot find '%s' package", desc->usrdef.path);
       return NULL;
     }
+    sym->refcnt++;
   } else {
     // find in current module
     sym = ps->sym;
@@ -314,7 +315,7 @@ static void init_imports(ParserState *ps)
   HashTable_Init(&ps->imports, &hashinfo);
   ps->extstbl = STable_New(NULL);
   Symbol *sym = Parser_New_Import(ps, "lang", "koala/lang");
-  sym->refcnt++;
+  sym->refcnt = 1;
 }
 
 static void __import_free_fn(HashNode *hnode, void *arg)
@@ -399,18 +400,10 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
   Symbol *sym;
   if (import) {
     sym = import->sym;
-    if (sym && sym->refcnt > 0) {
-      warn("find auto imported module '%s'", path);
-      if (id) {
-        if (strcmp(id, sym->name)) {
-          warn("imported as '%s' is different with auto imported as '%s'",
-                id, sym->name);
-        } else {
-          warn("imported as '%s' is the same with auto imported as '%s'",
-                id, sym->name);
-        }
-      }
-      return sym;
+    if (sym) {
+      error("package '%s' existed", path);
+      PSError("package '%s' existed", path);
+      return NULL;
     }
   }
 
@@ -445,6 +438,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
       return NULL;
     }
   }
+
   if (!id) id = Module_Name(ob);
   sym = add_import(ps->extstbl, id, path);
   if (!sym) {
@@ -474,7 +468,7 @@ char *Parser_Get_FullPath(ParserState *ps, char *id)
     return NULL;
   }
   assert(sym->kind == SYM_STABLE);
-  sym->refcnt = 1;
+  sym->refcnt++;
   return sym->path;
 }
 
