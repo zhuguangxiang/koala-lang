@@ -22,19 +22,26 @@ class extends Base with A, B {}
 - Project And Compile
 
 #+BEGIN_SRC
-demoprj
-  |-- src
+project
+  |-- main
+  |    |-- koala
+  |    |-- resources
   |-- test
+  |    |-- koala
+  |    |-- resources
   |-- target
-        |-- pkg
-        |-- test-pkg
-  |-- .karfile
+  |    |-- main
+  |    |-- test
+  |    |-- demo-v1.2.3.kar
+  |-- karfile
 #+END_SRC
 
-delimiter for -klc and -kar options are both : and ;
-> koalac -pkg foo/bar -out pkg/ -klc ../pkg;/home/koala/pkg -kar xx.kar:/home/yy.kar
-> koala -pkg app -args 12:wahoho -klc ../pkg;/home/koala/pkg -kar xx.kar;/home/yy.kar
-> kar -pkg ./pkg/ -out demo-v1.2.3.kar
+delimiter for -sp and -cp options are both : and ;
+> koalac -sp src/ -d pkg/ -cp pkg/:/home/koala/pkg:/home/xx.kar foo/baz foo/bar foo app
+> koala -cp dir1:dir2:kar1:kar2 foo a1 a2 a3
+> koala -kar xx.kar a1 a2 a3
+> kar -cxe demo-v1.2.3.kar xx.klc dir1/
+> kpm
 
 * Release 0.7.x
 ** 0.7.1

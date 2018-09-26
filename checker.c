@@ -61,6 +61,7 @@ static int check_call_varg(TypeDesc *proto, Vector *vec)
   int psz = Vector_Size(proto->proto.arg);
   if (sz < psz - 1) return 0;
 
+#if 0
   TypeDesc *desc;
   struct expr *exp;
   Vector_ForEach(exp, vec) {
@@ -74,7 +75,7 @@ static int check_call_varg(TypeDesc *proto, Vector *vec)
       error("expr's type is null");
       return 0;
     }
-#if 0
+
     if (d->kind == TYPE_PROTO) {
       /* allow only one return value as function argument */
       if (Vector_Size(d->rdesc) != 1) return 0;
@@ -83,8 +84,9 @@ static int check_call_varg(TypeDesc *proto, Vector *vec)
       assert(d->kind == TYPE_PRIME || d->kind == TYPE_USRDEF);
       if (!Type_Equal(d, desc)) return 0;
     }
-#endif
   }
+#endif
+
   return 1;
 }
 

@@ -9,20 +9,20 @@
 extern "C" {
 #endif
 
+#define OPTIONS_DELIMTER ':'
+
 struct options {
-  char *cmd;
   char *delimiter;
-  char *srcpkg;
-  char *outpkg;
-  char *klc;
-  char *kar;
+  char *srcpath;
+  char *klcpath;
   Vector klcvec;
-  Vector karvec;
-  Vector args;
+  Vector cmdvec;
+  char *output;
+  char *kar;
   char __delims[2];
 };
 
-int init_options(struct options *ops, char *cmd, char delimiter);
+int init_options(struct options *ops, char delimiter);
 int parse_options(int argc, char *argv[], struct options *ops);
 void show_options(struct options *ops);
 

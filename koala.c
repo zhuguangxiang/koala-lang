@@ -16,8 +16,6 @@
 
 static int __run(struct options *options)
 {
-  char *input = options->srcpkg;
-
   puts(KOALA_START);
 
   Koala_Initialize();
@@ -27,7 +25,8 @@ static int __run(struct options *options)
     Koala_Env_Append("koala.path", path);
   }
 
-  Koala_Run(input, "main", &options->args);
+  char *input = Vector_Get(&options->cmdvec, 0);
+  Koala_Run(input, "main", &options->cmdvec);
 
   Koala_Finalize();
 
@@ -39,7 +38,7 @@ static int __run(struct options *options)
 int main(int argc, char *argv[])
 {
   struct options options;
-  init_options(&options, "koala", ':');
+  init_options(&options, OPTIONS_DELIMTER);
   int ret = parse_options(argc, argv, &options);
   if (ret) return -1;
   show_options(&options);

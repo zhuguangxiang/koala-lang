@@ -8,6 +8,7 @@ import "koala/io"
 import fo "foo"
 
 func main(args [string]) {
+  //io.Print(args.Size())
   io.Print(args[0]);
   io.Print(args[1]);
   io.Print("hello, world\n")
