@@ -58,6 +58,10 @@ koala_lex.c: yacc/koala.l
 	@echo "	[FLEX]	$@"
 	@$(FLEX) -o $@ $^
 
+.PHONY: task
+task:
+	gcc -g -Wall -m64 -D__x86_64__ task_context.c task_scheduler.c task.c test_task.c -I./ -pthread
+
 .PHONY: clean
 clean:
 	@rm -f *.so *.o *.d *.d.* koalac koala koala_lex.* koala_yacc.*

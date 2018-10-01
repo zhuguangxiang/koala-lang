@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <sys/wait.h>
+#include <errno.h>
 
 #ifdef __cplusplus
 extern "C" {
