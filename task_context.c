@@ -4,7 +4,7 @@
 
 #if defined(__i386__)
 #include "task_context_i386.c"
-#elif defined(__x86_64__)
+#elif defined(__x86_64__) && defined(SWITCHING_ASM64)
 #include "task_context_x86_64.c"
 #else
 #define _XOPEN_SOURCE
@@ -30,7 +30,7 @@ int task_context_init(task_context_t *ctx, task_func entry, void *para)
   ctx->ctx_stacksize = DEFAULT_STACK_SIZE;
 
   getcontext(uctx);
-  uctx->uc_link = current_task()->context.ctx_stack_ptr;
+  uctx->uc_link = NULL;
   uctx->uc_stack.ss_sp = ctx->ctx_stack;
   uctx->uc_stack.ss_size = ctx->ctx_stacksize;
   uctx->uc_stack.ss_flags = 0;

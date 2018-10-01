@@ -20,7 +20,16 @@ static void load_balance(task_scheduler_t *scheduler)
   }
   task_scheduler_t *sched = &schedulers[0];
   struct list_head *first = list_first(&sched->list);
-  if (first && !stolen) {
+  if (first) {
+    if (stolen) {
+      struct list_head *h = list_first(&scheduler->list);
+      if (h) {
+        list_del(h);
+        list_add_tail(h, &sched->list);
+      }
+      return;
+    }
+
     stolen = 1;
     task_t *tsk = container_of(first, task_t, node);
     assert(tsk != sched->idle);
@@ -44,7 +53,7 @@ static task_t *next_task(task_scheduler_t *scheduler)
 static void switch_to(task_scheduler_t *scheduler, task_t *to)
 {
   task_t *from = scheduler->current;
-  printf("idle? %d\n", from == scheduler->current);
+  printf("idle? %d\n", from == scheduler->idle);
   printf("state: %d\n", from->state);
   if (from->state == TASK_STATE_RUNNING) {
     from->state = TASK_STATE_READY;

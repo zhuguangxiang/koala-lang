@@ -60,7 +60,7 @@ koala_lex.c: yacc/koala.l
 
 .PHONY: task
 task:
-	gcc -g -Wall -m64 -D__x86_64__ task_context.c task_scheduler.c task.c test_task.c -I./ -pthread
+	gcc -g -Wall task_context.c task_scheduler.c task.c test_task.c -I./ -pthread
 
 .PHONY: clean
 clean:
