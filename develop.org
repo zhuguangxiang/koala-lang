@@ -43,6 +43,15 @@ delimiter for -sp and -cp options are both : and ;
 > kar -cxe demo-v1.2.3.kar xx.klc dir1/
 > kpm
 
+* CoRoutine(Fiber) Implementation
+- schedule
+- create/yield/sleep
+- join/detach
+- timer
+- io
+socket, pipe, regular files
+- spinlock/mutex/semaphore/signal/rwlock/channel/condition
+
 * Release 0.7.x
 ** 0.7.1
 *** Features

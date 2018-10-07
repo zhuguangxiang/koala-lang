@@ -29,7 +29,8 @@
 		"unordered_map": "c",
 		"deque": "c",
 		"vector": "c",
-		"system_error": "c"
+		"system_error": "c",
+		"thread": "c"
 	},
 	"editor.rulers": [
 			80
