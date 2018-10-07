@@ -60,10 +60,19 @@ koala_lex.c: yacc/koala.l
 
 .PHONY: task
 task:
-	gcc -g -Wall -O0 -DSCHED_LOCKED -DSWITCH_UCONTEXT \
+	gcc -g -Wall -O0 -DSCHED_LOCKED -DSWITCH_UCONTEXT -DARCH_x86_64 \
 	libtask/task.c libtask/task_context.c \
 	libtask/task_scheduler.c libtask/locked_linked_deque.c \
+	libtask/task_atomic.c \
 	libtask/test/test_task.c -I./libtask/ -pthread
+
+.PHONY: join
+join:
+	gcc -g -Wall -O0 -DSCHED_LOCKED -DSWITCH_UCONTEXT -DARCH_x86_64 \
+	libtask/task.c libtask/task_context.c \
+	libtask/task_scheduler.c libtask/locked_linked_deque.c \
+	libtask/task_atomic.c \
+	libtask/test/test_join.c -I./libtask/ -pthread
 
 .PHONY: clean
 clean:

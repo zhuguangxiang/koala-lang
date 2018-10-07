@@ -8,19 +8,24 @@ void *f1(void *p)
   int* value = (int*)p;
   *value += 1;
   task_t *curr = task_self();
-  printf("%d, %lu: value : %d\n", current_scheduler()->id, curr->id, *value);
+  printf("[%d-%lu]: %d\n", current_scheduler()->id, curr->id, *value);
   task_yield();
   *value += 1;
   curr = task_self();
-  printf("%d, %lu: value : %d\n", current_scheduler()->id, curr->id, *value);
+  printf("[%d-%lu]: %d\n", current_scheduler()->id, curr->id, *value);
   task_yield();
   *value += 1;
   curr = task_self();
-  printf("%d, %lu: value : %d\n", current_scheduler()->id, curr->id, *value);
-  task_yield();
+  printf("[%d-%lu]: %d\n", current_scheduler()->id, curr->id, *value);
   *value += 1;
   curr = task_self();
-  printf("%d, %lu: value : %d\n", current_scheduler()->id, curr->id, *value);
+  printf("[%d-%lu]: %d\n", current_scheduler()->id, curr->id, *value);
+  *value += 1;
+  curr = task_self();
+  printf("[%d-%lu]: %d\n", current_scheduler()->id, curr->id, *value);
+  *value += 1;
+  curr = task_self();
+  printf("[%d-%lu]: %d\n", current_scheduler()->id, curr->id, *value);
   return NULL;
 }
 

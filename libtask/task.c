@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include "task_scheduler.h"
+#include "task_atomic.h"
 
 /*
  * global variables
@@ -36,7 +37,30 @@ task_scheduler_t *current_scheduler(void)
 static void *task_go_routine(void *arg)
 {
   task_t *task = arg;
-  task->routine(task->arg);
+  void *result = task->routine(task->arg);
+
+  // do something after task is finished.
+  task->result = result;
+  if (task->join_state != TASK_DETACHED) {
+    int old_state = atomic_set((int *)&task->join_state, TASK_WAIT_FOR_JOINER);
+    if (old_state == TASK_JOINABLE) {
+      // this state asserts no task joins us
+      assert(!task->join_task);
+    } else if (old_state == TASK_WAIT_TO_JOIN) {
+      //a joining task is waiting for us to finish.
+      task_t *join_task = task->join_task;
+      assert(join_task);
+      assert(join_task->state == TASK_STATE_WAITING);
+      printf("task-%lu is joined by task-%lu, wakeup it.\n", task->id, join_task->id);
+      task->join_task = NULL;
+      join_task->state = TASK_STATE_READY;
+      join_task->result = result;
+      scheduler_schedule(current_scheduler()->sched_ctx, join_task);
+    } else {
+      //it's TASK_WAIT_FOR_JOINER - that's an error!!
+      assert(0);
+    }
+  }
   task->state = TASK_STATE_DONE;
   task_yield();
   //!!never go here!!
@@ -54,7 +78,9 @@ static void task_switch_to(task_scheduler_t *sched, task_t *to)
     if (from != sched->idle)
       scheduler_schedule(sched->sched_ctx, from);
   } else if (from->state == TASK_STATE_DONE) {
-    printf("task-%lu done\n", from->id);
+    printf("task-%lu is done\n", from->id);
+  } else if (from->state == TASK_STATE_WAITING) {
+    printf("task-%lu is waiting\n", from->id);
   } else {
     assert(0);
   }
@@ -80,7 +106,9 @@ static void *pthread_routine(void *arg)
     if (task) {
       task_switch_to(sched, task);
     } else {
-      //printf("no more thread, sleep 1s\n");
+      printf("sched-%d, no more tasks, sleep 1s\n", sched->id);
+      assert(sched->current == sched->idle);
+      assert(sched->current->state == TASK_STATE_RUNNING);
       sleep(1);
     }
   }
@@ -188,8 +216,10 @@ int task_yield(void)
   task_t *task = scheduler_next(sched->sched_ctx);
   if (!task) {
     task_t *current = sched->current;
-    if (current->state == TASK_STATE_DONE) {
+    if (current->state == TASK_STATE_DONE ||
+        current->state == TASK_STATE_WAITING) {
       task = sched->idle;
+      printf("idle state:%d\n", task->state);
       task_switch_to(sched, task);
     }
   } else {
@@ -198,7 +228,35 @@ int task_yield(void)
   return 0;
 }
 
-int task_join(task_t *task, void **result);
+int task_join(task_t *task, void **result)
+{
+  if (result) *result = NULL;
+
+  if (task->join_state == TASK_DETACHED) {
+    printf("task cannot be joined.\n");
+    return -1;
+  }
+
+  int old_state = atomic_set((int *)&task->join_state, TASK_WAIT_TO_JOIN);
+  if (old_state == TASK_JOINABLE) {
+    // need to wait until other task finished
+    task_scheduler_t *sched = current_scheduler();
+    task_t *current = sched->current;
+    current->state = TASK_STATE_WAITING;
+    task->join_task = current;
+    printf("task-%lu is not finished\n", task->id);
+    task_yield();
+  } else if (old_state == TASK_WAIT_FOR_JOINER) {
+    // other task is finished
+    printf("task-%lu is finished\n", task->id);
+    if (result) *result = task->result;
+  } else {
+    //it's TASK_WAIT_TO_JOIN or TASK_DETACHED - that's an error!!
+    assert(0);
+  }
+  return 0;
+}
+
 int task_detach(task_t *task);
 
 /*

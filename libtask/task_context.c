@@ -6,5 +6,5 @@
 #elif defined(SWITCH_UCONTEXT)
 #include "task_context_ucontext.c"
 #else
-#error please implement thread context functions in task_context.h
+#error please implement task context functions in task_context.h
 #endif

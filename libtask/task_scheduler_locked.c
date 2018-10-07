@@ -77,11 +77,13 @@ void scheduler_load_balance(scheduler_context_t *sched)
     //printf("balance:[%d] = %d -> [%d] %d\n", index, other_deque->count, sched_lldq->id, count);
     while (num_steal-- > 0) {
       node = lldq_pop_head(other_deque);
-      task_t *task = node->data;
-      assert(task);
-      //printf("thread:%lu\n", thread->id);
-      lldq_push_tail(&sched_lldq->deque, node);
-      ++sched_lldq->steal_count;
+      if (node) {
+        task_t *task = node->data;
+        assert(task);
+        printf("task:%lu is stolen by sched-%d\n", task->id, current_scheduler()->id);
+        lldq_push_tail(&sched_lldq->deque, node);
+        ++sched_lldq->steal_count;
+      }
     }
   }
 }

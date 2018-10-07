@@ -23,10 +23,10 @@ typedef enum {
  * joinable state
  */
 typedef enum {
-  TASK_JOINABLE        = 1,
-  TASK_WAIT_FOR_JOINER = 2,
-  TASK_WAIT_TO_JOIN    = 3,
-  TASK_DETACHED        = 4,
+  TASK_JOINABLE        = 0,
+  TASK_WAIT_FOR_JOINER = 1,
+  TASK_WAIT_TO_JOIN    = 2,
+  TASK_DETACHED        = 3,
 } join_state_t;
 
 /*
@@ -36,12 +36,12 @@ typedef struct task {
   task_context_t context;
   routine_t routine;
   void *arg;
-  volatile task_state_t state;
-  volatile uint64_t id;
-  volatile void *result;
-  void *sched_info;
-  volatile join_state_t join_state;
-  volatile struct task *join_task;
+  task_state_t volatile state;
+  uint64_t id;
+  void * volatile result;
+  void * volatile sched_info;
+  join_state_t volatile join_state;
+  struct task * volatile join_task;
 } task_t;
 
 /*
@@ -58,7 +58,7 @@ typedef void *scheduler_context_t;
  */
 typedef struct task_scheduler {
   task_t *idle;
-  task_t *current;
+  task_t *volatile current;
   task_t *gc;
   scheduler_context_t *sched_ctx;
   int id;
