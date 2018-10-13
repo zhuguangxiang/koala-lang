@@ -1,0 +1,10 @@
+
+import "os"
+import "io"
+
+func Main(args [string]) {
+  f := os.Open("./file.kl")
+  data, _ := f.Read()
+  f.Close()
+  io.Println(data)
+}

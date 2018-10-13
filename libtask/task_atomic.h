@@ -7,4 +7,6 @@
  */
 int atomic_set(int *loc, int value);
 
+void *atomic_set_pointer(void **loc, void *ptr);
+
 #endif /* _KOALA_TASK_ATOMIC_H_ */

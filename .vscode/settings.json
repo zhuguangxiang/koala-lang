@@ -1,7 +1,7 @@
 {
 	"workbench.startupEditor": "none",
 	"workbench.statusBar.visible": true,
-	"workbench.colorTheme": "One Dark Pro",
+	"workbench.colorTheme": "One Dark Pro Vivid",
 	"workbench.iconTheme": "file-icons",
 	"workbench.activityBar.visible": false,
 	"editor.fontSize": 14,
@@ -76,5 +76,6 @@
 	"editor.cursorStyle": "line",
 	"terminal.integrated.scrollback": 5000,
 	"terminal.integrated.rendererType": "dom",
-	"window.zoomLevel": 0
+	"window.zoomLevel": 0,
+	"editor.lineHeight": 19.5
 }

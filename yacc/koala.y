@@ -588,7 +588,7 @@ LocalStatement
   | Assignment              { $$ = $1;                  }
   | IfStatement             { $$ = $1;                  }
   | WhileStatement          { $$ = $1;                  }
-  | SwitchStatement         {                           }
+//  | SwitchStatement         {                           }
   | ForStatement            { $$ = $1;                  }
   | JumpStatement           { $$ = $1;                  }
   | ReturnStatement         { $$ = $1;                  }

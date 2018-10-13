@@ -73,7 +73,7 @@ void scheduler_load_balance(scheduler_context_t *sched)
     index = i % mod;
     other_deque = &task_schedulers[index].deque;
     assert(other_deque != &sched_lldq->deque);
-    num_steal = (other_deque->count - count);
+    num_steal = (other_deque->count - count) / 2;
     //printf("balance:[%d] = %d -> [%d] %d\n", index, other_deque->count, sched_lldq->id, count);
     while (num_steal-- > 0) {
       node = lldq_pop_head(other_deque);

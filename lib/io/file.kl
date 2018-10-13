@@ -1,0 +1,18 @@
+
+package io
+
+class File {
+  name string
+  fd int
+
+  func __init__(name string, fd int) {
+    self.name = name
+    self.fd = fd
+  }
+
+  func Read() ([byte], error) {
+    buf := [byte]
+    err := syscall(10, fd, buf)
+    return buf, err
+  }
+}

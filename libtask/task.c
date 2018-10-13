@@ -38,17 +38,25 @@ static void *task_go_routine(void *arg)
 {
   task_t *task = arg;
   void *result = task->routine(task->arg);
+  printf("result:%lu\n", (uint64_t)result);
 
   // do something after task is finished.
   task->result = result;
   if (task->join_state != TASK_DETACHED) {
-    int old_state = atomic_set((int *)&task->join_state, TASK_WAIT_FOR_JOINER);
+    int old_state = __sync_lock_test_and_set((int *)&task->join_state, TASK_WAIT_FOR_JOINER);
     if (old_state == TASK_JOINABLE) {
       // this state asserts no task joins us
       assert(!task->join_task);
+      printf("here ??\n");
     } else if (old_state == TASK_WAIT_TO_JOIN) {
       //a joining task is waiting for us to finish.
-      task_t *join_task = task->join_task;
+      task_t *join_task = NULL;
+      while(!join_task) {
+        //join_task = atomic_set_pointer((void **)&task->join_task, NULL);
+        join_task = __sync_lock_test_and_set((void **)&task->join_task, NULL);
+      }
+      //task_t *join_task = task->join_task;
+      //if (!join_task) exit(-1);
       assert(join_task);
       assert(join_task->state == TASK_STATE_WAITING);
       printf("task-%lu is joined by task-%lu, wakeup it.\n", task->id, join_task->id);
@@ -106,7 +114,7 @@ static void *pthread_routine(void *arg)
     if (task) {
       task_switch_to(sched, task);
     } else {
-      printf("sched-%d, no more tasks, sleep 1s\n", sched->id);
+      //printf("sched-%d, no more tasks, sleep 1s\n", sched->id);
       assert(sched->current == sched->idle);
       assert(sched->current->state == TASK_STATE_RUNNING);
       sleep(1);
@@ -237,7 +245,7 @@ int task_join(task_t *task, void **result)
     return -1;
   }
 
-  int old_state = atomic_set((int *)&task->join_state, TASK_WAIT_TO_JOIN);
+  int old_state = __sync_lock_test_and_set((int *)&task->join_state, TASK_WAIT_TO_JOIN);
   if (old_state == TASK_JOINABLE) {
     // need to wait until other task finished
     task_scheduler_t *sched = current_scheduler();
@@ -246,6 +254,8 @@ int task_join(task_t *task, void **result)
     task->join_task = current;
     printf("task-%lu is not finished\n", task->id);
     task_yield();
+    assert(current->state == TASK_STATE_RUNNING);
+    if (result) *result = current->result;
   } else if (old_state == TASK_WAIT_FOR_JOINER) {
     // other task is finished
     printf("task-%lu is finished\n", task->id);
