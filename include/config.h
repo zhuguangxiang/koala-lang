@@ -1,0 +1,2 @@
+
+#define LOG_COLOR
