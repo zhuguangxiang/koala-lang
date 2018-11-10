@@ -7,6 +7,7 @@
 	"editor.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
 	"editor.fontLigatures": true,
 	"editor.fontWeight": "100",
+	"editor.fontSize": 14,
 	"editor.tabSize": 2,
 	"editor.insertSpaces": true,
 	"files.associations": {
@@ -33,7 +34,8 @@
 		"memory": "c",
 		"chrono": "c",
 		"limits": "c",
-		"algorithm": "c"
+		"algorithm": "c",
+		"ratio": "c"
 	},
 	"editor.rulers": [
 			80
@@ -88,5 +90,5 @@
 				}
 		}]
 	},
-	"window.zoomLevel": 0.5
+	"window.zoomLevel": 1.5
 }

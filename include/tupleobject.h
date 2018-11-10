@@ -40,7 +40,6 @@ void Init_Tuple_Klass(void);
 Object *Tuple_New(int size);
 void Tuple_Free(Object *ob);
 Object *Tuple_Get(Object *ob, int index);
-Object *Tuple_Get_Slice(Object *ob, int min, int max);
 int Tuple_Set(Object *ob, int index, Object *val);
 int Tuple_Size(Object *ob);
 

@@ -190,6 +190,8 @@ struct klass {
 
 /* new common Klass */
 Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type);
+/* free Klass */
+void Klass_Free(Klass *klazz);
 /* new class */
 #define Class_New(name, base, traits) \
   Klass_New(name, base, traits, &Klass_Klass)
@@ -206,7 +208,7 @@ int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto);
 /* get the field's value from the object, search base if possibly */
 Object *Object_Get_Value(Object *ob, char *name, Klass *klazz);
 /* set the field's value to the object, search base if possibly */
-int Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val);
+Object *Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val);
 /*
  * get a method from the object, and return its real object
  * see 'struct object'

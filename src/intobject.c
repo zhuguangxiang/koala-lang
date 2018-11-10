@@ -21,13 +21,16 @@
  */
 
 #include "intobject.h"
-#include "mem.h"
 #include "stringobject.h"
 #include "hashfunc.h"
+#include "mem.h"
+#include "cache.h"
+
+static Cache Int_Cache;
 
 Object *Integer_New(int64 value)
 {
-  IntObject *iob = mm_alloc(sizeof(IntObject));
+  IntObject *iob = Cache_Take(&Int_Cache);
   Init_Object_Head(iob, &Int_Klass);
   iob->value = value;
   return (Object *)iob;
@@ -36,7 +39,7 @@ Object *Integer_New(int64 value)
 void Integer_Free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Int_Klass);
-  mm_free(ob);
+  Cache_Restore(&Int_Cache, ob);
 }
 
 int64 Integer_ToCInt(Object *ob)
@@ -99,3 +102,13 @@ Klass Int_Klass = {
   .ob_str = integer_tostring,
   .numops = &integer_numops,
 };
+
+void Init_Integer_Klass(void)
+{
+  Init_Cache(&Int_Cache, "IntObject", sizeof(IntObject));
+}
+
+void Fini_Integer_Klass(void)
+{
+  Fini_Cache(&Int_Cache, NULL, NULL);
+}

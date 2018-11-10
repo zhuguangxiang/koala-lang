@@ -22,3 +22,6 @@ target_link_libraries(test_trait koala)
 
 add_executable(test_stringobject test_stringobject.c)
 target_link_libraries(test_stringobject koala)
+
+add_executable(test_intobject test_intobject.c)
+target_link_libraries(test_intobject koala)

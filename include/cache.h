@@ -20,40 +20,29 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_STRINGOBJECT_H_
-#define _KOALA_STRINGOBJECT_H_
+#ifndef _KOALA_CACHE_H_
+#define _KOALA_CACHE_H_
 
-#include "object.h"
+#include "list.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct stringobject {
-  OBJECT_HEAD
-  /* string cache, hash node */
-  HashNode hnode;
-  /* str's length */
-  int len;
-  /* str == data, or str is readonly atom string */
-  char *str;
-  /* data */
-  char data[0];
-} StringObject;
+typedef struct cache {
+  char *name;
+  int objsize;
+  int total;
+  int used;
+  struct list_head free_list;
+} Cache;
 
-extern Klass String_Klass;
-/* initialize String class */
-void Init_String_Klass(void);
-/* finialize String class */
-void Fini_String_Klass(void);
-/* new string object */
-Object *String_New(char *str);
-/* free string object */
-void String_Free(Object *ob);
-/* to c readonly string */
-char *String_RawString(Object *ob);
+int Init_Cache(Cache *cache, char *name, int objsize);
+int Fini_Cache(Cache *cache, void (*finifunc)(void *, void *), void *arg);
+void *Cache_Take(Cache *cache);
+void Cache_Restore(Cache *cache, void *obj);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_STRINGOBJECT_H_ */
+#endif /* _KOALA_CACHE_H_ */

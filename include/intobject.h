@@ -35,6 +35,8 @@ typedef struct intobject {
 } IntObject;
 
 extern Klass Int_Klass;
+void Init_Integer_Klass(void);
+void Fini_Integer_Klass(void);
 Object *Integer_New(int64 value);
 int64 Integer_ToCInt(Object *ob);
 

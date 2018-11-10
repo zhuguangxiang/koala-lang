@@ -6,6 +6,7 @@
 
 void test_stringobject(void)
 {
+  AtomString_New("hello");
   Object *s1 = String_New("hello");
   Object *s2 = String_New("hello");
   assert(s1 == s2);

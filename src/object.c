@@ -110,8 +110,8 @@ static Object *object_alloc(Klass *klazz)
 
 static void object_free(Object *ob)
 {
-  //FIXME
-  UNUSED_PARAMETER(ob);
+  Log_Debug("object of '%s' is freed", OB_KLASS(ob)->name);
+  gc_free(ob);
 }
 
 static uint32 object_hash(Object *ob)
@@ -167,7 +167,7 @@ static int build_one_lro(Klass *klazz, Klass *base, int offset)
   return offset;
 }
 
-static void build_lro(Klass *klazz, Klass *base, Vector *traits)
+static void lro_build(Klass *klazz, Klass *base, Vector *traits)
 {
   int offset = 0;
   if (base)
@@ -209,11 +209,46 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
   klazz->ob_str   = object_tostring;
 
   Vector_Init(&klazz->lro);
-  build_lro(klazz, base, traits);
-
+  lro_build(klazz, base, traits);
   lro_debug(klazz);
 
   return klazz;
+}
+
+static void free_lronode_func(void *item, void *arg)
+{
+  mm_free(item);
+}
+
+static void free_member_func(HashNode *hnode, void *arg)
+{
+  MemberDef *m = container_of(hnode, MemberDef, hnode);
+  switch (m->kind) {
+    case MEMBER_VAR: {
+      Log_Debug("field '%s' is freed", m->name);
+      break;
+    }
+    case MEMBER_CODE: {
+      Log_Debug("method '%s' is freed", m->name);
+      CodeObject_Free(m->code);
+      break;
+    }
+    default: {
+      assert(0);
+      break;
+    }
+  }
+  Member_Free(m);
+}
+
+void Klass_Free(Klass *klazz)
+{
+  Log_Debug("Klass '%s' is freed", klazz->name);
+  Vector_Fini(&klazz->lro, free_lronode_func, NULL);
+  if (klazz->table)
+    HashTable_Free(klazz->table, free_member_func, NULL);
+  free(klazz->name);
+  gc_free(klazz);
 }
 
 static HashTable *__get_table(Klass *klazz)
@@ -333,14 +368,15 @@ Object *Object_Get_Value(Object *ob, char *name, Klass *klazz)
   return value[index];
 }
 
-int Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val)
+Object *Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val)
 {
   int index = __get_field_index(ob, name, klazz);
   Object **value = (Object **)(ob + 1);
   Log_Info("set_value: klass '%s', name '%s', index %d",
            klazz->name, name, index);
+  Object *old = value[index];
   value[index] = val;
-  return 0;
+  return old;
 }
 
 Object *Object_Get_Method(Object *ob, char *name, Klass *klazz)

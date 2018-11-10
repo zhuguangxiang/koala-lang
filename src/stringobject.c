@@ -142,6 +142,18 @@ void Init_String_Klass(void)
   Klass_Add_CFunctions(&String_Klass, string_funcs);
 }
 
+static void finifunc(HashNode *hnode, void *arg)
+{
+  StringObject *sob = container_of(hnode, StringObject, hnode);
+  Log_Debug("free string: '%s'", sob->str);
+  mm_free((Object *)sob);
+}
+
+void Fini_String_Klass(void)
+{
+  HashTable_Fini(&strobj_cache, finifunc, NULL);
+}
+
 static int string_equal(Object *v1, Object *v2)
 {
   OB_ASSERT_KLASS(v1, String_Klass);
