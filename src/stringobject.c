@@ -152,6 +152,7 @@ static void finifunc(HashNode *hnode, void *arg)
 void Fini_String_Klass(void)
 {
   HashTable_Fini(&strobj_cache, finifunc, NULL);
+  Fini_Klass(&String_Klass);
 }
 
 static int string_equal(Object *v1, Object *v2)

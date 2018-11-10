@@ -243,12 +243,18 @@ static void free_member_func(HashNode *hnode, void *arg)
 
 void Klass_Free(Klass *klazz)
 {
+  Fini_Klass(klazz);
   Log_Debug("Klass '%s' is freed", klazz->name);
+  free(klazz->name);
+  gc_free(klazz);
+}
+
+void Fini_Klass(Klass *klazz)
+{
+  Log_Debug("Klass '%s' is finalized", klazz->name);
   Vector_Fini(&klazz->lro, free_lronode_func, NULL);
   if (klazz->table)
     HashTable_Free(klazz->table, free_member_func, NULL);
-  free(klazz->name);
-  gc_free(klazz);
 }
 
 static HashTable *__get_table(Klass *klazz)

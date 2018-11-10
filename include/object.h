@@ -192,6 +192,8 @@ struct klass {
 Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type);
 /* free Klass */
 void Klass_Free(Klass *klazz);
+/* finalize Klass */
+void Fini_Klass(Klass *klazz);
 /* new class */
 #define Class_New(name, base, traits) \
   Klass_New(name, base, traits, &Klass_Klass)
