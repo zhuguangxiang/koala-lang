@@ -25,6 +25,13 @@
 
 #define DEFAULT_CAPACITY 8
 
+void Vector_Init(Vector *vec)
+{
+  vec->size = 0;
+  vec->capacity = 0;
+  vec->items = NULL;
+}
+
 Vector *Vector_New(void)
 {
   Vector *vec = mm_alloc(sizeof(Vector));

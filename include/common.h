@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <ctype.h>
+#include <stdint.h>
 #include <dirent.h>
 #include <errno.h>
 #include <time.h>

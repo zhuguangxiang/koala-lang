@@ -33,12 +33,12 @@ typedef enum loglevel {
 
 void Log_Log(LogLevel level, char *file, int line, char *fmt, ...);
 
-#define Log_Trace(...) Log_Log(LOG_TRACE, __FNAME__, __LINE__, __VA_ARGS__)
-#define Log_Debug(...) Log_Log(LOG_DEBUG, __FNAME__, __LINE__, __VA_ARGS__)
-#define Log_Info(...) Log_Log(LOG_INFO, __FNAME__, __LINE__, __VA_ARGS__)
-#define Log_Warn(...) Log_Log(LOG_WARN, __FNAME__, __LINE__, __VA_ARGS__)
-#define Log_Error(...) Log_Log(LOG_ERROR, __FNAME__, __LINE__, __VA_ARGS__)
-#define LOG_FATAL(...) Log_Log(LOG_FATAL, __FNAME__, __LINE__, __VA_ARGS__)
+#define Log_Trace(...) Log_Log(LOG_TRACE, __FILE__, __LINE__, __VA_ARGS__)
+#define Log_Debug(...) Log_Log(LOG_DEBUG, __FILE__, __LINE__, __VA_ARGS__)
+#define Log_Info(...) Log_Log(LOG_INFO, __FILE__, __LINE__, __VA_ARGS__)
+#define Log_Warn(...) Log_Log(LOG_WARN, __FILE__, __LINE__, __VA_ARGS__)
+#define Log_Error(...) Log_Log(LOG_ERROR, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_FATAL(...) Log_Log(LOG_FATAL, __FILE__, __LINE__, __VA_ARGS__)
 
 #ifdef __cplusplus
 }

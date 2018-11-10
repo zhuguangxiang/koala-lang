@@ -9,7 +9,7 @@ configure_file (${PROJECT_SOURCE_DIR}/include/config.h.in
 
 ## ADD_DEFINITIONS (-DLOG_COLOR)
 
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FNAME__='\"$(notdir $<)\"'")
+## set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FNAME__='\"$(notdir $<)\"'")
 
 INCLUDE_DIRECTORIES (${PROJECT_SOURCE_DIR}/include)
 SET (LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR})
@@ -23,3 +23,6 @@ add_test(NAME test_hashtable COMMAND test_hashtable)
 add_test(NAME test_buffer COMMAND test_buffer)
 add_test(NAME test_atomstring COMMAND test_atomstring)
 add_test(NAME test_typedesc COMMAND test_typedesc)
+add_test(NAME test_object COMMAND test_object)
+add_test(NAME test_trait COMMAND test_trait)
+add_test(NAME test_stringobject COMMAND test_stringobject)

@@ -44,6 +44,9 @@ typedef struct vector {
 /* declare a vector with name */
 #define VECTOR(name) Vector name = {0, 0, NULL}
 
+/* initialize a vector */
+void Vector_Init(Vector *vec);
+
 /* new a vector, and use Vector_Free to free the vector */
 Vector *Vector_New(void);
 
@@ -68,6 +71,9 @@ int Vector_Set(Vector *vec, int index, void *item);
  * if index is out bound, it returns NULL
  */
 void *Vector_Get(Vector *vec, int index);
+
+/* get last one item */
+#define Vector_Get_Last(vec) Vector_Get(vec, Vector_Size(vec) - 1)
 
 /* append a value into the vector's end position */
 #define Vector_Append(vec, item) Vector_Set(vec, (vec)->size, item)

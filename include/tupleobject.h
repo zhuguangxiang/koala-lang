@@ -20,24 +20,31 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_MEM_H_
-#define _KOALA_MEM_H_
+#ifndef _KOALA_TUPLEOBJECT_H_
+#define _KOALA_TUPLEOBJECT_H_
 
-#include "common.h"
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* no gc memory allocator */
-#define mm_alloc(size) calloc(1, size)
-#define mm_free(ptr)   free(ptr)
+typedef struct tupleobject {
+  OBJECT_HEAD
+  int size;
+  Object *items[0];
+} TupleObject;
 
-/* gc memory allocator */
-void *gc_alloc(int size);
-void gc_free(void *ptr);
+extern Klass Tuple_Klass;
+void Init_Tuple_Klass(void);
+Object *Tuple_New(int size);
+void Tuple_Free(Object *ob);
+Object *Tuple_Get(Object *ob, int index);
+Object *Tuple_Get_Slice(Object *ob, int min, int max);
+int Tuple_Set(Object *ob, int index, Object *val);
+int Tuple_Size(Object *ob);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_MEM_H_ */
+#endif /* _KOALA_TUPLEOBJECT_H_ */

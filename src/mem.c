@@ -20,24 +20,14 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_MEM_H_
-#define _KOALA_MEM_H_
-
 #include "common.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* no gc memory allocator */
-#define mm_alloc(size) calloc(1, size)
-#define mm_free(ptr)   free(ptr)
-
-/* gc memory allocator */
-void *gc_alloc(int size);
-void gc_free(void *ptr);
-
-#ifdef __cplusplus
+void *gc_alloc(int size)
+{
+  return calloc(1, size);
 }
-#endif
-#endif /* _KOALA_MEM_H_ */
+
+void gc_free(void *ptr)
+{
+  free(ptr);
+}

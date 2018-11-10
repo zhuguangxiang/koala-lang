@@ -13,3 +13,12 @@ target_link_libraries(test_atomstring koala)
 
 add_executable(test_typedesc test_typedesc.c)
 target_link_libraries(test_typedesc koala)
+
+add_executable(test_object test_object.c)
+target_link_libraries(test_object koala)
+
+add_executable(test_trait test_trait.c)
+target_link_libraries(test_trait koala)
+
+add_executable(test_stringobject test_stringobject.c)
+target_link_libraries(test_stringobject koala)

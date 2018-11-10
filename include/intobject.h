@@ -20,24 +20,25 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_MEM_H_
-#define _KOALA_MEM_H_
+#ifndef _KOALA_INTOBJECT_H_
+#define _KOALA_INTOBJECT_H_
 
-#include "common.h"
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* no gc memory allocator */
-#define mm_alloc(size) calloc(1, size)
-#define mm_free(ptr)   free(ptr)
+typedef struct intobject {
+  OBJECT_HEAD
+  int64 value;
+} IntObject;
 
-/* gc memory allocator */
-void *gc_alloc(int size);
-void gc_free(void *ptr);
+extern Klass Int_Klass;
+Object *Integer_New(int64 value);
+int64 Integer_ToCInt(Object *ob);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_MEM_H_ */
+#endif /* _KOALA_INTOBJECT_H_ */

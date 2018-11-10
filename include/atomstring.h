@@ -20,8 +20,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_ATOM_STRING_H_
-#define _KOALA_ATOM_STRING_H_
+#ifndef _KOALA_ATOMSTRING_H_
+#define _KOALA_ATOMSTRING_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +34,7 @@ typedef struct {
 
 void AtomString_Init(void);
 void AtomString_Fini(void);
+int AtomString_Find(char *str, String *s);
 String AtomString_New(char *str);
 int AtomString_Length(String str);
 int AtomString_Equal(String s1, String s2);
@@ -41,4 +42,4 @@ int AtomString_Equal(String s1, String s2);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_ATOM_STRING_H_ */
+#endif /* _KOALA_ATOMSTRING_H_ */

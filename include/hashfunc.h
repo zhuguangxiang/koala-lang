@@ -20,8 +20,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_HASH_H_
-#define _KOALA_HASH_H_
+#ifndef _KOALA_HASHFUNC_H_
+#define _KOALA_HASHFUNC_H_
 
 #include "common.h"
 
@@ -39,4 +39,4 @@ uint32 hash_string(const char *str);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_HASH_H_ */
+#endif /* _KOALA_HASHFUNC_H_ */

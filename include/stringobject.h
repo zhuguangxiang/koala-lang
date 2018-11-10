@@ -20,24 +20,38 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_MEM_H_
-#define _KOALA_MEM_H_
+#ifndef _KOALA_STRINGOBJECT_H_
+#define _KOALA_STRINGOBJECT_H_
 
-#include "common.h"
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* no gc memory allocator */
-#define mm_alloc(size) calloc(1, size)
-#define mm_free(ptr)   free(ptr)
+typedef struct stringobject {
+  OBJECT_HEAD
+  /* string cache, hash node */
+  HashNode hnode;
+  /* str's length */
+  int len;
+  /* str == data, or str is readonly atom string */
+  char *str;
+  /* data */
+  char data[0];
+} StringObject;
 
-/* gc memory allocator */
-void *gc_alloc(int size);
-void gc_free(void *ptr);
+extern Klass String_Klass;
+/* initialize String class */
+void Init_String_Klass(void);
+/* new string object */
+Object *String_New(char *str);
+/* free string object */
+void String_Free(Object *ob);
+/* to c readonly string */
+char *String_RawString(Object *ob);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_MEM_H_ */
+#endif /* _KOALA_STRINGOBJECT_H_ */

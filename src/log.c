@@ -28,7 +28,9 @@ struct logger {
   LogLevel level;
   int quiet;
   FILE *filp;
-} logger;
+};
+
+static struct logger logger;
 
 static char *level_names[] = {
   "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"

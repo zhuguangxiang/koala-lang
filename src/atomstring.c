@@ -54,7 +54,7 @@ static StrEntry *strentry_new(char *str)
   return e;
 }
 
-static int string_exist(char *str, String *s)
+int AtomString_Find(char *str, String *s)
 {
   StrEntry key = {.val.str = str};
   HashNode *hnode = HashTable_Find(&pool.table, &key);
@@ -68,7 +68,7 @@ static int string_exist(char *str, String *s)
 String AtomString_New(char *str)
 {
   String s;
-  if (string_exist(str, &s))
+  if (AtomString_Find(str, &s))
     return s;
 
   StrEntry *e = strentry_new(str);
