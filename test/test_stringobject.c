@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
   AtomString_Init();
   Init_String_Klass();
   test_stringobject();
+  Fini_String_Klass();
   AtomString_Fini();
   return 0;
 }
