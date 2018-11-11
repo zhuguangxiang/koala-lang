@@ -67,7 +67,7 @@ int KLCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)
   CodeObject *code = (CodeObject *)ob;
   assert(IS_KLANG_CODE(code));
 
-  MemberDef *member = Member_Var_New(name, desc, 0);
+  MemberDef *member = MemberDef_New(MEMBER_VAR, name, desc, 0);
   member->offset = pos;
   Vector_Append(&code->kl.locvec, member);
   return 0;

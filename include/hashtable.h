@@ -94,6 +94,7 @@ void HashTable_Visit(HashTable *table, ht_visitfunc visit, void *arg);
 
 int HashTable_Init(HashTable *table, ht_hashfunc hash, ht_equalfunc equal);
 void HashTable_Fini(HashTable *table, ht_visitfunc visit, void *arg);
+#define HashTable_Get_Count(table) ((table) ? (table)->nr_nodes : 0)
 
 #ifdef __cplusplus
 }

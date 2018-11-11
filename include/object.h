@@ -166,7 +166,7 @@ struct klass {
   /* line resolution order(lro) for classes and traits inheritance */
   Vector lro;
   /* the class's owner */
-  Object *module;
+  void *pkg;
 
   /* for gc */
   markfunc ob_mark;
@@ -250,6 +250,9 @@ typedef struct funcdef {
   cfunc fn;
 } FuncDef;
 
+/* build codeobject from funcdef */
+Object *FuncDef_Build_Code(FuncDef *f);
+
 /*
  * add c functions to the class, which are defined as FuncDef structure,
  * with {NULL} as an end.
@@ -276,7 +279,7 @@ typedef struct memberdef {
   /* member's type descriptor */
   TypeDesc *desc;
   /* is constant? variable only */
-  int konst;
+  int k;
   /* by ->kind */
   union {
     /* offset of variable, field and prototype */
@@ -289,31 +292,27 @@ typedef struct memberdef {
 } MemberDef;
 
 /* new common member, see MEMBER_XXX kind */
-MemberDef *Member_New(int kind, char *name, TypeDesc *desc, int konst);
+MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k);
 /* free MemberDef structure */
-void Member_Free(MemberDef *m);
-
+void MemberDef_Free(MemberDef *m);
 /* new variable in module, class or trait */
-#define Member_Var_New(name, desc, konst) \
-  Member_New(MEMBER_VAR, name, desc, konst)
-/* new code in module, class or trait */
-#define Member_Code_New(name, desc) \
-  Member_New(MEMBER_CODE, name, desc, 0)
+MemberDef *MemberDef_Var_New(HashTable *table, char *name, TypeDesc *t, int k);
+/* new code in package, class or trait */
+MemberDef *MemberDef_Code_New(HashTable *table, char *name, Object *code);
 /* new prototype in trait only */
-#define Member_Proto_New(name, desc) \
-  Member_New(MEMBER_PROTO, name, desc, 0)
-/* new class in module */
-#define Member_Class_New(name) \
-  Member_New(MEMBER_CLASS, name, NULL, 0)
-/* new trait in module */
-#define Member_Trait_New(name) \
-  Member_New(MEMBER_TRAIT, name, NULL, 0)
-
-/* hash function of MemberDef, simply use it's name as key */
-uint32 Member_Hash(MemberDef *m);
-
-/* equal function of MemberDef, simply use it's name as key */
-int Member_Equal(MemberDef *m1, MemberDef *m2);
+#define MemberDef_Proto_New(name, desc) \
+  MemberDef_New(MEMBER_PROTO, name, desc, 0)
+/* new class in package */
+#define MemberDef_Class_New(name) \
+  MemberDef_New(MEMBER_CLASS, name, NULL, 0)
+/* new trait in package */
+#define MemberDef_Trait_New(name) \
+  MemberDef_New(MEMBER_TRAIT, name, NULL, 0)
+/* build a hashtable with MemberDef */
+HashTable *MemberDef_Build_HashTable(void);
+/* find memberdef from hashtable */
+MemberDef *MemberDef_Find(HashTable *table, char *name);
+Object *MemberDef_HashTable_ToString(HashTable *table);
 
 #ifdef __cplusplus
 }

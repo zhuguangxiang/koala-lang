@@ -12,6 +12,11 @@ void test_tupleobject(void)
   Object *tuple = Tuple_New(8);
   Tuple_Set(tuple, 0, Integer_New(100));
   Tuple_Set(tuple, 1, String_New("hello"));
+  Object *s = OB_KLASS(tuple)->ob_str(tuple);
+  char *str = String_RawString(s);
+  printf("%s\n", str);
+  assert(!strcmp("[100, 'hello']", str));
+  OB_DECREF(s);
   Object *method = Object_Get_Method(tuple, "Size", OB_KLASS(tuple));
   assert(method);
   CodeObject *code = (CodeObject *)method;

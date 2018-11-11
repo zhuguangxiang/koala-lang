@@ -39,12 +39,20 @@ static void klass_free(Object *ob)
   //FXIME
 }
 
+static Object *klass_tostring(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, Klass_Klass);
+  Klass *klazz = (Klass *)ob;
+  return MemberDef_HashTable_ToString(klazz->table);
+}
+
 Klass Klass_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Klass",
   .basesize = sizeof(Klass),
   .ob_mark  = klass_mark,
   .ob_free  = klass_free,
+  .ob_str = klass_tostring,
 };
 
 Klass Any_Klass = {
@@ -60,21 +68,23 @@ Klass Trait_Klass = {
   .ob_free  = klass_free,
 };
 
+Object *FuncDef_Build_Code(FuncDef *f)
+{
+  Vector *rdesc = String_To_TypeDescList(f->rdesc);
+  Vector *pdesc = String_To_TypeDescList(f->pdesc);
+  TypeDesc *proto = TypeDesc_New_Proto(pdesc, rdesc);
+  return CLang_Code_New(f->fn, proto);
+}
+
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
 {
   int res;
   FuncDef *f = funcs;
-  Object *meth;
-  Vector *pdesc;
-  Vector *rdesc;
-  TypeDesc *proto;
+  Object *code;
 
   while (f->name) {
-    rdesc = String_To_TypeDescList(f->rdesc);
-    pdesc = String_To_TypeDescList(f->pdesc);
-    proto = TypeDesc_New_Proto(pdesc, rdesc);
-    meth = CLang_Code_New(f->fn, proto);
-    res = Klass_Add_Method(klazz, f->name, meth);
+    code = FuncDef_Build_Code(f);
+    res = Klass_Add_Method(klazz, f->name, code);
     assert(!res);
     ++f;
   }
@@ -236,7 +246,7 @@ static void free_memberdef_func(HashNode *hnode, void *arg)
       break;
     }
   }
-  Member_Free(m);
+  MemberDef_Free(m);
 }
 
 void Klass_Free(Klass *klazz)
@@ -257,10 +267,8 @@ void Fini_Klass(Klass *klazz)
 
 static HashTable *__get_table(Klass *klazz)
 {
-  if (!klazz->table) {
-    klazz->table = HashTable_New((ht_hashfunc)Member_Hash,
-                                 (ht_equalfunc)Member_Equal);
-  }
+  if (!klazz->table)
+    klazz->table = MemberDef_Build_HashTable();
   return klazz->table;
 }
 
@@ -269,35 +277,27 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
   assert(OB_KLASS(klazz) == &Klass_Klass ||
          OB_KLASS(klazz) == &Trait_Klass);
 
-  MemberDef *member = Member_Var_New(name, desc, 0);
-  int res = HashTable_Insert(__get_table(klazz), &member->hnode);
-  if (!res) {
-    member->offset = klazz->itemsize++;
+  MemberDef *m = MemberDef_Var_New(__get_table(klazz), name, desc, 0);
+  if (m) {
+    m->offset = klazz->itemsize++;
     return 0;
-  } else {
-    Member_Free(member);
-    return -1;
   }
+  return -1;
 }
 
 int Klass_Add_Method(Klass *klazz, char *name, Object *code)
 {
   assert(OB_KLASS(klazz) == &Klass_Klass ||
          OB_KLASS(klazz) == &Trait_Klass);
-  OB_ASSERT_KLASS(code, Code_Klass);
 
-  CodeObject *co = (CodeObject *)code;
-  MemberDef *member = Member_Code_New(name, co->proto);
-  int res = HashTable_Insert(__get_table(klazz), &member->hnode);
-  if (!res) {
-    member->code = code;
+  MemberDef *m = MemberDef_Code_New(__get_table(klazz), name, code);
+  if (m) {
+    m->code = code;
     if (IS_KLANG_CODE(code))
-      co->kl.consts = klazz->consts;
+      ((CodeObject *)code)->kl.consts = klazz->consts;
     return 0;
-  } else {
-    Member_Free(member);
-    return -1;
   }
+  return -1;
 }
 
 int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto)
@@ -305,21 +305,13 @@ int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto)
   assert(OB_KLASS(klazz) == &Klass_Klass ||
          OB_KLASS(klazz) == &Trait_Klass);
 
-  MemberDef *member = Member_Proto_New(name, proto);
+  MemberDef *member = MemberDef_Proto_New(name, proto);
   int res = HashTable_Insert(__get_table(klazz), &member->hnode);
-  if (!res) {
-    return 0;
-  } else {
-    Member_Free(member);
+  if (res) {
+    MemberDef_Free(member);
     return -1;
   }
-}
-
-static MemberDef *__get_member(Klass *klazz, char *name)
-{
-  MemberDef key = {.name = name};
-  HashNode *hnode = HashTable_Find(__get_table(klazz), &key);
-  return hnode ? container_of(hnode, MemberDef, hnode) : NULL;
+  return 0;
 }
 
 static int __get_lronode_index(Vector *lros, Klass *klazz)
@@ -332,8 +324,8 @@ static int __get_lronode_index(Vector *lros, Klass *klazz)
   return -1;
 }
 
-static MemberDef *__get_memberdef(Object *ob, char *name, Klass *klazz,
-                                  LRONode *lronode)
+static MemberDef *__get_memberdef_lronode(Object *ob, char *name,
+                                          Klass *klazz, LRONode *lronode)
 {
   assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass ||
          OB_KLASS(OB_KLASS(ob)) == &Trait_Klass);
@@ -346,7 +338,7 @@ static MemberDef *__get_memberdef(Object *ob, char *name, Klass *klazz,
 
   if (base == klazz && !dot) {
     /* search self */
-    m = __get_member(base, mname);
+    m = MemberDef_Find(__get_table(base), mname);
     if (m) {
       lronode->offset = klazz->offset;
       lronode->klazz = klazz;
@@ -370,7 +362,7 @@ static MemberDef *__get_memberdef(Object *ob, char *name, Klass *klazz,
   while (lro_index >= 0) {
     node = Vector_Get(&base->lro, lro_index);
     assert(node);
-    m = __get_member(node->klazz, mname);
+    m = MemberDef_Find(__get_table(node->klazz), mname);
     if (m) {
       *lronode = *node;
       break;
@@ -383,7 +375,7 @@ static MemberDef *__get_memberdef(Object *ob, char *name, Klass *klazz,
 Object *Object_Get_Value(Object *ob, char *name, Klass *klazz)
 {
   LRONode lronode;
-  MemberDef *m = __get_memberdef(ob, name, klazz, &lronode);
+  MemberDef *m = __get_memberdef_lronode(ob, name, klazz, &lronode);
   assert(m && m->kind == MEMBER_VAR);
   int index = lronode.offset + m->offset;
   Object **value = (Object **)(ob + 1);
@@ -395,7 +387,7 @@ Object *Object_Get_Value(Object *ob, char *name, Klass *klazz)
 Object *Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val)
 {
   LRONode lronode;
-  MemberDef *m = __get_memberdef(ob, name, klazz, &lronode);
+  MemberDef *m = __get_memberdef_lronode(ob, name, klazz, &lronode);
   assert(m && m->kind == MEMBER_VAR);
   int index = lronode.offset + m->offset;
   Object **value = (Object **)(ob + 1);
@@ -409,14 +401,14 @@ Object *Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val)
 Object *Object_Get_Method(Object *ob, char *name, Klass *klazz)
 {
   LRONode lronode;
-  MemberDef *m = __get_memberdef(ob, name, klazz, &lronode);
+  MemberDef *m = __get_memberdef_lronode(ob, name, klazz, &lronode);
   assert(m && m->kind == MEMBER_CODE);
   Log_Info("get_method '%s' in klass '%s-%s'",
            name, klazz->name, lronode.klazz->name);
   return m->code;
 }
 
-MemberDef *Member_New(int kind, char *name, TypeDesc *desc, int konst)
+MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k)
 {
   MemberDef *member = mm_alloc(sizeof(MemberDef));
   assert(member);
@@ -424,21 +416,78 @@ MemberDef *Member_New(int kind, char *name, TypeDesc *desc, int konst)
   member->kind = kind;
   member->name = name;
   member->desc = desc;
-  member->konst = konst;
+  member->k = k;
   return member;
 }
 
-void Member_Free(MemberDef *m)
+void MemberDef_Free(MemberDef *m)
 {
   mm_free(m);
 }
 
-uint32 Member_Hash(MemberDef *m)
+/* hash function of MemberDef, simply use it's name as key */
+static uint32 __m_hash(MemberDef *m)
 {
   return hash_string(m->name);
 }
 
-int Member_Equal(MemberDef *m1, MemberDef *m2)
+/* equal function of MemberDef, simply use it's name as key */
+static int __m_equal(MemberDef *m1, MemberDef *m2)
 {
   return !strcmp(m1->name, m2->name);
+}
+
+HashTable *MemberDef_Build_HashTable(void)
+{
+  return HashTable_New((ht_hashfunc)__m_hash, (ht_equalfunc)__m_equal);
+}
+
+MemberDef *MemberDef_Var_New(HashTable *table, char *name, TypeDesc *t, int k)
+{
+  MemberDef *m = MemberDef_New(MEMBER_VAR, name, t, k);
+  int res = HashTable_Insert(table, &m->hnode);
+  if (res) {
+    MemberDef_Free(m);
+    m = NULL;
+  }
+  return m;
+}
+
+MemberDef *MemberDef_Code_New(HashTable *table, char *name, Object *code)
+{
+  OB_ASSERT_KLASS(code, Code_Klass);
+  CodeObject *co = (CodeObject *)code;
+  MemberDef *m = MemberDef_New(MEMBER_CODE, name, co->proto, 0);
+  int res = HashTable_Insert(table, &m->hnode);
+  if (res) {
+    MemberDef_Free(m);
+    m = NULL;
+  }
+  return m;
+}
+
+MemberDef *MemberDef_Find(HashTable *table, char *name)
+{
+  MemberDef key = {.name = name};
+  HashNode *hnode = HashTable_Find(table, &key);
+  return hnode ? container_of(hnode, MemberDef, hnode) : NULL;
+}
+
+Object *MemberDef_HashTable_ToString(HashTable *table)
+{
+  int count = HashTable_Get_Count(table);
+  Object *tuple = Tuple_New(count);
+
+  struct list_head *pos;
+  HashNode *hnode;
+  int i = 0;
+  list_for_each(pos, &table->head) {
+    hnode = container_of(pos, HashNode, llink);
+    MemberDef *m = container_of(hnode, MemberDef, hnode);
+    Tuple_Set(tuple, i++, String_New(m->name));
+  }
+
+  Object *strob = OB_KLASS(tuple)->ob_str(tuple);
+  OB_DECREF(tuple);
+  return strob;
 }

@@ -20,42 +20,49 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_STRINGOBJECT_H_
-#define _KOALA_STRINGOBJECT_H_
+#ifndef _KOALA_PACKAGE_H_
+#define _KOALA_PACKAGE_H_
 
-#include "object.h"
+#include "codeobject.h"
+#include "log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct stringobject {
+/*
+ * one package represents a klc file.
+ * a klc can be compiled from multi kl files.
+ */
+typedef struct package {
   OBJECT_HEAD
-  /* string cache, hash node */
-  HashNode hnode;
-  /* str's length */
-  int len;
-  /* str == data, or str is readonly atom string */
-  char *str;
-  /* data */
-  char data[0];
-} StringObject;
+  /* the package's name */
+  char *name;
+  /* variable, function, class and trait hash table */
+  HashTable *table;
+  /* const pool of this package */
+  Object *consts;
+  /* count of variables in the package */
+  int varcnt;
+  /* index of variables in global variable pool */
+  int index;
+} Package;
 
-extern Klass String_Klass;
-/* initialize String class */
-void Init_String_Klass(void);
-/* finialize String class */
-void Fini_String_Klass(void);
-/* new string object */
-Object *String_New(char *str);
-/* free string object */
-void String_Free(Object *ob);
-/* to c readonly string */
-char *String_RawString(Object *ob);
-/* get string length */
-#define String_Length(ob) (((StringObject *)ob)->len)
+extern Klass Package_Klass;
+void Init_Package_Klass(void);
+void Fini_Package_Klass(void);
+Package *Package_New(char *name);
+void Package_Free(Package *pkg);
+int Package_Add_Var(Package *pkg, char *name, TypeDesc *desc, int k);
+int Package_Add_Func(Package *pkg, char *name, Object *code);
+int Package_Add_Klass(Package *pkg, Klass *klazz, int trait);
+#define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
+#define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
+MemberDef *Package_Find(Package *pkg, char *name);
+int Package_Add_CFunctions(Package *pkg, FuncDef *funcs);
+#define Package_Name(pkg) ((pkg)->name)
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_STRINGOBJECT_H_ */
+#endif /* _KOALA_PACKAGE_H_ */

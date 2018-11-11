@@ -177,6 +177,7 @@ static void string_free(Object *ob)
 static Object *string_tostring(Object *v)
 {
   OB_ASSERT_KLASS(v, String_Klass);
+  OB_INCREF(v);
   return v;
 }
 

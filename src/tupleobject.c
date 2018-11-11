@@ -24,6 +24,8 @@
 #include "mem.h"
 #include "tupleobject.h"
 #include "intobject.h"
+#include "stringobject.h"
+#include "buffer.h"
 
 Object *Tuple_New(int size)
 {
@@ -39,6 +41,7 @@ void Tuple_Free(Object *ob)
 {
   if (!ob) return;
   OB_ASSERT_KLASS(ob, Tuple_Klass);
+  /* FIMXE */
   gc_free(ob);
 }
 
@@ -127,10 +130,51 @@ static void tuple_free(Object *ob)
   Tuple_Free(ob);
 }
 
+static Object *tuple_tostring(Object *ob)
+{
+  TupleObject *tuple = (TupleObject *)ob;
+  Buffer buf;
+  Buffer_Init(&buf, 64);
+  char ch = '[';
+  Buffer_Write_Byte(&buf, ch);
+  Object *s;
+  Object *o;
+  int count = 0;
+  for (int i = 0; i < tuple->size; i++) {
+    o = tuple->items[i];
+    if (o) {
+      if (count++ > 0)
+        Buffer_Write(&buf, ", ", 2);
+      if (Buffer_Size(&buf) > 512) {
+        Buffer_Write(&buf, "...", 3);
+        break;
+      }
+      if (OB_KLASS(o) == &String_Klass) {
+        ch = '\'';
+        Buffer_Write_Byte(&buf, ch);
+        Buffer_Write(&buf, String_RawString(o), String_Length(o));
+        Buffer_Write_Byte(&buf, ch);
+      } else {
+        s = OB_KLASS(o)->ob_str(o);
+        Buffer_Write(&buf, String_RawString(s), String_Length(s));
+        OB_DECREF(s);
+      }
+    }
+  }
+  ch = ']';
+  Buffer_Write_Byte(&buf, ch);
+  char *data = Buffer_RawData(&buf);
+  Buffer_Fini(&buf);
+  s = String_New(data);
+  mm_free(data);
+  return s;
+}
+
 Klass Tuple_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Tuple",
   .basesize = sizeof(TupleObject),
   .flags = OB_FLAGS_GC,
   .ob_free = tuple_free,
+  .ob_str = tuple_tostring,
 };

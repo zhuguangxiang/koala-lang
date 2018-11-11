@@ -1,7 +1,7 @@
 SET (LIBKOALA_SRC
       log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
       cache.c typedesc.c object.c stringobject.c tupleobject.c codeobject.c 
-      intobject.c
+      intobject.c package.c
     )
 
 ADD_LIBRARY(koala SHARED ${LIBKOALA_SRC})
