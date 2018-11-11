@@ -52,7 +52,7 @@ typedef enum typedesc_kind {
 #define BASIC_FLOAT  'f'
 #define BASIC_BOOL   'z'
 #define BASIC_STRING 's'
-#define BASIC_ANY    'a'
+#define BASIC_ANY    'A'
 #define BASIC_VARG   'v'
 
 /* Type descriptor */

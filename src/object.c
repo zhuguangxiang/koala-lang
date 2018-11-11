@@ -90,8 +90,7 @@ static void object_mark(Object *ob)
 static int objectsize(Klass *klazz)
 {
   /* Base */
-  LRONode *node = Vector_Get_Last(&klazz->lro);
-  int size = node->offset;
+  int size = klazz->offset;
 
   /* Self */
   size += klazz->itemsize;
@@ -167,7 +166,7 @@ static int build_one_lro(Klass *klazz, Klass *base, int offset)
   return offset;
 }
 
-static void lro_build(Klass *klazz, Klass *base, Vector *traits)
+static int lro_build(Klass *klazz, Klass *base, Vector *traits)
 {
   int offset = 0;
   if (base)
@@ -178,15 +177,14 @@ static void lro_build(Klass *klazz, Klass *base, Vector *traits)
     OB_ASSERT_KLASS(line, Trait_Klass);
     offset = build_one_lro(klazz, line, offset);
   }
-
-  /* add self to the last */
-  Vector_Append(&klazz->lro, LRONode_New(offset, klazz));
+  return offset;
 }
 
 static void lro_debug(Klass *klazz)
 {
   puts("++++++++++++++++line-order++++++++++++++++");
   LRONode *node;
+  printf("  %s ->", klazz->name);
   Vector_ForEach_Reverse(node, &klazz->lro)
     printf("  %s ->", node->klazz->name);
   puts("  Any");
@@ -209,7 +207,7 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
   klazz->ob_str   = object_tostring;
 
   Vector_Init(&klazz->lro);
-  lro_build(klazz, base, traits);
+  klazz->offset = lro_build(klazz, base, traits);
   lro_debug(klazz);
 
   return klazz;
@@ -220,7 +218,7 @@ static void free_lronode_func(void *item, void *arg)
   mm_free(item);
 }
 
-static void free_member_func(HashNode *hnode, void *arg)
+static void free_memberdef_func(HashNode *hnode, void *arg)
 {
   MemberDef *m = container_of(hnode, MemberDef, hnode);
   switch (m->kind) {
@@ -254,7 +252,7 @@ void Fini_Klass(Klass *klazz)
   Log_Debug("Klass '%s' is finalized", klazz->name);
   Vector_Fini(&klazz->lro, free_lronode_func, NULL);
   if (klazz->table)
-    HashTable_Free(klazz->table, free_member_func, NULL);
+    HashTable_Free(klazz->table, free_memberdef_func, NULL);
 }
 
 static HashTable *__get_table(Klass *klazz)
@@ -293,7 +291,7 @@ int Klass_Add_Method(Klass *klazz, char *name, Object *code)
   int res = HashTable_Insert(__get_table(klazz), &member->hnode);
   if (!res) {
     member->code = code;
-    if (IS_CLCODE(code))
+    if (IS_KLCODE(code))
       co->kl.consts = klazz->consts;
     return 0;
   } else {
@@ -334,52 +332,75 @@ static int __get_lronode_index(Vector *lros, Klass *klazz)
   return -1;
 }
 
-static int __get_field_index(Object *ob, char *name, Klass *klazz)
+static MemberDef *__get_memberdef(Object *ob, char *name, Klass *klazz,
+                                  LRONode *lronode)
 {
   assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass ||
          OB_KLASS(OB_KLASS(ob)) == &Trait_Klass);
 
   Klass *base = OB_KLASS(ob);
-  LRONode *lronode;
-  MemberDef *member;
-  int lro_index = __get_lronode_index(&base->lro, klazz);
-  char *dot = strchr(name, '.');
-  char *fieldname = name;
+  LRONode *node;
+  MemberDef *m;
+  char *dot = strrchr(name, '.');
+  char *mname = name;
+
+  if (base == klazz && !dot) {
+    /* search self */
+    m = __get_member(base, mname);
+    if (m) {
+      lronode->offset = klazz->offset;
+      lronode->klazz = klazz;
+      return m;
+    }
+  }
+
+  int lro_index = Vector_Size(&base->lro) - 1;
+
+  if (base != klazz) {
+    lro_index = __get_lronode_index(&base->lro, klazz);
+    if (dot)
+      lro_index = lro_index - 1;
+  }
 
   if (dot) {
     assert(!memcmp(name, "super", 5));
-    lro_index = lro_index - 1;
-    fieldname = dot + 1;
+    mname = dot + 1;
   }
 
   while (lro_index >= 0) {
-    lronode = Vector_Get(&base->lro, lro_index);
-    assert(lronode);
-    member = __get_member(lronode->klazz, fieldname);
-    if (member)
+    node = Vector_Get(&base->lro, lro_index);
+    assert(node);
+    m = __get_member(node->klazz, mname);
+    if (m) {
+      *lronode = *node;
       break;
+    }
     --lro_index;
   }
-  assert(member);
-  assert(member->kind == MEMBER_VAR);
-  return lronode->offset + member->offset;
+  return m;
 }
 
 Object *Object_Get_Value(Object *ob, char *name, Klass *klazz)
 {
-  int index = __get_field_index(ob, name, klazz);
+  LRONode lronode;
+  MemberDef *m = __get_memberdef(ob, name, klazz, &lronode);
+  assert(m && m->kind == MEMBER_VAR);
+  int index = lronode.offset + m->offset;
   Object **value = (Object **)(ob + 1);
-  Log_Info("get_value: klass '%s', name '%s', index %d",
-           klazz->name, name, index);
+  Log_Info("get_value '%s' index '%d' in klass '%s-%s'",
+           name, index, klazz->name, lronode.klazz->name);
   return value[index];
 }
 
 Object *Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val)
 {
-  int index = __get_field_index(ob, name, klazz);
+  LRONode lronode;
+  MemberDef *m = __get_memberdef(ob, name, klazz, &lronode);
+  assert(m && m->kind == MEMBER_VAR);
+  int index = lronode.offset + m->offset;
   Object **value = (Object **)(ob + 1);
-  Log_Info("set_value: klass '%s', name '%s', index %d",
-           klazz->name, name, index);
+  Log_Info("set_value '%s' index '%d' in klass '%s-%s'",
+           name, index, klazz->name, lronode.klazz->name);
   Object *old = value[index];
   value[index] = val;
   return old;
@@ -387,41 +408,12 @@ Object *Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val)
 
 Object *Object_Get_Method(Object *ob, char *name, Klass *klazz)
 {
-  assert(OB_KLASS(OB_KLASS(ob)) == &Klass_Klass ||
-         OB_KLASS(OB_KLASS(ob)) == &Trait_Klass);
-#if 0
-  Object *base;
-  MemberDef *member;
-  char *dot = strchr(name, '.');
-  if (dot) {
-    assert(!memcmp(name, "super", 5));
-    base = ob->ob_down;
-    assert(base);
-    member = __get_member(OB_KLASS(base), dot + 1);
-    assert(member && member->kind == MEMBER_CODE);
-    *rob = base;
-    return member->code;
-  } else {
-    if (!strcmp(name, "__init__")) {
-      //__init__ method is allowed to be searched only in current class
-      member = __get_member(OB_KLASS(ob), "__init__");
-      *rob = ob;
-      return member->code;
-    } else {
-      base = ob;
-      while (base) {
-        member = __get_member(OB_KLASS(base), name);
-        if (member) {
-          *rob = base;
-          return member->code;
-        }
-        base = base->ob_down;
-      }
-      return NULL;
-    }
-  }
-#endif
-  return NULL;
+  LRONode lronode;
+  MemberDef *m = __get_memberdef(ob, name, klazz, &lronode);
+  assert(m && m->kind == MEMBER_CODE);
+  Log_Info("get_method '%s' in klass '%s-%s'",
+           name, klazz->name, lronode.klazz->name);
+  return m->code;
 }
 
 MemberDef *Member_New(int kind, char *name, TypeDesc *desc, int konst)

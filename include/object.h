@@ -158,6 +158,8 @@ struct klass {
   int basesize;
   /* object item size, if it has variably itmes, e.g. array */
   int itemsize;
+  /* self fields' offset */
+  int offset;
   /* object's flags, one of OB_FLAGS_XXX */
   int flags;
 

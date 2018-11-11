@@ -13,8 +13,6 @@ void test_trait(void)
   Klass *A = Trait_New("A", NULL);
   Vector *v1 = Vector_New();
   Vector_Append(v1, A);
-  temp = Vector_Get_Last(&A->lro);
-  assert(temp->klazz == A);
   /*
     trait B with A;
    */
@@ -24,8 +22,6 @@ void test_trait(void)
   Vector_ForEach(temp, &B->lro) {
     if (i == 0)
       assert(temp->klazz == A);
-    else if (i == 1)
-      assert(temp->klazz == B);
     else
       assert(0);
   }
@@ -38,8 +34,6 @@ void test_trait(void)
       assert(temp->klazz == A);
     else if (i == 1)
       assert(temp->klazz == B);
-    else if (i == 2)
-      assert(temp->klazz == C);
     else
       assert(0);
   }
@@ -50,8 +44,6 @@ void test_trait(void)
   Vector_ForEach(temp, &D->lro) {
     if (i == 0)
       assert(temp->klazz == A);
-    else if (i == 1)
-      assert(temp->klazz == D);
     else
       assert(0);
   }
@@ -73,8 +65,6 @@ void test_trait(void)
       assert(temp->klazz == B);
     else if (i == 3)
       assert(temp->klazz == C);
-    else if (i == 4)
-      assert(temp->klazz == E);
     else
       assert(0);
   }

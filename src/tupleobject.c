@@ -117,6 +117,11 @@ void Init_Tuple_Klass(void)
   Klass_Add_CFunctions(&Tuple_Klass, tuple_funcs);
 }
 
+void Fini_Tuple_Klass(void)
+{
+  Fini_Klass(&Tuple_Klass);
+}
+
 static void tuple_free(Object *ob)
 {
   Tuple_Free(ob);
