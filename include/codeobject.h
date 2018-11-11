@@ -31,9 +31,9 @@ extern "C" {
 
 typedef enum {
   /* koala code */
-  CODE_KLCODE = 1,
+  CODE_KLANG = 1,
   /* clang code */
-  CODE_CLCODE = 2,
+  CODE_CLANG = 2,
 } CodeKind;
 
 typedef struct codeobject {
@@ -60,16 +60,18 @@ typedef struct codeobject {
 extern Klass Code_Klass;
 /* initialize Code class */
 void Init_Code_Klass(void);
+/* finalize Code class */
+void Fini_Code_Klass(void);
 /* new koala code object */
-Object *KLCode_New(uint8 *codes, int size, TypeDesc *proto);
+Object *KLang_Code_New(uint8 *codes, int size, TypeDesc *proto);
 /* new clang code object */
-Object *CLCode_New(cfunc cf, TypeDesc *proto);
+Object *CLang_Code_New(cfunc cf, TypeDesc *proto);
 /* free code object */
 void CodeObject_Free(Object *ob);
 /* is koala code object? */
-#define IS_KLCODE(code) (((CodeObject *)(code))->kind == CODE_KLCODE)
+#define IS_KLANG_CODE(code) (((CodeObject *)(code))->kind == CODE_KLANG)
 /* is clang code object? */
-#define IS_CLCODE(code) (((CodeObject *)(code))->kind == CODE_CLCODE)
+#define IS_CLANG_CODE(code) (((CodeObject *)(code))->kind == CODE_CLANG)
 /* add local variables into the koala code object */
 int KLCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos);
 /* get the (koala & clang) code's arg's number */

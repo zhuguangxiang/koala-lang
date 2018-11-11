@@ -15,7 +15,7 @@ void test_tupleobject(void)
   Object *method = Object_Get_Method(tuple, "Size", OB_KLASS(tuple));
   assert(method);
   CodeObject *code = (CodeObject *)method;
-  assert(code->kind == CODE_CLCODE);
+  assert(code->kind == CODE_CLANG);
   Object *res = code->cl(tuple, NULL);
   assert(8 == Integer_ToCInt(res));
   OB_DECREF(res);

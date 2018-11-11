@@ -33,17 +33,17 @@ static CodeObject *code_new(CodeKind kind, TypeDesc *proto)
   return code;
 }
 
-Object *KLCode_New(uint8 *codes, int size, TypeDesc *proto)
+Object *KLang_Code_New(uint8 *codes, int size, TypeDesc *proto)
 {
-  CodeObject *code = code_new(CODE_KLCODE, proto);
+  CodeObject *code = code_new(CODE_KLANG, proto);
   code->kl.codes = codes;
   code->kl.size = size;
   return (Object *)code;
 }
 
-Object *CLCode_New(cfunc cf, TypeDesc *proto)
+Object *CLang_Code_New(cfunc cf, TypeDesc *proto)
 {
-  CodeObject *code = code_new(CODE_CLCODE, proto);
+  CodeObject *code = code_new(CODE_CLANG, proto);
   code->cl = cf;
   return (Object *)code;
 }
@@ -54,7 +54,7 @@ void CodeObject_Free(Object *ob)
   CodeObject *code = (CodeObject *)ob;
 
   TypeDesc_Free(code->proto);
-  if (IS_KLCODE(code)) {
+  if (IS_KLANG_CODE(code)) {
     //FIXME
   }
 
@@ -65,7 +65,7 @@ int KLCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)
 {
   OB_ASSERT_KLASS(ob, Code_Klass);
   CodeObject *code = (CodeObject *)ob;
-  assert(IS_KLCODE(code));
+  assert(IS_KLANG_CODE(code));
 
   MemberDef *member = Member_Var_New(name, desc, 0);
   member->offset = pos;
@@ -90,6 +90,11 @@ static FuncDef code_funcs[] = {
 void Init_Code_Klass(void)
 {
   Klass_Add_CFunctions(&Code_Klass, code_funcs);
+}
+
+void Fini_Code_Klass(void)
+{
+  Fini_Klass(&Code_Klass);
 }
 
 Klass Code_Klass = {

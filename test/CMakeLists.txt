@@ -28,3 +28,6 @@ target_link_libraries(test_intobject koala)
 
 add_executable(test_tupleobject test_tupleobject.c)
 target_link_libraries(test_tupleobject koala)
+
+add_executable(test_codeobject test_codeobject.c)
+target_link_libraries(test_codeobject koala)

@@ -73,7 +73,7 @@ int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
     rdesc = String_To_TypeDescList(f->rdesc);
     pdesc = String_To_TypeDescList(f->pdesc);
     proto = TypeDesc_New_Proto(pdesc, rdesc);
-    meth = CLCode_New(f->fn, proto);
+    meth = CLang_Code_New(f->fn, proto);
     res = Klass_Add_Method(klazz, f->name, meth);
     assert(!res);
     ++f;
@@ -291,7 +291,7 @@ int Klass_Add_Method(Klass *klazz, char *name, Object *code)
   int res = HashTable_Insert(__get_table(klazz), &member->hnode);
   if (!res) {
     member->code = code;
-    if (IS_KLCODE(code))
+    if (IS_KLANG_CODE(code))
       co->kl.consts = klazz->consts;
     return 0;
   } else {
