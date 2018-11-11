@@ -1,4 +1,0 @@
-
-package test;
-
-var a, b = 100, 200;

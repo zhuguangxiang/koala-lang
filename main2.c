@@ -10,7 +10,7 @@ char buffer[1024];
 void on_open(uv_fs_t *req) {
     // The request passed to the callback is the same as the one the call setup
     // function was passed.
-		printf("on open callback\n");
+    printf("on open callback\n");
     assert(req == &open_req);
     if (req->result >= 0) {
         iov = uv_buf_init(buffer, sizeof(buffer));
@@ -52,41 +52,41 @@ void another_time_callback(uv_timer_t *handle) {
 }
 
 void timefn(void *arg) {
-	uv_timer_t timer_req;
-	uv_timer_t timer_req2;
+  uv_timer_t timer_req;
+  uv_timer_t timer_req2;
   uv_timer_init(uv_default_loop(), &timer_req);
-	uv_timer_init(uv_default_loop(), &timer_req2);
+  uv_timer_init(uv_default_loop(), &timer_req2);
 
   uv_timer_start(&timer_req, one_time_callback, 1000, 1000);
-	uv_timer_start(&timer_req2, another_time_callback, 1000, 800);
+  uv_timer_start(&timer_req2, another_time_callback, 1000, 800);
 
   uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-	uv_fs_req_cleanup(&open_req);
+  uv_fs_req_cleanup(&open_req);
   uv_loop_close(uv_default_loop());
 }
 
 void file_test(char *path);
 
 int main(int argc, char *argv[]) {
-	int tracklen = 10;
-	uv_thread_t hareid;
-	uv_thread_create(&hareid, hare, &tracklen);
+  int tracklen = 10;
+  uv_thread_t hareid;
+  uv_thread_create(&hareid, hare, &tracklen);
 
-	uv_thread_t timerid;
-	uv_thread_create(&timerid, timefn, NULL);
+  uv_thread_t timerid;
+  uv_thread_create(&timerid, timefn, NULL);
 
-	//file_test(argv[1]);
-	uv_fs_open(uv_default_loop(), &open_req, "./log.h", O_RDONLY, 0, on_open);
+  //file_test(argv[1]);
+  uv_fs_open(uv_default_loop(), &open_req, "./log.h", O_RDONLY, 0, on_open);
 
-	uv_thread_join(&hareid);
-	uv_thread_join(&timerid);
-	return 0;
+  uv_thread_join(&hareid);
+  uv_thread_join(&timerid);
+  return 0;
 }
 
 
 
 void file_test(char *path) {
-	uv_fs_open(uv_default_loop(), &open_req, path, O_RDONLY, 0, on_open);
-	uv_run(uv_default_loop(), UV_RUN_DEFAULT);
-	uv_fs_req_cleanup(&open_req);
+  uv_fs_open(uv_default_loop(), &open_req, path, O_RDONLY, 0, on_open);
+  uv_run(uv_default_loop(), UV_RUN_DEFAULT);
+  uv_fs_req_cleanup(&open_req);
 }

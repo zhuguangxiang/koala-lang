@@ -9,12 +9,12 @@ extern "C" {
 #endif
 
 typedef struct moduleobject {
-	OBJECT_HEAD
-	char *name;
-	Object *consts;
-	HashTable *table;
-	int varcnt;
-	Object *values;
+  OBJECT_HEAD
+  char *name;
+  Object *consts;
+  HashTable *table;
+  int varcnt;
+  Object *values;
 } ModuleObject;
 
 /* Exported APIs */
@@ -23,8 +23,8 @@ extern Klass Module_Klass;
 Object *Module_New(char *name);
 void Module_Free(Object *ob);
 #define Module_Set_Consts(ob, _consts) do { \
-	ModuleObject *mob = (ModuleObject *)ob; \
-	mob->consts = _consts; \
+  ModuleObject *mob = (ModuleObject *)ob; \
+  mob->consts = _consts; \
 } while (0)
 int Module_Add_Var(Object *ob, char *name, TypeDesc *desc, int bconst);
 int Module_Add_Func(Object *ob, char *name, Object *code);

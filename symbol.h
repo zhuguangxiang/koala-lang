@@ -9,10 +9,10 @@ extern "C" {
 #endif
 
 typedef struct symboltable {
-	HashTable *htbl;
-	AtomTable *atbl;
-	int flag;
-	int32 varcnt;
+  HashTable *htbl;
+  AtomTable *atbl;
+  int flag;
+  int32 varcnt;
 } STable;
 
 /* Exported APIs */
@@ -39,33 +39,33 @@ void STable_Fini(STable *stbl);
 typedef struct symbol Symbol;
 
 struct symbol {
-	HashNode hnode;
-	int32 nameidx;
-	int32 descidx;
+  HashNode hnode;
+  int32 nameidx;
+  int32 descidx;
 
-	int8 kind;
-	int8 access;
-	int8 refcnt;
-	int8 inherited;
+  int8 kind;
+  int8 access;
+  int8 refcnt;
+  int8 inherited;
 
-	char *name;     /* ->nameidx */
-	TypeDesc *desc; /* ->descidx */
+  char *name;     /* ->nameidx */
+  TypeDesc *desc; /* ->descidx */
 
-	union {
-		void *ob;     /* CodeObject or Klass */
-		int32 index;  /* variable */
-	};
+  union {
+    void *ob;     /* CodeObject or Klass */
+    int32 index;  /* variable */
+  };
 
-	Vector locvec;  /* save locvars for function and method */
+  Vector locvec;  /* save locvars for function and method */
 
-	/* extra for compiler */
-	Symbol *super;
-	Symbol *up;
-	void *ptr;      /* CodeBlock and STable(import, class, trait) */
-	char *path;     /* used for import */
-	void *import;   /* save Import */
-	int32 locvars;  /* used in compiler, for function */
-	Vector traits;  /* for traits in correct order */
+  /* extra for compiler */
+  Symbol *super;
+  Symbol *up;
+  void *ptr;      /* CodeBlock and STable(import, class, trait) */
+  char *path;     /* used for import */
+  void *import;   /* save Import */
+  int32 locvars;  /* used in compiler, for function */
+  Vector traits;  /* for traits in correct order */
 };
 
 /* Exported APIs */
@@ -74,15 +74,15 @@ void Symbol_Free(Symbol *sym);
 Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
 Symbol *STable_Add_Proto(STable *stbl, char *name, TypeDesc *proto);
 #define STable_Add_IProto(stbl, name, proto) ({ \
-	Symbol *__sym = STable_Add_Proto(stbl, name, proto); \
-	if (__sym) __sym->kind = SYM_IPROTO; \
-	__sym; \
+  Symbol *__sym = STable_Add_Proto(stbl, name, proto); \
+  if (__sym) __sym->kind = SYM_IPROTO; \
+  __sym; \
 })
 Symbol *STable_Add_TypeAlias(STable *stbl, char *name, TypeDesc *desc);
 #define STable_Add_Class(stbl, name) \
-	STable_Add_Symbol(stbl, name, SYM_CLASS, 0)
+  STable_Add_Symbol(stbl, name, SYM_CLASS, 0)
 #define STable_Add_Trait(stbl, name) \
-	STable_Add_Symbol(stbl, name, SYM_TRAIT, 0)
+  STable_Add_Symbol(stbl, name, SYM_TRAIT, 0)
 Symbol *STable_Add_Symbol(STable *stbl, char *name, int kind, int bconst);
 Symbol *STable_Get(STable *stbl, char *name);
 typedef void (*symbolfunc)(Symbol *sym, void *arg);
@@ -91,9 +91,9 @@ void STable_Show(STable *stbl, int detail);
 #define STable_Count(stbl) HashTable_Count((stbl)->htbl)
 int STable_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc);
 #define SYMBOL_ACCESS(name, bconst) ({ \
-	int access = isupper(name[0]) ? ACCESS_PRIVATE : ACCESS_PUBLIC; \
-	access |= bconst ? ACCESS_CONST : 0; \
-	access; \
+  int access = isupper(name[0]) ? ACCESS_PRIVATE : ACCESS_PUBLIC; \
+  access |= bconst ? ACCESS_CONST : 0; \
+  access; \
 })
 
 #ifdef __cplusplus

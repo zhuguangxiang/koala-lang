@@ -7,10 +7,8 @@
 #include "koala_lex.h"
 #include "options.h"
 
-static int __compile(struct options *options)
+static int __compile(char *input, char *output, struct options *options)
 {
-  char *input = options->srcpkg;
-
   struct stat sb;
   if (lstat(input, &sb) == - 1) {
     printf("%s: invalid filename\n", input);
@@ -28,13 +26,6 @@ static int __compile(struct options *options)
     printf("%s: no such file or directory\n", input);
     return 0;
   }
-
-  int len = strlen(options->outpkg) + strlen(input);
-  char output[len + 8];
-  strcpy(output, options->outpkg);
-  strcat(output, input);
-  strcat(output, ".klc");
-  debug("output-path:%s", output);
 
   Koala_Initialize();
 
@@ -94,10 +85,27 @@ static int __compile(struct options *options)
 int main(int argc, char *argv[])
 {
   struct options options;
-  init_options(&options, "koalac", ':');
+  init_options(&options, OPTIONS_DELIMTER);
   int ret = parse_options(argc, argv, &options);
   if (ret) return -1;
   show_options(&options);
-  __compile(&options);
+
+  char *src = options.srcpath;
+  char *str;
+  Vector_ForEach(str, &options.cmdvec) {
+    char input[strlen(src) + strlen(str) + 4];
+    strcpy(input, src);
+    strcat(input, str);
+    debug("input:%s", input);
+
+    char output[strlen(options.output) + strlen(str) + 8];
+    strcpy(output, options.output);
+    strcat(output, str);
+    strcat(output, ".klc");
+    debug("output:%s", output);
+
+    __compile(input, output, &options);
+  }
+
   return 0;
 }

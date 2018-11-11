@@ -1,7 +1,0 @@
-
-import "koala/io"
-
-func Main(args [string]) {
-  var ch = "中文";
-  io.Println(ch)
-}

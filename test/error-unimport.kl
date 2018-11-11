@@ -1,8 +1,0 @@
-
-import "koala/io";
-
-var socket net.Socket;
-var arr []net.Socket;
-
-func Main(args []string) {
-}

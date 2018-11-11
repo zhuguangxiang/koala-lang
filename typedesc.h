@@ -28,26 +28,26 @@ extern "C" {
 typedef struct typedesc TypeDesc;
 
 struct typedesc {
-	int kind;
-	union {
-		int primitive;
-		struct {
-			char *path;
-			char *type;
-		} usrdef;
-		struct {
-			Vector *arg;
-			Vector *ret;
-		} proto;
-		struct {
-			TypeDesc *key;
-			TypeDesc *val;
-		} map;
-		struct {
-			int dims;
-			TypeDesc *base;
-		} array;
-	};
+  int kind;
+  union {
+    int primitive;
+    struct {
+      char *path;
+      char *type;
+    } usrdef;
+    struct {
+      Vector *arg;
+      Vector *ret;
+    } proto;
+    struct {
+      TypeDesc *key;
+      TypeDesc *val;
+    } map;
+    struct {
+      int dims;
+      TypeDesc *base;
+    } array;
+  };
 };
 
 extern TypeDesc Byte_Type;
@@ -60,9 +60,9 @@ extern TypeDesc Any_Type;
 extern TypeDesc Varg_Type;
 
 #define Init_Type_UsrDef(desc, p, t) do { \
-	(desc)->kind = TYPE_USRDEF; \
-	(desc)->usrdef.path = (p); \
-	(desc)->usrdef.type = (t); \
+  (desc)->kind = TYPE_USRDEF; \
+  (desc)->usrdef.path = (p); \
+  (desc)->usrdef.type = (t); \
 } while (0)
 
 void Type_Free(TypeDesc *desc);

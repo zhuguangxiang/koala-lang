@@ -447,10 +447,10 @@ struct extpkg *load_extpkg(ParserState *ps, char *path, int *exist)
     if (pid == 0) {
       debug("child process %d", getpid());
       execlp("koalac", "koalac",
-             "-pkg", path,
-             "-out", ps->pkg->options->outpkg,
-             "-klc", ps->pkg->options->klc,
-             "-kar", "none",
+             "-d", ps->pkg->options->output,
+             "-sp", ps->pkg->options->srcpath,
+             "-cp", ps->pkg->options->klcpath,
+             path,
              NULL);
       assert(0); //not go here
     }

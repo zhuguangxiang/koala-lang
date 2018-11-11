@@ -9,7 +9,7 @@ OPTFLAGS = #-O2
 
 CPPFLAGS = -std=gnu99 $(DBGFLAGS) $(OPTFLAGS) -I./ -Wbad-function-cast
 
-CFLAGS = $(CPPFLAGS) -fPIC -W -Wall -Wpointer-arith -Wstrict-prototypes
+CFLAGS = $(CPPFLAGS) -fPIC -W -Wall -Wpointer-arith -Wstrict-prototypes -Wextra
 
 YACC = bison
 FLEX = flex
@@ -57,6 +57,30 @@ koala_yacc.c: yacc/koala.y
 koala_lex.c: yacc/koala.l
 	@echo "	[FLEX]	$@"
 	@$(FLEX) -o $@ $^
+
+.PHONY: task
+task:
+	gcc -g -Wall -O0 -DSCHED_LOCKED -DSWITCH_UCONTEXT -DARCH_x86_64 \
+	libtask/task.c libtask/task_context.c \
+	libtask/task_scheduler.c libtask/locked_linked_deque.c \
+	libtask/task_atomic.c \
+	libtask/test/test_task.c -I./libtask/ -pthread
+
+.PHONY: join
+join:
+	gcc -g -Wall -O3 -DSCHED_LOCKED -DSWITCH_UCONTEXT -DARCH_x86_64 \
+	libtask/task.c libtask/task_context.c \
+	libtask/task_scheduler.c libtask/locked_linked_deque.c \
+	libtask/task_atomic.c \
+	libtask/test/test_join.c -I./libtask/ -pthread
+
+.PHONY: echoserver
+echoserver:
+	gcc -g -Wall -O3 -DSCHED_LOCKED -DSWITCH_UCONTEXT -DARCH_x86_64 \
+	libtask/task.c libtask/task_context.c \
+	libtask/task_scheduler.c libtask/locked_linked_deque.c \
+	libtask/task_atomic.c \
+	libtask/test/echo_server.c -I./libtask/ -pthread
 
 .PHONY: clean
 clean:

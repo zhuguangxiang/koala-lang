@@ -1,13 +1,13 @@
 {
 	"workbench.startupEditor": "none",
 	"workbench.statusBar.visible": true,
-	"workbench.colorTheme": "One Dark Pro",
-	"workbench.iconTheme": "file-icons",
-	"workbench.activityBar.visible": false,
-	"editor.fontSize": 14,
-	"editor.fontFamily":  "'Operator Mono Light', 'Ubuntu Mono'",
+	"workbench.colorTheme": "One Dark Pro Vivid",
+	"workbench.iconTheme": "vs-seti",
+	"workbench.activityBar.visible": true,
+	"editor.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
 	"editor.fontLigatures": true,
 	"editor.fontWeight": "100",
+	"editor.fontSize": 14,
 	"editor.tabSize": 2,
 	"editor.insertSpaces": true,
 	"files.associations": {
@@ -29,19 +29,25 @@
 		"unordered_map": "c",
 		"deque": "c",
 		"vector": "c",
-		"system_error": "c"
+		"system_error": "c",
+		"thread": "c",
+		"memory": "c",
+		"chrono": "c",
+		"limits": "c",
+		"algorithm": "c",
+		"ratio": "c"
 	},
 	"editor.rulers": [
 			80
 	],
 	"editor.minimap.enabled": false,
 	"terminal.integrated.fontFamily": "'Ubuntu Mono'",
-	"terminal.integrated.fontSize": 14,
+	"terminal.integrated.fontSize": 15,
 	"todo-tree.flat": true,
 	"todo-tree.expanded": false,
 	"workbench.editor.enablePreview": false,
 	"editor.renderControlCharacters": true,
-	"editor.renderWhitespace": "all",
+	"editor.renderWhitespace": "boundary",
 	"[c]": {
 			"files.trimTrailingWhitespace": true,
 			"files.insertFinalNewline": true,
@@ -75,5 +81,14 @@
 	"editor.cursorStyle": "line",
 	"terminal.integrated.scrollback": 5000,
 	"terminal.integrated.rendererType": "dom",
-	"window.zoomLevel": 0
+	"editor.lineHeight": 19,
+	"editor.tokenColorCustomizations": {
+		"textMateRules": [{
+				"scope": "comment",
+				"settings": {
+						"fontStyle": ""
+				}
+		}]
+	},
+	"window.zoomLevel": 1.5
 }

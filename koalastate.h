@@ -10,9 +10,9 @@ extern "C" {
 #endif
 
 typedef struct koalastate {
-	HashTable modules;
-	Properties config;
-	struct list_head routines;
+  HashTable modules;
+  Properties config;
+  struct list_head routines;
 } KoalaState;
 
 /* Exported APIs */

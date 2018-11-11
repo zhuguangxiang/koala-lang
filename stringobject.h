@@ -9,10 +9,10 @@ extern "C" {
 #endif
 
 typedef struct stringobject {
-	OBJECT_HEAD
-	HashNode hnode;
-	int len;
-	char *str;
+  OBJECT_HEAD
+  HashNode hnode;
+  int len;
+  char *str;
 } StringObject;
 
 extern Klass String_Klass;
