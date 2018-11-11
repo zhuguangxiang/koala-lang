@@ -464,6 +464,10 @@ ExtendsOrEmpty
     $$->class_info.super = $2;
     $$->class_info.traits = $3;
   }
+  | Traits {
+    $$ = stmt_new(CLASS_KIND);
+    $$->class_info.traits = $1;
+  }
   ;
 
 WithesOrEmpty
@@ -747,7 +751,7 @@ PrimaryExpr
   | PrimaryExpr Selector {
     $$ = expr_from_trailer(ATTRIBUTE_KIND, $2, $1);
   }
-  | PrimaryExpr Arguments WithesOrEmpty {
+  | PrimaryExpr Arguments {
     $$ = expr_from_trailer(CALL_KIND, $2, $1);
   }
   | PrimaryExpr Index {

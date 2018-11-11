@@ -1,6 +1,6 @@
 #+TITLE: Koala Language Development Notes
 #+AUTHOR: James Zhu
-#+EMAIL: zhuguangxiang@163.com
+#+EMAIL: https://github.com/zhuguangxiang
 * Why develop koala-lang?
 能用自己开发的语言写程序是不是一件很有意思的事情呢？Koala语言完全出于本人的兴趣，很有意思！
 * Language Introduction

@@ -1,6 +1,6 @@
 #+TITLE: Koala Language Manual
 #+AUTHOR: zhuguangxiang(James)
-#+EMAIL: zhuguangxiang@163.com
+#+EMAIL: https://github.com/zhuguangxiang
 * Koala语言手册
 
 ** Hello World
