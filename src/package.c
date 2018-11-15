@@ -29,7 +29,7 @@ Package *Package_New(char *name)
 {
   Package *pkg = mm_alloc(sizeof(Package));
   Init_Object_Head(pkg, &Package_Klass);
-  pkg->name = strdup(name);
+  pkg->name = AtomString_New(name);
   return pkg;
 }
 
@@ -43,7 +43,6 @@ void Package_Free(Package *pkg)
 {
   HashTable_Free(pkg->table, pkg_freefunc, NULL);
   Tuple_Free(pkg->consts);
-  free(pkg->name);
   mm_free(pkg);
 }
 

@@ -46,6 +46,8 @@ Vector *Vector_New(void)
 
 void Vector_Free(Vector *vec, vec_finifunc fini, void *arg)
 {
+  if (!vec)
+    return;
   Vector_Fini(vec, fini, arg);
   mm_free(vec);
 }

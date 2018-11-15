@@ -92,6 +92,10 @@ int Tuple_Set(Object *ob, int index, Object *val)
     return -1;
   }
 
+  Object *old = tuple->items[index];
+  if (old)
+    OB_DECREF(old);
+
   tuple->items[index] = val;
   return 0;
 }

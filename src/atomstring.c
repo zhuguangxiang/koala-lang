@@ -65,6 +65,15 @@ int AtomString_Find(char *str, String *s)
   return 1;
 }
 
+String AtomString_New_NStr(char *str, int len)
+{
+  String s;
+  char *tmp = strndup(str, len);
+  s = AtomString_New(tmp);
+  free(tmp);
+  return s;
+}
+
 String AtomString_New(char *str)
 {
   String s;

@@ -20,49 +20,55 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_PACKAGE_H_
-#define _KOALA_PACKAGE_H_
+#ifndef _KOALA_STATE_H_
+#define _KOALA_STATE_H_
 
-#include "codeobject.h"
-#include "log.h"
+#include "atomstring.h"
+#include "package.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*
- * one package represents a klc file.
- * a klc can be compiled from multi kl files.
- */
-typedef struct package {
-  OBJECT_HEAD
-  /* the package's name */
-  String name;
-  /* variable, function, class and trait hash table */
-  HashTable *table;
-  /* const pool of this package */
-  Object *consts;
-  /* count of variables in the package */
-  int varcnt;
-  /* index of variables in global variable pool */
-  int index;
-} Package;
+typedef enum pkgnodekind {
+  PATH_NODE,
+  LEAF_NODE
+} PkgNodeKind;
 
-extern Klass Package_Klass;
-void Init_Package_Klass(void);
-void Fini_Package_Klass(void);
-Package *Package_New(char *name);
-void Package_Free(Package *pkg);
-int Package_Add_Var(Package *pkg, char *name, TypeDesc *desc, int k);
-int Package_Add_Func(Package *pkg, char *name, Object *code);
-int Package_Add_Klass(Package *pkg, Klass *klazz, int trait);
-#define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
-#define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
-MemberDef *Package_Find(Package *pkg, char *name);
-int Package_Add_CFunctions(Package *pkg, FuncDef *funcs);
-#define Package_Name(pkg) ((pkg)->name.str)
+/* packege path node, like linux's inode */
+typedef struct pkgnode {
+  HashNode hnode;
+  /* the node's name, no need free its memory */
+  String name;
+  /* the node's parent node */
+  struct pkgnode *parent;
+  /* the node is pathnode or leafnode */
+  PkgNodeKind kind;
+  /* see PkgNodeKind */
+  union {
+    Vector *children;
+    Package *pkg;
+  };
+} PkgNode;
+
+typedef struct koalastate {
+  /* root package node */
+  PkgNode root;
+  /* package hash table */
+  HashTable pkgs;
+  /* global variables' pool, one slot per package, stored in ->index */
+  Vector gvars;
+} KoalaState;
+
+void Koala_Initialize(void);
+void Koala_Finalize(void);
+int Koala_Set_Object(Package *pkg, char *name, Object *newobj);
+Object *Koala_Get_Object(Package *pkg, char *name);
+int Koala_Install_Package(char *path, Package *pkg);
+void Koala_Uninstall_Package(char *path);
+void Koala_Show_Packages(void);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_PACKAGE_H_ */
+#endif /* _KOALA_STATE_H_ */

@@ -25,3 +25,4 @@ GTAGS
 manual.html
 manual.org.bak
 build/*
+.dir-locals.el
