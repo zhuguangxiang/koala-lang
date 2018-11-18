@@ -37,3 +37,6 @@ target_link_libraries(test_package koala)
 
 add_executable(test_koalastate test_koalastate.c)
 target_link_libraries(test_koalastate koala)
+
+add_executable(test_image test_image.c)
+target_link_libraries(test_image koala)

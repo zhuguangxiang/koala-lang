@@ -24,39 +24,44 @@
 #include "mem.h"
 #include "log.h"
 
-TypeDesc Byte_Type   = {.kind = TYPE_BASIC, .basic = BASIC_BYTE};
-TypeDesc Char_Type   = {.kind = TYPE_BASIC, .basic = BASIC_CHAR};
-TypeDesc Int_Type    = {.kind = TYPE_BASIC, .basic = BASIC_INT};
-TypeDesc Float_Type  = {.kind = TYPE_BASIC, .basic = BASIC_FLOAT};
-TypeDesc Bool_Type   = {.kind = TYPE_BASIC, .basic = BASIC_BOOL};
-TypeDesc String_Type = {.kind = TYPE_BASIC, .basic = BASIC_STRING};
-TypeDesc Any_Type    = {.kind = TYPE_BASIC, .basic = BASIC_ANY};
-TypeDesc Varg_Type   = {.kind = TYPE_BASIC, .basic = BASIC_VARG};
+TypeDesc Byte_Type   = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_BYTE};
+TypeDesc Char_Type   = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_CHAR};
+TypeDesc Int_Type    = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_INT};
+TypeDesc Float_Type  = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_FLOAT};
+TypeDesc Bool_Type   = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_BOOL};
+TypeDesc String_Type = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_STRING};
+TypeDesc Any_Type    = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_ANY};
+TypeDesc Varg_Type   = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_VARG};
 
-struct basic_type_s {
+struct primitive_type_s {
   int kind;
   char *str;
   TypeDesc *type;
-} basic_types[] = {
-  {BASIC_BYTE,   "byte",   &Byte_Type   },
-  {BASIC_CHAR,   "char",   &Char_Type   },
-  {BASIC_INT,    "int",    &Int_Type    },
-  {BASIC_FLOAT,  "float",  &Float_Type  },
-  {BASIC_BOOL,   "bool",   &Bool_Type   },
-  {BASIC_STRING, "string", &String_Type },
-  {BASIC_ANY,    "any",    &Any_Type    },
-  {BASIC_VARG,   "...",    &Varg_Type   }
+} primitive_types[] = {
+  {PRIMITIVE_BYTE,   "byte",   &Byte_Type   },
+  {PRIMITIVE_CHAR,   "char",   &Char_Type   },
+  {PRIMITIVE_INT,    "int",    &Int_Type    },
+  {PRIMITIVE_FLOAT,  "float",  &Float_Type  },
+  {PRIMITIVE_BOOL,   "bool",   &Bool_Type   },
+  {PRIMITIVE_STRING, "string", &String_Type },
+  {PRIMITIVE_ANY,    "any",    &Any_Type    },
+  {PRIMITIVE_VARG,   "...",    &Varg_Type   }
 };
 
-static struct basic_type_s *get_basic(int kind)
+static struct primitive_type_s *get_primitive(int kind)
 {
-  struct basic_type_s *basic;
-  for (int i = 0; i < nr_elts(basic_types); i++) {
-    basic = basic_types + i;
-    if (kind == basic->kind)
-      return basic;
+  struct primitive_type_s *p;
+  for (int i = 0; i < nr_elts(primitive_types); i++) {
+    p = primitive_types + i;
+    if (kind == p->kind)
+      return p;
   }
   return NULL;
+}
+
+char *Primitive_ToString(int kind)
+{
+  return get_primitive(kind)->str;
 }
 
 static TypeDesc *typedesc_new(TypeDescKind kind)
@@ -69,23 +74,23 @@ static TypeDesc *typedesc_new(TypeDescKind kind)
   return desc;
 }
 
-static int basic_equal(TypeDesc *t1, TypeDesc *t2)
+static int primitive_equal(TypeDesc *t1, TypeDesc *t2)
 {
-  return t1->basic == t2->basic;
+  return t1->primitive == t2->primitive;
 }
 
-static void basic_tostring(TypeDesc *t, char *buf)
+static void primitive_tostring(TypeDesc *t, char *buf)
 {
-  strcpy(buf, get_basic(t->basic)->str);
+  strcpy(buf, get_primitive(t->primitive)->str);
 }
 
-static TypeDesc *basic_dup(TypeDesc *desc)
+static TypeDesc *primitive_dup(TypeDesc *desc)
 {
   /* the same for basic types */
   return desc;
 }
 
-static void basic_free(TypeDesc *desc)
+static void primitive_free(TypeDesc *desc)
 {
   /* no need free for basic types */
   UNUSED_PARAMETER(desc);
@@ -269,7 +274,7 @@ struct typedesc_ops_s {
   /* 0 is not used */
   {NULL, NULL, NULL, NULL},
   /* basic type needn't free */
-  {basic_equal, basic_tostring, basic_dup, basic_free},
+  {primitive_equal, primitive_tostring, primitive_dup, primitive_free},
   {klass_equal, klass_tostring, klass_dup, klass_free},
   {proto_equal, proto_tostring, proto_dup, proto_free},
   {array_equal, array_tostring, array_dup, array_free},
@@ -401,7 +406,7 @@ Vector *String_To_TypeDescList(char *str)
         dims++;
         str++;
       }
-    } else if ((desc = get_basic(ch)->type)) {
+    } else if ((desc = get_primitive(ch)->type)) {
       if (dims > 0)
         desc = TypeDesc_New_Array(dims, desc);
       Vector_Append(v, desc);

@@ -24,6 +24,7 @@
 #include "mem.h"
 #include "hashfunc.h"
 #include "tupleobject.h"
+#include "log.h"
 
 static void init_pkgnode(PkgNode *node, char *name, PkgNodeKind kind)
 {

@@ -1,6 +1,7 @@
 *.out
 koala_yacc.*
 koala_lex.*
+koala_tokens.h
 *.klc
 *.a
 *.o
@@ -26,3 +27,4 @@ manual.html
 manual.org.bak
 build/*
 .dir-locals.el
+

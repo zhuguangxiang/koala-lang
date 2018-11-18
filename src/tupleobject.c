@@ -39,9 +39,16 @@ Object *Tuple_New(int size)
 
 void Tuple_Free(Object *ob)
 {
-  if (!ob) return;
+  if (!ob)
+    return;
   OB_ASSERT_KLASS(ob, Tuple_Klass);
-  /* FIMXE */
+  TupleObject *tuple = (TupleObject *)ob;
+  Object *tmp;
+  for (int i = 0; i < tuple->size; i++) {
+    tmp = tuple->items[i];
+    if (tmp)
+      OB_DECREF(tmp);
+  }
   gc_free(ob);
 }
 
@@ -61,7 +68,8 @@ Object *Tuple_Get(Object *ob, int index)
 Object *Tuple_Get_Slice(Object *ob, int min, int max)
 {
   OB_ASSERT_KLASS(ob, Tuple_Klass);
-  if (min > max) return NULL;
+  if (min > max)
+    return NULL;
 
   Object *tuple = Tuple_New(max - min + 1);
   int index = min;
@@ -76,7 +84,8 @@ Object *Tuple_Get_Slice(Object *ob, int min, int max)
 
 int Tuple_Size(Object *ob)
 {
-  if (!ob) return 0;
+  if (!ob)
+    return 0;
   OB_ASSERT_KLASS(ob, Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
   return tuple->size;

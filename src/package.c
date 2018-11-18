@@ -24,6 +24,7 @@
 #include "tupleobject.h"
 #include "stringobject.h"
 #include "mem.h"
+#include "log.h"
 
 Package *Package_New(char *name)
 {

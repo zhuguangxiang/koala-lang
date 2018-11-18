@@ -24,10 +24,6 @@ void test_tupleobject(void)
   Object *res = code->cl(tuple, NULL);
   assert(8 == Integer_ToCInt(res));
   OB_DECREF(res);
-  res = Tuple_Get(tuple, 0);
-  OB_DECREF(res);
-  res = Tuple_Get(tuple, 1);
-  OB_DECREF(res);
   Tuple_Free(tuple);
 }
 

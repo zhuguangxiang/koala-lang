@@ -35,25 +35,25 @@ extern "C" {
  * array and map are builtin types
  */
 typedef enum typedesc_kind {
-  TYPE_BASIC = 1, TYPE_KLASS, TYPE_PROTO, TYPE_ARRAY, TYPE_MAP
+  TYPE_PRIMITIVE = 1, TYPE_KLASS, TYPE_PROTO, TYPE_ARRAY, TYPE_MAP
 } TypeDescKind;
 
 /*
- * basic types
+ * primitive types
  * integer: byte(1), int(8)
  * char: char(2 or 4?)
  * float: float(8)
  * any: builtin root object, like java's Object
  * varg: variably-argument, like c's ..., only in function's arguments
  */
-#define BASIC_BYTE   'b'
-#define BASIC_CHAR   'c'
-#define BASIC_INT    'i'
-#define BASIC_FLOAT  'f'
-#define BASIC_BOOL   'z'
-#define BASIC_STRING 's'
-#define BASIC_ANY    'A'
-#define BASIC_VARG   'v'
+#define PRIMITIVE_BYTE   'b'
+#define PRIMITIVE_CHAR   'c'
+#define PRIMITIVE_INT    'i'
+#define PRIMITIVE_FLOAT  'f'
+#define PRIMITIVE_BOOL   'z'
+#define PRIMITIVE_STRING 's'
+#define PRIMITIVE_ANY    'A'
+#define PRIMITIVE_VARG   'v'
 
 /* Type descriptor */
 typedef struct typedesc TypeDesc;
@@ -61,8 +61,8 @@ typedef struct typedesc TypeDesc;
 struct typedesc {
   TypeDescKind kind;
   union {
-    /* one of BASIC_XXX */
-    char basic;
+    /* one of PRIMITIVE_XXX */
+    char primitive;
     /* class or trait's absolute path */
     struct {
       String path;
@@ -100,6 +100,7 @@ extern TypeDesc Varg_Type;
 int TypeDesc_Equal(TypeDesc *t1, TypeDesc *t2);
 /* convert typedesc struct to string for readable and printable */
 void TypeDesc_ToString(TypeDesc *desc, char *buf);
+char *Primitive_ToString(int kind);
 /* copy the typedesc deeply */
 TypeDesc *TypeDesc_Dup(TypeDesc *desc);
 /* free the typedesc */

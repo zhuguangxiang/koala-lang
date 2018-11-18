@@ -20,48 +20,51 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_PACKAGE_H_
-#define _KOALA_PACKAGE_H_
+#ifndef _KOALA_ATOMTABLE_H_
+#define _KOALA_ATOMTABLE_H_
 
-#include "codeobject.h"
+#include "hashtable.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*
- * one package represents a klc file.
- * a klc can be compiled from multi kl files.
- */
-typedef struct package {
-  OBJECT_HEAD
-  /* the package's name */
-  String name;
-  /* variable, function, class and trait hash table */
-  HashTable *table;
-  /* const pool of this package */
-  Object *consts;
-  /* count of variables in the package */
-  int varcnt;
-  /* index of variables in global variable pool */
+typedef struct atomentry {
+  /* hash node for data is unique */
+  HashNode hnode;
+  /* index of AtomTable->item[type] */
+  int type;
+  /* index in 'type' vectors */
   int index;
-} Package;
+  /* item data */
+  void *data;
+} AtomEntry;
 
-extern Klass Package_Klass;
-void Init_Package_Klass(void);
-void Fini_Package_Klass(void);
-Package *Package_New(char *name);
-void Package_Free(Package *pkg);
-int Package_Add_Var(Package *pkg, char *name, TypeDesc *desc, int k);
-int Package_Add_Func(Package *pkg, char *name, Object *code);
-int Package_Add_Klass(Package *pkg, Klass *klazz, int trait);
-#define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
-#define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
-MemberDef *Package_Find(Package *pkg, char *name);
-int Package_Add_CFunctions(Package *pkg, FuncDef *funcs);
-#define Package_Name(pkg) (((Package *)(pkg))->name.str)
+typedef struct atomtable {
+  /* hash table for data is unique */
+  HashTable table;
+  /* items' array size */
+  int size;
+  /* vector array */
+  Vector items[0];
+} AtomTable;
+
+typedef void (*datafree)(int type, void *data, void *arg);
+/* new an atom table */
+AtomTable *AtomTable_New(ht_hashfunc hash, ht_equalfunc equal, int size);
+/* free an atom table */
+void AtomTable_Free(AtomTable *table, datafree fn, void *arg);
+/* add an item to the tail of the 'type' vector */
+int AtomTable_Append(AtomTable *table, int type, void *data, int unique);
+/* get unique data's index in 'type' vector, only for unique data */
+int AtomTable_Index(AtomTable *table, int type, void *data);
+/* get index data in the 'type' vector */
+void *AtomTable_Get(AtomTable *table, int type, int index);
+/* get the 'type' vector size */
+int AtomTable_Size(AtomTable *table, int type);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_PACKAGE_H_ */
+#endif /* _KOALA_ATOMTABLE_H_ */
