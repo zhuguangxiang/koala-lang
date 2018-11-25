@@ -31,6 +31,86 @@ static int version_build = 1; // 2 bytes
 
 #define ENDIAN_TAG  0x1a2b3c4d
 
+Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
+{
+  if (!item)
+		return NULL;
+
+  Vector *v = Vector_New();
+  TypeItem *typeitem;
+  TypeDesc *t;
+  for (int i = 0; i < item->size; i++) {
+    typeitem = AtomTable_Get(atbl, ITEM_TYPE, item->index[i]);
+    t = TypeItem_To_TypeDesc(typeitem, atbl);
+    Vector_Append(v, t);
+  }
+  return v;
+}
+
+TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
+{
+	Vector *ret;
+	Vector *arg;
+  TypeListItem *typelist;
+
+  if (item->rindex >= 0)
+		typelist = AtomTable_Get(atbl, ITEM_TYPELIST, item->rindex);
+	else
+		typelist = NULL;
+	ret = TypeListItem_To_Vector(typelist, atbl);
+
+  if (item->pindex >= 0)
+		typelist = AtomTable_Get(atbl, ITEM_TYPELIST, item->pindex);
+	else
+		typelist = NULL;
+  arg = TypeListItem_To_Vector(typelist, atbl);
+
+  return TypeDesc_New_Proto(arg, ret);
+}
+
+TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
+{
+	TypeDesc *t = NULL;
+	switch (item->kind) {
+		case TYPE_PRIMITIVE: {
+			t->primitive = item->primitive;
+			break;
+		}
+		case TYPE_KLASS: {
+			StringItem *s;
+			char *path;
+			char *type;
+			if (item->pathindex >= 0) {
+				s = AtomTable_Get(atbl, ITEM_STRING, item->pathindex);
+				path = s->data;
+			} else {
+				path = NULL;
+			}
+			s = AtomTable_Get(atbl, ITEM_STRING, item->typeindex);
+			type = s->data;
+			t = TypeDesc_New_Klass(path, type);
+			break;
+		}
+		case TYPE_PROTO: {
+			ProtoItem *proto = AtomTable_Get(atbl, ITEM_PROTO, item->protoindex);
+			TypeDesc *tmp = ProtoItem_To_TypeDesc(proto, atbl);
+			t = TypeDesc_New_Proto(tmp->proto.arg, tmp->proto.arg);
+			mm_free(tmp);
+			break;
+		}
+		case TYPE_ARRAY: {
+			TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
+			TypeDesc *base_type = TypeItem_To_TypeDesc(base, atbl);
+			t = TypeDesc_New_Array(item->array.dims, base_type);
+			break;
+		}
+		default: {
+			assert(0);
+		}
+	}
+	return t;
+}
+
 MapItem *MapItem_New(int type, int offset, int size)
 {
   MapItem *item = mm_alloc(sizeof(MapItem));
@@ -270,9 +350,6 @@ int StringItem_Set(AtomTable *table, char *str)
 
   return index;
 }
-
-int TypeItem_Get(AtomTable *table, TypeDesc *desc);
-int TypeItem_Set(AtomTable *table, TypeDesc *desc);
 
 int TypeListItem_Get(AtomTable *table, Vector *desc)
 {
@@ -1278,7 +1355,7 @@ struct item_funcs item_func[ITEM_MAX] = {
   }
 };
 
-static uint32 item_hash(void *key)
+uint32 Item_Hash(void *key)
 {
   AtomEntry *e = key;
   assert(e->type > 0 && e->type < ITEM_MAX);
@@ -1287,7 +1364,7 @@ static uint32 item_hash(void *key)
   return fn(e->data);
 }
 
-static int item_equal(void *k1, void *k2)
+int Item_Equal(void *k1, void *k2)
 {
   AtomEntry *e1 = k1;
   AtomEntry *e2 = k2;
@@ -1300,13 +1377,20 @@ static int item_equal(void *k1, void *k2)
   return fn(e1->data, e2->data);
 }
 
-static void item_free(int type, void *data, void *arg)
+void Item_Free(int type, void *data, void *arg)
 {
   UNUSED_PARAMETER(arg);
   assert(type > 0 && type < ITEM_MAX);
   item_free_func fn = item_func[type].free;
   assert(fn);
   return fn(data);
+}
+
+int Symbol_Access(char *name, int bconst)
+{
+  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
+  access |= bconst ? ACCESS_CONST : 0;
+  return access;
 }
 
 static void init_header(ImageHeader *h, char *pkgname)
@@ -1328,7 +1412,7 @@ KImage *KImage_New(char *pkgname)
 {
   KImage *image = mm_alloc(sizeof(KImage));
   init_header(&image->header, pkgname);
-  image->table = AtomTable_New(item_hash, item_equal, ITEM_MAX);
+  image->table = AtomTable_New(Item_Hash, Item_Equal, ITEM_MAX);
   return image;
 }
 
@@ -1338,16 +1422,9 @@ void KImage_Free(KImage *image)
   mm_free(image);
 }
 
-static int symbol_access(char *name, int bconst)
-{
-  int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-  access |= bconst ? ACCESS_CONST : 0;
-  return access;
-}
-
 void __KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int bconst)
 {
-  int access = symbol_access(name, bconst);
+  int access = Symbol_Access(name, bconst);
   int type_index = TypeItem_Set(image->table, desc);
   int name_index = StringItem_Set(image->table, name);
   VarItem *varitem = VarItem_New(name_index, type_index, access);
@@ -1366,7 +1443,7 @@ void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
 int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto,
                     int locvars, uint8 *codes, int size)
 {
-  int access = symbol_access(name, 0);
+  int access = Symbol_Access(name, 0);
   int nameindex = StringItem_Set(image->table, name);
   int protoindex = ProtoItem_Set(image->table, proto);
   int codeindex = codeitem_set(image->table, codes, size);
@@ -1379,7 +1456,7 @@ void KImage_Add_Class(KImage *image, char *name,
                       char *superpath, char *supertype,
                       Vector *traits)
 {
-  int access = symbol_access(name, 0);
+  int access = Symbol_Access(name, 0);
   TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = name};
   int classindex = TypeItem_Set(image->table, &tmp);
 
@@ -1399,7 +1476,7 @@ void KImage_Add_Class(KImage *image, char *name,
 
 void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
 {
-  int access = symbol_access(name, 0);
+  int access = Symbol_Access(name, 0);
   TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = clazz};
   int classindex = TypeItem_Set(image->table, &tmp);
 
@@ -1414,7 +1491,7 @@ void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
 int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
                       int locvars, uint8 *codes, int csz)
 {
-  int access = symbol_access(name, 0);
+  int access = Symbol_Access(name, 0);
   TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = klazz};
   int classindex = TypeItem_Set(image->table, &tmp);
 
@@ -1428,7 +1505,7 @@ int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
 
 void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
 {
-  int access = symbol_access(name, 0);
+  int access = Symbol_Access(name, 0);
   TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = name};
   int classindex = TypeItem_Set(image->table, &tmp);
   int traitsindex = TypeListItem_Set(image->table, traits);
@@ -1438,7 +1515,7 @@ void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
 
 void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto)
 {
-  int access = symbol_access(name, 0);
+  int access = Symbol_Access(name, 0);
   TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = trait};
   int classindex = TypeItem_Set(image->table, &tmp);
   int nameindex = StringItem_Set(image->table, name);
@@ -1743,8 +1820,6 @@ KImage *KImage_Read_File(char *path)
   fclose(fp);
   return image;
 }
-
-/*-------------------------------------------------------------------------*/
 
 void header_show(ImageHeader *h)
 {

@@ -25,6 +25,7 @@
 
 #include "atomstring.h"
 #include "package.h"
+#include "properties.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,21 +53,27 @@ typedef struct pkgnode {
 } PkgNode;
 
 typedef struct koalastate {
+  /* properties, environment values */
+  Properties props;
   /* root package node */
   PkgNode root;
   /* package hash table */
   HashTable pkgs;
   /* global variables' pool, one slot per package, stored in ->index */
-  Vector gvars;
+  Vector vars;
 } KoalaState;
 
+int Koala_Set_Value(Package *pkg, char *name, Object *value);
+Object *Koala_Get_Value(Package *pkg, char *name);
+int Koala_Add_Package(char *path, Package *pkg);
+Package *Koala_Get_Package(char *path);
+Package *Koala_Load_Package(char *path);
+int Koala_Run_Code(Object *code, Object *ob, Object *args);
+void Koala_Show_Packages(void);
 void Koala_Initialize(void);
 void Koala_Finalize(void);
-int Koala_Set_Object(Package *pkg, char *name, Object *newobj);
-Object *Koala_Get_Object(Package *pkg, char *name);
-int Koala_Install_Package(char *path, Package *pkg);
-void Koala_Uninstall_Package(char *path);
-void Koala_Show_Packages(void);
+void Koala_Set_Environment(char *key, char *value);
+int Koala_Run_File(char *path);
 
 #ifdef __cplusplus
 }

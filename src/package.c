@@ -23,6 +23,7 @@
 #include "package.h"
 #include "tupleobject.h"
 #include "stringobject.h"
+#include "intobject.h"
 #include "mem.h"
 #include "log.h"
 
@@ -95,7 +96,7 @@ int Package_Add_Klass(Package *pkg, Klass *klazz, int trait)
   return 0;
 }
 
-MemberDef *Package_Find(Package *pkg, char *name)
+MemberDef *Package_Find_MemberDef(Package *pkg, char *name)
 {
   MemberDef *m = MemberDef_Find(__get_table(pkg), name);
   if (!m) {
@@ -116,6 +117,129 @@ int Package_Add_CFunctions(Package *pkg, FuncDef *funcs)
     ++f;
   }
   return 0;
+}
+
+static void load_consts(Package *pkg, AtomTable *table)
+{
+  Vector *vec = &table->items[ITEM_CONST];
+  Object *tuple = Tuple_New(Vector_Size(vec));
+  pkg->consts = tuple;
+  Object *ob;
+  ConstItem *item;
+  Vector_ForEach(item, vec) {
+    switch (item->type) {
+      case CONST_INT: {
+        ob = Integer_New(item->ival);
+        break;
+      }
+      case CONST_FLOAT: {
+        //ob = Float_New(item->fval);
+        break;
+      }
+      case CONST_BOOL: {
+        //ob = Bool_New(item->bval);
+        break;
+      }
+      case CONST_STRING: {
+        StringItem *s = AtomTable_Get(table, ITEM_STRING, item->index);
+        ob = String_New(s->data);
+        break;
+      }
+      default: {
+        assert(0);
+        break;
+      }
+    }
+    Tuple_Set(tuple, i, ob);
+  }
+}
+
+static void load_variables(Package *pkg, AtomTable *table)
+{
+  int sz = AtomTable_Size(table, ITEM_VAR);
+  VarItem *var;
+  StringItem *id;
+  TypeItem *type;
+  TypeDesc *desc;
+
+  for (int i = 0; i < sz; i++) {
+    var = AtomTable_Get(table, ITEM_VAR, i);
+    id = AtomTable_Get(table, ITEM_STRING, var->nameindex);
+    type = AtomTable_Get(table, ITEM_TYPE, var->typeindex);
+    desc = TypeItem_To_TypeDesc(type, table);
+    Package_Add_Var(pkg, id->data, desc, var->access & ACCESS_CONST);
+  }
+}
+
+typedef struct locvarindex {
+  int index;
+  Object *func;
+} LocVarIndex;
+
+static Object *get_func(LocVarIndex *indexes, int size, int index)
+{
+	LocVarIndex *locvaridx;
+	for (int i = 0; i < size; i++) {
+		locvaridx = &indexes[i];
+		if (locvaridx->index == index)
+			return locvaridx->func;
+	}
+	return NULL;
+}
+
+static void load_locvar(LocVarItem *locvar, AtomTable *table, Object *code)
+{
+  StringItem *stritem = AtomTable_Get(table, ITEM_STRING, locvar->nameindex);;
+  TypeItem *typeitem = AtomTable_Get(table, ITEM_TYPE, locvar->typeindex);
+  char *name = stritem->data;
+  TypeDesc *desc = TypeItem_To_TypeDesc(typeitem, table);
+  KCode_Add_LocVar(code, name, desc, locvar->pos);
+}
+
+static void load_functions(Package *pkg, AtomTable *table)
+{
+  int sz = AtomTable_Size(table, ITEM_FUNC);
+  FuncItem *funcitem;
+  StringItem *id;
+  ProtoItem *protoitem;
+  TypeDesc *proto;
+  CodeItem *codeitem;
+  Object *func;
+  LocVarIndex indexes[sz];
+
+  /* load functions */
+  for (int i = 0; i < sz; i++) {
+    funcitem = AtomTable_Get(table, ITEM_FUNC, i);
+    id = AtomTable_Get(table, ITEM_STRING, funcitem->nameindex);
+    protoitem = AtomTable_Get(table, ITEM_PROTO, funcitem->protoindex);
+    proto = ProtoItem_To_TypeDesc(protoitem, table);
+    codeitem = AtomTable_Get(table, ITEM_CODE, funcitem->codeindex);
+    func = KLang_Code_New(codeitem->codes, codeitem->size, proto);
+    Package_Add_Func(pkg, id->data, func);
+    indexes[i].index = i;
+    indexes[i].func = func;
+  }
+
+  /* load local variables */
+  sz = AtomTable_Size(table, ITEM_LOCVAR);
+  LocVarItem *locvar;
+  for (int i = 0; i < sz; i++) {
+    locvar = AtomTable_Get(table, ITEM_LOCVAR, i);
+		func = get_func(indexes, sz, locvar->index);
+		if (func)
+    	load_locvar(locvar, table, func);
+  }
+}
+
+Package *Package_From_Image(KImage *image)
+{
+  Package *pkg = Package_New(image->header.pkgname);
+  load_consts(pkg, image->table);
+  load_variables(pkg, image->table);
+  load_functions(pkg, image->table);
+  //load_traits(pkg, image->table);
+  //load_classes(pkg, image->table);
+  return pkg;
 }
 
 static Object *package_tostring(Object *ob)

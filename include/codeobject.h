@@ -73,7 +73,7 @@ void CodeObject_Free(Object *ob);
 /* is clang code object? */
 #define IS_CLANG_CODE(code) (((CodeObject *)(code))->kind == CODE_CLANG)
 /* add local variables into the koala code object */
-int KLCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos);
+int KCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos);
 /* get the (koala & clang) code's arg's number */
 int Code_Get_NrArgs(Object *ob);
 

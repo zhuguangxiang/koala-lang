@@ -61,7 +61,7 @@ void CodeObject_Free(Object *ob)
   mm_free(ob);
 }
 
-int KLCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)
+int KCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)
 {
   OB_ASSERT_KLASS(ob, Code_Klass);
   CodeObject *code = (CodeObject *)ob;

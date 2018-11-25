@@ -229,7 +229,27 @@ void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto);
 void KImage_Write_File(KImage *image, char *path);
 void KImage_Finish(KImage *image);
 KImage *KImage_Read_File(char *path);
+void AtomTable_Show(AtomTable *table);
 void KImage_Show(KImage *image);
+TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl);
+TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl);
+int StringItem_Get(AtomTable *table, char *str);
+int StringItem_Set(AtomTable *table, char *str);
+int TypeItem_Get(AtomTable *table, TypeDesc *desc);
+int TypeItem_Set(AtomTable *table, TypeDesc *desc);
+int TypeListItem_Get(AtomTable *table, Vector *desc);
+int TypeListItem_Set(AtomTable *table, Vector *desc);
+int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex);
+int ProtoItem_Set(AtomTable *table, TypeDesc *proto);
+int ConstItem_Get(AtomTable *table, ConstItem *item);
+int ConstItem_Set_Int(AtomTable *table, int64 val);
+int ConstItem_Set_Float(AtomTable *table, float64 val);
+int ConstItem_Set_Bool(AtomTable *table, int val);
+int ConstItem_Set_String(AtomTable *table, char *str);
+int Symbol_Access(char *name, int bconst);
+uint32 Item_Hash(void *key);
+int Item_Equal(void *k1, void *k2);
+void Item_Free(int type, void *data, void *arg);
 
 #ifdef __cplusplus
 }

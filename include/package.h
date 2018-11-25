@@ -24,6 +24,7 @@
 #define _KOALA_PACKAGE_H_
 
 #include "codeobject.h"
+#include "image.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,8 +58,9 @@ int Package_Add_Func(Package *pkg, char *name, Object *code);
 int Package_Add_Klass(Package *pkg, Klass *klazz, int trait);
 #define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
 #define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
-MemberDef *Package_Find(Package *pkg, char *name);
+MemberDef *Package_Find_MemberDef(Package *pkg, char *name);
 int Package_Add_CFunctions(Package *pkg, FuncDef *funcs);
+Package *Package_From_Image(KImage *image);
 #define Package_Name(pkg) (((Package *)(pkg))->name.str)
 
 #ifdef __cplusplus

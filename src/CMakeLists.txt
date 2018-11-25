@@ -20,21 +20,22 @@ ADD_CUSTOM_COMMAND(
           ${PROJECT_SOURCE_DIR}/src/yacc/koala.l
   )
 
-## SET (LIBKOALAC_SRC
-##      koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c checker.c
-##    )
+SET (LIBKOALAC_SRC
+      koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c checker.c
+    )
 
-## SET_SOURCE_FILES_PROPERTIES(koala_lex.c GENERATED)
-## SET_SOURCE_FILES_PROPERTIES(koala_yacc.c GENERATED)
+SET_SOURCE_FILES_PROPERTIES(koala_lex.c GENERATED)
+SET_SOURCE_FILES_PROPERTIES(koala_yacc.c GENERATED)
 
-## ADD_LIBRARY(koalac SHARED ${LIBKOALAC_SRC})
+ADD_LIBRARY(koalac SHARED ${LIBKOALAC_SRC})
 
-## set_target_properties(koalac PROPERTIES VERSION 0.5 SOVERSION 0)
+set_target_properties(koalac PROPERTIES VERSION 0.5 SOVERSION 0)
 
 SET (LIBKOALA_SRC
       log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
-      cache.c typedesc.c object.c stringobject.c tupleobject.c codeobject.c 
-      intobject.c package.c koalastate.c atomtable.c opcode.c image.c
+      cache.c properties.c 
+      typedesc.c object.c stringobject.c tupleobject.c codeobject.c 
+      intobject.c package.c state.c atomtable.c opcode.c image.c
     )
 
 ADD_LIBRARY(koala SHARED ${LIBKOALA_SRC})

@@ -85,9 +85,9 @@ String AtomString_New(char *str)
   return e->val;
 }
 
-int AtomString_Length(String str)
+int AtomString_Length(String s)
 {
-  return strlen(str.str);
+  return strlen(s.str);
 }
 
 int AtomString_Equal(String s1, String s2)
