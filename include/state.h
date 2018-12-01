@@ -32,48 +32,52 @@ extern "C" {
 #endif
 
 typedef enum pkgnodekind {
-  PATH_NODE,
-  LEAF_NODE
+	PATH_NODE,
+	LEAF_NODE
 } PkgNodeKind;
 
 /* packege path node, like linux's inode */
 typedef struct pkgnode {
-  HashNode hnode;
-  /* the node's name, no need free its memory */
-  String name;
-  /* the node's parent node */
-  struct pkgnode *parent;
-  /* the node is pathnode or leafnode */
-  PkgNodeKind kind;
-  /* see PkgNodeKind */
-  union {
-    Vector *children;
-    Package *pkg;
-  };
+	HashNode hnode;
+	/* the node's name, no need free its memory */
+	String name;
+	/* the node's parent node */
+	struct pkgnode *parent;
+	/* the node is pathnode or leafnode */
+	PkgNodeKind kind;
+	/* see PkgNodeKind */
+	union {
+		Vector *children;
+		Package *pkg;
+	};
 } PkgNode;
 
-typedef struct koalastate {
-  /* properties, environment values */
-  Properties props;
-  /* root package node */
-  PkgNode root;
-  /* package hash table */
-  HashTable pkgs;
-  /* global variables' pool, one slot per package, stored in ->index */
-  Vector vars;
-} KoalaState;
+typedef struct globalstate {
+	/* environment values */
+	Properties envs;
+	/* root package node */
+	PkgNode root;
+	/* package hash table */
+	HashTable pkgs;
+	/* global variables' pool, one slot per package, stored in ->index */
+	Vector vars;
+	/* number of koala state */
+	int ks_num;
+	/* koalastate list */
+	struct list_head kslist;
+} GlobalState;
 
-int Koala_Set_Value(Package *pkg, char *name, Object *value);
-Object *Koala_Get_Value(Package *pkg, char *name);
-int Koala_Add_Package(char *path, Package *pkg);
-Package *Koala_Get_Package(char *path);
-Package *Koala_Load_Package(char *path);
-int Koala_Run_Code(Object *code, Object *ob, Object *args);
-void Koala_Show_Packages(void);
+extern GlobalState gState;
 void Koala_Initialize(void);
 void Koala_Finalize(void);
-void Koala_Set_Environment(char *key, char *value);
+int Koala_Add_Package(char *path, Package *pkg);
+Object *Koala_Load_Package(char *path);
+Object *Koala_Get_Package(char *path);
+void Koala_Add_Property(char *key, char *value);
 int Koala_Run_File(char *path);
+int Koala_Set_Value(Package *pkg, char *name, Object *value);
+Object *Koala_Get_Value(Package *pkg, char *name);
+void Koala_Show_Packages(void);
 
 #ifdef __cplusplus
 }

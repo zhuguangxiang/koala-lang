@@ -13,7 +13,7 @@ void test_codeobject(void)
   assert(method);
   CodeObject *code = (CodeObject *)method;
   assert(code->kind == CODE_CLANG);
-  Object *res = code->cl(s, NULL);
+  Object *res = code->cf(s, NULL);
   assert(11 == Integer_ToCInt(res));
   Object *dis = Object_Get_Method(method, "DisAssemble", OB_KLASS(method));
   assert(dis);

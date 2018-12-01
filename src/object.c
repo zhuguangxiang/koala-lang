@@ -73,7 +73,7 @@ Object *FuncDef_Build_Code(FuncDef *f)
   Vector *rdesc = String_To_TypeDescList(f->rdesc);
   Vector *pdesc = String_To_TypeDescList(f->pdesc);
   TypeDesc *proto = TypeDesc_New_Proto(pdesc, rdesc);
-  return CLang_Code_New(f->fn, proto);
+  return CCode_New(f->fn, proto);
 }
 
 int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs)
@@ -293,8 +293,8 @@ int Klass_Add_Method(Klass *klazz, char *name, Object *code)
   MemberDef *m = MemberDef_Code_New(__get_table(klazz), name, code);
   if (m) {
     m->code = code;
-    if (IS_KLANG_CODE(code))
-      ((CodeObject *)code)->kl.consts = klazz->consts;
+    if (CODE_IS_K(code))
+      ((CodeObject *)code)->kf.consts = klazz->consts;
     return 0;
   }
   return -1;

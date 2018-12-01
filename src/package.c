@@ -70,8 +70,8 @@ int Package_Add_Func(Package *pkg, char *name, Object *code)
   MemberDef *m = MemberDef_Code_New(__get_table(pkg), name, code);
   if (m) {
     m->code = code;
-    if (IS_KLANG_CODE(code)) {
-      ((CodeObject *)code)->kl.consts = pkg->consts;
+    if (CODE_IS_K(code)) {
+      ((CodeObject *)code)->kf.consts = pkg->consts;
     }
     return 0;
   }
@@ -214,7 +214,7 @@ static void load_functions(Package *pkg, AtomTable *table)
     protoitem = AtomTable_Get(table, ITEM_PROTO, funcitem->protoindex);
     proto = ProtoItem_To_TypeDesc(protoitem, table);
     codeitem = AtomTable_Get(table, ITEM_CODE, funcitem->codeindex);
-    func = KLang_Code_New(codeitem->codes, codeitem->size, proto);
+    func = KCode_New(codeitem->codes, codeitem->size, proto);
     Package_Add_Func(pkg, id->data, func);
     indexes[i].index = i;
     indexes[i].func = func;

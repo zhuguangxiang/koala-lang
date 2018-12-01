@@ -21,7 +21,7 @@ void test_tupleobject(void)
   assert(method);
   CodeObject *code = (CodeObject *)method;
   assert(code->kind == CODE_CLANG);
-  Object *res = code->cl(tuple, NULL);
+  Object *res = code->cf(tuple, NULL);
   assert(8 == Integer_ToCInt(res));
   OB_DECREF(res);
   Tuple_Free(tuple);

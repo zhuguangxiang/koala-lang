@@ -30,31 +30,31 @@ extern "C" {
 #endif
 
 typedef enum {
-  /* koala code */
-  CODE_KLANG = 1,
-  /* clang code */
-  CODE_CLANG = 2,
+	/* koala code */
+	CODE_KLANG = 1,
+	/* clang code */
+	CODE_CLANG = 2,
 } CodeKind;
 
 typedef struct codeobject {
-  OBJECT_HEAD
-  /* code prototype */
-  TypeDesc *proto;
-  /* one ob CODE_XXX */
-  CodeKind kind;
-  union {
-    cfunc cl;
-    struct {
-      /* for const access, not free it */
-      Object *consts;
-      /* local variables */
-      Vector locvec;
-      /* codes' size */
-      int size;
-      /* instructions */
-      uint8 *codes;
-    } kl;
-  };
+	OBJECT_HEAD
+	/* code prototype */
+	TypeDesc *proto;
+	/* one ob CODE_XXX */
+	CodeKind kind;
+	union {
+		cfunc cf;
+		struct {
+			/* for const access, not free it */
+			Object *consts;
+			/* local variables */
+			Vector locvec;
+			/* codes' size */
+			int size;
+			/* instructions */
+			uint8 *codes;
+		} kf;
+	};
 } CodeObject;
 
 extern Klass Code_Klass;
@@ -63,19 +63,19 @@ void Init_Code_Klass(void);
 /* finalize Code class */
 void Fini_Code_Klass(void);
 /* new koala code object */
-Object *KLang_Code_New(uint8 *codes, int size, TypeDesc *proto);
+Object *KCode_New(uint8 *codes, int size, TypeDesc *proto);
 /* new clang code object */
-Object *CLang_Code_New(cfunc cf, TypeDesc *proto);
+Object *CCode_New(cfunc cf, TypeDesc *proto);
 /* free code object */
 void CodeObject_Free(Object *ob);
 /* is koala code object? */
-#define IS_KLANG_CODE(code) (((CodeObject *)(code))->kind == CODE_KLANG)
+#define CODE_IS_K(code) (((CodeObject *)(code))->kind == CODE_KLANG)
 /* is clang code object? */
-#define IS_CLANG_CODE(code) (((CodeObject *)(code))->kind == CODE_CLANG)
+#define CODE_IS_C(code) (((CodeObject *)(code))->kind == CODE_CLANG)
 /* add local variables into the koala code object */
 int KCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos);
 /* get the (koala & clang) code's arg's number */
-int Code_Get_NrArgs(Object *ob);
+int Code_Get_Argc(Object *ob);
 
 #ifdef __cplusplus
 }

@@ -26,10 +26,10 @@ void test_state(void)
   Koala_Add_Package("github.com/", pkg);
   Koala_Add_Package("github.com/koala", pkg);
   Koala_Show_Packages();
-  pkg = Koala_Get_Package("github.com/koala/io");
-  assert(pkg);
-  pkg = Koala_Get_Package("github.com/koala/lang");
-  assert(pkg);
+  ob = Koala_Get_Package("github.com/koala/io");
+  assert(ob);
+  ob = Koala_Get_Package("github.com/koala/lang");
+  assert(ob);
 }
 
 int main(int argc, char *argv[])

@@ -35,9 +35,16 @@ SET (LIBKOALA_SRC
       log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
       cache.c properties.c 
       typedesc.c object.c stringobject.c tupleobject.c codeobject.c 
-      intobject.c package.c state.c atomtable.c opcode.c image.c
+      intobject.c package.c state.c atomtable.c opcode.c image.c options.c
+      vm.c
     )
 
 ADD_LIBRARY(koala SHARED ${LIBKOALA_SRC})
 
 set_target_properties(koala PROPERTIES VERSION 0.5 SOVERSION 0)
+
+add_executable(klc koalac.c)
+target_link_libraries(klc koalac koala)
+
+##add_executable(kl koala.c)
+##target_link_libraries(kl koala)

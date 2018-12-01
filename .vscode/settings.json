@@ -4,7 +4,7 @@
 	"workbench.colorTheme": "One Dark Pro Vivid",
 	"workbench.iconTheme": "vs-seti",
 	"workbench.activityBar.visible": false,
-	"editor.fontFamily": "'Source Code Pro Light', 'Operator Mono Light', 'Ubuntu Mono'",
+	"editor.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
 	"editor.fontLigatures": true,
 	"editor.fontWeight": "100",
 	"editor.fontSize": 14,
@@ -90,5 +90,5 @@
 				}
 		}]
 	},
-	"window.zoomLevel": 1
+	"window.zoomLevel": 0.5
 }

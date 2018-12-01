@@ -1608,20 +1608,20 @@ KImage *KImage_Read_File(char *path)
 {
   FILE *fp = fopen(path, "r");
   if (!fp) {
-    printf("Log_Error: cannot open %s file\n", path);
+    printf("error: cannot open %s file\n", path);
     return NULL;
   }
 
   ImageHeader header;
   int sz = fread(&header, sizeof(ImageHeader), 1, fp);
   if (sz < 1) {
-    printf("Log_Error: file %s is not a valid .klc file\n", path);
+    printf("error: file %s is not a valid .klc file\n", path);
     fclose(fp);
     return NULL;
   }
 
   if (header_check(&header) < 0) {
-    printf("Log_Error: file %s is not a valid .klc file\n", path);
+    printf("error: file %s is not a valid .klc file\n", path);
     return NULL;
   }
 
@@ -1634,7 +1634,7 @@ KImage *KImage_Read_File(char *path)
   assert(sz == 0);
   sz = fread(mapitems, sizeof(MapItem), header.map_size, fp);
   if (sz < (int)header.map_size) {
-    printf("Log_Error: file %s is not a valid .klc file\n", path);
+    printf("error: file %s is not a valid .klc file\n", path);
     fclose(fp);
     return NULL;
   }
