@@ -30,15 +30,15 @@ extern "C" {
 #endif
 
 typedef struct stringobject {
-  OBJECT_HEAD
-  /* string cache, hash node */
-  HashNode hnode;
-  /* str's length */
-  int len;
-  /* str == data, or str is readonly atom string */
-  char *str;
-  /* data */
-  char data[0];
+	OBJECT_HEAD
+	/* string cache, hash node */
+	HashNode hnode;
+	/* str's length */
+	int len;
+	/* str == data, or str is readonly atom string */
+	char *str;
+	/* data */
+	char data[0];
 } StringObject;
 
 extern Klass String_Klass;

@@ -29,7 +29,7 @@ extern "C" {
 
 /* string wrapper */
 typedef struct {
-  char *str;
+	char *str;
 } String;
 
 void AtomString_Init(void);

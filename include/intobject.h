@@ -30,8 +30,8 @@ extern "C" {
 #endif
 
 typedef struct intobject {
-  OBJECT_HEAD
-  int64 value;
+	OBJECT_HEAD
+	int64 value;
 } IntObject;
 
 extern Klass Int_Klass;

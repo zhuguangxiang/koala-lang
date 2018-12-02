@@ -31,23 +31,23 @@ extern "C" {
 #endif
 
 typedef struct atomentry {
-  /* hash node for data is unique */
-  HashNode hnode;
-  /* index of AtomTable->item[type] */
-  int type;
-  /* index in 'type' vectors */
-  int index;
-  /* item data */
-  void *data;
+	/* hash node for data is unique */
+	HashNode hnode;
+	/* index of AtomTable->item[type] */
+	int type;
+	/* index in 'type' vectors */
+	int index;
+	/* item data */
+	void *data;
 } AtomEntry;
 
 typedef struct atomtable {
-  /* hash table for data is unique */
-  HashTable table;
-  /* items' array size */
-  int size;
-  /* vector array */
-  Vector items[0];
+	/* hash table for data is unique */
+	HashTable table;
+	/* items' array size */
+	int size;
+	/* vector array */
+	Vector items[0];
 } AtomTable;
 
 typedef void (*datafree)(int type, void *data, void *arg);

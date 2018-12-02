@@ -33,12 +33,12 @@ extern "C" {
  * dynamic array
  */
 typedef struct vector {
-  /* slots used */
-  int size;
-  /* total available slots */
-  int capacity;
-  /* array of pointer */
-  void **items;
+	/* slots used */
+	int size;
+	/* total available slots */
+	int capacity;
+	/* array of pointer */
+	void **items;
 } Vector;
 
 /* declare a vector with name */
@@ -89,15 +89,15 @@ int Vector_Concat(Vector *dest, Vector *src);
 
 /* foreach for vector */
 #define Vector_ForEach(item, vec) \
-  for (int i = 0; \
-       i < Vector_Size(vec) && ({item = (vec)->items[i]; 1;}); \
-       i++)
+	for (int i = 0; \
+			 i < Vector_Size(vec) && ({item = (vec)->items[i]; 1;}); \
+			 i++)
 
 /* foreach revsersely for vector */
 #define Vector_ForEach_Reverse(item, vec) \
-  for (int i = Vector_Size(vec) - 1; \
-       (i >= 0) && ({item = (vec)->items[i]; 1;}); \
-       i--)
+	for (int i = Vector_Size(vec) - 1; \
+			 (i >= 0) && ({item = (vec)->items[i]; 1;}); \
+			 i--)
 
 #ifdef __cplusplus
 }

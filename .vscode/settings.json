@@ -9,7 +9,7 @@
 	"editor.fontWeight": "100",
 	"editor.fontSize": 14,
 	"editor.tabSize": 2,
-	"editor.insertSpaces": true,
+	"editor.insertSpaces": false,
 	"files.associations": {
 		"*.h": "c",
 		"*.c": "c",

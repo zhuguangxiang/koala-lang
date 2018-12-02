@@ -35,7 +35,7 @@ extern "C" {
  * array and map are builtin types
  */
 typedef enum typedesc_kind {
-  TYPE_PRIMITIVE = 1, TYPE_KLASS, TYPE_PROTO, TYPE_ARRAY, TYPE_MAP
+	TYPE_PRIMITIVE = 1, TYPE_KLASS, TYPE_PROTO, TYPE_ARRAY, TYPE_MAP
 } TypeDescKind;
 
 /*
@@ -59,31 +59,31 @@ typedef enum typedesc_kind {
 typedef struct typedesc TypeDesc;
 
 struct typedesc {
-  TypeDescKind kind;
-  union {
-    /* one of PRIMITIVE_XXX */
-    char primitive;
-    /* class or trait's absolute path */
-    struct {
-      String path;
-      String type;
-    } klass;
-    /* function's proto */
-    struct {
-      Vector *arg;
-      Vector *ret;
-    } proto;
-    /* map's key and val's type */
-    struct {
-      TypeDesc *key;
-      TypeDesc *val;
-    } map;
-    /* array's dims and base type (subarray's type) */
-    struct {
-      int dims;
-      TypeDesc *base;
-    } array;
-  };
+	TypeDescKind kind;
+	union {
+		/* one of PRIMITIVE_XXX */
+		char primitive;
+		/* class or trait's absolute path */
+		struct {
+			String path;
+			String type;
+		} klass;
+		/* function's proto */
+		struct {
+			Vector *arg;
+			Vector *ret;
+		} proto;
+		/* map's key and val's type */
+		struct {
+			TypeDesc *key;
+			TypeDesc *val;
+		} map;
+		/* array's dims and base type (subarray's type) */
+		struct {
+			int dims;
+			TypeDesc *base;
+		} array;
+	};
 };
 
 /* basic type's defininitions */

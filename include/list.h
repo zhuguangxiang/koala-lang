@@ -34,7 +34,7 @@ extern "C" {
  * Some functions ("__xxx") are used internally.
  */
 struct list_head {
-  struct list_head *next, *prev;
+	struct list_head *next, *prev;
 };
 
 #define LIST_HEAD_INIT(name) {&(name), &(name)}
@@ -43,29 +43,29 @@ struct list_head {
 static inline
 void init_list_head(struct list_head *list)
 {
-  list->next = list;
-  list->prev = list;
+	list->next = list;
+	list->prev = list;
 }
 
 #define list_unlinked(node) \
-  ((node)->next == (node) && (node)->prev == (node))
+	((node)->next == (node) && (node)->prev == (node))
 
 /* Insert a new entry between two known consecutive entries. */
 static inline
 void __list_add(struct list_head *entry,
-                struct list_head *prev, struct list_head *next)
+								struct list_head *prev, struct list_head *next)
 {
-  entry->next = next;
-  entry->prev = prev;
-  prev->next = entry;
-  next->prev = entry;
+	entry->next = next;
+	entry->prev = prev;
+	prev->next = entry;
+	next->prev = entry;
 }
 
 /* Add a new entry at head */
 static inline
 void list_add(struct list_head *entry, struct list_head *head)
 {
-  __list_add(entry, head, head->next);
+	__list_add(entry, head, head->next);
 }
 
 
@@ -73,7 +73,7 @@ void list_add(struct list_head *entry, struct list_head *head)
 static inline
 void list_add_tail(struct list_head *entry, struct list_head *head)
 {
-  __list_add(entry, head->prev, head);
+	__list_add(entry, head->prev, head);
 }
 
 /*
@@ -85,16 +85,16 @@ void list_add_tail(struct list_head *entry, struct list_head *head)
 static inline
 void __list_del(struct list_head *prev, struct list_head *next)
 {
-  next->prev = prev;
-  prev->next = next;
+	next->prev = prev;
+	prev->next = next;
 }
 
 /* Deletes entry from list and reinitializes it. */
 static inline
 void list_del(struct list_head *entry)
 {
-  __list_del(entry->prev, entry->next);
-  init_list_head(entry);
+	__list_del(entry->prev, entry->next);
+	init_list_head(entry);
 }
 
 /* Tests whether a list is empty */
@@ -108,23 +108,23 @@ void list_del(struct list_head *entry)
 
 /* iterate over a list */
 #define list_for_each(pos, head) \
-  for (pos = (head)->next; pos != (head); pos = pos->next)
+	for (pos = (head)->next; pos != (head); pos = pos->next)
 
 /* iterate over a list backwards */
 #define list_for_each_prev(pos, head) \
-  for (pos = (head)->prev; pos != (head); pos = pos->prev)
+	for (pos = (head)->prev; pos != (head); pos = pos->prev)
 
 /* iterate over a list safe against removal of list entry */
 #define list_for_each_safe(pos, n, head) \
-  for (pos = (head)->next, n = pos->next; \
-       pos != (head); \
-       pos = n, n = pos->next)
+	for (pos = (head)->next, n = pos->next; \
+			 pos != (head); \
+			 pos = n, n = pos->next)
 
 /* iterate over a list backwards safe against removal of list entry */
 #define list_for_each_prev_safe(pos, n, head) \
-  for (pos = (head)->prev, n = pos->prev; \
-       pos != (head); \
-       pos = n, n = pos->prev)
+	for (pos = (head)->prev, n = pos->prev; \
+			 pos != (head); \
+			 pos = n, n = pos->prev)
 
 /*
  * Double linked lists with a single pointer of list head.
@@ -133,11 +133,11 @@ void list_del(struct list_head *entry)
  * You lose the ability to access the tail in O(1).
  */
 struct hlist_head {
-  struct hlist_node *first;
+	struct hlist_node *first;
 };
 
 struct hlist_node {
-  struct hlist_node *next, **pprev;
+	struct hlist_node *next, **pprev;
 };
 
 #define HLIST_HEAD_INIT {.first = NULL}
@@ -146,51 +146,51 @@ struct hlist_node {
 static inline
 void init_hlist_node(struct hlist_node *h)
 {
-  h->next = NULL;
-  h->pprev = NULL;
+	h->next = NULL;
+	h->pprev = NULL;
 }
 
 static inline
 int hlist_unhashed(const struct hlist_node *node)
 {
-  return !node->pprev;
+	return !node->pprev;
 }
 
 static inline
 int hlist_empty(const struct hlist_head *head)
 {
-  return !head->first;
+	return !head->first;
 }
 
 static inline
 void hlist_del(struct hlist_node *n)
 {
-  if (!hlist_unhashed(n)) {
-    struct hlist_node *next = n->next;
-    struct hlist_node **pprev = n->pprev;
-    *pprev = next;
-    if (next)
-      next->pprev = pprev;
-    init_hlist_node(n);
-  }
+	if (!hlist_unhashed(n)) {
+		struct hlist_node *next = n->next;
+		struct hlist_node **pprev = n->pprev;
+		*pprev = next;
+		if (next)
+			next->pprev = pprev;
+		init_hlist_node(n);
+	}
 }
 
 static inline
 void hlist_add(struct hlist_node *n, struct hlist_head *h)
 {
-  struct hlist_node *first = h->first;
-  n->next = first;
-  if (first)
-    first->pprev = &n->next;
-  h->first = n;
-  n->pprev = &h->first;
+	struct hlist_node *first = h->first;
+	n->next = first;
+	if (first)
+		first->pprev = &n->next;
+	h->first = n;
+	n->pprev = &h->first;
 }
 
 #define hlist_for_each(pos, head) \
-  for (pos = (head)->first; pos; pos = pos->next)
+	for (pos = (head)->first; pos; pos = pos->next)
 
 #define hlist_for_each_safe(pos, n, head) \
-  for (pos = (head)->first; pos && ({n = pos->next; 1;}); pos = n)
+	for (pos = (head)->first; pos && ({n = pos->next; 1;}); pos = n)
 
 #ifdef __cplusplus
 }

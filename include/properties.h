@@ -32,13 +32,13 @@ extern "C" {
 
 /* properties value */
 typedef struct property {
-  struct list_head link;
-  String val;
+	struct list_head link;
+	String val;
 } Property;
 
 /* properties structure */
 typedef struct properties {
-  HashTable table;
+	HashTable table;
 } Properties;
 
 int Properties_Init(Properties *prop);
@@ -48,7 +48,7 @@ char *Properties_Get(Properties *prop, char *key);
 struct list_head *Properties_Get_List(Properties *prop, char *key);
 static inline char *Property_Value(Property *prop)
 {
-  return prop->val.str;
+	return prop->val.str;
 }
 
 #ifdef __cplusplus

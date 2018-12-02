@@ -30,22 +30,22 @@ extern "C" {
 #endif
 
 typedef struct hash_node {
-  /* list node */
-  struct list_head llink;
-  /* conflict list */
-  struct hlist_node hlink;
-  /* hash value */
-  uint32 hash;
-  /* hash key */
-  void *key;
+	/* list node */
+	struct list_head llink;
+	/* conflict list */
+	struct hlist_node hlink;
+	/* hash value */
+	uint32 hash;
+	/* hash key */
+	void *key;
 } HashNode;
 
 #define Init_HashNode(hnode, k) \
 do { \
-  init_list_head(&(hnode)->llink); \
-  init_hlist_node(&(hnode)->hlink); \
-  (hnode)->hash = 0; \
-  (hnode)->key = k; \
+	init_list_head(&(hnode)->llink); \
+	init_hlist_node(&(hnode)->hlink); \
+	(hnode)->hash = 0; \
+	(hnode)->key = k; \
 } while (0)
 
 #define HashNode_Unhashed(hnode) hlist_unhashed(&(hnode)->hlink)
@@ -55,18 +55,18 @@ typedef int (*ht_equalfunc)(void *key1, void *key2);
 typedef void (*ht_visitfunc)(HashNode *hnode, void *arg);
 
 typedef struct hash_table {
-  /* prime array index, internal used */
-  int prime_index;
-  /* number of nodes in hash table */
-  int nr_nodes;
-  /* hash function */
-  ht_hashfunc hash;
-  /* equal function */
-  ht_equalfunc equal;
-  /* conflict list array */
-  struct hlist_head *entries;
-  /* list, by added order */
-  struct list_head head;
+	/* prime array index, internal used */
+	int prime_index;
+	/* number of nodes in hash table */
+	int nr_nodes;
+	/* hash function */
+	ht_hashfunc hash;
+	/* equal function */
+	ht_equalfunc equal;
+	/* conflict list array */
+	struct hlist_head *entries;
+	/* list, by added order */
+	struct list_head head;
 } HashTable;
 
 /*
@@ -81,7 +81,7 @@ void HashTable_Free(HashTable *table, ht_visitfunc fn, void *arg);
 /* Find a node with its key  */
 HashNode *__HashTable_Find(HashTable *table, uint32 hash, void *key);
 #define HashTable_Find(table, key) \
-  __HashTable_Find(table, (table)->hash(key), key)
+	__HashTable_Find(table, (table)->hash(key), key)
 
 /* Remove a node from the hash table by its node */
 int HashTable_Remove(HashTable *table, HashNode *hnode);
