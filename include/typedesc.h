@@ -105,6 +105,8 @@ char *Primitive_ToString(int kind);
 TypeDesc *TypeDesc_Dup(TypeDesc *desc);
 /* free the typedesc */
 void TypeDesc_Free(TypeDesc *desc);
+/* get primitive typedesc */
+TypeDesc *TypeDesc_Get_Primitive(int primitive);
 /* new a class or trait typedesc */
 TypeDesc *TypeDesc_New_Klass(char *path, char *type);
 /* new a proto typedesc */

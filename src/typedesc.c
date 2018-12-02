@@ -316,6 +316,11 @@ void TypeDesc_Free(TypeDesc *desc)
 	typedesc_ops[kind].__free(desc);
 }
 
+TypeDesc *TypeDesc_Get_Primitive(int primitive)
+{
+	return get_primitive(primitive)->type;
+}
+
 TypeDesc *TypeDesc_New_Klass(char *path, char *type)
 {
 	TypeDesc *desc = typedesc_new(TYPE_KLASS);

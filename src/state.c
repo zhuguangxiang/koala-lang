@@ -25,9 +25,10 @@
 #include "mem.h"
 #include "hashfunc.h"
 #include "tupleobject.h"
+#include "stringobject.h"
+#include "intobject.h"
 #include "image.h"
 #include "log.h"
-#include "env.h"
 
 static void init_pkgnode(PkgNode *node, char *name, PkgNodeKind kind)
 {
@@ -68,7 +69,7 @@ GlobalState gState;
 
 static void init_state(GlobalState *gs)
 {
-	Properties_Init(&gs->envs);
+	Properties_Init(&gs->props);
 	init_pkgnode(&gs->root, "/", PATH_NODE);
 	init_pkgnode_hashtable(&gs->pkgs);
 	Vector_Init(&gs->vars);
@@ -82,6 +83,9 @@ static void init_lang_package(GlobalState *gs)
 void Koala_Initialize(void)
 {
 	AtomString_Init();
+	Init_String_Klass();
+	Init_Integer_Klass();
+	Init_Package_Klass();
 	init_state(&gState);
 	init_lang_package(&gState);
 }
@@ -116,7 +120,7 @@ static PkgNode *find_node(GlobalState *gs, PkgNode *parent, String name)
 		Log_Debug("found node '%s'", name.str);
 		return node;
 	}
-	Log_Error("canot find node '%s'", name.str);
+	Log_Warn("canot find node '%s'", name.str);
 	return NULL;
 }
 
@@ -168,10 +172,8 @@ static PkgNode *find_leafnode(GlobalState *gs, char *path)
 		while (*path && *++path == '/');
 	}
 
-	if (!node || node->kind != LEAF_NODE) {
-		Log_Error("cannot find leafnode '%s'", path);
+	if (!node || node->kind != LEAF_NODE)
 		return NULL;
-	}
 	return node;
 }
 
@@ -202,7 +204,7 @@ static Package *load_package(char *path)
 	char fullpath[MAX_FILE_PATH_LEN];
 	Package *pkg = NULL;
 	struct list_head *list;
-	list = Properties_Get_List(&gState.envs, KOALA_PATH);
+	list = Properties_Get_List(&gState.props, KOALA_PATH);
 	assert(list);
 	Property *property;
 	struct list_head *pos;
@@ -213,7 +215,7 @@ static Package *load_package(char *path)
 		KImage *image = KImage_Read_File(fullpath);
 		if (!image)
 			continue;
-		Log_Debug("load package '%s' from image", path);
+		Log_Debug("load package '%s' from '%s'", path, fullpath);
 		pkg = Package_From_Image(image);
 		KImage_Free(image);
 	}
@@ -234,6 +236,11 @@ Object *Koala_Load_Package(char *path)
 		Log_Error("cannot load package '%s'", path);
 		return NULL;
 	}
+	char *lastslash = strrchr(path, '/');
+	if (lastslash != NULL)
+		path = strndup(path, lastslash - path);
+	else
+		path = "";
 	Koala_Add_Package(path, pkg);
 	run_init_func(pkg);
 	return (Object *)pkg;
@@ -250,7 +257,7 @@ Object *Koala_Get_Package(char *path)
 
 void Koala_Add_Property(char *key, char *value)
 {
-	Properties_Put(&gState.envs, key, value);
+	Properties_Put(&gState.props, key, value);
 }
 
 int Koala_Run(char *path)
@@ -287,6 +294,20 @@ Object *Koala_Get_Value(Package *pkg, char *name)
 	return Tuple_Get(tuple, m->offset);
 }
 
+static void show_pathes(void)
+{
+	struct list_head *list;
+	list = Properties_Get_List(&gState.props, KOALA_PATH);
+	if (list) {
+		Property *property;
+		struct list_head *pos;
+		list_for_each(pos, list) {
+			property = container_of(pos, Property, link);
+			printf("%s\n", Property_Value(property));
+		}
+	}
+}
+
 static void show_pkgnode(PkgNode *node, int depth, int y)
 {
 	#define LAST_ONE(vec) ((i + 1) == Vector_Size(vec))
@@ -295,9 +316,9 @@ static void show_pkgnode(PkgNode *node, int depth, int y)
 	int i = depth;
 	while (i > 1) {
 		if (t & 1)
-			printf("    ");
+			printf("    ");
 		else
-			printf("│   ");
+			printf("│   ");
 		t = t >> 1;
 		--i;
 	}
@@ -307,7 +328,10 @@ static void show_pkgnode(PkgNode *node, int depth, int y)
 		else
 			printf("├── ");
 	}
-	printf("%s\n", node->name.str);
+	if (node != &gState.root)
+		printf("%s\n", node->name.str);
+	else
+		puts(".");
 	if (node->kind == PATH_NODE) {
 		PkgNode *item;
 		Vector_ForEach(item, node->children) {
@@ -319,5 +343,6 @@ static void show_pkgnode(PkgNode *node, int depth, int y)
 
 void Koala_Show_Packages(void)
 {
+	show_pathes();
 	show_pkgnode(&gState.root, 0, 0);
 }

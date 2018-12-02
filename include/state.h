@@ -26,6 +26,7 @@
 #include "atomstring.h"
 #include "package.h"
 #include "properties.h"
+#include "env.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,7 +55,7 @@ typedef struct pkgnode {
 
 typedef struct globalstate {
 	/* environment values */
-	Properties envs;
+	Properties props;
 	/* root package node */
 	PkgNode root;
 	/* package hash table */

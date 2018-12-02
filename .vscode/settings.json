@@ -81,7 +81,7 @@
 	"editor.cursorStyle": "line",
 	"terminal.integrated.scrollback": 5000,
 	"terminal.integrated.rendererType": "dom",
-	"editor.lineHeight": 19,
+	"editor.lineHeight": 0,
 	"editor.tokenColorCustomizations": {
 		"textMateRules": [{
 				"scope": "comment",
@@ -90,5 +90,5 @@
 				}
 		}]
 	},
-	"window.zoomLevel": 0.2
+	"window.zoomLevel": 0
 }

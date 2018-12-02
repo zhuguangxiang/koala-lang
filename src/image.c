@@ -73,7 +73,7 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 	TypeDesc *t = NULL;
 	switch (item->kind) {
 		case TYPE_PRIMITIVE: {
-			t->primitive = item->primitive;
+			t = TypeDesc_Get_Primitive(item->primitive);
 			break;
 		}
 		case TYPE_KLASS: {

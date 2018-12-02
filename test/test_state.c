@@ -34,10 +34,6 @@ void test_state(void)
 
 int main(int argc, char *argv[])
 {
-	AtomString_Init();
-	Init_String_Klass();
-	Init_Integer_Klass();
-	Init_Package_Klass();
 	Koala_Initialize();
 	test_state();
 	Koala_Finalize();
