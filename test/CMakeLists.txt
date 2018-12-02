@@ -46,3 +46,5 @@ target_link_libraries(test_properties koala)
 
 add_executable(test_task test_task.c)
 target_link_libraries(test_task task)
+
+add_executable(test_color test_color.c)

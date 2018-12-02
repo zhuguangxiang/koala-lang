@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <sys/utsname.h>
 #include "state.h"
 #include "vm.h"
 #include "task.h"
@@ -63,6 +64,18 @@ static void parse_pathes(char *pathes, struct options *opts)
 	}
 }
 
+#define KOALA_VERSION "0.8.5"
+
+static void show_version(void)
+{
+	struct utsname sysinfo;
+	if (!uname(&sysinfo)) {
+		fprintf(stderr, "koala version %s, %s/%s\n",
+						KOALA_VERSION, sysinfo.sysname, sysinfo.machine);
+	}
+	exit(0);
+}
+
 static void usage(const char *prog)
 {
   fprintf(stderr,
@@ -71,7 +84,7 @@ static void usage(const char *prog)
 		"\t-p <path:...>        Set pathes in where packages are searched.\n"
 		"\t-h                   Print this message.\n",
 		prog);
-  exit(1);
+  exit(0);
 }
 
 static void parse_arguments(int argc, char *argv[], struct options *opts)
@@ -79,10 +92,13 @@ static void parse_arguments(int argc, char *argv[], struct options *opts)
 	extern char *optarg;
 	extern int optind;
 	int opt;
-	while ((opt = getopt(argc, argv, "p:h")) != -1) {
+	while ((opt = getopt(argc, argv, "p:vh")) != -1) {
 		switch (opt) {
 			case 'p':
 				parse_pathes(optarg, opts);
+				break;
+			case 'v':
+				show_version();
 				break;
 			case 'h':
 			/* fallthrough */

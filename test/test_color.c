@@ -19,6 +19,5 @@ int main()
   printf("%scyan\n", KCYN);
   printf("%swhite\n", KWHT);
   printf("%snormal\n", KNRM);
-
   return 0;
 }
