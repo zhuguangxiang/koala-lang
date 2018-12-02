@@ -57,7 +57,7 @@ typedef struct task {
 	void * volatile sched_info;
 	join_state_t volatile join_state;
 	struct task * volatile join_task;
-	void *local;
+	void *object;
 } task_t;
 
 /* task attribute */
@@ -76,14 +76,10 @@ typedef struct task_processor {
 	int id;
 } task_processor_t;
 
-/* initial task processors, call it firstly */
-int task_init_processors(int num_threads);
+/* initial processors, call it firstly */
+int init_processors(int num_threads);
 /* create a task and run it */
 task_t *task_create(task_attr_t *attr, task_entry_t entry, void *arg);
-/* set task private obj */
-void task_set_local(task_t *task, void *obj);
-/* get task private obj */
-void *task_get_local(task_t *task);
 /* yield cpu and call scheduler */
 int task_yield(void);
 /* waiting for other task finished */
@@ -94,6 +90,17 @@ int task_detach(task_t *task);
 task_t *current_task(void);
 /* get current processor in which current task is running */
 task_processor_t *current_processor(void);
+/* set task private obj */
+#define task_set_object(obj) \
+do { \
+	current_task()->object = obj; \
+} while (0)
+
+/* get task private obj */
+#define task_get_object() \
+({ \
+	current_task()->object \
+})
 
 #ifdef __cplusplus
 }

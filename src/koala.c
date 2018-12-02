@@ -25,6 +25,8 @@
 #include <string.h>
 #include <stdio.h>
 #include "state.h"
+#include "vm.h"
+#include "task.h"
 
 struct options {
 	Vector pathes;
@@ -98,27 +100,20 @@ static void parse_arguments(int argc, char *argv[], struct options *opts)
 		usage(argv[0]);
 }
 
-static int run(struct options *opts)
+static void *task_entry_func(void *arg)
 {
-	Koala_Initialize();
-
-	Koala_Add_Property(KOALA_PATH, ".");
-	char *path;
-	Vector_ForEach(path, &opts->pathes) {
-		Koala_Add_Property(KOALA_PATH, path);
-	}
-
-	Koala_Run(opts->filename);
-
+	struct options *opts = arg;
+	KoalaState *ks = KoalaState_New();
+	task_set_object(ks);
+	Koala_Run_File(ks, opts->filename, NULL);
 	Koala_Show_Packages();
-
-	Koala_Finalize();
-
-	return 0;
+	printf("task-%lu is finished.\n", current_task()->id);
+	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
+	/* parse arguments */
 	struct options opts;
 	init_options(&opts);
 	parse_arguments(argc, argv, &opts);
@@ -127,7 +122,34 @@ int main(int argc, char *argv[])
 		puts(s);
 	}
 	puts(opts.filename);
-	run(&opts);
+
+	/* initial koala machine */
+	Koala_Initialize();
+
+	/* set path for searching packages */
+	Koala_Add_Property(KOALA_PATH, ".");
+	char *path;
+	Vector_ForEach(path, &opts.pathes) {
+		Koala_Add_Property(KOALA_PATH, path);
+	}
+
+	/* display packages */
+	Koala_Show_Packages();
+
+	/* initial task's processors */
+	init_processors(1);
+
+	/* new a task and wait for it's finished */
+	task_attr_t attr = {.stacksize = 1 * 512 * 1024};
+	task_t *task = task_create(&attr, task_entry_func, &opts);
+	task_join(task, NULL);
+
+	/* finialize koala machine */
+	Koala_Finalize();
+
+	/* finialize options */
 	fini_options(&opts);
+
+	printf("task-%lu is finished.\n", current_task()->id);
 	return 0;
 }

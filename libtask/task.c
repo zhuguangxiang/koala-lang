@@ -41,7 +41,7 @@ static pthread_key_t local_pthread_key;
 
 static task_processor_t *processors;
 static int sched_shutdown = 0;
-static uint64_t task_idgen = 1;
+static uint64_t task_idgen = 0;
 
 /* get current processor(current pthread) */
 task_processor_t *current_processor(void)
@@ -104,6 +104,7 @@ static void task_switch_to(task_processor_t *proc, task_t *to)
 		assert(0);
 	}
 
+	printf("switch to task-%lu\n", to->id);
 	assert(to->state == TASK_STATE_READY);
 	to->state = TASK_STATE_RUNNING;
 	proc->current = to;
@@ -169,7 +170,7 @@ static void init_main_proc(void)
 	pthread_setspecific(local_pthread_key, &processors[0]);
 }
 
-int task_init_processors(int num_threads)
+int init_processors(int num_threads)
 {
 	if (sched_state != SCHED_STATE_NONE) {
 		errno = EINVAL;
@@ -209,11 +210,11 @@ task_t *task_create(task_attr_t *attr, task_entry_t entry, void *arg)
 	task->entry = entry;
 	task->arg = arg;
 	task->state = TASK_STATE_READY;
-	task->id = task_idgen++;
+	task->id = ++task_idgen;
 	task_context_init(&task->context, attr->stacksize, task_go_routine, task);
 
 	schedule(current_processor()->scheduler, task);
-	printf("task %lu created\n", task->id);
+	printf("task-%lu created\n", task->id);
 	return task;
 }
 

@@ -50,6 +50,11 @@ static inline int stack_size(struct stack *stk)
 	return stk->top + 1;
 }
 
+static inline void init_stack(struct stack *stk)
+{
+	stk->top = -1;
+}
+
 static struct frame *frame_new(KoalaState *ks, CodeObject *code)
 {
 	int size = 0;
@@ -220,6 +225,11 @@ static void frame_loop(struct frame *frame)
 				store(frame, index, ob);
 				break;
 			}
+			case OP_RET: {
+				goto_up_frame(frame);
+				loopflag = 0;
+				break;
+			}
 			default: {
 				assert(0);
 				break;
@@ -328,4 +338,14 @@ int Koala_Run_Code(KoalaState *ks, Object *code, Object *ob, Object *args)
 			assert(0);
 		}
 	}
+}
+
+KoalaState *KoalaState_New(void)
+{
+	KoalaState *ks = mm_alloc(sizeof(KoalaState));
+	init_list_head(&ks->ksnode);
+	ks->gs = &gState;
+	list_add_tail(&ks->ksnode, &ks->gs->kslist);
+	init_stack(&ks->stack);
+	return ks;
 }

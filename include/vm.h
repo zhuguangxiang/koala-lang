@@ -68,6 +68,8 @@ struct frame {
 	Object *locvars[0];
 };
 
+KoalaState *KoalaState_New(void);
+int Koala_Run_File(KoalaState *ks, char *path, Vector *args);
 int Koala_Run_Code(KoalaState *ks, Object *code, Object *ob, Object *args);
 
 #ifdef __cplusplus

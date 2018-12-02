@@ -73,6 +73,7 @@ static void init_state(GlobalState *gs)
 	init_pkgnode(&gs->root, "/", PATH_NODE);
 	init_pkgnode_hashtable(&gs->pkgs);
 	Vector_Init(&gs->vars);
+	init_list_head(&gs->kslist);
 }
 
 static void init_lang_package(GlobalState *gs)
@@ -222,13 +223,6 @@ static Package *load_package(char *path)
 	return pkg;
 }
 
-static void run_init_func(Package *pkg)
-{
-	MemberDef *m = Package_Find_MemberDef(pkg, "__init__");
-	assert(m && m->kind == MEMBER_CODE);
-	//Koala_Run_Code(m->code, (Object *)pkg, NULL);
-}
-
 Object *Koala_Load_Package(char *path)
 {
 	Package *pkg = load_package(path);
@@ -242,7 +236,6 @@ Object *Koala_Load_Package(char *path)
 	else
 		path = "";
 	Koala_Add_Package(path, pkg);
-	run_init_func(pkg);
 	return (Object *)pkg;
 }
 
@@ -260,16 +253,30 @@ void Koala_Add_Property(char *key, char *value)
 	Properties_Put(&gState.props, key, value);
 }
 
-int Koala_Run(char *path)
+static int run_function(KoalaState *ks, Object *ob, Object *args, char *name)
 {
+	MemberDef *m = Package_Find_MemberDef((Package *)ob, "__init__");
+	if (!m || m->kind != MEMBER_CODE) {
+		fprintf(stderr, "No '%s' function in '%s'.", name, Package_Name(ob));
+		return -1;
+	}
+	return Koala_Run_Code(ks, m->code, ob, args);
+}
+
+int Koala_Run_File(KoalaState *ks, char *path, Vector *args)
+{
+	/* find or load package */
 	Object *pkg = Koala_Get_Package(path);
 	if (pkg == NULL) {
 		fprintf(stderr, "error: cannot open '%s' package\n", path);
 		return -1;
 	}
 
+	/* initial package's variables */
+	run_function(ks, pkg, NULL, "__init__");
 
-	return 0;
+	/* run 'Main' function in the package */
+	return run_function(ks, pkg, NULL, "Main");
 }
 
 int Koala_Set_Value(Package *pkg, char *name, Object *value)

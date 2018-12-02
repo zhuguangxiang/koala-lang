@@ -18,7 +18,7 @@ void *task_entry_func(void *p)
 
 int main(int argc, char *argv[])
 {
-	task_init_processors(2);
+	init_processors(2);
 	int value1 = 100;
 	int value2 = 200;
 	int value3 = 300;
