@@ -31,3 +31,4 @@ build/*
 klc
 libtask.so.0
 libtask.so.0.5
+include/config.h
