@@ -28,3 +28,7 @@ manual.org.bak
 build/*
 .dir-locals.el
 
+klc
+test_*
+libtask.so.0
+libtask.so.0.5

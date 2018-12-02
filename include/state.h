@@ -74,7 +74,7 @@ int Koala_Add_Package(char *path, Package *pkg);
 Object *Koala_Load_Package(char *path);
 Object *Koala_Get_Package(char *path);
 void Koala_Add_Property(char *key, char *value);
-int Koala_Run_File(char *path);
+int Koala_Run(char *path);
 int Koala_Set_Value(Package *pkg, char *name, Object *value);
 Object *Koala_Get_Value(Package *pkg, char *name);
 void Koala_Show_Packages(void);

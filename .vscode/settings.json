@@ -1,7 +1,7 @@
 {
 	"workbench.startupEditor": "none",
 	"workbench.statusBar.visible": true,
-	"workbench.colorTheme": "One Dark Pro Vivid",
+	"workbench.colorTheme": "One Dark Pro",
 	"workbench.iconTheme": "vs-seti",
 	"workbench.activityBar.visible": false,
 	"editor.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",

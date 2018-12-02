@@ -1,2 +1,3 @@
-
+#cmakedefine SCHED_LOCKED
+#cmakedefine SWITCH_UCONTEXT
 #cmakedefine LOG_COLOR

@@ -21,6 +21,7 @@
  */
 
 #include "state.h"
+#include "vm.h"
 #include "mem.h"
 #include "hashfunc.h"
 #include "tupleobject.h"
@@ -252,9 +253,16 @@ void Koala_Add_Property(char *key, char *value)
 	Properties_Put(&gState.envs, key, value);
 }
 
-int Koala_Run_File(char *path)
+int Koala_Run(char *path)
 {
-	return -1;
+	Object *pkg = Koala_Get_Package(path);
+	if (pkg == NULL) {
+		fprintf(stderr, "error: cannot open '%s' package\n", path);
+		return -1;
+	}
+
+
+	return 0;
 }
 
 int Koala_Set_Value(Package *pkg, char *name, Object *value)

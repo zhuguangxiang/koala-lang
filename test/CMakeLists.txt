@@ -43,3 +43,6 @@ target_link_libraries(test_image koala)
 
 add_executable(test_properties test_properties.c)
 target_link_libraries(test_properties koala)
+
+add_executable(test_task test_task.c)
+target_link_libraries(test_task task)

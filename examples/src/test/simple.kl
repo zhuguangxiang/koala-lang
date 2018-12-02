@@ -1,0 +1,12 @@
+
+package test;
+
+//import "koala/io";
+
+func Main(args [string]) {
+  var a = 100;
+  var b = a + 200;
+  var c int;
+  c = a + b;
+  //io.Println(a, "+", b, "=", c);
+}

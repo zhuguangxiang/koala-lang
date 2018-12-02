@@ -1,0 +1,65 @@
+
+import "koala/io"
+
+var ga, gb = 1, "hello koala"
+
+func add(a int, b int) (int, int) {
+  return a + b, a - b
+}
+
+func abs(a int) int {
+  return 0 - a
+}
+
+
+func testifforwhile() {
+  var a, b int
+  if a > b {
+  } else if a < b {
+  } else if (a == b) {
+  } else {
+  }
+
+  while !(a > b) {
+  }
+
+  while a > b and c <= d {
+  }
+
+  do {
+    a += 1
+  } while a != b
+
+  while a > b {
+  }
+
+  while (a <= b) {
+  }
+
+  while true {
+  }
+
+  for a := 1...10 {
+  }
+
+  for a := 1..<10 {
+  }
+
+  for a := array[2:10] {
+  }
+}
+
+func Main(args [string]) {
+
+  var a = 100;
+  var b = 200;
+  a = abs(10);
+  io.Println("a =", a);
+  io.Println("a =", a);
+  io.Println("b =", b);
+  io.Println("ga =", ga);
+  io.Println("gb =", gb);
+
+  a, b = 10 + 20, 10 - 29
+  a, b = add(1, 2)
+}
