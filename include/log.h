@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 typedef enum loglevel {
-  LOG_TRACE = 0, LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR, LOG_FATAL
+	LOG_TRACE = 0, LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR, LOG_FATAL
 } LogLevel;
 
 void Log_Log(LogLevel level, char *file, int line, char *fmt, ...);

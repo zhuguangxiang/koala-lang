@@ -31,3 +31,23 @@ target_link_libraries(test_tupleobject koala)
 
 add_executable(test_codeobject test_codeobject.c)
 target_link_libraries(test_codeobject koala)
+
+add_executable(test_package test_package.c)
+target_link_libraries(test_package koala)
+
+add_executable(test_state test_state.c)
+target_link_libraries(test_state koala)
+
+add_executable(test_image test_image.c)
+target_link_libraries(test_image koala)
+
+add_executable(test_properties test_properties.c)
+target_link_libraries(test_properties koala)
+
+add_executable(test_task test_task.c)
+target_link_libraries(test_task task)
+
+add_executable(test_join test_join.c)
+target_link_libraries(test_join task)
+
+add_executable(test_color test_color.c)

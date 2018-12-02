@@ -30,85 +30,85 @@ static Cache Int_Cache;
 
 Object *Integer_New(int64 value)
 {
-  IntObject *iob = Cache_Take(&Int_Cache);
-  Init_Object_Head(iob, &Int_Klass);
-  iob->value = value;
-  return (Object *)iob;
+	IntObject *iob = Cache_Take(&Int_Cache);
+	Init_Object_Head(iob, &Int_Klass);
+	iob->value = value;
+	return (Object *)iob;
 }
 
 void Integer_Free(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, Int_Klass);
-  Cache_Restore(&Int_Cache, ob);
+	OB_ASSERT_KLASS(ob, Int_Klass);
+	Cache_Restore(&Int_Cache, ob);
 }
 
 int64 Integer_ToCInt(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, Int_Klass);
-  IntObject *iob = (IntObject *)ob;
-  return iob->value;
+	OB_ASSERT_KLASS(ob, Int_Klass);
+	IntObject *iob = (IntObject *)ob;
+	return iob->value;
 }
 
 static int integer_equal(Object *v1, Object *v2)
 {
-  OB_ASSERT_KLASS(v1, Int_Klass);
-  OB_ASSERT_KLASS(v2, Int_Klass);
-  IntObject *iob1 = (IntObject *)v1;
-  IntObject *iob2 = (IntObject *)v2;
-  return iob1->value == iob2->value;
+	OB_ASSERT_KLASS(v1, Int_Klass);
+	OB_ASSERT_KLASS(v2, Int_Klass);
+	IntObject *iob1 = (IntObject *)v1;
+	IntObject *iob2 = (IntObject *)v2;
+	return iob1->value == iob2->value;
 }
 
 static uint32 integer_hash(Object *v)
 {
-  OB_ASSERT_KLASS(v, Int_Klass);
-  IntObject *iob = (IntObject *)v;
-  return hash_uint32((uint32)iob->value, 32);
+	OB_ASSERT_KLASS(v, Int_Klass);
+	IntObject *iob = (IntObject *)v;
+	return hash_uint32((uint32)iob->value, 32);
 }
 
 static void integer_free(Object *ob)
 {
-  Integer_Free(ob);
+	Integer_Free(ob);
 }
 
 static Object *integer_tostring(Object *v)
 {
-  OB_ASSERT_KLASS(v, Int_Klass);
-  IntObject *iob = (IntObject *)v;
-  char buf[128];
-  snprintf(buf, 127, "%lld", iob->value);
-  return String_New(buf);
+	OB_ASSERT_KLASS(v, Int_Klass);
+	IntObject *iob = (IntObject *)v;
+	char buf[128];
+	snprintf(buf, 127, "%lld", iob->value);
+	return String_New(buf);
 }
 
 static Object *integer_numop_add(Object *v1, Object *v2)
 {
-  OB_ASSERT_KLASS(v1, Int_Klass);
-  OB_ASSERT_KLASS(v2, Int_Klass);
-  IntObject *iob1 = (IntObject *)v1;
-  IntObject *iob2 = (IntObject *)v2;
-  return Integer_New(iob1->value + iob2->value);
+	OB_ASSERT_KLASS(v1, Int_Klass);
+	OB_ASSERT_KLASS(v2, Int_Klass);
+	IntObject *iob1 = (IntObject *)v1;
+	IntObject *iob2 = (IntObject *)v2;
+	return Integer_New(iob1->value + iob2->value);
 }
 
 static NumberOperations integer_numops = {
-  .add = integer_numop_add,
+	.add = integer_numop_add,
 };
 
 Klass Int_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
-  .name = "Integer",
-  .basesize = sizeof(IntObject),
-  .ob_free  = integer_free,
-  .ob_hash  = integer_hash,
-  .ob_equal = integer_equal,
-  .ob_str = integer_tostring,
-  .numops = &integer_numops,
+	OBJECT_HEAD_INIT(&Klass_Klass)
+	.name = "Integer",
+	.basesize = sizeof(IntObject),
+	.ob_free  = integer_free,
+	.ob_hash  = integer_hash,
+	.ob_equal = integer_equal,
+	.ob_str = integer_tostring,
+	.numops = &integer_numops,
 };
 
 void Init_Integer_Klass(void)
 {
-  Init_Cache(&Int_Cache, "IntObject", sizeof(IntObject));
+	Init_Cache(&Int_Cache, "IntObject", sizeof(IntObject));
 }
 
 void Fini_Integer_Klass(void)
 {
-  Fini_Cache(&Int_Cache, NULL, NULL);
+	Fini_Cache(&Int_Cache, NULL, NULL);
 }

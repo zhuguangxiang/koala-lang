@@ -1,0 +1,48 @@
+#+TITLE: Koala Language Manual
+#+AUTHOR: zhuguangxiang(James)
+#+EMAIL: https://github.com/zhuguangxiang
+* Koala语言手册
+
+** Hello World
+
+#+BEGIN_SRC
+// hello.kl
+import "koala/io"
+
+func Main(args [string]) {
+  io.Println("Hello, World")
+}
+#+END_SRC
+
+>
+> 编译：koala build hello.kl
+>
+> 运行：koala run hello
+>
+
+** 数据类型
+
+- 基本类型(byte, int, float, bool, char)
+- 字符串类型(string)
+- 数组类型([int])
+- 切片(子数组)(array[2:5])
+- 字典(dict)
+- 集合(set)
+- 闭包类型(func(args) returns)
+- 类型别名(typealias)
+- 类和特质(class, trait)
+
+*** 基本数据类型
+*** 数组和字典形式化描述
+数组和字典是一种复合类型，其成员对象的类型可以理解为一种子类型。
+Koala提供了一种形式化描述（编译器内建）。
+
+>
+> Q: 是否需要提供通用的对象描述（数据类型提供）？两种类型是否需要统一的访问模式呢？
+> A: Koala不支持泛型，但是像数组和字典等容器类的数据类型又需要‘子类型’，这就出现了自相矛盾。
+Koala解决的办法是：使用形式化的方式描述，通用的容器类对象和形式化方式描述的对象不是同一种类型的对象，不能互相转换。
+>
+
+*** 变长数组和固定长度数组
+Koala支持变长数组，不支持固定长度数组，因为数组是一个内建的对象，可以理解为基本数据类型，
+而不是一个对象。

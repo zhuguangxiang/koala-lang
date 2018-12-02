@@ -9,8 +9,8 @@ extern "C" {
 #endif
 
 typedef struct task_signal {
-  void *msg;
-  task_t *waiter;
+	void *msg;
+	task_t *waiter;
 } task_signal_t;
 
 #ifdef __cplusplus

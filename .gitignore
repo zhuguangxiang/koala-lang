@@ -1,6 +1,7 @@
 *.out
 koala_yacc.*
 koala_lex.*
+koala_tokens.h
 *.klc
 *.a
 *.o
@@ -25,3 +26,9 @@ GTAGS
 manual.html
 manual.org.bak
 build/*
+.dir-locals.el
+
+klc
+libtask.so.0
+libtask.so.0.5
+include/config.h

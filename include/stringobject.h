@@ -30,15 +30,15 @@ extern "C" {
 #endif
 
 typedef struct stringobject {
-  OBJECT_HEAD
-  /* string cache, hash node */
-  HashNode hnode;
-  /* str's length */
-  int len;
-  /* str == data, or str is readonly atom string */
-  char *str;
-  /* data */
-  char data[0];
+	OBJECT_HEAD
+	/* string cache, hash node */
+	HashNode hnode;
+	/* str's length */
+	int len;
+	/* str == data, or str is readonly atom string */
+	char *str;
+	/* data */
+	char data[0];
 } StringObject;
 
 extern Klass String_Klass;
@@ -52,6 +52,8 @@ Object *String_New(char *str);
 void String_Free(Object *ob);
 /* to c readonly string */
 char *String_RawString(Object *ob);
+/* get string length */
+#define String_Length(ob) (((StringObject *)ob)->len)
 
 #ifdef __cplusplus
 }

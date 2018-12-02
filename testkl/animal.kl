@@ -1,0 +1,22 @@
+
+package test3;
+
+import "koala/io";
+
+class Animal {
+	var name string;
+	var age int;
+
+	func __init__(name string, _age int) {
+		self.name = name;
+		age = _age;
+	}
+
+	func SayHello() {
+		io.Println("Animal: SayHello");
+	}
+
+	func AnimalFunc() {
+		io.Println("Animal:", name, age);
+	}
+}

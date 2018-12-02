@@ -29,13 +29,14 @@ extern "C" {
 
 /* string wrapper */
 typedef struct {
-  char *str;
+	char *str;
 } String;
 
 void AtomString_Init(void);
 void AtomString_Fini(void);
 int AtomString_Find(char *str, String *s);
 String AtomString_New(char *str);
+String AtomString_New_NStr(char *str, int len);
 int AtomString_Length(String str);
 int AtomString_Equal(String s1, String s2);
 
