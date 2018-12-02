@@ -43,5 +43,6 @@ add_test(NAME test_state COMMAND test_state)
 add_test(NAME test_image COMMAND test_image)
 add_test(NAME test_properties COMMAND test_properties)
 add_test(NAME test_task COMMAND test_task)
+add_test(NAME test_join COMMAND test_join)
 
 add_test(NAME test_color COMMAND test_color)
