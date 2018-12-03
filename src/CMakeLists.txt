@@ -45,6 +45,14 @@ set_target_properties(koala PROPERTIES VERSION 0.5 SOVERSION 0)
 
 add_executable(klc koalac.c)
 target_link_libraries(klc koalac koala)
+set_target_properties(klc PROPERTIES OUTPUT_NAME koalac)
 
-##add_executable(kl koala.c)
-##target_link_libraries(kl koala)
+add_executable(kl koala.c)
+target_link_libraries(kl koala task)
+set_target_properties(kl PROPERTIES OUTPUT_NAME koala)
+
+install (TARGETS koala DESTINATION lib)
+install (TARGETS koalac DESTINATION lib)
+
+install (TARGETS klc DESTINATION bin)
+install (TARGETS kl DESTINATION bin)
