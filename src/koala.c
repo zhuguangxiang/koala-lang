@@ -70,7 +70,7 @@ static void show_version(void)
 {
 	struct utsname sysinfo;
 	if (!uname(&sysinfo)) {
-		fprintf(stderr, "koala version %s, %s/%s\n",
+		fprintf(stderr, "Koala version %s, %s/%s\n",
 						KOALA_VERSION, sysinfo.sysname, sysinfo.machine);
 	}
 	exit(0);
@@ -81,7 +81,8 @@ static void usage(const char *prog)
   fprintf(stderr,
 		"Usage: %s [<options>] <file>\n"
 		"Options:\n"
-		"\t-p <path:...>        Set pathes in where packages are searched.\n"
+		"\t-p <path:...>        Pathes in where packages are searched.\n"
+		"\t-v                   Print product version.\n"
 		"\t-h                   Print this message.\n",
 		prog);
   exit(0);
