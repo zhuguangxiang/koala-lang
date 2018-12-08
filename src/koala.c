@@ -25,44 +25,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <sys/utsname.h>
+#include "options.h"
 #include "state.h"
 #include "vm.h"
 #include "task.h"
-
-struct options {
-	Vector pathes;
-	char *filename;
-};
-
-static void init_options(struct options *opts)
-{
-	Vector_Init(&opts->pathes);
-	opts->filename = NULL;
-}
-
-static void fini_options(struct options *opts)
-{
-	Vector_Fini(&opts->pathes, NULL, NULL);
-	free(opts->filename);
-}
-
-static void parse_pathes(char *pathes, struct options *opts)
-{
-	char *comma;
-	char *path;
-	while (*pathes) {
-		comma = strchr(pathes, ':');
-		if (comma != NULL) {
-			path = strndup(pathes, comma - pathes);
-			Vector_Append(&opts->pathes, path);
-			pathes = comma + 1;
-		} else {
-			path = strdup(pathes);
-			Vector_Append(&opts->pathes, path);
-			break;
-		}
-	}
-}
 
 #define KOALA_VERSION "0.8.5"
 
@@ -73,48 +39,18 @@ static void show_version(void)
 		fprintf(stderr, "Koala version %s, %s/%s\n",
 						KOALA_VERSION, sysinfo.sysname, sysinfo.machine);
 	}
-	exit(0);
 }
 
-static void usage(const char *prog)
+static void show_usage(char *prog)
 {
   fprintf(stderr,
-		"Usage: %s [<options>] <file>\n"
+		"Usage: %s [<options>] <main package>\n"
 		"Options:\n"
-		"\t-p <path:...>        Pathes in where packages are searched.\n"
-		"\t-v                   Print product version.\n"
-		"\t-h                   Print this message.\n",
+		"\t-p <path>         Specify where to find external packages.\n"
+		"\t-Dname=value      Set a property.\n"
+		"\t-v                Print virtual machine version.\n"
+		"\t-h                Print this message.\n",
 		prog);
-  exit(0);
-}
-
-static void parse_arguments(int argc, char *argv[], struct options *opts)
-{
-	extern char *optarg;
-	extern int optind;
-	int opt;
-	while ((opt = getopt(argc, argv, "p:vh")) != -1) {
-		switch (opt) {
-			case 'p':
-				parse_pathes(optarg, opts);
-				break;
-			case 'v':
-				show_version();
-				break;
-			case 'h':
-			/* fallthrough */
-			case '?':
-				usage(argv[0]);
-				break;
-			default:
-				break;
-		}
-	}
-
-	if (optind < argc)
-		opts->filename = strdup(argv[optind]);
-	else
-		usage(argv[0]);
 }
 
 static void *task_entry_func(void *arg)
@@ -122,7 +58,8 @@ static void *task_entry_func(void *arg)
 	struct options *opts = arg;
 	KoalaState *ks = KoalaState_New();
 	task_set_object(ks);
-	Koala_Run_File(ks, opts->filename, NULL);
+	char *file = Vector_Get(&opts->names, 0);
+	Koala_Run_File(ks, file, NULL);
 	Koala_Show_Packages();
 	printf("task-%lu is finished.\n", current_task()->id);
 	return NULL;
@@ -133,17 +70,19 @@ int main(int argc, char *argv[])
 	/* parse arguments */
 	struct options opts;
 	init_options(&opts);
-	parse_arguments(argc, argv, &opts);
-	char *s;
-	Vector_ForEach(s, &opts.pathes) {
-		puts(s);
-	}
-	puts(opts.filename);
+	set_options_usage(&opts, show_usage);
+	set_options_version(&opts, show_version);
+	parse_options(argc, argv, &opts);
+	show_options(&opts);
 
 	/* initial koala machine */
 	Koala_Initialize();
 
-	/* set path for searching packages */
+	/*
+	 * set path for searching packages
+	 * 1. current source code directory
+	 * 2. -p directory
+	 */
 	Koala_Add_Property(KOALA_PATH, ".");
 	char *path;
 	Vector_ForEach(path, &opts.pathes) {

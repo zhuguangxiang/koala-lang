@@ -35,7 +35,10 @@
 		"chrono": "c",
 		"limits": "c",
 		"algorithm": "c",
-		"ratio": "c"
+		"ratio": "c",
+		"__config": "c",
+		"list": "c",
+		"unordered_set": "c"
 	},
 	"editor.rulers": [
 			80

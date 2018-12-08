@@ -1585,9 +1585,27 @@ static void __image_write_items(FILE *fp, KImage *image)
 	}
 }
 
+static FILE *open_image_file(char *path, char *mode)
+{
+	FILE *fp = fopen(path, mode);
+	if (fp == NULL) {
+		char *end = strrchr(path, '/');
+		char *dir = strndup(path, end - path);
+		char *fmt = "mkdir -p %s";
+		char *cmd = mm_alloc(strlen(fmt) + strlen(dir));
+		sprintf(cmd, fmt, dir);
+		int status = system(cmd);
+		assert(!status);
+		mm_free(cmd);
+		free(dir);
+		fp = fopen(path, "w");
+	}
+	return fp;
+}
+
 void KImage_Write_File(KImage *image, char *path)
 {
-	FILE *fp = fopen(path, "w");
+	FILE *fp = open_image_file(path, "w");
 	assert(fp);
 	__image_write_header(fp, image);
 	__image_write_items(fp, image);

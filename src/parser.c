@@ -456,20 +456,21 @@ struct extpkg *load_extpkg(ParserState *ps, char *path, int *exist)
 		pid_t pid = fork();
 		if (pid == 0) {
 			Log_Debug("child process %d", getpid());
-			execlp("klc", "klc",
-						 "-d", ps->pkg->options->output,
-						 "-sp", ps->pkg->options->srcpath,
-						 "-cp", ps->pkg->options->klcpath,
-						 path,
-						 NULL);
-			assert(0); //not go here
+			int argc = 3 + options_number(ps->pkg->options);
+			char *argv[argc];
+			argv[0] = strdup("koalac");
+			options_toarray(ps->pkg->options, argv, 1);
+			argv[argc - 2] = strdup(path);
+			argv[argc - 1] = NULL;
+			execvp("koalac", argv);
+			assert(0); /* never go here */
 		}
 		int status = 0;
 		pid = wait(&status);
 		Log_Debug("child process %d return status:%d", pid, status);
 		if (WIFEXITED(status)) {
 			int exitstatus = WEXITSTATUS(status);
-			Log_Debug("child process %d: %s\n", pid, strerror(exitstatus));
+			Log_Debug("child process %d: %s", pid, strerror(exitstatus));
 			if (exitstatus) exit(-1);
 		}
 		ob = Koala_Load_Package(path);

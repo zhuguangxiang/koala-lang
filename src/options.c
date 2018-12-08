@@ -1,131 +1,201 @@
+/*
+ * Copyright (c) 2018 James, https://github.com/zhuguangxiang
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 #include "options.h"
 #include "log.h"
 
-int isoutput(char *arg)
+struct namevalue *namevalue_new(char *name, char *value)
 {
-	int len = strlen(arg);
-	if (len < 2) return 0;
-	return arg[0] == '-' && arg[1] == 'd';
+	struct namevalue *nv = malloc(sizeof(struct namevalue));
+	assert(nv != NULL);
+	nv->name = name;
+	nv->value = value;
+	return nv;
 }
 
-int isklcpath(char *arg)
+void namevalue_free(struct namevalue *nv)
 {
-	int len = strlen(arg);
-	if (len < 3) return 0;
-	return arg[0] == '-' && arg[1] == 'c' && arg[2] == 'p';
+	free(nv->name);
+	free(nv->value);
+	free(nv);
 }
 
-int issrcpath(char *arg)
+struct namevalue *parse_namevalue(char *opt, struct options *opts, char *prog)
 {
-	int len = strlen(arg);
-	if (len < 3) return 0;
-	return arg[0] == '-' && arg[1] == 's' && arg[2] == 'p';
-}
-
-int iskar(char *arg)
-{
-	int len = strlen(arg);
-	if (len < 4) return 0;
-	return arg[0] == '-'  && arg[1] == 'k' && arg[2] == 'a' && arg[3] == 'r';
-}
-
-void parse_output(char *arg, struct options *ops)
-{
-	ops->output = strdup(arg);
-}
-
-void parse_klcpath(char *arg, struct options *ops)
-{
-	ops->klcpath = strdup(arg);
-
-	char *p;
-	while ((p = strsep(&arg, ops->delimiter))) {
-		Vector_Append(&ops->klcvec, p);
+	char *name = opt;
+	char *eq = strchr(opt, '=');
+	if (eq == NULL || eq[1] == '\0') {
+		fprintf(stderr, "Error: invalid <name=value>.\n\n");
+		opts->usage(prog);
+		exit(0);
 	}
+	return namevalue_new(strndup(name, eq - name), strdup(eq + 1));
 }
 
-void parse_srcpath(char *arg, struct options *ops)
+void parse_options(int argc, char *argv[], struct options *opts)
 {
-	ops->srcpath = strdup(arg);
-}
+	extern char *optarg;
+	extern int optind;
+	int opt;
 
-void parse_kar(char *arg, struct options *ops)
-{
-	ops->kar = strdup(arg);
-}
+	for (int i = 0; i < argc; i++) {
+		printf("[%d]: %s\n", i, argv[i]);
+	}
 
-int parse_options(int argc, char *argv[], struct options *ops)
-{
-	int i = 1;
-	while (i < argc) {
-		if (isklcpath(argv[i])) {
-			if (++i < argc) {
-				char *klcpath = argv[i];
-				parse_klcpath(klcpath, ops);
-			} else {
-				Log_Error("invalid -cp option");
-				exit(-1);
-			}
-		} else if (issrcpath(argv[i])) {
-			if (++i < argc) {
-				char *srcpath = argv[i];
-				parse_srcpath(srcpath, ops);
-			} else {
-				Log_Error("invalid -sp option");
-				exit(-1);
-			}
-		} else if (isoutput(argv[i])) {
-			if (++i < argc) {
-				char *output = argv[i];
-				parse_output(output, ops);
-			} else {
-				Log_Error("invalid -d option");
-				exit(-1);
-			}
-		} else if (iskar(argv[i])) {
-			if (++i < argc) {
-				char *kar = argv[i];
-				parse_kar(kar, ops);
-			} else {
-				Log_Error("invalid -kar option");
-				exit(-1);
-			}
-		} else {
-			Vector_Append(&ops->cmdvec, argv[i]);
+	while ((opt = getopt(argc, argv, "s:p:o:D:vh")) != -1) {
+		switch (opt) {
+			case 's':
+				opts->srcpath = optarg;
+				break;
+			case 'p':
+				Vector_Append(&opts->pathes, optarg);
+				break;
+			case 'o':
+				opts->outpath = strdup(optarg);
+				break;
+			case 'D':
+				Vector_Append(&opts->nvs, parse_namevalue(optarg, opts, argv[0]));
+				break;
+			case 'v':
+				opts->version();
+				exit(0);
+				break;
+			case 'h':
+				/* fall-through */
+			case '?':
+				opts->usage(argv[0]);
+				break;
+			default:
+				fprintf(stderr, "Error: invalid option '%c'.\n\n", opt);
+				opts->usage(argv[0]);
+				exit(0);
+				break;
 		}
-		++i;
 	}
+
+	while (optind < argc) {
+		if (!strcmp(argv[optind], "?")) {
+			opts->usage(argv[0]);
+			exit(0);
+		}
+		Vector_Append(&opts->names, strdup(argv[optind++]));
+	}
+
+	if (Vector_Size(&opts->names) == 0) {
+		fprintf(stderr, "Error: please specify pacakge(s).\n\n");
+		opts->usage(argv[0]);
+		exit(0);
+	}
+}
+
+int init_options(struct options *opts)
+{
+	memset(opts, 0, sizeof(struct options));
+	Vector_Init(&opts->pathes);
+	Vector_Init(&opts->nvs);
+	Vector_Init(&opts->names);
 	return 0;
 }
 
-int init_options(struct options *ops, char delimiter)
+void fini_options(struct options *opts)
 {
-	memset(ops, 0, sizeof(struct options));
-	ops->__delims[0] = delimiter;
-	ops->__delims[1] = 0;
-	ops->delimiter = ops->__delims;
-	Vector_Init(&ops->klcvec);
-	Vector_Init(&ops->cmdvec);
-	return 0;
+	if (opts->srcpath != NULL)
+		free(opts->srcpath);
+
+	char *path;
+	Vector_ForEach(path, &opts->pathes)
+		free(path);
+
+	if (opts->outpath != NULL)
+		free(opts->outpath);
+
+	struct namevalue *nv;
+	Vector_ForEach(nv, &opts->nvs)
+		namevalue_free(nv);
+
+	char *s;
+	Vector_ForEach(s, &opts->names)
+		free(s);
 }
 
-void show_options(struct options *ops)
+int options_number(struct options *opts)
 {
-	printf("delimiter: '%c'\n", ops->__delims[0]);
-	printf("-d: '%s'\n", ops->output);
+	int num = Vector_Size(&(opts)->pathes) + Vector_Size(&(opts)->nvs);
+	if (opts->srcpath != NULL)
+		num++;
+	if (opts->outpath != NULL)
+		num++;
+	return 2 * num;
+}
 
-	printf("-sp:%s\n", ops->srcpath);
-
-	char *str;
-	printf("-cp:\n");
-	Vector_ForEach(str, &ops->klcvec) {
-		printf("  [%d]: '%s'\n", i, str);
+void options_toarray(struct options *opts, char *array[], int ind)
+{
+	if (opts->srcpath != NULL) {
+		array[ind++] = strdup("-s");
+		array[ind++] = strdup(opts->srcpath);
 	}
 
-	printf("cmd:\n");
-	Vector_ForEach(str, &ops->cmdvec) {
-		printf(" '%s'", str);
+	char *path;
+	Vector_ForEach(path, &opts->pathes) {
+		array[ind++] = strdup("-p");
+		array[ind++] = strdup(path);
 	}
+
+	if (opts->outpath != NULL) {
+		array[ind++] = strdup("-o");
+		array[ind++] = strdup(opts->outpath);
+	}
+
+	char *buf;
+	struct namevalue *nv;
+	Vector_ForEach(nv, &opts->nvs) {
+		array[ind++] = strdup("-D");
+		buf = malloc(strlen(nv->name) + strlen(nv->value) + 2);
+		sprintf(buf, "%s=%s", nv->name, nv->value);
+		array[ind++] = buf;
+	}
+}
+
+void show_options(struct options *opts)
+{
+	printf("srcput: %s\n", opts->srcpath);
+	printf("output: %s\n", opts->outpath);
+
+	char *s;
+
+	printf("pathes:\n");
+	Vector_ForEach(s, &opts->pathes) {
+		printf("  [%d]: %s\n", i, s);
+	}
+
+	printf("name-values:\n");
+	Vector_ForEach(s, &opts->nvs) {
+		printf("  [%d]: %s\n", i, s);
+	}
+
+	printf("names:\n");
+	Vector_ForEach(s, &opts->names) {
+		printf(" [%d]: %s\n", i, s);
+	}
+
 	puts("\n");
 }

@@ -1,8 +1,6 @@
 
 package foo
 
-import "koala/io"
-
 var gfoo_v2 = "hi,guy"
 
 func Sub(a int, b int) int {
