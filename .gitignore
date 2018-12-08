@@ -26,7 +26,6 @@ GTAGS
 manual.html
 manual.org.bak
 build/*
-.dir-locals.el
 
 klc
 libtask.so.0
