@@ -2,7 +2,7 @@
 #+AUTHOR: James Zhu
 #+EMAIL: zhuguangxiang@163.com
 
-** The first Koala program
+** 'hello world' program
 #+BEGIN_SRC
   //hello.kl
   package hello
