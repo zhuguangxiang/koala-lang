@@ -30,31 +30,31 @@ extern "C" {
 #endif
 
 typedef enum {
-	/* koala code */
-	CODE_KLANG = 1,
-	/* clang code */
-	CODE_CLANG = 2,
+  /* koala code */
+  CODE_KLANG = 1,
+  /* clang code */
+  CODE_CLANG = 2,
 } CodeKind;
 
 typedef struct codeobject {
-	OBJECT_HEAD
-	/* code prototype */
-	TypeDesc *proto;
-	/* one ob CODE_XXX */
-	CodeKind kind;
-	union {
-		cfunc cf;
-		struct {
-			/* for const access, not free it */
-			Object *consts;
-			/* local variables */
-			Vector locvec;
-			/* codes' size */
-			int size;
-			/* instructions */
-			uint8 *codes;
-		} kf;
-	};
+  OBJECT_HEAD
+  /* code prototype */
+  TypeDesc *proto;
+  /* one ob CODE_XXX */
+  CodeKind kind;
+  union {
+    cfunc cf;
+    struct {
+      /* for const access, not free it */
+      Object *consts;
+      /* local variables */
+      Vector locvec;
+      /* codes' size */
+      int size;
+      /* instructions */
+      uint8 *codes;
+    } kf;
+  };
 } CodeObject;
 
 extern Klass Code_Klass;

@@ -30,13 +30,13 @@ extern "C" {
 typedef void *(*task_entry_t)(void *);
 
 typedef struct task_context {
-	void *stackbase;
-	int stacksize;
-	void **context;
+  void *stackbase;
+  int stacksize;
+  void **context;
 } task_context_t;
 
 int task_context_init(task_context_t *ctx, int stacksize,
-											task_entry_t entry, void *para);
+                      task_entry_t entry, void *para);
 int task_context_save(task_context_t *ctx);
 void task_context_detroy(task_context_t *ctx);
 void task_context_swap(task_context_t *from, task_context_t *to);

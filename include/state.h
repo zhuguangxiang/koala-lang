@@ -33,39 +33,39 @@ extern "C" {
 #endif
 
 typedef enum pkgnodekind {
-	PATH_NODE,
-	LEAF_NODE
+  PATH_NODE,
+  LEAF_NODE
 } PkgNodeKind;
 
 /* packege path node, like linux's inode */
 typedef struct pkgnode {
-	HashNode hnode;
-	/* the node's name, no need free its memory */
-	String name;
-	/* the node's parent node */
-	struct pkgnode *parent;
-	/* the node is pathnode or leafnode */
-	PkgNodeKind kind;
-	/* see PkgNodeKind */
-	union {
-		Vector *children;
-		Package *pkg;
-	};
+  HashNode hnode;
+  /* the node's name, no need free its memory */
+  String name;
+  /* the node's parent node */
+  struct pkgnode *parent;
+  /* the node is pathnode or leafnode */
+  PkgNodeKind kind;
+  /* see PkgNodeKind */
+  union {
+    Vector *children;
+    Package *pkg;
+  };
 } PkgNode;
 
 typedef struct globalstate {
-	/* environment values */
-	Properties props;
-	/* root package node */
-	PkgNode root;
-	/* package hash table */
-	HashTable pkgs;
-	/* global variables' pool, one slot per package, stored in ->index */
-	Vector vars;
-	/* number of koala state */
-	int ks_num;
-	/* koalastate list */
-	struct list_head kslist;
+  /* environment values */
+  Properties props;
+  /* root package node */
+  PkgNode root;
+  /* package hash table */
+  HashTable pkgs;
+  /* global variables' pool, one slot per package, stored in ->index */
+  Vector vars;
+  /* number of koala state */
+  int ks_num;
+  /* koalastate list */
+  struct list_head kslist;
 } GlobalState;
 
 extern GlobalState gState;

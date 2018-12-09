@@ -35,17 +35,17 @@ extern "C" {
  * a klc can be compiled from multi kl files.
  */
 typedef struct package {
-	OBJECT_HEAD
-	/* the package's name */
-	String name;
-	/* variable, function, class and trait hash table */
-	HashTable *table;
-	/* const pool of this package */
-	Object *consts;
-	/* count of variables in the package */
-	int varcnt;
-	/* index of variables in global variable pool */
-	int index;
+  OBJECT_HEAD
+  /* the package's name */
+  String name;
+  /* variable, function, class and trait hash table */
+  HashTable *table;
+  /* const pool of this package */
+  Object *consts;
+  /* count of variables in the package */
+  int varcnt;
+  /* index of variables in global variable pool */
+  int index;
 } Package;
 
 extern Klass Package_Klass;

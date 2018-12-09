@@ -9,28 +9,28 @@ extern "C" {
 #endif
 
 typedef struct lineinfo {
-	char *line;
-	int row;
-	int col;
+  char *line;
+  int row;
+  int col;
 } lineinfo_t;
 
 /*-------------------------------------------------------------------------*/
 
 typedef enum unary_op_kind {
-	UNARY_PLUS = 1, UNARY_MINUS = 2, UNARY_BIT_NOT = 3, UNARY_LNOT = 4
+  UNARY_PLUS = 1, UNARY_MINUS = 2, UNARY_BIT_NOT = 3, UNARY_LNOT = 4
 } unary_op_t;
 
 typedef enum binary_op_kind {
-	BINARY_ADD = 1, BINARY_SUB,
-	BINARY_MULT, BINARY_DIV, BINARY_MOD, BINARY_QUOT, BINARY_POWER,
-	BINARY_LSHIFT, BINARY_RSHIFT,
-	BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE,
-	BINARY_EQ, BINARY_NEQ,
-	BINARY_BIT_AND,
-	BINARY_BIT_XOR,
-	BINARY_BIT_OR,
-	BINARY_LAND,
-	BINARY_LOR,
+  BINARY_ADD = 1, BINARY_SUB,
+  BINARY_MULT, BINARY_DIV, BINARY_MOD, BINARY_QUOT, BINARY_POWER,
+  BINARY_LSHIFT, BINARY_RSHIFT,
+  BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE,
+  BINARY_EQ, BINARY_NEQ,
+  BINARY_BIT_AND,
+  BINARY_BIT_XOR,
+  BINARY_BIT_OR,
+  BINARY_LAND,
+  BINARY_LOR,
 } binary_op_t;
 
 int binop_arithmetic(int op);
@@ -39,67 +39,67 @@ int binop_logic(int op);
 int binop_bit(int op);
 
 typedef enum expr_kind {
-	ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
-	STRING_KIND = 5, SELF_KIND = 6, SUPER_KIND = 7, TYPEOF_KIND = 8,
-	NIL_KIND = 9, EXP_KIND = 10, ARRAY_KIND = 11, ANONYOUS_FUNC_KIND = 12,
-	ATTRIBUTE_KIND = 13, SUBSCRIPT_KIND = 14, CALL_KIND = 15,
-	UNARY_KIND = 16, BINARY_KIND = 17, SEQ_KIND = 18,
-	EXPR_KIND_MAX
+  ID_KIND = 1, INT_KIND = 2, FLOAT_KIND = 3, BOOL_KIND = 4,
+  STRING_KIND = 5, SELF_KIND = 6, SUPER_KIND = 7, TYPEOF_KIND = 8,
+  NIL_KIND = 9, EXP_KIND = 10, ARRAY_KIND = 11, ANONYOUS_FUNC_KIND = 12,
+  ATTRIBUTE_KIND = 13, SUBSCRIPT_KIND = 14, CALL_KIND = 15,
+  UNARY_KIND = 16, BINARY_KIND = 17, SEQ_KIND = 18,
+  EXPR_KIND_MAX
 } expr_kind_t;
 
 typedef enum expr_ctx {
-	EXPR_INVALID = 0, EXPR_LOAD = 1, EXPR_STORE = 2,
-	EXPR_CALL_FUNC = 3, EXPR_LOAD_FUNC = 4,
+  EXPR_INVALID = 0, EXPR_LOAD = 1, EXPR_STORE = 2,
+  EXPR_CALL_FUNC = 3, EXPR_LOAD_FUNC = 4,
 } expr_ctx_t;
 
 typedef struct expr expr_t;
 
 struct expr {
-	expr_kind_t kind;
-	TypeDesc *desc;
-	expr_ctx_t ctx;
-	Symbol *sym;
-	int argc;
-	expr_t *right;  //for super(); super.name;
-	char *supername;
-	lineinfo_t line;
-	union {
-		char *id;
-		int64 ival;
-		float64 fval;
-		char *str;
-		int bval;
-		expr_t *exp;
-		struct {
-			Vector *pvec;
-			Vector *rvec;
-			Vector *body;
-		} anonyous_func;
-		/* Trailer */
-		struct {
-			expr_t *left;
-			char *id;
-		} attribute;
-		struct {
-			expr_t *left;
-			expr_t *index;
-		} subscript;
-		struct {
-			expr_t *left;
-			Vector *args;     /* arguments list */
-		} call;
-		/* arithmetic operation */
-		struct {
-			unary_op_t op;
-			expr_t *operand;
-		} unary;
-		struct {
-			expr_t *left;
-			binary_op_t op;
-			expr_t *right;
-		} binary;
-		Vector *list;
-	};
+  expr_kind_t kind;
+  TypeDesc *desc;
+  expr_ctx_t ctx;
+  Symbol *sym;
+  int argc;
+  expr_t *right;  //for super(); super.name;
+  char *supername;
+  lineinfo_t line;
+  union {
+    char *id;
+    int64 ival;
+    float64 fval;
+    char *str;
+    int bval;
+    expr_t *exp;
+    struct {
+      Vector *pvec;
+      Vector *rvec;
+      Vector *body;
+    } anonyous_func;
+    /* Trailer */
+    struct {
+      expr_t *left;
+      char *id;
+    } attribute;
+    struct {
+      expr_t *left;
+      expr_t *index;
+    } subscript;
+    struct {
+      expr_t *left;
+      Vector *args;     /* arguments list */
+    } call;
+    /* arithmetic operation */
+    struct {
+      unary_op_t op;
+      expr_t *operand;
+    } unary;
+    struct {
+      expr_t *left;
+      binary_op_t op;
+      expr_t *right;
+    } binary;
+    Vector *list;
+  };
 };
 
 expr_t *expr_from_trailer(expr_kind_t kind, void *trailer, expr_t *left);
@@ -123,116 +123,116 @@ expr_t *expr_get_rrexp(expr_t *exp);
 /*-------------------------------------------------------------------------*/
 
 struct test_block {
-	expr_t *test;
-	Vector *body;
+  expr_t *test;
+  Vector *body;
 };
 
 struct test_block *new_test_block(expr_t *test, Vector *body);
 
 typedef enum assign_op_kind {
-	OP_ASSIGN = 1, OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
-	OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_MOD_ASSIGN,
-	OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
-	OP_RSHIFT_ASSIGN, OP_LSHIFT_ASSIGN,
+  OP_ASSIGN = 1, OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
+  OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_MOD_ASSIGN,
+  OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
+  OP_RSHIFT_ASSIGN, OP_LSHIFT_ASSIGN,
 } assign_op_kind_t;
 
 typedef enum stmt_kind {
-	VAR_KIND = 1, VARLIST_KIND, FUNC_KIND, PROTO_KIND, ASSIGN_KIND,
-	ASSIGNS_KIND, RETURN_KIND, EXPR_KIND, BLOCK_KIND,
-	CLASS_KIND, TRAIT_KIND,
-	IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
-	FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND,
-	TYPEALIAS_KIND, LIST_KIND, STMT_KIND_MAX
+  VAR_KIND = 1, VARLIST_KIND, FUNC_KIND, PROTO_KIND, ASSIGN_KIND,
+  ASSIGNS_KIND, RETURN_KIND, EXPR_KIND, BLOCK_KIND,
+  CLASS_KIND, TRAIT_KIND,
+  IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
+  FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND,
+  TYPEALIAS_KIND, LIST_KIND, STMT_KIND_MAX
 } stmt_kind_t;
 
 typedef struct stmt stmt_t;
 
 struct stmt {
-	stmt_kind_t kind;
-	lineinfo_t line;
-	union {
-		struct {
-			char *id;
-			int konst;
-			TypeDesc *desc;
-			expr_t *exp;
-		} var;
-		struct {
-			int konst;
-			TypeDesc *desc;
-			Vector *ids;
-			expr_t *exp;
-		} vars;
-		struct {
-			char *id;
-			Vector *args;
-			Vector *rets;
-			Vector *body;
-		} func;
-		struct {
-			char *id;
-			Vector *args;
-			Vector *rets;
-		} proto;
-		struct {
-			expr_t *left;
-			assign_op_kind_t op;
-			expr_t *right;
-		} assign;
-		struct {
-			Vector *left;
-			expr_t *right;
-		} assigns;
-		Vector *returns;
-		expr_t *exp;
-		Vector *block;
-		struct {
-			char *id;
-			TypeDesc *super;
-			Vector *traits;
-			Vector *body;
-		} class_info;
-		struct {
-			char *id;
-			TypeDesc *desc;
-		} usrdef;
-		struct {
-			char *id;
-			TypeDesc *desc;
-		} typealias;
-		struct {
-			int belse;
-			expr_t *test;
-			Vector *body;
-			stmt_t *orelse;
-		} if_stmt;
-		struct {
-			int btest;
-			expr_t *test;
-			Vector *body;
-		} while_stmt;
-		struct {
-			int level;
-		} jump_stmt;
-		struct {
-			expr_t *expr;
-			Vector *case_seq;
-		} switch_stmt;
-		struct {
-			stmt_t *init;
-			stmt_t *test;
-			stmt_t *incr;
-			Vector *body;
-		} for_triple_stmt;
-		struct {
-			int bdecl;
-			//struct var *var;
-			expr_t *expr;
-			Vector *body;
-		} for_each_stmt;
-		expr_t *go_stmt;
-		Vector list;
-	};
+  stmt_kind_t kind;
+  lineinfo_t line;
+  union {
+    struct {
+      char *id;
+      int konst;
+      TypeDesc *desc;
+      expr_t *exp;
+    } var;
+    struct {
+      int konst;
+      TypeDesc *desc;
+      Vector *ids;
+      expr_t *exp;
+    } vars;
+    struct {
+      char *id;
+      Vector *args;
+      Vector *rets;
+      Vector *body;
+    } func;
+    struct {
+      char *id;
+      Vector *args;
+      Vector *rets;
+    } proto;
+    struct {
+      expr_t *left;
+      assign_op_kind_t op;
+      expr_t *right;
+    } assign;
+    struct {
+      Vector *left;
+      expr_t *right;
+    } assigns;
+    Vector *returns;
+    expr_t *exp;
+    Vector *block;
+    struct {
+      char *id;
+      TypeDesc *super;
+      Vector *traits;
+      Vector *body;
+    } class_info;
+    struct {
+      char *id;
+      TypeDesc *desc;
+    } usrdef;
+    struct {
+      char *id;
+      TypeDesc *desc;
+    } typealias;
+    struct {
+      int belse;
+      expr_t *test;
+      Vector *body;
+      stmt_t *orelse;
+    } if_stmt;
+    struct {
+      int btest;
+      expr_t *test;
+      Vector *body;
+    } while_stmt;
+    struct {
+      int level;
+    } jump_stmt;
+    struct {
+      expr_t *expr;
+      Vector *case_seq;
+    } switch_stmt;
+    struct {
+      stmt_t *init;
+      stmt_t *test;
+      stmt_t *incr;
+      Vector *body;
+    } for_triple_stmt;
+    struct {
+      int bdecl;
+      //struct var *var;
+      expr_t *expr;
+      Vector *body;
+    } for_each_stmt;
+    expr_t *go_stmt;
+    Vector list;
+  };
 };
 
 stmt_t *stmt_new(int kind);

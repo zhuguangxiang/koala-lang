@@ -31,36 +31,36 @@ extern "C" {
 #endif
 
 struct namevalue {
-	char *name;
-	char *value;
+  char *name;
+  char *value;
 };
 
 struct options {
-	/* -h or ? */
-	void (*usage)(char *name);
-	/* -v version */
-	void (*version)(void);
-	/* -s */
-	char *srcpath;
-	/* -p */
-	Vector pathes;
-	/* -o output dir */
-	char *outpath;
-	/* -D */
-	Vector nvs;
-	/* file(klc) or dir(package) names */
-	Vector names;
+  /* -h or ? */
+  void (*usage)(char *name);
+  /* -v version */
+  void (*version)(void);
+  /* -s */
+  char *srcpath;
+  /* -p */
+  Vector pathes;
+  /* -o output dir */
+  char *outpath;
+  /* -D */
+  Vector nvs;
+  /* file(klc) or dir(package) names */
+  Vector names;
 };
 
 int init_options(struct options *opts);
 void fini_options(struct options *opts);
 #define set_options_usage(opts, usagefunc) \
 do { \
-	(opts)->usage = usagefunc; \
+  (opts)->usage = usagefunc; \
 } while (0)
 #define set_options_version(opts, versionfunc) \
 do { \
-	(opts)->version = versionfunc; \
+  (opts)->version = versionfunc; \
 } while (0)
 void parse_options(int argc, char *argv[], struct options *opts);
 int options_number(struct options *opts);

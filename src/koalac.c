@@ -24,7 +24,6 @@
 #include "env.h"
 #include "state.h"
 #include "parser.h"
-#include "codegen.h"
 #include "koala_tokens.h"
 #include "koala_lex.h"
 #include "options.h"
@@ -32,12 +31,12 @@
 
 static int isdotkl(char *filename)
 {
-	char *dot = strrchr(filename, '.');
-	if (dot == NULL)
-		return 0;
-	if (dot[1] == 'k' && dot[2] == 'l' && dot[3] == '\0')
-		return 1;
-	return 0;
+  char *dot = strrchr(filename, '.');
+  if (dot == NULL)
+    return 0;
+  if (dot[1] == 'k' && dot[2] == 'l' && dot[3] == '\0')
+    return 1;
+  return 0;
 }
 
 /*
@@ -47,152 +46,152 @@ static int isdotkl(char *filename)
  */
 static int compile(char *input, char *output, struct options *options)
 {
-	struct stat sb;
-	if (lstat(input, &sb) == - 1) {
-		fprintf(stderr, "%s: invalid filename\n", input);
-		return -1;
-	}
+  struct stat sb;
+  if (lstat(input, &sb) == - 1) {
+    fprintf(stderr, "%s: invalid filename\n", input);
+    return -1;
+  }
 
-	if (!S_ISDIR(sb.st_mode)) {
-		fprintf(stderr, "%s: is not a directory\n", input);
-		return -1;
-	}
+  if (!S_ISDIR(sb.st_mode)) {
+    fprintf(stderr, "%s: is not a directory\n", input);
+    return -1;
+  }
 
-	DIR *dir = opendir(input);
-	if (!dir) {
-		fprintf(stderr, "%s: no such file or directory\n", input);
-		return -1;
-	}
+  DIR *dir = opendir(input);
+  if (!dir) {
+    fprintf(stderr, "%s: no such file or directory\n", input);
+    return -1;
+  }
 
-	Vector vec;
-	Vector_Init(&vec);
+  Vector vec;
+  Vector_Init(&vec);
 
-	PackageInfo *pkg = New_PackageInfo(output, options);
-	ParserState *ps;
-	int errnum = 0;
+  PackageInfo *pkg = New_PackageInfo(output, options);
+  ParserState *ps;
+  int errnum = 0;
 
-	struct dirent *dent;
-	char name[512];
-	FILE *in;
-	while ((dent = readdir(dir))) {
-		if (!isdotkl(dent->d_name))
-			continue;
-		sprintf(name, "%s/%s", input, dent->d_name);
-		if (lstat(name, &sb) != 0) continue;
-		if (S_ISDIR(sb.st_mode)) continue;
-		printf("compile %s\n", name);
-		in = fopen(name, "r");
-		if (!in) {
-			printf("%s: no such file or directory\n", name);
-			continue;
-		}
-		ps = new_parser(pkg, dent->d_name);
-		yyset_in(in, ps->scanner);
-		yyparse(ps, ps->scanner);
-		fclose(in);
-		Vector_Append(&vec, ps);
-		errnum += ps->errnum;
-	}
-	closedir(dir);
+  struct dirent *dent;
+  char name[512];
+  FILE *in;
+  while ((dent = readdir(dir))) {
+    if (!isdotkl(dent->d_name))
+      continue;
+    sprintf(name, "%s/%s", input, dent->d_name);
+    if (lstat(name, &sb) != 0) continue;
+    if (S_ISDIR(sb.st_mode)) continue;
+    printf("compile %s\n", name);
+    in = fopen(name, "r");
+    if (!in) {
+      printf("%s: no such file or directory\n", name);
+      continue;
+    }
+    ps = new_parser(pkg, dent->d_name);
+    yyset_in(in, ps->scanner);
+    yyparse(ps, ps->scanner);
+    fclose(in);
+    Vector_Append(&vec, ps);
+    errnum += ps->errnum;
+  }
+  closedir(dir);
 
-	Vector_ForEach(ps, &vec) {
-		if (ps->errnum <= 0)
-			parser_body(ps, &ps->stmts);
-		destroy_parser(ps);
-	}
+  Vector_ForEach(ps, &vec) {
+    if (ps->errnum <= 0)
+      parser_body(ps, &ps->stmts);
+    destroy_parser(ps);
+  }
 
-	if (errnum <= 0) {
-		parse_module_scope(pkg);
-		codegen_klc(pkg);
-	} else {
-		fprintf(stderr, "There are %d errors.\n", errnum);
-	}
+  if (errnum <= 0) {
+    parse_module_scope(pkg);
+    Generate_KLC_File(pkg->sym->ptr, pkg->pkgname, pkg->pkgfile);
+  } else {
+    fprintf(stderr, "There are %d errors.\n", errnum);
+  }
 
-	Vector_Fini(&vec, NULL, NULL);
-	//free packageinfo
+  Vector_Fini(&vec, NULL, NULL);
+  //free packageinfo
 
-	return 0;
+  return 0;
 }
 
 #define KOALAC_VERSION "0.8.5"
 
 static void show_version(void)
 {
-	struct utsname sysinfo;
-	if (!uname(&sysinfo)) {
-		fprintf(stderr, "Koalac version %s, %s/%s\n",
-						KOALAC_VERSION, sysinfo.sysname, sysinfo.machine);
-	}
+  struct utsname sysinfo;
+  if (!uname(&sysinfo)) {
+    fprintf(stderr, "Koalac version %s, %s/%s\n",
+            KOALAC_VERSION, sysinfo.sysname, sysinfo.machine);
+  }
 }
 
 static void show_usage(char *prog)
 {
   fprintf(stderr,
-		"Usage: %s [<options>] <source packages>\n"
-		"Options:\n"
-		"\t-p <path>         Specify where to find external packages.\n"
-		"\t-o <directory>    Specify where to place generated packages.\n"
-		"\t-s <directory>    Specify where to find source packages.\n"
-		"\t-v                Print compiler version.\n"
-		"\t-h                Print this message.\n",
-		prog);
+    "Usage: %s [<options>] <source packages>\n"
+    "Options:\n"
+    "\t-p <path>         Specify where to find external packages.\n"
+    "\t-o <directory>    Specify where to place generated packages.\n"
+    "\t-s <directory>    Specify where to find source packages.\n"
+    "\t-v                Print compiler version.\n"
+    "\t-h                Print this message.\n",
+    prog);
 }
 
 int main(int argc, char *argv[])
 {
-	struct options opts;
-	init_options(&opts);
-	set_options_usage(&opts, show_usage);
-	set_options_version(&opts, show_version);
-	parse_options(argc, argv, &opts);
-	show_options(&opts);
+  struct options opts;
+  init_options(&opts);
+  set_options_usage(&opts, show_usage);
+  set_options_version(&opts, show_version);
+  parse_options(argc, argv, &opts);
+  show_options(&opts);
 
-	Koala_Initialize();
+  Koala_Initialize();
 
-	/*
-	 * search klc pathes:
-	 * 1. current(output) directory
-	 * 2. -p directory
-	 */
-	if (opts.outpath == NULL)
-		Koala_Add_Property(KOALA_PATH, ".");
-	else
-		Koala_Add_Property(KOALA_PATH, opts.outpath);
-	char *path;
-	Vector_ForEach(path, &opts.pathes) {
-		Koala_Add_Property(KOALA_PATH, path);
-	}
+  /*
+   * search klc pathes:
+   * 1. current(output) directory
+   * 2. -p directory
+   */
+  if (opts.outpath == NULL)
+    Koala_Add_Property(KOALA_PATH, ".");
+  else
+    Koala_Add_Property(KOALA_PATH, opts.outpath);
+  char *path;
+  Vector_ForEach(path, &opts.pathes) {
+    Koala_Add_Property(KOALA_PATH, path);
+  }
 
-	char *input;
-	char *output;
-	int srclen = 0;
-	int outlen = 0;
-	if (opts.srcpath != NULL)
-		srclen = strlen(opts.srcpath);
-	if (opts.outpath != NULL)
-		outlen = strlen(opts.outpath);
+  char *input;
+  char *output;
+  int srclen = 0;
+  int outlen = 0;
+  if (opts.srcpath != NULL)
+    srclen = strlen(opts.srcpath);
+  if (opts.outpath != NULL)
+    outlen = strlen(opts.outpath);
 
-	char *s;
-	Vector_ForEach(s, &opts.names) {
-		/* if not specify srcpath, use ./ as default srcpath */
-		input = malloc(srclen + strlen(s) + 4);
-		if (opts.srcpath != NULL)
-			sprintf(input, "%s/%s", opts.srcpath, s);
-		else
-			sprintf(input, "./%s", s);
+  char *s;
+  Vector_ForEach(s, &opts.names) {
+    /* if not specify srcpath, use ./ as default srcpath */
+    input = malloc(srclen + strlen(s) + 4);
+    if (opts.srcpath != NULL)
+      sprintf(input, "%s/%s", opts.srcpath, s);
+    else
+      strcpy(input, s);
 
-		output = malloc(outlen + strlen(s) + 8);
-		if (opts.outpath != NULL)
-			sprintf(output, "%s/%s.klc", opts.outpath, s);
-		else
-			sprintf(output, "%s.klc", s);
+    output = malloc(outlen + strlen(s) + 8);
+    if (opts.outpath != NULL)
+      sprintf(output, "%s/%s.klc", opts.outpath, s);
+    else
+      sprintf(output, "%s.klc", s);
 
-		Log_Debug("input:%s", input);
-		Log_Debug("outout:%s", output);
-		compile(input, output, &opts);
-	}
+    Log_Debug("input:%s", input);
+    Log_Debug("outout:%s", output);
+    compile(input, output, &opts);
+  }
 
-	Koala_Finalize();
+  Koala_Finalize();
 
-	return 0;
+  return 0;
 }

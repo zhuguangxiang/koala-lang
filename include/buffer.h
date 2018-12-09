@@ -31,12 +31,12 @@ extern "C" {
 
 /* block structure */
 typedef struct block {
-	/* linked into Buffer */
-	struct list_head link;
-	/* this block used bytes */
-	int used;
-	/* data */
-	uint8 data[0];
+  /* linked into Buffer */
+  struct list_head link;
+  /* this block used bytes */
+  int used;
+  /* data */
+  uint8 data[0];
 } Block;
 
 /*
@@ -45,14 +45,14 @@ typedef struct block {
  * this structure is used as readonly structure, e.g. string buffer
  */
 typedef struct buffer {
-	 /* total bytes in buffer */
-	uint32 size;
-	/* number of blocks */
-	uint32 blocks;
-	/* Block size */
-	uint32 bsize;
-	/* block list */
-	struct list_head head;
+   /* total bytes in buffer */
+  uint32 size;
+  /* number of blocks */
+  uint32 blocks;
+  /* Block size */
+  uint32 bsize;
+  /* block list */
+  struct list_head head;
 } Buffer;
 
 /* initialize the buffer */

@@ -26,101 +26,101 @@
 #include "mem.h"
 
 typedef struct {
-	/* hash node */
-	HashNode hnode;
-	/* val.str = data */
-	String val;
-	/* strlen + 1 */
-	int size;
-	/* string's characters */
-	char data[0];
+  /* hash node */
+  HashNode hnode;
+  /* val.str = data */
+  String val;
+  /* strlen + 1 */
+  int size;
+  /* string's characters */
+  char data[0];
 } StrEntry;
 
 /* string pool */
 typedef struct {
-	HashTable table;
+  HashTable table;
 } StrPool;
 
 static StrPool pool;
 
 static StrEntry *strentry_new(char *str)
 {
-	int len = strlen(str);
-	StrEntry *e = mm_alloc(sizeof(StrEntry) + len + 1);
-	Init_HashNode(&e->hnode, e);
-	e->val.str = e->data;
-	e->size = len + 1;
-	memcpy(e->data, str, len);
-	return e;
+  int len = strlen(str);
+  StrEntry *e = mm_alloc(sizeof(StrEntry) + len + 1);
+  Init_HashNode(&e->hnode, e);
+  e->val.str = e->data;
+  e->size = len + 1;
+  memcpy(e->data, str, len);
+  return e;
 }
 
 int AtomString_Find(char *str, String *s)
 {
-	StrEntry key = {.val.str = str};
-	HashNode *hnode = HashTable_Find(&pool.table, &key);
-	if (!hnode)
-		return 0;
-	StrEntry *e = container_of(hnode, StrEntry, hnode);
-	*s = e->val;
-	return 1;
+  StrEntry key = {.val.str = str};
+  HashNode *hnode = HashTable_Find(&pool.table, &key);
+  if (!hnode)
+    return 0;
+  StrEntry *e = container_of(hnode, StrEntry, hnode);
+  *s = e->val;
+  return 1;
 }
 
 String AtomString_New_NStr(char *str, int len)
 {
-	String s;
-	char *tmp = strndup(str, len);
-	s = AtomString_New(tmp);
-	free(tmp);
-	return s;
+  String s;
+  char *tmp = strndup(str, len);
+  s = AtomString_New(tmp);
+  free(tmp);
+  return s;
 }
 
 String AtomString_New(char *str)
 {
-	String s;
-	if (AtomString_Find(str, &s))
-		return s;
+  String s;
+  if (AtomString_Find(str, &s))
+    return s;
 
-	StrEntry *e = strentry_new(str);
-	HashTable_Insert(&pool.table, &e->hnode);
-	return e->val;
+  StrEntry *e = strentry_new(str);
+  HashTable_Insert(&pool.table, &e->hnode);
+  return e->val;
 }
 
 int AtomString_Length(String s)
 {
-	return strlen(s.str);
+  return strlen(s.str);
 }
 
 int AtomString_Equal(String s1, String s2)
 {
-	return s1.str == s2.str;
+  return s1.str == s2.str;
 }
 
 static uint32 __string_hash(void *key)
 {
-	StrEntry *e = key;
-	return hash_string(e->val.str);
+  StrEntry *e = key;
+  return hash_string(e->val.str);
 }
 
 static int __string_equal(void *k1, void *k2)
 {
-	StrEntry *e1 = k1;
-	StrEntry *e2 = k2;
-	return !strcmp(e1->val.str, e2->val.str);
+  StrEntry *e1 = k1;
+  StrEntry *e2 = k2;
+  return !strcmp(e1->val.str, e2->val.str);
 }
 
 void AtomString_Init(void)
 {
-	HashTable_Init(&pool.table, __string_hash, __string_equal);
+  HashTable_Init(&pool.table, __string_hash, __string_equal);
 }
 
 static void strentry_free(HashNode *hnode, void *arg)
 {
-	UNUSED_PARAMETER(arg);
-	StrEntry *e = container_of(hnode, StrEntry, hnode);
-	mm_free(e);
+  UNUSED_PARAMETER(arg);
+  StrEntry *e = container_of(hnode, StrEntry, hnode);
+  mm_free(e);
 }
 
 void AtomString_Fini(void)
 {
-	HashTable_Fini(&pool.table, strentry_free, NULL);
+  HashTable_Fini(&pool.table, strentry_free, NULL);
 }

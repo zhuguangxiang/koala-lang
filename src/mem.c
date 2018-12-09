@@ -24,10 +24,10 @@
 
 void *gc_alloc(int size)
 {
-	return calloc(1, size);
+  return calloc(1, size);
 }
 
 void gc_free(void *ptr)
 {
-	free(ptr);
+  free(ptr);
 }

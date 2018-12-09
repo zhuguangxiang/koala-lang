@@ -30,11 +30,11 @@ extern "C" {
 #endif
 
 typedef struct cache {
-	char *name;
-	int objsize;
-	int total;
-	int used;
-	struct list_head free_list;
+  char *name;
+  int objsize;
+  int total;
+  int used;
+  struct list_head free_list;
 } Cache;
 
 int Init_Cache(Cache *cache, char *name, int objsize);

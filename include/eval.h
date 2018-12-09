@@ -20,8 +20,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_VM_H_
-#define _KOALA_VM_H_
+#ifndef _KOALA_EVAL_H_
+#define _KOALA_EVAL_H_
 
 #include "state.h"
 
@@ -32,40 +32,40 @@ extern "C" {
 #define STACK_SIZE 8
 
 struct stack {
-	/* stack top index */
-	int top;
-	/* stack */
-	Object *stack[STACK_SIZE];
+  /* stack top index */
+  int top;
+  /* stack */
+  Object *stack[STACK_SIZE];
 };
 
 struct frame;
 
 typedef struct koalastate {
-	/* koalsstate listnode linked in GlobalState->kslist */
-	struct list_head ksnode;
-	/* point to GlobalState */
-	GlobalState *gs;
-	/* stack for calculating */
-	struct stack stack;
-	/* top function frame */
-	struct frame *frame;
-	/* local objects for this koalastate  */
-	Object *map;
+  /* koalsstate listnode linked in GlobalState->kslist */
+  struct list_head ksnode;
+  /* point to GlobalState */
+  GlobalState *gs;
+  /* stack for calculating */
+  struct stack stack;
+  /* top function frame */
+  struct frame *frame;
+  /* local objects for this koalastate  */
+  Object *map;
 } KoalaState;
 
 struct frame {
-	/* back frame */
-	struct frame *back;
-	/* koalastate */
-	KoalaState *ks;
-	/* function object */
-	CodeObject *code;
-	/* instruction's index in the function */
-	int pc;
-	/* local variables' count */
-	int size;
-	/* local variables memory */
-	Object *locvars[0];
+  /* back frame */
+  struct frame *back;
+  /* koalastate */
+  KoalaState *ks;
+  /* function object */
+  CodeObject *code;
+  /* instruction's index in the function */
+  int pc;
+  /* local variables' count */
+  int size;
+  /* local variables memory */
+  Object *locvars[0];
 };
 
 KoalaState *KoalaState_New(void);
@@ -75,4 +75,4 @@ int Koala_Run_Code(KoalaState *ks, Object *code, Object *ob, Object *args);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_VM_H_ */
+#endif /* _KOALA_EVAL_H_ */

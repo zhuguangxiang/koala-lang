@@ -31,38 +31,46 @@ extern "C" {
 #endif
 
 typedef struct atomentry {
-	/* hash node for data is unique */
-	HashNode hnode;
-	/* index of AtomTable->item[type] */
-	int type;
-	/* index in 'type' vectors */
-	int index;
-	/* item data */
-	void *data;
+  /* hash node for data is unique */
+  HashNode hnode;
+  /* index of AtomTable->item[type] */
+  int type;
+  /* index in 'type' vectors */
+  int index;
+  /* item data */
+  void *data;
 } AtomEntry;
 
 typedef struct atomtable {
-	/* hash table for data is unique */
-	HashTable table;
-	/* items' array size */
-	int size;
-	/* vector array */
-	Vector items[0];
+  /* hash table for data is unique */
+  HashTable table;
+  /* items' array size */
+  int size;
+  /* vector array */
+  Vector items[0];
 } AtomTable;
 
-typedef void (*datafree)(int type, void *data, void *arg);
+typedef void (*atomvisitfunc)(int type, void *data, void *arg);
 /* new an atom table */
-AtomTable *AtomTable_New(ht_hashfunc hash, ht_equalfunc equal, int size);
+AtomTable *AtomTable_New(int size, hashfunc hash, equalfunc equal);
 /* free an atom table */
-void AtomTable_Free(AtomTable *table, datafree fn, void *arg);
+void AtomTable_Free(AtomTable *table, atomvisitfunc fn, void *arg);
 /* add an item to the tail of the 'type' vector */
 int AtomTable_Append(AtomTable *table, int type, void *data, int unique);
 /* get unique data's index in 'type' vector, only for unique data */
 int AtomTable_Index(AtomTable *table, int type, void *data);
 /* get index data in the 'type' vector */
-void *AtomTable_Get(AtomTable *table, int type, int index);
+static inline void *AtomTable_Get(AtomTable *table, int type, int index)
+{
+  assert(type >= 0 && type < table->size);
+  return Vector_Get(table->items + type, index);
+}
 /* get the 'type' vector size */
-int AtomTable_Size(AtomTable *table, int type);
+static inline int AtomTable_Size(AtomTable *table, int type)
+{
+  assert(type >= 0 && type < table->size);
+  return Vector_Size(table->items + type);
+}
 
 #ifdef __cplusplus
 }

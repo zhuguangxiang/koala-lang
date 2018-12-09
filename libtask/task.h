@@ -32,37 +32,37 @@ extern "C" {
 
 /* task state */
 typedef enum {
-	TASK_STATE_RUNNING = 1,
-	TASK_STATE_READY   = 2,
-	TASK_STATE_WAITING = 3,
-	TASK_STATE_DONE    = 4,
+  TASK_STATE_RUNNING = 1,
+  TASK_STATE_READY   = 2,
+  TASK_STATE_WAITING = 3,
+  TASK_STATE_DONE    = 4,
 } task_state_t;
 
 /* joinable state */
 typedef enum {
-	TASK_JOINABLE        = 0,
-	TASK_WAIT_FOR_JOINER = 1,
-	TASK_WAIT_TO_JOIN    = 2,
-	TASK_DETACHED        = 3,
+  TASK_JOINABLE        = 0,
+  TASK_WAIT_FOR_JOINER = 1,
+  TASK_WAIT_TO_JOIN    = 2,
+  TASK_DETACHED        = 3,
 } join_state_t;
 
 /* task */
 typedef struct task {
-	task_context_t context;
-	task_entry_t entry;
-	void *arg;
-	task_state_t volatile state;
-	uint64_t id;
-	void * volatile result;
-	void * volatile sched_info;
-	join_state_t volatile join_state;
-	struct task * volatile join_task;
-	void *object;
+  task_context_t context;
+  task_entry_t entry;
+  void *arg;
+  task_state_t volatile state;
+  uint64_t id;
+  void * volatile result;
+  void * volatile sched_info;
+  join_state_t volatile join_state;
+  struct task * volatile join_task;
+  void *object;
 } task_t;
 
 /* task attribute */
 typedef struct task_attr {
-	int stacksize;
+  int stacksize;
 } task_attr_t;
 
 /* task scheduler */
@@ -70,10 +70,10 @@ typedef void *scheduler_t;
 
 /* task processor per thread */
 typedef struct task_processor {
-	task_t *idle;
-	task_t *volatile current;
-	scheduler_t *scheduler;
-	int id;
+  task_t *idle;
+  task_t *volatile current;
+  scheduler_t *scheduler;
+  int id;
 } task_processor_t;
 
 /* initial processors, call it firstly */
@@ -93,13 +93,13 @@ task_processor_t *current_processor(void);
 /* set task private obj */
 #define task_set_object(obj) \
 do { \
-	current_task()->object = obj; \
+  current_task()->object = obj; \
 } while (0)
 
 /* get task private obj */
 #define task_get_object() \
 ({ \
-	current_task()->object \
+  current_task()->object \
 })
 
 #ifdef __cplusplus
