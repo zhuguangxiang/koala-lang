@@ -1000,14 +1000,11 @@ void codeitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(CodeItem) + sizeof(uint8) * item->size, 1, fp);
 }
 
-void OpCode_Show(uint8 *code, int32 size);
 
 void codeitem_show(AtomTable *table, void *o)
 {
   UNUSED_PARAMETER(table);
-  CodeItem *item = o;
-  printf("  size:%d\n", item->size);
-  OpCode_Show(item->codes, item->size);
+  UNUSED_PARAMETER(o);
 }
 
 void codeitem_free(void *o)

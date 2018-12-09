@@ -32,14 +32,18 @@ SET (LIBKOALA_SRC
       cache.c properties.c 
       typedesc.c object.c stringobject.c tupleobject.c codeobject.c 
       intobject.c package.c state.c atomtable.c image.c options.c eval.c
-      koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c checker.c
     )
 
 ADD_LIBRARY(koala SHARED ${LIBKOALA_SRC})
 
 set_target_properties(koala PROPERTIES VERSION 0.8.5 SOVERSION 0)
 
-add_executable(klc koalac.c)
+SET (KOALAC_SRC
+      koalac.c koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c
+      checker.c
+    )
+
+add_executable(klc ${KOALAC_SRC})
 target_link_libraries(klc koala)
 set_target_properties(klc PROPERTIES OUTPUT_NAME koalac)
 

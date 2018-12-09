@@ -73,7 +73,6 @@ typedef struct codeblock {
 
 int OpCode_ArgCount(uint8 op);
 char *OpCode_String(uint8 op);
-void OpCode_Show(uint8 *code, int32 size);
 
 Inst *Inst_New(uint8 op, Argument *val);
 void Inst_Free(Inst *i);

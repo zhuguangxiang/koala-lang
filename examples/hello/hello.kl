@@ -1,0 +1,8 @@
+
+package hello
+
+import "koala/io"
+
+func Main() {
+  io.Println("hello,world");
+}

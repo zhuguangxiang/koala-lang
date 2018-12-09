@@ -87,30 +87,6 @@ char *OpCode_String(uint8 op)
   return opcode ? opcode->str: "";
 }
 
-void OpCode_Show(uint8 *code, int32 size)
-{
-  int i = 0;
-  struct opcode *op;
-  int arg;
-  printf("------code show--------\n");
-  while (i < size) {
-    op = get_opcode(code[i]);
-    if (!op)
-      break;
-    i++;
-    printf("op:%-12s", op->str);
-    if (op->argsize == 4)
-      arg = *(int32 *)(code + i);
-    else if (op->argsize == 2)
-      arg = *(int16 *)(code + i);
-    else
-      arg = -1;
-    printf("arg:%d\n", arg);
-    i += op->argsize;
-  }
-  printf("------code show end----\n");
-}
-
 Inst *Inst_New(uint8 op, Argument *val)
 {
   Inst *i = mm_alloc(sizeof(Inst));

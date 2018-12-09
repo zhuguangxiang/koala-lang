@@ -1,4 +1,21 @@
 #+TITLE: Koala Language
 #+AUTHOR: James Zhu
 #+EMAIL: zhuguangxiang@163.com
-* What's Koala?
+
+** The first Koala program
+#+BEGIN_SRC
+  //hello.kl
+  package hello
+  import "koala/io"
+  func Main() {
+    io.Println("hello,world")
+  }
+#+END_SRC
+** compile
+#+BEGIN_SRC
+  > koalac hello
+#+END_SRC
+** run
+#+BEGIN_SRC
+  > koala hello
+#+END_SRC
