@@ -28,6 +28,7 @@
 #include "stringobject.h"
 #include "intobject.h"
 #include "log.h"
+#include "io.h"
 
 static void init_pkgnode(PkgNode *node, char *name, PkgNodeKind kind)
 {
@@ -59,35 +60,39 @@ static int __n_equal(PkgNode *n1, PkgNode *n2)
   return !strcmp(n1->name.str, n2->name.str);
 }
 
-static void init_pkgnode_hashtable(HashTable *table)
-{
-  HashTable_Init(table, (hashfunc)__n_hash, (equalfunc)__n_equal);
-}
-
 GlobalState gState;
 
-static void init_state(GlobalState *gs)
+static void Init_GlobalState(void)
 {
+  AtomString_Init();
+  GlobalState *gs = &gState;
   Properties_Init(&gs->props);
   init_pkgnode(&gs->root, "/", PATH_NODE);
-  init_pkgnode_hashtable(&gs->pkgs);
+  HashTable_Init(&gs->pkgs, (hashfunc)__n_hash, (equalfunc)__n_equal);
   Vector_Init(&gs->vars);
   init_list_head(&gs->kslist);
 }
 
-static void init_lang_package(GlobalState *gs)
+static void init_lang_package(void)
 {
-  Koala_Add_Package("koala", Package_New("lang"));
+  Init_String_Klass();
+  Init_Integer_Klass();
+  Init_Package_Klass();
+  Init_Tuple_Klass();
+  Package *pkg = Package_New("lang");
+  Package_Add_Class(pkg, &String_Klass);
+  Package_Add_Class(pkg, &Int_Klass);
+  Package_Add_Class(pkg, &Package_Klass);
+  Package_Add_Class(pkg, &Tuple_Klass);
+  Koala_Add_Package("/", pkg);
 }
 
 void Koala_Initialize(void)
 {
-  AtomString_Init();
-  Init_String_Klass();
-  Init_Integer_Klass();
-  Init_Package_Klass();
-  init_state(&gState);
-  init_lang_package(&gState);
+  Init_GlobalState();
+  init_lang_package();
+  init_nio_package();
+  Koala_Show_Packages();
 }
 
 static void __n_freefunc(HashNode *hnode, void *arg)
@@ -99,9 +104,16 @@ static void __n_freefunc(HashNode *hnode, void *arg)
 
 void Koala_Finalize(void)
 {
+  Fini_Tuple_Klass();
+  Fini_Package_Klass();
+  Fini_Integer_Klass();
+  Fini_String_Klass();
+
   HashTable_Fini(&gState.pkgs, __n_freefunc, NULL);
   Vector_Free(gState.root.children, NULL, NULL);
   Vector_Fini(&gState.vars, NULL, NULL);
+
+  AtomString_Fini();
 }
 
 static Vector *__pkgnode_get_vector(PkgNode *node)
@@ -120,17 +132,13 @@ static PkgNode *find_node(GlobalState *gs, PkgNode *parent, String name)
     Log_Debug("found node '%s'", name.str);
     return node;
   }
-  Log_Warn("canot find node '%s'", name.str);
+  Log_Debug("cannot find node '%s'", name.str);
   return NULL;
 }
 
-static
-PkgNode *find_or_create_pathnode(GlobalState *gs, PkgNode *parent, String name)
+static PkgNode *add_node(GlobalState *gs, PkgNode *parent, String name)
 {
-  PkgNode *node = find_node(gs, parent, name);
-  if (node)
-    return node;
-  node = pkgnode_new();
+  PkgNode *node = pkgnode_new();
   init_pkgnode(node, name.str, PATH_NODE);
   node->parent = parent;
   HashTable_Insert(&gs->pkgs, &node->hnode);
@@ -167,7 +175,7 @@ static PkgNode *find_leafnode(GlobalState *gs, char *path)
     } while (c && c != '/');
     s = AtomString_New_NStr(p, path - p);
     node = find_node(gs, node, s);
-    if (!node)
+    if (node == NULL)
       break;
     while (*path && *++path == '/');
   }
@@ -182,19 +190,23 @@ int Koala_Add_Package(char *path, Package *pkg)
   char *p;
   char c;
   String s;
-  PkgNode *node = &gState.root;
+  PkgNode *parent = &gState.root;
+  PkgNode *node;
 
-  while (*path) {
+  while (*path && *path != '/') {
     p = path;
     do {
       c = *++path;
     } while (c && c != '/');
     s = AtomString_New_NStr(p, path - p);
-    node = find_or_create_pathnode(&gState, node, s);
+    node = find_node(&gState, parent, s);
+    if (node == NULL)
+      node = add_node(&gState, parent, s);
+    parent = node;
     while (*path && *++path == '/');
   }
 
-  return add_leafnode(&gState, node, pkg);
+  return add_leafnode(&gState, parent, pkg);
 }
 
 #define MAX_FILE_PATH_LEN 1024
@@ -286,6 +298,7 @@ int Koala_Set_Value(Package *pkg, char *name, Object *value)
   Log_Debug("set var '%s'(%d) in pkg '%s'(%d)", name, m->offset,
             pkg->name.str, index);
   Object *tuple = Vector_Get(&gState.vars, index);
+  OB_INCREF(value);
   return Tuple_Set(tuple, m->offset, value);
 }
 

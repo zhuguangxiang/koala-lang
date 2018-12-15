@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
   Koala_Show_Packages();
 
   /* initial task's processors */
-  init_processors(1);
+  task_init_procs(1);
 
   /* new a task and wait for it's finished */
   task_attr_t attr = {.stacksize = 1 * 512 * 1024};

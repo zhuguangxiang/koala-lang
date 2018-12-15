@@ -408,6 +408,25 @@ Object *Object_Get_Method(Object *ob, char *name, Klass *klazz)
   return m->code;
 }
 
+int Object_Print(char *buf, int size, Object *ob)
+{
+  Object *s;
+  char *str;
+  int len;
+  ob_strfunc tostrfunc = OB_KLASS(ob)->ob_str;
+  if (tostrfunc != NULL) {
+    s = tostrfunc(ob);
+    str = String_RawString(s);
+    len = String_Length(s);
+    memcpy(buf, str, min(size, len));
+    return len;
+  } else {
+    /* FIXME: find ToString() and call it */
+    memcpy(buf, "(nil)", 5);
+    return 5;
+  }
+}
+
 MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k)
 {
   MemberDef *member = mm_alloc(sizeof(MemberDef));

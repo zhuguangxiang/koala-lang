@@ -7,8 +7,9 @@ ADD_CUSTOM_COMMAND(
          ${PROJECT_SOURCE_DIR}/include/koala_tokens.h
   DEPENDS ${PROJECT_SOURCE_DIR}/src/yacc/koala.y
   COMMAND ${BISON_EXECUTABLE}
+          -dvt
           --defines=${PROJECT_SOURCE_DIR}/include/koala_tokens.h
-          --output=${PROJECT_SOURCE_DIR}/src/koala_yacc.c 
+          --output=${PROJECT_SOURCE_DIR}/src/koala_yacc.c
           ${PROJECT_SOURCE_DIR}/src/yacc/koala.y
   )
 
@@ -29,12 +30,16 @@ SET_SOURCE_FILES_PROPERTIES(koala_yacc.c GENERATED)
 
 SET (LIBKOALA_SRC
       log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
-      cache.c properties.c 
-      typedesc.c object.c stringobject.c tupleobject.c codeobject.c 
+      cache.c properties.c
+      typedesc.c object.c stringobject.c tupleobject.c codeobject.c
       intobject.c package.c state.c atomtable.c image.c options.c eval.c
     )
 
-ADD_LIBRARY(koala SHARED ${LIBKOALA_SRC})
+SET (NATIVE_SRC
+      native/io.c
+    )
+
+ADD_LIBRARY(koala SHARED ${LIBKOALA_SRC} ${NATIVE_SRC})
 
 set_target_properties(koala PROPERTIES VERSION 0.8.5 SOVERSION 0)
 

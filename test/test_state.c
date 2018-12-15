@@ -8,7 +8,7 @@
 
 void test_state(void)
 {
-  Package *pkg = Package_New("lang");
+  Package *pkg = (Package *)Koala_Get_Package("lang");
   Package_Add_Var(pkg, "Foo", &Int_Type, 0);
   Package_Add_Var(pkg, "Bar", &Int_Type, 0);
   Koala_Add_Package("github.com/koala", pkg);
@@ -16,6 +16,7 @@ void test_state(void)
   Object *ob = Koala_Get_Value(pkg, "Foo");
   assert(ob);
   assert(100 == Integer_ToCInt(ob));
+  OB_DECREF(ob);
   Koala_Set_Value(pkg, "Foo", String_New("hello"));
   ob = Koala_Get_Value(pkg, "Foo");
   assert(ob);
@@ -37,9 +38,5 @@ int main(int argc, char *argv[])
   Koala_Initialize();
   test_state();
   Koala_Finalize();
-  Fini_Package_Klass();
-  Fini_Integer_Klass();
-  Fini_String_Klass();
-  AtomString_Fini();
   return 0;
 }

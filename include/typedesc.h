@@ -52,6 +52,7 @@ typedef enum typedesc_kind {
 #define PRIMITIVE_FLOAT  'f'
 #define PRIMITIVE_BOOL   'z'
 #define PRIMITIVE_STRING 's'
+#define PRIMITIVE_ERROR  'e'
 #define PRIMITIVE_ANY    'A'
 #define PRIMITIVE_VARG   'v'
 
@@ -93,6 +94,7 @@ extern TypeDesc Int_Type;
 extern TypeDesc Float_Type;
 extern TypeDesc Bool_Type;
 extern TypeDesc String_Type;
+extern TypeDesc Error_Type;
 extern TypeDesc Any_Type;
 extern TypeDesc Varg_Type;
 

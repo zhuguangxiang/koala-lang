@@ -191,7 +191,7 @@ static Symbol *find_userdef_symbol(ParserState *ps, TypeDesc *desc)
     sym = ps->sym;
   }
 
-  assert(sym->kind == SYM_STABLE);
+  assert(sym->kind == SYM_STABLE || sym->kind == SYM_MODULE);
 
   sym = STable_Get(sym->ptr, desc->klass.type.str);
   if (sym) {
@@ -267,7 +267,7 @@ static void init_imports(ParserState *ps)
 {
   HashTable_Init(&ps->imports, import_hash, import_equal);
   ps->extstbl = STable_New();
-  Symbol *sym = Parser_New_Import(ps, "lang", "koala/lang");
+  Symbol *sym = Parser_New_Import(ps, "lang", "lang");
   sym->refcnt = 1;
 }
 
@@ -470,10 +470,13 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path)
   l->row = lb->row;
   l->col = 1;
   sym->import = import;
-  if (exist)
+  if (exist) {
     Log_Debug("package '%s <- %s' existed", id, path);
-  else
+  } else {
+    int res = HashTable_Insert(&ps->imports, &import->hnode);
+    assert(!res);
     Log_Debug("add package '%s <- %s' successfully", id, path);
+  }
 
   return sym;
 }
@@ -1818,13 +1821,13 @@ static void parser_visit_expr(ParserState *ps, struct expr *exp)
       assert(exp->ctx == EXPR_LOAD);
       Log_Debug("typeof");
       assert(exp->right->kind == CALL_KIND);
-      Symbol *sym = find_external_package(ps, "koala/lang");
+      Symbol *sym = find_external_package(ps, "lang");
       assert(sym);
       sym = STable_Get(sym->ptr, "TypeOf");
       assert(sym);
       exp->sym = sym;
 
-      Argument val = {.kind = ARG_STR, .str = "koala/lang"};
+      Argument val = {.kind = ARG_STR, .str = "lang"};
       Inst_Append(ps->u->block, OP_LOADM, &val);
       val.str = "TypeOf";
       Inst *i = Inst_Append(ps->u->block, OP_CALL, &val);
@@ -2341,6 +2344,8 @@ static void parser_init_function(ParserState *ps, Vector *stmts)
   if (stmts) {
     stmt_t *s;
     Vector_ForEach(s, stmts) {
+      #if 0
+    FIXME:
       if (i == 0) {
         struct expr *exp = s->exp;
         if (exp->kind != SUPER_KIND) {
@@ -2354,6 +2359,7 @@ static void parser_init_function(ParserState *ps, Vector *stmts)
           }
         }
       }
+      #endif
       parser_vist_stmt(ps, s);
     }
   }
@@ -3137,8 +3143,11 @@ void parse_module_scope(PackageInfo *pkg)
 {
   ParserUnit *u = &pkg->top;
   assert(u->scope == SCOPE_MODULE);
-  TypeDesc *proto = TypeDesc_New_Proto(NULL, NULL);
-  Symbol *sym = STable_Add_Proto(u->stbl, "__init__", proto);
+  Symbol *sym = STable_Get(u->stbl, "__init__");
+  if (sym == NULL) {
+    TypeDesc *proto = TypeDesc_New_Proto(NULL, NULL);
+    sym = STable_Add_Proto(u->stbl, "__init__", proto);
+  }
   assert(sym);
   Log_Debug("add 'return' to function '__init__'");
   Inst_Append(u->block, OP_RET, NULL);

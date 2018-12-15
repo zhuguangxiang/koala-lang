@@ -133,6 +133,7 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %token FLOAT
 %token BOOL
 %token STRING
+%token ERROR
 %token ANY
 
 %token SELF
@@ -216,8 +217,8 @@ expr_t *do_array_initializer(ParserState *ps, Vector *explist);
 %type <list> TraitMemberDeclarations
 %type <stmt> TraitMemberDeclaration
 
-%precedence ID
-%precedence '.'
+//%precedence ID
+//%precedence '.'
 
 %parse-param {ParserState *ps}
 %parse-param {void *scanner}
@@ -253,10 +254,12 @@ MapType
   ;
 
 PrimitiveType
-  : INTEGER { $$ = &Int_Type;    }
+  : BYTE    { $$ = &Byte_Type;   }
+  | INTEGER { $$ = &Int_Type;    }
   | FLOAT   { $$ = &Float_Type;  }
   | BOOL    { $$ = &Bool_Type;   }
   | STRING  { $$ = &String_Type; }
+  | ERROR   { $$ = &Error_Type;  }
   | ANY     { $$ = &Any_Type;    }
   ;
 
@@ -507,7 +510,6 @@ Traits
   }
   ;
 
-
 MemberDeclarationsOrEmpty
   : %empty             { $$ = NULL; }
   | MemberDeclarations { $$ = $1;   }
@@ -516,10 +518,12 @@ MemberDeclarationsOrEmpty
 MemberDeclarations
   : MemberDeclaration {
     $$ = Vector_New();
-    Vector_Append($$, $1);
+    if ($1 != NULL)
+      Vector_Append($$, $1);
   }
   | MemberDeclarations MemberDeclaration {
-    Vector_Append($1, $2);
+    if ($2 != NULL)
+      Vector_Append($1, $2);
     $$ = $1;
   }
   ;
@@ -531,6 +535,10 @@ MemberDeclaration
   | FunctionDeclaration {
     $$ = $1;
   }
+  | ';' {
+    printf("comma in memberdeclaration\n");
+    $$ = NULL;
+  }
   ;
 
 TraitMemberDeclarationsOrEmpty
@@ -541,10 +549,12 @@ TraitMemberDeclarationsOrEmpty
 TraitMemberDeclarations
   : TraitMemberDeclaration {
     $$ = Vector_New();
-    Vector_Append($$, $1);
+    if ($1 != NULL)
+      Vector_Append($$, $1);
   }
   | TraitMemberDeclarations TraitMemberDeclaration {
-    Vector_Append($1, $2);
+    if ($2 != NULL)
+      Vector_Append($1, $2);
     $$ = $1;
   }
   ;
@@ -559,11 +569,15 @@ TraitMemberDeclaration
   | FunctionDeclaration {
     $$ = $1;
   }
+  | ';' {
+    printf("comma in trait member declaration\n");
+    $$ = NULL;
+  }
   ;
 
 FieldDeclaration
   : ID Type ';' {
-    //$$ = stmt_from_vardecl(new_var($2, $3), NULL, 0);
+    $$ = stmt_from_var($1, $2, NULL, 0);
   }
   | ID '=' Expr ';' {
     //$$ = stmt_from_vardecl(new_var($2, NULL), $4, 0);

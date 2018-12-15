@@ -134,6 +134,7 @@ L   [a-zA-Z_]
 "float"                   {RETURN(FLOAT);}
 "bool"                    {RETURN(BOOL);}
 "string"                  {RETURN(STRING);}
+"error"                   {RETURN(ERROR);}
 "any"                     {RETURN(ANY);}
 
 "self"                    {RETURN(SELF);}

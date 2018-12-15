@@ -30,6 +30,7 @@ TypeDesc Int_Type    = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_INT};
 TypeDesc Float_Type  = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_FLOAT};
 TypeDesc Bool_Type   = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_BOOL};
 TypeDesc String_Type = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_STRING};
+TypeDesc Error_Type  = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_ERROR};
 TypeDesc Any_Type    = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_ANY};
 TypeDesc Varg_Type   = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_VARG};
 
@@ -44,6 +45,7 @@ struct primitive_type_s {
   {PRIMITIVE_FLOAT,  "float",  &Float_Type  },
   {PRIMITIVE_BOOL,   "bool",   &Bool_Type   },
   {PRIMITIVE_STRING, "string", &String_Type },
+  {PRIMITIVE_ERROR,  "error",  &Error_Type  },
   {PRIMITIVE_ANY,    "any",    &Any_Type    },
   {PRIMITIVE_VARG,   "...",    &Varg_Type   }
 };

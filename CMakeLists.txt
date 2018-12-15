@@ -3,24 +3,35 @@ CMAKE_MINIMUM_REQUIRED (VERSION 3.0)
 
 PROJECT (koala-lang)
 
-set (CMAKE_INSTALL_PREFIX /home/james/.local)
+set (CMAKE_BUILD_TYPE Debug)
+
+set (CMAKE_INSTALL_PREFIX $ENV{HOME}/.local)
 
 option (SCHED_LOCKED "locked scheduler" ON)
 option (SWITCH_UCONTEXT "using ucontext" ON)
 option (LOG_COLOR "Enable Color Log" ON)
 configure_file (
-	${PROJECT_SOURCE_DIR}/include/config.h.in
-	${PROJECT_SOURCE_DIR}/include/config.h
-	)
+  ${PROJECT_SOURCE_DIR}/include/config.h.in
+  ${PROJECT_SOURCE_DIR}/include/config.h
+  )
+
+if (CMAKE_BUILD_TYPE STREQUAL Debug)
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -g")
+else ()
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -O2 -Wall")
+endif ()
+message("Build Type:" ${CMAKE_BUILD_TYPE} ${CMAKE_C_FLAGS})
 
 ## ADD_DEFINITIONS (-DLOG_COLOR)
+ADD_DEFINITIONS(-fPIC)
 
 ## set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FNAME__='\"$(notdir $<)\"'")
 
 INCLUDE_DIRECTORIES (
-	${PROJECT_SOURCE_DIR}/include
-	${PROJECT_SOURCE_DIR}/libtask
-	)
+  ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/libtask
+  ${PROJECT_SOURCE_DIR}/src/native
+  )
 
 # SET (LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 # SET (EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
@@ -47,5 +58,5 @@ add_test(NAME test_image COMMAND test_image)
 add_test(NAME test_properties COMMAND test_properties)
 add_test(NAME test_task COMMAND test_task)
 add_test(NAME test_join COMMAND test_join)
-
+add_test(NAME test_nio COMMAND test_nio)
 add_test(NAME test_color COMMAND test_color)

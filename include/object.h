@@ -100,6 +100,8 @@ typedef Object *(*ob_strfunc)(Object *);
 typedef Object *(*ob_unaryfunc)(Object *);
 typedef Object *(*ob_binaryfunc)(Object *, Object *);
 typedef void (*ob_ternaryfunc)(Object *, Object *, Object *);
+typedef Object *(*getterfunc)(Object *, Object *);
+typedef void (*setterfunc)(Object *, Object *, Object *);
 
 /*
  * basic operations, if necessary, these operators can be overridden .
@@ -179,6 +181,10 @@ struct klass {
   /* like java's toString() */
   ob_strfunc ob_str;
 
+  /* object's getter and setter operations */
+  getterfunc getter;
+  setterfunc setter;
+
   /* number operations, e.g. arithmetic operators */
   NumberOperations *numops;
   /* map operations for array and dictionary */
@@ -218,6 +224,8 @@ Object *Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val);
  * see 'struct object'
  */
 Object *Object_Get_Method(Object *ob, char *name, Klass *klazz);
+/* print object */
+int Object_Print(char *buf, int size, Object *ob);
 
 #define OB_INCREF(ob) (((Object *)(ob))->ob_refcnt++)
 #define OB_DECREF(ob) \

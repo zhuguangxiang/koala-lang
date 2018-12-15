@@ -77,7 +77,7 @@ typedef struct task_processor {
 } task_processor_t;
 
 /* initial processors, call it firstly */
-int init_processors(int num_threads);
+int task_init_procs(int num_threads);
 /* create a task and run it */
 task_t *task_create(task_attr_t *attr, task_entry_t entry, void *arg);
 /* yield cpu and call scheduler */

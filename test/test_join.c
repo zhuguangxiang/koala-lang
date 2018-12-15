@@ -70,7 +70,7 @@ void *func1(void *p)
 
 int main(int argc, char *argv[])
 {
-  init_processors(3);
+  task_init_procs(3);
   int value1 = 100;
   int value2 = 200;
   task_attr_t attr = {.stacksize = 1 * 1024 * 1024};

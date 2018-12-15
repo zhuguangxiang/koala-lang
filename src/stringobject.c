@@ -20,12 +20,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "stringobject.h"
+#include "intobject.h"
+#include "hashfunc.h"
 #include "mem.h"
 #include "log.h"
-#include "hashfunc.h"
-#include "stringobject.h"
-#include "tupleobject.h"
-#include "intobject.h"
 
 static HashTable strobj_cache;
 

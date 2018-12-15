@@ -170,7 +170,7 @@ static void init_main_proc(void)
   pthread_setspecific(local_pthread_key, &processors[0]);
 }
 
-int init_processors(int num_threads)
+int task_init_procs(int num_threads)
 {
   if (sched_state != SCHED_STATE_NONE) {
     errno = EINVAL;

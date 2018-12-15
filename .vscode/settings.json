@@ -9,7 +9,7 @@
 	"editor.fontWeight": "100",
 	"editor.fontSize": 14,
 	"editor.tabSize": 2,
-	"editor.insertSpaces": false,
+	"editor.insertSpaces": true,
 	"files.associations": {
 		"*.h": "c",
 		"*.c": "c",
@@ -93,5 +93,6 @@
 				}
 		}]
 	},
-	"window.zoomLevel": 0
+	"window.zoomLevel": 0,
+	"C_Cpp.intelliSenseEngineFallback": "Enabled"
 }

@@ -19,14 +19,16 @@ typedef struct symboltable {
 STable *STable_New(void);
 void STable_Free(STable *stbl);
 
-#define SYM_VAR     1
-#define SYM_PROTO   2
-#define SYM_CLASS   3
-#define SYM_TRAIT   4
-#define SYM_IPROTO  5
-#define SYM_STABLE  6  /* for compiler */
-#define SYM_MODULE  7
-#define SYM_TYPEALIAS 8
+typedef enum {
+  SYM_VAR    = 1,
+  SYM_PROTO  = 2,
+  SYM_CLASS  = 3,
+  SYM_TRAIT  = 4,
+  SYM_IPROTO = 5,
+  SYM_STABLE = 6,  /* for compiler */
+  SYM_MODULE = 7,
+  SYM_TYPEALIAS = 8
+} SymKind;
 
 typedef struct symbol Symbol;
 
@@ -35,7 +37,7 @@ struct symbol {
   //int32 nameidx;
   //int32 descidx;
 
-  int8 kind;
+  SymKind kind;
   int8 konst;
   int8 refcnt;
   int8 inherited;
