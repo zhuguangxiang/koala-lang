@@ -48,6 +48,12 @@ do { \
   (hnode)->key = k; \
 } while (0)
 
+#define Remove_HashNode(hnode) \
+do { \
+  list_del(&(hnode)->llink); \
+  hlist_del(&(hnode)->hlink); \
+} while (0)
+
 typedef uint32 (*hashfunc)(void *);
 typedef int (*equalfunc)(void *, void *);
 typedef void (*visitfunc)(HashNode *, void *);
@@ -88,17 +94,7 @@ int HashTable_Init(HashTable *table, hashfunc hash, equalfunc equal);
 void HashTable_Fini(HashTable *table, visitfunc visit, void *arg);
 /* get number of nodes in the hash table */
 #define HashTable_Count_Nodes(table) ((table != NULL) ? (table)->nr_nodes : 0)
-#define HashTable_Visit(table, visit, arg) \
-({ \
-  if (table) { \
-    struct list_head *pos; \
-    HashNode *hnode; \
-    list_for_each(pos, &table->head) { \
-      hnode = container_of(pos, HashNode, llink); \
-      visit(hnode, arg); \
-    } \
-  } \
-})
+void HashTable_Visit(HashTable *table, visitfunc visit,  void *arg);
 
 #ifdef __cplusplus
 }

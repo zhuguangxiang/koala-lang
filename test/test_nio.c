@@ -9,7 +9,7 @@
 
 void test_native_io(void)
 {
-  Package *pkg = (Package *)Koala_Get_Package("native/io");
+  PackageObject *pkg = (PackageObject *)Koala_Get_Package("native/io");
   assert(pkg);
   FdObject *fd = (FdObject *)Koala_Get_Value(pkg, "Stdout");
   assert(fd);

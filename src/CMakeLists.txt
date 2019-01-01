@@ -4,11 +4,11 @@ FIND_PACKAGE(BISON REQUIRED)
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${PROJECT_SOURCE_DIR}/src/koala_yacc.c
-         ${PROJECT_SOURCE_DIR}/include/koala_tokens.h
+         ${PROJECT_SOURCE_DIR}/include/koala_yacc.h
   DEPENDS ${PROJECT_SOURCE_DIR}/src/yacc/koala.y
   COMMAND ${BISON_EXECUTABLE}
           -dvt
-          --defines=${PROJECT_SOURCE_DIR}/include/koala_tokens.h
+          --defines=${PROJECT_SOURCE_DIR}/include/koala_yacc.h
           --output=${PROJECT_SOURCE_DIR}/src/koala_yacc.c
           ${PROJECT_SOURCE_DIR}/src/yacc/koala.y
   )
@@ -32,7 +32,7 @@ SET (LIBKOALA_SRC
       log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
       cache.c properties.c
       typedesc.c object.c stringobject.c tupleobject.c codeobject.c
-      intobject.c package.c state.c atomtable.c image.c options.c eval.c
+      intobject.c packageobject.c state.c atomtable.c image.c options.c eval.c
     )
 
 SET (NATIVE_SRC
@@ -44,8 +44,7 @@ ADD_LIBRARY(koala SHARED ${LIBKOALA_SRC} ${NATIVE_SRC})
 set_target_properties(koala PROPERTIES VERSION 0.8.5 SOVERSION 0)
 
 SET (KOALAC_SRC
-      koalac.c koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c
-      checker.c
+      koala_lex.c koala_yacc.c koalac.c symbol.c ast.c parser.c codegen.c
     )
 
 add_executable(klc ${KOALAC_SRC})

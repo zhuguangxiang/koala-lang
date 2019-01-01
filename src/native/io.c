@@ -32,6 +32,9 @@ Klass Fd_Klass = {
   .basesize = sizeof(FdObject),
 };
 
+FdObject *Stdout;
+FdObject *Stdin;
+
 FdObject *Fd_New(int fd)
 {
   FdObject *ob = mm_alloc(sizeof(FdObject));
@@ -75,21 +78,20 @@ int Fd_Close(FdObject *fd)
   return close(fd->fd);
 }
 
-#define BUF_SIZE 512
+#define BUF_SIZE 1024
 
 static Object *__print(Object *ob, Object *args)
 {
-  FdObject *fd = (FdObject *)Tuple_Get(args, 0);
   int size = Tuple_Size(args);
   char *buf = mm_alloc(BUF_SIZE);
   Object *val;
   int n;
-  for (int i = 1; i < size; i++) {
+  for (int i = 0; i < size; i++) {
     val = Tuple_Get(args, i);
     n = Object_Print(buf, BUF_SIZE - 1, val);
-    Fd_Write(fd, buf, n);
+    Fd_Write(Stdout, buf, n);
     if (i + 1 < size) {
-      Fd_Write(fd, " ", 1); /* space */
+      Fd_Write(Stdout, " ", 1); /* space */
     }
   }
   mm_free(buf);
@@ -98,9 +100,8 @@ static Object *__print(Object *ob, Object *args)
 
 static Object *__println(Object *ob, Object *args)
 {
-  FdObject *fd = (FdObject *)Tuple_Get(args, 0);
   __print(ob, args);
-  Fd_Write(fd, "\n", 1);
+  Fd_Write(Stdout, "\n", 1);
   return NULL;
 }
 
@@ -123,7 +124,6 @@ static Object *__open(Object *ob, Object *args)
 }
 
 static FuncDef io_funcs[] = {
-  {"Print", NULL, "...", __print},
   {"Println", NULL, "...", __println},
   {"Open", "Onative/io.Fd;e", "si", __open},
   {NULL}
@@ -131,14 +131,15 @@ static FuncDef io_funcs[] = {
 
 void init_nio_package(void)
 {
-  FdObject *Stdout = Fd_New(STDOUT_FILENO);
-  FdObject *Stdin = Fd_New(STDIN_FILENO);
+  Stdout = Fd_New(STDOUT_FILENO);
+  Stdin = Fd_New(STDIN_FILENO);
 
-  Package *pkg = Package_New("io");
+  PackageObject *pkg = Package_New("io");
   Package_Add_CFunctions(pkg, io_funcs);
   Package_Add_Var(pkg, "Stdout", TypeDesc_New_Klass("native/io", "Fd"), 1);
   Package_Add_Var(pkg, "Stdin", TypeDesc_New_Klass("native/io", "Fd"), 1);
   Package_Add_Class(pkg, &Fd_Klass);
+
   Koala_Add_Package("native", pkg);
   Koala_Set_Value(pkg, "Stdout", (Object *)Stdout);
   Koala_Set_Value(pkg, "Stdin", (Object *)Stdin);

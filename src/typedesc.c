@@ -32,7 +32,7 @@ TypeDesc Bool_Type   = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_BOOL};
 TypeDesc String_Type = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_STRING};
 TypeDesc Error_Type  = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_ERROR};
 TypeDesc Any_Type    = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_ANY};
-TypeDesc Varg_Type   = {.kind = TYPE_PRIMITIVE, .primitive = PRIMITIVE_VARG};
+TypeDesc Varg_Any_Type = {.kind = TYPE_VARG};
 
 struct primitive_type_s {
   int kind;
@@ -47,7 +47,6 @@ struct primitive_type_s {
   {PRIMITIVE_STRING, "string", &String_Type },
   {PRIMITIVE_ERROR,  "error",  &Error_Type  },
   {PRIMITIVE_ANY,    "any",    &Any_Type    },
-  {PRIMITIVE_VARG,   "...",    &Varg_Type   }
 };
 
 static struct primitive_type_s *get_primitive(int kind)
@@ -281,6 +280,8 @@ struct typedesc_ops_s {
   {proto_equal, proto_tostring, proto_dup, proto_free},
   {array_equal, array_tostring, array_dup, array_free},
   {map_equal,   map_tostring,   map_dup,   map_free},
+  {map_equal,   map_tostring,   map_dup,   map_free},
+  {map_equal,   map_tostring,   map_dup,   map_free},
 };
 
 int TypeDesc_Equal(TypeDesc *t1, TypeDesc *t2)
@@ -313,6 +314,8 @@ TypeDesc *TypeDesc_Dup(TypeDesc *desc)
 
 void TypeDesc_Free(TypeDesc *desc)
 {
+  if (desc == NULL)
+    return;
   int kind = desc->kind;
   assert(kind > 0 && kind < nr_elts(typedesc_ops));
   typedesc_ops[kind].__free(desc);
@@ -358,6 +361,20 @@ TypeDesc *TypeDesc_New_Map(TypeDesc *key, TypeDesc *val)
   return desc;
 }
 
+TypeDesc *TypeDesc_New_Set(TypeDesc *base)
+{
+  TypeDesc *desc = typedesc_new(TYPE_SET);
+  desc->base = base;
+  return desc;
+}
+
+TypeDesc *TypeDesc_New_Varg(TypeDesc *base)
+{
+  TypeDesc *desc = typedesc_new(TYPE_VARG);
+  desc->base = base;
+  return desc;
+}
+
 static TypeDesc *cnstring_to_klass(char *str, int len)
 {
   TypeDesc *desc;
@@ -394,7 +411,7 @@ Vector *String_To_TypeDescList(char *str)
   while ((ch = *str) != '\0') {
     if (ch == '.') {
       assert(str[1] == '.' && str[2] == '.');
-      desc = &Varg_Type;
+      desc = &Varg_Any_Type;
       Vector_Append(v, desc);
       str += 3;
       assert(!*str);

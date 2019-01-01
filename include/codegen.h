@@ -23,9 +23,8 @@
 #ifndef _KOALA_CODEGEN_H_
 #define _KOALA_CODEGEN_H_
 
+#include "image.h"
 #include "opcode.h"
-#include "list.h"
-#include "symbol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,8 +66,8 @@ typedef struct jmp_inst {
 typedef struct codeblock {
   int bytes;
   struct list_head insts;
-  struct codeblock *next;  /* control flow */
-  int bret;                /* false, no OP_RET, needs add one */
+  struct codeblock *next; /* control flow */
+  int ret;                /* false, no OP_RET, needs add one */
 } CodeBlock;
 
 int OpCode_ArgCount(uint8 op);
@@ -78,16 +77,14 @@ Inst *Inst_New(uint8 op, Argument *val);
 void Inst_Free(Inst *i);
 Inst *Inst_Append(CodeBlock *b, uint8 op, Argument *val);
 Inst *Inst_Append_NoArg(CodeBlock *b, uint8 op);
-
 JmpInst *JmpInst_New(Inst *inst, int type);
 void JmpInst_Free(JmpInst *jmp);
 
 CodeBlock *CodeBlock_New(void);
-void CodeBlock_Free(CodeBlock *b);
+void CodeBlock_Free(CodeBlock *block);
 void CodeBlock_Merge(CodeBlock *from, CodeBlock *to);
 void CodeBlock_Show(CodeBlock *block);
-
-void Generate_KLC_File(STable *stbl, char *pkgname, char *pkgfile);
+int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
 
 #ifdef __cplusplus
 }

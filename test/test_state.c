@@ -8,7 +8,7 @@
 
 void test_state(void)
 {
-  Package *pkg = (Package *)Koala_Get_Package("lang");
+  PackageObject *pkg = (PackageObject *)Koala_Get_Package("lang");
   Package_Add_Var(pkg, "Foo", &Int_Type, 0);
   Package_Add_Var(pkg, "Bar", &Int_Type, 0);
   Koala_Add_Package("github.com/koala", pkg);

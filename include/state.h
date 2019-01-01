@@ -24,7 +24,7 @@
 #define _KOALA_STATE_H_
 
 #include "atomstring.h"
-#include "package.h"
+#include "packageobject.h"
 #include "properties.h"
 #include "env.h"
 
@@ -49,7 +49,7 @@ typedef struct pkgnode {
   /* see PkgNodeKind */
   union {
     Vector *children;
-    Package *pkg;
+    PackageObject *pkg;
   };
 } PkgNode;
 
@@ -71,12 +71,12 @@ typedef struct globalstate {
 extern GlobalState gState;
 void Koala_Initialize(void);
 void Koala_Finalize(void);
-int Koala_Add_Package(char *path, Package *pkg);
+int Koala_Add_Package(char *path, PackageObject *pkg);
 Object *Koala_Load_Package(char *path);
 Object *Koala_Get_Package(char *path);
 void Koala_Add_Property(char *key, char *value);
-int Koala_Set_Value(Package *pkg, char *name, Object *value);
-Object *Koala_Get_Value(Package *pkg, char *name);
+int Koala_Set_Value(PackageObject *pkg, char *name, Object *value);
+Object *Koala_Get_Value(PackageObject *pkg, char *name);
 void Koala_Show_Packages(void);
 
 #ifdef __cplusplus

@@ -1,12 +1,10 @@
 {
-	"workbench.startupEditor": "none",
 	"workbench.statusBar.visible": true,
 	"workbench.colorTheme": "One Dark Pro",
 	"workbench.iconTheme": "vs-seti",
 	"workbench.activityBar.visible": false,
-	"editor.fontFamily": "'Operator Mono Light', 'Ubuntu Mono'",
-	"editor.fontLigatures": true,
-	"editor.fontWeight": "100",
+	"editor.fontFamily": "'Operator Mono Light'",
+	"editor.fontWeight": "normal",
 	"editor.fontSize": 14,
 	"editor.tabSize": 2,
 	"editor.insertSpaces": true,
@@ -89,10 +87,11 @@
 		"textMateRules": [{
 				"scope": "comment",
 				"settings": {
-						"fontStyle": ""
+						"fontStyle": "",
 				}
 		}]
 	},
 	"window.zoomLevel": 0,
-	"C_Cpp.intelliSenseEngineFallback": "Enabled"
+	"C_Cpp.intelliSenseEngineFallback": "Enabled",
+	"C_Cpp.default.cStandard": "c11"
 }

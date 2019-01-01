@@ -250,3 +250,16 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
 
   return 0;
 }
+
+void HashTable_Visit(HashTable *table, visitfunc visit,  void *arg)
+{
+  if (table == NULL)
+    return;
+
+  struct list_head *pos, *nxt;
+  HashNode *hnode;
+  list_for_each_safe(pos, nxt, &table->head) {
+    hnode = container_of(pos, HashNode, llink);
+    visit(hnode, arg);
+  }
+}

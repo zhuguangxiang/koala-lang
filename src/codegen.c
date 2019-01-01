@@ -21,7 +21,6 @@
  */
 
 #include "codegen.h"
-#include "image.h"
 #include "buffer.h"
 #include "mem.h"
 #include "log.h"
@@ -134,27 +133,24 @@ void JmpInst_Free(JmpInst *jmp)
 CodeBlock *CodeBlock_New(void)
 {
   CodeBlock *b = calloc(1, sizeof(CodeBlock));
-  //init_list_head(&b->link);
-  //STable_Init(&b->stbl, atbl);
   init_list_head(&b->insts);
   return b;
 }
 
-void CodeBlock_Free(CodeBlock *b)
+void CodeBlock_Free(CodeBlock *block)
 {
-  if (!b) return;
-  //assert(list_unlinked(&b->link));
-  //STable_Fini(&b->stbl);
+  if (block == NULL)
+    return;
 
   Inst *i;
   struct list_head *p, *n;
-  list_for_each_safe(p, n, &b->insts) {
+  list_for_each_safe(p, n, &block->insts) {
     i = container_of(p, Inst, link);
     list_del(&i->link);
     Inst_Free(i);
   }
 
-  free(b);
+  free(block);
 }
 
 void CodeBlock_Merge(CodeBlock *from, CodeBlock *to)
@@ -186,8 +182,6 @@ void CodeBlock_Merge(CodeBlock *from, CodeBlock *to)
     b = b->next;
   }
 }
-
-#if 1
 
 static void arg_print(char *buf, int sz, Argument *val)
 {
@@ -230,8 +224,8 @@ void CodeBlock_Show(CodeBlock *block)
 
   char buf[64];
 
-  Log_Debug("---------CodeBlock-------");
-  Log_Debug("insts:%d", block->bytes);
+  printf("---------CodeBlock-------");
+  printf("insts:%d", block->bytes);
   if (!list_empty(&block->insts)) {
     int cnt = 0;
     Inst *i;
@@ -246,9 +240,8 @@ void CodeBlock_Show(CodeBlock *block)
       printf("-----------------\n");
     }
   }
-  Log_Debug("--------CodeBlock End----");
+  printf("--------CodeBlock End----");
 }
-#endif
 
 void Inst_Gen(KImage *image, Buffer *buf, Inst *i)
 {
@@ -350,159 +343,19 @@ void Inst_Gen(KImage *image, Buffer *buf, Inst *i)
   }
 }
 
-static void add_locvar(KImage *image, int index, Symbol *sym, int incls)
+int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code)
 {
-  if (Vector_Size(&sym->locvec) <= 0) {
-    if (incls)
-      Log_Debug("     no vars");
-    else
-      Log_Debug("   no vars");
-    return;
+  Buffer buf;
+  Buffer_Init(&buf, 32);
+  Inst *i;
+  struct list_head *pos;
+  list_for_each(pos, &block->insts) {
+    i = container_of(pos, Inst, link);
+    Inst_Gen(image, &buf, i);
   }
-
-  Symbol *item;
-  Vector_ForEach(item, &sym->locvec) {
-    if (incls)
-      Log_Debug("     var '%s'", item->name);
-    else
-      Log_Debug("   var '%s'", item->name);
-    KImage_Add_LocVar(image, item->name, item->desc, item->index, index);
-  }
-}
-
-struct gencode_struct {
-  int bcls;
-  KImage *image;
-  char *clazz;
-};
-
-static void __gen_code_fn(Symbol *sym, void *arg)
-{
-  struct gencode_struct *tmp = arg;
-  switch (sym->kind) {
-    case SYM_VAR: {
-      if (sym->inherited) {
-        assert(tmp->bcls);
-        break;
-      }
-
-      if (tmp->bcls) {
-        Log_Debug("   var '%s'", sym->name);
-        KImage_Add_Field(tmp->image, tmp->clazz, sym->name, sym->desc);
-      } else {
-        Log_Debug("%s %s:", sym->konst ? "const" : "var",
-          sym->name);
-        if (sym->konst)
-          KImage_Add_Var(tmp->image, sym->name, sym->desc, 1);
-        else
-          KImage_Add_Var(tmp->image, sym->name, sym->desc, 0);
-      }
-      break;
-    }
-    case SYM_PROTO: {
-      if (sym->inherited) {
-        assert(tmp->bcls);
-        break;
-      }
-      if (tmp->bcls) {
-        Log_Debug("   func %s:", sym->name);
-      } else {
-        Log_Debug("func %s:", sym->name);
-      }
-      CodeBlock *b = sym->ptr;
-      int locvars = sym->locvars;
-      KImage *image = tmp->image;
-
-      Buffer buf;
-      Buffer_Init(&buf, 32);
-      Inst *i;
-      struct list_head *pos;
-      list_for_each(pos, &b->insts) {
-        i = container_of(pos, Inst, link);
-        Inst_Gen(image, &buf, i);
-      }
-
-      uint8 *data = Buffer_RawData(&buf);
-      int size = Buffer_Size(&buf);
-      //code_show(data, size);
-      Buffer_Fini(&buf);
-
-      int index;
-      if (tmp->bcls) {
-        index = KImage_Add_Method(tmp->image, tmp->clazz, sym->name,
-                                  sym->desc, data, size);
-        add_locvar(tmp->image, index, sym, 1);
-      } else {
-        index = KImage_Add_Func(tmp->image, sym->name, sym->desc, data, size);
-        add_locvar(tmp->image, index, sym, 0);
-      }
-      break;
-    }
-    case SYM_CLASS: {
-      Log_Debug("----------------------");
-      Log_Debug("class %s:", sym->name);
-      char *path = NULL;
-      char *type = NULL;
-      if (sym->super) {
-        path = sym->super->desc->klass.path.str;
-        type = sym->super->desc->klass.type.str;
-      }
-      int size = Vector_Size(&sym->traits);
-      Vector v;
-      Vector_Init(&v);
-      Symbol *trait;
-      for (int i = 0; i < size; i++) {
-        trait = Vector_Get(&sym->traits, i);
-        Vector_Append(&v, trait->desc);
-      }
-      KImage_Add_Class(tmp->image, sym->name, path, type, &v);
-      Vector_Fini(&v, NULL, NULL);
-      struct gencode_struct tmp2 = {1, tmp->image, sym->name};
-      STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
-      break;
-    }
-    case SYM_IPROTO: {
-      Log_Debug("   abstract func %s;", sym->name);
-      KImage_Add_IMeth(tmp->image, tmp->clazz, sym->name, sym->desc);
-      break;
-    }
-    case SYM_TRAIT: {
-      Log_Debug("----------------------");
-      Log_Debug("trait %s:", sym->name);
-      int size = Vector_Size(&sym->traits);
-      Vector v;
-      Vector_Init(&v);
-      Symbol *trait;
-      for (int i = 0; i < size; i++) {
-        trait = Vector_Get(&sym->traits, i);
-        Vector_Append(&v, trait->desc);
-      }
-      KImage_Add_Trait(tmp->image, sym->name, &v);
-      Vector_Fini(&v, NULL, NULL);
-      struct gencode_struct tmp2 = {1, tmp->image, sym->name};
-      STable_Traverse(sym->ptr, __gen_code_fn, &tmp2);
-      break;
-    }
-    case SYM_TYPEALIAS: {
-      break;
-    }
-    default: {
-      assert(0);
-    }
-  }
-}
-
-void Generate_KLC_File(STable *stbl, char *pkgname, char *pkgfile)
-{
-  printf("----------codegen------------\n");
-  KImage *image = KImage_New(pkgname);
-  struct gencode_struct tmp = {0, image, NULL};
-  STable_Traverse(stbl, __gen_code_fn, &tmp);
-  Log_Debug("----------------------");
-  KImage_Finish(image);
-#if 1
-  //KImage_Show(image);
-#endif
-  KImage_Write_File(image, pkgfile);
-  printf("----------codegen end--------\n");
+  uint8 *data = Buffer_RawData(&buf);
+  int size = Buffer_Size(&buf);
+  Buffer_Fini(&buf);
+  *code = data;
+  return size;
 }

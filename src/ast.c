@@ -1,417 +1,838 @@
+/*
+ * Copyright (c) 2018 James, https://github.com/zhuguangxiang
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
 
-#include "ast.h"
+#include "parser.h"
+#include "hashfunc.h"
+#include "mem.h"
 #include "log.h"
+#include "state.h"
+#include "packageobject.h"
 
-/*-------------------------------------------------------------------------*/
-
-expr_t *expr_new(int kind)
+IdType *New_IdType(char *id, TypeDesc *desc)
 {
-  expr_t *exp = calloc(1, sizeof(expr_t));
-  exp->kind = kind;
+  IdType *idType = mm_alloc(sizeof(IdType));
+  idType->id = id;
+  idType->desc = desc;
+  return idType;
+}
+
+Expr *Expr_From_Nil(void)
+{
+  Expr *exp = mm_alloc(sizeof(Expr));
+  exp->kind = NIL_KIND;
   return exp;
 }
 
-expr_t *expr_from_id(char *id)
+Expr *Expr_From_Self(void)
 {
-  expr_t *expr = expr_new(ID_KIND);
-  expr->id = id;
-  return expr;
+  Expr *exp = mm_alloc(sizeof(Expr));
+  exp->kind = SELF_KIND;
+  return exp;
 }
 
-expr_t *expr_from_int(int64 ival)
+Expr *Expr_From_Super(void)
 {
-  expr_t *expr = expr_new(INT_KIND);
-  expr->desc = &Int_Type;
-  expr->ival = ival;
-  return expr;
+  Expr *exp = mm_alloc(sizeof(Expr));
+  exp->kind = SUPER_KIND;
+  return exp;
 }
 
-expr_t *expr_from_float(float64 fval)
+Expr *Expr_From_Integer(int64 val)
 {
-  expr_t *expr = expr_new(FLOAT_KIND);
-  expr->desc = &Float_Type;
-  expr->fval = fval;
-  return expr;
+  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  baseExp->kind = INT_KIND;
+  baseExp->ival = val;
+  return (Expr *)baseExp;
 }
 
-expr_t *expr_from_string(char *str)
+Expr *Expr_From_Float(float64 val)
 {
-  expr_t *expr = expr_new(STRING_KIND);
-  expr->desc = &String_Type;
-  expr->str = str;
-  return expr;
+  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  baseExp->kind = FLOAT_KIND;
+  baseExp->fval = val;
+  return (Expr *)baseExp;
 }
 
-expr_t *expr_from_bool(int bval)
+Expr *Expr_From_Bool(int val)
 {
-  expr_t *expr = expr_new(BOOL_KIND);
-  expr->desc = &Bool_Type;
-  expr->bval = bval;
-  return expr;
+  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  baseExp->kind = BOOL_KIND;
+  baseExp->bval = val;
+  return (Expr *)baseExp;
 }
 
-expr_t *expr_from_self(void)
+Expr *Expr_From_String(char *val)
 {
-  expr_t *expr = expr_new(SELF_KIND);
-  expr->desc = NULL;
-  return expr;
+  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  baseExp->kind = STRING_KIND;
+  baseExp->str = val;
+  return (Expr *)baseExp;
 }
 
-expr_t *expr_from_super(void)
+Expr *Expr_From_Char(uint32 val)
 {
-  expr_t *expr = expr_new(SUPER_KIND);
-  expr->desc = NULL;
-  return expr;
+  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  baseExp->kind = CHAR_KIND;
+  baseExp->ch = val;
+  return (Expr *)baseExp;
 }
 
-expr_t *expr_from_typeof(void)
+Expr *Expr_From_Id(char *val)
 {
-  expr_t *expr = expr_new(TYPEOF_KIND);
-  expr->desc = NULL;
-  return expr;
+  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  baseExp->kind = ID_KIND;
+  baseExp->id = val;
+  return (Expr *)baseExp;
 }
 
-expr_t *expr_from_expr(expr_t *exp)
+Expr *Expr_From_Unary(UnaryOpKind op, Expr *exp)
 {
-  expr_t *expr = expr_new(EXP_KIND);
-  expr->desc = NULL;
-  expr->exp  = exp;
-  return expr;
+  UnaryExpr *unaryExp = mm_alloc(sizeof(UnaryExpr));
+  unaryExp->kind = UNARY_KIND;
+  unaryExp->op = op;
+  unaryExp->exp = exp;
+  return (Expr *)unaryExp;
 }
 
-expr_t *expr_from_nil(void)
+Expr *Expr_From_Binary(BinaryOpKind op, Expr *left, Expr *right)
 {
-  expr_t *expr = expr_new(NIL_KIND);
-  expr->desc = NULL;
-  return expr;
+  BinaryExpr *binaryExp = mm_alloc(sizeof(BinaryExpr));
+  binaryExp->kind = BINARY_KIND;
+  binaryExp->op = op;
+  binaryExp->lexp = left;
+  binaryExp->rexp = right;
+  return (Expr *)binaryExp;
 }
 
-expr_t *expr_from_array(Vector *explist)
+Expr *Expr_From_Attriubte(char *id, Expr *left)
 {
-  expr_t *expr = expr_new(ARRAY_KIND);
-  expr->list = explist;
-  return expr;
+  AttributeExpr *attrExp = mm_alloc(sizeof(AttributeExpr));
+  attrExp->kind = ATTRIBUTE_KIND;
+  attrExp->id = id;
+  attrExp->left = left;
+  return (Expr *)attrExp;
 }
 
-expr_t *expr_from_anonymous_func(Vector *pvec, Vector *rvec, Vector *body)
+Expr *Expr_From_SubScript(Expr *index, Expr *left)
 {
-  expr_t *expr = expr_new(ANONYOUS_FUNC_KIND);
-  expr->anonyous_func.pvec = pvec;
-  expr->anonyous_func.rvec = rvec;
-  expr->anonyous_func.body = body;
-  return expr;
+  SubScriptExpr *subExp = mm_alloc(sizeof(SubScriptExpr));
+  subExp->kind = SUBSCRIPT_KIND;
+  subExp->index = index;
+  subExp->left = left;
+  return (Expr *)subExp;
 }
 
-expr_t *expr_from_trailer(enum expr_kind kind, void *trailer, expr_t *left)
+Expr *Expr_From_Call(Vector *args, Expr *left)
 {
-  expr_t *expr = expr_new(kind);
-  switch (kind) {
-    case ATTRIBUTE_KIND: {
-      expr->ctx = EXPR_LOAD;
-      expr->attribute.left = left;
-      expr->attribute.id = trailer;
-      break;
-    }
-    case SUBSCRIPT_KIND: {
-      expr->subscript.left = left;
-      expr->subscript.index = trailer;
-      break;
-    }
-    case CALL_KIND: {
-      expr->call.left = left;
-      expr->call.args = trailer;
-      break;
-    }
-    default: {
-      assert(0);
+  CallExpr *callExp = mm_alloc(sizeof(CallExpr));
+  callExp->kind = CALL_KIND;
+  callExp->args = args;
+  callExp->left = left;
+  return (Expr *)callExp;
+}
+
+Stmt *__Stmt_From_VarDecl(char *id, TypeDesc *desc, Expr *exp, int k)
+{
+  VarDeclStmt *varStmt = mm_alloc(sizeof(VarDeclStmt));
+  varStmt->kind = VAR_KIND;
+  varStmt->id = id;
+  varStmt->desc = desc;
+  varStmt->exp = exp;
+  varStmt->konst = k;
+  return (Stmt *)varStmt;
+}
+
+Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeDesc *desc, Expr *exp, int k)
+{
+  VarListDeclStmt *varListStmt = mm_alloc(sizeof(VarListDeclStmt));
+  varListStmt->kind = VARLIST_KIND;
+  varListStmt->ids = ids;
+  varListStmt->desc = desc;
+  varListStmt->exp = exp;
+  varListStmt->konst = k;
+  return (Stmt *)varListStmt;
+}
+
+Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right)
+{
+  AssignStmt *assignStmt = mm_alloc(sizeof(AssignStmt));
+  assignStmt->kind = ASSIGN_KIND;
+  assignStmt->op = op;
+  assignStmt->left = left;
+  assignStmt->right = right;
+  return (Stmt *)assignStmt;
+}
+
+Stmt *Stmt_From_AssignList(Vector *left, Expr *right)
+{
+  AssignListStmt *assignListStmt = mm_alloc(sizeof(AssignListStmt));
+  assignListStmt->kind = ASSIGNLIST_KIND;
+  assignListStmt->left = left;
+  assignListStmt->right = right;
+  return (Stmt *)assignListStmt;
+}
+
+Stmt *Stmt_From_FuncDecl(char *id, Vector *args, Vector *rets, Vector *stmts)
+{
+  FuncDeclStmt *funcStmt = mm_alloc(sizeof(FuncDeclStmt));
+  funcStmt->kind = FUNC_KIND;
+  funcStmt->id = id;
+  funcStmt->args = args;
+  funcStmt->rets = rets;
+  funcStmt->body = stmts;
+  return (Stmt *)funcStmt;
+}
+
+Stmt *Stmt_From_Expr(Expr *exp)
+{
+  ExprStmt *expStmt = mm_alloc(sizeof(ExprStmt));
+  expStmt->kind = EXPR_KIND;
+  expStmt->exp = exp;
+  return (Stmt *)expStmt;
+}
+
+Stmt *Stmt_From_Return(Vector *exps)
+{
+  ReturnStmt *retStmt = mm_alloc(sizeof(ReturnStmt));
+  retStmt->kind = RETURN_KIND;
+  retStmt->exps = exps;
+  return (Stmt *)retStmt;
+}
+
+Stmt *Stmt_From_List(Vector *vec)
+{
+  ListStmt *listStmt = mm_alloc(sizeof(ListStmt));
+  listStmt->kind = LIST_KIND;
+  listStmt->vec = vec;
+  return (Stmt *)listStmt;
+}
+
+Stmt *Stmt_From_TypeAlias(char *id, TypeDesc *desc)
+{
+  TypeAliasStmt *aliasStmt = mm_alloc(sizeof(TypeAliasStmt));
+  aliasStmt->kind = TYPEALIAS_KIND;
+  aliasStmt->id = id;
+  aliasStmt->desc = desc;
+  return (Stmt *)aliasStmt;
+}
+
+Stmt *Stmt_From_Class(TypeDesc *super, Vector *traits)
+{
+  ClassStmt *clsStmt = mm_alloc(sizeof(ClassStmt));
+  clsStmt->kind = CLASS_KIND;
+  clsStmt->super = super;
+  clsStmt->traits = traits;
+  return (Stmt *)clsStmt;
+}
+
+Stmt *Stmt_From_Trait(char *id, Vector *traits, Vector *body)
+{
+  TraitStmt *traitStmt = mm_alloc(sizeof(TraitStmt));
+  traitStmt->kind = TRAIT_KIND;
+  traitStmt->id = id;
+  traitStmt->traits = traits;
+  traitStmt->body = body;
+  return (Stmt *)traitStmt;
+}
+
+Stmt *Stmt_From_ProtoDecl(char *id, Vector *args, Vector *rets)
+{
+  ProtoDeclStmt *protoStmt = mm_alloc(sizeof(ProtoDeclStmt));
+  protoStmt->kind = PROTO_KIND;
+  protoStmt->id = id;
+  protoStmt->args = args;
+  protoStmt->rets = rets;
+  return (Stmt *)protoStmt;
+}
+
+int Parser_Set_Package(ParserState *ps, char *pkgname, YYLTYPE *loc)
+{
+  ps->pkgname = pkgname;
+
+  PackageInfo *pkg = ps->pkg;
+  if (pkg->pkgname == NULL) {
+    pkg->pkgname = strdup(pkgname);
+    return 0;
+  }
+
+  if (strcmp(pkg->pkgname, pkgname)) {
+    Parser_Synatx_Error(ps, loc, "found packages %s(%s) and %s(%s)",
+      pkg->pkgname, pkg->lastfile, pkgname, ps->filename);
+    return -1;
+  }
+
+  return 0;
+}
+
+typedef struct import {
+  HashNode hnode;
+  char *path;
+  SymbolTable *stbl;
+} Import;
+
+static uint32 import_hash_func(void *k)
+{
+  Import *import = k;
+  return hash_string(import->path);
+}
+
+static int import_equal_func(void *k1, void *k2)
+{
+  Import *import1 = k1;
+  Import *import2 = k2;
+  return !strcmp(import1->path, import2->path);
+}
+
+static void import_free_func(HashNode *hnode, void *arg)
+{
+  UNUSED_PARAMETER(arg);
+  Import *import = container_of(hnode, Import, hnode);
+  free(import->path);
+  free(import);
+}
+
+void Init_Imports(ParserState *ps)
+{
+  HashTable_Init(&ps->imports, import_hash_func, import_equal_func);
+  ps->extstbl = STable_New();
+}
+
+void Fini_Imports(ParserState *ps)
+{
+  HashTable_Fini(&ps->imports, import_free_func, NULL);
+  STable_Free(ps->extstbl, NULL, NULL);
+}
+
+static Import *__find_import(ParserState *ps, char *path)
+{
+  Import key = {.path = path};
+  HashNode *hnode = HashTable_Find(&ps->imports, &key);
+  if (hnode == NULL)
+    return NULL;
+  return container_of(hnode, Import, hnode);
+}
+
+static Import *__new_import(ParserState *ps, char *path, SymbolTable *stbl)
+{
+  Import *import = mm_alloc(sizeof(Import));
+  import->path = strdup(path);
+  Init_HashNode(&import->hnode, import);
+  import->stbl = stbl;
+  int result = HashTable_Insert(&ps->imports, &import->hnode);
+  assert(!result);
+  return import;
+}
+
+struct extpkg {
+  char *name;
+  SymbolTable *stbl;
+};
+
+static struct extpkg *new_extpkg(char *name, SymbolTable *stbl)
+{
+  struct extpkg *extpkg = mm_alloc(sizeof(struct extpkg));
+  extpkg->name = name;
+  extpkg->stbl = stbl;
+  return extpkg;
+}
+
+static void free_extpkg(struct extpkg *extpkg)
+{
+  mm_free(extpkg);
+}
+
+static void compile_pkg(char *path, struct options *opts)
+{
+  Log_Debug("load package '%s' failed, try to compile it", path);
+  pid_t pid = fork();
+  if (pid == 0) {
+    Log_Debug("child process %d", getpid());
+    int argc = 3 + options_number(opts);
+    char *argv[argc];
+    argv[0] = "koalac";
+    options_toarray(opts, argv, 1);
+    argv[argc - 2] = path;
+    argv[argc - 1] = NULL;
+    execvp("koalac", argv);
+    assert(0); /* never go here */
+  }
+  int status = 0;
+  pid = wait(&status);
+  Log_Debug("child process %d return status:%d", pid, status);
+  if (WIFEXITED(status)) {
+    int exitstatus = WEXITSTATUS(status);
+    Log_Debug("child process %d: %s", pid, strerror(exitstatus));
+    if (exitstatus)
+      exit(-1);
+  }
+}
+
+static void __to_stbl_fn(HashNode *hnode, void *arg)
+{
+  SymbolTable *stbl = arg;
+  MemberDef *m = container_of(hnode, MemberDef, hnode);
+
+  switch (m->kind) {
+  case MEMBER_CLASS: {
+    ClassSymbol *clsSym = STable_Add_Class(stbl, m->name);
+    HashTable_Visit(m->klazz->table, __to_stbl_fn, clsSym->stbl);
+    break;
+  }
+  case MEMBER_TRAIT: {
+    ClassSymbol *clsSym = STable_Add_Trait(stbl, m->name);
+    HashTable_Visit(m->klazz->table, __to_stbl_fn, clsSym->stbl);
+    break;
+  }
+  case MEMBER_VAR: {
+    if (m->k)
+      STable_Add_Const(stbl, m->name, m->desc);
+    else
+      STable_Add_Var(stbl, m->name, m->desc);
+    break;
+  }
+  case MEMBER_CODE: {
+    STable_Add_Func(stbl, m->name, m->desc);
+    break;
+  }
+  case MEMBER_PROTO: {
+    STable_Add_IFunc(stbl, m->name, m->desc);
+    break;
+  }
+  default: {
+    assert(0);
+    break;
+  }
+  }
+}
+
+static SymbolTable *pkg_to_stbl(Object *ob)
+{
+  PackageObject *pkg = (PackageObject *)ob;
+  SymbolTable *stbl = STable_New();
+  HashTable_Visit(pkg->table, __to_stbl_fn, stbl);
+  return stbl;
+}
+
+static struct extpkg *load_extpkg(ParserState *ps, char *path)
+{
+  Object *pkg = Koala_Get_Package(path);
+  if (pkg == NULL) {
+    compile_pkg(path, ps->pkg->opts);
+    pkg = Koala_Load_Package(path);
+    if (pkg == NULL)
+      return NULL;
+  }
+
+  SymbolTable *stbl = pkg_to_stbl(pkg);
+  if (stbl == NULL)
+    return NULL;
+
+  return new_extpkg(Package_Name(pkg), stbl);
+}
+
+Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
+  YYLTYPE *idloc, YYLTYPE *pathloc)
+{
+  Import *import =  __find_import(ps, path);
+  if (import != NULL) {
+    Parser_Synatx_Error(ps, pathloc,
+      "Package '%s' is imported duplicately.", path);
+    return NULL;
+  }
+
+  ImportSymbol *sym;
+  if (id != NULL) {
+    sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
+    if (sym != NULL) {
+      Parser_Synatx_Error(ps, idloc, "Symbol '%s' is duplicated.", path);
+      return NULL;
     }
   }
-  return expr;
-}
 
-expr_t *expr_from_binary(binary_op_t kind, expr_t *left, expr_t *right)
-{
-  expr_t *exp = expr_new(BINARY_KIND);
-  exp->desc = left->desc;
-  exp->binary.left = left;
-  exp->binary.op = kind;
-  exp->binary.right = right;
-  return exp;
-}
-
-expr_t *expr_from_unary(unary_op_t kind, expr_t *expr)
-{
-  expr_t *exp = expr_new(UNARY_KIND);
-  exp->desc = expr->desc;
-  exp->unary.op = kind;
-  exp->unary.operand = expr;
-  return exp;
-}
-
-expr_t *expr_get_rrexp(expr_t *exp)
-{
-  expr_t *e = exp;
-  while (e && e->right) {
-    e = e->right;
+  struct extpkg *extpkg = load_extpkg(ps, path);
+  if (extpkg == NULL) {
+    Parser_Synatx_Error(ps, pathloc, "Package '%s' is loaded failure.", path);
+    return NULL;
   }
-  return e;
+
+  /* use package-name as imported-name if imported-name is not set */
+  if (id == NULL)
+    id = extpkg->name;
+
+  /* save external symbol table and free struct extpkg */
+  SymbolTable *extstbl = extpkg->stbl;
+  free_extpkg(extpkg);
+
+  sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
+  if (sym != NULL) {
+    free_extpkg(extpkg);
+    Parser_Synatx_Error(ps, idloc, "Symbol '%s' is duplicated.", path);
+    return NULL;
+  }
+
+  import = __new_import(ps, path, extstbl);
+  assert(import != NULL);
+
+  sym = STable_Add_Import(ps->extstbl, id);
+  assert(sym != NULL);
+  sym->import = import;
+
+  Log_Debug("add package '%s <- %s' successfully", id, path);
+
+  return (Symbol *)sym;
 }
 
-/*--------------------------------------------------------------------------*/
-
-stmt_t *stmt_new(int kind)
+static inline void __add_stmt(ParserState *ps, Stmt *stmt)
 {
-  stmt_t *stmt = calloc(1, sizeof(stmt_t));
-  stmt->kind = kind;
-  return stmt;
+  Vector_Append(&ps->stmts, stmt);
 }
 
-static inline void stmt_free(stmt_t *stmt)
+static void __new_var(ParserState *ps, char *id, TypeDesc *desc, int konst)
 {
+  VarSymbol *sym;
+  if (konst)
+    sym = STable_Add_Const(ps->u->stbl, id, desc);
+  else
+    sym = STable_Add_Var(ps->u->stbl, id, desc);
+
+  if (sym != NULL) {
+    if (konst)
+      Log_Debug("add const '%s' successfully", id);
+    else
+      Log_Debug("add var '%s' successfully", id);
+    sym->parent = ps->u->sym;
+  } else {
+    Parser_Synatx_Error(ps, NULL, "Symbol '%s' is duplicated", id);
+  }
+}
+
+void Parser_New_Variables(ParserState *ps, Stmt *stmt)
+{
+  if (stmt == NULL)
+    return;
+
+  if (stmt->kind == LIST_KIND) {
+    ListStmt *listStmt = (ListStmt *)stmt;
+    Stmt *s;
+    VarDeclStmt *varStmt;
+    Vector_ForEach(s, listStmt->vec) {
+      assert(s->kind == VAR_KIND);
+      __add_stmt(ps, s);
+      varStmt = (VarDeclStmt *)s;
+      __new_var(ps, varStmt->id, varStmt->desc, varStmt->konst);
+    }
+    free(stmt);
+  } else {
+    assert(stmt->kind == VARLIST_KIND);
+    __add_stmt(ps, stmt);
+    VarListDeclStmt *varsStmt = (VarListDeclStmt *)stmt;
+    char *id;
+    Vector_ForEach(id, varsStmt->ids) {
+      __new_var(ps, id, varsStmt->desc, varsStmt->konst);
+    }
+  }
+}
+
+static int __validate_count(ParserState *ps, int lsz, int rsz)
+{
+  if (lsz < rsz) {
+    /* var a = foo(), 100; whatever foo() is single or multi values */
+    Parser_Synatx_Error(ps, NULL, "extra expression in var declaration");
+    return 0;
+  }
+
+  if (lsz > rsz) {
+    /*
+     * if exprs > 1, it has an error
+     * if exprs == 1, it's partially ok and must be a multi-values exprs
+     * if exprs == 0, it's ok
+    */
+    if (rsz > 1) {
+      Parser_Synatx_Error(ps, NULL, "missing expression in var declaration");
+      return 0;
+    }
+  }
+
+  /* if ids is equal with exprs, it MAYBE ok and will be checked in later */
+  return 1;
+}
+
+Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
+  Vector *exps, int k)
+{
+  int isz = Vector_Size(ids);
+  int esz = Vector_Size(exps);
+  if (!__validate_count(ps, isz, esz))
+    return NULL;
+
+  if (isz == esz) {
+    /* count of left ids == count of right expressions */
+    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+
+    char *id;
+    Expr *exp;
+    Stmt *varStmt;
+    Vector_ForEach(id, ids) {
+      exp = Vector_Get(exps, i);
+      varStmt = __Stmt_From_VarDecl(id, desc, exp, k);
+      Vector_Append(listStmt->vec, varStmt);
+    }
+    return (Stmt *)listStmt;
+  }
+
+  assert(isz > esz && esz >=0 && esz <= 1);
+  if (esz == 1) {
+    Expr *e = Vector_Get(exps, 0);
+    return __Stmt_From_VarListDecl(ids, desc, e, k);
+  }
+
+  /* count of right expressions is 0 */
+  assert(exps == NULL);
+  ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+
+  char *id;
+  Stmt *varStmt;
+  Vector_ForEach(id, ids) {
+    varStmt = __Stmt_From_VarDecl(id, desc, NULL, k);
+    Vector_Append(listStmt->vec, varStmt);
+  }
+  return (Stmt *)listStmt;
+}
+
+Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
+{
+  int lsz = Vector_Size(left);
+  int rsz = Vector_Size(right);
+  if (!__validate_count(ps, lsz, rsz))
+    return NULL;
+
+  if (lsz == rsz) {
+    /* count of left expressions == count of right expressions */
+    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+
+    char *id;
+    Expr *lexp, *rexp;
+    Stmt *assignStmt;
+    Vector_ForEach(lexp, left) {
+      rexp = Vector_Get(right, i);
+      assignStmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
+      Vector_Append(listStmt->vec, assignStmt);
+    }
+    return (Stmt *)listStmt;
+  }
+
+  assert(lsz > rsz && rsz >=0 && rsz <= 1);
+  Expr *e = NULL;
+  if (rsz == 1)
+    e = Vector_Get(right, 0);
+  return Stmt_From_AssignList(left, e);
+}
+
+static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
+{
+  assert(stmt->kind == FUNC_KIND);
+  FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
+  TypeDesc *proto;
+  FuncSymbol *sym;
+  Vector *pdesc = NULL;
+  Vector *rdesc = NULL;
+  IdType *idType;
+
+  if (funcStmt->args != NULL) {
+    pdesc = Vector_New();
+    Vector_ForEach(idType, funcStmt->args) {
+      Vector_Append(pdesc, TypeDesc_Dup(idType->desc));
+    }
+  }
+  if (funcStmt->rets != NULL) {
+    rdesc = Vector_New();
+    Vector_ForEach(idType, funcStmt->rets) {
+      Vector_Append(rdesc, TypeDesc_Dup(idType->desc));
+    }
+  }
+  proto = TypeDesc_New_Proto(pdesc, rdesc);
+
+  sym = STable_Add_Func(ps->u->stbl, funcStmt->id, proto);
+  if (sym != NULL) {
+    Log_Debug("add func '%s' successfully", funcStmt->id);
+    sym->parent = ps->u->sym;
+  } else {
+    Parser_Synatx_Error(ps, NULL, "Symbol '%s' is duplicated.", funcStmt->id);
+  }
+}
+
+void Parser_New_Function(ParserState *ps, Stmt *stmt)
+{
+  if (stmt == NULL)
+    return;
+  __add_stmt(ps, stmt);
+  __parse_funcdecl(ps, stmt);
+}
+
+void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
+{
+  assert(stmt->kind == TYPEALIAS_KIND);
+  TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
+  STable_Add_Alias(ps->u->stbl, aliasStmt->id, aliasStmt->desc);
+  Log_Debug("add typealias '%s' successful", aliasStmt->id);
   free(stmt);
 }
 
-stmt_t *stmt_from_var(char *id, TypeDesc *desc, expr_t *exp, int konst)
+static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
 {
-  stmt_t *stmt = stmt_new(VAR_KIND);
-  stmt->var.id     = id;
-  stmt->var.desc   = desc;
-  stmt->var.exp    = exp;
-  stmt->var.konst = konst;
-  if (!desc && exp && exp->desc) stmt->var.desc = TypeDesc_Dup(exp->desc);
-  return stmt;
-}
-
-stmt_t *stmt_from_varlist(Vector *ids, TypeDesc *desc, expr_t *exp, int konst)
-{
-  stmt_t *stmt = stmt_new(VARLIST_KIND);
-  stmt->vars.ids    = ids;
-  stmt->vars.desc   = desc;
-  stmt->vars.exp    = exp;
-  stmt->vars.konst = konst;
-  return stmt;
-}
-
-stmt_t *stmt_from_func(char *id, Vector *args, Vector *rets, Vector *body)
-{
-  stmt_t *stmt = stmt_new(FUNC_KIND);
-  stmt->func.id   = id;
-  stmt->func.args = args;
-  stmt->func.rets = rets;
-  stmt->func.body = body;
-  return stmt;
-}
-
-stmt_t *stmt_from_proto(char *id, Vector *args, Vector *rets)
-{
-  stmt_t *stmt = stmt_new(PROTO_KIND);
-  stmt->proto.id   = id;
-  stmt->proto.args = args;
-  stmt->proto.rets = rets;
-  return stmt;
-}
-
-stmt_t *stmt_from_assign(expr_t *l, assign_op_kind_t op, expr_t *r)
-{
-  stmt_t *stmt = stmt_new(ASSIGN_KIND);
-  stmt->assign.left  = l;
-  stmt->assign.op    = op;
-  stmt->assign.right = r;
-  return stmt;
-}
-
-stmt_t *stmt_from_assignlist(Vector *left, expr_t *right)
-{
-  stmt_t *stmt = stmt_new(ASSIGNS_KIND);
-  stmt->assigns.left  = left;
-  stmt->assigns.right = right;
-  return stmt;
-}
-
-stmt_t *stmt_from_return(Vector *list)
-{
-  stmt_t *stmt = stmt_new(RETURN_KIND);
-  stmt->returns = list;
-  return stmt;
-}
-
-stmt_t *stmt_from_expr(expr_t *exp)
-{
-  stmt_t *stmt = stmt_new(EXPR_KIND);
-  stmt->exp = exp;
-  return stmt;
-}
-
-stmt_t *stmt_from_block(Vector *block)
-{
-  stmt_t *stmt = stmt_new(BLOCK_KIND);
-  stmt->block = block;
-  return stmt;
-}
-
-stmt_t *stmt_from_trait(char *id, Vector *traits, Vector *body)
-{
-  stmt_t *stmt = stmt_new(TRAIT_KIND);
-  stmt->class_info.id = id;
-  stmt->class_info.traits = traits;
-  stmt->class_info.body = body;
-  return stmt;
-}
-
-stmt_t *stmt_from_jump(int kind, int level)
-{
-  if (level <= 0) {
-    Log_Error("break or continue level must be > 0");
-    return NULL;
+  TypeDesc *proto = TypeDesc_New_Proto(stmt->args, stmt->rets);
+  IFuncSymbol *sym = STable_Add_IFunc(ps->u->stbl, stmt->id, proto);
+  if (sym != NULL) {
+    Log_Debug("add ifunc '%s' successfully", stmt->id);
+    sym->parent = ps->u->sym;
+  } else {
+    Parser_Synatx_Error(ps, NULL, "Symbol '%s' is duplicated", stmt->id);
+    TypeDesc_Free(proto);
   }
-  stmt_t *stmt = stmt_new(kind);
-  stmt->jump_stmt.level = level;
-  return stmt;
 }
 
-stmt_t *stmt_from_if(expr_t *test, Vector *body, stmt_t *orelse)
+void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
 {
-  stmt_t *stmt = stmt_new(IF_KIND);
-  stmt->if_stmt.test = test;
-  stmt->if_stmt.body = body;
-  stmt->if_stmt.orelse = orelse;
-  return stmt;
-}
+  __add_stmt(ps, stmt);
 
-struct test_block *new_test_block(expr_t *test, Vector *body)
-{
-  struct test_block *tb = malloc(sizeof(struct test_block));
-  tb->test = test;
-  tb->body = body;
-  return tb;
-}
-
-stmt_t *stmt_from_while(expr_t *test, Vector *body, int btest)
-{
-  stmt_t *stmt = stmt_new(WHILE_KIND);
-  stmt->while_stmt.btest = btest;
-  stmt->while_stmt.test  = test;
-  stmt->while_stmt.body  = body;
-  return stmt;
-}
-
-stmt_t *stmt_from_switch(expr_t *expr, Vector *case_seq)
-{
-  stmt_t *stmt = stmt_new(SWITCH_KIND);
-  stmt->switch_stmt.expr = expr;
-  stmt->switch_stmt.case_seq = case_seq;
-  return stmt;
-}
-
-stmt_t *stmt_from_for(stmt_t *init, stmt_t *test,
-                           stmt_t *incr, Vector *body)
-{
-  stmt_t *stmt = stmt_new(FOR_TRIPLE_KIND);
-  stmt->for_triple_stmt.init = init;
-  stmt->for_triple_stmt.test = test;
-  stmt->for_triple_stmt.incr = incr;
-  stmt->for_triple_stmt.body = body;
-  return stmt;
-}
-
-/*
-stmt_t *stmt_from_foreach(struct var *var, expr_t *expr,
-                             Vector *body, int bdecl)
-{
-  stmt_t *stmt = stmt_new(FOR_EACH_KIND);
-  stmt->for_each_stmt.bdecl = bdecl;
-  stmt->for_each_stmt.var   = var;
-  stmt->for_each_stmt.expr  = expr;
-  stmt->for_each_stmt.body  = body;
-  return stmt;
-}
-*/
-
-stmt_t *stmt_from_go(expr_t *expr)
-{
-  if (expr->kind != CALL_KIND) {
-    exit(0);
+  Vector *body;
+  ClassSymbol *sym;
+  if (stmt->kind == CLASS_KIND) {
+    ClassStmt *clsStmt = (ClassStmt *)stmt;
+    sym = STable_Add_Class(ps->u->stbl, clsStmt->id);
+    body = clsStmt->body;
+    Log_Debug("add class '%s' successfully", sym->name);
+  } else {
+    assert(stmt->kind == TRAIT_KIND);
+    TraitStmt *traitStmt = (TraitStmt *)stmt;
+    sym = STable_Add_Trait(ps->u->stbl, traitStmt->id);
+    body = traitStmt->body;
+    Log_Debug("add trait '%s' successfully", sym->name);
   }
 
-  stmt_t *stmt = stmt_new(GO_KIND);
-  stmt->go_stmt = expr;
-  return stmt;
-}
-
-stmt_t *stmt_from_typealias(char *id, TypeDesc *desc)
-{
-  stmt_t *stmt = stmt_new(TYPEALIAS_KIND);
-  stmt->typealias.id = id;
-  stmt->typealias.desc = desc;
-  return stmt;
-}
-
-stmt_t *stmt_from_list(void)
-{
-  stmt_t *stmt = stmt_new(LIST_KIND);
-  Vector_Init(&stmt->list);
-  return stmt;
-}
-
-void stmt_free_list(stmt_t *stmt)
-{
-  stmt_t *s;
-  Vector_ForEach(s, &stmt->list) {
-    stmt_free(s);
+  sym->parent = ps->u->sym;
+  Parser_Enter_Scope(ps, SCOPE_CLASS);
+  /* ClassSymbol */
+  Set_Unit_STable(ps->u, sym->stbl);
+  Set_Unit_Symbol(ps->u, sym);
+  if (body != NULL) {
+    Stmt *s;
+    Vector_ForEach(s, body) {
+      if (s->kind == VAR_KIND) {
+        VarDeclStmt *varStmt = (VarDeclStmt *)s;
+        assert(varStmt->konst == 0);
+        __new_var(ps, varStmt->id, varStmt->desc, 0);
+      } else if (s->kind == FUNC_KIND) {
+        __parse_funcdecl(ps, s);
+      } else {
+        assert(s->kind == PROTO_KIND);
+        assert(sym->kind == SYM_TRAIT);
+        __parse_proto(ps, (ProtoDeclStmt *)s);
+      }
+    }
   }
-  stmt_free(stmt);
+  Parser_Exit_Scope(ps);
 }
 
-/*---------------------------------------------------------------------------*/
-
-int binop_arithmetic(int op)
+TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz)
 {
-  if (op >= BINARY_ADD && op <= BINARY_RSHIFT)
-    return 1;
-  else
-    return 0;
+  char *path = NULL;
+  if (id != NULL) {
+    Symbol *sym = STable_Get(ps->extstbl, id);
+    if (sym == NULL) {
+      Log_Error("cannot find package: '%s'", id);
+      return NULL;
+    }
+    assert(sym->kind == SYM_IMPORT);
+    sym->refcnt++;
+    Import *import = ((ImportSymbol *)sym)->import;
+    path = import->path;
+  }
+  return TypeDesc_New_Klass(path, klazz);
 }
 
-int binop_relation(int op)
+void Parser_SetLineInfo(ParserState *ps, LineInfo *line)
 {
-  if (op >= BINARY_GT && op <= BINARY_NEQ)
-    return 1;
-  else
-    return 0;
+  LineBuffer *linebuf = &ps->line;
+  line->line = strdup(linebuf->buf);
+  line->row = linebuf->row;
+  line->col = linebuf->col;
 }
 
-int binop_logic(int op)
+static void print_error(ParserState *ps, YYLTYPE *loc, char *fmt, va_list ap)
 {
-  if (op == BINARY_LAND || op == BINARY_LOR)
-    return 1;
-  else
-    return 0;
+  fprintf(stderr, "%s:%d:%d: error: ", ps->filename,
+    loc_row(loc), loc_col(loc));
+  vfprintf(stderr, fmt, ap);
+  puts(""); /* newline */
 }
 
-int binop_bit(int op)
+void Parser_Synatx_Error(ParserState *ps, YYLTYPE *loc, char *fmt, ...)
 {
-  if (op == BINARY_BIT_AND || op == BINARY_BIT_XOR || op == BINARY_BIT_OR)
-    return 1;
-  else
-    return 0;
+  if (++ps->errnum >= MAX_ERRORS) {
+    fprintf(stderr, "Too many errors.\n");
+    exit(-1);
+  }
+
+  if (ps->line.errors > 0)
+    return;
+
+  ps->line.errors++;
+
+  va_list ap;
+  va_start(ap, fmt);
+  print_error(ps, loc, fmt, ap);
+  va_end(ap);
 }
 
-/*--------------------------------------------------------------------------*/
-
-static void item_stmt_free(void *item, void *arg)
+int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)
 {
-  UNUSED_PARAMETER(arg);
-  stmt_free(item);
+  LineBuffer *linebuf = &ps->line;
+
+  if (linebuf->lineleft <= 0) {
+    if (!fgets(linebuf->buf, LINE_MAX_LEN, in)) {
+      if (ferror(in))
+        clearerr(in);
+      return 0;
+    }
+
+    linebuf->linelen = strlen(linebuf->buf);
+    linebuf->lineleft = linebuf->linelen;
+    linebuf->len = 0;
+    linebuf->row++;
+    linebuf->col = 0;
+    linebuf->errors = 0;
+  }
+
+  int sz = min(linebuf->lineleft, size);
+  memcpy(buf, linebuf->buf, sz);
+  linebuf->lineleft -= sz;
+  return sz;
 }
 
-void vec_stmt_free(Vector *stmts)
+void Lexer_DoUserAction(ParserState *ps, char *text)
 {
-  if (!stmts) return;
-  Vector_Free(stmts, item_stmt_free, NULL);
-}
-
-void vec_stmt_fini(Vector *stmts)
-{
-  if (!stmts) return;
-  Vector_Fini(stmts, item_stmt_free, NULL);
+  LineBuffer *linebuf = &ps->line;
+  linebuf->col += linebuf->len;
+  strncpy(linebuf->token, text, TOKEN_MAX_LEN);
+  linebuf->len = strlen(text);
 }

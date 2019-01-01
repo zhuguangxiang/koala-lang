@@ -46,7 +46,7 @@ struct options {
   Vector pathes;
   /* -o output dir */
   char *outpath;
-  /* -D */
+  /* -D name=value */
   Vector nvs;
   /* file(klc) or dir(package) names */
   Vector names;

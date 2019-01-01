@@ -147,13 +147,13 @@ static Object *find_code(Object *ob, char *name)
 {
   MemberDef *m;
   if (OB_KLASS(ob) == &Package_Klass) {
-    m = Package_Find_MemberDef((Package *)ob, name);
+    m = Package_Find_MemberDef((PackageObject *)ob, name);
     if (!m || m->kind != MEMBER_CODE) {
       Log_Error("function '%s' is not found", name);
       return NULL;
     }
     Log_Debug("found function '%s' in package '%s'",
-              name, ((Package *)ob)->name);
+              name, ((PackageObject *)ob)->name);
     return m->code;
   } else {
     Object *code = Object_Get_Method(ob, name, NULL);
@@ -170,7 +170,7 @@ static Object *find_code(Object *ob, char *name)
 static void set_field(Object *ob, char *field, Object *val)
 {
   if (OB_KLASS(ob) == &Package_Klass) {
-    Koala_Set_Value((Package *)ob, field, val);
+    Koala_Set_Value((PackageObject *)ob, field, val);
   } else {
     Object_Set_Value(ob, field, NULL, val);
   }
@@ -179,7 +179,7 @@ static void set_field(Object *ob, char *field, Object *val)
 static Object *get_field(Object *ob, char *field)
 {
   if (OB_KLASS(ob) == &Package_Klass) {
-    return Koala_Get_Value((Package *)ob, field);
+    return Koala_Get_Value((PackageObject *)ob, field);
   } else {
     return Object_Get_Value(ob, field, NULL);
   }

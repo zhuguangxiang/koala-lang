@@ -79,7 +79,7 @@ static void init_lang_package(void)
   Init_Integer_Klass();
   Init_Package_Klass();
   Init_Tuple_Klass();
-  Package *pkg = Package_New("lang");
+  PackageObject *pkg = Package_New("lang");
   Package_Add_Class(pkg, &String_Klass);
   Package_Add_Class(pkg, &Int_Klass);
   Package_Add_Class(pkg, &Package_Klass);
@@ -147,7 +147,7 @@ static PkgNode *add_node(GlobalState *gs, PkgNode *parent, String name)
   return node;
 }
 
-static int add_leafnode(GlobalState *gs, PkgNode *parent, Package *pkg)
+static int add_leafnode(GlobalState *gs, PkgNode *parent, PackageObject *pkg)
 {
   assert(parent->kind == PATH_NODE);
   PkgNode *node = pkgnode_new();
@@ -185,7 +185,7 @@ static PkgNode *find_leafnode(GlobalState *gs, char *path)
   return node;
 }
 
-int Koala_Add_Package(char *path, Package *pkg)
+int Koala_Add_Package(char *path, PackageObject *pkg)
 {
   char *p;
   char c;
@@ -211,10 +211,10 @@ int Koala_Add_Package(char *path, Package *pkg)
 
 #define MAX_FILE_PATH_LEN 1024
 
-static Package *load_package(char *path)
+static PackageObject *load_package(char *path)
 {
   char fullpath[MAX_FILE_PATH_LEN];
-  Package *pkg = NULL;
+  PackageObject *pkg = NULL;
   struct list_head *list;
   list = Properties_Get_List(&gState.props, KOALA_PATH);
   assert(list);
@@ -236,7 +236,7 @@ static Package *load_package(char *path)
 
 Object *Koala_Load_Package(char *path)
 {
-  Package *pkg = load_package(path);
+  PackageObject *pkg = load_package(path);
   if (!pkg) {
     Log_Error("cannot load package '%s'", path);
     return NULL;
@@ -266,7 +266,7 @@ void Koala_Add_Property(char *key, char *value)
 
 static int run_function(KoalaState *ks, Object *ob, Object *args, char *name)
 {
-  MemberDef *m = Package_Find_MemberDef((Package *)ob, "__init__");
+  MemberDef *m = Package_Find_MemberDef((PackageObject *)ob, "__init__");
   if (!m || m->kind != MEMBER_CODE) {
     fprintf(stderr, "No '%s' function in '%s'.", name, Package_Name(ob));
     return -1;
@@ -290,7 +290,7 @@ int Koala_Run_File(KoalaState *ks, char *path, Vector *args)
   return run_function(ks, pkg, NULL, "Main");
 }
 
-int Koala_Set_Value(Package *pkg, char *name, Object *value)
+int Koala_Set_Value(PackageObject *pkg, char *name, Object *value)
 {
   int index = pkg->index;
   MemberDef *m = Package_Find_MemberDef(pkg, name);
@@ -302,7 +302,7 @@ int Koala_Set_Value(Package *pkg, char *name, Object *value)
   return Tuple_Set(tuple, m->offset, value);
 }
 
-Object *Koala_Get_Value(Package *pkg, char *name)
+Object *Koala_Get_Value(PackageObject *pkg, char *name)
 {
   int index = pkg->index;
   MemberDef *m = Package_Find_MemberDef(pkg, name);

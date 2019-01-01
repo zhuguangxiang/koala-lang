@@ -24,7 +24,7 @@
 #include "env.h"
 #include "state.h"
 #include "parser.h"
-#include "koala_tokens.h"
+#include "koala_yacc.h"
 #include "koala_lex.h"
 #include "options.h"
 #include "log.h"
@@ -66,7 +66,8 @@ static int compile(char *input, char *output, struct options *options)
   Vector vec;
   Vector_Init(&vec);
 
-  PackageInfo *pkg = New_PackageInfo(output, options);
+  PackageInfo pkg;
+  Init_PackageInfo(&pkg, output, options);
   ParserState *ps;
   int errnum = 0;
 
@@ -85,7 +86,8 @@ static int compile(char *input, char *output, struct options *options)
       printf("%s: no such file or directory\n", name);
       continue;
     }
-    ps = new_parser(pkg, dent->d_name);
+    ps = New_Parser(&pkg, dent->d_name);
+    pkg.lastfile = dent->d_name;
     yyset_in(in, ps->scanner);
     yyparse(ps, ps->scanner);
     fclose(in);
@@ -95,14 +97,14 @@ static int compile(char *input, char *output, struct options *options)
   closedir(dir);
 
   Vector_ForEach(ps, &vec) {
-    if (ps->errnum <= 0)
-      parser_body(ps, &ps->stmts);
-    destroy_parser(ps);
+    //if (ps->errnum <= 0)
+    //  Parse(ps);
+    Destroy_Parser(ps);
   }
 
   if (errnum <= 0) {
-    parse_module_scope(pkg);
-    Generate_KLC_File(pkg->sym->ptr, pkg->pkgname, pkg->pkgfile);
+    //parse_module_scope(pkg);
+    //Generate_KImage(pkg->sym->ptr, pkg->pkgname, pkg->pkgfile);
   } else {
     fprintf(stderr, "There are %d errors.\n", errnum);
   }

@@ -1,10 +1,10 @@
 
-#include "package.h"
+#include "packageobject.h"
 #include "stringobject.h"
 
 void test_package(void)
 {
-  Package *pkg = Package_New("lang");
+  PackageObject *pkg = Package_New("lang");
   Package_Add_Var(pkg, "Foo", &Int_Type, 0);
   Package_Add_Var(pkg, "Bar", &Int_Type, 0);
   assert(pkg->varcnt == 2);

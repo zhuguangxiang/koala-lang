@@ -1,91 +1,128 @@
+/*
+ * Copyright (c) 2018 James, https://github.com/zhuguangxiang
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 #ifndef _KOALA_SYMBOL_H_
 #define _KOALA_SYMBOL_H_
 
-#include "hashtable.h"
-#include "typedesc.h"
+#include "image.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/* symbol table */
 typedef struct symboltable {
-  HashTable *htbl;
-  //AtomTable *atbl;
-  int flag;
-  int32 varcnt;
-} STable;
+  /* hash table for saving symbols */
+  HashTable table;
+  /* constant and variable allcated index */
+  int varindex;
+} SymbolTable;
 
-STable *STable_New(void);
-void STable_Free(STable *stbl);
-
-typedef enum {
-  SYM_VAR    = 1,
-  SYM_PROTO  = 2,
-  SYM_CLASS  = 3,
-  SYM_TRAIT  = 4,
-  SYM_IPROTO = 5,
-  SYM_STABLE = 6,  /* for compiler */
-  SYM_MODULE = 7,
-  SYM_TYPEALIAS = 8
+/* symbol kind */
+typedef enum symbolkind {
+  SYM_CONST  = 1, /* constant */
+  SYM_VAR    = 2, /* variable */
+  SYM_FUNC   = 3, /* function or method */
+  SYM_ALIAS  = 4, /* type alias */
+  SYM_CLASS  = 5, /* clas */
+  SYM_TRAIT  = 6, /* trait */
+  SYM_IFUNC  = 7, /* interface method */
+  SYM_IMPORT = 8, /* import */
 } SymKind;
 
-typedef struct symbol Symbol;
+#define SYMBOL_HEAD \
+  SymKind kind;     \
+  HashNode hnode;   \
+  char *name;       \
+  int refcnt;       \
+  void *parent;
 
-struct symbol {
-  HashNode hnode;
-  //int32 nameidx;
-  //int32 descidx;
+/* symbol */
+typedef struct symbol {
+  SYMBOL_HEAD
+} Symbol;
 
-  SymKind kind;
-  int8 konst;
-  int8 refcnt;
-  int8 inherited;
+/* constant and variable symbol */
+typedef struct varsymbol {
+  SYMBOL_HEAD
+  TypeDesc *desc; /* variable type */
+  int32 index;    /* variable index */
+} VarSymbol;
 
-  char *name;     /* ->nameidx */
-  TypeDesc *desc; /* ->descidx */
+/* function symbol */
+typedef struct funcsymbol {
+  SYMBOL_HEAD
+  TypeDesc *desc; /* function's proto */
+  Vector locvec;  /* local varibles in the function */
+  void *code;     /* codeblock */
+} FuncSymbol;
 
-  union {
-    void *ob;     /* CodeObject or Klass */
-    int32 index;  /* variable */
-  };
+/* typealias symbol */
+typedef struct aliassymbol {
+  SYMBOL_HEAD
+  TypeDesc *desc; /* real type */
+} AliasSymbol;
 
-  Vector locvec;  /* save locvars for function and method */
+/* class and trait symbol */
+typedef struct classsymbol {
+  SYMBOL_HEAD
+  TypeDesc *super;    /* extends class */
+  Vector traits;      /* with tratis in liner-oder */
+  SymbolTable *stbl;  /* symbol table */
+} ClassSymbol;
 
-  /* extra for compiler */
-  Symbol *super;
-  Symbol *up;
-  void *ptr;      /* CodeBlock and STable(import, class, trait) */
-  char *path;     /* used for import */
-  void *import;   /* save Import */
-  int32 locvars;  /* used in compiler, for function */
-  Vector traits;  /* for traits in correct order */
-};
+/* interface function */
+typedef struct ifuncsymbol {
+  SYMBOL_HEAD
+  TypeDesc *desc; /* function's proto */
+} IFuncSymbol;
 
-/* Exported APIs */
-Symbol *Symbol_New(int kind);
+/* import symbol */
+typedef struct importsymbol {
+  SYMBOL_HEAD
+  void *import; /* Import, not need free */
+} ImportSymbol;
+
+SymbolTable *STable_New(void);
+typedef void (*symbol_visit_func)(Symbol *sym, void *arg);
+void STable_Free(SymbolTable *stbl, symbol_visit_func visit, void *arg);
+
+Symbol *Symbol_New(SymKind kind, char *name);
 void Symbol_Free(Symbol *sym);
-#define Symbol_IsPrivate(sym) !isupper((sym)->name[0])
-Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc, int bconst);
-Symbol *STable_Add_Proto(STable *stbl, char *name, TypeDesc *proto);
-#define STable_Add_IProto(stbl, name, proto) ({ \
-  Symbol *__sym = STable_Add_Proto(stbl, name, proto); \
-  if (__sym) \
-    __sym->kind = SYM_IPROTO; \
-  __sym; \
-})
-Symbol *STable_Add_TypeAlias(STable *stbl, char *name, TypeDesc *desc);
-#define STable_Add_Class(stbl, name) \
-  STable_Add_Symbol(stbl, name, SYM_CLASS, 0)
-#define STable_Add_Trait(stbl, name) \
-  STable_Add_Symbol(stbl, name, SYM_TRAIT, 0)
-Symbol *STable_Add_Symbol(STable *stbl, char *name, int kind, int bconst);
-Symbol *STable_Get(STable *stbl, char *name);
-typedef void (*symbolfunc)(Symbol *sym, void *arg);
-void STable_Traverse(STable *stbl, symbolfunc fn, void *arg);
-void STable_Show(STable *stbl, int detail);
-#define STable_Count(stbl) HashTable_Count((stbl)->htbl)
-int STable_Update_Symbol(STable *stbl, Symbol *sym, TypeDesc *desc);
+#define SYMBOL_ISPUBLIC(sym) \
+  isupper((sym)->name[0])
+
+VarSymbol *STable_Add_Const(SymbolTable *stbl, char *name, TypeDesc *desc);
+VarSymbol *STable_Add_Var(SymbolTable *stbl, char *name, TypeDesc *desc);
+FuncSymbol *STable_Add_Func(SymbolTable *stbl, char *name, TypeDesc *proto);
+AliasSymbol *STable_Add_Alias(SymbolTable *stbl, char *name, TypeDesc *desc);
+ClassSymbol *STable_Add_Class(SymbolTable *stbl, char *name);
+ClassSymbol *STable_Add_Trait(SymbolTable *stbl, char *name);
+IFuncSymbol *STable_Add_IFunc(SymbolTable *stbl, char *name, TypeDesc *proto);
+ImportSymbol *STable_Add_Import(SymbolTable *stbl, char *name);
+Symbol *STable_Get(SymbolTable *stbl, char *name);
+KImage *Gen_KImage(SymbolTable *stbl, char *pkgname);
+void STable_Show(SymbolTable *stbl);
+void STable_Visit(SymbolTable *stbl, symbol_visit_func fn, void *arg);
 
 #ifdef __cplusplus
 }

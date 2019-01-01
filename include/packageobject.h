@@ -34,7 +34,7 @@ extern "C" {
  * one package represents a klc file.
  * a klc can be compiled from multi kl files.
  */
-typedef struct package {
+typedef struct packageobject {
   OBJECT_HEAD
   /* the package's name */
   String name;
@@ -46,22 +46,22 @@ typedef struct package {
   int varcnt;
   /* index of variables in global variable pool */
   int index;
-} Package;
+} PackageObject;
 
 extern Klass Package_Klass;
 void Init_Package_Klass(void);
 void Fini_Package_Klass(void);
-Package *Package_New(char *name);
-void Package_Free(Package *pkg);
-int Package_Add_Var(Package *pkg, char *name, TypeDesc *desc, int k);
-int Package_Add_Func(Package *pkg, char *name, Object *code);
-int Package_Add_Klass(Package *pkg, Klass *klazz, int trait);
+PackageObject *Package_New(char *name);
+void Package_Free(PackageObject *pkg);
+int Package_Add_Var(PackageObject *pkg, char *name, TypeDesc *desc, int k);
+int Package_Add_Func(PackageObject *pkg, char *name, Object *code);
+int Package_Add_Klass(PackageObject *pkg, Klass *klazz, int trait);
 #define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
 #define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
-MemberDef *Package_Find_MemberDef(Package *pkg, char *name);
-int Package_Add_CFunctions(Package *pkg, FuncDef *funcs);
-Package *Package_From_Image(KImage *image);
-#define Package_Name(pkg) (((Package *)(pkg))->name.str)
+MemberDef *Package_Find_MemberDef(PackageObject *pkg, char *name);
+int Package_Add_CFunctions(PackageObject *pkg, FuncDef *funcs);
+PackageObject *Package_From_Image(KImage *image);
+#define Package_Name(pkg) (((PackageObject *)(pkg))->name.str)
 
 #ifdef __cplusplus
 }

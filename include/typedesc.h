@@ -35,7 +35,13 @@ extern "C" {
  * array and map are builtin types
  */
 typedef enum typedesc_kind {
-  TYPE_PRIMITIVE = 1, TYPE_KLASS, TYPE_PROTO, TYPE_ARRAY, TYPE_MAP
+  TYPE_PRIMITIVE = 1,
+  TYPE_KLASS,
+  TYPE_PROTO,
+  TYPE_ARRAY,
+  TYPE_MAP,
+  TYPE_SET,
+  TYPE_VARG
 } TypeDescKind;
 
 /*
@@ -54,7 +60,6 @@ typedef enum typedesc_kind {
 #define PRIMITIVE_STRING 's'
 #define PRIMITIVE_ERROR  'e'
 #define PRIMITIVE_ANY    'A'
-#define PRIMITIVE_VARG   'v'
 
 /* Type descriptor */
 typedef struct typedesc TypeDesc;
@@ -79,11 +84,13 @@ struct typedesc {
       TypeDesc *key;
       TypeDesc *val;
     } map;
-    /* array's dims and base type (subarray's type) */
+    /* array's dims and base type */
     struct {
       int dims;
       TypeDesc *base;
     } array;
+    /* varg and set base type */
+    TypeDesc *base;
   };
 };
 
@@ -96,7 +103,7 @@ extern TypeDesc Bool_Type;
 extern TypeDesc String_Type;
 extern TypeDesc Error_Type;
 extern TypeDesc Any_Type;
-extern TypeDesc Varg_Type;
+extern TypeDesc Varg_Any_Type;
 
 /* check two typedescs are the same */
 int TypeDesc_Equal(TypeDesc *t1, TypeDesc *t2);
@@ -113,10 +120,15 @@ TypeDesc *TypeDesc_Get_Primitive(int primitive);
 TypeDesc *TypeDesc_New_Klass(char *path, char *type);
 /* new a proto typedesc */
 TypeDesc *TypeDesc_New_Proto(Vector *arg, Vector *ret);
-/* new a map typedesc */
-TypeDesc *TypeDesc_New_Map(TypeDesc *key, TypeDesc *val);
 /* new an array typedesc */
 TypeDesc *TypeDesc_New_Array(int dims, TypeDesc *base);
+/* new a map typedesc */
+TypeDesc *TypeDesc_New_Map(TypeDesc *key, TypeDesc *val);
+/* new a set typedesc */
+TypeDesc *TypeDesc_New_Set(TypeDesc *base);
+/* new a var-argument typedesc */
+TypeDesc *TypeDesc_New_Varg(TypeDesc *base);
+
 /*
  * convert string to typedesc list
  * e.g. "i[sOkoala/lang.Tuple;" -->>> int, [string], koala/lang.Tuple
