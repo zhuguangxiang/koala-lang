@@ -66,8 +66,8 @@ static int compile(char *input, char *output, struct options *options)
   Vector vec;
   Vector_Init(&vec);
 
-  PackageInfo pkg;
-  Init_PackageInfo(&pkg, output, options);
+  PkgInfo pkg;
+  Init_PkgInfo(&pkg, output, options);
   ParserState *ps;
   int errnum = 0;
 
@@ -87,7 +87,6 @@ static int compile(char *input, char *output, struct options *options)
       continue;
     }
     ps = New_Parser(&pkg, dent->d_name);
-    pkg.lastfile = dent->d_name;
     yyset_in(in, ps->scanner);
     yyparse(ps, ps->scanner);
     fclose(in);
@@ -110,8 +109,7 @@ static int compile(char *input, char *output, struct options *options)
   }
 
   Vector_Fini(&vec, NULL, NULL);
-  //free packageinfo
-
+  Fini_PkgInfo(&pkg);
   return 0;
 }
 
@@ -191,9 +189,13 @@ int main(int argc, char *argv[])
     Log_Debug("input:%s", input);
     Log_Debug("outout:%s", output);
     compile(input, output, &opts);
+    free(input);
+    free(output);
   }
 
   Koala_Finalize();
+
+  fini_options(&opts);
 
   return 0;
 }

@@ -125,7 +125,7 @@ static Object *__open(Object *ob, Object *args)
 
 static FuncDef io_funcs[] = {
   {"Println", NULL, "...", __println},
-  {"Open", "Onative/io.Fd;e", "si", __open},
+  {"Open", "Lnative/io.Fd;e", "si", __open},
   {NULL}
 };
 
@@ -136,8 +136,8 @@ void init_nio_package(void)
 
   PackageObject *pkg = Package_New("io");
   Package_Add_CFunctions(pkg, io_funcs);
-  Package_Add_Var(pkg, "Stdout", TypeDesc_New_Klass("native/io", "Fd"), 1);
-  Package_Add_Var(pkg, "Stdin", TypeDesc_New_Klass("native/io", "Fd"), 1);
+  Package_Add_Var(pkg, "Stdout", TypeDesc_Get_Klass("native/io", "Fd"), 1);
+  Package_Add_Var(pkg, "Stdin", TypeDesc_Get_Klass("native/io", "Fd"), 1);
   Package_Add_Class(pkg, &Fd_Klass);
 
   Koala_Add_Package("native", pkg);

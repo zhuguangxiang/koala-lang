@@ -43,6 +43,7 @@ typedef struct idtype {
 } IdType;
 
 IdType *New_IdType(char *id, TypeDesc *desc);
+void Free_IdType(IdType *idtype);
 
 /* unary operator kind */
 typedef enum unaryopkind {
@@ -311,6 +312,7 @@ typedef struct liststmt {
   Vector *vec; /* statement */
 } ListStmt;
 
+void Free_Stmt_Func(void *item, void *arg);
 Stmt *__Stmt_From_VarDecl(char *id, TypeDesc *desc, Expr *exp, int k);
 Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeDesc *desc, Expr *exp, int k);
 #define Stmt_From_VarDecl(id, desc, exp) \

@@ -29,7 +29,7 @@
 static void *__symbol_new(SymKind kind, char *name, int size)
 {
   Symbol *sym = mm_alloc(size);
-  sym->name = strdup(name);
+  sym->name = name;
   sym->kind = kind;
   Init_HashNode(&sym->hnode, sym);
   return sym;
@@ -37,7 +37,6 @@ static void *__symbol_new(SymKind kind, char *name, int size)
 
 static void __symbol_free(Symbol *sym)
 {
-  free(sym->name);
   mm_free(sym);
 }
 
@@ -204,6 +203,12 @@ static Symbol *__class_new(char *name)
 
 static void __class_free(Symbol *sym)
 {
+  ClassSymbol *clsSym = (ClassSymbol *)sym;
+  TypeDesc_Free(clsSym->super);
+  /* FIXME */
+  Vector_Fini(&clsSym->traits, NULL, NULL);
+  STable_Free(clsSym->stbl, NULL, NULL);
+  __symbol_free(sym);
 }
 
 static void __class_show(Symbol *sym)
@@ -223,8 +228,9 @@ static void __class_gen(Symbol *sym, void *arg)
   char *type = NULL;
   TypeDesc *desc = clsSym->super;
   if (desc != NULL) {
-    path = desc->klass.path.str;
-    type = desc->klass.type.str;
+    KlassDesc *klass = (KlassDesc *)desc;
+    path = klass->path.str;
+    type = klass->type.str;
   }
   KImage_Add_Class(info->image, clsSym->name, path, type, &clsSym->traits);
 
@@ -239,6 +245,12 @@ static Symbol *__trait_new(char *name)
 
 static void __trait_free(Symbol *sym)
 {
+  ClassSymbol *clsSym = (ClassSymbol *)sym;
+  assert(clsSym->super == NULL);
+  /* FIXME */
+  Vector_Fini(&clsSym->traits, NULL, NULL);
+  STable_Free(clsSym->stbl, NULL, NULL);
+  __symbol_free(sym);
 }
 
 static void __trait_show(Symbol *sym)
@@ -264,6 +276,9 @@ static Symbol *__ifunc_new(char *name)
 
 static void __ifunc_free(Symbol *sym)
 {
+  IFuncSymbol *ifunSym = (IFuncSymbol *)sym;
+  TypeDesc_Free(ifunSym->desc);
+  __symbol_free(sym);
 }
 
 static void __ifunc_show(Symbol *sym)
@@ -336,6 +351,7 @@ static int symbol_equal(void *k1, void *k2)
 static void __symbol_free_fn(Symbol *sym, void *arg)
 {
   UNUSED_PARAMETER(arg);
+  Remove_HashNode(&sym->hnode);
   Symbol_Free(sym);
 }
 
@@ -357,6 +373,7 @@ void STable_Free(SymbolTable *stbl, symbol_visit_func visit, void *arg)
   }
 
   STable_Visit(stbl, visit, arg);
+  HashTable_Fini(&stbl->table, NULL, NULL);
   mm_free(stbl);
 }
 
@@ -367,6 +384,7 @@ VarSymbol *STable_Add_Const(SymbolTable *stbl, char *name, TypeDesc *desc)
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
+  TYPE_INCREF(desc);
   sym->desc = desc;
   sym->index = stbl->varindex++;
   return sym;
@@ -379,6 +397,7 @@ VarSymbol *STable_Add_Var(SymbolTable *stbl, char *name, TypeDesc *desc)
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
+  TYPE_INCREF(desc);
   sym->desc = desc;
   sym->index = stbl->varindex++;
   return sym;
@@ -392,6 +411,7 @@ FuncSymbol *STable_Add_Func(SymbolTable *stbl, char *name, TypeDesc *proto)
     return NULL;
   }
   Vector_Init(&sym->locvec);
+  TYPE_INCREF(proto);
   sym->desc = proto;
   return sym;
 }
@@ -403,6 +423,7 @@ AliasSymbol *STable_Add_Alias(SymbolTable *stbl, char *name, TypeDesc *desc)
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
+  TYPE_INCREF(desc);
   sym->desc = desc;
   return sym;
 }
@@ -438,6 +459,7 @@ IFuncSymbol *STable_Add_IFunc(SymbolTable *stbl, char *name, TypeDesc *proto)
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
+  TYPE_INCREF(proto);
   sym->desc = proto;
   return sym;
 }

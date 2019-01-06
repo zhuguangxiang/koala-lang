@@ -102,7 +102,7 @@ static void add_property(PropEntry *e, char *val)
 
 int Properties_Put(Properties *prop, char *key, char *val)
 {
-  PropEntry k = {.key.str = key};
+  PropEntry k = {.key = key};
   HashNode *hnode = HashTable_Find(&prop->table, &k);
   PropEntry *entry = hnode ? container_of(hnode, PropEntry, hnode) : NULL;
   if (!entry) {
@@ -116,7 +116,7 @@ int Properties_Put(Properties *prop, char *key, char *val)
 
 char *Properties_Get(Properties *prop, char *key)
 {
-  PropEntry k = {.key.str = key};
+  PropEntry k = {.key = key};
   HashNode *hnode = HashTable_Find(&prop->table, &k);
   PropEntry *e = hnode ? container_of(hnode, PropEntry, hnode) : NULL;
   if (!e)
@@ -127,7 +127,7 @@ char *Properties_Get(Properties *prop, char *key)
 
 struct list_head *Properties_Get_List(Properties *prop, char *key)
 {
-  PropEntry k = {.key.str = key};
+  PropEntry k = {.key = key};
   HashNode *hnode = HashTable_Find(&prop->table, &k);
   PropEntry *e = hnode ? container_of(hnode, PropEntry, hnode) : NULL;
   return e ? &e->list : NULL;

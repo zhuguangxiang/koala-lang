@@ -30,6 +30,7 @@ void test_stringobject(void)
 int main(int argc, char *argv[])
 {
   AtomString_Init();
+  Init_TypeDesc();
   Init_String_Klass();
   test_stringobject();
   Fini_String_Klass();

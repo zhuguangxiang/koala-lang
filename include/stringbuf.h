@@ -20,31 +20,48 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_ATOMSTRING_H_
-#define _KOALA_ATOMSTRING_H_
+#ifndef _KOALA_STRINGBUF_H_
+#define _KOALA_STRINGBUF_H_
 
-#include "hashfunc.h"
+#include "common.h"
+#include "atomstring.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* string */
-typedef struct {
-  char *str;
-} String;
+typedef struct stringbuf {
+  int length;
+  int size;
+  char *data;
+} StringBuf;
 
-void AtomString_Init(void);
-void AtomString_Fini(void);
-int AtomString_Find(char *str, String *s);
-String AtomString_New(char *str);
-String AtomString_New_NStr(char *str, int len);
-int AtomString_Length(String str);
-uint32 AtomString_Hash(String s);
-int AtomString_Equal(String s1, String s2);
-#define AtomString_CStr(s) (s).str;
+void __StringBuf_Append(StringBuf *buf, String s);
+void __StringBuf_Format(StringBuf *buf, int cstr, char *fmt, ...);
+void __StringBuf_Append_Char(StringBuf *buf, char ch);
+
+#define DeclareStringBuf(name) StringBuf name = {0, 0, NULL};
+
+#define FiniStringBuf(name) \
+do { \
+  if ((name).data != NULL) \
+    free((name).data); \
+} while (0)
+
+/* fmt: "#.#" */
+#define StringBuf_Format(name, fmt, ...) \
+  __StringBuf_Format(&(name), 0, fmt, __VA_ARGS__)
+
+#define StringBuf_Format_CStr(name, fmt, ...) \
+  __StringBuf_Format(&(name), 1, fmt, __VA_ARGS__)
+
+#define StringBuf_Append(name, s) \
+  __StringBuf_Append(&(name), s)
+
+#define StringBuf_Append_Char(name, ch) \
+  __StringBuf_Append_Char(&(name), ch)
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_ATOMSTRING_H_ */
+#endif /* _KOALA_STRINGBUF_H_ */

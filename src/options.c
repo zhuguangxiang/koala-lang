@@ -116,25 +116,27 @@ int init_options(struct options *opts)
   return 0;
 }
 
+static void free_string_func(void *item, void *arg)
+{
+  free(item);
+}
+
+static void free_namevalue_func(void *item, void *arg)
+{
+  namevalue_free(item);
+}
+
 void fini_options(struct options *opts)
 {
   if (opts->srcpath != NULL)
     free(opts->srcpath);
 
-  char *path;
-  Vector_ForEach(path, &opts->pathes)
-    free(path);
-
   if (opts->outpath != NULL)
     free(opts->outpath);
 
-  struct namevalue *nv;
-  Vector_ForEach(nv, &opts->nvs)
-    namevalue_free(nv);
-
-  char *s;
-  Vector_ForEach(s, &opts->names)
-    free(s);
+  Vector_Fini(&opts->pathes, free_string_func, NULL);
+  Vector_Fini(&opts->nvs, free_namevalue_func, NULL);
+  Vector_Fini(&opts->names, free_string_func, NULL);
 }
 
 int options_number(struct options *opts)

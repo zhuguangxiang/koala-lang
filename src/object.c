@@ -70,9 +70,9 @@ Klass Trait_Klass = {
 
 Object *FuncDef_Build_Code(FuncDef *f)
 {
-  Vector *rdesc = String_To_TypeDescList(f->rdesc);
-  Vector *pdesc = String_To_TypeDescList(f->pdesc);
-  TypeDesc *proto = TypeDesc_New_Proto(pdesc, rdesc);
+  Vector *rdesc = String_ToTypeList(f->rdesc);
+  Vector *pdesc = String_ToTypeList(f->pdesc);
+  TypeDesc *proto = TypeDesc_Get_Proto(pdesc, rdesc);
   return CCode_New(f->fn, proto);
 }
 
@@ -434,6 +434,8 @@ MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k)
   Init_HashNode(&member->hnode, member);
   member->kind = kind;
   member->name = name;
+  if (desc != NULL)
+    TYPE_INCREF(desc);
   member->desc = desc;
   member->k = k;
   return member;

@@ -27,20 +27,17 @@
 #include "mem.h"
 #include "log.h"
 
-int Init_PackageInfo(PackageInfo *pkg, char *pkgfile, struct options *opts)
+int Init_PkgInfo(PkgInfo *pkg, char *pkgfile, struct options *opts)
 {
-  memset(pkg, 0, sizeof(PackageInfo));
-  pkg->pkgfile = strdup(pkgfile);
+  memset(pkg, 0, sizeof(PkgInfo));
+  pkg->pkgfile = AtomString_New(pkgfile);
   pkg->stbl = STable_New();
   pkg->opts = opts;
   return 0;
 }
 
-void Fini_PackageInfo(PackageInfo *pkg)
+void Fini_PkgInfo(PkgInfo *pkg)
 {
-  free(pkg->pkgfile);
-  free(pkg->pkgname);
-  free(pkg->lastfile);
   STable_Free(pkg->stbl, NULL, NULL);
 }
 
@@ -207,11 +204,13 @@ void Parser_Exit_Scope(ParserState *ps)
   ps->depth--;
 }
 
-ParserState *New_Parser(PackageInfo *pkg, char *filename)
+ParserState *New_Parser(PkgInfo *pkg, char *filename)
 {
-  ParserState *ps = calloc(1, sizeof(ParserState));
+  ParserState *ps = mm_alloc(sizeof(ParserState));
   ps->filename = strdup(filename);
   ps->pkg = pkg;
+
+  pkg->lastfile = AtomString_New(filename).str;
 
   yylex_init_extra(ps, &ps->scanner);
 
@@ -235,6 +234,21 @@ void Destroy_Parser(ParserState *ps)
 
   show_parser_unit(ps);
   check_unused_symbols(u);
+
+  assert(u == &ps->top);
+  assert(list_empty(&ps->ustack));
+  assert(u->stbl == ps->pkg->stbl);
+  assert(u->sym == NULL);
+
+  /* simple clear */
+  u->stbl = NULL;
+
+  Fini_Imports(ps);
+  fini_parser_unit(u);
+  Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
+  yylex_destroy(ps->scanner);
+  free(ps->filename);
+  mm_free(ps);
 }
 
 static void parser_vist_stmt(ParserState *ps, Stmt *stmt);

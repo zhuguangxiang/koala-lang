@@ -9,8 +9,9 @@
 void test_state(void)
 {
   PackageObject *pkg = (PackageObject *)Koala_Get_Package("lang");
-  Package_Add_Var(pkg, "Foo", &Int_Type, 0);
-  Package_Add_Var(pkg, "Bar", &Int_Type, 0);
+  TypeDesc *desc = TypeDesc_Get_Basic(BASIC_INT);
+  Package_Add_Var(pkg, "Foo", desc, 0);
+  Package_Add_Var(pkg, "Bar", desc, 0);
   Koala_Add_Package("github.com/koala", pkg);
   Koala_Set_Value(pkg, "Foo", Integer_New(100));
   Object *ob = Koala_Get_Value(pkg, "Foo");

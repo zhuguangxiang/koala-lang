@@ -54,7 +54,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
   int Dims;
   int64 IVal;
   float64 FVal;
-  char *SVal;
+  String SVal;
   Vector *List;
   Expr *Expr;
   Stmt *Stmt;
@@ -251,7 +251,7 @@ Type
 ArrayType
   : DIMS BaseType
   {
-    $$ = TypeDesc_New_Array($1, $2);
+    $$ = TypeDesc_Get_Array($1, $2);
   }
   ;
 
@@ -281,48 +281,36 @@ BaseType
 VArgType
   : ELLIPSIS
   {
-    $$ = &Varg_Any_Type;
+    $$ = TypeDesc_Get_Varg(NULL);
   }
   | ELLIPSIS BaseType
   {
-    $$ = TypeDesc_New_Varg($2);
+    $$ = TypeDesc_Get_Varg($2);
   }
   ;
 
 MapType
   : MAP '[' KeyType ']' MapValueType
   {
-    TypeDesc_New_Map($3, $5);
+    $$ = TypeDesc_Get_Map($3, $5);
   }
   ;
 
 SetType
   : SET '[' KeyType ']'
   {
-    TypeDesc_New_Set($3);
+    $$ = TypeDesc_Get_Set($3);
   }
   ;
 
 KeyType
-  : BYTE
+  : INTEGER
   {
-    $$ = &Byte_Type;
-  }
-  | CHAR
-  {
-    $$ = &Char_Type;
-  }
-  | INTEGER
-  {
-    $$ = &Int_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_INT);
   }
   | STRING
   {
-    $$ = &String_Type;
-  }
-  | ANY
-  {
-    $$ = &Any_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_STRING);
   }
   | KlassType
   {
@@ -344,65 +332,65 @@ MapValueType
 PrimitiveType
   : BYTE
   {
-    $$ = &Byte_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_BYTE);
   }
   | CHAR
   {
-    $$ = &Char_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_CHAR);
   }
   | INTEGER
   {
-    $$ = &Int_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_INT);
   }
   | FLOAT
   {
-    $$ = &Float_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_FLOAT);
   }
   | BOOL
   {
-    $$ = &Bool_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_BOOL);
   }
   | STRING
   {
-    $$ = &String_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_STRING);
   }
   | ERROR
   {
-    $$ = &Error_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_ERROR);
   }
   | ANY
   {
-    $$ = &Any_Type;
+    $$ = TypeDesc_Get_Basic(BASIC_ANY);
   }
   ;
 
 KlassType
   : ID
   {
-    $$ = Parser_New_KlassType(ps, NULL, $1);
+    $$ = Parser_New_KlassType(ps, NULL, $1.str);
   }
   | ID '.' ID
   {
-    $$ = Parser_New_KlassType(ps, $1, $3);
+    $$ = Parser_New_KlassType(ps, $1.str, $3.str);
   }
   ;
 
 FunctionType
   : FUNC '(' ParameterList ')' ReturnList
   {
-    $$ = TypeDesc_New_Proto($3, $5);
+    $$ = TypeDesc_Get_Proto($3, $5);
   }
   | FUNC '(' ParameterList ')'
   {
-    $$ = TypeDesc_New_Proto($3, NULL);
+    $$ = TypeDesc_Get_Proto($3, NULL);
   }
   | FUNC '(' ')' ReturnList
   {
-    $$ = TypeDesc_New_Proto(NULL, $4);
+    $$ = TypeDesc_Get_Proto(NULL, $4);
   }
   | FUNC '(' ')'
   {
-    $$ = TypeDesc_New_Proto(NULL, NULL);
+    $$ = TypeDesc_Get_Proto(NULL, NULL);
   }
   ;
 
@@ -415,7 +403,7 @@ ParameterList
   | ID Type
   {
     $$ = Vector_New();
-    Vector_Append($$, New_IdType($1, $2));
+    Vector_Append($$, New_IdType($1.str, $2));
   }
   | ParameterList ',' Type
   {
@@ -425,7 +413,7 @@ ParameterList
   | ParameterList ',' ID Type
   {
     $$ = $1;
-    Vector_Append($$, New_IdType($3, $4));
+    Vector_Append($$, New_IdType($3.str, $4));
   }
   ;
 
@@ -445,12 +433,12 @@ IDList
   : ID
   {
     $$ = Vector_New();
-    Vector_Append($$, $1);
+    Vector_Append($$, $1.str);
   }
   | IDList ',' ID
   {
     $$ = $1;
-    Vector_Append($$, $3);
+    Vector_Append($$, $3.str);
   }
   ;
 
@@ -464,7 +452,7 @@ CompileUnit
 Package
   : PACKAGE ID ';'
   {
-    int result = Parser_Set_Package(ps, $2, &@2);
+    int result = Parser_Set_Package(ps, $2.str, &@2);
     if (result < 0)
       exit(-1);
   }
@@ -483,11 +471,11 @@ Imports
 Import
   : IMPORT PackagePath ';'
   {
-    Parser_New_Import(ps, NULL, $2, NULL, &@2);
+    Parser_New_Import(ps, NULL, $2.str, NULL, &@2);
   }
   | IMPORT ID PackagePath ';'
   {
-    Parser_New_Import(ps, $2, $3, NULL, NULL);
+    Parser_New_Import(ps, $2.str, $3.str, NULL, NULL);
   }
   | IMPORT ID error
   {
@@ -606,19 +594,19 @@ VariableDeclaration
 FunctionDeclaration
   : FUNC ID '(' ParameterList ')' ReturnList Block
   {
-    $$ = Stmt_From_FuncDecl($2, $4, $6, $7);
+    $$ = Stmt_From_FuncDecl($2.str, $4, $6, $7);
   }
   | FUNC ID '(' ParameterList ')' Block
   {
-    $$ = Stmt_From_FuncDecl($2, $4, NULL, $6);
+    $$ = Stmt_From_FuncDecl($2.str, $4, NULL, $6);
   }
   | FUNC ID '(' ')' ReturnList Block
   {
-    $$ = Stmt_From_FuncDecl($2, NULL, $5, $6);
+    $$ = Stmt_From_FuncDecl($2.str, NULL, $5, $6);
   }
   | FUNC ID '(' ')' Block
   {
-    $$ = Stmt_From_FuncDecl($2, NULL, NULL, $5);
+    $$ = Stmt_From_FuncDecl($2.str, NULL, NULL, $5);
   }
   | FUNC error
   {
@@ -630,7 +618,7 @@ FunctionDeclaration
 TypeAliasDeclaration
   : TYPEALIAS ID Type ';'
   {
-    $$ = Stmt_From_TypeAlias($2, $3);
+    $$ = Stmt_From_TypeAlias($2.str, $3);
   }
   | TYPEALIAS ID error
   {
@@ -646,23 +634,23 @@ TypeDeclaration
   : CLASS ID ExtendsOrEmpty '{' ClassMemberDeclarationsOrEmpty '}'
   {
     ClassStmt *clsStmt = (ClassStmt *)$3;
-    clsStmt->id = $2;
+    clsStmt->id = $2.str;
     clsStmt->body = $5;
     $$ = $3;
   }
   | CLASS ID ExtendsOrEmpty ';'
   {
     ClassStmt *clsStmt = (ClassStmt *)$3;
-    clsStmt->id = $2;
+    clsStmt->id = $2.str;
     $$ = $3;
   }
   | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarationsOrEmpty '}'
   {
-    $$ = Stmt_From_Trait($2, $3, $5);
+    $$ = Stmt_From_Trait($2.str, $3, $5);
   }
   | TRAIT ID WithesOrEmpty ';'
   {
-    $$ = Stmt_From_Trait($2, $3, NULL);
+    $$ = Stmt_From_Trait($2.str, $3, NULL);
   }
   ;
 
@@ -794,34 +782,34 @@ TraitMemberDeclaration
 FieldDeclaration
   : ID Type ';'
   {
-    $$ = Stmt_From_VarDecl($1, $2, NULL);
+    $$ = Stmt_From_VarDecl($1.str, $2, NULL);
   }
   | ID '=' Expression ';'
   {
-    $$ = Stmt_From_VarDecl($1, NULL, $3);
+    $$ = Stmt_From_VarDecl($1.str, NULL, $3);
   }
   | ID Type '=' Expression ';'
   {
-    $$ = Stmt_From_VarDecl($1, $2, $4);
+    $$ = Stmt_From_VarDecl($1.str, $2, $4);
   }
   ;
 
 ProtoDeclaration
   : FUNC ID '(' ParameterList ')' ReturnList ';'
   {
-    $$ = Stmt_From_ProtoDecl($2, $4, $6);
+    $$ = Stmt_From_ProtoDecl($2.str, $4, $6);
   }
   | FUNC ID '(' ParameterList ')' ';'
   {
-    $$ = Stmt_From_ProtoDecl($2, $4, NULL);
+    $$ = Stmt_From_ProtoDecl($2.str, $4, NULL);
   }
   | FUNC ID '(' ')' ReturnList ';'
   {
-    $$ = Stmt_From_ProtoDecl($2, NULL, $5);
+    $$ = Stmt_From_ProtoDecl($2.str, NULL, $5);
   }
   | FUNC ID '(' ')' ';'
   {
-    $$ = Stmt_From_ProtoDecl($2, NULL, NULL);
+    $$ = Stmt_From_ProtoDecl($2.str, NULL, NULL);
   }
   ;
 
@@ -1125,7 +1113,7 @@ Slice
 Atom
   : ID
   {
-    $$ = Expr_From_Id($1);
+    $$ = Expr_From_Id($1.str);
   }
   | CONSTANT
   {
@@ -1176,7 +1164,7 @@ CONSTANT
   }
   | STRING_LITERAL
   {
-    $$ = Expr_From_String($1);
+    $$ = Expr_From_String($1.str);
   }
   | TOKEN_NIL
   {
@@ -1211,6 +1199,7 @@ DimExprList
 LiteralValue
   : '{' ElementList '}'
   | '{' '}'
+  | '(' ')'
   ;
 
 ElementList
@@ -1239,6 +1228,7 @@ MapExpression
 
 MapLiteralValue
   : '{' MapKeyValueList '}'
+  | '{' '}'
   | '(' ')'
   ;
 

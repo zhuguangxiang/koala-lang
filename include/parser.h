@@ -37,7 +37,7 @@ extern "C" {
  */
 typedef struct packageinfo {
   /* package saved in pkgfile */
-  char *pkgfile;
+  String pkgfile;
   /* package name */
   char *pkgname;
   /* last compiled source file name, for checking package name is the same */
@@ -46,10 +46,10 @@ typedef struct packageinfo {
   SymbolTable *stbl;
   /* compiling options for compiling other packages, if necessary */
   struct options *opts;
-} PackageInfo;
+} PkgInfo;
 
-int Init_PackageInfo(PackageInfo *pkg, char *pkgfile, struct options *opts);
-void Fini_PackageInfo(PackageInfo *pkg);
+int Init_PkgInfo(PkgInfo *pkg, char *pkgfile, struct options *opts);
+void Fini_PkgInfo(PkgInfo *pkg);
 
 /* line max length */
 #define LINE_MAX_LEN 256
@@ -127,7 +127,7 @@ typedef struct parserstate {
   /* current compiling source file's package name */
   char *pkgname;
   /* package ptr, all modules have the same pacakge */
-  PackageInfo *pkg;
+  PkgInfo *pkg;
 
   /* lexer pointer */
   void *scanner;
@@ -171,7 +171,7 @@ typedef struct parserstate {
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);
 
-ParserState *New_Parser(PackageInfo *pkg, char *filename);
+ParserState *New_Parser(PkgInfo *pkg, char *filename);
 void Destroy_Parser(ParserState *ps);
 void Parse(ParserState *ps);
 void Check_Unused_Imports(ParserState *ps);
@@ -180,6 +180,7 @@ void Check_Unused_Symbols(ParserState *ps);
 /* yacc(bison) used APIs */
 int Parser_Set_Package(ParserState *ps, char *pkgname, YYLTYPE *loc);
 void Init_Imports(ParserState *ps);
+void Fini_Imports(ParserState *ps);
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
   YYLTYPE *idloc,YYLTYPE *pathloc);
 

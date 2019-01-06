@@ -35,6 +35,12 @@ IdType *New_IdType(char *id, TypeDesc *desc)
   return idType;
 }
 
+void Free_IdType(IdType *idtype)
+{
+  TypeDesc_Free(idtype->desc);
+  mm_free(idtype);
+}
+
 Expr *Expr_From_Nil(void)
 {
   Expr *exp = mm_alloc(sizeof(Expr));
@@ -58,7 +64,7 @@ Expr *Expr_From_Super(void)
 
 Expr *Expr_From_Integer(int64 val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = INT_KIND;
   baseExp->ival = val;
   return (Expr *)baseExp;
@@ -66,7 +72,7 @@ Expr *Expr_From_Integer(int64 val)
 
 Expr *Expr_From_Float(float64 val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = FLOAT_KIND;
   baseExp->fval = val;
   return (Expr *)baseExp;
@@ -74,7 +80,7 @@ Expr *Expr_From_Float(float64 val)
 
 Expr *Expr_From_Bool(int val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = BOOL_KIND;
   baseExp->bval = val;
   return (Expr *)baseExp;
@@ -82,7 +88,7 @@ Expr *Expr_From_Bool(int val)
 
 Expr *Expr_From_String(char *val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = STRING_KIND;
   baseExp->str = val;
   return (Expr *)baseExp;
@@ -90,7 +96,7 @@ Expr *Expr_From_String(char *val)
 
 Expr *Expr_From_Char(uint32 val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = CHAR_KIND;
   baseExp->ch = val;
   return (Expr *)baseExp;
@@ -98,7 +104,7 @@ Expr *Expr_From_Char(uint32 val)
 
 Expr *Expr_From_Id(char *val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(Expr));
+  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = ID_KIND;
   baseExp->id = val;
   return (Expr *)baseExp;
@@ -148,6 +154,125 @@ Expr *Expr_From_Call(Vector *args, Expr *left)
   callExp->args = args;
   callExp->left = left;
   return (Expr *)callExp;
+}
+
+static void free_vardecl_stmt(Stmt *stmt)
+{
+  VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
+  TypeDesc_Free(varStmt->desc);
+  mm_free(stmt);
+}
+
+static void free_varlistdecl_stmt(Stmt *stmt)
+{
+  VarListDeclStmt *varListStmt = (VarListDeclStmt *)stmt;
+  Vector_Free(varListStmt->ids, NULL, NULL);
+  TypeDesc_Free(varListStmt->desc);
+  mm_free(stmt);
+}
+
+static void free_assign_stmt(Stmt *stmt)
+{
+  mm_free(stmt);
+}
+
+static void free_assignlist_stmt(Stmt *stmt)
+{
+  AssignListStmt *assignListStmt = (AssignListStmt *)stmt;
+  Vector_Free(assignListStmt->left, NULL, NULL);
+  mm_free(stmt);
+}
+
+static void free_idtype_func(void *item, void *arg)
+{
+  //Free_IdType(item);
+}
+
+static void free_funcdecl_stmt(Stmt *stmt)
+{
+  FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
+  Vector_Free(funcStmt->args, free_idtype_func, NULL);
+  Vector_Free(funcStmt->rets, free_idtype_func, NULL);
+  Vector_Free(funcStmt->body, Free_Stmt_Func, NULL);
+  mm_free(stmt);
+}
+
+static void free_expr_stmt(Stmt *stmt)
+{
+  mm_free(stmt);
+}
+
+static void free_return_stmt(Stmt *stmt)
+{
+  mm_free(stmt);
+}
+
+static void free_list_stmt(Stmt *stmt)
+{
+  ListStmt *listStmt = (ListStmt *)stmt;
+  Vector_Free(listStmt->vec, Free_Stmt_Func, NULL);
+  mm_free(stmt);
+}
+
+static void free_alias_stmt(Stmt *stmt)
+{
+  TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
+  TypeDesc_Free(aliasStmt->desc);
+  mm_free(stmt);
+}
+
+static void free_typedesc_func(void *item, void *arg)
+{
+  TypeDesc_Free(item);
+}
+
+static void free_class_stmt(Stmt *stmt)
+{
+  ClassStmt *clsStmt = (ClassStmt *)stmt;
+  TypeDesc_Free(clsStmt->super);
+  Vector_Free(clsStmt->traits, free_typedesc_func, NULL);
+  Vector_Free(clsStmt->body, Free_Stmt_Func, NULL);
+  mm_free(stmt);
+}
+
+static void free_trait_stmt(Stmt *stmt)
+{
+  TraitStmt *traitStmt = (TraitStmt *)stmt;
+  Vector_Free(traitStmt->traits, free_typedesc_func, NULL);
+  Vector_Free(traitStmt->body, Free_Stmt_Func, NULL);
+  mm_free(stmt);
+}
+
+static void free_proto_stmt(Stmt *stmt)
+{
+  ProtoDeclStmt *protoStmt = (ProtoDeclStmt *)stmt;
+  mm_free(stmt);
+}
+
+static void (*__free_stmt_funcs[])(Stmt *) = {
+  NULL,
+  free_vardecl_stmt,
+  free_varlistdecl_stmt,
+  free_assign_stmt,
+  free_assignlist_stmt,
+  free_funcdecl_stmt,
+  free_expr_stmt,
+  free_return_stmt,
+  free_list_stmt,
+  NULL, NULL, NULL, NULL,
+  NULL, NULL, NULL, NULL,
+  free_alias_stmt,
+  free_class_stmt,
+  free_trait_stmt,
+  free_proto_stmt
+};
+
+void Free_Stmt_Func(void *item, void *arg)
+{
+  Stmt *stmt = item;
+  assert(stmt->kind >= 1 && stmt->kind < nr_elts(__free_stmt_funcs));
+  void (*__free_stmt_func)(Stmt *) = __free_stmt_funcs[stmt->kind];
+  __free_stmt_func(stmt);
 }
 
 Stmt *__Stmt_From_VarDecl(char *id, TypeDesc *desc, Expr *exp, int k)
@@ -268,9 +393,9 @@ int Parser_Set_Package(ParserState *ps, char *pkgname, YYLTYPE *loc)
 {
   ps->pkgname = pkgname;
 
-  PackageInfo *pkg = ps->pkg;
+  PkgInfo *pkg = ps->pkg;
   if (pkg->pkgname == NULL) {
-    pkg->pkgname = strdup(pkgname);
+    pkg->pkgname = pkgname;
     return 0;
   }
 
@@ -306,7 +431,6 @@ static void import_free_func(HashNode *hnode, void *arg)
 {
   UNUSED_PARAMETER(arg);
   Import *import = container_of(hnode, Import, hnode);
-  free(import->path);
   free(import);
 }
 
@@ -334,7 +458,7 @@ static Import *__find_import(ParserState *ps, char *path)
 static Import *__new_import(ParserState *ps, char *path, SymbolTable *stbl)
 {
   Import *import = mm_alloc(sizeof(Import));
-  import->path = strdup(path);
+  import->path = path;
   Init_HashNode(&import->hnode, import);
   import->stbl = stbl;
   int result = HashTable_Insert(&ps->imports, &import->hnode);
@@ -530,7 +654,11 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
   if (stmt == NULL)
     return;
 
-  if (stmt->kind == LIST_KIND) {
+  if (stmt->kind == VAR_KIND) {
+    VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
+    __add_stmt(ps, stmt);
+    __new_var(ps, varStmt->id, varStmt->desc, varStmt->konst);
+  } else if (stmt->kind == LIST_KIND) {
     ListStmt *listStmt = (ListStmt *)stmt;
     Stmt *s;
     VarDeclStmt *varStmt;
@@ -540,7 +668,8 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
       varStmt = (VarDeclStmt *)s;
       __new_var(ps, varStmt->id, varStmt->desc, varStmt->konst);
     }
-    free(stmt);
+    Vector_Free(listStmt->vec, NULL, NULL);
+    free(listStmt);
   } else {
     assert(stmt->kind == VARLIST_KIND);
     __add_stmt(ps, stmt);
@@ -596,26 +725,38 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
       varStmt = __Stmt_From_VarDecl(id, desc, exp, k);
       Vector_Append(listStmt->vec, varStmt);
     }
+    Vector_Free(ids, NULL, NULL);
+    Vector_Free(exps, NULL, NULL);
     return (Stmt *)listStmt;
   }
 
   assert(isz > esz && esz >=0 && esz <= 1);
+
+  /* count of right expressions is 1 */
   if (esz == 1) {
     Expr *e = Vector_Get(exps, 0);
+    Vector_Free(exps, NULL, NULL);
     return __Stmt_From_VarListDecl(ids, desc, e, k);
   }
 
   /* count of right expressions is 0 */
   assert(exps == NULL);
-  ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
 
-  char *id;
-  Stmt *varStmt;
-  Vector_ForEach(id, ids) {
-    varStmt = __Stmt_From_VarDecl(id, desc, NULL, k);
-    Vector_Append(listStmt->vec, varStmt);
+  if (isz == 1) {
+    char *id = Vector_Get(ids, 0);
+    Vector_Free(ids, NULL, NULL);
+    return __Stmt_From_VarDecl(id, desc, NULL, k);
+  } else {
+    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+    char *id;
+    Stmt *varStmt;
+    Vector_ForEach(id, ids) {
+      varStmt = __Stmt_From_VarDecl(id, desc, NULL, k);
+      Vector_Append(listStmt->vec, varStmt);
+    }
+    Vector_Free(ids, NULL, NULL);
+    return (Stmt *)listStmt;
   }
-  return (Stmt *)listStmt;
 }
 
 Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
@@ -637,13 +778,15 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
       assignStmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
       Vector_Append(listStmt->vec, assignStmt);
     }
+    Vector_Free(left, NULL, NULL);
+    Vector_Free(right, NULL, NULL);
     return (Stmt *)listStmt;
   }
 
-  assert(lsz > rsz && rsz >=0 && rsz <= 1);
-  Expr *e = NULL;
-  if (rsz == 1)
-    e = Vector_Get(right, 0);
+  assert(lsz > rsz && rsz == 1);
+
+  Expr *e = Vector_Get(right, 0);
+  Vector_Free(right, NULL, NULL);
   return Stmt_From_AssignList(left, e);
 }
 
@@ -660,16 +803,18 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   if (funcStmt->args != NULL) {
     pdesc = Vector_New();
     Vector_ForEach(idType, funcStmt->args) {
-      Vector_Append(pdesc, TypeDesc_Dup(idType->desc));
+      TYPE_INCREF(idType->desc);
+      Vector_Append(pdesc, idType->desc);
     }
   }
   if (funcStmt->rets != NULL) {
     rdesc = Vector_New();
     Vector_ForEach(idType, funcStmt->rets) {
-      Vector_Append(rdesc, TypeDesc_Dup(idType->desc));
+      TYPE_INCREF(idType->desc);
+      Vector_Append(rdesc, idType->desc);
     }
   }
-  proto = TypeDesc_New_Proto(pdesc, rdesc);
+  proto = TypeDesc_Get_Proto(pdesc, rdesc);
 
   sym = STable_Add_Func(ps->u->stbl, funcStmt->id, proto);
   if (sym != NULL) {
@@ -699,7 +844,26 @@ void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
 
 static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
 {
-  TypeDesc *proto = TypeDesc_New_Proto(stmt->args, stmt->rets);
+  Vector *pdesc = NULL;
+  Vector *rdesc = NULL;
+  IdType *idType;
+
+  if (stmt->args != NULL) {
+    pdesc = Vector_New();
+    Vector_ForEach(idType, stmt->args) {
+      TYPE_INCREF(idType->desc);
+      Vector_Append(pdesc, idType->desc);
+    }
+  }
+  if (stmt->rets != NULL) {
+    rdesc = Vector_New();
+    Vector_ForEach(idType, stmt->rets) {
+      TYPE_INCREF(idType->desc);
+      Vector_Append(rdesc, idType->desc);
+    }
+  }
+
+  TypeDesc *proto = TypeDesc_Get_Proto(pdesc, rdesc);
   IFuncSymbol *sym = STable_Add_IFunc(ps->u->stbl, stmt->id, proto);
   if (sym != NULL) {
     Log_Debug("add ifunc '%s' successfully", stmt->id);
@@ -767,7 +931,7 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz)
     Import *import = ((ImportSymbol *)sym)->import;
     path = import->path;
   }
-  return TypeDesc_New_Klass(path, klazz);
+  return TypeDesc_Get_Klass(path, klazz);
 }
 
 void Parser_SetLineInfo(ParserState *ps, LineInfo *line)

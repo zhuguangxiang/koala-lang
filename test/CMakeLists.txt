@@ -8,6 +8,9 @@ target_link_libraries(test_hashtable koala)
 add_executable(test_buffer test_buffer.c)
 target_link_libraries(test_buffer koala)
 
+add_executable(test_stringbuf test_stringbuf.c)
+target_link_libraries(test_stringbuf koala)
+
 add_executable(test_atomstring test_atomstring.c)
 target_link_libraries(test_atomstring koala)
 

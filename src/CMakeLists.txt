@@ -30,7 +30,7 @@ SET_SOURCE_FILES_PROPERTIES(koala_yacc.c GENERATED)
 
 SET (LIBKOALA_SRC
       log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
-      cache.c properties.c
+      cache.c stringbuf.c properties.c
       typedesc.c object.c stringobject.c tupleobject.c codeobject.c
       intobject.c packageobject.c state.c atomtable.c image.c options.c eval.c
     )

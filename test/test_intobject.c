@@ -17,6 +17,7 @@ void test_intobject(void)
 int main(int argc, char *argv[])
 {
   AtomString_Init();
+  Init_TypeDesc();
   Init_String_Klass();
   Init_Integer_Klass();
   test_intobject();

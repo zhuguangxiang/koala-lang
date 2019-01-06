@@ -77,7 +77,7 @@ int Code_Get_Argc(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Code_Klass);
   CodeObject *code = (CodeObject *)ob;
-  Vector *desc = code->proto->proto.arg;
+  Vector *desc = ((ProtoDesc *)code->proto)->arg;
   return (desc == NULL) ? 0: Vector_Size(desc);
 }
 

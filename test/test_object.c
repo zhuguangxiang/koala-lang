@@ -9,8 +9,10 @@
 void test_object(void)
 {
   Klass *animal = Class_New("Animal", NULL, NULL);
-  Klass_Add_Field(animal, "Name", &String_Type);
-  Klass_Add_Field(animal, "Age", &Int_Type);
+  TypeDesc *desc = TypeDesc_Get_Basic(BASIC_STRING);
+  Klass_Add_Field(animal, "Name", desc);
+  desc = TypeDesc_Get_Basic(BASIC_INT);
+  Klass_Add_Field(animal, "Age", desc);
   Object *ob = animal->ob_alloc(animal);
   Object_Set_Value(ob, "Name", animal, String_New("wangwang"));
   Object *field = Object_Get_Value(ob, "Name", animal);
@@ -18,7 +20,8 @@ void test_object(void)
   OB_DECREF(ob);
 
   Klass *dog = Class_New("Dog", animal, NULL);
-  Klass_Add_Field(dog, "TailLength", &Int_Type);
+  desc = TypeDesc_Get_Basic(BASIC_INT);
+  Klass_Add_Field(dog, "TailLength", desc);
   Object *dog_ob = dog->ob_alloc(dog);
   Object *old = Object_Set_Value(dog_ob, "TailLength", dog, Integer_New(20));
   assert(!old);
@@ -42,11 +45,13 @@ void test_object(void)
 int main(int argc, char *argv[])
 {
   AtomString_Init();
+  Init_TypeDesc();
   Init_String_Klass();
   Init_Integer_Klass();
   test_object();
   Fini_String_Klass();
   Fini_Integer_Klass();
+  Fini_TypeDesc();
   AtomString_Fini();
   return 0;
 }

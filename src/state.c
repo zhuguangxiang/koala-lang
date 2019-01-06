@@ -90,6 +90,7 @@ static void init_lang_package(void)
 void Koala_Initialize(void)
 {
   Init_GlobalState();
+  Init_TypeDesc();
   init_lang_package();
   init_nio_package();
   Koala_Show_Packages();
@@ -113,6 +114,7 @@ void Koala_Finalize(void)
   Vector_Free(gState.root.children, NULL, NULL);
   Vector_Fini(&gState.vars, NULL, NULL);
 
+  Fini_TypeDesc();
   AtomString_Fini();
 }
 

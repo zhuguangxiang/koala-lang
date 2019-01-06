@@ -36,8 +36,8 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 {
   TypeDesc *t = NULL;
   switch (item->kind) {
-    case TYPE_PRIMITIVE: {
-      t = TypeDesc_Get_Primitive(item->primitive);
+    case TYPE_BASIC: {
+      t = TypeDesc_Get_Basic(item->primitive);
       break;
     }
     case TYPE_KLASS: {
@@ -52,20 +52,18 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
       }
       s = AtomTable_Get(atbl, ITEM_STRING, item->typeindex);
       type = s->data;
-      t = TypeDesc_New_Klass(path, type);
+      t = TypeDesc_Get_Klass(path, type);
       break;
     }
     case TYPE_PROTO: {
       ProtoItem *proto = AtomTable_Get(atbl, ITEM_PROTO, item->protoindex);
-      TypeDesc *tmp = ProtoItem_To_TypeDesc(proto, atbl);
-      t = TypeDesc_New_Proto(tmp->proto.arg, tmp->proto.arg);
-      mm_free(tmp);
+      t = ProtoItem_To_TypeDesc(proto, atbl);
       break;
     }
     case TYPE_ARRAY: {
       TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
       TypeDesc *base_type = TypeItem_To_TypeDesc(base, atbl);
-      t = TypeDesc_New_Array(item->array.dims, base_type);
+      t = TypeDesc_Get_Array(item->array.dims, base_type);
       break;
     }
     default: {
@@ -109,7 +107,7 @@ TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
     typelist = NULL;
   arg = TypeListItem_To_Vector(typelist, atbl);
 
-  return TypeDesc_New_Proto(arg, ret);
+  return TypeDesc_Get_Proto(arg, ret);
 }
 
 MapItem *MapItem_New(int type, int offset, int size)
@@ -135,7 +133,7 @@ StringItem *StringItem_New(char *name)
 TypeItem *TypeItem_Primitive_New(char primitive)
 {
   TypeItem *item = mm_alloc(sizeof(TypeItem));
-  item->kind = TYPE_PRIMITIVE;
+  item->kind = TYPE_BASIC;
   item->primitive = primitive;
   return item;
 }
@@ -389,10 +387,11 @@ int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex)
   return AtomTable_Index(table, ITEM_PROTO, &item);
 }
 
-int ProtoItem_Set(AtomTable *table, TypeDesc *proto)
+int ProtoItem_Set(AtomTable *table, TypeDesc *desc)
 {
-  int rindex = TypeListItem_Set(table, proto->proto.ret);
-  int pindex = TypeListItem_Set(table, proto->proto.arg);
+  ProtoDesc *proto = (ProtoDesc *)desc;
+  int rindex = TypeListItem_Set(table, proto->ret);
+  int pindex = TypeListItem_Set(table, proto->arg);
   int index = ProtoItem_Get(table, rindex, pindex);
   if (index < 0) {
     ProtoItem *item = ProtoItem_New(rindex, pindex);
@@ -405,21 +404,23 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
   TypeItem item = {0};
   switch (desc->kind) {
-    case TYPE_PRIMITIVE: {
-      item.kind = TYPE_PRIMITIVE;
-      item.primitive = desc->primitive;
+    case TYPE_BASIC: {
+      BasicDesc *basic = (BasicDesc *)desc;
+      item.kind = TYPE_BASIC;
+      item.primitive = basic->type;
       break;
     }
     case TYPE_KLASS: {
+      KlassDesc *klass = (KlassDesc *)desc;
       int pathindex = -1;
-      if (desc->klass.path.str) {
-        pathindex = StringItem_Get(table, desc->klass.path.str);
+      if (klass->path.str) {
+        pathindex = StringItem_Get(table, klass->path.str);
         if (pathindex < 0)
           return pathindex;
       }
       int typeindex = -1;
-      if (desc->klass.type.str) {
-        typeindex = StringItem_Get(table, desc->klass.type.str);
+      if (klass->type.str) {
+        typeindex = StringItem_Get(table, klass->type.str);
         if (typeindex < 0)
           return typeindex;
       }
@@ -429,20 +430,18 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
       break;
     }
     case TYPE_PROTO: {
-      int rindex = TypeListItem_Get(table, desc->proto.ret);
-      int pindex = TypeListItem_Get(table, desc->proto.arg);
+      ProtoDesc *proto = (ProtoDesc *)desc;
+      int rindex = TypeListItem_Get(table, proto->ret);
+      int pindex = TypeListItem_Get(table, proto->arg);
       item.kind = TYPE_PROTO;
       item.protoindex = ProtoItem_Get(table, rindex, pindex);
       break;
     }
-    case TYPE_MAP: {
-      assert(0);
-      break;
-    }
     case TYPE_ARRAY: {
+      ArrayDesc *array = (ArrayDesc *)desc;
       item.kind = TYPE_ARRAY;
-      item.array.dims = desc->array.dims;
-      item.array.typeindex = TypeItem_Get(table, desc->array.base);
+      item.array.dims = array->dims;
+      item.array.typeindex = TypeItem_Get(table, array->base);
       break;
     }
     default: {
@@ -460,19 +459,21 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
   int index = TypeItem_Get(table, desc);
   if (index < 0) {
     switch (desc->kind) {
-      case TYPE_PRIMITIVE: {
-        item = TypeItem_Primitive_New(desc->primitive);
+      case TYPE_BASIC: {
+        BasicDesc *basic = (BasicDesc *)desc;
+        item = TypeItem_Primitive_New(basic->type);
         break;
       }
       case TYPE_KLASS: {
+        KlassDesc *klass = (KlassDesc *)desc;
         int pathindex = -1;
-        if (desc->klass.path.str) {
-          pathindex = StringItem_Set(table, desc->klass.path.str);
+        if (klass->path.str) {
+          pathindex = StringItem_Set(table, klass->path.str);
           assert(pathindex >= 0);
         }
         int typeindex = -1;
-        if (desc->klass.type.str) {
-          typeindex = StringItem_Set(table, desc->klass.type.str);
+        if (klass->type.str) {
+          typeindex = StringItem_Set(table, klass->type.str);
           assert(typeindex >= 0);
         }
         item = TypeItem_UserDef_New(pathindex, typeindex);
@@ -483,13 +484,10 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
         item = TypeItem_Proto_New(protoindex);
         break;
       }
-      case TYPE_MAP: {
-        assert(0);
-        break;
-      }
       case TYPE_ARRAY: {
-        int typeindex = TypeItem_Set(table, desc->array.base);
-        item = TypeItem_Array_New(desc->array.dims, typeindex);
+        ArrayDesc *array = (ArrayDesc *)desc;
+        int typeindex = TypeItem_Set(table, array->base);
+        item = TypeItem_Array_New(array->dims, typeindex);
         break;
       }
       default: {
@@ -641,9 +639,11 @@ void typeitem_show(AtomTable *table, void *o)
     } else {
       printf("  typeindex:%d\n", item->typeindex);
     }
-  } else if (item->kind == TYPE_PRIMITIVE) {
-    char *str = Primitive_ToString(item->primitive);
-    printf("  (%s)\n", str);
+  } else if (item->kind == TYPE_BASIC) {
+    char buf[32];
+    TypeDesc *desc = TypeDesc_Get_Basic(item->primitive);
+    TypeDesc_ToString(desc, buf);
+    printf("  (%s)\n", buf);
   } else if (item->kind == TYPE_ARRAY) {
 
   }
@@ -949,8 +949,11 @@ void varitem_show(AtomTable *table, void *o)
     } else {
       printf("  (%s)\n", str2->data);
     }
-  } else if (type->kind == TYPE_PRIMITIVE) {
-    printf("  (%s)\n", Primitive_ToString(type->primitive));
+  } else if (type->kind == TYPE_BASIC) {
+    char buf[32];
+    TypeDesc *desc = TypeDesc_Get_Basic(type->primitive);
+    TypeDesc_ToString(desc, buf);
+    printf("  (%s)\n", buf);
   }
   printf("  konst:%s\n", item->konst ? "true" : "false");
 
@@ -1438,15 +1441,15 @@ int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto,
 void KImage_Add_Class(KImage *image, char *name,
                       char *superpath, char *supertype, Vector *traits)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = name};
-  int classindex = TypeItem_Set(image->table, &tmp);
+  KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = name};
+  int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
 
   int superindex = -1;
   if (supertype) {
     tmp.kind = TYPE_KLASS;
-    tmp.klass.path.str = superpath;
-    tmp.klass.type.str = supertype;
-    superindex = TypeItem_Set(image->table, &tmp);
+    tmp.path.str = superpath;
+    tmp.type.str = supertype;
+    superindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
   }
 
   int traitsindex = TypeListItem_Set(image->table, traits);
@@ -1456,8 +1459,8 @@ void KImage_Add_Class(KImage *image, char *name,
 
 void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = clazz};
-  int classindex = TypeItem_Set(image->table, &tmp);
+  KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = clazz};
+  int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
 
   int nameindex = StringItem_Set(image->table, name);
   int typeindex = TypeItem_Set(image->table, desc);
@@ -1469,8 +1472,8 @@ void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
 int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
                       uint8 *codes, int csz)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = klazz};
-  int classindex = TypeItem_Set(image->table, &tmp);
+  KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = klazz};
+  int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
 
   int nameindex = StringItem_Set(image->table, name);
   int protoindex = ProtoItem_Set(image->table, proto);
@@ -1482,8 +1485,8 @@ int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
 
 void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = name};
-  int classindex = TypeItem_Set(image->table, &tmp);
+  KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = name};
+  int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
   int traitsindex = TypeListItem_Set(image->table, traits);
   TraitItem *traititem = TraitItem_New(classindex, traitsindex);
   AtomTable_Append(image->table, ITEM_TRAIT, traititem, 0);
@@ -1491,8 +1494,8 @@ void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
 
 void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type.str = trait};
-  int classindex = TypeItem_Set(image->table, &tmp);
+  KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = trait};
+  int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
   int nameindex = StringItem_Set(image->table, name);
   int protoindex = ProtoItem_Set(image->table, proto);
 

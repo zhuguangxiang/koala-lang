@@ -5,8 +5,9 @@
 void test_package(void)
 {
   PackageObject *pkg = Package_New("lang");
-  Package_Add_Var(pkg, "Foo", &Int_Type, 0);
-  Package_Add_Var(pkg, "Bar", &Int_Type, 0);
+  TypeDesc *desc = TypeDesc_Get_Basic(BASIC_INT);
+  Package_Add_Var(pkg, "Foo", desc, 0);
+  Package_Add_Var(pkg, "Bar", desc, 0);
   assert(pkg->varcnt == 2);
   Object *ob = OB_KLASS(pkg)->ob_str((Object *)pkg);
   printf("%s\n", String_RawString(ob));
@@ -21,11 +22,13 @@ void test_package(void)
 int main(int argc, char *argv[])
 {
   AtomString_Init();
+  Init_TypeDesc();
   Init_String_Klass();
   Init_Package_Klass();
   test_package();
   Fini_Package_Klass();
   Fini_String_Klass();
+  Fini_TypeDesc();
   AtomString_Fini();
   return 0;
 }

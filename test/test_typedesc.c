@@ -5,81 +5,117 @@
 #include "typedesc.h"
 #include "log.h"
 
+TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg);
+
 void test_typedesc(void)
 {
-  assert(TypeDesc_Equal(&Int_Type, &Int_Type));
-  assert(!TypeDesc_Equal(&Int_Type, &String_Type));
-  char buf[256];
-  TypeDesc_ToString(&Int_Type, buf);
-  assert(!strcmp("int", buf));
-  TypeDesc_Free(&Int_Type);
+  char buf[64];
 
   TypeDesc *type;
-  TypeDesc *type2;
 
-  type = TypeDesc_New_Klass("koala/lang", "Tuple");
+  type = TypeDesc_Get_Basic(BASIC_INT);
   TypeDesc_ToString(type, buf);
-  assert(!strcmp("koala/lang.Tuple", buf));
+  assert(!strcmp("int", buf));
+  //TYPE_INCREF(type);
+  //TypeDesc_Free(type);
 
-  type2 = TypeDesc_Dup(type);
+  type = TypeDesc_Get_Klass("lang", "Tuple");
   TypeDesc_ToString(type, buf);
-  assert(!strcmp("koala/lang.Tuple", buf));
-  assert(TypeDesc_Equal(type, type2));
-  TypeDesc_Free(type);
-  TypeDesc_Free(type2);
+  assert(!strcmp("lang.Tuple", buf));
 
-  type = TypeDesc_New_Array(1, &Bool_Type);
+  type = TypeDesc_Get_Array(2, type);
   TypeDesc_ToString(type, buf);
-  assert(!strcmp("[bool]", buf));
+  assert(!strcmp("[][]lang.Tuple", buf));
 
-  type2 = TypeDesc_New_Array(2, type);
-  TypeDesc_ToString(type2, buf);
-  assert(!strcmp("[[bool]]", buf));
-
-  type = TypeDesc_Dup(type2);
-  assert(TypeDesc_Equal(type, type2));
-  TypeDesc_Free(type);
-  TypeDesc_Free(type2);
-
+  type = TypeDesc_Get_Basic(BASIC_INT);
+  //TYPE_INCREF(type);
   Vector *arg = Vector_New();
-  Vector_Append(arg, TypeDesc_New_Array(1, &Int_Type));
-  Vector_Append(arg, &String_Type);
+  type = TypeDesc_Get_Array(1, type);
+  TYPE_INCREF(type);
+  Vector_Append(arg, type);
+  type = TypeDesc_Get_Basic(BASIC_STRING);
+  TYPE_INCREF(type);
+  Vector_Append(arg, type);
 
   Vector *ret = Vector_New();
-  Vector_Append(ret, &Int_Type);
-  Vector_Append(ret, &String_Type);
+  type = TypeDesc_Get_Basic(BASIC_INT);
+  TYPE_INCREF(type);
+  Vector_Append(ret, type);
+  type = TypeDesc_Get_Basic(BASIC_STRING);
+  TYPE_INCREF(type);
+  Vector_Append(ret, type);
 
-  type = TypeDesc_New_Proto(arg, ret);
+  type = TypeDesc_Get_Proto(arg, ret);
   TypeDesc_ToString(type, buf);
-  assert(!strcmp("func([int], string) (int, string)", buf));
+  assert(!strcmp("func([]int, string) (int, string)", buf));
+}
 
-  type2 = TypeDesc_Dup(type);
-  assert(TypeDesc_Equal(type, type2));
-  TypeDesc_Free(type);
-  TypeDesc_Free(type2);
+void test_string_to_typedesc(void)
+{
+  char buf[64];
+  TypeDesc *type;
+  char *s = "i[sz";
 
-  Vector *vec = String_To_TypeDescList("i[sOkoala/lang.Tuple;z");
-  assert(Vector_Size(vec) == 4);
-
-  type = Vector_Get(vec, 0);
-  assert(TypeDesc_Equal(type, &Int_Type));
-
-  type = Vector_Get(vec, 1);
+  type = String_To_TypeDesc(&s, 0, 0);
   TypeDesc_ToString(type, buf);
-  assert(!strcmp("[string]", buf));
+  assert(!strcmp("int", buf));
 
-  type = Vector_Get(vec, 2);
+  type = String_To_TypeDesc(&s, 0, 0);
   TypeDesc_ToString(type, buf);
-  assert(!strcmp("koala/lang.Tuple", buf));
+  assert(!strcmp("[]string", buf));
 
-  type = Vector_Get(vec, 3);
-  assert(TypeDesc_Equal(type, &Bool_Type));
+  type = String_To_TypeDesc(&s, 0, 0);
+  TypeDesc_ToString(type, buf);
+  assert(!strcmp("bool", buf));
+  assert(!*s);
+
+  s = "[[Mi[s"; //[][]map[int][]string
+  type = String_To_TypeDesc(&s, 0, 0);
+  TypeDesc_ToString(type, buf);
+  assert(!strcmp("[][]map[int][]string", buf));
+
+  s = "...Mss"; // ...map[string]string
+  type = String_To_TypeDesc(&s, 0, 0);
+  TypeDesc_ToString(type, buf);
+  assert(!strcmp("...map[string]string", buf));
+
+  s = "...A"; //...Any
+  type = String_To_TypeDesc(&s, 0, 0);
+  TypeDesc_ToString(type, buf);
+  assert(!strcmp("...Any", buf));
+
+  s = "S[[[i"; //set[[][][]int]
+  type = String_To_TypeDesc(&s, 0, 0);
+  TypeDesc_ToString(type, buf);
+  assert(!strcmp("set[[][][]int]", buf));
+
+  s = "Llang.Tuple;"; //lang.Tuple
+  type = String_To_TypeDesc(&s, 0, 0);
+  TypeDesc_ToString(type, buf);
+  puts(buf);
+  assert(!strcmp("lang.Tuple", buf));
+
+  s = "PPs:i;s:e;"; //func(func(string) int, string) error
+  type = String_To_TypeDesc(&s, 0, 0);
+  TypeDesc_ToString(type, buf);
+  assert(!strcmp("func(func(string) int, string) error", buf));
+
+  //func(map[string]int, string, ...lang.Tuple) (int, []error, set[byte])
+  s = "PMsis...Llang.Tuple;:i[eSb;";
+  type = String_To_TypeDesc(&s, 0, 0);
+  TypeDesc_ToString(type, buf);
+  puts(buf);
+  s = "func(map[string]int, string, ...lang.Tuple) (int, []error, set[byte])";
+  assert(!strcmp(s, buf));
 }
 
 int main(int argc, char *argv[])
 {
   AtomString_Init();
+  Init_TypeDesc();
   test_typedesc();
+  test_string_to_typedesc();
+  Fini_TypeDesc();
   AtomString_Fini();
   return 0;
 }

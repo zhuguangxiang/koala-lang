@@ -30,6 +30,7 @@ void test_tupleobject(void)
 int main(int argc, char *argv[])
 {
   AtomString_Init();
+  Init_TypeDesc();
   Init_String_Klass();
   Init_Integer_Klass();
   Init_Tuple_Klass();
