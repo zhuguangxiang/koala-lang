@@ -69,7 +69,7 @@ String AtomString_New_NString(char *str, int len)
   String s;
   char *tmp = strndup(str, len);
   s = AtomString_New(tmp);
-  free(tmp);
+  mm_free(tmp);
   return s;
 }
 
@@ -88,7 +88,7 @@ String AtomString_New_NStr(char *str, int len)
 {
   char *zstr = strndup(str, len);
   String s = AtomString_New(zstr);
-  free(zstr);
+  mm_free(zstr);
   return s;
 }
 

@@ -120,7 +120,7 @@ static void check_basic_refcnt(void)
 void Fini_TypeDesc(void)
 {
   HashTable_Fini(&descTable, desc_free_func, NULL);
-  //check_basic_refcnt();
+  check_basic_refcnt();
 }
 
 static void __basic_tostring(TypeDesc *desc, char *buf)

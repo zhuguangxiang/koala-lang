@@ -29,9 +29,26 @@
 extern "C" {
 #endif
 
+typedef struct memstat {
+  long long allocated;
+  long long freed;
+} MemStat;
+
+extern MemStat memstat;
+
 /* no gc memory allocator */
-#define mm_alloc(size) calloc(1, size)
-#define mm_free(ptr)   free(ptr)
+#define mm_alloc(size) \
+({ \
+  memstat.allocated += size; \
+  calloc(1, size); \
+})
+
+#define mm_free(ptr) \
+({ \
+  free(ptr); \
+})
+
+void show_memstat(void);
 
 /* gc memory allocator */
 void *gc_alloc(int size);

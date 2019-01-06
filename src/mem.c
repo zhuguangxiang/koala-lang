@@ -20,14 +20,23 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "common.h"
+#include "mem.h"
+
+MemStat memstat;
+
+void show_memstat(void)
+{
+  puts("------------------------------");
+  printf("  Mem Used: %lld Bytes\n", memstat.allocated);
+  puts("------------------------------");
+}
 
 void *gc_alloc(int size)
 {
-  return calloc(1, size);
+  return mm_alloc(size);
 }
 
 void gc_free(void *ptr)
 {
-  free(ptr);
+  mm_free(ptr);
 }

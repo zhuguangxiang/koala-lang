@@ -609,7 +609,7 @@ int typeitem_equal(void *k1, void *k2)
 
 char *array_string(int dims)
 {
-  char *data = malloc(dims * 2 + 1);
+  char *data = mm_alloc(dims * 2 + 1);
   int i = 0;
   while (dims-- > 0) {
     data[i] = '['; data[i+1] = ']';
@@ -1641,7 +1641,7 @@ static FILE *open_image_file(char *path, char *mode)
     int status = system(cmd);
     assert(!status);
     mm_free(cmd);
-    free(dir);
+    mm_free(dir);
     fp = fopen(path, "w");
   }
   return fp;

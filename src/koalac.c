@@ -27,6 +27,7 @@
 #include "koala_yacc.h"
 #include "koala_lex.h"
 #include "options.h"
+#include "mem.h"
 #include "log.h"
 
 static int isdotkl(char *filename)
@@ -174,13 +175,13 @@ int main(int argc, char *argv[])
   char *s;
   Vector_ForEach(s, &opts.names) {
     /* if not specify srcpath, use ./ as default srcpath */
-    input = malloc(srclen + strlen(s) + 4);
+    input = mm_alloc(srclen + strlen(s) + 4);
     if (opts.srcpath != NULL)
       sprintf(input, "%s/%s", opts.srcpath, s);
     else
       strcpy(input, s);
 
-    output = malloc(outlen + strlen(s) + 8);
+    output = mm_alloc(outlen + strlen(s) + 8);
     if (opts.outpath != NULL)
       sprintf(output, "%s/%s.klc", opts.outpath, s);
     else
@@ -189,13 +190,14 @@ int main(int argc, char *argv[])
     Log_Debug("input:%s", input);
     Log_Debug("outout:%s", output);
     compile(input, output, &opts);
-    free(input);
-    free(output);
+    mm_free(input);
+    mm_free(output);
   }
 
   Koala_Finalize();
 
   fini_options(&opts);
 
+  show_memstat();
   return 0;
 }

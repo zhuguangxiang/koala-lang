@@ -99,7 +99,7 @@ Inst *Inst_New(uint8 op, Argument *val)
 
 void Inst_Free(Inst *i)
 {
-  free(i);
+  mm_free(i);
 }
 
 Inst *Inst_Append(CodeBlock *b, uint8 op, Argument *val)
@@ -119,7 +119,7 @@ Inst *Inst_Append_NoArg(CodeBlock *b, uint8 op)
 
 JmpInst *JmpInst_New(Inst *inst, int type)
 {
-  JmpInst *jmp = malloc(sizeof(JmpInst));
+  JmpInst *jmp = mm_alloc(sizeof(JmpInst));
   jmp->inst = inst;
   jmp->type = type;
   return jmp;
@@ -127,12 +127,12 @@ JmpInst *JmpInst_New(Inst *inst, int type)
 
 void JmpInst_Free(JmpInst *jmp)
 {
-  free(jmp);
+  mm_free(jmp);
 }
 
 CodeBlock *CodeBlock_New(void)
 {
-  CodeBlock *b = calloc(1, sizeof(CodeBlock));
+  CodeBlock *b = mm_alloc(sizeof(CodeBlock));
   init_list_head(&b->insts);
   return b;
 }
@@ -150,7 +150,7 @@ void CodeBlock_Free(CodeBlock *block)
     Inst_Free(i);
   }
 
-  free(block);
+  mm_free(block);
 }
 
 void CodeBlock_Merge(CodeBlock *from, CodeBlock *to)

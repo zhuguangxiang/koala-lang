@@ -143,7 +143,7 @@ HashTable *HashTable_New(hashfunc hash, equalfunc equal)
     return NULL;
 
   if (HashTable_Init(table, hash, equal)) {
-    free(table);
+    mm_free(table);
     return NULL;
   }
 
@@ -155,7 +155,7 @@ void HashTable_Free(HashTable *table, visitfunc fn, void *arg)
   if (!table)
     return;
   HashTable_Fini(table, fn, arg);
-  free(table);
+  mm_free(table);
 }
 
 HashNode *__HashTable_Find(HashTable *table, uint32 hash, void *key)

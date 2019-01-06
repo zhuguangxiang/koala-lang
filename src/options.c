@@ -21,11 +21,12 @@
  */
 
 #include "options.h"
+#include "mem.h"
 #include "log.h"
 
 struct namevalue *namevalue_new(char *name, char *value)
 {
-  struct namevalue *nv = malloc(sizeof(struct namevalue));
+  struct namevalue *nv = mm_alloc(sizeof(struct namevalue));
   assert(nv != NULL);
   nv->name = name;
   nv->value = value;
@@ -34,9 +35,9 @@ struct namevalue *namevalue_new(char *name, char *value)
 
 void namevalue_free(struct namevalue *nv)
 {
-  free(nv->name);
-  free(nv->value);
-  free(nv);
+  mm_free(nv->name);
+  mm_free(nv->value);
+  mm_free(nv);
 }
 
 struct namevalue *parse_namevalue(char *opt, struct options *opts, char *prog)
@@ -118,7 +119,7 @@ int init_options(struct options *opts)
 
 static void free_string_func(void *item, void *arg)
 {
-  free(item);
+  mm_free(item);
 }
 
 static void free_namevalue_func(void *item, void *arg)
@@ -129,10 +130,10 @@ static void free_namevalue_func(void *item, void *arg)
 void fini_options(struct options *opts)
 {
   if (opts->srcpath != NULL)
-    free(opts->srcpath);
+    mm_free(opts->srcpath);
 
   if (opts->outpath != NULL)
-    free(opts->outpath);
+    mm_free(opts->outpath);
 
   Vector_Fini(&opts->pathes, free_string_func, NULL);
   Vector_Fini(&opts->nvs, free_namevalue_func, NULL);
@@ -171,7 +172,7 @@ void options_toarray(struct options *opts, char *array[], int ind)
   struct namevalue *nv;
   Vector_ForEach(nv, &opts->nvs) {
     array[ind++] = strdup("-D");
-    buf = malloc(strlen(nv->name) + strlen(nv->value) + 2);
+    buf = mm_alloc(strlen(nv->name) + strlen(nv->value) + 2);
     sprintf(buf, "%s=%s", nv->name, nv->value);
     array[ind++] = buf;
   }

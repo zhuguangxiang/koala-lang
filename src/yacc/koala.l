@@ -186,23 +186,12 @@ L   [a-zA-Z_]
 }
 
 (\"(([^\"]|\\\")*[^\\])?\") {
-/*
-  char *tmp = malloc(yyleng-1);
-  strncpy(tmp, yytext+1, yyleng-2);
-  tmp[yyleng - 2] = 0;
-  yylval->SVal = tmp;
-*/
   yylval->SVal = AtomString_New_NStr(yytext + 1, yyleng - 2);
   RETURN(STRING_LITERAL);
 }
 
 {L}({L}|{D})* {
   assert(yyleng < 64);
-/*
-  char *tmp = malloc(yyleng+1);
-  strncpy(tmp, yytext, yyleng+1);
-  yylval->SVal = tmp;
-*/
   yylval->SVal = AtomString_New_NStr(yytext, yyleng + 1);
   RETURN(ID);
 }

@@ -25,6 +25,7 @@
 
 #include "common.h"
 #include "atomstring.h"
+#include "mem.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -45,7 +46,7 @@ void __StringBuf_Append_Char(StringBuf *buf, char ch);
 #define FiniStringBuf(name) \
 do { \
   if ((name).data != NULL) \
-    free((name).data); \
+    mm_free((name).data); \
 } while (0)
 
 /* fmt: "#.#" */

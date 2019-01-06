@@ -31,6 +31,7 @@ IdType *New_IdType(char *id, TypeDesc *desc)
 {
   IdType *idType = mm_alloc(sizeof(IdType));
   idType->id = id;
+  TYPE_INCREF(desc);
   idType->desc = desc;
   return idType;
 }
@@ -156,10 +157,17 @@ Expr *Expr_From_Call(Vector *args, Expr *left)
   return (Expr *)callExp;
 }
 
+void Expr_Free(Expr *exp)
+{
+  if (exp != NULL)
+    mm_free(exp);
+}
+
 static void free_vardecl_stmt(Stmt *stmt)
 {
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
   TypeDesc_Free(varStmt->desc);
+  Expr_Free(varStmt->exp);
   mm_free(stmt);
 }
 
@@ -185,7 +193,7 @@ static void free_assignlist_stmt(Stmt *stmt)
 
 static void free_idtype_func(void *item, void *arg)
 {
-  //Free_IdType(item);
+  Free_IdType(item);
 }
 
 static void free_funcdecl_stmt(Stmt *stmt)
@@ -431,7 +439,7 @@ static void import_free_func(HashNode *hnode, void *arg)
 {
   UNUSED_PARAMETER(arg);
   Import *import = container_of(hnode, Import, hnode);
-  free(import);
+  mm_free(import);
 }
 
 void Init_Imports(ParserState *ps)
@@ -669,7 +677,7 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
       __new_var(ps, varStmt->id, varStmt->desc, varStmt->konst);
     }
     Vector_Free(listStmt->vec, NULL, NULL);
-    free(listStmt);
+    mm_free(listStmt);
   } else {
     assert(stmt->kind == VARLIST_KIND);
     __add_stmt(ps, stmt);
@@ -843,7 +851,7 @@ void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
   TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
   STable_Add_Alias(ps->u->stbl, aliasStmt->id, aliasStmt->desc);
   Log_Debug("add typealias '%s' successful", aliasStmt->id);
-  free(stmt);
+  mm_free(stmt);
 }
 
 static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)

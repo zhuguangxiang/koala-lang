@@ -253,7 +253,7 @@ void Klass_Free(Klass *klazz)
 {
   Fini_Klass(klazz);
   Log_Debug("Klass '%s' is freed", klazz->name);
-  free(klazz->name);
+  mm_free(klazz->name);
   gc_free(klazz);
 }
 

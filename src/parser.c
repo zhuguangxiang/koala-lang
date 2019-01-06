@@ -247,7 +247,7 @@ void Destroy_Parser(ParserState *ps)
   fini_parser_unit(u);
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   yylex_destroy(ps->scanner);
-  free(ps->filename);
+  mm_free(ps->filename);
   mm_free(ps);
 }
 
