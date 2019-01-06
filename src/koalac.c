@@ -109,6 +109,8 @@ static int compile(char *input, char *output, struct options *options)
     fprintf(stderr, "There are %d errors.\n", errnum);
   }
 
+  Show_PkgInfo_Symbols(&pkg);
+
   Vector_Fini(&vec, NULL, NULL);
   Fini_PkgInfo(&pkg);
   return 0;

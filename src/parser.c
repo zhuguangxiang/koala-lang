@@ -144,7 +144,7 @@ static void merge_parser_unit(ParserState *ps)
 }
 
 static const char *scope_strings[] = {
-  NULL, "MODULE", "FUNCTION", "BLOCK", "CLOSURE", "CLASS"
+  NULL, "PACKAGE", "FUNCTION", "BLOCK", "CLOSURE", "CLASS"
 };
 
 #if 1
@@ -160,8 +160,23 @@ static void show_parser_unit(ParserState *ps)
   CodeBlock_Show(u->block);
   printf("---------------------\n");
 }
+
+void Show_PkgInfo_Symbols(PkgInfo *pkg)
+{
+  const char *scope = scope_strings[1];
+  char *name = pkg->pkgname;
+  printf("---------------------\n");
+  printf("scope-%d(%s, %s) symbols:\n", 0, scope, name);
+  STable_Show(pkg->stbl);
+  printf("---------------------\n");
+}
+
 #else
 #define show_parser_unit(ps) ((void *)0)
+void Show_PkgInfo_Symbols(PkgInfo *pkg)
+{
+
+}
 #endif
 
 static void check_unused_symbols(ParserUnit *u)
@@ -210,7 +225,8 @@ ParserState *New_Parser(PkgInfo *pkg, char *filename)
   ps->filename = strdup(filename);
   ps->pkg = pkg;
 
-  pkg->lastfile = AtomString_New(filename).str;
+  if (pkg->lastfile == NULL)
+    pkg->lastfile = AtomString_New(filename).str;
 
   yylex_init_extra(ps, &ps->scanner);
 
@@ -232,7 +248,6 @@ void Destroy_Parser(ParserState *ps)
 {
   ParserUnit *u = ps->u;
 
-  show_parser_unit(ps);
   check_unused_symbols(u);
 
   assert(u == &ps->top);

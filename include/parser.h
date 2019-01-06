@@ -50,6 +50,7 @@ typedef struct packageinfo {
 
 int Init_PkgInfo(PkgInfo *pkg, char *pkgfile, struct options *opts);
 void Fini_PkgInfo(PkgInfo *pkg);
+void Show_PkgInfo_Symbols(PkgInfo *pkg);
 
 /* line max length */
 #define LINE_MAX_LEN 256
