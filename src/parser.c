@@ -23,7 +23,7 @@
 
 #include "parser.h"
 #include "koala_lex.h"
-#include "state.h"
+#include "globalstate.h"
 #include "mem.h"
 #include "log.h"
 

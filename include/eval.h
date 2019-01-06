@@ -23,7 +23,7 @@
 #ifndef _KOALA_EVAL_H_
 #define _KOALA_EVAL_H_
 
-#include "state.h"
+#include "globalstate.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -145,7 +145,7 @@ static void finifunc(HashNode *hnode, void *arg)
 {
   StringObject *sob = container_of(hnode, StringObject, hnode);
   Log_Debug("free string: '%s'", sob->str);
-  mm_free((Object *)sob);
+  OB_DECREF(sob);
 }
 
 void Fini_String_Klass(void)

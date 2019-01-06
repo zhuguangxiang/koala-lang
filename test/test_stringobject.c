@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
   Init_String_Klass();
   test_stringobject();
   Fini_String_Klass();
+  Fini_TypeDesc();
   AtomString_Fini();
   return 0;
 }

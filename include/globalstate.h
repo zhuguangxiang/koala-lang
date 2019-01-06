@@ -20,8 +20,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_STATE_H_
-#define _KOALA_STATE_H_
+#ifndef _KOALA_GLOBAL_STATE_H_
+#define _KOALA_GLOBAL_STATE_H_
 
 #include "atomstring.h"
 #include "packageobject.h"
@@ -82,4 +82,4 @@ void Koala_Show_Packages(void);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_STATE_H_ */
+#endif /* _KOALA_GLOBAL_STATE_H_ */

@@ -261,13 +261,13 @@ void Fini_Klass(Klass *klazz)
 {
   Log_Debug("Klass '%s' is finalized", klazz->name);
   Vector_Fini(&klazz->lro, free_lronode_func, NULL);
-  if (klazz->table)
+  if (klazz->table != NULL);
     HashTable_Free(klazz->table, free_memberdef_func, NULL);
 }
 
 static HashTable *__get_table(Klass *klazz)
 {
-  if (!klazz->table)
+  if (klazz->table == NULL)
     klazz->table = MemberDef_Build_HashTable();
   return klazz->table;
 }
@@ -443,6 +443,8 @@ MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k)
 
 void MemberDef_Free(MemberDef *m)
 {
+  if (m->desc != NULL)
+    TypeDesc_Free(m->desc);
   mm_free(m);
 }
 

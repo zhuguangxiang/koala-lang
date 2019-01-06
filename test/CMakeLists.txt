@@ -38,8 +38,8 @@ target_link_libraries(test_codeobject koala)
 add_executable(test_package test_package.c)
 target_link_libraries(test_package koala)
 
-add_executable(test_state test_state.c)
-target_link_libraries(test_state koala)
+add_executable(test_globalstate test_globalstate.c)
+target_link_libraries(test_globalstate koala)
 
 add_executable(test_image test_image.c)
 target_link_libraries(test_image koala)

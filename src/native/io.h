@@ -37,6 +37,7 @@ int Fd_Write(FdObject *fd, char *data, int size);
 int Fd_Read(FdObject *fd, char *buf, int size);
 int Fd_Close(FdObject *fd);
 
-void init_nio_package(void);
+void Init_Nio_Package(void);
+void Fini_Nio_Package(void);
 
 #endif /* _KOALA_NATIVE_IO_H_ */

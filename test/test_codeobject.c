@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
   test_codeobject();
   Fini_Code_Klass();
   Fini_String_Klass();
+  Fini_TypeDesc();
   AtomString_Fini();
   return 0;
 }

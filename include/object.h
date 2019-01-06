@@ -233,7 +233,7 @@ do { \
   if (--((Object *)(ob))->ob_refcnt != 0) { \
     assert(((Object *)(ob))->ob_refcnt > 0); \
   } else { \
-    OB_KLASS(ob)->ob_free(ob); \
+    OB_KLASS(ob)->ob_free((Object *)ob); \
     (ob) = NULL; \
   } \
 } while (0)

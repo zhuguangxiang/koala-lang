@@ -23,6 +23,7 @@ int main(int argc, char *argv[])
   test_intobject();
   Fini_Integer_Klass();
   Fini_String_Klass();
+  Fini_TypeDesc();
   AtomString_Fini();
   return 0;
 }

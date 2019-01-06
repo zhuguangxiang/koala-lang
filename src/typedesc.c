@@ -106,7 +106,7 @@ static void desc_free_func(HashNode *hnode, void *arg)
   TypeDesc_Free(desc);
 }
 
-static void check_basictypes_refcnt(void)
+static void check_basic_refcnt(void)
 {
   BasicDesc *basic;
   struct basic_type_s *p;
@@ -120,7 +120,7 @@ static void check_basictypes_refcnt(void)
 void Fini_TypeDesc(void)
 {
   HashTable_Fini(&descTable, desc_free_func, NULL);
-  //check_basictypes_refcnt();
+  //check_basic_refcnt();
 }
 
 static void __basic_tostring(TypeDesc *desc, char *buf)
@@ -179,11 +179,16 @@ static void __item_free(void *item, void *arg)
   TypeDesc_Free(item);
 }
 
+static inline void free_typelist(Vector *vec)
+{
+  Vector_Free(vec, __item_free, NULL);
+}
+
 static void __proto_fini(TypeDesc *desc)
 {
   ProtoDesc *proto = (ProtoDesc *)desc;
-  Vector_Free(proto->arg, __item_free, NULL);
-  Vector_Free(proto->ret, __item_free, NULL);
+  free_typelist(proto->arg);
+  free_typelist(proto->ret);
 }
 
 static void __array_tostring(TypeDesc *desc, char *buf)
@@ -288,8 +293,8 @@ void TypeDesc_Free(TypeDesc *desc)
   TYPE_DECREF(desc);
   if (TYPE_REFCNT(desc) <= 0) {
     assert(desc->kind != TYPE_BASIC);
-    typedesc_ops[kind].fini(desc);
     HashTable_Remove(&descTable, &desc->hnode);
+    typedesc_ops[kind].fini(desc);
     mm_free(desc);
   }
 }
@@ -356,6 +361,9 @@ TypeDesc *TypeDesc_Get_Proto(Vector *arg, Vector *ret)
   TypeDesc *exist = FindTypeDesc(buf.data);
   if (exist != NULL) {
     FiniStringBuf(buf);
+    /* NOTES: not use parameters, free them here */
+    free_typelist(arg);
+    free_typelist(ret);
     return exist;
   }
 

@@ -24,7 +24,7 @@
 #include "hashfunc.h"
 #include "mem.h"
 #include "log.h"
-#include "state.h"
+#include "globalstate.h"
 #include "packageobject.h"
 
 IdType *New_IdType(char *id, TypeDesc *desc)
@@ -722,6 +722,7 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
     Stmt *varStmt;
     Vector_ForEach(id, ids) {
       exp = Vector_Get(exps, i);
+      TYPE_INCREF(desc);
       varStmt = __Stmt_From_VarDecl(id, desc, exp, k);
       Vector_Append(listStmt->vec, varStmt);
     }
@@ -736,6 +737,7 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
   if (esz == 1) {
     Expr *e = Vector_Get(exps, 0);
     Vector_Free(exps, NULL, NULL);
+    TYPE_INCREF(desc);
     return __Stmt_From_VarListDecl(ids, desc, e, k);
   }
 
@@ -745,12 +747,14 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
   if (isz == 1) {
     char *id = Vector_Get(ids, 0);
     Vector_Free(ids, NULL, NULL);
+    TYPE_INCREF(desc);
     return __Stmt_From_VarDecl(id, desc, NULL, k);
   } else {
     ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
     char *id;
     Stmt *varStmt;
     Vector_ForEach(id, ids) {
+      TYPE_INCREF(desc);
       varStmt = __Stmt_From_VarDecl(id, desc, NULL, k);
       Vector_Append(listStmt->vec, varStmt);
     }

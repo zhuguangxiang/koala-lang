@@ -26,7 +26,7 @@
 #include <stdio.h>
 #include <sys/utsname.h>
 #include "options.h"
-#include "state.h"
+#include "globalstate.h"
 #include "eval.h"
 #include "task.h"
 

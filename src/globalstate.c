@@ -20,7 +20,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "state.h"
+#include "globalstate.h"
 #include "eval.h"
 #include "mem.h"
 #include "hashfunc.h"
@@ -38,6 +38,16 @@ static void init_pkgnode(PkgNode *node, char *name, PkgNodeKind kind)
   node->kind = kind;
 }
 
+static void fini_pkgnode(PkgNode *node)
+{
+  if (node->kind == PATH_NODE) {
+    Vector_Free(node->children, NULL, NULL);
+  } else {
+    assert(node->kind == LEAF_NODE);
+    OB_DECREF(node->pkg);
+  }
+}
+
 static inline PkgNode *pkgnode_new(void)
 {
   return mm_alloc(sizeof(PkgNode));
@@ -45,6 +55,7 @@ static inline PkgNode *pkgnode_new(void)
 
 static inline void pkgnode_free(PkgNode *node)
 {
+  fini_pkgnode(node);
   mm_free(node);
 }
 
@@ -65,6 +76,8 @@ GlobalState gState;
 static void Init_GlobalState(void)
 {
   AtomString_Init();
+  Init_TypeDesc();
+
   GlobalState *gs = &gState;
   Properties_Init(&gs->props);
   init_pkgnode(&gs->root, "/", PATH_NODE);
@@ -73,49 +86,70 @@ static void Init_GlobalState(void)
   init_list_head(&gs->kslist);
 }
 
-static void init_lang_package(void)
-{
-  Init_String_Klass();
-  Init_Integer_Klass();
-  Init_Package_Klass();
-  Init_Tuple_Klass();
-  PackageObject *pkg = Package_New("lang");
-  Package_Add_Class(pkg, &String_Klass);
-  Package_Add_Class(pkg, &Int_Klass);
-  Package_Add_Class(pkg, &Package_Klass);
-  Package_Add_Class(pkg, &Tuple_Klass);
-  Koala_Add_Package("/", pkg);
-}
-
-void Koala_Initialize(void)
-{
-  Init_GlobalState();
-  Init_TypeDesc();
-  init_lang_package();
-  init_nio_package();
-  Koala_Show_Packages();
-}
-
-static void __n_freefunc(HashNode *hnode, void *arg)
+static void __free_pkgnode_func(HashNode *hnode, void *arg)
 {
   UNUSED_PARAMETER(arg);
   PkgNode *n = container_of(hnode, PkgNode, hnode);
   pkgnode_free(n);
 }
 
-void Koala_Finalize(void)
+static void __free_tuples_func(void *item, void *arg)
 {
-  Fini_Tuple_Klass();
-  Fini_Package_Klass();
-  Fini_Integer_Klass();
-  Fini_String_Klass();
+  UNUSED_PARAMETER(arg);
+  Tuple_Free(item);
+}
 
-  HashTable_Fini(&gState.pkgs, __n_freefunc, NULL);
-  Vector_Free(gState.root.children, NULL, NULL);
-  Vector_Fini(&gState.vars, NULL, NULL);
+static void Fini_GlobalState(void)
+{
+  GlobalState *gs = &gState;
+  struct list_head *p, *n;
+  list_for_each_safe(p, n, &gs->kslist) {
+    //FIXME: free KoalaState
+  }
+  Vector_Fini(&gs->vars, __free_tuples_func, NULL);
+  HashTable_Fini(&gs->pkgs, __free_pkgnode_func, NULL);
+  fini_pkgnode(&gs->root);
+  Properties_Fini(&gs->props);
 
   Fini_TypeDesc();
   AtomString_Fini();
+}
+
+static void Init_Lang_Package(void)
+{
+  Init_String_Klass();
+  Init_Integer_Klass();
+  Init_Tuple_Klass();
+  Init_Package_Klass();
+  PackageObject *pkg = Package_New("lang");
+  Package_Add_Class(pkg, &String_Klass);
+  Package_Add_Class(pkg, &Int_Klass);
+  Package_Add_Class(pkg, &Tuple_Klass);
+  Package_Add_Class(pkg, &Package_Klass);
+  Koala_Add_Package("/", pkg);
+}
+
+static void Fini_Lang_Package(void)
+{
+  Fini_Package_Klass();
+  Fini_Tuple_Klass();
+  Fini_Integer_Klass();
+  Fini_String_Klass();
+}
+
+void Koala_Initialize(void)
+{
+  Init_GlobalState();
+  Init_Lang_Package();
+  Init_Nio_Package();
+  Koala_Show_Packages();
+}
+
+void Koala_Finalize(void)
+{
+  Fini_Nio_Package();
+  Fini_Lang_Package();
+  Fini_GlobalState();
 }
 
 static Vector *__pkgnode_get_vector(PkgNode *node)

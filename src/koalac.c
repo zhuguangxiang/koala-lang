@@ -22,7 +22,7 @@
 
 #include <sys/utsname.h>
 #include "env.h"
-#include "state.h"
+#include "globalstate.h"
 #include "parser.h"
 #include "koala_yacc.h"
 #include "koala_lex.h"

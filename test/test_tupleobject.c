@@ -10,8 +10,10 @@
 void test_tupleobject(void)
 {
   Object *tuple = Tuple_New(8);
-  Tuple_Set(tuple, 0, Integer_New(100));
-  Tuple_Set(tuple, 1, String_New("hello"));
+  Object *ob = Integer_New(100);
+  Tuple_Set(tuple, 0, ob);
+  ob = String_New("hello");
+  Tuple_Set(tuple, 1, ob);
   Object *s = OB_KLASS(tuple)->ob_str(tuple);
   char *str = String_RawString(s);
   printf("%s\n", str);
@@ -35,9 +37,10 @@ int main(int argc, char *argv[])
   Init_Integer_Klass();
   Init_Tuple_Klass();
   test_tupleobject();
-  Fini_String_Klass();
-  Fini_Integer_Klass();
   Fini_Tuple_Klass();
+  Fini_Integer_Klass();
+  Fini_String_Klass();
+  Fini_TypeDesc();
   AtomString_Fini();
   return 0;
 }

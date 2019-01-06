@@ -28,6 +28,7 @@ static CodeObject *code_new(CodeKind kind, TypeDesc *proto)
 {
   CodeObject *code = mm_alloc(sizeof(CodeObject));
   Init_Object_Head(code, &Code_Klass);
+  TYPE_INCREF(proto);
   code->kind = kind;
   code->proto = proto;
   return code;

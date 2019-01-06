@@ -39,14 +39,14 @@ Object *Tuple_New(int size)
 
 void Tuple_Free(Object *ob)
 {
-  if (!ob)
+  if (ob == NULL)
     return;
   OB_ASSERT_KLASS(ob, Tuple_Klass);
   TupleObject *tuple = (TupleObject *)ob;
   Object *tmp;
   for (int i = 0; i < tuple->size; i++) {
     tmp = tuple->items[i];
-    if (tmp)
+    if (tmp != NULL)
       OB_DECREF(tmp);
   }
   gc_free(ob);
@@ -102,7 +102,7 @@ int Tuple_Set(Object *ob, int index, Object *val)
   }
 
   Object *old = tuple->items[index];
-  if (old)
+  if (old != NULL)
     OB_DECREF(old);
 
   tuple->items[index] = val;

@@ -89,7 +89,11 @@ do { \
   if (desc != NULL) \
     ++(desc)->refcnt; \
 } while (0)
-#define TYPE_DECREF(desc) --(desc)->refcnt
+#define TYPE_DECREF(desc) \
+do { \
+  --(desc)->refcnt; \
+  assert(TYPE_REFCNT(desc) >= 0); \
+} while (0)
 
 typedef struct basicdesc {
   TYPEDESC_HEAD

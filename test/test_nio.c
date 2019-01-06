@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "stringobject.h"
-#include "state.h"
+#include "globalstate.h"
 #include "intobject.h"
 #include "io.h"
 

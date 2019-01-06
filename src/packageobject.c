@@ -38,6 +38,25 @@ PackageObject *Package_New(char *name)
 static void pkg_freefunc(HashNode *hnode, void *arg)
 {
   MemberDef *m = container_of(hnode, MemberDef, hnode);
+  switch (m->kind) {
+    case MEMBER_VAR: {
+      Log_Debug("var '%s' is freed", m->name);
+      break;
+    }
+    case MEMBER_CODE: {
+      Log_Debug("func '%s' is freed", m->name);
+      CodeObject_Free(m->code);
+      break;
+    }
+    case MEMBER_CLASS: {
+      Log_Debug("class '%s' is freed", m->name);
+      break;
+    }
+    default: {
+      assert(0);
+      break;
+    }
+  }
   MemberDef_Free(m);
 }
 
@@ -219,10 +238,18 @@ static Object *package_tostring(Object *ob)
   return MemberDef_HashTable_ToString(pkg->table);
 }
 
+static void package_free(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, Package_Klass);
+  PackageObject *pkg = (PackageObject *)ob;
+  Package_Free(pkg);
+}
+
 Klass Package_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "PackageObject",
   .basesize = sizeof(PackageObject),
+  .ob_free = package_free,
   .ob_str = package_tostring
 };
 

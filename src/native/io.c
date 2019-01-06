@@ -20,16 +20,23 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "state.h"
+#include "globalstate.h"
 #include "io.h"
 #include "tupleobject.h"
 #include "log.h"
 #include "mem.h"
 
+void fd_free(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, Fd_Klass);
+  mm_free(ob);
+}
+
 Klass Fd_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Fd",
   .basesize = sizeof(FdObject),
+  .ob_free = fd_free,
 };
 
 FdObject *Stdout;
@@ -41,6 +48,11 @@ FdObject *Fd_New(int fd)
   Init_Object_Head(ob, &Fd_Klass);
   ob->fd = fd;
   return ob;
+}
+
+void Fd_Free(FdObject *fd)
+{
+  OB_DECREF(fd);
 }
 
 FdObject *Fd_Open(char *path, int flag)
@@ -129,7 +141,7 @@ static FuncDef io_funcs[] = {
   {NULL}
 };
 
-void init_nio_package(void)
+void Init_Nio_Package(void)
 {
   Stdout = Fd_New(STDOUT_FILENO);
   Stdin = Fd_New(STDIN_FILENO);
@@ -143,4 +155,10 @@ void init_nio_package(void)
   Koala_Add_Package("native", pkg);
   Koala_Set_Value(pkg, "Stdout", (Object *)Stdout);
   Koala_Set_Value(pkg, "Stdin", (Object *)Stdin);
+}
+
+void Fini_Nio_Package(void)
+{
+  Fd_Free(Stdout);
+  Fd_Free(Stdin);
 }
