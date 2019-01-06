@@ -130,11 +130,17 @@ static void __func_free(Symbol *sym)
 
 static void __func_show(Symbol *sym)
 {
-  printf("func %s();", sym->name);
-  /* FIXME
-    proto_show(sym->proto);
-  */
-  puts(""); /* with newline */
+  FuncSymbol *funcSym = (FuncSymbol *)sym;
+  ProtoDesc *proto = (ProtoDesc *)funcSym->desc;
+  char buf[64];
+  ProtoVec_ToString(proto->arg, buf);
+  printf("func %s(%s)", sym->name, buf);
+  if (Vector_Size(proto->ret) > 0) {
+    ProtoVec_ToString(proto->ret, buf);
+    printf(" %s;\n", buf);
+  } else {
+    puts(";"); /* with newline */
+  }
 }
 
 static void __add_locvar(KImage *image, int index, Vector *vec, char *fmt)

@@ -149,6 +149,9 @@ int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2);
 /* convert typedesc struct to string for readable and printable */
 void TypeDesc_ToString(TypeDesc *desc, char *buf);
 
+/* show ProtoDesc's arg and ret vectors */
+void ProtoVec_ToString(Vector *vec, char *buf);
+
 /* free the typedesc */
 void TypeDesc_Free(TypeDesc *desc);
 

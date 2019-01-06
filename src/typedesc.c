@@ -283,6 +283,19 @@ void TypeDesc_ToString(TypeDesc *desc, char *buf)
   typedesc_ops[kind].tostring(desc, buf);
 }
 
+void ProtoVec_ToString(Vector *vec, char *buf)
+{
+  /* clear old string */
+  buf[0] = '\0';
+
+  TypeDesc *item;
+  Vector_ForEach(item, vec) {
+    if (i != 0)
+      strcat(buf, ", ");
+    TypeDesc_ToString(item, buf + strlen(buf));
+  }
+}
+
 void TypeDesc_Free(TypeDesc *desc)
 {
   if (desc == NULL)
