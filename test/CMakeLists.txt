@@ -1,59 +1,59 @@
 
 add_executable(test_vector test_vector.c)
-target_link_libraries(test_vector koala)
+target_link_libraries(test_vector koala_common)
 
 add_executable(test_hashtable test_hashtable.c)
-target_link_libraries(test_hashtable koala)
+target_link_libraries(test_hashtable koala_common)
 
 add_executable(test_buffer test_buffer.c)
-target_link_libraries(test_buffer koala)
+target_link_libraries(test_buffer koala_common)
 
 add_executable(test_stringbuf test_stringbuf.c)
-target_link_libraries(test_stringbuf koala)
+target_link_libraries(test_stringbuf koala_common)
 
 add_executable(test_atomstring test_atomstring.c)
-target_link_libraries(test_atomstring koala)
+target_link_libraries(test_atomstring koala_common)
 
 add_executable(test_typedesc test_typedesc.c)
-target_link_libraries(test_typedesc koala)
+target_link_libraries(test_typedesc koala_common)
 
 add_executable(test_object test_object.c)
-target_link_libraries(test_object koala)
+target_link_libraries(test_object koala_vm)
 
 add_executable(test_trait test_trait.c)
-target_link_libraries(test_trait koala)
+target_link_libraries(test_trait koala_vm)
 
 add_executable(test_stringobject test_stringobject.c)
-target_link_libraries(test_stringobject koala)
+target_link_libraries(test_stringobject koala_vm)
 
 add_executable(test_intobject test_intobject.c)
-target_link_libraries(test_intobject koala)
+target_link_libraries(test_intobject koala_vm)
 
 add_executable(test_tupleobject test_tupleobject.c)
-target_link_libraries(test_tupleobject koala)
+target_link_libraries(test_tupleobject koala_vm)
 
 add_executable(test_codeobject test_codeobject.c)
-target_link_libraries(test_codeobject koala)
+target_link_libraries(test_codeobject koala_vm)
 
 add_executable(test_package test_package.c)
-target_link_libraries(test_package koala)
+target_link_libraries(test_package koala_vm)
 
 add_executable(test_globalstate test_globalstate.c)
-target_link_libraries(test_globalstate koala)
+target_link_libraries(test_globalstate koala_vm)
 
 add_executable(test_image test_image.c)
-target_link_libraries(test_image koala)
+target_link_libraries(test_image koala_vm)
 
 add_executable(test_properties test_properties.c)
-target_link_libraries(test_properties koala)
+target_link_libraries(test_properties koala_common)
 
 add_executable(test_task test_task.c)
-target_link_libraries(test_task task)
+target_link_libraries(test_task koala_task)
 
 add_executable(test_join test_join.c)
-target_link_libraries(test_join task)
+target_link_libraries(test_join koala_task)
 
 add_executable(test_nio test_nio.c)
-target_link_libraries(test_nio koala)
+target_link_libraries(test_nio koala_vm)
 
 add_executable(test_color test_color.c)

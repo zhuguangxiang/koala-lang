@@ -24,8 +24,6 @@
 #include "hashfunc.h"
 #include "mem.h"
 #include "log.h"
-#include "globalstate.h"
-#include "packageobject.h"
 
 IdType *New_IdType(char *id, TypeDesc *desc)
 {
@@ -254,6 +252,8 @@ static void free_trait_stmt(Stmt *stmt)
 static void free_proto_stmt(Stmt *stmt)
 {
   ProtoDeclStmt *protoStmt = (ProtoDeclStmt *)stmt;
+  Vector_Free(protoStmt->args, free_idtype_func, NULL);
+  Vector_Free(protoStmt->rets, free_idtype_func, NULL);
   mm_free(stmt);
 }
 
@@ -492,6 +492,7 @@ static void free_extpkg(struct extpkg *extpkg)
   mm_free(extpkg);
 }
 
+#if 0
 static void compile_pkg(char *path, struct options *opts)
 {
   Log_Debug("load package '%s' failed, try to compile it", path);
@@ -563,9 +564,12 @@ static SymbolTable *pkg_to_stbl(Object *ob)
   HashTable_Visit(pkg->table, __to_stbl_fn, stbl);
   return stbl;
 }
+#endif
 
 static struct extpkg *load_extpkg(ParserState *ps, char *path)
 {
+  return NULL;
+  #if 0
   Object *pkg = Koala_Get_Package(path);
   if (pkg == NULL) {
     compile_pkg(path, ps->pkg->opts);
@@ -579,6 +583,7 @@ static struct extpkg *load_extpkg(ParserState *ps, char *path)
     return NULL;
 
   return new_extpkg(Package_Name(pkg), stbl);
+  #endif
 }
 
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
@@ -921,8 +926,15 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
         __parse_funcdecl(ps, s);
       } else {
         assert(s->kind == PROTO_KIND);
-        assert(sym->kind == SYM_TRAIT);
-        __parse_proto(ps, (ProtoDeclStmt *)s);
+        ProtoDeclStmt *proto = (ProtoDeclStmt *)s;
+        if (s->native) {
+          assert(sym->kind == SYM_CLASS);
+          Log_Debug("add native func '%s' to '%s'", proto->id, sym->name);
+        } else {
+          Log_Debug("add proto '%s' to '%s'", proto->id, sym->name);
+          assert(sym->kind == SYM_TRAIT);
+        }
+        __parse_proto(ps, proto);
       }
     }
   }

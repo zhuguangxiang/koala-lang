@@ -237,6 +237,7 @@ typedef enum stmtkind {
 
 #define STMT_HEAD \
   StmtKind kind;  \
+  int native;     \
   LineInfo line;
 
 typedef struct stmt {

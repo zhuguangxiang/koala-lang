@@ -22,7 +22,6 @@
 
 #include <sys/utsname.h>
 #include "env.h"
-#include "globalstate.h"
 #include "parser.h"
 #include "koala_yacc.h"
 #include "koala_lex.h"
@@ -140,6 +139,18 @@ static void show_usage(char *prog)
     prog);
 }
 
+static void init_compiler(void)
+{
+  AtomString_Init();
+  Init_TypeDesc();
+}
+
+static void fini_compiler(void)
+{
+  Fini_TypeDesc();
+  AtomString_Fini();
+}
+
 int main(int argc, char *argv[])
 {
   struct options opts;
@@ -149,21 +160,22 @@ int main(int argc, char *argv[])
   parse_options(argc, argv, &opts);
   show_options(&opts);
 
-  Koala_Initialize();
+  //Koala_Initialize();
+  init_compiler();
 
   /*
    * search klc pathes:
    * 1. current(output) directory
    * 2. -p directory
    */
-  if (opts.outpath == NULL)
-    Koala_Add_Property(KOALA_PATH, ".");
-  else
-    Koala_Add_Property(KOALA_PATH, opts.outpath);
-  char *path;
-  Vector_ForEach(path, &opts.pathes) {
-    Koala_Add_Property(KOALA_PATH, path);
-  }
+  // if (opts.outpath == NULL)
+  //   Koala_Add_Property(KOALA_PATH, ".");
+  // else
+  //   Koala_Add_Property(KOALA_PATH, opts.outpath);
+  // char *path;
+  // Vector_ForEach(path, &opts.pathes) {
+  //   Koala_Add_Property(KOALA_PATH, path);
+  // }
 
   char *input;
   char *output;
@@ -196,7 +208,8 @@ int main(int argc, char *argv[])
     mm_free(output);
   }
 
-  Koala_Finalize();
+  //Koala_Finalize();
+  fini_compiler();
 
   fini_options(&opts);
 

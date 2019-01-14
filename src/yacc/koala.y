@@ -417,7 +417,8 @@ ParameterList
 VArgType
   : ELLIPSIS
   {
-    $$ = TypeDesc_Get_Varg(NULL);
+    TypeDesc *any = TypeDesc_Get_Basic(BASIC_ANY);
+    $$ = TypeDesc_Get_Varg(any);
   }
   | ELLIPSIS BaseType
   {
@@ -740,7 +741,8 @@ ClassMemberDeclaration
   }
   | NATIVE ProtoDeclaration
   {
-
+    $2->native = 1;
+    $$ = $2;
   }
   | ';'
   {
