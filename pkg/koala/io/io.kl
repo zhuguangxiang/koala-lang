@@ -20,21 +20,60 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package hello
+package io
 
-import "native/io"
+import "koala/sys"
 
-var greeting string = "hello,world"
-var total int = 100
+var Stdout File
+var Stdin File
 
-var array = [3][]string
-
-//var ch = 'a'
-var ch2 = true
-
-func Add(a int, b int) (r int) {
-  {"abc", 1, 2}.length()
+trait Reader {
+  func Read(buf []byte) (n int, err error)
 }
 
-func Main(args []string) {
+trait Writer {
+  func Write(buf []byte) (n int, err error)
+}
+
+class File {
+  native name string
+
+  func __init__(name string) {
+    self.name = name
+  }
+
+  native func Close() error;
+}
+
+native func Open(name string) (f File, e error)
+native func Close(f File)
+
+class FileReader with Reader {
+  file File
+
+  func __init__(file File) {
+    self.file = file
+  }
+
+  native func Read(buf []byte) (n int, e error)
+}
+
+class FileWriter with Writer {
+  file File
+
+  func __init__(file File) {
+    self.file = file
+  }
+
+  native func Write(buf []byte) (n int, e error)
+}
+
+native void Println(args ...Any)
+
+func __init__() {
+  sys.LoadLibrary("koala_io")
+  Stdout = File("/dev/stdout")
+  Stdout.SetFd(nio.Stdout)
+  Stdin = File("/dev/stdin")
+  Stdin.SetFd(nio.Stdin)
 }

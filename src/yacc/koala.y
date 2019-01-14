@@ -529,7 +529,6 @@ ModuleStatement
   }
   | NATIVE ProtoDeclaration
   {
-
   }
   | TypeAliasDeclaration
   {

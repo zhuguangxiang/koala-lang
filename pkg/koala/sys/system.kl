@@ -20,21 +20,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package hello
+package sys
 
-import "native/io"
-
-var greeting string = "hello,world"
-var total int = 100
-
-var array = [3][]string
-
-//var ch = 'a'
-var ch2 = true
-
-func Add(a int, b int) (r int) {
-  {"abc", 1, 2}.length()
-}
-
-func Main(args []string) {
-}
+native func LoadLibrary(libName string)
+native func GetEnv(name string)
+native func GetEnvMap() map[string]string

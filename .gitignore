@@ -1,16 +1,12 @@
 *.out
 koala_yacc.*
 koala_lex.*
-koala_tokens.h
 *.klc
 *.a
 *.o
 *.so
 koalac
-koala
 .gdbinit
-1
-2
 *.class
 *.java
 *.py
@@ -21,14 +17,14 @@ libkoala*
 GPATH
 GRTAGS
 GTAGS
-.vscode
-.vscode/settings.json
+.vscode/c_cpp_properties.json
 manual.html
 manual.org.bak
 build/*
 
-klc
 libtask.so.0
 libtask.so.0.5
 include/config.h
 bin/test_*
+
+todeleted/*
