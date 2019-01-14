@@ -44,14 +44,15 @@ do { \
     result = YY_NULL; \
 } while (0);
 
-#define RETURN(token) \
+#define YY_RETURN(token) \
   yyps->lastToken = token; \
   return token;
 
 static int Lexer_NeedInsertSemiColon(ParserState *ps)
 {
   static int tokens[] = {
-    ID, INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL,
+    ID, CHAR_LITERAL, INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, TOKEN_NIL,
+    TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
     ')', ']', '}',
     CHAR, BYTE, INTEGER, FLOAT, STRING, BOOL, ANY, ELLIPSIS
@@ -63,10 +64,10 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
   return 0;
 }
 
-#define NEWLINE() \
+#define YY_NEWLINE() \
 do { \
   if (Lexer_NeedInsertSemiColon(yyps)) { \
-    RETURN(';'); \
+    YY_RETURN(';'); \
   } \
 } while (0);
 
@@ -89,118 +90,121 @@ L   [a-zA-Z_]
 %%
 
 [\+\-\*\/\%&\|=><,.;\{\}\[\]\(\)^~:] {
-  RETURN(yytext[0]);
+  YY_RETURN(yytext[0]);
 }
 
-"=="             { RETURN(EQ);              }
-"!="             { RETURN(NE);              }
-">="             { RETURN(GE);              }
-"<="             { RETURN(LE);              }
-"and"            { RETURN(AND);             }
-"or"             { RETURN(OR);              }
-"not"            { RETURN(NOT);             }
-"&&"             { RETURN(AND);             }
-"||"             { RETURN(OR);              }
-"!"              { RETURN(NOT);             }
-">>"             { RETURN(RSHIFT);          }
-"<<"             { RETURN(LSHIFT);          }
-":="             { RETURN(TYPELESS_ASSIGN); }
-"+="             { RETURN(PLUS_ASSGIN);     }
-"-="             { RETURN(MINUS_ASSIGN);    }
-"*="             { RETURN(MULT_ASSIGN);     }
-"/="             { RETURN(DIV_ASSIGN);      }
-"%="             { RETURN(MOD_ASSIGN);      }
-"&="             { RETURN(AND_ASSIGN);      }
-"|="             { RETURN(OR_ASSIGN);       }
-"^="             { RETURN(XOR_ASSIGN);      }
-">>="            { RETURN(RSHIFT_ASSIGN);   }
-"<<="            { RETURN(LSHIFT_ASSIGN);   }
-"..."            { RETURN(ELLIPSIS);        }
-"**"             { RETURN(POWER);           }
-"..<"            { RETURN(DOTDOTLESS);      }
-">.."            { RETURN(GREATERDOTDOT);   }
+"=="             { YY_RETURN(EQ);              }
+"!="             { YY_RETURN(NE);              }
+">="             { YY_RETURN(GE);              }
+"<="             { YY_RETURN(LE);              }
+"and"            { YY_RETURN(AND);             }
+"or"             { YY_RETURN(OR);              }
+"not"            { YY_RETURN(NOT);             }
+"&&"             { YY_RETURN(AND);             }
+"||"             { YY_RETURN(OR);              }
+"!"              { YY_RETURN(NOT);             }
+">>"             { YY_RETURN(RSHIFT);          }
+"<<"             { YY_RETURN(LSHIFT);          }
+":="             { YY_RETURN(TYPELESS_ASSIGN); }
+"+="             { YY_RETURN(PLUS_ASSGIN);     }
+"-="             { YY_RETURN(MINUS_ASSIGN);    }
+"*="             { YY_RETURN(MULT_ASSIGN);     }
+"/="             { YY_RETURN(DIV_ASSIGN);      }
+"%="             { YY_RETURN(MOD_ASSIGN);      }
+"&="             { YY_RETURN(AND_ASSIGN);      }
+"|="             { YY_RETURN(OR_ASSIGN);       }
+"^="             { YY_RETURN(XOR_ASSIGN);      }
+">>="            { YY_RETURN(RSHIFT_ASSIGN);   }
+"<<="            { YY_RETURN(LSHIFT_ASSIGN);   }
+"..."            { YY_RETURN(ELLIPSIS);        }
+"**"             { YY_RETURN(POWER);           }
+"..<"            { YY_RETURN(DOTDOTLESS);      }
+">.."            { YY_RETURN(GREATERDOTDOT);   }
 
-"if"             { RETURN(IF);              }
-"else"           { RETURN(ELSE);            }
-"while"          { RETURN(WHILE);           }
-"do"             { RETURN(DO);              }
-"for"            { RETURN(FOR);             }
-"switch"         { RETURN(SWITCH);          }
-"case"           { RETURN(CASE);            }
-"fallthrough"    { RETURN(FALLTHROUGH);     }
-"break"          { RETURN(BREAK);           }
-"continue"       { RETURN(CONTINUE);        }
-"default"        { RETURN(DEFAULT);         }
-"var"            { RETURN(VAR);             }
-"func"           { RETURN(FUNC);            }
-"return"         { RETURN(TOKEN_RETURN);    }
-"class"          { RETURN(CLASS);           }
-"trait"          { RETURN(TRAIT);           }
-"extends"        { RETURN(EXTENDS);         }
-"with"           { RETURN(WITH);            }
-"const"          { RETURN(CONST);           }
-"package"        { RETURN(PACKAGE);         }
-"import"         { RETURN(IMPORT);          }
-"go"             { RETURN(GO);              }
-"defer"          { RETURN(DEFER);           }
-"typealias"      { RETURN(TYPEALIAS);       }
+"if"             { YY_RETURN(IF);              }
+"else"           { YY_RETURN(ELSE);            }
+"while"          { YY_RETURN(WHILE);           }
+"for"            { YY_RETURN(FOR);             }
+"switch"         { YY_RETURN(SWITCH);          }
+"case"           { YY_RETURN(CASE);            }
+"fallthrough"    { YY_RETURN(FALLTHROUGH);     }
+"break"          { YY_RETURN(BREAK);           }
+"continue"       { YY_RETURN(CONTINUE);        }
+"default"        { YY_RETURN(DEFAULT);         }
+"var"            { YY_RETURN(VAR);             }
+"func"           { YY_RETURN(FUNC);            }
+"return"         { YY_RETURN(TOKEN_RETURN);    }
+"class"          { YY_RETURN(CLASS);           }
+"trait"          { YY_RETURN(TRAIT);           }
+"extends"        { YY_RETURN(EXTENDS);         }
+"with"           { YY_RETURN(WITH);            }
+"const"          { YY_RETURN(CONST);           }
+"package"        { YY_RETURN(PACKAGE);         }
+"import"         { YY_RETURN(IMPORT);          }
+"go"             { YY_RETURN(GO);              }
+"defer"          { YY_RETURN(DEFER);           }
+"typealias"      { YY_RETURN(TYPEALIAS);       }
+"native"         { YY_RETURN(NATIVE);          }
 
-"char"           { RETURN(CHAR);            }
-"byte"           { RETURN(BYTE);            }
-"int"            { RETURN(INTEGER);         }
-"float"          { RETURN(FLOAT);           }
-"bool"           { RETURN(BOOL);            }
-"string"         { RETURN(STRING);          }
-"error"          { RETURN(ERROR);           }
-"Any"            { RETURN(ANY);             }
+"char"           { YY_RETURN(CHAR);            }
+"byte"           { YY_RETURN(BYTE);            }
+"int"            { YY_RETURN(INTEGER);         }
+"float"          { YY_RETURN(FLOAT);           }
+"bool"           { YY_RETURN(BOOL);            }
+"string"         { YY_RETURN(STRING);          }
+"error"          { YY_RETURN(ERROR);           }
+"Any"            { YY_RETURN(ANY);             }
 
-"self"           { RETURN(SELF);            }
-"super"          { RETURN(SUPER);           }
-"true"           { RETURN(TOKEN_TRUE);      }
-"false"          { RETURN(TOKEN_FALSE);     }
-"nil"            { RETURN(TOKEN_NIL);       }
+"self"           { YY_RETURN(SELF);            }
+"super"          { YY_RETURN(SUPER);           }
+"true"           { YY_RETURN(TOKEN_TRUE);      }
+"false"          { YY_RETURN(TOKEN_FALSE);     }
+"nil"            { YY_RETURN(TOKEN_NIL);       }
 
 "[]"+ {
   yylval->Dims = yyleng/2;
-  return DIMS;
+  YY_RETURN(DIMS);
 }
 
 ([1-9][0-9]*|[0]) {
   yylval->IVal = atoi(yytext);
-  RETURN(INT_LITERAL);
+  YY_RETURN(INT_LITERAL);
 }
 
 0[xX]{H}+ {
   yylval->IVal = (int64)strtoul(yytext, NULL, 16);
-  RETURN(INT_LITERAL);
+  YY_RETURN(INT_LITERAL);
 }
 
 0[0-7]* {
   yylval->IVal = (int64)strtoul(yytext, NULL, 8);
-  RETURN(INT_LITERAL);
+  YY_RETURN(INT_LITERAL);
 }
 
 [0-9]+[.][0-9]+ {
   yylval->FVal = atof(yytext);
-  RETURN(FLOAT_LITERAL);
+  YY_RETURN(FLOAT_LITERAL);
 }
 
 (\"(([^\"]|\\\")*[^\\])?\") {
   yylval->SVal = AtomString_New_NStr(yytext + 1, yyleng - 2);
-  RETURN(STRING_LITERAL);
+  YY_RETURN(STRING_LITERAL);
 }
 
 {L}({L}|{D})* {
   assert(yyleng < 64);
   yylval->SVal = AtomString_New_NStr(yytext, yyleng + 1);
-  RETURN(ID);
+  YY_RETURN(ID);
 }
 
 [\n] {
-  NEWLINE();
+  YY_NEWLINE();
 }
 
-(\'.\') { RETURN(CHAR_LITERAL); }
+(\'.+\') {
+  printf("%s\n", yytext);
+  YY_RETURN(CHAR_LITERAL);
+}
 
 [\t\r ]+ {}
 

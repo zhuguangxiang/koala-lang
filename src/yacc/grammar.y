@@ -53,9 +53,7 @@
 %token IF
 %token ELSE
 %token WHILE
-%token DO
 %token FOR
-%token IN
 %token SWITCH
 %token CASE
 %token BREAK
@@ -75,6 +73,7 @@
 %token GO
 %token DEFER
 %token TYPEALIAS
+%token NATIVE
 
 %token CHAR
 %token BYTE
@@ -94,14 +93,23 @@
 %token TOKEN_FALSE
 
 %token DIMS
+%token BYTE_LITERAL
 %token CHAR_LITERAL
 %token INT_LITERAL
 %token FLOAT_LITERAL
 %token STRING_LITERAL
 %token ID
 
+%token PREC_0
+%token PREC_1
+
+%precedence ID
+%precedence '.'
 %precedence ')'
 %precedence '('
+%precedence PREC_0
+%precedence '{'
+//%precedence PREC_1
 
 %start CompileUnit
 
@@ -110,7 +118,6 @@
 Type
   : BaseType
   | ArrayType
-  | VArgType
   ;
 
 ArrayType
@@ -125,31 +132,12 @@ BaseType
   | SetType
   ;
 
-VArgType
-  : ELLIPSIS
-  | ELLIPSIS BaseType
-  ;
-
 MapType
-  : MAP '[' KeyType ']' MapValueType
+  : MAP '[' Type ']' Type
   ;
 
 SetType
-  : SET '[' KeyType ']'
-  ;
-
-KeyType
-  : BYTE
-  | CHAR
-  | INTEGER
-  | STRING
-  | ANY
-  | KlassType
-  ;
-
-MapValueType
-  : BaseType
-  | ArrayType
+  : SET '[' Type ']'
   ;
 
 PrimitiveType
@@ -175,16 +163,27 @@ FunctionType
   | FUNC '(' ')'
   ;
 
-ParameterList
+IDTypeList
   : Type
   | ID Type
-  | ParameterList ',' Type
-  | ParameterList ',' ID Type
+  | IDTypeList ',' Type
+  | IDTypeList ',' ID Type
+  ;
+
+ParameterList
+  : IDTypeList
+  | IDTypeList VArgType
+  | VArgType
+  ;
+
+VArgType
+  : ELLIPSIS
+  | ELLIPSIS BaseType
   ;
 
 ReturnList
   : Type
-  | '(' ParameterList ')'
+  | '(' IDTypeList ')'
   ;
 
 IDList
@@ -228,8 +227,10 @@ ModuleStatement
   | VariableDeclaration
   | ConstDeclaration
   | FunctionDeclaration
+  | NATIVE ProtoDeclaration
   | TypeAliasDeclaration
   | TypeDeclaration
+  | error
   ;
 
 ConstDeclaration
@@ -255,19 +256,18 @@ TypeAliasDeclaration
   ;
 
 TypeDeclaration
-  : CLASS ID ExtendsOrEmpty '{' ClassMemberDeclarationsOrEmpty '}'
-  | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarationsOrEmpty '}'
-  | CLASS ID ExtendsOrEmpty ';'
-  | TRAIT ID WithesOrEmpty ';'
+  : CLASS ID Extends '{' ClassMemberDeclarationsOrEmpty '}'
+  | CLASS ID Extends ';'
+  | TRAIT ID Extends '{' TraitMemberDeclarationsOrEmpty '}'
+  | TRAIT ID Extends ';'
   ;
 
-ExtendsOrEmpty
+Extends
   : %empty
-  | EXTENDS KlassType WithesOrEmpty
-  | Traits
+  | EXTENDS KlassType Withes
   ;
 
-WithesOrEmpty
+Withes
   : %empty
   | Traits
   ;
@@ -290,6 +290,7 @@ ClassMemberDeclarations
 ClassMemberDeclaration
   : FieldDeclaration
   | FunctionDeclaration
+  | NATIVE ProtoDeclaration
   | ';'
   ;
 
@@ -305,8 +306,9 @@ TraitMemberDeclarations
 
 TraitMemberDeclaration
   : FieldDeclaration
-  | ProtoDeclaration
   | FunctionDeclaration
+  | NATIVE ProtoDeclaration
+  | ProtoDeclaration
   | ';'
   ;
 
@@ -354,10 +356,10 @@ ExprStatement
 
 /*
  * TYPELESS_ASSIGN is used only in local blocks
- * PrimaryExpressionList is really IDList
+ * ExpressionList is really IDList
  */
 VariableDeclarationTypeless
-  : PrimaryExpressionList TYPELESS_ASSIGN ExpressionList ';'
+  : ExpressionList TYPELESS_ASSIGN ExpressionList ';'
   ;
 
 IfStatement
@@ -394,11 +396,10 @@ ForStatement
 
 /*
  * TYPELESS_ASSIGN is used only in local blocks
- * PrimaryExpressionList is really IDList
  */
 RangeCause
-  : PrimaryExpressionList '=' RangeExpression
-  | PrimaryExpressionList TYPELESS_ASSIGN RangeExpression
+  : IDList '=' RangeExpression
+  | IDList TYPELESS_ASSIGN RangeExpression
   ;
 
 /*
@@ -460,9 +461,11 @@ Atom
   | SELF
   | SUPER
   | '(' Expression ')'
-  | ArrayExpression
-  | SetExpression
-  | MapExpression
+  | ArrayCreationExpression
+  | SetCreationExpression
+  | ArrayOrSetInitializer
+  | MapCreationExpression
+  | MapInitializer
   | AnonyFuncExpression
   ;
 
@@ -476,9 +479,17 @@ CONSTANT
   | TOKEN_FALSE
   ;
 
-ArrayExpression
-  : DimExprList Type LiteralValue
-  | DIMS BaseType LiteralValue
+ArrayCreationExpression
+  : DimExprList Type ArrayOrSetInitializer
+  | DimExprList Type
+  {
+
+  } %prec PREC_0
+  | DIMS BaseType ArrayOrSetInitializer
+  | DIMS BaseType
+  {
+
+  } %prec PREC_0
   ;
 
 DimExprList
@@ -486,34 +497,28 @@ DimExprList
   | DimExprList '[' Expression ']'
   ;
 
-LiteralValue
-  : '{' ElementList '}'
-  | '{' '}'
-  | '(' ')'
+SetCreationExpression
+  : SetType ArrayOrSetInitializer
+  | SetType
+  {
+
+  } %prec PREC_0
   ;
 
-ElementList
-  : Element
-  | ElementList ',' Element
+ArrayOrSetInitializer
+  : '{' ExpressionList '}'
   ;
 
-Element
-  : Expression
-  | LiteralValue
+MapCreationExpression
+  : MapType MapInitializer
+  | MapType
+  {
+
+  } %prec PREC_0
   ;
 
-SetExpression
-  : SetType LiteralValue
-  ;
-
-MapExpression
-  : MapType MapLiteralValue
-  ;
-
-MapLiteralValue
+MapInitializer
   : '{' MapKeyValueList '}'
-  | '{' '}'
-  | '(' ')'
   ;
 
 MapKeyValueList
@@ -522,16 +527,7 @@ MapKeyValueList
   ;
 
 MapKeyValue
-  : MapKey ':' MapValue
-  ;
-
-MapKey
-  : PrimaryExpression
-  ;
-
-MapValue
-  : Expression
-  | MapLiteralValue
+  : Expression ':' Expression
   ;
 
 AnonyFuncExpression
@@ -623,13 +619,8 @@ ExpressionList
   ;
 
 Assignment
-  : PrimaryExpressionList '=' ExpressionList ';'
+  : ExpressionList '=' ExpressionList ';'
   | PrimaryExpression CompAssignOp Expression ';'
-  ;
-
-PrimaryExpressionList
-  : PrimaryExpression
-  | PrimaryExpressionList ',' PrimaryExpression
   ;
 
 CompAssignOp

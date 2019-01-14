@@ -174,7 +174,7 @@ static void free_vardecl_stmt(Stmt *stmt)
 static void free_varlistdecl_stmt(Stmt *stmt)
 {
   VarListDeclStmt *varListStmt = (VarListDeclStmt *)stmt;
-  Vector_Free(varListStmt->ids, NULL, NULL);
+  Vector_Free_Self(varListStmt->ids);
   TypeDesc_Free(varListStmt->desc);
   mm_free(stmt);
 }
@@ -187,7 +187,7 @@ static void free_assign_stmt(Stmt *stmt)
 static void free_assignlist_stmt(Stmt *stmt)
 {
   AssignListStmt *assignListStmt = (AssignListStmt *)stmt;
-  Vector_Free(assignListStmt->left, NULL, NULL);
+  Vector_Free_Self(assignListStmt->left);
   mm_free(stmt);
 }
 
@@ -676,7 +676,7 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
       varStmt = (VarDeclStmt *)s;
       __new_var(ps, varStmt->id, varStmt->desc, varStmt->konst);
     }
-    Vector_Free(listStmt->vec, NULL, NULL);
+    Vector_Free_Self(listStmt->vec);
     mm_free(listStmt);
   } else {
     assert(stmt->kind == VARLIST_KIND);
@@ -734,8 +734,8 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
       varStmt = __Stmt_From_VarDecl(id, desc, exp, k);
       Vector_Append(listStmt->vec, varStmt);
     }
-    Vector_Free(ids, NULL, NULL);
-    Vector_Free(exps, NULL, NULL);
+    Vector_Free_Self(ids);
+    Vector_Free_Self(exps);
     return (Stmt *)listStmt;
   }
 
@@ -744,7 +744,7 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
   /* count of right expressions is 1 */
   if (esz == 1) {
     Expr *e = Vector_Get(exps, 0);
-    Vector_Free(exps, NULL, NULL);
+    Vector_Free_Self(exps);
     TYPE_INCREF(desc);
     return __Stmt_From_VarListDecl(ids, desc, e, k);
   }
@@ -754,7 +754,7 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
 
   if (isz == 1) {
     char *id = Vector_Get(ids, 0);
-    Vector_Free(ids, NULL, NULL);
+    Vector_Free_Self(ids);
     TYPE_INCREF(desc);
     return __Stmt_From_VarDecl(id, desc, NULL, k);
   } else {
@@ -766,7 +766,7 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
       varStmt = __Stmt_From_VarDecl(id, desc, NULL, k);
       Vector_Append(listStmt->vec, varStmt);
     }
-    Vector_Free(ids, NULL, NULL);
+    Vector_Free_Self(ids);
     return (Stmt *)listStmt;
   }
 }
@@ -790,15 +790,15 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
       assignStmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
       Vector_Append(listStmt->vec, assignStmt);
     }
-    Vector_Free(left, NULL, NULL);
-    Vector_Free(right, NULL, NULL);
+    Vector_Free_Self(left);
+    Vector_Free_Self(right);
     return (Stmt *)listStmt;
   }
 
   assert(lsz > rsz && rsz == 1);
 
   Expr *e = Vector_Get(right, 0);
-  Vector_Free(right, NULL, NULL);
+  Vector_Free_Self(right);
   return Stmt_From_AssignList(left, e);
 }
 

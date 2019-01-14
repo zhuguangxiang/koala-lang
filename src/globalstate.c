@@ -41,7 +41,7 @@ static void init_pkgnode(PkgNode *node, char *name, PkgNodeKind kind)
 static void fini_pkgnode(PkgNode *node)
 {
   if (node->kind == PATH_NODE) {
-    Vector_Free(node->children, NULL, NULL);
+    Vector_Free_Self(node->children);
   } else {
     assert(node->kind == LEAF_NODE);
     OB_DECREF(node->pkg);

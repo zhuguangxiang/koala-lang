@@ -91,9 +91,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token IF
 %token ELSE
 %token WHILE
-%token DO
 %token FOR
-%token IN
 %token SWITCH
 %token CASE
 %token BREAK
@@ -113,6 +111,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token GO
 %token DEFER
 %token TYPEALIAS
+%token NATIVE
 
 %token CHAR
 %token BYTE
@@ -149,8 +148,8 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <TypeDesc> MapType
 %type <TypeDesc> SetType
 %type <TypeDesc> KeyType
-%type <TypeDesc> MapValueType
 
+%type <List> IDTypeList
 %type <List> ParameterList
 %type <List> ReturnList
 %type <List> IDList
@@ -165,8 +164,8 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> ClassMemberDeclarationsOrEmpty
 %type <List> ClassMemberDeclarations
 %type <Stmt> ClassMemberDeclaration
-%type <Stmt> ExtendsOrEmpty
-%type <List> WithesOrEmpty
+%type <Stmt> Extends
+%type <List> Withes
 %type <List> Traits
 %type <List> TraitMemberDeclarationsOrEmpty
 %type <List> TraitMemberDeclarations
@@ -195,9 +194,11 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> Index
 %type <List> Arguments
 %type <Expr> CONSTANT
-%type <Expr> ArrayExpression
-%type <Expr> MapExpression
-%type <Expr> SetExpression
+%type <Expr> ArrayCreationExpression
+%type <Expr> SetCreationExpression
+%type <Expr> ArrayOrSetInitializer
+%type <Expr> MapCreationExpression
+%type <Expr> MapInitializer
 %type <Expr> AnonyFuncExpression
 %type <Operator> UnaryOp
 %type <Expr> UnaryExpression
@@ -213,11 +214,18 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> LogicOrExpression
 %type <Expr> Expression
 %type <List> ExpressionList
-%type <List> PrimaryExpressionList
 %type <Operator> CompAssignOp
 
+%token PREC_0
+%token PREC_1
+
+%precedence ID
+%precedence '.'
 %precedence ')'
 %precedence '('
+%precedence PREC_0
+%precedence '{'
+//%precedence PREC_1
 
 %locations
 
@@ -239,10 +247,6 @@ Type
     $$ = $1;
   }
   | ArrayType
-  {
-    $$ = $1;
-  }
-  | VArgType
   {
     $$ = $1;
   }
@@ -278,19 +282,8 @@ BaseType
   }
   ;
 
-VArgType
-  : ELLIPSIS
-  {
-    $$ = TypeDesc_Get_Varg(NULL);
-  }
-  | ELLIPSIS BaseType
-  {
-    $$ = TypeDesc_Get_Varg($2);
-  }
-  ;
-
 MapType
-  : MAP '[' KeyType ']' MapValueType
+  : MAP '[' KeyType ']' Type
   {
     $$ = TypeDesc_Get_Map($3, $5);
   }
@@ -313,17 +306,6 @@ KeyType
     $$ = TypeDesc_Get_Basic(BASIC_STRING);
   }
   | KlassType
-  {
-    $$ = $1;
-  }
-  ;
-
-MapValueType
-  : BaseType
-  {
-    $$ = $1;
-  }
-  | ArrayType
   {
     $$ = $1;
   }
@@ -394,7 +376,7 @@ FunctionType
   }
   ;
 
-ParameterList
+IDTypeList
   : Type
   {
     $$ = Vector_New();
@@ -405,15 +387,41 @@ ParameterList
     $$ = Vector_New();
     Vector_Append($$, New_IdType($1.str, $2));
   }
-  | ParameterList ',' Type
+  | IDTypeList ',' Type
   {
     $$ = $1;
     Vector_Append($$, New_IdType(NULL, $3));
   }
-  | ParameterList ',' ID Type
+  | IDTypeList ',' ID Type
   {
     $$ = $1;
     Vector_Append($$, New_IdType($3.str, $4));
+  }
+  ;
+
+ParameterList
+  : IDTypeList
+  {
+
+  }
+  | IDTypeList VArgType
+  {
+
+  }
+  | VArgType
+  {
+
+  }
+  ;
+
+VArgType
+  : ELLIPSIS
+  {
+    $$ = TypeDesc_Get_Varg(NULL);
+  }
+  | ELLIPSIS BaseType
+  {
+    $$ = TypeDesc_Get_Varg($2);
   }
   ;
 
@@ -423,7 +431,7 @@ ReturnList
     $$ = Vector_New();
     Vector_Append($$, New_IdType(NULL, $1));
   }
-  | '(' ParameterList ')'
+  | '(' IDTypeList ')'
   {
     $$ = $2;
   }
@@ -502,11 +510,14 @@ ModuleStatements
 ModuleStatement
   : ';'
   {
-
   }
   | VariableDeclaration
   {
     Parser_New_Variables(ps, $1);
+  }
+  | NATIVE VariableDeclaration
+  {
+
   }
   | ConstDeclaration
   {
@@ -515,6 +526,10 @@ ModuleStatement
   | FunctionDeclaration
   {
     Parser_New_Function(ps, $1);
+  }
+  | NATIVE ProtoDeclaration
+  {
+
   }
   | TypeAliasDeclaration
   {
@@ -631,45 +646,41 @@ TypeAliasDeclaration
   ;
 
 TypeDeclaration
-  : CLASS ID ExtendsOrEmpty '{' ClassMemberDeclarationsOrEmpty '}'
+  : CLASS ID Extends '{' ClassMemberDeclarationsOrEmpty '}'
   {
     ClassStmt *clsStmt = (ClassStmt *)$3;
     clsStmt->id = $2.str;
     clsStmt->body = $5;
     $$ = $3;
   }
-  | CLASS ID ExtendsOrEmpty ';'
+  | CLASS ID Extends ';'
   {
     ClassStmt *clsStmt = (ClassStmt *)$3;
     clsStmt->id = $2.str;
     $$ = $3;
   }
-  | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarationsOrEmpty '}'
+  | TRAIT ID Extends '{' TraitMemberDeclarationsOrEmpty '}'
   {
-    $$ = Stmt_From_Trait($2.str, $3, $5);
+    //$$ = Stmt_From_Trait($2.str, $3, $5);
   }
-  | TRAIT ID WithesOrEmpty ';'
+  | TRAIT ID Extends ';'
   {
-    $$ = Stmt_From_Trait($2.str, $3, NULL);
+    //$$ = Stmt_From_Trait($2.str, $3, NULL);
   }
   ;
 
-ExtendsOrEmpty
+Extends
   : %empty
   {
     $$ = Stmt_From_Class(NULL, NULL);
   }
-  | EXTENDS KlassType WithesOrEmpty
+  | EXTENDS KlassType Withes
   {
     $$ = Stmt_From_Class($2, $3);
   }
-  | Traits
-  {
-    $$ = Stmt_From_Class(NULL, $1);
-  }
   ;
 
-WithesOrEmpty
+Withes
   : %empty
   {
     $$ = NULL;
@@ -728,6 +739,10 @@ ClassMemberDeclaration
   {
     $$ = $1;
   }
+  | NATIVE ProtoDeclaration
+  {
+
+  }
   | ';'
   {
     $$ = NULL;
@@ -763,19 +778,23 @@ TraitMemberDeclarations
 TraitMemberDeclaration
   : FieldDeclaration
   {
-    $$ = $1;
+
+  }
+  | FunctionDeclaration
+  {
+
+  }
+  | NATIVE ProtoDeclaration
+  {
+
   }
   | ProtoDeclaration
   {
     $$ = $1;
   }
-  | FunctionDeclaration
-  {
-    $$ = $1;
-  }
   | ';'
   {
-    $$ = NULL;
+
   }
   ;
 
@@ -904,10 +923,10 @@ ExprStatement
 
 /*
  * TYPELESS_ASSIGN is used only in local blocks
- * PrimaryExpressionList is really IDList
+ * ExpressionList is really IDList
  */
 VariableDeclarationTypeless
-  : PrimaryExpressionList TYPELESS_ASSIGN ExpressionList ';'
+  : ExpressionList TYPELESS_ASSIGN ExpressionList ';'
   {
 
   }
@@ -1000,14 +1019,13 @@ ForStatement
 
 /*
  * TYPELESS_ASSIGN is used only in local blocks
- * PrimaryExpressionList is really IDList
  */
 RangeCause
-  : PrimaryExpressionList '=' RangeExpression
+  : IDList '=' RangeExpression
   {
 
   }
-  | PrimaryExpressionList TYPELESS_ASSIGN RangeExpression
+  | IDList TYPELESS_ASSIGN RangeExpression
   {
   }
   ;
@@ -1131,18 +1149,23 @@ Atom
   {
     $$ = $2;
   }
-  | ArrayExpression
+  | ArrayCreationExpression
   {
 
   }
-  | SetExpression
+  | SetCreationExpression
   {
 
   }
-  | MapExpression
+  | ArrayOrSetInitializer
+  {
+    printf("ArrayOrSetInitializer\n");
+  }
+  | MapCreationExpression
   {
 
   }
+  | MapInitializer
   | AnonyFuncExpression
   {
 
@@ -1180,15 +1203,23 @@ CONSTANT
   }
   ;
 
-ArrayExpression
-  : DimExprList Type LiteralValue
+ArrayCreationExpression
+  : DimExprList Type ArrayOrSetInitializer
+  {
+    printf("DimExprList Type ArrayOrSetInitializer\n");
+  }
+  | DimExprList Type
+  {
+    printf("DimExprList Type\n");
+  } %prec PREC_0
+  | DIMS BaseType ArrayOrSetInitializer
   {
 
   }
-  | DIMS BaseType LiteralValue
+  | DIMS BaseType
   {
 
-  }
+  } %prec PREC_0
   ;
 
 DimExprList
@@ -1196,58 +1227,58 @@ DimExprList
   | DimExprList '[' Expression ']'
   ;
 
-LiteralValue
-  : '{' ElementList '}'
-  | '{' '}'
-  | '(' ')'
+SetCreationExpression
+  : SetType ArrayOrSetInitializer
+  {
+
+  }
+  | SetType
+  {
+
+  } %prec PREC_0
   ;
 
-ElementList
-  : Element
-  | ElementList ',' Element
-  ;
-
-Element
-  : Expression
-  | LiteralValue
-  ;
-
-SetExpression
-  : SetType LiteralValue
+ArrayOrSetInitializer
+  : '{' ExpressionList '}'
   {
 
   }
   ;
 
-MapExpression
-  : MapType MapLiteralValue
+MapCreationExpression
+  : MapType MapInitializer
   {
 
   }
+  | MapType
+  {
+
+  } %prec PREC_0
   ;
 
-MapLiteralValue
+MapInitializer
   : '{' MapKeyValueList '}'
-  | '{' '}'
-  | '(' ')'
+  {
+
+  }
   ;
 
 MapKeyValueList
   : MapKeyValue
+  {
+
+  }
   | MapKeyValueList ',' MapKeyValue
+  {
+
+  }
   ;
 
 MapKeyValue
-  : MapKey ':' MapValue
-  ;
+  : Expression ':' Expression
+  {
 
-MapKey
-  : PrimaryExpression
-  ;
-
-MapValue
-  : Expression
-  | MapLiteralValue
+  }
   ;
 
 AnonyFuncExpression
@@ -1471,26 +1502,13 @@ ExpressionList
   ;
 
 Assignment
-  : PrimaryExpressionList '=' ExpressionList ';'
+  : ExpressionList '=' ExpressionList ';'
   {
     $$ = Parser_Do_Assignments(ps, $1, $3);
   }
   | PrimaryExpression CompAssignOp Expression ';'
   {
     $$ = Stmt_From_Assign($2, $1, $3);
-  }
-  ;
-
-PrimaryExpressionList
-  : PrimaryExpression
-  {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
-  }
-  | PrimaryExpressionList ',' PrimaryExpression
-  {
-    $$ = $1;
-    Vector_Append($$, $3);
   }
   ;
 

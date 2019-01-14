@@ -1,7 +1,7 @@
 {
 	"workbench.statusBar.visible": true,
 	"workbench.colorTheme": "One Dark Pro",
-	"workbench.iconTheme": "vs-seti",
+	"workbench.iconTheme": "material-icon-theme",
 	"workbench.activityBar.visible": false,
 	"editor.fontFamily": "'Operator Mono Light'",
 	"editor.fontWeight": "normal",

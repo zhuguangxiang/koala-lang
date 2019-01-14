@@ -56,6 +56,9 @@ typedef void (*vec_finifunc)(void *item, void *arg);
 /* free the vector, if it is created by Vector_New */
 void Vector_Free(Vector *vec, vec_finifunc fini, void *arg);
 
+/* free the vector self only, not care its elements */
+#define Vector_Free_Self(vec) Vector_Free(vec, NULL, NULL)
+
 /* fini the vector, if it is declared by VECTOR(name) */
 void Vector_Fini(Vector *vec, vec_finifunc fini, void *arg);
 
@@ -88,16 +91,18 @@ int Vector_Concat(Vector *dest, Vector *src);
 #define Vector_Size(vec) (NULL != (vec) ? (vec)->size : 0)
 
 /* foreach for vector */
-#define Vector_ForEach(item, vec) \
-  for (int i = 0; \
-       i < Vector_Size(vec) && ({item = (vec)->items[i]; 1;}); \
-       i++)
+#define Vector_ForEach(item, vec)      \
+for (int i = 0;                        \
+     i < Vector_Size(vec) &&           \
+       ({item = (vec)->items[i]; 1;}); \
+     i++)
 
 /* foreach revsersely for vector */
 #define Vector_ForEach_Reverse(item, vec) \
-  for (int i = Vector_Size(vec) - 1; \
-       (i >= 0) && ({item = (vec)->items[i]; 1;}); \
-       i--)
+for (int i = Vector_Size(vec) - 1;        \
+     (i >= 0) &&                          \
+       ({item = (vec)->items[i]; 1;});    \
+     i--)
 
 #ifdef __cplusplus
 }

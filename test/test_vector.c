@@ -45,7 +45,7 @@ void test_vector_append(void)
     string_check(s, i);
   }
 
-  Vector_Free(vec, NULL, NULL);
+  Vector_Free_Self(vec);
 }
 
 void test_vector_set(void)
@@ -118,8 +118,8 @@ void test_vector_concat(void)
     string_check(s, i);
   }
 
-  Vector_Free(vec, NULL, NULL);
-  Vector_Free(vec2, NULL, NULL);
+  Vector_Free_Self(vec);
+  Vector_Free_Self(vec2);
 }
 
 void init_strings(void)

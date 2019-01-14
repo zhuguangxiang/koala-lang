@@ -108,6 +108,8 @@ uint32 AtomString_Hash(String s)
 
 int AtomString_Equal(String s1, String s2)
 {
+  if (s1.str == NULL || s2.str == NULL)
+    return 0;
   if (s1.str == s2.str)
     return 1;
   return !strcmp(s1.str, s2.str);
