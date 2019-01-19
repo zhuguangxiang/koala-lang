@@ -25,8 +25,10 @@ void test_image(void)
   KImage_Finish(image);
   KImage_Show(image);
   KImage_Write_File(image, "foo.klc");
+  KImage_Free(image);
   image = KImage_Read_File("foo.klc");
   KImage_Show(image);
+  KImage_Free(image);
 }
 
 int main(int argc, char *argv[])
