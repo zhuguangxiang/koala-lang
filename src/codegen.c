@@ -224,7 +224,7 @@ void CodeBlock_Show(CodeBlock *block)
 
   char buf[64];
 
-  printf("---------CodeBlock-------");
+  puts("---------CodeBlock-------");
   printf("insts:%d", block->bytes);
   if (!list_empty(&block->insts)) {
     int cnt = 0;
@@ -237,10 +237,10 @@ void CodeBlock_Show(CodeBlock *block)
       arg_print(buf, sizeof(buf), &i->arg);
       printf("  arg:%s\n", buf);
       printf("  bytes:%d\n", i->bytes);
-      printf("-----------------\n");
+      puts("-----------------\n");
     }
   }
-  printf("--------CodeBlock End----");
+  puts("--------CodeBlock End----");
 }
 
 void Inst_Gen(KImage *image, Buffer *buf, Inst *i)

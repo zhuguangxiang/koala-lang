@@ -35,7 +35,7 @@ struct namevalue {
   char *value;
 };
 
-struct options {
+typedef struct options {
   /* -h or ? */
   void (*usage)(char *name);
   /* -v version */
@@ -50,22 +50,14 @@ struct options {
   Vector nvs;
   /* file(klc) or dir(package) names */
   Vector names;
-};
+} Options;
 
-int init_options(struct options *opts);
-void fini_options(struct options *opts);
-#define set_options_usage(opts, usagefunc) \
-do { \
-  (opts)->usage = usagefunc; \
-} while (0)
-#define set_options_version(opts, versionfunc) \
-do { \
-  (opts)->version = versionfunc; \
-} while (0)
-void parse_options(int argc, char *argv[], struct options *opts);
-int options_number(struct options *opts);
-void options_toarray(struct options *opts, char *array[], int ind);
-void show_options(struct options *opts);
+int init_options(Options *opts, void (*usage)(char *), void (*version)(void));
+void fini_options(Options *opts);
+void parse_options(int argc, char *argv[], Options *opts);
+int options_number(Options *opts);
+void options_toarray(Options *opts, char *array[], int ind);
+void show_options(Options *opts);
 
 #ifdef __cplusplus
 }

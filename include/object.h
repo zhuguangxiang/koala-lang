@@ -135,13 +135,13 @@ typedef struct {
 } NumberOperations;
 
 /*
- * map operations for array and dictionary,
+ * map operations for array and map,
  * and other objects need '[]' operation, if they override '[]' operator.
  */
 typedef struct {
-  /* map's getter func, e.g. bar = dict['foo']   */
+  /* map's getter func, e.g. bar = map['foo']   */
   ob_binaryfunc get;
-  /* map's setter func, e.g. dict['foo'] = "bar" */
+  /* map's setter func, e.g. map['foo'] = "bar" */
   ob_ternaryfunc set;
 } MapOperations;
 

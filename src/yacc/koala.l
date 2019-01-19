@@ -51,11 +51,11 @@ do { \
 static int Lexer_NeedInsertSemiColon(ParserState *ps)
 {
   static int tokens[] = {
-    ID, CHAR_LITERAL, INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL, TOKEN_NIL,
-    TOKEN_TRUE, TOKEN_FALSE,
+    ID, CHAR_LITERAL, INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL,
+    SELF, SUPER, TOKEN_NIL, TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
     ')', ']', '}',
-    CHAR, BYTE, INTEGER, FLOAT, STRING, BOOL, ANY, ELLIPSIS
+    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS, MAP, SET
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
@@ -139,7 +139,6 @@ L   [a-zA-Z_]
 "extends"        { YY_RETURN(EXTENDS);         }
 "with"           { YY_RETURN(WITH);            }
 "const"          { YY_RETURN(CONST);           }
-"package"        { YY_RETURN(PACKAGE);         }
 "import"         { YY_RETURN(IMPORT);          }
 "go"             { YY_RETURN(GO);              }
 "defer"          { YY_RETURN(DEFER);           }
@@ -153,7 +152,9 @@ L   [a-zA-Z_]
 "bool"           { YY_RETURN(BOOL);            }
 "string"         { YY_RETURN(STRING);          }
 "error"          { YY_RETURN(ERROR);           }
-"Any"            { YY_RETURN(ANY);             }
+"any"            { YY_RETURN(ANY);             }
+"map"            { YY_RETURN(MAP);             }
+"set"            { YY_RETURN(SET);             }
 
 "self"           { YY_RETURN(SELF);            }
 "super"          { YY_RETURN(SUPER);           }

@@ -106,7 +106,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token EXTENDS
 %token WITH
 %token CONST
-%token PACKAGE
 %token IMPORT
 %token GO
 %token DEFER
@@ -164,8 +163,8 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> ClassMemberDeclarationsOrEmpty
 %type <List> ClassMemberDeclarations
 %type <Stmt> ClassMemberDeclaration
-%type <Stmt> Extends
-%type <List> Withes
+%type <List> Extends
+%type <List> ExtendsMore
 %type <List> Traits
 %type <List> TraitMemberDeclarationsOrEmpty
 %type <List> TraitMemberDeclarations
@@ -402,15 +401,17 @@ IDTypeList
 ParameterList
   : IDTypeList
   {
-
+    $$ = $1;
   }
   | IDTypeList VArgType
   {
-
+    $$ = $1;
+    Vector_Append($$, New_IdType(NULL, $2));
   }
   | VArgType
   {
-
+    $$ = Vector_New();
+    Vector_Append($$, New_IdType(NULL, $1));
   }
   ;
 
@@ -452,24 +453,8 @@ IDList
   ;
 
 CompileUnit
-  : Package Imports ModuleStatements
-  | Package ModuleStatements
-  | Imports ModuleStatements
+  : Imports ModuleStatements
   | ModuleStatements
-  ;
-
-Package
-  : PACKAGE ID ';'
-  {
-    int result = Parser_Set_Package(ps, $2.str, &@2);
-    if (result < 0)
-      exit(-1);
-  }
-  | PACKAGE error
-  {
-    Syntax_Error(&@2, "package-name");
-    exit(-1);
-  }
   ;
 
 Imports
@@ -516,10 +501,6 @@ ModuleStatement
   {
     Parser_New_Variables(ps, $1);
   }
-  | NATIVE VariableDeclaration
-  {
-
-  }
   | ConstDeclaration
   {
     Parser_New_Variables(ps, $1);
@@ -530,6 +511,8 @@ ModuleStatement
   }
   | NATIVE ProtoDeclaration
   {
+    $2->native = 1;
+    Parser_New_Function(ps, $2);
   }
   | TypeAliasDeclaration
   {
@@ -638,49 +621,49 @@ TypeAliasDeclaration
   | TYPEALIAS ID error
   {
     Syntax_Error(&@3, "TYPE");
+    $$ = NULL;
   }
   | TYPEALIAS error
   {
     Syntax_Error(&@2, "ID");
+    $$ = NULL;
   }
   ;
 
 TypeDeclaration
   : CLASS ID Extends '{' ClassMemberDeclarationsOrEmpty '}'
   {
-    ClassStmt *clsStmt = (ClassStmt *)$3;
-    clsStmt->id = $2.str;
-    clsStmt->body = $5;
-    $$ = $3;
+    $$ = Stmt_From_Klass($2.str, CLASS_KIND, $3, $5);
   }
   | CLASS ID Extends ';'
   {
-    ClassStmt *clsStmt = (ClassStmt *)$3;
-    clsStmt->id = $2.str;
-    $$ = $3;
+    $$ = Stmt_From_Klass($2.str, CLASS_KIND, $3, NULL);
   }
   | TRAIT ID Extends '{' TraitMemberDeclarationsOrEmpty '}'
   {
-    //$$ = Stmt_From_Trait($2.str, $3, $5);
+    $$ = Stmt_From_Klass($2.str, TRAIT_KIND, $3, $5);
   }
   | TRAIT ID Extends ';'
   {
-    //$$ = Stmt_From_Trait($2.str, $3, NULL);
+    $$ = Stmt_From_Klass($2.str, TRAIT_KIND, $3, NULL);
   }
   ;
 
 Extends
   : %empty
   {
-    $$ = Stmt_From_Class(NULL, NULL);
+    $$ = NULL;
   }
-  | EXTENDS KlassType Withes
+  | ':' KlassType ExtendsMore
   {
-    $$ = Stmt_From_Class($2, $3);
+    $$ = Vector_New();
+    Vector_Append($$, $2);
+    Vector_Concat($$, $3);
+    Vector_Free_Self($3);
   }
   ;
 
-Withes
+ExtendsMore
   : %empty
   {
     $$ = NULL;
@@ -692,12 +675,12 @@ Withes
   ;
 
 Traits
-  : WITH KlassType
+  : ',' KlassType
   {
     $$ = Vector_New();
     Vector_Append($$, $2);
   }
-  | Traits WITH KlassType
+  | Traits ',' KlassType
   {
     $$ = $1;
     Vector_Append($$, $3);
@@ -777,25 +760,13 @@ TraitMemberDeclarations
   ;
 
 TraitMemberDeclaration
-  : FieldDeclaration
+  : ClassMemberDeclaration
   {
-
-  }
-  | FunctionDeclaration
-  {
-
-  }
-  | NATIVE ProtoDeclaration
-  {
-
+    $$ = $1;
   }
   | ProtoDeclaration
   {
     $$ = $1;
-  }
-  | ';'
-  {
-
   }
   ;
 
@@ -1557,34 +1528,3 @@ CompAssignOp
   ;
 
 %%
-
-#if 0
-
-TypeDesc *do_array_type(TypeDesc *base)
-{
-  if (base->kind != TYPE_ARRAY)
-    return TypeDesc_New_Array(1, base);
-  else
-    return TypeDesc_New_Array(base->array.dims + 1, base);
-}
-
-expr_t *do_array_initializer(ParserState *ps, Vector *explist)
-{
-  expr_t *e;
-  expr_t *e0 = Vector_Get(explist, 0);
-  Vector_ForEach(e, explist) {
-    if (!TypeDesc_Equal(e->desc, e0->desc)) {
-      Parser_Error("element's type of array must be the same");
-      return NULL;
-    }
-    e->ctx = EXPR_LOAD;
-  }
-
-  expr_t *exp = expr_from_array(explist);
-  int dims = 1;
-  if (e0->desc->kind == TYPE_ARRAY) dims = 1 + e0->desc->array.dims;
-  exp->desc = TypeDesc_New_Array(dims, TypeDesc_Dup(e0->desc));
-  return exp;
-}
-
-#endif

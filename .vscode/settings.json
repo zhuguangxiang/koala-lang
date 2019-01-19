@@ -11,7 +11,7 @@
 	"files.associations": {
 		"*.h": "c",
 		"*.c": "c",
-		"*.kl": "go",
+		"*.kl": "koala",
 		"array": "c",
 		"initializer_list": "c",
 		"string_view": "c",
@@ -59,6 +59,11 @@
 		"files.insertFinalNewline": true,
 		"files.trimFinalNewlines": true
 	},
+	"[koala]": {
+		"files.trimTrailingWhitespace": true,
+		"files.insertFinalNewline": true,
+		"files.trimFinalNewlines": true
+	},
 	"[yacc]": {
 			"files.trimTrailingWhitespace": true,
 			"files.insertFinalNewline": true,
@@ -85,7 +90,10 @@
 	"editor.lineHeight": 0,
 	"editor.tokenColorCustomizations": {
 		"textMateRules": [{
-				"scope": "comment",
+				"scope": [
+					"comment",
+					"punctuation.definition.comment"
+				],
 				"settings": {
 						"fontStyle": "",
 				}

@@ -56,7 +56,7 @@ static void __atomentry_free_fn(HashNode *hnode, void *arg)
 
 void AtomTable_Free(AtomTable *table, atomvisitfunc fn, void *arg)
 {
-  if (!table)
+  if (table == NULL)
     return;
 
   AtomData itemdata = {fn, arg, 0};

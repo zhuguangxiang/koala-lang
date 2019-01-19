@@ -55,7 +55,7 @@ static void show_usage(char *prog)
 
 static void *task_entry_func(void *arg)
 {
-  struct options *opts = arg;
+  Options *opts = arg;
   KoalaState *ks = KoalaState_New();
   task_set_object(ks);
   char *file = Vector_Get(&opts->names, 0);
@@ -68,10 +68,8 @@ static void *task_entry_func(void *arg)
 int main(int argc, char *argv[])
 {
   /* parse arguments */
-  struct options opts;
-  init_options(&opts);
-  set_options_usage(&opts, show_usage);
-  set_options_version(&opts, show_version);
+  Options opts;
+  init_options(&opts, show_usage, show_version);
   parse_options(argc, argv, &opts);
   show_options(&opts);
 

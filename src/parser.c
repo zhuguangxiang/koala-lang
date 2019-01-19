@@ -26,10 +26,11 @@
 #include "mem.h"
 #include "log.h"
 
-int Init_PkgInfo(PkgInfo *pkg, char *pkgfile, struct options *opts)
+int Init_PkgInfo(PkgInfo *pkg, char *pkgname, char *pkgfile, Options *opts)
 {
   memset(pkg, 0, sizeof(PkgInfo));
   pkg->pkgfile = AtomString_New(pkgfile);
+  pkg->pkgname = AtomString_New(pkgname);
   pkg->stbl = STable_New();
   pkg->opts = opts;
   return 0;
@@ -37,7 +38,12 @@ int Init_PkgInfo(PkgInfo *pkg, char *pkgfile, struct options *opts)
 
 void Fini_PkgInfo(PkgInfo *pkg)
 {
-  STable_Free(pkg->stbl, NULL, NULL);
+  STable_Free_Self(pkg->stbl);
+}
+
+void load_extpkg()
+{
+
 }
 
 static CodeBlock *codeblock(ParserUnit *u)
@@ -147,35 +153,29 @@ static const char *scope_strings[] = {
 };
 
 #if 1
-/* FIXME */
+
 static void show_parser_unit(ParserState *ps)
 {
   ParserUnit *u = ps->u;
   const char *scope = scope_strings[u->scope];
   char *name = u->sym != NULL ? u->sym->name: ps->pkgname;
-  printf("---------------------\n");
+  puts("\n----------------------------------------");
   printf("scope-%d(%s, %s) symbols:\n", ps->depth, scope, name);
   STable_Show(u->stbl);
   CodeBlock_Show(u->block);
-  printf("---------------------\n");
+  puts("----------------------------------------\n");
 }
 
-void Show_PkgInfo_Symbols(PkgInfo *pkg)
+void Show_PkgInfo(PkgInfo *pkg)
 {
-  const char *scope = scope_strings[1];
-  char *name = pkg->pkgname;
-  printf("---------------------\n");
-  printf("scope-%d(%s, %s) symbols:\n", 0, scope, name);
+  puts("\n----------------------------------------");
+  printf("scope-0(%s, %s) symbols:\n", scope_strings[1], pkg->pkgname.str);
   STable_Show(pkg->stbl);
-  printf("---------------------\n");
+  puts("----------------------------------------\n");
 }
 
 #else
 #define show_parser_unit(ps) ((void *)0)
-void Show_PkgInfo_Symbols(PkgInfo *pkg)
-{
-
-}
 #endif
 
 static void check_unused_symbols(ParserUnit *u)
@@ -224,23 +224,35 @@ ParserState *New_Parser(PkgInfo *pkg, char *filename)
   ps->filename = strdup(filename);
   ps->pkg = pkg;
 
-  if (pkg->lastfile == NULL)
-    pkg->lastfile = AtomString_New(filename).str;
-
-  yylex_init_extra(ps, &ps->scanner);
-
   Vector_Init(&ps->stmts);
 
   Init_Imports(ps);
 
   init_parser_unit(&ps->top, SCOPE_MODULE);
   ps->u = &ps->top;
-  Set_Unit_STable(ps->u, pkg->stbl);
+  ps->u->stbl = pkg->stbl;
   init_list_head(&ps->ustack);
 
   Vector_Init(&ps->errors);
 
   return ps;
+}
+
+int Build_AST(ParserState *ps, FILE *in)
+{
+  yyscan_t scanner;
+  yylex_init_extra(ps, &scanner);
+  yyset_in(in, scanner);
+  yyparse(ps, scanner);
+  yylex_destroy(scanner);
+  return ps->errnum;
+}
+
+static void parse_stmts(ParserState *ps, Vector *stmts);
+
+void Parse(ParserState *ps)
+{
+  parse_stmts(ps, &ps->stmts);
 }
 
 void Destroy_Parser(ParserState *ps)
@@ -249,38 +261,22 @@ void Destroy_Parser(ParserState *ps)
 
   check_unused_symbols(u);
 
+  assert(u->scope == SCOPE_MODULE);
   assert(u == &ps->top);
   assert(list_empty(&ps->ustack));
   assert(u->stbl == ps->pkg->stbl);
   assert(u->sym == NULL);
 
+  /* FIXME: merge __init__ to pkginfo->stbl */
   /* simple clear */
+  assert(u->block == NULL);
   u->stbl = NULL;
 
   Fini_Imports(ps);
   fini_parser_unit(u);
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
-  yylex_destroy(ps->scanner);
   mm_free(ps->filename);
   mm_free(ps);
-}
-
-static void parser_vist_stmt(ParserState *ps, Stmt *stmt);
-
-static void parse_stmts(ParserState *ps, Vector *stmts)
-{
-  if (stmts == NULL)
-    return;
-
-  Stmt *stmt;
-  Vector_ForEach(stmt, stmts) {
-    parser_vist_stmt(ps, stmt);
-  }
-}
-
-void Parse(ParserState *ps)
-{
-  parse_stmts(ps, &ps->stmts);
 }
 
 static void parse_nil_expr(ParserState *ps, Expr *exp)
@@ -422,6 +418,8 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
   parse_func(ps, exp);
 }
 
+static void parse_stmts(ParserState *ps, Vector *stmts);
+
 static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
 {
 
@@ -442,6 +440,16 @@ static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
   assert(0);
 }
 
+static void parse_funcdecl_stmt(ParserState *ps, Stmt *stmt)
+{
+
+}
+
+static void parse_protodecl_stmt(ParserState *ps, Stmt *stmt)
+{
+
+}
+
 static void parse_expr_stmt(ParserState *ps, Stmt *stmt)
 {
   ExprStmt *expStmt = (ExprStmt *)stmt;
@@ -459,6 +467,45 @@ static void parse_list_stmt(ParserState *ps, Stmt *stmt)
   parse_stmts(ps, listStmt->vec);
 }
 
+static void parse_class_supers(ParserState *ps, Vector *supers)
+{
+
+}
+
+static void parse_class_stmt(ParserState *ps, Stmt *stmt)
+{
+  KlassStmt *clsStmt = (KlassStmt *)stmt;
+  Log_Debug("----parse class '%s'----", clsStmt->id);
+
+  Symbol *sym = STable_Get(ps->u->stbl, clsStmt->id);
+  assert(sym);
+
+  parse_class_supers(ps, clsStmt->super);
+
+  Parser_Enter_Scope(ps, SCOPE_CLASS);
+  ps->u->sym = sym;
+  ps->u->stbl = ((ClassSymbol *)sym)->stbl;
+
+  /* parse class' body */
+  Stmt *s;
+  Vector_ForEach(s, clsStmt->body) {
+    if (s->kind == VAR_KIND) {
+      parse_vardecl_stmt(ps, s);
+    } else if (s->kind == FUNC_KIND) {
+      parse_funcdecl_stmt(ps, s);
+    } else if (s->kind == PROTO_KIND) {
+      assert(s->native == 1);
+      parse_protodecl_stmt(ps, s);
+    } else {
+      assert(0);
+    }
+  }
+
+  Parser_Exit_Scope(ps);
+
+  Log_Debug("----end of class '%s'----", clsStmt->id);
+}
+
 typedef void (*parse_stmt_func)(ParserState *, Stmt *);
 
 static parse_stmt_func parse_stmt_funcs[] = {
@@ -467,11 +514,13 @@ static parse_stmt_func parse_stmt_funcs[] = {
   parse_varlistdecl_stmt,   /* VARLIST_KIND     */
   parse_assign_stmt,        /* ASSIGN_KIND      */
   parse_assignlist_stmt,    /* ASSIGNLIST_KIND  */
-  NULL,                     /* FUNC_KIND        */
-  NULL,                     /* PROTO_KIND       */
+  parse_funcdecl_stmt,      /* FUNC_KIND        */
+  parse_protodecl_stmt,     /* PROTO_KIND       */
   parse_expr_stmt,          /* EXPR_KIND        */
   parse_return_stmt,        /* RETURN_KIND      */
   parse_list_stmt,          /* LIST_KIND        */
+  NULL,                     /* TYPEALIAS_KIND   */
+  parse_class_stmt,         /* CLASS_KIND       */
 };
 
 static void parser_vist_stmt(ParserState *ps, Stmt *stmt)
@@ -480,4 +529,15 @@ static void parser_vist_stmt(ParserState *ps, Stmt *stmt)
   parse_stmt_func parse_func = parse_stmt_funcs[stmt->kind];
   assert(parse_func != NULL);
   parse_func(ps, stmt);
+}
+
+static void parse_stmts(ParserState *ps, Vector *stmts)
+{
+  if (stmts == NULL)
+    return;
+
+  Stmt *stmt;
+  Vector_ForEach(stmt, stmts) {
+    parser_vist_stmt(ps, stmt);
+  }
 }

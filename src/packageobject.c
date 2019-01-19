@@ -218,9 +218,8 @@ static inline void load_functions(PackageObject *pkg, KImage *image)
   KImage_Get_Funcs(image, __getfuncfunc, &arg);
 }
 
-PackageObject *Package_From_Image(KImage *image)
+PackageObject *Package_From_Image(KImage *image, char *name)
 {
-  char *name = image->header.pkgname;
   Log_Debug("new package '%s' from image", name);
   PackageObject *pkg = Package_New(name);
   load_consts(pkg, image);

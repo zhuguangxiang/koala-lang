@@ -264,7 +264,10 @@ static PackageObject *load_package(char *path)
     if (!image)
       continue;
     Log_Debug("load package '%s' from '%s'", path, fullpath);
-    pkg = Package_From_Image(image);
+    char *name = strrchr(path, '/');
+    if (name == NULL)
+      name = path;
+    pkg = Package_From_Image(image, name);
     KImage_Free(image);
   }
   return pkg;

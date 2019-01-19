@@ -36,7 +36,7 @@ IdType *New_IdType(char *id, TypeDesc *desc)
 
 void Free_IdType(IdType *idtype)
 {
-  TypeDesc_Free(idtype->desc);
+  TYPE_DECREF(idtype->desc);
   mm_free(idtype);
 }
 
@@ -161,10 +161,29 @@ void Expr_Free(Expr *exp)
     mm_free(exp);
 }
 
+static void free_self_expr(Expr *exp)
+{
+  Expr_Free(exp);
+}
+
+static void (*__free_expr_funcs[])(Expr *) = {
+  NULL,
+  NULL,
+  free_self_expr,
+};
+
+void Free_Expr_Func(void *item, void *arg)
+{
+  Expr *exp = item;
+  assert(exp->kind >= 1 && exp->kind < nr_elts(__free_expr_funcs));
+  void (*__free_expr_func)(Expr *) = __free_expr_funcs[exp->kind];
+  __free_expr_func(exp);
+}
+
 static void free_vardecl_stmt(Stmt *stmt)
 {
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
-  TypeDesc_Free(varStmt->desc);
+  TYPE_DECREF(varStmt->desc);
   Expr_Free(varStmt->exp);
   mm_free(stmt);
 }
@@ -173,7 +192,7 @@ static void free_varlistdecl_stmt(Stmt *stmt)
 {
   VarListDeclStmt *varListStmt = (VarListDeclStmt *)stmt;
   Vector_Free_Self(varListStmt->ids);
-  TypeDesc_Free(varListStmt->desc);
+  TYPE_DECREF(varListStmt->desc);
   mm_free(stmt);
 }
 
@@ -210,6 +229,8 @@ static void free_expr_stmt(Stmt *stmt)
 
 static void free_return_stmt(Stmt *stmt)
 {
+  ReturnStmt *retStmt = (ReturnStmt *)stmt;
+  Vector_Free(retStmt->exps, Free_Expr_Func, NULL);
   mm_free(stmt);
 }
 
@@ -223,29 +244,20 @@ static void free_list_stmt(Stmt *stmt)
 static void free_alias_stmt(Stmt *stmt)
 {
   TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
-  TypeDesc_Free(aliasStmt->desc);
+  TYPE_DECREF(aliasStmt->desc);
   mm_free(stmt);
 }
 
 static void free_typedesc_func(void *item, void *arg)
 {
-  TypeDesc_Free(item);
+  TYPE_DECREF(item);
 }
 
-static void free_class_stmt(Stmt *stmt)
+static void free_klass_stmt(Stmt *stmt)
 {
-  ClassStmt *clsStmt = (ClassStmt *)stmt;
-  TypeDesc_Free(clsStmt->super);
-  Vector_Free(clsStmt->traits, free_typedesc_func, NULL);
-  Vector_Free(clsStmt->body, Free_Stmt_Func, NULL);
-  mm_free(stmt);
-}
-
-static void free_trait_stmt(Stmt *stmt)
-{
-  TraitStmt *traitStmt = (TraitStmt *)stmt;
-  Vector_Free(traitStmt->traits, free_typedesc_func, NULL);
-  Vector_Free(traitStmt->body, Free_Stmt_Func, NULL);
+  KlassStmt *klsStmt = (KlassStmt *)stmt;
+  Vector_Free(klsStmt->super, free_typedesc_func, NULL);
+  Vector_Free(klsStmt->body, Free_Stmt_Func, NULL);
   mm_free(stmt);
 }
 
@@ -264,15 +276,15 @@ static void (*__free_stmt_funcs[])(Stmt *) = {
   free_assign_stmt,
   free_assignlist_stmt,
   free_funcdecl_stmt,
+  free_proto_stmt,
   free_expr_stmt,
   free_return_stmt,
   free_list_stmt,
-  NULL, NULL, NULL, NULL,
-  NULL, NULL, NULL, NULL,
   free_alias_stmt,
-  free_class_stmt,
-  free_trait_stmt,
-  free_proto_stmt
+  free_klass_stmt,
+  free_klass_stmt,
+  NULL, NULL, NULL, NULL,
+  NULL, NULL, NULL, NULL,
 };
 
 void Free_Stmt_Func(void *item, void *arg)
@@ -368,23 +380,15 @@ Stmt *Stmt_From_TypeAlias(char *id, TypeDesc *desc)
   return (Stmt *)aliasStmt;
 }
 
-Stmt *Stmt_From_Class(TypeDesc *super, Vector *traits)
+Stmt *Stmt_From_Klass(char *id, StmtKind kind, Vector *super, Vector *body)
 {
-  ClassStmt *clsStmt = mm_alloc(sizeof(ClassStmt));
-  clsStmt->kind = CLASS_KIND;
-  clsStmt->super = super;
-  clsStmt->traits = traits;
-  return (Stmt *)clsStmt;
-}
-
-Stmt *Stmt_From_Trait(char *id, Vector *traits, Vector *body)
-{
-  TraitStmt *traitStmt = mm_alloc(sizeof(TraitStmt));
-  traitStmt->kind = TRAIT_KIND;
-  traitStmt->id = id;
-  traitStmt->traits = traits;
-  traitStmt->body = body;
-  return (Stmt *)traitStmt;
+  assert(kind == CLASS_KIND || kind == TRAIT_KIND);
+  KlassStmt *klsStmt = mm_alloc(sizeof(KlassStmt));
+  klsStmt->kind = kind;
+  klsStmt->id = id;
+  klsStmt->super = super;
+  klsStmt->body = body;
+  return (Stmt *)klsStmt;
 }
 
 Stmt *Stmt_From_ProtoDecl(char *id, Vector *args, Vector *rets)
@@ -397,29 +401,10 @@ Stmt *Stmt_From_ProtoDecl(char *id, Vector *args, Vector *rets)
   return (Stmt *)protoStmt;
 }
 
-int Parser_Set_Package(ParserState *ps, char *pkgname, YYLTYPE *loc)
-{
-  ps->pkgname = pkgname;
-
-  PkgInfo *pkg = ps->pkg;
-  if (pkg->pkgname == NULL) {
-    pkg->pkgname = pkgname;
-    return 0;
-  }
-
-  if (strcmp(pkg->pkgname, pkgname)) {
-    Parser_Synatx_Error(ps, loc, "found packages %s(%s) and %s(%s)",
-      pkg->pkgname, pkg->lastfile, pkgname, ps->filename);
-    return -1;
-  }
-
-  return 0;
-}
-
 typedef struct import {
   HashNode hnode;
   char *path;
-  SymbolTable *stbl;
+  STable *stbl;
 } Import;
 
 static uint32 import_hash_func(void *k)
@@ -463,7 +448,7 @@ static Import *__find_import(ParserState *ps, char *path)
   return container_of(hnode, Import, hnode);
 }
 
-static Import *__new_import(ParserState *ps, char *path, SymbolTable *stbl)
+static Import *__new_import(ParserState *ps, char *path, STable *stbl)
 {
   Import *import = mm_alloc(sizeof(Import));
   import->path = path;
@@ -476,10 +461,10 @@ static Import *__new_import(ParserState *ps, char *path, SymbolTable *stbl)
 
 struct extpkg {
   char *name;
-  SymbolTable *stbl;
+  STable *stbl;
 };
 
-static struct extpkg *new_extpkg(char *name, SymbolTable *stbl)
+static struct extpkg *new_extpkg(char *name, STable *stbl)
 {
   struct extpkg *extpkg = mm_alloc(sizeof(struct extpkg));
   extpkg->name = name;
@@ -493,7 +478,7 @@ static void free_extpkg(struct extpkg *extpkg)
 }
 
 #if 0
-static void compile_pkg(char *path, struct options *opts)
+static void compile_pkg(char *path, Options *opts)
 {
   Log_Debug("load package '%s' failed, try to compile it", path);
   pid_t pid = fork();
@@ -521,7 +506,7 @@ static void compile_pkg(char *path, struct options *opts)
 
 static void __to_stbl_fn(HashNode *hnode, void *arg)
 {
-  SymbolTable *stbl = arg;
+  STable *stbl = arg;
   MemberDef *m = container_of(hnode, MemberDef, hnode);
 
   switch (m->kind) {
@@ -557,10 +542,10 @@ static void __to_stbl_fn(HashNode *hnode, void *arg)
   }
 }
 
-static SymbolTable *pkg_to_stbl(Object *ob)
+static STable *pkg_to_stbl(Object *ob)
 {
   PackageObject *pkg = (PackageObject *)ob;
-  SymbolTable *stbl = STable_New();
+  STable *stbl = STable_New();
   HashTable_Visit(pkg->table, __to_stbl_fn, stbl);
   return stbl;
 }
@@ -578,7 +563,7 @@ static struct extpkg *load_extpkg(ParserState *ps, char *path)
       return NULL;
   }
 
-  SymbolTable *stbl = pkg_to_stbl(pkg);
+  STable *stbl = pkg_to_stbl(pkg);
   if (stbl == NULL)
     return NULL;
 
@@ -616,7 +601,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
     id = extpkg->name;
 
   /* save external symbol table and free struct extpkg */
-  SymbolTable *extstbl = extpkg->stbl;
+  STable *extstbl = extpkg->stbl;
   free_extpkg(extpkg);
 
   sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
@@ -842,23 +827,6 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   }
 }
 
-void Parser_New_Function(ParserState *ps, Stmt *stmt)
-{
-  if (stmt == NULL)
-    return;
-  __add_stmt(ps, stmt);
-  __parse_funcdecl(ps, stmt);
-}
-
-void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
-{
-  assert(stmt->kind == TYPEALIAS_KIND);
-  TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
-  STable_Add_Alias(ps->u->stbl, aliasStmt->id, aliasStmt->desc);
-  Log_Debug("add typealias '%s' successful", aliasStmt->id);
-  mm_free(stmt);
-}
-
 static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
 {
   Vector *pdesc = NULL;
@@ -880,64 +848,92 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
     }
   }
 
+  Symbol *sym;
   TypeDesc *proto = TypeDesc_Get_Proto(pdesc, rdesc);
-  IFuncSymbol *sym = STable_Add_IFunc(ps->u->stbl, stmt->id, proto);
+  if (stmt->native)
+    sym = (Symbol *)STable_Add_NFunc(ps->u->stbl, stmt->id, proto);
+  else
+    sym = (Symbol *)STable_Add_IFunc(ps->u->stbl, stmt->id, proto);
+
   if (sym != NULL) {
-    Log_Debug("add ifunc '%s' successfully", stmt->id);
+    Log_Debug("add %s '%s' successfully",
+              (stmt->native ? "nfunc" : "proto"), stmt->id);
     sym->parent = ps->u->sym;
   } else {
     Parser_Synatx_Error(ps, NULL, "Symbol '%s' is duplicated", stmt->id);
-    TypeDesc_Free(proto);
+    TYPE_DECREF(proto);
   }
+}
+
+void Parser_New_Function(ParserState *ps, Stmt *stmt)
+{
+  if (stmt == NULL)
+    return;
+  __add_stmt(ps, stmt);
+  if (stmt->native) {
+    assert(stmt->kind == PROTO_KIND);
+    __parse_proto(ps, (ProtoDeclStmt *)stmt);
+  } else {
+    __parse_funcdecl(ps, stmt);
+  }
+}
+
+void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
+{
+  if (stmt == NULL)
+    return;
+  assert(stmt->kind == TYPEALIAS_KIND);
+  TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
+  STable_Add_Alias(ps->u->stbl, aliasStmt->id, aliasStmt->desc);
+  Log_Debug("add typealias '%s' successful", aliasStmt->id);
+  mm_free(stmt);
 }
 
 void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
 {
+  if (stmt == NULL)
+    return;
   __add_stmt(ps, stmt);
 
-  Vector *body;
+  KlassStmt *klsStmt = (KlassStmt *)stmt;
   ClassSymbol *sym;
   if (stmt->kind == CLASS_KIND) {
-    ClassStmt *clsStmt = (ClassStmt *)stmt;
-    sym = STable_Add_Class(ps->u->stbl, clsStmt->id);
-    body = clsStmt->body;
+    sym = STable_Add_Class(ps->u->stbl, klsStmt->id);
     Log_Debug("add class '%s' successfully", sym->name);
   } else {
     assert(stmt->kind == TRAIT_KIND);
-    TraitStmt *traitStmt = (TraitStmt *)stmt;
-    sym = STable_Add_Trait(ps->u->stbl, traitStmt->id);
-    body = traitStmt->body;
+    sym = STable_Add_Trait(ps->u->stbl, klsStmt->id);
     Log_Debug("add trait '%s' successfully", sym->name);
   }
 
   sym->parent = ps->u->sym;
   Parser_Enter_Scope(ps, SCOPE_CLASS);
   /* ClassSymbol */
-  Set_Unit_STable(ps->u, sym->stbl);
-  Set_Unit_Symbol(ps->u, sym);
-  if (body != NULL) {
-    Stmt *s;
-    Vector_ForEach(s, body) {
-      if (s->kind == VAR_KIND) {
-        VarDeclStmt *varStmt = (VarDeclStmt *)s;
-        assert(varStmt->konst == 0);
-        __new_var(ps, varStmt->id, varStmt->desc, 0);
-      } else if (s->kind == FUNC_KIND) {
-        __parse_funcdecl(ps, s);
+  ps->u->sym = (Symbol *)sym;
+  ps->u->stbl = sym->stbl;
+
+  Stmt *s;
+  Vector_ForEach(s, klsStmt->body) {
+    if (s->kind == VAR_KIND) {
+      VarDeclStmt *varStmt = (VarDeclStmt *)s;
+      assert(varStmt->konst == 0);
+      __new_var(ps, varStmt->id, varStmt->desc, 0);
+    } else if (s->kind == FUNC_KIND) {
+      __parse_funcdecl(ps, s);
+    } else {
+      assert(s->kind == PROTO_KIND);
+      ProtoDeclStmt *proto = (ProtoDeclStmt *)s;
+      if (s->native) {
+        assert(sym->kind == SYM_CLASS);
+        Log_Debug("add func '%s' to '%s'", proto->id, sym->name);
       } else {
-        assert(s->kind == PROTO_KIND);
-        ProtoDeclStmt *proto = (ProtoDeclStmt *)s;
-        if (s->native) {
-          assert(sym->kind == SYM_CLASS);
-          Log_Debug("add native func '%s' to '%s'", proto->id, sym->name);
-        } else {
-          Log_Debug("add proto '%s' to '%s'", proto->id, sym->name);
-          assert(sym->kind == SYM_TRAIT);
-        }
-        __parse_proto(ps, proto);
+        Log_Debug("add proto '%s' to '%s'", proto->id, sym->name);
+        assert(sym->kind == SYM_TRAIT);
       }
+      __parse_proto(ps, proto);
     }
   }
+
   Parser_Exit_Scope(ps);
 }
 

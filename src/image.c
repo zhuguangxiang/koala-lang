@@ -255,12 +255,11 @@ CodeItem *CodeItem_New(uint8 *codes, int size)
   return item;
 }
 
-ClassItem *ClassItem_New(int classindex, int superindex, int traits_index)
+ClassItem *ClassItem_New(int classindex, int superindex)
 {
   ClassItem *item = mm_alloc(sizeof(ClassItem));
   item->classindex = classindex;
   item->superindex = superindex;
-  item->traitsindex = traits_index;
   return item;
 }
 
@@ -289,6 +288,15 @@ TraitItem *TraitItem_New(int classindex, int traitsindex)
   TraitItem *item = mm_alloc(sizeof(TraitItem));
   item->classindex = classindex;
   item->traitsindex = traitsindex;
+  return item;
+}
+
+NFuncItem *NFuncItem_New(int classindex, int nameindex, int protoindex)
+{
+  NFuncItem *item = mm_alloc(sizeof(NFuncItem));
+  item->classindex = classindex;
+  item->nameindex = nameindex;
+  item->protoindex = protoindex;
   return item;
 }
 
@@ -516,7 +524,7 @@ char *mapitem_string[] = {
   "map", "string", "type", "typelist", "proto", "const", "locvar",
   "variable", "function", "code",
   "class", "field", "method",
-  "trait", "imeth",
+  "trait", "nfunc", "imeth",
 };
 
 int mapitem_length(void *o)
@@ -537,6 +545,11 @@ void mapitem_show(AtomTable *table, void *o)
 void mapitem_write(FILE *fp, void *o)
 {
   fwrite(o, sizeof(MapItem), 1, fp);
+}
+
+void mapitem_free(void *o)
+{
+  mm_free(o);
 }
 
 int stringitem_length(void *o)
@@ -695,7 +708,7 @@ void typelistitem_show(AtomTable *table, void *o)
   TypeListItem *item = o;
   TypeItem *type;
   for (int i = 0; i < item->size; i++) {
-    printf("  ---------\n");
+    puts("  ---------");
     printf("  index:%d\n", item->index[i]);
     type = AtomTable_Get(table, ITEM_TYPE, item->index[i]);
     typeitem_show(table, type);
@@ -1030,17 +1043,10 @@ void classitem_show(AtomTable *table, void *o)
 {
   ClassItem *item = o;
   printf("  classindex:%d\n", item->classindex);
-  TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->classindex);
-  typeitem_show(table, type);
   if (item->superindex >= 0) {
     printf("  superinfo:\n");
-    type = AtomTable_Get(table, ITEM_TYPE, item->superindex);
+    TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->superindex);
     typeitem_show(table, type);
-  }
-  if (item->traitsindex >= 0) {
-    TypeListItem *typelist;
-    typelist = AtomTable_Get(table, ITEM_TYPELIST, item->traitsindex);
-    typelistitem_show(table, typelist);
   }
 }
 
@@ -1132,6 +1138,33 @@ void traititem_free(void *o)
   mm_free(o);
 }
 
+int nfuncitem_length(void *o)
+{
+  UNUSED_PARAMETER(o);
+  return sizeof(NFuncItem);
+}
+
+void nfuncitem_write(FILE *fp, void *o)
+{
+  fwrite(o, sizeof(NFuncItem), 1, fp);
+}
+
+void nfuncitem_show(AtomTable *table, void *o)
+{
+  NFuncItem *item = o;
+  printf("  classindex:%d\n", item->classindex);
+  StringItem *str;
+  printf("  nameindex:%d\n", item->nameindex);
+  str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+  printf("  (%s)\n", str->data);
+  printf("  protoindex:%d\n", item->protoindex);
+}
+
+void nfuncitem_free(void *o)
+{
+  mm_free(o);
+}
+
 int imethitem_length(void *o)
 {
   UNUSED_PARAMETER(o);
@@ -1182,7 +1215,7 @@ struct item_funcs item_func[ITEM_MAX] = {
     NULL,
     NULL,
     mapitem_show,
-    NULL
+    mapitem_free,
   },
   {
     stringitem_length,
@@ -1289,6 +1322,14 @@ struct item_funcs item_func[ITEM_MAX] = {
     traititem_free
   },
   {
+    nfuncitem_length,
+    nfuncitem_write,
+    NULL,
+    NULL,
+    nfuncitem_show,
+    nfuncitem_free
+  },
+  {
     imethitem_length,
     imethitem_write,
     NULL,
@@ -1323,7 +1364,7 @@ int Item_Equal(void *k1, void *k2)
 void Item_Free(int type, void *data, void *arg)
 {
   UNUSED_PARAMETER(arg);
-  assert(type > 0 && type < ITEM_MAX);
+  assert(type >= 0 && type < ITEM_MAX);
   item_free_func fn = item_func[type].free;
   assert(fn);
   return fn(data);
@@ -1336,7 +1377,7 @@ void Item_Free(int type, void *data, void *arg)
 //   return access;
 // }
 
-static void init_header(ImageHeader *h, char *pkgname)
+static void init_header(ImageHeader *h)
 {
   strcpy((char *)h->magic, "KLC");
   h->version[0] = '0' + version_major;
@@ -1348,20 +1389,19 @@ static void init_header(ImageHeader *h, char *pkgname)
   h->endian_tag  = ENDIAN_TAG;
   h->map_offset  = sizeof(ImageHeader);
   h->map_size    = ITEM_MAX;
-  strcpy(h->pkgname, pkgname);
 }
 
-KImage *KImage_New(char *pkgname)
+KImage *KImage_New(void)
 {
   KImage *image = mm_alloc(sizeof(KImage));
-  init_header(&image->header, pkgname);
+  init_header(&image->header);
   image->table = AtomTable_New(ITEM_MAX, Item_Hash, Item_Equal);
   return image;
 }
 
 void KImage_Free(KImage *image)
 {
-  /* FIXME */
+  AtomTable_Free(image->table, Item_Free, NULL);
   mm_free(image);
 }
 
@@ -1438,22 +1478,12 @@ int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto,
   return AtomTable_Append(image->table, ITEM_FUNC, funcitem, 0);
 }
 
-void KImage_Add_Class(KImage *image, char *name,
-                      char *superpath, char *supertype, Vector *traits)
+void KImage_Add_Class(KImage *image, char *name, Vector *supers)
 {
   KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = name};
   int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
-
-  int superindex = -1;
-  if (supertype) {
-    tmp.kind = TYPE_KLASS;
-    tmp.path.str = superpath;
-    tmp.type.str = supertype;
-    superindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
-  }
-
-  int traitsindex = TypeListItem_Set(image->table, traits);
-  ClassItem *classitem = ClassItem_New(classindex, superindex, traitsindex);
+  int superindex = TypeListItem_Set(image->table, supers);
+  ClassItem *classitem = ClassItem_New(classindex, superindex);
   AtomTable_Append(image->table, ITEM_CLASS, classitem, 0);
 }
 
@@ -1490,6 +1520,20 @@ void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
   int traitsindex = TypeListItem_Set(image->table, traits);
   TraitItem *traititem = TraitItem_New(classindex, traitsindex);
   AtomTable_Append(image->table, ITEM_TRAIT, traititem, 0);
+}
+
+void KImage_Add_NFunc(KImage *image, char *klazz, char *name, TypeDesc *proto)
+{
+  int classindex = -1;
+  if (klazz != NULL) {
+    KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = klazz};
+    classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
+  }
+  int nameindex = StringItem_Set(image->table, name);
+  int protoindex = ProtoItem_Set(image->table, proto);
+
+  NFuncItem *nfuncitem = NFuncItem_New(classindex, nameindex, protoindex);
+  AtomTable_Append(image->table, ITEM_NFUNC, nfuncitem, 0);
 }
 
 void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto)
@@ -1687,7 +1731,7 @@ KImage *KImage_Read_File(char *path)
     return NULL;
   }
 
-  KImage *image = KImage_New(header.pkgname);
+  KImage *image = KImage_New();
   assert(image);
   image->header = header;
 
@@ -1862,6 +1906,17 @@ KImage *KImage_Read_File(char *path)
         }
         break;
       }
+      case ITEM_NFUNC: {
+        NFuncItem *item;
+        NFuncItem items[map->size];
+        sz = fread(items, sizeof(NFuncItem), map->size, fp);
+        assert(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = Item_Copy(sizeof(NFuncItem), items + i);
+          AtomTable_Append(image->table, ITEM_NFUNC, item, 0);
+        }
+        break;
+      }
       case ITEM_IMETH: {
         IMethItem *item;
         IMethItem items[map->size];
@@ -1885,14 +1940,13 @@ KImage *KImage_Read_File(char *path)
 
 void header_show(ImageHeader *h)
 {
-  printf("------klc header-------------\n");
   printf("magic:%s\n", (char *)h->magic);
   printf("version:%d.%d.%d\n", h->version[0] - '0', h->version[1] - '0', 0);
   printf("header_size:%d\n", h->header_size);
   printf("endian_tag:0x%x\n", h->endian_tag);
   printf("map_offset:0x%x\n", h->map_offset);
-  printf("map_size:%d\n", h->map_size);
-  printf("------klc header end---------\n");
+  printf("map_size:%d\n\n", h->map_size);
+  puts("--------------------");
 }
 
 void AtomTable_Show(AtomTable *table)
@@ -1906,19 +1960,19 @@ void AtomTable_Show(AtomTable *table)
     item = AtomTable_Get(table, 0, j);
     item_func[0].show(table, item);
   }
-  printf("--------------------\n");
 
   for (int i = 1; i < table->size; i++) {
-    if (i == ITEM_CODE) continue;
+    if (i == ITEM_CODE)
+      continue;
     size = AtomTable_Size(table, i);
     if (size > 0) {
+      puts("--------------------");
       printf("%s:\n", mapitem_string[i]);
       for (int j = 0; j < size; j++) {
         printf("[%d]\n", j);
         item = AtomTable_Get(table, i, j);
         item_func[i].show(table, item);
       }
-      printf("--------------------\n");
     }
   }
 }
@@ -1927,8 +1981,9 @@ void KImage_Show(KImage *image)
 {
   if (!image)
     return;
+  puts("\n------show image--------------\n");
   ImageHeader *h = &image->header;
   header_show(h);
-  printf("package:%s\n", image->header.pkgname);
   AtomTable_Show(image->table);
+  puts("\n------end of image------------");
 }

@@ -62,6 +62,9 @@ void Vector_Free(Vector *vec, vec_finifunc fini, void *arg);
 /* fini the vector, if it is declared by VECTOR(name) */
 void Vector_Fini(Vector *vec, vec_finifunc fini, void *arg);
 
+/* fini the vector self only */
+#define Vector_Fini_Self(vec) Vector_Fini(vec, NULL, NULL)
+
 /*
  * set value into 'index' position
  * notes that index >=0 and index <= it's size
@@ -83,9 +86,10 @@ void *Vector_Get(Vector *vec, int index);
 
 /*
  * like string's strcat
+ * src canbe null
  * notes that the src vector is not cleared.
  */
-int Vector_Concat(Vector *dest, Vector *src);
+void Vector_Concat(Vector *dest, Vector *src);
 
 /* returns the vector's size */
 #define Vector_Size(vec) (NULL != (vec) ? (vec)->size : 0)

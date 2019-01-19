@@ -112,10 +112,12 @@ void *Vector_Get(Vector *vec, int index)
   return vec->items[index];
 }
 
-int Vector_Concat(Vector *dest, Vector *src)
+void Vector_Concat(Vector *dest, Vector *src)
 {
+  if (src == NULL)
+    return;
+
   void *item;
   Vector_ForEach(item, src)
     Vector_Append(dest, item);
-  return 0;
 }

@@ -23,7 +23,6 @@
 #include "typedesc.h"
 #include "stringbuf.h"
 #include "mem.h"
-#include "log.h"
 
 static BasicDesc Byte_Type;
 static BasicDesc Char_Type;
@@ -46,7 +45,7 @@ struct basic_type_s {
   {BASIC_BOOL,   "bool",   &Bool_Type   },
   {BASIC_STRING, "string", &String_Type },
   {BASIC_ERROR,  "error",  &Error_Type  },
-  {BASIC_ANY,    "Any",    &Any_Type    },
+  {BASIC_ANY,    "any",    &Any_Type    },
 };
 
 static struct basic_type_s *get_basic(int kind)
@@ -88,7 +87,7 @@ static void init_basictypes(void)
     Init_HashNode(&basic->hnode, basic);
     basic->desc = AtomString_New((char *)&p->kind);
     /* no need free basic descriptors */
-    TYPE_REFCNT(basic) = 2;
+    basic->refcnt = 2;
     result = HashTable_Insert(&descTable, &basic->hnode);
     assert(!result);
   }
@@ -103,17 +102,19 @@ void Init_TypeDesc(void)
 static void desc_free_func(HashNode *hnode, void *arg)
 {
   TypeDesc *desc = container_of(hnode, TypeDesc, hnode);
-  TypeDesc_Free(desc);
+  TYPE_DECREF(desc);
 }
 
 static void check_basic_refcnt(void)
 {
+  puts("Basic Type Refcnt:");
   BasicDesc *basic;
   struct basic_type_s *p;
   for (int i = 0; i < nr_elts(basic_types); i++) {
     p = basic_types + i;
     basic = p->type;
-    assert(TYPE_REFCNT(basic) == 1);
+    printf("  %s: %d\n", p->str, basic->refcnt);
+    assert(basic->refcnt == 1);
   }
 }
 
@@ -131,7 +132,7 @@ static void __basic_tostring(TypeDesc *desc, char *buf)
 
 static void __basic_fini(TypeDesc *desc)
 {
-  assert(TYPE_REFCNT(desc) > 0);
+  assert(desc->refcnt > 0);
 }
 
 static void __klass_tostring(TypeDesc *desc, char *buf)
@@ -176,7 +177,7 @@ static void __proto_tostring(TypeDesc *desc, char *buf)
 static void __item_free(void *item, void *arg)
 {
   UNUSED_PARAMETER(arg);
-  TypeDesc_Free(item);
+  TYPE_DECREF(item);
 }
 
 static inline void free_typelist(Vector *vec)
@@ -204,7 +205,7 @@ static void __array_tostring(TypeDesc *desc, char *buf)
 static void __array_fini(TypeDesc *desc)
 {
   ArrayDesc *array = (ArrayDesc *)desc;
-  TypeDesc_Free(array->base);
+  TYPE_DECREF(array->base);
 }
 
 static void __map_tostring(TypeDesc *desc, char *buf)
@@ -219,8 +220,8 @@ static void __map_tostring(TypeDesc *desc, char *buf)
 static void __map_fini(TypeDesc *desc)
 {
   MapDesc *map = (MapDesc *)desc;
-  TypeDesc_Free(map->key);
-  TypeDesc_Free(map->val);
+  TYPE_DECREF(map->key);
+  TYPE_DECREF(map->val);
 }
 
 static void __set_tostring(TypeDesc *desc, char *buf)
@@ -234,7 +235,7 @@ static void __set_tostring(TypeDesc *desc, char *buf)
 static void __set_fini(TypeDesc *desc)
 {
   SetDesc *set = (SetDesc *)desc;
-  TypeDesc_Free(set->base);
+  TYPE_DECREF(set->base);
 }
 
 static void __varg_tostring(TypeDesc *desc, char *buf)
@@ -247,7 +248,7 @@ static void __varg_tostring(TypeDesc *desc, char *buf)
 static void __varg_fini(TypeDesc *desc)
 {
   VargDesc *varg = (VargDesc *)desc;
-  TypeDesc_Free(varg->base);
+  TYPE_DECREF(varg->base);
 }
 
 struct typedesc_ops_s {
@@ -298,18 +299,12 @@ void ProtoVec_ToString(Vector *vec, char *buf)
 
 void TypeDesc_Free(TypeDesc *desc)
 {
-  if (desc == NULL)
-    return;
-
   int kind = desc->kind;
   assert(kind > 0 && kind < nr_elts(typedesc_ops));
-  TYPE_DECREF(desc);
-  if (TYPE_REFCNT(desc) <= 0) {
-    assert(desc->kind != TYPE_BASIC);
-    HashTable_Remove(&descTable, &desc->hnode);
-    typedesc_ops[kind].fini(desc);
-    mm_free(desc);
-  }
+  assert(desc->kind != TYPE_BASIC);
+  HashTable_Remove(&descTable, &desc->hnode);
+  typedesc_ops[kind].fini(desc);
+  mm_free(desc);
 }
 
 TypeDesc *TypeDesc_Get_Basic(int basic)
@@ -322,7 +317,7 @@ static void *new_typedesc(DescKind kind, int size, char *descstr)
   TypeDesc *desc = mm_alloc(size);
   desc->kind = kind;
   Init_HashNode(&desc->hnode, desc);
-  TYPE_REFCNT(desc) = 1;
+  desc->refcnt = 1;
   desc->desc = AtomString_New(descstr);
   int result = HashTable_Insert(&descTable, &desc->hnode);
   assert(!result);

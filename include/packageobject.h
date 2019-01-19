@@ -60,7 +60,7 @@ int Package_Add_Klass(PackageObject *pkg, Klass *klazz, int trait);
 #define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
 MemberDef *Package_Find_MemberDef(PackageObject *pkg, char *name);
 int Package_Add_CFunctions(PackageObject *pkg, FuncDef *funcs);
-PackageObject *Package_From_Image(KImage *image);
+PackageObject *Package_From_Image(KImage *image, char *name);
 #define Package_Name(pkg) (((PackageObject *)(pkg))->name.str)
 
 #ifdef __cplusplus

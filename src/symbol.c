@@ -40,7 +40,7 @@ static void __symbol_free(Symbol *sym)
   mm_free(sym);
 }
 
-struct genkimageinfo {
+struct gen_image_s {
   KImage *image;
   char *classname;
 };
@@ -53,7 +53,7 @@ static Symbol *__const_new(char *name)
 static void __const_free(Symbol *sym)
 {
   VarSymbol *varSym = (VarSymbol *)sym;
-  TypeDesc_Free(varSym->desc);
+  TYPE_DECREF(varSym->desc);
   __symbol_free(sym);
 }
 
@@ -68,7 +68,7 @@ static void __const_show(Symbol *sym)
 
 static void __const_gen(Symbol *sym, void *arg)
 {
-  struct genkimageinfo *info = arg;
+  struct gen_image_s *info = arg;
   assert(info->classname == NULL);
   VarSymbol *varSym = (VarSymbol *)sym;
   Log_Debug("const %s:", varSym->name);
@@ -83,7 +83,7 @@ static Symbol *__var_new(char *name)
 static void __var_free(Symbol *sym)
 {
   VarSymbol *varSym = (VarSymbol *)sym;
-  TypeDesc_Free(varSym->desc);
+  TYPE_DECREF(varSym->desc);
   __symbol_free(sym);
 }
 
@@ -102,7 +102,7 @@ static void __var_show(Symbol *sym)
 
 static void __var_gen(Symbol *sym, void *arg)
 {
-  struct genkimageinfo *info = arg;
+  struct gen_image_s *info = arg;
   VarSymbol *varSym = (VarSymbol *)sym;
 
   if (info->classname != NULL) {
@@ -122,7 +122,7 @@ static Symbol *__func_new(char *name)
 static void __func_free(Symbol *sym)
 {
   FuncSymbol *funcSym = (FuncSymbol *)sym;
-  TypeDesc_Free(funcSym->desc);
+  TYPE_DECREF(funcSym->desc);
   /* FIXME */
   Vector_Fini(&funcSym->locvec, NULL, NULL);
   __symbol_free(sym);
@@ -135,9 +135,13 @@ static void __func_show(Symbol *sym)
   char buf[64];
   ProtoVec_ToString(proto->arg, buf);
   printf("func %s(%s)", sym->name, buf);
-  if (Vector_Size(proto->ret) > 0) {
+  int sz = Vector_Size(proto->ret);
+  if (sz > 0) {
     ProtoVec_ToString(proto->ret, buf);
-    printf(" %s;\n", buf);
+    if (sz > 1)
+      printf(" (%s);\n", buf);
+    else
+      printf(" %s;\n", buf);
   } else {
     puts(";"); /* with newline */
   }
@@ -155,7 +159,7 @@ static void __add_locvar(KImage *image, int index, Vector *vec, char *fmt)
 
 static void __func_gen(Symbol *sym, void *arg)
 {
-  struct genkimageinfo *info = arg;
+  struct gen_image_s *info = arg;
   FuncSymbol *funcSym = (FuncSymbol *)sym;
   uint8 *code = NULL;
   int size = CodeBlock_To_RawCode(info->image, funcSym->code, &code);
@@ -210,9 +214,8 @@ static Symbol *__class_new(char *name)
 static void __class_free(Symbol *sym)
 {
   ClassSymbol *clsSym = (ClassSymbol *)sym;
-  TypeDesc_Free(clsSym->super);
   /* FIXME */
-  Vector_Fini(&clsSym->traits, NULL, NULL);
+  Vector_Fini(&clsSym->supers, NULL, NULL);
   STable_Free(clsSym->stbl, NULL, NULL);
   __symbol_free(sym);
 }
@@ -226,21 +229,13 @@ static void __gen_image_func(Symbol *sym, void *arg);
 
 static void __class_gen(Symbol *sym, void *arg)
 {
-  struct genkimageinfo *info = arg;
+  struct gen_image_s *info = arg;
   ClassSymbol *clsSym = (ClassSymbol *)sym;
   Log_Debug("class %s:", clsSym->name);
 
-  char *path = NULL;
-  char *type = NULL;
-  TypeDesc *desc = clsSym->super;
-  if (desc != NULL) {
-    KlassDesc *klass = (KlassDesc *)desc;
-    path = klass->path.str;
-    type = klass->type.str;
-  }
-  KImage_Add_Class(info->image, clsSym->name, path, type, &clsSym->traits);
+  KImage_Add_Class(info->image, clsSym->name, &clsSym->supers);
 
-  struct genkimageinfo info2 = {info->image, clsSym->name};
+  struct gen_image_s info2 = {info->image, clsSym->name};
   STable_Visit(clsSym->stbl, __gen_image_func, &info2);
 }
 
@@ -252,9 +247,8 @@ static Symbol *__trait_new(char *name)
 static void __trait_free(Symbol *sym)
 {
   ClassSymbol *clsSym = (ClassSymbol *)sym;
-  assert(clsSym->super == NULL);
   /* FIXME */
-  Vector_Fini(&clsSym->traits, NULL, NULL);
+  Vector_Fini(&clsSym->supers, NULL, NULL);
   STable_Free(clsSym->stbl, NULL, NULL);
   __symbol_free(sym);
 }
@@ -266,13 +260,53 @@ static void __trait_show(Symbol *sym)
 
 static void __trait_gen(Symbol *sym, void *arg)
 {
-  struct genkimageinfo *info = arg;
+  struct gen_image_s *info = arg;
   ClassSymbol *clsSym = (ClassSymbol *)sym;
   Log_Debug("trait %s:", clsSym->name);
-  KImage_Add_Trait(info->image, clsSym->name, &clsSym->traits);
 
-  struct genkimageinfo info2 = {info->image, clsSym->name};
+  KImage_Add_Trait(info->image, clsSym->name, &clsSym->supers);
+
+  struct gen_image_s info2 = {info->image, clsSym->name};
   STable_Visit(clsSym->stbl, __gen_image_func, &info2);
+}
+
+static Symbol *__nfunc_new(char *name)
+{
+  return __symbol_new(SYM_NFUNC, name, sizeof(NFuncSymbol));
+}
+
+static void __nfunc_free(Symbol *sym)
+{
+  NFuncSymbol *nfunSym = (NFuncSymbol *)sym;
+  TYPE_DECREF(nfunSym->desc);
+  __symbol_free(sym);
+}
+
+static void __nfunc_show(Symbol *sym)
+{
+  NFuncSymbol *nfunSym = (NFuncSymbol *)sym;
+  ProtoDesc *proto = (ProtoDesc *)nfunSym->desc;
+  char buf[64];
+  ProtoVec_ToString(proto->arg, buf);
+  printf("native func %s(%s)", sym->name, buf);
+  int sz = Vector_Size(proto->ret);
+  if (sz > 0) {
+    ProtoVec_ToString(proto->ret, buf);
+    if (sz > 1)
+      printf(" (%s);\n", buf);
+    else
+      printf(" %s;\n", buf);
+  } else {
+    puts(";"); /* with newline */
+  }
+}
+
+static void __nfunc_gen(Symbol *sym, void *arg)
+{
+  struct gen_image_s *info = arg;
+  NFuncSymbol *nfunSym = (NFuncSymbol *)sym;
+  Log_Debug("  native func %s", nfunSym->name);
+  KImage_Add_NFunc(info->image, info->classname, nfunSym->name, nfunSym->desc);
 }
 
 static Symbol *__ifunc_new(char *name)
@@ -283,18 +317,32 @@ static Symbol *__ifunc_new(char *name)
 static void __ifunc_free(Symbol *sym)
 {
   IFuncSymbol *ifunSym = (IFuncSymbol *)sym;
-  TypeDesc_Free(ifunSym->desc);
+  TYPE_DECREF(ifunSym->desc);
   __symbol_free(sym);
 }
 
 static void __ifunc_show(Symbol *sym)
 {
-  printf("ifunc %s();\n", sym->name);
+  IFuncSymbol *ifunSym = (IFuncSymbol *)sym;
+  ProtoDesc *proto = (ProtoDesc *)ifunSym->desc;
+  char buf[64];
+  ProtoVec_ToString(proto->arg, buf);
+  printf("ifunc %s%s", sym->name, buf);
+  int sz = Vector_Size(proto->ret);
+  if (sz > 0) {
+    ProtoVec_ToString(proto->ret, buf);
+    if (sz > 1)
+      printf(" (%s);\n", buf);
+    else
+      printf(" %s;\n", buf);
+  } else {
+    puts(";"); /* with newline */
+  }
 }
 
 static void __ifunc_gen(Symbol *sym, void *arg)
 {
-  struct genkimageinfo *info = arg;
+  struct gen_image_s *info = arg;
   IFuncSymbol *ifnSym = (IFuncSymbol *)sym;
   Log_Debug("  func %s;", ifnSym->name);
   KImage_Add_IMeth(info->image, info->classname, ifnSym->name, ifnSym->desc);
@@ -323,6 +371,7 @@ struct symbol_operations {
   {__alias_new, __alias_free, __alias_show, __alias_gen}, /* SYM_ALIAS  */
   {__class_new, __class_free, __class_show, __class_gen}, /* SYM_CLASS  */
   {__trait_new, __trait_free, __trait_show, __trait_gen}, /* SYM_TRAIT  */
+  {__nfunc_new, __nfunc_free, __nfunc_show, __nfunc_gen}, /* SYM_NFUNC  */
   {__ifunc_new, __ifunc_free, __ifunc_show, __ifunc_gen}, /* SYM_IFUNC  */
   {__import_new, __import_free, NULL, NULL}               /* SYM_IMPORT */
 };
@@ -361,14 +410,14 @@ static void __symbol_free_fn(Symbol *sym, void *arg)
   Symbol_Free(sym);
 }
 
-SymbolTable *STable_New(void)
+STable *STable_New(void)
 {
-  SymbolTable *stbl = mm_alloc(sizeof(SymbolTable));
+  STable *stbl = mm_alloc(sizeof(STable));
   HashTable_Init(&stbl->table, symbol_hash, symbol_equal);
   return stbl;
 }
 
-void STable_Free(SymbolTable *stbl, symbol_visit_func visit, void *arg)
+void STable_Free(STable *stbl, symbol_visit_func visit, void *arg)
 {
   if (stbl == NULL)
     return;
@@ -383,7 +432,7 @@ void STable_Free(SymbolTable *stbl, symbol_visit_func visit, void *arg)
   mm_free(stbl);
 }
 
-VarSymbol *STable_Add_Const(SymbolTable *stbl, char *name, TypeDesc *desc)
+VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc)
 {
   VarSymbol *sym = (VarSymbol *)Symbol_New(SYM_CONST, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -396,7 +445,7 @@ VarSymbol *STable_Add_Const(SymbolTable *stbl, char *name, TypeDesc *desc)
   return sym;
 }
 
-VarSymbol *STable_Add_Var(SymbolTable *stbl, char *name, TypeDesc *desc)
+VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc)
 {
   VarSymbol *sym = (VarSymbol *)Symbol_New(SYM_VAR, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -409,7 +458,7 @@ VarSymbol *STable_Add_Var(SymbolTable *stbl, char *name, TypeDesc *desc)
   return sym;
 }
 
-FuncSymbol *STable_Add_Func(SymbolTable *stbl, char *name, TypeDesc *proto)
+FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto)
 {
   FuncSymbol *sym = (FuncSymbol *)Symbol_New(SYM_FUNC, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -422,7 +471,7 @@ FuncSymbol *STable_Add_Func(SymbolTable *stbl, char *name, TypeDesc *proto)
   return sym;
 }
 
-AliasSymbol *STable_Add_Alias(SymbolTable *stbl, char *name, TypeDesc *desc)
+AliasSymbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc)
 {
   AliasSymbol *sym = (AliasSymbol *)Symbol_New(SYM_ALIAS, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -434,31 +483,31 @@ AliasSymbol *STable_Add_Alias(SymbolTable *stbl, char *name, TypeDesc *desc)
   return sym;
 }
 
-ClassSymbol *STable_Add_Class(SymbolTable *stbl, char *name)
+ClassSymbol *STable_Add_Class(STable *stbl, char *name)
 {
   ClassSymbol *sym = (ClassSymbol *)Symbol_New(SYM_CLASS, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
-  Vector_Init(&sym->traits);
+  Vector_Init(&sym->supers);
   sym->stbl = STable_New();
   return sym;
 }
 
-ClassSymbol *STable_Add_Trait(SymbolTable *stbl, char *name)
+ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
 {
   ClassSymbol *sym = (ClassSymbol *)Symbol_New(SYM_TRAIT, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
-  Vector_Init(&sym->traits);
+  Vector_Init(&sym->supers);
   sym->stbl = STable_New();
   return sym;
 }
 
-IFuncSymbol *STable_Add_IFunc(SymbolTable *stbl, char *name, TypeDesc *proto)
+IFuncSymbol *STable_Add_IFunc(STable *stbl, char *name, TypeDesc *proto)
 {
   IFuncSymbol *sym = (IFuncSymbol *)Symbol_New(SYM_IFUNC, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -470,7 +519,19 @@ IFuncSymbol *STable_Add_IFunc(SymbolTable *stbl, char *name, TypeDesc *proto)
   return sym;
 }
 
-ImportSymbol *STable_Add_Import(SymbolTable *stbl, char *name)
+NFuncSymbol *STable_Add_NFunc(STable *stbl, char *name, TypeDesc *proto)
+{
+  NFuncSymbol *sym = (NFuncSymbol *)Symbol_New(SYM_NFUNC, name);
+  if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
+    Symbol_Free((Symbol *)sym);
+    return NULL;
+  }
+  TYPE_INCREF(proto);
+  sym->desc = proto;
+  return sym;
+}
+
+ImportSymbol *STable_Add_Import(STable *stbl, char *name)
 {
   ImportSymbol *sym = (ImportSymbol *)Symbol_New(SYM_IMPORT, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -480,7 +541,7 @@ ImportSymbol *STable_Add_Import(SymbolTable *stbl, char *name)
   return sym;
 }
 
-Symbol *STable_Get(SymbolTable *stbl, char *name)
+Symbol *STable_Get(STable *stbl, char *name)
 {
   Symbol key = {.name = name};
   HashNode *hnode = HashTable_Find(&stbl->table, &key);
@@ -494,14 +555,14 @@ static void __gen_image_func(Symbol *sym, void *arg)
   ops->__symbol_gen(sym, arg);
 }
 
-KImage *Gen_Image(SymbolTable *stbl, char *pkgname)
+KImage *Gen_KImage(STable *stbl)
 {
-  printf("----------codegen------------\n");
-  KImage *image = KImage_New(pkgname);
-  struct genkimageinfo info = {image, NULL};
+  Log_Debug("----generate image----");
+  KImage *image = KImage_New();
+  struct gen_image_s info = {image, NULL};
   STable_Visit(stbl, __gen_image_func, &info);
   KImage_Finish(image);
-  printf("----------codegen end--------\n");
+  Log_Debug("----end of image----");
   KImage_Show(image);
   return image;
 }
@@ -514,7 +575,7 @@ static void __symbol_show_fn(Symbol *sym, void *arg)
   ops->__symbol_show(sym);
 }
 
-void STable_Show(SymbolTable *stbl)
+void STable_Show(STable *stbl)
 {
   STable_Visit(stbl, __symbol_show_fn, stbl);
 }
@@ -531,7 +592,7 @@ static void __symbol_visit_fn(HashNode *hnode, void *arg)
   entry->fn(sym, entry->arg);
 }
 
-void STable_Visit(SymbolTable *stbl, symbol_visit_func fn, void *arg)
+void STable_Visit(STable *stbl, symbol_visit_func fn, void *arg)
 {
   struct visit_entry entry = {fn, arg};
   HashTable_Visit(&stbl->table, __symbol_visit_fn, &entry);

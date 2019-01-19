@@ -44,8 +44,9 @@ extern "C" {
 #define ITEM_FIELD      11
 #define ITEM_METHOD     12
 #define ITEM_TRAIT      13
-#define ITEM_IMETH      14
-#define ITEM_MAX        15
+#define ITEM_NFUNC      14
+#define ITEM_IMETH      15
+#define ITEM_MAX        16
 
 typedef struct map_item {
   /* one of ITEM_XXX, self is ITEM_MAP */
@@ -132,7 +133,6 @@ typedef struct code_item {
 typedef struct class_item {
   int32 classindex;  /* ->TypeItem */
   int32 superindex;  /* ->TypeItem */
-  int32 traitsindex; /* ->TypeListItem */
 } ClassItem;
 
 typedef struct feild_item {
@@ -153,13 +153,17 @@ typedef struct trait_item {
   int32 traitsindex; /* ->TypeListItem */
 } TraitItem;
 
+typedef struct nfunc_item {
+  int32 classindex; /* ->TypeItem */
+  int32 nameindex;  /* ->StringItem */
+  int32 protoindex; /* ->ProtoItem */
+} NFuncItem;
+
 typedef struct imeth_item {
   int32 classindex; /* ->TypeItem */
   int32 nameindex;  /* ->StringItem */
   int32 protoindex; /* ->ProtoItem */
 } IMethItem;
-
-#define PKG_NAME_MAX 128
 
 /* koala byte code image header */
 typedef struct image_header {
@@ -171,7 +175,6 @@ typedef struct image_header {
   uint32 map_offset;
   uint32 map_size;
   uint32 crc32;
-  char pkgname[PKG_NAME_MAX];
 } ImageHeader;
 
 typedef struct kimage {
@@ -179,7 +182,7 @@ typedef struct kimage {
   AtomTable *table;
 } KImage;
 
-KImage *KImage_New(char *pkgname);
+KImage *KImage_New(void);
 void KImage_Free(KImage *image);
 void KImage_Show(KImage *image);
 
@@ -193,13 +196,13 @@ void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
                        int pos, int index);
 int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto,
                     uint8 *codes, int size);
-void KImage_Add_Class(KImage *image, char *name,
-                      char *superpath, char *supertype, Vector *traits);
+void KImage_Add_Class(KImage *image, char *name, Vector *supers);
 void KImage_Add_Trait(KImage *image, char *name, Vector *traits);
 
 void KImage_Add_Field(KImage *image, char *klazz, char *name, TypeDesc *desc);
 int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
                       uint8 *codes, int size);
+void KImage_Add_NFunc(KImage *image, char *klazz, char *name, TypeDesc *proto);
 void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto);
 
 static inline int KImage_Count_Consts(KImage *image)

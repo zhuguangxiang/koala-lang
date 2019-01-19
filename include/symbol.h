@@ -35,7 +35,7 @@ typedef struct symboltable {
   HashTable table;
   /* constant and variable allcated index */
   int varindex;
-} SymbolTable;
+} STable;
 
 /* symbol kind */
 typedef enum symbolkind {
@@ -46,7 +46,8 @@ typedef enum symbolkind {
   SYM_CLASS  = 5, /* clas */
   SYM_TRAIT  = 6, /* trait */
   SYM_IFUNC  = 7, /* interface method */
-  SYM_IMPORT = 8, /* import */
+  SYM_NFUNC  = 8, /* native function */
+  SYM_IMPORT = 9, /* import */
 } SymKind;
 
 #define SYMBOL_HEAD \
@@ -85,9 +86,8 @@ typedef struct aliassymbol {
 /* class and trait symbol */
 typedef struct classsymbol {
   SYMBOL_HEAD
-  TypeDesc *super;    /* extends class */
-  Vector traits;      /* with tratis in liner-oder */
-  SymbolTable *stbl;  /* symbol table */
+  Vector supers;    /* supers in liner-oder */
+  STable *stbl;     /* symbol table */
 } ClassSymbol;
 
 /* interface function */
@@ -96,33 +96,41 @@ typedef struct ifuncsymbol {
   TypeDesc *desc; /* function's proto */
 } IFuncSymbol;
 
+/* native function */
+typedef struct nfuncsymbol {
+  SYMBOL_HEAD
+  TypeDesc *desc; /* function's proto */
+} NFuncSymbol;
+
 /* import symbol */
 typedef struct importsymbol {
   SYMBOL_HEAD
   void *import; /* Import, not need free */
 } ImportSymbol;
 
-SymbolTable *STable_New(void);
+STable *STable_New(void);
 typedef void (*symbol_visit_func)(Symbol *sym, void *arg);
-void STable_Free(SymbolTable *stbl, symbol_visit_func visit, void *arg);
+void STable_Free(STable *stbl, symbol_visit_func visit, void *arg);
+#define STable_Free_Self(stbl) STable_Free(stbl, NULL, NULL)
 
 Symbol *Symbol_New(SymKind kind, char *name);
 void Symbol_Free(Symbol *sym);
 #define SYMBOL_ISPUBLIC(sym) \
   isupper((sym)->name[0])
 
-VarSymbol *STable_Add_Const(SymbolTable *stbl, char *name, TypeDesc *desc);
-VarSymbol *STable_Add_Var(SymbolTable *stbl, char *name, TypeDesc *desc);
-FuncSymbol *STable_Add_Func(SymbolTable *stbl, char *name, TypeDesc *proto);
-AliasSymbol *STable_Add_Alias(SymbolTable *stbl, char *name, TypeDesc *desc);
-ClassSymbol *STable_Add_Class(SymbolTable *stbl, char *name);
-ClassSymbol *STable_Add_Trait(SymbolTable *stbl, char *name);
-IFuncSymbol *STable_Add_IFunc(SymbolTable *stbl, char *name, TypeDesc *proto);
-ImportSymbol *STable_Add_Import(SymbolTable *stbl, char *name);
-Symbol *STable_Get(SymbolTable *stbl, char *name);
-KImage *Gen_KImage(SymbolTable *stbl, char *pkgname);
-void STable_Show(SymbolTable *stbl);
-void STable_Visit(SymbolTable *stbl, symbol_visit_func fn, void *arg);
+VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
+VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
+FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
+AliasSymbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc);
+ClassSymbol *STable_Add_Class(STable *stbl, char *name);
+ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
+IFuncSymbol *STable_Add_IFunc(STable *stbl, char *name, TypeDesc *proto);
+NFuncSymbol *STable_Add_NFunc(STable *stbl, char *name, TypeDesc *proto);
+ImportSymbol *STable_Add_Import(STable *stbl, char *name);
+Symbol *STable_Get(STable *stbl, char *name);
+KImage *Gen_KImage(STable *stbl);
+void STable_Show(STable *stbl);
+void STable_Visit(STable *stbl, symbol_visit_func fn, void *arg);
 
 #ifdef __cplusplus
 }

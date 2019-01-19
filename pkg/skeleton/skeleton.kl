@@ -20,4 +20,34 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io
+//import "native/io"
+
+//constants
+const K1 = "Const Value"
+const K2 string = "Const Value"
+
+//variables
+//var ch = 'a'
+var ok = true
+var greeting string = "hello,world"
+var total int = 100
+var array = [3][]string
+var fn = func(a int, b int) int {
+  return a + b
+}
+
+//functions
+func Add(a int, b int) (r int) {
+  {"abc", 1, 2}.length()
+}
+
+func Main(args []string) {
+}
+
+func __init__() {
+
+}
+
+class Person {
+
+}

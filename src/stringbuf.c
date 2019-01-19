@@ -69,6 +69,12 @@ void __StringBuf_Append(StringBuf *buf, String s)
   buf->length += len;
 }
 
+void __StringBuf_Append_CStr(StringBuf *buf, char *s)
+{
+  String string = {.str = s};
+  __StringBuf_Append(buf, string);
+}
+
 void __StringBuf_Append_Char(StringBuf *buf, char ch)
 {
   if (available(buf, 1) <= 0)

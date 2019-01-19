@@ -82,7 +82,7 @@ void test_string_to_typedesc(void)
   s = "...A"; //...Any
   type = String_To_TypeDesc(&s, 0, 0);
   TypeDesc_ToString(type, buf);
-  assert(!strcmp("...Any", buf));
+  assert(!strcmp("...any", buf));
 
   s = "S[[[i"; //set[[][][]int]
   type = String_To_TypeDesc(&s, 0, 0);

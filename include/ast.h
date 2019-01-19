@@ -210,6 +210,8 @@ typedef enum stmtkind {
   ASSIGNLIST_KIND,
   /* function declaration */
   FUNC_KIND,
+  /* proto or native function */
+  PROTO_KIND,
   /*
    * examples:
    * a + b;
@@ -220,18 +222,16 @@ typedef enum stmtkind {
   RETURN_KIND,
   /* list for block and vardecl-list */
   LIST_KIND,
-
-  IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
-  FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND,
-
   /* type alias */
   TYPEALIAS_KIND,
   /* class */
   CLASS_KIND,
   /* trait */
   TRAIT_KIND,
-  /* proto declaration used only in trait */
-  PROTO_KIND,
+
+  IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
+  FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND,
+
   STMT_KIND_MAX
 } StmtKind;
 
@@ -338,22 +338,13 @@ typedef struct typealiasstmt {
   TypeDesc *desc;
 } TypeAliasStmt;
 
-/* class statement */
-typedef struct classstmt {
+/* class or trait statement */
+typedef struct klassstmt {
   STMT_HEAD
   char *id;
-  TypeDesc *super;
-  Vector *traits;
+  Vector *super;
   Vector *body;
-} ClassStmt;
-
-/* trait statement */
-typedef struct traitstmt {
-  STMT_HEAD
-  char *id;
-  Vector *traits;
-  Vector *body;
-} TraitStmt;
+} KlassStmt;
 
 /* proto declaration, used only in trait */
 typedef struct protodescstmt {
@@ -364,8 +355,7 @@ typedef struct protodescstmt {
 } ProtoDeclStmt;
 
 Stmt *Stmt_From_TypeAlias(char *id, TypeDesc *desc);
-Stmt *Stmt_From_Class(TypeDesc *super, Vector *traits);
-Stmt *Stmt_From_Trait(char *id, Vector *traits, Vector *body);
+Stmt *Stmt_From_Klass(char *id, StmtKind kind, Vector *super, Vector *body);
 Stmt *Stmt_From_ProtoDecl(char *id, Vector *args, Vector *rets);
 
 #ifdef __cplusplus

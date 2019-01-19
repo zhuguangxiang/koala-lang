@@ -20,4 +20,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package io
+package sys
+
+import "io"
+
+var In io.CharReader
+var Out io.CharWriter
+
+native func LoadLibrary(libName string)
+native func GetEnv(name string)
+native func GetEnvMap() map[string]string

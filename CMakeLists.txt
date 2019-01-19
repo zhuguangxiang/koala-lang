@@ -3,6 +3,7 @@ CMAKE_MINIMUM_REQUIRED (VERSION 3.0)
 
 PROJECT (koala-lang)
 
+#set (CMAKE_BUILD_TYPE Release)
 set (CMAKE_BUILD_TYPE Debug)
 
 set (CMAKE_INSTALL_PREFIX $ENV{HOME}/.local)

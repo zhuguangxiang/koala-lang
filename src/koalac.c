@@ -26,6 +26,7 @@
 #include "koala_yacc.h"
 #include "koala_lex.h"
 #include "options.h"
+#include "stringbuf.h"
 #include "mem.h"
 #include "log.h"
 
@@ -44,30 +45,27 @@ static int isdotkl(char *filename)
  * compile all source files in the package and output into 'pkg-name'.klc
  * input: the package's dir
  */
-static int compile(char *input, char *output, struct options *options)
+static void compile(char *pkgdir, PkgInfo *pkg)
 {
   struct stat sb;
-  if (lstat(input, &sb) == - 1) {
-    fprintf(stderr, "%s: invalid filename\n", input);
-    return -1;
+  if (lstat(pkgdir, &sb) == - 1) {
+    fprintf(stderr, "%s: invalid filename\n", pkgdir);
+    return;
   }
 
   if (!S_ISDIR(sb.st_mode)) {
-    fprintf(stderr, "%s: is not a directory\n", input);
-    return -1;
+    fprintf(stderr, "%s: is not a directory\n", pkgdir);
+    return;
   }
 
-  DIR *dir = opendir(input);
+  DIR *dir = opendir(pkgdir);
   if (!dir) {
-    fprintf(stderr, "%s: no such file or directory\n", input);
-    return -1;
+    fprintf(stderr, "%s: no such file or directory\n", pkgdir);
+    return;
   }
 
-  Vector vec;
-  Vector_Init(&vec);
+  VECTOR(psvec);
 
-  PkgInfo pkg;
-  Init_PkgInfo(&pkg, output, options);
   ParserState *ps;
   int errnum = 0;
 
@@ -77,42 +75,47 @@ static int compile(char *input, char *output, struct options *options)
   while ((dent = readdir(dir))) {
     if (!isdotkl(dent->d_name))
       continue;
-    sprintf(name, "%s/%s", input, dent->d_name);
-    if (lstat(name, &sb) != 0) continue;
-    if (S_ISDIR(sb.st_mode)) continue;
-    printf("compile %s\n", name);
+
+    sprintf(name, "%s/%s", pkgdir, dent->d_name);
+    if (lstat(name, &sb) != 0 || S_ISDIR(sb.st_mode))
+      continue;
+
+    Log_Debug("compile %s", name);
+
     in = fopen(name, "r");
     if (!in) {
       printf("%s: no such file or directory\n", name);
       continue;
     }
-    ps = New_Parser(&pkg, dent->d_name);
-    yyset_in(in, ps->scanner);
-    yyparse(ps, ps->scanner);
+
+    ps = New_Parser(pkg, dent->d_name);
+    Vector_Append(&psvec, ps);
+
+    /* build abstact syntax tree */
+    errnum += Build_AST(ps, in);
+
     fclose(in);
-    Vector_Append(&vec, ps);
-    errnum += ps->errnum;
   }
+
   closedir(dir);
 
-  Vector_ForEach(ps, &vec) {
-    //if (ps->errnum <= 0)
-    //  Parse(ps);
+  /* semantic analysis and code generation */
+  Vector_ForEach(ps, &psvec) {
+    if (ps->errnum <= 0)
+      Parse(ps);
     Destroy_Parser(ps);
   }
 
+  Vector_Fini_Self(&psvec);
+
   if (errnum <= 0) {
-    //parse_module_scope(pkg);
-    //Generate_KImage(pkg->sym->ptr, pkg->pkgname, pkg->pkgfile);
+    KImage *image = Gen_KImage(pkg->stbl);
+    assert(image != NULL);
+    KImage_Write_File(image, pkg->pkgfile.str);
+    KImage_Free(image);
   } else {
     fprintf(stderr, "There are %d errors.\n", errnum);
   }
-
-  Show_PkgInfo_Symbols(&pkg);
-
-  Vector_Fini(&vec, NULL, NULL);
-  Fini_PkgInfo(&pkg);
-  return 0;
 }
 
 #define KOALAC_VERSION "0.8.5"
@@ -134,84 +137,63 @@ static void show_usage(char *prog)
     "\t-p <path>         Specify where to find external packages.\n"
     "\t-o <directory>    Specify where to place generated packages.\n"
     "\t-s <directory>    Specify where to find source packages.\n"
+    "\t-Dname=value      Set a property.\n"
     "\t-v                Print compiler version.\n"
     "\t-h                Print this message.\n",
     prog);
 }
 
-static void init_compiler(void)
+int main(int argc, char *argv[])
 {
   AtomString_Init();
   Init_TypeDesc();
-}
 
-static void fini_compiler(void)
-{
-  Fini_TypeDesc();
-  AtomString_Fini();
-}
-
-int main(int argc, char *argv[])
-{
-  struct options opts;
-  init_options(&opts);
-  set_options_usage(&opts, show_usage);
-  set_options_version(&opts, show_version);
+  Options opts;
+  init_options(&opts, show_usage, show_version);
   parse_options(argc, argv, &opts);
   show_options(&opts);
 
-  //Koala_Initialize();
-  init_compiler();
-
-  /*
-   * search klc pathes:
-   * 1. current(output) directory
-   * 2. -p directory
-   */
-  // if (opts.outpath == NULL)
-  //   Koala_Add_Property(KOALA_PATH, ".");
-  // else
-  //   Koala_Add_Property(KOALA_PATH, opts.outpath);
-  // char *path;
-  // Vector_ForEach(path, &opts.pathes) {
-  //   Koala_Add_Property(KOALA_PATH, path);
-  // }
-
-  char *input;
-  char *output;
-  int srclen = 0;
-  int outlen = 0;
-  if (opts.srcpath != NULL)
-    srclen = strlen(opts.srcpath);
-  if (opts.outpath != NULL)
-    outlen = strlen(opts.outpath);
-
+  char *pkgname;
   char *s;
   Vector_ForEach(s, &opts.names) {
+    DeclareStringBuf(input);
+    DeclareStringBuf(output);
+
     /* if not specify srcpath, use ./ as default srcpath */
-    input = mm_alloc(srclen + strlen(s) + 4);
     if (opts.srcpath != NULL)
-      sprintf(input, "%s/%s", opts.srcpath, s);
+      StringBuf_Format_CStr(input, "#/#", opts.srcpath, s);
     else
-      strcpy(input, s);
+      StringBuf_Append_CStr(input, s);
 
-    output = mm_alloc(outlen + strlen(s) + 8);
+    /* if not specify outpath, use ./ as default outpath */
     if (opts.outpath != NULL)
-      sprintf(output, "%s/%s.klc", opts.outpath, s);
+      StringBuf_Format_CStr(output, "#/#.klc", opts.outpath, s);
     else
-      sprintf(output, "%s.klc", s);
+      StringBuf_Format_CStr(output, "#.klc", s);
 
-    Log_Debug("input:%s", input);
-    Log_Debug("outout:%s", output);
-    compile(input, output, &opts);
-    mm_free(input);
-    mm_free(output);
+    /* if package dir has slash, get the last dir name as package name */
+    pkgname = strrchr(s, '/');
+    if (pkgname == NULL)
+      pkgname = s;
+
+    Log_Debug("input:%s", input.data);
+    Log_Debug("outout:%s", output.data);
+    Log_Debug("package:%s", pkgname);
+
+    PkgInfo pkg;
+    Init_PkgInfo(&pkg, pkgname, output.data, &opts);
+    compile(input.data, &pkg);
+    Show_PkgInfo(&pkg);
+    Fini_PkgInfo(&pkg);
+
+    FiniStringBuf(input);
+    FiniStringBuf(output);
   }
 
-  //Koala_Finalize();
-  fini_compiler();
-
   fini_options(&opts);
+
+  Fini_TypeDesc();
+  AtomString_Fini();
 
   show_memstat();
   return 0;

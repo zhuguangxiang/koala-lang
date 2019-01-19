@@ -21,3 +21,16 @@
  */
 
 package io
+
+native func Open(name string) (f File, e error)
+native func Close(f File)
+
+class File {
+  name string = "abcd"
+
+  func __init__(name string) {
+    self.name = name
+  }
+
+  native func
+}

@@ -39,18 +39,22 @@ typedef struct packageinfo {
   /* package saved in pkgfile */
   String pkgfile;
   /* package name */
-  char *pkgname;
-  /* last compiled source file name, for checking package name is the same */
-  char *lastfile;
+  String pkgname;
+  /* imported external packages' symbol table, path as key */
+  HashTable *extstbl;
   /* symbol table saves all symbols of the package */
-  SymbolTable *stbl;
+  STable *stbl;
   /* compiling options for compiling other packages, if necessary */
-  struct options *opts;
+  Options *opts;
 } PkgInfo;
 
-int Init_PkgInfo(PkgInfo *pkg, char *pkgfile, struct options *opts);
+int Init_PkgInfo(PkgInfo *pkg, char *pkgname, char *pkgfile, Options *opts);
 void Fini_PkgInfo(PkgInfo *pkg);
-void Show_PkgInfo_Symbols(PkgInfo *pkg);
+#if 1
+void Show_PkgInfo(PkgInfo *pkg);
+#else
+#define Show_PkgInfo(pkg) ((void *)0)
+#endif
 
 /* line max length */
 #define LINE_MAX_LEN 256
@@ -98,23 +102,13 @@ typedef struct parserunit {
   /* for function, class, trait and method */
   Symbol *sym;
   /* symbol table for current scope */
-  SymbolTable *stbl;
+  STable *stbl;
   /* instructions within current scope */
   CodeBlock *block;
   int8 merge;
   int8 loop;
   Vector jmps;
 } ParserUnit;
-
-#define Set_Unit_Symbol(u, symbol) \
-do {                               \
-  (u)->sym = (Symbol *)(symbol);   \
-} while (0)
-
-#define Set_Unit_STable(u, tbl) \
-do {                            \
-  (u)->stbl = (tbl);            \
-} while (0)
 
 /* max errors before stopping compiling */
 #define MAX_ERRORS 8
@@ -130,8 +124,6 @@ typedef struct parserstate {
   /* package ptr, all modules have the same pacakge */
   PkgInfo *pkg;
 
-  /* lexer pointer */
-  void *scanner;
   /* save last token for if inserted semicolon or not */
   int lastToken;
   /* input line buffer */
@@ -143,7 +135,7 @@ typedef struct parserstate {
   /* imported information */
   HashTable imports;
   /* external symbol table, imported-name or package-name as key */
-  SymbolTable *extstbl;
+  STable *extstbl;
 
   /* top parser unit */
   ParserUnit top;
@@ -173,13 +165,13 @@ void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);
 
 ParserState *New_Parser(PkgInfo *pkg, char *filename);
-void Destroy_Parser(ParserState *ps);
+int Build_AST(ParserState *ps, FILE *in);
 void Parse(ParserState *ps);
+void Destroy_Parser(ParserState *ps);
 void Check_Unused_Imports(ParserState *ps);
 void Check_Unused_Symbols(ParserState *ps);
 
 /* yacc(bison) used APIs */
-int Parser_Set_Package(ParserState *ps, char *pkgname, YYLTYPE *loc);
 void Init_Imports(ParserState *ps);
 void Fini_Imports(ParserState *ps);
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,

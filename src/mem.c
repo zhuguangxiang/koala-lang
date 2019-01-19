@@ -26,9 +26,9 @@ MemStat memstat;
 
 void show_memstat(void)
 {
-  puts("------------------------------");
-  printf("  Mem Used: %lld Bytes\n", memstat.allocated);
-  puts("------------------------------");
+  puts("\n+-----------------------------");
+  printf("|  Mem Used: %lld Bytes", memstat.allocated);
+  puts("\n+-----------------------------");
 }
 
 void *gc_alloc(int size)

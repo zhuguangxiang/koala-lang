@@ -54,7 +54,7 @@ void CodeObject_Free(Object *ob)
   OB_ASSERT_KLASS(ob, Code_Klass);
   CodeObject *code = (CodeObject *)ob;
 
-  TypeDesc_Free(code->proto);
+  TYPE_DECREF(code->proto);
   if (CODE_IS_K(code)) {
     //FIXME
   }

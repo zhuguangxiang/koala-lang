@@ -443,8 +443,7 @@ MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k)
 
 void MemberDef_Free(MemberDef *m)
 {
-  if (m->desc != NULL)
-    TypeDesc_Free(m->desc);
+  TYPE_DECREF(m->desc);
   mm_free(m);
 }
 

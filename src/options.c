@@ -40,7 +40,7 @@ void namevalue_free(struct namevalue *nv)
   mm_free(nv);
 }
 
-struct namevalue *parse_namevalue(char *opt, struct options *opts, char *prog)
+struct namevalue *parse_namevalue(char *opt, Options *opts, char *prog)
 {
   char *name = opt;
   char *eq = strchr(opt, '=');
@@ -52,7 +52,7 @@ struct namevalue *parse_namevalue(char *opt, struct options *opts, char *prog)
   return namevalue_new(strndup(name, eq - name), strdup(eq + 1));
 }
 
-void parse_options(int argc, char *argv[], struct options *opts)
+void parse_options(int argc, char *argv[], Options *opts)
 {
   extern char *optarg;
   extern int optind;
@@ -108,12 +108,14 @@ void parse_options(int argc, char *argv[], struct options *opts)
   }
 }
 
-int init_options(struct options *opts)
+int init_options(Options *opts, void (*usage)(char *), void (*version)(void))
 {
-  memset(opts, 0, sizeof(struct options));
+  memset(opts, 0, sizeof(Options));
   Vector_Init(&opts->pathes);
   Vector_Init(&opts->nvs);
   Vector_Init(&opts->names);
+  opts->usage = usage;
+  opts->version = version;
   return 0;
 }
 
@@ -127,7 +129,7 @@ static void free_namevalue_func(void *item, void *arg)
   namevalue_free(item);
 }
 
-void fini_options(struct options *opts)
+void fini_options(Options *opts)
 {
   if (opts->srcpath != NULL)
     mm_free(opts->srcpath);
@@ -140,7 +142,7 @@ void fini_options(struct options *opts)
   Vector_Fini(&opts->names, free_string_func, NULL);
 }
 
-int options_number(struct options *opts)
+int options_number(Options *opts)
 {
   int num = Vector_Size(&(opts)->pathes) + Vector_Size(&(opts)->nvs);
   if (opts->srcpath != NULL)
@@ -150,7 +152,7 @@ int options_number(struct options *opts)
   return 2 * num;
 }
 
-void options_toarray(struct options *opts, char *array[], int ind)
+void options_toarray(Options *opts, char *array[], int ind)
 {
   if (opts->srcpath != NULL) {
     array[ind++] = strdup("-s");
@@ -178,24 +180,24 @@ void options_toarray(struct options *opts, char *array[], int ind)
   }
 }
 
-void show_options(struct options *opts)
+void show_options(Options *opts)
 {
   printf("srcput: %s\n", opts->srcpath);
   printf("output: %s\n", opts->outpath);
 
   char *s;
 
-  printf("pathes:\n");
+  puts("pathes:");
   Vector_ForEach(s, &opts->pathes) {
     printf("  [%d]: %s\n", i, s);
   }
 
-  printf("name-values:\n");
+  puts("name-values:");
   Vector_ForEach(s, &opts->nvs) {
     printf("  [%d]: %s\n", i, s);
   }
 
-  printf("names:\n");
+  puts("names:");
   Vector_ForEach(s, &opts->names) {
     printf(" [%d]: %s\n", i, s);
   }

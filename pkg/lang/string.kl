@@ -20,8 +20,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package sys
-
-native func LoadLibrary(libName string)
-native func GetEnv(name string)
-native func GetEnvMap() map[string]string
+class String {
+  native func __concat__(s string) string
+  native func Concat(s string) string
+  native func Lenght() int
+  native func ToString() string
+}

@@ -20,10 +20,52 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package lang
+package io
 
-class String {
-  native func Concat(s string) string
-  native func Lenght() int
-  native func Format(fmt string, args ...) string
+import "koala/sys"
+
+var Stdout File
+var Stdin File
+
+class File {
+  native name string
+
+  func __init__(name string) {
+    self.name = name
+  }
+
+  native func Close() error;
+}
+
+native func Open(name string) (f File, e error)
+native func Close(f File)
+
+class FileReader with Reader {
+  file File
+
+  func __init__(file File) {
+    self.file = file
+  }
+
+  native func Read(buf []byte) (n int, e error)
+}
+
+class FileWriter with Writer {
+  file File
+
+  func __init__(file File) {
+    self.file = file
+  }
+
+  native func Write(buf []byte) (n int, e error)
+}
+
+native void Println(args ...Any)
+
+func __init__() {
+  sys.LoadLibrary("koala_io")
+  Stdout = File("/dev/stdout")
+  Stdout.SetFd(nio.Stdout)
+  Stdin = File("/dev/stdin")
+  Stdin.SetFd(nio.Stdin)
 }

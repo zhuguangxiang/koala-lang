@@ -37,6 +37,7 @@ typedef struct stringbuf {
   char *data;
 } StringBuf;
 
+void __StringBuf_Append_CStr(StringBuf *buf, char *s);
 void __StringBuf_Append(StringBuf *buf, String s);
 void __StringBuf_Format(StringBuf *buf, int cstr, char *fmt, ...);
 void __StringBuf_Append_Char(StringBuf *buf, char ch);
@@ -58,6 +59,9 @@ do { \
 
 #define StringBuf_Append(name, s) \
   __StringBuf_Append(&(name), s)
+
+#define StringBuf_Append_CStr(name, s) \
+  __StringBuf_Append_CStr(&(name), s)
 
 #define StringBuf_Append_Char(name, ch) \
   __StringBuf_Append_Char(&(name), ch)
