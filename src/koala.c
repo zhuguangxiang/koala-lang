@@ -46,10 +46,10 @@ static void show_usage(char *prog)
   fprintf(stderr,
     "Usage: %s [<options>] <main package>\n"
     "Options:\n"
-    "\t-p <path>         Specify where to find external packages.\n"
-    "\t-Dname=value      Set a property.\n"
-    "\t-v                Print virtual machine version.\n"
-    "\t-h                Print this message.\n",
+    "\t-p <path>          Specify where to find external packages.\n"
+    "\t-D <name>=<value>  Set a property.\n"
+    "\t-v                 Print virtual machine version.\n"
+    "\t-h                 Print this message.\n",
     prog);
 }
 

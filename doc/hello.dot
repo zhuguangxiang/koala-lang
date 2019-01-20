@@ -1,0 +1,15 @@
+digraph {
+  node [shape="circle"]
+  f1 [fontsize = 10, shape="circle", style="filled", color="darkgreen", fixedsize=true, width=.3]
+  f2 [fontsize = 10, shape="circle", style="filled", color="skyblue", fixedsize=true, width=.3]
+  f3 [fontsize = 10, shape="circle", style="filled", color="", fixedsize=true, width=.3]
+  f4 [fontsize = 10, shape="circle", style="filled", color="green", fixedsize=true, width=.3]
+  f5 [fontsize = 10, shape="circle", style="filled", color="red", fixedsize=true, width=.3]
+  n -> n1;
+  n -> n2;
+  n1 -> f1;
+  n1 -> f2;
+  n2 -> f3;
+  n2 -> f4;
+  n2 -> f5;
+}

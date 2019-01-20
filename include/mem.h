@@ -45,7 +45,8 @@ extern MemStat memstat;
 
 #define mm_free(ptr) \
 ({ \
-  free(ptr); \
+  if (ptr != NULL) \
+    free(ptr); \
 })
 
 void show_memstat(void);

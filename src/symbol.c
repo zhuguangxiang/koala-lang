@@ -59,11 +59,15 @@ static void __const_free(Symbol *sym)
 
 static void __const_show(Symbol *sym)
 {
-  char buf[64];
   VarSymbol *varSym = (VarSymbol *)sym;
   printf("const %s ", varSym->name);
-  TypeDesc_ToString(varSym->desc, buf);
-  printf("%s;\n", buf); /* with newline */
+  if (varSym->desc != NULL) {
+    char buf[64];
+    TypeDesc_ToString(varSym->desc, buf);
+    printf("%s;\n", buf); /* with newline */
+  } else {
+    puts("<undefined-type>;"); /* with newline */
+  }
 }
 
 static void __const_gen(Symbol *sym, void *arg)

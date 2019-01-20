@@ -99,8 +99,7 @@ static struct hlist_head *new_entries(int nr_entries)
 
 static void free_entries(struct hlist_head *entries)
 {
-  if (entries)
-    mm_free(entries);
+  mm_free(entries);
 }
 
 int HashTable_Init(HashTable *table, hashfunc hash, equalfunc equal)

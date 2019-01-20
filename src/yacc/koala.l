@@ -23,6 +23,7 @@
 %{
 
 #include "parser.h"
+#include "log.h"
 
 #define YY_EXTRA_TYPE ParserState *
 
@@ -86,6 +87,28 @@ do { \
 D   [0-9]
 H   [a-fA-F0-9]
 L   [a-zA-Z_]
+
+/*
+  https://stackoverflow.com/questions/9611682/flexlexer-support-for-unicode
+  The UANY means match any character, single-byte ASCII or multi-byte UTF-8.
+  UANYN means like UANY but no not match the newline. This is useful for tokens
+  that do not break across lines, like say a comment from # to the end of the
+  line, containing international text. UONLY means match only a UTF-8 extended
+  character, not an ASCII one. This is useful for writing a lex rule which
+  needs to exclude certain specific ASCII characters (not just newline)
+  but all extended characters are okay.
+*/
+
+ASC     [\x00-\x7f]
+ASCN    [\x00-\t\v-\x7f]
+U       [\x80-\xbf]
+U2      [\xc2-\xdf]
+U3      [\xe0-\xef]
+U4      [\xf0-\xf4]
+
+UANY    {ASC}|{U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
+UANYN   {ASCN}|{U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
+UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 
 %%
 
@@ -202,8 +225,17 @@ L   [a-zA-Z_]
   YY_NEWLINE();
 }
 
-(\'.+\') {
-  printf("%s\n", yytext);
+(\'{UANYN}\') {
+  Log_Debug("\x1b[32mUnicode Character: \x1b[34m%s\x1b[0m", yytext);
+  assert(yyleng >= 3 && yyleng <= 6);
+  yylval->ucVal.val = 0;
+  yylval->ucVal.data[0] = *(uint8 *)(yytext + 1);
+  if (yyleng >= 4)
+    yylval->ucVal.data[1] = *(uint8 *)(yytext + 2);
+  if (yyleng >= 5)
+    yylval->ucVal.data[2] = *(uint8 *)(yytext + 3);
+  if (yyleng >= 6)
+    yylval->ucVal.data[3] = *(uint8 *)(yytext + 4);
   YY_RETURN(CHAR_LITERAL);
 }
 
@@ -215,6 +247,9 @@ L   [a-zA-Z_]
 
 "//"[^\n]* {}
 
-. {}
+. {
+  Log_Error("%s:%d:%d: error: invalid token '%s'\n", yyps->filename,
+            yyps->line.row, yyps->line.col, yyps->line.token);
+}
 
 %%

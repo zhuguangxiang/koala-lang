@@ -62,34 +62,38 @@ void parse_options(int argc, char *argv[], Options *opts)
     printf("[%d]: %s\n", i, argv[i]);
   }
 
-  while ((opt = getopt(argc, argv, "s:p:o:D:vh")) != -1) {
+  while ((opt = getopt(argc, argv, "s:p:o:D:e:vh")) != -1) {
     switch (opt) {
-      case 's':
-        opts->srcpath = optarg;
-        break;
-      case 'p':
-        Vector_Append(&opts->pathes, optarg);
-        break;
-      case 'o':
-        opts->outpath = strdup(optarg);
-        break;
-      case 'D':
-        Vector_Append(&opts->nvs, parse_namevalue(optarg, opts, argv[0]));
-        break;
-      case 'v':
-        opts->version();
-        exit(0);
-        break;
-      case 'h':
-        /* fall-through */
-      case '?':
-        opts->usage(argv[0]);
-        break;
-      default:
-        fprintf(stderr, "Error: invalid option '%c'.\n\n", opt);
-        opts->usage(argv[0]);
-        exit(0);
-        break;
+    case 's':
+      opts->srcpath = optarg;
+    break;
+    case 'p':
+      Vector_Append(&opts->pathes, optarg);
+    break;
+    case 'o':
+      opts->outpath = strdup(optarg);
+    break;
+    case 'D':
+      Vector_Append(&opts->nvs, parse_namevalue(optarg, opts, argv[0]));
+    break;
+    case 'e':
+      opts->encoding = strdup(optarg);
+    break;
+    case 'v':
+      opts->version();
+      exit(0);
+    break;
+    case 'h':
+      /* fall-through */
+    case '?':
+      opts->usage(argv[0]);
+      exit(0);
+    break;
+    default:
+      fprintf(stderr, "Error: invalid option '%c'.\n\n", opt);
+      opts->usage(argv[0]);
+      exit(0);
+    break;
     }
   }
 
@@ -131,11 +135,8 @@ static void free_namevalue_func(void *item, void *arg)
 
 void fini_options(Options *opts)
 {
-  if (opts->srcpath != NULL)
-    mm_free(opts->srcpath);
-
-  if (opts->outpath != NULL)
-    mm_free(opts->outpath);
+  mm_free(opts->srcpath);
+  mm_free(opts->outpath);
 
   Vector_Fini(&opts->pathes, free_string_func, NULL);
   Vector_Fini(&opts->nvs, free_namevalue_func, NULL);

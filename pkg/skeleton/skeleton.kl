@@ -27,11 +27,23 @@ const K1 = "Const Value"
 const K2 string = "Const Value"
 
 //variables
-//var ch = 'a'
+var ch = '汉'
 var ok = true
-var greeting string = "hello,world"
+var greeting string = "hello, 汉字"
 var total int = 100
 var array = [3][]string
+var array2 = []string{"hello", "world", "good", "luck"}
+var array3 = [5]string
+var array4 = [5][6]string
+
+var dict = map[string]string{"hello": "world", "good": "luck"}
+var dict2 map[string]int = {"hello": "world", "good": "luck"}
+var dic3 = map[string]string
+
+var set1 = set[string]{"hello", "汉字"}
+var set2 set[string] = {"hello", "汉字"}
+var set3 = set[string]
+
 var fn = func(a int, b int) int {
   return a + b
 }
@@ -39,6 +51,31 @@ var fn = func(a int, b int) int {
 //functions
 func Add(a int, b int) (r int) {
   {"abc", 1, 2}.length()
+  {{1}, {{2,3}, 4}}
+  {{1}, {1,2,3}}
+
+  { "hello": "world", "good": "luck"}
+
+  {
+    "k1": "hello",
+    "k2": 123,
+    "k3": {
+      "k31": true,
+      "k32": 12.98,
+      "k33": {
+        1,
+        2,
+        3
+      },
+      "k34": nil
+    },
+  }
+
+  {
+    1,
+    2,
+    {"hello": "world", "good": "luck"}
+  }
 }
 
 func Main(args []string) {

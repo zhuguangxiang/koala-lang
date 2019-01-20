@@ -93,7 +93,7 @@ Expr *Expr_From_String(char *val)
   return (Expr *)baseExp;
 }
 
-Expr *Expr_From_Char(uint32 val)
+Expr *Expr_From_Char(UChar val)
 {
   BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = CHAR_KIND;
@@ -155,36 +155,268 @@ Expr *Expr_From_Call(Vector *args, Expr *left)
   return (Expr *)callExp;
 }
 
-void Expr_Free(Expr *exp)
+Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left)
 {
-  if (exp != NULL)
-    mm_free(exp);
+  return NULL;
 }
 
-static void free_self_expr(Expr *exp)
+static int arraylist_get_nesting(Vector *vec)
 {
-  Expr_Free(exp);
+  int max = 0;
+  ListExpr *listExp;
+  Expr *e;
+  Vector_ForEach(e, vec) {
+    if (e->kind == ARRAY_LIST_KIND) {
+      listExp = (ListExpr *)e;
+      if (max < listExp->nesting)
+        max = listExp->nesting;
+    }
+  }
+  return max;
+}
+
+Expr *Expr_From_ArrayListExpr(Vector *vec)
+{
+  int nesting = arraylist_get_nesting(vec) + 1;
+  Log_Debug("array list expr nesting: %d", nesting);
+  ListExpr *listExp = mm_alloc(sizeof(ListExpr));
+  listExp->kind = ARRAY_LIST_KIND;
+  listExp->nesting = nesting;
+  listExp->vec = vec;
+  return (Expr *)listExp;
+}
+
+Expr *Expr_From_Array(Vector *dims, TypeDesc *base, Expr *listExp)
+{
+  ArrayExpr *arrayExp = mm_alloc(sizeof(ArrayExpr));
+  arrayExp->kind = ARRAY_KIND;
+  arrayExp->dims = dims;
+  arrayExp->base = base;
+  assert(listExp != NULL ? listExp->kind == ARRAY_LIST_KIND : 1);
+  arrayExp->listExp = (ListExpr *)listExp;
+  return (Expr *)arrayExp;
+}
+
+Expr *Parser_New_Array(Vector *vec, int dims, TypeDesc *desc, Expr *listExp)
+{
+  Vector *dimsVec;
+  TypeDesc *base;
+  if (vec != NULL) {
+    assert(dims == 0);
+    dimsVec = vec;
+    if (desc->kind == TYPE_ARRAY) {
+      ArrayDesc *arrayDesc = (ArrayDesc *)desc;
+      base = arrayDesc->base;
+      /* append null to occupy a position */
+      for (int i = 0; i < arrayDesc->dims; i++)
+        Vector_Append(dimsVec, NULL);
+      /* free array desc */
+      TYPE_INCREF(base);
+      TYPE_DECREF(desc);
+    } else {
+      base = desc;
+      TYPE_INCREF(base);
+    }
+  } else {
+    assert(dims != 0);
+    dimsVec = Vector_New();
+    /* append null to occupy a position */
+    for (int i = 0; i < dims; i++)
+      Vector_Append(dimsVec, NULL);
+    assert(desc->kind != TYPE_ARRAY);
+    base = desc;
+    TYPE_INCREF(base);
+  }
+  return Expr_From_Array(dimsVec, base, listExp);
+}
+
+static int maplist_get_nesting(Vector *vec)
+{
+  int max = 0;
+  ListExpr *listExp;
+  Expr *v;
+  MapEntryExpr *e;
+  Vector_ForEach(e, vec) {
+    assert(e->kind == MAP_ENTRY_KIND);
+    v = e->val;
+    assert(v != NULL);
+    if (v->kind == MAP_LIST_KIND) {
+      listExp = (ListExpr *)v;
+      if (max < listExp->nesting)
+        max = listExp->nesting;
+    }
+  }
+  return max;
+}
+
+Expr *Expr_From_MapListExpr(Vector *vec)
+{
+  int nesting = maplist_get_nesting(vec) + 1;
+  Log_Debug("map list expr nesting: %d", nesting);
+  ListExpr *listExp = mm_alloc(sizeof(ListExpr));
+  listExp->kind = MAP_LIST_KIND;
+  listExp->nesting = nesting;
+  listExp->vec = vec;
+  return (Expr *)listExp;
+}
+
+Expr *Expr_From_MapEntry(Expr *k, Expr *v)
+{
+  MapEntryExpr *entExp = mm_alloc(sizeof(MapEntryExpr));
+  entExp->kind = MAP_ENTRY_KIND;
+  entExp->key = k;
+  entExp->val = v;
+  return (Expr *)entExp;
+}
+
+Expr *Expr_From_Map(TypeDesc *desc, Expr *listExp)
+{
+  MapExpr *mapExp = mm_alloc(sizeof(MapExpr));
+  mapExp->kind = MAP_KIND;
+  TYPE_INCREF(desc);
+  mapExp->mapDesc = desc;
+  assert(listExp != NULL ? listExp->kind == MAP_LIST_KIND : 1);
+  mapExp->listExp = (ListExpr *)listExp;
+  return (Expr *)mapExp;
+}
+
+Expr *Expr_From_Set(TypeDesc *desc, Expr *listExp)
+{
+  SetExpr *setExp = mm_alloc(sizeof(SetExpr));
+  setExp->kind = SET_KIND;
+  TYPE_INCREF(desc);
+  setExp->setDesc = desc;
+  assert(listExp != NULL ? listExp->kind == ARRAY_LIST_KIND : 1);
+  setExp->listExp = (ListExpr *)listExp;
+  return (Expr *)setExp;
+}
+
+Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body)
+{
+  AnonyExpr *anonyExp = mm_alloc(sizeof(AnonyExpr));
+  anonyExp->kind = ANONY_FUNC_KIND;
+  anonyExp->args = args;
+  anonyExp->rets = rets;
+  anonyExp->body = body;
+  return (Expr *)anonyExp;
+}
+
+static void free_expr_func(void *item, void *arg);
+static void expr_free(Expr *exp);
+
+static void free_simple_expr(Expr *exp)
+{
+  mm_free(exp);
+}
+
+static void free_binary_expr(Expr *exp)
+{
+  BinaryExpr *binExp = (BinaryExpr *)exp;
+  expr_free(binExp->lexp);
+  expr_free(binExp->rexp);
+  mm_free(exp);
+}
+
+static void free_list_expr(Expr *exp)
+{
+  if (exp == NULL)
+    return;
+  ListExpr *listExp = (ListExpr *)exp;
+  Vector_Free(listExp->vec, free_expr_func, NULL);
+  mm_free(exp);
+}
+
+static void free_mapentry_expr(Expr *exp)
+{
+  MapEntryExpr *entExp = (MapEntryExpr *)exp;
+  expr_free(entExp->key);
+  expr_free(entExp->val);
+  mm_free(exp);
+}
+
+static void free_array_expr(Expr *exp)
+{
+  ArrayExpr *arrayExp = (ArrayExpr *)exp;
+  Vector_Free(arrayExp->dims, free_expr_func, NULL);
+  TYPE_DECREF(arrayExp->base);
+  free_list_expr((Expr *)arrayExp->listExp);
+  mm_free(exp);
+}
+
+static void free_map_expr(Expr *exp)
+{
+  MapExpr *mapExp = (MapExpr *)exp;
+  TYPE_DECREF(mapExp->mapDesc);
+  free_list_expr((Expr *)mapExp->listExp);
+  mm_free(exp);
+}
+
+static void free_set_expr(Expr *exp)
+{
+  SetExpr *setExp = (SetExpr *)exp;
+  TYPE_DECREF(setExp->setDesc);
+  free_list_expr((Expr *)setExp->listExp);
+  mm_free(exp);
+}
+
+static void free_idtype_func(void *item, void *arg);
+
+static void free_anony_expr(Expr *exp)
+{
+  AnonyExpr *anonyExp = (AnonyExpr *)exp;
+  Vector_Free(anonyExp->args, free_idtype_func, NULL);
+  Vector_Free(anonyExp->rets, free_idtype_func, NULL);
+  Vector_Free(anonyExp->body, Free_Stmt_Func, NULL);
+  mm_free(exp);
 }
 
 static void (*__free_expr_funcs[])(Expr *) = {
-  NULL,
-  NULL,
-  free_self_expr,
+  NULL,               /* INVALID          */
+  free_simple_expr,   /* NIL_KIND         */
+  free_simple_expr,   /* SELF_KIND        */
+  free_simple_expr,   /* SUPER_KIND       */
+  free_simple_expr,   /* INT_KIND         */
+  free_simple_expr,   /* FLOAT_KIND       */
+  free_simple_expr,   /* BOOL_KIND        */
+  free_simple_expr,   /* STRING_KIND      */
+  free_simple_expr,   /* CHAR_KIND        */
+  free_simple_expr,   /* ID_KIND          */
+  NULL,               /* UNARY_KIND       */
+  free_binary_expr,   /* BINARY_KIND      */
+  NULL,               /* ATTRIBUTE_KIND   */
+  NULL,               /* SUBSCRIPT_KIND   */
+  NULL,               /* CALL_KIND        */
+  NULL,               /* SLICE_KIND       */
+  free_list_expr,     /* ARRAY_LIST_KIND  */
+  free_list_expr,     /* MAP_LIST_KIND    */
+  free_mapentry_expr, /* MAP_ENTRY_KIND   */
+  free_array_expr,    /* ARRAY_KIND       */
+  free_map_expr,      /* MAP_KIND         */
+  free_set_expr,      /* SET_KIND         */
+  free_anony_expr,    /* ANONY_FUNC_KIND  */
 };
 
-void Free_Expr_Func(void *item, void *arg)
+static void expr_free(Expr *exp)
 {
-  Expr *exp = item;
+  if (exp == NULL)
+    return;
+
   assert(exp->kind >= 1 && exp->kind < nr_elts(__free_expr_funcs));
   void (*__free_expr_func)(Expr *) = __free_expr_funcs[exp->kind];
   __free_expr_func(exp);
+}
+
+static void free_expr_func(void *item, void *arg)
+{
+  UNUSED_PARAMETER(arg);
+  expr_free(item);
 }
 
 static void free_vardecl_stmt(Stmt *stmt)
 {
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
   TYPE_DECREF(varStmt->desc);
-  Expr_Free(varStmt->exp);
+  expr_free(varStmt->exp);
   mm_free(stmt);
 }
 
@@ -224,13 +456,15 @@ static void free_funcdecl_stmt(Stmt *stmt)
 
 static void free_expr_stmt(Stmt *stmt)
 {
+  ExprStmt *expStmt = (ExprStmt *)stmt;
+  expr_free(expStmt->exp);
   mm_free(stmt);
 }
 
 static void free_return_stmt(Stmt *stmt)
 {
   ReturnStmt *retStmt = (ReturnStmt *)stmt;
-  Vector_Free(retStmt->exps, Free_Expr_Func, NULL);
+  Vector_Free(retStmt->exps, free_expr_func, NULL);
   mm_free(stmt);
 }
 
@@ -270,19 +504,19 @@ static void free_proto_stmt(Stmt *stmt)
 }
 
 static void (*__free_stmt_funcs[])(Stmt *) = {
-  NULL,
-  free_vardecl_stmt,
-  free_varlistdecl_stmt,
-  free_assign_stmt,
-  free_assignlist_stmt,
-  free_funcdecl_stmt,
-  free_proto_stmt,
-  free_expr_stmt,
-  free_return_stmt,
-  free_list_stmt,
-  free_alias_stmt,
-  free_klass_stmt,
-  free_klass_stmt,
+  NULL,                     /* INVALID          */
+  free_vardecl_stmt,        /* VAR_KIND         */
+  free_varlistdecl_stmt,    /* VARLIST_KIND     */
+  free_assign_stmt,         /* ASSIGN_KIND      */
+  free_assignlist_stmt,     /* ASSIGNLIST_KIND  */
+  free_funcdecl_stmt,       /* FUNC_KIND        */
+  free_proto_stmt,          /* PROTO_KIND       */
+  free_expr_stmt,           /* EXPR_KIND        */
+  free_return_stmt,         /* RETURN_KIND      */
+  free_list_stmt,           /* LIST_KIND        */
+  free_alias_stmt,          /* TYPEALIAS_KIND   */
+  free_klass_stmt,          /* CLASS_KIND       */
+  free_klass_stmt,          /* TRAIT_KIND       */
   NULL, NULL, NULL, NULL,
   NULL, NULL, NULL, NULL,
 };

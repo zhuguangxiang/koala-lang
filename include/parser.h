@@ -154,6 +154,7 @@ typedef struct parserstate {
   int errnum;
   /* error messages */
   Vector errors;
+
 } ParserState;
 
 #include "koala_yacc.h"

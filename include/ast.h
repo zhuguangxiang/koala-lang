@@ -72,14 +72,20 @@ typedef enum binaryopkind {
 
 /* expression kind */
 typedef enum exprkind {
-  /* base expr */
+  /* expr head only */
   NIL_KIND = 1, SELF_KIND, SUPER_KIND,
-  INT_KIND, FLOAT_KIND, BOOL_KIND, STRING_KIND, CHAR_KIND,
-  ID_KIND, /* TYPEOF_KIND, */
+  /* basic expr */
+  INT_KIND, FLOAT_KIND, BOOL_KIND, STRING_KIND, CHAR_KIND, ID_KIND,
   /* unary, binary op */
   UNARY_KIND, BINARY_KIND,
-  /* dot, [], () access */
-  ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND,
+  /* dot, [], (), [:] access */
+  ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, SLICE_KIND,
+  /* array list */
+  ARRAY_LIST_KIND,
+  /* map list */
+  MAP_LIST_KIND,
+  /* map entry */
+  MAP_ENTRY_KIND,
   /* array, map, set, anony func */
   ARRAY_KIND, MAP_KIND, SET_KIND, ANONY_FUNC_KIND,
   EXPR_KIND_MAX
@@ -118,7 +124,7 @@ Expr *Expr_From_Super(void);
 typedef struct baseexpr {
   EXPR_HEAD
   union {
-    uint32 ch;
+    UChar ch;
     int64 ival;
     float64 fval;
     int bval;
@@ -131,7 +137,7 @@ Expr *Expr_From_Integer(int64 val);
 Expr *Expr_From_Float(float64 val);
 Expr *Expr_From_Bool(int val);
 Expr *Expr_From_String(char *val);
-Expr *Expr_From_Char(uint32 val);
+Expr *Expr_From_Char(UChar val);
 Expr *Expr_From_Id(char *val);
 
 /* unary expression */
@@ -176,6 +182,64 @@ typedef struct callexpr {
 Expr *Expr_From_Attriubte(char *id, Expr *left);
 Expr *Expr_From_SubScript(Expr *index, Expr *left);
 Expr *Expr_From_Call(Vector *args, Expr *left);
+Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left);
+
+/* array or map list expression */
+typedef struct listexpr {
+  EXPR_HEAD
+  int nesting;  /* nesting count  */
+  Vector *vec;  /* expressions */
+} ListExpr;
+
+Expr *Expr_From_ArrayListExpr(Vector *vec);
+
+/* new array expression */
+typedef struct arrayexpr {
+  EXPR_HEAD
+  Vector *dims;
+  TypeDesc *base;
+  ListExpr *listExp;
+} ArrayExpr;
+
+Expr *Parser_New_Array(Vector *vec, int dims, TypeDesc *desc, Expr *listExp);
+
+/* map entry expression */
+typedef struct mapentryexpr {
+  EXPR_HEAD
+  Expr *key;
+  Expr *val;
+} MapEntryExpr;
+
+Expr *Expr_From_MapEntry(Expr *k, Expr *v);
+
+/* new map expression */
+typedef struct mapexpr {
+  EXPR_HEAD
+  TypeDesc *mapDesc;
+  ListExpr *listExp;
+} MapExpr;
+
+Expr *Expr_From_MapListExpr(Vector *vec);
+Expr *Expr_From_Map(TypeDesc *desc, Expr *listExp);
+
+/* new set expression */
+typedef struct setexpr {
+  EXPR_HEAD
+  TypeDesc *setDesc;
+  ListExpr *listExp;
+} SetExpr;
+
+Expr *Expr_From_Set(TypeDesc *desc, Expr *listExp);
+
+/* new anonymous function expression */
+typedef struct anonyexpr {
+  EXPR_HEAD
+  Vector *args; /* idtype */
+  Vector *rets; /* idtype */
+  Vector *body; /* statements */
+} AnonyExpr;
+
+Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body);
 
 typedef enum stmtkind {
   /*

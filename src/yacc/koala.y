@@ -40,18 +40,32 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 #define ERRORMSG "expected '%s' before '%s'\n"
 
 #define Syntax_Error(loc, expected) \
+do { \
   yyerrok; \
-  Parser_Synatx_Error(ps, loc, ERRORMSG, expected, ps->line.token)
+  char *token = ps->line.token; \
+  if (token[0] == '\n') \
+    token = "\\n"; \
+  Parser_Synatx_Error(ps, loc, ERRORMSG, expected, token); \
+} while (0)
 
-#define Syntax_Error_Clear(loc, msg) \
+#define Syntax_Error_Clear(loc, expected) \
+do { \
+  yyclearin; \
+  Syntax_Error(loc, expected); \
+} while (0)
+
+#define Syntax_Error_Simple_Clear(loc, msg) \
+do { \
   yyclearin; \
   yyerrok; \
-  Parser_Synatx_Error(ps, loc, "%s\n", msg)
+  Parser_Synatx_Error(ps, loc, "%s\n", msg); \
+} while (0)
 
 %}
 
 %union {
   int Dims;
+  UChar ucVal;
   int64 IVal;
   float64 FVal;
   String SVal;
@@ -131,7 +145,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 
 %token <Dims> DIMS
 %token <IVal> BYTE_LITERAL
-%token <IVal> CHAR_LITERAL
+%token <ucVal> CHAR_LITERAL
 %token <IVal> INT_LITERAL
 %token <FVal> FLOAT_LITERAL
 %token <SVal> STRING_LITERAL
@@ -194,10 +208,13 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> Arguments
 %type <Expr> CONSTANT
 %type <Expr> ArrayCreationExpression
+%type <List> DimExprList
 %type <Expr> SetCreationExpression
 %type <Expr> ArrayOrSetInitializer
 %type <Expr> MapCreationExpression
 %type <Expr> MapInitializer
+%type <List> MapKeyValueList
+%type <Expr> MapKeyValue
 %type <Expr> AnonyFuncExpression
 %type <Operator> UnaryOp
 %type <Expr> UnaryExpression
@@ -224,7 +241,8 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %precedence '('
 %precedence PREC_0
 %precedence '{'
-//%precedence PREC_1
+%precedence PREC_1
+%precedence ';'
 
 %locations
 
@@ -396,6 +414,11 @@ IDTypeList
     $$ = $1;
     Vector_Append($$, New_IdType($3.str, $4));
   }
+  | IDTypeList error
+  {
+    Syntax_Error_Clear(&@2, ",");
+    $$ = $1;
+  }
   ;
 
 ParameterList
@@ -473,11 +496,11 @@ Import
   }
   | IMPORT ID error
   {
-    Syntax_Error_Clear(&@3, "invalid import");
+    Syntax_Error_Simple_Clear(&@3, "invalid import");
   }
   | IMPORT error
   {
-    Syntax_Error_Clear(&@2, "invalid import");
+    Syntax_Error_Simple_Clear(&@2, "invalid import");
   }
   ;
 
@@ -524,7 +547,7 @@ ModuleStatement
   }
   | error
   {
-    Syntax_Error_Clear(&@1, "invalid statement");
+    Syntax_Error_Simple_Clear(&@1, "invalid statement");
   }
   ;
 
@@ -861,7 +884,7 @@ LocalStatement
   }
   | SwitchStatement
   {
-
+    $$ = $1;
   }
   | ForStatement
   {
@@ -881,7 +904,7 @@ LocalStatement
   }
   | error
   {
-    Syntax_Error_Clear(&@1, "invalid local statement");
+    Syntax_Error_Simple_Clear(&@1, "invalid local statement");
     $$ = NULL;
   }
   ;
@@ -900,7 +923,7 @@ ExprStatement
 VariableDeclarationTypeless
   : ExpressionList TYPELESS_ASSIGN ExpressionList ';'
   {
-
+    $$ = Parser_Do_Variables(ps, $1, NULL, $3);
   }
   ;
 
@@ -939,7 +962,7 @@ WhileStatement
 SwitchStatement
   : SWITCH Expression '{' CaseStatements '}'
   {
-
+    $$ = NULL;
   }
   ;
 
@@ -1037,11 +1060,8 @@ ReturnStatement
   }
   | TOKEN_RETURN error
   {
-
-  }
-  | TOKEN_RETURN ExpressionList error
-  {
-
+    Syntax_Error(&@2, "expression-list");
+    $$ = NULL;
   }
   ;
 
@@ -1123,31 +1143,34 @@ Atom
   }
   | ArrayCreationExpression
   {
-
+    $$ = $1;
   }
   | SetCreationExpression
   {
-
+    $$ = $1;
   }
   | ArrayOrSetInitializer
   {
-    printf("ArrayOrSetInitializer\n");
+    $$ = $1;
   }
   | MapCreationExpression
   {
-
+    $$ = $1;
   }
   | MapInitializer
+  {
+    $$ = $1;
+  }
   | AnonyFuncExpression
   {
-
+    $$ = $1;
   }
   ;
 
 CONSTANT
   : CHAR_LITERAL
   {
-    $$ = NULL;
+    $$ = Expr_From_Char($1);
   }
   | INT_LITERAL
   {
@@ -1178,101 +1201,131 @@ CONSTANT
 ArrayCreationExpression
   : DimExprList Type ArrayOrSetInitializer
   {
-    printf("DimExprList Type ArrayOrSetInitializer\n");
+    $$ = Parser_New_Array($1, 0, $2, $3);
   }
   | DimExprList Type
   {
-    printf("DimExprList Type\n");
+    $$ = Parser_New_Array($1, 0, $2, NULL);
   } %prec PREC_0
   | DIMS BaseType ArrayOrSetInitializer
   {
-
+    $$ = Parser_New_Array(NULL, $1, $2, $3);
   }
   | DIMS BaseType
   {
-
+    $$ = Parser_New_Array(NULL, $1, $2, NULL);
   } %prec PREC_0
   ;
 
 DimExprList
   : '[' Expression ']'
+  {
+    $$ = Vector_New();
+    Vector_Append($$, $2);
+  }
   | DimExprList '[' Expression ']'
+  {
+    $$ = $1;
+    Vector_Append($$, $3);
+  }
   ;
 
 SetCreationExpression
   : SetType ArrayOrSetInitializer
   {
-
+    $$ = Expr_From_Set($1, $2);
   }
   | SetType
   {
-
+    $$ = Expr_From_Set($1, NULL);
   } %prec PREC_0
   ;
 
 ArrayOrSetInitializer
   : '{' ExpressionList '}'
   {
-
+    $$ = Expr_From_ArrayListExpr($2);
+  }
+  | '{' ExpressionList ',' '}'
+  {
+    /* last one with comma */
+    $$ = Expr_From_ArrayListExpr($2);
+  }
+  | '{' ExpressionList ';' '}'
+  {
+    /* string newline will insert semicolon automatically */
+    $$ = Expr_From_ArrayListExpr($2);
   }
   ;
 
 MapCreationExpression
   : MapType MapInitializer
   {
-
+    $$ = Expr_From_Map($1, $2);
   }
   | MapType
   {
-
+    $$ = Expr_From_Map($1, NULL);
   } %prec PREC_0
   ;
 
 MapInitializer
   : '{' MapKeyValueList '}'
   {
-
+    $$ = Expr_From_MapListExpr($2);
+  }
+  | '{' MapKeyValueList ',' '}'
+  {
+    /* last one with comma */
+    $$ = Expr_From_MapListExpr($2);
   }
   ;
 
 MapKeyValueList
   : MapKeyValue
   {
-
+    $$ = Vector_New();
+    Vector_Append($$, $1);
   }
   | MapKeyValueList ',' MapKeyValue
   {
-
+    $$ = $1;
+    Vector_Append($$, $3);
   }
   ;
 
 MapKeyValue
   : Expression ':' Expression
   {
-
+    $$ = Expr_From_MapEntry($1, $3);
+  }
+  | Expression ':' Expression ';'
+  {
+    /* string newline will insert semicolon automatically */
+    $$ = Expr_From_MapEntry($1, $3);
   }
   ;
 
 AnonyFuncExpression
   : FUNC '(' ParameterList ')' ReturnList Block
   {
-    // $$ = expr_from_anonymous_func($2, $3, $4);
+    $$ = Expr_From_Anony($3, $5, $6);
   }
   | FUNC '(' ParameterList ')' Block
   {
-
+    $$ = Expr_From_Anony($3, NULL, $5);
   }
   | FUNC '(' ')' ReturnList Block
   {
-
+    $$ = Expr_From_Anony(NULL, $4, $5);
   }
   | FUNC '(' ')' Block
   {
-
+    $$ = Expr_From_Anony(NULL, NULL, $4);
   }
   | FUNC error
   {
-    Syntax_Error_Clear(&@2, "invalid anonymous function");
+    Syntax_Error_Simple_Clear(&@2, "invalid anonymous function");
     $$ = NULL;
   }
   ;
@@ -1465,7 +1518,7 @@ ExpressionList
   {
     $$ = Vector_New();
     Vector_Append($$, $1);
-  }
+  } %prec PREC_1
   | ExpressionList ',' Expression
   {
     $$ = $1;

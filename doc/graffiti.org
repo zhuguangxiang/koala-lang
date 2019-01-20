@@ -1,0 +1,11 @@
+*** Problems
+- array initializer list, how to check its nesting?
+  eg. {{1}, {1,2,3}}
+  tree level traverse
+  tree's longest path is array's max dims
+  [[./hello.png]]
+- character encoding and decoding
+  input: decode, output: encode
+  https://stackoverflow.com/questions/9611682/flexlexer-support-for-unicode
+  http://www.kylheku.com/cgit/txr/tree/parser.l
+- string, internally use char array, int32[]

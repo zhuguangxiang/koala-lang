@@ -240,11 +240,13 @@ ParserState *New_Parser(PkgInfo *pkg, char *filename)
 
 int Build_AST(ParserState *ps, FILE *in)
 {
+  Log_Debug("\x1b[34m----BUILDING AST-----------\x1b[0m");
   yyscan_t scanner;
   yylex_init_extra(ps, &scanner);
   yyset_in(in, scanner);
   yyparse(ps, scanner);
   yylex_destroy(scanner);
+  Log_Debug("\x1b[34m----END OF BUILDING AST----\x1b[0m");
   return ps->errnum;
 }
 
@@ -252,7 +254,9 @@ static void parse_stmts(ParserState *ps, Vector *stmts);
 
 void Parse(ParserState *ps)
 {
+  Log_Debug("\x1b[32m----SEMANTIC ANALYSIS-----------\x1b[0m");
   parse_stmts(ps, &ps->stmts);
+  Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS----\x1b[0m");
 }
 
 void Destroy_Parser(ParserState *ps)
@@ -366,6 +370,16 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
+static void parse_slice_expr(ParserState *ps, Expr *exp)
+{
+  assert(0);
+}
+
+static void parse_list_expr(ParserState *ps, Expr *exp)
+{
+  assert(0);
+}
+
 static void parse_array_expr(ParserState *ps, Expr *exp)
 {
   assert(0);
@@ -404,6 +418,8 @@ static parse_expr_func parse_expr_funcs[] = {
   parse_attribute_expr, /* ATTRIBUTE_KIND   */
   parse_subscript_expr, /* SUBSCRIPT_KIND   */
   parse_call_expr,      /* CALL_KIND        */
+  parse_slice_expr,     /* SLICE_KIND       */
+  parse_list_expr,      /* LIST_EXPR_KIND   */
   parse_array_expr,     /* ARRAY_KIND       */
   parse_map_expr,       /* MAP_KIND         */
   parse_set_expr,       /* SET_KIND         */

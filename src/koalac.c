@@ -109,10 +109,12 @@ static void compile(char *pkgdir, PkgInfo *pkg)
   Vector_Fini_Self(&psvec);
 
   if (errnum <= 0) {
+    /*
     KImage *image = Gen_KImage(pkg->stbl);
     assert(image != NULL);
     KImage_Write_File(image, pkg->pkgfile.str);
     KImage_Free(image);
+    */
   } else {
     fprintf(stderr, "There are %d errors.\n", errnum);
   }
@@ -134,12 +136,12 @@ static void show_usage(char *prog)
   fprintf(stderr,
     "Usage: %s [<options>] <source packages>\n"
     "Options:\n"
-    "\t-p <path>         Specify where to find external packages.\n"
-    "\t-o <directory>    Specify where to place generated packages.\n"
-    "\t-s <directory>    Specify where to find source packages.\n"
-    "\t-Dname=value      Set a property.\n"
-    "\t-v                Print compiler version.\n"
-    "\t-h                Print this message.\n",
+    "\t-p <path>          Specify where to find external packages.\n"
+    "\t-o <directory>     Specify where to place generated packages.\n"
+    "\t-s <directory>     Specify where to find source packages.\n"
+    "\t-e <encoding>      Specify character encoding used by source files.\n"
+    "\t-v                 Print compiler version.\n"
+    "\t-h                 Print this message.\n",
     prog);
 }
 
@@ -154,10 +156,16 @@ int main(int argc, char *argv[])
   show_options(&opts);
 
   char *pkgname;
+  char *slash;
   char *s;
   Vector_ForEach(s, &opts.names) {
     DeclareStringBuf(input);
     DeclareStringBuf(output);
+
+    /* trim last slash */
+    slash = strrchr(s, '/');
+    if (slash != NULL)
+      *slash = '\0';
 
     /* if not specify srcpath, use ./ as default srcpath */
     if (opts.srcpath != NULL)

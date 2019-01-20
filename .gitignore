@@ -28,3 +28,4 @@ include/config.h
 bin/test_*
 
 todeleted/*
+doc/*.png

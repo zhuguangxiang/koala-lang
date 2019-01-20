@@ -48,6 +48,8 @@ typedef struct options {
   char *outpath;
   /* -D name=value */
   Vector nvs;
+  /* -e encoding, e.g. utf8 */
+  char *encoding;
   /* file(klc) or dir(package) names */
   Vector names;
 } Options;
