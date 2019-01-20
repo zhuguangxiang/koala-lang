@@ -56,6 +56,12 @@ func Add(a int, b int) (r int) {
 
   { "hello": "world", "good": "luck"}
 
+	{
+		{1, 0, 0},
+		{0, 1, 0},
+		{0, 0, 1}
+	}
+
   {
     "k1": "hello",
     "k2": 123,
@@ -76,6 +82,9 @@ func Add(a int, b int) (r int) {
     2,
     {"hello": "world", "good": "luck"}
   }
+
+	arr := {1, 2, 3}
+	arr[3]
 }
 
 func Main(args []string) {

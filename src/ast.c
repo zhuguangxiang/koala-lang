@@ -326,6 +326,38 @@ static void free_binary_expr(Expr *exp)
   mm_free(exp);
 }
 
+static void free_attribute_expr(Expr *exp)
+{
+  AttributeExpr *attrExp = (AttributeExpr *)exp;
+  expr_free(attrExp->left);
+  mm_free(exp);
+}
+
+static void free_subscript_expr(Expr *exp)
+{
+  SubScriptExpr *subExp = (SubScriptExpr *)exp;
+  expr_free(subExp->index);
+  expr_free(subExp->left);
+  mm_free(exp);
+}
+
+static void free_call_expr(Expr *exp)
+{
+  CallExpr *callExp = (CallExpr *)exp;
+  Vector_Free(callExp->args, free_expr_func, NULL);
+  expr_free(callExp->left);
+  mm_free(exp);
+}
+
+static void free_slice_expr(Expr *exp)
+{
+  SliceExpr *sliceExp = (SliceExpr *)exp;
+  expr_free(sliceExp->start);
+  expr_free(sliceExp->end);
+  expr_free(sliceExp->left);
+  mm_free(exp);
+}
+
 static void free_list_expr(Expr *exp)
 {
   if (exp == NULL)
@@ -380,29 +412,29 @@ static void free_anony_expr(Expr *exp)
 }
 
 static void (*__free_expr_funcs[])(Expr *) = {
-  NULL,               /* INVALID          */
-  free_simple_expr,   /* NIL_KIND         */
-  free_simple_expr,   /* SELF_KIND        */
-  free_simple_expr,   /* SUPER_KIND       */
-  free_simple_expr,   /* INT_KIND         */
-  free_simple_expr,   /* FLOAT_KIND       */
-  free_simple_expr,   /* BOOL_KIND        */
-  free_simple_expr,   /* STRING_KIND      */
-  free_simple_expr,   /* CHAR_KIND        */
-  free_simple_expr,   /* ID_KIND          */
-  NULL,               /* UNARY_KIND       */
-  free_binary_expr,   /* BINARY_KIND      */
-  NULL,               /* ATTRIBUTE_KIND   */
-  NULL,               /* SUBSCRIPT_KIND   */
-  NULL,               /* CALL_KIND        */
-  NULL,               /* SLICE_KIND       */
-  free_list_expr,     /* ARRAY_LIST_KIND  */
-  free_list_expr,     /* MAP_LIST_KIND    */
-  free_mapentry_expr, /* MAP_ENTRY_KIND   */
-  free_array_expr,    /* ARRAY_KIND       */
-  free_map_expr,      /* MAP_KIND         */
-  free_set_expr,      /* SET_KIND         */
-  free_anony_expr,    /* ANONY_FUNC_KIND  */
+  NULL,                 /* INVALID          */
+  free_simple_expr,     /* NIL_KIND         */
+  free_simple_expr,     /* SELF_KIND        */
+  free_simple_expr,     /* SUPER_KIND       */
+  free_simple_expr,     /* INT_KIND         */
+  free_simple_expr,     /* FLOAT_KIND       */
+  free_simple_expr,     /* BOOL_KIND        */
+  free_simple_expr,     /* STRING_KIND      */
+  free_simple_expr,     /* CHAR_KIND        */
+  free_simple_expr,     /* ID_KIND          */
+  NULL,                 /* UNARY_KIND       */
+  free_binary_expr,     /* BINARY_KIND      */
+  free_attribute_expr,  /* ATTRIBUTE_KIND   */
+  free_subscript_expr,  /* SUBSCRIPT_KIND   */
+  free_call_expr,       /* CALL_KIND        */
+  free_slice_expr,      /* SLICE_KIND       */
+  free_list_expr,       /* ARRAY_LIST_KIND  */
+  free_list_expr,       /* MAP_LIST_KIND    */
+  free_mapentry_expr,   /* MAP_ENTRY_KIND   */
+  free_array_expr,      /* ARRAY_KIND       */
+  free_map_expr,        /* MAP_KIND         */
+  free_set_expr,        /* SET_KIND         */
+  free_anony_expr,      /* ANONY_FUNC_KIND  */
 };
 
 static void expr_free(Expr *exp)
