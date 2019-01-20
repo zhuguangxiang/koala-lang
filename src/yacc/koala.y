@@ -203,9 +203,10 @@ do { \
 
 %type <Expr> PrimaryExpression
 %type <Expr> Atom
-%type <SVal> Selector
-%type <Expr> Index
-%type <List> Arguments
+%type <Expr> AttributeExpression
+%type <Expr> SubScriptExpression
+%type <Expr> CallExpression
+%type <Expr> SliceExpression
 %type <Expr> CONSTANT
 %type <Expr> ArrayCreationExpression
 %type <List> DimExprList
@@ -1070,54 +1071,66 @@ PrimaryExpression
   {
     $$ = $1;
   }
-  | PrimaryExpression Selector
+  | AttributeExpression
   {
-    //$$ = expr_from_trailer(ATTRIBUTE_KIND, $2, $1);
+    $$ = $1;
   }
-  | PrimaryExpression Arguments
+  | CallExpression
   {
-    //$$ = expr_from_trailer(CALL_KIND, $2, $1);
+    $$ = $1;
   }
-  | PrimaryExpression Index
+  | SubScriptExpression
   {
-    //$$ = expr_from_trailer(SUBSCRIPT_KIND, $2, $1);
+    $$ = $1;
   }
-  | PrimaryExpression Slice
+  | SliceExpression
   {
-    $$ = NULL;
-  }
-  ;
-
-Selector
-  : '.' ID
-  {
-
+    $$ = $1;
   }
   ;
 
-Arguments
-  : '(' ')'
+AttributeExpression
+  : PrimaryExpression '.' ID
   {
-
-  }
-  | '(' ExpressionList ')'
-  {
-
+    $$ = Expr_From_Attribute($3.str, $1);
   }
   ;
 
-Index
-  : '[' Expression ']'
+CallExpression
+  : PrimaryExpression '(' ')'
   {
-
+    $$ = Expr_From_Call(NULL, $1);
+  }
+  | PrimaryExpression '(' ExpressionList ')'
+  {
+    $$ = Expr_From_Call($3, $1);
   }
   ;
 
-Slice
-  : '[' Expression ':' Expression ']'
-  | '[' ':' Expression ']'
-  | '['Expression ':' ']'
-  | '[' ':' ']'
+SubScriptExpression
+  : PrimaryExpression '[' Expression ']'
+  {
+    $$ = Expr_From_SubScript($3, $1);
+  }
+  ;
+
+SliceExpression
+  : PrimaryExpression '[' Expression ':' Expression ']'
+  {
+    $$ = Expr_From_Slice($3, $5, $1);
+  }
+  | PrimaryExpression '[' ':' Expression ']'
+  {
+    $$ = Expr_From_Slice(NULL, $4, $1);
+  }
+  | PrimaryExpression '[' Expression ':' ']'
+  {
+    $$ = Expr_From_Slice($3, NULL, $1);
+  }
+  | PrimaryExpression '[' ':' ']'
+  {
+    $$ = Expr_From_Slice(NULL, NULL, $1);
+  }
   ;
 
 Atom

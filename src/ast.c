@@ -128,12 +128,13 @@ Expr *Expr_From_Binary(BinaryOpKind op, Expr *left, Expr *right)
   return (Expr *)binaryExp;
 }
 
-Expr *Expr_From_Attriubte(char *id, Expr *left)
+Expr *Expr_From_Attribute(char *id, Expr *left)
 {
   AttributeExpr *attrExp = mm_alloc(sizeof(AttributeExpr));
   attrExp->kind = ATTRIBUTE_KIND;
   attrExp->id = id;
   attrExp->left = left;
+  left->right = (Expr *)attrExp;
   return (Expr *)attrExp;
 }
 
@@ -143,6 +144,7 @@ Expr *Expr_From_SubScript(Expr *index, Expr *left)
   subExp->kind = SUBSCRIPT_KIND;
   subExp->index = index;
   subExp->left = left;
+  left->right = (Expr *)subExp;
   return (Expr *)subExp;
 }
 
@@ -152,12 +154,19 @@ Expr *Expr_From_Call(Vector *args, Expr *left)
   callExp->kind = CALL_KIND;
   callExp->args = args;
   callExp->left = left;
+  left->right = (Expr *)callExp;
   return (Expr *)callExp;
 }
 
 Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left)
 {
-  return NULL;
+  SliceExpr *sliceExp = mm_alloc(sizeof(SliceExpr));
+  sliceExp->kind = SLICE_KIND;
+  sliceExp->start = start;
+  sliceExp->end = end;
+  sliceExp->left = left;
+  left->right = (Expr *)sliceExp;
+  return (Expr *)sliceExp;
 }
 
 static int arraylist_get_nesting(Vector *vec)

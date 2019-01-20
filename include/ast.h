@@ -179,7 +179,15 @@ typedef struct callexpr {
   Expr *left;
 } CallExpr;
 
-Expr *Expr_From_Attriubte(char *id, Expr *left);
+/* slice expression */
+typedef struct sliceexpr {
+  EXPR_HEAD
+  Expr *start;
+  Expr *end;
+  Expr *left;
+} SliceExpr;
+
+Expr *Expr_From_Attribute(char *id, Expr *left);
 Expr *Expr_From_SubScript(Expr *index, Expr *left);
 Expr *Expr_From_Call(Vector *args, Expr *left);
 Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left);
