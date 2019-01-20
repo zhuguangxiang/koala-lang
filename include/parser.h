@@ -180,11 +180,12 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
 
 void Parser_New_Variables(ParserState *ps, Stmt *stmt);
 Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
-  Vector *exps, int k);
+                            Vector *exps, int k);
 #define Parser_Do_Variables(ps, ids, desc, exps) \
   __Parser_Do_Variables(ps, ids, desc, exps, 0)
 #define Parser_Do_Constants(ps, ids, desc, exps) \
   __Parser_Do_Variables(ps, ids, desc, exps, 1)
+Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps);
 Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right);
 void Parser_New_Function(ParserState *ps, Stmt *stmt);
 void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt);

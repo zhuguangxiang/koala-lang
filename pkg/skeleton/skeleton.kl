@@ -56,11 +56,11 @@ func Add(a int, b int) (r int) {
 
   { "hello": "world", "good": "luck"}
 
-	{
-		{1, 0, 0},
-		{0, 1, 0},
-		{0, 0, 1}
-	}
+  {
+    {1, 0, 0},
+    {0, 1, 0},
+    {0, 0, 1}
+  }
 
   {
     "k1": "hello",
@@ -83,8 +83,21 @@ func Add(a int, b int) (r int) {
     {"hello": "world", "good": "luck"}
   }
 
-	arr := {1, 2, 3}
-	arr[3]
+  arr := {1, 2, 3}
+  arr[3]
+
+  arr[1:4]
+  arr[:]
+  arr[:3]
+  arr[1+2:-1]
+
+  fn(1, 2, "hello")
+  attr.length()
+
+  num := func(a int, b int) int {
+    return a + b
+  }(100, 200)
+
 }
 
 func Main(args []string) {

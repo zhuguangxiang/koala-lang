@@ -924,7 +924,7 @@ ExprStatement
 VariableDeclarationTypeless
   : ExpressionList TYPELESS_ASSIGN ExpressionList ';'
   {
-    $$ = Parser_Do_Variables(ps, $1, NULL, $3);
+    $$ = Parser_Do_Typeless_Variables(ps, $1, $3);
   }
   ;
 
@@ -1392,7 +1392,7 @@ MultipleExpression
   }
   | MultipleExpression POWER UnaryExpression
   {
-
+    $$ = Expr_From_Binary(BINARY_POWER, $1, $3);
   }
   ;
 

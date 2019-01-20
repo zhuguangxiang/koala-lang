@@ -318,6 +318,13 @@ static void free_simple_expr(Expr *exp)
   mm_free(exp);
 }
 
+static void free_unary_expr(Expr *exp)
+{
+  UnaryExpr *unExp = (UnaryExpr *)exp;
+  expr_free(unExp->exp);
+  mm_free(exp);
+}
+
 static void free_binary_expr(Expr *exp)
 {
   BinaryExpr *binExp = (BinaryExpr *)exp;
@@ -422,7 +429,7 @@ static void (*__free_expr_funcs[])(Expr *) = {
   free_simple_expr,     /* STRING_KIND      */
   free_simple_expr,     /* CHAR_KIND        */
   free_simple_expr,     /* ID_KIND          */
-  NULL,                 /* UNARY_KIND       */
+  free_unary_expr,      /* UNARY_KIND       */
   free_binary_expr,     /* BINARY_KIND      */
   free_attribute_expr,  /* ATTRIBUTE_KIND   */
   free_subscript_expr,  /* SUBSCRIPT_KIND   */
@@ -979,7 +986,7 @@ static int __validate_count(ParserState *ps, int lsz, int rsz)
 }
 
 Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
-  Vector *exps, int k)
+                            Vector *exps, int k)
 {
   int isz = Vector_Size(ids);
   int esz = Vector_Size(exps);
@@ -1034,6 +1041,48 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
     Vector_Free_Self(ids);
     return (Stmt *)listStmt;
   }
+}
+
+Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
+{
+  int isz = Vector_Size(ids);
+  int esz = Vector_Size(exps);
+  if (!__validate_count(ps, isz, esz))
+    return NULL;
+
+  if (isz == esz) {
+    /* count of left ids == count of right expressions */
+    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+
+    BaseExpr *e;
+    Expr *right;
+    Stmt *varStmt;
+    Vector_ForEach(e, ids) {
+      assert(e->kind == ID_KIND);
+      right = Vector_Get(exps, i);
+      assert(right);
+      varStmt = __Stmt_From_VarDecl(e->id, NULL, right, 0);
+      Vector_Append(listStmt->vec, varStmt);
+    }
+    Vector_Free(ids, free_expr_func, NULL);
+    Vector_Free_Self(exps);
+    return (Stmt *)listStmt;
+  }
+
+  assert(isz > esz && esz == 1);
+
+  /* count of right expressions is 1 */
+  Vector *_ids = Vector_New();
+  BaseExpr *e;
+  Vector_ForEach(e, ids) {
+    assert(e->kind == ID_KIND);
+    Vector_Append(_ids, e->id);
+  }
+  Expr *right = Vector_Get(exps, 0);
+
+  Vector_Free(ids, free_expr_func, NULL);
+  Vector_Free_Self(exps);
+  return __Stmt_From_VarListDecl(_ids, NULL, right, 0);
 }
 
 Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
