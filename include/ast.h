@@ -36,14 +36,29 @@ typedef struct lineinfo {
   int col;
 } LineInfo;
 
+typedef struct position {
+  int row;
+  int col;
+} Position;
+
+#define Set_Position(pos, yyloc)   \
+({                                 \
+  if (yyloc != NULL) {             \
+    (pos)->row = yyloc_row(yyloc); \
+    (pos)->col = yyloc_col(yyloc); \
+  }                                \
+})
+
 /* idtype for parameter-list in AST */
 typedef struct idtype {
   char *id;
   TypeDesc *desc;
-} IdType;
+  Position idpos;
+  Position descpos;
+} IDType;
 
-IdType *New_IdType(char *id, TypeDesc *desc);
-void Free_IdType(IdType *idtype);
+IDType *New_IDType(char *id, TypeDesc *desc);
+void Free_IDType(IDType *idtype);
 
 /* unary operator kind */
 typedef enum unaryopkind {

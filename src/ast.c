@@ -25,16 +25,16 @@
 #include "mem.h"
 #include "log.h"
 
-IdType *New_IdType(char *id, TypeDesc *desc)
+IDType *New_IDType(char *id, TypeDesc *desc)
 {
-  IdType *idType = mm_alloc(sizeof(IdType));
+  IDType *idType = mm_alloc(sizeof(IDType));
   idType->id = id;
   TYPE_INCREF(desc);
   idType->desc = desc;
   return idType;
 }
 
-void Free_IdType(IdType *idtype)
+void Free_IDType(IDType *idtype)
 {
   TYPE_DECREF(idtype->desc);
   mm_free(idtype);
@@ -490,7 +490,7 @@ static void free_assignlist_stmt(Stmt *stmt)
 
 static void free_idtype_func(void *item, void *arg)
 {
-  Free_IdType(item);
+  Free_IDType(item);
 }
 
 static void free_funcdecl_stmt(Stmt *stmt)
@@ -1124,7 +1124,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   FuncSymbol *sym;
   Vector *pdesc = NULL;
   Vector *rdesc = NULL;
-  IdType *idType;
+  IDType *idType;
 
   if (funcStmt->args != NULL) {
     pdesc = Vector_New();
@@ -1155,7 +1155,7 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
 {
   Vector *pdesc = NULL;
   Vector *rdesc = NULL;
-  IdType *idType;
+  IDType *idType;
 
   if (stmt->args != NULL) {
     pdesc = Vector_New();
@@ -1289,7 +1289,7 @@ void Parser_SetLineInfo(ParserState *ps, LineInfo *line)
 static void print_error(ParserState *ps, YYLTYPE *loc, char *fmt, va_list ap)
 {
   fprintf(stderr, "%s:%d:%d: error: ", ps->filename,
-    loc_row(loc), loc_col(loc));
+    yyloc_row(loc), yyloc_col(loc));
   vfprintf(stderr, fmt, ap);
   puts(""); /* newline */
 }

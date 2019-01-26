@@ -27,6 +27,7 @@ const K1 = "Const Value"
 const K2 string = "Const Value"
 
 //variables
+var v1, v2 = 1, 2
 var ch = '汉'
 var ok = true
 var greeting string = "hello, 汉字"
@@ -100,7 +101,22 @@ func Add(a int, b int) (r int) {
 
 }
 
+/*
+func forfunc() {
+  for i in 1...10 {
+    io.Println(i)
+  }
+}
+
+func iteratorfunc() {
+  for i in {1, 2, 3, 4} {
+
+  }
+}
+*/
+
 func Main(args []string) {
+
 }
 
 func __init__() {

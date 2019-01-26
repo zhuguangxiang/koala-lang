@@ -142,7 +142,6 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "..."            { YY_RETURN(ELLIPSIS);        }
 "**"             { YY_RETURN(POWER);           }
 "..<"            { YY_RETURN(DOTDOTLESS);      }
-">.."            { YY_RETURN(GREATERDOTDOT);   }
 
 "if"             { YY_RETURN(IF);              }
 "else"           { YY_RETURN(ELSE);            }
@@ -159,8 +158,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "return"         { YY_RETURN(TOKEN_RETURN);    }
 "class"          { YY_RETURN(CLASS);           }
 "trait"          { YY_RETURN(TRAIT);           }
-"extends"        { YY_RETURN(EXTENDS);         }
-"with"           { YY_RETURN(WITH);            }
+"in"             { YY_RETURN(IN);              }
 "const"          { YY_RETURN(CONST);           }
 "import"         { YY_RETURN(IMPORT);          }
 "go"             { YY_RETURN(GO);              }

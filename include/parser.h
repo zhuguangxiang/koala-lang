@@ -159,8 +159,8 @@ typedef struct parserstate {
 
 #include "koala_yacc.h"
 
-#define loc_row(loc) ((loc)->first_line)
-#define loc_col(loc) ((loc)->first_column)
+#define yyloc_row(loc) ((loc)->first_line)
+#define yyloc_col(loc) ((loc)->first_column)
 
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);

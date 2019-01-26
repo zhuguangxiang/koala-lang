@@ -90,7 +90,6 @@ do { \
 %token POWER
 %token ELLIPSIS
 %token DOTDOTLESS
-%token GREATERDOTDOT
 
 %token EQ
 %token NE
@@ -117,8 +116,7 @@ do { \
 %token TOKEN_RETURN
 %token CLASS
 %token TRAIT
-%token EXTENDS
-%token WITH
+%token IN
 %token CONST
 %token IMPORT
 %token GO
@@ -229,6 +227,7 @@ do { \
 %type <Expr> InclusiveOrExpression
 %type <Expr> LogicAndExpression
 %type <Expr> LogicOrExpression
+%type <Expr> RangeExpression
 %type <Expr> Expression
 %type <List> ExpressionList
 %type <Operator> CompAssignOp
@@ -398,22 +397,22 @@ IDTypeList
   : Type
   {
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1));
+    Vector_Append($$, New_IDType(NULL, $1));
   }
   | ID Type
   {
     $$ = Vector_New();
-    Vector_Append($$, New_IdType($1.str, $2));
+    Vector_Append($$, New_IDType($1.str, $2));
   }
   | IDTypeList ',' Type
   {
     $$ = $1;
-    Vector_Append($$, New_IdType(NULL, $3));
+    Vector_Append($$, New_IDType(NULL, $3));
   }
   | IDTypeList ',' ID Type
   {
     $$ = $1;
-    Vector_Append($$, New_IdType($3.str, $4));
+    Vector_Append($$, New_IDType($3.str, $4));
   }
   | IDTypeList error
   {
@@ -430,12 +429,12 @@ ParameterList
   | IDTypeList VArgType
   {
     $$ = $1;
-    Vector_Append($$, New_IdType(NULL, $2));
+    Vector_Append($$, New_IDType(NULL, $2));
   }
   | VArgType
   {
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1));
+    Vector_Append($$, New_IDType(NULL, $1));
   }
   ;
 
@@ -455,7 +454,7 @@ ReturnList
   : Type
   {
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1));
+    Vector_Append($$, New_IDType(NULL, $1));
   }
   | '(' IDTypeList ')'
   {
@@ -466,11 +465,13 @@ ReturnList
 IDList
   : ID
   {
+    printf("%d-%d\n", @1.first_line, @1.first_column);
     $$ = Vector_New();
     Vector_Append($$, $1.str);
   }
   | IDList ',' ID
   {
+    printf("%d-%d\n", @3.first_line, @3.first_column);
     $$ = $1;
     Vector_Append($$, $3.str);
   }
@@ -493,7 +494,7 @@ Import
   }
   | IMPORT ID PackagePath ';'
   {
-    Parser_New_Import(ps, $2.str, $3.str, NULL, NULL);
+    Parser_New_Import(ps, $2.str, $3.str, &@2, &@3);
   }
   | IMPORT ID error
   {
@@ -996,7 +997,7 @@ CaseStatements
   ;
 
 CaseStatement
-  : CASE Expression ':' Block
+  : CASE ExpressionList ':' Block
   {
     //$$ = new_test_block($2, $4);
   }
@@ -1007,36 +1008,10 @@ CaseStatement
   ;
 
 ForStatement
-  : FOR RangeCause Block
+  : FOR IDList IN Expression Block
   {
     $$ = NULL;
   }
-  ;
-
-/*
- * TYPELESS_ASSIGN is used only in local blocks
- */
-RangeCause
-  : IDList '=' RangeExpression
-  {
-
-  }
-  | IDList TYPELESS_ASSIGN RangeExpression
-  {
-  }
-  ;
-
-/*
- * 'Expression' is Range
- * 'Expression ELLIPSIS Expression' is Range
- * 'Expression DOTDOTLESS Expression' is Range
- * 'Expression GREATERDOTDOT Expression' is Range
- */
-RangeExpression
-  : Expression
-  | Expression ELLIPSIS Expression
-  | Expression DOTDOTLESS Expression
-  | Expression GREATERDOTDOT Expression
   ;
 
 JumpStatement
@@ -1343,6 +1318,7 @@ AnonyFuncExpression
   }
   ;
 
+
 UnaryExpression
   : PrimaryExpression
   {
@@ -1519,8 +1495,21 @@ LogicOrExpression
   }
   ;
 
-Expression
+RangeExpression
   : LogicOrExpression
+  {
+    $$ = $1;
+  }
+  | LogicOrExpression ELLIPSIS LogicOrExpression
+  {
+  }
+  | LogicOrExpression DOTDOTLESS LogicOrExpression
+  {
+  }
+  ;
+
+Expression
+  : RangeExpression
   {
     $$ = $1;
   }

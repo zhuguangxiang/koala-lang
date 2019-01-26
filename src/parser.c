@@ -250,14 +250,6 @@ int Build_AST(ParserState *ps, FILE *in)
   return ps->errnum;
 }
 
-static void parse_stmts(ParserState *ps, Vector *stmts);
-
-void Parse(ParserState *ps)
-{
-  Log_Debug("\x1b[32m----SEMANTIC ANALYSIS-----------\x1b[0m");
-  parse_stmts(ps, &ps->stmts);
-  Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS----\x1b[0m");
-}
 
 void Destroy_Parser(ParserState *ps)
 {
@@ -428,6 +420,8 @@ static parse_expr_func parse_expr_funcs[] = {
 
 static void parser_visit_expr(ParserState *ps, Expr *exp)
 {
+  if (ps->errnum >= MAX_ERRORS)
+    return;
   assert(exp->kind > 0 && exp->kind < nr_elts(parse_expr_funcs));
   parse_expr_func parse_func = parse_expr_funcs[exp->kind];
   assert(parse_func != NULL);
@@ -438,7 +432,17 @@ static void parse_stmts(ParserState *ps, Vector *stmts);
 
 static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
 {
+  VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
+  Log_Debug("parse variable '%s' declaration", varStmt->id);
 
+  Expr *rexp = varStmt->exp;
+  if (rexp != NULL) {
+    /* parse right expression of variable declaration */
+    parser_visit_expr(ps, rexp);
+    if (rexp->desc == NULL) {
+      return;
+    }
+  }
 }
 
 static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
@@ -503,19 +507,7 @@ static void parse_class_stmt(ParserState *ps, Stmt *stmt)
   ps->u->stbl = ((ClassSymbol *)sym)->stbl;
 
   /* parse class' body */
-  Stmt *s;
-  Vector_ForEach(s, clsStmt->body) {
-    if (s->kind == VAR_KIND) {
-      parse_vardecl_stmt(ps, s);
-    } else if (s->kind == FUNC_KIND) {
-      parse_funcdecl_stmt(ps, s);
-    } else if (s->kind == PROTO_KIND) {
-      assert(s->native == 1);
-      parse_protodecl_stmt(ps, s);
-    } else {
-      assert(0);
-    }
-  }
+  parse_stmts(ps, clsStmt->body);
 
   Parser_Exit_Scope(ps);
 
@@ -541,6 +533,8 @@ static parse_stmt_func parse_stmt_funcs[] = {
 
 static void parser_vist_stmt(ParserState *ps, Stmt *stmt)
 {
+  if (ps->errnum >= MAX_ERRORS)
+    return;
   assert(stmt->kind > 0 && stmt->kind < nr_elts(parse_stmt_funcs));
   parse_stmt_func parse_func = parse_stmt_funcs[stmt->kind];
   assert(parse_func != NULL);
@@ -556,4 +550,11 @@ static void parse_stmts(ParserState *ps, Vector *stmts)
   Vector_ForEach(stmt, stmts) {
     parser_vist_stmt(ps, stmt);
   }
+}
+
+void Parse(ParserState *ps)
+{
+  Log_Debug("\x1b[32m----SEMANTIC ANALYSIS & CODE GEN-----------\x1b[0m");
+  parse_stmts(ps, &ps->stmts);
+  Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
 }
