@@ -447,6 +447,9 @@ TypeDesc *TypeDesc_Get_Set(TypeDesc *base)
 
 TypeDesc *TypeDesc_Get_Varg(TypeDesc *base)
 {
+  if (base == NULL)
+    base = TypeDesc_Get_Basic(BASIC_ANY);
+
   /* ...type*/
   DeclareStringBuf(buf);
   StringBuf_Format(buf, "...#", base->desc);

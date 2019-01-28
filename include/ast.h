@@ -41,24 +41,22 @@ typedef struct position {
   int col;
 } Position;
 
-#define Set_Position(pos, yyloc)   \
-({                                 \
-  if (yyloc != NULL) {             \
-    (pos)->row = yyloc_row(yyloc); \
-    (pos)->col = yyloc_col(yyloc); \
-  }                                \
-})
+/* identifier */
+typedef struct ident {
+  char *id;
+  Position pos;
+} Ident;
+
+Ident *New_Ident(char *id);
 
 /* idtype for parameter-list in AST */
 typedef struct idtype {
-  char *id;
+  Ident id;
   TypeDesc *desc;
-  Position idpos;
-  Position descpos;
-} IDType;
+} IdType;
 
-IDType *New_IDType(char *id, TypeDesc *desc);
-void Free_IDType(IDType *idtype);
+IdType *New_IdType(char *id, TypeDesc *desc);
+void Free_IdType(IdType *idtype);
 
 /* unary operator kind */
 typedef enum unaryopkind {
@@ -139,7 +137,7 @@ Expr *Expr_From_Super(void);
 typedef struct baseexpr {
   EXPR_HEAD
   union {
-    UChar ch;
+    uchar ch;
     int64 ival;
     float64 fval;
     int bval;
@@ -152,7 +150,7 @@ Expr *Expr_From_Integer(int64 val);
 Expr *Expr_From_Float(float64 val);
 Expr *Expr_From_Bool(int val);
 Expr *Expr_From_String(char *val);
-Expr *Expr_From_Char(UChar val);
+Expr *Expr_From_Char(uchar val);
 Expr *Expr_From_Id(char *val);
 
 /* unary expression */

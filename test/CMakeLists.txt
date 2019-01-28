@@ -53,7 +53,4 @@ target_link_libraries(test_task koala_task)
 add_executable(test_join test_join.c)
 target_link_libraries(test_join koala_task)
 
-add_executable(test_nio test_nio.c)
-target_link_libraries(test_nio koala_vm)
-
 add_executable(test_color test_color.c)

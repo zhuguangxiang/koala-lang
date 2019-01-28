@@ -29,27 +29,23 @@ SET_SOURCE_FILES_PROPERTIES(koala_lex.c GENERATED)
 SET_SOURCE_FILES_PROPERTIES(koala_yacc.c GENERATED)
 
 SET (KOALA_COMMON_SRC
-      log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
-      cache.c stringbuf.c properties.c
-      typedesc.c atomtable.c image.c options.c 
-    )
-SET (NATIVE_SRC
-      native/io.c
-    )
-ADD_LIBRARY(koala_common STATIC ${KOALA_COMMON_SRC} ${NATIVE_SRC})
+  log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
+  typedesc.c cache.c stringbuf.c properties.c atomtable.c image.c options.c
+  )
+ADD_LIBRARY(koala_common STATIC ${KOALA_COMMON_SRC})
 set_target_properties(koala_common PROPERTIES VERSION 0.8.5 SOVERSION 0)
 
 SET (KOALAC_SRC
-      koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c koalac.c 
-    )
+  koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c koalac.c
+  )
 add_executable(klc ${KOALAC_SRC})
 target_link_libraries(klc koala_common)
 set_target_properties(klc PROPERTIES OUTPUT_NAME koalac)
 
 SET (KOALA_VM_SRC
-      object.c stringobject.c tupleobject.c codeobject.c
-      intobject.c packageobject.c globalstate.c eval.c
-    )
+  object.c stringobject.c tupleobject.c codeobject.c
+  intobject.c packageobject.c globalstate.c eval.c
+  )
 ADD_LIBRARY(koala_vm STATIC ${KOALA_VM_SRC})
 target_link_libraries(koala_vm koala_common)
 set_target_properties(koala_vm PROPERTIES VERSION 0.8.5 SOVERSION 0)

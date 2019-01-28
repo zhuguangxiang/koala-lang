@@ -24,6 +24,15 @@
 
 #include "parser.h"
 
+#define yyloc_row(loc) ((loc).first_line)
+#define yyloc_col(loc) ((loc).first_column)
+
+#define SetPosition(pos, loc) \
+do {                          \
+  (pos).row = yyloc_row(loc); \
+  (pos).col = yyloc_col(loc); \
+} while (0)
+
 #if 1
 #define YYERROR_VERBOSE 1
 static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
@@ -34,38 +43,44 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
   return 0;
 }
 #else
-#define yyerror(yylloc, ps, scanner, errmsg) ((void)0)
+#define yyerror(loc, ps, scanner, errmsg) ((void)0)
 #endif
 
 #define ERRORMSG "expected '%s' before '%s'\n"
 
 #define Syntax_Error(loc, expected) \
-do { \
-  yyerrok; \
-  char *token = ps->line.token; \
-  if (token[0] == '\n') \
-    token = "\\n"; \
-  Parser_Synatx_Error(ps, loc, ERRORMSG, expected, token); \
+do {                                \
+  yyerrok;                          \
+  char *token = ps->line.token;     \
+  if (token[0] == '\n')             \
+    token = "\\n";                  \
+  Position pos;                     \
+  SetPosition(pos, loc);            \
+  Parser_Synatx_Error(ps, &pos,     \
+    ERRORMSG, expected, token);     \
 } while (0)
 
 #define Syntax_Error_Clear(loc, expected) \
-do { \
-  yyclearin; \
-  Syntax_Error(loc, expected); \
+do {                                      \
+  yyclearin;                              \
+  Syntax_Error(loc, expected);            \
 } while (0)
 
-#define Syntax_Error_Simple_Clear(loc, msg) \
-do { \
-  yyclearin; \
-  yyerrok; \
-  Parser_Synatx_Error(ps, loc, "%s\n", msg); \
+#define Syntax_ErrorMsg_Clear(loc, msg)       \
+do {                                          \
+  yyclearin;                                  \
+  yyerrok;                                    \
+  Position pos;                               \
+  SetPosition(pos, loc);                      \
+  Parser_Synatx_Error(ps, &pos, "%s\n", msg); \
 } while (0)
+
 
 %}
 
 %union {
   int Dims;
-  UChar ucVal;
+  uchar ucVal;
   int64 IVal;
   float64 FVal;
   String SVal;
@@ -397,26 +412,30 @@ IDTypeList
   : Type
   {
     $$ = Vector_New();
-    Vector_Append($$, New_IDType(NULL, $1));
+    Vector_Append($$, New_IdType(NULL, $1));
   }
   | ID Type
   {
+    IdType *idtype = New_IdType($1.str, $2);
+    SetPosition(idtype->id.pos, @1);
     $$ = Vector_New();
-    Vector_Append($$, New_IDType($1.str, $2));
+    Vector_Append($$, idtype);
   }
   | IDTypeList ',' Type
   {
     $$ = $1;
-    Vector_Append($$, New_IDType(NULL, $3));
+    Vector_Append($$, New_IdType(NULL, $3));
   }
   | IDTypeList ',' ID Type
   {
+    IdType *idtype = New_IdType($3.str, $4);
+    SetPosition(idtype->id.pos, @3);
     $$ = $1;
-    Vector_Append($$, New_IDType($3.str, $4));
+    Vector_Append($$, idtype);
   }
   | IDTypeList error
   {
-    Syntax_Error_Clear(&@2, ",");
+    Syntax_Error_Clear(@2, ",");
     $$ = $1;
   }
   ;
@@ -429,20 +448,19 @@ ParameterList
   | IDTypeList VArgType
   {
     $$ = $1;
-    Vector_Append($$, New_IDType(NULL, $2));
+    Vector_Append($$, New_IdType(NULL, $2));
   }
   | VArgType
   {
     $$ = Vector_New();
-    Vector_Append($$, New_IDType(NULL, $1));
+    Vector_Append($$, New_IdType(NULL, $1));
   }
   ;
 
 VArgType
   : ELLIPSIS
   {
-    TypeDesc *any = TypeDesc_Get_Basic(BASIC_ANY);
-    $$ = TypeDesc_Get_Varg(any);
+    $$ = TypeDesc_Get_Varg(NULL);
   }
   | ELLIPSIS BaseType
   {
@@ -454,7 +472,7 @@ ReturnList
   : Type
   {
     $$ = Vector_New();
-    Vector_Append($$, New_IDType(NULL, $1));
+    Vector_Append($$, New_IdType(NULL, $1));
   }
   | '(' IDTypeList ')'
   {
@@ -465,15 +483,17 @@ ReturnList
 IDList
   : ID
   {
-    printf("%d-%d\n", @1.first_line, @1.first_column);
+    Ident *id = New_Ident($1.str);
+    SetPosition(id->pos, @1);
     $$ = Vector_New();
-    Vector_Append($$, $1.str);
+    Vector_Append($$, id);
   }
   | IDList ',' ID
   {
-    printf("%d-%d\n", @3.first_line, @3.first_column);
+    Ident *id = New_Ident($3.str);
+    SetPosition(id->pos, @3);
     $$ = $1;
-    Vector_Append($$, $3.str);
+    Vector_Append($$, id);
   }
   ;
 
@@ -490,19 +510,24 @@ Imports
 Import
   : IMPORT PackagePath ';'
   {
-    Parser_New_Import(ps, NULL, $2.str, NULL, &@2);
+    Position pos;
+    SetPosition(pos, @2);
+    Parser_New_Import(ps, NULL, $2.str, NULL, &pos);
   }
   | IMPORT ID PackagePath ';'
   {
-    Parser_New_Import(ps, $2.str, $3.str, &@2, &@3);
+    Position p1, p2;
+    SetPosition(p1, @2);
+    SetPosition(p2, @3);
+    Parser_New_Import(ps, $2.str, $3.str, &p1, &p2);
   }
   | IMPORT ID error
   {
-    Syntax_Error_Simple_Clear(&@3, "invalid import");
+    Syntax_ErrorMsg_Clear(@3, "invalid import");
   }
   | IMPORT error
   {
-    Syntax_Error_Simple_Clear(&@2, "invalid import");
+    Syntax_ErrorMsg_Clear(@2, "invalid import");
   }
   ;
 
@@ -549,7 +574,7 @@ ModuleStatement
   }
   | error
   {
-    Syntax_Error_Simple_Clear(&@1, "invalid statement");
+    Syntax_ErrorMsg_Clear(@1, "invalid statement");
   }
   ;
 
@@ -564,17 +589,17 @@ ConstDeclaration
   }
   | CONST IDList '=' error
   {
-    Syntax_Error(&@4, "expr-list");
+    Syntax_Error(@4, "expr-list");
     $$ = NULL;
   }
   | CONST IDList Type '=' error
   {
-    Syntax_Error(&@5, "expr-list");
+    Syntax_Error(@5, "expr-list");
     $$ = NULL;
   }
   | CONST error
   {
-    Syntax_Error(&@2, "id-list");
+    Syntax_Error(@2, "id-list");
     $$ = NULL;
   }
   ;
@@ -594,22 +619,22 @@ VariableDeclaration
   }
   | VAR IDList error
   {
-    Syntax_Error(&@3, "'TYPE' or '='");
+    Syntax_Error(@3, "'TYPE' or '='");
     $$ = NULL;
   }
   | VAR IDList '=' error
   {
-    Syntax_Error(&@4, "right's expression-list");
+    Syntax_Error(@4, "right's expression-list");
     $$ = NULL;
   }
   | VAR IDList Type '=' error
   {
-    Syntax_Error(&@5, "right's expression-list");
+    Syntax_Error(@5, "right's expression-list");
     $$ = NULL;
   }
   | VAR error
   {
-    Syntax_Error(&@2, "id-list");
+    Syntax_Error(@2, "id-list");
     $$ = NULL;
   }
   ;
@@ -633,7 +658,7 @@ FunctionDeclaration
   }
   | FUNC error
   {
-    Syntax_Error(&@2, "ID");
+    Syntax_Error(@2, "ID");
     $$ = NULL;
   }
   ;
@@ -645,12 +670,12 @@ TypeAliasDeclaration
   }
   | TYPEALIAS ID error
   {
-    Syntax_Error(&@3, "TYPE");
+    Syntax_Error(@3, "TYPE");
     $$ = NULL;
   }
   | TYPEALIAS error
   {
-    Syntax_Error(&@2, "ID");
+    Syntax_Error(@2, "ID");
     $$ = NULL;
   }
   ;
@@ -906,7 +931,7 @@ LocalStatement
   }
   | error
   {
-    Syntax_Error_Simple_Clear(&@1, "invalid local statement");
+    Syntax_ErrorMsg_Clear(@1, "invalid local statement");
     $$ = NULL;
   }
   ;
@@ -1036,7 +1061,7 @@ ReturnStatement
   }
   | TOKEN_RETURN error
   {
-    Syntax_Error(&@2, "expression-list");
+    Syntax_Error(@2, "expression-list");
     $$ = NULL;
   }
   ;
@@ -1313,7 +1338,7 @@ AnonyFuncExpression
   }
   | FUNC error
   {
-    Syntax_Error_Simple_Clear(&@2, "invalid anonymous function");
+    Syntax_ErrorMsg_Clear(@2, "invalid anonymous function");
     $$ = NULL;
   }
   ;

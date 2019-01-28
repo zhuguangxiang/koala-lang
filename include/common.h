@@ -61,7 +61,7 @@ typedef double float64;
 typedef union uchar {
   uint8 data[4];
   uint32 val;
-} UChar;
+} uchar;
 
 /* Get the min(max) one of the two numbers */
 #define min(a, b) ((a) > (b) ? (b) : (a))

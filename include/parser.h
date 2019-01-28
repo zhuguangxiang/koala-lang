@@ -157,11 +157,6 @@ typedef struct parserstate {
 
 } ParserState;
 
-#include "koala_yacc.h"
-
-#define yyloc_row(loc) ((loc)->first_line)
-#define yyloc_col(loc) ((loc)->first_column)
-
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);
 
@@ -176,7 +171,7 @@ void Check_Unused_Symbols(ParserState *ps);
 void Init_Imports(ParserState *ps);
 void Fini_Imports(ParserState *ps);
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
-  YYLTYPE *idloc,YYLTYPE *pathloc);
+                          Position *idloc, Position *pathloc);
 
 void Parser_New_Variables(ParserState *ps, Stmt *stmt);
 Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
@@ -191,13 +186,14 @@ void Parser_New_Function(ParserState *ps, Stmt *stmt);
 void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt);
 void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt);
 TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz);
-void Parser_SetLineInfo(ParserState *ps, LineInfo *line);
 
-void Parser_Synatx_Error(ParserState *ps, YYLTYPE *loc, char *fmt, ...);
+void Parser_Synatx_Error(ParserState *ps, Position *pos, char *fmt, ...);
 
 /* lex(flex) used APIs */
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
 void Lexer_DoUserAction(ParserState *ps, char *text);
+
+#include "koala_yacc.h"
 
 #ifdef __cplusplus
 }

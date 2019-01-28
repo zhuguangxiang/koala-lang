@@ -1,6 +1,6 @@
 SET (LIBTASK_SRC
-			task.c task_scheduler.c task_context.c locked_linked_deque.c
-		)
+	task.c task_scheduler.c task_context.c locked_linked_deque.c
+	)
 
 ADD_LIBRARY(koala_task STATIC ${LIBTASK_SRC})
 target_link_libraries (koala_task pthread)

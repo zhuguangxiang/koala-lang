@@ -28,7 +28,6 @@
 #include "stringobject.h"
 #include "intobject.h"
 #include "log.h"
-#include "io.h"
 
 static void init_pkgnode(PkgNode *node, char *name, PkgNodeKind kind)
 {
@@ -141,13 +140,11 @@ void Koala_Initialize(void)
 {
   Init_GlobalState();
   Init_Lang_Package();
-  Init_Nio_Package();
   Koala_Show_Packages();
 }
 
 void Koala_Finalize(void)
 {
-  Fini_Nio_Package();
   Fini_Lang_Package();
   Fini_GlobalState();
 }

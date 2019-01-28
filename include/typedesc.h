@@ -34,6 +34,7 @@ extern "C" {
 /*
  * Type descriptor's kind
  * array and map are builtin types
+ * NOTE: taged typedesc's head is only DescKind, not TYPEDESC_HEAD
  */
 typedef enum desckind {
   TYPE_BASIC = 1,
@@ -74,9 +75,9 @@ typedef enum desckind {
  * Varg: ...s
  */
 #define TYPEDESC_HEAD \
-  HashNode hnode; \
-  DescKind kind; \
-  String desc; \
+  DescKind kind;      \
+  HashNode hnode;     \
+  String desc;        \
   int refcnt;
 
 typedef struct typedesc {
@@ -84,34 +85,35 @@ typedef struct typedesc {
 } TypeDesc;
 
 #define TYPE_INCREF(desc) \
-do { \
-  if (desc != NULL) \
-    ++(desc)->refcnt; \
+do {                      \
+  if (desc != NULL)       \
+    ++(desc)->refcnt;     \
 } while (0)
 
-#define TYPE_DECREF(desc) \
-do { \
+#define TYPE_DECREF(desc)             \
+do {                                  \
   TypeDesc *_desc = (TypeDesc *)desc; \
-  if (_desc != NULL) { \
-    --(_desc)->refcnt; \
-    assert(_desc->refcnt >= 0); \
-    if (_desc->refcnt <= 0) \
-      TypeDesc_Free(_desc); \
-  } \
+  if (_desc != NULL) {                \
+    --(_desc)->refcnt;                \
+    assert(_desc->refcnt >= 0);       \
+    if (_desc->refcnt <= 0)           \
+      TypeDesc_Free(_desc);           \
+  }                                   \
 } while (0)
 
+void Init_TypeDesc(void);
+void Fini_TypeDesc(void);
+
+/* basic type */
 typedef struct basicdesc {
   TYPEDESC_HEAD
   char type; /* one of BASIC_XXX */
 } BasicDesc;
 
-void Init_TypeDesc(void);
-void Fini_TypeDesc(void);
-
 /* class or trait */
 typedef struct klassdesc {
   TYPEDESC_HEAD
-  String path; /* absolute path not ref-name */
+  String path; /* absolute path, but not ref-name */
   String type;
 } KlassDesc;
 

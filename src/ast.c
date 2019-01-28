@@ -25,16 +25,28 @@
 #include "mem.h"
 #include "log.h"
 
-IDType *New_IDType(char *id, TypeDesc *desc)
+Ident *New_Ident(char *id)
 {
-  IDType *idType = mm_alloc(sizeof(IDType));
-  idType->id = id;
+  Ident *ident = mm_alloc(sizeof(Ident));
+  ident->id = id;
+  return ident;
+}
+
+void Free_Ident(Ident *id)
+{
+  mm_free(id);
+}
+
+IdType *New_IdType(char *id, TypeDesc *desc)
+{
+  IdType *idType = mm_alloc(sizeof(IdType));
+  idType->id.id = id;
   TYPE_INCREF(desc);
   idType->desc = desc;
   return idType;
 }
 
-void Free_IDType(IDType *idtype)
+void Free_IdType(IdType *idtype)
 {
   TYPE_DECREF(idtype->desc);
   mm_free(idtype);
@@ -93,7 +105,7 @@ Expr *Expr_From_String(char *val)
   return (Expr *)baseExp;
 }
 
-Expr *Expr_From_Char(UChar val)
+Expr *Expr_From_Char(uchar val)
 {
   BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = CHAR_KIND;
@@ -490,7 +502,7 @@ static void free_assignlist_stmt(Stmt *stmt)
 
 static void free_idtype_func(void *item, void *arg)
 {
-  Free_IDType(item);
+  Free_IdType(item);
 }
 
 static void free_funcdecl_stmt(Stmt *stmt)
@@ -854,7 +866,7 @@ static struct extpkg *load_extpkg(ParserState *ps, char *path)
 }
 
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
-  YYLTYPE *idloc, YYLTYPE *pathloc)
+                          Position *idloc, Position *pathloc)
 {
   Import *import =  __find_import(ps, path);
   if (import != NULL) {
@@ -1124,7 +1136,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   FuncSymbol *sym;
   Vector *pdesc = NULL;
   Vector *rdesc = NULL;
-  IDType *idType;
+  IdType *idType;
 
   if (funcStmt->args != NULL) {
     pdesc = Vector_New();
@@ -1155,7 +1167,7 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
 {
   Vector *pdesc = NULL;
   Vector *rdesc = NULL;
-  IDType *idType;
+  IdType *idType;
 
   if (stmt->args != NULL) {
     pdesc = Vector_New();
@@ -1278,23 +1290,14 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz)
   return TypeDesc_Get_Klass(path, klazz);
 }
 
-void Parser_SetLineInfo(ParserState *ps, LineInfo *line)
+static void print_error(ParserState *ps, Position *pos, char *fmt, va_list ap)
 {
-  LineBuffer *linebuf = &ps->line;
-  line->line = strdup(linebuf->buf);
-  line->row = linebuf->row;
-  line->col = linebuf->col;
-}
-
-static void print_error(ParserState *ps, YYLTYPE *loc, char *fmt, va_list ap)
-{
-  fprintf(stderr, "%s:%d:%d: error: ", ps->filename,
-    yyloc_row(loc), yyloc_col(loc));
+  fprintf(stderr, "%s:%d:%d: error: ", ps->filename, pos->row, pos->col);
   vfprintf(stderr, fmt, ap);
   puts(""); /* newline */
 }
 
-void Parser_Synatx_Error(ParserState *ps, YYLTYPE *loc, char *fmt, ...)
+void Parser_Synatx_Error(ParserState *ps, Position *pos, char *fmt, ...)
 {
   if (++ps->errnum >= MAX_ERRORS) {
     fprintf(stderr, "Too many errors.\n");
@@ -1308,7 +1311,7 @@ void Parser_Synatx_Error(ParserState *ps, YYLTYPE *loc, char *fmt, ...)
 
   va_list ap;
   va_start(ap, fmt);
-  print_error(ps, loc, fmt, ap);
+  print_error(ps, pos, fmt, ap);
   va_end(ap);
 }
 
