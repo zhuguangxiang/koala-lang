@@ -25,24 +25,26 @@
 #include "mem.h"
 #include "log.h"
 
-Ident *New_Ident(char *id)
+Ident *New_Ident(String name)
 {
   Ident *ident = mm_alloc(sizeof(Ident));
-  ident->id = id;
+  ident->name = name.str;
   return ident;
 }
 
-void Free_Ident(Ident *id)
+void Free_Ident(Ident *name)
 {
-  mm_free(id);
+  mm_free(name);
 }
 
-IdType *New_IdType(char *id, TypeDesc *desc)
+IdType *New_IdType(Ident *id, TypeDesc *desc, Position pos)
 {
   IdType *idType = mm_alloc(sizeof(IdType));
-  idType->id.id = id;
+  if (id != NULL)
+    idType->id = *id;
   TYPE_INCREF(desc);
   idType->desc = desc;
+  idType->pos = pos;
   return idType;
 }
 
@@ -140,7 +142,7 @@ Expr *Expr_From_Binary(BinaryOpKind op, Expr *left, Expr *right)
   return (Expr *)binaryExp;
 }
 
-Expr *Expr_From_Attribute(char *id, Expr *left)
+Expr *Expr_From_Attribute(Ident id, Expr *left)
 {
   AttributeExpr *attrExp = mm_alloc(sizeof(AttributeExpr));
   attrExp->kind = ATTRIBUTE_KIND;
@@ -199,7 +201,6 @@ static int arraylist_get_nesting(Vector *vec)
 Expr *Expr_From_ArrayListExpr(Vector *vec)
 {
   int nesting = arraylist_get_nesting(vec) + 1;
-  Log_Debug("array list expr nesting: %d", nesting);
   ListExpr *listExp = mm_alloc(sizeof(ListExpr));
   listExp->kind = ARRAY_LIST_KIND;
   listExp->nesting = nesting;
@@ -273,7 +274,6 @@ static int maplist_get_nesting(Vector *vec)
 Expr *Expr_From_MapListExpr(Vector *vec)
 {
   int nesting = maplist_get_nesting(vec) + 1;
-  Log_Debug("map list expr nesting: %d", nesting);
   ListExpr *listExp = mm_alloc(sizeof(ListExpr));
   listExp->kind = MAP_LIST_KIND;
   listExp->nesting = nesting;
@@ -564,19 +564,19 @@ static void free_proto_stmt(Stmt *stmt)
 }
 
 static void (*__free_stmt_funcs[])(Stmt *) = {
-  NULL,                     /* INVALID          */
-  free_vardecl_stmt,        /* VAR_KIND         */
-  free_varlistdecl_stmt,    /* VARLIST_KIND     */
-  free_assign_stmt,         /* ASSIGN_KIND      */
-  free_assignlist_stmt,     /* ASSIGNLIST_KIND  */
-  free_funcdecl_stmt,       /* FUNC_KIND        */
-  free_proto_stmt,          /* PROTO_KIND       */
-  free_expr_stmt,           /* EXPR_KIND        */
-  free_return_stmt,         /* RETURN_KIND      */
-  free_list_stmt,           /* LIST_KIND        */
-  free_alias_stmt,          /* TYPEALIAS_KIND   */
-  free_klass_stmt,          /* CLASS_KIND       */
-  free_klass_stmt,          /* TRAIT_KIND       */
+  NULL,                     /* INVALID            */
+  free_vardecl_stmt,        /* VAR_KIND           */
+  free_varlistdecl_stmt,    /* VARLIST_EXPR_KIND  */
+  free_assign_stmt,         /* ASSIGN_KIND        */
+  free_assignlist_stmt,     /* ASSIGNLIST_KIND    */
+  free_funcdecl_stmt,       /* FUNC_KIND          */
+  free_proto_stmt,          /* PROTO_KIND         */
+  free_expr_stmt,           /* EXPR_KIND          */
+  free_return_stmt,         /* RETURN_KIND        */
+  free_list_stmt,           /* LIST_KIND          */
+  free_alias_stmt,          /* TYPEALIAS_KIND     */
+  free_klass_stmt,          /* CLASS_KIND         */
+  free_klass_stmt,          /* TRAIT_KIND         */
   NULL, NULL, NULL, NULL,
   NULL, NULL, NULL, NULL,
 };
@@ -589,11 +589,11 @@ void Free_Stmt_Func(void *item, void *arg)
   __free_stmt_func(stmt);
 }
 
-Stmt *__Stmt_From_VarDecl(char *id, TypeDesc *desc, Expr *exp, int k)
+Stmt *__Stmt_From_VarDecl(Ident *id, TypeDesc *desc, Expr *exp, int k)
 {
   VarDeclStmt *varStmt = mm_alloc(sizeof(VarDeclStmt));
   varStmt->kind = VAR_KIND;
-  varStmt->id = id;
+  varStmt->id = *id;
   varStmt->desc = desc;
   varStmt->exp = exp;
   varStmt->konst = k;
@@ -603,7 +603,7 @@ Stmt *__Stmt_From_VarDecl(char *id, TypeDesc *desc, Expr *exp, int k)
 Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeDesc *desc, Expr *exp, int k)
 {
   VarListDeclStmt *varListStmt = mm_alloc(sizeof(VarListDeclStmt));
-  varListStmt->kind = VARLIST_KIND;
+  varListStmt->kind = VARLIST_EXPR_KIND;
   varListStmt->ids = ids;
   varListStmt->desc = desc;
   varListStmt->exp = exp;
@@ -630,7 +630,7 @@ Stmt *Stmt_From_AssignList(Vector *left, Expr *right)
   return (Stmt *)assignListStmt;
 }
 
-Stmt *Stmt_From_FuncDecl(char *id, Vector *args, Vector *rets, Vector *stmts)
+Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts)
 {
   FuncDeclStmt *funcStmt = mm_alloc(sizeof(FuncDeclStmt));
   funcStmt->kind = FUNC_KIND;
@@ -665,7 +665,7 @@ Stmt *Stmt_From_List(Vector *vec)
   return (Stmt *)listStmt;
 }
 
-Stmt *Stmt_From_TypeAlias(char *id, TypeDesc *desc)
+Stmt *Stmt_From_TypeAlias(Ident id, TypeDesc *desc)
 {
   TypeAliasStmt *aliasStmt = mm_alloc(sizeof(TypeAliasStmt));
   aliasStmt->kind = TYPEALIAS_KIND;
@@ -674,7 +674,7 @@ Stmt *Stmt_From_TypeAlias(char *id, TypeDesc *desc)
   return (Stmt *)aliasStmt;
 }
 
-Stmt *Stmt_From_Klass(char *id, StmtKind kind, Vector *super, Vector *body)
+Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body)
 {
   assert(kind == CLASS_KIND || kind == TRAIT_KIND);
   KlassStmt *klsStmt = mm_alloc(sizeof(KlassStmt));
@@ -685,7 +685,7 @@ Stmt *Stmt_From_Klass(char *id, StmtKind kind, Vector *super, Vector *body)
   return (Stmt *)klsStmt;
 }
 
-Stmt *Stmt_From_ProtoDecl(char *id, Vector *args, Vector *rets)
+Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets)
 {
   ProtoDeclStmt *protoStmt = mm_alloc(sizeof(ProtoDeclStmt));
   protoStmt->kind = PROTO_KIND;
@@ -870,8 +870,8 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
 {
   Import *import =  __find_import(ps, path);
   if (import != NULL) {
-    Parser_Synatx_Error(ps, pathloc,
-      "Package '%s' is imported duplicately.", path);
+    Parser_Syntax_Error(ps, pathloc,
+                        "Package '%s' is imported duplicately.", path);
     return NULL;
   }
 
@@ -879,14 +879,14 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
   if (id != NULL) {
     sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
     if (sym != NULL) {
-      Parser_Synatx_Error(ps, idloc, "Symbol '%s' is duplicated.", path);
+      Parser_Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
       return NULL;
     }
   }
 
   struct extpkg *extpkg = load_extpkg(ps, path);
   if (extpkg == NULL) {
-    Parser_Synatx_Error(ps, pathloc, "Package '%s' is loaded failure.", path);
+    Parser_Syntax_Error(ps, pathloc, "Package '%s' is loaded failure.", path);
     return NULL;
   }
 
@@ -901,7 +901,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
   sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
   if (sym != NULL) {
     free_extpkg(extpkg);
-    Parser_Synatx_Error(ps, idloc, "Symbol '%s' is duplicated.", path);
+    Parser_Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
     return NULL;
   }
 
@@ -922,22 +922,22 @@ static inline void __add_stmt(ParserState *ps, Stmt *stmt)
   Vector_Append(&ps->stmts, stmt);
 }
 
-static void __new_var(ParserState *ps, char *id, TypeDesc *desc, int konst)
+static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int konst)
 {
   VarSymbol *sym;
   if (konst)
-    sym = STable_Add_Const(ps->u->stbl, id, desc);
+    sym = STable_Add_Const(ps->u->stbl, id->name, desc);
   else
-    sym = STable_Add_Var(ps->u->stbl, id, desc);
+    sym = STable_Add_Var(ps->u->stbl, id->name, desc);
 
   if (sym != NULL) {
     if (konst)
-      Log_Debug("add const '%s' successfully", id);
+      Log_Debug("add const '%s' successfully", id->name);
     else
-      Log_Debug("add var '%s' successfully", id);
+      Log_Debug("add var '%s' successfully", id->name);
     sym->parent = ps->u->sym;
   } else {
-    Parser_Synatx_Error(ps, NULL, "Symbol '%s' is duplicated", id);
+    Parser_Syntax_Error(ps, &id->pos, "Symbol '%s' is duplicated", id->name);
   }
 }
 
@@ -949,7 +949,7 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
   if (stmt->kind == VAR_KIND) {
     VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
     __add_stmt(ps, stmt);
-    __new_var(ps, varStmt->id, varStmt->desc, varStmt->konst);
+    __new_var(ps, &varStmt->id, varStmt->desc, varStmt->konst);
   } else if (stmt->kind == LIST_KIND) {
     ListStmt *listStmt = (ListStmt *)stmt;
     Stmt *s;
@@ -958,15 +958,15 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
       assert(s->kind == VAR_KIND);
       __add_stmt(ps, s);
       varStmt = (VarDeclStmt *)s;
-      __new_var(ps, varStmt->id, varStmt->desc, varStmt->konst);
+      __new_var(ps, &varStmt->id, varStmt->desc, varStmt->konst);
     }
     Vector_Free_Self(listStmt->vec);
     mm_free(listStmt);
   } else {
-    assert(stmt->kind == VARLIST_KIND);
+    assert(stmt->kind == VARLIST_EXPR_KIND);
     __add_stmt(ps, stmt);
     VarListDeclStmt *varsStmt = (VarListDeclStmt *)stmt;
-    char *id;
+    Ident *id;
     Vector_ForEach(id, varsStmt->ids) {
       __new_var(ps, id, varsStmt->desc, varsStmt->konst);
     }
@@ -977,7 +977,7 @@ static int __validate_count(ParserState *ps, int lsz, int rsz)
 {
   if (lsz < rsz) {
     /* var a = foo(), 100; whatever foo() is single or multi values */
-    Parser_Synatx_Error(ps, NULL, "extra expression in var declaration");
+    Parser_Syntax_Error(ps, NULL, "extra expression in var declaration");
     return 0;
   }
 
@@ -988,7 +988,7 @@ static int __validate_count(ParserState *ps, int lsz, int rsz)
      * if exprs == 0, it's ok
     */
     if (rsz > 1) {
-      Parser_Synatx_Error(ps, NULL, "missing expression in var declaration");
+      Parser_Syntax_Error(ps, NULL, "missing expression in var declaration");
       return 0;
     }
   }
@@ -1009,7 +1009,7 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
     /* count of left ids == count of right expressions */
     ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
 
-    char *id;
+    Ident *id;
     Expr *exp;
     Stmt *varStmt;
     Vector_ForEach(id, ids) {
@@ -1037,13 +1037,13 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
   assert(exps == NULL);
 
   if (isz == 1) {
-    char *id = Vector_Get(ids, 0);
+    Ident *id = Vector_Get(ids, 0);
     Vector_Free_Self(ids);
     TYPE_INCREF(desc);
     return __Stmt_From_VarDecl(id, desc, NULL, k);
   } else {
     ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
-    char *id;
+    Ident *id;
     Stmt *varStmt;
     Vector_ForEach(id, ids) {
       TYPE_INCREF(desc);
@@ -1068,12 +1068,15 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
 
     BaseExpr *e;
     Expr *right;
+    Ident ident;
     Stmt *varStmt;
     Vector_ForEach(e, ids) {
       assert(e->kind == ID_KIND);
       right = Vector_Get(exps, i);
       assert(right);
-      varStmt = __Stmt_From_VarDecl(e->id, NULL, right, 0);
+      ident.name = e->id;
+      ident.pos = e->pos;
+      varStmt = __Stmt_From_VarDecl(&ident, NULL, right, 0);
       Vector_Append(listStmt->vec, varStmt);
     }
     Vector_Free(ids, free_expr_func, NULL);
@@ -1108,7 +1111,6 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
     /* count of left expressions == count of right expressions */
     ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
 
-    char *id;
     Expr *lexp, *rexp;
     Stmt *assignStmt;
     Vector_ForEach(lexp, left) {
@@ -1154,12 +1156,13 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   }
   proto = TypeDesc_Get_Proto(pdesc, rdesc);
 
-  sym = STable_Add_Func(ps->u->stbl, funcStmt->id, proto);
+  sym = STable_Add_Func(ps->u->stbl, funcStmt->id.name, proto);
   if (sym != NULL) {
-    Log_Debug("add func '%s' successfully", funcStmt->id);
+    Log_Debug("add func '%s' successfully", funcStmt->id.name);
     sym->parent = ps->u->sym;
   } else {
-    Parser_Synatx_Error(ps, NULL, "Symbol '%s' is duplicated.", funcStmt->id);
+    Parser_Syntax_Error(ps, &funcStmt->id.pos,
+                        "Symbol '%s' is duplicated.", funcStmt->id.name);
   }
 }
 
@@ -1187,16 +1190,17 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
   Symbol *sym;
   TypeDesc *proto = TypeDesc_Get_Proto(pdesc, rdesc);
   if (stmt->native)
-    sym = (Symbol *)STable_Add_NFunc(ps->u->stbl, stmt->id, proto);
+    sym = (Symbol *)STable_Add_NFunc(ps->u->stbl, stmt->id.name, proto);
   else
-    sym = (Symbol *)STable_Add_IFunc(ps->u->stbl, stmt->id, proto);
+    sym = (Symbol *)STable_Add_IFunc(ps->u->stbl, stmt->id.name, proto);
 
   if (sym != NULL) {
     Log_Debug("add %s '%s' successfully",
-              (stmt->native ? "nfunc" : "proto"), stmt->id);
+              (stmt->native ? "nfunc" : "proto"), stmt->id.name);
     sym->parent = ps->u->sym;
   } else {
-    Parser_Synatx_Error(ps, NULL, "Symbol '%s' is duplicated", stmt->id);
+    Parser_Syntax_Error(ps, &stmt->id.pos, "Symbol '%s' is duplicated",
+                        stmt->id.name);
     TYPE_DECREF(proto);
   }
 }
@@ -1220,8 +1224,8 @@ void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
     return;
   assert(stmt->kind == TYPEALIAS_KIND);
   TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
-  STable_Add_Alias(ps->u->stbl, aliasStmt->id, aliasStmt->desc);
-  Log_Debug("add typealias '%s' successful", aliasStmt->id);
+  STable_Add_Alias(ps->u->stbl, aliasStmt->id.name, aliasStmt->desc);
+  Log_Debug("add typealias '%s' successful", aliasStmt->id.name);
   mm_free(stmt);
 }
 
@@ -1234,11 +1238,11 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
   KlassStmt *klsStmt = (KlassStmt *)stmt;
   ClassSymbol *sym;
   if (stmt->kind == CLASS_KIND) {
-    sym = STable_Add_Class(ps->u->stbl, klsStmt->id);
+    sym = STable_Add_Class(ps->u->stbl, klsStmt->id.name);
     Log_Debug("add class '%s' successfully", sym->name);
   } else {
     assert(stmt->kind == TRAIT_KIND);
-    sym = STable_Add_Trait(ps->u->stbl, klsStmt->id);
+    sym = STable_Add_Trait(ps->u->stbl, klsStmt->id.name);
     Log_Debug("add trait '%s' successfully", sym->name);
   }
 
@@ -1253,7 +1257,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
     if (s->kind == VAR_KIND) {
       VarDeclStmt *varStmt = (VarDeclStmt *)s;
       assert(varStmt->konst == 0);
-      __new_var(ps, varStmt->id, varStmt->desc, 0);
+      __new_var(ps, &varStmt->id, varStmt->desc, 0);
     } else if (s->kind == FUNC_KIND) {
       __parse_funcdecl(ps, s);
     } else {
@@ -1261,9 +1265,9 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       ProtoDeclStmt *proto = (ProtoDeclStmt *)s;
       if (s->native) {
         assert(sym->kind == SYM_CLASS);
-        Log_Debug("add func '%s' to '%s'", proto->id, sym->name);
+        Log_Debug("add func '%s' to '%s'", proto->id.name, sym->name);
       } else {
-        Log_Debug("add proto '%s' to '%s'", proto->id, sym->name);
+        Log_Debug("add proto '%s' to '%s'", proto->id.name, sym->name);
         assert(sym->kind == SYM_TRAIT);
       }
       __parse_proto(ps, proto);
@@ -1297,7 +1301,7 @@ static void print_error(ParserState *ps, Position *pos, char *fmt, va_list ap)
   puts(""); /* newline */
 }
 
-void Parser_Synatx_Error(ParserState *ps, Position *pos, char *fmt, ...)
+void Parser_Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
 {
   if (++ps->errnum >= MAX_ERRORS) {
     fprintf(stderr, "Too many errors.\n");

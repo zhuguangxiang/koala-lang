@@ -29,13 +29,7 @@
 extern "C" {
 #endif
 
-/* source code lineinfo for error handle */
-typedef struct lineinfo {
-  char *line;
-  int row;
-  int col;
-} LineInfo;
-
+/* source code token position for error handler */
 typedef struct position {
   int row;
   int col;
@@ -43,19 +37,20 @@ typedef struct position {
 
 /* identifier */
 typedef struct ident {
-  char *id;
+  char *name;
   Position pos;
 } Ident;
 
-Ident *New_Ident(char *id);
+Ident *New_Ident(String name);
 
 /* idtype for parameter-list in AST */
 typedef struct idtype {
   Ident id;
   TypeDesc *desc;
+  Position pos; /* desc position */
 } IdType;
 
-IdType *New_IdType(char *id, TypeDesc *desc);
+IdType *New_IdType(Ident *id, TypeDesc *desc, Position pos);
 void Free_IdType(IdType *idtype);
 
 /* unary operator kind */
@@ -117,7 +112,7 @@ typedef struct expr Expr;
 
 #define EXPR_HEAD \
   ExprKind kind;  \
-  LineInfo line;  \
+  Position pos;   \
   TypeDesc *desc; \
   ExprCtx ctx;    \
   Expr *right;    \
@@ -174,7 +169,7 @@ Expr *Expr_From_Binary(BinaryOpKind op, Expr *left, Expr *right);
 /* attribute expression */
 typedef struct attributeexpr {
   EXPR_HEAD
-  char *id;
+  Ident id;
   Expr *left;
 } AttributeExpr;
 
@@ -200,7 +195,7 @@ typedef struct sliceexpr {
   Expr *left;
 } SliceExpr;
 
-Expr *Expr_From_Attribute(char *id, Expr *left);
+Expr *Expr_From_Attribute(Ident id, Expr *left);
 Expr *Expr_From_SubScript(Expr *index, Expr *left);
 Expr *Expr_From_Call(Vector *args, Expr *left);
 Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left);
@@ -219,6 +214,7 @@ typedef struct arrayexpr {
   EXPR_HEAD
   Vector *dims;
   TypeDesc *base;
+  Position basePos;
   ListExpr *listExp;
 } ArrayExpr;
 
@@ -237,6 +233,7 @@ Expr *Expr_From_MapEntry(Expr *k, Expr *v);
 typedef struct mapexpr {
   EXPR_HEAD
   TypeDesc *mapDesc;
+  Position mapPos;
   ListExpr *listExp;
 } MapExpr;
 
@@ -247,6 +244,7 @@ Expr *Expr_From_Map(TypeDesc *desc, Expr *listExp);
 typedef struct setexpr {
   EXPR_HEAD
   TypeDesc *setDesc;
+  Position setPos;
   ListExpr *listExp;
 } SetExpr;
 
@@ -279,7 +277,7 @@ typedef enum stmtkind {
    * var a, b = AddAndSub(100, 200)
    * a, b := AddAndSub(100, 200)
    */
-  VARLIST_KIND,
+  VARLIST_EXPR_KIND,
   /*
    * one left, one right
    * examples:
@@ -322,8 +320,7 @@ typedef enum stmtkind {
 
 #define STMT_HEAD \
   StmtKind kind;  \
-  int native;     \
-  LineInfo line;
+  int native;
 
 typedef struct stmt {
   STMT_HEAD
@@ -332,17 +329,19 @@ typedef struct stmt {
 /* variable & constant declaration, see VAR_KIND */
 typedef struct vardeclstmt {
   STMT_HEAD
-  char *id;
+  Ident id;
   TypeDesc *desc;
+  Position descPos;
   Expr *exp;
   int konst;
 } VarDeclStmt;
 
-/* variable list declaration, see VARLIST_KIND */
+/* variable list declaration, see VARLIST_EXPR_KIND */
 typedef struct varlistdeclstmt {
   STMT_HEAD
   Vector *ids;
   TypeDesc *desc;
+  Position descPos;
   Expr *exp;
   int konst;
 } VarListDeclStmt;
@@ -374,7 +373,7 @@ typedef struct assignliststmt {
 /* function declaration */
 typedef struct funcdeclstmt {
   STMT_HEAD
-  char *id;
+  Ident id;
   Vector *args; /* idtype statement */
   Vector *rets; /* idtype statement */
   Vector *body; /* body statements */
@@ -399,19 +398,19 @@ typedef struct liststmt {
 } ListStmt;
 
 void Free_Stmt_Func(void *item, void *arg);
-Stmt *__Stmt_From_VarDecl(char *id, TypeDesc *desc, Expr *exp, int k);
+Stmt *__Stmt_From_VarDecl(Ident *id, TypeDesc *desc, Expr *exp, int k);
 Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeDesc *desc, Expr *exp, int k);
 #define Stmt_From_VarDecl(id, desc, exp) \
-  __Stmt_From_VarDecl(id, desc, exp, 0)
+  __Stmt_From_VarDecl(&(id), desc, exp, 0)
 #define Stmt_From_VarListDecl(ids, desc, exp) \
   __Stmt_From_VarListDecl(ids, desc, exp, 0)
 #define Stmt_From_ConstDecl(id, desc, exp) \
-  __Stmt_From_VarDecl(id, desc, exp, 1)
+  __Stmt_From_VarDecl(&(id), desc, exp, 1)
 #define Stmt_From_ConstListDecl(ids, desc, exp) \
   __Stmt_From_VarListDecl(ids, desc, exp, 1)
 Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right);
 Stmt *Stmt_From_AssignList(Vector *left, Expr *right);
-Stmt *Stmt_From_FuncDecl(char *id, Vector *args, Vector *rets, Vector *stmts);
+Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts);
 Stmt *Stmt_From_Expr(Expr *exp);
 Stmt *Stmt_From_Return(Vector *exps);
 Stmt *Stmt_From_List(Vector *vec);
@@ -419,14 +418,15 @@ Stmt *Stmt_From_List(Vector *vec);
 /* typealias statement */
 typedef struct typealiasstmt {
   STMT_HEAD
-  char *id;
+  Ident id;
   TypeDesc *desc;
+  Position descPos;
 } TypeAliasStmt;
 
 /* class or trait statement */
 typedef struct klassstmt {
   STMT_HEAD
-  char *id;
+  Ident id;
   Vector *super;
   Vector *body;
 } KlassStmt;
@@ -434,14 +434,14 @@ typedef struct klassstmt {
 /* proto declaration, used only in trait */
 typedef struct protodescstmt {
   STMT_HEAD
-  char *id;
+  Ident id;
   Vector *args; /* idtype statement */
   Vector *rets; /* idtype statement */
 } ProtoDeclStmt;
 
-Stmt *Stmt_From_TypeAlias(char *id, TypeDesc *desc);
-Stmt *Stmt_From_Klass(char *id, StmtKind kind, Vector *super, Vector *body);
-Stmt *Stmt_From_ProtoDecl(char *id, Vector *args, Vector *rets);
+Stmt *Stmt_From_TypeAlias(Ident id, TypeDesc *desc);
+Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body);
+Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets);
 
 #ifdef __cplusplus
 }

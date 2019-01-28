@@ -27,6 +27,12 @@
 #define yyloc_row(loc) ((loc).first_line)
 #define yyloc_col(loc) ((loc).first_column)
 
+#define DeclareIdent(name, s, loc) \
+  Ident name = {(s).str, {yyloc_row(loc), yyloc_col(loc)}}
+
+#define DeclarePosition(name, loc) \
+  Position name = {yyloc_row(loc), yyloc_col(loc)}
+
 #define SetPosition(pos, loc) \
 do {                          \
   (pos).row = yyloc_row(loc); \
@@ -46,7 +52,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 #define yyerror(loc, ps, scanner, errmsg) ((void)0)
 #endif
 
-#define ERRORMSG "expected '%s' before '%s'\n"
+#define ERRMSG "expected '%s' before '%s'\n"
 
 #define Syntax_Error(loc, expected) \
 do {                                \
@@ -54,10 +60,8 @@ do {                                \
   char *token = ps->line.token;     \
   if (token[0] == '\n')             \
     token = "\\n";                  \
-  Position pos;                     \
-  SetPosition(pos, loc);            \
-  Parser_Synatx_Error(ps, &pos,     \
-    ERRORMSG, expected, token);     \
+  DeclarePosition(pos, loc);        \
+  Parser_Syntax_Error(ps, &pos, ERRMSG, expected, token);  \
 } while (0)
 
 #define Syntax_Error_Clear(loc, expected) \
@@ -70,9 +74,8 @@ do {                                      \
 do {                                          \
   yyclearin;                                  \
   yyerrok;                                    \
-  Position pos;                               \
-  SetPosition(pos, loc);                      \
-  Parser_Synatx_Error(ps, &pos, "%s\n", msg); \
+  DeclarePosition(pos, loc);                  \
+  Parser_Syntax_Error(ps, &pos, "%s\n", msg); \
 } while (0)
 
 
@@ -411,25 +414,29 @@ FunctionType
 IDTypeList
   : Type
   {
+    DeclarePosition(p1, @1);
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1));
+    Vector_Append($$, New_IdType(NULL, $1, p1));
   }
   | ID Type
   {
-    IdType *idtype = New_IdType($1.str, $2);
-    SetPosition(idtype->id.pos, @1);
+    DeclareIdent(id, $1, @1);
+    DeclarePosition(p2, @2);
+    IdType *idtype = New_IdType(&id, $2, p2);
     $$ = Vector_New();
     Vector_Append($$, idtype);
   }
   | IDTypeList ',' Type
   {
+    DeclarePosition(p3, @3);
     $$ = $1;
-    Vector_Append($$, New_IdType(NULL, $3));
+    Vector_Append($$, New_IdType(NULL, $3, p3));
   }
   | IDTypeList ',' ID Type
   {
-    IdType *idtype = New_IdType($3.str, $4);
-    SetPosition(idtype->id.pos, @3);
+    DeclareIdent(id, $3, @3);
+    DeclarePosition(p4, @4);
+    IdType *idtype = New_IdType(&id, $4, p4);
     $$ = $1;
     Vector_Append($$, idtype);
   }
@@ -447,13 +454,15 @@ ParameterList
   }
   | IDTypeList VArgType
   {
+    DeclarePosition(p2, @2);
     $$ = $1;
-    Vector_Append($$, New_IdType(NULL, $2));
+    Vector_Append($$, New_IdType(NULL, $2, p2));
   }
   | VArgType
   {
+    DeclarePosition(p1, @1);
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1));
+    Vector_Append($$, New_IdType(NULL, $1, p1));
   }
   ;
 
@@ -471,8 +480,9 @@ VArgType
 ReturnList
   : Type
   {
+    DeclarePosition(p1, @1);
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1));
+    Vector_Append($$, New_IdType(NULL, $1, p1));
   }
   | '(' IDTypeList ')'
   {
@@ -483,14 +493,14 @@ ReturnList
 IDList
   : ID
   {
-    Ident *id = New_Ident($1.str);
+    Ident *id = New_Ident($1);
     SetPosition(id->pos, @1);
     $$ = Vector_New();
     Vector_Append($$, id);
   }
   | IDList ',' ID
   {
-    Ident *id = New_Ident($3.str);
+    Ident *id = New_Ident($3);
     SetPosition(id->pos, @3);
     $$ = $1;
     Vector_Append($$, id);
@@ -510,15 +520,13 @@ Imports
 Import
   : IMPORT PackagePath ';'
   {
-    Position pos;
-    SetPosition(pos, @2);
-    Parser_New_Import(ps, NULL, $2.str, NULL, &pos);
+    DeclarePosition(p2, @2);
+    Parser_New_Import(ps, NULL, $2.str, NULL, &p2);
   }
   | IMPORT ID PackagePath ';'
   {
-    Position p1, p2;
-    SetPosition(p1, @2);
-    SetPosition(p2, @3);
+    DeclarePosition(p1, @2);
+    DeclarePosition(p2, @3);
     Parser_New_Import(ps, $2.str, $3.str, &p1, &p2);
   }
   | IMPORT ID error
@@ -642,19 +650,23 @@ VariableDeclaration
 FunctionDeclaration
   : FUNC ID '(' ParameterList ')' ReturnList Block
   {
-    $$ = Stmt_From_FuncDecl($2.str, $4, $6, $7);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_FuncDecl(id, $4, $6, $7);
   }
   | FUNC ID '(' ParameterList ')' Block
   {
-    $$ = Stmt_From_FuncDecl($2.str, $4, NULL, $6);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_FuncDecl(id, $4, NULL, $6);
   }
   | FUNC ID '(' ')' ReturnList Block
   {
-    $$ = Stmt_From_FuncDecl($2.str, NULL, $5, $6);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_FuncDecl(id, NULL, $5, $6);
   }
   | FUNC ID '(' ')' Block
   {
-    $$ = Stmt_From_FuncDecl($2.str, NULL, NULL, $5);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_FuncDecl(id, NULL, NULL, $5);
   }
   | FUNC error
   {
@@ -666,7 +678,8 @@ FunctionDeclaration
 TypeAliasDeclaration
   : TYPEALIAS ID Type ';'
   {
-    $$ = Stmt_From_TypeAlias($2.str, $3);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_TypeAlias(id, $3);
   }
   | TYPEALIAS ID error
   {
@@ -683,19 +696,23 @@ TypeAliasDeclaration
 TypeDeclaration
   : CLASS ID Extends '{' ClassMemberDeclarationsOrEmpty '}'
   {
-    $$ = Stmt_From_Klass($2.str, CLASS_KIND, $3, $5);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_Klass(id, CLASS_KIND, $3, $5);
   }
   | CLASS ID Extends ';'
   {
-    $$ = Stmt_From_Klass($2.str, CLASS_KIND, $3, NULL);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_Klass(id, CLASS_KIND, $3, NULL);
   }
   | TRAIT ID Extends '{' TraitMemberDeclarationsOrEmpty '}'
   {
-    $$ = Stmt_From_Klass($2.str, TRAIT_KIND, $3, $5);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_Klass(id, TRAIT_KIND, $3, $5);
   }
   | TRAIT ID Extends ';'
   {
-    $$ = Stmt_From_Klass($2.str, TRAIT_KIND, $3, NULL);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_Klass(id, TRAIT_KIND, $3, NULL);
   }
   ;
 
@@ -823,34 +840,41 @@ TraitMemberDeclaration
 FieldDeclaration
   : ID Type ';'
   {
-    $$ = Stmt_From_VarDecl($1.str, $2, NULL);
+    DeclareIdent(id, $1, @1);
+    $$ = Stmt_From_VarDecl(id, $2, NULL);
   }
   | ID '=' Expression ';'
   {
-    $$ = Stmt_From_VarDecl($1.str, NULL, $3);
+    DeclareIdent(id, $1, @1);
+    $$ = Stmt_From_VarDecl(id, NULL, $3);
   }
   | ID Type '=' Expression ';'
   {
-    $$ = Stmt_From_VarDecl($1.str, $2, $4);
+    DeclareIdent(id, $1, @1);
+    $$ = Stmt_From_VarDecl(id, $2, $4);
   }
   ;
 
 ProtoDeclaration
   : FUNC ID '(' ParameterList ')' ReturnList ';'
   {
-    $$ = Stmt_From_ProtoDecl($2.str, $4, $6);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_ProtoDecl(id, $4, $6);
   }
   | FUNC ID '(' ParameterList ')' ';'
   {
-    $$ = Stmt_From_ProtoDecl($2.str, $4, NULL);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_ProtoDecl(id, $4, NULL);
   }
   | FUNC ID '(' ')' ReturnList ';'
   {
-    $$ = Stmt_From_ProtoDecl($2.str, NULL, $5);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_ProtoDecl(id, NULL, $5);
   }
   | FUNC ID '(' ')' ';'
   {
-    $$ = Stmt_From_ProtoDecl($2.str, NULL, NULL);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_ProtoDecl(id, NULL, NULL);
   }
   ;
 
@@ -1092,7 +1116,8 @@ PrimaryExpression
 AttributeExpression
   : PrimaryExpression '.' ID
   {
-    $$ = Expr_From_Attribute($3.str, $1);
+    DeclareIdent(id, $3, @3);
+    $$ = Expr_From_Attribute(id, $1);
   }
   ;
 
@@ -1137,6 +1162,7 @@ Atom
   : ID
   {
     $$ = Expr_From_Id($1.str);
+    SetPosition($$->pos, @1);
   }
   | CONSTANT
   {
@@ -1145,10 +1171,12 @@ Atom
   | SELF
   {
     $$ = Expr_From_Self();
+    SetPosition($$->pos, @1);
   }
   | SUPER
   {
     $$ = Expr_From_Super();
+    SetPosition($$->pos, @1);
   }
   | '(' Expression ')'
   {
@@ -1184,30 +1212,37 @@ CONSTANT
   : CHAR_LITERAL
   {
     $$ = Expr_From_Char($1);
+    SetPosition($$->pos, @1);
   }
   | INT_LITERAL
   {
     $$ = Expr_From_Integer($1);
+    SetPosition($$->pos, @1);
   }
   | FLOAT_LITERAL
   {
     $$ = Expr_From_Float($1);
+    SetPosition($$->pos, @1);
   }
   | STRING_LITERAL
   {
     $$ = Expr_From_String($1.str);
+    SetPosition($$->pos, @1);
   }
   | TOKEN_NIL
   {
     $$ = Expr_From_Nil();
+    SetPosition($$->pos, @1);
   }
   | TOKEN_TRUE
   {
     $$ = Expr_From_Bool(1);
+    SetPosition($$->pos, @1);
   }
   | TOKEN_FALSE
   {
     $$ = Expr_From_Bool(0);
+    SetPosition($$->pos, @1);
   }
   ;
 

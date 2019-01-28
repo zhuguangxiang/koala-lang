@@ -199,7 +199,9 @@ void Parser_Exit_Scope(ParserState *ps)
 {
   ParserUnit *u = ps->u;
 
-  show_parser_unit(ps);
+  if (ps->state == STATE_PARSING_AST)
+    show_parser_unit(ps);
+
   check_unused_symbols(u);
 
   Log_Debug("Exit scope-%d(%s)", ps->depth, scope_strings[u->scope]);
@@ -240,6 +242,7 @@ ParserState *New_Parser(PkgInfo *pkg, char *filename)
 
 int Build_AST(ParserState *ps, FILE *in)
 {
+  ps->state = STATE_BUILDING_AST;
   Log_Debug("\x1b[34m----BUILDING AST-----------\x1b[0m");
   yyscan_t scanner;
   yylex_init_extra(ps, &scanner);
@@ -247,6 +250,7 @@ int Build_AST(ParserState *ps, FILE *in)
   yyparse(ps, scanner);
   yylex_destroy(scanner);
   Log_Debug("\x1b[34m----END OF BUILDING AST----\x1b[0m");
+  ps->state = STATE_NONE;
   return ps->errnum;
 }
 
@@ -495,9 +499,9 @@ static void parse_class_supers(ParserState *ps, Vector *supers)
 static void parse_class_stmt(ParserState *ps, Stmt *stmt)
 {
   KlassStmt *clsStmt = (KlassStmt *)stmt;
-  Log_Debug("----parse class '%s'----", clsStmt->id);
+  Log_Debug("----parse class '%s'----", clsStmt->id.name);
 
-  Symbol *sym = STable_Get(ps->u->stbl, clsStmt->id);
+  Symbol *sym = STable_Get(ps->u->stbl, clsStmt->id.name);
   assert(sym);
 
   parse_class_supers(ps, clsStmt->super);
@@ -511,24 +515,24 @@ static void parse_class_stmt(ParserState *ps, Stmt *stmt)
 
   Parser_Exit_Scope(ps);
 
-  Log_Debug("----end of class '%s'----", clsStmt->id);
+  Log_Debug("----end of class '%s'----", clsStmt->id.name);
 }
 
 typedef void (*parse_stmt_func)(ParserState *, Stmt *);
 
 static parse_stmt_func parse_stmt_funcs[] = {
-  NULL,                     /* INVALID          */
-  parse_vardecl_stmt,       /* VAR_KIND         */
-  parse_varlistdecl_stmt,   /* VARLIST_KIND     */
-  parse_assign_stmt,        /* ASSIGN_KIND      */
-  parse_assignlist_stmt,    /* ASSIGNLIST_KIND  */
-  parse_funcdecl_stmt,      /* FUNC_KIND        */
-  parse_protodecl_stmt,     /* PROTO_KIND       */
-  parse_expr_stmt,          /* EXPR_KIND        */
-  parse_return_stmt,        /* RETURN_KIND      */
-  parse_list_stmt,          /* LIST_KIND        */
-  NULL,                     /* TYPEALIAS_KIND   */
-  parse_class_stmt,         /* CLASS_KIND       */
+  NULL,                     /* INVALID            */
+  parse_vardecl_stmt,       /* VAR_KIND           */
+  parse_varlistdecl_stmt,   /* VARLIST_EXPR_KIND  */
+  parse_assign_stmt,        /* ASSIGN_KIND        */
+  parse_assignlist_stmt,    /* ASSIGNLIST_KIND    */
+  parse_funcdecl_stmt,      /* FUNC_KIND          */
+  parse_protodecl_stmt,     /* PROTO_KIND         */
+  parse_expr_stmt,          /* EXPR_KIND          */
+  parse_return_stmt,        /* RETURN_KIND        */
+  parse_list_stmt,          /* LIST_KIND          */
+  NULL,                     /* TYPEALIAS_KIND     */
+  parse_class_stmt,         /* CLASS_KIND         */
 };
 
 static void parser_vist_stmt(ParserState *ps, Stmt *stmt)
@@ -554,7 +558,9 @@ static void parse_stmts(ParserState *ps, Vector *stmts)
 
 void Parse(ParserState *ps)
 {
+  ps->state = STATE_PARSING_AST;
   Log_Debug("\x1b[32m----SEMANTIC ANALYSIS & CODE GEN-----------\x1b[0m");
   parse_stmts(ps, &ps->stmts);
   Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
+  ps->state = STATE_NONE;
 }

@@ -113,10 +113,16 @@ typedef struct parserunit {
 /* max errors before stopping compiling */
 #define MAX_ERRORS 8
 
+#define STATE_NONE 0
+#define STATE_BUILDING_AST 1
+#define STATE_PARSING_AST 2
+
 /*
  * ParserState per one source file
  */
 typedef struct parserstate {
+  /* state */
+  int state;
   /* file name for this module */
   char *filename;
   /* current compiling source file's package name */
@@ -154,7 +160,6 @@ typedef struct parserstate {
   int errnum;
   /* error messages */
   Vector errors;
-
 } ParserState;
 
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
@@ -172,7 +177,6 @@ void Init_Imports(ParserState *ps);
 void Fini_Imports(ParserState *ps);
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
                           Position *idloc, Position *pathloc);
-
 void Parser_New_Variables(ParserState *ps, Stmt *stmt);
 Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
                             Vector *exps, int k);
@@ -186,8 +190,7 @@ void Parser_New_Function(ParserState *ps, Stmt *stmt);
 void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt);
 void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt);
 TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz);
-
-void Parser_Synatx_Error(ParserState *ps, Position *pos, char *fmt, ...);
+void Parser_Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
 
 /* lex(flex) used APIs */
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);
