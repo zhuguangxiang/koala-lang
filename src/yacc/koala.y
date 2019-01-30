@@ -46,9 +46,10 @@ do {                          \
 #define YYERROR_VERBOSE 1
 static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 {
-  UNUSED_PARAMETER(ps);
   UNUSED_PARAMETER(scanner);
-  fprintf(stderr, ">>>>> %s\n", msg);
+  YYLTYPE *yyloc = loc;
+  fprintf(stderr, ">>>>%s:%d:%d: %s\n", ps->filename,
+          yyloc->first_line, yyloc->first_column, msg);
   return 0;
 }
 #else
