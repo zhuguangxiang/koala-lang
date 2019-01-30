@@ -617,6 +617,7 @@ ModuleStatement
   }
   | ConstDeclaration
   {
+    Parser_New_Variables(ps, $1);
   }
   | FunctionDeclaration
   {
