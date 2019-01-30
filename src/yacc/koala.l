@@ -158,6 +158,8 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "return"         { YY_RETURN(TOKEN_RETURN);    }
 "class"          { YY_RETURN(CLASS);           }
 "trait"          { YY_RETURN(TRAIT);           }
+"extends"        { YY_RETURN(EXTENDS);         }
+"with"           { YY_RETURN(WITH);            }
 "in"             { YY_RETURN(IN);              }
 "const"          { YY_RETURN(CONST);           }
 "import"         { YY_RETURN(IMPORT);          }

@@ -30,6 +30,9 @@
 #define DeclareIdent(name, s, loc) \
   Ident name = {(s).str, {yyloc_row(loc), yyloc_col(loc)}}
 
+#define DeclareType(name, type, loc) \
+  TypeWrapper name = {type, {yyloc_row(loc), yyloc_col(loc)}}
+
 #define DeclarePosition(name, loc) \
   Position name = {yyloc_row(loc), yyloc_col(loc)}
 
@@ -91,6 +94,7 @@ do {                                          \
   Expr *Expr;
   Stmt *Stmt;
   TypeDesc *TypeDesc;
+  IdType *IdType;
   int Operator;
 }
 
@@ -134,6 +138,8 @@ do {                                          \
 %token TOKEN_RETURN
 %token CLASS
 %token TRAIT
+%token EXTENDS
+%token WITH
 %token IN
 %token CONST
 %token IMPORT
@@ -177,7 +183,7 @@ do {                                          \
 %type <TypeDesc> MapType
 %type <TypeDesc> SetType
 %type <TypeDesc> KeyType
-
+%type <IdType> IDType
 %type <List> IDTypeList
 %type <List> ParameterList
 %type <List> ReturnList
@@ -193,8 +199,8 @@ do {                                          \
 %type <List> ClassMemberDeclarationsOrEmpty
 %type <List> ClassMemberDeclarations
 %type <Stmt> ClassMemberDeclaration
-%type <List> Extends
-%type <List> ExtendsMore
+%type <List> ExtendsOrEmpty
+%type <List> WithesOrEmpty
 %type <List> Traits
 %type <List> TraitMemberDeclarationsOrEmpty
 %type <List> TraitMemberDeclarations
@@ -246,6 +252,7 @@ do {                                          \
 %type <Expr> LogicAndExpression
 %type <Expr> LogicOrExpression
 %type <Expr> RangeExpression
+%type <Expr> WithExpression
 %type <Expr> Expression
 %type <List> ExpressionList
 %type <Operator> CompAssignOp
@@ -287,13 +294,6 @@ Type
   }
   ;
 
-ArrayType
-  : DIMS BaseType
-  {
-    $$ = TypeDesc_Get_Array($1, $2);
-  }
-  ;
-
 BaseType
   : PrimitiveType
   {
@@ -314,6 +314,13 @@ BaseType
   | SetType
   {
     $$ = $1;
+  }
+  ;
+
+ArrayType
+  : DIMS BaseType
+  {
+    $$ = TypeDesc_Get_Array($1, $2);
   }
   ;
 
@@ -409,41 +416,71 @@ FunctionType
   {
     $$ = TypeDesc_Get_Proto(NULL, NULL);
   }
+  | FUNC error
+  {
+    Syntax_Error_Clear(@2, "(");
+    $$ = NULL;
+  }
+  ;
+
+IDType
+  : ID Type
+  {
+    DeclareIdent(id, $1, @1);
+    DeclareType(type, $2, @2);
+    $$ = New_IdType(&id, &type);
+  }
+  | ID error
+  {
+    Syntax_Error_Clear(@2, "Type");
+    $$ = NULL;
+  }
   ;
 
 IDTypeList
-  : Type
+  : IDType
   {
-    DeclarePosition(p1, @1);
-    $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1, p1));
+    if ($1 != NULL) {
+      $$ = Vector_New();
+      Vector_Append($$, $1);
+    } else {
+      $$ = NULL;
+    }
   }
-  | ID Type
+  | IDTypeList ',' IDType
   {
-    DeclareIdent(id, $1, @1);
-    DeclarePosition(p2, @2);
-    IdType *idtype = New_IdType(&id, $2, p2);
-    $$ = Vector_New();
-    Vector_Append($$, idtype);
+    if ($1 != NULL && $3 != NULL) {
+      $$ = $1;
+      Vector_Append($$, $3);
+    } else {
+      $$ = NULL;
+      Free_IdTypeList($1);
+      Free_IdType($3);
+    }
   }
-  | IDTypeList ',' Type
+  | IDTypeList ',' error
   {
-    DeclarePosition(p3, @3);
-    $$ = $1;
-    Vector_Append($$, New_IdType(NULL, $3, p3));
-  }
-  | IDTypeList ',' ID Type
-  {
-    DeclareIdent(id, $3, @3);
-    DeclarePosition(p4, @4);
-    IdType *idtype = New_IdType(&id, $4, p4);
-    $$ = $1;
-    Vector_Append($$, idtype);
+    Free_IdTypeList($1);
+    Syntax_Error_Clear(@3, "IDType");
+    $$ = NULL;
   }
   | IDTypeList error
   {
+    Free_IdTypeList($1);
     Syntax_Error_Clear(@2, ",");
-    $$ = $1;
+    $$ = NULL;
+  }
+  ;
+
+TypeList
+  : Type
+  {
+  }
+  | TypeList ',' Type
+  {
+  }
+  | TypeList ',' error
+  {
   }
   ;
 
@@ -452,17 +489,24 @@ ParameterList
   {
     $$ = $1;
   }
-  | IDTypeList VArgType
+  | IDTypeList ',' ID VArgType
   {
-    DeclarePosition(p2, @2);
+    DeclareIdent(id, $3, @3);
+    DeclareType(type, $4, @4);
     $$ = $1;
-    Vector_Append($$, New_IdType(NULL, $2, p2));
+    Vector_Append($$, New_IdType(&id, &type));
   }
-  | VArgType
+  | ID VArgType
   {
-    DeclarePosition(p1, @1);
+    DeclareIdent(id, $1, @1);
+    DeclareType(type, $2, @2);
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1, p1));
+    Vector_Append($$, New_IdType(&id, &type));
+  }
+  | error
+  {
+    Syntax_ErrorMsg_Clear(@1, "invalid parameter list");
+    $$ = NULL;
   }
   ;
 
@@ -475,18 +519,29 @@ VArgType
   {
     $$ = TypeDesc_Get_Varg($2);
   }
+  | ELLIPSIS error
+  {
+
+  }
   ;
 
 ReturnList
   : Type
   {
-    DeclarePosition(p1, @1);
+    DeclareType(type, $1, @1);
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, $1, p1));
+    Vector_Append($$, New_IdType(NULL, &type));
   }
   | '(' IDTypeList ')'
   {
     $$ = $2;
+  }
+  | '(' TypeList ')'
+  {
+  }
+  | '(' error ')'
+  {
+
   }
   ;
 
@@ -561,7 +616,6 @@ ModuleStatement
   }
   | ConstDeclaration
   {
-    Parser_New_Variables(ps, $1);
   }
   | FunctionDeclaration
   {
@@ -597,11 +651,13 @@ ConstDeclaration
   }
   | CONST IDList '=' error
   {
+    Free_IdentList($2);
     Syntax_Error(@4, "expr-list");
     $$ = NULL;
   }
   | CONST IDList Type '=' error
   {
+    Free_IdentList($2);
     Syntax_Error(@5, "expr-list");
     $$ = NULL;
   }
@@ -627,16 +683,19 @@ VariableDeclaration
   }
   | VAR IDList error
   {
+    Free_IdentList($2);
     Syntax_Error(@3, "'TYPE' or '='");
     $$ = NULL;
   }
   | VAR IDList '=' error
   {
+    Free_IdentList($2);
     Syntax_Error(@4, "right's expression-list");
     $$ = NULL;
   }
   | VAR IDList Type '=' error
   {
+    Free_IdentList($2);
     Syntax_Error(@5, "right's expression-list");
     $$ = NULL;
   }
@@ -694,34 +753,34 @@ TypeAliasDeclaration
   ;
 
 TypeDeclaration
-  : CLASS ID Extends '{' ClassMemberDeclarationsOrEmpty '}'
+  : CLASS ID ExtendsOrEmpty '{' ClassMemberDeclarationsOrEmpty '}'
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_Klass(id, CLASS_KIND, $3, $5);
   }
-  | CLASS ID Extends ';'
+  | CLASS ID ExtendsOrEmpty ';'
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_Klass(id, CLASS_KIND, $3, NULL);
   }
-  | TRAIT ID Extends '{' TraitMemberDeclarationsOrEmpty '}'
+  | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarationsOrEmpty '}'
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_Klass(id, TRAIT_KIND, $3, $5);
   }
-  | TRAIT ID Extends ';'
+  | TRAIT ID WithesOrEmpty ';'
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_Klass(id, TRAIT_KIND, $3, NULL);
   }
   ;
 
-Extends
+ExtendsOrEmpty
   : %empty
   {
     $$ = NULL;
   }
-  | ':' KlassType ExtendsMore
+  | EXTENDS KlassType WithesOrEmpty
   {
     $$ = Vector_New();
     Vector_Append($$, $2);
@@ -730,7 +789,7 @@ Extends
   }
   ;
 
-ExtendsMore
+WithesOrEmpty
   : %empty
   {
     $$ = NULL;
@@ -742,12 +801,12 @@ ExtendsMore
   ;
 
 Traits
-  : ',' KlassType
+  : WITH KlassType
   {
     $$ = Vector_New();
     Vector_Append($$, $2);
   }
-  | Traits ',' KlassType
+  | Traits WITH KlassType
   {
     $$ = $1;
     Vector_Append($$, $3);
@@ -1568,8 +1627,19 @@ RangeExpression
   }
   ;
 
-Expression
+WithExpression
   : RangeExpression
+  {
+    $$ = $1;
+  }
+  | RangeExpression Traits
+  {
+    $$ = $1;
+  }
+  ;
+
+Expression
+  : WithExpression
   {
     $$ = $1;
   }

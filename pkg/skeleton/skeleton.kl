@@ -101,9 +101,8 @@ func Add(a int, b int) (r int) {
 
 }
 
-/*
 func forfunc() {
-  for i in 1...10 {
+  for i in 1..<10 {
     io.Println(i)
   }
 }
@@ -113,16 +112,18 @@ func iteratorfunc() {
 
   }
 }
-*/
 
 func Main(args []string) {
-
+  var person = (Person() with Hello with World).say("hello")
 }
 
 func __init__() {
 
 }
 
-class Person {
+class Person extends Hello {
+}
+
+trait World with Hi {
 
 }

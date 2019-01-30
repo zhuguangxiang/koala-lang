@@ -42,16 +42,23 @@ typedef struct ident {
 } Ident;
 
 Ident *New_Ident(String name);
+void Free_IdentList(Vector *vec);
+
+/* typedesc wrapper with position */
+typedef struct typewrapper {
+  TypeDesc *desc;
+  Position pos;
+} TypeWrapper;
 
 /* idtype for parameter-list in AST */
 typedef struct idtype {
   Ident id;
-  TypeDesc *desc;
-  Position pos; /* desc position */
+  TypeWrapper type;
 } IdType;
 
-IdType *New_IdType(Ident *id, TypeDesc *desc, Position pos);
+IdType *New_IdType(Ident *id, TypeWrapper *type);
 void Free_IdType(IdType *idtype);
+void Free_IdTypeList(Vector *vec);
 
 /* unary operator kind */
 typedef enum unaryopkind {

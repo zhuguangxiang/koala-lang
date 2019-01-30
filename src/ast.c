@@ -32,26 +32,43 @@ Ident *New_Ident(String name)
   return ident;
 }
 
-void Free_Ident(Ident *name)
+void Free_Ident(Ident *id)
 {
-  mm_free(name);
+  mm_free(id);
 }
 
-IdType *New_IdType(Ident *id, TypeDesc *desc, Position pos)
+void Free_IdentList(Vector *vec)
+{
+  Ident *id;
+  Vector_ForEach(id, vec) {
+    Free_Ident(id);
+  }
+  Vector_Free_Self(vec);
+}
+
+IdType *New_IdType(Ident *id, TypeWrapper *type)
 {
   IdType *idType = mm_alloc(sizeof(IdType));
   if (id != NULL)
     idType->id = *id;
-  TYPE_INCREF(desc);
-  idType->desc = desc;
-  idType->pos = pos;
+  TYPE_INCREF(type->desc);
+  idType->type = *type;
   return idType;
 }
 
 void Free_IdType(IdType *idtype)
 {
-  TYPE_DECREF(idtype->desc);
+  TYPE_DECREF(idtype->type.desc);
   mm_free(idtype);
+}
+
+void Free_IdTypeList(Vector *vec)
+{
+  IdType *idtype;
+  Vector_ForEach(idtype, vec) {
+    Free_IdType(idtype);
+  }
+  Vector_Free_Self(vec);
 }
 
 Expr *Expr_From_Nil(void)
@@ -1016,6 +1033,7 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
       exp = Vector_Get(exps, i);
       TYPE_INCREF(desc);
       varStmt = __Stmt_From_VarDecl(id, desc, exp, k);
+      Free_Ident(id);
       Vector_Append(listStmt->vec, varStmt);
     }
     Vector_Free_Self(ids);
@@ -1040,7 +1058,9 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
     Ident *id = Vector_Get(ids, 0);
     Vector_Free_Self(ids);
     TYPE_INCREF(desc);
-    return __Stmt_From_VarDecl(id, desc, NULL, k);
+    Stmt *stmt = __Stmt_From_VarDecl(id, desc, NULL, k);
+    Free_Ident(id);
+    return stmt;
   } else {
     ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
     Ident *id;
@@ -1048,6 +1068,7 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
     Vector_ForEach(id, ids) {
       TYPE_INCREF(desc);
       varStmt = __Stmt_From_VarDecl(id, desc, NULL, k);
+      Free_Ident(id);
       Vector_Append(listStmt->vec, varStmt);
     }
     Vector_Free_Self(ids);
@@ -1143,15 +1164,15 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   if (funcStmt->args != NULL) {
     pdesc = Vector_New();
     Vector_ForEach(idType, funcStmt->args) {
-      TYPE_INCREF(idType->desc);
-      Vector_Append(pdesc, idType->desc);
+      TYPE_INCREF(idType->type.desc);
+      Vector_Append(pdesc, idType->type.desc);
     }
   }
   if (funcStmt->rets != NULL) {
     rdesc = Vector_New();
     Vector_ForEach(idType, funcStmt->rets) {
-      TYPE_INCREF(idType->desc);
-      Vector_Append(rdesc, idType->desc);
+      TYPE_INCREF(idType->type.desc);
+      Vector_Append(rdesc, idType->type.desc);
     }
   }
   proto = TypeDesc_Get_Proto(pdesc, rdesc);
@@ -1175,15 +1196,15 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
   if (stmt->args != NULL) {
     pdesc = Vector_New();
     Vector_ForEach(idType, stmt->args) {
-      TYPE_INCREF(idType->desc);
-      Vector_Append(pdesc, idType->desc);
+      TYPE_INCREF(idType->type.desc);
+      Vector_Append(pdesc, idType->type.desc);
     }
   }
   if (stmt->rets != NULL) {
     rdesc = Vector_New();
     Vector_ForEach(idType, stmt->rets) {
-      TYPE_INCREF(idType->desc);
-      Vector_Append(rdesc, idType->desc);
+      TYPE_INCREF(idType->type.desc);
+      Vector_Append(rdesc, idType->type.desc);
     }
   }
 
@@ -1296,7 +1317,7 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz)
 
 static void print_error(ParserState *ps, Position *pos, char *fmt, va_list ap)
 {
-  fprintf(stderr, "%s:%d:%d: error: ", ps->filename, pos->row, pos->col);
+  fprintf(stderr, "%s:%d:%d: \x1b[31merror:\x1b[0m ", ps->filename, pos->row, pos->col);
   vfprintf(stderr, fmt, ap);
   puts(""); /* newline */
 }
