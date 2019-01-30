@@ -34,11 +34,17 @@ Ident *New_Ident(String name)
 
 void Free_Ident(Ident *id)
 {
+  if (id == NULL)
+    return;
+
   mm_free(id);
 }
 
 void Free_IdentList(Vector *vec)
 {
+  if (vec == NULL)
+    return;
+
   Ident *id;
   Vector_ForEach(id, vec) {
     Free_Ident(id);
@@ -58,12 +64,18 @@ IdType *New_IdType(Ident *id, TypeWrapper *type)
 
 void Free_IdType(IdType *idtype)
 {
+  if (idtype == NULL)
+    return;
+
   TYPE_DECREF(idtype->type.desc);
   mm_free(idtype);
 }
 
 void Free_IdTypeList(Vector *vec)
 {
+  if (vec == NULL)
+    return;
+
   IdType *idtype;
   Vector_ForEach(idtype, vec) {
     Free_IdType(idtype);

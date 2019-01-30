@@ -433,7 +433,7 @@ IDType
   }
   | ID error
   {
-    Syntax_Error_Clear(@2, "Type");
+    Syntax_Error(@2, "Type");
     $$ = NULL;
   }
   ;
