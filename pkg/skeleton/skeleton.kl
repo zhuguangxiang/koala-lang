@@ -32,6 +32,9 @@ var ch = '汉'
 var ok = true
 var greeting string = "hello, 汉字"
 var total int = 100
+var f = 12.04
+
+/*
 var array = [3][]string
 var array2 = []string{"hello", "world", "good", "luck"}
 var array3 = [5]string
@@ -127,3 +130,4 @@ class Person extends Hello {
 trait World with Hi {
 
 }
+*/

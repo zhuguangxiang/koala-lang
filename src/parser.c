@@ -149,7 +149,7 @@ static void merge_parser_unit(ParserState *ps)
 }
 
 static const char *scope_strings[] = {
-  NULL, "PACKAGE", "FUNCTION", "BLOCK", "CLOSURE", "CLASS"
+  NULL, "MODULE", "FUNCTION", "BLOCK", "CLOSURE", "CLASS"
 };
 
 #if 1
@@ -254,7 +254,6 @@ int Build_AST(ParserState *ps, FILE *in)
   return ps->errnum;
 }
 
-
 void Destroy_Parser(ParserState *ps)
 {
   ParserUnit *u = ps->u;
@@ -291,6 +290,9 @@ static void parse_int_expr(ParserState *ps, Expr *exp)
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(exp->ctx == EXPR_LOAD);
+  exp->desc = TypeDesc_Get_Basic(BASIC_INT);
+  TYPE_INCREF(exp->desc);
+
   Argument val = {.kind = ARG_INT, .ival = baseExp->ival};
   Inst_Append(codeblock(u), OP_LOADK, &val);
 }
@@ -300,6 +302,9 @@ static void parse_flt_expr(ParserState *ps, Expr *exp)
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(exp->ctx == EXPR_LOAD);
+  exp->desc = TypeDesc_Get_Basic(BASIC_FLOAT);
+  TYPE_INCREF(exp->desc);
+
   Argument val = {.kind = ARG_FLOAT, .fval = baseExp->fval};
   Inst_Append(codeblock(u), OP_LOADK, &val);
 }
@@ -309,6 +314,9 @@ static void parse_bool_expr(ParserState *ps, Expr *exp)
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(exp->ctx == EXPR_LOAD);
+  exp->desc = TypeDesc_Get_Basic(BASIC_BOOL);
+  TYPE_INCREF(exp->desc);
+
   Argument val = {.kind = ARG_BOOL, .fval = baseExp->bval};
   Inst_Append(codeblock(u), OP_LOADK, &val);
 }
@@ -318,13 +326,23 @@ static void parse_string_expr(ParserState *ps, Expr *exp)
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(exp->ctx == EXPR_LOAD);
+  exp->desc = TypeDesc_Get_Basic(BASIC_STRING);
+  TYPE_INCREF(exp->desc);
+
   Argument val = {.kind = ARG_STR, .str = baseExp->str};
   Inst_Append(codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_char_expr(ParserState *ps, Expr *exp)
 {
-  assert(0);
+  ParserUnit *u = ps->u;
+  BaseExpr *baseExp = (BaseExpr *)exp;
+  assert(exp->ctx == EXPR_LOAD);
+  exp->desc = TypeDesc_Get_Basic(BASIC_CHAR);
+  TYPE_INCREF(exp->desc);
+
+  Argument val = {.kind = ARG_UCHAR, .uc = baseExp->ch};
+  Inst_Append(codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_ident_expr(ParserState *ps, Expr *exp)
@@ -416,6 +434,8 @@ static parse_expr_func parse_expr_funcs[] = {
   parse_call_expr,      /* CALL_KIND        */
   parse_slice_expr,     /* SLICE_KIND       */
   parse_list_expr,      /* LIST_EXPR_KIND   */
+  NULL,                 /* MAP_LIST_KIND    */
+  NULL,                 /* MAP_ENTRY_KIND   */
   parse_array_expr,     /* ARRAY_KIND       */
   parse_map_expr,       /* MAP_KIND         */
   parse_set_expr,       /* SET_KIND         */
@@ -442,8 +462,10 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
   Expr *rexp = varStmt->exp;
   if (rexp != NULL) {
     /* parse right expression of variable declaration */
+    rexp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, rexp);
     if (rexp->desc == NULL) {
+      Log_Error("cannot resolve expr's type");
       return;
     }
   }
