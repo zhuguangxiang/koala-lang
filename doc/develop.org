@@ -1,83 +1,21 @@
 #+TITLE: Koala Language Development Notes
 #+AUTHOR: James Zhu
 #+EMAIL: https://github.com/zhuguangxiang
-* Why develop koala-lang?
-能用自己开发的语言写程序是不是一件很有意思的事情呢？Koala语言完全出于本人的兴趣，很有意思！
-* Language Introduction
-数组(array)，子数组(slice)，范围(range)
-for循环
-字典，集合
-class, trait
-多重继承 vs MIXIN
-trait 不能有带参数的__init__方法，不能实例化
-class extends Base with A, B {}
-包：一个功能的集合，可以由一个或者多个文件组成。
-每一个源码都属于某一个包，有相同包名的源码可以互相访问其成员，
-不受文件中符号的权限限制。
-同一个包中的不同文件中的符号不能相同。包和C++中的名字空间类似，是一个抽象的概念，
-没有文件名或者目录名对应。
-包和路经，一个包可以部署到不同路经下，导入包的时候需要指定到具体包，
-这里区分了部署形态和包（源码）形态。
 
-- Project And Compile
-
-#+BEGIN_SRC
-project
-  |-- main
-  |    |-- koala
-  |    |-- resources
-  |-- test
-  |    |-- koala
-  |    |-- resources
-  |-- target
-  |    |-- main
-  |    |-- test
-  |    |-- demo-v1.2.3.kar
-  |-- karfile
-#+END_SRC
-
-delimiter for -sp and -cp options are both : and ;
-> koalac -sp src/ -d pkg/ -cp pkg/:/home/koala/pkg:/home/xx.kar foo/baz foo/bar foo app
-> koala -cp dir1:dir2:kar1:kar2 foo a1 a2 a3
-> koala -kar xx.kar a1 a2 a3
-> kar -cxe demo-v1.2.3.kar xx.klc dir1/
-> kpm
-
-* CoRoutine(Fiber) Implementation
-- schedule
-- create/yield/sleep
-- join/detach
-- timer
-- io
-socket, pipe, regular files
-- spinlock/mutex/semaphore/signal/rwlock/channel/condition
-
-* Release 0.7.x
-** 0.7.1
-*** Features
-- integer and float supports +, -, *, /, %, >, >=, <, <=, ==, <<, >> etc.
-- float mod operator uses a = k * b + r, where k is (int)a/b, integer.
-- shift operators are only for integer, not for float.
-- "-a" minus expression is supported.
-- bool object only supports &&, || and !.
-- string only supports '+' operator.
-- string has many methods to operate it.
-- all operators need checked by compiler.
-- float object does not support mod operator
-- io.Println supports float type print more friendly. see: expression.kl
-*** operands override
-- python style or c++ style ? choose python style to define a map which are allowed.
-- +,-,*,/,%, relation operands and [] index
-- c-lang call koala-lang
-** 0.7.2
-*** Features
-- index operator is supported by array type.
-- =empty array=
-- ~map object~
-*** Improvements
-- larger data initialization for array
-- larger data initialization for map
-** 0.7.3
-*** Features
-- anonymous function
-- reference upper variable in function
+* 0.7.2
+** variable declaration
+- variable in module and class
+- variable in function
+** objects
+- basic object: integer, string, bool, float etc
+- array, map, set
+** function declaration
+- function
+- block
+** expression
+- dot, call, array
+** TEST
+- variable declaration in blocks
+- type not equal
+- function call parameter error
+- function call return value error

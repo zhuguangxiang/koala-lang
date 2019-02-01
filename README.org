@@ -4,18 +4,19 @@
 
 ** 'hello world' program
 #+BEGIN_SRC
-  //hello.kl
-  package hello
-  import "koala/io"
+  /* ~/app/hello.kl */
+  import "io"
   func Main() {
-    io.Println("hello,world")
+    io.Println("hello, world")
+    io.Println("你好，世界")
   }
 #+END_SRC
 ** compile
 #+BEGIN_SRC
-  > koalac hello
+  :~$ cd ~/
+  :~$ koalac app
 #+END_SRC
 ** run
 #+BEGIN_SRC
-  > koala hello
+  :~$ koala app
 #+END_SRC
