@@ -86,25 +86,29 @@ typedef struct line_buf {
 /* parser unit scope */
 typedef enum scopekind {
   SCOPE_MODULE = 1,
+  SCOPE_CLASS,
   SCOPE_FUNCTION,
+  SCOPE_METHOD,
   SCOPE_BLOCK,
   SCOPE_CLOSURE,
-  SCOPE_CLASS,
-  SCOPE_METHOD
 } ScopeKind;
 
 /* parser unit, one of Scope */
 typedef struct parserunit {
   /* one of ScopeKind */
   ScopeKind scope;
+
   /* link to parserstate->ustack */
   struct list_head link;
+
   /* for function, class, trait and method */
   Symbol *sym;
   /* symbol table for current scope */
   STable *stbl;
+
   /* instructions within current scope */
   CodeBlock *block;
+
   int8 merge;
   int8 loop;
   Vector jmps;
@@ -143,8 +147,6 @@ typedef struct parserstate {
   /* external symbol table, imported-name or package-name as key */
   STable *extstbl;
 
-  /* top parser unit */
-  ParserUnit top;
   /* current parser unit */
   ParserUnit *u;
   /* parser unit stack depth */
@@ -166,8 +168,8 @@ void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);
 
 ParserState *New_Parser(PkgInfo *pkg, char *filename);
-int Build_AST(ParserState *ps, FILE *in);
-void Parse(ParserState *ps);
+void Build_AST(ParserState *ps, FILE *in, int *err);
+void Parse_AST(ParserState *ps);
 void Destroy_Parser(ParserState *ps);
 void Check_Unused_Imports(ParserState *ps);
 void Check_Unused_Symbols(ParserState *ps);
@@ -190,7 +192,7 @@ void Parser_New_Function(ParserState *ps, Stmt *stmt);
 void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt);
 void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt);
 TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz);
-void Parser_Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
+void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
 
 /* lex(flex) used APIs */
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);

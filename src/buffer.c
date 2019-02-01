@@ -98,6 +98,7 @@ int Buffer_Write(Buffer *buf, uint8 *data, int size)
   return 0;
 }
 
+/* NOTES: caller needs free memory */
 uint8 *Buffer_RawData(Buffer *buf)
 {
   int size = 0;

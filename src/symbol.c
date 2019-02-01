@@ -32,6 +32,7 @@ static void *__symbol_new(SymKind kind, char *name, int size)
   sym->name = name;
   sym->kind = kind;
   Init_HashNode(&sym->hnode, sym);
+  sym->refcnt = 1;
   return sym;
 }
 
@@ -75,7 +76,7 @@ static void __const_gen(Symbol *sym, void *arg)
   struct gen_image_s *info = arg;
   assert(info->classname == NULL);
   VarSymbol *varSym = (VarSymbol *)sym;
-  Log_Debug("const %s:", varSym->name);
+  __const_show(sym);
   KImage_Add_Var(info->image, varSym->name, varSym->desc, 1);
 }
 
@@ -109,11 +110,11 @@ static void __var_gen(Symbol *sym, void *arg)
   struct gen_image_s *info = arg;
   VarSymbol *varSym = (VarSymbol *)sym;
 
+  __var_show(sym);
+
   if (info->classname != NULL) {
-    Log_Debug("  var '%s'", sym->name);
     KImage_Add_Field(info->image, info->classname, varSym->name, varSym->desc);
   } else {
-    Log_Debug("var %s:", varSym->name);
     KImage_Add_Var(info->image, varSym->name, varSym->desc, 0);
   }
 }
@@ -123,12 +124,14 @@ static Symbol *__func_new(char *name)
   return __symbol_new(SYM_FUNC, name, sizeof(FuncSymbol));
 }
 
+static void __symbol_free_fn(Symbol *sym, void *arg);
+
 static void __func_free(Symbol *sym)
 {
   FuncSymbol *funcSym = (FuncSymbol *)sym;
   TYPE_DECREF(funcSym->desc);
-  /* FIXME */
-  Vector_Fini(&funcSym->locvec, NULL, NULL);
+  Vector_Fini(&funcSym->locvec, (vec_finifunc)__symbol_free_fn, NULL);
+  CodeBlock_Free(funcSym->code);
   __symbol_free(sym);
 }
 
@@ -390,8 +393,11 @@ Symbol *Symbol_New(SymKind kind, char *name)
 void Symbol_Free(Symbol *sym)
 {
   assert(sym->kind >= SYM_CONST && sym->kind <= SYM_IMPORT);
-  struct symbol_operations *ops = &symops[sym->kind];
-  ops->__symbol_free(sym);
+  if (--sym->refcnt <= 0) {
+    assert(sym->refcnt >= 0);
+    struct symbol_operations *ops = &symops[sym->kind];
+    ops->__symbol_free(sym);
+  }
 }
 
 static uint32 symbol_hash(void *k)
@@ -559,15 +565,15 @@ static void __gen_image_func(Symbol *sym, void *arg)
   ops->__symbol_gen(sym, arg);
 }
 
-KImage *Gen_KImage(STable *stbl)
+KImage *Generate_KImage(STable *stbl)
 {
-  Log_Debug("----generate image----");
+  Log_Debug("\x1b[34m----STARTING IMAGE GEN----\x1b[0m");
   KImage *image = KImage_New();
   struct gen_image_s info = {image, NULL};
   STable_Visit(stbl, __gen_image_func, &info);
   KImage_Finish(image);
-  Log_Debug("----end of image----");
   KImage_Show(image);
+  Log_Debug("\x1b[34m----END OF IMAGE GEN------\x1b[0m");
   return image;
 }
 

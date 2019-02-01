@@ -26,6 +26,10 @@
 #include "mem.h"
 #include "log.h"
 
+static const char *scope_strings[] = {
+  "PACKAGE", "MODULE", "FUNCTION", "BLOCK", "CLOSURE", "CLASS"
+};
+
 int Init_PkgInfo(PkgInfo *pkg, char *pkgname, char *pkgfile, Options *opts)
 {
   memset(pkg, 0, sizeof(PkgInfo));
@@ -41,57 +45,39 @@ void Fini_PkgInfo(PkgInfo *pkg)
   STable_Free_Self(pkg->stbl);
 }
 
+void Show_PkgInfo(PkgInfo *pkg)
+{
+  puts("\n----------------------------------------");
+  printf("scope-0(%s, %s) symbols:\n", scope_strings[0], pkg->pkgname.str);
+  STable_Show(pkg->stbl);
+  puts("----------------------------------------\n");
+}
+
 void load_extpkg()
 {
 
 }
 
-static CodeBlock *codeblock(ParserUnit *u)
+static ParserUnit *new_parser_unit(ScopeKind scope)
 {
-  if (u->block == NULL)
-    u->block = CodeBlock_New();
-  return u->block;
-}
-
-static void init_parser_unit(ParserUnit *u, ScopeKind scope)
-{
+  ParserUnit *u = mm_alloc(sizeof(ParserUnit));
 	init_list_head(&u->link);
 	u->stbl = NULL;
 	u->sym = NULL;
 	u->block = NULL;
 	u->scope = scope;
 	Vector_Init(&u->jmps);
-}
-
-static void fini_parser_unit(ParserUnit *u)
-{
-  assert(list_unlinked(&u->link));
-
-  //FIXME
-  assert(u->sym == NULL);
-  assert(u->stbl == NULL);
-
-  CodeBlock *block = u->block;
-  if (block != NULL) {
-    assert(list_empty(&block->insts));
-    assert(block->next == NULL);
-  }
-
-  //FIXME
-  assert(Vector_Size(&u->jmps) == 0);
-  Vector_Fini(&u->jmps, NULL, NULL);
-}
-
-static ParserUnit *new_parser_unit(ScopeKind scope)
-{
-  ParserUnit *u = mm_alloc(sizeof(ParserUnit));
-  init_parser_unit(u, scope);
   return u;
 }
 
 static void free_parser_unit(ParserUnit *u)
 {
-  fini_parser_unit(u);
+  assert(list_unlinked(&u->link));
+  assert(u->sym == NULL);
+  assert(u->stbl == NULL);
+  assert(u->block == NULL);
+  assert(Vector_Size(&u->jmps) == 0);
+  Vector_Fini_Self(&u->jmps);
   mm_free(u);
 }
 
@@ -108,6 +94,24 @@ static void merge_parser_unit(ParserState *ps)
   ParserUnit *u = ps->u;
 
   switch (u->scope) {
+  case SCOPE_MODULE: {
+    if (u->block != NULL) {
+      /* module has codes for __init__ */
+      FuncSymbol *funSym = (FuncSymbol *)STable_Get(u->stbl, "__init__");
+      if (funSym == NULL) {
+        Log_Debug("create __init__ function");
+        TypeDesc *proto = TypeDesc_Get_Proto(NULL, NULL);
+        funSym = STable_Add_Func(u->stbl, "__init__", proto);
+        assert(funSym != NULL);
+        funSym->code = u->block;
+      } else {
+        //FIXME: merge codeblock
+      }
+      u->block = NULL;
+    }
+    u->stbl = NULL;
+    break;
+  }
   case SCOPE_FUNCTION: {
     FuncSymbol *funSym = (FuncSymbol *)u->sym;
     assert(funSym && funSym->kind == SYM_FUNC);
@@ -148,35 +152,18 @@ static void merge_parser_unit(ParserState *ps)
   }
 }
 
-static const char *scope_strings[] = {
-  NULL, "MODULE", "FUNCTION", "BLOCK", "CLOSURE", "CLASS"
-};
-
-#if 1
-
 static void show_parser_unit(ParserState *ps)
 {
   ParserUnit *u = ps->u;
   const char *scope = scope_strings[u->scope];
-  char *name = u->sym != NULL ? u->sym->name: ps->pkgname;
+  char *name = u->sym != NULL ? u->sym->name : NULL;
+  name = (name == NULL) ? ps->filename : name;
   puts("\n----------------------------------------");
   printf("scope-%d(%s, %s) symbols:\n", ps->depth, scope, name);
   STable_Show(u->stbl);
   CodeBlock_Show(u->block);
   puts("----------------------------------------\n");
 }
-
-void Show_PkgInfo(PkgInfo *pkg)
-{
-  puts("\n----------------------------------------");
-  printf("scope-0(%s, %s) symbols:\n", scope_strings[1], pkg->pkgname.str);
-  STable_Show(pkg->stbl);
-  puts("----------------------------------------\n");
-}
-
-#else
-#define show_parser_unit(ps) ((void *)0)
-#endif
 
 static void check_unused_symbols(ParserUnit *u)
 {
@@ -192,31 +179,31 @@ void Parser_Enter_Scope(ParserState *ps, ScopeKind scope)
   ps->u = u;
   ps->depth++;
 
-  Log_Debug("Enter scope-%d(%s)", ps->depth, scope_strings[scope]);
+  Log_Debug("\x1b[35mEnter scope-%d(%s)\x1b[0m",
+            ps->depth, scope_strings[scope]);
 }
 
 void Parser_Exit_Scope(ParserState *ps)
 {
-  ParserUnit *u = ps->u;
+  Log_Debug("\x1b[35mExit scope-%d(%s)\x1b[0m",
+            ps->depth, scope_strings[ps->u->scope]);
 
-  if (ps->state == STATE_PARSING_AST)
-    show_parser_unit(ps);
+  show_parser_unit(ps);
 
-  check_unused_symbols(u);
-
-  Log_Debug("Exit scope-%d(%s)", ps->depth, scope_strings[u->scope]);
+  check_unused_symbols(ps->u);
 
   merge_parser_unit(ps);
 
-  /* remove current unit */
-  assert(u != &ps->top);
-  free_parser_unit(u);
+  /* free current parserunit */
+  free_parser_unit(ps->u);
+  ps->u = NULL;
 
   /* restore ps->u to top of ps->ustack */
   struct list_head *head = list_first(&ps->ustack);
-  assert(head != NULL);
-  list_del(head);
-  ps->u = container_of(head, ParserUnit, link);
+  if (head != NULL) {
+    list_del(head);
+    ps->u = container_of(head, ParserUnit, link);
+  }
   ps->depth--;
 }
 
@@ -230,9 +217,6 @@ ParserState *New_Parser(PkgInfo *pkg, char *filename)
 
   Init_Imports(ps);
 
-  init_parser_unit(&ps->top, SCOPE_MODULE);
-  ps->u = &ps->top;
-  ps->u->stbl = pkg->stbl;
   init_list_head(&ps->ustack);
 
   Vector_Init(&ps->errors);
@@ -240,42 +224,52 @@ ParserState *New_Parser(PkgInfo *pkg, char *filename)
   return ps;
 }
 
-int Build_AST(ParserState *ps, FILE *in)
-{
-  ps->state = STATE_BUILDING_AST;
-  Log_Debug("\x1b[34m----BUILDING AST-----------\x1b[0m");
-  yyscan_t scanner;
-  yylex_init_extra(ps, &scanner);
-  yyset_in(in, scanner);
-  yyparse(ps, scanner);
-  yylex_destroy(scanner);
-  Log_Debug("\x1b[34m----END OF BUILDING AST----\x1b[0m");
-  ps->state = STATE_NONE;
-  return ps->errnum;
-}
-
 void Destroy_Parser(ParserState *ps)
 {
-  ParserUnit *u = ps->u;
-
-  check_unused_symbols(u);
-
-  assert(u->scope == SCOPE_MODULE);
-  assert(u == &ps->top);
+  assert(ps->u == NULL);
   assert(list_empty(&ps->ustack));
-  assert(u->stbl == ps->pkg->stbl);
-  assert(u->sym == NULL);
 
-  /* FIXME: merge __init__ to pkginfo->stbl */
-  /* simple clear */
-  assert(u->block == NULL);
-  u->stbl = NULL;
-
-  Fini_Imports(ps);
-  fini_parser_unit(u);
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
+  Fini_Imports(ps);
+
   mm_free(ps->filename);
   mm_free(ps);
+}
+
+static inline CodeBlock *__get_codeblock(ParserUnit *u)
+{
+  if (u->block == NULL)
+    u->block = CodeBlock_New();
+  return u->block;
+}
+
+static int expr_is_const(Expr *exp)
+{
+  ExprKind kind = exp->kind;
+  if (kind != INT_KIND || kind != FLOAT_KIND ||
+      kind != STRING_KIND || kind != CHAR_KIND)
+    return 0;
+  else
+    return 1;
+}
+
+static char *expr_get_funcname(Expr *exp)
+{
+  CallExpr *callExp = (CallExpr *)exp;
+  Expr *left = callExp->left;
+  if (left->kind == ID_KIND) {
+    return ((BaseExpr *)left)->id;
+  } else if (left->kind == ATTRIBUTE_KIND) {
+    return ((AttributeExpr *)left)->id.name;
+  } else {
+    return "<unknown>";
+  }
+}
+
+static int type_is_compatible(TypeDesc *t1, TypeDesc *t2)
+{
+  /* FIXME: class inheritance */
+  return 1;
 }
 
 static void parse_nil_expr(ParserState *ps, Expr *exp)
@@ -294,7 +288,7 @@ static void parse_int_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_INT, .ival = baseExp->ival};
-  Inst_Append(codeblock(u), OP_LOADK, &val);
+  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_flt_expr(ParserState *ps, Expr *exp)
@@ -306,7 +300,7 @@ static void parse_flt_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_FLOAT, .fval = baseExp->fval};
-  Inst_Append(codeblock(u), OP_LOADK, &val);
+  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_bool_expr(ParserState *ps, Expr *exp)
@@ -318,7 +312,7 @@ static void parse_bool_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_BOOL, .fval = baseExp->bval};
-  Inst_Append(codeblock(u), OP_LOADK, &val);
+  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_string_expr(ParserState *ps, Expr *exp)
@@ -330,7 +324,7 @@ static void parse_string_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_STR, .str = baseExp->str};
-  Inst_Append(codeblock(u), OP_LOADK, &val);
+  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_char_expr(ParserState *ps, Expr *exp)
@@ -341,8 +335,8 @@ static void parse_char_expr(ParserState *ps, Expr *exp)
   exp->desc = TypeDesc_Get_Basic(BASIC_CHAR);
   TYPE_INCREF(exp->desc);
 
-  Argument val = {.kind = ARG_UCHAR, .uc = baseExp->ch};
-  Inst_Append(codeblock(u), OP_LOADK, &val);
+  Argument val = {.kind = ARG_UCHAR, .uch = baseExp->ch};
+  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_ident_expr(ParserState *ps, Expr *exp)
@@ -457,17 +451,143 @@ static void parse_stmts(ParserState *ps, Vector *stmts);
 static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
 {
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
-  Log_Debug("parse variable '%s' declaration", varStmt->id);
+  char *varname = varStmt->id.name;
 
+  Log_Debug("parse variable '%s' declaration", varname);
+
+  /* check expression */
   Expr *rexp = varStmt->exp;
   if (rexp != NULL) {
+    if (varStmt->konst == 1) {
+      /* constant */
+      if (expr_is_const(rexp)) {
+        Syntax_Error(ps, &rexp->pos, "not a valid const expression");
+        return;
+      }
+    }
+
     /* parse right expression of variable declaration */
     rexp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, rexp);
     if (rexp->desc == NULL) {
-      Log_Error("cannot resolve expr's type");
+      Syntax_Error(ps, &rexp->pos, "cannot resolve right expression's type");
       return;
     }
+
+    /* multi-value's expression */
+    if (rexp->desc->kind == TYPE_PROTO) {
+      /*
+         right expr's type is func proto, there are two exprs:
+         1. function call
+         2. anonymous function declaration
+         check function call expr only
+       */
+      if (rexp->kind == CALL_KIND) {
+        ProtoDesc *desc = (ProtoDesc *)rexp->desc;
+        if (Vector_Size(desc->ret) != 1) {
+          Syntax_Error(ps, &rexp->pos,
+                       "multiple-value %s() in single-value context",
+                       expr_get_funcname(rexp));
+          return;
+        }
+      }
+    }
+
+    if (varStmt->desc != NULL) {
+      /* check type equals or not */
+      if (!type_is_compatible(varStmt->desc, rexp->desc)) {
+        Syntax_Error(ps, &rexp->pos,
+                     "right expression's type is not compatible");
+        return;
+      }
+    } else {
+      char buf[64];
+      TypeDesc_ToString(rexp->desc, buf);
+      Log_Debug("var '%s' type is none, set it as '%s'", varname, buf);
+      varStmt->desc = rexp->desc;
+      TYPE_INCREF(varStmt->desc);
+    }
+  }
+
+  /* update or add symbol */
+  VarSymbol *varSym;
+  ParserUnit *u = ps->u;
+  if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+    /*
+     * variables in module or class canbe accessed by other packages,
+     * during building AST, it is already saved in symbol table.
+     */
+    varSym = (VarSymbol *)STable_Get(u->stbl, varname);
+    assert(varSym != NULL);
+    assert(varSym->kind == SYM_CONST || varSym->kind == SYM_VAR);
+    if (varSym->desc == NULL) {
+      char buf[64];
+      TypeDesc_ToString(varStmt->desc, buf);
+      Log_Debug("update symbol '%s' type as '%s'", varname, buf);
+      varSym->desc = varStmt->desc;
+      TYPE_INCREF(varSym->desc);
+    }
+  } else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
+    /* function scope has independent space for save variables. */
+    Log_Debug("var '%s' declaration in function", varname);
+    assert(varStmt->konst != 1);
+    varSym = STable_Add_Var(u->stbl, varname, varStmt->desc);
+    if (varSym == NULL) {
+      Syntax_Error(ps, &varStmt->id.pos, "var '%s' is duplicated", varname);
+      return;
+    }
+    FuncSymbol *funSym = (FuncSymbol *)u->sym;
+    Vector_Append(&funSym->locvec, varSym);
+    varSym->refcnt++;
+  } else {
+    assert(u->scope == SCOPE_BLOCK || u->scope == SCOPE_CLOSURE);
+    /*
+     * variables in these socpes must not be duplicated
+     * within function or method scopes
+     */
+    Log_Debug("var '%s' declaration in block/closure", varname);
+    /* check there is no the same symbol in up unit until function scope. */
+    Symbol *sym;
+    ParserUnit *uu;
+    struct list_head *pos;
+    list_for_each_prev(pos, &ps->ustack) {
+      uu = container_of(pos, ParserUnit, link);
+      sym = STable_Get(uu->stbl, varStmt->id.name);
+      if (sym != NULL) {
+        Syntax_Error(ps, &varStmt->id.pos,
+                     "var '%s' is already delcared in '%s' scope",
+                     varname, scope_strings[uu->scope]);
+        return;
+      }
+      if (uu->scope == SCOPE_FUNCTION || uu->scope == SCOPE_METHOD)
+        break;
+    }
+
+    varSym = STable_Add_Var(u->stbl, varname, varStmt->desc);
+    if (varSym == NULL) {
+      Syntax_Error(ps, &varStmt->id.pos, "var '%s' is duplicated", varname);
+      return;
+    }
+    /* local variables' index is function's index */
+    varSym->index = uu->stbl->varindex++;
+    FuncSymbol *funSym = (FuncSymbol *)uu->sym;
+    Vector_Append(&funSym->locvec, varSym);
+    varSym->refcnt++;
+  }
+
+  /* generate code */
+  if (rexp == NULL)
+    return;
+
+  if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+    /* module or class variable, global variable */
+    Inst_Append_NoArg(u->block, OP_LOAD0);
+    Argument val = {.kind = ARG_STR, .str = varSym->name};
+    Inst_Append(u->block, OP_SETFIELD, &val);
+  } else {
+    /* others are local variables */
+    Argument val = {.kind = ARG_INT, .ival = varSym->index};
+    Inst_Append(u->block, OP_STORE, &val);
   }
 }
 
@@ -578,11 +698,31 @@ static void parse_stmts(ParserState *ps, Vector *stmts)
   }
 }
 
-void Parse(ParserState *ps)
+void Build_AST(ParserState *ps, FILE *in, int *err)
+{
+  ps->state = STATE_BUILDING_AST;
+  Log_Debug("\x1b[34m----STARTING BUILDING AST------\x1b[0m");
+  yyscan_t scanner;
+  yylex_init_extra(ps, &scanner);
+  yyset_in(in, scanner);
+  Parser_Enter_Scope(ps, SCOPE_MODULE);
+  ps->u->stbl = ps->pkg->stbl;
+  yyparse(ps, scanner);
+  Parser_Exit_Scope(ps);
+  yylex_destroy(scanner);
+  Log_Debug("\x1b[34m----END OF BUILDING AST--------\x1b[0m");
+  ps->state = STATE_NONE;
+  *err = ps->errnum;
+}
+
+void Parse_AST(ParserState *ps)
 {
   ps->state = STATE_PARSING_AST;
-  Log_Debug("\x1b[32m----SEMANTIC ANALYSIS & CODE GEN-----------\x1b[0m");
+  Log_Debug("\x1b[32m----STARTING SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
+  Parser_Enter_Scope(ps, SCOPE_MODULE);
+  ps->u->stbl = ps->pkg->stbl;
   parse_stmts(ps, &ps->stmts);
-  Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
+  Parser_Exit_Scope(ps);
+  Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN------\x1b[0m");
   ps->state = STATE_NONE;
 }

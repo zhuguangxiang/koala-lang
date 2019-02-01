@@ -185,36 +185,40 @@ void CodeBlock_Merge(CodeBlock *from, CodeBlock *to)
 
 static void arg_print(char *buf, int sz, Argument *val)
 {
-  if (!val) {
+  if (val == NULL) {
     buf[0] = '\0';
     return;
   }
 
   switch (val->kind) {
-    case ARG_NIL: {
-      snprintf(buf, sz, "(nil)");
-      break;
-    }
-    case ARG_INT: {
-      snprintf(buf, sz, "%lld", val->ival);
-      break;
-    }
-    case ARG_FLOAT: {
-      snprintf(buf, sz, "%.16lf", val->fval);
-      break;
-    }
-    case ARG_BOOL: {
-      snprintf(buf, sz, "%s", val->bval ? "true" : "false");
-      break;
-    }
-    case ARG_STR: {
-      snprintf(buf, sz, "%s", val->str);
-      break;
-    }
-    default: {
-      assert(0);
-      break;
-    }
+  case ARG_NIL: {
+    snprintf(buf, sz, "(nil)");
+    break;
+  }
+  case ARG_INT: {
+    snprintf(buf, sz, "%lld", val->ival);
+    break;
+  }
+  case ARG_FLOAT: {
+    snprintf(buf, sz, "%.16lf", val->fval);
+    break;
+  }
+  case ARG_BOOL: {
+    snprintf(buf, sz, "%s", val->bval ? "true" : "false");
+    break;
+  }
+  case ARG_STR: {
+    snprintf(buf, sz, "%s", val->str);
+    break;
+  }
+  case ARG_UCHAR: {
+    snprintf(buf, sz, "%s", (char *)&val->uch);
+    break;
+  }
+  default: {
+    assert(0);
+    break;
+  }
   }
 }
 
@@ -225,7 +229,7 @@ void CodeBlock_Show(CodeBlock *block)
   char buf[64];
 
   puts("---------CodeBlock-------");
-  printf("insts:%d", block->bytes);
+  printf("insts:%d\n", block->bytes);
   if (!list_empty(&block->insts)) {
     int cnt = 0;
     Inst *i;
@@ -234,6 +238,7 @@ void CodeBlock_Show(CodeBlock *block)
       i = container_of(pos, Inst, link);
       printf("[%d]:\n", cnt++);
       printf("  opcode:%s\n", OpCode_String(i->op));
+      buf[0] = '\0';
       arg_print(buf, sizeof(buf), &i->arg);
       printf("  arg:%s\n", buf);
       printf("  bytes:%d\n", i->bytes);
@@ -261,7 +266,9 @@ void Inst_Gen(KImage *image, Buffer *buf, Inst *i)
         index = KImage_Add_Bool(image, val->bval);
       } else if (val->kind == ARG_STR) {
         index = KImage_Add_String(image, val->str);
-      } else {
+      } else if (val->kind == ARG_UCHAR) {
+        index = KImage_Add_UChar(image, val->uch);
+      }else {
         assert(0);
       }
       Buffer_Write_4Bytes(buf, index);

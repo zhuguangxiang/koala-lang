@@ -217,6 +217,13 @@ ConstItem *ConstItem_String_New(int32 val)
   return item;
 }
 
+ConstItem *ConstItem_UChar_New(uchar val)
+{
+  ConstItem *item = ConstItem_New(CONST_UCHAR);
+  item->uch = val;
+  return item;
+}
+
 LocVarItem *LocVarItem_New(int32 nameindex, int32 typeindex,
                            int32 pos, int index)
 {
@@ -252,6 +259,7 @@ CodeItem *CodeItem_New(uint8 *codes, int size)
   CodeItem *item = mm_alloc(sz);
   item->size = size;
   memcpy(item->codes, codes, size);
+  mm_free(codes);
   return item;
 }
 
@@ -779,26 +787,24 @@ uint32 constitem_hash(void *k)
   uint32 hash = 0;
   ConstItem *item = k;
   switch (item->type) {
-    case CONST_INT: {
-      hash = hash_uint32((uint32)item->ival, 32);
-      break;
-    }
-    case CONST_FLOAT: {
-      hash = hash_uint32((intptr_t)item, 32);
-      break;
-    }
-    case CONST_BOOL: {
-      hash = hash_uint32((intptr_t)item, 32);
-      break;
-    }
-    case CONST_STRING: {
-      hash = hash_uint32((uint32)item->index, 32);
-      break;
-    }
-    default: {
-      assert(0);
-      break;
-    }
+  case CONST_INT:
+    hash = hash_uint32((uint32)item->ival, 32);
+    break;
+  case CONST_FLOAT:
+    hash = hash_uint32((intptr_t)item, 32);
+    break;
+  case CONST_BOOL:
+    hash = hash_uint32((intptr_t)item, 32);
+    break;
+  case CONST_STRING:
+    hash = hash_uint32((uint32)item->index, 32);
+    break;
+  case CONST_UCHAR:
+    hash = hash_uint32((uint32)item->uch.val, 32);
+    break;
+  default:
+    assert(0);
+    break;
   }
 
   return hash;
@@ -812,26 +818,24 @@ int constitem_equal(void *k1, void *k2)
   if (item1->type != item2->type)
     return 0;
   switch (item1->type) {
-    case CONST_INT: {
-      res = (item1->ival == item2->ival);
-      break;
-    }
-    case CONST_FLOAT: {
-      res = (item1->fval == item2->fval);
-      break;
-    }
-    case CONST_BOOL: {
-      res = (item1 == item2);
-      break;
-    }
-    case CONST_STRING: {
-      res = (item1->index == item2->index);
-      break;
-    }
-    default: {
-      assert(0);
-      break;
-    }
+  case CONST_INT:
+    res = (item1->ival == item2->ival);
+    break;
+  case CONST_FLOAT:
+    res = (item1->fval == item2->fval);
+    break;
+  case CONST_BOOL:
+    res = (item1 == item2);
+    break;
+  case CONST_STRING:
+    res = (item1->index == item2->index);
+    break;
+  case CONST_UCHAR:
+    res = item1->uch.val == item2->uch.val;
+    break;
+  default:
+    assert(0);
+    break;
   }
   return res;
 }
@@ -840,23 +844,26 @@ void constitem_show(AtomTable *table, void *o)
 {
   ConstItem *item = o;
   switch (item->type) {
-    case CONST_INT:
-      printf("  int:%lld\n", item->ival);
-      break;
-    case CONST_FLOAT:
-      printf("  float:%.16lf\n", item->fval);
-      break;
-    case CONST_BOOL:
-      printf("  bool:%s\n", item->bval ? "true" : "false");
-      break;
-    case CONST_STRING:
-      printf("  index:%d\n", item->index);
-      StringItem *str = AtomTable_Get(table, ITEM_STRING, item->index);
-      printf("  (str:%s)\n", str->data);
-      break;
-    default:
-      assert(0);
-      break;
+  case CONST_INT:
+    printf("  int:%lld\n", item->ival);
+    break;
+  case CONST_FLOAT:
+    printf("  float:%.16lf\n", item->fval);
+    break;
+  case CONST_BOOL:
+    printf("  bool:%s\n", item->bval ? "true" : "false");
+    break;
+  case CONST_STRING:
+    printf("  index:%d\n", item->index);
+    StringItem *str = AtomTable_Get(table, ITEM_STRING, item->index);
+    printf("  (str:%s)\n", str->data);
+    break;
+  case CONST_UCHAR:
+    printf("  uchar:%s\n", item->uch.data);
+    break;
+  default:
+    assert(0);
+    break;
   }
 }
 
@@ -1446,6 +1453,17 @@ int KImage_Add_String(KImage *image, char *val)
   int index = ConstItem_Get(image->table, &k);
   if (index < 0) {
     ConstItem *item = ConstItem_String_New(idx);
+    index = AtomTable_Append(image->table, ITEM_CONST, item, 1);
+  }
+  return index;
+}
+
+int KImage_Add_UChar(KImage *image, uchar val)
+{
+  ConstItem k = {.type = CONST_UCHAR, .uch = val};
+  int index = ConstItem_Get(image->table, &k);
+  if (index < 0) {
+    ConstItem *item = ConstItem_UChar_New(val);
     index = AtomTable_Append(image->table, ITEM_CONST, item, 1);
   }
   return index;

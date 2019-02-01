@@ -27,6 +27,12 @@
 extern "C" {
 #endif
 
+#define __FILENAME__ \
+({ \
+  char *slash = strrchr(__FILE__, '/'); \
+  slash != NULL ? slash + 1 : __FILE__; \
+})
+
 typedef enum loglevel {
   LOG_TRACE = 0, LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR, LOG_FATAL
 } LogLevel;

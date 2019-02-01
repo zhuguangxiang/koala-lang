@@ -31,16 +31,16 @@ extern "C" {
 #endif
 
 #define ARG_NIL   0
-#define ARG_UCHAR 1
-#define ARG_INT   2
-#define ARG_FLOAT 3
-#define ARG_BOOL  4
-#define ARG_STR   5
+#define ARG_INT   1
+#define ARG_FLOAT 2
+#define ARG_BOOL  3
+#define ARG_STR   4
+#define ARG_UCHAR 5
 
 typedef struct argument {
   int kind;
   union {
-    uchar uc;
+    uchar uch;
     int64 ival;
     float64 fval;
     int bval;

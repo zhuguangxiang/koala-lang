@@ -356,6 +356,7 @@ static void expr_free(Expr *exp);
 
 static void free_simple_expr(Expr *exp)
 {
+  TYPE_DECREF(exp->desc);
   mm_free(exp);
 }
 
@@ -899,8 +900,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
 {
   Import *import =  __find_import(ps, path);
   if (import != NULL) {
-    Parser_Syntax_Error(ps, pathloc,
-                        "Package '%s' is imported duplicately.", path);
+    Syntax_Error(ps, pathloc, "Package '%s' is imported duplicately.", path);
     return NULL;
   }
 
@@ -908,14 +908,14 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
   if (id != NULL) {
     sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
     if (sym != NULL) {
-      Parser_Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
+      Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
       return NULL;
     }
   }
 
   struct extpkg *extpkg = load_extpkg(ps, path);
   if (extpkg == NULL) {
-    Parser_Syntax_Error(ps, pathloc, "Package '%s' is loaded failure.", path);
+    Syntax_Error(ps, pathloc, "Package '%s' is loaded failure.", path);
     return NULL;
   }
 
@@ -930,7 +930,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
   sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
   if (sym != NULL) {
     free_extpkg(extpkg);
-    Parser_Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
+    Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
     return NULL;
   }
 
@@ -966,7 +966,7 @@ static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int konst)
       Log_Debug("add var '%s' successfully", id->name);
     sym->parent = ps->u->sym;
   } else {
-    Parser_Syntax_Error(ps, &id->pos, "Symbol '%s' is duplicated", id->name);
+    Syntax_Error(ps, &id->pos, "Symbol '%s' is duplicated", id->name);
   }
 }
 
@@ -1006,7 +1006,7 @@ static int __validate_count(ParserState *ps, int lsz, int rsz)
 {
   if (lsz < rsz) {
     /* var a = foo(), 100; whatever foo() is single or multi values */
-    Parser_Syntax_Error(ps, NULL, "extra expression in var declaration");
+    Syntax_Error(ps, NULL, "extra expression in var declaration");
     return 0;
   }
 
@@ -1017,7 +1017,7 @@ static int __validate_count(ParserState *ps, int lsz, int rsz)
      * if exprs == 0, it's ok
     */
     if (rsz > 1) {
-      Parser_Syntax_Error(ps, NULL, "missing expression in var declaration");
+      Syntax_Error(ps, NULL, "missing expression in var declaration");
       return 0;
     }
   }
@@ -1031,26 +1031,39 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
 {
   int isz = Vector_Size(ids);
   int esz = Vector_Size(exps);
-  if (!__validate_count(ps, isz, esz))
+  if (!__validate_count(ps, isz, esz)) {
+    /* FIXME: */
     return NULL;
+  }
 
   if (isz == esz) {
-    /* count of left ids == count of right expressions */
-    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
-
     Ident *id;
     Expr *exp;
-    Stmt *varStmt;
-    Vector_ForEach(id, ids) {
-      exp = Vector_Get(exps, i);
+    Stmt *stmt;
+
+    if (isz == 1) {
+      /* only one variable */
+      id = Vector_Get(ids, 0);
+      exp = Vector_Get(exps, 0);
       TYPE_INCREF(desc);
-      varStmt = __Stmt_From_VarDecl(id, desc, exp, k);
+      stmt = __Stmt_From_VarDecl(id, desc, exp, k);
       Free_Ident(id);
-      Vector_Append(listStmt->vec, varStmt);
+    } else {
+      /* count of left ids == count of right expressions */
+      Stmt *varStmt;
+      stmt = Stmt_From_List(Vector_New());
+      Vector_ForEach(id, ids) {
+        exp = Vector_Get(exps, i);
+        TYPE_INCREF(desc);
+        varStmt = __Stmt_From_VarDecl(id, desc, exp, k);
+        Free_Ident(id);
+        Vector_Append(((ListStmt *)stmt)->vec, varStmt);
+      }
     }
+
     Vector_Free_Self(ids);
     Vector_Free_Self(exps);
-    return (Stmt *)listStmt;
+    return stmt;
   }
 
   assert(isz > esz && esz >=0 && esz <= 1);
@@ -1194,8 +1207,8 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
     Log_Debug("add func '%s' successfully", funcStmt->id.name);
     sym->parent = ps->u->sym;
   } else {
-    Parser_Syntax_Error(ps, &funcStmt->id.pos,
-                        "Symbol '%s' is duplicated.", funcStmt->id.name);
+    Syntax_Error(ps, &funcStmt->id.pos,
+                 "Symbol '%s' is duplicated.", funcStmt->id.name);
   }
 }
 
@@ -1232,8 +1245,7 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
               (stmt->native ? "nfunc" : "proto"), stmt->id.name);
     sym->parent = ps->u->sym;
   } else {
-    Parser_Syntax_Error(ps, &stmt->id.pos, "Symbol '%s' is duplicated",
-                        stmt->id.name);
+    Syntax_Error(ps, &stmt->id.pos, "Symbol '%s' is duplicated", stmt->id.name);
     TYPE_DECREF(proto);
   }
 }
@@ -1334,7 +1346,7 @@ static void print_error(ParserState *ps, Position *pos, char *fmt, va_list ap)
   puts(""); /* newline */
 }
 
-void Parser_Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
+void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
 {
   if (++ps->errnum >= MAX_ERRORS) {
     fprintf(stderr, "Too many errors.\n");

@@ -95,6 +95,7 @@ typedef struct proto_item {
 #define CONST_FLOAT   2
 #define CONST_BOOL    3
 #define CONST_STRING  4
+#define CONST_UCHAR   5
 
 typedef struct const_item {
   int type;
@@ -103,6 +104,7 @@ typedef struct const_item {
     float64 fval; /* float32 or float64 */
     int bval;     /* bool */
     int32 index;  /* ->StringItem */
+    uchar uch;    /* utf8 char */
   };
 } ConstItem;
 
@@ -190,6 +192,7 @@ int KImage_Add_Integer(KImage *image, int64 val);
 int KImage_Add_Float(KImage *image, float64 val);
 int KImage_Add_Bool(KImage *image, int val);
 int KImage_Add_String(KImage *image, char *val);
+int KImage_Add_UChar(KImage *image, uchar val);
 
 void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int konst);
 void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,

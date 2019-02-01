@@ -26,12 +26,11 @@ message("Build Type:" ${CMAKE_BUILD_TYPE} ${CMAKE_C_FLAGS})
 ## ADD_DEFINITIONS (-DLOG_COLOR)
 ADD_DEFINITIONS(-fPIC)
 
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILENAME__='\"$(notdir $<)\"'")
+#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__FILENAME__='\"$(notdir $<)\"'")
 
 INCLUDE_DIRECTORIES (
   ${PROJECT_SOURCE_DIR}/include
   ${PROJECT_SOURCE_DIR}/libtask
-  ${PROJECT_SOURCE_DIR}/src/native
   )
 
 # SET (LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)

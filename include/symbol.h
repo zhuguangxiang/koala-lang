@@ -115,8 +115,7 @@ void STable_Free(STable *stbl, symbol_visit_func visit, void *arg);
 
 Symbol *Symbol_New(SymKind kind, char *name);
 void Symbol_Free(Symbol *sym);
-#define SYMBOL_ISPUBLIC(sym) \
-  isupper((sym)->name[0])
+#define Symbol_IsPublic(sym) isupper((sym)->name[0])
 
 VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
 VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
@@ -128,7 +127,7 @@ IFuncSymbol *STable_Add_IFunc(STable *stbl, char *name, TypeDesc *proto);
 NFuncSymbol *STable_Add_NFunc(STable *stbl, char *name, TypeDesc *proto);
 ImportSymbol *STable_Add_Import(STable *stbl, char *name);
 Symbol *STable_Get(STable *stbl, char *name);
-KImage *Gen_KImage(STable *stbl);
+KImage *Generate_KImage(STable *stbl);
 void STable_Show(STable *stbl);
 void STable_Visit(STable *stbl, symbol_visit_func fn, void *arg);
 

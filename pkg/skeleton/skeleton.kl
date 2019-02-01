@@ -23,8 +23,8 @@
 //import "native/io"
 
 //constants
-const K1 = "Const Value"
-const K2 string = "Const Value"
+const K1 = "Hello, Koala"
+const K2 string = "Welcome to Koala-lang"
 
 //variables
 var v1, v2 = 1, 2

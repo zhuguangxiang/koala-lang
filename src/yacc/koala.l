@@ -249,7 +249,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 
 . {
   Position pos = {yyps->line.row, yyps->line.col};
-  Parser_Syntax_Error(yyps, &pos, "invalid characters");
+  Syntax_Error(yyps, &pos, "invalid characters");
 }
 
 %%

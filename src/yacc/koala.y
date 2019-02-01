@@ -58,30 +58,29 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 
 #define ERRMSG "expected '%s' before '%s'\n"
 
-#define Syntax_Error(loc, expected) \
-do {                                \
-  yyerrok;                          \
-  char *token = ps->line.token;     \
-  if (token[0] == '\n')             \
-    token = "\\n";                  \
-  DeclarePosition(pos, loc);        \
-  Parser_Syntax_Error(ps, &pos, ERRMSG, expected, token);  \
+#define YYSyntax_Error(loc, expected) \
+do {                                  \
+  yyerrok;                            \
+  char *token = ps->line.token;       \
+  if (token[0] == '\n')               \
+    token = "\\n";                    \
+  DeclarePosition(pos, loc);          \
+  Syntax_Error(ps, &pos, ERRMSG, expected, token);  \
 } while (0)
 
-#define Syntax_Error_Clear(loc, expected) \
+#define YYSyntax_Error_Clear(loc, expected) \
+  do {                                      \
+    yyclearin;                              \
+  YYSyntax_Error(loc, expected);            \
+} while (0)
+
+#define YYSyntax_ErrorMsg_Clear(loc, msg) \
 do {                                      \
   yyclearin;                              \
-  Syntax_Error(loc, expected);            \
+  yyerrok;                                \
+  DeclarePosition(pos, loc);              \
+  Syntax_Error(ps, &pos, "%s\n", msg);    \
 } while (0)
-
-#define Syntax_ErrorMsg_Clear(loc, msg)       \
-do {                                          \
-  yyclearin;                                  \
-  yyerrok;                                    \
-  DeclarePosition(pos, loc);                  \
-  Parser_Syntax_Error(ps, &pos, "%s\n", msg); \
-} while (0)
-
 
 %}
 
@@ -419,7 +418,7 @@ FunctionType
   }
   | FUNC error
   {
-    Syntax_Error_Clear(@2, "(");
+    YYSyntax_Error_Clear(@2, "(");
     $$ = NULL;
   }
   ;
@@ -433,7 +432,7 @@ IDType
   }
   | ID error
   {
-    Syntax_Error(@2, "Type");
+    YYSyntax_Error(@2, "Type");
     $$ = NULL;
   }
   ;
@@ -462,13 +461,13 @@ IDTypeList
   | IDTypeList ',' error
   {
     Free_IdTypeList($1);
-    Syntax_Error_Clear(@3, "IDType");
+    YYSyntax_Error_Clear(@3, "IDType");
     $$ = NULL;
   }
   | IDTypeList error
   {
     Free_IdTypeList($1);
-    Syntax_Error_Clear(@2, ",");
+    YYSyntax_Error_Clear(@2, ",");
     $$ = NULL;
   }
   ;
@@ -506,7 +505,7 @@ ParameterList
   }
   | error
   {
-    Syntax_ErrorMsg_Clear(@1, "invalid parameter list");
+    YYSyntax_ErrorMsg_Clear(@1, "invalid parameter list");
     $$ = NULL;
   }
   ;
@@ -587,11 +586,11 @@ Import
   }
   | IMPORT ID error
   {
-    Syntax_ErrorMsg_Clear(@3, "invalid import");
+    YYSyntax_ErrorMsg_Clear(@3, "invalid import");
   }
   | IMPORT error
   {
-    Syntax_ErrorMsg_Clear(@2, "invalid import");
+    YYSyntax_ErrorMsg_Clear(@2, "invalid import");
   }
   ;
 
@@ -638,7 +637,7 @@ ModuleStatement
   }
   | error
   {
-    Syntax_ErrorMsg_Clear(@1, "invalid statement");
+    YYSyntax_ErrorMsg_Clear(@1, "invalid statement");
   }
   ;
 
@@ -654,18 +653,18 @@ ConstDeclaration
   | CONST IDList '=' error
   {
     Free_IdentList($2);
-    Syntax_Error(@4, "expr-list");
+    YYSyntax_Error(@4, "expr-list");
     $$ = NULL;
   }
   | CONST IDList Type '=' error
   {
     Free_IdentList($2);
-    Syntax_Error(@5, "expr-list");
+    YYSyntax_Error(@5, "expr-list");
     $$ = NULL;
   }
   | CONST error
   {
-    Syntax_Error(@2, "id-list");
+    YYSyntax_Error(@2, "id-list");
     $$ = NULL;
   }
   ;
@@ -686,24 +685,24 @@ VariableDeclaration
   | VAR IDList error
   {
     Free_IdentList($2);
-    Syntax_Error(@3, "'TYPE' or '='");
+    YYSyntax_Error(@3, "'TYPE' or '='");
     $$ = NULL;
   }
   | VAR IDList '=' error
   {
     Free_IdentList($2);
-    Syntax_Error(@4, "right's expression-list");
+    YYSyntax_Error(@4, "right's expression-list");
     $$ = NULL;
   }
   | VAR IDList Type '=' error
   {
     Free_IdentList($2);
-    Syntax_Error(@5, "right's expression-list");
+    YYSyntax_Error(@5, "right's expression-list");
     $$ = NULL;
   }
   | VAR error
   {
-    Syntax_Error(@2, "id-list");
+    YYSyntax_Error(@2, "id-list");
     $$ = NULL;
   }
   ;
@@ -731,7 +730,7 @@ FunctionDeclaration
   }
   | FUNC error
   {
-    Syntax_Error(@2, "ID");
+    YYSyntax_Error(@2, "ID");
     $$ = NULL;
   }
   ;
@@ -744,12 +743,12 @@ TypeAliasDeclaration
   }
   | TYPEALIAS ID error
   {
-    Syntax_Error(@3, "TYPE");
+    YYSyntax_Error(@3, "TYPE");
     $$ = NULL;
   }
   | TYPEALIAS error
   {
-    Syntax_Error(@2, "ID");
+    YYSyntax_Error(@2, "ID");
     $$ = NULL;
   }
   ;
@@ -1016,7 +1015,7 @@ LocalStatement
   }
   | error
   {
-    Syntax_ErrorMsg_Clear(@1, "invalid local statement");
+    YYSyntax_ErrorMsg_Clear(@1, "invalid local statement");
     $$ = NULL;
   }
   ;
@@ -1146,7 +1145,7 @@ ReturnStatement
   }
   | TOKEN_RETURN error
   {
-    Syntax_Error(@2, "expression-list");
+    YYSyntax_Error(@2, "expression-list");
     $$ = NULL;
   }
   ;
@@ -1434,7 +1433,7 @@ AnonyFuncExpression
   }
   | FUNC error
   {
-    Syntax_ErrorMsg_Clear(@2, "invalid anonymous function");
+    YYSyntax_ErrorMsg_Clear(@2, "invalid anonymous function");
     $$ = NULL;
   }
   ;
