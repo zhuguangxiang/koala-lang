@@ -34,6 +34,15 @@ var greeting string = "hello, 汉字"
 var total int = 100
 var f = 12.04
 
+//function
+func add(a int, b int) int {
+  return
+}
+
+func sub(aa int, bb int) (cc int, dd int) {
+  return
+}
+
 /*
 var array = [3][]string
 var array2 = []string{"hello", "world", "good", "luck"}

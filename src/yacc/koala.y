@@ -185,6 +185,7 @@ do {                                      \
 %type <TypeDesc> KeyType
 %type <IdType> IDType
 %type <List> IDTypeList
+%type <List> TypeList
 %type <List> ParameterList
 %type <List> ReturnList
 %type <List> IDList
@@ -475,12 +476,27 @@ IDTypeList
 TypeList
   : Type
   {
+    $$ = Vector_New();
+    DeclareType(type, $1, @1);
+    Vector_Append($$, New_IdType(NULL, &type));
   }
   | TypeList ',' Type
   {
+    if ($1 != NULL) {
+      $$ = $1;
+      DeclareType(type, $3, @3);
+      Vector_Append($$, New_IdType(NULL, &type));
+    } else {
+      $$ = NULL;
+      /* FIXME: has error ? */
+      TYPE_DECREF($3);
+    }
   }
   | TypeList ',' error
   {
+    Free_IdTypeList($1);
+    YYSyntax_Error_Clear(@3, "Type");
+    $$ = NULL;
   }
   ;
 
@@ -538,10 +554,12 @@ ReturnList
   }
   | '(' TypeList ')'
   {
+    $$ = $2;
   }
   | '(' error ')'
   {
-
+    YYSyntax_ErrorMsg_Clear(@2, "invalid return list");
+    $$ = NULL;
   }
   ;
 
@@ -644,11 +662,13 @@ ModuleStatement
 ConstDeclaration
   : CONST IDList '=' ExpressionList ';'
   {
-    $$ = Parser_Do_Constants(ps, $2, NULL, $4);
+    TypeWrapper type = {NULL};
+    $$ = Parser_Do_Constants(ps, $2, type, $4);
   }
   | CONST IDList Type '=' ExpressionList ';'
   {
-    $$ = Parser_Do_Constants(ps, $2, $3, $5);
+    DeclareType(type, $3, @3);
+    $$ = Parser_Do_Constants(ps, $2, type, $5);
   }
   | CONST IDList '=' error
   {
@@ -672,15 +692,18 @@ ConstDeclaration
 VariableDeclaration
   : VAR IDList Type ';'
   {
-    $$ = Parser_Do_Variables(ps, $2, $3, NULL);
+    DeclareType(type, $3, @3);
+    $$ = Parser_Do_Variables(ps, $2, type, NULL);
   }
   | VAR IDList '=' ExpressionList ';'
   {
-    $$ = Parser_Do_Variables(ps, $2, NULL, $4);
+    TypeWrapper type = {NULL};
+    $$ = Parser_Do_Variables(ps, $2, type, $4);
   }
   | VAR IDList Type '=' ExpressionList ';'
   {
-    $$ = Parser_Do_Variables(ps, $2, $3, $5);
+    DeclareType(type, $3, @3);
+    $$ = Parser_Do_Variables(ps, $2, type, $5);
   }
   | VAR IDList error
   {
@@ -901,17 +924,20 @@ FieldDeclaration
   : ID Type ';'
   {
     DeclareIdent(id, $1, @1);
-    $$ = Stmt_From_VarDecl(id, $2, NULL);
+    DeclareType(type, $2, @2);
+    $$ = Stmt_From_VarDecl(id, type, NULL);
   }
   | ID '=' Expression ';'
   {
     DeclareIdent(id, $1, @1);
-    $$ = Stmt_From_VarDecl(id, NULL, $3);
+    TypeWrapper type = {NULL};
+    $$ = Stmt_From_VarDecl(id, type, $3);
   }
   | ID Type '=' Expression ';'
   {
     DeclareIdent(id, $1, @1);
-    $$ = Stmt_From_VarDecl(id, $2, $4);
+    DeclareType(type, $2, @2);
+    $$ = Stmt_From_VarDecl(id, type, $4);
   }
   ;
 
@@ -1309,19 +1335,23 @@ CONSTANT
 ArrayCreationExpression
   : DimExprList Type ArrayOrSetInitializer
   {
-    $$ = Parser_New_Array($1, 0, $2, $3);
+    DeclareType(type, $2, @2);
+    $$ = Parser_New_Array($1, 0, type, $3);
   }
   | DimExprList Type
   {
-    $$ = Parser_New_Array($1, 0, $2, NULL);
+    DeclareType(type, $2, @2);
+    $$ = Parser_New_Array($1, 0, type, NULL);
   } %prec PREC_0
   | DIMS BaseType ArrayOrSetInitializer
   {
-    $$ = Parser_New_Array(NULL, $1, $2, $3);
+    DeclareType(type, $2, @2);
+    $$ = Parser_New_Array(NULL, $1, type, $3);
   }
   | DIMS BaseType
   {
-    $$ = Parser_New_Array(NULL, $1, $2, NULL);
+    DeclareType(type, $2, @2);
+    $$ = Parser_New_Array(NULL, $1, type, NULL);
   } %prec PREC_0
   ;
 
@@ -1341,11 +1371,13 @@ DimExprList
 SetCreationExpression
   : SetType ArrayOrSetInitializer
   {
-    $$ = Expr_From_Set($1, $2);
+    DeclareType(type, $1, @1);
+    $$ = Expr_From_Set(type, $2);
   }
   | SetType
   {
-    $$ = Expr_From_Set($1, NULL);
+    DeclareType(type, $1, @1);
+    $$ = Expr_From_Set(type, NULL);
   } %prec PREC_0
   ;
 
@@ -1369,11 +1401,13 @@ ArrayOrSetInitializer
 MapCreationExpression
   : MapType MapInitializer
   {
-    $$ = Expr_From_Map($1, $2);
+    DeclareType(type, $1, @1);
+    $$ = Expr_From_Map(type, $2);
   }
   | MapType
   {
-    $$ = Expr_From_Map($1, NULL);
+    DeclareType(type, $1, @1);
+    $$ = Expr_From_Map(type, NULL);
   } %prec PREC_0
   ;
 

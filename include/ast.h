@@ -220,12 +220,11 @@ Expr *Expr_From_ArrayListExpr(Vector *vec);
 typedef struct arrayexpr {
   EXPR_HEAD
   Vector *dims;
-  TypeDesc *base;
-  Position basePos;
+  TypeWrapper base;
   ListExpr *listExp;
 } ArrayExpr;
 
-Expr *Parser_New_Array(Vector *vec, int dims, TypeDesc *desc, Expr *listExp);
+Expr *Parser_New_Array(Vector *vec, int dims, TypeWrapper type, Expr *listExp);
 
 /* map entry expression */
 typedef struct mapentryexpr {
@@ -239,23 +238,21 @@ Expr *Expr_From_MapEntry(Expr *k, Expr *v);
 /* new map expression */
 typedef struct mapexpr {
   EXPR_HEAD
-  TypeDesc *mapDesc;
-  Position mapPos;
+  TypeWrapper type;
   ListExpr *listExp;
 } MapExpr;
 
 Expr *Expr_From_MapListExpr(Vector *vec);
-Expr *Expr_From_Map(TypeDesc *desc, Expr *listExp);
+Expr *Expr_From_Map(TypeWrapper type, Expr *listExp);
 
 /* new set expression */
 typedef struct setexpr {
   EXPR_HEAD
-  TypeDesc *setDesc;
-  Position setPos;
+  TypeWrapper type;
   ListExpr *listExp;
 } SetExpr;
 
-Expr *Expr_From_Set(TypeDesc *desc, Expr *listExp);
+Expr *Expr_From_Set(TypeWrapper type, Expr *listExp);
 
 /* new anonymous function expression */
 typedef struct anonyexpr {
@@ -284,7 +281,7 @@ typedef enum stmtkind {
    * var a, b = AddAndSub(100, 200)
    * a, b := AddAndSub(100, 200)
    */
-  VARLIST_EXPR_KIND,
+  VARLIST_KIND,
   /*
    * one left, one right
    * examples:
@@ -337,18 +334,16 @@ typedef struct stmt {
 typedef struct vardeclstmt {
   STMT_HEAD
   Ident id;
-  TypeDesc *desc;
-  Position descPos;
+  TypeWrapper type;
   Expr *exp;
   int konst;
 } VarDeclStmt;
 
-/* variable list declaration, see VARLIST_EXPR_KIND */
+/* variable list declaration, see VARLIST_KIND */
 typedef struct varlistdeclstmt {
   STMT_HEAD
   Vector *ids;
-  TypeDesc *desc;
-  Position descPos;
+  TypeWrapper type;
   Expr *exp;
   int konst;
 } VarListDeclStmt;
@@ -405,8 +400,9 @@ typedef struct liststmt {
 } ListStmt;
 
 void Free_Stmt_Func(void *item, void *arg);
-Stmt *__Stmt_From_VarDecl(Ident *id, TypeDesc *desc, Expr *exp, int k);
-Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeDesc *desc, Expr *exp, int k);
+Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst);
+Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
+                              Expr *exp, int konst);
 #define Stmt_From_VarDecl(id, desc, exp) \
   __Stmt_From_VarDecl(&(id), desc, exp, 0)
 #define Stmt_From_VarListDecl(ids, desc, exp) \

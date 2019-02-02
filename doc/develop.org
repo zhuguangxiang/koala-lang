@@ -2,21 +2,22 @@
 #+AUTHOR: James Zhu
 #+EMAIL: https://github.com/zhuguangxiang
 
-* 0.7.2 [2019-02-01 Fri]
-** variable declaration
-- variable in module and class
-- variable in function
-** objects
-- basic object: integer, string, bool, float etc
-- array, map, set
-** function declaration
-- function
-- block
-** expression
-- dot, call, array
-- basic expression: binary, unary etc
-** TEST
-- (multi)variable declaration in blocks
-- type not equal
-- function call parameter error
-- function call return value error
+* 0.7.2 [0/4]
+[2019-02-01 Fri] --
+** RUNNING variable declaration [0/2]
+- [ ] variable in module and class
+- [ ] variable in function
+** TODO objects [0/4]
+- [ ] basic object: integer, string, bool, float etc
+- [ ] array
+- [ ] map
+- [ ] set
+** TODO function declaration [0/5]
+- [ ] function
+- [ ] block
+- [ ] local variable declaration
+- [ ] typeless variable declaration
+- [ ] argument and return variable declaration
+** TODO expression [0/2]
+- [ ] dot, call, array
+- [ ] basic expression: binary, unary etc

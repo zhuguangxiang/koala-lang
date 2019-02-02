@@ -27,7 +27,7 @@
 #include "log.h"
 
 static const char *scope_strings[] = {
-  "PACKAGE", "MODULE", "FUNCTION", "BLOCK", "CLOSURE", "CLASS"
+  "PACKAGE", "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
 
 int Init_PkgInfo(PkgInfo *pkg, char *pkgname, char *pkgfile, Options *opts)
@@ -81,6 +81,12 @@ static void free_parser_unit(ParserUnit *u)
   mm_free(u);
 }
 
+static ParserUnit *up_parser_unit(ParserState *ps)
+{
+  struct list_head *pos = list_first(&ps->ustack);
+  return (pos != NULL) ? container_of(pos, ParserUnit, link) : NULL;
+}
+
 static void save_locvar_func(Symbol *sym, void *arg)
 {
   assert(sym->kind = SYM_VAR);
@@ -122,13 +128,15 @@ static void merge_parser_unit(ParserState *ps)
         Log_Debug("add 'return' to function '%s'", funSym->name);
         Inst_Append_NoArg(b, OP_RET);
       }
-      /* save codeblock to function symbol */
-      funSym->code = u->block;
-      u->block = NULL;
-      /* save local variables' symbol to FuncSymbol->locvec */
-      STable_Free(u->stbl, save_locvar_func, funSym);
-      u->stbl = NULL;
     }
+    /* save codeblock to function symbol */
+    funSym->code = u->block;
+    u->block = NULL;
+    /* free local symbol table */
+    STable_Free_Self(u->stbl);
+    u->stbl = NULL;
+    /* simple clear symbol, it's stored in module's symbol table */
+    u->sym = NULL;
     break;
   }
   case SCOPE_BLOCK: {
@@ -167,7 +175,7 @@ static void show_parser_unit(ParserState *ps)
 
 static void check_unused_symbols(ParserUnit *u)
 {
-
+  /* FIXME */
 }
 
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope)
@@ -448,22 +456,23 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
 
 static void parse_stmts(ParserState *ps, Vector *stmts);
 
-static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
+/*
+ * parse single variable declaration for:
+ * 1. module's variable & constant declaration
+ * 2. class or trait's field declaration
+ * 3. function argument & return & local variable declaration
+ */
+static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
+                           Expr *rexp, int konst)
 {
-  VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
-  char *varname = varStmt->id.name;
-
-  Log_Debug("parse variable '%s' declaration", varname);
+  Log_Debug("parse variable '%s' declaration", id->name);
 
   /* check expression */
-  Expr *rexp = varStmt->exp;
   if (rexp != NULL) {
-    if (varStmt->konst == 1) {
-      /* constant */
-      if (expr_is_const(rexp)) {
-        Syntax_Error(ps, &rexp->pos, "not a valid const expression");
-        return;
-      }
+    /* constant */
+    if (konst == 1 && expr_is_const(rexp)) {
+      Syntax_Error(ps, &rexp->pos, "not a valid const expression");
+      return;
     }
 
     /* parse right expression of variable declaration */
@@ -483,8 +492,8 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
          check function call expr only
        */
       if (rexp->kind == CALL_KIND) {
-        ProtoDesc *desc = (ProtoDesc *)rexp->desc;
-        if (Vector_Size(desc->ret) != 1) {
+        ProtoDesc *proto = (ProtoDesc *)rexp->desc;
+        if (Vector_Size(proto->ret) != 1) {
           Syntax_Error(ps, &rexp->pos,
                        "multiple-value %s() in single-value context",
                        expr_get_funcname(rexp));
@@ -493,9 +502,9 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
       }
     }
 
-    if (varStmt->desc != NULL) {
+    if (type->desc != NULL) {
       /* check type equals or not */
-      if (!type_is_compatible(varStmt->desc, rexp->desc)) {
+      if (!type_is_compatible(type->desc, rexp->desc)) {
         Syntax_Error(ps, &rexp->pos,
                      "right expression's type is not compatible");
         return;
@@ -503,9 +512,9 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
     } else {
       char buf[64];
       TypeDesc_ToString(rexp->desc, buf);
-      Log_Debug("var '%s' type is none, set it as '%s'", varname, buf);
-      varStmt->desc = rexp->desc;
-      TYPE_INCREF(varStmt->desc);
+      Log_Debug("var '%s' type is none, set it as '%s'", id->name, buf);
+      TYPE_INCREF(rexp->desc);
+      type->desc = rexp->desc;
     }
   }
 
@@ -517,23 +526,23 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
      * variables in module or class canbe accessed by other packages,
      * during building AST, it is already saved in symbol table.
      */
-    varSym = (VarSymbol *)STable_Get(u->stbl, varname);
+    varSym = (VarSymbol *)STable_Get(u->stbl, id->name);
     assert(varSym != NULL);
     assert(varSym->kind == SYM_CONST || varSym->kind == SYM_VAR);
     if (varSym->desc == NULL) {
       char buf[64];
-      TypeDesc_ToString(varStmt->desc, buf);
-      Log_Debug("update symbol '%s' type as '%s'", varname, buf);
-      varSym->desc = varStmt->desc;
+      TypeDesc_ToString(type->desc, buf);
+      Log_Debug("update symbol '%s' type as '%s'", id->name, buf);
+      varSym->desc = type->desc;
       TYPE_INCREF(varSym->desc);
     }
-  } else if (u->scope == SCOPE_FUNCTION || u->scope == SCOPE_METHOD) {
+  } else if (u->scope == SCOPE_FUNCTION) {
     /* function scope has independent space for save variables. */
-    Log_Debug("var '%s' declaration in function", varname);
-    assert(varStmt->konst != 1);
-    varSym = STable_Add_Var(u->stbl, varname, varStmt->desc);
+    Log_Debug("var '%s' declaration in function", id->name);
+    assert(konst != 1);
+    varSym = STable_Add_Var(u->stbl, id->name, type->desc);
     if (varSym == NULL) {
-      Syntax_Error(ps, &varStmt->id.pos, "var '%s' is duplicated", varname);
+      Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
       return;
     }
     FuncSymbol *funSym = (FuncSymbol *)u->sym;
@@ -545,33 +554,40 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
      * variables in these socpes must not be duplicated
      * within function or method scopes
      */
-    Log_Debug("var '%s' declaration in block/closure", varname);
+    Log_Debug("var '%s' declaration in block/closure", id->name);
+
     /* check there is no the same symbol in up unit until function scope. */
+    int infunc = 0;
     Symbol *sym;
     ParserUnit *uu;
     struct list_head *pos;
     list_for_each_prev(pos, &ps->ustack) {
       uu = container_of(pos, ParserUnit, link);
-      sym = STable_Get(uu->stbl, varStmt->id.name);
+      sym = STable_Get(uu->stbl, id->name);
       if (sym != NULL) {
-        Syntax_Error(ps, &varStmt->id.pos,
+        Syntax_Error(ps, &id->pos,
                      "var '%s' is already delcared in '%s' scope",
-                     varname, scope_strings[uu->scope]);
+                     id->name, scope_strings[uu->scope]);
         return;
       }
-      if (uu->scope == SCOPE_FUNCTION || uu->scope == SCOPE_METHOD)
+      if (uu->scope == SCOPE_FUNCTION) {
+        infunc = 1;
         break;
+      }
     }
 
-    varSym = STable_Add_Var(u->stbl, varname, varStmt->desc);
+    /* BUG: block is not in function ? */
+    assert(infunc);
+
+    varSym = STable_Add_Var(u->stbl, id->name, type->desc);
     if (varSym == NULL) {
-      Syntax_Error(ps, &varStmt->id.pos, "var '%s' is duplicated", varname);
+      Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
       return;
     }
+
     /* local variables' index is function's index */
     varSym->index = uu->stbl->varindex++;
-    FuncSymbol *funSym = (FuncSymbol *)uu->sym;
-    Vector_Append(&funSym->locvec, varSym);
+    Vector_Append(&((FuncSymbol *)uu->sym)->locvec, varSym);
     varSym->refcnt++;
   }
 
@@ -591,6 +607,13 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
   }
 }
 
+static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
+{
+  VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
+  parse_variable(ps, &varStmt->id, &varStmt->type,
+                 varStmt->exp, varStmt->konst);
+}
+
 static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
 {
   assert(0);
@@ -608,7 +631,42 @@ static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
 
 static void parse_funcdecl_stmt(ParserState *ps, Stmt *stmt)
 {
+  FuncDeclStmt *funStmt = (FuncDeclStmt *)stmt;
 
+  Parser_Enter_Scope(ps, SCOPE_FUNCTION);
+  ps->u->stbl = STable_New();
+
+  ParserUnit *uu = up_parser_unit(ps);
+  assert(uu != NULL);
+  assert(uu->scope == SCOPE_MODULE || uu->scope == SCOPE_CLASS);
+  Symbol *sym = STable_Get(uu->stbl, funStmt->id.name);
+  assert(sym != NULL);
+  ps->u->sym = sym;
+
+  Log_Debug("----parse function '%s'----", funStmt->id.name);
+
+  /*
+   * return-list has variable declarations
+   * FIXME: hwo to order argument and return
+   */
+  IdType *idtype;
+  Vector_ForEach(idtype, funStmt->rets) {
+    if (idtype->id.name != NULL) {
+      /* return-list is variable declaration */
+      parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
+    }
+  }
+
+  /* parameter-list */
+  Vector_ForEach(idtype, funStmt->args) {
+    parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
+  }
+
+  parse_stmts(ps, funStmt->body);
+
+  Log_Debug("----end of function '%s'----", funStmt->id.name);
+
+  Parser_Exit_Scope(ps);
 }
 
 static void parse_protodecl_stmt(ParserState *ps, Stmt *stmt)
@@ -663,18 +721,18 @@ static void parse_class_stmt(ParserState *ps, Stmt *stmt)
 typedef void (*parse_stmt_func)(ParserState *, Stmt *);
 
 static parse_stmt_func parse_stmt_funcs[] = {
-  NULL,                     /* INVALID            */
-  parse_vardecl_stmt,       /* VAR_KIND           */
-  parse_varlistdecl_stmt,   /* VARLIST_EXPR_KIND  */
-  parse_assign_stmt,        /* ASSIGN_KIND        */
-  parse_assignlist_stmt,    /* ASSIGNLIST_KIND    */
-  parse_funcdecl_stmt,      /* FUNC_KIND          */
-  parse_protodecl_stmt,     /* PROTO_KIND         */
-  parse_expr_stmt,          /* EXPR_KIND          */
-  parse_return_stmt,        /* RETURN_KIND        */
-  parse_list_stmt,          /* LIST_KIND          */
-  NULL,                     /* TYPEALIAS_KIND     */
-  parse_class_stmt,         /* CLASS_KIND         */
+  NULL,                     /* INVALID         */
+  parse_vardecl_stmt,       /* VAR_KIND        */
+  parse_varlistdecl_stmt,   /* VARLIST_KIND    */
+  parse_assign_stmt,        /* ASSIGN_KIND     */
+  parse_assignlist_stmt,    /* ASSIGNLIST_KIND */
+  parse_funcdecl_stmt,      /* FUNC_KIND       */
+  parse_protodecl_stmt,     /* PROTO_KIND      */
+  parse_expr_stmt,          /* EXPR_KIND       */
+  parse_return_stmt,        /* RETURN_KIND     */
+  parse_list_stmt,          /* LIST_KIND       */
+  NULL,                     /* TYPEALIAS_KIND  */
+  parse_class_stmt,         /* CLASS_KIND      */
 };
 
 static void parser_vist_stmt(ParserState *ps, Stmt *stmt)

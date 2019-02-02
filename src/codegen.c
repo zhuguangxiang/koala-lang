@@ -352,6 +352,11 @@ void Inst_Gen(KImage *image, Buffer *buf, Inst *i)
 
 int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code)
 {
+  if (block == NULL) {
+    Log_Warn("no codes");
+    return 0;
+  }
+
   Buffer buf;
   Buffer_Init(&buf, 32);
   Inst *i;

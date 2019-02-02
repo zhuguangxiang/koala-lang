@@ -16,6 +16,7 @@ configure_file (
   ${PROJECT_SOURCE_DIR}/include/config.h
   )
 
+## set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -g -fprofile-arcs -ftest-coverage")
 if (CMAKE_BUILD_TYPE STREQUAL Debug)
   set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -g")
 else ()

@@ -88,7 +88,6 @@ typedef enum scopekind {
   SCOPE_MODULE = 1,
   SCOPE_CLASS,
   SCOPE_FUNCTION,
-  SCOPE_METHOD,
   SCOPE_BLOCK,
   SCOPE_CLOSURE,
 } ScopeKind;
@@ -180,8 +179,8 @@ void Fini_Imports(ParserState *ps);
 Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
                           Position *idloc, Position *pathloc);
 void Parser_New_Variables(ParserState *ps, Stmt *stmt);
-Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeDesc *desc,
-                            Vector *exps, int k);
+Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
+                            Vector *exps, int konst);
 #define Parser_Do_Variables(ps, ids, desc, exps) \
   __Parser_Do_Variables(ps, ids, desc, exps, 0)
 #define Parser_Do_Constants(ps, ids, desc, exps) \
