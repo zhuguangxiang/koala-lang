@@ -140,7 +140,20 @@ static void merge_parser_unit(ParserState *ps)
     break;
   }
   case SCOPE_BLOCK: {
-
+    /* FIXME: if-else, while and switch-case */
+    ParserUnit *uu = up_parser_unit(ps);
+    Log_Debug("merge code into up scope-%d(%s)",
+              ps->depth - 1, scope_strings[uu->scope]);
+    if (uu->block == NULL) {
+      Log_Debug("up scope's codeblock is null");
+      uu->block = u->block;
+    } else {
+      CodeBlock_Merge(u->block, uu->block);
+      CodeBlock_Free(u->block);
+    }
+    u->block = NULL;
+    STable_Free_Self(u->stbl);
+    u->stbl = NULL;
     break;
   }
   case SCOPE_CLASS: {
@@ -560,14 +573,16 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     int infunc = 0;
     Symbol *sym;
     ParserUnit *uu;
+    int depth = ps->depth;
     struct list_head *pos;
-    list_for_each_prev(pos, &ps->ustack) {
+    list_for_each(pos, &ps->ustack) {
+      depth -= 1;
       uu = container_of(pos, ParserUnit, link);
       sym = STable_Get(uu->stbl, id->name);
       if (sym != NULL) {
         Syntax_Error(ps, &id->pos,
-                     "var '%s' is already delcared in '%s' scope",
-                     id->name, scope_strings[uu->scope]);
+                     "var '%s' is already delcared in scope-%d(%s)",
+                     id->name, depth, scope_strings[uu->scope]);
         return;
       }
       if (uu->scope == SCOPE_FUNCTION) {
@@ -688,7 +703,14 @@ static void parse_return_stmt(ParserState *ps, Stmt *stmt)
 static void parse_list_stmt(ParserState *ps, Stmt *stmt)
 {
   ListStmt *listStmt = (ListStmt *)stmt;
-  parse_stmts(ps, listStmt->vec);
+  if (listStmt->block) {
+    Parser_Enter_Scope(ps, SCOPE_BLOCK);
+    ps->u->stbl = STable_New();
+    parse_stmts(ps, listStmt->vec);
+    Parser_Exit_Scope(ps);
+  } else {
+    parse_stmts(ps, listStmt->vec);
+  }
 }
 
 static void parse_class_supers(ParserState *ps, Vector *supers)
@@ -756,7 +778,7 @@ static void parse_stmts(ParserState *ps, Vector *stmts)
   }
 }
 
-void Build_AST(ParserState *ps, FILE *in, int *err)
+int Build_AST(ParserState *ps, FILE *in)
 {
   ps->state = STATE_BUILDING_AST;
   Log_Debug("\x1b[34m----STARTING BUILDING AST------\x1b[0m");
@@ -770,10 +792,10 @@ void Build_AST(ParserState *ps, FILE *in, int *err)
   yylex_destroy(scanner);
   Log_Debug("\x1b[34m----END OF BUILDING AST--------\x1b[0m");
   ps->state = STATE_NONE;
-  *err = ps->errnum;
+  return ps->errnum;
 }
 
-void Parse_AST(ParserState *ps)
+int Parse_AST(ParserState *ps)
 {
   ps->state = STATE_PARSING_AST;
   Log_Debug("\x1b[32m----STARTING SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
@@ -783,4 +805,5 @@ void Parse_AST(ParserState *ps)
   Parser_Exit_Scope(ps);
   Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN------\x1b[0m");
   ps->state = STATE_NONE;
+  return ps->errnum;
 }

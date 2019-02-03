@@ -548,10 +548,13 @@ ReturnList
     $$ = Vector_New();
     Vector_Append($$, New_IdType(NULL, &type));
   }
+/*
+  return variable declaration not supported in 0.7 version
   | '(' IDTypeList ')'
   {
     $$ = $2;
   }
+*/
   | '(' TypeList ')'
   {
     $$ = $2;
@@ -1038,6 +1041,7 @@ LocalStatement
   | Block
   {
     $$ = Stmt_From_List($1);
+    ((ListStmt *)$$)->block = 1;
   }
   | error
   {

@@ -424,6 +424,8 @@ STable *STable_New(void)
 {
   STable *stbl = mm_alloc(sizeof(STable));
   HashTable_Init(&stbl->table, symbol_hash, symbol_equal);
+  /* [0]: module or class self */
+  stbl->varindex = 1;
   return stbl;
 }
 

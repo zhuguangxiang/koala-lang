@@ -1039,28 +1039,28 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
   }
 
   if (isz == esz) {
-    Ident *id;
-    Expr *exp;
     Stmt *stmt;
-
     if (isz == 1) {
       /* only one variable */
-      id = Vector_Get(ids, 0);
-      exp = Vector_Get(exps, 0);
+      Ident *id = Vector_Get(ids, 0);
+      Expr *exp = Vector_Get(exps, 0);
       TYPE_INCREF(type.desc);
       stmt = __Stmt_From_VarDecl(id, type, exp, konst);
       Free_Ident(id);
     } else {
       /* count of left ids == count of right expressions */
+      Ident *id;
+      Expr *exp;
       Stmt *varStmt;
-      stmt = Stmt_From_List(Vector_New());
+      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
       Vector_ForEach(id, ids) {
         exp = Vector_Get(exps, i);
         TYPE_INCREF(type.desc);
         varStmt = __Stmt_From_VarDecl(id, type, exp, konst);
         Free_Ident(id);
-        Vector_Append(((ListStmt *)stmt)->vec, varStmt);
+        Vector_Append(listStmt->vec, varStmt);
       }
+      stmt = (Stmt *)listStmt;
     }
 
     Vector_Free_Self(ids);

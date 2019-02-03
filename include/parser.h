@@ -167,8 +167,8 @@ void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);
 
 ParserState *New_Parser(PkgInfo *pkg, char *filename);
-void Build_AST(ParserState *ps, FILE *in, int *err);
-void Parse_AST(ParserState *ps);
+int Build_AST(ParserState *ps, FILE *in);
+int Parse_AST(ParserState *ps);
 void Destroy_Parser(ParserState *ps);
 void Check_Unused_Imports(ParserState *ps);
 void Check_Unused_Symbols(ParserState *ps);

@@ -2,22 +2,34 @@
 #+AUTHOR: James Zhu
 #+EMAIL: https://github.com/zhuguangxiang
 
-* 0.7.2 [0/4]
+* 0.7.3 [2/4]
 [2019-02-01 Fri] --
-** RUNNING variable declaration [0/2]
-- [ ] variable in module and class
-- [ ] variable in function
+** DONE variable declaration [2/2]
+CLOSED: [2019-02-04 Mon 01:59]
+- [X] variable in module
+- [X] variable in function
 ** TODO objects [0/4]
 - [ ] basic object: integer, string, bool, float etc
 - [ ] array
 - [ ] map
 - [ ] set
-** TODO function declaration [0/5]
-- [ ] function
-- [ ] block
-- [ ] local variable declaration
-- [ ] typeless variable declaration
-- [ ] argument and return variable declaration
+** DONE function declaration [6/6]
+CLOSED: [2019-02-04 Mon 01:57]
+- [X] function
+- [X] block
+- [X] local variable declaration
+- [X] typeless variable declaration
+- [X] argument declaration
+- [X] return variable declaration not supported in 0.7 version.
 ** TODO expression [0/2]
 - [ ] dot, call, array
 - [ ] basic expression: binary, unary etc
+* 0.7.4 [0/1]
+** TODO check return in all code flow branches
+** TODO if-else statement
+** TODO while statement
+** TODO switch-case statement
+* 0.8
+** TODO import statement
+** TODO class declaration
+** TODO trait declaration

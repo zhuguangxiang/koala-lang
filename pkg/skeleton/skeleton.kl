@@ -36,10 +36,19 @@ var f = 12.04
 
 //function
 func add(a int, b int) int {
+  aa := "how are you?"
+  {
+    var cc = 100
+    {
+      var cc = 200
+      var dd = 300
+    }
+    var dd = 400
+  }
   return
 }
 
-func sub(aa int, bb int) (cc int, dd int) {
+func sub(aa int, bb int) (int, int) {
   return
 }
 

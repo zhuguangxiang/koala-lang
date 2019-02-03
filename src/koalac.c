@@ -64,11 +64,10 @@ static void compile(char *pkgdir, PkgInfo *pkg)
     return;
   }
 
-  VECTOR(psvec);
+  VECTOR(modules);
 
   ParserState *ps;
-  int total_err = 0;
-  int err = 0;
+  int errors = 0;
 
   struct dirent *dent;
   char name[512];
@@ -90,11 +89,10 @@ static void compile(char *pkgdir, PkgInfo *pkg)
     }
 
     ps = New_Parser(pkg, dent->d_name);
-    Vector_Append(&psvec, ps);
+    Vector_Append(&modules, ps);
 
     /* build abstact syntax tree */
-    Build_AST(ps, in, &err);
-    total_err = total_err + err;
+    errors += Build_AST(ps, in);
 
     fclose(in);
   }
@@ -102,21 +100,21 @@ static void compile(char *pkgdir, PkgInfo *pkg)
   closedir(dir);
 
   /* semantic analysis and code generation */
-  Vector_ForEach(ps, &psvec) {
-    if (ps->errnum <= 0)
-      Parse_AST(ps);
+  Vector_ForEach(ps, &modules) {
+    if (errors <= 0)
+      errors += Parse_AST(ps);
     Destroy_Parser(ps);
   }
 
-  Vector_Fini_Self(&psvec);
+  Vector_Fini_Self(&modules);
 
-  if (total_err <= 0) {
+  if (errors <= 0) {
     KImage *image = Generate_KImage(pkg->stbl);
     assert(image != NULL);
     KImage_Write_File(image, pkg->pkgfile.str);
     KImage_Free(image);
   } else {
-    fprintf(stderr, "There are %d errors.\n", total_err);
+    fprintf(stderr, "There are %d errors.\n", errors);
   }
 }
 

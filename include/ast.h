@@ -307,7 +307,7 @@ typedef enum stmtkind {
   EXPR_KIND,
   /* return */
   RETURN_KIND,
-  /* list for block and vardecl-list */
+  /* list for block, (typeless)vardecl-list and assignment-list */
   LIST_KIND,
   /* type alias */
   TYPEALIAS_KIND,
@@ -396,6 +396,7 @@ typedef struct returnstmt {
 /* list statement */
 typedef struct liststmt {
   STMT_HEAD
+  int block;
   Vector *vec; /* statement */
 } ListStmt;
 
