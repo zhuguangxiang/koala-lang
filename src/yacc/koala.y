@@ -1208,6 +1208,7 @@ AttributeExpression
   {
     DeclareIdent(id, $3, @3);
     $$ = Expr_From_Attribute(id, $1);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1215,10 +1216,12 @@ CallExpression
   : PrimaryExpression '(' ')'
   {
     $$ = Expr_From_Call(NULL, $1);
+    SetPosition($$->pos, @1);
   }
   | PrimaryExpression '(' ExpressionList ')'
   {
     $$ = Expr_From_Call($3, $1);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1226,6 +1229,7 @@ SubScriptExpression
   : PrimaryExpression '[' Expression ']'
   {
     $$ = Expr_From_SubScript($3, $1);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1233,18 +1237,22 @@ SliceExpression
   : PrimaryExpression '[' Expression ':' Expression ']'
   {
     $$ = Expr_From_Slice($3, $5, $1);
+    SetPosition($$->pos, @1);
   }
   | PrimaryExpression '[' ':' Expression ']'
   {
     $$ = Expr_From_Slice(NULL, $4, $1);
+    SetPosition($$->pos, @1);
   }
   | PrimaryExpression '[' Expression ':' ']'
   {
     $$ = Expr_From_Slice($3, NULL, $1);
+    SetPosition($$->pos, @1);
   }
   | PrimaryExpression '[' ':' ']'
   {
     $$ = Expr_From_Slice(NULL, NULL, $1);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1341,21 +1349,25 @@ ArrayCreationExpression
   {
     DeclareType(type, $2, @2);
     $$ = Parser_New_Array($1, 0, type, $3);
+    SetPosition($$->pos, @1);
   }
   | DimExprList Type
   {
     DeclareType(type, $2, @2);
     $$ = Parser_New_Array($1, 0, type, NULL);
+    SetPosition($$->pos, @1);
   } %prec PREC_0
   | DIMS BaseType ArrayOrSetInitializer
   {
     DeclareType(type, $2, @2);
     $$ = Parser_New_Array(NULL, $1, type, $3);
+    SetPosition($$->pos, @1);
   }
   | DIMS BaseType
   {
     DeclareType(type, $2, @2);
     $$ = Parser_New_Array(NULL, $1, type, NULL);
+    SetPosition($$->pos, @1);
   } %prec PREC_0
   ;
 
@@ -1377,11 +1389,13 @@ SetCreationExpression
   {
     DeclareType(type, $1, @1);
     $$ = Expr_From_Set(type, $2);
+    SetPosition($$->pos, @1);
   }
   | SetType
   {
     DeclareType(type, $1, @1);
     $$ = Expr_From_Set(type, NULL);
+    SetPosition($$->pos, @1);
   } %prec PREC_0
   ;
 
@@ -1389,16 +1403,19 @@ ArrayOrSetInitializer
   : '{' ExpressionList '}'
   {
     $$ = Expr_From_ArrayListExpr($2);
+    SetPosition($$->pos, @1);
   }
   | '{' ExpressionList ',' '}'
   {
     /* last one with comma */
     $$ = Expr_From_ArrayListExpr($2);
+    SetPosition($$->pos, @1);
   }
   | '{' ExpressionList ';' '}'
   {
     /* string newline will insert semicolon automatically */
     $$ = Expr_From_ArrayListExpr($2);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1407,11 +1424,13 @@ MapCreationExpression
   {
     DeclareType(type, $1, @1);
     $$ = Expr_From_Map(type, $2);
+    SetPosition($$->pos, @1);
   }
   | MapType
   {
     DeclareType(type, $1, @1);
     $$ = Expr_From_Map(type, NULL);
+    SetPosition($$->pos, @1);
   } %prec PREC_0
   ;
 
@@ -1419,11 +1438,13 @@ MapInitializer
   : '{' MapKeyValueList '}'
   {
     $$ = Expr_From_MapListExpr($2);
+    SetPosition($$->pos, @1);
   }
   | '{' MapKeyValueList ',' '}'
   {
     /* last one with comma */
     $$ = Expr_From_MapListExpr($2);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1444,11 +1465,13 @@ MapKeyValue
   : Expression ':' Expression
   {
     $$ = Expr_From_MapEntry($1, $3);
+    SetPosition($$->pos, @1);
   }
   | Expression ':' Expression ';'
   {
     /* string newline will insert semicolon automatically */
     $$ = Expr_From_MapEntry($1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1456,18 +1479,22 @@ AnonyFuncExpression
   : FUNC '(' ParameterList ')' ReturnList Block
   {
     $$ = Expr_From_Anony($3, $5, $6);
+    SetPosition($$->pos, @1);
   }
   | FUNC '(' ParameterList ')' Block
   {
     $$ = Expr_From_Anony($3, NULL, $5);
+    SetPosition($$->pos, @1);
   }
   | FUNC '(' ')' ReturnList Block
   {
     $$ = Expr_From_Anony(NULL, $4, $5);
+    SetPosition($$->pos, @1);
   }
   | FUNC '(' ')' Block
   {
     $$ = Expr_From_Anony(NULL, NULL, $4);
+    SetPosition($$->pos, @1);
   }
   | FUNC error
   {
@@ -1485,6 +1512,7 @@ UnaryExpression
   | UnaryOp UnaryExpression
   {
     $$ = Expr_From_Unary($1, $2);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1515,18 +1543,22 @@ MultipleExpression
   | MultipleExpression '*' UnaryExpression
   {
     $$ = Expr_From_Binary(BINARY_MULT, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | MultipleExpression '/' UnaryExpression
   {
     $$ = Expr_From_Binary(BINARY_DIV, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | MultipleExpression '%' UnaryExpression
   {
     $$ = Expr_From_Binary(BINARY_MOD, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | MultipleExpression POWER UnaryExpression
   {
     $$ = Expr_From_Binary(BINARY_POWER, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1538,10 +1570,12 @@ AddExpression
   | AddExpression '+' MultipleExpression
   {
     $$ = Expr_From_Binary(BINARY_ADD, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | AddExpression '-' MultipleExpression
   {
     $$ = Expr_From_Binary(BINARY_SUB, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1553,10 +1587,12 @@ ShiftExpression
   | ShiftExpression LSHIFT AddExpression
   {
     $$ = Expr_From_Binary(BINARY_LSHIFT, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | ShiftExpression RSHIFT AddExpression
   {
     $$ = Expr_From_Binary(BINARY_RSHIFT, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1568,18 +1604,22 @@ RelationExpression
   | RelationExpression '<' ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_LT, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | RelationExpression '>' ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_GT, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | RelationExpression LE  ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_LE, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | RelationExpression GE  ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_GE, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1591,10 +1631,12 @@ EqualityExpression
   | EqualityExpression EQ RelationExpression
   {
     $$ = Expr_From_Binary(BINARY_EQ, $1, $3);
+    SetPosition($$->pos, @1);
   }
   | EqualityExpression NE RelationExpression
   {
     $$ = Expr_From_Binary(BINARY_NEQ, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1606,6 +1648,7 @@ AndExpression
   | AndExpression '&' EqualityExpression
   {
     $$ = Expr_From_Binary(BINARY_BIT_AND, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1617,6 +1660,7 @@ ExclusiveOrExpression
   | ExclusiveOrExpression '^' AndExpression
   {
     $$ = Expr_From_Binary(BINARY_BIT_XOR, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1628,6 +1672,7 @@ InclusiveOrExpression
   | InclusiveOrExpression '|' ExclusiveOrExpression
   {
     $$ = Expr_From_Binary(BINARY_BIT_OR, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1639,6 +1684,7 @@ LogicAndExpression
   | LogicAndExpression AND InclusiveOrExpression
   {
     $$ = Expr_From_Binary(BINARY_LAND, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 
@@ -1650,6 +1696,7 @@ LogicOrExpression
   | LogicOrExpression OR LogicAndExpression
   {
     $$ = Expr_From_Binary(BINARY_LOR, $1, $3);
+    SetPosition($$->pos, @1);
   }
   ;
 

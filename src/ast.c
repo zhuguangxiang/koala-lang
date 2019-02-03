@@ -1123,6 +1123,8 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       if (e->kind != ID_KIND) {
         Syntax_Error(ps, &e->pos, "needs an ID");
         Free_Stmt_Func(listStmt, NULL);
+        Vector_Free(ids, free_expr_func, NULL);
+        Vector_Free(exps, free_expr_func, NULL);
         return NULL;
       }
       right = Vector_Get(exps, i);
@@ -1145,6 +1147,8 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
     if (e->kind != ID_KIND) {
       Syntax_Error(ps, &e->pos, "needs an ID");
       Vector_Free_Self(_ids);
+      Vector_Free(ids, free_expr_func, NULL);
+      Vector_Free(exps, free_expr_func, NULL);
       return NULL;
     }
     Vector_Append(_ids, e->id);

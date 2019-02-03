@@ -40,7 +40,6 @@ func add(a int, b int) int {
   {
     var cc = 100
     {
-      var cc = 200
       var dd = 300
     }
     var dd = 400
