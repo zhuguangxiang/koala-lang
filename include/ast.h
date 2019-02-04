@@ -131,6 +131,9 @@ struct expr {
   EXPR_HEAD
 };
 
+void Free_Expr(Expr *exp);
+int Expr_Maybe_Stored(Expr *exp);
+
 Expr *Expr_From_Nil(void);
 Expr *Expr_From_Self(void);
 Expr *Expr_From_Super(void);

@@ -293,6 +293,8 @@ static int type_is_compatible(TypeDesc *t1, TypeDesc *t2)
   return 1;
 }
 
+static void parser_visit_expr(ParserState *ps, Expr *exp);
+
 static void parse_nil_expr(ParserState *ps, Expr *exp)
 {
   UNUSED_PARAMETER(ps);
@@ -360,6 +362,52 @@ static void parse_char_expr(ParserState *ps, Expr *exp)
   Inst_Append(__get_codeblock(u), OP_LOADK, &val);
 }
 
+/* symbol is found in current scope */
+static void codegen_curscope_ident(ParserUnit *u, Symbol *sym, Expr *exp)
+{
+  exp->sym = sym;
+
+  switch (u->scope) {
+  case SCOPE_MODULE:
+    /* expr, in module scope, is variable declaration's right expr */
+    assert(exp->ctx == EXPR_LOAD);
+    if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
+      Log_Debug("symbol '%s' is variable(constant)", sym->name);
+      exp->desc = ((VarSymbol *)sym)->desc;
+      TYPE_INCREF(exp->desc);
+      Inst_Append_NoArg(u->block, OP_LOAD0);
+      Argument val = {.kind = ARG_STR, .str = sym->name};
+      Inst_Append(u->block, OP_GETFIELD, &val);
+    } else {
+      assert(sym->kind == SYM_FUNC);
+      Log_Debug("symbol '%s' is function", sym->name);
+      exp->desc = ((FuncSymbol *)sym)->desc;
+      TYPE_INCREF(exp->desc);
+      /*
+      Inst_Append_NoArg(u->block, OP_LOAD0);
+      Argument val = {.kind = ARG_STR, .str = sym->name};
+      Inst *i = Inst_Append(u->block, OP_CALL, &val);
+      i->argc = exp->argc;
+      */
+    }
+    break;
+  case SCOPE_CLASS:
+    /* expr, in class scope, is field declaration's right expr */
+    if (sym->kind == SYM_VAR) {
+      Log_Debug("symbol '%s' is variable(constant)", sym->name);
+      Inst_Append_NoArg(u->block, OP_LOAD0);
+      Argument val = {.kind = ARG_STR, .str = sym->name};
+      Inst_Append(u->block, OP_GETFIELD, &val);
+    } else {
+      assert(sym->kind == SYM_FUNC || sym->kind == SYM_IFUNC ||
+             sym->kind == SYM_NFUNC);
+      Log_Debug("symbol '%s is (interface/native) function", sym->name);
+    }
+    break;
+
+  }
+}
+
 /*
   a.b.c.attribute
   a.b.c()
@@ -369,6 +417,21 @@ static void parse_char_expr(ParserState *ps, Expr *exp)
  */
 static void parse_ident_expr(ParserState *ps, Expr *exp)
 {
+  ParserUnit *u = ps->u;
+  BaseExpr *baseExp = (BaseExpr *)exp;
+  char *name = baseExp->id;
+  Symbol *sym;
+
+  /* find ident from local scope */
+  sym = STable_Get(u->stbl, name);
+  if (sym != NULL) {
+    Log_Debug("find symbol '%s' in local scope-%d(%s)",
+              name, ps->depth, scope_strings[u->scope]);
+    codegen_curscope_ident(u, sym, exp);
+    return;
+  }
+
+  Syntax_Error(ps, &exp->pos, "cannot find symbol '%s'", name);
 }
 
 static void parse_self_expr(ParserState *ps, Expr *exp)
@@ -401,9 +464,80 @@ static void parse_subscript_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
+static int check_call_arguments(TypeDesc *proto, Vector *args)
+{
+  /* FIXME */
+  return 1;
+}
+
 static void parse_call_expr(ParserState *ps, Expr *exp)
 {
-  assert(0);
+  ParserUnit *u = ps->u;
+  CallExpr *callExp = (CallExpr *)exp;
+  Expr *lexp = callExp->left;
+
+  if (lexp->kind == SUPER_KIND) {
+    /*
+     * call, like super(1, 2),
+     * must be in subclass's __init__ func and is first statement
+     */
+    ParserUnit *uu = up_parser_unit(ps);
+    if (u->scope != SCOPE_FUNCTION || uu->scope != SCOPE_CLASS ||
+        strcmp(u->sym->name, "__init__") || !list_empty(&u->block->insts)) {
+      Syntax_Error(ps, &lexp->pos,
+                   "call super __init__ must be in subclass's __init__");
+      return;
+    }
+  }
+
+  /* parse argument-list */
+  Expr *e;
+  Vector_ForEach_Reverse(e, callExp->args) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+  }
+
+  /* parse left expression */
+  lexp->ctx = EXPR_LOAD;
+  lexp->right = exp;
+  lexp->argc = Vector_Size(callExp->args);
+  parser_visit_expr(ps, lexp);
+  if (lexp->sym == NULL)
+    return;
+
+  /* set call expression's descriptor as its left expr's descriptor */
+  exp->desc = lexp->desc;
+  TYPE_INCREF(exp->desc);
+
+  /* set call expression's symbol as its left expr's symbol */
+  exp->sym = lexp->sym;
+
+  /*check call's arguments */
+  SymKind kind = exp->sym->kind;
+  TypeDesc *proto;
+  if (kind == SYM_FUNC || kind == SYM_IFUNC || kind == SYM_NFUNC) {
+    Log_Debug("call (interface/native) function '%s'", exp->sym->name);
+    proto = exp->desc;
+  } else {
+    assert(kind == SYM_CLASS);
+    ClassSymbol *clsSym = (ClassSymbol *)exp->sym;
+    Log_Debug("call class '%s' __init__ function", clsSym->name);
+    Symbol *__init__ = STable_Get(clsSym->stbl, "__init__");
+    int arguments = Vector_Size(callExp->args);
+    if (__init__ == NULL && arguments > 0) {
+      Syntax_Error(ps, &lexp->pos, "__init__ function needs no arguments");
+      return;
+    }
+    proto = ((FuncSymbol *)__init__)->desc;
+  }
+
+  if (!check_call_arguments(proto, callExp->args)) {
+    Syntax_Error(ps, &lexp->pos,
+                 "argument of function '%s' are not matched", exp->sym->name);
+    return;
+  }
+
+  Log_Debug("call function '%s' successfully", exp->sym->name);
 }
 
 static void parse_slice_expr(ParserState *ps, Expr *exp)
@@ -411,6 +545,7 @@ static void parse_slice_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
+/* array, map and set intializer */
 static void parse_list_expr(ParserState *ps, Expr *exp)
 {
   assert(0);
@@ -523,6 +658,15 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
                        "multiple-value %s() in single-value context",
                        expr_get_funcname(rexp));
           return;
+        }
+
+        if (type->desc == NULL) {
+          TypeDesc *desc = Vector_Get(proto->ret, 0);
+          char buf[64];
+          TypeDesc_ToString(desc, buf);
+          Log_Debug("var '%s' type is none, set it as '%s'", id->name, buf);
+          TYPE_INCREF(desc);
+          type->desc = desc;
         }
       }
     }
@@ -682,7 +826,7 @@ static void parse_funcdecl_stmt(ParserState *ps, Stmt *stmt)
 
   /*
    * return-list has variable declarations
-   * FIXME: hwo to order argument and return
+   * FIXME: how to order argument and return
    */
   IdType *idtype;
   Vector_ForEach(idtype, funStmt->rets) {
@@ -795,9 +939,6 @@ static void parser_vist_stmt(ParserState *ps, Stmt *stmt)
 
 static void parse_stmts(ParserState *ps, Vector *stmts)
 {
-  if (stmts == NULL)
-    return;
-
   Stmt *stmt;
   Vector_ForEach(stmt, stmts) {
     parser_vist_stmt(ps, stmt);

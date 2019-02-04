@@ -403,19 +403,94 @@ KlassType
 FunctionType
   : FUNC '(' ParameterList ')' ReturnList
   {
-    $$ = TypeDesc_Get_Proto($3, $5);
+    if ($3 == NULL || $5 == NULL) {
+      $$ = NULL;
+    } else {
+      Vector *pvec = Vector_New();
+      Vector *rvec = Vector_New();
+      IdType *idType;
+      Vector_ForEach(idType, $3) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(pvec, idType->type.desc);
+      }
+      Vector_ForEach(idType, $5) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(rvec, idType->type.desc);
+      }
+      $$ = TypeDesc_Get_Proto(pvec, rvec);
+    }
+    Free_IdTypeList($3);
+    Free_IdTypeList($5);
   }
   | FUNC '(' ParameterList ')'
   {
-    $$ = TypeDesc_Get_Proto($3, NULL);
+    if ($3 == NULL) {
+      $$ = NULL;
+    } else {
+      Vector *pvec = Vector_New();
+      IdType *idType;
+      Vector_ForEach(idType, $3) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(pvec, idType->type.desc);
+      }
+      $$ = TypeDesc_Get_Proto(pvec, NULL);
+    }
+    Free_IdTypeList($3);
   }
   | FUNC '(' ')' ReturnList
   {
-    $$ = TypeDesc_Get_Proto(NULL, $4);
+    if ($4 == NULL) {
+      $$ = NULL;
+    } else {
+      Vector *rvec = Vector_New();
+      IdType *idType;
+      Vector_ForEach(idType, $4) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(rvec, idType->type.desc);
+      }
+      $$ = TypeDesc_Get_Proto(NULL, rvec);
+    }
+    Free_IdTypeList($4);
   }
   | FUNC '(' ')'
   {
     $$ = TypeDesc_Get_Proto(NULL, NULL);
+  }
+  | FUNC '(' TypeList ')' ReturnList
+  {
+    if ($3 == NULL || $5 == NULL) {
+      $$ = NULL;
+    } else {
+      Vector *pvec = Vector_New();
+      Vector *rvec = Vector_New();
+      IdType *idType;
+      Vector_ForEach(idType, $3) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(pvec, idType->type.desc);
+      }
+      Vector_ForEach(idType, $5) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(rvec, idType->type.desc);
+      }
+      $$ = TypeDesc_Get_Proto(pvec, rvec);
+    }
+    Free_IdTypeList($3);
+    Free_IdTypeList($5);
+  }
+  | FUNC '(' TypeList ')'
+  {
+    if ($3 == NULL) {
+      $$ = NULL;
+    } else {
+      Vector *pvec = Vector_New();
+      IdType *idType;
+      Vector_ForEach(idType, $3) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(pvec, idType->type.desc);
+      }
+      $$ = TypeDesc_Get_Proto(pvec, NULL);
+    }
+    Free_IdTypeList($3);
   }
   | FUNC error
   {
@@ -1751,7 +1826,15 @@ Assignment
   }
   | PrimaryExpression CompAssignOp Expression ';'
   {
-    $$ = Stmt_From_Assign($2, $1, $3);
+    if (!Expr_Maybe_Stored($1)) {
+      DeclarePosition(pos, @1);
+      Syntax_Error(ps, &pos, "expr is not left expr");
+      Free_Expr($1);
+      Free_Expr($3);
+      $$ = NULL;
+    } else {
+      $$ = Stmt_From_Assign($2, $1, $3);
+    }
   }
   ;
 

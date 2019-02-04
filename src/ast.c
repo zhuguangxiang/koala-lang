@@ -353,13 +353,12 @@ Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body)
 }
 
 static void free_expr_func(void *item, void *arg);
-static void expr_free(Expr *exp);
 static inline void free_exprlist(Vector *vec);
 
-static int expr_maybe_store(Expr *exp)
+int Expr_Maybe_Stored(Expr *exp)
 {
   if (exp->kind == ID_KIND || exp->kind == ATTRIBUTE_KIND ||
-      exp->kind == SUBSCRIPT_KIND || exp->kind == CALL_KIND)
+      exp->kind == SUBSCRIPT_KIND)
     return 1;
   else
     return 0;
@@ -367,37 +366,36 @@ static int expr_maybe_store(Expr *exp)
 
 static void free_simple_expr(Expr *exp)
 {
-  TYPE_DECREF(exp->desc);
   mm_free(exp);
 }
 
 static void free_unary_expr(Expr *exp)
 {
   UnaryExpr *unExp = (UnaryExpr *)exp;
-  expr_free(unExp->exp);
+  Free_Expr(unExp->exp);
   mm_free(exp);
 }
 
 static void free_binary_expr(Expr *exp)
 {
   BinaryExpr *binExp = (BinaryExpr *)exp;
-  expr_free(binExp->lexp);
-  expr_free(binExp->rexp);
+  Free_Expr(binExp->lexp);
+  Free_Expr(binExp->rexp);
   mm_free(exp);
 }
 
 static void free_attribute_expr(Expr *exp)
 {
   AttributeExpr *attrExp = (AttributeExpr *)exp;
-  expr_free(attrExp->left);
+  Free_Expr(attrExp->left);
   mm_free(exp);
 }
 
 static void free_subscript_expr(Expr *exp)
 {
   SubScriptExpr *subExp = (SubScriptExpr *)exp;
-  expr_free(subExp->index);
-  expr_free(subExp->left);
+  Free_Expr(subExp->index);
+  Free_Expr(subExp->left);
   mm_free(exp);
 }
 
@@ -405,16 +403,16 @@ static void free_call_expr(Expr *exp)
 {
   CallExpr *callExp = (CallExpr *)exp;
   free_exprlist(callExp->args);
-  expr_free(callExp->left);
+  Free_Expr(callExp->left);
   mm_free(exp);
 }
 
 static void free_slice_expr(Expr *exp)
 {
   SliceExpr *sliceExp = (SliceExpr *)exp;
-  expr_free(sliceExp->start);
-  expr_free(sliceExp->end);
-  expr_free(sliceExp->left);
+  Free_Expr(sliceExp->start);
+  Free_Expr(sliceExp->end);
+  Free_Expr(sliceExp->left);
   mm_free(exp);
 }
 
@@ -430,8 +428,8 @@ static void free_list_expr(Expr *exp)
 static void free_mapentry_expr(Expr *exp)
 {
   MapEntryExpr *entExp = (MapEntryExpr *)exp;
-  expr_free(entExp->key);
-  expr_free(entExp->val);
+  Free_Expr(entExp->key);
+  Free_Expr(entExp->val);
   mm_free(exp);
 }
 
@@ -497,20 +495,21 @@ static void (*__free_expr_funcs[])(Expr *) = {
   free_anony_expr,      /* ANONY_FUNC_KIND  */
 };
 
-static void expr_free(Expr *exp)
+void Free_Expr(Expr *exp)
 {
   if (exp == NULL)
     return;
 
   assert(exp->kind >= 1 && exp->kind < nr_elts(__free_expr_funcs));
   void (*__free_expr_func)(Expr *) = __free_expr_funcs[exp->kind];
+  TYPE_DECREF(exp->desc);
   __free_expr_func(exp);
 }
 
 static void free_expr_func(void *item, void *arg)
 {
   UNUSED_PARAMETER(arg);
-  expr_free(item);
+  Free_Expr(item);
 }
 
 static inline void free_exprlist(Vector *vec)
@@ -523,7 +522,7 @@ static void free_vardecl_stmt(Stmt *stmt)
 {
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
   TYPE_DECREF(varStmt->type.desc);
-  expr_free(varStmt->exp);
+  Free_Expr(varStmt->exp);
   mm_free(stmt);
 }
 
@@ -564,7 +563,7 @@ static void free_funcdecl_stmt(Stmt *stmt)
 static void free_expr_stmt(Stmt *stmt)
 {
   ExprStmt *expStmt = (ExprStmt *)stmt;
-  expr_free(expStmt->exp);
+  Free_Expr(expStmt->exp);
   mm_free(stmt);
 }
 
@@ -982,7 +981,6 @@ static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int konst)
       Log_Debug("add const '%s' successfully", id->name);
     else
       Log_Debug("add var '%s' successfully", id->name);
-    sym->parent = ps->u->sym;
   } else {
     Syntax_Error(ps, &id->pos, "Symbol '%s' is duplicated", id->name);
   }
@@ -1219,8 +1217,8 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
     if (lsz == 1) {
       /* only one identifier */
       Expr *lexp = Vector_Get(left, 0);
-      if (!expr_maybe_store(lexp)) {
-        Syntax_Error(ps, &lexp->pos, "expr has not left expr");
+      if (!Expr_Maybe_Stored(lexp)) {
+        Syntax_Error(ps, &lexp->pos, "expr is not left expr");
         free_exprlist(left);
         free_exprlist(right);
         return NULL;
@@ -1233,8 +1231,8 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
       Expr *lexp, *rexp;
       Stmt *assignStmt;
       Vector_ForEach(lexp, left) {
-        if (!expr_maybe_store(lexp)) {
-          Syntax_Error(ps, &lexp->pos, "expr has not left expr");
+        if (!Expr_Maybe_Stored(lexp)) {
+          Syntax_Error(ps, &lexp->pos, "expr is not left expr");
           free_exprlist(left);
           free_exprlist(right);
           return NULL;
@@ -1255,8 +1253,8 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
   /* count of right expressions is 1 */
   Expr *lexp;
   Vector_ForEach(lexp, left) {
-    if (!expr_maybe_store(lexp)) {
-      Syntax_Error(ps, &lexp->pos, "expr has not left expr");
+    if (!Expr_Maybe_Stored(lexp)) {
+      Syntax_Error(ps, &lexp->pos, "expr is not left expr");
       free_exprlist(left);
       free_exprlist(right);
       return NULL;
@@ -1296,7 +1294,6 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   sym = STable_Add_Func(ps->u->stbl, funcStmt->id.name, proto);
   if (sym != NULL) {
     Log_Debug("add func '%s' successfully", funcStmt->id.name);
-    sym->parent = ps->u->sym;
   } else {
     Syntax_Error(ps, &funcStmt->id.pos,
                  "Symbol '%s' is duplicated.", funcStmt->id.name);
@@ -1334,7 +1331,6 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
   if (sym != NULL) {
     Log_Debug("add %s '%s' successfully",
               (stmt->native ? "nfunc" : "proto"), stmt->id.name);
-    sym->parent = ps->u->sym;
   } else {
     Syntax_Error(ps, &stmt->id.pos, "Symbol '%s' is duplicated", stmt->id.name);
     TYPE_DECREF(proto);
@@ -1382,7 +1378,6 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
     Log_Debug("add trait '%s' successfully", sym->name);
   }
 
-  sym->parent = ps->u->sym;
   Parser_Enter_Scope(ps, SCOPE_CLASS);
   /* ClassSymbol */
   ps->u->sym = (Symbol *)sym;
@@ -1444,9 +1439,10 @@ void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
     exit(-1);
   }
 
+/*
   if (ps->line.errors > 0)
     return;
-
+*/
   ps->line.errors++;
 
   va_list ap;

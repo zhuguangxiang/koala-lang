@@ -50,12 +50,14 @@ typedef enum symbolkind {
   SYM_IMPORT = 9, /* import */
 } SymKind;
 
-#define SYMBOL_HEAD \
-  SymKind kind;     \
-  HashNode hnode;   \
-  char *name;       \
-  int refcnt;       \
-  void *parent;
+#define SYMBOL_HEAD               \
+  SymKind kind;                   \
+  HashNode hnode;                 \
+  char *name;                     \
+  /* for free symbol */           \
+  int refcnt;                     \
+  /* the symbol is used or not */ \
+  int used;
 
 /* symbol */
 typedef struct symbol {

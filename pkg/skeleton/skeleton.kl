@@ -34,6 +34,9 @@ var greeting string = "hello, 汉字"
 var total int = 100
 var f = 12.04
 
+var result = add(1, 2)
+var func_callback func(int, int) int = add
+
 //function
 func add(a int, b int) int {
   aa := "how are you?"
@@ -49,8 +52,11 @@ func add(a int, b int) int {
 
 func sub(aa int, bb int) (int, int) {
   var hello string
-  hello + 2 = "world", 123
+  //hello += 2;
   return
+}
+
+func testIdent() {
 }
 
 /*
