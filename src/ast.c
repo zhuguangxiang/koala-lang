@@ -354,6 +354,7 @@ Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body)
 
 static void free_expr_func(void *item, void *arg);
 static void expr_free(Expr *exp);
+static inline void free_exprlist(Vector *vec);
 
 static int expr_maybe_store(Expr *exp)
 {
@@ -403,7 +404,7 @@ static void free_subscript_expr(Expr *exp)
 static void free_call_expr(Expr *exp)
 {
   CallExpr *callExp = (CallExpr *)exp;
-  Vector_Free(callExp->args, free_expr_func, NULL);
+  free_exprlist(callExp->args);
   expr_free(callExp->left);
   mm_free(exp);
 }
@@ -422,7 +423,7 @@ static void free_list_expr(Expr *exp)
   if (exp == NULL)
     return;
   ListExpr *listExp = (ListExpr *)exp;
-  Vector_Free(listExp->vec, free_expr_func, NULL);
+  free_exprlist(listExp->vec);
   mm_free(exp);
 }
 
@@ -437,7 +438,7 @@ static void free_mapentry_expr(Expr *exp)
 static void free_array_expr(Expr *exp)
 {
   ArrayExpr *arrayExp = (ArrayExpr *)exp;
-  Vector_Free(arrayExp->dims, free_expr_func, NULL);
+  free_exprlist(arrayExp->dims);
   TYPE_DECREF(arrayExp->base.desc);
   free_list_expr((Expr *)arrayExp->listExp);
   mm_free(exp);
@@ -512,6 +513,12 @@ static void free_expr_func(void *item, void *arg)
   expr_free(item);
 }
 
+static inline void free_exprlist(Vector *vec)
+{
+  if (vec != NULL)
+    Vector_Free(vec, free_expr_func, NULL);
+}
+
 static void free_vardecl_stmt(Stmt *stmt)
 {
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
@@ -564,7 +571,7 @@ static void free_expr_stmt(Stmt *stmt)
 static void free_return_stmt(Stmt *stmt)
 {
   ReturnStmt *retStmt = (ReturnStmt *)stmt;
-  Vector_Free(retStmt->exps, free_expr_func, NULL);
+  free_exprlist(retStmt->exps);
   mm_free(stmt);
 }
 
@@ -1129,8 +1136,8 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       e = Vector_Get(ids, 0);
       if (e->kind != ID_KIND) {
         Syntax_Error(ps, &e->pos, "needs an identifier");
-        Vector_Free(ids, free_expr_func, NULL);
-        Vector_Free(exps, free_expr_func, NULL);
+        free_exprlist(ids);
+        free_exprlist(exps);
         return NULL;
       }
       Ident ident = {e->id, e->pos};
@@ -1145,8 +1152,8 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
         if (e->kind != ID_KIND) {
           Syntax_Error(ps, &e->pos, "needs an identifier");
           Free_Stmt_Func(listStmt, NULL);
-          Vector_Free(ids, free_expr_func, NULL);
-          Vector_Free(exps, free_expr_func, NULL);
+          free_exprlist(ids);
+          free_exprlist(exps);
           return NULL;
         }
         right = Vector_Get(exps, i);
@@ -1158,7 +1165,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       }
       stmt = (Stmt *)listStmt;
     }
-    Vector_Free(ids, free_expr_func, NULL);
+    free_exprlist(ids);
     Vector_Free_Self(exps);
     return stmt;
   }
@@ -1173,8 +1180,8 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
     if (e->kind != ID_KIND) {
       Syntax_Error(ps, &e->pos, "needs an identifier");
       Free_IdTypeList(_ids);
-      Vector_Free(ids, free_expr_func, NULL);
-      Vector_Free(exps, free_expr_func, NULL);
+      free_exprlist(ids);
+      free_exprlist(exps);
       return NULL;
     }
     s.str = e->id;
@@ -1184,7 +1191,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
   }
   right = Vector_Get(exps, 0);
 
-  Vector_Free(ids, free_expr_func, NULL);
+  free_exprlist(ids);
   Vector_Free_Self(exps);
   return __Stmt_From_VarListDecl(_ids, nulltype, right, 0);
 }
@@ -1201,10 +1208,10 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
     if (lsz == 1) {
       /* only one identifier */
       Expr *lexp = Vector_Get(left, 0);
-      if (expr_maybe_store(lexp)) {
+      if (!expr_maybe_store(lexp)) {
         Syntax_Error(ps, &lexp->pos, "expr has not left expr");
-        Vector_Free(left, free_expr_func, NULL);
-        Vector_Free(right, free_expr_func, NULL);
+        free_exprlist(left);
+        free_exprlist(right);
         return NULL;
       }
       Expr *rexp = Vector_Get(right, 0);
@@ -1215,10 +1222,10 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
       Expr *lexp, *rexp;
       Stmt *assignStmt;
       Vector_ForEach(lexp, left) {
-        if (expr_maybe_store(lexp)) {
+        if (!expr_maybe_store(lexp)) {
           Syntax_Error(ps, &lexp->pos, "expr has not left expr");
-          Vector_Free(left, free_expr_func, NULL);
-          Vector_Free(right, free_expr_func, NULL);
+          free_exprlist(left);
+          free_exprlist(right);
           return NULL;
         }
         rexp = Vector_Get(right, i);
@@ -1237,10 +1244,10 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
   /* count of right expressions is 1 */
   Expr *lexp;
   Vector_ForEach(lexp, left) {
-    if (expr_maybe_store(lexp)) {
+    if (!expr_maybe_store(lexp)) {
       Syntax_Error(ps, &lexp->pos, "expr has not left expr");
-      Vector_Free(left, free_expr_func, NULL);
-      Vector_Free(right, free_expr_func, NULL);
+      free_exprlist(left);
+      free_exprlist(right);
       return NULL;
     }
   }

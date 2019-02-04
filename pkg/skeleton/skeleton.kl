@@ -48,6 +48,8 @@ func add(a int, b int) int {
 }
 
 func sub(aa int, bb int) (int, int) {
+  var hello string
+  hello + 2 = "world", 123
   return
 }
 
