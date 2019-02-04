@@ -144,7 +144,7 @@ Expr *Expr_From_Char(uchar val)
   return (Expr *)baseExp;
 }
 
-Expr *Expr_From_Id(char *val)
+Expr *Expr_From_Ident(char *val)
 {
   BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
   baseExp->kind = ID_KIND;
@@ -354,6 +354,15 @@ Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body)
 
 static void free_expr_func(void *item, void *arg);
 static void expr_free(Expr *exp);
+
+static int expr_maybe_store(Expr *exp)
+{
+  if (exp->kind == ID_KIND || exp->kind == ATTRIBUTE_KIND ||
+      exp->kind == SUBSCRIPT_KIND || exp->kind == CALL_KIND)
+    return 1;
+  else
+    return 0;
+}
 
 static void free_simple_expr(Expr *exp)
 {
@@ -673,6 +682,16 @@ Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts)
   return (Stmt *)funcStmt;
 }
 
+Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets)
+{
+  ProtoDeclStmt *protoStmt = mm_alloc(sizeof(ProtoDeclStmt));
+  protoStmt->kind = PROTO_KIND;
+  protoStmt->id = id;
+  protoStmt->args = args;
+  protoStmt->rets = rets;
+  return (Stmt *)protoStmt;
+}
+
 Stmt *Stmt_From_Expr(Expr *exp)
 {
   ExprStmt *expStmt = mm_alloc(sizeof(ExprStmt));
@@ -715,16 +734,6 @@ Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body)
   klsStmt->super = super;
   klsStmt->body = body;
   return (Stmt *)klsStmt;
-}
-
-Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets)
-{
-  ProtoDeclStmt *protoStmt = mm_alloc(sizeof(ProtoDeclStmt));
-  protoStmt->kind = PROTO_KIND;
-  protoStmt->id = id;
-  protoStmt->args = args;
-  protoStmt->rets = rets;
-  return (Stmt *)protoStmt;
 }
 
 typedef struct import {
@@ -1114,44 +1123,64 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
   Expr *right;
   TypeWrapper nulltype = {NULL};
   if (isz == esz) {
-    /* count of left ids == count of right expressions */
-    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
-
-    Ident ident;
-    Stmt *varStmt;
-    Vector_ForEach(e, ids) {
+    Stmt *stmt;
+    if (isz == 1) {
+      /* only one variable */
+      e = Vector_Get(ids, 0);
       if (e->kind != ID_KIND) {
-        Syntax_Error(ps, &e->pos, "needs an ID");
-        Free_Stmt_Func(listStmt, NULL);
+        Syntax_Error(ps, &e->pos, "needs an identifier");
         Vector_Free(ids, free_expr_func, NULL);
         Vector_Free(exps, free_expr_func, NULL);
         return NULL;
       }
-      right = Vector_Get(exps, i);
-      assert(right);
-      ident.name = e->id;
-      ident.pos = e->pos;
-      varStmt = __Stmt_From_VarDecl(&ident, nulltype, right, 0);
-      Vector_Append(listStmt->vec, varStmt);
+      Ident ident = {e->id, e->pos};
+      Expr *exp = Vector_Get(exps, 0);
+      stmt = __Stmt_From_VarDecl(&ident, nulltype, exp, 0);
+    } else {
+      /* count of left ids == count of right expressions */
+      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+      Ident ident;
+      Stmt *varStmt;
+      Vector_ForEach(e, ids) {
+        if (e->kind != ID_KIND) {
+          Syntax_Error(ps, &e->pos, "needs an identifier");
+          Free_Stmt_Func(listStmt, NULL);
+          Vector_Free(ids, free_expr_func, NULL);
+          Vector_Free(exps, free_expr_func, NULL);
+          return NULL;
+        }
+        right = Vector_Get(exps, i);
+        assert(right);
+        ident.name = e->id;
+        ident.pos = e->pos;
+        varStmt = __Stmt_From_VarDecl(&ident, nulltype, right, 0);
+        Vector_Append(listStmt->vec, varStmt);
+      }
+      stmt = (Stmt *)listStmt;
     }
     Vector_Free(ids, free_expr_func, NULL);
     Vector_Free_Self(exps);
-    return (Stmt *)listStmt;
+    return stmt;
   }
 
   assert(isz > esz && esz == 1);
 
   /* count of right expressions is 1 */
   Vector *_ids = Vector_New();
+  Ident *ident;
+  String s;
   Vector_ForEach(e, ids) {
     if (e->kind != ID_KIND) {
-      Syntax_Error(ps, &e->pos, "needs an ID");
-      Vector_Free_Self(_ids);
+      Syntax_Error(ps, &e->pos, "needs an identifier");
+      Free_IdTypeList(_ids);
       Vector_Free(ids, free_expr_func, NULL);
       Vector_Free(exps, free_expr_func, NULL);
       return NULL;
     }
-    Vector_Append(_ids, e->id);
+    s.str = e->id;
+    ident = New_Ident(s);
+    ident->pos = e->pos;
+    Vector_Append(_ids, ident);
   }
   right = Vector_Get(exps, 0);
 
@@ -1168,26 +1197,56 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
     return NULL;
 
   if (lsz == rsz) {
-    /* count of left expressions == count of right expressions */
-    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
-
-    Expr *lexp, *rexp;
-    Stmt *assignStmt;
-    Vector_ForEach(lexp, left) {
-      rexp = Vector_Get(right, i);
-      assignStmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
-      Vector_Append(listStmt->vec, assignStmt);
+    Stmt *stmt;
+    if (lsz == 1) {
+      /* only one identifier */
+      Expr *lexp = Vector_Get(left, 0);
+      if (expr_maybe_store(lexp)) {
+        Syntax_Error(ps, &lexp->pos, "expr has not left expr");
+        Vector_Free(left, free_expr_func, NULL);
+        Vector_Free(right, free_expr_func, NULL);
+        return NULL;
+      }
+      Expr *rexp = Vector_Get(right, 0);
+      stmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
+    } else {
+      /* count of left expressions == count of right expressions */
+      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+      Expr *lexp, *rexp;
+      Stmt *assignStmt;
+      Vector_ForEach(lexp, left) {
+        if (expr_maybe_store(lexp)) {
+          Syntax_Error(ps, &lexp->pos, "expr has not left expr");
+          Vector_Free(left, free_expr_func, NULL);
+          Vector_Free(right, free_expr_func, NULL);
+          return NULL;
+        }
+        rexp = Vector_Get(right, i);
+        assignStmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
+        Vector_Append(listStmt->vec, assignStmt);
+      }
+      stmt = (Stmt *)listStmt;
     }
     Vector_Free_Self(left);
     Vector_Free_Self(right);
-    return (Stmt *)listStmt;
+    return stmt;
   }
 
   assert(lsz > rsz && rsz == 1);
 
-  Expr *e = Vector_Get(right, 0);
+  /* count of right expressions is 1 */
+  Expr *lexp;
+  Vector_ForEach(lexp, left) {
+    if (expr_maybe_store(lexp)) {
+      Syntax_Error(ps, &lexp->pos, "expr has not left expr");
+      Vector_Free(left, free_expr_func, NULL);
+      Vector_Free(right, free_expr_func, NULL);
+      return NULL;
+    }
+  }
+  Expr *rexp = Vector_Get(right, 0);
   Vector_Free_Self(right);
-  return Stmt_From_AssignList(left, e);
+  return Stmt_From_AssignList(left, rexp);
 }
 
 static void __parse_funcdecl(ParserState *ps, Stmt *stmt)

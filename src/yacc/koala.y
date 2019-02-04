@@ -1259,7 +1259,7 @@ SliceExpression
 Atom
   : ID
   {
-    $$ = Expr_From_Id($1.str);
+    $$ = Expr_From_Ident($1.str);
     SetPosition($$->pos, @1);
   }
   | CONSTANT

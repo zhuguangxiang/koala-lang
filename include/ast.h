@@ -153,7 +153,7 @@ Expr *Expr_From_Float(float64 val);
 Expr *Expr_From_Bool(int val);
 Expr *Expr_From_String(char *val);
 Expr *Expr_From_Char(uchar val);
-Expr *Expr_From_Id(char *val);
+Expr *Expr_From_Ident(char *val);
 
 /* unary expression */
 typedef struct unaryexpr {
@@ -207,7 +207,7 @@ Expr *Expr_From_SubScript(Expr *index, Expr *left);
 Expr *Expr_From_Call(Vector *args, Expr *left);
 Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left);
 
-/* array or map list expression */
+/* array, set or map list expression */
 typedef struct listexpr {
   EXPR_HEAD
   int nesting;  /* nesting count  */
@@ -381,6 +381,14 @@ typedef struct funcdeclstmt {
   Vector *body; /* body statements */
 } FuncDeclStmt;
 
+/* proto declaration, used only in trait */
+typedef struct protodescstmt {
+  STMT_HEAD
+  Ident id;
+  Vector *args; /* idtype statement */
+  Vector *rets; /* idtype statement */
+} ProtoDeclStmt;
+
 /* expression statement */
 typedef struct exprstmt {
   STMT_HEAD
@@ -415,6 +423,7 @@ Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
 Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right);
 Stmt *Stmt_From_AssignList(Vector *left, Expr *right);
 Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts);
+Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets);
 Stmt *Stmt_From_Expr(Expr *exp);
 Stmt *Stmt_From_Return(Vector *exps);
 Stmt *Stmt_From_List(Vector *vec);
@@ -435,17 +444,8 @@ typedef struct klassstmt {
   Vector *body;
 } KlassStmt;
 
-/* proto declaration, used only in trait */
-typedef struct protodescstmt {
-  STMT_HEAD
-  Ident id;
-  Vector *args; /* idtype statement */
-  Vector *rets; /* idtype statement */
-} ProtoDeclStmt;
-
 Stmt *Stmt_From_TypeAlias(Ident id, TypeDesc *desc);
 Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body);
-Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets);
 
 #ifdef __cplusplus
 }

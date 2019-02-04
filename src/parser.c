@@ -360,6 +360,13 @@ static void parse_char_expr(ParserState *ps, Expr *exp)
   Inst_Append(__get_codeblock(u), OP_LOADK, &val);
 }
 
+/*
+  a.b.c.attribute
+  a.b.c()
+  a.b.c[10]
+  a.b.c[1:10]
+  leftmost identifier is variable or imported external package name
+ */
 static void parse_ident_expr(ParserState *ps, Expr *exp)
 {
 }
@@ -409,6 +416,11 @@ static void parse_list_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
+static void parse_mapentry_expr(ParserState *ps, Expr *exp)
+{
+  assert(0);
+}
+
 static void parse_array_expr(ParserState *ps, Expr *exp)
 {
   assert(0);
@@ -448,9 +460,9 @@ static parse_expr_func parse_expr_funcs[] = {
   parse_subscript_expr, /* SUBSCRIPT_KIND   */
   parse_call_expr,      /* CALL_KIND        */
   parse_slice_expr,     /* SLICE_KIND       */
-  parse_list_expr,      /* LIST_EXPR_KIND   */
-  NULL,                 /* MAP_LIST_KIND    */
-  NULL,                 /* MAP_ENTRY_KIND   */
+  parse_list_expr,      /* ARRAY_LIST_KIND  */
+  parse_list_expr,      /* MAP_LIST_KIND    */
+  parse_mapentry_expr,  /* MAP_ENTRY_KIND   */
   parse_array_expr,     /* ARRAY_KIND       */
   parse_map_expr,       /* MAP_KIND         */
   parse_set_expr,       /* SET_KIND         */
@@ -634,9 +646,17 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
   assert(0);
 }
 
+/*
+  a = 100
+  a.b = 200
+  a.b.c = 300
+  a.b[1].c = 400
+  a.b(1,2).c = 500
+  leftmost identifier is variable or imported external package name
+ */
 static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
 {
-
+  assert(0);
 }
 
 static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
@@ -692,7 +712,9 @@ static void parse_protodecl_stmt(ParserState *ps, Stmt *stmt)
 static void parse_expr_stmt(ParserState *ps, Stmt *stmt)
 {
   ExprStmt *expStmt = (ExprStmt *)stmt;
-  parser_visit_expr(ps, expStmt->exp);
+  Expr *exp = expStmt->exp;
+  exp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, exp);
 }
 
 static void parse_return_stmt(ParserState *ps, Stmt *stmt)
@@ -711,6 +733,10 @@ static void parse_list_stmt(ParserState *ps, Stmt *stmt)
   } else {
     parse_stmts(ps, listStmt->vec);
   }
+}
+
+static void parse_typealias_stmt(ParserState *ps, Stmt *stmt)
+{
 }
 
 static void parse_class_supers(ParserState *ps, Vector *supers)
@@ -753,7 +779,7 @@ static parse_stmt_func parse_stmt_funcs[] = {
   parse_expr_stmt,          /* EXPR_KIND       */
   parse_return_stmt,        /* RETURN_KIND     */
   parse_list_stmt,          /* LIST_KIND       */
-  NULL,                     /* TYPEALIAS_KIND  */
+  parse_typealias_stmt,     /* TYPEALIAS_KIND  */
   parse_class_stmt,         /* CLASS_KIND      */
 };
 
