@@ -1024,7 +1024,6 @@ static int __validate_count(ParserState *ps, int lsz, int rsz)
 {
   if (lsz < rsz) {
     /* var a = foo(), 100; whatever foo() is single or multi values */
-    Syntax_Error(ps, NULL, "extra expression in var declaration");
     return 0;
   }
 
@@ -1034,10 +1033,8 @@ static int __validate_count(ParserState *ps, int lsz, int rsz)
      * if exprs == 1, it's partially ok and must be a multi-values exprs
      * if exprs == 0, it's ok
     */
-    if (rsz > 1) {
-      Syntax_Error(ps, NULL, "missing expression in var declaration");
+    if (rsz > 1)
       return 0;
-    }
   }
 
   /* if ids is equal with exprs, it MAYBE ok and will be checked in later */
@@ -1051,6 +1048,10 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
   int esz = Vector_Size(exps);
   if (!__validate_count(ps, isz, esz)) {
     /* FIXME: */
+    Ident *id = Vector_Get(ids, 0);
+    Syntax_Error(ps, &id->pos, "left and right are not matched");
+    Free_IdentList(ids);
+    free_exprlist(exps);
     return NULL;
   }
 
@@ -1123,8 +1124,13 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
 {
   int isz = Vector_Size(ids);
   int esz = Vector_Size(exps);
-  if (!__validate_count(ps, isz, esz))
+  if (!__validate_count(ps, isz, esz)) {
+    Expr *e = Vector_Get(ids, 0);
+    Syntax_Error(ps, &e->pos, "left and expr are not matched");
+    free_exprlist(ids);
+    free_exprlist(exps);
     return NULL;
+  }
 
   BaseExpr *e;
   Expr *right;
@@ -1200,8 +1206,13 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
 {
   int lsz = Vector_Size(left);
   int rsz = Vector_Size(right);
-  if (!__validate_count(ps, lsz, rsz))
+  if (!__validate_count(ps, lsz, rsz)) {
+    Expr *e = Vector_Get(left, 0);
+    Syntax_Error(ps, &e->pos, "left and right are not matched");
+    free_exprlist(left);
+    free_exprlist(right);
     return NULL;
+  }
 
   if (lsz == rsz) {
     Stmt *stmt;
