@@ -26,6 +26,8 @@
 #include "mem.h"
 #include "log.h"
 
+static Logger logger;
+
 static const char *scope_strings[] = {
   "PACKAGE", "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
@@ -364,7 +366,6 @@ static void parse_char_expr(ParserState *ps, Expr *exp)
 /* symbol is found in current scope */
 static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
 {
-  exp->sym = sym;
 
   switch (u->scope) {
   case SCOPE_MODULE:
@@ -433,7 +434,8 @@ static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
     TYPE_INCREF(exp->desc);
 
     Expr *right = exp->right;
-    if (right != NULL && right->kind == CALL_KIND) {
+    if (exp->desc->kind == TYPE_PROTO &&
+        right != NULL && right->kind == CALL_KIND) {
       /* call function(variable) */
       /* FIXME: anonymous */
       Log_Debug("call '%s' function(variable)", varSym->name);
@@ -471,11 +473,12 @@ static void parse_ident_expr(ParserState *ps, Expr *exp)
   char *name = baseExp->id;
   Symbol *sym;
 
-  /* find ident from local scope */
+  /* find ident from current scope */
   sym = STable_Get(u->stbl, name);
   if (sym != NULL) {
     Log_Debug("find symbol '%s' in local scope-%d(%s)",
               name, ps->depth, scope_strings[u->scope]);
+    exp->sym = sym;
     parse_ident_current_scope(u, sym, exp);
     return;
   }

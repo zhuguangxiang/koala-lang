@@ -30,6 +30,8 @@
 #include "mem.h"
 #include "log.h"
 
+static Logger logger;
+
 static int isdotkl(char *filename)
 {
   char *dot = strrchr(filename, '.');

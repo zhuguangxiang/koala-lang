@@ -26,6 +26,8 @@
 #include "mem.h"
 #include "log.h"
 
+static Logger logger;
+
 static HashTable strobj_cache;
 
 static uint32 strobj_hash(void *k)

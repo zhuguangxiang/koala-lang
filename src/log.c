@@ -24,14 +24,6 @@
 #include "log.h"
 #include "config.h"
 
-struct logger {
-  LogLevel level;
-  int quiet;
-  FILE *filp;
-};
-
-static struct logger logger;
-
 static char *level_names[] = {
   "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 };
@@ -42,9 +34,9 @@ static char *level_colors[] = {
 };
 #endif
 
-void Log_Log(LogLevel level, char *file, int line, char *fmt, ...)
+void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...)
 {
-  if (level < logger.level)
+  if (level < log->level)
     return;
 
   /* get current time */
@@ -52,7 +44,7 @@ void Log_Log(LogLevel level, char *file, int line, char *fmt, ...)
   struct tm *tm = localtime(&t);
 
   /* log to stderr */
-  if (!logger.quiet) {
+  if (!log->quiet) {
     va_list args;
     char buf[16];
     buf[strftime(buf, sizeof(buf), "%H:%M:%S", tm)] = '\0';
@@ -70,16 +62,16 @@ void Log_Log(LogLevel level, char *file, int line, char *fmt, ...)
   }
 
   /* log to file */
-  if (logger.filp) {
+  if (log->filp) {
     va_list args;
     char buf[32];
     buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", tm)] = '\0';
-    fprintf(logger.filp, "%s %-5s %s:%d: ",
+    fprintf(log->filp, "%s %-5s %s:%d: ",
             buf, level_names[level], file, line);
     va_start(args, fmt);
-    vfprintf(logger.filp, fmt, args);
+    vfprintf(log->filp, fmt, args);
     va_end(args);
-    fprintf(logger.filp, "\n");
-    fflush(logger.filp);
+    fprintf(log->filp, "\n");
+    fflush(log->filp);
   }
 }

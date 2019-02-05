@@ -27,6 +27,8 @@
 #include "codeobject.h"
 #include "tupleobject.h"
 
+static Logger logger;
+
 static void klass_mark(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Klass_Klass);

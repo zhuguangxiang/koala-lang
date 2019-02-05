@@ -25,6 +25,8 @@
 #include "mem.h"
 #include "log.h"
 
+static Logger logger;
+
 typedef struct prop_entry {
   HashNode hnode;
   String key;

@@ -24,6 +24,8 @@
 #include "log.h"
 #include "mem.h"
 
+static Logger logger;
+
 typedef struct cache_node {
   struct list_head free_node;
   char data[0];

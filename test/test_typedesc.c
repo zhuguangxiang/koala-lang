@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 #include "typedesc.h"
-#include "log.h"
 
 TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg);
 

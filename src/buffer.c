@@ -24,6 +24,8 @@
 #include "log.h"
 #include "mem.h"
 
+static Logger logger;
+
 Block *block_new(int bsize)
 {
   Block *block = mm_alloc(sizeof(Block) + sizeof(uint8) * bsize);

@@ -25,6 +25,8 @@
 #include "mem.h"
 #include "log.h"
 
+static Logger logger;
+
 Ident *New_Ident(String name)
 {
   Ident *ident = mm_alloc(sizeof(Ident));
@@ -555,8 +557,7 @@ static void free_funcdecl_stmt(Stmt *stmt)
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
   Free_IdTypeList(funcStmt->args);
   Free_IdTypeList(funcStmt->rets);
-  if (funcStmt->native)
-    Free_StmtList(funcStmt->body);
+  Free_StmtList(funcStmt->body);
   mm_free(stmt);
 }
 
@@ -1175,7 +1176,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
   Vector_ForEach(e, ids) {
     if (e->kind != ID_KIND) {
       Syntax_Error(ps, &e->pos, "needs an identifier");
-      Free_IdTypeList(_ids);
+      Free_IdentList(_ids);
       free_exprlist(ids);
       free_exprlist(exps);
       return NULL;
@@ -1290,9 +1291,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   Symbol *sym;
   TypeDesc *proto = __get_proto(funcStmt);
 
-  if (funcStmt->native) {
-    assert(funcStmt->kind == PROTO_KIND);
-
+  if (funcStmt->kind == PROTO_KIND) {
     if (funcStmt->native) {
       sym = (Symbol *)STable_Add_NFunc(u->stbl, name, proto);
       if (sym != NULL)
@@ -1302,15 +1301,12 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
       if (sym != NULL)
         Log_Debug("add proto '%s' successfully", name);
     }
-
   } else {
     assert(funcStmt->kind == FUNC_KIND);
-
     sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
     if (sym != NULL)
       Log_Debug("add func '%s' successfully", name);
   }
-
 
   if (sym == NULL) {
     Position pos = funcStmt->id.pos;

@@ -26,6 +26,8 @@
 #include "log.h"
 #include "mem.h"
 
+static Logger logger;
+
 void fd_free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Fd_Klass);

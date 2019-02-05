@@ -24,6 +24,8 @@
 #include "mem.h"
 #include "codeobject.h"
 
+static Logger logger;
+
 static CodeObject *code_new(CodeKind kind, TypeDesc *proto)
 {
   CodeObject *code = mm_alloc(sizeof(CodeObject));

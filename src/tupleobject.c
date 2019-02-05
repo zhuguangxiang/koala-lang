@@ -27,6 +27,8 @@
 #include "stringobject.h"
 #include "buffer.h"
 
+static Logger logger;
+
 Object *Tuple_New(int size)
 {
   int sz = sizeof(TupleObject) + size * sizeof(Object *);

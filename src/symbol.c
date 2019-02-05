@@ -26,6 +26,8 @@
 #include "log.h"
 #include "mem.h"
 
+static Logger logger;
+
 static void *__symbol_new(SymKind kind, char *name, int size)
 {
   Symbol *sym = mm_alloc(size);

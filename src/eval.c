@@ -26,6 +26,8 @@
 #include "log.h"
 #include "mem.h"
 
+static Logger logger;
+
 static inline Object *stack_top(struct stack *stk)
 {
   assert(stk->top >= -1 && stk->top <= STACK_SIZE - 1);

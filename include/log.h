@@ -23,6 +23,8 @@
 #ifndef _KOALA_LOG_H_
 #define _KOALA_LOG_H_
 
+#include <stdio.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,14 +39,26 @@ typedef enum loglevel {
   LOG_TRACE = 0, LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR, LOG_FATAL
 } LogLevel;
 
-void Log_Log(LogLevel level, char *file, int line, char *fmt, ...);
+typedef struct logger {
+  LogLevel level;
+  int quiet;
+  FILE *filp;
+} Logger;
 
-#define Log_Trace(...) Log_Log(LOG_TRACE, __FILENAME__, __LINE__, __VA_ARGS__)
-#define Log_Debug(...) Log_Log(LOG_DEBUG, __FILENAME__, __LINE__, __VA_ARGS__)
-#define Log_Info(...) Log_Log(LOG_INFO, __FILENAME__, __LINE__, __VA_ARGS__)
-#define Log_Warn(...) Log_Log(LOG_WARN, __FILENAME__, __LINE__, __VA_ARGS__)
-#define Log_Error(...) Log_Log(LOG_ERROR, __FILENAME__, __LINE__, __VA_ARGS__)
-#define LOG_FATAL(...) Log_Log(LOG_FATAL, __FILENAME__, __LINE__, __VA_ARGS__)
+void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...);
+
+#define Log_Trace(...) \
+Log_Log(&(logger), LOG_TRACE, __FILENAME__, __LINE__, __VA_ARGS__)
+#define Log_Debug(...) \
+Log_Log(&(logger), LOG_DEBUG, __FILENAME__, __LINE__, __VA_ARGS__)
+#define Log_Info(...) \
+Log_Log(&(logger), LOG_INFO, __FILENAME__, __LINE__, __VA_ARGS__)
+#define Log_Warn(...) \
+Log_Log(&(logger), LOG_WARN, __FILENAME__, __LINE__, __VA_ARGS__)
+#define Log_Error(...) \
+Log_Log(&(logger), LOG_ERROR, __FILENAME__, __LINE__, __VA_ARGS__)
+#define LOG_FATAL(...) \
+Log_Log(&(logger), LOG_FATAL, __FILENAME__, __LINE__, __VA_ARGS__)
 
 #ifdef __cplusplus
 }

@@ -15,10 +15,11 @@ CLOSED: [2019-02-04 Mon 01:57]
 - [X] typeless variable declaration
 - [X] argument declaration
 - [X] return variable declaration not supported in 0.7 version.
-** TODO expression [0/3]
-- [ ] call
+** TODO expression [2/4]
+- [X] call
 - [ ] basic expression: binary, unary etc
-- [ ] return statement
+- [ ] assignment
+- [X] return statement
 * 0.7.4 [0/5]
 ** TODO import statement
 ** TODO assignment

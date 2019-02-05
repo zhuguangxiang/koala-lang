@@ -24,6 +24,8 @@
 #include "mem.h"
 #include "log.h"
 
+static Logger logger;
+
 struct namevalue *namevalue_new(char *name, char *value)
 {
   struct namevalue *nv = mm_alloc(sizeof(struct namevalue));

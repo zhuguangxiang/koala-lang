@@ -25,6 +25,8 @@
 #include "mem.h"
 #include "log.h"
 
+static Logger logger;
+
 static struct opcode {
   uint8 code;
   char *str;

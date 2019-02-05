@@ -27,6 +27,8 @@
 #include "mem.h"
 #include "log.h"
 
+static Logger logger;
+
 PackageObject *Package_New(char *name)
 {
   PackageObject *pkg = mm_alloc(sizeof(PackageObject));

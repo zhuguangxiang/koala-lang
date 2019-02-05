@@ -29,6 +29,8 @@
 #include "intobject.h"
 #include "log.h"
 
+static Logger logger;
+
 static void init_pkgnode(PkgNode *node, char *name, PkgNodeKind kind)
 {
   Init_HashNode(&node->hnode, node);
