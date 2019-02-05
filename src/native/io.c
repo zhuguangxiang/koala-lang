@@ -26,7 +26,7 @@
 #include "log.h"
 #include "mem.h"
 
-static Logger logger;
+LOGGER(0)
 
 void fd_free(Object *ob)
 {

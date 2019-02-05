@@ -27,7 +27,7 @@
 #include "codeobject.h"
 #include "tupleobject.h"
 
-static Logger logger;
+LOGGER(0)
 
 static void klass_mark(Object *ob)
 {
@@ -194,13 +194,13 @@ static int lro_build(Klass *klazz, Klass *base, Vector *traits)
 
 static void lro_debug(Klass *klazz)
 {
-  puts("++++++++++++++++line-order++++++++++++++++");
+  Log_Puts("++++++++++++++++line-order++++++++++++++++");
   LRONode *node;
-  printf("  %s ->", klazz->name);
+  Log_Printf("  %s ->", klazz->name);
   Vector_ForEach_Reverse(node, &klazz->lro)
-    printf("  %s ->", node->klazz->name);
-  puts("  Any");
-  puts("++++++++++++++++++++++++++++++++++++++++++");
+    Log_Printf("  %s ->", node->klazz->name);
+  Log_Puts("  Any");
+  Log_Puts("++++++++++++++++++++++++++++++++++++++++++");
 }
 
 Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)

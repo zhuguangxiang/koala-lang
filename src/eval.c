@@ -26,7 +26,7 @@
 #include "log.h"
 #include "mem.h"
 
-static Logger logger;
+LOGGER(0)
 
 static inline Object *stack_top(struct stack *stk)
 {

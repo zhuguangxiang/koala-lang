@@ -27,7 +27,7 @@
 #include "mem.h"
 #include "log.h"
 
-static Logger logger;
+LOGGER(0)
 
 PackageObject *Package_New(char *name)
 {
@@ -258,7 +258,7 @@ static Object *__package_display(Object *ob, Object *args)
 {
   assert(!args);
   Object *s = package_tostring(ob);
-  printf("%s\n", String_RawString(s));
+  Log_Printf("%s\n", String_RawString(s));
   OB_DECREF(s);
   return NULL;
 }

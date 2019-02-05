@@ -25,7 +25,7 @@
 #include "parser.h"
 #include "log.h"
 
-static Logger logger;
+LOGGER(0)
 
 #define YY_EXTRA_TYPE ParserState *
 

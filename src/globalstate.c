@@ -29,7 +29,7 @@
 #include "intobject.h"
 #include "log.h"
 
-static Logger logger;
+LOGGER(0)
 
 static void init_pkgnode(PkgNode *node, char *name, PkgNodeKind kind)
 {
@@ -360,7 +360,7 @@ static void show_pathes(void)
     struct list_head *pos;
     list_for_each(pos, list) {
       property = container_of(pos, Property, link);
-      printf("%s\n", Property_Value(property));
+      Log_Printf("%s\n", Property_Value(property));
     }
   }
 }
@@ -373,22 +373,22 @@ static void show_pkgnode(PkgNode *node, int depth, int y)
   int i = depth;
   while (i > 1) {
     if (t & 1)
-      printf("    ");
+      Log_Printf("    ");
     else
-      printf("│   ");
+      Log_Printf("│   ");
     t = t >> 1;
     --i;
   }
   if (i == 1) {
     if (t & 1)
-      printf("└── ");
+      Log_Printf("└── ");
     else
-      printf("├── ");
+      Log_Printf("├── ");
   }
   if (node != &gState.root)
-    printf("%s\n", node->name.str);
+    Log_Printf("%s\n", node->name.str);
   else
-    puts(".");
+    Log_Puts(".");
   if (node->kind == PATH_NODE) {
     PkgNode *item;
     Vector_ForEach(item, node->children) {

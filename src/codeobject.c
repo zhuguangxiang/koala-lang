@@ -24,7 +24,7 @@
 #include "mem.h"
 #include "codeobject.h"
 
-static Logger logger;
+LOGGER(0)
 
 static CodeObject *code_new(CodeKind kind, TypeDesc *proto)
 {

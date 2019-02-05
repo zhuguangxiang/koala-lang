@@ -25,7 +25,7 @@
 #include "mem.h"
 #include "log.h"
 
-static Logger logger;
+LOGGER(0)
 
 Ident *New_Ident(String name)
 {

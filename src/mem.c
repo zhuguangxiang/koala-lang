@@ -21,14 +21,15 @@
  */
 
 #include "mem.h"
+#include "log.h"
 
 MemStat memstat;
 
 void show_memstat(void)
 {
-  puts("\n+-----------------------------");
-  printf("|  Mem Used: %lld Bytes", memstat.allocated);
-  puts("\n+-----------------------------");
+  Log_Puts("\n+-----------------------------");
+  Log_Printf("|  Mem Used: %lld Bytes", memstat.allocated);
+  Log_Puts("\n+-----------------------------");
 }
 
 void *gc_alloc(int size)

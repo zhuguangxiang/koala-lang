@@ -29,6 +29,7 @@
 #include "globalstate.h"
 #include "eval.h"
 #include "task.h"
+#include "log.h"
 
 #define KOALA_VERSION "0.8.5"
 
@@ -61,7 +62,7 @@ static void *task_entry_func(void *arg)
   char *file = Vector_Get(&opts->names, 0);
   Koala_Run_File(ks, file, NULL);
   Koala_Show_Packages();
-  printf("task-%lu is finished.\n", current_task()->id);
+  Log_Printf("task-%lu is finished.\n", current_task()->id);
   return NULL;
 }
 
@@ -104,6 +105,6 @@ int main(int argc, char *argv[])
   /* finialize options */
   fini_options(&opts);
 
-  printf("task-%lu is finished.\n", current_task()->id);
+  Log_Printf("task-%lu is finished.\n", current_task()->id);
   return 0;
 }

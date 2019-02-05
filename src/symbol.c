@@ -26,7 +26,7 @@
 #include "log.h"
 #include "mem.h"
 
-static Logger logger;
+LOGGER(0)
 
 static void *__symbol_new(SymKind kind, char *name, int size)
 {

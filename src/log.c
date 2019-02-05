@@ -39,14 +39,13 @@ void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...)
   if (level < log->level)
     return;
 
-  /* get current time */
-  time_t t = time(NULL);
-  struct tm *tm = localtime(&t);
-
   /* log to stderr */
   if (!log->quiet) {
     va_list args;
     char buf[16];
+    /* get current time */
+    time_t t = time(NULL);
+    struct tm *tm = localtime(&t);
     buf[strftime(buf, sizeof(buf), "%H:%M:%S", tm)] = '\0';
 #ifdef LOG_COLOR
     fprintf(stderr, "%s %s%-5s\x1b[0m \x1b[90m%s:%d:\x1b[0m ",
@@ -65,6 +64,9 @@ void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...)
   if (log->filp) {
     va_list args;
     char buf[32];
+    /* get current time */
+    time_t t = time(NULL);
+    struct tm *tm = localtime(&t);
     buf[strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", tm)] = '\0';
     fprintf(log->filp, "%s %-5s %s:%d: ",
             buf, level_names[level], file, line);

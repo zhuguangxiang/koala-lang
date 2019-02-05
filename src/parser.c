@@ -26,7 +26,7 @@
 #include "mem.h"
 #include "log.h"
 
-static Logger logger;
+LOGGER(0)
 
 static const char *scope_strings[] = {
   "PACKAGE", "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
@@ -49,10 +49,10 @@ void Fini_PkgInfo(PkgInfo *pkg)
 
 void Show_PkgInfo(PkgInfo *pkg)
 {
-  puts("\n----------------------------------------");
-  printf("scope-0(%s, %s) symbols:\n", scope_strings[0], pkg->pkgname.str);
+  Log_Puts("\n----------------------------------------");
+  Log_Printf("scope-0(%s, %s) symbols:\n", scope_strings[0], pkg->pkgname.str);
   STable_Show(pkg->stbl);
-  puts("----------------------------------------\n");
+  Log_Puts("----------------------------------------\n");
 }
 
 void load_extpkg()
@@ -180,11 +180,11 @@ static void show_parser_unit(ParserState *ps)
   const char *scope = scope_strings[u->scope];
   char *name = u->sym != NULL ? u->sym->name : NULL;
   name = (name == NULL) ? ps->filename : name;
-  puts("\n----------------------------------------");
-  printf("scope-%d(%s, %s) symbols:\n", ps->depth, scope, name);
+  Log_Puts("\n----------------------------------------");
+  Log_Printf("scope-%d(%s, %s) symbols:\n", ps->depth, scope, name);
   STable_Show(u->stbl);
   CodeBlock_Show(u->block);
-  puts("----------------------------------------\n");
+  Log_Puts("----------------------------------------\n");
 }
 
 static void check_unused_symbols(ParserUnit *u)
@@ -976,7 +976,7 @@ static void parse_return_stmt(ParserState *ps, Stmt *stmt)
 
   if (!check_returns(funSym->desc, retStmt->exps)) {
     Syntax_Error(ps, &retStmt->pos,
-                 "returns are not matched function '%s' returns",
+                 "func %s: returns are not matched.",
                  funSym->name);
     return;
   }

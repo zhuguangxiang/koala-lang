@@ -27,7 +27,7 @@
 #include "stringobject.h"
 #include "buffer.h"
 
-static Logger logger;
+LOGGER(0)
 
 Object *Tuple_New(int size)
 {

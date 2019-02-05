@@ -23,6 +23,7 @@
 #include "typedesc.h"
 #include "stringbuf.h"
 #include "mem.h"
+#include "log.h"
 
 static BasicDesc Byte_Type;
 static BasicDesc Char_Type;
@@ -107,13 +108,13 @@ static void desc_free_func(HashNode *hnode, void *arg)
 
 static void check_basic_refcnt(void)
 {
-  puts("Basic Type Refcnt:");
+  Log_Puts("Basic Type Refcnt:");
   BasicDesc *basic;
   struct basic_type_s *p;
   for (int i = 0; i < nr_elts(basic_types); i++) {
     p = basic_types + i;
     basic = p->type;
-    printf("  %s: %d\n", p->str, basic->refcnt);
+    Log_Printf("  %s: %d\n", p->str, basic->refcnt);
     assert(basic->refcnt == 1);
   }
 }

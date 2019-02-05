@@ -49,9 +49,11 @@ void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...);
 
 /* instead of printf */
 #ifdef NDEBUG
+#define LOGGER(q) static Logger logger = {.level = LOG_WARN, .quiet = q};
 #define Log_Printf(...) ((void)0)
 #define Log_Puts(string) ((void)0)
 #else
+#define LOGGER(q) static Logger logger = {.level = LOG_TRACE, .quiet = q};
 #define Log_Printf(...) printf(__VA_ARGS__)
 #define Log_Puts(string) puts(string)
 #endif /* NDEBUG */

@@ -23,6 +23,7 @@
 #include "codegen.h"
 #include "buffer.h"
 #include "mem.h"
+#include "log.h"
 
 static struct opcode {
   uint8 code;
@@ -226,24 +227,24 @@ void CodeBlock_Show(CodeBlock *block)
 
   char buf[64];
 
-  puts("---------CodeBlock-------");
-  printf("insts:%d\n", block->bytes);
+  Log_Puts("---------CodeBlock-------");
+  Log_Printf("insts:%d\n", block->bytes);
   if (!list_empty(&block->insts)) {
     int cnt = 0;
     Inst *i;
     struct list_head *pos;
     list_for_each(pos, &block->insts) {
       i = container_of(pos, Inst, link);
-      printf("[%d]:\n", cnt++);
-      printf("  opcode:%s\n", OpCode_String(i->op));
+      Log_Printf("[%d]:\n", cnt++);
+      Log_Printf("  opcode:%s\n", OpCode_String(i->op));
       buf[0] = '\0';
       arg_print(buf, sizeof(buf), &i->arg);
-      printf("  arg:%s\n", buf);
-      printf("  bytes:%d\n", i->bytes);
-      puts("-----------------\n");
+      Log_Printf("  arg:%s\n", buf);
+      Log_Printf("  bytes:%d\n", i->bytes);
+      Log_Puts("-----------------\n");
     }
   }
-  puts("--------CodeBlock End----");
+  Log_Puts("--------CodeBlock End----");
 }
 
 void Inst_Gen(KImage *image, Buffer *buf, Inst *i)

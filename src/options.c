@@ -24,7 +24,7 @@
 #include "mem.h"
 #include "log.h"
 
-static Logger logger;
+LOGGER(0)
 
 struct namevalue *namevalue_new(char *name, char *value)
 {
@@ -61,7 +61,7 @@ void parse_options(int argc, char *argv[], Options *opts)
   int opt;
 
   for (int i = 0; i < argc; i++) {
-    printf("[%d]: %s\n", i, argv[i]);
+    Log_Printf("[%d]: %s\n", i, argv[i]);
   }
 
   while ((opt = getopt(argc, argv, "s:p:o:D:e:vh")) != -1) {
@@ -185,25 +185,25 @@ void options_toarray(Options *opts, char *array[], int ind)
 
 void show_options(Options *opts)
 {
-  printf("srcput: %s\n", opts->srcpath);
-  printf("output: %s\n", opts->outpath);
+  Log_Printf("srcput: %s\n", opts->srcpath);
+  Log_Printf("output: %s\n", opts->outpath);
 
   char *s;
 
-  puts("pathes:");
+  Log_Puts("pathes:");
   Vector_ForEach(s, &opts->pathes) {
-    printf("  [%d]: %s\n", i, s);
+    Log_Printf("  [%d]: %s\n", i, s);
   }
 
-  puts("name-values:");
+  Log_Puts("name-values:");
   Vector_ForEach(s, &opts->nvs) {
-    printf("  [%d]: %s\n", i, s);
+    Log_Printf("  [%d]: %s\n", i, s);
   }
 
-  puts("names:");
+  Log_Puts("names:");
   Vector_ForEach(s, &opts->names) {
-    printf(" [%d]: %s\n", i, s);
+    Log_Printf(" [%d]: %s\n", i, s);
   }
 
-  puts("\n");
+  Log_Puts("\n");
 }

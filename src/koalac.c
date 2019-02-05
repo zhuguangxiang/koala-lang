@@ -30,7 +30,7 @@
 #include "mem.h"
 #include "log.h"
 
-static Logger logger;
+LOGGER(0)
 
 static int isdotkl(char *filename)
 {
@@ -86,7 +86,7 @@ static void compile(char *pkgdir, PkgInfo *pkg)
 
     in = fopen(name, "r");
     if (!in) {
-      printf("%s: no such file or directory\n", name);
+      Log_Printf("%s: no such file or directory\n", name);
       continue;
     }
 
