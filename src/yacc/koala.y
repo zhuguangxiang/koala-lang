@@ -720,7 +720,7 @@ ModuleStatement
   }
   | NATIVE ProtoDeclaration
   {
-    $2->native = 1;
+    ((FuncDeclStmt *)$2)->native = 1;
     Parser_New_Function(ps, $2);
   }
   | TypeAliasDeclaration
@@ -952,7 +952,7 @@ ClassMemberDeclaration
   }
   | NATIVE ProtoDeclaration
   {
-    $2->native = 1;
+    ((FuncDeclStmt *)$2)->native = 1;
     $$ = $2;
   }
   | ';'

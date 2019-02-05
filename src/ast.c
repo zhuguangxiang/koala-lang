@@ -463,9 +463,9 @@ static void free_idtype_func(void *item, void *arg);
 static void free_anony_expr(Expr *exp)
 {
   AnonyExpr *anonyExp = (AnonyExpr *)exp;
-  Vector_Free(anonyExp->args, free_idtype_func, NULL);
-  Vector_Free(anonyExp->rets, free_idtype_func, NULL);
-  Vector_Free(anonyExp->body, Free_Stmt_Func, NULL);
+  Free_IdTypeList(anonyExp->args);
+  Free_IdTypeList(anonyExp->rets);
+  Free_StmtList(anonyExp->body);
   mm_free(exp);
 }
 
@@ -514,8 +514,7 @@ static void free_expr_func(void *item, void *arg)
 
 static inline void free_exprlist(Vector *vec)
 {
-  if (vec != NULL)
-    Vector_Free(vec, free_expr_func, NULL);
+  Vector_Free(vec, free_expr_func, NULL);
 }
 
 static void free_vardecl_stmt(Stmt *stmt)
@@ -554,9 +553,10 @@ static void free_idtype_func(void *item, void *arg)
 static void free_funcdecl_stmt(Stmt *stmt)
 {
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
-  Vector_Free(funcStmt->args, free_idtype_func, NULL);
-  Vector_Free(funcStmt->rets, free_idtype_func, NULL);
-  Vector_Free(funcStmt->body, Free_Stmt_Func, NULL);
+  Free_IdTypeList(funcStmt->args);
+  Free_IdTypeList(funcStmt->rets);
+  if (funcStmt->native)
+    Free_StmtList(funcStmt->body);
   mm_free(stmt);
 }
 
@@ -577,7 +577,7 @@ static void free_return_stmt(Stmt *stmt)
 static void free_list_stmt(Stmt *stmt)
 {
   ListStmt *listStmt = (ListStmt *)stmt;
-  Vector_Free(listStmt->vec, Free_Stmt_Func, NULL);
+  Free_StmtList(listStmt->vec);
   mm_free(stmt);
 }
 
@@ -597,15 +597,7 @@ static void free_klass_stmt(Stmt *stmt)
 {
   KlassStmt *klsStmt = (KlassStmt *)stmt;
   Vector_Free(klsStmt->super, free_typedesc_func, NULL);
-  Vector_Free(klsStmt->body, Free_Stmt_Func, NULL);
-  mm_free(stmt);
-}
-
-static void free_proto_stmt(Stmt *stmt)
-{
-  ProtoDeclStmt *protoStmt = (ProtoDeclStmt *)stmt;
-  Vector_Free(protoStmt->args, free_idtype_func, NULL);
-  Vector_Free(protoStmt->rets, free_idtype_func, NULL);
+  Free_StmtList(klsStmt->body);
   mm_free(stmt);
 }
 
@@ -616,7 +608,7 @@ static void (*__free_stmt_funcs[])(Stmt *) = {
   free_assign_stmt,         /* ASSIGN_KIND     */
   free_assignlist_stmt,     /* ASSIGNLIST_KIND */
   free_funcdecl_stmt,       /* FUNC_KIND       */
-  free_proto_stmt,          /* PROTO_KIND      */
+  free_funcdecl_stmt,       /* PROTO_KIND      */
   free_expr_stmt,           /* EXPR_KIND       */
   free_return_stmt,         /* RETURN_KIND     */
   free_list_stmt,           /* LIST_KIND       */
@@ -690,7 +682,7 @@ Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts)
 
 Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets)
 {
-  ProtoDeclStmt *protoStmt = mm_alloc(sizeof(ProtoDeclStmt));
+  FuncDeclStmt *protoStmt = mm_alloc(sizeof(FuncDeclStmt));
   protoStmt->kind = PROTO_KIND;
   protoStmt->id = id;
   protoStmt->args = args;
@@ -1265,42 +1257,7 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
   return Stmt_From_AssignList(left, rexp);
 }
 
-static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
-{
-  assert(stmt->kind == FUNC_KIND);
-  FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
-  TypeDesc *proto;
-  FuncSymbol *sym;
-  Vector *pdesc = NULL;
-  Vector *rdesc = NULL;
-  IdType *idType;
-
-  if (funcStmt->args != NULL) {
-    pdesc = Vector_New();
-    Vector_ForEach(idType, funcStmt->args) {
-      TYPE_INCREF(idType->type.desc);
-      Vector_Append(pdesc, idType->type.desc);
-    }
-  }
-  if (funcStmt->rets != NULL) {
-    rdesc = Vector_New();
-    Vector_ForEach(idType, funcStmt->rets) {
-      TYPE_INCREF(idType->type.desc);
-      Vector_Append(rdesc, idType->type.desc);
-    }
-  }
-  proto = TypeDesc_Get_Proto(pdesc, rdesc);
-
-  sym = STable_Add_Func(ps->u->stbl, funcStmt->id.name, proto);
-  if (sym != NULL) {
-    Log_Debug("add func '%s' successfully", funcStmt->id.name);
-  } else {
-    Syntax_Error(ps, &funcStmt->id.pos,
-                 "Symbol '%s' is duplicated.", funcStmt->id.name);
-  }
-}
-
-static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
+static TypeDesc *__get_proto(FuncDeclStmt *stmt)
 {
   Vector *pdesc = NULL;
   Vector *rdesc = NULL;
@@ -1313,6 +1270,7 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
       Vector_Append(pdesc, idType->type.desc);
     }
   }
+
   if (stmt->rets != NULL) {
     rdesc = Vector_New();
     Vector_ForEach(idType, stmt->rets) {
@@ -1321,31 +1279,50 @@ static void __parse_proto(ParserState *ps, ProtoDeclStmt *stmt)
     }
   }
 
-  Symbol *sym;
-  TypeDesc *proto = TypeDesc_Get_Proto(pdesc, rdesc);
-  if (stmt->native)
-    sym = (Symbol *)STable_Add_NFunc(ps->u->stbl, stmt->id.name, proto);
-  else
-    sym = (Symbol *)STable_Add_IFunc(ps->u->stbl, stmt->id.name, proto);
+  return TypeDesc_Get_Proto(pdesc, rdesc);
+}
 
-  if (sym != NULL) {
-    Log_Debug("add %s '%s' successfully",
-              (stmt->native ? "nfunc" : "proto"), stmt->id.name);
+static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
+{
+  ParserUnit *u = ps->u;
+  FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
+  char *name = funcStmt->id.name;
+  Symbol *sym;
+  TypeDesc *proto = __get_proto(funcStmt);
+
+  if (funcStmt->native) {
+    assert(funcStmt->kind == PROTO_KIND);
+
+    if (funcStmt->native) {
+      sym = (Symbol *)STable_Add_NFunc(u->stbl, name, proto);
+      if (sym != NULL)
+        Log_Debug("add native func '%s' successfully", name);
+    } else {
+      sym = (Symbol *)STable_Add_IFunc(u->stbl, name, proto);
+      if (sym != NULL)
+        Log_Debug("add proto '%s' successfully", name);
+    }
+
   } else {
-    Syntax_Error(ps, &stmt->id.pos, "Symbol '%s' is duplicated", stmt->id.name);
+    assert(funcStmt->kind == FUNC_KIND);
+
+    sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
+    if (sym != NULL)
+      Log_Debug("add func '%s' successfully", name);
+  }
+
+
+  if (sym == NULL) {
+    Position pos = funcStmt->id.pos;
+    Syntax_Error(ps, &pos, "Symbol '%s' is duplicated", name);
     TYPE_DECREF(proto);
   }
 }
 
 void Parser_New_Function(ParserState *ps, Stmt *stmt)
 {
-  if (stmt == NULL)
-    return;
-  __add_stmt(ps, stmt);
-  if (stmt->native) {
-    assert(stmt->kind == PROTO_KIND);
-    __parse_proto(ps, (ProtoDeclStmt *)stmt);
-  } else {
+  if (stmt != NULL) {
+    __add_stmt(ps, stmt);
     __parse_funcdecl(ps, stmt);
   }
 }
@@ -1390,18 +1367,23 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       assert(varStmt->konst == 0);
       __new_var(ps, &varStmt->id, varStmt->type.desc, 0);
     } else if (s->kind == FUNC_KIND) {
+      assert(s->kind == FUNC_KIND || s->kind == PROTO_KIND);
       __parse_funcdecl(ps, s);
-    } else {
-      assert(s->kind == PROTO_KIND);
-      ProtoDeclStmt *proto = (ProtoDeclStmt *)s;
-      if (s->native) {
-        assert(sym->kind == SYM_CLASS);
-        Log_Debug("add func '%s' to '%s'", proto->id.name, sym->name);
+      FuncDeclStmt *funcStmt = (FuncDeclStmt *)s;
+      char *name = funcStmt->id.name;
+      if (funcStmt->kind == PROTO_KIND) {
+        if (funcStmt->native) {
+          assert(sym->kind == SYM_CLASS);
+          Log_Debug("add native func '%s' to '%s'", name, sym->name);
+        } else {
+          assert(sym->kind == SYM_TRAIT);
+          Log_Debug("add proto '%s' to '%s'", name, sym->name);
+        }
       } else {
-        Log_Debug("add proto '%s' to '%s'", proto->id.name, sym->name);
-        assert(sym->kind == SYM_TRAIT);
+        assert(funcStmt->kind == FUNC_KIND);
+        assert(!funcStmt->native);
+        Log_Debug("add func '%s' to '%s'", name, sym->name);
       }
-      __parse_proto(ps, proto);
     }
   }
 

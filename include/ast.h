@@ -326,8 +326,7 @@ typedef enum stmtkind {
 } StmtKind;
 
 #define STMT_HEAD \
-  StmtKind kind;  \
-  int native;
+  StmtKind kind;
 
 typedef struct stmt {
   STMT_HEAD
@@ -375,22 +374,15 @@ typedef struct assignliststmt {
   Expr *right;
 } AssignListStmt;
 
-/* function declaration */
+/* function/interface/native declaration */
 typedef struct funcdeclstmt {
   STMT_HEAD
+  int native;
   Ident id;
   Vector *args; /* idtype statement */
   Vector *rets; /* idtype statement */
   Vector *body; /* body statements */
 } FuncDeclStmt;
-
-/* proto declaration, used only in trait */
-typedef struct protodescstmt {
-  STMT_HEAD
-  Ident id;
-  Vector *args; /* idtype statement */
-  Vector *rets; /* idtype statement */
-} ProtoDeclStmt;
 
 /* expression statement */
 typedef struct exprstmt {
@@ -413,6 +405,8 @@ typedef struct liststmt {
 } ListStmt;
 
 void Free_Stmt_Func(void *item, void *arg);
+#define Free_StmtList(vec) \
+  Vector_Free(vec, Free_Stmt_Func, NULL)
 Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst);
 Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
                               Expr *exp, int konst);
