@@ -47,6 +47,15 @@ typedef struct logger {
 
 void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...);
 
+/* instead of printf */
+#ifdef NDEBUG
+#define Log_Printf(...) ((void)0)
+#define Log_Puts(string) ((void)0)
+#else
+#define Log_Printf(...) printf(__VA_ARGS__)
+#define Log_Puts(string) puts(string)
+#endif /* NDEBUG */
+
 #define Log_Trace(...) \
 Log_Log(&(logger), LOG_TRACE, __FILENAME__, __LINE__, __VA_ARGS__)
 #define Log_Debug(...) \

@@ -24,7 +24,7 @@
 #include "log.h"
 #include "mem.h"
 
-static Logger logger;
+static Logger logger = {.quiet = 1};
 
 Block *block_new(int bsize)
 {

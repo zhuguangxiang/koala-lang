@@ -23,9 +23,6 @@
 #include "codegen.h"
 #include "buffer.h"
 #include "mem.h"
-#include "log.h"
-
-static Logger logger;
 
 static struct opcode {
   uint8 code;
@@ -106,7 +103,6 @@ void Inst_Free(Inst *i)
 
 Inst *Inst_Append(CodeBlock *b, uint8 op, Argument *val)
 {
-  Log_Debug("OpCode:'%s'", OpCode_String(op));
   Inst *i = Inst_New(op, val);
   list_add_tail(&i->link, &b->insts);
   b->bytes += i->bytes;
@@ -355,7 +351,6 @@ void Inst_Gen(KImage *image, Buffer *buf, Inst *i)
 int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code)
 {
   if (block == NULL) {
-    Log_Warn("no codes");
     return 0;
   }
 

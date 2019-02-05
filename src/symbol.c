@@ -63,13 +63,13 @@ static void __const_free(Symbol *sym)
 static void __const_show(Symbol *sym)
 {
   VarSymbol *varSym = (VarSymbol *)sym;
-  printf("const %s ", varSym->name);
+  Log_Printf("const %s ", varSym->name);
   if (varSym->desc != NULL) {
     char buf[64];
     TypeDesc_ToString(varSym->desc, buf);
-    printf("%s;\n", buf); /* with newline */
+    Log_Printf("%s;\n", buf); /* with newline */
   } else {
-    puts("<undefined-type>;"); /* with newline */
+    Log_Puts("<undefined-type>;"); /* with newline */
   }
 }
 
@@ -97,13 +97,13 @@ static void __var_free(Symbol *sym)
 static void __var_show(Symbol *sym)
 {
   VarSymbol *varSym = (VarSymbol *)sym;
-  printf("var %s ", varSym->name);
+  Log_Printf("var %s ", varSym->name);
   if (varSym->desc != NULL) {
     char buf[64];
     TypeDesc_ToString(varSym->desc, buf);
-    printf("%s;\n", buf); /* with newline */
+    Log_Printf("%s;\n", buf); /* with newline */
   } else {
-    printf("<undefined-type>;\n");
+    Log_Printf("<undefined-type>;\n");
   }
 }
 
@@ -111,9 +111,7 @@ static void __var_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   VarSymbol *varSym = (VarSymbol *)sym;
-
   __var_show(sym);
-
   if (info->classname != NULL) {
     KImage_Add_Field(info->image, info->classname, varSym->name, varSym->desc);
   } else {
@@ -143,16 +141,16 @@ static void __func_show(Symbol *sym)
   ProtoDesc *proto = (ProtoDesc *)funcSym->desc;
   char buf[64];
   ProtoVec_ToString(proto->arg, buf);
-  printf("func %s(%s)", sym->name, buf);
+  Log_Printf("func %s(%s)", sym->name, buf);
   int sz = Vector_Size(proto->ret);
   if (sz > 0) {
     ProtoVec_ToString(proto->ret, buf);
     if (sz > 1)
-      printf(" (%s);\n", buf);
+      Log_Printf(" (%s);\n", buf);
     else
-      printf(" %s;\n", buf);
+      Log_Printf(" %s;\n", buf);
   } else {
-    puts(";"); /* with newline */
+    Log_Puts(";"); /* with newline */
   }
 }
 
@@ -161,7 +159,7 @@ static void __add_locvar(KImage *image, int index, Vector *vec, char *fmt)
   VarSymbol *varSym;
   Vector_ForEach(varSym, vec) {
     assert(varSym->kind == SYM_VAR);
-    Log_Debug(fmt, varSym->name);
+    Log_Printf(fmt, varSym->name);
     KImage_Add_LocVar(image, varSym->name, varSym->desc, varSym->index, index);
   }
 }
@@ -176,23 +174,24 @@ static void __func_gen(Symbol *sym, void *arg)
   int index;
 
   if (info->classname != NULL) {
-    Log_Debug("  func %s:", funcSym->name);
+    Log_Printf("  func %s:\n", funcSym->name);
+    __func_show(sym);
     index = KImage_Add_Method(info->image, info->classname, funcSym->name,
                               funcSym->desc, code, size);
     if (locvars <= 0) {
-      Log_Debug("    no vars");
+      Log_Printf("    no vars\n");
     } else {
-      char *fmt = "    var '%s'";
+      char *fmt = "    var '%s'\n";
       __add_locvar(info->image, index, &funcSym->locvec, fmt);
     }
   } else {
-    Log_Debug("func %s:", funcSym->name);
+    Log_Printf("func %s:\n", funcSym->name);
     index = KImage_Add_Func(info->image, funcSym->name,
                             funcSym->desc, code, size);
     if (locvars <= 0) {
-      Log_Debug("  no vars");
+      Log_Printf("  no vars\n");
     } else {
-      char *fmt = "  var '%s'";
+      char *fmt = "  var '%s'\n";
       __add_locvar(info->image, index, &funcSym->locvec, fmt);
     }
   }
@@ -231,7 +230,7 @@ static void __class_free(Symbol *sym)
 
 static void __class_show(Symbol *sym)
 {
-  printf("class %s;\n", sym->name);
+  Log_Printf("class %s;\n", sym->name);
 }
 
 static void __gen_image_func(Symbol *sym, void *arg);
@@ -264,7 +263,7 @@ static void __trait_free(Symbol *sym)
 
 static void __trait_show(Symbol *sym)
 {
-  printf("trait %s;\n", sym->name);
+  Log_Printf("trait %s;\n", sym->name);
 }
 
 static void __trait_gen(Symbol *sym, void *arg)
@@ -297,16 +296,16 @@ static void __nfunc_show(Symbol *sym)
   ProtoDesc *proto = (ProtoDesc *)nfunSym->desc;
   char buf[64];
   ProtoVec_ToString(proto->arg, buf);
-  printf("native func %s(%s)", sym->name, buf);
+  Log_Printf("native func %s(%s)", sym->name, buf);
   int sz = Vector_Size(proto->ret);
   if (sz > 0) {
     ProtoVec_ToString(proto->ret, buf);
     if (sz > 1)
-      printf(" (%s);\n", buf);
+      Log_Printf(" (%s);\n", buf);
     else
-      printf(" %s;\n", buf);
+      Log_Printf(" %s;\n", buf);
   } else {
-    puts(";"); /* with newline */
+    Log_Puts(";"); /* with newline */
   }
 }
 
@@ -336,16 +335,16 @@ static void __ifunc_show(Symbol *sym)
   ProtoDesc *proto = (ProtoDesc *)ifunSym->desc;
   char buf[64];
   ProtoVec_ToString(proto->arg, buf);
-  printf("ifunc %s%s", sym->name, buf);
+  Log_Printf("ifunc %s%s", sym->name, buf);
   int sz = Vector_Size(proto->ret);
   if (sz > 0) {
     ProtoVec_ToString(proto->ret, buf);
     if (sz > 1)
-      printf(" (%s);\n", buf);
+      Log_Printf(" (%s);\n", buf);
     else
-      printf(" %s;\n", buf);
+      Log_Printf(" %s;\n", buf);
   } else {
-    puts(";"); /* with newline */
+    Log_Puts(";"); /* with newline */
   }
 }
 

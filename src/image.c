@@ -23,6 +23,7 @@
 #include "image.h"
 #include "hashfunc.h"
 #include "mem.h"
+#include "log.h"
 
 static int version_major = 0; // 1 byte
 static int version_minor = 1; // 1 byte
@@ -545,9 +546,9 @@ void mapitem_show(AtomTable *table, void *o)
 {
   UNUSED_PARAMETER(table);
   MapItem *item = o;
-  printf("  type:%s\n", mapitem_string[item->type]);
-  printf("  offset:0x%x\n", item->offset);
-  printf("  size:%d\n", item->size);
+  Log_Printf("  type:%s\n", mapitem_string[item->type]);
+  Log_Printf("  offset:0x%x\n", item->offset);
+  Log_Printf("  size:%d\n", item->size);
 }
 
 void mapitem_write(FILE *fp, void *o)
@@ -589,8 +590,8 @@ void stringitem_show(AtomTable *table, void *o)
 {
   UNUSED_PARAMETER(table);
   StringItem *item = o;
-  printf("  length:%d\n", item->length);
-  printf("  string:%s\n", item->data);
+  Log_Printf("  length:%d\n", item->length);
+  Log_Printf("  string:%s\n", item->data);
 }
 
 void stringitem_free(void *o)
@@ -648,23 +649,23 @@ void typeitem_show(AtomTable *table, void *o)
     StringItem *str;
     if (item->pathindex >= 0) {
       str = AtomTable_Get(table, ITEM_STRING, item->pathindex);
-      printf("  pathindex:%d\n", item->pathindex);
-      printf("  (%s)\n", str->data);
+      Log_Printf("  pathindex:%d\n", item->pathindex);
+      Log_Printf("  (%s)\n", str->data);
     } else {
-      printf("  pathindex:%d\n", item->pathindex);
+      Log_Printf("  pathindex:%d\n", item->pathindex);
     }
     if (item->typeindex >= 0) {
       str = AtomTable_Get(table, ITEM_STRING, item->typeindex);
-      printf("  typeindex:%d\n", item->typeindex);
-      //printf("  (%s%s)\n", arrstr, str->data);
+      Log_Printf("  typeindex:%d\n", item->typeindex);
+      //Log_Printf("  (%s%s)\n", arrstr, str->data);
     } else {
-      printf("  typeindex:%d\n", item->typeindex);
+      Log_Printf("  typeindex:%d\n", item->typeindex);
     }
   } else if (item->kind == TYPE_BASIC) {
     char buf[32];
     TypeDesc *desc = TypeDesc_Get_Basic(item->primitive);
     TypeDesc_ToString(desc, buf);
-    printf("  (%s)\n", buf);
+    Log_Printf("  (%s)\n", buf);
   } else if (item->kind == TYPE_ARRAY) {
 
   }
@@ -716,8 +717,8 @@ void typelistitem_show(AtomTable *table, void *o)
   TypeListItem *item = o;
   TypeItem *type;
   for (int i = 0; i < item->size; i++) {
-    puts("  ---------");
-    printf("  index:%d\n", item->index[i]);
+    Log_Puts("  ---------");
+    Log_Printf("  index:%d\n", item->index[i]);
     type = AtomTable_Get(table, ITEM_TYPE, item->index[i]);
     typeitem_show(table, type);
   }
@@ -762,8 +763,8 @@ void protoitem_show(AtomTable *table, void *o)
 {
   UNUSED_PARAMETER(table);
   ProtoItem *item = o;
-  printf("  rindex:%d\n", item->rindex);
-  printf("  pindex:%d\n", item->pindex);
+  Log_Printf("  rindex:%d\n", item->rindex);
+  Log_Printf("  pindex:%d\n", item->pindex);
 }
 
 void protoitem_free(void *o)
@@ -845,21 +846,21 @@ void constitem_show(AtomTable *table, void *o)
   ConstItem *item = o;
   switch (item->type) {
   case CONST_INT:
-    printf("  int:%lld\n", item->ival);
+    Log_Printf("  int:%lld\n", item->ival);
     break;
   case CONST_FLOAT:
-    printf("  float:%.16lf\n", item->fval);
+    Log_Printf("  float:%.16lf\n", item->fval);
     break;
   case CONST_BOOL:
-    printf("  bool:%s\n", item->bval ? "true" : "false");
+    Log_Printf("  bool:%s\n", item->bval ? "true" : "false");
     break;
   case CONST_STRING:
-    printf("  index:%d\n", item->index);
+    Log_Printf("  index:%d\n", item->index);
     StringItem *str = AtomTable_Get(table, ITEM_STRING, item->index);
-    printf("  (str:%s)\n", str->data);
+    Log_Printf("  (str:%s)\n", str->data);
     break;
   case CONST_UCHAR:
-    printf("  uchar:%s\n", item->uch.data);
+    Log_Printf("  uchar:%s\n", item->uch.data);
     break;
   default:
     assert(0);
@@ -890,23 +891,23 @@ void locvaritem_show(AtomTable *table, void *o)
   StringItem *str2;
   TypeItem *type;
 
-  printf("  nameindex:%d\n", item->nameindex);
+  Log_Printf("  nameindex:%d\n", item->nameindex);
   str1 = AtomTable_Get(table, ITEM_STRING, item->nameindex);
-  printf("  (%s)\n", str1->data);
-  printf("  typeindex:%d\n", item->typeindex);
+  Log_Printf("  (%s)\n", str1->data);
+  Log_Printf("  typeindex:%d\n", item->typeindex);
   type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
   if (type->kind == TYPE_KLASS) {
     str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
     if (type->pathindex >= 0) {
       str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
-      printf("  (%s.%s)\n", str1->data, str2->data);
+      Log_Printf("  (%s.%s)\n", str1->data, str2->data);
     } else {
-      printf("  (%s)\n", str2->data);
+      Log_Printf("  (%s)\n", str2->data);
     }
   } else {
-    printf("  (%c)\n", type->primitive);
+    Log_Printf("  (%c)\n", type->primitive);
   }
-  printf("  index:%d\n", item->index);
+  Log_Printf("  index:%d\n", item->index);
 }
 
 void locvaritem_free(void *o)
@@ -956,26 +957,26 @@ void varitem_show(AtomTable *table, void *o)
   StringItem *str2;
   TypeItem *type;
 
-  printf("  nameindex:%d\n", item->nameindex);
+  Log_Printf("  nameindex:%d\n", item->nameindex);
   str1 = AtomTable_Get(table, ITEM_STRING, item->nameindex);
-  printf("  (%s)\n", str1->data);
-  printf("  typeindex:%d\n", item->typeindex);
+  Log_Printf("  (%s)\n", str1->data);
+  Log_Printf("  typeindex:%d\n", item->typeindex);
   type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
   if (type->kind == TYPE_KLASS) {
     str2 = AtomTable_Get(table, ITEM_STRING, type->typeindex);
     if (type->pathindex >= 0) {
       str1 = AtomTable_Get(table, ITEM_STRING, type->pathindex);
-      printf("  (%s.%s)\n", str1->data, str2->data);
+      Log_Printf("  (%s.%s)\n", str1->data, str2->data);
     } else {
-      printf("  (%s)\n", str2->data);
+      Log_Printf("  (%s)\n", str2->data);
     }
   } else if (type->kind == TYPE_BASIC) {
     char buf[32];
     TypeDesc *desc = TypeDesc_Get_Basic(type->primitive);
     TypeDesc_ToString(desc, buf);
-    printf("  (%s)\n", buf);
+    Log_Printf("  (%s)\n", buf);
   }
-  printf("  konst:%s\n", item->konst ? "true" : "false");
+  Log_Printf("  konst:%s\n", item->konst ? "true" : "false");
 
 }
 
@@ -999,11 +1000,11 @@ void funcitem_show(AtomTable *table, void *o)
 {
   FuncItem *item = o;
   StringItem *str;
-  printf("  nameindex:%d\n", item->nameindex);
+  Log_Printf("  nameindex:%d\n", item->nameindex);
   str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
-  printf("  (%s)\n", str->data);
-  printf("  protoindex:%d\n", item->protoindex);
-  printf("  codeindex:%d\n", item->codeindex);
+  Log_Printf("  (%s)\n", str->data);
+  Log_Printf("  protoindex:%d\n", item->protoindex);
+  Log_Printf("  codeindex:%d\n", item->codeindex);
 }
 
 void funcitem_free(void *o)
@@ -1049,9 +1050,9 @@ void classitem_write(FILE *fp, void *o)
 void classitem_show(AtomTable *table, void *o)
 {
   ClassItem *item = o;
-  printf("  classindex:%d\n", item->classindex);
+  Log_Printf("  classindex:%d\n", item->classindex);
   if (item->superindex >= 0) {
-    printf("  superinfo:\n");
+    Log_Printf("  superinfo:\n");
     TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->superindex);
     typeitem_show(table, type);
   }
@@ -1076,7 +1077,7 @@ void fielditem_write(FILE *fp, void *o)
 void fielditem_show(AtomTable *table, void *o)
 {
   FieldItem *item = o;
-  printf("  classindex:%d\n", item->classindex);
+  Log_Printf("  classindex:%d\n", item->classindex);
   StringItem *id = AtomTable_Get(table, ITEM_STRING, item->nameindex);
   stringitem_show(table, id);
   TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->typeindex);
@@ -1102,13 +1103,13 @@ void methoditem_write(FILE *fp, void *o)
 void methoditem_show(AtomTable *table, void *o)
 {
   MethodItem *item = o;
-  printf("  classindex:%d\n", item->classindex);
+  Log_Printf("  classindex:%d\n", item->classindex);
   StringItem *str;
-  printf("  nameindex:%d\n", item->nameindex);
+  Log_Printf("  nameindex:%d\n", item->nameindex);
   str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
-  printf("  (%s)\n", str->data);
-  printf("  protoindex:%d\n", item->protoindex);
-  printf("  codeindex:%d\n", item->codeindex);
+  Log_Printf("  (%s)\n", str->data);
+  Log_Printf("  protoindex:%d\n", item->protoindex);
+  Log_Printf("  codeindex:%d\n", item->codeindex);
 }
 
 void methoditem_free(void *o)
@@ -1130,7 +1131,7 @@ void traititem_write(FILE *fp, void *o)
 void traititem_show(AtomTable *table, void *o)
 {
   TraitItem *item = o;
-  printf("  classindex:%d\n", item->classindex);
+  Log_Printf("  classindex:%d\n", item->classindex);
   TypeItem *type = AtomTable_Get(table, ITEM_TYPE, item->classindex);
   typeitem_show(table, type);
   if (item->traitsindex >= 0) {
@@ -1159,12 +1160,12 @@ void nfuncitem_write(FILE *fp, void *o)
 void nfuncitem_show(AtomTable *table, void *o)
 {
   NFuncItem *item = o;
-  printf("  classindex:%d\n", item->classindex);
+  Log_Printf("  classindex:%d\n", item->classindex);
   StringItem *str;
-  printf("  nameindex:%d\n", item->nameindex);
+  Log_Printf("  nameindex:%d\n", item->nameindex);
   str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
-  printf("  (%s)\n", str->data);
-  printf("  protoindex:%d\n", item->protoindex);
+  Log_Printf("  (%s)\n", str->data);
+  Log_Printf("  protoindex:%d\n", item->protoindex);
 }
 
 void nfuncitem_free(void *o)
@@ -1186,12 +1187,12 @@ void imethitem_write(FILE *fp, void *o)
 void imethitem_show(AtomTable *table, void *o)
 {
   IMethItem *item = o;
-  printf("  classindex:%d\n", item->classindex);
+  Log_Printf("  classindex:%d\n", item->classindex);
   StringItem *str;
-  printf("  nameindex:%d\n", item->nameindex);
+  Log_Printf("  nameindex:%d\n", item->nameindex);
   str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
-  printf("  (%s)\n", str->data);
-  printf("  protoindex:%d\n", item->protoindex);
+  Log_Printf("  (%s)\n", str->data);
+  Log_Printf("  protoindex:%d\n", item->protoindex);
 }
 
 void imethitem_free(void *o)
@@ -1732,20 +1733,20 @@ KImage *KImage_Read_File(char *path)
 {
   FILE *fp = fopen(path, "r");
   if (!fp) {
-    printf("error: cannot open %s file\n", path);
+    Log_Printf("error: cannot open %s file\n", path);
     return NULL;
   }
 
   ImageHeader header;
   int sz = fread(&header, sizeof(ImageHeader), 1, fp);
   if (sz < 1) {
-    printf("error: file %s is not a valid .klc file\n", path);
+    Log_Printf("error: file %s is not a valid .klc file\n", path);
     fclose(fp);
     return NULL;
   }
 
   if (header_check(&header) < 0) {
-    printf("error: file %s is not a valid .klc file\n", path);
+    Log_Printf("error: file %s is not a valid .klc file\n", path);
     return NULL;
   }
 
@@ -1758,7 +1759,7 @@ KImage *KImage_Read_File(char *path)
   assert(sz == 0);
   sz = fread(mapitems, sizeof(MapItem), header.map_size, fp);
   if (sz < (int)header.map_size) {
-    printf("error: file %s is not a valid .klc file\n", path);
+    Log_Printf("error: file %s is not a valid .klc file\n", path);
     fclose(fp);
     return NULL;
   }
@@ -1958,23 +1959,23 @@ KImage *KImage_Read_File(char *path)
 
 void header_show(ImageHeader *h)
 {
-  printf("magic:%s\n", (char *)h->magic);
-  printf("version:%d.%d.%d\n", h->version[0] - '0', h->version[1] - '0', 0);
-  printf("header_size:%d\n", h->header_size);
-  printf("endian_tag:0x%x\n", h->endian_tag);
-  printf("map_offset:0x%x\n", h->map_offset);
-  printf("map_size:%d\n\n", h->map_size);
-  puts("--------------------");
+  Log_Printf("magic:%s\n", (char *)h->magic);
+  Log_Printf("version:%d.%d.%d\n", h->version[0] - '0', h->version[1] - '0', 0);
+  Log_Printf("header_size:%d\n", h->header_size);
+  Log_Printf("endian_tag:0x%x\n", h->endian_tag);
+  Log_Printf("map_offset:0x%x\n", h->map_offset);
+  Log_Printf("map_size:%d\n\n", h->map_size);
+  Log_Puts("--------------------");
 }
 
 void AtomTable_Show(AtomTable *table)
 {
   void *item;
   int size;
-  printf("map:\n");
+  Log_Printf("map:\n");
   size = AtomTable_Size(table, 0);
   for (int j = 0; j < size; j++) {
-    printf("[%d]\n", j);
+    Log_Printf("[%d]\n", j);
     item = AtomTable_Get(table, 0, j);
     item_func[0].show(table, item);
   }
@@ -1984,10 +1985,10 @@ void AtomTable_Show(AtomTable *table)
       continue;
     size = AtomTable_Size(table, i);
     if (size > 0) {
-      puts("--------------------");
-      printf("%s:\n", mapitem_string[i]);
+      Log_Puts("--------------------");
+      Log_Printf("%s:\n", mapitem_string[i]);
       for (int j = 0; j < size; j++) {
-        printf("[%d]\n", j);
+        Log_Printf("[%d]\n", j);
         item = AtomTable_Get(table, i, j);
         item_func[i].show(table, item);
       }
@@ -1999,9 +2000,9 @@ void KImage_Show(KImage *image)
 {
   if (!image)
     return;
-  puts("\n------show image--------------\n");
+  Log_Puts("\n------show image--------------\n");
   ImageHeader *h = &image->header;
   header_show(h);
   AtomTable_Show(image->table);
-  puts("\n------end of image------------");
+  Log_Puts("\n------end of image------------");
 }
