@@ -905,13 +905,13 @@ static void parse_return_stmt(ParserState *ps, Stmt *stmt)
     list_for_each(pos, &ps->ustack) {
       uu = container_of(pos, ParserUnit, link);
       if (uu->scope == SCOPE_FUNCTION) {
-        funSym = (FuncSymbol *)u->sym;
+        funSym = (FuncSymbol *)uu->sym;
         break;
       }
     }
   }
 
-  assert(funSym != NULL);
+  assert(funSym != NULL && funSym->kind == SYM_FUNC);
 
   ReturnStmt *retStmt = (ReturnStmt *)stmt;
 
