@@ -37,6 +37,9 @@ var f = 12.04
 var result = add(1, 2)
 var func_callback func(int, int) int = add
 
+var func_cb2 = func_callback
+var result2 = func_callback(1, 3)
+
 //function
 func add(a int, b int) int {
   aa := "how are you?"
@@ -52,12 +55,12 @@ func add(a int, b int) int {
 
 func sub(aa int, bb int) (int, int) {
   //func_callback(aa, bb)
-  var hello string
+  var hello int
   //hello += 2;
   {
     return 1, 2
   }
-  return 123, 0
+  return 2, 1
 }
 
 /*

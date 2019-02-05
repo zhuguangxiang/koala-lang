@@ -118,6 +118,16 @@ static void merge_parser_unit(ParserState *ps)
     u->stbl = NULL;
     break;
   }
+  case SCOPE_CLASS: {
+    ClassSymbol *clsSym = (ClassSymbol *)(u->sym);
+    assert(clsSym != NULL);
+    assert(clsSym->kind == SYM_CLASS || clsSym->kind == SYM_TRAIT);
+    assert(u->stbl == clsSym->stbl);
+    assert(u->block == NULL);
+    u->sym = NULL;
+    u->stbl = NULL;
+    break;
+  }
   case SCOPE_FUNCTION: {
     FuncSymbol *funSym = (FuncSymbol *)u->sym;
     assert(funSym && funSym->kind == SYM_FUNC);
@@ -156,20 +166,9 @@ static void merge_parser_unit(ParserState *ps)
     u->stbl = NULL;
     break;
   }
-  case SCOPE_CLASS: {
-    ClassSymbol *clsSym = (ClassSymbol *)(u->sym);
-    assert(clsSym != NULL);
-    assert(clsSym->kind == SYM_CLASS || clsSym->kind == SYM_TRAIT);
-    assert(u->stbl == clsSym->stbl);
-    assert(u->block == NULL);
-    u->sym = NULL;
-    u->stbl = NULL;
-    break;
-  }
-  default:{
+  default:
     assert(0);
     break;
-  }
   }
 }
 
@@ -363,7 +362,7 @@ static void parse_char_expr(ParserState *ps, Expr *exp)
 }
 
 /* symbol is found in current scope */
-static void codegen_curscope_ident(ParserUnit *u, Symbol *sym, Expr *exp)
+static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
 {
   exp->sym = sym;
 
@@ -373,38 +372,69 @@ static void codegen_curscope_ident(ParserUnit *u, Symbol *sym, Expr *exp)
     assert(exp->ctx == EXPR_LOAD);
     if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
       Log_Debug("symbol '%s' is variable(constant)", sym->name);
-      exp->desc = ((VarSymbol *)sym)->desc;
+      VarSymbol *varSym = (VarSymbol *)sym;
+      exp->desc = varSym->desc;
       TYPE_INCREF(exp->desc);
-      Inst_Append_NoArg(u->block, OP_LOAD0);
-      Argument val = {.kind = ARG_STR, .str = sym->name};
-      Inst_Append(u->block, OP_GETFIELD, &val);
+
+      if (exp->desc->kind == TYPE_PROTO &&
+          exp->right != NULL && exp->right->kind == CALL_KIND) {
+        /* call function */
+        Log_Debug("call '%s' function", sym->name);
+        Inst_Append_NoArg(__codeblock(u), OP_LOAD0);
+        Argument val = {.kind = ARG_STR, .str = sym->name};
+        Inst *i = Inst_Append(__codeblock(u), OP_CALL, &val);
+        i->argc = exp->argc;
+      } else {
+        Log_Debug("load '%s' variable", sym->name);
+        Inst_Append_NoArg(__codeblock(u), OP_LOAD0);
+        Argument val = {.kind = ARG_STR, .str = sym->name};
+        Inst_Append(__codeblock(u), OP_GETFIELD, &val);
+      }
     } else {
       assert(sym->kind == SYM_FUNC);
       Log_Debug("symbol '%s' is function", sym->name);
       exp->desc = ((FuncSymbol *)sym)->desc;
       TYPE_INCREF(exp->desc);
-      /*
-      Inst_Append_NoArg(u->block, OP_LOAD0);
-      Argument val = {.kind = ARG_STR, .str = sym->name};
-      Inst *i = Inst_Append(u->block, OP_CALL, &val);
-      i->argc = exp->argc;
-      */
+
+      Expr *right = exp->right;
+      if (right != NULL && right->kind == CALL_KIND) {
+        /* call function */
+        Log_Debug("call '%s' function", sym->name);
+        Inst_Append_NoArg(__codeblock(u), OP_LOAD0);
+        Argument val = {.kind = ARG_STR, .str = sym->name};
+        Inst *i = Inst_Append(__codeblock(u), OP_CALL, &val);
+        i->argc = exp->argc;
+      } else {
+        /* load function */
+        Log_Debug("load '%s' function", sym->name);
+        Inst_Append_NoArg(__codeblock(u), OP_LOAD0);
+        Argument val = {.kind = ARG_STR, .str = sym->name};
+        Inst_Append(__codeblock(u), OP_GETFIELD, &val);
+      }
     }
     break;
   case SCOPE_CLASS:
     /* expr, in class scope, is field declaration's right expr */
     if (sym->kind == SYM_VAR) {
-      Log_Debug("symbol '%s' is variable(constant)", sym->name);
+      Log_Debug("symbol '%s' is field", sym->name);
       Inst_Append_NoArg(u->block, OP_LOAD0);
       Argument val = {.kind = ARG_STR, .str = sym->name};
-      Inst_Append(u->block, OP_GETFIELD, &val);
+      Inst_Append(__codeblock(u), OP_GETFIELD, &val);
     } else {
       assert(sym->kind == SYM_FUNC || sym->kind == SYM_IFUNC ||
              sym->kind == SYM_NFUNC);
       Log_Debug("symbol '%s is (interface/native) function", sym->name);
     }
     break;
+  case SCOPE_FUNCTION:
+    /* expr, in function scope, is local variable or parameter */
+    assert(sym->kind == SYM_VAR);
+    Log_Debug("symbol '%s' is variable", sym->name);
 
+    break;
+  default:
+    assert(0);
+    break;
   }
 }
 
@@ -427,7 +457,7 @@ static void parse_ident_expr(ParserState *ps, Expr *exp)
   if (sym != NULL) {
     Log_Debug("find symbol '%s' in local scope-%d(%s)",
               name, ps->depth, scope_strings[u->scope]);
-    codegen_curscope_ident(u, sym, exp);
+    parse_ident_current_scope(u, sym, exp);
     return;
   }
 
@@ -540,11 +570,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
   /*check call's arguments */
   SymKind kind = exp->sym->kind;
   TypeDesc *proto;
-  if (kind == SYM_FUNC || kind == SYM_IFUNC || kind == SYM_NFUNC) {
-    Log_Debug("call (interface/native) function '%s'", exp->sym->name);
-    proto = exp->desc;
-  } else {
-    assert(kind == SYM_CLASS);
+  if (kind == SYM_CLASS) {
     ClassSymbol *clsSym = (ClassSymbol *)exp->sym;
     Log_Debug("call class '%s' __init__ function", clsSym->name);
     Symbol *__init__ = STable_Get(clsSym->stbl, "__init__");
@@ -554,15 +580,20 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
       return;
     }
     proto = ((FuncSymbol *)__init__)->desc;
+  } else {
+    /* var(func type), func, ifunc and nfunc */
+    Log_Debug("call (var(proto)/interface/native) function '%s'",
+              exp->sym->name);
+    proto = exp->desc;
   }
+
+  assert(proto->kind == TYPE_PROTO);
 
   if (!check_call_arguments(proto, callExp->args)) {
     Syntax_Error(ps, &lexp->pos,
                  "argument of function '%s' are not matched", exp->sym->name);
     return;
   }
-
-  Log_Debug("call function '%s' successfully", exp->sym->name);
 }
 
 static void parse_slice_expr(ParserState *ps, Expr *exp)
