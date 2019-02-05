@@ -530,8 +530,9 @@ static void free_vardecl_stmt(Stmt *stmt)
 static void free_varlistdecl_stmt(Stmt *stmt)
 {
   VarListDeclStmt *varListStmt = (VarListDeclStmt *)stmt;
-  Vector_Free_Self(varListStmt->ids);
+  Free_IdentList(varListStmt->ids);
   TYPE_DECREF(varListStmt->type.desc);
+  Free_Expr(varListStmt->exp);
   mm_free(stmt);
 }
 
@@ -546,7 +547,6 @@ static void free_assign_stmt(Stmt *stmt)
 static void free_assignlist_stmt(Stmt *stmt)
 {
   AssignListStmt *assignListStmt = (AssignListStmt *)stmt;
-  Vector_Free_Self(assignListStmt->left);
   mm_free(stmt);
 }
 
@@ -1041,7 +1041,6 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
   int isz = Vector_Size(ids);
   int esz = Vector_Size(exps);
   if (!__validate_count(ps, isz, esz)) {
-    /* FIXME: */
     Ident *id = Vector_Get(ids, 0);
     Syntax_Error(ps, &id->pos, "left and right are not matched");
     Free_IdentList(ids);

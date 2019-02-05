@@ -55,6 +55,10 @@ e.g. there is not desired records in database.
 *** anonymous
 - context free
 - context sensitive
+*** not support generic type
+- generic type is, in compiled stage, checked
+- support run-time checked(key word: v2 := cast(v1))
+- cast, typeof
 * Why develop koala-lang?
 能用自己开发的语言写程序是不是一件很有意思的事情呢？Koala语言完全出于本人的兴趣，很有意思！
 * Language Introduction

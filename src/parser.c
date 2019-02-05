@@ -268,11 +268,16 @@ static inline CodeBlock *__codeblock(ParserUnit *u)
 static int expr_is_const(Expr *exp)
 {
   ExprKind kind = exp->kind;
-  if (kind != INT_KIND || kind != FLOAT_KIND ||
-      kind != STRING_KIND || kind != CHAR_KIND)
-    return 0;
-  else
+
+  Symbol *sym = exp->sym;
+  if (kind == ID_KIND && sym->kind == SYM_CONST)
     return 1;
+
+  if (kind != INT_KIND && kind != FLOAT_KIND &&
+      kind != STRING_KIND && kind != CHAR_KIND)
+    return 0;
+
+  return 1;
 }
 
 static int type_is_compatible(TypeDesc *t1, TypeDesc *t2)
@@ -513,6 +518,7 @@ static void parse_subscript_expr(ParserState *ps, Expr *exp)
 
 static int check_expr_types(Vector *descs, Vector *exps)
 {
+  /* FIXME: optimize this checker */
   int ndesc = Vector_Size(descs);
   int nexp = Vector_Size(exps);
 
@@ -697,17 +703,17 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
 
   /* check expression */
   if (rexp != NULL) {
-    /* constant */
-    if (konst == 1 && expr_is_const(rexp)) {
-      Syntax_Error(ps, &rexp->pos, "not a valid const expression");
-      return;
-    }
-
     /* parse right expression of variable declaration */
     rexp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, rexp);
     if (rexp->desc == NULL) {
       Syntax_Error(ps, &rexp->pos, "cannot resolve right expression's type");
+      return;
+    }
+
+    /* constant */
+    if (konst == 1 && !expr_is_const(rexp)) {
+      Syntax_Error(ps, &rexp->pos, "not a valid constant expression");
       return;
     }
 
@@ -863,7 +869,91 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
 
 static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
 {
-  assert(0);
+  VarListDeclStmt *varListStmt = (VarListDeclStmt *)stmt;
+  Expr *rexp = varListStmt->exp;
+  assert(rexp != NULL);
+  assert(!varListStmt->konst);
+
+  if (rexp->kind != CALL_KIND) {
+    Syntax_Error(ps, &rexp->pos, "right expression is not a multi-value");
+    return;
+  }
+
+  rexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, rexp);
+
+  assert(rexp->desc != NULL && rexp->desc->kind == TYPE_PROTO);
+  ProtoDesc *proto = (ProtoDesc *)rexp->desc;
+
+  /* check count */
+  int nret = Vector_Size(proto->ret);
+  int nvar = Vector_Size(varListStmt->ids);
+  if (nret != nvar) {
+    Syntax_Error(ps, &rexp->pos,
+                 "assignment mismatch: %d variables but %d values",
+                 nvar, nret);
+    return;
+  }
+
+  /* check type */
+  if (varListStmt->type.desc != NULL) {
+    TypeDesc *vdesc = varListStmt->type.desc;
+    TypeDesc *desc;
+    Vector_ForEach(desc, proto->ret) {
+      if (!type_is_compatible(vdesc, desc)) {
+        Syntax_Error(ps, &rexp->pos,
+                     "right expression's type is not compatible");
+        return;
+      }
+    }
+  }
+
+  ParserUnit *u = ps->u;
+  VarSymbol *varSym;
+  Ident *ident;
+  switch (u->scope) {
+  case SCOPE_MODULE:
+    Vector_ForEach(ident, varListStmt->ids) {
+      varSym = (VarSymbol *)STable_Get(u->stbl, ident->name);
+      assert(varSym != NULL && varSym->kind == SYM_VAR);
+      if (varSym->desc == NULL) {
+        TypeDesc *desc = Vector_Get(proto->ret, i);
+        char buf[64];
+        TypeDesc_ToString(desc, buf);
+        Log_Debug("update symbol '%s' type as '%s'", ident->name, buf);
+        varSym->desc = desc;
+        TYPE_INCREF(varSym->desc);
+      }
+    }
+    break;
+  case SCOPE_FUNCTION:
+    Vector_ForEach(ident, varListStmt->ids) {
+      Log_Debug("var '%s' declaration in function", ident->name);
+      TypeDesc *desc = Vector_Get(proto->ret, i);
+      varSym = STable_Add_Var(u->stbl, ident->name, desc);
+      if (varSym == NULL) {
+        Syntax_Error(ps, &ident->pos, "var '%s' is duplicated", ident->name);
+        return;
+      }
+      FuncSymbol *funSym = (FuncSymbol *)u->sym;
+      Vector_Append(&funSym->locvec, varSym);
+      varSym->refcnt++;
+    }
+    break;
+  case SCOPE_BLOCK:
+  case SCOPE_CLOSURE:
+    assert(0);
+    break;
+  default:
+    assert(0);
+    break;
+  }
+
+  /* FIXME: generator code */
+  if (u->scope == SCOPE_MODULE) {
+
+  } else {
+  }
 }
 
 /*

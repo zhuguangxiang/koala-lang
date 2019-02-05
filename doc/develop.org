@@ -14,12 +14,13 @@ CLOSED: [2019-02-04 Mon 01:57]
 - [X] local variable declaration
 - [X] typeless variable declaration
 - [X] argument declaration
-- [X] return variable declaration not supported in 0.7 version.
-** TODO expression [2/4]
+- [X] return variable declaration in function not supported in 0.7 version.
+** TODO expression [3/5]
 - [X] call
 - [ ] basic expression: binary, unary etc
-- [ ] assignment
+- [X] assignment
 - [X] return statement
+- [ ] identifier up scope
 * 0.7.4 [0/5]
 ** TODO import statement
 ** TODO assignment
