@@ -50,6 +50,8 @@ func add(a int, b int) int {
     }
     var dd = 400
   }
+  result := 100
+  result = 200
   return 123
 }
 

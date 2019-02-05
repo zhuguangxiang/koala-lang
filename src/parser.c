@@ -275,23 +275,10 @@ static int expr_is_const(Expr *exp)
     return 1;
 }
 
-static char *expr_get_funcname(Expr *exp)
-{
-  CallExpr *callExp = (CallExpr *)exp;
-  Expr *left = callExp->left;
-  if (left->kind == ID_KIND) {
-    return ((BaseExpr *)left)->id;
-  } else if (left->kind == ATTRIBUTE_KIND) {
-    return ((AttributeExpr *)left)->id.name;
-  } else {
-    return "<unknown>";
-  }
-}
-
 static int type_is_compatible(TypeDesc *t1, TypeDesc *t2)
 {
   /* FIXME: class inheritance */
-  return 1;
+  return TypeDesc_Equal(t1, t2);
 }
 
 static void parser_visit_expr(ParserState *ps, Expr *exp);
@@ -446,8 +433,11 @@ static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
       i->argc = exp->argc;
     } else {
       /* load variable */
-      Log_Debug("load '%s' variable", varSym->name);
       assert(exp->ctx == EXPR_LOAD || exp->ctx == EXPR_STORE);
+      if (exp->ctx == EXPR_LOAD)
+        Log_Debug("load '%s' variable", varSym->name);
+      else
+        Log_Debug("store '%s' variable", varSym->name);
       int opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
       Argument val = {.kind = ARG_INT, .ival = varSym->index};
       Inst_Append(__codeblock(u), opcode, &val);
@@ -721,6 +711,8 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
       return;
     }
 
+    TypeDesc *rdesc = rexp->desc;
+
     /*
      * right expr's type is func proto, there are two exprs:
      * 1. function call
@@ -728,45 +720,45 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
      * check function call expr only, anonymous needs not check
      */
     if (rexp->kind == CALL_KIND) {
-      assert(rexp->desc->kind == TYPE_PROTO);
-      ProtoDesc *proto = (ProtoDesc *)rexp->desc;
+      assert(rdesc->kind == TYPE_PROTO);
+      ProtoDesc *proto = (ProtoDesc *)rdesc;
       if (Vector_Size(proto->ret) != 1) {
-        Syntax_Error(ps, &rexp->pos,
-                     "multiple-value %s() in single-value context",
-                     expr_get_funcname(rexp));
+        Syntax_Error(ps, &rexp->pos, "multiple-value in single-value context");
         return;
       }
 
+      rdesc = Vector_Get(proto->ret, 0);
       if (type->desc == NULL) {
-        TypeDesc *desc = Vector_Get(proto->ret, 0);
         char buf[64];
-        TypeDesc_ToString(desc, buf);
+        TypeDesc_ToString(rdesc, buf);
         Log_Debug("var '%s' type is none, set it as '%s'", id->name, buf);
-        TYPE_INCREF(desc);
-        type->desc = desc;
+        TYPE_INCREF(rdesc);
+        type->desc = rdesc;
       }
     }
 
     if (type->desc != NULL) {
       /* check type equals or not */
-      if (!type_is_compatible(type->desc, rexp->desc)) {
+      if (!type_is_compatible(type->desc, rdesc)) {
         Syntax_Error(ps, &rexp->pos,
                      "right expression's type is not compatible");
         return;
       }
     } else {
       char buf[64];
-      TypeDesc_ToString(rexp->desc, buf);
+      TypeDesc_ToString(rdesc, buf);
       Log_Debug("var '%s' type is none, set it as '%s'", id->name, buf);
-      TYPE_INCREF(rexp->desc);
-      type->desc = rexp->desc;
+      TYPE_INCREF(rdesc);
+      type->desc = rdesc;
     }
   }
 
   /* update or add symbol */
   VarSymbol *varSym;
   ParserUnit *u = ps->u;
-  if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+  switch (u->scope) {
+  case SCOPE_MODULE:
+  case SCOPE_CLASS:
     /*
      * variables in module or class canbe accessed by other packages,
      * during building AST, it is already saved in symbol table.
@@ -781,7 +773,8 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
       varSym->desc = type->desc;
       TYPE_INCREF(varSym->desc);
     }
-  } else if (u->scope == SCOPE_FUNCTION) {
+    break;
+  case SCOPE_FUNCTION: {
     /* function scope has independent space for save variables. */
     Log_Debug("var '%s' declaration in function", id->name);
     assert(konst != 1);
@@ -793,8 +786,10 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     FuncSymbol *funSym = (FuncSymbol *)u->sym;
     Vector_Append(&funSym->locvec, varSym);
     varSym->refcnt++;
-  } else {
-    assert(u->scope == SCOPE_BLOCK || u->scope == SCOPE_CLOSURE);
+    break;
+  }
+  case SCOPE_BLOCK:
+  case SCOPE_CLOSURE: {
     /*
      * variables in these socpes must not be duplicated
      * within function or method scopes
@@ -836,6 +831,11 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     varSym->index = uu->stbl->varindex++;
     Vector_Append(&((FuncSymbol *)uu->sym)->locvec, varSym);
     varSym->refcnt++;
+    break;
+  }
+  default:
+    assert(0);
+    break;
   }
 
   /* generate code */
@@ -877,7 +877,41 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
 static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
 {
   AssignStmt *assignStmt = (AssignStmt *)stmt;
+  Expr *lexp = assignStmt->left;
+  Expr *rexp = assignStmt->right;
+  if (assignStmt->op == OP_ASSIGN) {
+    rexp->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, rexp);
+    lexp->ctx = EXPR_STORE;
+    parser_visit_expr(ps, lexp);
+  } else {
+    /* FIXME: */
+    assert(0);
+    //do_binary(BinaryOpKind kind, Expr *left, Expr *right)
+    lexp->ctx = EXPR_STORE;
+    parser_visit_expr(ps, lexp);
+  }
 
+  TypeDesc *rdesc = rexp->desc;
+  if (rdesc == NULL) {
+    Syntax_Error(ps, &rexp->pos, "cannot resolve right expression's type");
+    return;
+  }
+  if (rdesc->kind == TYPE_PROTO) {
+    ProtoDesc *proto = (ProtoDesc *)rdesc;
+    int n = Vector_Size(proto->ret);
+    if (n != 1) {
+      Syntax_Error(ps, &rexp->pos, "multiple-value in single-value context");
+      return;
+    }
+    rdesc = Vector_Get(proto->ret, 0);
+  }
+
+  TypeDesc *ldesc = lexp->desc;
+  if (!type_is_compatible(ldesc, rdesc)) {
+    Syntax_Error(ps, &rexp->pos, "right expression's type is not compatible");
+    return;
+  }
 }
 
 static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)

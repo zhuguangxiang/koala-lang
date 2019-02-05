@@ -537,6 +537,9 @@ static void free_varlistdecl_stmt(Stmt *stmt)
 
 static void free_assign_stmt(Stmt *stmt)
 {
+  AssignStmt *assignStmt = (AssignStmt *)stmt;
+  Free_Expr(assignStmt->left);
+  Free_Expr(assignStmt->right);
   mm_free(stmt);
 }
 
