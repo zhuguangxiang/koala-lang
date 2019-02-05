@@ -47,16 +47,14 @@ func add(a int, b int) int {
     }
     var dd = 400
   }
-  return
+  return 123
 }
 
 func sub(aa int, bb int) (int, int) {
+  //func_callback(aa, bb)
   var hello string
   //hello += 2;
-  return
-}
-
-func testIdent() {
+  return 123, 0
 }
 
 /*

@@ -205,7 +205,7 @@ ConstItem *ConstItem_Float_New(float64 val)
 
 ConstItem *ConstItem_Bool_New(int val)
 {
-  ConstItem *item = ConstItem_New(CONST_INT);
+  ConstItem *item = ConstItem_New(CONST_BOOL);
   item->bval = val;
   return item;
 }

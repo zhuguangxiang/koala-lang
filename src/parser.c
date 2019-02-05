@@ -257,7 +257,7 @@ void Destroy_Parser(ParserState *ps)
   mm_free(ps);
 }
 
-static inline CodeBlock *__get_codeblock(ParserUnit *u)
+static inline CodeBlock *__codeblock(ParserUnit *u)
 {
   if (u->block == NULL)
     u->block = CodeBlock_New();
@@ -311,7 +311,7 @@ static void parse_int_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_INT, .ival = baseExp->ival};
-  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
+  Inst_Append(__codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_flt_expr(ParserState *ps, Expr *exp)
@@ -323,7 +323,7 @@ static void parse_flt_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_FLOAT, .fval = baseExp->fval};
-  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
+  Inst_Append(__codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_bool_expr(ParserState *ps, Expr *exp)
@@ -335,7 +335,7 @@ static void parse_bool_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_BOOL, .fval = baseExp->bval};
-  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
+  Inst_Append(__codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_string_expr(ParserState *ps, Expr *exp)
@@ -347,7 +347,7 @@ static void parse_string_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_STR, .str = baseExp->str};
-  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
+  Inst_Append(__codeblock(u), OP_LOADK, &val);
 }
 
 static void parse_char_expr(ParserState *ps, Expr *exp)
@@ -359,7 +359,7 @@ static void parse_char_expr(ParserState *ps, Expr *exp)
   TYPE_INCREF(exp->desc);
 
   Argument val = {.kind = ARG_UCHAR, .uch = baseExp->ch};
-  Inst_Append(__get_codeblock(u), OP_LOADK, &val);
+  Inst_Append(__codeblock(u), OP_LOADK, &val);
 }
 
 /* symbol is found in current scope */
@@ -449,9 +449,14 @@ static void parse_unary_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
+static void do_binary(BinaryOpKind kind, Expr *left, Expr *right)
+{
+}
+
 static void parse_binary_expr(ParserState *ps, Expr *exp)
 {
-  assert(0);
+  BinaryExpr *binExp = (BinaryExpr *)exp;
+  do_binary(binExp->op, binExp->lexp, binExp->rexp);
 }
 
 static void parse_attribute_expr(ParserState *ps, Expr *exp)
@@ -464,10 +469,30 @@ static void parse_subscript_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
-static int check_call_arguments(TypeDesc *proto, Vector *args)
+static int check_expr_types(Vector *descs, Vector *exps)
 {
-  /* FIXME */
+  int ndesc = Vector_Size(descs);
+  int nexp = Vector_Size(exps);
+
+  if (ndesc != nexp)
+    return 0;
+
+  Expr *e;
+  TypeDesc *desc;
+  Vector_ForEach(desc, descs) {
+    e = Vector_Get(exps, i);
+    if (!TypeDesc_Equal(desc, e->desc))
+      return 0;
+  }
+
   return 1;
+}
+
+static int check_call_arguments(TypeDesc *desc, Vector *args)
+{
+  assert(desc->kind == TYPE_PROTO);
+  ProtoDesc *proto = (ProtoDesc *)desc;
+  return check_expr_types(proto->arg, args);
 }
 
 static void parse_call_expr(ParserState *ps, Expr *exp)
@@ -643,31 +668,29 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
       return;
     }
 
-    /* multi-value's expression */
-    if (rexp->desc->kind == TYPE_PROTO) {
-      /*
-         right expr's type is func proto, there are two exprs:
-         1. function call
-         2. anonymous function declaration
-         check function call expr only
-       */
-      if (rexp->kind == CALL_KIND) {
-        ProtoDesc *proto = (ProtoDesc *)rexp->desc;
-        if (Vector_Size(proto->ret) != 1) {
-          Syntax_Error(ps, &rexp->pos,
-                       "multiple-value %s() in single-value context",
-                       expr_get_funcname(rexp));
-          return;
-        }
+    /*
+     * right expr's type is func proto, there are two exprs:
+     * 1. function call
+     * 2. anonymous function declaration
+     * check function call expr only, anonymous needs not check
+     */
+    if (rexp->kind == CALL_KIND) {
+      assert(rexp->desc->kind == TYPE_PROTO);
+      ProtoDesc *proto = (ProtoDesc *)rexp->desc;
+      if (Vector_Size(proto->ret) != 1) {
+        Syntax_Error(ps, &rexp->pos,
+                     "multiple-value %s() in single-value context",
+                     expr_get_funcname(rexp));
+        return;
+      }
 
-        if (type->desc == NULL) {
-          TypeDesc *desc = Vector_Get(proto->ret, 0);
-          char buf[64];
-          TypeDesc_ToString(desc, buf);
-          Log_Debug("var '%s' type is none, set it as '%s'", id->name, buf);
-          TYPE_INCREF(desc);
-          type->desc = desc;
-        }
+      if (type->desc == NULL) {
+        TypeDesc *desc = Vector_Get(proto->ret, 0);
+        char buf[64];
+        TypeDesc_ToString(desc, buf);
+        Log_Debug("var '%s' type is none, set it as '%s'", id->name, buf);
+        TYPE_INCREF(desc);
+        type->desc = desc;
       }
     }
 
@@ -800,7 +823,8 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
  */
 static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
 {
-  assert(0);
+  AssignStmt *assignStmt = (AssignStmt *)stmt;
+
 }
 
 static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
@@ -861,9 +885,54 @@ static void parse_expr_stmt(ParserState *ps, Stmt *stmt)
   parser_visit_expr(ps, exp);
 }
 
+static int check_returns(TypeDesc *desc, Vector *exps)
+{
+  assert(desc->kind == TYPE_PROTO);
+  ProtoDesc *proto = (ProtoDesc *)desc;
+  return check_expr_types(proto->ret, exps);
+}
+
 static void parse_return_stmt(ParserState *ps, Stmt *stmt)
 {
+  ParserUnit *u = ps->u;
+  FuncSymbol *funSym;
 
+  if (u->scope == SCOPE_FUNCTION) {
+    funSym = (FuncSymbol *)u->sym;
+  } else {
+    ParserUnit *uu;
+    struct list_head *pos;
+    list_for_each(pos, &ps->ustack) {
+      uu = container_of(pos, ParserUnit, link);
+      if (uu->scope == SCOPE_FUNCTION) {
+        funSym = (FuncSymbol *)u->sym;
+        break;
+      }
+    }
+  }
+
+  assert(funSym != NULL);
+
+  ReturnStmt *retStmt = (ReturnStmt *)stmt;
+
+  Expr *e;
+  Vector_ForEach(e, retStmt->exps) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+  }
+
+  if (!check_returns(funSym->desc, retStmt->exps)) {
+    Syntax_Error(ps, &retStmt->pos,
+                 "returns are not matched function '%s' returns",
+                 funSym->name);
+    return;
+  }
+
+  /* FIXME: all control flow branches to check
+     need include returns' count in OP_RET n?
+   */
+  Inst_Append_NoArg(__codeblock(u), OP_RET);
+  u->block->ret = 1;
 }
 
 static void parse_list_stmt(ParserState *ps, Stmt *stmt)

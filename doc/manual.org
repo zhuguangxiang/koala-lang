@@ -47,6 +47,14 @@ Koala解决的办法是：使用形式化的方式描述，通用的容器类对
 Koala支持变长数组，不支持固定长度数组，因为数组是一个内建的对象，可以理解为基本数据类型，
 而不是一个对象。
 
+*** exception
+- current thread/coroutine cannot continue to run, must be terminated
+e.g. a = 100 / 0, cannot return a value.
+- anothter is application's scenario, needs finish handling
+e.g. there is not desired records in database.
+*** anonymous
+- context free
+- context sensitive
 * Why develop koala-lang?
 能用自己开发的语言写程序是不是一件很有意思的事情呢？Koala语言完全出于本人的兴趣，很有意思！
 * Language Introduction

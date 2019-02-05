@@ -1243,10 +1243,12 @@ ReturnStatement
   : TOKEN_RETURN ';'
   {
     $$ = Stmt_From_Return(NULL);
+    SetPosition(((ReturnStmt *)$$)->pos, @1);
   }
   | TOKEN_RETURN ExpressionList ';'
   {
     $$ = Stmt_From_Return($2);
+    SetPosition(((ReturnStmt *)$$)->pos, @2);
   }
   | TOKEN_RETURN error
   {

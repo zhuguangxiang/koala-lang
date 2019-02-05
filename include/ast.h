@@ -401,6 +401,7 @@ typedef struct exprstmt {
 /* return statement */
 typedef struct returnstmt {
   STMT_HEAD
+  Position pos;
   Vector *exps; /* expression */
 } ReturnStmt;
 

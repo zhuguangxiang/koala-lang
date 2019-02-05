@@ -268,6 +268,8 @@ struct typedesc_ops_s {
 
 int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2)
 {
+  if (desc1 == NULL || desc2 == NULL)
+    return 0;
   if (desc1 == desc2)
     return 1;
   if (desc1->kind != desc2->kind)

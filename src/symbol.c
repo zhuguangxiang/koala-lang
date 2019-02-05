@@ -569,13 +569,13 @@ static void __gen_image_func(Symbol *sym, void *arg)
 
 KImage *Generate_KImage(STable *stbl)
 {
-  Log_Debug("\x1b[34m----STARTING IMAGE GEN----\x1b[0m");
+  Log_Debug("\x1b[34m----STARTING IMAGE----\x1b[0m");
   KImage *image = KImage_New();
   struct gen_image_s info = {image, NULL};
   STable_Visit(stbl, __gen_image_func, &info);
   KImage_Finish(image);
   KImage_Show(image);
-  Log_Debug("\x1b[34m----END OF IMAGE GEN------\x1b[0m");
+  Log_Debug("\x1b[34m----END OF IMAGE------\x1b[0m");
   return image;
 }
 
