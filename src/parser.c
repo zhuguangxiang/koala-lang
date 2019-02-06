@@ -690,6 +690,102 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
 
 static void parse_stmts(ParserState *ps, Vector *stmts);
 
+static ParserUnit *parse_block_variable(ParserState *ps, Ident *id)
+{
+  ParserUnit *uu;
+  Symbol *sym;
+  int depth = ps->depth;
+  struct list_head *pos;
+  list_for_each(pos, &ps->ustack) {
+    depth -= 1;
+    uu = container_of(pos, ParserUnit, link);
+    sym = STable_Get(uu->stbl, id->name);
+    if (sym != NULL) {
+      Syntax_Error(ps, &id->pos,
+                   "var '%s' is already delcared in scope-%d(%s)",
+                   id->name, depth, scope_strings[uu->scope]);
+      return NULL;
+    }
+    if (uu->scope == SCOPE_FUNCTION || uu->scope == SCOPE_CLOSURE)
+      return uu;
+  }
+  return NULL;
+}
+
+static
+VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
+{
+  ParserUnit *u = ps->u;
+  VarSymbol *varSym;
+  switch (u->scope) {
+  case SCOPE_MODULE:
+  case SCOPE_CLASS:
+    /*
+     * variables in module or class canbe accessed by other packages,
+     * during building AST, it is already saved in symbol table.
+     */
+    varSym = (VarSymbol *)STable_Get(u->stbl, id->name);
+    assert(varSym != NULL);
+    assert(varSym->kind == SYM_CONST || varSym->kind == SYM_VAR);
+    if (varSym->desc == NULL) {
+      char buf[64];
+      TypeDesc_ToString(desc, buf);
+      Log_Debug("update symbol '%s' type as '%s'", id->name, buf);
+      varSym->desc = desc;
+      TYPE_INCREF(varSym->desc);
+    }
+    break;
+  case SCOPE_FUNCTION:
+  case SCOPE_CLOSURE: {
+    /* function scope has independent space for save variables. */
+    Log_Debug("var '%s' declaration in function", id->name);
+    varSym = STable_Add_Var(u->stbl, id->name, desc);
+    if (varSym == NULL) {
+      Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
+      return NULL;
+    }
+    FuncSymbol *funSym = (FuncSymbol *)u->sym;
+    Vector_Append(&funSym->locvec, varSym);
+    varSym->refcnt++;
+    break;
+  }
+  case SCOPE_BLOCK: {
+    /*
+     * variables in these socpes must not be duplicated
+     * within function or method scopes
+     */
+    Log_Debug("var '%s' declaration in block", id->name);
+
+    /* check there is no the same symbol in up unit until function scope. */
+    ParserUnit *uu = parse_block_variable(ps, id);
+    if (uu == NULL)
+      return NULL;
+    varSym = STable_Add_Var(u->stbl, id->name, desc);
+    if (varSym == NULL) {
+      Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
+      return NULL;
+    }
+
+    /* local variables' index is up function(closure)'s index */
+    varSym->index = uu->stbl->varindex++;
+    Vector *locvec;
+    if (uu->sym->kind == SYM_FUNC) {
+      locvec = &((FuncSymbol *)uu->sym)->locvec;
+    } else {
+      locvec = &((AFuncSymbol *)uu->sym)->locvec;
+    }
+    Vector_Append(locvec, varSym);
+    varSym->refcnt++;
+    break;
+  }
+  default:
+    assert(0);
+    break;
+  }
+
+  return varSym;
+}
+
 /*
  * parse single variable declaration for:
  * 1. module's variable & constant declaration
@@ -760,94 +856,15 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
   }
 
   /* update or add symbol */
-  VarSymbol *varSym;
-  ParserUnit *u = ps->u;
-  switch (u->scope) {
-  case SCOPE_MODULE:
-  case SCOPE_CLASS:
-    /*
-     * variables in module or class canbe accessed by other packages,
-     * during building AST, it is already saved in symbol table.
-     */
-    varSym = (VarSymbol *)STable_Get(u->stbl, id->name);
-    assert(varSym != NULL);
-    assert(varSym->kind == SYM_CONST || varSym->kind == SYM_VAR);
-    if (varSym->desc == NULL) {
-      char buf[64];
-      TypeDesc_ToString(type->desc, buf);
-      Log_Debug("update symbol '%s' type as '%s'", id->name, buf);
-      varSym->desc = type->desc;
-      TYPE_INCREF(varSym->desc);
-    }
-    break;
-  case SCOPE_FUNCTION: {
-    /* function scope has independent space for save variables. */
-    Log_Debug("var '%s' declaration in function", id->name);
-    assert(konst != 1);
-    varSym = STable_Add_Var(u->stbl, id->name, type->desc);
-    if (varSym == NULL) {
-      Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
-      return;
-    }
-    FuncSymbol *funSym = (FuncSymbol *)u->sym;
-    Vector_Append(&funSym->locvec, varSym);
-    varSym->refcnt++;
-    break;
-  }
-  case SCOPE_BLOCK:
-  case SCOPE_CLOSURE: {
-    /*
-     * variables in these socpes must not be duplicated
-     * within function or method scopes
-     */
-    Log_Debug("var '%s' declaration in block/closure", id->name);
-
-    /* check there is no the same symbol in up unit until function scope. */
-    int infunc = 0;
-    Symbol *sym;
-    ParserUnit *uu;
-    int depth = ps->depth;
-    struct list_head *pos;
-    list_for_each(pos, &ps->ustack) {
-      depth -= 1;
-      uu = container_of(pos, ParserUnit, link);
-      sym = STable_Get(uu->stbl, id->name);
-      if (sym != NULL) {
-        Syntax_Error(ps, &id->pos,
-                     "var '%s' is already delcared in scope-%d(%s)",
-                     id->name, depth, scope_strings[uu->scope]);
-        return;
-      }
-      if (uu->scope == SCOPE_FUNCTION) {
-        infunc = 1;
-        break;
-      }
-    }
-
-    /* BUG: block is not in function ? */
-    assert(infunc);
-
-    varSym = STable_Add_Var(u->stbl, id->name, type->desc);
-    if (varSym == NULL) {
-      Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
-      return;
-    }
-
-    /* local variables' index is function's index */
-    varSym->index = uu->stbl->varindex++;
-    Vector_Append(&((FuncSymbol *)uu->sym)->locvec, varSym);
-    varSym->refcnt++;
-    break;
-  }
-  default:
-    assert(0);
-    break;
-  }
+  VarSymbol *varSym = update_add_variable(ps, id, type->desc);
+  if (varSym == NULL)
+    return;
 
   /* generate code */
   if (rexp == NULL)
     return;
 
+  ParserUnit *u = ps->u;
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
     /* module or class variable, global variable */
     Inst_Append_NoArg(u->block, OP_LOAD0);
@@ -908,48 +925,20 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
     }
   }
 
-  ParserUnit *u = ps->u;
+  /* update or add symbol */
+  assert(ps->u->scope != SCOPE_CLASS);
   VarSymbol *varSym;
+  TypeDesc *desc;
   Ident *ident;
-  switch (u->scope) {
-  case SCOPE_MODULE:
-    Vector_ForEach(ident, varListStmt->ids) {
-      varSym = (VarSymbol *)STable_Get(u->stbl, ident->name);
-      assert(varSym != NULL && varSym->kind == SYM_VAR);
-      if (varSym->desc == NULL) {
-        TypeDesc *desc = Vector_Get(proto->ret, i);
-        char buf[64];
-        TypeDesc_ToString(desc, buf);
-        Log_Debug("update symbol '%s' type as '%s'", ident->name, buf);
-        varSym->desc = desc;
-        TYPE_INCREF(varSym->desc);
-      }
-    }
-    break;
-  case SCOPE_FUNCTION:
-    Vector_ForEach(ident, varListStmt->ids) {
-      Log_Debug("var '%s' declaration in function", ident->name);
-      TypeDesc *desc = Vector_Get(proto->ret, i);
-      varSym = STable_Add_Var(u->stbl, ident->name, desc);
-      if (varSym == NULL) {
-        Syntax_Error(ps, &ident->pos, "var '%s' is duplicated", ident->name);
-        return;
-      }
-      FuncSymbol *funSym = (FuncSymbol *)u->sym;
-      Vector_Append(&funSym->locvec, varSym);
-      varSym->refcnt++;
-    }
-    break;
-  case SCOPE_BLOCK:
-  case SCOPE_CLOSURE:
-    assert(0);
-    break;
-  default:
-    assert(0);
-    break;
+  Vector_ForEach(ident, varListStmt->ids) {
+    desc = Vector_Get(proto->ret, i);
+    varSym = update_add_variable(ps, ident, desc);
+    if (varSym == NULL)
+      return;
   }
 
   /* FIXME: generator code */
+  ParserUnit *u = ps->u;
   if (u->scope == SCOPE_MODULE) {
 
   } else {
