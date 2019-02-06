@@ -30,23 +30,28 @@ extern "C" {
 #endif
 
 typedef struct memstat {
+  /* max allocated */
   long long allocated;
-  long long freed;
+  /* per statement used */
+  long long used;
 } MemStat;
 
 extern MemStat memstat;
 
 /* no gc memory allocator */
-#define mm_alloc(size) \
-({ \
+#define mm_alloc(size)       \
+({                           \
   memstat.allocated += size; \
-  calloc(1, size); \
+  memstat.used += size;      \
+  calloc(1, size);           \
 })
 
-#define mm_free(ptr) \
-({ \
-  if (ptr != NULL) \
-    free(ptr); \
+#define mm_free(ptr)              \
+({                                \
+  if (ptr != NULL) {              \
+    free(ptr);                    \
+    memstat.used -= sizeof(*ptr); \
+  }                               \
 })
 
 void show_memstat(void);

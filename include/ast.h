@@ -405,8 +405,6 @@ typedef struct liststmt {
 } ListStmt;
 
 void Free_Stmt_Func(void *item, void *arg);
-#define Free_StmtList(vec) \
-  Vector_Free(vec, Free_Stmt_Func, NULL)
 Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst);
 Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
                               Expr *exp, int konst);

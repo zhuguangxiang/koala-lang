@@ -467,7 +467,7 @@ static void free_anony_expr(Expr *exp)
   AnonyExpr *anonyExp = (AnonyExpr *)exp;
   Free_IdTypeList(anonyExp->args);
   Free_IdTypeList(anonyExp->rets);
-  Free_StmtList(anonyExp->body);
+  Vector_Free_Self(anonyExp->body);
   mm_free(exp);
 }
 
@@ -560,7 +560,7 @@ static void free_funcdecl_stmt(Stmt *stmt)
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
   Free_IdTypeList(funcStmt->args);
   Free_IdTypeList(funcStmt->rets);
-  Free_StmtList(funcStmt->body);
+  Vector_Free_Self(funcStmt->body);
   mm_free(stmt);
 }
 
@@ -581,7 +581,7 @@ static void free_return_stmt(Stmt *stmt)
 static void free_list_stmt(Stmt *stmt)
 {
   ListStmt *listStmt = (ListStmt *)stmt;
-  Free_StmtList(listStmt->vec);
+  Vector_Free_Self(listStmt->vec);
   mm_free(stmt);
 }
 
@@ -601,7 +601,7 @@ static void free_klass_stmt(Stmt *stmt)
 {
   KlassStmt *klsStmt = (KlassStmt *)stmt;
   Vector_Free(klsStmt->super, free_typedesc_func, NULL);
-  Free_StmtList(klsStmt->body);
+  Vector_Free_Self(klsStmt->body);
   mm_free(stmt);
 }
 

@@ -27,9 +27,10 @@ MemStat memstat;
 
 void show_memstat(void)
 {
-  Log_Puts("\n+-----------------------------");
-  Log_Printf("|  Mem Used: %lld Bytes", memstat.allocated);
-  Log_Puts("\n+-----------------------------");
+  Log_Puts("\x1b[32m\n+------------Mem Usage------------");
+  Log_Printf("|  Max Used: %lld Bytes\n", memstat.allocated);
+  Log_Printf("|  Average Used: %lld Bytes", memstat.used);
+  Log_Puts("\n+---------------------------------\n\x1b[0m");
 }
 
 void *gc_alloc(int size)
