@@ -47,6 +47,8 @@ var v3, v4 = 100, "world"
 
 var v5, v6 = sub(1, 2)
 
+//var v7, v8 string = sub(1, 2)
+
 //function
 func add(a int, b int) int {
   aa := "how are you?"

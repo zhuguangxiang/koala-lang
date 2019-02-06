@@ -39,24 +39,25 @@ typedef struct symboltable {
 
 /* symbol kind */
 typedef enum symbolkind {
-  SYM_CONST  = 1, /* constant */
-  SYM_VAR    = 2, /* variable */
-  SYM_FUNC   = 3, /* function or method */
-  SYM_ALIAS  = 4, /* type alias */
-  SYM_CLASS  = 5, /* clas */
-  SYM_TRAIT  = 6, /* trait */
-  SYM_IFUNC  = 7, /* interface method */
-  SYM_NFUNC  = 8, /* native function */
-  SYM_IMPORT = 9, /* import */
+  SYM_CONST  = 1,   /* constant */
+  SYM_VAR    = 2,   /* variable */
+  SYM_FUNC   = 3,   /* function or method */
+  SYM_ALIAS  = 4,   /* type alias */
+  SYM_CLASS  = 5,   /* clas */
+  SYM_TRAIT  = 6,   /* trait */
+  SYM_IFUNC  = 7,   /* interface method */
+  SYM_NFUNC  = 8,   /* native function */
+  SYM_AFUNC  = 9,   /* anonymous function */
+  SYM_IMPORT = 10,  /* import */
 } SymKind;
 
-#define SYMBOL_HEAD               \
-  SymKind kind;                   \
-  HashNode hnode;                 \
-  char *name;                     \
-  /* for free symbol */           \
-  int refcnt;                     \
-  /* the symbol is used or not */ \
+#define SYMBOL_HEAD           \
+  SymKind kind;               \
+  HashNode hnode;             \
+  char *name;                 \
+  /* for free symbol */       \
+  int refcnt;                 \
+  /* for check used or not */ \
   int used;
 
 /* symbol */
@@ -92,17 +93,20 @@ typedef struct classsymbol {
   STable *stbl;     /* symbol table */
 } ClassSymbol;
 
-/* interface function */
+/* interface/natvie function */
 typedef struct ifuncsymbol {
   SYMBOL_HEAD
-  TypeDesc *desc; /* function's proto */
-} IFuncSymbol;
+  TypeDesc *desc;   /* function's proto */
+} ProtoSymbol;
 
-/* native function */
-typedef struct nfuncsymbol {
+/* closure/anonoymous function */
+typedef struct afuncsymbol {
   SYMBOL_HEAD
-  TypeDesc *desc; /* function's proto */
-} NFuncSymbol;
+  TypeDesc *desc;   /* function's proto */
+  Vector locvec;    /* local varibles in the closure */
+  Vector uplocvec;  /* up local variables */
+  void *code;       /* codeblock */
+} AFuncSymbol;
 
 /* import symbol */
 typedef struct importsymbol {
@@ -125,8 +129,12 @@ FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
 AliasSymbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc);
 ClassSymbol *STable_Add_Class(STable *stbl, char *name);
 ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
-IFuncSymbol *STable_Add_IFunc(STable *stbl, char *name, TypeDesc *proto);
-NFuncSymbol *STable_Add_NFunc(STable *stbl, char *name, TypeDesc *proto);
+ProtoSymbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
+#define STable_Add_IFunc(stbl, name, proto) \
+  STable_Add_Proto(stbl, name, SYM_IFUNC, proto)
+#define STable_Add_NFunc(stbl, name, proto) \
+  STable_Add_Proto(stbl, name, SYM_NFUNC, proto)
+AFuncSymbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
 ImportSymbol *STable_Add_Import(STable *stbl, char *name);
 Symbol *STable_Get(STable *stbl, char *name);
 KImage *Generate_KImage(STable *stbl);

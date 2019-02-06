@@ -278,64 +278,28 @@ static void __trait_gen(Symbol *sym, void *arg)
   STable_Visit(clsSym->stbl, __gen_image_func, &info2);
 }
 
-static Symbol *__nfunc_new(char *name)
-{
-  return __symbol_new(SYM_NFUNC, name, sizeof(NFuncSymbol));
-}
-
-static void __nfunc_free(Symbol *sym)
-{
-  NFuncSymbol *nfunSym = (NFuncSymbol *)sym;
-  TYPE_DECREF(nfunSym->desc);
-  __symbol_free(sym);
-}
-
-static void __nfunc_show(Symbol *sym)
-{
-  NFuncSymbol *nfunSym = (NFuncSymbol *)sym;
-  ProtoDesc *proto = (ProtoDesc *)nfunSym->desc;
-  char buf[64];
-  ProtoVec_ToString(proto->arg, buf);
-  Log_Printf("native func %s(%s)", sym->name, buf);
-  int sz = Vector_Size(proto->ret);
-  if (sz > 0) {
-    ProtoVec_ToString(proto->ret, buf);
-    if (sz > 1)
-      Log_Printf(" (%s);\n", buf);
-    else
-      Log_Printf(" %s;\n", buf);
-  } else {
-    Log_Puts(";"); /* with newline */
-  }
-}
-
-static void __nfunc_gen(Symbol *sym, void *arg)
-{
-  struct gen_image_s *info = arg;
-  NFuncSymbol *nfunSym = (NFuncSymbol *)sym;
-  Log_Debug("  native func %s", nfunSym->name);
-  KImage_Add_NFunc(info->image, info->classname, nfunSym->name, nfunSym->desc);
-}
-
 static Symbol *__ifunc_new(char *name)
 {
-  return __symbol_new(SYM_IFUNC, name, sizeof(IFuncSymbol));
+  return __symbol_new(SYM_IFUNC, name, sizeof(ProtoSymbol));
 }
 
 static void __ifunc_free(Symbol *sym)
 {
-  IFuncSymbol *ifunSym = (IFuncSymbol *)sym;
-  TYPE_DECREF(ifunSym->desc);
+  ProtoSymbol *ifnSym = (ProtoSymbol *)sym;
+  TYPE_DECREF(ifnSym->desc);
   __symbol_free(sym);
 }
 
 static void __ifunc_show(Symbol *sym)
 {
-  IFuncSymbol *ifunSym = (IFuncSymbol *)sym;
-  ProtoDesc *proto = (ProtoDesc *)ifunSym->desc;
+  ProtoSymbol *ifnSym = (ProtoSymbol *)sym;
+  ProtoDesc *proto = (ProtoDesc *)ifnSym->desc;
   char buf[64];
   ProtoVec_ToString(proto->arg, buf);
-  Log_Printf("ifunc %s%s", sym->name, buf);
+  if (ifnSym->kind == SYM_IFUNC)
+    Log_Printf("iterface func %s%s", sym->name, buf);
+  else
+    Log_Printf("native func %s(%s)", sym->name, buf);
   int sz = Vector_Size(proto->ret);
   if (sz > 0) {
     ProtoVec_ToString(proto->ret, buf);
@@ -351,9 +315,61 @@ static void __ifunc_show(Symbol *sym)
 static void __ifunc_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
-  IFuncSymbol *ifnSym = (IFuncSymbol *)sym;
-  Log_Debug("  func %s;", ifnSym->name);
-  KImage_Add_IMeth(info->image, info->classname, ifnSym->name, ifnSym->desc);
+  ProtoSymbol *ifnSym = (ProtoSymbol *)sym;
+  if (ifnSym->kind == SYM_IFUNC) {
+    Log_Debug("  iterface func %s;", ifnSym->name);
+    KImage_Add_IMeth(info->image, info->classname, ifnSym->name, ifnSym->desc);
+  } else {
+    Log_Debug("  native func %s", ifnSym->name);
+    KImage_Add_NFunc(info->image, info->classname, ifnSym->name, ifnSym->desc);
+  }
+}
+
+static Symbol *__nfunc_new(char *name)
+{
+  return __symbol_new(SYM_NFUNC, name, sizeof(ProtoSymbol));
+}
+
+static Symbol *__afunc_new(char *name)
+{
+  return __symbol_new(SYM_AFUNC, name, sizeof(AFuncSymbol));
+}
+
+static void __afunc_free(Symbol *sym)
+{
+  AFuncSymbol *afnSym = (AFuncSymbol *)sym;
+  TYPE_DECREF(afnSym->desc);
+  Vector_Fini(&afnSym->locvec, (vec_finifunc)__symbol_free_fn, NULL);
+  Vector_Fini(&afnSym->uplocvec, (vec_finifunc)__symbol_free_fn, NULL);
+  CodeBlock_Free(afnSym->code);
+  __symbol_free(sym);
+}
+
+static void __afunc_show(Symbol *sym)
+{
+  AFuncSymbol *afnSym = (AFuncSymbol *)sym;
+  ProtoDesc *proto = (ProtoDesc *)afnSym->desc;
+  char buf[64];
+  ProtoVec_ToString(proto->arg, buf);
+  Log_Printf("anonymous func %s%s", sym->name, buf);
+  int sz = Vector_Size(proto->ret);
+  if (sz > 0) {
+    ProtoVec_ToString(proto->ret, buf);
+    if (sz > 1)
+      Log_Printf(" (%s);\n", buf);
+    else
+      Log_Printf(" %s;\n", buf);
+  } else {
+    Log_Puts(";"); /* with newline */
+  }
+}
+
+static void __afunc_gen(Symbol *sym, void *arg)
+{
+  struct gen_image_s *info = arg;
+  AFuncSymbol *afnSym = (AFuncSymbol *)sym;
+  Log_Debug("  anonymous func %s", afnSym->name);
+  KImage_Add_IMeth(info->image, info->classname, afnSym->name, afnSym->desc);
 }
 
 static Symbol *__import_new(char *name)
@@ -379,8 +395,9 @@ struct symbol_operations {
   {__alias_new, __alias_free, __alias_show, __alias_gen}, /* SYM_ALIAS  */
   {__class_new, __class_free, __class_show, __class_gen}, /* SYM_CLASS  */
   {__trait_new, __trait_free, __trait_show, __trait_gen}, /* SYM_TRAIT  */
-  {__nfunc_new, __nfunc_free, __nfunc_show, __nfunc_gen}, /* SYM_NFUNC  */
   {__ifunc_new, __ifunc_free, __ifunc_show, __ifunc_gen}, /* SYM_IFUNC  */
+  {__nfunc_new, __ifunc_free, __ifunc_show, __ifunc_gen}, /* SYM_NFUNC  */
+  {__afunc_new, __afunc_free, __afunc_show, __afunc_gen}, /* SYM_AFUNC  */
   {__import_new, __import_free, NULL, NULL}               /* SYM_IMPORT */
 };
 
@@ -520,27 +537,34 @@ ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
   return sym;
 }
 
-IFuncSymbol *STable_Add_IFunc(STable *stbl, char *name, TypeDesc *proto)
+ProtoSymbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc)
 {
-  IFuncSymbol *sym = (IFuncSymbol *)Symbol_New(SYM_IFUNC, name);
+  ProtoSymbol *sym = (ProtoSymbol *)Symbol_New(k, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
-  TYPE_INCREF(proto);
-  sym->desc = proto;
+  TYPE_INCREF(desc);
+  sym->desc = desc;
   return sym;
 }
 
-NFuncSymbol *STable_Add_NFunc(STable *stbl, char *name, TypeDesc *proto)
+#define ANONY_PREFIX "__anonoy_"
+static uint32 anony_number = 0xbeaf;
+
+AFuncSymbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc)
 {
-  NFuncSymbol *sym = (NFuncSymbol *)Symbol_New(SYM_NFUNC, name);
+  char name[32];
+  snprintf(name, 31, ANONY_PREFIX "%u", ++anony_number);
+  AFuncSymbol *sym = (AFuncSymbol *)Symbol_New(SYM_AFUNC, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
-  TYPE_INCREF(proto);
-  sym->desc = proto;
+  TYPE_INCREF(desc);
+  sym->desc = desc;
+  Vector_Init(&sym->locvec);
+  Vector_Init(&sym->uplocvec);
   return sym;
 }
 

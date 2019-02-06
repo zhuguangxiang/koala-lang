@@ -8,6 +8,7 @@
 	"editor.fontSize": 14,
 	"editor.tabSize": 2,
 	"editor.insertSpaces": true,
+	"files.eol": "\n",
 	"files.associations": {
 		"*.h": "c",
 		"*.c": "c",
