@@ -995,7 +995,44 @@ static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
 
 static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
 {
-  assert(0);
+  AssignListStmt *assignListStmt = (AssignListStmt *)stmt;
+  Expr *rexp = assignListStmt->right;
+
+  if (rexp->kind != CALL_KIND) {
+    Syntax_Error(ps, &rexp->pos, "right expression is not a multi-value");
+    return;
+  }
+
+  rexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, rexp);
+
+  assert(rexp->desc != NULL && rexp->desc->kind == TYPE_PROTO);
+  ProtoDesc *proto = (ProtoDesc *)rexp->desc;
+
+  /* check count */
+  int nret = Vector_Size(proto->ret);
+  int nleft = Vector_Size(assignListStmt->left);
+  if (nret != nleft) {
+    Syntax_Error(ps, &rexp->pos,
+                 "assignment mismatch: %d expressions but %d values",
+                 nleft, nret);
+    return;
+  }
+
+  /* type check */
+  TypeDesc *desc;
+  Expr *e;
+  Vector_ForEach(e, assignListStmt->left) {
+    e->ctx = EXPR_STORE;
+    parser_visit_expr(ps, e);
+    desc = Vector_Get(proto->ret, i);
+    if (!type_is_compatible(e->desc, desc)) {
+      Syntax_Error(ps, &rexp->pos, "right expression's type is not compatible");
+      return;
+    }
+  }
+
+  /* FIXME: generate code */
 }
 
 static void parse_funcdecl_stmt(ParserState *ps, Stmt *stmt)

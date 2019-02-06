@@ -47,7 +47,7 @@ var v3, v4 = 100, "world"
 
 var v5, v6 = sub(1, 2)
 
-//var v7, v8 string = sub(1, 2)
+var v7, v8 int = sub(1, 2)
 
 //function
 func add(a int, b int) int {
@@ -58,9 +58,14 @@ func add(a int, b int) int {
       var dd = 300
     }
     var dd = 400
+    //cc, dd = sub(1,2)
   }
   result := 100
   result = 200
+  // anony := func(a int) (int, int) {
+  //   return 1, 2
+  // }
+  // a, b = anony(1)
   return 123
 }
 
