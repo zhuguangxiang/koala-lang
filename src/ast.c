@@ -167,6 +167,10 @@ Expr *Expr_From_Ident(char *val)
 /* FIXME: unchanged variable, see parse_operator.c */
 int Expr_Is_Const(Expr *exp)
 {
+  Symbol *sym = exp->sym;
+  if (sym != NULL && sym->kind != SYM_CONST)
+    return 0;
+
   TypeDesc *desc = exp->desc;
   assert(desc != NULL);
   if (desc->kind != TYPE_BASE)

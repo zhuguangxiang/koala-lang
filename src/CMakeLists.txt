@@ -38,7 +38,7 @@ set_target_properties(koala_common PROPERTIES VERSION 0.8.5 SOVERSION 0)
 
 SET (KOALAC_SRC
   koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c koalac.c
-  parse_ident.c parse_operator.c parse_array.c parse_closure.c parse_map.c
+  parser_ident.c parser_operator.c parser_array.c parser_closure.c parser_map.c
   )
 add_executable(klc ${KOALAC_SRC})
 target_link_libraries(klc koala_common)

@@ -46,7 +46,7 @@ static int __check_binary_expr(ParserState *ps, BinaryExpr *exp)
 
 typedef void (*Optimize)(ParserState *, BinaryExpr *);
 
-static BaseExpr *__get_baseexpr(Expr *exp)
+static BaseExpr *__get_baseexp(Expr *exp)
 {
   ExprKind kind = exp->kind;
 
@@ -67,8 +67,8 @@ static BaseExpr *__get_baseexpr(Expr *exp)
 
 static void __optimize_int_add(ParserState *ps, BinaryExpr *exp)
 {
-  BaseExpr *lexp = __get_baseexpr(exp->lexp);
-  BaseExpr *rexp = __get_baseexpr(exp->rexp);
+  BaseExpr *lexp = __get_baseexp(exp->lexp);
+  BaseExpr *rexp = __get_baseexp(exp->rexp);
 
   int64 val;
   switch (rexp->kind) {
@@ -113,8 +113,8 @@ static void __optimize_int_add(ParserState *ps, BinaryExpr *exp)
 
 static void __optimize_int_sub(ParserState *ps, BinaryExpr *exp)
 {
-  BaseExpr *lexp = __get_baseexpr(exp->lexp);
-  BaseExpr *rexp = __get_baseexpr(exp->rexp);
+  BaseExpr *lexp = __get_baseexp(exp->lexp);
+  BaseExpr *rexp = __get_baseexp(exp->rexp);
 
   switch (rexp->kind) {
   case INT_KIND: {
@@ -141,8 +141,8 @@ static void __optimize_int_sub(ParserState *ps, BinaryExpr *exp)
 
 static void __optimize_int_mul(ParserState *ps, BinaryExpr *exp)
 {
-  BaseExpr *lexp = __get_baseexpr(exp->lexp);
-  BaseExpr *rexp = __get_baseexpr(exp->rexp);
+  BaseExpr *lexp = __get_baseexp(exp->lexp);
+  BaseExpr *rexp = __get_baseexp(exp->rexp);
 
   switch (rexp->kind) {
   case INT_KIND:
@@ -165,8 +165,8 @@ static void __optimize_int_mul(ParserState *ps, BinaryExpr *exp)
 
 static void __optimize_int_div(ParserState *ps, BinaryExpr *exp)
 {
-  BaseExpr *lexp = __get_baseexpr(exp->lexp);
-  BaseExpr *rexp = __get_baseexpr(exp->rexp);
+  BaseExpr *lexp = __get_baseexp(exp->lexp);
+  BaseExpr *rexp = __get_baseexp(exp->rexp);
 
   switch (rexp->kind) {
   case INT_KIND:

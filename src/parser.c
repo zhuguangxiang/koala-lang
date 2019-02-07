@@ -628,6 +628,37 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
   return varSym;
 }
 
+static void __save_const_to_symbol(VarSymbol *varSym, Expr *exp)
+{
+  BaseExpr *baseExp = (BaseExpr *)exp;
+  switch (exp->kind) {
+  case INT_KIND:
+    varSym->value.ival = baseExp->ival;
+    break;
+  case FLOAT_KIND:
+    varSym->value.fval = baseExp->fval;
+    break;
+  case BOOL_KIND:
+    varSym->value.bval = baseExp->bval;
+    break;
+  case STRING_KIND:
+    varSym->value.str = baseExp->str;
+    break;
+  case CHAR_KIND:
+    varSym->value.ch = baseExp->ch;
+    break;
+  case ID_KIND: {
+    VarSymbol *sym = (VarSymbol *)exp->sym;
+    assert(sym != NULL && sym->kind == SYM_CONST);
+    varSym->value = sym->value;
+    break;
+  }
+  default:
+    assert(0);
+    break;
+  }
+}
+
 /*
  * parse single variable declaration for:
  * 1. module's variable & constant declaration
@@ -650,7 +681,7 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     }
 
     /* constant */
-    if (konst == 1 && !Expr_Is_Const(rexp)) {
+    if (konst && !Expr_Is_Const(rexp)) {
       Syntax_Error(ps, &rexp->pos, "not a valid constant expression");
       return;
     }
@@ -701,6 +732,10 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
   VarSymbol *varSym = update_add_variable(ps, id, type->desc);
   if (varSym == NULL)
     return;
+
+  /* if it is constant, save the value to its symbol */
+  if (konst)
+    __save_const_to_symbol(varSym, rexp);
 
   /* generate code */
   if (rexp == NULL)

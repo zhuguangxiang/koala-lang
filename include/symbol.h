@@ -70,6 +70,14 @@ typedef struct varsymbol {
   SYMBOL_HEAD
   TypeDesc *desc; /* variable type */
   int32 index;    /* variable index */
+  /* if is constant, save its value */
+  union {
+    uchar ch;
+    int64 ival;
+    float64 fval;
+    int bval;
+    char *str;
+  } value;
 } VarSymbol;
 
 /* function symbol */
