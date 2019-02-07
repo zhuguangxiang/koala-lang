@@ -111,7 +111,6 @@ static void __var_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   VarSymbol *varSym = (VarSymbol *)sym;
-  __var_show(sym);
   if (info->classname != NULL) {
     KImage_Add_Field(info->image, info->classname, varSym->name, varSym->desc);
   } else {
@@ -175,7 +174,6 @@ static void __func_gen(Symbol *sym, void *arg)
 
   if (info->classname != NULL) {
     Log_Printf("  func %s:\n", funcSym->name);
-    __func_show(sym);
     index = KImage_Add_Method(info->image, info->classname, funcSym->name,
                               funcSym->desc, code, size);
     if (locvars <= 0) {

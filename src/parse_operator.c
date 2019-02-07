@@ -21,6 +21,7 @@
  */
 
 #include "parser.h"
+#include "stringex.h"
 #include "log.h"
 
 LOGGER(0)
@@ -42,10 +43,6 @@ static int __check_binary_expr(ParserState *ps, BinaryExpr *exp)
   /* FIXME */
   return 1;
 }
-
-static const char *binary_ops[] = {
-  ".", "+", "-", "*", "/"
-};
 
 typedef void (*Optimize)(ParserState *, BinaryExpr *);
 
@@ -73,20 +70,38 @@ static void __optimize_int_add(ParserState *ps, BinaryExpr *exp)
   BaseExpr *lexp = __get_baseexpr(exp->lexp);
   BaseExpr *rexp = __get_baseexpr(exp->rexp);
 
+  int64 val;
   switch (rexp->kind) {
-  case INT_KIND: {
-    int64 val = lexp->ival + rexp->ival;
-    Log_Printf("(+ %lld %lld)\n", lexp->ival, rexp->ival);
+  case INT_KIND:
+    val = lexp->ival + rexp->ival;
+    Log_Printf("%lld = (+ %lld %lld)\n", val, lexp->ival, rexp->ival);
     exp->val = (BaseExpr *)Expr_From_Integer(val);
     break;
-  }
   case FLOAT_KIND:
+    val = lexp->ival + rexp->fval;
+    Log_Printf("%lld = (+ %lld %.15f)\n", val, lexp->ival, rexp->fval);
+    exp->val = (BaseExpr *)Expr_From_Integer(val);
     break;
   case BOOL_KIND:
+    Syntax_Error(ps, &rexp->pos, "cannot convert '%s'(bool) to int",
+                 rexp->bval ? "true" : "false");
     break;
-  case STRING_KIND:
+  case STRING_KIND: {
+    int err = string_to_int64(rexp->str, &val);
+    if (!err) {
+      val = lexp->ival + val;
+      Log_Printf("%lld = (+ %lld \"%s\")\n", val, lexp->ival, rexp->str);
+      exp->val = (BaseExpr *)Expr_From_Integer(val);
+    } else {
+      Syntax_Error(ps, &rexp->pos, "cannot convert '%s'(string) to int",
+                   rexp->str);
+    }
     break;
+  }
   case CHAR_KIND:
+    val = lexp->ival + rexp->ch.val;
+    Log_Printf("%lld = (+ %lld %s)\n", val, lexp->ival, rexp->ch.data);
+    exp->val = (BaseExpr *)Expr_From_Integer(val);
     break;
   case ID_KIND:
     break;

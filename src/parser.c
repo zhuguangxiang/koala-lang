@@ -739,8 +739,10 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
 
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
+  if (rexp->desc == NULL)
+    return;
 
-  assert(rexp->desc != NULL && rexp->desc->kind == TYPE_PROTO);
+  assert(rexp->desc->kind == TYPE_PROTO);
   ProtoDesc *proto = (ProtoDesc *)rexp->desc;
 
   /* check count */

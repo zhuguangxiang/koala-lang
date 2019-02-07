@@ -18,9 +18,9 @@ configure_file (
 
 ## set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -g -fprofile-arcs -ftest-coverage")
 if (CMAKE_BUILD_TYPE STREQUAL Debug)
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -g")
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g")
 else ()
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -O2 -Wall")
+  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -O2 -Wall")
 endif ()
 message("Build Type:" ${CMAKE_BUILD_TYPE} ${CMAKE_C_FLAGS})
 

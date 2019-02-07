@@ -49,8 +49,27 @@ var v5, v6 = sub(1, 2)
 
 var v7, v8 int = sub(1, 2)
 
-var vv1 = 1 + 2 - 3
+//var v9 int = add
 
+var vv1 = 1 + 2 - 3
+var vv2 = 1 + '中' //1 + true
+var vv3 = 1 + 3.141592653589793
+var vv4 = 1 + " 100 "
+//var vv5 = 1 + "0xg"
+var vv6 = 1 + " 0xdeadbeaf  "
+//var vv7 = 1 + " 010 10 "
+//var vv8 = 1 + " 0999 "
+var vv9 = 1 + "0100"
+
+//var vv2 = 1 + 2 > 3 -1
+
+//funcion
+func add(a int, b int) int {
+}
+
+func sub(a int, b int) (int, int) {
+}
+/*
 //function
 func add(a int, b int) int {
   aa := "how are you?"
@@ -80,6 +99,7 @@ func sub(aa int, bb int) (int, int) {
   }
   return 2, 1
 }
+*/
 
 /*
 var array = [3][]string

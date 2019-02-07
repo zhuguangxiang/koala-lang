@@ -36,8 +36,10 @@ static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
     assert(exp->ctx == EXPR_LOAD);
     if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
       Log_Debug("symbol '%s' is variable(constant)", sym->name);
-      exp->desc = ((VarSymbol *)sym)->desc;
-      TYPE_INCREF(exp->desc);
+      if (exp->desc == NULL) {
+        exp->desc = ((VarSymbol *)sym)->desc;
+        TYPE_INCREF(exp->desc);
+      }
 
       Expr *right = exp->right;
       if (exp->desc->kind == TYPE_PROTO &&

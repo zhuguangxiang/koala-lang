@@ -388,7 +388,6 @@ Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body)
   return (Expr *)anonyExp;
 }
 
-static void free_expr_func(void *item, void *arg);
 static inline void free_exprlist(Vector *vec);
 
 int Expr_Maybe_Stored(Expr *exp)
@@ -400,8 +399,9 @@ int Expr_Maybe_Stored(Expr *exp)
     return 0;
 }
 
-static void free_simple_expr(Expr *exp)
+static void free_expr(Expr *exp)
 {
+  TYPE_DECREF(exp->desc);
   Mfree(exp);
 }
 
@@ -410,7 +410,7 @@ static void free_unary_expr(Expr *exp)
   UnaryExpr *unExp = (UnaryExpr *)exp;
   Free_Expr(unExp->exp);
   Free_Expr((Expr *)unExp->val);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_binary_expr(Expr *exp)
@@ -419,14 +419,14 @@ static void free_binary_expr(Expr *exp)
   Free_Expr(binExp->lexp);
   Free_Expr(binExp->rexp);
   Free_Expr((Expr *)binExp->val);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_attribute_expr(Expr *exp)
 {
   AttributeExpr *attrExp = (AttributeExpr *)exp;
   Free_Expr(attrExp->left);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_subscript_expr(Expr *exp)
@@ -434,7 +434,7 @@ static void free_subscript_expr(Expr *exp)
   SubScriptExpr *subExp = (SubScriptExpr *)exp;
   Free_Expr(subExp->index);
   Free_Expr(subExp->left);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_call_expr(Expr *exp)
@@ -442,7 +442,7 @@ static void free_call_expr(Expr *exp)
   CallExpr *callExp = (CallExpr *)exp;
   free_exprlist(callExp->args);
   Free_Expr(callExp->left);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_slice_expr(Expr *exp)
@@ -451,7 +451,7 @@ static void free_slice_expr(Expr *exp)
   Free_Expr(sliceExp->start);
   Free_Expr(sliceExp->end);
   Free_Expr(sliceExp->left);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_list_expr(Expr *exp)
@@ -460,7 +460,7 @@ static void free_list_expr(Expr *exp)
     return;
   ListExpr *listExp = (ListExpr *)exp;
   free_exprlist(listExp->vec);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_mapentry_expr(Expr *exp)
@@ -468,7 +468,7 @@ static void free_mapentry_expr(Expr *exp)
   MapEntryExpr *entExp = (MapEntryExpr *)exp;
   Free_Expr(entExp->key);
   Free_Expr(entExp->val);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_array_expr(Expr *exp)
@@ -477,7 +477,7 @@ static void free_array_expr(Expr *exp)
   free_exprlist(arrayExp->dims);
   TYPE_DECREF(arrayExp->base.desc);
   free_list_expr((Expr *)arrayExp->listExp);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_map_expr(Expr *exp)
@@ -485,7 +485,7 @@ static void free_map_expr(Expr *exp)
   MapExpr *mapExp = (MapExpr *)exp;
   TYPE_DECREF(mapExp->type.desc);
   free_list_expr((Expr *)mapExp->listExp);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void free_set_expr(Expr *exp)
@@ -493,10 +493,8 @@ static void free_set_expr(Expr *exp)
   SetExpr *setExp = (SetExpr *)exp;
   TYPE_DECREF(setExp->type.desc);
   free_list_expr((Expr *)setExp->listExp);
-  Mfree(exp);
+  free_expr(exp);
 }
-
-static void free_idtype_func(void *item, void *arg);
 
 static void free_anony_expr(Expr *exp)
 {
@@ -504,20 +502,20 @@ static void free_anony_expr(Expr *exp)
   Free_IdTypeList(anonyExp->args);
   Free_IdTypeList(anonyExp->rets);
   Vector_Free_Self(anonyExp->body);
-  Mfree(exp);
+  free_expr(exp);
 }
 
 static void (*__free_expr_funcs[])(Expr *) = {
   NULL,                 /* INVALID          */
-  free_simple_expr,     /* NIL_KIND         */
-  free_simple_expr,     /* SELF_KIND        */
-  free_simple_expr,     /* SUPER_KIND       */
-  free_simple_expr,     /* INT_KIND         */
-  free_simple_expr,     /* FLOAT_KIND       */
-  free_simple_expr,     /* BOOL_KIND        */
-  free_simple_expr,     /* STRING_KIND      */
-  free_simple_expr,     /* CHAR_KIND        */
-  free_simple_expr,     /* ID_KIND          */
+  free_expr,            /* NIL_KIND         */
+  free_expr,            /* SELF_KIND        */
+  free_expr,            /* SUPER_KIND       */
+  free_expr,            /* INT_KIND         */
+  free_expr,            /* FLOAT_KIND       */
+  free_expr,            /* BOOL_KIND        */
+  free_expr,            /* STRING_KIND      */
+  free_expr,            /* CHAR_KIND        */
+  free_expr,            /* ID_KIND          */
   free_unary_expr,      /* UNARY_KIND       */
   free_binary_expr,     /* BINARY_KIND      */
   free_attribute_expr,  /* ATTRIBUTE_KIND   */
@@ -540,7 +538,6 @@ void Free_Expr(Expr *exp)
 
   assert(exp->kind >= 1 && exp->kind < nr_elts(__free_expr_funcs));
   void (*__free_expr_func)(Expr *) = __free_expr_funcs[exp->kind];
-  TYPE_DECREF(exp->desc);
   __free_expr_func(exp);
 }
 
@@ -584,11 +581,6 @@ static void free_assignlist_stmt(Stmt *stmt)
 {
   AssignListStmt *assignListStmt = (AssignListStmt *)stmt;
   Mfree(stmt);
-}
-
-static void free_idtype_func(void *item, void *arg)
-{
-  Free_IdType(item);
 }
 
 static void free_funcdecl_stmt(Stmt *stmt)
@@ -1076,8 +1068,8 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
   int isz = Vector_Size(ids);
   int esz = Vector_Size(exps);
   if (!__validate_count(ps, isz, esz)) {
-    Ident *id = Vector_Get(ids, 0);
-    Syntax_Error(ps, &id->pos, "left and right are not matched");
+    Expr *e = Vector_Get(exps, 0);
+    Syntax_Error(ps, &e->pos, "left and right are not matched");
     Free_IdentList(ids);
     free_exprlist(exps);
     return NULL;
@@ -1450,7 +1442,7 @@ static void print_error(ParserState *ps, Position *pos, char *fmt, va_list ap)
 void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
 {
   if (++ps->errnum >= MAX_ERRORS) {
-    fprintf(stderr, "Too many errors.\n");
+    fprintf(stderr, "\x1b[31mToo many errors.\x1b[0m\n");
     exit(-1);
   }
 
