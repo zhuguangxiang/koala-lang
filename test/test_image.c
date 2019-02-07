@@ -9,18 +9,18 @@ void test_image(void)
 {
   KImage *image = KImage_New();
   Vector *ret = Vector_New();
-  TypeDesc *desc = TypeDesc_Get_Basic(BASIC_STRING);
+  TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
   TYPE_INCREF(desc);
   Vector_Append(ret, desc);
-  desc = TypeDesc_Get_Basic(BASIC_INT);
+  desc = TypeDesc_Get_Base(BASE_INT);
   TYPE_INCREF(desc);
   Vector_Append(ret, desc);
   TypeDesc *proto = TypeDesc_Get_Proto(NULL, ret);
   uint8 psudo[4] = {OP_LOAD, OP_LOADK, OP_ADD, OP_RET};
   KImage_Add_Func(image, "Foo", proto, psudo, 4);
-  desc = TypeDesc_Get_Basic(BASIC_STRING);
+  desc = TypeDesc_Get_Base(BASE_STRING);
   KImage_Add_Var(image, "Greeting", desc, 0);
-  desc = TypeDesc_Get_Basic(BASIC_INT);
+  desc = TypeDesc_Get_Base(BASE_INT);
   KImage_Add_Var(image, "MAX_LENGTH", desc, 1);
   KImage_Finish(image);
   KImage_Show(image);

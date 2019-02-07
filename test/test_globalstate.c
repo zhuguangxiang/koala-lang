@@ -9,7 +9,7 @@
 void test_globalstate(void)
 {
   PackageObject *pkg = (PackageObject *)Koala_Get_Package("lang");
-  TypeDesc *desc = TypeDesc_Get_Basic(BASIC_INT);
+  TypeDesc *desc = TypeDesc_Get_Base(BASE_INT);
   Package_Add_Var(pkg, "Foo", desc, 0);
   Package_Add_Var(pkg, "Bar", desc, 0);
   OB_INCREF(pkg);

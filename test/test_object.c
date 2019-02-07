@@ -9,9 +9,9 @@
 void test_object(void)
 {
   Klass *animal = Class_New("Animal", NULL, NULL);
-  TypeDesc *desc = TypeDesc_Get_Basic(BASIC_STRING);
+  TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
   Klass_Add_Field(animal, "Name", desc);
-  desc = TypeDesc_Get_Basic(BASIC_INT);
+  desc = TypeDesc_Get_Base(BASE_INT);
   Klass_Add_Field(animal, "Age", desc);
   Object *ob = animal->ob_alloc(animal);
   Object_Set_Value(ob, "Name", animal, String_New("wangwang"));
@@ -20,7 +20,7 @@ void test_object(void)
   OB_DECREF(ob);
 
   Klass *dog = Class_New("Dog", animal, NULL);
-  desc = TypeDesc_Get_Basic(BASIC_INT);
+  desc = TypeDesc_Get_Base(BASE_INT);
   Klass_Add_Field(dog, "TailLength", desc);
   Object *dog_ob = dog->ob_alloc(dog);
   Object *old = Object_Set_Value(dog_ob, "TailLength", dog, Integer_New(20));

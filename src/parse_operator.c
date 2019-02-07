@@ -20,27 +20,69 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "mem.h"
-#include "log.h"
+#include "parser.h"
 
-LOGGER(0)
+/*
+ * optimization:
+ *  1. literal constant
+ *  2. constant variable
+ *  3. unchanged variable(local variable)
+ */
 
-MemStat memstat;
+typedef void (*mark_expr_func)(ParserState *, Expr *);
 
-void Show_MemStat(void)
+static mark_expr_func mark_expr_funcs[] = {
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+
+};
+
+static void optimizer_visit_expr(ParserState *ps, Expr *exp)
 {
-  Log_Puts("\x1b[32m\n+------------Mem Usage------------");
-  Log_Printf("|  Max Used: %lld Bytes\n", memstat.allocated);
-  Log_Printf("|  Average Used: %lld Bytes", memstat.used);
-  Log_Puts("\n+---------------------------------\n\x1b[0m");
+  /* if errors is greater than MAX_ERRORS, stop parsing */
+  if (ps->errnum >= MAX_ERRORS)
+    return;
+
+  switch (exp->kind) {
+  case INT_KIND:
+  case FLOAT_KIND:
+  case BOOL_KIND:
+  case STRING_KIND:
+  case CHAR_KIND:
+    //exp->konst = 1;
+    break;
+  case ID_KIND:
+    /* maybe a constant */
+    break;
+  case UNARY_KIND:
+    break;
+  case BINARY_KIND:
+    break;
+  default:
+    /* silently pass */
+    break;
+  }
 }
 
-void *GC_Malloc(int size)
+/* binary operator */
+void Parse_Binary_Expr(ParserState *ps, Expr *exp)
 {
-  return Malloc(size);
+  BinaryExpr *binExp = (BinaryExpr *)exp;
 }
 
-void GC_Mfree(void *ptr)
+void Code_Binary_Expr(ParserState *ps, Expr *exp)
 {
-  Mfree(ptr);
+
+}
+
+/* unary operator */
+void Parse_Unary_Expr(ParserState *ps, Expr *exp)
+{
+}
+
+void Code_Unary_Expr(ParserState *ps, Expr *exp)
+{
+
 }

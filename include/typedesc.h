@@ -37,7 +37,7 @@ extern "C" {
  * NOTE: taged typedesc's head is only DescKind, not TYPEDESC_HEAD
  */
 typedef enum desckind {
-  TYPE_BASIC = 1,
+  TYPE_BASE = 1,
   TYPE_KLASS,
   TYPE_PROTO,
   TYPE_ARRAY,
@@ -54,14 +54,14 @@ typedef enum desckind {
  * any: builtin root object, like java's Object
  * varg: variably-argument, like c's ..., only in function's arguments
  */
-#define BASIC_BYTE   'b'
-#define BASIC_CHAR   'c'
-#define BASIC_INT    'i'
-#define BASIC_FLOAT  'f'
-#define BASIC_BOOL   'z'
-#define BASIC_STRING 's'
-#define BASIC_ERROR  'e'
-#define BASIC_ANY    'A'
+#define BASE_BYTE   'b'
+#define BASE_CHAR   'c'
+#define BASE_INT    'i'
+#define BASE_FLOAT  'f'
+#define BASE_BOOL   'z'
+#define BASE_STRING 's'
+#define BASE_ERROR  'e'
+#define BASE_ANY    'A'
 
 #define VARG_ANY_DESC "..."
 
@@ -104,11 +104,11 @@ do {                                  \
 void Init_TypeDesc(void);
 void Fini_TypeDesc(void);
 
-/* basic type */
+/* base type */
 typedef struct basicdesc {
   TYPEDESC_HEAD
-  char type; /* one of BASIC_XXX */
-} BasicDesc;
+  char type; /* one of BASE_XXX */
+} BaseDesc;
 
 /* class or trait */
 typedef struct klassdesc {
@@ -163,7 +163,7 @@ void ProtoVec_ToString(Vector *vec, char *buf);
 void TypeDesc_Free(TypeDesc *desc);
 
 /* get primitive typedesc */
-TypeDesc *TypeDesc_Get_Basic(int basic);
+TypeDesc *TypeDesc_Get_Base(int base);
 
 /* new a class or trait typedesc */
 TypeDesc *TypeDesc_Get_Klass(char *path, char *type);
@@ -188,6 +188,7 @@ TypeDesc *TypeDesc_Get_Varg(TypeDesc *base);
  * e.g. "i[sLlang.Tuple;" --->>> int, []string, lang.Tuple
  */
 Vector *String_ToTypeList(char *str);
+
 /*
  * convert typedesc list to string
  * e.g. int, []string, lang.Tuple --->>> "i[sLlang.Tuple;"

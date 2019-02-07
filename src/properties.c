@@ -36,7 +36,7 @@ typedef struct prop_entry {
 
 static PropEntry *propentry_new(char *key)
 {
-  PropEntry *e = mm_alloc(sizeof(PropEntry));
+  PropEntry *e = Malloc(sizeof(PropEntry));
   Init_HashNode(&e->hnode, e);
   e->key = AtomString_New(key);
   init_list_head(&e->list);
@@ -45,7 +45,7 @@ static PropEntry *propentry_new(char *key)
 
 static void propentry_free(PropEntry *e)
 {
-  mm_free(e);
+  Mfree(e);
 }
 
 static uint32 pe_hash(PropEntry *k)
@@ -66,7 +66,7 @@ int Properties_Init(Properties *prop)
 
 static Property *property_new(char *val)
 {
-  Property *p = mm_alloc(sizeof(Property));
+  Property *p = Malloc(sizeof(Property));
   init_list_head(&p->link);
   p->val = AtomString_New(val);
   return p;
@@ -74,7 +74,7 @@ static Property *property_new(char *val)
 
 static void property_free(Property *property)
 {
-  mm_free(property);
+  Mfree(property);
 }
 
 static void __propentry_fini_func(HashNode *hnode, void *arg)

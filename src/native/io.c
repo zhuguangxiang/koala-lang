@@ -31,7 +31,7 @@ LOGGER(0)
 void fd_free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Fd_Klass);
-  mm_free(ob);
+  Mfree(ob);
 }
 
 Klass Fd_Klass = {
@@ -46,7 +46,7 @@ FdObject *Stdin;
 
 FdObject *Fd_New(int fd)
 {
-  FdObject *ob = mm_alloc(sizeof(FdObject));
+  FdObject *ob = Malloc(sizeof(FdObject));
   Init_Object_Head(ob, &Fd_Klass);
   ob->fd = fd;
   return ob;
@@ -97,7 +97,7 @@ int Fd_Close(FdObject *fd)
 static Object *__print(Object *ob, Object *args)
 {
   int size = Tuple_Size(args);
-  char *buf = mm_alloc(BUF_SIZE);
+  char *buf = Malloc(BUF_SIZE);
   Object *val;
   int n;
   for (int i = 0; i < size; i++) {
@@ -108,7 +108,7 @@ static Object *__print(Object *ob, Object *args)
       Fd_Write(Stdout, " ", 1); /* space */
     }
   }
-  mm_free(buf);
+  Mfree(buf);
   return NULL;
 }
 

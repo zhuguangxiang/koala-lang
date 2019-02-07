@@ -31,13 +31,13 @@ static int expand(StringBuf *buf, int min)
   while (size > bufsize)
     bufsize += EXPAND_SIZE;
 
-  char *data = mm_alloc(bufsize);
+  char *data = Malloc(bufsize);
   if (data == NULL)
     return -1;
 
   if (buf->data != NULL) {
     strcpy(data, buf->data);
-    mm_free(buf->data);
+    Mfree(buf->data);
   }
   buf->data = data;
   buf->size = bufsize;

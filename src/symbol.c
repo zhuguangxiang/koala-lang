@@ -30,7 +30,7 @@ LOGGER(0)
 
 static void *__symbol_new(SymKind kind, char *name, int size)
 {
-  Symbol *sym = mm_alloc(size);
+  Symbol *sym = Malloc(size);
   sym->name = name;
   sym->kind = kind;
   Init_HashNode(&sym->hnode, sym);
@@ -40,7 +40,7 @@ static void *__symbol_new(SymKind kind, char *name, int size)
 
 static void __symbol_free(Symbol *sym)
 {
-  mm_free(sym);
+  Mfree(sym);
 }
 
 struct gen_image_s {
@@ -440,7 +440,7 @@ static void __symbol_free_fn(Symbol *sym, void *arg)
 
 STable *STable_New(void)
 {
-  STable *stbl = mm_alloc(sizeof(STable));
+  STable *stbl = Malloc(sizeof(STable));
   HashTable_Init(&stbl->table, symbol_hash, symbol_equal);
   /* [0]: module or class self */
   stbl->varindex = 1;
@@ -459,7 +459,7 @@ void STable_Free(STable *stbl, symbol_visit_func visit, void *arg)
 
   STable_Visit(stbl, visit, arg);
   HashTable_Fini(&stbl->table, NULL, NULL);
-  mm_free(stbl);
+  Mfree(stbl);
 }
 
 VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc)

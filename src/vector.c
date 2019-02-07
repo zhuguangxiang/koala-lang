@@ -34,7 +34,7 @@ void Vector_Init(Vector *vec)
 
 Vector *Vector_New(void)
 {
-  Vector *vec = mm_alloc(sizeof(Vector));
+  Vector *vec = Malloc(sizeof(Vector));
   if (!vec)
     return NULL;
 
@@ -49,7 +49,7 @@ void Vector_Free(Vector *vec, vec_finifunc fini, void *arg)
   if (vec == NULL)
     return;
   Vector_Fini(vec, fini, arg);
-  mm_free(vec);
+  Mfree(vec);
 }
 
 void Vector_Fini(Vector *vec, vec_finifunc fini, void *arg)
@@ -63,7 +63,7 @@ void Vector_Fini(Vector *vec, vec_finifunc fini, void *arg)
       fini(item, arg);
   }
 
-  mm_free(vec->items);
+  Mfree(vec->items);
 
   vec->size = 0;
   vec->capacity = 0;
@@ -77,13 +77,13 @@ static int vector_expand(Vector *vec, int newsize)
     return 0;
 
   int new_allocated = (capacity == 0) ? DEFAULT_CAPACITY : capacity << 1;
-  void *items = mm_alloc(new_allocated * sizeof(void *));
+  void *items = Malloc(new_allocated * sizeof(void *));
   if (!items)
     return -1;
 
   if (vec->items) {
     memcpy(items, vec->items, vec->size * sizeof(void *));
-    mm_free(vec->items);
+    Mfree(vec->items);
   }
   vec->capacity = new_allocated;
   vec->items = items;

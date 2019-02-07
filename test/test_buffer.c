@@ -53,7 +53,7 @@ void test_buffer(void)
   uint8 *d = Buffer_RawData(&buf);
   int diff = memcmp(saved_data, d, 100);
   assert(!diff);
-  mm_free(d);
+  Mfree(d);
   Buffer_Fini(&buf);
 }
 

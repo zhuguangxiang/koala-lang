@@ -20,27 +20,5 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "mem.h"
+#include "parser.h"
 #include "log.h"
-
-LOGGER(0)
-
-MemStat memstat;
-
-void Show_MemStat(void)
-{
-  Log_Puts("\x1b[32m\n+------------Mem Usage------------");
-  Log_Printf("|  Max Used: %lld Bytes\n", memstat.allocated);
-  Log_Printf("|  Average Used: %lld Bytes", memstat.used);
-  Log_Puts("\n+---------------------------------\n\x1b[0m");
-}
-
-void *GC_Malloc(int size)
-{
-  return Malloc(size);
-}
-
-void GC_Mfree(void *ptr)
-{
-  Mfree(ptr);
-}

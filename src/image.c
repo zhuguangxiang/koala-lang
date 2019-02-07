@@ -25,6 +25,8 @@
 #include "mem.h"
 #include "log.h"
 
+LOGGER(1)
+
 static int version_major = 0; // 1 byte
 static int version_minor = 1; // 1 byte
 static int version_build = 1; // 2 bytes
@@ -37,8 +39,8 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 {
   TypeDesc *t = NULL;
   switch (item->kind) {
-    case TYPE_BASIC: {
-      t = TypeDesc_Get_Basic(item->primitive);
+    case TYPE_BASE: {
+      t = TypeDesc_Get_Base(item->primitive);
       break;
     }
     case TYPE_KLASS: {
@@ -113,7 +115,7 @@ TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
 
 MapItem *MapItem_New(int type, int offset, int size)
 {
-  MapItem *item = mm_alloc(sizeof(MapItem));
+  MapItem *item = Malloc(sizeof(MapItem));
   item->type   = type;
   item->unused = 0;
   item->offset = offset;
@@ -124,7 +126,7 @@ MapItem *MapItem_New(int type, int offset, int size)
 StringItem *StringItem_New(char *name)
 {
   int len = strlen(name);
-  StringItem *item = mm_alloc(sizeof(StringItem) + len + 1);
+  StringItem *item = Malloc(sizeof(StringItem) + len + 1);
   item->length = len + 1;
   memcpy(item->data, name, len);
   item->data[len] = 0;
@@ -133,15 +135,15 @@ StringItem *StringItem_New(char *name)
 
 TypeItem *TypeItem_Primitive_New(char primitive)
 {
-  TypeItem *item = mm_alloc(sizeof(TypeItem));
-  item->kind = TYPE_BASIC;
+  TypeItem *item = Malloc(sizeof(TypeItem));
+  item->kind = TYPE_BASE;
   item->primitive = primitive;
   return item;
 }
 
 TypeItem *TypeItem_UserDef_New(int32 pathindex, int32 typeindex)
 {
-  TypeItem *item = mm_alloc(sizeof(TypeItem));
+  TypeItem *item = Malloc(sizeof(TypeItem));
   item->kind = TYPE_KLASS;
   item->pathindex = pathindex;
   item->typeindex = typeindex;
@@ -150,7 +152,7 @@ TypeItem *TypeItem_UserDef_New(int32 pathindex, int32 typeindex)
 
 TypeItem *TypeItem_Proto_New(int32 protoindex)
 {
-  TypeItem *item = mm_alloc(sizeof(TypeItem));
+  TypeItem *item = Malloc(sizeof(TypeItem));
   item->kind = TYPE_PROTO;
   item->protoindex = protoindex;
   return item;
@@ -158,7 +160,7 @@ TypeItem *TypeItem_Proto_New(int32 protoindex)
 
 TypeItem *TypeItem_Array_New(int dims, int32 typeindex)
 {
-  TypeItem *item = mm_alloc(sizeof(TypeItem));
+  TypeItem *item = Malloc(sizeof(TypeItem));
   item->kind = TYPE_ARRAY;
   item->array.dims = dims;
   item->array.typeindex = typeindex;
@@ -167,7 +169,7 @@ TypeItem *TypeItem_Array_New(int dims, int32 typeindex)
 
 TypeListItem *TypeListItem_New(int size, int32 index[])
 {
-  TypeListItem *item = mm_alloc(sizeof(TypeListItem) + size * sizeof(int32));
+  TypeListItem *item = Malloc(sizeof(TypeListItem) + size * sizeof(int32));
   item->size = size;
   for (int i = 0; i < size; i++) {
     item->index[i] = index[i];
@@ -177,7 +179,7 @@ TypeListItem *TypeListItem_New(int size, int32 index[])
 
 ProtoItem *ProtoItem_New(int32 rindex, int32 pindex)
 {
-  ProtoItem *item = mm_alloc(sizeof(ProtoItem));
+  ProtoItem *item = Malloc(sizeof(ProtoItem));
   item->rindex = rindex;
   item->pindex = pindex;
   return item;
@@ -185,7 +187,7 @@ ProtoItem *ProtoItem_New(int32 rindex, int32 pindex)
 
 ConstItem *ConstItem_New(int type)
 {
-  ConstItem *item = mm_alloc(sizeof(ConstItem));
+  ConstItem *item = Malloc(sizeof(ConstItem));
   item->type = type;
   return item;
 }
@@ -228,7 +230,7 @@ ConstItem *ConstItem_UChar_New(uchar val)
 LocVarItem *LocVarItem_New(int32 nameindex, int32 typeindex,
                            int32 pos, int index)
 {
-  LocVarItem *item = mm_alloc(sizeof(LocVarItem));
+  LocVarItem *item = Malloc(sizeof(LocVarItem));
   item->nameindex = nameindex;
   item->typeindex = typeindex;
   item->pos = pos;
@@ -238,7 +240,7 @@ LocVarItem *LocVarItem_New(int32 nameindex, int32 typeindex,
 
 VarItem *VarItem_New(int32 nameindex, int32 typeindex, int konst)
 {
-  VarItem *item = mm_alloc(sizeof(VarItem));
+  VarItem *item = Malloc(sizeof(VarItem));
   item->nameindex = nameindex;
   item->typeindex = typeindex;
   item->konst = konst;
@@ -247,7 +249,7 @@ VarItem *VarItem_New(int32 nameindex, int32 typeindex, int konst)
 
 FuncItem *FuncItem_New(int nameindex, int protoindex, int codeindex)
 {
-  FuncItem *item = mm_alloc(sizeof(FuncItem));
+  FuncItem *item = Malloc(sizeof(FuncItem));
   item->nameindex = nameindex;
   item->protoindex = protoindex;
   item->codeindex = codeindex;
@@ -257,16 +259,16 @@ FuncItem *FuncItem_New(int nameindex, int protoindex, int codeindex)
 CodeItem *CodeItem_New(uint8 *codes, int size)
 {
   int sz = sizeof(CodeItem) + sizeof(uint8) * size;
-  CodeItem *item = mm_alloc(sz);
+  CodeItem *item = Malloc(sz);
   item->size = size;
   memcpy(item->codes, codes, size);
-  mm_free(codes);
+  Mfree(codes);
   return item;
 }
 
 ClassItem *ClassItem_New(int classindex, int superindex)
 {
-  ClassItem *item = mm_alloc(sizeof(ClassItem));
+  ClassItem *item = Malloc(sizeof(ClassItem));
   item->classindex = classindex;
   item->superindex = superindex;
   return item;
@@ -274,7 +276,7 @@ ClassItem *ClassItem_New(int classindex, int superindex)
 
 FieldItem *FieldItem_New(int classindex, int nameindex, int typeindex)
 {
-  FieldItem *item = mm_alloc(sizeof(FieldItem));
+  FieldItem *item = Malloc(sizeof(FieldItem));
   item->classindex = classindex;
   item->nameindex = nameindex;
   item->typeindex = typeindex;
@@ -284,7 +286,7 @@ FieldItem *FieldItem_New(int classindex, int nameindex, int typeindex)
 MethodItem *MethodItem_New(int classindex, int nameindex, int protoindex,
                            int codeindex)
 {
-  MethodItem *item = mm_alloc(sizeof(MethodItem));
+  MethodItem *item = Malloc(sizeof(MethodItem));
   item->classindex = classindex;
   item->nameindex = nameindex;
   item->protoindex = protoindex;
@@ -294,7 +296,7 @@ MethodItem *MethodItem_New(int classindex, int nameindex, int protoindex,
 
 TraitItem *TraitItem_New(int classindex, int traitsindex)
 {
-  TraitItem *item = mm_alloc(sizeof(TraitItem));
+  TraitItem *item = Malloc(sizeof(TraitItem));
   item->classindex = classindex;
   item->traitsindex = traitsindex;
   return item;
@@ -302,7 +304,7 @@ TraitItem *TraitItem_New(int classindex, int traitsindex)
 
 NFuncItem *NFuncItem_New(int classindex, int nameindex, int protoindex)
 {
-  NFuncItem *item = mm_alloc(sizeof(NFuncItem));
+  NFuncItem *item = Malloc(sizeof(NFuncItem));
   item->classindex = classindex;
   item->nameindex = nameindex;
   item->protoindex = protoindex;
@@ -311,7 +313,7 @@ NFuncItem *NFuncItem_New(int classindex, int nameindex, int protoindex)
 
 IMethItem *IMethItem_New(int classindex, int nameindex, int protoindex)
 {
-  IMethItem *item = mm_alloc(sizeof(IMethItem));
+  IMethItem *item = Malloc(sizeof(IMethItem));
   item->classindex = classindex;
   item->nameindex = nameindex;
   item->protoindex = protoindex;
@@ -320,14 +322,14 @@ IMethItem *IMethItem_New(int classindex, int nameindex, int protoindex)
 
 static void *VaItem_New(int bsize, int isize, int len)
 {
-  int32 *data = mm_alloc(bsize + isize * len);
+  int32 *data = Malloc(bsize + isize * len);
   data[0] = len;
   return data;
 }
 
 static void *Item_Copy(int size, void *src)
 {
-  void *dest = mm_alloc(size);
+  void *dest = Malloc(size);
   memcpy(dest, src, size);
   return dest;
 }
@@ -421,9 +423,9 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
   TypeItem item = {0};
   switch (desc->kind) {
-    case TYPE_BASIC: {
-      BasicDesc *basic = (BasicDesc *)desc;
-      item.kind = TYPE_BASIC;
+    case TYPE_BASE: {
+      BaseDesc *basic = (BaseDesc *)desc;
+      item.kind = TYPE_BASE;
       item.primitive = basic->type;
       break;
     }
@@ -476,8 +478,8 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
   int index = TypeItem_Get(table, desc);
   if (index < 0) {
     switch (desc->kind) {
-      case TYPE_BASIC: {
-        BasicDesc *basic = (BasicDesc *)desc;
+      case TYPE_BASE: {
+        BaseDesc *basic = (BaseDesc *)desc;
         item = TypeItem_Primitive_New(basic->type);
         break;
       }
@@ -558,7 +560,7 @@ void mapitem_write(FILE *fp, void *o)
 
 void mapitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int stringitem_length(void *o)
@@ -596,7 +598,7 @@ void stringitem_show(AtomTable *table, void *o)
 
 void stringitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int typeitem_length(void *o)
@@ -631,7 +633,7 @@ int typeitem_equal(void *k1, void *k2)
 
 char *array_string(int dims)
 {
-  char *data = mm_alloc(dims * 2 + 1);
+  char *data = Malloc(dims * 2 + 1);
   int i = 0;
   while (dims-- > 0) {
     data[i] = '['; data[i+1] = ']';
@@ -661,9 +663,9 @@ void typeitem_show(AtomTable *table, void *o)
     } else {
       Log_Printf("  typeindex:%d\n", item->typeindex);
     }
-  } else if (item->kind == TYPE_BASIC) {
+  } else if (item->kind == TYPE_BASE) {
     char buf[32];
-    TypeDesc *desc = TypeDesc_Get_Basic(item->primitive);
+    TypeDesc *desc = TypeDesc_Get_Base(item->primitive);
     TypeDesc_ToString(desc, buf);
     Log_Printf("  (%s)\n", buf);
   } else if (item->kind == TYPE_ARRAY) {
@@ -674,7 +676,7 @@ void typeitem_show(AtomTable *table, void *o)
 
 void typeitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int typelistitem_length(void *o)
@@ -726,7 +728,7 @@ void typelistitem_show(AtomTable *table, void *o)
 
 void typelistitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int protoitem_length(void *o)
@@ -769,7 +771,7 @@ void protoitem_show(AtomTable *table, void *o)
 
 void protoitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int constitem_length(void *o)
@@ -870,7 +872,7 @@ void constitem_show(AtomTable *table, void *o)
 
 void constitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int locvaritem_length(void *o)
@@ -912,7 +914,7 @@ void locvaritem_show(AtomTable *table, void *o)
 
 void locvaritem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int varitem_length(void *o)
@@ -970,9 +972,9 @@ void varitem_show(AtomTable *table, void *o)
     } else {
       Log_Printf("  (%s)\n", str2->data);
     }
-  } else if (type->kind == TYPE_BASIC) {
+  } else if (type->kind == TYPE_BASE) {
     char buf[32];
-    TypeDesc *desc = TypeDesc_Get_Basic(type->primitive);
+    TypeDesc *desc = TypeDesc_Get_Base(type->primitive);
     TypeDesc_ToString(desc, buf);
     Log_Printf("  (%s)\n", buf);
   }
@@ -982,7 +984,7 @@ void varitem_show(AtomTable *table, void *o)
 
 void varitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int funcitem_length(void *o)
@@ -1009,7 +1011,7 @@ void funcitem_show(AtomTable *table, void *o)
 
 void funcitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int codeitem_length(void *o)
@@ -1033,7 +1035,7 @@ void codeitem_show(AtomTable *table, void *o)
 
 void codeitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int classitem_length(void *o)
@@ -1060,7 +1062,7 @@ void classitem_show(AtomTable *table, void *o)
 
 void classitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int fielditem_length(void *o)
@@ -1086,7 +1088,7 @@ void fielditem_show(AtomTable *table, void *o)
 
 void fielditem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int methoditem_length(void *o)
@@ -1114,7 +1116,7 @@ void methoditem_show(AtomTable *table, void *o)
 
 void methoditem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int traititem_length(void *o)
@@ -1143,7 +1145,7 @@ void traititem_show(AtomTable *table, void *o)
 
 void traititem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int nfuncitem_length(void *o)
@@ -1170,7 +1172,7 @@ void nfuncitem_show(AtomTable *table, void *o)
 
 void nfuncitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 int imethitem_length(void *o)
@@ -1197,7 +1199,7 @@ void imethitem_show(AtomTable *table, void *o)
 
 void imethitem_free(void *o)
 {
-  mm_free(o);
+  Mfree(o);
 }
 
 typedef int (*item_length_func)(void *);
@@ -1401,7 +1403,7 @@ static void init_header(ImageHeader *h)
 
 KImage *KImage_New(void)
 {
-  KImage *image = mm_alloc(sizeof(KImage));
+  KImage *image = Malloc(sizeof(KImage));
   init_header(&image->header);
   image->table = AtomTable_New(ITEM_MAX, Item_Hash, Item_Equal);
   return image;
@@ -1410,7 +1412,7 @@ KImage *KImage_New(void)
 void KImage_Free(KImage *image)
 {
   AtomTable_Free(image->table, Item_Free, NULL);
-  mm_free(image);
+  Mfree(image);
 }
 
 int KImage_Add_Integer(KImage *image, int64 val)
@@ -1699,12 +1701,12 @@ static FILE *open_image_file(char *path, char *mode)
     char *end = strrchr(path, '/');
     char *dir = strndup(path, end - path);
     char *fmt = "mkdir -p %s";
-    char *cmd = mm_alloc(strlen(fmt) + strlen(dir));
+    char *cmd = Malloc(strlen(fmt) + strlen(dir));
     sprintf(cmd, fmt, dir);
     int status = system(cmd);
     assert(!status);
-    mm_free(cmd);
-    mm_free(dir);
+    Mfree(cmd);
+    Mfree(dir);
     fp = fopen(path, "w");
   }
   return fp;

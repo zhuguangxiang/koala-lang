@@ -45,7 +45,7 @@ static StringPool pool;
 static StringEntry *strentry_new(char *str)
 {
   int len = strlen(str);
-  StringEntry *e = mm_alloc(sizeof(StringEntry) + len + 1);
+  StringEntry *e = Malloc(sizeof(StringEntry) + len + 1);
   Init_HashNode(&e->hnode, e);
   e->val.str = e->data;
   e->size = len + 1;
@@ -69,7 +69,7 @@ String AtomString_New_NString(char *str, int len)
   String s;
   char *tmp = strndup(str, len);
   s = AtomString_New(tmp);
-  mm_free(tmp);
+  Mfree(tmp);
   return s;
 }
 
@@ -88,7 +88,7 @@ String AtomString_New_NStr(char *str, int len)
 {
   char *zstr = strndup(str, len);
   String s = AtomString_New(zstr);
-  mm_free(zstr);
+  Mfree(zstr);
   return s;
 }
 
@@ -137,7 +137,7 @@ static void strentry_free(HashNode *hnode, void *arg)
 {
   UNUSED_PARAMETER(arg);
   StringEntry *e = container_of(hnode, StringEntry, hnode);
-  mm_free(e);
+  Mfree(e);
 }
 
 void AtomString_Fini(void)

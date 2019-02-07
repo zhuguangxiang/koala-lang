@@ -58,7 +58,7 @@ int Fini_Cache(Cache *cache, void (*finifunc)(void *, void *), void *arg)
     node = container_of(p, CacheNode, free_node);
     if (finifunc)
       finifunc(node->data, arg);
-    mm_free(node);
+    Mfree(node);
   }
   assert(count == cache->total);
   return 0;
@@ -72,7 +72,7 @@ void *Cache_Take(Cache *cache)
     list_del(first);
     node = container_of(first, CacheNode, free_node);
   } else {
-    node = mm_alloc(sizeof(CacheNode) + cache->objsize);
+    node = Malloc(sizeof(CacheNode) + cache->objsize);
     init_list_head(&node->free_node);
     cache->total++;
   }

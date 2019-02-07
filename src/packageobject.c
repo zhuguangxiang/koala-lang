@@ -31,7 +31,7 @@ LOGGER(0)
 
 PackageObject *Package_New(char *name)
 {
-  PackageObject *pkg = mm_alloc(sizeof(PackageObject));
+  PackageObject *pkg = Malloc(sizeof(PackageObject));
   Init_Object_Head(pkg, &Package_Klass);
   pkg->name = AtomString_New(name);
   return pkg;
@@ -66,7 +66,7 @@ void Package_Free(PackageObject *pkg)
 {
   HashTable_Free(pkg->table, pkg_freefunc, NULL);
   Tuple_Free(pkg->consts);
-  mm_free(pkg);
+  Mfree(pkg);
 }
 
 static HashTable *__get_table(PackageObject *pkg)

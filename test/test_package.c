@@ -5,7 +5,7 @@
 void test_package(void)
 {
   PackageObject *pkg = Package_New("lang");
-  TypeDesc *desc = TypeDesc_Get_Basic(BASIC_INT);
+  TypeDesc *desc = TypeDesc_Get_Base(BASE_INT);
   Package_Add_Var(pkg, "Foo", desc, 0);
   Package_Add_Var(pkg, "Bar", desc, 0);
   assert(pkg->varcnt == 2);

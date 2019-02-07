@@ -28,7 +28,7 @@ LOGGER(0)
 
 static CodeObject *code_new(CodeKind kind, TypeDesc *proto)
 {
-  CodeObject *code = mm_alloc(sizeof(CodeObject));
+  CodeObject *code = Malloc(sizeof(CodeObject));
   Init_Object_Head(code, &Code_Klass);
   TYPE_INCREF(proto);
   code->kind = kind;
@@ -61,7 +61,7 @@ void CodeObject_Free(Object *ob)
     //FIXME
   }
 
-  mm_free(ob);
+  Mfree(ob);
 }
 
 int KCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)

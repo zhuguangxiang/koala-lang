@@ -54,8 +54,16 @@ void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...);
 #define Log_Puts(string) ((void)0)
 #else
 #define LOGGER(q) static Logger logger = {.level = LOG_TRACE, .quiet = q};
-#define Log_Printf(...) printf(__VA_ARGS__)
-#define Log_Puts(string) puts(string)
+#define Log_Printf(...)  \
+({                       \
+  if (!logger.quiet)     \
+    printf(__VA_ARGS__); \
+})
+#define Log_Puts(string) \
+({                       \
+  if (!logger.quiet)     \
+    puts(string);        \
+})
 #endif /* NDEBUG */
 
 #define Log_Trace(...) \

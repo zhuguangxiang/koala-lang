@@ -31,6 +31,8 @@
 #include "task.h"
 #include "log.h"
 
+LOGGER(0)
+
 #define KOALA_VERSION "0.8.5"
 
 static void show_version(void)

@@ -157,6 +157,7 @@ Expr *Expr_From_Bool(int val);
 Expr *Expr_From_String(char *val);
 Expr *Expr_From_Char(uchar val);
 Expr *Expr_From_Ident(char *val);
+int Expr_Is_Const(Expr *exp);
 
 /* unary expression */
 typedef struct unaryexpr {
@@ -404,7 +405,7 @@ typedef struct liststmt {
   Vector *vec; /* statement */
 } ListStmt;
 
-void Free_Stmt_Func(void *item, void *arg);
+void Free_Statement(Stmt *stmt);
 Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst);
 Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
                               Expr *exp, int konst);

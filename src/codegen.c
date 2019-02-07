@@ -25,6 +25,8 @@
 #include "mem.h"
 #include "log.h"
 
+LOGGER(1)
+
 static struct opcode {
   uint8 code;
   char *str;
@@ -88,7 +90,7 @@ char *OpCode_String(uint8 op)
 
 Inst *Inst_New(uint8 op, Argument *val)
 {
-  Inst *i = mm_alloc(sizeof(Inst));
+  Inst *i = Malloc(sizeof(Inst));
   init_list_head(&i->link);
   i->op = op;
   i->bytes = 1 + OpCode_ArgCount(op);
@@ -99,7 +101,7 @@ Inst *Inst_New(uint8 op, Argument *val)
 
 void Inst_Free(Inst *i)
 {
-  mm_free(i);
+  Mfree(i);
 }
 
 Inst *Inst_Append(CodeBlock *b, uint8 op, Argument *val)
@@ -118,7 +120,7 @@ Inst *Inst_Append_NoArg(CodeBlock *b, uint8 op)
 
 JmpInst *JmpInst_New(Inst *inst, int type)
 {
-  JmpInst *jmp = mm_alloc(sizeof(JmpInst));
+  JmpInst *jmp = Malloc(sizeof(JmpInst));
   jmp->inst = inst;
   jmp->type = type;
   return jmp;
@@ -126,12 +128,12 @@ JmpInst *JmpInst_New(Inst *inst, int type)
 
 void JmpInst_Free(JmpInst *jmp)
 {
-  mm_free(jmp);
+  Mfree(jmp);
 }
 
 CodeBlock *CodeBlock_New(void)
 {
-  CodeBlock *b = mm_alloc(sizeof(CodeBlock));
+  CodeBlock *b = Malloc(sizeof(CodeBlock));
   init_list_head(&b->insts);
   return b;
 }
@@ -149,7 +151,7 @@ void CodeBlock_Free(CodeBlock *block)
     Inst_Free(i);
   }
 
-  mm_free(block);
+  Mfree(block);
 }
 
 void CodeBlock_Merge(CodeBlock *from, CodeBlock *to)

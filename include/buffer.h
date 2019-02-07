@@ -61,7 +61,7 @@ int Buffer_Init(Buffer *buf, int bsize);
 int Buffer_Fini(Buffer *buf);
 /* append datas into the buffer */
 int Buffer_Write(Buffer *buf, uint8 *data, int sz);
-/* to array, need free return memory, must be used mm_free function */
+/* to array, need free return memory, must be used Mfree function */
 uint8 *Buffer_RawData(Buffer *buf);
 /* get the number of stored bytes in the buffer */
 #define Buffer_Size(buf) ((buf)->size)

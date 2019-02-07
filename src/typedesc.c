@@ -25,28 +25,30 @@
 #include "mem.h"
 #include "log.h"
 
-static BasicDesc Byte_Type;
-static BasicDesc Char_Type;
-static BasicDesc Int_Type;
-static BasicDesc Float_Type;
-static BasicDesc Bool_Type;
-static BasicDesc String_Type;
-static BasicDesc Error_Type;
-static BasicDesc Any_Type;
+LOGGER(0)
+
+static BaseDesc Byte_Type;
+static BaseDesc Char_Type;
+static BaseDesc Int_Type;
+static BaseDesc Float_Type;
+static BaseDesc Bool_Type;
+static BaseDesc String_Type;
+static BaseDesc Error_Type;
+static BaseDesc Any_Type;
 
 struct basic_type_s {
   int kind;
   char *str;
-  BasicDesc *type;
+  BaseDesc *type;
 } basic_types[] = {
-  {BASIC_BYTE,   "byte",   &Byte_Type   },
-  {BASIC_CHAR,   "char",   &Char_Type   },
-  {BASIC_INT,    "int",    &Int_Type    },
-  {BASIC_FLOAT,  "float",  &Float_Type  },
-  {BASIC_BOOL,   "bool",   &Bool_Type   },
-  {BASIC_STRING, "string", &String_Type },
-  {BASIC_ERROR,  "error",  &Error_Type  },
-  {BASIC_ANY,    "any",    &Any_Type    },
+  {BASE_BYTE,   "byte",   &Byte_Type   },
+  {BASE_CHAR,   "char",   &Char_Type   },
+  {BASE_INT,    "int",    &Int_Type    },
+  {BASE_FLOAT,  "float",  &Float_Type  },
+  {BASE_BOOL,   "bool",   &Bool_Type   },
+  {BASE_STRING, "string", &String_Type },
+  {BASE_ERROR,  "error",  &Error_Type  },
+  {BASE_ANY,    "any",    &Any_Type    },
 };
 
 static struct basic_type_s *get_basic(int kind)
@@ -77,19 +79,19 @@ static int desc_equal(void *k1, void *k2)
 
 static void init_basictypes(void)
 {
-  BasicDesc *basic;
+  BaseDesc *base;
   int result;
   struct basic_type_s *p;
   for (int i = 0; i < nr_elts(basic_types); i++) {
     p = basic_types + i;
-    basic = p->type;
-    basic->kind = TYPE_BASIC;
-    basic->type = p->kind;
-    Init_HashNode(&basic->hnode, basic);
-    basic->desc = AtomString_New((char *)&p->kind);
-    /* no need free basic descriptors */
-    basic->refcnt = 2;
-    result = HashTable_Insert(&descTable, &basic->hnode);
+    base = p->type;
+    base->kind = TYPE_BASE;
+    base->type = p->kind;
+    Init_HashNode(&base->hnode, base);
+    base->desc = AtomString_New((char *)&p->kind);
+    /* no need free base descriptors */
+    base->refcnt = 2;
+    result = HashTable_Insert(&descTable, &base->hnode);
     assert(!result);
   }
 }
@@ -109,13 +111,13 @@ static void desc_free_func(HashNode *hnode, void *arg)
 static void check_basic_refcnt(void)
 {
   Log_Puts("Basic Type Refcnt:");
-  BasicDesc *basic;
+  BaseDesc *base;
   struct basic_type_s *p;
   for (int i = 0; i < nr_elts(basic_types); i++) {
     p = basic_types + i;
-    basic = p->type;
-    Log_Printf("  %s: %d\n", p->str, basic->refcnt);
-    assert(basic->refcnt == 1);
+    base = p->type;
+    Log_Printf("  %s: %d\n", p->str, base->refcnt);
+    assert(base->refcnt == 1);
   }
 }
 
@@ -127,8 +129,8 @@ void Fini_TypeDesc(void)
 
 static void __basic_tostring(TypeDesc *desc, char *buf)
 {
-  BasicDesc *basic = (BasicDesc *)desc;
-  strcpy(buf, get_basic(basic->type)->str);
+  BaseDesc *base = (BaseDesc *)desc;
+  strcpy(buf, get_basic(base->type)->str);
 }
 
 static void __basic_fini(TypeDesc *desc)
@@ -304,20 +306,20 @@ void TypeDesc_Free(TypeDesc *desc)
 {
   int kind = desc->kind;
   assert(kind > 0 && kind < nr_elts(typedesc_ops));
-  assert(desc->kind != TYPE_BASIC);
+  assert(desc->kind != TYPE_BASE);
   HashTable_Remove(&descTable, &desc->hnode);
   typedesc_ops[kind].fini(desc);
-  mm_free(desc);
+  Mfree(desc);
 }
 
-TypeDesc *TypeDesc_Get_Basic(int basic)
+TypeDesc *TypeDesc_Get_Base(int base)
 {
-  return (TypeDesc *)get_basic(basic)->type;
+  return (TypeDesc *)get_basic(base)->type;
 }
 
 static void *new_typedesc(DescKind kind, int size, char *descstr)
 {
-  TypeDesc *desc = mm_alloc(size);
+  TypeDesc *desc = Malloc(size);
   desc->kind = kind;
   Init_HashNode(&desc->hnode, desc);
   desc->refcnt = 1;
@@ -451,7 +453,7 @@ TypeDesc *TypeDesc_Get_Set(TypeDesc *base)
 TypeDesc *TypeDesc_Get_Varg(TypeDesc *base)
 {
   if (base == NULL)
-    base = TypeDesc_Get_Basic(BASIC_ANY);
+    base = TypeDesc_Get_Base(BASE_ANY);
 
   /* ...type*/
   DeclareStringBuf(buf);

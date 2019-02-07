@@ -29,7 +29,7 @@ LOGGER(0)
 
 Ident *New_Ident(String name)
 {
-  Ident *ident = mm_alloc(sizeof(Ident));
+  Ident *ident = Malloc(sizeof(Ident));
   ident->name = name.str;
   return ident;
 }
@@ -39,7 +39,7 @@ void Free_Ident(Ident *id)
   if (id == NULL)
     return;
 
-  mm_free(id);
+  Mfree(id);
 }
 
 void Free_IdentList(Vector *vec)
@@ -56,7 +56,7 @@ void Free_IdentList(Vector *vec)
 
 IdType *New_IdType(Ident *id, TypeWrapper *type)
 {
-  IdType *idType = mm_alloc(sizeof(IdType));
+  IdType *idType = Malloc(sizeof(IdType));
   if (id != NULL)
     idType->id = *id;
   TYPE_INCREF(type->desc);
@@ -70,7 +70,7 @@ void Free_IdType(IdType *idtype)
     return;
 
   TYPE_DECREF(idtype->type.desc);
-  mm_free(idtype);
+  Mfree(idtype);
 }
 
 void Free_IdTypeList(Vector *vec)
@@ -87,77 +87,106 @@ void Free_IdTypeList(Vector *vec)
 
 Expr *Expr_From_Nil(void)
 {
-  Expr *exp = mm_alloc(sizeof(Expr));
+  Expr *exp = Malloc(sizeof(Expr));
   exp->kind = NIL_KIND;
   return exp;
 }
 
 Expr *Expr_From_Self(void)
 {
-  Expr *exp = mm_alloc(sizeof(Expr));
+  Expr *exp = Malloc(sizeof(Expr));
   exp->kind = SELF_KIND;
   return exp;
 }
 
 Expr *Expr_From_Super(void)
 {
-  Expr *exp = mm_alloc(sizeof(Expr));
+  Expr *exp = Malloc(sizeof(Expr));
   exp->kind = SUPER_KIND;
   return exp;
 }
 
 Expr *Expr_From_Integer(int64 val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
+  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
   baseExp->kind = INT_KIND;
+  baseExp->desc = TypeDesc_Get_Base(BASE_INT);
+  TYPE_INCREF(baseExp->desc);
   baseExp->ival = val;
   return (Expr *)baseExp;
 }
 
 Expr *Expr_From_Float(float64 val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
+  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
   baseExp->kind = FLOAT_KIND;
+  baseExp->desc = TypeDesc_Get_Base(BASE_FLOAT);
+  TYPE_INCREF(baseExp->desc);
   baseExp->fval = val;
   return (Expr *)baseExp;
 }
 
 Expr *Expr_From_Bool(int val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
+  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
   baseExp->kind = BOOL_KIND;
+  baseExp->desc = TypeDesc_Get_Base(BASE_BOOL);
+  TYPE_INCREF(baseExp->desc);
   baseExp->bval = val;
   return (Expr *)baseExp;
 }
 
 Expr *Expr_From_String(char *val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
+  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
   baseExp->kind = STRING_KIND;
+  baseExp->desc = TypeDesc_Get_Base(BASE_STRING);
+  TYPE_INCREF(baseExp->desc);
   baseExp->str = val;
   return (Expr *)baseExp;
 }
 
 Expr *Expr_From_Char(uchar val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
+  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
   baseExp->kind = CHAR_KIND;
+  baseExp->desc = TypeDesc_Get_Base(BASE_CHAR);
+  TYPE_INCREF(baseExp->desc);
   baseExp->ch = val;
   return (Expr *)baseExp;
 }
 
 Expr *Expr_From_Ident(char *val)
 {
-  BaseExpr *baseExp = mm_alloc(sizeof(BaseExpr));
+  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
   baseExp->kind = ID_KIND;
   baseExp->id = val;
   return (Expr *)baseExp;
 }
 
+/* FIXME: unchanged variable, see parse_operator.c */
+int Expr_Is_Const(Expr *exp)
+{
+  ExprKind kind = exp->kind;
+
+  Symbol *sym = exp->sym;
+  if (kind == ID_KIND && sym->kind == SYM_CONST)
+    return 1;
+
+  if (kind != INT_KIND && kind != FLOAT_KIND &&
+      kind != STRING_KIND && kind != BOOL_KIND && kind != CHAR_KIND)
+    return 0;
+
+  return 1;
+}
+
 Expr *Expr_From_Unary(UnaryOpKind op, Expr *exp)
 {
-  UnaryExpr *unaryExp = mm_alloc(sizeof(UnaryExpr));
+  UnaryExpr *unaryExp = Malloc(sizeof(UnaryExpr));
   unaryExp->kind = UNARY_KIND;
+  /* it does not matter that exp->desc is null */
+  unaryExp->desc = exp->desc;
+  TYPE_INCREF(unaryExp->desc);
   unaryExp->op = op;
   unaryExp->exp = exp;
   return (Expr *)unaryExp;
@@ -165,8 +194,11 @@ Expr *Expr_From_Unary(UnaryOpKind op, Expr *exp)
 
 Expr *Expr_From_Binary(BinaryOpKind op, Expr *left, Expr *right)
 {
-  BinaryExpr *binaryExp = mm_alloc(sizeof(BinaryExpr));
+  BinaryExpr *binaryExp = Malloc(sizeof(BinaryExpr));
   binaryExp->kind = BINARY_KIND;
+  /* it does not matter that exp->desc is null */
+  binaryExp->desc = left->desc;
+  TYPE_INCREF(binaryExp->desc);
   binaryExp->op = op;
   binaryExp->lexp = left;
   binaryExp->rexp = right;
@@ -175,7 +207,7 @@ Expr *Expr_From_Binary(BinaryOpKind op, Expr *left, Expr *right)
 
 Expr *Expr_From_Attribute(Ident id, Expr *left)
 {
-  AttributeExpr *attrExp = mm_alloc(sizeof(AttributeExpr));
+  AttributeExpr *attrExp = Malloc(sizeof(AttributeExpr));
   attrExp->kind = ATTRIBUTE_KIND;
   attrExp->id = id;
   attrExp->left = left;
@@ -185,7 +217,7 @@ Expr *Expr_From_Attribute(Ident id, Expr *left)
 
 Expr *Expr_From_SubScript(Expr *index, Expr *left)
 {
-  SubScriptExpr *subExp = mm_alloc(sizeof(SubScriptExpr));
+  SubScriptExpr *subExp = Malloc(sizeof(SubScriptExpr));
   subExp->kind = SUBSCRIPT_KIND;
   subExp->index = index;
   subExp->left = left;
@@ -195,7 +227,7 @@ Expr *Expr_From_SubScript(Expr *index, Expr *left)
 
 Expr *Expr_From_Call(Vector *args, Expr *left)
 {
-  CallExpr *callExp = mm_alloc(sizeof(CallExpr));
+  CallExpr *callExp = Malloc(sizeof(CallExpr));
   callExp->kind = CALL_KIND;
   callExp->args = args;
   callExp->left = left;
@@ -205,7 +237,7 @@ Expr *Expr_From_Call(Vector *args, Expr *left)
 
 Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left)
 {
-  SliceExpr *sliceExp = mm_alloc(sizeof(SliceExpr));
+  SliceExpr *sliceExp = Malloc(sizeof(SliceExpr));
   sliceExp->kind = SLICE_KIND;
   sliceExp->start = start;
   sliceExp->end = end;
@@ -232,7 +264,7 @@ static int arraylist_get_nesting(Vector *vec)
 Expr *Expr_From_ArrayListExpr(Vector *vec)
 {
   int nesting = arraylist_get_nesting(vec) + 1;
-  ListExpr *listExp = mm_alloc(sizeof(ListExpr));
+  ListExpr *listExp = Malloc(sizeof(ListExpr));
   listExp->kind = ARRAY_LIST_KIND;
   listExp->nesting = nesting;
   listExp->vec = vec;
@@ -241,7 +273,7 @@ Expr *Expr_From_ArrayListExpr(Vector *vec)
 
 Expr *Expr_From_Array(Vector *dims, TypeWrapper base, Expr *listExp)
 {
-  ArrayExpr *arrayExp = mm_alloc(sizeof(ArrayExpr));
+  ArrayExpr *arrayExp = Malloc(sizeof(ArrayExpr));
   arrayExp->kind = ARRAY_KIND;
   arrayExp->dims = dims;
   arrayExp->base = base;
@@ -306,7 +338,7 @@ static int maplist_get_nesting(Vector *vec)
 Expr *Expr_From_MapListExpr(Vector *vec)
 {
   int nesting = maplist_get_nesting(vec) + 1;
-  ListExpr *listExp = mm_alloc(sizeof(ListExpr));
+  ListExpr *listExp = Malloc(sizeof(ListExpr));
   listExp->kind = MAP_LIST_KIND;
   listExp->nesting = nesting;
   listExp->vec = vec;
@@ -315,7 +347,7 @@ Expr *Expr_From_MapListExpr(Vector *vec)
 
 Expr *Expr_From_MapEntry(Expr *k, Expr *v)
 {
-  MapEntryExpr *entExp = mm_alloc(sizeof(MapEntryExpr));
+  MapEntryExpr *entExp = Malloc(sizeof(MapEntryExpr));
   entExp->kind = MAP_ENTRY_KIND;
   entExp->key = k;
   entExp->val = v;
@@ -324,7 +356,7 @@ Expr *Expr_From_MapEntry(Expr *k, Expr *v)
 
 Expr *Expr_From_Map(TypeWrapper type, Expr *listExp)
 {
-  MapExpr *mapExp = mm_alloc(sizeof(MapExpr));
+  MapExpr *mapExp = Malloc(sizeof(MapExpr));
   mapExp->kind = MAP_KIND;
   TYPE_INCREF(type.desc);
   mapExp->type = type;
@@ -335,7 +367,7 @@ Expr *Expr_From_Map(TypeWrapper type, Expr *listExp)
 
 Expr *Expr_From_Set(TypeWrapper type, Expr *listExp)
 {
-  SetExpr *setExp = mm_alloc(sizeof(SetExpr));
+  SetExpr *setExp = Malloc(sizeof(SetExpr));
   setExp->kind = SET_KIND;
   TYPE_INCREF(type.desc);
   setExp->type = type;
@@ -346,7 +378,7 @@ Expr *Expr_From_Set(TypeWrapper type, Expr *listExp)
 
 Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body)
 {
-  AnonyExpr *anonyExp = mm_alloc(sizeof(AnonyExpr));
+  AnonyExpr *anonyExp = Malloc(sizeof(AnonyExpr));
   anonyExp->kind = ANONY_FUNC_KIND;
   anonyExp->args = args;
   anonyExp->rets = rets;
@@ -368,14 +400,14 @@ int Expr_Maybe_Stored(Expr *exp)
 
 static void free_simple_expr(Expr *exp)
 {
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_unary_expr(Expr *exp)
 {
   UnaryExpr *unExp = (UnaryExpr *)exp;
   Free_Expr(unExp->exp);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_binary_expr(Expr *exp)
@@ -383,14 +415,14 @@ static void free_binary_expr(Expr *exp)
   BinaryExpr *binExp = (BinaryExpr *)exp;
   Free_Expr(binExp->lexp);
   Free_Expr(binExp->rexp);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_attribute_expr(Expr *exp)
 {
   AttributeExpr *attrExp = (AttributeExpr *)exp;
   Free_Expr(attrExp->left);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_subscript_expr(Expr *exp)
@@ -398,7 +430,7 @@ static void free_subscript_expr(Expr *exp)
   SubScriptExpr *subExp = (SubScriptExpr *)exp;
   Free_Expr(subExp->index);
   Free_Expr(subExp->left);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_call_expr(Expr *exp)
@@ -406,7 +438,7 @@ static void free_call_expr(Expr *exp)
   CallExpr *callExp = (CallExpr *)exp;
   free_exprlist(callExp->args);
   Free_Expr(callExp->left);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_slice_expr(Expr *exp)
@@ -415,7 +447,7 @@ static void free_slice_expr(Expr *exp)
   Free_Expr(sliceExp->start);
   Free_Expr(sliceExp->end);
   Free_Expr(sliceExp->left);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_list_expr(Expr *exp)
@@ -424,7 +456,7 @@ static void free_list_expr(Expr *exp)
     return;
   ListExpr *listExp = (ListExpr *)exp;
   free_exprlist(listExp->vec);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_mapentry_expr(Expr *exp)
@@ -432,7 +464,7 @@ static void free_mapentry_expr(Expr *exp)
   MapEntryExpr *entExp = (MapEntryExpr *)exp;
   Free_Expr(entExp->key);
   Free_Expr(entExp->val);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_array_expr(Expr *exp)
@@ -441,7 +473,7 @@ static void free_array_expr(Expr *exp)
   free_exprlist(arrayExp->dims);
   TYPE_DECREF(arrayExp->base.desc);
   free_list_expr((Expr *)arrayExp->listExp);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_map_expr(Expr *exp)
@@ -449,7 +481,7 @@ static void free_map_expr(Expr *exp)
   MapExpr *mapExp = (MapExpr *)exp;
   TYPE_DECREF(mapExp->type.desc);
   free_list_expr((Expr *)mapExp->listExp);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_set_expr(Expr *exp)
@@ -457,7 +489,7 @@ static void free_set_expr(Expr *exp)
   SetExpr *setExp = (SetExpr *)exp;
   TYPE_DECREF(setExp->type.desc);
   free_list_expr((Expr *)setExp->listExp);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void free_idtype_func(void *item, void *arg);
@@ -468,7 +500,7 @@ static void free_anony_expr(Expr *exp)
   Free_IdTypeList(anonyExp->args);
   Free_IdTypeList(anonyExp->rets);
   Vector_Free_Self(anonyExp->body);
-  mm_free(exp);
+  Mfree(exp);
 }
 
 static void (*__free_expr_funcs[])(Expr *) = {
@@ -524,7 +556,7 @@ static void free_vardecl_stmt(Stmt *stmt)
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
   TYPE_DECREF(varStmt->type.desc);
   Free_Expr(varStmt->exp);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_varlistdecl_stmt(Stmt *stmt)
@@ -533,7 +565,7 @@ static void free_varlistdecl_stmt(Stmt *stmt)
   Free_IdentList(varListStmt->ids);
   TYPE_DECREF(varListStmt->type.desc);
   Free_Expr(varListStmt->exp);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_assign_stmt(Stmt *stmt)
@@ -541,13 +573,13 @@ static void free_assign_stmt(Stmt *stmt)
   AssignStmt *assignStmt = (AssignStmt *)stmt;
   Free_Expr(assignStmt->left);
   Free_Expr(assignStmt->right);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_assignlist_stmt(Stmt *stmt)
 {
   AssignListStmt *assignListStmt = (AssignListStmt *)stmt;
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_idtype_func(void *item, void *arg)
@@ -561,35 +593,35 @@ static void free_funcdecl_stmt(Stmt *stmt)
   Free_IdTypeList(funcStmt->args);
   Free_IdTypeList(funcStmt->rets);
   Vector_Free_Self(funcStmt->body);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_expr_stmt(Stmt *stmt)
 {
   ExprStmt *expStmt = (ExprStmt *)stmt;
   Free_Expr(expStmt->exp);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_return_stmt(Stmt *stmt)
 {
   ReturnStmt *retStmt = (ReturnStmt *)stmt;
   free_exprlist(retStmt->exps);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_list_stmt(Stmt *stmt)
 {
   ListStmt *listStmt = (ListStmt *)stmt;
   Vector_Free_Self(listStmt->vec);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_alias_stmt(Stmt *stmt)
 {
   TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
   TYPE_DECREF(aliasStmt->desc);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void free_typedesc_func(void *item, void *arg)
@@ -602,7 +634,7 @@ static void free_klass_stmt(Stmt *stmt)
   KlassStmt *klsStmt = (KlassStmt *)stmt;
   Vector_Free(klsStmt->super, free_typedesc_func, NULL);
   Vector_Free_Self(klsStmt->body);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 static void (*__free_stmt_funcs[])(Stmt *) = {
@@ -623,9 +655,8 @@ static void (*__free_stmt_funcs[])(Stmt *) = {
   NULL, NULL, NULL, NULL,
 };
 
-void Free_Stmt_Func(void *item, void *arg)
+void Free_Statement(Stmt *stmt)
 {
-  Stmt *stmt = item;
   assert(stmt->kind >= 1 && stmt->kind < nr_elts(__free_stmt_funcs));
   void (*__free_stmt_func)(Stmt *) = __free_stmt_funcs[stmt->kind];
   __free_stmt_func(stmt);
@@ -633,7 +664,7 @@ void Free_Stmt_Func(void *item, void *arg)
 
 Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst)
 {
-  VarDeclStmt *varStmt = mm_alloc(sizeof(VarDeclStmt));
+  VarDeclStmt *varStmt = Malloc(sizeof(VarDeclStmt));
   varStmt->kind = VAR_KIND;
   varStmt->id = *id;
   varStmt->type = type;
@@ -645,7 +676,7 @@ Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst)
 Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
                               Expr *exp, int konst)
 {
-  VarListDeclStmt *varListStmt = mm_alloc(sizeof(VarListDeclStmt));
+  VarListDeclStmt *varListStmt = Malloc(sizeof(VarListDeclStmt));
   varListStmt->kind = VARLIST_KIND;
   varListStmt->ids = ids;
   varListStmt->type = type;
@@ -656,7 +687,7 @@ Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
 
 Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right)
 {
-  AssignStmt *assignStmt = mm_alloc(sizeof(AssignStmt));
+  AssignStmt *assignStmt = Malloc(sizeof(AssignStmt));
   assignStmt->kind = ASSIGN_KIND;
   assignStmt->op = op;
   assignStmt->left = left;
@@ -666,7 +697,7 @@ Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right)
 
 Stmt *Stmt_From_AssignList(Vector *left, Expr *right)
 {
-  AssignListStmt *assignListStmt = mm_alloc(sizeof(AssignListStmt));
+  AssignListStmt *assignListStmt = Malloc(sizeof(AssignListStmt));
   assignListStmt->kind = ASSIGNLIST_KIND;
   assignListStmt->left = left;
   assignListStmt->right = right;
@@ -675,7 +706,7 @@ Stmt *Stmt_From_AssignList(Vector *left, Expr *right)
 
 Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts)
 {
-  FuncDeclStmt *funcStmt = mm_alloc(sizeof(FuncDeclStmt));
+  FuncDeclStmt *funcStmt = Malloc(sizeof(FuncDeclStmt));
   funcStmt->kind = FUNC_KIND;
   funcStmt->id = id;
   funcStmt->args = args;
@@ -686,7 +717,7 @@ Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts)
 
 Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets)
 {
-  FuncDeclStmt *protoStmt = mm_alloc(sizeof(FuncDeclStmt));
+  FuncDeclStmt *protoStmt = Malloc(sizeof(FuncDeclStmt));
   protoStmt->kind = PROTO_KIND;
   protoStmt->id = id;
   protoStmt->args = args;
@@ -696,7 +727,7 @@ Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets)
 
 Stmt *Stmt_From_Expr(Expr *exp)
 {
-  ExprStmt *expStmt = mm_alloc(sizeof(ExprStmt));
+  ExprStmt *expStmt = Malloc(sizeof(ExprStmt));
   expStmt->kind = EXPR_KIND;
   expStmt->exp = exp;
   return (Stmt *)expStmt;
@@ -704,7 +735,7 @@ Stmt *Stmt_From_Expr(Expr *exp)
 
 Stmt *Stmt_From_Return(Vector *exps)
 {
-  ReturnStmt *retStmt = mm_alloc(sizeof(ReturnStmt));
+  ReturnStmt *retStmt = Malloc(sizeof(ReturnStmt));
   retStmt->kind = RETURN_KIND;
   retStmt->exps = exps;
   return (Stmt *)retStmt;
@@ -712,7 +743,7 @@ Stmt *Stmt_From_Return(Vector *exps)
 
 Stmt *Stmt_From_List(Vector *vec)
 {
-  ListStmt *listStmt = mm_alloc(sizeof(ListStmt));
+  ListStmt *listStmt = Malloc(sizeof(ListStmt));
   listStmt->kind = LIST_KIND;
   listStmt->vec = vec;
   return (Stmt *)listStmt;
@@ -720,7 +751,7 @@ Stmt *Stmt_From_List(Vector *vec)
 
 Stmt *Stmt_From_TypeAlias(Ident id, TypeDesc *desc)
 {
-  TypeAliasStmt *aliasStmt = mm_alloc(sizeof(TypeAliasStmt));
+  TypeAliasStmt *aliasStmt = Malloc(sizeof(TypeAliasStmt));
   aliasStmt->kind = TYPEALIAS_KIND;
   aliasStmt->id = id;
   aliasStmt->desc = desc;
@@ -730,7 +761,7 @@ Stmt *Stmt_From_TypeAlias(Ident id, TypeDesc *desc)
 Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body)
 {
   assert(kind == CLASS_KIND || kind == TRAIT_KIND);
-  KlassStmt *klsStmt = mm_alloc(sizeof(KlassStmt));
+  KlassStmt *klsStmt = Malloc(sizeof(KlassStmt));
   klsStmt->kind = kind;
   klsStmt->id = id;
   klsStmt->super = super;
@@ -761,7 +792,7 @@ static void import_free_func(HashNode *hnode, void *arg)
 {
   UNUSED_PARAMETER(arg);
   Import *import = container_of(hnode, Import, hnode);
-  mm_free(import);
+  Mfree(import);
 }
 
 void Init_Imports(ParserState *ps)
@@ -787,7 +818,7 @@ static Import *__find_import(ParserState *ps, char *path)
 
 static Import *__new_import(ParserState *ps, char *path, STable *stbl)
 {
-  Import *import = mm_alloc(sizeof(Import));
+  Import *import = Malloc(sizeof(Import));
   import->path = path;
   Init_HashNode(&import->hnode, import);
   import->stbl = stbl;
@@ -803,7 +834,7 @@ struct extpkg {
 
 static struct extpkg *new_extpkg(char *name, STable *stbl)
 {
-  struct extpkg *extpkg = mm_alloc(sizeof(struct extpkg));
+  struct extpkg *extpkg = Malloc(sizeof(struct extpkg));
   extpkg->name = name;
   extpkg->stbl = stbl;
   return extpkg;
@@ -811,7 +842,7 @@ static struct extpkg *new_extpkg(char *name, STable *stbl)
 
 static void free_extpkg(struct extpkg *extpkg)
 {
-  mm_free(extpkg);
+  Mfree(extpkg);
 }
 
 #if 0
@@ -1002,7 +1033,7 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
       __new_var(ps, &varStmt->id, varStmt->type.desc, varStmt->konst);
     }
     Vector_Free_Self(listStmt->vec);
-    mm_free(listStmt);
+    Mfree(listStmt);
   } else {
     assert(stmt->kind == VARLIST_KIND);
     __add_stmt(ps, stmt);
@@ -1150,7 +1181,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       Vector_ForEach(e, ids) {
         if (e->kind != ID_KIND) {
           Syntax_Error(ps, &e->pos, "needs an identifier");
-          Free_Stmt_Func(listStmt, NULL);
+          Free_Statement((Stmt *)listStmt);
           free_exprlist(ids);
           free_exprlist(exps);
           return NULL;
@@ -1333,7 +1364,7 @@ void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
   TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
   STable_Add_Alias(ps->u->stbl, aliasStmt->id.name, aliasStmt->desc);
   Log_Debug("add typealias '%s' successful", aliasStmt->id.name);
-  mm_free(stmt);
+  Mfree(stmt);
 }
 
 void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)

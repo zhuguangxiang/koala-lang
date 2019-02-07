@@ -87,7 +87,7 @@ static struct hlist_head *new_entries(int nr_entries)
 {
   struct hlist_head *entries;
 
-  entries = mm_alloc(nr_entries * sizeof(struct hlist_head));
+  entries = Malloc(nr_entries * sizeof(struct hlist_head));
   if (!entries)
     return NULL;
 
@@ -99,7 +99,7 @@ static struct hlist_head *new_entries(int nr_entries)
 
 static void free_entries(struct hlist_head *entries)
 {
-  mm_free(entries);
+  Mfree(entries);
 }
 
 int HashTable_Init(HashTable *table, hashfunc hash, equalfunc equal)
@@ -137,12 +137,12 @@ void HashTable_Fini(HashTable *table, visitfunc visit, void *arg)
 
 HashTable *HashTable_New(hashfunc hash, equalfunc equal)
 {
-  HashTable *table = mm_alloc(sizeof(HashTable));
+  HashTable *table = Malloc(sizeof(HashTable));
   if (!table)
     return NULL;
 
   if (HashTable_Init(table, hash, equal)) {
-    mm_free(table);
+    Mfree(table);
     return NULL;
   }
 
@@ -154,7 +154,7 @@ void HashTable_Free(HashTable *table, visitfunc fn, void *arg)
   if (!table)
     return;
   HashTable_Fini(table, fn, arg);
-  mm_free(table);
+  Mfree(table);
 }
 
 HashNode *__HashTable_Find(HashTable *table, uint32 hash, void *key)

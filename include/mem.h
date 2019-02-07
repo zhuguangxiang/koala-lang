@@ -39,14 +39,14 @@ typedef struct memstat {
 extern MemStat memstat;
 
 /* no gc memory allocator */
-#define mm_alloc(size)       \
+#define Malloc(size)         \
 ({                           \
   memstat.allocated += size; \
   memstat.used += size;      \
   calloc(1, size);           \
 })
 
-#define mm_free(ptr)              \
+#define Mfree(ptr)                \
 ({                                \
   if (ptr != NULL) {              \
     free(ptr);                    \
@@ -54,11 +54,11 @@ extern MemStat memstat;
   }                               \
 })
 
-void show_memstat(void);
+void Show_MemStat(void);
 
 /* gc memory allocator */
-void *gc_alloc(int size);
-void gc_free(void *ptr);
+void *GC_Malloc(int size);
+void GC_Mfree(void *ptr);
 
 #ifdef __cplusplus
 }

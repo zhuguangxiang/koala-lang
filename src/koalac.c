@@ -203,6 +203,6 @@ int main(int argc, char *argv[])
   Fini_TypeDesc();
   AtomString_Fini();
 
-  show_memstat();
+  Show_MemStat();
   return 0;
 }

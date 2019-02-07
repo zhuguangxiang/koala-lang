@@ -51,13 +51,13 @@ static void fini_pkgnode(PkgNode *node)
 
 static inline PkgNode *pkgnode_new(void)
 {
-  return mm_alloc(sizeof(PkgNode));
+  return Malloc(sizeof(PkgNode));
 }
 
 static inline void pkgnode_free(PkgNode *node)
 {
   fini_pkgnode(node);
-  mm_free(node);
+  Mfree(node);
 }
 
 static uint32 __n_hash(PkgNode *n)

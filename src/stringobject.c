@@ -77,12 +77,12 @@ Object *String_New(char *str)
   if (AtomString_Find(str, &s)) {
     Log_Debug("find '%s' in atom string", str);
     size = sizeof(StringObject);
-    sob = mm_alloc(size);
+    sob = Malloc(size);
     sob->str = s.str;
   } else {
     int datasize = strlen(str) + 1;
     size = sizeof(StringObject) + datasize;
-    sob = mm_alloc(size);
+    sob = Malloc(size);
     sob->str = sob->data;
     strcpy(sob->str, str);
   }
@@ -100,7 +100,7 @@ void String_Free(Object *ob)
   StringObject *sob = (StringObject *)ob;
   __remove_strobj(sob);
   Log_Debug("free string: '%s'", sob->str);
-  mm_free(ob);
+  Mfree(ob);
 }
 
 char *String_RawString(Object *ob)

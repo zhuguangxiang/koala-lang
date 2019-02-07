@@ -12,7 +12,7 @@ void test_typedesc(void)
 
   TypeDesc *type;
 
-  type = TypeDesc_Get_Basic(BASIC_INT);
+  type = TypeDesc_Get_Base(BASE_INT);
   TypeDesc_ToString(type, buf);
   assert(!strcmp("int", buf));
   //TYPE_INCREF(type);
@@ -26,21 +26,21 @@ void test_typedesc(void)
   TypeDesc_ToString(type, buf);
   assert(!strcmp("[][]lang.Tuple", buf));
 
-  type = TypeDesc_Get_Basic(BASIC_INT);
+  type = TypeDesc_Get_Base(BASE_INT);
   //TYPE_INCREF(type);
   Vector *arg = Vector_New();
   type = TypeDesc_Get_Array(1, type);
   TYPE_INCREF(type);
   Vector_Append(arg, type);
-  type = TypeDesc_Get_Basic(BASIC_STRING);
+  type = TypeDesc_Get_Base(BASE_STRING);
   TYPE_INCREF(type);
   Vector_Append(arg, type);
 
   Vector *ret = Vector_New();
-  type = TypeDesc_Get_Basic(BASIC_INT);
+  type = TypeDesc_Get_Base(BASE_INT);
   TYPE_INCREF(type);
   Vector_Append(ret, type);
-  type = TypeDesc_Get_Basic(BASIC_STRING);
+  type = TypeDesc_Get_Base(BASE_STRING);
   TYPE_INCREF(type);
   Vector_Append(ret, type);
 

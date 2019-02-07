@@ -64,7 +64,7 @@ static struct frame *frame_new(KoalaState *ks, CodeObject *code)
     size = Vector_Size(&code->kf.locvec);
 
   int objsz = sizeof(struct frame) + size * sizeof(Object *);
-  struct frame *frame = mm_alloc(objsz);
+  struct frame *frame = Malloc(objsz);
   frame->code = code;
   frame->ks = ks;
   frame->pc = -1;
@@ -78,7 +78,7 @@ static void frame_free(struct frame *frame)
 {
   for (int i = 0; i < frame->size; i++)
     OB_DECREF(frame->locvars[i]);
-  mm_free(frame);
+  Mfree(frame);
 }
 
 static void goto_up_frame(struct frame *frame)
@@ -344,7 +344,7 @@ int Koala_Run_Code(KoalaState *ks, Object *code, Object *ob, Object *args)
 
 KoalaState *KoalaState_New(void)
 {
-  KoalaState *ks = mm_alloc(sizeof(KoalaState));
+  KoalaState *ks = Malloc(sizeof(KoalaState));
   init_list_head(&ks->ksnode);
   ks->gs = &gState;
   list_add_tail(&ks->ksnode, &ks->gs->kslist);

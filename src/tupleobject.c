@@ -32,7 +32,7 @@ LOGGER(0)
 Object *Tuple_New(int size)
 {
   int sz = sizeof(TupleObject) + size * sizeof(Object *);
-  TupleObject *tuple = gc_alloc(sz);
+  TupleObject *tuple = GC_Malloc(sz);
   assert(tuple);
   Init_Object_Head(tuple, &Tuple_Klass);
   tuple->size = size;
@@ -51,7 +51,7 @@ void Tuple_Free(Object *ob)
     if (tmp != NULL)
       OB_DECREF(tmp);
   }
-  gc_free(ob);
+  GC_Mfree(ob);
 }
 
 Object *Tuple_Get(Object *ob, int index)
@@ -181,7 +181,7 @@ static Object *tuple_tostring(Object *ob)
   char *data = Buffer_RawData(&buf);
   Buffer_Fini(&buf);
   s = String_New(data);
-  mm_free(data);
+  Mfree(data);
   return s;
 }
 

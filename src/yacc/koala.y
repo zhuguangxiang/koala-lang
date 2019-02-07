@@ -342,11 +342,11 @@ SetType
 KeyType
   : INTEGER
   {
-    $$ = TypeDesc_Get_Basic(BASIC_INT);
+    $$ = TypeDesc_Get_Base(BASE_INT);
   }
   | STRING
   {
-    $$ = TypeDesc_Get_Basic(BASIC_STRING);
+    $$ = TypeDesc_Get_Base(BASE_STRING);
   }
   | KlassType
   {
@@ -357,35 +357,35 @@ KeyType
 PrimitiveType
   : BYTE
   {
-    $$ = TypeDesc_Get_Basic(BASIC_BYTE);
+    $$ = TypeDesc_Get_Base(BASE_BYTE);
   }
   | CHAR
   {
-    $$ = TypeDesc_Get_Basic(BASIC_CHAR);
+    $$ = TypeDesc_Get_Base(BASE_CHAR);
   }
   | INTEGER
   {
-    $$ = TypeDesc_Get_Basic(BASIC_INT);
+    $$ = TypeDesc_Get_Base(BASE_INT);
   }
   | FLOAT
   {
-    $$ = TypeDesc_Get_Basic(BASIC_FLOAT);
+    $$ = TypeDesc_Get_Base(BASE_FLOAT);
   }
   | BOOL
   {
-    $$ = TypeDesc_Get_Basic(BASIC_BOOL);
+    $$ = TypeDesc_Get_Base(BASE_BOOL);
   }
   | STRING
   {
-    $$ = TypeDesc_Get_Basic(BASIC_STRING);
+    $$ = TypeDesc_Get_Base(BASE_STRING);
   }
   | ERROR
   {
-    $$ = TypeDesc_Get_Basic(BASIC_ERROR);
+    $$ = TypeDesc_Get_Base(BASE_ERROR);
   }
   | ANY
   {
-    $$ = TypeDesc_Get_Basic(BASIC_ANY);
+    $$ = TypeDesc_Get_Base(BASE_ANY);
   }
   ;
 
@@ -1784,9 +1784,11 @@ RangeExpression
   }
   | LogicOrExpression ELLIPSIS LogicOrExpression
   {
+    $$ = NULL;
   }
   | LogicOrExpression DOTDOTLESS LogicOrExpression
   {
+    $$ = NULL;
   }
   ;
 
@@ -1797,7 +1799,7 @@ WithExpression
   }
   | RangeExpression Traits
   {
-    $$ = $1;
+    $$ = NULL;
   }
   ;
 

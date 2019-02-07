@@ -114,7 +114,7 @@ typedef struct parserunit {
 } ParserUnit;
 
 /* max errors before stopping compiling */
-#define MAX_ERRORS 8
+#define MAX_ERRORS 5
 
 #define STATE_NONE 0
 #define STATE_BUILDING_AST 1
@@ -153,10 +153,6 @@ typedef struct parserstate {
   /* link ParserUnit */
   struct list_head ustack;
 
-  /* optimization level */
-  short olevel;
-  /* warning level */
-  short wlevel;
   /* number of errors */
   int errnum;
   /* error messages */
@@ -172,6 +168,8 @@ int Parse_AST(ParserState *ps);
 void Destroy_Parser(ParserState *ps);
 void Check_Unused_Imports(ParserState *ps);
 void Check_Unused_Symbols(ParserState *ps);
+
+extern const char *scope_strings[];
 
 /* yacc(bison) used APIs */
 void Init_Imports(ParserState *ps);

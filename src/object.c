@@ -114,7 +114,7 @@ static int objectsize(Klass *klazz)
 
 static Object *object_alloc(Klass *klazz)
 {
-  Object *ob = gc_alloc(objectsize(klazz));
+  Object *ob = GC_Malloc(objectsize(klazz));
   Init_Object_Head(ob, klazz);
   return ob;
 }
@@ -122,7 +122,7 @@ static Object *object_alloc(Klass *klazz)
 static void object_free(Object *ob)
 {
   Log_Debug("object of '%s' is freed", OB_KLASS(ob)->name);
-  gc_free(ob);
+  GC_Mfree(ob);
 }
 
 static uint32 object_hash(Object *ob)
@@ -144,7 +144,7 @@ static Object *object_tostring(Object *ob)
 
 static LRONode *LRONode_New(int offset, Klass *klazz)
 {
-  LRONode *node = mm_alloc(sizeof(LRONode));
+  LRONode *node = Malloc(sizeof(LRONode));
   node->offset = offset;
   node->klazz  = klazz;
   return node;
@@ -205,7 +205,7 @@ static void lro_debug(Klass *klazz)
 
 Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 {
-  Klass *klazz = gc_alloc(sizeof(Klass));
+  Klass *klazz = GC_Malloc(sizeof(Klass));
   Init_Object_Head(klazz, type);
   klazz->name = strdup(name);
   klazz->basesize = sizeof(Object);
@@ -227,7 +227,7 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 
 static void free_lronode_func(void *item, void *arg)
 {
-  mm_free(item);
+  Mfree(item);
 }
 
 static void free_memberdef_func(HashNode *hnode, void *arg)
@@ -255,8 +255,8 @@ void Klass_Free(Klass *klazz)
 {
   Fini_Klass(klazz);
   Log_Debug("Klass '%s' is freed", klazz->name);
-  mm_free(klazz->name);
-  gc_free(klazz);
+  Mfree(klazz->name);
+  GC_Mfree(klazz);
 }
 
 void Fini_Klass(Klass *klazz)
@@ -431,7 +431,7 @@ int Object_Print(char *buf, int size, Object *ob)
 
 MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k)
 {
-  MemberDef *member = mm_alloc(sizeof(MemberDef));
+  MemberDef *member = Malloc(sizeof(MemberDef));
   assert(member);
   Init_HashNode(&member->hnode, member);
   member->kind = kind;
@@ -446,7 +446,7 @@ MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k)
 void MemberDef_Free(MemberDef *m)
 {
   TYPE_DECREF(m->desc);
-  mm_free(m);
+  Mfree(m);
 }
 
 /* hash function of MemberDef, simply use it's name as key */

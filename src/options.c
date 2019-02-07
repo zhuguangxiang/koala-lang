@@ -28,7 +28,7 @@ LOGGER(0)
 
 struct namevalue *namevalue_new(char *name, char *value)
 {
-  struct namevalue *nv = mm_alloc(sizeof(struct namevalue));
+  struct namevalue *nv = Malloc(sizeof(struct namevalue));
   assert(nv != NULL);
   nv->name = name;
   nv->value = value;
@@ -37,9 +37,9 @@ struct namevalue *namevalue_new(char *name, char *value)
 
 void namevalue_free(struct namevalue *nv)
 {
-  mm_free(nv->name);
-  mm_free(nv->value);
-  mm_free(nv);
+  Mfree(nv->name);
+  Mfree(nv->value);
+  Mfree(nv);
 }
 
 struct namevalue *parse_namevalue(char *opt, Options *opts, char *prog)
@@ -127,7 +127,7 @@ int init_options(Options *opts, void (*usage)(char *), void (*version)(void))
 
 static void free_string_func(void *item, void *arg)
 {
-  mm_free(item);
+  Mfree(item);
 }
 
 static void free_namevalue_func(void *item, void *arg)
@@ -137,8 +137,8 @@ static void free_namevalue_func(void *item, void *arg)
 
 void fini_options(Options *opts)
 {
-  mm_free(opts->srcpath);
-  mm_free(opts->outpath);
+  Mfree(opts->srcpath);
+  Mfree(opts->outpath);
 
   Vector_Fini(&opts->pathes, free_string_func, NULL);
   Vector_Fini(&opts->nvs, free_namevalue_func, NULL);
@@ -177,7 +177,7 @@ void options_toarray(Options *opts, char *array[], int ind)
   struct namevalue *nv;
   Vector_ForEach(nv, &opts->nvs) {
     array[ind++] = strdup("-D");
-    buf = mm_alloc(strlen(nv->name) + strlen(nv->value) + 2);
+    buf = Malloc(strlen(nv->name) + strlen(nv->value) + 2);
     sprintf(buf, "%s=%s", nv->name, nv->value);
     array[ind++] = buf;
   }

@@ -26,7 +26,7 @@
 AtomTable *AtomTable_New(int size, hashfunc hash, equalfunc equal)
 {
   int msz = sizeof(AtomTable) + size * sizeof(Vector);
-  AtomTable *table = mm_alloc(msz);
+  AtomTable *table = Malloc(msz);
   assert(table);
   HashTable_Init(&table->table, hash, equal);
   table->size = size;
@@ -51,7 +51,7 @@ static void __atomentry_free_fn(HashNode *hnode, void *arg)
 {
   UNUSED_PARAMETER(arg);
   AtomEntry *e = container_of(hnode, AtomEntry, hnode);
-  mm_free(e);
+  Mfree(e);
 }
 
 void AtomTable_Free(AtomTable *table, atomvisitfunc fn, void *arg)
@@ -66,12 +66,12 @@ void AtomTable_Free(AtomTable *table, atomvisitfunc fn, void *arg)
   }
 
   HashTable_Fini(&table->table, __atomentry_free_fn, NULL);
-  mm_free(table);
+  Mfree(table);
 }
 
 static AtomEntry *atomentry_new(int type, int index, void *data)
 {
-  AtomEntry *e = mm_alloc(sizeof(AtomEntry));
+  AtomEntry *e = Malloc(sizeof(AtomEntry));
   Init_HashNode(&e->hnode, e);
   e->type  = type;
   e->index = index;
