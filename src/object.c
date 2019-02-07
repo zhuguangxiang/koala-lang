@@ -21,6 +21,7 @@
  */
 
 #include "hashfunc.h"
+#include "stringex.h"
 #include "mem.h"
 #include "log.h"
 #include "stringobject.h"
@@ -207,7 +208,7 @@ Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type)
 {
   Klass *klazz = GC_Malloc(sizeof(Klass));
   Init_Object_Head(klazz, type);
-  klazz->name = strdup(name);
+  klazz->name = string_dup(name);
   klazz->basesize = sizeof(Object);
   klazz->itemsize = 0;
 

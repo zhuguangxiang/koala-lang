@@ -22,6 +22,7 @@
 
 #include "options.h"
 #include "mem.h"
+#include "stringex.h"
 #include "log.h"
 
 LOGGER(0)
@@ -51,7 +52,7 @@ struct namevalue *parse_namevalue(char *opt, Options *opts, char *prog)
     opts->usage(prog);
     exit(0);
   }
-  return namevalue_new(strndup(name, eq - name), strdup(eq + 1));
+  return namevalue_new(strndup(name, eq - name), string_dup(eq + 1));
 }
 
 void parse_options(int argc, char *argv[], Options *opts)
@@ -73,13 +74,13 @@ void parse_options(int argc, char *argv[], Options *opts)
       Vector_Append(&opts->pathes, optarg);
     break;
     case 'o':
-      opts->outpath = strdup(optarg);
+      opts->outpath = string_dup(optarg);
     break;
     case 'D':
       Vector_Append(&opts->nvs, parse_namevalue(optarg, opts, argv[0]));
     break;
     case 'e':
-      opts->encoding = strdup(optarg);
+      opts->encoding = string_dup(optarg);
     break;
     case 'v':
       opts->version();
@@ -104,7 +105,7 @@ void parse_options(int argc, char *argv[], Options *opts)
       opts->usage(argv[0]);
       exit(0);
     }
-    Vector_Append(&opts->names, strdup(argv[optind++]));
+    Vector_Append(&opts->names, string_dup(argv[optind++]));
   }
 
   if (Vector_Size(&opts->names) == 0) {
@@ -158,25 +159,25 @@ int options_number(Options *opts)
 void options_toarray(Options *opts, char *array[], int ind)
 {
   if (opts->srcpath != NULL) {
-    array[ind++] = strdup("-s");
-    array[ind++] = strdup(opts->srcpath);
+    array[ind++] = string_dup("-s");
+    array[ind++] = string_dup(opts->srcpath);
   }
 
   char *path;
   Vector_ForEach(path, &opts->pathes) {
-    array[ind++] = strdup("-p");
-    array[ind++] = strdup(path);
+    array[ind++] = string_dup("-p");
+    array[ind++] = string_dup(path);
   }
 
   if (opts->outpath != NULL) {
-    array[ind++] = strdup("-o");
-    array[ind++] = strdup(opts->outpath);
+    array[ind++] = string_dup("-o");
+    array[ind++] = string_dup(opts->outpath);
   }
 
   char *buf;
   struct namevalue *nv;
   Vector_ForEach(nv, &opts->nvs) {
-    array[ind++] = strdup("-D");
+    array[ind++] = string_dup("-D");
     buf = Malloc(strlen(nv->name) + strlen(nv->value) + 2);
     sprintf(buf, "%s=%s", nv->name, nv->value);
     array[ind++] = buf;

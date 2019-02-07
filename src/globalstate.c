@@ -22,6 +22,7 @@
 
 #include "globalstate.h"
 #include "eval.h"
+#include "stringex.h"
 #include "mem.h"
 #include "hashfunc.h"
 #include "tupleobject.h"
@@ -281,7 +282,7 @@ Object *Koala_Load_Package(char *path)
   }
   char *lastslash = strrchr(path, '/');
   if (lastslash != NULL)
-    path = strndup(path, lastslash - path);
+    path = string_ndup(path, lastslash - path);
   else
     path = "";
   Koala_Add_Package(path, pkg);

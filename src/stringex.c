@@ -106,3 +106,10 @@ char *string_dup(char *str)
   strcpy(s, str);
   return s;
 }
+
+char *string_ndup(char *str, int len)
+{
+  char *s = Malloc(len + 1);
+  strncpy(s, str, len);
+  return s;
+}

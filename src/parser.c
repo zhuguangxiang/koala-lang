@@ -23,6 +23,7 @@
 
 #include "parser.h"
 #include "koala_lex.h"
+#include "stringex.h"
 #include "mem.h"
 #include "log.h"
 
@@ -223,7 +224,7 @@ void Parser_Exit_Scope(ParserState *ps)
 ParserState *New_Parser(PkgInfo *pkg, char *filename)
 {
   ParserState *ps = Malloc(sizeof(ParserState));
-  ps->filename = strdup(filename);
+  ps->filename = string_dup(filename);
   ps->pkg = pkg;
 
   Vector_Init(&ps->stmts);

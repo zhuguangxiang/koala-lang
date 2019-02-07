@@ -22,6 +22,7 @@
 
 #include "atomstring.h"
 #include "hashtable.h"
+#include "stringex.h"
 #include "mem.h"
 
 typedef struct {
@@ -67,7 +68,7 @@ int AtomString_Find(char *str, String *s)
 String AtomString_New_NString(char *str, int len)
 {
   String s;
-  char *tmp = strndup(str, len);
+  char *tmp = string_ndup(str, len);
   s = AtomString_New(tmp);
   Mfree(tmp);
   return s;
@@ -86,7 +87,7 @@ String AtomString_New(char *str)
 
 String AtomString_New_NStr(char *str, int len)
 {
-  char *zstr = strndup(str, len);
+  char *zstr = string_ndup(str, len);
   String s = AtomString_New(zstr);
   Mfree(zstr);
   return s;

@@ -22,6 +22,7 @@
 
 #include "image.h"
 #include "hashfunc.h"
+#include "stringex.h"
 #include "mem.h"
 #include "log.h"
 
@@ -1699,7 +1700,7 @@ static FILE *open_image_file(char *path, char *mode)
   FILE *fp = fopen(path, mode);
   if (fp == NULL) {
     char *end = strrchr(path, '/');
-    char *dir = strndup(path, end - path);
+    char *dir = string_ndup(path, end - path);
     char *fmt = "mkdir -p %s";
     char *cmd = Malloc(strlen(fmt) + strlen(dir));
     sprintf(cmd, fmt, dir);

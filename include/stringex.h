@@ -32,6 +32,7 @@ extern "C" {
 char *string_trim(char *str);
 int string_to_int64(char *str, int64 *rval);
 char *string_dup(char *str);
+char *string_ndup(char *str, int len);
 
 #ifdef __cplusplus
 }
