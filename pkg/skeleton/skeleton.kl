@@ -49,6 +49,8 @@ var v5, v6 = sub(1, 2)
 
 var v7, v8 int = sub(1, 2)
 
+var vv1 = 1 + 2 - 3
+
 //function
 func add(a int, b int) int {
   aa := "how are you?"

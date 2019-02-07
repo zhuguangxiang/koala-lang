@@ -259,7 +259,7 @@ static void code_int_expr(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
+  assert(baseExp->ctx == EXPR_LOAD);
 
   Argument val = {.kind = ARG_INT, .ival = baseExp->ival};
   Inst_Append(u->block, OP_LOADK, &val);
@@ -269,7 +269,7 @@ static void code_float_expr(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
+  assert(baseExp->ctx == EXPR_LOAD);
 
   Argument val = {.kind = ARG_FLOAT, .fval = baseExp->fval};
   Inst_Append(u->block, OP_LOADK, &val);
@@ -279,7 +279,7 @@ static void code_bool_expr(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
+  assert(baseExp->ctx == EXPR_LOAD);
 
   Argument val = {.kind = ARG_BOOL, .fval = baseExp->bval};
   Inst_Append(u->block, OP_LOADK, &val);
@@ -289,7 +289,7 @@ static void code_string_expr(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
+  assert(baseExp->ctx == EXPR_LOAD);
 
   Argument val = {.kind = ARG_STR, .str = baseExp->str};
   Inst_Append(u->block, OP_LOADK, &val);
@@ -299,22 +299,11 @@ static void code_char_expr(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
+  assert(baseExp->ctx == EXPR_LOAD);
 
   Argument val = {.kind = ARG_UCHAR, .uch = baseExp->ch};
   Inst_Append(u->block, OP_LOADK, &val);
 }
-
-void Parse_Ident_Expr(ParserState *ps, Expr *exp);
-void Code_Ident_Expr(ParserState *ps, Expr *exp);
-
-void Parse_Unary_Expr(ParserState *ps, Expr *exp);
-void Code_Unary_Expr(ParserState *ps, Expr *exp);
-
-void Parse_Binary_Expr(ParserState *ps, Expr *exp);
-void Code_Binary_Expr(ParserState *ps, Expr *exp);
-
-static inline void parse_expression(ParserState *ps, Expr *exp);
 
 static void parse_self_expr(ParserState *ps, Expr *exp)
 {
@@ -387,14 +376,14 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
   Expr *e;
   Vector_ForEach_Reverse(e, callExp->args) {
     e->ctx = EXPR_LOAD;
-    parse_expression(ps, e);
+    Parse_Expression(ps, e);
   }
 
   /* parse left expression */
   lexp->ctx = EXPR_LOAD;
   lexp->right = exp;
   lexp->argc = Vector_Size(callExp->args);
-  parse_expression(ps, lexp);
+  Parse_Expression(ps, lexp);
   if (lexp->sym == NULL)
     return;
 
@@ -420,8 +409,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
     proto = ((FuncSymbol *)__init__)->desc;
   } else {
     /* var(func type), func, ifunc and nfunc */
-    Log_Debug("call (var(proto)/interface/native) function '%s'",
-              exp->sym->name);
+    Log_Debug("call var(proto)/interface/native function '%s'", exp->sym->name);
     proto = exp->desc;
   }
 
@@ -493,8 +481,8 @@ static struct expr_func_s {
   { Parse_Ident_Expr,     Code_Ident_Expr },            /* ID_KIND         */
   { Parse_Unary_Expr,     Code_Unary_Expr },            /* UNARY_KIND      */
   { Parse_Binary_Expr,    Code_Binary_Expr },           /* BINARY_KIND     */
-  { parse_attribute_expr, NULL},                        /* ATTRIBUTE_KIND  */
-  { parse_subscript_expr, NULL},                        /* SUBSCRIPT_KIND  */
+  { parse_attribute_expr, NULL },                       /* ATTRIBUTE_KIND  */
+  { parse_subscript_expr, NULL },                       /* SUBSCRIPT_KIND  */
   { parse_call_expr,      code_call_expr },             /* CALL_KIND       */
   { parse_slice_expr,     NULL },                       /* SLICE_KIND      */
   { parse_list_expr,      NULL },                       /* ARRAY_LIST_KIND */
@@ -506,7 +494,7 @@ static struct expr_func_s {
   { parse_anonymous_expr, NULL },                       /* ANONY_FUNC_KIND */
 };
 
-static inline void parse_expression(ParserState *ps, Expr *exp)
+void Parse_Expression(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
   if (ps->errnum >= MAX_ERRORS)
@@ -517,7 +505,7 @@ static inline void parse_expression(ParserState *ps, Expr *exp)
     parse(ps, exp);
 }
 
-static inline void code_expression(ParserState *ps, Expr *exp)
+void Code_Expression(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
   if (ps->errnum >= MAX_ERRORS)
@@ -528,7 +516,8 @@ static inline void code_expression(ParserState *ps, Expr *exp)
     code(ps, exp);
 }
 
-/* visiting expr has two stage:
+/*
+ * visiting expr has two stage:
  * 1. parse expr
  * 2. generate code
  */

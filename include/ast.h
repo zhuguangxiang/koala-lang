@@ -164,6 +164,7 @@ typedef struct unaryexpr {
   EXPR_HEAD
   UnaryOpKind op;
   Expr *exp;
+  BaseExpr *val;
 } UnaryExpr;
 
 /* binary expression */
@@ -172,6 +173,7 @@ typedef struct binaryexpr {
   BinaryOpKind op;
   Expr *lexp;
   Expr *rexp;
+  BaseExpr *val;
 } BinaryExpr;
 
 Expr *Expr_From_Unary(UnaryOpKind op, Expr *exp);

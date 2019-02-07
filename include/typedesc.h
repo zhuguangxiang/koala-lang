@@ -107,7 +107,7 @@ void Fini_TypeDesc(void);
 /* base type */
 typedef struct basicdesc {
   TYPEDESC_HEAD
-  char type; /* one of BASE_XXX */
+  int type; /* one of BASE_XXX */
 } BaseDesc;
 
 /* class or trait */

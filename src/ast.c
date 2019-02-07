@@ -167,17 +167,19 @@ Expr *Expr_From_Ident(char *val)
 /* FIXME: unchanged variable, see parse_operator.c */
 int Expr_Is_Const(Expr *exp)
 {
-  ExprKind kind = exp->kind;
-
-  Symbol *sym = exp->sym;
-  if (kind == ID_KIND && sym->kind == SYM_CONST)
-    return 1;
-
-  if (kind != INT_KIND && kind != FLOAT_KIND &&
-      kind != STRING_KIND && kind != BOOL_KIND && kind != CHAR_KIND)
+  TypeDesc *desc = exp->desc;
+  assert(desc != NULL);
+  if (desc->kind != TYPE_BASE)
     return 0;
 
-  return 1;
+  BaseDesc *baseDesc = (BaseDesc *)desc;
+  int kind = baseDesc->type;
+
+  if (kind == BASE_BYTE || kind == BASE_CHAR || kind == BASE_INT ||
+      kind == BASE_FLOAT || kind == BASE_BOOL || kind == BASE_STRING)
+    return 1;
+
+  return 0;
 }
 
 Expr *Expr_From_Unary(UnaryOpKind op, Expr *exp)
@@ -407,6 +409,7 @@ static void free_unary_expr(Expr *exp)
 {
   UnaryExpr *unExp = (UnaryExpr *)exp;
   Free_Expr(unExp->exp);
+  Free_Expr((Expr *)unExp->val);
   Mfree(exp);
 }
 
@@ -415,6 +418,7 @@ static void free_binary_expr(Expr *exp)
   BinaryExpr *binExp = (BinaryExpr *)exp;
   Free_Expr(binExp->lexp);
   Free_Expr(binExp->rexp);
+  Free_Expr((Expr *)binExp->val);
   Mfree(exp);
 }
 

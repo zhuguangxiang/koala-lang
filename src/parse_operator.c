@@ -21,6 +21,9 @@
  */
 
 #include "parser.h"
+#include "log.h"
+
+LOGGER(0)
 
 /*
  * optimization:
@@ -29,40 +32,181 @@
  *  3. unchanged variable(local variable)
  */
 
-typedef void (*mark_expr_func)(ParserState *, Expr *);
-
-static mark_expr_func mark_expr_funcs[] = {
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-
+static const char *binary_strings[] = {
+  "<UNKNOWN>", "BINARY_ADD", "BINARY_SUB", "BINARY_MULT", "BINARY_DIV"
 };
 
-static void optimizer_visit_expr(ParserState *ps, Expr *exp)
+/* check type has this operator or not */
+static int __check_binary_expr(ParserState *ps, BinaryExpr *exp)
 {
-  /* if errors is greater than MAX_ERRORS, stop parsing */
-  if (ps->errnum >= MAX_ERRORS)
-    return;
+  /* FIXME */
+  return 1;
+}
 
-  switch (exp->kind) {
-  case INT_KIND:
+static const char *binary_ops[] = {
+  ".", "+", "-", "*", "/"
+};
+
+typedef void (*Optimize)(ParserState *, BinaryExpr *);
+
+static BaseExpr *__get_baseexpr(Expr *exp)
+{
+  ExprKind kind = exp->kind;
+
+  if (kind == BINARY_KIND) {
+    BinaryExpr *binExp = (BinaryExpr *)exp;
+    assert(binExp->val != NULL);
+    return binExp->val;
+  } else if (kind == UNARY_KIND) {
+    UnaryExpr *unExp = (UnaryExpr *)exp;
+    assert(unExp->val != NULL);
+    return unExp->val;
+  } else {
+    assert(kind == INT_KIND || kind == FLOAT_KIND || kind == BOOL_KIND ||
+           kind == STRING_KIND || kind == CHAR_KIND);
+    return (BaseExpr *)exp;
+  }
+}
+
+static void __optimize_int_add(ParserState *ps, BinaryExpr *exp)
+{
+  BaseExpr *lexp = __get_baseexpr(exp->lexp);
+  BaseExpr *rexp = __get_baseexpr(exp->rexp);
+
+  switch (rexp->kind) {
+  case INT_KIND: {
+    int64 val = lexp->ival + rexp->ival;
+    Log_Printf("(+ %lld %lld)\n", lexp->ival, rexp->ival);
+    exp->val = (BaseExpr *)Expr_From_Integer(val);
+    break;
+  }
   case FLOAT_KIND:
+    break;
   case BOOL_KIND:
+    break;
   case STRING_KIND:
+    break;
   case CHAR_KIND:
-    //exp->konst = 1;
     break;
   case ID_KIND:
-    /* maybe a constant */
-    break;
-  case UNARY_KIND:
-    break;
-  case BINARY_KIND:
     break;
   default:
-    /* silently pass */
+    assert(0);
     break;
+  }
+}
+
+static void __optimize_int_sub(ParserState *ps, BinaryExpr *exp)
+{
+  BaseExpr *lexp = __get_baseexpr(exp->lexp);
+  BaseExpr *rexp = __get_baseexpr(exp->rexp);
+
+  switch (rexp->kind) {
+  case INT_KIND: {
+    int64 val = lexp->ival - rexp->ival;
+    Log_Printf("(- %lld %lld)\n", lexp->ival, rexp->ival);
+    exp->val = (BaseExpr *)Expr_From_Integer(val);
+    break;
+  }
+  case FLOAT_KIND:
+    break;
+  case BOOL_KIND:
+    break;
+  case STRING_KIND:
+    break;
+  case CHAR_KIND:
+    break;
+  case ID_KIND:
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
+static void __optimize_int_mul(ParserState *ps, BinaryExpr *exp)
+{
+  BaseExpr *lexp = __get_baseexpr(exp->lexp);
+  BaseExpr *rexp = __get_baseexpr(exp->rexp);
+
+  switch (rexp->kind) {
+  case INT_KIND:
+    break;
+  case FLOAT_KIND:
+    break;
+  case BOOL_KIND:
+    break;
+  case STRING_KIND:
+    break;
+  case CHAR_KIND:
+    break;
+  case ID_KIND:
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
+static void __optimize_int_div(ParserState *ps, BinaryExpr *exp)
+{
+  BaseExpr *lexp = __get_baseexpr(exp->lexp);
+  BaseExpr *rexp = __get_baseexpr(exp->rexp);
+
+  switch (rexp->kind) {
+  case INT_KIND:
+    break;
+  case FLOAT_KIND:
+    break;
+  case BOOL_KIND:
+    break;
+  case STRING_KIND:
+    break;
+  case CHAR_KIND:
+    break;
+  case ID_KIND:
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
+static Optimize int_ops[] = {
+  NULL,
+  __optimize_int_add,
+  __optimize_int_sub,
+  __optimize_int_mul,
+  __optimize_int_div
+};
+
+typedef struct const_binary_optimizer {
+  int kind;
+  int size;
+  Optimize *ops;
+} BinaryOptimizer;
+
+static BinaryOptimizer biops[] = {
+  { BASE_BYTE,   nr_elts(int_ops), int_ops },
+  { BASE_CHAR,   nr_elts(int_ops), int_ops },
+  { BASE_INT,    nr_elts(int_ops), int_ops },
+  { BASE_FLOAT,  nr_elts(int_ops), int_ops },
+  { BASE_BOOL,   nr_elts(int_ops), int_ops },
+  { BASE_STRING, nr_elts(int_ops), int_ops },
+};
+
+/* optimize binary operation */
+static inline void __optimize_binary_expr(ParserState *ps, BinaryExpr *exp)
+{
+  BaseDesc *desc = (BaseDesc *)exp->desc;
+  BinaryOptimizer *optimizer;
+  for (int i = 0; i < nr_elts(biops); i++) {
+    optimizer = biops + i;
+    if (optimizer->kind == desc->type) {
+      assert(exp->op > 0 && exp->op < optimizer->size);
+      optimizer->ops[exp->op](ps, exp);
+      return;
+    }
   }
 }
 
@@ -70,11 +214,43 @@ static void optimizer_visit_expr(ParserState *ps, Expr *exp)
 void Parse_Binary_Expr(ParserState *ps, Expr *exp)
 {
   BinaryExpr *binExp = (BinaryExpr *)exp;
+  Log_Debug("binary: \x1b[34m%s\x1b[0m", binary_strings[binExp->op]);
+  Expr *lexp = binExp->lexp;
+  Expr *rexp = binExp->rexp;
+
+  lexp->ctx = EXPR_LOAD;
+  Parse_Expression(ps, lexp);
+  assert(lexp->desc != NULL);
+
+  rexp->ctx = EXPR_LOAD;
+  Parse_Expression(ps, rexp);
+  assert(rexp->desc != NULL);
+
+  if (exp->desc == NULL) {
+    char buf[64];
+    TypeDesc_ToString(lexp->desc, buf);
+    Log_Debug("update bianry expr's type:%s", buf);
+    exp->desc = lexp->desc;
+    TYPE_INCREF(exp->desc);
+  }
+
+  if (!__check_binary_expr(ps, binExp))
+    return;
+
+  if (Expr_Is_Const(lexp) && Expr_Is_Const(rexp))
+    __optimize_binary_expr(ps, binExp);
 }
 
 void Code_Binary_Expr(ParserState *ps, Expr *exp)
 {
+  BinaryExpr *binExp = (BinaryExpr *)exp;
+  Log_Debug("codegen binary: \x1b[34m%s\x1b[0m", binary_strings[binExp->op]);
 
+  if (binExp->val != NULL) {
+    Log_Debug("binary expr is optimized");
+    binExp->val->ctx = EXPR_LOAD;
+    Code_Expression(ps, (Expr *)binExp->val);
+  }
 }
 
 /* unary operator */
