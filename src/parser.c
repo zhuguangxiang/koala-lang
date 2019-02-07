@@ -249,18 +249,69 @@ void Destroy_Parser(ParserState *ps)
   Mfree(ps);
 }
 
-static int type_is_compatible(TypeDesc *t1, TypeDesc *t2)
+static int __type_is_compatible(TypeDesc *t1, TypeDesc *t2)
 {
   /* FIXME: class inheritance */
   return TypeDesc_Equal(t1, t2);
 }
 
-void Parse_Ident_Expr(ParserState *ps, Expr *exp);
-void Parse_Unary_Expr(ParserState *ps, Expr *exp);
-void Parse_Binary_Expr(ParserState *ps, Expr *exp);
+static void code_int_expr(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+  BaseExpr *baseExp = (BaseExpr *)exp;
+  assert(exp->ctx == EXPR_LOAD);
 
+  Argument val = {.kind = ARG_INT, .ival = baseExp->ival};
+  Inst_Append(u->block, OP_LOADK, &val);
+}
+
+static void code_float_expr(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+  BaseExpr *baseExp = (BaseExpr *)exp;
+  assert(exp->ctx == EXPR_LOAD);
+
+  Argument val = {.kind = ARG_FLOAT, .fval = baseExp->fval};
+  Inst_Append(u->block, OP_LOADK, &val);
+}
+
+static void code_bool_expr(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+  BaseExpr *baseExp = (BaseExpr *)exp;
+  assert(exp->ctx == EXPR_LOAD);
+
+  Argument val = {.kind = ARG_BOOL, .fval = baseExp->bval};
+  Inst_Append(u->block, OP_LOADK, &val);
+}
+
+static void code_string_expr(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+  BaseExpr *baseExp = (BaseExpr *)exp;
+  assert(exp->ctx == EXPR_LOAD);
+
+  Argument val = {.kind = ARG_STR, .str = baseExp->str};
+  Inst_Append(u->block, OP_LOADK, &val);
+}
+
+static void code_char_expr(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+  BaseExpr *baseExp = (BaseExpr *)exp;
+  assert(exp->ctx == EXPR_LOAD);
+
+  Argument val = {.kind = ARG_UCHAR, .uch = baseExp->ch};
+  Inst_Append(u->block, OP_LOADK, &val);
+}
+
+void Parse_Ident_Expr(ParserState *ps, Expr *exp);
 void Code_Ident_Expr(ParserState *ps, Expr *exp);
+
+void Parse_Unary_Expr(ParserState *ps, Expr *exp);
 void Code_Unary_Expr(ParserState *ps, Expr *exp);
+
+void Parse_Binary_Expr(ParserState *ps, Expr *exp);
 void Code_Binary_Expr(ParserState *ps, Expr *exp);
 
 static inline void parse_expression(ParserState *ps, Expr *exp);
@@ -285,7 +336,7 @@ static void parse_subscript_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
-static int check_expr_types(Vector *descs, Vector *exps)
+static int __check_expr_types(Vector *descs, Vector *exps)
 {
   /* FIXME: optimize this checker */
   int ndesc = Vector_Size(descs);
@@ -305,11 +356,11 @@ static int check_expr_types(Vector *descs, Vector *exps)
   return 1;
 }
 
-static int check_call_arguments(TypeDesc *desc, Vector *args)
+static int __check_call_arguments(TypeDesc *desc, Vector *args)
 {
   assert(desc->kind == TYPE_PROTO);
   ProtoDesc *proto = (ProtoDesc *)desc;
-  return check_expr_types(proto->arg, args);
+  return __check_expr_types(proto->arg, args);
 }
 
 static void parse_call_expr(ParserState *ps, Expr *exp)
@@ -376,11 +427,16 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
 
   assert(proto->kind == TYPE_PROTO);
 
-  if (!check_call_arguments(proto, callExp->args)) {
+  if (!__check_call_arguments(proto, callExp->args)) {
     Syntax_Error(ps, &lexp->pos,
                  "argument of function '%s' are not matched", exp->sym->name);
     return;
   }
+}
+
+static void code_call_expr(ParserState *ps, Expr *exp)
+{
+
 }
 
 static void parse_slice_expr(ParserState *ps, Expr *exp)
@@ -419,91 +475,35 @@ static void parse_anonymous_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
-static void code_int_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
+typedef void (*expr_func)(ParserState *, Expr *);
 
-  Argument val = {.kind = ARG_INT, .ival = baseExp->ival};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_float_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_FLOAT, .fval = baseExp->fval};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_bool_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_BOOL, .fval = baseExp->bval};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_string_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_STR, .str = baseExp->str};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_char_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(exp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_UCHAR, .uch = baseExp->ch};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_call_expr(ParserState *ps, Expr *exp)
-{
-
-}
-
-typedef void (*expr_parse_func)(ParserState *, Expr *);
-typedef void (*expr_code_func)(ParserState *, Expr *);
-
-static struct expr_func {
-  expr_parse_func parse;
-  expr_code_func code;
+static struct expr_func_s {
+  expr_func parse;
+  expr_func code;
 } expr_funcs[] = {
-  { NULL, NULL }, /* INVALID  */
-  { NULL, NULL }, /* NIL_KIND */
-  { parse_self_expr,  NULL }, /* SELF_KIND   */
-  { parse_super_expr, NULL }, /* SUPER_KIND  */
-  { NULL, code_int_expr    }, /* INT_KIND    */
-  { NULL, code_float_expr  }, /* FLOAT_KIND  */
-  { NULL, code_bool_expr   }, /* BOOL_KIND   */
-  { NULL, code_string_expr }, /* STRING_KIND */
-  { NULL, code_char_expr   }, /* CHAR_KIND   */
-  { Parse_Ident_Expr,     Code_Ident_Expr },  /* ID_KIND          */
-  { Parse_Unary_Expr,     Code_Unary_Expr },  /* UNARY_KIND       */
-  { Parse_Binary_Expr,    Code_Binary_Expr }, /* BINARY_KIND      */
-  { parse_attribute_expr, NULL},              /* ATTRIBUTE_KIND   */
-  { parse_subscript_expr, NULL},              /* SUBSCRIPT_KIND   */
-  { parse_call_expr,      code_call_expr },   /* CALL_KIND        */
-  { parse_slice_expr,     NULL },      /* SLICE_KIND       */
-  { parse_list_expr,      NULL },      /* ARRAY_LIST_KIND  */
-  { parse_list_expr,      NULL },      /* MAP_LIST_KIND    */
-  { parse_mapentry_expr,  NULL },      /* MAP_ENTRY_KIND   */
-  { parse_array_expr,     NULL },      /* ARRAY_KIND       */
-  { parse_map_expr,       NULL },      /* MAP_KIND         */
-  { parse_set_expr,       NULL },      /* SET_KIND         */
-  { parse_anonymous_expr, NULL },      /* ANONY_FUNC_KIND  */
+  { NULL, NULL },                                       /* INVALID         */
+  { NULL, NULL },                                       /* NIL_KIND        */
+  { parse_self_expr,  NULL },                           /* SELF_KIND       */
+  { parse_super_expr, NULL },                           /* SUPER_KIND      */
+  { NULL, code_int_expr    },                           /* INT_KIND        */
+  { NULL, code_float_expr  },                           /* FLOAT_KIND      */
+  { NULL, code_bool_expr   },                           /* BOOL_KIND       */
+  { NULL, code_string_expr },                           /* STRING_KIND     */
+  { NULL, code_char_expr   },                           /* CHAR_KIND       */
+  { Parse_Ident_Expr,     Code_Ident_Expr },            /* ID_KIND         */
+  { Parse_Unary_Expr,     Code_Unary_Expr },            /* UNARY_KIND      */
+  { Parse_Binary_Expr,    Code_Binary_Expr },           /* BINARY_KIND     */
+  { parse_attribute_expr, NULL},                        /* ATTRIBUTE_KIND  */
+  { parse_subscript_expr, NULL},                        /* SUBSCRIPT_KIND  */
+  { parse_call_expr,      code_call_expr },             /* CALL_KIND       */
+  { parse_slice_expr,     NULL },                       /* SLICE_KIND      */
+  { parse_list_expr,      NULL },                       /* ARRAY_LIST_KIND */
+  { parse_list_expr,      NULL },                       /* MAP_LIST_KIND   */
+  { parse_mapentry_expr,  NULL },                       /* MAP_ENTRY_KIND  */
+  { parse_array_expr,     NULL },                       /* ARRAY_KIND      */
+  { parse_map_expr,       NULL },                       /* MAP_KIND        */
+  { parse_set_expr,       NULL },                       /* SET_KIND        */
+  { parse_anonymous_expr, NULL },                       /* ANONY_FUNC_KIND */
 };
 
 static inline void parse_expression(ParserState *ps, Expr *exp)
@@ -512,7 +512,7 @@ static inline void parse_expression(ParserState *ps, Expr *exp)
   if (ps->errnum >= MAX_ERRORS)
     return;
   assert(exp->kind > 0 && exp->kind < nr_elts(expr_funcs));
-  expr_parse_func parse = (expr_funcs + exp->kind)->parse;
+  expr_func parse = (expr_funcs + exp->kind)->parse;
   if (parse != NULL)
     parse(ps, exp);
 }
@@ -523,7 +523,7 @@ static inline void code_expression(ParserState *ps, Expr *exp)
   if (ps->errnum >= MAX_ERRORS)
     return;
   assert(exp->kind > 0 && exp->kind < nr_elts(expr_funcs));
-  expr_code_func code = (expr_funcs + exp->kind)->code;
+  expr_func code = (expr_funcs + exp->kind)->code;
   if (code != NULL)
     code(ps, exp);
 }
@@ -535,7 +535,7 @@ static inline void code_expression(ParserState *ps, Expr *exp)
 static inline void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   assert(exp->kind > 0 && exp->kind < nr_elts(expr_funcs));
-  struct expr_func *func = expr_funcs + exp->kind;
+  struct expr_func_s *func = expr_funcs + exp->kind;
   if (ps->errnum < MAX_ERRORS && func->parse != NULL)
     func->parse(ps, exp);
   if (ps->errnum < MAX_ERRORS && func->code != NULL)
@@ -693,7 +693,7 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
 
     if (type->desc != NULL) {
       /* check type equals or not */
-      if (!type_is_compatible(type->desc, rdesc)) {
+      if (!__type_is_compatible(type->desc, rdesc)) {
         Syntax_Error(ps, &rexp->pos,
                      "right expression's type is not compatible");
         return;
@@ -769,7 +769,7 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
     TypeDesc *vdesc = varListStmt->type.desc;
     TypeDesc *desc;
     Vector_ForEach(desc, proto->ret) {
-      if (!type_is_compatible(vdesc, desc)) {
+      if (!__type_is_compatible(vdesc, desc)) {
         Syntax_Error(ps, &rexp->pos,
                      "right expression's type is not compatible");
         return;
@@ -839,7 +839,7 @@ static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
   }
 
   TypeDesc *ldesc = lexp->desc;
-  if (!type_is_compatible(ldesc, rdesc)) {
+  if (!__type_is_compatible(ldesc, rdesc)) {
     Syntax_Error(ps, &rexp->pos, "right expression's type is not compatible");
     return;
   }
@@ -878,7 +878,7 @@ static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
     e->ctx = EXPR_STORE;
     parser_visit_expr(ps, e);
     desc = Vector_Get(proto->ret, i);
-    if (!type_is_compatible(e->desc, desc)) {
+    if (!__type_is_compatible(e->desc, desc)) {
       Syntax_Error(ps, &rexp->pos, "right expression's type is not compatible");
       return;
     }
@@ -946,7 +946,7 @@ static int check_returns(TypeDesc *desc, Vector *exps)
 {
   assert(desc->kind == TYPE_PROTO);
   ProtoDesc *proto = (ProtoDesc *)desc;
-  return check_expr_types(proto->ret, exps);
+  return __check_expr_types(proto->ret, exps);
 }
 
 static void parse_return_stmt(ParserState *ps, Stmt *stmt)
