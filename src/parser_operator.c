@@ -46,116 +46,117 @@ static int __check_binary_expr(ParserState *ps, BinaryExpr *exp)
 
 typedef void (*Optimize)(ParserState *, BinaryExpr *);
 
-static BaseExpr *__get_baseexp(Expr *exp)
+static ConstValue __get_constvalue(Expr *exp)
 {
   ExprKind kind = exp->kind;
 
   if (kind == BINARY_KIND) {
     BinaryExpr *binExp = (BinaryExpr *)exp;
-    assert(binExp->val != NULL);
     return binExp->val;
   } else if (kind == UNARY_KIND) {
     UnaryExpr *unExp = (UnaryExpr *)exp;
-    assert(unExp->val != NULL);
     return unExp->val;
+  } else if (kind == ID_KIND) {
+    VarSymbol *sym = (VarSymbol *)exp->sym;
+    assert(sym->kind == SYM_CONST);
+    return sym->value;
   } else {
     assert(kind == INT_KIND || kind == FLOAT_KIND || kind == BOOL_KIND ||
            kind == STRING_KIND || kind == CHAR_KIND);
-    return (BaseExpr *)exp;
+    return ((BaseExpr *)exp)->value;
   }
 }
 
 static void __optimize_int_add(ParserState *ps, BinaryExpr *exp)
 {
-  BaseExpr *lexp = __get_baseexp(exp->lexp);
-  BaseExpr *rexp = __get_baseexp(exp->rexp);
-
+  ConstValue lval = __get_constvalue(exp->lexp);
+  ConstValue rval = __get_constvalue(exp->rexp);
   int64 val;
-  switch (rexp->kind) {
-  case INT_KIND:
-    val = lexp->ival + rexp->ival;
-    Log_Printf("%lld = (+ %lld %lld)\n", val, lexp->ival, rexp->ival);
-    exp->val = (BaseExpr *)Expr_From_Integer(val);
+
+  switch (rval.kind) {
+  case BASE_INT:
+    val = lval.ival + rval.ival;
+    Log_Printf("%lld = (+ %lld %lld)\n", val, lval.ival, rval.ival);
     break;
-  case FLOAT_KIND:
-    val = lexp->ival + rexp->fval;
-    Log_Printf("%lld = (+ %lld %.15f)\n", val, lexp->ival, rexp->fval);
-    exp->val = (BaseExpr *)Expr_From_Integer(val);
+  case BASE_FLOAT:
+    val = lval.ival + rval.fval;
+    Log_Printf("%lld = (+ %lld %.15f)\n", val, lval.ival, rval.fval);
     break;
-  case BOOL_KIND:
-    Syntax_Error(ps, &rexp->pos, "cannot convert '%s'(bool) to int",
-                 rexp->bval ? "true" : "false");
+  case BASE_BOOL:
+    val = 0;
+    Syntax_Error(ps, &exp->rexp->pos, "cannot convert '%s'(bool) to int",
+                 rval.bval ? "true" : "false");
     break;
-  case STRING_KIND: {
-    int err = string_to_int64(rexp->str, &val);
+  case BASE_STRING: {
+    int err = string_to_int64(rval.str, &val);
     if (!err) {
-      val = lexp->ival + val;
-      Log_Printf("%lld = (+ %lld \"%s\")\n", val, lexp->ival, rexp->str);
-      exp->val = (BaseExpr *)Expr_From_Integer(val);
+      val = lval.ival + val;
+      Log_Printf("%lld = (+ %lld \"%s\")\n", val, lval.ival, rval.str);
     } else {
-      Syntax_Error(ps, &rexp->pos, "cannot convert '%s'(string) to int",
-                   rexp->str);
+      val = 0;
+      Syntax_Error(ps, &exp->rexp->pos, "cannot convert '%s'(string) to int",
+                   rval.str);
     }
     break;
   }
-  case CHAR_KIND:
-    val = lexp->ival + rexp->ch.val;
-    Log_Printf("%lld = (+ %lld %s)\n", val, lexp->ival, rexp->ch.data);
-    exp->val = (BaseExpr *)Expr_From_Integer(val);
-    break;
-  case ID_KIND:
+  case BASE_CHAR:
+    val = lval.ival + rval.ch.val;
+    Log_Printf("%lld = (+ %lld '%s')\n", val, lval.ival, rval.ch.data);
     break;
   default:
+    val = 0;
     assert(0);
     break;
   }
+
+  exp->val.kind = BASE_INT;
+  exp->val.ival = val;
 }
 
 static void __optimize_int_sub(ParserState *ps, BinaryExpr *exp)
 {
-  BaseExpr *lexp = __get_baseexp(exp->lexp);
-  BaseExpr *rexp = __get_baseexp(exp->rexp);
+  ConstValue lval = __get_constvalue(exp->lexp);
+  ConstValue rval = __get_constvalue(exp->rexp);
+  int64 val;
 
-  switch (rexp->kind) {
-  case INT_KIND: {
-    int64 val = lexp->ival - rexp->ival;
-    Log_Printf("(- %lld %lld)\n", lexp->ival, rexp->ival);
-    exp->val = (BaseExpr *)Expr_From_Integer(val);
+  switch (rval.kind) {
+  case BASE_INT:
+    val = lval.ival - rval.ival;
+    Log_Printf("(- %lld %lld)\n", lval.ival, rval.ival);
     break;
-  }
-  case FLOAT_KIND:
+  case BASE_FLOAT:
     break;
-  case BOOL_KIND:
+  case BASE_BOOL:
     break;
-  case STRING_KIND:
+  case BASE_STRING:
     break;
-  case CHAR_KIND:
-    break;
-  case ID_KIND:
+  case BASE_CHAR:
     break;
   default:
     assert(0);
     break;
   }
+
+  exp->val.kind = BASE_INT;
+  exp->val.ival = val;
 }
 
 static void __optimize_int_mul(ParserState *ps, BinaryExpr *exp)
 {
-  BaseExpr *lexp = __get_baseexp(exp->lexp);
-  BaseExpr *rexp = __get_baseexp(exp->rexp);
+  ConstValue lval = __get_constvalue(exp->lexp);
+  ConstValue rval = __get_constvalue(exp->rexp);
+  int64 val;
 
-  switch (rexp->kind) {
-  case INT_KIND:
+  switch (rval.kind) {
+  case BASE_INT:
     break;
-  case FLOAT_KIND:
+  case BASE_FLOAT:
     break;
-  case BOOL_KIND:
+  case BASE_BOOL:
     break;
-  case STRING_KIND:
+  case BASE_STRING:
     break;
-  case CHAR_KIND:
-    break;
-  case ID_KIND:
+  case BASE_CHAR:
     break;
   default:
     assert(0);
@@ -165,21 +166,20 @@ static void __optimize_int_mul(ParserState *ps, BinaryExpr *exp)
 
 static void __optimize_int_div(ParserState *ps, BinaryExpr *exp)
 {
-  BaseExpr *lexp = __get_baseexp(exp->lexp);
-  BaseExpr *rexp = __get_baseexp(exp->rexp);
+  ConstValue lval = __get_constvalue(exp->lexp);
+  ConstValue rval = __get_constvalue(exp->rexp);
+  int64 val;
 
-  switch (rexp->kind) {
-  case INT_KIND:
+  switch (rval.kind) {
+  case BASE_INT:
     break;
-  case FLOAT_KIND:
+  case BASE_FLOAT:
     break;
-  case BOOL_KIND:
+  case BASE_BOOL:
     break;
-  case STRING_KIND:
+  case BASE_STRING:
     break;
-  case CHAR_KIND:
-    break;
-  case ID_KIND:
+  case BASE_CHAR:
     break;
   default:
     assert(0);
@@ -261,10 +261,12 @@ void Code_Binary_Expr(ParserState *ps, Expr *exp)
   BinaryExpr *binExp = (BinaryExpr *)exp;
   Log_Debug("codegen binary: \x1b[34m%s\x1b[0m", binary_strings[binExp->op]);
 
-  if (binExp->val != NULL) {
+  if (binExp->val.kind != 0) {
     Log_Debug("binary expr is optimized");
-    binExp->val->ctx = EXPR_LOAD;
-    Code_Expression(ps, (Expr *)binExp->val);
+    BaseExpr baseExp;
+    BaseExpr_SetConstValue(&baseExp, &binExp->val);
+    baseExp.ctx = EXPR_LOAD;
+    Code_Expression(ps, (Expr *)&baseExp);
   }
 }
 

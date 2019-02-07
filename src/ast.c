@@ -112,7 +112,8 @@ Expr *Expr_From_Integer(int64 val)
   baseExp->kind = INT_KIND;
   baseExp->desc = TypeDesc_Get_Base(BASE_INT);
   TYPE_INCREF(baseExp->desc);
-  baseExp->ival = val;
+  baseExp->value.kind = BASE_INT;
+  baseExp->value.ival = val;
   return (Expr *)baseExp;
 }
 
@@ -122,7 +123,8 @@ Expr *Expr_From_Float(float64 val)
   baseExp->kind = FLOAT_KIND;
   baseExp->desc = TypeDesc_Get_Base(BASE_FLOAT);
   TYPE_INCREF(baseExp->desc);
-  baseExp->fval = val;
+  baseExp->value.kind = BASE_FLOAT;
+  baseExp->value.fval = val;
   return (Expr *)baseExp;
 }
 
@@ -132,7 +134,8 @@ Expr *Expr_From_Bool(int val)
   baseExp->kind = BOOL_KIND;
   baseExp->desc = TypeDesc_Get_Base(BASE_BOOL);
   TYPE_INCREF(baseExp->desc);
-  baseExp->bval = val;
+  baseExp->value.kind = BASE_BOOL;
+  baseExp->value.bval = val;
   return (Expr *)baseExp;
 }
 
@@ -142,7 +145,8 @@ Expr *Expr_From_String(char *val)
   baseExp->kind = STRING_KIND;
   baseExp->desc = TypeDesc_Get_Base(BASE_STRING);
   TYPE_INCREF(baseExp->desc);
-  baseExp->str = val;
+  baseExp->value.kind = BASE_STRING;
+  baseExp->value.str = val;
   return (Expr *)baseExp;
 }
 
@@ -152,7 +156,8 @@ Expr *Expr_From_Char(uchar val)
   baseExp->kind = CHAR_KIND;
   baseExp->desc = TypeDesc_Get_Base(BASE_CHAR);
   TYPE_INCREF(baseExp->desc);
-  baseExp->ch = val;
+  baseExp->value.kind = BASE_CHAR;
+  baseExp->value.ch = val;
   return (Expr *)baseExp;
 }
 
@@ -160,7 +165,8 @@ Expr *Expr_From_Ident(char *val)
 {
   BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
   baseExp->kind = ID_KIND;
-  baseExp->id = val;
+  baseExp->value.kind = BASE_STRING;
+  baseExp->value.str = val;
   return (Expr *)baseExp;
 }
 
@@ -184,6 +190,37 @@ int Expr_Is_Const(Expr *exp)
     return 1;
 
   return 0;
+}
+
+void BaseExpr_SetConstValue(BaseExpr *baseExp, ConstValue *val)
+{
+  int kind = val->kind;
+  baseExp->value = *val;
+  switch (kind) {
+  case BASE_INT:
+    baseExp->kind = INT_KIND;
+    baseExp->desc = TypeDesc_Get_Base(BASE_INT);
+    break;
+  case BASE_FLOAT:
+    baseExp->kind = FLOAT_KIND;
+    baseExp->desc = TypeDesc_Get_Base(BASE_FLOAT);
+    break;
+  case BASE_BOOL:
+    baseExp->kind = BOOL_KIND;
+    baseExp->desc = TypeDesc_Get_Base(BASE_BOOL);
+    break;
+  case BASE_STRING:
+    baseExp->kind = STRING_KIND;
+    baseExp->desc = TypeDesc_Get_Base(BASE_STRING);
+    break;
+  case BASE_CHAR:
+    baseExp->kind = CHAR_KIND;
+    baseExp->desc = TypeDesc_Get_Base(BASE_CHAR);
+    break;
+  default:
+    assert(0);
+    break;
+  }
 }
 
 Expr *Expr_From_Unary(UnaryOpKind op, Expr *exp)
@@ -413,7 +450,6 @@ static void free_unary_expr(Expr *exp)
 {
   UnaryExpr *unExp = (UnaryExpr *)exp;
   Free_Expr(unExp->exp);
-  Free_Expr((Expr *)unExp->val);
   free_expr(exp);
 }
 
@@ -422,7 +458,6 @@ static void free_binary_expr(Expr *exp)
   BinaryExpr *binExp = (BinaryExpr *)exp;
   Free_Expr(binExp->lexp);
   Free_Expr(binExp->rexp);
-  Free_Expr((Expr *)binExp->val);
   free_expr(exp);
 }
 
@@ -1170,7 +1205,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
         free_exprlist(exps);
         return NULL;
       }
-      Ident ident = {e->id, e->pos};
+      Ident ident = {e->value.str, e->pos};
       Expr *exp = Vector_Get(exps, 0);
       stmt = __Stmt_From_VarDecl(&ident, nulltype, exp, 0);
     } else {
@@ -1188,7 +1223,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
         }
         right = Vector_Get(exps, i);
         assert(right);
-        ident.name = e->id;
+        ident.name = e->value.str;
         ident.pos = e->pos;
         varStmt = __Stmt_From_VarDecl(&ident, nulltype, right, 0);
         Vector_Append(listStmt->vec, varStmt);
@@ -1214,7 +1249,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       free_exprlist(exps);
       return NULL;
     }
-    s.str = e->id;
+    s.str = e->value.str;
     ident = New_Ident(s);
     ident->pos = e->pos;
     Vector_Append(_ids, ident);

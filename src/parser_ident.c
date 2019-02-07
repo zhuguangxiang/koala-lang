@@ -136,7 +136,7 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
   BaseExpr *baseExp = (BaseExpr *)exp;
-  char *name = baseExp->id;
+  char *name = baseExp->value.str;
   Symbol *sym;
 
   /* find ident from current scope */

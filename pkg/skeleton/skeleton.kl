@@ -28,6 +28,7 @@ const K2 string = "Welcome to Koala-lang"
 const K3, K4 = "hello", "world"
 const K5 = K1
 //const K6 = sub(1,2)
+const K7 = 100
 
 //variables
 var v1, v2 = 1, 2
@@ -36,6 +37,7 @@ var ok = true
 var greeting string = "hello, 汉字"
 var total int = 100
 var f = 12.04
+var vk = K5;
 
 var result = add(1, 2)
 var func_callback func(int, int) int = add
@@ -60,6 +62,8 @@ var vv6 = 1 + " 0xdeadbeaf  "
 //var vv7 = 1 + " 010 10 "
 //var vv8 = 1 + " 0999 "
 var vv9 = 1 + "0100"
+var vv10 = 1 + K7
+//var vv11 = 1 + K1
 
 //var vv2 = 1 + 2 > 3 -1
 

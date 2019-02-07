@@ -262,7 +262,7 @@ static void code_int_expr(ParserState *ps, Expr *exp)
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(baseExp->ctx == EXPR_LOAD);
 
-  Argument val = {.kind = ARG_INT, .ival = baseExp->ival};
+  Argument val = {.kind = ARG_INT, .ival = baseExp->value.ival};
   Inst_Append(u->block, OP_LOADK, &val);
 }
 
@@ -272,7 +272,7 @@ static void code_float_expr(ParserState *ps, Expr *exp)
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(baseExp->ctx == EXPR_LOAD);
 
-  Argument val = {.kind = ARG_FLOAT, .fval = baseExp->fval};
+  Argument val = {.kind = ARG_FLOAT, .fval = baseExp->value.fval};
   Inst_Append(u->block, OP_LOADK, &val);
 }
 
@@ -282,7 +282,7 @@ static void code_bool_expr(ParserState *ps, Expr *exp)
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(baseExp->ctx == EXPR_LOAD);
 
-  Argument val = {.kind = ARG_BOOL, .fval = baseExp->bval};
+  Argument val = {.kind = ARG_BOOL, .fval = baseExp->value.bval};
   Inst_Append(u->block, OP_LOADK, &val);
 }
 
@@ -292,7 +292,7 @@ static void code_string_expr(ParserState *ps, Expr *exp)
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(baseExp->ctx == EXPR_LOAD);
 
-  Argument val = {.kind = ARG_STR, .str = baseExp->str};
+  Argument val = {.kind = ARG_STR, .str = baseExp->value.str};
   Inst_Append(u->block, OP_LOADK, &val);
 }
 
@@ -302,7 +302,7 @@ static void code_char_expr(ParserState *ps, Expr *exp)
   BaseExpr *baseExp = (BaseExpr *)exp;
   assert(baseExp->ctx == EXPR_LOAD);
 
-  Argument val = {.kind = ARG_UCHAR, .uch = baseExp->ch};
+  Argument val = {.kind = ARG_UCHAR, .uch = baseExp->value.ch};
   Inst_Append(u->block, OP_LOADK, &val);
 }
 
@@ -633,19 +633,11 @@ static void __save_const_to_symbol(VarSymbol *varSym, Expr *exp)
   BaseExpr *baseExp = (BaseExpr *)exp;
   switch (exp->kind) {
   case INT_KIND:
-    varSym->value.ival = baseExp->ival;
-    break;
   case FLOAT_KIND:
-    varSym->value.fval = baseExp->fval;
-    break;
   case BOOL_KIND:
-    varSym->value.bval = baseExp->bval;
-    break;
   case STRING_KIND:
-    varSym->value.str = baseExp->str;
-    break;
   case CHAR_KIND:
-    varSym->value.ch = baseExp->ch;
+    varSym->value = baseExp->value;
     break;
   case ID_KIND: {
     VarSymbol *sym = (VarSymbol *)exp->sym;

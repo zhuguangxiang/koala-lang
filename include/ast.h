@@ -141,14 +141,7 @@ Expr *Expr_From_Super(void);
 /* base expression */
 typedef struct baseexpr {
   EXPR_HEAD
-  union {
-    uchar ch;
-    int64 ival;
-    float64 fval;
-    int bval;
-    char *str;
-    char *id;
-  };
+  ConstValue value;
 } BaseExpr;
 
 Expr *Expr_From_Integer(int64 val);
@@ -158,13 +151,14 @@ Expr *Expr_From_String(char *val);
 Expr *Expr_From_Char(uchar val);
 Expr *Expr_From_Ident(char *val);
 int Expr_Is_Const(Expr *exp);
+void BaseExpr_SetConstValue(BaseExpr *baseExp, ConstValue *val);
 
 /* unary expression */
 typedef struct unaryexpr {
   EXPR_HEAD
   UnaryOpKind op;
   Expr *exp;
-  BaseExpr *val;
+  ConstValue val;
 } UnaryExpr;
 
 /* binary expression */
@@ -173,7 +167,7 @@ typedef struct binaryexpr {
   BinaryOpKind op;
   Expr *lexp;
   Expr *rexp;
-  BaseExpr *val;
+  ConstValue val;
 } BinaryExpr;
 
 Expr *Expr_From_Unary(UnaryOpKind op, Expr *exp);

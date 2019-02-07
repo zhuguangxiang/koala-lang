@@ -65,19 +65,26 @@ typedef struct symbol {
   SYMBOL_HEAD
 } Symbol;
 
-/* constant and variable symbol */
-typedef struct varsymbol {
-  SYMBOL_HEAD
-  TypeDesc *desc; /* variable type */
-  int32 index;    /* variable index */
-  /* if is constant, save its value */
+/* constant value */
+typedef struct constvalue {
+  /* see BASE_XXX in typedesc.h */
+  int kind;
   union {
     uchar ch;
     int64 ival;
     float64 fval;
     int bval;
     char *str;
-  } value;
+  };
+} ConstValue;
+
+/* constant and variable symbol */
+typedef struct varsymbol {
+  SYMBOL_HEAD
+  TypeDesc *desc; /* variable type */
+  int32 index;    /* variable index */
+  /* if is constant, save its value */
+  ConstValue value;
 } VarSymbol;
 
 /* function symbol */
