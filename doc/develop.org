@@ -2,7 +2,7 @@
 #+AUTHOR: James Zhu
 #+EMAIL: https://github.com/zhuguangxiang
 
-* 0.7.3 [2/3]
+* 0.7.3 [3/3]
 ** DONE variable declaration [2/2]
 CLOSED: [2019-02-04 Mon 01:59]
 - [X] variable in module
@@ -15,12 +15,13 @@ CLOSED: [2019-02-04 Mon 01:57]
 - [X] typeless variable declaration
 - [X] argument declaration
 - [X] return variable declaration in function not supported in 0.7 version.
-** TODO expression [4/5]
+** DONE expression [5/5]
+CLOSED: [2019-02-08 Fri 16:51]
 - [X] call
 - [X] basic expression: binary, unary etc
 - [X] assignment
 - [X] return statement
-- [ ] identifier up scope
+- [X] identifier up scope
 * 0.7.4 [0/5]
 ** TODO import statement
 ** TODO assignment
