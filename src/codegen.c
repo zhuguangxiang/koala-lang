@@ -88,7 +88,7 @@ char *OpCode_String(uint8 op)
   return opcode ? opcode->str: "";
 }
 
-Inst *Inst_New(uint8 op, Argument *val)
+Inst *Inst_New(uint8 op, ConstValue *val)
 {
   Inst *i = Malloc(sizeof(Inst));
   init_list_head(&i->link);
@@ -104,7 +104,7 @@ void Inst_Free(Inst *i)
   Mfree(i);
 }
 
-Inst *Inst_Append(CodeBlock *b, uint8 op, Argument *val)
+Inst *Inst_Append(CodeBlock *b, uint8 op, ConstValue *val)
 {
   Inst *i = Inst_New(op, val);
   list_add_tail(&i->link, &b->insts);
@@ -184,7 +184,7 @@ void CodeBlock_Merge(CodeBlock *from, CodeBlock *to)
   }
 }
 
-static void arg_print(char *buf, int sz, Argument *val)
+static void arg_print(char *buf, int sz, ConstValue *val)
 {
   if (val == NULL) {
     buf[0] = '\0';
@@ -192,28 +192,28 @@ static void arg_print(char *buf, int sz, Argument *val)
   }
 
   switch (val->kind) {
-  case ARG_NIL: {
+  case 0: {
     snprintf(buf, sz, "(nil)");
     break;
   }
-  case ARG_INT: {
+  case BASE_INT: {
     snprintf(buf, sz, "%lld", val->ival);
     break;
   }
-  case ARG_FLOAT: {
+  case BASE_FLOAT: {
     snprintf(buf, sz, "%.16lf", val->fval);
     break;
   }
-  case ARG_BOOL: {
+  case BASE_BOOL: {
     snprintf(buf, sz, "%s", val->bval ? "true" : "false");
     break;
   }
-  case ARG_STR: {
+  case BASE_STRING: {
     snprintf(buf, sz, "%s", val->str);
     break;
   }
-  case ARG_UCHAR: {
-    snprintf(buf, sz, "%s", (char *)&val->uch);
+  case BASE_CHAR: {
+    snprintf(buf, sz, "%s", val->ch.data);
     break;
   }
   default: {
@@ -258,17 +258,17 @@ void Inst_Gen(KImage *image, Buffer *buf, Inst *i)
       break;
     }
     case OP_LOADK: {
-      Argument *val = &i->arg;
-      if (val->kind == ARG_INT) {
+      ConstValue *val = &i->arg;
+      if (val->kind == BASE_INT) {
         index = KImage_Add_Integer(image, val->ival);
-      } else if (val->kind == ARG_FLOAT) {
+      } else if (val->kind == BASE_FLOAT) {
         index = KImage_Add_Float(image, val->fval);
-      } else if (val->kind == ARG_BOOL) {
+      } else if (val->kind == BASE_BOOL) {
         index = KImage_Add_Bool(image, val->bval);
-      } else if (val->kind == ARG_STR) {
+      } else if (val->kind == BASE_STRING) {
         index = KImage_Add_String(image, val->str);
-      } else if (val->kind == ARG_UCHAR) {
-        index = KImage_Add_UChar(image, val->uch);
+      } else if (val->kind == BASE_CHAR) {
+        index = KImage_Add_UChar(image, val->ch);
       }else {
         assert(0);
       }

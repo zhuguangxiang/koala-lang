@@ -61,9 +61,8 @@ static ConstValue __get_constvalue(Expr *exp)
     assert(sym->kind == SYM_CONST);
     return sym->value;
   } else {
-    assert(kind == INT_KIND || kind == FLOAT_KIND || kind == BOOL_KIND ||
-           kind == STRING_KIND || kind == CHAR_KIND);
-    return ((BaseExpr *)exp)->value;
+    assert(kind == CONST_KIND);
+    return ((ConstExpr *)exp)->value;
   }
 }
 
@@ -263,10 +262,9 @@ void Code_Binary_Expr(ParserState *ps, Expr *exp)
 
   if (binExp->val.kind != 0) {
     Log_Debug("binary expr is optimized");
-    BaseExpr baseExp;
-    BaseExpr_SetConstValue(&baseExp, &binExp->val);
-    baseExp.ctx = EXPR_LOAD;
-    Code_Expression(ps, (Expr *)&baseExp);
+    ConstExpr constExp = {.kind = CONST_KIND, .value = binExp->val};
+    constExp.ctx = EXPR_LOAD;
+    Code_Expression(ps, (Expr *)&constExp);
   }
 }
 

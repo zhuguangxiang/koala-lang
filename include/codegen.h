@@ -25,35 +25,18 @@
 
 #include "image.h"
 #include "opcode.h"
+#include "symbol.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#define ARG_NIL   0
-#define ARG_INT   1
-#define ARG_FLOAT 2
-#define ARG_BOOL  3
-#define ARG_STR   4
-#define ARG_UCHAR 5
-
-typedef struct argument {
-  int kind;
-  union {
-    uchar uch;
-    int64 ival;
-    float64 fval;
-    int bval;
-    char *str;
-  };
-} Argument;
 
 typedef struct inst {
   struct list_head link;
   int bytes;
   int argc;
   uint8 op;
-  Argument arg;
+  ConstValue arg;
   int upbytes;  /* break and continue statements */
 } Inst;
 
@@ -75,9 +58,9 @@ typedef struct codeblock {
 int OpCode_ArgCount(uint8 op);
 char *OpCode_String(uint8 op);
 
-Inst *Inst_New(uint8 op, Argument *val);
+Inst *Inst_New(uint8 op, ConstValue *val);
 void Inst_Free(Inst *i);
-Inst *Inst_Append(CodeBlock *b, uint8 op, Argument *val);
+Inst *Inst_Append(CodeBlock *b, uint8 op, ConstValue *val);
 Inst *Inst_Append_NoArg(CodeBlock *b, uint8 op);
 JmpInst *JmpInst_New(Inst *inst, int type);
 void JmpInst_Free(JmpInst *jmp);

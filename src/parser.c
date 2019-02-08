@@ -256,54 +256,12 @@ static int __type_is_compatible(TypeDesc *t1, TypeDesc *t2)
   return TypeDesc_Equal(t1, t2);
 }
 
-static void code_int_expr(ParserState *ps, Expr *exp)
+static void code_const_expr(ParserState *ps, Expr *exp)
 {
+  assert(exp->ctx == EXPR_LOAD);
   ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(baseExp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_INT, .ival = baseExp->value.ival};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_float_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(baseExp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_FLOAT, .fval = baseExp->value.fval};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_bool_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(baseExp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_BOOL, .fval = baseExp->value.bval};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_string_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(baseExp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_STR, .str = baseExp->value.str};
-  Inst_Append(u->block, OP_LOADK, &val);
-}
-
-static void code_char_expr(ParserState *ps, Expr *exp)
-{
-  ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  assert(baseExp->ctx == EXPR_LOAD);
-
-  Argument val = {.kind = ARG_UCHAR, .uch = baseExp->value.ch};
-  Inst_Append(u->block, OP_LOADK, &val);
+  ConstValue *val = &((ConstExpr *)exp)->value;
+  Inst_Append(u->block, OP_LOADK, val);
 }
 
 static void parse_self_expr(ParserState *ps, Expr *exp)
@@ -383,7 +341,6 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
   /* parse left expression */
   lexp->ctx = EXPR_LOAD;
   lexp->right = exp;
-  lexp->argc = Vector_Size(callExp->args);
   Parse_Expression(ps, lexp);
   if (lexp->sym == NULL)
     return;
@@ -472,15 +429,11 @@ static struct expr_func_s {
 } expr_funcs[] = {
   { NULL, NULL },                                       /* INVALID         */
   { NULL, NULL },                                       /* NIL_KIND        */
-  { parse_self_expr,  NULL },                           /* SELF_KIND       */
-  { parse_super_expr, NULL },                           /* SUPER_KIND      */
-  { NULL, code_int_expr    },                           /* INT_KIND        */
-  { NULL, code_float_expr  },                           /* FLOAT_KIND      */
-  { NULL, code_bool_expr   },                           /* BOOL_KIND       */
-  { NULL, code_string_expr },                           /* STRING_KIND     */
-  { NULL, code_char_expr   },                           /* CHAR_KIND       */
-  { Parse_Ident_Expr,     Code_Ident_Expr },            /* ID_KIND         */
-  { Parse_Unary_Expr,     Code_Unary_Expr },            /* UNARY_KIND      */
+  { parse_self_expr,      NULL },                       /* SELF_KIND       */
+  { parse_super_expr,     NULL },                       /* SUPER_KIND      */
+  { NULL,                 code_const_expr  },           /* CONST_KIND      */
+  { Parse_Ident_Expr,     Code_Ident_Expr  },           /* ID_KIND         */
+  { Parse_Unary_Expr,     Code_Unary_Expr  },           /* UNARY_KIND      */
   { Parse_Binary_Expr,    Code_Binary_Expr },           /* BINARY_KIND     */
   { parse_attribute_expr, NULL },                       /* ATTRIBUTE_KIND  */
   { parse_subscript_expr, NULL },                       /* SUBSCRIPT_KIND  */
@@ -630,24 +583,14 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
 
 static void __save_const_to_symbol(VarSymbol *varSym, Expr *exp)
 {
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  switch (exp->kind) {
-  case INT_KIND:
-  case FLOAT_KIND:
-  case BOOL_KIND:
-  case STRING_KIND:
-  case CHAR_KIND:
-    varSym->value = baseExp->value;
-    break;
-  case ID_KIND: {
+  if (exp->kind == CONST_KIND) {
+    varSym->value = ((ConstExpr *)exp)->value;
+  } else if (exp->kind == ID_KIND) {
     VarSymbol *sym = (VarSymbol *)exp->sym;
     assert(sym != NULL && sym->kind == SYM_CONST);
     varSym->value = sym->value;
-    break;
-  }
-  default:
+  } else {
     assert(0);
-    break;
   }
 }
 
@@ -737,11 +680,11 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
     /* module or class variable, global variable */
     Inst_Append_NoArg(u->block, OP_LOAD0);
-    Argument val = {.kind = ARG_STR, .str = varSym->name};
+    ConstValue val = {.kind = BASE_STRING, .str = varSym->name};
     Inst_Append(u->block, OP_SETFIELD, &val);
   } else {
     /* others are local variables */
-    Argument val = {.kind = ARG_INT, .ival = varSym->index};
+    ConstValue val = {.kind = BASE_INT, .ival = varSym->index};
     Inst_Append(u->block, OP_STORE, &val);
   }
 }

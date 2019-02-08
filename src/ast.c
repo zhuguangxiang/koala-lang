@@ -108,119 +108,92 @@ Expr *Expr_From_Super(void)
 
 Expr *Expr_From_Integer(int64 val)
 {
-  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
-  baseExp->kind = INT_KIND;
-  baseExp->desc = TypeDesc_Get_Base(BASE_INT);
-  TYPE_INCREF(baseExp->desc);
-  baseExp->value.kind = BASE_INT;
-  baseExp->value.ival = val;
-  return (Expr *)baseExp;
+  ConstExpr *constExp = Malloc(sizeof(ConstExpr));
+  constExp->kind = CONST_KIND;
+  constExp->desc = TypeDesc_Get_Base(BASE_INT);
+  TYPE_INCREF(constExp->desc);
+  constExp->value.kind = BASE_INT;
+  constExp->value.ival = val;
+  return (Expr *)constExp;
 }
 
 Expr *Expr_From_Float(float64 val)
 {
-  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
-  baseExp->kind = FLOAT_KIND;
-  baseExp->desc = TypeDesc_Get_Base(BASE_FLOAT);
-  TYPE_INCREF(baseExp->desc);
-  baseExp->value.kind = BASE_FLOAT;
-  baseExp->value.fval = val;
-  return (Expr *)baseExp;
+  ConstExpr *constExp = Malloc(sizeof(ConstExpr));
+  constExp->kind = CONST_KIND;
+  constExp->desc = TypeDesc_Get_Base(BASE_FLOAT);
+  TYPE_INCREF(constExp->desc);
+  constExp->value.kind = BASE_FLOAT;
+  constExp->value.fval = val;
+  return (Expr *)constExp;
 }
 
 Expr *Expr_From_Bool(int val)
 {
-  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
-  baseExp->kind = BOOL_KIND;
-  baseExp->desc = TypeDesc_Get_Base(BASE_BOOL);
-  TYPE_INCREF(baseExp->desc);
-  baseExp->value.kind = BASE_BOOL;
-  baseExp->value.bval = val;
-  return (Expr *)baseExp;
+  ConstExpr *constExp = Malloc(sizeof(ConstExpr));
+  constExp->kind = CONST_KIND;
+  constExp->desc = TypeDesc_Get_Base(BASE_BOOL);
+  TYPE_INCREF(constExp->desc);
+  constExp->value.kind = BASE_BOOL;
+  constExp->value.bval = val;
+  return (Expr *)constExp;
 }
 
 Expr *Expr_From_String(char *val)
 {
-  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
-  baseExp->kind = STRING_KIND;
-  baseExp->desc = TypeDesc_Get_Base(BASE_STRING);
-  TYPE_INCREF(baseExp->desc);
-  baseExp->value.kind = BASE_STRING;
-  baseExp->value.str = val;
-  return (Expr *)baseExp;
+  ConstExpr *constExp = Malloc(sizeof(ConstExpr));
+  constExp->kind = CONST_KIND;
+  constExp->desc = TypeDesc_Get_Base(BASE_STRING);
+  TYPE_INCREF(constExp->desc);
+  constExp->value.kind = BASE_STRING;
+  constExp->value.str = val;
+  return (Expr *)constExp;
 }
 
 Expr *Expr_From_Char(uchar val)
 {
-  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
-  baseExp->kind = CHAR_KIND;
-  baseExp->desc = TypeDesc_Get_Base(BASE_CHAR);
-  TYPE_INCREF(baseExp->desc);
-  baseExp->value.kind = BASE_CHAR;
-  baseExp->value.ch = val;
-  return (Expr *)baseExp;
+  ConstExpr *constExp = Malloc(sizeof(ConstExpr));
+  constExp->kind = CONST_KIND;
+  constExp->desc = TypeDesc_Get_Base(BASE_CHAR);
+  TYPE_INCREF(constExp->desc);
+  constExp->value.kind = BASE_CHAR;
+  constExp->value.ch = val;
+  return (Expr *)constExp;
 }
 
 Expr *Expr_From_Ident(char *val)
 {
-  BaseExpr *baseExp = Malloc(sizeof(BaseExpr));
-  baseExp->kind = ID_KIND;
-  baseExp->value.kind = BASE_STRING;
-  baseExp->value.str = val;
-  return (Expr *)baseExp;
+  IdentExpr *idExp = Malloc(sizeof(IdentExpr));
+  idExp->kind = ID_KIND;
+  idExp->name = val;
+  return (Expr *)idExp;
 }
 
 /* FIXME: unchanged variable, see parse_operator.c */
 int Expr_Is_Const(Expr *exp)
 {
-  Symbol *sym = exp->sym;
-  if (sym != NULL && sym->kind != SYM_CONST)
-    return 0;
-
-  TypeDesc *desc = exp->desc;
-  assert(desc != NULL);
-  if (desc->kind != TYPE_BASE)
-    return 0;
-
-  BaseDesc *baseDesc = (BaseDesc *)desc;
-  int kind = baseDesc->type;
-
-  if (kind == BASE_BYTE || kind == BASE_CHAR || kind == BASE_INT ||
-      kind == BASE_FLOAT || kind == BASE_BOOL || kind == BASE_STRING)
+  if (exp->kind == CONST_KIND)
     return 1;
 
-  return 0;
-}
-
-void BaseExpr_SetConstValue(BaseExpr *baseExp, ConstValue *val)
-{
-  int kind = val->kind;
-  baseExp->value = *val;
-  switch (kind) {
-  case BASE_INT:
-    baseExp->kind = INT_KIND;
-    baseExp->desc = TypeDesc_Get_Base(BASE_INT);
-    break;
-  case BASE_FLOAT:
-    baseExp->kind = FLOAT_KIND;
-    baseExp->desc = TypeDesc_Get_Base(BASE_FLOAT);
-    break;
-  case BASE_BOOL:
-    baseExp->kind = BOOL_KIND;
-    baseExp->desc = TypeDesc_Get_Base(BASE_BOOL);
-    break;
-  case BASE_STRING:
-    baseExp->kind = STRING_KIND;
-    baseExp->desc = TypeDesc_Get_Base(BASE_STRING);
-    break;
-  case BASE_CHAR:
-    baseExp->kind = CHAR_KIND;
-    baseExp->desc = TypeDesc_Get_Base(BASE_CHAR);
-    break;
-  default:
-    assert(0);
-    break;
+  if (exp->kind == ID_KIND) {
+    Symbol *sym = exp->sym;
+    if (sym != NULL && sym->kind == SYM_CONST)
+      return 1;
   }
+
+  if (exp->kind == UNARY_KIND) {
+    UnaryExpr *unExpr = (UnaryExpr *)exp;
+    if (unExpr->val.kind != 0)
+      return 1;
+  }
+
+  if (exp->kind == BINARY_KIND) {
+    BinaryExpr *biExpr = (BinaryExpr *)exp;
+    if (biExpr->val.kind != 0)
+      return 1;
+  }
+
+  return 0;
 }
 
 Expr *Expr_From_Unary(UnaryOpKind op, Expr *exp)
@@ -549,11 +522,7 @@ static void (*__free_expr_funcs[])(Expr *) = {
   free_expr,            /* NIL_KIND         */
   free_expr,            /* SELF_KIND        */
   free_expr,            /* SUPER_KIND       */
-  free_expr,            /* INT_KIND         */
-  free_expr,            /* FLOAT_KIND       */
-  free_expr,            /* BOOL_KIND        */
-  free_expr,            /* STRING_KIND      */
-  free_expr,            /* CHAR_KIND        */
+  free_expr,            /* CONST_KIND       */
   free_expr,            /* ID_KIND          */
   free_unary_expr,      /* UNARY_KIND       */
   free_binary_expr,     /* BINARY_KIND      */
@@ -618,7 +587,6 @@ static void free_assign_stmt(Stmt *stmt)
 
 static void free_assignlist_stmt(Stmt *stmt)
 {
-  AssignListStmt *assignListStmt = (AssignListStmt *)stmt;
   Mfree(stmt);
 }
 
@@ -1191,9 +1159,9 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
     return NULL;
   }
 
-  BaseExpr *e;
+  IdentExpr *e;
   Expr *right;
-  TypeWrapper nulltype = {NULL};
+  TypeWrapper nulltype = {NULL, {0, 0}};
   if (isz == esz) {
     Stmt *stmt;
     if (isz == 1) {
@@ -1205,7 +1173,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
         free_exprlist(exps);
         return NULL;
       }
-      Ident ident = {e->value.str, e->pos};
+      Ident ident = {e->name, e->pos};
       Expr *exp = Vector_Get(exps, 0);
       stmt = __Stmt_From_VarDecl(&ident, nulltype, exp, 0);
     } else {
@@ -1223,7 +1191,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
         }
         right = Vector_Get(exps, i);
         assert(right);
-        ident.name = e->value.str;
+        ident.name = e->name;
         ident.pos = e->pos;
         varStmt = __Stmt_From_VarDecl(&ident, nulltype, right, 0);
         Vector_Append(listStmt->vec, varStmt);
@@ -1249,7 +1217,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       free_exprlist(exps);
       return NULL;
     }
-    s.str = e->value.str;
+    s.str = e->name;
     ident = New_Ident(s);
     ident->pos = e->pos;
     Vector_Append(_ids, ident);

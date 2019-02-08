@@ -26,16 +26,21 @@
 LOGGER(0)
 
 /* symbol is found in current scope */
-static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
+static void parse_ident_current_scope(ParserUnit *u, Expr *exp)
 {
+  Symbol *sym = exp->sym;
+
   switch (u->scope) {
   case SCOPE_MODULE:
   case SCOPE_CLASS:
-    /* expr, in module scope, is variable declaration's right expr */
-    /* expr, in class scope, is field declaration's right expr */
+    /*
+     * expr, in module/class scope,
+     * is variable/field declaration's right expr
+     */
     assert(exp->ctx == EXPR_LOAD);
     if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
-      Log_Debug("symbol '%s' is variable(constant)", sym->name);
+      Log_Debug("symbol '%s' is %s", sym->name,
+                sym->kind == SYM_CONST ? "constant" : "variable");
       if (exp->desc == NULL) {
         exp->desc = ((VarSymbol *)sym)->desc;
         TYPE_INCREF(exp->desc);
@@ -46,37 +51,42 @@ static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
           right != NULL && right->kind == CALL_KIND) {
         /* call function(variable) */
         /* FIXME: anonymous */
-        Log_Debug("call '%s' function(variable)", sym->name);
+        CallExpr *callExp = (CallExpr *)right;
+        Log_Debug("variable '%s' is function", sym->name);
+        Log_Debug("call '%s' function", sym->name);
         Inst_Append_NoArg(u->block, OP_LOAD0);
-        Argument val = {.kind = ARG_STR, .str = sym->name};
+        ConstValue val = {.kind = BASE_STRING, .str = sym->name};
         Inst *i = Inst_Append(u->block, OP_CALL, &val);
-        i->argc = exp->argc;
+        i->argc = Vector_Size(callExp->args);
       } else {
         /* load variable */
         Log_Debug("load '%s' variable", sym->name);
         Inst_Append_NoArg(u->block, OP_LOAD0);
-        Argument val = {.kind = ARG_STR, .str = sym->name};
+        ConstValue val = {.kind = BASE_STRING, .str = sym->name};
         Inst_Append(u->block, OP_GETFIELD, &val);
       }
     } else {
       assert(sym->kind == SYM_FUNC);
       Log_Debug("symbol '%s' is function", sym->name);
-      exp->desc = ((FuncSymbol *)sym)->desc;
-      TYPE_INCREF(exp->desc);
+      if (exp->desc == NULL) {
+        exp->desc = ((FuncSymbol *)sym)->desc;
+        TYPE_INCREF(exp->desc);
+      }
 
       Expr *right = exp->right;
       if (right != NULL && right->kind == CALL_KIND) {
         /* call function */
+        CallExpr *callExp = (CallExpr *)right;
         Log_Debug("call '%s' function", sym->name);
         Inst_Append_NoArg(u->block, OP_LOAD0);
-        Argument val = {.kind = ARG_STR, .str = sym->name};
+        ConstValue val = {.kind = BASE_STRING, .str = sym->name};
         Inst *i = Inst_Append(u->block, OP_CALL, &val);
-        i->argc = exp->argc;
+        i->argc = Vector_Size(callExp->args);
       } else {
         /* load function */
         Log_Debug("load '%s' function", sym->name);
         Inst_Append_NoArg(u->block, OP_LOAD0);
-        Argument val = {.kind = ARG_STR, .str = sym->name};
+        ConstValue val = {.kind = BASE_STRING, .str = sym->name};
         Inst_Append(u->block, OP_GETFIELD, &val);
       }
     }
@@ -85,28 +95,30 @@ static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
   case SCOPE_BLOCK:
   case SCOPE_CLOSURE:
     /*
-     * expr, in function scope, is local variable or parameter
-     * expr, in block scope, is local variable
-     * expr, in closure scope, is local variable
-     * load or store
+     * expr, in function/block/closure scope, is local variable or parameter
+     * it's context is load or store
      */
     assert(sym->kind == SYM_VAR);
     VarSymbol *varSym = (VarSymbol *)sym;
-    Log_Debug("symbol '%s' is local variable(parameter)", varSym->name);
-    exp->desc = varSym->desc;
-    TYPE_INCREF(exp->desc);
+    Log_Debug("symbol '%s' is local variable", varSym->name);
+    if (exp->desc == NULL) {
+      exp->desc = varSym->desc;
+      TYPE_INCREF(exp->desc);
+    }
 
     Expr *right = exp->right;
     if (exp->desc->kind == TYPE_PROTO &&
         right != NULL && right->kind == CALL_KIND) {
       /* call function(variable) */
       /* FIXME: anonymous */
-      Log_Debug("call '%s' function(variable)", varSym->name);
+      CallExpr *callExp = (CallExpr *)right;
+      Log_Debug("variable '%s' is function", sym->name);
+      Log_Debug("call '%s' function", sym->name);
       assert(exp->ctx == EXPR_LOAD);
       Inst_Append_NoArg(u->block, OP_LOAD0);
-      Argument val = {.kind = ARG_STR, .str = varSym->name};
+      ConstValue val = {.kind = BASE_STRING, .str = varSym->name};
       Inst *i = Inst_Append(u->block, OP_CALL, &val);
-      i->argc = exp->argc;
+      i->argc = Vector_Size(callExp->args);
     } else {
       /* load variable */
       assert(exp->ctx == EXPR_LOAD || exp->ctx == EXPR_STORE);
@@ -115,7 +127,7 @@ static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
       else
         Log_Debug("store '%s' variable", varSym->name);
       int opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
-      Argument val = {.kind = ARG_INT, .ival = varSym->index};
+      ConstValue val = {.kind = BASE_STRING, .ival = varSym->index};
       Inst_Append(u->block, opcode, &val);
     }
     break;
@@ -134,9 +146,10 @@ static void parse_ident_current_scope(ParserUnit *u, Symbol *sym, Expr *exp)
  */
 void Parse_Ident_Expr(ParserState *ps, Expr *exp)
 {
+  assert(exp->kind == ID_KIND);
   ParserUnit *u = ps->u;
-  BaseExpr *baseExp = (BaseExpr *)exp;
-  char *name = baseExp->value.str;
+  IdentExpr *idExp = (IdentExpr *)exp;
+  char *name = idExp->name;
   Symbol *sym;
 
   /* find ident from current scope */
@@ -145,7 +158,7 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
     Log_Debug("find symbol '%s' in local scope-%d(%s)",
               name, ps->depth, scope_strings[u->scope]);
     exp->sym = sym;
-    parse_ident_current_scope(u, sym, exp);
+    parse_ident_current_scope(u, exp);
     return;
   }
 
@@ -154,5 +167,7 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
 
 void Code_Ident_Expr(ParserState *ps, Expr *exp)
 {
-
+  assert(exp->desc != NULL && exp->sym != NULL);
+  ParserUnit *u = ps->u;
+  Symbol *sym = exp->sym;
 }

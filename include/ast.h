@@ -89,8 +89,10 @@ typedef enum binaryopkind {
 typedef enum exprkind {
   /* expr head only */
   NIL_KIND = 1, SELF_KIND, SUPER_KIND,
-  /* basic expr */
-  INT_KIND, FLOAT_KIND, BOOL_KIND, STRING_KIND, CHAR_KIND, ID_KIND,
+  /* constant expr */
+  CONST_KIND,
+  /* identifier expression */
+  ID_KIND,
   /* unary, binary op */
   UNARY_KIND, BINARY_KIND,
   /* dot, [], (), [:] access */
@@ -121,11 +123,9 @@ typedef struct expr Expr;
   ExprKind kind;  \
   Position pos;   \
   TypeDesc *desc; \
-  ExprCtx ctx;    \
-  Expr *right;    \
   Symbol *sym;    \
-  int argc;       \
-  char *supername;
+  Expr *right;    \
+  ExprCtx ctx;
 
 struct expr {
   EXPR_HEAD
@@ -138,20 +138,27 @@ Expr *Expr_From_Nil(void);
 Expr *Expr_From_Self(void);
 Expr *Expr_From_Super(void);
 
-/* base expression */
-typedef struct baseexpr {
+/* constant expression */
+typedef struct constexpr {
   EXPR_HEAD
   ConstValue value;
-} BaseExpr;
+} ConstExpr;
 
 Expr *Expr_From_Integer(int64 val);
 Expr *Expr_From_Float(float64 val);
 Expr *Expr_From_Bool(int val);
 Expr *Expr_From_String(char *val);
 Expr *Expr_From_Char(uchar val);
+
+/* identifier expression */
+typedef struct identexpr {
+  EXPR_HEAD
+  /* identifier name */
+  char *name;
+} IdentExpr;
+
 Expr *Expr_From_Ident(char *val);
 int Expr_Is_Const(Expr *exp);
-void BaseExpr_SetConstValue(BaseExpr *baseExp, ConstValue *val);
 
 /* unary expression */
 typedef struct unaryexpr {
