@@ -513,7 +513,7 @@ static void free_anony_expr(Expr *exp)
   AnonyExpr *anonyExp = (AnonyExpr *)exp;
   Free_IdTypeList(anonyExp->args);
   Free_IdTypeList(anonyExp->rets);
-  Vector_Free_Self(anonyExp->body);
+  Vector_Free(anonyExp->body, Free_Stmt_Func, NULL);
   free_expr(exp);
 }
 
@@ -598,7 +598,7 @@ static void free_funcdecl_stmt(Stmt *stmt)
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
   Free_IdTypeList(funcStmt->args);
   Free_IdTypeList(funcStmt->rets);
-  Vector_Free_Self(funcStmt->body);
+  Vector_Free(funcStmt->body, Free_Stmt_Func, NULL);
   Mfree(stmt);
 }
 
@@ -619,7 +619,7 @@ static void free_return_stmt(Stmt *stmt)
 static void free_list_stmt(Stmt *stmt)
 {
   ListStmt *listStmt = (ListStmt *)stmt;
-  Vector_Free_Self(listStmt->vec);
+  Vector_Free(listStmt->vec, Free_Stmt_Func, NULL);
   Mfree(stmt);
 }
 
@@ -661,8 +661,9 @@ static void (*__free_stmt_funcs[])(Stmt *) = {
   NULL, NULL, NULL, NULL,
 };
 
-void Free_Statement(Stmt *stmt)
+void Free_Stmt_Func(void *item, void *arg)
 {
+  Stmt *stmt = item;
   assert(stmt->kind >= 1 && stmt->kind < nr_elts(__free_stmt_funcs));
   void (*__free_stmt_func)(Stmt *) = __free_stmt_funcs[stmt->kind];
   __free_stmt_func(stmt);
@@ -1187,7 +1188,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       Vector_ForEach(e, ids) {
         if (e->kind != ID_KIND) {
           Syntax_Error(ps, &e->pos, "needs an identifier");
-          Free_Statement((Stmt *)listStmt);
+          Free_Stmt_Func(listStmt, NULL);
           free_exprlist(ids);
           free_exprlist(exps);
           return NULL;
@@ -1237,7 +1238,7 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
   int lsz = Vector_Size(left);
   int rsz = Vector_Size(right);
   if (!__validate_count(ps, lsz, rsz)) {
-    Expr *e = Vector_Get(left, 0);
+    Expr *e = Vector_Get(right, 0);
     Syntax_Error(ps, &e->pos, "left and right are not matched");
     free_exprlist(left);
     free_exprlist(right);

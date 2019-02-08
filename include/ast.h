@@ -430,7 +430,7 @@ typedef struct liststmt {
   Vector *vec;
 } ListStmt;
 
-void Free_Statement(Stmt *stmt);
+void Free_Stmt_Func(void *item, void *arg);
 Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst);
 Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
                               Expr *exp, int konst);

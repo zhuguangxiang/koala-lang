@@ -242,7 +242,7 @@ void Destroy_Parser(ParserState *ps)
   assert(ps->u == NULL);
   assert(list_empty(&ps->ustack));
 
-  Vector_Fini_Self(&ps->stmts);
+  Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   Fini_Imports(ps);
 
   Mfree(ps->filename);
@@ -1025,9 +1025,10 @@ static void parse_statements(ParserState *ps, Vector *stmts)
   Stmt *stmt;
   Vector_ForEach(stmt, stmts) {
     parse_statement(ps, stmt);
-    Free_Statement(stmt);
+    Free_Stmt_Func(stmt, NULL);
     Show_MemStat();
   }
+  Vector_Fini_Self(stmts);
 }
 
 int Build_AST(ParserState *ps, FILE *in)

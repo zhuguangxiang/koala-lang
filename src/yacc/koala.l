@@ -33,11 +33,11 @@ LOGGER(0)
 
 #define YY_USER_ACTION \
 do { \
+  Lexer_DoUserAction(yyps, yytext); \
   yylloc->first_line = yyps->line.row; \
   yylloc->last_line = yyps->line.row; \
-  yylloc->first_column = yyps->line.col + 1; \
-  yylloc->last_column = yylloc->first_column + strlen(yytext); \
-  Lexer_DoUserAction(yyps, yytext); \
+  yylloc->first_column = yyps->line.col; \
+  yylloc->last_column = yylloc->first_column + yyps->line.len; \
 } while (0);
 
 #define YY_INPUT(buf, result, max_size) \
