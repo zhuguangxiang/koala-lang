@@ -161,6 +161,7 @@ typedef struct identexpr {
   int where;
 #define CURRENT_SCOPE 1
 #define UP_SCOPE      2
+  void *scope;
 } IdentExpr;
 
 Expr *Expr_From_Ident(char *val);

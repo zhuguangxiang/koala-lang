@@ -170,6 +170,8 @@ void Check_Unused_Imports(ParserState *ps);
 void Check_Unused_Symbols(ParserState *ps);
 
 extern const char *scope_strings[];
+#define scope_name(u) scope_strings[(u)->scope]
+
 void Parse_Expression(ParserState *ps, Expr *exp);
 void Code_Expression(ParserState *ps, Expr *exp);
 void Parse_Ident_Expr(ParserState *ps, Expr *exp);

@@ -255,9 +255,7 @@ static PackageObject *load_package(char *path)
   list = Properties_Get_List(&gState.props, KOALA_PATH);
   assert(list);
   Property *property;
-  struct list_head *pos;
-  list_for_each(pos, list) {
-    property = container_of(pos, Property, link);
+  list_for_each_entry(property, list, link) {
     snprintf(fullpath, MAX_FILE_PATH_LEN - 1, "%s/%s.klc",
              Property_Value(property), path);
     KImage *image = KImage_Read_File(fullpath);
@@ -358,9 +356,7 @@ static void show_pathes(void)
   list = Properties_Get_List(&gState.props, KOALA_PATH);
   if (list) {
     Property *property;
-    struct list_head *pos;
-    list_for_each(pos, list) {
-      property = container_of(pos, Property, link);
+    list_for_each_entry(property, list, link) {
       Log_Printf("%s\n", Property_Value(property));
     }
   }

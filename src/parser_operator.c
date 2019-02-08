@@ -121,7 +121,7 @@ static void __optimize_int_sub(ParserState *ps, BinaryExpr *exp)
   switch (rval.kind) {
   case BASE_INT:
     val = lval.ival - rval.ival;
-    Log_Printf("(- %lld %lld)\n", lval.ival, rval.ival);
+    Log_Printf("%lld = (- %lld %lld)\n", val, lval.ival, rval.ival);
     break;
   case BASE_FLOAT:
     break;

@@ -152,8 +152,7 @@ static void merge_parser_unit(ParserState *ps)
   case SCOPE_BLOCK: {
     /* FIXME: if-else, while and switch-case */
     ParserUnit *uu = up_parser_unit(ps);
-    Log_Debug("merge code into up scope-%d(%s)",
-              ps->depth - 1, scope_strings[uu->scope]);
+    Log_Debug("merge code into up scope-%d(%s)", ps->depth-1, scope_name(uu));
     CodeBlock_Merge(u->block, uu->block);
     CodeBlock_Free(u->block);
     u->block = NULL;
@@ -170,7 +169,7 @@ static void merge_parser_unit(ParserState *ps)
 static void show_parser_unit(ParserState *ps)
 {
   ParserUnit *u = ps->u;
-  const char *scope = scope_strings[u->scope];
+  const char *scope = scope_name(u);
   char *name = u->sym != NULL ? u->sym->name : NULL;
   name = (name == NULL) ? ps->filename : name;
   Log_Puts("\n----------------------------------------");
@@ -204,7 +203,7 @@ void Parser_Exit_Scope(ParserState *ps)
   check_unused_symbols(ps->u);
 
   Log_Debug("\x1b[35mExit scope-%d(%s)\x1b[0m",
-            ps->depth, scope_strings[ps->u->scope]);
+            ps->depth, scope_name(ps->u));
 
   merge_parser_unit(ps);
 
@@ -490,15 +489,13 @@ static ParserUnit *parse_block_variable(ParserState *ps, Ident *id)
   ParserUnit *uu;
   Symbol *sym;
   int depth = ps->depth;
-  struct list_head *pos;
-  list_for_each(pos, &ps->ustack) {
+  list_for_each_entry(uu, &ps->ustack, link) {
     depth -= 1;
-    uu = container_of(pos, ParserUnit, link);
     sym = STable_Get(uu->stbl, id->name);
     if (sym != NULL) {
       Syntax_Error(ps, &id->pos,
                    "var '%s' is already delcared in scope-%d(%s)",
-                   id->name, depth, scope_strings[uu->scope]);
+                   id->name, depth, scope_name(uu));
       return NULL;
     }
     if (uu->scope == SCOPE_FUNCTION || uu->scope == SCOPE_CLOSURE)
@@ -920,9 +917,7 @@ static void parse_return_stmt(ParserState *ps, Stmt *stmt)
     funSym = (FuncSymbol *)u->sym;
   } else {
     ParserUnit *uu;
-    struct list_head *pos;
-    list_for_each(pos, &ps->ustack) {
-      uu = container_of(pos, ParserUnit, link);
+    list_for_each_entry(uu, &ps->ustack, link) {
       if (uu->scope == SCOPE_FUNCTION) {
         funSym = (FuncSymbol *)uu->sym;
         break;

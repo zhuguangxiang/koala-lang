@@ -108,9 +108,7 @@ uint8 *Buffer_RawData(Buffer *buf)
   uint8 *data = Malloc(ALIGN(buf->size, 4));
   assert(data);
 
-  struct list_head *pos;
-  list_for_each(pos, &buf->head) {
-    block = container_of(pos, Block, link);
+  list_for_each_entry(block, &buf->head, link) {
     memcpy(data + size, block->data, block->used);
     size += block->used;
   }

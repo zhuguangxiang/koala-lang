@@ -134,7 +134,9 @@ void __STable_Free(STable *stbl, symbol_visit_func visit, void *arg);
 
 Symbol *Symbol_New(SymKind kind, char *name);
 void Symbol_Free(Symbol *sym);
-#define Symbol_IsAccess(sym) isupper((sym)->name[0])
+#define Symbol_Is_Public(sym)  isupper((sym)->name[0])
+#define Symbol_Is_Private(sym) !(Symbol_Is_Public(sym))
+#define Symbol_Is_Used(sym)    ((sym)->used > 0)
 void Show_Symbol(Symbol *sym);
 
 VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);

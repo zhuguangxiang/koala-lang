@@ -121,6 +121,12 @@ static void code_ident_current_scope(ParserUnit *u, IdentExpr *exp)
   }
 }
 
+/* identifier is found in up scope */
+static void code_ident_up_scope(ParserUnit *u, IdentExpr *idExp)
+{
+
+}
+
 /*
   a.b.c.attribute
   a.b.c()
@@ -140,13 +146,31 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
   sym = STable_Get(u->stbl, name);
   if (sym != NULL) {
     Log_Debug("find symbol '%s' in local scope-%d(%s)",
-              name, ps->depth, scope_strings[u->scope]);
+              name, ps->depth, scope_name(u));
+    sym->used++;
+    assert(idExp->sym == NULL);
+    assert(idExp->desc == NULL);
     idExp->sym = sym;
     idExp->desc = sym->desc;
     TYPE_INCREF(idExp->desc);
     idExp->where = CURRENT_SCOPE;
-    Show_Symbol(sym);
     return;
+  }
+
+  /* find ident from up scope */
+  ParserUnit *uu;
+  list_for_each_entry(uu, &ps->ustack, link) {
+    sym = STable_Get(uu->stbl, name);
+    if (sym != NULL) {
+      Log_Debug("find symbol '%s' in up scope-%d(%s)",
+                name, ps->depth, scope_name(u));
+      sym->used++;
+      idExp->sym = sym;
+      idExp->desc = sym->desc;
+      TYPE_INCREF(idExp->desc);
+      idExp->where = UP_SCOPE;
+      return;
+    }
   }
 
   Syntax_Error(ps, &exp->pos, "cannot find symbol '%s'", name);
@@ -161,5 +185,8 @@ void Code_Ident_Expr(ParserState *ps, Expr *exp)
   if (idExp->where == CURRENT_SCOPE) {
     /* current scope */
     code_ident_current_scope(u, idExp);
+  } else if (idExp->where == UP_SCOPE) {
+    /* up scope */
+    code_ident_up_scope(u, idExp);
   }
 }

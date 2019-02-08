@@ -234,9 +234,7 @@ void CodeBlock_Show(CodeBlock *block)
   if (!list_empty(&block->insts)) {
     int cnt = 0;
     Inst *i;
-    struct list_head *pos;
-    list_for_each(pos, &block->insts) {
-      i = container_of(pos, Inst, link);
+    list_for_each_entry(i, &block->insts, link) {
       Log_Printf("[%d]:\n", cnt++);
       Log_Printf("  opcode:%s\n", OpCode_String(i->op));
       buf[0] = '\0';
@@ -360,9 +358,7 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code)
   Buffer buf;
   Buffer_Init(&buf, 32);
   Inst *i;
-  struct list_head *pos;
-  list_for_each(pos, &block->insts) {
-    i = container_of(pos, Inst, link);
+  list_for_each_entry(i, &block->insts, link) {
     Inst_Gen(image, &buf, i);
   }
   uint8 *data = Buffer_RawData(&buf);

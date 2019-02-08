@@ -506,8 +506,7 @@ Object *MemberDef_HashTable_ToString(HashTable *table)
   struct list_head *pos;
   HashNode *hnode;
   int i = 0;
-  list_for_each(pos, &table->head) {
-    hnode = container_of(pos, HashNode, llink);
+  list_for_each_entry(hnode, &table->head, llink) {
     MemberDef *m = container_of(hnode, MemberDef, hnode);
     Tuple_Set(tuple, i++, String_New(m->name));
   }

@@ -587,6 +587,9 @@ static void free_assign_stmt(Stmt *stmt)
 
 static void free_assignlist_stmt(Stmt *stmt)
 {
+  AssignListStmt *assListStmt = (AssignListStmt *)stmt;
+  free_exprlist(assListStmt->left);
+  Free_Expr(assListStmt->right);
   Mfree(stmt);
 }
 

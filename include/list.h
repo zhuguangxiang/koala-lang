@@ -97,6 +97,10 @@ void list_del(struct list_head *entry)
   init_list_head(entry);
 }
 
+/* get the struct for this entry */
+#define list_entry(ptr, type, member) \
+  container_of(ptr, type, member)
+
 /* Tests whether a list is empty */
 #define list_empty(head) ((head)->next == head)
 
@@ -110,8 +114,14 @@ void list_del(struct list_head *entry)
 #define list_for_each(pos, head) \
   for (pos = (head)->next; pos != (head); pos = pos->next)
 
+/* iterate over list of given type */
+#define list_for_each_entry(pos, head, member) \
+  for (pos = list_entry((head)->next, typeof(*pos), member); \
+      &pos->member != (head); \
+      pos = list_entry(pos->member.next, typeof(*pos), member))
+
 /* iterate over a list backwards */
-#define list_for_each_prev(pos, head) \
+#define list_for_each_reverse(pos, head) \
   for (pos = (head)->prev; pos != (head); pos = pos->prev)
 
 /* iterate over a list safe against removal of list entry */
@@ -120,8 +130,15 @@ void list_del(struct list_head *entry)
        pos != (head); \
        pos = n, n = pos->next)
 
+/* iterate over list of given type safe against removal of list entry */
+#define list_for_each_entry_safe(pos, n, head, member)  \
+  for (pos = list_entry((head)->next, typeof(*pos), member), \
+      n = list_entry(pos->member.next, typeof(*pos), member); \
+      &pos->member != (head); \
+      pos = n, n = list_entry(n->member.next, typeof(*n), member))
+
 /* iterate over a list backwards safe against removal of list entry */
-#define list_for_each_prev_safe(pos, n, head) \
+#define list_for_each_reverse_safe(pos, n, head) \
   for (pos = (head)->prev, n = pos->prev; \
        pos != (head); \
        pos = n, n = pos->prev)
@@ -191,6 +208,14 @@ void hlist_add(struct hlist_node *n, struct hlist_head *h)
 
 #define hlist_for_each_safe(pos, n, head) \
   for (pos = (head)->first; pos && ({n = pos->next; 1;}); pos = n)
+
+#define hlist_entry(ptr, type, member) \
+  container_of(ptr,type,member)
+
+#define hlist_for_each_entry(tpos, pos, head, member) \
+  for (pos = (head)->first; \
+      pos && ({ tpos = hlist_entry(pos, typeof(*tpos), member); 1;}); \
+      pos = pos->next)
 
 #ifdef __cplusplus
 }
