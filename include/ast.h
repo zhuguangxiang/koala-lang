@@ -155,6 +155,12 @@ typedef struct identexpr {
   EXPR_HEAD
   /* identifier name */
   char *name;
+  /*
+   * where is the identifier?
+   * 0: current scope
+   * 1: up scope
+   */
+  int where;
 } IdentExpr;
 
 Expr *Expr_From_Ident(char *val);
@@ -197,7 +203,8 @@ typedef struct subscriptexpr {
 /* function call expression */
 typedef struct callexpr {
   EXPR_HEAD
-  Vector *args; /* arguments list */
+  /* arguments list */
+  Vector *args;
   Expr *left;
 } CallExpr;
 
@@ -217,8 +224,10 @@ Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left);
 /* array, set or map list expression */
 typedef struct listexpr {
   EXPR_HEAD
-  int nesting;  /* nesting count  */
-  Vector *vec;  /* expressions */
+  /* nesting count  */
+  int nesting;
+  /* expressions */
+  Vector *vec;
 } ListExpr;
 
 Expr *Expr_From_ArrayListExpr(Vector *vec);
@@ -264,9 +273,12 @@ Expr *Expr_From_Set(TypeWrapper type, Expr *listExp);
 /* new anonymous function expression */
 typedef struct anonyexpr {
   EXPR_HEAD
-  Vector *args; /* idtype */
-  Vector *rets; /* idtype */
-  Vector *body; /* statements */
+  /* idtype */
+  Vector *args;
+  /* idtype */
+  Vector *rets;
+  /* statements */
+  Vector *body;
 } AnonyExpr;
 
 Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body);
@@ -374,7 +386,8 @@ typedef struct assignstmt {
 /* assignment list statement, see ASSIGNLIST_KIND */
 typedef struct assignliststmt {
   STMT_HEAD
-  Vector *left; /* expression list */
+  /* expression list */
+  Vector *left;
   Expr *right;
 } AssignListStmt;
 
@@ -383,29 +396,35 @@ typedef struct funcdeclstmt {
   STMT_HEAD
   int native;
   Ident id;
-  Vector *args; /* idtype statement */
-  Vector *rets; /* idtype statement */
-  Vector *body; /* body statements */
+  /* idtype statement */
+  Vector *args;
+  /* idtype statement */
+  Vector *rets;
+  /* body statements */
+  Vector *body;
 } FuncDeclStmt;
 
 /* expression statement */
 typedef struct exprstmt {
   STMT_HEAD
-  Expr *exp; /* e.g. list.append(cat); */
+  /* e.g. list.append(cat); */
+  Expr *exp;
 } ExprStmt;
 
 /* return statement */
 typedef struct returnstmt {
   STMT_HEAD
   Position pos;
-  Vector *exps; /* expression */
+  /* expression */
+  Vector *exps;
 } ReturnStmt;
 
 /* list statement */
 typedef struct liststmt {
   STMT_HEAD
   int block;
-  Vector *vec; /* statement */
+  /* statement */
+  Vector *vec;
 } ListStmt;
 
 void Free_Statement(Stmt *stmt);
