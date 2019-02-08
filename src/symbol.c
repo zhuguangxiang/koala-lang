@@ -607,9 +607,14 @@ static void __symbol_show_fn(Symbol *sym, void *arg)
   ops->__symbol_show(sym);
 }
 
+void Show_Symbol(Symbol *sym)
+{
+  __symbol_show_fn(sym, NULL);
+}
+
 void STable_Show(STable *stbl)
 {
-  STable_Visit(stbl, __symbol_show_fn, stbl);
+  STable_Visit(stbl, __symbol_show_fn, NULL);
 }
 
 struct visit_entry {

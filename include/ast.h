@@ -157,10 +157,10 @@ typedef struct identexpr {
   char *name;
   /*
    * where is the identifier?
-   * 0: current scope
-   * 1: up scope
    */
   int where;
+#define CURRENT_SCOPE 1
+#define UP_SCOPE      2
 } IdentExpr;
 
 Expr *Expr_From_Ident(char *val);
