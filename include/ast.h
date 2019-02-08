@@ -221,6 +221,8 @@ Expr *Expr_From_Attribute(Ident id, Expr *left);
 Expr *Expr_From_SubScript(Expr *index, Expr *left);
 Expr *Expr_From_Call(Vector *args, Expr *left);
 Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left);
+#define Expr_Is_Call(exp) \
+  (((exp) != NULL && (exp)->kind == CALL_KIND) ? 1 : 0)
 
 /* array, set or map list expression */
 typedef struct listexpr {

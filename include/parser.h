@@ -181,6 +181,12 @@ void Code_Unary_Expr(ParserState *ps, Expr *exp);
 void Parse_Binary_Expr(ParserState *ps, Expr *exp);
 void Code_Binary_Expr(ParserState *ps, Expr *exp);
 
+typedef void (*code_func)(ParserState *, void *);
+typedef struct code_generator {
+  ScopeKind scope;
+  code_func code;
+} CodeGenerator;
+
 /* yacc(bison) used APIs */
 void Init_Imports(ParserState *ps);
 void Fini_Imports(ParserState *ps);

@@ -25,107 +25,188 @@
 
 LOGGER(0)
 
-/* identifier is found in current scope */
-static void code_ident_current_scope(ParserUnit *u, IdentExpr *exp)
+static void code_current_module_class(ParserState *ps, void *arg)
 {
-  switch (u->scope) {
-  case SCOPE_MODULE:
-  case SCOPE_CLASS: {
-    /*
-     * expr, in module/class scope,
-     * is variable/field declaration's right expr
-     */
-    assert(exp->ctx == EXPR_LOAD);
-    Symbol *sym = exp->sym;
-    TypeDesc *desc = exp->desc;
-    Expr *right = exp->right;
-    if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
-      Log_Debug("symbol '%s' is %s", sym->name,
-                sym->kind == SYM_CONST ? "constant" : "variable");
-      if (desc->kind == TYPE_PROTO &&
-          right != NULL && right->kind == CALL_KIND) {
-        /* call function(variable) */
-        /* FIXME: anonymous */
-        Log_Debug("variable '%s' is function", sym->name);
-        Log_Debug("call '%s' function", sym->name);
-        Inst_Append_NoArg(u->block, OP_LOAD0);
-        ConstValue val = {.kind = BASE_STRING, .str = sym->name};
-        Inst *i = Inst_Append(u->block, OP_CALL, &val);
-        i->argc = Vector_Size(((CallExpr *)right)->args);
-      } else {
-        /* load variable */
-        Log_Debug("load '%s' variable", sym->name);
-        Inst_Append_NoArg(u->block, OP_LOAD0);
-        ConstValue val = {.kind = BASE_STRING, .str = sym->name};
-        Inst_Append(u->block, OP_GETFIELD, &val);
-      }
-    } else {
-      assert(sym->kind == SYM_FUNC);
-      Log_Debug("symbol '%s' is function", sym->name);
-      if (right != NULL && right->kind == CALL_KIND) {
-        /* call function */
-        CallExpr *callExp = (CallExpr *)right;
-        Log_Debug("call '%s' function", sym->name);
-        Inst_Append_NoArg(u->block, OP_LOAD0);
-        ConstValue val = {.kind = BASE_STRING, .str = sym->name};
-        Inst *i = Inst_Append(u->block, OP_CALL, &val);
-        i->argc = Vector_Size(((CallExpr *)right)->args);
-      } else {
-        /* load function */
-        Log_Debug("load '%s' function", sym->name);
-        Inst_Append_NoArg(u->block, OP_LOAD0);
-        ConstValue val = {.kind = BASE_STRING, .str = sym->name};
-        Inst_Append(u->block, OP_GETFIELD, &val);
-      }
-    }
-    break;
-  }
-  case SCOPE_FUNCTION:
-  case SCOPE_BLOCK:
-  case SCOPE_CLOSURE: {
-    /*
-     * expr, in function/block/closure scope, is local variable or parameter
-     * it's context is load or store
-     */
-    Symbol *sym = exp->sym;
-    assert(sym->kind == SYM_VAR);
-    VarSymbol *varSym = (VarSymbol *)exp->sym;
-    Expr *right = exp->right;
-    TypeDesc *desc = exp->desc;
-    Log_Debug("symbol '%s' is local variable", varSym->name);
-    if (desc->kind == TYPE_PROTO &&
-        right != NULL && right->kind == CALL_KIND) {
-      /* call function(variable) */
-      /* FIXME: anonymous */
-      Log_Debug("variable '%s' is function", sym->name);
-      Log_Debug("call '%s' function", sym->name);
-      assert(exp->ctx == EXPR_LOAD);
-      Inst_Append_NoArg(u->block, OP_LOAD0);
-      ConstValue val = {.kind = BASE_STRING, .str = varSym->name};
-      Inst *i = Inst_Append(u->block, OP_CALL, &val);
-      i->argc = Vector_Size(((CallExpr *)right)->args);
+  ParserUnit *u = ps->u;
+  IdentExpr *exp = arg;
+  Symbol *sym = exp->sym;
+  TypeDesc *desc = exp->desc;
+  ExprCtx ctx = exp->ctx;
+  Expr *right = exp->right;
+
+  /* Id, in module/class, is in variable/field declaration's expr */
+  assert(ctx == EXPR_LOAD);
+  if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
+    Log_Debug("Id '%s' is const/var", sym->name);
+    if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
+      /* Id is const/var, but it's a func reference, call function */
+      Log_Debug("call '%s' function(var)", sym->name);
+      int argc = Vector_Size(((CallExpr *)right)->args);
+      CODE_CALL(u->block, sym->name, argc);
     } else {
       /* load variable */
-      assert(exp->ctx == EXPR_LOAD || exp->ctx == EXPR_STORE);
-      Log_Debug("%s '%s' variable",
-                exp->ctx == EXPR_LOAD ? "load" : "store", varSym->name);
-      int opcode = (exp->ctx == EXPR_LOAD) ? OP_LOAD : OP_STORE;
-      ConstValue val = {.kind = BASE_INT, .ival = varSym->index};
-      Inst_Append(u->block, opcode, &val);
+      Log_Debug("load '%s' variable", sym->name);
+      CODE_GETFIELD(u->block, sym->name);
     }
-    break;
-  }
-  default:
-    assert(0);
-    break;
+  } else {
+    assert(sym->kind == SYM_FUNC);
+    Log_Debug("Id '%s' is function", sym->name);
+    if (Expr_Is_Call(right)) {
+      /* call function */
+      Log_Debug("call '%s' function", sym->name);
+      int argc = Vector_Size(((CallExpr *)right)->args);
+      CODE_CALL(u->block, sym->name, argc);
+    } else {
+      /* load function */
+      Log_Debug("load '%s' function", sym->name);
+      CODE_GETFIELD(u->block, sym->name);
+    }
   }
 }
 
-/* identifier is found in up scope */
-static void code_ident_up_scope(ParserUnit *u, IdentExpr *idExp)
+static void code_current_function_block_closure(ParserState *ps, void *arg)
 {
+  ParserUnit *u = ps->u;
+  IdentExpr *exp = arg;
+  Symbol *sym = exp->sym;
+  TypeDesc *desc = exp->desc;
+  ExprCtx ctx = exp->ctx;
+  Expr *right = exp->right;
 
+  /*
+   * expr, in function/block/closure scope, is local variable or parameter
+   * it's context is load or store
+   */
+  assert(sym->kind == SYM_VAR);
+  VarSymbol *varSym = (VarSymbol *)sym;
+  Log_Debug("Id '%s' is variable", varSym->name);
+  if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
+    /* Id is const/var, but it's a func reference, call function */
+    Log_Debug("call '%s' function(var)", sym->name);
+    assert(ctx == EXPR_LOAD);
+    int argc = Vector_Size(((CallExpr *)right)->args);
+    CODE_CALL(u->block, sym->name, argc);
+  } else {
+    /* load variable */
+    assert(ctx == EXPR_LOAD || ctx == EXPR_STORE);
+    if (ctx == EXPR_LOAD) {
+      Log_Debug("load '%s' variable", varSym->name);
+      CODE_LOAD(u->block, varSym->index);
+    } else {
+      Log_Debug("store '%s variable", varSym->name);
+      CODE_STORE(u->block, varSym->index);
+    }
+  }
 }
+
+static void code_up_class(ParserState *ps, void *arg)
+{
+  ParserUnit *u = ps->u;
+  IdentExpr *exp = arg;
+  Symbol *sym = exp->sym;
+  TypeDesc *desc = exp->desc;
+  ExprCtx ctx = exp->ctx;
+  Expr *right = exp->right;
+  ParserUnit *uu = exp->scope;
+
+  /*
+   * up scope MUST be module
+   * Id, in class, is in field declaration's expr
+   */
+  Log_Debug("Id '%s' is in module", sym->name);
+  assert(uu->scope == SCOPE_MODULE);
+  assert(ctx == EXPR_LOAD);
+  if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
+    Log_Debug("Id '%s' is const/var", sym->name);
+    if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
+      /* Id is const/var, but it's a func reference, call function */
+      Log_Debug("call '%s' function(var)", sym->name);
+      int argc = Vector_Size(((CallExpr *)right)->args);
+      CODE_PKG_CALL(u->block, sym->name, argc);
+    } else {
+      /* load variable */
+      Log_Debug("load '%s' variable", sym->name);
+      CODE_PKG_GETFIELD(u->block, sym->name);
+    }
+  } else {
+    assert(sym->kind == SYM_FUNC);
+    Log_Debug("Id '%s' is function", sym->name);
+    if (Expr_Is_Call(right)) {
+      /* call function */
+      Log_Debug("call '%s' function", sym->name);
+      int argc = Vector_Size(((CallExpr *)right)->args);
+      CODE_PKG_CALL(u->block, sym->name, argc);
+    } else {
+      /* load function */
+      Log_Debug("load '%s' function", sym->name);
+      CODE_PKG_GETFIELD(u->block, sym->name);
+    }
+  }
+}
+
+static void code_up_function(ParserState *ps, void *arg)
+{
+  ParserUnit *u = ps->u;
+  IdentExpr *exp = arg;
+  Symbol *sym = exp->sym;
+  TypeDesc *desc = exp->desc;
+  ExprCtx ctx = exp->ctx;
+  Expr *right = exp->right;
+}
+
+static void code_up_block(ParserState *ps, void *arg)
+{
+  ParserUnit *u = ps->u;
+  IdentExpr *exp = arg;
+  Symbol *sym = exp->sym;
+  TypeDesc *desc = exp->desc;
+  ExprCtx ctx = exp->ctx;
+  Expr *right = exp->right;
+}
+
+static void code_up_closure(ParserState *ps, void *arg)
+{
+  ParserUnit *u = ps->u;
+  IdentExpr *exp = arg;
+  Symbol *sym = exp->sym;
+  TypeDesc *desc = exp->desc;
+  ExprCtx ctx = exp->ctx;
+  Expr *right = exp->right;
+}
+
+/* identifier is found in current scope */
+static CodeGenerator current_codes[] = {
+  {SCOPE_MODULE,   code_current_module_class},
+  {SCOPE_CLASS,    code_current_module_class},
+  {SCOPE_FUNCTION, code_current_function_block_closure},
+  {SCOPE_BLOCK,    code_current_function_block_closure},
+  {SCOPE_CLOSURE,  code_current_function_block_closure},
+};
+
+/*
+ * identifier is found in up scope
+ * It's impossible that ID is in SCOPE_MODULE, is it right?
+ */
+static CodeGenerator up_codes[] = {
+  {SCOPE_MODULE,   NULL},
+  {SCOPE_CLASS,    code_up_class},
+  {SCOPE_FUNCTION, code_up_function},
+  {SCOPE_BLOCK,    code_up_block},
+  {SCOPE_CLOSURE,  code_up_closure},
+};
+
+#define code_generate(codes_array, _scope, ps, arg) \
+({ \
+  CodeGenerator *gen = codes_array; \
+  for (int i = 0; i < nr_elts(codes_array); i++) { \
+    if (_scope == gen->scope) { \
+      if (gen->code != NULL) \
+        gen->code(ps, arg); \
+      break; \
+    } \
+    gen++; \
+  } \
+})
 
 /*
   a.b.c.attribute
@@ -154,6 +235,7 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
     idExp->desc = sym->desc;
     TYPE_INCREF(idExp->desc);
     idExp->where = CURRENT_SCOPE;
+    idExp->scope = u;
     return;
   }
 
@@ -169,6 +251,7 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
       idExp->desc = sym->desc;
       TYPE_INCREF(idExp->desc);
       idExp->where = UP_SCOPE;
+      idExp->scope = uu;
       return;
     }
   }
@@ -184,9 +267,11 @@ void Code_Ident_Expr(ParserState *ps, Expr *exp)
   IdentExpr *idExp = (IdentExpr *)exp;
   if (idExp->where == CURRENT_SCOPE) {
     /* current scope */
-    code_ident_current_scope(u, idExp);
+    code_generate(current_codes, u->scope, ps, idExp);
   } else if (idExp->where == UP_SCOPE) {
     /* up scope */
-    code_ident_up_scope(u, idExp);
+    code_generate(up_codes, u->scope, ps, idExp);
+  } else {
+    assert(0);
   }
 }

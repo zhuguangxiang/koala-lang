@@ -71,6 +71,50 @@ void CodeBlock_Merge(CodeBlock *from, CodeBlock *to);
 void CodeBlock_Show(CodeBlock *block);
 int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
 
+#define CODE_LOAD(block, index) \
+({ \
+  ConstValue val = {.kind = BASE_INT, .ival = index}; \
+  Inst_Append(block, OP_LOAD, &val); \
+})
+
+#define CODE_STORE(block, index) \
+({ \
+  ConstValue val = {.kind = BASE_INT, .ival = index}; \
+  Inst_Append(block, OP_STORE, &val); \
+})
+
+#define CODE_GETFIELD(block, name) \
+({ \
+  Inst_Append_NoArg(block, OP_LOAD0); \
+  ConstValue val = {.kind = BASE_STRING, .str = name}; \
+  Inst_Append(block, OP_GETFIELD, &val); \
+})
+
+#define CODE_CALL(block, name, argc) \
+({ \
+  Inst_Append_NoArg(block, OP_LOAD0); \
+  ConstValue val = {.kind = BASE_STRING, .str = name}; \
+  Inst *i = Inst_Append(block, OP_CALL, &val); \
+  i->argc = argc; \
+})
+
+/* FIXME: how to get package's var/const */
+#define CODE_PKG_GETFIELD(block, name) \
+({ \
+  Inst_Append_NoArg(block, OP_LOAD0); \
+  ConstValue val = {.kind = BASE_STRING, .str = name}; \
+  Inst_Append(block, OP_GETFIELD, &val); \
+})
+
+/* FIXME: how to get package's func */
+#define CODE_PKG_CALL(block, name, argc) \
+({ \
+  Inst_Append_NoArg(block, OP_LOAD0); \
+  ConstValue val = {.kind = BASE_STRING, .str = name}; \
+  Inst *i = Inst_Append(block, OP_CALL, &val); \
+  i->argc = argc; \
+})
+
 #ifdef __cplusplus
 }
 #endif
