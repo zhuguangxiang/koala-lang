@@ -45,7 +45,7 @@ int Init_PkgInfo(PkgInfo *pkg, char *pkgname, char *pkgfile, Options *opts)
 
 void Fini_PkgInfo(PkgInfo *pkg)
 {
-  STable_Free_Self(pkg->stbl);
+  STable_Free(pkg->stbl);
 }
 
 void Show_PkgInfo(PkgInfo *pkg)
@@ -143,7 +143,7 @@ static void merge_parser_unit(ParserState *ps)
     funSym->code = u->block;
     u->block = NULL;
     /* free local symbol table */
-    STable_Free_Self(u->stbl);
+    STable_Free(u->stbl);
     u->stbl = NULL;
     /* simple clear symbol, it's stored in module's symbol table */
     u->sym = NULL;
@@ -157,7 +157,7 @@ static void merge_parser_unit(ParserState *ps)
     CodeBlock_Merge(u->block, uu->block);
     CodeBlock_Free(u->block);
     u->block = NULL;
-    STable_Free_Self(u->stbl);
+    STable_Free(u->stbl);
     u->stbl = NULL;
     break;
   }

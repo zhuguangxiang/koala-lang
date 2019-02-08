@@ -807,7 +807,7 @@ void Init_Imports(ParserState *ps)
 void Fini_Imports(ParserState *ps)
 {
   HashTable_Fini(&ps->imports, import_free_func, NULL);
-  STable_Free(ps->extstbl, NULL, NULL);
+  STable_Free(ps->extstbl);
 }
 
 static Import *__find_import(ParserState *ps, char *path)

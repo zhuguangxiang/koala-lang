@@ -39,28 +39,32 @@ typedef struct symboltable {
 
 /* symbol kind */
 typedef enum symbolkind {
-  SYM_CONST  = 1,   /* constant */
-  SYM_VAR    = 2,   /* variable */
+  SYM_CONST  = 1,   /* constant           */
+  SYM_VAR    = 2,   /* variable           */
   SYM_FUNC   = 3,   /* function or method */
-  SYM_ALIAS  = 4,   /* type alias */
-  SYM_CLASS  = 5,   /* clas */
-  SYM_TRAIT  = 6,   /* trait */
-  SYM_IFUNC  = 7,   /* interface method */
-  SYM_NFUNC  = 8,   /* native function */
+  SYM_ALIAS  = 4,   /* type alias         */
+  SYM_CLASS  = 5,   /* clas               */
+  SYM_TRAIT  = 6,   /* trait              */
+  SYM_IFUNC  = 7,   /* interface method   */
+  SYM_NFUNC  = 8,   /* native function    */
   SYM_AFUNC  = 9,   /* anonymous function */
-  SYM_IMPORT = 10,  /* import */
+  SYM_IMPORT = 10,  /* import             */
 } SymKind;
 
-#define SYMBOL_HEAD           \
-  SymKind kind;               \
-  HashNode hnode;             \
-  char *name;                 \
-  /* for free symbol */       \
-  int refcnt;                 \
-  /* for check used or not */ \
+#define SYMBOL_HEAD \
+  SymKind kind;     \
+  /* hash node */   \
+  HashNode hnode;   \
+  /* symbol key */  \
+  char *name;       \
+  /* symbol type */ \
+  TypeDesc *desc;   \
+  /* free refcnt */ \
+  int refcnt;       \
+  /* used count */  \
   int used;
 
-/* symbol */
+/* symbol structure */
 typedef struct symbol {
   SYMBOL_HEAD
 } Symbol;
@@ -81,8 +85,8 @@ typedef struct constvalue {
 /* constant and variable symbol */
 typedef struct varsymbol {
   SYMBOL_HEAD
-  TypeDesc *desc; /* variable type */
-  int32 index;    /* variable index */
+  /* variable index */
+  int32 index;
   /* if is constant, save its value */
   ConstValue value;
 } VarSymbol;
@@ -90,49 +94,43 @@ typedef struct varsymbol {
 /* function symbol */
 typedef struct funcsymbol {
   SYMBOL_HEAD
-  TypeDesc *desc; /* function's proto */
-  Vector locvec;  /* local varibles in the function */
-  void *code;     /* codeblock */
+  /* local varibles in the function */
+  Vector locvec;
+  /* codeblock */
+  void *code;
 } FuncSymbol;
-
-/* typealias symbol */
-typedef struct aliassymbol {
-  SYMBOL_HEAD
-  TypeDesc *desc; /* real type */
-} AliasSymbol;
 
 /* class and trait symbol */
 typedef struct classsymbol {
   SYMBOL_HEAD
-  Vector supers;    /* supers in liner-oder */
-  STable *stbl;     /* symbol table */
+  /* supers in liner-oder */
+  Vector supers;
+  /* symbol table */
+  STable *stbl;
 } ClassSymbol;
-
-/* interface/natvie function */
-typedef struct ifuncsymbol {
-  SYMBOL_HEAD
-  TypeDesc *desc;   /* function's proto */
-} ProtoSymbol;
 
 /* closure/anonoymous function */
 typedef struct afuncsymbol {
   SYMBOL_HEAD
-  TypeDesc *desc;   /* function's proto */
-  Vector locvec;    /* local varibles in the closure */
-  Vector uplocvec;  /* up local variables */
-  void *code;       /* codeblock */
+  /* local varibles in the closure */
+  Vector locvec;
+  /* up local variables */
+  Vector uplocvec;
+  /* codeblock */
+  void *code;
 } AFuncSymbol;
 
 /* import symbol */
 typedef struct importsymbol {
   SYMBOL_HEAD
-  void *import; /* Import, not need free */
+  /* Import, not need free */
+  void *import;
 } ImportSymbol;
 
 STable *STable_New(void);
 typedef void (*symbol_visit_func)(Symbol *sym, void *arg);
-void STable_Free(STable *stbl, symbol_visit_func visit, void *arg);
-#define STable_Free_Self(stbl) STable_Free(stbl, NULL, NULL)
+void __STable_Free(STable *stbl, symbol_visit_func visit, void *arg);
+#define STable_Free(stbl) __STable_Free(stbl, NULL, NULL)
 
 Symbol *Symbol_New(SymKind kind, char *name);
 void Symbol_Free(Symbol *sym);
@@ -141,10 +139,10 @@ void Symbol_Free(Symbol *sym);
 VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
 VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
 FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
-AliasSymbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc);
+Symbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc);
 ClassSymbol *STable_Add_Class(STable *stbl, char *name);
 ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
-ProtoSymbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
+Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
 #define STable_Add_IFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_IFUNC, proto)
 #define STable_Add_NFunc(stbl, name, proto) \

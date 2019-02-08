@@ -197,7 +197,7 @@ static void __func_gen(Symbol *sym, void *arg)
 
 static Symbol *__alias_new(char *name)
 {
-  return __symbol_new(SYM_ALIAS, name, sizeof(AliasSymbol));
+  return __symbol_new(SYM_ALIAS, name, sizeof(Symbol));
 }
 
 static void __alias_free(Symbol *sym)
@@ -222,7 +222,7 @@ static void __class_free(Symbol *sym)
   ClassSymbol *clsSym = (ClassSymbol *)sym;
   /* FIXME */
   Vector_Fini(&clsSym->supers, NULL, NULL);
-  STable_Free(clsSym->stbl, NULL, NULL);
+  STable_Free(clsSym->stbl);
   __symbol_free(sym);
 }
 
@@ -255,7 +255,7 @@ static void __trait_free(Symbol *sym)
   ClassSymbol *clsSym = (ClassSymbol *)sym;
   /* FIXME */
   Vector_Fini(&clsSym->supers, NULL, NULL);
-  STable_Free(clsSym->stbl, NULL, NULL);
+  STable_Free(clsSym->stbl);
   __symbol_free(sym);
 }
 
@@ -278,23 +278,21 @@ static void __trait_gen(Symbol *sym, void *arg)
 
 static Symbol *__ifunc_new(char *name)
 {
-  return __symbol_new(SYM_IFUNC, name, sizeof(ProtoSymbol));
+  return __symbol_new(SYM_IFUNC, name, sizeof(Symbol));
 }
 
 static void __ifunc_free(Symbol *sym)
 {
-  ProtoSymbol *ifnSym = (ProtoSymbol *)sym;
-  TYPE_DECREF(ifnSym->desc);
+  TYPE_DECREF(sym->desc);
   __symbol_free(sym);
 }
 
 static void __ifunc_show(Symbol *sym)
 {
-  ProtoSymbol *ifnSym = (ProtoSymbol *)sym;
-  ProtoDesc *proto = (ProtoDesc *)ifnSym->desc;
+  ProtoDesc *proto = (ProtoDesc *)sym->desc;
   char buf[64];
   ProtoVec_ToString(proto->arg, buf);
-  if (ifnSym->kind == SYM_IFUNC)
+  if (sym->kind == SYM_IFUNC)
     Log_Printf("iterface func %s%s", sym->name, buf);
   else
     Log_Printf("native func %s(%s)", sym->name, buf);
@@ -313,19 +311,18 @@ static void __ifunc_show(Symbol *sym)
 static void __ifunc_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
-  ProtoSymbol *ifnSym = (ProtoSymbol *)sym;
-  if (ifnSym->kind == SYM_IFUNC) {
-    Log_Debug("  iterface func %s;", ifnSym->name);
-    KImage_Add_IMeth(info->image, info->classname, ifnSym->name, ifnSym->desc);
+  if (sym->kind == SYM_IFUNC) {
+    Log_Debug("  iterface func %s;", sym->name);
+    KImage_Add_IMeth(info->image, info->classname, sym->name, sym->desc);
   } else {
-    Log_Debug("  native func %s", ifnSym->name);
-    KImage_Add_NFunc(info->image, info->classname, ifnSym->name, ifnSym->desc);
+    Log_Debug("  native func %s", sym->name);
+    KImage_Add_NFunc(info->image, info->classname, sym->name, sym->desc);
   }
 }
 
 static Symbol *__nfunc_new(char *name)
 {
-  return __symbol_new(SYM_NFUNC, name, sizeof(ProtoSymbol));
+  return __symbol_new(SYM_NFUNC, name, sizeof(Symbol));
 }
 
 static Symbol *__afunc_new(char *name)
@@ -445,7 +442,7 @@ STable *STable_New(void)
   return stbl;
 }
 
-void STable_Free(STable *stbl, symbol_visit_func visit, void *arg)
+void __STable_Free(STable *stbl, symbol_visit_func visit, void *arg)
 {
   if (stbl == NULL)
     return;
@@ -499,9 +496,9 @@ FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto)
   return sym;
 }
 
-AliasSymbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc)
+Symbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc)
 {
-  AliasSymbol *sym = (AliasSymbol *)Symbol_New(SYM_ALIAS, name);
+  Symbol *sym = Symbol_New(SYM_ALIAS, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
@@ -535,9 +532,9 @@ ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
   return sym;
 }
 
-ProtoSymbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc)
+Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc)
 {
-  ProtoSymbol *sym = (ProtoSymbol *)Symbol_New(k, name);
+  Symbol *sym = Symbol_New(k, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
