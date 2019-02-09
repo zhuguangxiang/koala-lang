@@ -33,10 +33,32 @@ const char *scope_strings[] = {
   "PACKAGE", "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
 
+static uint32 extpkg_hash_func(void *k)
+{
+  ExtPkg *pkg = k;
+  return hash_string(pkg->path);
+}
+
+static int extpkg_equal_func(void *k1, void *k2)
+{
+  ExtPkg *pkg1 = k1;
+  ExtPkg *pkg2 = k2;
+  return !strcmp(pkg1->path, pkg2->path);
+}
+
+static void extpkg_free_func(HashNode *hnode, void *arg)
+{
+  UNUSED_PARAMETER(arg);
+  ExtPkg *pkg = container_of(hnode, ExtPkg, hnode);
+  STable_Free(pkg->stbl);
+  Mfree(pkg);
+}
+
 int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts)
 {
   memset(pkg, 0, sizeof(PackageState));
   pkg->pkgfile = AtomString_New(pkgfile).str;
+  HashTable_Init(&pkg->extpkgs, extpkg_hash_func, extpkg_equal_func);
   pkg->stbl = STable_New();
   pkg->opts = opts;
   Vector_Init(&pkg->modules);
@@ -45,6 +67,7 @@ int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts)
 
 void Fini_PackageState(PackageState *pkg)
 {
+  HashTable_Fini(&pkg->extpkgs, extpkg_free_func, NULL);
   Vector_Fini_Self(&pkg->modules);
   STable_Free(pkg->stbl);
 }
@@ -57,9 +80,24 @@ void Show_PackageState(PackageState *pkg)
   Log_Puts("----------------------------------------\n");
 }
 
-void load_extpkg()
+ExtPkg *ExtPkg_Find(PackageState *pkg, char *path)
 {
+  ExtPkg key = {.path = path};
+  HashNode *hnode = HashTable_Find(&pkg->extpkgs, &key);
+  if (hnode == NULL)
+    return NULL;
+  return container_of(hnode, ExtPkg, hnode);
+}
 
+ExtPkg *ExtPkg_New(PackageState *pkg, char *path, char *pkgname, STable *stbl)
+{
+  ExtPkg *extpkg = Malloc(sizeof(ExtPkg));
+  Init_HashNode(&extpkg->hnode, extpkg);
+  extpkg->path = path;
+  extpkg->pkgname = AtomString_New(pkgname).str;
+  extpkg->stbl = stbl;
+  HashTable_Insert(&pkg->extpkgs, &extpkg->hnode);
+  return extpkg;
 }
 
 void Parser_Set_PkgName(ParserState *ps, Ident *id)
@@ -247,11 +285,8 @@ ParserState *New_Parser(PackageState *pkg, char *filename)
   ps->pkg = pkg;
 
   Vector_Init(&ps->stmts);
-
-  Init_Imports(ps);
-
+  ps->extstbl = STable_New();
   init_list_head(&ps->ustack);
-
   Vector_Init(&ps->errors);
 
   return ps;
@@ -263,8 +298,7 @@ void Destroy_Parser(ParserState *ps)
   assert(list_empty(&ps->ustack));
 
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
-  Fini_Imports(ps);
-
+  STable_Free(ps->extstbl);
   Mfree(ps);
 }
 

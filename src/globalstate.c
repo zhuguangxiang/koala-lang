@@ -258,7 +258,7 @@ static PackageObject *load_package(char *path)
   list_for_each_entry(property, list, link) {
     snprintf(fullpath, MAX_FILE_PATH_LEN - 1, "%s/%s.klc",
              Property_Value(property), path);
-    KImage *image = KImage_Read_File(fullpath);
+    KImage *image = KImage_Read_File(fullpath, 0);
     if (!image)
       continue;
     Log_Debug("load package '%s' from '%s'", path, fullpath);

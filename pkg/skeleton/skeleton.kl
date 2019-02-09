@@ -34,7 +34,7 @@ const K5 = K1
 //const K6 = sub(1,2)
 const K7 = 100
 
-var K7 int;
+//var K7 int;
 
 //variables
 var v1, v2 = 1, 2

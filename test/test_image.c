@@ -26,7 +26,7 @@ void test_image(void)
   KImage_Show(image);
   KImage_Write_File(image, "foo.klc");
   KImage_Free(image);
-  image = KImage_Read_File("foo.klc");
+  image = KImage_Read_File("foo.klc", 0);
   KImage_Show(image);
   KImage_Free(image);
 }

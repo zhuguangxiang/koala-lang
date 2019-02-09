@@ -226,7 +226,8 @@ void KImage_Get_Funcs(KImage *image, getfuncfunc func, void *arg);
 
 void KImage_Finish(KImage *image);
 void KImage_Write_File(KImage *image, char *path);
-KImage *KImage_Read_File(char *path);
+/* flags is ITEM_XXX bits, marked not load */
+KImage *KImage_Read_File(char *path, int flags);
 
 // TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl);
 // TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl);

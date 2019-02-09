@@ -367,12 +367,12 @@ static void __afunc_gen(Symbol *sym, void *arg)
   KImage_Add_IMeth(info->image, info->classname, afnSym->name, afnSym->desc);
 }
 
-static Symbol *__import_new(char *name)
+static Symbol *__extpkg_new(char *name)
 {
-  return __symbol_new(SYM_IMPORT, name, sizeof(ImportSymbol));
+  return __symbol_new(SYM_EXTPKG, name, sizeof(ExtPkgSymbol));
 }
 
-static void __import_free(Symbol *sym)
+static void __extpkg_free(Symbol *sym)
 {
   __symbol_free(sym);
 }
@@ -393,19 +393,19 @@ struct symbol_operations {
   {__ifunc_new, __ifunc_free, __ifunc_show, __ifunc_gen}, /* SYM_IFUNC  */
   {__nfunc_new, __ifunc_free, __ifunc_show, __ifunc_gen}, /* SYM_NFUNC  */
   {__afunc_new, __afunc_free, __afunc_show, __afunc_gen}, /* SYM_AFUNC  */
-  {__import_new, __import_free, NULL, NULL}               /* SYM_IMPORT */
+  {__extpkg_new, __extpkg_free, NULL, NULL}               /* SYM_EXTPKG */
 };
 
 Symbol *Symbol_New(SymKind kind, char *name)
 {
-  assert(kind >= SYM_CONST && kind <= SYM_IMPORT);
+  assert(kind >= SYM_CONST && kind <= SYM_EXTPKG);
   struct symbol_operations *ops = &symops[kind];
   return ops->__symbol_new(name);
 }
 
 void Symbol_Free(Symbol *sym)
 {
-  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_IMPORT);
+  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_EXTPKG);
   if (--sym->refcnt <= 0) {
     assert(sym->refcnt >= 0);
     struct symbol_operations *ops = &symops[sym->kind];
@@ -563,9 +563,9 @@ Symbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc)
   return (Symbol *)sym;
 }
 
-Symbol *STable_Add_Import(STable *stbl, char *name)
+Symbol *STable_Add_ExtPkg(STable *stbl, char *name)
 {
-  ImportSymbol *sym = (ImportSymbol *)Symbol_New(SYM_IMPORT, name);
+  ExtPkgSymbol *sym = (ExtPkgSymbol *)Symbol_New(SYM_EXTPKG, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
@@ -582,7 +582,7 @@ Symbol *STable_Get(STable *stbl, char *name)
 
 static void __gen_image_func(Symbol *sym, void *arg)
 {
-  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_IMPORT);
+  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_EXTPKG);
   struct symbol_operations *ops = &symops[sym->kind];
   ops->__symbol_gen(sym, arg);
 }
@@ -599,10 +599,16 @@ KImage *Gen_Image(STable *stbl, char *pkgname)
   return image;
 }
 
+int STble_From_Image(char *path, char **pkgname, STable **stbl)
+{
+  /* FIXME */
+  assert(0);
+}
+
 static void __symbol_show_fn(Symbol *sym, void *arg)
 {
   UNUSED_PARAMETER(arg);
-  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_IMPORT);
+  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_EXTPKG);
   struct symbol_operations *ops = &symops[sym->kind];
   ops->__symbol_show(sym);
 }

@@ -40,8 +40,8 @@ typedef struct packagestate {
   char *pkgfile;
   /* package name */
   char *pkgname;
-  /* imported external packages' symbol table, path as key */
-  HashTable *extstbl;
+  /* imported external packages, path as key */
+  HashTable extpkgs;
   /* symbol table saves all symbols of the package */
   STable *stbl;
   /* compiling options for compiling other packages, if necessary */
@@ -53,6 +53,17 @@ typedef struct packagestate {
 int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts);
 void Fini_PackageState(PackageState *pkg);
 void Show_PackageState(PackageState *pkg);
+
+/* external package for import */
+typedef struct extpkg {
+  HashNode hnode;
+  char *path;
+  char *pkgname;
+  STable *stbl;
+} ExtPkg;
+
+ExtPkg *ExtPkg_Find(PackageState *pkg, char *path);
+ExtPkg *ExtPkg_New(PackageState *pkg, char *path, char *pkgname, STable *stbl);
 
 /* line max length */
 #define LINE_MAX_LEN 256
@@ -141,9 +152,10 @@ typedef struct parserstate {
   /* all statements */
   Vector stmts;
 
-  /* imported information */
-  HashTable imports;
-  /* external symbol table, imported-name or package-name as key */
+  /*
+   * external symbol table,
+   * imported-name, package-name or symbol-name as key
+   */
   STable *extstbl;
 
   /* current parser unit */
@@ -190,10 +202,7 @@ typedef struct code_generator {
 } CodeGenerator;
 
 /* yacc(bison) used APIs */
-void Init_Imports(ParserState *ps);
-void Fini_Imports(ParserState *ps);
-Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
-                          Position *idloc, Position *pathloc);
+void Parser_New_Import(ParserState *ps, Ident *id, Ident *path);
 void Parser_New_Variables(ParserState *ps, Stmt *stmt);
 Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
                             Vector *exps, int konst);

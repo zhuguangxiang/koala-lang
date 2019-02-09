@@ -24,6 +24,7 @@
 #include "hashfunc.h"
 #include "mem.h"
 #include "log.h"
+#include "stringbuf.h"
 
 LOGGER(0)
 
@@ -776,82 +777,6 @@ Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body)
   return (Stmt *)klsStmt;
 }
 
-typedef struct import {
-  HashNode hnode;
-  char *path;
-  STable *stbl;
-} Import;
-
-static uint32 import_hash_func(void *k)
-{
-  Import *import = k;
-  return hash_string(import->path);
-}
-
-static int import_equal_func(void *k1, void *k2)
-{
-  Import *import1 = k1;
-  Import *import2 = k2;
-  return !strcmp(import1->path, import2->path);
-}
-
-static void import_free_func(HashNode *hnode, void *arg)
-{
-  UNUSED_PARAMETER(arg);
-  Import *import = container_of(hnode, Import, hnode);
-  Mfree(import);
-}
-
-void Init_Imports(ParserState *ps)
-{
-  HashTable_Init(&ps->imports, import_hash_func, import_equal_func);
-  ps->extstbl = STable_New();
-}
-
-void Fini_Imports(ParserState *ps)
-{
-  HashTable_Fini(&ps->imports, import_free_func, NULL);
-  STable_Free(ps->extstbl);
-}
-
-static Import *__find_import(ParserState *ps, char *path)
-{
-  Import key = {.path = path};
-  HashNode *hnode = HashTable_Find(&ps->imports, &key);
-  if (hnode == NULL)
-    return NULL;
-  return container_of(hnode, Import, hnode);
-}
-
-static Import *__new_import(ParserState *ps, char *path, STable *stbl)
-{
-  Import *import = Malloc(sizeof(Import));
-  import->path = path;
-  Init_HashNode(&import->hnode, import);
-  import->stbl = stbl;
-  int result = HashTable_Insert(&ps->imports, &import->hnode);
-  assert(!result);
-  return import;
-}
-
-struct extpkg {
-  char *name;
-  STable *stbl;
-};
-
-static struct extpkg *new_extpkg(char *name, STable *stbl)
-{
-  struct extpkg *extpkg = Malloc(sizeof(struct extpkg));
-  extpkg->name = name;
-  extpkg->stbl = stbl;
-  return extpkg;
-}
-
-static void free_extpkg(struct extpkg *extpkg)
-{
-  Mfree(extpkg);
-}
-
 #if 0
 static void compile_pkg(char *path, Options *opts)
 {
@@ -926,75 +851,64 @@ static STable *pkg_to_stbl(Object *ob)
 }
 #endif
 
-static struct extpkg *load_extpkg(ParserState *ps, char *path)
+void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
 {
-  return NULL;
-  #if 0
-  Object *pkg = Koala_Get_Package(path);
-  if (pkg == NULL) {
-    compile_pkg(path, ps->pkg->opts);
-    pkg = Koala_Load_Package(path);
-    if (pkg == NULL)
-      return NULL;
-  }
-
-  STable *stbl = pkg_to_stbl(pkg);
-  if (stbl == NULL)
-    return NULL;
-
-  return new_extpkg(Package_Name(pkg), stbl);
-  #endif
-}
-
-Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
-                          Position *idloc, Position *pathloc)
-{
-  Import *import =  __find_import(ps, path);
-  if (import != NULL) {
-    Syntax_Error(ps, pathloc, "Package '%s' is imported duplicately.", path);
-    return NULL;
-  }
-
-  Symbol *sym;
-  if (id != NULL) {
-    sym = STable_Get(ps->extstbl, id);
-    if (sym != NULL) {
-      Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
-      return NULL;
-    }
-  }
-
-  struct extpkg *extpkg = load_extpkg(ps, path);
+  ExtPkg *extpkg = ExtPkg_Find(ps->pkg, path->name);
   if (extpkg == NULL) {
-    Syntax_Error(ps, pathloc, "Package '%s' is loaded failure.", path);
-    return NULL;
+    char *pkgname;
+    STable *stbl;
+    STble_From_Image(path->name, &pkgname, &stbl);
+
+    /* not find package */
+    if (stbl == NULL) {
+      Options *opts = ps->pkg->opts;
+      DeclareStringBuf(buf);
+      StringBuf_Append_CStr(buf, "\n    ./");
+      char *s;
+      Vector_ForEach(s, &opts->pathes)
+        StringBuf_Format_CStr(buf, "\n    #", s);
+      Syntax_Error(ps, &path->pos,
+                   "cannot find package '%s' in any of %s",
+                   path->name, buf.data);
+      FiniStringBuf(buf);
+      Free_Ident(id);
+      Free_Ident(path);
+      return;
+    }
+
+    /* find package */
+    extpkg = ExtPkg_New(ps->pkg, path->name, pkgname, stbl);
+    assert(extpkg != NULL);
   }
 
-  /* use package-name as imported-name if imported-name is not set */
-  if (id == NULL)
-    id = extpkg->name;
+  char *name;
+  Symbol *sym;
+  /* referenced by current module */
+  if (id == NULL) {
+    /* use package's name as name in current module */
+    name = extpkg->pkgname;
+    sym = STable_Add_ExtPkg(ps->extstbl, name);
+  } else if (id->name[0] = '*') {
+    /* load all symbols to current module */
+    name = "*";
+  } else {
+    /* use id as name */
+    name = id->name;
+    sym = STable_Add_ExtPkg(ps->extstbl, name);
+  }
 
-  /* save external symbol table and free struct extpkg */
-  STable *extstbl = extpkg->stbl;
-  free_extpkg(extpkg);
-
-  sym = STable_Get(ps->extstbl, id);
   if (sym != NULL) {
-    free_extpkg(extpkg);
-    Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
-    return NULL;
+    Log_Debug("add package '%s <- %s' successfully", name, path->name);
+    ((ExtPkgSymbol *)sym)->extpkg = extpkg;
+  } else {
+    sym = STable_Get(ps->extstbl, name);
+    Syntax_Error(ps, &path->pos, "'%s' redeclared as imported package name, "
+                 "previous declaration at %s:%d:%d",
+                 sym->filename, sym->pos.row, sym->pos.col);
   }
 
-  import = __new_import(ps, path, extstbl);
-  assert(import != NULL);
-
-  sym = STable_Add_Import(ps->extstbl, id);
-  assert(sym != NULL);
-  ((ImportSymbol *)sym)->import = import;
-
-  Log_Debug("add package '%s <- %s' successfully", id, path);
-
-  return sym;
+  Free_Ident(id);
+  Free_Ident(path);
 }
 
 static inline void __add_stmt(ParserState *ps, Stmt *stmt)
@@ -1002,15 +916,23 @@ static inline void __add_stmt(ParserState *ps, Stmt *stmt)
   Vector_Append(&ps->stmts, stmt);
 }
 
-static int __in_extstbl(ParserState *ps, char *name)
+static inline Symbol *__in_extstbl(ParserState *ps, char *name)
 {
-
+  return STable_Get(ps->extstbl, name);
 }
 
 static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int k)
 {
   ParserUnit *u = ps->u;
   Symbol *sym;
+
+  sym = __in_extstbl(ps, id->name);
+  if (sym != NULL) {
+    Syntax_Error(ps, &id->pos, "'%s' redeclared, "
+                 "previous declaration at %s:%d:%d", id->name,
+                 sym->filename, sym->pos.row, sym->pos.col);
+    return;
+  }
 
   if (k)
     sym = STable_Add_Const(u->stbl, id->name, desc);
@@ -1023,7 +945,7 @@ static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int k)
     sym->pos = id->pos;
   } else {
     sym = STable_Get(u->stbl, id->name);
-    Syntax_Error(ps, &id->pos, "symbol '%s' is redeclared, "
+    Syntax_Error(ps, &id->pos, "'%s' redeclared, "
                  "previous declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
   }
@@ -1338,6 +1260,15 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
   char *name = funcStmt->id.name;
   Symbol *sym;
+
+  sym = __in_extstbl(ps, name);
+  if (sym != NULL) {
+    Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared, "
+                     "previous declaration at %s:%d:%d", name,
+                     sym->filename, sym->pos.row, sym->pos.col);
+    return;
+  }
+
   TypeDesc *proto = __get_proto(funcStmt);
 
   if (funcStmt->kind == PROTO_KIND) {
@@ -1349,7 +1280,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
         sym->pos = funcStmt->id.pos;
       } else {
         sym = STable_Get(u->stbl, name);
-        Syntax_Error(ps, &funcStmt->id.pos, "symbol '%s' is redeclared, "
+        Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared, "
                      "previous declaration at %s:%d:%d", name,
                      sym->filename, sym->pos.row, sym->pos.col);
       }
@@ -1361,7 +1292,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
         sym->pos = funcStmt->id.pos;
       } else {
         sym = STable_Get(u->stbl, name);
-        Syntax_Error(ps, &funcStmt->id.pos, "symbol '%s' is redeclared, "
+        Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared, "
                      "previous declaration at %s:%d:%d", name,
                      sym->filename, sym->pos.row, sym->pos.col);
       }
@@ -1375,7 +1306,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
       sym->pos = funcStmt->id.pos;
     } else {
       sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &funcStmt->id.pos, "symbol '%s' is redeclared, "
+      Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared, "
                    "previous declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
     }
@@ -1417,6 +1348,15 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
   KlassStmt *klsStmt = (KlassStmt *)stmt;
   char *name = klsStmt->id.name;
   Symbol *sym;
+
+  sym = __in_extstbl(ps, name);
+  if (sym != NULL) {
+    Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared, "
+                   "previous declaration at %s:%d:%d", name,
+                   sym->filename, sym->pos.row, sym->pos.col);
+    return;
+  }
+
   if (stmt->kind == CLASS_KIND) {
     sym = STable_Add_Class(u->stbl, name);
     if (sym != NULL) {
@@ -1425,7 +1365,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       sym->pos = klsStmt->id.pos;
     } else {
       sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &klsStmt->id.pos, "symbol '%s' is redeclared, "
+      Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared, "
                    "previous declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
     }
@@ -1438,7 +1378,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       sym->pos = klsStmt->id.pos;
     } else {
       sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &klsStmt->id.pos, "symbol '%s' is redeclared, "
+      Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared, "
                    "previous declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
     }
@@ -1481,6 +1421,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
 
 TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz)
 {
+  /* FIXME */
   char *path = NULL;
   if (id != NULL) {
     Symbol *sym = STable_Get(ps->extstbl, id);
@@ -1488,10 +1429,10 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz)
       Log_Error("cannot find package: '%s'", id);
       return NULL;
     }
-    assert(sym->kind == SYM_IMPORT);
+    assert(sym->kind == SYM_EXTPKG);
     sym->refcnt++;
-    Import *import = ((ImportSymbol *)sym)->import;
-    path = import->path;
+    ExtPkg *extpkg = ((ExtPkgSymbol *)sym)->extpkg;
+    path = extpkg->path;
   }
   return TypeDesc_Get_Klass(path, klazz);
 }

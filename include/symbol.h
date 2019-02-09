@@ -48,7 +48,7 @@ typedef enum symbolkind {
   SYM_IFUNC  = 7,   /* interface method   */
   SYM_NFUNC  = 8,   /* native function    */
   SYM_AFUNC  = 9,   /* anonymous function */
-  SYM_IMPORT = 10,  /* import             */
+  SYM_EXTPKG = 10,  /* external package   */
 } SymKind;
 
 /* source code token position for error handler */
@@ -130,12 +130,12 @@ typedef struct afuncsymbol {
   void *code;
 } AFuncSymbol;
 
-/* import symbol */
-typedef struct importsymbol {
+/* extpkg symbol */
+typedef struct extpkgsymbol {
   SYMBOL_HEAD
-  /* Import, not need free */
-  void *import;
-} ImportSymbol;
+  /* extpkg, not need free */
+  void *extpkg;
+} ExtPkgSymbol;
 
 STable *STable_New(void);
 typedef void (*symbol_visit_func)(Symbol *sym, void *arg);
@@ -161,9 +161,10 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
 #define STable_Add_NFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_NFUNC, proto)
 Symbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
-Symbol *STable_Add_Import(STable *stbl, char *name);
+Symbol *STable_Add_ExtPkg(STable *stbl, char *name);
 Symbol *STable_Get(STable *stbl, char *name);
 KImage *Gen_Image(STable *stbl, char *pkgname);
+int STble_From_Image(char *path, char **pkgname, STable **stbl);
 void STable_Show(STable *stbl);
 void STable_Visit(STable *stbl, symbol_visit_func fn, void *arg);
 

@@ -718,18 +718,26 @@ Imports
 Import
   : IMPORT PackagePath ';'
   {
-    DeclarePosition(p2, @2);
-    Parser_New_Import(ps, NULL, $2.str, NULL, &p2);
+    Ident *path = New_Ident($2);
+    SetPosition(path->pos, @2);
+    Parser_New_Import(ps, NULL, path);
   }
   | IMPORT ID PackagePath ';'
   {
-    DeclarePosition(p1, @2);
-    DeclarePosition(p2, @3);
-    Parser_New_Import(ps, $2.str, $3.str, &p1, &p2);
+    Ident *id = New_Ident($2);
+    SetPosition(id->pos, @2);
+    Ident *path = New_Ident($3);
+    SetPosition(path->pos, @3);
+    Parser_New_Import(ps, id, path);
   }
   | IMPORT '*' PackagePath ';'
   {
-
+    String name = AtomString_New("*");
+    Ident *id = New_Ident(name);
+    SetPosition(id->pos, @2);
+    Ident *path = New_Ident($3);
+    SetPosition(path->pos, @3);
+    Parser_New_Import(ps, id, path);
   }
   | IMPORT ID error
   {

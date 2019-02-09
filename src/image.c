@@ -40,39 +40,38 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 {
   TypeDesc *t = NULL;
   switch (item->kind) {
-    case TYPE_BASE: {
-      t = TypeDesc_Get_Base(item->primitive);
-      break;
+  case TYPE_BASE:
+    t = TypeDesc_Get_Base(item->primitive);
+    break;
+  case TYPE_KLASS: {
+    StringItem *s;
+    char *path;
+    char *type;
+    if (item->pathindex >= 0) {
+      s = AtomTable_Get(atbl, ITEM_STRING, item->pathindex);
+      path = s->data;
+    } else {
+      path = NULL;
     }
-    case TYPE_KLASS: {
-      StringItem *s;
-      char *path;
-      char *type;
-      if (item->pathindex >= 0) {
-        s = AtomTable_Get(atbl, ITEM_STRING, item->pathindex);
-        path = s->data;
-      } else {
-        path = NULL;
-      }
-      s = AtomTable_Get(atbl, ITEM_STRING, item->typeindex);
-      type = s->data;
-      t = TypeDesc_Get_Klass(path, type);
-      break;
-    }
-    case TYPE_PROTO: {
-      ProtoItem *proto = AtomTable_Get(atbl, ITEM_PROTO, item->protoindex);
-      t = ProtoItem_To_TypeDesc(proto, atbl);
-      break;
-    }
-    case TYPE_ARRAY: {
-      TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
-      TypeDesc *base_type = TypeItem_To_TypeDesc(base, atbl);
-      t = TypeDesc_Get_Array(item->array.dims, base_type);
-      break;
-    }
-    default: {
-      assert(0);
-    }
+    s = AtomTable_Get(atbl, ITEM_STRING, item->typeindex);
+    type = s->data;
+    t = TypeDesc_Get_Klass(path, type);
+    break;
+  }
+  case TYPE_PROTO: {
+    ProtoItem *proto = AtomTable_Get(atbl, ITEM_PROTO, item->protoindex);
+    t = ProtoItem_To_TypeDesc(proto, atbl);
+    break;
+  }
+  case TYPE_ARRAY: {
+    TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
+    TypeDesc *base_type = TypeItem_To_TypeDesc(base, atbl);
+    t = TypeDesc_Get_Array(item->array.dims, base_type);
+    break;
+  }
+  default:
+    assert(0);
+    break;
   }
   return t;
 }
@@ -424,50 +423,49 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 {
   TypeItem item = {0};
   switch (desc->kind) {
-    case TYPE_BASE: {
-      BaseDesc *basic = (BaseDesc *)desc;
-      item.kind = TYPE_BASE;
-      item.primitive = basic->type;
-      break;
+  case TYPE_BASE: {
+    BaseDesc *basic = (BaseDesc *)desc;
+    item.kind = TYPE_BASE;
+    item.primitive = basic->type;
+    break;
+  }
+  case TYPE_KLASS: {
+    KlassDesc *klass = (KlassDesc *)desc;
+    int pathindex = -1;
+    if (klass->path.str) {
+      pathindex = StringItem_Get(table, klass->path.str);
+      if (pathindex < 0)
+        return pathindex;
     }
-    case TYPE_KLASS: {
-      KlassDesc *klass = (KlassDesc *)desc;
-      int pathindex = -1;
-      if (klass->path.str) {
-        pathindex = StringItem_Get(table, klass->path.str);
-        if (pathindex < 0)
-          return pathindex;
-      }
-      int typeindex = -1;
-      if (klass->type.str) {
-        typeindex = StringItem_Get(table, klass->type.str);
-        if (typeindex < 0)
-          return typeindex;
-      }
-      item.kind = TYPE_KLASS;
-      item.pathindex = pathindex;
-      item.typeindex = typeindex;
-      break;
+    int typeindex = -1;
+    if (klass->type.str) {
+      typeindex = StringItem_Get(table, klass->type.str);
+      if (typeindex < 0)
+        return typeindex;
     }
-    case TYPE_PROTO: {
-      ProtoDesc *proto = (ProtoDesc *)desc;
-      int rindex = TypeListItem_Get(table, proto->ret);
-      int pindex = TypeListItem_Get(table, proto->arg);
-      item.kind = TYPE_PROTO;
-      item.protoindex = ProtoItem_Get(table, rindex, pindex);
-      break;
-    }
-    case TYPE_ARRAY: {
-      ArrayDesc *array = (ArrayDesc *)desc;
-      item.kind = TYPE_ARRAY;
-      item.array.dims = array->dims;
-      item.array.typeindex = TypeItem_Get(table, array->base);
-      break;
-    }
-    default: {
-      assert(0);
-      break;
-    }
+    item.kind = TYPE_KLASS;
+    item.pathindex = pathindex;
+    item.typeindex = typeindex;
+    break;
+  }
+  case TYPE_PROTO: {
+    ProtoDesc *proto = (ProtoDesc *)desc;
+    int rindex = TypeListItem_Get(table, proto->ret);
+    int pindex = TypeListItem_Get(table, proto->arg);
+    item.kind = TYPE_PROTO;
+    item.protoindex = ProtoItem_Get(table, rindex, pindex);
+    break;
+  }
+  case TYPE_ARRAY: {
+    ArrayDesc *array = (ArrayDesc *)desc;
+    item.kind = TYPE_ARRAY;
+    item.array.dims = array->dims;
+    item.array.typeindex = TypeItem_Get(table, array->base);
+    break;
+  }
+  default:
+    assert(0);
+    break;
   }
 
   return AtomTable_Index(table, ITEM_TYPE, &item);
@@ -479,43 +477,41 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
   int index = TypeItem_Get(table, desc);
   if (index < 0) {
     switch (desc->kind) {
-      case TYPE_BASE: {
-        BaseDesc *basic = (BaseDesc *)desc;
-        item = TypeItem_Primitive_New(basic->type);
-        break;
-      }
-      case TYPE_KLASS: {
-        KlassDesc *klass = (KlassDesc *)desc;
-        int pathindex = -1;
-        if (klass->path.str) {
-          pathindex = StringItem_Set(table, klass->path.str);
-          assert(pathindex >= 0);
-        }
-        int typeindex = -1;
-        if (klass->type.str) {
-          typeindex = StringItem_Set(table, klass->type.str);
-          assert(typeindex >= 0);
-        }
-        item = TypeItem_UserDef_New(pathindex, typeindex);
-        break;
-      }
-      case TYPE_PROTO: {
-        int protoindex = ProtoItem_Set(table, desc);
-        item = TypeItem_Proto_New(protoindex);
-        break;
-      }
-      case TYPE_ARRAY: {
-        ArrayDesc *array = (ArrayDesc *)desc;
-        int typeindex = TypeItem_Set(table, array->base);
-        item = TypeItem_Array_New(array->dims, typeindex);
-        break;
-      }
-      default: {
-        assert(0);
-        break;
-      }
+    case TYPE_BASE: {
+      BaseDesc *basic = (BaseDesc *)desc;
+      item = TypeItem_Primitive_New(basic->type);
+      break;
     }
-
+    case TYPE_KLASS: {
+      KlassDesc *klass = (KlassDesc *)desc;
+      int pathindex = -1;
+      if (klass->path.str) {
+        pathindex = StringItem_Set(table, klass->path.str);
+        assert(pathindex >= 0);
+      }
+      int typeindex = -1;
+      if (klass->type.str) {
+        typeindex = StringItem_Set(table, klass->type.str);
+        assert(typeindex >= 0);
+      }
+      item = TypeItem_UserDef_New(pathindex, typeindex);
+      break;
+    }
+    case TYPE_PROTO: {
+      int protoindex = ProtoItem_Set(table, desc);
+      item = TypeItem_Proto_New(protoindex);
+      break;
+    }
+    case TYPE_ARRAY: {
+      ArrayDesc *array = (ArrayDesc *)desc;
+      int typeindex = TypeItem_Set(table, array->base);
+      item = TypeItem_Array_New(array->dims, typeindex);
+      break;
+    }
+    default:
+      assert(0);
+      break;
+    }
     index = AtomTable_Append(table, ITEM_TYPE, item, 1);
   }
   return index;
@@ -933,22 +929,22 @@ static char *access_tostring(int access)
 {
   char *str;
   switch (access) {
-    case 0:
-      str = "var,public";
-      break;
-    case 1:
-      str = "var,private";
-      break;
-    case 2:
-      str = "const,public";
-      break;
-    case 3:
-      str = "const,private";
-      break;
-    default:
-      assert(0);
-      str = "";
-      break;
+  case 0:
+    str = "var,public";
+    break;
+  case 1:
+    str = "var,private";
+    break;
+  case 2:
+    str = "const,public";
+    break;
+  case 3:
+    str = "const,private";
+    break;
+  default:
+    assert(0);
+    str = "";
+    break;
   }
   return str;
 }
@@ -1381,13 +1377,6 @@ void Item_Free(int type, void *data, void *arg)
   return fn(data);
 }
 
-// int Symbol_Access(char *name, int bconst)
-// {
-//   int access = isupper(name[0]) ? ACCESS_PUBLIC : ACCESS_PRIVATE;
-//   access |= bconst ? ACCESS_CONST : 0;
-//   return access;
-// }
-
 static void init_header(ImageHeader *h, char *name)
 {
   strcpy((char *)h->magic, "KLC");
@@ -1733,8 +1722,10 @@ static int header_check(ImageHeader *header)
   return 0;
 }
 
-KImage *KImage_Read_File(char *path)
+KImage *KImage_Read_File(char *path, int flags)
 {
+#define LOAD(item) (!(flags & (1 << (item))))
+
   FILE *fp = fopen(path, "r");
   if (!fp) {
     Log_Printf("error: cannot open %s file\n", path);
@@ -1780,7 +1771,8 @@ KImage *KImage_Read_File(char *path)
     sz = fseek(fp, map->offset, SEEK_SET);
     assert(sz == 0);
     switch (map->type) {
-      case ITEM_STRING: {
+    case ITEM_STRING:
+      if (LOAD(ITEM_STRING)) {
         StringItem *item;
         uint32 len;
         for (int i = 0; i < map->size; i++) {
@@ -1791,9 +1783,10 @@ KImage *KImage_Read_File(char *path)
           assert(sz == 1);
           AtomTable_Append(image->table, ITEM_STRING, item, 1);
         }
-        break;
       }
-      case ITEM_TYPE: {
+      break;
+    case ITEM_TYPE:
+      if (LOAD(ITEM_TYPE)) {
         TypeItem *item;
         TypeItem items[map->size];
         sz = fread(items, sizeof(TypeItem), map->size, fp);
@@ -1802,9 +1795,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(TypeItem), items + i);
           AtomTable_Append(image->table, ITEM_TYPE, item, 1);
         }
-        break;
       }
-      case ITEM_TYPELIST: {
+      break;
+    case ITEM_TYPELIST:
+      if (LOAD(ITEM_TYPELIST)) {
         TypeListItem *item;
         uint32 len;
         for (int i = 0; i < map->size; i++) {
@@ -1815,9 +1809,10 @@ KImage *KImage_Read_File(char *path)
           assert(sz == 1);
           AtomTable_Append(image->table, ITEM_TYPELIST, item, 1);
         }
-        break;
       }
-      case ITEM_PROTO: {
+      break;
+    case ITEM_PROTO: {
+      if (LOAD(ITEM_PROTO)) {
         ProtoItem *item;
         ProtoItem items[map->size];
         sz = fread(items, sizeof(ProtoItem), map->size, fp);
@@ -1826,9 +1821,11 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(ProtoItem), items + i);
           AtomTable_Append(image->table, ITEM_PROTO, item, 1);
         }
-        break;
       }
-      case ITEM_CONST: {
+      break;
+    }
+    case ITEM_CONST:
+      if (LOAD(ITEM_CONST)) {
         ConstItem *item;
         ConstItem items[map->size];
         sz = fread(items, sizeof(ConstItem), map->size, fp);
@@ -1837,9 +1834,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(ConstItem), items + i);
           AtomTable_Append(image->table, ITEM_CONST, item, 1);
         }
-        break;
       }
-      case ITEM_LOCVAR: {
+      break;
+    case ITEM_LOCVAR:
+      if (LOAD(ITEM_LOCVAR)) {
         LocVarItem *item;
         LocVarItem items[map->size];
         sz = fread(items, sizeof(LocVarItem), map->size, fp);
@@ -1848,9 +1846,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(LocVarItem), items + i);
           AtomTable_Append(image->table, ITEM_LOCVAR, item, 0);
         }
-        break;
       }
-      case ITEM_VAR: {
+      break;
+    case ITEM_VAR:
+      if (LOAD(ITEM_VAR)) {
         VarItem *item;
         VarItem items[map->size];
         sz = fread(items, sizeof(VarItem), map->size, fp);
@@ -1859,9 +1858,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(VarItem), items + i);
           AtomTable_Append(image->table, ITEM_VAR, item, 0);
         }
-        break;
       }
-      case ITEM_FUNC: {
+      break;
+    case ITEM_FUNC:
+      if (LOAD(ITEM_FUNC)) {
         FuncItem *item;
         FuncItem items[map->size];
         sz = fread(items, sizeof(FuncItem), map->size, fp);
@@ -1870,9 +1870,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(FuncItem), items + i);
           AtomTable_Append(image->table, ITEM_FUNC, item, 0);
         }
-        break;
       }
-      case ITEM_CODE: {
+      break;
+    case ITEM_CODE:
+      if (LOAD(ITEM_CODE)) {
         CodeItem *item;
         uint32 len;
         for (int i = 0; i < map->size; i++) {
@@ -1883,9 +1884,10 @@ KImage *KImage_Read_File(char *path)
           assert(sz == 1);
           AtomTable_Append(image->table, ITEM_CODE, item, 0);
         }
-        break;
       }
-      case ITEM_CLASS: {
+      break;
+    case ITEM_CLASS:
+      if (LOAD(ITEM_CLASS)) {
         ClassItem *item;
         ClassItem items[map->size];
         sz = fread(items, sizeof(ClassItem), map->size, fp);
@@ -1894,9 +1896,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(ClassItem), items + i);
           AtomTable_Append(image->table, ITEM_CLASS, item, 0);
         }
-        break;
       }
-      case ITEM_FIELD: {
+      break;
+    case ITEM_FIELD:
+      if (LOAD(ITEM_FIELD)) {
         FieldItem *item;
         FieldItem items[map->size];
         sz = fread(items, sizeof(FieldItem), map->size, fp);
@@ -1905,9 +1908,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(FieldItem), items + i);
           AtomTable_Append(image->table, ITEM_FIELD, item, 0);
         }
-        break;
       }
-      case ITEM_METHOD: {
+      break;
+    case ITEM_METHOD:
+      if (LOAD(ITEM_METHOD)) {
         MethodItem *item;
         MethodItem items[map->size];
         sz = fread(items, sizeof(MethodItem), map->size, fp);
@@ -1916,9 +1920,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(MethodItem), items + i);
           AtomTable_Append(image->table, ITEM_METHOD, item, 0);
         }
-        break;
       }
-      case ITEM_TRAIT: {
+      break;
+    case ITEM_TRAIT:
+      if (LOAD(ITEM_TRAIT)) {
         TraitItem *item;
         TraitItem items[map->size];
         sz = fread(items, sizeof(TraitItem), map->size, fp);
@@ -1927,9 +1932,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(TraitItem), items + i);
           AtomTable_Append(image->table, ITEM_TRAIT, item, 0);
         }
-        break;
       }
-      case ITEM_NFUNC: {
+      break;
+    case ITEM_NFUNC:
+      if (LOAD(ITEM_NFUNC)) {
         NFuncItem *item;
         NFuncItem items[map->size];
         sz = fread(items, sizeof(NFuncItem), map->size, fp);
@@ -1938,9 +1944,10 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(NFuncItem), items + i);
           AtomTable_Append(image->table, ITEM_NFUNC, item, 0);
         }
-        break;
       }
-      case ITEM_IMETH: {
+      break;
+    case ITEM_IMETH:
+      if (LOAD(ITEM_IMETH)) {
         IMethItem *item;
         IMethItem items[map->size];
         sz = fread(items, sizeof(IMethItem), map->size, fp);
@@ -1949,11 +1956,11 @@ KImage *KImage_Read_File(char *path)
           item = Item_Copy(sizeof(IMethItem), items + i);
           AtomTable_Append(image->table, ITEM_IMETH, item, 0);
         }
-        break;
       }
-      default: {
-        assert(0);
-      }
+      break;
+    default:
+      assert(0);
+      break;
     }
   }
 
