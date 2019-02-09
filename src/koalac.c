@@ -109,7 +109,11 @@ static void compile(char *pkgdir, PackageState *pkg)
   if (errors <= 0) {
     KImage *image = Generate_KImage(pkg->stbl);
     assert(image != NULL);
-    KImage_Write_File(image, pkg->pkgfile);
+    DeclareStringBuf(pkgfile);
+    StringBuf_Format_CStr(pkgfile, "##.klc", pkg->pkgdir, pkg->pkgname);
+    Log_Debug("write image to file %s", pkgfile.data);
+    KImage_Write_File(image, pkgfile.data);
+    FiniStringBuf(pkgfile);
     KImage_Free(image);
   } else {
     fprintf(stderr, "\x1b[31mThere are %d errors.\x1b[0m\n", errors);
@@ -155,7 +159,7 @@ int main(int argc, char *argv[])
   char *s;
   Vector_ForEach(s, &opts.names) {
     DeclareStringBuf(input);
-    DeclareStringBuf(output);
+    char *output = "./";
 
     /* trim last slash */
     slash = strrchr(s, '/');
@@ -164,27 +168,24 @@ int main(int argc, char *argv[])
 
     /* if not specify srcpath, use ./ as default srcpath */
     if (opts.srcpath != NULL)
-      StringBuf_Format_CStr(input, "#/#", opts.srcpath, s);
+      StringBuf_Format_CStr(input, "##", opts.srcpath, s);
     else
       StringBuf_Append_CStr(input, s);
 
     /* if not specify outpath, use ./ as default outpath */
     if (opts.outpath != NULL)
-      StringBuf_Format_CStr(output, "#/#.klc", opts.outpath, s);
-    else
-      StringBuf_Format_CStr(output, "#.klc", s);
+      output = opts.outpath;
 
     Log_Debug("input:%s", input.data);
-    Log_Debug("outout:%s", output.data);
+    Log_Debug("outout:%s", output);
 
     PackageState pkg;
-    Init_PackageState(&pkg, output.data, &opts);
+    Init_PackageState(&pkg, output, &opts);
     compile(input.data, &pkg);
     Show_PackageState(&pkg);
     Fini_PackageState(&pkg);
 
     FiniStringBuf(input);
-    FiniStringBuf(output);
   }
 
   fini_options(&opts);

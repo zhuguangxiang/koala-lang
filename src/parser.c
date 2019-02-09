@@ -33,10 +33,10 @@ const char *scope_strings[] = {
   "PACKAGE", "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
 
-int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts)
+int Init_PackageState(PackageState *pkg, char *pkgdir, Options *opts)
 {
   memset(pkg, 0, sizeof(PackageState));
-  pkg->pkgfile = AtomString_New(pkgfile).str;
+  pkg->pkgdir = pkgdir;
   pkg->stbl = STable_New();
   pkg->opts = opts;
   Vector_Init(&pkg->modules);
