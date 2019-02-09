@@ -153,7 +153,7 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
 AFuncSymbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
 ImportSymbol *STable_Add_Import(STable *stbl, char *name);
 Symbol *STable_Get(STable *stbl, char *name);
-KImage *Generate_KImage(STable *stbl);
+KImage *Gen_Image(STable *stbl, char *pkgname);
 void STable_Show(STable *stbl);
 void STable_Visit(STable *stbl, symbol_visit_func fn, void *arg);
 

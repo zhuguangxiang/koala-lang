@@ -219,7 +219,6 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 }
 
 {L}({L}|{D})* {
-  assert(yyleng < 64);
   yylval->SVal = AtomString_New_NStr(yytext, yyleng + 1);
   YY_RETURN(ID);
 }

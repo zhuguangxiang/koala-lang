@@ -7,7 +7,7 @@
 
 void test_image(void)
 {
-  KImage *image = KImage_New();
+  KImage *image = KImage_New("test");
   Vector *ret = Vector_New();
   TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
   TYPE_INCREF(desc);

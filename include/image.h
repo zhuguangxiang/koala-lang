@@ -167,6 +167,8 @@ typedef struct imeth_item {
   int32 protoindex; /* ->ProtoItem */
 } IMethItem;
 
+#define PKG_NAME_MAX 64
+
 /* koala byte code image header */
 typedef struct image_header {
   uint8 magic[4];
@@ -177,6 +179,7 @@ typedef struct image_header {
   uint32 map_offset;
   uint32 map_size;
   uint32 crc32;
+  char pkgname[PKG_NAME_MAX];
 } ImageHeader;
 
 typedef struct kimage {
@@ -184,7 +187,7 @@ typedef struct kimage {
   AtomTable *table;
 } KImage;
 
-KImage *KImage_New(void);
+KImage *KImage_New(char *name);
 void KImage_Free(KImage *image);
 void KImage_Show(KImage *image);
 

@@ -587,10 +587,10 @@ static void __gen_image_func(Symbol *sym, void *arg)
   ops->__symbol_gen(sym, arg);
 }
 
-KImage *Generate_KImage(STable *stbl)
+KImage *Gen_Image(STable *stbl, char *pkgname)
 {
   Log_Debug("\x1b[34m----STARTING IMAGE----\x1b[0m");
-  KImage *image = KImage_New();
+  KImage *image = KImage_New(pkgname);
   struct gen_image_s info = {image, NULL};
   STable_Visit(stbl, __gen_image_func, &info);
   KImage_Finish(image);

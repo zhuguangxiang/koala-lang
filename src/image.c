@@ -1388,7 +1388,7 @@ void Item_Free(int type, void *data, void *arg)
 //   return access;
 // }
 
-static void init_header(ImageHeader *h)
+static void init_header(ImageHeader *h, char *name)
 {
   strcpy((char *)h->magic, "KLC");
   h->version[0] = '0' + version_major;
@@ -1400,12 +1400,13 @@ static void init_header(ImageHeader *h)
   h->endian_tag  = ENDIAN_TAG;
   h->map_offset  = sizeof(ImageHeader);
   h->map_size    = ITEM_MAX;
+  strncpy(h->pkgname, name, PKG_NAME_MAX-1);
 }
 
-KImage *KImage_New(void)
+KImage *KImage_New(char *pkgname)
 {
   KImage *image = Malloc(sizeof(KImage));
-  init_header(&image->header);
+  init_header(&image->header, pkgname);
   image->table = AtomTable_New(ITEM_MAX, Item_Hash, Item_Equal);
   return image;
 }
@@ -1753,9 +1754,9 @@ KImage *KImage_Read_File(char *path)
     return NULL;
   }
 
-  KImage *image = KImage_New();
+  KImage *image = Malloc(sizeof(KImage));
   assert(image);
-  image->header = header;
+  memcpy(&image->header, &header, sizeof(ImageHeader));
 
   MapItem mapitems[header.map_size];
   sz = fseek(fp, header.map_offset, SEEK_SET);

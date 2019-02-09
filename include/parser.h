@@ -36,8 +36,8 @@ extern "C" {
  * These files must be the same package name.
  */
 typedef struct packagestate {
-  /* package saved in pkgdir/pkgname.klc */
-  char *pkgdir;
+  /* package saved in pkgfile */
+  char *pkgfile;
   /* package name */
   char *pkgname;
   /* imported external packages' symbol table, path as key */

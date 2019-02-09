@@ -59,6 +59,9 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 #define EMPTY_FILE \
   fprintf(stderr, "%s: \x1b[33mwarn:\x1b[0m empty source file\n", ps->filename);
 
+#define PKG_NAME_LEN_OVER_MAX_MSG \
+  "package name length is too larger(%d >= MAXIMUM(%d))."
+
 #define ERRMSG "expected '%s' before '%s'\n"
 
 #define YYSyntax_Error(loc, expected) \
@@ -68,21 +71,27 @@ do {                                  \
   if (token[0] == '\n')               \
     token = "\\n";                    \
   DeclarePosition(pos, loc);          \
-  Syntax_Error(ps, &pos, ERRMSG, expected, token);  \
+  Syntax_Error(ps, &pos, ERRMSG,      \
+               expected, token);      \
 } while (0)
 
 #define YYSyntax_Error_Clear(loc, expected) \
-  do {                                      \
-    yyclearin;                              \
+do {                                        \
+  yyclearin;                                \
   YYSyntax_Error(loc, expected);            \
 } while (0)
 
-#define YYSyntax_ErrorMsg_Clear(loc, msg) \
-do {                                      \
-  yyclearin;                              \
-  yyerrok;                                \
-  DeclarePosition(pos, loc);              \
-  Syntax_Error(ps, &pos, "%s\n", msg);    \
+#define YYSyntax_ErrorMsg(loc, fmt, ...)        \
+do {                                            \
+  yyerrok;                                      \
+  DeclarePosition(pos, loc);                    \
+  Syntax_Error(ps, &pos, fmt"\n", __VA_ARGS__); \
+} while (0)
+
+#define YYSyntax_ErrorMsg_Clear(loc, fmt, ...) \
+do {                                           \
+  yyclearin;                                   \
+  YYSyntax_ErrorMsg(loc, fmt, #__VA_ARGS__);   \
 } while (0)
 
 %}
@@ -675,6 +684,9 @@ CompileUnit
 Package
   : PACKAGE ID ';'
   {
+    int len = strlen($2.str);
+    if (len >= PKG_NAME_MAX)
+      YYSyntax_ErrorMsg(@2, PKG_NAME_LEN_OVER_MAX_MSG, len, PKG_NAME_MAX);
     DeclareIdent(id, $2, @2);
     Parser_Set_PkgName(ps, &id);
   }
