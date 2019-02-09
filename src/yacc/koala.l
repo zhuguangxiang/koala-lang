@@ -34,10 +34,11 @@ LOGGER(0)
 #define YY_USER_ACTION \
 do { \
   Lexer_DoUserAction(yyps, yytext); \
-  yylloc->first_line = yyps->line.row; \
-  yylloc->last_line = yyps->line.row; \
-  yylloc->first_column = yyps->line.col; \
-  yylloc->last_column = yylloc->first_column + yyps->line.len; \
+  yylloc->first_line = yyps->line.pos.row;   \
+  yylloc->last_line = yyps->line.pos.row;    \
+  yylloc->first_column = yyps->line.pos.col; \
+  yylloc->last_column = yylloc->first_column \
+    + yyps->line.len;                        \
 } while (0);
 
 #define YY_INPUT(buf, result, max_size) \
@@ -250,7 +251,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "//"[^\n]* {}
 
 . {
-  Position pos = {yyps->line.row, yyps->line.col};
+  Position pos = {yyps->line.pos.row, yyps->line.pos.col};
   Syntax_Error(yyps, &pos, "invalid characters");
 }
 

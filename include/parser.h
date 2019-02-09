@@ -72,10 +72,11 @@ typedef struct line_buf {
   int len;
   /* current token buffer */
   char token[TOKEN_MAX_LEN];
-
   /* current token's position */
-  int row;
-  int col;
+  Position pos;
+
+  /* last line's token */
+  Position lastpos;
 
   /* error count of current line */
   int errors;
@@ -112,7 +113,7 @@ typedef struct parserunit {
 } ParserUnit;
 
 /* max errors before stopping compiling */
-#define MAX_ERRORS 5
+#define MAX_ERRORS 8
 
 #define STATE_NONE 0
 #define STATE_BUILDING_AST 1
@@ -124,6 +125,7 @@ typedef struct parserunit {
 typedef struct parserstate {
   /* state */
   int state;
+
   /* file name for this module */
   char *filename;
   /* current compiling source file's package name */

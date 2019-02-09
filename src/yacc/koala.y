@@ -62,15 +62,17 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 #define PKG_NAME_LEN_OVER_MAX_MSG \
   "package name length is too larger(%d >= MAXIMUM(%d))."
 
-#define ERRMSG "expected '%s' before '%s'\n"
+#define ERRMSG "expected '%s', but found '%s'\n"
 
 #define YYSyntax_Error(loc, expected) \
 do {                                  \
   yyerrok;                            \
-  char *token = ps->line.token;       \
-  if (token[0] == '\n')               \
-    token = "\\n";                    \
   DeclarePosition(pos, loc);          \
+  char *token = ps->line.token;       \
+  if (token[0] == '\n') {             \
+    token = "<newline>";              \
+    pos = ps->line.lastpos;           \
+  }                                   \
   Syntax_Error(ps, &pos, ERRMSG,      \
                expected, token);      \
 } while (0)
@@ -674,11 +676,6 @@ IDList
 CompileUnit
   : Package Imports ModuleStatementsOrEmpty
   | Package ModuleStatementsOrEmpty
-  | error
-  {
-    YYSyntax_ErrorMsg_Clear(@1, "missing package");
-    exit(-1);
-  }
   ;
 
 Package
@@ -690,10 +687,26 @@ Package
     DeclareIdent(id, $2, @2);
     Parser_Set_PkgName(ps, &id);
   }
+  | PACKAGE ID error
+  {
+    if (ps->line.token[0] == '\n')
+      YYSyntax_Error(@2, ";");
+    else
+      YYSyntax_Error_Clear(@2, ";");
+  }
   | PACKAGE error
   {
-    YYSyntax_ErrorMsg_Clear(@2, "expecting <package-name>");
-    exit(-1);
+    if (ps->line.token[0] == '\n')
+      YYSyntax_Error(@2, "<package-name>");
+    else
+      YYSyntax_Error_Clear(@2, "<package-name>");
+  }
+  | error
+  {
+    if (ps->line.token[0] == '\n')
+      YYSyntax_Error(@1, "<package-name>");
+    else
+      YYSyntax_Error_Clear(@1, "<package-name>");
   }
   ;
 
@@ -714,13 +727,30 @@ Import
     DeclarePosition(p2, @3);
     Parser_New_Import(ps, $2.str, $3.str, &p1, &p2);
   }
+  | IMPORT '*' PackagePath ';'
+  {
+
+  }
   | IMPORT ID error
   {
-    YYSyntax_ErrorMsg_Clear(@3, "invalid import");
+    if (ps->line.token[0] == '\n')
+      YYSyntax_Error(@3, "<package-path>");
+    else
+      YYSyntax_Error_Clear(@3, "<package-path>");
+  }
+  | IMPORT '*' error
+  {
+    if (ps->line.token[0] == '\n')
+      YYSyntax_Error(@3, "<package-path>");
+    else
+      YYSyntax_Error_Clear(@3, "<package-path>");
   }
   | IMPORT error
   {
-    YYSyntax_ErrorMsg_Clear(@2, "invalid import");
+    if (ps->line.token[0] == '\n')
+      YYSyntax_Error(@2, "<package-path>");
+    else
+      YYSyntax_Error_Clear(@2, "<package-path>");
   }
   ;
 

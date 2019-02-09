@@ -1505,11 +1505,7 @@ static void print_error(ParserState *ps, Position *pos, char *fmt, va_list ap)
 
 void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
 {
-  if (++ps->errnum >= MAX_ERRORS) {
-    fprintf(stderr, "\x1b[31mToo many errors.\x1b[0m\n");
-    exit(-1);
-  }
-
+  ps->errnum++;
 /*
   if (ps->line.errors > 0)
     return;
@@ -1535,9 +1531,11 @@ int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)
 
     linebuf->linelen = strlen(linebuf->buf);
     linebuf->lineleft = linebuf->linelen;
+    linebuf->lastpos = linebuf->pos;
+    linebuf->lastpos.col += linebuf->len;
     linebuf->len = 0;
-    linebuf->row++;
-    linebuf->col = 0;
+    linebuf->pos.row++;
+    linebuf->pos.col = 0;
     linebuf->errors = 0;
   }
 
@@ -1550,7 +1548,7 @@ int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)
 void Lexer_DoUserAction(ParserState *ps, char *text)
 {
   LineBuffer *linebuf = &ps->line;
-  linebuf->col += linebuf->len;
+  linebuf->pos.col += linebuf->len;
   strncpy(linebuf->token, text, TOKEN_MAX_LEN);
   linebuf->len = strlen(text);
 }
