@@ -110,7 +110,7 @@ static void compile(char *pkgdir, PackageState *pkg)
     KImage *image = Generate_KImage(pkg->stbl);
     assert(image != NULL);
     DeclareStringBuf(pkgfile);
-    StringBuf_Format_CStr(pkgfile, "##.klc", pkg->pkgdir, pkg->pkgname);
+    StringBuf_Format_CStr(pkgfile, "#/#.klc", pkg->pkgdir, pkg->pkgname);
     Log_Debug("write image to file %s", pkgfile.data);
     KImage_Write_File(image, pkgfile.data);
     FiniStringBuf(pkgfile);
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
   char *s;
   Vector_ForEach(s, &opts.names) {
     DeclareStringBuf(input);
-    char *output = "./";
+    char *output = ".";
 
     /* trim last slash */
     slash = strrchr(s, '/');
@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 
     /* if not specify srcpath, use ./ as default srcpath */
     if (opts.srcpath != NULL)
-      StringBuf_Format_CStr(input, "##", opts.srcpath, s);
+      StringBuf_Format_CStr(input, "#/#", opts.srcpath, s);
     else
       StringBuf_Append_CStr(input, s);
 

@@ -76,9 +76,8 @@ void Parser_Set_PkgName(ParserState *ps, Ident *id)
   if (strcmp(pkg->pkgname, id->name)) {
     ParserState *m = Vector_Get(&pkg->modules, 0);
     Syntax_Error(ps, &id->pos,
-                 "There are different packages %s in %s and %s in %s",
+                 "found different packages %s(%s) and %s(%s)",
                  m->pkgname, m->filename, ps->pkgname, ps->filename);
-    exit(-1);
   }
 }
 

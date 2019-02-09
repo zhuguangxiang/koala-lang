@@ -40,11 +40,11 @@ typedef struct options {
   void (*usage)(char *name);
   /* -v version */
   void (*version)(void);
-  /* -s FIXME: with last slash */
+  /* -s */
   char *srcpath;
   /* -p */
   Vector pathes;
-  /* -o output dir, FIXME: with last slash */
+  /* -o output dir */
   char *outpath;
   /* -D name=value */
   Vector nvs;

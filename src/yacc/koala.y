@@ -56,6 +56,9 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 #define yyerror(loc, ps, scanner, errmsg) ((void)0)
 #endif
 
+#define EMPTY_FILE \
+  fprintf(stderr, "%s: \x1b[33mwarn:\x1b[0m empty source file\n", ps->filename);
+
 #define ERRMSG "expected '%s' before '%s'\n"
 
 #define YYSyntax_Error(loc, expected) \
@@ -660,8 +663,8 @@ IDList
   ;
 
 CompileUnit
-  : Package Imports ModuleStatements
-  | Package ModuleStatements
+  : Package Imports ModuleStatementsOrEmpty
+  | Package ModuleStatementsOrEmpty
   | error
   {
     YYSyntax_ErrorMsg_Clear(@1, "missing package");
@@ -714,6 +717,14 @@ PackagePath
   {
     $$ = $1;
   }
+  ;
+
+ModuleStatementsOrEmpty
+  : %empty
+  {
+    EMPTY_FILE
+  }
+  | ModuleStatements
   ;
 
 ModuleStatements
