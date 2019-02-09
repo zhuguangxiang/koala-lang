@@ -33,25 +33,26 @@ const char *scope_strings[] = {
   "PACKAGE", "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
 
-int Init_PkgInfo(PkgInfo *pkg, char *pkgname, char *pkgfile, Options *opts)
+int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts)
 {
-  memset(pkg, 0, sizeof(PkgInfo));
-  pkg->pkgfile = AtomString_New(pkgfile);
-  pkg->pkgname = AtomString_New(pkgname);
+  memset(pkg, 0, sizeof(PackageState));
+  pkg->pkgfile = AtomString_New(pkgfile).str;
   pkg->stbl = STable_New();
   pkg->opts = opts;
+  Vector_Init(&pkg->modules);
   return 0;
 }
 
-void Fini_PkgInfo(PkgInfo *pkg)
+void Fini_PackageState(PackageState *pkg)
 {
+  Vector_Fini_Self(&pkg->modules);
   STable_Free(pkg->stbl);
 }
 
-void Show_PkgInfo(PkgInfo *pkg)
+void Show_PackageState(PackageState *pkg)
 {
   Log_Puts("\n----------------------------------------");
-  Log_Printf("scope-0(%s, %s) symbols:\n", scope_strings[0], pkg->pkgname.str);
+  Log_Printf("scope-0(%s, %s) symbols:\n", scope_strings[0], pkg->pkgname);
   STable_Show(pkg->stbl);
   Log_Puts("----------------------------------------\n");
 }
@@ -59,6 +60,26 @@ void Show_PkgInfo(PkgInfo *pkg)
 void load_extpkg()
 {
 
+}
+
+void Parser_Set_PkgName(ParserState *ps, Ident *id)
+{
+  ps->pkgname = id->name;
+
+  PackageState *pkg = ps->pkg;
+  if (pkg->pkgname == NULL) {
+    pkg->pkgname = id->name;
+    return;
+  }
+
+  /* check all modules have the same package-name */
+  if (strcmp(pkg->pkgname, id->name)) {
+    ParserState *m = Vector_Get(&pkg->modules, 0);
+    Syntax_Error(ps, &id->pos,
+                 "There are different packages %s in %s and %s in %s",
+                 m->pkgname, m->filename, ps->pkgname, ps->filename);
+    exit(-1);
+  }
 }
 
 static ParserUnit *new_parser_unit(ScopeKind scope)
@@ -220,7 +241,7 @@ void Parser_Exit_Scope(ParserState *ps)
   ps->depth--;
 }
 
-ParserState *New_Parser(PkgInfo *pkg, char *filename)
+ParserState *New_Parser(PackageState *pkg, char *filename)
 {
   ParserState *ps = Malloc(sizeof(ParserState));
   ps->filename = string_dup(filename);

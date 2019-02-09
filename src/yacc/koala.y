@@ -123,6 +123,7 @@ do {                                      \
 %token LSHIFT
 %token RSHIFT
 
+%token PACKAGE
 %token IF
 %token ELSE
 %token WHILE
@@ -659,8 +660,26 @@ IDList
   ;
 
 CompileUnit
-  : Imports ModuleStatements
-  | ModuleStatements
+  : Package Imports ModuleStatements
+  | Package ModuleStatements
+  | error
+  {
+    YYSyntax_ErrorMsg_Clear(@1, "missing package");
+    exit(-1);
+  }
+  ;
+
+Package
+  : PACKAGE ID ';'
+  {
+    DeclareIdent(id, $2, @2);
+    Parser_Set_PkgName(ps, &id);
+  }
+  | PACKAGE error
+  {
+    YYSyntax_ErrorMsg_Clear(@2, "expecting <package-name>");
+    exit(-1);
+  }
   ;
 
 Imports

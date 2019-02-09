@@ -35,26 +35,24 @@ extern "C" {
  * per one package which includes all source files in the same directory.
  * These files must be the same package name.
  */
-typedef struct packageinfo {
+typedef struct packagestate {
   /* package saved in pkgfile */
-  String pkgfile;
+  char *pkgfile;
   /* package name */
-  String pkgname;
+  char *pkgname;
   /* imported external packages' symbol table, path as key */
   HashTable *extstbl;
   /* symbol table saves all symbols of the package */
   STable *stbl;
   /* compiling options for compiling other packages, if necessary */
   Options *opts;
-} PkgInfo;
+  /* modules: ParserState */
+  Vector modules;
+} PackageState;
 
-int Init_PkgInfo(PkgInfo *pkg, char *pkgname, char *pkgfile, Options *opts);
-void Fini_PkgInfo(PkgInfo *pkg);
-#if 1
-void Show_PkgInfo(PkgInfo *pkg);
-#else
-#define Show_PkgInfo(pkg) ((void *)0)
-#endif
+int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts);
+void Fini_PackageState(PackageState *pkg);
+void Show_PackageState(PackageState *pkg);
 
 /* line max length */
 #define LINE_MAX_LEN 256
@@ -131,7 +129,7 @@ typedef struct parserstate {
   /* current compiling source file's package name */
   char *pkgname;
   /* package ptr, all modules have the same pacakge */
-  PkgInfo *pkg;
+  PackageState *pkg;
 
   /* save last token for if inserted semicolon or not */
   int lastToken;
@@ -159,10 +157,12 @@ typedef struct parserstate {
   Vector errors;
 } ParserState;
 
+void Parser_Set_PkgName(ParserState *ps, Ident *id);
+
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);
 
-ParserState *New_Parser(PkgInfo *pkg, char *filename);
+ParserState *New_Parser(PackageState *pkg, char *filename);
 int Build_AST(ParserState *ps, FILE *in);
 int Parse_AST(ParserState *ps);
 void Destroy_Parser(ParserState *ps);

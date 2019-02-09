@@ -145,6 +145,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "**"             { YY_RETURN(POWER);           }
 "..<"            { YY_RETURN(DOTDOTLESS);      }
 
+"package"        { YY_RETURN(PACKAGE);         }
 "if"             { YY_RETURN(IF);              }
 "else"           { YY_RETURN(ELSE);            }
 "while"          { YY_RETURN(WHILE);           }

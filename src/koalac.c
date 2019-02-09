@@ -47,7 +47,7 @@ static int isdotkl(char *filename)
  * compile all source files in the package and output into 'pkg-name'.klc
  * input: the package's dir
  */
-static void compile(char *pkgdir, PkgInfo *pkg)
+static void compile(char *pkgdir, PackageState *pkg)
 {
   struct stat sb;
   if (lstat(pkgdir, &sb) == - 1) {
@@ -65,8 +65,6 @@ static void compile(char *pkgdir, PkgInfo *pkg)
     fprintf(stderr, "%s: no such file or directory\n", pkgdir);
     return;
   }
-
-  VECTOR(modules);
 
   ParserState *ps;
   int errors = 0;
@@ -91,7 +89,7 @@ static void compile(char *pkgdir, PkgInfo *pkg)
     }
 
     ps = New_Parser(pkg, dent->d_name);
-    Vector_Append(&modules, ps);
+    Vector_Append(&pkg->modules, ps);
 
     /* build abstact syntax tree */
     errors += Build_AST(ps, in);
@@ -102,18 +100,16 @@ static void compile(char *pkgdir, PkgInfo *pkg)
   closedir(dir);
 
   /* semantic analysis and code generation */
-  Vector_ForEach(ps, &modules) {
+  Vector_ForEach(ps, &pkg->modules) {
     if (errors <= 0)
       errors += Parse_AST(ps);
     Destroy_Parser(ps);
   }
 
-  Vector_Fini_Self(&modules);
-
   if (errors <= 0) {
     KImage *image = Generate_KImage(pkg->stbl);
     assert(image != NULL);
-    KImage_Write_File(image, pkg->pkgfile.str);
+    KImage_Write_File(image, pkg->pkgfile);
     KImage_Free(image);
   } else {
     fprintf(stderr, "\x1b[31mThere are %d errors.\x1b[0m\n", errors);
@@ -155,7 +151,6 @@ int main(int argc, char *argv[])
   parse_options(argc, argv, &opts);
   show_options(&opts);
 
-  char *pkgname;
   char *slash;
   char *s;
   Vector_ForEach(s, &opts.names) {
@@ -179,20 +174,14 @@ int main(int argc, char *argv[])
     else
       StringBuf_Format_CStr(output, "#.klc", s);
 
-    /* if package dir has slash, get the last dir name as package name */
-    pkgname = strrchr(s, '/');
-    if (pkgname == NULL)
-      pkgname = s;
-
     Log_Debug("input:%s", input.data);
     Log_Debug("outout:%s", output.data);
-    Log_Debug("package:%s", pkgname);
 
-    PkgInfo pkg;
-    Init_PkgInfo(&pkg, pkgname, output.data, &opts);
+    PackageState pkg;
+    Init_PackageState(&pkg, output.data, &opts);
     compile(input.data, &pkg);
-    Show_PkgInfo(&pkg);
-    Fini_PkgInfo(&pkg);
+    Show_PackageState(&pkg);
+    Fini_PackageState(&pkg);
 
     FiniStringBuf(input);
     FiniStringBuf(output);
