@@ -76,7 +76,7 @@ static void compile(char *pkgdir, PackageState *pkg)
     if (!isdotkl(dent->d_name))
       continue;
 
-    sprintf(name, "%s/%s", pkgdir, dent->d_name);
+    snprintf(name, 511, "%s/%s", pkgdir, dent->d_name);
     if (lstat(name, &sb) != 0 || S_ISDIR(sb.st_mode))
       continue;
 

@@ -29,12 +29,6 @@
 extern "C" {
 #endif
 
-/* source code token position for error handler */
-typedef struct position {
-  int row;
-  int col;
-} Position;
-
 /* identifier */
 typedef struct ident {
   char *name;

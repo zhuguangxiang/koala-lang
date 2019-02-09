@@ -51,6 +51,12 @@ typedef enum symbolkind {
   SYM_IMPORT = 10,  /* import             */
 } SymKind;
 
+/* source code token position for error handler */
+typedef struct position {
+  int row;
+  int col;
+} Position;
+
 #define SYMBOL_HEAD \
   SymKind kind;     \
   /* hash node */   \
@@ -59,6 +65,10 @@ typedef enum symbolkind {
   char *name;       \
   /* symbol type */ \
   TypeDesc *desc;   \
+  /* filename */    \
+  char *filename;   \
+  /* position */    \
+  Position pos;     \
   /* free refcnt */ \
   int refcnt;       \
   /* used count */  \
@@ -139,19 +149,19 @@ void Symbol_Free(Symbol *sym);
 #define Symbol_Is_Used(sym)    ((sym)->used > 0)
 void Show_Symbol(Symbol *sym);
 
-VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
-VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
-FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
+Symbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
+Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
+Symbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
 Symbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc);
-ClassSymbol *STable_Add_Class(STable *stbl, char *name);
-ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
+Symbol *STable_Add_Class(STable *stbl, char *name);
+Symbol *STable_Add_Trait(STable *stbl, char *name);
 Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
 #define STable_Add_IFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_IFUNC, proto)
 #define STable_Add_NFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_NFUNC, proto)
-AFuncSymbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
-ImportSymbol *STable_Add_Import(STable *stbl, char *name);
+Symbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
+Symbol *STable_Add_Import(STable *stbl, char *name);
 Symbol *STable_Get(STable *stbl, char *name);
 KImage *Gen_Image(STable *stbl, char *pkgname);
 void STable_Show(STable *stbl);

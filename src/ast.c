@@ -955,9 +955,9 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
     return NULL;
   }
 
-  ImportSymbol *sym;
+  Symbol *sym;
   if (id != NULL) {
-    sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
+    sym = STable_Get(ps->extstbl, id);
     if (sym != NULL) {
       Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
       return NULL;
@@ -978,7 +978,7 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
   STable *extstbl = extpkg->stbl;
   free_extpkg(extpkg);
 
-  sym = (ImportSymbol *)STable_Get(ps->extstbl, id);
+  sym = STable_Get(ps->extstbl, id);
   if (sym != NULL) {
     free_extpkg(extpkg);
     Syntax_Error(ps, idloc, "Symbol '%s' is duplicated.", id);
@@ -990,11 +990,11 @@ Symbol *Parser_New_Import(ParserState *ps, char *id, char *path,
 
   sym = STable_Add_Import(ps->extstbl, id);
   assert(sym != NULL);
-  sym->import = import;
+  ((ImportSymbol *)sym)->import = import;
 
   Log_Debug("add package '%s <- %s' successfully", id, path);
 
-  return (Symbol *)sym;
+  return sym;
 }
 
 static inline void __add_stmt(ParserState *ps, Stmt *stmt)
@@ -1002,21 +1002,30 @@ static inline void __add_stmt(ParserState *ps, Stmt *stmt)
   Vector_Append(&ps->stmts, stmt);
 }
 
-static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int konst)
+static int __in_extstbl(ParserState *ps, char *name)
 {
-  VarSymbol *sym;
-  if (konst)
-    sym = STable_Add_Const(ps->u->stbl, id->name, desc);
+
+}
+
+static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int k)
+{
+  ParserUnit *u = ps->u;
+  Symbol *sym;
+
+  if (k)
+    sym = STable_Add_Const(u->stbl, id->name, desc);
   else
-    sym = STable_Add_Var(ps->u->stbl, id->name, desc);
+    sym = STable_Add_Var(u->stbl, id->name, desc);
 
   if (sym != NULL) {
-    if (konst)
-      Log_Debug("add const '%s' successfully", id->name);
-    else
-      Log_Debug("add var '%s' successfully", id->name);
+    Log_Debug("add %s '%s' successfully", k ? "const" : "var", id->name);
+    sym->filename = ps->filename;
+    sym->pos = id->pos;
   } else {
-    Syntax_Error(ps, &id->pos, "Symbol '%s' is duplicated", id->name);
+    sym = STable_Get(u->stbl, id->name);
+    Syntax_Error(ps, &id->pos, "symbol '%s' is redeclared, "
+                 "previous declaration at %s:%d:%d", id->name,
+                 sym->filename, sym->pos.row, sym->pos.col);
   }
 }
 
@@ -1333,19 +1342,43 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
 
   if (funcStmt->kind == PROTO_KIND) {
     if (funcStmt->native) {
-      sym = (Symbol *)STable_Add_NFunc(u->stbl, name, proto);
-      if (sym != NULL)
+      sym = STable_Add_NFunc(u->stbl, name, proto);
+      if (sym != NULL) {
         Log_Debug("add native func '%s' successfully", name);
+        sym->filename = ps->filename;
+        sym->pos = funcStmt->id.pos;
+      } else {
+        sym = STable_Get(u->stbl, name);
+        Syntax_Error(ps, &funcStmt->id.pos, "symbol '%s' is redeclared, "
+                     "previous declaration at %s:%d:%d", name,
+                     sym->filename, sym->pos.row, sym->pos.col);
+      }
     } else {
-      sym = (Symbol *)STable_Add_IFunc(u->stbl, name, proto);
-      if (sym != NULL)
+      sym = STable_Add_IFunc(u->stbl, name, proto);
+      if (sym != NULL) {
         Log_Debug("add proto '%s' successfully", name);
+        sym->filename = ps->filename;
+        sym->pos = funcStmt->id.pos;
+      } else {
+        sym = STable_Get(u->stbl, name);
+        Syntax_Error(ps, &funcStmt->id.pos, "symbol '%s' is redeclared, "
+                     "previous declaration at %s:%d:%d", name,
+                     sym->filename, sym->pos.row, sym->pos.col);
+      }
     }
   } else {
     assert(funcStmt->kind == FUNC_KIND);
-    sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
-    if (sym != NULL)
+    sym = STable_Add_Func(u->stbl, name, proto);
+    if (sym != NULL) {
       Log_Debug("add func '%s' successfully", name);
+      sym->filename = ps->filename;
+      sym->pos = funcStmt->id.pos;
+    } else {
+      sym = STable_Get(u->stbl, name);
+      Syntax_Error(ps, &funcStmt->id.pos, "symbol '%s' is redeclared, "
+                   "previous declaration at %s:%d:%d", name,
+                   sym->filename, sym->pos.row, sym->pos.col);
+    }
   }
 
   if (sym == NULL) {
@@ -1380,21 +1413,41 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
     return;
   __add_stmt(ps, stmt);
 
+  ParserUnit *u = ps->u;
   KlassStmt *klsStmt = (KlassStmt *)stmt;
-  ClassSymbol *sym;
+  char *name = klsStmt->id.name;
+  Symbol *sym;
   if (stmt->kind == CLASS_KIND) {
-    sym = STable_Add_Class(ps->u->stbl, klsStmt->id.name);
-    Log_Debug("add class '%s' successfully", sym->name);
+    sym = STable_Add_Class(u->stbl, name);
+    if (sym != NULL) {
+      Log_Debug("add class '%s' successfully", sym->name);
+      sym->filename = ps->filename;
+      sym->pos = klsStmt->id.pos;
+    } else {
+      sym = STable_Get(u->stbl, name);
+      Syntax_Error(ps, &klsStmt->id.pos, "symbol '%s' is redeclared, "
+                   "previous declaration at %s:%d:%d", name,
+                   sym->filename, sym->pos.row, sym->pos.col);
+    }
   } else {
     assert(stmt->kind == TRAIT_KIND);
-    sym = STable_Add_Trait(ps->u->stbl, klsStmt->id.name);
-    Log_Debug("add trait '%s' successfully", sym->name);
+    sym = STable_Add_Trait(u->stbl, name);
+    if (sym != NULL) {
+      Log_Debug("add trait '%s' successfully", sym->name);
+      sym->filename = ps->filename;
+      sym->pos = klsStmt->id.pos;
+    } else {
+      sym = STable_Get(u->stbl, name);
+      Syntax_Error(ps, &klsStmt->id.pos, "symbol '%s' is redeclared, "
+                   "previous declaration at %s:%d:%d", name,
+                   sym->filename, sym->pos.row, sym->pos.col);
+    }
   }
 
   Parser_Enter_Scope(ps, SCOPE_CLASS);
   /* ClassSymbol */
-  ps->u->sym = (Symbol *)sym;
-  ps->u->stbl = sym->stbl;
+  ps->u->sym = sym;
+  ps->u->stbl = ((ClassSymbol *)sym)->stbl;
 
   Stmt *s;
   Vector_ForEach(s, klsStmt->body) {

@@ -457,7 +457,7 @@ void __STable_Free(STable *stbl, symbol_visit_func visit, void *arg)
   Mfree(stbl);
 }
 
-VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc)
+Symbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc)
 {
   VarSymbol *sym = (VarSymbol *)Symbol_New(SYM_CONST, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -467,10 +467,10 @@ VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc)
   TYPE_INCREF(desc);
   sym->desc = desc;
   sym->index = stbl->varindex++;
-  return sym;
+  return (Symbol *)sym;
 }
 
-VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc)
+Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc)
 {
   VarSymbol *sym = (VarSymbol *)Symbol_New(SYM_VAR, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -480,10 +480,10 @@ VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc)
   TYPE_INCREF(desc);
   sym->desc = desc;
   sym->index = stbl->varindex++;
-  return sym;
+  return (Symbol *)sym;
 }
 
-FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto)
+Symbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto)
 {
   FuncSymbol *sym = (FuncSymbol *)Symbol_New(SYM_FUNC, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -493,14 +493,14 @@ FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto)
   Vector_Init(&sym->locvec);
   TYPE_INCREF(proto);
   sym->desc = proto;
-  return sym;
+  return (Symbol *)sym;
 }
 
 Symbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc)
 {
   Symbol *sym = Symbol_New(SYM_ALIAS, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
-    Symbol_Free((Symbol *)sym);
+    Symbol_Free(sym);
     return NULL;
   }
   TYPE_INCREF(desc);
@@ -508,7 +508,7 @@ Symbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc)
   return sym;
 }
 
-ClassSymbol *STable_Add_Class(STable *stbl, char *name)
+Symbol *STable_Add_Class(STable *stbl, char *name)
 {
   ClassSymbol *sym = (ClassSymbol *)Symbol_New(SYM_CLASS, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -517,10 +517,10 @@ ClassSymbol *STable_Add_Class(STable *stbl, char *name)
   }
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
-  return sym;
+  return (Symbol *)sym;
 }
 
-ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
+Symbol *STable_Add_Trait(STable *stbl, char *name)
 {
   ClassSymbol *sym = (ClassSymbol *)Symbol_New(SYM_TRAIT, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -529,14 +529,14 @@ ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
   }
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
-  return sym;
+  return (Symbol *)sym;
 }
 
 Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc)
 {
   Symbol *sym = Symbol_New(k, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
-    Symbol_Free((Symbol *)sym);
+    Symbol_Free(sym);
     return NULL;
   }
   TYPE_INCREF(desc);
@@ -547,7 +547,7 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc)
 #define ANONY_PREFIX "__anonoy_"
 static uint32 anony_number = 0xbeaf;
 
-AFuncSymbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc)
+Symbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc)
 {
   char name[32];
   snprintf(name, 31, ANONY_PREFIX "%u", ++anony_number);
@@ -560,17 +560,17 @@ AFuncSymbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc)
   sym->desc = desc;
   Vector_Init(&sym->locvec);
   Vector_Init(&sym->uplocvec);
-  return sym;
+  return (Symbol *)sym;
 }
 
-ImportSymbol *STable_Add_Import(STable *stbl, char *name)
+Symbol *STable_Add_Import(STable *stbl, char *name)
 {
   ImportSymbol *sym = (ImportSymbol *)Symbol_New(SYM_IMPORT, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
-  return sym;
+  return (Symbol *)sym;
 }
 
 Symbol *STable_Get(STable *stbl, char *name)

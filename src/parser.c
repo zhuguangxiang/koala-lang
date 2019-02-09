@@ -36,7 +36,7 @@ const char *scope_strings[] = {
 int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts)
 {
   memset(pkg, 0, sizeof(PackageState));
-  pkg->pkgfile = pkgfile;
+  pkg->pkgfile = AtomString_New(pkgfile).str;
   pkg->stbl = STable_New();
   pkg->opts = opts;
   Vector_Init(&pkg->modules);
@@ -114,8 +114,8 @@ static void save_locvar_func(Symbol *sym, void *arg)
 {
   assert(sym->kind = SYM_VAR);
   Remove_HashNode(&sym->hnode);
-  FuncSymbol *funSym = arg;
-  Vector_Append(&funSym->locvec, sym);
+  FuncSymbol *funcSym = arg;
+  Vector_Append(&funcSym->locvec, sym);
 }
 
 static void merge_parser_unit(ParserState *ps)
@@ -125,13 +125,13 @@ static void merge_parser_unit(ParserState *ps)
   switch (u->scope) {
   case SCOPE_MODULE: {
     /* module has codes for __init__ */
-    FuncSymbol *funSym = (FuncSymbol *)STable_Get(u->stbl, "__init__");
-    if (funSym == NULL) {
+    FuncSymbol *funcSym = (FuncSymbol *)STable_Get(u->stbl, "__init__");
+    if (funcSym == NULL) {
       Log_Debug("create __init__ function");
       TypeDesc *proto = TypeDesc_Get_Proto(NULL, NULL);
-      funSym = STable_Add_Func(u->stbl, "__init__", proto);
-      assert(funSym != NULL);
-      funSym->code = u->block;
+      funcSym = (FuncSymbol *)STable_Add_Func(u->stbl, "__init__", proto);
+      assert(funcSym != NULL);
+      funcSym->code = u->block;
     } else {
       //FIXME: merge codeblock
       CodeBlock_Free(u->block);
@@ -151,16 +151,16 @@ static void merge_parser_unit(ParserState *ps)
     break;
   }
   case SCOPE_FUNCTION: {
-    FuncSymbol *funSym = (FuncSymbol *)u->sym;
-    assert(funSym && funSym->kind == SYM_FUNC);
+    FuncSymbol *funcSym = (FuncSymbol *)u->sym;
+    assert(funcSym && funcSym->kind == SYM_FUNC);
     CodeBlock *b = u->block;
     /* if no return opcode, then add one */
     if (!b->ret) {
-      Log_Debug("add 'return' to function '%s'", funSym->name);
+      Log_Debug("add 'return' to function '%s'", funcSym->name);
       Inst_Append_NoArg(b, OP_RET);
     }
     /* save codeblock to function symbol */
-    funSym->code = u->block;
+    funcSym->code = u->block;
     u->block = NULL;
     /* free local symbol table */
     STable_Free(u->stbl);
@@ -243,7 +243,7 @@ void Parser_Exit_Scope(ParserState *ps)
 ParserState *New_Parser(PackageState *pkg, char *filename)
 {
   ParserState *ps = Malloc(sizeof(ParserState));
-  ps->filename = string_dup(filename);
+  ps->filename = AtomString_New(filename).str;
   ps->pkg = pkg;
 
   Vector_Init(&ps->stmts);
@@ -265,7 +265,6 @@ void Destroy_Parser(ParserState *ps)
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   Fini_Imports(ps);
 
-  Mfree(ps->filename);
   Mfree(ps);
 }
 
@@ -551,13 +550,13 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
   case SCOPE_CLOSURE: {
     /* function scope has independent space for save variables. */
     Log_Debug("var '%s' declaration in function", id->name);
-    varSym = STable_Add_Var(u->stbl, id->name, desc);
+    varSym = (VarSymbol *)STable_Add_Var(u->stbl, id->name, desc);
     if (varSym == NULL) {
       Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
       return NULL;
     }
-    FuncSymbol *funSym = (FuncSymbol *)u->sym;
-    Vector_Append(&funSym->locvec, varSym);
+    FuncSymbol *funcSym = (FuncSymbol *)u->sym;
+    Vector_Append(&funcSym->locvec, varSym);
     varSym->refcnt++;
     break;
   }
@@ -572,7 +571,7 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
     ParserUnit *uu = parse_block_variable(ps, id);
     if (uu == NULL)
       return NULL;
-    varSym = STable_Add_Var(u->stbl, id->name, desc);
+    varSym = (VarSymbol *)STable_Add_Var(u->stbl, id->name, desc);
     if (varSym == NULL) {
       Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
       return NULL;
@@ -931,21 +930,21 @@ static int check_returns(TypeDesc *desc, Vector *exps)
 static void parse_return_stmt(ParserState *ps, Stmt *stmt)
 {
   ParserUnit *u = ps->u;
-  FuncSymbol *funSym;
+  FuncSymbol *funcSym;
 
   if (u->scope == SCOPE_FUNCTION) {
-    funSym = (FuncSymbol *)u->sym;
+    funcSym = (FuncSymbol *)u->sym;
   } else {
     ParserUnit *uu;
     list_for_each_entry(uu, &ps->ustack, link) {
       if (uu->scope == SCOPE_FUNCTION) {
-        funSym = (FuncSymbol *)uu->sym;
+        funcSym = (FuncSymbol *)uu->sym;
         break;
       }
     }
   }
 
-  assert(funSym != NULL && funSym->kind == SYM_FUNC);
+  assert(funcSym != NULL && funcSym->kind == SYM_FUNC);
 
   ReturnStmt *retStmt = (ReturnStmt *)stmt;
 
@@ -955,10 +954,9 @@ static void parse_return_stmt(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, e);
   }
 
-  if (!check_returns(funSym->desc, retStmt->exps)) {
-    Syntax_Error(ps, &retStmt->pos,
-                 "func %s: returns are not matched.",
-                 funSym->name);
+  if (!check_returns(funcSym->desc, retStmt->exps)) {
+    Syntax_Error(ps, &retStmt->pos, "func %s: returns are not matched.",
+                 funcSym->name);
     return;
   }
 
