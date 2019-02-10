@@ -602,7 +602,8 @@ KImage *Gen_Image(STable *stbl, char *pkgname)
 int STable_From_Image(char *path, char **pkgname, STable **stbl)
 {
   /* FIXME */
-  *stbl = NULL;
+  *stbl = STable_New();
+  *pkgname = "io";
   return -1;
 }
 

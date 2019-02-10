@@ -26,7 +26,8 @@ package skeleton
 //package
 //package skeleton skeleton
 
-//import "io"
+import "io"
+
 //import
 //import 123
 //import "io" "io"
@@ -40,6 +41,7 @@ const K5 = K1
 //const K6 = sub(1,2)
 const K7 = 100
 
+//import "io"
 //var K7 int;
 
 //variables

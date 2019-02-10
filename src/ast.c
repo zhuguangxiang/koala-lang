@@ -886,7 +886,7 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
     /* use package's name as name in current module */
     name = extpkg->pkgname;
     sym = STable_Add_ExtPkg(ps->extstbl, name);
-  } else if (id->name[0] = '*') {
+  } else if (id->name[0] == '*') {
     /* load all symbols to current module */
     name = "*";
   } else {
@@ -903,7 +903,7 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
   } else {
     sym = STable_Get(ps->extstbl, name);
     Syntax_Error(ps, &path->pos, "'%s' redeclared as imported package name, "
-                 "previous declaration at %s:%d:%d",
+                 "previous declaration at %s:%d:%d", name,
                  sym->filename, sym->pos.row, sym->pos.col);
   }
 }
@@ -1458,7 +1458,8 @@ void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
     puts(""); /* newline */
     va_end(ap);
   } else {
-    fprintf(stderr, "%s:%d: the line has more errors", ps->filename, pos->row);
+    fprintf(stderr, "%s:%d: the line has more errors\n",
+            ps->filename, pos->row);
   }
 }
 
