@@ -141,7 +141,7 @@ TypeItem *TypeItem_Primitive_New(char primitive)
   return item;
 }
 
-TypeItem *TypeItem_UserDef_New(int32 pathindex, int32 typeindex)
+TypeItem *TypeItem_Klass_New(int32 pathindex, int32 typeindex)
 {
   TypeItem *item = Malloc(sizeof(TypeItem));
   item->kind = TYPE_KLASS;
@@ -164,6 +164,14 @@ TypeItem *TypeItem_Array_New(int dims, int32 typeindex)
   item->kind = TYPE_ARRAY;
   item->array.dims = dims;
   item->array.typeindex = typeindex;
+  return item;
+}
+
+TypeItem *TypeItem_Varg_New(int32 typeindex)
+{
+  TypeItem *item = Malloc(sizeof(TypeItem));
+  item->kind = TYPE_VARG;
+  item->varg.typeindex = typeindex;
   return item;
 }
 
@@ -463,6 +471,12 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
     item.array.typeindex = TypeItem_Get(table, array->base);
     break;
   }
+  case TYPE_VARG: {
+    VargDesc *varg = (VargDesc *)desc;
+    item.kind = TYPE_VARG;
+    item.varg.typeindex = TypeItem_Get(table, varg->base);
+    break;
+  }
   default:
     assert(0);
     break;
@@ -494,7 +508,7 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
         typeindex = StringItem_Set(table, klass->type.str);
         assert(typeindex >= 0);
       }
-      item = TypeItem_UserDef_New(pathindex, typeindex);
+      item = TypeItem_Klass_New(pathindex, typeindex);
       break;
     }
     case TYPE_PROTO: {
@@ -506,6 +520,12 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
       ArrayDesc *array = (ArrayDesc *)desc;
       int typeindex = TypeItem_Set(table, array->base);
       item = TypeItem_Array_New(array->dims, typeindex);
+      break;
+    }
+    case TYPE_VARG: {
+      VargDesc *varg = (VargDesc *)desc;
+      int typeindex = TypeItem_Set(table, varg->base);
+      item = TypeItem_Varg_New(typeindex);
       break;
     }
     default:
@@ -1389,7 +1409,8 @@ static void init_header(ImageHeader *h, char *name)
   h->endian_tag  = ENDIAN_TAG;
   h->map_offset  = sizeof(ImageHeader);
   h->map_size    = ITEM_MAX;
-  strncpy(h->pkgname, name, PKG_NAME_MAX-1);
+  if (name != NULL)
+    strncpy(h->pkgname, name, PKG_NAME_MAX-1);
 }
 
 KImage *KImage_New(char *pkgname)
@@ -1559,7 +1580,7 @@ void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto)
   AtomTable_Append(image->table, ITEM_IMETH, imethitem, 0);
 }
 
-void KImage_Get_Consts(KImage *image, getconstfunc func, void *arg)
+void KImage_Get_Consts(KImage *image, getconstfn func, void *arg)
 {
   void *data;
   ConstItem *item;
@@ -1576,7 +1597,7 @@ void KImage_Get_Consts(KImage *image, getconstfunc func, void *arg)
   }
 }
 
-void KImage_Get_Vars(KImage *image, getvarfunc func, void *arg)
+void KImage_Get_Vars(KImage *image, getvarfn func, void *arg)
 {
   VarItem *var;
   StringItem *id;
@@ -1592,7 +1613,7 @@ void KImage_Get_Vars(KImage *image, getvarfunc func, void *arg)
   }
 }
 
-void KImage_Get_LocVars(KImage *image, getlocvarfunc func, void *arg)
+void KImage_Get_LocVars(KImage *image, getlocvarfn func, void *arg)
 {
   LocVarItem *locvar;
   StringItem *str;
@@ -1608,7 +1629,7 @@ void KImage_Get_LocVars(KImage *image, getlocvarfunc func, void *arg)
   }
 }
 
-void KImage_Get_Funcs(KImage *image, getfuncfunc func, void *arg)
+void KImage_Get_Funcs(KImage *image, getfuncfn func, void *arg)
 {
   FuncItem *funcitem;
   StringItem *str;
@@ -1622,7 +1643,27 @@ void KImage_Get_Funcs(KImage *image, getfuncfunc func, void *arg)
     code = AtomTable_Get(image->table, ITEM_CODE, funcitem->codeindex);
     proto = AtomTable_Get(image->table, ITEM_PROTO, funcitem->protoindex);
     desc = ProtoItem_To_TypeDesc(proto, image->table);
-    func(str->data, desc, code->codes, code->size, i, arg);
+    if (code != NULL)
+      func(str->data, desc, i, ITEM_FUNC, code->codes, code->size, arg);
+    else
+      func(str->data, desc, i, ITEM_FUNC, NULL, 0, arg);
+  }
+}
+
+void KImage_Get_NFuncs(KImage *image, getfuncfn func, void *arg)
+{
+  FuncItem *funcitem;
+  StringItem *str;
+  ProtoItem *proto;
+  TypeDesc *desc;
+  CodeItem *code;
+  int size = AtomTable_Size(image->table, ITEM_NFUNC);
+  for (int i = 0; i < size; i++) {
+    funcitem = AtomTable_Get(image->table, ITEM_NFUNC, i);
+    str = AtomTable_Get(image->table, ITEM_STRING, funcitem->nameindex);
+    proto = AtomTable_Get(image->table, ITEM_PROTO, funcitem->protoindex);
+    desc = ProtoItem_To_TypeDesc(proto, image->table);
+    func(str->data, desc, i, ITEM_NFUNC, NULL, 0, arg);
   }
 }
 
@@ -1745,7 +1786,7 @@ KImage *KImage_Read_File(char *path, int flags)
     return NULL;
   }
 
-  KImage *image = Malloc(sizeof(KImage));
+  KImage *image = KImage_New(NULL);
   assert(image);
   memcpy(&image->header, &header, sizeof(ImageHeader));
 

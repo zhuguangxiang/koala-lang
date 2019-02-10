@@ -84,8 +84,11 @@ ExtPkg *ExtPkg_Find(PackageState *pkg, char *path)
 {
   ExtPkg key = {.path = path};
   HashNode *hnode = HashTable_Find(&pkg->extpkgs, &key);
-  if (hnode == NULL)
+  if (hnode == NULL) {
+    Log_Debug("not found package '%s'", path);
     return NULL;
+  }
+  Log_Debug("found package '%s'", path);
   return container_of(hnode, ExtPkg, hnode);
 }
 
@@ -94,9 +97,10 @@ ExtPkg *ExtPkg_New(PackageState *pkg, char *path, char *pkgname, STable *stbl)
   ExtPkg *extpkg = Malloc(sizeof(ExtPkg));
   Init_HashNode(&extpkg->hnode, extpkg);
   extpkg->path = path;
-  extpkg->pkgname = AtomString_New(pkgname).str;
+  extpkg->pkgname = pkgname;
   extpkg->stbl = stbl;
-  HashTable_Insert(&pkg->extpkgs, &extpkg->hnode);
+  int res = HashTable_Insert(&pkg->extpkgs, &extpkg->hnode);
+  assert(!res);
   return extpkg;
 }
 

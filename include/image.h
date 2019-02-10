@@ -78,6 +78,9 @@ typedef struct type_item {
       int32 keyindex;   /* ->TypeItem */
       int32 valueindex; /* ->TypeItem */
     } map;
+    struct {
+      int32 typeindex;  /* ->TypeItem */
+    } varg;
   };
 } TypeItem;
 
@@ -211,18 +214,22 @@ int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
 void KImage_Add_NFunc(KImage *image, char *klazz, char *name, TypeDesc *proto);
 void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto);
 
+static inline char *KImage_Get_PkgName(KImage *image)
+{
+  return image->header.pkgname;
+}
 static inline int KImage_Count_Consts(KImage *image)
 {
   return AtomTable_Size((image)->table, ITEM_CONST);
 }
-typedef void (*getconstfunc)(int, void *, int, void *);
-void KImage_Get_Consts(KImage *image, getconstfunc func, void *arg);
-typedef void (*getvarfunc)(char *, TypeDesc *, int, void *);
-void KImage_Get_Vars(KImage *image, getvarfunc func, void *arg);
-typedef void (*getlocvarfunc)(char *, TypeDesc *, int, int, void *);
-void KImage_Get_LocVars(KImage *image, getlocvarfunc func, void *arg);
-typedef void (*getfuncfunc)(char *, TypeDesc *, uint8 *, int, int, void *);
-void KImage_Get_Funcs(KImage *image, getfuncfunc func, void *arg);
+typedef void (*getconstfn)(int, void *, int, void *);
+void KImage_Get_Consts(KImage *image, getconstfn func, void *arg);
+typedef void (*getvarfn)(char *, TypeDesc *, int, void *);
+void KImage_Get_Vars(KImage *image, getvarfn func, void *arg);
+typedef void (*getlocvarfn)(char *, TypeDesc *, int, int, void *);
+void KImage_Get_LocVars(KImage *image, getlocvarfn func, void *arg);
+typedef void (*getfuncfn)(char *, TypeDesc *, int, int, uint8 *, int, void *);
+void KImage_Get_Funcs(KImage *image, getfuncfn func, void *arg);
 
 void KImage_Finish(KImage *image);
 void KImage_Write_File(KImage *image, char *path);

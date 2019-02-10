@@ -47,6 +47,9 @@ void __StringBuf_Append_Char(StringBuf *buf, char ch);
 #define FiniStringBuf(name) \
 do { \
   Mfree((name).data); \
+  (name).length = 0;  \
+  (name).size = 0;    \
+  (name).data = NULL; \
 } while (0)
 
 /* fmt: "#.#" */

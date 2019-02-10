@@ -195,16 +195,16 @@ struct funcinfo {
   int index;
 };
 
-static void __getlocvarfunc(char *name, TypeDesc *desc, int pos,
-                            int index, void *arg)
+static
+void __getlocvarfunc(char *name, TypeDesc *desc, int pos, int index, void *arg)
 {
   struct funcinfo *info = arg;
   if (index == info->index)
     KCode_Add_LocVar(info->code, name, desc, pos);
 }
 
-static void __getfuncfunc(char *name, TypeDesc *desc, uint8 *codes, int size,
-                          int index, void *arg)
+static void __getfuncfn(char *name, TypeDesc *desc, int index, int type,
+                        uint8 *codes, int size,void *arg)
 {
   struct funcinfo *info = arg;
   Object *ob = KCode_New(codes, size, desc);
@@ -217,7 +217,7 @@ static void __getfuncfunc(char *name, TypeDesc *desc, uint8 *codes, int size,
 static inline void load_functions(PackageObject *pkg, KImage *image)
 {
   struct funcinfo arg = {pkg, image, NULL, -1};
-  KImage_Get_Funcs(image, __getfuncfunc, &arg);
+  KImage_Get_Funcs(image, __getfuncfn, &arg);
 }
 
 PackageObject *Package_From_Image(KImage *image, char *name)

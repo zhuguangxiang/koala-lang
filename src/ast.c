@@ -855,22 +855,39 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
 {
   ExtPkg *extpkg = ExtPkg_Find(ps->pkg, path->name);
   if (extpkg == NULL) {
-    char *pkgname;
-    STable *stbl;
-    STable_From_Image(path->name, &pkgname, &stbl);
+    char *pkgname = NULL;
+    STable *stbl = NULL;
+    Options *opts = ps->pkg->opts;
+    DeclareStringBuf(fullpath);
+
+    /* load from current path firstly */
+    char *prefix = "./";
+    StringBuf_Append_CStr(fullpath, prefix);
+    StringBuf_Append_CStr(fullpath, path->name);
+    StringBuf_Append_CStr(fullpath, ".klc");
+    Log_Debug("load package from '%s'", fullpath.data);
+    STable_From_Image(fullpath.data, &pkgname, &stbl);
+    FiniStringBuf(fullpath);
+
+    if (stbl == NULL) {
+      /* search user configured pathes */
+      Vector_ForEach(prefix, &opts->pathes) {
+        StringBuf_Append_CStr(fullpath, prefix);
+        StringBuf_Append_CStr(fullpath, path->name);
+        StringBuf_Append_CStr(fullpath, ".klc");
+        Log_Debug("load package from '%s'", fullpath.data);
+        STable_From_Image(fullpath.data, &pkgname, &stbl);
+        FiniStringBuf(fullpath);
+        if (stbl != NULL)
+          break;
+      }
+    }
 
     /* not find package */
     if (stbl == NULL) {
-      Options *opts = ps->pkg->opts;
-      DeclareStringBuf(buf);
-      StringBuf_Append_CStr(buf, "\n    ./");
-      char *s;
-      Vector_ForEach(s, &opts->pathes)
-        StringBuf_Format_CStr(buf, "\n    #", s);
       Syntax_Error(ps, &path->pos,
-                   "cannot find package '%s' in any of %s",
-                   path->name, buf.data);
-      FiniStringBuf(buf);
+                   "cannot find package '%s' in any of '%s'",
+                   path->name, opts->pathstrings);
       return;
     }
 

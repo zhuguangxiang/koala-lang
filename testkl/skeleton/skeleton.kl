@@ -27,6 +27,8 @@ package skeleton
 //package skeleton skeleton
 
 import "io"
+//import nio "io"
+//import "io"
 
 //import
 //import 123
@@ -84,6 +86,7 @@ var vv10 = 1 + K7
 
 //function
 func add(a int, b int) int {
+//  io.Println(a, b);
   aa := "how are you?"
   {
     var cc = 100

@@ -21,6 +21,7 @@
  */
 
 #include "options.h"
+#include "stringbuf.h"
 #include "mem.h"
 #include "stringex.h"
 #include "log.h"
@@ -71,7 +72,7 @@ void parse_options(int argc, char *argv[], Options *opts)
       opts->srcpath = optarg;
     break;
     case 'p':
-      Vector_Append(&opts->pathes, optarg);
+      Vector_Append(&opts->pathes, string_dup(optarg));
     break;
     case 'o':
       opts->outpath = string_dup(optarg);
@@ -113,6 +114,19 @@ void parse_options(int argc, char *argv[], Options *opts)
     opts->usage(argv[0]);
     exit(0);
   }
+
+  DeclareStringBuf(buf);
+  char *s;
+  Vector_ForEach(s, &opts->pathes) {
+    /* last one, no colon */
+    if (i + 1 == Vector_Size(&opts->pathes))
+      StringBuf_Format_CStr(buf, "#", s);
+    else
+      StringBuf_Format_CStr(buf, "#:", s);
+  }
+  if (buf.data != NULL)
+    opts->pathstrings = string_dup(buf.data);
+  FiniStringBuf(buf);
 }
 
 int init_options(Options *opts, void (*usage)(char *), void (*version)(void))
@@ -140,7 +154,7 @@ void fini_options(Options *opts)
 {
   Mfree(opts->srcpath);
   Mfree(opts->outpath);
-
+  Mfree(opts->pathstrings);
   Vector_Fini(&opts->pathes, free_string_func, NULL);
   Vector_Fini(&opts->nvs, free_namevalue_func, NULL);
   Vector_Fini(&opts->names, free_string_func, NULL);

@@ -599,12 +599,47 @@ KImage *Gen_Image(STable *stbl, char *pkgname)
   return image;
 }
 
+static void __get_var_fn(char *name, TypeDesc *desc, int k, STable *stbl)
+{
+  if (k)
+    STable_Add_Const(stbl, name, desc);
+  else
+    STable_Add_Var(stbl, name, desc);
+}
+
+static void __get_func_fn(char *name, TypeDesc *desc, int idx, int type,
+                          uint8 *code, int sz, STable *stbl)
+{
+  if (type == ITEM_FUNC)
+    STable_Add_Func(stbl, name, desc);
+  else if (type == ITEM_NFUNC)
+    STable_Add_NFunc(stbl, name, desc);
+  else
+    assert(0);
+}
+
+#define NO_LOAD_ITEMS \
+  ((1 << ITEM_CODE) | (1 << ITEM_LOCVAR) | (1 << ITEM_CONST))
+
 int STable_From_Image(char *path, char **pkgname, STable **stbl)
 {
-  /* FIXME */
-  *stbl = STable_New();
-  *pkgname = "io";
-  return -1;
+  KImage *image = KImage_Read_File(path, NO_LOAD_ITEMS);
+
+  if (image == NULL) {
+    *stbl = NULL;
+    *pkgname = NULL;
+    return -1;
+  }
+
+  STable *table = STable_New();
+  KImage_Get_Vars(image, (getvarfn)__get_var_fn, table);
+  KImage_Get_Funcs(image, (getfuncfn)__get_func_fn, table);
+
+  *pkgname = AtomString_New(KImage_Get_PkgName(image)).str;
+  *stbl = table;
+  KImage_Free(image);
+
+  return 0;
 }
 
 static void __symbol_show_fn(Symbol *sym, void *arg)
