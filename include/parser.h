@@ -215,7 +215,7 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right);
 void Parser_New_Function(ParserState *ps, Stmt *stmt);
 void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt);
 void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt);
-TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz);
+TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz);
 void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
 
 /* lex(flex) used APIs */

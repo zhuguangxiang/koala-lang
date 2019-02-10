@@ -599,10 +599,11 @@ KImage *Gen_Image(STable *stbl, char *pkgname)
   return image;
 }
 
-int STble_From_Image(char *path, char **pkgname, STable **stbl)
+int STable_From_Image(char *path, char **pkgname, STable **stbl)
 {
   /* FIXME */
-  assert(0);
+  *stbl = NULL;
+  return -1;
 }
 
 static void __symbol_show_fn(Symbol *sym, void *arg)

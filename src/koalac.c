@@ -113,7 +113,7 @@ static void compile(char *pkgdir, PackageState *pkg)
     KImage_Write_File(image, pkg->pkgfile);
     KImage_Free(image);
   } else {
-    fprintf(stderr, "\x1b[31mThere are %d errors.\x1b[0m\n", errors);
+    fprintf(stderr, "\x1b[31mthere are %d errors\x1b[0m\n", errors);
   }
 }
 

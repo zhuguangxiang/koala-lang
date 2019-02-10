@@ -90,6 +90,16 @@ protected和private四种权限。在实践中发现很少进行非常详细的�
 koala语言只区分public和private两种权限。
 ** 函数调用栈
 
+** 外部包导入
+每个模块都可以导入外部包，同一个包中的不同模块可以导入相同的外部包互不影响。
+模块导入的外部符号名不能相同，这里的符号名可以是外部包名(import "io")，也可以为
+一个外部导入的包起一个新的名字(import nio "io"), 也可以将一个外部包中的符号全部导入进来
+(import * "io").
+** Unused checker
+*** import
+*** private变量或者函数
+*** 类中的私有变量或者方法
+
 * Why develop koala-lang?
 能用自己开发的语言写程序是不是一件很有意思的事情呢？Koala语言完全出于本人的兴趣，很有意思！
 * Language Introduction

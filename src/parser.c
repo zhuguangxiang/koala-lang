@@ -503,7 +503,7 @@ static struct expr_func_s {
 void Parse_Expression(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
-  if (ps->errnum >= MAX_ERRORS)
+  if (ps->errnum > MAX_ERRORS)
     return;
   assert(exp->kind > 0 && exp->kind < nr_elts(expr_funcs));
   expr_func parse = (expr_funcs + exp->kind)->parse;
@@ -514,7 +514,7 @@ void Parse_Expression(ParserState *ps, Expr *exp)
 void Code_Expression(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
-  if (ps->errnum >= MAX_ERRORS)
+  if (ps->errnum > MAX_ERRORS)
     return;
   assert(exp->kind > 0 && exp->kind < nr_elts(expr_funcs));
   expr_func code = (expr_funcs + exp->kind)->code;
@@ -531,9 +531,9 @@ static inline void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   assert(exp->kind > 0 && exp->kind < nr_elts(expr_funcs));
   struct expr_func_s *func = expr_funcs + exp->kind;
-  if (ps->errnum < MAX_ERRORS && func->parse != NULL)
+  if (ps->errnum <= MAX_ERRORS && func->parse != NULL)
     func->parse(ps, exp);
-  if (ps->errnum < MAX_ERRORS && func->code != NULL)
+  if (ps->errnum <= MAX_ERRORS && func->code != NULL)
     func->code(ps, exp);
 }
 
@@ -1064,7 +1064,7 @@ static parse_stmt_func parse_stmt_funcs[] = {
 
 static void parse_statement(ParserState *ps, Stmt *stmt)
 {
-  if (ps->errnum >= MAX_ERRORS)
+  if (ps->errnum > MAX_ERRORS)
     return;
   assert(stmt->kind > 0 && stmt->kind < nr_elts(parse_stmt_funcs));
   parse_stmt_func parse_func = parse_stmt_funcs[stmt->kind];

@@ -1973,7 +1973,7 @@ void header_show(ImageHeader *h)
   Log_Printf("magic:%s\n", (char *)h->magic);
   Log_Printf("version:%d.%d.%d\n", h->version[0] - '0', h->version[1] - '0', 0);
   Log_Printf("header_size:%d\n", h->header_size);
-  Log_Printf("endian_tag:0x%x\n", h->endian_tag);
+  Log_Printf("endian:0x%x\n", h->endian_tag);
   Log_Printf("map_offset:0x%x\n", h->map_offset);
   Log_Printf("map_size:%d\n\n", h->map_size);
   Log_Puts("--------------------");

@@ -42,7 +42,7 @@ do {                          \
   (pos).col = yyloc_col(loc); \
 } while (0)
 
-#if 1
+#ifndef NDEBUG
 #define YYERROR_VERBOSE 1
 static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 {
@@ -204,8 +204,6 @@ do {                                           \
 %type <List> ParameterList
 %type <List> ReturnList
 %type <List> IDList
-
-%type <SVal> PackagePath
 
 %type <Stmt> ConstDeclaration
 %type <Stmt> VariableDeclaration
@@ -407,11 +405,14 @@ PrimitiveType
 KlassType
   : ID
   {
-    $$ = Parser_New_KlassType(ps, NULL, $1.str);
+    DeclareIdent(klazz, $1, @1);
+    $$ = Parser_New_KlassType(ps, NULL, &klazz);
   }
   | ID '.' ID
   {
-    $$ = Parser_New_KlassType(ps, $1.str, $3.str);
+    DeclareIdent(id, $1, @1);
+    DeclareIdent(klazz, $3, @3);
+    $$ = Parser_New_KlassType(ps, &id, &klazz);
   }
   ;
 
@@ -689,24 +690,18 @@ Package
   }
   | PACKAGE ID error
   {
-    if (ps->line.token[0] == '\n')
-      YYSyntax_Error(@2, ";");
-    else
-      YYSyntax_Error_Clear(@2, ";");
+    YYSyntax_Error(@2, ";");
+    YYACCEPT;
   }
   | PACKAGE error
   {
-    if (ps->line.token[0] == '\n')
-      YYSyntax_Error(@2, "<package-name>");
-    else
-      YYSyntax_Error_Clear(@2, "<package-name>");
+    YYSyntax_Error(@2, "<package-name>");
+    YYACCEPT;
   }
   | error
   {
-    if (ps->line.token[0] == '\n')
-      YYSyntax_Error(@1, "<package-name>");
-    else
-      YYSyntax_Error_Clear(@1, "<package-name>");
+    YYSyntax_Error(@1, "<package-name>");
+    YYACCEPT;
   }
   ;
 
@@ -716,56 +711,54 @@ Imports
   ;
 
 Import
-  : IMPORT PackagePath ';'
+  : IMPORT STRING_LITERAL ';'
   {
-    Ident *path = New_Ident($2);
-    SetPosition(path->pos, @2);
-    Parser_New_Import(ps, NULL, path);
+    DeclareIdent(path, $2, @2);
+    Parser_New_Import(ps, NULL, &path);
   }
-  | IMPORT ID PackagePath ';'
+  | IMPORT ID STRING_LITERAL ';'
   {
-    Ident *id = New_Ident($2);
-    SetPosition(id->pos, @2);
-    Ident *path = New_Ident($3);
-    SetPosition(path->pos, @3);
-    Parser_New_Import(ps, id, path);
+    DeclareIdent(id, $2, @2);
+    DeclareIdent(path, $3, @3);
+    Parser_New_Import(ps, &id, &path);
   }
-  | IMPORT '*' PackagePath ';'
+  | IMPORT '*' STRING_LITERAL ';'
   {
-    String name = AtomString_New("*");
-    Ident *id = New_Ident(name);
-    SetPosition(id->pos, @2);
-    Ident *path = New_Ident($3);
-    SetPosition(path->pos, @3);
-    Parser_New_Import(ps, id, path);
+    Ident id;
+    id.name = "*";
+    SetPosition(id.pos, @2);
+    DeclareIdent(path, $3, @3);
+    Parser_New_Import(ps, &id, &path);
+  }
+  | IMPORT STRING_LITERAL error
+  {
+    YYSyntax_Error(@3, ";");
+    YYACCEPT;
+  }
+  | IMPORT ID STRING_LITERAL error
+  {
+    YYSyntax_Error(@3, ";");
+    YYACCEPT;
+  }
+  | IMPORT '*' STRING_LITERAL error
+  {
+    YYSyntax_Error(@3, ";");
+    YYACCEPT;
   }
   | IMPORT ID error
   {
-    if (ps->line.token[0] == '\n')
-      YYSyntax_Error(@3, "<package-path>");
-    else
-      YYSyntax_Error_Clear(@3, "<package-path>");
+    YYSyntax_Error(@3, "<package-path>");
+    YYACCEPT;
   }
   | IMPORT '*' error
   {
-    if (ps->line.token[0] == '\n')
-      YYSyntax_Error(@3, "<package-path>");
-    else
-      YYSyntax_Error_Clear(@3, "<package-path>");
+    YYSyntax_Error(@2, "<package-path>");
+    YYACCEPT;
   }
   | IMPORT error
   {
-    if (ps->line.token[0] == '\n')
-      YYSyntax_Error(@2, "<package-path>");
-    else
-      YYSyntax_Error_Clear(@2, "<package-path>");
-  }
-  ;
-
-PackagePath
-  : STRING_LITERAL
-  {
-    $$ = $1;
+    YYSyntax_Error(@2, "<package-path>, <ID> or *");
+    YYACCEPT;
   }
   ;
 

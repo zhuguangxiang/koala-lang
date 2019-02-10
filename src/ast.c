@@ -857,7 +857,7 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
   if (extpkg == NULL) {
     char *pkgname;
     STable *stbl;
-    STble_From_Image(path->name, &pkgname, &stbl);
+    STable_From_Image(path->name, &pkgname, &stbl);
 
     /* not find package */
     if (stbl == NULL) {
@@ -871,8 +871,6 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
                    "cannot find package '%s' in any of %s",
                    path->name, buf.data);
       FiniStringBuf(buf);
-      Free_Ident(id);
-      Free_Ident(path);
       return;
     }
 
@@ -900,15 +898,14 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
   if (sym != NULL) {
     Log_Debug("add package '%s <- %s' successfully", name, path->name);
     ((ExtPkgSymbol *)sym)->extpkg = extpkg;
+    sym->filename = ps->filename;
+    sym->pos = (id == NULL) ? path->pos : id->pos;
   } else {
     sym = STable_Get(ps->extstbl, name);
     Syntax_Error(ps, &path->pos, "'%s' redeclared as imported package name, "
                  "previous declaration at %s:%d:%d",
                  sym->filename, sym->pos.row, sym->pos.col);
   }
-
-  Free_Ident(id);
-  Free_Ident(path);
 }
 
 static inline void __add_stmt(ParserState *ps, Stmt *stmt)
@@ -1419,44 +1416,50 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
   Parser_Exit_Scope(ps);
 }
 
-TypeDesc *Parser_New_KlassType(ParserState *ps, char *id, char *klazz)
+TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz)
 {
-  /* FIXME */
   char *path = NULL;
   if (id != NULL) {
-    Symbol *sym = STable_Get(ps->extstbl, id);
+    Symbol *sym = STable_Get(ps->extstbl, id->name);
     if (sym == NULL) {
-      Log_Error("cannot find package: '%s'", id);
+      Syntax_Error(ps, &id->pos, "undefined '%s'", id->name);
       return NULL;
     }
     assert(sym->kind == SYM_EXTPKG);
-    sym->refcnt++;
+    sym->used++;
     ExtPkg *extpkg = ((ExtPkgSymbol *)sym)->extpkg;
     path = extpkg->path;
+    sym = STable_Get(extpkg->stbl, klazz->name);
+    if (sym == NULL) {
+      Syntax_Error(ps, &id->pos, "undefined '%s.%s'", path, klazz->name);
+      return NULL;
+    }
   }
-  return TypeDesc_Get_Klass(path, klazz);
-}
-
-static void print_error(ParserState *ps, Position *pos, char *fmt, va_list ap)
-{
-  fprintf(stderr, "%s:%d:%d: \x1b[31merror:\x1b[0m ", ps->filename, pos->row, pos->col);
-  vfprintf(stderr, fmt, ap);
-  puts(""); /* newline */
+  return TypeDesc_Get_Klass(path, klazz->name);
 }
 
 void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
 {
-  ps->errnum++;
-/*
-  if (ps->line.errors > 0)
+  /* if errors are more than MAX_ERRORS, discard left errors shown */
+  if (++ps->errnum > MAX_ERRORS) {
+    fprintf(stderr, "%s:%d:%d: \x1b[31merror:\x1b[0m too many errors\n",
+            ps->filename, pos->row, pos->col);
     return;
-*/
-  ps->line.errors++;
+  }
 
-  va_list ap;
-  va_start(ap, fmt);
-  print_error(ps, pos, fmt, ap);
-  va_end(ap);
+  /* if one line has more than one error, show only one error message */
+  if (ps->line.errors <= 0) {
+    ps->line.errors = 1;
+    va_list ap;
+    va_start(ap, fmt);
+    fprintf(stderr, "%s:%d:%d: \x1b[31merror:\x1b[0m ",
+            ps->filename, pos->row, pos->col);
+    vfprintf(stderr, fmt, ap);
+    puts(""); /* newline */
+    va_end(ap);
+  } else {
+    fprintf(stderr, "%s:%d: the line has more errors", ps->filename, pos->row);
+  }
 }
 
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)

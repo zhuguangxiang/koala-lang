@@ -23,8 +23,14 @@
 package skeleton
 //package 123
 //package func
+//package
+//package skeleton skeleton
 
-//import "native/io"
+//import "io"
+//import
+//import 123
+//import "io" "io"
+//import io "io" io
 
 //constants
 const K1 = "Hello, Koala"

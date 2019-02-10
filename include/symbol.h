@@ -164,7 +164,7 @@ Symbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
 Symbol *STable_Add_ExtPkg(STable *stbl, char *name);
 Symbol *STable_Get(STable *stbl, char *name);
 KImage *Gen_Image(STable *stbl, char *pkgname);
-int STble_From_Image(char *path, char **pkgname, STable **stbl);
+int STable_From_Image(char *path, char **pkgname, STable **stbl);
 void STable_Show(STable *stbl);
 void STable_Visit(STable *stbl, symbol_visit_func fn, void *arg);
 
