@@ -153,10 +153,16 @@ typedef struct parserstate {
   Vector stmts;
 
   /*
-   * external symbol table,
-   * imported-name, package-name or symbol-name as key
+   * imported-name or package-name as key, but not symbol-name
+   * import * "<package-path>" -->> imported all symbols into extstars
    */
   STable *extstbl;
+  /*
+   * save all external symbols using import * "<package-path>"
+   * symbols in this table are not checked,
+   * are covered by symbols in module's scope.
+   */
+  STable *extstars;
 
   /* current parser unit */
   ParserUnit *u;

@@ -69,6 +69,12 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
     t = TypeDesc_Get_Array(item->array.dims, base_type);
     break;
   }
+  case TYPE_VARG: {
+    TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->varg.typeindex);
+    TypeDesc *desc = TypeItem_To_TypeDesc(base, atbl);
+    t = TypeDesc_Get_Varg(desc);
+    break;
+  }
   default:
     assert(0);
     break;
@@ -87,6 +93,7 @@ Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
   for (int i = 0; i < item->size; i++) {
     typeitem = AtomTable_Get(atbl, ITEM_TYPE, item->index[i]);
     t = TypeItem_To_TypeDesc(typeitem, atbl);
+    TYPE_INCREF(t);
     Vector_Append(v, t);
   }
   return v;
@@ -1652,16 +1659,15 @@ void KImage_Get_Funcs(KImage *image, getfuncfn func, void *arg)
 
 void KImage_Get_NFuncs(KImage *image, getfuncfn func, void *arg)
 {
-  FuncItem *funcitem;
+  NFuncItem *nfuncitem;
   StringItem *str;
   ProtoItem *proto;
   TypeDesc *desc;
-  CodeItem *code;
   int size = AtomTable_Size(image->table, ITEM_NFUNC);
   for (int i = 0; i < size; i++) {
-    funcitem = AtomTable_Get(image->table, ITEM_NFUNC, i);
-    str = AtomTable_Get(image->table, ITEM_STRING, funcitem->nameindex);
-    proto = AtomTable_Get(image->table, ITEM_PROTO, funcitem->protoindex);
+    nfuncitem = AtomTable_Get(image->table, ITEM_NFUNC, i);
+    str = AtomTable_Get(image->table, ITEM_STRING, nfuncitem->nameindex);
+    proto = AtomTable_Get(image->table, ITEM_PROTO, nfuncitem->protoindex);
     desc = ProtoItem_To_TypeDesc(proto, image->table);
     func(str->data, desc, i, ITEM_NFUNC, NULL, 0, arg);
   }

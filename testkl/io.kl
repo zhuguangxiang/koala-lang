@@ -2,5 +2,5 @@
 package io
 
 func Print(msg string) {
-	syscall(10, msg)
+  syscall(10, msg)
 }

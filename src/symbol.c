@@ -587,6 +587,10 @@ static void __gen_image_func(Symbol *sym, void *arg)
   ops->__symbol_gen(sym, arg);
 }
 
+void __Copy_Symbol_Func(Symbol *sym, STable *to)
+{
+}
+
 KImage *Gen_Image(STable *stbl, char *pkgname)
 {
   Log_Debug("\x1b[34m----STARTING IMAGE----\x1b[0m");
@@ -634,6 +638,7 @@ int STable_From_Image(char *path, char **pkgname, STable **stbl)
   STable *table = STable_New();
   KImage_Get_Vars(image, (getvarfn)__get_var_fn, table);
   KImage_Get_Funcs(image, (getfuncfn)__get_func_fn, table);
+  KImage_Get_NFuncs(image, (getfuncfn)__get_func_fn, table);
 
   *pkgname = AtomString_New(KImage_Get_PkgName(image)).str;
   *stbl = table;

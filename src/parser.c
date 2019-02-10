@@ -303,6 +303,7 @@ void Destroy_Parser(ParserState *ps)
 
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   STable_Free(ps->extstbl);
+  STable_Free(ps->extstars);
   Mfree(ps);
 }
 

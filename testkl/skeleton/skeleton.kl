@@ -118,6 +118,10 @@ func sub(aa int, bb int) (int, int) {
   return 2, 1
 }
 
+func mul(a int, b int) int {
+  return 1
+}
+
 /*
 var array = [3][]string
 var array2 = []string{"hello", "world", "good", "luck"}

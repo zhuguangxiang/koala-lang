@@ -167,6 +167,11 @@ KImage *Gen_Image(STable *stbl, char *pkgname);
 int STable_From_Image(char *path, char **pkgname, STable **stbl);
 void STable_Show(STable *stbl);
 void STable_Visit(STable *stbl, symbol_visit_func fn, void *arg);
+void __Copy_Symbol_Func(Symbol *sym, STable *to);
+static inline void STable_Copy(STable *to, STable *from)
+{
+  STable_Visit(from, (symbol_visit_func)__Copy_Symbol_Func, to);
+}
 
 #ifdef __cplusplus
 }
