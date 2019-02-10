@@ -104,6 +104,57 @@ ExtPkg *ExtPkg_New(PackageState *pkg, char *path, char *pkgname, STable *stbl)
   return extpkg;
 }
 
+static uint32 __dotsym_hash_func(void *k)
+{
+  DotSymbol *dot = k;
+  return hash_string(dot->name);
+}
+
+static int __dotsym_equal_func(void *k1, void *k2)
+{
+  DotSymbol *dot1 = k1;
+  DotSymbol *dot2 = k2;
+  return !strcmp(dot1->name, dot2->name);
+}
+
+static void __free_dotsym_func(HashNode *hnode, void *arg)
+{
+  UNUSED_PARAMETER(arg);
+  Mfree(hnode);
+}
+
+DotSymbol *DotSymbol_Find(ParserState *ps, char *name)
+{
+  DotSymbol key = {.name = name};
+  HashNode *hnode = HashTable_Find(ps->extdots, &key);
+  if (hnode != NULL)
+    return container_of(hnode, DotSymbol, hnode);
+  else
+    return NULL;
+}
+
+DotSymbol *DotSymbol_New(ParserState *ps, Symbol *sym, ExtPkg *extpkg)
+{
+  Log_Debug("new dotsymbol '%s'", sym->name);
+  if (ps->extdots != NULL) {
+    DotSymbol key = {.name = sym->name};
+    HashNode *hnode = HashTable_Find(ps->extdots, &key);
+    if (hnode != NULL)
+      return NULL;
+  }
+
+  DotSymbol *dot = Malloc(sizeof(DotSymbol));
+  Init_HashNode(&dot->hnode, dot);
+  dot->name = sym->name;
+  dot->sym = sym;
+  dot->extpkg = extpkg;
+  if (ps->extdots == NULL)
+    ps->extdots = HashTable_New(__dotsym_hash_func, __dotsym_equal_func);
+  int res = HashTable_Insert(ps->extdots, &dot->hnode);
+  assert(!res);
+  return dot;
+}
+
 void Parser_Set_PkgName(ParserState *ps, Ident *id)
 {
   ps->pkgname = id->name;
@@ -303,7 +354,7 @@ void Destroy_Parser(ParserState *ps)
 
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   STable_Free(ps->extstbl);
-  STable_Free(ps->extstars);
+  HashTable_Free(ps->extdots, __free_dotsym_func, NULL);
   Mfree(ps);
 }
 

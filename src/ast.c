@@ -851,6 +851,54 @@ static STable *pkg_to_stbl(Object *ob)
 }
 #endif
 
+static inline Symbol *__in_extstbl(ParserState *ps, char *name)
+{
+  return STable_Get(ps->extstbl, name);
+}
+
+static inline DotSymbol *__is_inextdots(ParserState *ps, char *name)
+{
+  if (ps->extdots == NULL)
+    return NULL;
+  return DotSymbol_Find(ps, name);
+}
+
+struct load_dosym_param {
+  ParserState *ps;
+  ExtPkg *extpkg;
+  char *path;
+  Position pos;
+};
+
+static void __load_dotsym_func(Symbol *sym, void *arg)
+{
+  struct load_dosym_param *param = arg;
+  ParserState *ps = param->ps;
+  ExtPkg *extpkg = param->extpkg;
+
+  if (ps->errnum > MAX_ERRORS)
+    return;
+
+  ExtPkgSymbol *esym = (ExtPkgSymbol *)__in_extstbl(ps, sym->name);
+  if (esym != NULL) {
+    Syntax_Error(ps, &param->pos, "'%s' redeclared during import '%s',\n"
+                 "\tprevious declaration at %s:%d:%d", sym->name, param->path,
+                 esym->filename, esym->pathpos.row, esym->pathpos.col);
+    return;
+  }
+
+  DotSymbol *dot = DotSymbol_New(ps, sym, extpkg);
+  if (dot == NULL) {
+    Syntax_Error(ps, &param->pos, "'%s' redeclared during import '%s',\n"
+                 "\tprevious declaration during import '%s' at %s:%d:%d",
+                 sym->name, param->path, extpkg->path, extpkg->filename,
+                 extpkg->pos.row, extpkg->pos.col);
+  } else {
+    dot->filename = ps->filename;
+    dot->pos = param->pos;
+  }
+}
+
 void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
 {
   ExtPkg *extpkg = ExtPkg_Find(ps->pkg, path->name);
@@ -894,6 +942,8 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
     /* find package */
     extpkg = ExtPkg_New(ps->pkg, path->name, pkgname, stbl);
     assert(extpkg != NULL);
+    extpkg->filename = ps->filename;
+    extpkg->pos = path->pos;
   }
 
   char *name;
@@ -902,37 +952,44 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
   if (id == NULL) {
     /* use package's name as name in current module */
     name = extpkg->pkgname;
-    sym = STable_Add_ExtPkg(ps->extstbl, name);
-  } else if (id->name[0] == '*') {
-    /* load all symbols to current module */
-    name = "*";
   } else {
     /* use id as name */
     name = id->name;
-    sym = STable_Add_ExtPkg(ps->extstbl, name);
   }
 
-  if (sym != NULL) {
-    Log_Debug("add package '%s <- %s' successfully", name, path->name);
-    ((ExtPkgSymbol *)sym)->extpkg = extpkg;
-    sym->filename = ps->filename;
-    sym->pos = (id == NULL) ? path->pos : id->pos;
+  if (name[0] != '.') {
+    DotSymbol *dot = __is_inextdots(ps, name);
+    if (dot != NULL) {
+      ExtPkg *e = dot->extpkg;
+      Syntax_Error(ps, &path->pos, "'%s' redeclared as imported package name,\n"
+                   "\tprevious declaration during import '%s' at %s:%d:%d", name,
+                   e->path, dot->filename, dot->pos.row, dot->pos.col);
+    }
+
+    sym = STable_Add_ExtPkg(ps->extstbl, name);
+    if (sym != NULL) {
+      Log_Debug("add package '%s <- %s' successfully", name, path->name);
+      ExtPkgSymbol *extSym = (ExtPkgSymbol *)sym;
+      extSym->extpkg = extpkg;
+      sym->filename = ps->filename;
+      sym->pos = (id == NULL) ? path->pos : id->pos;
+      extSym->pathpos = path->pos;
+    } else {
+      sym = STable_Get(ps->extstbl, name);
+      Syntax_Error(ps, &path->pos, "'%s' redeclared as imported package name,\n"
+                  "\tprevious declaration at %s:%d:%d", name,
+                  sym->filename, sym->pos.row, sym->pos.col);
+    }
   } else {
-    sym = STable_Get(ps->extstbl, name);
-    Syntax_Error(ps, &path->pos, "'%s' redeclared as imported package name, "
-                 "previous declaration at %s:%d:%d", name,
-                 sym->filename, sym->pos.row, sym->pos.col);
+    /* load all symbols to current module */
+    struct load_dosym_param param = {ps, extpkg, path->name, path->pos};
+    STable_Visit(extpkg->stbl, __load_dotsym_func, &param);
   }
 }
 
 static inline void __add_stmt(ParserState *ps, Stmt *stmt)
 {
   Vector_Append(&ps->stmts, stmt);
-}
-
-static inline Symbol *__in_extstbl(ParserState *ps, char *name)
-{
-  return STable_Get(ps->extstbl, name);
 }
 
 static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int k)
@@ -942,8 +999,8 @@ static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int k)
 
   sym = __in_extstbl(ps, id->name);
   if (sym != NULL) {
-    Syntax_Error(ps, &id->pos, "'%s' redeclared, "
-                 "previous declaration at %s:%d:%d", id->name,
+    Syntax_Error(ps, &id->pos, "'%s' redeclared,\n"
+                 "\tprevious declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
     return;
   }
@@ -959,8 +1016,8 @@ static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int k)
     sym->pos = id->pos;
   } else {
     sym = STable_Get(u->stbl, id->name);
-    Syntax_Error(ps, &id->pos, "'%s' redeclared, "
-                 "previous declaration at %s:%d:%d", id->name,
+    Syntax_Error(ps, &id->pos, "'%s' redeclared,\n"
+                 "\tprevious declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
   }
 }
@@ -1277,8 +1334,8 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
 
   sym = __in_extstbl(ps, name);
   if (sym != NULL) {
-    Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared, "
-                     "previous declaration at %s:%d:%d", name,
+    Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+                     "\tprevious declaration at %s:%d:%d", name,
                      sym->filename, sym->pos.row, sym->pos.col);
     return;
   }
@@ -1294,8 +1351,8 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
         sym->pos = funcStmt->id.pos;
       } else {
         sym = STable_Get(u->stbl, name);
-        Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared, "
-                     "previous declaration at %s:%d:%d", name,
+        Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+                     "\tprevious declaration at %s:%d:%d", name,
                      sym->filename, sym->pos.row, sym->pos.col);
       }
     } else {
@@ -1306,8 +1363,8 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
         sym->pos = funcStmt->id.pos;
       } else {
         sym = STable_Get(u->stbl, name);
-        Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared, "
-                     "previous declaration at %s:%d:%d", name,
+        Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+                     "\tprevious declaration at %s:%d:%d", name,
                      sym->filename, sym->pos.row, sym->pos.col);
       }
     }
@@ -1320,8 +1377,8 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
       sym->pos = funcStmt->id.pos;
     } else {
       sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared, "
-                   "previous declaration at %s:%d:%d", name,
+      Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+                   "\tprevious declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
     }
   }
@@ -1365,8 +1422,8 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
 
   sym = __in_extstbl(ps, name);
   if (sym != NULL) {
-    Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared, "
-                   "previous declaration at %s:%d:%d", name,
+    Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
+                   "\tprevious declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
     return;
   }
@@ -1379,8 +1436,8 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       sym->pos = klsStmt->id.pos;
     } else {
       sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared, "
-                   "previous declaration at %s:%d:%d", name,
+      Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
+                   "\tprevious declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
     }
   } else {
@@ -1392,8 +1449,8 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       sym->pos = klsStmt->id.pos;
     } else {
       sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared, "
-                   "previous declaration at %s:%d:%d", name,
+      Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
+                   "\tprevious declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
     }
   }
@@ -1464,20 +1521,13 @@ void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
     return;
   }
 
-  /* if one line has more than one error, show only one error message */
-  if (ps->line.errors <= 0) {
-    ps->line.errors = 1;
-    va_list ap;
-    va_start(ap, fmt);
-    fprintf(stderr, "%s:%d:%d: \x1b[31merror:\x1b[0m ",
-            ps->filename, pos->row, pos->col);
-    vfprintf(stderr, fmt, ap);
-    puts(""); /* newline */
-    va_end(ap);
-  } else {
-    fprintf(stderr, "%s:%d: the line has more errors\n",
-            ps->filename, pos->row);
-  }
+  va_list ap;
+  va_start(ap, fmt);
+  fprintf(stderr, "%s:%d:%d: \x1b[31merror:\x1b[0m ",
+          ps->filename, pos->row, pos->col);
+  vfprintf(stderr, fmt, ap);
+  puts(""); /* newline */
+  va_end(ap);
 }
 
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)
@@ -1498,7 +1548,6 @@ int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in)
     linebuf->len = 0;
     linebuf->pos.row++;
     linebuf->pos.col = 0;
-    linebuf->errors = 0;
   }
 
   int sz = min(linebuf->lineleft, size);

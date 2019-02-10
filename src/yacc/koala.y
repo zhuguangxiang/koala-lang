@@ -722,10 +722,10 @@ Import
     DeclareIdent(path, $3, @3);
     Parser_New_Import(ps, &id, &path);
   }
-  | IMPORT '*' STRING_LITERAL ';'
+  | IMPORT '.' STRING_LITERAL ';'
   {
     Ident id;
-    id.name = "*";
+    id.name = ".";
     SetPosition(id.pos, @2);
     DeclareIdent(path, $3, @3);
     Parser_New_Import(ps, &id, &path);
@@ -740,7 +740,7 @@ Import
     YYSyntax_Error(@3, ";");
     YYACCEPT;
   }
-  | IMPORT '*' STRING_LITERAL error
+  | IMPORT '.' STRING_LITERAL error
   {
     YYSyntax_Error(@3, ";");
     YYACCEPT;
@@ -750,7 +750,7 @@ Import
     YYSyntax_Error(@3, "<package-path>");
     YYACCEPT;
   }
-  | IMPORT '*' error
+  | IMPORT '.' error
   {
     YYSyntax_Error(@2, "<package-path>");
     YYACCEPT;

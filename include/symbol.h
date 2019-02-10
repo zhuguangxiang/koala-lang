@@ -133,6 +133,8 @@ typedef struct afuncsymbol {
 /* extpkg symbol */
 typedef struct extpkgsymbol {
   SYMBOL_HEAD
+  /* extpkg imported (path) location */
+  Position pathpos;
   /* extpkg, not need free */
   void *extpkg;
 } ExtPkgSymbol;
@@ -144,9 +146,7 @@ void __STable_Free(STable *stbl, symbol_visit_func visit, void *arg);
 
 Symbol *Symbol_New(SymKind kind, char *name);
 void Symbol_Free(Symbol *sym);
-#define Symbol_Is_Public(sym)  isupper((sym)->name[0])
-#define Symbol_Is_Private(sym) !(Symbol_Is_Public(sym))
-#define Symbol_Is_Used(sym)    ((sym)->used > 0)
+#define Symbol_IsUsed(sym) ((sym)->used > 0)
 void Show_Symbol(Symbol *sym);
 
 Symbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
@@ -168,10 +168,6 @@ int STable_From_Image(char *path, char **pkgname, STable **stbl);
 void STable_Show(STable *stbl);
 void STable_Visit(STable *stbl, symbol_visit_func fn, void *arg);
 void __Copy_Symbol_Func(Symbol *sym, STable *to);
-static inline void STable_Copy(STable *to, STable *from)
-{
-  STable_Visit(from, (symbol_visit_func)__Copy_Symbol_Func, to);
-}
 
 #ifdef __cplusplus
 }

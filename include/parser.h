@@ -57,13 +57,16 @@ void Show_PackageState(PackageState *pkg);
 /* external package for import */
 typedef struct extpkg {
   HashNode hnode;
+  /* imported location */
+  char *filename;
+  Position pos;
+  /* imported path */
   char *path;
+  /* this package name */
   char *pkgname;
+  /* public symbols in the package */
   STable *stbl;
 } ExtPkg;
-
-ExtPkg *ExtPkg_Find(PackageState *pkg, char *path);
-ExtPkg *ExtPkg_New(PackageState *pkg, char *path, char *pkgname, STable *stbl);
 
 /* line max length */
 #define LINE_MAX_LEN 256
@@ -88,9 +91,6 @@ typedef struct line_buf {
 
   /* last line's token */
   Position lastpos;
-
-  /* error count of current line */
-  int errors;
 } LineBuffer;
 
 /* parser unit scope */
@@ -123,6 +123,20 @@ typedef struct parserunit {
   Vector jmps;
 } ParserUnit;
 
+/* reference 'dot' imported symbol */
+typedef struct dotsymbol {
+  HashNode hnode;
+  /* imported location */
+  char *filename;
+  Position pos;
+  /* symbol name */
+  char *name;
+  /* reference symbol */
+  Symbol *sym;
+  /* reference package */
+  ExtPkg *extpkg;
+} DotSymbol;
+
 /* max errors before stopping compiling */
 #define MAX_ERRORS 8
 
@@ -153,16 +167,19 @@ typedef struct parserstate {
   Vector stmts;
 
   /*
-   * imported-name or package-name as key, but not symbol-name
-   * import * "<package-path>" -->> imported all symbols into extstars
+   * Save all external symbols using import (ID) "<package-path>".
+   * Symbols in module are conflict with extstbl.
+   * Importing it will also check it is in extdots.
    */
   STable *extstbl;
   /*
-   * save all external symbols using import * "<package-path>"
-   * symbols in this table are not checked,
-   * are covered by symbols in module's scope.
+   * Save all external symbols using import . "<package-path>".
+   * Symbols in module is NOT conflict with extdots.
+   * Importing one by one will also check it is in extstbl.
+   * Extstbl and extdots are conflict with each other.
+   * If one(only) symbol is used, there is no unused error of the package.
    */
-  STable *extstars;
+  HashTable *extdots;
 
   /* current parser unit */
   ParserUnit *u;
@@ -177,6 +194,10 @@ typedef struct parserstate {
   Vector errors;
 } ParserState;
 
+ExtPkg *ExtPkg_Find(PackageState *pkg, char *path);
+ExtPkg *ExtPkg_New(PackageState *pkg, char *path, char *pkgname, STable *stbl);
+DotSymbol *DotSymbol_Find(ParserState *ps, char *name);
+DotSymbol *DotSymbol_New(ParserState *ps, Symbol *sym, ExtPkg *extpkg);
 void Parser_Set_PkgName(ParserState *ps, Ident *id);
 
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);

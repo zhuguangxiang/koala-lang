@@ -587,10 +587,6 @@ static void __gen_image_func(Symbol *sym, void *arg)
   ops->__symbol_gen(sym, arg);
 }
 
-void __Copy_Symbol_Func(Symbol *sym, STable *to)
-{
-}
-
 KImage *Gen_Image(STable *stbl, char *pkgname)
 {
   Log_Debug("\x1b[34m----STARTING IMAGE----\x1b[0m");
@@ -603,31 +599,51 @@ KImage *Gen_Image(STable *stbl, char *pkgname)
   return image;
 }
 
+#define IsAccess(name) isupper(name[0])
+
 static void __get_var_fn(char *name, TypeDesc *desc, int k, STable *stbl)
 {
-  if (k)
+  if (!IsAccess(name)) {
+    Log_Debug("'%s' is private", name);
+    return;
+  }
+
+  String sname = AtomString_New(name);
+  if (k) {
+    Log_Debug("load const '%s'", name);
     STable_Add_Const(stbl, name, desc);
-  else
+  } else {
+    Log_Debug("load var '%s'", name);
     STable_Add_Var(stbl, name, desc);
+  }
 }
 
 static void __get_func_fn(char *name, TypeDesc *desc, int idx, int type,
                           uint8 *code, int sz, STable *stbl)
 {
-  if (type == ITEM_FUNC)
-    STable_Add_Func(stbl, name, desc);
-  else if (type == ITEM_NFUNC)
-    STable_Add_NFunc(stbl, name, desc);
-  else
+  if (!IsAccess(name)) {
+    Log_Debug("'%s' is private", name);
+    return;
+  }
+
+  String sname = AtomString_New(name);
+  if (type == ITEM_FUNC) {
+    Log_Debug("load func '%s'", name);
+    STable_Add_Func(stbl, sname.str, desc);
+  } else if (type == ITEM_NFUNC) {
+    Log_Debug("load native func '%s'", name);
+    STable_Add_NFunc(stbl, sname.str, desc);
+  } else {
     assert(0);
+  }
 }
 
-#define NO_LOAD_ITEMS \
+#define NOT_LOAD_ITEMS \
   ((1 << ITEM_CODE) | (1 << ITEM_LOCVAR) | (1 << ITEM_CONST))
 
 int STable_From_Image(char *path, char **pkgname, STable **stbl)
 {
-  KImage *image = KImage_Read_File(path, NO_LOAD_ITEMS);
+  KImage *image = KImage_Read_File(path, NOT_LOAD_ITEMS);
 
   if (image == NULL) {
     *stbl = NULL;

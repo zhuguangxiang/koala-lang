@@ -28,7 +28,10 @@ package skeleton
 
 import "io"
 //import nio "io"
-//import "io"
+import . "os"
+//import . "io"
+import SayHello "io"
+//import . "os"
 
 //import
 //import 123
