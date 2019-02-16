@@ -48,7 +48,9 @@ typedef enum symbolkind {
   SYM_IFUNC  = 7,   /* interface method   */
   SYM_NFUNC  = 8,   /* native function    */
   SYM_AFUNC  = 9,   /* anonymous function */
-  SYM_EXTPKG = 10,  /* external package   */
+  SYM_PKG    = 10,  /* (external) package */
+  SYM_REF    = 11,  /* reference symbol   */
+  SYM_MAX
 } SymKind;
 
 /* source code token position for error handler */
@@ -130,14 +132,25 @@ typedef struct afuncsymbol {
   void *code;
 } AFuncSymbol;
 
-/* extpkg symbol */
-typedef struct extpkgsymbol {
+/* package symbol */
+typedef struct pkgsymbol {
   SYMBOL_HEAD
-  /* extpkg imported (path) location */
+  /* imported (path) location */
   Position pathpos;
-  /* extpkg, not need free */
-  void *extpkg;
-} ExtPkgSymbol;
+  /* package, not need free */
+  void *pkg;
+} PkgSymbol;
+
+/* reference symbol */
+typedef struct refsymbol {
+  SYMBOL_HEAD
+  /* dot import path */
+  char *path;
+  /* reference symbol in package */
+  Symbol *sym;
+  /* reference package */
+  void *pkg;
+} RefSymbol;
 
 STable *STable_New(void);
 typedef void (*symbol_visit_func)(Symbol *sym, void *arg);
@@ -161,7 +174,8 @@ Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
 #define STable_Add_NFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_NFUNC, proto)
 Symbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
-Symbol *STable_Add_ExtPkg(STable *stbl, char *name);
+PkgSymbol *STable_Add_Package(STable *stbl, char *name);
+RefSymbol *STable_Add_Reference(STable *stbl, char *name);
 Symbol *STable_Get(STable *stbl, char *name);
 KImage *Gen_Image(STable *stbl, char *pkgname);
 int STable_From_Image(char *path, char **pkgname, STable **stbl);

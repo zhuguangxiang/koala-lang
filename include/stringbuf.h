@@ -72,7 +72,7 @@ do { \
 ({ \
   char *s; \
   DeclareStringBuf(buf); \
-  StringBuf_Format(buf, fmt, ##__VA_ARGS__); \
+  StringBuf_Format_CStr(buf, fmt, __VA_ARGS__); \
   s = AtomString_New(buf.data).str; \
   FiniStringBuf(buf); \
   s; \

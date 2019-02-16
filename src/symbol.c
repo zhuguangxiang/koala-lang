@@ -367,12 +367,22 @@ static void __afunc_gen(Symbol *sym, void *arg)
   KImage_Add_IMeth(info->image, info->classname, afnSym->name, afnSym->desc);
 }
 
-static Symbol *__extpkg_new(char *name)
+static Symbol *__pkg_new(char *name)
 {
-  return __symbol_new(SYM_EXTPKG, name, sizeof(ExtPkgSymbol));
+  return __symbol_new(SYM_PKG, name, sizeof(PkgSymbol));
 }
 
-static void __extpkg_free(Symbol *sym)
+static void __pkg_free(Symbol *sym)
+{
+  __symbol_free(sym);
+}
+
+static Symbol *__ref_new(char *name)
+{
+  return __symbol_new(SYM_REF, name, sizeof(RefSymbol));
+}
+
+static void __ref_free(Symbol *sym)
 {
   __symbol_free(sym);
 }
@@ -383,29 +393,30 @@ struct symbol_operations {
   void (*__symbol_show)(Symbol *sym);
   void (*__symbol_gen)(Symbol *sym, void *arg);
 } symops[] = {
-  {NULL, NULL, NULL, NULL},                               /* INVALID    */
-  {__const_new, __const_free, __const_show, __const_gen}, /* SYM_CONST  */
-  {__var_new, __var_free, __var_show, __var_gen},         /* SYM_VAR    */
-  {__func_new, __func_free, __func_show, __func_gen},     /* SYM_FUNC   */
-  {__alias_new, __alias_free, __alias_show, __alias_gen}, /* SYM_ALIAS  */
-  {__class_new, __class_free, __class_show, __class_gen}, /* SYM_CLASS  */
-  {__trait_new, __trait_free, __trait_show, __trait_gen}, /* SYM_TRAIT  */
-  {__ifunc_new, __ifunc_free, __ifunc_show, __ifunc_gen}, /* SYM_IFUNC  */
-  {__nfunc_new, __ifunc_free, __ifunc_show, __ifunc_gen}, /* SYM_NFUNC  */
-  {__afunc_new, __afunc_free, __afunc_show, __afunc_gen}, /* SYM_AFUNC  */
-  {__extpkg_new, __extpkg_free, NULL, NULL}               /* SYM_EXTPKG */
+  {NULL, NULL, NULL, NULL},                                   /* INVALID   */
+  {__const_new, __const_free, __const_show, __const_gen},     /* SYM_CONST */
+  {__var_new, __var_free, __var_show, __var_gen},             /* SYM_VAR   */
+  {__func_new, __func_free, __func_show, __func_gen},         /* SYM_FUNC  */
+  {__alias_new, __alias_free, __alias_show, __alias_gen},     /* SYM_ALIAS */
+  {__class_new, __class_free, __class_show, __class_gen},     /* SYM_CLASS */
+  {__trait_new, __trait_free, __trait_show, __trait_gen},     /* SYM_TRAIT */
+  {__ifunc_new, __ifunc_free, __ifunc_show, __ifunc_gen},     /* SYM_IFUNC */
+  {__nfunc_new, __ifunc_free, __ifunc_show, __ifunc_gen},     /* SYM_NFUNC */
+  {__afunc_new, __afunc_free, __afunc_show, __afunc_gen},     /* SYM_AFUNC */
+  {__pkg_new,   __pkg_free, NULL, NULL},                      /* SYM_PKG   */
+  {__ref_new,   __ref_free, NULL, NULL}                       /* SYM_REF   */
 };
 
 Symbol *Symbol_New(SymKind kind, char *name)
 {
-  assert(kind >= SYM_CONST && kind <= SYM_EXTPKG);
+  assert(kind > 0 && kind < SYM_MAX);
   struct symbol_operations *ops = &symops[kind];
   return ops->__symbol_new(name);
 }
 
 void Symbol_Free(Symbol *sym)
 {
-  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_EXTPKG);
+  assert(sym->kind > 0 && sym->kind < SYM_MAX);
   if (--sym->refcnt <= 0) {
     assert(sym->refcnt >= 0);
     struct symbol_operations *ops = &symops[sym->kind];
@@ -563,18 +574,30 @@ Symbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc)
   return (Symbol *)sym;
 }
 
-Symbol *STable_Add_ExtPkg(STable *stbl, char *name)
+PkgSymbol *STable_Add_Package(STable *stbl, char *name)
 {
-  ExtPkgSymbol *sym = (ExtPkgSymbol *)Symbol_New(SYM_EXTPKG, name);
+  PkgSymbol *sym = (PkgSymbol *)Symbol_New(SYM_PKG, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
-  return (Symbol *)sym;
+  return sym;
+}
+
+RefSymbol *STable_Add_Reference(STable *stbl, char *name)
+{
+  RefSymbol *sym = (RefSymbol *)Symbol_New(SYM_REF, name);
+  if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
+    Symbol_Free((Symbol *)sym);
+    return NULL;
+  }
+  return sym;
 }
 
 Symbol *STable_Get(STable *stbl, char *name)
 {
+  if (stbl == NULL)
+    return NULL;
   Symbol key = {.name = name};
   HashNode *hnode = HashTable_Find(&stbl->table, &key);
   return hnode ? container_of(hnode, Symbol, hnode) : NULL;
@@ -582,7 +605,7 @@ Symbol *STable_Get(STable *stbl, char *name)
 
 static void __gen_image_func(Symbol *sym, void *arg)
 {
-  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_EXTPKG);
+  assert(sym->kind > 0 && sym->kind < SYM_MAX);
   struct symbol_operations *ops = &symops[sym->kind];
   ops->__symbol_gen(sym, arg);
 }
@@ -611,10 +634,10 @@ static void __get_var_fn(char *name, TypeDesc *desc, int k, STable *stbl)
   String sname = AtomString_New(name);
   if (k) {
     Log_Debug("load const '%s'", name);
-    STable_Add_Const(stbl, name, desc);
+    STable_Add_Const(stbl, sname.str, desc);
   } else {
     Log_Debug("load var '%s'", name);
-    STable_Add_Var(stbl, name, desc);
+    STable_Add_Var(stbl, sname.str, desc);
   }
 }
 
@@ -666,7 +689,7 @@ int STable_From_Image(char *path, char **pkgname, STable **stbl)
 static void __symbol_show_fn(Symbol *sym, void *arg)
 {
   UNUSED_PARAMETER(arg);
-  assert(sym->kind >= SYM_CONST && sym->kind <= SYM_EXTPKG);
+  assert(sym->kind > 0 && sym->kind < SYM_MAX);
   struct symbol_operations *ops = &symops[sym->kind];
   ops->__symbol_show(sym);
 }

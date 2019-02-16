@@ -212,13 +212,12 @@ ParserState *New_Parser(ParserGroup *grp, char *filename)
   ParserState *ps = Malloc(sizeof(ParserState));
   ps->filename = AtomString_New(filename).str;
   ps->grp = grp;
-
   Vector_Init(&ps->stmts);
   ps->extstbl = STable_New();
+  ps->extdots = STable_New();
   Vector_Init(&ps->imports);
   init_list_head(&ps->ustack);
   Vector_Init(&ps->errors);
-
   return ps;
 }
 
@@ -226,10 +225,10 @@ void Destroy_Parser(ParserState *ps)
 {
   assert(ps->u == NULL);
   assert(list_empty(&ps->ustack));
-
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   STable_Free(ps->extstbl);
-  Vector_Fini(&ps->imports, Free_Import_Func, NULL);
+  STable_Free(ps->extdots);
+  Vector_Fini_Self(&ps->imports);
   Mfree(ps);
 }
 
@@ -1031,9 +1030,12 @@ void Build_AST(ParserState *ps, FILE *in)
 void Parse_AST(ParserState *ps)
 {
   Log_Debug("\x1b[32m----STARTING SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
-  Parser_Enter_Scope(ps, SCOPE_MODULE);
-  ps->u->stbl = ps->grp->pkg.stbl;
-  parse_statements(ps, &ps->stmts);
-  Parser_Exit_Scope(ps);
+  Parse_Imports(ps);
+  if (ps->errnum <= 0) {
+    Parser_Enter_Scope(ps, SCOPE_MODULE);
+    ps->u->stbl = ps->grp->pkg.stbl;
+    parse_statements(ps, &ps->stmts);
+    Parser_Exit_Scope(ps);
+  }
   Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN------\x1b[0m");
 }

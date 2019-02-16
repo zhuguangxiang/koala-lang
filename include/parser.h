@@ -118,8 +118,6 @@ typedef struct import {
   /* PATH, NOT null */
   char *path;
   Position pathpos;
-  /* referenct Package, ether is loaded from klc or is compiling one */
-  Package *pkg;
 } Import;
 
 /* max errors before stopping compiling */
@@ -189,8 +187,7 @@ static inline void Free_Package(Package *pkg)
 }
 Package *Find_Package(char *path);
 void Parser_Set_PkgName(ParserState *ps, Ident *id);
-Import *New_Import(Ident *id, Ident *path);
-void Free_Import_Func(void *item, void *arg);
+void Parse_Imports(ParserState *ps);
 void Add_ParserGroup(char *pkgpath);
 
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);

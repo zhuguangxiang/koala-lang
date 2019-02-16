@@ -98,11 +98,8 @@ Package *Find_Package(char *path)
 {
   Package key = {.path = path};
   HashNode *hnode = HashTable_Find(&packages, &key);
-  if (hnode == NULL) {
-    Log_Debug("not found package '%s'", path);
+  if (hnode == NULL)
     return NULL;
-  }
-  Log_Debug("found package '%s'", path);
   return container_of(hnode, Package, hnode);
 }
 
@@ -161,7 +158,7 @@ static void build_symbols(ParserGroup *grp)
     path = AtomString_Format("#/#", options.srcpath, path);
 
   struct stat sb;
-  if (lstat(path, &sb) == - 1) {
+  if (stat(path, &sb) == - 1) {
     fprintf(stderr, "%s: invalid filename\n", path);
     return;
   }
@@ -206,7 +203,7 @@ static void build_symbols(ParserGroup *grp)
     /* build abstact syntax tree */
     Build_AST(ps, in);
 
-    if (ps->errnum < 0)
+    if (ps->errnum > 0)
       Destroy_Parser(ps);
     else
       Vector_Append(&grp->modules, ps);
@@ -217,22 +214,14 @@ static void build_symbols(ParserGroup *grp)
   closedir(dir);
 }
 
-static void parse_import(ParserState *ps)
-{
-
-}
-
 static int parse_package(ParserGroup *grp)
 {
   int errors = 0;
   ParserState *ps;
   Vector_ForEach(ps, &grp->modules) {
+    if (ps->errnum <= 0)
+      Parse_AST(ps);
     errors += ps->errnum;
-    if (ps->errnum <= 0) {
-      parse_import(ps);
-      if (ps->errnum <= 0)
-        Parse_AST(ps);
-    }
     Destroy_Parser(ps);
   }
   return errors;

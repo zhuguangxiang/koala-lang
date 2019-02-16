@@ -49,12 +49,12 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
     char *type;
     if (item->pathindex >= 0) {
       s = AtomTable_Get(atbl, ITEM_STRING, item->pathindex);
-      path = s->data;
+      path = AtomString_New(s->data).str;
     } else {
       path = NULL;
     }
     s = AtomTable_Get(atbl, ITEM_STRING, item->typeindex);
-    type = s->data;
+    type = AtomString_New(s->data).str;
     t = TypeDesc_Get_Klass(path, type);
     break;
   }
