@@ -135,8 +135,6 @@ typedef struct afuncsymbol {
 /* package symbol */
 typedef struct pkgsymbol {
   SYMBOL_HEAD
-  /* imported (path) location */
-  Position pathpos;
   /* package, not need free */
   void *pkg;
 } PkgSymbol;

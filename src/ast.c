@@ -861,7 +861,7 @@ static void load_dotsym_func(Symbol *sym, void *arg)
   if (pkgSym != NULL) {
     Syntax_Error(ps, &param->pos, "'%s' redeclared during import '%s',\n"
                  "\tprevious declaration at %s:%d:%d", sym->name, param->path,
-                 pkgSym->filename, pkgSym->pathpos.row, pkgSym->pathpos.col);
+                 pkgSym->filename, pkgSym->pos.row, pkgSym->pos.col);
     return;
   }
 
@@ -929,7 +929,6 @@ void Parse_Imports(ParserState *ps)
           sym->pkg = pkg;
           sym->filename = ps->filename;
           sym->pos = (import->id == NULL) ? import->pathpos : import->idpos;
-          sym->pathpos = import->pathpos;
         } else {
           sym = (PkgSymbol *)STable_Get(ps->extstbl, name);
           Syntax_Error(ps, &import->pathpos,
@@ -959,16 +958,18 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
   Vector_ForEach(import, &ps->imports) {
     if (!strcmp(import->path, path->name)) {
       Syntax_Error(ps, &path->pos, "'%s' imported duplicately,\n"
-                   "\tprevious import at %d:%d",
-                   path->name, import->pathpos.row, import->pathpos.col);
+                   "\tprevious import at %s:%d:%d",
+                   path->name, ps->filename,
+                   import->pathpos.row, import->pathpos.col);
       return;
     }
 
     if ((id != NULL && id->name[0] != '.') && (import->id != NULL)) {
       if (!strcmp(import->id, id->name)) {
         Syntax_Error(ps, &id->pos, "'%s' redeclared as imported package name,\n"
-                     "\tprevious declaration during import at %d:%d",
-                     id->name, import->idpos.row, import->idpos.col);
+                     "\tprevious declaration during import at %s:%d:%d",
+                     id->name, ps->filename,
+                     import->idpos.row, import->idpos.col);
         return;
       }
     }
