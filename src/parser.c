@@ -1031,11 +1031,9 @@ void Parse_AST(ParserState *ps)
 {
   Log_Debug("\x1b[32m----STARTING SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
   Parse_Imports(ps);
-  if (ps->errnum <= 0) {
-    Parser_Enter_Scope(ps, SCOPE_MODULE);
-    ps->u->stbl = ps->grp->pkg.stbl;
-    parse_statements(ps, &ps->stmts);
-    Parser_Exit_Scope(ps);
-  }
+  Parser_Enter_Scope(ps, SCOPE_MODULE);
+  ps->u->stbl = ps->grp->pkg.stbl;
+  parse_statements(ps, &ps->stmts);
+  Parser_Exit_Scope(ps);
   Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN------\x1b[0m");
 }

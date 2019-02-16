@@ -202,11 +202,7 @@ static void build_symbols(ParserGroup *grp)
 
     /* build abstact syntax tree */
     Build_AST(ps, in);
-
-    if (ps->errnum > 0)
-      Destroy_Parser(ps);
-    else
-      Vector_Append(&grp->modules, ps);
+    Vector_Append(&grp->modules, ps);
 
     fclose(in);
   }
@@ -219,8 +215,7 @@ static int parse_package(ParserGroup *grp)
   int errors = 0;
   ParserState *ps;
   Vector_ForEach(ps, &grp->modules) {
-    if (ps->errnum <= 0)
-      Parse_AST(ps);
+    Parse_AST(ps);
     errors += ps->errnum;
     Destroy_Parser(ps);
   }
