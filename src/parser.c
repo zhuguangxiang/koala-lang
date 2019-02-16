@@ -153,6 +153,13 @@ static void merge_parser_unit(ParserState *ps)
   }
 }
 
+static inline void show_module_symbol(Vector *vec)
+{
+  Symbol *sym;
+  Vector_ForEach(sym, vec)
+    Show_Symbol(sym);
+}
+
 static void show_parser_unit(ParserState *ps)
 {
   ParserUnit *u = ps->u;
@@ -161,7 +168,11 @@ static void show_parser_unit(ParserState *ps)
   name = (name == NULL) ? ps->filename : name;
   Log_Puts("\n----------------------------------------");
   Log_Printf("scope-%d(%s, %s) symbols:\n", ps->depth, scope, name);
-  STable_Show(u->stbl);
+  if (ps->depth == 1) {
+    show_module_symbol(&ps->symbols);
+  } else {
+    STable_Show(u->stbl);
+  }
   CodeBlock_Show(u->block);
   Log_Puts("----------------------------------------\n");
 }
