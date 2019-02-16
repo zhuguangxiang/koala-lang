@@ -1,9 +1,0 @@
-
-package skeleton
-
-var v1 = 200;
-
-func greeting() string {
-}
-
-var v1 string

@@ -34,13 +34,13 @@ void Parser_Set_PkgName(ParserState *ps, Ident *id)
   ps->pkgname = id->name;
 
   ParserGroup *grp = ps->grp;
-  if (grp->pkg.pkgname == NULL) {
-    grp->pkg.pkgname = id->name;
+  if (grp->pkg->pkgname == NULL) {
+    grp->pkg->pkgname = id->name;
     return;
   }
 
   /* check all modules have the same package-name */
-  if (strcmp(grp->pkg.pkgname, id->name)) {
+  if (strcmp(grp->pkg->pkgname, id->name)) {
     ParserState *m = Vector_Get(&grp->modules, 0);
     Syntax_Error(ps, &id->pos,
                  "found different packages %s(%s) and %s(%s)",
@@ -96,7 +96,7 @@ static void merge_parser_unit(ParserState *ps)
     if (funcSym == NULL) {
       Log_Debug("create __init__ function");
       TypeDesc *proto = TypeDesc_Get_Proto(NULL, NULL);
-      funcSym = (FuncSymbol *)STable_Add_Func(u->stbl, "__init__", proto);
+      funcSym = STable_Add_Func(u->stbl, "__init__", proto);
       assert(funcSym != NULL);
       funcSym->code = u->block;
     } else {
@@ -215,6 +215,7 @@ ParserState *New_Parser(ParserGroup *grp, char *filename)
   Vector_Init(&ps->stmts);
   ps->extstbl = STable_New();
   ps->extdots = STable_New();
+  Vector_Init(&ps->symbols);
   Vector_Init(&ps->imports);
   init_list_head(&ps->ustack);
   Vector_Init(&ps->errors);
@@ -228,6 +229,7 @@ void Destroy_Parser(ParserState *ps)
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   STable_Free(ps->extstbl);
   STable_Free(ps->extdots);
+  Vector_Fini_Self(&ps->symbols);
   Vector_Fini_Self(&ps->imports);
   Mfree(ps);
 }
@@ -514,7 +516,7 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
   case SCOPE_CLOSURE: {
     /* function scope has independent space for save variables. */
     Log_Debug("var '%s' declaration in function", id->name);
-    varSym = (VarSymbol *)STable_Add_Var(u->stbl, id->name, desc);
+    varSym = STable_Add_Var(u->stbl, id->name, desc);
     if (varSym == NULL) {
       Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
       return NULL;
@@ -535,7 +537,7 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
     ParserUnit *uu = parse_block_variable(ps, id);
     if (uu == NULL)
       return NULL;
-    varSym = (VarSymbol *)STable_Add_Var(u->stbl, id->name, desc);
+    varSym = STable_Add_Var(u->stbl, id->name, desc);
     if (varSym == NULL) {
       Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
       return NULL;
@@ -1020,7 +1022,7 @@ void Build_AST(ParserState *ps, FILE *in)
   yylex_init_extra(ps, &scanner);
   yyset_in(in, scanner);
   Parser_Enter_Scope(ps, SCOPE_MODULE);
-  ps->u->stbl = ps->grp->pkg.stbl;
+  ps->u->stbl = ps->grp->pkg->stbl;
   yyparse(ps, scanner);
   Parser_Exit_Scope(ps);
   yylex_destroy(scanner);
@@ -1031,8 +1033,9 @@ void Parse_AST(ParserState *ps)
 {
   Log_Debug("\x1b[32m----STARTING SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
   Parse_Imports(ps);
+  CheckConflictWithExternal(ps);
   Parser_Enter_Scope(ps, SCOPE_MODULE);
-  ps->u->stbl = ps->grp->pkg.stbl;
+  ps->u->stbl = ps->grp->pkg->stbl;
   parse_statements(ps, &ps->stmts);
   Parser_Exit_Scope(ps);
   Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN------\x1b[0m");

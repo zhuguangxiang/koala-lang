@@ -160,18 +160,18 @@ void Symbol_Free(Symbol *sym);
 #define Symbol_IsUsed(sym) ((sym)->used > 0)
 void Show_Symbol(Symbol *sym);
 
-Symbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
-Symbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
-Symbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
+VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
+VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
+FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
 Symbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc);
-Symbol *STable_Add_Class(STable *stbl, char *name);
-Symbol *STable_Add_Trait(STable *stbl, char *name);
+ClassSymbol *STable_Add_Class(STable *stbl, char *name);
+ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
 Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
 #define STable_Add_IFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_IFUNC, proto)
 #define STable_Add_NFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_NFUNC, proto)
-Symbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
+AFuncSymbol *STable_Add_Anonymous(STable *stbl, TypeDesc *desc);
 PkgSymbol *STable_Add_Package(STable *stbl, char *name);
 RefSymbol *STable_Add_Reference(STable *stbl, char *name);
 Symbol *STable_Get(STable *stbl, char *name);

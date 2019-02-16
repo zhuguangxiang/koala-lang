@@ -20,8 +20,21 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package os
+package skeleton
 
-import "skeleton"
+import "os"
+import . "io"
 
-native func LoadLibrary(path string)
+/*
+var v1 = 200;
+
+func greeting() string {
+}
+
+var v1 string
+*/
+
+//var os = 100
+
+var example = 200
+var SayHello = 100

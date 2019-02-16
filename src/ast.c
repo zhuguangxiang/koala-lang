@@ -829,11 +829,11 @@ static int dir_later_file(char *dirpath, char *filepath)
   return 1;
 }
 
-static inline PkgSymbol *__in_extstbl(ParserState *ps, char *name)
+static inline Symbol *__in_extstbl(ParserState *ps, char *name)
 {
   if (ps->extstbl == NULL)
     return NULL;
-  return (PkgSymbol *)STable_Get(ps->extstbl, name);
+  return STable_Get(ps->extstbl, name);
 }
 
 static inline RefSymbol *__is_inextdots(ParserState *ps, char *name)
@@ -857,7 +857,7 @@ static void load_dotsym_func(Symbol *sym, void *arg)
   if (ps->errnum > MAX_ERRORS)
     return;
 
-  PkgSymbol *pkgSym = __in_extstbl(ps, sym->name);
+  Symbol *pkgSym = __in_extstbl(ps, sym->name);
   if (pkgSym != NULL) {
     Syntax_Error(ps, &param->pos, "'%s' redeclared during import '%s',\n"
                  "\tprevious declaration at %s:%d:%d", sym->name, param->path,
@@ -930,7 +930,7 @@ void Parse_Imports(ParserState *ps)
           sym->filename = ps->filename;
           sym->pos = (import->id == NULL) ? import->pathpos : import->idpos;
         } else {
-          sym = (PkgSymbol *)STable_Get(ps->extstbl, name);
+          Symbol *sym = STable_Get(ps->extstbl, name);
           Syntax_Error(ps, &import->pathpos,
                        "'%s' redeclared as imported package name,\n"
                        "\tprevious declaration at %s:%d:%d", name,
@@ -949,7 +949,7 @@ void Parse_Imports(ParserState *ps)
 
 void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
 {
-  if (!strcmp(path->name, ps->grp->pkg.path)) {
+  if (!strcmp(path->name, ps->grp->pkg->path)) {
     Syntax_Error(ps, &path->pos, "imported self-package");
     return;
   }
@@ -1007,35 +1007,42 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
   Vector_Append(&ps->imports, new_import(id, path));
 }
 
+void CheckConflictWithExternal(ParserState *ps)
+{
+  Symbol *sym;
+  Symbol *item;
+  Vector_ForEach(item, &ps->symbols) {
+    sym = __in_extstbl(ps, item->name);
+    if (sym != NULL) {
+      Syntax_Error(ps, &item->pos, "'%s' redeclared,\n"
+                   "\tprevious declaration at %s:%d:%d", item->name,
+                   sym->filename, sym->pos.row, sym->pos.col);
+    }
+  }
+}
+
 static inline void __add_stmt(ParserState *ps, Stmt *stmt)
 {
   Vector_Append(&ps->stmts, stmt);
 }
 
-static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int k)
+static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc, int konst)
 {
   ParserUnit *u = ps->u;
-  Symbol *sym;
+  VarSymbol *sym;
 
-  sym = (Symbol *)__in_extstbl(ps, id->name);
-  if (sym != NULL) {
-    Syntax_Error(ps, &id->pos, "'%s' redeclared,\n"
-                 "\tprevious declaration at %s:%d:%d", id->name,
-                 sym->filename, sym->pos.row, sym->pos.col);
-    return;
-  }
-
-  if (k)
+  if (konst)
     sym = STable_Add_Const(u->stbl, id->name, desc);
   else
     sym = STable_Add_Var(u->stbl, id->name, desc);
 
   if (sym != NULL) {
-    Log_Debug("add %s '%s' successfully", k ? "const" : "var", id->name);
+    Log_Debug("add %s '%s' successfully", konst ? "const" : "var", id->name);
     sym->filename = ps->filename;
     sym->pos = id->pos;
+    Vector_Append(&ps->symbols, sym);
   } else {
-    sym = STable_Get(u->stbl, id->name);
+    Symbol *sym = STable_Get(u->stbl, id->name);
     Syntax_Error(ps, &id->pos, "'%s' redeclared,\n"
                  "\tprevious declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
@@ -1351,15 +1358,6 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
   char *name = funcStmt->id.name;
   Symbol *sym;
-
-  sym = (Symbol *)__in_extstbl(ps, name);
-  if (sym != NULL) {
-    Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
-                     "\tprevious declaration at %s:%d:%d", name,
-                     sym->filename, sym->pos.row, sym->pos.col);
-    return;
-  }
-
   TypeDesc *proto = __get_proto(funcStmt);
 
   if (funcStmt->kind == PROTO_KIND) {
@@ -1369,6 +1367,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
         Log_Debug("add native func '%s' successfully", name);
         sym->filename = ps->filename;
         sym->pos = funcStmt->id.pos;
+        Vector_Append(&ps->symbols, sym);
       } else {
         sym = STable_Get(u->stbl, name);
         Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
@@ -1381,6 +1380,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
         Log_Debug("add proto '%s' successfully", name);
         sym->filename = ps->filename;
         sym->pos = funcStmt->id.pos;
+        Vector_Append(&ps->symbols, sym);
       } else {
         sym = STable_Get(u->stbl, name);
         Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
@@ -1390,11 +1390,12 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
     }
   } else {
     assert(funcStmt->kind == FUNC_KIND);
-    sym = STable_Add_Func(u->stbl, name, proto);
+    sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
     if (sym != NULL) {
       Log_Debug("add func '%s' successfully", name);
       sym->filename = ps->filename;
       sym->pos = funcStmt->id.pos;
+      Vector_Append(&ps->symbols, sym);
     } else {
       sym = STable_Get(u->stbl, name);
       Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
@@ -1424,7 +1425,9 @@ void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
     return;
   assert(stmt->kind == TYPEALIAS_KIND);
   TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
-  STable_Add_Alias(ps->u->stbl, aliasStmt->id.name, aliasStmt->desc);
+  Symbol *sym = STable_Add_Alias(ps->u->stbl, aliasStmt->id.name,
+                aliasStmt->desc);
+  Vector_Append(&ps->symbols, sym);
   Log_Debug("add typealias '%s' successful", aliasStmt->id.name);
   Mfree(stmt);
 }
@@ -1438,15 +1441,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
   ParserUnit *u = ps->u;
   KlassStmt *klsStmt = (KlassStmt *)stmt;
   char *name = klsStmt->id.name;
-  Symbol *sym;
-
-  sym = (Symbol *)__in_extstbl(ps, name);
-  if (sym != NULL) {
-    Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
-                   "\tprevious declaration at %s:%d:%d", name,
-                   sym->filename, sym->pos.row, sym->pos.col);
-    return;
-  }
+  ClassSymbol *sym;
 
   if (stmt->kind == CLASS_KIND) {
     sym = STable_Add_Class(u->stbl, name);
@@ -1454,8 +1449,9 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       Log_Debug("add class '%s' successfully", sym->name);
       sym->filename = ps->filename;
       sym->pos = klsStmt->id.pos;
+      Vector_Append(&ps->symbols, sym);
     } else {
-      sym = STable_Get(u->stbl, name);
+      Symbol *sym = STable_Get(u->stbl, name);
       Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
                    "\tprevious declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
@@ -1467,8 +1463,9 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       Log_Debug("add trait '%s' successfully", sym->name);
       sym->filename = ps->filename;
       sym->pos = klsStmt->id.pos;
+      Vector_Append(&ps->symbols, sym);
     } else {
-      sym = STable_Get(u->stbl, name);
+      Symbol *sym = STable_Get(u->stbl, name);
       Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
                    "\tprevious declaration at %s:%d:%d", name,
                    sym->filename, sym->pos.row, sym->pos.col);
@@ -1477,8 +1474,8 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
 
   Parser_Enter_Scope(ps, SCOPE_CLASS);
   /* ClassSymbol */
-  ps->u->sym = sym;
-  ps->u->stbl = ((ClassSymbol *)sym)->stbl;
+  ps->u->sym = (Symbol *)sym;
+  ps->u->stbl = sym->stbl;
 
   Stmt *s;
   Vector_ForEach(s, klsStmt->body) {

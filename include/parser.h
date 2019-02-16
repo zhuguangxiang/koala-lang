@@ -50,7 +50,7 @@ typedef struct package {
  */
 typedef struct parsergroup {
   /* package pointer */
-  Package pkg;
+  Package *pkg;
   /* modules: ParserState */
   Vector modules;
 } ParserGroup;
@@ -141,6 +141,8 @@ typedef struct parserstate {
 
   /* all statements */
   Vector stmts;
+  /* symbols in this module */
+  Vector symbols;
 
   /* Import info, <ID>:<PATH>, <package-name>:<PATH>, .:<PATH> */
   Vector imports;
@@ -172,19 +174,8 @@ typedef struct parserstate {
   Vector errors;
 } ParserState;
 
-void Init_Package(Package *pkg, char *path);
-void Fini_Package(Package *pkg);
-static inline Package *New_Package(char *path)
-{
-  Package *pkg = Malloc(sizeof(Package));
-  Init_Package(pkg, path);
-  return pkg;
-}
-static inline void Free_Package(Package *pkg)
-{
-  Fini_Package(pkg);
-  Mfree(pkg);
-}
+Package *New_Package(char *path);
+void Free_Package(Package *pkg);
 Package *Find_Package(char *path);
 void Parser_Set_PkgName(ParserState *ps, Ident *id);
 void Parse_Imports(ParserState *ps);
@@ -197,6 +188,7 @@ ParserState *New_Parser(ParserGroup *grp, char *filename);
 void Destroy_Parser(ParserState *ps);
 void Build_AST(ParserState *ps, FILE *in);
 void Parse_AST(ParserState *ps);
+void CheckConflictWithExternal(ParserState *ps);
 void Check_Unused_Imports(ParserState *ps);
 void Check_Unused_Symbols(ParserState *ps);
 

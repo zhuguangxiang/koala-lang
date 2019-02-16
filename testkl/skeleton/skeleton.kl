@@ -26,11 +26,11 @@ package skeleton
 //package
 //package skeleton skeleton
 //import "skeleton"
-import io "io"
+//import os "io"
 //import nio "io"
-//import . "os"
-//import . "io"
-//import SayHello "io"
+//import "os"
+import SayHello "os"
+import "io"
 //import . "os"
 
 //import
@@ -50,6 +50,8 @@ const K7 = 100
 //var K7 int;
 
 //variables
+//var SayHello int
+//var io int
 var v1, v2 = 1, 2
 var ch = '汉'
 var ok = true

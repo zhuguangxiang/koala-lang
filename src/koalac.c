@@ -80,18 +80,21 @@ static HashTable packages;
 /* ParserGroup for compile, MAY add new one at compiling-time */
 static Vector groups;
 
-void Init_Package(Package *pkg, char *path)
+Package *New_Package(char *path)
 {
+  Package *pkg = Malloc(sizeof(Package));
   Init_HashNode(&pkg->hnode, pkg);
   pkg->path = AtomString_New(path).str;
   int res = HashTable_Insert(&packages, &pkg->hnode);
   assert(!res);
+  return pkg;
 }
 
-void Fini_Package(Package *pkg)
+void Free_Package(Package *pkg)
 {
   HashTable_Remove(&packages, &pkg->hnode);
   STable_Free(pkg->stbl);
+  Mfree(pkg);
 }
 
 Package *Find_Package(char *path)
@@ -111,15 +114,14 @@ static ParserGroup *new_group(char *path)
 {
   ParserGroup *grp = Malloc(sizeof(ParserGroup));
   memset(grp, 0, sizeof(ParserGroup));
-  Init_Package(&grp->pkg, path);
-  grp->pkg.stbl = STable_New();
+  grp->pkg = New_Package(path);
+  grp->pkg->stbl = STable_New();
   Vector_Init(&grp->modules);
   return grp;
 }
 
 static void free_group(ParserGroup *grp)
 {
-  Fini_Package(&grp->pkg);
   Vector_Fini_Self(&grp->modules);
   Mfree(grp);
 }
@@ -128,8 +130,8 @@ static void show_group(ParserGroup *grp)
 {
   Log_Puts("\n----------------------------------------");
   Log_Printf("scope-0(%s, %s) symbols:\n",
-             scope_strings[0], grp->pkg.pkgname);
-  STable_Show(grp->pkg.stbl);
+             scope_strings[0], grp->pkg->pkgname);
+  STable_Show(grp->pkg->stbl);
   Log_Puts("----------------------------------------\n");
 }
 
@@ -140,7 +142,7 @@ void Add_ParserGroup(char *pkgpath)
 
   ParserGroup *grp;
   Vector_ForEach(grp, &groups) {
-    if (!strcmp(grp->pkg.path, pkgpath)) {
+    if (!strcmp(grp->pkg->path, pkgpath)) {
       Log_Debug("package '%s' is exist.", pkgpath);
       return;
     }
@@ -151,7 +153,7 @@ void Add_ParserGroup(char *pkgpath)
 
 static void build_symbols(ParserGroup *grp)
 {
-  char *path = grp->pkg.path;
+  char *path = grp->pkg->path;
 
   /* if specify srcpath, use absolute path */
   if (options.srcpath != NULL)
@@ -304,7 +306,7 @@ int main(int argc, char *argv[])
   Vector_ForEach(grp, &groups) {
     if (parse_package(grp) <= 0) {
       show_group(grp);
-      write_image(&grp->pkg);
+      write_image(grp->pkg);
     }
     free_group(grp);
   }
