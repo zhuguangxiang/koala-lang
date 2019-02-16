@@ -83,17 +83,17 @@ do {                                        \
   YYSyntax_Error(loc, expected);            \
 } while (0)
 
-#define YYSyntax_ErrorMsg(loc, fmt, ...)        \
-do {                                            \
-  yyerrok;                                      \
-  DeclarePosition(pos, loc);                    \
-  Syntax_Error(ps, &pos, fmt"\n", __VA_ARGS__); \
+#define YYSyntax_ErrorMsg(loc, fmt, ...)          \
+do {                                              \
+  yyerrok;                                        \
+  DeclarePosition(pos, loc);                      \
+  Syntax_Error(ps, &pos, fmt"\n", ##__VA_ARGS__); \
 } while (0)
 
 #define YYSyntax_ErrorMsg_Clear(loc, fmt, ...) \
 do {                                           \
   yyclearin;                                   \
-  YYSyntax_ErrorMsg(loc, fmt, #__VA_ARGS__);   \
+  YYSyntax_ErrorMsg(loc, fmt, ##__VA_ARGS__);  \
 } while (0)
 
 %}

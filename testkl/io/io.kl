@@ -24,3 +24,4 @@ package io
 
 native func Println(args ...any)
 native func SayHello(s string) int
+const HELLO = "Hello, Koala"

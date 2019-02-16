@@ -250,7 +250,7 @@ int HashTable_Insert(HashTable *table, HashNode *hnode)
   return 0;
 }
 
-void HashTable_Visit(HashTable *table, visitfunc visit,  void *arg)
+void HashTable_Visit(HashTable *table, visitfunc visit, void *arg)
 {
   if (table == NULL)
     return;

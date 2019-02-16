@@ -26,47 +26,34 @@
 #include "ast.h"
 #include "codegen.h"
 #include "options.h"
+#include "mem.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*
- * per one package which includes all source files in the same directory.
- * These files must be the same package name.
- */
-typedef struct packagestate {
-  /* package saved in pkgfile */
-  char *pkgfile;
-  /* package name */
-  char *pkgname;
-  /* imported external packages, path as key */
-  HashTable extpkgs;
-  /* symbol table saves all symbols of the package */
-  STable *stbl;
-  /* compiling options for compiling other packages, if necessary */
-  Options *opts;
-  /* modules: ParserState */
-  Vector modules;
-} PackageState;
-
-int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts);
-void Fini_PackageState(PackageState *pkg);
-void Show_PackageState(PackageState *pkg);
-
-/* external package for import */
-typedef struct extpkg {
+/* package */
+typedef struct package {
+  /* save in extpkgs in global */
   HashNode hnode;
-  /* imported location */
-  char *filename;
-  Position pos;
-  /* imported path */
+  /* deployed path */
   char *path;
   /* this package name */
   char *pkgname;
-  /* public symbols in the package */
+  /* symbols */
   STable *stbl;
-} ExtPkg;
+} Package;
+
+/*
+ * one package which includes modules in one directory.
+ * These modules must be the same package name.
+ */
+typedef struct parsergroup {
+  /* package pointer */
+  Package pkg;
+  /* modules: ParserState */
+  Vector modules;
+} ParserGroup;
 
 /* line max length */
 #define LINE_MAX_LEN 256
@@ -123,40 +110,31 @@ typedef struct parserunit {
   Vector jmps;
 } ParserUnit;
 
-/* reference 'dot' imported symbol */
-typedef struct dotsymbol {
-  HashNode hnode;
-  /* imported location */
-  char *filename;
-  Position pos;
-  /* symbol name */
-  char *name;
-  /* reference symbol */
-  Symbol *sym;
-  /* reference package */
-  ExtPkg *extpkg;
-} DotSymbol;
+/* import info */
+typedef struct import {
+  /* ID, MAY be null */
+  char *id;
+  Position idpos;
+  /* PATH, NOT null */
+  char *path;
+  Position pathpos;
+  /* referenct Package, ether is loaded from klc or is compiling one */
+  Package *pkg;
+} Import;
 
 /* max errors before stopping compiling */
 #define MAX_ERRORS 8
-
-#define STATE_NONE 0
-#define STATE_BUILDING_AST 1
-#define STATE_PARSING_AST 2
 
 /*
  * ParserState per one source file
  */
 typedef struct parserstate {
-  /* state */
-  int state;
-
   /* file name for this module */
   char *filename;
   /* current compiling source file's package name */
   char *pkgname;
-  /* package ptr, all modules have the same pacakge */
-  PackageState *pkg;
+  /* ParserGroup ptr, all modules have the same package-name */
+  ParserGroup *grp;
 
   /* save last token for if inserted semicolon or not */
   int lastToken;
@@ -166,6 +144,8 @@ typedef struct parserstate {
   /* all statements */
   Vector stmts;
 
+  /* Import info, <ID>:<PATH>, <package-name>:<PATH>, .:<PATH> */
+  Vector imports;
   /*
    * Save all external symbols using import (ID) "<package-path>".
    * Symbols in module are conflict with extstbl.
@@ -179,7 +159,7 @@ typedef struct parserstate {
    * Extstbl and extdots are conflict with each other.
    * If one(only) symbol is used, there is no unused error of the package.
    */
-  HashTable *extdots;
+  STable *extdots;
 
   /* current parser unit */
   ParserUnit *u;
@@ -194,22 +174,36 @@ typedef struct parserstate {
   Vector errors;
 } ParserState;
 
-ExtPkg *ExtPkg_Find(PackageState *pkg, char *path);
-ExtPkg *ExtPkg_New(PackageState *pkg, char *path, char *pkgname, STable *stbl);
-DotSymbol *DotSymbol_Find(ParserState *ps, char *name);
-DotSymbol *DotSymbol_New(ParserState *ps, Symbol *sym, ExtPkg *extpkg);
+void Init_Package(Package *pkg, char *path);
+void Fini_Package(Package *pkg);
+static inline Package *New_Package(char *path)
+{
+  Package *pkg = Malloc(sizeof(Package));
+  Init_Package(pkg, path);
+  return pkg;
+}
+static inline void Free_Package(Package *pkg)
+{
+  Fini_Package(pkg);
+  Mfree(pkg);
+}
+Package *Find_Package(char *path);
 void Parser_Set_PkgName(ParserState *ps, Ident *id);
+Import *New_Import(Ident *id, Ident *path);
+void Free_Import_Func(void *item, void *arg);
+void Add_ParserGroup(char *pkgpath);
 
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);
 
-ParserState *New_Parser(PackageState *pkg, char *filename);
-int Build_AST(ParserState *ps, FILE *in);
-int Parse_AST(ParserState *ps);
+ParserState *New_Parser(ParserGroup *grp, char *filename);
 void Destroy_Parser(ParserState *ps);
+void Build_AST(ParserState *ps, FILE *in);
+void Parse_AST(ParserState *ps);
 void Check_Unused_Imports(ParserState *ps);
 void Check_Unused_Symbols(ParserState *ps);
 
+extern Options options;
 extern const char *scope_strings[];
 #define scope_name(u) scope_strings[(u)->scope]
 

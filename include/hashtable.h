@@ -40,6 +40,9 @@ typedef struct hash_node {
   void *key;
 } HashNode;
 
+#define HashNode_Entry(ptr, type, member) \
+  container_of(ptr, type, member)
+
 #define Init_HashNode(hnode, k) \
 do { \
   init_list_head(&(hnode)->llink); \
@@ -95,6 +98,8 @@ void HashTable_Fini(HashTable *table, visitfunc visit, void *arg);
 /* get number of nodes in the hash table */
 #define HashTable_Count_Nodes(table) ((table != NULL) ? (table)->nr_nodes : 0)
 void HashTable_Visit(HashTable *table, visitfunc visit,  void *arg);
+#define HashTable_ForEach(hnode, table) \
+  list_for_each_entry(hnode, &(table)->head, llink)
 
 #ifdef __cplusplus
 }

@@ -856,13 +856,14 @@ static inline Symbol *__in_extstbl(ParserState *ps, char *name)
   return STable_Get(ps->extstbl, name);
 }
 
-static inline DotSymbol *__is_inextdots(ParserState *ps, char *name)
+static inline Symbol *__is_inextdots(ParserState *ps, char *name)
 {
   if (ps->extdots == NULL)
     return NULL;
-  return DotSymbol_Find(ps, name);
+  return STable_Get(ps->extdots, name);
 }
 
+#if 0
 struct load_dosym_param {
   ParserState *ps;
   ExtPkg *extpkg;
@@ -898,14 +899,132 @@ static void __load_dotsym_func(Symbol *sym, void *arg)
     dot->pos = param->pos;
   }
 }
+#endif
+
+static int file_exist(char *path)
+{
+  struct stat sb;
+  if (lstat(path, &sb) == - 1)
+    return 0;
+
+  if (!S_ISREG(sb.st_mode))
+    return 0;
+
+  return 1;
+}
+
+static int dir_exist(char *path)
+{
+  struct stat sb;
+  if (lstat(path, &sb) == - 1)
+    return 0;
+
+  if (!S_ISDIR(sb.st_mode))
+    return 0;
+
+  return 1;
+}
+
+static int dir_later_file(char *dirpath, char *filepath)
+{
+  __time_t mtime = {0};
+  struct stat sb;
+  DIR *dir = opendir(dirpath);
+  struct dirent *dent;
+  while ((dent = readdir(dir))) {
+    lstat(dent->d_name, &sb);
+    if (difftime(mtime, sb.st_mtime) < 0)
+      mtime = sb.st_mtime;
+  }
+  closedir(dir);
+
+  lstat(filepath, &sb);
+  return difftime(mtime, sb.st_mtime);
+}
+
+Import *New_Import(Ident *id, Ident *path)
+{
+  Import *import = Malloc(sizeof(Import));
+  import->id = id->name;
+  import->idpos = id->pos;
+  import->path = path->name;
+  import->pathpos = path->pos;
+  return import;
+}
+
+void Free_Import_Func(void *item, void *arg)
+{
+  Mfree(item);
+}
 
 void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
 {
-  ExtPkg *extpkg = ExtPkg_Find(ps->pkg, path->name);
+  if (!strcmp(path->name, ps->grp->pkg.path)) {
+    Syntax_Error(ps, &path->pos, "imported self-package");
+    return;
+  }
+
+  Import *import;
+  Vector_ForEach(import, &ps->imports) {
+    if (!strcmp(import->path, path->name)) {
+      Syntax_Error(ps, &path->pos, "'%s' imported duplicately,\n"
+                   "\tprevious import at %d:%d",
+                   import->pathpos.row, import->pathpos.col);
+      return;
+    }
+
+    if ((id != NULL) && (import->id != NULL)) {
+      if (!strcmp(import->id, id->name)) {
+        Syntax_Error(ps, &id->pos, "'%s' redeclared as imported package name,\n"
+                     "\tprevious declaration during import at %d:%d",
+                     id->name, import->idpos.row, import->idpos.col);
+        return;
+      }
+    }
+  }
+
+  Package *pkg = Find_Package(path->name);
+  if (pkg == NULL) {
+    /* find source path */
+    Options *opts = &options;
+    char *dir = path->name;
+    if (opts->srcpath != NULL)
+      dir = AtomString_Format("#/#", opts->srcpath, dir);
+
+    if (dir_exist(dir)) {
+      /* find .klc in source path */
+      char *klc = AtomString_Format("#.klc", dir);
+
+      if (!file_exist(klc)) {
+        Log_Debug("compile package '%s' for not exist", dir);
+        Add_ParserGroup(path->name);
+      } else {
+        if (dir_later_file(dir, klc) > 0) {
+          Log_Debug("compile package '%s' for it's later", dir);
+          Add_ParserGroup(path->name);
+        } else {
+          /* load image */
+          Log_Debug("load package '%s'", dir);
+          pkg = New_Package(path->name);
+          STable_From_Image(klc, &pkg->pkgname, &pkg->stbl);
+        }
+      }
+    }
+  }
+
+  import = New_Import(id, path);
+  import->pkg = pkg;
+  Vector_Append(&ps->imports, import);
+}
+
+#if 0
+void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
+{
+  ExtPkg *extpkg = ExtPkg_Find(ps->pkg->pg, path->name);
   if (extpkg == NULL) {
     char *pkgname = NULL;
     STable *stbl = NULL;
-    Options *opts = ps->pkg->opts;
+    Options *opts = &ps->pkg->pg->opts;
     DeclareStringBuf(fullpath);
 
     /* load from current path firstly */
@@ -940,7 +1059,7 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
     }
 
     /* find package */
-    extpkg = ExtPkg_New(ps->pkg, path->name, pkgname, stbl);
+    extpkg = ExtPkg_New(ps->pkg->pg, path->name, pkgname, stbl);
     assert(extpkg != NULL);
     extpkg->filename = ps->filename;
     extpkg->pos = path->pos;
@@ -986,6 +1105,7 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
     STable_Visit(extpkg->stbl, __load_dotsym_func, &param);
   }
 }
+#endif
 
 static inline void __add_stmt(ParserState *ps, Stmt *stmt)
 {
@@ -1501,9 +1621,9 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz)
     }
     assert(sym->kind == SYM_EXTPKG);
     sym->used++;
-    ExtPkg *extpkg = ((ExtPkgSymbol *)sym)->extpkg;
-    path = extpkg->path;
-    sym = STable_Get(extpkg->stbl, klazz->name);
+    //ExtPkg *extpkg = ((ExtPkgSymbol *)sym)->extpkg;
+    //path = extpkg->path;
+    //sym = STable_Get(extpkg->stbl, klazz->name);
     if (sym == NULL) {
       Syntax_Error(ps, &id->pos, "undefined '%s.%s'", path, klazz->name);
       return NULL;

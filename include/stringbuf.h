@@ -68,6 +68,16 @@ do { \
 #define StringBuf_Append_Char(name, ch) \
   __StringBuf_Append_Char(&(name), ch)
 
+#define AtomString_Format(fmt, ...) \
+({ \
+  char *s; \
+  DeclareStringBuf(buf); \
+  StringBuf_Format(buf, fmt, ##__VA_ARGS__); \
+  s = AtomString_New(buf.data).str; \
+  FiniStringBuf(buf); \
+  s; \
+})
+
 #ifdef __cplusplus
 }
 #endif

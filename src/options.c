@@ -120,7 +120,7 @@ void parse_options(int argc, char *argv[], Options *opts)
   Vector_ForEach(s, &opts->pathes) {
     /* last one, no colon */
     if (i + 1 == Vector_Size(&opts->pathes))
-      StringBuf_Format_CStr(buf, "#", s);
+      StringBuf_Append_CStr(buf, s);
     else
       StringBuf_Format_CStr(buf, "#:", s);
   }

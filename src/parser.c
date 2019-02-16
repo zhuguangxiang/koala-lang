@@ -29,145 +29,19 @@
 
 LOGGER(0)
 
-const char *scope_strings[] = {
-  "PACKAGE", "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
-};
-
-static uint32 extpkg_hash_func(void *k)
-{
-  ExtPkg *pkg = k;
-  return hash_string(pkg->path);
-}
-
-static int extpkg_equal_func(void *k1, void *k2)
-{
-  ExtPkg *pkg1 = k1;
-  ExtPkg *pkg2 = k2;
-  return !strcmp(pkg1->path, pkg2->path);
-}
-
-static void extpkg_free_func(HashNode *hnode, void *arg)
-{
-  UNUSED_PARAMETER(arg);
-  ExtPkg *pkg = container_of(hnode, ExtPkg, hnode);
-  STable_Free(pkg->stbl);
-  Mfree(pkg);
-}
-
-int Init_PackageState(PackageState *pkg, char *pkgfile, Options *opts)
-{
-  memset(pkg, 0, sizeof(PackageState));
-  pkg->pkgfile = AtomString_New(pkgfile).str;
-  HashTable_Init(&pkg->extpkgs, extpkg_hash_func, extpkg_equal_func);
-  pkg->stbl = STable_New();
-  pkg->opts = opts;
-  Vector_Init(&pkg->modules);
-  return 0;
-}
-
-void Fini_PackageState(PackageState *pkg)
-{
-  HashTable_Fini(&pkg->extpkgs, extpkg_free_func, NULL);
-  Vector_Fini_Self(&pkg->modules);
-  STable_Free(pkg->stbl);
-}
-
-void Show_PackageState(PackageState *pkg)
-{
-  Log_Puts("\n----------------------------------------");
-  Log_Printf("scope-0(%s, %s) symbols:\n", scope_strings[0], pkg->pkgname);
-  STable_Show(pkg->stbl);
-  Log_Puts("----------------------------------------\n");
-}
-
-ExtPkg *ExtPkg_Find(PackageState *pkg, char *path)
-{
-  ExtPkg key = {.path = path};
-  HashNode *hnode = HashTable_Find(&pkg->extpkgs, &key);
-  if (hnode == NULL) {
-    Log_Debug("not found package '%s'", path);
-    return NULL;
-  }
-  Log_Debug("found package '%s'", path);
-  return container_of(hnode, ExtPkg, hnode);
-}
-
-ExtPkg *ExtPkg_New(PackageState *pkg, char *path, char *pkgname, STable *stbl)
-{
-  ExtPkg *extpkg = Malloc(sizeof(ExtPkg));
-  Init_HashNode(&extpkg->hnode, extpkg);
-  extpkg->path = path;
-  extpkg->pkgname = pkgname;
-  extpkg->stbl = stbl;
-  int res = HashTable_Insert(&pkg->extpkgs, &extpkg->hnode);
-  assert(!res);
-  return extpkg;
-}
-
-static uint32 __dotsym_hash_func(void *k)
-{
-  DotSymbol *dot = k;
-  return hash_string(dot->name);
-}
-
-static int __dotsym_equal_func(void *k1, void *k2)
-{
-  DotSymbol *dot1 = k1;
-  DotSymbol *dot2 = k2;
-  return !strcmp(dot1->name, dot2->name);
-}
-
-static void __free_dotsym_func(HashNode *hnode, void *arg)
-{
-  UNUSED_PARAMETER(arg);
-  Mfree(hnode);
-}
-
-DotSymbol *DotSymbol_Find(ParserState *ps, char *name)
-{
-  DotSymbol key = {.name = name};
-  HashNode *hnode = HashTable_Find(ps->extdots, &key);
-  if (hnode != NULL)
-    return container_of(hnode, DotSymbol, hnode);
-  else
-    return NULL;
-}
-
-DotSymbol *DotSymbol_New(ParserState *ps, Symbol *sym, ExtPkg *extpkg)
-{
-  Log_Debug("new dotsymbol '%s'", sym->name);
-  if (ps->extdots != NULL) {
-    DotSymbol key = {.name = sym->name};
-    HashNode *hnode = HashTable_Find(ps->extdots, &key);
-    if (hnode != NULL)
-      return NULL;
-  }
-
-  DotSymbol *dot = Malloc(sizeof(DotSymbol));
-  Init_HashNode(&dot->hnode, dot);
-  dot->name = sym->name;
-  dot->sym = sym;
-  dot->extpkg = extpkg;
-  if (ps->extdots == NULL)
-    ps->extdots = HashTable_New(__dotsym_hash_func, __dotsym_equal_func);
-  int res = HashTable_Insert(ps->extdots, &dot->hnode);
-  assert(!res);
-  return dot;
-}
-
 void Parser_Set_PkgName(ParserState *ps, Ident *id)
 {
   ps->pkgname = id->name;
 
-  PackageState *pkg = ps->pkg;
-  if (pkg->pkgname == NULL) {
-    pkg->pkgname = id->name;
+  ParserGroup *grp = ps->grp;
+  if (grp->pkg.pkgname == NULL) {
+    grp->pkg.pkgname = id->name;
     return;
   }
 
   /* check all modules have the same package-name */
-  if (strcmp(pkg->pkgname, id->name)) {
-    ParserState *m = Vector_Get(&pkg->modules, 0);
+  if (strcmp(grp->pkg.pkgname, id->name)) {
+    ParserState *m = Vector_Get(&grp->modules, 0);
     Syntax_Error(ps, &id->pos,
                  "found different packages %s(%s) and %s(%s)",
                  m->pkgname, m->filename, ps->pkgname, ps->filename);
@@ -333,14 +207,15 @@ void Parser_Exit_Scope(ParserState *ps)
   ps->depth--;
 }
 
-ParserState *New_Parser(PackageState *pkg, char *filename)
+ParserState *New_Parser(ParserGroup *grp, char *filename)
 {
   ParserState *ps = Malloc(sizeof(ParserState));
   ps->filename = AtomString_New(filename).str;
-  ps->pkg = pkg;
+  ps->grp = grp;
 
   Vector_Init(&ps->stmts);
   ps->extstbl = STable_New();
+  Vector_Init(&ps->imports);
   init_list_head(&ps->ustack);
   Vector_Init(&ps->errors);
 
@@ -354,7 +229,7 @@ void Destroy_Parser(ParserState *ps)
 
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   STable_Free(ps->extstbl);
-  HashTable_Free(ps->extdots, __free_dotsym_func, NULL);
+  Vector_Fini(&ps->imports, Free_Import_Func, NULL);
   Mfree(ps);
 }
 
@@ -1139,32 +1014,26 @@ static void parse_statements(ParserState *ps, Vector *stmts)
   Vector_Fini_Self(stmts);
 }
 
-int Build_AST(ParserState *ps, FILE *in)
+void Build_AST(ParserState *ps, FILE *in)
 {
-  ps->state = STATE_BUILDING_AST;
   Log_Debug("\x1b[34m----STARTING BUILDING AST------\x1b[0m");
   yyscan_t scanner;
   yylex_init_extra(ps, &scanner);
   yyset_in(in, scanner);
   Parser_Enter_Scope(ps, SCOPE_MODULE);
-  ps->u->stbl = ps->pkg->stbl;
+  ps->u->stbl = ps->grp->pkg.stbl;
   yyparse(ps, scanner);
   Parser_Exit_Scope(ps);
   yylex_destroy(scanner);
   Log_Debug("\x1b[34m----END OF BUILDING AST--------\x1b[0m");
-  ps->state = STATE_NONE;
-  return ps->errnum;
 }
 
-int Parse_AST(ParserState *ps)
+void Parse_AST(ParserState *ps)
 {
-  ps->state = STATE_PARSING_AST;
   Log_Debug("\x1b[32m----STARTING SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
   Parser_Enter_Scope(ps, SCOPE_MODULE);
-  ps->u->stbl = ps->pkg->stbl;
+  ps->u->stbl = ps->grp->pkg.stbl;
   parse_statements(ps, &ps->stmts);
   Parser_Exit_Scope(ps);
   Log_Debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN------\x1b[0m");
-  ps->state = STATE_NONE;
-  return ps->errnum;
 }

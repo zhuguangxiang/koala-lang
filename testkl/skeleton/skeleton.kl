@@ -25,12 +25,12 @@ package skeleton
 //package func
 //package
 //package skeleton skeleton
-
-import "io"
+//import "skeleton"
+import io "io"
 //import nio "io"
-import . "os"
+//import . "os"
 //import . "io"
-import SayHello "io"
+//import SayHello "io"
 //import . "os"
 
 //import
