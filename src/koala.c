@@ -25,8 +25,15 @@
 #include <string.h>
 #include <stdio.h>
 #include <sys/utsname.h>
+#include "packageobject.h"
+#include "tupleobject.h"
+#include "stringobject.h"
+#include "intobject.h"
+#include "koala.h"
 #include "options.h"
-#include "globalstate.h"
+#include "pkgnode.h"
+#include "env.h"
+#include "properties.h"
 #include "eval.h"
 #include "task.h"
 #include "log.h"
@@ -56,14 +63,108 @@ static void show_usage(char *prog)
     prog);
 }
 
-static void *task_entry_func(void *arg)
+/* environment values */
+static Properties properties;
+/* package tree */
+static PkgState pkgstate;
+/*
+ * global variables' pool(tuple's vector)
+ * access by index stored in PackageObject
+ */
+static VECTOR(variables);
+/* list of KoalaState */
+static int ksnum;
+static LIST_HEAD(kslist);
+
+static inline void init_packages(void)
 {
-  Options *opts = arg;
+  Init_String_Klass();
+  Init_Integer_Klass();
+  Init_Tuple_Klass();
+  Init_Package_Klass();
+  Object *pkg = Package_New("lang");
+  Package_Add_Class(pkg, &String_Klass);
+  Package_Add_Class(pkg, &Int_Klass);
+  Package_Add_Class(pkg, &Tuple_Klass);
+  Package_Add_Class(pkg, &Package_Klass);
+  Koala_Add_Package("lang", pkg);
+}
+
+static void init_koala(void)
+{
+  AtomString_Init();
+  Init_TypeDesc();
+  Properties_Init(&properties);
+  Init_PkgState(&pkgstate);
+  init_packages();
+  Show_PkgState(&pkgstate);
+}
+
+static inline void fini_packages(void)
+{
+  Fini_PkgState(&pkgstate, NULL, NULL);
+  Fini_Package_Klass();
+  Fini_Tuple_Klass();
+  Fini_Integer_Klass();
+  Fini_String_Klass();
+}
+
+static inline void fini_koala(void)
+{
+  fini_packages();
+  Fini_TypeDesc();
+  AtomString_Fini();
+}
+
+int Koala_Add_Package(char *path, Object *ob)
+{
+  PackageObject *pkg = (PackageObject *)ob;
+  PkgNode *node = Add_PkgNode(&pkgstate, path, pkg);
+  if (node == NULL) {
+    Log_Debug("add package '%s' failed", pkg->name);
+    return -1;
+  }
+  Log_Debug("new package '%s'", pkg->name);
+  pkg->index = Vector_Size(&variables);
+  Vector_Append(&variables, Tuple_New(pkg->varcnt));
+  return 0;
+}
+
+int Koala_Set_Value(Object *ob, char *name, Object *value)
+{
+  PackageObject *pkg = (PackageObject *)ob;
+  int index = pkg->index;
+  MemberDef *m = Package_Find_MemberDef(ob, name);
+  assert(m && m->kind == MEMBER_VAR);
+  Log_Debug("set var '%s'(%d) in '%s'(%d)",
+            name, m->offset, pkg->name, index);
+  Object *tuple = Vector_Get(&variables, index);
+  OB_INCREF(value);
+  return Tuple_Set(tuple, m->offset, value);
+}
+
+Object *Koala_Get_Value(Object *ob, char *name)
+{
+  PackageObject *pkg = (PackageObject *)ob;
+  int index = pkg->index;
+  MemberDef *m = Package_Find_MemberDef(ob, name);
+  assert(m && m->kind == MEMBER_VAR);
+  Log_Debug("get var '%s'(%d) in '%s'(%d)",
+            name, m->offset, pkg->name, index);
+  Object *tuple = Vector_Get(&variables, index);
+  return Tuple_Get(tuple, m->offset);
+}
+
+static int koala_run_file(char *path, Vector *args)
+{
   KoalaState *ks = KoalaState_New();
   task_set_object(ks);
-  char *file = Vector_Get(&opts->names, 0);
-  Koala_Run_File(ks, file, NULL);
-  Koala_Show_Packages();
+  return 0;
+}
+
+static void *task_entry_func(void *arg)
+{
+  koala_run_file(arg, NULL);
   Log_Printf("task-%lu is finished.\n", current_task()->id);
   return NULL;
 }
@@ -71,42 +172,37 @@ static void *task_entry_func(void *arg)
 int main(int argc, char *argv[])
 {
   /* parse arguments */
-  Options opts;
-  init_options(&opts, show_usage, show_version);
-  parse_options(argc, argv, &opts);
-  show_options(&opts);
-
-  /* initial koala machine */
-  Koala_Initialize();
-
+  Options options;
+  init_options(&options, show_usage, show_version);
+  parse_options(argc, argv, &options);
+  show_options(&options);
   /*
    * set path for searching packages
    * 1. current source code directory
-   * 2. -p directory
+   * 2. -p (search path) directory
    */
-  Koala_Add_Property(KOALA_PATH, ".");
+  Properties_Put(&properties, KOALA_PATH, ".");
   char *path;
-  Vector_ForEach(path, &opts.pathes) {
-    Koala_Add_Property(KOALA_PATH, path);
-  }
+  Vector_ForEach(path, &options.pathes)
+    Properties_Put(&properties, KOALA_PATH, path);
+  /* get execute file */
+  char *file = Vector_Get(&options.names, 0);
+  /* finialize options */
+  fini_options(&options);
 
-  /* display packages */
-  Koala_Show_Packages();
+  /* initial koala machine */
+  init_koala();
 
   /* initial task's processors */
   task_init_procs(1);
 
   /* new a task and wait for it's finished */
   task_attr_t attr = {.stacksize = 1 * 512 * 1024};
-  task_t *task = task_create(&attr, task_entry_func, &opts);
+  task_t *task = task_create(&attr, task_entry_func, file);
   task_join(task, NULL);
 
   /* finialize koala machine */
-  Koala_Finalize();
+  fini_koala();
 
-  /* finialize options */
-  fini_options(&opts);
-
-  Log_Printf("task-%lu is finished.\n", current_task()->id);
   return 0;
 }

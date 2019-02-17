@@ -20,66 +20,43 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_GLOBAL_STATE_H_
-#define _KOALA_GLOBAL_STATE_H_
+#ifndef _KOALA_PKGNODE_H_
+#define _KOALA_PKGNODE_H_
 
-#include "atomstring.h"
-#include "packageobject.h"
-#include "properties.h"
-#include "env.h"
+#include "hashtable.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef enum pkgnodekind {
-  PATH_NODE,
-  LEAF_NODE
-} PkgNodeKind;
-
 /* packege path node, like linux's inode */
 typedef struct pkgnode {
   HashNode hnode;
-  /* the node's name, no need free its memory */
-  String name;
+  /* the node's name, it's atom string */
+  char *name;
   /* the node's parent node */
   struct pkgnode *parent;
-  /* the node is pathnode or leafnode */
-  PkgNodeKind kind;
-  /* see PkgNodeKind */
-  union {
-    Vector *children;
-    PackageObject *pkg;
-  };
+  /* leaf node flag */
+  int leaf;
+  /* node's payload */
+  void *data;
 } PkgNode;
 
-typedef struct globalstate {
-  /* environment values */
-  Properties props;
+typedef struct pkgstate {
+  /* package hash table */
+  HashTable pkgtbl;
   /* root package node */
   PkgNode root;
-  /* package hash table */
-  HashTable pkgs;
-  /* global variables' pool, one slot per package, stored in ->index */
-  Vector vars;
-  /* number of koala state */
-  int ks_num;
-  /* koalastate list */
-  struct list_head kslist;
-} GlobalState;
+} PkgState;
 
-extern GlobalState gState;
-void Koala_Initialize(void);
-void Koala_Finalize(void);
-int Koala_Add_Package(char *path, PackageObject *pkg);
-Object *Koala_Load_Package(char *path);
-Object *Koala_Get_Package(char *path);
-void Koala_Add_Property(char *key, char *value);
-int Koala_Set_Value(PackageObject *pkg, char *name, Object *value);
-Object *Koala_Get_Value(PackageObject *pkg, char *name);
-void Koala_Show_Packages(void);
+typedef void (*fini_leafnode_func)(void *data, void *arg);
+void Init_PkgState(PkgState *ps);
+void Fini_PkgState(PkgState *ps, fini_leafnode_func func, void *arg);
+void Show_PkgState(PkgState *ps);
+PkgNode *Add_PkgNode(PkgState *ps, char *path, void *data);
+PkgNode *Find_PkgNode(PkgState *ps, char *path);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_GLOBAL_STATE_H_ */
+#endif /* _KOALA_PKGNODE_H_ */

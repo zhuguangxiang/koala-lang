@@ -29,10 +29,11 @@
 #include <stdlib.h>
 #include "task_context.h"
 
-int task_context_init(task_context_t *ctx, routine_t entry, void *arg)
+int task_context_init(task_context_t *ctx, int stacksize,
+                      task_entry_t entry, void *arg)
 {
-  ctx->stackbase = malloc(8192000);
-  ctx->stacksize = 8192000;
+  ctx->stackbase = malloc(stacksize);
+  ctx->stacksize = stacksize;
 
   ctx->context = (void**)((char*)ctx->stackbase + ctx->stacksize) - 1;
   //16 byte stack alignment

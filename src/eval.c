@@ -21,6 +21,8 @@
  */
 
 #include "eval.h"
+#include "koala.h"
+#include "packageobject.h"
 #include "tupleobject.h"
 #include "opcode.h"
 #include "log.h"
@@ -149,7 +151,7 @@ static Object *find_code(Object *ob, char *name)
 {
   MemberDef *m;
   if (OB_KLASS(ob) == &Package_Klass) {
-    m = Package_Find_MemberDef((PackageObject *)ob, name);
+    m = Package_Find_MemberDef(ob, name);
     if (!m || m->kind != MEMBER_CODE) {
       Log_Error("function '%s' is not found", name);
       return NULL;
@@ -172,7 +174,7 @@ static Object *find_code(Object *ob, char *name)
 static void set_field(Object *ob, char *field, Object *val)
 {
   if (OB_KLASS(ob) == &Package_Klass) {
-    Koala_Set_Value((PackageObject *)ob, field, val);
+    Koala_Set_Value(ob, field, val);
   } else {
     Object_Set_Value(ob, field, NULL, val);
   }
@@ -181,7 +183,7 @@ static void set_field(Object *ob, char *field, Object *val)
 static Object *get_field(Object *ob, char *field)
 {
   if (OB_KLASS(ob) == &Package_Klass) {
-    return Koala_Get_Value((PackageObject *)ob, field);
+    return Koala_Get_Value(ob, field);
   } else {
     return Object_Get_Value(ob, field, NULL);
   }
@@ -346,8 +348,8 @@ KoalaState *KoalaState_New(void)
 {
   KoalaState *ks = Malloc(sizeof(KoalaState));
   init_list_head(&ks->ksnode);
-  ks->gs = &gState;
-  list_add_tail(&ks->ksnode, &ks->gs->kslist);
+  //ks->gs = &gState;
+ // list_add_tail(&ks->ksnode, &ks->gs->kslist);
   init_stack(&ks->stack);
   return ks;
 }

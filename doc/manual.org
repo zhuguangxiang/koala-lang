@@ -100,6 +100,7 @@ koala语言只区分public和private两种权限。
 *** private变量或者函数
 *** 类中的私有变量或者方法
 
+** 虚拟机运行栈
 * Why develop koala-lang?
 能用自己开发的语言写程序是不是一件很有意思的事情呢？Koala语言完全出于本人的兴趣，很有意思！
 * Language Introduction

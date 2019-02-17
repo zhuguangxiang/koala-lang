@@ -66,7 +66,7 @@ void parse_options(int argc, char *argv[], Options *opts)
     Log_Printf("[%d]: %s\n", i, argv[i]);
   }
 
-  while ((opt = getopt(argc, argv, "s:p:o:D:e:vh")) != -1) {
+  while ((opt = getopt(argc, argv, "s:p:o:D:vh")) != -1) {
     switch (opt) {
     case 's':
       opts->srcpath = optarg;
@@ -79,9 +79,6 @@ void parse_options(int argc, char *argv[], Options *opts)
     break;
     case 'D':
       Vector_Append(&opts->nvs, parse_namevalue(optarg, opts, argv[0]));
-    break;
-    case 'e':
-      opts->encoding = string_dup(optarg);
     break;
     case 'v':
       opts->version();

@@ -37,7 +37,7 @@ extern "C" {
 typedef struct packageobject {
   OBJECT_HEAD
   /* the package's name */
-  String name;
+  char *name;
   /* variable, function, class and trait hash table */
   HashTable *table;
   /* const pool of this package */
@@ -51,17 +51,16 @@ typedef struct packageobject {
 extern Klass Package_Klass;
 void Init_Package_Klass(void);
 void Fini_Package_Klass(void);
-PackageObject *Package_New(char *name);
-void Package_Free(PackageObject *pkg);
-int Package_Add_Var(PackageObject *pkg, char *name, TypeDesc *desc, int k);
-int Package_Add_Func(PackageObject *pkg, char *name, Object *code);
-int Package_Add_Klass(PackageObject *pkg, Klass *klazz, int trait);
+Object *Package_New(char *name);
+void Package_Free(Object *pkg);
+int Package_Add_Var(Object *pkg, char *name, TypeDesc *desc, int konst);
+int Package_Add_Func(Object *pkg, char *name, Object *code);
+int Package_Add_Klass(Object *pkg, Klass *klazz, int trait);
 #define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
 #define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
-MemberDef *Package_Find_MemberDef(PackageObject *pkg, char *name);
-int Package_Add_CFunctions(PackageObject *pkg, FuncDef *funcs);
-PackageObject *Package_From_Image(KImage *image, char *name);
-#define Package_Name(pkg) (((PackageObject *)(pkg))->name.str)
+MemberDef *Package_Find_MemberDef(Object *pkg, char *name);
+int Package_Add_CFunctions(Object *pkg, FuncDef *funcs);
+Object *Package_From_Image(KImage *image, char *name);
 
 #ifdef __cplusplus
 }

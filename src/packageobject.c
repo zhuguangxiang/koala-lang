@@ -29,12 +29,12 @@
 
 LOGGER(0)
 
-PackageObject *Package_New(char *name)
+Object *Package_New(char *name)
 {
   PackageObject *pkg = Malloc(sizeof(PackageObject));
   Init_Object_Head(pkg, &Package_Klass);
-  pkg->name = AtomString_New(name);
-  return pkg;
+  pkg->name = AtomString_New(name).str;
+  return (Object *)pkg;
 }
 
 static void pkg_freefunc(HashNode *hnode, void *arg)
@@ -62,8 +62,9 @@ static void pkg_freefunc(HashNode *hnode, void *arg)
   MemberDef_Free(m);
 }
 
-void Package_Free(PackageObject *pkg)
+void Package_Free(Object *ob)
 {
+  PackageObject *pkg = (PackageObject *)ob;
   HashTable_Free(pkg->table, pkg_freefunc, NULL);
   Tuple_Free(pkg->consts);
   Mfree(pkg);
@@ -76,9 +77,10 @@ static HashTable *__get_table(PackageObject *pkg)
   return pkg->table;
 }
 
-int Package_Add_Var(PackageObject *pkg, char *name, TypeDesc *desc, int k)
+int Package_Add_Var(Object *ob, char *name, TypeDesc *desc, int konst)
 {
-  MemberDef *m = MemberDef_Var_New(__get_table(pkg), name, desc, k);
+  PackageObject *pkg = (PackageObject *)ob;
+  MemberDef *m = MemberDef_Var_New(__get_table(pkg), name, desc, konst);
   if (m) {
     m->offset = pkg->varcnt++;
     return 0;
@@ -86,8 +88,9 @@ int Package_Add_Var(PackageObject *pkg, char *name, TypeDesc *desc, int k)
   return -1;
 }
 
-int Package_Add_Func(PackageObject *pkg, char *name, Object *code)
+int Package_Add_Func(Object *ob, char *name, Object *code)
 {
+  PackageObject *pkg = (PackageObject *)ob;
   MemberDef *m = MemberDef_Code_New(__get_table(pkg), name, code);
   if (m) {
     m->code = code;
@@ -99,8 +102,9 @@ int Package_Add_Func(PackageObject *pkg, char *name, Object *code)
   return -1;
 }
 
-int Package_Add_Klass(PackageObject *pkg, Klass *klazz, int trait)
+int Package_Add_Klass(Object *ob, Klass *klazz, int trait)
 {
+  PackageObject *pkg = (PackageObject *)ob;
   MemberDef *m;
   if (trait)
     m = MemberDef_Trait_New(klazz->name);
@@ -117,8 +121,9 @@ int Package_Add_Klass(PackageObject *pkg, Klass *klazz, int trait)
   return 0;
 }
 
-MemberDef *Package_Find_MemberDef(PackageObject *pkg, char *name)
+MemberDef *Package_Find_MemberDef(Object *ob, char *name)
 {
+  PackageObject *pkg = (PackageObject *)ob;
   MemberDef *m = MemberDef_Find(__get_table(pkg), name);
   if (!m) {
     Log_Error("cannot find symbol '%s'", name);
@@ -126,14 +131,15 @@ MemberDef *Package_Find_MemberDef(PackageObject *pkg, char *name)
   return m;
 }
 
-int Package_Add_CFunctions(PackageObject *pkg, FuncDef *funcs)
+int Package_Add_CFunctions(Object *ob, FuncDef *funcs)
 {
+  PackageObject *pkg = (PackageObject *)ob;
   int res;
   FuncDef *f = funcs;
   Object *code;
   while (f->name) {
     code = FuncDef_Build_Code(f);
-    res = Package_Add_Func(pkg, f->name, code);
+    res = Package_Add_Func(ob, f->name, code);
     assert(!res);
     ++f;
   }
@@ -170,11 +176,12 @@ static void __getconstfunc(int type, void *data, int index, void *arg)
   Tuple_Set(tuple, index, ob);
 }
 
-static void load_consts(PackageObject *pkg, KImage *image)
+static void load_consts(Object *ob, KImage *image)
 {
   int size = KImage_Count_Consts(image);
   Object *tuple = Tuple_New(size);
   KImage_Get_Consts(image, __getconstfunc, tuple);
+  PackageObject *pkg = (PackageObject *)ob;
   pkg->consts = tuple;
 }
 
@@ -183,13 +190,13 @@ static void __getvarfunc(char *name, TypeDesc *desc, int konst, void *arg)
   Package_Add_Var(arg, name, desc, konst);
 }
 
-static inline void load_variables(PackageObject *pkg, KImage *image)
+static inline void load_variables(Object *pkg, KImage *image)
 {
   KImage_Get_Vars(image, __getvarfunc, pkg);
 }
 
 struct funcinfo {
-  PackageObject *pkg;
+  Object *pkg;
   KImage *image;
   Object *code;
   int index;
@@ -214,22 +221,22 @@ static void __getfuncfn(char *name, TypeDesc *desc, int index, int type,
   KImage_Get_LocVars(info->image, __getlocvarfunc, arg);
 }
 
-static inline void load_functions(PackageObject *pkg, KImage *image)
+static inline void load_functions(Object *pkg, KImage *image)
 {
   struct funcinfo arg = {pkg, image, NULL, -1};
   KImage_Get_Funcs(image, __getfuncfn, &arg);
 }
 
-PackageObject *Package_From_Image(KImage *image, char *name)
+Object *Package_From_Image(KImage *image, char *name)
 {
   Log_Debug("new package '%s' from image", name);
-  PackageObject *pkg = Package_New(name);
+  Object *pkg = Package_New(name);
   load_consts(pkg, image);
   load_variables(pkg, image);
   load_functions(pkg, image);
   //load_traits(pkg, image->table);
   //load_classes(pkg, image->table);
-  return pkg;
+  return (Object *)pkg;
 }
 
 static Object *package_tostring(Object *ob)
@@ -242,8 +249,7 @@ static Object *package_tostring(Object *ob)
 static void package_free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Package_Klass);
-  PackageObject *pkg = (PackageObject *)ob;
-  Package_Free(pkg);
+  Package_Free(ob);
 }
 
 Klass Package_Klass = {

@@ -51,7 +51,6 @@ static void show_usage(char *prog)
     "\t-p <path>          Specify where to find external packages.\n"
     "\t-o <directory>     Specify where to place generated packages.\n"
     "\t-s <directory>     Specify where to find source packages.\n"
-    "\t-e <encoding>      Specify character encoding used by source files.\n"
     "\t-v                 Print compiler version.\n"
     "\t-h                 Print this message.\n",
     prog);
@@ -276,7 +275,7 @@ static inline void fini_koalac(void)
   Vector_Fini_Self(&groups);
 }
 
-/* compiling options for compiling packages */
+/* compiling options */
 Options options;
 
 int main(int argc, char *argv[])

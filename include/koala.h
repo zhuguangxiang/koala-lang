@@ -20,57 +20,20 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_EVAL_H_
-#define _KOALA_EVAL_H_
+#ifndef _KOALA_INCLUDE_H_
+#define _KOALA_INCLUDE_H_
 
-#include "codeobject.h"
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define STACK_SIZE 8
-
-struct stack {
-  /* stack top index */
-  int top;
-  /* stack */
-  Object *stack[STACK_SIZE];
-};
-
-struct frame;
-
-typedef struct koalastate {
-  /* koalsstate listnode linked in GlobalState->kslist */
-  struct list_head ksnode;
-  /* stack for calculating */
-  struct stack stack;
-  /* top function frame */
-  struct frame *frame;
-  /* local objects for this koalastate  */
-  //Object *map;
-} KoalaState;
-
-struct frame {
-  /* back frame */
-  struct frame *back;
-  /* koalastate */
-  KoalaState *ks;
-  /* function object */
-  CodeObject *code;
-  /* instruction's index in the function */
-  int pc;
-  /* local variables' count */
-  int size;
-  /* local variables memory */
-  Object *locvars[0];
-};
-
-KoalaState *KoalaState_New(void);
-int Koala_Run_File(KoalaState *ks, char *path, Vector *args);
-int Koala_Run_Code(KoalaState *ks, Object *code, Object *ob, Object *args);
+int Koala_Add_Package(char *path, Object *ob);
+int Koala_Set_Value(Object *ob, char *name, Object *value);
+Object *Koala_Get_Value(Object *ob, char *name);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_EVAL_H_ */
+#endif /* _KOALA_INCLUDE_H_ */

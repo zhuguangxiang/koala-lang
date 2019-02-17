@@ -4,11 +4,11 @@
 
 void test_package(void)
 {
-  PackageObject *pkg = Package_New("lang");
+  Object *pkg = Package_New("lang");
   TypeDesc *desc = TypeDesc_Get_Base(BASE_INT);
   Package_Add_Var(pkg, "Foo", desc, 0);
   Package_Add_Var(pkg, "Bar", desc, 0);
-  assert(pkg->varcnt == 2);
+  assert(((PackageObject *)pkg)->varcnt == 2);
   Object *ob = OB_KLASS(pkg)->ob_str((Object *)pkg);
   printf("%s\n", String_RawString(ob));
   OB_DECREF(ob);

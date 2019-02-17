@@ -31,32 +31,30 @@ SET_SOURCE_FILES_PROPERTIES(koala_yacc.c GENERATED)
 SET (KOALA_COMMON_SRC
   log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
   typedesc.c cache.c stringbuf.c properties.c atomtable.c image.c options.c
-  stringex.c
+  stringex.c pkgnode.c
   )
-ADD_LIBRARY(koala_common STATIC ${KOALA_COMMON_SRC})
-set_target_properties(koala_common PROPERTIES VERSION 0.8.5 SOVERSION 0)
+ADD_LIBRARY(koala-common STATIC ${KOALA_COMMON_SRC})
+set_target_properties(koala-common PROPERTIES VERSION 0.8.5 SOVERSION 0)
 
 SET (KOALAC_SRC
   koala_lex.c koala_yacc.c symbol.c ast.c parser.c codegen.c koalac.c
   parser_ident.c parser_operator.c parser_array.c parser_closure.c parser_map.c
   )
 add_executable(klc ${KOALAC_SRC})
-target_link_libraries(klc koala_common)
+target_link_libraries(klc koala-common)
 set_target_properties(klc PROPERTIES OUTPUT_NAME koalac)
 
-SET (KOALA_VM_SRC
+SET (KOALA_OBJECT_SRC
   object.c stringobject.c tupleobject.c codeobject.c
-  intobject.c packageobject.c globalstate.c eval.c
+  intobject.c packageobject.c
   )
-ADD_LIBRARY(koala_vm STATIC ${KOALA_VM_SRC})
-target_link_libraries(koala_vm koala_common)
-set_target_properties(koala_vm PROPERTIES VERSION 0.8.5 SOVERSION 0)
+ADD_LIBRARY(koala-object STATIC ${KOALA_OBJECT_SRC})
+target_link_libraries(koala-object koala-common)
+set_target_properties(koala-object PROPERTIES VERSION 0.8.5 SOVERSION 0)
 
-add_executable(kl koala.c)
-target_link_libraries(kl koala_vm koala_common koala_task)
+add_executable(kl eval.c koala.c)
+target_link_libraries(kl koala-object koala-task)
 set_target_properties(kl PROPERTIES OUTPUT_NAME koala)
-
-#install (TARGETS koala DESTINATION lib/koala)
 
 install (TARGETS klc DESTINATION bin)
 install (TARGETS kl DESTINATION bin)
