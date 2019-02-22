@@ -28,6 +28,9 @@ extern "C" {
 #endif
 
 #define KOALA_PATH "koala.path"
+#define KOALA_INIT "__init__"
+#define KOALA_MAIN "main"
+#define KOALA_TASK_STACKSIZE  (512 * 1024)
 
 #ifdef __cplusplus
 }

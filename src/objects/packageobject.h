@@ -61,6 +61,7 @@ int Package_Add_Klass(Object *pkg, Klass *klazz, int trait);
 MemberDef *Package_Find_MemberDef(Object *pkg, char *name);
 int Package_Add_CFunctions(Object *pkg, FuncDef *funcs);
 Object *Package_From_Image(KImage *image, char *name);
+#define Package_Name(ob) (((PackageObject *)ob)->name)
 
 #ifdef __cplusplus
 }

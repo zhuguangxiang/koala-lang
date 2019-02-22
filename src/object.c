@@ -296,7 +296,7 @@ int Klass_Add_Method(Klass *klazz, char *name, Object *code)
   MemberDef *m = MemberDef_Code_New(__get_table(klazz), name, code);
   if (m) {
     m->code = code;
-    if (CODE_IS_K(code))
+    if (IsKCode(code))
       ((CodeObject *)code)->kf.consts = klazz->consts;
     return 0;
   }

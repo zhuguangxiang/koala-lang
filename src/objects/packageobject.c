@@ -94,7 +94,7 @@ int Package_Add_Func(Object *ob, char *name, Object *code)
   MemberDef *m = MemberDef_Code_New(__get_table(pkg), name, code);
   if (m) {
     m->code = code;
-    if (CODE_IS_K(code)) {
+    if (IsKCode(code)) {
       ((CodeObject *)code)->kf.consts = pkg->consts;
     }
     return 0;

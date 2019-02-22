@@ -90,16 +90,16 @@ int task_detach(task_t *task);
 task_t *current_task(void);
 /* get current processor in which current task is running */
 task_processor_t *current_processor(void);
-/* set task private obj */
-#define task_set_object(obj) \
+/* set task private object */
+#define task_set_private(obj) \
 do { \
   current_task()->object = obj; \
 } while (0)
 
-/* get task private obj */
-#define task_get_object() \
+/* get task private object */
+#define task_get_private() \
 ({ \
-  current_task()->object \
+  current_task()->object; \
 })
 
 #ifdef __cplusplus

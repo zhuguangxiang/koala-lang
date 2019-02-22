@@ -20,46 +20,51 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_OPTIONS_H_
-#define _KOALA_OPTIONS_H_
-
-#include "common.h"
-#include "vector.h"
+#ifndef _KOALA_STACK_H_
+#define _KOALA_STACK_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct namevalue {
-  char *name;
-  char *value;
-};
+typedef struct stack {
+  int top;
+  int size;
+  void **objs;
+} Stack;
 
-typedef struct options {
-  /* -h or ? */
-  void (*usage)(char *name);
-  /* -v version */
-  void (*version)(void);
-  /* -s */
-  char *srcpath;
-  /* -p */
-  Vector pathes;
-  /* -o output dir */
-  char *outpath;
-  /* -D name=value */
-  Vector nvs;
-  /* file(klc) or dir(package) names */
-  Vector names;
-} Options;
+#define Init_Stack(stk, stksize, objs) \
+({ \
+  (stk)->top = -1; \
+  (stk)->size = stksize; \
+  (stk)->objs = objs; \
+})
 
-int init_options(Options *opts, void (*usage)(char *), void (*version)(void));
-void fini_options(Options *opts);
-void parse_options(int argc, char *argv[], Options *opts);
-int options_number(Options *opts);
-void options_toarray(Options *opts, char *array[], int ind);
-void show_options(Options *opts);
+#define Stack_Top(stk) \
+({ \
+  assert(stk->top >= -1 && stk->top <= stk->size - 1); \
+  (stk->top >= 0) ? stk->objs[stk->top] : NULL; \
+})
+
+#define Stack_Pop(stk) \
+({ \
+  assert(stk->top >= -1 && stk->top <= stk->size - 1); \
+  (stk->top >= 0) ? stk->objs[stk->top--] : NULL; \
+})
+
+#define Stack_Push(stk, v) \
+({ \
+  assert(stk->top >= -1 && stk->top <= stk->size - 1); \
+  stk->objs[++stk->top] = v; \
+})
+
+#define Stack_Size(stk) \
+({ \
+  assert(stk->top >= -1 && stk->top <= stk->size - 1); \
+  stk->top + 1; \
+})
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_OPTIONS_H_ */
+#endif /* _KOALA_STACK_H_ */

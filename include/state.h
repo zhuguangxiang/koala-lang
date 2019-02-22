@@ -20,57 +20,57 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_EVAL_H_
-#define _KOALA_EVAL_H_
+#ifndef _KOALA_STATE_H_
+#define _KOALA_STATE_H_
 
-#include "codeobject.h"
+#include "object.h"
+#include "stack.h"
+#include "task.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define STACK_SIZE 8
+typedef struct frame KoalaFrame;
 
-struct stack {
-  /* stack top index */
-  int top;
-  /* stack */
-  Object *stack[STACK_SIZE];
-};
+#define MAX_STACK_SIZE 8
+#define MAX_FRAME_DEPTH 16
 
-struct frame;
-
+/* one Task has one KoalaState */
 typedef struct koalastate {
-  /* koalsstate listnode linked in GlobalState->kslist */
+  /* linked in global kslist */
   struct list_head ksnode;
-  /* stack for calculating */
-  struct stack stack;
-  /* top function frame */
-  struct frame *frame;
-  /* local objects for this koalastate  */
-  //Object *map;
+
+  /* top frame of function frame stack */
+  KoalaFrame *frame;
+  int frame_depth;
+
+  /* store private data per-task */
+  Object *map;
+
+  /* calculating stack
+   * 1.intermediate result of current frame
+   * 2.passing arguments and results of function call
+   */
+  Stack stack;
+  /* objects array for stack */
+  Object *objs[MAX_STACK_SIZE];
 } KoalaState;
 
-struct frame {
-  /* back frame */
-  struct frame *back;
-  /* koalastate */
-  KoalaState *ks;
-  /* function object */
-  CodeObject *code;
-  /* instruction's index in the function */
-  int pc;
-  /* local variables' count */
-  int size;
-  /* local variables memory */
-  Object *locvars[0];
-};
-
-KoalaState *KoalaState_New(void);
-int Koala_Run_File(KoalaState *ks, char *path, Vector *args);
-int Koala_Run_Code(KoalaState *ks, Object *code, Object *ob, Object *args);
+void Koala_Initialize(void);
+void Koala_Finalize(void);
+void Koala_SetPathes(Vector *pathes);
+int Koala_Add_Package(char *path, Object *ob);
+int Koala_Set_Value(Object *ob, char *name, Object *value);
+Object *Koala_Get_Value(Object *ob, char *name);
+void Koala_RunTask(Object *code, Object *ob, Object *args);
+void Koala_RunCode(Object *code, Object *ob, Object *args);
+void Koala_Main(char *path, Object *args);
+KoalaState *New_koalaState(void);
+void Free_KoalaState(KoalaState *ks);
+#define Current_KoalaState() ((KoalaState *)task_get_private())
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_EVAL_H_ */
+#endif /* _KOALA_STATE_H_ */

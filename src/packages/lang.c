@@ -20,46 +20,27 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_OPTIONS_H_
-#define _KOALA_OPTIONS_H_
+#include "koala.h"
 
-#include "common.h"
-#include "vector.h"
+void Init_Lang_Package(void)
+{
+  Init_String_Klass();
+  Init_Integer_Klass();
+  Init_Tuple_Klass();
+  Init_Package_Klass();
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct namevalue {
-  char *name;
-  char *value;
-};
-
-typedef struct options {
-  /* -h or ? */
-  void (*usage)(char *name);
-  /* -v version */
-  void (*version)(void);
-  /* -s */
-  char *srcpath;
-  /* -p */
-  Vector pathes;
-  /* -o output dir */
-  char *outpath;
-  /* -D name=value */
-  Vector nvs;
-  /* file(klc) or dir(package) names */
-  Vector names;
-} Options;
-
-int init_options(Options *opts, void (*usage)(char *), void (*version)(void));
-void fini_options(Options *opts);
-void parse_options(int argc, char *argv[], Options *opts);
-int options_number(Options *opts);
-void options_toarray(Options *opts, char *array[], int ind);
-void show_options(Options *opts);
-
-#ifdef __cplusplus
+  Object *pkg = Package_New("lang");
+  Package_Add_Class(pkg, &String_Klass);
+  Package_Add_Class(pkg, &Int_Klass);
+  Package_Add_Class(pkg, &Tuple_Klass);
+  Package_Add_Class(pkg, &Package_Klass);
+  Koala_Add_Package("lang", pkg);
 }
-#endif
-#endif /* _KOALA_OPTIONS_H_ */
+
+void Fini_Lang_Package(void)
+{
+  Fini_Package_Klass();
+  Fini_Tuple_Klass();
+  Fini_Integer_Klass();
+  Fini_String_Klass();
+}

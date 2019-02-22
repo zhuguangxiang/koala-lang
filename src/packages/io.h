@@ -20,46 +20,17 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_OPTIONS_H_
-#define _KOALA_OPTIONS_H_
-
-#include "common.h"
-#include "vector.h"
+#ifndef _KOALA_IO_PKG_H_
+#define _KOALA_IO_PKG_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct namevalue {
-  char *name;
-  char *value;
-};
-
-typedef struct options {
-  /* -h or ? */
-  void (*usage)(char *name);
-  /* -v version */
-  void (*version)(void);
-  /* -s */
-  char *srcpath;
-  /* -p */
-  Vector pathes;
-  /* -o output dir */
-  char *outpath;
-  /* -D name=value */
-  Vector nvs;
-  /* file(klc) or dir(package) names */
-  Vector names;
-} Options;
-
-int init_options(Options *opts, void (*usage)(char *), void (*version)(void));
-void fini_options(Options *opts);
-void parse_options(int argc, char *argv[], Options *opts);
-int options_number(Options *opts);
-void options_toarray(Options *opts, char *array[], int ind);
-void show_options(Options *opts);
+void Init_IO_Package(void);
+void Fini_IO_Package(void);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_OPTIONS_H_ */
+#endif /* _KOALA_IO_PKG_H_ */

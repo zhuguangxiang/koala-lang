@@ -69,9 +69,9 @@ Object *CCode_New(cfunc cf, TypeDesc *proto);
 /* free code object */
 void CodeObject_Free(Object *ob);
 /* is koala code object? */
-#define CODE_IS_K(code) (((CodeObject *)(code))->kind == CODE_KLANG)
+#define IsKCode(code) (((CodeObject *)(code))->kind == CODE_KLANG)
 /* is clang code object? */
-#define CODE_IS_C(code) (((CodeObject *)(code))->kind == CODE_CLANG)
+#define IsCCode(code) (((CodeObject *)(code))->kind == CODE_CLANG)
 /* add local variables into the koala code object */
 int KCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos);
 /* get the (koala & clang) code's arg's number */

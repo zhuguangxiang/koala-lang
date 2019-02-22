@@ -20,24 +20,49 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_NATIVE_IO_H_
-#define _KOALA_NATIVE_IO_H_
+#include "koala.h"
 
-#include "object.h"
+LOGGER(0)
 
-typedef struct fdobject {
-  OBJECT_HEAD
-  int fd;
-} FdObject;
+#define BUF_SIZE 1024
 
-extern Klass Fd_Klass;
-FdObject *Fd_New(int fd);
-FdObject *Fd_Open(char *path, int flag);
-int Fd_Write(FdObject *fd, char *data, int size);
-int Fd_Read(FdObject *fd, char *buf, int size);
-int Fd_Close(FdObject *fd);
+static Object *__print(Object *ob, Object *args)
+{
+  int size = Tuple_Size(args);
+  char *buf = Malloc(BUF_SIZE);
+  Object *val;
+  int n;
+  for (int i = 0; i < size; i++) {
+    val = Tuple_Get(args, i);
+    n = Object_Print(buf, BUF_SIZE - 1, val);
+    fputs(buf, stdout);
+    if (i + 1 < size) {
+      fputs(" ", stdout); /* space */
+    }
+  }
+  Mfree(buf);
+  return NULL;
+}
 
-void Init_Nio_Package(void);
-void Fini_Nio_Package(void);
+static Object *__println(Object *ob, Object *args)
+{
+  __print(ob, args);
+  fputs("\n", stdout);
+  fflush(stdout);
+  return NULL;
+}
 
-#endif /* _KOALA_NATIVE_IO_H_ */
+static FuncDef io_funcs[] = {
+  {"Println", NULL, "...A", __println},
+  {NULL}
+};
+
+void Init_IO_Package(void)
+{
+  Object *pkg = Package_New("io");
+  Package_Add_CFunctions(pkg, io_funcs);
+}
+
+void Fini_IO_Package(void)
+{
+}

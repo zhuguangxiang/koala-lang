@@ -57,7 +57,7 @@ void CodeObject_Free(Object *ob)
   CodeObject *code = (CodeObject *)ob;
 
   TYPE_DECREF(code->proto);
-  if (CODE_IS_K(code)) {
+  if (IsKCode(code)) {
     //FIXME
   }
 
@@ -68,7 +68,7 @@ int KCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)
 {
   OB_ASSERT_KLASS(ob, Code_Klass);
   CodeObject *code = (CodeObject *)ob;
-  assert(CODE_IS_K(code));
+  assert(IsKCode(code));
 
   MemberDef *member = MemberDef_New(MEMBER_VAR, name, desc, 0);
   member->offset = pos;

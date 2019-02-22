@@ -45,15 +45,17 @@ target_link_libraries(klc koala-common)
 set_target_properties(klc PROPERTIES OUTPUT_NAME koalac)
 
 SET (KOALA_OBJECT_SRC
-  object.c stringobject.c tupleobject.c codeobject.c
-  intobject.c packageobject.c
+  object.c loop.c state.c
+  objects/stringobject.c objects/tupleobject.c 
+  objects/intobject.c objects/packageobject.c objects/codeobject.c
+  packages/lang.c packages/io.c
   )
-ADD_LIBRARY(koala-object STATIC ${KOALA_OBJECT_SRC})
-target_link_libraries(koala-object koala-common)
-set_target_properties(koala-object PROPERTIES VERSION 0.8.5 SOVERSION 0)
+ADD_LIBRARY(koala STATIC ${KOALA_OBJECT_SRC})
+target_link_libraries(koala koala-common koala-task)
+set_target_properties(koala PROPERTIES VERSION 0.8.5 SOVERSION 0)
 
-add_executable(kl eval.c koala.c)
-target_link_libraries(kl koala-object koala-task)
+add_executable(kl koala.c)
+target_link_libraries(kl koala)
 set_target_properties(kl PROPERTIES OUTPUT_NAME koala)
 
 install (TARGETS klc DESTINATION bin)

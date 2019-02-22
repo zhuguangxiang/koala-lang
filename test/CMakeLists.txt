@@ -21,28 +21,28 @@ add_executable(test_pkgnode test_pkgnode.c)
 target_link_libraries(test_pkgnode koala-common)
 
 add_executable(test_object test_object.c)
-target_link_libraries(test_object koala-object)
+target_link_libraries(test_object koala)
 
 add_executable(test_trait test_trait.c)
-target_link_libraries(test_trait koala-object)
+target_link_libraries(test_trait koala)
 
 add_executable(test_stringobject test_stringobject.c)
-target_link_libraries(test_stringobject koala-object)
+target_link_libraries(test_stringobject koala)
 
 add_executable(test_intobject test_intobject.c)
-target_link_libraries(test_intobject koala-object)
+target_link_libraries(test_intobject koala)
 
 add_executable(test_tupleobject test_tupleobject.c)
-target_link_libraries(test_tupleobject koala-object)
+target_link_libraries(test_tupleobject koala)
 
 add_executable(test_codeobject test_codeobject.c)
-target_link_libraries(test_codeobject koala-object)
+target_link_libraries(test_codeobject koala)
 
 add_executable(test_package test_package.c)
-target_link_libraries(test_package koala-object)
+target_link_libraries(test_package koala)
 
 add_executable(test_image test_image.c)
-target_link_libraries(test_image koala-object)
+target_link_libraries(test_image koala)
 
 add_executable(test_properties test_properties.c)
 target_link_libraries(test_properties koala-common)

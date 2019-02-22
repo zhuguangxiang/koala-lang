@@ -23,15 +23,19 @@
 #ifndef _KOALA_INCLUDE_H_
 #define _KOALA_INCLUDE_H_
 
-#include "object.h"
+#include "state.h"
+#include "packageobject.h"
+#include "tupleobject.h"
+#include "stringobject.h"
+#include "intobject.h"
+#include "properties.h"
+#include "env.h"
+#include "mem.h"
+#include "log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-int Koala_Add_Package(char *path, Object *ob);
-int Koala_Set_Value(Object *ob, char *name, Object *value);
-Object *Koala_Get_Value(Object *ob, char *name);
 
 #ifdef __cplusplus
 }

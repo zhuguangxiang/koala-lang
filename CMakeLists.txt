@@ -31,6 +31,8 @@ ADD_DEFINITIONS(-fPIC)
 
 INCLUDE_DIRECTORIES (
   ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_SOURCE_DIR}/src/objects
+  ${PROJECT_SOURCE_DIR}/src/packages
   ${PROJECT_SOURCE_DIR}/libtask
   )
 
