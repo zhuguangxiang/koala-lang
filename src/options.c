@@ -103,10 +103,10 @@ void parse_options(int argc, char *argv[], Options *opts)
       opts->usage(argv[0]);
       exit(0);
     }
-    Vector_Append(&opts->names, string_dup(argv[optind++]));
+    Vector_Append(&opts->args, string_dup(argv[optind++]));
   }
 
-  if (Vector_Size(&opts->names) == 0) {
+  if (Vector_Size(&opts->args) == 0) {
     fprintf(stderr, "Error: please specify pacakge(s).\n\n");
     opts->usage(argv[0]);
     exit(0);
@@ -118,7 +118,7 @@ int init_options(Options *opts, void (*usage)(char *), void (*version)(void))
   memset(opts, 0, sizeof(Options));
   Vector_Init(&opts->pathes);
   Vector_Init(&opts->nvs);
-  Vector_Init(&opts->names);
+  Vector_Init(&opts->args);
   opts->usage = usage;
   opts->version = version;
   return 0;
@@ -140,7 +140,7 @@ void fini_options(Options *opts)
   Mfree(opts->outpath);
   Vector_Fini(&opts->pathes, free_string_func, NULL);
   Vector_Fini(&opts->nvs, free_namevalue_func, NULL);
-  Vector_Fini(&opts->names, free_string_func, NULL);
+  Vector_Fini(&opts->args, free_string_func, NULL);
 }
 
 int options_number(Options *opts)
@@ -183,8 +183,8 @@ void options_toarray(Options *opts, char *array[], int ind)
 
 void show_options(Options *opts)
 {
-  Log_Printf("srcput: %s\n", opts->srcpath);
-  Log_Printf("output: %s\n", opts->outpath);
+  Log_Printf("srcput: %s\n", opts->srcpath ? opts->srcpath : "<unset>");
+  Log_Printf("output: %s\n", opts->outpath ? opts->outpath : "<unset>");
 
   char *s;
 
@@ -198,8 +198,8 @@ void show_options(Options *opts)
     Log_Printf("  [%d]: %s\n", i, s);
   }
 
-  Log_Puts("names:");
-  Vector_ForEach(s, &opts->names) {
+  Log_Puts("arguments:");
+  Vector_ForEach(s, &opts->args) {
     Log_Printf(" [%d]: %s\n", i, s);
   }
 

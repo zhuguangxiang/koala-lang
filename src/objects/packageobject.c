@@ -62,7 +62,7 @@ static void pkg_freefunc(HashNode *hnode, void *arg)
   MemberDef_Free(m);
 }
 
-void Package_Free(Object *ob)
+void Package_Free_Func(void *ob, void *arg)
 {
   PackageObject *pkg = (PackageObject *)ob;
   HashTable_Free(pkg->table, pkg_freefunc, NULL);
@@ -249,7 +249,7 @@ static Object *package_tostring(Object *ob)
 static void package_free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Package_Klass);
-  Package_Free(ob);
+  Package_Free_Func(ob, NULL);
 }
 
 Klass Package_Klass = {

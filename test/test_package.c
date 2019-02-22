@@ -12,7 +12,7 @@ void test_package(void)
   Object *ob = OB_KLASS(pkg)->ob_str((Object *)pkg);
   printf("%s\n", String_RawString(ob));
   OB_DECREF(ob);
-  Package_Free(pkg);
+  Package_Free_Func(pkg, NULL);
   Klass *klazz = &String_Klass;
   ob = OB_KLASS(klazz)->ob_str((Object *)klazz);
   printf("%s\n", String_RawString(ob));

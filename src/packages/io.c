@@ -61,6 +61,7 @@ void Init_IO_Package(void)
 {
   Object *pkg = Package_New("io");
   Package_Add_CFunctions(pkg, io_funcs);
+  Koala_Add_Package("io", pkg);
 }
 
 void Fini_IO_Package(void)

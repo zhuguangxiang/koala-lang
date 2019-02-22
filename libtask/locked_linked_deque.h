@@ -42,6 +42,7 @@ typedef struct lldq_deque {
 } lldq_deque_t;
 
 int lldq_init(lldq_deque_t *deque);
+void lldq_fini(lldq_deque_t *deque);
 lldq_node_t *lldq_pop_head(lldq_deque_t *deque);
 lldq_node_t *lldq_pop_tail(lldq_deque_t *deque);
 void lldq_push_head(lldq_deque_t *deque, lldq_node_t *node);

@@ -25,6 +25,7 @@
 
 #include "object.h"
 #include "stack.h"
+#include "options.h"
 #include "task.h"
 
 #ifdef __cplusplus
@@ -59,15 +60,12 @@ typedef struct koalastate {
 
 void Koala_Initialize(void);
 void Koala_Finalize(void);
-void Koala_SetPathes(Vector *pathes);
 int Koala_Add_Package(char *path, Object *ob);
 int Koala_Set_Value(Object *ob, char *name, Object *value);
 Object *Koala_Get_Value(Object *ob, char *name);
 void Koala_RunTask(Object *code, Object *ob, Object *args);
 void Koala_RunCode(Object *code, Object *ob, Object *args);
-void Koala_Main(char *path, Object *args);
-KoalaState *New_koalaState(void);
-void Free_KoalaState(KoalaState *ks);
+void Koala_Main(Options *opts);
 #define Current_KoalaState() ((KoalaState *)task_get_private())
 
 #ifdef __cplusplus

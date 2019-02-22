@@ -37,6 +37,8 @@ extern "C" {
 
 /* initial task scheduler */
 int init_scheduler(int num_threads);
+/* finalize task scheduler */
+void fini_scheduler(void);
 /* get scheduler by processor */
 scheduler_t *get_scheduler(int proc);
 /* schedule the task */

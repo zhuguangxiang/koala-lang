@@ -49,6 +49,14 @@ int init_scheduler(int num_threads)
   return 0;
 }
 
+void fini_scheduler(void)
+{
+  for (int i = 0; i < num_scheds; i++) {
+    lldq_fini(&task_schedulers[i].deque);
+  }
+  free(task_schedulers);
+}
+
 scheduler_t *get_scheduler(int proc)
 {
   assert(proc >= 0 && proc < num_scheds);

@@ -39,6 +39,12 @@ int lldq_init(lldq_deque_t *deque)
   return 0;
 }
 
+void lldq_fini(lldq_deque_t *deque)
+{
+  free(deque->tail);
+  deque->tail = deque->head = NULL;
+}
+
 lldq_node_t *lldq_pop_head(lldq_deque_t *deque)
 {
   pthread_mutex_lock(&deque->locker);

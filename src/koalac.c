@@ -290,7 +290,7 @@ int main(int argc, char *argv[])
 
   /* add packages to be compiled */
   char *s;
-  Vector_ForEach(s, &options.names) {
+  Vector_ForEach(s, &options.args) {
     trim_tail_slashes(s);
     Log_Debug("compile package '%s'", s);
     Add_ParserGroup(s);

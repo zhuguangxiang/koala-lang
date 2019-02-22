@@ -52,7 +52,7 @@ extern Klass Package_Klass;
 void Init_Package_Klass(void);
 void Fini_Package_Klass(void);
 Object *Package_New(char *name);
-void Package_Free(Object *pkg);
+void Package_Free_Func(void *ob, void *arg);
 int Package_Add_Var(Object *pkg, char *name, TypeDesc *desc, int konst);
 int Package_Add_Func(Object *pkg, char *name, Object *code);
 int Package_Add_Klass(Object *pkg, Klass *klazz, int trait);

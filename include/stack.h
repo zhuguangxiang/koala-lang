@@ -33,11 +33,11 @@ typedef struct stack {
   void **objs;
 } Stack;
 
-#define Init_Stack(stk, stksize, objs) \
+#define Init_Stack(stk, stksize, _objs) \
 ({ \
   (stk)->top = -1; \
   (stk)->size = stksize; \
-  (stk)->objs = objs; \
+  (stk)->objs = (void **)_objs; \
 })
 
 #define Stack_Top(stk) \

@@ -48,34 +48,13 @@ static void show_usage(char *prog)
 
 int main(int argc, char *argv[])
 {
-  /* parse arguments */
   Options options;
   init_options(&options, show_usage, show_version);
   parse_options(argc, argv, &options);
   show_options(&options);
 
   Koala_Initialize();
-
-  /* set path for searching packages */
-  Koala_SetPathes(&options.pathes);
-
-  /* get executed package filename and arguments */
-  int size = Vector_Size(&options.names);
-  char *filename = Vector_Get(&options.names, 0);
-  Object *args = NULL;
-  if (size > 1) {
-    int i = 1;
-    char *str;
-    args = Tuple_New(size - 1);
-    while (i < size) {
-      str = Vector_Get(&options.names, i);
-      Tuple_Set(args, i - 1, String_New(str));
-    }
-  }
-
-  /* call main */
-  Koala_Main(filename, args);
-
+  Koala_Main(&options);
   Koala_Finalize();
 
   fini_options(&options);

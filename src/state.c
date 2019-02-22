@@ -29,7 +29,7 @@
 LOGGER(0)
 
 /* environment values */
-Properties properties;
+static Properties properties;
 /* package tree */
 static PkgState pkgstate;
 /*
@@ -49,9 +49,13 @@ int Koala_Add_Package(char *path, Object *ob)
     Log_Debug("add package '%s' failed", pkg->name);
     return -1;
   }
-  Log_Debug("new package '%s'", pkg->name);
-  pkg->index = Vector_Size(&variables);
-  Vector_Append(&variables, Tuple_New(pkg->varcnt));
+
+  if (pkg->varcnt == 0) {
+    pkg->index = -1;
+  } else {
+    pkg->index = Vector_Size(&variables);
+    Vector_Append(&variables, Tuple_New(pkg->varcnt));
+  }
   return 0;
 }
 
@@ -80,7 +84,7 @@ Object *Koala_Get_Value(Object *ob, char *name)
   return Tuple_Get(tuple, m->offset);
 }
 
-void Koala_SetPathes(Vector *pathes)
+static inline void koala_set_pathes(Vector *pathes)
 {
   Properties_Put(&properties, KOALA_PATH, ".");
   char *path;
@@ -89,26 +93,48 @@ void Koala_SetPathes(Vector *pathes)
   }
 }
 
-void Koala_Main(char *path, Object *args)
+KoalaState *New_koalaState(void)
 {
+  KoalaState *ks = Malloc(sizeof(KoalaState));
+  init_list_head(&ks->ksnode);
+  Init_Stack(&ks->stack, nr_elts(ks->objs), ks->objs);
+  list_add_tail(&ks->ksnode, &kslist);
+  ksnum++;
+  return ks;
+}
+
+void Free_KoalaState(KoalaState *ks)
+{
+  list_del(&ks->ksnode);
+  ksnum--;
+  Mfree(ks);
+}
+
+void Koala_Main(Options *opts)
+{
+  /* set pathes for searching packages */
+  koala_set_pathes(&opts->pathes);
+
   /* initialize processors */
   task_init_procs(1);
 
   /* set task's private object */
   task_set_private(New_koalaState());
 
+  char *path = Vector_Get(&opts->args, 0);
+
   /* find or load package */
   Object *pkg = NULL; //Koala_Get_Package(path);
   if (pkg == NULL) {
     fprintf(stderr, "error: cannot open '%s.klc'\n", path);
-    return;
+    goto EXIT;
   }
 
   /* initial package's variables */
   MemberDef *m = Package_Find_MemberDef(pkg, KOALA_INIT);
   if (m == NULL || m->kind != MEMBER_CODE) {
     fprintf(stderr, "error: no '%s' function in '%s'", KOALA_INIT, path);
-    return;
+    goto EXIT;
   }
   Koala_RunCode(m->code, pkg, NULL);
 
@@ -116,9 +142,26 @@ void Koala_Main(char *path, Object *args)
   m = Package_Find_MemberDef(pkg, KOALA_MAIN);
   if (m == NULL || m->kind != MEMBER_CODE) {
     fprintf(stderr, "error: no '%s' function in '%s'", KOALA_INIT, path);
-    return;
+    goto EXIT;
+  }
+
+  int size = Vector_Size(&opts->args);
+  Object *args = NULL;
+  if (size > 1) {
+    int i = 1;
+    char *str;
+    args = Tuple_New(size - 1);
+    while (i < size) {
+      str = Vector_Get(&opts->args, i);
+      Tuple_Set(args, i - 1, String_New(str));
+    }
   }
   Koala_RunCode(m->code, pkg, args);
+
+EXIT:
+  Free_KoalaState(task_get_private());
+  /* finalize processors */
+  task_fini_procs();
 }
 
 typedef struct taskparam {
@@ -147,17 +190,6 @@ void Koala_RunTask(Object *code, Object *ob, Object *args)
   task_create(&attr, koala_task_entry, param);
 }
 
-KoalaState *New_koalaState(void)
-{
-  KoalaState *ks = Malloc(sizeof(KoalaState));
-  return ks;
-}
-
-void Free_KoalaState(KoalaState *ks)
-{
-  Mfree(ks);
-}
-
 void Koala_Initialize(void)
 {
   AtomString_Init();
@@ -166,13 +198,14 @@ void Koala_Initialize(void)
   Init_PkgState(&pkgstate);
   Init_Lang_Package();
   Init_IO_Package();
+  Show_PkgState(&pkgstate);
 }
 
 void Koala_Finalize(void)
 {
   Fini_IO_Package();
   Fini_Lang_Package();
-  Fini_PkgState(&pkgstate, NULL, NULL);
+  Fini_PkgState(&pkgstate, Package_Free_Func, NULL);
   Properties_Fini(&properties);
   Fini_TypeDesc();
   AtomString_Fini();

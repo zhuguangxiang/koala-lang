@@ -49,7 +49,7 @@ typedef struct options {
   /* -D name=value */
   Vector nvs;
   /* file(klc) or dir(package) names */
-  Vector names;
+  Vector args;
 } Options;
 
 int init_options(Options *opts, void (*usage)(char *), void (*version)(void));

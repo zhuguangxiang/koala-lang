@@ -162,6 +162,13 @@ static void init_proc(int index)
   processors[index].scheduler = get_scheduler(index);
 }
 
+/* finalize processor by index */
+static void fini_proc(int index)
+{
+  task_processor_t *proc = &processors[index];
+  task_free(proc->idle);
+}
+
 /* initialize main scheduler(pthread) */
 static void init_main_proc(void)
 {
@@ -195,7 +202,19 @@ int task_init_procs(int num_threads)
     pthread_create(&pthreads[i], NULL, pthread_routine, &processors[i]);
   }
 
+  sched_state = SCHED_STATE_STARTED;
   return 0;
+}
+
+void task_fini_procs(void)
+{
+  assert(sched_state == SCHED_STATE_STARTED);
+  for (int i = 0; i < num_pthreads; i++) {
+    fini_proc(i);
+  }
+  free(pthreads);
+  free(processors);
+  fini_scheduler();
 }
 
 /* create an task and run it */
@@ -216,6 +235,12 @@ task_t *task_create(task_attr_t *attr, task_entry_t entry, void *arg)
   schedule(current_processor()->scheduler, task);
   printf("task-%lu created\n", task->id);
   return task;
+}
+
+void task_free(task_t *task)
+{
+  task_context_detroy(&task->context);
+  free(task);
 }
 
 int task_yield(void)
