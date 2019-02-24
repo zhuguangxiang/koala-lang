@@ -124,11 +124,7 @@ int Package_Add_Klass(Object *ob, Klass *klazz, int trait)
 MemberDef *Package_Find_MemberDef(Object *ob, char *name)
 {
   PackageObject *pkg = (PackageObject *)ob;
-  MemberDef *m = MemberDef_Find(__get_table(pkg), name);
-  if (!m) {
-    Log_Error("cannot find symbol '%s'", name);
-  }
-  return m;
+  return MemberDef_Find(__get_table(pkg), name);
 }
 
 int Package_Add_CFunctions(Object *ob, FuncDef *funcs)
@@ -227,9 +223,9 @@ static inline void load_functions(Object *pkg, KImage *image)
   KImage_Get_Funcs(image, __getfuncfn, &arg);
 }
 
-Object *Package_From_Image(KImage *image, char *name)
+Object *Package_From_Image(KImage *image)
 {
-  Log_Debug("new package '%s' from image", name);
+  char *name  = image->header.pkgname;
   Object *pkg = Package_New(name);
   load_consts(pkg, image);
   load_variables(pkg, image);

@@ -61,40 +61,45 @@ void parse_options(int argc, char *argv[], Options *opts)
   extern char *optarg;
   extern int optind;
   int opt;
-
-  for (int i = 0; i < argc; i++) {
-    Log_Printf("[%d]: %s\n", i, argv[i]);
-  }
+  char *slash;
+  char *arg;
+  int len;
 
   while ((opt = getopt(argc, argv, "s:p:o:D:vh")) != -1) {
     switch (opt) {
     case 's':
       opts->srcpath = optarg;
-    break;
-    case 'p':
-      Vector_Append(&opts->pathes, string_dup(optarg));
-    break;
+      break;
+    case 'p': {
+      /* remove trailing slashes? */
+      arg = optarg;
+      slash = arg + strlen(arg);
+      while (*--slash == '/');
+      len = slash - arg + 1;
+      Vector_Append(&opts->pathes, string_ndup(arg, len));
+      break;
+    }
     case 'o':
       opts->outpath = string_dup(optarg);
-    break;
+      break;
     case 'D':
       Vector_Append(&opts->nvs, parse_namevalue(optarg, opts, argv[0]));
-    break;
+      break;
     case 'v':
       opts->version();
       exit(0);
-    break;
+      break;
     case 'h':
       /* fall-through */
     case '?':
       opts->usage(argv[0]);
       exit(0);
-    break;
+      break;
     default:
       fprintf(stderr, "Error: invalid option '%c'.\n\n", opt);
       opts->usage(argv[0]);
       exit(0);
-    break;
+      break;
     }
   }
 
@@ -103,7 +108,12 @@ void parse_options(int argc, char *argv[], Options *opts)
       opts->usage(argv[0]);
       exit(0);
     }
-    Vector_Append(&opts->args, string_dup(argv[optind++]));
+    /* remove trailing slashes? */
+    arg = argv[optind++];
+    slash = arg + strlen(arg);
+    while (*--slash == '/');
+    len = slash - arg + 1;
+    Vector_Append(&opts->args, string_ndup(arg, len));
   }
 
   if (Vector_Size(&opts->args) == 0) {
@@ -183,10 +193,13 @@ void options_toarray(Options *opts, char *array[], int ind)
 
 void show_options(Options *opts)
 {
-  Log_Printf("srcput: %s\n", opts->srcpath ? opts->srcpath : "<unset>");
-  Log_Printf("output: %s\n", opts->outpath ? opts->outpath : "<unset>");
-
   char *s;
+
+  if (opts->srcpath != NULL)
+    Log_Printf("srcput: %s\n", opts->srcpath);
+
+  if (opts->outpath != NULL)
+    Log_Printf("output: %s\n", opts->outpath);
 
   Log_Puts("pathes:");
   Vector_ForEach(s, &opts->pathes) {

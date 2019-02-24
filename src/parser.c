@@ -271,7 +271,68 @@ static void parse_super_expr(ParserState *ps, Expr *exp)
 
 static void parse_attribute_expr(ParserState *ps, Expr *exp)
 {
-  assert(0);
+  ParserUnit *u = ps->u;
+  AttributeExpr *attrExp = (AttributeExpr *)exp;
+  Expr *lexp = attrExp->left;
+  TypeDesc *desc;
+
+  /* parse left expression */
+  lexp->ctx = EXPR_LOAD;
+  lexp->right = exp;
+  Parse_Expression(ps, lexp);
+  if (lexp->sym == NULL)
+    return;
+
+  Symbol *lsym = lexp->sym;
+  switch (lsym->kind) {
+  case SYM_CONST:
+  case SYM_VAR:
+    Log_Debug("'%s' is variable", lsym->name);
+    assert(lsym->desc != NULL);
+    char buf[64];
+    TypeDesc_ToString(lexp->desc, buf);
+    Log_Debug("left expr's type: %s", buf);
+    desc = lsym->desc;
+    if (desc->kind == TYPE_PROTO) {
+    }
+    break;
+  case SYM_FUNC:
+  case SYM_NFUNC: {
+    if (lexp->kind == CALL_KIND) {
+      ProtoDesc *proto = (ProtoDesc *)lsym->desc;
+      if (Vector_Size(proto->ret) != 1) {
+        Syntax_Error(ps, &lexp->pos, "'%s'is multi-returns' function", lsym->name);
+        return;
+      }
+      desc = Vector_Get(proto->ret, 0);
+    } else {
+    }
+    break;
+  }
+  case SYM_PKG: {
+    Log_Debug("'%s' is external package", lsym->name);
+    Package *pkg = ((PkgSymbol *)lsym)->pkg;
+    Symbol *sym = STable_Get(pkg->stbl, attrExp->id.name);
+    if (sym == NULL) {
+      Syntax_Error(ps, &attrExp->id.pos,
+                   "'%s'is not found in '%s'", attrExp->id.name, lsym->name);
+      return;
+    }
+    char buf[64];
+    TypeDesc_ToString(sym->desc, buf);
+    Log_Debug("'%s' type: %s", sym->name, buf);
+    exp->sym = sym;
+    exp->desc = sym->desc;
+    break;
+  }
+  default:
+    assert(0);
+    break;
+  }
+}
+
+static void code_attribute_expr(ParserState *ps, Expr *exp)
+{
 }
 
 static void parse_subscript_expr(ParserState *ps, Expr *exp)
@@ -281,17 +342,24 @@ static void parse_subscript_expr(ParserState *ps, Expr *exp)
 
 static int __check_expr_types(Vector *descs, Vector *exps)
 {
-  /* FIXME: optimize this checker */
   int ndesc = Vector_Size(descs);
   int nexp = Vector_Size(exps);
-
-  if (ndesc != nexp)
+  if (nexp < ndesc)
     return 0;
 
-  Expr *e;
   TypeDesc *desc;
-  Vector_ForEach(desc, descs) {
-    e = Vector_Get(exps, i);
+  int varg = 0;
+  Expr *e;
+  Vector_ForEach(e, exps) {
+    if (!varg) {
+      desc = Vector_Get(descs, i);
+      /* variably arguments */
+      if (desc->kind == TYPE_VARG) {
+        assert(i + 1 == Vector_Size(descs));
+        varg = 1;
+        desc = ((VargDesc *)desc)->base;
+      }
+    }
     if (!TypeDesc_Equal(desc, e->desc))
       return 0;
   }
@@ -354,12 +422,12 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
     ClassSymbol *clsSym = (ClassSymbol *)exp->sym;
     Log_Debug("call class '%s' __init__ function", clsSym->name);
     Symbol *__init__ = STable_Get(clsSym->stbl, "__init__");
-    int arguments = Vector_Size(callExp->args);
-    if (__init__ == NULL && arguments > 0) {
+    int argc = Vector_Size(callExp->args);
+    if (__init__ == NULL && argc > 0) {
       Syntax_Error(ps, &lexp->pos, "__init__ function needs no arguments");
       return;
     }
-    proto = ((FuncSymbol *)__init__)->desc;
+    proto = __init__->desc;
   } else {
     /* var(func type), func, ifunc and nfunc */
     Log_Debug("call var(proto)/interface/native function '%s'", exp->sym->name);
@@ -430,7 +498,7 @@ static struct expr_func_s {
   { Parse_Ident_Expr,     Code_Ident_Expr  },           /* ID_KIND         */
   { Parse_Unary_Expr,     Code_Unary_Expr  },           /* UNARY_KIND      */
   { Parse_Binary_Expr,    Code_Binary_Expr },           /* BINARY_KIND     */
-  { parse_attribute_expr, NULL },                       /* ATTRIBUTE_KIND  */
+  { parse_attribute_expr, code_attribute_expr },        /* ATTRIBUTE_KIND  */
   { parse_subscript_expr, NULL },                       /* SUBSCRIPT_KIND  */
   { parse_call_expr,      code_call_expr },             /* CALL_KIND       */
   { parse_slice_expr,     NULL },                       /* SLICE_KIND      */

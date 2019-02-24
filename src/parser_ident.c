@@ -222,15 +222,18 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
   IdentExpr *idExp = (IdentExpr *)exp;
   char *name = idExp->name;
   Symbol *sym;
+  int depth;
+
+  assert(idExp->sym == NULL);
+  assert(idExp->desc == NULL);
 
   /* find ident from current scope */
   sym = STable_Get(u->stbl, name);
   if (sym != NULL) {
+    depth = ps->depth;
     Log_Debug("find symbol '%s' in local scope-%d(%s)",
-              name, ps->depth, scope_name(u));
+              name, depth, scope_name(u));
     sym->used++;
-    assert(idExp->sym == NULL);
-    assert(idExp->desc == NULL);
     idExp->sym = sym;
     idExp->desc = sym->desc;
     TYPE_INCREF(idExp->desc);
@@ -241,11 +244,13 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
 
   /* find ident from up scope */
   ParserUnit *uu;
+  depth = ps->depth;
   list_for_each_entry(uu, &ps->ustack, link) {
+    depth -= 1;
     sym = STable_Get(uu->stbl, name);
     if (sym != NULL) {
       Log_Debug("find symbol '%s' in up scope-%d(%s)",
-                name, ps->depth, scope_name(u));
+                name, depth, scope_name(uu));
       sym->used++;
       idExp->sym = sym;
       idExp->desc = sym->desc;
@@ -254,6 +259,34 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
       idExp->scope = uu;
       return;
     }
+  }
+
+  /* find ident from external scope (imported) */
+  sym = STable_Get(ps->extstbl, name);
+  if (sym != NULL) {
+    Log_Debug("find symbol '%s' as imported name", name);
+    sym->used++;
+    idExp->sym = sym;
+    idExp->desc = sym->desc;
+    TYPE_INCREF(idExp->desc);
+    idExp->where = CURRENT_SCOPE;
+    idExp->scope = u;
+    return;
+  }
+
+  /* find ident from external scope (imported dot) */
+  sym = STable_Get(ps->extdots, name);
+  if (sym != NULL) {
+    Log_Debug("find symbol '%s' in imported symbols", name);
+    sym->used++;
+    RefSymbol *refSym = (RefSymbol *)sym;
+    refSym->sym->used++;
+    idExp->sym = refSym->sym;
+    idExp->desc = refSym->sym->desc;
+    TYPE_INCREF(idExp->desc);
+    idExp->where = CURRENT_SCOPE;
+    idExp->scope = u;
+    return;
   }
 
   Syntax_Error(ps, &exp->pos, "cannot find symbol '%s'", name);

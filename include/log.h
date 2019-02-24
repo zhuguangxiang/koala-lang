@@ -48,7 +48,7 @@ typedef struct logger {
 void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...);
 
 /* instead of printf */
-#ifdef NDEBUG
+#ifdef NLOG
 #define LOGGER(q) static Logger logger = {.level = LOG_WARN, .quiet = q};
 #define Log_Printf(...) ((void)0)
 #define Log_Puts(string) ((void)0)

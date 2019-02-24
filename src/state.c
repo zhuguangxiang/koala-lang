@@ -84,6 +84,33 @@ Object *Koala_Get_Value(Object *ob, char *name)
   return Tuple_Get(tuple, m->offset);
 }
 
+Object *Koala_Get_Package(char *path)
+{
+  PkgNode *node = Find_PkgNode(&pkgstate, path);
+  if (node != NULL) {
+    assert(node->leaf);
+    return node->data;
+  }
+
+  DeclareStringBuf(buf);
+  KImage *image;
+  Object *pkg = NULL;
+  Vector *vec = Properties_Get(&properties, KOALA_PATH);
+  char *pre;
+  Vector_ForEach(pre, vec) {
+    StringBuf_Format_CStr(buf, "#/#.klc", pre, path);
+    image = KImage_Read_File(buf.data, 0);
+    FiniStringBuf(buf);
+    if (image != NULL) {
+      pkg = Package_From_Image(image);
+      break;
+    }
+  }
+  if (pkg != NULL)
+    Koala_Add_Package(path, pkg);
+  return pkg;
+}
+
 static inline void koala_set_pathes(Vector *pathes)
 {
   Properties_Put(&properties, KOALA_PATH, ".");
@@ -124,24 +151,24 @@ void Koala_Main(Options *opts)
   char *path = Vector_Get(&opts->args, 0);
 
   /* find or load package */
-  Object *pkg = NULL; //Koala_Get_Package(path);
+  Object *pkg = Koala_Get_Package(path);
   if (pkg == NULL) {
-    fprintf(stderr, "error: cannot open '%s.klc'\n", path);
+    fprintf(stderr, "\x1b[31merror\x1b[0m: cannot open '%s' package\n", path);
     goto EXIT;
   }
 
   /* initial package's variables */
   MemberDef *m = Package_Find_MemberDef(pkg, KOALA_INIT);
-  if (m == NULL || m->kind != MEMBER_CODE) {
-    fprintf(stderr, "error: no '%s' function in '%s'", KOALA_INIT, path);
-    goto EXIT;
+  if (m != NULL) {
+    assert(m->kind == MEMBER_CODE);
+    Koala_RunCode(m->code, pkg, NULL);
   }
-  Koala_RunCode(m->code, pkg, NULL);
 
   /* run 'main' function */
   m = Package_Find_MemberDef(pkg, KOALA_MAIN);
   if (m == NULL || m->kind != MEMBER_CODE) {
-    fprintf(stderr, "error: no '%s' function in '%s'", KOALA_INIT, path);
+    fprintf(stderr, "\x1b[31merror\x1b[0m: no '%s' function in '%s'\n",
+            KOALA_MAIN, path);
     goto EXIT;
   }
 

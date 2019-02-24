@@ -160,18 +160,18 @@ static void build_symbols(ParserGroup *grp)
 
   struct stat sb;
   if (stat(path, &sb) == - 1) {
-    fprintf(stderr, "%s: invalid filename\n", path);
+    fprintf(stderr, "%s: No such file or directory\n", path);
     return;
   }
 
   if (!S_ISDIR(sb.st_mode)) {
-    fprintf(stderr, "%s: is not a directory\n", path);
+    fprintf(stderr, "%s: Not a directory\n", path);
     return;
   }
 
   DIR *dir = opendir(path);
   if (!dir) {
-    fprintf(stderr, "%s: no such file or directory\n", path);
+    fprintf(stderr, "%s: No such file or directory\n", path);
     return;
   }
 

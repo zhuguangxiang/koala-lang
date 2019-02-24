@@ -277,6 +277,9 @@ int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2)
     return 1;
   if (desc1->kind != desc2->kind)
     return 0;
+  TypeDesc *any = (TypeDesc *)&Any_Type;
+  if (desc1 == any || desc2 == any)
+    return 1;
   return AtomString_Equal(desc1->desc, desc2->desc);
 }
 
@@ -558,8 +561,9 @@ TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg)
       assert(_dims == 0 && _varg == 0);
       assert(s[1] == '.' && s[2] == '.');
       s += 3;
-      if (s[0] == '\0') {
+      if (s[0] == 'A') {
         base = (TypeDesc *)&Any_Type;
+        s += 1;
       } else {
         base = String_To_TypeDesc(&s, 0, 1);
       }
@@ -572,6 +576,7 @@ TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg)
       assert(!(_dims > 0 && _varg > 0));
       desc = (TypeDesc *)p->type;
       s += 1;
+      break;
     }
   }
 

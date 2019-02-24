@@ -1769,9 +1769,9 @@ static int header_check(ImageHeader *header)
   return 0;
 }
 
-KImage *KImage_Read_File(char *path, int flags)
+KImage *KImage_Read_File(char *path, int unload)
 {
-#define LOAD(item) (!(flags & (1 << (item))))
+#define LOAD(item) (!(unload & (1 << (item))))
 
   FILE *fp = fopen(path, "r");
   if (!fp) {

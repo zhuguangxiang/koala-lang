@@ -1001,6 +1001,25 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
           STable_From_Image(klc, &pkg->pkgname, &pkg->stbl);
         }
       }
+    } else {
+      /* find .klc in search pathes */
+      int found = 0;
+      char *klc;
+      char *pre;
+      Vector_ForEach(pre, &opts->pathes) {
+        klc = AtomString_Format("#/#.klc", pre, path->name);
+        if (file_exist(klc)) {
+          Log_Debug("load package '%s/%s'", pre, path->name);
+          pkg = New_Package(path->name);
+          STable_From_Image(klc, &pkg->pkgname, &pkg->stbl);
+          found = 1;
+          break;
+        }
+      }
+      if (!found) {
+        Syntax_Error(ps, &path->pos, "cannot find '%s' package", path->name);
+        return;
+      }
     }
   }
 

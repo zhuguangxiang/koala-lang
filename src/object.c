@@ -200,7 +200,7 @@ static void lro_debug(Klass *klazz)
   Log_Printf("  %s ->", klazz->name);
   Vector_ForEach_Reverse(node, &klazz->lro)
     Log_Printf("  %s ->", node->klazz->name);
-  Log_Puts("  Any");
+  Log_Puts("  any");
   Log_Puts("++++++++++++++++++++++++++++++++++++++++++");
 }
 

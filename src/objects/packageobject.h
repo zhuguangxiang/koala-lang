@@ -20,8 +20,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_PACKAGE_H_
-#define _KOALA_PACKAGE_H_
+#ifndef _KOALA_PACKAGE_OBJECT_H_
+#define _KOALA_PACKAGE_OBJECT_H_
 
 #include "codeobject.h"
 #include "image.h"
@@ -60,10 +60,10 @@ int Package_Add_Klass(Object *pkg, Klass *klazz, int trait);
 #define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
 MemberDef *Package_Find_MemberDef(Object *pkg, char *name);
 int Package_Add_CFunctions(Object *pkg, FuncDef *funcs);
-Object *Package_From_Image(KImage *image, char *name);
+Object *Package_From_Image(KImage *image);
 #define Package_Name(ob) (((PackageObject *)ob)->name)
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_PACKAGE_H_ */
+#endif /* _KOALA_PACKAGE_OBJECT_H_ */

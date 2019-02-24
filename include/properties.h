@@ -25,16 +25,11 @@
 
 #include "hashtable.h"
 #include "atomstring.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* properties value */
-typedef struct property {
-  struct list_head link;
-  String val;
-} Property;
 
 /* properties structure */
 typedef struct properties {
@@ -44,12 +39,8 @@ typedef struct properties {
 int Properties_Init(Properties *prop);
 void Properties_Fini(Properties *prop);
 int Properties_Put(Properties *prop, char *key, char *val);
-char *Properties_Get(Properties *prop, char *key);
-struct list_head *Properties_Get_List(Properties *prop, char *key);
-static inline char *Property_Value(Property *prop)
-{
-  return prop->val.str;
-}
+char *Properties_GetOne(Properties *prop, char *key);
+Vector *Properties_Get(Properties *prop, char *key);
 
 #ifdef __cplusplus
 }

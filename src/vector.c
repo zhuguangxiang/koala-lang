@@ -54,7 +54,7 @@ void Vector_Free(Vector *vec, vec_finifunc fini, void *arg)
 
 void Vector_Fini(Vector *vec, vec_finifunc fini, void *arg)
 {
-  if (!vec->items)
+  if (vec == NULL || vec->items == NULL)
     return;
 
   if (fini) {

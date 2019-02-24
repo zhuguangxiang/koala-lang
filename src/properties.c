@@ -29,17 +29,16 @@ LOGGER(0)
 
 typedef struct prop_entry {
   HashNode hnode;
-  String key;
-  int count;
-  struct list_head list;
+  char *key;
+  Vector vec;
 } PropEntry;
 
 static PropEntry *propentry_new(char *key)
 {
   PropEntry *e = Malloc(sizeof(PropEntry));
   Init_HashNode(&e->hnode, e);
-  e->key = AtomString_New(key);
-  init_list_head(&e->list);
+  e->key = AtomString_New(key).str;
+  Vector_Init(&e->vec);
   return e;
 }
 
@@ -50,12 +49,12 @@ static void propentry_free(PropEntry *e)
 
 static uint32 pe_hash(PropEntry *k)
 {
-  return hash_string(k->key.str);
+  return hash_string(k->key);
 }
 
 static int pe_equal(PropEntry *k1, PropEntry *k2)
 {
-  return !strcmp(k1->key.str, k2->key.str);
+  return !strcmp(k1->key, k2->key);
 }
 
 int Properties_Init(Properties *prop)
@@ -64,42 +63,16 @@ int Properties_Init(Properties *prop)
   return 0;
 }
 
-static Property *property_new(char *val)
-{
-  Property *p = Malloc(sizeof(Property));
-  init_list_head(&p->link);
-  p->val = AtomString_New(val);
-  return p;
-}
-
-static void property_free(Property *property)
-{
-  Mfree(property);
-}
-
 static void __propentry_fini_func(HashNode *hnode, void *arg)
 {
   PropEntry *e = container_of(hnode, PropEntry, hnode);
-  Property *property;
-  struct list_head *p, *n;
-  list_for_each_safe(p, n, &e->list) {
-    list_del(p);
-    property = container_of(p, Property, link);
-    property_free(property);
-  }
+  Vector_Fini_Self(&e->vec);
   propentry_free(e);
 }
 
 void Properties_Fini(Properties *prop)
 {
   HashTable_Fini(&prop->table, __propentry_fini_func, NULL);
-}
-
-static void add_property(PropEntry *e, char *val)
-{
-  Property *p = property_new(val);
-  list_add_tail(&p->link, &e->list);
-  e->count++;
 }
 
 int Properties_Put(Properties *prop, char *key, char *val)
@@ -109,28 +82,27 @@ int Properties_Put(Properties *prop, char *key, char *val)
   PropEntry *entry = hnode ? container_of(hnode, PropEntry, hnode) : NULL;
   if (!entry) {
     entry = propentry_new(key);
-    assert(entry);
+    assert(entry != NULL);
     HashTable_Insert(&prop->table, &entry->hnode);
   }
-  add_property(entry, val);
+  Vector_Append(&entry->vec, AtomString_New(val).str);
   return 0;
 }
 
-char *Properties_Get(Properties *prop, char *key)
+char *Properties_GetOne(Properties *prop, char *key)
 {
   PropEntry k = {.key = key};
   HashNode *hnode = HashTable_Find(&prop->table, &k);
   PropEntry *e = hnode ? container_of(hnode, PropEntry, hnode) : NULL;
-  if (!e)
+  if (e == NULL)
     return NULL;
-  Property *p = container_of(list_first(&e->list), Property, link);
-  return Property_Value(p);
+  return Vector_Get(&e->vec, 0);
 }
 
-struct list_head *Properties_Get_List(Properties *prop, char *key)
+Vector *Properties_Get(Properties *prop, char *key)
 {
   PropEntry k = {.key = key};
   HashNode *hnode = HashTable_Find(&prop->table, &k);
   PropEntry *e = hnode ? container_of(hnode, PropEntry, hnode) : NULL;
-  return e ? &e->list : NULL;
+  return e != NULL ? &e->vec : NULL;
 }

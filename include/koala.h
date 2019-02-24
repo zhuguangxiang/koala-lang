@@ -29,6 +29,7 @@
 #include "stringobject.h"
 #include "intobject.h"
 #include "properties.h"
+#include "stringbuf.h"
 #include "env.h"
 #include "mem.h"
 #include "log.h"

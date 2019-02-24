@@ -6,30 +6,24 @@ void test_properties(void)
   Properties properties;
   Properties_Init(&properties);
   Properties_Put(&properties, "foo", "foo1");
-  char *v = Properties_Get(&properties, "foo");
+  char *v = Properties_GetOne(&properties, "foo");
   assert(!strcmp("foo1", v));
   Properties_Put(&properties, "foo", "foo2");
   Properties_Put(&properties, "bar", "bar1");
-  v = Properties_Get(&properties, "bar");
+  v = Properties_GetOne(&properties, "bar");
   assert(!strcmp("bar1", v));
-  struct list_head *list = Properties_Get_List(&properties, "foo");
-  assert(list);
-  struct list_head *pos;
-  Property *property;
-  int count = 0;
-  list_for_each(pos, list) {
-    property = container_of(pos, Property, link);
-    v = Property_Value(property);
-    if (count == 0) {
-      assert(!strcmp("foo1", v));
-    } else if (count == 1) {
-      assert(!strcmp("foo2", v));
+  Vector *vec = Properties_Get(&properties, "foo");
+  assert(vec);
+  char *val;
+  Vector_ForEach(val, vec) {
+    if (i == 0) {
+      assert(!strcmp("foo1", val));
+    } else if (i == 1) {
+      assert(!strcmp("foo2", val));
     } else {
       assert(0);
     }
-    count++;
   }
-  assert(count == 2);
   Properties_Fini(&properties);
 }
 
