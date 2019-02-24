@@ -195,23 +195,6 @@ static void __func_gen(Symbol *sym, void *arg)
   }
 }
 
-static Symbol *__alias_new(char *name)
-{
-  return __symbol_new(SYM_ALIAS, name, sizeof(Symbol));
-}
-
-static void __alias_free(Symbol *sym)
-{
-}
-
-static void __alias_show(Symbol *sym)
-{
-}
-
-static void __alias_gen(Symbol *sym, void *arg)
-{
-}
-
 static Symbol *__class_new(char *name)
 {
   return __symbol_new(SYM_CLASS, name, sizeof(ClassSymbol));
@@ -397,7 +380,6 @@ struct symbol_operations {
   {__const_new, __const_free, __const_show, __const_gen},     /* SYM_CONST */
   {__var_new, __var_free, __var_show, __var_gen},             /* SYM_VAR   */
   {__func_new, __func_free, __func_show, __func_gen},         /* SYM_FUNC  */
-  {__alias_new, __alias_free, __alias_show, __alias_gen},     /* SYM_ALIAS */
   {__class_new, __class_free, __class_show, __class_gen},     /* SYM_CLASS */
   {__trait_new, __trait_free, __trait_show, __trait_gen},     /* SYM_TRAIT */
   {__ifunc_new, __ifunc_free, __ifunc_show, __ifunc_gen},     /* SYM_IFUNC */
@@ -504,18 +486,6 @@ FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto)
   Vector_Init(&sym->locvec);
   TYPE_INCREF(proto);
   sym->desc = proto;
-  return sym;
-}
-
-Symbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc)
-{
-  Symbol *sym = Symbol_New(SYM_ALIAS, name);
-  if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
-    Symbol_Free(sym);
-    return NULL;
-  }
-  TYPE_INCREF(desc);
-  sym->desc = desc;
   return sym;
 }
 

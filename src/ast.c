@@ -624,13 +624,6 @@ static void free_list_stmt(Stmt *stmt)
   Mfree(stmt);
 }
 
-static void free_alias_stmt(Stmt *stmt)
-{
-  TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
-  TYPE_DECREF(aliasStmt->desc);
-  Mfree(stmt);
-}
-
 static void free_typedesc_func(void *item, void *arg)
 {
   TYPE_DECREF(item);
@@ -645,19 +638,18 @@ static void free_klass_stmt(Stmt *stmt)
 }
 
 static void (*__free_stmt_funcs[])(Stmt *) = {
-  NULL,                     /* INVALID         */
-  free_vardecl_stmt,        /* VAR_KIND        */
-  free_varlistdecl_stmt,    /* VARLIST_KIND    */
-  free_assign_stmt,         /* ASSIGN_KIND     */
-  free_assignlist_stmt,     /* ASSIGNLIST_KIND */
-  free_funcdecl_stmt,       /* FUNC_KIND       */
-  free_funcdecl_stmt,       /* PROTO_KIND      */
-  free_expr_stmt,           /* EXPR_KIND       */
-  free_return_stmt,         /* RETURN_KIND     */
-  free_list_stmt,           /* LIST_KIND       */
-  free_alias_stmt,          /* TYPEALIAS_KIND  */
-  free_klass_stmt,          /* CLASS_KIND      */
-  free_klass_stmt,          /* TRAIT_KIND      */
+  NULL,                                  /* INVALID         */
+  free_vardecl_stmt,                     /* VAR_KIND        */
+  free_varlistdecl_stmt,                 /* VARLIST_KIND    */
+  free_assign_stmt,                      /* ASSIGN_KIND     */
+  free_assignlist_stmt,                  /* ASSIGNLIST_KIND */
+  free_funcdecl_stmt,                    /* FUNC_KIND       */
+  free_funcdecl_stmt,                    /* PROTO_KIND      */
+  free_expr_stmt,                        /* EXPR_KIND       */
+  free_return_stmt,                      /* RETURN_KIND     */
+  free_list_stmt,                        /* LIST_KIND       */
+  free_klass_stmt,                       /* CLASS_KIND      */
+  free_klass_stmt,                       /* TRAIT_KIND      */
   NULL, NULL, NULL, NULL,
   NULL, NULL, NULL, NULL,
 };
@@ -755,15 +747,6 @@ Stmt *Stmt_From_List(Vector *vec)
   listStmt->kind = LIST_KIND;
   listStmt->vec = vec;
   return (Stmt *)listStmt;
-}
-
-Stmt *Stmt_From_TypeAlias(Ident id, TypeDesc *desc)
-{
-  TypeAliasStmt *aliasStmt = Malloc(sizeof(TypeAliasStmt));
-  aliasStmt->kind = TYPEALIAS_KIND;
-  aliasStmt->id = id;
-  aliasStmt->desc = desc;
-  return (Stmt *)aliasStmt;
 }
 
 Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body)
@@ -1436,19 +1419,6 @@ void Parser_New_Function(ParserState *ps, Stmt *stmt)
     __add_stmt(ps, stmt);
     __parse_funcdecl(ps, stmt);
   }
-}
-
-void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt)
-{
-  if (stmt == NULL)
-    return;
-  assert(stmt->kind == TYPEALIAS_KIND);
-  TypeAliasStmt *aliasStmt = (TypeAliasStmt *)stmt;
-  Symbol *sym = STable_Add_Alias(ps->u->stbl, aliasStmt->id.name,
-                aliasStmt->desc);
-  Vector_Append(&ps->symbols, sym);
-  Log_Debug("add typealias '%s' successful", aliasStmt->id.name);
-  Mfree(stmt);
 }
 
 void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)

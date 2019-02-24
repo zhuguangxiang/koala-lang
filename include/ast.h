@@ -325,8 +325,6 @@ typedef enum stmtkind {
   RETURN_KIND,
   /* list for block, (typeless)vardecl-list and assignment-list */
   LIST_KIND,
-  /* type alias */
-  TYPEALIAS_KIND,
   /* class */
   CLASS_KIND,
   /* trait */
@@ -444,14 +442,6 @@ Stmt *Stmt_From_Expr(Expr *exp);
 Stmt *Stmt_From_Return(Vector *exps);
 Stmt *Stmt_From_List(Vector *vec);
 
-/* typealias statement */
-typedef struct typealiasstmt {
-  STMT_HEAD
-  Ident id;
-  TypeDesc *desc;
-  Position descPos;
-} TypeAliasStmt;
-
 /* class or trait statement */
 typedef struct klassstmt {
   STMT_HEAD
@@ -460,7 +450,6 @@ typedef struct klassstmt {
   Vector *body;
 } KlassStmt;
 
-Stmt *Stmt_From_TypeAlias(Ident id, TypeDesc *desc);
 Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body);
 
 #ifdef __cplusplus

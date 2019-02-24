@@ -169,7 +169,6 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "import"         { YY_RETURN(IMPORT);          }
 "go"             { YY_RETURN(GO);              }
 "defer"          { YY_RETURN(DEFER);           }
-"typealias"      { YY_RETURN(TYPEALIAS);       }
 "native"         { YY_RETURN(NATIVE);          }
 
 "char"           { YY_RETURN(CHAR);            }

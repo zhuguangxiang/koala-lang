@@ -160,7 +160,6 @@ do {                                           \
 %token IMPORT
 %token GO
 %token DEFER
-%token TYPEALIAS
 %token NATIVE
 
 %token CHAR
@@ -208,7 +207,6 @@ do {                                           \
 %type <Stmt> ConstDeclaration
 %type <Stmt> VariableDeclaration
 %type <Stmt> FunctionDeclaration
-%type <Stmt> TypeAliasDeclaration
 %type <Stmt> TypeDeclaration
 %type <List> ClassMemberDeclarationsOrEmpty
 %type <List> ClassMemberDeclarations
@@ -796,10 +794,6 @@ ModuleStatement
     ((FuncDeclStmt *)$2)->native = 1;
     Parser_New_Function(ps, $2);
   }
-  | TypeAliasDeclaration
-  {
-    Parser_New_TypeAlias(ps, $1);
-  }
   | TypeDeclaration
   {
     Parser_New_ClassOrTrait(ps, $1);
@@ -903,24 +897,6 @@ FunctionDeclaration
     $$ = Stmt_From_FuncDecl(id, NULL, NULL, $5);
   }
   | FUNC error
-  {
-    YYSyntax_Error(@2, "ID");
-    $$ = NULL;
-  }
-  ;
-
-TypeAliasDeclaration
-  : TYPEALIAS ID Type ';'
-  {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_TypeAlias(id, $3);
-  }
-  | TYPEALIAS ID error
-  {
-    YYSyntax_Error(@3, "TYPE");
-    $$ = NULL;
-  }
-  | TYPEALIAS error
   {
     YYSyntax_Error(@2, "ID");
     $$ = NULL;
