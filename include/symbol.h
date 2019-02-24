@@ -42,14 +42,13 @@ typedef enum symbolkind {
   SYM_CONST  = 1,   /* constant           */
   SYM_VAR    = 2,   /* variable           */
   SYM_FUNC   = 3,   /* function or method */
-  SYM_ALIAS  = 4,   /* type alias         */
-  SYM_CLASS  = 5,   /* clas               */
-  SYM_TRAIT  = 6,   /* trait              */
-  SYM_IFUNC  = 7,   /* interface method   */
-  SYM_NFUNC  = 8,   /* native function    */
-  SYM_AFUNC  = 9,   /* anonymous function */
-  SYM_PKG    = 10,  /* (external) package */
-  SYM_REF    = 11,  /* reference symbol   */
+  SYM_CLASS  = 4,   /* clas               */
+  SYM_TRAIT  = 5,   /* trait              */
+  SYM_IFUNC  = 6,   /* interface method   */
+  SYM_NFUNC  = 7,   /* native function    */
+  SYM_AFUNC  = 8,   /* anonymous function */
+  SYM_PKG    = 9,   /* (external) package */
+  SYM_REF    = 10,  /* reference symbol   */
   SYM_MAX
 } SymKind;
 
@@ -163,7 +162,6 @@ void Show_Symbol(Symbol *sym);
 VarSymbol *STable_Add_Const(STable *stbl, char *name, TypeDesc *desc);
 VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
 FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
-Symbol *STable_Add_Alias(STable *stbl, char *name, TypeDesc *desc);
 ClassSymbol *STable_Add_Class(STable *stbl, char *name);
 ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
 Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
