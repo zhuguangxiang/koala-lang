@@ -29,205 +29,147 @@
 extern "C" {
 #endif
 
+/* Stop code frame loop */
+#define OP_HALT 0x00
+
+/* Pop an object */
+#define OP_POP  0x09
+/* Duplicate object and push it in stack */
+#define OP_DUP  0x0a
+
 /*
-  Stop koala virtual machine
-  no args
+ * push byte integer to stack
+ * size: 1 bytes
  */
-#define OP_HALT 0
-
+#define OP_BPUSH 0x0b
 /*
-  Load constant from constants pool to stack
-  arg: 4 bytes, index of constants pool
-  -------------------------------------------------------
-  val = load(arg)
-  push(val)
+ * push short integer to stack
+ * size: 2 bytes
  */
-#define OP_LOADK  1
+#define OP_SPUSH 0x0c
 
 /*
-  Load module to stack
-  arg: 4 bytes, index of constant pool, module's path
-  -------------------------------------------------------
-  val = load(arg)
-  push(val)
+ * Load constant from constants pool to stack
+ * arg: index of constants pool
+ * size: 2 bytes
  */
-#define OP_LOADM  2
+#define OP_LOADK 0x10
 
 /*
-  Get the module in which the klass is
-  arg: it is loaded into stack
+ * Load package to stack
+ * arg: index of constant pool, package's path
+ * size: 2 bytes
  */
-#define OP_GETM   3
+#define OP_LOADP 0x11
 
 /*
-  Load data from locvars to stack
-  arg: 2 bytes, index of locvars
-  -------------------------------------------------------
-  val = load(arg)
-  push(val)
+ * Load data from local variables's vector to stack
+ * arg: index of local variables' vector
+ * size: 1 bytes
  */
-#define OP_LOAD   4
+#define OP_LOAD   0x12
+#define OP_LOAD_0 0x13
+#define OP_LOAD_1 0x14
+#define OP_LOAD_2 0x15
+#define OP_LOAD_3 0x16
 
 /*
-  Store data from stack to locvars
-  arg: 2 bytes, index of locvars
-  -------------------------------------------------------
-  val = pop()
-  store(val, arg)
+ * Store data from stack to local variables' vector
+ * arg: index of local variables' vector
+ * size: 1 bytes
  */
-#define OP_STORE  5
+#define OP_STORE   0x17
+#define OP_STORE_0 0x18
+#define OP_STORE_1 0x19
+#define OP_STORE_2 0x1a
+#define OP_STORE_3 0x1b
 
 /*
-  Get the field from object
-  arg0: 4 bytes, index of constant pool, field name
-  object is stored in stack
-  -------------------------------------------------------
-  obj = ... load_object()
-  push(obj)
-  obj = pop()
-  val = getfield(obj, arg0)
-  push(val)
+ * Get the field from object
+ * arg: index of constant pool, field's name
+ * size: 2 bytes
+ * NOTE: object is stored in stack
  */
-#define OP_GETFIELD 6
+#define OP_LOAD_FIELD 0x1c
 
 /*
-  Set the field of object
-  arg0: 4 bytes, index of constant pool, field name
-  object is stored in stack
-  -------------------------------------------------------
-  val = ...
-  push(val)
-  obj = load_object()
-  push(obj)
-  obj = pop()
-  val = pop()
-  setfield(obj, arg0, val)
+ * Set the field of object
+ * arg: index of constant pool, field's name
+ * size: 2 bytes
+ * NOTE: object is stored in stack
  */
-#define OP_SETFIELD 7
+#define OP_STORE_FIELD 0x1d
 
 /*
-  Call a function
-  Parameters passed to function are already prepared in stack
-  All parameters are pushed into stack from right to left
-  arg0: 4 bytes, index of constant pool, function's name
-  arg1: 2 bytes, number of arguments
-  -------------------------------------------------------
-  obj = top()
-  func = get_func(obj, arg0)
-  f = new_frame(func)
-  push_func_stack(f)
-  return
+ * Call a function
+ * arg: number of arguments
+ * size: 1 bytes
+ * NOTE:
+ *  Function is already stored in stack
+ *  Parameters passed to function are already stored in stack
+ *  All parameters are pushed into stack from right to left
  */
-#define OP_CALL 8
+#define OP_CALL 0x1e
 
 /*
-  Function's return
-  Return values are already stored in stack
-  no args
+ * Function's return
+ * NOTE: Return values are already stored in stack
  */
-#define OP_RET  9
+#define OP_RETURN 0x1f
 
-/*
-  Number Operations
-  All args, include object, are in stack. Result is also saved in stack.
- */
-#define OP_NUM_START 20
+/* Binaray & Unary operations */
+#define OP_ADD    0x20
+#define OP_SUB    0x21
+#define OP_MUL    0x22
+#define OP_DIV    0x23
+#define OP_MOD    0x24
+#define OP_POWER  0x25
+#define OP_NEG    0x26
 
-#define OP_ADD    20
-#define OP_SUB    21
-#define OP_MUL    22
-#define OP_DIV    23
-#define OP_MOD    24
-#define OP_NEG    25
+#define OP_GT     0x27
+#define OP_GE     0x28
+#define OP_LT     0x29
+#define OP_LE     0x2a
+#define OP_EQ     0x2b
+#define OP_NEQ    0x2c
 
-#define OP_GT     26
-#define OP_GE     27
-#define OP_LT     28
-#define OP_LE     29
-#define OP_EQ     30
-#define OP_NEQ    31
+#define OP_LAND   0x2d
+#define OP_LOR    0x2e
+#define OP_LNOT   0x2f
 
-#define OP_BAND   32
-#define OP_BOR    33
-#define OP_BXOR   34
-#define OP_BNOT   35
-#define OP_LSHIFT 36
-#define OP_RSHIFT 37
+#define OP_BAND   0x30
+#define OP_BOR    0x31
+#define OP_BXOR   0x32
+#define OP_BNOT   0x33
+#define OP_LSHIFT 0x34
+#define OP_RSHIFT 0x35
 
-#define OP_LAND   38
-#define OP_LOR    39
-#define OP_LNOT   40
+/* Control flow, with relative 2 bytes offset */
+#define OP_JMP          0x40
+#define OP_JMP_TRUE     0x41
+#define OP_JMP_FALSE    0x42
+#define OP_JMP_CMP_EQ   0x43
+#define OP_JMP_CMP_NEQ  0x44
+#define OP_JMP_CMP_LT   0x45
+#define OP_JMP_CMP_GT   0x46
+#define OP_JMP_CMP_LE   0x47
+#define OP_JMP_CMP_GE   0x48
+#define OP_JMP_NIL      0x49
+#define OP_JMP_NOTNIL   0x4a
 
-#define OP_NUM_END 40
+/* New object and access it */
+#define OP_NEW          0x50
+#define OP_NEW_ARRAY    0x51
+#define OP_NEW_DICT     0x52
+#define OP_NEW_SET      0x53
+#define OP_NEW_CLOSURE  0x54
+#define OP_ARRAY_LOAD   0x55
+#define OP_ARRAY_STORE  0x56
+#define OP_DICT_LOAD    0x57
+#define OP_DICT_STORE   0x58
 
-#define OP_LOAD0 19
-
-/*
-  Control flow, with relative 4 bytes offset
-*/
-#define OP_JUMP  18
-#define OP_JUMP_TRUE  17
-#define OP_JUMP_FALSE 16
-
-#define OP_CALL0 15
-
-/*
-  New object: like OP_CALL
- */
-#define OP_NEW  50
-
-#define OP_NEWARRAY 51
-#define OP_NEWMAP   52
-#define OP_LOAD_SUBSCR  53
-#define OP_STORE_SUBSCR 54
-
-// #define OP_STRING 14
-// #define OP_LIST   15
-// #define OP_TUPLE  16
-// #define OP_TABLE  17
-// #define OP_ARRAY  18
-
-/*
-  Load constant from constant pool to locvars directly
-  arg0: 4 bytes, index of constant pool
-  arg1: 2 bytes, index of locvars
-  -------------------------------------------------------
-  val = load(arg0)
-  store(val, arg1)
- */
-#define OP2_LOADK 50
-
-/*
-  Get the field from object directly
-  arg0: 4 bytes, index of constant pool, field name
-  arg1: 2 bytes, index of object in locvars
-  -------------------------------------------------------
-  obj = load(arg1)
-  val = getfield(obj, arg0)
-  push(val)
- */
-#define OP2_GETFIELD  51
-
-/*
-  Set the field to object directly
-  arg0: 4 bytes, index of constant pool, field name
-  arg1: 2 bytes, index of object in locvars
-  -------------------------------------------------------
-  val = ...
-  push(val)
-  val = pop()
-  setfield(arg1, arg0, val)
- */
-#define OP2_SETFIELD  52
-
-/*
-  Arthmetic operation: add, sub, mul, div
-  Args are in locvars. Result is saved in stack.
- */
-#define OP2_ADD   53
-#define OP2_SUB   54
-#define OP2_MUL   55
-#define OP2_DIV   56
+int OpCode_ArgCount(uint8 op);
+char *OpCode_String(uint8 op);
 
 #ifdef __cplusplus
 }

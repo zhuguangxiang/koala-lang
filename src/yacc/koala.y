@@ -170,7 +170,7 @@ do {                                           \
 %token STRING
 %token ERROR
 %token ANY
-%token MAP
+%token DICT
 %token SET
 
 %token SELF
@@ -194,7 +194,7 @@ do {                                           \
 %type <TypeDesc> PrimitiveType
 %type <TypeDesc> KlassType
 %type <TypeDesc> FunctionType
-%type <TypeDesc> MapType
+%type <TypeDesc> DictType
 %type <TypeDesc> SetType
 %type <TypeDesc> KeyType
 %type <IdType> IDType
@@ -220,6 +220,7 @@ do {                                           \
 %type <Stmt> FieldDeclaration
 %type <Stmt> ProtoDeclaration
 %type <List> Block
+%type <List> ExprListOrBlock
 %type <List> LocalStatements
 %type <Stmt> LocalStatement
 %type <Stmt> ExprStatement
@@ -246,10 +247,10 @@ do {                                           \
 %type <List> DimExprList
 %type <Expr> SetCreationExpression
 %type <Expr> ArrayOrSetInitializer
-%type <Expr> MapCreationExpression
-%type <Expr> MapInitializer
-%type <List> MapKeyValueList
-%type <Expr> MapKeyValue
+%type <Expr> DictCreationExpression
+%type <Expr> DictInitializer
+%type <List> DictKeyValueList
+%type <Expr> DictKeyValue
 %type <Expr> AnonyFuncExpression
 %type <Operator> UnaryOp
 %type <Expr> UnaryExpression
@@ -273,6 +274,7 @@ do {                                           \
 %token PREC_1
 
 %precedence ID
+%precedence ELLIPSIS
 %precedence '.'
 %precedence ')'
 %precedence '('
@@ -319,7 +321,7 @@ BaseType
   {
     $$ = $1;
   }
-  | MapType
+  | DictType
   {
     $$ = $1;
    }
@@ -336,10 +338,10 @@ ArrayType
   }
   ;
 
-MapType
-  : MAP '[' KeyType ']' Type
+DictType
+  : DICT '[' KeyType ']' Type
   {
-    $$ = TypeDesc_Get_Map($3, $5);
+    $$ = TypeDesc_Get_Dict($3, $5);
   }
   ;
 
@@ -1177,6 +1179,7 @@ LocalStatement
 ExprStatement
   : Expression ';'
   {
+    /* only allowed call expression */
     $$ = Stmt_From_Expr($1);
   }
   ;
@@ -1418,11 +1421,11 @@ Atom
   {
     $$ = $1;
   }
-  | MapCreationExpression
+  | DictCreationExpression
   {
     $$ = $1;
   }
-  | MapInitializer
+  | DictInitializer
   {
     $$ = $1;
   }
@@ -1545,79 +1548,79 @@ ArrayOrSetInitializer
   }
   ;
 
-MapCreationExpression
-  : MapType MapInitializer
+DictCreationExpression
+  : DictType DictInitializer
   {
     DeclareType(type, $1, @1);
-    $$ = Expr_From_Map(type, $2);
+    $$ = Expr_From_Dict(type, $2);
     SetPosition($$->pos, @1);
   }
-  | MapType
+  | DictType
   {
     DeclareType(type, $1, @1);
-    $$ = Expr_From_Map(type, NULL);
+    $$ = Expr_From_Dict(type, NULL);
     SetPosition($$->pos, @1);
   } %prec PREC_0
   ;
 
-MapInitializer
-  : '{' MapKeyValueList '}'
+DictInitializer
+  : '{' DictKeyValueList '}'
   {
-    $$ = Expr_From_MapListExpr($2);
+    $$ = Expr_From_DictListExpr($2);
     SetPosition($$->pos, @1);
   }
-  | '{' MapKeyValueList ',' '}'
+  | '{' DictKeyValueList ',' '}'
   {
     /* last one with comma */
-    $$ = Expr_From_MapListExpr($2);
+    $$ = Expr_From_DictListExpr($2);
     SetPosition($$->pos, @1);
   }
   ;
 
-MapKeyValueList
-  : MapKeyValue
+DictKeyValueList
+  : DictKeyValue
   {
     $$ = Vector_New();
     Vector_Append($$, $1);
   }
-  | MapKeyValueList ',' MapKeyValue
+  | DictKeyValueList ',' DictKeyValue
   {
     $$ = $1;
     Vector_Append($$, $3);
   }
   ;
 
-MapKeyValue
+DictKeyValue
   : Expression ':' Expression
   {
-    $$ = Expr_From_MapEntry($1, $3);
+    $$ = Expr_From_DictEntry($1, $3);
     SetPosition($$->pos, @1);
   }
   | Expression ':' Expression ';'
   {
     /* string newline will insert semicolon automatically */
-    $$ = Expr_From_MapEntry($1, $3);
+    $$ = Expr_From_DictEntry($1, $3);
     SetPosition($$->pos, @1);
   }
   ;
 
 AnonyFuncExpression
-  : FUNC '(' ParameterList ')' ReturnList Block
+  : FUNC '(' ParameterList ')' ReturnList ExprListOrBlock
   {
     $$ = Expr_From_Anony($3, $5, $6);
     SetPosition($$->pos, @1);
   }
-  | FUNC '(' ParameterList ')' Block
+  | FUNC '(' ParameterList ')' ExprListOrBlock
   {
     $$ = Expr_From_Anony($3, NULL, $5);
     SetPosition($$->pos, @1);
   }
-  | FUNC '(' ')' ReturnList Block
+  | FUNC '(' ')' ReturnList ExprListOrBlock
   {
     $$ = Expr_From_Anony(NULL, $4, $5);
     SetPosition($$->pos, @1);
   }
-  | FUNC '(' ')' Block
+  | FUNC '(' ')' ExprListOrBlock
   {
     $$ = Expr_From_Anony(NULL, NULL, $4);
     SetPosition($$->pos, @1);
@@ -1627,8 +1630,38 @@ AnonyFuncExpression
     YYSyntax_ErrorMsg_Clear(@2, "invalid anonymous function");
     $$ = NULL;
   }
+  | '(' ParameterList ')' ReturnList ExprListOrBlock
+  {
+
+  }
+  | '(' ParameterList ')' ExprListOrBlock
+  {
+
+  }
+  | '(' ')' ReturnList ExprListOrBlock
+  {
+
+  }
+  | '(' ')' ExprListOrBlock
+  {
+
+  }
   ;
 
+ExprListOrBlock
+  : '{' ExpressionList '}'
+  {
+
+  }
+  | '{' ExpressionList ';' '}'
+  {
+
+  }
+  | Block
+  {
+    $$ = $1;
+  }
+  ;
 
 UnaryExpression
   : PrimaryExpression
@@ -1649,7 +1682,7 @@ UnaryOp
   }
   | '-'
   {
-    $$ = UNARY_MINUS;
+    $$ = UNARY_NEG;
   }
   | '~'
   {
@@ -1737,12 +1770,12 @@ RelationExpression
     $$ = Expr_From_Binary(BINARY_GT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression LE  ShiftExpression
+  | RelationExpression LE ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_LE, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression GE  ShiftExpression
+  | RelationExpression GE ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_GE, $1, $3);
     SetPosition($$->pos, @1);

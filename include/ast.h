@@ -56,8 +56,10 @@ void Free_IdTypeList(Vector *vec);
 
 /* unary operator kind */
 typedef enum unaryopkind {
-  /* +, - */
-  UNARY_PLUS = 1, UNARY_MINUS,
+  /* + */
+  UNARY_PLUS = 1,
+  /* - */
+  UNARY_NEG,
   /* ~ */
   UNARY_BIT_NOT,
   /* ! */
@@ -93,12 +95,12 @@ typedef enum exprkind {
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, SLICE_KIND,
   /* array list */
   ARRAY_LIST_KIND,
-  /* map list */
-  MAP_LIST_KIND,
-  /* map entry */
-  MAP_ENTRY_KIND,
-  /* array, map, set, anony func */
-  ARRAY_KIND, MAP_KIND, SET_KIND, ANONY_FUNC_KIND,
+  /* dict list */
+  DICT_LIST_KIND,
+  /* dict entry */
+  DICT_ENTRY_KIND,
+  /* array, dict, set, anony func */
+  ARRAY_KIND, DICT_KIND, SET_KIND, ANONY_FUNC_KIND,
   EXPR_KIND_MAX
 } ExprKind;
 
@@ -218,7 +220,7 @@ Expr *Expr_From_Slice(Expr *start, Expr *end, Expr *left);
 #define Expr_Is_Call(exp) \
   (((exp) != NULL && (exp)->kind == CALL_KIND) ? 1 : 0)
 
-/* array, set or map list expression */
+/* array, set or dict list expression */
 typedef struct listexpr {
   EXPR_HEAD
   /* nesting count  */
@@ -239,24 +241,24 @@ typedef struct arrayexpr {
 
 Expr *Parser_New_Array(Vector *vec, int dims, TypeWrapper type, Expr *listExp);
 
-/* map entry expression */
-typedef struct mapentryexpr {
+/* dict entry expression */
+typedef struct dictentryexpr {
   EXPR_HEAD
   Expr *key;
   Expr *val;
-} MapEntryExpr;
+} DictEntryExpr;
 
-Expr *Expr_From_MapEntry(Expr *k, Expr *v);
+Expr *Expr_From_DictEntry(Expr *k, Expr *v);
 
-/* new map expression */
-typedef struct mapexpr {
+/* new dict expression */
+typedef struct dictexpr {
   EXPR_HEAD
   TypeWrapper type;
   ListExpr *listExp;
-} MapExpr;
+} DictExpr;
 
-Expr *Expr_From_MapListExpr(Vector *vec);
-Expr *Expr_From_Map(TypeWrapper type, Expr *listExp);
+Expr *Expr_From_DictListExpr(Vector *vec);
+Expr *Expr_From_Dict(TypeWrapper type, Expr *listExp);
 
 /* new set expression */
 typedef struct setexpr {

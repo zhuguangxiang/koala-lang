@@ -80,19 +80,6 @@ typedef struct symbol {
   SYMBOL_HEAD
 } Symbol;
 
-/* constant value */
-typedef struct constvalue {
-  /* see BASE_XXX in typedesc.h */
-  int kind;
-  union {
-    uchar ch;
-    int64 ival;
-    float64 fval;
-    int bval;
-    char *str;
-  };
-} ConstValue;
-
 /* constant and variable symbol */
 typedef struct varsymbol {
   SYMBOL_HEAD

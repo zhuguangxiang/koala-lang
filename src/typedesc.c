@@ -27,6 +27,33 @@
 
 LOGGER(0)
 
+void Const_Show(ConstValue *val, char *buf)
+{
+  switch (val->kind) {
+  case 0:
+    sprintf(buf, "(nil)");
+    break;
+  case BASE_INT:
+    sprintf(buf, "%lld", val->ival);
+    break;
+  case BASE_FLOAT:
+    sprintf(buf, "%.16lf", val->fval);
+    break;
+  case BASE_BOOL:
+    sprintf(buf, "%s", val->bval ? "true" : "false");
+    break;
+  case BASE_STRING:
+    sprintf(buf, "%s", val->str);
+    break;
+  case BASE_CHAR:
+    sprintf(buf, "%s", val->ch.data);
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
 static BaseDesc Byte_Type;
 static BaseDesc Char_Type;
 static BaseDesc Int_Type;
@@ -40,15 +67,17 @@ struct basic_type_s {
   int kind;
   char *str;
   BaseDesc *type;
+  char *pkgpath;
+  char *typestr;
 } basic_types[] = {
-  {BASE_BYTE,   "byte",   &Byte_Type   },
-  {BASE_CHAR,   "char",   &Char_Type   },
-  {BASE_INT,    "int",    &Int_Type    },
-  {BASE_FLOAT,  "float",  &Float_Type  },
-  {BASE_BOOL,   "bool",   &Bool_Type   },
-  {BASE_STRING, "string", &String_Type },
-  {BASE_ERROR,  "error",  &Error_Type  },
-  {BASE_ANY,    "any",    &Any_Type    },
+  {BASE_BYTE,   "byte",   &Byte_Type,   "lang", "Byte"   },
+  {BASE_CHAR,   "char",   &Char_Type,   "lang", "Char"   },
+  {BASE_INT,    "int",    &Int_Type,    "lang", "Integer"},
+  {BASE_FLOAT,  "float",  &Float_Type,  "lang", "Float"  },
+  {BASE_BOOL,   "bool",   &Bool_Type,   "lang", "Bool"   },
+  {BASE_STRING, "string", &String_Type, "lang", "String" },
+  {BASE_ERROR,  "error",  &Error_Type,  "lang", "Error"  },
+  {BASE_ANY,    "any",    &Any_Type,    "lang", "Any"    },
 };
 
 static struct basic_type_s *get_basic(int kind)
@@ -89,10 +118,11 @@ static void init_basictypes(void)
     base->type = p->kind;
     Init_HashNode(&base->hnode, base);
     base->desc = AtomString_New((char *)&p->kind);
+    base->pkgpath = p->pkgpath;
+    base->typestr = p->typestr;
     /* no need free base descriptors */
     base->refcnt = 2;
-    result = HashTable_Insert(&descTable, &base->hnode);
-    assert(!result);
+    HashTable_Insert(&descTable, &base->hnode);
   }
 }
 
@@ -211,20 +241,20 @@ static void __array_fini(TypeDesc *desc)
   TYPE_DECREF(array->base);
 }
 
-static void __map_tostring(TypeDesc *desc, char *buf)
+static void __dict_tostring(TypeDesc *desc, char *buf)
 {
-  MapDesc *map = (MapDesc *)desc;
-  strcpy(buf, "map[");
-  TypeDesc_ToString(map->key, buf + strlen(buf));
+  DictDesc *dict = (DictDesc *)desc;
+  strcpy(buf, "dict[");
+  TypeDesc_ToString(dict->key, buf + strlen(buf));
   strcpy(buf + strlen(buf), "]");
-  TypeDesc_ToString(map->val, buf + strlen(buf));
+  TypeDesc_ToString(dict->val, buf + strlen(buf));
 }
 
-static void __map_fini(TypeDesc *desc)
+static void __dict_fini(TypeDesc *desc)
 {
-  MapDesc *map = (MapDesc *)desc;
-  TYPE_DECREF(map->key);
-  TYPE_DECREF(map->val);
+  DictDesc *dict = (DictDesc *)desc;
+  TYPE_DECREF(dict->key);
+  TYPE_DECREF(dict->val);
 }
 
 static void __set_tostring(TypeDesc *desc, char *buf)
@@ -264,7 +294,7 @@ struct typedesc_ops_s {
   {__klass_tostring, __klass_fini},
   {__proto_tostring, __proto_fini},
   {__array_tostring, __array_fini},
-  {__map_tostring,   __map_fini},
+  {__dict_tostring,  __dict_fini},
   {__set_tostring,   __set_fini},
   {__varg_tostring,  __varg_fini},
 };
@@ -413,7 +443,7 @@ TypeDesc *TypeDesc_Get_Array(int dims, TypeDesc *base)
   return (TypeDesc *)desc;
 }
 
-TypeDesc *TypeDesc_Get_Map(TypeDesc *key, TypeDesc *val)
+TypeDesc *TypeDesc_Get_Dict(TypeDesc *key, TypeDesc *val)
 {
   /* Mtype:type */
   DeclareStringBuf(buf);
@@ -425,7 +455,7 @@ TypeDesc *TypeDesc_Get_Map(TypeDesc *key, TypeDesc *val)
     return exist;
   }
 
-  DeclareTypeDesc(desc, TYPE_MAP, MapDesc, buf.data);
+  DeclareTypeDesc(desc, TYPE_DICT, DictDesc, buf.data);
   TYPE_INCREF(key);
   desc->key = key;
   TYPE_INCREF(val);
@@ -525,7 +555,7 @@ TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg)
       s += 1;
       TypeDesc *key = String_To_TypeDesc(&s, 0, 0);
       TypeDesc *val = String_To_TypeDesc(&s, 0, 0);
-      desc = TypeDesc_Get_Map(key, val);
+      desc = TypeDesc_Get_Dict(key, val);
       break;
     }
     case 'S': {

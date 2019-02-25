@@ -41,7 +41,7 @@ typedef enum desckind {
   TYPE_KLASS,
   TYPE_PROTO,
   TYPE_ARRAY,
-  TYPE_MAP,
+  TYPE_DICT,
   TYPE_SET,
   TYPE_VARG
 } DescKind;
@@ -62,6 +62,21 @@ typedef enum desckind {
 #define BASE_STRING 's'
 #define BASE_ERROR  'e'
 #define BASE_ANY    'A'
+
+/* constant value */
+typedef struct constvalue {
+  /* see BASE_XXX in typedesc.h */
+  int kind;
+  union {
+    uchar ch;
+    int64 ival;
+    float64 fval;
+    int bval;
+    char *str;
+  };
+} ConstValue;
+
+void Const_Show(ConstValue *val, char *buf);
 
 #define VARG_ANY_DESC "..."
 
@@ -107,7 +122,9 @@ void Fini_TypeDesc(void);
 /* base type */
 typedef struct basicdesc {
   TYPEDESC_HEAD
-  int type; /* one of BASE_XXX */
+  int type;       /* one of BASE_XXX */
+  char *pkgpath;  /* <path> */
+  char *typestr;  /* <type> */
 } BaseDesc;
 
 /* class or trait */
@@ -131,12 +148,12 @@ typedef struct arraydesc {
   TypeDesc *base;
 } ArrayDesc;
 
-/* map */
-typedef struct mapdesc {
+/* dictionary */
+typedef struct dictdesc {
   TYPEDESC_HEAD
   TypeDesc *key;
   TypeDesc *val;
-} MapDesc;
+} DictDesc;
 
 /* set */
 typedef struct setdesc {
@@ -174,8 +191,8 @@ TypeDesc *TypeDesc_Get_Proto(Vector *arg, Vector *ret);
 /* new an array typedesc */
 TypeDesc *TypeDesc_Get_Array(int dims, TypeDesc *base);
 
-/* new a map typedesc */
-TypeDesc *TypeDesc_Get_Map(TypeDesc *key, TypeDesc *val);
+/* new a dict typedesc */
+TypeDesc *TypeDesc_Get_Dict(TypeDesc *key, TypeDesc *val);
 
 /* new a set typedesc */
 TypeDesc *TypeDesc_Get_Set(TypeDesc *base);

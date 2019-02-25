@@ -37,7 +37,8 @@ typedef struct inst {
   int argc;
   uint8 op;
   ConstValue arg;
-  int upbytes;  /* break and continue statements */
+  /* break and continue statements */
+  int upbytes;
 } Inst;
 
 #define JMP_BREAK    1
@@ -51,15 +52,15 @@ typedef struct jmp_inst {
 typedef struct codeblock {
   int bytes;
   struct list_head insts;
-  struct codeblock *next; /* control flow */
-  int ret;                /* false, no OP_RET, needs add one */
+  /* control flow */
+  struct codeblock *next;
+  /* false, no OP_RET, needs add one */
+  int ret;
 } CodeBlock;
 
 int OpCode_ArgCount(uint8 op);
 char *OpCode_String(uint8 op);
 
-Inst *Inst_New(uint8 op, ConstValue *val);
-void Inst_Free(Inst *i);
 Inst *Inst_Append(CodeBlock *b, uint8 op, ConstValue *val);
 Inst *Inst_Append_NoArg(CodeBlock *b, uint8 op);
 JmpInst *JmpInst_New(Inst *inst, int type);
@@ -83,33 +84,23 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
   Inst_Append(block, OP_STORE, &val); \
 })
 
-#define CODE_GETFIELD(block, name) \
+#define CODE_LOAD_FIELD(block, name) \
 ({ \
-  Inst_Append_NoArg(block, OP_LOAD0); \
+  Inst_Append_NoArg(block, OP_LOAD_0); \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst_Append(block, OP_GETFIELD, &val); \
+  Inst_Append(block, OP_LOAD_FIELD, &val); \
+})
+
+#define CODE_STORE_FIELD(block, name) \
+({ \
+  Inst_Append_NoArg(block, OP_LOAD_0); \
+  ConstValue val = {.kind = BASE_STRING, .str = name}; \
+  Inst_Append(block, OP_STORE_FIELD, &val); \
 })
 
 #define CODE_CALL(block, name, argc) \
 ({ \
-  Inst_Append_NoArg(block, OP_LOAD0); \
-  ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst *i = Inst_Append(block, OP_CALL, &val); \
-  i->argc = argc; \
-})
-
-/* FIXME: how to get package's var/const */
-#define CODE_PKG_GETFIELD(block, name) \
-({ \
-  Inst_Append_NoArg(block, OP_LOAD0); \
-  ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst_Append(block, OP_GETFIELD, &val); \
-})
-
-/* FIXME: how to get package's func */
-#define CODE_PKG_CALL(block, name, argc) \
-({ \
-  Inst_Append_NoArg(block, OP_LOAD0); \
+  Inst_Append_NoArg(block, OP_LOAD_0); \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
   Inst *i = Inst_Append(block, OP_CALL, &val); \
   i->argc = argc; \

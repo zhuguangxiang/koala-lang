@@ -59,7 +59,7 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
     SELF, SUPER, TOKEN_NIL, TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
     ')', ']', '}',
-    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS, MAP, SET
+    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS, DICT, SET
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
@@ -179,7 +179,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "string"         { YY_RETURN(STRING);          }
 "error"          { YY_RETURN(ERROR);           }
 "any"            { YY_RETURN(ANY);             }
-"map"            { YY_RETURN(MAP);             }
+"dict"           { YY_RETURN(DICT);            }
 "set"            { YY_RETURN(SET);             }
 
 "self"           { YY_RETURN(SELF);            }

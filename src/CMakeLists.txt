@@ -31,7 +31,7 @@ SET_SOURCE_FILES_PROPERTIES(koala_yacc.c GENERATED)
 SET (KOALA_COMMON_SRC
   log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
   typedesc.c cache.c stringbuf.c properties.c atomtable.c image.c options.c
-  stringex.c pkgnode.c
+  stringex.c pkgnode.c opcode.c
   )
 ADD_LIBRARY(koala-common STATIC ${KOALA_COMMON_SRC})
 set_target_properties(koala-common PROPERTIES VERSION 0.8.5 SOVERSION 0)

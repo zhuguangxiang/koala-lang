@@ -25,7 +25,7 @@
 
 LOGGER(0)
 
-struct frame {
+typedef struct frame {
   /* back frame */
   struct frame *back;
   /* KoalaState */
@@ -42,20 +42,20 @@ struct frame {
   int size;
   /* local variable's memory */
   Object *locvars[0];
-};
+} CodeFrame;
 
 #define TOP() Stack_Top(stack)
 #define POP() Stack_Pop(stack)
 #define PUSH(val) Stack_Push(stack, (val))
 #define NEXT_CODE(frame, codes) codes[++(frame)->lasti]
 
-static inline uint8 fetch_byte(KoalaFrame *frame, CodeObject *code)
+static inline uint8 fetch_byte(CodeFrame *frame, CodeObject *code)
 {
   assert(frame->lasti < code->kf.size);
   return NEXT_CODE(frame, code->kf.codes);
 }
 
-static uint16 fetch_2bytes(KoalaFrame *frame, CodeObject *code)
+static inline uint16 fetch_2bytes(CodeFrame *frame, CodeObject *code)
 {
   /* endian? */
   assert(frame->lasti < code->kf.size);
@@ -64,7 +64,7 @@ static uint16 fetch_2bytes(KoalaFrame *frame, CodeObject *code)
   return (h << 8) + (l << 0);
 }
 
-static uint32 fetch_4bytes(KoalaFrame *frame, CodeObject *code)
+static inline uint32 fetch_4bytes(CodeFrame *frame, CodeObject *code)
 {
   /* endian? */
   assert(frame->lasti < code->kf.size);
@@ -75,7 +75,7 @@ static uint32 fetch_4bytes(KoalaFrame *frame, CodeObject *code)
   return (h2 << 24) + (h1 << 16) + (l2 << 8) + (l1 << 0);
 }
 
-static inline uint8 fetch_opcode(KoalaFrame *frame, CodeObject *code)
+static inline uint8 fetch_opcode(CodeFrame *frame, CodeObject *code)
 {
   return fetch_byte(frame, code);
 }
@@ -85,13 +85,13 @@ static inline Object *index_const(int index, Object *consts)
   return Tuple_Get(consts, index);
 }
 
-static inline Object *load(KoalaFrame *frame, int index)
+static inline Object *load(CodeFrame *frame, int index)
 {
   assert(index < frame->size);
   return frame->locvars[index];
 }
 
-static void store(KoalaFrame *frame, int index, Object *val)
+static inline void store(CodeFrame *frame, int index, Object *val)
 {
   assert(val != NULL);
   assert(index < frame->size);
@@ -100,17 +100,16 @@ static void store(KoalaFrame *frame, int index, Object *val)
   frame->locvars[index] = val;
 }
 
-static
-void push_new_frame(KoalaState *ks, Object *code, Object *ob, Object *args)
+static void push_frame(KoalaState *ks, Object *code, Object *ob, Object *args)
 {
-  if (ks->frame_depth >= MAX_FRAME_DEPTH) {
+  if (ks->depth >= MAX_FRAME_DEPTH) {
     Log_Error("StackOverflow");
     exit(-1);
   }
   CodeObject *co = (CodeObject *)code;
   int size = IsKCode(code) ? Vector_Size(&co->kf.locvec) : 0;
-  size = sizeof(KoalaFrame) + size * sizeof(Object *);
-  KoalaFrame *frame = Malloc(size);
+  size = sizeof(CodeFrame) + size * sizeof(Object *);
+  CodeFrame *frame = Malloc(size);
   frame->code = code;
   frame->ob = ob;
   frame->args = args;
@@ -119,24 +118,24 @@ void push_new_frame(KoalaState *ks, Object *code, Object *ob, Object *args)
   frame->size = size;
   frame->back = ks->frame;
   ks->frame = frame;
-  ks->frame_depth++;
+  ks->depth++;
 }
 
-static void free_frame(KoalaFrame *frame)
+static void free_frame(CodeFrame *frame)
 {
   for (int i = 0; i < frame->size; i++)
     OB_DECREF(frame->locvars[i]);
   Mfree(frame);
 }
 
-static void pop_top_frame(KoalaFrame *frame)
+static void pop_frame(CodeFrame *frame)
 {
   KoalaState *ks = frame->ks;
   ks->frame = frame->back;
   free_frame(frame);
 }
 
-static void loop_frame(KoalaFrame *f)
+static void loop_frame(CodeFrame *f)
 {
   int loopflag = 1;
   KoalaState *ks = f->ks;
@@ -153,11 +152,11 @@ static void loop_frame(KoalaFrame *f)
     inst = fetch_opcode(f, code);
     switch (inst) {
       case OP_HALT: {
-        exit(0);
+        loopflag = 0;
         break;
       }
       case OP_LOADK: {
-        index = fetch_4bytes(f, code);
+        index = fetch_2bytes(f, code);
         ob = index_const(index, consts);
         OB_INCREF(ob);
         PUSH(ob);
@@ -176,8 +175,8 @@ static void loop_frame(KoalaFrame *f)
         store(f, index, ob);
         break;
       }
-      case OP_RET: {
-        pop_top_frame(f);
+      case OP_RETURN: {
+        pop_frame(f);
         loopflag = 0;
         break;
       }
@@ -189,7 +188,7 @@ static void loop_frame(KoalaFrame *f)
   }
 }
 
-static void check_arguments(KoalaFrame *f)
+static void check_arguments(CodeFrame *f)
 {
   int size = Tuple_Size(f->args);
   int argc = Code_Get_Argc(f->code);
@@ -200,7 +199,7 @@ static void check_arguments(KoalaFrame *f)
   }
 }
 
-static void prepare_kargs(KoalaFrame *f)
+static void prepare_kargs(CodeFrame *f)
 {
   OB_INCREF(f->ob);
   f->locvars[0] = f->ob;
@@ -220,7 +219,7 @@ static void prepare_kargs(KoalaFrame *f)
   }
 }
 
-static inline void run_kfunction(KoalaFrame *f)
+static inline void run_kfunction(CodeFrame *f)
 {
   if (f->lasti < 0) {
     check_arguments(f);
@@ -229,7 +228,7 @@ static inline void run_kfunction(KoalaFrame *f)
   loop_frame(f);
 }
 
-static void run_cfunction(KoalaFrame *f)
+static void run_cfunction(CodeFrame *f)
 {
   KoalaState *ks = f->ks;
   Stack *stack = &ks->stack;
@@ -252,15 +251,15 @@ static void run_cfunction(KoalaFrame *f)
     }
     Tuple_Free(result);
   }
-  pop_top_frame(f);
+  pop_frame(f);
 }
 
 void Koala_RunCode(Object *code, Object *ob, Object *args)
 {
-  KoalaState *ks = Current_KoalaState();
-  push_new_frame(ks, code, ob, args);
+  KoalaState *ks = Current_State();
+  push_frame(ks, code, ob, args);
 
-  KoalaFrame *f;
+  CodeFrame *f;
   while ((f = ks->frame) != NULL) {
     if (IsKCode(f->code)) {
       run_kfunction(f);

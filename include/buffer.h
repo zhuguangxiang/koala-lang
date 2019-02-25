@@ -66,7 +66,7 @@ uint8 *Buffer_RawData(Buffer *buf);
 /* get the number of stored bytes in the buffer */
 #define Buffer_Size(buf) ((buf)->size)
 /* write one byte */
-#define Buffer_Write_Byte(buf, data) Buffer_Write(buf, &data, 1)
+#define Buffer_Write_Byte(buf, data) Buffer_Write(buf, (uint8 *)&data, 1)
 /* write two bytes */
 #define Buffer_Write_2Bytes(buf, data) Buffer_Write(buf, (uint8 *)&data, 2)
 /* write four bytes */

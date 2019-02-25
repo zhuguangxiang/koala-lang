@@ -16,7 +16,7 @@ void test_image(void)
   TYPE_INCREF(desc);
   Vector_Append(ret, desc);
   TypeDesc *proto = TypeDesc_Get_Proto(NULL, ret);
-  uint8 psudo[4] = {OP_LOAD, OP_LOADK, OP_ADD, OP_RET};
+  uint8 psudo[4] = {OP_LOAD, OP_LOADK, OP_ADD, OP_RETURN};
   KImage_Add_Func(image, "Foo", proto, psudo, 4);
   desc = TypeDesc_Get_Base(BASE_STRING);
   KImage_Add_Var(image, "Greeting", desc, 0);

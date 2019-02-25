@@ -124,7 +124,7 @@ static void merge_parser_unit(ParserState *ps)
     /* if no return opcode, then add one */
     if (!b->ret) {
       Log_Debug("add 'return' to function '%s'", funcSym->name);
-      Inst_Append_NoArg(b, OP_RET);
+      Inst_Append_NoArg(b, OP_RETURN);
     }
     /* save codeblock to function symbol */
     funcSym->code = u->block;
@@ -740,13 +740,10 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
   ParserUnit *u = ps->u;
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
     /* module or class variable, global variable */
-    Inst_Append_NoArg(u->block, OP_LOAD0);
-    ConstValue val = {.kind = BASE_STRING, .str = varSym->name};
-    Inst_Append(u->block, OP_SETFIELD, &val);
+    CODE_STORE_FIELD(u->block, varSym->name);
   } else {
     /* others are local variables */
-    ConstValue val = {.kind = BASE_INT, .ival = varSym->index};
-    Inst_Append(u->block, OP_STORE, &val);
+    CODE_STORE(u->block, varSym->index);
   }
 }
 
@@ -1008,7 +1005,7 @@ static void parse_return_stmt(ParserState *ps, Stmt *stmt)
   /* FIXME: all control flow branches to check
      need include returns' count in OP_RET n?
    */
-  Inst_Append_NoArg(u->block, OP_RET);
+  Inst_Append_NoArg(u->block, OP_RETURN);
   u->block->ret = 1;
 }
 

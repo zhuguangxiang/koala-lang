@@ -46,7 +46,7 @@ static void code_current_module_class(ParserState *ps, void *arg)
     } else {
       /* load variable */
       Log_Debug("load '%s' variable", sym->name);
-      CODE_GETFIELD(u->block, sym->name);
+      CODE_LOAD_FIELD(u->block, sym->name);
     }
   } else {
     assert(sym->kind == SYM_FUNC);
@@ -59,7 +59,7 @@ static void code_current_module_class(ParserState *ps, void *arg)
     } else {
       /* load function */
       Log_Debug("load '%s' function", sym->name);
-      CODE_GETFIELD(u->block, sym->name);
+      CODE_LOAD_FIELD(u->block, sym->name);
     }
   }
 }
@@ -122,11 +122,13 @@ static void code_up_class(ParserState *ps, void *arg)
       /* Id is const/var, but it's a func reference, call function */
       Log_Debug("call '%s' function(var)", sym->name);
       int argc = Vector_Size(((CallExpr *)right)->args);
-      CODE_PKG_CALL(u->block, sym->name, argc);
+      //FIXME:
+      //CODE_PKG_CALL(u->block, sym->name, argc);
     } else {
       /* load variable */
       Log_Debug("load '%s' variable", sym->name);
-      CODE_PKG_GETFIELD(u->block, sym->name);
+      //FIXME:
+      //CODE_PKG_GETFIELD(u->block, sym->name);
     }
   } else {
     assert(sym->kind == SYM_FUNC);
@@ -135,11 +137,13 @@ static void code_up_class(ParserState *ps, void *arg)
       /* call function */
       Log_Debug("call '%s' function", sym->name);
       int argc = Vector_Size(((CallExpr *)right)->args);
-      CODE_PKG_CALL(u->block, sym->name, argc);
+      //FIXME:
+      //CODE_PKG_CALL(u->block, sym->name, argc);
     } else {
       /* load function */
       Log_Debug("load '%s' function", sym->name);
-      CODE_PKG_GETFIELD(u->block, sym->name);
+      //FIXME:
+      //CODE_PKG_GETFIELD(u->block, sym->name);
     }
   }
 }

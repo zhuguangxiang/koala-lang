@@ -32,8 +32,6 @@
 extern "C" {
 #endif
 
-typedef struct frame KoalaFrame;
-
 #define MAX_STACK_SIZE 8
 #define MAX_FRAME_DEPTH 16
 
@@ -43,8 +41,8 @@ typedef struct koalastate {
   struct list_head ksnode;
 
   /* top frame of function frame stack */
-  KoalaFrame *frame;
-  int frame_depth;
+  void *frame;
+  int depth;
 
   /* store private data per-task */
   Object *map;
@@ -66,7 +64,7 @@ Object *Koala_Get_Value(Object *ob, char *name);
 void Koala_RunTask(Object *code, Object *ob, Object *args);
 void Koala_RunCode(Object *code, Object *ob, Object *args);
 void Koala_Main(Options *opts);
-#define Current_KoalaState() ((KoalaState *)task_get_private())
+#define Current_State() ((KoalaState *)task_get_private())
 
 #ifdef __cplusplus
 }
