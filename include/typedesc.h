@@ -41,7 +41,7 @@ typedef enum desckind {
   TYPE_KLASS,
   TYPE_PROTO,
   TYPE_ARRAY,
-  TYPE_DICT,
+  TYPE_MAP,
   TYPE_SET,
   TYPE_VARG
 } DescKind;
@@ -148,12 +148,12 @@ typedef struct arraydesc {
   TypeDesc *base;
 } ArrayDesc;
 
-/* dictionary */
-typedef struct dictdesc {
+/* map */
+typedef struct mapdesc {
   TYPEDESC_HEAD
   TypeDesc *key;
   TypeDesc *val;
-} DictDesc;
+} MapDesc;
 
 /* set */
 typedef struct setdesc {
@@ -191,8 +191,8 @@ TypeDesc *TypeDesc_Get_Proto(Vector *arg, Vector *ret);
 /* new an array typedesc */
 TypeDesc *TypeDesc_Get_Array(int dims, TypeDesc *base);
 
-/* new a dict typedesc */
-TypeDesc *TypeDesc_Get_Dict(TypeDesc *key, TypeDesc *val);
+/* new a map typedesc */
+TypeDesc *TypeDesc_Get_Map(TypeDesc *key, TypeDesc *val);
 
 /* new a set typedesc */
 TypeDesc *TypeDesc_Get_Set(TypeDesc *base);

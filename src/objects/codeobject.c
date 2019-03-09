@@ -26,53 +26,66 @@
 
 LOGGER(0)
 
-static CodeObject *code_new(CodeKind kind, TypeDesc *proto)
+Object *Code_New(char *name, TypeDesc *proto, uint8 *codes, int size)
+{
+  CodeObject *code = Malloc(sizeof(CodeObject) + sizeof(CodeInfo));
+  Init_Object_Head(code, &Code_Klass);
+  TYPE_INCREF(proto);
+  code->name = name;
+  code->kind = KCODE_KIND;
+  code->proto = proto;
+  CodeInfo *ci = (CodeInfo *)(code + 1);
+  Vector_Init(&ci->locvec);
+  ci->codes = codes;
+  ci->size = size;
+  code->codeinfo = ci;
+  return (Object *)code;
+}
+
+static Object *cfunc_new(char *name, TypeDesc *proto, cfunc_t func)
 {
   CodeObject *code = Malloc(sizeof(CodeObject));
   Init_Object_Head(code, &Code_Klass);
   TYPE_INCREF(proto);
-  code->kind = kind;
+  code->name = name;
+  code->kind = CFUNC_KIND;
   code->proto = proto;
-  return code;
-}
-
-Object *KCode_New(uint8 *codes, int size, TypeDesc *proto)
-{
-  CodeObject *code = code_new(CODE_KLANG, proto);
-  code->kf.codes = codes;
-  code->kf.size = size;
+  code->cfunc = func;
   return (Object *)code;
 }
 
-Object *CCode_New(cfunc cf, TypeDesc *proto)
+Object *Code_From_CFunction(CFunctionDef *f)
 {
-  CodeObject *code = code_new(CODE_CLANG, proto);
-  code->cf = cf;
-  return (Object *)code;
+  Vector *rdesc = String_ToTypeList(f->rdesc);
+  Vector *pdesc = String_ToTypeList(f->pdesc);
+  TypeDesc *proto = TypeDesc_Get_Proto(pdesc, rdesc);
+  return cfunc_new(f->name, proto, f->func);
 }
 
-void CodeObject_Free(Object *ob)
+void Code_Free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Code_Klass);
   CodeObject *code = (CodeObject *)ob;
 
   TYPE_DECREF(code->proto);
   if (IsKCode(code)) {
-    //FIXME
+    CodeInfo *ci = code->codeinfo;
+    Mfree(ci->codes);
   }
 
   Mfree(ob);
 }
 
-int KCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos)
+int Code_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int index)
 {
   OB_ASSERT_KLASS(ob, Code_Klass);
   CodeObject *code = (CodeObject *)ob;
-  assert(IsKCode(code));
+  assert(IsKCode(ob));
+  CodeInfo *ci = code->codeinfo;
 
-  MemberDef *member = MemberDef_New(MEMBER_VAR, name, desc, 0);
-  member->offset = pos;
-  Vector_Append(&code->kf.locvec, member);
+  MNode *m = MNode_New(VAR_KIND, name, desc);
+  m->offset = index;
+  Vector_Append(&ci->locvec, m);
   return 0;
 }
 
@@ -87,19 +100,19 @@ int Code_Get_Argc(Object *ob)
 static Object *__code_disassemble(Object *ob, Object *args)
 {
   OB_ASSERT_KLASS(ob, Code_Klass);
-  assert(!args);
   CodeObject *cob = (CodeObject *)ob;
   //FIXME
   return NULL;
 }
 
-static FuncDef code_funcs[] = {
-  {"DisAssemble", NULL, NULL, __code_disassemble},
+static CFunctionDef code_funcs[] = {
+  {"Disassemble", NULL, NULL, __code_disassemble},
   {NULL}
 };
 
 void Init_Code_Klass(void)
 {
+  Init_Klass(&Code_Klass, NULL);
   Klass_Add_CFunctions(&Code_Klass, code_funcs);
 }
 
@@ -111,5 +124,4 @@ void Fini_Code_Klass(void)
 Klass Code_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Code",
-  .basesize = sizeof(CodeObject),
 };

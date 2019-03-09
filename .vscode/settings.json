@@ -37,7 +37,8 @@
 		"ratio": "c",
 		"__config": "c",
 		"list": "c",
-		"unordered_set": "c"
+		"unordered_set": "c",
+		"cstring": "c"
 	},
 	"editor.rulers": [
 			80

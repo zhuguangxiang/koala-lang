@@ -32,9 +32,9 @@ LOGGER(0)
 Object *Tuple_New(int size)
 {
   int sz = sizeof(TupleObject) + size * sizeof(Object *);
-  TupleObject *tuple = GC_Malloc(sz);
-  assert(tuple);
+  TupleObject *tuple = GCalloc(sz);
   Init_Object_Head(tuple, &Tuple_Klass);
+  tuple->avail = 0;
   tuple->size = size;
   return (Object *)tuple;
 }
@@ -51,7 +51,7 @@ void Tuple_Free(Object *ob)
     if (tmp != NULL)
       OB_DECREF(tmp);
   }
-  GC_Mfree(ob);
+  GCfree(ob);
 }
 
 Object *Tuple_Get(Object *ob, int index)
@@ -69,7 +69,6 @@ Object *Tuple_Get(Object *ob, int index)
 
 Object *Tuple_Get_Slice(Object *ob, int min, int max)
 {
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
   if (min > max)
     return NULL;
 
@@ -84,20 +83,8 @@ Object *Tuple_Get_Slice(Object *ob, int min, int max)
   return tuple;
 }
 
-int Tuple_Size(Object *ob)
+int __Tuple_Set(TupleObject *tuple, int index, Object *val)
 {
-  if (!ob)
-    return 0;
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
-  TupleObject *tuple = (TupleObject *)ob;
-  return tuple->size;
-}
-
-int Tuple_Set(Object *ob, int index, Object *val)
-{
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
-  TupleObject *tuple = (TupleObject *)ob;
-
   if (index < 0 || index >= tuple->size) {
     Log_Error("index %d out of bound", index);
     return -1;
@@ -107,6 +94,7 @@ int Tuple_Set(Object *ob, int index, Object *val)
   if (old != NULL)
     OB_DECREF(old);
 
+  OB_INCREF(val);
   tuple->items[index] = val;
   return 0;
 }
@@ -118,13 +106,10 @@ static Object *__tuple_get(Object *ob, Object *args)
 
 static Object *__tuple_size(Object *ob, Object *args)
 {
-  OB_ASSERT_KLASS(ob, Tuple_Klass);
-  assert(!args);
-  TupleObject *tuple = (TupleObject *)ob;
-  return Integer_New(tuple->size);
+  return Integer_New(Tuple_Size(ob));
 }
 
-static FuncDef tuple_funcs[] = {
+static CFunctionDef tuple_funcs[] = {
   {"Get", "A", "i", __tuple_get},
   {"Size", "i", NULL, __tuple_size},
   {NULL}
@@ -132,6 +117,7 @@ static FuncDef tuple_funcs[] = {
 
 void Init_Tuple_Klass(void)
 {
+  Init_Klass(&Tuple_Klass, NULL);
   Klass_Add_CFunctions(&Tuple_Klass, tuple_funcs);
 }
 
@@ -140,12 +126,7 @@ void Fini_Tuple_Klass(void)
   Fini_Klass(&Tuple_Klass);
 }
 
-static void tuple_free(Object *ob)
-{
-  Tuple_Free(ob);
-}
-
-static Object *tuple_tostring(Object *ob)
+Object *Tuple_ToString(Object *ob)
 {
   TupleObject *tuple = (TupleObject *)ob;
   Buffer buf;
@@ -188,8 +169,7 @@ static Object *tuple_tostring(Object *ob)
 Klass Tuple_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Tuple",
-  .basesize = sizeof(TupleObject),
   .flags = OB_FLAGS_GC,
-  .ob_free = tuple_free,
-  .ob_str = tuple_tostring,
+  .ob_free = Tuple_Free,
+  .ob_str  = Tuple_ToString,
 };

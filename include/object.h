@@ -37,23 +37,6 @@ typedef struct klass Klass;
 typedef struct object Object;
 
 /*
- * some builtin klasses
- *                               Klass_Klass
- *                                   /|\
- *     |---------|---------|----------|----------|---------|-----------|
- * Nil_Klass Int_Klass Float_Klass Bool_Klass Any_Klass Trait_Klass Foo_Klass
- *                                                        /|\
- *                                                         |
- *                                                      Bar_Trait
- */
-extern Klass Klass_Klass;
-extern Klass Any_Klass;
-extern Klass Trait_Klass;
-extern Klass Int_Klass;
-extern Klass Float_Klass;
-extern Klass Bool_Klass;
-
-/*
  * object header structure
  */
 #define OBJECT_HEAD \
@@ -80,13 +63,18 @@ do { \
 #define OB_REFCNT(ob) (((Object *)(ob))->ob_refcnt)
 #define OB_ASSERT_KLASS(ob, klazz) assert(OB_KLASS(ob) == &(klazz))
 
-/* line resolution order node */
-typedef struct lro_node {
-  /* the fields offset */
-  int offset;
-  /* the class(trait) of this node */
-  Klass *klazz;
-} LRONode;
+#define OB_INCREF(ob) (((Object *)(ob))->ob_refcnt++)
+#define OB_DECREF(ob) \
+do { \
+  if (ob != NULL) { \
+    if (--((Object *)(ob))->ob_refcnt != 0) { \
+      assert(((Object *)(ob))->ob_refcnt > 0); \
+    } else { \
+      OB_KLASS(ob)->ob_free((Object *)ob); \
+      (ob) = NULL; \
+    } \
+  } \
+} while (0)
 
 /*
  * function prototypes defined for Klass
@@ -100,8 +88,8 @@ typedef Object *(*ob_strfunc)(Object *);
 typedef Object *(*ob_unaryfunc)(Object *);
 typedef Object *(*ob_binaryfunc)(Object *, Object *);
 typedef void (*ob_ternaryfunc)(Object *, Object *, Object *);
-typedef Object *(*getterfunc)(Object *, Object *);
-typedef void (*setterfunc)(Object *, Object *, Object *);
+typedef Object *(*ob_getfunc)(Object *, Object *);
+typedef void (*ob_setfunc)(Object *, Object *, Object *);
 
 /*
  * basic operations, if necessary, these operators can be overridden .
@@ -145,8 +133,61 @@ typedef struct {
   ob_ternaryfunc set;
 } MapOperations;
 
-/* objects support garbage collection */
-#define OB_FLAGS_GC  (1 << 1)
+/* kind of member node */
+typedef enum {
+  CONST_KIND = 1,
+  VAR_KIND   = 2,
+  FUNC_KIND  = 3,
+  PROTO_KIND = 4,
+  CLASS_KIND = 5,
+  TRAIT_KIND = 6,
+} MemberKind;
+
+/* Member node will be inserted into klass->table or package's table */
+typedef struct membernode {
+  HashNode hnode;
+  /* Member's name, key */
+  char *name;
+  /* one of MemberKind */
+  MemberKind kind;
+  /* member's type descriptor */
+  TypeDesc *desc;
+  union {
+    /* constant value */
+    Object *value;
+    /* offset of variable */
+    int offset;
+    /* code object */
+    Object *code;
+    /* class or trait */
+    Klass *klazz;
+  };
+} MNode;
+
+/* new Member node */
+MNode *MNode_New(MemberKind kind, char *name, TypeDesc *desc);
+/* free Member node */
+void MNode_Free(MNode *node);
+/* find member node from hashtable */
+MNode *Find_MNode(HashTable *table, char *name);
+/* member table tostring */
+Object *MTable_ToString(HashTable *table);
+/* initialize member table */
+void Init_MTable(HashTable *table);
+/* finalize member table */
+void Fini_MTable(HashTable *table);
+
+/* line resolution order node */
+typedef struct lro_node {
+  /* the class(trait) of this node */
+  Klass *klazz;
+  /* the fields' offset */
+  int offset;
+} LRONode;
+
+#define OB_FLAGS_GC     1
+#define OB_FLAGS_NUMOPS 2
+#define OB_FLAGS_MAPOPS 4
 
 /*
  * represent class or trait
@@ -156,98 +197,91 @@ struct klass {
   OBJECT_HEAD
   /* class name, for debug only */
   char *name;
-  /* object base size */
-  int basesize;
-  /* object item size, if it has variably itmes, e.g. array */
-  int itemsize;
-  /* self fields' offset */
-  int offset;
-  /* object's flags, one of OB_FLAGS_XXX */
+  /* object's flags */
   int flags;
+  /* total of vars, include base vars */
+  int totalvars;
 
-  /* line resolution order(lro) for classes and traits inheritance */
-  Vector lro;
-  /* the class's owner */
-  void *pkg;
-
-  /* for gc */
+  /* for mark-and-sweep */
   ob_markfunc ob_mark;
+
   /* allocate and free functions */
   ob_allocfunc ob_alloc;
   ob_freefunc ob_free;
-  /* used as key in dict */
+
+  /* used as key in map */
   ob_hashfunc ob_hash;
   ob_equalfunc ob_equal;
+
   /* like java's toString() */
   ob_strfunc ob_str;
 
-  /* object's getter and setter operations */
-  getterfunc getter;
-  setterfunc setter;
+  /* getter and setter */
+  ob_getfunc ob_get;
+  ob_setfunc Ob_set;
 
-  /* number operations, e.g. arithmetic operators */
-  NumberOperations *numops;
-  /* map operations for array and dictionary */
-  MapOperations *mapops;
+  /* number operations */
+  NumberOperations *num_ops;
+  /* map operations */
+  MapOperations *map_ops;
 
-  /* fields and methods hash table */
-  HashTable *table;
-  /* consts pool ref to module's consts pool */
+  /* line resolution order(lro) */
+  Vector lro;
+  /* the class's owner */
+  Object *owner;
+  /* member table */
+  HashTable mtbl;
+  /* number of variables(fields) */
+  int nrvars;
+  /* constant pool */
   Object *consts;
 };
 
-/* new common Klass */
-Klass *Klass_New(char *name, Klass *base, Vector *traits, Klass *type);
-/* free Klass */
+/*
+ * Skeleton of Klasses
+ *                               Klass_Klass
+ *                                   /|\
+ *     |---------|---------|----------|----------|---------|-----------|
+ * Nil_Klass Int_Klass Float_Klass Bool_Klass Any_Klass Trait_Klass Foo_Klass
+ *                                                        /|\
+ *                                                         |
+ *                                                      Bar_Trait
+ */
+extern Klass Klass_Klass;
+extern Klass Any_Klass;
+
+/* new klass */
+Klass *Klass_New(char *name, Vector *bases);
+/* free klass */
 void Klass_Free(Klass *klazz);
-/* finalize Klass */
+/* initialize klass */
+void Init_Klass(Klass *klazz, Vector *bases);
+/* finalize klass */
 void Fini_Klass(Klass *klazz);
-/* new class */
-#define Class_New(name, base, traits) \
-  Klass_New(name, base, traits, &Klass_Klass)
-/* new trait */
-#define Trait_New(name, traits) \
-  Klass_New(name, NULL, traits, &Trait_Klass)
 /* add a field to the klass(class or trait) */
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 /* add a method to the klass(class or trait) */
-int Klass_Add_Method(Klass *klazz, char *name, Object *code);
+int Klass_Add_Method(Klass *klazz, Object *code);
 /* add a prototype to trait only */
 int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto);
-
-/* get the field's value from the object, search base if possibly */
-Object *Object_Get_Value(Object *ob, char *name, Klass *klazz);
-/* set the field's value to the object, search base if possibly */
-Object *Object_Set_Value(Object *ob, char *name, Klass *klazz, Object *val);
-/*
- * get a method from the object, and return its real object
- * see 'struct object'
- */
-Object *Object_Get_Method(Object *ob, char *name, Klass *klazz);
-/* print object */
-int Object_Print(char *buf, int size, Object *ob);
-
-#define OB_INCREF(ob) (((Object *)(ob))->ob_refcnt++)
-#define OB_DECREF(ob) \
-do { \
-  if (--((Object *)(ob))->ob_refcnt != 0) { \
-    assert(((Object *)(ob))->ob_refcnt > 0); \
-  } else { \
-    OB_KLASS(ob)->ob_free((Object *)ob); \
-    (ob) = NULL; \
-  } \
-} while (0)
+/* klass to string */
+Object *Klass_ToString(Object *ob);
+/* get the field's value from the object */
+Object *Get_Field(Object *ob, Klass *base, char *name);
+/* set the field's value to the object */
+void Set_Field(Object *ob, Klass *base, char *name, Object *val);
+/* get a method from the object */
+Object *Get_Method(Object *ob, Klass *base, char *name);
 
 /*
  * function's proto, including c function and koala function
  * 'args' and 'return' are both Tuple.
- * FIXME:
- * Maybe optimized it if it has only one parameter or one return value?
+ * Optimization: if it has only one parameter or one return value?
  */
-typedef Object *(*cfunc)(Object *ob, Object *args);
+typedef Object *(*cfunc_t)(Object *ob, Object *args);
 
 /* c function definition, which can be called by koala function */
-typedef struct funcdef {
+typedef struct cfunctiondef {
   /* func's name for searching the function */
   char *name;
   /* func's returns's type descriptor */
@@ -255,72 +289,14 @@ typedef struct funcdef {
   /* func's arguments's type descriptor */
   char *pdesc;
   /* func's code */
-  cfunc fn;
-} FuncDef;
-
-/* build codeobject from funcdef */
-Object *FuncDef_Build_Code(FuncDef *f);
+  cfunc_t func;
+} CFunctionDef;
 
 /*
  * add c functions to the class, which are defined as FuncDef structure,
  * with {NULL} as an end.
  */
-int Klass_Add_CFunctions(Klass *klazz, FuncDef *funcs);
-
-/* kind of MemberDef */
-typedef enum {
-  MEMBER_VAR   = 1,
-  MEMBER_CODE  = 2,
-  MEMBER_PROTO = 3,
-  MEMBER_CLASS = 4,
-  MEMBER_TRAIT = 5,
-} MemberKind;
-
-/* MemberDef will be inserted into klass->table or module's table */
-typedef struct memberdef {
-  /* hash node for hash table */
-  HashNode hnode;
-  /* one of MEMBER_XXX */
-  MemberKind kind;
-  /* Member's name, key */
-  char *name;
-  /* member's type descriptor */
-  TypeDesc *desc;
-  /* is constant? variable only */
-  int k;
-  /* by ->kind */
-  union {
-    /* offset of variable, field and prototype */
-    int offset;
-    /* func's code, koala's func or c's func */
-    Object *code;
-    /* class or trait */
-    Klass *klazz;
-  };
-} MemberDef;
-
-/* new common member, see MEMBER_XXX kind */
-MemberDef *MemberDef_New(int kind, char *name, TypeDesc *desc, int k);
-/* free MemberDef structure */
-void MemberDef_Free(MemberDef *m);
-/* new variable in module, class or trait */
-MemberDef *MemberDef_Var_New(HashTable *table, char *name, TypeDesc *t, int k);
-/* new code in package, class or trait */
-MemberDef *MemberDef_Code_New(HashTable *table, char *name, Object *code);
-/* new prototype in trait only */
-#define MemberDef_Proto_New(name, desc) \
-  MemberDef_New(MEMBER_PROTO, name, desc, 0)
-/* new class in package */
-#define MemberDef_Class_New(name) \
-  MemberDef_New(MEMBER_CLASS, name, NULL, 0)
-/* new trait in package */
-#define MemberDef_Trait_New(name) \
-  MemberDef_New(MEMBER_TRAIT, name, NULL, 0)
-/* build a hashtable with MemberDef */
-HashTable *MemberDef_Build_HashTable(void);
-/* find memberdef from hashtable */
-MemberDef *MemberDef_Find(HashTable *table, char *name);
-Object *MemberDef_HashTable_ToString(HashTable *table);
+int Klass_Add_CFunctions(Klass *klazz, CFunctionDef *functions);
 
 #ifdef __cplusplus
 }

@@ -20,8 +20,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_CODEOBJECT_H_
-#define _KOALA_CODEOBJECT_H_
+#ifndef _KOALA_CODE_OBJECT_H_
+#define _KOALA_CODE_OBJECT_H_
 
 #include "object.h"
 
@@ -29,33 +29,58 @@
 extern "C" {
 #endif
 
+typedef struct codeinfo {
+  /* constant pool */
+  Object *consts;
+  /* local variables */
+  Vector locvec;
+  /* codes' size */
+  int size;
+  /* instructions */
+  uint8 *codes;
+} CodeInfo;
+
 typedef enum {
   /* koala code */
-  CODE_KLANG = 1,
-  /* clang code */
-  CODE_CLANG = 2,
+  KCODE_KIND = 1,
+  /* clang func */
+  CFUNC_KIND = 2,
 } CodeKind;
 
 typedef struct codeobject {
   OBJECT_HEAD
-  /* code prototype */
+  /* code name */
+  char *name;
+  /* code proto */
   TypeDesc *proto;
-  /* one ob CODE_XXX */
+  /* code's owner */
+  Object *owner;
+  /* code kind */
   CodeKind kind;
+  /* cfunction or koala code */
   union {
-    cfunc cf;
-    struct {
-      /* for const access, not free it */
-      Object *consts;
-      /* local variables */
-      Vector locvec;
-      /* codes' size */
-      int size;
-      /* instructions */
-      uint8 *codes;
-    } kf;
+    cfunc_t cfunc;
+    CodeInfo *codeinfo;
   };
 } CodeObject;
+
+#if 0
+typedef struct closure {
+  OBJECT_HEAD
+  /* closure name */
+  char *name;
+  /* closure proto */
+  TypeDesc *proto;
+  /* closure's owner */
+  Object *owner;
+  /* closure's free var table */
+  HashTable *vtbl;
+  /* koala code */
+  CodeInfo code;
+  /* free variables */
+  Object *freevars[0];
+} Closure;
+#endif
 
 extern Klass Code_Klass;
 /* initialize Code class */
@@ -63,21 +88,21 @@ void Init_Code_Klass(void);
 /* finalize Code class */
 void Fini_Code_Klass(void);
 /* new koala code object */
-Object *KCode_New(uint8 *codes, int size, TypeDesc *proto);
-/* new clang code object */
-Object *CCode_New(cfunc cf, TypeDesc *proto);
+Object *Code_New(char *name, TypeDesc *proto, uint8 *codes, int size);
+/* new clang func object */
+Object *Code_From_CFunction(CFunctionDef *f);
 /* free code object */
-void CodeObject_Free(Object *ob);
+void Code_Free(Object *ob);
 /* is koala code object? */
-#define IsKCode(code) (((CodeObject *)(code))->kind == CODE_KLANG)
+#define IsKCode(ob) (((CodeObject *)(ob))->kind == KCODE_KIND)
 /* is clang code object? */
-#define IsCCode(code) (((CodeObject *)(code))->kind == CODE_CLANG)
+#define IsCFunc(ob) (((CodeObject *)(ob))->kind == CFUNC_KIND)
 /* add local variables into the koala code object */
-int KCode_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int pos);
-/* get the (koala & clang) code's arg's number */
+int Code_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int index);
+/* get the (koala & clang) code's args number */
 int Code_Get_Argc(Object *ob);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_CODEOBJECT_H_ */
+#endif /* _KOALA_CODE_OBJECT_H_ */

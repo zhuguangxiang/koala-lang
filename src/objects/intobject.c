@@ -65,11 +65,6 @@ static uint32 integer_hash(Object *v)
   return hash_uint32((uint32)iob->value, 32);
 }
 
-static void integer_free(Object *ob)
-{
-  Integer_Free(ob);
-}
-
 static Object *integer_tostring(Object *v)
 {
   OB_ASSERT_KLASS(v, Int_Klass);
@@ -95,20 +90,21 @@ static NumberOperations integer_numops = {
 Klass Int_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Integer",
-  .basesize = sizeof(IntObject),
-  .ob_free  = integer_free,
+  .ob_free  = Integer_Free,
   .ob_hash  = integer_hash,
   .ob_equal = integer_equal,
-  .ob_str = integer_tostring,
-  .numops = &integer_numops,
+  .ob_str   = integer_tostring,
+  .num_ops  = &integer_numops,
 };
 
 void Init_Integer_Klass(void)
 {
   Init_Cache(&Int_Cache, "IntObject", sizeof(IntObject));
+  Init_Klass(&Int_Klass, NULL);
 }
 
 void Fini_Integer_Klass(void)
 {
   Fini_Cache(&Int_Cache, NULL, NULL);
+  Fini_Klass(&Int_Klass);
 }

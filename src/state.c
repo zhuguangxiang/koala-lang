@@ -34,57 +34,31 @@ static Properties properties;
 static PkgState pkgstate;
 /*
  * global variables' pool(tuple's vector)
- * access by index stored in PackageObject
+ * access by index stored in Package
  */
 static VECTOR(variables);
 /* list of KoalaState */
 static int ksnum;
 static LIST_HEAD(kslist);
 
-int Koala_Add_Package(char *path, Object *ob)
+int Koala_Add_Package(char *path, Package *pkg)
 {
-  PackageObject *pkg = (PackageObject *)ob;
   PkgNode *node = Add_PkgNode(&pkgstate, path, pkg);
   if (node == NULL) {
     Log_Debug("add package '%s' failed", pkg->name);
     return -1;
   }
 
-  if (pkg->varcnt == 0) {
+  if (pkg->nrvars == 0) {
     pkg->index = -1;
   } else {
     pkg->index = Vector_Size(&variables);
-    Vector_Append(&variables, Tuple_New(pkg->varcnt));
+    Vector_Append(&variables, Tuple_New(pkg->nrvars));
   }
   return 0;
 }
 
-int Koala_Set_Value(Object *ob, char *name, Object *value)
-{
-  PackageObject *pkg = (PackageObject *)ob;
-  int index = pkg->index;
-  MemberDef *m = Package_Find_MemberDef(ob, name);
-  assert(m && m->kind == MEMBER_VAR);
-  Log_Debug("set var '%s'(%d) in '%s'(%d)",
-            name, m->offset, pkg->name, index);
-  Object *tuple = Vector_Get(&variables, index);
-  OB_INCREF(value);
-  return Tuple_Set(tuple, m->offset, value);
-}
-
-Object *Koala_Get_Value(Object *ob, char *name)
-{
-  PackageObject *pkg = (PackageObject *)ob;
-  int index = pkg->index;
-  MemberDef *m = Package_Find_MemberDef(ob, name);
-  assert(m && m->kind == MEMBER_VAR);
-  Log_Debug("get var '%s'(%d) in '%s'(%d)",
-            name, m->offset, pkg->name, index);
-  Object *tuple = Vector_Get(&variables, index);
-  return Tuple_Get(tuple, m->offset);
-}
-
-Object *Koala_Get_Package(char *path)
+Package *Koala_Get_Package(char *path)
 {
   PkgNode *node = Find_PkgNode(&pkgstate, path);
   if (node != NULL) {
@@ -94,7 +68,7 @@ Object *Koala_Get_Package(char *path)
 
   DeclareStringBuf(buf);
   KImage *image;
-  Object *pkg = NULL;
+  Package *pkg = NULL;
   Vector *vec = Properties_Get(&properties, KOALA_PATH);
   char *pre;
   Vector_ForEach(pre, vec) {
@@ -102,13 +76,49 @@ Object *Koala_Get_Package(char *path)
     image = KImage_Read_File(buf.data, 0);
     FiniStringBuf(buf);
     if (image != NULL) {
-      pkg = Package_From_Image(image);
+      pkg = Pkg_From_Image(image);
       break;
     }
   }
   if (pkg != NULL)
     Koala_Add_Package(path, pkg);
   return pkg;
+}
+
+int Koala_Set_Value(Package *pkg, char *name, Object *value)
+{
+  int index = pkg->index;
+  MNode *m = Find_MNode(&pkg->mtbl, name);
+  assert(m != NULL && m->kind == VAR_KIND);
+  Log_Debug("set_var: '%s'(%d) in '%s'(%d)",
+            name, m->offset, pkg->name, index);
+  Object *tuple = Vector_Get(&variables, index);
+  return Tuple_Set(tuple, m->offset, value);
+}
+
+Object *Koala_Get_Value(Package *pkg, char *name)
+{
+  int index = pkg->index;
+  MNode *m = Find_MNode(&pkg->mtbl, name);
+  assert(m != NULL);
+  if (m->kind == VAR_KIND) {
+    Log_Debug("get_var: '%s'(%d) in '%s'(%d)",
+              name, m->offset, pkg->name, index);
+    Object *tuple = Vector_Get(&variables, index);
+    return Tuple_Get(tuple, m->offset);
+  } else {
+    assert(m->kind == CONST_KIND);
+    Log_Debug("get_const: '%s' in '%s'", name, pkg->name);
+    return m->value;
+  }
+}
+
+Object *Koala_Get_Function(Package *pkg, char *name)
+{
+  MNode *m = Find_MNode(&pkg->mtbl, name);
+  assert(m != NULL && m->kind == FUNC_KIND);
+  Log_Debug("get_func: '%s' in '%s'", name, pkg->name);
+  return m->code;
 }
 
 static inline void koala_set_pathes(Vector *pathes)
@@ -151,23 +161,21 @@ void Koala_Main(Options *opts)
   char *path = Vector_Get(&opts->args, 0);
 
   /* find or load package */
-  Object *pkg = Koala_Get_Package(path);
+  Package *pkg = Koala_Get_Package(path);
   if (pkg == NULL) {
     fprintf(stderr, "\x1b[31merror\x1b[0m: cannot open '%s' package\n", path);
     goto EXIT;
   }
 
   /* initial package's variables */
-  MemberDef *m = Package_Find_MemberDef(pkg, KOALA_INIT);
-  if (m != NULL) {
-    assert(m->kind == MEMBER_CODE);
-    Koala_RunCode(m->code, pkg, NULL);
-  }
+  Object *code = Koala_Get_Function(pkg, KOALA_INIT);
+  if (code != NULL)
+    Koala_RunCode(code, (Object *)pkg, NULL);
 
   /* run 'main' function */
-  m = Package_Find_MemberDef(pkg, KOALA_MAIN);
-  if (m == NULL || m->kind != MEMBER_CODE) {
-    fprintf(stderr, "\x1b[31merror\x1b[0m: no '%s' function in '%s'\n",
+  code = Koala_Get_Function(pkg, KOALA_MAIN);
+  if (code == NULL) {
+    fprintf(stderr, "\x1b[31merror\x1b[0m: '%s' not found in '%s'\n",
             KOALA_MAIN, path);
     goto EXIT;
   }
@@ -183,7 +191,7 @@ void Koala_Main(Options *opts)
       Tuple_Set(args, i - 1, String_New(str));
     }
   }
-  Koala_RunCode(m->code, pkg, args);
+  Koala_RunCode(code, (Object *)pkg, args);
 
 EXIT:
   Free_KoalaState(task_get_private());
@@ -223,8 +231,13 @@ void Koala_Initialize(void)
   Init_TypeDesc();
   Properties_Init(&properties);
   Init_PkgState(&pkgstate);
-  Init_Lang_Package();
-  Init_IO_Package();
+  Package *pkg = Pkg_New("lang");
+  Init_Lang_Package(pkg);
+  Pkg_Add_Class(pkg, &Pkg_Klass);
+  Koala_Add_Package("lang", pkg);
+  pkg = Pkg_New("io");
+  Init_IO_Package(pkg);
+  Koala_Add_Package("io", pkg);
   Show_PkgState(&pkgstate);
 }
 
@@ -232,7 +245,7 @@ void Koala_Finalize(void)
 {
   Fini_IO_Package();
   Fini_Lang_Package();
-  Fini_PkgState(&pkgstate, Package_Free_Func, NULL);
+  Fini_PkgState(&pkgstate, Pkg_Free_Func, NULL);
   Properties_Fini(&properties);
   Fini_TypeDesc();
   AtomString_Fini();

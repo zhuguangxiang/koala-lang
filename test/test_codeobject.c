@@ -9,14 +9,14 @@
 void test_codeobject(void)
 {
   Object *s = String_New("hello world");
-  Object *method = Object_Get_Method(s, "Length", OB_KLASS(s));
+  Object *method = Get_Method(s, NULL, "Length");
   assert(method);
   CodeObject *code = (CodeObject *)method;
-  assert(code->kind == CODE_CLANG);
-  Object *res = code->cf(s, NULL);
+  assert(code->kind == CFUNC_KIND);
+  Object *res = code->cfunc(s, NULL);
   assert(11 == Integer_ToCInt(res));
   OB_DECREF(res);
-  Object *dis = Object_Get_Method(method, "DisAssemble", OB_KLASS(method));
+  Object *dis = Get_Method(method, NULL, "Disassemble");
   assert(dis);
 }
 

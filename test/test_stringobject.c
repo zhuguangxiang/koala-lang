@@ -17,7 +17,7 @@ void test_stringobject(void)
   assert(s1 == NULL);
   s1 = String_New("hello");
   s2 = String_New(" world");
-  Object *s3 = OB_KLASS(s1)->numops->add(s1, s2);
+  Object *s3 = OB_KLASS(s1)->num_ops->add(s1, s2);
   assert(!strcmp("hello world", String_RawString(s3)));
   OB_DECREF(s1);
   OB_DECREF(s2);

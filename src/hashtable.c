@@ -138,7 +138,7 @@ void HashTable_Fini(HashTable *table, visitfunc visit, void *arg)
 HashTable *HashTable_New(hashfunc hash, equalfunc equal)
 {
   HashTable *table = Malloc(sizeof(HashTable));
-  if (!table)
+  if (table == NULL)
     return NULL;
 
   if (HashTable_Init(table, hash, equal)) {
@@ -151,7 +151,7 @@ HashTable *HashTable_New(hashfunc hash, equalfunc equal)
 
 void HashTable_Free(HashTable *table, visitfunc fn, void *arg)
 {
-  if (!table)
+  if (table == NULL)
     return;
   HashTable_Fini(table, fn, arg);
   Mfree(table);

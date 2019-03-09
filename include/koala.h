@@ -24,7 +24,6 @@
 #define _KOALA_INCLUDE_H_
 
 #include "state.h"
-#include "packageobject.h"
 #include "tupleobject.h"
 #include "stringobject.h"
 #include "intobject.h"

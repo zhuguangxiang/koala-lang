@@ -6,65 +6,85 @@
 
 void test_trait(void)
 {
-  LRONode *temp;
+  LRONode *lro;
   /*
     trait A;
    */
-  Klass *A = Trait_New("A", NULL);
-  Vector *v1 = Vector_New();
-  Vector_Append(v1, A);
+  Klass *A = Klass_New("A", NULL);
+
   /*
-    trait B with A;
+    trait B extends A;
    */
-  Klass *B = Trait_New("B", v1);
-  Vector *v2 = Vector_New();
-  Vector_Append(v2, B);
-  Vector_ForEach(temp, &B->lro) {
+  VECTOR(v1);
+  Vector_Append(&v1, A);
+  Klass *B = Klass_New("B", &v1);
+  Vector_ForEach(lro, &B->lro) {
     if (i == 0)
-      assert(temp->klazz == A);
-    else
-      assert(0);
-  }
-  /*
-    trait C with B;
-   */
-  Klass *C = Trait_New("C", v2);
-  Vector_ForEach(temp, &C->lro) {
-    if (i == 0)
-      assert(temp->klazz == A);
+      assert(lro->klazz == &Any_Klass);
     else if (i == 1)
-      assert(temp->klazz == B);
-    else
-      assert(0);
-  }
-  /*
-    trait D with A;
-   */
-  Klass *D = Trait_New("D", v1);
-  Vector_ForEach(temp, &D->lro) {
-    if (i == 0)
-      assert(temp->klazz == A);
-    else
-      assert(0);
-  }
-  Vector *v3 = Vector_New();
-  Vector_Append(v3, A);
-  Vector_Append(v3, D);
-  Vector_Append(v3, C);
-  Vector_Append(v3, B);
-  /*
-    trait E with A with D with C With B;
-   */
-  Klass *E = Trait_New("E", v3);
-  Vector_ForEach(temp, &E->lro) {
-    if (i == 0)
-      assert(temp->klazz == A);
-    else if (i == 1)
-      assert(temp->klazz == D);
+      assert(lro->klazz == A);
     else if (i == 2)
-      assert(temp->klazz == B);
+      assert(lro->klazz == B);
+    else
+      assert(0);
+  }
+
+  /*
+    trait C extends B;
+   */
+  VECTOR(v2);
+  Vector_Append(&v2, B);
+  Klass *C = Klass_New("C", &v2);
+  Vector_ForEach(lro, &C->lro) {
+    if (i == 0)
+      assert(lro->klazz == &Any_Klass);
+    else if (i == 1)
+      assert(lro->klazz == A);
+    else if (i == 2)
+      assert(lro->klazz == B);
     else if (i == 3)
-      assert(temp->klazz == C);
+      assert(lro->klazz == C);
+    else
+      assert(0);
+  }
+
+  /*
+    trait D extends A;
+   */
+  Klass *D = Klass_New("D", &v1);
+  Vector_ForEach(lro, &D->lro) {
+    if (i == 0)
+      assert(lro->klazz == &Any_Klass);
+    else if (i == 1)
+      assert(lro->klazz == A);
+    else if (i == 2)
+      assert(lro->klazz == D);
+    else
+      assert(0);
+  }
+
+  /*
+    trait E extends A with D with C With B;
+   */
+  VECTOR(v3);
+  Vector_Append(&v3, A);
+  Vector_Append(&v3, D);
+  Vector_Append(&v3, C);
+  Vector_Append(&v3, B);
+  Klass *E = Klass_New("E", &v3);
+  Vector_ForEach(lro, &E->lro) {
+    if (i == 0)
+      assert(lro->klazz == &Any_Klass);
+    else if (i == 1)
+      assert(lro->klazz == A);
+    else if (i == 2)
+      assert(lro->klazz == D);
+    else if (i == 3)
+      assert(lro->klazz == B);
+    else if (i == 4)
+      assert(lro->klazz == C);
+    else if (i == 5)
+      assert(lro->klazz == E);
     else
       assert(0);
   }

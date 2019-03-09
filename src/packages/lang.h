@@ -23,11 +23,13 @@
 #ifndef _KOALA_LANG_PKG_H_
 #define _KOALA_LANG_PKG_H_
 
+#include "koala.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void Init_Lang_Package(void);
+void Init_Lang_Package(Package *pkg);
 void Fini_Lang_Package(void);
 
 #ifdef __cplusplus

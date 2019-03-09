@@ -20,53 +20,25 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "io.h"
+#ifndef _KOALA_MAP_OBJECT_H_
+#define _KOALA_MAP_OBJECT_H_
 
-LOGGER(0)
+#include "object.h"
 
-static Object *__println(Object *ob, Object *args)
-{
-  Klass *klazz = OB_KLASS(args);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-  if (klazz == &Tuple_Klass) {
-    int size = Tuple_Size(args);
-    Object *arg;
-    for (int i = 0; i < size; i++) {
-      arg = Tuple_Get(args, i);
-      klazz = OB_KLASS(arg);
-      if (klazz->ob_str != NULL) {
-        Object *stro = klazz->ob_str(arg);
-        fprintf(stdout, "%s ", String_RawString(stro));
-        OB_DECREF(stro);
-      } else {
-        fprintf(stdout, "%s@%x ", klazz->name, (short)(intptr_t)arg);
-      }
-    }
-  } else {
-    if (klazz->ob_str != NULL) {
-      Object *stro = klazz->ob_str(args);
-      fprintf(stdout, "%s ", String_RawString(stro));
-      OB_DECREF(stro);
-    } else {
-      fprintf(stdout, "%s@%x ", klazz->name, (short)(intptr_t)args);
-    }
-  }
+typedef struct mapobject {
+  OBJECT_HEAD
+  HashTable table;
+} MapObject;
 
-  puts(""); /* newline */
-  fflush(stdout);
-  return NULL;
+Object *Map_New(void);
+Object *Map_Get(Object *map, Object *key);
+int Map_Put(Object *map, Object *key, Object *val);
+
+#ifdef __cplusplus
 }
-
-static CFunctionDef io_funcs[] = {
-  {"Println", NULL, "...A", __println},
-  {NULL}
-};
-
-void Init_IO_Package(Package *pkg)
-{
-  Pkg_Add_CFunctions(pkg, io_funcs);
-}
-
-void Fini_IO_Package(void)
-{
-}
+#endif
+#endif /* _KOALA_MAP_OBJECT_H_ */

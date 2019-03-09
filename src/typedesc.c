@@ -241,20 +241,20 @@ static void __array_fini(TypeDesc *desc)
   TYPE_DECREF(array->base);
 }
 
-static void __dict_tostring(TypeDesc *desc, char *buf)
+static void __map_tostring(TypeDesc *desc, char *buf)
 {
-  DictDesc *dict = (DictDesc *)desc;
-  strcpy(buf, "dict[");
-  TypeDesc_ToString(dict->key, buf + strlen(buf));
+  MapDesc *map = (MapDesc *)desc;
+  strcpy(buf, "map[");
+  TypeDesc_ToString(map->key, buf + strlen(buf));
   strcpy(buf + strlen(buf), "]");
-  TypeDesc_ToString(dict->val, buf + strlen(buf));
+  TypeDesc_ToString(map->val, buf + strlen(buf));
 }
 
-static void __dict_fini(TypeDesc *desc)
+static void __map_fini(TypeDesc *desc)
 {
-  DictDesc *dict = (DictDesc *)desc;
-  TYPE_DECREF(dict->key);
-  TYPE_DECREF(dict->val);
+  MapDesc *map = (MapDesc *)desc;
+  TYPE_DECREF(map->key);
+  TYPE_DECREF(map->val);
 }
 
 static void __set_tostring(TypeDesc *desc, char *buf)
@@ -294,7 +294,7 @@ struct typedesc_ops_s {
   {__klass_tostring, __klass_fini},
   {__proto_tostring, __proto_fini},
   {__array_tostring, __array_fini},
-  {__dict_tostring,  __dict_fini},
+  {__map_tostring,   __map_fini},
   {__set_tostring,   __set_fini},
   {__varg_tostring,  __varg_fini},
 };
@@ -443,7 +443,7 @@ TypeDesc *TypeDesc_Get_Array(int dims, TypeDesc *base)
   return (TypeDesc *)desc;
 }
 
-TypeDesc *TypeDesc_Get_Dict(TypeDesc *key, TypeDesc *val)
+TypeDesc *TypeDesc_Get_Map(TypeDesc *key, TypeDesc *val)
 {
   /* Mtype:type */
   DeclareStringBuf(buf);
@@ -455,7 +455,7 @@ TypeDesc *TypeDesc_Get_Dict(TypeDesc *key, TypeDesc *val)
     return exist;
   }
 
-  DeclareTypeDesc(desc, TYPE_DICT, DictDesc, buf.data);
+  DeclareTypeDesc(desc, TYPE_MAP, MapDesc, buf.data);
   TYPE_INCREF(key);
   desc->key = key;
   TYPE_INCREF(val);
@@ -532,82 +532,82 @@ TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg)
   TypeDesc *base;
 
   switch (ch) {
-    case 'L': {
+  case 'L': {
+    s += 1;
+    char *k = s;
+    while (*s != ';')
       s += 1;
-      char *k = s;
-      while (*s != ';')
-        s += 1;
-      desc = string_to_klass(k, s - k);
+    desc = string_to_klass(k, s - k);
+    s += 1;
+    break;
+  }
+  case '[': {
+    assert(_dims == 0 && _varg == 0);
+    while (*s == '[') {
+      dims += 1;
       s += 1;
-      break;
     }
-    case '[': {
-      assert(_dims == 0 && _varg == 0);
-      while (*s == '[') {
-        dims += 1;
-        s += 1;
-      }
-      base = String_To_TypeDesc(&s, dims, 0);
-      desc = TypeDesc_Get_Array(dims, base);
-      break;
-    }
-    case 'M': {
-      s += 1;
-      TypeDesc *key = String_To_TypeDesc(&s, 0, 0);
-      TypeDesc *val = String_To_TypeDesc(&s, 0, 0);
-      desc = TypeDesc_Get_Dict(key, val);
-      break;
-    }
-    case 'S': {
-      s += 1;
+    base = String_To_TypeDesc(&s, dims, 0);
+    desc = TypeDesc_Get_Array(dims, base);
+    break;
+  }
+  case 'M': {
+    s += 1;
+    TypeDesc *key = String_To_TypeDesc(&s, 0, 0);
+    TypeDesc *val = String_To_TypeDesc(&s, 0, 0);
+    desc = TypeDesc_Get_Map(key, val);
+    break;
+  }
+  case 'S': {
+    s += 1;
+    base = String_To_TypeDesc(&s, 0, 0);
+    desc = TypeDesc_Get_Set(base);
+    break;
+  }
+  case 'P': {
+    Vector *args = NULL;
+    Vector *rets = NULL;
+    s += 1;
+    while ((ch = *s) != ':') {
+      if (args == NULL)
+        args = Vector_New();
       base = String_To_TypeDesc(&s, 0, 0);
-      desc = TypeDesc_Get_Set(base);
-      break;
+      TYPE_INCREF(base);
+      Vector_Append(args, base);
     }
-    case 'P': {
-      Vector *args = NULL;
-      Vector *rets = NULL;
-      s += 1;
-      while ((ch = *s) != ':') {
-        if (args == NULL)
-          args = Vector_New();
-        base = String_To_TypeDesc(&s, 0, 0);
-        TYPE_INCREF(base);
-        Vector_Append(args, base);
-      }
-      s += 1;
-      while ((ch = *s) != ';') {
-        if (rets == NULL)
-          rets = Vector_New();
-        base = String_To_TypeDesc(&s, 0, 0);
-        TYPE_INCREF(base);
-        Vector_Append(rets, base);
-      }
-      s += 1;
-      desc = TypeDesc_Get_Proto(args, rets);
-      break;
+    s += 1;
+    while ((ch = *s) != ';') {
+      if (rets == NULL)
+        rets = Vector_New();
+      base = String_To_TypeDesc(&s, 0, 0);
+      TYPE_INCREF(base);
+      Vector_Append(rets, base);
     }
-    case '.': {
-      assert(_dims == 0 && _varg == 0);
-      assert(s[1] == '.' && s[2] == '.');
-      s += 3;
-      if (s[0] == 'A') {
-        base = (TypeDesc *)&Any_Type;
-        s += 1;
-      } else {
-        base = String_To_TypeDesc(&s, 0, 1);
-      }
-      desc = TypeDesc_Get_Varg(base);
-      break;
-    }
-    default: {
-      struct basic_type_s *p = get_basic(ch);
-      assert(p != NULL);
-      assert(!(_dims > 0 && _varg > 0));
-      desc = (TypeDesc *)p->type;
+    s += 1;
+    desc = TypeDesc_Get_Proto(args, rets);
+    break;
+  }
+  case '.': {
+    assert(_dims == 0 && _varg == 0);
+    assert(s[1] == '.' && s[2] == '.');
+    s += 3;
+    if (s[0] == 'A') {
+      base = (TypeDesc *)&Any_Type;
       s += 1;
-      break;
+    } else {
+      base = String_To_TypeDesc(&s, 0, 1);
     }
+    desc = TypeDesc_Get_Varg(base);
+    break;
+  }
+  default: {
+    struct basic_type_s *p = get_basic(ch);
+    assert(p != NULL);
+    assert(!(_dims > 0 && _varg > 0));
+    desc = (TypeDesc *)p->type;
+    s += 1;
+    break;
+  }
   }
 
   *string = s;

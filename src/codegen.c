@@ -152,9 +152,7 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
   int index = -1;
   Buffer_Write_Byte(buf, i->op);
   switch (i->op) {
-  case OP_HALT:
-    break;
-  case OP_LOADK: {
+  case LOAD_CONST: {
     ConstValue *val = &i->arg;
     if (val->kind == BASE_INT) {
       index = KImage_Add_Integer(image, val->ival);
@@ -172,50 +170,50 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
     Buffer_Write_2Bytes(buf, index);
     break;
   }
-  case OP_LOADP:
+  case LOAD_PKG:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_2Bytes(buf, index);
     break;
-  case OP_LOAD:
+  case LOAD:
     Buffer_Write_Byte(buf, i->arg.ival);
     break;
-  case OP_STORE:
+  case STORE:
     Buffer_Write_Byte(buf, i->arg.ival);
     break;
-  case OP_LOAD_FIELD:
+  case LOAD_FIELD:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_2Bytes(buf, index);
     break;
-  case OP_STORE_FIELD:
+  case STORE_FIELD:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_2Bytes(buf, index);
     break;
-  case OP_CALL:
-  case OP_NEW:
+  case CALL:
+  case NEW:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_4Bytes(buf, index);
     Buffer_Write_2Bytes(buf, i->argc);
     break;
-  case OP_RETURN:
-  case OP_ADD:
-  case OP_SUB:
-  case OP_MUL:
-  case OP_DIV:
-  case OP_MOD:
-  case OP_GT:
-  case OP_GE:
-  case OP_LT:
-  case OP_LE:
-  case OP_EQ:
-  case OP_NEQ:
-  case OP_NEG:
+  case RETURN:
+  case ADD:
+  case SUB:
+  case MUL:
+  case DIV:
+  case MOD:
+  case GT:
+  case GE:
+  case LT:
+  case LE:
+  case EQ:
+  case NEQ:
+  case NEG:
     break;
-  case OP_JMP:
-  case OP_JMP_TRUE:
-  case OP_JMP_FALSE:
+  case JMP:
+  case JMP_TRUE:
+  case JMP_FALSE:
     Buffer_Write_2Bytes(buf, i->arg.ival);
     break;
-  case OP_NEW_ARRAY:
+  case NEW_ARRAY:
     Buffer_Write_4Bytes(buf, i->arg.ival);
     break;
   default:

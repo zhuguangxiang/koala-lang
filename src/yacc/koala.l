@@ -59,7 +59,7 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
     SELF, SUPER, TOKEN_NIL, TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
     ')', ']', '}',
-    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS, DICT, SET
+    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS, MAP, SET
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
@@ -119,18 +119,18 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
   YY_RETURN(yytext[0]);
 }
 
-"=="             { YY_RETURN(EQ);              }
-"!="             { YY_RETURN(NE);              }
-">="             { YY_RETURN(GE);              }
-"<="             { YY_RETURN(LE);              }
-"and"            { YY_RETURN(AND);             }
-"or"             { YY_RETURN(OR);              }
-"not"            { YY_RETURN(NOT);             }
-"&&"             { YY_RETURN(AND);             }
-"||"             { YY_RETURN(OR);              }
-"!"              { YY_RETURN(NOT);             }
-">>"             { YY_RETURN(RSHIFT);          }
-"<<"             { YY_RETURN(LSHIFT);          }
+"=="             { YY_RETURN(OP_EQ);           }
+"!="             { YY_RETURN(OP_NE);           }
+">="             { YY_RETURN(OP_GE);           }
+"<="             { YY_RETURN(OP_LE);           }
+"and"            { YY_RETURN(OP_AND);          }
+"or"             { YY_RETURN(OP_OR);           }
+"not"            { YY_RETURN(OP_NOT);          }
+"&&"             { YY_RETURN(OP_AND);          }
+"||"             { YY_RETURN(OP_OR);           }
+"!"              { YY_RETURN(OP_NOT);          }
+">>"             { YY_RETURN(OP_RSHIFT);       }
+"<<"             { YY_RETURN(OP_LSHIFT);       }
 ":="             { YY_RETURN(TYPELESS_ASSIGN); }
 "+="             { YY_RETURN(PLUS_ASSGIN);     }
 "-="             { YY_RETURN(MINUS_ASSIGN);    }
@@ -179,7 +179,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "string"         { YY_RETURN(STRING);          }
 "error"          { YY_RETURN(ERROR);           }
 "any"            { YY_RETURN(ANY);             }
-"dict"           { YY_RETURN(DICT);            }
+"map"            { YY_RETURN(MAP);             }
 "set"            { YY_RETURN(SET);             }
 
 "self"           { YY_RETURN(SELF);            }

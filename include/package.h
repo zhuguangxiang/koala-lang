@@ -20,8 +20,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_PACKAGE_OBJECT_H_
-#define _KOALA_PACKAGE_OBJECT_H_
+#ifndef _KOALA_PACKAGE_H_
+#define _KOALA_PACKAGE_H_
 
 #include "codeobject.h"
 #include "image.h"
@@ -34,36 +34,36 @@ extern "C" {
  * one package represents a klc file.
  * a klc can be compiled from multi kl files.
  */
-typedef struct packageobject {
+typedef struct pkgobject {
   OBJECT_HEAD
-  /* the package's name */
+  /* package's name */
   char *name;
-  /* variable, function, class and trait hash table */
-  HashTable *table;
-  /* const pool of this package */
+  /* member table */
+  HashTable mtbl;
+  /* constant pool */
   Object *consts;
-  /* count of variables in the package */
-  int varcnt;
-  /* index of variables in global variable pool */
+  /* index of variable pool */
   int index;
-} PackageObject;
+  /* number of variables */
+  int nrvars;
+} Package;
 
-extern Klass Package_Klass;
-void Init_Package_Klass(void);
-void Fini_Package_Klass(void);
-Object *Package_New(char *name);
-void Package_Free_Func(void *ob, void *arg);
-int Package_Add_Var(Object *pkg, char *name, TypeDesc *desc, int konst);
-int Package_Add_Func(Object *pkg, char *name, Object *code);
-int Package_Add_Klass(Object *pkg, Klass *klazz, int trait);
-#define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
-#define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
-MemberDef *Package_Find_MemberDef(Object *pkg, char *name);
-int Package_Add_CFunctions(Object *pkg, FuncDef *funcs);
-Object *Package_From_Image(KImage *image);
-#define Package_Name(ob) (((PackageObject *)ob)->name)
+extern Klass Pkg_Klass;
+void Init_Pkg_Klass(void);
+void Fini_Pkg_Klass(void);
+Package *Pkg_New(char *name);
+void Pkg_Free_Func(void *pkg, void *arg);
+int Pkg_Add_Var(Package *pkg, char *name, TypeDesc *desc);
+int Pkg_Add_Const(Package *pkg, char *name, TypeDesc *desc, Object *val);
+int Pkg_Add_Func(Package *pkg, Object *code);
+int Pkg_Add_Klass(Package *pkg, Klass *klazz, int trait);
+#define Pkg_Add_Class(pkg, klazz) Pkg_Add_Klass(pkg, klazz, 0)
+#define Pkg_Add_Trait(pkg, klazz) Pkg_Add_Klass(pkg, klazz, 1)
+int Pkg_Add_CFunctions(Package *pkg, CFunctionDef *functions);
+Package *Pkg_From_Image(KImage *image);
+#define Pkg_Name(pkg) (((Package *)pkg)->name)
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_PACKAGE_OBJECT_H_ */
+#endif /* _KOALA_PACKAGE_H_ */

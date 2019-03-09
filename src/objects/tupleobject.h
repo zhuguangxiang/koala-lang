@@ -31,6 +31,7 @@ extern "C" {
 
 typedef struct tupleobject {
   OBJECT_HEAD
+  int avail;
   int size;
   Object *items[0];
 } TupleObject;
@@ -40,9 +41,29 @@ void Init_Tuple_Klass(void);
 void Fini_Tuple_Klass(void);
 Object *Tuple_New(int size);
 void Tuple_Free(Object *ob);
+Object *Tuple_ToString(Object *ob);
 Object *Tuple_Get(Object *ob, int index);
-int Tuple_Set(Object *ob, int index, Object *val);
-int Tuple_Size(Object *ob);
+static inline int Tuple_Size(Object *ob)
+{
+  if (ob == NULL)
+    return 0;
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
+  TupleObject *tuple = (TupleObject *)ob;
+  return tuple->size;
+}
+int __Tuple_Set(TupleObject *tuple, int index, Object *val);
+static inline int Tuple_Set(Object *ob, int index, Object *val)
+{
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
+  TupleObject *tuple = (TupleObject *)ob;
+  return __Tuple_Set(tuple, index, val);
+}
+static inline int Tuple_Append(Object *ob, Object *val)
+{
+  OB_ASSERT_KLASS(ob, Tuple_Klass);
+  TupleObject *tuple = (TupleObject *)ob;
+  return __Tuple_Set(tuple, tuple->avail++, val);
+}
 
 #ifdef __cplusplus
 }

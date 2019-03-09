@@ -22,6 +22,7 @@
 
 #include "stringobject.h"
 #include "intobject.h"
+#include "stringbuf.h"
 #include "hashfunc.h"
 #include "mem.h"
 #include "log.h"
@@ -131,7 +132,7 @@ static Object *__string_length(Object *ob, Object *args)
   return Integer_New(sob->len);
 }
 
-static FuncDef string_funcs[] = {
+static CFunctionDef string_funcs[] = {
   {"Concat", "s", "s", __string_concat},
   {"Length", "i", NULL, __string_length},
   {NULL}
@@ -140,13 +141,13 @@ static FuncDef string_funcs[] = {
 void Init_String_Klass(void)
 {
   HashTable_Init(&strobj_cache, strobj_hash, strobj_equal);
+  Init_Klass(&String_Klass, NULL);
   Klass_Add_CFunctions(&String_Klass, string_funcs);
 }
 
 static void finifunc(HashNode *hnode, void *arg)
 {
   StringObject *sob = container_of(hnode, StringObject, hnode);
-  Log_Debug("free string: '%s'", sob->str);
   OB_DECREF(sob);
 }
 
@@ -169,11 +170,6 @@ static uint32 string_hash(Object *v)
   return strobj_hash(v);
 }
 
-static void string_free(Object *ob)
-{
-  String_Free(ob);
-}
-
 /* itself */
 static Object *string_tostring(Object *v)
 {
@@ -189,11 +185,11 @@ static Object *string_numop_add(Object *v1, Object *v2)
   StringObject *sob1 = (StringObject *)v1;
   StringObject *sob2 = (StringObject *)v2;
 
-  //FIXME: too larger?
-  char buf[sob1->len + sob2->len + 1];
-  strcpy(buf, sob1->str);
-  strcat(buf, sob2->str);
-  return String_New(buf);
+  DeclareStringBuf(buf);
+  StringBuf_Format_CStr(buf, "##", sob1->str, sob2->str);
+  Object *ob = String_New(buf.data);
+  FiniStringBuf(buf);
+  return ob;
 }
 
 static NumberOperations string_numops = {
@@ -203,10 +199,9 @@ static NumberOperations string_numops = {
 Klass String_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "String",
-  .basesize = sizeof(StringObject),
-  .ob_free  = string_free,
+  .ob_free  = String_Free,
   .ob_hash  = string_hash,
   .ob_equal = string_equal,
-  .ob_str = string_tostring,
-  .numops = &string_numops,
+  .ob_str   = string_tostring,
+  .num_ops  = &string_numops,
 };

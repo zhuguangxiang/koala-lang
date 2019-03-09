@@ -20,26 +20,20 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "koala.h"
+#include "lang.h"
 
-void Init_Lang_Package(void)
+void Init_Lang_Package(Package *pkg)
 {
   Init_String_Klass();
   Init_Integer_Klass();
   Init_Tuple_Klass();
-  Init_Package_Klass();
-
-  Object *pkg = Package_New("lang");
-  Package_Add_Class(pkg, &String_Klass);
-  Package_Add_Class(pkg, &Int_Klass);
-  Package_Add_Class(pkg, &Tuple_Klass);
-  Package_Add_Class(pkg, &Package_Klass);
-  Koala_Add_Package("lang", pkg);
+  Pkg_Add_Class(pkg, &String_Klass);
+  Pkg_Add_Class(pkg, &Int_Klass);
+  Pkg_Add_Class(pkg, &Tuple_Klass);
 }
 
 void Fini_Lang_Package(void)
 {
-  Fini_Package_Klass();
   Fini_Tuple_Klass();
   Fini_Integer_Klass();
   Fini_String_Klass();

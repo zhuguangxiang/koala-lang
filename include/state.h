@@ -24,6 +24,7 @@
 #define _KOALA_STATE_H_
 
 #include "object.h"
+#include "package.h"
 #include "stack.h"
 #include "options.h"
 #include "task.h"
@@ -40,7 +41,7 @@ typedef struct koalastate {
   /* linked in global kslist */
   struct list_head ksnode;
 
-  /* top frame of function frame stack */
+  /* top frame of func call stack */
   void *frame;
   int depth;
 
@@ -58,9 +59,11 @@ typedef struct koalastate {
 
 void Koala_Initialize(void);
 void Koala_Finalize(void);
-int Koala_Add_Package(char *path, Object *ob);
-int Koala_Set_Value(Object *ob, char *name, Object *value);
-Object *Koala_Get_Value(Object *ob, char *name);
+int Koala_Add_Package(char *path, Package *pkg);
+Package *Koala_Get_Package(char *path);
+int Koala_Set_Value(Package *pkg, char *name, Object *value);
+Object *Koala_Get_Value(Package *pkg, char *name);
+Object *Koala_Get_Function(Package *pkg, char *name);
 void Koala_RunTask(Object *code, Object *ob, Object *args);
 void Koala_RunCode(Object *code, Object *ob, Object *args);
 void Koala_Main(Options *opts);

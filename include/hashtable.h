@@ -38,6 +38,8 @@ typedef struct hash_node {
   uint32 hash;
   /* hash key */
   void *key;
+  /* hash object */
+  void *object;
 } HashNode;
 
 #define HashNode_Entry(ptr, type, member) \

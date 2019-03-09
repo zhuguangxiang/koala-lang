@@ -35,12 +35,12 @@ void Show_MemStat(void)
   Log_Puts("\n+---------------------------------\n\x1b[0m");
 }
 
-void *GC_Malloc(int size)
+void *GCalloc(int size)
 {
   return Malloc(size);
 }
 
-void GC_Mfree(void *ptr)
+void GCfree(void *ptr)
 {
   Mfree(ptr);
 }

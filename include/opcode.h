@@ -29,147 +29,154 @@
 extern "C" {
 #endif
 
-/* Stop code frame loop */
-#define OP_HALT 0x00
-
-/* Pop an object */
-#define OP_POP  0x09
-/* Duplicate object and push it in stack */
-#define OP_DUP  0x0a
-
+/* Pop one object */
+#define POP_TOP  1
 /*
- * push byte integer to stack
+ * Pop #n objets
  * size: 1 bytes
  */
-#define OP_BPUSH 0x0b
+#define POP_TOPN 2
+
+/* Duplicate top object and push it in stack */
+#define DUP 3
+
 /*
- * push short integer to stack
+ * Push byte integer to stack
+ * size: 1 bytes
+ */
+#define PUSH_BYTE 4
+/*
+ * Push short integer to stack
  * size: 2 bytes
  */
-#define OP_SPUSH 0x0c
+#define PUSH_SHORT 5
 
 /*
  * Load constant from constants pool to stack
  * arg: index of constants pool
  * size: 2 bytes
  */
-#define OP_LOADK 0x10
+#define LOAD_CONST 10
 
 /*
  * Load package to stack
  * arg: index of constant pool, package's path
  * size: 2 bytes
  */
-#define OP_LOADP 0x11
+#define LOAD_PKG 11
 
 /*
  * Load data from local variables's vector to stack
  * arg: index of local variables' vector
  * size: 1 bytes
  */
-#define OP_LOAD   0x12
-#define OP_LOAD_0 0x13
-#define OP_LOAD_1 0x14
-#define OP_LOAD_2 0x15
-#define OP_LOAD_3 0x16
+#define LOAD   12
+
+#define LOAD_0 13
+#define LOAD_1 14
+#define LOAD_2 15
+#define LOAD_3 16
 
 /*
  * Store data from stack to local variables' vector
  * arg: index of local variables' vector
  * size: 1 bytes
  */
-#define OP_STORE   0x17
-#define OP_STORE_0 0x18
-#define OP_STORE_1 0x19
-#define OP_STORE_2 0x1a
-#define OP_STORE_3 0x1b
+#define STORE   17
+
+#define STORE_0 18
+#define STORE_1 19
+#define STORE_2 20
+#define STORE_3 21
 
 /*
  * Get the field from object
- * arg: index of constant pool, field's name
+ * arg: index of constant pool(field's name)
  * size: 2 bytes
  * NOTE: object is stored in stack
  */
-#define OP_LOAD_FIELD 0x1c
+#define LOAD_FIELD 22
 
 /*
  * Set the field of object
- * arg: index of constant pool, field's name
+ * arg: index of constant pool(field's name)
  * size: 2 bytes
  * NOTE: object is stored in stack
  */
-#define OP_STORE_FIELD 0x1d
+#define STORE_FIELD 23
 
 /*
- * Call a function
- * arg: number of arguments
- * size: 1 bytes
+ * Call a function/closure
+ * arg0: number of arguments
+ * arg1: index of constant pool(function's name)
+ * size: 1+2 bytes
  * NOTE:
  *  Function is already stored in stack
  *  Parameters passed to function are already stored in stack
  *  All parameters are pushed into stack from right to left
  */
-#define OP_CALL 0x1e
+#define CALL 24
 
 /*
  * Function's return
  * NOTE: Return values are already stored in stack
  */
-#define OP_RETURN 0x1f
+#define RETURN 25
 
 /* Binaray & Unary operations */
-#define OP_ADD    0x20
-#define OP_SUB    0x21
-#define OP_MUL    0x22
-#define OP_DIV    0x23
-#define OP_MOD    0x24
-#define OP_POWER  0x25
-#define OP_NEG    0x26
+#define ADD    40
+#define SUB    41
+#define MUL    42
+#define DIV    43
+#define MOD    44
+#define POWER  45
+#define NEG    46
 
-#define OP_GT     0x27
-#define OP_GE     0x28
-#define OP_LT     0x29
-#define OP_LE     0x2a
-#define OP_EQ     0x2b
-#define OP_NEQ    0x2c
+#define GT     47
+#define GE     48
+#define LT     49
+#define LE     50
+#define EQ     51
+#define NEQ    52
 
-#define OP_LAND   0x2d
-#define OP_LOR    0x2e
-#define OP_LNOT   0x2f
+#define AND    53
+#define OR     54
+#define NOT    55
 
-#define OP_BAND   0x30
-#define OP_BOR    0x31
-#define OP_BXOR   0x32
-#define OP_BNOT   0x33
-#define OP_LSHIFT 0x34
-#define OP_RSHIFT 0x35
+#define BAND   56
+#define BOR    57
+#define BXOR   58
+#define BNOT   59
+#define LSHIFT 60
+#define RSHIFT 61
 
 /* Control flow, with relative 2 bytes offset */
-#define OP_JMP          0x40
-#define OP_JMP_TRUE     0x41
-#define OP_JMP_FALSE    0x42
-#define OP_JMP_CMP_EQ   0x43
-#define OP_JMP_CMP_NEQ  0x44
-#define OP_JMP_CMP_LT   0x45
-#define OP_JMP_CMP_GT   0x46
-#define OP_JMP_CMP_LE   0x47
-#define OP_JMP_CMP_GE   0x48
-#define OP_JMP_NIL      0x49
-#define OP_JMP_NOTNIL   0x4a
+#define JMP        70
+#define JMP_TRUE   71
+#define JMP_FALSE  72
+#define JMP_CMPEQ  73
+#define JMP_CMPNEQ 74
+#define JMP_CMPLT  75
+#define JMP_CMPGT  76
+#define JMP_CMPLE  77
+#define JMP_CMPGE  78
+#define JMP_NIL    79
+#define JMP_NOTNIL 80
 
 /* New object and access it */
-#define OP_NEW          0x50
-#define OP_NEW_ARRAY    0x51
-#define OP_NEW_DICT     0x52
-#define OP_NEW_SET      0x53
-#define OP_NEW_CLOSURE  0x54
-#define OP_ARRAY_LOAD   0x55
-#define OP_ARRAY_STORE  0x56
-#define OP_DICT_LOAD    0x57
-#define OP_DICT_STORE   0x58
+#define NEW         90
+#define NEW_ARRAY   91
+#define NEW_MAP     92
+#define NEW_SET     93
+#define NEW_CLOSURE 94
+#define ARRAY_LOAD  95
+#define ARRAY_STORE 96
+#define MAP_LOAD    97
+#define MAP_STORE   98
 
 int OpCode_ArgCount(uint8 op);
 char *OpCode_String(uint8 op);
+char *OpCode_Operator(uint8 op);
 
 #ifdef __cplusplus
 }

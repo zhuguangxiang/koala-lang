@@ -124,7 +124,7 @@ static void merge_parser_unit(ParserState *ps)
     /* if no return opcode, then add one */
     if (!b->ret) {
       Log_Debug("add 'return' to function '%s'", funcSym->name);
-      Inst_Append_NoArg(b, OP_RETURN);
+      Inst_Append_NoArg(b, RETURN);
     }
     /* save codeblock to function symbol */
     funcSym->code = u->block;
@@ -256,7 +256,7 @@ static void code_const_expr(ParserState *ps, Expr *exp)
   assert(exp->ctx == EXPR_LOAD);
   ParserUnit *u = ps->u;
   ConstValue *val = &((ConstExpr *)exp)->value;
-  Inst_Append(u->block, OP_LOADK, val);
+  Inst_Append(u->block, LOAD_CONST, val);
 }
 
 static void parse_self_expr(ParserState *ps, Expr *exp)
@@ -1005,7 +1005,7 @@ static void parse_return_stmt(ParserState *ps, Stmt *stmt)
   /* FIXME: all control flow branches to check
      need include returns' count in OP_RET n?
    */
-  Inst_Append_NoArg(u->block, OP_RETURN);
+  Inst_Append_NoArg(u->block, RETURN);
   u->block->ret = 1;
 }
 

@@ -75,34 +75,34 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
 #define CODE_LOAD(block, index) \
 ({ \
   ConstValue val = {.kind = BASE_INT, .ival = index}; \
-  Inst_Append(block, OP_LOAD, &val); \
+  Inst_Append(block, LOAD, &val); \
 })
 
 #define CODE_STORE(block, index) \
 ({ \
   ConstValue val = {.kind = BASE_INT, .ival = index}; \
-  Inst_Append(block, OP_STORE, &val); \
+  Inst_Append(block, STORE, &val); \
 })
 
 #define CODE_LOAD_FIELD(block, name) \
 ({ \
-  Inst_Append_NoArg(block, OP_LOAD_0); \
+  Inst_Append_NoArg(block, LOAD_0); \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst_Append(block, OP_LOAD_FIELD, &val); \
+  Inst_Append(block, LOAD_FIELD, &val); \
 })
 
 #define CODE_STORE_FIELD(block, name) \
 ({ \
-  Inst_Append_NoArg(block, OP_LOAD_0); \
+  Inst_Append_NoArg(block, LOAD_0); \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst_Append(block, OP_STORE_FIELD, &val); \
+  Inst_Append(block, STORE_FIELD, &val); \
 })
 
 #define CODE_CALL(block, name, argc) \
 ({ \
-  Inst_Append_NoArg(block, OP_LOAD_0); \
+  Inst_Append_NoArg(block, LOAD_0); \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst *i = Inst_Append(block, OP_CALL, &val); \
+  Inst *i = Inst_Append(block, CALL, &val); \
   i->argc = argc; \
 })
 

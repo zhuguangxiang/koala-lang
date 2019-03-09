@@ -23,11 +23,13 @@
 #ifndef _KOALA_IO_PKG_H_
 #define _KOALA_IO_PKG_H_
 
+#include "koala.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void Init_IO_Package(void);
+void Init_IO_Package(Package *pkg);
 void Fini_IO_Package(void);
 
 #ifdef __cplusplus

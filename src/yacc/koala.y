@@ -13,7 +13,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * FITNESS FOR A PARTICULAR PURPOSE OP_AND NONINFRINGEMENT. IN NO EVENT SHALL
  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
@@ -123,19 +123,19 @@ do {                                           \
 %token XOR_ASSIGN
 %token RSHIFT_ASSIGN
 %token LSHIFT_ASSIGN
-%token POWER
+%token OP_POWER
 %token ELLIPSIS
 %token DOTDOTLESS
 
-%token EQ
-%token NE
-%token GE
-%token LE
-%token AND
-%token OR
-%token NOT
-%token LSHIFT
-%token RSHIFT
+%token OP_EQ
+%token OP_NE
+%token OP_GE
+%token OP_LE
+%token OP_AND
+%token OP_OR
+%token OP_NOT
+%token OP_LSHIFT
+%token OP_RSHIFT
 
 %token PACKAGE
 %token IF
@@ -170,7 +170,7 @@ do {                                           \
 %token STRING
 %token ERROR
 %token ANY
-%token DICT
+%token MAP
 %token SET
 
 %token SELF
@@ -194,7 +194,7 @@ do {                                           \
 %type <TypeDesc> PrimitiveType
 %type <TypeDesc> KlassType
 %type <TypeDesc> FunctionType
-%type <TypeDesc> DictType
+%type <TypeDesc> MapType
 %type <TypeDesc> SetType
 %type <TypeDesc> KeyType
 %type <IdType> IDType
@@ -247,10 +247,10 @@ do {                                           \
 %type <List> DimExprList
 %type <Expr> SetCreationExpression
 %type <Expr> ArrayOrSetInitializer
-%type <Expr> DictCreationExpression
-%type <Expr> DictInitializer
-%type <List> DictKeyValueList
-%type <Expr> DictKeyValue
+%type <Expr> MapCreationExpression
+%type <Expr> MapInitializer
+%type <List> MapKeyValueList
+%type <Expr> MapKeyValue
 %type <Expr> AnonyFuncExpression
 %type <Operator> UnaryOp
 %type <Expr> UnaryExpression
@@ -321,7 +321,7 @@ BaseType
   {
     $$ = $1;
   }
-  | DictType
+  | MapType
   {
     $$ = $1;
    }
@@ -338,10 +338,10 @@ ArrayType
   }
   ;
 
-DictType
-  : DICT '[' KeyType ']' Type
+MapType
+  : MAP '[' KeyType ']' Type
   {
-    $$ = TypeDesc_Get_Dict($3, $5);
+    $$ = TypeDesc_Get_Map($3, $5);
   }
   ;
 
@@ -916,12 +916,12 @@ TypeDeclaration
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_Klass(id, CLASS_KIND, $3, NULL);
   }
-  | TRAIT ID WithesOrEmpty '{' TraitMemberDeclarationsOrEmpty '}'
+  | TRAIT ID ExtendsOrEmpty '{' TraitMemberDeclarationsOrEmpty '}'
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_Klass(id, TRAIT_KIND, $3, $5);
   }
-  | TRAIT ID WithesOrEmpty ';'
+  | TRAIT ID ExtendsOrEmpty ';'
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_Klass(id, TRAIT_KIND, $3, NULL);
@@ -1421,11 +1421,11 @@ Atom
   {
     $$ = $1;
   }
-  | DictCreationExpression
+  | MapCreationExpression
   {
     $$ = $1;
   }
-  | DictInitializer
+  | MapInitializer
   {
     $$ = $1;
   }
@@ -1548,58 +1548,58 @@ ArrayOrSetInitializer
   }
   ;
 
-DictCreationExpression
-  : DictType DictInitializer
+MapCreationExpression
+  : MapType MapInitializer
   {
     DeclareType(type, $1, @1);
-    $$ = Expr_From_Dict(type, $2);
+    $$ = Expr_From_Map(type, $2);
     SetPosition($$->pos, @1);
   }
-  | DictType
+  | MapType
   {
     DeclareType(type, $1, @1);
-    $$ = Expr_From_Dict(type, NULL);
+    $$ = Expr_From_Map(type, NULL);
     SetPosition($$->pos, @1);
   } %prec PREC_0
   ;
 
-DictInitializer
-  : '{' DictKeyValueList '}'
+MapInitializer
+  : '{' MapKeyValueList '}'
   {
-    $$ = Expr_From_DictListExpr($2);
+    $$ = Expr_From_MapListExpr($2);
     SetPosition($$->pos, @1);
   }
-  | '{' DictKeyValueList ',' '}'
+  | '{' MapKeyValueList ',' '}'
   {
     /* last one with comma */
-    $$ = Expr_From_DictListExpr($2);
+    $$ = Expr_From_MapListExpr($2);
     SetPosition($$->pos, @1);
   }
   ;
 
-DictKeyValueList
-  : DictKeyValue
+MapKeyValueList
+  : MapKeyValue
   {
     $$ = Vector_New();
     Vector_Append($$, $1);
   }
-  | DictKeyValueList ',' DictKeyValue
+  | MapKeyValueList ',' MapKeyValue
   {
     $$ = $1;
     Vector_Append($$, $3);
   }
   ;
 
-DictKeyValue
+MapKeyValue
   : Expression ':' Expression
   {
-    $$ = Expr_From_DictEntry($1, $3);
+    $$ = Expr_From_MapEntry($1, $3);
     SetPosition($$->pos, @1);
   }
   | Expression ':' Expression ';'
   {
     /* string newline will insert semicolon automatically */
-    $$ = Expr_From_DictEntry($1, $3);
+    $$ = Expr_From_MapEntry($1, $3);
     SetPosition($$->pos, @1);
   }
   ;
@@ -1688,7 +1688,7 @@ UnaryOp
   {
     $$ = UNARY_BIT_NOT;
   }
-  | NOT
+  | OP_NOT
   {
     $$ = UNARY_LNOT;
   }
@@ -1714,7 +1714,7 @@ MultipleExpression
     $$ = Expr_From_Binary(BINARY_MOD, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | MultipleExpression POWER UnaryExpression
+  | MultipleExpression OP_POWER UnaryExpression
   {
     $$ = Expr_From_Binary(BINARY_POWER, $1, $3);
     SetPosition($$->pos, @1);
@@ -1743,12 +1743,12 @@ ShiftExpression
   {
     $$ = $1;
   }
-  | ShiftExpression LSHIFT AddExpression
+  | ShiftExpression OP_LSHIFT AddExpression
   {
     $$ = Expr_From_Binary(BINARY_LSHIFT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | ShiftExpression RSHIFT AddExpression
+  | ShiftExpression OP_RSHIFT AddExpression
   {
     $$ = Expr_From_Binary(BINARY_RSHIFT, $1, $3);
     SetPosition($$->pos, @1);
@@ -1770,12 +1770,12 @@ RelationExpression
     $$ = Expr_From_Binary(BINARY_GT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression LE ShiftExpression
+  | RelationExpression OP_LE ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_LE, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression GE ShiftExpression
+  | RelationExpression OP_GE ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_GE, $1, $3);
     SetPosition($$->pos, @1);
@@ -1787,12 +1787,12 @@ EqualityExpression
   {
     $$ = $1;
   }
-  | EqualityExpression EQ RelationExpression
+  | EqualityExpression OP_EQ RelationExpression
   {
     $$ = Expr_From_Binary(BINARY_EQ, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | EqualityExpression NE RelationExpression
+  | EqualityExpression OP_NE RelationExpression
   {
     $$ = Expr_From_Binary(BINARY_NEQ, $1, $3);
     SetPosition($$->pos, @1);
@@ -1840,7 +1840,7 @@ LogicAndExpression
   {
     $$ = $1;
   }
-  | LogicAndExpression AND InclusiveOrExpression
+  | LogicAndExpression OP_AND InclusiveOrExpression
   {
     $$ = Expr_From_Binary(BINARY_LAND, $1, $3);
     SetPosition($$->pos, @1);
@@ -1852,7 +1852,7 @@ LogicOrExpression
   {
     $$ = $1;
   }
-  | LogicOrExpression OR LogicAndExpression
+  | LogicOrExpression OP_OR LogicAndExpression
   {
     $$ = Expr_From_Binary(BINARY_LOR, $1, $3);
     SetPosition($$->pos, @1);
@@ -1875,20 +1875,32 @@ RangeExpression
   ;
 
 WithExpression
-  : RangeExpression
+  : ID '(' ')' Traits
   {
-    $$ = $1;
+    $$ = NULL;
   }
-  | RangeExpression Traits
+  | ID '.' ID '(' ')' Traits
+  {
+    $$ = NULL;
+  }
+  | ID '(' ExpressionList ')' Traits
+  {
+    $$ = NULL;
+  }
+  | ID '.' ID '(' ExpressionList ')' Traits
   {
     $$ = NULL;
   }
   ;
 
 Expression
-  : WithExpression
+  : RangeExpression
   {
     $$ = $1;
+  }
+  | WithExpression
+  {
+    $$ = NULL;
   }
   ;
 

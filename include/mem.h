@@ -57,8 +57,8 @@ extern MemStat memstat;
 void Show_MemStat(void);
 
 /* gc memory allocator */
-void *GC_Malloc(int size);
-void GC_Mfree(void *ptr);
+void *GCalloc(int size);
+void GCfree(void *ptr);
 
 #ifdef __cplusplus
 }

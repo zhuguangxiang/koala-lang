@@ -333,17 +333,17 @@ Expr *Parser_New_Array(Vector *vec, int dims, TypeWrapper type, Expr *listExp)
   return Expr_From_Array(dimsVec, basetype, listExp);
 }
 
-static int dictlist_get_nesting(Vector *vec)
+static int maplist_get_nesting(Vector *vec)
 {
   int max = 0;
   ListExpr *listExp;
   Expr *v;
-  DictEntryExpr *e;
+  MapEntryExpr *e;
   Vector_ForEach(e, vec) {
-    assert(e->kind == DICT_ENTRY_KIND);
+    assert(e->kind == MAP_ENTRY_KIND);
     v = e->val;
     assert(v != NULL);
-    if (v->kind == DICT_LIST_KIND) {
+    if (v->kind == MAP_LIST_KIND) {
       listExp = (ListExpr *)v;
       if (max < listExp->nesting)
         max = listExp->nesting;
@@ -352,34 +352,34 @@ static int dictlist_get_nesting(Vector *vec)
   return max;
 }
 
-Expr *Expr_From_DictListExpr(Vector *vec)
+Expr *Expr_From_MapListExpr(Vector *vec)
 {
-  int nesting = dictlist_get_nesting(vec) + 1;
+  int nesting = maplist_get_nesting(vec) + 1;
   ListExpr *listExp = Malloc(sizeof(ListExpr));
-  listExp->kind = DICT_LIST_KIND;
+  listExp->kind = MAP_LIST_KIND;
   listExp->nesting = nesting;
   listExp->vec = vec;
   return (Expr *)listExp;
 }
 
-Expr *Expr_From_DictEntry(Expr *k, Expr *v)
+Expr *Expr_From_MapEntry(Expr *k, Expr *v)
 {
-  DictEntryExpr *entExp = Malloc(sizeof(DictEntryExpr));
-  entExp->kind = DICT_ENTRY_KIND;
+  MapEntryExpr *entExp = Malloc(sizeof(MapEntryExpr));
+  entExp->kind = MAP_ENTRY_KIND;
   entExp->key = k;
   entExp->val = v;
   return (Expr *)entExp;
 }
 
-Expr *Expr_From_Dict(TypeWrapper type, Expr *listExp)
+Expr *Expr_From_Map(TypeWrapper type, Expr *listExp)
 {
-  DictExpr *dictExp = Malloc(sizeof(DictExpr));
-  dictExp->kind = DICT_KIND;
+  MapExpr *mapExp = Malloc(sizeof(MapExpr));
+  mapExp->kind = MAP_KIND;
   TYPE_INCREF(type.desc);
-  dictExp->type = type;
-  assert(listExp != NULL ? listExp->kind == DICT_LIST_KIND : 1);
-  dictExp->listExp = (ListExpr *)listExp;
-  return (Expr *)dictExp;
+  mapExp->type = type;
+  assert(listExp != NULL ? listExp->kind == MAP_LIST_KIND : 1);
+  mapExp->listExp = (ListExpr *)listExp;
+  return (Expr *)mapExp;
 }
 
 Expr *Expr_From_Set(TypeWrapper type, Expr *listExp)
@@ -476,9 +476,9 @@ static void free_list_expr(Expr *exp)
   free_expr(exp);
 }
 
-static void free_dictentry_expr(Expr *exp)
+static void free_mapentry_expr(Expr *exp)
 {
-  DictEntryExpr *entExp = (DictEntryExpr *)exp;
+  MapEntryExpr *entExp = (MapEntryExpr *)exp;
   Free_Expr(entExp->key);
   Free_Expr(entExp->val);
   free_expr(exp);
@@ -493,11 +493,11 @@ static void free_array_expr(Expr *exp)
   free_expr(exp);
 }
 
-static void free_dict_expr(Expr *exp)
+static void free_map_expr(Expr *exp)
 {
-  DictExpr *dictExp = (DictExpr *)exp;
-  TYPE_DECREF(dictExp->type.desc);
-  free_list_expr((Expr *)dictExp->listExp);
+  MapExpr *mapExp = (MapExpr *)exp;
+  TYPE_DECREF(mapExp->type.desc);
+  free_list_expr((Expr *)mapExp->listExp);
   free_expr(exp);
 }
 
@@ -533,9 +533,9 @@ static void (*__free_expr_funcs[])(Expr *) = {
   free_slice_expr,                       /* SLICE_KIND       */
   free_list_expr,                        /* ARRAY_LIST_KIND  */
   free_list_expr,                        /* MAP_LIST_KIND    */
-  free_dictentry_expr,                   /* MAP_ENTRY_KIND   */
+  free_mapentry_expr,                    /* MAP_ENTRY_KIND   */
   free_array_expr,                       /* ARRAY_KIND       */
-  free_dict_expr,                        /* MAP_KIND         */
+  free_map_expr,                         /* MAP_KIND         */
   free_set_expr,                         /* SET_KIND         */
   free_anony_expr,                       /* ANONY_FUNC_KIND  */
 };
