@@ -37,10 +37,10 @@
   Position name = {yyloc_row(loc), yyloc_col(loc)}
 
 #define SetPosition(pos, loc) \
-do {                          \
+({                            \
   (pos).row = yyloc_row(loc); \
   (pos).col = yyloc_col(loc); \
-} while (0)
+})
 
 #ifndef NDEBUG
 #define YYERROR_VERBOSE 1
@@ -65,7 +65,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 #define ERRMSG "expected '%s', but found '%s'\n"
 
 #define YYSyntax_Error(loc, expected) \
-do {                                  \
+({                                    \
   yyerrok;                            \
   DeclarePosition(pos, loc);          \
   char *token = ps->line.token;       \
@@ -75,26 +75,26 @@ do {                                  \
   }                                   \
   Syntax_Error(ps, &pos, ERRMSG,      \
                expected, token);      \
-} while (0)
+})
 
 #define YYSyntax_Error_Clear(loc, expected) \
-do {                                        \
+({                                          \
   yyclearin;                                \
   YYSyntax_Error(loc, expected);            \
-} while (0)
+})
 
 #define YYSyntax_ErrorMsg(loc, fmt, ...)          \
-do {                                              \
+({                                                \
   yyerrok;                                        \
   DeclarePosition(pos, loc);                      \
   Syntax_Error(ps, &pos, fmt"\n", ##__VA_ARGS__); \
-} while (0)
+})
 
 #define YYSyntax_ErrorMsg_Clear(loc, fmt, ...) \
-do {                                           \
+({                                             \
   yyclearin;                                   \
   YYSyntax_ErrorMsg(loc, fmt, ##__VA_ARGS__);  \
-} while (0)
+})
 
 %}
 

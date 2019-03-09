@@ -100,13 +100,13 @@ typedef struct typedesc {
 } TypeDesc;
 
 #define TYPE_INCREF(desc) \
-do {                      \
+({                        \
   if (desc != NULL)       \
     ++(desc)->refcnt;     \
-} while (0)
+})
 
 #define TYPE_DECREF(desc)             \
-do {                                  \
+({                                    \
   TypeDesc *_desc = (TypeDesc *)desc; \
   if (_desc != NULL) {                \
     --(_desc)->refcnt;                \
@@ -114,7 +114,7 @@ do {                                  \
     if (_desc->refcnt <= 0)           \
       TypeDesc_Free(_desc);           \
   }                                   \
-} while (0)
+})
 
 void Init_TypeDesc(void);
 void Fini_TypeDesc(void);

@@ -54,27 +54,28 @@ struct object {
   .ob_refcnt = 1, \
   .ob_klass = (klazz),
 #define Init_Object_Head(ob, klazz) \
-do { \
-  Object *o = (Object *)(ob); \
-  o->ob_refcnt = 1; \
-  o->ob_klass = (klazz); \
-} while (0)
+({                                  \
+  Object *o = (Object *)(ob);       \
+  o->ob_refcnt = 1;                 \
+  o->ob_klass = (klazz);            \
+})
 #define OB_KLASS(ob)  (((Object *)(ob))->ob_klass)
 #define OB_REFCNT(ob) (((Object *)(ob))->ob_refcnt)
 #define OB_ASSERT_KLASS(ob, klazz) assert(OB_KLASS(ob) == &(klazz))
 
 #define OB_INCREF(ob) (((Object *)(ob))->ob_refcnt++)
-#define OB_DECREF(ob) \
-do { \
-  if (ob != NULL) { \
-    if (--((Object *)(ob))->ob_refcnt != 0) { \
-      assert(((Object *)(ob))->ob_refcnt > 0); \
-    } else { \
-      OB_KLASS(ob)->ob_free((Object *)ob); \
-      (ob) = NULL; \
-    } \
-  } \
-} while (0)
+#define OB_DECREF(_ob)             \
+({                                 \
+  Object *obj = (Object *)(_ob);   \
+  if (obj != NULL) {               \
+    if (--obj->ob_refcnt != 0) {   \
+      assert(obj->ob_refcnt > 0);  \
+    } else {                       \
+      OB_KLASS(obj)->ob_free(obj); \
+      (_ob) = NULL;                \
+    }                              \
+  }                                \
+})
 
 /*
  * function prototypes(internal used only)
@@ -233,16 +234,6 @@ struct klass {
   Object *consts;
 };
 
-/*
- * Skeleton of Klasses
- *                               Klass_Klass
- *                                   /|\
- *     |---------|---------|----------|----------|---------|-----------|
- * Nil_Klass Int_Klass Float_Klass Bool_Klass Any_Klass Trait_Klass Foo_Klass
- *                                                        /|\
- *                                                         |
- *                                                      Bar_Trait
- */
 extern Klass Klass_Klass;
 extern Klass Any_Klass;
 

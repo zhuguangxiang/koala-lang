@@ -31,22 +31,22 @@ LOGGER(0)
 
 #define yyps ((ParserState *)yyextra)
 
-#define YY_USER_ACTION \
-do { \
-  Lexer_DoUserAction(yyps, yytext); \
+#define YY_USER_ACTION                       \
+({                                           \
+  Lexer_DoUserAction(yyps, yytext);          \
   yylloc->first_line = yyps->line.pos.row;   \
   yylloc->last_line = yyps->line.pos.row;    \
   yylloc->first_column = yyps->line.pos.col; \
   yylloc->last_column = yylloc->first_column \
     + yyps->line.len;                        \
-} while (0);
+});
 
-#define YY_INPUT(buf, result, max_size) \
-do { \
+#define YY_INPUT(buf, result, max_size)                \
+({                                                     \
   result = Lexer_DoYYInput(yyps, buf, max_size, yyin); \
-  if (result <= 0) \
-    result = YY_NULL; \
-} while (0);
+  if (result <= 0)                                     \
+    result = YY_NULL;                                  \
+})
 
 #define YY_RETURN(token) \
   yyps->lastToken = token; \
@@ -68,12 +68,12 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
   return 0;
 }
 
-#define YY_NEWLINE() \
-do { \
+#define YY_NEWLINE()                     \
+({                                       \
   if (Lexer_NeedInsertSemiColon(yyps)) { \
-    YY_RETURN(';'); \
-  } \
-} while (0);
+    YY_RETURN(';');                      \
+  }                                      \
+})
 
 %}
 

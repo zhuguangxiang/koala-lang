@@ -45,19 +45,19 @@ typedef struct hash_node {
 #define HashNode_Entry(ptr, type, member) \
   container_of(ptr, type, member)
 
-#define Init_HashNode(hnode, k) \
-do { \
-  init_list_head(&(hnode)->llink); \
+#define Init_HashNode(hnode, k)     \
+({                                  \
+  init_list_head(&(hnode)->llink);  \
   init_hlist_node(&(hnode)->hlink); \
-  (hnode)->hash = 0; \
-  (hnode)->key = k; \
-} while (0)
+  (hnode)->hash = 0;                \
+  (hnode)->key = k;                 \
+})
 
 #define Remove_HashNode(hnode) \
-do { \
-  list_del(&(hnode)->llink); \
-  hlist_del(&(hnode)->hlink); \
-} while (0)
+({                             \
+  list_del(&(hnode)->llink);   \
+  hlist_del(&(hnode)->hlink);  \
+})
 
 typedef uint32 (*hashfunc)(void *);
 typedef int (*equalfunc)(void *, void *);

@@ -95,15 +95,15 @@ task_t *current_task(void);
 /* get current processor in which current task is running */
 task_processor_t *current_processor(void);
 /* set task private object */
-#define task_set_private(obj) \
-do { \
+#define task_set_private(obj)   \
+({                              \
   current_task()->object = obj; \
-} while (0)
+})
 
 /* get task private object */
 #define task_get_private() \
-({ \
-  current_task()->object; \
+({                         \
+  current_task()->object;  \
 })
 
 #ifdef __cplusplus

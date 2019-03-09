@@ -44,12 +44,12 @@ void __StringBuf_Append_Char(StringBuf *buf, char ch);
 #define DeclareStringBuf(name) StringBuf name = {0, 0, NULL};
 
 #define FiniStringBuf(name) \
-do { \
-  Mfree((name).data); \
-  (name).length = 0;  \
-  (name).size = 0;    \
-  (name).data = NULL; \
-} while (0)
+({                          \
+  Mfree((name).data);       \
+  (name).length = 0;        \
+  (name).size = 0;          \
+  (name).data = NULL;       \
+})
 
 /* fmt: "#.#" */
 #define StringBuf_Format(name, fmt, ...) \
@@ -67,14 +67,14 @@ do { \
 #define StringBuf_Append_Char(name, ch) \
   __StringBuf_Append_Char(&(name), ch)
 
-#define AtomString_Format(fmt, ...) \
-({ \
-  char *s; \
-  DeclareStringBuf(buf); \
+#define AtomString_Format(fmt, ...)             \
+({                                              \
+  char *s;                                      \
+  DeclareStringBuf(buf);                        \
   StringBuf_Format_CStr(buf, fmt, __VA_ARGS__); \
-  s = AtomString_New(buf.data).str; \
-  FiniStringBuf(buf); \
-  s; \
+  s = AtomString_New(buf.data).str;             \
+  FiniStringBuf(buf);                           \
+  s;                                            \
 })
 
 #ifdef __cplusplus

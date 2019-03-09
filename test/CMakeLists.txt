@@ -47,6 +47,9 @@ target_link_libraries(test_image koala)
 add_executable(test_io test_io.c)
 target_link_libraries(test_io koala)
 
+add_executable(test_inherit test_inherit.c)
+target_link_libraries(test_inherit koala)
+
 add_executable(test_properties test_properties.c)
 target_link_libraries(test_properties common)
 
