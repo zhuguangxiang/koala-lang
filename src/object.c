@@ -26,6 +26,7 @@
 #include "log.h"
 #include "stringobject.h"
 #include "codeobject.h"
+#include "intobject.h"
 #include "tupleobject.h"
 
 LOGGER(0)
@@ -65,7 +66,7 @@ Object *MTable_ToString(HashTable *table)
     Tuple_Append(tuple, String_New(m->name));
   }
 
-  Object *so = Tuple_ToString(tuple);
+  Object *so = Tuple_ToString(tuple, NULL);
   OB_DECREF(tuple);
   return so;
 }
@@ -92,21 +93,24 @@ static void free_mnode_func(HashNode *hnode, void *arg)
   MNode *m = container_of(hnode, MNode, hnode);
   switch (m->kind) {
   case CONST_KIND:
-    Log_Debug("const '%s' is freed", m->name);
+    Log_Debug(" const \x1b[34m%-8s\x1b[0m freed", m->name);
     OB_DECREF(m->value);
     break;
   case VAR_KIND:
-    Log_Debug("var '%s' is freed", m->name);
+    Log_Debug("var   \x1b[34m%-8s\x1b[0m freed", m->name);
     break;
   case FUNC_KIND:
-    Log_Debug("func '%s' is freed", m->name);
+    Log_Debug("func  \x1b[34m%-8s\x1b[0m freed", m->name);
     Code_Free(m->code);
     break;
   case PROTO_KIND:
+    assert(0);
     break;
   case CLASS_KIND:
+    OB_DECREF(m->klazz);
     break;
   case TRAIT_KIND:
+    assert(0);
     break;
   default:
     assert(0);
@@ -118,66 +122,6 @@ static void free_mnode_func(HashNode *hnode, void *arg)
 void Fini_MTable(HashTable *table)
 {
   HashTable_Fini(table, free_mnode_func, NULL);
-}
-
-static void klass_free(Object *ob)
-{
-  OB_ASSERT_KLASS(ob, Klass_Klass);
-  Mfree(ob);
-}
-
-Klass Klass_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
-  .name = "Klass",
-  .ob_free = klass_free,
-  .ob_str  = Klass_ToString
-};
-
-Klass Any_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
-  .name = "Any",
-};
-
-static void object_mark(Object *ob)
-{
-  /* FIXME */
-  UNUSED_PARAMETER(ob);
-}
-
-static Object *object_alloc(Klass *klazz)
-{
-  int size = sizeof(Object) + sizeof(Object *) * klazz->totalvars;
-  Object *ob = GCalloc(size);
-  Init_Object_Head(ob, klazz);
-  return ob;
-}
-
-static void object_free(Object *ob)
-{
-  Klass *klazz = OB_KLASS(ob);
-  Object **value = (Object **)(ob + 1);
-  int size = klazz->totalvars;
-  for (int i = 0; i < size; i++)
-    OB_DECREF(value[i]);
-  Log_Debug("object of '%s' is freed", OB_KLASS(ob)->name);
-  GCfree(ob);
-}
-
-static uint32 object_hash(Object *ob)
-{
-  return hash_uint32((intptr_t)ob, 32);
-}
-
-static int object_equal(Object *ob1, Object *ob2)
-{
-  return ob1 == ob2;
-}
-
-static Object *object_tostring(Object *ob)
-{
-  char buf[64];
-  snprintf(buf, 63, "%s@%x", OB_KLASS(ob)->name, (uint16)(intptr_t)ob);
-  return String_New(buf);
 }
 
 static LRONode *LRONode_New(int offset, Klass *klazz)
@@ -215,6 +159,7 @@ static void lro_build(Klass *klazz, Vector *bases)
   int offset = 0;
   LRONode *lro;
   /* Any klass */
+  OB_INCREF(&Any_Klass);
   lro = LRONode_New(offset, &Any_Klass);
   Vector_Append(&klazz->lro, lro);
   offset += Any_Klass.nrvars;
@@ -224,6 +169,7 @@ static void lro_build(Klass *klazz, Vector *bases)
     LRONode *node;
     Vector_ForEach(node, &line->lro) {
       if (!lro_find(&klazz->lro, node->klazz)) {
+        OB_INCREF(node->klazz);
         lro = LRONode_New(offset, node->klazz);
         Vector_Append(&klazz->lro, lro);
         offset += node->klazz->nrvars;
@@ -243,16 +189,86 @@ void Init_Klass(Klass *klazz, Vector *bases)
   Vector_Init(&klazz->lro);
   lro_build(klazz, bases);
   lro_debug(klazz);
+  Init_Mapping_Operators(klazz);
 }
 
 void Fini_Klass(Klass *klazz)
 {
+  OB_ASSERT_KLASS(klazz, Klass_Klass);
+  Log_Debug("--------------------------");
   LRONode *lro;
-  Vector_ForEach(lro, &klazz->lro)
+  Vector_ForEach(lro, &klazz->lro) {
+    if (lro->klazz != klazz)
+      OB_DECREF(lro->klazz);
     Mfree(lro);
+  }
   Vector_Fini_Self(&klazz->lro);
   Fini_MTable(&klazz->mtbl);
-  Log_Debug("Klass '%s' is finalized", klazz->name);
+  Log_Debug("klass \x1b[32m%s\x1b[0m finalized", klazz->name);
+}
+
+static void klass_free(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, Klass_Klass);
+  Klass *klazz = (Klass *)ob;
+  Log_Debug("--------------------------");
+  Fini_Klass(klazz);
+  Log_Debug("klass \x1b[32m%s\x1b[0m freed", klazz->name);
+  Mfree(klazz);
+}
+
+Klass Klass_Klass = {
+  OBJECT_HEAD_INIT(&Klass_Klass)
+  .name = "Klass",
+  .ob_free = klass_free,
+  .ob_str  = Klass_ToString
+};
+
+Klass Any_Klass = {
+  OBJECT_HEAD_INIT(&Klass_Klass)
+  .name = "Any",
+};
+
+static void object_mark(Object *ob)
+{
+  /* FIXME */
+  UNUSED_PARAMETER(ob);
+}
+
+static Object *object_alloc(Klass *klazz)
+{
+  int size = sizeof(Object) + sizeof(Object *) * klazz->totalvars;
+  Object *ob = GCalloc(size);
+  Init_Object_Head(ob, klazz);
+  return ob;
+}
+
+static void object_free(Object *ob)
+{
+  Klass *klazz = OB_KLASS(ob);
+  Object **value = (Object **)(ob + 1);
+  int size = klazz->totalvars;
+  for (int i = 0; i < size; i++)
+    OB_DECREF(value[i]);
+  Log_Debug("object \x1b[34m%s\x1b[0m freed", OB_KLASS(ob)->name);
+  GCfree(ob);
+}
+
+static Object *object_hash(Object *ob, Object *args)
+{
+  return Integer_New(hash_uint32((intptr_t)ob, 32));
+}
+
+static Object *object_equal(Object *ob1, Object *ob2)
+{
+  return Bool_New(ob1 == ob2);
+}
+
+static Object *object_tostring(Object *ob, Object *args)
+{
+  char buf[64];
+  snprintf(buf, 63, "%s@%x", OB_KLASS(ob)->name, (uint16)(intptr_t)ob);
+  return String_New(buf);
 }
 
 Klass *Klass_New(char *name, Vector *bases)
@@ -265,19 +281,12 @@ Klass *Klass_New(char *name, Vector *bases)
   klazz->ob_alloc = object_alloc;
   klazz->ob_free  = object_free,
   klazz->ob_hash  = object_hash;
-  klazz->ob_equal = object_equal;
+  klazz->ob_cmp   = object_equal;
   klazz->ob_str   = object_tostring;
 
   Init_Klass(klazz, bases);
 
   return klazz;
-}
-
-void Klass_Free(Klass *klazz)
-{
-  Fini_Klass(klazz);
-  Log_Debug("Klass '%s' is freed", klazz->name);
-  Mfree(klazz);
 }
 
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc)
@@ -317,7 +326,7 @@ int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto)
   return -1;
 }
 
-Object *Klass_ToString(Object *ob)
+Object *Klass_ToString(Object *ob, Object *args)
 {
   OB_ASSERT_KLASS(ob, Klass_Klass);
   Klass *klazz = (Klass *)ob;
@@ -328,7 +337,7 @@ Object *Klass_ToString(Object *ob)
     Tuple_Append(tuple, String_New(m->name));
   }
 
-  Object *so = Tuple_ToString(tuple);
+  Object *so = Tuple_ToString(tuple, NULL);
   OB_DECREF(tuple);
   return so;
 }
@@ -422,6 +431,12 @@ Object *Get_Method(Object *ob, Klass *base, char *name)
   Log_Debug("get_method: '%s' in '%s(%s)'",
             name, base->name, OB_KLASS(ob)->name);
   return mnode->code;
+}
+
+/* FIXME: call Koala_RunCode? */
+Object *To_String(Object *ob)
+{
+  return OB_KLASS(ob)->ob_str(ob, NULL);
 }
 
 int Klass_Add_CFunctions(Klass *klazz, CFunctionDef *functions)

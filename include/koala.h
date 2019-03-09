@@ -30,7 +30,6 @@
 #include "properties.h"
 #include "stringbuf.h"
 #include "env.h"
-#include "mem.h"
 #include "log.h"
 
 #ifdef __cplusplus

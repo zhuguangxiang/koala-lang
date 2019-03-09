@@ -42,30 +42,30 @@ void Integer_Free(Object *ob)
   Cache_Restore(&Int_Cache, ob);
 }
 
-int64 Integer_ToCInt(Object *ob)
+int64 Integer_Raw(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Int_Klass);
   IntObject *iob = (IntObject *)ob;
   return iob->value;
 }
 
-static int integer_equal(Object *v1, Object *v2)
+static Object *integer_equal(Object *v1, Object *v2)
 {
   OB_ASSERT_KLASS(v1, Int_Klass);
   OB_ASSERT_KLASS(v2, Int_Klass);
   IntObject *iob1 = (IntObject *)v1;
   IntObject *iob2 = (IntObject *)v2;
-  return iob1->value == iob2->value;
+  return Bool_New(iob1->value == iob2->value);
 }
 
-static uint32 integer_hash(Object *v)
+static Object *integer_hash(Object *v, Object *args)
 {
   OB_ASSERT_KLASS(v, Int_Klass);
   IntObject *iob = (IntObject *)v;
-  return hash_uint32((uint32)iob->value, 32);
+  return Integer_New(hash_uint32((uint32)iob->value, 32));
 }
 
-static Object *integer_tostring(Object *v)
+static Object *integer_tostring(Object *v, Object *args)
 {
   OB_ASSERT_KLASS(v, Int_Klass);
   IntObject *iob = (IntObject *)v;
@@ -74,7 +74,7 @@ static Object *integer_tostring(Object *v)
   return String_New(buf);
 }
 
-static Object *integer_numop_add(Object *v1, Object *v2)
+static Object *__integer_add__(Object *v1, Object *v2)
 {
   OB_ASSERT_KLASS(v1, Int_Klass);
   OB_ASSERT_KLASS(v2, Int_Klass);
@@ -84,7 +84,7 @@ static Object *integer_numop_add(Object *v1, Object *v2)
 }
 
 static NumberOperations integer_numops = {
-  .add = integer_numop_add,
+  .add = __integer_add__,
 };
 
 Klass Int_Klass = {
@@ -92,7 +92,7 @@ Klass Int_Klass = {
   .name = "Integer",
   .ob_free  = Integer_Free,
   .ob_hash  = integer_hash,
-  .ob_equal = integer_equal,
+  .ob_cmp   = integer_equal,
   .ob_str   = integer_tostring,
   .num_ops  = &integer_numops,
 };
@@ -101,10 +101,78 @@ void Init_Integer_Klass(void)
 {
   Init_Cache(&Int_Cache, "IntObject", sizeof(IntObject));
   Init_Klass(&Int_Klass, NULL);
+  Init_Klass(&Bool_Klass, NULL);
 }
 
 void Fini_Integer_Klass(void)
 {
   Fini_Cache(&Int_Cache, NULL, NULL);
   Fini_Klass(&Int_Klass);
+  Fini_Klass(&Bool_Klass);
+}
+
+static Object *bool_tostring(Object *ob, Object *args)
+{
+  OB_ASSERT_KLASS(ob, Bool_Klass);
+}
+
+static Object *__bool_and__(Object *v1, Object *v2)
+{
+  OB_ASSERT_KLASS(v1, Bool_Klass);
+  OB_ASSERT_KLASS(v2, Bool_Klass);
+  IntObject *iob1 = (IntObject *)v1;
+  IntObject *iob2 = (IntObject *)v2;
+  return Bool_New(iob1->value && iob2->value);
+}
+
+static Object *__bool_or__(Object *v1, Object *v2)
+{
+  OB_ASSERT_KLASS(v1, Bool_Klass);
+  OB_ASSERT_KLASS(v2, Bool_Klass);
+  IntObject *iob1 = (IntObject *)v1;
+  IntObject *iob2 = (IntObject *)v2;
+  return Bool_New(iob1->value || iob2->value);
+}
+
+static Object *__bool_not__(Object *v1, Object *v2)
+{
+  OB_ASSERT_KLASS(v1, Bool_Klass);
+  assert(v2 == NULL);
+  IntObject *iob1 = (IntObject *)v1;
+  return Bool_New(!iob1->value);
+}
+
+static NumberOperations bool_numops = {
+  .land = __bool_and__,
+  .lor  = __bool_or__,
+  .lnot = __bool_not__,
+};
+
+Klass Bool_Klass = {
+  OBJECT_HEAD_INIT(&Klass_Klass)
+  .name = "Bool",
+  .ob_str  = bool_tostring,
+  .num_ops = &bool_numops,
+};
+
+static IntObject btrue = {
+  OBJECT_HEAD_INIT(&Bool_Klass)
+  .value = 1,
+};
+
+static IntObject bfalse = {
+  OBJECT_HEAD_INIT(&Bool_Klass)
+  .value = 0,
+};
+
+Object *Bool_New(int bval)
+{
+  return bval ? (Object *)&btrue : (Object *)&bfalse;
+}
+
+int Bool_Raw(Object *ob)
+{
+  OB_ASSERT_KLASS(ob, Bool_Klass);
+  IntObject *iob = (IntObject *)ob;
+  return (int)iob->value;
 }

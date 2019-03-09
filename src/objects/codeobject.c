@@ -20,9 +20,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "codeobject.h"
+#include "opcode.h"
 #include "log.h"
 #include "mem.h"
-#include "codeobject.h"
 
 LOGGER(0)
 
@@ -125,3 +126,121 @@ Klass Code_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Code",
 };
+
+static TypeDesc *any_any_proto(void)
+{
+  TypeDesc *any = TypeDesc_Get_Base(BASE_ANY);
+  return TypeDesc_Get_SProto(any, any);
+}
+
+static TypeDesc *void_2any_proto(void)
+{
+  TypeDesc *any = TypeDesc_Get_Base(BASE_ANY);
+  Vector *arg = Vector_New();
+  TYPE_INCREF(any);
+  Vector_Append(arg, any);
+  TYPE_INCREF(any);
+  Vector_Append(arg, any);
+  return TypeDesc_Get_Proto(arg, NULL);
+}
+
+static TypeDesc *int_void_proto(void)
+{
+  TypeDesc *desc = TypeDesc_Get_Base(BASE_INT);
+  return TypeDesc_Get_SProto(NULL, desc);
+}
+
+static TypeDesc *bool_any_proto(void)
+{
+  TypeDesc *arg = TypeDesc_Get_Base(BASE_ANY);
+  TypeDesc *ret = TypeDesc_Get_Base(BASE_BOOL);
+  return TypeDesc_Get_SProto(arg, ret);
+}
+
+static TypeDesc *str_void_proto(void)
+{
+  TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
+  return TypeDesc_Get_SProto(NULL, desc);
+}
+
+static void init_operator(Klass *klazz, int op, cfunc_t func)
+{
+  if (func == NULL)
+    return;
+
+  char *name = OpCode_Operator(op);
+  TypeDesc *proto = any_any_proto();
+  Object *code = cfunc_new(name, proto, func);
+  Klass_Add_Method(klazz, code);
+}
+
+static void init_operator2(Klass *klazz, int op, cfunc_t func)
+{
+  if (func == NULL)
+    return;
+
+  char *name = OpCode_Operator(op);
+  TypeDesc *proto = void_2any_proto();
+  Object *code = cfunc_new(name, proto, func);
+  Klass_Add_Method(klazz, code);
+}
+
+void Init_Mapping_Operators(Klass *klazz)
+{
+  Object *code;
+  char *name;
+  TypeDesc *proto;
+  NumberOperations *nuops = klazz->num_ops;
+  MapOperations *mapops = klazz->map_ops;
+
+  if (nuops != NULL) {
+    init_operator(klazz, ADD, nuops->add);
+    init_operator(klazz, SUB, nuops->sub);
+    init_operator(klazz, MUL, nuops->mul);
+    init_operator(klazz, DIV, nuops->div);
+    init_operator(klazz, MOD, nuops->mod);
+    init_operator(klazz, POW, nuops->pow);
+    init_operator(klazz, NEG, nuops->neg);
+
+    init_operator(klazz, GT,  nuops->gt);
+    init_operator(klazz, GT,  nuops->ge);
+    init_operator(klazz, LT,  nuops->lt);
+    init_operator(klazz, LE,  nuops->le);
+    init_operator(klazz, EQ,  nuops->eq);
+    init_operator(klazz, NEQ, nuops->neq);
+
+    init_operator(klazz, BAND, nuops->band);
+    init_operator(klazz, BOR,  nuops->bor);
+    init_operator(klazz, BXOR, nuops->bxor);
+    init_operator(klazz, BNOT, nuops->bnot);
+    init_operator(klazz, LSHIFT, nuops->lshift);
+    init_operator(klazz, RSHIFT, nuops->rshift);
+
+    init_operator(klazz, AND, nuops->land);
+    init_operator(klazz, OR,  nuops->lor);
+    init_operator(klazz, NOT, nuops->lnot);
+  }
+
+  if (mapops != NULL) {
+    init_operator(klazz, MAP_LOAD, mapops->get);
+    init_operator2(klazz, MAP_STORE, mapops->set);
+  }
+
+  if (klazz->ob_hash != NULL) {
+    TypeDesc *proto = int_void_proto();
+    Object *code = cfunc_new("__hash__", proto, klazz->ob_hash);
+    Klass_Add_Method(klazz, code);
+  }
+
+  if (klazz->ob_cmp != NULL) {
+    TypeDesc *proto = bool_any_proto();
+    Object *code = cfunc_new("__cmp__", proto, klazz->ob_cmp);
+    Klass_Add_Method(klazz, code);
+  }
+
+  if (klazz->ob_str != NULL) {
+    TypeDesc *proto = str_void_proto();
+    Object *code = cfunc_new("__tostring__", proto, klazz->ob_str);
+    Klass_Add_Method(klazz, code);
+  }
+}

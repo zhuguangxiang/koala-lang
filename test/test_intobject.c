@@ -1,29 +1,19 @@
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include "intobject.h"
-#include "stringobject.h"
+#include "koala.h"
 
 void test_intobject(void)
 {
   Object *ob = Integer_New(100);
-  Object *s = OB_KLASS(ob)->ob_str(ob);
-  assert(!strcmp("100", String_RawString(s)));
+  Object *s = To_String(ob);
+  assert(!strcmp("100", String_Raw(s)));
   OB_DECREF(ob);
   OB_DECREF(s);
 }
 
 int main(int argc, char *argv[])
 {
-  AtomString_Init();
-  Init_TypeDesc();
-  Init_String_Klass();
-  Init_Integer_Klass();
+  Koala_Initialize();
   test_intobject();
-  Fini_Integer_Klass();
-  Fini_String_Klass();
-  Fini_TypeDesc();
-  AtomString_Fini();
+  Koala_Finalize();
   return 0;
 }

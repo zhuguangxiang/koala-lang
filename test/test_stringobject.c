@@ -1,8 +1,5 @@
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include "stringobject.h"
+#include "koala.h"
 
 void test_stringobject(void)
 {
@@ -18,7 +15,7 @@ void test_stringobject(void)
   s1 = String_New("hello");
   s2 = String_New(" world");
   Object *s3 = OB_KLASS(s1)->num_ops->add(s1, s2);
-  assert(!strcmp("hello world", String_RawString(s3)));
+  assert(!strcmp("hello world", String_Raw(s3)));
   OB_DECREF(s1);
   OB_DECREF(s2);
   OB_DECREF(s3);
@@ -29,12 +26,8 @@ void test_stringobject(void)
 
 int main(int argc, char *argv[])
 {
-  AtomString_Init();
-  Init_TypeDesc();
-  Init_String_Klass();
+  Koala_Initialize();
   test_stringobject();
-  Fini_String_Klass();
-  Fini_TypeDesc();
-  AtomString_Fini();
+  Koala_Finalize();
   return 0;
 }

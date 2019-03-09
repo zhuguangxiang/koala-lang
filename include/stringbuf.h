@@ -23,7 +23,6 @@
 #ifndef _KOALA_STRINGBUF_H_
 #define _KOALA_STRINGBUF_H_
 
-#include "common.h"
 #include "atomstring.h"
 #include "mem.h"
 

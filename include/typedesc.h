@@ -137,8 +137,9 @@ typedef struct klassdesc {
 /* function's proto */
 typedef struct protodesc {
   TYPEDESC_HEAD
-  Vector *arg;
-  Vector *ret;
+  int simple;
+  void *arg;
+  void *ret;
 } ProtoDesc;
 
 /* array */
@@ -173,8 +174,8 @@ int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2);
 /* convert typedesc struct to string for readable and printable */
 void TypeDesc_ToString(TypeDesc *desc, char *buf);
 
-/* show ProtoDesc's arg and ret vectors */
-void ProtoVec_ToString(Vector *vec, char *buf);
+/* print ProtoDesc's arg and ret */
+void Proto_Print(ProtoDesc *proto, char *buf);
 
 /* free the typedesc */
 void TypeDesc_Free(TypeDesc *desc);
@@ -187,6 +188,7 @@ TypeDesc *TypeDesc_Get_Klass(char *path, char *type);
 
 /* new a proto typedesc */
 TypeDesc *TypeDesc_Get_Proto(Vector *arg, Vector *ret);
+TypeDesc *TypeDesc_Get_SProto(TypeDesc *arg, TypeDesc *ret);
 
 /* new an array typedesc */
 TypeDesc *TypeDesc_Get_Array(int dims, TypeDesc *base);

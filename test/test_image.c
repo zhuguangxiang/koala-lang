@@ -1,8 +1,5 @@
 
-#include "image.h"
-#include "atomstring.h"
-#include "intobject.h"
-#include "stringobject.h"
+#include "koala.h"
 #include "opcode.h"
 
 void test_image(void)
@@ -37,16 +34,8 @@ void test_image(void)
 
 int main(int argc, char *argv[])
 {
-  UNUSED_PARAMETER(argc);
-  UNUSED_PARAMETER(argv);
-  AtomString_Init();
-  Init_TypeDesc();
-  Init_String_Klass();
-  Init_Integer_Klass();
+  Koala_Initialize();
   test_image();
-  Fini_String_Klass();
-  Fini_Integer_Klass();
-  Fini_TypeDesc();
-  AtomString_Fini();
+  Koala_Finalize();
   return 0;
 }

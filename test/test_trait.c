@@ -1,8 +1,5 @@
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include "object.h"
+#include "koala.h"
 
 void test_trait(void)
 {
@@ -88,12 +85,22 @@ void test_trait(void)
     else
       assert(0);
   }
+
+  Vector_Fini_Self(&v1);
+  Vector_Fini_Self(&v2);
+  Vector_Fini_Self(&v3);
+
+  OB_DECREF(A);
+  OB_DECREF(B);
+  OB_DECREF(C);
+  OB_DECREF(D);
+  OB_DECREF(E);
 }
 
 int main(int argc, char *argv[])
 {
-  AtomString_Init();
+  Koala_Initialize();
   test_trait();
-  AtomString_Fini();
+  Koala_Finalize();
   return 0;
 }

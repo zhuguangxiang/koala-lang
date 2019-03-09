@@ -44,12 +44,12 @@ extern "C" {
  * Push byte integer to stack
  * size: 1 bytes
  */
-#define PUSH_BYTE 4
+#define CONST_BYTE 4
 /*
  * Push short integer to stack
  * size: 2 bytes
  */
-#define PUSH_SHORT 5
+#define CONST_SHORT 5
 
 /*
  * Load constant from constants pool to stack
@@ -124,31 +124,31 @@ extern "C" {
 #define RETURN 25
 
 /* Binaray & Unary operations */
-#define ADD    40
-#define SUB    41
-#define MUL    42
-#define DIV    43
-#define MOD    44
-#define POWER  45
-#define NEG    46
+#define ADD 40
+#define SUB 41
+#define MUL 42
+#define DIV 43
+#define MOD 44
+#define POW 45
+#define NEG 46
 
-#define GT     47
-#define GE     48
-#define LT     49
-#define LE     50
-#define EQ     51
-#define NEQ    52
+#define GT  47
+#define GE  48
+#define LT  49
+#define LE  50
+#define EQ  51
+#define NEQ 52
 
-#define AND    53
-#define OR     54
-#define NOT    55
+#define BAND   53
+#define BOR    54
+#define BXOR   55
+#define BNOT   56
+#define LSHIFT 57
+#define RSHIFT 58
 
-#define BAND   56
-#define BOR    57
-#define BXOR   58
-#define BNOT   59
-#define LSHIFT 60
-#define RSHIFT 61
+#define AND 59
+#define OR  60
+#define NOT 61
 
 /* Control flow, with relative 2 bytes offset */
 #define JMP        70
@@ -169,10 +169,8 @@ extern "C" {
 #define NEW_MAP     92
 #define NEW_SET     93
 #define NEW_CLOSURE 94
-#define ARRAY_LOAD  95
-#define ARRAY_STORE 96
-#define MAP_LOAD    97
-#define MAP_STORE   98
+#define MAP_LOAD    95
+#define MAP_STORE   96
 
 int OpCode_ArgCount(uint8 op);
 char *OpCode_String(uint8 op);

@@ -183,28 +183,43 @@ static void __klass_fini(TypeDesc *desc)
   UNUSED_PARAMETER(desc);
 }
 
-static void __proto_tostring(TypeDesc *desc, char *buf)
+void Proto_Print(ProtoDesc *proto, char *buf)
 {
-  ProtoDesc *proto = (ProtoDesc *)desc;
-  strcpy(buf, "func(");
-  TypeDesc *item;
-  Vector_ForEach(item, proto->arg) {
-    if (i != 0)
-      strcat(buf, ", ");
-    TypeDesc_ToString(item, buf + strlen(buf));
+  strcat(buf, "(");
+  if (!proto->simple) {
+    TypeDesc *item;
+    Vector_ForEach(item, (Vector *)proto->arg) {
+      if (i != 0)
+        strcat(buf, ", ");
+      TypeDesc_ToString(item, buf + strlen(buf));
+    }
+  } else {
+    TypeDesc_ToString(proto->arg, buf + strlen(buf));
   }
   strcat(buf, ") ");
 
-  int nret = Vector_Size(proto->ret);
+  int nret = (!proto->simple) ? Vector_Size((Vector *)proto->ret) : 0;
   if (nret > 1)
     strcat(buf, "(");
-  Vector_ForEach(item, proto->ret) {
-    if (i != 0)
-      strcat(buf, ", ");
-    TypeDesc_ToString(item, buf + strlen(buf));
+  if (!proto->simple) {
+    TypeDesc *item;
+    Vector_ForEach(item, (Vector *)proto->ret) {
+      if (i != 0)
+        strcat(buf, ", ");
+      TypeDesc_ToString(item, buf + strlen(buf));
+    }
+  } else {
+    TypeDesc_ToString(proto->ret, buf + strlen(buf));
   }
   if (nret > 1)
     strcat(buf, ")");
+}
+
+static void __proto_tostring(TypeDesc *desc, char *buf)
+{
+  ProtoDesc *proto = (ProtoDesc *)desc;
+  strcpy(buf, "func");
+  Proto_Print(proto, buf);
 }
 
 static void __item_free(void *item, void *arg)
@@ -221,8 +236,13 @@ static inline void free_typelist(Vector *vec)
 static void __proto_fini(TypeDesc *desc)
 {
   ProtoDesc *proto = (ProtoDesc *)desc;
-  free_typelist(proto->arg);
-  free_typelist(proto->ret);
+  if (!proto->simple) {
+    free_typelist(proto->arg);
+    free_typelist(proto->ret);
+  } else {
+    TYPE_DECREF(proto->arg);
+    TYPE_DECREF(proto->ret);
+  }
 }
 
 static void __array_tostring(TypeDesc *desc, char *buf)
@@ -322,19 +342,6 @@ void TypeDesc_ToString(TypeDesc *desc, char *buf)
   typedesc_ops[kind].tostring(desc, buf);
 }
 
-void ProtoVec_ToString(Vector *vec, char *buf)
-{
-  /* clear old string */
-  buf[0] = '\0';
-
-  TypeDesc *item;
-  Vector_ForEach(item, vec) {
-    if (i != 0)
-      strcat(buf, ", ");
-    TypeDesc_ToString(item, buf + strlen(buf));
-  }
-}
-
 void TypeDesc_Free(TypeDesc *desc)
 {
   int kind = desc->kind;
@@ -414,6 +421,32 @@ TypeDesc *TypeDesc_Get_Proto(Vector *arg, Vector *ret)
   }
 
   DeclareTypeDesc(desc, TYPE_PROTO, ProtoDesc, buf.data);
+  desc->simple = 0;
+  desc->arg = arg;
+  desc->ret = ret;
+  FiniStringBuf(buf);
+  return (TypeDesc *)desc;
+}
+
+TypeDesc *TypeDesc_Get_SProto(TypeDesc *arg, TypeDesc *ret)
+{
+  char *sArg = (arg != NULL) ? arg->desc.str : "";
+  char *sRet = (ret != NULL) ? ret->desc.str : "";
+
+  /* Pargs:rets;*/
+  DeclareStringBuf(buf);
+  StringBuf_Format_CStr(buf, "P#:#;", sArg, sRet);
+
+  TypeDesc *exist = FindTypeDesc(buf.data);
+  if (exist != NULL) {
+    FiniStringBuf(buf);
+    return exist;
+  }
+
+  DeclareTypeDesc(desc, TYPE_PROTO, ProtoDesc, buf.data);
+  desc->simple = 1;
+  TYPE_INCREF(arg);
+  TYPE_INCREF(ret);
   desc->arg = arg;
   desc->ret = ret;
   FiniStringBuf(buf);

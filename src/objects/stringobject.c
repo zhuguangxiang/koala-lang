@@ -104,7 +104,7 @@ void String_Free(Object *ob)
   Mfree(ob);
 }
 
-char *String_RawString(Object *ob)
+char *String_Raw(Object *ob)
 {
   OB_ASSERT_KLASS(ob, String_Klass);
   StringObject *sob = (StringObject *)ob;
@@ -157,28 +157,28 @@ void Fini_String_Klass(void)
   Fini_Klass(&String_Klass);
 }
 
-static int string_equal(Object *v1, Object *v2)
+static Object *string_equal(Object *v1, Object *v2)
 {
   OB_ASSERT_KLASS(v1, String_Klass);
   OB_ASSERT_KLASS(v2, String_Klass);
-  return strobj_equal(v1, v2);
+  return Bool_New(strobj_equal(v1, v2));
 }
 
-static uint32 string_hash(Object *v)
+static Object *string_hash(Object *v, Object *args)
 {
   OB_ASSERT_KLASS(v, String_Klass);
-  return strobj_hash(v);
+  return Integer_New(strobj_hash(v));
 }
 
 /* itself */
-static Object *string_tostring(Object *v)
+static Object *string_tostring(Object *v, Object *args)
 {
   OB_ASSERT_KLASS(v, String_Klass);
   OB_INCREF(v);
   return v;
 }
 
-static Object *string_numop_add(Object *v1, Object *v2)
+static Object *__string_add__(Object *v1, Object *v2)
 {
   OB_ASSERT_KLASS(v1, String_Klass);
   OB_ASSERT_KLASS(v2, String_Klass);
@@ -193,7 +193,7 @@ static Object *string_numop_add(Object *v1, Object *v2)
 }
 
 static NumberOperations string_numops = {
-  .add = string_numop_add,
+  .add = __string_add__,
 };
 
 Klass String_Klass = {
@@ -201,7 +201,7 @@ Klass String_Klass = {
   .name = "String",
   .ob_free  = String_Free,
   .ob_hash  = string_hash,
-  .ob_equal = string_equal,
+  .ob_cmp   = string_equal,
   .ob_str   = string_tostring,
   .num_ops  = &string_numops,
 };

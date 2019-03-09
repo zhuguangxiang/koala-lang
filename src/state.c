@@ -121,6 +121,27 @@ Object *Koala_Get_Function(Package *pkg, char *name)
   return m->code;
 }
 
+void Show_PkgTree(void)
+{
+  Show_PkgState(&pkgstate);
+}
+
+static void fini_variables(void)
+{
+  Object *ob;
+  Vector_ForEach(ob, &variables) {
+    OB_ASSERT_KLASS(ob, Tuple_Klass);
+    OB_DECREF(ob);
+  }
+  Vector_Fini_Self(&variables);
+}
+
+static void fini_pkgnode_func(void *ob, void *arg)
+{
+  Package *pkg = ob;
+  OB_DECREF(pkg);
+}
+
 static inline void koala_set_pathes(Vector *pathes)
 {
   Properties_Put(&properties, KOALA_PATH, ".");
@@ -230,22 +251,27 @@ void Koala_Initialize(void)
   AtomString_Init();
   Init_TypeDesc();
   Properties_Init(&properties);
+  Init_Code_Klass();
+  Init_Pkg_Klass();
   Init_PkgState(&pkgstate);
   Package *pkg = Pkg_New("lang");
   Init_Lang_Package(pkg);
+  Pkg_Add_Class(pkg, &Code_Klass);
   Pkg_Add_Class(pkg, &Pkg_Klass);
   Koala_Add_Package("lang", pkg);
   pkg = Pkg_New("io");
   Init_IO_Package(pkg);
   Koala_Add_Package("io", pkg);
-  Show_PkgState(&pkgstate);
 }
 
 void Koala_Finalize(void)
 {
+  fini_variables();
+  Fini_PkgState(&pkgstate, fini_pkgnode_func, NULL);
   Fini_IO_Package();
   Fini_Lang_Package();
-  Fini_PkgState(&pkgstate, Pkg_Free_Func, NULL);
+  Fini_Pkg_Klass();
+  Fini_Code_Klass();
   Properties_Fini(&properties);
   Fini_TypeDesc();
   AtomString_Fini();

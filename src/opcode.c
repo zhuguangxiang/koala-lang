@@ -34,8 +34,8 @@ static struct opcode {
 
   OPCODE(DUP,   0),
 
-  OPCODE(PUSH_BYTE,  1),
-  OPCODE(PUSH_SHORT, 2),
+  OPCODE(CONST_BYTE,  1),
+  OPCODE(CONST_SHORT, 2),
 
   OPCODE(LOAD_CONST,  2),
   OPCODE(LOAD_PKG,    2),
@@ -54,13 +54,13 @@ static struct opcode {
   OPCODE(CALL,        3),
   OPCODE(RETURN,      0),
 
-  OPCODE(ADD,   0),
-  OPCODE(SUB,   0),
-  OPCODE(MUL,   0),
-  OPCODE(DIV,   0),
-  OPCODE(MOD,   0),
-  OPCODE(POWER, 0),
-  OPCODE(NEG,   0),
+  OPCODE(ADD, 0),
+  OPCODE(SUB, 0),
+  OPCODE(MUL, 0),
+  OPCODE(DIV, 0),
+  OPCODE(MOD, 0),
+  OPCODE(POW, 0),
+  OPCODE(NEG, 0),
 
   OPCODE(GT,  0),
   OPCODE(GE,  0),
@@ -69,16 +69,16 @@ static struct opcode {
   OPCODE(EQ,  0),
   OPCODE(NEQ, 0),
 
-  OPCODE(AND, 0),
-  OPCODE(OR,  0),
-  OPCODE(NOT, 0),
-
   OPCODE(BAND,   0),
   OPCODE(BOR,    0),
   OPCODE(BXOR,   0),
   OPCODE(BNOT,   0),
   OPCODE(LSHIFT, 0),
   OPCODE(RSHIFT, 0),
+
+  OPCODE(AND, 0),
+  OPCODE(OR,  0),
+  OPCODE(NOT, 0),
 
   OPCODE(JMP,        0),
   OPCODE(JMP_TRUE,   0),
@@ -97,20 +97,75 @@ static struct opcode {
   OPCODE(NEW_MAP,     0),
   OPCODE(NEW_SET,     0),
   OPCODE(NEW_CLOSURE, 0),
-  OPCODE(ARRAY_LOAD,  0),
-  OPCODE(ARRAY_STORE, 0),
   OPCODE(MAP_LOAD,    0),
   OPCODE(MAP_STORE,   0),
 };
 
+#define OP_MAP(op, map) { op, #map }
+
+struct operator {
+  uint8 op;
+  char *map;
+} operators [] = {
+  OP_MAP(ADD, __add__),
+  OP_MAP(SUB, __sub__),
+  OP_MAP(MUL, __mul__),
+  OP_MAP(DIV, __div__),
+  OP_MAP(MOD, __mod__),
+  OP_MAP(POW, __pow__),
+  OP_MAP(NEG, __neg__),
+
+  OP_MAP(GT,  __gt__),
+  OP_MAP(GE,  __ge__),
+  OP_MAP(LT,  __lt__),
+  OP_MAP(LE,  __le__),
+  OP_MAP(EQ,  __eq__),
+  OP_MAP(NEQ, __neq__),
+
+  OP_MAP(BAND, __bitand__),
+  OP_MAP(BOR,  __bitor__),
+  OP_MAP(BXOR, __bitxor__),
+  OP_MAP(BNOT, __bitnor__),
+  OP_MAP(LSHIFT, __bitlshift__),
+  OP_MAP(RSHIFT, __bitrshift__),
+
+  OP_MAP(AND, __and__),
+  OP_MAP(OR,  __or__),
+  OP_MAP(NOT, __not__),
+
+  OP_MAP(MAP_LOAD,  __getitem__),
+  OP_MAP(MAP_STORE, __setitem__),
+};
+
 int OpCode_ArgCount(uint8 op)
 {
-  struct opcode *opcode = &opcodes[op];
-  return opcode->argsize;
+  struct opcode *opcode;
+  for (int i = 0; i < nr_elts(opcodes); i++) {
+    opcode = &opcodes[i];
+    if (opcode->op == op)
+      return opcode->argsize;
+  }
+  return -1;
 }
 
 char *OpCode_String(uint8 op)
 {
-  struct opcode *opcode = &opcodes[op];
-  return opcode ? opcode->opstr: "";
+  struct opcode *opcode;
+  for (int i = 0; i < nr_elts(opcodes); i++) {
+    opcode = &opcodes[i];
+    if (opcode->op == op)
+      return opcode->opstr;
+  }
+  return NULL;
+}
+
+char *OpCode_Operator(uint8 op)
+{
+  struct operator *operator;
+  for (int i = 0; i < nr_elts(operators); i++) {
+    operator = &operators[i];
+    if (operator->op == op)
+      return operator->map;
+  }
+  return NULL;
 }

@@ -300,7 +300,7 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   case SYM_NFUNC: {
     if (lexp->kind == CALL_KIND) {
       ProtoDesc *proto = (ProtoDesc *)lsym->desc;
-      if (Vector_Size(proto->ret) != 1) {
+      if (Vector_Size((Vector *)proto->ret) != 1) {
         Syntax_Error(ps, &lexp->pos, "'%s'is multi-returns' function", lsym->name);
         return;
       }
@@ -693,12 +693,12 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     if (rexp->kind == CALL_KIND) {
       assert(rdesc->kind == TYPE_PROTO);
       ProtoDesc *proto = (ProtoDesc *)rdesc;
-      if (Vector_Size(proto->ret) != 1) {
+      if (Vector_Size((Vector *)proto->ret) != 1) {
         Syntax_Error(ps, &rexp->pos, "multiple-value in single-value context");
         return;
       }
 
-      rdesc = Vector_Get(proto->ret, 0);
+      rdesc = Vector_Get((Vector *)proto->ret, 0);
       if (type->desc == NULL) {
         char buf[64];
         TypeDesc_ToString(rdesc, buf);
@@ -775,7 +775,7 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
   ProtoDesc *proto = (ProtoDesc *)rexp->desc;
 
   /* check count */
-  int nret = Vector_Size(proto->ret);
+  int nret = Vector_Size((Vector *)proto->ret);
   int nvar = Vector_Size(varListStmt->ids);
   if (nret != nvar) {
     Syntax_Error(ps, &rexp->pos,
@@ -788,7 +788,7 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
   if (varListStmt->type.desc != NULL) {
     TypeDesc *vdesc = varListStmt->type.desc;
     TypeDesc *desc;
-    Vector_ForEach(desc, proto->ret) {
+    Vector_ForEach(desc, (Vector *)proto->ret) {
       if (!__type_is_compatible(vdesc, desc)) {
         Syntax_Error(ps, &rexp->pos,
                      "right expression's type is not compatible");
@@ -850,7 +850,7 @@ static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
   }
   if (rdesc->kind == TYPE_PROTO) {
     ProtoDesc *proto = (ProtoDesc *)rdesc;
-    int n = Vector_Size(proto->ret);
+    int n = Vector_Size((Vector *)proto->ret);
     if (n != 1) {
       Syntax_Error(ps, &rexp->pos, "multiple-value in single-value context");
       return;
@@ -882,7 +882,7 @@ static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
   ProtoDesc *proto = (ProtoDesc *)rexp->desc;
 
   /* check count */
-  int nret = Vector_Size(proto->ret);
+  int nret = Vector_Size((Vector *)proto->ret);
   int nleft = Vector_Size(assignListStmt->left);
   if (nret != nleft) {
     Syntax_Error(ps, &rexp->pos,

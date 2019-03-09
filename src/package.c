@@ -29,30 +29,44 @@
 
 LOGGER(0)
 
-static Object *pkg_tostring(Object *ob)
+Package *Pkg_New(char *name)
+{
+  Package *pkg = Malloc(sizeof(Package));
+  Init_Object_Head(pkg, &Pkg_Klass);
+  pkg->name = AtomString_New(name).str;
+  Init_MTable(&pkg->mtbl);
+  return pkg;
+}
+
+void Pkg_Free(Object *ob)
+{
+  Log_Debug("--------------------------");
+  OB_ASSERT_KLASS(ob, Pkg_Klass);
+  Package *pkg = (Package *)ob;
+  Fini_MTable(&pkg->mtbl);
+  OB_DECREF(pkg->consts);
+  Log_Debug("package \x1b[32m%s\x1b[0m freed", pkg->name);
+  Mfree(pkg);
+}
+
+static Object *pkg_tostring(Object *ob, Object *args)
 {
   OB_ASSERT_KLASS(ob, Pkg_Klass);
   Package *pkg = (Package *)ob;
   return MTable_ToString(&pkg->mtbl);
 }
 
-static void pkg_free(Object *ob)
-{
-  OB_ASSERT_KLASS(ob, Pkg_Klass);
-  Pkg_Free_Func(ob, NULL);
-}
-
 Klass Pkg_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Package",
-  .ob_free = pkg_free,
+  .ob_free = Pkg_Free,
   .ob_str = pkg_tostring
 };
 
 static Object *__pkg_display(Object *ob, Object *args)
 {
-  Object *s = pkg_tostring(ob);
-  Log_Printf("%s\n", String_RawString(s));
+  Object *s = pkg_tostring(ob, NULL);
+  Log_Printf("%s\n", String_Raw(s));
   OB_DECREF(s);
   return NULL;
 }
@@ -71,23 +85,6 @@ void Init_Pkg_Klass(void)
 void Fini_Pkg_Klass(void)
 {
   Fini_Klass(&Pkg_Klass);
-}
-
-Package *Pkg_New(char *name)
-{
-  Package *pkg = Malloc(sizeof(Package));
-  Init_Object_Head(pkg, &Pkg_Klass);
-  pkg->name = AtomString_New(name).str;
-  Init_MTable(&pkg->mtbl);
-  return pkg;
-}
-
-void Pkg_Free_Func(void *ob, void *arg)
-{
-  Package *pkg = (Package *)ob;
-  Fini_MTable(&pkg->mtbl);
-  Tuple_Free(pkg->consts);
-  Mfree(pkg);
 }
 
 int Pkg_Add_Const(Package *pkg, char *name, TypeDesc *desc, Object *val)
@@ -136,6 +133,7 @@ int Pkg_Add_Klass(Package *pkg, Klass *klazz, int trait)
   MNode *m = MNode_New(kind, klazz->name, NULL);
   if (m != NULL) {
     HashTable_Insert(&pkg->mtbl, &m->hnode);
+    OB_INCREF(klazz);
     m->klazz = klazz;
     klazz->owner = (Object *)pkg;
     klazz->consts = pkg->consts;

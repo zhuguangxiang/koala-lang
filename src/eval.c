@@ -93,7 +93,7 @@ static inline void store(CallFrame *cf, int index, Object *val)
 
 static inline Object *load_field(Object *ob, CodeObject *code, Object *so)
 {
-  char *name = String_RawString(so);
+  char *name = String_Raw(so);
   if (OB_KLASS(ob) == &Pkg_Klass)
     return Koala_Get_Value((Package *)ob, name);
   else

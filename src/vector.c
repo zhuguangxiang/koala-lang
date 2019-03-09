@@ -23,7 +23,7 @@
 #include "vector.h"
 #include "mem.h"
 
-#define DEFAULT_CAPACITY 8
+#define DEFAULT_CAPACITY 4
 
 void Vector_Init(Vector *vec)
 {

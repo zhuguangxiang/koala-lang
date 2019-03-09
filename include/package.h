@@ -52,7 +52,6 @@ extern Klass Pkg_Klass;
 void Init_Pkg_Klass(void);
 void Fini_Pkg_Klass(void);
 Package *Pkg_New(char *name);
-void Pkg_Free_Func(void *pkg, void *arg);
 int Pkg_Add_Var(Package *pkg, char *name, TypeDesc *desc);
 int Pkg_Add_Const(Package *pkg, char *name, TypeDesc *desc, Object *val);
 int Pkg_Add_Func(Package *pkg, Object *code);

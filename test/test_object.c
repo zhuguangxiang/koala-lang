@@ -1,10 +1,5 @@
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include "object.h"
-#include "stringobject.h"
-#include "intobject.h"
+#include "koala.h"
 
 void test_object(void)
 {
@@ -22,7 +17,7 @@ void test_object(void)
   Object *ob = animal->ob_alloc(animal);
   Set_Field(ob, NULL, "Name", String_New("wangwang"));
   Object *field = Get_Field(ob, NULL, "Name");
-  assert(!strcmp("wangwang", String_RawString(field)));
+  assert(!strcmp("wangwang", String_Raw(field)));
   OB_DECREF(ob);
 
   /*
@@ -52,25 +47,19 @@ void test_object(void)
   OB_DECREF(val);
   field = Get_Field(dog_ob, NULL, "Age");
   assert(field);
-  assert(8 == Integer_ToCInt(field));
+  assert(8 == Integer_Raw(field));
   field = Get_Field(dog_ob, NULL, "TailLength");
   assert(field);
-  assert(20 == Integer_ToCInt(field));
+  assert(20 == Integer_Raw(field));
   OB_DECREF(dog_ob);
-  Klass_Free(animal);
-  Klass_Free(dog);
+  OB_DECREF(animal);
+  OB_DECREF(dog);
 }
 
 int main(int argc, char *argv[])
 {
-  AtomString_Init();
-  Init_TypeDesc();
-  Init_String_Klass();
-  Init_Integer_Klass();
+  Koala_Initialize();
   test_object();
-  Fini_String_Klass();
-  Fini_Integer_Klass();
-  Fini_TypeDesc();
-  AtomString_Fini();
+  Koala_Finalize();
   return 0;
 }

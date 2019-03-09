@@ -125,6 +125,7 @@ void HashTable_Fini(HashTable *table, visitfunc visit, void *arg)
     hnode = container_of(pos, HashNode, llink);
     list_del(&hnode->llink);
     hlist_del(&hnode->hlink);
+    table->nr_nodes--;
     if (visit)
       visit(hnode, arg);
   }

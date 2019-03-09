@@ -77,49 +77,49 @@ do { \
 } while (0)
 
 /*
- * function prototypes defined for Klass
+ * function prototypes(internal used only)
  */
 typedef void (*ob_markfunc)(Object *);
 typedef Object *(*ob_allocfunc)(Klass *);
 typedef void (*ob_freefunc)(Object *);
-typedef uint32 (*ob_hashfunc)(Object *);
-typedef int (*ob_equalfunc)(Object *, Object *);
-typedef Object *(*ob_strfunc)(Object *);
-typedef Object *(*ob_unaryfunc)(Object *);
-typedef Object *(*ob_binaryfunc)(Object *, Object *);
-typedef void (*ob_ternaryfunc)(Object *, Object *, Object *);
-typedef Object *(*ob_getfunc)(Object *, Object *);
-typedef void (*ob_setfunc)(Object *, Object *, Object *);
+
+/*
+ * function's proto, including c function and koala function
+ * 'args' and 'return' are both Tuple.
+ * Optimization: if it has only one parameter or one return value?
+ */
+typedef Object *(*cfunc_t)(Object *ob, Object *args);
 
 /*
  * basic operations, if necessary, these operators can be overridden .
  */
 typedef struct {
   /* arithmetic operations */
-  ob_binaryfunc add;
-  ob_binaryfunc sub;
-  ob_binaryfunc mul;
-  ob_binaryfunc div;
-  ob_binaryfunc mod;
-  ob_unaryfunc  neg;
+  cfunc_t add;
+  cfunc_t sub;
+  cfunc_t mul;
+  cfunc_t div;
+  cfunc_t mod;
+  cfunc_t pow;
+  cfunc_t neg;
   /* relational operations */
-  ob_binaryfunc gt;
-  ob_binaryfunc ge;
-  ob_binaryfunc lt;
-  ob_binaryfunc le;
-  ob_binaryfunc eq;
-  ob_binaryfunc neq;
+  cfunc_t gt;
+  cfunc_t ge;
+  cfunc_t lt;
+  cfunc_t le;
+  cfunc_t eq;
+  cfunc_t neq;
   /* bit operations */
-  ob_binaryfunc band;
-  ob_binaryfunc bor;
-  ob_binaryfunc bxor;
-  ob_unaryfunc  bnot;
-  ob_binaryfunc lshift;
-  ob_binaryfunc rshift;
+  cfunc_t band;
+  cfunc_t bor;
+  cfunc_t bxor;
+  cfunc_t bnot;
+  cfunc_t lshift;
+  cfunc_t rshift;
   /* logic operations */
-  ob_binaryfunc land;
-  ob_binaryfunc lor;
-  ob_unaryfunc  lnot;
+  cfunc_t land;
+  cfunc_t lor;
+  cfunc_t lnot;
 } NumberOperations;
 
 /*
@@ -128,9 +128,9 @@ typedef struct {
  */
 typedef struct {
   /* map's getter func, e.g. bar = map['foo']   */
-  ob_binaryfunc get;
+  cfunc_t get;
   /* map's setter func, e.g. map['foo'] = "bar" */
-  ob_ternaryfunc set;
+  cfunc_t set;
 } MapOperations;
 
 /* kind of member node */
@@ -209,16 +209,12 @@ struct klass {
   ob_allocfunc ob_alloc;
   ob_freefunc ob_free;
 
-  /* used as key in map */
-  ob_hashfunc ob_hash;
-  ob_equalfunc ob_equal;
+  /* used as key */
+  cfunc_t ob_hash;
+  cfunc_t ob_cmp;
 
   /* like java's toString() */
-  ob_strfunc ob_str;
-
-  /* getter and setter */
-  ob_getfunc ob_get;
-  ob_setfunc Ob_set;
+  cfunc_t ob_str;
 
   /* number operations */
   NumberOperations *num_ops;
@@ -252,8 +248,6 @@ extern Klass Any_Klass;
 
 /* new klass */
 Klass *Klass_New(char *name, Vector *bases);
-/* free klass */
-void Klass_Free(Klass *klazz);
 /* initialize klass */
 void Init_Klass(Klass *klazz, Vector *bases);
 /* finalize klass */
@@ -265,20 +259,15 @@ int Klass_Add_Method(Klass *klazz, Object *code);
 /* add a prototype to trait only */
 int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto);
 /* klass to string */
-Object *Klass_ToString(Object *ob);
+Object *Klass_ToString(Object *ob, Object *args);
 /* get the field's value from the object */
 Object *Get_Field(Object *ob, Klass *base, char *name);
 /* set the field's value to the object */
 void Set_Field(Object *ob, Klass *base, char *name, Object *val);
 /* get a method from the object */
 Object *Get_Method(Object *ob, Klass *base, char *name);
-
-/*
- * function's proto, including c function and koala function
- * 'args' and 'return' are both Tuple.
- * Optimization: if it has only one parameter or one return value?
- */
-typedef Object *(*cfunc_t)(Object *ob, Object *args);
+/* object show */
+Object *To_String(Object *ob);
 
 /* c function definition, which can be called by koala function */
 typedef struct cfunctiondef {

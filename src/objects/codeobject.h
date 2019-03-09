@@ -101,6 +101,8 @@ void Code_Free(Object *ob);
 int Code_Add_LocVar(Object *ob, char *name, TypeDesc *desc, int index);
 /* get the (koala & clang) code's args number */
 int Code_Get_Argc(Object *ob);
+/* initialize mapping operators */
+void Init_Mapping_Operators(Klass *klazz);
 
 #ifdef __cplusplus
 }

@@ -35,8 +35,8 @@ static Object *__println(Object *ob, Object *args)
       arg = Tuple_Get(args, i);
       klazz = OB_KLASS(arg);
       if (klazz->ob_str != NULL) {
-        Object *stro = klazz->ob_str(arg);
-        fprintf(stdout, "%s ", String_RawString(stro));
+        Object *stro = To_String(arg);
+        fprintf(stdout, "%s ", String_Raw(stro));
         OB_DECREF(stro);
       } else {
         fprintf(stdout, "%s@%x ", klazz->name, (short)(intptr_t)arg);
@@ -44,8 +44,8 @@ static Object *__println(Object *ob, Object *args)
     }
   } else {
     if (klazz->ob_str != NULL) {
-      Object *stro = klazz->ob_str(args);
-      fprintf(stdout, "%s ", String_RawString(stro));
+      Object *stro = To_String(args);
+      fprintf(stdout, "%s ", String_Raw(stro));
       OB_DECREF(stro);
     } else {
       fprintf(stdout, "%s@%x ", klazz->name, (short)(intptr_t)args);

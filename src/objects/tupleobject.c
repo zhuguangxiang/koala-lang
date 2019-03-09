@@ -101,7 +101,7 @@ int __Tuple_Set(TupleObject *tuple, int index, Object *val)
 
 static Object *__tuple_get(Object *ob, Object *args)
 {
-  return Tuple_Get(ob, Integer_ToCInt(args));
+  return Tuple_Get(ob, Integer_Raw(args));
 }
 
 static Object *__tuple_size(Object *ob, Object *args)
@@ -126,7 +126,7 @@ void Fini_Tuple_Klass(void)
   Fini_Klass(&Tuple_Klass);
 }
 
-Object *Tuple_ToString(Object *ob)
+Object *Tuple_ToString(Object *ob, Object *args)
 {
   TupleObject *tuple = (TupleObject *)ob;
   Buffer buf;
@@ -148,11 +148,11 @@ Object *Tuple_ToString(Object *ob)
       if (OB_KLASS(o) == &String_Klass) {
         ch = '\'';
         Buffer_Write_Byte(&buf, ch);
-        Buffer_Write(&buf, String_RawString(o), String_Length(o));
+        Buffer_Write(&buf, String_Raw(o), String_Length(o));
         Buffer_Write_Byte(&buf, ch);
       } else {
-        s = OB_KLASS(o)->ob_str(o);
-        Buffer_Write(&buf, String_RawString(s), String_Length(s));
+        s = To_String(o);
+        Buffer_Write(&buf, String_Raw(s), String_Length(s));
         OB_DECREF(s);
       }
     }

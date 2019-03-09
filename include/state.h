@@ -68,6 +68,7 @@ void Koala_RunTask(Object *code, Object *ob, Object *args);
 void Koala_RunCode(Object *code, Object *ob, Object *args);
 void Koala_Main(Options *opts);
 #define Current_State() ((KoalaState *)task_get_private())
+void Show_PkgTree(void);
 
 #ifdef __cplusplus
 }

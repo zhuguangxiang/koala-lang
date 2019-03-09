@@ -143,7 +143,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 ">>="            { YY_RETURN(RSHIFT_ASSIGN);   }
 "<<="            { YY_RETURN(LSHIFT_ASSIGN);   }
 "..."            { YY_RETURN(ELLIPSIS);        }
-"**"             { YY_RETURN(POWER);           }
+"**"             { YY_RETURN(OP_POWER);        }
 "..<"            { YY_RETURN(DOTDOTLESS);      }
 
 "package"        { YY_RETURN(PACKAGE);         }

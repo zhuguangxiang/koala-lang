@@ -52,7 +52,9 @@ typedef struct pkgstate {
 typedef void (*fini_leafnode_func)(void *data, void *arg);
 void Init_PkgState(PkgState *ps);
 void Fini_PkgState(PkgState *ps, fini_leafnode_func func, void *arg);
-void Show_PkgState(PkgState *ps);
+void Show_PkgNode(PkgState *ps, PkgNode *node, int depth, int y);
+#define Show_PkgState(ps) \
+  Show_PkgNode((ps), &(ps)->root, 0, 0)
 PkgNode *Add_PkgNode(PkgState *ps, char *path, void *data);
 PkgNode *Find_PkgNode(PkgState *ps, char *path);
 

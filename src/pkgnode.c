@@ -202,7 +202,7 @@ PkgNode *Find_PkgNode(PkgState *ps, char *path)
   return node;
 }
 
-static void show_pkgnode(PkgState *ps, PkgNode *node, int depth, int y)
+void Show_PkgNode(PkgState *ps, PkgNode *node, int depth, int y)
 {
   #define LAST_ONE(vec) ((i + 1) == Vector_Size(vec))
   int bit;
@@ -230,12 +230,7 @@ static void show_pkgnode(PkgState *ps, PkgNode *node, int depth, int y)
     PkgNode *item;
     Vector_ForEach(item, (Vector *)node->data) {
       bit = LAST_ONE((Vector *)node->data) << (depth);
-      show_pkgnode(ps, item, depth + 1, bit + y);
+      Show_PkgNode(ps, item, depth + 1, bit + y);
     }
   }
-}
-
-void Show_PkgState(PkgState *ps)
-{
-  show_pkgnode(ps, &ps->root, 0, 0);
 }

@@ -51,7 +51,7 @@ Object *String_New(char *str);
 /* free string object */
 void String_Free(Object *ob);
 /* to c readonly string */
-char *String_RawString(Object *ob);
+char *String_Raw(Object *ob);
 /* get string length */
 #define String_Length(ob) (((StringObject *)ob)->len)
 
