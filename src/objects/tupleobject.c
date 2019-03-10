@@ -123,6 +123,7 @@ void Init_Tuple_Klass(void)
 
 void Fini_Tuple_Klass(void)
 {
+  assert(OB_REFCNT(&Tuple_Klass) == 1);
   Fini_Klass(&Tuple_Klass);
 }
 

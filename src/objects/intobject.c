@@ -106,6 +106,8 @@ void Init_Integer_Klass(void)
 
 void Fini_Integer_Klass(void)
 {
+  assert(OB_REFCNT(&Int_Klass) == 1);
+  assert(OB_REFCNT(&Bool_Klass) == 1);
   Fini_Cache(&Int_Cache, NULL, NULL);
   Fini_Klass(&Int_Klass);
   Fini_Klass(&Bool_Klass);

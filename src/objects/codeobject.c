@@ -119,6 +119,7 @@ void Init_Code_Klass(void)
 
 void Fini_Code_Klass(void)
 {
+  assert(OB_REFCNT(&Code_Klass) == 1);
   Fini_Klass(&Code_Klass);
 }
 

@@ -153,6 +153,7 @@ static void finifunc(HashNode *hnode, void *arg)
 
 void Fini_String_Klass(void)
 {
+  assert(OB_REFCNT(&String_Klass) == 1);
   HashTable_Fini(&strobj_cache, finifunc, NULL);
   Fini_Klass(&String_Klass);
 }
