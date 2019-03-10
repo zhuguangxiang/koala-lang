@@ -63,13 +63,13 @@ static BaseDesc String_Type;
 static BaseDesc Error_Type;
 static BaseDesc Any_Type;
 
-struct basic_type_s {
+struct base_type_s {
   int kind;
   char *str;
   BaseDesc *type;
   char *pkgpath;
   char *typestr;
-} basic_types[] = {
+} base_types[] = {
   {BASE_BYTE,   "byte",   &Byte_Type,   "lang", "Byte"   },
   {BASE_CHAR,   "char",   &Char_Type,   "lang", "Char"   },
   {BASE_INT,    "int",    &Int_Type,    "lang", "Integer"},
@@ -80,11 +80,11 @@ struct basic_type_s {
   {BASE_ANY,    "any",    &Any_Type,    "lang", "Any"    },
 };
 
-static struct basic_type_s *get_basic(int kind)
+static struct base_type_s *get_base(int kind)
 {
-  struct basic_type_s *p;
-  for (int i = 0; i < nr_elts(basic_types); i++) {
-    p = basic_types + i;
+  struct base_type_s *p;
+  for (int i = 0; i < nr_elts(base_types); i++) {
+    p = base_types + i;
     if (kind == p->kind)
       return p;
   }
@@ -106,13 +106,13 @@ static int desc_equal(void *k1, void *k2)
   return AtomString_Equal(desc1->desc, desc2->desc);
 }
 
-static void init_basictypes(void)
+static void init_basetypes(void)
 {
   BaseDesc *base;
   int result;
-  struct basic_type_s *p;
-  for (int i = 0; i < nr_elts(basic_types); i++) {
-    p = basic_types + i;
+  struct base_type_s *p;
+  for (int i = 0; i < nr_elts(base_types); i++) {
+    p = base_types + i;
     base = p->type;
     base->kind = TYPE_BASE;
     base->type = p->kind;
@@ -129,7 +129,7 @@ static void init_basictypes(void)
 void Init_TypeDesc(void)
 {
   HashTable_Init(&descTable, desc_hash, desc_equal);
-  init_basictypes();
+  init_basetypes();
 }
 
 static void desc_free_func(HashNode *hnode, void *arg)
@@ -138,13 +138,13 @@ static void desc_free_func(HashNode *hnode, void *arg)
   TYPE_DECREF(desc);
 }
 
-static void check_basic_refcnt(void)
+static void check_base_refcnt(void)
 {
-  Log_Puts("Basic Type Refcnt:");
+  Log_Puts("Base Type Refcnt:");
   BaseDesc *base;
-  struct basic_type_s *p;
-  for (int i = 0; i < nr_elts(basic_types); i++) {
-    p = basic_types + i;
+  struct base_type_s *p;
+  for (int i = 0; i < nr_elts(base_types); i++) {
+    p = base_types + i;
     base = p->type;
     Log_Printf("  %s: %d\n", p->str, base->refcnt);
     assert(base->refcnt == 1);
@@ -154,16 +154,16 @@ static void check_basic_refcnt(void)
 void Fini_TypeDesc(void)
 {
   HashTable_Fini(&descTable, desc_free_func, NULL);
-  check_basic_refcnt();
+  check_base_refcnt();
 }
 
-static void __basic_tostring(TypeDesc *desc, char *buf)
+static void __base_tostring(TypeDesc *desc, char *buf)
 {
   BaseDesc *base = (BaseDesc *)desc;
-  strcpy(buf, get_basic(base->type)->str);
+  strcpy(buf, get_base(base->type)->str);
 }
 
-static void __basic_fini(TypeDesc *desc)
+static void __base_fini(TypeDesc *desc)
 {
   assert(desc->refcnt > 0);
 }
@@ -310,7 +310,7 @@ struct typedesc_ops_s {
 } typedesc_ops[] = {
   /* 0 is not used */
   {NULL, NULL},
-  {__basic_tostring, __basic_fini},
+  {__base_tostring,  __base_fini},
   {__klass_tostring, __klass_fini},
   {__proto_tostring, __proto_fini},
   {__array_tostring, __array_fini},
@@ -354,7 +354,7 @@ void TypeDesc_Free(TypeDesc *desc)
 
 TypeDesc *TypeDesc_Get_Base(int base)
 {
-  return (TypeDesc *)get_basic(base)->type;
+  return (TypeDesc *)get_base(base)->type;
 }
 
 static void *new_typedesc(DescKind kind, int size, char *descstr)
@@ -634,7 +634,7 @@ TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg)
     break;
   }
   default: {
-    struct basic_type_s *p = get_basic(ch);
+    struct base_type_s *p = get_base(ch);
     assert(p != NULL);
     assert(!(_dims > 0 && _varg > 0));
     desc = (TypeDesc *)p->type;

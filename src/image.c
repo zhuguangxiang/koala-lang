@@ -439,9 +439,9 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
   TypeItem item = {0};
   switch (desc->kind) {
   case TYPE_BASE: {
-    BaseDesc *basic = (BaseDesc *)desc;
+    BaseDesc *base = (BaseDesc *)desc;
     item.kind = TYPE_BASE;
-    item.primitive = basic->type;
+    item.primitive = base->type;
     break;
   }
   case TYPE_KLASS: {
@@ -499,8 +499,8 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
   if (index < 0) {
     switch (desc->kind) {
     case TYPE_BASE: {
-      BaseDesc *basic = (BaseDesc *)desc;
-      item = TypeItem_Primitive_New(basic->type);
+      BaseDesc *base = (BaseDesc *)desc;
+      item = TypeItem_Primitive_New(base->type);
       break;
     }
     case TYPE_KLASS: {

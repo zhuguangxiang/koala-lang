@@ -2,13 +2,12 @@
 #+AUTHOR: James Zhu
 #+EMAIL: zhuguangxiang@163.com
 
-** 'hello world' program
+** hello world
 #+BEGIN_SRC
   /* ~/app/hello.kl */
   import "io"
   func Main() {
-    io.Println("hello, world")
-    io.Println("你好，世界")
+    io.Print("hello, world")
   }
 #+END_SRC
 ** compile
