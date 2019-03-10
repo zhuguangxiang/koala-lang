@@ -24,9 +24,12 @@
 
 void Init_Lang_Package(Package *pkg)
 {
+  Init_Klass_Klass();
   Init_String_Klass();
   Init_Integer_Klass();
   Init_Tuple_Klass();
+  Pkg_Add_Class(pkg, &Klass_Klass);
+  Pkg_Add_Class(pkg, &Any_Klass);
   Pkg_Add_Class(pkg, &String_Klass);
   Pkg_Add_Class(pkg, &Int_Klass);
   Pkg_Add_Class(pkg, &Tuple_Klass);
@@ -37,4 +40,5 @@ void Fini_Lang_Package(void)
   Fini_Tuple_Klass();
   Fini_Integer_Klass();
   Fini_String_Klass();
+  Fini_Klass_Klass();
 }

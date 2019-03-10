@@ -97,7 +97,7 @@ static inline Object *load_field(Object *ob, CodeObject *code, Object *so)
   if (OB_KLASS(ob) == &Pkg_Klass)
     return Koala_Get_Value((Package *)ob, name);
   else
-    return Get_Field(ob, (Klass *)code->owner, name);
+    return Object_Get_Field(ob, (Klass *)code->owner, name);
 }
 
 #define BINARY_CASE \

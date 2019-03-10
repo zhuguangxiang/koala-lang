@@ -116,6 +116,8 @@ void Fini_Integer_Klass(void)
 static Object *bool_tostring(Object *ob, Object *args)
 {
   OB_ASSERT_KLASS(ob, Bool_Klass);
+  IntObject *iob = (IntObject *)ob;
+  return iob->value ? String_New("true") : String_New("false");
 }
 
 static Object *__bool_and__(Object *v1, Object *v2)

@@ -13,7 +13,7 @@
 
 Object *animal_bark(Object *ob, Object *args)
 {
-  Object *name = Get_Field(ob, NULL, "name");
+  Object *name = Object_Get_Field(ob, NULL, "name");
   Object *msg = args;
   char *out = AtomString_Format("Animal # is #",
                                 String_Raw(name), String_Raw(msg));
@@ -40,10 +40,10 @@ void new_animal(void)
   Object *instance = animal->ob_alloc(animal);
 
   Object *val = String_New("Cat");
-  Set_Field(instance, NULL, "name", val);
+  Object_Set_Field(instance, NULL, "name", val);
   OB_DECREF(val);
 
-  CodeObject *code = (CodeObject *)Get_Method(instance, NULL, "bark");
+  CodeObject *code = (CodeObject *)Object_Get_Method(instance, NULL, "bark");
   Object *msg = String_New("miming");
   code->cfunc(instance, msg);
   OB_DECREF(msg);
@@ -65,7 +65,7 @@ void new_animal(void)
 
 Object *dog_bark(Object *ob, Object *args)
 {
-  Object *name = Get_Field(ob, NULL, "name");
+  Object *name = Object_Get_Field(ob, NULL, "name");
   Object *msg = args;
   char *out = AtomString_Format("Dog # is #",
                                 String_Raw(name), String_Raw(msg));
@@ -90,10 +90,10 @@ void new_dog(void)
   Object *instance = dog->ob_alloc(dog);
 
   Object *val = String_New("ErHa");
-  Set_Field(instance, NULL, "name", val);
+  Object_Set_Field(instance, NULL, "name", val);
   OB_DECREF(val);
 
-  CodeObject *code = (CodeObject *)Get_Method(instance, NULL, "bark");
+  CodeObject *code = (CodeObject *)Object_Get_Method(instance, NULL, "bark");
   Object *msg = String_New("wangwanging");
   code->cfunc(instance, msg);
   OB_DECREF(msg);

@@ -14,7 +14,7 @@ void test_tupleobject(void)
   char *str = String_Raw(s);
   printf("%s\n", str);
   assert(!strcmp("[100, 'hello']", str));
-  Object *method = Get_Method(tuple, NULL, "Size");
+  Object *method = Object_Get_Method(tuple, NULL, "Size");
   assert(method);
   CodeObject *code = (CodeObject *)method;
   assert(code->kind == CFUNC_KIND);

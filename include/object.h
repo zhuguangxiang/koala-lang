@@ -236,7 +236,8 @@ struct klass {
 
 extern Klass Klass_Klass;
 extern Klass Any_Klass;
-
+void Init_Klass_Klass(void);
+void Fini_Klass_Klass(void);
 /* new klass */
 Klass *Klass_New(char *name, Vector *bases);
 /* initialize klass */
@@ -249,14 +250,12 @@ int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 int Klass_Add_Method(Klass *klazz, Object *code);
 /* add a prototype to trait only */
 int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto);
-/* klass to string */
-Object *Klass_ToString(Object *ob, Object *args);
 /* get the field's value from the object */
-Object *Get_Field(Object *ob, Klass *base, char *name);
+Object *Object_Get_Field(Object *ob, Klass *base, char *name);
 /* set the field's value to the object */
-void Set_Field(Object *ob, Klass *base, char *name, Object *val);
+void Object_Set_Field(Object *ob, Klass *base, char *name, Object *val);
 /* get a method from the object */
-Object *Get_Method(Object *ob, Klass *base, char *name);
+Object *Object_Get_Method(Object *ob, Klass *base, char *name);
 /* object show */
 Object *To_String(Object *ob);
 

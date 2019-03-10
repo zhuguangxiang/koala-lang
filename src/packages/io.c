@@ -39,7 +39,7 @@ static Object *__println(Object *ob, Object *args)
         fprintf(stdout, "%s ", String_Raw(stro));
         OB_DECREF(stro);
       } else {
-        fprintf(stdout, "%s@%x ", klazz->name, (short)(intptr_t)arg);
+        fprintf(stdout, "%s@%x ", klazz->name, (int)(intptr_t)arg);
       }
     }
   } else {
@@ -48,7 +48,7 @@ static Object *__println(Object *ob, Object *args)
       fprintf(stdout, "%s ", String_Raw(stro));
       OB_DECREF(stro);
     } else {
-      fprintf(stdout, "%s@%x ", klazz->name, (short)(intptr_t)args);
+      fprintf(stdout, "%s@%x ", klazz->name, (int)(intptr_t)args);
     }
   }
 

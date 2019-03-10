@@ -88,7 +88,7 @@ void Init_MTable(HashTable *table)
   HashTable_Init(table, (hashfunc)__m_hash_func, (equalfunc)__m_equal_func);
 }
 
-static void free_mnode_func(HashNode *hnode, void *arg)
+static void free_m_func(HashNode *hnode, void *arg)
 {
   MNode *m = container_of(hnode, MNode, hnode);
   switch (m->kind) {
@@ -121,7 +121,7 @@ static void free_mnode_func(HashNode *hnode, void *arg)
 
 void Fini_MTable(HashTable *table)
 {
-  HashTable_Fini(table, free_mnode_func, NULL);
+  HashTable_Fini(table, free_m_func, NULL);
 }
 
 static LRONode *LRONode_New(int offset, Klass *klazz)
@@ -213,21 +213,68 @@ static void klass_free(Object *ob)
   Klass *klazz = (Klass *)ob;
   Log_Debug("--------------------------");
   Fini_Klass(klazz);
-  Log_Debug("klass \x1b[32m%s\x1b[0m freed", klazz->name);
   Mfree(klazz);
+}
+
+static Object *klass_tostring(Object *ob, Object *args)
+{
+  OB_ASSERT_KLASS(ob, Klass_Klass);
+  Klass *klazz = (Klass *)ob;
+  Object *tuple = Tuple_New(klazz->mtbl.nr_nodes);
+  HashNode *hnode;
+  HashTable_ForEach(hnode, &klazz->mtbl) {
+    MNode *m = HashNode_Entry(hnode, MNode, hnode);
+    Tuple_Append(tuple, String_New(m->name));
+  }
+
+  Object *so = Tuple_ToString(tuple, NULL);
+  OB_DECREF(tuple);
+  return so;
 }
 
 Klass Klass_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Klass",
   .ob_free = klass_free,
-  .ob_str  = Klass_ToString
+  .ob_str  = klass_tostring
 };
+
+static Object *any_hash(Object *ob, Object *args)
+{
+  return Integer_New(hash_uint32((intptr_t)ob, 32));
+}
+
+static Object *any_equal(Object *ob1, Object *ob2)
+{
+  return Bool_New(ob1 == ob2);
+}
+
+static Object *any_tostring(Object *ob, Object *args)
+{
+  char buf[64];
+  snprintf(buf, 63, "%s@%x", OB_KLASS(ob)->name, (int)(intptr_t)ob);
+  return String_New(buf);
+}
 
 Klass Any_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Any",
+  .ob_hash = any_hash,
+  .ob_cmp = any_equal,
+  .ob_str = any_tostring,
 };
+
+void Init_Klass_Klass(void)
+{
+  Init_Klass(&Klass_Klass, NULL);
+  Init_Klass(&Any_Klass, NULL);
+}
+
+void Fini_Klass_Klass(void)
+{
+  Fini_Klass(&Any_Klass);
+  Fini_Klass(&Klass_Klass);
+}
 
 static void object_mark(Object *ob)
 {
@@ -250,25 +297,9 @@ static void object_free(Object *ob)
   int size = klazz->totalvars;
   for (int i = 0; i < size; i++)
     OB_DECREF(value[i]);
-  Log_Debug("object \x1b[34m%s\x1b[0m freed", OB_KLASS(ob)->name);
+  Log_Debug("object \x1b[34m%s@%x\x1b[0m freed",
+            OB_KLASS(ob)->name, (int)(intptr_t)ob);
   GCfree(ob);
-}
-
-static Object *object_hash(Object *ob, Object *args)
-{
-  return Integer_New(hash_uint32((intptr_t)ob, 32));
-}
-
-static Object *object_equal(Object *ob1, Object *ob2)
-{
-  return Bool_New(ob1 == ob2);
-}
-
-static Object *object_tostring(Object *ob, Object *args)
-{
-  char buf[64];
-  snprintf(buf, 63, "%s@%x", OB_KLASS(ob)->name, (uint16)(intptr_t)ob);
-  return String_New(buf);
 }
 
 Klass *Klass_New(char *name, Vector *bases)
@@ -279,10 +310,7 @@ Klass *Klass_New(char *name, Vector *bases)
 
   klazz->ob_mark  = object_mark;
   klazz->ob_alloc = object_alloc;
-  klazz->ob_free  = object_free,
-  klazz->ob_hash  = object_hash;
-  klazz->ob_cmp   = object_equal;
-  klazz->ob_str   = object_tostring;
+  klazz->ob_free  = object_free;
 
   Init_Klass(klazz, bases);
 
@@ -326,29 +354,13 @@ int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto)
   return -1;
 }
 
-Object *Klass_ToString(Object *ob, Object *args)
-{
-  OB_ASSERT_KLASS(ob, Klass_Klass);
-  Klass *klazz = (Klass *)ob;
-  Object *tuple = Tuple_New(klazz->mtbl.nr_nodes);
-  HashNode *hnode;
-  HashTable_ForEach(hnode, &klazz->mtbl) {
-    MNode *m = HashNode_Entry(hnode, MNode, hnode);
-    Tuple_Append(tuple, String_New(m->name));
-  }
-
-  Object *so = Tuple_ToString(tuple, NULL);
-  OB_DECREF(tuple);
-  return so;
-}
-
 static MNode *__get_m(Object *ob, char *name, Klass **base, int *lroindex)
 {
   Klass *klazz = *base;
   Vector *vec = &OB_KLASS(ob)->lro;
   LRONode *lro;
   int index = Vector_Size(vec) - 1;
-  while (index > 0) {
+  while (index >= 0) {
     lro = Vector_Get(vec, index);
     if (lro->klazz == klazz)
       break;
@@ -361,7 +373,7 @@ static MNode *__get_m(Object *ob, char *name, Klass **base, int *lroindex)
   }
 
   MNode *m;
-  while (index > 0) {
+  while (index >= 0) {
     lro = Vector_Get(vec, index);
     m = MNode_Find(&lro->klazz->mtbl, name);
     if (m != NULL) {
@@ -376,7 +388,7 @@ static MNode *__get_m(Object *ob, char *name, Klass **base, int *lroindex)
   return NULL;
 }
 
-Object *Get_Field(Object *ob, Klass *base, char *name)
+Object *Object_Get_Field(Object *ob, Klass *base, char *name)
 {
   if (base == NULL)
     base = OB_KLASS(ob);
@@ -395,7 +407,7 @@ Object *Get_Field(Object *ob, Klass *base, char *name)
   return value[index];
 }
 
-void Set_Field(Object *ob, Klass *base, char *name, Object *val)
+void Object_Set_Field(Object *ob, Klass *base, char *name, Object *val)
 {
   if (base == NULL)
     base = OB_KLASS(ob);
@@ -417,7 +429,7 @@ void Set_Field(Object *ob, Klass *base, char *name, Object *val)
   OB_DECREF(old);
 }
 
-Object *Get_Method(Object *ob, Klass *base, char *name)
+Object *Object_Get_Method(Object *ob, Klass *base, char *name)
 {
   if (base == NULL)
     base = OB_KLASS(ob);
