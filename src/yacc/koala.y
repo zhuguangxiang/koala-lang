@@ -13,7 +13,7 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE OP_AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
  * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
@@ -1875,32 +1875,20 @@ RangeExpression
   ;
 
 WithExpression
-  : ID '(' ')' Traits
+  : RangeExpression
   {
-    $$ = NULL;
+    $$ = $1;
   }
-  | ID '.' ID '(' ')' Traits
-  {
-    $$ = NULL;
-  }
-  | ID '(' ExpressionList ')' Traits
-  {
-    $$ = NULL;
-  }
-  | ID '.' ID '(' ExpressionList ')' Traits
+  | RangeExpression Traits
   {
     $$ = NULL;
   }
   ;
 
 Expression
-  : RangeExpression
+  : WithExpression
   {
     $$ = $1;
-  }
-  | WithExpression
-  {
-    $$ = NULL;
   }
   ;
 

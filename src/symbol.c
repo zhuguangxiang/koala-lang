@@ -138,9 +138,9 @@ static void __func_show(Symbol *sym)
 {
   FuncSymbol *funcSym = (FuncSymbol *)sym;
   ProtoDesc *proto = (ProtoDesc *)funcSym->desc;
-  char buf[128];
+  char buf[128] = {0};
   Proto_Print(proto, buf);
-  Log_Printf("func %s%s;", sym->name, buf);
+  Log_Printf("func %s%s;\n", sym->name, buf);
 }
 
 static void __add_locvar(KImage *image, int index, Vector *vec, char *fmt)
@@ -263,12 +263,12 @@ static void __ifunc_free(Symbol *sym)
 static void __ifunc_show(Symbol *sym)
 {
   ProtoDesc *proto = (ProtoDesc *)sym->desc;
-  char buf[128];
+  char buf[128] = {0};
   Proto_Print(proto, buf);
   if (sym->kind == SYM_IFUNC)
-    Log_Printf("iterface func %s%s;", sym->name, buf);
+    Log_Printf("iterface func %s%s;\n", sym->name, buf);
   else
-    Log_Printf("native func %s%s;", sym->name, buf);
+    Log_Printf("native func %s%s;\n", sym->name, buf);
 }
 
 static void __ifunc_gen(Symbol *sym, void *arg)
@@ -307,9 +307,9 @@ static void __afunc_show(Symbol *sym)
 {
   AFuncSymbol *afnSym = (AFuncSymbol *)sym;
   ProtoDesc *proto = (ProtoDesc *)afnSym->desc;
-  char buf[128];
+  char buf[128] = {0};
   Proto_Print(proto, buf);
-  Log_Printf("anonymous func %s%s;", sym->name, buf);
+  Log_Printf("anonymous func %s%s;\n", sym->name, buf);
 }
 
 static void __afunc_gen(Symbol *sym, void *arg)

@@ -145,7 +145,7 @@ void Init_String_Klass(void)
   Klass_Add_CFunctions(&String_Klass, string_funcs);
 }
 
-static void finifunc(HashNode *hnode, void *arg)
+static void strobj_fini(HashNode *hnode, void *arg)
 {
   StringObject *sob = container_of(hnode, StringObject, hnode);
   OB_DECREF(sob);
@@ -154,7 +154,7 @@ static void finifunc(HashNode *hnode, void *arg)
 void Fini_String_Klass(void)
 {
   assert(OB_REFCNT(&String_Klass) == 1);
-  HashTable_Fini(&strobj_cache, finifunc, NULL);
+  HashTable_Fini(&strobj_cache, strobj_fini, NULL);
   Fini_Klass(&String_Klass);
 }
 
