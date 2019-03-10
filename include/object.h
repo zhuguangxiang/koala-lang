@@ -170,7 +170,7 @@ MNode *MNode_New(MemberKind kind, char *name, TypeDesc *desc);
 /* free Member node */
 void MNode_Free(MNode *node);
 /* find member node from hashtable */
-MNode *Find_MNode(HashTable *table, char *name);
+MNode *MNode_Find(HashTable *table, char *name);
 /* member table tostring */
 Object *MTable_ToString(HashTable *table);
 /* initialize member table */

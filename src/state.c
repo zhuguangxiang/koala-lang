@@ -88,7 +88,7 @@ Package *Koala_Get_Package(char *path)
 int Koala_Set_Value(Package *pkg, char *name, Object *value)
 {
   int index = pkg->index;
-  MNode *m = Find_MNode(&pkg->mtbl, name);
+  MNode *m = MNode_Find(&pkg->mtbl, name);
   assert(m != NULL && m->kind == VAR_KIND);
   Log_Debug("set_var: '%s'(%d) in '%s'(%d)",
             name, m->offset, pkg->name, index);
@@ -99,7 +99,7 @@ int Koala_Set_Value(Package *pkg, char *name, Object *value)
 Object *Koala_Get_Value(Package *pkg, char *name)
 {
   int index = pkg->index;
-  MNode *m = Find_MNode(&pkg->mtbl, name);
+  MNode *m = MNode_Find(&pkg->mtbl, name);
   assert(m != NULL);
   if (m->kind == VAR_KIND) {
     Log_Debug("get_var: '%s'(%d) in '%s'(%d)",
@@ -115,10 +115,18 @@ Object *Koala_Get_Value(Package *pkg, char *name)
 
 Object *Koala_Get_Function(Package *pkg, char *name)
 {
-  MNode *m = Find_MNode(&pkg->mtbl, name);
+  MNode *m = MNode_Find(&pkg->mtbl, name);
   assert(m != NULL && m->kind == FUNC_KIND);
   Log_Debug("get_func: '%s' in '%s'", name, pkg->name);
   return m->code;
+}
+
+Klass *Koala_Get_Klass(char *path, char *name)
+{
+  Package *pkg = Koala_Get_Package(path);
+  if (pkg == NULL)
+    return NULL;
+  return Pkg_Get_Class(pkg, name);
 }
 
 void Show_PkgTree(void)

@@ -89,6 +89,8 @@ void Init_Code_Klass(void);
 void Fini_Code_Klass(void);
 /* new koala code object */
 Object *Code_New(char *name, TypeDesc *proto, uint8 *codes, int size);
+/* new cfunc code object */
+Object *CFunc_New(char *name, TypeDesc *proto, cfunc_t func);
 /* new clang func object */
 Object *Code_From_CFunction(CFunctionDef *f);
 /* free code object */

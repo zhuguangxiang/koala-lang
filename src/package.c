@@ -141,6 +141,18 @@ int Pkg_Add_Klass(Package *pkg, Klass *klazz, int trait)
   return 0;
 }
 
+Klass *Pkg_Get_Klass(Package *pkg, char *name, int trait)
+{
+  MNode *m = MNode_Find(&pkg->mtbl, name);
+  if (m == NULL)
+    return NULL;
+  if (!trait && m->kind != CLASS_KIND)
+    return NULL;
+  if (trait && m->kind != TRAIT_KIND)
+    return NULL;
+  return m->klazz;
+}
+
 int Pkg_Add_CFunctions(Package *pkg, CFunctionDef *functions)
 {
   int res;

@@ -58,6 +58,9 @@ int Pkg_Add_Func(Package *pkg, Object *code);
 int Pkg_Add_Klass(Package *pkg, Klass *klazz, int trait);
 #define Pkg_Add_Class(pkg, klazz) Pkg_Add_Klass(pkg, klazz, 0)
 #define Pkg_Add_Trait(pkg, klazz) Pkg_Add_Klass(pkg, klazz, 1)
+Klass *Pkg_Get_Klass(Package *pkg, char *name, int trait);
+#define Pkg_Get_Class(pkg, name) Pkg_Get_Klass(pkg, name, 0)
+#define Pkg_Get_Trait(pkg, name) Pkg_Get_Klass(pkg, name, 1)
 int Pkg_Add_CFunctions(Package *pkg, CFunctionDef *functions);
 Package *Pkg_From_Image(KImage *image);
 #define Pkg_Name(pkg) (((Package *)pkg)->name)

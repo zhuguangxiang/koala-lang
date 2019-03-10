@@ -43,7 +43,7 @@ Object *Code_New(char *name, TypeDesc *proto, uint8 *codes, int size)
   return (Object *)code;
 }
 
-static Object *cfunc_new(char *name, TypeDesc *proto, cfunc_t func)
+Object *CFunc_New(char *name, TypeDesc *proto, cfunc_t func)
 {
   CodeObject *code = Malloc(sizeof(CodeObject));
   Init_Object_Head(code, &Code_Klass);
@@ -60,7 +60,7 @@ Object *Code_From_CFunction(CFunctionDef *f)
   Vector *rdesc = String_ToTypeList(f->rdesc);
   Vector *pdesc = String_ToTypeList(f->pdesc);
   TypeDesc *proto = TypeDesc_Get_Proto(pdesc, rdesc);
-  return cfunc_new(f->name, proto, f->func);
+  return CFunc_New(f->name, proto, f->func);
 }
 
 void Code_Free(Object *ob)
@@ -170,7 +170,7 @@ static void init_operator(Klass *klazz, int op, cfunc_t func)
 
   char *name = OpCode_Operator(op);
   TypeDesc *proto = any_any_proto();
-  Object *code = cfunc_new(name, proto, func);
+  Object *code = CFunc_New(name, proto, func);
   Klass_Add_Method(klazz, code);
 }
 
@@ -181,7 +181,7 @@ static void init_operator2(Klass *klazz, int op, cfunc_t func)
 
   char *name = OpCode_Operator(op);
   TypeDesc *proto = void_2any_proto();
-  Object *code = cfunc_new(name, proto, func);
+  Object *code = CFunc_New(name, proto, func);
   Klass_Add_Method(klazz, code);
 }
 
@@ -228,19 +228,19 @@ void Init_Mapping_Operators(Klass *klazz)
 
   if (klazz->ob_hash != NULL) {
     TypeDesc *proto = int_void_proto();
-    Object *code = cfunc_new("__hash__", proto, klazz->ob_hash);
+    Object *code = CFunc_New("__hash__", proto, klazz->ob_hash);
     Klass_Add_Method(klazz, code);
   }
 
   if (klazz->ob_cmp != NULL) {
     TypeDesc *proto = bool_any_proto();
-    Object *code = cfunc_new("__cmp__", proto, klazz->ob_cmp);
+    Object *code = CFunc_New("__cmp__", proto, klazz->ob_cmp);
     Klass_Add_Method(klazz, code);
   }
 
   if (klazz->ob_str != NULL) {
     TypeDesc *proto = str_void_proto();
-    Object *code = cfunc_new("__tostring__", proto, klazz->ob_str);
+    Object *code = CFunc_New("__tostring__", proto, klazz->ob_str);
     Klass_Add_Method(klazz, code);
   }
 }

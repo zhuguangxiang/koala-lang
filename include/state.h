@@ -64,6 +64,7 @@ Package *Koala_Get_Package(char *path);
 int Koala_Set_Value(Package *pkg, char *name, Object *value);
 Object *Koala_Get_Value(Package *pkg, char *name);
 Object *Koala_Get_Function(Package *pkg, char *name);
+Klass *Koala_Get_Klass(char *path, char *name);
 void Koala_RunTask(Object *code, Object *ob, Object *args);
 void Koala_RunCode(Object *code, Object *ob, Object *args);
 void Koala_Main(Options *opts);

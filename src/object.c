@@ -48,7 +48,7 @@ void MNode_Free(MNode *m)
   Mfree(m);
 }
 
-MNode *Find_MNode(HashTable *table, char *name)
+MNode *MNode_Find(HashTable *table, char *name)
 {
   MNode key = {.name = name};
   HashNode *hnode = HashTable_Find(table, &key);
@@ -363,7 +363,7 @@ static MNode *__get_m(Object *ob, char *name, Klass **base, int *lroindex)
   MNode *m;
   while (index > 0) {
     lro = Vector_Get(vec, index);
-    m = Find_MNode(&lro->klazz->mtbl, name);
+    m = MNode_Find(&lro->klazz->mtbl, name);
     if (m != NULL) {
       if (lroindex != NULL)
         *lroindex = lro->offset;
