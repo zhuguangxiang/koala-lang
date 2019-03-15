@@ -94,15 +94,18 @@ static void merge_parser_unit(ParserState *ps)
     /* module has codes for __init__ */
     FuncSymbol *funcSym = (FuncSymbol *)STable_Get(u->stbl, "__init__");
     if (funcSym == NULL) {
-      Log_Debug("create __init__ function");
-      TypeDesc *proto = TypeDesc_Get_Proto(NULL, NULL);
-      funcSym = STable_Add_Func(u->stbl, "__init__", proto);
-      assert(funcSym != NULL);
-      funcSym->code = u->block;
+      if (u->block->bytes > 0) {
+        Log_Puts("create __init__ function");
+        TypeDesc *proto = TypeDesc_Get_Proto(NULL, NULL);
+        funcSym = STable_Add_Func(u->stbl, "__init__", proto);
+        assert(funcSym != NULL);
+        funcSym->code = u->block;
+      }
     } else {
-      //FIXME: merge codeblock
-      CodeBlock_Free(u->block);
+      /* __init__ exist */
     }
+    /* FIXME: merge codeblock */
+    CodeBlock_Free(u->block);
     u->block = NULL;
     u->stbl = NULL;
     break;
@@ -120,12 +123,12 @@ static void merge_parser_unit(ParserState *ps)
   case SCOPE_FUNCTION: {
     FuncSymbol *funcSym = (FuncSymbol *)u->sym;
     assert(funcSym && funcSym->kind == SYM_FUNC);
-    CodeBlock *b = u->block;
+    //CodeBlock *b = u->block;
     /* if no return opcode, then add one */
-    if (!b->ret) {
-      Log_Debug("add 'return' to function '%s'", funcSym->name);
-      Inst_Append_NoArg(b, RETURN);
-    }
+    // if (!b->ret) {
+    //   Log_Debug("add 'return' to function '%s'", funcSym->name);
+    //   Inst_Append_NoArg(b, RETURN);
+    // }
     /* save codeblock to function symbol */
     funcSym->code = u->block;
     u->block = NULL;
@@ -275,13 +278,16 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   AttributeExpr *attrExp = (AttributeExpr *)exp;
   Expr *lexp = attrExp->left;
   TypeDesc *desc;
+  Symbol *sym;
 
   /* parse left expression */
   lexp->ctx = EXPR_LOAD;
   lexp->right = exp;
   Parse_Expression(ps, lexp);
-  if (lexp->sym == NULL)
+  if (lexp->sym == NULL) {
+    assert(0);
     return;
+  }
 
   Symbol *lsym = lexp->sym;
   switch (lsym->kind) {
@@ -312,27 +318,56 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   case SYM_PKG: {
     Log_Debug("'%s' is external package", lsym->name);
     Package *pkg = ((PkgSymbol *)lsym)->pkg;
-    Symbol *sym = STable_Get(pkg->stbl, attrExp->id.name);
+    sym = STable_Get(pkg->stbl, attrExp->id.name);
     if (sym == NULL) {
       Syntax_Error(ps, &attrExp->id.pos,
-                   "'%s'is not found in '%s'", attrExp->id.name, lsym->name);
+                   "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
     char buf[64];
     TypeDesc_ToString(sym->desc, buf);
     Log_Debug("'%s' type: %s", sym->name, buf);
-    exp->sym = sym;
-    exp->desc = sym->desc;
     break;
   }
   default:
     assert(0);
     break;
   }
+
+  /* set expressions's symbol */
+  exp->sym = sym;
+  exp->desc = sym->desc;
 }
 
 static void code_attribute_expr(ParserState *ps, Expr *exp)
 {
+  ParserUnit *u = ps->u;
+  AttributeExpr *attrExp = (AttributeExpr *)exp;
+  Expr *lexp = attrExp->left;
+
+  /* code left expression */
+  Code_Expression(ps, lexp);
+
+  Symbol *sym = exp->sym;
+  switch (sym->kind) {
+  case SYM_FUNC:
+  case SYM_NFUNC: {
+    assert(exp->ctx == EXPR_LOAD);
+    Expr *right = exp->right;
+    if (right->kind == CALL_KIND) {
+      CallExpr *callExp = (CallExpr *)right;
+      /* function call */
+      int argc = Vector_Size(callExp->args);
+      CODE_CALL(u->block, attrExp->id.name, argc);
+    } else {
+
+    }
+    break;
+  }
+  default:
+    assert(0);
+    break;
+  }
 }
 
 static void parse_subscript_expr(ParserState *ps, Expr *exp)
@@ -445,7 +480,18 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
 
 static void code_call_expr(ParserState *ps, Expr *exp)
 {
+  ParserUnit *u = ps->u;
+  CallExpr *callExp = (CallExpr *)exp;
 
+  /* code argument-list */
+  Expr *e;
+  Vector_ForEach_Reverse(e, callExp->args) {
+    Code_Expression(ps, e);
+  }
+
+  /* code left expression */
+  Expr *lexp = callExp->left;
+  Code_Expression(ps, lexp);
 }
 
 static void parse_slice_expr(ParserState *ps, Expr *exp)
@@ -535,7 +581,7 @@ void Code_Expression(ParserState *ps, Expr *exp)
 
 /*
  * visiting expr has two stage:
- * 1. parse expr
+ * 1. parse expression
  * 2. generate code
  */
 static inline void parser_visit_expr(ParserState *ps, Expr *exp)
@@ -740,7 +786,7 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
   ParserUnit *u = ps->u;
   if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
     /* module or class variable, global variable */
-    CODE_STORE_FIELD(u->block, varSym->name);
+    CODE_SET_ATTR(u->block, varSym->name);
   } else {
     /* others are local variables */
     CODE_STORE(u->block, varSym->index);

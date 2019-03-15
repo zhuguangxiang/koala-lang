@@ -48,22 +48,22 @@ typedef struct pkgobject {
   int nrvars;
 } Package;
 
-extern Klass Pkg_Klass;
-void Init_Pkg_Klass(void);
-void Fini_Pkg_Klass(void);
-Package *Pkg_New(char *name);
-int Pkg_Add_Var(Package *pkg, char *name, TypeDesc *desc);
-int Pkg_Add_Const(Package *pkg, char *name, TypeDesc *desc, Object *val);
-int Pkg_Add_Func(Package *pkg, Object *code);
-int Pkg_Add_Klass(Package *pkg, Klass *klazz, int trait);
-#define Pkg_Add_Class(pkg, klazz) Pkg_Add_Klass(pkg, klazz, 0)
-#define Pkg_Add_Trait(pkg, klazz) Pkg_Add_Klass(pkg, klazz, 1)
-Klass *Pkg_Get_Klass(Package *pkg, char *name, int trait);
-#define Pkg_Get_Class(pkg, name) Pkg_Get_Klass(pkg, name, 0)
-#define Pkg_Get_Trait(pkg, name) Pkg_Get_Klass(pkg, name, 1)
-int Pkg_Add_CFunctions(Package *pkg, CFunctionDef *functions);
-Package *Pkg_From_Image(KImage *image);
-#define Pkg_Name(pkg) (((Package *)pkg)->name)
+extern Klass Package_Klass;
+void Init_Package_Klass(void);
+void Fini_Package_Klass(void);
+Package *Package_New(char *name);
+int Package_Add_Var(Package *pkg, char *name, TypeDesc *desc);
+int Package_Add_Const(Package *pkg, char *name, TypeDesc *desc, Object *val);
+int Package_Add_Func(Package *pkg, Object *code);
+int Package_Add_Klass(Package *pkg, Klass *klazz, int trait);
+#define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
+#define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
+Klass *Package_Get_Klass(Package *pkg, char *name, int trait);
+#define Package_Get_Class(pkg, name) Package_Get_Klass(pkg, name, 0)
+#define Package_Get_Trait(pkg, name) Package_Get_Klass(pkg, name, 1)
+int Package_Add_CFunctions(Package *pkg, CFunctionDef *functions);
+Package *Package_From_Image(KImage *image);
+#define Package_Name(pkg) (((Package *)pkg)->name)
 
 #ifdef __cplusplus
 }

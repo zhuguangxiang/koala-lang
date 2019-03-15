@@ -58,9 +58,6 @@ typedef struct codeblock {
   int ret;
 } CodeBlock;
 
-int OpCode_ArgCount(uint8 op);
-char *OpCode_String(uint8 op);
-
 Inst *Inst_Append(CodeBlock *b, uint8 op, ConstValue *val);
 Inst *Inst_Append_NoArg(CodeBlock *b, uint8 op);
 JmpInst *JmpInst_New(Inst *inst, int type);
@@ -71,6 +68,17 @@ void CodeBlock_Free(CodeBlock *block);
 void CodeBlock_Merge(CodeBlock *from, CodeBlock *to);
 void CodeBlock_Show(CodeBlock *block);
 int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
+
+#define CODE_DUP(block) \
+({ \
+  Inst_Append_NoArg(block, DUP); \
+})
+
+#define CODE_LOAD_PKG(block, path) \
+({ \
+  ConstValue val = {.kind = BASE_STRING, .str = path}; \
+  Inst_Append(block, LOAD_PKG, &val); \
+})
 
 #define CODE_LOAD(block, index) \
 ({ \
@@ -84,26 +92,23 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
   Inst_Append(block, STORE, &val); \
 })
 
-#define CODE_LOAD_FIELD(block, name) \
+#define CODE_GET_ATTR(block, name) \
 ({ \
-  Inst_Append_NoArg(block, LOAD_0); \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst_Append(block, LOAD_FIELD, &val); \
+  Inst_Append(block, GET_ATTR, &val); \
 })
 
-#define CODE_STORE_FIELD(block, name) \
+#define CODE_SET_ATTR(block, name) \
 ({ \
-  Inst_Append_NoArg(block, LOAD_0); \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst_Append(block, STORE_FIELD, &val); \
+  Inst_Append(block, SET_ATTR, &val); \
 })
 
-#define CODE_CALL(block, name, argc) \
+#define CODE_CALL(block, name, _argc) \
 ({ \
-  Inst_Append_NoArg(block, LOAD_0); \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
   Inst *i = Inst_Append(block, CALL, &val); \
-  i->argc = argc; \
+  i->argc = _argc; \
 })
 
 #ifdef __cplusplus

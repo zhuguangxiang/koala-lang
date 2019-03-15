@@ -50,20 +50,29 @@ struct object {
 /*
  * Macros for Object structure
  */
-#define OBJECT_HEAD_INIT(klazz) \
-  .ob_refcnt = 1, \
+#define OBJECT_HEAD_INIT(klazz)     \
+  .ob_refcnt = 1,                   \
   .ob_klass = (klazz),
+
 #define Init_Object_Head(ob, klazz) \
 ({                                  \
   Object *o = (Object *)(ob);       \
   o->ob_refcnt = 1;                 \
   o->ob_klass = (klazz);            \
 })
+
 #define OB_KLASS(ob)  (((Object *)(ob))->ob_klass)
 #define OB_REFCNT(ob) (((Object *)(ob))->ob_refcnt)
 #define OB_ASSERT_KLASS(ob, klazz) assert(OB_KLASS(ob) == &(klazz))
 
-#define OB_INCREF(ob) (((Object *)(ob))->ob_refcnt++)
+#define OB_INCREF(_ob)             \
+({                                 \
+  Object *obj = (Object *)(_ob);   \
+  if (obj != NULL)                 \
+    obj->ob_refcnt++;              \
+  (_ob);                           \
+})
+
 #define OB_DECREF(_ob)             \
 ({                                 \
   Object *obj = (Object *)(_ob);   \

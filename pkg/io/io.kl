@@ -20,53 +20,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "io.h"
+package io
 
-LOGGER(0)
-
-static Object *__println(Object *ob, Object *args)
-{
-  Klass *klazz = OB_KLASS(args);
-
-  if (klazz == &Tuple_Klass) {
-    int size = Tuple_Size(args);
-    Object *arg;
-    for (int i = 0; i < size; i++) {
-      arg = Tuple_Get(args, i);
-      klazz = OB_KLASS(arg);
-      if (klazz->ob_str != NULL) {
-        Object *stro = To_String(arg);
-        fprintf(stdout, "%s ", String_Raw(stro));
-        OB_DECREF(stro);
-      } else {
-        fprintf(stdout, "%s@%x ", klazz->name, (int)(intptr_t)arg);
-      }
-    }
-  } else {
-    if (klazz->ob_str != NULL) {
-      Object *stro = To_String(args);
-      fprintf(stdout, "%s ", String_Raw(stro));
-      OB_DECREF(stro);
-    } else {
-      fprintf(stdout, "%s@%x ", klazz->name, (int)(intptr_t)args);
-    }
-  }
-
-  puts(""); /* newline */
-  fflush(stdout);
-  return NULL;
-}
-
-static CFunctionDef io_funcs[] = {
-  {"Println", NULL, "...A", __println},
-  {NULL}
-};
-
-void Init_IO_Package(Package *pkg)
-{
-  Package_Add_CFunctions(pkg, io_funcs);
-}
-
-void Fini_IO_Package(void)
-{
-}
+native func Println(args ...any)

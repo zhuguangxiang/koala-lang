@@ -76,7 +76,8 @@ Package *Koala_Get_Package(char *path)
     image = KImage_Read_File(buf.data, 0);
     FiniStringBuf(buf);
     if (image != NULL) {
-      pkg = Pkg_From_Image(image);
+      pkg = Package_From_Image(image);
+      KImage_Free(image);
       break;
     }
   }
@@ -116,9 +117,14 @@ Object *Koala_Get_Value(Package *pkg, char *name)
 Object *Koala_Get_Function(Package *pkg, char *name)
 {
   MNode *m = MNode_Find(&pkg->mtbl, name);
-  assert(m != NULL && m->kind == FUNC_KIND);
-  Log_Debug("get_func: '%s' in '%s'", name, pkg->name);
-  return m->code;
+  if (m != NULL) {
+    assert(m->kind == FUNC_KIND);
+    Log_Debug("get_func: '%s' in '%s'", name, pkg->name);
+    return m->code;
+  } else {
+    Log_Debug("get_func: '%s' is not found in '%s'", name, pkg->name);
+    return NULL;
+  }
 }
 
 Klass *Koala_Get_Klass(char *path, char *name)
@@ -126,7 +132,7 @@ Klass *Koala_Get_Klass(char *path, char *name)
   Package *pkg = Koala_Get_Package(path);
   if (pkg == NULL)
     return NULL;
-  return Pkg_Get_Class(pkg, name);
+  return Package_Get_Class(pkg, name);
 }
 
 void Show_PkgTree(void)
@@ -260,14 +266,14 @@ void Koala_Initialize(void)
   Init_TypeDesc();
   Properties_Init(&properties);
   Init_Code_Klass();
-  Init_Pkg_Klass();
+  Init_Package_Klass();
   Init_PkgState(&pkgstate);
-  Package *pkg = Pkg_New("lang");
+  Package *pkg = Package_New("lang");
   Init_Lang_Package(pkg);
-  Pkg_Add_Class(pkg, &Code_Klass);
-  Pkg_Add_Class(pkg, &Pkg_Klass);
+  Package_Add_Class(pkg, &Code_Klass);
+  Package_Add_Class(pkg, &Package_Klass);
   Koala_Add_Package("lang", pkg);
-  pkg = Pkg_New("io");
+  pkg = Package_New("io");
   Init_IO_Package(pkg);
   Koala_Add_Package("io", pkg);
 }
@@ -278,7 +284,7 @@ void Koala_Finalize(void)
   Fini_PkgState(&pkgstate, fini_pkgnode_func, NULL);
   Fini_IO_Package();
   Fini_Lang_Package();
-  Fini_Pkg_Klass();
+  Fini_Package_Klass();
   Fini_Code_Klass();
   Properties_Fini(&properties);
   Fini_TypeDesc();

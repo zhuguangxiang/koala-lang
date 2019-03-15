@@ -91,11 +91,8 @@ int __Tuple_Set(TupleObject *tuple, int index, Object *val)
   }
 
   Object *old = tuple->items[index];
-  if (old != NULL)
-    OB_DECREF(old);
-
-  OB_INCREF(val);
-  tuple->items[index] = val;
+  tuple->items[index] = OB_INCREF(val);
+  OB_DECREF(old);
   return 0;
 }
 

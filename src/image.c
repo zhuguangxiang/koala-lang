@@ -1926,10 +1926,12 @@ KImage *KImage_Read_File(char *path, int unload)
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
           assert(sz == 1);
-          item = VaItem_New(sizeof(CodeItem), sizeof(uint8), len);
-          sz = fread(item->codes, sizeof(uint8) * len, 1, fp);
-          assert(sz == 1);
-          AtomTable_Append(image->table, ITEM_CODE, item, 0);
+          if (len > 0) {
+            item = VaItem_New(sizeof(CodeItem), sizeof(uint8), len);
+            sz = fread(item->codes, sizeof(uint8) * len, 1, fp);
+            assert(sz == 1);
+            AtomTable_Append(image->table, ITEM_CODE, item, 0);
+          }
         }
       }
       break;

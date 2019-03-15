@@ -46,7 +46,8 @@ static void code_current_module_class(ParserState *ps, void *arg)
     } else {
       /* load variable */
       Log_Debug("load '%s' variable", sym->name);
-      CODE_LOAD_FIELD(u->block, sym->name);
+      assert(exp->ctx == EXPR_LOAD);
+      CODE_GET_ATTR(u->block, sym->name);
     }
   } else {
     assert(sym->kind == SYM_FUNC);
@@ -59,7 +60,7 @@ static void code_current_module_class(ParserState *ps, void *arg)
     } else {
       /* load function */
       Log_Debug("load '%s' function", sym->name);
-      CODE_LOAD_FIELD(u->block, sym->name);
+      CODE_GET_ATTR(u->block, sym->name);
     }
   }
 }
@@ -273,8 +274,8 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
     idExp->sym = sym;
     idExp->desc = sym->desc;
     TYPE_INCREF(idExp->desc);
-    idExp->where = CURRENT_SCOPE;
-    idExp->scope = u;
+    idExp->where = EXT_SCOPE;
+    idExp->scope = NULL;
     return;
   }
 
@@ -288,8 +289,8 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
     idExp->sym = refSym->sym;
     idExp->desc = refSym->sym->desc;
     TYPE_INCREF(idExp->desc);
-    idExp->where = CURRENT_SCOPE;
-    idExp->scope = u;
+    idExp->where = EXT_SCOPE;
+    idExp->scope = NULL;
     return;
   }
 
@@ -299,15 +300,20 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
 void Code_Ident_Expr(ParserState *ps, Expr *exp)
 {
   assert(exp->kind == ID_KIND);
-  assert(exp->desc != NULL && exp->sym != NULL);
   ParserUnit *u = ps->u;
   IdentExpr *idExp = (IdentExpr *)exp;
   if (idExp->where == CURRENT_SCOPE) {
     /* current scope */
+    assert(idExp->desc != NULL && idExp->sym != NULL);
     code_generate(current_codes, u->scope, ps, idExp);
   } else if (idExp->where == UP_SCOPE) {
     /* up scope */
     code_generate(up_codes, u->scope, ps, idExp);
+  } else if (idExp->where == EXT_SCOPE) {
+    /* external scope */
+    assert(idExp->sym != NULL);
+    Package *pkg = ((PkgSymbol *)idExp->sym)->pkg;
+    CODE_LOAD_PKG(u->block, pkg->path);
   } else {
     assert(0);
   }

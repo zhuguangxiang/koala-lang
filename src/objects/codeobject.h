@@ -37,7 +37,7 @@ typedef struct codeinfo {
   /* codes' size */
   int size;
   /* instructions */
-  uint8 *codes;
+  uint8 codes[0];
 } CodeInfo;
 
 typedef enum {

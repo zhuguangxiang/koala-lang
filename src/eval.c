@@ -49,26 +49,24 @@ typedef struct callframe {
 #define PUSH(val) Stack_Push(stack, (val))
 #define NEXT_CODE(cf, codes) codes[++(cf)->index]
 
-static inline uint8 fetch_byte(CallFrame *cf, CodeObject *code)
+static inline uint8 fetch_byte(CallFrame *cf, CodeInfo *ci)
 {
-  CodeInfo *codeinfo = code->codeinfo;
-  assert(cf->index < codeinfo->size);
-  return NEXT_CODE(cf, codeinfo->codes);
+  assert(cf->index < ci->size);
+  return NEXT_CODE(cf, ci->codes);
 }
 
-static inline uint16 fetch_2bytes(CallFrame *cf, CodeObject *code)
+static inline uint16 fetch_2bytes(CallFrame *cf, CodeInfo *ci)
 {
-  CodeInfo *codeinfo = code->codeinfo;
   /* endian? */
-  assert(cf->index < codeinfo->size);
-  uint8 l = NEXT_CODE(cf, codeinfo->codes);
-  uint8 h = NEXT_CODE(cf, codeinfo->codes);
+  assert(cf->index < ci->size);
+  uint8 l = NEXT_CODE(cf, ci->codes);
+  uint8 h = NEXT_CODE(cf, ci->codes);
   return (h << 8) + (l << 0);
 }
 
-static inline uint8 fetch_opcode(CallFrame *cf, CodeObject *code)
+static inline uint8 fetch_opcode(CallFrame *cf, CodeInfo *ci)
 {
-  return fetch_byte(cf, code);
+  return fetch_byte(cf, ci);
 }
 
 static inline Object *index_const(int index, Object *consts)
@@ -86,18 +84,27 @@ static inline void store(CallFrame *cf, int index, Object *val)
 {
   assert(val != NULL);
   assert(index < cf->size);
-  Object *v = cf->locvars[index];
-  OB_DECREF(v);
-  cf->locvars[index] = val;
+  Object *old = cf->locvars[index];
+  cf->locvars[index] = OB_INCREF(val);
+  OB_DECREF(old);
 }
 
 static inline Object *load_field(Object *ob, CodeObject *code, Object *so)
 {
   char *name = String_Raw(so);
-  if (OB_KLASS(ob) == &Pkg_Klass)
+  if (OB_KLASS(ob) == &Package_Klass)
     return Koala_Get_Value((Package *)ob, name);
   else
     return Object_Get_Field(ob, (Klass *)code->owner, name);
+}
+
+static Object *get_code(Object *ob, Object *so)
+{
+  char *name = String_Raw(so);
+  if (OB_KLASS(ob) == &Package_Klass)
+    return Koala_Get_Function((Package *)ob, name);
+  else
+    return Object_Get_Method(ob, NULL, name);
 }
 
 #define BINARY_CASE \
@@ -127,13 +134,14 @@ static void push_frame(Object *code, Object *ob, Object *args)
   int size = 0;
   if (IsKCode(code)) {
     CodeInfo *ci = co->codeinfo;
-    size = Vector_Size(&ci->locvec);
+    /* +1: package or object */
+    size = Vector_Size(&ci->locvec) + 1;
   }
-  size = sizeof(CallFrame) + size * sizeof(Object *);
-  CallFrame *cf = Malloc(size);
-  cf->code = code;
-  cf->ob = ob;
-  cf->args = args;
+  int memsize = sizeof(CallFrame) + size * sizeof(Object *);
+  CallFrame *cf = Malloc(memsize);
+  cf->code = OB_INCREF(code);
+  cf->ob = OB_INCREF(ob);
+  cf->args = OB_INCREF(args);
   cf->ks = ks;
   cf->index = -1;
   cf->size = size;
@@ -146,6 +154,9 @@ static inline void free_frame(CallFrame *cf)
 {
   for (int i = 0; i < cf->size; i++)
     OB_DECREF(cf->locvars[i]);
+  OB_DECREF(cf->code);
+  OB_DECREF(cf->ob);
+  OB_DECREF(cf->args);
   Mfree(cf);
 }
 
@@ -162,57 +173,88 @@ static void eval_frame(CallFrame *cf)
   KoalaState *ks = cf->ks;
   Stack *stack = &ks->stack;
   CodeObject *code = (CodeObject *)cf->code;
-  Object *consts = code->codeinfo->consts;
+  CodeInfo *ci = code->codeinfo;
+  Object *consts = ci->consts;
   uint8 op;
   int index;
   int argc;
+  Object *fn;
   Object *ob;
   Object *args;
   Object *ret;
   Object *name;
+  char *path;
 
-  while (loopflag && (op = fetch_opcode(cf, code), 1)) {
+  while (loopflag) {
+    if ((cf->index + 1) >= ci->size) {
+      pop_frame(cf);
+      loopflag = 0;
+      break;
+    }
+    op = fetch_opcode(cf, ci);
     switch (op) {
     case POP_TOP:
       break;
     case POP_TOPN:
       break;
+    case DUP:
+      ob = TOP();
+      PUSH(OB_INCREF(ob));
+      break;
     case LOAD_CONST:
-      index = fetch_2bytes(cf, code);
+      index = fetch_2bytes(cf, ci);
       ob = index_const(index, consts);
-      OB_INCREF(ob);
-      PUSH(ob);
+      PUSH(OB_INCREF(ob));
+      break;
+    case LOAD_PKG:
+      index = fetch_2bytes(cf, ci);
+      ob = index_const(index, consts);
+      path = String_Raw(ob);
+      ob = (Object *)Koala_Get_Package(path);
+      PUSH(OB_INCREF(ob));
       break;
     case LOAD:
-      index = fetch_2bytes(cf, code);
+      index = fetch_2bytes(cf, ci);
       ob = load(cf, index);
-      OB_INCREF(ob);
-      PUSH(ob);
+      PUSH(OB_INCREF(ob));
       break;
     case STORE:
-      index = fetch_2bytes(cf, code);
+      index = fetch_2bytes(cf, ci);
       ob = POP();
       store(cf, index, ob);
+      OB_DECREF(ob);
       break;
-    case LOAD_FIELD:
-      index = fetch_2bytes(cf, code);
+    case GET_ATTR:
+      index = fetch_2bytes(cf, ci);
       name = index_const(index, consts);
       ob = POP();
       ret = load_field(ob, code, name);
       OB_DECREF(ob);
-      OB_INCREF(ret);
-      PUSH(ret);
+      PUSH(OB_INCREF(ret));
       break;
-    case STORE_FIELD:
+    case SET_ATTR:
 
       break;
     case CALL:
-      argc = fetch_byte(cf, code);
-      index = fetch_2bytes(cf, code);
+      index = fetch_2bytes(cf, ci);
+      argc = fetch_byte(cf, ci);
       name = index_const(index, consts);
-      args = Tuple_New(argc);
-      //Object *code = get_code(ob, code, name);
-      //Koala_RunCode(code, ob, args);
+      ob = POP();
+      if (argc == 1) {
+        args = POP();
+      } else {
+        args = Tuple_New(argc);
+        Object *arg = POP();
+        while (argc-- > 0) {
+          Tuple_Append(args, arg);
+          OB_DECREF(arg);
+        }
+      }
+      fn = get_code(ob, name);
+      push_frame(fn, ob, args);
+      OB_DECREF(ob);
+      OB_DECREF(args);
+      loopflag = 0;
       break;
     case RETURN:
       pop_frame(cf);
@@ -242,20 +284,19 @@ static void check_arguments(CallFrame *cf)
 
 static void prepare_kargs(CallFrame *cf)
 {
-  OB_INCREF(cf->ob);
-  cf->locvars[0] = cf->ob;
+  cf->locvars[0] = OB_INCREF(cf->ob);
   if (cf->args) {
     if (OB_KLASS(cf->args) == &Tuple_Klass) {
       Object *o;
       int size = Tuple_Size(cf->args);
+      assert(cf->size == size + 1);
       for (int i = 0; i <= size - 1; i++) {
         o = Tuple_Get(cf->args, i);
-        OB_INCREF(o);
-        cf->locvars[i + 1] = o;
+        cf->locvars[i + 1] = OB_INCREF(o);
       }
     } else {
-      OB_INCREF(cf->args);
-      cf->locvars[1] = cf->args;
+      assert(cf->size == 2);
+      cf->locvars[1] = OB_INCREF(cf->args);
     }
   }
 }
@@ -263,7 +304,7 @@ static void prepare_kargs(CallFrame *cf)
 static inline void run_kfunction(CallFrame *cf)
 {
   if (cf->index < 0) {
-    check_arguments(cf);
+    //check_arguments(cf);
     prepare_kargs(cf);
   }
   eval_frame(cf);
@@ -275,7 +316,7 @@ static void run_cfunction(CallFrame *cf)
   Stack *stack = &ks->stack;
   CodeObject *co = (CodeObject *)cf->code;
 
-  check_arguments(cf);
+  //check_arguments(cf);
   Object *ret = co->cfunc(cf->ob, cf->args);
 
   if (ret) {
@@ -285,14 +326,12 @@ static void run_cfunction(CallFrame *cf)
       Object *ob;
       for (int i = sz - 1; i >= 0; i--) {
         ob = Tuple_Get(ret, i);
-        OB_INCREF(ob);
-        PUSH(ob);
+        PUSH(OB_INCREF(ob));
       }
     } else {
-      OB_INCREF(ret);
-      PUSH(ret);
+      PUSH(OB_INCREF(ret));
     }
-    Tuple_Free(ret);
+    OB_DECREF(ret);
   }
   pop_frame(cf);
 }

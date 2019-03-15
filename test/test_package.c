@@ -3,13 +3,13 @@
 
 void test_package(void)
 {
-  Package *pkg = Pkg_New("skeleton");
+  Package *pkg = Package_New("skeleton");
   TypeDesc *desc = TypeDesc_Get_Base(BASE_INT);
-  Pkg_Add_Var(pkg, "Foo", desc);
-  Pkg_Add_Var(pkg, "Bar", desc);
+  Package_Add_Var(pkg, "Foo", desc);
+  Package_Add_Var(pkg, "Bar", desc);
   desc = TypeDesc_Get_Base(BASE_STRING);
   Object *so = String_New("/opt/");
-  Pkg_Add_Const(pkg, "FILENAME", desc, so);
+  Package_Add_Const(pkg, "FILENAME", desc, so);
   OB_DECREF(so);
   Koala_Add_Package("skeleton", pkg);
   Show_PkgTree();

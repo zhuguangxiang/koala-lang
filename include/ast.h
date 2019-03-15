@@ -157,6 +157,8 @@ typedef struct identexpr {
   int where;
 #define CURRENT_SCOPE 1
 #define UP_SCOPE      2
+#define EXT_SCOPE     3
+  /* scope pointer */
   void *scope;
 } IdentExpr;
 

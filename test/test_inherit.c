@@ -51,7 +51,7 @@ void new_animal(void)
   OB_DECREF(instance);
 
   Package *pkg = Koala_Get_Package("skeleton");
-  Pkg_Add_Class(pkg, animal);
+  Package_Add_Class(pkg, animal);
   OB_DECREF(animal);
 }
 
@@ -101,7 +101,7 @@ void new_dog(void)
   OB_DECREF(instance);
 
   Package *pkg = Koala_Get_Package("skeleton");
-  Pkg_Add_Class(pkg, dog);
+  Package_Add_Class(pkg, dog);
   OB_DECREF(dog);
 }
 
@@ -120,7 +120,7 @@ void test_inherit(void)
   printf("%s\n", String_Raw(so));
   OB_DECREF(so);
 
-  pkg = Pkg_New("skeleton");
+  pkg = Package_New("skeleton");
   Koala_Add_Package("skeleton", pkg);
 
   Show_PkgTree();

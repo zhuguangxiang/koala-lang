@@ -69,8 +69,7 @@ Object *String_New(char *str)
   StringObject *sob = __find_strobj(str);
   if (sob) {
     Log_Debug("find '%s' in string cache", str);
-    OB_INCREF(sob);
-    return (Object *)sob;
+    return (Object *)OB_INCREF(sob);
   }
 
   String s;
@@ -175,8 +174,7 @@ static Object *string_hash(Object *v, Object *args)
 static Object *string_tostring(Object *v, Object *args)
 {
   OB_ASSERT_KLASS(v, String_Klass);
-  OB_INCREF(v);
-  return v;
+  return OB_INCREF(v);
 }
 
 static Object *__string_add__(Object *v1, Object *v2)

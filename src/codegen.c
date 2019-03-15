@@ -25,7 +25,7 @@
 #include "mem.h"
 #include "log.h"
 
-LOGGER(1)
+LOGGER(0)
 
 static Inst *inst_new(uint8 op, ConstValue *val)
 {
@@ -125,11 +125,12 @@ void CodeBlock_Merge(CodeBlock *from, CodeBlock *to)
 
 void CodeBlock_Show(CodeBlock *block)
 {
-  if (!block) return;
+  if (block == NULL)
+    return;
 
   char buf[64];
 
-  Log_Puts("---------CodeBlock-------");
+  Log_Puts("--------CodeBlock--------");
   Log_Printf("insts:%d\n", block->bytes);
   if (!list_empty(&block->insts)) {
     int cnt = 0;
@@ -180,20 +181,25 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
   case STORE:
     Buffer_Write_Byte(buf, i->arg.ival);
     break;
-  case LOAD_FIELD:
+  case GET_ATTR:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_2Bytes(buf, index);
     break;
-  case STORE_FIELD:
+  case SET_ATTR:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_2Bytes(buf, index);
     break;
   case CALL:
+    index = KImage_Add_String(image, i->arg.str);
+    Buffer_Write_2Bytes(buf, index);
+    Buffer_Write_Byte(buf, i->argc);
+    break;
   case NEW:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_4Bytes(buf, index);
     Buffer_Write_2Bytes(buf, i->argc);
     break;
+  case DUP:
   case RETURN:
   case ADD:
   case SUB:

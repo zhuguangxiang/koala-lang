@@ -23,8 +23,6 @@
 #ifndef _KOALA_OPCODE_H_
 #define _KOALA_OPCODE_H_
 
-#include "common.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -90,30 +88,29 @@ extern "C" {
 #define STORE_3 21
 
 /*
- * Get the field from object
- * arg: index of constant pool(field's name)
+ * Get the attribute(field and method) from object
+ * arg: index of constant pool(attribute's name)
  * size: 2 bytes
  * NOTE: object is stored in stack
  */
-#define LOAD_FIELD 22
+#define GET_ATTR 22
 
 /*
- * Set the field of object
- * arg: index of constant pool(field's name)
+ * Set the attribute(field and method)  of object
+ * arg: index of constant pool(attribute's name)
  * size: 2 bytes
  * NOTE: object is stored in stack
  */
-#define STORE_FIELD 23
+#define SET_ATTR 23
 
 /*
  * Call a function/closure
- * arg0: number of arguments
- * arg1: index of constant pool(function's name)
- * size: 1+2 bytes
+ * arg0: index of constant pool(function's name)
+ * arg1: number of arguments
+ * size: 2 + 1 bytes
  * NOTE:
- *  Function is already stored in stack
  *  Parameters passed to function are already stored in stack
- *  All parameters are pushed into stack from right to left
+ *  from right to left.
  */
 #define CALL 24
 
@@ -172,9 +169,9 @@ extern "C" {
 #define MAP_LOAD    95
 #define MAP_STORE   96
 
-int OpCode_ArgCount(uint8 op);
-char *OpCode_String(uint8 op);
-char *OpCode_Operator(uint8 op);
+int OpCode_ArgCount(int op);
+char *OpCode_String(int op);
+char *OpCode_Operator(int op);
 
 #ifdef __cplusplus
 }

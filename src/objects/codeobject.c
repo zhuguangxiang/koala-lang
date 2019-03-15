@@ -29,15 +29,16 @@ LOGGER(0)
 
 Object *Code_New(char *name, TypeDesc *proto, uint8 *codes, int size)
 {
-  CodeObject *code = Malloc(sizeof(CodeObject) + sizeof(CodeInfo));
+  int memsize = sizeof(CodeObject) + sizeof(CodeInfo) + size;
+  CodeObject *code = Malloc(memsize);
   Init_Object_Head(code, &Code_Klass);
   TYPE_INCREF(proto);
-  code->name = name;
+  code->name = AtomString_New(name).str;
   code->kind = KCODE_KIND;
   code->proto = proto;
   CodeInfo *ci = (CodeInfo *)(code + 1);
   Vector_Init(&ci->locvec);
-  ci->codes = codes;
+  memcpy(ci->codes, codes, size);
   ci->size = size;
   code->codeinfo = ci;
   return (Object *)code;
@@ -67,13 +68,16 @@ void Code_Free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Code_Klass);
   CodeObject *code = (CodeObject *)ob;
-
   TYPE_DECREF(code->proto);
-  if (IsKCode(code)) {
+  if (code->kind == KCODE_KIND) {
     CodeInfo *ci = code->codeinfo;
-    Mfree(ci->codes);
+    OB_DECREF(ci->consts);
+    MNode *m;
+    Vector_ForEach(m, &ci->locvec) {
+      MNode_Free(m);
+    }
+    Vector_Fini_Self(&ci->locvec);
   }
-
   Mfree(ob);
 }
 
@@ -126,6 +130,7 @@ void Fini_Code_Klass(void)
 Klass Code_Klass = {
   OBJECT_HEAD_INIT(&Klass_Klass)
   .name = "Code",
+  .ob_free = Code_Free,
 };
 
 static TypeDesc *any_any_proto(void)

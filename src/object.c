@@ -36,7 +36,7 @@ MNode *MNode_New(MemberKind kind, char *name, TypeDesc *desc)
   MNode *m = Malloc(sizeof(MNode));
   Init_HashNode(&m->hnode, m);
   m->kind = kind;
-  m->name = name;
+  m->name = AtomString_New(name).str;
   TYPE_INCREF(desc);
   m->desc = desc;
   return m;
@@ -93,15 +93,15 @@ static void free_m_func(HashNode *hnode, void *arg)
   MNode *m = container_of(hnode, MNode, hnode);
   switch (m->kind) {
   case CONST_KIND:
-    Log_Debug(" const \x1b[34m%-8s\x1b[0m freed", m->name);
+    Log_Debug("const   \x1b[34m%-12s\x1b[0m decreased", m->name);
     OB_DECREF(m->value);
     break;
   case VAR_KIND:
-    Log_Debug("var   \x1b[34m%-8s\x1b[0m freed", m->name);
+    Log_Debug("var     \x1b[34m%-12s\x1b[0m decreased", m->name);
     break;
   case FUNC_KIND:
-    Log_Debug("func  \x1b[34m%-8s\x1b[0m freed", m->name);
-    Code_Free(m->code);
+    Log_Debug("func    \x1b[34m%-12s\x1b[0m decreased", m->name);
+    OB_DECREF(m->code);
     break;
   case PROTO_KIND:
     assert(0);
@@ -144,14 +144,14 @@ static int lro_find(Vector *lro, Klass *klazz)
 
 static void lro_debug(Klass *klazz)
 {
-  Log_Puts("--------line-order--------");
+  Log_Puts("----------line-order----------");
   char *fmt;
   LRONode *node;
   Vector_ForEach_Reverse(node, &klazz->lro) {
     fmt = (i > 0) ? "%s -> " : "%s";
     Log_Printf(fmt, node->klazz->name);
   }
-  Log_Puts("\n--------------------------");
+  Log_Puts("\n------------------------------");
 }
 
 static void lro_build(Klass *klazz, Vector *bases)
@@ -159,8 +159,7 @@ static void lro_build(Klass *klazz, Vector *bases)
   int offset = 0;
   LRONode *lro;
   /* Any klass */
-  OB_INCREF(&Any_Klass);
-  lro = LRONode_New(offset, &Any_Klass);
+  lro = LRONode_New(offset, OB_INCREF(&Any_Klass));
   Vector_Append(&klazz->lro, lro);
   offset += Any_Klass.nrvars;
 
@@ -169,8 +168,7 @@ static void lro_build(Klass *klazz, Vector *bases)
     LRONode *node;
     Vector_ForEach(node, &line->lro) {
       if (!lro_find(&klazz->lro, node->klazz)) {
-        OB_INCREF(node->klazz);
-        lro = LRONode_New(offset, node->klazz);
+        lro = LRONode_New(offset, OB_INCREF(node->klazz));
         Vector_Append(&klazz->lro, lro);
         offset += node->klazz->nrvars;
       }
@@ -195,7 +193,7 @@ void Init_Klass(Klass *klazz, Vector *bases)
 void Fini_Klass(Klass *klazz)
 {
   OB_ASSERT_KLASS(klazz, Klass_Klass);
-  Log_Debug("--------------------------");
+  Log_Debug("------------------------------");
   LRONode *lro;
   Vector_ForEach(lro, &klazz->lro) {
     if (lro->klazz != klazz)
@@ -204,14 +202,14 @@ void Fini_Klass(Klass *klazz)
   }
   Vector_Fini_Self(&klazz->lro);
   Fini_MTable(&klazz->mtbl);
-  Log_Debug("klass \x1b[32m%s\x1b[0m finalized", klazz->name);
+  Log_Debug("klass   \x1b[32m%-12s\x1b[0m finalized", klazz->name);
 }
 
 static void klass_free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Klass_Klass);
   Klass *klazz = (Klass *)ob;
-  Log_Debug("--------------------------");
+  Log_Debug("------------------------------");
   Fini_Klass(klazz);
   Mfree(klazz);
 }
@@ -424,8 +422,7 @@ void Object_Set_Field(Object *ob, Klass *base, char *name, Object *val)
   Log_Debug("set_field: '%s'(%d) in '%s(%s)'",
             name, index, base->name, OB_KLASS(ob)->name);
   Object *old = value[index];
-  value[index] = val;
-  OB_INCREF(val);
+  value[index] = OB_INCREF(val);
   OB_DECREF(old);
 }
 

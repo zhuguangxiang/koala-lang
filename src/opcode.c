@@ -20,6 +20,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "common.h"
 #include "opcode.h"
 
 #define OPCODE(op, size) { op, #op, size }
@@ -29,10 +30,10 @@ static struct opcode {
   char *opstr;
   uint8 argsize;
 } opcodes [] = {
-  OPCODE(POP_TOP,   0),
-  OPCODE(POP_TOPN,  1),
+  OPCODE(POP_TOP,  0),
+  OPCODE(POP_TOPN, 1),
 
-  OPCODE(DUP,   0),
+  OPCODE(DUP, 0),
 
   OPCODE(CONST_BYTE,  1),
   OPCODE(CONST_SHORT, 2),
@@ -49,8 +50,8 @@ static struct opcode {
   OPCODE(STORE_1,     0),
   OPCODE(STORE_2,     0),
   OPCODE(STORE_3,     0),
-  OPCODE(LOAD_FIELD,  2),
-  OPCODE(STORE_FIELD, 2),
+  OPCODE(GET_ATTR,    2),
+  OPCODE(SET_ATTR,    2),
   OPCODE(CALL,        3),
   OPCODE(RETURN,      0),
 
@@ -137,7 +138,7 @@ struct operator {
   OP_MAP(MAP_STORE, __setitem__),
 };
 
-int OpCode_ArgCount(uint8 op)
+int OpCode_ArgCount(int op)
 {
   struct opcode *opcode;
   for (int i = 0; i < nr_elts(opcodes); i++) {
@@ -148,7 +149,7 @@ int OpCode_ArgCount(uint8 op)
   return -1;
 }
 
-char *OpCode_String(uint8 op)
+char *OpCode_String(int op)
 {
   struct opcode *opcode;
   for (int i = 0; i < nr_elts(opcodes); i++) {
@@ -159,7 +160,7 @@ char *OpCode_String(uint8 op)
   return NULL;
 }
 
-char *OpCode_Operator(uint8 op)
+char *OpCode_Operator(int op)
 {
   struct operator *operator;
   for (int i = 0; i < nr_elts(operators); i++) {
