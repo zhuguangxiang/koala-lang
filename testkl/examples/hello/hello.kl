@@ -4,5 +4,5 @@ package Hello
 import "io"
 
 func main(args []string) {
-  io.Println("Hello, Koala")
+  io.puts("Hello, Koala")
 }
