@@ -22,4 +22,6 @@
 
 package io
 
-native func puts(s string)
+trait Writer {
+  func Write(buf []byte) (n int, err error)
+}
