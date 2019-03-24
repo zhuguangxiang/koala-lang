@@ -3,6 +3,6 @@ package Hello
 
 import "io"
 
-func main(args []string) {
+func main() {
   io.puts("Hello, Koala")
 }

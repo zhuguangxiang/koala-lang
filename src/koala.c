@@ -78,19 +78,10 @@ void Koala_Main(Options *opts)
             KOALA_MAIN, path);
     goto EXIT;
   }
-
-  int size = Vector_Size(&opts->args);
-  Object *args = NULL;
-  if (size > 1) {
-    int i = 1;
-    char *str;
-    args = Tuple_New(size - 1);
-    while (i < size) {
-      str = Vector_Get(&opts->args, i);
-      Tuple_Set(args, i - 1, String_New(str));
-    }
-  }
-  Koala_RunCode(code, pkg, args);
+  CodeObject *co = (CodeObject *)code;
+  ProtoDesc *proto = (ProtoDesc *)co->proto;
+  assert(proto->arg == NULL && proto->ret == NULL);
+  Koala_RunCode(code, pkg, NULL);
 
 EXIT:
   Free_KoalaState(task_get_private());
