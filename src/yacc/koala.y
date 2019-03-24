@@ -472,42 +472,6 @@ FunctionType
   {
     $$ = TypeDesc_Get_Proto(NULL, NULL);
   }
-  | FUNC '(' TypeList ')' ReturnList
-  {
-    if ($3 == NULL || $5 == NULL) {
-      $$ = NULL;
-    } else {
-      Vector *pvec = Vector_New();
-      Vector *rvec = Vector_New();
-      IdType *idType;
-      Vector_ForEach(idType, $3) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(pvec, idType->type.desc);
-      }
-      Vector_ForEach(idType, $5) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(rvec, idType->type.desc);
-      }
-      $$ = TypeDesc_Get_Proto(pvec, rvec);
-    }
-    Free_IdTypeList($3);
-    Free_IdTypeList($5);
-  }
-  | FUNC '(' TypeList ')'
-  {
-    if ($3 == NULL) {
-      $$ = NULL;
-    } else {
-      Vector *pvec = Vector_New();
-      IdType *idType;
-      Vector_ForEach(idType, $3) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(pvec, idType->type.desc);
-      }
-      $$ = TypeDesc_Get_Proto(pvec, NULL);
-    }
-    Free_IdTypeList($3);
-  }
   | FUNC error
   {
     YYSyntax_Error_Clear(@2, "(");
@@ -564,33 +528,6 @@ IDTypeList
   }
   ;
 
-TypeList
-  : Type
-  {
-    $$ = Vector_New();
-    DeclareType(type, $1, @1);
-    Vector_Append($$, New_IdType(NULL, type));
-  }
-  | TypeList ',' Type
-  {
-    if ($1 != NULL) {
-      $$ = $1;
-      DeclareType(type, $3, @3);
-      Vector_Append($$, New_IdType(NULL, type));
-    } else {
-      $$ = NULL;
-      /* FIXME: has error ? */
-      TYPE_DECREF($3);
-    }
-  }
-  | TypeList ',' error
-  {
-    Free_IdTypeList($1);
-    YYSyntax_Error_Clear(@3, "Type");
-    $$ = NULL;
-  }
-  ;
-
 ParameterList
   : IDTypeList
   {
@@ -632,6 +569,33 @@ VArgType
   }
   ;
 
+TypeList
+  : Type
+  {
+    $$ = Vector_New();
+    DeclareType(type, $1, @1);
+    Vector_Append($$, New_IdType(NULL, type));
+  }
+  | TypeList ',' Type
+  {
+    if ($1 != NULL) {
+      $$ = $1;
+      DeclareType(type, $3, @3);
+      Vector_Append($$, New_IdType(NULL, type));
+    } else {
+      $$ = NULL;
+      /* FIXME: has error ? */
+      TYPE_DECREF($3);
+    }
+  }
+  | TypeList ',' error
+  {
+    Free_IdTypeList($1);
+    YYSyntax_Error_Clear(@3, "Type");
+    $$ = NULL;
+  }
+  ;
+
 ReturnList
   : Type
   {
@@ -639,13 +603,6 @@ ReturnList
     $$ = Vector_Capacity(1);
     Vector_Append($$, New_IdType(NULL, type));
   }
-/*
-  return variable declaration not supported in 0.7 version
-  | '(' IDTypeList ')'
-  {
-    $$ = $2;
-  }
-*/
   | '(' TypeList ')'
   {
     $$ = $2;
