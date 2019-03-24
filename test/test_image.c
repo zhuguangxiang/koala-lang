@@ -5,14 +5,8 @@
 void test_image(void)
 {
   KImage *image = KImage_New("test");
-  Vector *ret = Vector_New();
   TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
-  TYPE_INCREF(desc);
-  Vector_Append(ret, desc);
-  desc = TypeDesc_Get_Base(BASE_INT);
-  TYPE_INCREF(desc);
-  Vector_Append(ret, desc);
-  TypeDesc *proto = TypeDesc_Get_Proto(NULL, ret);
+  TypeDesc *proto = TypeDesc_Get_Proto(NULL, desc);
   uint8 *psudo = malloc(4);
   psudo[0] = LOAD;
   psudo[1] = LOAD_CONST;

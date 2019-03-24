@@ -393,12 +393,13 @@ Expr *Expr_From_Set(TypeWrapper type, Expr *listExp)
   return (Expr *)setExp;
 }
 
-Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body)
+Expr *Expr_From_Anony(Vector *args, TypeDesc *ret, Vector *body)
 {
   AnonyExpr *anonyExp = Malloc(sizeof(AnonyExpr));
   anonyExp->kind = ANONY_FUNC_KIND;
   anonyExp->args = args;
-  anonyExp->rets = rets;
+  TYPE_INCREF(ret);
+  anonyExp->ret = ret;
   anonyExp->body = body;
   return (Expr *)anonyExp;
 }
@@ -513,7 +514,7 @@ static void free_anony_expr(Expr *exp)
 {
   AnonyExpr *anonyExp = (AnonyExpr *)exp;
   Free_IdTypeList(anonyExp->args);
-  Free_IdTypeList(anonyExp->rets);
+  TYPE_DECREF(anonyExp->ret);
   Vector_Free(anonyExp->body, Free_Stmt_Func, NULL);
   free_expr(exp);
 }
@@ -598,7 +599,7 @@ static void free_funcdecl_stmt(Stmt *stmt)
 {
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
   Free_IdTypeList(funcStmt->args);
-  Free_IdTypeList(funcStmt->rets);
+  TYPE_DECREF(funcStmt->ret);
   Vector_Free(funcStmt->body, Free_Stmt_Func, NULL);
   Mfree(stmt);
 }
@@ -613,7 +614,7 @@ static void free_expr_stmt(Stmt *stmt)
 static void free_return_stmt(Stmt *stmt)
 {
   ReturnStmt *retStmt = (ReturnStmt *)stmt;
-  free_exprlist(retStmt->exps);
+  Free_Expr(retStmt->exp);
   Mfree(stmt);
 }
 
@@ -706,24 +707,26 @@ Stmt *Stmt_From_AssignList(Vector *left, Expr *right)
   return (Stmt *)assignListStmt;
 }
 
-Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts)
+Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, TypeDesc *ret, Vector *stmts)
 {
   FuncDeclStmt *funcStmt = Malloc(sizeof(FuncDeclStmt));
   funcStmt->kind = FUNC_KIND;
   funcStmt->id = id;
   funcStmt->args = args;
-  funcStmt->rets = rets;
+  TYPE_INCREF(ret);
+  funcStmt->ret = ret;
   funcStmt->body = stmts;
   return (Stmt *)funcStmt;
 }
 
-Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets)
+Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, TypeDesc *ret)
 {
   FuncDeclStmt *protoStmt = Malloc(sizeof(FuncDeclStmt));
   protoStmt->kind = PROTO_KIND;
   protoStmt->id = id;
   protoStmt->args = args;
-  protoStmt->rets = rets;
+  TYPE_INCREF(ret);
+  protoStmt->ret = ret;
   return (Stmt *)protoStmt;
 }
 
@@ -735,11 +738,11 @@ Stmt *Stmt_From_Expr(Expr *exp)
   return (Stmt *)expStmt;
 }
 
-Stmt *Stmt_From_Return(Vector *exps)
+Stmt *Stmt_From_Return(Expr *exp)
 {
   ReturnStmt *retStmt = Malloc(sizeof(ReturnStmt));
   retStmt->kind = RETURN_KIND;
-  retStmt->exps = exps;
+  retStmt->exp = exp;
   return (Stmt *)retStmt;
 }
 
@@ -1326,38 +1329,13 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
   return Stmt_From_AssignList(left, rexp);
 }
 
-static TypeDesc *__get_proto(FuncDeclStmt *stmt)
-{
-  Vector *pdesc = NULL;
-  Vector *rdesc = NULL;
-  IdType *idType;
-
-  if (stmt->args != NULL) {
-    pdesc = Vector_Capacity(Vector_Size(stmt->args));
-    Vector_ForEach(idType, stmt->args) {
-      TYPE_INCREF(idType->type.desc);
-      Vector_Append(pdesc, idType->type.desc);
-    }
-  }
-
-  if (stmt->rets != NULL) {
-    rdesc = Vector_Capacity(Vector_Size(stmt->rets));
-    Vector_ForEach(idType, stmt->rets) {
-      TYPE_INCREF(idType->type.desc);
-      Vector_Append(rdesc, idType->type.desc);
-    }
-  }
-
-  return TypeDesc_Get_Proto(pdesc, rdesc);
-}
-
 static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
   ParserUnit *u = ps->u;
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
   char *name = funcStmt->id.name;
   Symbol *sym;
-  TypeDesc *proto = __get_proto(funcStmt);
+  TypeDesc *proto = Parser_Get_Proto(funcStmt->args, funcStmt->ret);
 
   if (funcStmt->kind == PROTO_KIND) {
     if (funcStmt->native) {
@@ -1511,6 +1489,17 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz)
     }
   }
   return TypeDesc_Get_Klass(path, klazz->name);
+}
+
+TypeDesc *Parser_Get_Proto(Vector *idtypes, TypeDesc *ret)
+{
+  Vector *para = Vector_Capacity(Vector_Size(idtypes));
+  IdType *idType;
+  Vector_ForEach(idType, idtypes) {
+    TYPE_INCREF(idType->type.desc);
+    Vector_Append(para, idType->type.desc);
+  }
+  return TypeDesc_Get_Proto(para, ret);
 }
 
 void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)

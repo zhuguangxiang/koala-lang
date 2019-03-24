@@ -21,7 +21,6 @@
  */
 
 #include "typedesc.h"
-#include "stringbuf.h"
 #include "mem.h"
 #include "log.h"
 
@@ -76,7 +75,6 @@ struct base_type_s {
   {BASE_FLOAT,  "float",  &Float_Type,  "lang", "Float"  },
   {BASE_BOOL,   "bool",   &Bool_Type,   "lang", "Bool"   },
   {BASE_STRING, "string", &String_Type, "lang", "String" },
-  {BASE_ERROR,  "error",  &Error_Type,  "lang", "Error"  },
   {BASE_ANY,    "any",    &Any_Type,    "lang", "Any"    },
 };
 
@@ -157,10 +155,10 @@ void Fini_TypeDesc(void)
   check_base_refcnt();
 }
 
-static void __base_tostring(TypeDesc *desc, char *buf)
+static void __base_tostring(TypeDesc *desc, StringBuf *buf)
 {
   BaseDesc *base = (BaseDesc *)desc;
-  strcpy(buf, get_base(base->type)->str);
+  __StringBuf_Append_CStr(buf, get_base(base->type)->str);
 }
 
 static void __base_fini(TypeDesc *desc)
@@ -168,13 +166,13 @@ static void __base_fini(TypeDesc *desc)
   assert(desc->refcnt > 0);
 }
 
-static void __klass_tostring(TypeDesc *desc, char *buf)
+static void __klass_tostring(TypeDesc *desc, StringBuf *buf)
 {
   KlassDesc *klass = (KlassDesc *)desc;
   if (AtomString_Length(klass->path) > 0)
-    sprintf(buf, "%s.%s", klass->path.str, klass->type.str);
+    __StringBuf_Format(buf, 1, "#.#", klass->path.str, klass->type.str);
   else
-    sprintf(buf, "%s", klass->type.str);
+    __StringBuf_Format(buf, 1, "#", klass->type.str);
 }
 
 static void __klass_fini(TypeDesc *desc)
@@ -183,44 +181,25 @@ static void __klass_fini(TypeDesc *desc)
   UNUSED_PARAMETER(desc);
 }
 
-void Proto_Print(ProtoDesc *proto, char *buf)
+void Proto_Print(ProtoDesc *proto, StringBuf *buf)
 {
-  strcat(buf, "(");
-  if (!proto->simple) {
-    TypeDesc *item;
-    Vector_ForEach(item, (Vector *)proto->arg) {
-      if (i != 0)
-        strcat(buf, ", ");
-      TypeDesc_ToString(item, buf + strlen(buf));
-    }
-  } else {
-    TypeDesc_ToString(proto->arg, buf + strlen(buf));
+  __StringBuf_Append_CStr(buf, "(");
+  TypeDesc *item;
+  Vector_ForEach(item, proto->arg) {
+    if (i != 0)
+      __StringBuf_Append_CStr(buf, ", ");
+    __StringBuf_Append(buf, TypeDesc_ToString(item));
   }
-  strcat(buf, ")");
+  char *s = (proto->ret != NULL) ? ") " : ")";
+  __StringBuf_Append_CStr(buf, s);
 
-  int nret = (!proto->simple) ? Vector_Size((Vector *)proto->ret) : 0;
-  if (nret > 1)
-    strcat(buf, " (");
-  else if (nret == 1)
-    strcat(buf, " ");
-  if (!proto->simple) {
-    TypeDesc *item;
-    Vector_ForEach(item, (Vector *)proto->ret) {
-      if (i != 0)
-        strcat(buf, ", ");
-      TypeDesc_ToString(item, buf + strlen(buf));
-    }
-  } else {
-    TypeDesc_ToString(proto->ret, buf + strlen(buf));
-  }
-  if (nret > 1)
-    strcat(buf, ")");
+  __StringBuf_Append(buf, TypeDesc_ToString(proto->ret));
 }
 
-static void __proto_tostring(TypeDesc *desc, char *buf)
+static void __proto_tostring(TypeDesc *desc, StringBuf *buf)
 {
   ProtoDesc *proto = (ProtoDesc *)desc;
-  strcpy(buf, "func");
+  __StringBuf_Append_CStr(buf, "func");
   Proto_Print(proto, buf);
 }
 
@@ -238,23 +217,18 @@ static inline void free_typelist(Vector *vec)
 static void __proto_fini(TypeDesc *desc)
 {
   ProtoDesc *proto = (ProtoDesc *)desc;
-  if (!proto->simple) {
-    free_typelist(proto->arg);
-    free_typelist(proto->ret);
-  } else {
-    TYPE_DECREF(proto->arg);
-    TYPE_DECREF(proto->ret);
-  }
+  free_typelist(proto->arg);
+  TYPE_DECREF(proto->ret);
 }
 
-static void __array_tostring(TypeDesc *desc, char *buf)
+static void __array_tostring(TypeDesc *desc, StringBuf *buf)
 {
   ArrayDesc *array = (ArrayDesc *)desc;
-  strcpy(buf, "[]");
+  __StringBuf_Append_CStr(buf, "[]");
   int i = 1;
   while (i++ < array->dims)
-    strcat(buf, "[]");
-  TypeDesc_ToString(array->base, buf + strlen(buf));
+    __StringBuf_Append_CStr(buf, "[]");
+  __StringBuf_Append(buf, TypeDesc_ToString(array->base));
 }
 
 static void __array_fini(TypeDesc *desc)
@@ -263,13 +237,13 @@ static void __array_fini(TypeDesc *desc)
   TYPE_DECREF(array->base);
 }
 
-static void __map_tostring(TypeDesc *desc, char *buf)
+static void __map_tostring(TypeDesc *desc, StringBuf *buf)
 {
   MapDesc *map = (MapDesc *)desc;
-  strcpy(buf, "map[");
-  TypeDesc_ToString(map->key, buf + strlen(buf));
-  strcpy(buf + strlen(buf), "]");
-  TypeDesc_ToString(map->val, buf + strlen(buf));
+  __StringBuf_Append_CStr(buf, "map[");
+  __StringBuf_Append(buf, TypeDesc_ToString(map->key));
+  __StringBuf_Append_CStr(buf, "]");
+  __StringBuf_Append(buf, TypeDesc_ToString(map->val));
 }
 
 static void __map_fini(TypeDesc *desc)
@@ -279,12 +253,12 @@ static void __map_fini(TypeDesc *desc)
   TYPE_DECREF(map->val);
 }
 
-static void __set_tostring(TypeDesc *desc, char *buf)
+static void __set_tostring(TypeDesc *desc, StringBuf *buf)
 {
   SetDesc *set = (SetDesc *)desc;
-  strcpy(buf, "set[");
-  TypeDesc_ToString(set->base, buf + strlen(buf));
-  strcpy(buf + strlen(buf), "]");
+  __StringBuf_Append_CStr(buf, "set[");
+  __StringBuf_Append(buf, TypeDesc_ToString(set->base));
+  __StringBuf_Append_CStr(buf, "]");
 }
 
 static void __set_fini(TypeDesc *desc)
@@ -293,11 +267,11 @@ static void __set_fini(TypeDesc *desc)
   TYPE_DECREF(set->base);
 }
 
-static void __varg_tostring(TypeDesc *desc, char *buf)
+static void __varg_tostring(TypeDesc *desc, StringBuf *buf)
 {
   VargDesc *varg = (VargDesc *)desc;
-  strcpy(buf, "...");
-  TypeDesc_ToString(varg->base, buf + strlen(buf));
+  __StringBuf_Append_CStr(buf, "...");
+  __StringBuf_Append(buf, TypeDesc_ToString(varg->base));
 }
 
 static void __varg_fini(TypeDesc *desc)
@@ -307,7 +281,7 @@ static void __varg_fini(TypeDesc *desc)
 }
 
 struct typedesc_ops_s {
-  void (*tostring)(TypeDesc *, char *);
+  void (*tostring)(TypeDesc *, StringBuf *);
   void (*fini)(TypeDesc *);
 } typedesc_ops[] = {
   /* 0 is not used */
@@ -335,13 +309,18 @@ int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2)
   return AtomString_Equal(desc1->desc, desc2->desc);
 }
 
-void TypeDesc_ToString(TypeDesc *desc, char *buf)
+String TypeDesc_ToString(TypeDesc *desc)
 {
+  String s = {NULL};
   if (desc == NULL)
-    return;
+    return s;
   int kind = desc->kind;
   assert(kind > 0 && kind < nr_elts(typedesc_ops));
-  typedesc_ops[kind].tostring(desc, buf);
+  DeclareStringBuf(buf);
+  typedesc_ops[kind].tostring(desc, &buf);
+  s = AtomString_New(buf.data);
+  FiniStringBuf(buf);
+  return s;
 }
 
 void TypeDesc_Free(TypeDesc *desc)
@@ -404,10 +383,10 @@ TypeDesc *TypeDesc_Get_Klass(char *path, char *type)
   return (TypeDesc *)desc;
 }
 
-TypeDesc *TypeDesc_Get_Proto(Vector *arg, Vector *ret)
+TypeDesc *TypeDesc_Get_Proto(Vector *arg, TypeDesc *ret)
 {
   String sArg = TypeList_ToString(arg);
-  String sRet = TypeList_ToString(ret);
+  String sRet = TypeDesc_ToString(ret);
 
   /* Pargs:rets;*/
   DeclareStringBuf(buf);
@@ -418,38 +397,12 @@ TypeDesc *TypeDesc_Get_Proto(Vector *arg, Vector *ret)
     FiniStringBuf(buf);
     /* NOTES: not use parameters, free them here */
     free_typelist(arg);
-    free_typelist(ret);
     return exist;
   }
 
   DeclareTypeDesc(desc, TYPE_PROTO, ProtoDesc, buf.data);
-  desc->simple = 0;
   desc->arg = arg;
-  desc->ret = ret;
-  FiniStringBuf(buf);
-  return (TypeDesc *)desc;
-}
-
-TypeDesc *TypeDesc_Get_SProto(TypeDesc *arg, TypeDesc *ret)
-{
-  char *sArg = (arg != NULL) ? arg->desc.str : "";
-  char *sRet = (ret != NULL) ? ret->desc.str : "";
-
-  /* Pargs:rets;*/
-  DeclareStringBuf(buf);
-  StringBuf_Format_CStr(buf, "P#:#;", sArg, sRet);
-
-  TypeDesc *exist = FindTypeDesc(buf.data);
-  if (exist != NULL) {
-    FiniStringBuf(buf);
-    return exist;
-  }
-
-  DeclareTypeDesc(desc, TYPE_PROTO, ProtoDesc, buf.data);
-  desc->simple = 1;
-  TYPE_INCREF(arg);
   TYPE_INCREF(ret);
-  desc->arg = arg;
   desc->ret = ret;
   FiniStringBuf(buf);
   return (TypeDesc *)desc;
@@ -558,7 +511,7 @@ static TypeDesc *string_to_klass(char *s, int len)
   return TypeDesc_Get_Klass(path.str, type.str);
 }
 
-TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg)
+TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg)
 {
   char *s = *string;
   char ch = *s;
@@ -582,44 +535,38 @@ TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg)
       dims += 1;
       s += 1;
     }
-    base = String_To_TypeDesc(&s, dims, 0);
+    base = __String_To_TypeDesc(&s, dims, 0);
     desc = TypeDesc_Get_Array(dims, base);
     break;
   }
   case 'M': {
     s += 1;
-    TypeDesc *key = String_To_TypeDesc(&s, 0, 0);
-    TypeDesc *val = String_To_TypeDesc(&s, 0, 0);
+    TypeDesc *key = __String_To_TypeDesc(&s, 0, 0);
+    TypeDesc *val = __String_To_TypeDesc(&s, 0, 0);
     desc = TypeDesc_Get_Map(key, val);
     break;
   }
   case 'S': {
     s += 1;
-    base = String_To_TypeDesc(&s, 0, 0);
+    base = __String_To_TypeDesc(&s, 0, 0);
     desc = TypeDesc_Get_Set(base);
     break;
   }
   case 'P': {
     Vector *args = NULL;
-    Vector *rets = NULL;
     s += 1;
     while ((ch = *s) != ':') {
       if (args == NULL)
         args = Vector_New();
-      base = String_To_TypeDesc(&s, 0, 0);
+      base = __String_To_TypeDesc(&s, 0, 0);
       TYPE_INCREF(base);
       Vector_Append(args, base);
     }
     s += 1;
-    while ((ch = *s) != ';') {
-      if (rets == NULL)
-        rets = Vector_New();
-      base = String_To_TypeDesc(&s, 0, 0);
-      TYPE_INCREF(base);
-      Vector_Append(rets, base);
-    }
+    base = __String_To_TypeDesc(&s, 0, 0);
+    assert(*s == ';');
     s += 1;
-    desc = TypeDesc_Get_Proto(args, rets);
+    desc = TypeDesc_Get_Proto(args, base);
     break;
   }
   case '.': {
@@ -630,7 +577,7 @@ TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg)
       base = (TypeDesc *)&Any_Type;
       s += 1;
     } else {
-      base = String_To_TypeDesc(&s, 0, 1);
+      base = __String_To_TypeDesc(&s, 0, 1);
     }
     desc = TypeDesc_Get_Varg(base);
     break;
@@ -661,7 +608,7 @@ Vector *String_ToTypeList(char *s)
   TypeDesc *desc;
 
   while (*s != '\0') {
-    desc = String_To_TypeDesc(&s, 0, 0);
+    desc = __String_To_TypeDesc(&s, 0, 0);
     assert(desc != NULL);
     TYPE_INCREF(desc);
     Vector_Append(vec, desc);

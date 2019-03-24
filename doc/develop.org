@@ -2,6 +2,9 @@
 #+AUTHOR: James Zhu
 #+EMAIL: https://github.com/zhuguangxiang
 
+* changes
+- return only supported one value, can return tuple with multi-values, not allowed return varg
+- TypeDesc_ToString, no debug how to ?
 * 0.7.3 [3/3]
 ** DONE variable declaration [2/2]
 CLOSED: [2019-02-04 Mon 01:59]

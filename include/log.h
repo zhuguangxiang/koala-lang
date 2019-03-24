@@ -64,7 +64,7 @@ void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...);
   if (!logger.quiet)     \
     puts(string);        \
 })
-#endif /* NDEBUG */
+#endif /* NLOG */
 
 #define Log_Trace(...) \
 Log_Log(&(logger), LOG_TRACE, __FILENAME__, __LINE__, __VA_ARGS__)

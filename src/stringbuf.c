@@ -28,7 +28,7 @@ static int expand(StringBuf *buf, int min)
 {
   int size = buf->length + min + 1;
   int bufsize = buf->size;
-  while (size > bufsize)
+  while (size >= bufsize)
     bufsize += EXPAND_SIZE;
 
   char *data = Malloc(bufsize);
@@ -47,7 +47,7 @@ static int expand(StringBuf *buf, int min)
 static int available(StringBuf *buf, int min)
 {
   int left = buf->size - buf->length - 1;
-  if (left < min) {
+  if (left <= min) {
     int result = expand(buf, min);
     if (result != 0)
       return -1;

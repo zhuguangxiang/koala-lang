@@ -52,7 +52,7 @@ class ObjectDisplay {
   }
 
   func field(name string, value Display) DisplayObject {
-    var prefix char
+    var prefix string
     /*
     if (hasFields) {
       prefix = ","
@@ -76,7 +76,7 @@ class ObjectDisplay {
 func format(fmt string, args ...any) string {
   fmtter := Formatter()
   fmtter.writeFormat(fmt, args)
-  return fmtter.toString();
+  return fmtter.toString()
 }
 
 func write(w Writer, fmt string, args ...any) {

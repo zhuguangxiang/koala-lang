@@ -241,9 +241,8 @@ void Parse_Binary_Expr(ParserState *ps, Expr *exp)
   assert(rexp->desc != NULL);
 
   if (exp->desc == NULL) {
-    char buf[64];
-    TypeDesc_ToString(lexp->desc, buf);
-    Log_Debug("update bianry expr's type:%s", buf);
+    String s = TypeDesc_ToString(lexp->desc);
+    Log_Debug("update bianry expr's type:%s", s.str);
     exp->desc = lexp->desc;
     TYPE_INCREF(exp->desc);
   }

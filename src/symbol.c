@@ -66,9 +66,8 @@ static void __const_show(Symbol *sym)
   VarSymbol *varSym = (VarSymbol *)sym;
   Log_Printf("const %s ", varSym->name);
   if (varSym->desc != NULL) {
-    char buf[64];
-    TypeDesc_ToString(varSym->desc, buf);
-    Log_Printf("%s;\n", buf); /* with newline */
+    String s = TypeDesc_ToString(varSym->desc);
+    Log_Printf("%s;\n", s.str); /* with newline */
   } else {
     Log_Puts("<undefined-type>;"); /* with newline */
   }
@@ -101,9 +100,8 @@ static void __var_show(Symbol *sym)
   VarSymbol *varSym = (VarSymbol *)sym;
   Log_Printf("var %s ", varSym->name);
   if (varSym->desc != NULL) {
-    char buf[64];
-    TypeDesc_ToString(varSym->desc, buf);
-    Log_Printf("%s;\n", buf); /* with newline */
+    String s = TypeDesc_ToString(varSym->desc);
+    Log_Printf("%s;\n", s.str); /* with newline */
   } else {
     Log_Printf("<undefined-type>;\n");
   }
@@ -145,9 +143,10 @@ static void __func_show(Symbol *sym)
 {
   FuncSymbol *funcSym = (FuncSymbol *)sym;
   ProtoDesc *proto = (ProtoDesc *)funcSym->desc;
-  char buf[128] = {0};
-  Proto_Print(proto, buf);
-  Log_Printf("func %s%s;\n", sym->name, buf);
+  DeclareStringBuf(buf);
+  Proto_Print(proto, &buf);
+  Log_Printf("func %s%s;\n", sym->name, buf.data);
+  FiniStringBuf(buf);
 }
 
 static void __add_locvar(KImage *image, int index, Vector *vec, char *fmt)
@@ -264,12 +263,13 @@ static void __ifunc_free(Symbol *sym)
 static void __ifunc_show(Symbol *sym)
 {
   ProtoDesc *proto = (ProtoDesc *)sym->desc;
-  char buf[128] = {0};
-  Proto_Print(proto, buf);
+  DeclareStringBuf(buf);
+  Proto_Print(proto, &buf);
   if (sym->kind == SYM_IFUNC)
-    Log_Printf("interface func %s%s;\n", sym->name, buf);
+    Log_Printf("interface func %s%s;\n", sym->name, buf.data);
   else
-    Log_Printf("native func %s%s;\n", sym->name, buf);
+    Log_Printf("native func %s%s;\n", sym->name, buf.data);
+  FiniStringBuf(buf);
 }
 
 static void __ifunc_gen(Symbol *sym, void *arg)
@@ -309,9 +309,10 @@ static void __afunc_show(Symbol *sym)
 {
   AFuncSymbol *afnSym = (AFuncSymbol *)sym;
   ProtoDesc *proto = (ProtoDesc *)afnSym->desc;
-  char buf[128] = {0};
-  Proto_Print(proto, buf);
-  Log_Printf("anonymous func %s%s;\n", sym->name, buf);
+  DeclareStringBuf(buf);
+  Proto_Print(proto, &buf);
+  Log_Printf("anonymous func %s%s;\n", sym->name, buf.data);
+  FiniStringBuf(buf);
 }
 
 static void __afunc_gen(Symbol *sym, void *arg)

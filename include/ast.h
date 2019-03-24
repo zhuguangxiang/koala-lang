@@ -276,13 +276,13 @@ typedef struct anonyexpr {
   EXPR_HEAD
   /* idtype */
   Vector *args;
-  /* idtype */
-  Vector *rets;
+  /* return type */
+  TypeDesc *ret;
   /* statements */
   Vector *body;
 } AnonyExpr;
 
-Expr *Expr_From_Anony(Vector *args, Vector *rets, Vector *body);
+Expr *Expr_From_Anony(Vector *args, TypeDesc *ret, Vector *body);
 
 typedef enum stmtkind {
   /*
@@ -397,8 +397,8 @@ typedef struct funcdeclstmt {
   Ident id;
   /* idtype statement */
   Vector *args;
-  /* idtype statement */
-  Vector *rets;
+  /* return type */
+  TypeDesc *ret;
   /* body statements */
   Vector *body;
 } FuncDeclStmt;
@@ -415,7 +415,7 @@ typedef struct returnstmt {
   STMT_HEAD
   Position pos;
   /* expression */
-  Vector *exps;
+  Expr *exp;
 } ReturnStmt;
 
 /* list statement */
@@ -440,10 +440,10 @@ Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
   __Stmt_From_VarListDecl(ids, desc, exp, 1)
 Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right);
 Stmt *Stmt_From_AssignList(Vector *left, Expr *right);
-Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, Vector *rets, Vector *stmts);
-Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, Vector *rets);
+Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, TypeDesc *ret, Vector *stmts);
+Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, TypeDesc *ret);
 Stmt *Stmt_From_Expr(Expr *exp);
-Stmt *Stmt_From_Return(Vector *exps);
+Stmt *Stmt_From_Return(Expr *exp);
 Stmt *Stmt_From_List(Vector *vec);
 
 /* class or trait statement */

@@ -90,7 +90,7 @@ typedef struct typelist_item {
 } TypeListItem;
 
 typedef struct proto_item {
-  int32 rindex;   /* ->TypeListItem */
+  int32 rindex;   /* ->TypeItem */
   int32 pindex;   /* ->TypeListItem */
 } ProtoItem;
 
@@ -170,7 +170,7 @@ typedef struct imeth_item {
   int32 protoindex; /* ->ProtoItem */
 } IMethItem;
 
-#define PKG_NAME_MAX 64
+#define PKG_NAME_MAX 32
 
 /* koala byte code image header */
 typedef struct image_header {

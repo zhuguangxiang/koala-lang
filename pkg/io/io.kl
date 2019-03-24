@@ -22,4 +22,12 @@
 
 package io
 
+trait Writer {
+  func write(buf []byte) int
+}
+
+trait Reader {
+  func read(buf []byte) int
+}
+
 native func puts(s string)

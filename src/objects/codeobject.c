@@ -58,9 +58,9 @@ Object *CFunc_New(char *name, TypeDesc *proto, cfunc_t func)
 
 Object *Code_From_CFunc(CFuncDef *f)
 {
-  Vector *rdesc = String_ToTypeList(f->rdesc);
-  Vector *pdesc = String_ToTypeList(f->pdesc);
-  TypeDesc *proto = TypeDesc_Get_Proto(pdesc, rdesc);
+  Vector *para = String_ToTypeList(f->pdesc);
+  TypeDesc *ret = String_To_TypeDesc(f->rdesc);
+  TypeDesc *proto = TypeDesc_Get_Proto(para, ret);
   return CFunc_New(f->name, proto, f->func);
 }
 

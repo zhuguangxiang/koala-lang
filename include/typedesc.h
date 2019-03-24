@@ -26,6 +26,7 @@
 #include "vector.h"
 #include "atomstring.h"
 #include "hashtable.h"
+#include "stringbuf.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,7 +61,6 @@ typedef enum desckind {
 #define BASE_FLOAT  'f'
 #define BASE_BOOL   'z'
 #define BASE_STRING 's'
-#define BASE_ERROR  'e'
 #define BASE_ANY    'A'
 
 /* constant value */
@@ -137,9 +137,8 @@ typedef struct klassdesc {
 /* function's proto */
 typedef struct protodesc {
   TYPEDESC_HEAD
-  int simple;
-  void *arg;
-  void *ret;
+  Vector *arg;
+  TypeDesc *ret;
 } ProtoDesc;
 
 /* array */
@@ -172,10 +171,10 @@ typedef struct vargdesc {
 int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2);
 
 /* convert typedesc struct to string for readable and printable */
-void TypeDesc_ToString(TypeDesc *desc, char *buf);
+String TypeDesc_ToString(TypeDesc *desc);
 
 /* print ProtoDesc's arg and ret */
-void Proto_Print(ProtoDesc *proto, char *buf);
+void Proto_Print(ProtoDesc *proto, StringBuf *buf);
 
 /* free the typedesc */
 void TypeDesc_Free(TypeDesc *desc);
@@ -187,8 +186,7 @@ TypeDesc *TypeDesc_Get_Base(int base);
 TypeDesc *TypeDesc_Get_Klass(char *path, char *type);
 
 /* new a proto typedesc */
-TypeDesc *TypeDesc_Get_Proto(Vector *arg, Vector *ret);
-TypeDesc *TypeDesc_Get_SProto(TypeDesc *arg, TypeDesc *ret);
+TypeDesc *TypeDesc_Get_Proto(Vector *arg, TypeDesc *ret);
 
 /* new an array typedesc */
 TypeDesc *TypeDesc_Get_Array(int dims, TypeDesc *base);
@@ -201,6 +199,17 @@ TypeDesc *TypeDesc_Get_Set(TypeDesc *base);
 
 /* new a var-argument typedesc */
 TypeDesc *TypeDesc_Get_Varg(TypeDesc *base);
+
+TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg);
+#define String_To_TypeDesc(s) \
+({ \
+  TypeDesc *desc = NULL; \
+  if ((s) != NULL) { \
+    char **str = &(s); \
+    desc = __String_To_TypeDesc(str, 0, 0); \
+  } \
+  desc; \
+})
 
 /*
  * convert string to typedesc list

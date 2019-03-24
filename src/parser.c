@@ -313,9 +313,8 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   case SYM_VAR: {
     Log_Debug("'%s' is variable", lsym->name);
     assert(lsym->desc != NULL);
-    char buf[64];
-    TypeDesc_ToString(lexp->desc, buf);
-    Log_Debug("left expr's type: %s", buf);
+    String s = TypeDesc_ToString(lexp->desc);
+    Log_Debug("left expr's type: %s", s.str);
     VarSymbol *varSym = (VarSymbol *)lsym;
     sym = STable_Get(varSym->stbl, attrExp->id.name);
     if (sym == NULL) {
@@ -329,9 +328,8 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   case SYM_TRAIT: {
     Log_Debug("'%s' is class/trait", lsym->name);
     assert(lsym->desc != NULL);
-    char buf[64];
-    TypeDesc_ToString(lexp->desc, buf);
-    Log_Debug("left expr's type: %s", buf);
+    String s = TypeDesc_ToString(lexp->desc);
+    Log_Debug("left expr's type: %s", s.str);
     ClassSymbol *clsSym = (ClassSymbol *)lsym;
     sym = STable_Get(clsSym->stbl, attrExp->id.name);
     if (sym == NULL) {
@@ -350,7 +348,6 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
                      "'%s' is multi-returns' function", lsym->name);
         return;
       }
-      desc = Vector_Get(proto->ret, 0);
     } else {
     }
     break;
@@ -372,9 +369,8 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   }
 
   /* set expressions's symbol */
-  char buf[64];
-  TypeDesc_ToString(sym->desc, buf);
-  Log_Debug("'%s' type: %s", sym->name, buf);
+  String s = TypeDesc_ToString(sym->desc);
+  Log_Debug("'%s' type: %s", sym->name, s.str);
   exp->sym = sym;
   exp->desc = sym->desc;
   TYPE_INCREF(exp->desc);
@@ -429,39 +425,36 @@ static void parse_subscript_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
-static int __check_expr_types(Vector *descs, Vector *exps)
-{
-  int ndesc = Vector_Size(descs);
-  int nexp = Vector_Size(exps);
-  if (nexp < ndesc)
-    return 0;
-
-  TypeDesc *desc;
-  int varg = 0;
-  Expr *e;
-  Vector_ForEach(e, exps) {
-    if (!varg) {
-      desc = Vector_Get(descs, i);
-      /* variably arguments */
-      if (desc->kind == TYPE_VARG) {
-        assert(i + 1 == Vector_Size(descs));
-        varg = 1;
-        desc = ((VargDesc *)desc)->base;
-      }
-    }
-    //FIXME
-    //if (!TypeDesc_Equal(desc, e->desc))
-    //  return 0;
-  }
-
-  return 1;
-}
-
 static int __check_call_arguments(TypeDesc *desc, Vector *args)
 {
   assert(desc->kind == TYPE_PROTO);
   ProtoDesc *proto = (ProtoDesc *)desc;
-  return __check_expr_types(proto->arg, args);
+  Vector *para = proto->arg;
+
+  int ndesc = Vector_Size(para);
+  int nexp = Vector_Size(args);
+  if (nexp < ndesc)
+    return 0;
+
+  TypeDesc *type;
+  int varg = 0;
+  Expr *e;
+  Vector_ForEach(e, args) {
+    if (!varg) {
+      type = Vector_Get(para, i);
+      /* variably arguments */
+      if (type->kind == TYPE_VARG) {
+        assert(i + 1 == Vector_Size(para));
+        varg = 1;
+        type = ((VargDesc *)type)->base;
+      }
+    }
+    //FIXME
+    //if (!TypeDesc_Equal(type, e->desc))
+    //  return 0;
+  }
+
+  return 1;
 }
 
 static void parse_call_expr(ParserState *ps, Expr *exp)
@@ -514,10 +507,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
       return;
     }
     if (__init__ == NULL) {
-      Vector *ret = Vector_Capacity(1);
-      TYPE_INCREF(clsSym->desc);
-      Vector_Append(ret, clsSym->desc);
-      proto = TypeDesc_Get_Proto(NULL, ret);
+      proto = TypeDesc_Get_Proto(NULL, clsSym->desc);
     } else {
       proto = __init__->desc;
     }
@@ -734,9 +724,8 @@ static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     assert(varSym != NULL);
     assert(varSym->kind == SYM_CONST || varSym->kind == SYM_VAR);
     if (varSym->desc == NULL) {
-      char buf[64];
-      TypeDesc_ToString(desc, buf);
-      Log_Debug("update symbol '%s' type as '%s'", id->name, buf);
+      String s = TypeDesc_ToString(desc);
+      Log_Debug("update symbol '%s' type as '%s'", id->name, s.str);
       varSym->desc = desc;
       TYPE_INCREF(varSym->desc);
     }
@@ -846,16 +835,15 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     if (rexp->kind == CALL_KIND) {
       assert(rdesc->kind == TYPE_PROTO);
       ProtoDesc *proto = (ProtoDesc *)rdesc;
-      if (Vector_Size((Vector *)proto->ret) != 1) {
-        Syntax_Error(ps, &rexp->pos, "multiple-value in single-value context");
+      if (proto->ret == NULL) {
+        Syntax_Error(ps, &rexp->pos, "function has no return");
         return;
       }
 
-      rdesc = Vector_Get((Vector *)proto->ret, 0);
+      rdesc = proto->ret;
       if (type->desc == NULL) {
-        char buf[64];
-        TypeDesc_ToString(rdesc, buf);
-        Log_Debug("var '%s' type is none, set it as '%s'", id->name, buf);
+        String s = TypeDesc_ToString(rdesc);
+        Log_Debug("var '%s' type is none, set it as '%s'", id->name, s.str);
         TYPE_INCREF(rdesc);
         type->desc = rdesc;
       }
@@ -869,9 +857,8 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
         return;
       }
     } else {
-      char buf[64];
-      TypeDesc_ToString(rdesc, buf);
-      Log_Debug("var '%s' type is none, set it as '%s'", id->name, buf);
+      String s = TypeDesc_ToString(rdesc);
+      Log_Debug("var '%s' type is none, set it as '%s'", id->name, s.str);
       TYPE_INCREF(rdesc);
       type->desc = rdesc;
     }
@@ -927,6 +914,7 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
   assert(rexp->desc->kind == TYPE_PROTO);
   ProtoDesc *proto = (ProtoDesc *)rexp->desc;
 
+#if 0
   /* check count */
   int nret = Vector_Size((Vector *)proto->ret);
   int nvar = Vector_Size(varListStmt->ids);
@@ -950,7 +938,7 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
     }
   }
 
-  /* update or add symbol */
+  /* add or update symbol */
   assert(ps->u->scope != SCOPE_CLASS);
   VarSymbol *varSym;
   TypeDesc *desc;
@@ -968,6 +956,7 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
 
   } else {
   }
+#endif
 }
 
 /*
@@ -1002,6 +991,7 @@ static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
     return;
   }
   if (rdesc->kind == TYPE_PROTO) {
+    #if 0
     ProtoDesc *proto = (ProtoDesc *)rdesc;
     int n = Vector_Size((Vector *)proto->ret);
     if (n != 1) {
@@ -1009,6 +999,7 @@ static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
       return;
     }
     rdesc = Vector_Get(proto->ret, 0);
+    #endif
   }
 
   TypeDesc *ldesc = lexp->desc;
@@ -1034,6 +1025,7 @@ static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
   assert(rexp->desc != NULL && rexp->desc->kind == TYPE_PROTO);
   ProtoDesc *proto = (ProtoDesc *)rexp->desc;
 
+#if 0
   /* check count */
   int nret = Vector_Size((Vector *)proto->ret);
   int nleft = Vector_Size(assignListStmt->left);
@@ -1058,6 +1050,7 @@ static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
   }
 
   /* FIXME: generate code */
+#endif
 }
 
 static void parse_statements(ParserState *ps, Vector *stmts);
@@ -1078,19 +1071,8 @@ static void parse_funcdecl_stmt(ParserState *ps, Stmt *stmt)
 
   Log_Debug("----parse function '%s'----", funStmt->id.name);
 
-  /*
-   * return-list has variable declarations
-   * FIXME: how to order argument and return
-   */
-  IdType *idtype;
-  Vector_ForEach(idtype, funStmt->rets) {
-    if (idtype->id.name != NULL) {
-      /* return-list is variable declaration */
-      parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
-    }
-  }
-
   /* parameter-list */
+  IdType *idtype;
   Vector_ForEach(idtype, funStmt->args) {
     parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
   }
@@ -1119,11 +1101,11 @@ static void parse_expr_stmt(ParserState *ps, Stmt *stmt)
   parser_visit_expr(ps, exp);
 }
 
-static int check_returns(TypeDesc *desc, Vector *exps)
+static int check_returns(TypeDesc *desc, Expr *exp)
 {
   assert(desc->kind == TYPE_PROTO);
   ProtoDesc *proto = (ProtoDesc *)desc;
-  return __check_expr_types(proto->ret, exps);
+  return 1; //TypeDesc_Equal(proto->ret, exp->desc);
 }
 
 static void parse_return_stmt(ParserState *ps, Stmt *stmt)
@@ -1147,13 +1129,13 @@ static void parse_return_stmt(ParserState *ps, Stmt *stmt)
 
   ReturnStmt *retStmt = (ReturnStmt *)stmt;
 
-  Expr *e;
-  Vector_ForEach(e, retStmt->exps) {
+  Expr *e = retStmt->exp;
+  if (e != NULL) {
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
   }
 
-  if (!check_returns(funcSym->desc, retStmt->exps)) {
+  if (!check_returns(funcSym->desc, e)) {
     Syntax_Error(ps, &retStmt->pos, "func %s: returns are not matched.",
                  funcSym->name);
     return;

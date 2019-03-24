@@ -199,9 +199,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <TypeDesc> KeyType
 %type <IdType> IDType
 %type <List> IDTypeList
-%type <List> TypeList
 %type <List> ParameterList
-%type <List> ReturnList
 %type <List> IDList
 
 %type <Stmt> ConstDeclaration
@@ -392,10 +390,6 @@ PrimitiveType
   {
     $$ = TypeDesc_Get_Base(BASE_STRING);
   }
-  | ERROR
-  {
-    $$ = TypeDesc_Get_Base(BASE_ERROR);
-  }
   | ANY
   {
     $$ = TypeDesc_Get_Base(BASE_ANY);
@@ -417,60 +411,23 @@ KlassType
   ;
 
 FunctionType
-  : FUNC '(' ParameterList ')' ReturnList
+  : FUNC '(' ParameterList ')' Type
   {
-    if ($3 == NULL || $5 == NULL) {
-      $$ = NULL;
-    } else {
-      Vector *pvec = Vector_New();
-      Vector *rvec = Vector_New();
-      IdType *idType;
-      Vector_ForEach(idType, $3) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(pvec, idType->type.desc);
-      }
-      Vector_ForEach(idType, $5) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(rvec, idType->type.desc);
-      }
-      $$ = TypeDesc_Get_Proto(pvec, rvec);
-    }
+    $$ = Parser_Get_Proto($3, $5);
     Free_IdTypeList($3);
-    Free_IdTypeList($5);
   }
   | FUNC '(' ParameterList ')'
   {
-    if ($3 == NULL) {
-      $$ = NULL;
-    } else {
-      Vector *pvec = Vector_New();
-      IdType *idType;
-      Vector_ForEach(idType, $3) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(pvec, idType->type.desc);
-      }
-      $$ = TypeDesc_Get_Proto(pvec, NULL);
-    }
+    $$ = Parser_Get_Proto($3, NULL);
     Free_IdTypeList($3);
   }
-  | FUNC '(' ')' ReturnList
+  | FUNC '(' ')' Type
   {
-    if ($4 == NULL) {
-      $$ = NULL;
-    } else {
-      Vector *rvec = Vector_New();
-      IdType *idType;
-      Vector_ForEach(idType, $4) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(rvec, idType->type.desc);
-      }
-      $$ = TypeDesc_Get_Proto(NULL, rvec);
-    }
-    Free_IdTypeList($4);
+    $$ = Parser_Get_Proto(NULL, $4);
   }
   | FUNC '(' ')'
   {
-    $$ = TypeDesc_Get_Proto(NULL, NULL);
+    $$ = Parser_Get_Proto(NULL, NULL);
   }
   | FUNC error
   {
@@ -566,51 +523,6 @@ VArgType
   | ELLIPSIS error
   {
 
-  }
-  ;
-
-TypeList
-  : Type
-  {
-    $$ = Vector_New();
-    DeclareType(type, $1, @1);
-    Vector_Append($$, New_IdType(NULL, type));
-  }
-  | TypeList ',' Type
-  {
-    if ($1 != NULL) {
-      $$ = $1;
-      DeclareType(type, $3, @3);
-      Vector_Append($$, New_IdType(NULL, type));
-    } else {
-      $$ = NULL;
-      /* FIXME: has error ? */
-      TYPE_DECREF($3);
-    }
-  }
-  | TypeList ',' error
-  {
-    Free_IdTypeList($1);
-    YYSyntax_Error_Clear(@3, "Type");
-    $$ = NULL;
-  }
-  ;
-
-ReturnList
-  : Type
-  {
-    DeclareType(type, $1, @1);
-    $$ = Vector_Capacity(1);
-    Vector_Append($$, New_IdType(NULL, type));
-  }
-  | '(' TypeList ')'
-  {
-    $$ = $2;
-  }
-  | '(' error ')'
-  {
-    YYSyntax_ErrorMsg_Clear(@2, "invalid return list");
-    $$ = NULL;
   }
   ;
 
@@ -835,7 +747,7 @@ VariableDeclaration
   ;
 
 FunctionDeclaration
-  : FUNC ID '(' ParameterList ')' ReturnList Block
+  : FUNC ID '(' ParameterList ')' Type Block
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_FuncDecl(id, $4, $6, $7);
@@ -845,7 +757,7 @@ FunctionDeclaration
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_FuncDecl(id, $4, NULL, $6);
   }
-  | FUNC ID '(' ')' ReturnList Block
+  | FUNC ID '(' ')' Type Block
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_FuncDecl(id, NULL, $5, $6);
@@ -1032,7 +944,7 @@ FieldDeclaration
   ;
 
 ProtoDeclaration
-  : FUNC ID '(' ParameterList ')' ReturnList ';'
+  : FUNC ID '(' ParameterList ')' Type ';'
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_ProtoDecl(id, $4, $6);
@@ -1042,7 +954,7 @@ ProtoDeclaration
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_ProtoDecl(id, $4, NULL);
   }
-  | FUNC ID '(' ')' ReturnList ';'
+  | FUNC ID '(' ')' Type ';'
   {
     DeclareIdent(id, $2, @2);
     $$ = Stmt_From_ProtoDecl(id, NULL, $5);
@@ -1258,14 +1170,14 @@ ReturnStatement
     $$ = Stmt_From_Return(NULL);
     SetPosition(((ReturnStmt *)$$)->pos, @1);
   }
-  | TOKEN_RETURN ExpressionList ';'
+  | TOKEN_RETURN Expression ';'
   {
     $$ = Stmt_From_Return($2);
     SetPosition(((ReturnStmt *)$$)->pos, @2);
   }
   | TOKEN_RETURN error
   {
-    YYSyntax_Error(@2, "expression-list");
+    YYSyntax_Error(@2, "expression");
     $$ = NULL;
   }
   ;
@@ -1566,7 +1478,7 @@ MapKeyValue
   ;
 
 AnonyFuncExpression
-  : FUNC '(' ParameterList ')' ReturnList ExprListOrBlock
+  : FUNC '(' ParameterList ')' Type ExprListOrBlock
   {
     $$ = Expr_From_Anony($3, $5, $6);
     SetPosition($$->pos, @1);
@@ -1576,7 +1488,7 @@ AnonyFuncExpression
     $$ = Expr_From_Anony($3, NULL, $5);
     SetPosition($$->pos, @1);
   }
-  | FUNC '(' ')' ReturnList ExprListOrBlock
+  | FUNC '(' ')' Type ExprListOrBlock
   {
     $$ = Expr_From_Anony(NULL, $4, $5);
     SetPosition($$->pos, @1);
@@ -1591,7 +1503,7 @@ AnonyFuncExpression
     YYSyntax_ErrorMsg_Clear(@2, "invalid anonymous function");
     $$ = NULL;
   }
-  | '(' ParameterList ')' ReturnList ExprListOrBlock
+  | '(' ParameterList ')' Type ExprListOrBlock
   {
 
   }
@@ -1599,7 +1511,7 @@ AnonyFuncExpression
   {
 
   }
-  | '(' ')' ReturnList ExprListOrBlock
+  | '(' ')' Type ExprListOrBlock
   {
 
   }

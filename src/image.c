@@ -101,21 +101,18 @@ Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
 
 TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
 {
-  Vector *ret;
-  Vector *arg;
-  TypeListItem *typelist;
+  Vector *arg = NULL;
+  TypeDesc *ret = NULL;
 
-  if (item->rindex >= 0)
-    typelist = AtomTable_Get(atbl, ITEM_TYPELIST, item->rindex);
-  else
-    typelist = NULL;
-  ret = TypeListItem_To_Vector(typelist, atbl);
+  if (item->pindex >= 0) {
+    TypeListItem *typelist = AtomTable_Get(atbl, ITEM_TYPELIST, item->pindex);
+    arg = TypeListItem_To_Vector(typelist, atbl);
+  }
 
-  if (item->pindex >= 0)
-    typelist = AtomTable_Get(atbl, ITEM_TYPELIST, item->pindex);
-  else
-    typelist = NULL;
-  arg = TypeListItem_To_Vector(typelist, atbl);
+  if (item->rindex >= 0) {
+    TypeItem *type = AtomTable_Get(atbl, ITEM_TYPE, item->rindex);
+    ret = TypeItem_To_TypeDesc(type, atbl);
+  }
 
   return TypeDesc_Get_Proto(arg, ret);
 }
@@ -424,7 +421,7 @@ int ProtoItem_Get(AtomTable *table, int32 rindex, int32 pindex)
 int ProtoItem_Set(AtomTable *table, TypeDesc *desc)
 {
   ProtoDesc *proto = (ProtoDesc *)desc;
-  int rindex = TypeListItem_Set(table, proto->ret);
+  int rindex = TypeItem_Set(table, proto->ret);
   int pindex = TypeListItem_Set(table, proto->arg);
   int index = ProtoItem_Get(table, rindex, pindex);
   if (index < 0) {
@@ -465,7 +462,7 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
   }
   case TYPE_PROTO: {
     ProtoDesc *proto = (ProtoDesc *)desc;
-    int rindex = TypeListItem_Get(table, proto->ret);
+    int rindex = TypeItem_Get(table, proto->ret);
     int pindex = TypeListItem_Get(table, proto->arg);
     item.kind = TYPE_PROTO;
     item.protoindex = ProtoItem_Get(table, rindex, pindex);
@@ -494,6 +491,9 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
 
 int TypeItem_Set(AtomTable *table, TypeDesc *desc)
 {
+  if (desc == NULL)
+    return -1;
+
   TypeItem *item = NULL;
   int index = TypeItem_Get(table, desc);
   if (index < 0) {
@@ -688,10 +688,9 @@ void typeitem_show(AtomTable *table, void *o)
       Log_Printf("  typeindex:%d\n", item->typeindex);
     }
   } else if (item->kind == TYPE_BASE) {
-    char buf[32];
     TypeDesc *desc = TypeDesc_Get_Base(item->primitive);
-    TypeDesc_ToString(desc, buf);
-    Log_Printf("  (%s)\n", buf);
+    String s = TypeDesc_ToString(desc);
+    Log_Printf("  (%s)\n", s.str);
   } else if (item->kind == TYPE_ARRAY) {
 
   }
@@ -997,10 +996,9 @@ void varitem_show(AtomTable *table, void *o)
       Log_Printf("  (%s)\n", str2->data);
     }
   } else if (type->kind == TYPE_BASE) {
-    char buf[32];
     TypeDesc *desc = TypeDesc_Get_Base(type->primitive);
-    TypeDesc_ToString(desc, buf);
-    Log_Printf("  (%s)\n", buf);
+    String s = TypeDesc_ToString(desc);
+    Log_Printf("  (%s)\n", s.str);
   }
   Log_Printf("  konst:%s\n", item->konst ? "true" : "false");
 

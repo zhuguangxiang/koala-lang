@@ -4,27 +4,25 @@
 #include <string.h>
 #include "typedesc.h"
 
-TypeDesc *String_To_TypeDesc(char **string, int _dims, int _varg);
-
 void test_typedesc(void)
 {
-  char buf[64];
+  String s;
 
   TypeDesc *type;
 
   type = TypeDesc_Get_Base(BASE_INT);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("int", buf));
+  s = TypeDesc_ToString(type);
+  assert(!strcmp("int", s.str));
   //TYPE_INCREF(type);
   //TypeDesc_Free(type);
 
   type = TypeDesc_Get_Klass("lang", "Tuple");
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("lang.Tuple", buf));
+  s = TypeDesc_ToString(type);
+  assert(!strcmp("lang.Tuple", s.str));
 
   type = TypeDesc_Get_Array(2, type);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("[][]lang.Tuple", buf));
+  s = TypeDesc_ToString(type);
+  assert(!strcmp("[][]lang.Tuple", s.str));
 
   type = TypeDesc_Get_Base(BASE_INT);
   //TYPE_INCREF(type);
@@ -36,76 +34,69 @@ void test_typedesc(void)
   TYPE_INCREF(type);
   Vector_Append(arg, type);
 
-  Vector *ret = Vector_New();
-  type = TypeDesc_Get_Base(BASE_INT);
-  TYPE_INCREF(type);
-  Vector_Append(ret, type);
   type = TypeDesc_Get_Base(BASE_STRING);
-  TYPE_INCREF(type);
-  Vector_Append(ret, type);
-
-  type = TypeDesc_Get_Proto(arg, ret);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("func([]int, string) (int, string)", buf));
+  type = TypeDesc_Get_Proto(arg, type);
+  s = TypeDesc_ToString(type);
+  assert(!strcmp("func([]int, string) string", s.str));
 }
 
 void test_string_to_typedesc(void)
 {
-  char buf[64];
+  String str;
   TypeDesc *type;
   char *s = "i[sz";
 
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("int", buf));
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  assert(!strcmp("int", str.str));
 
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("[]string", buf));
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  assert(!strcmp("[]string", str.str));
 
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("bool", buf));
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  assert(!strcmp("bool", str.str));
   assert(!*s);
 
   s = "[[Mi[s"; //[][]map[int][]string
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("[][]map[int][]string", buf));
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  assert(!strcmp("[][]map[int][]string", str.str));
 
   s = "...Mss"; // ...map[string]string
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("...map[string]string", buf));
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  assert(!strcmp("...map[string]string", str.str));
 
   s = "...A"; //...Any
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("...any", buf));
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  assert(!strcmp("...any", str.str));
 
   s = "S[[[i"; //set[[][][]int]
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("set[[][][]int]", buf));
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  assert(!strcmp("set[[][][]int]", str.str));
 
   s = "Llang.Tuple;"; //lang.Tuple
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  puts(buf);
-  assert(!strcmp("lang.Tuple", buf));
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  puts(str.str);
+  assert(!strcmp("lang.Tuple", str.str));
 
-  s = "PPs:i;s:e;"; //func(func(string) int, string) error
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  assert(!strcmp("func(func(string) int, string) error", buf));
+  s = "PPs:i;s:z;"; //func(func(string) int, string) bool
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  assert(!strcmp("func(func(string) int, string) bool", str.str));
 
-  //func(map[string]int, string, ...lang.Tuple) (int, []error, set[byte])
-  s = "PMsis...Llang.Tuple;:i[eSb;";
-  type = String_To_TypeDesc(&s, 0, 0);
-  TypeDesc_ToString(type, buf);
-  puts(buf);
-  s = "func(map[string]int, string, ...lang.Tuple) (int, []error, set[byte])";
-  assert(!strcmp(s, buf));
+  //func(map[string]int, string, ...lang.Tuple) set[byte]
+  s = "PMsis...Llang.Tuple;:Sb;";
+  type = String_To_TypeDesc(s);
+  str = TypeDesc_ToString(type);
+  puts(str.str);
+  s = "func(map[string]int, string, ...lang.Tuple) set[byte]";
+  assert(!strcmp(s, str.str));
 }
 
 int main(int argc, char *argv[])
