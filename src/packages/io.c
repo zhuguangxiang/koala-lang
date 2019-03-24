@@ -20,51 +20,28 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "io.h"
+#include "koala.h"
 
 LOGGER(0)
 
-static Object *__println(Object *ob, Object *args)
+Object *IO_Puts(Object *ob, Object *args)
 {
-  Klass *klazz = OB_KLASS(args);
-
-  if (klazz == &Tuple_Klass) {
-    int size = Tuple_Size(args);
-    Object *arg;
-    for (int i = 0; i < size; i++) {
-      arg = Tuple_Get(args, i);
-      klazz = OB_KLASS(arg);
-      if (klazz->ob_str != NULL) {
-        Object *stro = To_String(arg);
-        fprintf(stdout, "%s ", String_Raw(stro));
-        OB_DECREF(stro);
-      } else {
-        fprintf(stdout, "%s@%x ", klazz->name, (int)(intptr_t)arg);
-      }
-    }
-  } else {
-    if (klazz->ob_str != NULL) {
-      Object *stro = To_String(args);
-      fprintf(stdout, "%s ", String_Raw(stro));
-      OB_DECREF(stro);
-    } else {
-      fprintf(stdout, "%s@%x ", klazz->name, (int)(intptr_t)args);
-    }
-  }
-
-  puts(""); /* newline */
+  OB_ASSERT_KLASS(args, String_Klass);
+  puts(String_Raw(args));
   fflush(stdout);
   return NULL;
 }
 
-static CFunctionDef io_funcs[] = {
-  {"Println", NULL, "...A", __println},
+static CFuncDef io_funcs[] = {
+  {"puts", "s", NULL, IO_Puts},
   {NULL}
 };
 
-void Init_IO_Package(Package *pkg)
+void Init_IO_Package(void)
 {
-  Package_Add_CFunctions(pkg, io_funcs);
+  Object *pkg = New_Package(KOALA_PKG_IO);
+  Pkg_Add_CFuns(pkg, io_funcs);
+  Install_Package(KOALA_PKG_IO, pkg);
 }
 
 void Fini_IO_Package(void)

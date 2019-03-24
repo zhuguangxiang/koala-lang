@@ -20,10 +20,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_PACKAGE_H_
-#define _KOALA_PACKAGE_H_
+#ifndef _KOALA_PKGOBJECT_H_
+#define _KOALA_PKGOBJECT_H_
 
-#include "codeobject.h"
+#include "object.h"
 #include "image.h"
 
 #ifdef __cplusplus
@@ -46,26 +46,27 @@ typedef struct pkgobject {
   int index;
   /* number of variables */
   int nrvars;
-} Package;
+} PkgObject;
 
-extern Klass Package_Klass;
+extern Klass Pkg_Klass;
+#define Pkg_Name(pkg) (((PkgObject *)pkg)->name)
 void Init_Package_Klass(void);
 void Fini_Package_Klass(void);
-Package *Package_New(char *name);
-int Package_Add_Var(Package *pkg, char *name, TypeDesc *desc);
-int Package_Add_Const(Package *pkg, char *name, TypeDesc *desc, Object *val);
-int Package_Add_Func(Package *pkg, Object *code);
-int Package_Add_Klass(Package *pkg, Klass *klazz, int trait);
-#define Package_Add_Class(pkg, klazz) Package_Add_Klass(pkg, klazz, 0)
-#define Package_Add_Trait(pkg, klazz) Package_Add_Klass(pkg, klazz, 1)
-Klass *Package_Get_Klass(Package *pkg, char *name, int trait);
-#define Package_Get_Class(pkg, name) Package_Get_Klass(pkg, name, 0)
-#define Package_Get_Trait(pkg, name) Package_Get_Klass(pkg, name, 1)
-int Package_Add_CFunctions(Package *pkg, CFunctionDef *functions);
-Package *Package_From_Image(KImage *image);
-#define Package_Name(pkg) (((Package *)pkg)->name)
+Object *New_Package(char *name);
+int Install_Package(char *path, Object *ob);
+Object *Find_Package(char *path);
+int Pkg_Add_Var(Object *ob, char *name, TypeDesc *desc);
+int Pkg_Add_Const(Object *ob, char *name, TypeDesc *desc, Object *val);
+int Pkg_Add_Func(Object *ob, Object *code);
+int Pkg_Add_Class(Object *ob, Klass *klazz);
+void Pkg_Set_Value(Object *ob, char *name, Object *value);
+Object *Pkg_Get_Value(Object *ob, char *name);
+Object *Pkg_Get_Func(Object *ob, char *name);
+Klass *Pkg_Get_Class(Object *ob, char *name);
+int Pkg_Add_CFuns(Object *ob, CFuncDef *funcs);
+Object *Pkg_From_Image(KImage *image);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_PACKAGE_H_ */
+#endif /* _KOALA_PKGOBJECT_H_ */

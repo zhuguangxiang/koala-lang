@@ -50,7 +50,7 @@ typedef struct idtype {
   TypeWrapper type;
 } IdType;
 
-IdType *New_IdType(Ident *id, TypeWrapper *type);
+IdType *New_IdType(Ident *id, TypeWrapper type);
 void Free_IdType(IdType *idtype);
 void Free_IdTypeList(Vector *vec);
 

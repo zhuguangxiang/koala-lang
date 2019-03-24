@@ -106,24 +106,25 @@ static Object *__tuple_size(Object *ob, Object *args)
   return Integer_New(Tuple_Size(ob));
 }
 
-static CFunctionDef tuple_funcs[] = {
-  {"Get", "A", "i", __tuple_get},
-  {"Size", "i", NULL, __tuple_size},
+static CFuncDef tuple_funcs[] = {
+  {"Get", "i", "A", __tuple_get},
+  {"Size", NULL, "i", __tuple_size},
   {NULL}
 };
 
 void Init_Tuple_Klass(void)
 {
-  Init_Klass(&Tuple_Klass, NULL);
-  Klass_Add_CFunctions(&Tuple_Klass, tuple_funcs);
+  Init_Klass(&Tuple_Klass, NULL, NULL);
+  Klass_Add_CMethods(&Tuple_Klass, tuple_funcs);
 }
 
 void Fini_Tuple_Klass(void)
 {
-  assert(OB_REFCNT(&Tuple_Klass) == 1);
+  OB_ASSERT_REFCNT(&Tuple_Klass, 1);
   Fini_Klass(&Tuple_Klass);
 }
 
+#if 0
 Object *Tuple_ToString(Object *ob, Object *args)
 {
   TupleObject *tuple = (TupleObject *)ob;
@@ -163,11 +164,12 @@ Object *Tuple_ToString(Object *ob, Object *args)
   Mfree(data);
   return s;
 }
+#endif
 
 Klass Tuple_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
+  OBJECT_HEAD_INIT(&Class_Klass)
   .name = "Tuple",
   .flags = OB_FLAGS_GC,
   .ob_free = Tuple_Free,
-  .ob_str  = Tuple_ToString,
+  //.ob_str  = Tuple_ToString,
 };

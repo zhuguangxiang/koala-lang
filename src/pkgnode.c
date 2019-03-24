@@ -37,7 +37,7 @@ static void init_pkgnode(PkgNode *node, char *name)
   node->data = NULL;
 }
 
-static void fini_pkgnode(PkgNode *node, fini_leafnode_func func, void *arg)
+static void fini_pkgnode(PkgNode *node, leafnode_func func, void *arg)
 {
   if (node->leaf) {
     if (func != NULL)
@@ -55,7 +55,7 @@ static PkgNode *new_pkgnode(char *name, PkgNode *parent)
   return node;
 }
 
-static void free_pkgnode(PkgNode *node, fini_leafnode_func func, void *arg)
+static void free_pkgnode(PkgNode *node, leafnode_func func, void *arg)
 {
   fini_pkgnode(node, func, arg);
   Mfree(node);
@@ -80,7 +80,7 @@ static int node_equal_func(void *obj1, void *obj2)
 }
 
 struct node_fini_param {
-  fini_leafnode_func func;
+  leafnode_func func;
   void *arg;
 };
 
@@ -99,7 +99,7 @@ void Init_PkgState(PkgState *ps)
   ps->root.data = Vector_New();
 }
 
-void Fini_PkgState(PkgState *ps, fini_leafnode_func func, void *arg)
+void Fini_PkgState(PkgState *ps, leafnode_func func, void *arg)
 {
   struct node_fini_param param = {func, arg};
   HashTable_Fini(&ps->pkgtbl, node_fini_func, &param);

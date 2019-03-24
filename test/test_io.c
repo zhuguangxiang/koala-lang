@@ -1,11 +1,12 @@
 
 #include "koala.h"
+#include "codeobject.h"
 
 void test_io(void)
 {
-  Package *pkg = Koala_Get_Package("io");
+  Object *pkg = Find_Package("io");
   assert(pkg);
-  Object *func = Koala_Get_Function(pkg, "Println");
+  Object *func = Pkg_Get_Func(pkg, "Println");
   assert(func && IsCFunc(func));
   CodeObject *co = (CodeObject *)func;
   Object *stro = String_New("hello, koala");

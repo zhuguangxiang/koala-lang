@@ -21,6 +21,7 @@
  */
 
 #include "koala.h"
+#include "codeobject.h"
 #include "opcode.h"
 
 LOGGER(0)
@@ -92,8 +93,8 @@ static inline void store(CallFrame *cf, int index, Object *val)
 static inline Object *load_field(Object *ob, CodeObject *code, Object *so)
 {
   char *name = String_Raw(so);
-  if (OB_KLASS(ob) == &Package_Klass)
-    return Koala_Get_Value((Package *)ob, name);
+  if (OB_KLASS(ob) == &Pkg_Klass)
+    return Pkg_Get_Value(ob, name);
   else
     return Object_Get_Field(ob, (Klass *)code->owner, name);
 }
@@ -101,8 +102,8 @@ static inline Object *load_field(Object *ob, CodeObject *code, Object *so)
 static Object *get_code(Object *ob, Object *so)
 {
   char *name = String_Raw(so);
-  if (OB_KLASS(ob) == &Package_Klass)
-    return Koala_Get_Function((Package *)ob, name);
+  if (OB_KLASS(ob) == &Pkg_Klass)
+    return Pkg_Get_Func(ob, name);
   else
     return Object_Get_Method(ob, NULL, name);
 }
@@ -210,7 +211,7 @@ static void eval_frame(CallFrame *cf)
       index = fetch_2bytes(cf, ci);
       ob = index_const(index, consts);
       path = String_Raw(ob);
-      ob = (Object *)Koala_Get_Package(path);
+      ob = Find_Package(path);
       PUSH(OB_INCREF(ob));
       break;
     case LOAD:
@@ -271,6 +272,23 @@ static void eval_frame(CallFrame *cf)
   }
 }
 
+static void show_stackframe(CallFrame *cf)
+{
+  CodeObject *code;
+  Object *owner;
+  char *prefix;
+  CallFrame *f = cf;
+  while (f != NULL) {
+    code = (CodeObject *)f->code;
+    owner = code->owner;
+    if (OB_KLASS(owner) == &Pkg_Klass) {
+      prefix = Pkg_Name(owner);
+    }
+    Log_Printf("%s.%s()\n", prefix, code->name);
+    f = f->back;
+  }
+}
+
 static void check_arguments(CallFrame *cf)
 {
   int size = Tuple_Size(cf->args);
@@ -316,6 +334,8 @@ static void run_cfunction(CallFrame *cf)
   Stack *stack = &ks->stack;
   CodeObject *co = (CodeObject *)cf->code;
 
+  show_stackframe(cf);
+
   //check_arguments(cf);
   Object *ret = co->cfunc(cf->ob, cf->args);
 
@@ -336,6 +356,11 @@ static void run_cfunction(CallFrame *cf)
   pop_frame(cf);
 }
 
+void loop_frame(void)
+{
+
+}
+
 void Koala_RunCode(Object *code, Object *ob, Object *args)
 {
   CallFrame *cf;
@@ -351,4 +376,9 @@ void Koala_RunCode(Object *code, Object *ob, Object *args)
       exit(-1);
     }
   }
+}
+
+void Koala_Call(Object *code, Object *ob, Object *args)
+{
+  push_frame(code, ob, args);
 }

@@ -74,6 +74,11 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
   Inst_Append_NoArg(block, DUP); \
 })
 
+#define CODE_LOAD_CONST(block, val) \
+({ \
+  Inst_Append(block, LOAD_CONST, &(val)); \
+})
+
 #define CODE_LOAD_PKG(block, path) \
 ({ \
   ConstValue val = {.kind = BASE_STRING, .str = path}; \
@@ -82,14 +87,34 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
 
 #define CODE_LOAD(block, index) \
 ({ \
-  ConstValue val = {.kind = BASE_INT, .ival = index}; \
-  Inst_Append(block, LOAD, &val); \
+  if (index == 0) { \
+    Inst_Append_NoArg(block, LOAD_0); \
+  } else if (index == 1) { \
+    Inst_Append_NoArg(block, LOAD_1); \
+  } else if (index == 2) { \
+    Inst_Append_NoArg(block, LOAD_2); \
+  } else if (index == 3) { \
+    Inst_Append_NoArg(block, LOAD_3); \
+  } else { \
+    ConstValue val = {.kind = BASE_INT, .ival = index}; \
+    Inst_Append(block, LOAD, &val); \
+  } \
 })
 
 #define CODE_STORE(block, index) \
 ({ \
-  ConstValue val = {.kind = BASE_INT, .ival = index}; \
-  Inst_Append(block, STORE, &val); \
+  if (index == 0) { \
+    Inst_Append_NoArg(block, STORE_0); \
+  } else if (index == 1) { \
+    Inst_Append_NoArg(block, STORE_1); \
+  } else if (index == 2) { \
+    Inst_Append_NoArg(block, STORE_2); \
+  } else if (index == 3) { \
+    Inst_Append_NoArg(block, STORE_3); \
+  } else { \
+    ConstValue val = {.kind = BASE_INT, .ival = index}; \
+    Inst_Append(block, STORE, &val); \
+  } \
 })
 
 #define CODE_GET_ATTR(block, name) \

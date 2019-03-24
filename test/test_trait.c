@@ -7,14 +7,14 @@ void test_trait(void)
   /*
     trait A;
    */
-  Klass *A = Klass_New("A", NULL);
+  Klass *A = Trait_New_Self("A");
 
   /*
     trait B extends A;
    */
   VECTOR(v1);
   Vector_Append(&v1, A);
-  Klass *B = Klass_New("B", &v1);
+  Klass *B = Trait_New("B", &v1);
   Vector_ForEach(lro, &B->lro) {
     if (i == 0)
       assert(lro->klazz == &Any_Klass);
@@ -31,7 +31,7 @@ void test_trait(void)
    */
   VECTOR(v2);
   Vector_Append(&v2, B);
-  Klass *C = Klass_New("C", &v2);
+  Klass *C = Trait_New("C", &v2);
   Vector_ForEach(lro, &C->lro) {
     if (i == 0)
       assert(lro->klazz == &Any_Klass);
@@ -48,7 +48,7 @@ void test_trait(void)
   /*
     trait D extends A;
    */
-  Klass *D = Klass_New("D", &v1);
+  Klass *D = Trait_New("D", &v1);
   Vector_ForEach(lro, &D->lro) {
     if (i == 0)
       assert(lro->klazz == &Any_Klass);
@@ -68,7 +68,7 @@ void test_trait(void)
   Vector_Append(&v3, D);
   Vector_Append(&v3, C);
   Vector_Append(&v3, B);
-  Klass *E = Klass_New("E", &v3);
+  Klass *E = Trait_New("E", &v3);
   Vector_ForEach(lro, &E->lro) {
     if (i == 0)
       assert(lro->klazz == &Any_Klass);

@@ -48,7 +48,8 @@ typedef struct vector {
 void Vector_Init(Vector *vec);
 
 /* new a vector, and use Vector_Free to free the vector */
-Vector *Vector_New(void);
+Vector *Vector_Capacity(int capacity);
+#define Vector_New() Vector_Capacity(0)
 
 /* call the function before free the vector */
 typedef void (*vec_finifunc)(void *item, void *arg);

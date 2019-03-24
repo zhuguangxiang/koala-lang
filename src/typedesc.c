@@ -196,11 +196,13 @@ void Proto_Print(ProtoDesc *proto, char *buf)
   } else {
     TypeDesc_ToString(proto->arg, buf + strlen(buf));
   }
-  strcat(buf, ") ");
+  strcat(buf, ")");
 
   int nret = (!proto->simple) ? Vector_Size((Vector *)proto->ret) : 0;
   if (nret > 1)
-    strcat(buf, "(");
+    strcat(buf, " (");
+  else if (nret == 1)
+    strcat(buf, " ");
   if (!proto->simple) {
     TypeDesc *item;
     Vector_ForEach(item, (Vector *)proto->ret) {

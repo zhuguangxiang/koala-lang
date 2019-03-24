@@ -1,5 +1,6 @@
 
 #include "koala.h"
+#include "codeobject.h"
 
 void test_object(void)
 {
@@ -9,7 +10,7 @@ void test_object(void)
       Age int
     }
   */
-  Klass *animal = Klass_New("Animal", NULL);
+  Klass *animal = Class_New_Self("Animal");
   TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
   Klass_Add_Field(animal, "Name", desc);
   desc = TypeDesc_Get_Base(BASE_INT);
@@ -31,9 +32,9 @@ void test_object(void)
 
   code = (CodeObject *)Object_Get_Method(ob, NULL, "__cmp__");
   Object *bo = code->cfunc(ob, ob);
-  so = To_String(bo);
-  printf("%s\n", String_Raw(so));
-  OB_DECREF(so);
+  //so = To_String(bo);
+  //printf("%s\n", String_Raw(so));
+  //OB_DECREF(so);
 
   OB_DECREF(ob);
 
@@ -42,10 +43,7 @@ void test_object(void)
       TailLength int
     }
    */
-  VECTOR(bases);
-  Vector_Append(&bases, animal);
-  Klass *dog = Klass_New("Dog", &bases);
-  Vector_Fini_Self(&bases);
+  Klass *dog = Class_New("Dog", animal, NULL);
   desc = TypeDesc_Get_Base(BASE_INT);
   Klass_Add_Field(dog, "TailLength", desc);
   Klass_Add_Field(dog, "Age", desc);

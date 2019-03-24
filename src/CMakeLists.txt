@@ -30,8 +30,8 @@ SET_SOURCE_FILES_PROPERTIES(koala_yacc.c GENERATED)
 
 SET (KOALA_COMMON_SRC
   log.c vector.c hashfunc.c hashtable.c buffer.c atomstring.c mem.c
-  typedesc.c cache.c stringbuf.c properties.c atomtable.c image.c options.c
-  stringex.c pkgnode.c opcode.c
+  typedesc.c cache.c stringbuf.c properties.c env.c 
+  options.c stringex.c pkgnode.c atomtable.c image.c opcode.c
   )
 ADD_LIBRARY(common STATIC ${KOALA_COMMON_SRC})
 set_target_properties(common PROPERTIES VERSION 0.8.5 SOVERSION 0)
@@ -45,16 +45,16 @@ target_link_libraries(klc common)
 set_target_properties(klc PROPERTIES OUTPUT_NAME koalac)
 
 SET (KOALA_OBJECT_SRC
-  object.c eval.c state.c package.c
-  objects/codeobject.c objects/tupleobject.c 
+  koala.c object.c eval.c
+  objects/pkgobject.c objects/codeobject.c objects/tupleobject.c 
   objects/stringobject.c objects/intobject.c 
-  packages/lang.c packages/io.c
+  packages/io.c
   )
 ADD_LIBRARY(koala STATIC ${KOALA_OBJECT_SRC})
 target_link_libraries(koala common task)
 set_target_properties(koala PROPERTIES VERSION 0.8.5 SOVERSION 0)
 
-add_executable(kl koala.c)
+add_executable(kl main.c)
 target_link_libraries(kl koala)
 set_target_properties(kl PROPERTIES OUTPUT_NAME koala)
 

@@ -88,26 +88,26 @@ static NumberOperations integer_numops = {
 };
 
 Klass Int_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
+  OBJECT_HEAD_INIT(&Class_Klass)
   .name = "Integer",
   .ob_free  = Integer_Free,
-  .ob_hash  = integer_hash,
-  .ob_cmp   = integer_equal,
-  .ob_str   = integer_tostring,
-  .num_ops  = &integer_numops,
+  //.ob_hash  = integer_hash,
+  //.ob_cmp   = integer_equal,
+  //.ob_str   = integer_tostring,
+  //.num_ops  = &integer_numops,
 };
 
 void Init_Integer_Klass(void)
 {
   Init_Cache(&Int_Cache, "IntObject", sizeof(IntObject));
-  Init_Klass(&Int_Klass, NULL);
-  Init_Klass(&Bool_Klass, NULL);
+  Init_Klass_Self(&Int_Klass);
+  Init_Klass_Self(&Bool_Klass);
 }
 
 void Fini_Integer_Klass(void)
 {
-  assert(OB_REFCNT(&Int_Klass) == 1);
-  assert(OB_REFCNT(&Bool_Klass) == 1);
+  OB_ASSERT_REFCNT(&Int_Klass, 1);
+  OB_ASSERT_REFCNT(&Bool_Klass, 1);
   Fini_Cache(&Int_Cache, NULL, NULL);
   Fini_Klass(&Int_Klass);
   Fini_Klass(&Bool_Klass);
@@ -153,10 +153,10 @@ static NumberOperations bool_numops = {
 };
 
 Klass Bool_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
+  OBJECT_HEAD_INIT(&Class_Klass)
   .name = "Bool",
-  .ob_str  = bool_tostring,
-  .num_ops = &bool_numops,
+  //.ob_str  = bool_tostring,
+  //.num_ops = &bool_numops,
 };
 
 static IntObject btrue = {

@@ -152,6 +152,11 @@ delimiter for -sp and -cp options are both : and ;
 socket, pipe, regular files
 - spinlock/mutex/semaphore/signal/rwlock/channel/condition
 
+* Object Oriented Programming
+* Functional Programming
+* Generics
+* Enumeration
+* Object Memory Layout
 * Release 0.7.x
 ** 0.7.1
 *** Features

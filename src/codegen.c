@@ -125,7 +125,7 @@ void CodeBlock_Merge(CodeBlock *from, CodeBlock *to)
 
 void CodeBlock_Show(CodeBlock *block)
 {
-  if (block == NULL)
+  if (block == NULL || block->bytes <= 0)
     return;
 
   char buf[64];
@@ -200,6 +200,14 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
     Buffer_Write_2Bytes(buf, i->argc);
     break;
   case DUP:
+  case LOAD_0:
+  case LOAD_1:
+  case LOAD_2:
+  case LOAD_3:
+  case STORE_0:
+  case STORE_1:
+  case STORE_2:
+  case STORE_3:
   case RETURN:
   case ADD:
   case SUB:

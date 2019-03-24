@@ -131,17 +131,17 @@ static Object *__string_length(Object *ob, Object *args)
   return Integer_New(sob->len);
 }
 
-static CFunctionDef string_funcs[] = {
+static CFuncDef string_funcs[] = {
   {"Concat", "s", "s", __string_concat},
-  {"Length", "i", NULL, __string_length},
+  {"Length", NULL, "i", __string_length},
   {NULL}
 };
 
 void Init_String_Klass(void)
 {
   HashTable_Init(&strobj_cache, strobj_hash, strobj_equal);
-  Init_Klass(&String_Klass, NULL);
-  Klass_Add_CFunctions(&String_Klass, string_funcs);
+  Init_Klass_Self(&String_Klass);
+  Klass_Add_CMethods(&String_Klass, string_funcs);
 }
 
 static void strobj_fini(HashNode *hnode, void *arg)
@@ -152,8 +152,8 @@ static void strobj_fini(HashNode *hnode, void *arg)
 
 void Fini_String_Klass(void)
 {
-  assert(OB_REFCNT(&String_Klass) == 1);
   HashTable_Fini(&strobj_cache, strobj_fini, NULL);
+  OB_ASSERT_REFCNT(&String_Klass, 1);
   Fini_Klass(&String_Klass);
 }
 
@@ -196,11 +196,11 @@ static NumberOperations string_numops = {
 };
 
 Klass String_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
+  OBJECT_HEAD_INIT(&Class_Klass)
   .name = "String",
   .ob_free  = String_Free,
-  .ob_hash  = string_hash,
-  .ob_cmp   = string_equal,
-  .ob_str   = string_tostring,
-  .num_ops  = &string_numops,
+  //.ob_hash  = string_hash,
+  //.ob_cmp   = string_equal,
+  //.ob_str   = string_tostring,
+  //.num_ops  = &string_numops,
 };

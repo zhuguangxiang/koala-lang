@@ -20,13 +20,28 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package sys
+#ifndef _KOALA_FMT_PKG_H_
+#define _KOALA_FMT_PKG_H_
 
-import "io"
+#include "koala.h"
+#include "stringbuf.h"
 
-var In io.CharReader
-var Out io.CharWriter
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-native func LoadLibrary(libName string)
-native func GetEnv(name string)
-native func GetEnvMap() map[string]string
+typedef struct formatter {
+  OBJECT_HEAD
+  StringBuf buf;
+} Formatter;
+
+void Init_Format_Package(void);
+void Fini_Format_Package(void);
+void Format_WriteFormat(Object *ob, Object *args);
+void Format_WriteString(Object *ob, char *str);
+Object *Format_ToString(Object *ob);
+
+#ifdef __cplusplus
+}
+#endif
+#endif /* _KOALA_FMT_PKG_H_ */

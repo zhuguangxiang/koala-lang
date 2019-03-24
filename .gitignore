@@ -29,3 +29,4 @@ bin/test_*
 
 todeleted/*
 doc/*.png
+.vscode/ipch/*

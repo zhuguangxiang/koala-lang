@@ -56,7 +56,7 @@ Object *CFunc_New(char *name, TypeDesc *proto, cfunc_t func)
   return (Object *)code;
 }
 
-Object *Code_From_CFunction(CFunctionDef *f)
+Object *Code_From_CFunc(CFuncDef *f)
 {
   Vector *rdesc = String_ToTypeList(f->rdesc);
   Vector *pdesc = String_ToTypeList(f->pdesc);
@@ -110,15 +110,15 @@ static Object *__code_disassemble(Object *ob, Object *args)
   return NULL;
 }
 
-static CFunctionDef code_funcs[] = {
+static CFuncDef code_funcs[] = {
   {"Disassemble", NULL, NULL, __code_disassemble},
   {NULL}
 };
 
 void Init_Code_Klass(void)
 {
-  Init_Klass(&Code_Klass, NULL);
-  Klass_Add_CFunctions(&Code_Klass, code_funcs);
+  Init_Klass_Self(&Code_Klass);
+  Klass_Add_CMethods(&Code_Klass, code_funcs);
 }
 
 void Fini_Code_Klass(void)
@@ -128,10 +128,12 @@ void Fini_Code_Klass(void)
 }
 
 Klass Code_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
+  OBJECT_HEAD_INIT(&Class_Klass)
   .name = "Code",
   .ob_free = Code_Free,
 };
+
+#if 0
 
 static TypeDesc *any_any_proto(void)
 {
@@ -250,3 +252,4 @@ void Init_Mapping_Operators(Klass *klazz)
     Klass_Add_Method(klazz, code);
   }
 }
+#endif

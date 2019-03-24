@@ -84,10 +84,10 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 
 Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
 {
-  if (!item)
+  if (item == NULL)
     return NULL;
 
-  Vector *v = Vector_New();
+  Vector *v = Vector_Capacity(item->size);
   TypeItem *typeitem;
   TypeDesc *t;
   for (int i = 0; i < item->size; i++) {

@@ -38,7 +38,7 @@ static void *__symbol_new(SymKind kind, char *name, int size)
   return sym;
 }
 
-static void __symbol_free(Symbol *sym)
+static inline void __symbol_free(Symbol *sym)
 {
   Mfree(sym);
 }
@@ -55,6 +55,7 @@ static Symbol *__const_new(char *name)
 
 static void __const_free(Symbol *sym)
 {
+  Log_Debug("const '%s' is freed", sym->name);
   VarSymbol *varSym = (VarSymbol *)sym;
   TYPE_DECREF(varSym->desc);
   __symbol_free(sym);
@@ -89,6 +90,7 @@ static Symbol *__var_new(char *name)
 
 static void __var_free(Symbol *sym)
 {
+  Log_Debug("var '%s' is freed", sym->name);
   VarSymbol *varSym = (VarSymbol *)sym;
   TYPE_DECREF(varSym->desc);
   __symbol_free(sym);
@@ -123,13 +125,18 @@ static Symbol *__func_new(char *name)
   return __symbol_new(SYM_FUNC, name, sizeof(FuncSymbol));
 }
 
-static void __symbol_free_fn(Symbol *sym, void *arg);
+static void __locvar_free_fn(void *item, void *arg)
+{
+  UNUSED_PARAMETER(arg);
+  Symbol_Free(item);
+}
 
 static void __func_free(Symbol *sym)
 {
+  Log_Debug("func '%s' is freed", sym->name);
   FuncSymbol *funcSym = (FuncSymbol *)sym;
   TYPE_DECREF(funcSym->desc);
-  Vector_Fini(&funcSym->locvec, (vec_finifunc)__symbol_free_fn, NULL);
+  Vector_Fini(&funcSym->locvec, __locvar_free_fn, NULL);
   CodeBlock_Free(funcSym->code);
   __symbol_free(sym);
 }
@@ -192,7 +199,9 @@ static Symbol *__class_new(char *name)
 
 static void __class_free(Symbol *sym)
 {
+  Log_Debug("class/trait '%s' is freed", sym->name);
   ClassSymbol *clsSym = (ClassSymbol *)sym;
+  TYPE_DECREF(clsSym->desc);
   /* FIXME */
   Vector_Fini(&clsSym->supers, NULL, NULL);
   STable_Free(clsSym->stbl);
@@ -223,15 +232,6 @@ static Symbol *__trait_new(char *name)
   return __symbol_new(SYM_TRAIT, name, sizeof(ClassSymbol));
 }
 
-static void __trait_free(Symbol *sym)
-{
-  ClassSymbol *clsSym = (ClassSymbol *)sym;
-  /* FIXME */
-  Vector_Fini(&clsSym->supers, NULL, NULL);
-  STable_Free(clsSym->stbl);
-  __symbol_free(sym);
-}
-
 static void __trait_show(Symbol *sym)
 {
   Log_Printf("trait %s;\n", sym->name);
@@ -256,6 +256,7 @@ static Symbol *__ifunc_new(char *name)
 
 static void __ifunc_free(Symbol *sym)
 {
+  Log_Debug("ifunc/nfunc '%s' is freed", sym->name);
   TYPE_DECREF(sym->desc);
   __symbol_free(sym);
 }
@@ -266,7 +267,7 @@ static void __ifunc_show(Symbol *sym)
   char buf[128] = {0};
   Proto_Print(proto, buf);
   if (sym->kind == SYM_IFUNC)
-    Log_Printf("iterface func %s%s;\n", sym->name, buf);
+    Log_Printf("interface func %s%s;\n", sym->name, buf);
   else
     Log_Printf("native func %s%s;\n", sym->name, buf);
 }
@@ -275,7 +276,7 @@ static void __ifunc_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   if (sym->kind == SYM_IFUNC) {
-    Log_Debug("  iterface func %s;", sym->name);
+    Log_Debug("  interface func %s;", sym->name);
     KImage_Add_IMeth(info->image, info->classname, sym->name, sym->desc);
   } else {
     Log_Debug("  native func %s", sym->name);
@@ -295,10 +296,11 @@ static Symbol *__afunc_new(char *name)
 
 static void __afunc_free(Symbol *sym)
 {
+  Log_Debug("anony '%s' is freed", sym->name);
   AFuncSymbol *afnSym = (AFuncSymbol *)sym;
   TYPE_DECREF(afnSym->desc);
-  Vector_Fini(&afnSym->locvec, (vec_finifunc)__symbol_free_fn, NULL);
-  Vector_Fini(&afnSym->uplocvec, (vec_finifunc)__symbol_free_fn, NULL);
+  Vector_Fini(&afnSym->locvec, __locvar_free_fn, NULL);
+  Vector_Fini(&afnSym->uplocvec, __locvar_free_fn, NULL);
   CodeBlock_Free(afnSym->code);
   __symbol_free(sym);
 }
@@ -327,6 +329,8 @@ static Symbol *__pkg_new(char *name)
 
 static void __pkg_free(Symbol *sym)
 {
+  Log_Debug("pkg '%s' is freed", sym->name);
+  TYPE_DECREF(sym->desc);
   __symbol_free(sym);
 }
 
@@ -337,6 +341,8 @@ static Symbol *__ref_new(char *name)
 
 static void __ref_free(Symbol *sym)
 {
+  Log_Debug("ref '%s' is freed", sym->name);
+  TYPE_DECREF(sym->desc);
   __symbol_free(sym);
 }
 
@@ -351,7 +357,7 @@ struct symbol_operations {
   {__var_new, __var_free, __var_show, __var_gen},             /* SYM_VAR   */
   {__func_new, __func_free, __func_show, __func_gen},         /* SYM_FUNC  */
   {__class_new, __class_free, __class_show, __class_gen},     /* SYM_CLASS */
-  {__trait_new, __trait_free, __trait_show, __trait_gen},     /* SYM_TRAIT */
+  {__trait_new, __class_free, __trait_show, __trait_gen},     /* SYM_TRAIT */
   {__ifunc_new, __ifunc_free, __ifunc_show, __ifunc_gen},     /* SYM_IFUNC */
   {__nfunc_new, __ifunc_free, __ifunc_show, __ifunc_gen},     /* SYM_NFUNC */
   {__afunc_new, __afunc_free, __afunc_show, __afunc_gen},     /* SYM_AFUNC */
@@ -373,6 +379,8 @@ void Symbol_Free(Symbol *sym)
     assert(sym->refcnt >= 0);
     struct symbol_operations *ops = &symops[sym->kind];
     ops->__symbol_free(sym);
+  } else {
+    Log_Debug("sym '%s' refcnt %d", sym->name, sym->refcnt);
   }
 }
 
@@ -389,13 +397,6 @@ static int symbol_equal(void *k1, void *k2)
   return !strcmp(s1->name, s2->name);
 }
 
-static void __symbol_free_fn(Symbol *sym, void *arg)
-{
-  UNUSED_PARAMETER(arg);
-  Remove_HashNode(&sym->hnode);
-  Symbol_Free(sym);
-}
-
 STable *STable_New(void)
 {
   STable *stbl = Malloc(sizeof(STable));
@@ -403,6 +404,14 @@ STable *STable_New(void)
   /* [0]: module or class self */
   stbl->varindex = 1;
   return stbl;
+}
+
+static void __symbol_free_fn(Symbol *sym, void *arg)
+{
+  Log_Debug("remove sym '%s' from stbl", sym->name);
+  UNUSED_PARAMETER(arg);
+  Remove_HashNode(&sym->hnode);
+  Symbol_Free(sym);
 }
 
 void __STable_Free(STable *stbl, symbol_visit_func visit, void *arg)
@@ -468,6 +477,8 @@ ClassSymbol *STable_Add_Class(STable *stbl, char *name)
   }
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
+  sym->desc = TypeDesc_Get_Klass(NULL, name);
+  TYPE_INCREF(sym->desc);
   return sym;
 }
 
@@ -480,12 +491,14 @@ ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
   }
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
+  sym->desc = TypeDesc_Get_Klass(NULL, name);
+  TYPE_INCREF(sym->desc);
   return sym;
 }
 
-Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc)
+Symbol *STable_Add_Proto(STable *stbl, char *name, int kind, TypeDesc *desc)
 {
-  Symbol *sym = Symbol_New(k, name);
+  Symbol *sym = Symbol_New(kind, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
     Symbol_Free(sym);
     return NULL;
@@ -584,11 +597,12 @@ static void __get_var_fn(char *name, TypeDesc *desc, int k, STable *stbl)
 static void __get_func_fn(char *name, TypeDesc *desc, int idx, int type,
                           uint8 *code, int sz, STable *stbl)
 {
+#if 0
   if (!IsAccess(name)) {
     Log_Debug("'%s' is private", name);
     return;
   }
-
+#endif
   String sname = AtomString_New(name);
   if (type == ITEM_FUNC) {
     Log_Debug("load func '%s'", name);

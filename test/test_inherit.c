@@ -1,5 +1,7 @@
 
 #include "koala.h"
+#include "codeobject.h"
+#include "stringbuf.h"
 
 /*
   class Animal {
@@ -23,7 +25,7 @@ Object *animal_bark(Object *ob, Object *args)
 
 void new_animal(void)
 {
-  Klass *animal = Klass_New("Animal", NULL);
+  Klass *animal = Class_New_Self("Animal");
   TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
   Klass_Add_Field(animal, "name", desc);
   desc = TypeDesc_Get_Base(BASE_INT);
@@ -33,9 +35,9 @@ void new_animal(void)
   Object *bark = CFunc_New("bark", proto, animal_bark);
   Klass_Add_Method(animal, bark);
 
-  Object *so = To_String((Object *)animal);
-  printf("%s\n", String_Raw(so));
-  OB_DECREF(so);
+  //Object *so = To_String((Object *)animal);
+  //printf("%s\n", String_Raw(so));
+  //OB_DECREF(so);
 
   Object *instance = animal->ob_alloc(animal);
 
@@ -50,8 +52,8 @@ void new_animal(void)
 
   OB_DECREF(instance);
 
-  Package *pkg = Koala_Get_Package("skeleton");
-  Package_Add_Class(pkg, animal);
+  Object *pkg = Find_Package("skeleton");
+  Pkg_Add_Class(pkg, animal);
   OB_DECREF(animal);
 }
 
@@ -75,14 +77,12 @@ Object *dog_bark(Object *ob, Object *args)
 
 void new_dog(void)
 {
-  Klass *animal = Koala_Get_Klass("skeleton", "Animal");
+  Object *pkg = Find_Package("skeleton");
+
+  Klass *animal = Pkg_Get_Class(pkg, "Animal");
   assert(animal);
 
-  VECTOR(bases);
-  Vector_Append(&bases, animal);
-  Klass *dog = Klass_New("Dog", &bases);
-  Vector_Fini_Self(&bases);
-
+  Klass *dog = Class_New("Dog", animal, NULL);
   TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
   TypeDesc *proto = TypeDesc_Get_SProto(desc, NULL);
   Object *bark = CFunc_New("bark", proto, dog_bark);
@@ -100,37 +100,34 @@ void new_dog(void)
 
   OB_DECREF(instance);
 
-  Package *pkg = Koala_Get_Package("skeleton");
-  Package_Add_Class(pkg, dog);
+  Pkg_Add_Class(pkg, dog);
   OB_DECREF(dog);
 }
 
 void test_inherit(void)
 {
   Object *so;
-  Package *pkg;
+  Object *pkg;
 
-  pkg = Koala_Get_Package("lang");
-  so = To_String((Object *)pkg);
-  printf("%s\n", String_Raw(so));
-  OB_DECREF(so);
+  pkg = Find_Package("lang");
+  //so = To_String((Object *)pkg);
+  //printf("%s\n", String_Raw(so));
+  //OB_DECREF(so);
 
-  pkg = Koala_Get_Package("io");
-  so = To_String((Object *)pkg);
-  printf("%s\n", String_Raw(so));
-  OB_DECREF(so);
+  pkg = Find_Package("io");
+  //so = To_String((Object *)pkg);
+  //printf("%s\n", String_Raw(so));
+  //OB_DECREF(so);
 
-  pkg = Package_New("skeleton");
-  Koala_Add_Package("skeleton", pkg);
-
-  Show_PkgTree();
+  pkg = New_Package("skeleton");
+  Install_Package("skeleton", pkg);
 
   new_animal();
   new_dog();
 
-  so = To_String((Object *)pkg);
-  printf("%s\n", String_Raw(so));
-  OB_DECREF(so);
+  //so = To_String((Object *)pkg);
+  //printf("%s\n", String_Raw(so));
+  //OB_DECREF(so);
 }
 
 int main(int argc, char *argv[])

@@ -87,6 +87,8 @@ typedef struct varsymbol {
   int32 index;
   /* if is constant, save its value */
   ConstValue value;
+  /* variable's stbl for attribute acess, not need free */
+  STable *stbl;
 } VarSymbol;
 
 /* function symbol */
@@ -151,7 +153,7 @@ VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
 FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
 ClassSymbol *STable_Add_Class(STable *stbl, char *name);
 ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
-Symbol *STable_Add_Proto(STable *stbl, char *name, int k, TypeDesc *desc);
+Symbol *STable_Add_Proto(STable *stbl, char *name, int kind, TypeDesc *desc);
 #define STable_Add_IFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_IFUNC, proto)
 #define STable_Add_NFunc(stbl, name, proto) \

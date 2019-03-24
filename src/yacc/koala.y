@@ -520,7 +520,7 @@ IDType
   {
     DeclareIdent(id, $1, @1);
     DeclareType(type, $2, @2);
-    $$ = New_IdType(&id, &type);
+    $$ = New_IdType(&id, type);
   }
   | ID error
   {
@@ -569,14 +569,14 @@ TypeList
   {
     $$ = Vector_New();
     DeclareType(type, $1, @1);
-    Vector_Append($$, New_IdType(NULL, &type));
+    Vector_Append($$, New_IdType(NULL, type));
   }
   | TypeList ',' Type
   {
     if ($1 != NULL) {
       $$ = $1;
       DeclareType(type, $3, @3);
-      Vector_Append($$, New_IdType(NULL, &type));
+      Vector_Append($$, New_IdType(NULL, type));
     } else {
       $$ = NULL;
       /* FIXME: has error ? */
@@ -601,14 +601,14 @@ ParameterList
     DeclareIdent(id, $3, @3);
     DeclareType(type, $4, @4);
     $$ = $1;
-    Vector_Append($$, New_IdType(&id, &type));
+    Vector_Append($$, New_IdType(&id, type));
   }
   | ID VArgType
   {
     DeclareIdent(id, $1, @1);
     DeclareType(type, $2, @2);
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(&id, &type));
+    Vector_Append($$, New_IdType(&id, type));
   }
   | error
   {
@@ -637,7 +637,7 @@ ReturnList
   {
     DeclareType(type, $1, @1);
     $$ = Vector_New();
-    Vector_Append($$, New_IdType(NULL, &type));
+    Vector_Append($$, New_IdType(NULL, type));
   }
 /*
   return variable declaration not supported in 0.7 version
@@ -935,7 +935,9 @@ ExtendsOrEmpty
   }
   | EXTENDS KlassType WithesOrEmpty
   {
-    $$ = Vector_New();
+    int size = Vector_Size($3);
+    $$ = Vector_Capacity(size + 1);
+    TYPE_INCREF($2);
     Vector_Append($$, $2);
     Vector_Concat($$, $3);
     Vector_Free_Self($3);
@@ -957,11 +959,13 @@ Traits
   : WITH KlassType
   {
     $$ = Vector_New();
+    TYPE_INCREF($2);
     Vector_Append($$, $2);
   }
   | Traits WITH KlassType
   {
     $$ = $1;
+    TYPE_INCREF($3);
     Vector_Append($$, $3);
   }
   ;

@@ -64,6 +64,7 @@ struct object {
 #define OB_KLASS(ob)  (((Object *)(ob))->ob_klass)
 #define OB_REFCNT(ob) (((Object *)(ob))->ob_refcnt)
 #define OB_ASSERT_KLASS(ob, klazz) assert(OB_KLASS(ob) == &(klazz))
+#define OB_ASSERT_REFCNT(ob, cnt)  assert(OB_REFCNT(ob) == (cnt))
 
 #define OB_INCREF(_ob)             \
 ({                                 \
@@ -150,7 +151,6 @@ typedef enum {
   FUNC_KIND  = 3,
   PROTO_KIND = 4,
   CLASS_KIND = 5,
-  TRAIT_KIND = 6,
 } MemberKind;
 
 /* Member node will be inserted into klass->table or package's table */
@@ -196,8 +196,7 @@ typedef struct lro_node {
 } LRONode;
 
 #define OB_FLAGS_GC     1
-#define OB_FLAGS_NUMOPS 2
-#define OB_FLAGS_MAPOPS 4
+#define OB_FLAGS_TRAIT  2
 
 /*
  * represent class or trait
@@ -219,17 +218,10 @@ struct klass {
   ob_allocfunc ob_alloc;
   ob_freefunc ob_free;
 
-  /* used as key */
-  cfunc_t ob_hash;
-  cfunc_t ob_cmp;
-
-  /* like java's toString() */
-  cfunc_t ob_str;
-
-  /* number operations */
-  NumberOperations *num_ops;
-  /* map operations */
-  MapOperations *map_ops;
+  /* extends class */
+  Klass *base;
+  /* with traits */
+  Vector *traits;
 
   /* line resolution order(lro) */
   Vector lro;
@@ -243,16 +235,29 @@ struct klass {
   Object *consts;
 };
 
-extern Klass Klass_Klass;
+extern Klass Class_Klass;
 extern Klass Any_Klass;
-void Init_Klass_Klass(void);
-void Fini_Klass_Klass(void);
-/* new klass */
-Klass *Klass_New(char *name, Vector *bases);
+void Init_Class_Klass(void);
+void Fini_Class_Klass(void);
 /* initialize klass */
-void Init_Klass(Klass *klazz, Vector *bases);
+void Init_Klass(Klass *klazz, Klass *base, Vector *traits);
+#define Init_Klass_Self(Klazz) Init_Klass(Klazz, NULL, NULL)
 /* finalize klass */
 void Fini_Klass(Klass *klazz);
+/* new klass */
+Klass *__Klass_New(char *name, Klass *base, Vector *traits);
+#define Class_New(name, base, traits) \
+({ \
+  __Klass_New(name, base, traits); \
+})
+#define Class_New_Self(name) Class_New(name, NULL, NULL)
+#define Trait_New(name, traits) \
+({ \
+  Klass *klazz = __Klass_New(name, NULL, traits); \
+  klazz->flags = OB_FLAGS_TRAIT; \
+  klazz; \
+})
+#define Trait_New_Self(name) Trait_New(name, NULL)
 /* add a field to the klass(class or trait) */
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 /* add a method to the klass(class or trait) */
@@ -265,26 +270,24 @@ Object *Object_Get_Field(Object *ob, Klass *base, char *name);
 void Object_Set_Field(Object *ob, Klass *base, char *name, Object *val);
 /* get a method from the object */
 Object *Object_Get_Method(Object *ob, Klass *base, char *name);
-/* object show */
-Object *To_String(Object *ob);
 
 /* c function definition, which can be called by koala function */
 typedef struct cfunctiondef {
   /* func's name for searching the function */
   char *name;
-  /* func's returns's type descriptor */
-  char *rdesc;
   /* func's arguments's type descriptor */
   char *pdesc;
+  /* func's returns's type descriptor */
+  char *rdesc;
   /* func's code */
   cfunc_t func;
-} CFunctionDef;
+} CFuncDef;
 
 /*
  * add c functions to the class, which are defined as FuncDef structure,
  * with {NULL} as an end.
  */
-int Klass_Add_CFunctions(Klass *klazz, CFunctionDef *functions);
+int Klass_Add_CMethods(Klass *klazz, CFuncDef *funcs);
 
 #ifdef __cplusplus
 }

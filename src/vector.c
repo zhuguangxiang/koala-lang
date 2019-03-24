@@ -32,15 +32,20 @@ void Vector_Init(Vector *vec)
   vec->items = NULL;
 }
 
-Vector *Vector_New(void)
+Vector *Vector_Capacity(int capacity)
 {
   Vector *vec = Malloc(sizeof(Vector));
-  if (!vec)
+  if (vec == NULL)
     return NULL;
 
   vec->size = 0;
-  vec->capacity = 0;
-  vec->items = NULL;
+  if (capacity > 0) {
+    vec->capacity = capacity;
+    vec->items = Malloc(capacity * sizeof(void *));
+  } else {
+    vec->capacity = 0;
+    vec->items = NULL;
+  }
   return vec;
 }
 

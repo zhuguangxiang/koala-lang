@@ -48,7 +48,7 @@ void Parser_Set_PkgName(ParserState *ps, Ident *id)
   }
 }
 
-static ParserUnit *new_parser_unit(ScopeKind scope)
+static ParserUnit *new_unit(ScopeKind scope)
 {
   ParserUnit *u = Malloc(sizeof(ParserUnit));
 	init_list_head(&u->link);
@@ -60,7 +60,7 @@ static ParserUnit *new_parser_unit(ScopeKind scope)
   return u;
 }
 
-static void free_parser_unit(ParserUnit *u)
+static void free_unit(ParserUnit *u)
 {
   assert(list_unlinked(&u->link));
   assert(u->sym == NULL);
@@ -71,21 +71,13 @@ static void free_parser_unit(ParserUnit *u)
   Mfree(u);
 }
 
-static ParserUnit *up_parser_unit(ParserState *ps)
+static ParserUnit *get_up_unit(ParserState *ps)
 {
   struct list_head *pos = list_first(&ps->ustack);
   return (pos != NULL) ? container_of(pos, ParserUnit, link) : NULL;
 }
 
-static void save_locvar_func(Symbol *sym, void *arg)
-{
-  assert(sym->kind = SYM_VAR);
-  Remove_HashNode(&sym->hnode);
-  FuncSymbol *funcSym = arg;
-  Vector_Append(&funcSym->locvec, sym);
-}
-
-static void merge_parser_unit(ParserState *ps)
+static void merge_unit(ParserState *ps)
 {
   ParserUnit *u = ps->u;
 
@@ -115,7 +107,13 @@ static void merge_parser_unit(ParserState *ps)
     assert(clsSym != NULL);
     assert(clsSym->kind == SYM_CLASS || clsSym->kind == SYM_TRAIT);
     assert(u->stbl == clsSym->stbl);
-    assert(u->block == NULL);
+    if (u->block->bytes > 0) {
+      Log_Debug("merge codes to '%s' __init__ func", clsSym->name);
+    } else {
+      Log_Debug("'%s' has no init codes", clsSym->name);
+    }
+    CodeBlock_Free(u->block);
+    u->block = NULL;
     u->sym = NULL;
     u->stbl = NULL;
     break;
@@ -141,7 +139,7 @@ static void merge_parser_unit(ParserState *ps)
   }
   case SCOPE_BLOCK: {
     /* FIXME: if-else, while and switch-case */
-    ParserUnit *uu = up_parser_unit(ps);
+    ParserUnit *uu = get_up_unit(ps);
     Log_Debug("merge code into up scope-%d(%s)", ps->depth-1, scope_name(uu));
     CodeBlock_Merge(u->block, uu->block);
     CodeBlock_Free(u->block);
@@ -163,7 +161,7 @@ static inline void show_module_symbol(Vector *vec)
     Show_Symbol(sym);
 }
 
-static void show_parser_unit(ParserState *ps)
+static void show_unit(ParserState *ps)
 {
   ParserUnit *u = ps->u;
   const char *scope = scope_name(u);
@@ -180,14 +178,14 @@ static void show_parser_unit(ParserState *ps)
   Log_Puts("----------------------------------------\n");
 }
 
-static void check_unused_symbols(ParserUnit *u)
+static void check_unused_symbols(ParserState *ps)
 {
   /* FIXME */
 }
 
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope)
 {
-  ParserUnit *u = new_parser_unit(scope);
+  ParserUnit *u = new_unit(scope);
   /* push old unit into stack */
   if (ps->u != NULL)
     list_add(&ps->u->link, &ps->ustack);
@@ -200,16 +198,15 @@ void Parser_Enter_Scope(ParserState *ps, ScopeKind scope)
 
 void Parser_Exit_Scope(ParserState *ps)
 {
-  show_parser_unit(ps);
-  check_unused_symbols(ps->u);
+  show_unit(ps);
 
-  Log_Debug("\x1b[35mExit scope-%d(%s)\x1b[0m",
-            ps->depth, scope_name(ps->u));
+  Log_Debug("\x1b[35mExit scope-%d(%s)\x1b[0m", ps->depth, scope_name(ps->u));
 
-  merge_parser_unit(ps);
+  check_unused_symbols(ps);
+  merge_unit(ps);
 
   /* free current parserunit */
-  free_parser_unit(ps->u);
+  free_unit(ps->u);
   ps->u = NULL;
 
   /* restore ps->u to top of ps->ustack */
@@ -258,13 +255,35 @@ static void code_const_expr(ParserState *ps, Expr *exp)
 {
   assert(exp->ctx == EXPR_LOAD);
   ParserUnit *u = ps->u;
-  ConstValue *val = &((ConstExpr *)exp)->value;
-  Inst_Append(u->block, LOAD_CONST, val);
+  CODE_LOAD_CONST(u->block, ((ConstExpr *)exp)->value);
 }
 
 static void parse_self_expr(ParserState *ps, Expr *exp)
 {
-  assert(0);
+  assert(exp->ctx == EXPR_LOAD);
+  Symbol *sym;
+  ParserUnit *uu;
+  int depth = ps->depth;
+  list_for_each_entry(uu, &ps->ustack, link) {
+    depth -= 1;
+    sym = uu->sym;
+    if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+      sym->used++;
+      exp->sym = sym;
+      exp->desc = sym->desc;
+      TYPE_INCREF(exp->desc);
+      Log_Debug("find self '%s' in up scope-%d(%s)",
+                sym->name, depth, scope_name(uu));
+      break;
+    }
+  }
+
+  if (exp->sym == NULL) {
+    Syntax_Error(ps, &exp->pos, "cannot find self");
+    return;
+  }
+
+  CODE_LOAD(ps->u->block, 0);
 }
 
 static void parse_super_expr(ParserState *ps, Expr *exp)
@@ -291,23 +310,44 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
 
   Symbol *lsym = lexp->sym;
   switch (lsym->kind) {
-  case SYM_CONST:
-  case SYM_VAR:
+  case SYM_VAR: {
     Log_Debug("'%s' is variable", lsym->name);
     assert(lsym->desc != NULL);
     char buf[64];
     TypeDesc_ToString(lexp->desc, buf);
     Log_Debug("left expr's type: %s", buf);
-    desc = lsym->desc;
-    if (desc->kind == TYPE_PROTO) {
+    VarSymbol *varSym = (VarSymbol *)lsym;
+    sym = STable_Get(varSym->stbl, attrExp->id.name);
+    if (sym == NULL) {
+      Syntax_Error(ps, &attrExp->id.pos,
+                   "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
+      return;
     }
     break;
+  }
+  case SYM_CLASS:
+  case SYM_TRAIT: {
+    Log_Debug("'%s' is class/trait", lsym->name);
+    assert(lsym->desc != NULL);
+    char buf[64];
+    TypeDesc_ToString(lexp->desc, buf);
+    Log_Debug("left expr's type: %s", buf);
+    ClassSymbol *clsSym = (ClassSymbol *)lsym;
+    sym = STable_Get(clsSym->stbl, attrExp->id.name);
+    if (sym == NULL) {
+      Syntax_Error(ps, &attrExp->id.pos,
+                   "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
+      return;
+    }
+    break;
+  }
   case SYM_FUNC:
   case SYM_NFUNC: {
     if (lexp->kind == CALL_KIND) {
       ProtoDesc *proto = (ProtoDesc *)lsym->desc;
       if (Vector_Size((Vector *)proto->ret) != 1) {
-        Syntax_Error(ps, &lexp->pos, "'%s'is multi-returns' function", lsym->name);
+        Syntax_Error(ps, &lexp->pos,
+                     "'%s' is multi-returns' function", lsym->name);
         return;
       }
       desc = Vector_Get(proto->ret, 0);
@@ -324,9 +364,6 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
                    "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
-    char buf[64];
-    TypeDesc_ToString(sym->desc, buf);
-    Log_Debug("'%s' type: %s", sym->name, buf);
     break;
   }
   default:
@@ -335,8 +372,12 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   }
 
   /* set expressions's symbol */
+  char buf[64];
+  TypeDesc_ToString(sym->desc, buf);
+  Log_Debug("'%s' type: %s", sym->name, buf);
   exp->sym = sym;
   exp->desc = sym->desc;
+  TYPE_INCREF(exp->desc);
 }
 
 static void code_attribute_expr(ParserState *ps, Expr *exp)
@@ -349,7 +390,17 @@ static void code_attribute_expr(ParserState *ps, Expr *exp)
   Code_Expression(ps, lexp);
 
   Symbol *sym = exp->sym;
+  if (sym == NULL)
+    return;
+
   switch (sym->kind) {
+  case SYM_VAR: {
+    break;
+  }
+  case SYM_AFUNC:
+  case SYM_TRAIT: {
+    break;
+  }
   case SYM_FUNC:
   case SYM_NFUNC: {
     assert(exp->ctx == EXPR_LOAD);
@@ -362,6 +413,9 @@ static void code_attribute_expr(ParserState *ps, Expr *exp)
     } else {
 
     }
+    break;
+  }
+  case SYM_IFUNC: {
     break;
   }
   default:
@@ -395,8 +449,9 @@ static int __check_expr_types(Vector *descs, Vector *exps)
         desc = ((VargDesc *)desc)->base;
       }
     }
-    if (!TypeDesc_Equal(desc, e->desc))
-      return 0;
+    //FIXME
+    //if (!TypeDesc_Equal(desc, e->desc))
+    //  return 0;
   }
 
   return 1;
@@ -420,7 +475,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
      * call, like super(1, 2),
      * must be in subclass's __init__ func and is first statement
      */
-    ParserUnit *uu = up_parser_unit(ps);
+    ParserUnit *uu = get_up_unit(ps);
     if (u->scope != SCOPE_FUNCTION || uu->scope != SCOPE_CLASS ||
         strcmp(u->sym->name, "__init__") || !list_empty(&u->block->insts)) {
       Syntax_Error(ps, &lexp->pos,
@@ -443,14 +498,10 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
   if (lexp->sym == NULL)
     return;
 
-  /* set call expression's descriptor as its left expr's descriptor */
-  exp->desc = lexp->desc;
-  TYPE_INCREF(exp->desc);
-
   /* set call expression's symbol as its left expr's symbol */
   exp->sym = lexp->sym;
 
-  /*check call's arguments */
+  /* check call's arguments */
   SymKind kind = exp->sym->kind;
   TypeDesc *proto;
   if (kind == SYM_CLASS) {
@@ -462,14 +513,25 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
       Syntax_Error(ps, &lexp->pos, "__init__ function needs no arguments");
       return;
     }
-    proto = __init__->desc;
+    if (__init__ == NULL) {
+      Vector *ret = Vector_Capacity(1);
+      TYPE_INCREF(clsSym->desc);
+      Vector_Append(ret, clsSym->desc);
+      proto = TypeDesc_Get_Proto(NULL, ret);
+    } else {
+      proto = __init__->desc;
+    }
   } else {
     /* var(func type), func, ifunc and nfunc */
     Log_Debug("call var(proto)/interface/native function '%s'", exp->sym->name);
-    proto = exp->desc;
+    /* set proto as its left expr's descriptor */
+    proto = lexp->desc;
   }
 
+  /* set call expression's descriptor */
   assert(proto->kind == TYPE_PROTO);
+  TYPE_INCREF(proto);
+  exp->desc = proto;
 
   if (!__check_call_arguments(proto, callExp->args)) {
     Syntax_Error(ps, &lexp->pos,
@@ -614,8 +676,50 @@ static ParserUnit *parse_block_variable(ParserState *ps, Ident *id)
   return NULL;
 }
 
-static
-VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
+/*
+ * get type's symbol table
+ * every type has its stbl, even if it's base type(e.g. int, string etc)
+ */
+static STable *get_type_stbl(ParserState *ps, TypeDesc *desc)
+{
+  STable *stbl = NULL;
+  switch (desc->kind) {
+  case TYPE_BASE: {
+    break;
+  }
+  case TYPE_KLASS: {
+    KlassDesc *klass = (KlassDesc *)desc;
+    char *path = klass->path.str;
+    char *type = klass->type.str;
+    Log_Debug("try to get %s.%s stbl", path, type);
+    if (path != NULL) {
+      Package *pkg = Find_Package(path);
+      assert(pkg != NULL);
+      stbl = pkg->stbl;
+    } else {
+      Symbol *sym;
+      Vector_ForEach(sym, &ps->symbols) {
+        if (!strcmp(sym->name, type)) {
+          assert(sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
+          ClassSymbol *clsSym = (ClassSymbol *)sym;
+          stbl = clsSym->stbl;
+          break;
+        }
+      }
+    }
+    break;
+  }
+  case TYPE_VARG: {
+    break;
+  }
+  default:
+    assert(0);
+    break;
+  }
+  return stbl;
+}
+
+static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
 {
   ParserUnit *u = ps->u;
   VarSymbol *varSym;
@@ -636,6 +740,7 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
       varSym->desc = desc;
       TYPE_INCREF(varSym->desc);
     }
+    varSym->stbl = get_type_stbl(ps, desc);
     break;
   case SCOPE_FUNCTION:
   case SCOPE_CLOSURE: {
@@ -646,6 +751,7 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
       Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
       return NULL;
     }
+    varSym->stbl = get_type_stbl(ps, desc);
     FuncSymbol *funcSym = (FuncSymbol *)u->sym;
     Vector_Append(&funcSym->locvec, varSym);
     varSym->refcnt++;
@@ -676,6 +782,7 @@ VarSymbol *update_add_variable(ParserState *ps, Ident *id, TypeDesc *desc)
     } else {
       locvec = &((AFuncSymbol *)uu->sym)->locvec;
     }
+    varSym->stbl = get_type_stbl(ps, desc);
     Vector_Append(locvec, varSym);
     varSym->refcnt++;
     break;
@@ -771,7 +878,7 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
   }
 
   /* update or add symbol */
-  VarSymbol *varSym = update_add_variable(ps, id, type->desc);
+  VarSymbol *varSym = add_update_var(ps, id, type->desc);
   if (varSym == NULL)
     return;
 
@@ -850,7 +957,7 @@ static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
   Ident *ident;
   Vector_ForEach(ident, varListStmt->ids) {
     desc = Vector_Get(proto->ret, i);
-    varSym = update_add_variable(ps, ident, desc);
+    varSym = add_update_var(ps, ident, desc);
     if (varSym == NULL)
       return;
   }
@@ -962,7 +1069,7 @@ static void parse_funcdecl_stmt(ParserState *ps, Stmt *stmt)
   Parser_Enter_Scope(ps, SCOPE_FUNCTION);
   ps->u->stbl = STable_New();
 
-  ParserUnit *uu = up_parser_unit(ps);
+  ParserUnit *uu = get_up_unit(ps);
   assert(uu != NULL);
   assert(uu->scope == SCOPE_MODULE || uu->scope == SCOPE_CLASS);
   Symbol *sym = STable_Get(uu->stbl, funStmt->id.name);
@@ -997,7 +1104,11 @@ static void parse_funcdecl_stmt(ParserState *ps, Stmt *stmt)
 
 static void parse_protodecl_stmt(ParserState *ps, Stmt *stmt)
 {
-
+  FuncDeclStmt *funStmt = (FuncDeclStmt *)stmt;
+  if (funStmt->native)
+    Log_Debug("'%s' is native func", funStmt->id.name);
+  else
+    Log_Debug("'%s' is func proto", funStmt->id.name);
 }
 
 static void parse_expr_stmt(ParserState *ps, Stmt *stmt)
@@ -1068,10 +1179,6 @@ static void parse_list_stmt(ParserState *ps, Stmt *stmt)
   }
 }
 
-static void parse_typealias_stmt(ParserState *ps, Stmt *stmt)
-{
-}
-
 static void parse_class_supers(ParserState *ps, Vector *supers)
 {
 
@@ -1099,6 +1206,32 @@ static void parse_class_stmt(ParserState *ps, Stmt *stmt)
   Log_Debug("----end of class '%s'----", clsStmt->id.name);
 }
 
+static void parse_trait_supers(ParserState *ps, Vector *supers)
+{
+}
+
+static void parse_trait_stmt(ParserState *ps, Stmt *stmt)
+{
+  KlassStmt *clsStmt = (KlassStmt *)stmt;
+  Log_Debug("----parse trait '%s'----", clsStmt->id.name);
+
+  Symbol *sym = STable_Get(ps->u->stbl, clsStmt->id.name);
+  assert(sym);
+
+  parse_trait_supers(ps, clsStmt->super);
+
+  Parser_Enter_Scope(ps, SCOPE_CLASS);
+  ps->u->sym = sym;
+  ps->u->stbl = ((ClassSymbol *)sym)->stbl;
+
+  /* parse class's body statements */
+  parse_statements(ps, clsStmt->body);
+
+  Parser_Exit_Scope(ps);
+
+  Log_Debug("----end of trait '%s'----", clsStmt->id.name);
+}
+
 typedef void (*parse_stmt_func)(ParserState *, Stmt *);
 
 static parse_stmt_func parse_stmt_funcs[] = {
@@ -1112,8 +1245,8 @@ static parse_stmt_func parse_stmt_funcs[] = {
   parse_expr_stmt,          /* EXPR_KIND       */
   parse_return_stmt,        /* RETURN_KIND     */
   parse_list_stmt,          /* LIST_KIND       */
-  parse_typealias_stmt,     /* TYPEALIAS_KIND  */
   parse_class_stmt,         /* CLASS_KIND      */
+  parse_trait_stmt,         /* TRAIT_KIND      */
 };
 
 static void parse_statement(ParserState *ps, Stmt *stmt)

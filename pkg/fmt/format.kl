@@ -1,0 +1,88 @@
+/*
+ * Copyright (c) 2018 James, https://github.com/zhuguangxiang
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+package fmt
+
+import "io"
+
+trait Writer {
+  func writeString(s string)
+  func writeFormat(fmt string, args ...any)
+}
+
+trait Display {
+  func format(fmtter Formatter)
+}
+
+class Formatter extends Writer {
+  native func writeString(s string)
+  native func writeFormat(fmt string, args ...any)
+  native func toString() string
+  func newObjectDisplay(name string) ObjectDisplay {
+    return ObjectDisplay(self, name)
+  }
+}
+
+class ObjectDisplay {
+  fmtter Formatter
+  hasFields bool
+
+  func __init__(fmtter Formatter, name string) {
+    fmtter.writeString(name)
+    self.fmtter = fmtter;
+  }
+
+  func field(name string, value Display) DisplayObject {
+    var prefix char
+    /*
+    if (hasFields) {
+      prefix = ","
+    } else {
+      prefix = " {"
+    }
+    */
+    fmtter.writeFormat("{} {}: ", prefix, name)
+    value.format(fmtter)
+    hasFields = true
+    return self
+  }
+
+  func finish() {
+    //if (hasFields) {
+      fmtter.writeString(" }")
+    //}
+  }
+}
+
+func format(fmt string, args ...any) string {
+  fmtter := Formatter()
+  fmtter.writeFormat(fmt, args)
+  return fmtter.toString();
+}
+
+func write(w Writer, fmt string, args ...any) {
+  w.writeFormat(fmt, args)
+}
+
+func println(fmt string, args ...any) {
+  io.puts(format(fmt, args))
+}

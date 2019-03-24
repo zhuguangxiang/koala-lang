@@ -55,13 +55,13 @@ void Free_IdentList(Vector *vec)
   Vector_Free_Self(vec);
 }
 
-IdType *New_IdType(Ident *id, TypeWrapper *type)
+IdType *New_IdType(Ident *id, TypeWrapper type)
 {
   IdType *idType = Malloc(sizeof(IdType));
   if (id != NULL)
     idType->id = *id;
-  TYPE_INCREF(type->desc);
-  idType->type = *type;
+  TYPE_INCREF(type.desc);
+  idType->type = type;
   return idType;
 }
 
@@ -321,7 +321,7 @@ Expr *Parser_New_Array(Vector *vec, int dims, TypeWrapper type, Expr *listExp)
     }
   } else {
     assert(dims != 0);
-    dimsVec = Vector_New();
+    dimsVec = Vector_Capacity(dims);
     /* append null to occupy a position */
     for (int i = 0; i < dims; i++)
       Vector_Append(dimsVec, NULL);
@@ -667,6 +667,7 @@ Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst)
   VarDeclStmt *varStmt = Malloc(sizeof(VarDeclStmt));
   varStmt->kind = VAR_KIND;
   varStmt->id = *id;
+  TYPE_INCREF(type.desc);
   varStmt->type = type;
   varStmt->exp = exp;
   varStmt->konst = konst;
@@ -679,6 +680,7 @@ Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
   VarListDeclStmt *varListStmt = Malloc(sizeof(VarListDeclStmt));
   varListStmt->kind = VARLIST_KIND;
   varListStmt->ids = ids;
+  TYPE_INCREF(type.desc);
   varListStmt->type = type;
   varListStmt->exp = exp;
   varListStmt->konst = konst;
@@ -1123,7 +1125,6 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
       /* only one variable */
       Ident *id = Vector_Get(ids, 0);
       Expr *exp = Vector_Get(exps, 0);
-      TYPE_INCREF(type.desc);
       stmt = __Stmt_From_VarDecl(id, type, exp, konst);
       Free_Ident(id);
     } else {
@@ -1131,10 +1132,9 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
       Ident *id;
       Expr *exp;
       Stmt *varStmt;
-      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_Capacity(isz));
       Vector_ForEach(id, ids) {
         exp = Vector_Get(exps, i);
-        TYPE_INCREF(type.desc);
         varStmt = __Stmt_From_VarDecl(id, type, exp, konst);
         Free_Ident(id);
         Vector_Append(listStmt->vec, varStmt);
@@ -1153,7 +1153,6 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
   if (esz == 1) {
     Expr *e = Vector_Get(exps, 0);
     Vector_Free_Self(exps);
-    TYPE_INCREF(type.desc);
     return __Stmt_From_VarListDecl(ids, type, e, konst);
   }
 
@@ -1163,16 +1162,14 @@ Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
   if (isz == 1) {
     Ident *id = Vector_Get(ids, 0);
     Vector_Free_Self(ids);
-    TYPE_INCREF(type.desc);
     Stmt *stmt = __Stmt_From_VarDecl(id, type, NULL, konst);
     Free_Ident(id);
     return stmt;
   } else {
-    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+    ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_Capacity(isz));
     Ident *id;
     Stmt *varStmt;
     Vector_ForEach(id, ids) {
-      TYPE_INCREF(type.desc);
       varStmt = __Stmt_From_VarDecl(id, type, NULL, konst);
       Free_Ident(id);
       Vector_Append(listStmt->vec, varStmt);
@@ -1213,7 +1210,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       stmt = __Stmt_From_VarDecl(&ident, nulltype, exp, 0);
     } else {
       /* count of left ids == count of right expressions */
-      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_Capacity(isz));
       Ident ident;
       Stmt *varStmt;
       Vector_ForEach(e, ids) {
@@ -1241,7 +1238,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
   assert(isz > esz && esz == 1);
 
   /* count of right expressions is 1 */
-  Vector *_ids = Vector_New();
+  Vector *_ids = Vector_Capacity(isz);
   Ident *ident;
   String s;
   Vector_ForEach(e, ids) {
@@ -1291,7 +1288,7 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
       stmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
     } else {
       /* count of left expressions == count of right expressions */
-      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_New());
+      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_Capacity(lsz));
       Expr *lexp, *rexp;
       Stmt *assignStmt;
       Vector_ForEach(lexp, left) {
@@ -1336,7 +1333,7 @@ static TypeDesc *__get_proto(FuncDeclStmt *stmt)
   IdType *idType;
 
   if (stmt->args != NULL) {
-    pdesc = Vector_New();
+    pdesc = Vector_Capacity(Vector_Size(stmt->args));
     Vector_ForEach(idType, stmt->args) {
       TYPE_INCREF(idType->type.desc);
       Vector_Append(pdesc, idType->type.desc);
@@ -1344,7 +1341,7 @@ static TypeDesc *__get_proto(FuncDeclStmt *stmt)
   }
 
   if (stmt->rets != NULL) {
-    rdesc = Vector_New();
+    rdesc = Vector_Capacity(Vector_Size(stmt->rets));
     Vector_ForEach(idType, stmt->rets) {
       TYPE_INCREF(idType->type.desc);
       Vector_Append(rdesc, idType->type.desc);
@@ -1472,24 +1469,22 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
       VarDeclStmt *varStmt = (VarDeclStmt *)s;
       assert(varStmt->konst == 0);
       __new_var(ps, &varStmt->id, varStmt->type.desc, 0);
-    } else if (s->kind == FUNC_KIND) {
-      assert(s->kind == FUNC_KIND || s->kind == PROTO_KIND);
+    } else if (s->kind == FUNC_KIND || s->kind == PROTO_KIND) {
       __parse_funcdecl(ps, s);
       FuncDeclStmt *funcStmt = (FuncDeclStmt *)s;
       char *name = funcStmt->id.name;
       if (funcStmt->kind == PROTO_KIND) {
         if (funcStmt->native) {
           assert(sym->kind == SYM_CLASS);
-          Log_Debug("add native func '%s' to '%s'", name, sym->name);
         } else {
           assert(sym->kind == SYM_TRAIT);
-          Log_Debug("add proto '%s' to '%s'", name, sym->name);
         }
       } else {
         assert(funcStmt->kind == FUNC_KIND);
         assert(!funcStmt->native);
-        Log_Debug("add func '%s' to '%s'", name, sym->name);
       }
+    } else {
+      assert(0);
     }
   }
 

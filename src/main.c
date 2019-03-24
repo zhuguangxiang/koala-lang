@@ -20,19 +20,43 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_LANG_PKG_H_
-#define _KOALA_LANG_PKG_H_
-
 #include "koala.h"
+#include "options.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define KOALA_VERSION "0.8.5"
 
-void Init_Lang_Package(Package *pkg);
-void Fini_Lang_Package(void);
-
-#ifdef __cplusplus
+static void show_version(void)
+{
+  struct utsname sysinfo;
+  if (!uname(&sysinfo)) {
+    fprintf(stderr, "Koala version %s, %s/%s\n",
+            KOALA_VERSION, sysinfo.sysname, sysinfo.machine);
+  }
 }
-#endif
-#endif /* _KOALA_LANG_PKG_H_ */
+
+static void show_usage(char *prog)
+{
+  fprintf(stderr,
+    "Usage: %s [<options>] <main package>\n"
+    "Options:\n"
+    "\t-p <path>          Specify where to find external packages.\n"
+    "\t-D <name>=<value>  Set a property.\n"
+    "\t-v                 Print virtual machine version.\n"
+    "\t-h                 Print this message.\n",
+    prog);
+}
+
+int main(int argc, char *argv[])
+{
+  Options options;
+  init_options(&options, show_usage, show_version);
+  parse_options(argc, argv, &options);
+  show_options(&options);
+
+  Koala_Initialize();
+  Koala_Main(&options);
+  Koala_Finalize();
+
+  fini_options(&options);
+  return 0;
+}

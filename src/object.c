@@ -66,9 +66,9 @@ Object *MTable_ToString(HashTable *table)
     Tuple_Append(tuple, String_New(m->name));
   }
 
-  Object *so = Tuple_ToString(tuple, NULL);
+  //Object *so = Tuple_ToString(tuple, NULL);
   OB_DECREF(tuple);
-  return so;
+  return NULL;
 }
 
 /* hash function of MNode */
@@ -108,9 +108,6 @@ static void free_m_func(HashNode *hnode, void *arg)
     break;
   case CLASS_KIND:
     OB_DECREF(m->klazz);
-    break;
-  case TRAIT_KIND:
-    assert(0);
     break;
   default:
     assert(0);
@@ -154,25 +151,35 @@ static void lro_debug(Klass *klazz)
   Log_Puts("\n------------------------------");
 }
 
-static void lro_build(Klass *klazz, Vector *bases)
+#define LRO_BUILD_ONE(_klazz, _base)                      \
+({                                                        \
+  LRONode *lro, *node;                                    \
+  Vector_ForEach(node, &(_base)->lro) {                   \
+    if (!lro_find(&(_klazz)->lro, node->klazz)) {         \
+      lro = LRONode_New(offset, OB_INCREF(node->klazz));  \
+      Vector_Append(&(_klazz)->lro, lro);                 \
+      offset += node->klazz->nrvars;                      \
+    }                                                     \
+  }                                                       \
+})
+
+static void lro_build(Klass *klazz)
 {
+  Klass *base = klazz->base;
+  Vector *traits = klazz->traits;
   int offset = 0;
   LRONode *lro;
-  /* Any klass */
-  lro = LRONode_New(offset, OB_INCREF(&Any_Klass));
-  Vector_Append(&klazz->lro, lro);
-  offset += Any_Klass.nrvars;
+  LRONode *node;
 
+  /* base klass */
+  if (base != NULL) {
+    LRO_BUILD_ONE(klazz, base);
+  }
+
+  /* trait klasses */
   Klass *line;
-  Vector_ForEach(line, bases) {
-    LRONode *node;
-    Vector_ForEach(node, &line->lro) {
-      if (!lro_find(&klazz->lro, node->klazz)) {
-        lro = LRONode_New(offset, OB_INCREF(node->klazz));
-        Vector_Append(&klazz->lro, lro);
-        offset += node->klazz->nrvars;
-      }
-    }
+  Vector_ForEach(line, traits) {
+    LRO_BUILD_ONE(klazz, line);
   }
 
   /* self klass */
@@ -181,18 +188,18 @@ static void lro_build(Klass *klazz, Vector *bases)
   klazz->totalvars = offset;
 }
 
-void Init_Klass(Klass *klazz, Vector *bases)
+void Init_Klass(Klass *klazz, Klass *base, Vector *traits)
 {
   Init_MTable(&klazz->mtbl);
   Vector_Init(&klazz->lro);
-  lro_build(klazz, bases);
+  klazz->base = OB_INCREF(base);
+  klazz->traits = traits;
+  lro_build(klazz);
   lro_debug(klazz);
-  Init_Mapping_Operators(klazz);
 }
 
 void Fini_Klass(Klass *klazz)
 {
-  OB_ASSERT_KLASS(klazz, Klass_Klass);
   Log_Debug("------------------------------");
   LRONode *lro;
   Vector_ForEach(lro, &klazz->lro) {
@@ -207,7 +214,6 @@ void Fini_Klass(Klass *klazz)
 
 static void klass_free(Object *ob)
 {
-  OB_ASSERT_KLASS(ob, Klass_Klass);
   Klass *klazz = (Klass *)ob;
   Log_Debug("------------------------------");
   Fini_Klass(klazz);
@@ -216,7 +222,6 @@ static void klass_free(Object *ob)
 
 static Object *klass_tostring(Object *ob, Object *args)
 {
-  OB_ASSERT_KLASS(ob, Klass_Klass);
   Klass *klazz = (Klass *)ob;
   Object *tuple = Tuple_New(klazz->mtbl.nr_nodes);
   HashNode *hnode;
@@ -225,53 +230,38 @@ static Object *klass_tostring(Object *ob, Object *args)
     Tuple_Append(tuple, String_New(m->name));
   }
 
-  Object *so = Tuple_ToString(tuple, NULL);
+  //Object *so = Tuple_ToString(tuple, NULL);
   OB_DECREF(tuple);
-  return so;
+  return NULL;
 }
 
-Klass Klass_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
-  .name = "Klass",
+Klass Class_Klass = {
+  OBJECT_HEAD_INIT(&Class_Klass)
+  .name = "Class",
   .ob_free = klass_free,
-  .ob_str  = klass_tostring
 };
-
-static Object *any_hash(Object *ob, Object *args)
-{
-  return Integer_New(hash_uint32((intptr_t)ob, 32));
-}
-
-static Object *any_equal(Object *ob1, Object *ob2)
-{
-  return Bool_New(ob1 == ob2);
-}
-
-static Object *any_tostring(Object *ob, Object *args)
-{
-  char buf[64];
-  snprintf(buf, 63, "%s@%x", OB_KLASS(ob)->name, (int)(intptr_t)ob);
-  return String_New(buf);
-}
 
 Klass Any_Klass = {
-  OBJECT_HEAD_INIT(&Klass_Klass)
+  OBJECT_HEAD_INIT(&Class_Klass)
   .name = "Any",
-  .ob_hash = any_hash,
-  .ob_cmp = any_equal,
-  .ob_str = any_tostring,
+  .flags = OB_FLAGS_TRAIT
 };
 
-void Init_Klass_Klass(void)
+static CFuncDef class_funcs[] = {
+  {"__display__", "Lfmt.Formatter;", NULL, NULL},
+  {NULL}
+};
+
+void Init_Class_Klass(void)
 {
-  Init_Klass(&Klass_Klass, NULL);
-  Init_Klass(&Any_Klass, NULL);
+  Init_Klass_Self(&Class_Klass);
+  Klass_Add_CMethods(&Class_Klass, class_funcs);
 }
 
-void Fini_Klass_Klass(void)
+void Fini_Class_Klass(void)
 {
-  Fini_Klass(&Any_Klass);
-  Fini_Klass(&Klass_Klass);
+  OB_ASSERT_REFCNT(&Class_Klass, 1);
+  Fini_Klass(&Class_Klass);
 }
 
 static void object_mark(Object *ob)
@@ -300,18 +290,15 @@ static void object_free(Object *ob)
   GCfree(ob);
 }
 
-Klass *Klass_New(char *name, Vector *bases)
+Klass *__Klass_New(char *name, Klass *base, Vector *traits)
 {
   Klass *klazz = Malloc(sizeof(Klass));
-  Init_Object_Head(klazz, &Klass_Klass);
+  Init_Object_Head(klazz, &Class_Klass);
   klazz->name = AtomString_New(name).str;
-
-  klazz->ob_mark  = object_mark;
   klazz->ob_alloc = object_alloc;
   klazz->ob_free  = object_free;
-
-  Init_Klass(klazz, bases);
-
+  klazz->ob_mark  = object_mark;
+  Init_Klass(klazz, base, traits);
   return klazz;
 }
 
@@ -442,20 +429,14 @@ Object *Object_Get_Method(Object *ob, Klass *base, char *name)
   return mnode->code;
 }
 
-/* FIXME: call Koala_RunCode? */
-Object *To_String(Object *ob)
-{
-  return OB_KLASS(ob)->ob_str(ob, NULL);
-}
-
-int Klass_Add_CFunctions(Klass *klazz, CFunctionDef *functions)
+int Klass_Add_CMethods(Klass *klazz, CFuncDef *funcs)
 {
   int res;
-  CFunctionDef *f = functions;
+  CFuncDef *f = funcs;
   Object *code;
 
   while (f->name != NULL) {
-    code = Code_From_CFunction(f);
+    code = Code_From_CFunc(f);
     res = Klass_Add_Method(klazz, code);
     assert(!res);
     ++f;

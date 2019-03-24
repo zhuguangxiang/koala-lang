@@ -21,42 +21,156 @@
  */
 
 #include "koala.h"
-#include "options.h"
+#include "codeobject.h"
+#include "io.h"
 
-#define KOALA_VERSION "0.8.5"
+/* list of KoalaState */
+static int ksnum;
+static LIST_HEAD(kslist);
 
-static void show_version(void)
+KoalaState *New_koalaState(void)
 {
-  struct utsname sysinfo;
-  if (!uname(&sysinfo)) {
-    fprintf(stderr, "Koala version %s, %s/%s\n",
-            KOALA_VERSION, sysinfo.sysname, sysinfo.machine);
+  KoalaState *ks = Malloc(sizeof(KoalaState));
+  init_list_head(&ks->ksnode);
+  Init_Stack(&ks->stack, nr_elts(ks->objs), ks->objs);
+  list_add_tail(&ks->ksnode, &kslist);
+  ksnum++;
+  return ks;
+}
+
+void Free_KoalaState(KoalaState *ks)
+{
+  list_del(&ks->ksnode);
+  ksnum--;
+  Mfree(ks);
+}
+
+void Koala_Main(Options *opts)
+{
+  /* set pathes for searching packages */
+  Env_Set(KOALA_PATH, ".");
+  Env_Set_Vec(KOALA_PATH, &opts->pathes);
+
+  /* initialize processors */
+  task_init_procs(1);
+
+  /* set task's private object */
+  task_set_private(New_koalaState());
+
+  char *path = Vector_Get(&opts->args, 0);
+
+  /* find or load package */
+  Object *pkg = Find_Package(path);
+  if (pkg == NULL) {
+    fprintf(stderr, "\x1b[31merror\x1b[0m: cannot open '%s' package\n", path);
+    goto EXIT;
   }
+
+  /* initial package's variables */
+  Object *code = Pkg_Get_Func(pkg, KOALA_INIT);
+  if (code != NULL)
+    Koala_RunCode(code, pkg, NULL);
+
+  /* run 'main' function */
+  code = Pkg_Get_Func(pkg, KOALA_MAIN);
+  if (code == NULL) {
+    fprintf(stderr, "\x1b[31merror\x1b[0m: '%s' not found in '%s'\n",
+            KOALA_MAIN, path);
+    goto EXIT;
+  }
+
+  int size = Vector_Size(&opts->args);
+  Object *args = NULL;
+  if (size > 1) {
+    int i = 1;
+    char *str;
+    args = Tuple_New(size - 1);
+    while (i < size) {
+      str = Vector_Get(&opts->args, i);
+      Tuple_Set(args, i - 1, String_New(str));
+    }
+  }
+  Koala_RunCode(code, pkg, args);
+
+EXIT:
+  Free_KoalaState(task_get_private());
+  /* finalize processors */
+  task_fini_procs();
 }
 
-static void show_usage(char *prog)
+typedef struct taskparam {
+  Object *code;
+  Object *ob;
+  Object *args;
+} TaskParam;
+
+static void *koala_task_entry(void *arg)
 {
-  fprintf(stderr,
-    "Usage: %s [<options>] <main package>\n"
-    "Options:\n"
-    "\t-p <path>          Specify where to find external packages.\n"
-    "\t-D <name>=<value>  Set a property.\n"
-    "\t-v                 Print virtual machine version.\n"
-    "\t-h                 Print this message.\n",
-    prog);
+  TaskParam *param = arg;
+  task_set_private(New_koalaState());
+  Koala_RunCode(param->code, param->ob, param->args);
+  Mfree(param);
+  return NULL;
 }
 
-int main(int argc, char *argv[])
+void Koala_RunTask(Object *code, Object *ob, Object *args)
 {
-  Options options;
-  init_options(&options, show_usage, show_version);
-  parse_options(argc, argv, &options);
-  show_options(&options);
+  /* new a task and run it concurrently */
+  task_attr_t attr = {.stacksize = KOALA_TASK_STACKSIZE};
+  TaskParam *param = Malloc(sizeof(TaskParam));
+  param->code = code;
+  param->ob = ob;
+  param->args = args;
+  task_create(&attr, koala_task_entry, param);
+}
 
-  Koala_Initialize();
-  Koala_Main(&options);
-  Koala_Finalize();
+static void Init_Lang_Package(void)
+{
+  Init_Package_Klass();
+  Init_Class_Klass();
+  Init_String_Klass();
+  Init_Integer_Klass();
+  Init_Tuple_Klass();
+  Init_Code_Klass();
 
-  fini_options(&options);
-  return 0;
+  Object *pkg = New_Package(KOALA_PKG_LANG);
+  Pkg_Add_Class(pkg, &Pkg_Klass);
+  Pkg_Add_Class(pkg, &Class_Klass);
+  Pkg_Add_Class(pkg, &Any_Klass);
+  Pkg_Add_Class(pkg, &String_Klass);
+  Pkg_Add_Class(pkg, &Int_Klass);
+  Pkg_Add_Class(pkg, &Bool_Klass);
+  Pkg_Add_Class(pkg, &Tuple_Klass);
+  Pkg_Add_Class(pkg, &Code_Klass);
+  Install_Package(KOALA_PKG_LANG, pkg);
+}
+
+static void Fini_Lang_Package(void)
+{
+  Fini_Package_Klass();
+  Fini_Code_Klass();
+  Fini_Tuple_Klass();
+  Fini_Integer_Klass();
+  Fini_String_Klass();
+  Fini_Class_Klass();
+}
+
+void Koala_Initialize(void)
+{
+  AtomString_Init();
+  Init_TypeDesc();
+  Init_Env();
+  Init_Lang_Package();
+  //Init_Format_Package();
+  Init_IO_Package();
+}
+
+void Koala_Finalize(void)
+{
+  Fini_Lang_Package();
+  //Fini_Format_Package();
+  Fini_IO_Package();
+  Fini_Env();
+  Fini_TypeDesc();
+  AtomString_Fini();
 }

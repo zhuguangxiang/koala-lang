@@ -1,5 +1,6 @@
 
 #include "koala.h"
+#include "codeobject.h"
 
 void test_codeobject(void)
 {

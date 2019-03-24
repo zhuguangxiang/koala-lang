@@ -20,25 +20,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "lang.h"
+#include "env.h"
 
-void Init_Lang_Package(Package *pkg)
-{
-  Init_Klass_Klass();
-  Init_String_Klass();
-  Init_Integer_Klass();
-  Init_Tuple_Klass();
-  Package_Add_Class(pkg, &Klass_Klass);
-  Package_Add_Class(pkg, &Any_Klass);
-  Package_Add_Class(pkg, &String_Klass);
-  Package_Add_Class(pkg, &Int_Klass);
-  Package_Add_Class(pkg, &Tuple_Klass);
-}
-
-void Fini_Lang_Package(void)
-{
-  Fini_Tuple_Klass();
-  Fini_Integer_Klass();
-  Fini_String_Klass();
-  Fini_Klass_Klass();
-}
+/* environment values */
+Properties properties;

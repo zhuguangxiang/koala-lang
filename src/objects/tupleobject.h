@@ -41,7 +41,6 @@ void Init_Tuple_Klass(void);
 void Fini_Tuple_Klass(void);
 Object *Tuple_New(int size);
 void Tuple_Free(Object *ob);
-Object *Tuple_ToString(Object *ob, Object *args);
 Object *Tuple_Get(Object *ob, int index);
 static inline int Tuple_Size(Object *ob)
 {
