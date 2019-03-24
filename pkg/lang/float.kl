@@ -22,9 +22,6 @@
 
 package lang
 
-class String {
-  native func __concat__(s string) string
-  native func Concat(s string) string
-  native func Length() int
-  native func ToString() string
+class Float {
+
 }
