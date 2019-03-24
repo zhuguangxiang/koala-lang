@@ -607,7 +607,7 @@ ParameterList
   {
     DeclareIdent(id, $1, @1);
     DeclareType(type, $2, @2);
-    $$ = Vector_New();
+    $$ = Vector_Capacity(1);
     Vector_Append($$, New_IdType(&id, type));
   }
   | error
@@ -636,7 +636,7 @@ ReturnList
   : Type
   {
     DeclareType(type, $1, @1);
-    $$ = Vector_New();
+    $$ = Vector_Capacity(1);
     Vector_Append($$, New_IdType(NULL, type));
   }
 /*
