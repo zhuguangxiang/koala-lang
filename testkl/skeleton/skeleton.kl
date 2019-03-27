@@ -29,8 +29,8 @@ package skeleton
 //import os "io"
 //import nio "io"
 //import "os"
-import SayHello "os"
-import "io"
+//import SayHello "os"
+//import "io"
 //import . "os"
 
 //import
@@ -41,10 +41,9 @@ import "io"
 //constants
 const K1 = "Hello, Koala"
 const K2 string = "Welcome to Koala-lang"
-const K3, K4 = "hello", "world"
-const K5 = K1
-//const K6 = sub(1,2)
-const K7 = 100
+const K3 = "hello"
+const K4 = K1
+const K5 = 100
 
 //import "io"
 //var K7 int;
@@ -52,7 +51,7 @@ const K7 = 100
 //variables
 //var SayHello int
 //var io int
-var v1, v2 = 1, 2
+var v1 = 1
 var ch = '汉'
 var ok = true
 var greeting string = "hello, 汉字"
@@ -66,14 +65,12 @@ var func_callback func(int, int) int = add
 var func_cb2 = func_callback
 var result2 = func_callback(1, 3)
 
-var v3, v4 = 100, "world"
+var v3  = 100
 
-var v5, v6 = sub(1, 2)
+var v5 = sub(1, 2)
 
-var v7, v8 int = sub(1, 2)
+var v7 int = sub(1, 2)
 
-//var v9 int = add
-var v9, v10 = 100, "hello"
 
 var vv1 = 1 + 2 - 3
 var vv2 = 1 + '中' //1 + true
@@ -89,6 +86,10 @@ var vv10 = 1 + K7
 
 //var vv2 = 1 + 2 > 3 -1
 
+var (t1, t2) = (1, 2)
+var t3 (int, int) = (100, 200)
+var t4 = (1, 2)
+
 //function
 func add(a int, b int) int {
 //  io.Println(a, b);
@@ -99,9 +100,9 @@ func add(a int, b int) int {
       var dd = 300
     }
     var dd = 400
-    cc, dd = 1001, 2002
+    cc = 1001
+    dd = 1002
     //cc, dd = 100, 200, 300
-    cc, dd = sub(1, 2)
     sub(1,2)
   }
   result := 100
@@ -118,13 +119,158 @@ func sub(aa int, bb int) (int, int) {
   var hello int
   //hello += 2;
   {
-    return 1, 2
+    return (1, 2)
   }
-  return 2, 1
+  return (2, 1, "hello")
 }
 
 func mul(a int, b int) int {
   return 1
+  ["hello", "汉字"]
+  [[1,2], [3,4],[5,6]]
+  [
+    [1, 0, 0],
+    [0, 1, 0],
+    [0, 0, 1],
+  ]
+  var array1 = ["hello", "world", "good", "luck"]
+  var array2 [[int]] = [1,2,3]
+  arr3 := [1,2,3]
+  (a, b) := (1, 2)
+  (x, y) = (1, "hello")
+  (1, 2, (1,2,3))
+  (1)
+  (1,)
+  var map [string:string] = {"hello": "world", "good": "luck"}
+  {
+    "k1": "hello",
+    "k2": 123,
+    "k3": {
+      "k31": true,
+      "k32": 12.98,
+      "k33": [
+        1,
+        2,
+        3
+      ],
+      "k34": nil
+    },
+  }
+  arr[1:4]
+  arr[:]
+  arr[:3]
+  arr[1+2:-1]
+
+  num := func(a int, b int) int {a + b}
+  func() {println("hello")}
+}
+
+class Person {
+  func add(a int, b string) bool {
+    a + b
+  }
+}
+
+class Person extends Animal with Dog with Cat {
+  func add(a int, b string) bool {
+    a + b
+  }
+}
+
+class Person<T, R> {
+  func add(a T, b R) T {
+    a + b
+  }
+}
+
+class Person<T:Abc, R> {
+  func add(a T, b R) T {
+    a + b
+  }
+}
+
+class Person
+  <T:Abc,
+  R,
+  K,
+  J>
+  extends Animal
+  with Dog
+  {
+  func add(a T, b R) T {
+    a + b
+  }
+}
+
+class Person<T:Abc, R, K, J> extends Animal<T, R> with Dog<H, J> {
+  func add(a T, b R) T {
+    a + b
+  }
+}
+
+trait Person {
+  func add(a int, b string) bool {
+    a + b
+  }
+}
+
+trait Person extends Animal with Dog with Cat {
+  func add(a int, b string) bool {
+    a + b
+  }
+}
+
+trait Person<T, R> {
+  func add(a T, b R) T {
+    a + b
+  }
+}
+
+trait Person<T:Abc, R> {
+  func add(a T, b R) T {
+    a + b
+  }
+}
+
+trait Person<T:Abc, R>
+ {
+  func add(a T, b R) T {
+    a + b
+  }
+}
+
+trait Person
+  <T:Abc,
+  R,
+  K,
+  J>
+  extends Animal
+  with Dog {
+  func add(a T, b R) T {
+    a + b
+  }
+}
+
+trait Person<T:Abc, R>
+  extends Animal
+  with Dog
+
+trait Person<T:Abc, R, K, J> extends Animal<T, R> with Dog<H, J> {
+  func add(a T, b R) T {
+    a + b
+    for i in 1..<10 { io.Println(i) }
+  }
+  func sub<P:How, K:Ok>(a P, b K) How
+}
+
+var p Person<string, int> = Person();
+
+var f = func() {1}
+
+
+func Hello<T: Person>(p T) T {
+  t.hello()
+  func<P:How, K:Ok>(a P, b K) How { a + b}(1, 2)
 }
 
 /*
