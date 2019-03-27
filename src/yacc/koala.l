@@ -58,8 +58,8 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
     ID, CHAR_LITERAL, INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL,
     SELF, SUPER, TOKEN_NIL, TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
-    ')', ']', '}',
-    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS, MAP, SET
+    ')', ']', '}', '>',
+    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS,
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
@@ -145,6 +145,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "..."            { YY_RETURN(ELLIPSIS);        }
 "**"             { YY_RETURN(OP_POWER);        }
 "..<"            { YY_RETURN(DOTDOTLESS);      }
+"->"             { YY_RETURN(DASH_ARROW);      }
 
 "package"        { YY_RETURN(PACKAGE);         }
 "if"             { YY_RETURN(IF);              }
@@ -164,6 +165,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "trait"          { YY_RETURN(TRAIT);           }
 "extends"        { YY_RETURN(EXTENDS);         }
 "with"           { YY_RETURN(WITH);            }
+"where"          { YY_RETURN(WHERE);           }
 "in"             { YY_RETURN(IN);              }
 "const"          { YY_RETURN(CONST);           }
 "import"         { YY_RETURN(IMPORT);          }
@@ -179,19 +181,12 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "string"         { YY_RETURN(STRING);          }
 "error"          { YY_RETURN(ERROR);           }
 "any"            { YY_RETURN(ANY);             }
-"map"            { YY_RETURN(MAP);             }
-"set"            { YY_RETURN(SET);             }
 
 "self"           { YY_RETURN(SELF);            }
 "super"          { YY_RETURN(SUPER);           }
 "true"           { YY_RETURN(TOKEN_TRUE);      }
 "false"          { YY_RETURN(TOKEN_FALSE);     }
 "nil"            { YY_RETURN(TOKEN_NIL);       }
-
-"[]"+ {
-  yylval->Dims = yyleng/2;
-  YY_RETURN(DIMS);
-}
 
 ([1-9][0-9]*|[0]) {
   yylval->IVal = atoi(yytext);

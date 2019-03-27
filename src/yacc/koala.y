@@ -99,7 +99,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %}
 
 %union {
-  int Dims;
   uchar ucVal;
   int64 IVal;
   float64 FVal;
@@ -150,11 +149,13 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token DEFAULT
 %token VAR
 %token FUNC
+%token DASH_ARROW
 %token TOKEN_RETURN
 %token CLASS
 %token TRAIT
 %token EXTENDS
 %token WITH
+%token WHERE
 %token IN
 %token CONST
 %token IMPORT
@@ -170,8 +171,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token STRING
 %token ERROR
 %token ANY
-%token MAP
-%token SET
 
 %token SELF
 %token SUPER
@@ -179,7 +178,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token TOKEN_TRUE
 %token TOKEN_FALSE
 
-%token <Dims> DIMS
 %token <IVal> BYTE_LITERAL
 %token <ucVal> CHAR_LITERAL
 %token <IVal> INT_LITERAL
@@ -195,10 +193,11 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <TypeDesc> KlassType
 %type <TypeDesc> FunctionType
 %type <TypeDesc> MapType
-%type <TypeDesc> SetType
 %type <TypeDesc> KeyType
+%type <TypeDesc> TupleType
 %type <IdType> IDType
 %type <List> IDTypeList
+%type <List> TypeList
 %type <List> ParameterList
 %type <List> IDList
 
@@ -206,19 +205,19 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Stmt> VariableDeclaration
 %type <Stmt> FunctionDeclaration
 %type <Stmt> TypeDeclaration
-%type <List> ClassMemberDeclarationsOrEmpty
+%type <List> ClassMemberDeclsOrEmpty
 %type <List> ClassMemberDeclarations
 %type <Stmt> ClassMemberDeclaration
 %type <List> ExtendsOrEmpty
 %type <List> WithesOrEmpty
 %type <List> Traits
-%type <List> TraitMemberDeclarationsOrEmpty
+%type <List> TraitMemberDeclsOrEmpty
 %type <List> TraitMemberDeclarations
 %type <Stmt> TraitMemberDeclaration
 %type <Stmt> FieldDeclaration
 %type <Stmt> ProtoDeclaration
 %type <List> Block
-%type <List> ExprListOrBlock
+%type <List> ExprOrBlock
 %type <List> LocalStatements
 %type <Stmt> LocalStatement
 %type <Stmt> ExprStatement
@@ -241,15 +240,12 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> CallExpression
 %type <Expr> SliceExpression
 %type <Expr> CONSTANT
-%type <Expr> ArrayCreationExpression
-%type <List> DimExprList
-%type <Expr> SetCreationExpression
-%type <Expr> ArrayOrSetInitializer
-%type <Expr> MapCreationExpression
-%type <Expr> MapInitializer
+%type <Expr> ArrayExpression
+%type <Expr> MapExpression
 %type <List> MapKeyValueList
 %type <Expr> MapKeyValue
-%type <Expr> AnonyFuncExpression
+%type <Expr> ClosureExpression
+%type <Expr> TupleExpression
 %type <Operator> UnaryOp
 %type <Expr> UnaryExpression
 %type <Expr> MultipleExpression
@@ -266,20 +262,22 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> WithExpression
 %type <Expr> Expression
 %type <List> ExpressionList
-%type <Operator> CompAssignOp
+%type <Operator> AssignOp
 
 %token PREC_0
 %token PREC_1
 
+%precedence PREC_0
+%precedence PREC_1
 %precedence ID
+%precedence '['
 %precedence ELLIPSIS
 %precedence '.'
 %precedence ')'
 %precedence '('
-%precedence PREC_0
 %precedence '{'
-%precedence PREC_1
 %precedence ';'
+%precedence ','
 
 %locations
 
@@ -322,31 +320,24 @@ BaseType
   | MapType
   {
     $$ = $1;
-   }
-  | SetType
+  }
+  | TupleType
   {
-    $$ = $1;
+    $$ = NULL;
   }
   ;
 
 ArrayType
-  : DIMS BaseType
+  : '[' Type ']'
   {
-    $$ = TypeDesc_Get_Array($1, $2);
+    $$ = NULL; //$$ = TypeDesc_Get_Array($1, $2);
   }
   ;
 
 MapType
-  : MAP '[' KeyType ']' Type
+  : '[' KeyType ':' Type ']'
   {
-    $$ = TypeDesc_Get_Map($3, $5);
-  }
-  ;
-
-SetType
-  : SET '[' KeyType ']'
-  {
-    $$ = TypeDesc_Get_Set($3);
+    $$ = TypeDesc_Get_Map($2, $4);
   }
   ;
 
@@ -390,6 +381,10 @@ PrimitiveType
   {
     $$ = TypeDesc_Get_Base(BASE_STRING);
   }
+  | ERROR
+  {
+    $$ = TypeDesc_Get_Base(BASE_ERROR);
+  }
   | ANY
   {
     $$ = TypeDesc_Get_Base(BASE_ANY);
@@ -407,6 +402,14 @@ KlassType
     DeclareIdent(id, $1, @1);
     DeclareIdent(klazz, $3, @3);
     $$ = Parser_New_KlassType(ps, &id, &klazz);
+  }
+  | ID '<' TypeList '>'
+  {
+
+  }
+  | ID '.' ID '<' TypeList '>'
+  {
+
   }
   ;
 
@@ -429,9 +432,72 @@ FunctionType
   {
     $$ = Parser_Get_Proto(NULL, NULL);
   }
+  | FUNC '(' TypeList ')' Type
+  {
+    /*
+    if ($3 == NULL || $5 == NULL) {
+      $$ = NULL;
+    } else {
+      Vector *pvec = Vector_New();
+      Vector *rvec = Vector_New();
+      IdType *idType;
+      Vector_ForEach(idType, $3) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(pvec, idType->type.desc);
+      }
+      Vector_ForEach(idType, $5) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(rvec, idType->type.desc);
+      }
+      $$ = TypeDesc_Get_Proto(pvec, rvec);
+    }
+    Free_IdTypeList($3);
+    Free_IdTypeList($5);
+    */
+  }
+  | FUNC '(' TypeList ')'
+  {
+    /*
+    if ($3 == NULL) {
+      $$ = NULL;
+    } else {
+      Vector *pvec = Vector_New();
+      IdType *idType;
+      Vector_ForEach(idType, $3) {
+        TYPE_INCREF(idType->type.desc);
+        Vector_Append(pvec, idType->type.desc);
+      }
+      $$ = TypeDesc_Get_Proto(pvec, NULL);
+    }
+    Free_IdTypeList($3);
+    */
+  }
   | FUNC error
   {
     YYSyntax_Error_Clear(@2, "(");
+    $$ = NULL;
+  }
+  | '(' ParameterList ')' Type
+  {
+
+  }
+  | '(' ParameterList ')'
+  {
+
+  }
+  | '(' ')' Type
+  {
+
+  }
+  | '(' ')'
+  {
+
+  }
+  ;
+
+TupleType
+  : '(' TypeList ')'
+  {
     $$ = NULL;
   }
   ;
@@ -523,6 +589,33 @@ VArgType
   | ELLIPSIS error
   {
 
+  }
+  ;
+
+TypeList
+  : Type
+  {
+    $$ = Vector_New();
+    DeclareType(type, $1, @1);
+    Vector_Append($$, New_IdType(NULL, type));
+  }
+  | TypeList ',' Type
+  {
+    if ($1 != NULL) {
+      $$ = $1;
+      DeclareType(type, $3, @3);
+      Vector_Append($$, New_IdType(NULL, type));
+    } else {
+      $$ = NULL;
+      /* FIXME: has error ? */
+      TYPE_DECREF($3);
+    }
+  }
+  | TypeList ',' error
+  {
+    Free_IdTypeList($1);
+    YYSyntax_Error_Clear(@3, "Type");
+    $$ = NULL;
   }
   ;
 
@@ -650,24 +743,24 @@ ModuleStatement
   }
   | VariableDeclaration
   {
-    Parser_New_Variables(ps, $1);
+    //Parser_New_Variables(ps, $1);
   }
   | ConstDeclaration
   {
-    Parser_New_Variables(ps, $1);
+    //Parser_New_Variables(ps, $1);
   }
   | FunctionDeclaration
   {
-    Parser_New_Function(ps, $1);
+    //Parser_New_Function(ps, $1);
   }
   | NATIVE ProtoDeclaration
   {
-    ((FuncDeclStmt *)$2)->native = 1;
-    Parser_New_Function(ps, $2);
+    //((FuncDeclStmt *)$2)->native = 1;
+    //Parser_New_Function(ps, $2);
   }
   | TypeDeclaration
   {
-    Parser_New_ClassOrTrait(ps, $1);
+    //Parser_New_ClassOrTrait(ps, $1);
   }
   | error
   {
@@ -676,25 +769,25 @@ ModuleStatement
   ;
 
 ConstDeclaration
-  : CONST IDList '=' ExpressionList ';'
+  : CONST ID '=' Expression ';'
   {
-    TypeWrapper type = {NULL};
-    $$ = Parser_Do_Constants(ps, $2, type, $4);
+    //TypeWrapper type = {NULL};
+    //$$ = Parser_Do_Constants(ps, $2, type, $4);
   }
-  | CONST IDList Type '=' ExpressionList ';'
+  | CONST ID Type '=' Expression ';'
   {
-    DeclareType(type, $3, @3);
-    $$ = Parser_Do_Constants(ps, $2, type, $5);
+    //DeclareType(type, $3, @3);
+    //$$ = Parser_Do_Constants(ps, $2, type, $5);
   }
-  | CONST IDList '=' error
+  | CONST ID '=' error
   {
-    Free_IdentList($2);
+    //Free_IdentList($2);
     YYSyntax_Error(@4, "expr-list");
     $$ = NULL;
   }
-  | CONST IDList Type '=' error
+  | CONST ID Type '=' error
   {
-    Free_IdentList($2);
+    //Free_IdentList($2);
     YYSyntax_Error(@5, "expr-list");
     $$ = NULL;
   }
@@ -706,36 +799,40 @@ ConstDeclaration
   ;
 
 VariableDeclaration
-  : VAR IDList Type ';'
+  : VAR ID Type ';'
   {
-    DeclareType(type, $3, @3);
-    $$ = Parser_Do_Variables(ps, $2, type, NULL);
+    //DeclareType(type, $3, @3);
+    //$$ = Parser_Do_Variables(ps, $2, type, NULL);
   }
-  | VAR IDList '=' ExpressionList ';'
+  | VAR ID '=' Expression ';'
   {
-    TypeWrapper type = {NULL};
-    $$ = Parser_Do_Variables(ps, $2, type, $4);
+    //TypeWrapper type = {NULL};
+    //$$ = Parser_Do_Variables(ps, $2, type, $4);
   }
-  | VAR IDList Type '=' ExpressionList ';'
+  | VAR ID Type '=' Expression ';'
   {
-    DeclareType(type, $3, @3);
-    $$ = Parser_Do_Variables(ps, $2, type, $5);
+    //DeclareType(type, $3, @3);
+    //$$ = Parser_Do_Variables(ps, $2, type, $5);
   }
-  | VAR IDList error
+  | VAR '(' IDList ')' '=' Expression ';'
   {
-    Free_IdentList($2);
+
+  }
+  | VAR ID error
+  {
+    //Free_IdentList($2);
     YYSyntax_Error(@3, "'TYPE' or '='");
     $$ = NULL;
   }
-  | VAR IDList '=' error
+  | VAR ID '=' error
   {
-    Free_IdentList($2);
+    //Free_IdentList($2);
     YYSyntax_Error(@4, "right's expression-list");
     $$ = NULL;
   }
-  | VAR IDList Type '=' error
+  | VAR ID Type '=' error
   {
-    Free_IdentList($2);
+    //Free_IdentList($2);
     YYSyntax_Error(@5, "right's expression-list");
     $$ = NULL;
   }
@@ -775,71 +872,128 @@ FunctionDeclaration
   ;
 
 TypeDeclaration
-  : CLASS ID ExtendsOrEmpty '{' ClassMemberDeclarationsOrEmpty '}'
+  : CLASS Name ExtendsOrEmpty WhereOrEmtpy '{' ClassMemberDeclsOrEmpty '}'
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_Klass(id, CLASS_KIND, $3, $5);
+    printf("class-1\n");
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_Klass(id, CLASS_KIND, $3, $5);
   }
-  | CLASS ID ExtendsOrEmpty ';'
+  | CLASS Name ExtendsOrEmpty WhereOrEmtpy ';'
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_Klass(id, CLASS_KIND, $3, NULL);
+    printf("class-2\n");
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_Klass(id, CLASS_KIND, $3, NULL);
   }
-  | TRAIT ID ExtendsOrEmpty '{' TraitMemberDeclarationsOrEmpty '}'
+  | TRAIT Name ExtendsOrEmpty WhereOrEmtpy '{' TraitMemberDeclsOrEmpty '}'
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_Klass(id, TRAIT_KIND, $3, $5);
+    printf("trait-1\n");
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_Klass(id, TRAIT_KIND, $3, $5);
   }
-  | TRAIT ID ExtendsOrEmpty ';'
+  | TRAIT Name ExtendsOrEmpty WhereOrEmtpy ';'
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_Klass(id, TRAIT_KIND, $3, NULL);
+    printf("trait-2\n");
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_Klass(id, TRAIT_KIND, $3, NULL);
   }
+  ;
+
+Name
+  : ID
+  | ID '<' GenericTypes '>'
+  {
+
+  } %prec PREC_0
+  | ID '<' GenericTypes '>' ';'
+  {
+
+  } %prec PREC_1
+  | ID ';' '<' GenericTypes '>'
+  {
+
+  } %prec PREC_0
+  | ID ';' '<' GenericTypes '>' ';'
+  {
+
+  } %prec PREC_1
+  ;
+
+GenericTypes
+  : GenericType
+  | GenericTypes ',' GenericType
+  ;
+
+GenericType
+  : ID
+  | ID ':' KlassType
   ;
 
 ExtendsOrEmpty
   : %empty
   {
     $$ = NULL;
-  }
+  } %prec PREC_0
   | EXTENDS KlassType WithesOrEmpty
   {
+    /*
     int size = Vector_Size($3);
     $$ = Vector_Capacity(size + 1);
     TYPE_INCREF($2);
     Vector_Append($$, $2);
     Vector_Concat($$, $3);
     Vector_Free_Self($3);
+    */
   }
+  | ';' EXTENDS KlassType WithesOrEmpty
+  {
+
+  } %prec PREC_1
   ;
 
 WithesOrEmpty
   : %empty
   {
     $$ = NULL;
-  }
+  } %prec PREC_0
   | Traits
   {
     $$ = $1;
   }
+  | ';' Traits
+  {
+    $$ = $2;
+  } %prec PREC_1
   ;
 
 Traits
   : WITH KlassType
   {
-    $$ = Vector_New();
-    TYPE_INCREF($2);
-    Vector_Append($$, $2);
-  }
+    //$$ = Vector_New();
+    //TYPE_INCREF($2);
+    //Vector_Append($$, $2);
+  } %prec PREC_0
   | Traits WITH KlassType
   {
-    $$ = $1;
-    TYPE_INCREF($3);
-    Vector_Append($$, $3);
-  }
+   // $$ = $1;
+   // TYPE_INCREF($3);
+   // Vector_Append($$, $3);
+  } %prec PREC_0
+  | WITH KlassType ';'
+  {
+
+  } %prec PREC_1
+  | Traits WITH KlassType ';'
+  {
+
+  } %prec PREC_1
   ;
 
-ClassMemberDeclarationsOrEmpty
+WhereOrEmtpy
+  : %empty
+  | WHERE GenericTypes
+  ;
+
+ClassMemberDeclsOrEmpty
   : %empty
   {
     $$ = NULL;
@@ -885,7 +1039,7 @@ ClassMemberDeclaration
   }
   ;
 
-TraitMemberDeclarationsOrEmpty
+TraitMemberDeclsOrEmpty
   : %empty
   {
     $$ = NULL;
@@ -971,10 +1125,6 @@ Block
   {
     $$ = $2;
   }
-  | '{' '}'
-  {
-    $$ = NULL;
-  }
   ;
 
 LocalStatements
@@ -1052,19 +1202,18 @@ LocalStatement
 ExprStatement
   : Expression ';'
   {
-    /* only allowed call expression */
     $$ = Stmt_From_Expr($1);
   }
   ;
 
 /*
  * TYPELESS_ASSIGN is used only in local blocks
- * ExpressionList is really IDList
+ * ExpressionList is really IDList??
  */
 VariableDeclarationTypeless
-  : ExpressionList TYPELESS_ASSIGN ExpressionList ';'
+  : Expression TYPELESS_ASSIGN Expression ';'
   {
-    $$ = Parser_Do_Typeless_Variables(ps, $1, $3);
+    //$$ = Parser_Do_Typeless_Variables(ps, $1, $3);
   }
   ;
 
@@ -1282,29 +1431,21 @@ Atom
   {
     $$ = $2;
   }
-  | ArrayCreationExpression
+  | ArrayExpression
   {
     $$ = $1;
   }
-  | SetCreationExpression
+  | MapExpression
   {
     $$ = $1;
   }
-  | ArrayOrSetInitializer
+  | ClosureExpression
   {
     $$ = $1;
   }
-  | MapCreationExpression
+  | TupleExpression
   {
-    $$ = $1;
-  }
-  | MapInitializer
-  {
-    $$ = $1;
-  }
-  | AnonyFuncExpression
-  {
-    $$ = $1;
+
   }
   ;
 
@@ -1346,97 +1487,31 @@ CONSTANT
   }
   ;
 
-ArrayCreationExpression
-  : DimExprList Type ArrayOrSetInitializer
-  {
-    DeclareType(type, $2, @2);
-    $$ = Parser_New_Array($1, 0, type, $3);
-    SetPosition($$->pos, @1);
-  }
-  | DimExprList Type
-  {
-    DeclareType(type, $2, @2);
-    $$ = Parser_New_Array($1, 0, type, NULL);
-    SetPosition($$->pos, @1);
-  } %prec PREC_0
-  | DIMS BaseType ArrayOrSetInitializer
-  {
-    DeclareType(type, $2, @2);
-    $$ = Parser_New_Array(NULL, $1, type, $3);
-    SetPosition($$->pos, @1);
-  }
-  | DIMS BaseType
-  {
-    DeclareType(type, $2, @2);
-    $$ = Parser_New_Array(NULL, $1, type, NULL);
-    SetPosition($$->pos, @1);
-  } %prec PREC_0
-  ;
-
-DimExprList
-  : '[' Expression ']'
-  {
-    $$ = Vector_New();
-    Vector_Append($$, $2);
-  }
-  | DimExprList '[' Expression ']'
-  {
-    $$ = $1;
-    Vector_Append($$, $3);
-  }
-  ;
-
-SetCreationExpression
-  : SetType ArrayOrSetInitializer
-  {
-    DeclareType(type, $1, @1);
-    $$ = Expr_From_Set(type, $2);
-    SetPosition($$->pos, @1);
-  }
-  | SetType
-  {
-    DeclareType(type, $1, @1);
-    $$ = Expr_From_Set(type, NULL);
-    SetPosition($$->pos, @1);
-  } %prec PREC_0
-  ;
-
-ArrayOrSetInitializer
-  : '{' ExpressionList '}'
+ArrayExpression
+  : '[' ExpressionList ']'
   {
     $$ = Expr_From_ArrayListExpr($2);
     SetPosition($$->pos, @1);
   }
-  | '{' ExpressionList ',' '}'
+  | '[' ExpressionList ',' ']'
   {
     /* last one with comma */
     $$ = Expr_From_ArrayListExpr($2);
     SetPosition($$->pos, @1);
   }
-  | '{' ExpressionList ';' '}'
+  | '[' ExpressionList ';' ']'
   {
     /* string newline will insert semicolon automatically */
     $$ = Expr_From_ArrayListExpr($2);
     SetPosition($$->pos, @1);
   }
-  ;
-
-MapCreationExpression
-  : MapType MapInitializer
+  | '[' ']'
   {
-    DeclareType(type, $1, @1);
-    $$ = Expr_From_Map(type, $2);
-    SetPosition($$->pos, @1);
+
   }
-  | MapType
-  {
-    DeclareType(type, $1, @1);
-    $$ = Expr_From_Map(type, NULL);
-    SetPosition($$->pos, @1);
-  } %prec PREC_0
   ;
 
-MapInitializer
+MapExpression
   : '{' MapKeyValueList '}'
   {
     $$ = Expr_From_MapListExpr($2);
@@ -1447,6 +1522,10 @@ MapInitializer
     /* last one with comma */
     $$ = Expr_From_MapListExpr($2);
     SetPosition($$->pos, @1);
+  }
+  | '{' ':' '}'
+  {
+
   }
   ;
 
@@ -1477,23 +1556,23 @@ MapKeyValue
   }
   ;
 
-AnonyFuncExpression
-  : FUNC '(' ParameterList ')' Type ExprListOrBlock
+ClosureExpression
+  : FUNC '(' ParameterList ')' Type ExprOrBlock
   {
     $$ = Expr_From_Anony($3, $5, $6);
     SetPosition($$->pos, @1);
   }
-  | FUNC '(' ParameterList ')' ExprListOrBlock
+  | FUNC '(' ParameterList ')' ExprOrBlock
   {
     $$ = Expr_From_Anony($3, NULL, $5);
     SetPosition($$->pos, @1);
   }
-  | FUNC '(' ')' Type ExprListOrBlock
+  | FUNC '(' ')' Type ExprOrBlock
   {
     $$ = Expr_From_Anony(NULL, $4, $5);
     SetPosition($$->pos, @1);
   }
-  | FUNC '(' ')' ExprListOrBlock
+  | FUNC '(' ')' ExprOrBlock
   {
     $$ = Expr_From_Anony(NULL, NULL, $4);
     SetPosition($$->pos, @1);
@@ -1503,30 +1582,26 @@ AnonyFuncExpression
     YYSyntax_ErrorMsg_Clear(@2, "invalid anonymous function");
     $$ = NULL;
   }
-  | '(' ParameterList ')' Type ExprListOrBlock
+  | '(' ParameterList ')' Type DASH_ARROW ExprOrBlock
   {
 
   }
-  | '(' ParameterList ')' ExprListOrBlock
+  | '(' ParameterList ')' DASH_ARROW ExprOrBlock
   {
 
   }
-  | '(' ')' Type ExprListOrBlock
+  | '(' ')' Type DASH_ARROW ExprOrBlock
   {
 
   }
-  | '(' ')' ExprListOrBlock
+  | '(' ')' DASH_ARROW ExprOrBlock
   {
 
   }
   ;
 
-ExprListOrBlock
-  : '{' ExpressionList '}'
-  {
-
-  }
-  | '{' ExpressionList ';' '}'
+ExprOrBlock
+  : '{' Expression '}'
   {
 
   }
@@ -1534,6 +1609,22 @@ ExprListOrBlock
   {
     $$ = $1;
   }
+  ;
+
+TupleExpression
+  : '(' Expression ',' ')'
+  {
+
+  }
+  | '(' TupleList Expression ')'
+  {
+
+  }
+  ;
+
+TupleList
+  : Expression ','
+  | TupleList Expression ','
   ;
 
 UnaryExpression
@@ -1770,7 +1861,7 @@ ExpressionList
   {
     $$ = Vector_New();
     Vector_Append($$, $1);
-  } %prec PREC_1
+  }
   | ExpressionList ',' Expression
   {
     $$ = $1;
@@ -1779,10 +1870,11 @@ ExpressionList
   ;
 
 Assignment
-  : ExpressionList '=' ExpressionList ';'
+  : PrimaryExpression AssignOp Expression ';'
   {
-    $$ = Parser_Do_Assignments(ps, $1, $3);
+    //$$ = Parser_Do_Assignments(ps, $1, $3);
   }
+/*
   | PrimaryExpression CompAssignOp Expression ';'
   {
     if (!Expr_Maybe_Stored($1)) {
@@ -1795,10 +1887,15 @@ Assignment
       $$ = Stmt_From_Assign($2, $1, $3);
     }
   }
+*/
   ;
 
-CompAssignOp
-  : PLUS_ASSGIN
+AssignOp
+  : '='
+  {
+    $$ = OP_ASSIGN;
+  }
+  | PLUS_ASSGIN
   {
     $$ = OP_PLUS_ASSIGN;
   }
