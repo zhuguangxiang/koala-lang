@@ -155,7 +155,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token TRAIT
 %token EXTENDS
 %token WITH
-%token WHERE
 %token IN
 %token CONST
 %token IMPORT
@@ -416,21 +415,33 @@ KlassType
 FunctionType
   : FUNC '(' ParameterList ')' Type
   {
-    $$ = Parser_Get_Proto($3, $5);
-    Free_IdTypeList($3);
+    //$$ = Parser_Get_Proto($3, $5);
+    //Free_IdTypeList($3);
+  }
+  | FUNC '<' GenericTypes '>' '(' ParameterList ')' Type
+  {
+
   }
   | FUNC '(' ParameterList ')'
   {
-    $$ = Parser_Get_Proto($3, NULL);
-    Free_IdTypeList($3);
+    //$$ = Parser_Get_Proto($3, NULL);
+    //Free_IdTypeList($3);
+  }
+  | FUNC '<' GenericTypes '>' '(' ParameterList ')'
+  {
+
   }
   | FUNC '(' ')' Type
   {
-    $$ = Parser_Get_Proto(NULL, $4);
+    //$$ = Parser_Get_Proto(NULL, $4);
+  }
+  | FUNC '<' GenericTypes '>' '(' ')' Type
+  {
+
   }
   | FUNC '(' ')'
   {
-    $$ = Parser_Get_Proto(NULL, NULL);
+    //$$ = Parser_Get_Proto(NULL, NULL);
   }
   | FUNC '(' TypeList ')' Type
   {
@@ -455,6 +466,10 @@ FunctionType
     Free_IdTypeList($5);
     */
   }
+  | FUNC '<' GenericTypes '>' '(' TypeList ')' Type
+  {
+
+  }
   | FUNC '(' TypeList ')'
   {
     /*
@@ -472,26 +487,14 @@ FunctionType
     Free_IdTypeList($3);
     */
   }
+  | FUNC '<' GenericTypes '>' '(' TypeList ')'
+  {
+
+  }
   | FUNC error
   {
     YYSyntax_Error_Clear(@2, "(");
     $$ = NULL;
-  }
-  | '(' ParameterList ')' Type
-  {
-
-  }
-  | '(' ParameterList ')'
-  {
-
-  }
-  | '(' ')' Type
-  {
-
-  }
-  | '(' ')'
-  {
-
   }
   ;
 
@@ -844,25 +847,25 @@ VariableDeclaration
   ;
 
 FunctionDeclaration
-  : FUNC ID '(' ParameterList ')' Type Block
+  : FUNC Name '(' ParameterList ')' Type ExprOrBlock
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_FuncDecl(id, $4, $6, $7);
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_FuncDecl(id, $4, $6, $7);
   }
-  | FUNC ID '(' ParameterList ')' Block
+  | FUNC Name '(' ParameterList ')' ExprOrBlock
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_FuncDecl(id, $4, NULL, $6);
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_FuncDecl(id, $4, NULL, $6);
   }
-  | FUNC ID '(' ')' Type Block
+  | FUNC Name '(' ')' Type ExprOrBlock
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_FuncDecl(id, NULL, $5, $6);
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_FuncDecl(id, NULL, $5, $6);
   }
-  | FUNC ID '(' ')' Block
+  | FUNC Name '(' ')' ExprOrBlock
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_FuncDecl(id, NULL, NULL, $5);
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_FuncDecl(id, NULL, NULL, $5);
   }
   | FUNC error
   {
@@ -872,25 +875,25 @@ FunctionDeclaration
   ;
 
 TypeDeclaration
-  : CLASS Name ExtendsOrEmpty WhereOrEmtpy '{' ClassMemberDeclsOrEmpty '}'
+  : CLASS Name ExtendsOrEmpty '{' ClassMemberDeclsOrEmpty '}'
   {
     printf("class-1\n");
     //DeclareIdent(id, $2, @2);
     //$$ = Stmt_From_Klass(id, CLASS_KIND, $3, $5);
   }
-  | CLASS Name ExtendsOrEmpty WhereOrEmtpy ';'
+  | CLASS Name ExtendsOrEmpty
   {
     printf("class-2\n");
     //DeclareIdent(id, $2, @2);
     //$$ = Stmt_From_Klass(id, CLASS_KIND, $3, NULL);
   }
-  | TRAIT Name ExtendsOrEmpty WhereOrEmtpy '{' TraitMemberDeclsOrEmpty '}'
+  | TRAIT Name ExtendsOrEmpty '{' TraitMemberDeclsOrEmpty '}'
   {
     printf("trait-1\n");
     //DeclareIdent(id, $2, @2);
     //$$ = Stmt_From_Klass(id, TRAIT_KIND, $3, $5);
   }
-  | TRAIT Name ExtendsOrEmpty WhereOrEmtpy ';'
+  | TRAIT Name ExtendsOrEmpty
   {
     printf("trait-2\n");
     //DeclareIdent(id, $2, @2);
@@ -932,7 +935,7 @@ ExtendsOrEmpty
   : %empty
   {
     $$ = NULL;
-  } %prec PREC_0
+  }
   | EXTENDS KlassType WithesOrEmpty
   {
     /*
@@ -944,10 +947,10 @@ ExtendsOrEmpty
     Vector_Free_Self($3);
     */
   }
-  | ';' EXTENDS KlassType WithesOrEmpty
+  | EXTENDS KlassType ';' WithesOrEmpty
   {
 
-  } %prec PREC_1
+  }
   ;
 
 WithesOrEmpty
@@ -959,10 +962,6 @@ WithesOrEmpty
   {
     $$ = $1;
   }
-  | ';' Traits
-  {
-    $$ = $2;
-  } %prec PREC_1
   ;
 
 Traits
@@ -986,11 +985,6 @@ Traits
   {
 
   } %prec PREC_1
-  ;
-
-WhereOrEmtpy
-  : %empty
-  | WHERE GenericTypes
   ;
 
 ClassMemberDeclsOrEmpty
@@ -1098,25 +1092,25 @@ FieldDeclaration
   ;
 
 ProtoDeclaration
-  : FUNC ID '(' ParameterList ')' Type ';'
+  : FUNC Name '(' ParameterList ')' Type ';'
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_ProtoDecl(id, $4, $6);
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_ProtoDecl(id, $4, $6);
   }
-  | FUNC ID '(' ParameterList ')' ';'
+  | FUNC Name '(' ParameterList ')' ';'
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_ProtoDecl(id, $4, NULL);
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_ProtoDecl(id, $4, NULL);
   }
-  | FUNC ID '(' ')' Type ';'
+  | FUNC Name '(' ')' Type ';'
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_ProtoDecl(id, NULL, $5);
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_ProtoDecl(id, NULL, $5);
   }
-  | FUNC ID '(' ')' ';'
+  | FUNC Name '(' ')' ';'
   {
-    DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_ProtoDecl(id, NULL, NULL);
+    //DeclareIdent(id, $2, @2);
+    //$$ = Stmt_From_ProtoDecl(id, NULL, NULL);
   }
   ;
 
@@ -1218,7 +1212,7 @@ VariableDeclarationTypeless
   ;
 
 IfStatement
-  : IF Expression Block OrElseStatement
+  : IF Expression ExprOrBlock OrElseStatement
   {
     //$$ = stmt_from_if($2, $3, $4);
     //$$->if_stmt.belse = 0;
@@ -1230,7 +1224,7 @@ OrElseStatement
   {
     $$ = NULL;
   }
-  | ELSE Block
+  | ELSE ExprOrBlock
   {
     //$$ = stmt_from_if(NULL, $2, NULL);
     //$$->if_stmt.belse = 1;
@@ -1243,7 +1237,7 @@ OrElseStatement
   ;
 
 WhileStatement
-  : WHILE Expression Block
+  : WHILE Expression ExprOrBlock
   {
     //stmt_from_while($2, $3, 1);
   }
@@ -1285,18 +1279,18 @@ CaseStatements
   ;
 
 CaseStatement
-  : CASE ExpressionList ':' Block
+  : CASE ExpressionList ':' ExprOrBlock
   {
     //$$ = new_test_block($2, $4);
   }
-  | DEFAULT ':' Block
+  | DEFAULT ':' ExprOrBlock
   {
     //$$ = new_test_block(NULL, $3);
   }
   ;
 
 ForStatement
-  : FOR IDList IN Expression Block
+  : FOR IDList IN Expression ExprOrBlock
   {
     $$ = NULL;
   }
@@ -1559,44 +1553,40 @@ MapKeyValue
 ClosureExpression
   : FUNC '(' ParameterList ')' Type ExprOrBlock
   {
-    $$ = Expr_From_Anony($3, $5, $6);
-    SetPosition($$->pos, @1);
+    //$$ = Expr_From_Anony($3, $5, $6);
+    //SetPosition($$->pos, @1);
+  }
+  | FUNC '<' GenericTypes '>' '(' ParameterList ')' Type ExprOrBlock
+  {
+
   }
   | FUNC '(' ParameterList ')' ExprOrBlock
   {
-    $$ = Expr_From_Anony($3, NULL, $5);
-    SetPosition($$->pos, @1);
+    //$$ = Expr_From_Anony($3, NULL, $5);
+    //SetPosition($$->pos, @1);
+  }
+  | FUNC '<' GenericTypes '>' '(' ParameterList ')' ExprOrBlock
+  {
+
   }
   | FUNC '(' ')' Type ExprOrBlock
   {
-    $$ = Expr_From_Anony(NULL, $4, $5);
-    SetPosition($$->pos, @1);
+    //$$ = Expr_From_Anony(NULL, $4, $5);
+    //SetPosition($$->pos, @1);
+  }
+  | FUNC '<' GenericTypes '>' '(' ')' Type ExprOrBlock
+  {
+
   }
   | FUNC '(' ')' ExprOrBlock
   {
-    $$ = Expr_From_Anony(NULL, NULL, $4);
-    SetPosition($$->pos, @1);
+    //$$ = Expr_From_Anony(NULL, NULL, $4);
+    //SetPosition($$->pos, @1);
   }
   | FUNC error
   {
     YYSyntax_ErrorMsg_Clear(@2, "invalid anonymous function");
     $$ = NULL;
-  }
-  | '(' ParameterList ')' Type DASH_ARROW ExprOrBlock
-  {
-
-  }
-  | '(' ParameterList ')' DASH_ARROW ExprOrBlock
-  {
-
-  }
-  | '(' ')' Type DASH_ARROW ExprOrBlock
-  {
-
-  }
-  | '(' ')' DASH_ARROW ExprOrBlock
-  {
-
   }
   ;
 
