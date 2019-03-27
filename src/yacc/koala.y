@@ -155,6 +155,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token TRAIT
 %token EXTENDS
 %token WITH
+%token ENUM
 %token IN
 %token CONST
 %token IMPORT
@@ -899,6 +900,18 @@ TypeDeclaration
     //DeclareIdent(id, $2, @2);
     //$$ = Stmt_From_Klass(id, TRAIT_KIND, $3, NULL);
   }
+  | ENUM Name '{' EnumDeclaration '}'
+  {
+
+  }
+  | ENUM Name '{' EnumDeclaration ',' '}'
+  {
+
+  }
+  | ENUM Name '{' EnumDeclaration ';' '}'
+  {
+
+  }
   ;
 
 Name
@@ -1112,6 +1125,13 @@ ProtoDeclaration
     //DeclareIdent(id, $2, @2);
     //$$ = Stmt_From_ProtoDecl(id, NULL, NULL);
   }
+  ;
+
+EnumDeclaration
+  : ID
+  | ID '(' TypeList ')'
+  | EnumDeclaration ',' ID
+  | EnumDeclaration ',' ID '(' TypeList ')'
   ;
 
 Block

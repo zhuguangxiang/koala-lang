@@ -165,6 +165,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "trait"          { YY_RETURN(TRAIT);           }
 "extends"        { YY_RETURN(EXTENDS);         }
 "with"           { YY_RETURN(WITH);            }
+"enum"           { YY_RETURN(ENUM);            }
 "in"             { YY_RETURN(IN);              }
 "const"          { YY_RETURN(CONST);           }
 "import"         { YY_RETURN(IMPORT);          }

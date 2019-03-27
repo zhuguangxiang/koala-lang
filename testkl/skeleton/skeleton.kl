@@ -233,7 +233,7 @@ trait Person<T:Abc, R> {
 }
 
 trait Person<T:Abc, R>
- {
+{
   func add(a T, b R) T {
     a + b
   }
@@ -271,6 +271,18 @@ var f = func() {1}
 func Hello<T: Person>(p T) T {
   t.hello()
   func<P:How, K:Ok>(a P, b K) How { a + b}(1, 2)
+}
+
+enum Result<T, E> {
+  Ok(T),
+  Err(E)
+}
+
+enum Option<V>
+{
+  Name(V),
+  None,
+  Value(int, string, bool)
 }
 
 /*
