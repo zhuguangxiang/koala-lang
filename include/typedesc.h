@@ -61,6 +61,7 @@ typedef enum desckind {
 #define BASE_FLOAT  'f'
 #define BASE_BOOL   'z'
 #define BASE_STRING 's'
+#define BASE_ERROR  'e'
 #define BASE_ANY    'A'
 
 /* constant value */

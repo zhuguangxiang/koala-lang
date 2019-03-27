@@ -75,6 +75,7 @@ struct base_type_s {
   {BASE_FLOAT,  "float",  &Float_Type,  "lang", "Float"  },
   {BASE_BOOL,   "bool",   &Bool_Type,   "lang", "Bool"   },
   {BASE_STRING, "string", &String_Type, "lang", "String" },
+  {BASE_ERROR,  "error",  &Error_Type,  "lang", "Error"  },
   {BASE_ANY,    "any",    &Any_Type,    "lang", "Any"    },
 };
 
