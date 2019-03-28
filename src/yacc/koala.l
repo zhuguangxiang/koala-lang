@@ -58,7 +58,7 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
     ID, CHAR_LITERAL, INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL,
     SELF, SUPER, TOKEN_NIL, TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
-    ')', ']', '}', '>',
+    ')', ']', '}',
     CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS,
   };
   int lastToken = ps->lastToken;

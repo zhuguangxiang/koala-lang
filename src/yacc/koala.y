@@ -209,7 +209,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> ClassMemberDeclarations
 %type <Stmt> ClassMemberDeclaration
 %type <List> ExtendsOrEmpty
-%type <List> WithesOrEmpty
 %type <List> Traits
 %type <List> TraitMemberDeclsOrEmpty
 %type <List> TraitMemberDeclarations
@@ -223,7 +222,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Stmt> ExprStatement
 %type <Stmt> VariableDeclarationTypeless
 %type <Stmt> Assignment
-%type <Stmt> IfStatement
+%type <Stmt> IfExpression
 %type <Stmt> OrElseStatement
 %type <Stmt> WhileStatement
 %type <Stmt> SwitchStatement
@@ -244,7 +243,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> MapExpression
 %type <List> MapKeyValueList
 %type <Expr> MapKeyValue
-%type <Expr> ClosureExpression
+%type <Expr> AnonyExpression
 %type <Expr> TupleExpression
 %type <Operator> UnaryOp
 %type <Expr> UnaryExpression
@@ -269,15 +268,9 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 
 %precedence PREC_0
 %precedence PREC_1
+
 %precedence ID
-%precedence '['
-%precedence ELLIPSIS
-%precedence '.'
-%precedence ')'
-%precedence '('
-%precedence '{'
 %precedence ';'
-%precedence ','
 
 %locations
 
@@ -414,37 +407,7 @@ KlassType
   ;
 
 FunctionType
-  : FUNC '(' ParameterList ')' Type
-  {
-    //$$ = Parser_Get_Proto($3, $5);
-    //Free_IdTypeList($3);
-  }
-  | FUNC '<' GenericTypes '>' '(' ParameterList ')' Type
-  {
-
-  }
-  | FUNC '(' ParameterList ')'
-  {
-    //$$ = Parser_Get_Proto($3, NULL);
-    //Free_IdTypeList($3);
-  }
-  | FUNC '<' GenericTypes '>' '(' ParameterList ')'
-  {
-
-  }
-  | FUNC '(' ')' Type
-  {
-    //$$ = Parser_Get_Proto(NULL, $4);
-  }
-  | FUNC '<' GenericTypes '>' '(' ')' Type
-  {
-
-  }
-  | FUNC '(' ')'
-  {
-    //$$ = Parser_Get_Proto(NULL, NULL);
-  }
-  | FUNC '(' TypeList ')' Type
+  : FUNC '(' TypeList ')' Type
   {
     /*
     if ($3 == NULL || $5 == NULL) {
@@ -491,6 +454,18 @@ FunctionType
   | FUNC '<' GenericTypes '>' '(' TypeList ')'
   {
 
+  }
+  | FUNC '(' ')' Type
+  {
+    //$$ = Parser_Get_Proto(NULL, $4);
+  }
+  | FUNC '<' GenericTypes '>' '(' ')' Type
+  {
+
+  }
+  | FUNC '(' ')'
+  {
+    //$$ = Parser_Get_Proto(NULL, NULL);
   }
   | FUNC error
   {
@@ -919,19 +894,11 @@ Name
   | ID '<' GenericTypes '>'
   {
 
-  } %prec PREC_0
-  | ID '<' GenericTypes '>' ';'
-  {
-
-  } %prec PREC_1
+  }
   | ID ';' '<' GenericTypes '>'
   {
 
-  } %prec PREC_0
-  | ID ';' '<' GenericTypes '>' ';'
-  {
-
-  } %prec PREC_1
+  }
   ;
 
 GenericTypes
@@ -949,7 +916,7 @@ ExtendsOrEmpty
   {
     $$ = NULL;
   }
-  | EXTENDS KlassType WithesOrEmpty
+  | EXTENDS KlassType
   {
     /*
     int size = Vector_Size($3);
@@ -960,44 +927,27 @@ ExtendsOrEmpty
     Vector_Free_Self($3);
     */
   }
-  | EXTENDS KlassType ';' WithesOrEmpty
+  | EXTENDS KlassType Traits
   {
 
-  }
-  ;
-
-WithesOrEmpty
-  : %empty
-  {
-    $$ = NULL;
-  } %prec PREC_0
-  | Traits
-  {
-    $$ = $1;
   }
   ;
 
 Traits
   : WITH KlassType
   {
+    printf("With\n");
     //$$ = Vector_New();
     //TYPE_INCREF($2);
     //Vector_Append($$, $2);
-  } %prec PREC_0
+  }
   | Traits WITH KlassType
   {
+    printf("With Traits\n");
    // $$ = $1;
    // TYPE_INCREF($3);
    // Vector_Append($$, $3);
-  } %prec PREC_0
-  | WITH KlassType ';'
-  {
-
-  } %prec PREC_1
-  | Traits WITH KlassType ';'
-  {
-
-  } %prec PREC_1
+  }
   ;
 
 ClassMemberDeclsOrEmpty
@@ -1177,10 +1127,6 @@ LocalStatement
   {
     $$ = $1;
   }
-  | IfStatement
-  {
-    $$ = $1;
-  }
   | WhileStatement
   {
     $$ = $1;
@@ -1231,7 +1177,7 @@ VariableDeclarationTypeless
   }
   ;
 
-IfStatement
+IfExpression
   : IF Expression ExprOrBlock OrElseStatement
   {
     //$$ = stmt_from_if($2, $3, $4);
@@ -1249,7 +1195,7 @@ OrElseStatement
     //$$ = stmt_from_if(NULL, $2, NULL);
     //$$->if_stmt.belse = 1;
   }
-  | ELSE IfStatement
+  | ELSE IfExpression
   {
     //$$ = $2;
     //$$->if_stmt.belse = 1;
@@ -1453,11 +1399,15 @@ Atom
   {
     $$ = $1;
   }
-  | ClosureExpression
+  | TupleExpression
+  {
+
+  }
+  | AnonyExpression
   {
     $$ = $1;
   }
-  | TupleExpression
+  | LambdaExpression
   {
 
   }
@@ -1570,33 +1520,37 @@ MapKeyValue
   }
   ;
 
-ClosureExpression
+TupleExpression
+  : '(' Expression ',' ')'
+  {
+
+  }
+  | '(' ExpressionListComma Expression ')'
+  {
+
+  }
+  ;
+
+ExpressionListComma
+  : Expression ','
+  | ExpressionListComma Expression ','
+  ;
+
+AnonyExpression
   : FUNC '(' ParameterList ')' Type ExprOrBlock
   {
     //$$ = Expr_From_Anony($3, $5, $6);
     //SetPosition($$->pos, @1);
-  }
-  | FUNC '<' GenericTypes '>' '(' ParameterList ')' Type ExprOrBlock
-  {
-
   }
   | FUNC '(' ParameterList ')' ExprOrBlock
   {
     //$$ = Expr_From_Anony($3, NULL, $5);
     //SetPosition($$->pos, @1);
   }
-  | FUNC '<' GenericTypes '>' '(' ParameterList ')' ExprOrBlock
-  {
-
-  }
   | FUNC '(' ')' Type ExprOrBlock
   {
     //$$ = Expr_From_Anony(NULL, $4, $5);
     //SetPosition($$->pos, @1);
-  }
-  | FUNC '<' GenericTypes '>' '(' ')' Type ExprOrBlock
-  {
-
   }
   | FUNC '(' ')' ExprOrBlock
   {
@@ -1621,20 +1575,19 @@ ExprOrBlock
   }
   ;
 
-TupleExpression
-  : '(' Expression ',' ')'
+LambdaExpression
+  : '(' ExpressionListComma Expression ')' DASH_ARROW ExprOrBlock
   {
 
   }
-  | '(' TupleList Expression ')'
+  | '(' Expression ')' DASH_ARROW ExprOrBlock
   {
 
   }
-  ;
+  | '(' ')' DASH_ARROW ExprOrBlock
+  {
 
-TupleList
-  : Expression ','
-  | TupleList Expression ','
+  }
   ;
 
 UnaryExpression
@@ -1849,11 +1802,7 @@ RangeExpression
   ;
 
 WithExpression
-  : RangeExpression
-  {
-    $$ = $1;
-  }
-  | RangeExpression Traits
+  : LogicOrExpression Traits
   {
     $$ = NULL;
   }
@@ -1862,7 +1811,16 @@ WithExpression
 Expression
   : WithExpression
   {
+    printf("WithExpression\n");
     $$ = $1;
+  }
+  | RangeExpression
+  {
+
+  }
+  | IfExpression
+  {
+
   }
   ;
 
