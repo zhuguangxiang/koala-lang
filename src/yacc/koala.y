@@ -1812,13 +1812,13 @@ NoBockExprOrBlock
   }
   ;
 
-/* IDList or ID */
+/* IDList */
 LambdaExpression
   : '(' ExpressionListComma Expression ')' FAT_ARROW NoBockExprOrBlock
   {
     printf("NoBockExprOrBlock-1\n");
   }
-  | '(' Expression ')' FAT_ARROW NoBockExprOrBlock
+  | '(' ID ')' FAT_ARROW NoBockExprOrBlock
   {
     printf("NoBockExprOrBlock-2\n");
   }

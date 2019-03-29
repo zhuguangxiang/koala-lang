@@ -197,6 +197,9 @@ var (t1, t2) = (1, 2)
 var t3 (int, int) = (100, 200)
 var t4 = (1, 2)
 
+var f = (a, b) => a + 2 * b
+var f func(int) int = (a) => a + 2 * a
+
 //function
 func add(a int, b int) int {
   //  io.Println(a, b);
