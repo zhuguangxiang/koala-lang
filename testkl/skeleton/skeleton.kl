@@ -50,6 +50,8 @@ func testmatch(x any) {
   }
 
   match x {
+    1 => 1,
+    'a' => 'a',
     'a' | 'b' | 'c' => "ABC",
     1 | 2 | 3 => a + b | 2,
     'a' ... 'z' => { println("alpha") },
