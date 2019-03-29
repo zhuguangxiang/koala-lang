@@ -21,22 +21,141 @@
  */
 
 package skeleton
-//package 123
-//package func
-//package
-//package skeleton skeleton
-//import "skeleton"
-//import os "io"
-//import nio "io"
-//import "os"
-//import SayHello "os"
-//import "io"
-//import . "os"
 
-//import
-//import 123
-//import "io" "io"
-//import io "io" io
+func testmatch(x any) {
+  var num = Some(4)
+
+  match num {
+    Some(x) if x < 5 => println("less than five: {}", x),
+    Some(x) => println("{}", x),
+    None => (),
+  }
+
+  var x = Some(5);
+  var y = 10;
+
+  match x {
+    Some(50) => println("Got 50"),
+    Some(n) if n == y => println("Matched, n = {:?}", n),
+    _ => println("Default case, x = {:?}", x),
+  }
+  println("at the end: x = {:?}, y = {:?}", x, y);
+
+  var x = 4;
+  var y = false;
+
+  match x {
+    4 | 5 | 6 if y => println("yes"),
+    _ => println("no"),
+  }
+
+  match x {
+    'a' | 'b' | 'c' => "ABC",
+    1 | 2 | 3 => a + b | 2,
+    'a' ... 'z' => { println("alpha") },
+    true => true,
+    false => false,
+    1+2 ... 10 => 3...10,
+    Ok (x) => "no error",
+    Err (e) => "error",
+    foo.Some(x) if x > 4 => "value is greater than 4",
+    foo.Some(50) => "some",
+    foo.Some(x, y, z) => "OK",
+    foo.None => "none",
+    "hello" => {
+      io.puts("hello"); "hello";
+    },
+    _ => err,
+    (0, y) => println("y={}", y),
+    (x, 0) => println("x={}", x),
+    None => (),
+  }
+}
+
+func testexpr() {
+  [1,2,3]
+  [1,2,3,]
+  (1,2,3)
+  (1,2,3,)
+  {"hello": "world", "good": "luck"}
+  {"hello": "world", "good": "luck",}
+  [
+    1,
+    2,
+    3,
+  ]
+  [
+    [1,2],
+    [1,2],
+  ]
+  foo.bar()
+  foo[1:3]
+  bar[:3]
+  foo[4:]
+  bar[:]
+
+  func(a int, b string) Foo {
+    a + b
+  }
+
+  (a) => 123
+  (a, b) => println("hello")
+  (a, b) => {println("hello")}
+  (a, b) => {println("hello"); 123;}
+  (a, b) => {
+    println("hello")
+  }
+
+  1 + 2 * a / b % c * (-a) | b & c and (~z) or 1 and (not true)
+  1 >> 2 << 3
+  1 > 2 < 3 >= 4 <= 5 != 6
+
+  a = 1
+  a += 2
+  a >>= b
+
+  1...3
+  1..<4
+}
+
+class Person : Dog, Cat {
+  func foo(a int) {
+
+  }
+}
+
+trait Person : Dog, Cat {
+  func foo(a int) {
+
+  }
+}
+
+class Person : Dog, Cat;
+trait Person : Dog, Cat
+
+enum Result<T, E> {
+  Ok(T),
+  Err(E),
+}
+
+enum Option<V>
+{
+  Name(V),
+  None,
+  Value(int, string, bool),
+}
+
+func Hello<T: Person>(p T) T {
+  t.hello()
+}
+
+class Person<T:Abc, R, K, J> : Animal<T, R> , Dog<H, J> {
+  func add(a T, b R) T {
+    a + b
+    for i in 1..<10 { io.Println(i) }
+  }
+  func sub<P:How, K:Ok>(a P, b K) {How}
+}
 
 //constants
 const K1 = "Hello, Koala"
@@ -45,12 +164,7 @@ const K3 = "hello"
 const K4 = K1
 const K5 = 100
 
-//import "io"
-//var K7 int;
-
 //variables
-//var SayHello int
-//var io int
 var v1 = 1
 var ch = '汉'
 var ok = true
@@ -64,13 +178,7 @@ var func_callback func(int, int) int = add
 var gf func<T, R>(T, R) int = add
 var func_cb2 = func_callback
 var result2 = func_callback(1, 3)
-
-var v3  = 100
-
-var v5 = sub(1, 2)
-
-var v7 int = sub(1, 2)
-
+var p Person<string, int> = Person()
 
 var vv1 = 1 + 2 - 3
 var vv2 = 1 + '中' //1 + true
@@ -82,18 +190,14 @@ var vv6 = 1 + " 0xdeadbeaf  "
 //var vv8 = 1 + " 0999 "
 var vv9 = 1 + "0100"
 var vv10 = 1 + K7
-//var vv11 = 1 + K1
-
-//var vv2 = 1 + 2 > 3 -1
 
 var (t1, t2) = (1, 2)
 var t3 (int, int) = (100, 200)
 var t4 = (1, 2)
 
-
 //function
 func add(a int, b int) int {
-//  io.Println(a, b);
+  //  io.Println(a, b);
   aa := "how are you?"
   {
     var cc = 100
@@ -111,25 +215,13 @@ func add(a int, b int) int {
   anony := func(a int) (int, int) {
     (1, 2)
   }
-  (a, b) -> {a + b}
-  (a)-> {a + b}
+
+  (a, b) => {a + b}
+  (a)=> {a + b}
   // a, b = anony(1)
-  list.map((a, b) -> {a + 2 * b}).filter((f) -> {println("{}", f)})
+  list.map((a, b) => {a + 2 * b}).filter((f) => println("{}", f))
   return 123
-}
 
-func sub(aa int, bb int) (int, int) {
-  func_callback(aa, bb)
-  var hello int
-  //hello += 2;
-  {
-    return (1, 2)
-  }
-  return (2, 1, "hello")
-}
-
-func mul(a int, b int) int {
-  return 1
   ["hello", "汉字"]
   [[1,2], [3,4],[5,6]]
   [
@@ -155,9 +247,9 @@ func mul(a int, b int) int {
       "k33": [
         1,
         2,
-        3
+        3,
       ],
-      "k34": nil
+      "k34": nil,
     },
   }
   arr[1:4]
@@ -165,127 +257,19 @@ func mul(a int, b int) int {
   arr[:3]
   arr[1+2:-1]
 
-  num := func(a int, b int) int {a + b}
-  func() {println("hello")}
+  for i in 1..<20 {
 
-  Person() with Dog
-  Person() with Dog with cat
-  var val = if a > b {a} else {b}
-  if a > b {a} else {b}
-
-}
-
-class Person {
-  func add(a int, b string) bool {
-    a + b
   }
-}
 
-class Person extends Animal with Dog with Cat {
-  func add(a int, b string) bool {
-    a + b
+  if true {
+
+  } else if false {
+
+  } else {
+
   }
-}
 
-class Person<T, R> {
-  func add(a T, b R) T {
-    a + b
+  while i > 10 {
+    break
   }
-}
-
-class Person<T:Abc, R> {
-  func add(a T, b R) T {
-    a + b
-  }
-}
-
-class Person
-  <T:Abc,
-  R,
-  K,
-  J>
-  extends Animal with Dog {
-  func add(a T, b R) T {
-    a + b
-  }
-}
-
-class Person<T:Abc, R, K, J> extends Animal<T, R> with Dog<H, J> {
-  func add(a T, b R) T {
-    a + b
-  }
-}
-
-trait Person {
-  func add(a int, b string) bool {
-    a + b
-  }
-}
-
-trait Person extends Animal with Dog with Cat {
-  func add(a int, b string) bool {
-    a + b
-  }
-}
-
-trait Person<T, R> {
-  func add(a T, b R) T {
-    a + b
-  }
-}
-
-trait Person<T:Abc, R> {
-  func add(a T, b R) T {
-    a + b
-  }
-}
-
-trait Person<T:Abc, R>
-{
-  func add(a T, b R) T {
-    a + b
-  }
-}
-
-trait Person
-  <T:Abc,
-  R,
-  K,
-  J>
-  extends Animal with Dog {
-  func add(a T, b R) T {
-    a + b
-  }
-}
-
-trait Person<T:Abc, R>
-  extends Animal with Dog
-
-trait Person<T:Abc, R, K, J> extends Animal<T, R> with Dog<H, J> {
-  func add(a T, b R) T {
-    a + b
-    for i in 1..<10 { io.Println(i) }
-  }
-  func sub<P:How, K:Ok>(a P, b K) How
-}
-
-var p Person<string, int> = Person();
-
-var f = func() {1}
-
-
-func Hello<T: Person>(p T) T {
-  t.hello()
-}
-
-enum Result<T, E> {
-  Ok(T),
-  Err(E)
-}
-
-enum Option<V>
-{
-  Name(V),
-  None,
-  Value(int, string, bool)
 }

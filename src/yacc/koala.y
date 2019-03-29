@@ -123,7 +123,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token RSHIFT_ASSIGN
 %token LSHIFT_ASSIGN
 %token OP_POWER
-%token ELLIPSIS
+%token DOTDOTDOT
 %token DOTDOTLESS
 
 %token OP_EQ
@@ -141,20 +141,17 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token ELSE
 %token WHILE
 %token FOR
-%token SWITCH
-%token CASE
+%token MATCH
 %token BREAK
 %token FALLTHROUGH
 %token CONTINUE
 %token DEFAULT
 %token VAR
 %token FUNC
-%token DASH_ARROW
+%token FAT_ARROW
 %token TOKEN_RETURN
 %token CLASS
 %token TRAIT
-%token EXTENDS
-%token WITH
 %token ENUM
 %token IN
 %token CONST
@@ -209,6 +206,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> ClassMemberDeclarations
 %type <Stmt> ClassMemberDeclaration
 %type <List> ExtendsOrEmpty
+%type <List> WithesOrEmpty
 %type <List> Traits
 %type <List> TraitMemberDeclsOrEmpty
 %type <List> TraitMemberDeclarations
@@ -222,12 +220,11 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Stmt> ExprStatement
 %type <Stmt> VariableDeclarationTypeless
 %type <Stmt> Assignment
-%type <Stmt> IfExpression
+%type <Stmt> IfStatement
 %type <Stmt> OrElseStatement
 %type <Stmt> WhileStatement
-%type <Stmt> SwitchStatement
-%type <Stmt> CaseStatements
-//%type <testblock> CaseStatement
+%type <Stmt> MatchStatement
+%type <List> MatchClauses
 %type <Stmt> ForStatement
 %type <Stmt> JumpStatement
 %type <Stmt> ReturnStatement
@@ -258,19 +255,24 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> LogicAndExpression
 %type <Expr> LogicOrExpression
 %type <Expr> RangeExpression
-%type <Expr> WithExpression
 %type <Expr> Expression
 %type <List> ExpressionList
 %type <Operator> AssignOp
 
+/*
 %token PREC_0
 %token PREC_1
 
 %precedence PREC_0
 %precedence PREC_1
+*/
 
+%precedence INT_LITERAL CHAR_LITERAL
+%precedence '|'
 %precedence ID
-%precedence ';'
+%precedence '(' '.'
+%precedence ')'
+%precedence FAT_ARROW
 
 %locations
 
@@ -467,11 +469,6 @@ FunctionType
   {
     //$$ = Parser_Get_Proto(NULL, NULL);
   }
-  | FUNC error
-  {
-    YYSyntax_Error_Clear(@2, "(");
-    $$ = NULL;
-  }
   ;
 
 TupleType
@@ -557,17 +554,13 @@ ParameterList
   ;
 
 VArgType
-  : ELLIPSIS
+  : DOTDOTDOT
   {
     $$ = TypeDesc_Get_Varg(NULL);
   }
-  | ELLIPSIS BaseType
+  | DOTDOTDOT BaseType
   {
     $$ = TypeDesc_Get_Varg($2);
-  }
-  | ELLIPSIS error
-  {
-
   }
   ;
 
@@ -797,12 +790,6 @@ VariableDeclaration
   {
 
   }
-  | VAR ID error
-  {
-    //Free_IdentList($2);
-    YYSyntax_Error(@3, "'TYPE' or '='");
-    $$ = NULL;
-  }
   | VAR ID '=' error
   {
     //Free_IdentList($2);
@@ -883,19 +870,11 @@ TypeDeclaration
   {
 
   }
-  | ENUM Name '{' EnumDeclaration ';' '}'
-  {
-
-  }
   ;
 
 Name
   : ID
   | ID '<' GenericTypes '>'
-  {
-
-  }
-  | ID ';' '<' GenericTypes '>'
   {
 
   }
@@ -916,7 +895,7 @@ ExtendsOrEmpty
   {
     $$ = NULL;
   }
-  | EXTENDS KlassType
+  | ':' KlassType WithesOrEmpty
   {
     /*
     int size = Vector_Size($3);
@@ -927,21 +906,27 @@ ExtendsOrEmpty
     Vector_Free_Self($3);
     */
   }
-  | EXTENDS KlassType Traits
-  {
+  ;
 
+WithesOrEmpty
+  : %empty
+  {
+  }
+  | Traits
+  {
+    //$$ = $1;
   }
   ;
 
 Traits
-  : WITH KlassType
+  : ',' KlassType
   {
     printf("With\n");
     //$$ = Vector_New();
     //TYPE_INCREF($2);
     //Vector_Append($$, $2);
   }
-  | Traits WITH KlassType
+  | Traits ',' KlassType
   {
     printf("With Traits\n");
    // $$ = $1;
@@ -1089,6 +1074,10 @@ Block
   {
     $$ = $2;
   }
+  | '{' '}'
+  {
+    $$ = NULL;
+  }
   ;
 
 LocalStatements
@@ -1127,11 +1116,15 @@ LocalStatement
   {
     $$ = $1;
   }
+  | IfStatement
+  {
+    $$ = $1;
+  }
   | WhileStatement
   {
     $$ = $1;
   }
-  | SwitchStatement
+  | MatchStatement
   {
     $$ = $1;
   }
@@ -1177,7 +1170,7 @@ VariableDeclarationTypeless
   }
   ;
 
-IfExpression
+IfStatement
   : IF Expression ExprOrBlock OrElseStatement
   {
     //$$ = stmt_from_if($2, $3, $4);
@@ -1195,7 +1188,7 @@ OrElseStatement
     //$$ = stmt_from_if(NULL, $2, NULL);
     //$$->if_stmt.belse = 1;
   }
-  | ELSE IfExpression
+  | ELSE IfStatement
   {
     //$$ = $2;
     //$$->if_stmt.belse = 1;
@@ -1209,22 +1202,27 @@ WhileStatement
   }
   ;
 
-SwitchStatement
-  : SWITCH Expression '{' CaseStatements '}'
+MatchStatement
+  : MATCH Expression '{' MatchClauses '}'
   {
+    printf("MatchStatement-1\n");
     $$ = NULL;
+  }
+  | MATCH Expression '{' MatchClauses ',' '}'
+  {
+
   }
   ;
 
-CaseStatements
-  : CaseStatement
+MatchClauses
+  : MatchClause
   {
     /*
     $$ = Vector_New();
     Vector_Append($$, $1);
     */
   }
-  | CaseStatements CaseStatement
+  | MatchClauses ',' MatchClause
   {
     /*
     $$ = $1;
@@ -1244,15 +1242,44 @@ CaseStatements
   }
   ;
 
-CaseStatement
-  : CASE ExpressionList ':' ExprOrBlock
+MatchClause
+  : PatternExpression PatternStrict FAT_ARROW PatternClause
   {
     //$$ = new_test_block($2, $4);
   }
-  | DEFAULT ':' ExprOrBlock
-  {
-    //$$ = new_test_block(NULL, $3);
-  }
+  ;
+
+PatternExpression
+  : '_'
+  | CONSTANT
+  | IntOr INT_LITERAL
+  | CharOr CHAR_LITERAL
+  | RangeExpression
+  | ID
+  | ID '(' ExpressionList ')'
+  | ID '.' ID
+  | ID '.' ID '(' ExpressionList ')'
+  | TupleExpression
+  ;
+
+PatternStrict
+  : %empty
+  | IF Expression
+  ;
+
+PatternClause
+  : ExprOrBlock
+  | Expression
+  ;
+
+IntOr
+  : INT_LITERAL '|'
+  | IntOr INT_LITERAL '|'
+  ;
+
+CharOr
+  : CHAR_LITERAL '|'
+  | CharOr CHAR_LITERAL '|'
   ;
 
 ForStatement
@@ -1377,6 +1404,11 @@ Atom
   {
     $$ = $1;
   }
+  | TOKEN_NIL
+  {
+    $$ = Expr_From_Nil();
+    SetPosition($$->pos, @1);
+  }
   | SELF
   {
     $$ = Expr_From_Self();
@@ -1407,10 +1439,6 @@ Atom
   {
     $$ = $1;
   }
-  | LambdaExpression
-  {
-
-  }
   ;
 
 CONSTANT
@@ -1434,11 +1462,6 @@ CONSTANT
     $$ = Expr_From_String($1.str);
     SetPosition($$->pos, @1);
   }
-  | TOKEN_NIL
-  {
-    $$ = Expr_From_Nil();
-    SetPosition($$->pos, @1);
-  }
   | TOKEN_TRUE
   {
     $$ = Expr_From_Bool(1);
@@ -1460,12 +1483,6 @@ ArrayExpression
   | '[' ExpressionList ',' ']'
   {
     /* last one with comma */
-    $$ = Expr_From_ArrayListExpr($2);
-    SetPosition($$->pos, @1);
-  }
-  | '[' ExpressionList ';' ']'
-  {
-    /* string newline will insert semicolon automatically */
     $$ = Expr_From_ArrayListExpr($2);
     SetPosition($$->pos, @1);
   }
@@ -1512,12 +1529,6 @@ MapKeyValue
     $$ = Expr_From_MapEntry($1, $3);
     SetPosition($$->pos, @1);
   }
-  | Expression ':' Expression ';'
-  {
-    /* string newline will insert semicolon automatically */
-    $$ = Expr_From_MapEntry($1, $3);
-    SetPosition($$->pos, @1);
-  }
   ;
 
 TupleExpression
@@ -1526,6 +1537,14 @@ TupleExpression
 
   }
   | '(' ExpressionListComma Expression ')'
+  {
+
+  }
+  | '(' ExpressionListComma Expression ',' ')'
+  {
+
+  }
+  | '(' ')'
   {
 
   }
@@ -1572,21 +1591,6 @@ ExprOrBlock
   | Block
   {
     $$ = $1;
-  }
-  ;
-
-LambdaExpression
-  : '(' ExpressionListComma Expression ')' DASH_ARROW ExprOrBlock
-  {
-
-  }
-  | '(' Expression ')' DASH_ARROW ExprOrBlock
-  {
-
-  }
-  | '(' ')' DASH_ARROW ExprOrBlock
-  {
-
   }
   ;
 
@@ -1787,11 +1791,7 @@ LogicOrExpression
   ;
 
 RangeExpression
-  : LogicOrExpression
-  {
-    $$ = $1;
-  }
-  | LogicOrExpression ELLIPSIS LogicOrExpression
+  : LogicOrExpression DOTDOTDOT LogicOrExpression
   {
     $$ = NULL;
   }
@@ -1801,24 +1801,43 @@ RangeExpression
   }
   ;
 
-WithExpression
-  : LogicOrExpression Traits
+NoBockExprOrBlock
+  : Expression
   {
-    $$ = NULL;
+    printf("NoBockExprOrBlock-1\n");
+  }
+  | ExprOrBlock
+  {
+    printf("NoBockExprOrBlock-2\n");
+  }
+  ;
+
+/* IDList or ID */
+LambdaExpression
+  : '(' ExpressionListComma Expression ')' FAT_ARROW NoBockExprOrBlock
+  {
+    printf("NoBockExprOrBlock-1\n");
+  }
+  | '(' Expression ')' FAT_ARROW NoBockExprOrBlock
+  {
+    printf("NoBockExprOrBlock-2\n");
+  }
+  | '(' ')' FAT_ARROW NoBockExprOrBlock
+  {
+    printf("NoBockExprOrBlock-3\n");
   }
   ;
 
 Expression
-  : WithExpression
+  : LogicOrExpression
   {
-    printf("WithExpression\n");
     $$ = $1;
   }
   | RangeExpression
   {
 
   }
-  | IfExpression
+  | LambdaExpression
   {
 
   }

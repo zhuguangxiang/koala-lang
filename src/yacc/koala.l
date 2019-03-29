@@ -59,7 +59,7 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
     SELF, SUPER, TOKEN_NIL, TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
     ')', ']', '}',
-    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, ELLIPSIS,
+    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, DOTDOTDOT,
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
@@ -142,18 +142,17 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "^="             { YY_RETURN(XOR_ASSIGN);      }
 ">>="            { YY_RETURN(RSHIFT_ASSIGN);   }
 "<<="            { YY_RETURN(LSHIFT_ASSIGN);   }
-"..."            { YY_RETURN(ELLIPSIS);        }
+"..."            { YY_RETURN(DOTDOTDOT);       }
 "**"             { YY_RETURN(OP_POWER);        }
 "..<"            { YY_RETURN(DOTDOTLESS);      }
-"->"             { YY_RETURN(DASH_ARROW);      }
+"=>"             { YY_RETURN(FAT_ARROW);       }
 
 "package"        { YY_RETURN(PACKAGE);         }
 "if"             { YY_RETURN(IF);              }
 "else"           { YY_RETURN(ELSE);            }
 "while"          { YY_RETURN(WHILE);           }
 "for"            { YY_RETURN(FOR);             }
-"switch"         { YY_RETURN(SWITCH);          }
-"case"           { YY_RETURN(CASE);            }
+"match"          { YY_RETURN(MATCH);           }
 "fallthrough"    { YY_RETURN(FALLTHROUGH);     }
 "break"          { YY_RETURN(BREAK);           }
 "continue"       { YY_RETURN(CONTINUE);        }
@@ -163,8 +162,6 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "return"         { YY_RETURN(TOKEN_RETURN);    }
 "class"          { YY_RETURN(CLASS);           }
 "trait"          { YY_RETURN(TRAIT);           }
-"extends"        { YY_RETURN(EXTENDS);         }
-"with"           { YY_RETURN(WITH);            }
 "enum"           { YY_RETURN(ENUM);            }
 "in"             { YY_RETURN(IN);              }
 "const"          { YY_RETURN(CONST);           }
