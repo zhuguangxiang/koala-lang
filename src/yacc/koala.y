@@ -1243,7 +1243,7 @@ MatchClauses
   ;
 
 MatchClause
-  : PatternExpression PatternStrict FAT_ARROW PatternClause
+  : PatternExpression PatternCondition FAT_ARROW PatternClause
   {
     //$$ = new_test_block($2, $4);
   }
@@ -1262,7 +1262,7 @@ PatternExpression
   | TupleExpression
   ;
 
-PatternStrict
+PatternCondition
   : %empty
   | IF Expression
   ;
