@@ -120,8 +120,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token AND_ASSIGN
 %token OR_ASSIGN
 %token XOR_ASSIGN
-%token RSHIFT_ASSIGN
-%token LSHIFT_ASSIGN
 %token OP_POWER
 %token DOTDOTDOT
 %token DOTDOTLESS
@@ -133,8 +131,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token OP_AND
 %token OP_OR
 %token OP_NOT
-%token OP_LSHIFT
-%token OP_RSHIFT
 
 %token PACKAGE
 %token IF
@@ -246,7 +242,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> UnaryExpression
 %type <Expr> MultipleExpression
 %type <Expr> AddExpression
-%type <Expr> ShiftExpression
 %type <Expr> RelationExpression
 %type <Expr> EqualityExpression
 %type <Expr> AndExpression
@@ -389,6 +384,7 @@ PrimitiveType
 KlassType
   : ID
   {
+    printf("111TYPE-%s\n", $1.str);
     DeclareIdent(klazz, $1, @1);
     $$ = Parser_New_KlassType(ps, NULL, &klazz);
   }
@@ -400,7 +396,7 @@ KlassType
   }
   | ID '<' TypeList '>'
   {
-
+    printf("22TYPE-%s\n", $1.str);
   }
   | ID '.' ID '<' TypeList '>'
   {
@@ -567,27 +563,25 @@ VArgType
 TypeList
   : Type
   {
+    /*
     $$ = Vector_New();
     DeclareType(type, $1, @1);
     Vector_Append($$, New_IdType(NULL, type));
+    */
   }
   | TypeList ',' Type
   {
+    /*
     if ($1 != NULL) {
       $$ = $1;
       DeclareType(type, $3, @3);
       Vector_Append($$, New_IdType(NULL, type));
     } else {
       $$ = NULL;
-      /* FIXME: has error ? */
+      // FIXME: has error ?
       TYPE_DECREF($3);
     }
-  }
-  | TypeList ',' error
-  {
-    Free_IdTypeList($1);
-    YYSyntax_Error_Clear(@3, "Type");
-    $$ = NULL;
+    */
   }
   ;
 
@@ -887,7 +881,12 @@ GenericTypes
 
 GenericType
   : ID
-  | ID ':' KlassType
+  | ID ':' KlassTypeList
+  ;
+
+KlassTypeList
+  : KlassType
+  | KlassTypeList '+' KlassType
   ;
 
 ExtendsOrEmpty
@@ -1348,6 +1347,7 @@ AttributeExpression
     $$ = Expr_From_Attribute(id, $1);
     SetPosition($$->pos, @1);
   }
+  | PrimaryExpression '.' '(' Type ')'
   ;
 
 CallExpression
@@ -1360,6 +1360,18 @@ CallExpression
   {
     $$ = Expr_From_Call($3, $1);
     SetPosition($$->pos, @1);
+  }
+  | PrimaryExpression '!' '(' ')'
+  {
+  }
+  | PrimaryExpression '!' '(' ExpressionList ')'
+  {
+  }
+  | PrimaryExpression '!' '<' TypeList '>'  '(' ')'
+  {
+  }
+  | PrimaryExpression '!' '<' TypeList '>' '(' ExpressionList ')'
+  {
   }
   ;
 
@@ -1669,44 +1681,27 @@ AddExpression
   }
   ;
 
-ShiftExpression
+RelationExpression
   : AddExpression
   {
     $$ = $1;
   }
-  | ShiftExpression OP_LSHIFT AddExpression
-  {
-    $$ = Expr_From_Binary(BINARY_LSHIFT, $1, $3);
-    SetPosition($$->pos, @1);
-  }
-  | ShiftExpression OP_RSHIFT AddExpression
-  {
-    $$ = Expr_From_Binary(BINARY_RSHIFT, $1, $3);
-    SetPosition($$->pos, @1);
-  }
-  ;
-
-RelationExpression
-  : ShiftExpression
-  {
-    $$ = $1;
-  }
-  | RelationExpression '<' ShiftExpression
+  | RelationExpression '<' AddExpression
   {
     $$ = Expr_From_Binary(BINARY_LT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression '>' ShiftExpression
+  | RelationExpression '>' AddExpression
   {
     $$ = Expr_From_Binary(BINARY_GT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression OP_LE ShiftExpression
+  | RelationExpression OP_LE AddExpression
   {
     $$ = Expr_From_Binary(BINARY_LE, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression OP_GE ShiftExpression
+  | RelationExpression OP_GE AddExpression
   {
     $$ = Expr_From_Binary(BINARY_GE, $1, $3);
     SetPosition($$->pos, @1);
@@ -1812,7 +1807,7 @@ NoBockExprOrBlock
   }
   ;
 
-/* IDList */
+/* IDList and ID */
 LambdaExpression
   : '(' ExpressionListComma Expression ')' FAT_ARROW NoBockExprOrBlock
   {
@@ -1913,14 +1908,6 @@ AssignOp
   | XOR_ASSIGN
   {
     $$ = OP_XOR_ASSIGN;
-  }
-  | RSHIFT_ASSIGN
-  {
-    $$ = OP_RSHIFT_ASSIGN;
-  }
-  | LSHIFT_ASSIGN
-  {
-    $$ = OP_LSHIFT_ASSIGN;
   }
   ;
 
