@@ -22,8 +22,8 @@
 
 package skeleton
 
-func help(p Dog<Animal>) {
-  io.Person!<A, B<C>>("hello").hello()
+func help(p Dog[Animal]) {
+  io.Person![A, B[C]]("hello").hello()
   io.Person!("hello")
   Cat(123).hi()
   p.(string).lenght()
@@ -117,10 +117,11 @@ func testexpr() {
 
   1 + 2 * a / b % c * (-a) | b & c and (~z) or 1 and (not true)
   1 > 2 < 3 >= 4 <= 5 != 6
-
+  1 >> 2 << 3
   a = 1
   a += 2
-
+  a >>= b
+  a <<= 2
   1...3
   1..<4
 }
@@ -140,29 +141,28 @@ trait Person : Dog, Cat {
 class Person : Dog, Cat;
 trait Person : Dog, Cat
 
-enum Result<T, E> {
+enum Result[T, E] {
   Ok(T),
   Err(E),
 }
 
-enum Option<V>
-{
+enum Option[V] {
   Name(V),
   None,
   Value(int, string, bool),
 }
 
-func Hello<T: Person+Add<int>+Sub<string>>(p T) T {
+func Hello[T: Person+Add[int]+Sub[string]](p T) T {
   t.hello()
 }
 
-class Person<T:Abc, R: Person+Add<int>+Sub<string>, K, J> :
-  Animal<T, R> , Dog<H, J> {
+class Person[T:Abc, R: Person+Add[int]+Sub[string], K, J] :
+  Animal[T, R], Dog[H, J] {
   func add(a T, b R) T {
     a + b
     for i in 1..<10 { io.Println(i) }
   }
-  func sub<P:How, K:Ok>(a P, b K) {How}
+  func sub[P:How, K:Ok](a P, b K) {How}
 }
 
 //constants
@@ -183,10 +183,10 @@ var vk = K5;
 
 var result = add(1, 2)
 var func_callback func(int, int) int = add
-var gf func<T, R>(T, R) int = add
+var gf func[T, R](T, R) int = add
 var func_cb2 = func_callback
 var result2 = func_callback(1, 3)
-var p Person<string, int> = Person!()
+var p Person[string, int] = Person!()
 
 var vv1 = 1 + 2 - 3
 var vv2 = 1 + '中' //1 + true
@@ -282,5 +282,6 @@ func add(a int, b int) int {
 
   while i > 10 {
     break
+    continue
   }
 }

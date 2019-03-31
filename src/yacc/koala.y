@@ -120,6 +120,8 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token AND_ASSIGN
 %token OR_ASSIGN
 %token XOR_ASSIGN
+%token RSHIFT_ASSIGN
+%token LSHIFT_ASSIGN
 %token OP_POWER
 %token DOTDOTDOT
 %token DOTDOTLESS
@@ -131,6 +133,8 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token OP_AND
 %token OP_OR
 %token OP_NOT
+%token OP_LSHIFT
+%token OP_RSHIFT
 
 %token PACKAGE
 %token IF
@@ -242,6 +246,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> UnaryExpression
 %type <Expr> MultipleExpression
 %type <Expr> AddExpression
+%type <Expr> ShiftExpression
 %type <Expr> RelationExpression
 %type <Expr> EqualityExpression
 %type <Expr> AndExpression
@@ -394,11 +399,11 @@ KlassType
     DeclareIdent(klazz, $3, @3);
     $$ = Parser_New_KlassType(ps, &id, &klazz);
   }
-  | ID '<' TypeList '>'
+  | ID '[' TypeList ']'
   {
     printf("22TYPE-%s\n", $1.str);
   }
-  | ID '.' ID '<' TypeList '>'
+  | ID '.' ID '[' TypeList ']'
   {
 
   }
@@ -428,7 +433,7 @@ FunctionType
     Free_IdTypeList($5);
     */
   }
-  | FUNC '<' GenericTypes '>' '(' TypeList ')' Type
+  | FUNC '[' GenericTypes ']' '(' TypeList ')' Type
   {
 
   }
@@ -449,7 +454,7 @@ FunctionType
     Free_IdTypeList($3);
     */
   }
-  | FUNC '<' GenericTypes '>' '(' TypeList ')'
+  | FUNC '[' GenericTypes ']' '(' TypeList ')'
   {
 
   }
@@ -457,7 +462,7 @@ FunctionType
   {
     //$$ = Parser_Get_Proto(NULL, $4);
   }
-  | FUNC '<' GenericTypes '>' '(' ')' Type
+  | FUNC '[' GenericTypes ']' '(' ')' Type
   {
 
   }
@@ -868,7 +873,7 @@ TypeDeclaration
 
 Name
   : ID
-  | ID '<' GenericTypes '>'
+  | ID '[' GenericTypes ']'
   {
 
   }
@@ -1367,10 +1372,10 @@ CallExpression
   | PrimaryExpression '!' '(' ExpressionList ')'
   {
   }
-  | PrimaryExpression '!' '<' TypeList '>'  '(' ')'
+  | PrimaryExpression '!' '[' TypeList ']'  '(' ')'
   {
   }
-  | PrimaryExpression '!' '<' TypeList '>' '(' ExpressionList ')'
+  | PrimaryExpression '!' '[' TypeList ']' '(' ExpressionList ')'
   {
   }
   ;
@@ -1681,27 +1686,44 @@ AddExpression
   }
   ;
 
-RelationExpression
+ShiftExpression
   : AddExpression
   {
     $$ = $1;
   }
-  | RelationExpression '<' AddExpression
+  | ShiftExpression OP_LSHIFT AddExpression
+  {
+    $$ = Expr_From_Binary(BINARY_LSHIFT, $1, $3);
+    SetPosition($$->pos, @1);
+  }
+  | ShiftExpression OP_RSHIFT AddExpression
+  {
+    $$ = Expr_From_Binary(BINARY_RSHIFT, $1, $3);
+    SetPosition($$->pos, @1);
+  }
+  ;
+
+RelationExpression
+  : ShiftExpression
+  {
+    $$ = $1;
+  }
+  | RelationExpression '<' ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_LT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression '>' AddExpression
+  | RelationExpression '>' ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_GT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression OP_LE AddExpression
+  | RelationExpression OP_LE ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_LE, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression OP_GE AddExpression
+  | RelationExpression OP_GE ShiftExpression
   {
     $$ = Expr_From_Binary(BINARY_GE, $1, $3);
     SetPosition($$->pos, @1);
@@ -1908,6 +1930,14 @@ AssignOp
   | XOR_ASSIGN
   {
     $$ = OP_XOR_ASSIGN;
+  }
+  | RSHIFT_ASSIGN
+  {
+    $$ = OP_RSHIFT_ASSIGN;
+  }
+  | LSHIFT_ASSIGN
+  {
+    $$ = OP_LSHIFT_ASSIGN;
   }
   ;
 

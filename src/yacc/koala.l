@@ -126,6 +126,8 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "and"            { YY_RETURN(OP_AND);          }
 "or"             { YY_RETURN(OP_OR);           }
 "not"            { YY_RETURN(OP_NOT);          }
+">>"             { YY_RETURN(OP_RSHIFT);       }
+"<<"             { YY_RETURN(OP_LSHIFT);       }
 ":="             { YY_RETURN(TYPELESS_ASSIGN); }
 "+="             { YY_RETURN(PLUS_ASSGIN);     }
 "-="             { YY_RETURN(MINUS_ASSIGN);    }
@@ -135,6 +137,8 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "&="             { YY_RETURN(AND_ASSIGN);      }
 "|="             { YY_RETURN(OR_ASSIGN);       }
 "^="             { YY_RETURN(XOR_ASSIGN);      }
+">>="            { YY_RETURN(RSHIFT_ASSIGN);   }
+"<<="            { YY_RETURN(LSHIFT_ASSIGN);   }
 "..."            { YY_RETURN(DOTDOTDOT);       }
 "**"             { YY_RETURN(OP_POWER);        }
 "..<"            { YY_RETURN(DOTDOTLESS);      }
