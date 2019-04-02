@@ -671,7 +671,7 @@ Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst)
   TYPE_INCREF(type.desc);
   varStmt->type = type;
   varStmt->exp = exp;
-  varStmt->konst = konst;
+  //varStmt->konst = konst;
   return (Stmt *)varStmt;
 }
 
@@ -679,7 +679,7 @@ Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
                               Expr *exp, int konst)
 {
   VarListDeclStmt *varListStmt = Malloc(sizeof(VarListDeclStmt));
-  varListStmt->kind = VARLIST_KIND;
+  varListStmt->kind = VAR_KIND;
   varListStmt->ids = ids;
   TYPE_INCREF(type.desc);
   varListStmt->type = type;
@@ -701,7 +701,7 @@ Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right)
 Stmt *Stmt_From_AssignList(Vector *left, Expr *right)
 {
   AssignListStmt *assignListStmt = Malloc(sizeof(AssignListStmt));
-  assignListStmt->kind = ASSIGNLIST_KIND;
+  assignListStmt->kind = ASSIGN_KIND;
   assignListStmt->left = left;
   assignListStmt->right = right;
   return (Stmt *)assignListStmt;
@@ -749,7 +749,7 @@ Stmt *Stmt_From_Return(Expr *exp)
 Stmt *Stmt_From_List(Vector *vec)
 {
   ListStmt *listStmt = Malloc(sizeof(ListStmt));
-  listStmt->kind = LIST_KIND;
+  listStmt->kind = VAR_KIND;
   listStmt->vec = vec;
   return (Stmt *)listStmt;
 }
@@ -1061,6 +1061,7 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
   if (stmt == NULL)
     return;
 
+/*
   if (stmt->kind == VAR_KIND) {
     VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
     __add_stmt(ps, stmt);
@@ -1086,6 +1087,7 @@ void Parser_New_Variables(ParserState *ps, Stmt *stmt)
       __new_var(ps, id, varsStmt->type.desc, varsStmt->konst);
     }
   }
+*/
 }
 
 static int __validate_count(ParserState *ps, int lsz, int rsz)
@@ -1445,7 +1447,7 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
   Vector_ForEach(s, klsStmt->body) {
     if (s->kind == VAR_KIND) {
       VarDeclStmt *varStmt = (VarDeclStmt *)s;
-      assert(varStmt->konst == 0);
+      //assert(varStmt->konst == 0);
       __new_var(ps, &varStmt->id, varStmt->type.desc, 0);
     } else if (s->kind == FUNC_KIND || s->kind == PROTO_KIND) {
       __parse_funcdecl(ps, s);
@@ -1488,7 +1490,7 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz)
       return NULL;
     }
   }
-  return TypeDesc_Get_Klass(path, klazz->name);
+  return TypeDesc_Get_Klass(path, klazz->name, NULL);
 }
 
 TypeDesc *Parser_Get_Proto(Vector *idtypes, TypeDesc *ret)

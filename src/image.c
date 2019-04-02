@@ -55,7 +55,8 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
     }
     s = AtomTable_Get(atbl, ITEM_STRING, item->typeindex);
     type = AtomString_New(s->data).str;
-    t = TypeDesc_Get_Klass(path, type);
+    //FIXME
+    t = TypeDesc_Get_Klass(path, type, NULL);
     break;
   }
   case TYPE_PROTO: {
@@ -66,7 +67,8 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
   case TYPE_ARRAY: {
     TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
     TypeDesc *base_type = TypeItem_To_TypeDesc(base, atbl);
-    t = TypeDesc_Get_Array(item->array.dims, base_type);
+    //FIXME
+    t = TypeDesc_Get_Array(base_type);
     break;
   }
   case TYPE_VARG: {

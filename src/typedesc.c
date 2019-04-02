@@ -59,8 +59,8 @@ static BaseDesc Int_Type;
 static BaseDesc Float_Type;
 static BaseDesc Bool_Type;
 static BaseDesc String_Type;
-static BaseDesc Error_Type;
 static BaseDesc Any_Type;
+static BaseDesc Self_Type;
 
 struct base_type_s {
   int kind;
@@ -75,8 +75,8 @@ struct base_type_s {
   {BASE_FLOAT,  "float",  &Float_Type,  "lang", "Float"  },
   {BASE_BOOL,   "bool",   &Bool_Type,   "lang", "Bool"   },
   {BASE_STRING, "string", &String_Type, "lang", "String" },
-  {BASE_ERROR,  "error",  &Error_Type,  "lang", "Error"  },
   {BASE_ANY,    "any",    &Any_Type,    "lang", "Any"    },
+  {BASE_SELF,   "Self",   &Self_Type,   "lang", "Self"   },
 };
 
 static struct base_type_s *get_base(int kind)
@@ -364,7 +364,7 @@ static void *FindTypeDesc(char *desc)
   return NULL;
 }
 
-TypeDesc *TypeDesc_Get_Klass(char *path, char *type)
+TypeDesc *TypeDesc_Get_Klass(char *path, char *type, Vector *paras)
 {
   /* Lpath.type; */
   DeclareStringBuf(buf);
@@ -380,6 +380,7 @@ TypeDesc *TypeDesc_Get_Klass(char *path, char *type)
   if (path != NULL)
     desc->path = AtomString_New(path);
   desc->type = AtomString_New(type);
+  desc->paras = paras;
   FiniStringBuf(buf);
   return (TypeDesc *)desc;
 }
@@ -409,10 +410,15 @@ TypeDesc *TypeDesc_Get_Proto(Vector *arg, TypeDesc *ret)
   return (TypeDesc *)desc;
 }
 
-TypeDesc *TypeDesc_Get_Array(int dims, TypeDesc *base)
+TypeDesc *TypeDesc_Get_Array(TypeDesc *base)
 {
   /* [type */
   DeclareStringBuf(buf);
+  int dims = 1;
+  if (base->kind == TYPE_ARRAY) {
+    ArrayDesc *arrayDesc = (ArrayDesc *)base;
+    dims = arrayDesc->dims + 1;
+  }
   int i = 0;
   while (i++ < dims)
     StringBuf_Append_Char(buf, '[');
@@ -509,7 +515,7 @@ static TypeDesc *string_to_klass(char *s, int len)
     path.str = NULL;
     type = AtomString_New_NStr(s, dot - s);
   }
-  return TypeDesc_Get_Klass(path.str, type.str);
+  return TypeDesc_Get_Klass(path.str, type.str, NULL);
 }
 
 TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg)
@@ -537,7 +543,8 @@ TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg)
       s += 1;
     }
     base = __String_To_TypeDesc(&s, dims, 0);
-    desc = TypeDesc_Get_Array(dims, base);
+    //FIXME
+    desc = TypeDesc_Get_Array(base);
     break;
   }
   case 'M': {

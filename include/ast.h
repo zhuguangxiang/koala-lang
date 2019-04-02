@@ -286,35 +286,32 @@ Expr *Expr_From_Anony(Vector *args, TypeDesc *ret, Vector *body);
 
 typedef enum stmtkind {
   /*
-   * one var and one return's expr
+   * examples:
+   * const hello = "hello"
+   * const i int = 100 + 200
+   */
+  //CONST_KIND = 1,
+  /*
    * examples:
    * var hello = "hello"
-   * var h1, h2 = 100, 200
    * hello := "hello"
-   * h1, h2 := 100, 200 + 300
    */
-  VAR_KIND = 1,
+  VAR_KIND,
   /*
-   * many vars and one function's return with multi values
-   * number of left expr > number of right expr
    * examples:
-   * var a, b = AddAndSub(100, 200)
-   * a, b := AddAndSub(100, 200)
+   * var (a,) = (100,)
+   * (a, b) := (100, 200)
+   * var (a,) = Add(100, 200)
+   * (a, b) := AddAndSub(100, 200)
    */
-  VARLIST_KIND,
+  TUPLE_KIND,
   /*
-   * one left, one right
    * examples:
-   * a = 100
-   * a, b = 100, 200
+   * a = Add(100, 200)
+   * (a, b) = AddAndSub(100, 200)
+   * (a, b) = (100, 200)
    */
   ASSIGN_KIND,
-  /*
-   * many left, one right
-   * examples:
-   * a, b = AddAndSub(100, 200)
-   */
-  ASSIGNLIST_KIND,
   /* function declaration */
   FUNC_KIND,
   /* proto or native function */
@@ -327,15 +324,15 @@ typedef enum stmtkind {
   EXPR_KIND,
   /* return */
   RETURN_KIND,
-  /* list for block, (typeless)vardecl-list and assignment-list */
-  LIST_KIND,
+  /* new object */
+  NEW_KIND,
   /* class */
   CLASS_KIND,
   /* trait */
   TRAIT_KIND,
 
-  IF_KIND, WHILE_KIND, SWITCH_KIND, FOR_TRIPLE_KIND,
-  FOR_EACH_KIND, BREAK_KIND, CONTINUE_KIND, GO_KIND,
+  IF_KIND, WHILE_KIND, MATCH_KIND, FOR_KIND,
+  BREAK_KIND, CONTINUE_KIND,
 
   STMT_KIND_MAX
 } StmtKind;
@@ -347,13 +344,20 @@ typedef struct stmt {
   STMT_HEAD
 } Stmt;
 
-/* variable & constant declaration, see VAR_KIND */
+/* constant declaration, see CONST_KIND */
+typedef struct constdeclstmt {
+  STMT_HEAD
+  Ident id;
+  TypeWrapper type;
+  Expr *exp;
+} ConstDeclStmt;
+
+/* variable declaration, see VAR_KIND */
 typedef struct vardeclstmt {
   STMT_HEAD
   Ident id;
   TypeWrapper type;
   Expr *exp;
-  int konst;
 } VarDeclStmt;
 
 /* variable list declaration, see VARLIST_KIND */

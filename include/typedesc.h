@@ -61,8 +61,8 @@ typedef enum desckind {
 #define BASE_FLOAT  'f'
 #define BASE_BOOL   'z'
 #define BASE_STRING 's'
-#define BASE_ERROR  'e'
 #define BASE_ANY    'A'
+#define BASE_SELF   'S'
 
 /* constant value */
 typedef struct constvalue {
@@ -131,8 +131,9 @@ typedef struct basicdesc {
 /* class or trait */
 typedef struct klassdesc {
   TYPEDESC_HEAD
-  String path; /* absolute path, but not ref-name */
+  String path;   /* absolute path, but not ref-name */
   String type;
+  Vector *paras; /* type parameters */
 } KlassDesc;
 
 /* function's proto */
@@ -184,13 +185,13 @@ void TypeDesc_Free(TypeDesc *desc);
 TypeDesc *TypeDesc_Get_Base(int base);
 
 /* new a class or trait typedesc */
-TypeDesc *TypeDesc_Get_Klass(char *path, char *type);
+TypeDesc *TypeDesc_Get_Klass(char *path, char *type, Vector *paras);
 
 /* new a proto typedesc */
 TypeDesc *TypeDesc_Get_Proto(Vector *arg, TypeDesc *ret);
 
 /* new an array typedesc */
-TypeDesc *TypeDesc_Get_Array(int dims, TypeDesc *base);
+TypeDesc *TypeDesc_Get_Array(TypeDesc *base);
 
 /* new a map typedesc */
 TypeDesc *TypeDesc_Get_Map(TypeDesc *key, TypeDesc *val);

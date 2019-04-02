@@ -891,7 +891,7 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
 {
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
   parse_variable(ps, &varStmt->id, &varStmt->type,
-                 varStmt->exp, varStmt->konst);
+                 varStmt->exp, 0);
 }
 
 static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
