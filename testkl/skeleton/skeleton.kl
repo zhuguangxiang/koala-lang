@@ -22,6 +22,9 @@
 
 package skeleton
 
+/**
+  This is a doc comment
+ */
 func help<T: Animal>(p Dog<T>) {
   (new io.Person<A, B<C>>("hello")).hello()
   new io.Person("hello")

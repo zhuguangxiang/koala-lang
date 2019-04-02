@@ -168,7 +168,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "float"          { YY_RETURN(FLOAT);           }
 "bool"           { YY_RETURN(BOOL);            }
 "string"         { YY_RETURN(STRING);          }
-"Any"            { YY_RETURN(ANY);             }
+"any"            { YY_RETURN(ANY);             }
 "Self"           { YY_RETURN(TYPE_SELF);       }
 
 "self"           { YY_RETURN(SELF);            }
@@ -228,11 +228,13 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 
 [\t\r ]+ {}
 
-"/*"(([^\*]*(\*[^\/])?)*)"*/" {}
+"/*"(([^\*]*(\*[^\/])?)*)"*/" { printf("normal multi-line comments\n");}
 
-"#"[^\n]* {}
+"/**"(([^\*]*(\*[^\/])?)*)"*/" { printf("doc comments\n"); }
 
-"//"[^\n]* {}
+"#"[^\n]* { printf("normal # single-line comments\n");}
+
+"//"[^\n]* { printf("normal // single-line comments\n");}
 
 . {
   Position pos = {yyps->line.pos.row, yyps->line.pos.col};
