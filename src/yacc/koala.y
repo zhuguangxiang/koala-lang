@@ -120,8 +120,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token AND_ASSIGN
 %token OR_ASSIGN
 %token XOR_ASSIGN
-%token RSHIFT_ASSIGN
-%token LSHIFT_ASSIGN
 %token OP_POWER
 %token DOTDOTDOT
 %token DOTDOTLESS
@@ -133,8 +131,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token OP_AND
 %token OP_OR
 %token OP_NOT
-%token OP_LSHIFT
-%token OP_RSHIFT
 
 %token PACKAGE
 %token IF
@@ -147,14 +143,14 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token CONTINUE
 %token DEFAULT
 %token VAR
+%token CONST
 %token FUNC
-%token FAT_ARROW
+%token DASH_ARROW
 %token TOKEN_RETURN
 %token CLASS
 %token TRAIT
 %token ENUM
 %token IN
-%token CONST
 %token IMPORT
 %token GO
 %token DEFER
@@ -166,14 +162,15 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token FLOAT
 %token BOOL
 %token STRING
-%token ERROR
 %token ANY
+%token TYPE_SELF
 
 %token SELF
 %token SUPER
 %token TOKEN_NIL
 %token TOKEN_TRUE
 %token TOKEN_FALSE
+%token TOKEN_NEW
 
 %token <IVal> BYTE_LITERAL
 %token <ucVal> CHAR_LITERAL
@@ -206,7 +203,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> ClassMemberDeclarations
 %type <Stmt> ClassMemberDeclaration
 %type <List> ExtendsOrEmpty
-%type <List> WithesOrEmpty
+%type <List> TraitsOrEmpty
 %type <List> Traits
 %type <List> TraitMemberDeclsOrEmpty
 %type <List> TraitMemberDeclarations
@@ -219,15 +216,15 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Stmt> LocalStatement
 %type <Stmt> ExprStatement
 %type <Stmt> VariableDeclarationTypeless
-%type <Stmt> Assignment
-%type <Stmt> IfStatement
+%type <Stmt> AssignExpression
+%type <Stmt> IfExpression
 %type <Stmt> OrElseStatement
-%type <Stmt> WhileStatement
-%type <Stmt> MatchStatement
+%type <Stmt> WhileExpression
+%type <Stmt> MatchExpression
 %type <List> MatchClauses
-%type <Stmt> ForStatement
-%type <Stmt> JumpStatement
-%type <Stmt> ReturnStatement
+%type <Stmt> ForExpression
+%type <Stmt> JumpExpression
+%type <Stmt> ReturnExpression
 
 %type <Expr> PrimaryExpression
 %type <Expr> Atom
@@ -246,7 +243,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> UnaryExpression
 %type <Expr> MultipleExpression
 %type <Expr> AddExpression
-%type <Expr> ShiftExpression
 %type <Expr> RelationExpression
 %type <Expr> EqualityExpression
 %type <Expr> AndExpression
@@ -255,8 +251,9 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Expr> LogicAndExpression
 %type <Expr> LogicOrExpression
 %type <Expr> RangeExpression
-%type <Expr> Expression
+%type <Expr> NormalExpression
 %type <List> ExpressionList
+%type <Expr> Expression
 %type <Operator> AssignOp
 
 /*
@@ -272,7 +269,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %precedence ID
 %precedence '(' '.'
 %precedence ')'
-%precedence FAT_ARROW
+%precedence DASH_ARROW
 
 %locations
 
@@ -325,7 +322,7 @@ BaseType
 ArrayType
   : '[' Type ']'
   {
-    $$ = NULL; //$$ = TypeDesc_Get_Array($1, $2);
+    $$ = TypeDesc_Get_Array($2);
   }
   ;
 
@@ -376,36 +373,32 @@ PrimitiveType
   {
     $$ = TypeDesc_Get_Base(BASE_STRING);
   }
-  | ERROR
-  {
-    $$ = TypeDesc_Get_Base(BASE_ERROR);
-  }
   | ANY
   {
     $$ = TypeDesc_Get_Base(BASE_ANY);
+  }
+  | TYPE_SELF
+  {
+    $$ = TypeDesc_Get_Base(BASE_SELF);
   }
   ;
 
 KlassType
   : ID
   {
-    printf("111TYPE-%s\n", $1.str);
-    DeclareIdent(klazz, $1, @1);
-    $$ = Parser_New_KlassType(ps, NULL, &klazz);
+    $$ = TypeDesc_Get_Klass(NULL, $1.str, NULL);
   }
   | ID '.' ID
   {
-    DeclareIdent(id, $1, @1);
-    DeclareIdent(klazz, $3, @3);
-    $$ = Parser_New_KlassType(ps, &id, &klazz);
+    $$ = TypeDesc_Get_Klass($1.str, $3.str, NULL);
   }
-  | ID '[' TypeList ']'
+  | ID '<' TypeList '>'
   {
-    printf("22TYPE-%s\n", $1.str);
+    $$ = TypeDesc_Get_Klass(NULL, $1.str, $3);
   }
-  | ID '.' ID '[' TypeList ']'
+  | ID '.' ID '<' TypeList '>'
   {
-
+    $$ = TypeDesc_Get_Klass($1.str, $3.str, $5);
   }
   ;
 
@@ -433,7 +426,7 @@ FunctionType
     Free_IdTypeList($5);
     */
   }
-  | FUNC '[' GenericTypes ']' '(' TypeList ')' Type
+  | FUNC '<' TypeParameters '>' '(' TypeList ')' Type
   {
 
   }
@@ -454,7 +447,7 @@ FunctionType
     Free_IdTypeList($3);
     */
   }
-  | FUNC '[' GenericTypes ']' '(' TypeList ')'
+  | FUNC '<' TypeParameters '>' '(' TypeList ')'
   {
 
   }
@@ -462,7 +455,7 @@ FunctionType
   {
     //$$ = Parser_Get_Proto(NULL, $4);
   }
-  | FUNC '[' GenericTypes ']' '(' ')' Type
+  | FUNC '<' TypeParameters '>' '(' ')' Type
   {
 
   }
@@ -547,11 +540,6 @@ ParameterList
     $$ = Vector_Capacity(1);
     Vector_Append($$, New_IdType(&id, type));
   }
-  | error
-  {
-    YYSyntax_ErrorMsg_Clear(@1, "invalid parameter list");
-    $$ = NULL;
-  }
   ;
 
 VArgType
@@ -568,15 +556,12 @@ VArgType
 TypeList
   : Type
   {
-    /*
     $$ = Vector_New();
     DeclareType(type, $1, @1);
     Vector_Append($$, New_IdType(NULL, type));
-    */
   }
   | TypeList ',' Type
   {
-    /*
     if ($1 != NULL) {
       $$ = $1;
       DeclareType(type, $3, @3);
@@ -586,7 +571,6 @@ TypeList
       // FIXME: has error ?
       TYPE_DECREF($3);
     }
-    */
   }
   ;
 
@@ -773,7 +757,7 @@ VariableDeclaration
   : VAR ID Type ';'
   {
     //DeclareType(type, $3, @3);
-    //$$ = Parser_Do_Variables(ps, $2, type, NULL);
+    //$$ = Parser_Do_Variable(ps, $2, type, NULL);
   }
   | VAR ID '=' Expression ';'
   {
@@ -785,7 +769,7 @@ VariableDeclaration
     //DeclareType(type, $3, @3);
     //$$ = Parser_Do_Variables(ps, $2, type, $5);
   }
-  | VAR '(' IDList ')' '=' Expression ';'
+  | VAR TupleExpression '=' Expression ';'
   {
 
   }
@@ -861,11 +845,7 @@ TypeDeclaration
     //DeclareIdent(id, $2, @2);
     //$$ = Stmt_From_Klass(id, TRAIT_KIND, $3, NULL);
   }
-  | ENUM Name '{' EnumDeclaration '}'
-  {
-
-  }
-  | ENUM Name '{' EnumDeclaration ',' '}'
+  | ENUM Name '{' EnumMemberDecls '}'
   {
 
   }
@@ -873,18 +853,18 @@ TypeDeclaration
 
 Name
   : ID
-  | ID '[' GenericTypes ']'
+  | ID '<' TypeParameters '>'
   {
 
   }
   ;
 
-GenericTypes
-  : GenericType
-  | GenericTypes ',' GenericType
+TypeParameters
+  : TypeParameter
+  | TypeParameters ',' TypeParameter
   ;
 
-GenericType
+TypeParameter
   : ID
   | ID ':' KlassTypeList
   ;
@@ -899,7 +879,7 @@ ExtendsOrEmpty
   {
     $$ = NULL;
   }
-  | ':' KlassType WithesOrEmpty
+  | ':' KlassType TraitsOrEmpty
   {
     /*
     int size = Vector_Size($3);
@@ -912,7 +892,7 @@ ExtendsOrEmpty
   }
   ;
 
-WithesOrEmpty
+TraitsOrEmpty
   : %empty
   {
   }
@@ -1023,23 +1003,35 @@ TraitMemberDeclaration
   ;
 
 FieldDeclaration
-  : ID Type ';'
+  : VAR ID Type ';'
   {
-    DeclareIdent(id, $1, @1);
-    DeclareType(type, $2, @2);
+    DeclareIdent(id, $2, @2);
+    DeclareType(type, $3, @3);
     $$ = Stmt_From_VarDecl(id, type, NULL);
   }
-  | ID '=' Expression ';'
+  | VAR ID '=' Expression ';'
   {
-    DeclareIdent(id, $1, @1);
+    DeclareIdent(id, $2, @2);
     TypeWrapper type = {NULL};
-    $$ = Stmt_From_VarDecl(id, type, $3);
-  }
-  | ID Type '=' Expression ';'
-  {
-    DeclareIdent(id, $1, @1);
-    DeclareType(type, $2, @2);
     $$ = Stmt_From_VarDecl(id, type, $4);
+  }
+  | VAR ID Type '=' Expression ';'
+  {
+    DeclareIdent(id, $2, @2);
+    DeclareType(type, $3, @3);
+    $$ = Stmt_From_VarDecl(id, type, $5);
+  }
+  | CONST ID Type ';'
+  {
+
+  }
+  | CONST ID '=' Expression ';'
+  {
+
+  }
+  | CONST ID Type '=' Expression ';'
+  {
+
   }
   ;
 
@@ -1066,11 +1058,23 @@ ProtoDeclaration
   }
   ;
 
-EnumDeclaration
+EnumMemberDecls
+  : EnumLableDeclarations ','
+  | EnumLableDeclarations ',' EnumFuncDeclarations
+  ;
+
+EnumLableDeclarations
   : ID
   | ID '(' TypeList ')'
-  | EnumDeclaration ',' ID
-  | EnumDeclaration ',' ID '(' TypeList ')'
+  | ID '=' INT_LITERAL
+  | EnumLableDeclarations ',' ID
+  | EnumLableDeclarations ',' ID '(' TypeList ')'
+  | EnumLableDeclarations ',' ID '=' INT_LITERAL
+  ;
+
+EnumFuncDeclarations
+  : FunctionDeclaration ';'
+  | EnumFuncDeclarations FunctionDeclaration ';'
   ;
 
 Block
@@ -1108,6 +1112,10 @@ LocalStatement
   {
     $$ = $1;
   }
+  | ConstDeclaration
+  {
+    $$ = $1;
+  }
   | VariableDeclaration
   {
     $$ = $1;
@@ -1116,31 +1124,31 @@ LocalStatement
   {
     $$ = $1;
   }
-  | Assignment
+  | AssignExpression
   {
     $$ = $1;
   }
-  | IfStatement
+  | IfExpression
   {
     $$ = $1;
   }
-  | WhileStatement
+  | WhileExpression
   {
     $$ = $1;
   }
-  | MatchStatement
+  | MatchExpression
   {
     $$ = $1;
   }
-  | ForStatement
+  | ForExpression
   {
     $$ = $1;
   }
-  | JumpStatement
+  | JumpExpression
   {
     $$ = $1;
   }
-  | ReturnStatement
+  | ReturnExpression
   {
     $$ = $1;
   }
@@ -1149,15 +1157,10 @@ LocalStatement
     $$ = Stmt_From_List($1);
     ((ListStmt *)$$)->block = 1;
   }
-  | error
-  {
-    YYSyntax_ErrorMsg_Clear(@1, "invalid local statement");
-    $$ = NULL;
-  }
   ;
 
 ExprStatement
-  : Expression ';'
+  : NormalExpression ';'
   {
     $$ = Stmt_From_Expr($1);
   }
@@ -1165,17 +1168,20 @@ ExprStatement
 
 /*
  * TYPELESS_ASSIGN is used only in local blocks
- * ExpressionList is really IDList??
  */
 VariableDeclarationTypeless
-  : Expression TYPELESS_ASSIGN Expression ';'
+  : ID TYPELESS_ASSIGN Expression ';'
   {
     //$$ = Parser_Do_Typeless_Variables(ps, $1, $3);
   }
+  | TupleExpression TYPELESS_ASSIGN Expression ';'
+  {
+
+  }
   ;
 
-IfStatement
-  : IF Expression ExprOrBlock OrElseStatement
+IfExpression
+  : IF NormalExpression ExprOrBlock OrElseStatement
   {
     //$$ = stmt_from_if($2, $3, $4);
     //$$->if_stmt.belse = 0;
@@ -1192,27 +1198,27 @@ OrElseStatement
     //$$ = stmt_from_if(NULL, $2, NULL);
     //$$->if_stmt.belse = 1;
   }
-  | ELSE IfStatement
+  | ELSE IfExpression
   {
     //$$ = $2;
     //$$->if_stmt.belse = 1;
   }
   ;
 
-WhileStatement
-  : WHILE Expression ExprOrBlock
+WhileExpression
+  : WHILE NormalExpression ExprOrBlock
   {
     //stmt_from_while($2, $3, 1);
   }
   ;
 
-MatchStatement
-  : MATCH Expression '{' MatchClauses '}'
+MatchExpression
+  : MATCH NormalExpression '{' MatchClauses '}'
   {
-    printf("MatchStatement-1\n");
+    printf("MatchExpression-1\n");
     $$ = NULL;
   }
-  | MATCH Expression '{' MatchClauses ',' '}'
+  | MATCH NormalExpression '{' MatchClauses ',' '}'
   {
 
   }
@@ -1247,7 +1253,7 @@ MatchClauses
   ;
 
 MatchClause
-  : PatternExpression PatternCondition FAT_ARROW PatternClause
+  : PatternExpression PatternCondition DASH_ARROW PatternClause
   {
     //$$ = new_test_block($2, $4);
   }
@@ -1268,12 +1274,12 @@ PatternExpression
 
 PatternCondition
   : %empty
-  | IF Expression
+  | IF NormalExpression
   ;
 
 PatternClause
   : ExprOrBlock
-  | Expression
+  | NormalExpression
   ;
 
 IntOr
@@ -1286,14 +1292,14 @@ CharOr
   | CharOr CHAR_LITERAL '|'
   ;
 
-ForStatement
-  : FOR IDList IN Expression ExprOrBlock
+ForExpression
+  : FOR IDList IN NormalExpression ExprOrBlock
   {
     $$ = NULL;
   }
   ;
 
-JumpStatement
+JumpExpression
   : BREAK ';'
   {
     //$$ = stmt_from_jump(BREAK_KIND, 1);
@@ -1304,7 +1310,7 @@ JumpStatement
   }
   ;
 
-ReturnStatement
+ReturnExpression
   : TOKEN_RETURN ';'
   {
     $$ = Stmt_From_Return(NULL);
@@ -1319,6 +1325,66 @@ ReturnStatement
   {
     YYSyntax_Error(@2, "expression");
     $$ = NULL;
+  }
+  ;
+
+AssignExpression
+  : PrimaryExpression AssignOp Expression ';'
+  {
+    //$$ = Parser_Do_Assignments(ps, $1, NULL);
+  }
+/*
+  | PrimaryExpression CompAssignOp NormalExpression ';'
+  {
+    if (!Expr_Maybe_Stored($1)) {
+      DeclarePosition(pos, @1);
+      Syntax_Error(ps, &pos, "expr is not left expr");
+      Free_Expr($1);
+      Free_Expr($3);
+      $$ = NULL;
+    } else {
+      $$ = Stmt_From_Assign($2, $1, $3);
+    }
+  }
+*/
+  ;
+
+AssignOp
+  : '='
+  {
+    $$ = OP_ASSIGN;
+  }
+  | PLUS_ASSGIN
+  {
+    $$ = OP_PLUS_ASSIGN;
+  }
+  | MINUS_ASSIGN
+  {
+    $$ = OP_MINUS_ASSIGN;
+  }
+  | MULT_ASSIGN
+  {
+    $$ = OP_MULT_ASSIGN;
+  }
+  | DIV_ASSIGN
+  {
+    $$ = OP_DIV_ASSIGN;
+  }
+  | MOD_ASSIGN
+  {
+    $$ = OP_MOD_ASSIGN;
+  }
+  | AND_ASSIGN
+  {
+    $$ = OP_AND_ASSIGN;
+  }
+  | OR_ASSIGN
+  {
+    $$ = OP_OR_ASSIGN;
+  }
+  | XOR_ASSIGN
+  {
+    $$ = OP_XOR_ASSIGN;
   }
   ;
 
@@ -1366,22 +1432,10 @@ CallExpression
     $$ = Expr_From_Call($3, $1);
     SetPosition($$->pos, @1);
   }
-  | PrimaryExpression '!' '(' ')'
-  {
-  }
-  | PrimaryExpression '!' '(' ExpressionList ')'
-  {
-  }
-  | PrimaryExpression '!' '[' TypeList ']'  '(' ')'
-  {
-  }
-  | PrimaryExpression '!' '[' TypeList ']' '(' ExpressionList ')'
-  {
-  }
   ;
 
 SubScriptExpression
-  : PrimaryExpression '[' Expression ']'
+  : PrimaryExpression '[' NormalExpression ']'
   {
     $$ = Expr_From_SubScript($3, $1);
     SetPosition($$->pos, @1);
@@ -1389,17 +1443,17 @@ SubScriptExpression
   ;
 
 SliceExpression
-  : PrimaryExpression '[' Expression ':' Expression ']'
+  : PrimaryExpression '[' NormalExpression ':' NormalExpression ']'
   {
     $$ = Expr_From_Slice($3, $5, $1);
     SetPosition($$->pos, @1);
   }
-  | PrimaryExpression '[' ':' Expression ']'
+  | PrimaryExpression '[' ':' NormalExpression ']'
   {
     $$ = Expr_From_Slice(NULL, $4, $1);
     SetPosition($$->pos, @1);
   }
-  | PrimaryExpression '[' Expression ':' ']'
+  | PrimaryExpression '[' NormalExpression ':' ']'
   {
     $$ = Expr_From_Slice($3, NULL, $1);
     SetPosition($$->pos, @1);
@@ -1436,7 +1490,7 @@ Atom
     $$ = Expr_From_Super();
     SetPosition($$->pos, @1);
   }
-  | '(' Expression ')'
+  | '(' NormalExpression ')'
   {
     $$ = $2;
   }
@@ -1541,7 +1595,7 @@ MapKeyValueList
   ;
 
 MapKeyValue
-  : Expression ':' Expression
+  : NormalExpression ':' NormalExpression
   {
     $$ = Expr_From_MapEntry($1, $3);
     SetPosition($$->pos, @1);
@@ -1549,15 +1603,15 @@ MapKeyValue
   ;
 
 TupleExpression
-  : '(' Expression ',' ')'
+  : '(' NormalExpression ',' ')'
   {
 
   }
-  | '(' ExpressionListComma Expression ')'
+  | '(' ExpressionListComma NormalExpression ')'
   {
 
   }
-  | '(' ExpressionListComma Expression ',' ')'
+  | '(' ExpressionListComma NormalExpression ',' ')'
   {
 
   }
@@ -1568,8 +1622,8 @@ TupleExpression
   ;
 
 ExpressionListComma
-  : Expression ','
-  | ExpressionListComma Expression ','
+  : NormalExpression ','
+  | ExpressionListComma NormalExpression ','
   ;
 
 AnonyExpression
@@ -1601,7 +1655,7 @@ AnonyExpression
   ;
 
 ExprOrBlock
-  : '{' Expression '}'
+  : '{' NormalExpression '}'
   {
 
   }
@@ -1662,11 +1716,6 @@ MultipleExpression
     $$ = Expr_From_Binary(BINARY_MOD, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | MultipleExpression OP_POWER UnaryExpression
-  {
-    $$ = Expr_From_Binary(BINARY_POWER, $1, $3);
-    SetPosition($$->pos, @1);
-  }
   ;
 
 AddExpression
@@ -1686,44 +1735,27 @@ AddExpression
   }
   ;
 
-ShiftExpression
+RelationExpression
   : AddExpression
   {
     $$ = $1;
   }
-  | ShiftExpression OP_LSHIFT AddExpression
-  {
-    $$ = Expr_From_Binary(BINARY_LSHIFT, $1, $3);
-    SetPosition($$->pos, @1);
-  }
-  | ShiftExpression OP_RSHIFT AddExpression
-  {
-    $$ = Expr_From_Binary(BINARY_RSHIFT, $1, $3);
-    SetPosition($$->pos, @1);
-  }
-  ;
-
-RelationExpression
-  : ShiftExpression
-  {
-    $$ = $1;
-  }
-  | RelationExpression '<' ShiftExpression
+  | RelationExpression '<' AddExpression
   {
     $$ = Expr_From_Binary(BINARY_LT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression '>' ShiftExpression
+  | RelationExpression '>' AddExpression
   {
     $$ = Expr_From_Binary(BINARY_GT, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression OP_LE ShiftExpression
+  | RelationExpression OP_LE AddExpression
   {
     $$ = Expr_From_Binary(BINARY_LE, $1, $3);
     SetPosition($$->pos, @1);
   }
-  | RelationExpression OP_GE ShiftExpression
+  | RelationExpression OP_GE AddExpression
   {
     $$ = Expr_From_Binary(BINARY_GE, $1, $3);
     SetPosition($$->pos, @1);
@@ -1819,7 +1851,7 @@ RangeExpression
   ;
 
 NoBockExprOrBlock
-  : Expression
+  : NormalExpression
   {
     printf("NoBockExprOrBlock-1\n");
   }
@@ -1831,21 +1863,36 @@ NoBockExprOrBlock
 
 /* IDList and ID */
 LambdaExpression
-  : '(' ExpressionListComma Expression ')' FAT_ARROW NoBockExprOrBlock
+  : '(' ExpressionListComma NormalExpression ')' DASH_ARROW NoBockExprOrBlock
   {
     printf("NoBockExprOrBlock-1\n");
   }
-  | '(' ID ')' FAT_ARROW NoBockExprOrBlock
+  | '(' ID ')' DASH_ARROW NoBockExprOrBlock
   {
     printf("NoBockExprOrBlock-2\n");
   }
-  | '(' ')' FAT_ARROW NoBockExprOrBlock
+  | '(' ')' DASH_ARROW NoBockExprOrBlock
   {
     printf("NoBockExprOrBlock-3\n");
   }
   ;
 
-Expression
+NewObjectExpression
+  : TOKEN_NEW ID '<' TypeList '>' '(' ')'
+  | TOKEN_NEW ID '.' ID '<' TypeList '>' '(' ')'
+  | TOKEN_NEW ID '<' TypeList '>' '(' ExpressionList ')'
+  | TOKEN_NEW ID '.' ID '<' TypeList '>' '(' ExpressionList ')'
+  | TOKEN_NEW ID '(' ')'
+  | TOKEN_NEW ID '.' ID '(' ')'
+  | TOKEN_NEW ID '(' ExpressionList ')'
+  | TOKEN_NEW ID '.' ID '(' ExpressionList ')'
+  | TOKEN_NEW ID
+  | TOKEN_NEW ID '.' ID
+  | TOKEN_NEW ID '<' TypeList '>'
+  | TOKEN_NEW ID '.' ID '<' TypeList '>'
+  ;
+
+NormalExpression
   : LogicOrExpression
   {
     $$ = $1;
@@ -1855,6 +1902,33 @@ Expression
 
   }
   | LambdaExpression
+  {
+
+  }
+  | NewObjectExpression
+  {
+
+  }
+  ;
+
+Expression
+  : NormalExpression
+  {
+
+  }
+  | IfExpression
+  {
+
+  }
+  | WhileExpression
+  {
+
+  }
+  | MatchExpression
+  {
+
+  }
+  | ForExpression
   {
 
   }
@@ -1870,74 +1944,6 @@ ExpressionList
   {
     $$ = $1;
     Vector_Append($$, $3);
-  }
-  ;
-
-Assignment
-  : PrimaryExpression AssignOp Expression ';'
-  {
-    //$$ = Parser_Do_Assignments(ps, $1, $3);
-  }
-/*
-  | PrimaryExpression CompAssignOp Expression ';'
-  {
-    if (!Expr_Maybe_Stored($1)) {
-      DeclarePosition(pos, @1);
-      Syntax_Error(ps, &pos, "expr is not left expr");
-      Free_Expr($1);
-      Free_Expr($3);
-      $$ = NULL;
-    } else {
-      $$ = Stmt_From_Assign($2, $1, $3);
-    }
-  }
-*/
-  ;
-
-AssignOp
-  : '='
-  {
-    $$ = OP_ASSIGN;
-  }
-  | PLUS_ASSGIN
-  {
-    $$ = OP_PLUS_ASSIGN;
-  }
-  | MINUS_ASSIGN
-  {
-    $$ = OP_MINUS_ASSIGN;
-  }
-  | MULT_ASSIGN
-  {
-    $$ = OP_MULT_ASSIGN;
-  }
-  | DIV_ASSIGN
-  {
-    $$ = OP_DIV_ASSIGN;
-  }
-  | MOD_ASSIGN
-  {
-    $$ = OP_MOD_ASSIGN;
-  }
-  | AND_ASSIGN
-  {
-    $$ = OP_AND_ASSIGN;
-  }
-  | OR_ASSIGN
-  {
-    $$ = OP_OR_ASSIGN;
-  }
-  | XOR_ASSIGN
-  {
-    $$ = OP_XOR_ASSIGN;
-  }
-  | RSHIFT_ASSIGN
-  {
-    $$ = OP_RSHIFT_ASSIGN;
-  }
-  | LSHIFT_ASSIGN
-  {
-    $$ = OP_LSHIFT_ASSIGN;
   }
   ;
 

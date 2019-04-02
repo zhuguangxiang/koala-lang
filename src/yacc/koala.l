@@ -59,7 +59,7 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
     SELF, SUPER, TOKEN_NIL, TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
     ')', ']', '}',
-    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ERROR, ANY, DOTDOTDOT,
+    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ANY, TYPE_SELF, DOTDOTDOT,
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
@@ -126,8 +126,6 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "and"            { YY_RETURN(OP_AND);          }
 "or"             { YY_RETURN(OP_OR);           }
 "not"            { YY_RETURN(OP_NOT);          }
-">>"             { YY_RETURN(OP_RSHIFT);       }
-"<<"             { YY_RETURN(OP_LSHIFT);       }
 ":="             { YY_RETURN(TYPELESS_ASSIGN); }
 "+="             { YY_RETURN(PLUS_ASSGIN);     }
 "-="             { YY_RETURN(MINUS_ASSIGN);    }
@@ -137,12 +135,9 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "&="             { YY_RETURN(AND_ASSIGN);      }
 "|="             { YY_RETURN(OR_ASSIGN);       }
 "^="             { YY_RETURN(XOR_ASSIGN);      }
-">>="            { YY_RETURN(RSHIFT_ASSIGN);   }
-"<<="            { YY_RETURN(LSHIFT_ASSIGN);   }
 "..."            { YY_RETURN(DOTDOTDOT);       }
-"**"             { YY_RETURN(OP_POWER);        }
 "..<"            { YY_RETURN(DOTDOTLESS);      }
-"=>"             { YY_RETURN(FAT_ARROW);       }
+"->"             { YY_RETURN(DASH_ARROW);      }
 
 "package"        { YY_RETURN(PACKAGE);         }
 "if"             { YY_RETURN(IF);              }
@@ -155,13 +150,13 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "continue"       { YY_RETURN(CONTINUE);        }
 "default"        { YY_RETURN(DEFAULT);         }
 "var"            { YY_RETURN(VAR);             }
+"const"          { YY_RETURN(CONST);           }
 "func"           { YY_RETURN(FUNC);            }
 "return"         { YY_RETURN(TOKEN_RETURN);    }
 "class"          { YY_RETURN(CLASS);           }
 "trait"          { YY_RETURN(TRAIT);           }
 "enum"           { YY_RETURN(ENUM);            }
 "in"             { YY_RETURN(IN);              }
-"const"          { YY_RETURN(CONST);           }
 "import"         { YY_RETURN(IMPORT);          }
 "go"             { YY_RETURN(GO);              }
 "defer"          { YY_RETURN(DEFER);           }
@@ -173,14 +168,15 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "float"          { YY_RETURN(FLOAT);           }
 "bool"           { YY_RETURN(BOOL);            }
 "string"         { YY_RETURN(STRING);          }
-"error"          { YY_RETURN(ERROR);           }
-"any"            { YY_RETURN(ANY);             }
+"Any"            { YY_RETURN(ANY);             }
+"Self"           { YY_RETURN(TYPE_SELF);       }
 
 "self"           { YY_RETURN(SELF);            }
 "super"          { YY_RETURN(SUPER);           }
 "true"           { YY_RETURN(TOKEN_TRUE);      }
 "false"          { YY_RETURN(TOKEN_FALSE);     }
 "nil"            { YY_RETURN(TOKEN_NIL);       }
+"new"            { YY_RETURN(TOKEN_NEW);       }
 
 ([1-9][0-9]*|[0]) {
   yylval->IVal = atoi(yytext);
