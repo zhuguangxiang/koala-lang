@@ -80,7 +80,7 @@ typedef struct symbol {
   SYMBOL_HEAD
 } Symbol;
 
-/* constant and variable symbol */
+/* const and variable symbol */
 typedef struct varsymbol {
   SYMBOL_HEAD
   /* variable index */

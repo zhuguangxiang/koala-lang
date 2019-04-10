@@ -101,6 +101,17 @@ koala语言只区分public和private两种权限。
 *** 类中的私有变量或者方法
 
 ** 虚拟机运行栈
+** 泛型generics
+泛型函数
+泛型类
+泛型特征
+不支持泛型方法
+泛型类或者特征会具体化生成不同类型的类或特征
+** 运算符重载
+用trait来实现
+像python和c++一样特殊方法名
+** 对象内存模型
+
 * Why develop koala-lang?
 能用自己开发的语言写程序是不是一件很有意思的事情呢？Koala语言完全出于本人的兴趣，很有意思！
 * Language Introduction

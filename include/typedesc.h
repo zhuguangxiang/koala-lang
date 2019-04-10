@@ -33,21 +33,6 @@ extern "C" {
 #endif
 
 /*
- * Type descriptor's kind
- * array and map are builtin types
- * NOTE: taged typedesc's head is only DescKind, not TYPEDESC_HEAD
- */
-typedef enum desckind {
-  TYPE_BASE = 1,
-  TYPE_KLASS,
-  TYPE_PROTO,
-  TYPE_ARRAY,
-  TYPE_MAP,
-  TYPE_SET,
-  TYPE_VARG
-} DescKind;
-
-/*
  * primitive types
  * integer: byte(1), int(8)
  * char: char(2 or 4?)
@@ -62,7 +47,6 @@ typedef enum desckind {
 #define BASE_BOOL   'z'
 #define BASE_STRING 's'
 #define BASE_ANY    'A'
-#define BASE_SELF   'S'
 
 /* constant value */
 typedef struct constvalue {
@@ -82,18 +66,29 @@ void Const_Show(ConstValue *val, char *buf);
 #define VARG_ANY_DESC "..."
 
 /*
+ * Type descriptor's kind
+ * array and map are builtin types
+ */
+typedef enum desckind {
+  TYPE_BASE = 1,
+  TYPE_KLASS,
+  TYPE_PROTO,
+  TYPE_ARRAY,
+  TYPE_MAP,
+  TYPE_VARG,
+  TYPE_TUPLE,
+} DescKind;
+
+/*
  * Type descriptor
  * Klass: Lio.File;
  * Array: [s
  * Map: Mss
- * Set: Si
  * Proto: Pis:Pi:i;ie;
  * Varg: ...s
  */
 #define TYPEDESC_HEAD \
   DescKind kind;      \
-  HashNode hnode;     \
-  String desc;        \
   int refcnt;
 
 typedef struct typedesc {
@@ -157,17 +152,17 @@ typedef struct mapdesc {
   TypeDesc *val;
 } MapDesc;
 
-/* set */
-typedef struct setdesc {
-  TYPEDESC_HEAD
-  TypeDesc *base;
-} SetDesc;
-
 /* varg type */
 typedef struct vargdesc {
   TYPEDESC_HEAD
   TypeDesc *base;
 } VargDesc;
+
+/* tuple type */
+typedef struct tupledesc {
+  TYPEDESC_HEAD
+  Vector *bases;
+} TupleDesc;
 
 /* check two typedescs are the same */
 int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2);
@@ -185,22 +180,22 @@ void TypeDesc_Free(TypeDesc *desc);
 TypeDesc *TypeDesc_Get_Base(int base);
 
 /* new a class or trait typedesc */
-TypeDesc *TypeDesc_Get_Klass(char *path, char *type, Vector *paras);
+TypeDesc *TypeDesc_New_Klass(char *path, char *type, Vector *paras);
 
 /* new a proto typedesc */
-TypeDesc *TypeDesc_Get_Proto(Vector *arg, TypeDesc *ret);
+TypeDesc *TypeDesc_New_Proto(Vector *arg, TypeDesc *ret);
 
 /* new an array typedesc */
-TypeDesc *TypeDesc_Get_Array(TypeDesc *base);
+TypeDesc *TypeDesc_New_Array(TypeDesc *base);
 
 /* new a map typedesc */
-TypeDesc *TypeDesc_Get_Map(TypeDesc *key, TypeDesc *val);
-
-/* new a set typedesc */
-TypeDesc *TypeDesc_Get_Set(TypeDesc *base);
+TypeDesc *TypeDesc_New_Map(TypeDesc *key, TypeDesc *val);
 
 /* new a var-argument typedesc */
-TypeDesc *TypeDesc_Get_Varg(TypeDesc *base);
+TypeDesc *TypeDesc_New_Varg(TypeDesc *base);
+
+/* new a tuple typedesc */
+TypeDesc *TypeDesc_New_Tuple(Vector *bases);
 
 TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg);
 #define String_To_TypeDesc(s) \
@@ -218,12 +213,6 @@ TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg);
  * e.g. "i[sLlang.Tuple;" --->>> int, []string, lang.Tuple
  */
 Vector *String_ToTypeList(char *str);
-
-/*
- * convert typedesc list to string
- * e.g. int, []string, lang.Tuple --->>> "i[sLlang.Tuple;"
- */
-String TypeList_ToString(Vector *vec);
 
 #ifdef __cplusplus
 }

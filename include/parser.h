@@ -213,20 +213,11 @@ typedef struct code_generator {
 
 /* yacc(bison) used APIs */
 void Parser_New_Import(ParserState *ps, Ident *id, Ident *path);
-void Parser_New_Variables(ParserState *ps, Stmt *stmt);
-Stmt *__Parser_Do_Variables(ParserState *ps, Vector *ids, TypeWrapper type,
-                            Vector *exps, int konst);
-#define Parser_Do_Variables(ps, ids, desc, exps) \
-  __Parser_Do_Variables(ps, ids, desc, exps, 0)
-#define Parser_Do_Constants(ps, ids, desc, exps) \
-  __Parser_Do_Variables(ps, ids, desc, exps, 1)
-Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps);
-Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right);
-void Parser_New_Function(ParserState *ps, Stmt *stmt);
-void Parser_New_TypeAlias(ParserState *ps, Stmt *stmt);
+void Parser_New_Const(ParserState *ps, Stmt *stmt);
+void Parser_New_Var(ParserState *ps, Stmt *stmt);
+void Parser_New_FuncOrProto(ParserState *ps, Stmt *stmt);
 void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt);
 TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz);
-TypeDesc *Parser_Get_Proto(Vector *idtypes, TypeDesc *ret);
 void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
 
 /* lex(flex) used APIs */

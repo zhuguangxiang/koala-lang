@@ -59,7 +59,7 @@ static int Lexer_NeedInsertSemiColon(ParserState *ps)
     SELF, SUPER, TOKEN_NIL, TOKEN_TRUE, TOKEN_FALSE,
     BREAK, CONTINUE, FALLTHROUGH, TOKEN_RETURN,
     ')', ']', '}',
-    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ANY, TYPE_SELF, DOTDOTDOT,
+    CHAR, BYTE, INTEGER, FLOAT, BOOL, STRING, ANY, DOTDOTDOT,
   };
   int lastToken = ps->lastToken;
   for ( int i = 0; i < nr_elts(tokens); i++) {
@@ -169,7 +169,6 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "bool"           { YY_RETURN(BOOL);            }
 "string"         { YY_RETURN(STRING);          }
 "any"            { YY_RETURN(ANY);             }
-"Self"           { YY_RETURN(TYPE_SELF);       }
 
 "self"           { YY_RETURN(SELF);            }
 "super"          { YY_RETURN(SUPER);           }
@@ -228,13 +227,11 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 
 [\t\r ]+ {}
 
-"/*"(([^\*]*(\*[^\/])?)*)"*/" { printf("normal multi-line comments\n");}
+"/*"(([^\*]*(\*[^\/])?)*)"*/" { printf("block comments\n"); }
 
-"/**"(([^\*]*(\*[^\/])?)*)"*/" { printf("doc comments\n"); }
+"///"[^\n]* { printf("doc comment\n"); }
 
-"#"[^\n]* { printf("normal # single-line comments\n");}
-
-"//"[^\n]* { printf("normal // single-line comments\n");}
+"//"[^\n]* { printf("line comment\n"); }
 
 . {
   Position pos = {yyps->line.pos.row, yyps->line.pos.col};

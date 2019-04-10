@@ -35,7 +35,7 @@ typedef struct ident {
   Position pos;
 } Ident;
 
-Ident *New_Ident(String name);
+Ident *New_Ident(String name, Position pos);
 void Free_IdentList(Vector *vec);
 
 /* typedesc wrapper with position */
@@ -287,16 +287,16 @@ Expr *Expr_From_Anony(Vector *args, TypeDesc *ret, Vector *body);
 typedef enum stmtkind {
   /*
    * examples:
-   * const hello = "hello"
-   * const i int = 100 + 200
+   * val hello = "hello"
+   * val i int = 100 + 200
    */
-  //CONST_KIND = 1,
+  CONST_DECL_KIND = 1,
   /*
    * examples:
    * var hello = "hello"
    * hello := "hello"
    */
-  VAR_KIND,
+  VAR_DECL_KIND,
   /*
    * examples:
    * var (a,) = (100,)
@@ -304,35 +304,23 @@ typedef enum stmtkind {
    * var (a,) = Add(100, 200)
    * (a, b) := AddAndSub(100, 200)
    */
-  TUPLE_KIND,
-  /*
-   * examples:
-   * a = Add(100, 200)
-   * (a, b) = AddAndSub(100, 200)
-   * (a, b) = (100, 200)
-   */
-  ASSIGN_KIND,
-  /* function declaration */
-  FUNC_KIND,
-  /* proto or native function */
-  PROTO_KIND,
-  /*
-   * examples:
-   * a + b;
-   * a.b();
-   */
-  EXPR_KIND,
-  /* return */
-  RETURN_KIND,
-  /* new object */
-  NEW_KIND,
+  TUPLE_DECL_KIND,
+  /* function/method declaration */
+  FUNC_DECL_KIND,
+  /* proto/native function */
+  PROTO_DECL_KIND,
   /* class */
   CLASS_KIND,
   /* trait */
   TRAIT_KIND,
+  /* enum */
+  ENUM_KIND,
 
-  IF_KIND, WHILE_KIND, MATCH_KIND, FOR_KIND,
-  BREAK_KIND, CONTINUE_KIND,
+  ASSIGN_KIND,
+  EXPR_KIND,
+  RETURN_KIND,
+  BREAK_KIND,
+  CONTINUE_KIND,
 
   STMT_KIND_MAX
 } StmtKind;
@@ -344,30 +332,13 @@ typedef struct stmt {
   STMT_HEAD
 } Stmt;
 
-/* constant declaration, see CONST_KIND */
-typedef struct constdeclstmt {
-  STMT_HEAD
-  Ident id;
-  TypeWrapper type;
-  Expr *exp;
-} ConstDeclStmt;
-
-/* variable declaration, see VAR_KIND */
+/* variable declaration, see VAR_DECL_KIND */
 typedef struct vardeclstmt {
   STMT_HEAD
   Ident id;
   TypeWrapper type;
   Expr *exp;
 } VarDeclStmt;
-
-/* variable list declaration, see VARLIST_KIND */
-typedef struct varlistdeclstmt {
-  STMT_HEAD
-  Vector *ids;
-  TypeWrapper type;
-  Expr *exp;
-  int konst;
-} VarListDeclStmt;
 
 /* assignment operators */
 typedef enum assignopkind {
@@ -386,19 +357,14 @@ typedef struct assignstmt {
   Expr *right;
 } AssignStmt;
 
-/* assignment list statement, see ASSIGNLIST_KIND */
-typedef struct assignliststmt {
-  STMT_HEAD
-  /* expression list */
-  Vector *left;
-  Expr *right;
-} AssignListStmt;
-
-/* function/interface/native declaration */
+/* function/proto/native declaration */
 typedef struct funcdeclstmt {
   STMT_HEAD
-  int native;
   Ident id;
+  /* native flag */
+  int native;
+  /* type parameters */
+  Vector *typeparams;
   /* idtype statement */
   Vector *args;
   /* return type */
@@ -431,24 +397,14 @@ typedef struct liststmt {
 } ListStmt;
 
 void Free_Stmt_Func(void *item, void *arg);
-Stmt *__Stmt_From_VarDecl(Ident *id, TypeWrapper type, Expr *exp, int konst);
-Stmt *__Stmt_From_VarListDecl(Vector *ids, TypeWrapper type,
-                              Expr *exp, int konst);
-#define Stmt_From_VarDecl(id, desc, exp) \
-  __Stmt_From_VarDecl(&(id), desc, exp, 0)
-#define Stmt_From_VarListDecl(ids, desc, exp) \
-  __Stmt_From_VarListDecl(ids, desc, exp, 0)
-#define Stmt_From_ConstDecl(id, desc, exp) \
-  __Stmt_From_VarDecl(&(id), desc, exp, 1)
-#define Stmt_From_ConstListDecl(ids, desc, exp) \
-  __Stmt_From_VarListDecl(ids, desc, exp, 1)
+Stmt *Stmt_From_ConstDecl(Ident id, TypeWrapper type, Expr *exp);
+Stmt *Stmt_From_VarDecl(Ident id, TypeWrapper type, Expr *exp);
 Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right);
-Stmt *Stmt_From_AssignList(Vector *left, Expr *right);
-Stmt *Stmt_From_FuncDecl(Ident id, Vector *args, TypeDesc *ret, Vector *stmts);
+Stmt *Stmt_From_FuncDecl(Ident id, Vector *typeparams, Vector *args,
+                         TypeDesc *ret, Vector *stmts);
 Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, TypeDesc *ret);
 Stmt *Stmt_From_Expr(Expr *exp);
 Stmt *Stmt_From_Return(Expr *exp);
-Stmt *Stmt_From_List(Vector *vec);
 
 /* class or trait statement */
 typedef struct klassstmt {

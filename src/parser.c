@@ -88,7 +88,7 @@ static void merge_unit(ParserState *ps)
     if (funcSym == NULL) {
       if (u->block->bytes > 0) {
         Log_Puts("create __init__ function");
-        TypeDesc *proto = TypeDesc_Get_Proto(NULL, NULL);
+        TypeDesc *proto = TypeDesc_New_Proto(NULL, NULL);
         funcSym = STable_Add_Func(u->stbl, "__init__", proto);
         assert(funcSym != NULL);
         funcSym->code = u->block;
@@ -507,7 +507,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
       return;
     }
     if (__init__ == NULL) {
-      proto = TypeDesc_Get_Proto(NULL, clsSym->desc);
+      proto = TypeDesc_New_Proto(NULL, clsSym->desc);
     } else {
       proto = __init__->desc;
     }
@@ -894,71 +894,6 @@ static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
                  varStmt->exp, 0);
 }
 
-static void parse_varlistdecl_stmt(ParserState *ps, Stmt *stmt)
-{
-  VarListDeclStmt *varListStmt = (VarListDeclStmt *)stmt;
-  Expr *rexp = varListStmt->exp;
-  assert(rexp != NULL);
-  assert(!varListStmt->konst);
-
-  if (rexp->kind != CALL_KIND) {
-    Syntax_Error(ps, &rexp->pos, "right expression is not a multi-value");
-    return;
-  }
-
-  rexp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, rexp);
-  if (rexp->desc == NULL)
-    return;
-
-  assert(rexp->desc->kind == TYPE_PROTO);
-  ProtoDesc *proto = (ProtoDesc *)rexp->desc;
-
-#if 0
-  /* check count */
-  int nret = Vector_Size((Vector *)proto->ret);
-  int nvar = Vector_Size(varListStmt->ids);
-  if (nret != nvar) {
-    Syntax_Error(ps, &rexp->pos,
-                 "assignment mismatch: %d variables but %d values",
-                 nvar, nret);
-    return;
-  }
-
-  /* check type */
-  if (varListStmt->type.desc != NULL) {
-    TypeDesc *vdesc = varListStmt->type.desc;
-    TypeDesc *desc;
-    Vector_ForEach(desc, (Vector *)proto->ret) {
-      if (!__type_is_compatible(vdesc, desc)) {
-        Syntax_Error(ps, &rexp->pos,
-                     "right expression's type is not compatible");
-        return;
-      }
-    }
-  }
-
-  /* add or update symbol */
-  assert(ps->u->scope != SCOPE_CLASS);
-  VarSymbol *varSym;
-  TypeDesc *desc;
-  Ident *ident;
-  Vector_ForEach(ident, varListStmt->ids) {
-    desc = Vector_Get(proto->ret, i);
-    varSym = add_update_var(ps, ident, desc);
-    if (varSym == NULL)
-      return;
-  }
-
-  /* FIXME: generator code */
-  ParserUnit *u = ps->u;
-  if (u->scope == SCOPE_MODULE) {
-
-  } else {
-  }
-#endif
-}
-
 /*
   a = 100
   a.b = 200
@@ -1007,50 +942,6 @@ static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
     Syntax_Error(ps, &rexp->pos, "right expression's type is not compatible");
     return;
   }
-}
-
-static void parse_assignlist_stmt(ParserState *ps, Stmt *stmt)
-{
-  AssignListStmt *assignListStmt = (AssignListStmt *)stmt;
-  Expr *rexp = assignListStmt->right;
-
-  if (rexp->kind != CALL_KIND) {
-    Syntax_Error(ps, &rexp->pos, "right expression is not a multi-value");
-    return;
-  }
-
-  rexp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, rexp);
-
-  assert(rexp->desc != NULL && rexp->desc->kind == TYPE_PROTO);
-  ProtoDesc *proto = (ProtoDesc *)rexp->desc;
-
-#if 0
-  /* check count */
-  int nret = Vector_Size((Vector *)proto->ret);
-  int nleft = Vector_Size(assignListStmt->left);
-  if (nret != nleft) {
-    Syntax_Error(ps, &rexp->pos,
-                 "assignment mismatch: %d expressions but %d values",
-                 nleft, nret);
-    return;
-  }
-
-  /* type check */
-  TypeDesc *desc;
-  Expr *e;
-  Vector_ForEach(e, assignListStmt->left) {
-    e->ctx = EXPR_STORE;
-    parser_visit_expr(ps, e);
-    desc = Vector_Get(proto->ret, i);
-    if (!__type_is_compatible(e->desc, desc)) {
-      Syntax_Error(ps, &rexp->pos, "right expression's type is not compatible");
-      return;
-    }
-  }
-
-  /* FIXME: generate code */
-#endif
 }
 
 static void parse_statements(ParserState *ps, Vector *stmts);
@@ -1219,9 +1110,7 @@ typedef void (*parse_stmt_func)(ParserState *, Stmt *);
 static parse_stmt_func parse_stmt_funcs[] = {
   NULL,                     /* INVALID         */
   parse_vardecl_stmt,       /* VAR_KIND        */
-  parse_varlistdecl_stmt,   /* VARLIST_KIND    */
   parse_assign_stmt,        /* ASSIGN_KIND     */
-  parse_assignlist_stmt,    /* ASSIGNLIST_KIND */
   parse_funcdecl_stmt,      /* FUNC_KIND       */
   parse_protodecl_stmt,     /* PROTO_KIND      */
   parse_expr_stmt,          /* EXPR_KIND       */

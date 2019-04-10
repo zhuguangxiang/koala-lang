@@ -109,6 +109,10 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
   TypeDesc *TypeDesc;
   IdType *IdType;
   int Operator;
+  struct {
+    Ident ident;
+    Vector *vec;
+  } Name;
 }
 
 %token TYPELESS_ASSIGN
@@ -163,7 +167,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token BOOL
 %token STRING
 %token ANY
-%token TYPE_SELF
 
 %token SELF
 %token SUPER
@@ -194,10 +197,15 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> TypeList
 %type <List> ParameterList
 %type <List> IDList
+%type <Name> Name
+%type <List> TypeParameters
+%type <List> KlassTypeList
+%type <Name> TypeParameter
 
 %type <Stmt> ConstDeclaration
-%type <Stmt> VariableDeclaration
-%type <Stmt> FunctionDeclaration
+%type <Stmt> VarDeclaration
+%type <Stmt> FuncDeclaration
+%type <Stmt> MethodDeclaration
 %type <Stmt> TypeDeclaration
 %type <List> ClassMemberDeclsOrEmpty
 %type <List> ClassMemberDeclarations
@@ -215,16 +223,16 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> LocalStatements
 %type <Stmt> LocalStatement
 %type <Stmt> ExprStatement
-%type <Stmt> VariableDeclarationTypeless
-%type <Stmt> AssignExpression
+%type <Stmt> VarDeclarationTypeless
+%type <Stmt> Assignment
 %type <Stmt> IfExpression
 %type <Stmt> OrElseStatement
 %type <Stmt> WhileExpression
 %type <Stmt> MatchExpression
 %type <List> MatchClauses
 %type <Stmt> ForExpression
-%type <Stmt> JumpExpression
-%type <Stmt> ReturnExpression
+%type <Stmt> JumpStatement
+%type <Stmt> ReturnStatement
 
 %type <Expr> PrimaryExpression
 %type <Expr> Atom
@@ -315,21 +323,21 @@ BaseType
   }
   | TupleType
   {
-    $$ = NULL;
+    $$ = $1;
   }
   ;
 
 ArrayType
   : '[' Type ']'
   {
-    $$ = TypeDesc_Get_Array($2);
+    $$ = TypeDesc_New_Array($2);
   }
   ;
 
 MapType
   : '[' KeyType ':' Type ']'
   {
-    $$ = TypeDesc_Get_Map($2, $4);
+    $$ = TypeDesc_New_Map($2, $4);
   }
   ;
 
@@ -377,98 +385,50 @@ PrimitiveType
   {
     $$ = TypeDesc_Get_Base(BASE_ANY);
   }
-  | TYPE_SELF
-  {
-    $$ = TypeDesc_Get_Base(BASE_SELF);
-  }
   ;
 
 KlassType
   : ID
   {
-    $$ = TypeDesc_Get_Klass(NULL, $1.str, NULL);
+    $$ = TypeDesc_New_Klass(NULL, $1.str, NULL);
   }
   | ID '.' ID
   {
-    $$ = TypeDesc_Get_Klass($1.str, $3.str, NULL);
+    $$ = TypeDesc_New_Klass($1.str, $3.str, NULL);
   }
   | ID '<' TypeList '>'
   {
-    $$ = TypeDesc_Get_Klass(NULL, $1.str, $3);
+    $$ = TypeDesc_New_Klass(NULL, $1.str, $3);
   }
   | ID '.' ID '<' TypeList '>'
   {
-    $$ = TypeDesc_Get_Klass($1.str, $3.str, $5);
+    $$ = TypeDesc_New_Klass($1.str, $3.str, $5);
   }
   ;
 
 FunctionType
   : FUNC '(' TypeList ')' Type
   {
-    /*
-    if ($3 == NULL || $5 == NULL) {
-      $$ = NULL;
-    } else {
-      Vector *pvec = Vector_New();
-      Vector *rvec = Vector_New();
-      IdType *idType;
-      Vector_ForEach(idType, $3) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(pvec, idType->type.desc);
-      }
-      Vector_ForEach(idType, $5) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(rvec, idType->type.desc);
-      }
-      $$ = TypeDesc_Get_Proto(pvec, rvec);
-    }
-    Free_IdTypeList($3);
-    Free_IdTypeList($5);
-    */
-  }
-  | FUNC '<' TypeParameters '>' '(' TypeList ')' Type
-  {
-
+    $$ = TypeDesc_New_Proto($3, $5);
   }
   | FUNC '(' TypeList ')'
   {
-    /*
-    if ($3 == NULL) {
-      $$ = NULL;
-    } else {
-      Vector *pvec = Vector_New();
-      IdType *idType;
-      Vector_ForEach(idType, $3) {
-        TYPE_INCREF(idType->type.desc);
-        Vector_Append(pvec, idType->type.desc);
-      }
-      $$ = TypeDesc_Get_Proto(pvec, NULL);
-    }
-    Free_IdTypeList($3);
-    */
-  }
-  | FUNC '<' TypeParameters '>' '(' TypeList ')'
-  {
-
+    $$ = TypeDesc_New_Proto($3, NULL);
   }
   | FUNC '(' ')' Type
   {
-    //$$ = Parser_Get_Proto(NULL, $4);
-  }
-  | FUNC '<' TypeParameters '>' '(' ')' Type
-  {
-
+    $$ = TypeDesc_New_Proto(NULL, $4);
   }
   | FUNC '(' ')'
   {
-    //$$ = Parser_Get_Proto(NULL, NULL);
+    $$ = TypeDesc_New_Proto(NULL, NULL);
   }
   ;
 
 TupleType
   : '(' TypeList ')'
   {
-    $$ = NULL;
+    $$ = TypeDesc_New_Tuple($2);
   }
   ;
 
@@ -545,11 +505,11 @@ ParameterList
 VArgType
   : DOTDOTDOT
   {
-    $$ = TypeDesc_Get_Varg(NULL);
+    $$ = TypeDesc_New_Varg(NULL);
   }
   | DOTDOTDOT BaseType
   {
-    $$ = TypeDesc_Get_Varg($2);
+    $$ = TypeDesc_New_Varg($2);
   }
   ;
 
@@ -557,37 +517,27 @@ TypeList
   : Type
   {
     $$ = Vector_New();
-    DeclareType(type, $1, @1);
-    Vector_Append($$, New_IdType(NULL, type));
+    Vector_Append($$, $1);
   }
   | TypeList ',' Type
   {
-    if ($1 != NULL) {
-      $$ = $1;
-      DeclareType(type, $3, @3);
-      Vector_Append($$, New_IdType(NULL, type));
-    } else {
-      $$ = NULL;
-      // FIXME: has error ?
-      TYPE_DECREF($3);
-    }
+    $$ = $1;
+    Vector_Append($$, $3);
   }
   ;
 
 IDList
   : ID
   {
-    Ident *id = New_Ident($1);
-    SetPosition(id->pos, @1);
     $$ = Vector_New();
-    Vector_Append($$, id);
+    DeclarePosition(pos, @1);
+    Vector_Append($$, New_Ident($1, pos));
   }
   | IDList ',' ID
   {
-    Ident *id = New_Ident($3);
-    SetPosition(id->pos, @3);
     $$ = $1;
-    Vector_Append($$, id);
+    DeclarePosition(pos, @3);
+    Vector_Append($$, New_Ident($3, pos));
   }
   ;
 
@@ -696,22 +646,22 @@ ModuleStatement
   : ';'
   {
   }
-  | VariableDeclaration
-  {
-    //Parser_New_Variables(ps, $1);
-  }
   | ConstDeclaration
   {
-    //Parser_New_Variables(ps, $1);
+    Parser_New_Const(ps, $1);
   }
-  | FunctionDeclaration
+  | VarDeclaration
   {
-    //Parser_New_Function(ps, $1);
+    Parser_New_Var(ps, $1);
+  }
+  | FuncDeclaration
+  {
+    Parser_New_FuncOrProto(ps, $1);
   }
   | NATIVE ProtoDeclaration
   {
-    //((FuncDeclStmt *)$2)->native = 1;
-    //Parser_New_Function(ps, $2);
+    ((FuncDeclStmt *)$2)->native = 1;
+    Parser_New_FuncOrProto(ps, $2);
   }
   | TypeDeclaration
   {
@@ -726,97 +676,150 @@ ModuleStatement
 ConstDeclaration
   : CONST ID '=' Expression ';'
   {
-    //TypeWrapper type = {NULL};
-    //$$ = Parser_Do_Constants(ps, $2, type, $4);
+    DeclareIdent(id, $2, @2);
+    TypeWrapper type = {NULL};
+    $$ = Stmt_From_ConstDecl(id, type, $4);
   }
   | CONST ID Type '=' Expression ';'
   {
-    //DeclareType(type, $3, @3);
-    //$$ = Parser_Do_Constants(ps, $2, type, $5);
+    DeclareIdent(id, $2, @2);
+    DeclareType(type, $3, @3);
+    $$ = Stmt_From_ConstDecl(id, type, $5);
   }
   | CONST ID '=' error
   {
-    //Free_IdentList($2);
-    YYSyntax_Error(@4, "expr-list");
+    YYSyntax_Error(@4, "expr");
     $$ = NULL;
   }
   | CONST ID Type '=' error
   {
-    //Free_IdentList($2);
-    YYSyntax_Error(@5, "expr-list");
+    YYSyntax_Error(@5, "expr");
     $$ = NULL;
   }
   | CONST error
   {
-    YYSyntax_Error(@2, "id-list");
+    YYSyntax_Error(@2, "id");
     $$ = NULL;
   }
   ;
 
-VariableDeclaration
+VarDeclaration
   : VAR ID Type ';'
   {
-    //DeclareType(type, $3, @3);
-    //$$ = Parser_Do_Variable(ps, $2, type, NULL);
+    DeclareIdent(id, $2, @2);
+    DeclareType(type, $3, @3);
+    $$ = Stmt_From_VarDecl(id, type, NULL);
   }
   | VAR ID '=' Expression ';'
   {
-    //TypeWrapper type = {NULL};
-    //$$ = Parser_Do_Variables(ps, $2, type, $4);
+    DeclareIdent(id, $2, @2);
+    TypeWrapper type = {NULL};
+    $$ = Stmt_From_VarDecl(id, type, $4);
   }
   | VAR ID Type '=' Expression ';'
   {
-    //DeclareType(type, $3, @3);
-    //$$ = Parser_Do_Variables(ps, $2, type, $5);
+    DeclareIdent(id, $2, @2);
+    DeclareType(type, $3, @3);
+    $$ = Stmt_From_VarDecl(id, type, $5);
   }
-  | VAR TupleExpression '=' Expression ';'
+  | VAR '(' IDList ')' '=' Expression ';'
   {
-
+    $$ = NULL;
   }
   | VAR ID '=' error
   {
-    //Free_IdentList($2);
-    YYSyntax_Error(@4, "right's expression-list");
+    YYSyntax_Error(@4, "expr");
     $$ = NULL;
   }
   | VAR ID Type '=' error
   {
-    //Free_IdentList($2);
-    YYSyntax_Error(@5, "right's expression-list");
+    YYSyntax_Error(@5, "expr");
     $$ = NULL;
   }
   | VAR error
   {
-    YYSyntax_Error(@2, "id-list");
+    YYSyntax_Error(@2, "id");
     $$ = NULL;
   }
   ;
 
-FunctionDeclaration
+FuncDeclaration
   : FUNC Name '(' ParameterList ')' Type ExprOrBlock
   {
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_FuncDecl(id, $4, $6, $7);
+    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, $4, $6, $7);
   }
   | FUNC Name '(' ParameterList ')' ExprOrBlock
   {
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_FuncDecl(id, $4, NULL, $6);
+    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, $4, NULL, $6);
   }
   | FUNC Name '(' ')' Type ExprOrBlock
   {
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_FuncDecl(id, NULL, $5, $6);
+    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, NULL, $5, $6);
   }
   | FUNC Name '(' ')' ExprOrBlock
   {
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_FuncDecl(id, NULL, NULL, $5);
+    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, NULL, NULL, $5);
   }
   | FUNC error
   {
     YYSyntax_Error(@2, "ID");
     $$ = NULL;
+  }
+  ;
+
+Name
+  : ID
+  {
+    DeclareIdent(id, $1, @1);
+    $$.ident = id;
+    $$.vec = NULL;
+  }
+  | ID '<' TypeParameters '>'
+  {
+    DeclareIdent(id, $1, @1);
+    $$.ident = id;
+    $$.vec = $3;
+  }
+  ;
+
+TypeParameters
+  : TypeParameter
+  {
+    $$ = Vector_New();
+    //Vector_Append($$, $1);
+  }
+  | TypeParameters ',' TypeParameter
+  {
+    $$ = $1;
+    //Vector_Append($$, $3);
+  }
+  ;
+
+TypeParameter
+  : ID
+  {
+    DeclareIdent(id, $1, @1);
+    $$.ident = id;
+    $$.vec = NULL;
+  }
+  | ID ':' KlassTypeList
+  {
+    DeclareIdent(id, $1, @1);
+    $$.ident = id;
+    $$.vec = $3;
+  }
+  ;
+
+KlassTypeList
+  : KlassType
+  {
+    $$ = Vector_New();
+    Vector_Append($$, $1);
+  }
+  | KlassTypeList '&' KlassType
+  {
+    $$ = $1;
+    Vector_Append($$, $3);
   }
   ;
 
@@ -849,29 +852,6 @@ TypeDeclaration
   {
 
   }
-  ;
-
-Name
-  : ID
-  | ID '<' TypeParameters '>'
-  {
-
-  }
-  ;
-
-TypeParameters
-  : TypeParameter
-  | TypeParameters ',' TypeParameter
-  ;
-
-TypeParameter
-  : ID
-  | ID ':' KlassTypeList
-  ;
-
-KlassTypeList
-  : KlassType
-  | KlassTypeList '+' KlassType
   ;
 
 ExtendsOrEmpty
@@ -950,7 +930,7 @@ ClassMemberDeclaration
   {
     $$ = $1;
   }
-  | FunctionDeclaration
+  | MethodDeclaration
   {
     $$ = $1;
   }
@@ -1003,64 +983,75 @@ TraitMemberDeclaration
   ;
 
 FieldDeclaration
-  : VAR ID Type ';'
+  : ID Type ';'
   {
-    DeclareIdent(id, $2, @2);
-    DeclareType(type, $3, @3);
+    DeclareIdent(id, $1, @1);
+    DeclareType(type, $2, @2);
     $$ = Stmt_From_VarDecl(id, type, NULL);
   }
-  | VAR ID '=' Expression ';'
+  | ID '=' Expression ';'
   {
-    DeclareIdent(id, $2, @2);
+    DeclareIdent(id, $1, @1);
     TypeWrapper type = {NULL};
+    $$ = Stmt_From_VarDecl(id, type, $3);
+  }
+  | ID Type '=' Expression ';'
+  {
+    DeclareIdent(id, $1, @1);
+    DeclareType(type, $2, @2);
     $$ = Stmt_From_VarDecl(id, type, $4);
   }
-  | VAR ID Type '=' Expression ';'
+  ;
+
+MethodDeclaration
+  : FUNC ID '(' ParameterList ')' Type ExprOrBlock
   {
     DeclareIdent(id, $2, @2);
-    DeclareType(type, $3, @3);
-    $$ = Stmt_From_VarDecl(id, type, $5);
+    $$ = Stmt_From_FuncDecl(id, NULL, $4, $6, $7);
   }
-  | CONST ID Type ';'
+  | FUNC ID '(' ParameterList ')' ExprOrBlock
   {
-
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_FuncDecl(id, NULL, $4, NULL, $6);
   }
-  | CONST ID '=' Expression ';'
+  | FUNC ID '(' ')' Type ExprOrBlock
   {
-
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_FuncDecl(id, NULL, NULL, $5, $6);
   }
-  | CONST ID Type '=' Expression ';'
+  | FUNC ID '(' ')' ExprOrBlock
   {
-
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_FuncDecl(id, NULL, NULL, NULL, $5);
   }
   ;
 
 ProtoDeclaration
-  : FUNC Name '(' ParameterList ')' Type ';'
+  : FUNC ID '(' ParameterList ')' Type ';'
   {
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_ProtoDecl(id, $4, $6);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_ProtoDecl(id, $4, $6);
   }
-  | FUNC Name '(' ParameterList ')' ';'
+  | FUNC ID '(' ParameterList ')' ';'
   {
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_ProtoDecl(id, $4, NULL);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_ProtoDecl(id, $4, NULL);
   }
-  | FUNC Name '(' ')' Type ';'
+  | FUNC ID '(' ')' Type ';'
   {
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_ProtoDecl(id, NULL, $5);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_ProtoDecl(id, NULL, $5);
   }
-  | FUNC Name '(' ')' ';'
+  | FUNC ID '(' ')' ';'
   {
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_ProtoDecl(id, NULL, NULL);
+    DeclareIdent(id, $2, @2);
+    $$ = Stmt_From_ProtoDecl(id, NULL, NULL);
   }
   ;
 
 EnumMemberDecls
   : EnumLableDeclarations ','
-  | EnumLableDeclarations ',' EnumFuncDeclarations
+  | EnumLableDeclarations ',' EnumMethodDeclarations
   ;
 
 EnumLableDeclarations
@@ -1072,9 +1063,9 @@ EnumLableDeclarations
   | EnumLableDeclarations ',' ID '=' INT_LITERAL
   ;
 
-EnumFuncDeclarations
-  : FunctionDeclaration ';'
-  | EnumFuncDeclarations FunctionDeclaration ';'
+EnumMethodDeclarations
+  : MethodDeclaration ';'
+  | EnumMethodDeclarations MethodDeclaration ';'
   ;
 
 Block
@@ -1112,19 +1103,15 @@ LocalStatement
   {
     $$ = $1;
   }
-  | ConstDeclaration
+  | VarDeclaration
   {
     $$ = $1;
   }
-  | VariableDeclaration
+  | VarDeclarationTypeless
   {
     $$ = $1;
   }
-  | VariableDeclarationTypeless
-  {
-    $$ = $1;
-  }
-  | AssignExpression
+  | Assignment
   {
     $$ = $1;
   }
@@ -1144,18 +1131,19 @@ LocalStatement
   {
     $$ = $1;
   }
-  | JumpExpression
+  | JumpStatement
   {
     $$ = $1;
   }
-  | ReturnExpression
+  | ReturnStatement
   {
     $$ = $1;
   }
   | Block
   {
-    $$ = Stmt_From_List($1);
-    ((ListStmt *)$$)->block = 1;
+    //$$ = Stmt_From_List($1);
+    //((ListStmt *)$$)->block = 1;
+    $$ = NULL;
   }
   ;
 
@@ -1169,7 +1157,7 @@ ExprStatement
 /*
  * TYPELESS_ASSIGN is used only in local blocks
  */
-VariableDeclarationTypeless
+VarDeclarationTypeless
   : ID TYPELESS_ASSIGN Expression ';'
   {
     //$$ = Parser_Do_Typeless_Variables(ps, $1, $3);
@@ -1299,7 +1287,7 @@ ForExpression
   }
   ;
 
-JumpExpression
+JumpStatement
   : BREAK ';'
   {
     //$$ = stmt_from_jump(BREAK_KIND, 1);
@@ -1310,7 +1298,7 @@ JumpExpression
   }
   ;
 
-ReturnExpression
+ReturnStatement
   : TOKEN_RETURN ';'
   {
     $$ = Stmt_From_Return(NULL);
@@ -1328,7 +1316,7 @@ ReturnExpression
   }
   ;
 
-AssignExpression
+Assignment
   : PrimaryExpression AssignOp Expression ';'
   {
     //$$ = Parser_Do_Assignments(ps, $1, NULL);
@@ -1603,11 +1591,7 @@ MapKeyValue
   ;
 
 TupleExpression
-  : '(' NormalExpression ',' ')'
-  {
-
-  }
-  | '(' ExpressionListComma NormalExpression ')'
+  : '(' ExpressionListComma NormalExpression ')'
   {
 
   }
@@ -1877,7 +1861,7 @@ LambdaExpression
   }
   ;
 
-NewObjectExpression
+NewExpression
   : TOKEN_NEW ID '<' TypeList '>' '(' ')'
   | TOKEN_NEW ID '.' ID '<' TypeList '>' '(' ')'
   | TOKEN_NEW ID '<' TypeList '>' '(' ExpressionList ')'
@@ -1905,7 +1889,7 @@ NormalExpression
   {
 
   }
-  | NewObjectExpression
+  | NewExpression
   {
 
   }

@@ -33,7 +33,7 @@ void new_animal(void)
   desc = TypeDesc_Get_Base(BASE_STRING);
   Vector *vec = Vector_Capacity(1);
   Vector_Append(vec, desc);
-  TypeDesc *proto = TypeDesc_Get_Proto(vec, NULL);
+  TypeDesc *proto = TypeDesc_New_Proto(vec, NULL);
   Object *bark = CFunc_New("bark", proto, animal_bark);
   Klass_Add_Method(animal, bark);
 
@@ -88,7 +88,7 @@ void new_dog(void)
   TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
   Vector *vec = Vector_Capacity(1);
   Vector_Append(vec, desc);
-  TypeDesc *proto = TypeDesc_Get_Proto(vec, NULL);
+  TypeDesc *proto = TypeDesc_New_Proto(vec, NULL);
   Object *bark = CFunc_New("bark", proto, dog_bark);
   Klass_Add_Method(dog, bark);
   Object *instance = dog->ob_alloc(dog);

@@ -16,18 +16,18 @@ void test_typedesc(void)
   //TYPE_INCREF(type);
   //TypeDesc_Free(type);
 
-  type = TypeDesc_Get_Klass("lang", "Tuple", NULL);
+  type = TypeDesc_New_Klass("lang", "Tuple", NULL);
   s = TypeDesc_ToString(type);
   assert(!strcmp("lang.Tuple", s.str));
 
-  type = TypeDesc_Get_Array(type);
+  type = TypeDesc_New_Array(type);
   s = TypeDesc_ToString(type);
   assert(!strcmp("[][]lang.Tuple", s.str));
 
   type = TypeDesc_Get_Base(BASE_INT);
   //TYPE_INCREF(type);
   Vector *arg = Vector_New();
-  type = TypeDesc_Get_Array(type);
+  type = TypeDesc_New_Array(type);
   TYPE_INCREF(type);
   Vector_Append(arg, type);
   type = TypeDesc_Get_Base(BASE_STRING);
@@ -35,7 +35,7 @@ void test_typedesc(void)
   Vector_Append(arg, type);
 
   type = TypeDesc_Get_Base(BASE_STRING);
-  type = TypeDesc_Get_Proto(arg, type);
+  type = TypeDesc_New_Proto(arg, type);
   s = TypeDesc_ToString(type);
   assert(!strcmp("func([]int, string) string", s.str));
 }

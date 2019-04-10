@@ -6,7 +6,7 @@ void test_image(void)
 {
   KImage *image = KImage_New("test");
   TypeDesc *desc = TypeDesc_Get_Base(BASE_STRING);
-  TypeDesc *proto = TypeDesc_Get_Proto(NULL, desc);
+  TypeDesc *proto = TypeDesc_New_Proto(NULL, desc);
   uint8 *psudo = malloc(4);
   psudo[0] = LOAD;
   psudo[1] = LOAD_CONST;

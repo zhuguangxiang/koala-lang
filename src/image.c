@@ -56,7 +56,7 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
     s = AtomTable_Get(atbl, ITEM_STRING, item->typeindex);
     type = AtomString_New(s->data).str;
     //FIXME
-    t = TypeDesc_Get_Klass(path, type, NULL);
+    t = TypeDesc_New_Klass(path, type, NULL);
     break;
   }
   case TYPE_PROTO: {
@@ -68,13 +68,13 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
     TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->array.typeindex);
     TypeDesc *base_type = TypeItem_To_TypeDesc(base, atbl);
     //FIXME
-    t = TypeDesc_Get_Array(base_type);
+    t = TypeDesc_New_Array(base_type);
     break;
   }
   case TYPE_VARG: {
     TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->varg.typeindex);
     TypeDesc *desc = TypeItem_To_TypeDesc(base, atbl);
-    t = TypeDesc_Get_Varg(desc);
+    t = TypeDesc_New_Varg(desc);
     break;
   }
   default:
@@ -116,7 +116,7 @@ TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
     ret = TypeItem_To_TypeDesc(type, atbl);
   }
 
-  return TypeDesc_Get_Proto(arg, ret);
+  return TypeDesc_New_Proto(arg, ret);
 }
 
 MapItem *MapItem_New(int type, int offset, int size)
