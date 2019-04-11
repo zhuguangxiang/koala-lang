@@ -54,6 +54,13 @@ IdType *New_IdType(Ident *id, TypeWrapper type);
 void Free_IdType(IdType *idtype);
 void Free_IdTypeList(Vector *vec);
 
+typedef struct typepara {
+  Ident id;
+  Vector *impls;
+} TypePara;
+
+TypePara *New_TypePara(Ident id, Vector *impls);
+
 /* unary operator kind */
 typedef enum unaryopkind {
   /* + */
@@ -85,8 +92,8 @@ typedef enum binaryopkind {
 typedef enum exprkind {
   /* expr head only */
   NIL_KIND = 1, SELF_KIND, SUPER_KIND,
-  /* constant expr */
-  CONST_KIND,
+  /* literal expr */
+  LITERAL_KIND,
   /* identifier expression */
   ID_KIND,
   /* unary, binary op */
@@ -99,8 +106,8 @@ typedef enum exprkind {
   MAP_LIST_KIND,
   /* map entry */
   MAP_ENTRY_KIND,
-  /* array, map, set, anonymous func */
-  ARRAY_KIND, MAP_KIND, SET_KIND, ANONY_FUNC_KIND,
+  /* array, map, anonymous func */
+  ARRAY_KIND, MAP_KIND, ANONY_FUNC_KIND,
   EXPR_KIND_MAX
 } ExprKind;
 
@@ -134,7 +141,7 @@ Expr *Expr_From_Nil(void);
 Expr *Expr_From_Self(void);
 Expr *Expr_From_Super(void);
 
-/* constant expression */
+/* literal expression */
 typedef struct constexpr {
   EXPR_HEAD
   ConstValue value;
@@ -262,15 +269,6 @@ typedef struct mapexpr {
 Expr *Expr_From_MapListExpr(Vector *vec);
 Expr *Expr_From_Map(TypeWrapper type, Expr *listExp);
 
-/* new set expression */
-typedef struct setexpr {
-  EXPR_HEAD
-  TypeWrapper type;
-  ListExpr *listExp;
-} SetExpr;
-
-Expr *Expr_From_Set(TypeWrapper type, Expr *listExp);
-
 /* new anonymous function expression */
 typedef struct anonyexpr {
   EXPR_HEAD
@@ -290,13 +288,13 @@ typedef enum stmtkind {
    * val hello = "hello"
    * val i int = 100 + 200
    */
-  CONST_DECL_KIND = 1,
+  CONST_KIND = 1,
   /*
    * examples:
    * var hello = "hello"
    * hello := "hello"
    */
-  VAR_DECL_KIND,
+  VAR_KIND,
   /*
    * examples:
    * var (a,) = (100,)
@@ -304,20 +302,23 @@ typedef enum stmtkind {
    * var (a,) = Add(100, 200)
    * (a, b) := AddAndSub(100, 200)
    */
-  TUPLE_DECL_KIND,
+  TUPLE_KIND,
   /* function/method declaration */
-  FUNC_DECL_KIND,
+  FUNC_KIND,
   /* proto/native function */
-  PROTO_DECL_KIND,
+  PROTO_KIND,
   /* class */
   CLASS_KIND,
   /* trait */
   TRAIT_KIND,
   /* enum */
   ENUM_KIND,
+  /* expression */
+  EXPR_KIND,
+  /* statements */
+  LIST_KIND,
 
   ASSIGN_KIND,
-  EXPR_KIND,
   RETURN_KIND,
   BREAK_KIND,
   CONTINUE_KIND,
@@ -404,6 +405,7 @@ Stmt *Stmt_From_FuncDecl(Ident id, Vector *typeparams, Vector *args,
                          TypeDesc *ret, Vector *stmts);
 Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, TypeDesc *ret);
 Stmt *Stmt_From_Expr(Expr *exp);
+Stmt *Stmt_From_List(Vector *vec);
 Stmt *Stmt_From_Return(Expr *exp);
 
 /* class or trait statement */

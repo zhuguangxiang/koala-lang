@@ -100,8 +100,7 @@ static void init_basetypes(void)
     base->type = p->kind;
     base->pkgpath = p->pkgpath;
     base->typestr = p->typestr;
-    /* no need free base descriptors */
-    base->refcnt = 2;
+    base->refcnt = 1;
   }
 }
 
@@ -342,9 +341,7 @@ TypeDesc *TypeDesc_New_Proto(Vector *arg, TypeDesc *ret)
 TypeDesc *TypeDesc_New_Array(TypeDesc *base)
 {
   /* [type */
-  int dims = 1
-
-;
+  int dims = 1;
   if (base->kind == TYPE_ARRAY) {
     ArrayDesc *arrayDesc = (ArrayDesc *)base;
     dims = arrayDesc->dims + 1;
@@ -374,10 +371,8 @@ TypeDesc *TypeDesc_New_Varg(TypeDesc *base)
 
   /* ...type*/
   DeclareTypeDesc(desc, TYPE_VARG, VargDesc);
-  if (base != NULL) {
-    TYPE_INCREF(base);
-    desc->base = base;
-  }
+  TYPE_INCREF(base);
+  desc->base = base;
   return (TypeDesc *)desc;
 }
 
@@ -432,6 +427,7 @@ TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg)
     base = __String_To_TypeDesc(&s, dims, 0);
     //FIXME
     desc = TypeDesc_New_Array(base);
+    TYPE_DECREF(base);
     break;
   }
   case 'M': {
@@ -439,6 +435,8 @@ TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg)
     TypeDesc *key = __String_To_TypeDesc(&s, 0, 0);
     TypeDesc *val = __String_To_TypeDesc(&s, 0, 0);
     desc = TypeDesc_New_Map(key, val);
+    TYPE_DECREF(key);
+    TYPE_DECREF(val);
     break;
   }
   case 'P': {
@@ -448,7 +446,6 @@ TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg)
       if (args == NULL)
         args = Vector_New();
       base = __String_To_TypeDesc(&s, 0, 0);
-      TYPE_INCREF(base);
       Vector_Append(args, base);
     }
     s += 1;
@@ -456,6 +453,7 @@ TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg)
     assert(*s == ';');
     s += 1;
     desc = TypeDesc_New_Proto(args, base);
+    TYPE_DECREF(base);
     break;
   }
   case '.': {
@@ -463,19 +461,20 @@ TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg)
     assert(s[1] == '.' && s[2] == '.');
     s += 3;
     if (s[0] == 'A') {
-      base = (TypeDesc *)&Any_Type;
+      base = TypeDesc_Get_Base('A');
+      TYPE_INCREF(desc);
       s += 1;
     } else {
       base = __String_To_TypeDesc(&s, 0, 1);
     }
     desc = TypeDesc_New_Varg(base);
+    TYPE_DECREF(base);
     break;
   }
   default: {
-    struct base_type_s *p = get_base(ch);
-    assert(p != NULL);
     assert(!(_dims > 0 && _varg > 0));
-    desc = (TypeDesc *)p->type;
+    desc = TypeDesc_Get_Base(ch);
+    TYPE_INCREF(desc);
     s += 1;
     break;
   }
@@ -499,7 +498,6 @@ Vector *String_ToTypeList(char *s)
   while (*s != '\0') {
     desc = __String_To_TypeDesc(&s, 0, 0);
     assert(desc != NULL);
-    TYPE_INCREF(desc);
     Vector_Append(vec, desc);
   }
 

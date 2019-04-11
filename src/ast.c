@@ -87,6 +87,14 @@ void Free_IdTypeList(Vector *vec)
   Vector_Free_Self(vec);
 }
 
+TypePara *New_TypePara(Ident id, Vector *impls)
+{
+  TypePara *para = Malloc(sizeof(TypePara));
+  para->id = id;
+  para->impls = impls;
+  return para;
+}
+
 Expr *Expr_From_Nil(void)
 {
   Expr *exp = Malloc(sizeof(Expr));
@@ -111,7 +119,7 @@ Expr *Expr_From_Super(void)
 Expr *Expr_From_Integer(int64 val)
 {
   ConstExpr *constExp = Malloc(sizeof(ConstExpr));
-  constExp->kind = CONST_KIND;
+  constExp->kind = LITERAL_KIND;
   constExp->desc = TypeDesc_Get_Base(BASE_INT);
   TYPE_INCREF(constExp->desc);
   constExp->value.kind = BASE_INT;
@@ -122,7 +130,7 @@ Expr *Expr_From_Integer(int64 val)
 Expr *Expr_From_Float(float64 val)
 {
   ConstExpr *constExp = Malloc(sizeof(ConstExpr));
-  constExp->kind = CONST_KIND;
+  constExp->kind = LITERAL_KIND;
   constExp->desc = TypeDesc_Get_Base(BASE_FLOAT);
   TYPE_INCREF(constExp->desc);
   constExp->value.kind = BASE_FLOAT;
@@ -133,7 +141,7 @@ Expr *Expr_From_Float(float64 val)
 Expr *Expr_From_Bool(int val)
 {
   ConstExpr *constExp = Malloc(sizeof(ConstExpr));
-  constExp->kind = CONST_KIND;
+  constExp->kind = LITERAL_KIND;
   constExp->desc = TypeDesc_Get_Base(BASE_BOOL);
   TYPE_INCREF(constExp->desc);
   constExp->value.kind = BASE_BOOL;
@@ -144,7 +152,7 @@ Expr *Expr_From_Bool(int val)
 Expr *Expr_From_String(char *val)
 {
   ConstExpr *constExp = Malloc(sizeof(ConstExpr));
-  constExp->kind = CONST_KIND;
+  constExp->kind = LITERAL_KIND;
   constExp->desc = TypeDesc_Get_Base(BASE_STRING);
   TYPE_INCREF(constExp->desc);
   constExp->value.kind = BASE_STRING;
@@ -155,7 +163,7 @@ Expr *Expr_From_String(char *val)
 Expr *Expr_From_Char(uchar val)
 {
   ConstExpr *constExp = Malloc(sizeof(ConstExpr));
-  constExp->kind = CONST_KIND;
+  constExp->kind = LITERAL_KIND;
   constExp->desc = TypeDesc_Get_Base(BASE_CHAR);
   TYPE_INCREF(constExp->desc);
   constExp->value.kind = BASE_CHAR;
@@ -174,7 +182,7 @@ Expr *Expr_From_Ident(char *val)
 /* FIXME: unchanged variable, see parse_operator.c */
 int Expr_Is_Const(Expr *exp)
 {
-  if (exp->kind == CONST_KIND)
+  if (exp->kind == LITERAL_KIND)
     return 1;
 
   if (exp->kind == ID_KIND) {
@@ -383,17 +391,6 @@ Expr *Expr_From_Map(TypeWrapper type, Expr *listExp)
   return (Expr *)mapExp;
 }
 
-Expr *Expr_From_Set(TypeWrapper type, Expr *listExp)
-{
-  SetExpr *setExp = Malloc(sizeof(SetExpr));
-  setExp->kind = SET_KIND;
-  TYPE_INCREF(type.desc);
-  setExp->type = type;
-  assert(listExp != NULL ? listExp->kind == ARRAY_LIST_KIND : 1);
-  setExp->listExp = (ListExpr *)listExp;
-  return (Expr *)setExp;
-}
-
 Expr *Expr_From_Anony(Vector *args, TypeDesc *ret, Vector *body)
 {
   AnonyExpr *anonyExp = Malloc(sizeof(AnonyExpr));
@@ -503,14 +500,6 @@ static void free_map_expr(Expr *exp)
   free_expr(exp);
 }
 
-static void free_set_expr(Expr *exp)
-{
-  SetExpr *setExp = (SetExpr *)exp;
-  TYPE_DECREF(setExp->type.desc);
-  free_list_expr((Expr *)setExp->listExp);
-  free_expr(exp);
-}
-
 static void free_anony_expr(Expr *exp)
 {
   AnonyExpr *anonyExp = (AnonyExpr *)exp;
@@ -525,7 +514,7 @@ static void (*__free_expr_funcs[])(Expr *) = {
   free_expr,                             /* NIL_KIND         */
   free_expr,                             /* SELF_KIND        */
   free_expr,                             /* SUPER_KIND       */
-  free_expr,                             /* CONST_KIND       */
+  free_expr,                             /* LITERAL_KIND     */
   free_expr,                             /* ID_KIND          */
   free_unary_expr,                       /* UNARY_KIND       */
   free_binary_expr,                      /* BINARY_KIND      */
@@ -538,7 +527,6 @@ static void (*__free_expr_funcs[])(Expr *) = {
   free_mapentry_expr,                    /* MAP_ENTRY_KIND   */
   free_array_expr,                       /* ARRAY_KIND       */
   free_map_expr,                         /* MAP_KIND         */
-  free_set_expr,                         /* SET_KIND         */
   free_anony_expr,                       /* ANONY_FUNC_KIND  */
 };
 
@@ -624,13 +612,20 @@ static void free_klass_stmt(Stmt *stmt)
 
 static void (*__free_stmt_funcs[])(Stmt *) = {
   NULL,                                  /* INVALID         */
+  NULL,                                  /* CONST_KIND */
   free_vardecl_stmt,                     /* VAR_KIND        */
-  free_assign_stmt,                      /* ASSIGN_KIND     */
+  NULL,                                  /* TUPLE_KIND */
   free_funcdecl_stmt,                    /* FUNC_KIND       */
   free_funcdecl_stmt,                    /* PROTO_KIND      */
+  NULL,
+  NULL,
+  NULL,
   free_expr_stmt,                        /* EXPR_KIND       */
-  free_return_stmt,                      /* RETURN_KIND     */
   free_list_stmt,                        /* LIST_KIND       */
+
+  free_assign_stmt,                      /* ASSIGN_KIND     */
+
+  free_return_stmt,                      /* RETURN_KIND     */
   free_klass_stmt,                       /* CLASS_KIND      */
   free_klass_stmt,                       /* TRAIT_KIND      */
   NULL, NULL, NULL, NULL,
@@ -648,9 +643,8 @@ void Free_Stmt_Func(void *item, void *arg)
 Stmt *Stmt_From_ConstDecl(Ident id, TypeWrapper type, Expr *exp)
 {
   VarDeclStmt *varStmt = Malloc(sizeof(VarDeclStmt));
-  varStmt->kind = CONST_DECL_KIND;
+  varStmt->kind = CONST_KIND;
   varStmt->id = id;
-  TYPE_INCREF(type.desc);
   varStmt->type = type;
   varStmt->exp = exp;
   return (Stmt *)varStmt;
@@ -659,9 +653,8 @@ Stmt *Stmt_From_ConstDecl(Ident id, TypeWrapper type, Expr *exp)
 Stmt *Stmt_From_VarDecl(Ident id, TypeWrapper type, Expr *exp)
 {
   VarDeclStmt *varStmt = Malloc(sizeof(VarDeclStmt));
-  varStmt->kind = VAR_DECL_KIND;
+  varStmt->kind = VAR_KIND;
   varStmt->id = id;
-  TYPE_INCREF(type.desc);
   varStmt->type = type;
   varStmt->exp = exp;
   return (Stmt *)varStmt;
@@ -681,7 +674,7 @@ Stmt *Stmt_From_FuncDecl(Ident id, Vector *typeparams, Vector *args,
                          TypeDesc *ret, Vector *stmts)
 {
   FuncDeclStmt *funcStmt = Malloc(sizeof(FuncDeclStmt));
-  funcStmt->kind = FUNC_DECL_KIND;
+  funcStmt->kind = FUNC_KIND;
   funcStmt->id = id;
   funcStmt->args = args;
   funcStmt->ret = ret;
@@ -692,10 +685,9 @@ Stmt *Stmt_From_FuncDecl(Ident id, Vector *typeparams, Vector *args,
 Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, TypeDesc *ret)
 {
   FuncDeclStmt *protoStmt = Malloc(sizeof(FuncDeclStmt));
-  protoStmt->kind = PROTO_DECL_KIND;
+  protoStmt->kind = PROTO_KIND;
   protoStmt->id = id;
   protoStmt->args = args;
-  TYPE_INCREF(ret);
   protoStmt->ret = ret;
   return (Stmt *)protoStmt;
 }
@@ -706,6 +698,14 @@ Stmt *Stmt_From_Expr(Expr *exp)
   expStmt->kind = EXPR_KIND;
   expStmt->exp = exp;
   return (Stmt *)expStmt;
+}
+
+Stmt *Stmt_From_List(Vector *vec)
+{
+  ListStmt *listStmt = Malloc(sizeof(ListStmt));
+  listStmt->kind = LIST_KIND;
+  listStmt->vec = vec;
+  return (Stmt *)listStmt;
 }
 
 Stmt *Stmt_From_Return(Expr *exp)
@@ -1123,7 +1123,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   Symbol *sym;
   TypeDesc *proto = TypeDesc_New_Proto(funcStmt->args, funcStmt->ret);
 
-  if (funcStmt->kind == PROTO_DECL_KIND) {
+  if (funcStmt->kind == PROTO_KIND) {
     if (funcStmt->native) {
       sym = STable_Add_NFunc(u->stbl, name, proto);
       if (sym != NULL) {
@@ -1152,7 +1152,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
       }
     }
   } else {
-    assert(funcStmt->kind == FUNC_DECL_KIND);
+    assert(funcStmt->kind == FUNC_KIND);
     sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
     if (sym != NULL) {
       Log_Debug("add func '%s' successfully", name);
@@ -1172,6 +1172,8 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
     Syntax_Error(ps, &pos, "Symbol '%s' is duplicated", name);
     TYPE_DECREF(proto);
   }
+
+  TYPE_DECREF(proto);
 }
 
 void Parser_New_FuncOrProto(ParserState *ps, Stmt *stmt)
@@ -1229,10 +1231,10 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
 
   Stmt *s;
   Vector_ForEach(s, klsStmt->body) {
-    if (s->kind == VAR_DECL_KIND) {
+    if (s->kind == VAR_KIND) {
       VarDeclStmt *varStmt = (VarDeclStmt *)s;
       __new_var(ps, &varStmt->id, varStmt->type.desc);
-    } else if (s->kind == FUNC_DECL_KIND || s->kind == PROTO_DECL_KIND) {
+    } else if (s->kind == FUNC_KIND || s->kind == PROTO_KIND) {
       __parse_funcdecl(ps, s);
     } else {
       assert(0);

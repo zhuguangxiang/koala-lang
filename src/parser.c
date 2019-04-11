@@ -887,11 +887,16 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
   }
 }
 
-static void parse_vardecl_stmt(ParserState *ps, Stmt *stmt)
+static void parse_const_decl(ParserState *ps, Stmt *stmt)
 {
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
-  parse_variable(ps, &varStmt->id, &varStmt->type,
-                 varStmt->exp, 0);
+  parse_variable(ps, &varStmt->id, &varStmt->type, varStmt->exp, 1);
+}
+
+static void parse_var_decl(ParserState *ps, Stmt *stmt)
+{
+  VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
+  parse_variable(ps, &varStmt->id, &varStmt->type, varStmt->exp, 0);
 }
 
 /*
@@ -1109,13 +1114,19 @@ typedef void (*parse_stmt_func)(ParserState *, Stmt *);
 
 static parse_stmt_func parse_stmt_funcs[] = {
   NULL,                     /* INVALID         */
-  parse_vardecl_stmt,       /* VAR_KIND        */
-  parse_assign_stmt,        /* ASSIGN_KIND     */
+  parse_const_decl,         /* CONST_KIND */
+  parse_var_decl,           /* VAR_KIND    */
+  NULL,                     /* TUPLE_KIND  */
   parse_funcdecl_stmt,      /* FUNC_KIND       */
   parse_protodecl_stmt,     /* PROTO_KIND      */
+  NULL,
+  NULL,
+  NULL,
   parse_expr_stmt,          /* EXPR_KIND       */
-  parse_return_stmt,        /* RETURN_KIND     */
   parse_list_stmt,          /* LIST_KIND       */
+
+  parse_assign_stmt,        /* ASSIGN_KIND     */
+  parse_return_stmt,        /* RETURN_KIND     */
   parse_class_stmt,         /* CLASS_KIND      */
   parse_trait_stmt,         /* TRAIT_KIND      */
 };

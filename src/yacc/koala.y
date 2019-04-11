@@ -113,6 +113,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
     Ident ident;
     Vector *vec;
   } Name;
+  TypePara *TypePara;
 }
 
 %token TYPELESS_ASSIGN
@@ -200,7 +201,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Name> Name
 %type <List> TypeParameters
 %type <List> KlassTypeList
-%type <Name> TypeParameter
+%type <TypePara> TypeParameter
 
 %type <Stmt> ConstDeclaration
 %type <Stmt> VarDeclaration
@@ -786,12 +787,12 @@ TypeParameters
   : TypeParameter
   {
     $$ = Vector_New();
-    //Vector_Append($$, $1);
+    Vector_Append($$, $1);
   }
   | TypeParameters ',' TypeParameter
   {
     $$ = $1;
-    //Vector_Append($$, $3);
+    Vector_Append($$, $3);
   }
   ;
 
@@ -799,14 +800,12 @@ TypeParameter
   : ID
   {
     DeclareIdent(id, $1, @1);
-    $$.ident = id;
-    $$.vec = NULL;
+    $$ = New_TypePara(id, NULL);
   }
   | ID ':' KlassTypeList
   {
     DeclareIdent(id, $1, @1);
-    $$.ident = id;
-    $$.vec = $3;
+    $$ = New_TypePara(id, $3);
   }
   ;
 
@@ -1141,9 +1140,7 @@ LocalStatement
   }
   | Block
   {
-    //$$ = Stmt_From_List($1);
-    //((ListStmt *)$$)->block = 1;
-    $$ = NULL;
+    $$ = Stmt_From_List($1);
   }
   ;
 
@@ -1641,7 +1638,8 @@ AnonyExpression
 ExprOrBlock
   : '{' NormalExpression '}'
   {
-
+    $$ = Vector_Capacity(1);
+    Vector_Append($$, $2);
   }
   | Block
   {

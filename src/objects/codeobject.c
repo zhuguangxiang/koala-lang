@@ -61,7 +61,10 @@ Object *Code_From_CFunc(CFuncDef *f)
   Vector *para = String_ToTypeList(f->pdesc);
   TypeDesc *ret = String_To_TypeDesc(f->rdesc);
   TypeDesc *proto = TypeDesc_New_Proto(para, ret);
-  return CFunc_New(f->name, proto, f->func);
+  Object *code = CFunc_New(f->name, proto, f->func);
+  TYPE_DECREF(ret);
+  TYPE_DECREF(proto);
+  return code;
 }
 
 void Code_Free(Object *ob)

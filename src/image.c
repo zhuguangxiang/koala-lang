@@ -34,14 +34,15 @@ static int version_build = 1; // 2 bytes
 
 #define ENDIAN_TAG  0x1a2b3c4d
 
-TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl);
+static TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl);
 
-TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
+static TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
 {
   TypeDesc *t = NULL;
   switch (item->kind) {
   case TYPE_BASE:
     t = TypeDesc_Get_Base(item->primitive);
+    TYPE_INCREF(t);
     break;
   case TYPE_KLASS: {
     StringItem *s;
@@ -69,12 +70,14 @@ TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
     TypeDesc *base_type = TypeItem_To_TypeDesc(base, atbl);
     //FIXME
     t = TypeDesc_New_Array(base_type);
+    TYPE_DECREF(base_type);
     break;
   }
   case TYPE_VARG: {
     TypeItem *base = AtomTable_Get(atbl, ITEM_TYPE, item->varg.typeindex);
     TypeDesc *desc = TypeItem_To_TypeDesc(base, atbl);
     t = TypeDesc_New_Varg(desc);
+    TYPE_DECREF(desc);
     break;
   }
   default:
@@ -95,13 +98,12 @@ Vector *TypeListItem_To_Vector(TypeListItem *item, AtomTable *atbl)
   for (int i = 0; i < item->size; i++) {
     typeitem = AtomTable_Get(atbl, ITEM_TYPE, item->index[i]);
     t = TypeItem_To_TypeDesc(typeitem, atbl);
-    TYPE_INCREF(t);
     Vector_Append(v, t);
   }
   return v;
 }
 
-TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
+static TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
 {
   Vector *arg = NULL;
   TypeDesc *ret = NULL;
@@ -116,7 +118,9 @@ TypeDesc *ProtoItem_To_TypeDesc(ProtoItem *item, AtomTable *atbl)
     ret = TypeItem_To_TypeDesc(type, atbl);
   }
 
-  return TypeDesc_New_Proto(arg, ret);
+  TypeDesc *proto = TypeDesc_New_Proto(arg, ret);
+  TYPE_DECREF(ret);
+  return proto;
 }
 
 MapItem *MapItem_New(int type, int offset, int size)
@@ -1617,6 +1621,7 @@ void KImage_Get_Vars(KImage *image, getvarfn func, void *arg)
     type = AtomTable_Get(image->table, ITEM_TYPE, var->typeindex);
     desc = TypeItem_To_TypeDesc(type, image->table);
     func(id->data, desc, var->konst, arg);
+    TYPE_DECREF(desc);
   }
 }
 
@@ -1633,6 +1638,7 @@ void KImage_Get_LocVars(KImage *image, getlocvarfn func, void *arg)
     type = AtomTable_Get(image->table, ITEM_TYPE, locvar->typeindex);
     desc = TypeItem_To_TypeDesc(type, image->table);
     func(str->data, desc, locvar->pos, locvar->index, arg);
+    TYPE_DECREF(desc);
   }
 }
 
@@ -1654,6 +1660,7 @@ void KImage_Get_Funcs(KImage *image, getfuncfn func, void *arg)
       func(str->data, desc, i, ITEM_FUNC, code->codes, code->size, arg);
     else
       func(str->data, desc, i, ITEM_FUNC, NULL, 0, arg);
+    TYPE_DECREF(desc);
   }
 }
 
@@ -1670,6 +1677,7 @@ void KImage_Get_NFuncs(KImage *image, getfuncfn func, void *arg)
     proto = AtomTable_Get(image->table, ITEM_PROTO, nfuncitem->protoindex);
     desc = ProtoItem_To_TypeDesc(proto, image->table);
     func(str->data, desc, i, ITEM_NFUNC, NULL, 0, arg);
+    TYPE_DECREF(desc);
   }
 }
 
