@@ -76,10 +76,7 @@ typedef enum unaryopkind {
 /* binary operator kind */
 typedef enum binaryopkind {
   /* +, -, *, /, % */
-  BINARY_ADD = 1, BINARY_SUB,
-  BINARY_MULT, BINARY_DIV, BINARY_MOD, BINARY_QUOT, BINARY_POWER,
-  /* <<, >> */
-  BINARY_LSHIFT, BINARY_RSHIFT,
+  BINARY_ADD = 1, BINARY_SUB, BINARY_MULT, BINARY_DIV, BINARY_MOD,
   /* >, >=, <, <=, ==, != */
   BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE, BINARY_EQ, BINARY_NEQ,
   /* &, ^, | */
@@ -165,6 +162,7 @@ typedef struct identexpr {
 #define CURRENT_SCOPE 1
 #define UP_SCOPE      2
 #define EXT_SCOPE     3
+#define EXTDOT_SCOPE  4
   /* scope pointer */
   void *scope;
 } IdentExpr;
@@ -283,25 +281,11 @@ typedef struct anonyexpr {
 Expr *Expr_From_Anony(Vector *args, TypeDesc *ret, Vector *body);
 
 typedef enum stmtkind {
-  /*
-   * examples:
-   * val hello = "hello"
-   * val i int = 100 + 200
-   */
+  /* const declaration */
   CONST_KIND = 1,
-  /*
-   * examples:
-   * var hello = "hello"
-   * hello := "hello"
-   */
+  /* variable declaration */
   VAR_KIND,
-  /*
-   * examples:
-   * var (a,) = (100,)
-   * (a, b) := (100, 200)
-   * var (a,) = Add(100, 200)
-   * (a, b) := AddAndSub(100, 200)
-   */
+  /* tuple declaration */
   TUPLE_KIND,
   /* function/method declaration */
   FUNC_KIND,
@@ -313,16 +297,20 @@ typedef enum stmtkind {
   TRAIT_KIND,
   /* enum */
   ENUM_KIND,
+  /* enum label */
+  ENUM_LABEL_KIND,
   /* expression */
   EXPR_KIND,
+  /* assignment */
+  ASSIGN_KIND,
+  /* return statement */
+  RETURN_KIND,
+  /* break statement */
+  BREAK_KIND,
+  /* continue statement */
+  CONTINUE_KIND,
   /* statements */
   LIST_KIND,
-
-  ASSIGN_KIND,
-  RETURN_KIND,
-  BREAK_KIND,
-  CONTINUE_KIND,
-
   STMT_KIND_MAX
 } StmtKind;
 
@@ -333,7 +321,7 @@ typedef struct stmt {
   STMT_HEAD
 } Stmt;
 
-/* variable declaration, see VAR_DECL_KIND */
+/* constant/variable declaration */
 typedef struct vardeclstmt {
   STMT_HEAD
   Ident id;
@@ -412,11 +400,31 @@ Stmt *Stmt_From_Return(Expr *exp);
 typedef struct klassstmt {
   STMT_HEAD
   Ident id;
+  Vector *typeparams;
   Vector *super;
   Vector *body;
 } KlassStmt;
 
-Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body);
+Stmt *Stmt_From_Class(Ident id, Vector *types, Vector *super, Vector *body);
+Stmt *Stmt_From_Trait(Ident id, Vector *types, Vector *super, Vector *body);
+
+typedef struct enumlabelstmt {
+  STMT_HEAD
+  Ident id;
+  Vector *types;
+  Expr *exp;
+} EnumLabelStmt;
+
+Stmt *New_EnumLabel(Ident id, Vector *types, Expr *exp);
+
+typedef struct enumstmt {
+  STMT_HEAD
+  Ident id;
+  Vector *typeparams;
+  Vector *body;
+} EnumStmt;
+
+Stmt *Stmt_From_Enum(Ident id, Vector *typeparams, Vector *body);
 
 #ifdef __cplusplus
 }

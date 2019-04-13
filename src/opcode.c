@@ -60,7 +60,6 @@ static struct opcode {
   OPCODE(MUL, 0),
   OPCODE(DIV, 0),
   OPCODE(MOD, 0),
-  OPCODE(POW, 0),
   OPCODE(NEG, 0),
 
   OPCODE(GT,  0),
@@ -74,8 +73,6 @@ static struct opcode {
   OPCODE(BOR,    0),
   OPCODE(BXOR,   0),
   OPCODE(BNOT,   0),
-  OPCODE(LSHIFT, 0),
-  OPCODE(RSHIFT, 0),
 
   OPCODE(AND, 0),
   OPCODE(OR,  0),
@@ -113,7 +110,6 @@ struct operator {
   OP_MAP(MUL, __mul__),
   OP_MAP(DIV, __div__),
   OP_MAP(MOD, __mod__),
-  OP_MAP(POW, __pow__),
   OP_MAP(NEG, __neg__),
 
   OP_MAP(GT,  __gt__),
@@ -127,8 +123,6 @@ struct operator {
   OP_MAP(BOR,  __bitor__),
   OP_MAP(BXOR, __bitxor__),
   OP_MAP(BNOT, __bitnor__),
-  OP_MAP(LSHIFT, __bitlshift__),
-  OP_MAP(RSHIFT, __bitrshift__),
 
   OP_MAP(AND, __and__),
   OP_MAP(OR,  __or__),

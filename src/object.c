@@ -209,6 +209,7 @@ void Fini_Klass(Klass *klazz)
   }
   Vector_Fini_Self(&klazz->lro);
   Fini_MTable(&klazz->mtbl);
+  OB_DECREF(klazz->consts);
   Log_Debug("klass   \x1b[32m%-12s\x1b[0m finalized", klazz->name);
 }
 
@@ -322,7 +323,7 @@ int Klass_Add_Method(Klass *klazz, Object *code)
     HashTable_Insert(&klazz->mtbl, &m->hnode);
     m->code = code;
     if (IsKCode(code)) {
-      co->codeinfo->consts = klazz->consts;
+      co->codeinfo->consts = OB_INCREF(klazz->consts);
     }
     return 0;
   }

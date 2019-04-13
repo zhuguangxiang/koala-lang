@@ -33,6 +33,9 @@
 #define DeclareType(name, type, loc) \
   TypeWrapper name = {type, {yyloc_row(loc), yyloc_col(loc)}}
 
+#define NullType(name) \
+  TypeWrapper name = {NULL}
+
 #define DeclarePosition(name, loc) \
   Position name = {yyloc_row(loc), yyloc_col(loc)}
 
@@ -207,27 +210,27 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Stmt> VarDeclaration
 %type <Stmt> FuncDeclaration
 %type <Stmt> MethodDeclaration
-%type <Stmt> TypeDeclaration
 %type <List> ClassMemberDeclsOrEmpty
 %type <List> ClassMemberDeclarations
 %type <Stmt> ClassMemberDeclaration
 %type <List> ExtendsOrEmpty
-%type <List> TraitsOrEmpty
-%type <List> Traits
+%type <List> ClassOrTraits
 %type <List> TraitMemberDeclsOrEmpty
 %type <List> TraitMemberDeclarations
 %type <Stmt> TraitMemberDeclaration
 %type <Stmt> FieldDeclaration
 %type <Stmt> ProtoDeclaration
+%type <List> EnumMemberDecls
+%type <List> EnumLableDeclarations
+%type <List> EnumMethodDeclarations
 %type <List> Block
 %type <List> ExprOrBlock
 %type <List> LocalStatements
 %type <Stmt> LocalStatement
-%type <Stmt> ExprStatement
 %type <Stmt> VarDeclarationTypeless
 %type <Stmt> Assignment
 %type <Stmt> IfExpression
-%type <Stmt> OrElseStatement
+%type <Stmt> OrElse
 %type <Stmt> WhileExpression
 %type <Stmt> MatchExpression
 %type <List> MatchClauses
@@ -346,10 +349,12 @@ KeyType
   : INTEGER
   {
     $$ = TypeDesc_Get_Base(BASE_INT);
+    TYPE_INCREF($$);
   }
   | STRING
   {
     $$ = TypeDesc_Get_Base(BASE_STRING);
+    TYPE_INCREF($$);
   }
   | KlassType
   {
@@ -361,30 +366,37 @@ PrimitiveType
   : BYTE
   {
     $$ = TypeDesc_Get_Base(BASE_BYTE);
+    TYPE_INCREF($$);
   }
   | CHAR
   {
     $$ = TypeDesc_Get_Base(BASE_CHAR);
+    TYPE_INCREF($$);
   }
   | INTEGER
   {
     $$ = TypeDesc_Get_Base(BASE_INT);
+    TYPE_INCREF($$);
   }
   | FLOAT
   {
     $$ = TypeDesc_Get_Base(BASE_FLOAT);
+    TYPE_INCREF($$);
   }
   | BOOL
   {
     $$ = TypeDesc_Get_Base(BASE_BOOL);
+    TYPE_INCREF($$);
   }
   | STRING
   {
     $$ = TypeDesc_Get_Base(BASE_STRING);
+    TYPE_INCREF($$);
   }
   | ANY
   {
     $$ = TypeDesc_Get_Base(BASE_ANY);
+    TYPE_INCREF($$);
   }
   ;
 
@@ -657,16 +669,15 @@ ModuleStatement
   }
   | FuncDeclaration
   {
-    Parser_New_FuncOrProto(ps, $1);
+    Parser_New_Func(ps, $1);
   }
   | NATIVE ProtoDeclaration
   {
     ((FuncDeclStmt *)$2)->native = 1;
-    Parser_New_FuncOrProto(ps, $2);
+    Parser_New_Proto(ps, $2);
   }
   | TypeDeclaration
   {
-    //Parser_New_ClassOrTrait(ps, $1);
   }
   | error
   {
@@ -678,7 +689,7 @@ ConstDeclaration
   : CONST ID '=' Expression ';'
   {
     DeclareIdent(id, $2, @2);
-    TypeWrapper type = {NULL};
+    NullType(type);
     $$ = Stmt_From_ConstDecl(id, type, $4);
   }
   | CONST ID Type '=' Expression ';'
@@ -714,7 +725,7 @@ VarDeclaration
   | VAR ID '=' Expression ';'
   {
     DeclareIdent(id, $2, @2);
-    TypeWrapper type = {NULL};
+    NullType(type);
     $$ = Stmt_From_VarDecl(id, type, $4);
   }
   | VAR ID Type '=' Expression ';'
@@ -825,31 +836,23 @@ KlassTypeList
 TypeDeclaration
   : CLASS Name ExtendsOrEmpty '{' ClassMemberDeclsOrEmpty '}'
   {
-    printf("class-1\n");
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_Klass(id, CLASS_KIND, $3, $5);
+    Parser_New_Class(ps, Stmt_From_Class($2.ident, $2.vec, $3, $5));
   }
-  | CLASS Name ExtendsOrEmpty
+  | CLASS Name ExtendsOrEmpty ';'
   {
-    printf("class-2\n");
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_Klass(id, CLASS_KIND, $3, NULL);
+    Parser_New_Class(ps, Stmt_From_Class($2.ident, $2.vec, $3, NULL));
   }
   | TRAIT Name ExtendsOrEmpty '{' TraitMemberDeclsOrEmpty '}'
   {
-    printf("trait-1\n");
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_Klass(id, TRAIT_KIND, $3, $5);
+    Parser_New_Trait(ps, Stmt_From_Trait($2.ident, $2.vec, $3, $5));
   }
-  | TRAIT Name ExtendsOrEmpty
+  | TRAIT Name ExtendsOrEmpty ';'
   {
-    printf("trait-2\n");
-    //DeclareIdent(id, $2, @2);
-    //$$ = Stmt_From_Klass(id, TRAIT_KIND, $3, NULL);
+    Parser_New_Trait(ps, Stmt_From_Trait($2.ident, $2.vec, $3, NULL));
   }
   | ENUM Name '{' EnumMemberDecls '}'
   {
-
+    //$$ = Stmt_From_Enum($2.ident, $2.vec, $4);
   }
   ;
 
@@ -858,43 +861,22 @@ ExtendsOrEmpty
   {
     $$ = NULL;
   }
-  | ':' KlassType TraitsOrEmpty
+  | ':' ClassOrTraits
   {
-    /*
-    int size = Vector_Size($3);
-    $$ = Vector_Capacity(size + 1);
-    TYPE_INCREF($2);
-    Vector_Append($$, $2);
-    Vector_Concat($$, $3);
-    Vector_Free_Self($3);
-    */
+    $$ = $2;
   }
   ;
 
-TraitsOrEmpty
-  : %empty
+ClassOrTraits
+  : KlassType
   {
+    $$ = Vector_New();
+    Vector_Append($$, $1);
   }
-  | Traits
+  | ClassOrTraits ',' KlassType
   {
-    //$$ = $1;
-  }
-  ;
-
-Traits
-  : ',' KlassType
-  {
-    printf("With\n");
-    //$$ = Vector_New();
-    //TYPE_INCREF($2);
-    //Vector_Append($$, $2);
-  }
-  | Traits ',' KlassType
-  {
-    printf("With Traits\n");
-   // $$ = $1;
-   // TYPE_INCREF($3);
-   // Vector_Append($$, $3);
+    $$ = $1;
+    Vector_Append($$, $3);
   }
   ;
 
@@ -991,7 +973,7 @@ FieldDeclaration
   | ID '=' Expression ';'
   {
     DeclareIdent(id, $1, @1);
-    TypeWrapper type = {NULL};
+    NullType(type);
     $$ = Stmt_From_VarDecl(id, type, $3);
   }
   | ID Type '=' Expression ';'
@@ -1050,21 +1032,67 @@ ProtoDeclaration
 
 EnumMemberDecls
   : EnumLableDeclarations ','
+  {
+    $$ = $1;
+  }
   | EnumLableDeclarations ',' EnumMethodDeclarations
+  {
+    $$ = $1;
+    Vector_Concat($$, $3);
+    Vector_Free_Self($3);
+  }
   ;
 
 EnumLableDeclarations
   : ID
+  {
+    $$ = Vector_New();
+    DeclareIdent(id, $1, @1);
+    Vector_Append($$, New_EnumLabel(id, NULL, NULL));
+  }
   | ID '(' TypeList ')'
+  {
+    $$ = Vector_New();
+    DeclareIdent(id, $1, @1);
+    Vector_Append($$, New_EnumLabel(id, $3, NULL));
+  }
   | ID '=' INT_LITERAL
+  {
+    $$ = Vector_New();
+    DeclareIdent(id, $1, @1);
+    Vector_Append($$, New_EnumLabel(id, NULL, Expr_From_Integer($3)));
+  }
   | EnumLableDeclarations ',' ID
+  {
+    $$ = $1;
+    DeclareIdent(id, $3, @3);
+    Vector_Append($$, New_EnumLabel(id, NULL, NULL));
+  }
   | EnumLableDeclarations ',' ID '(' TypeList ')'
+  {
+    $$ = $1;
+    DeclareIdent(id, $3, @3);
+    Vector_Append($$, New_EnumLabel(id, $5, NULL));
+  }
   | EnumLableDeclarations ',' ID '=' INT_LITERAL
+  {
+    $$ = $1;
+    DeclareIdent(id, $3, @3);
+    Vector_Append($$, New_EnumLabel(id, NULL, Expr_From_Integer($5)));
+  }
   ;
 
 EnumMethodDeclarations
   : MethodDeclaration ';'
+  {
+    $$ = Vector_New();
+    Vector_Append($$, $1);
+  }
   | EnumMethodDeclarations MethodDeclaration ';'
+  {
+    $$ = $1;
+    Vector_Append($$, $2);
+  }
   ;
 
 Block
@@ -1098,10 +1126,6 @@ LocalStatement
   {
     $$ = NULL;
   }
-  | ExprStatement
-  {
-    $$ = $1;
-  }
   | VarDeclaration
   {
     $$ = $1;
@@ -1110,31 +1134,19 @@ LocalStatement
   {
     $$ = $1;
   }
+  | Expression ';'
+  {
+    $$ = Stmt_From_Expr($1);
+  }
   | Assignment
   {
     $$ = $1;
   }
-  | IfExpression
-  {
-    $$ = $1;
-  }
-  | WhileExpression
-  {
-    $$ = $1;
-  }
-  | MatchExpression
-  {
-    $$ = $1;
-  }
-  | ForExpression
+  | ReturnStatement
   {
     $$ = $1;
   }
   | JumpStatement
-  {
-    $$ = $1;
-  }
-  | ReturnStatement
   {
     $$ = $1;
   }
@@ -1144,36 +1156,31 @@ LocalStatement
   }
   ;
 
-ExprStatement
-  : NormalExpression ';'
-  {
-    $$ = Stmt_From_Expr($1);
-  }
-  ;
-
 /*
  * TYPELESS_ASSIGN is used only in local blocks
  */
 VarDeclarationTypeless
   : ID TYPELESS_ASSIGN Expression ';'
   {
-    //$$ = Parser_Do_Typeless_Variables(ps, $1, $3);
+    DeclareIdent(id, $1, @1);
+    NullType(type);
+    $$ = Stmt_From_VarDecl(id, type, $3);
   }
   | TupleExpression TYPELESS_ASSIGN Expression ';'
   {
-
+    $$ = NULL;
   }
   ;
 
 IfExpression
-  : IF NormalExpression ExprOrBlock OrElseStatement
+  : IF NormalExpression ExprOrBlock OrElse
   {
     //$$ = stmt_from_if($2, $3, $4);
     //$$->if_stmt.belse = 0;
   }
   ;
 
-OrElseStatement
+OrElse
   : %empty
   {
     $$ = NULL;
@@ -1316,11 +1323,6 @@ ReturnStatement
 Assignment
   : PrimaryExpression AssignOp Expression ';'
   {
-    //$$ = Parser_Do_Assignments(ps, $1, NULL);
-  }
-/*
-  | PrimaryExpression CompAssignOp NormalExpression ';'
-  {
     if (!Expr_Maybe_Stored($1)) {
       DeclarePosition(pos, @1);
       Syntax_Error(ps, &pos, "expr is not left expr");
@@ -1331,7 +1333,6 @@ Assignment
       $$ = Stmt_From_Assign($2, $1, $3);
     }
   }
-*/
   ;
 
 AssignOp

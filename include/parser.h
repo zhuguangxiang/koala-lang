@@ -84,7 +84,10 @@ typedef struct line_buf {
 typedef enum scopekind {
   SCOPE_MODULE = 1,
   SCOPE_CLASS,
+  SCOPE_TRAIT,
+  SCOPE_ENUM,
   SCOPE_FUNCTION,
+  SCOPE_METHOD,
   SCOPE_BLOCK,
   SCOPE_CLOSURE,
 } ScopeKind;
@@ -215,8 +218,10 @@ typedef struct code_generator {
 void Parser_New_Import(ParserState *ps, Ident *id, Ident *path);
 void Parser_New_Const(ParserState *ps, Stmt *stmt);
 void Parser_New_Var(ParserState *ps, Stmt *stmt);
-void Parser_New_FuncOrProto(ParserState *ps, Stmt *stmt);
-void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt);
+void Parser_New_Func(ParserState *ps, Stmt *stmt);
+void Parser_New_Proto(ParserState *ps, Stmt *stmt);
+void Parser_New_Class(ParserState *ps, Stmt *stmt);
+void Parser_New_Trait(ParserState *ps, Stmt *stmt);
 TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz);
 void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
 

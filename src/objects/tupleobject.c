@@ -50,6 +50,7 @@ void Tuple_Free(Object *ob)
     tmp = tuple->items[i];
     if (tmp != NULL)
       OB_DECREF(tmp);
+    tuple->items[i] = NULL;
   }
   GCfree(ob);
 }

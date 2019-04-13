@@ -61,7 +61,7 @@ static ConstValue __get_constvalue(Expr *exp)
     assert(sym->kind == SYM_CONST);
     return sym->value;
   } else {
-    assert(kind == CONST_KIND);
+    assert(kind == LITERAL_KIND);
     return ((ConstExpr *)exp)->value;
   }
 }
@@ -254,6 +254,26 @@ void Parse_Binary_Expr(ParserState *ps, Expr *exp)
     __optimize_binary_expr(ps, binExp);
 }
 
+static int binary_opcodes[] = {
+  0,
+  ADD,
+  SUB,
+  MUL,
+  DIV,
+  MOD,
+  GT,
+  GE,
+  LT,
+  LE,
+  EQ,
+  NEQ,
+  BAND,
+  BXOR,
+  BOR,
+  AND,
+  OR,
+};
+
 void Code_Binary_Expr(ParserState *ps, Expr *exp)
 {
   BinaryExpr *binExp = (BinaryExpr *)exp;
@@ -261,9 +281,15 @@ void Code_Binary_Expr(ParserState *ps, Expr *exp)
 
   if (binExp->val.kind != 0) {
     Log_Debug("binary expr is optimized");
-    ConstExpr constExp = {.kind = CONST_KIND, .value = binExp->val};
+    ConstExpr constExp = {.kind = LITERAL_KIND, .value = binExp->val};
     constExp.ctx = EXPR_LOAD;
     Code_Expression(ps, (Expr *)&constExp);
+  } else {
+    Log_Debug("binary expr is not optimized");
+    ParserUnit *u = ps->u;
+    Code_Expression(ps, binExp->rexp);
+    Code_Expression(ps, binExp->lexp);
+    CODE_BINARY(u->block, binary_opcodes[binExp->op]);
   }
 }
 

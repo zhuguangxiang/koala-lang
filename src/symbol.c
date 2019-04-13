@@ -479,7 +479,6 @@ ClassSymbol *STable_Add_Class(STable *stbl, char *name)
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
   sym->desc = TypeDesc_New_Klass(NULL, name, NULL);
-  TYPE_INCREF(sym->desc);
   return sym;
 }
 
@@ -493,7 +492,6 @@ ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
   sym->desc = TypeDesc_New_Klass(NULL, name, NULL);
-  TYPE_INCREF(sym->desc);
   return sym;
 }
 

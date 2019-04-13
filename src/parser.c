@@ -198,11 +198,12 @@ void Parser_Enter_Scope(ParserState *ps, ScopeKind scope)
 
 void Parser_Exit_Scope(ParserState *ps)
 {
+  const char *name = scope_name(ps->u);
+  int depth = ps->depth;
+
   show_unit(ps);
-
-  Log_Debug("\x1b[35mExit scope-%d(%s)\x1b[0m", ps->depth, scope_name(ps->u));
-
   check_unused_symbols(ps);
+
   merge_unit(ps);
 
   /* free current parserunit */
@@ -216,6 +217,8 @@ void Parser_Exit_Scope(ParserState *ps)
     ps->u = container_of(head, ParserUnit, link);
   }
   ps->depth--;
+
+  Log_Debug("\x1b[35mExit scope-%d(%s)\x1b[0m", depth, name);
 }
 
 ParserState *New_Parser(ParserGroup *grp, char *filename)
@@ -592,7 +595,7 @@ static struct expr_func_s {
   { NULL, NULL },                                       /* NIL_KIND        */
   { parse_self_expr,      NULL },                       /* SELF_KIND       */
   { parse_super_expr,     NULL },                       /* SUPER_KIND      */
-  { NULL,                 code_const_expr  },           /* CONST_KIND      */
+  { NULL,                 code_const_expr  },           /* LITERAL_KIND    */
   { Parse_Ident_Expr,     Code_Ident_Expr  },           /* ID_KIND         */
   { Parse_Unary_Expr,     Code_Unary_Expr  },           /* UNARY_KIND      */
   { Parse_Binary_Expr,    Code_Binary_Expr },           /* BINARY_KIND     */
@@ -786,7 +789,7 @@ static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
 
 static void __save_const_to_symbol(VarSymbol *varSym, Expr *exp)
 {
-  if (exp->kind == CONST_KIND) {
+  if (exp->kind == LITERAL_KIND) {
     varSym->value = ((ConstExpr *)exp)->value;
   } else if (exp->kind == ID_KIND) {
     VarSymbol *sym = (VarSymbol *)exp->sym;
@@ -899,6 +902,107 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
   parse_variable(ps, &varStmt->id, &varStmt->type, varStmt->exp, 0);
 }
 
+static void parse_statements(ParserState *ps, Vector *stmts);
+
+static void parse_func_decl(ParserState *ps, Stmt *stmt)
+{
+  FuncDeclStmt *funStmt = (FuncDeclStmt *)stmt;
+
+  Parser_Enter_Scope(ps, SCOPE_FUNCTION);
+  ps->u->stbl = STable_New();
+
+  ParserUnit *uu = get_up_unit(ps);
+  assert(uu != NULL);
+  assert(uu->scope == SCOPE_MODULE || uu->scope == SCOPE_CLASS);
+  Symbol *sym = STable_Get(uu->stbl, funStmt->id.name);
+  assert(sym != NULL);
+  ps->u->sym = sym;
+
+  Log_Debug("----parse function '%s'----", funStmt->id.name);
+
+  /* parameter-list */
+  IdType *idtype;
+  Vector_ForEach(idtype, funStmt->args) {
+    parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
+  }
+
+  parse_statements(ps, funStmt->body);
+
+  Log_Debug("----end of function '%s'----", funStmt->id.name);
+
+  Parser_Exit_Scope(ps);
+}
+
+static void parse_proto_decl(ParserState *ps, Stmt *stmt)
+{
+  FuncDeclStmt *funStmt = (FuncDeclStmt *)stmt;
+  if (funStmt->native)
+    Log_Debug("'%s' is native func", funStmt->id.name);
+  else
+    Log_Debug("'%s' is proto", funStmt->id.name);
+}
+
+static void parse_class_supers(ParserState *ps, Vector *supers)
+{
+
+}
+
+static void parse_class_decl(ParserState *ps, Stmt *stmt)
+{
+  KlassStmt *clsStmt = (KlassStmt *)stmt;
+  Log_Debug("----parse class '%s'----", clsStmt->id.name);
+
+  Symbol *sym = STable_Get(ps->u->stbl, clsStmt->id.name);
+  assert(sym);
+
+  parse_class_supers(ps, clsStmt->super);
+
+  Parser_Enter_Scope(ps, SCOPE_CLASS);
+  ps->u->sym = sym;
+  ps->u->stbl = ((ClassSymbol *)sym)->stbl;
+
+  /* parse class's body statements */
+  parse_statements(ps, clsStmt->body);
+
+  Parser_Exit_Scope(ps);
+
+  Log_Debug("----end of class '%s'----", clsStmt->id.name);
+}
+
+static void parse_trait_supers(ParserState *ps, Vector *supers)
+{
+}
+
+static void parse_trait_decl(ParserState *ps, Stmt *stmt)
+{
+  KlassStmt *clsStmt = (KlassStmt *)stmt;
+  Log_Debug("----parse trait '%s'----", clsStmt->id.name);
+
+  Symbol *sym = STable_Get(ps->u->stbl, clsStmt->id.name);
+  assert(sym);
+
+  parse_trait_supers(ps, clsStmt->super);
+
+  Parser_Enter_Scope(ps, SCOPE_CLASS);
+  ps->u->sym = sym;
+  ps->u->stbl = ((ClassSymbol *)sym)->stbl;
+
+  /* parse class's body statements */
+  parse_statements(ps, clsStmt->body);
+
+  Parser_Exit_Scope(ps);
+
+  Log_Debug("----end of trait '%s'----", clsStmt->id.name);
+}
+
+static void parse_expr_stmt(ParserState *ps, Stmt *stmt)
+{
+  ExprStmt *expStmt = (ExprStmt *)stmt;
+  Expr *exp = expStmt->exp;
+  exp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, exp);
+}
+
 /*
   a = 100
   a.b = 200
@@ -907,7 +1011,7 @@ static void parse_var_decl(ParserState *ps, Stmt *stmt)
   a.b(1,2).c = 500
   leftmost identifier is variable or imported external package name
  */
-static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
+static void parse_assignment(ParserState *ps, Stmt *stmt)
 {
   AssignStmt *assignStmt = (AssignStmt *)stmt;
   Expr *lexp = assignStmt->left;
@@ -949,54 +1053,6 @@ static void parse_assign_stmt(ParserState *ps, Stmt *stmt)
   }
 }
 
-static void parse_statements(ParserState *ps, Vector *stmts);
-
-static void parse_funcdecl_stmt(ParserState *ps, Stmt *stmt)
-{
-  FuncDeclStmt *funStmt = (FuncDeclStmt *)stmt;
-
-  Parser_Enter_Scope(ps, SCOPE_FUNCTION);
-  ps->u->stbl = STable_New();
-
-  ParserUnit *uu = get_up_unit(ps);
-  assert(uu != NULL);
-  assert(uu->scope == SCOPE_MODULE || uu->scope == SCOPE_CLASS);
-  Symbol *sym = STable_Get(uu->stbl, funStmt->id.name);
-  assert(sym != NULL);
-  ps->u->sym = sym;
-
-  Log_Debug("----parse function '%s'----", funStmt->id.name);
-
-  /* parameter-list */
-  IdType *idtype;
-  Vector_ForEach(idtype, funStmt->args) {
-    parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
-  }
-
-  parse_statements(ps, funStmt->body);
-
-  Log_Debug("----end of function '%s'----", funStmt->id.name);
-
-  Parser_Exit_Scope(ps);
-}
-
-static void parse_protodecl_stmt(ParserState *ps, Stmt *stmt)
-{
-  FuncDeclStmt *funStmt = (FuncDeclStmt *)stmt;
-  if (funStmt->native)
-    Log_Debug("'%s' is native func", funStmt->id.name);
-  else
-    Log_Debug("'%s' is func proto", funStmt->id.name);
-}
-
-static void parse_expr_stmt(ParserState *ps, Stmt *stmt)
-{
-  ExprStmt *expStmt = (ExprStmt *)stmt;
-  Expr *exp = expStmt->exp;
-  exp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, exp);
-}
-
 static int check_returns(TypeDesc *desc, Expr *exp)
 {
   assert(desc->kind == TYPE_PROTO);
@@ -1004,7 +1060,7 @@ static int check_returns(TypeDesc *desc, Expr *exp)
   return 1; //TypeDesc_Equal(proto->ret, exp->desc);
 }
 
-static void parse_return_stmt(ParserState *ps, Stmt *stmt)
+static void parse_return(ParserState *ps, Stmt *stmt)
 {
   ParserUnit *u = ps->u;
   FuncSymbol *funcSym;
@@ -1057,78 +1113,25 @@ static void parse_list_stmt(ParserState *ps, Stmt *stmt)
   }
 }
 
-static void parse_class_supers(ParserState *ps, Vector *supers)
-{
-
-}
-
-static void parse_class_stmt(ParserState *ps, Stmt *stmt)
-{
-  KlassStmt *clsStmt = (KlassStmt *)stmt;
-  Log_Debug("----parse class '%s'----", clsStmt->id.name);
-
-  Symbol *sym = STable_Get(ps->u->stbl, clsStmt->id.name);
-  assert(sym);
-
-  parse_class_supers(ps, clsStmt->super);
-
-  Parser_Enter_Scope(ps, SCOPE_CLASS);
-  ps->u->sym = sym;
-  ps->u->stbl = ((ClassSymbol *)sym)->stbl;
-
-  /* parse class's body statements */
-  parse_statements(ps, clsStmt->body);
-
-  Parser_Exit_Scope(ps);
-
-  Log_Debug("----end of class '%s'----", clsStmt->id.name);
-}
-
-static void parse_trait_supers(ParserState *ps, Vector *supers)
-{
-}
-
-static void parse_trait_stmt(ParserState *ps, Stmt *stmt)
-{
-  KlassStmt *clsStmt = (KlassStmt *)stmt;
-  Log_Debug("----parse trait '%s'----", clsStmt->id.name);
-
-  Symbol *sym = STable_Get(ps->u->stbl, clsStmt->id.name);
-  assert(sym);
-
-  parse_trait_supers(ps, clsStmt->super);
-
-  Parser_Enter_Scope(ps, SCOPE_CLASS);
-  ps->u->sym = sym;
-  ps->u->stbl = ((ClassSymbol *)sym)->stbl;
-
-  /* parse class's body statements */
-  parse_statements(ps, clsStmt->body);
-
-  Parser_Exit_Scope(ps);
-
-  Log_Debug("----end of trait '%s'----", clsStmt->id.name);
-}
-
 typedef void (*parse_stmt_func)(ParserState *, Stmt *);
 
 static parse_stmt_func parse_stmt_funcs[] = {
-  NULL,                     /* INVALID         */
-  parse_const_decl,         /* CONST_KIND */
+  NULL,                     /* INVALID     */
+  parse_const_decl,         /* CONST_KIND  */
   parse_var_decl,           /* VAR_KIND    */
   NULL,                     /* TUPLE_KIND  */
-  parse_funcdecl_stmt,      /* FUNC_KIND       */
-  parse_protodecl_stmt,     /* PROTO_KIND      */
+  parse_func_decl,          /* FUNC_KIND   */
+  parse_proto_decl,         /* PROTO_KIND  */
+  parse_class_decl,         /* CLASS_KIND  */
+  parse_trait_decl,         /* TRAIT_KIND  */
   NULL,
   NULL,
+  parse_expr_stmt,          /* EXPR_KIND   */
+  parse_assignment,         /* ASSIGN_KIND */
+  parse_return,             /* RETURN_KIND */
   NULL,
-  parse_expr_stmt,          /* EXPR_KIND       */
-  parse_list_stmt,          /* LIST_KIND       */
-
-  parse_assign_stmt,        /* ASSIGN_KIND     */
-  parse_return_stmt,        /* RETURN_KIND     */
-  parse_class_stmt,         /* CLASS_KIND      */
-  parse_trait_stmt,         /* TRAIT_KIND      */
+  NULL,
+  parse_list_stmt,          /* LIST_KIND   */
 };
 
 static void parse_statement(ParserState *ps, Stmt *stmt)

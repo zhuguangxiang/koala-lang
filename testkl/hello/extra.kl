@@ -1,0 +1,22 @@
+
+package hello
+
+import "io"
+
+func sayHello(s string) {
+  io.puts(s)
+}
+
+func add(a int, b int) int {
+  a + b
+}
+
+class Person {
+  name string
+  age int
+
+  func greeting(msg string) {
+    io.puts(name)
+    io.puts(msg)
+  }
+}

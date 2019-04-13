@@ -182,6 +182,7 @@ static void eval_frame(CallFrame *cf)
   Object *fn;
   Object *ob;
   Object *args;
+  Object *arg;
   Object *ret;
   Object *name;
   char *path;
@@ -219,10 +220,46 @@ static void eval_frame(CallFrame *cf)
       ob = load(cf, index);
       PUSH(OB_INCREF(ob));
       break;
+    case LOAD_0:
+      ob = load(cf, 0);
+      PUSH(OB_INCREF(ob));
+      break;
+    case LOAD_1:
+      ob = load(cf, 1);
+      PUSH(OB_INCREF(ob));
+      break;
+    case LOAD_2:
+      ob = load(cf, 2);
+      PUSH(OB_INCREF(ob));
+      break;
+    case LOAD_3:
+      ob = load(cf, 3);
+      PUSH(OB_INCREF(ob));
+      break;
     case STORE:
       index = fetch_2bytes(cf, ci);
       ob = POP();
       store(cf, index, ob);
+      OB_DECREF(ob);
+      break;
+    case STORE_0:
+      ob = POP();
+      store(cf, 0, ob);
+      OB_DECREF(ob);
+      break;
+    case STORE_1:
+      ob = POP();
+      store(cf, 1, ob);
+      OB_DECREF(ob);
+      break;
+    case STORE_2:
+      ob = POP();
+      store(cf, 2, ob);
+      OB_DECREF(ob);
+      break;
+    case STORE_3:
+      ob = POP();
+      store(cf, 3, ob);
       OB_DECREF(ob);
       break;
     case GET_ATTR:
@@ -236,6 +273,15 @@ static void eval_frame(CallFrame *cf)
     case SET_ATTR:
 
       break;
+    case ADD:
+      ob = POP();
+      OB_DECREF(ob);
+      ob = POP();
+      OB_DECREF(ob);
+      ob = Integer_New(3);
+      PUSH(OB_INCREF(ob));
+      OB_DECREF(ob);
+      break;
     case CALL:
       index = fetch_2bytes(cf, ci);
       argc = fetch_byte(cf, ci);
@@ -245,8 +291,8 @@ static void eval_frame(CallFrame *cf)
         args = POP();
       } else {
         args = Tuple_New(argc);
-        Object *arg = POP();
         while (argc-- > 0) {
+          arg = POP();
           Tuple_Append(args, arg);
           OB_DECREF(arg);
         }

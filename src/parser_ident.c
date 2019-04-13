@@ -25,7 +25,7 @@
 
 LOGGER(0)
 
-static void code_current_module_class(ParserState *ps, void *arg)
+static void curr_module_class(ParserState *ps, void *arg)
 {
   ParserUnit *u = ps->u;
   IdentExpr *exp = arg;
@@ -46,7 +46,7 @@ static void code_current_module_class(ParserState *ps, void *arg)
     } else {
       /* load variable */
       Log_Debug("load '%s' variable", sym->name);
-      assert(exp->ctx == EXPR_LOAD);
+      assert(ctx == EXPR_LOAD);
       CODE_GET_ATTR(u->block, sym->name);
     }
   } else {
@@ -149,7 +149,7 @@ static void code_up_class(ParserState *ps, void *arg)
   }
 }
 
-static void code_up_function(ParserState *ps, void *arg)
+static void up_func(ParserState *ps, void *arg)
 {
   ParserUnit *u = ps->u;
   IdentExpr *exp = arg;
@@ -157,6 +157,41 @@ static void code_up_function(ParserState *ps, void *arg)
   TypeDesc *desc = exp->desc;
   ExprCtx ctx = exp->ctx;
   Expr *right = exp->right;
+  ParserUnit *up = exp->scope;
+
+  /* Id, in func, its up scope MUST be module, maybe variable or func */
+  assert(up->scope == SCOPE_MODULE);
+  if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
+    Log_Debug("Id '%s' is const/var", sym->name);
+    if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
+      /* Id is const/var, but it's a func reference, call function */
+      Log_Debug("call '%s' function(var)", sym->name);
+      int argc = Vector_Size(((CallExpr *)right)->args);
+      CODE_LOAD(u->block, 0);
+      CODE_CALL(u->block, sym->name, argc);
+    } else {
+      /* load variable */
+      Log_Debug("load '%s' variable", sym->name);
+      assert(ctx == EXPR_LOAD);
+      CODE_LOAD(u->block, 0);
+      CODE_GET_ATTR(u->block, sym->name);
+    }
+  } else {
+    assert(sym->kind == SYM_FUNC);
+    Log_Debug("Id '%s' is function", sym->name);
+    if (Expr_Is_Call(right)) {
+      /* call function */
+      Log_Debug("call '%s' function", sym->name);
+      int argc = Vector_Size(((CallExpr *)right)->args);
+      CODE_LOAD(u->block, 0);
+      CODE_CALL(u->block, sym->name, argc);
+    } else {
+      /* load function */
+      Log_Debug("load '%s' function", sym->name);
+      CODE_LOAD(u->block, 0);
+      CODE_GET_ATTR(u->block, sym->name);
+    }
+  }
 }
 
 static void code_up_block(ParserState *ps, void *arg)
@@ -181,8 +216,8 @@ static void code_up_closure(ParserState *ps, void *arg)
 
 /* identifier is found in current scope */
 static CodeGenerator current_codes[] = {
-  {SCOPE_MODULE,   code_current_module_class},
-  {SCOPE_CLASS,    code_current_module_class},
+  {SCOPE_MODULE,   curr_module_class},
+  {SCOPE_CLASS,    curr_module_class},
   {SCOPE_FUNCTION, code_current_function_block_closure},
   {SCOPE_BLOCK,    code_current_function_block_closure},
   {SCOPE_CLOSURE,  code_current_function_block_closure},
@@ -195,7 +230,8 @@ static CodeGenerator current_codes[] = {
 static CodeGenerator up_codes[] = {
   {SCOPE_MODULE,   NULL},
   {SCOPE_CLASS,    code_up_class},
-  {SCOPE_FUNCTION, code_up_function},
+  {SCOPE_FUNCTION, up_func},
+  {SCOPE_METHOD,   NULL},
   {SCOPE_BLOCK,    code_up_block},
   {SCOPE_CLOSURE,  code_up_closure},
 };
@@ -212,6 +248,38 @@ static CodeGenerator up_codes[] = {
     gen++; \
   } \
 })
+
+static void code_extdot_ident(ParserState *ps, IdentExpr *exp)
+{
+  ParserUnit *u = ps->u;
+  RefSymbol *refSym = (RefSymbol *)exp->sym;
+  Symbol *sym = refSym->sym;
+  TypeDesc *desc = exp->desc;
+  ExprCtx ctx = exp->ctx;
+  Expr *right = exp->right;
+
+  CODE_LOAD_PKG(u->block, refSym->path);
+
+  if (sym->kind == SYM_CONST) {
+
+  } else if (sym->kind == SYM_VAR) {
+
+  } else if (sym->kind == SYM_FUNC || sym->kind == SYM_NFUNC) {
+    Log_Debug("Id '%s' is function", sym->name);
+    if (Expr_Is_Call(right)) {
+      /* call function */
+      Log_Debug("call '%s' function", sym->name);
+      int argc = Vector_Size(((CallExpr *)right)->args);
+      CODE_CALL(u->block, sym->name, argc);
+    } else {
+      /* load function */
+      Log_Debug("load '%s' function", sym->name);
+      CODE_GET_ATTR(u->block, sym->name);
+    }
+  } else {
+    assert(0);
+  }
+}
 
 /*
   a.b.c.attribute
@@ -286,10 +354,10 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
     sym->used++;
     RefSymbol *refSym = (RefSymbol *)sym;
     refSym->sym->used++;
-    idExp->sym = refSym->sym;
+    idExp->sym = sym;
     idExp->desc = refSym->sym->desc;
     TYPE_INCREF(idExp->desc);
-    idExp->where = EXT_SCOPE;
+    idExp->where = EXTDOT_SCOPE;
     idExp->scope = NULL;
     return;
   }
@@ -314,6 +382,9 @@ void Code_Ident_Expr(ParserState *ps, Expr *exp)
     assert(idExp->sym != NULL);
     Package *pkg = ((PkgSymbol *)idExp->sym)->pkg;
     CODE_LOAD_PKG(u->block, pkg->path);
+  } else if (idExp->where == EXTDOT_SCOPE) {
+    /* external dot imported */
+    code_extdot_ident(ps, idExp);
   } else {
     assert(0);
   }

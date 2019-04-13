@@ -78,9 +78,9 @@ struct object {
 ({                                 \
   Object *obj = (Object *)(_ob);   \
   if (obj != NULL) {               \
-    if (--obj->ob_refcnt != 0) {   \
-      assert(obj->ob_refcnt > 0);  \
-    } else {                       \
+    --obj->ob_refcnt;              \
+    assert(obj->ob_refcnt >= 0);   \
+    if (obj->ob_refcnt <= 0) {     \
       OB_KLASS(obj)->ob_free(obj); \
       (_ob) = NULL;                \
     }                              \

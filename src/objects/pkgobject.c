@@ -218,7 +218,7 @@ int Pkg_Add_Class(Object *ob, Klass *klazz)
     HashTable_Insert(&pkg->mtbl, &m->hnode);
     m->klazz = OB_INCREF(klazz);
     klazz->owner = (Object *)pkg;
-    klazz->consts = pkg->consts;
+    klazz->consts = OB_INCREF(pkg->consts);
   }
   return 0;
 }
@@ -320,6 +320,7 @@ static void __getconst(int type, void *data, int index, void *arg)
     break;
   }
   Tuple_Set(tuple, index, ob);
+  OB_DECREF(ob);
 }
 
 static void load_consts(Object *ob, KImage *image)

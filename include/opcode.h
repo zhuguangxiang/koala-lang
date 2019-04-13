@@ -126,48 +126,45 @@ extern "C" {
 #define MUL 42
 #define DIV 43
 #define MOD 44
-#define POW 45
-#define NEG 46
+#define NEG 45
 
-#define GT  47
-#define GE  48
-#define LT  49
-#define LE  50
-#define EQ  51
-#define NEQ 52
+#define GT  46
+#define GE  47
+#define LT  48
+#define LE  49
+#define EQ  50
+#define NEQ 51
 
-#define BAND   53
-#define BOR    54
-#define BXOR   55
-#define BNOT   56
-#define LSHIFT 57
-#define RSHIFT 58
+#define BAND   52
+#define BOR    53
+#define BXOR   54
+#define BNOT   55
 
-#define AND 59
-#define OR  60
-#define NOT 61
+#define AND 56
+#define OR  57
+#define NOT 58
 
 /* Control flow, with relative 2 bytes offset */
-#define JMP        70
-#define JMP_TRUE   71
-#define JMP_FALSE  72
-#define JMP_CMPEQ  73
-#define JMP_CMPNEQ 74
-#define JMP_CMPLT  75
-#define JMP_CMPGT  76
-#define JMP_CMPLE  77
-#define JMP_CMPGE  78
-#define JMP_NIL    79
-#define JMP_NOTNIL 80
+#define JMP        60
+#define JMP_TRUE   61
+#define JMP_FALSE  62
+#define JMP_CMPEQ  63
+#define JMP_CMPNEQ 64
+#define JMP_CMPLT  65
+#define JMP_CMPGT  66
+#define JMP_CMPLE  67
+#define JMP_CMPGE  68
+#define JMP_NIL    69
+#define JMP_NOTNIL 70
 
 /* New object and access it */
-#define NEW         90
-#define NEW_ARRAY   91
-#define NEW_MAP     92
-#define NEW_SET     93
-#define NEW_CLOSURE 94
-#define MAP_LOAD    95
-#define MAP_STORE   96
+#define NEW         80
+#define NEW_ARRAY   81
+#define NEW_MAP     82
+#define NEW_SET     83
+#define NEW_CLOSURE 84
+#define MAP_LOAD    85
+#define MAP_STORE   86
 
 int OpCode_ArgCount(int op);
 char *OpCode_String(int op);

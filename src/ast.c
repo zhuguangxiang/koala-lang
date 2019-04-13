@@ -61,7 +61,6 @@ IdType *New_IdType(Ident *id, TypeWrapper type)
   IdType *idType = Malloc(sizeof(IdType));
   if (id != NULL)
     idType->id = *id;
-  TYPE_INCREF(type.desc);
   idType->type = type;
   return idType;
 }
@@ -611,25 +610,22 @@ static void free_klass_stmt(Stmt *stmt)
 }
 
 static void (*__free_stmt_funcs[])(Stmt *) = {
-  NULL,                                  /* INVALID         */
-  NULL,                                  /* CONST_KIND */
-  free_vardecl_stmt,                     /* VAR_KIND        */
-  NULL,                                  /* TUPLE_KIND */
-  free_funcdecl_stmt,                    /* FUNC_KIND       */
-  free_funcdecl_stmt,                    /* PROTO_KIND      */
+  NULL,                     /* INVALID     */
+  NULL,                     /* CONST_KIND  */
+  free_vardecl_stmt,        /* VAR_KIND    */
+  NULL,                     /* TUPLE_KIND  */
+  free_funcdecl_stmt,       /* FUNC_KIND   */
+  free_funcdecl_stmt,       /* PROTO_KIND  */
+  free_klass_stmt,          /* CLASS_KIND  */
+  free_klass_stmt,          /* TRAIT_KIND  */
   NULL,
   NULL,
+  free_expr_stmt,           /* EXPR_KIND   */
+  free_assign_stmt,         /* ASSIGN_KIND */
+  free_return_stmt,         /* RETURN_KIND */
   NULL,
-  free_expr_stmt,                        /* EXPR_KIND       */
-  free_list_stmt,                        /* LIST_KIND       */
-
-  free_assign_stmt,                      /* ASSIGN_KIND     */
-
-  free_return_stmt,                      /* RETURN_KIND     */
-  free_klass_stmt,                       /* CLASS_KIND      */
-  free_klass_stmt,                       /* TRAIT_KIND      */
-  NULL, NULL, NULL, NULL,
-  NULL, NULL, NULL, NULL,
+  NULL,
+  free_list_stmt,           /* LIST_KIND   */
 };
 
 void Free_Stmt_Func(void *item, void *arg)
@@ -716,15 +712,38 @@ Stmt *Stmt_From_Return(Expr *exp)
   return (Stmt *)retStmt;
 }
 
-Stmt *Stmt_From_Klass(Ident id, StmtKind kind, Vector *super, Vector *body)
+Stmt *Stmt_From_Class(Ident id, Vector *types, Vector *super, Vector *body)
 {
-  assert(kind == CLASS_KIND || kind == TRAIT_KIND);
-  KlassStmt *klsStmt = Malloc(sizeof(KlassStmt));
-  klsStmt->kind = kind;
-  klsStmt->id = id;
-  klsStmt->super = super;
-  klsStmt->body = body;
-  return (Stmt *)klsStmt;
+  KlassStmt *clsStmt = Malloc(sizeof(KlassStmt));
+  clsStmt->kind = CLASS_KIND;
+  clsStmt->id = id;
+  clsStmt->super = super;
+  clsStmt->body = body;
+  return (Stmt *)clsStmt;
+}
+
+Stmt *Stmt_From_Trait(Ident id, Vector *types, Vector *super, Vector *body)
+{
+  KlassStmt *traitStmt = Malloc(sizeof(KlassStmt));
+  traitStmt->kind = TRAIT_KIND;
+  traitStmt->id = id;
+  traitStmt->super = super;
+  traitStmt->body = body;
+  return (Stmt *)traitStmt;
+}
+
+Stmt *New_EnumLabel(Ident id, Vector *types, Expr *exp)
+{
+  EnumLabelStmt *lblStmt = Malloc(sizeof(EnumLabelStmt));
+  lblStmt->kind = ENUM_LABEL_KIND;
+  return (Stmt *)lblStmt;
+}
+
+Stmt *Stmt_From_Enum(Ident id, Vector *typeparams, Vector *body)
+{
+  EnumStmt *enumStmt = Malloc(sizeof(EnumStmt));
+  enumStmt->kind = ENUM_KIND;
+  return (Stmt *)enumStmt;
 }
 
 static int file_exist(char *path)
@@ -1049,6 +1068,89 @@ void Parser_New_Const(ParserState *ps, Stmt *stmt)
 }
 
 #if 0
+
+Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
+{
+  int isz = Vector_Size(ids);
+  int esz = Vector_Size(exps);
+  if (!__validate_count(ps, isz, esz)) {
+    Expr *e = Vector_Get(ids, 0);
+    Syntax_Error(ps, &e->pos, "left and expr are not matched");
+    free_exprlist(ids);
+    free_exprlist(exps);
+    return NULL;
+  }
+
+  IdentExpr *e;
+  Expr *right;
+  TypeWrapper nulltype = {NULL, {0, 0}};
+  if (isz == esz) {
+    Stmt *stmt;
+    if (isz == 1) {
+      /* only one variable */
+      e = Vector_Get(ids, 0);
+      if (e->kind != ID_KIND) {
+        Syntax_Error(ps, &e->pos, "needs an identifier");
+        free_exprlist(ids);
+        free_exprlist(exps);
+        return NULL;
+      }
+      Ident ident = {e->name, e->pos};
+      Expr *exp = Vector_Get(exps, 0);
+      stmt = __Stmt_From_VarDecl(&ident, nulltype, exp, 0);
+    } else {
+      /* count of left ids == count of right expressions */
+      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_Capacity(isz));
+      Ident ident;
+      Stmt *varStmt;
+      Vector_ForEach(e, ids) {
+        if (e->kind != ID_KIND) {
+          Syntax_Error(ps, &e->pos, "needs an identifier");
+          Free_Stmt_Func(listStmt, NULL);
+          free_exprlist(ids);
+          free_exprlist(exps);
+          return NULL;
+        }
+        right = Vector_Get(exps, i);
+        assert(right);
+        ident.name = e->name;
+        ident.pos = e->pos;
+        varStmt = __Stmt_From_VarDecl(&ident, nulltype, right, 0);
+        Vector_Append(listStmt->vec, varStmt);
+      }
+      stmt = (Stmt *)listStmt;
+    }
+    free_exprlist(ids);
+    Vector_Free_Self(exps);
+    return stmt;
+  }
+
+  assert(isz > esz && esz == 1);
+
+  /* count of right expressions is 1 */
+  Vector *_ids = Vector_Capacity(isz);
+  Ident *ident;
+  String s;
+  Vector_ForEach(e, ids) {
+    if (e->kind != ID_KIND) {
+      Syntax_Error(ps, &e->pos, "needs an identifier");
+      Free_IdentList(_ids);
+      free_exprlist(ids);
+      free_exprlist(exps);
+      return NULL;
+    }
+    s.str = e->name;
+    ident = New_Ident(s);
+    ident->pos = e->pos;
+    Vector_Append(_ids, ident);
+  }
+  right = Vector_Get(exps, 0);
+
+  free_exprlist(ids);
+  Vector_Free_Self(exps);
+  return __Stmt_From_VarListDecl(_ids, nulltype, right, 0);
+}
+
 Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
 {
   int lsz = Vector_Size(left);
@@ -1115,68 +1217,43 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
 }
 #endif
 
+static TypeDesc *__get_proto(Vector *idtypes, TypeDesc *ret)
+{
+  Vector *para = Vector_Capacity(Vector_Size(idtypes));
+  IdType *idType;
+  Vector_ForEach(idType, idtypes) {
+    TYPE_INCREF(idType->type.desc);
+    Vector_Append(para, idType->type.desc);
+  }
+  return TypeDesc_New_Proto(para, ret);
+}
+
 static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
   ParserUnit *u = ps->u;
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
+  assert(funcStmt->kind == FUNC_KIND);
   char *name = funcStmt->id.name;
   Symbol *sym;
-  TypeDesc *proto = TypeDesc_New_Proto(funcStmt->args, funcStmt->ret);
+  TypeDesc *proto = __get_proto(funcStmt->args, funcStmt->ret);
 
-  if (funcStmt->kind == PROTO_KIND) {
-    if (funcStmt->native) {
-      sym = STable_Add_NFunc(u->stbl, name, proto);
-      if (sym != NULL) {
-        Log_Debug("add native func '%s' successfully", name);
-        sym->filename = ps->filename;
-        sym->pos = funcStmt->id.pos;
-        Vector_Append(&ps->symbols, sym);
-      } else {
-        sym = STable_Get(u->stbl, name);
-        Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
-                     "\tprevious declaration at %s:%d:%d", name,
-                     sym->filename, sym->pos.row, sym->pos.col);
-      }
-    } else {
-      sym = STable_Add_IFunc(u->stbl, name, proto);
-      if (sym != NULL) {
-        Log_Debug("add proto '%s' successfully", name);
-        sym->filename = ps->filename;
-        sym->pos = funcStmt->id.pos;
-        Vector_Append(&ps->symbols, sym);
-      } else {
-        sym = STable_Get(u->stbl, name);
-        Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
-                     "\tprevious declaration at %s:%d:%d", name,
-                     sym->filename, sym->pos.row, sym->pos.col);
-      }
-    }
+  sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
+  if (sym != NULL) {
+    Log_Debug("add func '%s' successfully", name);
+    sym->filename = ps->filename;
+    sym->pos = funcStmt->id.pos;
+    Vector_Append(&ps->symbols, sym);
   } else {
-    assert(funcStmt->kind == FUNC_KIND);
-    sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
-    if (sym != NULL) {
-      Log_Debug("add func '%s' successfully", name);
-      sym->filename = ps->filename;
-      sym->pos = funcStmt->id.pos;
-      Vector_Append(&ps->symbols, sym);
-    } else {
-      sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
-                   "\tprevious declaration at %s:%d:%d", name,
-                   sym->filename, sym->pos.row, sym->pos.col);
-    }
-  }
-
-  if (sym == NULL) {
-    Position pos = funcStmt->id.pos;
-    Syntax_Error(ps, &pos, "Symbol '%s' is duplicated", name);
-    TYPE_DECREF(proto);
+    sym = STable_Get(u->stbl, name);
+    Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+                  "\tprevious declaration at %s:%d:%d", name,
+                  sym->filename, sym->pos.row, sym->pos.col);
   }
 
   TYPE_DECREF(proto);
 }
 
-void Parser_New_FuncOrProto(ParserState *ps, Stmt *stmt)
+void Parser_New_Func(ParserState *ps, Stmt *stmt)
 {
   if (stmt == NULL)
     return;
@@ -1184,7 +1261,55 @@ void Parser_New_FuncOrProto(ParserState *ps, Stmt *stmt)
   __parse_funcdecl(ps, stmt);
 }
 
-void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
+static void __parse_protodecl(ParserState *ps, Stmt *stmt)
+{
+  ParserUnit *u = ps->u;
+  FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
+  assert(funcStmt->kind == PROTO_KIND);
+  char *name = funcStmt->id.name;
+  Symbol *sym;
+  TypeDesc *proto = __get_proto(funcStmt->args, funcStmt->ret);
+
+  if (funcStmt->native) {
+    sym = STable_Add_NFunc(u->stbl, name, proto);
+    if (sym != NULL) {
+      Log_Debug("add native func '%s' successfully", name);
+      sym->filename = ps->filename;
+      sym->pos = funcStmt->id.pos;
+      Vector_Append(&ps->symbols, sym);
+    } else {
+      sym = STable_Get(u->stbl, name);
+      Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+                    "\tprevious declaration at %s:%d:%d", name,
+                    sym->filename, sym->pos.row, sym->pos.col);
+    }
+  } else {
+    sym = STable_Add_IFunc(u->stbl, name, proto);
+    if (sym != NULL) {
+      Log_Debug("add proto '%s' successfully", name);
+      sym->filename = ps->filename;
+      sym->pos = funcStmt->id.pos;
+      Vector_Append(&ps->symbols, sym);
+    } else {
+      sym = STable_Get(u->stbl, name);
+      Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+                    "\tprevious declaration at %s:%d:%d", name,
+                    sym->filename, sym->pos.row, sym->pos.col);
+    }
+  }
+
+  TYPE_DECREF(proto);
+}
+
+void Parser_New_Proto(ParserState *ps, Stmt *stmt)
+{
+  if (stmt == NULL)
+    return;
+  __add_stmt(ps, stmt);
+  __parse_protodecl(ps, stmt);
+}
+
+void Parser_New_Class(ParserState *ps, Stmt *stmt)
 {
   if (stmt == NULL)
     return;
@@ -1194,34 +1319,19 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
   KlassStmt *klsStmt = (KlassStmt *)stmt;
   char *name = klsStmt->id.name;
   ClassSymbol *sym;
+  assert(stmt->kind == CLASS_KIND);
 
-  if (stmt->kind == CLASS_KIND) {
-    sym = STable_Add_Class(u->stbl, name);
-    if (sym != NULL) {
-      Log_Debug("add class '%s' successfully", sym->name);
-      sym->filename = ps->filename;
-      sym->pos = klsStmt->id.pos;
-      Vector_Append(&ps->symbols, sym);
-    } else {
-      Symbol *sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
-                   "\tprevious declaration at %s:%d:%d", name,
-                   sym->filename, sym->pos.row, sym->pos.col);
-    }
+  sym = STable_Add_Class(u->stbl, name);
+  if (sym != NULL) {
+    Log_Debug("add class '%s' successfully", sym->name);
+    sym->filename = ps->filename;
+    sym->pos = klsStmt->id.pos;
+    Vector_Append(&ps->symbols, sym);
   } else {
-    assert(stmt->kind == TRAIT_KIND);
-    sym = STable_Add_Trait(u->stbl, name);
-    if (sym != NULL) {
-      Log_Debug("add trait '%s' successfully", sym->name);
-      sym->filename = ps->filename;
-      sym->pos = klsStmt->id.pos;
-      Vector_Append(&ps->symbols, sym);
-    } else {
-      Symbol *sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
-                   "\tprevious declaration at %s:%d:%d", name,
-                   sym->filename, sym->pos.row, sym->pos.col);
-    }
+    Symbol *sym = STable_Get(u->stbl, name);
+    Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
+                  "\tprevious declaration at %s:%d:%d", name,
+                  sym->filename, sym->pos.row, sym->pos.col);
   }
 
   Parser_Enter_Scope(ps, SCOPE_CLASS);
@@ -1234,8 +1344,59 @@ void Parser_New_ClassOrTrait(ParserState *ps, Stmt *stmt)
     if (s->kind == VAR_KIND) {
       VarDeclStmt *varStmt = (VarDeclStmt *)s;
       __new_var(ps, &varStmt->id, varStmt->type.desc);
-    } else if (s->kind == FUNC_KIND || s->kind == PROTO_KIND) {
+    } else if (s->kind == FUNC_KIND) {
       __parse_funcdecl(ps, s);
+    } else if (s->kind == PROTO_KIND) {
+      FuncDeclStmt *funcStmt = (FuncDeclStmt *)s;
+      assert(funcStmt->native == 1);
+      __parse_protodecl(ps, s);
+    } else {
+      assert(0);
+    }
+  }
+
+  Parser_Exit_Scope(ps);
+}
+
+void Parser_New_Trait(ParserState *ps, Stmt *stmt)
+{
+  if (stmt == NULL)
+    return;
+  __add_stmt(ps, stmt);
+
+  ParserUnit *u = ps->u;
+  KlassStmt *klsStmt = (KlassStmt *)stmt;
+  char *name = klsStmt->id.name;
+  ClassSymbol *sym;
+  assert(stmt->kind == TRAIT_KIND);
+
+  sym = STable_Add_Trait(u->stbl, name);
+  if (sym != NULL) {
+    Log_Debug("add trait '%s' successfully", sym->name);
+    sym->filename = ps->filename;
+    sym->pos = klsStmt->id.pos;
+    Vector_Append(&ps->symbols, sym);
+  } else {
+    Symbol *sym = STable_Get(u->stbl, name);
+    Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
+                  "\tprevious declaration at %s:%d:%d", name,
+                  sym->filename, sym->pos.row, sym->pos.col);
+  }
+
+  Parser_Enter_Scope(ps, SCOPE_CLASS);
+  /* ClassSymbol */
+  ps->u->sym = (Symbol *)sym;
+  ps->u->stbl = sym->stbl;
+
+  Stmt *s;
+  Vector_ForEach(s, klsStmt->body) {
+    if (s->kind == VAR_KIND) {
+      VarDeclStmt *varStmt = (VarDeclStmt *)s;
+      __new_var(ps, &varStmt->id, varStmt->type.desc);
+    } else if (s->kind == FUNC_KIND) {
+      __parse_funcdecl(ps, s);
+    } else if (s->kind == PROTO_KIND) {
+      __parse_protodecl(ps, s);
     } else {
       assert(0);
     }

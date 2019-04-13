@@ -136,6 +136,11 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
   i->argc = _argc; \
 })
 
+#define CODE_BINARY(block, op) \
+({ \
+  Inst_Append_NoArg(block, op); \
+})
+
 #ifdef __cplusplus
 }
 #endif

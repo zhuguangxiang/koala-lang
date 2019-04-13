@@ -1,8 +1,0 @@
-
-package Hello
-
-import "io"
-
-func main() {
-  io.puts("Hello, Koala")
-}
