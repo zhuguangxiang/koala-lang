@@ -851,7 +851,7 @@ TypeDeclaration
   }
   | ENUM Name '{' EnumMemberDecls '}'
   {
-    //$$ = Stmt_From_Enum($2.ident, $2.vec, $4);
+    Parser_New_Enum(ps, Stmt_From_Enum($2.ident, $2.vec, $4));
   }
   ;
 
@@ -1047,37 +1047,37 @@ EnumLableDeclarations
   {
     $$ = Vector_New();
     DeclareIdent(id, $1, @1);
-    Vector_Append($$, New_EnumLabel(id, NULL, NULL));
+    Vector_Append($$, New_EnumValue(id, NULL, NULL));
   }
   | ID '(' TypeList ')'
   {
     $$ = Vector_New();
     DeclareIdent(id, $1, @1);
-    Vector_Append($$, New_EnumLabel(id, $3, NULL));
+    Vector_Append($$, New_EnumValue(id, $3, NULL));
   }
   | ID '=' INT_LITERAL
   {
     $$ = Vector_New();
     DeclareIdent(id, $1, @1);
-    Vector_Append($$, New_EnumLabel(id, NULL, Expr_From_Integer($3)));
+    Vector_Append($$, New_EnumValue(id, NULL, Expr_From_Integer($3)));
   }
   | EnumLableDeclarations ',' ID
   {
     $$ = $1;
     DeclareIdent(id, $3, @3);
-    Vector_Append($$, New_EnumLabel(id, NULL, NULL));
+    Vector_Append($$, New_EnumValue(id, NULL, NULL));
   }
   | EnumLableDeclarations ',' ID '(' TypeList ')'
   {
     $$ = $1;
     DeclareIdent(id, $3, @3);
-    Vector_Append($$, New_EnumLabel(id, $5, NULL));
+    Vector_Append($$, New_EnumValue(id, $5, NULL));
   }
   | EnumLableDeclarations ',' ID '=' INT_LITERAL
   {
     $$ = $1;
     DeclareIdent(id, $3, @3);
-    Vector_Append($$, New_EnumLabel(id, NULL, Expr_From_Integer($5)));
+    Vector_Append($$, New_EnumValue(id, NULL, Expr_From_Integer($5)));
   }
   ;
 

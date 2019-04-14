@@ -609,23 +609,36 @@ static void free_klass_stmt(Stmt *stmt)
   Mfree(stmt);
 }
 
+static void free_enum_stmt(Stmt *stmt)
+{
+  EnumStmt *eStmt = (EnumStmt *)stmt;
+  Vector_Free_Self(eStmt->body);
+  Mfree(stmt);
+}
+
+static void free_eval_stmt(Stmt *stmt)
+{
+  EnumValStmt *evStmt = (EnumValStmt *)stmt;
+  Mfree(evStmt);
+}
+
 static void (*__free_stmt_funcs[])(Stmt *) = {
-  NULL,                     /* INVALID     */
-  free_vardecl_stmt,        /* CONST_KIND  */
-  free_vardecl_stmt,        /* VAR_KIND    */
-  NULL,                     /* TUPLE_KIND  */
-  free_funcdecl_stmt,       /* FUNC_KIND   */
-  free_funcdecl_stmt,       /* PROTO_KIND  */
-  free_klass_stmt,          /* CLASS_KIND  */
-  free_klass_stmt,          /* TRAIT_KIND  */
-  NULL,
-  NULL,
-  free_expr_stmt,           /* EXPR_KIND   */
-  free_assign_stmt,         /* ASSIGN_KIND */
-  free_return_stmt,         /* RETURN_KIND */
-  NULL,
-  NULL,
-  free_list_stmt,           /* LIST_KIND   */
+  NULL,                     /* INVALID         */
+  free_vardecl_stmt,        /* CONST_KIND      */
+  free_vardecl_stmt,        /* VAR_KIND        */
+  NULL,                     /* TUPLE_KIND      */
+  free_funcdecl_stmt,       /* FUNC_KIND       */
+  free_funcdecl_stmt,       /* PROTO_KIND      */
+  free_klass_stmt,          /* CLASS_KIND      */
+  free_klass_stmt,          /* TRAIT_KIND      */
+  free_enum_stmt,           /* ENUM_KIND       */
+  free_eval_stmt,           /* ENUM_VALUE_KIND */
+  free_expr_stmt,           /* EXPR_KIND       */
+  free_assign_stmt,         /* ASSIGN_KIND     */
+  free_return_stmt,         /* RETURN_KIND     */
+  NULL,                     /* BREAK_KIND      */
+  NULL,                     /* CONTINUE_KIND   */
+  free_list_stmt,           /* LIST_KIND       */
 };
 
 void Free_Stmt_Func(void *item, void *arg)
@@ -732,17 +745,23 @@ Stmt *Stmt_From_Trait(Ident id, Vector *types, Vector *super, Vector *body)
   return (Stmt *)traitStmt;
 }
 
-Stmt *New_EnumLabel(Ident id, Vector *types, Expr *exp)
+Stmt *New_EnumValue(Ident id, Vector *types, Expr *exp)
 {
-  EnumLabelStmt *lblStmt = Malloc(sizeof(EnumLabelStmt));
-  lblStmt->kind = ENUM_LABEL_KIND;
-  return (Stmt *)lblStmt;
+  EnumValStmt *evalStmt = Malloc(sizeof(EnumValStmt));
+  evalStmt->kind = ENUM_VALUE_KIND;
+  evalStmt->id = id;
+  evalStmt->types = types;
+  evalStmt->exp = exp;
+  return (Stmt *)evalStmt;
 }
 
 Stmt *Stmt_From_Enum(Ident id, Vector *typeparams, Vector *body)
 {
   EnumStmt *enumStmt = Malloc(sizeof(EnumStmt));
   enumStmt->kind = ENUM_KIND;
+  enumStmt->id = id;
+  enumStmt->typeparams = typeparams;
+  enumStmt->body = body;
   return (Stmt *)enumStmt;
 }
 
@@ -1397,6 +1416,70 @@ void Parser_New_Trait(ParserState *ps, Stmt *stmt)
       __parse_funcdecl(ps, s);
     } else if (s->kind == PROTO_KIND) {
       __parse_protodecl(ps, s);
+    } else {
+      assert(0);
+    }
+  }
+
+  Parser_Exit_Scope(ps);
+}
+
+static
+void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *esym, STable *stbl)
+{
+  ParserUnit *u = ps->u;
+  EnumValStmt *evStmt = (EnumValStmt *)s;
+  Ident *id = &evStmt->id;
+  EnumValSymbol *evsym = STable_Add_EnumValue(stbl, id->name);
+
+  if (evsym != NULL) {
+    Log_Debug("add enum value '%s' successfully", id->name);
+    evsym->filename = ps->filename;
+    evsym->pos = id->pos;
+    evsym->esym = esym;
+    Vector_Append(&ps->symbols, evsym);
+  } else {
+    Symbol *sym = STable_Get(u->stbl, id->name);
+    Syntax_Error(ps, &id->pos, "'%s' redeclared,\n"
+                 "\tprevious declaration at %s:%d:%d", id->name,
+                 sym->filename, sym->pos.row, sym->pos.col);
+  }
+}
+
+void Parser_New_Enum(ParserState *ps, Stmt *stmt)
+{
+  if (stmt == NULL)
+    return;
+  __add_stmt(ps, stmt);
+
+  ParserUnit *u = ps->u;
+  EnumStmt *eStmt = (EnumStmt *)stmt;
+  char *name = eStmt->id.name;
+  assert(stmt->kind == ENUM_KIND);
+
+  EnumSymbol *sym = STable_Add_Enum(u->stbl, name);
+  if (sym != NULL) {
+    Log_Debug("add enum '%s' successfully", sym->name);
+    sym->filename = ps->filename;
+    sym->pos = eStmt->id.pos;
+    Vector_Append(&ps->symbols, sym);
+  } else {
+    Symbol *sym = STable_Get(u->stbl, name);
+    Syntax_Error(ps, &eStmt->id.pos, "'%s' redeclared,\n"
+                  "\tprevious declaration at %s:%d:%d", name,
+                  sym->filename, sym->pos.row, sym->pos.col);
+  }
+
+  Parser_Enter_Scope(ps, SCOPE_ENUM);
+  ps->u->sym = (Symbol *)sym;
+  ps->u->stbl = sym->stbl;
+
+  Stmt *s;
+  Vector_ForEach(s, eStmt->body) {
+    if (s->kind == ENUM_VALUE_KIND) {
+      __new_eval(ps, s, sym, u->stbl);
+    } else if (s->kind == FUNC_KIND) {
+      __parse_funcdecl(ps, s);
     } else {
       assert(0);
     }

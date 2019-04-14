@@ -219,7 +219,7 @@ static void __class_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   ClassSymbol *clsSym = (ClassSymbol *)sym;
-  Log_Debug("class %s:", clsSym->name);
+  Log_Printf("class %s:\n", clsSym->name);
 
   KImage_Add_Class(info->image, clsSym->name, &clsSym->supers);
 
@@ -241,12 +241,77 @@ static void __trait_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   ClassSymbol *clsSym = (ClassSymbol *)sym;
+  Log_Printf("trait %s:\n", clsSym->name);
+
+  KImage_Add_Trait(info->image, clsSym->name, &clsSym->supers);
+
+  struct gen_image_s info2 = {info->image, clsSym->name};
+  STable_Visit(clsSym->stbl, __gen_image_func, &info2);
+}
+
+static Symbol *__enum_new(char *name)
+{
+  return __symbol_new(SYM_ENUM, name, sizeof(EnumSymbol));
+}
+
+static void __enum_free(Symbol *sym)
+{
+  Log_Debug("enum '%s' is freed", sym->name);
+  EnumSymbol *eSym = (EnumSymbol *)sym;
+  TYPE_DECREF(eSym->desc);
+  STable_Free(eSym->stbl);
+  __symbol_free(sym);
+}
+
+static void __enum_show(Symbol *sym)
+{
+  Log_Printf("enum %s;\n", sym->name);
+}
+
+static void __enum_gen(Symbol *sym, void *arg)
+{
+  /*
+  struct gen_image_s *info = arg;
+  ClassSymbol *clsSym = (ClassSymbol *)sym;
   Log_Debug("trait %s:", clsSym->name);
 
   KImage_Add_Trait(info->image, clsSym->name, &clsSym->supers);
 
   struct gen_image_s info2 = {info->image, clsSym->name};
   STable_Visit(clsSym->stbl, __gen_image_func, &info2);
+  */
+}
+
+static Symbol *__eval_new(char *name)
+{
+  return __symbol_new(SYM_EVAL, name, sizeof(EnumValSymbol));
+}
+
+static void __eval_free(Symbol *sym)
+{
+  Log_Debug("enum '%s' is freed", sym->name);
+  EnumValSymbol *evSym = (EnumValSymbol *)sym;
+  TYPE_DECREF(evSym->desc);
+  __symbol_free(sym);
+}
+
+static void __eval_show(Symbol *sym)
+{
+  Log_Printf("enum value %s;\n", sym->name);
+}
+
+static void __eval_gen(Symbol *sym, void *arg)
+{
+  /*
+  struct gen_image_s *info = arg;
+  ClassSymbol *clsSym = (ClassSymbol *)sym;
+  Log_Debug("trait %s:", clsSym->name);
+
+  KImage_Add_Trait(info->image, clsSym->name, &clsSym->supers);
+
+  struct gen_image_s info2 = {info->image, clsSym->name};
+  STable_Visit(clsSym->stbl, __gen_image_func, &info2);
+  */
 }
 
 static Symbol *__ifunc_new(char *name)
@@ -356,10 +421,12 @@ struct symbol_operations {
 } symops[] = {
   {NULL, NULL, NULL, NULL},                                   /* INVALID   */
   {__const_new, __const_free, __const_show, __const_gen},     /* SYM_CONST */
-  {__var_new, __var_free, __var_show, __var_gen},             /* SYM_VAR   */
-  {__func_new, __func_free, __func_show, __func_gen},         /* SYM_FUNC  */
+  {__var_new,   __var_free,   __var_show,   __var_gen  },     /* SYM_VAR   */
+  {__func_new,  __func_free,  __func_show,  __func_gen },     /* SYM_FUNC  */
   {__class_new, __class_free, __class_show, __class_gen},     /* SYM_CLASS */
   {__trait_new, __class_free, __trait_show, __trait_gen},     /* SYM_TRAIT */
+  {__enum_new,  __enum_free,  __enum_show,  __enum_gen },     /* SYM_ENUM  */
+  {__eval_new,  __eval_free,  __eval_show,  __eval_gen },     /* SYM_EVAL  */
   {__ifunc_new, __ifunc_free, __ifunc_show, __ifunc_gen},     /* SYM_IFUNC */
   {__nfunc_new, __ifunc_free, __ifunc_show, __ifunc_gen},     /* SYM_NFUNC */
   {__afunc_new, __afunc_free, __afunc_show, __afunc_gen},     /* SYM_AFUNC */
@@ -493,6 +560,29 @@ ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
   sym->desc = TypeDesc_New_Klass(NULL, name, NULL);
+  return sym;
+}
+
+EnumSymbol *STable_Add_Enum(STable *stbl, char *name)
+{
+  EnumSymbol *sym = (EnumSymbol *)Symbol_New(SYM_ENUM, name);
+  if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
+    Symbol_Free((Symbol *)sym);
+    return NULL;
+  }
+  sym->stbl = STable_New();
+  sym->desc = NULL;
+  return sym;
+}
+
+EnumValSymbol *STable_Add_EnumValue(STable *stbl, char *name)
+{
+  EnumValSymbol *sym = (EnumValSymbol *)Symbol_New(SYM_EVAL, name);
+  if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
+    Symbol_Free((Symbol *)sym);
+    return NULL;
+  }
+  sym->desc = NULL;
   return sym;
 }
 

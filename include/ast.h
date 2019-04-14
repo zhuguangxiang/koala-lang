@@ -298,8 +298,8 @@ typedef enum stmtkind {
   TRAIT_KIND,
   /* enum */
   ENUM_KIND,
-  /* enum label */
-  ENUM_LABEL_KIND,
+  /* enum value */
+  ENUM_VALUE_KIND,
   /* expression */
   EXPR_KIND,
   /* assignment */
@@ -409,14 +409,14 @@ typedef struct klassstmt {
 Stmt *Stmt_From_Class(Ident id, Vector *types, Vector *super, Vector *body);
 Stmt *Stmt_From_Trait(Ident id, Vector *types, Vector *super, Vector *body);
 
-typedef struct enumlabelstmt {
+typedef struct enumvaluestmt {
   STMT_HEAD
   Ident id;
   Vector *types;
   Expr *exp;
-} EnumLabelStmt;
+} EnumValStmt;
 
-Stmt *New_EnumLabel(Ident id, Vector *types, Expr *exp);
+Stmt *New_EnumValue(Ident id, Vector *types, Expr *exp);
 
 typedef struct enumstmt {
   STMT_HEAD

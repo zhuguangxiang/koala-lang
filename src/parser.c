@@ -125,6 +125,13 @@ static void merge_unit(ParserState *ps)
     u->stbl = NULL;
     break;
   }
+  case SCOPE_ENUM: {
+    CodeBlock_Free(u->block);
+    u->block = NULL;
+    u->sym = NULL;
+    u->stbl = NULL;
+    break;
+  }
   case SCOPE_FUNCTION: {
     FuncSymbol *funcSym = (FuncSymbol *)u->sym;
     assert(funcSym && funcSym->kind == SYM_FUNC);
@@ -1007,6 +1014,35 @@ static void parse_trait_decl(ParserState *ps, Stmt *stmt)
   Log_Debug("----end of trait '%s'----", clsStmt->id.name);
 }
 
+static void parse_enum_decl(ParserState *ps, Stmt *stmt)
+{
+  EnumStmt *eStmt = (EnumStmt *)stmt;
+  Log_Debug("----parse enum '%s'----", eStmt->id.name);
+
+  Symbol *sym = STable_Get(ps->u->stbl, eStmt->id.name);
+  assert(sym);
+
+  Parser_Enter_Scope(ps, SCOPE_ENUM);
+  ps->u->sym = sym;
+  ps->u->stbl = ((EnumSymbol *)sym)->stbl;
+
+  /* parse class's body statements */
+  parse_statements(ps, eStmt->body);
+
+  Parser_Exit_Scope(ps);
+
+  Log_Debug("----end of enum '%s'----", eStmt->id.name);
+}
+
+static void parse_enumval_decl(ParserState *ps, Stmt *stmt)
+{
+  EnumValStmt *evStmt = (EnumValStmt *)stmt;
+
+  Log_Debug("----parse enumvalue '%s'----", evStmt->id.name);
+
+  Log_Debug("----end of enumvalue '%s'----", evStmt->id.name);
+}
+
 static void parse_expr_stmt(ParserState *ps, Stmt *stmt)
 {
   ExprStmt *expStmt = (ExprStmt *)stmt;
@@ -1128,22 +1164,22 @@ static void parse_list_stmt(ParserState *ps, Stmt *stmt)
 typedef void (*parse_stmt_func)(ParserState *, Stmt *);
 
 static parse_stmt_func parse_stmt_funcs[] = {
-  NULL,                     /* INVALID     */
-  parse_const_decl,         /* CONST_KIND  */
-  parse_var_decl,           /* VAR_KIND    */
-  NULL,                     /* TUPLE_KIND  */
-  parse_func_decl,          /* FUNC_KIND   */
-  parse_proto_decl,         /* PROTO_KIND  */
-  parse_class_decl,         /* CLASS_KIND  */
-  parse_trait_decl,         /* TRAIT_KIND  */
-  NULL,
-  NULL,
-  parse_expr_stmt,          /* EXPR_KIND   */
-  parse_assignment,         /* ASSIGN_KIND */
-  parse_return,             /* RETURN_KIND */
-  NULL,
-  NULL,
-  parse_list_stmt,          /* LIST_KIND   */
+  NULL,                     /* INVALID         */
+  parse_const_decl,         /* CONST_KIND      */
+  parse_var_decl,           /* VAR_KIND        */
+  NULL,                     /* TUPLE_KIND      */
+  parse_func_decl,          /* FUNC_KIND       */
+  parse_proto_decl,         /* PROTO_KIND      */
+  parse_class_decl,         /* CLASS_KIND      */
+  parse_trait_decl,         /* TRAIT_KIND      */
+  parse_enum_decl,          /* ENUM_KIND       */
+  parse_enumval_decl,       /* ENUM_VALUE_KIND */
+  parse_expr_stmt,          /* EXPR_KIND       */
+  parse_assignment,         /* ASSIGN_KIND     */
+  parse_return,             /* RETURN_KIND     */
+  NULL,                     /* BREAK_KIND      */
+  NULL,                     /* CONTINUE_KIND   */
+  parse_list_stmt,          /* LIST_KIND       */
 };
 
 static void parse_statement(ParserState *ps, Stmt *stmt)

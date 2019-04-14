@@ -42,13 +42,15 @@ typedef enum symbolkind {
   SYM_CONST  = 1,   /* constant           */
   SYM_VAR    = 2,   /* variable           */
   SYM_FUNC   = 3,   /* function or method */
-  SYM_CLASS  = 4,   /* clas               */
+  SYM_CLASS  = 4,   /* class              */
   SYM_TRAIT  = 5,   /* trait              */
-  SYM_IFUNC  = 6,   /* interface method   */
-  SYM_NFUNC  = 7,   /* native function    */
-  SYM_AFUNC  = 8,   /* anonymous function */
-  SYM_PKG    = 9,   /* (external) package */
-  SYM_REF    = 10,  /* reference symbol   */
+  SYM_ENUM   = 6,   /* enum               */
+  SYM_EVAL   = 7,   /* enum value         */
+  SYM_IFUNC  = 8,   /* interface method   */
+  SYM_NFUNC  = 9,   /* native function    */
+  SYM_AFUNC  = 10,  /* anonymous function */
+  SYM_PKG    = 11,  /* (external) package */
+  SYM_REF    = 12,  /* reference symbol   */
   SYM_MAX
 } SymKind;
 
@@ -109,6 +111,22 @@ typedef struct classsymbol {
   STable *stbl;
 } ClassSymbol;
 
+/* enum symbol */
+typedef struct enumsymbol {
+  SYMBOL_HEAD
+  /* symbol table for EnumSymbol and FuncSymbol */
+  STable *stbl;
+} EnumSymbol;
+
+/* enum value symbol */
+typedef struct enumvalsymbol {
+  SYMBOL_HEAD
+  /* which enum is it? */
+  EnumSymbol *esym;
+  /* associated types */
+  Vector *types;
+} EnumValSymbol;
+
 /* closure/anonoymous function */
 typedef struct afuncsymbol {
   SYMBOL_HEAD
@@ -153,6 +171,8 @@ VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
 FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
 ClassSymbol *STable_Add_Class(STable *stbl, char *name);
 ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
+EnumSymbol *STable_Add_Enum(STable *stbl, char *name);
+EnumValSymbol *STable_Add_EnumValue(STable *stbl, char *name);
 Symbol *STable_Add_Proto(STable *stbl, char *name, int kind, TypeDesc *desc);
 #define STable_Add_IFunc(stbl, name, proto) \
   STable_Add_Proto(stbl, name, SYM_IFUNC, proto)

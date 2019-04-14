@@ -221,6 +221,7 @@ void Parser_New_Func(ParserState *ps, Stmt *stmt);
 void Parser_New_Proto(ParserState *ps, Stmt *stmt);
 void Parser_New_Class(ParserState *ps, Stmt *stmt);
 void Parser_New_Trait(ParserState *ps, Stmt *stmt);
+void Parser_New_Enum(ParserState *ps, Stmt *stmt);
 TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz);
 void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
 
