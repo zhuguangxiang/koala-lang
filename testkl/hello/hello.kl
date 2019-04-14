@@ -5,7 +5,8 @@ import . "io"
 
 func main() {
   sayHello("Hello, Koala")
-  puts("1+2=?\nresult=")
+  puts("HaHa...")
+  puts("1+2=? result=")
   result := 1 + 2
   result = add(3, 2)
   //puts(result.to_str())

@@ -25,7 +25,7 @@
 
 LOGGER(0)
 
-static void curr_module_class(ParserState *ps, void *arg)
+static void id_in_modcls(ParserState *ps, void *arg)
 {
   ParserUnit *u = ps->u;
   IdentExpr *exp = arg;
@@ -149,7 +149,7 @@ static void code_up_class(ParserState *ps, void *arg)
   }
 }
 
-static void up_func(ParserState *ps, void *arg)
+static void id_up_infunc(ParserState *ps, void *arg)
 {
   ParserUnit *u = ps->u;
   IdentExpr *exp = arg;
@@ -158,9 +158,10 @@ static void up_func(ParserState *ps, void *arg)
   ExprCtx ctx = exp->ctx;
   Expr *right = exp->right;
   ParserUnit *up = exp->scope;
+  ParserUnit *uu = Parser_Get_UpScope(ps);
 
-  /* Id, in func, its up scope MUST be module, maybe variable or func */
-  assert(up->scope == SCOPE_MODULE);
+  /* its up scope is module/class, maybe variable(field) or func */
+  assert(up->scope == SCOPE_MODULE || up->scope == SCOPE_CLASS);
   if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
     Log_Debug("Id '%s' is const/var", sym->name);
     if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
@@ -170,11 +171,19 @@ static void up_func(ParserState *ps, void *arg)
       CODE_LOAD(u->block, 0);
       CODE_CALL(u->block, sym->name, argc);
     } else {
-      /* load variable */
-      Log_Debug("load '%s' variable", sym->name);
-      assert(ctx == EXPR_LOAD);
-      CODE_LOAD(u->block, 0);
-      CODE_GET_ATTR(u->block, sym->name);
+      if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
+        CODE_LOAD_PKG(u->block, ".");
+      else
+        CODE_LOAD(u->block, 0);
+      if (ctx == EXPR_LOAD) {
+        /* load variable */
+        Log_Debug("load '%s' variable", sym->name);
+        CODE_GET_ATTR(u->block, sym->name);
+      } else {
+        assert(ctx == EXPR_STORE);
+        Log_Debug("store '%s' variable", sym->name);
+        CODE_SET_ATTR(u->block, sym->name);
+      }
     }
   } else {
     assert(sym->kind == SYM_FUNC);
@@ -216,8 +225,9 @@ static void code_up_closure(ParserState *ps, void *arg)
 
 /* identifier is found in current scope */
 static CodeGenerator current_codes[] = {
-  {SCOPE_MODULE,   curr_module_class},
-  {SCOPE_CLASS,    curr_module_class},
+  {SCOPE_MODULE,   id_in_modcls},
+  {SCOPE_CLASS,    id_in_modcls},
+  {SCOPE_ENUM,     NULL},
   {SCOPE_FUNCTION, code_current_function_block_closure},
   {SCOPE_BLOCK,    code_current_function_block_closure},
   {SCOPE_CLOSURE,  code_current_function_block_closure},
@@ -230,8 +240,8 @@ static CodeGenerator current_codes[] = {
 static CodeGenerator up_codes[] = {
   {SCOPE_MODULE,   NULL},
   {SCOPE_CLASS,    code_up_class},
-  {SCOPE_FUNCTION, up_func},
-  {SCOPE_METHOD,   NULL},
+  {SCOPE_ENUM,     NULL},
+  {SCOPE_FUNCTION, id_up_infunc},
   {SCOPE_BLOCK,    code_up_block},
   {SCOPE_CLOSURE,  code_up_closure},
 };

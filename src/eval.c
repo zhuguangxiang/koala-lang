@@ -90,13 +90,24 @@ static inline void store(CallFrame *cf, int index, Object *val)
   OB_DECREF(old);
 }
 
-static inline Object *load_field(Object *ob, CodeObject *code, Object *so)
+static inline
+Object *load_field(Object *ob, CodeObject *code, Object *so)
 {
   char *name = String_Raw(so);
   if (OB_KLASS(ob) == &Pkg_Klass)
     return Pkg_Get_Value(ob, name);
   else
     return Object_Get_Field(ob, (Klass *)code->owner, name);
+}
+
+static inline
+void store_field(Object *ob, CodeObject *code, Object *so, Object *val)
+{
+  char *name = String_Raw(so);
+  if (OB_KLASS(ob) == &Pkg_Klass)
+    return Pkg_Set_Value(ob, name, val);
+  else
+    return Object_Set_Field(ob, (Klass *)code->owner, name, val);
 }
 
 static Object *get_code(Object *ob, Object *so)
@@ -168,6 +179,13 @@ static inline void pop_frame(CallFrame *cf)
   free_frame(cf);
 }
 
+static inline Object *current_package(CodeObject *code)
+{
+  Klass *klazz = (Klass *)code->owner;
+  OB_ASSERT_KLASS(klazz, Class_Klass);
+  return klazz->owner;
+}
+
 static void eval_frame(CallFrame *cf)
 {
   int loopflag = 1;
@@ -212,7 +230,10 @@ static void eval_frame(CallFrame *cf)
       index = fetch_2bytes(cf, ci);
       ob = index_const(index, consts);
       path = String_Raw(ob);
-      ob = Find_Package(path);
+      if (!strcmp(path, "."))
+        ob = current_package(code);
+      else
+        ob = Find_Package(path);
       PUSH(OB_INCREF(ob));
       break;
     case LOAD:
@@ -271,7 +292,13 @@ static void eval_frame(CallFrame *cf)
       PUSH(OB_INCREF(ret));
       break;
     case SET_ATTR:
-
+      index = fetch_2bytes(cf, ci);
+      name = index_const(index, consts);
+      ob = POP();
+      arg = POP();
+      store_field(ob, code, name, arg);
+      OB_DECREF(ob);
+      OB_DECREF(arg);
       break;
     case ADD:
       ob = POP();
@@ -380,7 +407,7 @@ static void run_cfunction(CallFrame *cf)
   Stack *stack = &ks->stack;
   CodeObject *co = (CodeObject *)cf->code;
 
-  show_stackframe(cf);
+  //show_stackframe(cf);
 
   //check_arguments(cf);
   Object *ret = co->cfunc(cf->ob, cf->args);

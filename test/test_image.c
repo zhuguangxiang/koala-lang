@@ -14,9 +14,10 @@ void test_image(void)
   psudo[3] = RETURN;
   KImage_Add_Func(image, "Foo", proto, psudo, 4);
   desc = TypeDesc_Get_Base(BASE_STRING);
-  KImage_Add_Var(image, "Greeting", desc, 0);
+  KImage_Add_Var(image, "Greeting", desc, 0, NULL);
   desc = TypeDesc_Get_Base(BASE_INT);
-  KImage_Add_Var(image, "MAX_LENGTH", desc, 1);
+  ConstValue val = {.kind = BASE_INT, .ival = 1000};
+  KImage_Add_Var(image, "MAX_LENGTH", desc, 1, &val);
   KImage_Finish(image);
   KImage_Show(image);
   KImage_Write_File(image, "foo.klc");

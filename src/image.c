@@ -256,12 +256,13 @@ LocVarItem *LocVarItem_New(int32 nameindex, int32 typeindex,
   return item;
 }
 
-VarItem *VarItem_New(int32 nameindex, int32 typeindex, int konst)
+VarItem *VarItem_New(int32 nameindex, int32 typeindex, int konst, int index)
 {
   VarItem *item = Malloc(sizeof(VarItem));
   item->nameindex = nameindex;
   item->typeindex = typeindex;
   item->konst = konst;
+  item->index = index;
   return item;
 }
 
@@ -1495,11 +1496,34 @@ int KImage_Add_UChar(KImage *image, uchar val)
   return index;
 }
 
-void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int konst)
+int KImage_Add_Const(KImage *image, ConstValue *val)
+{
+  int index;
+  if (val->kind == BASE_INT) {
+    index = KImage_Add_Integer(image, val->ival);
+  } else if (val->kind == BASE_FLOAT) {
+    index = KImage_Add_Float(image, val->fval);
+  } else if (val->kind == BASE_BOOL) {
+    index = KImage_Add_Bool(image, val->bval);
+  } else if (val->kind == BASE_STRING) {
+    index = KImage_Add_String(image, val->str);
+  } else if (val->kind == BASE_CHAR) {
+    index = KImage_Add_UChar(image, val->ch);
+  } else {
+    index = -1;
+  }
+  return index;
+}
+void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc,
+                    int konst, ConstValue *val)
 {
   int type_index = TypeItem_Set(image->table, desc);
   int name_index = StringItem_Set(image->table, name);
-  VarItem *varitem = VarItem_New(name_index, type_index, konst);
+  int index = -1;
+  if (konst) {
+    index = KImage_Add_Const(image, val);
+  }
+  VarItem *varitem = VarItem_New(name_index, type_index, konst, index);
   AtomTable_Append(image->table, ITEM_VAR, varitem, 0);
 }
 
@@ -1608,19 +1632,59 @@ void KImage_Get_Consts(KImage *image, getconstfn func, void *arg)
   }
 }
 
+static inline ConstValue get_const(KImage *image, int index)
+{
+  ConstValue value;
+  ConstItem *item = AtomTable_Get(image->table, ITEM_CONST, index);
+  StringItem *s;
+  switch (item->type) {
+  case CONST_STRING:
+    s = AtomTable_Get(image->table, ITEM_STRING, item->index);
+    value.kind = BASE_STRING;
+    value.str = s->data;
+    break;
+  case CONST_INT:
+    value.kind = BASE_INT;
+    value.ival = item->ival;
+    break;
+  case CONST_FLOAT:
+    value.kind = BASE_FLOAT;
+    value.fval = item->fval;
+    break;
+  case CONST_BOOL:
+    value.kind = BASE_BOOL;
+    value.bval = item->bval;
+    break;
+  case CONST_UCHAR:
+    value.kind = BASE_CHAR;
+    value.ch = item->uch;
+    break;
+  default:
+    assert(0);
+    break;
+  }
+  return value;
+}
+
 void KImage_Get_Vars(KImage *image, getvarfn func, void *arg)
 {
   VarItem *var;
   StringItem *id;
   TypeItem *type;
   TypeDesc *desc;
+  ConstValue value;
   int size = AtomTable_Size(image->table, ITEM_VAR);
   for (int i = 0; i < size; i++) {
     var = AtomTable_Get(image->table, ITEM_VAR, i);
     id = AtomTable_Get(image->table, ITEM_STRING, var->nameindex);
     type = AtomTable_Get(image->table, ITEM_TYPE, var->typeindex);
     desc = TypeItem_To_TypeDesc(type, image->table);
-    func(id->data, desc, var->konst, arg);
+    if (var->konst) {
+      value = get_const(image, var->index);
+      func(id->data, desc, 1, &value, arg);
+    } else {
+      func(id->data, desc, 0, NULL, arg);
+    }
     TYPE_DECREF(desc);
   }
 }

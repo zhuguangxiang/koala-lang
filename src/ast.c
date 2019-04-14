@@ -611,7 +611,7 @@ static void free_klass_stmt(Stmt *stmt)
 
 static void (*__free_stmt_funcs[])(Stmt *) = {
   NULL,                     /* INVALID     */
-  NULL,                     /* CONST_KIND  */
+  free_vardecl_stmt,        /* CONST_KIND  */
   free_vardecl_stmt,        /* VAR_KIND    */
   NULL,                     /* TUPLE_KIND  */
   free_funcdecl_stmt,       /* FUNC_KIND   */

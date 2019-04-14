@@ -227,11 +227,11 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 
 [\t\r ]+ {}
 
-"/*"(([^\*]*(\*[^\/])?)*)"*/" { printf("block comments\n"); }
+"/*"(([^\*]*(\*[^\/])?)*)"*/" { }
 
 "///"[^\n]* { printf("doc comment\n"); }
 
-"//"[^\n]* { printf("line comment\n"); }
+"//"[^\n]* { }
 
 . {
   Position pos = {yyps->line.pos.row, yyps->line.pos.col};

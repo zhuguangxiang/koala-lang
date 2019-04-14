@@ -79,7 +79,7 @@ static void __const_gen(Symbol *sym, void *arg)
   assert(info->classname == NULL);
   VarSymbol *varSym = (VarSymbol *)sym;
   __const_show(sym);
-  KImage_Add_Var(info->image, varSym->name, varSym->desc, 1);
+  KImage_Add_Var(info->image, varSym->name, varSym->desc, 1, &varSym->value);
 }
 
 static Symbol *__var_new(char *name)
@@ -111,10 +111,11 @@ static void __var_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   VarSymbol *varSym = (VarSymbol *)sym;
+  __var_show(sym);
   if (info->classname != NULL) {
     KImage_Add_Field(info->image, info->classname, varSym->name, varSym->desc);
   } else {
-    KImage_Add_Var(info->image, varSym->name, varSym->desc, 0);
+    KImage_Add_Var(info->image, varSym->name, varSym->desc, 0, NULL);
   }
 }
 
@@ -576,7 +577,8 @@ KImage *Gen_Image(STable *stbl, char *pkgname)
 
 #define IsAccess(name) isupper(name[0])
 
-static void __get_var_fn(char *name, TypeDesc *desc, int k, STable *stbl)
+static void __get_var_fn(char *name, TypeDesc *desc, int k,
+                         ConstValue *val, STable *stbl)
 {
   if (!IsAccess(name)) {
     Log_Debug("'%s' is private", name);

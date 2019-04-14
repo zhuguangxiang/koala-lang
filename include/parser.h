@@ -84,10 +84,8 @@ typedef struct line_buf {
 typedef enum scopekind {
   SCOPE_MODULE = 1,
   SCOPE_CLASS,
-  SCOPE_TRAIT,
   SCOPE_ENUM,
   SCOPE_FUNCTION,
-  SCOPE_METHOD,
   SCOPE_BLOCK,
   SCOPE_CLOSURE,
 } ScopeKind;
@@ -186,6 +184,7 @@ void Add_ParserGroup(char *pkgpath);
 
 void Parser_Enter_Scope(ParserState *ps, ScopeKind scope);
 void Parser_Exit_Scope(ParserState *ps);
+ParserUnit *Parser_Get_UpScope(ParserState *ps);
 
 ParserState *New_Parser(ParserGroup *grp, char *filename);
 void Destroy_Parser(ParserState *ps);

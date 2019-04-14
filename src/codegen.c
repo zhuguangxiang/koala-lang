@@ -128,24 +128,29 @@ void CodeBlock_Show(CodeBlock *block)
   if (block == NULL || block->bytes <= 0)
     return;
 
-  char buf[64];
-
-  Log_Puts("--------CodeBlock--------");
-  Log_Printf("insts:%d\n", block->bytes);
+  Log_Puts("---------------------------------------------");
+  Log_Puts("index\topcode\t\targument\tbytes");
   if (!list_empty(&block->insts)) {
     int cnt = 0;
     Inst *i;
+    char buf[64];
+    char *opname;
     list_for_each_entry(i, &block->insts, link) {
-      Log_Printf("[%d]:\n", cnt++);
-      Log_Printf("  opcode:%s\n", OpCode_String(i->op));
+      opname = OpCode_String(i->op);
+      Log_Printf("%d", cnt++);
+      Log_Printf("\t%s", opname);
       buf[0] = '\0';
       Const_Show(&i->arg, buf);
-      Log_Printf("  arg:%s\n", buf);
-      Log_Printf("  bytes:%d\n", i->bytes);
-      Log_Puts("-----------------\n");
+      if (strlen(opname) < 8)
+        Log_Printf("\t\t%s", buf);
+      else
+        Log_Printf("\t%s", buf);
+      if (strlen(buf) < 8)
+        Log_Printf("\t\t%d\n", i->bytes);
+      else
+        Log_Printf("\t%d\n", i->bytes);
     }
   }
-  Log_Puts("--------CodeBlock End----");
 }
 
 static void inst_gen(KImage *image, Buffer *buf, Inst *i)
@@ -155,19 +160,7 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
   switch (i->op) {
   case LOAD_CONST: {
     ConstValue *val = &i->arg;
-    if (val->kind == BASE_INT) {
-      index = KImage_Add_Integer(image, val->ival);
-    } else if (val->kind == BASE_FLOAT) {
-      index = KImage_Add_Float(image, val->fval);
-    } else if (val->kind == BASE_BOOL) {
-      index = KImage_Add_Bool(image, val->bval);
-    } else if (val->kind == BASE_STRING) {
-      index = KImage_Add_String(image, val->str);
-    } else if (val->kind == BASE_CHAR) {
-      index = KImage_Add_UChar(image, val->ch);
-    } else {
-      assert(0);
-    }
+    index = KImage_Add_Const(image, val);
     Buffer_Write_2Bytes(buf, index);
     break;
   }

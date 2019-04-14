@@ -122,6 +122,7 @@ typedef struct var_item {
   int32 nameindex;  /* ->StringItem */
   int32 typeindex;  /* ->TypeItem */
   int32 konst;      /* ->constant */
+  int32 index;      /* constant index */
 } VarItem;
 
 typedef struct func_item {
@@ -199,8 +200,10 @@ int KImage_Add_Float(KImage *image, float64 val);
 int KImage_Add_Bool(KImage *image, int val);
 int KImage_Add_String(KImage *image, char *val);
 int KImage_Add_UChar(KImage *image, uchar val);
+int KImage_Add_Const(KImage *image, ConstValue *val);
 
-void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc, int konst);
+void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc,
+                    int konst, ConstValue *val);
 void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
                        int pos, int index);
 int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto,
@@ -224,7 +227,7 @@ static inline int KImage_Count_Consts(KImage *image)
 }
 typedef void (*getconstfn)(int, void *, int, void *);
 void KImage_Get_Consts(KImage *image, getconstfn func, void *arg);
-typedef void (*getvarfn)(char *, TypeDesc *, int, void *);
+typedef void (*getvarfn)(char *, TypeDesc *, int, ConstValue *val, void *);
 void KImage_Get_Vars(KImage *image, getvarfn func, void *arg);
 typedef void (*getlocvarfn)(char *, TypeDesc *, int, int, void *);
 void KImage_Get_LocVars(KImage *image, getlocvarfn func, void *arg);

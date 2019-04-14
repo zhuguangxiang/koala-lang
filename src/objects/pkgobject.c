@@ -332,11 +332,41 @@ static void load_consts(Object *ob, KImage *image)
   pkg->consts = tuple;
 }
 
-static void __getvar(char *name, TypeDesc *desc, int konst, void *arg)
+static Object *new_constvalue(ConstValue *val)
+{
+  Object *ob = NULL;
+  switch (val->kind) {
+  case BASE_INT:
+    Log_Debug("const int value: %lld", val->ival);
+    ob = Integer_New(val->ival);
+    break;
+  case BASE_FLOAT:
+    break;
+  case BASE_BOOL:
+    Log_Debug("const bool value: %s", val->bval ? "true" : "false");
+    ob = Bool_New(val->bval);
+    break;
+  case BASE_STRING:
+    Log_Debug("const string value: %s", val->str);
+    ob = String_New(val->str);
+    break;
+  case BASE_CHAR:
+    break;
+  default:
+    assert(0);
+    break;
+  }
+  return ob;
+}
+
+static void __getvar(char *name, TypeDesc *desc, int konst,
+                     ConstValue *val, void *arg)
 {
   if (konst) {
     Log_Debug("load constant: %s", name);
-    Pkg_Add_Const(arg, name, desc, NULL);
+    Object *ob = new_constvalue(val);
+    Pkg_Add_Const(arg, name, desc, ob);
+    OB_DECREF(ob);
   } else {
     Log_Debug("load variable: %s", name);
     Pkg_Add_Var(arg, name, desc);

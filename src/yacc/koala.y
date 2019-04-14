@@ -281,7 +281,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %precedence ID
 %precedence '(' '.'
 %precedence ')'
-%precedence DASH_ARROW
 
 %locations
 
@@ -1245,7 +1244,7 @@ MatchClauses
   ;
 
 MatchClause
-  : PatternExpression PatternCondition DASH_ARROW PatternClause
+  : PatternExpression PatternCondition ':' PatternClause
   {
     //$$ = new_test_block($2, $4);
   }
@@ -1490,7 +1489,7 @@ Atom
   }
   | TupleExpression
   {
-
+    $$ = NULL;
   }
   | AnonyExpression
   {
@@ -1545,7 +1544,7 @@ ArrayExpression
   }
   | '[' ']'
   {
-
+    $$ = NULL;
   }
   ;
 
@@ -1563,7 +1562,7 @@ MapExpression
   }
   | '{' ':' '}'
   {
-
+    $$ = NULL;
   }
   ;
 
@@ -1591,15 +1590,15 @@ MapKeyValue
 TupleExpression
   : '(' ExpressionListComma NormalExpression ')'
   {
-
+    $$ = NULL;
   }
   | '(' ExpressionListComma NormalExpression ',' ')'
   {
-
+    $$ = NULL;
   }
   | '(' ')'
   {
-
+    $$ = NULL;
   }
   ;
 
@@ -1836,11 +1835,9 @@ RangeExpression
 NoBockExprOrBlock
   : NormalExpression
   {
-    printf("NoBockExprOrBlock-1\n");
   }
   | ExprOrBlock
   {
-    printf("NoBockExprOrBlock-2\n");
   }
   ;
 
@@ -1848,15 +1845,12 @@ NoBockExprOrBlock
 LambdaExpression
   : '(' ExpressionListComma NormalExpression ')' DASH_ARROW NoBockExprOrBlock
   {
-    printf("NoBockExprOrBlock-1\n");
   }
   | '(' ID ')' DASH_ARROW NoBockExprOrBlock
   {
-    printf("NoBockExprOrBlock-2\n");
   }
   | '(' ')' DASH_ARROW NoBockExprOrBlock
   {
-    printf("NoBockExprOrBlock-3\n");
   }
   ;
 
@@ -1882,38 +1876,38 @@ NormalExpression
   }
   | RangeExpression
   {
-
+    $$ = NULL;
   }
   | LambdaExpression
   {
-
+    $$ = NULL;
   }
   | NewExpression
   {
-
+    $$ = NULL;
   }
   ;
 
 Expression
   : NormalExpression
   {
-
+    $$ = $1;
   }
   | IfExpression
   {
-
+    $$ = NULL;
   }
   | WhileExpression
   {
-
+    $$ = NULL;
   }
   | MatchExpression
   {
-
+    $$ = NULL;
   }
   | ForExpression
   {
-
+    $$ = NULL;
   }
   ;
 

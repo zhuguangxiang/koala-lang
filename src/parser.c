@@ -71,7 +71,7 @@ static void free_unit(ParserUnit *u)
   Mfree(u);
 }
 
-static ParserUnit *get_up_unit(ParserState *ps)
+ParserUnit *Parser_Get_UpScope(ParserState *ps)
 {
   struct list_head *pos = list_first(&ps->ustack);
   return (pos != NULL) ? container_of(pos, ParserUnit, link) : NULL;
@@ -86,18 +86,25 @@ static void merge_unit(ParserState *ps)
     /* module has codes for __init__ */
     FuncSymbol *funcSym = (FuncSymbol *)STable_Get(u->stbl, "__init__");
     if (funcSym == NULL) {
+      Log_Puts("__init__ no exist");
       if (u->block->bytes > 0) {
         Log_Puts("create __init__ function");
         TypeDesc *proto = TypeDesc_New_Proto(NULL, NULL);
         funcSym = STable_Add_Func(u->stbl, "__init__", proto);
+        TYPE_DECREF(proto);
         assert(funcSym != NULL);
         funcSym->code = u->block;
+      } else {
+        Log_Puts("no codes for __init__");
+        /* no codes free codeblock self */
+        CodeBlock_Free(u->block);
       }
     } else {
       /* __init__ exist */
+      Log_Puts("__init__ exist");
+      /* FIXME: merge codeblock */
+      CodeBlock_Free(u->block);
     }
-    /* FIXME: merge codeblock */
-    CodeBlock_Free(u->block);
     u->block = NULL;
     u->stbl = NULL;
     break;
@@ -139,7 +146,7 @@ static void merge_unit(ParserState *ps)
   }
   case SCOPE_BLOCK: {
     /* FIXME: if-else, while and switch-case */
-    ParserUnit *uu = get_up_unit(ps);
+    ParserUnit *uu = Parser_Get_UpScope(ps);
     Log_Debug("merge code into up scope-%d(%s)", ps->depth-1, scope_name(uu));
     CodeBlock_Merge(u->block, uu->block);
     CodeBlock_Free(u->block);
@@ -167,7 +174,7 @@ static void show_unit(ParserState *ps)
   const char *scope = scope_name(u);
   char *name = u->sym != NULL ? u->sym->name : NULL;
   name = (name == NULL) ? ps->filename : name;
-  Log_Puts("\n----------------------------------------");
+  Log_Puts("\n---------------------------------------------");
   Log_Printf("scope-%d(%s, %s) symbols:\n", ps->depth, scope, name);
   if (ps->depth == 1) {
     show_module_symbol(&ps->symbols);
@@ -175,7 +182,7 @@ static void show_unit(ParserState *ps)
     STable_Show(u->stbl);
   }
   CodeBlock_Show(u->block);
-  Log_Puts("----------------------------------------\n");
+  Log_Puts("---------------------------------------------\n");
 }
 
 static void check_unused_symbols(ParserState *ps)
@@ -251,14 +258,17 @@ void Destroy_Parser(ParserState *ps)
 static int __type_is_compatible(TypeDesc *t1, TypeDesc *t2)
 {
   /* FIXME: class inheritance */
-  return TypeDesc_Equal(t1, t2);
+  return 1;
+  //return TypeDesc_Equal(t1, t2);
 }
 
 static void code_const_expr(ParserState *ps, Expr *exp)
 {
   assert(exp->ctx == EXPR_LOAD);
   ParserUnit *u = ps->u;
-  CODE_LOAD_CONST(u->block, ((ConstExpr *)exp)->value);
+  //no need generate load_const, if is constant value(stored in VarSymbol)
+  if (!exp->omit)
+    CODE_LOAD_CONST(u->block, ((ConstExpr *)exp)->value);
 }
 
 static void parse_self_expr(ParserState *ps, Expr *exp)
@@ -471,7 +481,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
      * call, like super(1, 2),
      * must be in subclass's __init__ func and is first statement
      */
-    ParserUnit *uu = get_up_unit(ps);
+    ParserUnit *uu = Parser_Get_UpScope(ps);
     if (u->scope != SCOPE_FUNCTION || uu->scope != SCOPE_CLASS ||
         strcmp(u->sym->name, "__init__") || !list_empty(&u->block->insts)) {
       Syntax_Error(ps, &lexp->pos,
@@ -787,7 +797,7 @@ static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   return varSym;
 }
 
-static void __save_const_to_symbol(VarSymbol *varSym, Expr *exp)
+static void save_const_to_symbol(VarSymbol *varSym, Expr *exp)
 {
   if (exp->kind == LITERAL_KIND) {
     varSym->value = ((ConstExpr *)exp)->value;
@@ -815,6 +825,8 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
   if (rexp != NULL) {
     /* parse right expression of variable declaration */
     rexp->ctx = EXPR_LOAD;
+    if (konst)
+      rexp->omit = 1;
     parser_visit_expr(ps, rexp);
     if (rexp->desc == NULL) {
       Syntax_Error(ps, &rexp->pos, "cannot resolve right expression's type");
@@ -874,19 +886,19 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
 
   /* if it is constant, save the value to its symbol */
   if (konst)
-    __save_const_to_symbol(varSym, rexp);
+    save_const_to_symbol(varSym, rexp);
 
-  /* generate code */
-  if (rexp == NULL)
-    return;
-
-  ParserUnit *u = ps->u;
-  if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
-    /* module or class variable, global variable */
-    CODE_SET_ATTR(u->block, varSym->name);
-  } else {
-    /* others are local variables */
-    CODE_STORE(u->block, varSym->index);
+  /* generate code, variable, but not constant */
+  if (rexp != NULL && !konst) {
+    ParserUnit *u = ps->u;
+    if (u->scope == SCOPE_MODULE || u->scope == SCOPE_CLASS) {
+      /* module or class variable, global variable */
+      CODE_LOAD(u->block, 0);
+      CODE_SET_ATTR(u->block, varSym->name);
+    } else {
+      /* others are local variables */
+      CODE_STORE(u->block, varSym->index);
+    }
   }
 }
 
@@ -911,7 +923,7 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
   Parser_Enter_Scope(ps, SCOPE_FUNCTION);
   ps->u->stbl = STable_New();
 
-  ParserUnit *uu = get_up_unit(ps);
+  ParserUnit *uu = Parser_Get_UpScope(ps);
   assert(uu != NULL);
   assert(uu->scope == SCOPE_MODULE || uu->scope == SCOPE_CLASS);
   Symbol *sym = STable_Get(uu->stbl, funStmt->id.name);

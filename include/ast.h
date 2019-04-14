@@ -125,7 +125,8 @@ typedef struct expr Expr;
   TypeDesc *desc; \
   Symbol *sym;    \
   Expr *right;    \
-  ExprCtx ctx;
+  ExprCtx ctx;    \
+  int omit; // for ConstExpr, no need generate load_const, if is constant
 
 struct expr {
   EXPR_HEAD
