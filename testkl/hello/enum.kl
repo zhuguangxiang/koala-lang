@@ -3,5 +3,14 @@ package hello
 
 enum Result {
   Ok,
-  Err,
+  Err(int, string),
+
+  func ok_then() int {
+
+  }
+}
+
+func get_result() Result {
+  var err = Err(10, "bad file descriptor")
+  //err
 }

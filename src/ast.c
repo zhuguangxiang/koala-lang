@@ -612,13 +612,15 @@ static void free_klass_stmt(Stmt *stmt)
 static void free_enum_stmt(Stmt *stmt)
 {
   EnumStmt *eStmt = (EnumStmt *)stmt;
-  Vector_Free_Self(eStmt->body);
+  Vector_Free(eStmt->body, Free_Stmt_Func, NULL);
   Mfree(stmt);
 }
 
 static void free_eval_stmt(Stmt *stmt)
 {
   EnumValStmt *evStmt = (EnumValStmt *)stmt;
+  Vector_Free(evStmt->types, free_typedesc_func, NULL);
+  Free_Expr(evStmt->exp);
   Mfree(evStmt);
 }
 
@@ -1424,8 +1426,7 @@ void Parser_New_Trait(ParserState *ps, Stmt *stmt)
   Parser_Exit_Scope(ps);
 }
 
-static
-void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *esym, STable *stbl)
+static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e, STable *stbl)
 {
   ParserUnit *u = ps->u;
   EnumValStmt *evStmt = (EnumValStmt *)s;
@@ -1436,7 +1437,7 @@ void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *esym, STable *stbl)
     Log_Debug("add enum value '%s' successfully", id->name);
     evsym->filename = ps->filename;
     evsym->pos = id->pos;
-    evsym->esym = esym;
+    evsym->esym = e;
     Vector_Append(&ps->symbols, evsym);
   } else {
     Symbol *sym = STable_Get(u->stbl, id->name);
@@ -1446,10 +1447,49 @@ void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *esym, STable *stbl)
   }
 }
 
+static int __check_enum_decl(ParserState *ps, Stmt *stmt)
+{
+  assert(stmt->kind == ENUM_KIND);
+  EnumStmt *eStmt = (EnumStmt *)stmt;
+  Stmt *s;
+  EnumValStmt *evStmt;
+  int hasExps = 0;
+  int hasTypes = 0;
+  Vector_ForEach(s, eStmt->body) {
+    if (s->kind == ENUM_VALUE_KIND) {
+      evStmt = (EnumValStmt *)s;
+      if (evStmt->types != NULL)
+        hasTypes++;
+      if (evStmt->exp != NULL)
+        hasExps++;
+      if (evStmt->types != NULL && hasExps) {
+        Syntax_Error(ps, &eStmt->id.pos,
+                    "mix declaration(associated types and int values)"
+                    " by enum '%s'", eStmt->id.name);
+        return -1;
+      }
+      if (evStmt->exp != NULL && hasTypes) {
+        Syntax_Error(ps, &eStmt->id.pos,
+                    "mix declaration(associated types and int values)"
+                    " by enum '%s'", eStmt->id.name);
+        return -1;
+      }
+    } else {
+      assert(s->kind == FUNC_KIND);
+    }
+  }
+  return 0;
+}
+
 void Parser_New_Enum(ParserState *ps, Stmt *stmt)
 {
   if (stmt == NULL)
     return;
+
+  if (__check_enum_decl(ps, stmt)) {
+    Free_Stmt_Func(stmt, NULL);
+    return;
+  }
   __add_stmt(ps, stmt);
 
   ParserUnit *u = ps->u;
@@ -1470,7 +1510,7 @@ void Parser_New_Enum(ParserState *ps, Stmt *stmt)
                   sym->filename, sym->pos.row, sym->pos.col);
   }
 
-  Parser_Enter_Scope(ps, SCOPE_ENUM);
+  Parser_Enter_Scope(ps, SCOPE_CLASS);
   ps->u->sym = (Symbol *)sym;
   ps->u->stbl = sym->stbl;
 

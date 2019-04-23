@@ -20,57 +20,12 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_INCLUDE_H_
-#define _KOALA_INCLUDE_H_
-
-#include "pkgobject.h"
-#include "tupleobject.h"
-#include "stringobject.h"
-#include "intobject.h"
 #include "enumobject.h"
-#include "options.h"
-#include "stack.h"
-#include "task.h"
-#include "env.h"
-#include "mem.h"
-#include "log.h"
+#include "pkgobject.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define MAX_STACK_SIZE 8
-#define MAX_FRAME_DEPTH 16
-
-/* one Task has one KoalaState */
-typedef struct koalastate {
-  /* linked in global kslist */
-  struct list_head ksnode;
-
-  /* top frame of func call stack */
-  void *frame;
-  int depth;
-
-  /* store private data per-task */
-  Object *map;
-
-  /* calculating stack
-   * 1.intermediate result of current frame
-   * 2.passing arguments and results of function call
-   */
-  Stack stack;
-  /* objects array for stack */
-  Object *objs[MAX_STACK_SIZE];
-} KoalaState;
-
-void Koala_Initialize(void);
-void Koala_Finalize(void);
-void Koala_RunTask(Object *code, Object *ob, Object *args);
-void Koala_RunCode(Object *code, Object *ob, Object *args);
-void Koala_Main(Options *opts);
-#define Current_State() ((KoalaState *)task_get_private())
-
-#ifdef __cplusplus
+Object *Enum_New(Object *ob, Object *name, Object *args)
+{
+  OB_ASSERT_KLASS(ob, Pkg_Klass);
+  PkgObject *pkg = (PkgObject *)ob;
+  return NULL;
 }
-#endif
-#endif /* _KOALA_INCLUDE_H_ */

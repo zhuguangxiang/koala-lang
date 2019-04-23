@@ -38,18 +38,18 @@ func testmatch(x any) {
   var num = Some(4)
 
   match num {
-    Some(x) if x < 5 -> println("less than five: {}", x),
-    Some(x) -> println("{}", x),
-    None -> (),
+    Some(x) if x < 5 => println("less than five: {}", x),
+    Some(x) => println("{}", x),
+    None => (),
   }
 
   var x = Some(5);
   var y = 10;
 
   match x {
-    Some(50) -> println("Got 50"),
-    Some(n) if n == y -> println("Matched, n = {:?}", n),
-    _ -> println("Default case, x = {:?}", x),
+    Some(50) => println("Got 50"),
+    Some(n) if n == y => println("Matched, n = {:?}", n),
+    _ => println("Default case, x = {:?}", x),
   }
   println("at the end: x = {:?}, y = {:?}", x, y);
 
@@ -57,32 +57,32 @@ func testmatch(x any) {
   var y = false;
 
   z := match x {
-    4 | 5 | 6 if y -> println("yes"),
-    _ -> println("no"),
+    4 | 5 | 6 if y => println("yes"),
+    _ => println("no"),
   }
 
   match x {
-    1 -> 1,
-    'a' -> 'a',
-    'a' | 'b' | 'c' -> "ABC",
-    1 | 2 | 3 -> a + b | 2,
-    'a' ... 'z' -> { println("alpha") },
-    true -> true,
-    false -> false,
-    1+2 ... 10 -> 3...10,
-    Ok (x) -> "no error",
-    Err (e) -> "error",
-    foo.Some(x) if x > 4 -> "value is greater than 4",
-    foo.Some(50) -> "some",
-    foo.Some(x, y, z) -> "OK",
-    foo.None -> "none",
-    "hello" -> {
+    1 => 1,
+    'a' => 'a',
+    'a' | 'b' | 'c' => "ABC",
+    1 | 2 | 3 => a + b | 2,
+    'a' ... 'z' => { println("alpha") },
+    true => true,
+    false => false,
+    1+2 ... 10 => 3...10,
+    Ok(x) => "no error",
+    Err(e) => "error",
+    foo.Some(x) if x > 4 => "value is greater than 4",
+    foo.Some(50) => "some",
+    foo.Some(x, y, z) => "OK",
+    foo.None => "none",
+    "hello" => {
       io.puts("hello"); "hello";
     },
-    _ -> err,
-    (0, y) -> println("y={}", y),
-    (x, 0) -> println("x={}", x),
-    None -> (),
+    _ => err,
+    (0, y) => println("y={}", y),
+    (x, 0) => println("x={}", x),
+    None => (),
   }
 }
 
@@ -112,11 +112,11 @@ func testexpr() {
     a + b
   }
 
-  (a) -> 123
-  (a, b) -> println("hello")
-  (a, b) -> {println("hello")}
-  (a, b) -> {println("hello"); 123;}
-  (a, b) -> {
+  (a) => 123
+  (a, b) => println("hello")
+  (a, b) => {println("hello")}
+  (a, b) => {println("hello"); 123;}
+  (a, b) => {
     println("hello")
   }
 
@@ -209,8 +209,8 @@ var (t1, t2) = (1, 2)
 var t3 (int, int) = (100, 200)
 var t4 = (1, 2)
 
-var f = (a, b) -> a + 2 * b
-var f func(int) int = (a) -> a + 2 * a
+var f = (a, b) => a + 2 * b
+var f func(int) int = (a) => a + 2 * a
 
 //function
 func add(a int, b int) int {
@@ -233,9 +233,9 @@ func add(a int, b int) int {
     (1, 2)
   }
 
-  (a, b) -> {a + b}
-  (a) -> {a + b}
-  list.map((a, b) -> {a + 2 * b}).filter((f) -> println("{}", f))
+  (a, b) => {a + b}
+  (a) => {a + b}
+  list.map((a, b) => {a + 2 * b}).filter((f) => println("{}", f))
   return 123
 
   ["hello", "汉字"]

@@ -316,13 +316,16 @@ static void eval_frame(CallFrame *cf)
       ob = POP();
       if (argc == 1) {
         args = POP();
-      } else {
+      } else if (argc > 1) {
         args = Tuple_New(argc);
         while (argc-- > 0) {
           arg = POP();
           Tuple_Append(args, arg);
           OB_DECREF(arg);
         }
+      } else {
+        assert(argc == 0);
+        args = NULL;
       }
       fn = get_code(ob, name);
       push_frame(fn, ob, args);
@@ -334,9 +337,29 @@ static void eval_frame(CallFrame *cf)
       pop_frame(cf);
       loopflag = 0;
       break;
-    case JMP:
-      break;
-    case NEW:
+    case NEW_ENUM:
+      index = fetch_2bytes(cf, ci);
+      argc = fetch_byte(cf, ci);
+      name = index_const(index, consts);
+      ob = POP();
+      if (argc == 1) {
+        args = POP();
+      } else if (argc > 1) {
+        args = Tuple_New(argc);
+        while (argc-- > 0) {
+          arg = POP();
+          Tuple_Append(args, arg);
+          OB_DECREF(arg);
+        }
+      } else {
+        assert(argc == 0);
+        args = NULL;
+      }
+      ret = Enum_New(ob, name, args);
+      OB_DECREF(ob);
+      OB_DECREF(args);
+      PUSH(OB_INCREF(ret));
+      OB_DECREF(ret);
       break;
     default:
       assert(0);

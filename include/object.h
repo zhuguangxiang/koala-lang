@@ -151,7 +151,15 @@ typedef enum {
   FUNC_KIND  = 3,
   PROTO_KIND = 4,
   CLASS_KIND = 5,
+  ENUM_KIND  = 6,
+  EVAL_KIND  = 7,
 } MemberKind;
+
+typedef struct enumvalue {
+  char *name;
+  Klass *klazz;
+  Vector *types;
+} EnumValue;
 
 /* Member node will be inserted into klass->table or package's table */
 typedef struct membernode {
@@ -169,8 +177,10 @@ typedef struct membernode {
     int offset;
     /* code object */
     Object *code;
-    /* class or trait */
+    /* class, trait or enum */
     Klass *klazz;
+    /* enum value */
+    EnumValue eval;
   };
 } MNode;
 

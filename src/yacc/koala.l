@@ -137,7 +137,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "^="             { YY_RETURN(XOR_ASSIGN);      }
 "..."            { YY_RETURN(DOTDOTDOT);       }
 "..<"            { YY_RETURN(DOTDOTLESS);      }
-"->"             { YY_RETURN(DASH_ARROW);      }
+"=>"             { YY_RETURN(FAT_ARROW);      }
 
 "package"        { YY_RETURN(PACKAGE);         }
 "if"             { YY_RETURN(IF);              }

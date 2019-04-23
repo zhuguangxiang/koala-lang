@@ -129,26 +129,26 @@ void CodeBlock_Show(CodeBlock *block)
     return;
 
   Log_Puts("---------------------------------------------");
-  Log_Puts("index\topcode\t\targument\tbytes");
+  Log_Puts("index\toffset\tbytes\topcode\t\targument");
   if (!list_empty(&block->insts)) {
     int cnt = 0;
     Inst *i;
     char buf[64];
     char *opname;
+    int offset = 0;
     list_for_each_entry(i, &block->insts, link) {
       opname = OpCode_String(i->op);
       Log_Printf("%d", cnt++);
+      Log_Printf("\t%d", offset);
+      Log_Printf("\t%d", i->bytes);
+      offset += i->bytes;
       Log_Printf("\t%s", opname);
       buf[0] = '\0';
       Const_Show(&i->arg, buf);
       if (strlen(opname) < 8)
-        Log_Printf("\t\t%s", buf);
+        Log_Printf("\t\t%s\n", buf);
       else
-        Log_Printf("\t%s", buf);
-      if (strlen(buf) < 8)
-        Log_Printf("\t\t%d\n", i->bytes);
-      else
-        Log_Printf("\t%d\n", i->bytes);
+        Log_Printf("\t%s\n", buf);
     }
   }
 }
@@ -191,6 +191,11 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_4Bytes(buf, index);
     Buffer_Write_2Bytes(buf, i->argc);
+    break;
+  case NEW_ENUM:
+    index = KImage_Add_String(image, i->arg.str);
+    Buffer_Write_2Bytes(buf, index);
+    Buffer_Write_Byte(buf, i->argc);
     break;
   case DUP:
   case LOAD_0:

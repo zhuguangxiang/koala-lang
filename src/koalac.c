@@ -106,7 +106,7 @@ Package *Find_Package(char *path)
 }
 
 const char *scope_strings[] = {
-  "PACKAGE", "MODULE", "CLASS", "ENUM", "FUNCTION", "BLOCK", "CLOSURE"
+  "PACKAGE", "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
 
 static ParserGroup *new_group(char *path)

@@ -110,22 +110,21 @@ static void merge_unit(ParserState *ps)
     break;
   }
   case SCOPE_CLASS: {
-    ClassSymbol *clsSym = (ClassSymbol *)(u->sym);
-    assert(clsSym != NULL);
-    assert(clsSym->kind == SYM_CLASS || clsSym->kind == SYM_TRAIT);
-    assert(u->stbl == clsSym->stbl);
-    if (u->block->bytes > 0) {
-      Log_Debug("merge codes to '%s' __init__ func", clsSym->name);
+    SymKind kind = u->sym->kind;
+    if (kind == SYM_CLASS || kind == SYM_TRAIT) {
+      ClassSymbol *clsSym = (ClassSymbol *)u->sym;
+      assert(u->stbl == clsSym->stbl);
     } else {
-      Log_Debug("'%s' has no init codes", clsSym->name);
+      assert(kind == SYM_ENUM);
+      EnumSymbol *enmSym = (EnumSymbol *)u->sym;
+      assert(u->stbl == enmSym->stbl);
     }
-    CodeBlock_Free(u->block);
-    u->block = NULL;
-    u->sym = NULL;
-    u->stbl = NULL;
-    break;
-  }
-  case SCOPE_ENUM: {
+
+    if (u->block->bytes > 0) {
+      Log_Debug("merge codes to '%s' __init__ func", u->sym->name);
+    } else {
+      Log_Debug("'%s' has no init codes", u->sym->name);
+    }
     CodeBlock_Free(u->block);
     u->block = NULL;
     u->sym = NULL;
@@ -526,27 +525,44 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
       Syntax_Error(ps, &lexp->pos, "__init__ function needs no arguments");
       return;
     }
+
     if (__init__ == NULL) {
       proto = TypeDesc_New_Proto(NULL, clsSym->desc);
     } else {
       proto = __init__->desc;
     }
+
+    /* set call expression's descriptor */
+    assert(proto->kind == TYPE_PROTO);
+    TYPE_INCREF(proto);
+    exp->desc = proto;
+    if (!__check_call_arguments(proto, callExp->args)) {
+      Syntax_Error(ps, &lexp->pos,
+                  "argument of function '%s' are not matched", exp->sym->name);
+    }
+
+    //FIXME: new object() is not a function call
+  } else if (kind == SYM_EVAL) {
+    // check parameters whether they are matched with defined types
+    EnumValSymbol *evSym = (EnumValSymbol *)exp->sym;
+    exp->desc = evSym->esym->desc;
+    TYPE_INCREF(exp->desc);
+  } else if (kind == SYM_ENUM) {
+    Syntax_Error(ps, &lexp->pos,
+                 "enum '%s' cannot be instanced", exp->sym->name);
   } else {
     /* var(func type), func, ifunc and nfunc */
     Log_Debug("call var(proto)/interface/native function '%s'", exp->sym->name);
     /* set proto as its left expr's descriptor */
     proto = lexp->desc;
-  }
-
-  /* set call expression's descriptor */
-  assert(proto->kind == TYPE_PROTO);
-  TYPE_INCREF(proto);
-  exp->desc = proto;
-
-  if (!__check_call_arguments(proto, callExp->args)) {
-    Syntax_Error(ps, &lexp->pos,
-                 "argument of function '%s' are not matched", exp->sym->name);
-    return;
+    /* set call expression's descriptor */
+    assert(proto->kind == TYPE_PROTO);
+    TYPE_INCREF(proto);
+    exp->desc = proto;
+    if (!__check_call_arguments(proto, callExp->args)) {
+      Syntax_Error(ps, &lexp->pos,
+                  "argument of function '%s' are not matched", exp->sym->name);
+    }
   }
 }
 
@@ -592,11 +608,6 @@ static void parse_map_expr(ParserState *ps, Expr *exp)
   assert(0);
 }
 
-static void parse_set_expr(ParserState *ps, Expr *exp)
-{
-  assert(0);
-}
-
 static void parse_anonymous_expr(ParserState *ps, Expr *exp)
 {
   assert(0);
@@ -625,7 +636,6 @@ static struct expr_func_s {
   { parse_mapentry_expr,  NULL },                       /* MAP_ENTRY_KIND  */
   { parse_array_expr,     NULL },                       /* ARRAY_KIND      */
   { parse_map_expr,       NULL },                       /* MAP_KIND        */
-  { parse_set_expr,       NULL },                       /* SET_KIND        */
   { parse_anonymous_expr, NULL },                       /* ANONY_FUNC_KIND */
 };
 
@@ -642,8 +652,8 @@ void Parse_Expression(ParserState *ps, Expr *exp)
 
 void Code_Expression(ParserState *ps, Expr *exp)
 {
-  /* if errors is greater than MAX_ERRORS, stop parsing */
-  if (ps->errnum > MAX_ERRORS)
+  /* if there are errors, stop generating codes */
+  if (ps->errnum > 0)
     return;
   assert(exp->kind > 0 && exp->kind < nr_elts(expr_funcs));
   expr_func code = (expr_funcs + exp->kind)->code;
@@ -662,7 +672,8 @@ static inline void parser_visit_expr(ParserState *ps, Expr *exp)
   struct expr_func_s *func = expr_funcs + exp->kind;
   if (ps->errnum <= MAX_ERRORS && func->parse != NULL)
     func->parse(ps, exp);
-  if (ps->errnum <= MAX_ERRORS && func->code != NULL)
+  /* if there are errors, stop generating codes */
+  if (ps->errnum <= 0 && func->code != NULL)
     func->code(ps, exp);
 }
 
@@ -710,9 +721,14 @@ static STable *get_type_stbl(ParserState *ps, TypeDesc *desc)
       Symbol *sym;
       Vector_ForEach(sym, &ps->symbols) {
         if (!strcmp(sym->name, type)) {
-          assert(sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
-          ClassSymbol *clsSym = (ClassSymbol *)sym;
-          stbl = clsSym->stbl;
+          if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+            ClassSymbol *clsSym = (ClassSymbol *)sym;
+            stbl = clsSym->stbl;
+          } else {
+            assert(sym->kind == SYM_ENUM);
+            EnumSymbol *eSym = (EnumSymbol *)sym;
+            stbl = eSym->stbl;
+          }
           break;
         }
       }
@@ -855,14 +871,17 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
      * check function call expr only, anonymous needs not check
      */
     if (rexp->kind == CALL_KIND) {
-      assert(rdesc->kind == TYPE_PROTO);
-      ProtoDesc *proto = (ProtoDesc *)rdesc;
-      if (proto->ret == NULL) {
-        Syntax_Error(ps, &rexp->pos, "function has no return");
-        return;
+      if (rdesc->kind == TYPE_PROTO) {
+        ProtoDesc *proto = (ProtoDesc *)rdesc;
+        if (proto->ret == NULL) {
+          Syntax_Error(ps, &rexp->pos, "function has no return");
+          return;
+        }
+        rdesc = proto->ret;
+      } else {
+        assert(rdesc->kind == TYPE_KLASS);
       }
 
-      rdesc = proto->ret;
       if (type->desc == NULL) {
         String s = TypeDesc_ToString(rdesc);
         Log_Debug("var '%s' type is none, set it as '%s'", id->name, s.str);
@@ -1022,7 +1041,7 @@ static void parse_enum_decl(ParserState *ps, Stmt *stmt)
   Symbol *sym = STable_Get(ps->u->stbl, eStmt->id.name);
   assert(sym);
 
-  Parser_Enter_Scope(ps, SCOPE_ENUM);
+  Parser_Enter_Scope(ps, SCOPE_CLASS);
   ps->u->sym = sym;
   ps->u->stbl = ((EnumSymbol *)sym)->stbl;
 

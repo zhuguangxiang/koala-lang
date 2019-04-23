@@ -20,57 +20,32 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_INCLUDE_H_
-#define _KOALA_INCLUDE_H_
+#ifndef _KOALA_ENUMOBJECT_H_
+#define _KOALA_ENUMOBJECT_H_
 
-#include "pkgobject.h"
-#include "tupleobject.h"
-#include "stringobject.h"
-#include "intobject.h"
-#include "enumobject.h"
-#include "options.h"
-#include "stack.h"
-#include "task.h"
-#include "env.h"
-#include "mem.h"
-#include "log.h"
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MAX_STACK_SIZE 8
-#define MAX_FRAME_DEPTH 16
+typedef enum enum_kind {
+  ENUM_NONE = 1, ENUM_INT, ENUM_ASSOCIATED,
+} EnumKind;
 
-/* one Task has one KoalaState */
-typedef struct koalastate {
-  /* linked in global kslist */
-  struct list_head ksnode;
+typedef struct enumobject {
+  OBJECT_HEAD
+  Object *name;
+  EnumKind kind;
+  union {
+    int64 value;
+    Object *tuple;
+  };
+} EnumObject;
 
-  /* top frame of func call stack */
-  void *frame;
-  int depth;
-
-  /* store private data per-task */
-  Object *map;
-
-  /* calculating stack
-   * 1.intermediate result of current frame
-   * 2.passing arguments and results of function call
-   */
-  Stack stack;
-  /* objects array for stack */
-  Object *objs[MAX_STACK_SIZE];
-} KoalaState;
-
-void Koala_Initialize(void);
-void Koala_Finalize(void);
-void Koala_RunTask(Object *code, Object *ob, Object *args);
-void Koala_RunCode(Object *code, Object *ob, Object *args);
-void Koala_Main(Options *opts);
-#define Current_State() ((KoalaState *)task_get_private())
+Object *Enum_New(Object *ob, Object *name, Object *args);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_INCLUDE_H_ */
+#endif /* _KOALA_ENUMOBJECT_H_ */

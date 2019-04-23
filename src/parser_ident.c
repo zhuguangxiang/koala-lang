@@ -25,7 +25,7 @@
 
 LOGGER(0)
 
-static void id_in_modcls(ParserState *ps, void *arg)
+static void code_in_mod_cls(ParserState *ps, void *arg)
 {
   ParserUnit *u = ps->u;
   IdentExpr *exp = arg;
@@ -34,12 +34,12 @@ static void id_in_modcls(ParserState *ps, void *arg)
   ExprCtx ctx = exp->ctx;
   Expr *right = exp->right;
 
-  /* Id, in module/class, is in variable/field declaration's expr */
+  /* id, in module/class, is in variable/field declaration's expr */
   assert(ctx == EXPR_LOAD);
   if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
-    Log_Debug("Id '%s' is const/var", sym->name);
+    Log_Debug("id '%s' is const/var", sym->name);
     if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
-      /* Id is const/var, but it's a func reference, call function */
+      /* id is const/var, but it's a func reference, call function */
       Log_Debug("call '%s' function(var)", sym->name);
       int argc = Vector_Size(((CallExpr *)right)->args);
       CODE_CALL(u->block, sym->name, argc);
@@ -51,7 +51,7 @@ static void id_in_modcls(ParserState *ps, void *arg)
     }
   } else {
     assert(sym->kind == SYM_FUNC);
-    Log_Debug("Id '%s' is function", sym->name);
+    Log_Debug("id '%s' is function", sym->name);
     if (Expr_Is_Call(right)) {
       /* call function */
       Log_Debug("call '%s' function", sym->name);
@@ -80,9 +80,9 @@ static void code_current_function_block_closure(ParserState *ps, void *arg)
    */
   assert(sym->kind == SYM_VAR);
   VarSymbol *varSym = (VarSymbol *)sym;
-  Log_Debug("Id '%s' is variable", varSym->name);
+  Log_Debug("id '%s' is variable", varSym->name);
   if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
-    /* Id is const/var, but it's a func reference, call function */
+    /* id is const/var, but it's a func reference, call function */
     Log_Debug("call '%s' function(var)", sym->name);
     assert(ctx == EXPR_LOAD);
     int argc = Vector_Size(((CallExpr *)right)->args);
@@ -112,15 +112,15 @@ static void code_up_class(ParserState *ps, void *arg)
 
   /*
    * up scope MUST be module
-   * Id, in class, is in field declaration's expr
+   * id, in class, is in field declaration's expr
    */
-  Log_Debug("Id '%s' is in module", sym->name);
+  Log_Debug("id '%s' is in module", sym->name);
   assert(uu->scope == SCOPE_MODULE);
   assert(ctx == EXPR_LOAD);
   if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
-    Log_Debug("Id '%s' is const/var", sym->name);
+    Log_Debug("id '%s' is const/var", sym->name);
     if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
-      /* Id is const/var, but it's a func reference, call function */
+      /* id is const/var, but it's a func reference, call function */
       Log_Debug("call '%s' function(var)", sym->name);
       int argc = Vector_Size(((CallExpr *)right)->args);
       //FIXME:
@@ -133,7 +133,7 @@ static void code_up_class(ParserState *ps, void *arg)
     }
   } else {
     assert(sym->kind == SYM_FUNC);
-    Log_Debug("Id '%s' is function", sym->name);
+    Log_Debug("id '%s' is function", sym->name);
     if (Expr_Is_Call(right)) {
       /* call function */
       Log_Debug("call '%s' function", sym->name);
@@ -149,7 +149,7 @@ static void code_up_class(ParserState *ps, void *arg)
   }
 }
 
-static void id_up_infunc(ParserState *ps, void *arg)
+static void code_up_func(ParserState *ps, void *arg)
 {
   ParserUnit *u = ps->u;
   IdentExpr *exp = arg;
@@ -160,21 +160,20 @@ static void id_up_infunc(ParserState *ps, void *arg)
   ParserUnit *up = exp->scope;
   ParserUnit *uu = Parser_Get_UpScope(ps);
 
-  /* its up scope is module/class, maybe variable(field) or func */
+  /* its up scope is module/class, maybe variable(field), eval or func */
+  if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
+    CODE_LOAD_PKG(u->block, ".");
+  else
+    CODE_LOAD(u->block, 0);
   assert(up->scope == SCOPE_MODULE || up->scope == SCOPE_CLASS);
   if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
-    Log_Debug("Id '%s' is const/var", sym->name);
+    Log_Debug("id '%s' is const/var", sym->name);
     if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
-      /* Id is const/var, but it's a func reference, call function */
+      /* id is const/var, but it's a func reference, call function */
       Log_Debug("call '%s' function(var)", sym->name);
       int argc = Vector_Size(((CallExpr *)right)->args);
-      CODE_LOAD(u->block, 0);
       CODE_CALL(u->block, sym->name, argc);
     } else {
-      if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
-        CODE_LOAD_PKG(u->block, ".");
-      else
-        CODE_LOAD(u->block, 0);
       if (ctx == EXPR_LOAD) {
         /* load variable */
         Log_Debug("load '%s' variable", sym->name);
@@ -185,21 +184,36 @@ static void id_up_infunc(ParserState *ps, void *arg)
         CODE_SET_ATTR(u->block, sym->name);
       }
     }
-  } else {
-    assert(sym->kind == SYM_FUNC);
-    Log_Debug("Id '%s' is function", sym->name);
+  } else if (sym->kind == SYM_EVAL) {
+    Log_Debug("id '%s' is enum value", sym->name);
+    int argc = Vector_Size(((CallExpr *)right)->args);
+    if (Expr_Is_Call(right)) {
+
+      //FIXME: check args
+    }
+
+    if (ctx == EXPR_LOAD) {
+      /* load enum value */
+      Log_Debug("new eval '%s' with %d args", sym->name, argc);
+      CODE_NEW_ENUM(u->block, sym->name, argc);
+    } else {
+      assert(ctx == EXPR_STORE);
+      Syntax_Error(ps, &exp->pos, "enum value '%s' is readonly.", exp->name);
+    }
+  } else if (sym->kind == SYM_FUNC) {
+    Log_Debug("id '%s' is function", sym->name);
     if (Expr_Is_Call(right)) {
       /* call function */
       Log_Debug("call '%s' function", sym->name);
       int argc = Vector_Size(((CallExpr *)right)->args);
-      CODE_LOAD(u->block, 0);
       CODE_CALL(u->block, sym->name, argc);
     } else {
       /* load function */
       Log_Debug("load '%s' function", sym->name);
-      CODE_LOAD(u->block, 0);
       CODE_GET_ATTR(u->block, sym->name);
     }
+  } else {
+    Syntax_Error(ps, &exp->pos,"invalid expression '%s'", exp->name);
   }
 }
 
@@ -225,9 +239,8 @@ static void code_up_closure(ParserState *ps, void *arg)
 
 /* identifier is found in current scope */
 static CodeGenerator current_codes[] = {
-  {SCOPE_MODULE,   id_in_modcls},
-  {SCOPE_CLASS,    id_in_modcls},
-  {SCOPE_ENUM,     NULL},
+  {SCOPE_MODULE,   code_in_mod_cls},
+  {SCOPE_CLASS,    code_in_mod_cls},
   {SCOPE_FUNCTION, code_current_function_block_closure},
   {SCOPE_BLOCK,    code_current_function_block_closure},
   {SCOPE_CLOSURE,  code_current_function_block_closure},
@@ -240,8 +253,7 @@ static CodeGenerator current_codes[] = {
 static CodeGenerator up_codes[] = {
   {SCOPE_MODULE,   NULL},
   {SCOPE_CLASS,    code_up_class},
-  {SCOPE_ENUM,     NULL},
-  {SCOPE_FUNCTION, id_up_infunc},
+  {SCOPE_FUNCTION, code_up_func},
   {SCOPE_BLOCK,    code_up_block},
   {SCOPE_CLOSURE,  code_up_closure},
 };
@@ -275,7 +287,7 @@ static void code_extdot_ident(ParserState *ps, IdentExpr *exp)
   } else if (sym->kind == SYM_VAR) {
 
   } else if (sym->kind == SYM_FUNC || sym->kind == SYM_NFUNC) {
-    Log_Debug("Id '%s' is function", sym->name);
+    Log_Debug("id '%s' is function", sym->name);
     if (Expr_Is_Call(right)) {
       /* call function */
       Log_Debug("call '%s' function", sym->name);

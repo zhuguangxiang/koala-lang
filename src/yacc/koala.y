@@ -153,7 +153,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token VAR
 %token CONST
 %token FUNC
-%token DASH_ARROW
+%token FAT_ARROW
 %token TOKEN_RETURN
 %token CLASS
 %token TRAIT
@@ -281,6 +281,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %precedence ID
 %precedence '(' '.'
 %precedence ')'
+%precedence FAT_ARROW
 
 %locations
 
@@ -1244,7 +1245,7 @@ MatchClauses
   ;
 
 MatchClause
-  : PatternExpression PatternCondition ':' PatternClause
+  : PatternExpression PatternCondition FAT_ARROW NoBockExprOrBlock
   {
     //$$ = new_test_block($2, $4);
   }
@@ -1266,11 +1267,6 @@ PatternExpression
 PatternCondition
   : %empty
   | IF NormalExpression
-  ;
-
-PatternClause
-  : ExprOrBlock
-  | NormalExpression
   ;
 
 IntOr
@@ -1843,13 +1839,13 @@ NoBockExprOrBlock
 
 /* IDList and ID */
 LambdaExpression
-  : '(' ExpressionListComma NormalExpression ')' DASH_ARROW NoBockExprOrBlock
+  : '(' ExpressionListComma NormalExpression ')' FAT_ARROW NoBockExprOrBlock
   {
   }
-  | '(' ID ')' DASH_ARROW NoBockExprOrBlock
+  | '(' ID ')' FAT_ARROW NoBockExprOrBlock
   {
   }
-  | '(' ')' DASH_ARROW NoBockExprOrBlock
+  | '(' ')' FAT_ARROW NoBockExprOrBlock
   {
   }
   ;

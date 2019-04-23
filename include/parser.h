@@ -84,7 +84,6 @@ typedef struct line_buf {
 typedef enum scopekind {
   SCOPE_MODULE = 1,
   SCOPE_CLASS,
-  SCOPE_ENUM,
   SCOPE_FUNCTION,
   SCOPE_BLOCK,
   SCOPE_CLOSURE,

@@ -3,7 +3,7 @@
 	"workbench.colorTheme": "One Dark Pro Vivid",
 	"workbench.iconTheme": "material-icon-theme",
 	"workbench.activityBar.visible": false,
-	"editor.fontFamily": "'Operator Mono Light'",
+	"editor.fontFamily": "'Operator Mono'",
 	"editor.fontWeight": "normal",
 	"editor.fontSize": 14,
 	"editor.tabSize": 2,

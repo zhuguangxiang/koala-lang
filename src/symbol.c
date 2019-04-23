@@ -297,7 +297,7 @@ static void __eval_free(Symbol *sym)
 
 static void __eval_show(Symbol *sym)
 {
-  Log_Printf("enum value %s;\n", sym->name);
+  Log_Printf("eval %s;\n", sym->name);
 }
 
 static void __eval_gen(Symbol *sym, void *arg)
@@ -571,7 +571,7 @@ EnumSymbol *STable_Add_Enum(STable *stbl, char *name)
     return NULL;
   }
   sym->stbl = STable_New();
-  sym->desc = NULL;
+  sym->desc = TypeDesc_New_Klass(NULL, name, NULL);
   return sym;
 }
 
@@ -582,7 +582,6 @@ EnumValSymbol *STable_Add_EnumValue(STable *stbl, char *name)
     Symbol_Free((Symbol *)sym);
     return NULL;
   }
-  sym->desc = NULL;
   return sym;
 }
 
