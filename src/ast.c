@@ -1426,12 +1426,12 @@ void Parser_New_Trait(ParserState *ps, Stmt *stmt)
   Parser_Exit_Scope(ps);
 }
 
-static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e, STable *stbl)
+static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e)
 {
   ParserUnit *u = ps->u;
   EnumValStmt *evStmt = (EnumValStmt *)s;
   Ident *id = &evStmt->id;
-  EnumValSymbol *evsym = STable_Add_EnumValue(stbl, id->name);
+  EnumValSymbol *evsym = STable_Add_EnumValue(u->stbl, id->name);
 
   if (evsym != NULL) {
     Log_Debug("add enum value '%s' successfully", id->name);
@@ -1517,7 +1517,7 @@ void Parser_New_Enum(ParserState *ps, Stmt *stmt)
   Stmt *s;
   Vector_ForEach(s, eStmt->body) {
     if (s->kind == ENUM_VALUE_KIND) {
-      __new_eval(ps, s, sym, u->stbl);
+      __new_eval(ps, s, sym);
     } else if (s->kind == FUNC_KIND) {
       __parse_funcdecl(ps, s);
     } else {

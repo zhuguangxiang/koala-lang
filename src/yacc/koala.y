@@ -1041,6 +1041,12 @@ EnumMemberDecls
     Vector_Concat($$, $3);
     Vector_Free_Self($3);
   }
+  | EnumLableDeclarations ';' EnumMethodDeclarations
+  {
+    $$ = $1;
+    Vector_Concat($$, $3);
+    Vector_Free_Self($3);
+  }
   ;
 
 EnumLableDeclarations

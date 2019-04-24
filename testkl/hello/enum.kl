@@ -5,12 +5,18 @@ enum Result {
   Ok,
   Err(int, string),
 
-  func ok_then() int {
+  func ok_then() Result {
+    Err(2, "connection timeout")
+  }
 
+  func failed() Result {
+    Result.Err(1, "error")
+    Ok
   }
 }
 
 func get_result() Result {
-  var err = Err(10, "bad file descriptor")
+  var err = Result.Err(10, "bad file descriptor")
+  err.ok_then()
   //err
 }

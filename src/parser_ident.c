@@ -161,12 +161,12 @@ static void code_up_func(ParserState *ps, void *arg)
   ParserUnit *uu = Parser_Get_UpScope(ps);
 
   /* its up scope is module/class, maybe variable(field), eval or func */
-  if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
-    CODE_LOAD_PKG(u->block, ".");
-  else
-    CODE_LOAD(u->block, 0);
   assert(up->scope == SCOPE_MODULE || up->scope == SCOPE_CLASS);
   if (sym->kind == SYM_CONST || sym->kind == SYM_VAR) {
+    if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
+      CODE_LOAD_PKG(u->block, ".");
+    else
+      CODE_LOAD(u->block, 0);
     Log_Debug("id '%s' is const/var", sym->name);
     if (desc->kind == TYPE_PROTO && Expr_Is_Call(right)) {
       /* id is const/var, but it's a func reference, call function */
@@ -185,13 +185,14 @@ static void code_up_func(ParserState *ps, void *arg)
       }
     }
   } else if (sym->kind == SYM_EVAL) {
-    Log_Debug("id '%s' is enum value", sym->name);
-    int argc = Vector_Size(((CallExpr *)right)->args);
-    if (Expr_Is_Call(right)) {
-
-      //FIXME: check args
-    }
-
+    assert(uu->scope == SCOPE_CLASS && up->scope == SCOPE_CLASS);
+    CODE_LOAD_PKG(u->block, ".");
+    EnumSymbol *eSym = ((EnumValSymbol *)sym)->esym;
+    CODE_GET_ATTR(u->block, eSym->name);
+    Log_Debug("id '%s' is eval", sym->name);
+    int argc = 0;
+    if (Expr_Is_Call(right))
+      argc = Vector_Size(((CallExpr *)right)->args);
     if (ctx == EXPR_LOAD) {
       /* load enum value */
       Log_Debug("new eval '%s' with %d args", sym->name, argc);
@@ -200,7 +201,19 @@ static void code_up_func(ParserState *ps, void *arg)
       assert(ctx == EXPR_STORE);
       Syntax_Error(ps, &exp->pos, "enum value '%s' is readonly.", exp->name);
     }
+  } else if (sym->kind == SYM_ENUM) {
+    Log_Debug("id '%s' is enum", sym->name);
+    Log_Debug("load '%s' enum", sym->name);
+    if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
+      CODE_LOAD_PKG(u->block, ".");
+    else
+      CODE_LOAD(u->block, 0);
+    CODE_GET_ATTR(u->block, sym->name);
   } else if (sym->kind == SYM_FUNC) {
+    if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
+      CODE_LOAD_PKG(u->block, ".");
+    else
+      CODE_LOAD(u->block, 0);
     Log_Debug("id '%s' is function", sym->name);
     if (Expr_Is_Call(right)) {
       /* call function */

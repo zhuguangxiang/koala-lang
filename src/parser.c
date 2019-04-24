@@ -358,6 +358,20 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
     }
     break;
   }
+  case SYM_ENUM: {
+    Log_Debug("'%s is enum", lsym->name);
+    assert(lsym->desc != NULL);
+    String s = TypeDesc_ToString(lexp->desc);
+    Log_Debug("left expr's type: %s", s.str);
+    EnumSymbol *enumSym = (EnumSymbol *)lsym;
+    sym = STable_Get(enumSym->stbl, attrExp->id.name);
+    if (sym == NULL) {
+      Syntax_Error(ps, &attrExp->id.pos,
+                   "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
+      return;
+    }
+    break;
+  }
   case SYM_FUNC:
   case SYM_NFUNC: {
     if (lexp->kind == CALL_KIND) {
@@ -414,6 +428,15 @@ static void code_attribute_expr(ParserState *ps, Expr *exp)
   }
   case SYM_AFUNC:
   case SYM_TRAIT: {
+    break;
+  }
+  case SYM_EVAL: {
+    assert(exp->ctx == EXPR_LOAD);
+    Expr *right = exp->right;
+    int argc = 0;
+    if (right != NULL && right->kind == CALL_KIND)
+      argc = Vector_Size(((CallExpr *)right)->args);
+    CODE_NEW_ENUM(u->block, sym->name, argc);
     break;
   }
   case SYM_FUNC:
@@ -1039,7 +1062,7 @@ static void parse_enum_decl(ParserState *ps, Stmt *stmt)
   Log_Debug("----parse enum '%s'----", eStmt->id.name);
 
   Symbol *sym = STable_Get(ps->u->stbl, eStmt->id.name);
-  assert(sym);
+  assert(sym != NULL);
 
   Parser_Enter_Scope(ps, SCOPE_CLASS);
   ps->u->sym = sym;
