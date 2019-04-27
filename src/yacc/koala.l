@@ -235,7 +235,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 
 . {
   Position pos = {yyps->line.pos.row, yyps->line.pos.col};
-  Syntax_Error(yyps, &pos, "invalid characters");
+  __Syntax_Error(yyps, &pos, "invalid characters");
 }
 
 %%

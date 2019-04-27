@@ -287,11 +287,17 @@ static Symbol *__eval_new(char *name)
   return __symbol_new(SYM_EVAL, name, sizeof(EnumValSymbol));
 }
 
+static void free_typedesc_func(void *item, void *arg)
+{
+  TYPE_DECREF(item);
+}
+
 static void __eval_free(Symbol *sym)
 {
   Log_Debug("enum '%s' is freed", sym->name);
   EnumValSymbol *evSym = (EnumValSymbol *)sym;
   TYPE_DECREF(evSym->desc);
+  Vector_Free(evSym->types, free_typedesc_func, NULL);
   __symbol_free(sym);
 }
 

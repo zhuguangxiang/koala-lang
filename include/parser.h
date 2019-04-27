@@ -222,7 +222,9 @@ void Parser_New_Class(ParserState *ps, Stmt *stmt);
 void Parser_New_Trait(ParserState *ps, Stmt *stmt);
 void Parser_New_Enum(ParserState *ps, Stmt *stmt);
 TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz);
-void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
+#define Syntax_Error(pos, fmt, ...) \
+  __Syntax_Error(ps, pos, fmt, ##__VA_ARGS__)
+void __Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...);
 
 /* lex(flex) used APIs */
 int Lexer_DoYYInput(ParserState *ps, char *buf, int size, FILE *in);

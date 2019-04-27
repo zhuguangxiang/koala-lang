@@ -76,7 +76,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
     token = "<newline>";              \
     pos = ps->line.lastpos;           \
   }                                   \
-  Syntax_Error(ps, &pos, ERRMSG,      \
+  Syntax_Error(&pos, ERRMSG,          \
                expected, token);      \
 })
 
@@ -86,11 +86,11 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
   YYSyntax_Error(loc, expected);            \
 })
 
-#define YYSyntax_ErrorMsg(loc, fmt, ...)          \
-({                                                \
-  yyerrok;                                        \
-  DeclarePosition(pos, loc);                      \
-  Syntax_Error(ps, &pos, fmt"\n", ##__VA_ARGS__); \
+#define YYSyntax_ErrorMsg(loc, fmt, ...)      \
+({                                            \
+  yyerrok;                                    \
+  DeclarePosition(pos, loc);                  \
+  Syntax_Error(&pos, fmt"\n", ##__VA_ARGS__); \
 })
 
 #define YYSyntax_ErrorMsg_Clear(loc, fmt, ...) \
@@ -1326,7 +1326,7 @@ Assignment
   {
     if (!Expr_Maybe_Stored($1)) {
       DeclarePosition(pos, @1);
-      Syntax_Error(ps, &pos, "expr is not left expr");
+      Syntax_Error(&pos, "expr is not left expr");
       Free_Expr($1);
       Free_Expr($3);
       $$ = NULL;

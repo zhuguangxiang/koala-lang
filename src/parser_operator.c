@@ -83,7 +83,7 @@ static void __optimize_int_add(ParserState *ps, BinaryExpr *exp)
     break;
   case BASE_BOOL:
     val = 0;
-    Syntax_Error(ps, &exp->rexp->pos, "cannot convert '%s'(bool) to int",
+    Syntax_Error(&exp->rexp->pos, "cannot convert '%s'(bool) to int",
                  rval.bval ? "true" : "false");
     break;
   case BASE_STRING: {
@@ -93,7 +93,7 @@ static void __optimize_int_add(ParserState *ps, BinaryExpr *exp)
       Log_Printf("%lld = (+ %lld \"%s\")\n", val, lval.ival, rval.str);
     } else {
       val = 0;
-      Syntax_Error(ps, &exp->rexp->pos, "cannot convert '%s'(string) to int",
+      Syntax_Error(&exp->rexp->pos, "cannot convert '%s'(string) to int",
                    rval.str);
     }
     break;

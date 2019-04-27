@@ -199,7 +199,7 @@ static void code_up_func(ParserState *ps, void *arg)
       CODE_NEW_ENUM(u->block, sym->name, argc);
     } else {
       assert(ctx == EXPR_STORE);
-      Syntax_Error(ps, &exp->pos, "enum value '%s' is readonly.", exp->name);
+      Syntax_Error(&exp->pos, "enum value '%s' is readonly.", exp->name);
     }
   } else if (sym->kind == SYM_ENUM) {
     Log_Debug("id '%s' is enum", sym->name);
@@ -226,7 +226,7 @@ static void code_up_func(ParserState *ps, void *arg)
       CODE_GET_ATTR(u->block, sym->name);
     }
   } else {
-    Syntax_Error(ps, &exp->pos,"invalid expression '%s'", exp->name);
+    Syntax_Error(&exp->pos,"invalid expression '%s'", exp->name);
   }
 }
 
@@ -397,7 +397,7 @@ void Parse_Ident_Expr(ParserState *ps, Expr *exp)
     return;
   }
 
-  Syntax_Error(ps, &exp->pos, "cannot find symbol '%s'", name);
+  Syntax_Error(&exp->pos, "cannot find symbol '%s'", name);
 }
 
 void Code_Ident_Expr(ParserState *ps, Expr *exp)

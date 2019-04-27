@@ -42,7 +42,7 @@ void Parser_Set_PkgName(ParserState *ps, Ident *id)
   /* check all modules have the same package-name */
   if (strcmp(grp->pkg->pkgname, id->name)) {
     ParserState *m = Vector_Get(&grp->modules, 0);
-    Syntax_Error(ps, &id->pos,
+    Syntax_Error(&id->pos,
                  "found different packages %s(%s) and %s(%s)",
                  m->pkgname, m->filename, ps->pkgname, ps->filename);
   }
@@ -298,7 +298,7 @@ static void parse_self_expr(ParserState *ps, Expr *exp)
   }
 
   if (exp->sym == NULL) {
-    Syntax_Error(ps, &exp->pos, "cannot find self");
+    Syntax_Error(&exp->pos, "cannot find self");
     return;
   }
 
@@ -337,7 +337,7 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
     VarSymbol *varSym = (VarSymbol *)lsym;
     sym = STable_Get(varSym->stbl, attrExp->id.name);
     if (sym == NULL) {
-      Syntax_Error(ps, &attrExp->id.pos,
+      Syntax_Error(&attrExp->id.pos,
                    "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
@@ -352,7 +352,7 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
     ClassSymbol *clsSym = (ClassSymbol *)lsym;
     sym = STable_Get(clsSym->stbl, attrExp->id.name);
     if (sym == NULL) {
-      Syntax_Error(ps, &attrExp->id.pos,
+      Syntax_Error(&attrExp->id.pos,
                    "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
@@ -366,7 +366,7 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
     EnumSymbol *enumSym = (EnumSymbol *)lsym;
     sym = STable_Get(enumSym->stbl, attrExp->id.name);
     if (sym == NULL) {
-      Syntax_Error(ps, &attrExp->id.pos,
+      Syntax_Error(&attrExp->id.pos,
                    "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
@@ -377,7 +377,7 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
     if (lexp->kind == CALL_KIND) {
       ProtoDesc *proto = (ProtoDesc *)lsym->desc;
       if (Vector_Size((Vector *)proto->ret) != 1) {
-        Syntax_Error(ps, &lexp->pos,
+        Syntax_Error(&lexp->pos,
                      "'%s' is multi-returns' function", lsym->name);
         return;
       }
@@ -390,7 +390,7 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
     Package *pkg = ((PkgSymbol *)lsym)->pkg;
     sym = STable_Get(pkg->stbl, attrExp->id.name);
     if (sym == NULL) {
-      Syntax_Error(ps, &attrExp->id.pos,
+      Syntax_Error(&attrExp->id.pos,
                    "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
@@ -499,6 +499,21 @@ static int __check_call_arguments(TypeDesc *desc, Vector *args)
   return 1;
 }
 
+static int check_new_enum(ParserState *ps, EnumValSymbol *evSym, Vector *args)
+{
+  Vector *vec = evSym->types;
+  if (Vector_Size(vec) != Vector_Size(args))
+    return 0;
+  TypeDesc *type;
+  Expr *exp;
+  Vector_ForEach(exp, args) {
+    type = Vector_Get(vec, i);
+    if (!TypeDesc_Equal(type, exp->desc))
+      return 0;
+  }
+  return 1;
+}
+
 static void parse_call_expr(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
@@ -513,7 +528,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
     ParserUnit *uu = Parser_Get_UpScope(ps);
     if (u->scope != SCOPE_FUNCTION || uu->scope != SCOPE_CLASS ||
         strcmp(u->sym->name, "__init__") || !list_empty(&u->block->insts)) {
-      Syntax_Error(ps, &lexp->pos,
+      Syntax_Error(&lexp->pos,
                    "call super __init__ must be in subclass's __init__");
       return;
     }
@@ -545,7 +560,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
     Symbol *__init__ = STable_Get(clsSym->stbl, "__init__");
     int argc = Vector_Size(callExp->args);
     if (__init__ == NULL && argc > 0) {
-      Syntax_Error(ps, &lexp->pos, "__init__ function needs no arguments");
+      Syntax_Error(&lexp->pos, "__init__ function needs no arguments");
       return;
     }
 
@@ -560,7 +575,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
     TYPE_INCREF(proto);
     exp->desc = proto;
     if (!__check_call_arguments(proto, callExp->args)) {
-      Syntax_Error(ps, &lexp->pos,
+      Syntax_Error(&lexp->pos,
                   "argument of function '%s' are not matched", exp->sym->name);
     }
 
@@ -570,8 +585,12 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
     EnumValSymbol *evSym = (EnumValSymbol *)exp->sym;
     exp->desc = evSym->esym->desc;
     TYPE_INCREF(exp->desc);
+    if (!check_new_enum(ps, evSym, callExp->args)) {
+      Syntax_Error(&exp->pos,
+                  "argument of enum '%s' are not matched", exp->sym->name);
+    }
   } else if (kind == SYM_ENUM) {
-    Syntax_Error(ps, &lexp->pos,
+    Syntax_Error(&lexp->pos,
                  "enum '%s' cannot be instanced", exp->sym->name);
   } else {
     /* var(func type), func, ifunc and nfunc */
@@ -583,7 +602,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
     TYPE_INCREF(proto);
     exp->desc = proto;
     if (!__check_call_arguments(proto, callExp->args)) {
-      Syntax_Error(ps, &lexp->pos,
+      Syntax_Error(&lexp->pos,
                   "argument of function '%s' are not matched", exp->sym->name);
     }
   }
@@ -709,7 +728,7 @@ static ParserUnit *parse_block_variable(ParserState *ps, Ident *id)
     depth -= 1;
     sym = STable_Get(uu->stbl, id->name);
     if (sym != NULL) {
-      Syntax_Error(ps, &id->pos,
+      Syntax_Error(&id->pos,
                    "var '%s' is already delcared in scope-%d(%s)",
                    id->name, depth, scope_name(uu));
       return NULL;
@@ -796,7 +815,7 @@ static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     Log_Debug("var '%s' declaration in function", id->name);
     varSym = STable_Add_Var(u->stbl, id->name, desc);
     if (varSym == NULL) {
-      Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
+      Syntax_Error(&id->pos, "var '%s' is duplicated", id->name);
       return NULL;
     }
     varSym->stbl = get_type_stbl(ps, desc);
@@ -818,7 +837,7 @@ static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       return NULL;
     varSym = STable_Add_Var(u->stbl, id->name, desc);
     if (varSym == NULL) {
-      Syntax_Error(ps, &id->pos, "var '%s' is duplicated", id->name);
+      Syntax_Error(&id->pos, "var '%s' is duplicated", id->name);
       return NULL;
     }
 
@@ -875,13 +894,13 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
       rexp->omit = 1;
     parser_visit_expr(ps, rexp);
     if (rexp->desc == NULL) {
-      Syntax_Error(ps, &rexp->pos, "cannot resolve right expression's type");
+      Syntax_Error(&rexp->pos, "cannot resolve right expression's type");
       return;
     }
 
     /* constant */
     if (konst && !Expr_Is_Const(rexp)) {
-      Syntax_Error(ps, &rexp->pos, "not a valid constant expression");
+      Syntax_Error(&rexp->pos, "not a valid constant expression");
       return;
     }
 
@@ -897,7 +916,7 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
       if (rdesc->kind == TYPE_PROTO) {
         ProtoDesc *proto = (ProtoDesc *)rdesc;
         if (proto->ret == NULL) {
-          Syntax_Error(ps, &rexp->pos, "function has no return");
+          Syntax_Error(&rexp->pos, "function has no return");
           return;
         }
         rdesc = proto->ret;
@@ -916,7 +935,7 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     if (type->desc != NULL) {
       /* check type equals or not */
       if (!__type_is_compatible(type->desc, rdesc)) {
-        Syntax_Error(ps, &rexp->pos,
+        Syntax_Error(&rexp->pos,
                      "right expression's type is not compatible");
         return;
       }
@@ -1121,7 +1140,7 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
 
   TypeDesc *rdesc = rexp->desc;
   if (rdesc == NULL) {
-    Syntax_Error(ps, &rexp->pos, "cannot resolve right expression's type");
+    Syntax_Error(&rexp->pos, "cannot resolve right expression's type");
     return;
   }
   if (rdesc->kind == TYPE_PROTO) {
@@ -1129,7 +1148,7 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
     ProtoDesc *proto = (ProtoDesc *)rdesc;
     int n = Vector_Size((Vector *)proto->ret);
     if (n != 1) {
-      Syntax_Error(ps, &rexp->pos, "multiple-value in single-value context");
+      Syntax_Error(&rexp->pos, "multiple-value in single-value context");
       return;
     }
     rdesc = Vector_Get(proto->ret, 0);
@@ -1138,7 +1157,7 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
 
   TypeDesc *ldesc = lexp->desc;
   if (!__type_is_compatible(ldesc, rdesc)) {
-    Syntax_Error(ps, &rexp->pos, "right expression's type is not compatible");
+    Syntax_Error(&rexp->pos, "right expression's type is not compatible");
     return;
   }
 }
@@ -1178,7 +1197,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
   }
 
   if (!check_returns(funcSym->desc, e)) {
-    Syntax_Error(ps, &retStmt->pos, "func %s: returns are not matched.",
+    Syntax_Error(&retStmt->pos, "func %s: returns are not matched.",
                  funcSym->name);
     return;
   }

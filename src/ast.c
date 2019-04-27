@@ -619,7 +619,8 @@ static void free_enum_stmt(Stmt *stmt)
 static void free_eval_stmt(Stmt *stmt)
 {
   EnumValStmt *evStmt = (EnumValStmt *)stmt;
-  Vector_Free(evStmt->types, free_typedesc_func, NULL);
+  //no free, the vector is assigned to EnumValSymbol
+  //Vector_Free(evStmt->types, free_typedesc_func, NULL);
   Free_Expr(evStmt->exp);
   Mfree(evStmt);
 }
@@ -849,7 +850,7 @@ static void load_dotsym_func(Symbol *sym, void *arg)
 
   Symbol *pkgSym = __in_extstbl(ps, sym->name);
   if (pkgSym != NULL) {
-    Syntax_Error(ps, &param->pos, "'%s' redeclared during import '%s',\n"
+    Syntax_Error(&param->pos, "'%s' redeclared during import '%s',\n"
                  "\tprevious declaration at %s:%d:%d", sym->name, param->path,
                  pkgSym->filename, pkgSym->pos.row, pkgSym->pos.col);
     return;
@@ -858,7 +859,7 @@ static void load_dotsym_func(Symbol *sym, void *arg)
   RefSymbol *dot = STable_Add_Reference(ps->extdots, sym->name);
   if (dot == NULL) {
     dot = (RefSymbol *)STable_Get(ps->extdots, sym->name);
-    Syntax_Error(ps, &param->pos, "'%s' redeclared during import '%s',\n"
+    Syntax_Error(&param->pos, "'%s' redeclared during import '%s',\n"
                  "\tprevious declaration during import '%s' at %s:%d:%d",
                  sym->name, param->path, dot->path, dot->filename,
                  dot->pos.row, dot->pos.col);
@@ -907,7 +908,7 @@ void Parse_Imports(ParserState *ps)
     if (name[0] != '.') {
       RefSymbol *dot = __is_inextdots(ps, name);
       if (dot != NULL) {
-        Syntax_Error(ps, &import->pathpos,
+        Syntax_Error(&import->pathpos,
                      "'%s' redeclared as imported package name,\n"
                      "\tprevious declaration during import '%s' at %s:%d:%d",
                      name, dot->path,
@@ -921,7 +922,7 @@ void Parse_Imports(ParserState *ps)
           sym->pos = (import->id == NULL) ? import->pathpos : import->idpos;
         } else {
           Symbol *sym = STable_Get(ps->extstbl, name);
-          Syntax_Error(ps, &import->pathpos,
+          Syntax_Error(&import->pathpos,
                        "'%s' redeclared as imported package name,\n"
                        "\tprevious declaration at %s:%d:%d", name,
                        sym->filename, sym->pos.row, sym->pos.col);
@@ -940,14 +941,14 @@ void Parse_Imports(ParserState *ps)
 void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
 {
   if (!strcmp(path->name, ps->grp->pkg->path)) {
-    Syntax_Error(ps, &path->pos, "imported self-package");
+    Syntax_Error(&path->pos, "imported self-package");
     return;
   }
 
   Import *import;
   Vector_ForEach(import, &ps->imports) {
     if (!strcmp(import->path, path->name)) {
-      Syntax_Error(ps, &path->pos, "'%s' imported duplicately,\n"
+      Syntax_Error(&path->pos, "'%s' imported duplicately,\n"
                    "\tprevious import at %s:%d:%d",
                    path->name, ps->filename,
                    import->pathpos.row, import->pathpos.col);
@@ -956,7 +957,7 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
 
     if ((id != NULL && id->name[0] != '.') && (import->id != NULL)) {
       if (!strcmp(import->id, id->name)) {
-        Syntax_Error(ps, &id->pos, "'%s' redeclared as imported package name,\n"
+        Syntax_Error(&id->pos, "'%s' redeclared as imported package name,\n"
                      "\tprevious declaration during import at %s:%d:%d",
                      id->name, ps->filename,
                      import->idpos.row, import->idpos.col);
@@ -1007,7 +1008,7 @@ void Parser_New_Import(ParserState *ps, Ident *id, Ident *path)
         }
       }
       if (!found) {
-        Syntax_Error(ps, &path->pos, "cannot find '%s' package", path->name);
+        Syntax_Error(&path->pos, "cannot find '%s' package", path->name);
         return;
       }
     }
@@ -1023,7 +1024,7 @@ void CheckConflictWithExternal(ParserState *ps)
   Vector_ForEach(item, &ps->symbols) {
     sym = __in_extstbl(ps, item->name);
     if (sym != NULL) {
-      Syntax_Error(ps, &item->pos, "'%s' redeclared,\n"
+      Syntax_Error(&item->pos, "'%s' redeclared,\n"
                    "\tprevious declaration at %s:%d:%d", item->name,
                    sym->filename, sym->pos.row, sym->pos.col);
     }
@@ -1047,7 +1048,7 @@ static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc)
     Vector_Append(&ps->symbols, sym);
   } else {
     Symbol *sym = STable_Get(u->stbl, id->name);
-    Syntax_Error(ps, &id->pos, "'%s' redeclared,\n"
+    Syntax_Error(&id->pos, "'%s' redeclared,\n"
                  "\tprevious declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
   }
@@ -1073,7 +1074,7 @@ static void __new_const(ParserState *ps, Ident *id, TypeDesc *desc)
     Vector_Append(&ps->symbols, sym);
   } else {
     Symbol *sym = STable_Get(u->stbl, id->name);
-    Syntax_Error(ps, &id->pos, "'%s' redeclared,\n"
+    Syntax_Error(&id->pos, "'%s' redeclared,\n"
                  "\tprevious declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
   }
@@ -1096,7 +1097,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
   int esz = Vector_Size(exps);
   if (!__validate_count(ps, isz, esz)) {
     Expr *e = Vector_Get(ids, 0);
-    Syntax_Error(ps, &e->pos, "left and expr are not matched");
+    Syntax_Error(&e->pos, "left and expr are not matched");
     free_exprlist(ids);
     free_exprlist(exps);
     return NULL;
@@ -1111,7 +1112,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       /* only one variable */
       e = Vector_Get(ids, 0);
       if (e->kind != ID_KIND) {
-        Syntax_Error(ps, &e->pos, "needs an identifier");
+        Syntax_Error(&e->pos, "needs an identifier");
         free_exprlist(ids);
         free_exprlist(exps);
         return NULL;
@@ -1126,7 +1127,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
       Stmt *varStmt;
       Vector_ForEach(e, ids) {
         if (e->kind != ID_KIND) {
-          Syntax_Error(ps, &e->pos, "needs an identifier");
+          Syntax_Error(&e->pos, "needs an identifier");
           Free_Stmt_Func(listStmt, NULL);
           free_exprlist(ids);
           free_exprlist(exps);
@@ -1154,7 +1155,7 @@ Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
   String s;
   Vector_ForEach(e, ids) {
     if (e->kind != ID_KIND) {
-      Syntax_Error(ps, &e->pos, "needs an identifier");
+      Syntax_Error(&e->pos, "needs an identifier");
       Free_IdentList(_ids);
       free_exprlist(ids);
       free_exprlist(exps);
@@ -1178,7 +1179,7 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
   int rsz = Vector_Size(right);
   if (!__validate_count(ps, lsz, rsz)) {
     Expr *e = Vector_Get(right, 0);
-    Syntax_Error(ps, &e->pos, "left and right are not matched");
+    Syntax_Error(&e->pos, "left and right are not matched");
     free_exprlist(left);
     free_exprlist(right);
     return NULL;
@@ -1190,7 +1191,7 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
       /* only one identifier */
       Expr *lexp = Vector_Get(left, 0);
       if (!Expr_Maybe_Stored(lexp)) {
-        Syntax_Error(ps, &lexp->pos, "expr is not left expr");
+        Syntax_Error(&lexp->pos, "expr is not left expr");
         free_exprlist(left);
         free_exprlist(right);
         return NULL;
@@ -1204,7 +1205,7 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
       Stmt *assignStmt;
       Vector_ForEach(lexp, left) {
         if (!Expr_Maybe_Stored(lexp)) {
-          Syntax_Error(ps, &lexp->pos, "expr is not left expr");
+          Syntax_Error(&lexp->pos, "expr is not left expr");
           free_exprlist(left);
           free_exprlist(right);
           return NULL;
@@ -1226,7 +1227,7 @@ Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
   Expr *lexp;
   Vector_ForEach(lexp, left) {
     if (!Expr_Maybe_Stored(lexp)) {
-      Syntax_Error(ps, &lexp->pos, "expr is not left expr");
+      Syntax_Error(&lexp->pos, "expr is not left expr");
       free_exprlist(left);
       free_exprlist(right);
       return NULL;
@@ -1266,7 +1267,7 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
     Vector_Append(&ps->symbols, sym);
   } else {
     sym = STable_Get(u->stbl, name);
-    Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+    Syntax_Error(&funcStmt->id.pos, "'%s' redeclared,\n"
                   "\tprevious declaration at %s:%d:%d", name,
                   sym->filename, sym->pos.row, sym->pos.col);
   }
@@ -1300,7 +1301,7 @@ static void __parse_protodecl(ParserState *ps, Stmt *stmt)
       Vector_Append(&ps->symbols, sym);
     } else {
       sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+      Syntax_Error(&funcStmt->id.pos, "'%s' redeclared,\n"
                     "\tprevious declaration at %s:%d:%d", name,
                     sym->filename, sym->pos.row, sym->pos.col);
     }
@@ -1313,7 +1314,7 @@ static void __parse_protodecl(ParserState *ps, Stmt *stmt)
       Vector_Append(&ps->symbols, sym);
     } else {
       sym = STable_Get(u->stbl, name);
-      Syntax_Error(ps, &funcStmt->id.pos, "'%s' redeclared,\n"
+      Syntax_Error(&funcStmt->id.pos, "'%s' redeclared,\n"
                     "\tprevious declaration at %s:%d:%d", name,
                     sym->filename, sym->pos.row, sym->pos.col);
     }
@@ -1350,7 +1351,7 @@ void Parser_New_Class(ParserState *ps, Stmt *stmt)
     Vector_Append(&ps->symbols, sym);
   } else {
     Symbol *sym = STable_Get(u->stbl, name);
-    Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
+    Syntax_Error(&klsStmt->id.pos, "'%s' redeclared,\n"
                   "\tprevious declaration at %s:%d:%d", name,
                   sym->filename, sym->pos.row, sym->pos.col);
   }
@@ -1399,7 +1400,7 @@ void Parser_New_Trait(ParserState *ps, Stmt *stmt)
     Vector_Append(&ps->symbols, sym);
   } else {
     Symbol *sym = STable_Get(u->stbl, name);
-    Syntax_Error(ps, &klsStmt->id.pos, "'%s' redeclared,\n"
+    Syntax_Error(&klsStmt->id.pos, "'%s' redeclared,\n"
                   "\tprevious declaration at %s:%d:%d", name,
                   sym->filename, sym->pos.row, sym->pos.col);
   }
@@ -1431,17 +1432,18 @@ static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e)
   ParserUnit *u = ps->u;
   EnumValStmt *evStmt = (EnumValStmt *)s;
   Ident *id = &evStmt->id;
-  EnumValSymbol *evsym = STable_Add_EnumValue(u->stbl, id->name);
+  EnumValSymbol *evSym = STable_Add_EnumValue(u->stbl, id->name);
 
-  if (evsym != NULL) {
+  if (evSym != NULL) {
     Log_Debug("add enum value '%s' successfully", id->name);
-    evsym->filename = ps->filename;
-    evsym->pos = id->pos;
-    evsym->esym = e;
-    Vector_Append(&ps->symbols, evsym);
+    evSym->filename = ps->filename;
+    evSym->pos = id->pos;
+    evSym->esym = e;
+    evSym->types = evStmt->types;
+    Vector_Append(&ps->symbols, evSym);
   } else {
     Symbol *sym = STable_Get(u->stbl, id->name);
-    Syntax_Error(ps, &id->pos, "'%s' redeclared,\n"
+    Syntax_Error(&id->pos, "'%s' redeclared,\n"
                  "\tprevious declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
   }
@@ -1463,13 +1465,13 @@ static int __check_enum_decl(ParserState *ps, Stmt *stmt)
       if (evStmt->exp != NULL)
         hasExps++;
       if (evStmt->types != NULL && hasExps) {
-        Syntax_Error(ps, &eStmt->id.pos,
+        Syntax_Error(&eStmt->id.pos,
                     "mix declaration(associated types and int values)"
                     " by enum '%s'", eStmt->id.name);
         return -1;
       }
       if (evStmt->exp != NULL && hasTypes) {
-        Syntax_Error(ps, &eStmt->id.pos,
+        Syntax_Error(&eStmt->id.pos,
                     "mix declaration(associated types and int values)"
                     " by enum '%s'", eStmt->id.name);
         return -1;
@@ -1505,7 +1507,7 @@ void Parser_New_Enum(ParserState *ps, Stmt *stmt)
     Vector_Append(&ps->symbols, sym);
   } else {
     Symbol *sym = STable_Get(u->stbl, name);
-    Syntax_Error(ps, &eStmt->id.pos, "'%s' redeclared,\n"
+    Syntax_Error(&eStmt->id.pos, "'%s' redeclared,\n"
                   "\tprevious declaration at %s:%d:%d", name,
                   sym->filename, sym->pos.row, sym->pos.col);
   }
@@ -1534,7 +1536,7 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz)
   if (id != NULL) {
     Symbol *sym = STable_Get(ps->extstbl, id->name);
     if (sym == NULL) {
-      Syntax_Error(ps, &id->pos, "undefined '%s'", id->name);
+      Syntax_Error(&id->pos, "undefined '%s'", id->name);
       return NULL;
     }
     assert(sym->kind == SYM_PKG);
@@ -1543,14 +1545,14 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz)
     //path = extpkg->path;
     //sym = STable_Get(pkg->stbl, klazz->name);
     if (sym == NULL) {
-      Syntax_Error(ps, &id->pos, "undefined '%s.%s'", path, klazz->name);
+      Syntax_Error(&id->pos, "undefined '%s.%s'", path, klazz->name);
       return NULL;
     }
   }
   return TypeDesc_New_Klass(path, klazz->name, NULL);
 }
 
-void Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
+void __Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)
 {
   /* if errors are more than MAX_ERRORS, discard left errors shown */
   if (++ps->errnum > MAX_ERRORS) {

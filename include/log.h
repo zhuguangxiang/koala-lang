@@ -54,10 +54,10 @@ void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...);
 #define Log_Puts(string) ((void)0)
 #else
 #define LOGGER(q) static Logger logger = {.level = LOG_TRACE, .quiet = q};
-#define Log_Printf(...)  \
-({                       \
-  if (!logger.quiet)     \
-    printf(__VA_ARGS__); \
+#define Log_Printf(fmt, ...)    \
+({                              \
+  if (!logger.quiet)            \
+    printf(fmt, ##__VA_ARGS__); \
 })
 #define Log_Puts(string) \
 ({                       \
@@ -67,17 +67,17 @@ void Log_Log(Logger *log, LogLevel level, char *file, int line, char *fmt, ...);
 #endif /* NLOG */
 
 #define Log_Trace(...) \
-Log_Log(&(logger), LOG_TRACE, __FILENAME__, __LINE__, __VA_ARGS__)
+Log_Log(&(logger), LOG_TRACE, __FILENAME__, __LINE__, ##__VA_ARGS__)
 #define Log_Debug(...) \
-Log_Log(&(logger), LOG_DEBUG, __FILENAME__, __LINE__, __VA_ARGS__)
+Log_Log(&(logger), LOG_DEBUG, __FILENAME__, __LINE__, ##__VA_ARGS__)
 #define Log_Info(...) \
-Log_Log(&(logger), LOG_INFO, __FILENAME__, __LINE__, __VA_ARGS__)
+Log_Log(&(logger), LOG_INFO, __FILENAME__, __LINE__, ##__VA_ARGS__)
 #define Log_Warn(...) \
-Log_Log(&(logger), LOG_WARN, __FILENAME__, __LINE__, __VA_ARGS__)
+Log_Log(&(logger), LOG_WARN, __FILENAME__, __LINE__, ##__VA_ARGS__)
 #define Log_Error(...) \
-Log_Log(&(logger), LOG_ERROR, __FILENAME__, __LINE__, __VA_ARGS__)
-#define LOG_FATAL(...) \
-Log_Log(&(logger), LOG_FATAL, __FILENAME__, __LINE__, __VA_ARGS__)
+Log_Log(&(logger), LOG_ERROR, __FILENAME__, __LINE__, ##__VA_ARGS__)
+#define Log_Fatal(...) \
+Log_Log(&(logger), LOG_FATAL, __FILENAME__, __LINE__, ##__VA_ARGS__)
 
 #ifdef __cplusplus
 }

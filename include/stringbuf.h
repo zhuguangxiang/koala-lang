@@ -53,10 +53,10 @@ void __StringBuf_Append_Char(StringBuf *buf, char ch);
 
 /* fmt: "#.#" */
 #define StringBuf_Format(name, fmt, ...) \
-  __StringBuf_Format(&(name), 0, fmt, __VA_ARGS__)
+  __StringBuf_Format(&(name), 0, fmt, ##__VA_ARGS__)
 
 #define StringBuf_Format_CStr(name, fmt, ...) \
-  __StringBuf_Format(&(name), 1, fmt, __VA_ARGS__)
+  __StringBuf_Format(&(name), 1, fmt, ##__VA_ARGS__)
 
 #define StringBuf_Append(name, s) \
   __StringBuf_Append(&(name), s)
@@ -67,14 +67,14 @@ void __StringBuf_Append_Char(StringBuf *buf, char ch);
 #define StringBuf_Append_Char(name, ch) \
   __StringBuf_Append_Char(&(name), ch)
 
-#define AtomString_Format(fmt, ...)             \
-({                                              \
-  char *s;                                      \
-  DeclareStringBuf(buf);                        \
-  StringBuf_Format_CStr(buf, fmt, __VA_ARGS__); \
-  s = AtomString_New(buf.data).str;             \
-  FiniStringBuf(buf);                           \
-  s;                                            \
+#define AtomString_Format(fmt, ...)               \
+({                                                \
+  char *s;                                        \
+  DeclareStringBuf(buf);                          \
+  StringBuf_Format_CStr(buf, fmt, ##__VA_ARGS__); \
+  s = AtomString_New(buf.data).str;               \
+  FiniStringBuf(buf);                             \
+  s;                                              \
 })
 
 #ifdef __cplusplus
