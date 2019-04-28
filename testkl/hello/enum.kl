@@ -1,6 +1,10 @@
 
 package hello
 
+import enum Result.{Ok, Err} "hello"
+import enum Result.*
+import {Id as id, Id2 as id2} "github.com/http"
+
 enum Result {
   Ok,
   Err(int, string),
