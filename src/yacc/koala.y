@@ -160,6 +160,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token ENUM
 %token IN
 %token IMPORT
+%token AS
 %token GO
 %token DEFER
 %token NATIVE
@@ -276,6 +277,8 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %precedence PREC_1
 */
 
+%precedence '*'
+%precedence ';'
 %precedence INT_LITERAL CHAR_LITERAL
 %precedence '|'
 %precedence ID
@@ -602,13 +605,37 @@ Import
     DeclareIdent(path, $3, @3);
     Parser_New_Import(ps, &id, &path);
   }
-  | IMPORT '.' STRING_LITERAL ';'
+  | IMPORT '*' STRING_LITERAL ';'
   {
     Ident id;
-    id.name = ".";
+    id.name = "*";
     SetPosition(id.pos, @2);
     DeclareIdent(path, $3, @3);
     Parser_New_Import(ps, &id, &path);
+  }
+  | IMPORT ImportPartial STRING_LITERAL ';'
+  {
+
+  }
+  | IMPORT ENUM ID '.' '*' ';'
+  {
+
+  }
+  | IMPORT ENUM ID '.' '*'
+  {
+
+  }
+  | IMPORT ENUM ID '.' ImportPartial ';'
+  {
+
+  }
+  | IMPORT ENUM ID '.' '*' STRING_LITERAL ';'
+  {
+
+  }
+  | IMPORT ENUM ID '.' ImportPartial STRING_LITERAL ';'
+  {
+
   }
   | IMPORT STRING_LITERAL error
   {
@@ -620,7 +647,7 @@ Import
     YYSyntax_Error(@3, ";");
     YYACCEPT;
   }
-  | IMPORT '.' STRING_LITERAL error
+  | IMPORT '*' STRING_LITERAL error
   {
     YYSyntax_Error(@3, ";");
     YYACCEPT;
@@ -630,7 +657,7 @@ Import
     YYSyntax_Error(@3, "<package-path>");
     YYACCEPT;
   }
-  | IMPORT '.' error
+  | IMPORT '*' error
   {
     YYSyntax_Error(@2, "<package-path>");
     YYACCEPT;
@@ -640,6 +667,20 @@ Import
     YYSyntax_Error(@2, "<package-path>, <ID> or *");
     YYACCEPT;
   }
+  ;
+
+ImportPartial
+  : '{' IdAsList '}'
+  ;
+
+IdAsList
+  : IdAs
+  | IdAsList ',' IdAs
+  ;
+
+IdAs
+  : ID
+  | ID AS ID
   ;
 
 ModuleStatementsOrEmpty

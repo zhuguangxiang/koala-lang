@@ -158,6 +158,7 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "enum"           { YY_RETURN(ENUM);            }
 "in"             { YY_RETURN(IN);              }
 "import"         { YY_RETURN(IMPORT);          }
+"as"             { YY_RETURN(AS);              }
 "go"             { YY_RETURN(GO);              }
 "defer"          { YY_RETURN(DEFER);           }
 "native"         { YY_RETURN(NATIVE);          }
