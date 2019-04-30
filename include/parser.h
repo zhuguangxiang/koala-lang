@@ -141,20 +141,20 @@ typedef struct parserstate {
 
   /* all statements */
   Vector stmts;
-  /* symbols in this module */
+  /* symbols in this module, check for extstbl, but not extdots */
   Vector symbols;
 
   /* Import info, <ID>:<PATH>, <package-name>:<PATH>, .:<PATH> */
   Vector imports;
   /*
    * Save all external symbols using import (ID) "<package-path>".
-   * Symbols in module are conflict with extstbl.
+   * Symbols in module(saved in Vector) are conflict with extstbl.
    * Importing it will also check it is in extdots.
    */
   STable *extstbl;
   /*
    * Save all external symbols using import . "<package-path>".
-   * Symbols in module is NOT conflict with extdots.
+   * Symbols in module(saved in Vector) is NOT conflict with extdots.
    * Importing one by one will also check it is in extstbl.
    * Extstbl and extdots are conflict with each other.
    * If one(only) symbol is used, there is no unused error of the package.

@@ -616,10 +616,6 @@ Import
   {
 
   }
-  | IMPORT '{' IdAsList '}' ';'
-  {
-
-  }
   | IMPORT error
   {
     YYSyntax_Error(@2, "<package-path>, <ID>, *, or {}");
@@ -628,16 +624,10 @@ Import
   ;
 
 IdAsList
-  : IdAs
-  | IdAsList ',' IdAs
-  ;
-
-IdAs
   : ID
   | ID AS ID
-  | ID '.' '*'
-  | ID '.' ID
-  | ID '.' ID AS ID
+  | IdAsList ',' ID
+  | IdAsList ',' ID AS ID
   ;
 
 ModuleStatementsOrEmpty
