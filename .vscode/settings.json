@@ -44,7 +44,6 @@
 			80
 	],
 	"editor.minimap.enabled": false,
-	"terminal.integrated.fontFamily": "'Ubuntu Mono'",
 	"terminal.integrated.fontSize": 14,
 	"todo-tree.flat": true,
 	"todo-tree.expanded": false,
@@ -57,11 +56,6 @@
 			"files.trimFinalNewlines": true
 	},
 	"[go]": {
-		"files.trimTrailingWhitespace": true,
-		"files.insertFinalNewline": true,
-		"files.trimFinalNewlines": true
-	},
-	"[koala]": {
 		"files.trimTrailingWhitespace": true,
 		"files.insertFinalNewline": true,
 		"files.trimFinalNewlines": true

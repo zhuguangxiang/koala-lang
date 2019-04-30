@@ -86,11 +86,11 @@ void Free_IdTypeList(Vector *vec)
   Vector_Free_Self(vec);
 }
 
-TypePara *New_TypePara(Ident id, Vector *impls)
+TypePara *New_TypePara(Ident id, TypeDesc *base)
 {
   TypePara *para = Malloc(sizeof(TypePara));
   para->id = id;
-  para->impls = impls;
+  para->base = base;
   return para;
 }
 

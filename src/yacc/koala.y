@@ -204,7 +204,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <List> IDList
 %type <Name> Name
 %type <List> TypeParameters
-%type <List> KlassTypeList
 %type <TypePara> TypeParameter
 
 %type <Stmt> ConstDeclaration
@@ -613,64 +612,19 @@ Import
     DeclareIdent(path, $3, @3);
     Parser_New_Import(ps, &id, &path);
   }
-  | IMPORT ImportPartial STRING_LITERAL ';'
+  | IMPORT '{' IdAsList '}' STRING_LITERAL ';'
   {
 
   }
-  | IMPORT ENUM ID '.' '*' ';'
+  | IMPORT '{' IdAsList '}' ';'
   {
 
-  }
-  | IMPORT ENUM ID '.' '*'
-  {
-
-  }
-  | IMPORT ENUM ID '.' ImportPartial ';'
-  {
-
-  }
-  | IMPORT ENUM ID '.' '*' STRING_LITERAL ';'
-  {
-
-  }
-  | IMPORT ENUM ID '.' ImportPartial STRING_LITERAL ';'
-  {
-
-  }
-  | IMPORT STRING_LITERAL error
-  {
-    YYSyntax_Error(@3, ";");
-    YYACCEPT;
-  }
-  | IMPORT ID STRING_LITERAL error
-  {
-    YYSyntax_Error(@3, ";");
-    YYACCEPT;
-  }
-  | IMPORT '*' STRING_LITERAL error
-  {
-    YYSyntax_Error(@3, ";");
-    YYACCEPT;
-  }
-  | IMPORT ID error
-  {
-    YYSyntax_Error(@3, "<package-path>");
-    YYACCEPT;
-  }
-  | IMPORT '*' error
-  {
-    YYSyntax_Error(@2, "<package-path>");
-    YYACCEPT;
   }
   | IMPORT error
   {
-    YYSyntax_Error(@2, "<package-path>, <ID> or *");
+    YYSyntax_Error(@2, "<package-path>, <ID>, *, or {}");
     YYACCEPT;
   }
-  ;
-
-ImportPartial
-  : '{' IdAsList '}'
   ;
 
 IdAsList
@@ -681,6 +635,9 @@ IdAsList
 IdAs
   : ID
   | ID AS ID
+  | ID '.' '*'
+  | ID '.' ID
+  | ID '.' ID AS ID
   ;
 
 ModuleStatementsOrEmpty
@@ -854,23 +811,10 @@ TypeParameter
     DeclareIdent(id, $1, @1);
     $$ = New_TypePara(id, NULL);
   }
-  | ID ':' KlassTypeList
+  | ID ':' KlassType
   {
     DeclareIdent(id, $1, @1);
     $$ = New_TypePara(id, $3);
-  }
-  ;
-
-KlassTypeList
-  : KlassType
-  {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
-  }
-  | KlassTypeList '&' KlassType
-  {
-    $$ = $1;
-    Vector_Append($$, $3);
   }
   ;
 
