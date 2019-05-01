@@ -178,7 +178,6 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %token TOKEN_NIL
 %token TOKEN_TRUE
 %token TOKEN_FALSE
-%token TOKEN_NEW
 
 %token <IVal> BYTE_LITERAL
 %token <ucVal> CHAR_LITERAL
@@ -1831,21 +1830,6 @@ LambdaExpression
   }
   ;
 
-NewExpression
-  : TOKEN_NEW ID '<' TypeList '>' '(' ')'
-  | TOKEN_NEW ID '.' ID '<' TypeList '>' '(' ')'
-  | TOKEN_NEW ID '<' TypeList '>' '(' ExpressionList ')'
-  | TOKEN_NEW ID '.' ID '<' TypeList '>' '(' ExpressionList ')'
-  | TOKEN_NEW ID '(' ')'
-  | TOKEN_NEW ID '.' ID '(' ')'
-  | TOKEN_NEW ID '(' ExpressionList ')'
-  | TOKEN_NEW ID '.' ID '(' ExpressionList ')'
-  | TOKEN_NEW ID
-  | TOKEN_NEW ID '.' ID
-  | TOKEN_NEW ID '<' TypeList '>'
-  | TOKEN_NEW ID '.' ID '<' TypeList '>'
-  ;
-
 NormalExpression
   : LogicOrExpression
   {
@@ -1856,10 +1840,6 @@ NormalExpression
     $$ = NULL;
   }
   | LambdaExpression
-  {
-    $$ = NULL;
-  }
-  | NewExpression
   {
     $$ = NULL;
   }

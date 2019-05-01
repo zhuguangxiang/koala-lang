@@ -339,6 +339,23 @@ IMethItem *IMethItem_New(int classindex, int nameindex, int protoindex)
   return item;
 }
 
+EnumItem *EnumItem_New(int classindex)
+{
+  EnumItem *item = Malloc(sizeof(EnumItem));
+  item->classindex = classindex;
+  return item;
+}
+
+EValItem *EValItem_New(int classindex, int nameindex, int index, int32 val)
+{
+  EValItem *item = Malloc(sizeof(EValItem));
+  item->classindex = classindex;
+  item->nameindex = nameindex;
+  item->index = index;
+  item->value = val;
+  return item;
+}
+
 static void *VaItem_New(int bsize, int isize, int len)
 {
   int32 *data = Malloc(bsize + isize * len);
@@ -1231,6 +1248,56 @@ void imethitem_free(void *o)
   Mfree(o);
 }
 
+int enumitem_length(void *o)
+{
+  UNUSED_PARAMETER(o);
+  return sizeof(EnumItem);
+}
+
+void enumitem_write(FILE *fp, void *o)
+{
+  fwrite(o, sizeof(EnumItem), 1, fp);
+}
+
+void enumitem_show(AtomTable *table, void *o)
+{
+  EnumItem *item = o;
+  Log_Printf("  classindex:%d\n", item->classindex);
+}
+
+void enumitem_free(void *o)
+{
+  Mfree(o);
+}
+
+int evalitem_length(void *o)
+{
+  UNUSED_PARAMETER(o);
+  return sizeof(EValItem);
+}
+
+void evalitem_write(FILE *fp, void *o)
+{
+  fwrite(o, sizeof(IMethItem), 1, fp);
+}
+
+void evalitem_show(AtomTable *table, void *o)
+{
+  EValItem *item = o;
+  Log_Printf("  classindex:%d\n", item->classindex);
+  StringItem *str;
+  Log_Printf("  nameindex:%d\n", item->nameindex);
+  str = AtomTable_Get(table, ITEM_STRING, item->nameindex);
+  Log_Printf("  (%s)\n", str->data);
+  Log_Printf("  index:%d\n", item->index);
+  Log_Printf("  value:%d\n", item->value);
+}
+
+void evalitem_free(void *o)
+{
+  Mfree(o);
+}
+
 typedef int (*item_length_func)(void *);
 typedef void (*item_fwrite_func)(FILE *, void *);
 typedef uint32 (*item_hash_func)(void *);
@@ -1375,7 +1442,23 @@ struct item_funcs item_func[ITEM_MAX] = {
     NULL,
     imethitem_show,
     imethitem_free
-  }
+  },
+  {
+    enumitem_length,
+    enumitem_write,
+    NULL,
+    NULL,
+    enumitem_show,
+    enumitem_free
+  },
+  {
+    evalitem_length,
+    evalitem_write,
+    NULL,
+    NULL,
+    evalitem_show,
+    evalitem_free
+  },
 };
 
 uint32 Item_Hash(void *key)
@@ -1590,10 +1673,6 @@ void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
   AtomTable_Append(image->table, ITEM_TRAIT, traititem, 0);
 }
 
-void KImage_Add_Enum(KImage *image, char *name)
-{
-}
-
 void KImage_Add_NFunc(KImage *image, char *klazz, char *name, TypeDesc *proto)
 {
   int classindex = -1;
@@ -1619,10 +1698,24 @@ void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto)
   AtomTable_Append(image->table, ITEM_IMETH, imethitem, 0);
 }
 
-void KImage_Add_EVal(KImage *image, char *klazz, char *name, Vector *types,
-                     int intVal)
+void KImage_Add_Enum(KImage *image, char *name)
 {
+  KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = name};
+  int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
+  EnumItem *enumitem = EnumItem_New(classindex);
+  AtomTable_Append(image->table, ITEM_ENUM, enumitem, 0);
+}
 
+void KImage_Add_EVal(KImage *image, char *klazz, char *name,
+                     Vector *types, int32 val)
+{
+  KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = klazz};
+  int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
+  int nameindex = StringItem_Set(image->table, name);
+  int index = TypeListItem_Set(image->table, types);
+
+  EValItem *evitem = EValItem_New(classindex, nameindex, index, val);
+  AtomTable_Append(image->table, ITEM_EVAL, evitem, 0);
 }
 
 void KImage_Get_Consts(KImage *image, getconstfn func, void *arg)

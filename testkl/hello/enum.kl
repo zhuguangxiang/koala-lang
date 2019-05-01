@@ -1,6 +1,8 @@
 
 package hello
 
+import "io"
+
 enum Result {
   Ok,
   Err(int, string),
@@ -12,6 +14,10 @@ enum Result {
   func failed() Result {
     Result.Err(1, "error")
     Ok
+  }
+
+  func test() {
+    io.puts("Result.test()");
   }
 }
 

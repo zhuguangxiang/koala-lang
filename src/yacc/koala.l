@@ -176,7 +176,6 @@ UONLY   {U2}{U}|{U3}{U}{U}|{U4}{U}{U}{U}
 "true"           { YY_RETURN(TOKEN_TRUE);      }
 "false"          { YY_RETURN(TOKEN_FALSE);     }
 "nil"            { YY_RETURN(TOKEN_NIL);       }
-"new"            { YY_RETURN(TOKEN_NEW);       }
 
 ([1-9][0-9]*|[0]) {
   yylval->IVal = atoi(yytext);

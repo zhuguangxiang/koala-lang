@@ -46,7 +46,9 @@ extern "C" {
 #define ITEM_TRAIT      13
 #define ITEM_NFUNC      14
 #define ITEM_IMETH      15
-#define ITEM_MAX        16
+#define ITEM_ENUM       16
+#define ITEM_EVAL       17
+#define ITEM_MAX        18
 
 typedef struct map_item {
   /* one of ITEM_XXX, self is ITEM_MAP */
@@ -170,6 +172,17 @@ typedef struct imeth_item {
   int32 nameindex;  /* ->StringItem */
   int32 protoindex; /* ->ProtoItem */
 } IMethItem;
+
+typedef struct enum_item {
+  int32 classindex;  /* ->TypeItem */
+} EnumItem;
+
+typedef struct eval_item {
+  int32 classindex; /* ->TypeItem */
+  int32 nameindex;  /* ->StringItem */
+  int32 index;      /* ->TypeListItem */
+  int32 value;      /* enum integer value */
+} EValItem;
 
 #define PKG_NAME_MAX 32
 

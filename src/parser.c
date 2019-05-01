@@ -359,7 +359,7 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
     break;
   }
   case SYM_ENUM: {
-    Log_Debug("'%s is enum", lsym->name);
+    Log_Debug("'%s' is enum", lsym->name);
     assert(lsym->desc != NULL);
     String s = TypeDesc_ToString(lexp->desc);
     Log_Debug("left expr's type: %s", s.str);
@@ -370,6 +370,8 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
                    "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
+    sym->desc = enumSym->desc;
+    TYPE_INCREF(sym->desc);
     break;
   }
   case SYM_FUNC:
@@ -754,27 +756,26 @@ static STable *get_type_stbl(ParserState *ps, TypeDesc *desc)
     KlassDesc *klass = (KlassDesc *)desc;
     char *path = klass->path.str;
     char *type = klass->type.str;
+    Package *pkg;
     Log_Debug("try to get %s.%s stbl", path, type);
     if (path != NULL) {
-      Package *pkg = Find_Package(path);
+      pkg = Find_Package(path);
       assert(pkg != NULL);
       stbl = pkg->stbl;
     } else {
-      Symbol *sym;
-      Vector_ForEach(sym, &ps->symbols) {
-        if (!strcmp(sym->name, type)) {
-          if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
-            ClassSymbol *clsSym = (ClassSymbol *)sym;
-            stbl = clsSym->stbl;
-          } else {
-            assert(sym->kind == SYM_ENUM);
-            EnumSymbol *eSym = (EnumSymbol *)sym;
-            stbl = eSym->stbl;
-          }
-          break;
-        }
+      pkg = ps->grp->pkg;
+      Symbol *sym = STable_Get(pkg->stbl, type);
+      assert(sym != NULL);
+      if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+        ClassSymbol *clsSym = (ClassSymbol *)sym;
+        stbl = clsSym->stbl;
+      } else {
+        assert(sym->kind == SYM_ENUM);
+        EnumSymbol *eSym = (EnumSymbol *)sym;
+        stbl = eSym->stbl;
       }
     }
+    assert(stbl != NULL);
     break;
   }
   case TYPE_VARG: {

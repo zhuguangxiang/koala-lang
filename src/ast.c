@@ -1440,6 +1440,8 @@ static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e)
     evSym->pos = id->pos;
     evSym->esym = e;
     evSym->types = evStmt->types;
+    evSym->desc = e->desc;
+    TYPE_INCREF(evSym->desc);
     Vector_Append(&ps->symbols, evSym);
   } else {
     Symbol *sym = STable_Get(u->stbl, id->name);
