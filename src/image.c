@@ -1590,6 +1590,10 @@ void KImage_Add_Trait(KImage *image, char *name, Vector *traits)
   AtomTable_Append(image->table, ITEM_TRAIT, traititem, 0);
 }
 
+void KImage_Add_Enum(KImage *image, char *name)
+{
+}
+
 void KImage_Add_NFunc(KImage *image, char *klazz, char *name, TypeDesc *proto)
 {
   int classindex = -1;
@@ -1613,6 +1617,12 @@ void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto)
 
   IMethItem *imethitem = IMethItem_New(classindex, nameindex, protoindex);
   AtomTable_Append(image->table, ITEM_IMETH, imethitem, 0);
+}
+
+void KImage_Add_EVal(KImage *image, char *klazz, char *name, Vector *types,
+                     int intVal)
+{
+
 }
 
 void KImage_Get_Consts(KImage *image, getconstfn func, void *arg)

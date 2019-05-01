@@ -604,10 +604,10 @@ Import
     DeclareIdent(path, $3, @3);
     Parser_New_Import(ps, &id, &path);
   }
-  | IMPORT '*' STRING_LITERAL ';'
+  | IMPORT '.' STRING_LITERAL ';'
   {
     Ident id;
-    id.name = "*";
+    id.name = ".";
     SetPosition(id.pos, @2);
     DeclareIdent(path, $3, @3);
     Parser_New_Import(ps, &id, &path);
@@ -618,7 +618,7 @@ Import
   }
   | IMPORT error
   {
-    YYSyntax_Error(@2, "<package-path>, <ID>, *, or {}");
+    YYSyntax_Error(@2, "<package-path>, <ID>, ., or {}");
     YYACCEPT;
   }
   ;

@@ -270,16 +270,14 @@ static void __enum_show(Symbol *sym)
 
 static void __enum_gen(Symbol *sym, void *arg)
 {
-  /*
   struct gen_image_s *info = arg;
-  ClassSymbol *clsSym = (ClassSymbol *)sym;
-  Log_Debug("trait %s:", clsSym->name);
+  EnumSymbol *eSym = (EnumSymbol *)sym;
+  Log_Printf("enum %s:\n", eSym->name);
 
-  KImage_Add_Trait(info->image, clsSym->name, &clsSym->supers);
+  KImage_Add_Enum(info->image, eSym->name);
 
-  struct gen_image_s info2 = {info->image, clsSym->name};
-  STable_Visit(clsSym->stbl, __gen_image_func, &info2);
-  */
+  struct gen_image_s info2 = {info->image, eSym->name};
+  STable_Visit(eSym->stbl, __gen_image_func, &info2);
 }
 
 static Symbol *__eval_new(char *name)
@@ -303,21 +301,17 @@ static void __eval_free(Symbol *sym)
 
 static void __eval_show(Symbol *sym)
 {
-  Log_Printf("eval %s;\n", sym->name);
+  Log_Printf("  eval %s;\n", sym->name);
 }
 
 static void __eval_gen(Symbol *sym, void *arg)
 {
-  /*
   struct gen_image_s *info = arg;
-  ClassSymbol *clsSym = (ClassSymbol *)sym;
-  Log_Debug("trait %s:", clsSym->name);
-
-  KImage_Add_Trait(info->image, clsSym->name, &clsSym->supers);
-
-  struct gen_image_s info2 = {info->image, clsSym->name};
-  STable_Visit(clsSym->stbl, __gen_image_func, &info2);
-  */
+  EnumValSymbol *evSym = (EnumValSymbol *)sym;
+  __eval_show(sym);
+  assert(info->classname != NULL);
+  KImage_Add_EVal(info->image, info->classname, evSym->name,
+                  evSym->types, 0);
 }
 
 static Symbol *__ifunc_new(char *name)
@@ -348,10 +342,10 @@ static void __ifunc_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   if (sym->kind == SYM_IFUNC) {
-    Log_Debug("  interface func %s;", sym->name);
+    Log_Printf("  interface func %s;", sym->name);
     KImage_Add_IMeth(info->image, info->classname, sym->name, sym->desc);
   } else {
-    Log_Debug("  native func %s", sym->name);
+    Log_Printf("  native func %s", sym->name);
     KImage_Add_NFunc(info->image, info->classname, sym->name, sym->desc);
   }
 }
@@ -391,7 +385,7 @@ static void __afunc_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   AFuncSymbol *afnSym = (AFuncSymbol *)sym;
-  Log_Debug("  anonymous func %s", afnSym->name);
+  Log_Printf("  anonymous func %s", afnSym->name);
   KImage_Add_IMeth(info->image, info->classname, afnSym->name, afnSym->desc);
 }
 

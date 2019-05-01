@@ -1,10 +1,6 @@
 
 package hello
 
-import enum Result.{Ok, Err} "hello"
-import enum Result.*
-import {Id as id, Id2 as id2} "github.com/http"
-
 enum Result {
   Ok,
   Err(int, string),
@@ -32,6 +28,7 @@ enum Result {
 
 func get_result() Result {
   var err = Result.Err(10, "bad file descriptor")
+  return err
   //err.ok_then()
   //Result2.Ok(100)
   //var res Result3<int, string> = Result3.Ok3(100)

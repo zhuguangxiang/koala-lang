@@ -210,12 +210,15 @@ int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto,
                     uint8 *codes, int size);
 void KImage_Add_Class(KImage *image, char *name, Vector *supers);
 void KImage_Add_Trait(KImage *image, char *name, Vector *traits);
+void KImage_Add_Enum(KImage *image, char *name);
 
 void KImage_Add_Field(KImage *image, char *klazz, char *name, TypeDesc *desc);
 int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
                       uint8 *codes, int size);
 void KImage_Add_NFunc(KImage *image, char *klazz, char *name, TypeDesc *proto);
 void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto);
+void KImage_Add_EVal(KImage *image, char *klazz, char *name, Vector *types,
+                     int intVal);
 
 static inline char *KImage_Get_PkgName(KImage *image)
 {
