@@ -123,7 +123,7 @@ typedef struct basicdesc {
   char *typestr;  /* <type> */
 } BaseDesc;
 
-/* class or trait */
+/* class, trait or enum */
 typedef struct klassdesc {
   TYPEDESC_HEAD
   String path;   /* absolute path, but not ref-name */

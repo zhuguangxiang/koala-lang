@@ -155,12 +155,6 @@ typedef enum {
   EVAL_KIND  = 7,
 } MemberKind;
 
-typedef struct enumvalue {
-  char *name;
-  Klass *klazz;
-  Vector *types;
-} EnumValue;
-
 /* Member node will be inserted into klass->table or package's table */
 typedef struct membernode {
   HashNode hnode;
@@ -170,6 +164,7 @@ typedef struct membernode {
   MemberKind kind;
   /* member's type descriptor */
   TypeDesc *desc;
+  /* one of xxx_KIND */
   union {
     /* constant value */
     Object *value;
@@ -180,7 +175,7 @@ typedef struct membernode {
     /* class, trait or enum */
     Klass *klazz;
     /* enum value */
-    EnumValue eval;
+    int eval;
   };
 } MNode;
 
@@ -207,6 +202,7 @@ typedef struct lro_node {
 
 #define OB_FLAGS_GC     1
 #define OB_FLAGS_TRAIT  2
+#define OB_FLAGS_ENUM   3
 
 /*
  * represent class or trait
@@ -256,24 +252,35 @@ void Init_Klass(Klass *klazz, Klass *base, Vector *traits);
 void Fini_Klass(Klass *klazz);
 /* new klass */
 Klass *__Klass_New(char *name, Klass *base, Vector *traits);
+
 #define Class_New(name, base, traits) \
-({ \
-  __Klass_New(name, base, traits); \
+({                                    \
+  __Klass_New(name, base, traits);    \
 })
 #define Class_New_Self(name) Class_New(name, NULL, NULL)
-#define Trait_New(name, traits) \
-({ \
+
+#define Trait_New(name, traits)                   \
+({                                                \
   Klass *klazz = __Klass_New(name, NULL, traits); \
-  klazz->flags = OB_FLAGS_TRAIT; \
-  klazz; \
+  klazz->flags = OB_FLAGS_TRAIT;                  \
+  klazz;                                          \
 })
 #define Trait_New_Self(name) Trait_New(name, NULL)
+
+#define Enum_New(name)                          \
+({                                              \
+  Klass *klazz = __Klass_New(name, NULL, NULL); \
+  klazz->flags = OB_FLAGS_ENUM;                 \
+  klazz;                                        \
+})
 /* add a field to the klass(class or trait) */
 int Klass_Add_Field(Klass *klazz, char *name, TypeDesc *desc);
 /* add a method to the klass(class or trait) */
 int Klass_Add_Method(Klass *klazz, Object *code);
 /* add a prototype to trait only */
 int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto);
+/* add a enum value to enum */
+int Klass_Add_EVal(Klass *klazz, char *name, TypeDesc *list, int val);
 /* get the field's value from the object */
 Object *Object_Get_Field(Object *ob, Klass *base, char *name);
 /* set the field's value to the object */

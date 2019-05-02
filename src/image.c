@@ -26,7 +26,7 @@
 #include "mem.h"
 #include "log.h"
 
-LOGGER(1)
+LOGGER(0)
 
 static int version_major = 0; // 1 byte
 static int version_minor = 1; // 1 byte
@@ -582,8 +582,7 @@ static int codeitem_set(AtomTable *table, uint8 *codes, int size)
 char *mapitem_string[] = {
   "map", "string", "type", "typelist", "proto", "const", "locvar",
   "variable", "function", "code",
-  "class", "field", "method",
-  "trait", "nfunc", "imeth",
+  "class", "field", "method", "trait", "nfunc", "imeth", "enum", "eval"
 };
 
 int mapitem_length(void *o)
@@ -1278,7 +1277,7 @@ int evalitem_length(void *o)
 
 void evalitem_write(FILE *fp, void *o)
 {
-  fwrite(o, sizeof(IMethItem), 1, fp);
+  fwrite(o, sizeof(EValItem), 1, fp);
 }
 
 void evalitem_show(AtomTable *table, void *o)
@@ -2182,6 +2181,30 @@ KImage *KImage_Read_File(char *path, int unload)
         }
       }
       break;
+    case ITEM_ENUM:
+      if (LOAD(ITEM_ENUM)) {
+        EnumItem *item;
+        EnumItem items[map->size];
+        sz = fread(items, sizeof(EnumItem), map->size, fp);
+        assert(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = Item_Copy(sizeof(EnumItem), items + i);
+          AtomTable_Append(image->table, ITEM_ENUM, item, 0);
+        }
+      }
+      break;
+    case ITEM_EVAL:
+      if (LOAD(ITEM_EVAL)) {
+        EValItem *item;
+        EValItem items[map->size];
+        sz = fread(items, sizeof(EValItem), map->size, fp);
+        assert(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = Item_Copy(sizeof(EValItem), items + i);
+          AtomTable_Append(image->table, ITEM_EVAL, item, 0);
+        }
+      }
+      break;
     default:
       assert(0);
       break;
@@ -2233,7 +2256,7 @@ void AtomTable_Show(AtomTable *table)
 
 void KImage_Show(KImage *image)
 {
-  if (!image)
+  if (image == NULL)
     return;
   Log_Puts("\n------show image--------------\n");
   ImageHeader *h = &image->header;

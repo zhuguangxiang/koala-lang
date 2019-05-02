@@ -223,6 +223,20 @@ int Pkg_Add_Class(Object *ob, Klass *klazz)
   return 0;
 }
 
+int Pkg_Add_Enum(Object *ob, Klass *klazz)
+{
+  OB_ASSERT_KLASS(ob, Pkg_Klass);
+  PkgObject *pkg = (PkgObject *)ob;
+  MNode *m = MNode_New(ENUM_KIND, klazz->name, NULL);
+  if (m != NULL) {
+    HashTable_Insert(&pkg->mtbl, &m->hnode);
+    m->klazz = OB_INCREF(klazz);
+    klazz->owner = (Object *)pkg;
+    klazz->consts = OB_INCREF(pkg->consts);
+  }
+  return 0;
+}
+
 void Pkg_Set_Value(Object *ob, char *name, Object *value)
 {
   OB_ASSERT_KLASS(ob, Pkg_Klass);
@@ -416,6 +430,11 @@ static inline void load_funcs(Object *ob, KImage *image)
   KImage_Get_Funcs(image, __getfunc, &arg);
 }
 
+static inline void load_enums(Object *ob, KImage *image)
+{
+  KImage_Get_Enums();
+}
+
 Object *Pkg_From_Image(KImage *image)
 {
   char *name  = image->header.pkgname;
@@ -424,8 +443,12 @@ Object *Pkg_From_Image(KImage *image)
   load_consts(pkg, image);
   load_vars(pkg, image);
   load_funcs(pkg, image);
-  //load_traits(pkg, image->table);
-  //load_classes(pkg, image->table);
+  load_classes(pkg, image->table);
+  load_traits(pkg, image->table);
+  load_enums(pkg, image->table);
+  load_fields(pkg, image->table);
+  load_methods(pkg, image->table);
+  load_imehods(pkg, image->table);
   Log_Debug("\x1b[34m------END OF LOAD '%s' PACKAGE-----------\x1b[0m", name);
   return pkg;
 }

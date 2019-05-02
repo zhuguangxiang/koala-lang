@@ -233,6 +233,7 @@ static void write_image(Package *pkg)
   else
     path = AtomString_Format("#.klc", path);
   Log_Debug("write image to file '%s'", path);
+  KImage_Show(image);
   KImage_Write_File(image, path);
   KImage_Free(image);
 }

@@ -339,8 +339,8 @@ static void eval_frame(CallFrame *cf)
       break;
     case NEW_ENUM:
       index = fetch_2bytes(cf, ci);
-      argc = fetch_byte(cf, ci);
       name = index_const(index, consts);
+      argc = fetch_byte(cf, ci);
       ob = POP();
       if (argc == 1) {
         args = POP();

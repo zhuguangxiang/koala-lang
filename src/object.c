@@ -340,6 +340,17 @@ int Klass_Add_Proto(Klass *klazz, char *name, TypeDesc *proto)
   return -1;
 }
 
+int Klass_Add_EVal(Klass *klazz, char *name, TypeDesc *list, int val)
+{
+  MNode *m = MNode_New(EVAL_KIND, name, list);
+  if (m != NULL) {
+    HashTable_Insert(&klazz->mtbl, &m->hnode);
+    m->eval = val;
+    return 0;
+  }
+  return -1;
+}
+
 static MNode *__get_m(Object *ob, char *name, Klass **base, int *lroindex)
 {
   Klass *klazz = *base;
