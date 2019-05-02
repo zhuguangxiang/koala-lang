@@ -161,7 +161,7 @@ extern "C" {
 #define NEW         80
 #define NEW_ARRAY   81
 #define NEW_MAP     82
-#define NEW_ENUM    83
+#define NEW_EVAL    83
 #define NEW_CLOSURE 84
 #define MAP_LOAD    85
 #define MAP_STORE   86

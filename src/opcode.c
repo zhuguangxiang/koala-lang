@@ -93,7 +93,7 @@ static struct opcode {
   OPCODE(NEW,         0),
   OPCODE(NEW_ARRAY,   0),
   OPCODE(NEW_MAP,     0),
-  OPCODE(NEW_ENUM,    3),
+  OPCODE(NEW_EVAL,    3),
   OPCODE(NEW_CLOSURE, 0),
   OPCODE(MAP_LOAD,    0),
   OPCODE(MAP_STORE,   0),

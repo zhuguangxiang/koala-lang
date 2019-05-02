@@ -43,7 +43,7 @@ typedef struct enumobject {
   };
 } EnumObject;
 
-Object *Enum_New(Object *ob, Object *name, Object *args);
+Object *EVal_New(Object *ob, Object *name, Object *args);
 
 #ifdef __cplusplus
 }

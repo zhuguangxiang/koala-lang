@@ -22,10 +22,13 @@
 
 #include "enumobject.h"
 #include "pkgobject.h"
+#include "stringobject.h"
 
-Object *Enum_New(Object *ob, Object *name, Object *args)
+Object *EVal_New(Object *ob, Object *name, Object *args)
 {
-  OB_ASSERT_KLASS(ob, Pkg_Klass);
-  PkgObject *pkg = (PkgObject *)ob;
+  OB_ASSERT_KLASS(ob, Class_Klass);
+  Klass *klazz = (Klass *)ob;
+  MNode *m = MNode_Find(&klazz->mtbl, String_Raw(name));
+  assert(m->kind == EVAL_KIND);
   return NULL;
 }

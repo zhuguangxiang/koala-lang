@@ -141,10 +141,10 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
   Inst_Append_NoArg(block, op); \
 })
 
-#define CODE_NEW_ENUM(block, name, _argc) \
+#define CODE_NEW_EVAL(block, name, _argc) \
 ({ \
   ConstValue val = {.kind = BASE_STRING, .str = name}; \
-  Inst *i = Inst_Append(block, NEW_ENUM, &val); \
+  Inst *i = Inst_Append(block, NEW_EVAL, &val); \
   i->argc = _argc; \
 })
 

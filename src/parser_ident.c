@@ -196,7 +196,7 @@ static void code_up_func(ParserState *ps, void *arg)
     if (ctx == EXPR_LOAD) {
       /* load enum value */
       Log_Debug("new eval '%s' with %d args", sym->name, argc);
-      CODE_NEW_ENUM(u->block, sym->name, argc);
+      CODE_NEW_EVAL(u->block, sym->name, argc);
     } else {
       assert(ctx == EXPR_STORE);
       Syntax_Error(&exp->pos, "enum value '%s' is readonly.", exp->name);

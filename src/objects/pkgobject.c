@@ -262,10 +262,13 @@ Object *Pkg_Get_Value(Object *ob, char *name)
               name, m->offset, pkg->name, index);
     Object *tuple = Vector_Get(&variables, index);
     return Tuple_Get(tuple, m->offset);
-  } else {
-    assert(m->kind == CONST_KIND);
+  } else if (m->kind == CONST_KIND) {
     Log_Debug("get_const: '%s' in '%s'", name, pkg->name);
     return m->value;
+  } else {
+    assert(m->kind == ENUM_KIND);
+    Log_Debug("get_enum: '%s' in '%s'", name, pkg->name);
+    return (Object *)m->klazz;
   }
 }
 
@@ -430,9 +433,16 @@ static inline void load_funcs(Object *ob, KImage *image)
   KImage_Get_Funcs(image, __getfunc, &arg);
 }
 
+static void __getenum(char *name, int index, void *arg)
+{
+  Object *pkg = arg;
+  Klass *klazz = Enum_New(name);
+  Pkg_Add_Enum(pkg, klazz);
+}
+
 static inline void load_enums(Object *ob, KImage *image)
 {
-  KImage_Get_Enums();
+  KImage_Get_Enums(image, __getenum, ob);
 }
 
 Object *Pkg_From_Image(KImage *image)
@@ -443,12 +453,12 @@ Object *Pkg_From_Image(KImage *image)
   load_consts(pkg, image);
   load_vars(pkg, image);
   load_funcs(pkg, image);
-  load_classes(pkg, image->table);
-  load_traits(pkg, image->table);
-  load_enums(pkg, image->table);
-  load_fields(pkg, image->table);
-  load_methods(pkg, image->table);
-  load_imehods(pkg, image->table);
+  //load_classes(pkg, image->table);
+  //load_traits(pkg, image->table);
+  load_enums(pkg, image);
+  //load_fields(pkg, image->table);
+  //load_methods(pkg, image->table);
+  //load_imehods(pkg, image->table);
   Log_Debug("\x1b[34m------END OF LOAD '%s' PACKAGE-----------\x1b[0m", name);
   return pkg;
 }

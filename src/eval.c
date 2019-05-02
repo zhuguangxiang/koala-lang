@@ -337,7 +337,7 @@ static void eval_frame(CallFrame *cf)
       pop_frame(cf);
       loopflag = 0;
       break;
-    case NEW_ENUM:
+    case NEW_EVAL:
       index = fetch_2bytes(cf, ci);
       name = index_const(index, consts);
       argc = fetch_byte(cf, ci);
@@ -355,7 +355,7 @@ static void eval_frame(CallFrame *cf)
         assert(argc == 0);
         args = NULL;
       }
-      ret = Enum_New(ob, name, args);
+      ret = EVal_New(ob, name, args);
       OB_DECREF(ob);
       OB_DECREF(args);
       PUSH(OB_INCREF(ret));

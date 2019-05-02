@@ -250,6 +250,8 @@ void KImage_Get_LocVars(KImage *image, getlocvarfn func, void *arg);
 typedef void (*getfuncfn)(char *, TypeDesc *, int, int, uint8 *, int, void *);
 void KImage_Get_Funcs(KImage *image, getfuncfn func, void *arg);
 void KImage_Get_NFuncs(KImage *image, getfuncfn func, void *arg);
+typedef void (*getenumfn)(char *, int, void *);
+void KImage_Get_Enums(KImage *image, getenumfn func, void *arg);
 void KImage_Finish(KImage *image);
 void KImage_Write_File(KImage *image, char *path);
 /* flags is ITEM_XXX bits, marked not load */

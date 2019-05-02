@@ -192,7 +192,7 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
     Buffer_Write_4Bytes(buf, index);
     Buffer_Write_2Bytes(buf, i->argc);
     break;
-  case NEW_ENUM:
+  case NEW_EVAL:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_2Bytes(buf, index);
     Buffer_Write_Byte(buf, i->argc);

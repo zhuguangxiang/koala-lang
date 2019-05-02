@@ -1847,6 +1847,20 @@ void KImage_Get_NFuncs(KImage *image, getfuncfn func, void *arg)
   }
 }
 
+void KImage_Get_Enums(KImage *image, getenumfn func, void *arg)
+{
+  EnumItem *item;
+  TypeItem *type;
+  StringItem *str;
+  int size = AtomTable_Size(image->table, ITEM_ENUM);
+  for (int i = 0; i < size; i++) {
+    item = AtomTable_Get(image->table, ITEM_ENUM, i);
+    type = AtomTable_Get(image->table, ITEM_TYPE, item->classindex);
+    str = AtomTable_Get(image->table, ITEM_STRING, type->typeindex);
+    func(str->data, i, arg);
+  }
+}
+
 void KImage_Finish(KImage *image)
 {
   int size, length = 0, offset;

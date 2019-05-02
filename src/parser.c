@@ -438,7 +438,7 @@ static void code_attribute_expr(ParserState *ps, Expr *exp)
     int argc = 0;
     if (right != NULL && right->kind == CALL_KIND)
       argc = Vector_Size(((CallExpr *)right)->args);
-    CODE_NEW_ENUM(u->block, sym->name, argc);
+    CODE_NEW_EVAL(u->block, sym->name, argc);
     break;
   }
   case SYM_FUNC:
