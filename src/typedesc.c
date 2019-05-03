@@ -248,6 +248,17 @@ static void __varg_fini(TypeDesc *desc)
   TYPE_DECREF(varg->base);
 }
 
+static void __tuple_tostring(TypeDesc *desc, StringBuf *buf)
+{
+  TupleDesc *tuple = (TupleDesc *)desc;
+}
+
+static void __tuple_fini(TypeDesc *desc)
+{
+  TupleDesc *tuple = (TupleDesc *)desc;
+  free_typelist(tuple->bases);
+}
+
 struct typedesc_ops_s {
   void (*tostring)(TypeDesc *, StringBuf *);
   void (*fini)(TypeDesc *);
@@ -261,6 +272,7 @@ struct typedesc_ops_s {
   {__array_tostring, __array_fini, NULL},
   {__map_tostring,   __map_fini, NULL},
   {__varg_tostring,  __varg_fini, NULL},
+  {__tuple_tostring, __tuple_fini, NULL},
 };
 
 int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2)

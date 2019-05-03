@@ -5,14 +5,15 @@ import "io"
 
 enum Result {
   Ok,
-  Err(int, string),
+  Err(string, string),
 
   func ok_then() Result {
-    Err(2, "connection timeout")
+    //Err(2, "connection timeout")
+		Ok
   }
 
   func failed() Result {
-    Result.Err(1, "error")
+    //Result.Err(1, "error")
     Ok
   }
 
@@ -33,8 +34,9 @@ enum Result {
 // }
 
 func get_result() Result {
-  var err = Result.Err(10, "bad file descriptor")
-  return err
+  //var err = Result.Err(10, "bad file descriptor")
+  //return err
+	Result.Ok
   //err.ok_then()
   //Result2.Ok(100)
   //var res Result3<int, string> = Result3.Ok3(100)

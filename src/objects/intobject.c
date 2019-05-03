@@ -25,6 +25,9 @@
 #include "hashfunc.h"
 #include "mem.h"
 #include "cache.h"
+#include "log.h"
+
+LOGGER(0)
 
 static Cache Int_Cache;
 
@@ -39,6 +42,8 @@ Object *Integer_New(int64 value)
 void Integer_Free(Object *ob)
 {
   OB_ASSERT_KLASS(ob, Int_Klass);
+  IntObject *iob = (IntObject *)ob;
+  Log_Debug("free integer: %lld", iob->value);
   Cache_Restore(&Int_Cache, ob);
 }
 

@@ -5,7 +5,7 @@ import "io"
 
 const NAME = "WangWu"
 
-var size = 120
+//var size = 120
 
 func sayHello(s string) {
   io.puts(s)
@@ -13,10 +13,13 @@ func sayHello(s string) {
   io.puts(NAME)
 }
 
+/*
 func add(a int, b int) int {
   a + b
 }
+*/
 
+/*
 class Person {
   name string
   age int
@@ -30,3 +33,4 @@ class Person {
     size = 100
   }
 }
+*/

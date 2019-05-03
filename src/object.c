@@ -107,7 +107,16 @@ static void free_m_func(HashNode *hnode, void *arg)
     assert(0);
     break;
   case CLASS_KIND:
+    Log_Debug("class    \x1b[34m%-12s\x1b[0m decreased", m->name);
     OB_DECREF(m->klazz);
+    break;
+  case ENUM_KIND:
+    Log_Debug("enum    \x1b[34m%-12s\x1b[0m decreased", m->name);
+    OB_DECREF(m->klazz);
+    break;
+  case EVAL_KIND:
+    Log_Debug("eval    \x1b[34m%-12s\x1b[0m decreased", m->name);
+    TYPE_DECREF(m->desc);
     break;
   default:
     assert(0);
@@ -209,14 +218,13 @@ void Fini_Klass(Klass *klazz)
   }
   Vector_Fini_Self(&klazz->lro);
   Fini_MTable(&klazz->mtbl);
-  OB_DECREF(klazz->consts);
+  //OB_DECREF(klazz->consts);
   Log_Debug("klass   \x1b[32m%-12s\x1b[0m finalized", klazz->name);
 }
 
 static void klass_free(Object *ob)
 {
   Klass *klazz = (Klass *)ob;
-  Log_Debug("------------------------------");
   Fini_Klass(klazz);
   Mfree(klazz);
 }
@@ -321,9 +329,9 @@ int Klass_Add_Method(Klass *klazz, Object *code)
   MNode *m = MNode_New(FUNC_KIND, co->name, co->proto);
   if (m != NULL) {
     HashTable_Insert(&klazz->mtbl, &m->hnode);
-    m->code = code;
+    m->code = OB_INCREF(code);
     if (IsKCode(code)) {
-      co->codeinfo->consts = OB_INCREF(klazz->consts);
+      co->codeinfo->consts = klazz->consts;
     }
     return 0;
   }

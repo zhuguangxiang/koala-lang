@@ -24,11 +24,16 @@
 #include "pkgobject.h"
 #include "stringobject.h"
 
-Object *EVal_New(Object *ob, Object *name, Object *args)
+Object *EVal_New(Object *ob, Object *name, Object *arg)
 {
   OB_ASSERT_KLASS(ob, Class_Klass);
   Klass *klazz = (Klass *)ob;
+  assert(klazz->flags == OB_FLAGS_ENUM);
   MNode *m = MNode_Find(&klazz->mtbl, String_Raw(name));
   assert(m->kind == EVAL_KIND);
-  return NULL;
+  EValObject *evob = Malloc(sizeof(EValObject));
+  Init_Object_Head(evob, klazz);
+  evob->node = m;
+  evob->ob = arg;
+  return (Object *)evob;
 }

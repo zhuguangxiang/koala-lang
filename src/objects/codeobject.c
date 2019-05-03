@@ -74,7 +74,7 @@ void Code_Free(Object *ob)
   TYPE_DECREF(code->proto);
   if (code->kind == KCODE_KIND) {
     CodeInfo *ci = code->codeinfo;
-    OB_DECREF(ci->consts);
+    //OB_DECREF(ci->consts);
     MNode *m;
     Vector_ForEach(m, &ci->locvec) {
       MNode_Free(m);

@@ -1861,6 +1861,49 @@ void KImage_Get_Enums(KImage *image, getenumfn func, void *arg)
   }
 }
 
+void KImage_Get_EVals(KImage *image, getevalfn func, void *arg)
+{
+  EValItem *item;
+  TypeItem *type;
+  TypeListItem *typelist;
+  StringItem *estr;
+  StringItem *str;
+  TypeDesc *desc;
+  int size = AtomTable_Size(image->table, ITEM_EVAL);
+  for (int i = 0; i < size; i++) {
+    item = AtomTable_Get(image->table, ITEM_EVAL, i);
+    type = AtomTable_Get(image->table, ITEM_TYPE, item->classindex);
+    estr = AtomTable_Get(image->table, ITEM_STRING, type->typeindex);
+    str = AtomTable_Get(image->table, ITEM_STRING, item->nameindex);
+    typelist = AtomTable_Get(image->table, ITEM_TYPELIST, item->index);
+    desc = TypeDesc_New_Tuple(TypeListItem_To_Vector(typelist, image->table));
+    func(str->data, desc, item->value, estr->data, arg);
+  }
+}
+
+void KImage_Get_Methods(KImage *image, getmethodfn func, void *arg)
+{
+  MethodItem *item;
+  TypeItem *type;
+  StringItem *classstr;
+  StringItem *str;
+  ProtoItem *proto;
+  TypeDesc *desc;
+  CodeItem *code;
+  int size = AtomTable_Size(image->table, ITEM_METHOD);
+  for (int i = 0; i < size; i++) {
+    item = AtomTable_Get(image->table, ITEM_METHOD, i);
+    type = AtomTable_Get(image->table, ITEM_TYPE, item->classindex);
+    classstr = AtomTable_Get(image->table, ITEM_STRING, type->typeindex);
+    str = AtomTable_Get(image->table, ITEM_STRING, item->nameindex);
+    code = AtomTable_Get(image->table, ITEM_CODE, item->codeindex);
+    proto = AtomTable_Get(image->table, ITEM_PROTO, item->protoindex);
+    desc = ProtoItem_To_TypeDesc(proto, image->table);
+    func(str->data, desc, code->codes, code->size, classstr->data, arg);
+    TYPE_DECREF(desc);
+  }
+}
+
 void KImage_Finish(KImage *image)
 {
   int size, length = 0, offset;

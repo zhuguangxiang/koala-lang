@@ -202,7 +202,7 @@ int Pkg_Add_Func(Object *ob, Object *code)
     co->owner = (Object *)pkg;
     m->code = OB_INCREF(code);
     if (IsKCode(code)) {
-      co->codeinfo->consts = OB_INCREF(pkg->consts);
+      co->codeinfo->consts = pkg->consts;
     }
     return 0;
   }
@@ -218,7 +218,7 @@ int Pkg_Add_Class(Object *ob, Klass *klazz)
     HashTable_Insert(&pkg->mtbl, &m->hnode);
     m->klazz = OB_INCREF(klazz);
     klazz->owner = (Object *)pkg;
-    klazz->consts = OB_INCREF(pkg->consts);
+    klazz->consts = pkg->consts;
   }
   return 0;
 }
@@ -232,7 +232,7 @@ int Pkg_Add_Enum(Object *ob, Klass *klazz)
     HashTable_Insert(&pkg->mtbl, &m->hnode);
     m->klazz = OB_INCREF(klazz);
     klazz->owner = (Object *)pkg;
-    klazz->consts = OB_INCREF(pkg->consts);
+    klazz->consts = pkg->consts;
   }
   return 0;
 }
@@ -287,12 +287,32 @@ Object *Pkg_Get_Func(Object *ob, char *name)
   }
 }
 
+Klass *Pkg_Get_Klass(Object *ob, char *name)
+{
+  OB_ASSERT_KLASS(ob, Pkg_Klass);
+  PkgObject *pkg = (PkgObject *)ob;
+  MNode *m = MNode_Find(&pkg->mtbl, name);
+  if (m == NULL)
+    return NULL;
+  return m->klazz;
+}
+
 Klass *Pkg_Get_Class(Object *ob, char *name)
 {
   OB_ASSERT_KLASS(ob, Pkg_Klass);
   PkgObject *pkg = (PkgObject *)ob;
   MNode *m = MNode_Find(&pkg->mtbl, name);
   if (m == NULL || m->kind != CLASS_KIND)
+    return NULL;
+  return m->klazz;
+}
+
+Klass *Pkg_Get_Enum(Object *ob, char *name)
+{
+  OB_ASSERT_KLASS(ob, Pkg_Klass);
+  PkgObject *pkg = (PkgObject *)ob;
+  MNode *m = MNode_Find(&pkg->mtbl, name);
+  if (m == NULL || m->kind != ENUM_KIND)
     return NULL;
   return m->klazz;
 }
@@ -438,11 +458,42 @@ static void __getenum(char *name, int index, void *arg)
   Object *pkg = arg;
   Klass *klazz = Enum_New(name);
   Pkg_Add_Enum(pkg, klazz);
+  OB_DECREF(klazz);
 }
 
 static inline void load_enums(Object *ob, KImage *image)
 {
   KImage_Get_Enums(image, __getenum, ob);
+}
+
+static void __get_eval(char *name, TypeDesc *desc, int val,
+                       char *ename, void *arg)
+{
+  Log_Debug("load eval: %s in %s", name, ename);
+  Klass *klazz = Pkg_Get_Enum(arg, ename);
+  assert(klazz->flags == OB_FLAGS_ENUM);
+  Klass_Add_EVal(klazz, name, desc, val);
+  TYPE_DECREF(desc);
+}
+
+static inline void load_evals(Object *ob, KImage *image)
+{
+  KImage_Get_EVals(image, __get_eval, ob);
+}
+
+static void __get_method(char *name, TypeDesc *desc, uint8 *codes, int size,
+                         char *classname, void *arg)
+{
+  Log_Debug("load method: %s in %s", name, classname);
+  Klass *klazz = Pkg_Get_Klass(arg, classname);
+  Object *co = Code_New(name, desc, codes, size);
+  Klass_Add_Method(klazz, co);
+  OB_DECREF(co);
+}
+
+static inline void load_methods(Object *ob, KImage *image)
+{
+  KImage_Get_Methods(image, __get_method, ob);
 }
 
 Object *Pkg_From_Image(KImage *image)
@@ -456,8 +507,9 @@ Object *Pkg_From_Image(KImage *image)
   //load_classes(pkg, image->table);
   //load_traits(pkg, image->table);
   load_enums(pkg, image);
+  load_evals(pkg, image);
   //load_fields(pkg, image->table);
-  //load_methods(pkg, image->table);
+  load_methods(pkg, image);
   //load_imehods(pkg, image->table);
   Log_Debug("\x1b[34m------END OF LOAD '%s' PACKAGE-----------\x1b[0m", name);
   return pkg;

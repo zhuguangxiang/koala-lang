@@ -64,6 +64,7 @@ void Pkg_Set_Value(Object *ob, char *name, Object *value);
 Object *Pkg_Get_Value(Object *ob, char *name);
 Object *Pkg_Get_Func(Object *ob, char *name);
 Klass *Pkg_Get_Class(Object *ob, char *name);
+Klass *Pkg_Get_Enum(Object *ob, char *name);
 int Pkg_Add_CFuns(Object *ob, CFuncDef *funcs);
 Object *Pkg_From_Image(KImage *image);
 

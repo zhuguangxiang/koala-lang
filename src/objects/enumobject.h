@@ -29,21 +29,13 @@
 extern "C" {
 #endif
 
-typedef enum enum_kind {
-  ENUM_NONE = 1, ENUM_INT, ENUM_ASSOCIATED,
-} EnumKind;
-
-typedef struct enumobject {
+typedef struct evalobject {
   OBJECT_HEAD
-  Object *name;
-  EnumKind kind;
-  union {
-    int64 value;
-    Object *tuple;
-  };
-} EnumObject;
+  MNode *node;
+  Object *ob;
+} EValObject;
 
-Object *EVal_New(Object *ob, Object *name, Object *args);
+Object *EVal_New(Object *ob, Object *name, Object *arg);
 
 #ifdef __cplusplus
 }
