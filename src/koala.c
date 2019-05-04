@@ -118,11 +118,13 @@ void Koala_RunTask(Object *code, Object *ob, Object *args)
 static void Init_Lang_Package(void)
 {
   Init_Package_Klass();
+
+  Init_Code_Klass();
   Init_Class_Klass();
+
   Init_String_Klass();
   Init_Integer_Klass();
   Init_Tuple_Klass();
-  Init_Code_Klass();
 
   Object *pkg = New_Package(KOALA_PKG_LANG);
   Pkg_Add_Class(pkg, &Pkg_Klass);
@@ -139,11 +141,13 @@ static void Init_Lang_Package(void)
 static void Fini_Lang_Package(void)
 {
   Fini_Package_Klass();
-  Fini_Code_Klass();
+
   Fini_Tuple_Klass();
   Fini_Integer_Klass();
   Fini_String_Klass();
+
   Fini_Class_Klass();
+  Fini_Code_Klass();
 }
 
 void Koala_Initialize(void)
@@ -158,9 +162,9 @@ void Koala_Initialize(void)
 
 void Koala_Finalize(void)
 {
+  Fini_IO_Package();
   Fini_Lang_Package();
   //Fini_Format_Package();
-  Fini_IO_Package();
   Fini_Env();
   Fini_TypeDesc();
   AtomString_Fini();

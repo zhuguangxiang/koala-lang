@@ -58,5 +58,5 @@ add_executable(kl main.c)
 target_link_libraries(kl koala)
 set_target_properties(kl PROPERTIES OUTPUT_NAME koala)
 
-install (TARGETS klc DESTINATION bin)
-install (TARGETS kl DESTINATION bin)
+install (TARGETS klc DESTINATION koala/bin)
+install (TARGETS kl DESTINATION koala/bin)

@@ -1,0 +1,18 @@
+
+package hello
+
+/*
+class Person {
+  name string
+  age int
+
+  func greeting(msg string) {
+    io.puts(name)
+    io.puts(msg)
+    name = "ZhanSan"
+    name = NAME
+    age = size
+    size = 100
+  }
+}
+*/

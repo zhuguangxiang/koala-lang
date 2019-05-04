@@ -26,7 +26,7 @@
 #include "mem.h"
 #include "log.h"
 
-LOGGER(0)
+LOGGER(1)
 
 static int version_major = 0; // 1 byte
 static int version_minor = 1; // 1 byte

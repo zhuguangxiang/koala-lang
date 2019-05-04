@@ -60,6 +60,11 @@
 		"files.insertFinalNewline": true,
 		"files.trimFinalNewlines": true
 	},
+	"[koala]": {
+		"files.trimTrailingWhitespace": true,
+		"files.insertFinalNewline": true,
+		"files.trimFinalNewlines": true
+	},
 	"[yacc]": {
 			"files.trimTrailingWhitespace": true,
 			"files.insertFinalNewline": true,

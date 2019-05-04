@@ -116,7 +116,6 @@ static void free_m_func(HashNode *hnode, void *arg)
     break;
   case EVAL_KIND:
     Log_Debug("eval    \x1b[34m%-12s\x1b[0m decreased", m->name);
-    TYPE_DECREF(m->desc);
     break;
   default:
     assert(0);
@@ -459,6 +458,7 @@ int Klass_Add_CMethods(Klass *klazz, CFuncDef *funcs)
     code = Code_From_CFunc(f);
     res = Klass_Add_Method(klazz, code);
     assert(!res);
+    OB_DECREF(code);
     ++f;
   }
   return 0;

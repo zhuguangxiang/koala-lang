@@ -138,6 +138,14 @@ static void __base_fini(TypeDesc *desc)
   assert(desc->refcnt > 0);
 }
 
+static int __base_equal(TypeDesc *desc1, TypeDesc *desc2)
+{
+  if (desc1 == desc2)
+    return 1;
+  else
+    return 0;
+}
+
 static void __klass_tostring(TypeDesc *desc, StringBuf *buf)
 {
   KlassDesc *klass = (KlassDesc *)desc;
@@ -155,7 +163,7 @@ static void __klass_fini(TypeDesc *desc)
 
 static int __klass_equal(TypeDesc *desc1, TypeDesc *desc2)
 {
-
+  return 1;
 }
 
 void Proto_Print(ProtoDesc *proto, StringBuf *buf)
@@ -178,11 +186,6 @@ static void __proto_tostring(TypeDesc *desc, StringBuf *buf)
   ProtoDesc *proto = (ProtoDesc *)desc;
   __StringBuf_Append_CStr(buf, "func");
   Proto_Print(proto, buf);
-}
-
-static int __base_equal(TypeDesc *desc1, TypeDesc *desc2)
-{
-
 }
 
 static void __item_free(void *item, void *arg)
@@ -266,12 +269,12 @@ struct typedesc_ops_s {
 } typedesc_ops[] = {
   /* 0 is not used */
   {NULL, NULL},
-  {__base_tostring,  __base_fini, NULL},
+  {__base_tostring,  __base_fini,  __base_equal},
   {__klass_tostring, __klass_fini, NULL},
   {__proto_tostring, __proto_fini, NULL},
   {__array_tostring, __array_fini, NULL},
-  {__map_tostring,   __map_fini, NULL},
-  {__varg_tostring,  __varg_fini, NULL},
+  {__map_tostring,   __map_fini,   NULL},
+  {__varg_tostring,  __varg_fini,  NULL},
   {__tuple_tostring, __tuple_fini, NULL},
 };
 
