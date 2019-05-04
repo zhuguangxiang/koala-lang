@@ -203,12 +203,26 @@ static void code_up_func(ParserState *ps, void *arg)
     }
   } else if (sym->kind == SYM_ENUM) {
     Log_Debug("id '%s' is enum", sym->name);
-    Log_Debug("load '%s' enum", sym->name);
     if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
       CODE_LOAD_PKG(u->block, ".");
     else
       CODE_LOAD(u->block, 0);
     CODE_GET_ATTR(u->block, sym->name);
+  } else if (sym->kind == SYM_CLASS) {
+    Log_Debug("id '%s' is class", sym->name);
+    assert(up->scope == SCOPE_MODULE);
+    if (uu->scope == SCOPE_CLASS)
+      CODE_LOAD_PKG(u->block, ".");
+    else
+      CODE_LOAD(u->block, 0);
+
+    assert(ctx == EXPR_LOAD);
+    CODE_NEW_OBJECT(u->block, sym->name);
+
+    int argc = 0;
+    if (Expr_Is_Call(right))
+      argc = Vector_Size(((CallExpr *)right)->args);
+    CODE_CALL(u->block, "__init__", argc);
   } else if (sym->kind == SYM_FUNC) {
     if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
       CODE_LOAD_PKG(u->block, ".");

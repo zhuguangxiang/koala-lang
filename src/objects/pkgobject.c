@@ -317,6 +317,14 @@ Klass *Pkg_Get_Enum(Object *ob, char *name)
   return m->klazz;
 }
 
+Object *New_Object(Object *pkg, Object *name)
+{
+  char *s = String_Raw(name);
+  Log_Debug("new object:%s", s);
+  Klass *klazz = Pkg_Get_Klass(pkg, s);
+  return klazz->ob_alloc(klazz);
+}
+
 int Pkg_Add_CFuns(Object *ob, CFuncDef *funcs)
 {
   OB_ASSERT_KLASS(ob, Pkg_Klass);
@@ -432,17 +440,15 @@ static void __getlocvar(char *name, TypeDesc *desc,
   }
 }
 
-static void __getfunc(char *name, TypeDesc *desc, int index, int type,
+static void __getfunc(char *name, TypeDesc *desc, int locals, int type,
                       uint8 *codes, int size,void *arg)
 {
   if (codes != NULL) {
     Log_Debug("load function: %s", name);
     struct funcinfo *info = arg;
-    Object *co = Code_New(name, desc, codes, size);
+    Object *co = Code_New(name, desc, locals, codes, size);
     Pkg_Add_Func(info->pkg, co);
-    info->code = co;
-    info->index = index;
-    KImage_Get_LocVars(info->image, __getlocvar, arg);
+    //KImage_Get_LocVars(info->image, __getlocvar, arg);
     OB_DECREF(co);
   }
 }
@@ -453,9 +459,24 @@ static inline void load_funcs(Object *ob, KImage *image)
   KImage_Get_Funcs(image, __getfunc, &arg);
 }
 
-static void __getenum(char *name, int index, void *arg)
+static void __getclass(char *name, void *arg)
 {
   Object *pkg = arg;
+  Log_Debug("load class: %s", name);
+  Klass *klazz = Class_New(name, NULL, NULL);
+  Pkg_Add_Class(pkg, klazz);
+  OB_DECREF(klazz);
+}
+
+static inline void load_classes(Object *ob, KImage *image)
+{
+  KImage_Get_Classes(image, __getclass, ob);
+}
+
+static void __getenum(char *name, void *arg)
+{
+  Object *pkg = arg;
+  Log_Debug("load enum: %s", name);
   Klass *klazz = Enum_New(name);
   Pkg_Add_Enum(pkg, klazz);
   OB_DECREF(klazz);
@@ -473,7 +494,6 @@ static void __get_eval(char *name, TypeDesc *desc, int val,
   Klass *klazz = Pkg_Get_Enum(arg, ename);
   assert(klazz->flags == OB_FLAGS_ENUM);
   Klass_Add_EVal(klazz, name, desc, val);
-  TYPE_DECREF(desc);
 }
 
 static inline void load_evals(Object *ob, KImage *image)
@@ -481,12 +501,24 @@ static inline void load_evals(Object *ob, KImage *image)
   KImage_Get_EVals(image, __get_eval, ob);
 }
 
-static void __get_method(char *name, TypeDesc *desc, uint8 *codes, int size,
-                         char *classname, void *arg)
+static void __getfield(char *name, TypeDesc *desc, char *classname, void *arg)
+{
+  Log_Debug("load feild: %s in %s", name, classname);
+  Klass *klazz = Pkg_Get_Klass(arg, classname);
+  Klass_Add_Field(klazz, name, desc);
+}
+
+static inline void load_fields(Object *ob, KImage *image)
+{
+  KImage_Get_Fields(image, __getfield, ob);
+}
+
+static void __get_method(char *name, TypeDesc *desc, int locals,
+                         uint8 *codes, int size, char *classname, void *arg)
 {
   Log_Debug("load method: %s in %s", name, classname);
   Klass *klazz = Pkg_Get_Klass(arg, classname);
-  Object *co = Code_New(name, desc, codes, size);
+  Object *co = Code_New(name, desc, locals, codes, size);
   Klass_Add_Method(klazz, co);
   OB_DECREF(co);
 }
@@ -504,11 +536,11 @@ Object *Pkg_From_Image(KImage *image)
   load_consts(pkg, image);
   load_vars(pkg, image);
   load_funcs(pkg, image);
-  //load_classes(pkg, image->table);
+  load_classes(pkg, image);
   //load_traits(pkg, image->table);
   load_enums(pkg, image);
   load_evals(pkg, image);
-  //load_fields(pkg, image->table);
+  load_fields(pkg, image);
   load_methods(pkg, image);
   //load_imehods(pkg, image->table);
   Log_Debug("\x1b[34m------END OF LOAD '%s' PACKAGE-----------\x1b[0m", name);

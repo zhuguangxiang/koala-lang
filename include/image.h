@@ -131,6 +131,7 @@ typedef struct func_item {
   int32 nameindex;  /* ->StringItem */
   int32 protoindex; /* ->ProtoItem */
   int32 codeindex;  /* ->CodeItem */
+  int32 nrlocals;   /* number of locals */
 } FuncItem;
 
 typedef struct code_item {
@@ -154,6 +155,7 @@ typedef struct method_item {
   int32 nameindex;  /* ->StringItem */
   int32 protoindex; /* ->ProtoItem */
   int32 codeindex;  /* ->CodeItem */
+  int32 nrlocals;   /* number of locals */
 } MethodItem;
 
 typedef struct trait_item {
@@ -220,14 +222,14 @@ void KImage_Add_Var(KImage *image, char *name, TypeDesc *desc,
 void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
                        int pos, int index);
 int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto,
-                    uint8 *codes, int size);
+                    uint8 *codes, int size, int locals);
 void KImage_Add_Class(KImage *image, char *name, Vector *supers);
 void KImage_Add_Trait(KImage *image, char *name, Vector *traits);
 void KImage_Add_Enum(KImage *image, char *name);
 
 void KImage_Add_Field(KImage *image, char *klazz, char *name, TypeDesc *desc);
 int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
-                      uint8 *codes, int size);
+                      uint8 *codes, int size, int locals);
 void KImage_Add_NFunc(KImage *image, char *klazz, char *name, TypeDesc *proto);
 void KImage_Add_IMeth(KImage *image, char *trait, char *name, TypeDesc *proto);
 void KImage_Add_EVal(KImage *image, char *klazz, char *name,
@@ -251,9 +253,14 @@ void KImage_Get_LocVars(KImage *image, getlocvarfn func, void *arg);
 typedef void (*getfuncfn)(char *, TypeDesc *, int, int, uint8 *, int, void *);
 void KImage_Get_Funcs(KImage *image, getfuncfn func, void *arg);
 void KImage_Get_NFuncs(KImage *image, getfuncfn func, void *arg);
-typedef void (*getmethodfn)(char *, TypeDesc *, uint8 *, int, char *, void *);
+typedef void (*getclassfn)(char *, void *);
+void KImage_Get_Classes(KImage *image, getclassfn func, void *arg);
+typedef void (*getfieldfn)(char *, TypeDesc *, char *, void *);
+void KImage_Get_Fields(KImage *image, getfieldfn func, void *arg);
+typedef void (*getmethodfn)(char *, TypeDesc *, int,
+                            uint8 *, int, char *, void *);
 void KImage_Get_Methods(KImage *image, getmethodfn func, void *arg);
-typedef void (*getenumfn)(char *, int, void *);
+typedef void (*getenumfn)(char *, void *);
 void KImage_Get_Enums(KImage *image, getenumfn func, void *arg);
 typedef void (*getevalfn)(char *, TypeDesc *, int, char *, void *);
 void KImage_Get_EVals(KImage *image, getevalfn func, void *arg);

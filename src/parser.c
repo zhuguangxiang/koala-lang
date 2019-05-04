@@ -77,6 +77,22 @@ ParserUnit *Parser_Get_UpScope(ParserState *ps)
   return (pos != NULL) ? container_of(pos, ParserUnit, link) : NULL;
 }
 
+static void merge_into__init__(ParserUnit *u)
+{
+  FuncSymbol *funcSym = (FuncSymbol *)STable_Get(u->stbl, "__init__");
+  if (funcSym == NULL) {
+    Log_Puts("create __init__");
+    TypeDesc *proto = TypeDesc_New_Proto(NULL, NULL);
+    funcSym = STable_Add_Func(u->stbl, "__init__", proto);
+    TYPE_DECREF(proto);
+    funcSym->code = u->block;
+  } else {
+    Log_Puts("merge into __init__");
+    CodeBlock_Merge(u->block, funcSym->code);
+    CodeBlock_Free(u->block);
+  }
+}
+
 static void merge_unit(ParserState *ps)
 {
   ParserUnit *u = ps->u;
@@ -84,29 +100,10 @@ static void merge_unit(ParserState *ps)
   switch (u->scope) {
   case SCOPE_MODULE: {
     /* module has codes for __init__ */
-    FuncSymbol *funcSym = (FuncSymbol *)STable_Get(u->stbl, "__init__");
-    if (funcSym == NULL) {
-      Log_Puts("__init__ no exist");
-      if (u->block->bytes > 0) {
-        Log_Puts("create __init__ function");
-        TypeDesc *proto = TypeDesc_New_Proto(NULL, NULL);
-        funcSym = STable_Add_Func(u->stbl, "__init__", proto);
-        TYPE_DECREF(proto);
-        assert(funcSym != NULL);
-        funcSym->code = u->block;
-      } else {
-        Log_Puts("no codes for __init__");
-        /* no codes free codeblock self */
-        CodeBlock_Free(u->block);
-      }
-    } else {
-      /* __init__ exist */
-      Log_Puts("__init__ exist");
-      /* FIXME: merge codeblock */
+    if (u->block->bytes > 0)
+      merge_into__init__(u);
+    else
       CodeBlock_Free(u->block);
-    }
-    u->block = NULL;
-    u->stbl = NULL;
     break;
   }
   case SCOPE_CLASS: {
@@ -120,34 +117,29 @@ static void merge_unit(ParserState *ps)
       assert(u->stbl == enmSym->stbl);
     }
 
-    if (u->block->bytes > 0) {
-      Log_Debug("merge codes to '%s' __init__ func", u->sym->name);
-    } else {
-      Log_Debug("'%s' has no init codes", u->sym->name);
-    }
-    CodeBlock_Free(u->block);
-    u->block = NULL;
-    u->sym = NULL;
-    u->stbl = NULL;
+    if (u->block->bytes > 0)
+      merge_into__init__(u);
+    else
+      CodeBlock_Free(u->block);
     break;
   }
   case SCOPE_FUNCTION: {
     FuncSymbol *funcSym = (FuncSymbol *)u->sym;
-    assert(funcSym && funcSym->kind == SYM_FUNC);
-    //CodeBlock *b = u->block;
-    /* if no return opcode, then add one */
-    // if (!b->ret) {
-    //   Log_Debug("add 'return' to function '%s'", funcSym->name);
-    //   Inst_Append_NoArg(b, RETURN);
-    // }
-    /* save codeblock to function symbol */
-    funcSym->code = u->block;
-    u->block = NULL;
-    /* free local symbol table */
+    if (funcSym != NULL) {
+      assert(funcSym->kind == SYM_FUNC);
+      //CodeBlock *b = u->block;
+      /* if no return opcode, then add one */
+      // if (!b->ret) {
+      //   Log_Debug("add 'return' to function '%s'", funcSym->name);
+      //   Inst_Append_NoArg(b, RETURN);
+      // }
+      /* save codeblock to function symbol */
+      funcSym->code = u->block;
+    } else {
+      CodeBlock_Free(u->block);
+    }
+    /* free local symbol table, if any */
     STable_Free(u->stbl);
-    u->stbl = NULL;
-    /* simple clear symbol, it's stored in module's symbol table */
-    u->sym = NULL;
     break;
   }
   case SCOPE_BLOCK: {
@@ -156,15 +148,17 @@ static void merge_unit(ParserState *ps)
     Log_Debug("merge code into up scope-%d(%s)", ps->depth-1, scope_name(uu));
     CodeBlock_Merge(u->block, uu->block);
     CodeBlock_Free(u->block);
-    u->block = NULL;
     STable_Free(u->stbl);
-    u->stbl = NULL;
     break;
   }
   default:
     assert(0);
     break;
   }
+
+  u->block = NULL;
+  u->sym = NULL;
+  u->stbl = NULL;
 }
 
 static inline void show_module_symbol(Vector *vec)
@@ -553,33 +547,37 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
 
   /* check call's arguments */
   SymKind kind = exp->sym->kind;
-  TypeDesc *proto;
   if (kind == SYM_CLASS) {
     ClassSymbol *clsSym = (ClassSymbol *)exp->sym;
-    Log_Debug("call class '%s' __init__ function", clsSym->name);
+    Log_Debug("new class '%s'", clsSym->name);
+
+    TypeDesc *desc = NULL;
     Symbol *__init__ = STable_Get(clsSym->stbl, "__init__");
     int argc = Vector_Size(callExp->args);
-    if (__init__ == NULL && argc > 0) {
-      Syntax_Error(&lexp->pos, "__init__ function needs no arguments");
+    if (__init__ == NULL) {
+      if (argc > 0) {
+        Syntax_Error(&lexp->pos, "__init__ needs no arguments");
+        return;
+      }
+    } else {
+      desc = __init__->desc;
+      ProtoDesc *proto = (ProtoDesc *)desc;
+      assert(proto->kind == TYPE_PROTO);
+      if (proto->ret != NULL) {
+        Syntax_Error(&lexp->pos, "__init__ needs no return");
+        return;
+      }
+    }
+
+    if (!__check_call_arguments(desc, callExp->args)) {
+      Syntax_Error(&lexp->pos,
+                  "argument of '%s' are not matched", clsSym->name);
       return;
     }
 
-    if (__init__ == NULL) {
-      proto = TypeDesc_New_Proto(NULL, clsSym->desc);
-    } else {
-      proto = __init__->desc;
-    }
-
-    /* set call expression's descriptor */
-    assert(proto->kind == TYPE_PROTO);
-    TYPE_INCREF(proto);
-    exp->desc = proto;
-    if (!__check_call_arguments(proto, callExp->args)) {
-      Syntax_Error(&lexp->pos,
-                  "argument of function '%s' are not matched", exp->sym->name);
-    }
-
-    //FIXME: new object() is not a function call
+    /* set new object expression's descriptor */
+    TYPE_INCREF(clsSym->desc);
+    exp->desc = clsSym->desc;
   } else if (kind == SYM_EVAL) {
     // check parameters whether they are matched with defined types
     EnumValSymbol *evSym = (EnumValSymbol *)exp->sym;
@@ -596,7 +594,7 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
     /* var(func type), func, ifunc and nfunc */
     Log_Debug("call var(proto)/interface/native function '%s'", exp->sym->name);
     /* set proto as its left expr's descriptor */
-    proto = lexp->desc;
+    TypeDesc *proto = lexp->desc;
     /* set call expression's descriptor */
     assert(proto->kind == TYPE_PROTO);
     TYPE_INCREF(proto);
@@ -906,9 +904,10 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     TypeDesc *rdesc = rexp->desc;
 
     /*
-     * right expr's type is func proto, there are two exprs:
+     * right expr's type is func proto, there are three exprs:
      * 1. function call
      * 2. anonymous function declaration
+     * 3. new object
      * check function call expr only, anonymous needs not check
      */
     if (rexp->kind == CALL_KIND) {
@@ -994,20 +993,20 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
   assert(uu != NULL);
   assert(uu->scope == SCOPE_MODULE || uu->scope == SCOPE_CLASS);
   Symbol *sym = STable_Get(uu->stbl, funStmt->id.name);
-  assert(sym != NULL);
-  ps->u->sym = sym;
+  if (sym != NULL) {
+    Log_Debug("----parse function '%s'----", funStmt->id.name);
 
-  Log_Debug("----parse function '%s'----", funStmt->id.name);
+    ps->u->sym = sym;
+    /* parameter-list */
+    IdType *idtype;
+    Vector_ForEach(idtype, funStmt->args) {
+      parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
+    }
 
-  /* parameter-list */
-  IdType *idtype;
-  Vector_ForEach(idtype, funStmt->args) {
-    parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
+    parse_statements(ps, funStmt->body);
+
+    Log_Debug("----end of function '%s'----", funStmt->id.name);
   }
-
-  parse_statements(ps, funStmt->body);
-
-  Log_Debug("----end of function '%s'----", funStmt->id.name);
 
   Parser_Exit_Scope(ps);
 }

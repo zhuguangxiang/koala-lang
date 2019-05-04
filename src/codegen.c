@@ -169,8 +169,6 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
     Buffer_Write_2Bytes(buf, index);
     break;
   case LOAD:
-    Buffer_Write_Byte(buf, i->arg.ival);
-    break;
   case STORE:
     Buffer_Write_Byte(buf, i->arg.ival);
     break;
@@ -183,19 +181,14 @@ static void inst_gen(KImage *image, Buffer *buf, Inst *i)
     Buffer_Write_2Bytes(buf, index);
     break;
   case CALL:
-    index = KImage_Add_String(image, i->arg.str);
-    Buffer_Write_2Bytes(buf, index);
-    Buffer_Write_Byte(buf, i->argc);
-    break;
-  case NEW:
-    index = KImage_Add_String(image, i->arg.str);
-    Buffer_Write_4Bytes(buf, index);
-    Buffer_Write_2Bytes(buf, i->argc);
-    break;
   case NEW_EVAL:
     index = KImage_Add_String(image, i->arg.str);
     Buffer_Write_2Bytes(buf, index);
     Buffer_Write_Byte(buf, i->argc);
+    break;
+  case NEW_OBJECT:
+    index = KImage_Add_String(image, i->arg.str);
+    Buffer_Write_2Bytes(buf, index);
     break;
   case DUP:
   case LOAD_0:

@@ -7,11 +7,16 @@ func main() {
   sayHello("Hello, Koala")
   puts("HaHa...")
   puts("1+2=? result=")
+
   result := 1 + 2
   result = add(3, 2)
   //puts(result.to_str())
+
   res := Result.Ok
   res.test()
   res = get_result()
   res.test()
+
+  person := Person()
+  person.greeting("Person.greeting...")
 }

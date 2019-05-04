@@ -2,20 +2,21 @@
 #+AUTHOR: James Zhu
 #+EMAIL: zhuguangxiang@163.com
 
-** hello world
+** hello
 #+BEGIN_SRC
-  /* ~/app/hello.kl */
+  /* ~/hello/main.kl */
   import "io"
-  func Main() {
-    io.Print("hello, world")
+  func main() {
+    io.print("hello, world")
   }
 #+END_SRC
 ** compile
 #+BEGIN_SRC
   :~$ cd ~/
-  :~$ koalac app
+  :~$ koalac hello
 #+END_SRC
 ** run
 #+BEGIN_SRC
-  :~$ koala app
+  :~$ cd ~/
+  :~$ koala hello
 #+END_SRC

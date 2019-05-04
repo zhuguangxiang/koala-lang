@@ -1619,12 +1619,13 @@ void KImage_Add_LocVar(KImage *image, char *name, TypeDesc *desc,
 }
 
 int KImage_Add_Func(KImage *image, char *name, TypeDesc *proto,
-                    uint8 *codes, int size)
+                    uint8 *codes, int size, int locals)
 {
   int nameindex = StringItem_Set(image->table, name);
   int protoindex = ProtoItem_Set(image->table, proto);
   int codeindex = codeitem_set(image->table, codes, size);
   FuncItem *funcitem = FuncItem_New(nameindex, protoindex, codeindex);
+  funcitem->nrlocals = locals;
   return AtomTable_Append(image->table, ITEM_FUNC, funcitem, 0);
 }
 
@@ -1650,7 +1651,7 @@ void KImage_Add_Field(KImage *image, char *clazz, char *name, TypeDesc *desc)
 }
 
 int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
-                      uint8 *codes, int csz)
+                      uint8 *codes, int csz, int locals)
 {
   KlassDesc tmp = {.kind = TYPE_KLASS, .type.str = klazz};
   int classindex = TypeItem_Set(image->table, (TypeDesc *)&tmp);
@@ -1660,6 +1661,7 @@ int KImage_Add_Method(KImage *image, char *klazz, char *name, TypeDesc *proto,
   int codeindex = codeitem_set(image->table, codes, csz);
   MethodItem *methitem = MethodItem_New(classindex, nameindex, protoindex,
                                         codeindex);
+  methitem->nrlocals = locals;
   return AtomTable_Append(image->table, ITEM_METHOD, methitem, 0);
 }
 
@@ -1823,10 +1825,25 @@ void KImage_Get_Funcs(KImage *image, getfuncfn func, void *arg)
     proto = AtomTable_Get(image->table, ITEM_PROTO, funcitem->protoindex);
     desc = ProtoItem_To_TypeDesc(proto, image->table);
     if (code != NULL)
-      func(str->data, desc, i, ITEM_FUNC, code->codes, code->size, arg);
+      func(str->data, desc, funcitem->nrlocals, ITEM_FUNC,
+           code->codes, code->size, arg);
     else
-      func(str->data, desc, i, ITEM_FUNC, NULL, 0, arg);
+      func(str->data, desc, funcitem->nrlocals, ITEM_FUNC, NULL, 0, arg);
     TYPE_DECREF(desc);
+  }
+}
+
+void KImage_Get_Classes(KImage *image, getclassfn func, void *arg)
+{
+  ClassItem *item;
+  TypeItem *type;
+  StringItem *str;
+  int size = AtomTable_Size(image->table, ITEM_CLASS);
+  for (int i = 0; i < size; i++) {
+    item = AtomTable_Get(image->table, ITEM_CLASS, i);
+    type = AtomTable_Get(image->table, ITEM_TYPE, item->classindex);
+    str = AtomTable_Get(image->table, ITEM_STRING, type->typeindex);
+    func(str->data, arg);
   }
 }
 
@@ -1857,7 +1874,7 @@ void KImage_Get_Enums(KImage *image, getenumfn func, void *arg)
     item = AtomTable_Get(image->table, ITEM_ENUM, i);
     type = AtomTable_Get(image->table, ITEM_TYPE, item->classindex);
     str = AtomTable_Get(image->table, ITEM_STRING, type->typeindex);
-    func(str->data, i, arg);
+    func(str->data, arg);
   }
 }
 
@@ -1878,6 +1895,27 @@ void KImage_Get_EVals(KImage *image, getevalfn func, void *arg)
     typelist = AtomTable_Get(image->table, ITEM_TYPELIST, item->index);
     desc = TypeDesc_New_Tuple(TypeListItem_To_Vector(typelist, image->table));
     func(str->data, desc, item->value, estr->data, arg);
+    TYPE_DECREF(desc);
+  }
+}
+
+void KImage_Get_Fields(KImage *image, getfieldfn func, void *arg)
+{
+  FieldItem *item;
+  TypeItem *type;
+  StringItem *classstr;
+  StringItem *str;
+  TypeDesc *desc;
+  int size = AtomTable_Size(image->table, ITEM_FIELD);
+  for (int i = 0; i < size; i++) {
+    item = AtomTable_Get(image->table, ITEM_FIELD, i);
+    type = AtomTable_Get(image->table, ITEM_TYPE, item->classindex);
+    classstr = AtomTable_Get(image->table, ITEM_STRING, type->typeindex);
+    str = AtomTable_Get(image->table, ITEM_STRING, item->nameindex);
+    type = AtomTable_Get(image->table, ITEM_TYPE, item->typeindex);
+    desc = TypeItem_To_TypeDesc(type, image->table);
+    func(str->data, desc, classstr->data, arg);
+    TYPE_DECREF(desc);
   }
 }
 
@@ -1899,7 +1937,8 @@ void KImage_Get_Methods(KImage *image, getmethodfn func, void *arg)
     code = AtomTable_Get(image->table, ITEM_CODE, item->codeindex);
     proto = AtomTable_Get(image->table, ITEM_PROTO, item->protoindex);
     desc = ProtoItem_To_TypeDesc(proto, image->table);
-    func(str->data, desc, code->codes, code->size, classstr->data, arg);
+    func(str->data, desc, item->nrlocals,
+         code->codes, code->size, classstr->data, arg);
     TYPE_DECREF(desc);
   }
 }

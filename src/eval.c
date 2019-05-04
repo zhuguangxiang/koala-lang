@@ -147,7 +147,7 @@ static void push_frame(Object *code, Object *ob, Object *args)
   if (IsKCode(code)) {
     CodeInfo *ci = co->codeinfo;
     /* +1: package or object */
-    size = Vector_Size(&ci->locvec) + 1;
+    size = ci->nrlocals + 1;
   }
   int memsize = sizeof(CallFrame) + size * sizeof(Object *);
   CallFrame *cf = Malloc(memsize);
@@ -176,6 +176,7 @@ static inline void pop_frame(CallFrame *cf)
 {
   KoalaState *ks = cf->ks;
   ks->frame = cf->back;
+  --ks->depth;
   free_frame(cf);
 }
 
@@ -237,7 +238,7 @@ static void eval_frame(CallFrame *cf)
       PUSH(OB_INCREF(ob));
       break;
     case LOAD:
-      index = fetch_2bytes(cf, ci);
+      index = fetch_byte(cf, ci);
       ob = load(cf, index);
       PUSH(OB_INCREF(ob));
       break;
@@ -258,7 +259,7 @@ static void eval_frame(CallFrame *cf)
       PUSH(OB_INCREF(ob));
       break;
     case STORE:
-      index = fetch_2bytes(cf, ci);
+      index = fetch_byte(cf, ci);
       ob = POP();
       store(cf, index, ob);
       OB_DECREF(ob);
@@ -336,6 +337,15 @@ static void eval_frame(CallFrame *cf)
     case RETURN:
       pop_frame(cf);
       loopflag = 0;
+      break;
+    case NEW_OBJECT:
+      index = fetch_2bytes(cf, ci);
+      name = index_const(index, consts);
+      ob = POP();
+      ret = New_Object(ob, name);
+      OB_DECREF(ob);
+      PUSH(OB_INCREF(ret));
+      OB_DECREF(ret);
       break;
     case NEW_EVAL:
       index = fetch_2bytes(cf, ci);

@@ -32,6 +32,8 @@ extern "C" {
 typedef struct codeinfo {
   /* constant pool */
   Object *consts;
+  /* number of locals */
+  int nrlocals;
   /* local variables */
   Vector locvec;
   /* codes' size */
@@ -88,7 +90,8 @@ void Init_Code_Klass(void);
 /* finalize Code class */
 void Fini_Code_Klass(void);
 /* new koala code object */
-Object *Code_New(char *name, TypeDesc *proto, uint8 *codes, int size);
+Object *Code_New(char *name, TypeDesc *proto, int locals,
+                 uint8 *codes, int size);
 /* new cfunc code object */
 Object *CFunc_New(char *name, TypeDesc *proto, cfunc_t func);
 /* new clang func object */

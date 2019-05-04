@@ -158,7 +158,7 @@ extern "C" {
 #define JMP_NOTNIL 70
 
 /* New object and access it */
-#define NEW         80
+#define NEW_OBJECT  80
 #define NEW_ARRAY   81
 #define NEW_MAP     82
 #define NEW_EVAL    83

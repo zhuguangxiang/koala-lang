@@ -98,7 +98,7 @@ typedef struct funcsymbol {
   SYMBOL_HEAD
   /* local varibles in the function */
   Vector locvec;
-  /* codeblock */
+  /* CodeBlock */
   void *code;
 } FuncSymbol;
 

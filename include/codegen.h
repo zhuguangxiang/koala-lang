@@ -96,6 +96,7 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
   } else if (index == 3) { \
     Inst_Append_NoArg(block, LOAD_3); \
   } else { \
+    assert(index >= 0 && index < 250); \
     ConstValue val = {.kind = BASE_INT, .ival = index}; \
     Inst_Append(block, LOAD, &val); \
   } \
@@ -112,6 +113,7 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
   } else if (index == 3) { \
     Inst_Append_NoArg(block, STORE_3); \
   } else { \
+    assert(index >= 0 && index < 250); \
     ConstValue val = {.kind = BASE_INT, .ival = index}; \
     Inst_Append(block, STORE, &val); \
   } \
@@ -139,6 +141,13 @@ int CodeBlock_To_RawCode(KImage *image, CodeBlock *block, uint8 **code);
 #define CODE_BINARY(block, op) \
 ({ \
   Inst_Append_NoArg(block, op); \
+})
+
+#define CODE_NEW_OBJECT(block, name) \
+({ \
+  ConstValue val = {.kind = BASE_STRING, .str = name}; \
+  Inst_Append(block, NEW_OBJECT, &val); \
+  Inst_Append_NoArg(block, DUP); \
 })
 
 #define CODE_NEW_EVAL(block, name, _argc) \

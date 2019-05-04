@@ -27,7 +27,8 @@
 
 LOGGER(0)
 
-Object *Code_New(char *name, TypeDesc *proto, uint8 *codes, int size)
+Object *Code_New(char *name, TypeDesc *proto, int locals,
+                 uint8 *codes, int size)
 {
   int memsize = sizeof(CodeObject) + sizeof(CodeInfo) + size;
   CodeObject *code = Malloc(memsize);
@@ -37,6 +38,7 @@ Object *Code_New(char *name, TypeDesc *proto, uint8 *codes, int size)
   code->kind = KCODE_KIND;
   code->proto = proto;
   CodeInfo *ci = (CodeInfo *)(code + 1);
+  ci->nrlocals = locals;
   Vector_Init(&ci->locvec);
   memcpy(ci->codes, codes, size);
   ci->size = size;

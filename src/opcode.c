@@ -90,7 +90,7 @@ static struct opcode {
   OPCODE(JMP_NIL,    0),
   OPCODE(JMP_NOTNIL, 0),
 
-  OPCODE(NEW,         0),
+  OPCODE(NEW_OBJECT,  2),
   OPCODE(NEW_ARRAY,   0),
   OPCODE(NEW_MAP,     0),
   OPCODE(NEW_EVAL,    3),

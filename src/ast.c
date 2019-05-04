@@ -1256,9 +1256,15 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
   assert(funcStmt->kind == FUNC_KIND);
   char *name = funcStmt->id.name;
+  if (!strcmp(name, "__init__")) {
+    if (funcStmt->args != NULL || funcStmt->ret != NULL) {
+      Syntax_Error(&funcStmt->id.pos, "__init__ needs no args and no return");
+      return;
+    }
+  }
+
   Symbol *sym;
   TypeDesc *proto = __get_proto(funcStmt->args, funcStmt->ret);
-
   sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
   if (sym != NULL) {
     Log_Debug("add func '%s' successfully", name);

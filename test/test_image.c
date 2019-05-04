@@ -12,7 +12,7 @@ void test_image(void)
   psudo[1] = LOAD_CONST;
   psudo[2] = ADD;
   psudo[3] = RETURN;
-  KImage_Add_Func(image, "Foo", proto, psudo, 4);
+  KImage_Add_Func(image, "Foo", proto, psudo, 4, 0);
   desc = TypeDesc_Get_Base(BASE_STRING);
   KImage_Add_Var(image, "Greeting", desc, 0, NULL);
   desc = TypeDesc_Get_Base(BASE_INT);

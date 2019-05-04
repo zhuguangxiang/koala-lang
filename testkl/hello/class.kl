@@ -1,18 +1,17 @@
 
 package hello
 
-/*
+import "io"
+
 class Person {
-  name string
-  age int
+  name string = "LiSi"
+  age int = 200
 
   func greeting(msg string) {
     io.puts(name)
     io.puts(msg)
     name = "ZhanSan"
-    name = NAME
-    age = size
-    size = 100
+    age = 100
+    io.puts(name)
   }
 }
-*/

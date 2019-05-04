@@ -60,6 +60,7 @@ int Pkg_Add_Const(Object *ob, char *name, TypeDesc *desc, Object *val);
 int Pkg_Add_Func(Object *ob, Object *code);
 int Pkg_Add_Class(Object *ob, Klass *klazz);
 int Pkg_Add_Enum(Object *ob, Klass *klazz);
+Object *New_Object(Object *pkg, Object *name);
 void Pkg_Set_Value(Object *ob, char *name, Object *value);
 Object *Pkg_Get_Value(Object *ob, char *name);
 Object *Pkg_Get_Func(Object *ob, char *name);

@@ -172,7 +172,7 @@ static void __func_gen(Symbol *sym, void *arg)
   if (info->classname != NULL) {
     Log_Printf("  func %s:\n", funcSym->name);
     index = KImage_Add_Method(info->image, info->classname, funcSym->name,
-                              funcSym->desc, code, size);
+                              funcSym->desc, code, size, locvars);
     if (locvars <= 0) {
       Log_Printf("    no vars\n");
     } else {
@@ -182,7 +182,7 @@ static void __func_gen(Symbol *sym, void *arg)
   } else {
     Log_Printf("func %s:\n", funcSym->name);
     index = KImage_Add_Func(info->image, funcSym->name,
-                            funcSym->desc, code, size);
+                            funcSym->desc, code, size, locvars);
     if (locvars <= 0) {
       Log_Printf("  no vars\n");
     } else {
