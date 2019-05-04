@@ -13,5 +13,6 @@ class Person {
     name = "ZhanSan"
     age = 100
     io.puts(name)
+    io.puts(NAME)
   }
 }

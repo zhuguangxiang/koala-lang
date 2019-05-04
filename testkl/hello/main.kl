@@ -3,6 +3,8 @@ package hello
 
 import . "io"
 
+var global = 100
+
 func main() {
   sayHello("Hello, Koala")
   puts("HaHa...")

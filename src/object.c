@@ -357,6 +357,7 @@ int Klass_Add_Method(Klass *klazz, Object *code)
   MNode *m = MNode_New(FUNC_KIND, co->name, co->proto);
   if (m != NULL) {
     HashTable_Insert(&klazz->mtbl, &m->hnode);
+    co->owner = (Object *)klazz;
     m->code = OB_INCREF(code);
     if (IsKCode(code)) {
       co->codeinfo->consts = klazz->consts;
