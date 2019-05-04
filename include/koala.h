@@ -27,7 +27,6 @@
 #include "tupleobject.h"
 #include "stringobject.h"
 #include "intobject.h"
-#include "enumobject.h"
 #include "options.h"
 #include "stack.h"
 #include "task.h"

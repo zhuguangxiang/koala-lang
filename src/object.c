@@ -272,6 +272,29 @@ void Fini_Class_Klass(void)
   Fini_Klass(&Class_Klass);
 }
 
+Object *EVal_New(Object *ob, Object *name, Object *arg)
+{
+  OB_ASSERT_KLASS(ob, Class_Klass);
+  Klass *klazz = (Klass *)ob;
+  assert(klazz->flags == OB_FLAGS_ENUM);
+  MNode *m = MNode_Find(&klazz->mtbl, String_Raw(name));
+  assert(m->kind == EVAL_KIND);
+  EValObject *evob = Malloc(sizeof(EValObject));
+  Init_Object_Head(evob, klazz);
+  evob->node = m;
+  evob->ob = OB_INCREF(arg);
+  return (Object *)evob;
+}
+
+void EVal_Free(Object *ob)
+{
+  Klass *klazz = OB_KLASS(ob);
+  assert(klazz->flags == OB_FLAGS_ENUM);
+  EValObject *evob = (EValObject *)ob;
+  OB_DECREF(evob->ob);
+  Mfree(ob);
+}
+
 static void object_mark(Object *ob)
 {
   /* FIXME */
@@ -289,13 +312,19 @@ static Object *object_alloc(Klass *klazz)
 static void object_free(Object *ob)
 {
   Klass *klazz = OB_KLASS(ob);
-  Object **value = (Object **)(ob + 1);
-  int size = klazz->totalvars;
-  for (int i = 0; i < size; i++)
-    OB_DECREF(value[i]);
-  Log_Debug("object \x1b[34m%s@%x\x1b[0m freed",
-            OB_KLASS(ob)->name, (int)(intptr_t)ob);
-  GCfree(ob);
+  if (klazz->flags == OB_FLAGS_ENUM) {
+    Log_Debug("enum \x1b[34m%s@%x\x1b[0m freed",
+              OB_KLASS(ob)->name, (int)(intptr_t)ob);
+    EVal_Free(ob);
+  } else {
+    Object **value = (Object **)(ob + 1);
+    int size = klazz->totalvars;
+    for (int i = 0; i < size; i++)
+      OB_DECREF(value[i]);
+    Log_Debug("object \x1b[34m%s@%x\x1b[0m freed",
+              OB_KLASS(ob)->name, (int)(intptr_t)ob);
+    GCfree(ob);
+  }
 }
 
 Klass *__Klass_New(char *name, Klass *base, Vector *traits)

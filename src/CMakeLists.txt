@@ -47,7 +47,7 @@ set_target_properties(klc PROPERTIES OUTPUT_NAME koalac)
 SET (KOALA_OBJECT_SRC
   koala.c object.c eval.c
   objects/pkgobject.c objects/codeobject.c objects/tupleobject.c 
-  objects/stringobject.c objects/intobject.c objects/enumobject.c
+  objects/stringobject.c objects/intobject.c
   packages/io.c
   )
 ADD_LIBRARY(koala STATIC ${KOALA_OBJECT_SRC})

@@ -192,6 +192,15 @@ void Init_MTable(HashTable *table);
 /* finalize member table */
 void Fini_MTable(HashTable *table);
 
+/* enum object layout */
+typedef struct evalobject {
+  OBJECT_HEAD
+  MNode *node;
+  Object *ob;
+} EValObject;
+
+Object *EVal_New(Object *ob, Object *name, Object *arg);
+
 /* line resolution order node */
 typedef struct lro_node {
   /* the class(trait) of this node */
