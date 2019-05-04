@@ -342,10 +342,10 @@ static void __ifunc_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
   if (sym->kind == SYM_IFUNC) {
-    Log_Printf("  interface func %s;", sym->name);
+    Log_Printf("  interface func %s;\n", sym->name);
     KImage_Add_IMeth(info->image, info->classname, sym->name, sym->desc);
   } else {
-    Log_Printf("  native func %s", sym->name);
+    Log_Printf("  native func %s;\n", sym->name);
     KImage_Add_NFunc(info->image, info->classname, sym->name, sym->desc);
   }
 }

@@ -370,8 +370,6 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
                    "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
-    sym->desc = enumSym->desc;
-    TYPE_INCREF(sym->desc);
     break;
   }
   case SYM_FUNC:
