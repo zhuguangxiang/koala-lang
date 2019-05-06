@@ -22,40 +22,7 @@
 
 package lang
 
-import . "lang/ops"
-
-class Integer : Comparable<int> {
-
-  native func to_int() int;
-
-  native func __add__(other int) int;
-
-  native func __cmp__(other int) Ordering
+trait Hashable {
+  func hash() int
+  func equals(other any) bool
 }
-
-/*
-func add<Lhs : Add, Rhs, R>(lhs Lhs, rhs Rhs) R {
-  lhs.__add__(rhs)
-}
-
-enum Color {
-  RED, GREEN, BLUE, GRAY(int, string)
-}
-
-trait Enum {
-  func set(value any)
-  func get() any
-}
-
-func test() Color[int] {
-  return GRAY(100, "hello")
-}
-
-var v Color = GRAY(100, "hello")
-
-match v {
-  RED -> "red"
-  GRAY(x, y) -> println("{}, {}", x, y) //(x, y) = v
-  _ -> None
-}
-*/

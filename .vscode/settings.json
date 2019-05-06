@@ -12,7 +12,7 @@
 	"files.associations": {
 		"*.h": "c",
 		"*.c": "c",
-		"*.kl": "go",
+		"*.kl": "koala",
 		"array": "c",
 		"initializer_list": "c",
 		"string_view": "c",

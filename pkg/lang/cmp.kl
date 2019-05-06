@@ -22,40 +22,31 @@
 
 package lang
 
-import . "lang/ops"
+trait Comparable {
+  func cmp(other any) Option<Order>
 
-class Integer : Comparable<int> {
+  func __eq__(other any) bool {
+    match cmp(other) {
+      Some(Order.Equal) => true,
+      _ => false,
+    }
+  }
 
-  native func to_int() int;
+  func __neq__(other any) bool {
+    !__eq__(other)
+  }
 
-  native func __add__(other int) int;
+  func __lt__(other any) bool {
+    match cmp(other) {
+      Some(Order.Less) => true,
+      _ => false,
+    }
+  }
 
-  native func __cmp__(other int) Ordering
+  func __le__(other any) bool {
+    match cmp(other) {
+      Some(Order.Less) | Some(Order.Equal) => true,
+      _ => false,
+    }
+  }
 }
-
-/*
-func add<Lhs : Add, Rhs, R>(lhs Lhs, rhs Rhs) R {
-  lhs.__add__(rhs)
-}
-
-enum Color {
-  RED, GREEN, BLUE, GRAY(int, string)
-}
-
-trait Enum {
-  func set(value any)
-  func get() any
-}
-
-func test() Color[int] {
-  return GRAY(100, "hello")
-}
-
-var v Color = GRAY(100, "hello")
-
-match v {
-  RED -> "red"
-  GRAY(x, y) -> println("{}, {}", x, y) //(x, y) = v
-  _ -> None
-}
-*/
