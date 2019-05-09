@@ -1036,6 +1036,11 @@ static inline void __add_stmt(ParserState *ps, Stmt *stmt)
   Vector_Append(&ps->stmts, stmt);
 }
 
+static inline void __add_varstmt(ParserState *ps, Stmt *stmt)
+{
+  Vector_Append(&ps->varstmts, stmt);
+}
+
 static void __new_var(ParserState *ps, Ident *id, TypeDesc *desc)
 {
   ParserUnit *u = ps->u;
@@ -1059,7 +1064,7 @@ void Parser_New_Var(ParserState *ps, Stmt *stmt)
   if (stmt == NULL)
     return;
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
-  __add_stmt(ps, stmt);
+  __add_varstmt(ps, stmt);
   __new_var(ps, &varStmt->id, varStmt->type.desc);
 }
 
@@ -1085,7 +1090,7 @@ void Parser_New_Const(ParserState *ps, Stmt *stmt)
   if (stmt == NULL)
     return;
   VarDeclStmt *varStmt = (VarDeclStmt *)stmt;
-  __add_stmt(ps, stmt);
+  __add_varstmt(ps, stmt);
   __new_const(ps, &varStmt->id, varStmt->type.desc);
 }
 

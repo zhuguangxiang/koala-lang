@@ -233,6 +233,7 @@ ParserState *New_Parser(ParserGroup *grp, char *filename)
   ParserState *ps = Malloc(sizeof(ParserState));
   ps->filename = AtomString_New(filename).str;
   ps->grp = grp;
+  Vector_Init(&ps->varstmts);
   Vector_Init(&ps->stmts);
   ps->extstbl = STable_New();
   ps->extdots = STable_New();
@@ -247,6 +248,7 @@ void Destroy_Parser(ParserState *ps)
 {
   assert(ps->u == NULL);
   assert(list_empty(&ps->ustack));
+  Vector_Fini_Self(&ps->varstmts);
   Vector_Fini(&ps->stmts, Free_Stmt_Func, NULL);
   STable_Free(ps->extstbl);
   STable_Free(ps->extdots);
@@ -1255,9 +1257,11 @@ static void parse_statements(ParserState *ps, Vector *stmts)
 {
   Stmt *stmt;
   Vector_ForEach(stmt, stmts) {
-    parse_statement(ps, stmt);
-    Free_Stmt_Func(stmt, NULL);
-    Show_MemStat();
+    if (stmt != NULL) {
+      parse_statement(ps, stmt);
+      Free_Stmt_Func(stmt, NULL);
+      Show_MemStat();
+    }
   }
   Vector_Fini_Self(stmts);
 }
@@ -1276,11 +1280,31 @@ void Build_AST(ParserState *ps, FILE *in)
   Log_Debug("\x1b[34m----END OF BUILDING AST--------\x1b[0m");
 }
 
+void Parse_VarStmts(ParserState *ps)
+{
+  Parser_Enter_Scope(ps, SCOPE_MODULE);
+  ps->u->stbl = ps->grp->pkg->stbl;
+  Stmt *stmt;
+  int errnum = 0;
+  Vector_ForEach(stmt, &ps->varstmts) {
+    if (stmt != NULL) {
+      parse_statement(ps, stmt);
+      if (ps->errnum <= 0) {
+        Vector_Set(&ps->varstmts, i, NULL);
+        Free_Stmt_Func(stmt, NULL);
+      } else {
+        errnum += ps->errnum;
+        ps->errnum = 0;
+      }
+    }
+  }
+  ps->errnum = errnum;
+  Parser_Exit_Scope(ps);
+}
+
 void Parse_AST(ParserState *ps)
 {
   Log_Debug("\x1b[32m----STARTING SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
-  Parse_Imports(ps);
-  CheckConflictWithExternal(ps);
   Parser_Enter_Scope(ps, SCOPE_MODULE);
   ps->u->stbl = ps->grp->pkg->stbl;
   parse_statements(ps, &ps->stmts);

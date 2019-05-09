@@ -139,7 +139,9 @@ typedef struct parserstate {
   /* input line buffer */
   LineBuffer line;
 
-  /* all statements */
+  /* var/const declarations's statements */
+  Vector varstmts;
+  /* all statements, except var/const decls */
   Vector stmts;
   /* symbols in this module, check for extstbl, but not extdots */
   Vector symbols;
@@ -189,6 +191,7 @@ ParserState *New_Parser(ParserGroup *grp, char *filename);
 void Destroy_Parser(ParserState *ps);
 void Build_AST(ParserState *ps, FILE *in);
 void Parse_AST(ParserState *ps);
+void Parse_VarStmts(ParserState *ps);
 void CheckConflictWithExternal(ParserState *ps);
 void Check_Unused_Imports(ParserState *ps);
 void Check_Unused_Symbols(ParserState *ps);

@@ -103,6 +103,5 @@
 	"window.zoomLevel": 0,
 	"C_Cpp.intelliSenseEngineFallback": "Enabled",
 	"C_Cpp.default.cStandard": "c11",
-	"C_Cpp.configurationWarnings": "Disabled",
-	"C_Cpp.default.configurationProvider": "vector-of-bool.cmake-tools"
+	"C_Cpp.configurationWarnings": "Disabled"
 }

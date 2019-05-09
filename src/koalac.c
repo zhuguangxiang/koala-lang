@@ -215,6 +215,31 @@ static int parse_package(ParserGroup *grp)
 {
   int errors = 0;
   ParserState *ps;
+
+  Vector_ForEach(ps, &grp->modules) {
+    Parse_Imports(ps);
+    CheckConflictWithExternal(ps);
+    errors += ps->errnum;
+  }
+
+  if (errors > 0)
+    return errors;
+
+  Vector_ForEach(ps, &grp->modules) {
+    Parse_VarStmts(ps);
+    errors += ps->errnum;
+  }
+
+  if (errors > 0) {
+    // parse variable declarations firstly has errors
+    // parse them twice
+    errors = 0;
+    Vector_ForEach(ps, &grp->modules) {
+      Parse_VarStmts(ps);
+      errors += ps->errnum;
+    }
+  }
+
   Vector_ForEach(ps, &grp->modules) {
     Parse_AST(ps);
     errors += ps->errnum;
