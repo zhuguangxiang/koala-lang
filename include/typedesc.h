@@ -77,6 +77,7 @@ typedef enum desckind {
   TYPE_MAP,
   TYPE_VARG,
   TYPE_TUPLE,
+  TYPE_REF,
 } DescKind;
 
 /*
@@ -123,11 +124,20 @@ typedef struct basicdesc {
   char *typestr;  /* <type> */
 } BaseDesc;
 
+#define TYPEPARA_DEF  1  // typepara define, TypeParaDef
+#define TYPEPARA_INST 2  // typepara instantiation, TypeDesc
+
+typedef struct typeparadef {
+  String name;    /* T: Foo & Bar */
+  Vector *bases;  /* Foo, Bar and etc */
+} TypeParaDef;
+
 /* class, trait or enum */
 typedef struct klassdesc {
   TYPEDESC_HEAD
   String path;   /* absolute path, but not ref-name */
-  String type;
+  String type;   /* type name */
+  int typepara;  /* one of TYPEPARA_XXX */
   Vector *paras; /* type parameters */
 } KlassDesc;
 
@@ -164,6 +174,16 @@ typedef struct tupledesc {
   Vector *bases;
 } TupleDesc;
 
+/* typepara ref type */
+typedef struct pararefdesc {
+  TYPEDESC_HEAD
+  String name;  /* reference type name */
+} ParaRefDesc;
+
+TypeParaDef *TypeParaDef_New(char *name, Vector *bases);
+int TypePara_Compatible(TypeParaDef *def, TypeDesc *desc);
+TypeParaDef *Get_TypeParaDef(ParaRefDesc *ref, TypeDesc *desc);
+
 /* check two typedescs are the same */
 int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2);
 
@@ -180,7 +200,9 @@ void TypeDesc_Free(TypeDesc *desc);
 TypeDesc *TypeDesc_Get_Base(int base);
 
 /* new a class or trait typedesc */
-TypeDesc *TypeDesc_New_Klass(char *path, char *type, Vector *paras);
+TypeDesc *TypeDesc_New_Klass(char *path, char *type);
+TypeDesc *TypeDesc_New_Klass_Def(char *path, char *type, Vector *paras);
+TypeDesc *TypeDesc_New_Klass_Inst(char *path, char *type, Vector *paras);
 
 /* new a proto typedesc */
 TypeDesc *TypeDesc_New_Proto(Vector *arg, TypeDesc *ret);
@@ -196,6 +218,9 @@ TypeDesc *TypeDesc_New_Varg(TypeDesc *base);
 
 /* new a tuple typedesc */
 TypeDesc *TypeDesc_New_Tuple(Vector *bases);
+
+/* new a typepara reference typedesc */
+TypeDesc *TypeDesc_New_ParaRef(char *name);
 
 TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg);
 #define String_To_TypeDesc(s) \

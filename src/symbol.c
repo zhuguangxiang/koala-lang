@@ -307,11 +307,12 @@ static void __eval_show(Symbol *sym)
 static void __eval_gen(Symbol *sym, void *arg)
 {
   struct gen_image_s *info = arg;
-  EnumValSymbol *evSym = (EnumValSymbol *)sym;
-  __eval_show(sym);
-  assert(info->classname != NULL);
-  KImage_Add_EVal(info->image, info->classname, evSym->name,
-                  evSym->types, 0);
+  if (info->classname != NULL) {
+    EnumValSymbol *evSym = (EnumValSymbol *)sym;
+    __eval_show(sym);
+    KImage_Add_EVal(info->image, info->classname, evSym->name,
+                    evSym->types, 0);
+  }
 }
 
 static Symbol *__ifunc_new(char *name)
@@ -546,7 +547,7 @@ ClassSymbol *STable_Add_Class(STable *stbl, char *name)
   }
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
-  sym->desc = TypeDesc_New_Klass(NULL, name, NULL);
+  sym->desc = TypeDesc_New_Klass(NULL, name);
   return sym;
 }
 
@@ -559,11 +560,11 @@ ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
   }
   Vector_Init(&sym->supers);
   sym->stbl = STable_New();
-  sym->desc = TypeDesc_New_Klass(NULL, name, NULL);
+  sym->desc = TypeDesc_New_Klass(NULL, name);
   return sym;
 }
 
-EnumSymbol *STable_Add_Enum(STable *stbl, char *name)
+EnumSymbol *STable_Add_Enum(STable *stbl, char *name, Vector *typeparams)
 {
   EnumSymbol *sym = (EnumSymbol *)Symbol_New(SYM_ENUM, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -571,7 +572,7 @@ EnumSymbol *STable_Add_Enum(STable *stbl, char *name)
     return NULL;
   }
   sym->stbl = STable_New();
-  sym->desc = TypeDesc_New_Klass(NULL, name, NULL);
+  sym->desc = TypeDesc_New_Klass_Def(NULL, name, typeparams);
   return sym;
 }
 

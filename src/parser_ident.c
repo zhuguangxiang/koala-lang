@@ -185,14 +185,33 @@ static void code_up_func(ParserState *ps, void *arg)
       }
     }
   } else if (sym->kind == SYM_EVAL) {
-    assert(uu->scope == SCOPE_CLASS && up->scope == SCOPE_CLASS);
-    CODE_LOAD_PKG(u->block, ".");
+    if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
+      CODE_LOAD_PKG(u->block, ".");
+    else
+      CODE_LOAD(u->block, 0);
     EnumSymbol *eSym = ((EnumValSymbol *)sym)->esym;
     CODE_GET_ATTR(u->block, eSym->name);
     Log_Debug("id '%s' is eval", sym->name);
+
     int argc = 0;
-    if (Expr_Is_Call(right))
-      argc = Vector_Size(((CallExpr *)right)->args);
+    if (Expr_Is_Call(right)) {
+      if (((EnumValSymbol *)sym)->types == NULL) {
+        Syntax_Error(&exp->pos,
+                     "enum value '%s' has no associated types.", exp->name);
+      } else {
+        argc = Vector_Size(((CallExpr *)right)->args);
+      }
+    } else {
+      if (((EnumValSymbol *)sym)->types != NULL) {
+        TYPE_DECREF(exp->desc);
+        exp->desc = NULL;
+        Syntax_Error(&exp->pos,
+                     "enum value '%s' have associated types.", exp->name);
+      } else {
+        exp->desc = New_EVal_Type((EnumValSymbol *)sym, NULL);
+      }
+    }
+
     if (ctx == EXPR_LOAD) {
       /* load enum value */
       Log_Debug("new eval '%s' with %d args", sym->name, argc);
@@ -203,11 +222,16 @@ static void code_up_func(ParserState *ps, void *arg)
     }
   } else if (sym->kind == SYM_ENUM) {
     Log_Debug("id '%s' is enum", sym->name);
-    if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
-      CODE_LOAD_PKG(u->block, ".");
-    else
-      CODE_LOAD(u->block, 0);
-    CODE_GET_ATTR(u->block, sym->name);
+    if (right == NULL) {
+      Syntax_Error(&exp->pos,
+                   "enum '%s' cannot as right expression.", exp->name);
+    } else {
+      if (uu->scope == SCOPE_CLASS && up->scope == SCOPE_MODULE)
+        CODE_LOAD_PKG(u->block, ".");
+      else
+        CODE_LOAD(u->block, 0);
+      CODE_GET_ATTR(u->block, sym->name);
+    }
   } else if (sym->kind == SYM_CLASS) {
     Log_Debug("id '%s' is class", sym->name);
     assert(up->scope == SCOPE_MODULE);

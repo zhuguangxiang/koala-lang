@@ -24,3 +24,12 @@ func get_result() Result {
   io.puts("get_result()")
   Result.Err(10, "bad file descriptor")
 }
+
+enum Option<T> {
+  Some(T),
+  None,
+
+  func and_then() {
+    io.puts("Option.and_then()")
+  }
+}

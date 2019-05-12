@@ -16,7 +16,7 @@ void test_typedesc(void)
   //TYPE_INCREF(type);
   //TypeDesc_Free(type);
 
-  type = TypeDesc_New_Klass("lang", "Tuple", NULL);
+  type = TypeDesc_New_Klass("lang", "Tuple");
   s = TypeDesc_ToString(type);
   assert(!strcmp("lang.Tuple", s.str));
 

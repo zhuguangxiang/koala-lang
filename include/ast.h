@@ -56,10 +56,10 @@ void Free_IdTypeList(Vector *vec);
 
 typedef struct typepara {
   Ident id;
-  TypeDesc *base;
+  Vector *base;
 } TypePara;
 
-TypePara *New_TypePara(Ident id, TypeDesc *base);
+TypePara *New_TypePara(Ident id, Vector *base);
 
 /* unary operator kind */
 typedef enum unaryopkind {

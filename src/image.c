@@ -56,8 +56,8 @@ static TypeDesc *TypeItem_To_TypeDesc(TypeItem *item, AtomTable *atbl)
     }
     s = AtomTable_Get(atbl, ITEM_STRING, item->typeindex);
     type = AtomString_New(s->data).str;
-    //FIXME
-    t = TypeDesc_New_Klass(path, type, NULL);
+    //FIXME: typeparas
+    t = TypeDesc_New_Klass(path, type);
     break;
   }
   case TYPE_PROTO: {
@@ -505,6 +505,11 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
     item.varg.typeindex = TypeItem_Get(table, varg->base);
     break;
   }
+  case TYPE_REF: {
+    item.kind = TYPE_BASE;
+    item.primitive = BASE_ANY;
+    break;
+  }
   default:
     assert(0);
     break;
@@ -557,6 +562,10 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
       VargDesc *varg = (VargDesc *)desc;
       int typeindex = TypeItem_Set(table, varg->base);
       item = TypeItem_Varg_New(typeindex);
+      break;
+    }
+    case TYPE_REF: {
+      item = TypeItem_Primitive_New(BASE_ANY);
       break;
     }
     default:

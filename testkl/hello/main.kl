@@ -17,8 +17,21 @@ func main() {
   res := Result.Ok
   res.test()
   res = get_result()
-  res.test()
+  //res.test()
+  res = Err(123, "error")
+  //res.test()
 
-  person := Person()
-  person.greeting("Person.greeting...")
+  //res = Result.Ok
+  //person := Person()
+  //person.greeting("Person.greeting...")
+
+  opt := Option.Some(123)
+  //opt = Option.Some("ZhangSan")
+  opt = Option.None
+  opt = Option.Some(100)
+  opt.and_then()
+
+  var opt2 Option<Person> = Some(Person())
+  opt2 = Option.Some(Person())
+  opt2.and_then()
 }

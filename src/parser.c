@@ -260,8 +260,8 @@ void Destroy_Parser(ParserState *ps)
 static int __type_is_compatible(TypeDesc *t1, TypeDesc *t2)
 {
   /* FIXME: class inheritance */
-  return 1;
-  //return TypeDesc_Equal(t1, t2);
+  //return 1;
+  return TypeDesc_Equal(t1, t2);
 }
 
 static void code_const_expr(ParserState *ps, Expr *exp)
@@ -311,6 +311,7 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   ParserUnit *u = ps->u;
   AttributeExpr *attrExp = (AttributeExpr *)exp;
   Expr *lexp = attrExp->left;
+  Expr *right = attrExp->right;
   TypeDesc *desc;
   Symbol *sym;
 
@@ -319,7 +320,6 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   lexp->right = exp;
   Parse_Expression(ps, lexp);
   if (lexp->sym == NULL) {
-    assert(0);
     return;
   }
 
@@ -366,6 +366,22 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
                    "'%s' is not found in '%s'", attrExp->id.name, lsym->name);
       return;
     }
+
+    if (sym->kind == SYM_EVAL) {
+      if (Expr_Is_Call(right)) {
+        if (((EnumValSymbol *)sym)->types == NULL) {
+          Syntax_Error(&exp->pos,
+                       "enum value '%s' has no associated types.", sym->name);
+        }
+      } else {
+        if (((EnumValSymbol *)sym)->types != NULL) {
+          Syntax_Error(&exp->pos,
+                       "enum value '%s' have associated types.", sym->name);
+        } else {
+          exp->desc = New_EVal_Type((EnumValSymbol *)sym, NULL);
+        }
+      }
+    }
     break;
   }
   case SYM_FUNC:
@@ -401,8 +417,10 @@ static void parse_attribute_expr(ParserState *ps, Expr *exp)
   String s = TypeDesc_ToString(sym->desc);
   Log_Debug("'%s' type: %s", sym->name, s.str);
   exp->sym = sym;
-  exp->desc = sym->desc;
-  TYPE_INCREF(exp->desc);
+  if (exp->desc == NULL) {
+    exp->desc = sym->desc;
+    TYPE_INCREF(exp->desc);
+  }
 }
 
 static void code_attribute_expr(ParserState *ps, Expr *exp)
@@ -500,14 +518,37 @@ static int check_new_enum(ParserState *ps, EnumValSymbol *evSym, Vector *args)
   Vector *vec = evSym->types;
   if (Vector_Size(vec) != Vector_Size(args))
     return 0;
+  TypeParaDef *def;
   TypeDesc *type;
   Expr *exp;
   Vector_ForEach(exp, args) {
     type = Vector_Get(vec, i);
-    if (!TypeDesc_Equal(type, exp->desc))
-      return 0;
+    if (type->kind == TYPE_REF) {
+      def = Get_TypeParaDef((ParaRefDesc *)type, evSym->esym->desc);
+      if (!TypePara_Compatible(def, exp->desc))
+        return 0;
+    } else {
+      if (!TypeDesc_Equal(type, exp->desc))
+        return 0;
+    }
   }
   return 1;
+}
+
+TypeDesc *New_EVal_Type(EnumValSymbol *evSym, Vector *exps)
+{
+  KlassDesc *klass = (KlassDesc *)evSym->esym->desc;
+  Vector *vec = NULL;
+  if (exps != NULL)
+    vec = Vector_Capacity(Vector_Size(exps));
+  Expr *e;
+  Vector_ForEach(e, exps) {
+    TYPE_INCREF(e->desc);
+    Vector_Append(vec, e->desc);
+  }
+  TypeDesc *type;
+  type = TypeDesc_New_Klass_Inst(klass->path.str, klass->type.str, vec);
+  return type;
 }
 
 static void parse_call_expr(ParserState *ps, Expr *exp)
@@ -583,11 +624,13 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
   } else if (kind == SYM_EVAL) {
     // check parameters whether they are matched with defined types
     EnumValSymbol *evSym = (EnumValSymbol *)exp->sym;
-    exp->desc = evSym->esym->desc;
-    TYPE_INCREF(exp->desc);
     if (!check_new_enum(ps, evSym, callExp->args)) {
+      TYPE_DECREF(exp->desc);
+      exp->desc = NULL;
       Syntax_Error(&exp->pos,
                   "argument of enum '%s' are not matched", exp->sym->name);
+    } else {
+      exp->desc = New_EVal_Type(evSym, callExp->args);
     }
   } else if (kind == SYM_ENUM) {
     Syntax_Error(&lexp->pos,
@@ -1143,16 +1186,10 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
     Syntax_Error(&rexp->pos, "cannot resolve right expression's type");
     return;
   }
+
   if (rdesc->kind == TYPE_PROTO) {
-    #if 0
     ProtoDesc *proto = (ProtoDesc *)rdesc;
-    int n = Vector_Size((Vector *)proto->ret);
-    if (n != 1) {
-      Syntax_Error(&rexp->pos, "multiple-value in single-value context");
-      return;
-    }
-    rdesc = Vector_Get(proto->ret, 0);
-    #endif
+    rdesc = proto->ret;
   }
 
   TypeDesc *ldesc = lexp->desc;

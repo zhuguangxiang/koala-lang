@@ -123,7 +123,7 @@ typedef struct enumvalsymbol {
   SYMBOL_HEAD
   /* which enum is it? */
   EnumSymbol *esym;
-  /* associated types */
+  /* associated types, ParaRefDesc */
   Vector *types;
 } EnumValSymbol;
 
@@ -171,7 +171,7 @@ VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
 FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
 ClassSymbol *STable_Add_Class(STable *stbl, char *name);
 ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
-EnumSymbol *STable_Add_Enum(STable *stbl, char *name);
+EnumSymbol *STable_Add_Enum(STable *stbl, char *name, Vector *typeparams);
 EnumValSymbol *STable_Add_EnumValue(STable *stbl, char *name);
 Symbol *STable_Add_Proto(STable *stbl, char *name, int kind, TypeDesc *desc);
 #define STable_Add_IFunc(stbl, name, proto) \

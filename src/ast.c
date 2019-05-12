@@ -86,7 +86,7 @@ void Free_IdTypeList(Vector *vec)
   Vector_Free_Self(vec);
 }
 
-TypePara *New_TypePara(Ident id, TypeDesc *base)
+TypePara *New_TypePara(Ident id, Vector *base)
 {
   TypePara *para = Malloc(sizeof(TypePara));
   para->id = id;
@@ -612,6 +612,12 @@ static void free_klass_stmt(Stmt *stmt)
 static void free_enum_stmt(Stmt *stmt)
 {
   EnumStmt *eStmt = (EnumStmt *)stmt;
+  TypePara *para;
+  Vector_ForEach(para, eStmt->typeparams) {
+    Free_Ident(&para->id);
+    // no free, para->base is assigned to TypeParaDef->base in EnumSymbol
+  }
+  Vector_Free_Self(eStmt->typeparams);
   Vector_Free(eStmt->body, Free_Stmt_Func, NULL);
   Mfree(stmt);
 }
@@ -619,8 +625,7 @@ static void free_enum_stmt(Stmt *stmt)
 static void free_eval_stmt(Stmt *stmt)
 {
   EnumValStmt *evStmt = (EnumValStmt *)stmt;
-  //no free, the vector is assigned to EnumValSymbol
-  //Vector_Free(evStmt->types, free_typedesc_func, NULL);
+  Vector_Free(evStmt->types, free_typedesc_func, NULL);
   Free_Expr(evStmt->exp);
   Mfree(evStmt);
 }
@@ -733,6 +738,7 @@ Stmt *Stmt_From_Class(Ident id, Vector *types, Vector *super, Vector *body)
   KlassStmt *clsStmt = Malloc(sizeof(KlassStmt));
   clsStmt->kind = CLASS_KIND;
   clsStmt->id = id;
+  clsStmt->typeparams = types;
   clsStmt->super = super;
   clsStmt->body = body;
   return (Stmt *)clsStmt;
@@ -743,6 +749,7 @@ Stmt *Stmt_From_Trait(Ident id, Vector *types, Vector *super, Vector *body)
   KlassStmt *traitStmt = Malloc(sizeof(KlassStmt));
   traitStmt->kind = TRAIT_KIND;
   traitStmt->id = id;
+  traitStmt->typeparams = types;
   traitStmt->super = super;
   traitStmt->body = body;
   return (Stmt *)traitStmt;
@@ -1286,6 +1293,21 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   TYPE_DECREF(proto);
 }
 
+Vector *To_TypeParaDefs(Vector *typeparas)
+{
+  if (typeparas == NULL)
+    return NULL;
+
+  Vector *vec = Vector_Capacity(Vector_Size(typeparas));
+  TypePara *para;
+  TypeParaDef *paradef;
+  Vector_ForEach(para, typeparas) {
+    paradef = TypeParaDef_New(para->id.name, para->base);
+    Vector_Append(vec, paradef);
+  }
+  return vec;
+}
+
 void Parser_New_Func(ParserState *ps, Stmt *stmt)
 {
   if (stmt == NULL)
@@ -1438,24 +1460,84 @@ void Parser_New_Trait(ParserState *ps, Stmt *stmt)
   Parser_Exit_Scope(ps);
 }
 
-static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e)
+static int istypepara(Vector *vec, char *name)
+{
+  TypeParaDef *def;
+  Vector_ForEach(def, vec) {
+    if (!strcmp(def->name.str, name))
+      return 1;
+  }
+  return 0;
+}
+
+static Vector *get_typeparas(TypeDesc *edesc, Vector *types)
+{
+  if (types == NULL)
+    return NULL;
+
+  assert(edesc->kind == TYPE_KLASS);
+  KlassDesc *klass = (KlassDesc *)edesc;
+  if (klass->typepara != TYPEPARA_DEF)
+    return NULL;
+
+  Vector *vec = Vector_Capacity(Vector_Size(types));
+  KlassDesc *tmp;
+  ParaRefDesc *para;
+  TypeDesc *desc;
+  Vector_ForEach(desc, types) {
+    if (desc->kind == TYPE_KLASS) {
+      tmp = (KlassDesc *)desc;
+      if (tmp->path.str == NULL &&
+          istypepara(klass->paras, tmp->type.str)) {
+        para = (ParaRefDesc *)TypeDesc_New_ParaRef(tmp->type.str);
+        Vector_Append(vec, para);
+      } else {
+        TYPE_INCREF(desc);
+        Vector_Append(vec, desc);
+      }
+    } else {
+      TYPE_INCREF(desc);
+      Vector_Append(vec, desc);
+    }
+  }
+  return vec;
+}
+
+static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e, STable *stbl)
 {
   ParserUnit *u = ps->u;
   EnumValStmt *evStmt = (EnumValStmt *)s;
   Ident *id = &evStmt->id;
+  Vector *types = get_typeparas(e->desc, evStmt->types);
   EnumValSymbol *evSym = STable_Add_EnumValue(u->stbl, id->name);
-
   if (evSym != NULL) {
     Log_Debug("add enum value '%s' successfully", id->name);
     evSym->filename = ps->filename;
     evSym->pos = id->pos;
     evSym->esym = e;
-    evSym->types = evStmt->types;
+    evSym->types = types;
     evSym->desc = e->desc;
     TYPE_INCREF(evSym->desc);
-    Vector_Append(&ps->symbols, evSym);
   } else {
     Symbol *sym = STable_Get(u->stbl, id->name);
+    Syntax_Error(&id->pos, "'%s' redeclared,\n"
+                 "\tprevious declaration at %s:%d:%d", id->name,
+                 sym->filename, sym->pos.row, sym->pos.col);
+  }
+
+  types = get_typeparas(e->desc, evStmt->types);
+  EnumValSymbol *evSymInPkg = STable_Add_EnumValue(stbl, id->name);
+  if (evSymInPkg != NULL) {
+    Log_Debug("add enum value '%s' in pkg successfully", id->name);
+    evSymInPkg->filename = ps->filename;
+    evSymInPkg->pos = id->pos;
+    evSymInPkg->esym = e;
+    evSymInPkg->types = types;
+    evSymInPkg->desc = e->desc;
+    TYPE_INCREF(evSymInPkg->desc);
+    Vector_Append(&ps->symbols, evSymInPkg);
+  } else {
+    Symbol *sym = STable_Get(stbl, id->name);
     Syntax_Error(&id->pos, "'%s' redeclared,\n"
                  "\tprevious declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
@@ -1467,6 +1549,7 @@ static int __check_enum_decl(ParserState *ps, Stmt *stmt)
   assert(stmt->kind == ENUM_KIND);
   EnumStmt *eStmt = (EnumStmt *)stmt;
   Stmt *s;
+  // check enum value
   EnumValStmt *evStmt;
   int hasExps = 0;
   int hasTypes = 0;
@@ -1493,6 +1576,11 @@ static int __check_enum_decl(ParserState *ps, Stmt *stmt)
       assert(s->kind == FUNC_KIND);
     }
   }
+  // check enum type parameters
+  TypePara *para;
+  Vector_ForEach(para, eStmt->typeparams) {
+    //FIXME:
+  }
   return 0;
 }
 
@@ -1511,8 +1599,8 @@ void Parser_New_Enum(ParserState *ps, Stmt *stmt)
   EnumStmt *eStmt = (EnumStmt *)stmt;
   char *name = eStmt->id.name;
   assert(stmt->kind == ENUM_KIND);
-
-  EnumSymbol *sym = STable_Add_Enum(u->stbl, name);
+  EnumSymbol *sym = STable_Add_Enum(u->stbl, name,
+                                    To_TypeParaDefs(eStmt->typeparams));
   if (sym != NULL) {
     Log_Debug("add enum '%s' successfully", sym->name);
     sym->filename = ps->filename;
@@ -1532,7 +1620,7 @@ void Parser_New_Enum(ParserState *ps, Stmt *stmt)
   Stmt *s;
   Vector_ForEach(s, eStmt->body) {
     if (s->kind == ENUM_VALUE_KIND) {
-      __new_eval(ps, s, sym);
+      __new_eval(ps, s, sym, u->stbl);
     } else if (s->kind == FUNC_KIND) {
       __parse_funcdecl(ps, s);
     } else {
@@ -1562,7 +1650,7 @@ TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz)
       return NULL;
     }
   }
-  return TypeDesc_New_Klass(path, klazz->name, NULL);
+  return TypeDesc_New_Klass(path, klazz->name);
 }
 
 void __Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)

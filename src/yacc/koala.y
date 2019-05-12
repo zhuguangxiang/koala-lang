@@ -204,6 +204,7 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
 %type <Name> Name
 %type <List> TypeParameters
 %type <TypePara> TypeParameter
+%type <List> KlassTypeList
 
 %type <Stmt> ConstDeclaration
 %type <Stmt> VarDeclaration
@@ -404,19 +405,19 @@ PrimitiveType
 KlassType
   : ID
   {
-    $$ = TypeDesc_New_Klass(NULL, $1.str, NULL);
+    $$ = TypeDesc_New_Klass(NULL, $1.str);
   }
   | ID '.' ID
   {
-    $$ = TypeDesc_New_Klass($1.str, $3.str, NULL);
+    $$ = TypeDesc_New_Klass($1.str, $3.str);
   }
   | ID '<' TypeList '>'
   {
-    $$ = TypeDesc_New_Klass(NULL, $1.str, $3);
+    $$ = TypeDesc_New_Klass_Inst(NULL, $1.str, $3);
   }
   | ID '.' ID '<' TypeList '>'
   {
-    $$ = TypeDesc_New_Klass($1.str, $3.str, $5);
+    $$ = TypeDesc_New_Klass_Inst($1.str, $3.str, $5);
   }
   ;
 
@@ -800,10 +801,23 @@ TypeParameter
     DeclareIdent(id, $1, @1);
     $$ = New_TypePara(id, NULL);
   }
-  | ID ':' KlassType
+  | ID ':' KlassTypeList
   {
     DeclareIdent(id, $1, @1);
     $$ = New_TypePara(id, $3);
+  }
+  ;
+
+KlassTypeList
+  : KlassType
+  {
+    $$ = Vector_New();
+    Vector_Append($$, $1);
+  }
+  | KlassTypeList '&' KlassType
+  {
+    $$ = $1;
+    Vector_Append($$, $3);
   }
   ;
 
