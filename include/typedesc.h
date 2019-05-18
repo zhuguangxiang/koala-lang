@@ -124,21 +124,12 @@ typedef struct basicdesc {
   char *typestr;  /* <type> */
 } BaseDesc;
 
-#define TYPEPARA_DEF  1  // typepara define, TypeParaDef
-#define TYPEPARA_INST 2  // typepara instantiation, TypeDesc
-
-typedef struct typeparadef {
-  String name;    /* T: Foo & Bar */
-  Vector *bases;  /* Foo, Bar and etc */
-} TypeParaDef;
-
 /* class, trait or enum */
 typedef struct klassdesc {
   TYPEDESC_HEAD
-  String path;   /* absolute path, but not ref-name */
-  String type;   /* type name */
-  int typepara;  /* one of TYPEPARA_XXX */
-  Vector *paras; /* type parameters */
+  String path;        /* absolute path, but not ref-name */
+  String type;        /* type name */
+  Vector *paratypes;  /* parameter types */
 } KlassDesc;
 
 /* function's proto */
@@ -174,10 +165,11 @@ typedef struct tupledesc {
   Vector *bases;
 } TupleDesc;
 
-/* typepara ref type */
+/* paratype */
 typedef struct pararefdesc {
   TYPEDESC_HEAD
-  String name;  /* reference type name */
+  String name;  /* name */
+  Vector *refs; /* ref types */
 } ParaRefDesc;
 
 TypeParaDef *TypeParaDef_New(char *name, Vector *bases);

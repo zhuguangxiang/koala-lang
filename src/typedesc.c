@@ -441,24 +441,6 @@ TypeDesc *TypeDesc_New_Klass(char *path, char *type)
   return (TypeDesc *)desc;
 }
 
-TypeDesc *TypeDesc_New_Klass_Def(char *path, char *type, Vector *paras)
-{
-  TypeDesc *desc = TypeDesc_New_Klass(path, type);
-  KlassDesc *klazz = (KlassDesc *)desc;
-  klazz->typepara = TYPEPARA_DEF;
-  klazz->paras = paras;
-  return desc;
-}
-
-TypeDesc *TypeDesc_New_Klass_Inst(char *path, char *type, Vector *paras)
-{
-  TypeDesc *desc = TypeDesc_New_Klass(path, type);
-  KlassDesc *klazz = (KlassDesc *)desc;
-  klazz->typepara = TYPEPARA_INST;
-  klazz->paras = paras;
-  return desc;
-}
-
 TypeDesc *TypeDesc_New_Proto(Vector *arg, TypeDesc *ret)
 {
   DeclareTypeDesc(desc, TYPE_PROTO, ProtoDesc);

@@ -89,6 +89,8 @@ typedef struct varsymbol {
   int32 index;
   /* if is constant, save its value */
   ConstValue value;
+  /* symbol's owner, module or class */
+  Symbol *owner;
   /* variable's stbl for attribute acess, not need free */
   STable *stbl;
 } VarSymbol;
@@ -96,15 +98,24 @@ typedef struct varsymbol {
 /* function symbol */
 typedef struct funcsymbol {
   SYMBOL_HEAD
+  /* symbol's owner, module or class */
+  Symbol *owner;
   /* local varibles in the function */
   Vector locvec;
   /* CodeBlock */
   void *code;
 } FuncSymbol;
 
+typedef struct paratype {
+  String name;    /* T: Foo & Bar */
+  Vector *types;  /* Foo, Bar and etc */
+} ParaType;
+
 /* class and trait symbol */
 typedef struct classsymbol {
   SYMBOL_HEAD
+  /* parameter types */
+  Vector *paratypes;
   /* supers in liner-oder */
   Vector supers;
   /* symbol table */
@@ -114,6 +125,8 @@ typedef struct classsymbol {
 /* enum symbol */
 typedef struct enumsymbol {
   SYMBOL_HEAD
+  /* parameter types */
+  Vector *paratypes;
   /* symbol table for EnumSymbol and FuncSymbol */
   STable *stbl;
 } EnumSymbol;

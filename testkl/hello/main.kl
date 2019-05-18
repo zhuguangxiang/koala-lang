@@ -34,4 +34,11 @@ func main() {
   var opt2 Option<Person> = Some(Person())
   opt2 = Option.Some(Person())
   opt2.and_then()
+
+  /*
+  var dog Dog<string> = Dog()
+  dog.set_name("little-black")
+  name := dog.get_name()
+  puts(name)
+  */
 }
