@@ -77,7 +77,7 @@ typedef enum desckind {
   TYPE_MAP,
   TYPE_VARG,
   TYPE_TUPLE,
-  TYPE_REF,
+  TYPE_PARAREF,
 } DescKind;
 
 /*
@@ -129,7 +129,7 @@ typedef struct klassdesc {
   TYPEDESC_HEAD
   String path;        /* absolute path, but not ref-name */
   String type;        /* type name */
-  Vector *paratypes;  /* parameter types */
+  Vector *typeparas;  /* parameter types */
 } KlassDesc;
 
 /* function's proto */
@@ -165,16 +165,13 @@ typedef struct tupledesc {
   Vector *bases;
 } TupleDesc;
 
-/* paratype */
+/* pararef */
 typedef struct pararefdesc {
   TYPEDESC_HEAD
-  String name;  /* name */
-  Vector *refs; /* ref types */
+  String name;   /* name */
+  int index;     /* index of paratypes */
+  Vector *types; /* types */
 } ParaRefDesc;
-
-TypeParaDef *TypeParaDef_New(char *name, Vector *bases);
-int TypePara_Compatible(TypeParaDef *def, TypeDesc *desc);
-TypeParaDef *Get_TypeParaDef(ParaRefDesc *ref, TypeDesc *desc);
 
 /* check two typedescs are the same */
 int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2);
@@ -193,8 +190,6 @@ TypeDesc *TypeDesc_Get_Base(int base);
 
 /* new a class or trait typedesc */
 TypeDesc *TypeDesc_New_Klass(char *path, char *type);
-TypeDesc *TypeDesc_New_Klass_Def(char *path, char *type, Vector *paras);
-TypeDesc *TypeDesc_New_Klass_Inst(char *path, char *type, Vector *paras);
 
 /* new a proto typedesc */
 TypeDesc *TypeDesc_New_Proto(Vector *arg, TypeDesc *ret);
@@ -212,7 +207,7 @@ TypeDesc *TypeDesc_New_Varg(TypeDesc *base);
 TypeDesc *TypeDesc_New_Tuple(Vector *bases);
 
 /* new a typepara reference typedesc */
-TypeDesc *TypeDesc_New_ParaRef(char *name);
+TypeDesc *TypeDesc_New_ParaRef(char *name, Vector *types);
 
 TypeDesc *__String_To_TypeDesc(char **string, int _dims, int _varg);
 #define String_To_TypeDesc(s) \

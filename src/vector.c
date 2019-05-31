@@ -27,21 +27,38 @@
 
 void Vector_Init(Vector *vec)
 {
+  vec->itemsize = sizeof(void *);
   vec->size = 0;
   vec->capacity = 0;
   vec->items = NULL;
 }
 
-Vector *Vector_Capacity(int capacity)
+void Vector_Fini(Vector *vec, vec_finifunc fini, void *arg)
+{
+  if (vec == NULL || vec->items == NULL)
+    return;
+
+  if (fini != NULL) {
+    void *item;
+    Vector_ForEach(item, vec)
+      fini(item, arg);
+  }
+
+  Mfree(vec->items);
+  Vector_Init(vec);
+}
+
+Vector *Vector_Capacity_Object(int capacity, int itemsize)
 {
   Vector *vec = Malloc(sizeof(Vector));
   if (vec == NULL)
     return NULL;
 
+  vec->itemsize = itemsize;
   vec->size = 0;
   if (capacity > 0) {
     vec->capacity = capacity;
-    vec->items = Malloc(capacity * sizeof(void *));
+    vec->items = Malloc(capacity * itemsize);
   } else {
     vec->capacity = 0;
     vec->items = NULL;
@@ -57,24 +74,6 @@ void Vector_Free(Vector *vec, vec_finifunc fini, void *arg)
   Mfree(vec);
 }
 
-void Vector_Fini(Vector *vec, vec_finifunc fini, void *arg)
-{
-  if (vec == NULL || vec->items == NULL)
-    return;
-
-  if (fini) {
-    void *item;
-    Vector_ForEach(item, vec)
-      fini(item, arg);
-  }
-
-  Mfree(vec->items);
-
-  vec->size = 0;
-  vec->capacity = 0;
-  vec->items = NULL;
-}
-
 static int vector_expand(Vector *vec, int newsize)
 {
   int capacity = vec->capacity;
@@ -82,16 +81,16 @@ static int vector_expand(Vector *vec, int newsize)
     return 0;
 
   int new_allocated = (capacity == 0) ? DEFAULT_CAPACITY : capacity << 1;
-  void *items = Malloc(new_allocated * sizeof(void *));
-  if (!items)
+  void *items = Malloc(new_allocated * vec->itemsize);
+  if (items == NULL)
     return -1;
 
-  if (vec->items) {
-    memcpy(items, vec->items, vec->size * sizeof(void *));
+  if (vec->items != NULL) {
+    memcpy(items, vec->items, vec->size * vec->itemsize);
     Mfree(vec->items);
   }
   vec->capacity = new_allocated;
-  vec->items = items;
+  vec->items = (void **)items;
   return 0;
 }
 
@@ -103,7 +102,11 @@ int Vector_Set(Vector *vec, int index, void *item)
   if (vector_expand(vec, index + 1) < 0)
     return -1;
 
-  vec->items[index] = item;
+  if (vec->itemsize <= sizeof(void *))
+    vec->items[index] = item;
+  else
+    memcpy(VECTOR_OFFSET(vec, index), item, vec->itemsize);
+
   if (index >= vec->size)
     vec->size = index + 1;
   return 0;
@@ -114,7 +117,10 @@ void *Vector_Get(Vector *vec, int index)
   if (!vec->items || index < 0 || index >= vec->size)
     return NULL;
 
-  return vec->items[index];
+  if (vec->itemsize <= sizeof(void *))
+    return vec->items[index];
+  else
+    return VECTOR_INDEX(vec, index);
 }
 
 void Vector_Concat(Vector *dest, Vector *src)

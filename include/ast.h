@@ -35,31 +35,25 @@ typedef struct ident {
   Position pos;
 } Ident;
 
-Ident *New_Ident(String name, Position pos);
-void Free_IdentList(Vector *vec);
-
-/* typedesc wrapper with position */
-typedef struct typewrapper {
+/* typedesc with position */
+typedef struct postype {
   TypeDesc *desc;
   Position pos;
-} TypeWrapper;
+} PosType;
 
 /* idtype for parameter-list in AST */
 typedef struct idtype {
   Ident id;
-  TypeWrapper type;
+  PosType type;
 } IdType;
 
-IdType *New_IdType(Ident *id, TypeWrapper type);
-void Free_IdType(IdType *idtype);
-void Free_IdTypeList(Vector *vec);
-
+/* parameter type */
 typedef struct typepara {
-  Ident id;
-  Vector *base;
+  Ident id;       /* T: Foo & Bar */
+  Vector *types;  /* Foo, Bar and etc, PosType */
 } TypePara;
 
-TypePara *New_TypePara(Ident id, Vector *base);
+void TypePara_IsDuplicated(Vector *typeparas, Ident *id);
 
 /* unary operator kind */
 typedef enum unaryopkind {
@@ -126,7 +120,8 @@ typedef struct expr Expr;
   Symbol *sym;    \
   Expr *right;    \
   ExprCtx ctx;    \
-  int omit; // for ConstExpr, no need generate load_const, if is constant
+  /* for ConstExpr, no need generate load_const, if is constant */ \
+  int omit;
 
 struct expr {
   EXPR_HEAD
@@ -243,11 +238,11 @@ Expr *Expr_From_ArrayListExpr(Vector *vec);
 typedef struct arrayexpr {
   EXPR_HEAD
   Vector *dims;
-  TypeWrapper base;
+  PosType base;
   ListExpr *listExp;
 } ArrayExpr;
 
-Expr *Parser_New_Array(Vector *vec, int dims, TypeWrapper type, Expr *listExp);
+Expr *Parser_New_Array(Vector *vec, int dims, PosType type, Expr *listExp);
 
 /* map entry expression */
 typedef struct mapentryexpr {
@@ -261,12 +256,12 @@ Expr *Expr_From_MapEntry(Expr *k, Expr *v);
 /* new map expression */
 typedef struct mapexpr {
   EXPR_HEAD
-  TypeWrapper type;
+  PosType type;
   ListExpr *listExp;
 } MapExpr;
 
 Expr *Expr_From_MapListExpr(Vector *vec);
-Expr *Expr_From_Map(TypeWrapper type, Expr *listExp);
+Expr *Expr_From_Map(PosType type, Expr *listExp);
 
 /* new anonymous function expression */
 typedef struct anonyexpr {
@@ -326,7 +321,7 @@ typedef struct stmt {
 typedef struct vardeclstmt {
   STMT_HEAD
   Ident id;
-  TypeWrapper type;
+  PosType type;
   Expr *exp;
 } VarDeclStmt;
 
@@ -354,11 +349,11 @@ typedef struct funcdeclstmt {
   /* native flag */
   int native;
   /* type parameters */
-  Vector *typeparams;
+  Vector *typeparas;
   /* idtype statement */
   Vector *args;
   /* return type */
-  TypeDesc *ret;
+  PosType ret;
   /* body statements */
   Vector *body;
 } FuncDeclStmt;
@@ -387,12 +382,12 @@ typedef struct liststmt {
 } ListStmt;
 
 void Free_Stmt_Func(void *item, void *arg);
-Stmt *Stmt_From_ConstDecl(Ident id, TypeWrapper type, Expr *exp);
-Stmt *Stmt_From_VarDecl(Ident id, TypeWrapper type, Expr *exp);
+Stmt *Stmt_From_ConstDecl(Ident id, PosType type, Expr *exp);
+Stmt *Stmt_From_VarDecl(Ident id, PosType type, Expr *exp);
 Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right);
 Stmt *Stmt_From_FuncDecl(Ident id, Vector *typeparams, Vector *args,
-                         TypeDesc *ret, Vector *stmts);
-Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, TypeDesc *ret);
+                         PosType ret, Vector *stmts);
+Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, PosType ret);
 Stmt *Stmt_From_Expr(Expr *exp);
 Stmt *Stmt_From_List(Vector *vec);
 Stmt *Stmt_From_Return(Expr *exp);
@@ -401,7 +396,7 @@ Stmt *Stmt_From_Return(Expr *exp);
 typedef struct klassstmt {
   STMT_HEAD
   Ident id;
-  Vector *typeparams;
+  Vector *typeparas;
   Vector *super;
   Vector *body;
 } KlassStmt;
@@ -421,11 +416,11 @@ Stmt *New_EnumValue(Ident id, Vector *types, Expr *exp);
 typedef struct enumstmt {
   STMT_HEAD
   Ident id;
-  Vector *typeparams;
+  Vector *typeparas;
   Vector *body;
 } EnumStmt;
 
-Stmt *Stmt_From_Enum(Ident id, Vector *typeparams, Vector *body);
+Stmt *Stmt_From_Enum(Ident id, Vector *types, Vector *body);
 
 #ifdef __cplusplus
 }

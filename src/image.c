@@ -505,7 +505,7 @@ int TypeItem_Get(AtomTable *table, TypeDesc *desc)
     item.varg.typeindex = TypeItem_Get(table, varg->base);
     break;
   }
-  case TYPE_REF: {
+  case TYPE_PARAREF: {
     item.kind = TYPE_BASE;
     item.primitive = BASE_ANY;
     break;
@@ -564,7 +564,7 @@ int TypeItem_Set(AtomTable *table, TypeDesc *desc)
       item = TypeItem_Varg_New(typeindex);
       break;
     }
-    case TYPE_REF: {
+    case TYPE_PARAREF: {
       item = TypeItem_Primitive_New(BASE_ANY);
       break;
     }

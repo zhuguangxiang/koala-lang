@@ -91,8 +91,11 @@ typedef struct varsymbol {
   ConstValue value;
   /* symbol's owner, module or class */
   Symbol *owner;
-  /* variable's stbl for attribute acess, not need free */
-  STable *stbl;
+  /* variable's stbl(stables of typeparas), not need free */
+  union {
+    STable *stbl;
+    Vector *vec;
+  };
 } VarSymbol;
 
 /* function symbol */
@@ -100,22 +103,19 @@ typedef struct funcsymbol {
   SYMBOL_HEAD
   /* symbol's owner, module or class */
   Symbol *owner;
+  /* type parameters, only for in module */
+  Vector *typeparas;
   /* local varibles in the function */
   Vector locvec;
   /* CodeBlock */
   void *code;
 } FuncSymbol;
 
-typedef struct paratype {
-  String name;    /* T: Foo & Bar */
-  Vector *types;  /* Foo, Bar and etc */
-} ParaType;
-
 /* class and trait symbol */
 typedef struct classsymbol {
   SYMBOL_HEAD
-  /* parameter types */
-  Vector *paratypes;
+  /* type parameters */
+  Vector *typeparas;
   /* supers in liner-oder */
   Vector supers;
   /* symbol table */
@@ -126,7 +126,7 @@ typedef struct classsymbol {
 typedef struct enumsymbol {
   SYMBOL_HEAD
   /* parameter types */
-  Vector *paratypes;
+  Vector *typeparas;
   /* symbol table for EnumSymbol and FuncSymbol */
   STable *stbl;
 } EnumSymbol;
@@ -136,11 +136,11 @@ typedef struct enumvalsymbol {
   SYMBOL_HEAD
   /* which enum is it? */
   EnumSymbol *esym;
-  /* associated types, ParaRefDesc */
+  /* associated types, TypeDesc */
   Vector *types;
 } EnumValSymbol;
 
-/* closure/anonoymous function */
+/* anonoymous function */
 typedef struct afuncsymbol {
   SYMBOL_HEAD
   /* local varibles in the closure */
@@ -184,7 +184,7 @@ VarSymbol *STable_Add_Var(STable *stbl, char *name, TypeDesc *desc);
 FuncSymbol *STable_Add_Func(STable *stbl, char *name, TypeDesc *proto);
 ClassSymbol *STable_Add_Class(STable *stbl, char *name);
 ClassSymbol *STable_Add_Trait(STable *stbl, char *name);
-EnumSymbol *STable_Add_Enum(STable *stbl, char *name, Vector *typeparams);
+EnumSymbol *STable_Add_Enum(STable *stbl, char *name);
 EnumValSymbol *STable_Add_EnumValue(STable *stbl, char *name);
 Symbol *STable_Add_Proto(STable *stbl, char *name, int kind, TypeDesc *desc);
 #define STable_Add_IFunc(stbl, name, proto) \

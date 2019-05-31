@@ -463,7 +463,7 @@ static void code_attribute_expr(ParserState *ps, Expr *exp)
       int argc = Vector_Size(callExp->args);
       CODE_CALL(u->block, attrExp->id.name, argc);
     } else {
-
+      //FIMXE
     }
     break;
   }
@@ -513,20 +513,24 @@ static int __check_call_arguments(TypeDesc *desc, Vector *args)
   return 1;
 }
 
-static int check_new_enum(ParserState *ps, EnumValSymbol *evSym, Vector *args)
+static int check_new_eval(ParserState *ps, EnumValSymbol *evSym, Vector *args)
 {
   Vector *vec = evSym->types;
   if (Vector_Size(vec) != Vector_Size(args))
     return 0;
-  TypeParaDef *def;
+
   TypeDesc *type;
   Expr *exp;
   Vector_ForEach(exp, args) {
     type = Vector_Get(vec, i);
-    if (type->kind == TYPE_REF) {
-      def = Get_TypeParaDef((ParaRefDesc *)type, evSym->esym->desc);
-      if (!TypePara_Compatible(def, exp->desc))
-        return 0;
+    if (type->kind == TYPE_PARAREF) {
+      TypeDesc *base;
+      Vector *bases = ((ParaRefDesc *)type)->types;
+      Vector_ForEach(base, bases) {
+        //FIXME
+        if (!__type_is_compatible(base, exp->desc))
+          return 0;
+      }
     } else {
       if (!TypeDesc_Equal(type, exp->desc))
         return 0;
@@ -535,19 +539,52 @@ static int check_new_enum(ParserState *ps, EnumValSymbol *evSym, Vector *args)
   return 1;
 }
 
+TypeDesc *getparadesc(char *name, Vector *types, Vector *exps)
+{
+  TypeDesc *type;
+  Vector_ForEach(type, types) {
+    if (type->kind == TYPE_PARAREF) {
+      ParaRefDesc *ref = (ParaRefDesc *)type;
+      if (!strcmp(name, ref->name.str)) {
+        Expr *e = Vector_Get(exps, i);
+        return e->desc;
+      }
+    }
+  }
+  return NULL;
+}
+
 TypeDesc *New_EVal_Type(EnumValSymbol *evSym, Vector *exps)
 {
-  KlassDesc *klass = (KlassDesc *)evSym->esym->desc;
-  Vector *vec = NULL;
-  if (exps != NULL)
-    vec = Vector_Capacity(Vector_Size(exps));
-  Expr *e;
-  Vector_ForEach(e, exps) {
-    TYPE_INCREF(e->desc);
-    Vector_Append(vec, e->desc);
-  }
+  EnumSymbol *eSym = evSym->esym;
+  Vector *typeparas = NULL;
   TypeDesc *type;
-  type = TypeDesc_New_Klass_Inst(klass->path.str, klass->type.str, vec);
+
+  Log_Printf("%s: %s", evSym->name, eSym->name);
+
+  if (eSym->typeparas != NULL) {
+    Log_Printf("<");
+    int size = Vector_Size(eSym->typeparas);
+    typeparas = Vector_Capacity(size);
+    String s;
+    TypePara *para;
+    Vector_ForEach(para, eSym->typeparas) {
+      type = getparadesc(para->id.name, evSym->types, exps);
+      s = TypeDesc_ToString(type);
+      if (i < size - 1)
+        Log_Printf("%s, ", s.str);
+      else
+        Log_Printf("%s", s.str);
+      TYPE_INCREF(type);
+      Vector_Append(typeparas, type);
+
+    }
+    Log_Puts(">");
+  }
+
+  KlassDesc *klass = (KlassDesc *)eSym->desc;
+  type = TypeDesc_New_Klass(klass->path.str, klass->type.str);
+  ((KlassDesc *)type)->typeparas = typeparas;
   return type;
 }
 
@@ -593,7 +630,6 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
   if (kind == SYM_CLASS) {
     ClassSymbol *clsSym = (ClassSymbol *)exp->sym;
     Log_Debug("new class '%s'", clsSym->name);
-
     TypeDesc *desc = NULL;
     Symbol *__init__ = STable_Get(clsSym->stbl, "__init__");
     int argc = Vector_Size(callExp->args);
@@ -610,21 +646,29 @@ static void parse_call_expr(ParserState *ps, Expr *exp)
         Syntax_Error(&lexp->pos, "__init__ needs no return");
         return;
       }
-    }
-
-    if (!__check_call_arguments(desc, callExp->args)) {
-      Syntax_Error(&lexp->pos,
-                  "argument of '%s' are not matched", clsSym->name);
-      return;
+      if (!__check_call_arguments(desc, callExp->args)) {
+        Syntax_Error(&lexp->pos,
+                    "argument of '%s' are not matched", clsSym->name);
+        return;
+      }
     }
 
     /* set new object expression's descriptor */
-    TYPE_INCREF(clsSym->desc);
-    exp->desc = clsSym->desc;
+    if (clsSym->typeparas != NULL) {
+      KlassDesc *klstype = (KlassDesc *)clsSym->desc;
+      KlassDesc *type = (KlassDesc *)TypeDesc_New_Klass(klstype->path.str,
+                                                        klstype->type.str);
+      type->typeparas = Vector_Capacity(Vector_Size(clsSym->typeparas));
+      desc = (TypeDesc *)type;
+    } else {
+      desc = clsSym->desc;
+      TYPE_INCREF(desc);
+    }
+    exp->desc = desc;
   } else if (kind == SYM_EVAL) {
     // check parameters whether they are matched with defined types
     EnumValSymbol *evSym = (EnumValSymbol *)exp->sym;
-    if (!check_new_enum(ps, evSym, callExp->args)) {
+    if (!check_new_eval(ps, evSym, callExp->args)) {
       TYPE_DECREF(exp->desc);
       exp->desc = NULL;
       Syntax_Error(&exp->pos,
@@ -782,6 +826,16 @@ static ParserUnit *parse_block_variable(ParserState *ps, Ident *id)
   return NULL;
 }
 
+static int check_typeparas(ParserState *ps, KlassDesc *klass)
+{
+  TypeDesc *desc;
+  Vector_ForEach(desc, klass->typeparas) {
+    if (desc == NULL)
+      return -1;
+  }
+  return 0;
+}
+
 /*
  * get type's symbol table
  * every type has its stbl, even if it's base type(e.g. int, string etc)
@@ -829,6 +883,44 @@ static STable *get_type_stbl(ParserState *ps, TypeDesc *desc)
   return stbl;
 }
 
+static void set_var_stbl(ParserState *ps, VarSymbol *varSym)
+{
+  STable *stbl = NULL;
+  TypeDesc *desc = varSym->desc;
+  switch (desc->kind) {
+  case TYPE_BASE: {
+    break;
+  }
+  case TYPE_KLASS: {
+    stbl = get_type_stbl(ps, desc);
+    assert(stbl != NULL && varSym->stbl == NULL);
+    varSym->stbl = stbl;
+    break;
+  }
+  case TYPE_VARG: {
+    break;
+  }
+  case TYPE_PARAREF: {
+    ParaRefDesc *ref = (ParaRefDesc *)desc;
+    int sz = Vector_Size(ref->types);
+    Log_Debug("type para has %d types", sz);
+    if (sz > 0) {
+      Vector *vec = Vector_Capacity(sz);
+      TypeDesc *type;
+      Vector_ForEach(type, ref->types) {
+        Vector_Append(vec, get_type_stbl(ps, type));
+      }
+      assert(varSym->vec == NULL);
+      varSym->vec = vec;
+    }
+    break;
+  }
+  default:
+    assert(0);
+    break;
+  }
+}
+
 static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
 {
   ParserUnit *u = ps->u;
@@ -849,7 +941,7 @@ static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       varSym->desc = desc;
       TYPE_INCREF(varSym->desc);
     }
-    varSym->stbl = get_type_stbl(ps, desc);
+    set_var_stbl(ps, varSym);
     break;
   case SCOPE_FUNCTION:
   case SCOPE_CLOSURE: {
@@ -860,7 +952,13 @@ static VarSymbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       Syntax_Error(&id->pos, "var '%s' is duplicated", id->name);
       return NULL;
     }
-    varSym->stbl = get_type_stbl(ps, desc);
+    if (varSym->desc == NULL) {
+      String s = TypeDesc_ToString(desc);
+      Log_Debug("update symbol '%s' type as '%s'", id->name, s.str);
+      varSym->desc = desc;
+      TYPE_INCREF(varSym->desc);
+    }
+    set_var_stbl(ps, varSym);
     FuncSymbol *funcSym = (FuncSymbol *)u->sym;
     Vector_Append(&funcSym->locvec, varSym);
     varSym->refcnt++;
@@ -923,7 +1021,7 @@ static void save_const_to_symbol(VarSymbol *varSym, Expr *exp)
  * 2. class or trait's field declaration
  * 3. function argument & return & local variable declaration
  */
-static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
+static void parse_variable(ParserState *ps, Ident *id, PosType *type,
                            Expr *rexp, int konst)
 {
   Log_Debug("parse variable '%s' declaration", id->name);
@@ -946,8 +1044,6 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
       return;
     }
 
-    TypeDesc *rdesc = rexp->desc;
-
     /*
      * right expr's type is func proto, there are three exprs:
      * 1. function call
@@ -955,6 +1051,7 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
      * 3. new object
      * check function call expr only, anonymous needs not check
      */
+    TypeDesc *rdesc = rexp->desc;
     if (rexp->kind == CALL_KIND) {
       if (rdesc->kind == TYPE_PROTO) {
         ProtoDesc *proto = (ProtoDesc *)rdesc;
@@ -965,13 +1062,18 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
         rdesc = proto->ret;
       } else {
         assert(rdesc->kind == TYPE_KLASS);
-      }
-
-      if (type->desc == NULL) {
-        String s = TypeDesc_ToString(rdesc);
-        Log_Debug("var '%s' type is none, set it as '%s'", id->name, s.str);
-        TYPE_INCREF(rdesc);
-        type->desc = rdesc;
+        if (type->desc != NULL && type->desc->kind == TYPE_KLASS) {
+          /* update right expr's descriptor if it has type parameters */
+          KlassDesc *lklstype = (KlassDesc *)type->desc;
+          KlassDesc *rklstype = (KlassDesc *)rdesc;
+          TypeDesc *lpara;
+          TypeDesc *rpara;
+          Vector_ForEach(lpara, lklstype->typeparas) {
+            rpara = Vector_Get(rklstype->typeparas, i);
+            if (rpara == NULL)
+              Vector_Set(rklstype->typeparas, i, lpara);
+          }
+        }
       }
     }
 
@@ -983,6 +1085,13 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
         return;
       }
     } else {
+      if (rdesc->kind == TYPE_KLASS) {
+        KlassDesc *klazz = (KlassDesc *)rdesc;
+        if (check_typeparas(ps, klazz)) {
+          Syntax_Error(&rexp->pos, "parameter types are not matched");
+          return;
+        }
+      }
       String s = TypeDesc_ToString(rdesc);
       Log_Debug("var '%s' type is none, set it as '%s'", id->name, s.str);
       TYPE_INCREF(rdesc);
@@ -990,7 +1099,7 @@ static void parse_variable(ParserState *ps, Ident *id, TypeWrapper *type,
     }
   }
 
-  /* update or add symbol */
+  /* add or update symbol */
   VarSymbol *varSym = add_update_var(ps, id, type->desc);
   if (varSym == NULL)
     return;
@@ -1038,20 +1147,20 @@ static void parse_func_decl(ParserState *ps, Stmt *stmt)
   assert(uu != NULL);
   assert(uu->scope == SCOPE_MODULE || uu->scope == SCOPE_CLASS);
   Symbol *sym = STable_Get(uu->stbl, funStmt->id.name);
-  if (sym != NULL) {
-    Log_Debug("----parse function '%s'----", funStmt->id.name);
+  assert(sym != NULL);
+  Log_Debug("----parse function '%s'----", funStmt->id.name);
 
-    ps->u->sym = sym;
-    /* parameter-list */
-    IdType *idtype;
-    Vector_ForEach(idtype, funStmt->args) {
-      parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
-    }
+  ps->u->sym = sym;
 
-    parse_statements(ps, funStmt->body);
-
-    Log_Debug("----end of function '%s'----", funStmt->id.name);
+  /* parameter-list */
+  IdType *idtype;
+  Vector_ForEach(idtype, funStmt->args) {
+    parse_variable(ps, &idtype->id, &idtype->type, NULL, 0);
   }
+
+  parse_statements(ps, funStmt->body);
+
+  Log_Debug("----end of function '%s'----", funStmt->id.name);
 
   Parser_Exit_Scope(ps);
 }

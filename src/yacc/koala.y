@@ -31,13 +31,22 @@
   Ident name = {(s).str, {yyloc_row(loc), yyloc_col(loc)}}
 
 #define DeclareType(name, type, loc) \
-  TypeWrapper name = {type, {yyloc_row(loc), yyloc_col(loc)}}
-
-#define NullType(name) \
-  TypeWrapper name = {NULL}
+  PosType name = {type, {yyloc_row(loc), yyloc_col(loc)}}
 
 #define DeclarePosition(name, loc) \
   Position name = {yyloc_row(loc), yyloc_col(loc)}
+
+#define DeclareIdType(name, id, type) \
+  IdType name = {id, type}
+
+#define NullType(name) \
+  PosType name = {NULL}
+
+#define NullIdType(name) \
+  IdType name = {{NULL}}
+
+#define DeclareTypePara(name, id, list) \
+  TypePara name = {id, list}
 
 #define SetPosition(pos, loc) \
 ({                            \
@@ -110,13 +119,13 @@ static int yyerror(void *loc, ParserState *ps, void *scanner, const char *msg)
   Expr *Expr;
   Stmt *Stmt;
   TypeDesc *TypeDesc;
-  IdType *IdType;
+  IdType IdType;
   int Operator;
   struct {
     Ident ident;
     Vector *vec;
   } Name;
-  TypePara *TypePara;
+  TypePara TypePara;
 }
 
 %token TYPELESS_ASSIGN
@@ -413,11 +422,13 @@ KlassType
   }
   | ID '<' TypeList '>'
   {
-    $$ = TypeDesc_New_Klass_Inst(NULL, $1.str, $3);
+    $$ = TypeDesc_New_Klass(NULL, $1.str);
+    ((KlassDesc *)$$)->typeparas = $3;
   }
   | ID '.' ID '<' TypeList '>'
   {
-    $$ = TypeDesc_New_Klass_Inst($1.str, $3.str, $5);
+    $$ = TypeDesc_New_Klass($1.str, $3.str);
+    ((KlassDesc *)$$)->typeparas = $5;
   }
   ;
 
@@ -452,45 +463,46 @@ IDType
   {
     DeclareIdent(id, $1, @1);
     DeclareType(type, $2, @2);
-    $$ = New_IdType(&id, type);
+    DeclareIdType(idtype, id, type);
+    $$ = idtype;
   }
   | ID error
   {
     YYSyntax_Error(@2, "Type");
-    $$ = NULL;
+    NullIdType(nullidtype);
+    $$ = nullidtype;
   }
   ;
 
 IDTypeList
   : IDType
   {
-    if ($1 != NULL) {
-      $$ = Vector_New();
-      Vector_Append($$, $1);
+    if ($1.id.name != NULL) {
+      $$ = Vector_New_Object(sizeof(IdType));
+      Vector_Append($$, &$1);
     } else {
       $$ = NULL;
     }
   }
   | IDTypeList ',' IDType
   {
-    if ($1 != NULL && $3 != NULL) {
+    if ($1 != NULL && $3.id.name != NULL) {
       $$ = $1;
-      Vector_Append($$, $3);
+      Vector_Append($$, &$3);
     } else {
+      Vector_Free_Self($$);
       $$ = NULL;
-      Free_IdTypeList($1);
-      Free_IdType($3);
     }
   }
   | IDTypeList ',' error
   {
-    Free_IdTypeList($1);
+    Vector_Free_Self($1);
     YYSyntax_Error_Clear(@3, "IDType");
     $$ = NULL;
   }
   | IDTypeList error
   {
-    Free_IdTypeList($1);
+    Vector_Free_Self($1);
     YYSyntax_Error_Clear(@2, ",");
     $$ = NULL;
   }
@@ -505,15 +517,17 @@ ParameterList
   {
     DeclareIdent(id, $3, @3);
     DeclareType(type, $4, @4);
+    DeclareIdType(idtype, id, type);
     $$ = $1;
-    Vector_Append($$, New_IdType(&id, type));
+    Vector_Append($$, &idtype);
   }
   | ID VArgType
   {
     DeclareIdent(id, $1, @1);
     DeclareType(type, $2, @2);
-    $$ = Vector_Capacity(1);
-    Vector_Append($$, New_IdType(&id, type));
+    DeclareIdType(idtype, id, type);
+    $$ = Vector_Capacity_Object(1, sizeof(IdType));
+    Vector_Append($$, &idtype);
   }
   ;
 
@@ -531,28 +545,30 @@ VArgType
 TypeList
   : Type
   {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
+    $$ = Vector_New_Object(sizeof(PosType));
+    DeclareType(type, $1, @1);
+    Vector_Append($$, &type);
   }
   | TypeList ',' Type
   {
     $$ = $1;
-    Vector_Append($$, $3);
+    DeclareType(type, $3, @3);
+    Vector_Append($$, &type);
   }
   ;
 
 IDList
   : ID
   {
-    $$ = Vector_New();
-    DeclarePosition(pos, @1);
-    Vector_Append($$, New_Ident($1, pos));
+    $$ = Vector_New_Object(sizeof(Ident));
+    DeclareIdent(id, $1, @1);
+    Vector_Append($$, &id);
   }
   | IDList ',' ID
   {
     $$ = $1;
-    DeclarePosition(pos, @3);
-    Vector_Append($$, New_Ident($3, pos));
+    DeclareIdent(id, $3, @3);
+    Vector_Append($$, &id);
   }
   ;
 
@@ -746,19 +762,23 @@ VarDeclaration
 FuncDeclaration
   : FUNC Name '(' ParameterList ')' Type ExprOrBlock
   {
-    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, $4, $6, $7);
+    DeclareType(type, $6, @6);
+    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, $4, type, $7);
   }
   | FUNC Name '(' ParameterList ')' ExprOrBlock
   {
-    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, $4, NULL, $6);
+    NullType(type);
+    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, $4, type, $6);
   }
   | FUNC Name '(' ')' Type ExprOrBlock
   {
-    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, NULL, $5, $6);
+    DeclareType(type, $5, @5);
+    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, NULL, type, $6);
   }
   | FUNC Name '(' ')' ExprOrBlock
   {
-    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, NULL, NULL, $5);
+    NullType(type);
+    $$ = Stmt_From_FuncDecl($2.ident, $2.vec, NULL, type, $5);
   }
   | FUNC error
   {
@@ -785,13 +805,13 @@ Name
 TypeParameters
   : TypeParameter
   {
-    $$ = Vector_New();
-    Vector_Append($$, $1);
+    $$ = Vector_New_Object(sizeof(TypePara));
+    Vector_Append($$, &$1);
   }
   | TypeParameters ',' TypeParameter
   {
     $$ = $1;
-    Vector_Append($$, $3);
+    Vector_Append($$, &$3);
   }
   ;
 
@@ -799,12 +819,14 @@ TypeParameter
   : ID
   {
     DeclareIdent(id, $1, @1);
-    $$ = New_TypePara(id, NULL);
+    DeclareTypePara(para, id, NULL);
+    $$ = para;
   }
   | ID ':' KlassTypeList
   {
     DeclareIdent(id, $1, @1);
-    $$ = New_TypePara(id, $3);
+    DeclareTypePara(para, id, NULL);
+    $$ = para;
   }
   ;
 
@@ -812,12 +834,14 @@ KlassTypeList
   : KlassType
   {
     $$ = Vector_New();
-    Vector_Append($$, $1);
+    DeclareType(type, $1, @1);
+    Vector_Append($$, &type);
   }
   | KlassTypeList '&' KlassType
   {
     $$ = $1;
-    Vector_Append($$, $3);
+    DeclareType(type, $3, @3);
+    Vector_Append($$, &type);
   }
   ;
 
@@ -976,22 +1000,26 @@ MethodDeclaration
   : FUNC ID '(' ParameterList ')' Type ExprOrBlock
   {
     DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_FuncDecl(id, NULL, $4, $6, $7);
+    DeclareType(type, $6, @6);
+    $$ = Stmt_From_FuncDecl(id, NULL, $4, type, $7);
   }
   | FUNC ID '(' ParameterList ')' ExprOrBlock
   {
     DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_FuncDecl(id, NULL, $4, NULL, $6);
+    NullType(type);
+    $$ = Stmt_From_FuncDecl(id, NULL, $4, type, $6);
   }
   | FUNC ID '(' ')' Type ExprOrBlock
   {
     DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_FuncDecl(id, NULL, NULL, $5, $6);
+    DeclareType(type, $5, @5);
+    $$ = Stmt_From_FuncDecl(id, NULL, NULL, type, $6);
   }
   | FUNC ID '(' ')' ExprOrBlock
   {
     DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_FuncDecl(id, NULL, NULL, NULL, $5);
+    NullType(type);
+    $$ = Stmt_From_FuncDecl(id, NULL, NULL, type, $5);
   }
   ;
 
@@ -999,22 +1027,26 @@ ProtoDeclaration
   : FUNC ID '(' ParameterList ')' Type ';'
   {
     DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_ProtoDecl(id, $4, $6);
+    DeclareType(type, $6, @6);
+    $$ = Stmt_From_ProtoDecl(id, $4, type);
   }
   | FUNC ID '(' ParameterList ')' ';'
   {
     DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_ProtoDecl(id, $4, NULL);
+    NullType(type);
+    $$ = Stmt_From_ProtoDecl(id, $4, type);
   }
   | FUNC ID '(' ')' Type ';'
   {
     DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_ProtoDecl(id, NULL, $5);
+    DeclareType(type, $5, @5);
+    $$ = Stmt_From_ProtoDecl(id, NULL, type);
   }
   | FUNC ID '(' ')' ';'
   {
     DeclareIdent(id, $2, @2);
-    $$ = Stmt_From_ProtoDecl(id, NULL, NULL);
+    NullType(type);
+    $$ = Stmt_From_ProtoDecl(id, NULL, type);
   }
   ;
 

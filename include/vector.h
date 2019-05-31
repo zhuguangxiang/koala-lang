@@ -33,6 +33,8 @@ extern "C" {
  * dynamic array
  */
 typedef struct vector {
+  /* item size, default is sizeof(void *) */
+  int itemsize;
   /* slots used */
   int size;
   /* total available slots */
@@ -42,14 +44,18 @@ typedef struct vector {
 } Vector;
 
 /* declare a vector with name */
-#define VECTOR(name) Vector name = {0, 0, NULL}
+#define VECTOR(name) Vector name = {sizeof(void *), 0, 0, NULL}
 
 /* initialize a vector */
 void Vector_Init(Vector *vec);
 
 /* new a vector, and use Vector_Free to free the vector */
-Vector *Vector_Capacity(int capacity);
+Vector *Vector_Capacity_Object(int capacity, int itemsize);
+#define Vector_Capacity(capacity) \
+  Vector_Capacity_Object(capacity, sizeof(void *))
 #define Vector_New() Vector_Capacity(0)
+#define Vector_New_Object(itemsize) \
+  Vector_Capacity_Object(0, itemsize)
 
 /* call the function before free the vector */
 typedef void (*vec_finifunc)(void *item, void *arg);
@@ -95,18 +101,28 @@ void Vector_Concat(Vector *dest, Vector *src);
 /* returns the vector's size */
 #define Vector_Size(vec) (NULL != (vec) ? (vec)->size : 0)
 
+#define VECTOR_OFFSET(vec, i) \
+  ((char *)(vec)->items + i * (vec)->itemsize)
+
+#define VECTOR_INDEX(vec, i) \
+({ \
+  ((vec)->itemsize <= sizeof(void *)) ? \
+  *(void **)VECTOR_OFFSET(vec, i) : (void *)VECTOR_OFFSET(vec, i); \
+})
+
+
 /* foreach for vector */
-#define Vector_ForEach(item, vec)      \
-for (int i = 0;                        \
-     i < Vector_Size(vec) &&           \
-       ({item = (vec)->items[i]; 1;}); \
+#define Vector_ForEach(item, vec)         \
+for (int i = 0;                           \
+     i < Vector_Size(vec) &&              \
+     ({item = VECTOR_INDEX(vec, i); 1;}); \
      i++)
 
 /* foreach revsersely for vector */
 #define Vector_ForEach_Reverse(item, vec) \
 for (int i = Vector_Size(vec) - 1;        \
      (i >= 0) &&                          \
-       ({item = (vec)->items[i]; 1;});    \
+     ({item = VECTOR_INDEX(vec, i); 1;}); \
      i--)
 
 #ifdef __cplusplus

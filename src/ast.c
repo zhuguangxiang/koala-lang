@@ -28,72 +28,6 @@
 
 LOGGER(0)
 
-Ident *New_Ident(String name, Position pos)
-{
-  Ident *ident = Malloc(sizeof(Ident));
-  ident->name = name.str;
-  ident->pos = pos;
-  return ident;
-}
-
-void Free_Ident(Ident *id)
-{
-  if (id == NULL)
-    return;
-
-  Mfree(id);
-}
-
-void Free_IdentList(Vector *vec)
-{
-  if (vec == NULL)
-    return;
-
-  Ident *id;
-  Vector_ForEach(id, vec) {
-    Free_Ident(id);
-  }
-  Vector_Free_Self(vec);
-}
-
-IdType *New_IdType(Ident *id, TypeWrapper type)
-{
-  IdType *idType = Malloc(sizeof(IdType));
-  if (id != NULL)
-    idType->id = *id;
-  idType->type = type;
-  return idType;
-}
-
-void Free_IdType(IdType *idtype)
-{
-  if (idtype == NULL)
-    return;
-
-  TYPE_DECREF(idtype->type.desc);
-  Mfree(idtype);
-}
-
-void Free_IdTypeList(Vector *vec)
-{
-  if (vec == NULL)
-    return;
-
-  IdType *idtype;
-  Vector_ForEach(idtype, vec) {
-    Free_IdType(idtype);
-  }
-  Vector_Free_Self(vec);
-}
-
-TypePara *New_TypePara(Ident id, Vector *base)
-{
-  TypePara *para = Malloc(sizeof(TypePara));
-  para->id = id;
-  para->base = base;
-  return para;
-}
-
 Expr *Expr_From_Nil(void)
 {
   Expr *exp = Malloc(sizeof(Expr));
@@ -296,7 +230,7 @@ Expr *Expr_From_ArrayListExpr(Vector *vec)
   return (Expr *)listExp;
 }
 
-Expr *Expr_From_Array(Vector *dims, TypeWrapper base, Expr *listExp)
+Expr *Expr_From_Array(Vector *dims, PosType base, Expr *listExp)
 {
   ArrayExpr *arrayExp = Malloc(sizeof(ArrayExpr));
   arrayExp->kind = ARRAY_KIND;
@@ -307,7 +241,7 @@ Expr *Expr_From_Array(Vector *dims, TypeWrapper base, Expr *listExp)
   return (Expr *)arrayExp;
 }
 
-Expr *Parser_New_Array(Vector *vec, int dims, TypeWrapper type, Expr *listExp)
+Expr *Parser_New_Array(Vector *vec, int dims, PosType type, Expr *listExp)
 {
   Vector *dimsVec;
   TypeDesc *base;
@@ -337,7 +271,7 @@ Expr *Parser_New_Array(Vector *vec, int dims, TypeWrapper type, Expr *listExp)
     base = type.desc;
     TYPE_INCREF(base);
   }
-  TypeWrapper basetype = {base, type.pos};
+  PosType basetype = {base, type.pos};
   return Expr_From_Array(dimsVec, basetype, listExp);
 }
 
@@ -379,7 +313,7 @@ Expr *Expr_From_MapEntry(Expr *k, Expr *v)
   return (Expr *)entExp;
 }
 
-Expr *Expr_From_Map(TypeWrapper type, Expr *listExp)
+Expr *Expr_From_Map(PosType type, Expr *listExp)
 {
   MapExpr *mapExp = Malloc(sizeof(MapExpr));
   mapExp->kind = MAP_KIND;
@@ -502,7 +436,7 @@ static void free_map_expr(Expr *exp)
 static void free_anony_expr(Expr *exp)
 {
   AnonyExpr *anonyExp = (AnonyExpr *)exp;
-  Free_IdTypeList(anonyExp->args);
+  Vector_Free_Self(anonyExp->args);
   TYPE_DECREF(anonyExp->ret);
   Vector_Free(anonyExp->body, Free_Stmt_Func, NULL);
   free_expr(exp);
@@ -569,8 +503,8 @@ static void free_assign_stmt(Stmt *stmt)
 static void free_funcdecl_stmt(Stmt *stmt)
 {
   FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
-  Free_IdTypeList(funcStmt->args);
-  TYPE_DECREF(funcStmt->ret);
+  Vector_Free_Self(funcStmt->args);
+  TYPE_DECREF(funcStmt->ret.desc);
   Vector_Free(funcStmt->body, Free_Stmt_Func, NULL);
   Mfree(stmt);
 }
@@ -612,12 +546,7 @@ static void free_klass_stmt(Stmt *stmt)
 static void free_enum_stmt(Stmt *stmt)
 {
   EnumStmt *eStmt = (EnumStmt *)stmt;
-  TypePara *para;
-  Vector_ForEach(para, eStmt->typeparams) {
-    Free_Ident(&para->id);
-    // no free, para->base is assigned to TypeParaDef->base in EnumSymbol
-  }
-  Vector_Free_Self(eStmt->typeparams);
+  // no free, eStmt->paratypes is assigned to paratypes in EnumSymbol
   Vector_Free(eStmt->body, Free_Stmt_Func, NULL);
   Mfree(stmt);
 }
@@ -657,7 +586,7 @@ void Free_Stmt_Func(void *item, void *arg)
   __free_stmt_func(stmt);
 }
 
-Stmt *Stmt_From_ConstDecl(Ident id, TypeWrapper type, Expr *exp)
+Stmt *Stmt_From_ConstDecl(Ident id, PosType type, Expr *exp)
 {
   VarDeclStmt *varStmt = Malloc(sizeof(VarDeclStmt));
   varStmt->kind = CONST_KIND;
@@ -667,7 +596,7 @@ Stmt *Stmt_From_ConstDecl(Ident id, TypeWrapper type, Expr *exp)
   return (Stmt *)varStmt;
 }
 
-Stmt *Stmt_From_VarDecl(Ident id, TypeWrapper type, Expr *exp)
+Stmt *Stmt_From_VarDecl(Ident id, PosType type, Expr *exp)
 {
   VarDeclStmt *varStmt = Malloc(sizeof(VarDeclStmt));
   varStmt->kind = VAR_KIND;
@@ -688,7 +617,7 @@ Stmt *Stmt_From_Assign(AssignOpKind op, Expr *left, Expr *right)
 }
 
 Stmt *Stmt_From_FuncDecl(Ident id, Vector *typeparams, Vector *args,
-                         TypeDesc *ret, Vector *stmts)
+                         PosType ret, Vector *stmts)
 {
   FuncDeclStmt *funcStmt = Malloc(sizeof(FuncDeclStmt));
   funcStmt->kind = FUNC_KIND;
@@ -699,7 +628,7 @@ Stmt *Stmt_From_FuncDecl(Ident id, Vector *typeparams, Vector *args,
   return (Stmt *)funcStmt;
 }
 
-Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, TypeDesc *ret)
+Stmt *Stmt_From_ProtoDecl(Ident id, Vector *args, PosType ret)
 {
   FuncDeclStmt *protoStmt = Malloc(sizeof(FuncDeclStmt));
   protoStmt->kind = PROTO_KIND;
@@ -738,7 +667,7 @@ Stmt *Stmt_From_Class(Ident id, Vector *types, Vector *super, Vector *body)
   KlassStmt *clsStmt = Malloc(sizeof(KlassStmt));
   clsStmt->kind = CLASS_KIND;
   clsStmt->id = id;
-  clsStmt->typeparams = types;
+  clsStmt->typeparas = types;
   clsStmt->super = super;
   clsStmt->body = body;
   return (Stmt *)clsStmt;
@@ -749,7 +678,7 @@ Stmt *Stmt_From_Trait(Ident id, Vector *types, Vector *super, Vector *body)
   KlassStmt *traitStmt = Malloc(sizeof(KlassStmt));
   traitStmt->kind = TRAIT_KIND;
   traitStmt->id = id;
-  traitStmt->typeparams = types;
+  traitStmt->typeparas = types;
   traitStmt->super = super;
   traitStmt->body = body;
   return (Stmt *)traitStmt;
@@ -765,12 +694,12 @@ Stmt *New_EnumValue(Ident id, Vector *types, Expr *exp)
   return (Stmt *)evalStmt;
 }
 
-Stmt *Stmt_From_Enum(Ident id, Vector *typeparams, Vector *body)
+Stmt *Stmt_From_Enum(Ident id, Vector *types, Vector *body)
 {
   EnumStmt *enumStmt = Malloc(sizeof(EnumStmt));
   enumStmt->kind = ENUM_KIND;
   enumStmt->id = id;
-  enumStmt->typeparams = typeparams;
+  enumStmt->typeparas = types;
   enumStmt->body = body;
   return (Stmt *)enumStmt;
 }
@@ -1101,156 +1030,6 @@ void Parser_New_Const(ParserState *ps, Stmt *stmt)
   __new_const(ps, &varStmt->id, varStmt->type.desc);
 }
 
-#if 0
-
-Stmt *Parser_Do_Typeless_Variables(ParserState *ps, Vector *ids, Vector *exps)
-{
-  int isz = Vector_Size(ids);
-  int esz = Vector_Size(exps);
-  if (!__validate_count(ps, isz, esz)) {
-    Expr *e = Vector_Get(ids, 0);
-    Syntax_Error(&e->pos, "left and expr are not matched");
-    free_exprlist(ids);
-    free_exprlist(exps);
-    return NULL;
-  }
-
-  IdentExpr *e;
-  Expr *right;
-  TypeWrapper nulltype = {NULL, {0, 0}};
-  if (isz == esz) {
-    Stmt *stmt;
-    if (isz == 1) {
-      /* only one variable */
-      e = Vector_Get(ids, 0);
-      if (e->kind != ID_KIND) {
-        Syntax_Error(&e->pos, "needs an identifier");
-        free_exprlist(ids);
-        free_exprlist(exps);
-        return NULL;
-      }
-      Ident ident = {e->name, e->pos};
-      Expr *exp = Vector_Get(exps, 0);
-      stmt = __Stmt_From_VarDecl(&ident, nulltype, exp, 0);
-    } else {
-      /* count of left ids == count of right expressions */
-      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_Capacity(isz));
-      Ident ident;
-      Stmt *varStmt;
-      Vector_ForEach(e, ids) {
-        if (e->kind != ID_KIND) {
-          Syntax_Error(&e->pos, "needs an identifier");
-          Free_Stmt_Func(listStmt, NULL);
-          free_exprlist(ids);
-          free_exprlist(exps);
-          return NULL;
-        }
-        right = Vector_Get(exps, i);
-        assert(right);
-        ident.name = e->name;
-        ident.pos = e->pos;
-        varStmt = __Stmt_From_VarDecl(&ident, nulltype, right, 0);
-        Vector_Append(listStmt->vec, varStmt);
-      }
-      stmt = (Stmt *)listStmt;
-    }
-    free_exprlist(ids);
-    Vector_Free_Self(exps);
-    return stmt;
-  }
-
-  assert(isz > esz && esz == 1);
-
-  /* count of right expressions is 1 */
-  Vector *_ids = Vector_Capacity(isz);
-  Ident *ident;
-  String s;
-  Vector_ForEach(e, ids) {
-    if (e->kind != ID_KIND) {
-      Syntax_Error(&e->pos, "needs an identifier");
-      Free_IdentList(_ids);
-      free_exprlist(ids);
-      free_exprlist(exps);
-      return NULL;
-    }
-    s.str = e->name;
-    ident = New_Ident(s);
-    ident->pos = e->pos;
-    Vector_Append(_ids, ident);
-  }
-  right = Vector_Get(exps, 0);
-
-  free_exprlist(ids);
-  Vector_Free_Self(exps);
-  return __Stmt_From_VarListDecl(_ids, nulltype, right, 0);
-}
-
-Stmt *Parser_Do_Assignments(ParserState *ps, Vector *left, Vector *right)
-{
-  int lsz = Vector_Size(left);
-  int rsz = Vector_Size(right);
-  if (!__validate_count(ps, lsz, rsz)) {
-    Expr *e = Vector_Get(right, 0);
-    Syntax_Error(&e->pos, "left and right are not matched");
-    free_exprlist(left);
-    free_exprlist(right);
-    return NULL;
-  }
-
-  if (lsz == rsz) {
-    Stmt *stmt;
-    if (lsz == 1) {
-      /* only one identifier */
-      Expr *lexp = Vector_Get(left, 0);
-      if (!Expr_Maybe_Stored(lexp)) {
-        Syntax_Error(&lexp->pos, "expr is not left expr");
-        free_exprlist(left);
-        free_exprlist(right);
-        return NULL;
-      }
-      Expr *rexp = Vector_Get(right, 0);
-      stmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
-    } else {
-      /* count of left expressions == count of right expressions */
-      ListStmt *listStmt = (ListStmt *)Stmt_From_List(Vector_Capacity(lsz));
-      Expr *lexp, *rexp;
-      Stmt *assignStmt;
-      Vector_ForEach(lexp, left) {
-        if (!Expr_Maybe_Stored(lexp)) {
-          Syntax_Error(&lexp->pos, "expr is not left expr");
-          free_exprlist(left);
-          free_exprlist(right);
-          return NULL;
-        }
-        rexp = Vector_Get(right, i);
-        assignStmt = Stmt_From_Assign(OP_ASSIGN, lexp, rexp);
-        Vector_Append(listStmt->vec, assignStmt);
-      }
-      stmt = (Stmt *)listStmt;
-    }
-    Vector_Free_Self(left);
-    Vector_Free_Self(right);
-    return stmt;
-  }
-
-  assert(lsz > rsz && rsz == 1);
-
-  /* count of right expressions is 1 */
-  Expr *lexp;
-  Vector_ForEach(lexp, left) {
-    if (!Expr_Maybe_Stored(lexp)) {
-      Syntax_Error(&lexp->pos, "expr is not left expr");
-      free_exprlist(left);
-      free_exprlist(right);
-      return NULL;
-    }
-  }
-  Expr *rexp = Vector_Get(right, 0);
-  Vector_Free_Self(right);
-  return Stmt_From_AssignList(left, rexp);
-}
-#endif
-
 static TypeDesc *__get_proto(Vector *idtypes, TypeDesc *ret)
 {
   Vector *para = Vector_Capacity(Vector_Size(idtypes));
@@ -1262,6 +1041,55 @@ static TypeDesc *__get_proto(Vector *idtypes, TypeDesc *ret)
   return TypeDesc_New_Proto(para, ret);
 }
 
+TypeDesc *getparatype(Vector *paratypes, TypeDesc *type)
+{
+  if (type->kind == TYPE_KLASS) {
+    KlassDesc *klazz = (KlassDesc *)type;
+    if (klazz->typeparas == NULL) {
+      if (klazz->path.str == NULL) {
+        Vector *bases = NULL;
+        TypePara *para;
+        Vector_ForEach(para, paratypes) {
+          if (!strcmp(para->id.name, klazz->type.str)) {
+            Log_Debug("type '%s' is a type parameter", para->id.name);
+            bases = para->types;
+            break;
+          }
+        }
+        return TypeDesc_New_ParaRef(klazz->type.str, bases);
+      }
+    } else {
+      //FIXME
+    }
+  }
+  /* not a parameter type */
+  return NULL;
+}
+
+static void update_proto(ParserState *ps, ClassSymbol *clsSym, Stmt *stmt)
+{
+  FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
+  TypeDesc *type;
+
+  IdType *idtype;
+  Vector_ForEach(idtype, funcStmt->args) {
+    type = getparatype(clsSym->typeparas, idtype->type.desc);
+    if (type != NULL) {
+      TYPE_DECREF(idtype->type.desc);
+      idtype->type.desc = type;
+    }
+  }
+
+  PosType *postype = &funcStmt->ret;
+  if (postype->desc != NULL) {
+    type = getparatype(clsSym->typeparas, postype->desc);
+    if (type != NULL) {
+      TYPE_DECREF(postype->desc);
+      postype->desc = type;
+    }
+  }
+}
+
 static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
   ParserUnit *u = ps->u;
@@ -1269,14 +1097,14 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   assert(funcStmt->kind == FUNC_KIND);
   char *name = funcStmt->id.name;
   if (!strcmp(name, "__init__")) {
-    if (funcStmt->args != NULL || funcStmt->ret != NULL) {
+    if (funcStmt->args != NULL || funcStmt->ret.desc != NULL) {
       Syntax_Error(&funcStmt->id.pos, "__init__ needs no args and no return");
       return;
     }
   }
 
   Symbol *sym;
-  TypeDesc *proto = __get_proto(funcStmt->args, funcStmt->ret);
+  TypeDesc *proto = __get_proto(funcStmt->args, funcStmt->ret.desc);
   sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
   if (sym != NULL) {
     Log_Debug("add func '%s' successfully", name);
@@ -1293,19 +1121,38 @@ static void __parse_funcdecl(ParserState *ps, Stmt *stmt)
   TYPE_DECREF(proto);
 }
 
-Vector *To_TypeParaDefs(Vector *typeparas)
+static void __parse_methdecl(ParserState *ps, ClassSymbol *clsSym, Stmt *stmt)
 {
-  if (typeparas == NULL)
-    return NULL;
-
-  Vector *vec = Vector_Capacity(Vector_Size(typeparas));
-  TypePara *para;
-  TypeParaDef *paradef;
-  Vector_ForEach(para, typeparas) {
-    paradef = TypeParaDef_New(para->id.name, para->base);
-    Vector_Append(vec, paradef);
+  ParserUnit *u = ps->u;
+  FuncDeclStmt *funcStmt = (FuncDeclStmt *)stmt;
+  char *name = funcStmt->id.name;
+  if (!strcmp(name, "__init__")) {
+    if (funcStmt->ret.desc != NULL) {
+      /* __init__ of class must not have return value */
+      Syntax_Error(&funcStmt->id.pos, "__init__ needs no return");
+      return;
+    }
   }
-  return vec;
+
+  /* update type parameters */
+  update_proto(ps, clsSym, stmt);
+
+  Symbol *sym;
+  TypeDesc *proto = __get_proto(funcStmt->args, funcStmt->ret.desc);
+  sym = (Symbol *)STable_Add_Func(u->stbl, name, proto);
+  if (sym != NULL) {
+    Log_Debug("add func '%s' successfully", name);
+    sym->filename = ps->filename;
+    sym->pos = funcStmt->id.pos;
+    Vector_Append(&ps->symbols, sym);
+  } else {
+    sym = STable_Get(u->stbl, name);
+    Syntax_Error(&funcStmt->id.pos, "'%s' redeclared,\n"
+                  "\tprevious declaration at %s:%d:%d", name,
+                  sym->filename, sym->pos.row, sym->pos.col);
+  }
+
+  TYPE_DECREF(proto);
 }
 
 void Parser_New_Func(ParserState *ps, Stmt *stmt)
@@ -1323,7 +1170,7 @@ static void __parse_protodecl(ParserState *ps, Stmt *stmt)
   assert(funcStmt->kind == PROTO_KIND);
   char *name = funcStmt->id.name;
   Symbol *sym;
-  TypeDesc *proto = __get_proto(funcStmt->args, funcStmt->ret);
+  TypeDesc *proto = __get_proto(funcStmt->args, funcStmt->ret.desc);
 
   if (funcStmt->native) {
     sym = STable_Add_NFunc(u->stbl, name, proto);
@@ -1364,6 +1211,61 @@ void Parser_New_Proto(ParserState *ps, Stmt *stmt)
   __parse_protodecl(ps, stmt);
 }
 
+int __check_paratypes_duplicated(Vector *paratypes)
+{
+  int j, k;
+  TypePara *inner;
+  TypePara *para;
+  Vector_ForEach(para, paratypes) {
+    j = i;
+    Vector_ForEach(inner, paratypes) {
+      k = i;
+      if (k > j && !strcmp(inner->id.name, para->id.name))
+        return -1;
+    }
+  }
+  return 0;
+}
+
+static Vector *getparatypes(Vector *paratypes, Vector *types)
+{
+  if (types == NULL)
+    return NULL;
+
+  Vector *vec = Vector_Capacity(Vector_Size(types));
+  TypeDesc *desc;
+  TypeDesc *type;
+  Vector_ForEach(type, types) {
+    desc = getparatype(paratypes, type);
+    if (desc == NULL) {
+      desc = type;
+      TYPE_INCREF(desc);
+    }
+    Vector_Append(vec, desc);
+  }
+  return vec;
+}
+
+static void __new_field(ParserState *ps, ClassSymbol *sym, VarDeclStmt *stmt)
+{
+  Ident *id = &stmt->id;
+  TypeDesc *desc = stmt->type.desc;
+
+  Log_Debug("add field:%s", id->name);
+
+  TypeDesc *type = getparatype(sym->typeparas, desc);
+  if (type == NULL) {
+    //not parameter type, use itself
+    type = desc;
+  } else {
+    //update statement's typedesc
+    TYPE_DECREF(desc);
+    TYPE_INCREF(type);
+    stmt->type.desc = type;
+  }
+  __new_var(ps, id, type);
+}
+
 void Parser_New_Class(ParserState *ps, Stmt *stmt)
 {
   if (stmt == NULL)
@@ -1372,6 +1274,11 @@ void Parser_New_Class(ParserState *ps, Stmt *stmt)
 
   ParserUnit *u = ps->u;
   KlassStmt *klsStmt = (KlassStmt *)stmt;
+  if (__check_paratypes_duplicated(klsStmt->typeparas)) {
+    Syntax_Error(&klsStmt->id.pos,
+                 "parameter type declaration duplicated", klsStmt->id.name);
+    return;
+  }
   char *name = klsStmt->id.name;
   ClassSymbol *sym;
   assert(stmt->kind == CLASS_KIND);
@@ -1381,6 +1288,7 @@ void Parser_New_Class(ParserState *ps, Stmt *stmt)
     Log_Debug("add class '%s' successfully", sym->name);
     sym->filename = ps->filename;
     sym->pos = klsStmt->id.pos;
+    sym->typeparas = klsStmt->typeparas;
     Vector_Append(&ps->symbols, sym);
   } else {
     Symbol *sym = STable_Get(u->stbl, name);
@@ -1398,9 +1306,9 @@ void Parser_New_Class(ParserState *ps, Stmt *stmt)
   Vector_ForEach(s, klsStmt->body) {
     if (s->kind == VAR_KIND) {
       VarDeclStmt *varStmt = (VarDeclStmt *)s;
-      __new_var(ps, &varStmt->id, varStmt->type.desc);
+      __new_field(ps, sym, varStmt);
     } else if (s->kind == FUNC_KIND) {
-      __parse_funcdecl(ps, s);
+      __parse_methdecl(ps, sym, s);
     } else if (s->kind == PROTO_KIND) {
       FuncDeclStmt *funcStmt = (FuncDeclStmt *)s;
       assert(funcStmt->native == 1);
@@ -1460,55 +1368,37 @@ void Parser_New_Trait(ParserState *ps, Stmt *stmt)
   Parser_Exit_Scope(ps);
 }
 
-static int istypepara(Vector *vec, char *name)
-{
-  TypeParaDef *def;
-  Vector_ForEach(def, vec) {
-    if (!strcmp(def->name.str, name))
-      return 1;
-  }
-  return 0;
-}
-
-static Vector *get_typeparas(TypeDesc *edesc, Vector *types)
-{
-  if (types == NULL)
-    return NULL;
-
-  assert(edesc->kind == TYPE_KLASS);
-  KlassDesc *klass = (KlassDesc *)edesc;
-  if (klass->typepara != TYPEPARA_DEF)
-    return NULL;
-
-  Vector *vec = Vector_Capacity(Vector_Size(types));
-  KlassDesc *tmp;
-  ParaRefDesc *para;
-  TypeDesc *desc;
-  Vector_ForEach(desc, types) {
-    if (desc->kind == TYPE_KLASS) {
-      tmp = (KlassDesc *)desc;
-      if (tmp->path.str == NULL &&
-          istypepara(klass->paras, tmp->type.str)) {
-        para = (ParaRefDesc *)TypeDesc_New_ParaRef(tmp->type.str);
-        Vector_Append(vec, para);
-      } else {
-        TYPE_INCREF(desc);
-        Vector_Append(vec, desc);
-      }
-    } else {
-      TYPE_INCREF(desc);
-      Vector_Append(vec, desc);
-    }
-  }
-  return vec;
-}
-
-static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e, STable *stbl)
+static void add_eval_topkg(ParserState *ps, STable *stbl,
+                           Stmt *s, EnumSymbol *e)
 {
   ParserUnit *u = ps->u;
   EnumValStmt *evStmt = (EnumValStmt *)s;
   Ident *id = &evStmt->id;
-  Vector *types = get_typeparas(e->desc, evStmt->types);
+  Vector *types = getparatypes(e->typeparas, evStmt->types);
+  EnumValSymbol *evSym = STable_Add_EnumValue(stbl, id->name);
+  if (evSym != NULL) {
+    Log_Debug("add enum value '%s' in pkg successfully", id->name);
+    evSym->filename = ps->filename;
+    evSym->pos = id->pos;
+    evSym->esym = e;
+    evSym->types = types;
+    evSym->desc = e->desc;
+    TYPE_INCREF(evSym->desc);
+    Vector_Append(&ps->symbols, evSym);
+  } else {
+    Symbol *sym = STable_Get(stbl, id->name);
+    Syntax_Error(&id->pos, "'%s' redeclared,\n"
+                 "\tprevious declaration at %s:%d:%d", id->name,
+                 sym->filename, sym->pos.row, sym->pos.col);
+  }
+}
+
+static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e)
+{
+  ParserUnit *u = ps->u;
+  EnumValStmt *evStmt = (EnumValStmt *)s;
+  Ident *id = &evStmt->id;
+  Vector *types = getparatypes(e->typeparas, evStmt->types);
   EnumValSymbol *evSym = STable_Add_EnumValue(u->stbl, id->name);
   if (evSym != NULL) {
     Log_Debug("add enum value '%s' successfully", id->name);
@@ -1520,24 +1410,6 @@ static void __new_eval(ParserState *ps, Stmt *s, EnumSymbol *e, STable *stbl)
     TYPE_INCREF(evSym->desc);
   } else {
     Symbol *sym = STable_Get(u->stbl, id->name);
-    Syntax_Error(&id->pos, "'%s' redeclared,\n"
-                 "\tprevious declaration at %s:%d:%d", id->name,
-                 sym->filename, sym->pos.row, sym->pos.col);
-  }
-
-  types = get_typeparas(e->desc, evStmt->types);
-  EnumValSymbol *evSymInPkg = STable_Add_EnumValue(stbl, id->name);
-  if (evSymInPkg != NULL) {
-    Log_Debug("add enum value '%s' in pkg successfully", id->name);
-    evSymInPkg->filename = ps->filename;
-    evSymInPkg->pos = id->pos;
-    evSymInPkg->esym = e;
-    evSymInPkg->types = types;
-    evSymInPkg->desc = e->desc;
-    TYPE_INCREF(evSymInPkg->desc);
-    Vector_Append(&ps->symbols, evSymInPkg);
-  } else {
-    Symbol *sym = STable_Get(stbl, id->name);
     Syntax_Error(&id->pos, "'%s' redeclared,\n"
                  "\tprevious declaration at %s:%d:%d", id->name,
                  sym->filename, sym->pos.row, sym->pos.col);
@@ -1576,11 +1448,13 @@ static int __check_enum_decl(ParserState *ps, Stmt *stmt)
       assert(s->kind == FUNC_KIND);
     }
   }
-  // check enum type parameters
-  TypePara *para;
-  Vector_ForEach(para, eStmt->typeparams) {
-    //FIXME:
+  // check enum para types
+  if (__check_paratypes_duplicated(eStmt->typeparas)) {
+    Syntax_Error(&eStmt->id.pos,
+                 "parameter type declaration duplicated", eStmt->id.name);
+    return -1;
   }
+  // no error
   return 0;
 }
 
@@ -1599,12 +1473,12 @@ void Parser_New_Enum(ParserState *ps, Stmt *stmt)
   EnumStmt *eStmt = (EnumStmt *)stmt;
   char *name = eStmt->id.name;
   assert(stmt->kind == ENUM_KIND);
-  EnumSymbol *sym = STable_Add_Enum(u->stbl, name,
-                                    To_TypeParaDefs(eStmt->typeparams));
+  EnumSymbol *sym = STable_Add_Enum(u->stbl, name);
   if (sym != NULL) {
     Log_Debug("add enum '%s' successfully", sym->name);
     sym->filename = ps->filename;
     sym->pos = eStmt->id.pos;
+    sym->typeparas = eStmt->typeparas;
     Vector_Append(&ps->symbols, sym);
   } else {
     Symbol *sym = STable_Get(u->stbl, name);
@@ -1620,7 +1494,8 @@ void Parser_New_Enum(ParserState *ps, Stmt *stmt)
   Stmt *s;
   Vector_ForEach(s, eStmt->body) {
     if (s->kind == ENUM_VALUE_KIND) {
-      __new_eval(ps, s, sym, u->stbl);
+      __new_eval(ps, s, sym);
+      add_eval_topkg(ps, u->stbl, s, sym);
     } else if (s->kind == FUNC_KIND) {
       __parse_funcdecl(ps, s);
     } else {
@@ -1629,28 +1504,6 @@ void Parser_New_Enum(ParserState *ps, Stmt *stmt)
   }
 
   Parser_Exit_Scope(ps);
-}
-
-TypeDesc *Parser_New_KlassType(ParserState *ps, Ident *id, Ident *klazz)
-{
-  char *path = NULL;
-  if (id != NULL) {
-    Symbol *sym = STable_Get(ps->extstbl, id->name);
-    if (sym == NULL) {
-      Syntax_Error(&id->pos, "undefined '%s'", id->name);
-      return NULL;
-    }
-    assert(sym->kind == SYM_PKG);
-    sym->used++;
-    //ExtPkg *extpkg = ((ExtPkgSymbol *)sym)->extpkg;
-    //path = extpkg->path;
-    //sym = STable_Get(pkg->stbl, klazz->name);
-    if (sym == NULL) {
-      Syntax_Error(&id->pos, "undefined '%s.%s'", path, klazz->name);
-      return NULL;
-    }
-  }
-  return TypeDesc_New_Klass(path, klazz->name);
 }
 
 void __Syntax_Error(ParserState *ps, Position *pos, char *fmt, ...)

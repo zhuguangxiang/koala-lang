@@ -3,25 +3,30 @@ package hello
 
 import "io"
 
+/*
 class Person {
   name string = "LiSi"
   age int = 200
-  dog Dog<string> = Dog()
+  //dog Dog<string> = Dog()
 
   func greeting(msg string) {
-    io.puts(name)
     io.puts(msg)
-    name = "ZhanSan"
+    io.puts(name)
+    name = msg;
     age = 100
     io.puts(name)
-    io.puts(NAME)
-    dog.set_name("ErHa");
-    io.puts(dog.get_name());
+    //dog.set_name("ErHa");
+    //io.puts(dog.get_name());
   }
 }
+*/
 
 class Dog<T> {
   name T
+
+  func __init__() {
+    io.puts("dog() called");
+  }
 
   func set_name(n T) {
     name = n

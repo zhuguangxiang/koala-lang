@@ -564,7 +564,7 @@ ClassSymbol *STable_Add_Trait(STable *stbl, char *name)
   return sym;
 }
 
-EnumSymbol *STable_Add_Enum(STable *stbl, char *name, Vector *typeparams)
+EnumSymbol *STable_Add_Enum(STable *stbl, char *name)
 {
   EnumSymbol *sym = (EnumSymbol *)Symbol_New(SYM_ENUM, name);
   if (HashTable_Insert(&stbl->table, &sym->hnode) < 0) {
@@ -572,7 +572,7 @@ EnumSymbol *STable_Add_Enum(STable *stbl, char *name, Vector *typeparams)
     return NULL;
   }
   sym->stbl = STable_New();
-  sym->desc = TypeDesc_New_Klass_Def(NULL, name, typeparams);
+  sym->desc = TypeDesc_New_Klass(NULL, name);
   return sym;
 }
 

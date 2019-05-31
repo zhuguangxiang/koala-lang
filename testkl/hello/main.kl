@@ -5,40 +5,52 @@ import . "io"
 
 var global = 100
 
-func main() {
-  sayHello("Hello, Koala")
-  puts("HaHa...")
-  puts("1+2=? result=")
-
-  result := 1 + 2
-  result = add(3, 2)
+func func_test() {
+  puts("func_test")
+  //result := 1 + 2
+  //result = add(3, 2)
   //puts(result.to_str())
+}
 
+func enum_test() {
+  puts("enum_test")
+  /*
   res := Result.Ok
   res.test()
-  res = get_result()
+  //res = get_result()
   //res.test()
   res = Err(123, "error")
-  //res.test()
+  res.test()
 
   //res = Result.Ok
   //person := Person()
   //person.greeting("Person.greeting...")
 
-  opt := Option.Some(123)
+  var opt Option<int, string> = Option.Some(456)
   //opt = Option.Some("ZhangSan")
-  opt = Option.None
+  opt = Option.None("hello")
   opt = Option.Some(100)
   opt.and_then()
 
-  var opt2 Option<Person> = Some(Person())
-  opt2 = Option.Some(Person())
-  opt2.and_then()
+  //var opt2 Option<Person> = Some(Person())
+  //opt2 = Option.Some(Person())
+  //opt2.and_then()
+  */
+}
 
-  /*
+func class_test() {
+  puts("class_test")
+  //person := Person()
+  //person.greeting("ZhanSan");
   var dog Dog<string> = Dog()
   dog.set_name("little-black")
   name := dog.get_name()
   puts(name)
-  */
+}
+
+func main() {
+  puts("Hello, Koala")
+  func_test()
+  class_test()
+  enum_test()
 }

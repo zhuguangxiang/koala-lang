@@ -5,7 +5,7 @@
 	"workbench.activityBar.visible": false,
 	"editor.fontFamily": "'Operator Mono'",
 	"editor.fontWeight": "normal",
-	"editor.fontSize": 14,
+	"editor.fontSize": 16,
 	"editor.tabSize": 2,
 	"editor.insertSpaces": true,
 	"files.eol": "\n",
@@ -44,7 +44,7 @@
 			80
 	],
 	"editor.minimap.enabled": false,
-	"terminal.integrated.fontSize": 14,
+	"terminal.integrated.fontSize": 16,
 	"todo-tree.flat": true,
 	"todo-tree.expanded": false,
 	"workbench.editor.enablePreview": false,

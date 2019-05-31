@@ -153,61 +153,21 @@ static void __klass_tostring(TypeDesc *desc, StringBuf *buf)
     __StringBuf_Format(buf, 1, "#.#", klass->path.str, klass->type.str);
   else
     __StringBuf_Format(buf, 1, "#", klass->type.str);
-}
 
-TypeParaDef *TypeParaDef_New(char *name, Vector *bases)
-{
-  TypeParaDef *para = Malloc(sizeof(TypeParaDef));
-  para->name = AtomString_New(name);
-  para->bases = bases;
-  return para;
-}
-
-void TypeParaDef_Free(TypeParaDef *paradef)
-{
-  Mfree(paradef);
-}
-
-int TypePara_Compatible(TypeParaDef *def, TypeDesc *desc)
-{
-  TypeDesc *type;
-  Vector_ForEach(type, def->bases) {
-    if (!TypeDesc_Equal(desc, type))
-      return 0;
+  int sz = Vector_Size(klass->typeparas);
+  if (sz > 0) {
+    __StringBuf_Append_CStr(buf, "<>");
   }
-  return 1;
-}
-
-TypeParaDef *Get_TypeParaDef(ParaRefDesc *ref, TypeDesc *desc)
-{
-  assert(desc->kind == TYPE_KLASS);
-  KlassDesc *klass = (KlassDesc *)desc;
-  TypeParaDef *def;
-  Vector_ForEach(def, klass->paras) {
-    if (!strcmp(def->name.str, ref->name.str))
-      return def;
-  }
-  return NULL;
 }
 
 static void __klass_fini(TypeDesc *desc)
 {
   KlassDesc *klass = (KlassDesc *)desc;
-  if (klass->typepara == TYPEPARA_DEF) {
-    TypeParaDef *paradef;
-    Vector_ForEach(paradef, klass->paras) {
-      TypeParaDef_Free(paradef);
-    }
-    Vector_Free_Self(klass->paras);
-  } else if (klass->typepara == TYPEPARA_INST) {
-    TypeDesc *type;
-    Vector_ForEach(type, klass->paras) {
-      TYPE_DECREF(type);
-    }
-    Vector_Free_Self(klass->paras);
-  } else {
-    assert(!klass->typepara);
+  TypeDesc *type;
+  Vector_ForEach(type, klass->typeparas) {
+    TYPE_DECREF(type);
   }
+  Vector_Free_Self(klass->typeparas);
 }
 
 /* desc1 is subclass of desc2 */
@@ -231,24 +191,19 @@ static int __klass_equal(TypeDesc *desc1, TypeDesc *desc2)
   if (strcmp(k1->type.str, k2->type.str))
     return 0;
 
-  if (k1->typepara == TYPEPARA_INST && k2->typepara == TYPEPARA_INST) {
-    if (k1->paras == NULL || k2->paras == NULL)
-      return 1;
-    int sz1 = Vector_Size(k1->paras);
-    int sz2 = Vector_Size(k2->paras);
-    if (sz1 != sz2)
+  int sz1 = Vector_Size(k1->typeparas);
+  int sz2 = Vector_Size(k2->typeparas);
+  if (sz1 != sz2)
+    return 0;
+
+  TypeDesc *type;
+  TypeDesc *type2;
+  Vector_ForEach(type, k1->typeparas) {
+    type2 = Vector_Get(k2->typeparas, i);
+    if (!TypeDesc_Equal(type, type2))
       return 0;
-    TypeDesc *type;
-    TypeDesc *type2;
-    Vector_ForEach(type, k1->paras) {
-      type2 = Vector_Get(k2->paras, i);
-      if (!TypeDesc_Equal(type, type2))
-        return 0;
-    }
-  } else {
-    assert(k1->typepara == 0);
-    assert(k2->typepara == 0);
   }
+
   return 1;
 }
 
@@ -359,6 +314,26 @@ static void __pararef_fini(TypeDesc *desc)
   ParaRefDesc *para = (ParaRefDesc *)desc;
 }
 
+static int __pararef_equal(TypeDesc *desc1, TypeDesc *desc2)
+{
+  /* FIXME:
+    class Bar<T> {
+      value T
+    }
+    func foo<T>(p T) {
+      var bar Bar<int>;
+      bar.value = p;
+    }
+  */
+  ParaRefDesc *ref1 = (ParaRefDesc *)desc1;
+  ParaRefDesc *ref2 = (ParaRefDesc *)desc2;
+  if (strcmp(ref1->name.str, ref2->name.str))
+    return 0;
+  if (ref1->index != ref2->index)
+    return 0;
+  return 1;
+}
+
 struct typedesc_ops_s {
   void (*tostring)(TypeDesc *, StringBuf *);
   void (*fini)(TypeDesc *);
@@ -366,14 +341,14 @@ struct typedesc_ops_s {
 } typedesc_ops[] = {
   /* 0 is not used */
   {NULL, NULL},
-  {__base_tostring,     __base_fini,    __base_equal},
-  {__klass_tostring,    __klass_fini,   __klass_equal},
-  {__proto_tostring,    __proto_fini,   NULL},
-  {__array_tostring,    __array_fini,   NULL},
-  {__map_tostring,      __map_fini,     NULL},
-  {__varg_tostring,     __varg_fini,    NULL},
-  {__tuple_tostring,    __tuple_fini,   NULL},
-  {__pararef_tostring,  __pararef_fini, NULL},
+  {__base_tostring,     __base_fini,      __base_equal},
+  {__klass_tostring,    __klass_fini,     __klass_equal},
+  {__proto_tostring,    __proto_fini,     NULL},
+  {__array_tostring,    __array_fini,     NULL},
+  {__map_tostring,      __map_fini,       NULL},
+  {__varg_tostring,     __varg_fini,      NULL},
+  {__tuple_tostring,    __tuple_fini,     NULL},
+  {__pararef_tostring,  __pararef_fini,   __pararef_equal},
 };
 
 int TypeDesc_Equal(TypeDesc *desc1, TypeDesc *desc2)
@@ -496,10 +471,11 @@ TypeDesc *TypeDesc_New_Tuple(Vector *bases)
   return (TypeDesc *)desc;
 }
 
-TypeDesc *TypeDesc_New_ParaRef(char *name)
+TypeDesc *TypeDesc_New_ParaRef(char *name, Vector *types)
 {
-  DeclareTypeDesc(desc, TYPE_REF, ParaRefDesc);
+  DeclareTypeDesc(desc, TYPE_PARAREF, ParaRefDesc);
   desc->name = AtomString_New(name);
+  desc->types = types;
   return (TypeDesc *)desc;
 }
 
