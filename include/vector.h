@@ -33,41 +33,34 @@ extern "C" {
  * dynamic array
  */
 typedef struct vector {
-  /* item size, default is sizeof(void *) */
-  int itemsize;
+  /* object size, default is sizeof(void *) */
+  int objsize;
   /* slots used */
   int size;
   /* total available slots */
   int capacity;
-  /* array of pointer */
-  void **items;
+  /* array of objects */
+  void *items;
 } Vector;
 
 /* declare a vector with name */
-#define VECTOR(name) Vector name = {sizeof(void *), 0, 0, NULL}
+#define VECTOR(name, objsize) Vector name = {objsize, 0, 0, NULL}
 
 /* initialize a vector */
-void Vector_Init(Vector *vec);
+void Vector_Init(Vector *vec, int objsize);
 
 /* new a vector, and use Vector_Free to free the vector */
-Vector *Vector_Capacity_Object(int capacity, int itemsize);
-#define Vector_Capacity(capacity) \
-  Vector_Capacity_Object(capacity, sizeof(void *))
-#define Vector_New() Vector_Capacity(0)
-#define Vector_New_Object(itemsize) \
-  Vector_Capacity_Object(0, itemsize)
-
-/* call the function before free the vector */
-typedef void (*vec_finifunc)(void *item, void *arg);
+Vector *Vector_Capacity(int capacity, int objsize);
+#define Vector_New(objsize) Vector_Capacity(0, objsize)
 
 /* free the vector, if it is created by Vector_New */
-void Vector_Free(Vector *vec, vec_finifunc fini, void *arg);
+void Vector_Free(Vector *vec, void *visit, void *arg);
 
 /* free the vector self only, not care its elements */
 #define Vector_Free_Self(vec) Vector_Free(vec, NULL, NULL)
 
 /* fini the vector, if it is declared by VECTOR(name) */
-void Vector_Fini(Vector *vec, vec_finifunc fini, void *arg);
+void Vector_Fini(Vector *vec, void *visit, void *arg);
 
 /* fini the vector self only */
 #define Vector_Fini_Self(vec) Vector_Fini(vec, NULL, NULL)
@@ -85,8 +78,8 @@ int Vector_Set(Vector *vec, int index, void *item);
  */
 void *Vector_Get(Vector *vec, int index);
 
-/* get last one item */
-#define Vector_Get_Last(vec) Vector_Get(vec, Vector_Size(vec) - 1)
+#define Vector_Get_As(vec, index, type) \
+  *((type *)Vector_Get(vec, index))
 
 /* append a value into the vector's end position */
 #define Vector_Append(vec, item) Vector_Set(vec, (vec)->size, item)
@@ -101,29 +94,15 @@ void Vector_Concat(Vector *dest, Vector *src);
 /* returns the vector's size */
 #define Vector_Size(vec) (NULL != (vec) ? (vec)->size : 0)
 
-#define VECTOR_OFFSET(vec, i) \
-  ((char *)(vec)->items + i * (vec)->itemsize)
-
-#define VECTOR_INDEX(vec, i) \
-({ \
-  ((vec)->itemsize <= sizeof(void *)) ? \
-  *(void **)VECTOR_OFFSET(vec, i) : (void *)VECTOR_OFFSET(vec, i); \
-})
-
-
 /* foreach for vector */
-#define Vector_ForEach(item, vec)         \
-for (int i = 0;                           \
-     i < Vector_Size(vec) &&              \
-     ({item = VECTOR_INDEX(vec, i); 1;}); \
-     i++)
+#define Vector_ForEach(objptr, vec)  \
+for (int i = 0; i < Vector_Size(vec) && \
+     ({objptr = Vector_Get(vec, i); 1;}); i++)
 
 /* foreach revsersely for vector */
-#define Vector_ForEach_Reverse(item, vec) \
-for (int i = Vector_Size(vec) - 1;        \
-     (i >= 0) &&                          \
-     ({item = VECTOR_INDEX(vec, i); 1;}); \
-     i--)
+#define Vector_ForEach_Reverse(objptr, vec) \
+for (int i = Vector_Size(vec) - 1; (i >= 0) && \
+     ({objptr = Vector_Get(vec, i); 1;}); i--)
 
 #ifdef __cplusplus
 }

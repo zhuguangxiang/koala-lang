@@ -30,17 +30,16 @@ void string_check(char *s, int index)
 
 void test_vector_append(void)
 {
-  Vector *vec = Vector_New();
-  assert(vec);
+  Vector *vec = Vector_New(sizeof(char *));
   int res;
   int i;
   for (i = 0; i < 30; i++) {
-    res = Vector_Append(vec, strings[i]);
+    res = Vector_Append(vec, &strings[i]);
     assert(res >= 0);
   }
 
   for (i = 0; i < Vector_Size(vec); i++) {
-    char *s = Vector_Get(vec, i);
+    char *s = Vector_Get_As(vec, i, char *);
     assert(s);
     string_check(s, i);
   }
@@ -50,33 +49,33 @@ void test_vector_append(void)
 
 void test_vector_set(void)
 {
-  VECTOR(vec);
+  VECTOR(vec, sizeof(char *));
   int res;
   int i;
   for (i = 0; i < 30; i++) {
-    res = Vector_Set(&vec, i, strings[i]);
+    res = Vector_Set(&vec, i, &strings[i]);
     assert(res >= 0);
   }
 
   for (i = 0; i < Vector_Size(&vec); i++) {
-    char *s = Vector_Get(&vec, i);
+    char *s = Vector_Get_As(&vec, i, char *);
     string_check(s, i);
   }
   assert(Vector_Size(&vec) == 30);
 
-  res = Vector_Set(&vec, -1, strings[30]);
+  res = Vector_Set(&vec, -1, &strings[30]);
   assert(res < 0);
 
-  res = Vector_Set(&vec, 10, strings[31]);
+  res = Vector_Set(&vec, 10, &strings[31]);
   assert(res >= 0);
   assert(Vector_Size(&vec) == 30);
 
-  res = Vector_Set(&vec, 20, strings[32]);
+  res = Vector_Set(&vec, 20, &strings[32]);
   assert(res >= 0);
   assert(Vector_Size(&vec) == 30);
 
   for (i = 0; i < Vector_Size(&vec); i++) {
-    char *s = Vector_Get(&vec, i);
+    char *s = Vector_Get_As(&vec, i, char *);
     if (i == 10)
       string_check(s, 31);
     else if (i == 20)
@@ -90,31 +89,31 @@ void test_vector_set(void)
 
 void test_vector_concat(void)
 {
-  Vector *vec = Vector_New();
+  Vector *vec = Vector_New(sizeof(char *));
   assert(vec);
   int res;
   int i;
   for (i = 0; i < 30; i++) {
-    res = Vector_Set(vec, i, strings[i]);
+    res = Vector_Set(vec, i, &strings[i]);
     assert(res >= 0);
   }
 
   for (i = 0; i < Vector_Size(vec); i++) {
-    char *s = Vector_Get(vec, i);
+    char *s = Vector_Get_As(vec, i, char *);
     string_check(s, i);
   }
 
-  Vector *vec2 = Vector_New();
+  Vector *vec2 = Vector_New(sizeof(char *));
   assert(vec2);
   for (i = 0; i < 10; i++) {
-    res = Vector_Set(vec2, i, strings[30 + i]);
+    res = Vector_Set(vec2, i, &strings[30 + i]);
     assert(res >= 0);
   }
 
   Vector_Concat(vec, vec2);
 
   for (i = 0; i < Vector_Size(vec); i++) {
-    char *s = Vector_Get(vec, i);
+    char *s = Vector_Get_As(vec, i, char *);
     string_check(s, i);
   }
 

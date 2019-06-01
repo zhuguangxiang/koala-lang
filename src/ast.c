@@ -554,7 +554,7 @@ static void free_enum_stmt(Stmt *stmt)
 static void free_eval_stmt(Stmt *stmt)
 {
   EnumValStmt *evStmt = (EnumValStmt *)stmt;
-  Vector_Free(evStmt->types, free_typedesc_func, NULL);
+  //Vector_Free(evStmt->types, free_typedesc_func, NULL);
   Free_Expr(evStmt->exp);
   Mfree(evStmt);
 }
@@ -1234,11 +1234,11 @@ static Vector *getparatypes(Vector *paratypes, Vector *types)
 
   Vector *vec = Vector_Capacity(Vector_Size(types));
   TypeDesc *desc;
-  TypeDesc *type;
+  PosType *type;
   Vector_ForEach(type, types) {
-    desc = getparatype(paratypes, type);
+    desc = getparatype(paratypes, type->desc);
     if (desc == NULL) {
-      desc = type;
+      desc = type->desc;
       TYPE_INCREF(desc);
     }
     Vector_Append(vec, desc);

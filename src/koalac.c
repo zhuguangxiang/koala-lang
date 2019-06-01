@@ -115,7 +115,7 @@ static ParserGroup *new_group(char *path)
   memset(grp, 0, sizeof(ParserGroup));
   grp->pkg = New_Package(path);
   grp->pkg->stbl = STable_New();
-  Vector_Init(&grp->modules);
+  Vector_Init(&grp->modules, sizeof(void *));
   return grp;
 }
 
@@ -147,7 +147,8 @@ void Add_ParserGroup(char *pkgpath)
     }
   }
 
-  Vector_Append(&groups, new_group(pkgpath));
+  grp = new_group(pkgpath);
+  Vector_Append(&groups, &grp);
 }
 
 static void build_symbols(ParserGroup *grp)

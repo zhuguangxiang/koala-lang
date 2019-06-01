@@ -20,14 +20,16 @@ enum Result {
   }
 }
 
+/*
 func get_result() Result {
   io.puts("get_result()")
   Result.Err(10, "bad file descriptor")
 }
+*/
 
-enum Option<T> {
+enum Option<T, E> {
   Some(T),
-  None,
+  None(E),
 
   func and_then() {
     io.puts("Option.and_then()")

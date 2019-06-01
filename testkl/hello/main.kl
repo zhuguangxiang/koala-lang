@@ -14,7 +14,7 @@ func func_test() {
 
 func enum_test() {
   puts("enum_test")
-  /*
+
   res := Result.Ok
   res.test()
   //res = get_result()
@@ -25,17 +25,16 @@ func enum_test() {
   //res = Result.Ok
   //person := Person()
   //person.greeting("Person.greeting...")
-
+/*
   var opt Option<int, string> = Option.Some(456)
   //opt = Option.Some("ZhangSan")
   opt = Option.None("hello")
   opt = Option.Some(100)
   opt.and_then()
-
+*/
   //var opt2 Option<Person> = Some(Person())
   //opt2 = Option.Some(Person())
   //opt2.and_then()
-  */
 }
 
 func class_test() {

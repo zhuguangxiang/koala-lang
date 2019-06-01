@@ -31,7 +31,7 @@ AtomTable *AtomTable_New(int size, hashfunc hash, equalfunc equal)
   HashTable_Init(&table->table, hash, equal);
   table->size = size;
   for (int i = 0; i < size; i++)
-    Vector_Init(table->items + i);
+    Vector_Init(table->items + i, sizeof(void *));
   return table;
 }
 
@@ -82,7 +82,7 @@ static AtomEntry *atomentry_new(int type, int index, void *data)
 int AtomTable_Append(AtomTable *table, int type, void *data, int unique)
 {
   Vector *vec = table->items + type;
-  Vector_Append(vec, data);
+  Vector_Append(vec, &data);
   int index = Vector_Size(vec) - 1;
   assert(index >= 0);
   if (unique) {
