@@ -1,0 +1,5 @@
+#+TITLE: Koala Language Development Notes
+#+AUTHOR: James Zhu
+#+EMAIL: zhuguangxiang@163.com
+
+* source directories layout
