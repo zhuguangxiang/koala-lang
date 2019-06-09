@@ -26,6 +26,16 @@ set(KOALA_PROJECT_NAME "koala-lang")
 
 project(${KOALA_PROJECT_NAME})
 
+set(CMAKE_BUILD_TYPE Debug)
+
+if(CMAKE_BUILD_TYPE STREQUAL Debug)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g")
+else()
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -O2 -Wall")
+endif()
+
+message("Build Type:" ${CMAKE_BUILD_TYPE} ${CMAKE_C_FLAGS})
+
 option(SKIP_TESTS "running test programs" OFF)
 
 include_directories(include)

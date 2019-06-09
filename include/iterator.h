@@ -25,8 +25,7 @@ SOFTWARE.
 #ifndef _KOALA_ITERATOR_H_
 #define _KOALA_ITERATOR_H_
 
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,9 +40,10 @@ struct iterator {
   /* pointer to current item */
   void *current;
   /*
-    next callback to get next element,
-    1 means current is valid, 0 means current is invalid
-  */
+   * next callback to get next element
+   * 1: ->current is valid
+   * 0: ->current is invalid
+   */
   int (*next)(struct iterator *self);
 };
 
@@ -57,43 +57,43 @@ struct iterator {
  *            the loop 'index'.
  *            If it has next item, returns true, otherwise returns false.
  *
- * Returns the iterator or NULL if memory allocation failed.
+ * Returns the iterator or null if memory allocation failed.
  *
  * Examples:
- *   DECLARE_ITERATOR(iter, array, array_next);
- *   iter_for_each_as(iter, char *, item) {
+ *   ITERATOR(iter, array, array_next);
+ *   iter_for_each_as(&iter, char *, item) {
  *     do something with the item 'item'
  *   }
  */
 #define ITERATOR(name, iterable, next) \
-struct iterator name = {iterable, 0, NULL, next}
+  struct iterator name = {iterable, 0, NULL, next}
 
 /*
- * Iterate over an iterator
+ * Iterate over an iterator.
  *
- * iter - The Iterator to be accessed
- * item - The item's variable, its type is void *
+ * self - The Iterator to be accessed.
+ * item - The item's variable, its type is void *.
  */
-#define iter_for_each(iter, item) \
-for (;(iter).next(&(iter)) && ({item = (iter).current; 1;});)
+#define iter_for_each(self, item) \
+  for (;(self)->next(self) && ({item = (self)->current; 1;});)
 
 /*
- * Iterate over an iterator with type
+ * Iterate over an iterator with type.
  *
- * iter - The Iterator to be accessed
- * type - The item's type
- * item - The item's variable
+ * self - The Iterator to be accessed.
+ * type - The item's type.
+ * item - The item's variable.
  */
-#define iter_for_each_as(iter, type, item) \
-for (;(iter).next(&(iter)) && ({item = *(type *)(iter).current; 1;});)
+#define iter_for_each_as(self, type, item) \
+  for (;(self)->next(self) && ({item = *(type *)((self)->current); 1;});)
 
 /*
- * Reset an iterator for loop again
+ * Reset an iterator for loop again.
  *
- * iter - The Iterator to be accessed
+ * self - The Iterator to be accessed.
  */
-#define iter_reset(iter) \
-(iter).index = 0; (iter).current = NULL;
+#define iter_reset(self) \
+  (self)->index = 0; (self)->current = NULL;
 
 #ifdef __cplusplus
 }
