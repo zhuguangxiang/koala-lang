@@ -62,55 +62,25 @@ struct vector {
  *
  * Returns nothing.
  */
-static inline
-void vector_init(struct vector *self, int itemsize)
+static inline void vector_init(struct vector *self, int itemsize)
 {
   memset(self, 0, sizeof(struct vector));
   self->itemsize = itemsize;
 }
 
-/*
- * Finalize a vector with item free function. 'free' is optional.
- *
- * self     - The Vector to finalize.
- * itemfree - The function to call for every item.
- *
- * Returns nothing.
- */
-void vector_fini(struct vector *self, void (*itemfree)(void *));
-
-/*
- * Create a new vector. Memory allocation does not happen.
- * It is delayed to insert first item.
- *
- * itemsize - The size of each item.
- *
- * Returns a new vector or null if memory allocation failed.
- */
-static inline
-struct vector *vector_create(int itemsize)
-{
-  struct vector *vec = mem_alloc(sizeof(struct vector));
-  if (vec == NULL)
-    return NULL;
-  vec->itemsize = itemsize;
-  return vec;
-}
+/* Free item callback function of vector_free */
+typedef void (*vector_free_fn)(void *, void *);
 
 /*
  * Destroy a vector with item free function. 'free' is optional.
  *
- * self     - The Vector to destroy.
+ * self     - The vector to be destroyed.
  * itemfree - The function to call for every item.
+ * data     - The private data.
  *
  * Returns nothing.
  */
-static inline
-void vector_destroy(struct vector *self, void (*itemfree)(void *))
-{
-  vector_fini(self, itemfree);
-  mem_free(self);
-}
+void vector_free(struct vector *self, vector_free_fn free_fn, void *data);
 
 /*
  * Remove all items from the vector, leaving the container with a size of 0.
@@ -121,8 +91,7 @@ void vector_destroy(struct vector *self, void (*itemfree)(void *))
  *
  * Returns nothing.
  */
-static inline
-void vector_clear(struct vector *self)
+static inline void vector_clear(struct vector *self)
 {
   memset(self->items, 0, self->capacity * self->itemsize);
   self->size = 0;
@@ -279,19 +248,34 @@ int vector_pop_back(struct vector *self, void *val);
   qsort((self)->items, (self)->size, compare)
 
 /*
- * Iterator callback function.
+ * Iterator callback function for vector iteration.
  * See iterator.h.
  */
 int vector_iter_next(struct iterator *iter);
 
 /*
- * Declare an iterator of the vector. Deletion is safe.
+ * Declare an iterator of the vector. Deletion is not safe.
  *
  * name   - The name of the vector iterator
  * vector - The container to iterate.
  */
 #define VECTOR_ITERATOR(name, vector) \
   ITERATOR(name, vector, vector_iter_next)
+
+/*
+ * Reverse iterator callback function for vector iteration.
+ * See iterator.h.
+ */
+int vector_iter_prev(struct iterator *iter);
+
+/*
+ * Declare an reverse iterator of the vector. Deletion is not safe.
+ *
+ * name   - The name of the vector iterator
+ * vector - The container to iterate.
+ */
+#define VECTOR_REVERSE_ITERATOR(name, vector) \
+  ITERATOR(name, vector, vector_iter_prev)
 
 #ifdef __cplusplus
 }

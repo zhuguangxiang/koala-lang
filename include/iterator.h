@@ -62,7 +62,7 @@ struct iterator {
  * Examples:
  *   ITERATOR(iter, array, array_next);
  *   iter_for_each_as(&iter, char *, item) {
- *     do something with the item 'item'
+ *     do something with the 'item'
  *   }
  */
 #define ITERATOR(name, iterable, next) \

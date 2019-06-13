@@ -55,13 +55,13 @@ static int __vector_maybe_expand(struct vector *self, int extrasize)
   return 0;
 }
 
-void vector_fini(struct vector *self, void (*itemfree)(void *))
+void vector_free(struct vector *self, vector_free_fn free_fn, void *data)
 {
-  if (itemfree != NULL) {
+  if (free_fn != NULL) {
     VECTOR_ITERATOR(iter, self);
     void *item;
     iter_for_each(&iter, item)
-      itemfree(item);
+      free_fn(item, data);
   }
   mem_free(self->items);
   self->size = 0;
@@ -85,12 +85,12 @@ int vector_set(struct vector *self, int index, void *item, void *val)
   if (index < 0 || index > self->size)
     return -1;
 
+  vector_get(self, index, val);
+
   if (__vector_maybe_expand(self, 1))
     return -1;
 
   void *offset = __vector_offset(self, index);
-  if (val != NULL)
-    memcpy(val, offset, self->itemsize);
   memcpy(offset, item, self->itemsize);
   ++self->size;
   return 0;
@@ -130,10 +130,23 @@ int vector_pop_back(struct vector *self, void *val)
 int vector_iter_next(struct iterator *iter)
 {
   struct vector *vec = iter->iterable;
+  if (vec->size <= 0)
+    return 0;
+
   iter->current = __vector_offset(vec, iter->index);
   iter->index++;
-  if (iter->index > vec->size)
+  return (iter->index > vec->size) ? 0 : 1;
+}
+
+int vector_iter_prev(struct iterator *iter)
+{
+  struct vector *vec = iter->iterable;
+  if (vec->size <= 0)
     return 0;
-  else
-    return 1;
+
+  if (iter->current == NULL)
+    iter->index = vec->size - 1;
+  iter->current = __vector_offset(vec, iter->index);
+  iter->index--;
+  return (iter->index < 0) ? 0 : 1;
 }
