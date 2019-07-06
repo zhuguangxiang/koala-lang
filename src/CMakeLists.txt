@@ -40,7 +40,9 @@ RUN_BISON(
   )
 
 SET(KOALA_SOURCES
-  koala_lex.c koala_yacc.c interactive.c main.c
+  koala_lex.c koala_yacc.c interactive.c compile.c main.c
   )
 ADD_EXECUTABLE(koala ${KOALA_SOURCES})
 TARGET_LINK_LIBRARIES(koala common readline)
+
+INSTALL(TARGETS koala DESTINATION koala-${KOALA_VERSION_MAIN}/bin)

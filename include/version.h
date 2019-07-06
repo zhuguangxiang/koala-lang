@@ -24,11 +24,12 @@ SOFTWARE.
 
 #ifndef _KOALA_VERSION_H_
 #define _KOALA_VERSION_H_
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define KOALAVERSION "0.9.1"
+#define KOALA_VERSION "0.9.1"
 
 #ifdef __cplusplus
 }

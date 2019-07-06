@@ -22,48 +22,20 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_PARSER_H_
-#define _KOALA_PARSER_H_
+#ifndef _KOALA_COMPILE_H_
+#define _KOALA_COMPILE_H_
 
-#include <inttypes.h>
+#include "parser.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* token's position */
-struct pos {
-  /* row */
-  int row;
-  /* column */
-  int col;
-};
+int file_input(struct parserstate *ps, char *buf, int size, FILE *in);
 
-struct module {
-};
-
-struct parserstate {
-  /* file name */
-  char *filename;
-  /* its module */
-  struct module *mod;
-
-  /* is interactive ? */
-  int interactive;
-  /* is complete ? */
-  int more;
-  /* token */
-  int token;
-  /* token length */
-  int len;
-  /* token position */
-  struct pos pos;
-
-};
-
-#include "koala_yacc.h"
+void koala_compile(char *path);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_PARSER_H_ */
+#endif /* _KOALA_COMPILE_H_ */

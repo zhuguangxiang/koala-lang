@@ -29,12 +29,13 @@ SOFTWARE.
 #include <sys/utsname.h>
 #include "version.h"
 #include "interactive.h"
+#include "compile.h"
 
 static void version(void)
 {
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
-    fprintf(stdout, "koala %s %s/%s\n", KOALAVERSION,
+    fprintf(stdout, "koala %s %s/%s\n", KOALA_VERSION,
             sysinfo.sysname, sysinfo.machine);
   }
 }
@@ -42,28 +43,27 @@ static void version(void)
 static void usage(void)
 {
   fprintf(stdout,
-          "Usage: koala [<options>] [<modules>]\n"
+          "Usage: koala [<options>] [<module-name>]\n"
           "Options:\n"
-          "  -c            Compile modules.\n"
+          "  -c            Compile the module.\n"
           "  -v, --verion  Print Koala version.\n"
           "  -h, --help    Print this message.\n"
           "\n");
   fprintf(stdout,
           "Environment variables:\n"
-          "KOALAHOME - koala installed directory.\n"
-          "            The default (third-part) module search path.\n"
-          "KOALAPATH - ':' seperated list of directories preferred to\n"
-          "            the default module search path (sys.path).\n"
+          "KOALA_HOME - koala installed directory.\n"
+          "             The default (third-part) module search path.\n"
+          "KOALA_PATH - ':' seperated list of directories preferred to\n"
+          "             the default module search path (sys.path).\n"
           "\n");
 }
 
-#define MAX_MODULES  8
 #define MAX_PATH_LEN 1024
 
 struct command {
   short cflag;
-  short index;
-  char modules[MAX_MODULES][MAX_PATH_LEN];
+  short has;
+  char module[MAX_PATH_LEN];
 };
 
 static void copy_path(char *arg, struct command *cmd)
@@ -80,13 +80,14 @@ static void copy_path(char *arg, struct command *cmd)
     exit(0);
   }
 
-  if (cmd->index >= MAX_MODULES) {
-    fprintf(stderr, "Error: Too many modules.\n");
+  if (cmd->has) {
+    fprintf(stdout, "Error: Only one module is allowed.\n");
     usage();
     exit(0);
   }
 
-  memcpy(cmd->modules[cmd->index++], path, len);
+  memcpy(cmd->module, path, len);
+  cmd->has = 1;
 }
 
 void parse_command(int argc, char *argv[], struct command *cmd)
@@ -128,7 +129,7 @@ void parse_command(int argc, char *argv[], struct command *cmd)
     }
   }
 
-  while (optind < argc) {
+  if (optind < argc) {
     if (!strcmp(argv[optind], "?")) {
       usage();
       exit(0);
@@ -136,8 +137,8 @@ void parse_command(int argc, char *argv[], struct command *cmd)
     copy_path(argv[optind++], cmd);
   }
 
-  if (!cmd->cflag && cmd->index > 1) {
-    fprintf(stdout, "Error: please specify ONLY one module.\n");
+  if (optind < argc) {
+    fprintf(stdout, "Error: Only one module is allowed.\n");
     usage();
     exit(0);
   }
@@ -152,13 +153,13 @@ int main(int argc, char *argv[])
   //koala_initialize();
 
   if (!cmd.cflag) {
-    if (cmd.index <= 0) {
+    if (!cmd.has) {
       koala_active();
     } else {
       //koala_run(cmd.modules[0]);
     }
   } else {
-    //koala_compile(cmd.modules, cmd.index);
+    koala_compile(cmd.module);
   }
 
   //koala_destory();

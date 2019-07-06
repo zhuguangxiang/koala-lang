@@ -34,7 +34,7 @@ SOFTWARE.
 
 static void show_banner(void)
 {
-  fprintf(stdout, "koala %s (%s, %s)\n", KOALAVERSION, __DATE__, __TIME__);
+  fprintf(stdout, "koala %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
 
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
@@ -51,7 +51,6 @@ void koala_active(void)
   yyscan_t scanner;
 
   ps.interactive = 1;
-  ps.quit = 0;
 
   show_banner();
   yylex_init_extra(&ps, &scanner);
@@ -83,7 +82,6 @@ int interactive(struct parserstate *ps, char *buf, int size)
 
   if (!line) {
     if (ferror(stdin)) clearerr(stdin);
-    ps->quit = 1;
     return 0;
   }
 

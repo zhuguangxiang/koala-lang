@@ -1,0 +1,13 @@
+##############################################################
+# MIT License
+#
+# Copyright (c) 2018 James, https://github.com/zhuguangxiang
+##############################################################
+
+//! This is a test foo library
+
+import "io"
+
+/// library's name
+__name__ := "foo"
+
