@@ -20,8 +20,27 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-set(COMMON_SOURCES
-  vector.c
+SET(COMMON_SOURCES
+  memory.c vector.c
+  )
+ADD_LIBRARY(common STATIC ${COMMON_SOURCES})
+
+INCLUDE(${PROJECT_SOURCE_DIR}/cmake/bison.cmake)
+
+RUN_FLEX(
+  ${PROJECT_SOURCE_DIR}/src/koala.lex
+  ${PROJECT_SOURCE_DIR}/src/koala_lex.c
+  ${PROJECT_SOURCE_DIR}/include/koala_lex.h
   )
 
-add_library(common STATIC ${COMMON_SOURCES})
+RUN_BISON(
+  ${PROJECT_SOURCE_DIR}/src/koala.y
+  ${PROJECT_SOURCE_DIR}/src/koala_yacc.c
+  ${PROJECT_SOURCE_DIR}/include/koala_yacc.h
+  )
+
+SET(KOALA_SOURCES
+  koala_lex.c koala_yacc.c interactive.c main.c
+  )
+ADD_EXECUTABLE(koala ${KOALA_SOURCES})
+TARGET_LINK_LIBRARIES(koala common readline)

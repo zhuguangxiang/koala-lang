@@ -256,7 +256,7 @@ int vector_iter_next(struct iterator *iter);
 /*
  * Declare an iterator of the vector. Deletion is not safe.
  *
- * name   - The name of the vector iterator
+ * name   - The name of the vector iterator.
  * vector - The container to iterate.
  */
 #define VECTOR_ITERATOR(name, vector) \
@@ -271,7 +271,7 @@ int vector_iter_prev(struct iterator *iter);
 /*
  * Declare an reverse iterator of the vector. Deletion is not safe.
  *
- * name   - The name of the vector iterator
+ * name   - The name of the vector iterator.
  * vector - The container to iterate.
  */
 #define VECTOR_REVERSE_ITERATOR(name, vector) \

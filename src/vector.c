@@ -23,6 +23,7 @@ SOFTWARE.
 */
 
 #include <assert.h>
+#include <string.h>
 #include "vector.h"
 
 static inline void *__vector_offset(struct vector *self, int size)
@@ -43,12 +44,12 @@ static int __vector_maybe_expand(struct vector *self, int extrasize)
   else
     capacity = VECTOR_MINIMUM_CAPACITY;
 
-  void *items = mem_alloc(capacity * self->itemsize);
+  void *items = malloc(capacity * self->itemsize);
   if (items == NULL)
     return -1;
   if (self->items != NULL) {
     memcpy(items, self->items, self->size * self->itemsize);
-    mem_free(self->items);
+    free(self->items);
   }
   self->items = items;
   self->capacity = capacity;
@@ -63,7 +64,7 @@ void vector_free(struct vector *self, vector_free_fn free_fn, void *data)
     iter_for_each(&iter, item)
       free_fn(item, data);
   }
-  mem_free(self->items);
+  free(self->items);
   self->size = 0;
   self->capacity = 0;
   self->items = NULL;

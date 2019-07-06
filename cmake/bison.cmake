@@ -20,36 +20,32 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+FIND_PACKAGE(FLEX REQUIRED)
+FIND_PACKAGE(BISON REQUIRED)
 
-SET(PROJECT_NAME "koala-lang")
+# use bison to generate grammar's c and h file
+MACRO(RUN_BISON input_y output_c output_h)
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${output_c}
+           ${output_h}
+    DEPENDS ${input_y}
+    COMMAND ${BISON_EXECUTABLE}
+            -dvt
+            --output=${output_c}
+            --defines=${output_h}
+            ${input_y}
+    )
+ENDMACRO()
 
-PROJECT(${PROJECT_NAME})
-
-IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE Debug)
-ENDIF()
-
-IF(CMAKE_BUILD_TYPE STREQUAL Debug)
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g")
-ELSE()
-  IF(CMAKE_BUILD_TYPE STREQUAL NLOG)
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g -DNLOG")
-  ELSE()
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -O2 -Wall")
-  ENDIF()
-ENDIF()
-
-MESSAGE("-- Build:" ${CMAKE_BUILD_TYPE})
-MESSAGE("-- Flags:" ${CMAKE_C_FLAGS})
-
-OPTION(SKIP_TESTS "running test programs" OFF)
-
-INCLUDE_DIRECTORIES(include)
-
-ADD_SUBDIRECTORY(src)
-
-IF(NOT SKIP_TESTS)
-  ENABLE_TESTING()
-  ADD_SUBDIRECTORY(test)
-ENDIF()
+# use flex to generate lex's c and h file
+MACRO(RUN_FLEX input_l output_c output_h)
+  ADD_CUSTOM_COMMAND(
+    OUTPUT ${output_c}
+           ${output_h}
+    DEPENDS ${input_l}
+    COMMAND ${FLEX_EXECUTABLE}
+            --outfile=${output_c}
+            --header-file=${output_h}
+            ${input_l}
+    )
+ENDMACRO()

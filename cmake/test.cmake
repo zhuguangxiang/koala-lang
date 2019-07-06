@@ -20,9 +20,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-# add simple test with no arguments
-macro(TEST name)
-  add_executable(${name} ${name}.c)
-  target_link_libraries(${name} ${ARGN})
-  add_test(NAME ${name} COMMAND ${name})
-endmacro()
+# add simple test with arguments
+MACRO(TEST name)
+  ADD_EXECUTABLE(${name} ${name}.c)
+  TARGET_LINK_LIBRARIES(${name} ${ARGN})
+  ADD_TEST(NAME ${name} COMMAND ${name})
+ENDMACRO()

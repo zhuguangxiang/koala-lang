@@ -32,11 +32,121 @@ SOFTWARE.
 extern "C" {
 #endif
 
-#define mem_alloc(size) \
-  calloc(1, size)
+/* slab contains #n objects */
+struct slab {
+  /* linked in cache's full list */
+  struct slab *next;
+  /* free object list */
+  void *freelist;
+  /* allocated objects of the slab */
+  int used;
+};
 
-#define mem_free(ptr) \
-  free(ptr)
+/* fixed size object cache */
+struct cache {
+  /* cache name of object */
+  char *name;
+  /* object size */
+  int objsze;
+  /* allocated count */
+  int allocated;
+  /* full slab list */
+  struct slab *full;
+  /* partial slab(current) */
+  struct slab *partial;
+};
+
+/*
+ * Initialze an object cache.
+ *
+ * self    - The cache to be initialized.
+ * name    - The cache name for debug.
+ * objsize - The object size in the cache.
+ *
+ * Returns nothing.
+ */
+void kcache_init(struct cache *self, char *name, int objsize);
+
+/*
+ * Free an object cache and its allocated memory.
+ *
+ * self - The cache to be freed.
+ *
+ * Returns nothing.
+ */
+void kcache_free(struct cache *self);
+
+/*
+ * Create a new object cache.
+ *
+ * name    - The cache name for debug.
+ * objsize - The object size in the cache.
+ *
+ * Returns a new cache or null if memory allocation failed.
+ */
+struct cache *kcache_create(char *name, int objsize);
+
+/*
+ * Destroy an object cache and free its allocated memory.
+ *
+ * self - The cache to be destroyed.
+ *
+ * Returns nothing.
+ */
+void kcache_destroy(struct cache *self);
+
+/*
+ * Alloc an object from its cache.
+ *
+ * self - The cache to allocate objects.
+ *
+ * Returns an object or null if memory allocation failed.
+ */
+void *kcache_alloc(struct cache *self);
+
+/*
+ * Restore an object to its cache.
+ *
+ * self - The cache to restore objects.
+ * obj  - The object to be restored.
+ *
+ * Returns nothing.
+ */
+void kcache_restore(struct cache *self, void *obj);
+
+/*
+ * Stat a cache usage.
+ *
+ * self - The cache to stat.
+ *
+ * Returns nothing.
+ */
+void kcache_stat(struct cache *self);
+
+/*
+ * allocate memory for any size.
+ *
+ * size - The memory size to be allocated.
+ *
+ * Returns the memory or null if memory allocation failed.
+ */
+void *kmalloc(size_t size);
+
+/*
+ * free memory which is allocated by 'kmalloc'.
+ *
+ * ptr - The memory to be freed.
+ *
+ * Returns nothing.
+ */
+void kfree(void *ptr);
+
+/*
+ * stat memory usage with 'kmalloc' and 'kfree'.
+ *
+ * Returns nothing.
+ */
+void stat(void);
 
 #ifdef __cplusplus
 }
