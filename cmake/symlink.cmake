@@ -20,8 +20,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-include(${CMAKE_SOURCE_DIR}/cmake/test.cmake)
-
-TEST(test_iterator)
-TEST(test_vector koala)
-TEST(test_debug)
+# symbol link
+MACRO(INSTALL_SYMLINK target linkname)
+  INSTALL(CODE
+    "EXECUTE_PROCESS(
+     COMMAND ${CMAKE_COMMAND} -E create_symlink ${target} ${linkname})"
+    )
+ENDMACRO()
