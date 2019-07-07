@@ -31,17 +31,15 @@ SOFTWARE.
 extern "C" {
 #endif
 
-/* token's position */
-struct pos {
-  /* row */
-  int row;
-  /* column */
-  int col;
-};
+/* position */
+struct pos { int row; int col; };
 
 struct module {
+  /* symbol table per module, not per source file */
+  struct symboltable *stbl;
 };
 
+/* per source file */
 struct parserstate {
   /* file name */
   char *filename;
@@ -59,7 +57,23 @@ struct parserstate {
   /* token position */
   struct pos pos;
 
+  /* error numbers */
+  int errnum;
 };
+
+#define MAX_ERRORS 8
+
+#define syntax_error(ps, pos, fmt, ...)                                 \
+({                                                                      \
+  if (++ps->errnum > MAX_ERRORS) {                                      \
+    /* if errors are more than MAX_ERRORS, discard left errors shown */ \
+    fprintf(stdout, "%s:" __ERR_COLOR__ "Too many errors.\n",           \
+            ps->filename);                                              \
+  } else {                                                              \
+    fprintf(stdout, "%s:%d:%d:" __ERR_COLOR__ fmt "\n",                 \
+            ps->filename, pos->row, pos->col, __VA_ARGS__);             \
+  }                                                                     \
+})
 
 #include "koala_yacc.h"
 

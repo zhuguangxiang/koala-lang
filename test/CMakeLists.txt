@@ -24,3 +24,4 @@ include(${CMAKE_SOURCE_DIR}/cmake/test.cmake)
 
 TEST(test_iterator)
 TEST(test_vector common)
+TEST(test_debug)

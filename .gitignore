@@ -32,4 +32,6 @@ doc/*.png
 .vscode/ipch/*
 *.output
 include/version.h
+include/koala_lex.h
+include/koala_yacc.h
 
