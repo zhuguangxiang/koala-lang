@@ -22,15 +22,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_STRING_H_
-#define _KOALA_STRING_H_
+#ifndef _KOALA_STRBUF_H_
+#define _KOALA_STRBUF_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* string buffer */
-struct stringbuf {
+struct strbuf {
   /* allocated size */
   int size;
   /* used size */
@@ -39,18 +39,18 @@ struct stringbuf {
   char *buf;
 };
 
-#define STRINGBUF(name) \
+#define STRBUF(name) \
   struct strbuf name = {0, 0, NULL}
 
-static inline void stringbuf_free(struct strbuf *self)
+static inline void strbuf_free(struct strbuf *self)
 {
-  mmfree(self->buf);
+  kfree(self->buf);
   memset(self, 0, sizeof(*self));
 }
 
-void stringbuf_write(struct strbuf *self, char *s);
-void stringbuf_write_format(struct strbuf *self, char *fmt, ...);
-void stringbuf_write_char(struct strbuf *self, char ch);
+void strbuf_write(struct strbuf *self, char *s);
+void strbuf_write_format(struct strbuf *self, char *fmt, ...);
+void strbuf_write_char(struct strbuf *self, char ch);
 char *atom_string(char *s);
 char *atom_find(char *s);
 void atom_init(void);
@@ -59,4 +59,4 @@ void atom_free(void);
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_STRING_H_ */
+#endif /* _KOALA_STRBUF_H_ */

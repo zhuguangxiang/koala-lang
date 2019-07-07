@@ -63,16 +63,16 @@ struct parserstate {
 
 #define MAX_ERRORS 8
 
-#define syntax_error(ps, pos, fmt, ...)                                 \
-({                                                                      \
-  if (++ps->errnum > MAX_ERRORS) {                                      \
-    /* if errors are more than MAX_ERRORS, discard left errors shown */ \
-    fprintf(stdout, "%s:" __ERR_COLOR__ "Too many errors.\n",           \
-            ps->filename);                                              \
-  } else {                                                              \
-    fprintf(stdout, "%s:%d:%d:" __ERR_COLOR__ fmt "\n",                 \
-            ps->filename, pos->row, pos->col, __VA_ARGS__);             \
-  }                                                                     \
+#define syntax_error(ps, pos, fmt, ...)                        \
+({                                                             \
+  if (++ps->errnum > MAX_ERRORS) {                             \
+    /* more than MAX_ERRORS, discard left errors shown */      \
+    fprintf(stderr, "%s: " __ERR_COLOR__ "Too many errors.\n", \
+            ps->filename);                                     \
+  } else {                                                     \
+    fprintf(stderr, "%s:%d:%d: " __ERR_COLOR__ fmt "\n",       \
+            ps->filename, pos->row, pos->col, __VA_ARGS__);    \
+  }                                                            \
 })
 
 #include "koala_yacc.h"

@@ -22,18 +22,25 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include <assert.h>
-#include "parser.h"
-#include "ast.h"
+#ifndef _KOALA_AST_H_
+#define _KOALA_AST_H_
 
-typedef void (*stmt_parser)(struct parserstate *, struct stmt *);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void parse_stmt(struct parserstate *ps, struct stmt *stmt)
-{
-  if (ps->errnum >= MAX_ERRORS)
-    return;
-  int nr = sizeof(stmt_parsers)/sizeof(stmt_parsers[0]);
-  assert(stmt->kind > 0 & stmt->kind < nr);
-  stmt_parser fn =  stmt_parsers[stmt->kind];
-  fn(ps, stmt);
+enum stmtkind {
+  IMPORT_STMT = 1,
+  CONST_STMT, VAR_STMT, ASSIGN_STMT, EXPR_STMT, FUNC_STMT
+};
+
+#define STMT_HEAD int kind;
+
+struct stmt {
+  STMT_HEAD
+};
+
+#ifdef __cplusplus
 }
+#endif
+#endif /* _KOALA_AST_H_ */

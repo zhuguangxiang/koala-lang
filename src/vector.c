@@ -49,7 +49,7 @@ static int __vector_maybe_expand(struct vector *self, int extrasize)
     return -1;
   if (self->items != NULL) {
     memcpy(items, self->items, self->size * self->itemsize);
-    free(self->items);
+    kfree(self->items);
   }
   self->items = items;
   self->capacity = capacity;

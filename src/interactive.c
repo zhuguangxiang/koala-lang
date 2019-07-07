@@ -34,17 +34,18 @@ SOFTWARE.
 
 static void show_banner(void)
 {
-  fprintf(stdout, "koala %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
+  printf("koala %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
 
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
-    fprintf(stdout, "[GCC %d.%d.%d] on %s %s\n",
-            __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,
-            sysinfo.sysname, sysinfo.release);
+    printf("[GCC %d.%d.%d] on %s %s\n",
+           __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,
+           sysinfo.sysname, sysinfo.release);
   }
 }
 
-struct parserstate ps;
+static struct module mod;
+static struct parserstate ps;
 
 void koala_active(void)
 {

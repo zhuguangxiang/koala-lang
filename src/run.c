@@ -22,18 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include <assert.h>
-#include "parser.h"
-#include "ast.h"
-
-typedef void (*stmt_parser)(struct parserstate *, struct stmt *);
-
-void parse_stmt(struct parserstate *ps, struct stmt *stmt)
+/*
+  koala a/b/foo.kl
+  koala a/b/foo.klc
+  koala a/b/foo
+ */
+void koala_run(char *path)
 {
-  if (ps->errnum >= MAX_ERRORS)
-    return;
-  int nr = sizeof(stmt_parsers)/sizeof(stmt_parsers[0]);
-  assert(stmt->kind > 0 & stmt->kind < nr);
-  stmt_parser fn =  stmt_parsers[stmt->kind];
-  fn(ps, stmt);
+
 }

@@ -57,7 +57,7 @@ void __kfree(void *ptr)
   assert(usedsize >= 0);
 }
 
-void stat(void)
+void kstat(void)
 {
   puts("------ Memory Usage ------");
   printf("|  Max: %d Bytes\n|  Current: %d Bytes\n", maxsize, usedsize);

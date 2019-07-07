@@ -30,32 +30,32 @@ SOFTWARE.
 #include "version.h"
 #include "interactive.h"
 #include "compile.h"
+#include "run.h"
+#include "debug.h"
 
 static void version(void)
 {
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
-    fprintf(stdout, "koala %s %s/%s\n", KOALA_VERSION,
-            sysinfo.sysname, sysinfo.machine);
+    printf("koala %s %s/%s\n", KOALA_VERSION,
+           sysinfo.sysname, sysinfo.machine);
   }
 }
 
 static void usage(void)
 {
-  fprintf(stdout,
-          "Usage: koala [<options>] [<module-name>]\n"
-          "Options:\n"
-          "  -c            Compile the module.\n"
-          "  -v, --verion  Print Koala version.\n"
-          "  -h, --help    Print this message.\n"
-          "\n");
-  fprintf(stdout,
-          "Environment variables:\n"
-          "KOALA_HOME - koala installed directory.\n"
-          "             The default (third-part) module search path.\n"
-          "KOALA_PATH - ':' seperated list of directories preferred to\n"
-          "             the default module search path (sys.path).\n"
-          "\n");
+  printf("Usage: koala [<options>] [<module-name>]\n"
+         "Options:\n"
+         "  -c            Compile the module.\n"
+         "  -v, --verion  Print Koala version.\n"
+         "  -h, --help    Print this message.\n"
+         "\n");
+  printf("Environment variables:\n"
+         "KOALA_HOME - koala installed directory.\n"
+         "             The default (third-part) module search path.\n"
+         "KOALA_PATH - ':' seperated list of directories preferred to\n"
+         "             the default module search path (sys.path).\n"
+         "\n");
 }
 
 #define MAX_PATH_LEN 1024
@@ -75,13 +75,13 @@ static void copy_path(char *arg, struct command *cmd)
   int len = slash - path + 1;
 
   if (len >= MAX_PATH_LEN) {
-    fprintf(stderr, "Error: Too long module's path.\n");
+    errmsg("Too long module's path.");
     usage();
     exit(0);
   }
 
   if (cmd->has) {
-    fprintf(stdout, "Error: Only one module is allowed.\n");
+    errmsg("Only one module is allowed.");
     usage();
     exit(0);
   }
@@ -122,7 +122,7 @@ void parse_command(int argc, char *argv[], struct command *cmd)
       exit(0);
       break;
     default:
-      fprintf(stdout, "Error: invalid option '%c'.\n", opt);
+      errmsg("invalid option '%c'.", opt);
       usage();
       exit(0);
       break;
@@ -138,7 +138,7 @@ void parse_command(int argc, char *argv[], struct command *cmd)
   }
 
   if (optind < argc) {
-    fprintf(stdout, "Error: Only one module is allowed.\n");
+    errmsg("Only one module is allowed.");
     usage();
     exit(0);
   }
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
     if (!cmd.has) {
       koala_active();
     } else {
-      //koala_run(cmd.modules[0]);
+      koala_run(cmd.module);
     }
   } else {
     koala_compile(cmd.module);

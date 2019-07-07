@@ -49,7 +49,8 @@ struct vector {
 /*
  * Declare a empty vector with name.
  *
- * name - The name of the vector.
+ * name     - The name of the vector.
+ * itemsize - The size of item stored in the vector.
  */
 #define VECTOR(name, itemsize) \
   struct vector name = {0, 0, itemsize, NULL}

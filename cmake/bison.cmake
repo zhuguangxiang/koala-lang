@@ -33,8 +33,7 @@ MACRO(RUN_BISON input_y output_c output_h)
             -dvt
             --output=${output_c}
             --defines=${output_h}
-            ${input_y}
-    )
+            ${input_y})
 ENDMACRO()
 
 # use flex to generate lex's c and h file
@@ -46,6 +45,5 @@ MACRO(RUN_FLEX input_l output_c output_h)
     COMMAND ${FLEX_EXECUTABLE}
             --outfile=${output_c}
             --header-file=${output_h}
-            ${input_l}
-    )
+            ${input_l})
 ENDMACRO()
