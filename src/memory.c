@@ -22,52 +22,44 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include <assert.h>
-#include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 #include "memory.h"
 
-#define PAGE_SIZE  4096
-#define CACHE_SIZE 16
+/* max allocated memory size */
+int maxsize;
 
-#define SIZED_CACHE_INIT(size) {"cache-"#size, size, 0, NULL, NULL}
+/* current allocated memory size */
+int usedsize;
 
-struct cache size_caches[CACHE_SIZE] = {
-  SIZED_CACHE_INIT(32),  SIZED_CACHE_INIT(64),
-  SIZED_CACHE_INIT(96),  SIZED_CACHE_INIT(128),
-  SIZED_CACHE_INIT(160), SIZED_CACHE_INIT(192),
-  SIZED_CACHE_INIT(224), SIZED_CACHE_INIT(256),
-  SIZED_CACHE_INIT(288), SIZED_CACHE_INIT(320),
-  SIZED_CACHE_INIT(352), SIZED_CACHE_INIT(384),
-  SIZED_CACHE_INIT(416), SIZED_CACHE_INIT(448),
-  SIZED_CACHE_INIT(480), SIZED_CACHE_INIT(512)
+struct block {
+  size_t size;
+  uint32_t mask;
 };
 
 void *kmalloc(size_t size)
 {
-  void *ptr;
-
-  /* greater than 512 bytes, use malloc */
-  if (size > size_caches[CACHE_SIZE - 1].objsze) {
-    ptr = malloc(size + sizeof(size_t));
-    assert(ptr != NULL);
-    *(size_t *)ptr = size;
-    return (void *)((size_t *)ptr + 1);
-  }
-
-  size = (size + 32) & 0x20;
-  int index = size >> 6;
-  return kcache_alloc(size_caches + index);
+  struct block *blk = calloc(1, sizeof(struct block) + size);
+  assert(blk);
+  maxsize += size;
+  usedsize += size;
+  blk->size = size;
+  blk->mask = 0xdeadbeaf;
+  return (void *)(blk + 1);
 }
 
-
-void kfree(void *ptr)
+void __kfree(void *ptr)
 {
-  size_t *sizep = (size_t *)ptr - 1;
-  if (*sizep > 512) {
-    free(sizep);
-    return;
-  }
+  struct block *blk = (struct block *)ptr - 1;
+  assert(blk->mask == 0xdeadbeaf);
+  usedsize -= blk->size;
+  free(blk);
+  assert(usedsize >= 0);
+}
 
-  int index = ((*sizep + 32) & 0x20) >> 6;
-  kcache_restore(size_caches + index, sizep);
+void stat(void)
+{
+  puts("------ Memory Usage ------");
+  printf("|  Max: %d Bytes\n|  Current: %d Bytes\n", maxsize, usedsize);
+  puts("--------------------------");
 }

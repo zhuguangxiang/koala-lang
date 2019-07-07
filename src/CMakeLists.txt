@@ -40,9 +40,26 @@ RUN_BISON(
   )
 
 SET(KOALA_SOURCES
-  koala_lex.c koala_yacc.c interactive.c compile.c main.c
+  memory.c vector.c
+  koala_lex.c koala_yacc.c interactive.c compile.c
   )
-ADD_EXECUTABLE(koala ${KOALA_SOURCES})
-TARGET_LINK_LIBRARIES(koala common readline)
 
-INSTALL(TARGETS koala DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
+ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})
+ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})
+SET_TARGET_PROPERTIES(koala_so PROPERTIES
+  VERSION ${KOALA_VERSION}
+  SOVERSION ${KOALA_VERSION_MAJOR}
+  OUTPUT_NAME koala
+  )
+
+ADD_EXECUTABLE(koala_out main.c)
+TARGET_LINK_LIBRARIES(koala_out koala readline)
+SET_TARGET_PROPERTIES(koala_out PROPERTIES OUTPUT_NAME koala)
+
+INSTALL(TARGETS koala DESTINATION koala-${KOALA_VERSION_MAIN}/lib)
+INSTALL(TARGETS koala_so DESTINATION koala-${KOALA_VERSION_MAIN}/lib)
+INSTALL(TARGETS koala_out DESTINATION koala-${KOALA_VERSION_MAIN}/bin)
+INSTALL(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
+  DESTINATION koala-${KOALA_VERSION_MAIN}/include/koala
+  FILES_MATCHING PATTERN "*.h"
+  )

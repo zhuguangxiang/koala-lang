@@ -44,7 +44,7 @@ static int __vector_maybe_expand(struct vector *self, int extrasize)
   else
     capacity = VECTOR_MINIMUM_CAPACITY;
 
-  void *items = malloc(capacity * self->itemsize);
+  void *items = kmalloc(capacity * self->itemsize);
   if (items == NULL)
     return -1;
   if (self->items != NULL) {
@@ -64,7 +64,7 @@ void vector_free(struct vector *self, vector_free_fn free_fn, void *data)
     iter_for_each(&iter, item)
       free_fn(item, data);
   }
-  free(self->items);
+  kfree(self->items);
   self->size = 0;
   self->capacity = 0;
   self->items = NULL;
