@@ -31,3 +31,5 @@ todeleted/*
 doc/*.png
 .vscode/ipch/*
 *.output
+include/version.h
+

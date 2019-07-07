@@ -27,6 +27,7 @@ SOFTWARE.
 
 #include <stdio.h>
 #include "interactive.h"
+#include "compile.h"
 
 #define YY_EXTRA_TYPE struct parserstate *
 #define yyps ((struct parserstate *)yyextra)
@@ -49,18 +50,13 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   return 0;
 }
 
-static int finput(YY_EXTRA_TYPE ps, char *buf, int size, FILE *in)
-{
-  return 0;
-}
-
 #define YY_USER_ACTION                    \
 {                                         \
   if (!yyps->interactive) {               \
     yyps->pos.col += yyps->len;           \
     yyps->len = strlen(yytext);           \
     yylloc->first_column = yyps->pos.col; \
-    yylloc->first_line = yyps->pos.row;   \
+    yylloc->first_line = yylineno;        \
   }                                       \
 }
 
@@ -72,7 +68,7 @@ static int finput(YY_EXTRA_TYPE ps, char *buf, int size, FILE *in)
   if (yyps->interactive)                   \
     result = interactive(yyps, buf, size); \
   else                                     \
-    result = finput(yyps, buf, size, yyin);
+    result = file_input(yyps, buf, size, yyin);
 
 #define YY_NEWLINE            \
   if (need_semicolon(yyps)) { \

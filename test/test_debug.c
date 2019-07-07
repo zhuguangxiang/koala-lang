@@ -22,16 +22,12 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_VERSION_H_
-#define _KOALA_VERSION_H_
+#include "debug.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define KOALA_VERSION "0.9.1"
-
-#ifdef __cplusplus
+int main(int argc, char *argv[])
+{
+  debug("hello, %s:%d", "world", 100);
+  warn("this is a warnning: %s,%d", "not a dog", 100);
+  error("this is an error: %s,%d", "not a cat", 100);
+  return 0;
 }
-#endif
-#endif /* _KOALA_VERSION_H_ */

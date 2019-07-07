@@ -26,14 +26,26 @@ SOFTWARE.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "compile.h"
+#include "koala_lex.h"
 
 int file_input(struct parserstate *ps, char *buf, int size, FILE *in)
 {
-
+  errno = 0;
+  int result = 0;
+  while ((result = (int)fread(buf, 1, (size_t)size, in)) == 0 && ferror(in)) {
+    if (errno != EINTR) {
+      fprintf(stdout, "input in scanner failed");
+      break;
+    }
+    errno = 0;
+    clearerr(in);
+  }
+  return result;
 }
 
 static inline int isdotkl(char *filename)
@@ -69,6 +81,8 @@ static int valid_source(char *path)
   return 1;
 }
 
+struct parserstate ps_test;
+
 void koala_compile(char *path)
 {
   struct stat sb;
@@ -84,7 +98,11 @@ void koala_compile(char *path)
 
     FILE *in = fopen(path, "r");
     assert(in);
-
+    yyscan_t scanner;
+    yylex_init_extra(&ps_test, &scanner);
+    yyset_in(in, scanner);
+    yyparse(&ps_test, scanner);
+    yylex_destroy(scanner);
     fclose(in);
     return;
   }
