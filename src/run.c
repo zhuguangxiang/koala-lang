@@ -23,9 +23,8 @@ SOFTWARE.
 */
 
 /*
-  koala a/b/foo.kl
-  koala a/b/foo.klc
-  koala a/b/foo
+ * The following commands are valid.
+ * ~$ koala a/b/foo.kl [a/b/foo.klc] [a/b/foo]
  */
 void koala_run(char *path)
 {

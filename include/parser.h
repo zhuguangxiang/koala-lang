@@ -35,6 +35,8 @@ extern "C" {
 struct pos { int row; int col; };
 
 struct module {
+  /* module name is file name, directory name or __name__ */
+  char *name;
   /* symbol table per module, not per source file */
   struct symboltable *stbl;
 };
@@ -61,12 +63,21 @@ struct parserstate {
   int errnum;
 };
 
+/* more than MAX_ERRORS, discard left errors shown */
 #define MAX_ERRORS 8
 
+/*
+ * record and print syntax error.
+ *
+ * ps  - The struct parserstate.
+ * pos - The position which the error happened.
+ * fmt - The error message format.
+ *
+ * Returns nothing.
+ */
 #define syntax_error(ps, pos, fmt, ...)                        \
 ({                                                             \
   if (++ps->errnum > MAX_ERRORS) {                             \
-    /* more than MAX_ERRORS, discard left errors shown */      \
     fprintf(stderr, "%s: " __ERR_COLOR__ "Too many errors.\n", \
             ps->filename);                                     \
   } else {                                                     \
@@ -74,8 +85,6 @@ struct parserstate {
             ps->filename, pos->row, pos->col, __VA_ARGS__);    \
   }                                                            \
 })
-
-#include "koala_yacc.h"
 
 #ifdef __cplusplus
 }

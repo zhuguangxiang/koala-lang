@@ -22,20 +22,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_COMPILE_H_
-#define _KOALA_COMPILE_H_
+#include <koala/koala.h>
 
-#include "parser.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int file_input(struct parserstate *ps, char *buf, int size, FILE *in);
-
-void koala_compile(char *path);
-
-#ifdef __cplusplus
+int main(int argc, char *argv[])
+{
+  koala_active();
+  return 0;
 }
-#endif
-#endif /* _KOALA_COMPILE_H_ */

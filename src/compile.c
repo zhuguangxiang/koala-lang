@@ -30,7 +30,8 @@ SOFTWARE.
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "compile.h"
+#include "parser.h"
+#include "koala_yacc.h"
 #include "koala_lex.h"
 #include "vector.h"
 #include "debug.h"
@@ -105,21 +106,21 @@ static int valid_source(char *path)
   return 1;
 }
 
-static VECTOR(modules, sizeof(struct module *));
+static VECTOR(mods, sizeof(struct module *));
 
 struct parserstate ps_test;
 
-/* koala -c a/b/foo.kl */
+/* koala -c a/b/foo.kl [a/b/foo] */
 void koala_compile(char *path)
 {
   struct stat sb;
   if (stat(path, &sb) < 0) {
-    errmsg("%s: No such file or directory.\n", path);
+    errmsg("%s: No such file or directory.", path);
     return;
   }
 
   if (S_ISREG(sb.st_mode)) {
-    /* source file */
+    /* single source file */
     if (!valid_source(path))
       return;
 

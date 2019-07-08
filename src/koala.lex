@@ -26,8 +26,11 @@ SOFTWARE.
 %{
 
 #include <stdio.h>
-#include "interactive.h"
-#include "compile.h"
+#include "parser.h"
+#include "koala_yacc.h"
+
+int interactive(struct parserstate *ps, char *buf, int size);
+int file_input(struct parserstate *ps, char *buf, int size, FILE *in);
 
 #define YY_EXTRA_TYPE struct parserstate *
 #define yyps ((struct parserstate *)yyextra)

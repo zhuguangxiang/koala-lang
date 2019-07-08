@@ -22,22 +22,21 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_INTERACTIVE_H_
-#define _KOALA_INTERACTIVE_H_
+#ifndef _KOALA_API_H_
+#define _KOALA_API_H_
 
-#include "parser.h"
+#include "version.h"
+#include "debug.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define PROMPT      "> "
-#define MORE_PROMPT ". "
-
-int interactive(struct parserstate *ps, char *buf, int size);
 void koala_active(void);
+void koala_compile(char *path);
+void koala_run(char *path);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_INTERACTIVE_H_ */
+#endif /* _KOALA_API_H_ */

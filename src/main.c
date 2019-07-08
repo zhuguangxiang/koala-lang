@@ -27,11 +27,7 @@ SOFTWARE.
 #include <string.h>
 #include <getopt.h>
 #include <sys/utsname.h>
-#include "version.h"
-#include "interactive.h"
-#include "compile.h"
-#include "run.h"
-#include "debug.h"
+#include "koala.h"
 
 static void version(void)
 {

@@ -27,10 +27,14 @@ SOFTWARE.
 #include <unistd.h>
 #include <sys/utsname.h>
 #include "version.h"
-#include "interactive.h"
+#include "parser.h"
+#include "koala_yacc.h"
 #include "koala_lex.h"
 #include <readline/readline.h>
 #include <readline/history.h>
+
+#define PROMPT      "> "
+#define MORE_PROMPT ". "
 
 static void show_banner(void)
 {
@@ -55,9 +59,10 @@ void koala_active(void)
 
   show_banner();
   yylex_init_extra(&ps, &scanner);
+  yyset_in(stdin, scanner);
   yyparse(&ps, scanner);
-  putchar('\n');
   yylex_destroy(scanner);
+  putchar('\n');
 }
 
 static int empty(char *buf, int size)
