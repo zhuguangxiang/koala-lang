@@ -25,6 +25,8 @@ SOFTWARE.
 #ifndef _KOALA_STRBUF_H_
 #define _KOALA_STRBUF_H_
 
+#include "memory.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,22 +41,56 @@ struct strbuf {
   char *buf;
 };
 
+/*
+ * Declare a string buffer.
+ */
 #define STRBUF(name) \
   struct strbuf name = {0, 0, NULL}
 
+/*
+ * Free a string buffer.
+ *
+ * self - The string buffer to free
+ *
+ * Returns nothing.
+ */
 static inline void strbuf_free(struct strbuf *self)
 {
   kfree(self->buf);
   memset(self, 0, sizeof(*self));
 }
 
-void strbuf_write(struct strbuf *self, char *s);
-void strbuf_write_format(struct strbuf *self, char *fmt, ...);
-void strbuf_write_char(struct strbuf *self, char ch);
-char *atom_string(char *s);
-char *atom_find(char *s);
-void atom_init(void);
-void atom_free(void);
+/*
+ * Write a 0-terminated string.
+ *
+ * self - The string buffer to write.
+ * s    - The string to be written.
+ *
+ * Returns nothing.
+ */
+void strbuf_append(struct strbuf *self, char *s);
+
+/*
+ * Write a character.
+ *
+ * self - The string buffer to write.
+ * s    - The character to be written.
+ *
+ * Returns nothing.
+ */
+void strbuf_append_char(struct strbuf *self, char ch);
+
+/*
+ * Get 0-terminated string from the string buffer.
+ *
+ * self - The string buffer to be get a string.
+ *
+ * Returns a 0-terminated string.
+ */
+static inline char *strbuf_tostr(struct strbuf *self)
+{
+  return self->buf;
+}
 
 #ifdef __cplusplus
 }

@@ -22,55 +22,26 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#include <assert.h>
+#include "strbuf.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int main(int argc, char *argv[])
+{
+  STRBUF(sbuf);
 
-/*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s);
+  char *s = "Hello, Koala";
+  strbuf_append(&sbuf, s);
+  strbuf_append(&sbuf, s);
+  strbuf_append(&sbuf, s);
+  assert(sbuf.len == 36 && sbuf.size == 64);
 
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(char *s, int len);
+  strbuf_append_char(&sbuf, 'O');
+  strbuf_append_char(&sbuf, 'K');
+  assert(sbuf.len == 38 && sbuf.size == 64);
 
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_vstring(int n, ...);
+  s = strbuf_tostr(&sbuf);
+  assert(!strcmp(s, "Hello, KoalaHello, KoalaHello, KoalaOK"));
 
-/*
- * Initialize atom internal management.
- *
- * Returns nothing.
- */
-void atom_init(void);
-
-/*
- * Free atom internal management and atom strings memory.
- *
- * Returns nothing.
- */
-void atom_free(void);
-
-#ifdef __cplusplus
+  strbuf_free(&sbuf);
+  return 0;
 }
-#endif
-#endif /* _KOALA_ATOM_H_ */

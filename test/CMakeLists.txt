@@ -23,6 +23,8 @@
 include(${CMAKE_SOURCE_DIR}/cmake/test.cmake)
 
 TEST(test_iterator)
-TEST(test_vector koala)
 TEST(test_debug)
+TEST(test_vector koala)
 TEST(test_hashmap koala)
+TEST(test_strbuf koala)
+TEST(test_atom koala)

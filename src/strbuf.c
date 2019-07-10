@@ -22,55 +22,55 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#include "strbuf.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define EXPAND_MIN_SIZE 32
 
-/*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s);
+static int expand(struct strbuf *self, int min)
+{
+  int size = self->len + min + 1;
+  int newsize = self->size;
+  while (newsize <= size)
+    newsize += EXPAND_MIN_SIZE;
 
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(char *s, int len);
+  char *newbuf = kmalloc(newsize);
+  if (!newbuf)
+    return -1;
 
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_vstring(int n, ...);
-
-/*
- * Initialize atom internal management.
- *
- * Returns nothing.
- */
-void atom_init(void);
-
-/*
- * Free atom internal management and atom strings memory.
- *
- * Returns nothing.
- */
-void atom_free(void);
-
-#ifdef __cplusplus
+  if (self->buf) {
+    strcpy(newbuf, self->buf);
+    kfree(self->buf);
+  }
+  self->buf  = newbuf;
+  self->size = newsize;
+  return 0;
 }
-#endif
-#endif /* _KOALA_ATOM_H_ */
+
+static int available(struct strbuf *self, int size)
+{
+  int left = self->size - self->len - 1;
+  if (left <= size && expand(self, size))
+    return -1;
+  return self->size - self->len - 1 - size;
+}
+
+void strbuf_append(struct strbuf *self, char *s)
+{
+  int len = strlen(s);
+  if (len <= 0)
+    return;
+
+  if (available(self, len) <= 0)
+    return;
+
+  strcat(self->buf, s);
+  self->len += len;
+}
+
+void strbuf_append_char(struct strbuf *self, char ch)
+{
+  if (available(self, 1) <= 0)
+    return;
+
+  self->buf[self->len++] = ch;
+}

@@ -22,55 +22,24 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#include <assert.h>
+#include <string.h>
+#include "atom.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int main(int argc, char *argv[])
+{
+  atom_init();
 
-/*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s);
+  char *s = atom_string("Hello,");
+  assert(!strcmp(s, "Hello,"));
+  char *s2 = atom_nstring(" Koala", 6);
+  assert(!strcmp(s2, " Koala"));
+  char *s3 = atom_string("Hello,");
+  assert(s == s3);
 
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(char *s, int len);
+  char *s4 = atom_vstring(2, s, s2);
+  assert(!strcmp(s4, "Hello, Koala"));
 
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_vstring(int n, ...);
-
-/*
- * Initialize atom internal management.
- *
- * Returns nothing.
- */
-void atom_init(void);
-
-/*
- * Free atom internal management and atom strings memory.
- *
- * Returns nothing.
- */
-void atom_free(void);
-
-#ifdef __cplusplus
+  atom_free();
+  return 0;
 }
-#endif
-#endif /* _KOALA_ATOM_H_ */

@@ -74,7 +74,7 @@ static int valid_source(char *path)
 
   struct stat sb;
 
-  char *dir = string_ncopy(path, strlen(path) - 3);
+  char *dir = string_ndup(path, strlen(path) - 3);
   if (!stat(dir, &sb)) {
     kfree(dir);
     errmsg("%s: The same name file or directory exist.", path);
@@ -92,7 +92,7 @@ static int valid_source(char *path)
     }
   } else {
     int len = dir - path + 1 + strlen("./__init__.kl");
-    dir = string_ncopy_size(len, path, dir - path + 1);
+    dir = string_nndup(len, path, dir - path + 1);
     strcat(dir, "./__init__.kl");
     if (!stat(dir, &sb)) {
       kfree(dir);

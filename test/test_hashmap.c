@@ -67,7 +67,7 @@ void test_string_hash(void)
   int res;
   void *s2;
 
-  for (int i = 0; i < 1000000; i++) {
+  for (int i = 0; i < 10000; i++) {
     s = kmalloc(sizeof(struct str) + 11);
     random_string((char *)(s + 1), 10);
     hashmap_entry_init(&s->entry, strhash((char *)(s + 1)));

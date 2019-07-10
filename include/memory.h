@@ -65,14 +65,14 @@ void __kfree(void *ptr);
 void kstat(void);
 
 /*
- * duplicate c cstring, replace of strndup.
+ * duplicate c-string, replace of strndup.
  *
  * s    - The origin string.
  * size - The size to copy.
  *
- * Returns a copied string with '\0'.
+ * Returns a duplicated string with '\0'.
  */
-static inline char *string_ncopy(char *s, size_t size)
+static inline char *string_ndup(char *s, size_t size)
 {
   char *str = kmalloc(size + 1);
   memcpy(str, s, size);
@@ -80,15 +80,15 @@ static inline char *string_ncopy(char *s, size_t size)
 }
 
 /*
- * duplicate c cstring, with extra available size.
+ * duplicate c-string, with extra available size.
  *
- * msize - The copied string memory size.
+ * msize - The duplicated string memory size.
  * s     - The origin string.
  * size  - The size to copy.
  *
- * Returns a copied string with '\0'.
+ * Returns a duplicated string with '\0'.
  */
-static inline char *string_ncopy_size(size_t msize, char *s, size_t size)
+static inline char *string_nndup(size_t msize, char *s, size_t size)
 {
   assert(msize >= size);
   char *str = kmalloc(msize + 1);
@@ -97,16 +97,16 @@ static inline char *string_ncopy_size(size_t msize, char *s, size_t size)
 }
 
 /*
- * duplicate c cstring, replace of strdup
+ * duplicate c-string, replace of strdup
  *
  * s    - The origin string.
  *
- * Returns a copied string with '\0'.
+ * Returns a duplicated string with '\0'.
  */
-static inline char *string_copy(char *s)
+static inline char *string_dup(char *s)
 {
   int size = strlen(s);
-  return string_ncopy(s, size);
+  return string_ndup(s, size);
 }
 
 #ifdef __cplusplus
