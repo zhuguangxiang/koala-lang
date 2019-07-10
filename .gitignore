@@ -35,5 +35,5 @@ include/version.h
 include/koala_lex.h
 include/koala_yacc.h
 include/common.h
-include/version.h.in
+include/version.h
 
