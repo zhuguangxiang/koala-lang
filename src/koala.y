@@ -411,8 +411,21 @@ tuple_object:
 
 array_object:
   '[' basic_expr_list ']'
+{
+  printf("array object\n");
+}
 | '[' basic_expr_list ',' ']'
+{
+  printf("array object\n");
+}
 | '[' ']'
+{
+  printf("array object\n");
+}
+| '[' error ']'
+{
+  printf("array object error\n");
+}
 ;
 
 basic_expr_list:

@@ -25,14 +25,16 @@ SOFTWARE.
 #include <assert.h>
 #include "iterator.h"
 
-static int number_next(struct iterator *iter)
+static void *number_next(struct iterator *iter)
 {
   int *ptr = iter->iterable;
-  iter->current = ptr + iter->index;
-  iter->index++;
-  if (iter->index > 100)
-    return 0;
-  return 1;
+  if (iter->index < 100) {
+    iter->item = ptr + iter->index;
+    iter->index++;
+  } else {
+    iter->item = NULL;
+  }
+  return iter->item;
 }
 
 int main(int argc, char *argv[])

@@ -109,7 +109,7 @@ void *heap_pop(struct heap *self);
  * Iterator callback function for heap iteration.
  * See iterator.h
  */
-int heap_iter_next(struct iterator *iter);
+void *heap_iter_next(struct iterator *iter);
 
 /*
  * Declare an iterator of the heap.

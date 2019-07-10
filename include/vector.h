@@ -252,7 +252,7 @@ int vector_pop_back(struct vector *self, void *val);
  * Iterator callback function for vector iteration.
  * See iterator.h.
  */
-int vector_iter_next(struct iterator *iter);
+void *vector_iter_next(struct iterator *iter);
 
 /*
  * Declare an iterator of the vector. Deletion is not safe.
@@ -267,7 +267,7 @@ int vector_iter_next(struct iterator *iter);
  * Reverse iterator callback function for vector iteration.
  * See iterator.h.
  */
-int vector_iter_prev(struct iterator *iter);
+void *vector_iter_prev(struct iterator *iter);
 
 /*
  * Declare an reverse iterator of the vector. Deletion is not safe.

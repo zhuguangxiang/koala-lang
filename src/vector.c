@@ -128,26 +128,35 @@ int vector_pop_back(struct vector *self, void *val)
   return 0;
 }
 
-int vector_iter_next(struct iterator *iter)
+void *vector_iter_next(struct iterator *iter)
 {
   struct vector *vec = iter->iterable;
   if (vec->size <= 0)
-    return 0;
+    return NULL;
 
-  iter->current = __vector_offset(vec, iter->index);
-  iter->index++;
-  return (iter->index > vec->size) ? 0 : 1;
+  if (iter->index < vec->size) {
+    iter->item = __vector_offset(vec, iter->index);
+    iter->index++;
+  } else {
+    iter->item = NULL;
+  }
+  return iter->item;
 }
 
-int vector_iter_prev(struct iterator *iter)
+void *vector_iter_prev(struct iterator *iter)
 {
   struct vector *vec = iter->iterable;
   if (vec->size <= 0)
-    return 0;
+    return NULL;
 
-  if (iter->current == NULL)
+  if (iter->item == NULL)
     iter->index = vec->size - 1;
-  iter->current = __vector_offset(vec, iter->index);
-  iter->index--;
-  return (iter->index < 0) ? 0 : 1;
+
+  if (iter->index >= 0) {
+    iter->item = __vector_offset(vec, iter->index);
+    iter->index--;
+  } else {
+    iter->item = NULL;
+  }
+  return iter->item;
 }

@@ -35,16 +35,12 @@ extern "C" {
 struct iterator {
   /* save the data structure to be accessed looply */
   void *iterable;
-  /* index of current item, if it has 'index' operation */
+  /* index of item or any other meanings */
   int index;
-  /* pointer to current item */
-  void *current;
-  /*
-   * next callback to get next element
-   * 1: ->current is valid
-   * 0: ->current is invalid
-   */
-  int (*next)(struct iterator *self);
+  /* point to item */
+  void *item;
+  /* next callback to get next element */
+  void *(*next)(struct iterator *self);
 };
 
 /*
@@ -53,11 +49,6 @@ struct iterator {
  * name     - The name of the iterator
  * iterable - The data structure providing the items though which to iterate.
  * next     - The function that provides the next item in the iterator loop.
- *            It must set 'current' to the next item and advance
- *            the loop 'index'.
- *            If it has next item, returns true, otherwise returns false.
- *
- * Returns the iterator or null if memory allocation failed.
  *
  * Examples:
  *   ITERATOR(iter, array, array_next);
@@ -75,7 +66,7 @@ struct iterator {
  * item - The item's variable, its type is void *.
  */
 #define iter_for_each(self, item) \
-  for (;(self)->next(self) && ({item = (self)->current; 1;});)
+  for (; (item = (self)->next(self)); )
 
 /*
  * Iterate over an iterator with type.
@@ -85,7 +76,7 @@ struct iterator {
  * item - The item's variable.
  */
 #define iter_for_each_as(self, type, item) \
-  for (;(self)->next(self) && ({item = *(type *)((self)->current); 1;});)
+  for (void *__v__; (__v__ = (self)->next(self)) && (item = *(type *)__v__); )
 
 /*
  * Reset an iterator for loop again.
@@ -93,7 +84,7 @@ struct iterator {
  * self - The Iterator to be accessed.
  */
 #define iter_reset(self) \
-  (self)->index = 0; (self)->current = NULL;
+  (self)->index = 0; (self)->item = NULL;
 
 #ifdef __cplusplus
 }

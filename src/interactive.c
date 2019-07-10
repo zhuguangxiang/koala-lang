@@ -80,6 +80,11 @@ static int empty(char *buf, int size)
 int interactive(struct parserstate *ps, char *buf, int size)
 {
   char *line;
+  /* TAB as insert, not completion */
+  rl_bind_key('\t', rl_insert);
+  /* set TAB width as 2 spaces */
+  rl_generic_bind(ISMACR, "\t", "  ", rl_get_keymap());
+
   if (ps->more) {
     line = readline(MORE_PROMPT);
   } else {
@@ -90,6 +95,9 @@ int interactive(struct parserstate *ps, char *buf, int size)
     if (ferror(stdin)) clearerr(stdin);
     return 0;
   }
+
+  /* add history of readline */
+  add_history(line);
 
   strcpy(buf, line);
   int len = strlen(buf);
