@@ -25,6 +25,7 @@ SOFTWARE.
 #ifndef _KOALA_STRBUF_H_
 #define _KOALA_STRBUF_H_
 
+#include <stdarg.h>
 #include "memory.h"
 
 #ifdef __cplusplus
@@ -69,6 +70,17 @@ static inline void strbuf_free(struct strbuf *self)
  * Returns nothing.
  */
 void strbuf_append(struct strbuf *self, char *s);
+
+/*
+ * Write 'n' 0-terminated strings.
+ *
+ * self - The string buffer to write.
+ * n    - The number of strings to be written.
+ *
+ * Returns nothing.
+ */
+void strbuf_vnappend(struct strbuf *self, int n, va_list args);
+void strbuf_nappend(struct strbuf *self, int n, ...);
 
 /*
  * Write a character.

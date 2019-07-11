@@ -36,7 +36,7 @@ extern "C" {
  *
  * Returns an atom string.
  */
-char *atom_string(char *s);
+char *atom(char *s);
 
 /*
  * add an atom string 's' with length 'len'.
@@ -45,7 +45,7 @@ char *atom_string(char *s);
  *
  * Returns an atom string.
  */
-char *atom_nstring(char *s, int len);
+char *atom_string(char *s, int len);
 
 /*
  * add 'n' atom strings.
@@ -54,7 +54,7 @@ char *atom_nstring(char *s, int len);
  *
  * Returns an atom string.
  */
-char *atom_vstring(int n, ...);
+char *atom_nstring(int n, ...);
 
 /*
  * Initialize atom internal management.

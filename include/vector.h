@@ -221,11 +221,24 @@ int vector_push_back(struct vector *self, void *item);
  * When used with 'push_back', the vector can be used as a stack.
  *
  * self - The vector to pop.
- * val   - The data to store.
+ * val  - The data to store.
  *
  * Returns 0: successful, -1: failed if the vector is empty.
  */
 int vector_pop_back(struct vector *self, void *val);
+
+/*
+ * Get an item at the end of the vector, but not remove it.
+ *
+ * self - The vector to pop.
+ * val  - The data to store.
+ *
+ * Returns 0: successful, -1: failed if the vector is empty.
+ */
+static inline int vector_top_back(struct vector *self, void *val)
+{
+  return vector_get(self, self->size - 1, val);
+}
 
 /*
  * Sort a vector in-place.

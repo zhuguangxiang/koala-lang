@@ -22,27 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#include <stdio.h>
-#include <string.h>
 #include <time.h>
-#include "hashmap.h"
-
-struct str {
-  struct hashmap_entry entry;
-  char value[0];
-};
-
-static int str_cmp(void *k1, void *k2)
-{
-  struct str *s1 = k1;
-  struct str *s2 = k2;
-  return strcmp(s1->value, s2->value);
-}
-
-static void str_free(struct hashmap_entry *e, void *data)
-{
-  kfree(e);
-}
+#include "bytebuffer.h"
 
 static void random_string(char *data, int len)
 {
@@ -55,45 +36,44 @@ static void random_string(char *data, int len)
     idx = rand() % (sizeof(char_set)/sizeof(char_set[0]) - 1);
     data[i] = char_set[idx];
   }
-  data[i] = 0;
 }
 
-void test_string_hash(void)
-{
-  struct hashmap strmap;
-  hashmap_init(&strmap, str_cmp);
-  srand(time(NULL));
-  struct str *s;
-  int res;
-  void *s2;
-
-  for (int i = 0; i < 10000; i++) {
-    s = kmalloc(sizeof(struct str) + 11);
-    random_string((char *)(s + 1), 10);
-    hashmap_entry_init(&s->entry, strhash((char *)(s + 1)));
-    res = hashmap_add(&strmap, &s->entry);
-    assert(!res);
-    s2 = hashmap_get(&strmap, (struct hashmap_entry *)s);
-    assert(s2);
-  }
-
-#if 0
-  for (int i = 0; i < strmap.size; i++) {
-    struct str *s = (struct str *)strmap.entries[i];
-    printf("[%d]:", i);
-    while (s) {
-      printf("%s\t", s->value);
-      s = (struct str *)(s->entry.next);
-    }
-    printf("\n");
-  }
-#endif
-
-  hashmap_free(&strmap, str_free, NULL);
-}
+static char saved[128];
 
 int main(int argc, char *argv[])
 {
-  test_string_hash();
+  struct bytebuffer buffer;
+  char data[10];
+
+  bytebuffer_init(&buffer, 16);
+  srand(time(NULL));
+
+  for (int i = 0; i < 10; i++) {
+    random_string(data, 10);
+    memcpy(saved + i * 10, data, 10);
+    bytebuffer_write(&buffer, data, 10);
+  }
+  assert(vector_size(&buffer.vec) == 7);
+  assert(buffer.total == 100);
+
+  char a = 'A';
+  bytebuffer_write_byte(&buffer, a);
+  saved[100] = a;
+  short b = 0xbeaf;
+  bytebuffer_write_2bytes(&buffer, b);
+  *(short *)(saved + 101) = b;
+  int c = 0xdeadbeaf;
+  bytebuffer_write_4bytes(&buffer, c);
+  *(int *)(saved + 103) = c;
+  assert(vector_size(&buffer.vec) == 7);
+  assert(buffer.total == 107);
+
+  char *buf = NULL;
+  int size = bytebuffer_toarr(&buffer, &buf);
+  assert(buf && size == 107);
+  assert(!memcmp(saved, buf, 107));
+  kfree(buf);
+
+  bytebuffer_free(&buffer);
   return 0;
 }

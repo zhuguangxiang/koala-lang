@@ -67,6 +67,23 @@ void strbuf_append(struct strbuf *self, char *s)
   self->len += len;
 }
 
+void strbuf_vnappend(struct strbuf *self, int n, va_list args)
+{
+  char *s;
+  while (n-- > 0) {
+    s = va_arg(args, char *);
+    strbuf_append(self, s);
+  }
+}
+
+void strbuf_vappend(struct strbuf *self, int n, ...)
+{
+  va_list args;
+  va_start(args, n);
+  strbuf_vnappend(self, n, args);
+  va_end(args);
+}
+
 void strbuf_append_char(struct strbuf *self, char ch)
 {
   if (available(self, 1) <= 0)

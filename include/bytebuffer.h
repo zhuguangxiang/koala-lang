@@ -25,17 +25,11 @@ SOFTWARE.
 #ifndef _KOALA_BYTEBUFFER_H_
 #define _KOALA_BYTEBUFFER_H_
 
-#include "list.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/* min size per byteblock */
-#define BLOCK_MIN_SIZE 1024
-
-/* max size per byteblock */
-#define BLOCK_MAX_SIZE (8 * BLOCK_MIN_SIZE)
 
 /* a dynamic byte buffer */
 struct bytebuffer {
@@ -43,10 +37,8 @@ struct bytebuffer {
   int bsize;
   /* total bytes in the buffer */
   int total;
-  /* number of byteblocks in list */
-  int blocks;
-  /* byteblock's list */
-  struct list_head list;
+  /* byteblock's vector */
+  struct vector vec;
 };
 
 /*
@@ -120,6 +112,16 @@ int bytebuffer_write(struct bytebuffer *self, char *data, int size);
  */
 #define bytebuffer_write_4bytes(self, data) \
   bytebuffer_write(self, (char *)&data, 4)
+
+/*
+ * output bytes into an array.
+ *
+ * self - The buffer to output.
+ * arr  - The array that datas stored in.
+ *
+ * Returns size of bytes to output.
+ */
+int bytebuffer_toarr(struct bytebuffer *self, char **arr);
 
 #ifdef __cplusplus
 }
