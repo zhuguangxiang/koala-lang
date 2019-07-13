@@ -22,55 +22,47 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#include "object.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+struct klass class_type = {
+  OBJECT_HEAD_INIT(&class_type)
+  .name = "Class",
+};
 
-/*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom(char *s);
+struct klass any_type = {
+  OBJECT_HEAD_INIT(&lass_type)
+  .name = "Any"
+};
 
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s, int len);
+struct klass nil_type = {
+  OBJECT_HEAD_INIT(&class_type)
+  .name = "NilType"
+};
 
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(int n, ...);
+struct object nil_obj = {
+  OBJECT_HEAD_INIT(&nil_type)
+};
 
-/*
- * Initialize atom internal management.
- *
- * Returns nothing.
- */
-void atom_initialize(void);
-
-/*
- * Destroy atom internal management and atom strings memory.
- *
- * Returns nothing.
- */
-void atom_destroy(void);
-
-#ifdef __cplusplus
+struct object *__class_members__(struct object *ob, struct object *args)
+{
+  return NULL;
 }
-#endif
-#endif /* _KOALA_ATOM_H_ */
+
+struct object *__class_name__(struct object *ob, struct object *args)
+{
+  OB_TYPE_ASSERT(ob, &class_type);
+  assert(!args);
+  struct klass *klazz = (struct klass *)ob;
+  return strobj_new(klazz->name);
+}
+
+static struct cfuncdef class_funcs[] = {
+  {"__members__", NULL, "Llang.Tuple", __class_members__},
+  {"__name__", NULL, NULL, __class_name__},
+  {NULL, NULL, NULL, NULL},
+};
+
+void init_klass(void)
+{
+
+}

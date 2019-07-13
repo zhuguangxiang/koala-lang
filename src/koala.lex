@@ -29,11 +29,11 @@ SOFTWARE.
 #include "parser.h"
 #include "koala_yacc.h"
 
-int interactive(struct parserstate *ps, char *buf, int size);
-int file_input(struct parserstate *ps, char *buf, int size, FILE *in);
+int interactive(struct parser_state *ps, char *buf, int size);
+int file_input(struct parser_state *ps, char *buf, int size, FILE *in);
 
-#define YY_EXTRA_TYPE struct parserstate *
-#define yyps ((struct parserstate *)yyextra)
+#define YY_EXTRA_TYPE struct parser_state *
+#define yyps ((YY_EXTRA_TYPE)yyextra)
 
 static int need_semicolon(YY_EXTRA_TYPE ps)
 {
@@ -135,6 +135,7 @@ moddoc  "//!"[^\n]*
 "and"      { YY_RETURN(OP_AND);       }
 "or"       { YY_RETURN(OP_OR);        }
 "not"      { YY_RETURN(OP_NOT);       }
+"**"       { YY_RETURN(OP_POWER);     }
 ":="       { YY_RETURN(FREE_ASSIGN);  }
 "+="       { YY_RETURN(PLUS_ASSIGN);  }
 "-="       { YY_RETURN(MINUS_ASSIGN); }

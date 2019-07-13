@@ -38,11 +38,11 @@ struct module {
   /* module name is file name, directory name or __name__ */
   char *name;
   /* symbol table per module, not per source file */
-  struct symboltable *stbl;
+  struct symbol_table *stbl;
 };
 
 /* per source file */
-struct parserstate {
+struct parser_state {
   /* file name */
   char *filename;
   /* its module */
@@ -69,7 +69,7 @@ struct parserstate {
 /*
  * record and print syntax error.
  *
- * ps  - The struct parserstate.
+ * ps  - The struct parser_state.
  * pos - The position which the error happened.
  * fmt - The error message format.
  *

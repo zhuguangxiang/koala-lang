@@ -33,7 +33,7 @@ RUN_BISON(
   ${PROJECT_SOURCE_DIR}/include/koala_yacc.h)
 
 SET(KOALA_SOURCES
-  memory.c vector.c hashmap.c strbuf.c atom.c bytebuffer.c
+  memory.c vector.c hashmap.c strbuf.c atom.c bytebuffer.c node.c
   koala_lex.c koala_yacc.c interactive.c compile.c run.c)
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})

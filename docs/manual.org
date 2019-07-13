@@ -73,3 +73,11 @@ b = "\u6c49\u8bed" 表示一个字符串, 字符数组, 或者字节数组.
 \r
 \t
 \v
+* programming style
+** naming
+- function pointer definition
+  typedef void (*foo_fn)(void);
+- function callback definition
+  void __foo_cb__()
+- foo_init and foo_free are pair.
+- foo_intialize and foo_destroy are pair.

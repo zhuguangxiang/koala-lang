@@ -22,55 +22,33 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#include <stdio.h>
+#include "node.h"
+#include "memory.h"
+#include "atom.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int main(int argc, char *argv[])
+{
+  atom_initialize();
+  node_initialize();
+  char **arr = path_toarr("github.com/koala/json");
+  assert(!strcmp(arr[0], "github.com"));
+  assert(!strcmp(arr[1], "koala"));
+  assert(!strcmp(arr[2], "json"));
+  assert(!arr[3]);
 
-/*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom(char *s);
-
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s, int len);
-
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(int n, ...);
-
-/*
- * Initialize atom internal management.
- *
- * Returns nothing.
- */
-void atom_initialize(void);
-
-/*
- * Destroy atom internal management and atom strings memory.
- *
- * Returns nothing.
- */
-void atom_destroy(void);
-
-#ifdef __cplusplus
+  char **pathes1 = path_toarr("github.com/koala/io");
+  add_leaf(pathes1, "foo");
+  char **pathes2 = path_toarr("github.com/koala/lang");
+  add_leaf(pathes2, "bar");
+  void *data = get_leaf(pathes1);
+  assert(!strcmp(data, "foo"));
+  data = get_leaf(pathes2);
+  assert(!strcmp(data, "bar"));
+  kfree(pathes2);
+  kfree(pathes1);
+  kfree(arr);
+  node_destroy();
+  atom_destroy();
+  return 0;
 }
-#endif
-#endif /* _KOALA_ATOM_H_ */

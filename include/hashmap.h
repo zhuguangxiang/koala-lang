@@ -133,7 +133,7 @@ static inline void hashmap_entry_init(void *entry, unsigned int hash)
  *
  * Returns the number of items.
  */
-static inline unsigned int hashmap_get_size(struct hashmap *self)
+static inline int hashmap_size(struct hashmap *self)
 {
   return self->count;
 }
@@ -151,12 +151,12 @@ void hashmap_init(struct hashmap *self, hashmap_cmp_fn cmp_fn);
 /*
  * Free function for hashmap entry, when the hashmap is destroyed.
  *
- * e    - The entry to be freed.
- * data - The private data passed to free function.
+ * entry - The entry to be freed.
+ * data  - The private data passed to free function.
  *
  * Returns nothing.
  */
-typedef void (*hashmap_free_fn)(struct hashmap_entry *e, void *data);
+typedef void (*hashmap_free_fn)(void *entry, void *data);
 
 /*
  * Destroy the hashmap and free its allocated memory.
@@ -175,31 +175,29 @@ void hashmap_free(struct hashmap *self, hashmap_free_fn free_fn, void *data);
  *
  * Returns the hashmap entry or null if not found.
  */
-struct hashmap_entry *hashmap_get(struct hashmap *self,
-                                  struct hashmap_entry *key);
+void *hashmap_get(struct hashmap *self, void *key);
 
 /*
  * Add a hashmap entry. If the hashmap contains duplicate entries, it will
  * return -1 failure.
  *
- * self - The hashmap to which to add the hashmap entry.
- * e    - The entry to be added.
+ * self  - The hashmap to which to add the hashmap entry.
+ * entry - The entry to be added.
  *
  * Returns -1 failure, 0 successful.
  */
-int hashmap_add(struct hashmap *self, struct hashmap_entry *e);
+int hashmap_add(struct hashmap *self, void *entry);
 
 /*
  * Add or replace a hashmap entry. If the hashmap contains duplicate entries,
  * the old entry will be replaced and returned.
  *
- * self - The hashmap to which to add the hashmap entry.
- * e    - The entry to be added or replaced.
+ * self  - The hashmap to which to add the hashmap entry.
+ * entry - The entry to be added or replaced.
  *
  * Returns the replaced entry or null if no duplicated entry
  */
-struct hashmap_entry *hashmap_put(struct hashmap *self,
-                                  struct hashmap_entry *e);
+void *hashmap_put(struct hashmap *self, void *entry);
 
 /*
  * Removes a hashmap entry matching the specified key.
@@ -209,8 +207,7 @@ struct hashmap_entry *hashmap_put(struct hashmap *self,
  *
  * Returns the hashmap entry or null if not found.
  */
-struct hashmap_entry *hashmap_remove(struct hashmap *self,
-                                     struct hashmap_entry *key);
+void *hashmap_remove(struct hashmap *self, void *key);
 
 /*
  * Iterator callback function for hashmap iteration.

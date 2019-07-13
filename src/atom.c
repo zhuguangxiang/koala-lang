@@ -40,18 +40,18 @@ static struct hashmap atom_map;
 
 char *atom_string(char *s, int len)
 {
-  struct atom key = {{NULL, strhash(s)}, len, s};
-  struct hashmap_entry *entry = hashmap_get(&atom_map, &key.entry);
-  if (entry) {
-    return ((struct atom *)entry)->str;
+  struct atom key = {{NULL, memhash(s, len)}, len, s};
+  struct atom *atom = hashmap_get(&atom_map, &key);
+  if (atom) {
+    return atom->str;
   }
 
-  struct atom *atom = kmalloc(sizeof(*atom) + len + 1);
-  hashmap_entry_init(&atom->entry, strhash(s));
+  atom = kmalloc(sizeof(*atom) + len + 1);
+  hashmap_entry_init(&atom->entry, memhash(s, len));
   atom->len = len;
   atom->str = (char *)(atom + 1);
-  strcpy(atom->str, s);
-  hashmap_add(&atom_map, &atom->entry);
+  strncpy(atom->str, s, len);
+  hashmap_add(&atom_map, atom);
   return atom->str;
 }
 
@@ -75,24 +75,26 @@ char *atom_nstring(int n, ...)
   return s;
 }
 
-static int __atom_cmp_fn__(void *e1, void *e2)
+static int __atom_cmp_cb__(void *e1, void *e2)
 {
   struct atom *a1 = e1;
   struct atom *a2 = e2;
-  return strcmp(a1->str, a2->str);
+  if (a1->len != a2->len)
+    return -1;
+  return strncmp(a1->str, a2->str, a1->len);
 }
 
-static void __atom_free_fn__(struct hashmap_entry *e, void *data)
+static void __atom_free_cb__(void *entry, void *data)
 {
-  kfree(e);
+  kfree(entry);
 }
 
-void atom_init(void)
+void atom_initialize(void)
 {
-  hashmap_init(&atom_map, __atom_cmp_fn__);
+  hashmap_init(&atom_map, __atom_cmp_cb__);
 }
 
-void atom_free(void)
+void atom_destroy(void)
 {
-  hashmap_free(&atom_map, __atom_free_fn__, NULL);
+  hashmap_free(&atom_map, __atom_free_cb__, NULL);
 }

@@ -22,55 +22,56 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#ifndef _KOALA_NODE_H_
+#define _KOALA_NODE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom(char *s);
-
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s, int len);
-
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(int n, ...);
-
-/*
- * Initialize atom internal management.
+ * Initialize node system.
  *
  * Returns nothing.
  */
-void atom_initialize(void);
+void node_initialize(void);
 
 /*
- * Destroy atom internal management and atom strings memory.
+ * destroy node system.
  *
  * Returns nothing.
  */
-void atom_destroy(void);
+void node_destroy(void);
+
+/*
+ * add a new leaf node into node system(like file system).
+ *
+ * pathes - The pathes, null-terminated string array, of the node to install.
+ * data   - The node's data pointer.
+ *
+ * Returns 0 on successful or -1 if exists or memory allocation failed.
+ */
+void add_leaf(char *pathes[], void *data);
+
+/*
+ * get a node's data by its path.
+ *
+ * pathes - The pathes, null-terminated string array, of a node to get.
+ *
+ * Returns the node's data or NULL if not exists.
+ */
+void *get_leaf(char *pathes[]);
+
+/*
+ * convert a path string to dir-name array.
+ *
+ * path - The path to convert.
+ *
+ * Returns an array contains dir-names.
+ */
+char **path_toarr(char *path);
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_ATOM_H_ */
+#endif /* _KOALA_NODE_H_ */

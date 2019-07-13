@@ -102,14 +102,14 @@ static inline
 struct hashmap_entry **find_entry(struct hashmap *self,
                                   struct hashmap_entry *key)
 {
+  assert(key->hash);
 	struct hashmap_entry **e = &self->entries[bucket(self, key)];
 	while (*e && !entry_equals(self, *e, key))
 		e = &(*e)->next;
 	return e;
 }
 
-struct hashmap_entry *hashmap_get(struct hashmap *self,
-                                  struct hashmap_entry *key)
+void *hashmap_get(struct hashmap *self, void *key)
 {
   return *find_entry(self, key);
 }
@@ -138,30 +138,28 @@ static void rehash(struct hashmap *self, int newsize)
   kfree(oldentries);
 }
 
-int hashmap_add(struct hashmap *self, struct hashmap_entry *e)
+int hashmap_add(struct hashmap *self, void *entry)
 {
-  if (*find_entry(self, e))
+  if (*find_entry(self, entry))
     return -1;
 
-  int b = bucket(self, e);
-  e->next = self->entries[b];
-  self->entries[b] = e;
+  int b = bucket(self, entry);
+  ((struct hashmap_entry *)entry)->next = self->entries[b];
+  self->entries[b] = entry;
   self->count++;
   if (self->count > self->grow_at)
     rehash(self, self->size << 1);
   return 0;
 }
 
-struct hashmap_entry *hashmap_put(struct hashmap *self,
-                                  struct hashmap_entry *e)
+void *hashmap_put(struct hashmap *self, void *entry)
 {
-  struct hashmap_entry *old = hashmap_remove(self, e);
-  hashmap_add(self, e);
+  struct hashmap_entry *old = hashmap_remove(self, entry);
+  hashmap_add(self, entry);
   return old;
 }
 
-struct hashmap_entry *hashmap_remove(struct hashmap *self,
-                                     struct hashmap_entry *key)
+void *hashmap_remove(struct hashmap *self, void *key)
 {
   struct hashmap_entry **e = find_entry(self, key);
   if (!*e)

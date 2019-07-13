@@ -26,9 +26,9 @@ SOFTWARE.
 #include "parser.h"
 #include "ast.h"
 
-typedef void (*stmt_parser)(struct parserstate *, struct stmt *);
+typedef void (*stmt_parser)(struct parser_state *, struct stmt *);
 
-void parse_stmt(struct parserstate *ps, struct stmt *stmt)
+void parse_stmt(struct parser_state *ps, struct stmt *stmt)
 {
   if (ps->errnum >= MAX_ERRORS)
     return;

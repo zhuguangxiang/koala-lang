@@ -47,13 +47,20 @@ struct vector {
 };
 
 /*
- * Declare a empty vector with name.
+ * Declare an empty vector with name.
  *
  * name     - The name of the vector.
  * itemsize - The size of item stored in the vector.
  */
 #define VECTOR(name, itemsize) \
   struct vector name = {0, 0, itemsize, NULL}
+
+/*
+ * Declare an empty vector stored pointers.
+ *
+ * name - The name of the vector.
+ */
+#define VECTOR_PTR(name) VECTOR(name, sizeof(void *))
 
 /*
  * Initialize a vector.
@@ -260,6 +267,15 @@ static inline int vector_top_back(struct vector *self, void *val)
  */
 #define vector_sort(self, compare) \
   qsort((self)->items, (self)->size, compare)
+
+/*
+ * vector to array with null-terminated item.
+ *
+ * self - The vector to be converted.
+ *
+ * Returns a null-terminated array or null if memory allocation failed.
+ */
+void *vector_toarr(struct vector *self);
 
 /*
  * Iterator callback function for vector iteration.

@@ -52,8 +52,8 @@ void *kmalloc(size_t size);
 void __kfree(void *ptr);
 #define kfree(ptr) \
 ({                 \
-  assert(ptr);     \
-  __kfree(ptr);    \
+  if (ptr)         \
+    __kfree(ptr);  \
   ptr = NULL;      \
 })
 

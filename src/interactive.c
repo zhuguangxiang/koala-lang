@@ -49,7 +49,7 @@ static void show_banner(void)
 }
 
 static struct module mod;
-static struct parserstate ps;
+static struct parser_state ps;
 
 void koala_active(void)
 {
@@ -77,7 +77,7 @@ static int empty(char *buf, int size)
   return 1;
 }
 
-int interactive(struct parserstate *ps, char *buf, int size)
+int interactive(struct parser_state *ps, char *buf, int size)
 {
   char *line;
   /* TAB as insert, not completion */

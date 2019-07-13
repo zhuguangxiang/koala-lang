@@ -36,7 +36,7 @@ SOFTWARE.
 #include "vector.h"
 #include "debug.h"
 
-int file_input(struct parserstate *ps, char *buf, int size, FILE *in)
+int file_input(struct parser_state *ps, char *buf, int size, FILE *in)
 {
   errno = 0;
   int result = 0;
@@ -106,9 +106,9 @@ static int valid_source(char *path)
   return 1;
 }
 
-static VECTOR(mods, sizeof(struct module *));
+static VECTOR_PTR(mods);
 
-struct parserstate ps_test;
+struct parser_state ps_test;
 
 /* koala -c a/b/foo.kl [a/b/foo] */
 void koala_compile(char *path)

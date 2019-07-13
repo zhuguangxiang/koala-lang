@@ -22,55 +22,28 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#ifndef _KOALA_MODULE_OBJECT_H_
+#define _KOALA_MODULE_OBJECT_H_
+
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom(char *s);
-
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s, int len);
-
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(int n, ...);
-
-/*
- * Initialize atom internal management.
- *
- * Returns nothing.
- */
-void atom_initialize(void);
-
-/*
- * Destroy atom internal management and atom strings memory.
- *
- * Returns nothing.
- */
-void atom_destroy(void);
+struct module_object {
+  OBJECT_HEAD
+  /* module name */
+  char *name;
+  /* member table */
+  struct hashmap mtbl;
+  /* tuple of variables */
+  struct object *variables;
+  /* tuple of constant */
+  struct object *consts;
+};
 
 #ifdef __cplusplus
 }
 #endif
-#endif /* _KOALA_ATOM_H_ */
+#endif /* _KOALA_MODULE_OBJECT_H_ */

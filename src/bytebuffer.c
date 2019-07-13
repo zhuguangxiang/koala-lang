@@ -36,14 +36,14 @@ void bytebuffer_init(struct bytebuffer *self, int bsize)
   vector_init(&self->vec, sizeof(void *));
 }
 
-static void __byteblock_free_fn__(void *block, void *data)
+static void __byteblock_free_cb__(void *block, void *data)
 {
   kfree(*(void **)block);
 }
 
 void bytebuffer_free(struct bytebuffer *self)
 {
-  vector_free(&self->vec, __byteblock_free_fn__, NULL);
+  vector_free(&self->vec, __byteblock_free_cb__, NULL);
   memset(self, 0, sizeof(*self));
 }
 

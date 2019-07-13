@@ -90,11 +90,11 @@ int prompt;
 %token OP_AND
 %token OP_OR
 %token OP_NOT
-
 %token OP_EQ
 %token OP_NE
 %token OP_LE
 %token OP_GE
+%token OP_POWER
 
 %token DOTDOTDOT
 %token DOTDOTLESS
@@ -116,7 +116,7 @@ int prompt;
 %precedence ')'
 
 %locations
-%parse-param {struct parserstate *ps}
+%parse-param {struct parser_state *ps}
 %parse-param {void *scanner}
 %define api.pure full
 %lex-param {void *scanner}
@@ -347,6 +347,7 @@ multi_expr:
 | multi_expr '*' unary_expr
 | multi_expr '/' unary_expr
 | multi_expr '%' unary_expr
+| multi_expr OP_POWER unary_expr
 ;
 
 unary_expr:

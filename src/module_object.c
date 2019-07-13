@@ -22,55 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef _KOALA_ATOM_H_
-#define _KOALA_ATOM_H_
+#include "module_object.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom(char *s);
-
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s, int len);
-
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(int n, ...);
-
-/*
- * Initialize atom internal management.
- *
- * Returns nothing.
- */
-void atom_initialize(void);
-
-/*
- * Destroy atom internal management and atom strings memory.
- *
- * Returns nothing.
- */
-void atom_destroy(void);
-
-#ifdef __cplusplus
-}
-#endif
-#endif /* _KOALA_ATOM_H_ */
+static VECTOR_PTR(modules);

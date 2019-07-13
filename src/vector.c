@@ -128,6 +128,14 @@ int vector_pop_back(struct vector *self, void *val)
   return 0;
 }
 
+void *vector_toarr(struct vector *self)
+{
+  int size = self->itemsize * (self->size + 1);
+  void *arr = kmalloc(size);
+  memcpy(arr, self->items, size);
+  return arr;
+}
+
 void *vector_iter_next(struct iterator *iter)
 {
   struct vector *vec = iter->iterable;

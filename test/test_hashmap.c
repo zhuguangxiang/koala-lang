@@ -32,16 +32,16 @@ struct str {
   char value[0];
 };
 
-static int str_cmp(void *k1, void *k2)
+static int __str_cmp_cb__(void *k1, void *k2)
 {
   struct str *s1 = k1;
   struct str *s2 = k2;
   return strcmp(s1->value, s2->value);
 }
 
-static void str_free(struct hashmap_entry *e, void *data)
+static void __str_free_cb__(void *entry, void *data)
 {
-  kfree(e);
+  kfree(entry);
 }
 
 static void random_string(char *data, int len)
@@ -61,7 +61,7 @@ static void random_string(char *data, int len)
 void test_string_hash(void)
 {
   struct hashmap strmap;
-  hashmap_init(&strmap, str_cmp);
+  hashmap_init(&strmap, __str_cmp_cb__);
   srand(time(NULL));
   struct str *s;
   int res;
@@ -70,10 +70,10 @@ void test_string_hash(void)
   for (int i = 0; i < 10000; i++) {
     s = kmalloc(sizeof(struct str) + 11);
     random_string((char *)(s + 1), 10);
-    hashmap_entry_init(&s->entry, strhash((char *)(s + 1)));
-    res = hashmap_add(&strmap, &s->entry);
+    hashmap_entry_init(s, strhash((char *)(s + 1)));
+    res = hashmap_add(&strmap, s);
     assert(!res);
-    s2 = hashmap_get(&strmap, (struct hashmap_entry *)s);
+    s2 = hashmap_get(&strmap, s);
     assert(s2);
   }
 
@@ -89,7 +89,7 @@ void test_string_hash(void)
   }
 #endif
 
-  hashmap_free(&strmap, str_free, NULL);
+  hashmap_free(&strmap, __str_free_cb__, NULL);
 }
 
 int main(int argc, char *argv[])

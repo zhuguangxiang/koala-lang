@@ -28,7 +28,7 @@ SOFTWARE.
 
 int main(int argc, char *argv[])
 {
-  atom_init();
+  atom_initialize();
 
   char *s = atom("Hello,");
   assert(!strcmp(s, "Hello,"));
@@ -36,10 +36,11 @@ int main(int argc, char *argv[])
   assert(!strcmp(s2, " Koala"));
   char *s3 = atom("Hello,");
   assert(s == s3);
+  char *s4 = atom_string(" Koala", 6);
+  assert(s2 == s4);
+  char *s5 = atom_nstring(2, s, s2);
+  assert(!strcmp(s5, "Hello, Koala"));
 
-  char *s4 = atom_nstring(2, s, s2);
-  assert(!strcmp(s4, "Hello, Koala"));
-
-  atom_free();
+  atom_destroy();
   return 0;
 }
