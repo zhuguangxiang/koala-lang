@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[])
 {
-  atom_initialize();
+  atom_init();
 
   struct typedesc **desc = typestr_toarr("Llang.Tuple;si");
   assert(desc[0]->kind == TYPE_KLASS);
@@ -27,6 +27,8 @@ int main(int argc, char *argv[])
   kfree(desc);
 
   typedesc_destroy();
-  atom_destroy();
+
+  atom_fini();
+
   return 0;
 }

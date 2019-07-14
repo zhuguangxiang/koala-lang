@@ -3,6 +3,7 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
+#include "stddef.h"
 #include "modinfo.h"
 
 extern ModInfo __start_mod_0[];

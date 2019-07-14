@@ -48,20 +48,20 @@ void strbuf_append(struct strbuf *self, char *s)
   self->len += len;
 }
 
-void strbuf_vnappend(struct strbuf *self, int n, va_list args)
+void strbuf_vnappend(struct strbuf *self, int count, va_list args)
 {
   char *s;
-  while (n-- > 0) {
+  while (count-- > 0) {
     s = va_arg(args, char *);
     strbuf_append(self, s);
   }
 }
 
-void strbuf_vappend(struct strbuf *self, int n, ...)
+void strbuf_vappend(struct strbuf *self, int count, ...)
 {
   va_list args;
-  va_start(args, n);
-  strbuf_vnappend(self, n, args);
+  va_start(args, count);
+  strbuf_vnappend(self, count, args);
   va_end(args);
 }
 

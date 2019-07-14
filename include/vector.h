@@ -27,30 +27,14 @@ struct vector {
   void *items;
 };
 
-/*
- * Declare an empty vector with name.
- *
- * name     - The name of the vector.
- * itemsize - The size of item stored in the vector.
- */
+/* Declare an empty vector with name. */
 #define VECTOR(name, itemsize) \
   struct vector name = {0, 0, itemsize, NULL}
 
-/*
- * Declare an empty vector stored pointers.
- *
- * name - The name of the vector.
- */
+/* Declare an empty vector stored pointers. */
 #define VECTOR_PTR(name) VECTOR(name, sizeof(void *))
 
-/*
- * Initialize a vector.
- *
- * self     - The vector to be initialized.
- * itemsize - The size of each item stored in the vector.
- *
- * Returns nothing.
- */
+/* Initialize a vector with item size. */
 static inline void vector_init(struct vector *self, int itemsize)
 {
   memset(self, 0, sizeof(struct vector));
@@ -60,25 +44,13 @@ static inline void vector_init(struct vector *self, int itemsize)
 /* Free item callback function of vector_free */
 typedef void (*vector_free_fn)(void *, void *);
 
-/*
- * Destroy a vector with item free function. 'free' is optional.
- *
- * self     - The vector to be destroyed.
- * itemfree - The function to call for every item.
- * data     - The private data.
- *
- * Returns nothing.
- */
-void vector_free(struct vector *self, vector_free_fn free_fn, void *data);
+/* Destroy a vector with item free function. 'freefn' is optional. */
+void vector_free(struct vector *self, vector_free_fn freefn, void *data);
 
 /*
  * Remove all items from the vector, leaving the container with a size of 0.
  * The vector does not resize after removing the items. The memory is still
  * allocated for future uses.
- *
- * self - The vector to clear.
- *
- * Returns nothing.
  */
 static inline void vector_clear(struct vector *self)
 {
@@ -89,140 +61,61 @@ static inline void vector_clear(struct vector *self)
 /*
  * Concatenate a vector's items into the end of another vector.
  * The source vector is unchanged.
- *
- * self  - The destination vector.
- * other - The source vector.
  */
 int vector_concat(struct vector *self, struct vector *other);
 
 /*
  * Create a new vector from a range of an existing vector.
  * The source vector is unchanged.
- *
- * self  - The vector from which to slice items.
- * start - The index to begin the range.
- * size  - The number of items to copy.
- *
- * Returns the vector's subset(slice) or null if memory allocation failed.
  */
 struct vector *vector_slice(struct vector *self, int start, int size);
 
 /*
  * Copy the vector's items to a new vector.
  * The source vector is unchanged.
- *
- * self - The vector to copy.
- *
- * Returns a new vector or null if memory allocation failed.
  */
 #define vector_clone(self) \
   vector_slice(self, 0, (self)->size)
 
-/*
- * Shrink the vector's memory to it's size for saving memory.
- *
- * self - The vector to shrink.
- *
- * Returns 0 or -1 if memory allocation failed.
- */
+/* Shrink the vector's memory to it's size for saving memory. */
 int vector_shrink_to_fit(struct vector *self);
 
-/*
- * Get the vector size.
- *
- * self - The vector to get its size.
- *
- * Returns vector size.
- */
+/* Get the vector size. */
 #define vector_size(self) \
   (self)->size
 
-/*
- * Get the vector capacity(allocated spaces).
- *
- * self - The vector to get its capacity.
- *
- * Returns vector capacity.
- */
+/* Get the vector capacity(allocated spaces). */
 #define vector_capacity(self) \
   (self)->capacity
 
-/*
- * Store an item at an index. The previous item is returned va 'prev'.
- *
- * self  - The vector to hold the item.
- * index - The position at which to store new item.
- * item  - The data to store in the vector.
- * val   - The previous data returned, optional.
- *
- * Returns -1: failed, 0 successful.
- */
-int vector_set(struct vector *self, int index, void *item, void *val);
+/* Store an item at an index. The previous item is returned va 'prev'. */
+int vector_set(struct vector *self, int index, void *item, void *prev);
 
-/*
- * Get the item stored at an index. Index bound is checked.
- *
- * self  - The vector from which to get the item.
- * index - The zero-based item index.
- * val   - The data to store.
- *
- * Returns 0: successful, -1: failed if the index is out of bounds.
- */
+/* Get the item stored at an index. Index bound is checked. */
 int vector_get(struct vector *self, int index, void *val);
 
 /*
  * Insert an item into the in-bound of the vector.
  * This is relatively expensive operation.
- *
- * self  - The Vector to store the item.
- * index - The position at which to insert the item.
- * item  - The data to store in the vector.
- *
- * Returns -1 if memory allocation failed.
  */
 int vector_insert(struct vector *self, int index, void *item);
 
 /*
- * Remove the item at the index and shrink the vector by one.
- * This is relatively expensive operation.
- *
- * self  - The vector to remove an item at the index.
- * index - The position to remove item from the vector.
- * val   - The data to store.
- *
- * Returns 0: successful, -1: failed if the index is out of bounds.
+ * Remove the item at the index and shrink the vector by one. The removed item
+ * is stored va 'prev'. This is relatively expensive operation.
  */
-int vector_remove(struct vector *self, int index, void *val);
+int vector_remove(struct vector *self, int index, void *prev);
 
-/*
- * Add an item at the end of the vector.
- *
- * self - The vector to store the new item.
- * item - The data to be appended to the vector.
- *
- * Returns -1 if memory allocation failed.
- */
+/* Add an item at the end of the vector. */
 int vector_push_back(struct vector *self, void *item);
 
 /*
  * Remove an item at the end of the vector.
  * When used with 'push_back', the vector can be used as a stack.
- *
- * self - The vector to pop.
- * val  - The data to store.
- *
- * Returns 0: successful, -1: failed if the vector is empty.
  */
 int vector_pop_back(struct vector *self, void *val);
 
-/*
- * Get an item at the end of the vector, but not remove it.
- *
- * self - The vector to pop.
- * val  - The data to store.
- *
- * Returns 0: successful, -1: failed if the vector is empty.
- */
+/* Get an item at the end of the vector, but not remove it. */
 static inline int vector_top_back(struct vector *self, void *val)
 {
   return vector_get(self, self->size - 1, val);
@@ -249,13 +142,7 @@ static inline int vector_top_back(struct vector *self, void *val)
 #define vector_sort(self, compare) \
   qsort((self)->items, (self)->size, compare)
 
-/*
- * vector to array with null-terminated item.
- *
- * self - The vector to be converted.
- *
- * Returns a null-terminated array or null if memory allocation failed.
- */
+/* Convert vector to array with null-terminated item. */
 void *vector_toarr(struct vector *self);
 
 /*
@@ -264,12 +151,7 @@ void *vector_toarr(struct vector *self);
  */
 void *vector_iter_next(struct iterator *iter);
 
-/*
- * Declare an iterator of the vector. Deletion is not safe.
- *
- * name   - The name of the vector iterator.
- * vector - The container to iterate.
- */
+/* Declare an iterator of the vector. Deletion is not safe. */
 #define VECTOR_ITERATOR(name, vector) \
   ITERATOR(name, vector, vector_iter_next)
 
@@ -279,12 +161,7 @@ void *vector_iter_next(struct iterator *iter);
  */
 void *vector_iter_prev(struct iterator *iter);
 
-/*
- * Declare an reverse iterator of the vector. Deletion is not safe.
- *
- * name   - The name of the vector iterator.
- * vector - The container to iterate.
- */
+/* Declare an reverse iterator of the vector. Deletion is not safe. */
 #define VECTOR_REVERSE_ITERATOR(name, vector) \
   ITERATOR(name, vector, vector_iter_prev)
 

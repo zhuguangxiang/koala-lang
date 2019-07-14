@@ -1,18 +1,7 @@
 /*
  * MIT License
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
-
-#ifndef _KOALA_HEAP_H_
-#define _KOALA_HEAP_H_
-
-#include "iterator.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*
+ *
  * Binary heap is a complete tree, so use often an array to implement it.
  *
  *                   1
@@ -31,8 +20,18 @@ extern "C" {
  * This implementation uses an array with the elements in slots 1...N,
  * so this translates as: (e.g. max heap)
  * x(i) >= x(2i) and x(i) >= x(2i+1) for all i, 0 is not used.
- *
  */
+
+
+#ifndef _KOALA_HEAP_H_
+#define _KOALA_HEAP_H_
+
+#include "iterator.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct heap {
   /* allocated array size */
   int capacity;
@@ -47,42 +46,23 @@ struct heap {
 /*
  * Initialize a binary heap. Depending on the 'cmp' function behavior,
  * it can be a min-heap or a max-heap.
- *
- * self - The heap to be initialized.
- * cmp  - The function with which to sort items in the heap.
- *        It must return < 0, if a < b, 0 if a == b, and > 0 if a > b.
- *
- * Returns 0 or -1 if memory allocation failed.
+ * The 'cmp' function with which to sort items in the heap.
+ * It must return < 0, if a < b, 0 if a == b, and > 0 if a > b.
  */
 int heap_init(struct heap *self, int (*cmp)(void *, void *));
 
-/*
- * Free the binary heap and its memory. The items in the heap are not freed.
- *
- * self - The heap to be freed.
- *
- * Returns nothing.
- */
+/* Free the binary heap and its memory. The items in the heap are not freed. */
 void heap_free(struct heap *self);
 
 /*
  * Add a new item into the heap. The item will be sorted into correct position
  * according to the heap's 'cmp' function.
- *
- * self - The heap into which to add the item.
- * item - The data item to store.
- *
- * Returns 0 if successful or -1 if failed.
  */
 int heap_push(struct heap *self, void *item);
 
 /*
  * Remove the top item from the heap. The remainings are sorted into place with
  * the heap's 'cmp' function.
- *
- * self - The heap from which to remove the top one.
- *
- * Returns the top item  or null if the heap is empty.
  */
 void *heap_pop(struct heap *self);
 
@@ -92,12 +72,7 @@ void *heap_pop(struct heap *self);
  */
 void *heap_iter_next(struct iterator *iter);
 
-/*
- * Declare an iterator of the heap.
- *
- * name - The name of the heap iterator.
- * heap - The container to iterate.
- */
+/* Declare an iterator of the heap. */
 #define HEAP_ITERATOR(name, heap) \
   ITERATOR(name, heap, heap_iter_next)
 

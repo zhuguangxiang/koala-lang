@@ -26,10 +26,8 @@ struct iterator {
 
 /*
  * Declare an iterator to loop over a loopable data structure.
- *
- * name     - The name of the iterator
- * iterable - The data structure providing the items though which to iterate.
- * next     - The function that provides the next item in the iterator loop.
+ * The 'iterable' data structure providing the items though which to iterate.
+ * The 'next' function that provides the next item in the iterator loop.
  *
  * Examples:
  *   ITERATOR(iter, array, array_next);
@@ -40,30 +38,15 @@ struct iterator {
 #define ITERATOR(name, iterable, next) \
   struct iterator name = {iterable, 0, NULL, next}
 
-/*
- * Iterate over an iterator.
- *
- * self - The Iterator to be accessed.
- * item - The item's variable, its type is void *.
- */
+/* Iterate over an iterator. */
 #define iter_for_each(self, item) \
   for (; (item = (self)->next(self)); )
 
-/*
- * Iterate over an iterator with type.
- *
- * self - The Iterator to be accessed.
- * type - The item's type.
- * item - The item's variable.
- */
+/* Iterate over an iterator with type. */
 #define iter_for_each_as(self, type, item) \
-  for (void *__v__; (__v__ = (self)->next(self)) && (item = *(type *)__v__); )
+  for (void *_v_; (_v_ = (self)->next(self)) && (item = *(type *)_v_);)
 
-/*
- * Reset an iterator for loop again.
- *
- * self - The Iterator to be accessed.
- */
+/* Reset an iterator for loop again. */
 #define iter_reset(self) \
   (self)->index = 0; (self)->item = NULL;
 

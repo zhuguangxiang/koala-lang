@@ -3,8 +3,8 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#ifndef _KOALA_CACHE_H_
-#define _KOALA_CACHE_H_
+#ifndef _KOALA_SLAB_H_
+#define _KOALA_SLAB_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,4 +14,4 @@ extern "C" {
 }
 #endif
 
-#endif /* _KOALA_CACHE_H_ */
+#endif /* _KOALA_SLAB_H_ */

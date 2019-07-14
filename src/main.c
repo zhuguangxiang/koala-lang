@@ -116,9 +116,6 @@ void parse_command(int argc, char *argv[])
   }
 }
 
-void koala_initialize(void);
-void koala_destroy(void);
-
 int main(int argc, char *argv[])
 {
   parse_command(argc, argv);
@@ -133,7 +130,7 @@ int main(int argc, char *argv[])
     koala_active();
   }
 
-  koala_destroy();
+  koala_finalize();
 
   return 0;
 }

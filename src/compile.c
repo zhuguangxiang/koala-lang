@@ -72,8 +72,8 @@ static int valid_source(char *path)
       return 0;
     }
   } else {
-    int len = dir - path + 1 + strlen("./__init__.kl");
-    dir = string_nndup(len, path, dir - path + 1);
+    int extra = strlen("./__init__.kl");
+    dir = string_ndup_extra(path, dir - path + 1, extra);
     strcat(dir, "./__init__.kl");
     if (!stat(dir, &sb)) {
       kfree(dir);

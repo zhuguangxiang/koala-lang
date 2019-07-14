@@ -24,7 +24,7 @@ static struct hashmap nodetbl;
 static struct node root;
 static VECTOR_PTR(dir);
 
-static int __node_cmp_cb__(void *k1, void *k2)
+static int _node_cmp_cb_(void *k1, void *k2)
 {
   struct node *n1 = k1;
   struct node *n2 = k2;
@@ -35,23 +35,23 @@ static int __node_cmp_cb__(void *k1, void *k2)
   return strcmp(n1->name, n2->name);
 }
 
-static void __node_free_cb__(void *entry, void *data)
+static void _node_free_cb_(void *entry, void *data)
 {
   kfree(entry);
 }
 
-void node_initialize(void)
+void node_init(void)
 {
-  hashmap_init(&nodetbl, __node_cmp_cb__);
+  hashmap_init(&nodetbl, _node_cmp_cb_);
   root.name = "/";
   root.parent = &root;
   root.data = &dir;
   hashmap_entry_init(&root, strhash(root.name));
 }
 
-void node_destroy(void)
+void node_fini(void)
 {
-  hashmap_free(&nodetbl, __node_free_cb__, NULL);
+  hashmap_free(&nodetbl, _node_free_cb_, NULL);
   vector_free(&dir, NULL, NULL);
 }
 

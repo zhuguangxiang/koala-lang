@@ -3,8 +3,8 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include "string_object.h"
-#include "code_object.h"
+#include "objects/stringobject.h"
+#include "objects/codeobject.h"
 #include "atom.h"
 
 struct member *new_member(int kind, char *name, struct typedesc *type)

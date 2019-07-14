@@ -7,6 +7,8 @@
 
 int main(int argc, char *argv[])
 {
+  init_modules();
   koala_active();
+  fini_modules();
   return 0;
 }

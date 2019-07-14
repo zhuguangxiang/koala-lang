@@ -22,7 +22,7 @@ char **path_toarr(char *path, int size)
 
     len = path - p;
     if (len > 0) {
-      s = atom_string(p, len);
+      s = atom_nstring(p, len);
       vector_push_back(&strs, &s);
     }
 

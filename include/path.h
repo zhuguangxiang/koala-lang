@@ -10,14 +10,7 @@
 extern "C" {
 #endif
 
-/*
- * convert a path string to dir-name array.
- *
- * path - The path to convert.
- * len  - The path length.
- *
- * Returns an array contains dir-names.
- */
+/* Convert a path string to null-terminated string array. */
 char **path_toarr(char *path, int len);
 
 #ifdef __cplusplus

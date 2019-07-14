@@ -37,13 +37,13 @@ static int __vector_maybe_expand(struct vector *self, int extrasize)
   return 0;
 }
 
-void vector_free(struct vector *self, vector_free_fn free_fn, void *data)
+void vector_free(struct vector *self, vector_free_fn freefn, void *data)
 {
-  if (free_fn != NULL) {
+  if (freefn != NULL) {
     VECTOR_ITERATOR(iter, self);
     void *item;
     iter_for_each(&iter, item)
-      free_fn(item, data);
+      freefn(item, data);
   }
   kfree(self->items);
   self->size = 0;

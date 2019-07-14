@@ -14,22 +14,10 @@
 extern "C" {
 #endif
 
-/*
- * allocate memory for size.
- *
- * size - The memory size to be allocated.
- *
- * Returns the memory or null if memory allocation failed.
- */
+/* Allocate memory for size. */
 void *kmalloc(size_t size);
 
-/*
- * free memory which is allocated by 'kmalloc'.
- *
- * ptr - The memory to be freed.
- *
- * Returns nothing.
- */
+/* Free memory which is allocated by 'kmalloc'. */
 void __kfree(void *ptr);
 #define kfree(ptr) \
 ({                 \
@@ -38,21 +26,10 @@ void __kfree(void *ptr);
   ptr = NULL;      \
 })
 
-/*
- * stat memory usage with 'kmalloc' and 'kfree'.
- *
- * Returns nothing.
- */
+/* Stat memory usage with 'kmalloc' and 'kfree'. */
 void kstat(void);
 
-/*
- * duplicate c-string, replace of strndup.
- *
- * s    - The origin string.
- * size - The size to copy.
- *
- * Returns a duplicated string with '\0'.
- */
+/* duplicate c-string, replace of strndup. */
 static inline char *string_ndup(char *s, size_t size)
 {
   char *str = kmalloc(size + 1);
@@ -60,34 +37,18 @@ static inline char *string_ndup(char *s, size_t size)
   return str;
 }
 
-/*
- * duplicate c-string, with extra available size.
- *
- * msize - The duplicated string memory size.
- * s     - The origin string.
- * size  - The size to copy.
- *
- * Returns a duplicated string with '\0'.
- */
-static inline char *string_nndup(size_t msize, char *s, size_t size)
+/* duplicate c-string, with extra available size. */
+static inline char *string_ndup_extra(char *s, size_t size, size_t extra)
 {
-  assert(msize >= size);
-  char *str = kmalloc(msize + 1);
+  char *str = kmalloc(size + extra + 1);
   memcpy(str, s, size);
   return str;
 }
 
-/*
- * duplicate c-string, replace of strdup
- *
- * s    - The origin string.
- *
- * Returns a duplicated string with '\0'.
- */
+/* duplicate c-string, replace of strdup. */
 static inline char *string_dup(char *s)
 {
-  int size = strlen(s);
-  return string_ndup(s, size);
+  return string_ndup(s, strlen(s));
 }
 
 #ifdef __cplusplus

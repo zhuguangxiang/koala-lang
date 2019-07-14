@@ -13,7 +13,7 @@ extern "C" {
 typedef void (*InitFunc)(void);
 typedef void (*FiniFunc)(void);
 
-typedef struct __attribute__((aligned(16))) ModInfo {
+typedef struct __attribute__((aligned(16))) modinfo {
   char *name;
   InitFunc init;
   FiniFunc fini;

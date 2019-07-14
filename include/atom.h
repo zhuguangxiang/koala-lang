@@ -22,6 +22,12 @@ char *atom_nstring(char *str, int len);
 /* Concat 'varc' null-terminated strings into one atom string. */
 char *atom_vstring(int vargc, ...);
 
+/* Initialize atom string internal hashmap */
+void atom_init(void);
+
+/* Free hashmap and atom string memory */
+void atom_fini(void);
+
 #ifdef  __cplusplus
 }
 #endif

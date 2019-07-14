@@ -22,86 +22,31 @@ struct bytebuffer {
   struct vector vec;
 };
 
-/*
- * Initialize the byte buffer.
- *
- * self - The buffer to be initialized.
- * size - The each block size.
- *
- * Returns nothing.
- */
+/* Initialize the byte buffer. */
 void bytebuffer_init(struct bytebuffer *self, int bsize);
 
-/*
- * Free the byte buffer.
- *
- * self - The buffer to be freed.
- *
- * Returns nothing.
- */
+/* Free the byte buffer. */
 void bytebuffer_free(struct bytebuffer *self);
 
-/*
- * Write n bytes data into byte buffer.
- *
- * self - The buffer to write.
- * data - The data to be written into buffer.
- * size - The data size.
- *
- * Returns 0 successful or -1 if memory allocation failed.
- */
+/* Write n bytes data into byte buffer. */
 int bytebuffer_write(struct bytebuffer *self, char *data, int size);
 
-/*
- * Get byte buffer size.
- *
- * self - The buffer to get its size.
- *
- * Returns buffer's size.
- */
+/* Get byte buffer size. */
 #define bytebuffer_size(self) (self)->total
 
-/*
- * Write 1 byte data into byte buffer.
- *
- * self - The buffer to write.
- * data - The data to be written into buffer.
- *
- * Returns 0 successful or -1 if memory allocation failed.
- */
+/* Write one byte data into byte buffer. */
 #define bytebuffer_write_byte(self, data) \
   bytebuffer_write(self, (char *)&data, 1)
 
-/*
- * Write 2 bytes data into byte buffer.
- *
- * self - The buffer to write.
- * data - The data to be written into buffer.
- *
- * Returns 0 successful or -1 if memory allocation failed.
- */
+/* Write 2 bytes data into byte buffer. */
 #define bytebuffer_write_2bytes(self, data) \
   bytebuffer_write(self, (char *)&data, 2)
 
-/*
- * Write 4 bytes data into byte buffer.
- *
- * self - The buffer to write.
- * data - The data to be written into buffer.
- *
- * Returns 0 successful or -1 if memory allocation failed.
- */
+/* Write 4 bytes data into byte buffer. */
 #define bytebuffer_write_4bytes(self, data) \
   bytebuffer_write(self, (char *)&data, 4)
 
-/*
- * output bytes into an array.
- *
- * self - The buffer to output.
- * arr  - The array that datas stored in.
- *
- * Returns size of bytes to output.
- */
+/* Convert byte buffer to an array. */
 int bytebuffer_toarr(struct bytebuffer *self, char **arr);
 
 #ifdef __cplusplus

@@ -47,15 +47,7 @@ struct parser_state {
 /* more than MAX_ERRORS, discard left errors shown */
 #define MAX_ERRORS 8
 
-/*
- * record and print syntax error.
- *
- * ps  - The struct parser_state.
- * pos - The position which the error happened.
- * fmt - The error message format.
- *
- * Returns nothing.
- */
+/* Record and print syntax error. */
 #define syntax_error(ps, pos, fmt, ...)                        \
 ({                                                             \
   if (++ps->errnum > MAX_ERRORS) {                             \

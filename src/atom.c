@@ -17,12 +17,12 @@ struct atom {
   char *str;
 };
 
-static struct hashmap atom_map;
+static struct hashmap atomtbl;
 
-char *atom_string(char *s, int len)
+char *atom_nstring(char *s, int len)
 {
   struct atom key = {{NULL, memhash(s, len)}, len, s};
-  struct atom *atom = hashmap_get(&atom_map, &key);
+  struct atom *atom = hashmap_get(&atomtbl, &key);
   if (atom) {
     return atom->str;
   }
@@ -32,16 +32,16 @@ char *atom_string(char *s, int len)
   atom->len = len;
   atom->str = (char *)(atom + 1);
   strncpy(atom->str, s, len);
-  hashmap_add(&atom_map, atom);
+  hashmap_add(&atomtbl, atom);
   return atom->str;
 }
 
 char *atom(char *s)
 {
-  return atom_string(s, strlen(s));
+  return atom_nstring(s, strlen(s));
 }
 
-char *atom_nstring(int n, ...)
+char *atom_vstring(int n, ...)
 {
   char *s;
   STRBUF(sbuf);
@@ -56,7 +56,7 @@ char *atom_nstring(int n, ...)
   return s;
 }
 
-static int __atom_cmp_cb__(void *e1, void *e2)
+static int _atom_cmp_cb_(void *e1, void *e2)
 {
   struct atom *a1 = e1;
   struct atom *a2 = e2;
@@ -65,17 +65,17 @@ static int __atom_cmp_cb__(void *e1, void *e2)
   return strncmp(a1->str, a2->str, a1->len);
 }
 
-static void __atom_free_cb__(void *entry, void *data)
+static void _atom_free_cb_(void *entry, void *data)
 {
   kfree(entry);
 }
 
-void atom_initialize(void)
+void atom_init(void)
 {
-  hashmap_init(&atom_map, __atom_cmp_cb__);
+  hashmap_init(&atomtbl, _atom_cmp_cb_);
 }
 
-void atom_destroy(void)
+void atom_fini(void)
 {
-  hashmap_free(&atom_map, __atom_free_cb__, NULL);
+  hashmap_free(&atomtbl, _atom_free_cb_, NULL);
 }

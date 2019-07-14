@@ -118,7 +118,7 @@ static struct typedesc *__to_klassdesc(char *s, int len)
   char *dot = strrchr(s, '.');
   assert(dot);
   char **pathes = path_toarr(s, dot - s);
-  char *type = atom_string(dot + 1, len - (dot - s) - 1);
+  char *type = atom_nstring(dot + 1, len - (dot - s) - 1);
   return new_klassdesc(pathes, type);
 }
 

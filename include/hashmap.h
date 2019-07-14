@@ -1,28 +1,7 @@
 /*
  * MIT License
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
-
-#ifndef _KOALA_HASHMAP_H_
-#define _KOALA_HASHMAP_H_
-
-#include "memory.h"
-#include "iterator.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*
- * Ready-to-use hash functions for strings, using the FNV-1 algorithm.
- * (see http://www.isthe.com/chongo/tech/comp/fnv).
- * `strhash` takes 0-terminated strings.
- * `memhash` operates on arbitrary-length memory.
- */
-unsigned int strhash(const char *buf);
-unsigned int memhash(const void *buf, size_t len);
-
-/*
+ *
  * Generic implementation of hash-based key-value mappings.
  *
  * An example of using hashmap as hashset.
@@ -55,6 +34,25 @@ unsigned int memhash(const void *buf, size_t len);
  * }
  */
 
+#ifndef _KOALA_HASHMAP_H_
+#define _KOALA_HASHMAP_H_
+
+#include "memory.h"
+#include "iterator.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * Ready-to-use hash functions for strings, using the FNV-1 algorithm.
+ * (see http://www.isthe.com/chongo/tech/comp/fnv).
+ * `strhash` takes 0-terminated strings.
+ * `memhash` operates on arbitrary-length memory.
+ */
+unsigned int strhash(const char *buf);
+unsigned int memhash(const void *buf, size_t len);
+
 /* a hash map entry is in the hash table. */
 struct hashmap_entry {
   /*
@@ -68,10 +66,6 @@ struct hashmap_entry {
 
 /*
  * Compare function to test two keys for equality.
- *
- * k1 - The key of struct hashmap_entry.
- * k2 - The key of struct hashmap_entry.
- *
  * Returns 0 if the twoe entries are equal.
  */
 typedef int (*hashmap_cmp_fn)(void *k1, void *k2);
@@ -92,14 +86,7 @@ struct hashmap {
   int shrink_at;
 };
 
-/*
- * Initialize a hashmap_entry structure.
- *
- * entry - The hasmap entry to initialize.
- * hash  - The hash code of the entry.
- *
- * Returns nothing.
- */
+/* Initialize a hashmap_entry structure. */
 static inline void hashmap_entry_init(void *entry, unsigned int hash)
 {
   struct hashmap_entry *e = entry;
@@ -107,53 +94,23 @@ static inline void hashmap_entry_init(void *entry, unsigned int hash)
   e->next = NULL;
 }
 
-/*
- * Return the number of items in the map.
- *
- * self - The hashmap.
- *
- * Returns the number of items.
- */
+/* Return the number of items in the map. */
 static inline int hashmap_size(struct hashmap *self)
 {
   return self->count;
 }
 
-/*
- * Initialize a hash map.
- *
- * self   - The hashmap to be initialized.
- * cmp_fn - The function to compare the two entries for equality.
- *
- * Returns nothing.
- */
-void hashmap_init(struct hashmap *self, hashmap_cmp_fn cmp_fn);
+/* Initialize a hash map. */
+void hashmap_init(struct hashmap *self, hashmap_cmp_fn cmpfn);
 
-/*
- * Free function for hashmap entry, when the hashmap is destroyed.
- *
- * entry - The entry to be freed.
- * data  - The private data passed to free function.
- *
- * Returns nothing.
- */
+/* Free function for hashmap entry, when the hashmap is destroyed. */
 typedef void (*hashmap_free_fn)(void *entry, void *data);
 
-/*
- * Destroy the hashmap and free its allocated memory.
- *
- * self    - The hashmap to be destroyed.
- * free_fn - The free function called via every hashmap_entry.
- * data    - The private data passed to free function.
- */
-void hashmap_free(struct hashmap *self, hashmap_free_fn free_fn, void *data);
+/* Destroy the hashmap and free its allocated memory. */
+void hashmap_free(struct hashmap *self, hashmap_free_fn freefn, void *data);
 
 /*
  * Retrieve the hashmap entry for the specified hash code.
- *
- * self - The hashmap from which to retrieve the hashmap entry.
- * key  - The key with hash code to look up in the map.
- *
  * Returns the hashmap entry or null if not found.
  */
 void *hashmap_get(struct hashmap *self, void *key);
@@ -161,33 +118,17 @@ void *hashmap_get(struct hashmap *self, void *key);
 /*
  * Add a hashmap entry. If the hashmap contains duplicate entries, it will
  * return -1 failure.
- *
- * self  - The hashmap to which to add the hashmap entry.
- * entry - The entry to be added.
- *
- * Returns -1 failure, 0 successful.
  */
 int hashmap_add(struct hashmap *self, void *entry);
 
 /*
  * Add or replace a hashmap entry. If the hashmap contains duplicate entries,
  * the old entry will be replaced and returned.
- *
- * self  - The hashmap to which to add the hashmap entry.
- * entry - The entry to be added or replaced.
- *
  * Returns the replaced entry or null if no duplicated entry
  */
 void *hashmap_put(struct hashmap *self, void *entry);
 
-/*
- * Removes a hashmap entry matching the specified key.
- *
- * self - The hashmap from which to remove the hashmap entry.
- * key  - The key with hash code to look up in the map.
- *
- * Returns the hashmap entry or null if not found.
- */
+/* Removes a hashmap entry matching the specified key. */
 void *hashmap_remove(struct hashmap *self, void *key);
 
 /*
@@ -196,12 +137,7 @@ void *hashmap_remove(struct hashmap *self, void *key);
  */
 void *hashmap_iter_next(struct iterator *iter);
 
-/*
- * Declare an iterator of the hashmap. Deletion is not safe.
- *
- * name    - The name of the hashmap iterator
- * hashmap - The container to iterate.
- */
+/* Declare an iterator of the hashmap. Deletion is not safe. */
 #define HASHMAP_ITERATOR(name, hashmap) \
   ITERATOR(name, hashmap, hashmap_iter_next)
 

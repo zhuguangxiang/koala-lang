@@ -3,12 +3,13 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include "code_object.h"
+#include "objects/codeobject.h"
 #include "atom.h"
 
 int main(int argc, char *argv[])
 {
-  atom_initialize();
+  atom_init();
+
   struct cfuncdef func = {"hello", "Llang.String;si", "s", NULL};
   struct object *code = code_from_cfunc(&func);
   struct code_object *co = (struct code_object *)code;
@@ -16,6 +17,7 @@ int main(int argc, char *argv[])
   TYPE_DECREF(co->proto);
   kfree(code);
   typedesc_destroy();
-  atom_destroy();
+
+  atom_fini();
   return 0;
 }

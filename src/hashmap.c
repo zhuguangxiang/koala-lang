@@ -43,24 +43,24 @@ static void alloc_entries(struct hashmap *self, int size)
     self->shrink_at = self->grow_at / 5;
 }
 
-void hashmap_init(struct hashmap *self, hashmap_cmp_fn cmp_fn)
+void hashmap_init(struct hashmap *self, hashmap_cmp_fn cmpfn)
 {
   memset(self, 0, sizeof(*self));
-  self->cmpfn = cmp_fn;
+  self->cmpfn = cmpfn;
   int size = HASHMAP_INITIAL_SIZE;
   alloc_entries(self, size);
 }
 
-void hashmap_free(struct hashmap *self, hashmap_free_fn free_fn, void *data)
+void hashmap_free(struct hashmap *self, hashmap_free_fn freefn, void *data)
 {
   if (!self || !self->entries)
     return;
 
-  if (free_fn) {
+  if (freefn) {
     HASHMAP_ITERATOR(iter, self);
     struct hashmap_entry *e;
     iter_for_each(&iter, e)
-      free_fn(e, data);
+      freefn(e, data);
   }
 
   kfree(self->entries);

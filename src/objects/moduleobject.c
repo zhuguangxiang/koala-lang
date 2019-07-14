@@ -33,8 +33,6 @@ static struct cfuncdef mod_funcs[] = {
 
 void module_initialize(void)
 {
-  atom_initialize();
-  node_initialize();
   mtable_init(&module_type.mtbl);
   klass_add_cfuncs(&module_type, mod_funcs);
 }
@@ -42,8 +40,6 @@ void module_initialize(void)
 void module_destroy(void)
 {
   mtable_free(&module_type.mtbl);
-  node_destroy();
-  atom_destroy();
   typedesc_destroy();
 }
 

@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 void koala_initialize(void);
-void koala_destroy(void);
+void koala_finalize(void);
 void koala_active(void);
 void koala_compile(char *path);
 void koala_run(char *path);

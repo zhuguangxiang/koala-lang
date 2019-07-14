@@ -11,8 +11,9 @@
 
 int main(int argc, char *argv[])
 {
-  atom_initialize();
-  node_initialize();
+  atom_init();
+  node_init();
+
   char *s = "github.com";
   int len = strlen(s);
   char **arr = path_toarr(s, len);
@@ -42,7 +43,8 @@ int main(int argc, char *argv[])
   kfree(pathes2);
   kfree(pathes1);
   kfree(arr);
-  node_destroy();
-  atom_destroy();
+
+  node_fini();
+  atom_fini();
   return 0;
 }
