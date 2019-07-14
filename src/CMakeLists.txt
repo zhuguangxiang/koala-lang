@@ -23,7 +23,7 @@
 INCLUDE(${PROJECT_SOURCE_DIR}/cmake/bison.cmake)
 
 RUN_FLEX(
-  ${PROJECT_SOURCE_DIR}/src/koala.lex
+  ${PROJECT_SOURCE_DIR}/src/koala.l
   ${PROJECT_SOURCE_DIR}/src/koala_lex.c
   ${PROJECT_SOURCE_DIR}/include/koala_lex.h)
 
@@ -32,9 +32,18 @@ RUN_BISON(
   ${PROJECT_SOURCE_DIR}/src/koala_yacc.c
   ${PROJECT_SOURCE_DIR}/include/koala_yacc.h)
 
+SET(KOALA_BUILTIN_OBJECTS_SOURCES
+  objects/moduleobject.c
+  objects/stringobject.c
+  objects/intobject.c
+  objects/tupleobject.c
+  objects/codeobject.c)
+
 SET(KOALA_SOURCES
-  memory.c vector.c hashmap.c strbuf.c atom.c bytebuffer.c node.c
-  koala_lex.c koala_yacc.c interactive.c compile.c run.c)
+  memory.c vector.c hashmap.c strbuf.c atom.c bytebuffer.c path.c node.c
+  object.c typedesc.c koala_lex.c koala_yacc.c
+  koala.c interactive.c compile.c run.c
+  ${KOALA_BUILTIN_OBJECTS_SOURCES})
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})

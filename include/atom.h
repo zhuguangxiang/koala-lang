@@ -1,76 +1,29 @@
 /*
-MIT License
-
-Copyright (c) 2018 James, https://github.com/zhuguangxiang
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
+ * MIT License
+ * Copyright (c) 2018 James, https://github.com/zhuguangxiang
+ *
+ * An atom is a null-terminated string cached in internal hashmap.
+ * With null-terminated, it's convenient to operate it like c-string.
+ */
 
 #ifndef _KOALA_ATOM_H_
 #define _KOALA_ATOM_H_
 
-#ifdef __cplusplus
+#ifdef  __cplusplus
 extern "C" {
 #endif
 
-/*
- * add an atom string 's'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom(char *s);
+/* New an atom string with null-terminated string. */
+char *atom(char *str);
 
-/*
- * add an atom string 's' with length 'len'.
- *
- * s - The string to store.
- *
- * Returns an atom string.
- */
-char *atom_string(char *s, int len);
+/* New an atom string with length-ed string. */
+char *atom_nstring(char *str, int len);
 
-/*
- * add 'n' atom strings.
- *
- * n - The number of string to store.
- *
- * Returns an atom string.
- */
-char *atom_nstring(int n, ...);
+/* Concat 'varc' null-terminated strings into one atom string. */
+char *atom_vstring(int vargc, ...);
 
-/*
- * Initialize atom internal management.
- *
- * Returns nothing.
- */
-void atom_initialize(void);
-
-/*
- * Destroy atom internal management and atom strings memory.
- *
- * Returns nothing.
- */
-void atom_destroy(void);
-
-#ifdef __cplusplus
+#ifdef  __cplusplus
 }
 #endif
+
 #endif /* _KOALA_ATOM_H_ */

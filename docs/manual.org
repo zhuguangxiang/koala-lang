@@ -75,9 +75,22 @@ b = "\u6c49\u8bed" 表示一个字符串, 字符数组, 或者字节数组.
 \v
 * programming style
 ** naming
+- variable and function
+  The names of variables (including function parameters) and struct members are all lowercase, with underscores between words.
+- struct and typedef
+  Type names start with a capital letter and have a capital letter for each new word, with no underscores.
+  struct tag name is identical with typedef alias name.
 - function pointer definition
-  typedef void (*foo_fn)(void);
+  typedef void (*FooFunc)(void);
 - function callback definition
-  void __foo_cb__()
+  void _foo_cb_()
 - foo_init and foo_free are pair.
 - foo_intialize and foo_destroy are pair.
+- comment
+  use multi line comment
+  comment in up line or right of line.
+- left brace:
+  struct or if, switch, while case are right of line.
+  functions are in new line.
+- file:
+  xxxyy.c[h] xxx-yy.c[h] xxx_yy.c[h]

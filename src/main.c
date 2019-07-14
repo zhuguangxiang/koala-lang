@@ -1,26 +1,7 @@
 /*
-MIT License
-
-Copyright (c) 2018 James, https://github.com/zhuguangxiang
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
+ * MIT License
+ * Copyright (c) 2018 James, https://github.com/zhuguangxiang
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,14 +36,10 @@ static void usage(void)
 }
 
 #define MAX_PATH_LEN 1024
+int cflag;
+char module[MAX_PATH_LEN];
 
-struct command {
-  short cflag;
-  short has;
-  char module[MAX_PATH_LEN];
-};
-
-static void copy_path(char *arg, struct command *cmd)
+static void save_path(char *arg)
 {
   char *path = arg;
   char *slash = path + strlen(path);
@@ -76,17 +53,10 @@ static void copy_path(char *arg, struct command *cmd)
     exit(0);
   }
 
-  if (cmd->has) {
-    errmsg("Only one module is allowed.");
-    usage();
-    exit(0);
-  }
-
-  memcpy(cmd->module, path, len);
-  cmd->has = 1;
+  memcpy(module, path, len);
 }
 
-void parse_command(int argc, char *argv[], struct command *cmd)
+void parse_command(int argc, char *argv[])
 {
   extern char *optarg;
   extern int optind;
@@ -103,8 +73,8 @@ void parse_command(int argc, char *argv[], struct command *cmd)
   while ((opt = getopt_long(argc, argv, "c:vh?", options, NULL)) != -1) {
     switch (opt) {
     case 'c': {
-      cmd->cflag = 1;
-      copy_path(optarg, cmd);
+      cflag = 1;
+      save_path(optarg);
       break;
     }
     case 'v':
@@ -130,7 +100,13 @@ void parse_command(int argc, char *argv[], struct command *cmd)
       usage();
       exit(0);
     }
-    copy_path(argv[optind++], cmd);
+    if (cflag) {
+      errmsg("Only one module is allowed.");
+      usage();
+      exit(0);
+    }
+    cflag = 2;
+    save_path(argv[optind++]);
   }
 
   if (optind < argc) {
@@ -140,25 +116,24 @@ void parse_command(int argc, char *argv[], struct command *cmd)
   }
 }
 
-static struct command cmd;
+void koala_initialize(void);
+void koala_destroy(void);
 
 int main(int argc, char *argv[])
 {
-  parse_command(argc, argv, &cmd);
+  parse_command(argc, argv);
 
-  //koala_initialize();
+  koala_initialize();
 
-  if (!cmd.cflag) {
-    if (!cmd.has) {
-      koala_active();
-    } else {
-      koala_run(cmd.module);
-    }
+  if (cflag == 1) {
+    koala_compile(module);
+  } else if (cflag == 2) {
+    koala_run(module);
   } else {
-    koala_compile(cmd.module);
+    koala_active();
   }
 
-  //koala_destory();
+  koala_destroy();
 
   return 0;
 }

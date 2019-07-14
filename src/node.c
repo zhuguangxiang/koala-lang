@@ -1,61 +1,12 @@
 /*
-MIT License
-
-Copyright (c) 2018 James, https://github.com/zhuguangxiang
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
+ * MIT License
+ * Copyright (c) 2018 James, https://github.com/zhuguangxiang
+ */
 
 #include "hashmap.h"
 #include "vector.h"
 #include "atom.h"
 #include "debug.h"
-
-char **path_toarr(char *path)
-{
-  VECTOR_PTR(strs);
-  char *p;
-  char *s;
-  char ch;
-  int len;
-  char **arr;
-
-  while (*path) {
-    p = path;
-    while ((ch = *path) && ch != '/')
-      path++;
-
-    len = path - p;
-    if (len > 0) {
-      s = atom_string(p, len);
-      vector_push_back(&strs, &s);
-    }
-
-    /* remove trailing slashes */
-    while (*path && *path == '/')
-      path++;
-  }
-
-  arr = vector_toarr(&strs);
-  vector_free(&strs, NULL, NULL);
-  return arr;
-}
 
 struct node {
   struct hashmap_entry entry;
@@ -136,7 +87,7 @@ static struct node *__add_leafnode(char *name, struct node *parent)
   return node;
 }
 
-void add_leaf(char *pathes[], void *data)
+int add_leaf(char *pathes[], void *data)
 {
   struct node *parent = &root;
   struct node *node;
@@ -157,10 +108,12 @@ void add_leaf(char *pathes[], void *data)
   if (node) {
     assert(node->leaf);
     debug("leaf '%s' exist.", *s);
+    return -1;
   } else {
     debug("new leaf '%s'.", *s);
     node = __add_leafnode(*s, parent);
     node->data = data;
+    return 0;
   }
 }
 

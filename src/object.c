@@ -1,28 +1,94 @@
 /*
-MIT License
+ * MIT License
+ * Copyright (c) 2018 James, https://github.com/zhuguangxiang
+ */
 
-Copyright (c) 2018 James, https://github.com/zhuguangxiang
+#include "string_object.h"
+#include "code_object.h"
+#include "atom.h"
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+struct member *new_member(int kind, char *name, struct typedesc *type)
+{
+  struct member *m = kmalloc(sizeof(*m));
+  hashmap_entry_init(m, strhash(name));
+  m->name = atom(name);
+  m->kind = kind;
+  m->type = TYPE_INCREF(type);
+  return m;
+}
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+void free_member(struct member *m)
+{
+  switch (m->kind) {
+  case MBR_FUNC: {
+    OB_DECREF(m->code);
+    break;
+  }
+  default:{
+    assert(0);
+    break;
+  }
+  }
+  TYPE_DECREF(m->type);
+  kfree(m);
+}
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
+static int __member_cmp_cb__(void *e1, void *e2)
+{
+  if (e1 == e2)
+    return 0;
+  struct member *m1 = e1;
+  struct member *m2 = e2;
+  if (m1->name == m2->name)
+    return 0;
+  return strcmp(m1->name, m2->name);
+}
 
-#include "object.h"
+static void __member_free_cb__(void *e, void *data)
+{
+  free_member(e);
+}
+
+void mtable_init(struct mtable *mtbl)
+{
+  hashmap_init(&mtbl->tbl, __member_cmp_cb__);
+}
+
+void mtable_free(struct mtable *mtbl)
+{
+  hashmap_free(&mtbl->tbl, __member_free_cb__, NULL);
+}
+
+void mtable_add_const(struct mtable *mtbl, char *name,
+                      struct typedesc *type, struct object *val)
+{
+
+}
+
+void mtable_add_var(struct mtable *mtbl, char *name, struct typedesc *type)
+{
+
+}
+
+void mtable_add_func(struct mtable *mtbl, char *name, struct object *code)
+{
+  struct code_object *co = (struct code_object *)code;
+  struct member *m = new_member(MBR_FUNC, name, co->proto);
+  m->code = OB_INCREF(code);
+  hashmap_add(&mtbl->tbl, m);
+}
+
+void mtable_add_cfuncs(struct mtable *mtbl, struct cfuncdef *funcs)
+{
+  struct object *code;
+  struct cfuncdef *f = funcs;
+  while (f->name) {
+    code = code_from_cfunc(f);
+    mtable_add_func(mtbl, f->name, code);
+    OB_DECREF(code);
+    f++;
+  }
+}
 
 struct klass class_type = {
   OBJECT_HEAD_INIT(&class_type)
@@ -30,7 +96,7 @@ struct klass class_type = {
 };
 
 struct klass any_type = {
-  OBJECT_HEAD_INIT(&lass_type)
+  OBJECT_HEAD_INIT(&class_type)
   .name = "Any"
 };
 
@@ -52,17 +118,23 @@ struct object *__class_name__(struct object *ob, struct object *args)
 {
   OB_TYPE_ASSERT(ob, &class_type);
   assert(!args);
-  struct klass *klazz = (struct klass *)ob;
-  return strobj_new(klazz->name);
+  struct klass *type = (struct klass *)ob;
+  return new_string(type->name);
 }
 
 static struct cfuncdef class_funcs[] = {
-  {"__members__", NULL, "Llang.Tuple", __class_members__},
-  {"__name__", NULL, NULL, __class_name__},
-  {NULL, NULL, NULL, NULL},
+  {"__members__", NULL, "Llang.Tuple;", __class_members__},
+  {"__name__", NULL, "s", __class_name__},
+  {NULL}
 };
 
-void init_klass(void)
+void init_klass_type(void)
+{
+  mtable_init(&class_type.mtbl);
+  klass_add_cfuncs(&class_type, class_funcs);
+}
+
+void free_klass_type(void)
 {
 
 }
