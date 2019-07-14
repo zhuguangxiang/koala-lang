@@ -15,28 +15,26 @@ extern "C" {
 
 struct codeinfo {
   struct vector locvec;
-  struct object *consts;
+  Object *consts;
   int size;
-  uint8_t codes[0];
+  uint8_t insts[0];
 };
 
 #define CODE_KCODE 0
 #define CODE_CFUNC 1
 
-struct code_object {
+typedef struct codeobject {
   OBJECT_HEAD
-  struct typedesc *proto;
+  TypeDesc *proto;
   int kind;
   union {
     cfunc_t cfunc;
-    struct codeinfo *kcode;
+    struct codeinfo *code;
   };
-};
+} CodeObject;
 
-extern struct klass code_type;
-void init_code_type(void);
-void free_code_type(void);
-struct object *code_from_cfunc(struct cfuncdef *f);
+extern TypeObject code_type;
+Object *code_from_cfunc(struct cfuncdef *f);
 
 #ifdef __cplusplus
 }

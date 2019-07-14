@@ -6,7 +6,7 @@
 #include "objects/stringobject.h"
 
 struct klass string_type = {
-  OBJECT_HEAD_INIT(&class_type)
+  OBJECT_HEAD_INIT(&type_type)
   .name = "String",
 };
 

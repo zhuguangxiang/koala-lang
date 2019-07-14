@@ -13,22 +13,22 @@
 extern "C" {
 #endif
 
-struct string_object {
+typedef struct stringobject {
   OBJECT_HEAD
   /* unicode length */
   int len;
   char *atom;
-};
+} StringObject;
 
-struct char_object {
+typedef struct charobject {
   OBJECT_HEAD
   uint32_t value;
-};
+} CharObject;
 
-extern struct klass string_type;
-void init_string_type(void);
-void free_string_type(void);
-struct object *new_string(char *str);
+extern TypeObject string_type;
+void init_stringobject(void);
+void fini_stringobject(void);
+Object *new_string(char *str);
 
 #ifdef __cplusplus
 }

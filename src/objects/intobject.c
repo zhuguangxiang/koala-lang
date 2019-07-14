@@ -5,51 +5,51 @@
 
 #include "objects/intobject.h"
 
-struct klass int_type = {
-  OBJECT_HEAD_INIT(&class_type)
+TypeObject int_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Integer",
 };
 
-struct klass bool_type = {
-  OBJECT_HEAD_INIT(&class_type)
+TypeObject bool_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Bool",
 };
 
-struct klass byte_type = {
-  OBJECT_HEAD_INIT(&class_type)
+TypeObject byte_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Byte",
 };
 
-struct object *__int_add__(struct object *ob, struct object *args)
+Object *_int_add_(Object *ob, Object *args)
 {
   return NULL;
 }
 
 static struct cfuncdef int_funcs[] = {
-  {"__add__", "i", "i", __int_add__},
+  {"__add__", "i", "i", _int_add_},
   {NULL}
 };
 
-struct bool_object true_obj;
-struct bool_object false_obj;
+BoolObject true_object;
+BoolObject false_object;
 
-void init_int_type(void)
+void init_intobject(void)
 {
   mtable_init(&int_type.mtbl);
   klass_add_cfuncs(&int_type, int_funcs);
 }
 
-void free_int_type(void)
+void fini_intobject(void)
 {
 
 }
 
-struct object *new_integer(int64_t val)
+Object *new_integer(int64_t val)
 {
   return NULL;
 }
 
-struct object *new_byte(int val)
+Object *new_byte(int val)
 {
   return NULL;
 }

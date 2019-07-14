@@ -12,17 +12,17 @@
 extern "C" {
 #endif
 
-struct tuple_object {
+typedef struct tupleobject {
   OBJECT_HEAD
   int size;
-  struct object *items[0];
-};
+  Object *items[0];
+} TupleObject;
 
-extern struct klass tuple_type;
-void init_tuple_type(void);
-void free_tuple_type(void);
-struct object *new_tuple(int size);
-struct object *new_ntuple(int size, ...);
+extern TypeObject tuple_type;
+void init_tupleobject(void);
+void free_tupleobject(void);
+Object *new_tuple(int size);
+Object *new_vtuple(int size, ...);
 
 #ifdef __cplusplus
 }

@@ -26,9 +26,9 @@ extern "C" {
 #define TYPEDESC_HEAD \
   int kind; int refcnt;
 
-struct typedesc {
+typedef struct typedesc {
   TYPEDESC_HEAD
-};
+} TypeDesc;
 
 #define TYPE_INCREF(_desc_) \
 ({                          \
@@ -37,43 +37,43 @@ struct typedesc {
   _desc_;                   \
 })
 
-#define TYPE_DECREF(_desc_)    \
-({                             \
-  struct typedesc *_d_ =       \
-  (struct typedesc *)(_desc_); \
-  if (_d_) {                   \
-    --_d_->refcnt;             \
-    assert(_d_->refcnt >= 0);  \
-    if (_d_->refcnt <= 0)      \
-      typedesc_free(_d_);      \
-  }                            \
+#define TYPE_DECREF(_desc_)             \
+({                                      \
+  TypeDesc *_d_ = (TypeDesc *)(_desc_); \
+  if (_d_) {                            \
+    --_d_->refcnt;                      \
+    assert(_d_->refcnt >= 0);           \
+    if (_d_->refcnt <= 0)               \
+      typedesc_free(_d_);               \
+  }                                     \
 })
 
-void typedesc_destroy(void);
-void typedesc_free(struct typedesc *desc);
-void typedesc_tostr(struct typedesc *desc, struct strbuf *buf);
-int typedesc_equal(struct typedesc *desc1, struct typedesc *desc2);
-struct typedesc **typestr_toarr(char *s);
+void init_typedesc(void);
+void fini_typedesc(void);
+void typedesc_free(TypeDesc *desc);
+void typedesc_tostr(TypeDesc *desc, struct strbuf *buf);
+int typedesc_equal(TypeDesc *desc1, TypeDesc *desc2);
+TypeDesc **typestr_toarr(char *s);
 
-struct basedesc {
+typedef struct basedesc {
   TYPEDESC_HEAD
-};
+} BaseDesc;
 
-struct klassdesc {
+typedef struct klassdesc {
   TYPEDESC_HEAD
-  char **pathes;
+  char **pathes; /* null-terminated array */
   char *type;
-};
+} KlassDesc;
 
-struct protodesc {
+typedef struct protodesc {
   TYPEDESC_HEAD
-  struct typedesc **args;
-  struct typedesc *ret;
-};
+  TypeDesc **args; /* null-terminated array */
+  TypeDesc *ret;
+} ProtoDesc;
 
-struct typedesc *get_basedesc(int kind);
-struct typedesc *new_klassdesc(char **pathes, char *type);
-struct typedesc *new_protodesc(struct typedesc **args, struct typedesc *ret);
+TypeDesc *get_basedesc(int kind);
+TypeDesc *new_klassdesc(char **pathes, char *type);
+TypeDesc *new_protodesc(TypeDesc **args, TypeDesc *ret);
 
 #ifdef __cplusplus
 }

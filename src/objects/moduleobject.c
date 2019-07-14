@@ -10,49 +10,48 @@
 
 static VECTOR_PTR(modules);
 
-struct klass module_type = {
-  OBJECT_HEAD_INIT(&class_type)
+TypeObject module_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Module",
 };
 
-struct object *__module_members__(struct object *ob, struct object *args)
+Object *_module_members_(Object *ob, Object *args)
 {
 
 }
 
-struct object *__module_name__(struct object *ob, struct object *args)
+Object *_module_name_(Object *ob, Object *args)
 {
 
 }
 
 static struct cfuncdef mod_funcs[] = {
-  {"__members__", NULL, "Llang.Tuple;", __module_members__},
-  {"__name__", NULL, "s", __module_name__},
+  {"__members__", NULL, "Llang.Tuple;", _module_members_},
+  {"__name__", NULL, "s", _module_name_},
   {NULL}
 };
 
-void module_initialize(void)
+void init_moduleobject(void)
 {
   mtable_init(&module_type.mtbl);
   klass_add_cfuncs(&module_type, mod_funcs);
 }
 
-void module_destroy(void)
+void fini_moduleobject(void)
 {
-  mtable_free(&module_type.mtbl);
-  typedesc_destroy();
+  mtable_fini(&module_type.mtbl);
 }
 
-struct object *new_module(char *name)
+Object *new_module(char *name)
 {
-  struct module_object *mob = kmalloc(sizeof(*mob));
+  ModuleObject *mob = kmalloc(sizeof(*mob));
   init_object_head(mob, &module_type);
   mob->name = atom(name);
   mtable_init(&mob->mtbl);
-  return (struct object *)mob;
+  return (Object *)mob;
 }
 
-void install_module(char *path, struct object *ob)
+void install_module(char *path, Object *ob)
 {
   OB_TYPE_ASSERT(ob, &module_type);
   char **name = path_toarr(path, strlen(path));

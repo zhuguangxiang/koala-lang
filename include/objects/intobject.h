@@ -12,30 +12,30 @@
 extern "C" {
 #endif
 
-struct int_object {
+typedef struct intobject {
   OBJECT_HEAD
   int64_t value;
-};
+} IntObject;
 
-struct bool_object {
+typedef struct boolobject {
   OBJECT_HEAD
   int value;
-};
+} BoolObject;
 
-struct byte_object {
+typedef struct byteobject {
   OBJECT_HEAD
   int value;
-};
+} ByteObject;
 
-extern struct klass int_type;
-extern struct klass bool_type;
-extern struct klass byte_type;
-extern struct bool_object true_obj;
-extern struct bool_object false_obj;
-void init_int_type(void);
-void free_int_type(void);
-struct object *new_integer(int64_t val);
-struct object *new_byte(int val);
+extern TypeObject int_type;
+extern TypeObject bool_type;
+extern TypeObject byte_type;
+extern BoolObject true_object;
+extern BoolObject false_object;
+void init_intobject(void);
+void fini_intobject(void);
+Object *new_integer(int64_t val);
+Object *new_byte(int val);
 
 #ifdef __cplusplus
 }

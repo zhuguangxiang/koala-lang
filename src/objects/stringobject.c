@@ -5,19 +5,19 @@
 
 #include "objects/stringobject.h"
 
-struct klass string_type = {
-  OBJECT_HEAD_INIT(&class_type)
+TypeObject string_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "String",
 };
 
-struct object *__string_concat__(struct object *ob, struct object *args)
+Object *_string_concat_(Object *ob, Object *args)
 {
   OB_TYPE_ASSERT(ob, &string_type);
   OB_TYPE_ASSERT(args, &string_type);
   return NULL;
 }
 
-struct object *__string_length__(struct object *ob, struct object *args)
+Object *_string_length_(Object *ob, Object *args)
 {
   OB_TYPE_ASSERT(ob, &string_type);
   assert(!args);
@@ -25,24 +25,24 @@ struct object *__string_length__(struct object *ob, struct object *args)
 }
 
 static struct cfuncdef str_funcs[] = {
-  {"concat", "s", "s", __string_concat__},
-  {"length", NULL, "i", __string_length__},
-  {"__add__", "s", "s", __string_concat__},
+  {"concat", "s", "s", _string_concat_},
+  {"length", NULL, "i", _string_length_},
+  {"__add__", "s", "s", _string_concat_},
   {NULL}
 };
 
-void init_string_type(void)
+void init_stringobject(void)
 {
   mtable_init(&string_type.mtbl);
   klass_add_cfuncs(&string_type, str_funcs);
 }
 
-void free_string_type(void)
+void fini_stringobject(void)
 {
 
 }
 
-struct object *new_string(char *str)
+Object *new_string(char *str)
 {
   return NULL;
 }

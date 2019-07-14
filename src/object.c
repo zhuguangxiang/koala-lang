@@ -7,13 +7,13 @@
 #include "objects/codeobject.h"
 #include "atom.h"
 
-struct member *new_member(int kind, char *name, struct typedesc *type)
+struct member *new_member(int kind, char *name, TypeDesc *type)
 {
   struct member *m = kmalloc(sizeof(*m));
   hashmap_entry_init(m, strhash(name));
   m->name = atom(name);
   m->kind = kind;
-  m->type = TYPE_INCREF(type);
+  m->desc = TYPE_INCREF(type);
   return m;
 }
 
@@ -29,11 +29,11 @@ void free_member(struct member *m)
     break;
   }
   }
-  TYPE_DECREF(m->type);
+  TYPE_DECREF(m->desc);
   kfree(m);
 }
 
-static int __member_cmp_cb__(void *e1, void *e2)
+static int _member_cmp_cb_(void *e1, void *e2)
 {
   if (e1 == e2)
     return 0;
@@ -44,35 +44,35 @@ static int __member_cmp_cb__(void *e1, void *e2)
   return strcmp(m1->name, m2->name);
 }
 
-static void __member_free_cb__(void *e, void *data)
+static void _member_free_cb_(void *e, void *data)
 {
   free_member(e);
 }
 
 void mtable_init(struct mtable *mtbl)
 {
-  hashmap_init(&mtbl->tbl, __member_cmp_cb__);
+  hashmap_init(&mtbl->tbl, _member_cmp_cb_);
 }
 
-void mtable_free(struct mtable *mtbl)
+void mtable_fini(struct mtable *mtbl)
 {
-  hashmap_free(&mtbl->tbl, __member_free_cb__, NULL);
+  hashmap_free(&mtbl->tbl, _member_free_cb_, NULL);
 }
 
 void mtable_add_const(struct mtable *mtbl, char *name,
-                      struct typedesc *type, struct object *val)
+                      TypeDesc *type, Object *val)
 {
 
 }
 
-void mtable_add_var(struct mtable *mtbl, char *name, struct typedesc *type)
+void mtable_add_var(struct mtable *mtbl, char *name, TypeDesc *type)
 {
 
 }
 
-void mtable_add_func(struct mtable *mtbl, char *name, struct object *code)
+void mtable_add_func(struct mtable *mtbl, char *name, Object *code)
 {
-  struct code_object *co = (struct code_object *)code;
+  struct codeobject *co = (struct codeobject *)code;
   struct member *m = new_member(MBR_FUNC, name, co->proto);
   m->code = OB_INCREF(code);
   hashmap_add(&mtbl->tbl, m);
@@ -80,7 +80,7 @@ void mtable_add_func(struct mtable *mtbl, char *name, struct object *code)
 
 void mtable_add_cfuncs(struct mtable *mtbl, struct cfuncdef *funcs)
 {
-  struct object *code;
+  Object *code;
   struct cfuncdef *f = funcs;
   while (f->name) {
     code = code_from_cfunc(f);
@@ -90,51 +90,51 @@ void mtable_add_cfuncs(struct mtable *mtbl, struct cfuncdef *funcs)
   }
 }
 
-struct klass class_type = {
-  OBJECT_HEAD_INIT(&class_type)
-  .name = "Class",
+TypeObject type_type = {
+  OBJECT_HEAD_INIT(&type_type)
+  .name = "TypeType",
 };
 
-struct klass any_type = {
-  OBJECT_HEAD_INIT(&class_type)
+TypeObject any_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Any"
 };
 
-struct klass nil_type = {
-  OBJECT_HEAD_INIT(&class_type)
+static TypeObject nil_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "NilType"
 };
 
-struct object nil_obj = {
+Object nil_object = {
   OBJECT_HEAD_INIT(&nil_type)
 };
 
-struct object *__class_members__(struct object *ob, struct object *args)
+Object *_class_members_(Object *ob, Object *args)
 {
   return NULL;
 }
 
-struct object *__class_name__(struct object *ob, struct object *args)
+Object *_class_name_(Object *ob, Object *args)
 {
-  OB_TYPE_ASSERT(ob, &class_type);
+  OB_TYPE_ASSERT(ob, &type_type);
   assert(!args);
-  struct klass *type = (struct klass *)ob;
+  TypeObject *type = (TypeObject *)ob;
   return new_string(type->name);
 }
 
 static struct cfuncdef class_funcs[] = {
-  {"__members__", NULL, "Llang.Tuple;", __class_members__},
-  {"__name__", NULL, "s", __class_name__},
+  {"__members__", NULL, "Llang.Tuple;", _class_members_},
+  {"__name__", NULL, "s", _class_name_},
   {NULL}
 };
 
-void init_klass_type(void)
+void init_typeobject(void)
 {
-  mtable_init(&class_type.mtbl);
-  klass_add_cfuncs(&class_type, class_funcs);
+  mtable_init(&type_type.mtbl);
+  klass_add_cfuncs(&type_type, class_funcs);
 }
 
-void free_klass_type(void)
+void fini_typeobject(void)
 {
 
 }

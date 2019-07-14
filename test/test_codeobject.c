@@ -11,13 +11,13 @@ int main(int argc, char *argv[])
   atom_init();
 
   struct cfuncdef func = {"hello", "Llang.String;si", "s", NULL};
-  struct object *code = code_from_cfunc(&func);
-  struct code_object *co = (struct code_object *)code;
+  Object *code = code_from_cfunc(&func);
+  CodeObject *co = (CodeObject *)code;
   assert(co->proto->refcnt == 1);
   TYPE_DECREF(co->proto);
   kfree(code);
-  typedesc_destroy();
 
+  fini_typedesc();
   atom_fini();
   return 0;
 }

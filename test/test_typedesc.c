@@ -26,8 +26,7 @@ int main(int argc, char *argv[])
   TYPE_DECREF(desc[0]);
   kfree(desc);
 
-  typedesc_destroy();
-
+  fini_typedesc();
   atom_fini();
 
   return 0;
