@@ -6,8 +6,8 @@
 #include <stdarg.h>
 #include "objects/tupleobject.h"
 
-TypeObject tuple_type = {
-  OBJECT_HEAD_INIT(&type_type)
+Klass tuple_type = {
+  OBJECT_HEAD_INIT(&class_type)
   .name = "Tuple",
 };
 
@@ -29,7 +29,7 @@ static struct cfuncdef tuple_funcs[] = {
 
 void init_tupleobject(void)
 {
-  mtable_init(&tuple_type.mtbl);
+  mtbl_init(&tuple_type.mtbl);
   klass_add_cfuncs(&tuple_type, tuple_funcs);
 }
 

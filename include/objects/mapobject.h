@@ -12,17 +12,14 @@
 extern "C" {
 #endif
 
-struct string_object {
+typedef struct mapobject {
   OBJECT_HEAD
-  /* unicode length */
-  int len;
-  char *atom;
-};
+} MapObject;
 
-extern struct klass string_type;
-void init_string_type(void);
-void free_string_type(void);
-struct object *new_string(char *str);
+extern Klass map_type;
+void init_mapobject(void);
+void fini_mapobject(void);
+Object *new_map(void);
 
 #ifdef __cplusplus
 }

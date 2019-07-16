@@ -10,8 +10,8 @@
 
 static VECTOR_PTR(modules);
 
-TypeObject module_type = {
-  OBJECT_HEAD_INIT(&type_type)
+Klass module_type = {
+  OBJECT_HEAD_INIT(&class_type)
   .name = "Module",
 };
 
@@ -33,13 +33,13 @@ static struct cfuncdef mod_funcs[] = {
 
 void init_moduleobject(void)
 {
-  mtable_init(&module_type.mtbl);
+  mtbl_init(&module_type.mtbl);
   klass_add_cfuncs(&module_type, mod_funcs);
 }
 
 void fini_moduleobject(void)
 {
-  mtable_fini(&module_type.mtbl);
+  mtbl_fini(&module_type.mtbl);
 }
 
 Object *new_module(char *name)
@@ -47,7 +47,7 @@ Object *new_module(char *name)
   ModuleObject *mob = kmalloc(sizeof(*mob));
   init_object_head(mob, &module_type);
   mob->name = atom(name);
-  mtable_init(&mob->mtbl);
+  mtbl_init(&mob->mtbl);
   return (Object *)mob;
 }
 

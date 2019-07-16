@@ -12,17 +12,14 @@
 extern "C" {
 #endif
 
-struct string_object {
+typedef struct arrayobject {
   OBJECT_HEAD
-  /* unicode length */
-  int len;
-  char *atom;
-};
+} ArrayObject;
 
-extern struct klass string_type;
-void init_string_type(void);
-void free_string_type(void);
-struct object *new_string(char *str);
+extern Klass array_type;
+void init_arrayobject(void);
+void fini_arrayobject(void);
+Object *new_array(int dims, TypeDesc *type);
 
 #ifdef __cplusplus
 }

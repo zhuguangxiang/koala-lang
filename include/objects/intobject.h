@@ -27,9 +27,9 @@ typedef struct byteobject {
   int value;
 } ByteObject;
 
-extern TypeObject int_type;
-extern TypeObject bool_type;
-extern TypeObject byte_type;
+extern Klass int_type;
+extern Klass bool_type;
+extern Klass byte_type;
 extern BoolObject true_object;
 extern BoolObject false_object;
 void init_intobject(void);

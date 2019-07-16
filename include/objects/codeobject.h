@@ -33,7 +33,7 @@ typedef struct codeobject {
   };
 } CodeObject;
 
-extern TypeObject code_type;
+extern Klass code_type;
 Object *code_from_cfunc(struct cfuncdef *f);
 
 #ifdef __cplusplus

@@ -12,17 +12,14 @@
 extern "C" {
 #endif
 
-struct string_object {
+typedef struct floatobject {
   OBJECT_HEAD
-  /* unicode length */
-  int len;
-  char *atom;
-};
+} FloatObject;
 
-extern struct klass string_type;
-void init_string_type(void);
-void free_string_type(void);
-struct object *new_string(char *str);
+extern Klass float_type;
+void init_floatobject(void);
+void fini_floatobject(void);
+Object *new_float(double val);
 
 #ifdef __cplusplus
 }

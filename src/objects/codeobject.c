@@ -5,8 +5,8 @@
 
 #include "objects/codeobject.h"
 
-TypeObject code_type = {
-  OBJECT_HEAD_INIT(&type_type)
+Klass code_type = {
+  OBJECT_HEAD_INIT(&class_type)
   .name = "Code",
 };
 

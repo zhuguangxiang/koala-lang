@@ -5,8 +5,8 @@
 
 #include "objects/stringobject.h"
 
-TypeObject string_type = {
-  OBJECT_HEAD_INIT(&type_type)
+Klass string_type = {
+  OBJECT_HEAD_INIT(&class_type)
   .name = "String",
 };
 
@@ -33,7 +33,7 @@ static struct cfuncdef str_funcs[] = {
 
 void init_stringobject(void)
 {
-  mtable_init(&string_type.mtbl);
+  mtbl_init(&string_type.mtbl);
   klass_add_cfuncs(&string_type, str_funcs);
 }
 

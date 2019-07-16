@@ -5,18 +5,18 @@
 
 #include "objects/intobject.h"
 
-TypeObject int_type = {
-  OBJECT_HEAD_INIT(&type_type)
+Klass int_type = {
+  OBJECT_HEAD_INIT(&class_type)
   .name = "Integer",
 };
 
-TypeObject bool_type = {
-  OBJECT_HEAD_INIT(&type_type)
+Klass bool_type = {
+  OBJECT_HEAD_INIT(&class_type)
   .name = "Bool",
 };
 
-TypeObject byte_type = {
-  OBJECT_HEAD_INIT(&type_type)
+Klass byte_type = {
+  OBJECT_HEAD_INIT(&class_type)
   .name = "Byte",
 };
 
@@ -35,7 +35,7 @@ BoolObject false_object;
 
 void init_intobject(void)
 {
-  mtable_init(&int_type.mtbl);
+  mtbl_init(&int_type.mtbl);
   klass_add_cfuncs(&int_type, int_funcs);
 }
 

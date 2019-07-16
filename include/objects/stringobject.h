@@ -25,7 +25,7 @@ typedef struct charobject {
   uint32_t value;
 } CharObject;
 
-extern TypeObject string_type;
+extern Klass string_type;
 void init_stringobject(void);
 void fini_stringobject(void);
 Object *new_string(char *str);

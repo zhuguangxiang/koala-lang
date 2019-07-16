@@ -18,7 +18,7 @@ typedef struct tupleobject {
   Object *items[0];
 } TupleObject;
 
-extern TypeObject tuple_type;
+extern Klass tuple_type;
 void init_tupleobject(void);
 void free_tupleobject(void);
 Object *new_tuple(int size);
