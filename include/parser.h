@@ -7,6 +7,7 @@
 #define _KOALA_PARSER_H_
 
 #include <inttypes.h>
+#include "common.h"
 
 #ifdef __cplusplus
 extern "C" {

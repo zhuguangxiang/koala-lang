@@ -189,8 +189,6 @@ var_decl:
   VAR ID type ';'
 | VAR ID type '=' expr ';'
 | VAR ID '=' expr ';'
-| VAR '(' id_list ID ')' '=' expr ';'
-| VAR '(' id_list ID ')' '(' type_list ')' '=' expr ';'
 | VAR ID error
 {
   printf("var ID error\n");
@@ -203,12 +201,6 @@ var_decl:
 
 free_var_decl:
   ID FREE_ASSIGN expr ';'
-| '(' id_list ID ')' FREE_ASSIGN expr ';'
-;
-
-id_list:
-  ID ','
-| id_list ID ','
 ;
 
 assignment:
@@ -272,10 +264,15 @@ range_object:
 lambda_object:
   '(' ID ')' FAT_ARROW block
 | '(' ID ')' FAT_ARROW basic_expr
-| '(' id_list ID ')' FAT_ARROW block
-| '(' id_list ID ')' FAT_ARROW basic_expr
+| '(' idlist ID ')' FAT_ARROW block
+| '(' idlist ID ')' FAT_ARROW basic_expr
 | '(' ')' FAT_ARROW block
 | '(' ')' FAT_ARROW basic_expr
+;
+
+idlist:
+  ID ','
+| idlist ID ','
 ;
 
 logic_or_expr:

@@ -42,10 +42,10 @@ static inline void vector_init(struct vector *self, int itemsize)
 }
 
 /* Free item callback function of vector_free */
-typedef void (*vector_free_fn)(void *, void *);
+typedef void (*vector_freefunc)(void *, void *);
 
 /* Destroy a vector with item free function. 'freefn' is optional. */
-void vector_free(struct vector *self, vector_free_fn freefn, void *data);
+void vector_free(struct vector *self, vector_freefunc freefunc, void *data);
 
 /*
  * Remove all items from the vector, leaving the container with a size of 0.

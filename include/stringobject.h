@@ -6,7 +6,7 @@
 #ifndef _KOALA_STRING_OBJECT_H_
 #define _KOALA_STRING_OBJECT_H_
 
-#include <inttypes.h>
+#include <wchar.h>
 #include "object.h"
 
 #ifdef __cplusplus
@@ -17,18 +17,18 @@ typedef struct stringobject {
   OBJECT_HEAD
   /* unicode length */
   int len;
-  char *atom;
+  char *wstr;
 } StringObject;
 
 typedef struct charobject {
   OBJECT_HEAD
-  uint32_t value;
+  unsigned int value;
 } CharObject;
 
-extern Klass string_type;
-void init_stringobject(void);
-void fini_stringobject(void);
-Object *new_string(char *str);
+extern TypeObject String_Type;
+#define String_Check(ob) (OB_TYPE(ob) == &String_Type)
+Object *String_New(char *str);
+char *String_AsStr(Object *self);
 
 #ifdef __cplusplus
 }

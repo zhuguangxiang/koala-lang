@@ -37,13 +37,13 @@ static int __vector_maybe_expand(struct vector *self, int extrasize)
   return 0;
 }
 
-void vector_free(struct vector *self, vector_free_fn freefn, void *data)
+void vector_free(struct vector *self, vector_freefunc freefunc, void *data)
 {
-  if (freefn != NULL) {
+  if (freefunc != NULL) {
     VECTOR_ITERATOR(iter, self);
     void *item;
     iter_for_each(&iter, item)
-      freefn(item, data);
+      freefunc(item, data);
   }
   kfree(self->items);
   self->size = 0;
@@ -120,12 +120,12 @@ void *vector_toarr(struct vector *self)
 void *vector_iter_next(struct iterator *iter)
 {
   struct vector *vec = iter->iterable;
-  if (vec->size <= 0)
+  if (!vec || vec->size <= 0)
     return NULL;
 
   if (iter->index < vec->size) {
     iter->item = __vector_offset(vec, iter->index);
-    iter->index++;
+    ++iter->index;
   } else {
     iter->item = NULL;
   }
@@ -135,7 +135,7 @@ void *vector_iter_next(struct iterator *iter)
 void *vector_iter_prev(struct iterator *iter)
 {
   struct vector *vec = iter->iterable;
-  if (vec->size <= 0)
+  if (!vec || vec->size <= 0)
     return NULL;
 
   if (iter->item == NULL)

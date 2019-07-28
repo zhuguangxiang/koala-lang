@@ -32,7 +32,7 @@ static void show_banner(void)
 static struct module mod;
 static struct parser_state ps;
 
-void koala_active(void)
+void Koala_Active(void)
 {
   yyscan_t scanner;
 

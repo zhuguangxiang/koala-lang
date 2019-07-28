@@ -32,7 +32,7 @@ static void random_string(char *data, int len)
   int i;
   int idx;
 
-  for (i = 0; i < len; i++) {
+  for (i = 0; i < len; ++i) {
     idx = rand() % (sizeof(char_set)/sizeof(char_set[0]) - 1);
     data[i] = char_set[idx];
   }
@@ -48,7 +48,7 @@ void test_string_hash(void)
   int res;
   void *s2;
 
-  for (int i = 0; i < 10000; i++) {
+  for (int i = 0; i < 10000; ++i) {
     s = kmalloc(sizeof(struct str) + 11);
     random_string((char *)(s + 1), 10);
     hashmap_entry_init(s, strhash((char *)(s + 1)));
@@ -59,7 +59,7 @@ void test_string_hash(void)
   }
 
 #if 0
-  for (int i = 0; i < strmap.size; i++) {
+  for (int i = 0; i < strmap.size; ++i) {
     struct str *s = (struct str *)strmap.entries[i];
     printf("[%d]:", i);
     while (s) {

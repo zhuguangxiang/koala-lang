@@ -27,7 +27,7 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   };
 
   int token = ps->token;
-  for (int i = 0; i < sizeof(tokens)/sizeof(tokens[0]); i++) {
+  for (int i = 0; i < COUNT_OF(tokens); ++i) {
     if (tokens[i] == token)
       return 1;
   }

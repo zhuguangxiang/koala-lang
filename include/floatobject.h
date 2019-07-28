@@ -16,7 +16,7 @@ typedef struct floatobject {
   OBJECT_HEAD
 } FloatObject;
 
-extern Klass float_type;
+extern TypeObject float_type;
 void init_floatobject(void);
 void fini_floatobject(void);
 Object *new_float(double val);

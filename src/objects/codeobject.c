@@ -3,13 +3,9 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include "objects/codeobject.h"
+#include "codeobject.h"
 
-Klass code_type = {
-  OBJECT_HEAD_INIT(&class_type)
-  .name = "Code",
-};
-
+/*
 static Object *cfunc_new(TypeDesc *proto, cfunc_t func)
 {
   CodeObject *code = kmalloc(sizeof(*code));
@@ -32,3 +28,9 @@ Object *code_from_cfunc(struct cfuncdef *f)
   TYPE_DECREF(proto);
   return code;
 }
+*/
+
+TypeObject Code_Type = {
+  OBJECT_HEAD_INIT(&Class_Type)
+  .name = "Code",
+};

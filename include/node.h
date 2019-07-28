@@ -31,6 +31,9 @@ void node_init(void);
 /* Free node tree and leaf node */
 void node_fini(void);
 
+/* Convert a path string to null-terminated string array. */
+char **path_toarr(char *path, int len);
+
 #ifdef __cplusplus
 }
 #endif

@@ -48,7 +48,6 @@ typedef struct typedesc {
   }                                     \
 })
 
-void init_typedesc(void);
 void fini_typedesc(void);
 void typedesc_free(TypeDesc *desc);
 void typedesc_tostr(TypeDesc *desc, struct strbuf *buf);
@@ -74,6 +73,8 @@ typedef struct protodesc {
 TypeDesc *get_basedesc(int kind);
 TypeDesc *new_klassdesc(char **pathes, char *type);
 TypeDesc *new_protodesc(TypeDesc **args, TypeDesc *ret);
+TypeDesc *TypeStr_ToDesc(char *s);
+TypeDesc *TypeStr_ToProto(char *ptype, char *rtype);
 
 #ifdef __cplusplus
 }

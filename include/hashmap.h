@@ -68,7 +68,7 @@ struct hashmap_entry {
  * Compare function to test two keys for equality.
  * Returns 0 if the twoe entries are equal.
  */
-typedef int (*hashmap_cmp_fn)(void *k1, void *k2);
+typedef int (*hashmap_cmpfunc)(void *k1, void *k2);
 
 /* a hash map structure. */
 struct hashmap {
@@ -77,7 +77,7 @@ struct hashmap {
   /* entries array size */
   int size;
   /* comparison function */
-  hashmap_cmp_fn cmpfn;
+  hashmap_cmpfunc cmpfunc;
   /* total number of entries */
   int count;
   /* expand entries array point */
@@ -101,13 +101,13 @@ static inline int hashmap_size(struct hashmap *self)
 }
 
 /* Initialize a hash map. */
-void hashmap_init(struct hashmap *self, hashmap_cmp_fn cmpfn);
+void hashmap_init(struct hashmap *self, hashmap_cmpfunc cmpfunc);
 
 /* Free function for hashmap entry, when the hashmap is destroyed. */
-typedef void (*hashmap_free_fn)(void *entry, void *data);
+typedef void (*hashmap_freefunc)(void *entry, void *data);
 
 /* Destroy the hashmap and free its allocated memory. */
-void hashmap_free(struct hashmap *self, hashmap_free_fn freefn, void *data);
+void hashmap_free(struct hashmap *self, hashmap_freefunc freefunc, void *data);
 
 /*
  * Retrieve the hashmap entry for the specified hash code.

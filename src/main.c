@@ -48,7 +48,7 @@ static void save_path(char *arg)
   int len = slash - path + 1;
 
   if (len >= MAX_PATH_LEN) {
-    errmsg("Too long module's path.");
+    error("Too long module's path.");
     usage();
     exit(0);
   }
@@ -88,7 +88,7 @@ void parse_command(int argc, char *argv[])
       exit(0);
       break;
     default:
-      errmsg("invalid option '%c'.", opt);
+      error("invalid option '%c'.", opt);
       usage();
       exit(0);
       break;
@@ -101,7 +101,7 @@ void parse_command(int argc, char *argv[])
       exit(0);
     }
     if (cflag) {
-      errmsg("Only one module is allowed.");
+      error("Only one module is allowed.");
       usage();
       exit(0);
     }
@@ -110,7 +110,7 @@ void parse_command(int argc, char *argv[])
   }
 
   if (optind < argc) {
-    errmsg("Only one module is allowed.");
+    error("Only one module is allowed.");
     usage();
     exit(0);
   }
@@ -120,17 +120,17 @@ int main(int argc, char *argv[])
 {
   parse_command(argc, argv);
 
-  koala_initialize();
+  Koala_Initialize();
 
   if (cflag == 1) {
-    koala_compile(module);
+    Koala_Compile(module);
   } else if (cflag == 2) {
-    koala_run(module);
+    Koala_Run(module);
   } else {
-    koala_active();
+    Koala_Active();
   }
 
-  koala_finalize();
+  Koala_Finalize();
 
   return 0;
 }

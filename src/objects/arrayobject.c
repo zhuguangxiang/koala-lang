@@ -5,8 +5,8 @@
 
 #include "objects/arrayobject.h"
 
-Klass array_type = {
-  OBJECT_HEAD_INIT(&class_type)
+TypeObject array_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "String",
 };
 

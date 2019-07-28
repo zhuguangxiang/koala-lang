@@ -21,7 +21,7 @@ static void *number_next(struct iterator *iter)
 int main(int argc, char *argv[])
 {
   int numbers[100];
-  for (int i = 0; i < 100; i++)
+  for (int i = 0; i < 100; ++i)
     numbers[i] = 1001 + i;
 
   ITERATOR(iter, numbers, number_next);

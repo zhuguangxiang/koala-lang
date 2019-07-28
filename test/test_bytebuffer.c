@@ -13,7 +13,7 @@ static void random_string(char *data, int len)
   int i;
   int idx;
 
-  for (i = 0; i < len; i++) {
+  for (i = 0; i < len; ++i) {
     idx = rand() % (sizeof(char_set)/sizeof(char_set[0]) - 1);
     data[i] = char_set[idx];
   }
@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
   bytebuffer_init(&buffer, 16);
   srand(time(NULL));
 
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 10; ++i) {
     random_string(data, 10);
     memcpy(saved + i * 10, data, 10);
     bytebuffer_write(&buffer, data, 10);

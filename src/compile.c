@@ -15,7 +15,7 @@
 #include "koala_yacc.h"
 #include "koala_lex.h"
 #include "vector.h"
-#include "debug.h"
+#include "log.h"
 
 int file_input(struct parser_state *ps, char *buf, int size, FILE *in)
 {
@@ -23,7 +23,7 @@ int file_input(struct parser_state *ps, char *buf, int size, FILE *in)
   int result = 0;
   while ((result = (int)fread(buf, 1, (size_t)size, in)) == 0 && ferror(in)) {
     if (errno != EINTR) {
-      errmsg("Input in scanner failed.");
+      error("Input in scanner failed.");
       break;
     }
     errno = 0;
@@ -49,7 +49,7 @@ static int valid_source(char *path)
     filename = path;
 
   if (!isdotkl(filename)) {
-    errmsg("%s: Not a valid koala source file.", path);
+    error("%s: Not a valid koala source file.", path);
     return 0;
   }
 
@@ -58,7 +58,7 @@ static int valid_source(char *path)
   char *dir = string_ndup(path, strlen(path) - 3);
   if (!stat(dir, &sb)) {
     kfree(dir);
-    errmsg("%s: The same name file or directory exist.", path);
+    error("%s: The same name file or directory exist.", path);
     return 0;
   } else {
     kfree(dir);
@@ -67,7 +67,7 @@ static int valid_source(char *path)
   dir = strrchr(path, '/');
   if (!dir) {
     if (!stat("./__init__.kl", &sb)) {
-      errmsg("Not allowed '__init__.kl' exist, "
+      error("Not allowed '__init__.kl' exist, "
              "when single source file '%s' is compiled.", path);
       return 0;
     }
@@ -77,7 +77,7 @@ static int valid_source(char *path)
     strcat(dir, "./__init__.kl");
     if (!stat(dir, &sb)) {
       kfree(dir);
-      errmsg("Not allowed '__init__.kl' exist, "
+      error("Not allowed '__init__.kl' exist, "
              "when single source file '%s' is compiled.", path);
       return 0;
     }
@@ -92,11 +92,11 @@ static VECTOR_PTR(mods);
 struct parser_state ps_test;
 
 /* koala -c a/b/foo.kl [a/b/foo] */
-void koala_compile(char *path)
+void Koala_Compile(char *path)
 {
   struct stat sb;
   if (stat(path, &sb) < 0) {
-    errmsg("%s: No such file or directory.", path);
+    error("%s: No such file or directory.", path);
     return;
   }
 

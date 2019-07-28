@@ -43,24 +43,24 @@ static void alloc_entries(struct hashmap *self, int size)
     self->shrink_at = self->grow_at / 5;
 }
 
-void hashmap_init(struct hashmap *self, hashmap_cmp_fn cmpfn)
+void hashmap_init(struct hashmap *self, hashmap_cmpfunc cmpfunc)
 {
   memset(self, 0, sizeof(*self));
-  self->cmpfn = cmpfn;
+  self->cmpfunc = cmpfunc;
   int size = HASHMAP_INITIAL_SIZE;
   alloc_entries(self, size);
 }
 
-void hashmap_free(struct hashmap *self, hashmap_free_fn freefn, void *data)
+void hashmap_free(struct hashmap *self, hashmap_freefunc freefunc, void *data)
 {
   if (!self || !self->entries)
     return;
 
-  if (freefn) {
+  if (freefunc) {
     HASHMAP_ITERATOR(iter, self);
     struct hashmap_entry *e;
     iter_for_each(&iter, e)
-      freefn(e, data);
+      freefunc(e, data);
   }
 
   kfree(self->entries);
@@ -76,7 +76,7 @@ static inline
 int entry_equals(struct hashmap *self,
                  struct hashmap_entry *e1, struct hashmap_entry *e2)
 {
-  return (e1 == e2) || (e1->hash == e2->hash && !self->cmpfn(e1, e2));
+  return (e1 == e2) || (e1->hash == e2->hash && !self->cmpfunc(e1, e2));
 }
 
 static inline
@@ -105,7 +105,7 @@ static void rehash(struct hashmap *self, int newsize)
   struct hashmap_entry *e;
   struct hashmap_entry *n;
   int b;
-  for (int i = 0; i < oldsize; i++) {
+  for (int i = 0; i < oldsize; ++i) {
     e = oldentries[i];
     while (e) {
       n = e->next;

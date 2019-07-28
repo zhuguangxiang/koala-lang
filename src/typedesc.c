@@ -3,9 +3,10 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
+#include "common.h"
 #include "typedesc.h"
 #include "vector.h"
-#include "path.h"
+#include "node.h"
 #include "atom.h"
 #include "memory.h"
 
@@ -25,12 +26,10 @@ struct {
 TypeDesc *get_basedesc(int kind)
 {
   BaseDesc *p;
-  int i = 0;
-  while (i < sizeof(basearray)/sizeof(basearray[0])) {
+  for (int i = 0; i < COUNT_OF(basearray); ++i) {
     p = &basearray[i].type;
     if (p->kind == kind)
       return (TypeDesc *)p;
-    i++;
   }
   return NULL;
 }
@@ -38,11 +37,9 @@ TypeDesc *get_basedesc(int kind)
 static inline void check_base_refcnt(void)
 {
   BaseDesc *p;
-  int i = 0;
-  while (i < sizeof(basearray)/sizeof(basearray[0])) {
+  for (int i = 0; i < COUNT_OF(basearray); ++i) {
     p = &basearray[i].type;
     assert(p->refcnt == 1);
-    i++;
   }
 }
 
@@ -76,6 +73,13 @@ TypeDesc *new_protodesc(TypeDesc **args, TypeDesc *ret)
   desc->args = args;
   desc->ret = TYPE_INCREF(ret);
   return (TypeDesc *)desc;
+}
+
+TypeDesc *TypeStr_ToProto(char *ptype, char *rtype)
+{
+  TypeDesc **args = typestr_toarr(ptype);
+  TypeDesc *ret = TypeStr_ToDesc(rtype);
+  return new_protodesc(args, ret);
 }
 
 void typedesc_free(TypeDesc *desc)
@@ -126,7 +130,7 @@ static TypeDesc *__to_klassdesc(char *s, int len)
   return new_klassdesc(pathes, type);
 }
 
-static TypeDesc *__to_typedesc(char **str, int _dims, int _varg)
+static TypeDesc *__to_desc(char **str, int _dims, int _varg)
 {
   char *s = *str;
   char ch = *s;
@@ -153,6 +157,12 @@ static TypeDesc *__to_typedesc(char **str, int _dims, int _varg)
   return desc;
 }
 
+TypeDesc *TypeStr_ToDesc(char *s)
+{
+  if (!s) return NULL;
+  return __to_desc(&s, 0, 0);
+}
+
 TypeDesc **typestr_toarr(char *s)
 {
   if (!s)
@@ -161,7 +171,7 @@ TypeDesc **typestr_toarr(char *s)
   VECTOR_PTR(vec);
   TypeDesc *desc;
   while (*s) {
-    desc = __to_typedesc(&s, 0, 0);
+    desc = __to_desc(&s, 0, 0);
     vector_push_back(&vec, &desc);
   }
   TypeDesc **arr = vector_toarr(&vec);

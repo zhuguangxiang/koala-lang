@@ -7,7 +7,6 @@
 #include "node.h"
 #include "memory.h"
 #include "atom.h"
-#include "path.h"
 
 int main(int argc, char *argv[])
 {

@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
   assert(desc[1]->kind == TYPE_STR);
   assert(desc[2]->kind == TYPE_INT);
   assert(!desc[3]);
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 3; ++i) {
     TYPE_DECREF(desc[i]);
   }
   kfree(desc);

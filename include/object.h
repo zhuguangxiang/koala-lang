@@ -6,93 +6,51 @@
 #ifndef _KOALA_OBJECT_H_
 #define _KOALA_OBJECT_H_
 
+#include "typedesc.h"
 #include "hashmap.h"
 #include "vector.h"
-#include "typedesc.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct klass Klass;
 typedef struct object Object;
+typedef struct typeobject TypeObject;
 
-#define MBR_CONST 1
-#define MBR_VAR   2
-#define MBR_FUNC  3
-#define MBR_PROTO 4
-#define MBR_CLASS 5
-#define MBR_TRAIT 6
-#define MBR_ENUM  7
-#define MBR_EVAL  8
-#define MBR_MAX   9
+typedef Object *(*cfunc)(Object *, Object *);
+typedef Object *(*getfunc)(Object *, Object *);
+typedef int (*setfunc)(Object *, Object *, Object *);
 
-/* member structure */
-typedef struct mnode {
-  /* hashmap entry */
-  struct hashmap_entry entry;
-  /* member name */
-  char *name;
-  /* kind of member */
-  int kind;
-  /* its typedesc */
-  TypeDesc *desc;
-  /* value */
-  union {
-    /* offset of value */
-    int offset;
-    /* code object */
-    Object *code;
-    /* type object */
-    Klass *type;
-    /* enum value */
-    int enumval;
-  };
-} MNode;
-
-MNode *new_mnode(int kind, char *name, TypeDesc *type);
-void free_mnode(MNode *m);
-
-/* member table */
-typedef struct mtable {
-  struct hashmap tbl;
-  int counts[MBR_MAX];
-} MTable;
-
-/* function's proto, c and koala proto are the same. */
-typedef Object *(*cfunc_t)(Object *, Object *);
-
-void mtbl_init(MTable *mtbl);
-void mtbl_fini(MTable *mtbl);
-void mtbl_add_const(MTable *mtbl, char *name, TypeDesc *type, Object *val);
-void mtbl_add_var(MTable *mtbl, char *name, TypeDesc *type);
-void mtbl_add_func(MTable *mtbl, char *name, Object *code);
-
-struct cfuncdef {
+typedef struct {
   char *name;
   char *ptype;
   char *rtype;
-  cfunc_t func;
-};
+  cfunc func;
+} MethodDef;
 
-void mtbl_add_cfuncs(MTable *mtbl, struct cfuncdef *funcs);
-
-struct memberdef {
+typedef struct {
   char *name;
   char *type;
-  cfunc_t func;
+  getfunc getfunc;
+  setfunc setfunc;
+} FieldDef;
+
+struct mnode {
+  struct hashmap_entry entry;
+  char *name;
+  Object *obj;
 };
 
-void mtbl_add_props(struct mtable *mtbl, struct memberdef *members);
+struct mnode *mnode_new(char *name, Object *ob);
+int mnode_compare(void *e1, void *e2);
 
 /* object header */
 #define OBJECT_HEAD      \
   /* reference count */  \
   int ob_refcnt;         \
   /* type structure */   \
-  Klass *ob_type;
+  TypeObject *ob_type;
 
-/* root object */
 struct object {
   OBJECT_HEAD
 };
@@ -100,7 +58,7 @@ struct object {
 #define OBJECT_HEAD_INIT(_type_) \
   .ob_refcnt = 1, .ob_type = (_type_),
 
-#define init_object_head(_ob_, _type_) \
+#define Init_Object_Head(_ob_, _type_) \
 ({                                     \
   Object *ob = (Object *)(_ob_);       \
   ob->ob_refcnt = 1;                   \
@@ -110,112 +68,148 @@ struct object {
 #define OB_TYPE(_ob_) \
   ((Object *)(_ob_))->ob_type
 
-#define OB_TYPE_ASSERT(_ob_, _type_) \
-  assert(OB_TYPE(_ob_) == (_type_))
-
-#define OB_INCREF(_ob_)          \
-({                               \
-  Object *ob = (Object *)(_ob_); \
-  if (ob != NULL)                \
-    ob->ob_refcnt++;             \
-  (_ob_);                        \
+#define OB_INCREF(_ob_)         \
+({                              \
+  Object *o = (Object *)(_ob_); \
+  if (o != NULL)                \
+    o->ob_refcnt++;             \
+  (_ob_);                       \
 })
 
-#define OB_DECREF(_ob_)          \
-({                               \
-  Object *ob = (Object *)(_ob_); \
-  if (ob != NULL) {              \
-    --ob->ob_refcnt;             \
-    assert(ob->ob_refcnt >= 0);  \
-    if (ob->ob_refcnt <= 0) {    \
-      OB_TYPE(ob)->freefn(ob);   \
-      (_ob_) = NULL;             \
-    }                            \
-  }                              \
+#define OB_DECREF(_ob_)         \
+({                              \
+  Object *o = (Object *)(_ob_); \
+  if (o != NULL) {              \
+    --o->ob_refcnt;             \
+    assert(o->ob_refcnt >= 0);  \
+    if (o->ob_refcnt <= 0) {    \
+      OB_TYPE(o)->freefunc(o);  \
+      (_ob_) = NULL;            \
+    }                           \
+  }                             \
 })
+
+typedef struct {
+  /* arithmetic */
+  cfunc add;
+  cfunc sub;
+  cfunc mul;
+  cfunc div;
+  cfunc mod;
+  cfunc pow;
+  cfunc neg;
+  /* relational */
+  cfunc gt;
+  cfunc ge;
+  cfunc lt;
+  cfunc le;
+  cfunc eq;
+  cfunc neq;
+  /* bit */
+  cfunc band;
+  cfunc bor;
+  cfunc bxor;
+  cfunc bnot;
+  /* logic */
+  cfunc land;
+  cfunc lor;
+  cfunc lnot;
+} NumberMethods;
+
+/*
+ * map operations for array and map,
+ * If objects override '[]' operator, they also have map operations.
+ */
+typedef struct {
+  cfunc getitem;
+  cfunc setitem;
+} MappingMethods;
 
 /* mark and sweep callback */
-typedef void (*ob_markfunc)(Object *);
+typedef void (*markfunc)(Object *);
 
 /* alloc object function */
-typedef Object *(*ob_allocfunc)(Klass *);
+typedef Object *(*allocfunc)(TypeObject *);
 
 /* free object function */
-typedef void (*ob_freefunc)(Object *);
+typedef void (*freefunc)(Object *);
 
-/* set function */
-typedef void (*ob_setfunc)(Object *, char *name, Object *);
-
-/* get function */
-typedef Object *(*ob_getfunc)(Object *, char *name);
-
-#define TYPE_OBJECT_CLASS 0
-#define TYPE_OBJECT_TRAIT 1
-#define TYPE_OBJECT_ENUM  2
+#define TPFLAGS_CLASS 1
+#define TPFLAGS_TRAIT 2
+#define TPFLAGS_ENUM  3
+#define TPFLAGS_GC    4
 
 /* klass structure */
-struct klass {
+struct typeobject {
   OBJECT_HEAD
   /* type name */
   char *name;
-  /* class, trait or enum */
-  int kind;
+  /* one of KLASS_xxx */
+  int flags;
 
   /* mark-and-sweep */
-  ob_markfunc markfn;
+  markfunc markfunc;
 
   /* alloc and free */
-  ob_allocfunc allocfn;
-  ob_freefunc freefn;
+  allocfunc allocfunc;
+  freefunc freefunc;
 
   /* setter & getter */
-  ob_setfunc setfn;
-  ob_getfunc getfn;
+  getfunc getfunc;
+  setfunc setfunc;
 
-  /* direct super class and traits */
-  struct vector base;
+  /* hash_code() */
+  cfunc hashfunc;
+  /* compare() */
+  cfunc cmpfunc;
+  /* get_class() */
+  cfunc classfunc;
+  /* tostr() */
+  cfunc strfunc;
+
+  /* number override operators */
+  NumberMethods *number;
+  /* subscript operations */
+  MappingMethods *mapping;
+
+  /* tuple: base classes */
+  struct vector *bases;
   /* line resolution order */
-  struct vector lro;
+  struct vector *lro;
+  /* map: meta table */
+  struct hashmap *mtbl;
 
-  /* total attributes */
-  int total;
-  /* member table */
-  MTable mtbl;
+  /* fields definition */
+  FieldDef *fields;
+  /* methods definition */
+  MethodDef *methods;
+
+  /* owner module */
+  Object *module;
+  /* offset of fields */
+  int offset;
+  /* number of fields */
+  int nrvars;
+  /* constant pool */
+  Object *consts;
 };
 
-extern Klass class_type;
-extern Klass any_type;
-extern Object nil_object;
-void init_typeobject(void);
-void fini_typeobject(void);
-
-#define klass_add_const(ob, name, type, val)      \
-({                                                \
-  OB_TYPE_ASSERT(ob, &class_type);                \
-  Klass *type = (Klass *)(ob);                    \
-  mtbl_add_const(&type->mtbl, name, type, val); \
-})
-
-#define klass_add_val(ob, name, type)        \
-({                                           \
-  OB_TYPE_ASSERT(ob, &class_type);           \
-  Klass *type = (Klass *)(ob);               \
-  mtbl_add_val(&type->mtbl, name, type);   \
-})
-
-#define klass_add_func(ob, name, code)       \
-({                                           \
-  OB_TYPE_ASSERT(ob, &class_type);           \
-  Klass *type = (Klass *)(ob);               \
-  mtbl_add_func(&type->mtbl, name, code);  \
-})
-
-#define klass_add_cfuncs(ob, funcs)          \
-({                                           \
-  OB_TYPE_ASSERT(ob, &class_type);           \
-  Klass *type = (Klass *)(ob);               \
-  mtbl_add_cfuncs(&type->mtbl, funcs);     \
-})
+extern TypeObject Class_Type;
+extern TypeObject Any_Type;
+#define Type_Check(ob) (OB_TYPE(ob) == &Class_Type)
+static inline int Type_Equal(TypeObject *type1, TypeObject *type2)
+{
+  return type1 == type2;
+}
+int Type_Ready(TypeObject *type);
+int Type_Add_Field(TypeObject *type, Object *ob);
+int Type_Add_Method(TypeObject *type, Object *ob);
+int Type_Add_CFunc(TypeObject *type, char *name,
+                   char *ptype, char *rtype, cfunc func);
+Object *Type_Get(TypeObject *self, char *name);
+int Object_Set(Object *self, char *name, Object *val);
+Object *Object_Get(Object *self, char *name);
+Object *Call_Function(Object *ob, char *name, Object *args);
 
 #ifdef __cplusplus
 }

@@ -11,12 +11,12 @@ int main(int argc, char *argv[])
   VECTOR(int_vec, sizeof(int));
 
   int numbers[100];
-  for (int i = 0; i < 100; i++)
+  for (int i = 0; i < 100; ++i)
     numbers[i] = 1001 + i;
 
   int res = 0;
 
-  for (int j = 0; j < 100; j++) {
+  for (int j = 0; j < 100; ++j) {
     res = vector_push_back(&int_vec, &numbers[j]);
     assert(res == 0);
   }
@@ -51,11 +51,11 @@ int main(int argc, char *argv[])
   assert(v == 1099);
 
   int num2[20];
-  for (int i = 0; i < 20; i++)
+  for (int i = 0; i < 20; ++i)
     num2[i] = 101 + i;
 
   VECTOR(num2_vec, sizeof(int));
-  for (int j = 0; j < 20; j++) {
+  for (int j = 0; j < 20; ++j) {
     res = vector_push_back(&num2_vec, &num2[j]);
     assert(res == 0);
   }

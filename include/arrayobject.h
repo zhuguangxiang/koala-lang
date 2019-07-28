@@ -16,7 +16,7 @@ typedef struct arrayobject {
   OBJECT_HEAD
 } ArrayObject;
 
-extern Klass array_type;
+extern TypeObject array_type;
 void init_arrayobject(void);
 void fini_arrayobject(void);
 Object *new_array(int dims, TypeDesc *type);

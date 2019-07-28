@@ -16,14 +16,15 @@ RUN_BISON(
   ${PROJECT_SOURCE_DIR}/include/koala_yacc.h)
 
 SET(KOALA_OBJECTS_SOURCES
-  objects/moduleobject.c objects/codeobject.c
-  objects/intobject.c objects/floatobject.c objects/stringobject.c
-  objects/arrayobject.c objects/mapobject.c objects/tupleobject.c)
+  objects/object.c objects/fieldobject.c objects/methodobject.c
+  objects/intobject.c objects/stringobject.c objects/tupleobject.c
+  objects/dictobject.c)
+  # objects/floatobject.c objects/arrayobject.c
 
 SET(KOALA_SOURCES
-  memory.c vector.c hashmap.c strbuf.c atom.c bytebuffer.c path.c node.c
-  object.c typedesc.c koala_lex.c koala_yacc.c
-  koala.c interactive.c compile.c run.c
+  utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c node.c
+  typedesc.c eval.c koala_lex.c koala_yacc.c
+  run.c compile.c interactive.c
   ${KOALA_OBJECTS_SOURCES})
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})
@@ -47,7 +48,6 @@ INSTALL(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
   DESTINATION koala-${KOALA_VERSION_MAIN}/include
   FILES_MATCHING
   PATTERN "*.h"
-  PATTERN "common.h" EXCLUDE
   PATTERN "koala_lex.h" EXCLUDE
   PATTERN "koala_yacc.h" EXCLUDE)
 

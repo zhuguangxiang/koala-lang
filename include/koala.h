@@ -7,17 +7,26 @@
 #define _KOALA_API_H_
 
 #include "version.h"
-#include "debug.h"
+#include "log.h"
+#include "memory.h"
+#include "atom.h"
+#include "node.h"
+#include "fieldobject.h"
+#include "methodobject.h"
+#include "intobject.h"
+#include "stringobject.h"
+#include "tupleobject.h"
+#include "dictobject.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void koala_initialize(void);
-void koala_finalize(void);
-void koala_active(void);
-void koala_compile(char *path);
-void koala_run(char *path);
+void Koala_Initialize(void);
+void Koala_Finalize(void);
+void Koala_Active(void);
+void Koala_Compile(char *path);
+void Koala_Run(char *path);
 
 #ifdef __cplusplus
 }
