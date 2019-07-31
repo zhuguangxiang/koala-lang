@@ -6,7 +6,6 @@
 #ifndef _KOALA_MEMORY_H_
 #define _KOALA_MEMORY_H_
 
-#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 

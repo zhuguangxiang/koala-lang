@@ -16,45 +16,27 @@ typedef struct moduleobject {
   OBJECT_HEAD
   /* module name */
   char *name;
-  /* member table */
-  MTable mtbl;
-  /* tuple of value objects */
-  Object *values;
-  /* tuple of consts pool */
-  Object *consts;
+  /* number of variables */
+  int nrvars;
+  /* meta table */
+  struct hashmap *mtbl;
+  /* value objects */
+  struct vector *values;
+  /* constant pool */
+  struct vector *consts;
 } ModuleObject;
 
-extern TypeObject module_type;
-Object *new_module(char *name);
-void install_module(char *path, Object *ob);
-
-#define module_add_const(ob, name, type, val)  \
-({                                             \
-  OB_TYPE_ASSERT(ob, &module_type);          \
-  ModuleObject *mod = (ModuleObject *)(ob);    \
-  mtbl_add_const(&mod->mtbl, name, type, val); \
-})
-
-#define module_add_var(ob, name, type)      \
-({                                          \
-  OB_TYPE_ASSERT(ob, &module_type);       \
-  ModuleObject *mod = (ModuleObject *)(ob); \
-  mtbl_add_var(&mod->mtbl, name, type);     \
-})
-
-#define module_add_func(ob, name, code)     \
-({                                          \
-  OB_TYPE_ASSERT(ob, &module_type);       \
-  ModuleObject *mod = (ModuleObject *)(ob); \
-  mtbl_add_func(&mod->mtbl, name, code);    \
-})
-
-#define module_add_cfuncs(ob, funcs)        \
-({                                          \
-  OB_TYPE_ASSERT(ob, &module_type);       \
-  ModuleObject *mod = (ModuleObject *)(ob); \
-  mtbl_add_cfuncs(&mod->mtbl, cfuncs);      \
-})
+extern TypeObject Module_Type;
+extern TypeObject Module_Class_Type;
+#define Module_Check(ob) (OB_TYPE(ob) == &Module_Type)
+Object *Module_New(char *name);
+void Module_Install(char *path, Object *ob);
+int Module_Add_Const(Object *self, Object *ob);
+int Module_Add_Var(Object *self, Object *ob);
+int Module_Add_Method(Object *self, Object *ob);
+int Module_Add_Type(Object *self, char *name, TypeObject *type);
+int Module_Add_CFunc(Object *self, char *name, char *ptype, char *rtype,
+                     cfunc func);
 
 #ifdef __cplusplus
 }

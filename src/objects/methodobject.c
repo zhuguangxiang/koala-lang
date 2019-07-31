@@ -4,7 +4,6 @@
  */
 
 #include "methodobject.h"
-#include "log.h"
 
 Object *CMethod_New(char *name, char *ptype, char *rtype, cfunc func)
 {
@@ -17,22 +16,12 @@ Object *CMethod_New(char *name, char *ptype, char *rtype, cfunc func)
   return (Object *)method;
 }
 
-static Object *_method_get_cb_(Object *self, Object *ob)
-{
-  if (!Method_Check(self)) {
-    error("object of '%.64s' is not a method.", OB_TYPE(self)->name);
-    return NULL;
-  }
-  return self;
-}
-
 TypeObject Method_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Method",
-  .getfunc = _method_get_cb_,
 };
 
 TypeObject Proto_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Proto",
 };

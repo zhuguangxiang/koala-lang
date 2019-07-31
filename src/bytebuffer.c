@@ -4,6 +4,7 @@
  */
 
 #include "bytebuffer.h"
+#include "log.h"
 
 struct byteblock {
   int used;
@@ -50,10 +51,10 @@ int bytebuffer_write(struct bytebuffer *self, char *data, int size)
       min = left > size ? size : left;
       memcpy(block->data + block->used, data, min);
       block->used += min;
-      assert(block->used <= self->bsize);
+      panic(block->used > self->bsize, "unexpected error");
       data += min;
       size -= min;
-      assert(size >= 0);
+      panic(size < 0, "unexpected error");
       self->total += min;
     }
   }

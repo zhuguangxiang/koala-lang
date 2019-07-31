@@ -9,11 +9,11 @@ static void init_types(void)
 {
   int res;
 
+  res = Type_Ready(&Type_Type);
+  panic(res, "Cannot initalize 'Class' type.");
+
   res = Type_Ready(&Any_Type);
   panic(res, "Cannot initalize 'Any' type.");
-
-  res = Type_Ready(&Class_Type);
-  panic(res, "Cannot initalize 'Class' type.");
 
   res = Type_Ready(&Field_Type);
   panic(res, "Cannot initalize 'Field' type.");
@@ -30,11 +30,23 @@ static void init_types(void)
   res = Type_Ready(&String_Type);
   panic(res, "Cannot initalize 'String' type.");
 
+  //res = Type_Ready(&Float_Type);
+  //panic(res, "Cannot initalize 'Float' type.");
+
+  //res = Type_Ready(&Array_Type);
+  //panic(res, "Cannot initalize 'Array' type.");
+
   res = Type_Ready(&Tuple_Type);
   panic(res, "Cannot initalize 'Tuple' type.");
 
   res = Type_Ready(&Dict_Type);
   panic(res, "Cannot initalize 'Dict' type.");
+
+  res = Type_Ready(&Class_Type);
+  panic(res, "Cannot initalize 'Class' type.");
+
+  res = Type_Ready(&Module_Type);
+  panic(res, "Cannot initalize 'Module' type.");
 }
 
 void Koala_Initialize(void)

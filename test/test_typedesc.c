@@ -5,6 +5,7 @@
 
 #include "typedesc.h"
 #include "atom.h"
+#include <assert.h>
 
 int main(int argc, char *argv[])
 {

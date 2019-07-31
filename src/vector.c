@@ -3,13 +3,13 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include <assert.h>
 #include <string.h>
 #include "vector.h"
+#include "log.h"
 
 static inline void *__vector_offset(struct vector *self, int size)
 {
-  assert(self->items != NULL);
+  panic(!self->items, "null pointer");
   return (void *)((char *)self->items + self->itemsize * size);
 }
 

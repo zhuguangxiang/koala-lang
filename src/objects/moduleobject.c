@@ -3,78 +3,117 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include "objects/moduleobject.h"
+#include "moduleobject.h"
+#include "stringobject.h"
+#include "fieldobject.h"
+#include "classobject.h"
+#include "tupleobject.h"
 #include "node.h"
+#include "log.h"
 
 static VECTOR_PTR(modules);
 
-static int _module_set_(Object *ob, char *name, Object *val)
+static Object *module_get(Object *ob, char *name)
 {
+  if (Module_Check(ob) < 0) {
+    error("object of '%.64s' is not a module.", OB_TYPE(ob)->name);
+    return NULL;
+  }
 
+  ModuleObject *module = (ModuleObject *)ob;
+  struct mnode key = {.name = name};
+  hashmap_entry_init(&key, strhash(name));
+  struct mnode *node = hashmap_get(module->mtbl, &key);
+  return node ? node->obj : NULL;
 }
 
-static Object *_module_get_(Object *ob, char *name)
+static Object *module_name(Object *ob, Object *args)
 {
+  if (Module_Check(args) < 0) {
+    error("object of '%.64s' is not a module.", OB_TYPE(ob)->name);
+    return NULL;
+  }
 
+  ModuleObject *module = (ModuleObject *)args;
+  return String_New(module->name);
 }
 
-TypeObject module_type = {
-  OBJECT_HEAD_INIT(&type_type)
+static Object *module_class(Object *ob, Object *args)
+{
+  if (!Field_Check(ob)) {
+    error("object of '%.64s' is not a field.", OB_TYPE(ob)->name);
+    return NULL;
+  }
+
+  if (Module_Check(args) < 0) {
+    error("object of '%.64s' is not a module.", OB_TYPE(args)->name);
+    return NULL;
+  }
+
+  ClassObject *cls = (ClassObject *)Class_New(args);
+  cls->getfunc = module_get;
+  return (Object *)cls;
+}
+
+TypeObject Module_Type = {
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Module",
-  .setfunc = _module_set_,
-  .getfunc = _module_get_,
+  .getfunc = module_get,
 };
 
-static Object *_module_members_(Object *ob, Object *args)
+static struct hashmap *get_mtbl(ModuleObject *module)
 {
-
+  struct hashmap *mtbl = module->mtbl;
+  if (mtbl == NULL) {
+    mtbl = kmalloc(sizeof(*mtbl));
+    panic(!mtbl, "memory allocation failed.");
+    hashmap_init(mtbl, mnode_compare);
+    module->mtbl = mtbl;
+  }
+  return mtbl;
 }
 
-static Object *_module_name_(Object *ob, Object *args)
+int Module_Add_Const(Object *ob, Object *val)
 {
-
+  FieldObject *field = (FieldObject *)val;
+  struct mnode *node = mnode_new(field->name, val);
+  field->owner = ob;
+  return hashmap_add(get_mtbl((ModuleObject *)ob), node);
 }
 
-static struct cfuncdef mod_cfuncs[] = {
-  {"__init__", "s", NULL, _module_new_},
-  {"__members__", NULL, "Llang.Tuple;", _module_members_},
-  {"__name__", NULL, "s", _module_name_},
-  {"__variables__", NULL, "Llang.Tuple;", _module_get_vars_},
-  {"__functions__", NULL, "Llang.Tuple;", _module_get_funcs_},
-  {"add_const", "sA", "z", _module_add_const_},
-  {"add_var", "ss", "z", _module_add_var_},
-  {"add_func", "sLlang.Code;", "z", _module_add_func_},
-  {"remove", "s", "z", _module_remove_},
-  {NULL}
-};
-
-void init_moduleobject(void)
+Object *Module_New(char *name)
 {
-  mtbl_init(&module_type.mtbl);
-  klass_add_cfuncs(&module_type, mod_cfuncs);
+  ModuleObject *module = kmalloc(sizeof(*module));
+  Init_Object_Head(module, &Module_Type);
+  module->name = name;
+  Object *ob = (Object *)module;
+
+  Object *field = Field_New("__name__", "s", module_name, NULL);
+  Module_Add_Const(ob, field);
+
+  field = Field_New("__class__", "Llang.Class;", module_class, NULL);
+  Module_Add_Const(ob, field);
+
+  return ob;
 }
 
-void fini_moduleobject(void)
+void Module_Install(char *path, Object *ob)
 {
-  mtbl_fini(&module_type.mtbl);
-}
+  if (Module_Check(ob) < 0) {
+    error("object of '%.64s' is not a module.", OB_TYPE(ob)->name);
+    return;
+  }
 
-Object *new_module(char *name)
-{
-  ModuleObject *mob = kmalloc(sizeof(*mob));
-  init_object_head(mob, &module_type);
-  mob->name = atom(name);
-  mtbl_init(&mob->mtbl);
-  return (Object *)mob;
-}
-
-void install_module(char *path, Object *ob)
-{
-  OB_TYPE_ASSERT(ob, &module_type);
+  ModuleObject *module = (ModuleObject *)ob;
   char **name = path_toarr(path, strlen(path));
   int res = add_leaf(name, ob);
   if (!res) {
     vector_push_back(&modules, ob);
+    debug("install module '%.64s' in path '%s' successfully.",
+          module->name, path);
+  } else {
+    error("install module '%.64s' in path '%s' failed.",
+          module->name, path);
   }
   kfree(name);
 }

@@ -17,12 +17,12 @@ typedef struct fieldobject {
   /* field name */
   char *name;
   /* field owner */
-  TypeObject *owner;
+  Object *owner;
   /* field type descriptor */
   TypeDesc *desc;
   /* getter & setter */
-  getfunc getfunc;
-  setfunc setfunc;
+  cfunc getfunc;
+  cfunc setfunc;
   /* constant value */
   Object *value;
   /* offset of variable value */
@@ -33,7 +33,7 @@ typedef struct fieldobject {
 
 extern TypeObject Field_Type;
 #define Field_Check(ob) (OB_TYPE(ob) == &Field_Type)
-Object *Field_New(char *name, char *type, getfunc get, setfunc set);
+Object *Field_New(char *name, char *type, cfunc get, cfunc set);
 
 #ifdef __cplusplus
 }

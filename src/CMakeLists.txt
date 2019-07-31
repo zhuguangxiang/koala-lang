@@ -17,9 +17,10 @@ RUN_BISON(
 
 SET(KOALA_OBJECTS_SOURCES
   objects/object.c objects/fieldobject.c objects/methodobject.c
-  objects/intobject.c objects/stringobject.c objects/tupleobject.c
-  objects/dictobject.c)
-  # objects/floatobject.c objects/arrayobject.c
+  objects/classobject.c objects/intobject.c
+  #objects/floatobject.c objects/arrayobject.c
+  objects/stringobject.c objects/tupleobject.c
+  objects/dictobject.c objects/moduleobject.c)
 
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c node.c

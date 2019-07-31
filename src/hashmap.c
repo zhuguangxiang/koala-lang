@@ -5,6 +5,7 @@
 
 #include <string.h>
 #include "hashmap.h"
+#include "log.h"
 
 #define FNV32_BASE  ((unsigned int) 0x811c9dc5)
 #define FNV32_PRIME ((unsigned int) 0x01000193)
@@ -83,7 +84,7 @@ static inline
 struct hashmap_entry **find_entry(struct hashmap *self,
                                   struct hashmap_entry *key)
 {
-  assert(key->hash);
+  panic(!key->hash, "hashcode must not be 0");
 	struct hashmap_entry **e = &self->entries[bucket(self, key)];
 	while (*e && !entry_equals(self, *e, key))
 		e = &(*e)->next;

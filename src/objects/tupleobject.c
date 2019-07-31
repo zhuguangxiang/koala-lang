@@ -124,7 +124,7 @@ static MethodDef tuple_methods[] = {
 };
 
 TypeObject Tuple_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Tuple",
   .mapping = &tuple_mapping,
   .fields = tuple_fields,

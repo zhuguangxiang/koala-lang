@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include "memory.h"
+#include "log.h"
 
 /* max allocated memory size */
 int maxsize;
@@ -21,7 +22,7 @@ struct block {
 void *kmalloc(size_t size)
 {
   struct block *blk = calloc(1, sizeof(struct block) + size);
-  assert(blk);
+  panic(!blk, "null pointer");
   maxsize += size;
   usedsize += size;
   blk->size = size;
@@ -32,10 +33,10 @@ void *kmalloc(size_t size)
 void __kfree(void *ptr)
 {
   struct block *blk = (struct block *)ptr - 1;
-  assert(blk->mask == 0xdeadbeaf);
+  panic(blk->mask != 0xdeadbeaf, "block magic check failed.");
   usedsize -= blk->size;
   free(blk);
-  assert(usedsize >= 0);
+  panic(usedsize < 0, "unexpected error");
 }
 
 void kstat(void)

@@ -57,11 +57,11 @@ static Object *_string_cmp_cb_(Object *self, Object *other)
 }
 
 TypeObject String_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "String",
-  .hashfunc = _string_hash_cb_,
-  .cmpfunc  = _string_cmp_cb_,
-  .methods  = string_methods,
+  .hashfunc  = _string_hash_cb_,
+  .equalfunc = _string_cmp_cb_,
+  .methods   = string_methods,
 };
 
 Object *String_New(char *str)

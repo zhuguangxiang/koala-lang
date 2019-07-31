@@ -3,6 +3,7 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
+#include <assert.h>
 #include <time.h>
 #include "bytebuffer.h"
 

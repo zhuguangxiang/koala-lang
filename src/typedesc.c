@@ -39,7 +39,8 @@ static inline void check_base_refcnt(void)
   BaseDesc *p;
   for (int i = 0; i < COUNT_OF(basearray); ++i) {
     p = &basearray[i].type;
-    assert(p->refcnt == 1);
+    panic(p->refcnt != 1,
+          "type of '%s' refcnt checked failed.", basearray[i].str);
   }
 }
 
@@ -85,7 +86,7 @@ TypeDesc *TypeStr_ToProto(char *ptype, char *rtype)
 void typedesc_free(TypeDesc *desc)
 {
   int kind = desc->kind;
-  assert(kind > 127);
+  panic(kind <= 127, "invalid type '%d'.", kind);
   switch (kind) {
   case TYPE_KLASS: {
     KlassDesc *type = (KlassDesc *)desc;
@@ -106,7 +107,7 @@ void typedesc_free(TypeDesc *desc)
     break;
   }
   default:
-    assert(0);
+    panic(1, "invalid type '%d' branch.", kind);
     break;
   }
 }
@@ -124,7 +125,7 @@ int typedesc_equal(TypeDesc *desc1, TypeDesc *desc2)
 static TypeDesc *__to_klassdesc(char *s, int len)
 {
   char *dot = strrchr(s, '.');
-  assert(dot);
+  panic(!dot, "null pointer");
   char **pathes = path_toarr(s, dot - s);
   char *type = atom_nstring(dot + 1, len - (dot - s) - 1);
   return new_klassdesc(pathes, type);
@@ -146,7 +147,8 @@ static TypeDesc *__to_desc(char **str, int _dims, int _varg)
     break;
   }
   default: {
-    assert(!(_dims > 0 && _varg > 0));
+    panic((_dims > 0 && _varg > 0),
+          "invalid dims '%d' and varg '%d'.", _dims, _varg);
     desc = get_basedesc(ch);
     TYPE_INCREF(desc);
     s++;

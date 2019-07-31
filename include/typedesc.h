@@ -6,8 +6,8 @@
 #ifndef _KOALA_TYPEDESC_H_
 #define _KOALA_TYPEDESC_H_
 
-#include <assert.h>
 #include "strbuf.h"
+#include "log.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,7 +42,9 @@ typedef struct typedesc {
   TypeDesc *_d_ = (TypeDesc *)(_desc_); \
   if (_d_) {                            \
     --_d_->refcnt;                      \
-    assert(_d_->refcnt >= 0);           \
+    panic(_d_->refcnt < 0,              \
+          "type of '%d' refcnt error",  \
+          _d_->kind);                   \
     if (_d_->refcnt <= 0)               \
       typedesc_free(_d_);               \
   }                                     \

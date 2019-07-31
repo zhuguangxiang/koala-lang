@@ -8,6 +8,7 @@
 
 #include <inttypes.h>
 #include "common.h"
+#include "log.h"
 
 #ifdef __cplusplus
 extern "C" {

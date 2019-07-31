@@ -6,7 +6,7 @@
 #ifndef _KOALA_STRING_OBJECT_H_
 #define _KOALA_STRING_OBJECT_H_
 
-#include <wchar.h>
+#include "common.h"
 #include "object.h"
 
 #ifdef __cplusplus

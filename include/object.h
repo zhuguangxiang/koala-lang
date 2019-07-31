@@ -18,8 +18,7 @@ typedef struct object Object;
 typedef struct typeobject TypeObject;
 
 typedef Object *(*cfunc)(Object *, Object *);
-typedef Object *(*getfunc)(Object *, Object *);
-typedef int (*setfunc)(Object *, Object *, Object *);
+typedef Object *(*getfunc)(Object *, char *name);
 
 typedef struct {
   char *name;
@@ -31,8 +30,8 @@ typedef struct {
 typedef struct {
   char *name;
   char *type;
-  getfunc getfunc;
-  setfunc setfunc;
+  cfunc getfunc;
+  cfunc setfunc;
 } FieldDef;
 
 struct mnode {
@@ -81,7 +80,9 @@ struct object {
   Object *o = (Object *)(_ob_); \
   if (o != NULL) {              \
     --o->ob_refcnt;             \
-    assert(o->ob_refcnt >= 0);  \
+    panic(o->ob_refcnt < 0,     \
+          "refcnt %d error",    \
+          o->ob_refcnt);        \
     if (o->ob_refcnt <= 0) {    \
       OB_TYPE(o)->freefunc(o);  \
       (_ob_) = NULL;            \
@@ -149,19 +150,16 @@ struct typeobject {
 
   /* mark-and-sweep */
   markfunc markfunc;
-
   /* alloc and free */
   allocfunc allocfunc;
   freefunc freefunc;
-
-  /* setter & getter */
+  /* get meta member */
   getfunc getfunc;
-  setfunc setfunc;
 
   /* hash_code() */
   cfunc hashfunc;
-  /* compare() */
-  cfunc cmpfunc;
+  /* equal() */
+  cfunc equalfunc;
   /* get_class() */
   cfunc classfunc;
   /* tostr() */
@@ -194,22 +192,22 @@ struct typeobject {
   Object *consts;
 };
 
-extern TypeObject Class_Type;
+extern TypeObject Type_Type;
 extern TypeObject Any_Type;
-#define Type_Check(ob) (OB_TYPE(ob) == &Class_Type)
-static inline int Type_Equal(TypeObject *type1, TypeObject *type2)
+static inline
+int Type_Equal(TypeObject *type1, TypeObject *type2)
 {
   return type1 == type2;
 }
 int Type_Ready(TypeObject *type);
 int Type_Add_Field(TypeObject *type, Object *ob);
 int Type_Add_Method(TypeObject *type, Object *ob);
-int Type_Add_CFunc(TypeObject *type, char *name,
-                   char *ptype, char *rtype, cfunc func);
-Object *Type_Get(TypeObject *self, char *name);
-int Object_Set(Object *self, char *name, Object *val);
-Object *Object_Get(Object *self, char *name);
-Object *Call_Function(Object *ob, char *name, Object *args);
+int Type_Add_CFunc(TypeObject *type, MethodDef *func);
+
+Object *_object_member_(Object *self, char *name);
+Object *_object_class_(Object *ob, Object *args);
+Object *Object_CallMethod(Object *self, char *name, Object *args);
+Object *Object_GetValue(Object *self, char *name);
 
 #ifdef __cplusplus
 }

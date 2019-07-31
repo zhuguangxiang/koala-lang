@@ -17,7 +17,7 @@ typedef struct methodobject {
   /* method name */
   char *name;
   /* method owner */
-  TypeObject *owner;
+  Object *owner;
   /* method type descriptor */
   TypeDesc *desc;
   /* is cfunc or kfunc */

@@ -3,7 +3,6 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -106,7 +105,7 @@ void Koala_Compile(char *path)
       return;
 
     FILE *in = fopen(path, "r");
-    assert(in);
+    panic(!in, "null pointer");
     yyscan_t scanner;
     yylex_init_extra(&ps_test, &scanner);
     yyset_in(in, scanner);

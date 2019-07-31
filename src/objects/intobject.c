@@ -6,17 +6,17 @@
 #include "intobject.h"
 
 TypeObject Integer_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Integer",
 };
 
 TypeObject Bool_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Bool",
 };
 
 TypeObject Byte_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Byte",
 };
 

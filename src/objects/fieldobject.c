@@ -6,7 +6,7 @@
 #include "fieldobject.h"
 #include "log.h"
 
-Object *Field_New(char *name, char *type, getfunc get, setfunc set)
+Object *Field_New(char *name, char *type, cfunc get, cfunc set)
 {
   FieldObject *field = kmalloc(sizeof(*field));
   Init_Object_Head(field, &Field_Type);
@@ -17,7 +17,7 @@ Object *Field_New(char *name, char *type, getfunc get, setfunc set)
   return (Object *)field;
 }
 
-static Object *_field_get_cb_(Object *self, Object *ob)
+static Object *_field_get_(Object *self, Object *ob)
 {
   if (!Field_Check(self)) {
     error("object of '%.64s' is not a field.", OB_TYPE(self)->name);
@@ -33,7 +33,7 @@ static Object *_field_get_cb_(Object *self, Object *ob)
   return field->getfunc(self, ob);
 }
 
-static int _field_set_cb_(Object *self, Object *ob, Object *arg)
+static Object *_field_set_(Object *self, Object *args)
 {
   if (!Field_Check(self)) {
     error("object of '%.64s' is not a field.", OB_TYPE(self)->name);
@@ -42,16 +42,22 @@ static int _field_set_cb_(Object *self, Object *ob, Object *arg)
 
   FieldObject *field = (FieldObject *)self;
   if (!field->setfunc) {
-    error("field of '%.64s' is not settable.", OB_TYPE(ob)->name);
+    //error("field '%.64s' is not settable.", OB_TYPE(ob)->name);
     return 0;
   }
 
-  return field->setfunc(self, ob, arg);
+  return field->setfunc(self, args);
 }
 
+static MethodDef _field_methods_[] = {
+  {"get", "A", "A", _field_get_},
+  {"set", "AA", NULL, _field_set_},
+  {NULL}
+};
+
 TypeObject Field_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Field",
-  .getfunc = _field_get_cb_,
-  .setfunc = _field_set_cb_,
+  .getfunc = _object_member_,
+  .methods = _field_methods_,
 };

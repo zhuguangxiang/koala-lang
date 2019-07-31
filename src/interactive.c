@@ -3,7 +3,6 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/utsname.h>
@@ -82,7 +81,6 @@ int interactive(struct parser_state *ps, char *buf, int size)
 
   strcpy(buf, line);
   int len = strlen(buf);
-  assert(len < size - 2);
   buf[len++] = '\n';
   buf[len++] = ' ';
 

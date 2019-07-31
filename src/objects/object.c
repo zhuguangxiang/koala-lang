@@ -4,9 +4,10 @@
  */
 
 #include <inttypes.h>
-#include "stringobject.h"
 #include "fieldobject.h"
 #include "methodobject.h"
+#include "classobject.h"
+#include "stringobject.h"
 #include "intobject.h"
 #include "atom.h"
 #include "log.h"
@@ -104,44 +105,40 @@ static int build_lro(TypeObject *type)
   return 0;
 }
 
-int Type_Add_CFunc(TypeObject *type, char *name,
-                   char *ptype, char *rtype, cfunc func)
-{
-  Object *method = CMethod_New(name, ptype, rtype, func);
-  int res = Type_Add_Method(type, method);
-  panic(res, "'%s' add '%s' failed.", type->name, name);
-  return res;
-}
-
 int Type_Ready(TypeObject *type)
 {
   int res;
   Object *ob;
 
-  if (type->hashfunc && !type->cmpfunc) {
-    error("__cmp__ must be implemented, when __hash__ is implemented of '%s'.",
+  if (type->hashfunc && !type->equalfunc) {
+    error("__equal__ must be implemented, when __hash__ is implemented of '%s'.",
           type->name);
     return -1;
   }
 
   if (type->hashfunc != NULL) {
-    Type_Add_CFunc(type, "__hash__", NULL, "i", type->hashfunc);
+    MethodDef meth = {"__hash__", NULL, "i", type->hashfunc};
+    Type_Add_CFunc(type, &meth);
   }
 
-  if (type->cmpfunc != NULL) {
-    Type_Add_CFunc(type, "__cmp__", "A", "i", type->cmpfunc);
+  if (type->equalfunc != NULL) {
+    MethodDef meth = {"__equal__", "A", "i", type->equalfunc};
+    Type_Add_CFunc(type, &meth);
   }
 
   if (type->classfunc != NULL) {
-    Type_Add_CFunc(type, "__class__", NULL, "Llang.Class", type->classfunc);
+    MethodDef meth = {"__class__", NULL, "Llang.Class", type->classfunc};
+    Type_Add_CFunc(type, &meth);
   }
 
   if (type->strfunc != NULL) {
-    Type_Add_CFunc(type, "__str__", NULL, "s", type->strfunc);
+    MethodDef meth = {"__str__", NULL, "s", type->strfunc};
+    Type_Add_CFunc(type, &meth);
   }
 
   if (type->fields != NULL) {
     FieldDef *f = type->fields;
+    Object *ob;
     while (f->name != NULL) {
       ob = Field_New(f->name, f->type, f->getfunc, f->setfunc);
       res = Type_Add_Field(type, ob);
@@ -153,7 +150,8 @@ int Type_Ready(TypeObject *type)
   if (type->methods != NULL) {
     MethodDef *m = type->methods;
     while (m->name != NULL) {
-      Type_Add_CFunc(type, m->name, m->ptype, m->rtype, m->func);
+      debug("add method '%s' in '%s'", m->name, type->name);
+      Type_Add_CFunc(type, m);
       ++m;
     }
   }
@@ -168,7 +166,7 @@ int Type_Add_Field(TypeObject *type, Object *ob)
 {
   FieldObject *field = (FieldObject *)ob;
   struct mnode *node = mnode_new(field->name, ob);
-  field->owner = type;
+  field->owner = (Object *)type;
   return hashmap_add(get_mtbl(type), node);
 }
 
@@ -176,110 +174,109 @@ int Type_Add_Method(TypeObject *type, Object *ob)
 {
   MethodObject *method = (MethodObject *)ob;
   struct mnode *node = mnode_new(method->name, ob);
-  method->owner = type;
+  method->owner = (Object *)type;
   return hashmap_add(get_mtbl(type), node);
 }
 
-/* look in type->dict and its bases */
-Object *Type_Get(TypeObject *self, char *name)
+int Type_Add_CFunc(TypeObject *type, MethodDef *f)
 {
-  if (!Type_Check(self)) {
-    error("object of '%.64s' is not a type.", name);
-    return NULL;
-  }
-
-  struct mnode key = {.name = name};
-  hashmap_entry_init(&key, strhash(name));
-
-  VECTOR_REVERSE_ITERATOR(iter, self->lro);
-  TypeObject *item;
-  iter_for_each_as(&iter, TypeObject *, item) {
-    struct mnode *node = hashmap_get(item->mtbl, &key);
-    if (node != NULL) {
-      debug("found '%s' in '%s'", name, item->name);
-      return node->obj;
-    }
-  }
-
-  error("cannot find '%s' in '%s'.", name, self->name);
-  return NULL;
+  Object *method = CMethod_New(f->name, f->ptype, f->rtype, f->func);
+  int res = Type_Add_Method(type, method);
+  panic(res, "'%s' add '%s' failed.", type->name, f->name);
+  return res;
 }
 
-static Object *_type_get_cb_(Object *ob, Object *args)
-{
-  return Type_Get((TypeObject *)ob, String_AsStr(args));
-}
-
-TypeObject Class_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
-  .name = "Class",
-  .getfunc = _type_get_cb_,
+TypeObject Type_Type = {
+  OBJECT_HEAD_INIT(&Type_Type)
+  .name = "Type",
 };
 
-static Object *_any_hash_cb_(Object *self, Object *args)
+static Object *_any_hash_(Object *self, Object *args)
 {
   unsigned int hash = memhash(&self, sizeof(void *));
   return Integer_New(hash);
 }
 
-static Object *_any_cmp_cb_(Object *self, Object *other)
+static Object *_any_equal_(Object *self, Object *other)
 {
   int res = Type_Equal(OB_TYPE(self), OB_TYPE(other));
   res = !res ? -1 : !(self == other);
   return Integer_New(res);
 }
 
-static Object *_any_str_cb_(Object *ob, Object *args)
+static Object *_any_str_(Object *ob, Object *args)
 {
   char buf[80];
   snprintf(buf, sizeof(buf)-1, "%.64s@%lx", OB_TYPE(ob)->name, (uintptr_t)ob);
   return String_New(buf);
 }
 
-static Object *_any_class_cb_(Object *ob, Object *args)
-{
-  return (Object *)OB_TYPE(ob);
-}
-
 TypeObject Any_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Any",
-  .hashfunc  = _any_hash_cb_,
-  .cmpfunc   = _any_cmp_cb_,
-  .strfunc   = _any_str_cb_,
-  .classfunc = _any_class_cb_,
+  .getfunc   = _object_member_,
+  .hashfunc  = _any_hash_,
+  .equalfunc = _any_equal_,
+  .classfunc = _object_class_,
+  .strfunc   = _any_str_,
 };
 
-Object *Object_Get(Object *self, char *name)
+/* look in type->dict and its bases */
+Object *_object_member_(Object *self, char *name)
 {
-  Object *member = Type_Get(OB_TYPE(self), name);
-  if (!member) {
-    error("cannot find '%.64s' in '%.64s' type.", name, OB_TYPE(self)->name);
-    return NULL;
+  struct mnode key = {.name = name};
+  hashmap_entry_init(&key, strhash(name));
+
+  TypeObject *type = OB_TYPE(self);
+  VECTOR_REVERSE_ITERATOR(iter, type->lro);
+  TypeObject *item;
+  iter_for_each_as(&iter, TypeObject *, item) {
+    struct mnode *node = hashmap_get(item->mtbl, &key);
+    if (node != NULL) {
+      debug("find '%s' in '%s'.", name, item->name);
+      return node->obj;
+    }
   }
 
-  getfunc get = OB_TYPE(member)->getfunc;
-  if (!get) {
-    error("member '%.64s' is not getterable.", name);
-    return NULL;
-  }
-
-  return get(member, self);
+  error("cannot find '%s' in '%s'.", name, type->name);
+  return NULL;
 }
 
-int Object_Set(Object *self, char *name, Object *val)
+Object *_object_class_(Object *ob, Object *args)
 {
-  Object *member = Type_Get(OB_TYPE(self), name);
-  if (!member) {
-    error("cannot find '%.64s' in '%.64s' type.", name, OB_TYPE(self)->name);
-    return 0;
+  if (!Field_Check(ob)) {
+    error("object of '%.64s' is not a field.", OB_TYPE(ob)->name);
+    return NULL;
   }
 
-  setfunc set = OB_TYPE(member)->setfunc;
-  if (!set) {
-    error("member '%.64s' is not setterable.", name);
-    return 0;
+  ClassObject *cls = (ClassObject *)Class_New(args);
+  cls->getfunc = _object_member_;
+  return (Object *)cls;
+}
+
+Object *Object_CallMethod(Object *self, char *name, Object *args)
+{
+  TypeObject *type = OB_TYPE(self);
+  Object *ob = type->getfunc(self, name);
+  panic(!ob, "Object of '%s' has not 'get' method.", type->name);
+  panic(!Method_Check(ob), "'%s' is not a method.", name);
+  MethodObject *meth = (MethodObject *)ob;
+  if (meth->cfunc) {
+    cfunc fn = (cfunc)meth->ptr;
+    return fn(self, args);
+  } else {
+    panic(1, "not implemented yet.");
+    return NULL;
+  }
+}
+
+Object *Object_GetValue(Object *self, char *name)
+{
+  Object *ob = OB_TYPE(self)->getfunc(self, name);
+  if (!Field_Check(ob)) {
+    error("object of '%s' has not field '%s'.", OB_TYPE(self)->name, name);
+    return NULL;
   }
 
-  return set(member, self, val);
+  return Object_CallMethod(ob, "get", self);
 }

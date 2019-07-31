@@ -106,7 +106,7 @@ int add_leaf(char *pathes[], void *data)
   /* new leaf data node */
   node = find_node(*s, parent);
   if (node) {
-    assert(node->leaf);
+    panic(!node->leaf, "null pointer");
     debug("leaf '%s' exist.", *s);
     return -1;
   } else {
@@ -132,7 +132,7 @@ void *get_leaf(char *pathes[])
     parent = node;
   }
 
-  assert(node->leaf);
+  panic(!node->leaf, "null pointer");
   return node->data;
 }
 

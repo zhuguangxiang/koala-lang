@@ -31,6 +31,6 @@ Object *code_from_cfunc(struct cfuncdef *f)
 */
 
 TypeObject Code_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Code",
 };

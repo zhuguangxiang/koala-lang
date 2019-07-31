@@ -17,6 +17,8 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "dictobject.h"
+#include "classobject.h"
+#include "moduleobject.h"
 
 #ifdef __cplusplus
 extern "C" {

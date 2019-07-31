@@ -113,7 +113,7 @@ static MappingMethods dict_mapping = {
 };
 
 TypeObject Dict_Type = {
-  OBJECT_HEAD_INIT(&Class_Type)
+  OBJECT_HEAD_INIT(&Type_Type)
   .name = "Dict",
   .mapping = &dict_mapping,
 };
