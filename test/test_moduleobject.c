@@ -12,8 +12,9 @@
 
   clazz := m.__class__
   println(clazz.__name__)
-  f := clazz.getField("__name__")
-  name := f.get(m)
+
+  meth := clazz.get("__name__")
+  name := meth.call(m)
   println(name)
 
  */
@@ -21,19 +22,26 @@ int main(int argc, char *argv[])
 {
   Koala_Initialize();
 
-  Object *m = Module_New("lang");
-  Object *v = Object_GetValue(m, "__name__");
-  assert(!strcmp("lang", String_AsStr(v)));
+  Object *m = Module_New("test");
 
-  Object *clazz = Object_GetValue(m, "__class__");
+  Object *v = Object_Get(m, "__name__");
+  assert(!strcmp("test", String_AsStr(v)));
+
+  Object *clazz = Object_Get(m, "__class__");
   assert(Class_Check(clazz));
   ClassObject *cls = (ClassObject *)clazz;
   assert(cls->obj == m);
 
-  Object *field = Object_CallMethod(clazz, "getField", String_New("__name__"));
-  assert(Field_Check(field));
-  v = Object_CallMethod(field, "get", m);
-  assert(!strcmp("lang", String_AsStr(v)));
+  v = Object_Get(clazz, "__name__");
+  assert(!strcmp("Module", String_AsStr(v)));
+
+  v = Object_Get(clazz, "__module__");
+  assert(v == m);
+
+  Object *meth = Object_Call(clazz, "get_method", String_New("__name__"));
+  assert(Method_Check(meth));
+  v = Method_Call(meth, m, NULL);
+  assert(!strcmp("test", String_AsStr(v)));
 
   Koala_Finalize();
   return 0;

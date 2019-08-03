@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 #define __print__(clr, fmt, ...) \
-  fprintf(stderr, clr fmt "\n", ##__VA_ARGS__)
+  fprintf(stdout, clr fmt "\n", ##__VA_ARGS__)
 
 #define __ERR_COLOR__ "\x1b[1;31merror:\x1b[0m "
 #define error(fmt, ...) __print__(__ERR_COLOR__, fmt, ##__VA_ARGS__)
@@ -34,6 +34,7 @@ extern "C" {
 /* disabled */
 #define debug(fmt, ...) ((void)0)
 #define warn(fmt, ...)  ((void)0)
+#define print(ftm, ...) ((void)0)
 
 #else /* !NDEBUG */
 
@@ -47,6 +48,7 @@ extern "C" {
 #define debug(fmt, ...) __print__(__DBG_COLOR__, fmt, ##__VA_ARGS__)
 #define __WARN_COLOR__  "\x1b[1;35mwarning:\x1b[0m "
 #define warn(fmt, ...)  __print__(__WARN_COLOR__, fmt, ##__VA_ARGS__)
+#define print(fmt, ...) fprintf(stdout, fmt, ##__VA_ARGS__)
 
 #endif /* NDEBUG */
 

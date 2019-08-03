@@ -18,7 +18,8 @@ typedef struct object Object;
 typedef struct typeobject TypeObject;
 
 typedef Object *(*cfunc)(Object *, Object *);
-typedef Object *(*getfunc)(Object *, char *name);
+typedef Object *(*lookupfunc)(Object *, char *name);
+typedef Object *(*callfunc)(Object *, Object *, Object *);
 
 typedef struct {
   char *name;
@@ -30,8 +31,8 @@ typedef struct {
 typedef struct {
   char *name;
   char *type;
-  cfunc getfunc;
-  cfunc setfunc;
+  cfunc get;
+  cfunc set;
 } FieldDef;
 
 struct mnode {
@@ -67,6 +68,9 @@ struct object {
 #define OB_TYPE(_ob_) \
   ((Object *)(_ob_))->ob_type
 
+#define OB_TYPE_NAME(_ob_) \
+  (OB_TYPE(_ob_)->name)
+
 #define OB_INCREF(_ob_)         \
 ({                              \
   Object *o = (Object *)(_ob_); \
@@ -84,7 +88,7 @@ struct object {
           "refcnt %d error",    \
           o->ob_refcnt);        \
     if (o->ob_refcnt <= 0) {    \
-      OB_TYPE(o)->freefunc(o);  \
+      OB_TYPE(o)->free(o);      \
       (_ob_) = NULL;            \
     }                           \
   }                             \
@@ -147,23 +151,25 @@ struct typeobject {
   char *name;
   /* one of KLASS_xxx */
   int flags;
+  /* type's module */
+  Object *owner;
 
   /* mark-and-sweep */
-  markfunc markfunc;
+  markfunc mark;
   /* alloc and free */
-  allocfunc allocfunc;
-  freefunc freefunc;
+  allocfunc alloc;
+  freefunc free;
   /* get meta member */
-  getfunc getfunc;
+  lookupfunc lookup;
 
   /* hash_code() */
-  cfunc hashfunc;
+  cfunc hash;
   /* equal() */
-  cfunc equalfunc;
+  cfunc equal;
   /* get_class() */
-  cfunc classfunc;
+  cfunc clazz;
   /* tostr() */
-  cfunc strfunc;
+  cfunc str;
 
   /* number override operators */
   NumberMethods *number;
@@ -177,8 +183,6 @@ struct typeobject {
   /* map: meta table */
   struct hashmap *mtbl;
 
-  /* fields definition */
-  FieldDef *fields;
   /* methods definition */
   MethodDef *methods;
 
@@ -194,20 +198,29 @@ struct typeobject {
 
 extern TypeObject Type_Type;
 extern TypeObject Any_Type;
-static inline
-int Type_Equal(TypeObject *type1, TypeObject *type2)
+static inline int Type_Equal(TypeObject *type1, TypeObject *type2)
 {
   return type1 == type2;
 }
 int Type_Ready(TypeObject *type);
-int Type_Add_Field(TypeObject *type, Object *ob);
-int Type_Add_Method(TypeObject *type, Object *ob);
-int Type_Add_CFunc(TypeObject *type, MethodDef *func);
+Object *Type_Lookup(TypeObject *type, char *name);
 
-Object *_object_member_(Object *self, char *name);
-Object *_object_class_(Object *ob, Object *args);
-Object *Object_CallMethod(Object *self, char *name, Object *args);
-Object *Object_GetValue(Object *self, char *name);
+void Type_Add_Field(TypeObject *type, Object *ob);
+void Type_Add_FieldDef(TypeObject *type, FieldDef *f);
+void Type_Add_FieldDefs(TypeObject *type, FieldDef *def);
+
+void Type_Add_Method(TypeObject *type, Object *ob);
+void Type_Add_MethodDef(TypeObject *type, MethodDef *f);
+void Type_Add_MethodDefs(TypeObject *type, MethodDef *def);
+
+Object *Object_Lookup(Object *self, char *name);
+Object *Object_Class(Object *ob, Object *args);
+
+int Object_Hash(Object *ob, unsigned int *hash);
+int Object_Equal(Object *ob1, Object *ob2);
+Object *Object_Call(Object *self, char *name, Object *args);
+Object *Object_Get(Object *self, char *name);
+int Object_Set(Object *self, char *name, Object *val);
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,7 @@
 #include "intobject.h"
 #include "stringobject.h"
 #include "tupleobject.h"
-#include "dictobject.h"
+#include "mapobject.h"
 #include "classobject.h"
 #include "moduleobject.h"
 

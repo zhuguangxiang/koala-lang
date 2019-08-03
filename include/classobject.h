@@ -15,7 +15,6 @@ extern "C" {
 typedef struct classobject {
   OBJECT_HEAD
   Object *obj;
-  getfunc getfunc;
 } ClassObject;
 
 extern TypeObject Class_Type;

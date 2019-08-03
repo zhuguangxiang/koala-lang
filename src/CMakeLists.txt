@@ -16,17 +16,18 @@ RUN_BISON(
   ${PROJECT_SOURCE_DIR}/include/koala_yacc.h)
 
 SET(KOALA_OBJECTS_SOURCES
-  objects/object.c objects/fieldobject.c objects/methodobject.c
-  objects/classobject.c objects/intobject.c
-  #objects/floatobject.c objects/arrayobject.c
-  objects/stringobject.c objects/tupleobject.c
-  objects/dictobject.c objects/moduleobject.c)
+  object.c fieldobject.c methodobject.c classobject.c intobject.c
+  # floatobject.c arrayobject.c
+  stringobject.c tupleobject.c mapobject.c moduleobject.c)
+
+SET(KOALA_BUILTIN_MODULES
+  langmodule.c)
 
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c node.c
   typedesc.c eval.c koala_lex.c koala_yacc.c
   run.c compile.c interactive.c
-  ${KOALA_OBJECTS_SOURCES})
+  ${KOALA_OBJECTS_SOURCES} ${KOALA_BUILTIN_MODULES})
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})

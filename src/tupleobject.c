@@ -39,11 +39,11 @@ int Tuple_Size(Object *self)
 {
   if (self == NULL) {
     warn("tuple pointer is null.");
-    return 0;
+    return -1;
   }
 
   if (!Tuple_Check(self)) {
-    error("object of '%.64s' is not a tuple.", OB_TYPE(self)->name);
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return -1;
   }
   return ((TupleObject *)self)->size;
@@ -52,7 +52,7 @@ int Tuple_Size(Object *self)
 Object *Tuple_Get(Object *self, int index)
 {
   if (!Tuple_Check(self)) {
-    error("object of '%.64s' is not a tuple.", OB_TYPE(self)->name);
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return NULL;
   }
 
@@ -68,7 +68,7 @@ Object *Tuple_Get(Object *self, int index)
 int Tuple_Set(Object *self, int index, Object *val)
 {
   if (!Tuple_Check(self)) {
-    error("object of '%.64s' is not a tuple.", OB_TYPE(self)->name);
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return -1;
   }
 
@@ -82,52 +82,35 @@ int Tuple_Set(Object *self, int index, Object *val)
   return 0;
 }
 
-static Object *_tuple_getitem_cb_(Object *self, Object *args)
+static Object *tuple_getitem(Object *self, Object *args)
 {
   return NULL;
 }
 
-static Object *_tuple_setitem_cb_(Object *self, Object *args)
+static Object *tuple_setitem(Object *self, Object *args)
 {
   return 0;
 }
 
+static Object *tuple_length(Object *self, Object *args)
+{
+  return NULL;
+}
+
 static MappingMethods tuple_mapping = {
-  .getitem = _tuple_getitem_cb_,
-  .setitem = _tuple_setitem_cb_,
+  .getitem = tuple_getitem,
+  .setitem = tuple_setitem,
 };
-
-static Object *_tuple_length_cb_(Object *self, Object *args)
-{
-  return NULL;
-}
-
-static FieldDef tuple_fields[] = {
-  {"len", "i", _tuple_length_cb_, NULL},
-  {NULL}
-};
-
-static Object *_tuple_get_cb_(Object *self, Object *args)
-{
-  return NULL;
-}
-
-static Object *_tuple_set_cb_(Object *ob, Object *args)
-{
-  return NULL;
-}
 
 static MethodDef tuple_methods[] = {
-  {"get", "i", "A", _tuple_get_cb_},
-  {"set", "iA", "z", _tuple_set_cb_},
+  {"length", NULL, "i", tuple_length},
   {NULL}
 };
 
 TypeObject Tuple_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
-  .name = "Tuple",
+  .name    = "Tuple",
   .mapping = &tuple_mapping,
-  .fields = tuple_fields,
   .methods = tuple_methods,
 };
 

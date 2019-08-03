@@ -20,8 +20,8 @@ typedef struct methodobject {
   Object *owner;
   /* method type descriptor */
   TypeDesc *desc;
-  /* is cfunc or kfunc */
-  int cfunc;
+  /* call this method */
+  callfunc call;
   /* cfunc or kfunc pointer */
   void *ptr;
 } MethodObject;
@@ -41,7 +41,8 @@ extern TypeObject Proto_Type;
 
 #define Method_Check(ob) (OB_TYPE(ob) == &Method_Type)
 #define Proto_Check(ob) (OB_TYPE(ob) == &Proto_Type)
-Object *CMethod_New(char *name, char *ptype, char *rtype, cfunc func);
+Object *CMethod_New(MethodDef *m);
+Object *Method_Call(Object *self, Object *ob, Object *args);
 
 #ifdef __cplusplus
 }

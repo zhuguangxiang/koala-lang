@@ -29,13 +29,8 @@ typedef struct byteobject {
 } ByteObject;
 
 extern TypeObject Integer_Type;
-extern TypeObject Bool_Type;
-extern TypeObject Byte_Type;
-extern BoolObject True_Object;
-extern BoolObject False_Object;
 #define Integer_Check(ob) (OB_TYPE(ob) == &Integer_Type)
 Object *Integer_New(int64_t val);
-Object *Byte_New(int val);
 static inline int64_t Integer_AsInt(Object *ob)
 {
   if (!Integer_Check(ob)) {
@@ -44,6 +39,39 @@ static inline int64_t Integer_AsInt(Object *ob)
   }
   IntegerObject *int_obj = (IntegerObject *)ob;
   return int_obj->value;
+}
+
+extern TypeObject Byte_Type;
+Object *Byte_New(int val);
+
+extern TypeObject Bool_Type;
+extern BoolObject OB_True;
+extern BoolObject OB_False;
+
+static inline Object *Bool_True(void)
+{
+  Object *res = (Object *)&OB_True;
+  return OB_INCREF(res);
+}
+
+static inline Object *Bool_False(void)
+{
+  Object *res = (Object *)&OB_False;
+  return OB_INCREF(res);
+}
+
+static inline int Bool_IsTrue(Object *ob)
+{
+  if (!Type_Equal(OB_TYPE(ob), &Bool_Type))
+    return -1;
+  return ob == (Object *)&OB_True ? 1 : 0;
+}
+
+static inline int Bool_IsFalse(Object *ob)
+{
+  if (!Type_Equal(OB_TYPE(ob), &Bool_Type))
+    return -1;
+  return ob == (Object *)&OB_False ? 1 : 0;
 }
 
 #ifdef __cplusplus

@@ -14,6 +14,9 @@ int main(int argc, char *argv[])
     .name = "Person",
   };
 
+  //FieldDef name = {"name", "s"};
+  //Type_Add_FieldDef(&Person_Type, &name);
+
   Koala_Finalize();
   return 0;
 }

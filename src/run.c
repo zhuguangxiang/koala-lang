@@ -4,6 +4,9 @@
  */
 
 #include "koala.h"
+#include "langmodule.h"
+#include "reflectmodule.h"
+#include "osmodule.h"
 
 static void init_types(void)
 {
@@ -39,8 +42,8 @@ static void init_types(void)
   res = Type_Ready(&Tuple_Type);
   panic(res, "Cannot initalize 'Tuple' type.");
 
-  res = Type_Ready(&Dict_Type);
-  panic(res, "Cannot initalize 'Dict' type.");
+  res = Type_Ready(&Map_Type);
+  panic(res, "Cannot initalize 'Map' type.");
 
   res = Type_Ready(&Class_Type);
   panic(res, "Cannot initalize 'Class' type.");
@@ -54,9 +57,9 @@ void Koala_Initialize(void)
   atom_init();
   node_init();
   init_types();
-
-  //init_lang_module();
-  //init_sys_module();
+  init_lang_module();
+  //init_reflect_module();
+  //init_os_module();
   //init_io_module();
   //init_fmt_module();
 }

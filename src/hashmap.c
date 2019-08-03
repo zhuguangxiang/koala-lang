@@ -162,6 +162,9 @@ void *hashmap_remove(struct hashmap *self, void *key)
 void *hashmap_iter_next(struct iterator *iter)
 {
   struct hashmap *map = iter->iterable;
+  if (map == NULL)
+    return NULL;
+
   struct hashmap_entry *current = iter->item;
   for (;;) {
     if (current) {

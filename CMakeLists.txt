@@ -28,10 +28,13 @@ ENDIF()
 IF(CMAKE_BUILD_TYPE STREQUAL Debug)
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g")
 ELSE()
-  IF(CMAKE_BUILD_TYPE STREQUAL NLOG)
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g -DNLOG")
+  IF(CMAKE_BUILD_TYPE STREQUAL Coverage)
+  # lcov --rc lcov_branch_coverage=1 -c -d ./ -o app.info
+  # genhtml --rc lcov_branch_coverage=1 app.info -o cc_result
+    SET(CMAKE_C_FLAGS
+        "${CMAKE_C_FLAGS} -std=gnu11 -g -fprofile-arcs -ftest-coverage")
   ELSE()
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -O2 -Wall")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -O2 -Wall -DNLOG")
   ENDIF()
 ENDIF()
 

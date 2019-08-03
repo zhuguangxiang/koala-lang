@@ -97,7 +97,7 @@ static inline void hashmap_entry_init(void *entry, unsigned int hash)
 /* Return the number of items in the map. */
 static inline int hashmap_size(struct hashmap *self)
 {
-  return self->count;
+  return self ? self->count : 0;
 }
 
 /* Initialize a hash map. */
