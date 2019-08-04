@@ -18,6 +18,22 @@ Object *Tuple_New(int size)
   return (Object *)tuple;
 }
 
+void Tuple_Free(Object *ob)
+{
+  if (!Tuple_Check(ob)) {
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(ob));
+    return;
+  }
+  int size = Tuple_Size(ob);
+  TupleObject *tuple = (TupleObject *)ob;
+  Object *item;
+  for (int i = 0; i < size; ++i) {
+    item = tuple->items[i];
+    OB_DECREF(item);
+  }
+  kfree(ob);
+}
+
 Object *Tuple_Pack(int size, ...)
 {
   Object *ob = Tuple_New(size);
@@ -28,7 +44,7 @@ Object *Tuple_Pack(int size, ...)
   TupleObject *tuple = (TupleObject *)ob;
   for (int i = 0; i < size; ++i) {
     item = va_arg(ap, Object *);
-    tuple->items[i] = item;
+    tuple->items[i] = OB_INCREF(item);
   }
   va_end(ap);
 
@@ -62,7 +78,8 @@ Object *Tuple_Get(Object *self, int index)
     return NULL;
   }
 
-  return tuple->items[index];
+  Object *ob = tuple->items[index];
+  return OB_INCREF(ob);
 }
 
 int Tuple_Set(Object *self, int index, Object *val)
@@ -137,6 +154,8 @@ static MethodDef tuple_methods[] = {
 TypeObject Tuple_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Tuple",
+  .free    = Tuple_Free,
+  .lookup  = Object_Lookup,
   .methods = tuple_methods,
 };
 

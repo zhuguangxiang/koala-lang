@@ -6,6 +6,8 @@
 #include "koala.h"
 #include "langmodule.h"
 #include "osmodule.h"
+#include "iomodule.h"
+#include "fmtmodule.h"
 
 static void init_types(void)
 {
@@ -60,8 +62,8 @@ void Koala_Initialize(void)
   init_types();
   init_lang_module();
   init_os_module();
-  //init_io_module();
-  //init_fmt_module();
+  init_io_module();
+  init_fmt_module();
 }
 
 void Koala_Finalize(void)

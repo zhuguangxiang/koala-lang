@@ -6,6 +6,7 @@
 #include "stringobject.h"
 #include "hashmap.h"
 #include "intobject.h"
+#include "fmtmodule.h"
 #include "log.h"
 
 static Object *string_concat(Object *self, Object *args)
@@ -29,10 +30,29 @@ static Object *string_length(Object *self, Object *args)
   return Integer_New(s->len);
 }
 
+static Object *string_fmt(Object *self, Object *ob)
+{
+  if (!String_Check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  STRBUF(sbuf);
+  strbuf_append_char(&sbuf, '\'');
+  strbuf_append(&sbuf, String_AsStr(self));
+  strbuf_append_char(&sbuf, '\'');
+  Object *str = String_New(strbuf_tostr(&sbuf));
+  strbuf_free(&sbuf);
+  Fmtter_WriteString(ob, str);
+  OB_DECREF(str);
+  return NULL;
+}
+
 static MethodDef string_methods[] = {
   {"concat",  "s",  "s", string_concat},
   {"length",  NULL, "i", string_length},
   {"__add__", "s",  "s", string_concat},
+  {"__fmt__", "Lfmt.Formatter;", NULL, string_fmt},
   {NULL}
 };
 

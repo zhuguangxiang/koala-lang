@@ -20,6 +20,7 @@
 #include "mapobject.h"
 #include "classobject.h"
 #include "moduleobject.h"
+#include "fmtmodule.h"
 
 #ifdef __cplusplus
 extern "C" {
