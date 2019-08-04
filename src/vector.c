@@ -10,7 +10,7 @@
 static inline void *__vector_offset(struct vector *self, int size)
 {
   panic(!self->items, "null pointer");
-  return (void *)((char *)self->items + self->itemsize * size);
+  return (void *)((char *)self->items + sizeof(void *) * size);
 }
 
 static int __vector_maybe_expand(struct vector *self, int extrasize)
@@ -25,11 +25,12 @@ static int __vector_maybe_expand(struct vector *self, int extrasize)
   else
     capacity = VECTOR_MINIMUM_CAPACITY;
 
-  void *items = kmalloc(capacity * self->itemsize);
+  void *items = kmalloc(capacity * sizeof(void *));
   if (items == NULL)
     return -1;
+
   if (self->items != NULL) {
-    memcpy(items, self->items, self->size * self->itemsize);
+    memcpy(items, self->items, self->size * sizeof(void *));
     kfree(self->items);
   }
   self->items = items;
@@ -57,34 +58,32 @@ int vector_concat(struct vector *self, struct vector *other)
     return -1;
 
   void *offset = __vector_offset(self, self->size);
-  memcpy(offset, other->items, other->size * other->itemsize);
+  memcpy(offset, other->items, other->size * sizeof(void *));
   self->size += other->size;
   return 0;
 }
 
-int vector_set(struct vector *self, int index, void *item, void *val)
+void *vector_set(struct vector *self, int index, void *item)
 {
   if (index < 0 || index > self->size)
-    return -1;
-
-  vector_get(self, index, val);
+    return NULL;
 
   if (__vector_maybe_expand(self, 1))
-    return -1;
+    return NULL;
 
   void *offset = __vector_offset(self, index);
-  memcpy(offset, item, self->itemsize);
+  void *val = *(void **)offset;
+  *(void **)offset = item;
   ++self->size;
-  return 0;
+  return val;
 }
 
-int vector_get(struct vector *self, int index, void *val)
+void *vector_get(struct vector *self, int index)
 {
   if (index < 0 || index > self->size - 1)
-    return -1;
+    return NULL;
   void *offset = __vector_offset(self, index);
-  memcpy(val, offset, self->itemsize);
-  return 0;
+  return *(void **)offset;
 }
 
 int vector_push_back(struct vector *self, void *item)
@@ -93,25 +92,25 @@ int vector_push_back(struct vector *self, void *item)
     return -1;
 
   void *offset = __vector_offset(self, self->size);
-  memcpy(offset, item, self->itemsize);
+  *(void **)offset = item;
   ++self->size;
   return 0;
 }
 
-int vector_pop_back(struct vector *self, void *val)
+void *vector_pop_back(struct vector *self)
 {
   if (self->size <= 0)
-    return -1;
+    return NULL;
 
   void *offset = __vector_offset(self, self->size - 1);
-  memcpy(val, offset, self->itemsize);
+  void *val = *(void **)offset;
   --self->size;
-  return 0;
+  return val;
 }
 
 void *vector_toarr(struct vector *self)
 {
-  int size = self->itemsize * (self->size + 1);
+  int size = sizeof(void *) * (self->size + 1);
   void *arr = kmalloc(size);
   memcpy(arr, self->items, size);
   return arr;
@@ -124,7 +123,8 @@ void *vector_iter_next(struct iterator *iter)
     return NULL;
 
   if (iter->index < vec->size) {
-    iter->item = __vector_offset(vec, iter->index);
+    void *offset = __vector_offset(vec, iter->index);
+    iter->item = *(void **)offset;
     ++iter->index;
   } else {
     iter->item = NULL;
@@ -142,7 +142,8 @@ void *vector_iter_prev(struct iterator *iter)
     iter->index = vec->size - 1;
 
   if (iter->index >= 0) {
-    iter->item = __vector_offset(vec, iter->index);
+    void *offset = __vector_offset(vec, iter->index);
+    iter->item = *(void **)offset;
     iter->index--;
   } else {
     iter->item = NULL;

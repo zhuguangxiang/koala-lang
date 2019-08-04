@@ -71,7 +71,6 @@ static Object *any_fmt(Object *ob, Object *args)
 TypeObject Any_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name   = "Any",
-  .lookup = Object_Lookup,
   .hash   = any_hash,
   .equal  = any_equal,
   .clazz  = Object_Class,
@@ -83,7 +82,7 @@ static int lro_find(struct vector *vec, TypeObject *type)
 {
   TypeObject *item;
   VECTOR_ITERATOR(iter, vec);
-  iter_for_each_as(&iter, TypeObject *, item) {
+  iter_for_each(&iter, item) {
     if (item == type)
       return 1;
   }
@@ -95,19 +94,19 @@ static void lro_build_one(TypeObject *type, TypeObject *base)
   struct vector *vec = type->lro;
   if (vec == NULL) {
     vec = kmalloc(sizeof(*vec));
-    vector_init(vec, sizeof(void *));
+    vector_init(vec);
     type->lro = vec;
   }
 
   TypeObject *item;
   VECTOR_ITERATOR(iter, base->lro);
-  iter_for_each_as(&iter, TypeObject *, item) {
+  iter_for_each(&iter, item) {
     if (!lro_find(vec, item)) {
-      vector_push_back(vec, &item);
+      vector_push_back(vec, item);
     }
   }
   if (!lro_find(vec, base)) {
-    vector_push_back(vec, &base);
+    vector_push_back(vec, base);
   }
   type->offset += base->offset;
 }
@@ -120,7 +119,7 @@ static int build_lro(TypeObject *type)
   /* add base classes */
   VECTOR_ITERATOR(iter, type->bases);
   TypeObject *base;
-  iter_for_each_as(&iter, TypeObject *, base) {
+  iter_for_each(&iter, base) {
     lro_build_one(type, base);
   }
 
@@ -132,13 +131,12 @@ static int build_lro(TypeObject *type)
 
 static void type_show(TypeObject *type)
 {
-  print("------------------------\n");
-  print("%s:\n", type->name);
+  print("#\n");
+  print("%s: (", type->name);
   VECTOR_REVERSE_ITERATOR(iter, type->lro);
   int size = vector_size(type->lro);
   TypeObject *item;
-  print("LRO: (");
-  iter_for_each_as(&iter, TypeObject *, item) {
+  iter_for_each(&iter, item) {
     if (--size <= 0)
       print("'%s'", item->name);
     else
@@ -146,17 +144,19 @@ static void type_show(TypeObject *type)
   }
   print(")\n");
 
-  print("MBR: (");
-  HASHMAP_ITERATOR(mapiter, type->mtbl);
   size = hashmap_size(type->mtbl);
-  struct mnode *node;
-  iter_for_each(&mapiter, node) {
-    if (--size <= 0)
-      print("'%s'", node->name);
-    else
-      print("'%s', ", node->name);
+  if (size > 0) {
+    print("(");
+    HASHMAP_ITERATOR(mapiter, type->mtbl);
+    struct mnode *node;
+    iter_for_each(&mapiter, node) {
+      if (--size <= 0)
+        print("'%s'", node->name);
+      else
+        print("'%s', ", node->name);
+    }
+    print(")\n");
   }
-  print(")\n");
 }
 
 int Type_Ready(TypeObject *type)
@@ -265,7 +265,7 @@ Object *Type_Lookup(TypeObject *type, char *name)
   VECTOR_REVERSE_ITERATOR(iter, type->lro);
   TypeObject *item;
   struct mnode *node;
-  iter_for_each_as(&iter, TypeObject *, item) {
+  iter_for_each(&iter, item) {
     if (item->mtbl == NULL)
       continue;
     node = hashmap_get(item->mtbl, &key);
@@ -289,7 +289,7 @@ Object *Object_Class(Object *ob, Object *args)
   }
 
   if (args != NULL) {
-    error("__class__ has no arguments");
+    error("'__class__' has no arguments");
     return NULL;
   }
 
@@ -322,21 +322,27 @@ int Object_Equal(Object *ob1, Object *ob2)
   return Bool_IsTrue(ob) ? 1 : 0;
 }
 
-Object *Object_Call(Object *self, char *name, Object *args)
+Object *Object_Get(Object *self, char *name)
 {
   TypeObject *type = OB_TYPE(self);
   Object *ob = type->lookup(self, name);
-  panic(!ob, "Object of '%.64s' has not '%.64s' method",
-        type->name, name);
+  return OB_INCREF(ob);
+}
+
+Object *Object_Call(Object *self, char *name, Object *args)
+{
+  Object *ob = Object_Get(self, name);
+  panic(!ob, "object of '%.64s' has not '%.64s' method",
+        OB_TYPE_NAME(self), name);
   return Method_Call(ob, self, args);
 }
 
-Object *Object_Get(Object *self, char *name)
+Object *Object_GetValue(Object *self, char *name)
 {
-  Object *ob = OB_TYPE(self)->lookup(self, name);
+  Object *ob = Object_Get(self, name);
   if (ob == NULL) {
     error("object of '%.64s' has not field '%.64s'",
-          OB_TYPE(self)->name, name);
+          OB_TYPE_NAME(self), name);
     return NULL;
   }
 
@@ -353,16 +359,15 @@ Object *Object_Get(Object *self, char *name)
     return NULL;
   }
 
-  FieldObject *field = (FieldObject *)ob;
-  return field->get(ob, self);
+  return Field_Get(ob, self);
 }
 
-int Object_Set(Object *self, char *name, Object *val)
+int Object_SetValue(Object *self, char *name, Object *val)
 {
-  Object *ob = OB_TYPE(self)->lookup(self, name);
+  Object *ob = Object_Get(self, name);
   if (ob == NULL) {
     error("object of '%.64s' has not field '%.64s'",
-          OB_TYPE(self)->name, name);
+          OB_TYPE_NAME(self), name);
     return -1;
   }
 
@@ -371,9 +376,6 @@ int Object_Set(Object *self, char *name, Object *val)
     return -1;
   }
 
-  FieldObject *field = (FieldObject *)ob;
-  Object *tuple = Tuple_Pack(2, self, val);
-  field->set(ob, tuple);
-  OB_DECREF(tuple);
+  Field_Set(ob, self, val);
   return 0;
 }

@@ -26,6 +26,7 @@ Object *Tuple_Pack(int size, ...);
 int Tuple_Size(Object *self);
 Object *Tuple_Get(Object *self, int index);
 int Tuple_Set(Object *self, int index, Object *val);
+Object *Tuple_Slice(Object *self, int i, int j);
 void *tuple_iter_next(struct iterator *iter);
 #define TUPLE_ITERATOR(name, tuple) \
   ITERATOR(name, tuple, tuple_iter_next)

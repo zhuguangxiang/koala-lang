@@ -27,7 +27,7 @@ typedef struct codeobject {
   struct codeinfo *code;
 } CodeObject;
 
-API_DATA(TypeObject) Code_Type;
+extern TypeObject Code_Type;
 Object *Code_From_CFunc(MethodDef *m);
 void *Code_Get_CFunc(Object *self);
 

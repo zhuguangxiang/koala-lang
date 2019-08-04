@@ -93,6 +93,8 @@ struct hashmap_entry **find_entry(struct hashmap *self,
 
 void *hashmap_get(struct hashmap *self, void *key)
 {
+  if (self == NULL)
+    return NULL;
   return *find_entry(self, key);
 }
 
@@ -122,6 +124,9 @@ static void rehash(struct hashmap *self, int newsize)
 
 int hashmap_add(struct hashmap *self, void *entry)
 {
+  if (self == NULL)
+    return -1;
+
   if (*find_entry(self, entry))
     return -1;
 

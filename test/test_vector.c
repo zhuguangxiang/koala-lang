@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[])
 {
-  VECTOR(int_vec, sizeof(int));
+  VECTOR(int_vec);
 
   int numbers[100];
   for (int i = 0; i < 100; ++i)
@@ -30,10 +30,9 @@ int main(int argc, char *argv[])
   }
   assert(k == 100);
 
-  int v;
-  res = vector_pop_back(&int_vec, &v);
-  assert(res == 0);
-  assert(v == 1100);
+  int *v;
+  v = vector_pop_back(&int_vec);
+  assert(*v == 1100);
 
   iter_reset(&iter);
   k = 0;
@@ -43,18 +42,17 @@ int main(int argc, char *argv[])
   }
   assert(k == 99);
 
-  res = vector_get(&int_vec, 99, NULL);
-  assert(res != 0);
+  v = vector_get(&int_vec, 99);
+  assert(v == NULL);
 
-  res = vector_get(&int_vec, 98, &v);
-  assert(res == 0);
-  assert(v == 1099);
+  v = vector_get(&int_vec, 98);
+  assert(*v == 1099);
 
   int num2[20];
   for (int i = 0; i < 20; ++i)
     num2[i] = 101 + i;
 
-  VECTOR(num2_vec, sizeof(int));
+  VECTOR(num2_vec);
   for (int j = 0; j < 20; ++j) {
     res = vector_push_back(&num2_vec, &num2[j]);
     assert(res == 0);
@@ -65,11 +63,12 @@ int main(int argc, char *argv[])
 
   iter_reset(&iter);
   k = 0;
-  iter_for_each_as(&iter, int, v) {
+  int vv;
+  iter_for_each_as(&iter, int, vv) {
     if (k < 99)
-      assert(v == numbers[k]);
+      assert(vv == numbers[k]);
     else
-      assert(v == num2[k - 99]);
+      assert(vv == num2[k - 99]);
     ++k;
   }
   assert(k == 99 + 20);

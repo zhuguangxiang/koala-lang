@@ -170,11 +170,11 @@ TypeDesc **typestr_toarr(char *s)
   if (!s)
     return NULL;
 
-  VECTOR_PTR(vec);
+  VECTOR(vec);
   TypeDesc *desc;
   while (*s) {
     desc = __to_desc(&s, 0, 0);
-    vector_push_back(&vec, &desc);
+    vector_push_back(&vec, desc);
   }
   TypeDesc **arr = vector_toarr(&vec);
   vector_free(&vec, NULL, NULL);

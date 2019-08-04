@@ -86,7 +86,7 @@ static int valid_source(char *path)
   return 1;
 }
 
-static VECTOR_PTR(mods);
+static VECTOR(mods);
 
 struct parser_state ps_test;
 

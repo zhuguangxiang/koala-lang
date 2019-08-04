@@ -33,6 +33,7 @@ extern TypeObject Module_Class_Type;
 
 Object *Module_New(char *name);
 void Module_Install(char *path, Object *ob);
+Object *Module_Load(char *path);
 
 void Module_Add_Type(Object *self, TypeObject *type);
 

@@ -15,24 +15,23 @@ void bytebuffer_init(struct bytebuffer *self, int bsize)
 {
   self->bsize = bsize;
   self->total = 0;
-  vector_init(&self->vec, sizeof(void *));
+  vector_init(&self->vec);
 }
 
-static void __byteblock_free_cb__(void *block, void *data)
+static void byteblock_free_cb(void *block, void *data)
 {
-  kfree(*(void **)block);
+  kfree(block);
 }
 
 void bytebuffer_free(struct bytebuffer *self)
 {
-  vector_free(&self->vec, __byteblock_free_cb__, NULL);
+  vector_free(&self->vec, byteblock_free_cb, NULL);
   memset(self, 0, sizeof(*self));
 }
 
 static inline struct byteblock *alloc_byteblock(int size)
 {
-  struct byteblock *block = kmalloc(sizeof(*block) + size);
-  return block;
+  return kmalloc(sizeof(struct byteblock) + size);
 }
 
 int bytebuffer_write(struct bytebuffer *self, char *data, int size)
@@ -41,12 +40,11 @@ int bytebuffer_write(struct bytebuffer *self, char *data, int size)
   int min;
   struct byteblock *block;
   while (size > 0) {
-    block = NULL;
-    vector_top_back(&self->vec, &block);
+    block = vector_top_back(&self->vec);
     left = block ? self->bsize - block->used : 0;
     if (left <= 0) {
       block = alloc_byteblock(self->bsize);
-      vector_push_back(&self->vec, &block);
+      vector_push_back(&self->vec, block);
     } else {
       min = left > size ? size : left;
       memcpy(block->data + block->used, data, min);
@@ -67,7 +65,7 @@ int bytebuffer_toarr(struct bytebuffer *self, char **arr)
   char *buf = kmalloc((self->total + 3) & ~3);
   struct byteblock *block;
   int index = 0;
-  iter_for_each_as(&iter, struct byteblock *, block) {
+  iter_for_each(&iter, block) {
     memcpy(buf + index, block->data, block->used);
     index += block->used;
   }

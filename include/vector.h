@@ -19,32 +19,26 @@ extern "C" {
 struct vector {
   /* total slots */
   int capacity;
-  /* used slots count */
+  /* used slots */
   int size;
-  /* item size */
-  int itemsize;
   /* array of items */
   void *items;
 };
 
 /* Declare an empty vector with name. */
-#define VECTOR(name, itemsize) \
-  struct vector name = {0, 0, itemsize, NULL}
-
-/* Declare an empty vector stored pointers. */
-#define VECTOR_PTR(name) VECTOR(name, sizeof(void *))
+#define VECTOR(name) \
+  struct vector name = {0, 0, NULL}
 
 /* Initialize a vector with item size. */
-static inline void vector_init(struct vector *self, int itemsize)
+static inline void vector_init(struct vector *self)
 {
   memset(self, 0, sizeof(struct vector));
-  self->itemsize = itemsize;
 }
 
 /* Free item callback function of vector_free */
 typedef void (*vector_freefunc)(void *, void *);
 
-/* Destroy a vector with item free function. 'freefn' is optional. */
+/* Destroy a vector with item free function. 'freefunc' is optional. */
 void vector_free(struct vector *self, vector_freefunc freefunc, void *data);
 
 /*
@@ -54,7 +48,7 @@ void vector_free(struct vector *self, vector_freefunc freefunc, void *data);
  */
 static inline void vector_clear(struct vector *self)
 {
-  memset(self->items, 0, self->capacity * self->itemsize);
+  memset(self->items, 0, self->capacity * sizeof(void *));
   self->size = 0;
 }
 
@@ -88,11 +82,11 @@ int vector_shrink_to_fit(struct vector *self);
 #define vector_capacity(self) \
   (self)->capacity
 
-/* Store an item at an index. The previous item is returned va 'prev'. */
-int vector_set(struct vector *self, int index, void *item, void *prev);
+/* Store an item at an index. The old item is returned. */
+void *vector_set(struct vector *self, int index, void *item);
 
 /* Get the item stored at an index. Index bound is checked. */
-int vector_get(struct vector *self, int index, void *val);
+void *vector_get(struct vector *self, int index);
 
 /*
  * Insert an item into the in-bound of the vector.
@@ -101,10 +95,11 @@ int vector_get(struct vector *self, int index, void *val);
 int vector_insert(struct vector *self, int index, void *item);
 
 /*
- * Remove the item at the index and shrink the vector by one. The removed item
- * is stored va 'prev'. This is relatively expensive operation.
+ * Remove the item at the index and shrink the vector by one.
+ * The removed item is stored va 'prev'.
+ * This is relatively expensive operation.
  */
-int vector_remove(struct vector *self, int index, void *prev);
+void *vector_remove(struct vector *self, int index);
 
 /* Add an item at the end of the vector. */
 int vector_push_back(struct vector *self, void *item);
@@ -113,12 +108,12 @@ int vector_push_back(struct vector *self, void *item);
  * Remove an item at the end of the vector.
  * When used with 'push_back', the vector can be used as a stack.
  */
-int vector_pop_back(struct vector *self, void *val);
+void *vector_pop_back(struct vector *self);
 
 /* Get an item at the end of the vector, but not remove it. */
-static inline int vector_top_back(struct vector *self, void *val)
+static inline void *vector_top_back(struct vector *self)
 {
-  return vector_get(self, self->size - 1, val);
+  return vector_get(self, self->size - 1);
 }
 
 /*

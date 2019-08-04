@@ -67,6 +67,16 @@ static Object *string_equal(Object *self, Object *other)
   return strcmp(s1->wstr, s2->wstr) ? Bool_True() : Bool_False();
 }
 
+static void string_free(Object *self)
+{
+  if (!String_Check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return;
+  }
+  debug("String '%.64s' freed", String_AsStr(self));
+  kfree(self);
+}
+
 static Object *string_str(Object *self, Object *args)
 {
   if (!String_Check(self)) {
@@ -81,6 +91,7 @@ TypeObject String_Type = {
   .name    = "String",
   .hash    = string_hash,
   .equal   = string_equal,
+  .free    = string_free,
   .str     = string_str,
   .lookup  = Object_Lookup,
   .methods = string_methods,

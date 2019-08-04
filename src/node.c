@@ -22,7 +22,7 @@ struct node {
 
 static struct hashmap nodetbl;
 static struct node root;
-static VECTOR_PTR(dir);
+static VECTOR(dir);
 
 static int _node_cmp_cb_(void *k1, void *k2)
 {
@@ -70,7 +70,7 @@ static struct node *__add_dirnode(char *name, struct node *parent)
   node->name = name;
   node->parent = parent;
   vec = (struct vector *)(node + 1);
-  vector_init(vec, 16);
+  vector_init(vec);
   node->data = vec;
   hashmap_add(&nodetbl, node);
   return node;
@@ -138,7 +138,7 @@ void *get_leaf(char *pathes[])
 
 char **path_toarr(char *path, int size)
 {
-  VECTOR_PTR(strs);
+  VECTOR(strs);
   char *end = path + size;
   char *p;
   char *s;
@@ -153,7 +153,7 @@ char **path_toarr(char *path, int size)
     len = path - p;
     if (len > 0) {
       s = atom_nstring(p, len);
-      vector_push_back(&strs, &s);
+      vector_push_back(&strs, s);
     }
 
     /* remove trailing slashes */

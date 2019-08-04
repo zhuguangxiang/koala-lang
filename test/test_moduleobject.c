@@ -7,7 +7,7 @@
 #include <assert.h>
 
 /*
-  m := load_module("lang")
+  m := __import__("test")
   println(m.__name__)
 
   clazz := m.__class__
@@ -24,22 +24,26 @@ int main(int argc, char *argv[])
 
   Object *m = Module_New("test");
 
-  Object *v = Object_Get(m, "__name__");
+  Object *v = Object_GetValue(m, "__name__");
   assert(!strcmp("test", String_AsStr(v)));
 
-  Object *clazz = Object_Get(m, "__class__");
+  Object *clazz = Object_GetValue(m, "__class__");
   assert(Class_Check(clazz));
   ClassObject *cls = (ClassObject *)clazz;
   assert(cls->obj == m);
 
-  v = Object_Get(clazz, "__name__");
+  v = Object_GetValue(clazz, "__name__");
   assert(!strcmp("Module", String_AsStr(v)));
 
-  v = Object_Get(clazz, "__module__");
-  assert(v == m);
+  v = Object_GetValue(clazz, "__module__");
+  v = Object_GetValue(v, "__name__");
+  assert(!strcmp("lang", String_AsStr(v)));
 
-  Object *meth = Object_Call(clazz, "get_method", String_New("__name__"));
+  Object *meth = Object_Call(clazz, "getmethod", String_New("__name__"));
   assert(Method_Check(meth));
+  v = Object_Call(meth, "call", m);
+  assert(!strcmp("test", String_AsStr(v)));
+
   v = Method_Call(meth, m, NULL);
   assert(!strcmp("test", String_AsStr(v)));
 

@@ -11,6 +11,7 @@ static void integer_free(Object *ob)
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(ob));
     return;
   }
+  debug("Integer %ld freed", Integer_AsInt(ob));
   kfree(ob);
 }
 

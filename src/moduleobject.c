@@ -12,7 +12,7 @@
 #include "node.h"
 #include "log.h"
 
-static VECTOR_PTR(modules);
+static VECTOR(modules);
 
 static Object *module_lookup(Object *ob, char *name)
 {
@@ -25,13 +25,33 @@ static Object *module_lookup(Object *ob, char *name)
   struct mnode key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
   struct mnode *node = hashmap_get(module->mtbl, &key);
-  return node ? OB_INCREF(node->obj) : NULL;
+  if (node != NULL)
+    return OB_INCREF(node->obj);
+
+  return Type_Lookup(OB_TYPE(ob), name);
 }
+
+static Object *module_name(Object *self, Object *args)
+{
+  if (!Module_Check(self)) {
+    error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ModuleObject *module = (ModuleObject *)self;
+  return String_New(module->name);
+}
+
+static MethodDef module_methods[] = {
+  {"__name__", NULL, "s", module_name},
+  {NULL}
+};
 
 TypeObject Module_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
-  .name   = "Module",
-  .lookup = module_lookup,
+  .name    = "Module",
+  .lookup  = module_lookup,
+  .methods = module_methods,
 };
 
 static struct hashmap *get_mtbl(Object *ob)
@@ -89,7 +109,7 @@ void Module_Add_VarDefs(Object *self, FieldDef *def)
   }
 }
 
-void Module_Add_Method(Object *self, Object *ob)
+void Module_Add_Func(Object *self, Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
   struct mnode *node = mnode_new(meth->name, (Object *)meth);
@@ -98,47 +118,20 @@ void Module_Add_Method(Object *self, Object *ob)
   panic(res, "'%.64s' add '%.64s' failed.", MODULE_NAME(self), meth->name);
 }
 
-void Module_Add_MethodDef(Object *self, MethodDef *f)
+void Module_Add_FuncDef(Object *self, MethodDef *f)
 {
   Object *meth = CMethod_New(f);
-  Module_Add_Method(self, meth);
+  Module_Add_Func(self, meth);
 }
 
-void Module_Add_MethodDefs(Object *self, MethodDef *def)
+void Module_Add_FuncDefs(Object *self, MethodDef *def)
 {
   MethodDef *f = def;
   while (f->name) {
-    Module_Add_MethodDef(self, f);
+    Module_Add_FuncDef(self, f);
     ++f;
   }
 }
-
-static Object *module_name(Object *self, Object *args)
-{
-  if (!Module_Check(self)) {
-    error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  ModuleObject *module = (ModuleObject *)self;
-  return String_New(module->name);
-}
-
-static Object *module_class(Object *self, Object *args)
-{
-  if (!Module_Check(self)) {
-    error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  return Class_New(self);
-}
-
-static MethodDef module_methods[] = {
-  {"__name__",  NULL, "s",            module_name   },
-  {"__class__", NULL, "Llang.Class;", module_class  },
-  {NULL}
-};
 
 Object *Module_New(char *name)
 {
@@ -146,7 +139,6 @@ Object *Module_New(char *name)
   Init_Object_Head(module, &Module_Type);
   module->name = name;
   Object *ob = (Object *)module;
-  Module_Add_MethodDefs(ob, module_methods);
   return ob;
 }
 
@@ -158,8 +150,8 @@ void Module_Install(char *path, Object *ob)
   }
 
   ModuleObject *module = (ModuleObject *)ob;
-  char **name = path_toarr(path, strlen(path));
-  int res = add_leaf(name, ob);
+  char **pathes = path_toarr(path, strlen(path));
+  int res = add_leaf(pathes, ob);
   if (!res) {
     vector_push_back(&modules, ob);
     debug("install module '%.64s' in path '%s' successfully.",
@@ -168,5 +160,13 @@ void Module_Install(char *path, Object *ob)
     error("install module '%.64s' in path '%s' failed.",
           module->name, path);
   }
-  kfree(name);
+  kfree(pathes);
+}
+
+Object *Module_Load(char *path)
+{
+  char **pathes = path_toarr(path, strlen(path));
+  Object *ob = get_leaf(pathes);
+  kfree(pathes);
+  return OB_INCREF(ob);
 }

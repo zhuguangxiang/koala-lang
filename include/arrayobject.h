@@ -6,7 +6,7 @@
 #ifndef _KOALA_ARRAY_OBJECT_H_
 #define _KOALA_ARRAY_OBJECT_H_
 
-#include "object.h"
+#include "stringobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,12 +14,15 @@ extern "C" {
 
 typedef struct arrayobject {
   OBJECT_HEAD
+  TypeObject *type;
+  struct vector items;
 } ArrayObject;
 
-extern TypeObject array_type;
-void init_arrayobject(void);
-void fini_arrayobject(void);
-Object *new_array(int dims, TypeDesc *type);
+extern TypeObject Array_Type;
+#define Array_Check(ob) (OB_TYPE(ob) == &Array_Type)
+Object *Array_New(void);
+void Array_Free(Object *ob);
+void Array_Print(Object *ob);
 
 #ifdef __cplusplus
 }

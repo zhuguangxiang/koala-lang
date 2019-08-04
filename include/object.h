@@ -20,6 +20,7 @@ typedef struct typeobject TypeObject;
 typedef Object *(*cfunc)(Object *, Object *);
 typedef Object *(*lookupfunc)(Object *, char *name);
 typedef Object *(*callfunc)(Object *, Object *, Object *);
+typedef int (*setfunc)(Object *, Object *, Object *);
 
 typedef struct {
   char *name;
@@ -32,7 +33,7 @@ typedef struct {
   char *name;
   char *type;
   cfunc get;
-  cfunc set;
+  setfunc set;
 } FieldDef;
 
 struct mnode {
@@ -121,15 +122,6 @@ typedef struct {
   cfunc lnot;
 } NumberMethods;
 
-/*
- * map operations for array and map,
- * If objects override '[]' operator, they also have map operations.
- */
-typedef struct {
-  cfunc getitem;
-  cfunc setitem;
-} MappingMethods;
-
 /* mark and sweep callback */
 typedef void (*markfunc)(Object *);
 
@@ -173,8 +165,6 @@ struct typeobject {
 
   /* number override operators */
   NumberMethods *number;
-  /* subscript operations */
-  MappingMethods *mapping;
 
   /* tuple: base classes */
   struct vector *bases;
@@ -218,9 +208,11 @@ Object *Object_Class(Object *ob, Object *args);
 
 int Object_Hash(Object *ob, unsigned int *hash);
 int Object_Equal(Object *ob1, Object *ob2);
-Object *Object_Call(Object *self, char *name, Object *args);
+
 Object *Object_Get(Object *self, char *name);
-int Object_Set(Object *self, char *name, Object *val);
+Object *Object_GetValue(Object *self, char *name);
+int Object_SetValue(Object *self, char *name, Object *val);
+Object *Object_Call(Object *self, char *name, Object *args);
 
 #ifdef __cplusplus
 }

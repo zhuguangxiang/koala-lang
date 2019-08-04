@@ -115,11 +115,11 @@ static Object *class_lro(Object *self, Object *args)
 
 static MethodDef class_methods[] = {
   {"__name__",   NULL, "s",             class_name     },
-  {"__mbrs__",   NULL, "Llang.Array;",  class_members  },
+  {"__mbrs__",   NULL, "Llang.Tuple;",  class_members  },
   {"__module__", NULL, "Llang.Module;", class_module   },
-  {"__lro__",    NULL, "Llang.Array;",  class_lro      },
-  {"get_field",  "s",  "Llang.Field;",  class_getfield },
-  {"get_method", "s",  "Llang.Method;", class_getmethod},
+  {"__lro__",    NULL, "Llang.Tuple;",  class_lro      },
+  {"getfield",   "s",  "Llang.Field;",  class_getfield },
+  {"getmethod",  "s",  "Llang.Method;", class_getmethod},
   {NULL}
 };
 

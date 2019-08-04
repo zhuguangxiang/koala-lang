@@ -82,6 +82,36 @@ int Tuple_Set(Object *self, int index, Object *val)
   return 0;
 }
 
+/* [i ..< j] */
+Object *Tuple_Slice(Object *self, int i, int j)
+{
+  if (!Tuple_Check(self)) {
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  int size = Tuple_Size(self);
+  if (i < 0)
+    i = 0;
+  if (j < 0 || j > size)
+    j = size;
+  if (j < i)
+    j = i;
+
+  if (i == 0 && j == size) {
+    return OB_INCREF(self);
+  }
+
+  int len = j - i;
+  TupleObject *tuple = (TupleObject *)Tuple_New(len);
+  Object **src = ((TupleObject *)self)->items + i;
+  Object **dest = tuple->items;
+  for (int k = 0; k < len; ++k) {
+    dest[k] = OB_INCREF(src[k]);
+  }
+  return (Object *)tuple;
+}
+
 static Object *tuple_getitem(Object *self, Object *args)
 {
   return NULL;
@@ -97,20 +127,16 @@ static Object *tuple_length(Object *self, Object *args)
   return NULL;
 }
 
-static MappingMethods tuple_mapping = {
-  .getitem = tuple_getitem,
-  .setitem = tuple_setitem,
-};
-
 static MethodDef tuple_methods[] = {
-  {"length", NULL, "i", tuple_length},
+  {"length",      NULL, "i",  tuple_length },
+  {"__getitem__", "i",  "A",  tuple_getitem},
+  {"__setitem__", "iA", NULL, tuple_setitem},
   {NULL}
 };
 
 TypeObject Tuple_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Tuple",
-  .mapping = &tuple_mapping,
   .methods = tuple_methods,
 };
 

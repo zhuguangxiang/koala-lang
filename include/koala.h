@@ -15,6 +15,7 @@
 #include "methodobject.h"
 #include "intobject.h"
 #include "stringobject.h"
+#include "arrayobject.h"
 #include "tupleobject.h"
 #include "mapobject.h"
 #include "classobject.h"

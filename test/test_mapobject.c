@@ -17,8 +17,8 @@ int main(int argc, char *argv[])
   assert(Integer_Check(ob));
   assert(100 == Integer_AsInt(ob));
 
-  Object *clazz = Object_Get(map, "__class__");
-  Object *meth = Object_Call(clazz, "get_method", String_New("__get_item__"));
+  Object *clazz = Object_GetValue(map, "__class__");
+  Object *meth = Object_Call(clazz, "getmethod", String_New("__getitem__"));
 
   Koala_Finalize();
   return 0;

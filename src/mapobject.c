@@ -105,14 +105,15 @@ static Object *map_setitem(Object *self, Object *args)
   return (res < 0) ? Bool_False() : Bool_True();
 }
 
-static MappingMethods map_mapping = {
-  .getitem = Map_Get,
-  .setitem = map_setitem,
+static MethodDef map_methods[] = {
+  {"__getitem__", "A",  "A",  Map_Get    },
+  {"__setitem__", "AA", NULL, map_setitem},
+  {NULL}
 };
 
 TypeObject Map_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Map",
   .lookup  = Object_Lookup,
-  .mapping = &map_mapping,
+  .methods = map_methods,
 };
