@@ -4,6 +4,7 @@
  */
 
 #include <inttypes.h>
+#include "moduleobject.h"
 #include "tupleobject.h"
 #include "fieldobject.h"
 #include "methodobject.h"
@@ -50,7 +51,7 @@ static Object *any_hash(Object *self, Object *args)
 
 static Object *any_equal(Object *self, Object *other)
 {
-  if (!Type_Equal(OB_TYPE(self), OB_TYPE(other)))
+  if (OB_TYPE(self) != OB_TYPE(other))
     return Bool_False();
   return (self == other) ? Bool_True() : Bool_False();
 }
@@ -68,12 +69,27 @@ static Object *any_fmt(Object *ob, Object *args)
 
 }
 
+static Object *any_class(Object *ob, Object *args)
+{
+  if (ob == NULL) {
+    error("object is NULL");
+    return NULL;
+  }
+
+  if (args != NULL) {
+    error("'__class__' has no arguments");
+    return NULL;
+  }
+
+  return Class_New(ob);
+}
+
 TypeObject Any_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name   = "Any",
   .hash   = any_hash,
   .equal  = any_equal,
-  .clazz  = Object_Class,
+  .clazz  = any_class,
   .str    = any_str,
   //.fmt    = any_fmt,
 };
@@ -275,36 +291,13 @@ Object *Type_Lookup(TypeObject *type, char *name)
   return NULL;
 }
 
-Object *Object_Lookup(Object *self, char *name)
-{
-  TypeObject *type = OB_TYPE(self);
-  return Type_Lookup(type, name);
-}
-
-Object *Object_Class(Object *ob, Object *args)
-{
-  if (ob == NULL) {
-    error("object is NULL");
-    return NULL;
-  }
-
-  if (args != NULL) {
-    error("'__class__' has no arguments");
-    return NULL;
-  }
-
-  return Class_New(ob);
-}
-
-int Object_Hash(Object *ob, unsigned int *hash)
+unsigned int Object_Hash(Object *ob)
 {
   Object *res = Object_Call(ob, "__hash__", NULL);
-  if (res != NULL) {
-    *hash = Integer_AsInt(res);
-    OB_DECREF(res);
-    return 0;
-  }
-  return -1;
+  panic(!res, "'__hash__' is not implemented");
+  unsigned int hash = Integer_AsInt(res);
+  OB_DECREF(res);
+  return hash;
 }
 
 int Object_Equal(Object *ob1, Object *ob2)
@@ -314,7 +307,7 @@ int Object_Equal(Object *ob1, Object *ob2)
 
   TypeObject *type1 = OB_TYPE(ob1);
   TypeObject *type2 = OB_TYPE(ob2);
-  if (!Type_Equal(type1, type2))
+  if (type1 != type2)
     return 0;
   Object *ob = Object_Call(ob1, "__equal__", ob2);
   if (ob == NULL)
@@ -324,9 +317,13 @@ int Object_Equal(Object *ob1, Object *ob2)
 
 Object *Object_Get(Object *self, char *name)
 {
-  TypeObject *type = OB_TYPE(self);
-  Object *ob = type->lookup(self, name);
-  return OB_INCREF(ob);
+  Object *res;
+  if (Module_Check(self)) {
+    res = Module_Lookup(self, name);
+  } else {
+    res = Type_Lookup(OB_TYPE(self), name);
+  }
+  return OB_INCREF(res);
 }
 
 Object *Object_Call(Object *self, char *name, Object *args)

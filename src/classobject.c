@@ -8,30 +8,25 @@
 #include "methodobject.h"
 #include "stringobject.h"
 
-static Object *class_get(Object *self, Object *name)
+Object *Object_Get(Object *self, char *name);
+
+static Object *class_get(Object *self, char *name)
 {
   if (!Class_Check(self)) {
     error("object of '%.64s' is not a Class", OB_TYPE_NAME(self));
     return NULL;
   }
 
-  if (!String_Check(name)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(name));
-    return NULL;
-  }
-
   Object *res;
-  char *namestr = String_AsStr(name);
-
   Object *ob = ((ClassObject *)self)->obj;
-  if (OB_TYPE(ob) == &Type_Type) {
-    res = Type_Lookup((TypeObject *)ob, namestr);
+  if (Type_Check(ob)) {
+    res = Type_Lookup((TypeObject *)ob, name);
   } else {
-    res = OB_TYPE(ob)->lookup(ob, namestr);
+    res = Object_Get(ob, name);
   }
 
   if (!res) {
-    error("cannot find '%.64s'", namestr);
+    error("cannot find '%.64s'", name);
     return NULL;
   }
 
@@ -40,12 +35,18 @@ static Object *class_get(Object *self, Object *name)
 
 static Object *class_getfield(Object *self, Object *name)
 {
-  Object *ob = class_get(self, name);
+  if (!String_Check(name)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(name));
+    return NULL;
+  }
+
+  char *s = String_AsStr(name);
+  Object *ob = class_get(self, s);
   if (ob == NULL)
     return NULL;
 
   if (!Field_Check(ob)) {
-    error("'%s' is not a Field", String_AsStr(name));
+    error("'%s' is not a Field", s);
     OB_DECREF(ob);
     return NULL;
   }
@@ -55,12 +56,18 @@ static Object *class_getfield(Object *self, Object *name)
 
 static Object *class_getmethod(Object *self, Object *name)
 {
-  Object *ob = class_get(self, name);
+  if (!String_Check(name)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(name));
+    return NULL;
+  }
+
+  char *s = String_AsStr(name);
+  Object *ob = class_get(self, s);
   if (ob == NULL)
     return NULL;
 
   if (!Method_Check(ob)) {
-    error("'%s' is not a Method", String_AsStr(name));
+    error("'%s' is not a Method", s);
     OB_DECREF(ob);
     return NULL;
   }
@@ -126,7 +133,6 @@ static MethodDef class_methods[] = {
 TypeObject Class_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Class",
-  .lookup  = Object_Lookup,
   .methods = class_methods,
 };
 

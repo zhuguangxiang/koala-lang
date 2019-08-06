@@ -17,7 +17,7 @@
 #include "stringobject.h"
 #include "arrayobject.h"
 #include "tupleobject.h"
-#include "mapobject.h"
+#include "dictobject.h"
 #include "classobject.h"
 #include "moduleobject.h"
 #include "fmtmodule.h"

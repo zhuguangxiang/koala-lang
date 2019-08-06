@@ -28,10 +28,10 @@ typedef struct moduleobject {
 
 extern TypeObject Module_Type;
 extern TypeObject Module_Class_Type;
-#define MODULE_NAME(ob) (((ModuleObject *)ob)->name)
 #define Module_Check(ob) (OB_TYPE(ob) == &Module_Type)
 
 Object *Module_New(char *name);
+Object *Module_Lookup(Object *ob, char *name);
 void Module_Install(char *path, Object *ob);
 Object *Module_Load(char *path);
 

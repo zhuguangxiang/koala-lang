@@ -12,7 +12,7 @@ static Object *cfunc_new(TypeDesc *proto, cfunc_t func)
   init_object_head(code, &code_type);
   code->proto = TYPE_INCREF(proto);
   code->kind = CODE_CFUNC;
-  code->cfunc = func;
+  code->func_t = func;
   return (Object *)code;
 }
 

@@ -8,7 +8,7 @@
 #include "stringobject.h"
 #include "arrayobject.h"
 #include "tupleobject.h"
-#include "mapobject.h"
+#include "dictobject.h"
 #include "fieldobject.h"
 #include "methodobject.h"
 #include "codeobject.h"
@@ -49,7 +49,7 @@ void init_lang_module(void)
   //Module_Add_Type(m, &Float_Type);
   Module_Add_Type(m, &Array_Type);
   Module_Add_Type(m, &Tuple_Type);
-  Module_Add_Type(m, &Map_Type);
+  Module_Add_Type(m, &Dict_Type);
 
   Module_Add_Type(m, &Field_Type);
   Module_Add_Type(m, &Method_Type);

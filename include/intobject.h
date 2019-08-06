@@ -62,14 +62,14 @@ static inline Object *Bool_False(void)
 
 static inline int Bool_IsTrue(Object *ob)
 {
-  if (!Type_Equal(OB_TYPE(ob), &Bool_Type))
+  if (OB_TYPE(ob) != &Bool_Type)
     return -1;
   return ob == (Object *)&OB_True ? 1 : 0;
 }
 
 static inline int Bool_IsFalse(Object *ob)
 {
-  if (!Type_Equal(OB_TYPE(ob), &Bool_Type))
+  if (OB_TYPE(ob) != &Bool_Type)
     return -1;
   return ob == (Object *)&OB_False ? 1 : 0;
 }

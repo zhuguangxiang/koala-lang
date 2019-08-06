@@ -155,7 +155,6 @@ TypeObject Tuple_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Tuple",
   .free    = Tuple_Free,
-  .lookup  = Object_Lookup,
   .methods = tuple_methods,
 };
 

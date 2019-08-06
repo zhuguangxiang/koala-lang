@@ -18,7 +18,7 @@ static Object *array_append(Object *self, Object *val)
   if (arr->type == NULL) {
     arr->type = OB_INCREF(OB_TYPE(val));
   } else {
-    if (!Type_Equal(arr->type, OB_TYPE(val))) {
+    if (arr->type != OB_TYPE(val)) {
       error("expected object of '%.64s', but '%.64s'",
             arr->type->name, OB_TYPE_NAME(val));
       return NULL;
@@ -139,7 +139,6 @@ TypeObject Array_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Array",
   .free    = Array_Free,
-  .lookup  = Object_Lookup,
   .methods = array_methods,
 };
 

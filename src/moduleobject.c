@@ -14,7 +14,7 @@
 
 static VECTOR(modules);
 
-static Object *module_lookup(Object *ob, char *name)
+Object *Module_Lookup(Object *ob, char *name)
 {
   if (!Module_Check(ob)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(ob));
@@ -50,7 +50,6 @@ static MethodDef module_methods[] = {
 TypeObject Module_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Module",
-  .lookup  = module_lookup,
   .methods = module_methods,
 };
 
@@ -66,6 +65,8 @@ static struct hashmap *get_mtbl(Object *ob)
   }
   return mtbl;
 }
+
+#define MODULE_NAME(ob) (((ModuleObject *)ob)->name)
 
 void Module_Add_Type(Object *self, TypeObject *type)
 {

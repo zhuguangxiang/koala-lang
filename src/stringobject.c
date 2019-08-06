@@ -113,7 +113,6 @@ TypeObject String_Type = {
   .equal   = string_equal,
   .free    = string_free,
   .str     = string_str,
-  .lookup  = Object_Lookup,
   .methods = string_methods,
 };
 

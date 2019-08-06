@@ -9,7 +9,7 @@
 static Object *cfunc_call(Object *self, Object *ob, Object *args)
 {
   MethodObject *meth = (MethodObject *)self;
-  cfunc fn = (cfunc)meth->ptr;
+  func_t fn = (func_t)meth->ptr;
   return fn(ob, args);
 }
 
@@ -60,7 +60,6 @@ static MethodDef meth_methods[] = {
 TypeObject Method_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Method",
-  .lookup  = Object_Lookup,
   .methods = meth_methods,
 };
 

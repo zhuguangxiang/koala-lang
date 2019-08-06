@@ -17,7 +17,7 @@ extern "C" {
 typedef struct object Object;
 typedef struct typeobject TypeObject;
 
-typedef Object *(*cfunc)(Object *, Object *);
+typedef Object *(*func_t)(Object *, Object *);
 typedef Object *(*lookupfunc)(Object *, char *name);
 typedef Object *(*callfunc)(Object *, Object *, Object *);
 typedef int (*setfunc)(Object *, Object *, Object *);
@@ -26,13 +26,13 @@ typedef struct {
   char *name;
   char *ptype;
   char *rtype;
-  cfunc func;
+  func_t func;
 } MethodDef;
 
 typedef struct {
   char *name;
   char *type;
-  cfunc get;
+  func_t get;
   setfunc set;
 } FieldDef;
 
@@ -97,29 +97,29 @@ struct object {
 
 typedef struct {
   /* arithmetic */
-  cfunc add;
-  cfunc sub;
-  cfunc mul;
-  cfunc div;
-  cfunc mod;
-  cfunc pow;
-  cfunc neg;
+  func_t add;
+  func_t sub;
+  func_t mul;
+  func_t div;
+  func_t mod;
+  func_t pow;
+  func_t neg;
   /* relational */
-  cfunc gt;
-  cfunc ge;
-  cfunc lt;
-  cfunc le;
-  cfunc eq;
-  cfunc neq;
+  func_t gt;
+  func_t ge;
+  func_t lt;
+  func_t le;
+  func_t eq;
+  func_t neq;
   /* bit */
-  cfunc band;
-  cfunc bor;
-  cfunc bxor;
-  cfunc bnot;
+  func_t band;
+  func_t bor;
+  func_t bxor;
+  func_t bnot;
   /* logic */
-  cfunc land;
-  cfunc lor;
-  cfunc lnot;
+  func_t land;
+  func_t lor;
+  func_t lnot;
 } NumberMethods;
 
 /* mark and sweep callback */
@@ -151,20 +151,24 @@ struct typeobject {
   /* alloc and free */
   allocfunc alloc;
   freefunc free;
-  /* get meta member */
-  lookupfunc lookup;
 
   /* hash_code() */
-  cfunc hash;
+  func_t hash;
   /* equal() */
-  cfunc equal;
+  func_t equal;
   /* get_class() */
-  cfunc clazz;
+  func_t clazz;
   /* tostr() */
-  cfunc str;
+  func_t str;
+  /* fmt() */
+  func_t fmt;
 
-  /* number override operators */
+  /* number operations */
   NumberMethods *number;
+  /* sequence operations */
+//  MappingMethods *mapping;
+  /* iterator operations */
+//  IteratorMethods *iterator;
 
   /* tuple: base classes */
   struct vector *bases;
@@ -188,10 +192,7 @@ struct typeobject {
 
 extern TypeObject Type_Type;
 extern TypeObject Any_Type;
-static inline int Type_Equal(TypeObject *type1, TypeObject *type2)
-{
-  return type1 == type2;
-}
+#define Type_Check(ob) (OB_TYPE(ob) == &Type_Type)
 int Type_Ready(TypeObject *type);
 Object *Type_Lookup(TypeObject *type, char *name);
 
@@ -203,13 +204,9 @@ void Type_Add_Method(TypeObject *type, Object *ob);
 void Type_Add_MethodDef(TypeObject *type, MethodDef *f);
 void Type_Add_MethodDefs(TypeObject *type, MethodDef *def);
 
-Object *Object_Lookup(Object *self, char *name);
-Object *Object_Class(Object *ob, Object *args);
-
-int Object_Hash(Object *ob, unsigned int *hash);
+unsigned int Object_Hash(Object *ob);
 int Object_Equal(Object *ob1, Object *ob2);
 
-Object *Object_Get(Object *self, char *name);
 Object *Object_GetValue(Object *self, char *name);
 int Object_SetValue(Object *self, char *name, Object *val);
 Object *Object_Call(Object *self, char *name, Object *args);

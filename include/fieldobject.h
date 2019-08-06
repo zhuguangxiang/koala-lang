@@ -21,7 +21,7 @@ typedef struct fieldobject {
   /* field type descriptor */
   TypeDesc *desc;
   /* getter & setter */
-  cfunc get;
+  func_t get;
   setfunc set;
   /* constant value */
   Object *value;

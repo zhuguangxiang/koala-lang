@@ -34,8 +34,8 @@ static void init_types(void)
   res = Type_Ready(&Tuple_Type);
   panic(res, "Cannot initalize 'Tuple' type.");
 
-  res = Type_Ready(&Map_Type);
-  panic(res, "Cannot initalize 'Map' type.");
+  res = Type_Ready(&Dict_Type);
+  panic(res, "Cannot initalize 'Dict' type.");
 
   res = Type_Ready(&Field_Type);
   panic(res, "Cannot initalize 'Field' type.");

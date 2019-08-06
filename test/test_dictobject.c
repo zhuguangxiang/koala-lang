@@ -9,11 +9,11 @@
 int main(int argc, char *argv[])
 {
   Koala_Initialize();
-  Object *map = Map_New();
+  Object *map = Dict_New();
   Object *foo = String_New("foo");
-  Map_Put(map, foo, Integer_New(100));
+  Dict_Put(map, foo, Integer_New(100));
   Object *bar = String_New("foo");
-  Object *ob = Map_Get(map, bar);
+  Object *ob = Dict_Get(map, bar);
   assert(Integer_Check(ob));
   assert(100 == Integer_AsInt(ob));
 

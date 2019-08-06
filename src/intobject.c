@@ -51,7 +51,6 @@ TypeObject Integer_Type = {
   .name    = "Integer",
   .free    = integer_free,
   .str     = integer_str,
-  .lookup  = Object_Lookup,
   .methods = int_methods,
 };
 

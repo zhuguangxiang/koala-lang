@@ -117,7 +117,6 @@ TypeObject Formatter_Type = {
   .name    = "Formatter",
   .free    = Fmtter_Free,
   .str     = fmtter_str,
-  .lookup  = Object_Lookup,
   .methods = fmtter_methods,
 };
 

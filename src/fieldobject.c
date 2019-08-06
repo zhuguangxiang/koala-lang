@@ -80,6 +80,5 @@ static MethodDef field_methods[] = {
 TypeObject Field_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Field",
-  .lookup  = Object_Lookup,
   .methods = field_methods,
 };
