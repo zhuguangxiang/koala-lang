@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 struct codeinfo {
-  struct vector locvec;
+  Vector locvec;
   Object *consts;
   int size;
   unsigned char insts[0];

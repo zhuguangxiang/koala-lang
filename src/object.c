@@ -31,9 +31,9 @@ struct mnode *mnode_new(char *name, Object *ob)
   return node;
 }
 
-static struct hashmap *get_mtbl(TypeObject *type)
+static HashMap *get_mtbl(TypeObject *type)
 {
-  struct hashmap *mtbl = type->mtbl;
+  HashMap *mtbl = type->mtbl;
   if (mtbl == NULL) {
     mtbl = kmalloc(sizeof(*mtbl));
     panic(!mtbl, "memory allocation failed.");
@@ -91,10 +91,9 @@ TypeObject Any_Type = {
   .equal  = any_equal,
   .clazz  = any_class,
   .str    = any_str,
-  //.fmt    = any_fmt,
 };
 
-static int lro_find(struct vector *vec, TypeObject *type)
+static int lro_find(Vector *vec, TypeObject *type)
 {
   TypeObject *item;
   VECTOR_ITERATOR(iter, vec);
@@ -107,7 +106,7 @@ static int lro_find(struct vector *vec, TypeObject *type)
 
 static void lro_build_one(TypeObject *type, TypeObject *base)
 {
-  struct vector *vec = type->lro;
+  Vector *vec = type->lro;
   if (vec == NULL) {
     vec = kmalloc(sizeof(*vec));
     vector_init(vec);
@@ -315,7 +314,17 @@ int Object_Equal(Object *ob1, Object *ob2)
   return Bool_IsTrue(ob) ? 1 : 0;
 }
 
-Object *Object_Get(Object *self, char *name)
+Object *Object_Class(Object *ob)
+{
+
+}
+
+Object *Object_String(Object *ob)
+{
+
+}
+
+Object *Object_Lookup(Object *self, char *name)
 {
   Object *res;
   if (Module_Check(self)) {
@@ -328,18 +337,20 @@ Object *Object_Get(Object *self, char *name)
 
 Object *Object_Call(Object *self, char *name, Object *args)
 {
-  Object *ob = Object_Get(self, name);
-  panic(!ob, "object of '%.64s' has not '%.64s' method",
-        OB_TYPE_NAME(self), name);
+  Object *ob = Object_Lookup(self, name);
+  panic(!ob, "object of '%.64s' has no '%.64s'", OB_TYPE_NAME(self), name);
+  if (Type_Check(ob)) {
+    ob = Object_Lookup(ob, "__call__");
+    panic(!ob, "object of '%.64s' has no '__call__'", OB_TYPE_NAME(self));
+  }
   return Method_Call(ob, self, args);
 }
 
 Object *Object_GetValue(Object *self, char *name)
 {
-  Object *ob = Object_Get(self, name);
+  Object *ob = Object_Lookup(self, name);
   if (ob == NULL) {
-    error("object of '%.64s' has not field '%.64s'",
-          OB_TYPE_NAME(self), name);
+    error("object of '%.64s' has no field '%.64s'", OB_TYPE_NAME(self), name);
     return NULL;
   }
 
@@ -361,10 +372,9 @@ Object *Object_GetValue(Object *self, char *name)
 
 int Object_SetValue(Object *self, char *name, Object *val)
 {
-  Object *ob = Object_Get(self, name);
+  Object *ob = Object_Lookup(self, name);
   if (ob == NULL) {
-    error("object of '%.64s' has not field '%.64s'",
-          OB_TYPE_NAME(self), name);
+    error("object of '%.64s' has no field '%.64s'", OB_TYPE_NAME(self), name);
     return -1;
   }
 

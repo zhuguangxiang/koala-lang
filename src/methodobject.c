@@ -18,7 +18,7 @@ Object *CMethod_New(MethodDef *def)
   MethodObject *method = kmalloc(sizeof(*method));
   Init_Object_Head(method, &Method_Type);
   method->name = def->name;
-  method->desc = TypeStr_ToProto(def->ptype, def->rtype);
+  method->desc = string_toproto(def->ptype, def->rtype);
   method->call = cfunc_call,
   method->ptr = def->func;
   return (Object *)method;
@@ -31,10 +31,7 @@ static Object *method_call(Object *self, Object *args)
     return NULL;
   }
 
-  if (args == NULL) {
-    error("'__call__' has no arguments");
-    return NULL;
-  }
+  panic(!args, "'call' has no arguments");
 
   Object *ob;
   Object *para;
@@ -46,7 +43,8 @@ static Object *method_call(Object *self, Object *args)
     para = Tuple_Slice(args, 1, -1);
   }
 
-  Object *res = Method_Call(self, ob, para);
+  MethodObject *meth = (MethodObject *)self;
+  Object *res = meth->call(self, ob, args);
   OB_DECREF(ob);
   OB_DECREF(para);
   return res;
@@ -67,13 +65,3 @@ TypeObject Proto_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name = "Proto",
 };
-
-Object *Method_Call(Object *self, Object *ob, Object *args)
-{
-  if (!Method_Check(self)) {
-    error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
-    return NULL;
-  }
-  MethodObject *meth = (MethodObject *)self;
-  return meth->call(self, ob, args);
-}

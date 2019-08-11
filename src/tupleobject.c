@@ -5,6 +5,7 @@
 
 #include <stdarg.h>
 #include "tupleobject.h"
+#include "fmtmodule.h"
 #include "log.h"
 
 #define MSIZE(size) \
@@ -144,10 +145,27 @@ static Object *tuple_length(Object *self, Object *args)
   return NULL;
 }
 
+static Object *tuple_fmt(Object *self, Object *args)
+{
+  if (!Tuple_Check(self)) {
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (!Fmtter_Check(args)) {
+    error("object of '%.64s' is not a Formatter", OB_TYPE_NAME(args));
+    return NULL;
+  }
+
+  Fmtter_WriteTuple(args, self);
+  return NULL;
+}
+
 static MethodDef tuple_methods[] = {
   {"length",      NULL, "i",  tuple_length },
   {"__getitem__", "i",  "A",  tuple_getitem},
   {"__setitem__", "iA", NULL, tuple_setitem},
+  {"__fmt__",     "Llang.Formatter;", NULL, tuple_fmt},
   {NULL}
 };
 

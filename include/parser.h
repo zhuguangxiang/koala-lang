@@ -7,6 +7,10 @@
 #define _KOALA_PARSER_H_
 
 #include <inttypes.h>
+#include "ast.h"
+#include "codegen.h"
+#include "atom.h"
+#include "list.h"
 #include "common.h"
 #include "log.h"
 
@@ -14,22 +18,49 @@
 extern "C" {
 #endif
 
-/* position */
-struct pos { int row; int col; };
-
-struct module {
-  /* module name is file name, directory name or __name__ */
+typedef struct module {
+  /* module name is file name, dir name or __name__ */
   char *name;
-  /* symbol table per module, not per source file */
-  struct symbol_table *stbl;
-};
+  /* symbol table per module(share between files) */
+  STable *stbl;
+} Module;
+
+/* ParserUnit scope */
+typedef enum scopekind {
+  SCOPE_MODULE = 1,
+  SCOPE_CLASS,
+  SCOPE_FUNCTION,
+  SCOPE_BLOCK,
+  SCOPE_CLOSURE,
+} ScopeKind;
+
+/* parser unit, one of Scope */
+typedef struct parserunit {
+  /* one of ScopeKind */
+  ScopeKind scope;
+
+  /* link to parserstate->ustack */
+  struct list_head link;
+
+  /* for function, class, trait and method */
+  Symbol *sym;
+  /* symbol table for current scope */
+  STable *stbl;
+
+  /* instructions within current scope */
+  CodeBlock *block;
+
+  int merge;
+  int loop;
+  Vector jmps;
+} ParserUnit;
 
 /* per source file */
-struct parser_state {
+typedef struct parserstate {
   /* file name */
   char *filename;
   /* its module */
-  struct module *mod;
+  Module *module;
 
   /* is interactive ? */
   int interactive;
@@ -40,11 +71,18 @@ struct parser_state {
   /* token length */
   int len;
   /* token position */
-  struct pos pos;
+  Position pos;
+
+  /* current ParserUnit */
+  ParserUnit *u;
+  /* ParserUnit stack depth */
+  int depth;
+  /* link ParserUnit */
+  struct list_head ustack;
 
   /* error numbers */
   int errnum;
-};
+} ParserState;
 
 /* more than MAX_ERRORS, discard left errors shown */
 #define MAX_ERRORS 8
@@ -60,6 +98,8 @@ struct parser_state {
             ps->filename, pos->row, pos->col, __VA_ARGS__);    \
   }                                                            \
 })
+
+void parse_expr(ParserState *ps, Expr *exp);
 
 #ifdef __cplusplus
 }

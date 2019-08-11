@@ -24,7 +24,7 @@ static char saved[128];
 
 int main(int argc, char *argv[])
 {
-  struct bytebuffer buffer;
+  ByteBuffer buffer;
   char data[10];
 
   bytebuffer_init(&buffer, 16);
@@ -56,6 +56,6 @@ int main(int argc, char *argv[])
   assert(!memcmp(saved, buf, 107));
   kfree(buf);
 
-  bytebuffer_free(&buffer);
+  bytebuffer_fini(&buffer);
   return 0;
 }

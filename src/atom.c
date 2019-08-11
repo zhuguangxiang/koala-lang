@@ -6,23 +6,21 @@
 #include "hashmap.h"
 #include "strbuf.h"
 
-struct atom {
+typedef struct atom {
   /* hashmap entry of atom */
-  struct hashmap_entry entry;
-
+  HashMapEntry entry;
   /* the string length */
   int len;
-
   /* the string pointer */
   char *str;
-};
+} Atom;
 
-static struct hashmap atomtbl;
+static HashMap atomtbl;
 
 char *atom_nstring(char *s, int len)
 {
-  struct atom key = {{NULL, memhash(s, len)}, len, s};
-  struct atom *atom = hashmap_get(&atomtbl, &key);
+  Atom key = {{NULL, memhash(s, len)}, len, s};
+  Atom *atom = hashmap_get(&atomtbl, &key);
   if (atom) {
     return atom->str;
   }
@@ -51,18 +49,18 @@ char *atom_vstring(int n, ...)
   strbuf_vnappend(&sbuf, n, args);
   va_end(args);
   s = atom(strbuf_tostr(&sbuf));
-  strbuf_free(&sbuf);
+  strbuf_fini(&sbuf);
 
   return s;
 }
 
-static int _atom_cmp_cb_(void *e1, void *e2)
+static int _atom_equal_cb_(void *e1, void *e2)
 {
-  struct atom *a1 = e1;
-  struct atom *a2 = e2;
+  Atom *a1 = e1;
+  Atom *a2 = e2;
   if (a1->len != a2->len)
-    return -1;
-  return strncmp(a1->str, a2->str, a1->len);
+    return 0;
+  return !strncmp(a1->str, a2->str, a1->len);
 }
 
 static void _atom_free_cb_(void *entry, void *data)
@@ -70,12 +68,12 @@ static void _atom_free_cb_(void *entry, void *data)
   kfree(entry);
 }
 
-void atom_init(void)
+void init_atom(void)
 {
-  hashmap_init(&atomtbl, _atom_cmp_cb_);
+  hashmap_init(&atomtbl, _atom_equal_cb_);
 }
 
-void atom_fini(void)
+void fini_atom(void)
 {
-  hashmap_free(&atomtbl, _atom_free_cb_, NULL);
+  hashmap_fini(&atomtbl, _atom_free_cb_, NULL);
 }

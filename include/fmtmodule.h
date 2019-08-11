@@ -13,13 +13,13 @@
 extern "C" {
 #endif
 
-typedef struct formatterobject {
+typedef struct fmtterobject {
   OBJECT_HEAD
-  struct strbuf buf;
-} FormatterObject;
+  StrBuf buf;
+} FmtterObject;
 
-extern TypeObject Formatter_Type;
-#define Fmtter_Check(ob) (OB_TYPE(ob) == &Formatter_Type)
+extern TypeObject Fmtter_Type;
+#define Fmtter_Check(ob) (OB_TYPE(ob) == &Fmtter_Type)
 
 void init_fmt_module(void);
 Object *Fmtter_New(void);
@@ -27,6 +27,7 @@ void Fmtter_Free(Object *ob);
 Object *Fmtter_WriteFormat(Object *self, Object *args);
 Object *Fmtter_WriteString(Object *self, Object *args);
 Object *Fmtter_WriteInteger(Object *self, Object *args);
+Object *Fmtter_WriteTuple(Object *self, Object *args);
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,7 @@
 #include "vector.h"
 #include "log.h"
 
-int file_input(struct parser_state *ps, char *buf, int size, FILE *in)
+int file_input(ParserState *ps, char *buf, int size, FILE *in)
 {
   errno = 0;
   int result = 0;
@@ -88,7 +88,7 @@ static int valid_source(char *path)
 
 static VECTOR(mods);
 
-struct parser_state ps_test;
+ParserState ps_test;
 
 /* koala -c a/b/foo.kl [a/b/foo] */
 void Koala_Compile(char *path)

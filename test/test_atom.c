@@ -9,7 +9,7 @@
 
 int main(int argc, char *argv[])
 {
-  atom_init();
+  init_atom();
 
   char *s = atom("Hello,");
   assert(!strcmp(s, "Hello,"));
@@ -22,6 +22,6 @@ int main(int argc, char *argv[])
   char *s5 = atom_vstring(2, s, s2);
   assert(!strcmp(s5, "Hello, Koala"));
 
-  atom_fini();
+  fini_atom();
   return 0;
 }

@@ -16,38 +16,38 @@ extern "C" {
 #endif
 
 /* string buffer */
-struct strbuf {
+typedef struct strbuf {
   /* allocated size */
   int size;
   /* used size */
   int len;
   /* contains string */
   char *buf;
-};
+} StrBuf;
 
 /* Declare a string buffer. */
 #define STRBUF(name) \
-  struct strbuf name = {0, 0, NULL}
+  StrBuf name = {0, 0, NULL}
 
 /* Free a string buffer. */
-static inline void strbuf_free(struct strbuf *self)
+static inline void strbuf_fini(StrBuf *self)
 {
   kfree(self->buf);
   memset(self, 0, sizeof(*self));
 }
 
 /* Write a null-terminated string. */
-void strbuf_append(struct strbuf *self, char *s);
+void strbuf_append(StrBuf *self, char *s);
 
 /* Write 'count' null-terminated strings. */
-void strbuf_vappend(struct strbuf *self, int count, ...);
-void strbuf_vnappend(struct strbuf *self, int count, va_list args);
+void strbuf_vappend(StrBuf *self, int count, ...);
+void strbuf_vnappend(StrBuf *self, int count, va_list args);
 
 /* Write a character. */
-void strbuf_append_char(struct strbuf *self, char ch);
+void strbuf_append_char(StrBuf *self, char ch);
 
 /* Get null-terminated string from the string buffer. */
-static inline char *strbuf_tostr(struct strbuf *self)
+static inline char *strbuf_tostr(StrBuf *self)
 {
   return self->buf;
 }

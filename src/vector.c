@@ -7,13 +7,13 @@
 #include "vector.h"
 #include "log.h"
 
-static inline void *__vector_offset(struct vector *self, int size)
+static inline void *__vector_offset(Vector *self, int size)
 {
   panic(!self->items, "null pointer");
   return (void *)((char *)self->items + sizeof(void *) * size);
 }
 
-static int __vector_maybe_expand(struct vector *self, int extrasize)
+static int __vector_maybe_expand(Vector *self, int extrasize)
 {
   int total = self->size + extrasize;
   if (total <= self->capacity)
@@ -38,7 +38,7 @@ static int __vector_maybe_expand(struct vector *self, int extrasize)
   return 0;
 }
 
-void vector_free(struct vector *self, vector_freefunc freefunc, void *data)
+void vector_fini(Vector *self, freefunc freefunc, void *data)
 {
   if (freefunc != NULL) {
     VECTOR_ITERATOR(iter, self);
@@ -52,7 +52,7 @@ void vector_free(struct vector *self, vector_freefunc freefunc, void *data)
   self->items = NULL;
 }
 
-int vector_concat(struct vector *self, struct vector *other)
+int vector_concat(Vector *self, Vector *other)
 {
   if (__vector_maybe_expand(self, other->size))
     return -1;
@@ -63,7 +63,7 @@ int vector_concat(struct vector *self, struct vector *other)
   return 0;
 }
 
-void *vector_set(struct vector *self, int index, void *item)
+void *vector_set(Vector *self, int index, void *item)
 {
   if (index < 0 || index > self->size)
     return NULL;
@@ -78,7 +78,7 @@ void *vector_set(struct vector *self, int index, void *item)
   return val;
 }
 
-void *vector_get(struct vector *self, int index)
+void *vector_get(Vector *self, int index)
 {
   if (index < 0 || index > self->size - 1)
     return NULL;
@@ -86,7 +86,7 @@ void *vector_get(struct vector *self, int index)
   return *(void **)offset;
 }
 
-int vector_push_back(struct vector *self, void *item)
+int vector_push_back(Vector *self, void *item)
 {
   if (__vector_maybe_expand(self, 1))
     return -1;
@@ -97,7 +97,7 @@ int vector_push_back(struct vector *self, void *item)
   return 0;
 }
 
-void *vector_pop_back(struct vector *self)
+void *vector_pop_back(Vector *self)
 {
   if (self->size <= 0)
     return NULL;
@@ -108,7 +108,7 @@ void *vector_pop_back(struct vector *self)
   return val;
 }
 
-void *vector_toarr(struct vector *self)
+void *vector_toarr(Vector *self)
 {
   int size = sizeof(void *) * (self->size + 1);
   void *arr = kmalloc(size);
@@ -116,9 +116,9 @@ void *vector_toarr(struct vector *self)
   return arr;
 }
 
-void *vector_iter_next(struct iterator *iter)
+void *vector_iter_next(Iterator *iter)
 {
-  struct vector *vec = iter->iterable;
+  Vector *vec = iter->iterable;
   if (!vec || vec->size <= 0)
     return NULL;
 
@@ -132,9 +132,9 @@ void *vector_iter_next(struct iterator *iter)
   return iter->item;
 }
 
-void *vector_iter_prev(struct iterator *iter)
+void *vector_iter_prev(Iterator *iter)
 {
-  struct vector *vec = iter->iterable;
+  Vector *vec = iter->iterable;
   if (!vec || vec->size <= 0)
     return NULL;
 

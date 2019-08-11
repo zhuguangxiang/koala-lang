@@ -12,7 +12,7 @@ Object *Field_New(FieldDef *def)
   FieldObject *field = kmalloc(sizeof(*field));
   Init_Object_Head(field, &Field_Type);
   field->name = def->name;
-  field->desc = TypeStr_ToDesc(def->type);
+  field->desc = string_totypedesc(def->type);
   field->get = def->get;
   field->set = def->set;
   return (Object *)field;

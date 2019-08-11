@@ -42,7 +42,7 @@ static Object *string_fmt(Object *self, Object *ob)
   strbuf_append(&sbuf, String_AsStr(self));
   strbuf_append_char(&sbuf, '\'');
   Object *str = String_New(strbuf_tostr(&sbuf));
-  strbuf_free(&sbuf);
+  strbuf_fini(&sbuf);
   Fmtter_WriteString(ob, str);
   OB_DECREF(str);
   return NULL;

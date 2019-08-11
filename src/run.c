@@ -57,8 +57,8 @@ static void init_types(void)
 
 void Koala_Initialize(void)
 {
-  atom_init();
-  node_init();
+  init_atom();
+  init_typedesc();
   init_types();
   init_lang_module();
   init_os_module();
@@ -68,8 +68,8 @@ void Koala_Initialize(void)
 
 void Koala_Finalize(void)
 {
-  node_fini();
-  atom_fini();
+  fini_typedesc();
+  fini_atom();
 }
 
 /*

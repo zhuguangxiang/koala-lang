@@ -72,6 +72,6 @@ int main(int argc, char *argv[])
     ++k;
   }
   assert(k == 99 + 20);
-  vector_free(&int_vec, NULL, NULL);
-  vector_free(&num2_vec, NULL, NULL);
+  vector_fini(&int_vec, NULL, NULL);
+  vector_fini(&num2_vec, NULL, NULL);
 }

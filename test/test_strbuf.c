@@ -23,6 +23,6 @@ int main(int argc, char *argv[])
   s = strbuf_tostr(&sbuf);
   assert(!strcmp(s, "Hello, KoalaHello, KoalaHello, KoalaOK"));
 
-  strbuf_free(&sbuf);
+  strbuf_fini(&sbuf);
   return 0;
 }

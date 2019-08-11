@@ -7,7 +7,7 @@
 
 #define EXPAND_MIN_SIZE 32
 
-static int expand(struct strbuf *self, int min)
+static int expand(StrBuf *self, int min)
 {
   int size = self->len + min + 1;
   int newsize = self->size;
@@ -27,7 +27,7 @@ static int expand(struct strbuf *self, int min)
   return 0;
 }
 
-static int available(struct strbuf *self, int size)
+static int available(StrBuf *self, int size)
 {
   int left = self->size - self->len - 1;
   if (left <= size && expand(self, size))
@@ -35,7 +35,7 @@ static int available(struct strbuf *self, int size)
   return self->size - self->len - 1 - size;
 }
 
-void strbuf_append(struct strbuf *self, char *s)
+void strbuf_append(StrBuf *self, char *s)
 {
   int len = strlen(s);
   if (len <= 0)
@@ -48,7 +48,7 @@ void strbuf_append(struct strbuf *self, char *s)
   self->len += len;
 }
 
-void strbuf_vnappend(struct strbuf *self, int count, va_list args)
+void strbuf_vnappend(StrBuf *self, int count, va_list args)
 {
   char *s;
   while (count-- > 0) {
@@ -57,7 +57,7 @@ void strbuf_vnappend(struct strbuf *self, int count, va_list args)
   }
 }
 
-void strbuf_vappend(struct strbuf *self, int count, ...)
+void strbuf_vappend(StrBuf *self, int count, ...)
 {
   va_list args;
   va_start(args, count);
@@ -65,7 +65,7 @@ void strbuf_vappend(struct strbuf *self, int count, ...)
   va_end(args);
 }
 
-void strbuf_append_char(struct strbuf *self, char ch)
+void strbuf_append_char(StrBuf *self, char ch)
 {
   if (available(self, 1) <= 0)
     return;

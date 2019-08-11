@@ -9,6 +9,7 @@
 #include "typedesc.h"
 #include "hashmap.h"
 #include "vector.h"
+#include "log.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,7 +38,7 @@ typedef struct {
 } FieldDef;
 
 struct mnode {
-  struct hashmap_entry entry;
+  HashMapEntry entry;
   char *name;
   Object *obj;
 };
@@ -122,21 +123,47 @@ typedef struct {
   func_t lnot;
 } NumberMethods;
 
+typedef struct {
+  /* __add__ */
+  func_t concat;
+  /* __getitem__ */
+  func_t getitem;
+  /* __setitem__ */
+  func_t setitem;
+  /* __getslice__ */
+  func_t getslice;
+  /* __setslice__ */
+  func_t setslice;
+} SequenceMethods;
+
+typedef struct {
+  /* __getitem__ */
+  func_t getitem;
+  /* __setitem__ */
+  func_t setitem;
+} MappingMethods;
+
+typedef struct {
+  /* __iter__ */
+  func_t iter;
+  /* __iternext__ */
+  func_t next;
+} IteratorMethods;
+
 /* mark and sweep callback */
-typedef void (*markfunc)(Object *);
+typedef void (*ob_markfunc)(Object *);
 
 /* alloc object function */
-typedef Object *(*allocfunc)(TypeObject *);
+typedef Object *(*ob_allocfunc)(TypeObject *);
 
 /* free object function */
-typedef void (*freefunc)(Object *);
+typedef void (*ob_freefunc)(Object *);
 
 #define TPFLAGS_CLASS 1
 #define TPFLAGS_TRAIT 2
 #define TPFLAGS_ENUM  3
 #define TPFLAGS_GC    4
 
-/* klass structure */
 struct typeobject {
   OBJECT_HEAD
   /* type name */
@@ -147,35 +174,35 @@ struct typeobject {
   Object *owner;
 
   /* mark-and-sweep */
-  markfunc mark;
+  ob_markfunc mark;
   /* alloc and free */
-  allocfunc alloc;
-  freefunc free;
+  ob_allocfunc alloc;
+  ob_freefunc free;
 
-  /* hash_code() */
+  /* __hash__  */
   func_t hash;
-  /* equal() */
+  /* __equal__ */
   func_t equal;
-  /* get_class() */
+  /* __class__ */
   func_t clazz;
-  /* tostr() */
+  /* __str__   */
   func_t str;
-  /* fmt() */
-  func_t fmt;
 
   /* number operations */
   NumberMethods *number;
   /* sequence operations */
-//  MappingMethods *mapping;
+  SequenceMethods *sequence;
+  /* mapping operations */
+  MappingMethods *mapping;
   /* iterator operations */
-//  IteratorMethods *iterator;
+  IteratorMethods *iterator;
 
   /* tuple: base classes */
-  struct vector *bases;
+  Vector *bases;
   /* line resolution order */
-  struct vector *lro;
+  Vector *lro;
   /* map: meta table */
-  struct hashmap *mtbl;
+  HashMap *mtbl;
 
   /* methods definition */
   MethodDef *methods;
@@ -206,7 +233,7 @@ void Type_Add_MethodDefs(TypeObject *type, MethodDef *def);
 
 unsigned int Object_Hash(Object *ob);
 int Object_Equal(Object *ob1, Object *ob2);
-
+Object *Object_Lookup(Object *self, char *name);
 Object *Object_GetValue(Object *self, char *name);
 int Object_SetValue(Object *self, char *name, Object *val);
 Object *Object_Call(Object *self, char *name, Object *args);

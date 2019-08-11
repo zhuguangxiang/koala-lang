@@ -10,7 +10,6 @@
 #include "log.h"
 #include "memory.h"
 #include "atom.h"
-#include "node.h"
 #include "fieldobject.h"
 #include "methodobject.h"
 #include "intobject.h"

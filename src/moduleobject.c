@@ -9,10 +9,8 @@
 #include "fieldobject.h"
 #include "classobject.h"
 #include "tupleobject.h"
-#include "node.h"
+#include "hashmap.h"
 #include "log.h"
-
-static VECTOR(modules);
 
 Object *Module_Lookup(Object *ob, char *name)
 {
@@ -53,10 +51,10 @@ TypeObject Module_Type = {
   .methods = module_methods,
 };
 
-static struct hashmap *get_mtbl(Object *ob)
+static HashMap *get_mtbl(Object *ob)
 {
   ModuleObject *module = (ModuleObject *)ob;
-  struct hashmap *mtbl = module->mtbl;
+  HashMap *mtbl = module->mtbl;
   if (mtbl == NULL) {
     mtbl = kmalloc(sizeof(*mtbl));
     panic(!mtbl, "memory allocation failed.");
@@ -143,6 +141,21 @@ Object *Module_New(char *name)
   return ob;
 }
 
+struct modnode {
+  HashMapEntry entry;
+  char *path;
+  Object *ob;
+};
+
+static HashMap modmap;
+
+static int _modnode_cmp_(void *e1, void *e2)
+{
+  struct modnode *n1 = e1;
+  struct modnode *n2 = e2;
+  return !strcmp(n1->path, n2->path);
+}
+
 void Module_Install(char *path, Object *ob)
 {
   if (Module_Check(ob) < 0) {
@@ -150,24 +163,45 @@ void Module_Install(char *path, Object *ob)
     return;
   }
 
-  ModuleObject *module = (ModuleObject *)ob;
-  char **pathes = path_toarr(path, strlen(path));
-  int res = add_leaf(pathes, ob);
-  if (!res) {
-    vector_push_back(&modules, ob);
-    debug("install module '%.64s' in path '%s' successfully.",
-          module->name, path);
-  } else {
-    error("install module '%.64s' in path '%s' failed.",
-          module->name, path);
+  if (!modmap.entries) {
+    hashmap_init(&modmap, _modnode_cmp_);
   }
-  kfree(pathes);
+
+  struct modnode *node = kmalloc(sizeof(*node));
+  hashmap_entry_init(node, strhash(path));
+  node->path = path;
+  node->ob = ob;
+  int res = hashmap_add(&modmap, node);
+  if (!res) {
+    debug("install module '%.64s' in path '%.64s' successfully.",
+          MODULE_NAME(ob), path);
+  } else {
+    error("install module '%.64s' in path '%.64s' failed.",
+          MODULE_NAME(ob), path);
+    kfree(node);
+  }
 }
 
 Object *Module_Load(char *path)
 {
-  char **pathes = path_toarr(path, strlen(path));
-  Object *ob = get_leaf(pathes);
-  kfree(pathes);
-  return OB_INCREF(ob);
+  struct modnode key = {.path = path};
+  hashmap_entry_init(&key, strhash(path));
+  struct modnode *node = hashmap_get(&modmap, &key);
+  if (node == NULL) {
+    /* find its source and compile it */
+    panic(1, "cannot find module '%.64s'", path);
+  }
+  return OB_INCREF(node->ob);
+}
+
+void Module_UnLoad(char *path)
+{
+  struct modnode key = {.path = path};
+  hashmap_entry_init(&key, strhash(path));
+  struct modnode *node = hashmap_remove(&modmap, &key);
+  Object *ob = NULL;
+  if (node != NULL) {
+    ob = node->ob;
+    kfree(node);
+  }
 }

@@ -14,16 +14,24 @@
 
 #define interactive ps->interactive
 
-int prompt;
+#define yyloc_row(loc) ((loc).first_line)
+#define yyloc_col(loc) ((loc).first_column)
+
+#define set_pos(pos, loc)     \
+({                            \
+  (pos).row = yyloc_row(loc); \
+  (pos).col = yyloc_col(loc); \
+})
 
 %}
 
 %union {
   int64_t ival;
   double fval;
-  uint32_t cval;
+  wchar cval;
   char *sval;
   char *text;
+  Expr *expr;
 }
 
 %token IMPORT
@@ -85,19 +93,33 @@ int prompt;
 %token <text> DOC
 %token <text> MODDOC
 
-%token <ival> BYTE_LITERAL
 %token <ival> INT_LITERAL
 %token <fval> FLOAT_LITERAL
 %token <cval> CHAR_LITERAL
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
+%type <expr> atom
+%type <expr> primary_expr
+%type <expr> unary_expr
+%type <expr> multi_expr
+%type <expr> add_expr
+%type <expr> relation_expr
+%type <expr> equality_expr
+%type <expr> and_expr
+%type <expr> exclusive_or_expr
+%type <expr> inclusive_or_expr
+%type <expr> logic_and_expr
+%type <expr> logic_or_expr
+%type <expr> basic_expr
+%type <expr> expr
+
 %precedence ID
 %precedence ','
 %precedence ')'
 
 %locations
-%parse-param {struct parser_state *ps}
+%parse-param {ParserState *ps}
 %parse-param {void *scanner}
 %define api.pure full
 %lex-param {void *scanner}
@@ -133,6 +155,9 @@ unit:
 | free_var_decl
 | assignment
 | expr ';'
+{
+  parse_expr(ps, $1);
+}
 | func_decl
   /*
 | type_decl
@@ -242,6 +267,9 @@ local_expr_list:
 
 expr:
   basic_expr
+{
+  $$ = $1;
+}
   /*
 | if_expr
 | while_expr
@@ -252,8 +280,17 @@ expr:
 
 basic_expr:
   range_object
+{
+
+}
 | lambda_object
+{
+
+}
 | logic_or_expr
+{
+  $$ = $1;
+}
 ;
 
 range_object:
@@ -277,37 +314,58 @@ idlist:
 
 logic_or_expr:
   logic_and_expr
+{
+  $$ = $1;
+}
 | logic_or_expr OP_OR logic_and_expr
 ;
 
 logic_and_expr:
   inclusive_or_expr
+{
+  $$ = $1;
+}
 | logic_and_expr OP_AND inclusive_or_expr
 ;
 
 inclusive_or_expr:
   exclusive_or_expr
+{
+  $$ = $1;
+}
 | inclusive_or_expr '|' exclusive_or_expr
 ;
 
 exclusive_or_expr:
   and_expr
+{
+  $$ = $1;
+}
 | exclusive_or_expr '^' and_expr
 ;
 
 and_expr:
   equality_expr
+{
+  $$ = $1;
+}
 | and_expr '&' equality_expr
 ;
 
 equality_expr:
   relation_expr
+{
+  $$ = $1;
+}
 | equality_expr OP_EQ relation_expr
 | equality_expr OP_NE relation_expr
 ;
 
 relation_expr:
   add_expr
+{
+  $$ = $1;
+}
 | relation_expr '<' add_expr
 | relation_expr '>' add_expr
 | relation_expr OP_LE add_expr
@@ -316,12 +374,18 @@ relation_expr:
 
 add_expr:
   multi_expr
+{
+  $$ = $1;
+}
 | add_expr '+' multi_expr
 | add_expr '-' multi_expr
 ;
 
 multi_expr:
   unary_expr
+{
+  $$ = $1;
+}
 | multi_expr '*' unary_expr
 | multi_expr '/' unary_expr
 | multi_expr '%' unary_expr
@@ -330,7 +394,13 @@ multi_expr:
 
 unary_expr:
   primary_expr
+{
+  $$ = $1;
+}
 | unary_operator unary_expr
+{
+
+}
 ;
 
 unary_operator:
@@ -342,9 +412,21 @@ unary_operator:
 
 primary_expr:
   call_expr
+{
+
+}
 | dot_expr
+{
+
+}
 | index_expr
+{
+
+}
 | atom
+{
+  $$ = $1;
+}
 ;
 
 call_expr:
@@ -365,21 +447,72 @@ index_expr:
 
 atom:
   ID
-| BYTE_LITERAL
+{
+  $$ = expr_from_ident($1);
+  set_pos($$->pos, @1);
+}
 | INT_LITERAL
+{
+  $$ = expr_from_integer($1);
+  set_pos($$->pos, @1);
+}
 | FLOAT_LITERAL
+{
+  $$ = expr_from_float($1);
+  set_pos($$->pos, @1);
+}
 | CHAR_LITERAL
+{
+  $$ = expr_from_char($1);
+  set_pos($$->pos, @1);
+}
 | STRING_LITERAL
+{
+  $$ = expr_from_string($1);
+  set_pos($$->pos, @1);
+}
 | TRUE
+{
+  $$ = expr_from_bool(1);
+  set_pos($$->pos, @1);
+}
 | FALSE
+{
+  $$ = expr_from_bool(0);
+  set_pos($$->pos, @1);
+}
 | NIL
+{
+
+}
 | SELF
+{
+
+}
 | SUPER
+{
+
+}
 | '(' basic_expr ')'
+{
+
+}
 | tuple_object
+{
+
+}
 | array_object
+{
+
+}
 | map_object
+{
+
+}
 | anony_object
+{
+
+}
 ;
 
 tuple_object:

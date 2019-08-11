@@ -23,10 +23,10 @@ char *atom_nstring(char *str, int len);
 char *atom_vstring(int vargc, ...);
 
 /* Initialize atom string internal hashmap */
-void atom_init(void);
+void init_atom(void);
 
 /* Free hashmap and atom string memory */
-void atom_fini(void);
+void fini_atom(void);
 
 #ifdef  __cplusplus
 }

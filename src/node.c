@@ -9,7 +9,7 @@
 #include "log.h"
 
 struct node {
-  struct hashmap_entry entry;
+  HashMapEntry entry;
   /* node name */
   char *name;
   /* parent node */
@@ -20,7 +20,7 @@ struct node {
   void *data;
 };
 
-static struct hashmap nodetbl;
+static HashMap nodetbl;
 static struct node root;
 static VECTOR(dir);
 
@@ -51,8 +51,8 @@ void node_init(void)
 
 void node_fini(void)
 {
-  hashmap_free(&nodetbl, _node_free_cb_, NULL);
-  vector_free(&dir, NULL, NULL);
+  hashmap_fini(&nodetbl, _node_free_cb_, NULL);
+  vector_fini(&dir, NULL, NULL);
 }
 
 static inline struct node *find_node(char *name, struct node *parent)
@@ -64,12 +64,12 @@ static inline struct node *find_node(char *name, struct node *parent)
 
 static struct node *__add_dirnode(char *name, struct node *parent)
 {
-  struct vector *vec;
+  Vector *vec;
   struct node *node = kmalloc(sizeof(*node) + sizeof(*vec));
   hashmap_entry_init(node, strhash(name));
   node->name = name;
   node->parent = parent;
-  vec = (struct vector *)(node + 1);
+  vec = (Vector *)(node + 1);
   vector_init(vec);
   node->data = vec;
   hashmap_add(&nodetbl, node);
@@ -162,6 +162,6 @@ char **path_toarr(char *path, int size)
   }
 
   arr = vector_toarr(&strs);
-  vector_free(&strs, NULL, NULL);
+  vector_fini(&strs, NULL, NULL);
   return arr;
 }

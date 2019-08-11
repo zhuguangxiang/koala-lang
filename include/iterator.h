@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 /* an iterator to be used to loop over a data structure */
-struct iterator {
+typedef struct iterator {
   /* save the data structure to be accessed looply */
   void *iterable;
   /* index of item or any other meanings */
@@ -22,7 +22,7 @@ struct iterator {
   void *item;
   /* next callback to get next element */
   void *(*next)(struct iterator *self);
-};
+} Iterator;
 
 /*
  * Declare an iterator to loop over a loopable data structure.
@@ -36,7 +36,7 @@ struct iterator {
  *   }
  */
 #define ITERATOR(name, iterable, next) \
-  struct iterator name = {iterable, 0, NULL, next}
+  Iterator name = {iterable, 0, NULL, next}
 
 /* Iterate over an iterator. */
 #define iter_for_each(self, item) \

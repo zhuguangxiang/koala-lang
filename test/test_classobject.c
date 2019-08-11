@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
   v = Object_GetValue(v, "__name__");
   assert(!strcmp("lang", String_AsStr(v)));
 
-  v = Object_Call(clazz, "getmethod", String_New("length"));
+  v = Object_Call(clazz, "getMethod", String_New("length"));
   assert(Method_Check(v));
   v = Method_Call(v, s, NULL);
   assert(Integer_Check(v));

@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
   v = Object_GetValue(v, "__name__");
   assert(!strcmp("lang", String_AsStr(v)));
 
-  Object *meth = Object_Call(clazz, "getmethod", String_New("__name__"));
+  Object *meth = Object_Call(clazz, "getMethod", String_New("__name__"));
   assert(Method_Check(meth));
   v = Object_Call(meth, "call", m);
   assert(!strcmp("test", String_AsStr(v)));

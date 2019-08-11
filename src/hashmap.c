@@ -32,10 +32,10 @@ unsigned int memhash(const void *buf, size_t len)
 #define HASHMAP_INITIAL_SIZE 32
 #define HASHMAP_LOAD_FACTOR  80
 
-static void alloc_entries(struct hashmap *self, int size)
+static void alloc_entries(HashMap *self, int size)
 {
   self->size = size;
-  self->entries = kmalloc(size * sizeof(struct hashmap_entry *));
+  self->entries = kmalloc(size * sizeof(HashMapEntry *));
   /* calculate new thresholds */
   self->grow_at = size * HASHMAP_LOAD_FACTOR / 100;
   if (size <= HASHMAP_INITIAL_SIZE)
@@ -44,22 +44,22 @@ static void alloc_entries(struct hashmap *self, int size)
     self->shrink_at = self->grow_at / 5;
 }
 
-void hashmap_init(struct hashmap *self, hashmap_cmpfunc cmpfunc)
+void hashmap_init(HashMap *self, equalfunc equalfunc)
 {
   memset(self, 0, sizeof(*self));
-  self->cmpfunc = cmpfunc;
+  self->equalfunc = equalfunc;
   int size = HASHMAP_INITIAL_SIZE;
   alloc_entries(self, size);
 }
 
-void hashmap_free(struct hashmap *self, hashmap_freefunc freefunc, void *data)
+void hashmap_fini(HashMap *self, freefunc freefunc, void *data)
 {
   if (!self || !self->entries)
     return;
 
   if (freefunc) {
     HASHMAP_ITERATOR(iter, self);
-    struct hashmap_entry *e;
+    HashMapEntry *e;
     iter_for_each(&iter, e)
       freefunc(e, data);
   }
@@ -68,45 +68,42 @@ void hashmap_free(struct hashmap *self, hashmap_freefunc freefunc, void *data)
   memset(self, 0, sizeof(*self));
 }
 
-static inline int bucket(struct hashmap *self, struct hashmap_entry *e)
+static inline int bucket(HashMap *self, HashMapEntry *e)
 {
   return e->hash & (self->size - 1);
 }
 
 static inline
-int entry_equals(struct hashmap *self,
-                 struct hashmap_entry *e1, struct hashmap_entry *e2)
+int entry_equals(HashMap *self, HashMapEntry *e1, HashMapEntry *e2)
 {
-  return (e1 == e2) || (e1->hash == e2->hash && !self->cmpfunc(e1, e2));
+  return (e1 == e2) || (e1->hash == e2->hash && self->equalfunc(e1, e2));
 }
 
-static inline
-struct hashmap_entry **find_entry(struct hashmap *self,
-                                  struct hashmap_entry *key)
+static inline HashMapEntry **find_entry(HashMap *self, HashMapEntry *key)
 {
-  panic(!key->hash, "hashcode must not be 0");
-	struct hashmap_entry **e = &self->entries[bucket(self, key)];
+  panic(!key->hash, "hash must not be 0");
+	HashMapEntry **e = &self->entries[bucket(self, key)];
 	while (*e && !entry_equals(self, *e, key))
 		e = &(*e)->next;
 	return e;
 }
 
-void *hashmap_get(struct hashmap *self, void *key)
+void *hashmap_get(HashMap *self, void *key)
 {
   if (self == NULL)
     return NULL;
   return *find_entry(self, key);
 }
 
-static void rehash(struct hashmap *self, int newsize)
+static void rehash(HashMap *self, int newsize)
 {
   int oldsize = self->size;
-  struct hashmap_entry **oldentries = self->entries;
+  HashMapEntry **oldentries = self->entries;
 
   alloc_entries(self, newsize);
 
-  struct hashmap_entry *e;
-  struct hashmap_entry *n;
+  HashMapEntry *e;
+  HashMapEntry *n;
   int b;
   for (int i = 0; i < oldsize; ++i) {
     e = oldentries[i];
@@ -122,7 +119,7 @@ static void rehash(struct hashmap *self, int newsize)
   kfree(oldentries);
 }
 
-int hashmap_add(struct hashmap *self, void *entry)
+int hashmap_add(HashMap *self, void *entry)
 {
   if (self == NULL)
     return -1;
@@ -131,7 +128,7 @@ int hashmap_add(struct hashmap *self, void *entry)
     return -1;
 
   int b = bucket(self, entry);
-  ((struct hashmap_entry *)entry)->next = self->entries[b];
+  ((HashMapEntry *)entry)->next = self->entries[b];
   self->entries[b] = entry;
   self->count++;
   if (self->count > self->grow_at)
@@ -139,20 +136,20 @@ int hashmap_add(struct hashmap *self, void *entry)
   return 0;
 }
 
-void *hashmap_put(struct hashmap *self, void *entry)
+void *hashmap_put(HashMap *self, void *entry)
 {
-  struct hashmap_entry *old = hashmap_remove(self, entry);
+  HashMapEntry *old = hashmap_remove(self, entry);
   hashmap_add(self, entry);
   return old;
 }
 
-void *hashmap_remove(struct hashmap *self, void *key)
+void *hashmap_remove(HashMap *self, void *key)
 {
-  struct hashmap_entry **e = find_entry(self, key);
+  HashMapEntry **e = find_entry(self, key);
   if (!*e)
     return NULL;
 
-  struct hashmap_entry *old;
+  HashMapEntry *old;
   old = *e;
   *e = old->next;
   old->next = NULL;
@@ -166,11 +163,11 @@ void *hashmap_remove(struct hashmap *self, void *key)
 
 void *hashmap_iter_next(struct iterator *iter)
 {
-  struct hashmap *map = iter->iterable;
+  HashMap *map = iter->iterable;
   if (map == NULL)
     return NULL;
 
-  struct hashmap_entry *current = iter->item;
+  HashMapEntry *current = iter->item;
   for (;;) {
     if (current) {
       iter->item = current->next;

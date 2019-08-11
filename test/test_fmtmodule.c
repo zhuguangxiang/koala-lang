@@ -17,9 +17,18 @@ int main(int argc, char *argv[])
   Object *args = Tuple_Pack(3, fmtstr, name, year);
   Object_Call(m, "println", args);
   OB_DECREF(args);
+  OB_DECREF(fmtstr);
+
+  fmtstr = String_New("{}");
+  Object *tuple = Tuple_Pack(4, name, year, name, year);
+  args = Tuple_Pack(2, fmtstr, tuple);
+  Object_Call(m, "println", args);
+
+  OB_DECREF(args);
+  OB_DECREF(tuple);
+  OB_DECREF(fmtstr);
   OB_DECREF(year);
   OB_DECREF(name);
-  OB_DECREF(fmtstr);
   Koala_Finalize();
   return 0;
 }

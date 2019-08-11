@@ -11,7 +11,7 @@ struct byteblock {
   char data[0];
 };
 
-void bytebuffer_init(struct bytebuffer *self, int bsize)
+void bytebuffer_init(ByteBuffer *self, int bsize)
 {
   self->bsize = bsize;
   self->total = 0;
@@ -23,9 +23,9 @@ static void byteblock_free_cb(void *block, void *data)
   kfree(block);
 }
 
-void bytebuffer_free(struct bytebuffer *self)
+void bytebuffer_fini(ByteBuffer *self)
 {
-  vector_free(&self->vec, byteblock_free_cb, NULL);
+  vector_fini(&self->vec, byteblock_free_cb, NULL);
   memset(self, 0, sizeof(*self));
 }
 
@@ -34,7 +34,7 @@ static inline struct byteblock *alloc_byteblock(int size)
   return kmalloc(sizeof(struct byteblock) + size);
 }
 
-int bytebuffer_write(struct bytebuffer *self, char *data, int size)
+int bytebuffer_write(ByteBuffer *self, char *data, int size)
 {
   int left;
   int min;
@@ -59,7 +59,7 @@ int bytebuffer_write(struct bytebuffer *self, char *data, int size)
   return 0;
 }
 
-int bytebuffer_toarr(struct bytebuffer *self, char **arr)
+int bytebuffer_toarr(ByteBuffer *self, char **arr)
 {
   VECTOR_ITERATOR(iter, &self->vec);
   char *buf = kmalloc((self->total + 3) & ~3);

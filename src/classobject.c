@@ -8,8 +8,6 @@
 #include "methodobject.h"
 #include "stringobject.h"
 
-Object *Object_Get(Object *self, char *name);
-
 static Object *class_get(Object *self, char *name)
 {
   if (!Class_Check(self)) {
@@ -22,7 +20,7 @@ static Object *class_get(Object *self, char *name)
   if (Type_Check(ob)) {
     res = Type_Lookup((TypeObject *)ob, name);
   } else {
-    res = Object_Get(ob, name);
+    res = Object_Lookup(ob, name);
   }
 
   if (!res) {
@@ -122,11 +120,11 @@ static Object *class_lro(Object *self, Object *args)
 
 static MethodDef class_methods[] = {
   {"__name__",   NULL, "s",             class_name     },
-  {"__mbrs__",   NULL, "Llang.Tuple;",  class_members  },
   {"__module__", NULL, "Llang.Module;", class_module   },
   {"__lro__",    NULL, "Llang.Tuple;",  class_lro      },
-  {"getfield",   "s",  "Llang.Field;",  class_getfield },
-  {"getmethod",  "s",  "Llang.Method;", class_getmethod},
+  {"__mbrs__",   NULL, "Llang.Tuple;",  class_members  },
+  {"getField",   "s",  "Llang.Field;",  class_getfield },
+  {"getMethod",  "s",  "Llang.Method;", class_getmethod},
   {NULL}
 };
 

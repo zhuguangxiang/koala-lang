@@ -13,23 +13,23 @@ extern "C" {
 #endif
 
 /* a dynamic byte buffer */
-struct bytebuffer {
+typedef struct bytebuffer {
   /* block size */
   int bsize;
   /* total bytes in the buffer */
   int total;
   /* byteblock's vector */
-  struct vector vec;
-};
+  Vector vec;
+} ByteBuffer;
 
 /* Initialize the byte buffer. */
-void bytebuffer_init(struct bytebuffer *self, int bsize);
+void bytebuffer_init(ByteBuffer *self, int bsize);
 
 /* Free the byte buffer. */
-void bytebuffer_free(struct bytebuffer *self);
+void bytebuffer_fini(ByteBuffer *self);
 
 /* Write n bytes data into byte buffer. */
-int bytebuffer_write(struct bytebuffer *self, char *data, int size);
+int bytebuffer_write(ByteBuffer *self, char *data, int size);
 
 /* Get byte buffer size. */
 #define bytebuffer_size(self) (self)->total
@@ -47,7 +47,7 @@ int bytebuffer_write(struct bytebuffer *self, char *data, int size);
   bytebuffer_write(self, (char *)&data, 4)
 
 /* Convert byte buffer to an array. */
-int bytebuffer_toarr(struct bytebuffer *self, char **arr);
+int bytebuffer_toarr(ByteBuffer *self, char **arr);
 
 #ifdef __cplusplus
 }

@@ -131,7 +131,7 @@ void Array_Free(Object *ob)
 
   ArrayObject *arr = (ArrayObject *)ob;
   OB_DECREF(arr->type);
-  vector_free(&arr->items, array_item_free, NULL);
+  vector_fini(&arr->items, array_item_free, NULL);
   kfree(arr);
 }
 

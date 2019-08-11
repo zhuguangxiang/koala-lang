@@ -10,16 +10,16 @@
 #include "parser.h"
 #include "koala_yacc.h"
 
-int interactive(struct parser_state *ps, char *buf, int size);
-int file_input(struct parser_state *ps, char *buf, int size, FILE *in);
+int interactive(ParserState *ps, char *buf, int size);
+int file_input(ParserState *ps, char *buf, int size, FILE *in);
 
-#define YY_EXTRA_TYPE struct parser_state *
+#define YY_EXTRA_TYPE ParserState *
 #define yyps ((YY_EXTRA_TYPE)yyextra)
 
 static int need_semicolon(YY_EXTRA_TYPE ps)
 {
   static int tokens[] = {
-    BYTE_LITERAL, INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
+    INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
     ID, SELF, SUPER, TRUE, FALSE, NIL,
     RETURN, BREAK, CONTINUE, ')', ']', '}',
     BYTE, INTEGER, FLOAT, CHAR, STRING, BOOL, ANY,
@@ -99,7 +99,7 @@ string    {character}+
 alpha      [A-Za-z_]
 identifier {alpha}({alpha}|{digit})*
 
-comment ("//"[^\n]*)|(#[^\n]*)
+comment ("//"|#)[^\n]*
 doc     "///"[^\n]*
 moddoc  "//!"[^\n]*
 
@@ -218,11 +218,12 @@ moddoc  "//!"[^\n]*
 }
 
 (\"{string}\") {
+  yylval->sval = atom_nstring(yytext + 1, yyleng - 2);
   YY_RETURN(STRING_LITERAL);
 }
 
 {identifier} {
-  //strncpy(yylval->sval, yytext, yyleng);
+  yylval->sval = atom_nstring(yytext, yyleng);
   YY_RETURN(ID);
 }
 
