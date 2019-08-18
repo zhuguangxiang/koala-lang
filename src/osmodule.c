@@ -62,4 +62,10 @@ void init_os_module(void)
   Object *m = Module_New("os");
   Module_Add_VarDefs(m, os_fields);
   Module_Install("os", m);
+  OB_DECREF(m);
+}
+
+void fini_os_module(void)
+{
+  Module_Uninstall("os");
 }

@@ -11,6 +11,7 @@ extern "C" {
 #endif
 
 void init_os_module(void);
+void fini_os_module(void);
 
 #ifdef __cplusplus
 }

@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 void init_io_module(void);
+void fini_io_module(void);
 void io_put(Object *ob);
 void io_putln(Object *ob);
 

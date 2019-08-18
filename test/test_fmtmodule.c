@@ -23,12 +23,15 @@ int main(int argc, char *argv[])
   Object *tuple = Tuple_Pack(4, name, year, name, year);
   args = Tuple_Pack(2, fmtstr, tuple);
   Object_Call(m, "println", args);
-
   OB_DECREF(args);
   OB_DECREF(tuple);
   OB_DECREF(fmtstr);
+
   OB_DECREF(year);
   OB_DECREF(name);
+
+  OB_DECREF(m);
+
   Koala_Finalize();
   return 0;
 }

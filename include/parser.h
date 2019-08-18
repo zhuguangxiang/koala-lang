@@ -111,6 +111,7 @@ typedef struct parserstate {
 
 void codeblock_free(CodeBlock *block);
 void init_parser(void);
+void fini_parser(void);
 void parser_enter_scope(ParserState *ps, ScopeKind scope);
 void parser_exit_scope(ParserState *ps);
 void parse_stmt(ParserState *ps, Stmt *stmt);

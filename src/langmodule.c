@@ -42,7 +42,6 @@ static MethodDef lang_methods[] = {
 void init_lang_module(void)
 {
   Object *m = Module_New("lang");
-
   Module_Add_Type(m, &Any_Type);
   Module_Add_Type(m, &Byte_Type);
   Module_Add_Type(m, &Integer_Type);
@@ -52,15 +51,18 @@ void init_lang_module(void)
   Module_Add_Type(m, &Array_Type);
   Module_Add_Type(m, &Tuple_Type);
   Module_Add_Type(m, &Dict_Type);
-
   Module_Add_Type(m, &Field_Type);
   Module_Add_Type(m, &Method_Type);
   Module_Add_Type(m, &Proto_Type);
   Module_Add_Type(m, &Class_Type);
   Module_Add_Type(m, &Module_Type);
   Module_Add_Type(m, &Code_Type);
-
   //Module_Add_FuncDefs(m, lang_methods);
-
   Module_Install("lang", m);
+  OB_DECREF(m);
+}
+
+void fini_lang_module(void)
+{
+  Module_Uninstall("lang");
 }

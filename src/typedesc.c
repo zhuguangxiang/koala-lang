@@ -78,8 +78,8 @@ static inline void check_base_refcnt(void)
   for (int i = 0; i < COUNT_OF(bases); ++i) {
     p = bases + i;
     if (p->refcnt != 1)
-      panic("type of '%s' refcnt checked failed.",
-            p->base.str);
+      panic("type of '%s' refcnt %d checked failed.",
+            p->base.str, p->refcnt);
   }
 }
 
@@ -122,6 +122,11 @@ void desc_free(TypeDesc *desc)
     break;
   }
   case TYPE_PROTO: {
+    VECTOR_ITERATOR(iter, desc->proto.args);
+    TypeDesc *tmp;
+    iter_for_each(&iter, tmp) {
+      TYPE_DECREF(tmp);
+    }
     vector_free(desc->proto.args, NULL, NULL);
     TYPE_DECREF(desc->proto.ret);
     kfree(desc);
@@ -203,7 +208,9 @@ TypeDesc *string_toproto(char *ptype, char *rtype)
 {
   Vector *args = string_todescs(ptype);
   TypeDesc *ret = string_todesc(rtype);
-  return desc_getproto(args, ret);
+  TypeDesc *desc = desc_getproto(args, ret);
+  TYPE_DECREF(ret);
+  return desc;
 }
 
 Vector *string_todescs(char *s)

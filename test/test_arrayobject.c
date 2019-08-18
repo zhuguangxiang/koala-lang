@@ -30,7 +30,6 @@ int main(int argc, char *argv[])
   Array_Print(arr);
 
   Object *i = Integer_New(1);
-  Object_Call(arr, "append", i);
 
   v = Object_Call(arr, "__getitem__", i);
   assert(!strcmp("world", String_AsStr(v)));

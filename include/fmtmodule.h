@@ -22,6 +22,7 @@ extern TypeObject Fmtter_Type;
 #define Fmtter_Check(ob) (OB_TYPE(ob) == &Fmtter_Type)
 
 void init_fmt_module(void);
+void fini_fmt_moudle(void);
 Object *Fmtter_New(void);
 void Fmtter_Free(Object *ob);
 Object *Fmtter_WriteFormat(Object *self, Object *args);

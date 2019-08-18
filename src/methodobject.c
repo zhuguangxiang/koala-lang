@@ -50,6 +50,18 @@ static Object *method_call(Object *self, Object *args)
   return res;
 }
 
+static void meth_free(Object *ob)
+{
+  if (!Method_Check(ob)) {
+    error("object of '%.64s' is not a Method", OB_TYPE_NAME(ob));
+    return;
+  }
+  MethodObject *meth = (MethodObject *)ob;
+  debug("[Freed] Method %s", meth->name);
+  TYPE_DECREF(meth->desc);
+  kfree(ob);
+}
+
 static MethodDef meth_methods[] = {
   {"call", "...", "A", method_call},
   {NULL}
@@ -58,6 +70,7 @@ static MethodDef meth_methods[] = {
 TypeObject Method_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Method",
+  .free    = meth_free,
   .methods = meth_methods,
 };
 

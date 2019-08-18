@@ -14,9 +14,9 @@ int main(int argc, char *argv[])
   debug("hello, koala");
   warn("hello, koala");
   error("hello, koala");
-  print("sizeof(int):%ld\n", sizeof(int));
-  print("sizeof(long):%ld\n", sizeof(long));
-  print("%lx\n", (uintptr_t)&argv);
+  printf("sizeof(int):%ld\n", sizeof(int));
+  printf("sizeof(long):%ld\n", sizeof(long));
+  printf("%lx\n", (uintptr_t)&argv);
   //panic(0, "hello, %s", "world");
   return 0;
 }

@@ -15,11 +15,19 @@ typedef struct dictentry {
 
 static int dict_entry_equal(void *e1, void *e2)
 {
-  DictEntry *me1 = e1;
-  DictEntry *me2 = e2;
-  if (me1 == me2)
+  DictEntry *de1 = e1;
+  DictEntry *de2 = e2;
+  if (de1 == de2)
     return 1;
-  return Object_Equal(me1->key, me2->key);
+  return Object_Equal(de1->key, de2->key);
+}
+
+static void dict_entry_free(void *e, void *arg)
+{
+  DictEntry *de = e;
+  OB_DECREF(de->key);
+  OB_DECREF(de->val);
+  kfree(e);
 }
 
 Object *Dict_New_Types(TypeObject *ktype, TypeObject *vtype)
@@ -48,10 +56,10 @@ Object *Dict_Get(Object *self, Object *key)
   }
 
   unsigned int hash = Object_Hash(key);
-  DictEntry entry = { .key = key };
+  DictEntry entry = {.key = key};
   hashmap_entry_init(&entry, hash);
   DictEntry *val = hashmap_get(&dict->map, &entry);
-  return val ? val->val : NULL;
+  return val ? OB_INCREF(val->val) : NULL;
 }
 
 int Dict_Put(Object *self, Object *key, Object *val)
@@ -83,7 +91,7 @@ int Dict_Put(Object *self, Object *key, Object *val)
   return hashmap_add(&dict->map, entry);
 }
 
-static Object *map_setitem(Object *self, Object *args)
+static Object *dict_setitem(Object *self, Object *args)
 {
   if (!Tuple_Check(args)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(args));
@@ -98,14 +106,29 @@ static Object *map_setitem(Object *self, Object *args)
   return (res < 0) ? Bool_False() : Bool_True();
 }
 
-static MethodDef map_methods[] = {
+static void dict_free(Object *ob)
+{
+  if (!Dict_Check(ob)) {
+    error("object of '%.64s' is not a Dict", OB_TYPE_NAME(ob));
+    return;
+  }
+
+  DictObject *dict = (DictObject *)ob;
+  OB_DECREF(dict->ktype);
+  OB_DECREF(dict->vtype);
+  hashmap_fini(&dict->map, dict_entry_free, NULL);
+  kfree(ob);
+}
+
+static MethodDef dict_methods[] = {
   {"__getitem__", "A",  "A",  Dict_Get    },
-  {"__setitem__", "AA", NULL, map_setitem},
+  {"__setitem__", "AA", NULL, dict_setitem},
   {NULL}
 };
 
 TypeObject Dict_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Dict",
-  .methods = map_methods,
+  .free    = dict_free,
+  .methods = dict_methods,
 };

@@ -40,6 +40,25 @@ static Object *module_name(Object *self, Object *args)
   return String_New(module->name);
 }
 
+static void module_free(Object *ob)
+{
+  if (!Module_Check(ob)) {
+    error("object of '%.64s' is not a Module", OB_TYPE_NAME(ob));
+    return;
+  }
+
+  ModuleObject *module = (ModuleObject *)ob;
+  HashMap *map = module->mtbl;
+  if (map != NULL) {
+    debug("fini module '%s'", module->name);
+    hashmap_fini(map, mnode_free, NULL);
+    debug("------------------------");
+    kfree(map);
+    module->mtbl = NULL;
+  }
+  kfree(ob);
+}
+
 static MethodDef module_methods[] = {
   {"__name__", NULL, "s", module_name},
   {NULL}
@@ -48,6 +67,7 @@ static MethodDef module_methods[] = {
 TypeObject Module_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Module",
+  .free    = module_free,
   .methods = module_methods,
 };
 
@@ -101,6 +121,7 @@ void Module_Add_VarDef(Object *self, FieldDef *f)
 {
   Object *field = Field_New(f);
   Module_Add_Var(self, field);
+  OB_DECREF(field);
 }
 
 void Module_Add_VarDefs(Object *self, FieldDef *def)
@@ -126,6 +147,7 @@ void Module_Add_FuncDef(Object *self, MethodDef *f)
 {
   Object *meth = CMethod_New(f);
   Module_Add_Func(self, meth);
+  OB_DECREF(meth);
 }
 
 void Module_Add_FuncDefs(Object *self, MethodDef *def)
@@ -169,13 +191,14 @@ void Module_Install(char *path, Object *ob)
   }
 
   if (!modmap.entries) {
+    debug("init module map");
     hashmap_init(&modmap, _modnode_equal_);
   }
 
   struct modnode *node = kmalloc(sizeof(*node));
   hashmap_entry_init(node, strhash(path));
   node->path = path;
-  node->ob = ob;
+  node->ob = OB_INCREF(ob);
   int res = hashmap_add(&modmap, node);
   if (!res) {
     debug("install module '%.64s' in path '%.64s' successfully.",
@@ -183,7 +206,23 @@ void Module_Install(char *path, Object *ob)
   } else {
     error("install module '%.64s' in path '%.64s' failed.",
           MODULE_NAME(ob), path);
-    kfree(node);
+    mnode_free(node, NULL);
+  }
+}
+
+void Module_Uninstall(char *path)
+{
+  struct modnode key = {.path = path};
+  hashmap_entry_init(&key, strhash(path));
+  struct modnode *node = hashmap_remove(&modmap, &key);
+  Object *ob = NULL;
+  if (node != NULL) {
+    mnode_free(node, NULL);
+  }
+
+  if (hashmap_size(&modmap) <= 0) {
+    debug("fini module map");
+    hashmap_fini(&modmap, NULL, NULL);
   }
 }
 
@@ -197,16 +236,4 @@ Object *Module_Load(char *path)
     panic("cannot find module '%.64s'", path);
   }
   return OB_INCREF(node->ob);
-}
-
-void Module_UnLoad(char *path)
-{
-  struct modnode key = {.path = path};
-  hashmap_entry_init(&key, strhash(path));
-  struct modnode *node = hashmap_remove(&modmap, &key);
-  Object *ob = NULL;
-  if (node != NULL) {
-    ob = node->ob;
-    kfree(node);
-  }
 }

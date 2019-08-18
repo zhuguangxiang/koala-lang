@@ -29,7 +29,6 @@ STable *stable_new(void)
 static void _symbol_free_(void *e, void *arg)
 {
   Symbol *sym = e;
-  debug("remove symbol '%s'", sym->name);
   symbol_decref(sym);
 }
 
@@ -72,6 +71,8 @@ int stable_add_symbol(STable *stbl, Symbol *sym)
     symbol_decref((Symbol *)sym);
     return -1;
   }
+
+  ++sym->refcnt;
   return 0;
 }
 
@@ -82,6 +83,7 @@ Symbol *stable_add_const(STable *stbl, char *name, TypeDesc *desc)
     return NULL;
   sym->desc = TYPE_INCREF(desc);
   sym->var.index = stbl->varindex++;
+  symbol_decref(sym);
   return sym;
 }
 
@@ -92,6 +94,7 @@ Symbol *stable_add_var(STable *stbl, char *name, TypeDesc *desc)
     return NULL;
   sym->desc = TYPE_INCREF(desc);
   sym->var.index = stbl->varindex++;
+  symbol_decref(sym);
   return sym;
 }
 
@@ -101,57 +104,85 @@ Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto)
   if (stable_add_symbol(stbl, sym))
     return NULL;
   sym->desc = TYPE_INCREF(proto);
+  symbol_decref(sym);
   return sym;
 }
 
 static inline void symbol_free(Symbol *sym)
 {
-  if (sym->refcnt > 0)
-    panic("refcnt of symbol '%s' is not 0", sym->name);
+  TYPE_DECREF(sym->desc);
+
   switch (sym->kind) {
   case SYM_CONST:
+    panic("SYM_CONST not implemented");
     break;
   case SYM_VAR:
-    kfree(sym);
+    debug("[Symbol Freed] var '%s'", sym->name);
     break;
   case SYM_FUNC:
+    debug("[Symbol Freed] func '%s'", sym->name);
     break;
   case SYM_CLASS:
+    debug("[Symbol Freed] class '%s'", sym->name);
+    stable_free(sym->klass.stbl);
+    VECTOR_REVERSE_ITERATOR(iter, &sym->klass.supers);
+    Symbol *tmp;
+    iter_for_each(&iter, tmp) {
+      symbol_decref(tmp);
+    }
+    vector_fini(&sym->klass.supers, NULL, NULL);
     break;
   case SYM_TRAIT:
+    panic("SYM_TRAIT not implemented");
     break;
   case SYM_ENUM:
+    panic("SYM_ENUM not implemented");
     break;
   case SYM_EVAL:
+    panic("SYM_EVAL not implemented");
     break;
   case SYM_IFUNC:
+    panic("SYM_IFUNC not implemented");
     break;
   case SYM_NFUNC:
+    panic("SYM_NFUNC not implemented");
     break;
   case SYM_AFUNC:
+    panic("SYM_MOD not implemented");
     break;
   case SYM_MOD:
+    debug("[Symbol Freed] module '%s'", sym->name);
     break;
   case SYM_REF:
+    panic("SYM_REF not implemented");
     break;
   default:
-    panic("invalide branch %d", sym->kind);
+    panic("invalide symbol '%s' kind %d", sym->name, sym->kind);
     break;
   }
+
+  kfree(sym);
 }
 
 void symbol_decref(Symbol *sym)
 {
-  if (--sym->refcnt <= 0) {
+  if (sym == NULL)
+    return;
+
+  --sym->refcnt;
+  if (sym->refcnt == 0) {
     symbol_free(sym);
+  } else if (sym->refcnt < 0) {
+    panic("sym '%s' refcnt %d error", sym->name, sym->refcnt);
   } else {
-    debug("refcnt of symbol '%s' is %d", sym->name, sym->refcnt);
+    /* empty */
   }
 }
 
 static Symbol *load_field(Object *ob)
 {
   FieldObject *fo = (FieldObject *)ob;
+  debug("load field '%s'", fo->name);
   Symbol *sym = symbol_new(fo->name, SYM_VAR);
   sym->desc = TYPE_INCREF(fo->desc);
   return sym;
@@ -160,6 +191,7 @@ static Symbol *load_field(Object *ob)
 static Symbol *load_method(Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
+  debug("load method '%s'", meth->name);
   Symbol *sym = symbol_new(meth->name, SYM_FUNC);
   sym->desc = TYPE_INCREF(meth->desc);
   return sym;
@@ -173,6 +205,7 @@ static Symbol *load_type(Object *ob)
     return NULL;
   }
 
+  debug("load type '%s'", type->name);
   STable *stbl = stable_new();
   HASHMAP_ITERATOR(iter, type->mtbl);
   struct mnode *node;
@@ -188,6 +221,7 @@ static Symbol *load_type(Object *ob)
       panic("object of '%s'?", OB_TYPE(tmp)->name);
     }
     stable_add_symbol(stbl, sym);
+    symbol_decref(sym);
   }
 
   Symbol *clsSym = symbol_new(type->name, SYM_CLASS);
@@ -199,7 +233,11 @@ static Symbol *load_type(Object *ob)
     if (item == type)
       continue;
     sym = load_type((Object *)item);
-    vector_push_back(&clsSym->klass.supers, sym);
+    if (sym != NULL) {
+      ++sym->refcnt;
+      vector_push_back(&clsSym->klass.supers, sym);
+      symbol_decref(sym);
+    }
   }
 
   return clsSym;
@@ -228,6 +266,7 @@ STable *stable_from_mobject(Object *ob)
       panic("object of '%s'?", OB_TYPE(tmp)->name);
     }
     stable_add_symbol(stbl, sym);
+    symbol_decref(sym);
   }
   TypeDesc *desc = desc_getbase('s');
   stable_add_var(stbl, "__name__", desc);

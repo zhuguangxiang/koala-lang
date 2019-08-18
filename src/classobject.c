@@ -28,7 +28,7 @@ static Object *class_get(Object *self, char *name)
     return NULL;
   }
 
-  return OB_INCREF(res);
+  return res;
 }
 
 static Object *class_getfield(Object *self, Object *name)
@@ -118,6 +118,18 @@ static Object *class_lro(Object *self, Object *args)
 
 }
 
+static void class_free(Object *ob)
+{
+  if (!Class_Check(ob)) {
+    error("object of '%.64s' is not a Class", OB_TYPE_NAME(ob));
+    return;
+  }
+  ClassObject *cls = (ClassObject *)ob;
+  debug("[Freed] Class of '%s'", OB_TYPE_NAME(cls->obj));
+  OB_DECREF(cls->obj);
+  kfree(ob);
+}
+
 static MethodDef class_methods[] = {
   {"__name__",   NULL, "s",             class_name     },
   {"__module__", NULL, "Llang.Module;", class_module   },
@@ -131,6 +143,7 @@ static MethodDef class_methods[] = {
 TypeObject Class_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Class",
+  .free    = class_free,
   .methods = class_methods,
 };
 

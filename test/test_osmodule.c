@@ -25,6 +25,8 @@ int main(int argc, char *argv[])
   Array_Print(arr);
   OB_DECREF(arr);
 
+  OB_DECREF(m);
+
   Koala_Finalize();
   return 0;
 }

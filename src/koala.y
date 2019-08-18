@@ -175,6 +175,7 @@ unit:
     Stmt *stmt = stmt_from_expr($1);
     Cmd_EvalStmt(ps, stmt);
     stmt_free(stmt);
+    ps->errnum = 0;
   }
 }
 | func_decl

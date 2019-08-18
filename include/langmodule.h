@@ -11,6 +11,7 @@ extern "C" {
 #endif
 
 void init_lang_module(void);
+void fini_lang_module(void);
 
 #ifdef __cplusplus
 }

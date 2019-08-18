@@ -77,6 +77,33 @@ static void init_types(void)
   if (res != 0)
     panic("Cannot initalize 'Code' type.");
 
+  res = Type_Ready(&Fmtter_Type);
+  if (res != 0)
+    panic("Cannot initalize 'Formatter' type.");
+
+  print("########\n");
+}
+
+static void fini_types(void)
+{
+  print("########\n");
+  Type_Fini(&Type_Type);
+  Type_Fini(&Any_Type);
+  Type_Fini(&Byte_Type);
+  Type_Fini(&Integer_Type);
+  Type_Fini(&Bool_Type);
+  Type_Fini(&String_Type);
+  //Type_Fini(&Float_Type);
+  Type_Fini(&Array_Type);
+  Type_Fini(&Tuple_Type);
+  Type_Fini(&Dict_Type);
+  Type_Fini(&Field_Type);
+  Type_Fini(&Method_Type);
+  Type_Fini(&Proto_Type);
+  Type_Fini(&Class_Type);
+  Type_Fini(&Module_Type);
+  Type_Fini(&Code_Type);
+  Type_Fini(&Fmtter_Type);
   print("########\n");
 }
 
@@ -94,6 +121,12 @@ void Koala_Initialize(void)
 
 void Koala_Finalize(void)
 {
+  fini_parser();
+  fini_fmt_moudle();
+  fini_io_module();
+  fini_os_module();
+  fini_lang_module();
+  fini_types();
   fini_typedesc();
   fini_atom();
 }

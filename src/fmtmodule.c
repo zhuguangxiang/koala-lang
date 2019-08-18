@@ -195,14 +195,16 @@ static MethodDef fmt_funcs[] = {
 
 void init_fmt_module(void)
 {
-  int res = Type_Ready(&Fmtter_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Formatter' type.");
-
   Object *m = Module_New("fmt");
   Module_Add_Type(m, &Fmtter_Type);
   Module_Add_FuncDefs(m, fmt_funcs);
   Module_Install("fmt", m);
+  OB_DECREF(m);
+}
+
+void fini_fmt_moudle(void)
+{
+  Module_Uninstall("fmt");
 }
 
 Object *Fmtter_New(void)

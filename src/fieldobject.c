@@ -71,6 +71,20 @@ static Object *field_set(Object *self, Object *args)
   return NULL;
 }
 
+static void field_free(Object *ob)
+{
+  if (!Field_Check(ob)) {
+    error("object of '%.64s' is not a Field", OB_TYPE_NAME(ob));
+    return;
+  }
+
+  FieldObject *field = (FieldObject *)ob;
+  debug("[Freed] Field '%s'", field->name);
+  TYPE_DECREF(field->desc);
+  OB_DECREF(field->value);
+  kfree(ob);
+}
+
 static MethodDef field_methods[] = {
   {"get", "A",  "A",  Field_Get},
   {"set", "AA", NULL, field_set},
@@ -80,5 +94,6 @@ static MethodDef field_methods[] = {
 TypeObject Field_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Field",
+  .free    = field_free,
   .methods = field_methods,
 };

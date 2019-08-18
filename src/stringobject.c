@@ -100,7 +100,7 @@ static Object *string_equal(Object *self, Object *other)
   StringObject *s1 = (StringObject *)self;
   StringObject *s2 = (StringObject *)other;
 
-  return strcmp(s1->wstr, s2->wstr) ? Bool_True() : Bool_False();
+  return !strcmp(s1->wstr, s2->wstr) ? Bool_True() : Bool_False();
 }
 
 static void string_free(Object *self)
@@ -109,7 +109,7 @@ static void string_free(Object *self)
     error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
     return;
   }
-  debug("String '%.64s' freed", String_AsStr(self));
+  debug("[Freed] String '%.64s'", String_AsStr(self));
   kfree(self);
 }
 

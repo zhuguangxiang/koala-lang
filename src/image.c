@@ -25,7 +25,7 @@ typedef struct itementry {
   void *data;
 } ItemEntry;
 
-static unsigned int item_hash(void *key);
+static unsigned int item_hash(ItemEntry *e);
 
 static int _append_(Image *image, int type, void *data, int unique)
 {
@@ -1235,7 +1235,9 @@ struct item_funcs {
 
 int Image_Add_Integer(Image *image, int64_t val)
 {
-  ConstItem k = {.type = CONST_INT, .ival = val};
+  ConstItem k = {0};
+  k.type = CONST_INT;
+  k.ival = val;
   int index = constitem_get(image, &k);
   if (index < 0) {
     ConstItem *item = constitem_int_new(val);
@@ -1246,7 +1248,9 @@ int Image_Add_Integer(Image *image, int64_t val)
 
 int Image_Add_Float(Image *image, double val)
 {
-  ConstItem k = {.type = CONST_FLOAT, .fval = val};
+  ConstItem k = {0};
+  k.type = CONST_FLOAT;
+  k.fval = val;
   int index = constitem_get(image, &k);
   if (index < 0) {
     ConstItem *item = constitem_float_new(val);
@@ -1257,7 +1261,9 @@ int Image_Add_Float(Image *image, double val)
 
 int Image_Add_Bool(Image *image, int val)
 {
-  ConstItem k = {.type = CONST_BOOL, .bval = val};
+  ConstItem k = {0};
+  k.type = CONST_BOOL;
+  k.bval = val;
   int index = constitem_get(image, &k);
   if (index < 0) {
     ConstItem *item = constitem_bool_new(val);
@@ -1270,7 +1276,9 @@ int Image_Add_String(Image *image, char *val)
 {
   int32_t idx = stringitem_set(image, val);
   assert(idx >= 0);
-  ConstItem k = {.type = CONST_STRING, .index = idx};
+  ConstItem k = {0};
+  k.type = CONST_STRING;
+  k.index = idx;
   int index = constitem_get(image, &k);
   if (index < 0) {
     ConstItem *item = constitem_string_new(idx);
@@ -1281,7 +1289,9 @@ int Image_Add_String(Image *image, char *val)
 
 int Image_Add_UChar(Image *image, wchar val)
 {
-  ConstItem k = {.type = CONST_UCHAR, .wch = val};
+  ConstItem k = {0};
+  k.type = CONST_UCHAR;
+  k.wch = val;
   int index = constitem_get(image, &k);
   if (index < 0) {
     ConstItem *item = constitem_uchar_new(val);
@@ -1438,9 +1448,8 @@ void Image_Add_EVal(Image *image, char *klazz, char *name,
   _append_(image, ITEM_EVAL, evitem, 0);
 }
 
-static unsigned int item_hash(void *key)
+static unsigned int item_hash(ItemEntry *e)
 {
-  ItemEntry *e = key;
   if (e->type < 0 || e->type >= ITEM_MAX)
     panic("type '%d' out of band", e->type);
   hashfunc fn = item_func[e->type].hash;

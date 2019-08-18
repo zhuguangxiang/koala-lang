@@ -26,6 +26,7 @@ int main(int argc, char *argv[])
 
   Object *v = Object_GetValue(m, "__name__");
   assert(!strcmp("test", String_AsStr(v)));
+  OB_DECREF(v);
 
   Object *clazz = Object_GetValue(m, "__class__");
   assert(Class_Check(clazz));
@@ -34,18 +35,29 @@ int main(int argc, char *argv[])
 
   v = Object_GetValue(clazz, "__name__");
   assert(!strcmp("Module", String_AsStr(v)));
+  OB_DECREF(v);
 
-  v = Object_GetValue(clazz, "__module__");
-  v = Object_GetValue(v, "__name__");
+  Object *mo = Object_GetValue(clazz, "__module__");
+  v = Object_GetValue(mo, "__name__");
   assert(!strcmp("lang", String_AsStr(v)));
+  OB_DECREF(v);
+  OB_DECREF(mo);
 
-  Object *meth = Object_Call(clazz, "getMethod", String_New("__name__"));
+  Object *s = String_New("__name__");
+  Object *meth = Object_Call(clazz, "getMethod", s);
   assert(Method_Check(meth));
   v = Object_Call(meth, "call", m);
   assert(!strcmp("test", String_AsStr(v)));
+  OB_DECREF(v);
+  OB_DECREF(s);
 
   v = Method_Call(meth, m, NULL);
   assert(!strcmp("test", String_AsStr(v)));
+  OB_DECREF(meth);
+  OB_DECREF(v);
+  OB_DECREF(clazz);
+
+  OB_DECREF(m);
 
   Koala_Finalize();
   return 0;

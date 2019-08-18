@@ -8,8 +8,8 @@
 #include "fmtmodule.h"
 #include "log.h"
 
-#define MSIZE(size) \
-  (sizeof(TupleObject) + sizeof(void *) * (size))
+#define MSIZE(sz) \
+  (sizeof(TupleObject) + sizeof(Object *) * (sz))
 
 Object *Tuple_New(int size)
 {
@@ -63,6 +63,7 @@ int Tuple_Size(Object *self)
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return -1;
   }
+
   return ((TupleObject *)self)->size;
 }
 

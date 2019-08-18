@@ -44,6 +44,7 @@ struct mnode {
 };
 
 struct mnode *mnode_new(char *name, Object *ob);
+void mnode_free(void *e, void *arg);
 int mnode_equal(void *e1, void *e2);
 
 /* object header */
@@ -170,8 +171,6 @@ struct typeobject {
   char *name;
   /* one of KLASS_xxx */
   int flags;
-  /* type's module */
-  Object *owner;
 
   /* mark-and-sweep */
   ob_markfunc mark;
@@ -208,7 +207,7 @@ struct typeobject {
   MethodDef *methods;
 
   /* owner module */
-  Object *module;
+  Object *owner;
   /* offset of fields */
   int offset;
   /* number of fields */
@@ -221,6 +220,7 @@ extern TypeObject Type_Type;
 extern TypeObject Any_Type;
 #define Type_Check(ob) (OB_TYPE(ob) == &Type_Type)
 int Type_Ready(TypeObject *type);
+void Type_Fini(TypeObject *type);
 Object *Type_Lookup(TypeObject *type, char *name);
 
 void Type_Add_Field(TypeObject *type, Object *ob);

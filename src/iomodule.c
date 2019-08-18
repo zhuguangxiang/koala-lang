@@ -41,6 +41,12 @@ void init_io_module(void)
   Object *m = Module_New("io");
   Module_Add_FuncDefs(m, io_methods);
   Module_Install("io", m);
+  OB_DECREF(m);
+}
+
+void fini_io_module(void)
+{
+  Module_Uninstall("io");
 }
 
 void io_put(Object *ob)

@@ -28,8 +28,15 @@ struct mnode *mnode_new(char *name, Object *ob)
     panic("memory allocation failed.");
   node->name = name;
   hashmap_entry_init(node, strhash(name));
-  node->obj = ob;
+  node->obj = OB_INCREF(ob);
   return node;
+}
+
+void mnode_free(void *e, void *arg)
+{
+  struct mnode *node = e;
+  OB_DECREF(node->obj);
+  kfree(node);
 }
 
 static HashMap *get_mtbl(TypeObject *type)
@@ -141,6 +148,11 @@ static int build_lro(TypeObject *type)
   return 0;
 }
 
+static void destroy_lro(TypeObject *type)
+{
+  vector_fini(&type->lro, NULL, NULL);
+}
+
 static void type_show(TypeObject *type)
 {
   print("#\n");
@@ -173,9 +185,6 @@ static void type_show(TypeObject *type)
 
 int Type_Ready(TypeObject *type)
 {
-  int res;
-  Object *ob;
-
   if (type->hash && !type->equal) {
     error("__equal__ must be implemented, "
           "when __hash__ is implemented of '%.64s'",
@@ -215,10 +224,24 @@ int Type_Ready(TypeObject *type)
   return 0;
 }
 
+void Type_Fini(TypeObject *type)
+{
+  destroy_lro(type);
+
+  HashMap *map = type->mtbl;
+  if (map != NULL) {
+    debug("fini type '%s'", type->name);
+    hashmap_fini(map, mnode_free, NULL);
+    debug("------------------------");
+    kfree(map);
+    type->mtbl = NULL;
+  }
+}
+
 void Type_Add_Field(TypeObject *type, Object *ob)
 {
   FieldObject *field = (FieldObject *)ob;
-  field->owner = (Object *)OB_INCREF(type);
+  field->owner = (Object *)type;
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
   if (res != 0)
@@ -229,6 +252,7 @@ void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
 {
   Object *field = Field_New(f);
   Type_Add_Field(type, field);
+  OB_DECREF(field);
 }
 
 void Type_Add_FieldDefs(TypeObject *type, FieldDef *def)
@@ -243,7 +267,7 @@ void Type_Add_FieldDefs(TypeObject *type, FieldDef *def)
 void Type_Add_Method(TypeObject *type, Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
-  meth->owner = (Object *)OB_INCREF(type);
+  meth->owner = (Object *)type;
   struct mnode *node = mnode_new(meth->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
   if (res != 0)
@@ -254,6 +278,7 @@ void Type_Add_MethodDef(TypeObject *type, MethodDef *f)
 {
   Object *meth = CMethod_New(f);
   Type_Add_Method(type, meth);
+  OB_DECREF(meth);
 }
 
 void Type_Add_MethodDefs(TypeObject *type, MethodDef *def)
@@ -284,7 +309,7 @@ Object *Type_Lookup(TypeObject *type, char *name)
       continue;
     node = hashmap_get(item->mtbl, &key);
     if (node != NULL)
-      return node->obj;
+      return OB_INCREF(node->obj);
   }
   return NULL;
 }
@@ -332,7 +357,7 @@ Object *Object_Lookup(Object *self, char *name)
   } else {
     res = Type_Lookup(OB_TYPE(self), name);
   }
-  return OB_INCREF(res);
+  return res;
 }
 
 Object *Object_Call(Object *self, char *name, Object *args)
@@ -345,11 +370,14 @@ Object *Object_Call(Object *self, char *name, Object *args)
     if (!ob)
       panic("object of '%.64s' has no '__call__'", OB_TYPE_NAME(self));
   }
-  return Method_Call(ob, self, args);
+  Object *res = Method_Call(ob, self, args);
+  OB_DECREF(ob);
+  return res;
 }
 
 Object *Object_GetValue(Object *self, char *name)
 {
+  Object *res = NULL;
   Object *ob = Object_Lookup(self, name);
   if (ob == NULL) {
     error("object of '%.64s' has no field '%.64s'", OB_TYPE_NAME(self), name);
@@ -361,15 +389,19 @@ Object *Object_GetValue(Object *self, char *name)
       /* if method has no any parameters, it can be accessed as field. */
       MethodObject *meth = (MethodObject *)ob;
       TypeDesc *desc = meth->desc;
-      if (!desc->proto.args)
-        return Method_Call(ob, self, NULL);
+      if (!desc->proto.args) {
+        res = Method_Call(ob, self, NULL);
+        OB_DECREF(ob);
+        return res;
+      }
     }
-
+    OB_DECREF(ob);
     error("'%s' is not a field", name);
     return NULL;
   }
-
-  return Field_Get(ob, self);
+  res = Field_Get(ob, self);
+  OB_DECREF(ob);
+  return res;
 }
 
 int Object_SetValue(Object *self, char *name, Object *val)

@@ -43,10 +43,8 @@ static Object *mo;
 static KoalaState kstate;
 extern pthread_key_t kskey;
 
-void Koala_CmdLine(void)
+static void init_cmdline_env(void)
 {
-  yyscan_t scanner;
-
   mod.name = "__main__";
   mod.stbl = stable_new();
   TypeDesc *desc = desc_getbase('s');
@@ -56,6 +54,7 @@ void Koala_CmdLine(void)
 
   modSym = symbol_new(mod.name, SYM_MOD);
   modSym->mod.ptr = &mod;
+
   desc = desc_getproto(NULL, NULL);
   funcsym = stable_add_func(mod.stbl, "__init__", desc);
   TYPE_DECREF(desc);
@@ -68,12 +67,30 @@ void Koala_CmdLine(void)
   mo = Module_New("__main__");
 
   pthread_key_create(&kskey, NULL);
+}
+
+static void fini_cmdline_env(void)
+{
+  stable_free(mod.stbl);
+  mod.stbl = NULL;
+  symbol_decref(modSym);
+  modSym = NULL;
+  OB_DECREF(mo);
+  mo = NULL;
+  rl_clear_history();
+}
+
+void Koala_CmdLine(void)
+{
+  yyscan_t scanner;
+  init_cmdline_env();
   show_banner();
   yylex_init_extra(&ps, &scanner);
   yyset_in(stdin, scanner);
   yyparse(&ps, scanner);
   yylex_destroy(scanner);
   putchar('\n');
+  fini_cmdline_env();
 }
 
 static void add_symbol(Symbol *sym, Object *ob)
@@ -146,8 +163,11 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
   parse_stmt(ps, stmt);
   parser_exit_scope(ps);
 
-  if (ps->errnum > 0)
+  if (ps->errnum > 0) {
+    codeblock_free(funcsym->func.code);
+    funcsym->func.code = NULL;
     return;
+  }
 
   add_symbol(sym, mo);
 
@@ -211,6 +231,6 @@ int interactive(ParserState *ps, char *buf, int size)
   } else {
     ps->more++;
   }
-
+  free(line);
   return len;
 }

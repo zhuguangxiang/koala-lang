@@ -16,7 +16,7 @@ extern "C" {
 typedef struct codeobject {
   OBJECT_HEAD
   char *name;
-  TypeObject *type;
+  Object *owner;
   TypeDesc *proto;
   int locals;
   Vector locvec;

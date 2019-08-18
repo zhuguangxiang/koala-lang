@@ -22,6 +22,11 @@ void init_parser(void)
   OB_DECREF(ob);
 }
 
+void fini_parser(void)
+{
+  stable_free(_lang_.stbl);
+}
+
 Symbol *find_from_builtins(char *name)
 {
   return stable_get(_lang_.stbl, name);
@@ -458,7 +463,7 @@ static void parse_attr_expr(ParserState *ps, Expr *exp)
 
 static void code_attr_expr(ParserState *ps, Expr *exp)
 {
-  if (ps->errnum > MAX_ERRORS)
+  if (ps->errnum > 0)
     return;
 
   Symbol *sym = exp->sym;
@@ -517,7 +522,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     if (exp->ctx != EXPR_LOAD)
       panic("exp ctx is not load");
     parse_const_expr(ps, exp);
-    if (ps->errnum > MAX_ERRORS)
+    if (ps->errnum > 0)
       return;
     if (!exp->k.omit)
       CODE_OP_V(LOAD_CONST, exp->k.value);
@@ -562,7 +567,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     lexp->ctx = EXPR_CALL_FUNC;
     parser_visit_expr(ps, lexp);
     if (lexp->sym == NULL)
-      panic("call left sym is null");
+      return;
     /* set call exp's sym as left sym */
     exp->sym = lexp->sym;
     if (lexp->desc == NULL || lexp->desc->kind != TYPE_PROTO)
@@ -570,6 +575,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     TypeDesc *desc = lexp->desc;
     //check_call_args(ps, exp, desc->proto.args);
     exp->desc = TYPE_INCREF(desc->proto.ret);
+    break;
   }
   case SLICE_KIND: {
     /* code */
