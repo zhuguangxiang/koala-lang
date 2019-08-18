@@ -81,7 +81,8 @@ int entry_equals(HashMap *self, HashMapEntry *e1, HashMapEntry *e2)
 
 static inline HashMapEntry **find_entry(HashMap *self, HashMapEntry *key)
 {
-  panic(!key->hash, "hash must not be 0");
+  if (!key->hash)
+    panic("hash is 0");
 	HashMapEntry **e = &self->entries[bucket(self, key)];
 	while (*e && !entry_equals(self, *e, key))
 		e = &(*e)->next;

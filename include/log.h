@@ -17,16 +17,12 @@ extern "C" {
 #define __print__(clr, fmt, ...) \
   fprintf(stdout, clr fmt "\n", ##__VA_ARGS__)
 
-#define __ERR_COLOR__ "\x1b[1;31merror:\x1b[0m "
-#define error(fmt, ...) __print__(__ERR_COLOR__, fmt, ##__VA_ARGS__)
+#define __ERR_COLOR__   "\x1b[1;31merror:\x1b[0m "
 #define __PANIC_COLOR__ "\x1b[1;31mfatal:\x1b[0m "
-/* If condition 'cond' is true, panic */
-#define panic(cond, ...)                       \
-({                                             \
-  if ((cond)) {                                \
-    __print__(__PANIC_COLOR__, ##__VA_ARGS__); \
-    abort();                                   \
-  }                                            \
+#define error(fmt, ...) __print__(__ERR_COLOR__, fmt, ##__VA_ARGS__)
+#define panic(fmt, ...) ({                        \
+  __print__(__PANIC_COLOR__, fmt, ##__VA_ARGS__); \
+  abort();                                        \
 })
 
 #ifdef NDEBUG

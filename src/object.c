@@ -14,17 +14,18 @@
 #include "atom.h"
 #include "log.h"
 
-int mnode_compare(void *e1, void *e2)
+int mnode_equal(void *e1, void *e2)
 {
   struct mnode *n1 = e1;
   struct mnode *n2 = e2;
-  return (n1 == n2) || strcmp(n1->name, n2->name);
+  return (n1 == n2) || !strcmp(n1->name, n2->name);
 }
 
 struct mnode *mnode_new(char *name, Object *ob)
 {
   struct mnode *node = kmalloc(sizeof(*node));
-  panic(!node, "memory allocation failed.");
+  if (!node)
+    panic("memory allocation failed.");
   node->name = name;
   hashmap_entry_init(node, strhash(name));
   node->obj = ob;
@@ -36,8 +37,9 @@ static HashMap *get_mtbl(TypeObject *type)
   HashMap *mtbl = type->mtbl;
   if (mtbl == NULL) {
     mtbl = kmalloc(sizeof(*mtbl));
-    panic(!mtbl, "memory allocation failed.");
-    hashmap_init(mtbl, mnode_compare);
+    if (!mtbl)
+      panic("memory allocation failed.");
+    hashmap_init(mtbl, mnode_equal);
     type->mtbl = mtbl;
   }
   return mtbl;
@@ -106,15 +108,10 @@ static int lro_find(Vector *vec, TypeObject *type)
 
 static void lro_build_one(TypeObject *type, TypeObject *base)
 {
-  Vector *vec = type->lro;
-  if (vec == NULL) {
-    vec = kmalloc(sizeof(*vec));
-    vector_init(vec);
-    type->lro = vec;
-  }
+  Vector *vec = &type->lro;
 
   TypeObject *item;
-  VECTOR_ITERATOR(iter, base->lro);
+  VECTOR_ITERATOR(iter, &base->lro);
   iter_for_each(&iter, item) {
     if (!lro_find(vec, item)) {
       vector_push_back(vec, item);
@@ -148,8 +145,8 @@ static void type_show(TypeObject *type)
 {
   print("#\n");
   print("%s: (", type->name);
-  VECTOR_REVERSE_ITERATOR(iter, type->lro);
-  int size = vector_size(type->lro);
+  VECTOR_REVERSE_ITERATOR(iter, &type->lro);
+  int size = vector_size(&type->lro);
   TypeObject *item;
   iter_for_each(&iter, item) {
     if (--size <= 0)
@@ -224,7 +221,8 @@ void Type_Add_Field(TypeObject *type, Object *ob)
   field->owner = (Object *)OB_INCREF(type);
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
-  panic(res, "'%.64s' add '%.64s' failed.", type->name, field->name);
+  if (res != 0)
+    panic("'%.64s' add '%.64s' failed.", type->name, field->name);
 }
 
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
@@ -248,7 +246,8 @@ void Type_Add_Method(TypeObject *type, Object *ob)
   meth->owner = (Object *)OB_INCREF(type);
   struct mnode *node = mnode_new(meth->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
-  panic(res, "'%.64s' add '%.64s' failed.", type->name, meth->name);
+  if (res != 0)
+    panic("'%.64s' add '%.64s' failed.", type->name, meth->name);
 }
 
 void Type_Add_MethodDef(TypeObject *type, MethodDef *f)
@@ -277,7 +276,7 @@ Object *Type_Lookup(TypeObject *type, char *name)
   struct mnode key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
 
-  VECTOR_REVERSE_ITERATOR(iter, type->lro);
+  VECTOR_REVERSE_ITERATOR(iter, &type->lro);
   TypeObject *item;
   struct mnode *node;
   iter_for_each(&iter, item) {
@@ -293,7 +292,8 @@ Object *Type_Lookup(TypeObject *type, char *name)
 unsigned int Object_Hash(Object *ob)
 {
   Object *res = Object_Call(ob, "__hash__", NULL);
-  panic(!res, "'__hash__' is not implemented");
+  if (!res)
+    panic("'__hash__' is not implemented");
   unsigned int hash = Integer_AsInt(res);
   OB_DECREF(res);
   return hash;
@@ -338,10 +338,12 @@ Object *Object_Lookup(Object *self, char *name)
 Object *Object_Call(Object *self, char *name, Object *args)
 {
   Object *ob = Object_Lookup(self, name);
-  panic(!ob, "object of '%.64s' has no '%.64s'", OB_TYPE_NAME(self), name);
+  if (!ob)
+    panic("object of '%.64s' has no '%.64s'", OB_TYPE_NAME(self), name);
   if (Type_Check(ob)) {
     ob = Object_Lookup(ob, "__call__");
-    panic(!ob, "object of '%.64s' has no '__call__'", OB_TYPE_NAME(self));
+    if (!ob)
+      panic("object of '%.64s' has no '__call__'", OB_TYPE_NAME(self));
   }
   return Method_Call(ob, self, args);
 }
@@ -358,8 +360,8 @@ Object *Object_GetValue(Object *self, char *name)
     if (Method_Check(ob)) {
       /* if method has no any parameters, it can be accessed as field. */
       MethodObject *meth = (MethodObject *)ob;
-      ProtoDesc *proto = (ProtoDesc *)meth->desc;
-      if (!proto->args)
+      TypeDesc *desc = meth->desc;
+      if (!desc->proto.args)
         return Method_Call(ob, self, NULL);
     }
 
@@ -385,4 +387,33 @@ int Object_SetValue(Object *self, char *name, Object *val)
 
   Field_Set(ob, self, val);
   return 0;
+}
+
+Object *New_ConstObject(ConstValue *val)
+{
+  Object *ob = NULL;
+  switch (val->kind) {
+  case BASE_INT:
+    debug("const int value: %ld", val->ival);
+    ob = Integer_New(val->ival);
+    break;
+  case BASE_STR:
+    debug("const string value: %s", val->str);
+    ob = String_New(val->str);
+    break;
+  case BASE_BOOL:
+    debug("const bool value: %s", val->bval ? "true" : "false");
+    ob = val->bval ? Bool_True() : Bool_False();
+    break;
+  case BASE_BYTE:
+    break;
+  case BASE_FLOAT:
+    break;
+  case BASE_CHAR:
+    break;
+  default:
+    panic("invalid branch %d", val->kind);
+    break;
+  }
+  return ob;
 }

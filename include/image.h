@@ -229,7 +229,8 @@ void Image_Write_File(Image *image, char *path);
 /* flags is ITEM_XXX bits, marked not load */
 Image *Image_Read_File(char *path, int unload);
 
-typedef void (*getconstfunc)(int, void *, int, void *);
+int Image_Get_ConstCount(Image *image);
+typedef void (*getconstfunc)(ConstValue *, int, void *);
 void Image_Get_Consts(Image *image, getconstfunc func, void *arg);
 typedef void (*getvarfunc)(char *, TypeDesc *, int, ConstValue *val, void *);
 void Image_Get_Vars(Image *image, getvarfunc func, void *arg);

@@ -6,10 +6,15 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/utsname.h>
+#include <pthread.h>
 #include "version.h"
 #include "parser.h"
 #include "koala_yacc.h"
 #include "koala_lex.h"
+#include "moduleobject.h"
+#include "tupleobject.h"
+#include "eval.h"
+#include "codeobject.h"
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -28,15 +33,41 @@ static void show_banner(void)
   }
 }
 
-static struct module mod;
+static Symbol *sym;
+static Symbol *funcsym;
+static Symbol *modSym;
+static Module mod;
 static ParserState ps;
 
-void Koala_Active(void)
+static Object *mo;
+static KoalaState kstate;
+extern pthread_key_t kskey;
+
+void Koala_CmdLine(void)
 {
   yyscan_t scanner;
 
-  ps.interactive = 1;
+  mod.name = "__main__";
+  mod.stbl = stable_new();
+  TypeDesc *desc = desc_getbase('s');
+  stable_add_var(mod.stbl, "__name__", desc);
+  TYPE_DECREF(desc);
+  vector_init(&mod.pss);
 
+  modSym = symbol_new(mod.name, SYM_MOD);
+  modSym->mod.ptr = &mod;
+  desc = desc_getproto(NULL, NULL);
+  funcsym = stable_add_func(mod.stbl, "__init__", desc);
+  TYPE_DECREF(desc);
+
+  ps.interactive = 1;
+  ps.filename = "__stdin__";
+  ps.module = &mod;
+  vector_init(&ps.ustack);
+
+  mo = Module_New("__main__");
+
+  pthread_key_create(&kskey, NULL);
   show_banner();
   yylex_init_extra(&ps, &scanner);
   yyset_in(stdin, scanner);
@@ -45,13 +76,101 @@ void Koala_Active(void)
   putchar('\n');
 }
 
+static void add_symbol(Symbol *sym, Object *ob)
+{
+  if (sym == NULL)
+    return;
+
+  switch (sym->kind) {
+  case SYM_CONST: {
+    break;
+  }
+  case SYM_VAR: {
+    break;
+  }
+  case SYM_FUNC: {
+    break;
+  }
+  default: {
+    panic("invalid branch:%d", sym->kind);
+    break;
+  }
+  }
+}
+
+static void _get_consts_(ConstValue *val, int index, void *arg)
+{
+  Object *tuple = arg;
+  Object *ob = New_ConstObject(val);
+  Tuple_Set(tuple, index, ob);
+  OB_DECREF(ob);
+}
+
+static Object *getcode(CodeBlock *block)
+{
+  Object *ob;
+  CodeObject *co;
+  Object *consts;
+  Image *image;
+  uint8_t *code;
+  int size;
+  ByteBuffer buf;
+
+  image = Image_New("__main__");
+  bytebuffer_init(&buf, 32);
+
+  code_gen(block, image, &buf);
+#if !defined(NDEBUG)
+  Image_Show(image);
+#endif
+  size = Image_Get_ConstCount(image);
+  consts = Tuple_New(size);
+  Image_Get_Consts(image, _get_consts_, consts);
+  TypeDesc *proto = desc_getproto(NULL, NULL);
+  size = bytebuffer_toarr(&buf, (char **)&code);
+  ob = Code_New("__code__", proto, 0, code, size);
+  co = (CodeObject *)ob;
+  co->consts = OB_INCREF(consts);
+  OB_DECREF(consts);
+
+  bytebuffer_fini(&buf);
+  Image_Free(image);
+  return ob;
+}
+
+void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
+{
+  parser_enter_scope(ps, SCOPE_MODULE);
+  ps->u->stbl = mod.stbl;
+  ps->u->sym = modSym;
+  parse_stmt(ps, stmt);
+  parser_exit_scope(ps);
+
+  if (ps->errnum > 0)
+    return;
+
+  add_symbol(sym, mo);
+
+  if (funcsym->func.code != NULL) {
+    KoalaState *ks = pthread_getspecific(kskey);
+    if (ks == NULL)
+      pthread_setspecific(kskey, &kstate);
+    Object *code = getcode(funcsym->func.code);
+    Koala_EvalCode(code, mo, NULL);
+    OB_DECREF(code);
+    codeblock_free(funcsym->func.code);
+    funcsym->func.code = NULL;
+  }
+}
+
 static int empty(char *buf, int size)
 {
   int n;
   char ch;
   for (n = 0; n < size; ++n) {
     ch = buf[n];
-    if (ch != '\n' && ch != ' ' && ch != '\t' && ch != '\r')
+    if (ch != '\n' && ch != ' ' &&
+        ch != '\t' && ch != '\r')
       return 0;
   }
   return 1;
@@ -72,7 +191,8 @@ int interactive(ParserState *ps, char *buf, int size)
   }
 
   if (!line) {
-    if (ferror(stdin)) clearerr(stdin);
+    if (ferror(stdin))
+      clearerr(stdin);
     return 0;
   }
 
@@ -81,7 +201,9 @@ int interactive(ParserState *ps, char *buf, int size)
 
   strcpy(buf, line);
   int len = strlen(buf);
+  /* apeend newline */
   buf[len++] = '\n';
+  /* flex bug? leave last one char in buffer */
   buf[len++] = ' ';
 
   if (empty(buf, len)) {

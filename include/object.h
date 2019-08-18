@@ -44,7 +44,7 @@ struct mnode {
 };
 
 struct mnode *mnode_new(char *name, Object *ob);
-int mnode_compare(void *e1, void *e2);
+int mnode_equal(void *e1, void *e2);
 
 /* object header */
 #define OBJECT_HEAD      \
@@ -86,9 +86,9 @@ struct object {
   Object *o = (Object *)(_ob_); \
   if (o != NULL) {              \
     --o->ob_refcnt;             \
-    panic(o->ob_refcnt < 0,     \
-          "refcnt %d error",    \
-          o->ob_refcnt);        \
+    if (o->ob_refcnt < 0)       \
+      panic("refcnt %d error",  \
+            o->ob_refcnt);      \
     if (o->ob_refcnt <= 0) {    \
       OB_TYPE(o)->free(o);      \
       (_ob_) = NULL;            \
@@ -200,7 +200,7 @@ struct typeobject {
   /* tuple: base classes */
   Vector *bases;
   /* line resolution order */
-  Vector *lro;
+  Vector lro;
   /* map: meta table */
   HashMap *mtbl;
 
@@ -237,6 +237,7 @@ Object *Object_Lookup(Object *self, char *name);
 Object *Object_GetValue(Object *self, char *name);
 int Object_SetValue(Object *self, char *name, Object *val);
 Object *Object_Call(Object *self, char *name, Object *args);
+Object *New_ConstObject(ConstValue *val);
 
 #ifdef __cplusplus
 }

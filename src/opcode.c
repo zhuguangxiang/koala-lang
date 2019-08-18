@@ -34,10 +34,11 @@ static struct opcode {
   OPCODE(STORE_1,     0),
   OPCODE(STORE_2,     0),
   OPCODE(STORE_3,     0),
-  OPCODE(GET_FIELD,   2),
-  OPCODE(SET_FIELD,   2),
-  OPCODE(CALL,        3),
-  OPCODE(OP_RETURN,   0),
+
+  OPCODE(GET_FIELD,    2),
+  OPCODE(SET_FIELD,    2),
+  OPCODE(CALL,         3),
+  OPCODE(RETURN_VALUE, 0),
 
   OPCODE(ADD, 0),
   OPCODE(SUB, 0),

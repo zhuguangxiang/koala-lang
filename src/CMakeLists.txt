@@ -26,7 +26,7 @@ SET(KOALA_BUILTIN_MODULES
 
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c
-  typedesc.c eval.c image.c opcode.c codegen.c symbol.c ast.c parser.c
+  typedesc.c eval.c image.c opcode.c symbol.c ast.c parser.c
   koala_lex.c koala_yacc.c run.c compile.c interactive.c
   ${KOALA_OBJECTS_SOURCES} ${KOALA_BUILTIN_MODULES})
 
@@ -39,7 +39,7 @@ SET_TARGET_PROPERTIES(koala_so PROPERTIES
   OUTPUT_NAME koala)
 
 ADD_EXECUTABLE(koala_out main.c)
-TARGET_LINK_LIBRARIES(koala_out koala readline)
+TARGET_LINK_LIBRARIES(koala_out koala readline pthread)
 SET_TARGET_PROPERTIES(koala_out PROPERTIES
   OUTPUT_NAME koala)
 

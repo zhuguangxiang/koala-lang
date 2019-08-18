@@ -105,7 +105,8 @@ void Koala_Compile(char *path)
       return;
 
     FILE *in = fopen(path, "r");
-    panic(!in, "null pointer");
+    if (!in)
+      panic("null pointer");
     yyscan_t scanner;
     yylex_init_extra(&ps_test, &scanner);
     yyset_in(in, scanner);

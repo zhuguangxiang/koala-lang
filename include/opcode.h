@@ -34,7 +34,7 @@ extern "C" {
 #define GET_FIELD 20
 #define SET_FIELD 21
 #define CALL      22
-#define OP_RETURN 23
+#define RETURN_VALUE 23
 
 #define ADD  30
 #define SUB  31

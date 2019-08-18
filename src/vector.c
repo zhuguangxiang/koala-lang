@@ -9,7 +9,8 @@
 
 static inline void *__vector_offset(Vector *self, int size)
 {
-  panic(!self->items, "null pointer");
+  if (!self->items)
+    panic("null pointer");
   return (void *)((char *)self->items + sizeof(void *) * size);
 }
 
@@ -40,6 +41,8 @@ static int __vector_maybe_expand(Vector *self, int extrasize)
 
 void vector_fini(Vector *self, freefunc freefunc, void *data)
 {
+  if (!self)
+    return;
   if (freefunc != NULL) {
     VECTOR_ITERATOR(iter, self);
     void *item;

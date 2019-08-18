@@ -67,9 +67,23 @@ TypeObject Byte_Type = {
   .name = "Byte",
 };
 
+static Object *bool_str(Object *self, Object *ob)
+{
+  if (!Bool_Check(self)) {
+    error("object of '%.64s' is not a Bool", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  BoolObject *b = (BoolObject *)self;
+  char buf[8];
+  sprintf(buf, "%s", b->value ? "true" : "false");
+  return String_New(buf);
+}
+
 TypeObject Bool_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name = "Bool",
+  .str  = bool_str,
 };
 
 BoolObject OB_True = {

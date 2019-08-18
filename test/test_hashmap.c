@@ -18,7 +18,7 @@ static int __str_cmp_cb__(void *k1, void *k2)
 {
   struct str *s1 = k1;
   struct str *s2 = k2;
-  return strcmp(s1->value, s2->value);
+  return s1 == s2 || !strcmp(s1->value, s2->value);
 }
 
 static void __str_free_cb__(void *entry, void *data)
@@ -62,12 +62,12 @@ void test_string_hash(void)
 #if 0
   for (int i = 0; i < strmap.size; ++i) {
     struct str *s = (struct str *)strmap.entries[i];
-    printf("[%d]:", i);
+    print("[%d]:", i);
     while (s) {
-      printf("%s\t", s->value);
+      print("%s\t", s->value);
       s = (struct str *)(s->entry.next);
     }
-    printf("\n");
+    print("\n");
   }
 #endif
 

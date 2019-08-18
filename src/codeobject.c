@@ -5,32 +5,40 @@
 
 #include "codeobject.h"
 
-/*
-static Object *cfunc_new(TypeDesc *proto, cfunc_t func)
+static void code_free(Object *ob)
 {
-  CodeObject *code = kmalloc(sizeof(*code));
-  init_object_head(code, &code_type);
-  code->proto = TYPE_INCREF(proto);
-  code->kind = CODE_CFUNC;
-  code->func_t = func;
-  return (Object *)code;
-}
+  if (!Code_Check(ob)) {
+    error("object of '%.64s' is not a Code", OB_TYPE_NAME(ob));
+    return;
+  }
 
-Object *code_from_cfunc(struct cfuncdef *f)
-{
-  TypeDesc **para = typestr_toarr(f->ptype);
-  TypeDesc **rets = typestr_toarr(f->rtype);
-  TypeDesc *ret = rets ? rets[0] : NULL;
-  kfree(rets);
-  TypeDesc *proto = new_protodesc(para, ret);
-  Object *code = cfunc_new(proto, f->func);
-  TYPE_DECREF(ret);
-  TYPE_DECREF(proto);
-  return code;
+  CodeObject *co = (CodeObject *)ob;
+  VECTOR_ITERATOR(iter, &co->locvec);
+  Object *item;
+  iter_for_each(&iter, item) {
+    OB_DECREF(item);
+  }
+  OB_DECREF(co->consts);
+  TYPE_DECREF(co->proto);
+  kfree(ob);
 }
-*/
 
 TypeObject Code_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name = "Code",
+  .free = code_free,
 };
+
+Object *Code_New(char *name, TypeDesc *proto, int locals,
+                 uint8_t *codes, int size)
+{
+  CodeObject *co = kmalloc(sizeof(CodeObject) + size);
+  Init_Object_Head(co, &Code_Type);
+  co->name = name;
+  co->proto = TYPE_INCREF(proto);
+  vector_init(&co->locvec);
+  co->locals = locals;
+  co->size = size;
+  memcpy(co->codes, codes, size);
+  return (Object *)co;
+}

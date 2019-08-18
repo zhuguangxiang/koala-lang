@@ -12,17 +12,15 @@ int main(int argc, char *argv[])
   init_atom();
   init_typedesc();
 
-  Vector *list = string_totypedescvec("Llang.Tuple;si");
+  Vector *list = string_todescs("Llang.Tuple;si");
   TypeDesc *desc = vector_get(list, 0);
   assert(desc->kind == TYPE_KLASS);
   desc = vector_get(list, 1);
   assert(desc->kind == TYPE_BASE);
-  BaseDesc *base = (BaseDesc *)desc;
-  assert(base->type == BASE_STR);
+  assert(desc->base.type == BASE_STR);
   desc = vector_get(list, 2);
   assert(desc->kind == TYPE_BASE);
-  base = (BaseDesc *)desc;
-  assert(base->type == BASE_INT);
+  assert(desc->base.type == BASE_INT);
   desc = vector_get(list, 3);
   assert(!desc);
   VECTOR_ITERATOR(iter, list);
@@ -32,11 +30,10 @@ int main(int argc, char *argv[])
   vector_fini(list, NULL, NULL);
   kfree(list);
 
-  list = string_totypedescvec("s");
+  list = string_todescs("s");
   desc = vector_get(list, 0);
   assert(desc->kind == TYPE_BASE);
-  base = (BaseDesc *)desc;
-  assert(base->type == BASE_STR);
+  assert(desc->base.type == BASE_STR);
   desc = vector_get(list, 1);
   assert(!desc);
   VECTOR_ITERATOR(iter2, list);

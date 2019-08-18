@@ -37,7 +37,7 @@ typedef struct constvalue {
   };
 } ConstValue;
 
-void Const_Show(ConstValue *val, StrBuf *buf);
+void constvalue_show(ConstValue *val, StrBuf *sbuf);
 
 typedef enum desckind {
   TYPE_BASE = 1,
@@ -58,67 +58,58 @@ typedef enum desckind {
  * Proto: Pis:e;
  * Varg: ...s
  */
-#define TYPEDESC_HEAD \
-  DescKind kind; int refcnt;
-
 typedef struct typedesc {
-  TYPEDESC_HEAD
+  DescKind kind;
+  int refcnt;
+  union {
+    struct {
+      char type; /* one of BASE_XXX */
+      char *str;
+    } base;
+    struct {
+      char *path;
+      char *type;
+    } klass;
+    struct {
+      Vector *args;
+      struct typedesc *ret;
+    } proto;
+  };
 } TypeDesc;
 
-#define TYPE_INCREF(_desc_) \
-({                          \
-  if (_desc_)               \
-    ++(_desc_)->refcnt;     \
-  _desc_;                   \
+#define TYPE_INCREF(desc) ({ \
+  if (desc)                  \
+    ++(desc)->refcnt;        \
+  desc;                      \
 })
 
-#define TYPE_DECREF(_desc_)             \
-({                                      \
-  TypeDesc *_d_ = (TypeDesc *)(_desc_); \
-  if (_d_) {                            \
-    --_d_->refcnt;                      \
-    panic(_d_->refcnt < 0,              \
-          "type of '%d' refcnt error",  \
-          _d_->kind);                   \
-    if (_d_->refcnt <= 0) {             \
-      typedesc_free(_d_);               \
-      (_desc_) = NULL;                  \
-    }                                   \
-  }                                     \
+#define TYPE_DECREF(desc) ({             \
+  if (desc) {                            \
+    --(desc)->refcnt;                    \
+    if ((desc)->refcnt < 0)              \
+      panic("type of '%d' refcnt error", \
+            (desc)->kind);               \
+    if ((desc)->refcnt <= 0) {           \
+      desc_free(desc);                   \
+      (desc) = NULL;                     \
+    }                                    \
+  }                                      \
 })
-
-typedef struct basedesc {
-  TYPEDESC_HEAD
-  char type; /* one of BASE_XXX */
-  char *str;
-} BaseDesc;
-
-typedef struct klassdesc {
-  TYPEDESC_HEAD
-  char *path;
-  char *type;
-} KlassDesc;
-
-typedef struct protodesc {
-  TYPEDESC_HEAD
-  Vector *args;
-  TypeDesc *ret;
-} ProtoDesc;
 
 void init_typedesc(void);
 void fini_typedesc(void);
-void typedesc_free(TypeDesc *desc);
-void typedesc_tostring(TypeDesc *desc, StrBuf *buf);
-int typedesc_equal(TypeDesc *desc1, TypeDesc *desc2);
+void desc_free(TypeDesc *desc);
+void desc_tostring(TypeDesc *desc, StrBuf *buf);
+int desc_equal(TypeDesc *desc1, TypeDesc *desc2);
 
-TypeDesc *typedesc_getbase(int kind);
-TypeDesc *typedesc_getklass(char *path, char *type);
-TypeDesc *typedesc_getproto(Vector *args, TypeDesc *ret);
-TypeDesc *string_totypedesc(char *s);
+TypeDesc *desc_getbase(int kind);
+TypeDesc *desc_getklass(char *path, char *type);
+TypeDesc *desc_getproto(Vector *args, TypeDesc *ret);
+TypeDesc *string_todesc(char *s);
 TypeDesc *string_toproto(char *ptype, char *rtype);
-Vector *string_totypedescvec(char *s);
+Vector *string_todescs(char *s);
 char *basedesc_str(int kind);
-void typedesc_show(TypeDesc *desc);
+void desc_show(TypeDesc *desc);
 
 #ifdef __cplusplus
 }

@@ -13,23 +13,22 @@
 extern "C" {
 #endif
 
-struct codeinfo {
+typedef struct codeobject {
+  OBJECT_HEAD
+  char *name;
+  TypeObject *type;
+  TypeDesc *proto;
+  int locals;
   Vector locvec;
   Object *consts;
   int size;
-  unsigned char insts[0];
-};
-
-typedef struct codeobject {
-  OBJECT_HEAD
-  TypeObject *type;
-  TypeDesc *proto;
-  struct codeinfo *code;
+  uint8_t codes[0];
 } CodeObject;
 
 extern TypeObject Code_Type;
-Object *Code_From_CFunc(MethodDef *m);
-void *Code_Get_CFunc(Object *self);
+#define Code_Check(ob) (OB_TYPE(ob) == &Code_Type)
+Object *Code_New(char *name, TypeDesc *proto, int locals,
+                 uint8_t *codes, int size);
 
 #ifdef __cplusplus
 }

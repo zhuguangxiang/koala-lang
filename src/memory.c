@@ -22,7 +22,8 @@ struct block {
 void *kmalloc(size_t size)
 {
   struct block *blk = calloc(1, sizeof(struct block) + size);
-  panic(!blk, "null pointer");
+  if (!blk)
+    panic("null pointer");
   maxsize += size;
   usedsize += size;
   blk->size = size;
@@ -33,15 +34,17 @@ void *kmalloc(size_t size)
 void __kfree(void *ptr)
 {
   struct block *blk = (struct block *)ptr - 1;
-  panic(blk->mask != 0xdeadbeaf, "block magic check failed.");
+  if (blk->mask != 0xdeadbeaf)
+    panic("block magic check failed.");
   usedsize -= blk->size;
   free(blk);
-  panic(usedsize < 0, "unexpected error");
+  if (usedsize < 0)
+    panic("unexpected error");
 }
 
 void kstat(void)
 {
   puts("------ Memory Usage ------");
-  printf("|  Max: %d Bytes\n|  Current: %d Bytes\n", maxsize, usedsize);
+  print("|  Max: %d Bytes\n|  Current: %d Bytes\n", maxsize, usedsize);
   puts("--------------------------");
 }

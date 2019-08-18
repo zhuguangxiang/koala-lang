@@ -11,7 +11,23 @@
 
 static Object *string_concat(Object *self, Object *args)
 {
-  return NULL;
+  if (!String_Check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (!String_Check(args)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(args));
+    return NULL;
+  }
+
+  Object *ret;
+  STRBUF(sbuf);
+  strbuf_append(&sbuf, String_AsStr(self));
+  strbuf_append(&sbuf, String_AsStr(args));
+  ret = String_New(strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+  return ret;
 }
 
 static Object *string_length(Object *self, Object *args)

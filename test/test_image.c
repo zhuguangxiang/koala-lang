@@ -10,20 +10,20 @@
 void test_image(void)
 {
   Image *image = Image_New("test");
-  TypeDesc *desc = typedesc_getbase(BASE_STR);
-  TypeDesc *proto = typedesc_getproto(NULL, desc);
+  TypeDesc *desc = desc_getbase(BASE_STR);
+  TypeDesc *proto = desc_getproto(NULL, desc);
   TYPE_DECREF(desc);
   uint8_t *psudo = kmalloc(4);
   psudo[0] = LOAD;
   psudo[1] = LOAD_CONST;
   psudo[2] = ADD;
-  psudo[3] = OP_RETURN;
+  psudo[3] = RETURN_VALUE;
   Image_Add_Func(image, "Foo", proto, psudo, 4, 0);
   TYPE_DECREF(proto);
-  desc = typedesc_getbase(BASE_STR);
+  desc = desc_getbase(BASE_STR);
   Image_Add_Var(image, "Greeting", desc);
   TYPE_DECREF(desc);
-  desc = typedesc_getbase(BASE_INT);
+  desc = desc_getbase(BASE_INT);
   ConstValue val = {.kind = BASE_INT, .ival = 1000};
   Image_Add_Const(image, "MAX_LENGTH", desc, &val);
   TYPE_DECREF(desc);

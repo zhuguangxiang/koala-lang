@@ -12,16 +12,19 @@
 
 #define yyerror(loc, ps, scanner, msg) ((void)0)
 
-#define interactive ps->interactive
-
 #define yyloc_row(loc) ((loc).first_line)
 #define yyloc_col(loc) ((loc).first_column)
 
-#define set_pos(pos, loc)     \
-({                            \
-  (pos).row = yyloc_row(loc); \
-  (pos).col = yyloc_col(loc); \
+#define set_expr_pos(exp, loc) ({ \
+  (exp)->row = yyloc_row(loc);   \
+  (exp)->col = yyloc_col(loc);   \
 })
+
+#define IDENT(name, s, loc) \
+  Ident name = {s, yyloc_row(loc), yyloc_col(loc)}
+
+/* interactive mode */
+void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 
 %}
 
@@ -31,7 +34,9 @@
   wchar cval;
   char *sval;
   char *text;
+  Vector *list;
   Expr *expr;
+  Stmt *stmt;
 }
 
 %token IMPORT
@@ -99,7 +104,11 @@
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
+%type <list> basic_expr_list
 %type <expr> atom
+%type <expr> dot_expr
+%type <expr> call_expr
+%type <expr> index_expr
 %type <expr> primary_expr
 %type <expr> unary_expr
 %type <expr> multi_expr
@@ -135,41 +144,71 @@
 
 units:
   unit
-{
-  if (interactive) {
-    ps->more = 0;
-  }
-}
 | units unit
-{
-  if (interactive) {
-    ps->more = 0;
-  }
-}
 ;
 
 unit:
   import
+{
+
+}
 | const_decl
+{
+
+}
 | var_decl
+{
+
+}
 | free_var_decl
+{
+
+}
 | assignment
+{
+
+}
 | expr ';'
 {
-  parse_expr(ps, $1);
+  if (ps->interactive) {
+    ps->more = 0;
+    Stmt *stmt = stmt_from_expr($1);
+    Cmd_EvalStmt(ps, stmt);
+    stmt_free(stmt);
+  }
 }
 | func_decl
+{
+  if (ps->interactive) {
+    ps->more = 0;
+  }
+}
   /*
 | type_decl
   */
 | ';'
+{
+
+}
 | COMMENT
+{
+
+}
 | DOC
+{
+
+}
 | MODDOC
+{
+
+}
 | error
+{
+
+}
 ;
 
-local_expr:
+local:
   var_decl
 | free_var_decl
 | assignment
@@ -179,21 +218,20 @@ local_expr:
 | expr ';'
 | ';'
 | COMMENT
-| DOC
 | error
 ;
 
 import:
   IMPORT STRING_LITERAL ';'
 {
-  printf("import STRING_LITERAL;\n");
+  print("import STRING_LITERAL;\n");
 }
 | IMPORT ID STRING_LITERAL ';'
 | IMPORT '.' STRING_LITERAL ';'
 | IMPORT '{' id_as_list '}' STRING_LITERAL ';'
 | IMPORT error
 {
-  printf("import error\n");
+  print("import error\n");
 }
 ;
 
@@ -216,11 +254,11 @@ var_decl:
 | VAR ID '=' expr ';'
 | VAR ID error
 {
-  printf("var ID error\n");
+  print("var ID error\n");
 }
 | VAR error
 {
-  printf("var error\n");
+  print("var error\n");
 }
 ;
 
@@ -256,13 +294,13 @@ jump_expr:
 ;
 
 block:
-  '{' local_expr_list '}'
+  '{' local_list '}'
 | '{' basic_expr '}'
 ;
 
-local_expr_list:
-  local_expr
-| local_expr_list local_expr
+local_list:
+  local
+| local_list local
 ;
 
 expr:
@@ -413,15 +451,15 @@ unary_operator:
 primary_expr:
   call_expr
 {
-
+  $$= $1;
 }
 | dot_expr
 {
-
+  $$= $1;
 }
 | index_expr
 {
-
+  $$= $1;
 }
 | atom
 {
@@ -431,63 +469,87 @@ primary_expr:
 
 call_expr:
   primary_expr '(' ')'
+{
+  $$ = expr_from_call(NULL, $1);
+}
 | primary_expr '(' basic_expr_list ')'
+{
+  $$ = expr_from_call($3, $1);
+}
 ;
 
 dot_expr:
   primary_expr '.' ID
+{
+  IDENT(id, $3, @3);
+  $$ = expr_from_attribute(id, $1);
+}
 ;
 
 index_expr:
   primary_expr '[' basic_expr ']'
+{
+
+}
 | primary_expr '[' basic_expr ':' basic_expr ']'
+{
+
+}
 | primary_expr '[' ':' basic_expr ']'
+{
+
+}
 | primary_expr '[' basic_expr ':' ']'
+{
+
+}
 ;
 
 atom:
   ID
 {
   $$ = expr_from_ident($1);
-  set_pos($$->pos, @1);
+  set_expr_pos($$, @1);
 }
 | INT_LITERAL
 {
   $$ = expr_from_integer($1);
-  set_pos($$->pos, @1);
+  set_expr_pos($$, @1);
 }
 | FLOAT_LITERAL
 {
   $$ = expr_from_float($1);
-  set_pos($$->pos, @1);
+  set_expr_pos($$, @1);
 }
 | CHAR_LITERAL
 {
   $$ = expr_from_char($1);
-  set_pos($$->pos, @1);
+  set_expr_pos($$, @1);
 }
 | STRING_LITERAL
 {
   $$ = expr_from_string($1);
-  set_pos($$->pos, @1);
+  set_expr_pos($$, @1);
 }
 | TRUE
 {
   $$ = expr_from_bool(1);
-  set_pos($$->pos, @1);
+  set_expr_pos($$, @1);
 }
 | FALSE
 {
   $$ = expr_from_bool(0);
-  set_pos($$->pos, @1);
+  set_expr_pos($$, @1);
 }
 | NIL
 {
-
+  $$ = expr_from_nil();
+  set_expr_pos($$, @1);
 }
 | SELF
 {
-
+  $$ = expr_from_self();
+  set_expr_pos($$, @1);
 }
 | SUPER
 {
@@ -524,31 +586,39 @@ tuple_object:
 array_object:
   '[' basic_expr_list ']'
 {
-  printf("array object\n");
+  print("array object\n");
 }
 | '[' basic_expr_list ',' ']'
 {
-  printf("array object\n");
+  print("array object\n");
 }
 | '[' ']'
 {
-  printf("array object\n");
+  print("array object\n");
 }
 | '[' error ']'
 {
-  printf("array object error\n");
+  print("array object error\n");
 }
 ;
 
 basic_expr_list:
   basic_expr
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | basic_expr_list ',' basic_expr
+{
+  $$ = $1;
+  vector_push_back($$, $3);
+}
 ;
 
 map_object:
   '{' kv_list '}'
 {
-  printf("map object\n");
+  print("map object\n");
 }
 | '{' kv_list ',' '}'
 | '{' ':' '}'

@@ -30,8 +30,8 @@ static Object *method_call(Object *self, Object *args)
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
     return NULL;
   }
-
-  panic(!args, "'call' has no arguments");
+  if (!args)
+    panic("'call' has no arguments");
 
   Object *ob;
   Object *para;

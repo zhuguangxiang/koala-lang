@@ -34,14 +34,14 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   return 0;
 }
 
-#define YY_USER_ACTION                    \
-{                                         \
-  if (!yyps->interactive) {               \
-    yyps->pos.col += yyps->len;           \
-    yyps->len = strlen(yytext);           \
-    yylloc->first_column = yyps->pos.col; \
-    yylloc->first_line = yylineno;        \
-  }                                       \
+#define YY_USER_ACTION                \
+{                                     \
+  if (!yyps->interactive) {           \
+    yyps->col += yyps->len;           \
+    yyps->len = strlen(yytext);       \
+    yylloc->first_column = yyps->col; \
+    yylloc->first_line = yylineno;    \
+  }                                   \
 }
 
 #define YY_RETURN(_token) \
@@ -188,32 +188,32 @@ moddoc  "//!"[^\n]*
 }
 
 (\'{asc_char}\') {
-  printf("ascii:%s\n", yytext);
+  print("ascii:%s\n", yytext);
   return 0;
 }
 
 (\'{utf8_char}\') {
-  printf("utf8:%s\n", yytext);
+  print("utf8:%s\n", yytext);
   return 0;
 }
 
 (\'{esc_char}\') {
-  printf("escape:%s\n", yytext);
+  print("escape:%s\n", yytext);
   return 0;
 }
 
 (\'{hex_char}\') {
-  printf("hex:%s\n", yytext);
+  print("hex:%s\n", yytext);
   return 0;
 }
 
 (\'{u16_char}\') {
-  printf("unicode-16:%s\n", yytext);
+  print("unicode-16:%s\n", yytext);
   return 0;
 }
 
 (\'{u32_char}\') {
-  printf("unicode-32:%s\n", yytext);
+  print("unicode-32:%s\n", yytext);
   return 0;
 }
 
@@ -254,7 +254,7 @@ moddoc  "//!"[^\n]*
 }
 
 . {
-  printf("error input\n");
+  print("error input\n");
 }
 
 %%

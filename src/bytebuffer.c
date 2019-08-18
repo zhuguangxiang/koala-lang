@@ -49,10 +49,12 @@ int bytebuffer_write(ByteBuffer *self, char *data, int size)
       min = left > size ? size : left;
       memcpy(block->data + block->used, data, min);
       block->used += min;
-      panic(block->used > self->bsize, "unexpected error");
+      if (block->used > self->bsize)
+        panic("unexpected error");
       data += min;
       size -= min;
-      panic(size < 0, "unexpected error");
+      if (size < 0)
+        panic("unexpected error");
       self->total += min;
     }
   }

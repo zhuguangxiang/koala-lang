@@ -57,8 +57,9 @@ static HashMap *get_mtbl(Object *ob)
   HashMap *mtbl = module->mtbl;
   if (mtbl == NULL) {
     mtbl = kmalloc(sizeof(*mtbl));
-    panic(!mtbl, "memory allocation failed.");
-    hashmap_init(mtbl, mnode_compare);
+    if (!mtbl)
+      panic("memory allocation failed.");
+    hashmap_init(mtbl, mnode_equal);
     module->mtbl = mtbl;
   }
   return mtbl;
@@ -68,29 +69,32 @@ static HashMap *get_mtbl(Object *ob)
 
 void Module_Add_Type(Object *self, TypeObject *type)
 {
-  type->owner = OB_INCREF(self);
+  type->owner = self;
   struct mnode *node = mnode_new(type->name, (Object *)type);
   int res = hashmap_add(get_mtbl(self), node);
-  panic(res, "'%.64s' add '%.64s' failed.", MODULE_NAME(self), type->name);
+  if (res != 0)
+    panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), type->name);
 }
 
 void Module_Add_Const(Object *self, Object *ob, Object *val)
 {
   FieldObject *field = (FieldObject *)ob;
-  field->owner = OB_INCREF(self);
+  field->owner = self;
   field->value = OB_INCREF(val);
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
-  panic(res, "'%.64s' add '%.64s' failed.", MODULE_NAME(self), field->name);
+  if (res != 0)
+    panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), field->name);
 }
 
 void Module_Add_Var(Object *self, Object *ob)
 {
   FieldObject *field = (FieldObject *)ob;
   struct mnode *node = mnode_new(field->name, ob);
-  field->owner = OB_INCREF(self);
+  field->owner = self;
   int res = hashmap_add(get_mtbl(self), node);
-  panic(res, "'%.64s' add '%.64s' failed.", MODULE_NAME(self), field->name);
+  if (res != 0)
+    panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), field->name);
 }
 
 void Module_Add_VarDef(Object *self, FieldDef *f)
@@ -112,9 +116,10 @@ void Module_Add_Func(Object *self, Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
   struct mnode *node = mnode_new(meth->name, (Object *)meth);
-  meth->owner = OB_INCREF(self);
+  meth->owner = self;
   int res = hashmap_add(get_mtbl(self), node);
-  panic(res, "'%.64s' add '%.64s' failed.", MODULE_NAME(self), meth->name);
+  if (res != 0)
+    panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), meth->name);
 }
 
 void Module_Add_FuncDef(Object *self, MethodDef *f)
@@ -149,11 +154,11 @@ struct modnode {
 
 static HashMap modmap;
 
-static int _modnode_cmp_(void *e1, void *e2)
+static int _modnode_equal_(void *e1, void *e2)
 {
   struct modnode *n1 = e1;
   struct modnode *n2 = e2;
-  return !strcmp(n1->path, n2->path);
+  return n1 == n2 || !strcmp(n1->path, n2->path);
 }
 
 void Module_Install(char *path, Object *ob)
@@ -164,7 +169,7 @@ void Module_Install(char *path, Object *ob)
   }
 
   if (!modmap.entries) {
-    hashmap_init(&modmap, _modnode_cmp_);
+    hashmap_init(&modmap, _modnode_equal_);
   }
 
   struct modnode *node = kmalloc(sizeof(*node));
@@ -189,7 +194,7 @@ Object *Module_Load(char *path)
   struct modnode *node = hashmap_get(&modmap, &key);
   if (node == NULL) {
     /* find its source and compile it */
-    panic(1, "cannot find module '%.64s'", path);
+    panic("cannot find module '%.64s'", path);
   }
   return OB_INCREF(node->ob);
 }

@@ -8,21 +8,36 @@
 
 #include <inttypes.h>
 #include "ast.h"
-#include "codegen.h"
 #include "atom.h"
 #include "list.h"
 #include "common.h"
 #include "log.h"
+#include "bytebuffer.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct codeblock {
+  int bytes;
+  struct list_head insts;
+  /* control flow */
+  struct codeblock *next;
+  /* false, no OP_RET, needs add one */
+  int ret;
+} CodeBlock;
+
 typedef struct module {
+  /* saved in global modules */
+  HashMapEntry entry;
+  /* deployed path */
+  char *path;
   /* module name is file name, dir name or __name__ */
   char *name;
   /* symbol table per module(share between files) */
   STable *stbl;
+  /* ParserState per source file */
+  Vector pss;
 } Module;
 
 /* ParserUnit scope */
@@ -38,18 +53,12 @@ typedef enum scopekind {
 typedef struct parserunit {
   /* one of ScopeKind */
   ScopeKind scope;
-
-  /* link to parserstate->ustack */
-  struct list_head link;
-
-  /* for function, class, trait and method */
+  /* for module, function, class, trait and method */
   Symbol *sym;
   /* symbol table for current scope */
   STable *stbl;
-
   /* instructions within current scope */
   CodeBlock *block;
-
   int merge;
   int loop;
   Vector jmps;
@@ -71,14 +80,15 @@ typedef struct parserstate {
   /* token length */
   int len;
   /* token position */
-  Position pos;
+  short row;
+  short col;
 
-  /* current ParserUnit */
+  /* current parserunit */
   ParserUnit *u;
-  /* ParserUnit stack depth */
+  /* depth of parserunit */
   int depth;
-  /* link ParserUnit */
-  struct list_head ustack;
+  /* parserunit stack */
+  Vector ustack;
 
   /* error numbers */
   int errnum;
@@ -88,18 +98,25 @@ typedef struct parserstate {
 #define MAX_ERRORS 8
 
 /* Record and print syntax error. */
-#define syntax_error(ps, pos, fmt, ...)                        \
-({                                                             \
-  if (++ps->errnum > MAX_ERRORS) {                             \
-    fprintf(stderr, "%s: " __ERR_COLOR__ "Too many errors.\n", \
-            ps->filename);                                     \
-  } else {                                                     \
-    fprintf(stderr, "%s:%d:%d: " __ERR_COLOR__ fmt "\n",       \
-            ps->filename, pos->row, pos->col, __VA_ARGS__);    \
-  }                                                            \
+#define syntax_error(row, col, fmt, ...)                 \
+({                                                       \
+  if (++ps->errnum > MAX_ERRORS) {                       \
+    fprintf(stderr, "%s: " __ERR_COLOR__                 \
+            "Too many errors.\n", ps->filename);         \
+  } else {                                               \
+    fprintf(stderr, "%s:%d:%d: " __ERR_COLOR__ fmt "\n", \
+            ps->filename, row, col, __VA_ARGS__);        \
+  }                                                      \
 })
 
-void parse_expr(ParserState *ps, Expr *exp);
+void codeblock_free(CodeBlock *block);
+void init_parser(void);
+void parser_enter_scope(ParserState *ps, ScopeKind scope);
+void parser_exit_scope(ParserState *ps);
+void parse_stmt(ParserState *ps, Stmt *stmt);
+void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf);
+Symbol *find_from_builtins(char *name);
+void mod_from_mobject(Module *mod, Object *ob);
 
 #ifdef __cplusplus
 }

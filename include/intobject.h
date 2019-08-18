@@ -45,6 +45,7 @@ extern TypeObject Byte_Type;
 Object *Byte_New(int val);
 
 extern TypeObject Bool_Type;
+#define Bool_Check(ob) (OB_TYPE(ob) == &Bool_Type)
 extern BoolObject OB_True;
 extern BoolObject OB_False;
 
