@@ -360,6 +360,30 @@ Object *Object_Lookup(Object *self, char *name)
   return res;
 }
 
+Object *Object_GetMethod(Object *self, char *name)
+{
+  Object *ob = Object_Lookup(self, name);
+  if (Method_Check(ob)) {
+    return ob;
+  } else {
+    error("'%s' is not a Method", name);
+    OB_DECREF(ob);
+    return NULL;
+  }
+}
+
+Object *Object_GetField(Object *self, char *name)
+{
+  Object *ob = Object_Lookup(self, name);
+  if (Field_Check(ob)) {
+    return ob;
+  } else {
+    error("'%s' is not a Field", name);
+    OB_DECREF(ob);
+    return NULL;
+  }
+}
+
 Object *Object_Call(Object *self, char *name, Object *args)
 {
   Object *ob = Object_Lookup(self, name);
@@ -421,7 +445,7 @@ int Object_SetValue(Object *self, char *name, Object *val)
   return 0;
 }
 
-Object *New_ConstObject(ConstValue *val)
+Object *New_Const(ConstValue *val)
 {
   Object *ob = NULL;
   switch (val->kind) {

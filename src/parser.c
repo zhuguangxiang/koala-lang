@@ -9,6 +9,8 @@
 
 /* lang module */
 static Module _lang_;
+/* ModuleObject */
+static Symbol *modClsSym;
 /* Module, path as key */
 static HashMap modules;
 
@@ -17,9 +19,11 @@ void init_parser(void)
   Object *ob = Module_Load("lang");
   if (ob == NULL)
     panic("cannot find 'lang' module");
-
   mod_from_mobject(&_lang_, ob);
   OB_DECREF(ob);
+  modClsSym = find_from_builtins("Module");
+  if (modClsSym == NULL)
+    panic("cannot find type 'Module'");
 }
 
 void fini_parser(void)
@@ -37,6 +41,14 @@ void mod_from_mobject(Module *mod, Object *ob)
   ModuleObject *mo = (ModuleObject *)ob;
   mod->name = mo->name;
   mod->stbl = stable_from_mobject(ob);
+}
+
+Symbol *mod_find_symbol(Module *mod, char *name)
+{
+  Symbol *sym = stable_get(mod->stbl, name);
+  if (sym != NULL)
+    return sym;
+  return klass_find_member(modClsSym, name);
 }
 
 typedef struct inst {
@@ -180,11 +192,11 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case STORE:
     bytebuffer_write_byte(buf, i->arg.ival);
     break;
-  case GET_FIELD:
+  case GET_FIELD_VALUE:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
-  case SET_FIELD:
+  case SET_FIELD_VALUE:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
@@ -395,12 +407,10 @@ void parser_exit_scope(ParserState *ps)
   }
 }
 
-static void parse_const_expr(ParserState *ps, Expr *exp)
+static Symbol *get_const_symbol(char kind)
 {
-  ConstValue k = exp->k.value;
   Symbol *sym;
-
-  switch (k.kind) {
+  switch (kind) {
   case BASE_INT:
     sym = stable_get(_lang_.stbl, "Integer");
     break;
@@ -411,11 +421,24 @@ static void parse_const_expr(ParserState *ps, Expr *exp)
     sym = stable_get(_lang_.stbl, "Bool");
     break;
   default:
-    panic("invalid const %c", k.kind);
+    panic("invalid const %c", kind);
     break;
   }
+  return sym;
+}
 
-  exp->sym = sym;
+static Symbol *get_func_ret_symbol(ParserState *ps, TypeDesc *desc)
+{
+  Symbol *sym;
+  switch (desc->kind) {
+  case TYPE_BASE:
+    sym = get_const_symbol(desc->base.type);
+    break;
+  default:
+    panic("invalid desc kind %d", desc->kind);
+    break;
+  }
+  return sym;
 }
 
 static void parse_attr_expr(ParserState *ps, Expr *exp)
@@ -429,10 +452,22 @@ static void parse_attr_expr(ParserState *ps, Expr *exp)
   switch (lsym->kind) {
   case SYM_CONST:
     break;
+  case SYM_VAR:
+    break;
+  case SYM_FUNC:
+    debug("left sym '%s' is a func", lsym->name);
+    TypeDesc *desc = lsym->desc;
+    sym = get_func_ret_symbol(ps, desc->proto.ret);
+    if (sym != NULL) {
+      if (sym->kind != SYM_CLASS)
+        panic("func's retval is not a class");
+      sym = klass_find_member(sym, id->name);
+    }
+    break;
   case SYM_MOD: {
     debug("left sym '%s' is a module", lsym->name);
     Module *mod = lsym->mod.ptr;
-    sym = stable_get(mod->stbl, id->name);
+    sym = mod_find_symbol(mod, id->name);
     break;
   }
   case SYM_CLASS: {
@@ -470,19 +505,16 @@ static void code_attr_expr(ParserState *ps, Expr *exp)
   Ident *id = &exp->attr.id;
 
   switch (sym->kind) {
-  case SYM_CONST:
-    break;
   case SYM_VAR:
-    CODE_OP_S(GET_FIELD, id->name);
+    CODE_OP_S(GET_FIELD_VALUE, id->name);
     break;
   case SYM_FUNC:
     if (exp->ctx == EXPR_LOAD)
-      CODE_OP_S(GET_FIELD, id->name);
+      CODE_OP_S(GET_FIELD_VALUE, id->name);
     else if (exp->ctx == EXPR_CALL_FUNC)
       CODE_OP_S_ARGC(CALL, id->name, exp->argc);
     else if (exp->ctx == EXPR_LOAD_FUNC)
-      //CODE_OP_S(GET_FUNC, id->name);
-      ;
+      CODE_OP_S(GET_METHOD, id->name);
     else
       panic("invalid exp's ctx %d", exp->ctx);
     break;
@@ -521,7 +553,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
   case LITERAL_KIND: {
     if (exp->ctx != EXPR_LOAD)
       panic("exp ctx is not load");
-    parse_const_expr(ps, exp);
+    exp->sym = get_const_symbol(exp->k.value.kind);
     if (ps->errnum > 0)
       return;
     if (!exp->k.omit)
@@ -568,13 +600,14 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, lexp);
     if (lexp->sym == NULL)
       return;
-    /* set call exp's sym as left sym */
-    exp->sym = lexp->sym;
+
     if (lexp->desc == NULL || lexp->desc->kind != TYPE_PROTO)
       panic("call proto error");
     TypeDesc *desc = lexp->desc;
     //check_call_args(ps, exp, desc->proto.args);
     exp->desc = TYPE_INCREF(desc->proto.ret);
+    /* set call exp's sym as func's retval symbol */
+    exp->sym = get_func_ret_symbol(ps, desc->proto.ret);
     break;
   }
   case SLICE_KIND: {

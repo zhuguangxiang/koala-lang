@@ -6,22 +6,30 @@
 #include "methodobject.h"
 #include "tupleobject.h"
 
-static Object *cfunc_call(Object *self, Object *ob, Object *args)
-{
-  MethodObject *meth = (MethodObject *)self;
-  func_t fn = (func_t)meth->ptr;
-  return fn(ob, args);
-}
-
 Object *CMethod_New(MethodDef *def)
 {
   MethodObject *method = kmalloc(sizeof(*method));
   Init_Object_Head(method, &Method_Type);
   method->name = def->name;
   method->desc = string_toproto(def->ptype, def->rtype);
-  method->call = cfunc_call,
+  method->cfunc = 1,
   method->ptr = def->func;
   return (Object *)method;
+}
+
+Object *Method_Call(Object *self, Object *ob, Object *args)
+{
+  if (!Method_Check(self)) {
+    error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
+    return NULL;
+  }
+  MethodObject *meth = (MethodObject *)self;
+  if (meth->cfunc) {
+    func_t fn = meth->ptr;
+    return fn(ob, args);
+  } else {
+    panic("not implemented");
+  }
 }
 
 static Object *method_call(Object *self, Object *args)
@@ -44,7 +52,14 @@ static Object *method_call(Object *self, Object *args)
   }
 
   MethodObject *meth = (MethodObject *)self;
-  Object *res = meth->call(self, ob, args);
+  Object *res;
+  if (meth->cfunc) {
+    func_t fn = meth->ptr;
+    res = fn(ob, args);
+  } else {
+    panic("not implemented");
+    res = NULL;
+  }
   OB_DECREF(ob);
   OB_DECREF(para);
   return res;

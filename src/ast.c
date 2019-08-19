@@ -34,7 +34,6 @@ Expr *expr_from_integer(int64_t val)
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_getbase(BASE_INT);
-  TYPE_INCREF(exp->desc);
   exp->k.value.kind = BASE_INT;
   exp->k.value.ival = val;
   return exp;
@@ -45,7 +44,6 @@ Expr *expr_from_float(double val)
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_getbase(BASE_FLOAT);
-  TYPE_INCREF(exp->desc);
   exp->k.value.kind = BASE_FLOAT;
   exp->k.value.fval = val;
   return exp;
@@ -56,7 +54,6 @@ Expr *expr_from_bool(int val)
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_getbase(BASE_BOOL);
-  TYPE_INCREF(exp->desc);
   exp->k.value.kind = BASE_BOOL;
   exp->k.value.bval = val;
   return exp;
@@ -67,7 +64,6 @@ Expr *expr_from_string(char *val)
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_getbase(BASE_STR);
-  TYPE_INCREF(exp->desc);
   exp->k.value.kind = BASE_STR;
   exp->k.value.str = val;
   return exp;
@@ -78,7 +74,6 @@ Expr *expr_from_char(wchar val)
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_getbase(BASE_CHAR);
-  TYPE_INCREF(exp->desc);
   exp->k.value.kind = BASE_CHAR;
   exp->k.value.cval = val;
   return exp;
@@ -158,6 +153,18 @@ Expr *expr_from_slice(Expr *start, Expr *end, Expr *left)
   return exp;
 }
 
+void expr_free(Expr *exp);
+
+void exprlist_free(Vector *vec)
+{
+  VECTOR_ITERATOR(iter, vec);
+  Expr *exp;
+  iter_for_each(&iter, exp) {
+    expr_free(exp);
+  }
+  vector_free(vec, NULL, NULL);
+}
+
 void expr_free(Expr *exp)
 {
   switch (exp->kind) {
@@ -197,7 +204,7 @@ void expr_free(Expr *exp)
     break;
   case CALL_KIND:
     TYPE_DECREF(exp->desc);
-    //exprlist_free(exp->call.args);
+    exprlist_free(exp->call.args);
     expr_free(exp->call.lexp);
     kfree(exp);
     break;

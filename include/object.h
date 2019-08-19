@@ -234,10 +234,12 @@ void Type_Add_MethodDefs(TypeObject *type, MethodDef *def);
 unsigned int Object_Hash(Object *ob);
 int Object_Equal(Object *ob1, Object *ob2);
 Object *Object_Lookup(Object *self, char *name);
+Object *Object_GetMethod(Object *self, char *name);
+Object *Object_GetField(Object *self, char *name);
 Object *Object_GetValue(Object *self, char *name);
 int Object_SetValue(Object *self, char *name, Object *val);
 Object *Object_Call(Object *self, char *name, Object *args);
-Object *New_ConstObject(ConstValue *val);
+Object *New_Const(ConstValue *val);
 
 #ifdef __cplusplus
 }

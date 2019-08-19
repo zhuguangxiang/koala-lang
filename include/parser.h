@@ -118,6 +118,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt);
 void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf);
 Symbol *find_from_builtins(char *name);
 void mod_from_mobject(Module *mod, Object *ob);
+Symbol *mod_find_symbol(Module *mod, char *name);
 
 #ifdef __cplusplus
 }

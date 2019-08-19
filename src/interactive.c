@@ -47,15 +47,12 @@ static void init_cmdline_env(void)
 {
   mod.name = "__main__";
   mod.stbl = stable_new();
-  TypeDesc *desc = desc_getbase('s');
-  stable_add_var(mod.stbl, "__name__", desc);
-  TYPE_DECREF(desc);
   vector_init(&mod.pss);
 
   modSym = symbol_new(mod.name, SYM_MOD);
   modSym->mod.ptr = &mod;
 
-  desc = desc_getproto(NULL, NULL);
+  TypeDesc *desc = desc_getproto(NULL, NULL);
   funcsym = stable_add_func(mod.stbl, "__init__", desc);
   TYPE_DECREF(desc);
 
@@ -77,7 +74,6 @@ static void fini_cmdline_env(void)
   modSym = NULL;
   OB_DECREF(mo);
   mo = NULL;
-  rl_clear_history();
 }
 
 void Koala_CmdLine(void)
@@ -118,7 +114,7 @@ static void add_symbol(Symbol *sym, Object *ob)
 static void _get_consts_(ConstValue *val, int index, void *arg)
 {
   Object *tuple = arg;
-  Object *ob = New_ConstObject(val);
+  Object *ob = New_Const(val);
   Tuple_Set(tuple, index, ob);
   OB_DECREF(ob);
 }
@@ -146,6 +142,8 @@ static Object *getcode(CodeBlock *block)
   TypeDesc *proto = desc_getproto(NULL, NULL);
   size = bytebuffer_toarr(&buf, (char **)&code);
   ob = Code_New("__code__", proto, 0, code, size);
+  TYPE_DECREF(proto);
+  kfree(code);
   co = (CodeObject *)ob;
   co->consts = OB_INCREF(consts);
   OB_DECREF(consts);
@@ -213,11 +211,12 @@ int interactive(ParserState *ps, char *buf, int size)
   if (!line) {
     if (ferror(stdin))
       clearerr(stdin);
+    //clear_history();
     return 0;
   }
 
   /* add history of readline */
-  add_history(line);
+  //add_history(line);
 
   strcpy(buf, line);
   int len = strlen(buf);

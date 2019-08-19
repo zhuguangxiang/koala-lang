@@ -20,8 +20,8 @@ typedef struct methodobject {
   Object *owner;
   /* method type descriptor */
   TypeDesc *desc;
-  /* call this method */
-  callfunc call;
+  /* cfunc or kfunc ? */
+  int cfunc;
   /* cfunc or kfunc pointer */
   void *ptr;
 } MethodObject;
@@ -42,15 +42,7 @@ extern TypeObject Proto_Type;
 #define Method_Check(ob) (OB_TYPE(ob) == &Method_Type)
 #define Proto_Check(ob) (OB_TYPE(ob) == &Proto_Type)
 Object *CMethod_New(MethodDef *m);
-static inline Object *Method_Call(Object *self, Object *ob, Object *args)
-{
-  if (!Method_Check(self)) {
-    error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
-    return NULL;
-  }
-  MethodObject *meth = (MethodObject *)self;
-  return meth->call(self, ob, args);
-}
+Object *Method_Call(Object *self, Object *ob, Object *args);
 
 #ifdef __cplusplus
 }

@@ -242,7 +242,31 @@ Object *Koala_EvalFrame(Frame *f)
       SETLOCAL(3, v);
       break;
     }
+    case GET_METHOD: {
+      Object *name;
+      Object *ob;
+      oparg = NEXT_2BYTES();
+      name = Tuple_Get(consts, oparg);
+      ob = POP();
+      v = Object_GetMethod(ob, String_AsStr(name));
+      PUSH(OB_INCREF(v));
+      OB_DECREF(name);
+      OB_DECREF(ob);
+      break;
+    }
     case GET_FIELD: {
+      Object *name;
+      Object *ob;
+      oparg = NEXT_2BYTES();
+      name = Tuple_Get(consts, oparg);
+      ob = POP();
+      v = Object_GetField(ob, String_AsStr(name));
+      PUSH(OB_INCREF(v));
+      OB_DECREF(name);
+      OB_DECREF(ob);
+      break;
+    }
+    case GET_FIELD_VALUE: {
       Object *name;
       Object *ob;
       oparg = NEXT_2BYTES();
@@ -254,7 +278,7 @@ Object *Koala_EvalFrame(Frame *f)
       OB_DECREF(ob);
       break;
     }
-    case SET_FIELD: {
+    case SET_FIELD_VALUE: {
       Object *name;
       Object *ob;
       oparg = NEXT_2BYTES();
@@ -289,6 +313,7 @@ Object *Koala_EvalFrame(Frame *f)
       }
       retval = Object_Call(ob, String_AsStr(name), v);
       PUSH(OB_INCREF(retval));
+      OB_DECREF(name);
       OB_DECREF(ob);
       OB_DECREF(v);
       break;

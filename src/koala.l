@@ -76,7 +76,7 @@ bin   0|1
 exp   [eE][+-]?{digit}+
 i     {digit}+
 
-float_const [+-]?({i}\.{i}?|{i}?\.{i}|{i})+{exp}?
+float_const [+-]?({i}?\.{i}|{i}){exp}?
 int_const   [+-]?{i}
 hex_const   0[xX]{hex}+
 oct_const   0{oct}*

@@ -31,10 +31,12 @@ extern "C" {
 #define STORE_2 18
 #define STORE_3 19
 
-#define GET_FIELD 20
-#define SET_FIELD 21
-#define CALL      22
-#define RETURN_VALUE 23
+#define GET_FIELD  20
+#define GET_METHOD 21
+#define GET_FIELD_VALUE 22
+#define SET_FIELD_VALUE 23
+#define RETURN_VALUE 24
+#define CALL 25
 
 #define ADD  30
 #define SUB  31

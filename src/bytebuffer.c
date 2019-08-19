@@ -63,10 +63,10 @@ int bytebuffer_write(ByteBuffer *self, char *data, int size)
 
 int bytebuffer_toarr(ByteBuffer *self, char **arr)
 {
-  VECTOR_ITERATOR(iter, &self->vec);
   char *buf = kmalloc((self->total + 3) & ~3);
   struct byteblock *block;
   int index = 0;
+  VECTOR_ITERATOR(iter, &self->vec);
   iter_for_each(&iter, block) {
     memcpy(buf + index, block->data, block->used);
     index += block->used;

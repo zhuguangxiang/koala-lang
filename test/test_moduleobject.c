@@ -46,11 +46,7 @@ int main(int argc, char *argv[])
   Object *s = String_New("__name__");
   Object *meth = Object_Call(clazz, "getMethod", s);
   assert(Method_Check(meth));
-  v = Object_Call(meth, "call", m);
-  assert(!strcmp("test", String_AsStr(v)));
-  OB_DECREF(v);
   OB_DECREF(s);
-
   v = Method_Call(meth, m, NULL);
   assert(!strcmp("test", String_AsStr(v)));
   OB_DECREF(meth);
