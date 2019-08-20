@@ -57,7 +57,7 @@ static void init_cmdline_env(void)
   TYPE_DECREF(desc);
 
   ps.interactive = 1;
-  ps.filename = "__stdin__";
+  ps.filename = "stdin";
   ps.module = &mod;
   vector_init(&ps.ustack);
 

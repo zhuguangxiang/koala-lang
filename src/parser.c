@@ -420,6 +420,9 @@ static Symbol *get_const_symbol(char kind)
   case BASE_BOOL:
     sym = stable_get(_lang_.stbl, "Bool");
     break;
+  case BASE_ANY:
+    sym = stable_get(_lang_.stbl, "Any");
+    break;
   default:
     panic("invalid const %c", kind);
     break;
@@ -433,6 +436,12 @@ static Symbol *get_func_ret_symbol(ParserState *ps, TypeDesc *desc)
   switch (desc->kind) {
   case TYPE_BASE:
     sym = get_const_symbol(desc->base.type);
+    break;
+  case TYPE_KLASS:
+    if (!strcmp(desc->klass.path, "lang"))
+      sym = find_from_builtins(desc->klass.type);
+    else
+      panic("not implemented");
     break;
   default:
     panic("invalid desc kind %d", desc->kind);

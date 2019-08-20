@@ -47,15 +47,21 @@ static Object *method_call(Object *self, Object *args)
     ob = OB_INCREF(args);
     para = NULL;
   } else {
+    int size = Tuple_Size(args);
+    if (size <= 0)
+      panic("args are less than 1");
     ob = Tuple_Get(args, 0);
-    para = Tuple_Slice(args, 1, -1);
+    if (size == 2)
+      para = Tuple_Get(args, 1);
+    else
+      para = Tuple_Slice(args, 1, -1);
   }
 
   MethodObject *meth = (MethodObject *)self;
   Object *res;
   if (meth->cfunc) {
     func_t fn = meth->ptr;
-    res = fn(ob, args);
+    res = fn(ob, para);
   } else {
     panic("not implemented");
     res = NULL;

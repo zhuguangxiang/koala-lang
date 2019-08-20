@@ -130,6 +130,22 @@ static void class_free(Object *ob)
   kfree(ob);
 }
 
+static Object *class_str(Object *self, Object *args)
+{
+  if (!Class_Check(self)) {
+    error("object of '%.64s' is not a Class", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  Object *ob = ((ClassObject *)self)->obj;
+  STRBUF(sbuf);
+  strbuf_append(&sbuf, "class ");
+  strbuf_append(&sbuf, OB_TYPE_NAME(ob));
+  Object *ret = String_New(strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+  return ret;
+}
+
 static MethodDef class_methods[] = {
   {"__name__",   NULL, "s",             class_name     },
   {"__module__", NULL, "Llang.Module;", class_module   },
@@ -144,6 +160,7 @@ TypeObject Class_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Class",
   .free    = class_free,
+  .str     = class_str,
   .methods = class_methods,
 };
 
