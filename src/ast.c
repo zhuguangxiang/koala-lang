@@ -122,12 +122,12 @@ Expr *expr_from_attribute(Ident id, Expr *left)
   return exp;
 }
 
-Expr *expr_from_subScript(Expr *index, Expr *left)
+Expr *expr_from_subScript(Expr *left, Expr *index)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SUBSCRIPT_KIND;
-  exp->subscript.index = index;
-  exp->subscript.lexp = left;
+  exp->subscr.index = index;
+  exp->subscr.lexp = left;
   left->right = exp;
   return exp;
 }
@@ -142,7 +142,7 @@ Expr *expr_from_call(Vector *args, Expr *left)
   return exp;
 }
 
-Expr *expr_from_slice(Expr *start, Expr *end, Expr *left)
+Expr *expr_from_slice(Expr *left, Expr *start, Expr *end)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SLICE_KIND;
@@ -229,8 +229,8 @@ void expr_free(Expr *exp)
     break;
   case SUBSCRIPT_KIND:
     TYPE_DECREF(exp->desc);
-    expr_free(exp->subscript.index);
-    expr_free(exp->subscript.lexp);
+    expr_free(exp->subscr.index);
+    expr_free(exp->subscr.lexp);
     kfree(exp);
     break;
   case CALL_KIND:

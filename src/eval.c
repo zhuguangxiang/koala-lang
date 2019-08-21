@@ -143,7 +143,7 @@ Object *Koala_EvalFrame(Frame *f)
   Object *consts = co->consts;
   uint8_t op;
   int oparg;
-  Object *v, *w, *x;
+  Object *v, *v2, *x;
   Object *retval;
 
   while (loopflag) {
@@ -153,158 +153,137 @@ Object *Koala_EvalFrame(Frame *f)
     }
     op = NEXT_OP();
     switch (op) {
-    case POP_TOP: {
+    case OP_POP_TOP: {
       v = POP();
       OB_DECREF(v);
       break;
     }
-    case DUP: {
+    case OP_DUP: {
       v = TOP();
       PUSH(OB_INCREF(v));
       break;
     }
-    case CONST_BYTE: {
+    case OP_CONST_BYTE: {
       oparg = NEXT_BYTE();
       v = Integer_New(oparg);
       PUSH(v);
       break;
     }
-    case CONST_SHORT: {
+    case OP_CONST_SHORT: {
       oparg = NEXT_2BYTES();
       v = Integer_New(oparg);
       PUSH(v);
       break;
     }
-    case LOAD_CONST: {
+    case OP_LOAD_CONST: {
       oparg = NEXT_2BYTES();
       v = Tuple_Get(consts, oparg);
       PUSH(v);
       break;
     }
-    case LOAD_MODULE: {
+    case OP_LOAD_MODULE: {
       char *path;
-      Object *mo;
       oparg = NEXT_2BYTES();
       v = Tuple_Get(consts, oparg);
       path = String_AsStr(v);
-      mo = Module_Load(path);
-      PUSH(mo);
+      x = Module_Load(path);
+      PUSH(x);
       OB_DECREF(v);
       break;
     }
-    case LOAD: {
+    case OP_LOAD: {
       oparg = NEXT_BYTE();
       v = GETLOCAL(oparg);
       PUSH(OB_INCREF(v));
       break;
     }
-    case LOAD_0: {
+    case OP_LOAD_0: {
       v = GETLOCAL(0);
       PUSH(OB_INCREF(v));
       break;
     }
-    case LOAD_1: {
+    case OP_LOAD_1: {
       v = GETLOCAL(1);
       PUSH(OB_INCREF(v));
       break;
     }
-    case LOAD_2: {
+    case OP_LOAD_2: {
       v = GETLOCAL(2);
       PUSH(OB_INCREF(v));
       break;
     }
-    case LOAD_3: {
+    case OP_LOAD_3: {
       v = GETLOCAL(3);
       PUSH(OB_INCREF(v));
       break;
     }
-    case STORE: {
+    case OP_STORE: {
       oparg = NEXT_BYTE();
       v = POP();
       SETLOCAL(oparg, v);
       break;
     }
-    case STORE_0: {
+    case OP_STORE_0: {
       v = POP();
       SETLOCAL(0, v);
       break;
     }
-    case STORE_1: {
+    case OP_STORE_1: {
       v = POP();
       SETLOCAL(1, v);
       break;
     }
-    case STORE_2: {
+    case OP_STORE_2: {
       v = POP();
       SETLOCAL(2, v);
       break;
     }
-    case STORE_3: {
+    case OP_STORE_3: {
       v = POP();
       SETLOCAL(3, v);
       break;
     }
-    case GET_METHOD: {
-      Object *name;
-      Object *ob;
+    case OP_GET_OBJECT: {
       oparg = NEXT_2BYTES();
-      name = Tuple_Get(consts, oparg);
-      ob = POP();
-      v = Object_GetMethod(ob, String_AsStr(name));
-      PUSH(OB_INCREF(v));
-      OB_DECREF(name);
-      OB_DECREF(ob);
-      break;
-    }
-    case GET_FIELD: {
-      Object *name;
-      Object *ob;
-      oparg = NEXT_2BYTES();
-      name = Tuple_Get(consts, oparg);
-      ob = POP();
-      v = Object_GetField(ob, String_AsStr(name));
-      PUSH(OB_INCREF(v));
-      OB_DECREF(name);
-      OB_DECREF(ob);
-      break;
-    }
-    case GET_FIELD_VALUE: {
-      Object *name;
-      Object *ob;
-      oparg = NEXT_2BYTES();
-      name = Tuple_Get(consts, oparg);
-      ob = POP();
-      v = Object_GetValue(ob, String_AsStr(name));
-      PUSH(OB_INCREF(v));
-      OB_DECREF(name);
-      OB_DECREF(ob);
-      break;
-    }
-    case SET_FIELD_VALUE: {
-      Object *name;
-      Object *ob;
-      oparg = NEXT_2BYTES();
-      name = Tuple_Get(consts, oparg);
-      ob = POP();
+      x = Tuple_Get(consts, oparg);
       v = POP();
-      Object_SetValue(ob, String_AsStr(name), v);
-      OB_DECREF(name);
-      OB_DECREF(ob);
+      retval = Object_Lookup(v, String_AsStr(x));
+      PUSH(retval);
+      OB_DECREF(x);
       OB_DECREF(v);
       break;
     }
-    case RETURN_VALUE: {
+    case OP_GET_FIELD_VALUE: {
+      oparg = NEXT_2BYTES();
+      x = Tuple_Get(consts, oparg);
+      v = POP();
+      retval = Object_GetValue(v, String_AsStr(x));
+      PUSH(retval);
+      OB_DECREF(x);
+      OB_DECREF(v);
+      break;
+    }
+    case OP_SET_FIELD_VALUE: {
+      oparg = NEXT_2BYTES();
+      x = Tuple_Get(consts, oparg);
+      v2 = POP();
+      v = POP();
+      Object_SetValue(v2, String_AsStr(x), v);
+      OB_DECREF(x);
+      OB_DECREF(v2);
+      OB_DECREF(v);
+      break;
+    }
+    case OP_RETURN_VALUE: {
       retval = POP();
       loopflag = 0;
       break;
     }
-    case CALL: {
-      Object *name;
-      Object *ob;
+    case OP_CALL: {
       oparg = NEXT_2BYTES();
-      name = Tuple_Get(consts, oparg);
+      x = Tuple_Get(consts, oparg);
       oparg = NEXT_BYTE();
-      ob = POP();
+      v2 = POP();
       if (oparg == 0) {
         v = NULL;
       } else if (oparg == 1) {
@@ -318,164 +297,173 @@ Object *Koala_EvalFrame(Frame *f)
           OB_DECREF(arg);
         }
       }
-      retval = Object_Call(ob, String_AsStr(name), v);
-      PUSH(OB_INCREF(retval));
-      OB_DECREF(name);
-      OB_DECREF(ob);
+      retval = Object_Call(v2, String_AsStr(x), v);
+      PUSH(retval);
+      OB_DECREF(x);
+      OB_DECREF(v2);
       OB_DECREF(v);
       break;
     }
-    case PRINT: {
+    case OP_PRINT: {
       v = POP();
       IoPrintln(v);
       OB_DECREF(v);
       break;
     }
-    case ADD: {
-      w = POP();
+    case OP_ADD: {
+      v2 = POP();
       v = POP();
-      if (Integer_Check(v) && Integer_Check(w)) {
+      if (Integer_Check(v) && Integer_Check(v2)) {
         int64_t a, b, r;
         a = Integer_AsInt(v);
-        b = Integer_AsInt(w);
+        b = Integer_AsInt(v2);
         //overflow?
         r = (int64_t)((uint64_t)a + b);
         x = Integer_New(r);
-      } else if (String_Check(v) && String_Check(w)) {
+      } else if (String_Check(v) && String_Check(v2)) {
 
       } else {
         //x = Number_Add(v, w);
       }
-      OB_DECREF(w);
+      OB_DECREF(v2);
       OB_DECREF(v);
       PUSH(x);
       break;
     }
-    case SUB: {
-      w = POP();
+    case OP_SUB: {
+      v2 = POP();
       v = POP();
-      if (Integer_Check(v) && Integer_Check(w)) {
+      if (Integer_Check(v) && Integer_Check(v2)) {
         int64_t a, b, r;
         a = Integer_AsInt(v);
-        b = Integer_AsInt(w);
+        b = Integer_AsInt(v2);
         //overflow?
         r = (int64_t)((uint64_t)a - b);
         x = Integer_New(r);
       } else {
         //x = Number_Sub(v, w);
       }
-      OB_DECREF(w);
+      OB_DECREF(v2);
       OB_DECREF(v);
       PUSH(x);
       break;
     }
-    case MUL: {
+    case OP_MUL: {
       break;
     }
-    case DIV: {
+    case OP_DIV: {
       break;
     }
-    case MOD: {
+    case OP_MOD: {
       break;
     }
-    case POW: {
+    case OP_POW: {
       break;
     }
-    case NEG: {
+    case OP_NEG: {
       break;
     }
-    case GT: {
+    case OP_GT: {
       break;
     }
-    case GE: {
+    case OP_GE: {
       break;
     }
-    case LT: {
+    case OP_LT: {
       break;
     }
-    case LE: {
+    case OP_LE: {
       break;
     }
-    case EQ: {
+    case OP_EQ: {
       break;
     }
-    case NEQ: {
+    case OP_NEQ: {
       break;
     }
-    case BAND: {
+    case OP_BAND: {
       break;
     }
-    case BOR: {
+    case OP_BOR: {
       break;
     }
-    case BXOR: {
+    case OP_BXOR: {
       break;
     }
-    case BNOT: {
+    case OP_BNOT: {
       break;
     }
-    case AND: {
+    case OP_AND: {
       break;
     }
-    case OR: {
+    case OP_OR: {
       break;
     }
-    case NOT: {
+    case OP_NOT: {
       break;
     }
-    case JMP: {
+    case OP_SUBSCR_LOAD: {
+      v2 = POP();
+      v = POP();
+      retval = Object_Call(v2, "__getitem__", v);
+      PUSH(retval);
+      OB_DECREF(v2);
+      OB_DECREF(v);
       break;
     }
-    case JMP_TRUE: {
+    case OP_JMP: {
       break;
     }
-    case JMP_FALSE: {
+    case OP_JMP_TRUE: {
       break;
     }
-    case JMP_CMPEQ: {
+    case OP_JMP_FALSE: {
       break;
     }
-    case JMP_CMPNEQ: {
+    case OP_JMP_CMPEQ: {
       break;
     }
-    case JMP_CMPLT: {
+    case OP_JMP_CMPNEQ: {
       break;
     }
-    case JMP_CMPGT: {
+    case OP_JMP_CMPLT: {
       break;
     }
-    case JMP_CMPLE: {
+    case OP_JMP_CMPGT: {
       break;
     }
-    case JMP_CMPGE: {
+    case OP_JMP_CMPLE: {
       break;
     }
-    case JMP_NIL: {
+    case OP_JMP_CMPGE: {
       break;
     }
-    case JMP_NOTNIL: {
+    case OP_JMP_NIL: {
       break;
     }
-    case NEW_TUPLE: {
+    case OP_JMP_NOTNIL: {
+      break;
+    }
+    case OP_NEW_TUPLE: {
       oparg = NEXT_2BYTES();
-      Object *ob = Tuple_New(oparg);
+      x = Tuple_New(oparg);
       for (int i = 0; i < oparg; ++i) {
         v = POP();
-        Tuple_Set(ob, i, v);
+        Tuple_Set(x, i, v);
         OB_DECREF(v);
       }
-      PUSH(ob);
+      PUSH(x);
       break;
     }
-    case NEW_ARRAY: {
-      Object *ob = Array_New();
+    case OP_NEW_ARRAY: {
+      x = Array_New();
       oparg = NEXT_2BYTES();
       for (int i = 0; i < oparg; ++i) {
         v = POP();
-        Array_Set(ob, i, v);
+        Array_Set(x, i, v);
         OB_DECREF(v);
       }
-      PUSH(ob);
+      PUSH(x);
       break;
     }
     default: {

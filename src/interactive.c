@@ -161,7 +161,7 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
   parse_stmt(ps, stmt);
   parser_exit_scope(ps);
 
-  if (ps->errnum > 0) {
+  if (has_error(ps)) {
     codeblock_free(funcsym->func.code);
     funcsym->func.code = NULL;
     return;
@@ -216,7 +216,7 @@ int interactive(ParserState *ps, char *buf, int size)
   }
 
   /* add history of readline */
-  add_history(line);
+  //add_history(line);
 
   strcpy(buf, line);
   int len = strlen(buf);

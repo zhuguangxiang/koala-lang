@@ -10,82 +10,99 @@
 extern "C" {
 #endif
 
-#define POP_TOP 1
-#define DUP     2
+#define OP_HALT    0
+#define OP_POP_TOP 1
+#define OP_DUP     2
+#define OP_CONST_BYTE  3
+#define OP_CONST_SHORT 4
+#define OP_LOAD_CONST  5
+#define OP_LOAD_MODULE 6
 
-#define CONST_BYTE  3
-#define CONST_SHORT 4
+/* 7 - 9 */
 
-#define LOAD_CONST  5
-#define LOAD_MODULE 6
+#define OP_LOAD   10
+#define OP_LOAD_0 11
+#define OP_LOAD_1 12
+#define OP_LOAD_2 13
+#define OP_LOAD_3 14
 
-#define LOAD   10
-#define LOAD_0 11
-#define LOAD_1 12
-#define LOAD_2 13
-#define LOAD_3 14
+#define OP_STORE   15
+#define OP_STORE_0 16
+#define OP_STORE_1 17
+#define OP_STORE_2 18
+#define OP_STORE_3 19
 
-#define STORE   15
-#define STORE_0 16
-#define STORE_1 17
-#define STORE_2 18
-#define STORE_3 19
+#define OP_GET_OBJECT  20
+#define OP_GET_FIELD_VALUE 22
+#define OP_SET_FIELD_VALUE 23
+#define OP_RETURN_VALUE 24
+#define OP_CALL 25
+#define OP_PRINT 26
 
-#define GET_FIELD  20
-#define GET_METHOD 21
-#define GET_FIELD_VALUE 22
-#define SET_FIELD_VALUE 23
-#define RETURN_VALUE 24
-#define CALL 25
-#define PRINT 26
+/* 27 - 29 */
 
-#define ADD  30
-#define SUB  31
-#define MUL  32
-#define DIV  33
-#define MOD  34
-#define POW  35
-#define NEG  36
+#define OP_ADD  30
+#define OP_SUB  31
+#define OP_MUL  32
+#define OP_DIV  33
+#define OP_MOD  34
+#define OP_POW  35
+#define OP_NEG  36
 
-#define GT   37
-#define GE   38
-#define LT   39
-#define LE   40
-#define EQ   41
-#define NEQ  42
+#define OP_GT   37
+#define OP_GE   38
+#define OP_LT   39
+#define OP_LE   40
+#define OP_EQ   41
+#define OP_NEQ  42
 
-#define BAND 43
-#define BOR  44
-#define BXOR 45
-#define BNOT 46
+#define OP_BAND 43
+#define OP_BOR  44
+#define OP_BXOR 45
+#define OP_BNOT 46
 
-#define AND  47
-#define OR   48
-#define NOT  49
+#define OP_AND  47
+#define OP_OR   48
+#define OP_NOT  49
 
-#define JMP        50
-#define JMP_TRUE   51
-#define JMP_FALSE  52
-#define JMP_CMPEQ  53
-#define JMP_CMPNEQ 54
-#define JMP_CMPLT  55
-#define JMP_CMPGT  56
-#define JMP_CMPLE  57
-#define JMP_CMPGE  58
-#define JMP_NIL    59
-#define JMP_NOTNIL 60
+#define OP_INPLACE_ADD  50
+#define OP_INPLACE_SUB  51
+#define OP_INPLACE_MUL  52
+#define OP_INPLACE_DIV  53
+#define OP_INPLACE_POW  54
+#define OP_INPLACE_MOD  55
+#define OP_INPLACE_AND  56
+#define OP_INPLACE_OR   57
+#define OP_INPLACE_XOR  58
 
-#define NEW         70
-#define NEW_TUPLE   71
-#define NEW_ARRAY   72
-#define NEW_SET     73
-#define NEW_MAP     74
-#define NEW_ITER    75
-#define FOR_ITER    76
-#define NEW_EVAL    77
-#define NEW_CLOSURE 78
-#define MAP_LOAD    79
-#define MAP_STORE   80
+#define OP_SUBSCR_LOAD  59
+#define OP_SUBSCR_STORE 60
+#define OP_SLICE_LOAD   61
+#define OP_SLICE_STORE  62
+
+/* 63 - 69 */
+
+#define OP_JMP        70
+#define OP_JMP_TRUE   71
+#define OP_JMP_FALSE  72
+#define OP_JMP_CMPEQ  73
+#define OP_JMP_CMPNEQ 74
+#define OP_JMP_CMPLT  75
+#define OP_JMP_CMPGT  76
+#define OP_JMP_CMPLE  77
+#define OP_JMP_CMPGE  78
+#define OP_JMP_NIL    79
+#define OP_JMP_NOTNIL 80
+
+#define OP_NEW_OBJECT  90
+#define OP_NEW_TUPLE   91
+#define OP_NEW_ARRAY   92
+#define OP_NEW_SET     93
+#define OP_NEW_MAP     94
+#define OP_NEW_ITER    95
+#define OP_FOR_EACH    96
+#define OP_NEW_EVAL    97
+#define OP_NEW_CLOSURE 98
 
 int opcode_argc(int op);
 char *opcode_str(int op);

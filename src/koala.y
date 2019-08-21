@@ -76,6 +76,7 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 %token MINUS_ASSIGN
 %token MULT_ASSIGN
 %token DIV_ASSIGN
+%token POW_ASSIGN
 %token MOD_ASSIGN
 %token AND_ASSIGN
 %token OR_ASSIGN
@@ -300,6 +301,7 @@ assign_operator:
 | MINUS_ASSIGN
 | MULT_ASSIGN
 | DIV_ASSIGN
+| POW_ASSIGN
 | MOD_ASSIGN
 | AND_ASSIGN
 | OR_ASSIGN
@@ -513,19 +515,23 @@ dot_expr:
 index_expr:
   primary_expr '[' basic_expr ']'
 {
-
+  $$ = expr_from_subScript($1, $3);
 }
 | primary_expr '[' basic_expr ':' basic_expr ']'
 {
-
+  $$ = expr_from_slice($1, $3, $5);
 }
 | primary_expr '[' ':' basic_expr ']'
 {
-
+  $$ = expr_from_slice($1, $4, NULL);
 }
 | primary_expr '[' basic_expr ':' ']'
 {
-
+  $$ = expr_from_slice($1, $3, NULL);
+}
+| primary_expr '[' ':' ']'
+{
+  $$ = expr_from_slice($1, NULL, NULL);
 }
 ;
 

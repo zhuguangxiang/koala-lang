@@ -104,6 +104,7 @@ typedef struct expr {
   Symbol *sym;
   struct expr *right;
   int argc;
+  int side;
   union {
     struct {
       int omit;
@@ -138,18 +139,18 @@ typedef struct expr {
       struct expr *lexp;
     } attr;
     struct {
-      struct expr *index;
       struct expr *lexp;
-    } subscript;
+      struct expr *index;
+    } subscr;
     struct {
       /* arguments list */
       Vector *args;
       struct expr *lexp;
     } call;
     struct {
+      struct expr *lexp;
       struct expr *start;
       struct expr *end;
-      struct expr *lexp;
     } slice;
     Vector *tuple;
     struct {
@@ -172,9 +173,9 @@ Expr *expr_from_ident(char *val);
 Expr *expr_from_unary(UnaryOpKind op, Expr *exp);
 Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right);
 Expr *expr_from_attribute(Ident id, Expr *left);
-Expr *expr_from_subScript(Expr *index, Expr *left);
+Expr *expr_from_subScript(Expr *left, Expr *index);
 Expr *expr_from_call(Vector *args, Expr *left);
-Expr *expr_from_slice(Expr *start, Expr *end, Expr *left);
+Expr *expr_from_slice(Expr *left, Expr *start, Expr *end);
 Expr *expr_from_tuple(Vector *exps);
 Expr *expr_from_array(Vector *exps);
 

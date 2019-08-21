@@ -109,6 +109,8 @@ typedef struct parserstate {
   }                                                      \
 })
 
+#define has_error(ps) ((ps)->errnum > 0)
+
 void codeblock_free(CodeBlock *block);
 void init_parser(void);
 void fini_parser(void);

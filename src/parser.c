@@ -178,69 +178,69 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   int index = -1;
   bytebuffer_write_byte(buf, i->op);
   switch (i->op) {
-  case LOAD_CONST: {
+  case OP_LOAD_CONST: {
     ConstValue *val = &i->arg;
     index = Image_Add_ConstValue(image, val);
     bytebuffer_write_2bytes(buf, index);
     break;
   }
-  case LOAD_MODULE:
+  case OP_LOAD_MODULE:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
-  case LOAD:
-  case STORE:
-    bytebuffer_write_byte(buf, i->arg.ival);
-    break;
-  case GET_FIELD_VALUE:
+  case OP_GET_FIELD_VALUE:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
-  case SET_FIELD_VALUE:
+  case OP_SET_FIELD_VALUE:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
-  case CALL:
-  case NEW_EVAL:
+  case OP_CALL:
+  case OP_NEW_EVAL:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_byte(buf, i->argc);
     break;
-  case NEW:
+  case OP_NEW_OBJECT:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
-  case PRINT:
-  case DUP:
-  case LOAD_0:
-  case LOAD_1:
-  case LOAD_2:
-  case LOAD_3:
-  case STORE_0:
-  case STORE_1:
-  case STORE_2:
-  case STORE_3:
-  case RETURN_VALUE:
-  case ADD:
-  case SUB:
-  case MUL:
-  case DIV:
-  case MOD:
-  case GT:
-  case GE:
-  case LT:
-  case LE:
-  case EQ:
-  case NEQ:
-  case NEG:
+  case OP_PRINT:
+  case OP_DUP:
+  case OP_LOAD_0:
+  case OP_LOAD_1:
+  case OP_LOAD_2:
+  case OP_LOAD_3:
+  case OP_STORE_0:
+  case OP_STORE_1:
+  case OP_STORE_2:
+  case OP_STORE_3:
+  case OP_RETURN_VALUE:
+  case OP_ADD:
+  case OP_SUB:
+  case OP_MUL:
+  case OP_DIV:
+  case OP_MOD:
+  case OP_GT:
+  case OP_GE:
+  case OP_LT:
+  case OP_LE:
+  case OP_EQ:
+  case OP_NEQ:
+  case OP_NEG:
+  case OP_SUBSCR_LOAD:
+  case OP_SUBSCR_STORE:
     break;
-  case JMP:
-  case JMP_TRUE:
-  case JMP_FALSE:
-    bytebuffer_write_2bytes(buf, i->arg.ival);
+  case OP_LOAD:
+  case OP_STORE:
+    bytebuffer_write_byte(buf, i->arg.ival);
     break;
-  case NEW_TUPLE:
-  case NEW_ARRAY:
+  case OP_JMP:
+  case OP_JMP_TRUE:
+  case OP_JMP_FALSE:
+  case OP_NEW_TUPLE:
+  case OP_NEW_ARRAY:
     bytebuffer_write_2bytes(buf, i->arg.ival);
     break;
   default:
@@ -523,7 +523,7 @@ static void parse_attr_expr(ParserState *ps, Expr *exp)
 
 static void code_attr_expr(ParserState *ps, Expr *exp)
 {
-  if (ps->errnum > 0)
+  if (has_error(ps))
     return;
 
   Symbol *sym = exp->sym;
@@ -531,15 +531,15 @@ static void code_attr_expr(ParserState *ps, Expr *exp)
 
   switch (sym->kind) {
   case SYM_VAR:
-    CODE_OP_S(GET_FIELD_VALUE, id->name);
+    CODE_OP_S(OP_GET_FIELD_VALUE, id->name);
     break;
   case SYM_FUNC:
     if (exp->ctx == EXPR_LOAD)
-      CODE_OP_S(GET_FIELD_VALUE, id->name);
+      CODE_OP_S(OP_GET_FIELD_VALUE, id->name);
     else if (exp->ctx == EXPR_CALL_FUNC)
-      CODE_OP_S_ARGC(CALL, id->name, exp->argc);
+      CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
     else if (exp->ctx == EXPR_LOAD_FUNC)
-      CODE_OP_S(GET_METHOD, id->name);
+      CODE_OP_S(OP_GET_OBJECT, id->name);
     else
       panic("invalid exp's ctx %d", exp->ctx);
     break;
@@ -563,7 +563,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     if (u->scope == SCOPE_MODULE) {
       exp->sym = u->sym;
       exp->desc = TYPE_INCREF(u->sym->desc);
-      CODE_OP(LOAD_0);
+      CODE_OP(OP_LOAD_0);
     } else if (u->scope == SCOPE_CLASS) {
       panic("not implemented");
     } else {
@@ -579,10 +579,10 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     if (exp->ctx != EXPR_LOAD)
       panic("exp ctx is not load");
     exp->sym = get_const_symbol(exp->k.value.kind);
-    if (ps->errnum > 0)
+    if (has_error(ps))
       return;
     if (!exp->k.omit)
-      CODE_OP_V(LOAD_CONST, exp->k.value);
+      CODE_OP_V(OP_LOAD_CONST, exp->k.value);
     break;
   }
   case ID_KIND: {
@@ -608,7 +608,21 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     break;
   }
   case SUBSCRIPT_KIND: {
-    /* code */
+    Expr *e;
+    e = exp->subscr.index;
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    e = exp->subscr.lexp;
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (!has_error(ps)) {
+      if (exp->ctx != EXPR_LOAD)
+        panic("subscript expr ctx is not load");
+      if (!exp->side)
+        CODE_OP(OP_SUBSCR_LOAD);
+      else
+        CODE_OP(OP_SUBSCR_STORE);
+    }
     break;
   }
   case CALL_KIND: {
@@ -636,7 +650,24 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     break;
   }
   case SLICE_KIND: {
-    /* code */
+    Expr *e;
+    e = exp->slice.end;
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    e = exp->slice.start;
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    e = exp->slice.lexp;
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (!has_error(ps)) {
+      if (exp->ctx != EXPR_LOAD)
+        panic("slice expr ctx is not load");
+      if (!exp->side)
+        CODE_OP(OP_SLICE_LOAD);
+      else
+        CODE_OP(OP_SLICE_STORE);
+    }
     break;
   }
   case TUPLE_KIND: {
@@ -653,8 +684,8 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     }
     exp->sym = find_from_builtins("Tuple");
     exp->desc = TYPE_INCREF(exp->sym->desc);
-    if (ps->errnum <= 0) {
-      CODE_OP_I(NEW_TUPLE, size);
+    if (!has_error(ps)) {
+      CODE_OP_I(OP_NEW_TUPLE, size);
     }
     break;
   }
@@ -672,8 +703,8 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     }
     exp->sym = find_from_builtins("Array");
     exp->desc = TYPE_INCREF(exp->sym->desc);
-    if (ps->errnum <= 0) {
-      CODE_OP_I(NEW_ARRAY, size);
+    if (!has_error(ps)) {
+      CODE_OP_I(OP_NEW_ARRAY, size);
     }
     break;
   }
@@ -714,12 +745,12 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
       parser_visit_expr(ps, exp);
       if (ps->errnum > MAX_ERRORS)
         return;
-      CODE_OP(PRINT);
+      CODE_OP(OP_PRINT);
     } else if (exp->kind != LITERAL_KIND) {
       parser_visit_expr(ps, exp);
       if (ps->errnum > MAX_ERRORS)
         return;
-      CODE_OP(POP_TOP);
+      CODE_OP(OP_POP_TOP);
     } else {
       /* empty branch */
       panic("empty branch");

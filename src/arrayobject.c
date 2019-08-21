@@ -105,16 +105,17 @@ static Object *array_length(Object *self, Object *args)
 }
 
 static MethodDef array_methods[] = {
-  {"append",     "A",  NULL,  array_append },
-  {"pop",         NULL, "A",  array_pop    },
-  {"insert",      "iA", NULL, array_insert },
-  {"remove",      "i",  "A",  array_remove },
-  {"sort",        NULL, NULL, array_sort   },
-  {"reverse",     NULL, NULL, array_reverse},
-  {"__getitem__", "i",  "A",  array_getitem},
-  {"__setitem__", "iA", NULL, array_setitem},
-  {"__slice__",   "ii", "[A", array_slice  },
-  {"length",      NULL, "i",  array_length },
+  {"append",  "A",  NULL, array_append },
+  {"pop",     NULL, "A",  array_pop    },
+  {"insert",  "iA", NULL, array_insert },
+  {"remove",  "i",  "A",  array_remove },
+  {"sort",    NULL, NULL, array_sort   },
+  {"reverse", NULL, NULL, array_reverse},
+  {"__getitem__",  "i",  "A",  array_getitem},
+  {"__setitem__",  "iA",  NULL, array_setitem},
+  {"__getslice__", "ii",  "[A", array_slice  },
+  {"__setslice__", "iiA", NULL, array_slice  },
+  {"length",       NULL,  "i",  array_length },
   {NULL}
 };
 
