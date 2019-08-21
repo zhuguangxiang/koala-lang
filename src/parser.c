@@ -239,8 +239,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case JMP_FALSE:
     bytebuffer_write_2bytes(buf, i->arg.ival);
     break;
+  case NEW_TUPLE:
   case NEW_ARRAY:
-    bytebuffer_write_4bytes(buf, i->arg.ival);
+    bytebuffer_write_2bytes(buf, i->arg.ival);
     break;
   default:
     panic("invalid opcode %s", opcode_str(i->op));
@@ -442,6 +443,11 @@ static Symbol *get_const_symbol(char kind)
 
 static Symbol *get_func_ret_symbol(ParserState *ps, TypeDesc *desc)
 {
+  if (desc == NULL) {
+    debug("no return");
+    return NULL;
+  }
+
   Symbol *sym;
   switch (desc->kind) {
   case TYPE_BASE:
@@ -633,6 +639,44 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     /* code */
     break;
   }
+  case TUPLE_KIND: {
+    int size = vector_size(exp->tuple);
+    if (size > 16) {
+      syntax_error(ps, ps->row, ps->col, "length of tuple is larger than 16");
+      return;
+    }
+    VECTOR_REVERSE_ITERATOR(iter, exp->tuple);
+    Expr *elem;
+    iter_for_each(&iter, elem) {
+      elem->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, elem);
+    }
+    exp->sym = find_from_builtins("Tuple");
+    exp->desc = TYPE_INCREF(exp->sym->desc);
+    if (ps->errnum <= 0) {
+      CODE_OP_I(NEW_TUPLE, size);
+    }
+    break;
+  }
+  case ARRAY_KIND: {
+    int size = vector_size(exp->array.elems);
+    if (size > 16) {
+      syntax_error(ps, ps->row, ps->col, "length of array is larger than 16");
+      return;
+    }
+    VECTOR_REVERSE_ITERATOR(iter, exp->array.elems);
+    Expr *elem;
+    iter_for_each(&iter, elem) {
+      elem->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, elem);
+    }
+    exp->sym = find_from_builtins("Array");
+    exp->desc = TYPE_INCREF(exp->sym->desc);
+    if (ps->errnum <= 0) {
+      CODE_OP_I(NEW_ARRAY, size);
+    }
+    break;
+  }
   default:
     panic("invalid exp:%d", exp->kind);
     break;
@@ -663,6 +707,8 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
   }
   case EXPR_KIND: {
     Expr *exp = stmt->expr.exp;
+    if (exp == NULL)
+      return;
     exp->ctx = EXPR_LOAD;
     if (ps->interactive && ps->depth <= 1) {
       parser_visit_expr(ps, exp);

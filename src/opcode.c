@@ -79,7 +79,8 @@ static struct opcode {
   OPCODE(JMP_NOTNIL, 0),
 
   OPCODE(NEW,         2),
-  OPCODE(NEW_ARRAY,   0),
+  OPCODE(NEW_TUPLE,   2),
+  OPCODE(NEW_ARRAY,   2),
   OPCODE(NEW_MAP,     0),
   OPCODE(NEW_EVAL,    3),
   OPCODE(NEW_CLOSURE, 0),

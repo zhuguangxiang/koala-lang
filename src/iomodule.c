@@ -48,6 +48,9 @@ void fini_io_module(void)
 
 void IoPrint(Object *ob)
 {
+  if (ob == NULL)
+    return;
+
   if (String_Check(ob)) {
     printf("\"%s\"", String_AsStr(ob));
   } else {
@@ -61,6 +64,9 @@ void IoPrint(Object *ob)
 
 void IoPrintln(Object *ob)
 {
+  if (ob == NULL)
+    return;
+
   if (String_Check(ob)) {
     printf("\"%s\"\n", String_AsStr(ob));
   } else {

@@ -77,14 +77,12 @@ typedef enum exprkind {
   UNARY_KIND, BINARY_KIND,
   /* dot, [], (), [:] access */
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, SLICE_KIND,
-  /* array list */
-  ARRAY_LIST_KIND,
   /* map list */
   MAP_LIST_KIND,
   /* map entry */
   MAP_ENTRY_KIND,
-  /* array, map, anonymous */
-  ARRAY_KIND, MAP_KIND, ANONY_FUNC_KIND,
+  /* tuple, array, map, anonymous */
+  TUPLE_KIND, ARRAY_KIND, MAP_KIND, ANONY_FUNC_KIND,
   EXPR_KIND_MAX
 } ExprKind;
 
@@ -153,6 +151,11 @@ typedef struct expr {
       struct expr *end;
       struct expr *lexp;
     } slice;
+    Vector *tuple;
+    struct {
+      int dims;
+      Vector *elems;
+    } array;
   };
 } Expr;
 
@@ -172,6 +175,8 @@ Expr *expr_from_attribute(Ident id, Expr *left);
 Expr *expr_from_subScript(Expr *index, Expr *left);
 Expr *expr_from_call(Vector *args, Expr *left);
 Expr *expr_from_slice(Expr *start, Expr *end, Expr *left);
+Expr *expr_from_tuple(Vector *exps);
+Expr *expr_from_array(Vector *exps);
 
 typedef enum stmtkind {
   /* import */
@@ -190,8 +195,6 @@ typedef enum stmtkind {
   EXPR_KIND,
   /* statements */
   LIST_KIND,
-  /* tuple */
-  TUPLE_KIND,
   /* proto/native */
   PROTO_KIND,
   /* class */

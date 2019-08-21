@@ -6,6 +6,7 @@
 #include "arrayobject.h"
 #include "intobject.h"
 #include "tupleobject.h"
+#include "strbuf.h"
 
 static Object *array_append(Object *self, Object *val)
 {
@@ -135,9 +136,45 @@ void Array_Free(Object *ob)
   kfree(arr);
 }
 
+Object *array_str(Object *self, Object *ob)
+{
+  if (!Array_Check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  STRBUF(sbuf);
+  VECTOR_ITERATOR(iter, &arr->items);
+  strbuf_append_char(&sbuf, '[');
+  Object *str;
+  Object *tmp;
+  int i = 0;
+  int size = vector_size(&arr->items);
+  iter_for_each(&iter, tmp) {
+    if (String_Check(tmp)) {
+      strbuf_append_char(&sbuf, '"');
+      strbuf_append(&sbuf, String_AsStr(tmp));
+      strbuf_append_char(&sbuf, '"');
+    } else {
+      str = Object_Call(tmp, "__str__", NULL);
+      strbuf_append(&sbuf, String_AsStr(str));
+      OB_DECREF(str);
+    }
+    if (i++ < size - 1)
+      strbuf_append(&sbuf, ", ");
+  }
+  strbuf_append(&sbuf, "]");
+  str = String_New(strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+
+  return str;
+}
+
 TypeObject Array_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Array",
+  .str     = array_str,
   .free    = Array_Free,
   .methods = array_methods,
 };
@@ -163,4 +200,16 @@ void Array_Print(Object *ob)
     OB_DECREF(str);
   }
   print("]\n");
+}
+
+int Array_Set(Object *self, int index, Object *v)
+{
+  if (!Array_Check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return -1;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  vector_set(&arr->items, index, OB_INCREF(v));
+  return 0;
 }

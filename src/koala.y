@@ -104,6 +104,8 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
+%type <expr> array_object
+%type <expr> tuple_object
 %type <list> basic_expr_list
 %type <expr> atom
 %type <expr> dot_expr
@@ -575,52 +577,69 @@ atom:
 }
 | SUPER
 {
-
+  $$ = expr_from_super();
+  set_expr_pos($$, @1);
 }
 | '(' basic_expr ')'
 {
-
+  $$ = $2;
 }
 | tuple_object
 {
-
+  $$ = $1;
 }
 | array_object
 {
-
+  $$ = $1;
 }
 | map_object
 {
-
+  $$ = NULL;
 }
 | anony_object
 {
-
+  $$ = NULL;
 }
 ;
 
 tuple_object:
   '(' basic_expr_list ',' ')'
+{
+  $$ = expr_from_tuple($2);
+}
 | '(' basic_expr_list ',' basic_expr ')'
+{
+  vector_push_back($2, $4);
+  $$ = expr_from_tuple($2);
+}
 | '(' ')'
+{
+  $$ = expr_from_tuple(NULL);
+}
+| '(' error ')'
+{
+  syntax_error(ps, ps->row, ps->col, "invalid tuple");
+  $$ = NULL;
+}
 ;
 
 array_object:
   '[' basic_expr_list ']'
 {
-  print("array object\n");
+  $$ = expr_from_array($2);
 }
 | '[' basic_expr_list ',' ']'
 {
-  print("array object\n");
+  $$ = expr_from_array($2);
 }
 | '[' ']'
 {
-  print("array object\n");
+  $$ = expr_from_array(NULL);
 }
 | '[' error ']'
 {
-  print("array object error\n");
+  syntax_error(ps, ps->row, ps->col, "invalid array");
+  $$ = NULL;
 }
 ;
 

@@ -23,6 +23,7 @@ extern TypeObject Array_Type;
 Object *Array_New(void);
 void Array_Free(Object *ob);
 void Array_Print(Object *ob);
+int Array_Set(Object *self, int index, Object *v);
 
 #ifdef __cplusplus
 }

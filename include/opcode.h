@@ -76,8 +76,8 @@ extern "C" {
 #define JMP_NOTNIL 60
 
 #define NEW         70
-#define NEW_ARRAY   71
-#define NEW_TUPLE   72
+#define NEW_TUPLE   71
+#define NEW_ARRAY   72
 #define NEW_SET     73
 #define NEW_MAP     74
 #define NEW_ITER    75

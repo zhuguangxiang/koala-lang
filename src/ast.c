@@ -153,6 +153,37 @@ Expr *expr_from_slice(Expr *start, Expr *end, Expr *left)
   return exp;
 }
 
+static int get_subarray_maxdims(Vector *exps)
+{
+  int max = 0;
+  VECTOR_ITERATOR(iter, exps);
+  Expr *exp;
+  iter_for_each(&iter, exp) {
+    if (exp->kind == ARRAY_KIND) {
+      if (max < exp->array.dims)
+        max = exp->array.dims;
+    }
+  }
+  return max;
+}
+
+Expr *expr_from_tuple(Vector *exps)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = TUPLE_KIND;
+  exp->tuple = exps;
+  return exp;
+}
+
+Expr *expr_from_array(Vector *exps)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = ARRAY_KIND;
+  exp->array.dims = 1 + get_subarray_maxdims(exps);
+  exp->array.elems = exps;
+  return exp;
+}
+
 void expr_free(Expr *exp);
 
 void exprlist_free(Vector *vec)
@@ -213,6 +244,14 @@ void expr_free(Expr *exp)
     expr_free(exp->slice.start);
     expr_free(exp->slice.end);
     expr_free(exp->slice.lexp);
+    kfree(exp);
+    break;
+  case TUPLE_KIND:
+    exprlist_free(exp->tuple);
+    kfree(exp);
+    break;
+  case ARRAY_KIND:
+    exprlist_free(exp->array.elems);
     kfree(exp);
     break;
   default:

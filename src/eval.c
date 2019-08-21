@@ -9,6 +9,7 @@
 #include "intobject.h"
 #include "stringobject.h"
 #include "tupleobject.h"
+#include "arrayobject.h"
 #include "moduleobject.h"
 #include "iomodule.h"
 #include "opcode.h"
@@ -455,7 +456,26 @@ Object *Koala_EvalFrame(Frame *f)
     case JMP_NOTNIL: {
       break;
     }
-    case NEW: {
+    case NEW_TUPLE: {
+      oparg = NEXT_2BYTES();
+      Object *ob = Tuple_New(oparg);
+      for (int i = 0; i < oparg; ++i) {
+        v = POP();
+        Tuple_Set(ob, i, v);
+        OB_DECREF(v);
+      }
+      PUSH(ob);
+      break;
+    }
+    case NEW_ARRAY: {
+      Object *ob = Array_New();
+      oparg = NEXT_2BYTES();
+      for (int i = 0; i < oparg; ++i) {
+        v = POP();
+        Array_Set(ob, i, v);
+        OB_DECREF(v);
+      }
+      PUSH(ob);
       break;
     }
     default: {

@@ -6,6 +6,8 @@
 #include <stdarg.h>
 #include "tupleobject.h"
 #include "fmtmodule.h"
+#include "intobject.h"
+#include "stringobject.h"
 #include "log.h"
 
 #define MSIZE(sz) \
@@ -133,17 +135,30 @@ Object *Tuple_Slice(Object *self, int i, int j)
 
 static Object *tuple_getitem(Object *self, Object *args)
 {
-  return NULL;
-}
+  if (!Tuple_Check(self)) {
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
+    return NULL;
+  }
 
-static Object *tuple_setitem(Object *self, Object *args)
-{
-  return 0;
+  TupleObject *tuple = (TupleObject *)self;
+  int index = Integer_AsInt(args);
+  if (index < 0 || index >= tuple->size) {
+    error("%d out of range(0-%d)", index, tuple->size);
+    return NULL;
+  }
+  Object *val = tuple->items[index];
+  return OB_INCREF(val);
 }
 
 static Object *tuple_length(Object *self, Object *args)
 {
-  return NULL;
+  if (!Tuple_Check(self)) {
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  TupleObject *tuple = (TupleObject *)self;
+  return Integer_New(tuple->size);
 }
 
 static Object *tuple_fmt(Object *self, Object *args)
@@ -165,14 +180,48 @@ static Object *tuple_fmt(Object *self, Object *args)
 static MethodDef tuple_methods[] = {
   {"length",      NULL, "i",  tuple_length },
   {"__getitem__", "i",  "A",  tuple_getitem},
-  {"__setitem__", "iA", NULL, tuple_setitem},
   {"__fmt__",     "Llang.Formatter;", NULL, tuple_fmt},
   {NULL}
 };
 
+Object *tuple_str(Object *self, Object *ob)
+{
+  if (!Tuple_Check(self)) {
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  TupleObject *tuple = (TupleObject *)self;
+  STRBUF(sbuf);
+  strbuf_append_char(&sbuf, '(');
+  Object *str;
+  Object *tmp;
+  int size = tuple->size;
+  for (int i = 0; i < size; ++i) {
+    tmp = tuple->items[i];
+    if (String_Check(tmp)) {
+      strbuf_append_char(&sbuf, '"');
+      strbuf_append(&sbuf, String_AsStr(tmp));
+      strbuf_append_char(&sbuf, '"');
+    } else {
+      str = Object_Call(tmp, "__str__", NULL);
+      strbuf_append(&sbuf, String_AsStr(str));
+      OB_DECREF(str);
+    }
+    if (i < size - 1)
+      strbuf_append(&sbuf, ", ");
+  }
+  strbuf_append(&sbuf, ")");
+  str = String_New(strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+
+  return str;
+}
+
 TypeObject Tuple_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Tuple",
+  .str     = tuple_str,
   .free    = Tuple_Free,
   .methods = tuple_methods,
 };
