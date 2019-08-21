@@ -5,16 +5,15 @@
 
 #include "fieldobject.h"
 #include "tupleobject.h"
+#include "moduleobject.h"
 #include "log.h"
 
-Object *Field_New(FieldDef *def)
+Object *Field_New(char *name, TypeDesc *desc)
 {
   FieldObject *field = kmalloc(sizeof(*field));
   Init_Object_Head(field, &Field_Type);
-  field->name = def->name;
-  field->desc = string_todesc(def->type);
-  field->get = def->get;
-  field->set = def->set;
+  field->name = name;
+  field->desc = TYPE_INCREF(desc);
   return (Object *)field;
 }
 
@@ -50,6 +49,34 @@ int Field_Set(Object *self, Object *ob, Object *val)
   return field->set(self, ob, val);
 }
 
+Object *Field_Default_Get(Object *self, Object *ob)
+{
+  FieldObject *field = (FieldObject *)self;
+  Object *old;
+  if (Module_Check(ob)) {
+    ModuleObject *mo = (ModuleObject *)ob;
+    old = vector_get(&mo->values, field->offset);
+    return OB_INCREF(old);
+  } else {
+    return NULL;
+  }
+}
+
+int Field_Default_Set(Object *self, Object *ob, Object *val)
+{
+  FieldObject *field = (FieldObject *)self;
+  Object *old;
+  if (Module_Check(ob)) {
+    ModuleObject *mo = (ModuleObject *)ob;
+    old = vector_get(&mo->values, field->offset);
+    OB_DECREF(old);
+    vector_set(&mo->values, field->offset, OB_INCREF(val));
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
 static Object *field_set(Object *self, Object *args)
 {
   if (args == NULL) {
@@ -81,7 +108,6 @@ static void field_free(Object *ob)
   FieldObject *field = (FieldObject *)ob;
   debug("[Freed] Field '%s'", field->name);
   TYPE_DECREF(field->desc);
-  OB_DECREF(field->value);
   kfree(ob);
 }
 

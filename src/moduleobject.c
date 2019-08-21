@@ -56,6 +56,13 @@ static void module_free(Object *ob)
     kfree(map);
     module->mtbl = NULL;
   }
+
+  VECTOR_ITERATOR(iter, &module->values);
+  Object *item;
+  iter_for_each(&iter, item) {
+    OB_DECREF(item);
+  }
+  vector_fini(&module->values, NULL, NULL);
   kfree(ob);
 }
 
@@ -98,9 +105,12 @@ void Module_Add_Type(Object *self, TypeObject *type)
 
 void Module_Add_Const(Object *self, Object *ob, Object *val)
 {
+  ModuleObject *module = (ModuleObject *)self;
   FieldObject *field = (FieldObject *)ob;
   field->owner = self;
-  field->value = OB_INCREF(val);
+  field->offset = module->nrvars;
+  vector_set(&module->values, module->nrvars, OB_INCREF(val));
+  ++module->nrvars;
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
   if (res != 0)
@@ -109,9 +119,12 @@ void Module_Add_Const(Object *self, Object *ob, Object *val)
 
 void Module_Add_Var(Object *self, Object *ob)
 {
+  ModuleObject *module = (ModuleObject *)self;
   FieldObject *field = (FieldObject *)ob;
-  struct mnode *node = mnode_new(field->name, ob);
   field->owner = self;
+  field->offset = module->nrvars;
+  ++module->nrvars;
+  struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
   if (res != 0)
     panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), field->name);
@@ -119,7 +132,10 @@ void Module_Add_Var(Object *self, Object *ob)
 
 void Module_Add_VarDef(Object *self, FieldDef *f)
 {
-  Object *field = Field_New(f);
+  TypeDesc *desc = string_todesc(f->type);
+  Object *field = Field_New(f->name, desc);
+  TYPE_DECREF(desc);
+  Field_SetFunc(field, f->set, f->get);
   Module_Add_Var(self, field);
   OB_DECREF(field);
 }

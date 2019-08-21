@@ -354,6 +354,8 @@ Stmt *stmt_from_expr(Expr *exp)
     kfree(stmt);
     break;
   case VAR_KIND:
+    TYPE_DECREF(stmt->vardecl.type.desc);
+    expr_free(stmt->vardecl.exp);
     kfree(stmt);
     break;
   case ASSIGN_KIND:
@@ -371,7 +373,7 @@ Stmt *stmt_from_expr(Expr *exp)
     kfree(stmt);
     break;
   default:
-    panic("invalid branch %d", stmt->kind);
+    panic("invalid stmt branch %d", stmt->kind);
     break;
   }
 }

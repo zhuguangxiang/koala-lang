@@ -23,9 +23,7 @@ typedef struct fieldobject {
   /* getter & setter */
   func_t get;
   setfunc set;
-  /* constant value */
-  Object *value;
-  /* offset of variable value */
+  /* offset of value */
   int offset;
   /* enum value */
   int enumvalue;
@@ -33,7 +31,22 @@ typedef struct fieldobject {
 
 extern TypeObject Field_Type;
 #define Field_Check(ob) (OB_TYPE(ob) == &Field_Type)
-Object *Field_New(FieldDef *field);
+Object *Field_New(char *name, TypeDesc *desc);
+static inline void Field_SetFunc(Object *self, setfunc set, func_t get)
+{
+  if (!Field_Check(self)) {
+    error("object of '%.64s' is not a Field", OB_TYPE_NAME(self));
+    return;
+  }
+
+  FieldObject *field = (FieldObject *)self;
+  field->set = set;
+  field->get = get;
+}
+
+Object *Field_Default_Get(Object *self, Object *ob);
+int Field_Default_Set(Object *self, Object *ob, Object *val);
+
 Object *Field_Get(Object *self, Object *ob);
 int Field_Set(Object *self, Object *ob, Object *val);
 

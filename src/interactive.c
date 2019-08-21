@@ -13,6 +13,7 @@
 #include "koala_lex.h"
 #include "moduleobject.h"
 #include "tupleobject.h"
+#include "fieldobject.h"
 #include "eval.h"
 #include "codeobject.h"
 #include <readline/readline.h>
@@ -89,7 +90,7 @@ void Koala_ReadLine(void)
   fini_cmdline_env();
 }
 
-static void add_symbol(Symbol *sym, Object *ob)
+static void add_var(Symbol *sym, Object *ob)
 {
   if (sym == NULL)
     return;
@@ -99,6 +100,10 @@ static void add_symbol(Symbol *sym, Object *ob)
     break;
   }
   case SYM_VAR: {
+    Object *field = Field_New(sym->name, sym->desc);
+    Field_SetFunc(field, Field_Default_Set, Field_Default_Get);
+    Module_Add_Var(ob, field);
+    OB_DECREF(field);
     break;
   }
   case SYM_FUNC: {
@@ -153,6 +158,11 @@ static Object *getcode(CodeBlock *block)
   return ob;
 }
 
+void Cmd_SetSymbol(Ident id, Type type)
+{
+  sym = stable_add_var(mod.stbl, id.name, type.desc);
+}
+
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_MODULE);
@@ -167,7 +177,8 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
     return;
   }
 
-  add_symbol(sym, mo);
+  add_var(sym, mo);
+  sym = NULL;
 
   if (funcsym->func.code != NULL) {
     KoalaState *ks = pthread_getspecific(kskey);

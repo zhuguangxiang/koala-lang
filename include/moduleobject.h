@@ -21,7 +21,7 @@ typedef struct moduleobject {
   /* meta table */
   HashMap *mtbl;
   /* value objects */
-  Vector *values;
+  Vector values;
   /* constant pool */
   Vector *consts;
 } ModuleObject;

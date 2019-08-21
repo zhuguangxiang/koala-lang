@@ -23,9 +23,23 @@
 #define IDENT(name, s, loc) \
   Ident name = {s, yyloc_row(loc), yyloc_col(loc)}
 
+#define TYPE(name, type, loc) \
+  Type name = {type, yyloc_row(loc), yyloc_col(loc)}
+
 /* interactive mode */
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
+void Cmd_SetSymbol(Ident id, Type type);
 
+static void do_parse_stmt(ParserState *ps, Stmt *stmt)
+{
+  if (ps->interactive) {
+    ps->more = 0;
+    Cmd_EvalStmt(ps, stmt);
+    stmt_free(stmt);
+    ps->errnum = 0;
+  } else {
+  }
+}
 %}
 
 %union {
@@ -37,6 +51,7 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
   Vector *list;
   Expr *expr;
   Stmt *stmt;
+  TypeDesc *desc;
 }
 
 %token IMPORT
@@ -105,6 +120,8 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
+%type <stmt> var_decl
+
 %type <expr> kv
 %type <list> kv_list
 %type <expr> map_object
@@ -128,6 +145,10 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 %type <expr> logic_or_expr
 %type <expr> basic_expr
 %type <expr> expr
+
+%type <list> type_list
+%type <desc> type
+%type <desc> no_array_type
 
 %precedence ID
 %precedence ','
@@ -170,6 +191,11 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    Cmd_SetSymbol($1->vardecl.id, $1->vardecl.type);
+    Cmd_EvalStmt(ps, $1);
+    stmt_free($1);
+    ps->errnum = 0;
+  } else {
   }
 }
 | free_var_decl
@@ -186,13 +212,7 @@ unit:
 }
 | expr ';'
 {
-  if (ps->interactive) {
-    ps->more = 0;
-    Stmt *stmt = stmt_from_expr($1);
-    Cmd_EvalStmt(ps, stmt);
-    stmt_free(stmt);
-    ps->errnum = 0;
-  }
+  do_parse_stmt(ps, stmt_from_expr($1));
 }
 | func_decl
 {
@@ -278,15 +298,30 @@ const_decl:
 
 var_decl:
   VAR ID type ';'
+{
+  IDENT(id, $2, @2);
+  TYPE(type, $3, @3);
+  $$ = stmt_from_vardecl(id, type, NULL);
+}
 | VAR ID type '=' expr ';'
+{
+  IDENT(id, $2, @2);
+  TYPE(type, $3, @3);
+  $$ = stmt_from_vardecl(id, type, $5);
+}
 | VAR ID '=' expr ';'
+{
+  IDENT(id, $2, @2);
+  TYPE(type, NULL, @3);
+  $$ = stmt_from_vardecl(id, type, $4);
+}
 | VAR ID error
 {
-  print("var ID error\n");
+  syntax_error(ps, yyloc_row(@2), yyloc_col(@2), "invalid variable declaration");
 }
 | VAR error
 {
-  print("var error\n");
+  syntax_error(ps, yyloc_row(@2), yyloc_col(@2), "invalid variable declaration");
 }
 ;
 
@@ -772,26 +807,74 @@ type_decl:
 
 type_list:
   type
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | type_list ',' type
+{
+  $$ = $1;
+  vector_push_back($$, $3);
+}
 ;
 
 type:
   no_array_type
+{
+  $$ = $1;
+}
 | '[' type ']'
+{
+  $$ = NULL;
+  // desc_from_array();
+}
 ;
 
 no_array_type:
   BYTE
+{
+  $$ = desc_from_byte();
+}
 | INTEGER
+{
+  $$ = desc_from_integer();
+}
 | FLOAT
+{
+  $$ = desc_from_float();
+}
 | CHAR
+{
+  $$ = desc_from_char();
+}
 | STRING
+{
+  $$ = desc_from_string();
+}
 | BOOL
+{
+  $$ = desc_from_bool();
+}
 | ANY
+{
+  $$ = desc_from_any();
+}
 | '[' type ':' type ']'
+{
+  $$ = NULL;
+}
 | '(' type_list ')'
+{
+  $$ = NULL;
+}
 | klass_type
+{
+  $$ = NULL;
+}
 | func_type
+{
+  $$ = NULL;
+}
 ;
 
 klass_type:

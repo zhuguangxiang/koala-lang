@@ -587,7 +587,8 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     break;
   }
   case ID_KIND: {
-    /* code */
+    CODE_OP(OP_LOAD_0);
+    CODE_OP_S(OP_GET_FIELD_VALUE, exp->id.name);
     break;
   }
   case UNARY_KIND: {
@@ -762,6 +763,30 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     break;
   }
   case VAR_KIND: {
+    Expr *exp = stmt->vardecl.exp;
+    if (exp != NULL) {
+      exp->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, exp);
+    }
+
+    if (exp->desc == NULL)
+      syntax_error(ps, ps->row, ps->col, "cannot resolve right expr's type");
+
+    Type *type = &stmt->vardecl.type;
+    if (type->desc) {
+      //check_var_type();
+    } else {
+      //update_var_type();
+    }
+
+    if (!has_error(ps)) {
+      ScopeKind scope = ps->u->scope;
+      Ident *id = &stmt->vardecl.id;
+      if (scope == SCOPE_MODULE) {
+        CODE_OP(OP_LOAD_0);
+        CODE_OP_S(OP_SET_FIELD_VALUE, id->name);
+      }
+    }
     break;
   }
   case ASSIGN_KIND: {

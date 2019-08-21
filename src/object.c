@@ -243,6 +243,8 @@ void Type_Add_Field(TypeObject *type, Object *ob)
 {
   FieldObject *field = (FieldObject *)ob;
   field->owner = (Object *)type;
+  field->offset = type->nrvars;
+  ++type->nrvars;
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
   if (res != 0)
@@ -251,7 +253,10 @@ void Type_Add_Field(TypeObject *type, Object *ob)
 
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
 {
-  Object *field = Field_New(f);
+  TypeDesc *desc = string_todesc(f->type);
+  Object *field = Field_New(f->name, desc);
+  TYPE_DECREF(desc);
+  Field_SetFunc(field, f->set, f->get);
   Type_Add_Field(type, field);
   OB_DECREF(field);
 }
@@ -439,10 +444,12 @@ int Object_SetValue(Object *self, char *name, Object *val)
 
   if (!Field_Check(ob)) {
     error("'%s' is not a field", name);
+    OB_DECREF(ob);
     return -1;
   }
 
   Field_Set(ob, self, val);
+  OB_DECREF(ob);
   return 0;
 }
 
