@@ -125,8 +125,6 @@ typedef struct {
 } NumberMethods;
 
 typedef struct {
-  /* __add__ */
-  func_t concat;
   /* __getitem__ */
   func_t getitem;
   /* __setitem__ */
@@ -147,7 +145,7 @@ typedef struct {
 typedef struct {
   /* __iter__ */
   func_t iter;
-  /* __iternext__ */
+  /* __next__ */
   func_t next;
 } IteratorMethods;
 

@@ -5,6 +5,7 @@
 
 #include "methodobject.h"
 #include "tupleobject.h"
+#include "stringobject.h"
 
 Object *CMethod_New(MethodDef *def)
 {
@@ -88,9 +89,21 @@ static MethodDef meth_methods[] = {
   {NULL}
 };
 
+static Object *meth_str(Object *self, Object *args)
+{
+  if (!Method_Check(self)) {
+    error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  MethodObject *meth = (MethodObject *)self;
+  return String_New(meth->name);
+}
+
 TypeObject Method_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Method",
+  .str     = meth_str,
   .free    = meth_free,
   .methods = meth_methods,
 };

@@ -241,6 +241,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_JMP_FALSE:
   case OP_NEW_TUPLE:
   case OP_NEW_ARRAY:
+  case OP_NEW_MAP:
     bytebuffer_write_2bytes(buf, i->arg.ival);
     break;
   default:
@@ -618,7 +619,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     if (!has_error(ps)) {
       if (exp->ctx != EXPR_LOAD)
         panic("subscript expr ctx is not load");
-      if (!exp->side)
+      if (!exp->leftside)
         CODE_OP(OP_SUBSCR_LOAD);
       else
         CODE_OP(OP_SUBSCR_STORE);
@@ -663,7 +664,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     if (!has_error(ps)) {
       if (exp->ctx != EXPR_LOAD)
         panic("slice expr ctx is not load");
-      if (!exp->side)
+      if (!exp->leftside)
         CODE_OP(OP_SLICE_LOAD);
       else
         CODE_OP(OP_SLICE_STORE);
@@ -705,6 +706,42 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     exp->desc = TYPE_INCREF(exp->sym->desc);
     if (!has_error(ps)) {
       CODE_OP_I(OP_NEW_ARRAY, size);
+    }
+    break;
+  }
+  case MAP_ENTRY_KIND: {
+    Expr *e;
+    e = exp->mapentry.val;
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    e = exp->mapentry.key;
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (!has_error(ps)) {
+      if (exp->ctx != EXPR_LOAD)
+        panic("mapentry expr ctx is not load");
+      if (exp->leftside)
+        panic("mapentry is not at left side");
+      CODE_OP_I(OP_NEW_TUPLE, 2);
+    }
+    break;
+  }
+  case MAP_KIND: {
+    int size = vector_size(exp->map);
+    if (size > 16) {
+      syntax_error(ps, ps->row, ps->col, "length of dict is larger than 16");
+      return;
+    }
+    VECTOR_REVERSE_ITERATOR(iter, exp->map);
+    Expr *elem;
+    iter_for_each(&iter, elem) {
+      elem->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, elem);
+    }
+    exp->sym = find_from_builtins("Dict");
+    exp->desc = TYPE_INCREF(exp->sym->desc);
+    if (!has_error(ps)) {
+      CODE_OP_I(OP_NEW_MAP, size);
     }
     break;
   }

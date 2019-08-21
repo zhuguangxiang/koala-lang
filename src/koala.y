@@ -105,6 +105,9 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
+%type <expr> kv
+%type <list> kv_list
+%type <expr> map_object
 %type <expr> array_object
 %type <expr> tuple_object
 %type <list> basic_expr_list
@@ -600,7 +603,7 @@ atom:
 }
 | map_object
 {
-  $$ = NULL;
+  $$ = $1;
 }
 | anony_object
 {
@@ -665,19 +668,36 @@ basic_expr_list:
 map_object:
   '{' kv_list '}'
 {
-  print("map object\n");
+  $$ = expr_from_map($2);
 }
 | '{' kv_list ',' '}'
+{
+  $$ = expr_from_map($2);
+}
 | '{' ':' '}'
+{
+  $$ = expr_from_map(NULL);
+}
 ;
 
 kv_list:
   kv
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | kv_list ',' kv
+{
+  $$ = $1;
+  vector_push_back($$, $3);
+}
 ;
 
 kv:
   basic_expr ':' basic_expr
+{
+  $$ = expr_from_mapentry($1, $3);
+}
 ;
 
 anony_object:

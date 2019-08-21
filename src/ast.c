@@ -184,6 +184,23 @@ Expr *expr_from_array(Vector *exps)
   return exp;
 }
 
+Expr *expr_from_mapentry(Expr *key, Expr *val)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = MAP_ENTRY_KIND;
+  exp->mapentry.key = key;
+  exp->mapentry.val = val;
+  return exp;
+}
+
+Expr *expr_from_map(Vector *exps)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = MAP_KIND;
+  exp->map = exps;
+  return exp;
+}
+
 void expr_free(Expr *exp);
 
 void exprlist_free(Vector *vec)
@@ -252,6 +269,15 @@ void expr_free(Expr *exp)
     break;
   case ARRAY_KIND:
     exprlist_free(exp->array.elems);
+    kfree(exp);
+    break;
+  case MAP_ENTRY_KIND:
+    expr_free(exp->mapentry.key);
+    expr_free(exp->mapentry.val);
+    kfree(exp);
+    break;
+  case MAP_KIND:
+    exprlist_free(exp->map);
     kfree(exp);
     break;
   default:

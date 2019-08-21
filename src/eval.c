@@ -10,6 +10,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "arrayobject.h"
+#include "dictobject.h"
 #include "moduleobject.h"
 #include "iomodule.h"
 #include "opcode.h"
@@ -461,6 +462,22 @@ Object *Koala_EvalFrame(Frame *f)
       for (int i = 0; i < oparg; ++i) {
         v = POP();
         Array_Set(x, i, v);
+        OB_DECREF(v);
+      }
+      PUSH(x);
+      break;
+    }
+    case OP_NEW_MAP: {
+      Object *key, *val;
+      x = Dict_New();
+      oparg = NEXT_2BYTES();
+      for (int i = 0; i < oparg; ++i) {
+        v = POP();
+        key = Tuple_Get(v, 0);
+        val = Tuple_Get(v, 1);
+        Dict_Put(x, key, val);
+        OB_DECREF(key);
+        OB_DECREF(val);
         OB_DECREF(v);
       }
       PUSH(x);

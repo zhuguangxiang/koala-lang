@@ -7,6 +7,8 @@
 #include "fieldobject.h"
 #include "methodobject.h"
 #include "stringobject.h"
+#include "moduleobject.h"
+#include "arrayobject.h"
 
 static Object *class_get(Object *self, char *name)
 {
@@ -108,14 +110,46 @@ static Object *class_module(Object *self, Object *args)
   return OB_INCREF(res);
 }
 
+static int fill_array(struct hashmap *mtbl, Object *arr, int index)
+{
+  HASHMAP_ITERATOR(iter, mtbl);
+  struct mnode *node;
+  iter_for_each(&iter, node) {
+    Array_Set(arr, index++, node->obj);
+  }
+  return index;
+}
+
 static Object *class_members(Object *self, Object *args)
 {
+  if (!Class_Check(self)) {
+    error("object of '%.64s' is not a Class", OB_TYPE_NAME(self));
+    return NULL;
+  }
 
+  int index = 0;
+  Object *res = Array_New();
+  TypeObject *type;
+  Object *ob = ((ClassObject *)self)->obj;
+  if (OB_TYPE(ob) == &Type_Type) {
+    type = (TypeObject *)ob;
+    fill_array(type->mtbl, res, index);
+  } else {
+    if (Module_Check(ob)) {
+      ModuleObject *mo = (ModuleObject *)ob;
+      index = fill_array(mo->mtbl, res, index);
+      index = fill_array(OB_TYPE(mo)->mtbl, res, index);
+    } else {
+      type = OB_TYPE(ob);
+      fill_array(type->mtbl, res, index);
+    }
+  }
+  return res;
 }
 
 static Object *class_lro(Object *self, Object *args)
 {
-
+  return NULL;
 }
 
 static void class_free(Object *ob)
@@ -150,7 +184,7 @@ static MethodDef class_methods[] = {
   {"__name__",   NULL, "s",             class_name     },
   {"__module__", NULL, "Llang.Module;", class_module   },
   {"__lro__",    NULL, "Llang.Tuple;",  class_lro      },
-  {"__mbrs__",   NULL, "Llang.Tuple;",  class_members  },
+  {"__mbrs__",   NULL, "Llang.Array;",  class_members  },
   {"getField",   "s",  "Llang.Field;",  class_getfield },
   {"getMethod",  "s",  "Llang.Method;", class_getmethod},
   {NULL}

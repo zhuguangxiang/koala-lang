@@ -77,8 +77,6 @@ typedef enum exprkind {
   UNARY_KIND, BINARY_KIND,
   /* dot, [], (), [:] access */
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, SLICE_KIND,
-  /* map list */
-  MAP_LIST_KIND,
   /* map entry */
   MAP_ENTRY_KIND,
   /* tuple, array, map, anonymous */
@@ -104,7 +102,7 @@ typedef struct expr {
   Symbol *sym;
   struct expr *right;
   int argc;
-  int side;
+  int leftside;
   union {
     struct {
       int omit;
@@ -157,6 +155,11 @@ typedef struct expr {
       int dims;
       Vector *elems;
     } array;
+    Vector *map;
+    struct {
+      struct expr *key;
+      struct expr *val;
+    } mapentry;
   };
 } Expr;
 
@@ -178,6 +181,8 @@ Expr *expr_from_call(Vector *args, Expr *left);
 Expr *expr_from_slice(Expr *left, Expr *start, Expr *end);
 Expr *expr_from_tuple(Vector *exps);
 Expr *expr_from_array(Vector *exps);
+Expr *expr_from_mapentry(Expr *key, Expr *val);
+Expr *expr_from_map(Vector *exps);
 
 typedef enum stmtkind {
   /* import */
