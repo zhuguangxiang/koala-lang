@@ -62,10 +62,44 @@ Object *Integer_New(int64_t val)
   return (Object *)integer;
 }
 
+static void byte_free(Object *ob)
+{
+  if (!Byte_Check(ob)) {
+    error("object of '%.64s' is not a Byte", OB_TYPE_NAME(ob));
+    return;
+  }
+  ByteObject *b = (ByteObject *)ob;
+  debug("[Freed] Byte %d", b->value);
+  kfree(ob);
+}
+
+static Object *byte_str(Object *self, Object *ob)
+{
+  if (!Byte_Check(self)) {
+    error("object of '%.64s' is not a Byte", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ByteObject *b = (ByteObject *)ob;
+  char buf[8];
+  sprintf(buf, "%d", b->value);
+  return String_New(buf);
+}
+
 TypeObject Byte_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name = "Byte",
+  .free = byte_free,
+  .str  = byte_str,
 };
+
+Object *Byte_New(int val)
+{
+  ByteObject *b = kmalloc(sizeof(ByteObject));
+  Init_Object_Head(b, &Byte_Type);
+  b->value = val;
+  return (Object *)b;
+}
 
 static Object *bool_str(Object *self, Object *ob)
 {

@@ -14,12 +14,14 @@ extern "C" {
 
 typedef struct floatobject {
   OBJECT_HEAD
+  double value;
 } FloatObject;
 
-extern TypeObject float_type;
+extern TypeObject Float_Type;
+#define Float_Check(ob) (OB_TYPE(ob) == &Float_Type)
 void init_floatobject(void);
 void fini_floatobject(void);
-Object *new_float(double val);
+Object *Float_New(double val);
 
 #ifdef __cplusplus
 }

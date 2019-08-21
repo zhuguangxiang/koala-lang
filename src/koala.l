@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include "parser.h"
+#include "utf8.h"
 #include "koala_yacc.h"
 
 int interactive(ParserState *ps, char *buf, int size);
@@ -189,12 +190,16 @@ moddoc  "//!"[^\n]*
 
 (\'{asc_char}\') {
   print("ascii:%s\n", yytext);
-  return 0;
+  char *s = yytext + 1;
+  yylval->cval.val = decode_one_utf8_char(&s);
+  return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{utf8_char}\') {
   print("utf8:%s\n", yytext);
-  return 0;
+  char *s = yytext + 1;
+  yylval->cval.val = decode_one_utf8_char(&s);
+  return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{esc_char}\') {
@@ -254,7 +259,10 @@ moddoc  "//!"[^\n]*
 }
 
 . {
-  print("error input\n");
+  syntax_error(yyps, yyps->row, yyps->col, "invalid characters:%s", yytext);
+  if (yyps->interactive) {
+    yyps->more = 0;
+  }
 }
 
 %%

@@ -76,7 +76,7 @@ static void fini_cmdline_env(void)
   mo = NULL;
 }
 
-void Koala_CmdLine(void)
+void Koala_ReadLine(void)
 {
   yyscan_t scanner;
   init_cmdline_env();
@@ -216,7 +216,7 @@ int interactive(ParserState *ps, char *buf, int size)
   }
 
   /* add history of readline */
-  //add_history(line);
+  add_history(line);
 
   strcpy(buf, line);
   int len = strlen(buf);

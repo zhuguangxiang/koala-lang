@@ -3,16 +3,7 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include "moduleobject.h"
-#include "intobject.h"
-#include "stringobject.h"
-#include "arrayobject.h"
-#include "tupleobject.h"
-#include "dictobject.h"
-#include "fieldobject.h"
-#include "methodobject.h"
-#include "codeobject.h"
-#include "classobject.h"
+#include "koala.h"
 
 static Object *load_module(Object *self, Object *args)
 {
@@ -47,7 +38,8 @@ void init_lang_module(void)
   Module_Add_Type(m, &Integer_Type);
   Module_Add_Type(m, &Bool_Type);
   Module_Add_Type(m, &String_Type);
-  //Module_Add_Type(m, &Float_Type);
+  Module_Add_Type(m, &Char_Type);
+  Module_Add_Type(m, &Float_Type);
   Module_Add_Type(m, &Array_Type);
   Module_Add_Type(m, &Tuple_Type);
   Module_Add_Type(m, &Dict_Type);

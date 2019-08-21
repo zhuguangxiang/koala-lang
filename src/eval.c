@@ -10,6 +10,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "moduleobject.h"
+#include "iomodule.h"
 #include "opcode.h"
 #include "log.h"
 
@@ -291,6 +292,11 @@ Object *Koala_EvalFrame(Frame *f)
       OB_DECREF(v);
       break;
     }
+    case RETURN_VALUE: {
+      retval = POP();
+      loopflag = 0;
+      break;
+    }
     case CALL: {
       Object *name;
       Object *ob;
@@ -318,9 +324,10 @@ Object *Koala_EvalFrame(Frame *f)
       OB_DECREF(v);
       break;
     }
-    case RETURN_VALUE: {
-      retval = POP();
-      loopflag = 0;
+    case PRINT: {
+      v = POP();
+      IoPrintln(v);
+      OB_DECREF(v);
       break;
     }
     case ADD: {

@@ -3,12 +3,7 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include "fmtmodule.h"
-#include "moduleobject.h"
-#include "stringobject.h"
-#include "tupleobject.h"
-#include "iomodule.h"
-#include "intobject.h"
+#include "koala.h"
 
 Object *Fmtter_WriteFormat(Object *self, Object *args)
 {
@@ -167,7 +162,7 @@ static Object *fmt_println(Object *self, Object *args)
   Object *str = fmtter_str(fmtter, NULL);
   OB_DECREF(fmtter);
 
-  io_putln(str);
+  IoPrintln(str);
   return NULL;
 }
 
@@ -183,7 +178,7 @@ static Object *fmt_print(Object *self, Object *args)
   Object *str = fmtter_str(fmtter, NULL);
   OB_DECREF(fmtter);
 
-  io_put(str);
+  IoPrint(str);
   return NULL;
 }
 

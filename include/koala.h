@@ -15,6 +15,7 @@
 #include "methodobject.h"
 #include "classobject.h"
 #include "intobject.h"
+#include "floatobject.h"
 #include "stringobject.h"
 #include "arrayobject.h"
 #include "tupleobject.h"
@@ -22,6 +23,9 @@
 #include "moduleobject.h"
 #include "codeobject.h"
 #include "fmtmodule.h"
+#include "iomodule.h"
+#include "osmodule.h"
+#include "langmodule.h"
 #include "parser.h"
 
 #ifdef __cplusplus
@@ -30,7 +34,7 @@ extern "C" {
 
 void Koala_Initialize(void);
 void Koala_Finalize(void);
-void Koala_CmdLine(void);
+void Koala_ReadLine(void);
 void Koala_Compile(char *path);
 void Koala_Run(char *path);
 

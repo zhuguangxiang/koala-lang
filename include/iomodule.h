@@ -14,8 +14,8 @@ extern "C" {
 
 void init_io_module(void);
 void fini_io_module(void);
-void io_put(Object *ob);
-void io_putln(Object *ob);
+void IoPrint(Object *ob);
+void IoPrintln(Object *ob);
 
 #ifdef __cplusplus
 }

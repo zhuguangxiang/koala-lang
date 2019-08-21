@@ -40,7 +40,8 @@ static struct opcode {
   OPCODE(GET_FIELD_VALUE, 2),
   OPCODE(SET_FIELD_VALUE, 2),
   OPCODE(RETURN_VALUE, 0),
-  OPCODE(CALL,         3),
+  OPCODE(CALL,  3),
+  OPCODE(PRINT, 0),
 
   OPCODE(ADD, 0),
   OPCODE(SUB, 0),

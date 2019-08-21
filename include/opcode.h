@@ -37,6 +37,7 @@ extern "C" {
 #define SET_FIELD_VALUE 23
 #define RETURN_VALUE 24
 #define CALL 25
+#define PRINT 26
 
 #define ADD  30
 #define SUB  31

@@ -38,8 +38,13 @@ static void init_types(void)
   if (res != 0)
     panic("Cannot initalize 'String' type.");
 
-  //res = Type_Ready(&Float_Type);
-  //panic("Cannot initalize 'Float' type.");
+  res = Type_Ready(&Char_Type);
+  if (res != 0)
+    panic("Cannot initalize 'Char' type.");
+
+  res = Type_Ready(&Float_Type);
+  if (res != 0)
+    panic("Cannot initalize 'Float' type.");
 
   res = Type_Ready(&Array_Type);
   if (res != 0)
@@ -93,7 +98,8 @@ static void fini_types(void)
   Type_Fini(&Integer_Type);
   Type_Fini(&Bool_Type);
   Type_Fini(&String_Type);
-  //Type_Fini(&Float_Type);
+  Type_Fini(&Char_Type);
+  Type_Fini(&Float_Type);
   Type_Fini(&Array_Type);
   Type_Fini(&Tuple_Type);
   Type_Fini(&Dict_Type);

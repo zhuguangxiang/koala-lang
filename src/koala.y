@@ -150,23 +150,33 @@ units:
 unit:
   import
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | const_decl
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | var_decl
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | free_var_decl
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | assignment
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | expr ';'
 {
@@ -189,23 +199,34 @@ unit:
   */
 | ';'
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | COMMENT
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | DOC
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | MODDOC
 {
-
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 | error
 {
-
+  syntax_error(ps, yyloc_row(@1), yyloc_col(@1), "invalid statements");
+  if (ps->interactive) {
+    ps->more = 0;
+  }
 }
 ;
 

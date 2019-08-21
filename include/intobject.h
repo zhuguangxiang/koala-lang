@@ -42,6 +42,7 @@ static inline int64_t Integer_AsInt(Object *ob)
 }
 
 extern TypeObject Byte_Type;
+#define Byte_Check(ob) (OB_TYPE(ob) == &Byte_Type)
 Object *Byte_New(int val);
 
 extern TypeObject Bool_Type;

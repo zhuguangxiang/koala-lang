@@ -11,6 +11,7 @@
 #include "classobject.h"
 #include "stringobject.h"
 #include "intobject.h"
+#include "floatobject.h"
 #include "atom.h"
 #include "log.h"
 
@@ -462,10 +463,16 @@ Object *New_Const(ConstValue *val)
     ob = val->bval ? Bool_True() : Bool_False();
     break;
   case BASE_BYTE:
+    debug("const byte value: %ld", val->ival);
+    ob = Byte_New((int)val->ival);
     break;
   case BASE_FLOAT:
+    debug("const string value: %lf", val->fval);
+    ob = Float_New(val->fval);
     break;
   case BASE_CHAR:
+    debug("const string value: %s", (char *)&val->cval);
+    ob = Char_New(val->cval.val);
     break;
   default:
     panic("invalid branch %d", val->kind);

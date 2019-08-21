@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
   } else if (cflag == 2) {
     Koala_Run(module);
   } else {
-    Koala_CmdLine();
+    Koala_ReadLine();
   }
 
   Koala_Finalize();

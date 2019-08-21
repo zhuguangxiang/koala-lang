@@ -3,10 +3,7 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include "moduleobject.h"
-#include "fieldobject.h"
-#include "stringobject.h"
-#include "arrayobject.h"
+#include "koala.h"
 
 static Object *os_path_get(Object *self, Object *ob)
 {

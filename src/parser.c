@@ -210,6 +210,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
+  case PRINT:
   case DUP:
   case LOAD_0:
   case LOAD_1:
@@ -417,11 +418,20 @@ static Symbol *get_const_symbol(char kind)
   case BASE_STR:
     sym = stable_get(_lang_.stbl, "String");
     break;
+  case BASE_ANY:
+    sym = stable_get(_lang_.stbl, "Any");
+    break;
   case BASE_BOOL:
     sym = stable_get(_lang_.stbl, "Bool");
     break;
-  case BASE_ANY:
-    sym = stable_get(_lang_.stbl, "Any");
+  case BASE_FLOAT:
+    sym = stable_get(_lang_.stbl, "Float");
+    break;
+  case BASE_CHAR:
+    sym = stable_get(_lang_.stbl, "Char");
+    break;
+  case BASE_BYTE:
+    sym = stable_get(_lang_.stbl, "Byte");
     break;
   default:
     panic("invalid const %c", kind);
@@ -491,7 +501,7 @@ static void parse_attr_expr(ParserState *ps, Expr *exp)
 
   if (sym == NULL) {
     Ident *id = &exp->attr.id;
-    syntax_error(id->row, id->col, "'%s' is not found in '%s'",
+    syntax_error(ps, id->row, id->col, "'%s' is not found in '%s'",
                  id->name, lsym->name);
     return;
   }
@@ -658,8 +668,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
       parser_visit_expr(ps, exp);
       if (ps->errnum > MAX_ERRORS)
         return;
-      CODE_OP_S(LOAD_MODULE, "io");
-      CODE_OP_S_ARGC(CALL, "putln", 1);
+      CODE_OP(PRINT);
     } else if (exp->kind != LITERAL_KIND) {
       parser_visit_expr(ps, exp);
       if (ps->errnum > MAX_ERRORS)

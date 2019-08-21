@@ -7,6 +7,7 @@
 #include "hashmap.h"
 #include "intobject.h"
 #include "fmtmodule.h"
+#include "utf8.h"
 #include "log.h"
 
 static Object *string_concat(Object *self, Object *args)
@@ -152,4 +153,44 @@ char *String_AsStr(Object *self)
 
   StringObject *string = (StringObject *)self;
   return string->wstr;
+}
+
+static void char_free(Object *ob)
+{
+  if (!Char_Check(ob)) {
+    error("object of '%.64s' is not a Char", OB_TYPE_NAME(ob));
+    return;
+  }
+  CharObject *ch = (CharObject *)ob;
+  debug("[Freed] Char %s", (char *)&ch->value);
+  kfree(ob);
+}
+
+static Object *char_str(Object *self, Object *ob)
+{
+  if (!Char_Check(self)) {
+    error("object of '%.64s' is not an Char", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  CharObject *ch = (CharObject *)self;
+  char buf[8] = {'\'', 0};
+  int bytes = encode_one_utf8_char(ch->value, buf + 1);
+  buf[bytes + 1] = '\'';
+  return String_New(buf);
+}
+
+TypeObject Char_Type = {
+  OBJECT_HEAD_INIT(&Type_Type)
+  .name    = "Character",
+  .free    = char_free,
+  .str     = char_str,
+};
+
+Object *Char_New(unsigned int val)
+{
+  CharObject *ch = kmalloc(sizeof(*ch));
+  Init_Object_Head(ch, &Char_Type);
+  ch->value = val;
+  return (Object *)ch;
 }
