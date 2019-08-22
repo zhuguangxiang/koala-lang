@@ -360,6 +360,8 @@ Stmt *stmt_from_expr(Expr *exp)
     kfree(stmt);
     break;
   case ASSIGN_KIND:
+    expr_free(stmt->assign.lexp);
+    expr_free(stmt->assign.rexp);
     kfree(stmt);
     break;
   case FUNC_KIND:

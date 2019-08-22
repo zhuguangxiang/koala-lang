@@ -426,7 +426,7 @@ Object *Object_GetValue(Object *self, char *name)
       }
     }
     OB_DECREF(ob);
-    error("'%s' is not a field", name);
+    error("'%s' is not setable", name);
     return NULL;
   }
   res = Field_Get(ob, self);
@@ -443,7 +443,7 @@ int Object_SetValue(Object *self, char *name, Object *val)
   }
 
   if (!Field_Check(ob)) {
-    error("'%s' is not a field", name);
+    error("'%s' is not setable", name);
     OB_DECREF(ob);
     return -1;
   }

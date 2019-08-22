@@ -89,6 +89,8 @@ typedef enum exprctx {
   EXPR_INVALID,
   /* left or right value indicator */
   EXPR_LOAD, EXPR_STORE,
+  /* Assignment */
+  EXPR_ASSIGN,
   /* call or load function indicator */
   EXPR_CALL_FUNC, EXPR_LOAD_FUNC
 } ExprCtx;
@@ -222,7 +224,7 @@ typedef enum stmtkind {
 typedef enum assignopkind {
   OP_ASSIGN = 1,
   OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
-  OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_MOD_ASSIGN,
+  OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_POW_ASSIGN, OP_MOD_ASSIGN,
   OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
 } AssignOpKind;
 

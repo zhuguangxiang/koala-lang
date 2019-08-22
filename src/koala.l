@@ -123,6 +123,7 @@ moddoc  "//!"[^\n]*
 "-="       { YY_RETURN(MINUS_ASSIGN); }
 "*="       { YY_RETURN(MULT_ASSIGN);  }
 "/="       { YY_RETURN(DIV_ASSIGN);   }
+"**="      { YY_RETURN(POW_ASSIGN);   }
 "%="       { YY_RETURN(MOD_ASSIGN);   }
 "&="       { YY_RETURN(AND_ASSIGN);   }
 "|="       { YY_RETURN(OR_ASSIGN);    }

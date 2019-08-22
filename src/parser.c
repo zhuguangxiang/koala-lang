@@ -567,6 +567,8 @@ static void code_attr_expr(ParserState *ps, Expr *exp)
       CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
     else if (exp->ctx == EXPR_LOAD_FUNC)
       CODE_OP_S(OP_GET_OBJECT, id->name);
+    else if (exp->ctx == EXPR_STORE)
+      CODE_OP_S(OP_SET_VALUE, id->name);
     else
       panic("invalid exp's ctx %d", exp->ctx);
     break;
@@ -623,8 +625,18 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
       exp->id.where = CURRENT_SCOPE;
       exp->id.scope = ps->u;
 
-      CODE_OP(OP_LOAD_0);
-      CODE_OP_S(OP_GET_VALUE, exp->id.name);
+      if (exp->ctx == EXPR_LOAD) {
+        CODE_OP(OP_LOAD_0);
+        CODE_OP_S(OP_GET_VALUE, exp->id.name);
+      } else if (exp->ctx == EXPR_STORE) {
+        CODE_OP(OP_LOAD_0);
+        CODE_OP_S(OP_SET_VALUE, exp->id.name);
+      } else if (exp->ctx == EXPR_ASSIGN) {
+        CODE_OP(OP_LOAD_0);
+        CODE_OP_S(OP_GET_VALUE, exp->id.name);
+      } else {
+        panic("invalid expr's ctx %d", exp->ctx);
+      }
     }
     break;
   }
@@ -790,6 +802,37 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
   }
 }
 
+static void code_assign_stmt(ParserState *ps, AssignOpKind op)
+{
+  switch (op) {
+  case OP_ASSIGN:
+    /* no need generate codes */
+    break;
+  case OP_PLUS_ASSIGN:
+
+    break;
+  case OP_MINUS_ASSIGN:
+    break;
+  case OP_MULT_ASSIGN:
+    break;
+  case OP_DIV_ASSIGN:
+    break;
+  case OP_POW_ASSIGN:
+    break;
+  case OP_MOD_ASSIGN:
+    break;
+  case OP_AND_ASSIGN:
+    break;
+  case OP_OR_ASSIGN:
+    break;
+  case OP_XOR_ASSIGN:
+    break;
+  default:
+    panic("invalid AssignOpKind %d", op);
+    break;
+  }
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   switch (stmt->kind) {
@@ -834,6 +877,26 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     break;
   }
   case ASSIGN_KIND: {
+    AssignOpKind op = stmt->assign.op;
+    Expr *rexp = stmt->assign.rexp;
+    Expr *lexp = stmt->assign.lexp;
+    rexp->ctx = EXPR_LOAD;
+    if (op == OP_ASSIGN)
+      lexp->ctx = EXPR_STORE;
+    else
+      lexp->ctx = EXPR_ASSIGN;
+    parser_visit_expr(ps, rexp);
+    parser_visit_expr(ps, lexp);
+    TypeDesc *rdesc = rexp->desc;
+    TypeDesc *ldesc = lexp->desc;
+    if (!rdesc || !ldesc) {
+      int row = stmt->assign.lexp->row;
+      int col = stmt->assign.lexp->col;
+      syntax_error(ps, row, col, "cannot resolve right or left exprs' type");
+    } else {
+      //check type is compatible
+      code_assign_stmt(ps, op);
+    }
     break;
   }
   case FUNC_KIND: {

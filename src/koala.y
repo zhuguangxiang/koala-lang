@@ -30,16 +30,6 @@
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 void Cmd_SetSymbol(Ident id, Type type);
 
-static void do_parse_stmt(ParserState *ps, Stmt *stmt)
-{
-  if (ps->interactive) {
-    ps->more = 0;
-    Cmd_EvalStmt(ps, stmt);
-    stmt_free(stmt);
-    ps->errnum = 0;
-  } else {
-  }
-}
 %}
 
 %union {
@@ -52,6 +42,7 @@ static void do_parse_stmt(ParserState *ps, Stmt *stmt)
   Expr *expr;
   Stmt *stmt;
   TypeDesc *desc;
+  AssignOpKind assginop;
 }
 
 %token IMPORT
@@ -121,6 +112,9 @@ static void do_parse_stmt(ParserState *ps, Stmt *stmt)
 %token <sval> ID
 
 %type <stmt> var_decl
+%type <stmt> free_var_decl
+%type <stmt> assignment
+%type <assginop> assign_operator
 
 %type <expr> kv
 %type <list> kv_list
@@ -202,17 +196,32 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    Cmd_SetSymbol($1->vardecl.id, $1->vardecl.type);
+    Cmd_EvalStmt(ps, $1);
+    stmt_free($1);
+    ps->errnum = 0;
   }
 }
 | assignment
 {
   if (ps->interactive) {
     ps->more = 0;
+    ps->more = 0;
+    Cmd_EvalStmt(ps, $1);
+    stmt_free($1);
+    ps->errnum = 0;
   }
 }
 | expr ';'
 {
-  do_parse_stmt(ps, stmt_from_expr($1));
+  Stmt *stmt = stmt_from_expr($1);
+  if (ps->interactive) {
+    ps->more = 0;
+    Cmd_EvalStmt(ps, stmt);
+    stmt_free(stmt);
+    ps->errnum = 0;
+  } else {
+  }
 }
 | func_decl
 {
@@ -327,23 +336,65 @@ var_decl:
 
 free_var_decl:
   ID FREE_ASSIGN expr ';'
+{
+  IDENT(id, $1, @1);
+  TYPE(type, NULL, @2);
+  $$ = stmt_from_vardecl(id, type, $3);
+}
+| ID FREE_ASSIGN error
+{
+  syntax_error(ps, yyloc_row(@3), yyloc_col(@3), "invalid variable declaration");
+}
 ;
 
 assignment:
   primary_expr assign_operator expr ';'
+{
+  $$ = stmt_from_assign($2, $1, $3);
+}
 ;
 
 assign_operator:
   '='
+{
+  $$ = OP_ASSIGN;
+}
 | PLUS_ASSIGN
+{
+  $$ = OP_PLUS_ASSIGN;
+}
 | MINUS_ASSIGN
+{
+  $$ = OP_MINUS_ASSIGN;
+}
 | MULT_ASSIGN
+{
+  $$ = OP_MULT_ASSIGN;
+}
 | DIV_ASSIGN
+{
+  $$ = OP_DIV_ASSIGN;
+}
 | POW_ASSIGN
+{
+  $$ = OP_POW_ASSIGN;
+}
 | MOD_ASSIGN
+{
+  $$ = OP_MOD_ASSIGN;
+}
 | AND_ASSIGN
+{
+  $$ = OP_AND_ASSIGN;
+}
 | OR_ASSIGN
+{
+  $$ = OP_OR_ASSIGN;
+}
 | XOR_ASSIGN
+{
+  $$ = OP_XOR_ASSIGN;
+}
 ;
 
 return_expr:
