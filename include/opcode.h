@@ -33,8 +33,8 @@ extern "C" {
 #define OP_STORE_3 19
 
 #define OP_GET_OBJECT  20
-#define OP_GET_FIELD_VALUE 22
-#define OP_SET_FIELD_VALUE 23
+#define OP_GET_VALUE 22
+#define OP_SET_VALUE 23
 #define OP_RETURN_VALUE 24
 #define OP_CALL 25
 #define OP_PRINT 26

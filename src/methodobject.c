@@ -12,7 +12,7 @@ Object *CMethod_New(MethodDef *def)
   MethodObject *method = kmalloc(sizeof(*method));
   Init_Object_Head(method, &Method_Type);
   method->name = def->name;
-  method->desc = string_toproto(def->ptype, def->rtype);
+  method->desc = string_to_proto(def->ptype, def->rtype);
   method->cfunc = 1,
   method->ptr = def->func;
   return (Object *)method;

@@ -132,7 +132,7 @@ void Module_Add_Var(Object *self, Object *ob)
 
 void Module_Add_VarDef(Object *self, FieldDef *f)
 {
-  TypeDesc *desc = string_todesc(f->type);
+  TypeDesc *desc = string_to_desc(f->type);
   Object *field = Field_New(f->name, desc);
   TYPE_DECREF(desc);
   Field_SetFunc(field, f->set, f->get);
@@ -211,6 +211,8 @@ void Module_Install(char *path, Object *ob)
     hashmap_init(&modmap, _modnode_equal_);
   }
 
+  ModuleObject *mob = (ModuleObject *)ob;
+  mob->path = path;
   struct modnode *node = kmalloc(sizeof(*node));
   hashmap_entry_init(node, strhash(path));
   node->path = path;

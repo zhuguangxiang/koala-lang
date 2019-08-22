@@ -55,6 +55,8 @@ typedef struct symbol {
   short col;
   /* refcnt */
   int refcnt;
+  /* used */
+  int used;
   union {
     struct {
       /* variable index */

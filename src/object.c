@@ -253,7 +253,7 @@ void Type_Add_Field(TypeObject *type, Object *ob)
 
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
 {
-  TypeDesc *desc = string_todesc(f->type);
+  TypeDesc *desc = string_to_desc(f->type);
   Object *field = Field_New(f->name, desc);
   TYPE_DECREF(desc);
   Field_SetFunc(field, f->set, f->get);

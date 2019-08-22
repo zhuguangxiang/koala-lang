@@ -99,25 +99,23 @@ typedef struct typedesc {
 void init_typedesc(void);
 void fini_typedesc(void);
 void desc_free(TypeDesc *desc);
-void desc_tostring(TypeDesc *desc, StrBuf *buf);
+void desc_tostr(TypeDesc *desc, StrBuf *buf);
 int desc_equal(TypeDesc *desc1, TypeDesc *desc2);
 
-TypeDesc *desc_getbase(int kind);
-
-#define desc_from_byte()    desc_getbase(BASE_BYTE)
-#define desc_from_integer() desc_getbase(BASE_INT)
-#define desc_from_float()   desc_getbase(BASE_FLOAT)
-#define desc_from_char()    desc_getbase(BASE_CHAR)
-#define desc_from_string()  desc_getbase(BASE_STR)
-#define desc_from_bool()    desc_getbase(BASE_BOOL)
-#define desc_from_any()     desc_getbase(BASE_ANY)
-
-TypeDesc *desc_getklass(char *path, char *type);
-TypeDesc *desc_getproto(Vector *args, TypeDesc *ret);
-TypeDesc *string_todesc(char *s);
-TypeDesc *string_toproto(char *ptype, char *rtype);
-Vector *string_todescs(char *s);
-char *basedesc_str(int kind);
+TypeDesc *desc_from_base(int kind);
+#define desc_from_byte()    desc_from_base(BASE_BYTE)
+#define desc_from_integer() desc_from_base(BASE_INT)
+#define desc_from_float()   desc_from_base(BASE_FLOAT)
+#define desc_from_char()    desc_from_base(BASE_CHAR)
+#define desc_from_string()  desc_from_base(BASE_STR)
+#define desc_from_bool()    desc_from_base(BASE_BOOL)
+#define desc_from_any()     desc_from_base(BASE_ANY)
+TypeDesc *desc_from_klass(char *path, char *type);
+TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
+TypeDesc *string_to_desc(char *s);
+TypeDesc *string_to_proto(char *ptype, char *rtype);
+Vector *string_to_descs(char *s);
+char *desc_base_str(int kind);
 void desc_show(TypeDesc *desc);
 
 #ifdef __cplusplus

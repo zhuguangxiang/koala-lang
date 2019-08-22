@@ -254,7 +254,7 @@ Object *Koala_EvalFrame(Frame *f)
       OB_DECREF(v);
       break;
     }
-    case OP_GET_FIELD_VALUE: {
+    case OP_GET_VALUE: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
       v = POP();
@@ -264,7 +264,7 @@ Object *Koala_EvalFrame(Frame *f)
       OB_DECREF(v);
       break;
     }
-    case OP_SET_FIELD_VALUE: {
+    case OP_SET_VALUE: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
       v2 = POP();

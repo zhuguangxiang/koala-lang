@@ -14,6 +14,8 @@ extern "C" {
 
 typedef struct moduleobject {
   OBJECT_HEAD
+  /* deployed path */
+  char *path;
   /* module name */
   char *name;
   /* number of variables */

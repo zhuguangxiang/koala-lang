@@ -53,7 +53,13 @@ static void init_cmdline_env(void)
   modSym = symbol_new(mod.name, SYM_MOD);
   modSym->mod.ptr = &mod;
 
-  TypeDesc *desc = desc_getproto(NULL, NULL);
+  TypeDesc *strdesc = desc_from_base(BASE_STR);
+  TypeDesc *desc = desc_from_proto(NULL, strdesc);
+  stable_add_func(mod.stbl, "__name__", desc);
+  TYPE_DECREF(strdesc);
+  TYPE_DECREF(desc);
+
+  desc = desc_from_proto(NULL, NULL);
   funcsym = stable_add_func(mod.stbl, "__init__", desc);
   TYPE_DECREF(desc);
 
@@ -144,7 +150,7 @@ static Object *getcode(CodeBlock *block)
   size = Image_Get_ConstCount(image);
   consts = Tuple_New(size);
   Image_Get_Consts(image, _get_consts_, consts);
-  TypeDesc *proto = desc_getproto(NULL, NULL);
+  TypeDesc *proto = desc_from_proto(NULL, NULL);
   size = bytebuffer_toarr(&buf, (char **)&code);
   ob = Code_New("__code__", proto, 0, code, size);
   TYPE_DECREF(proto);
@@ -174,21 +180,19 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
   if (has_error(ps)) {
     codeblock_free(funcsym->func.code);
     funcsym->func.code = NULL;
-    return;
-  }
-
-  add_var(sym, mo);
-  sym = NULL;
-
-  if (funcsym->func.code != NULL) {
-    KoalaState *ks = pthread_getspecific(kskey);
-    if (ks == NULL)
-      pthread_setspecific(kskey, &kstate);
-    Object *code = getcode(funcsym->func.code);
-    Koala_EvalCode(code, mo, NULL);
-    OB_DECREF(code);
-    codeblock_free(funcsym->func.code);
-    funcsym->func.code = NULL;
+  } else {
+    add_var(sym, mo);
+    sym = NULL;
+    if (funcsym->func.code != NULL) {
+      KoalaState *ks = pthread_getspecific(kskey);
+      if (ks == NULL)
+        pthread_setspecific(kskey, &kstate);
+      Object *code = getcode(funcsym->func.code);
+      Koala_EvalCode(code, mo, NULL);
+      OB_DECREF(code);
+      codeblock_free(funcsym->func.code);
+      funcsym->func.code = NULL;
+    }
   }
 }
 

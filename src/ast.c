@@ -33,7 +33,7 @@ Expr *expr_from_integer(int64_t val)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
-  exp->desc = desc_getbase(BASE_INT);
+  exp->desc = desc_from_base(BASE_INT);
   exp->k.value.kind = BASE_INT;
   exp->k.value.ival = val;
   return exp;
@@ -43,7 +43,7 @@ Expr *expr_from_float(double val)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
-  exp->desc = desc_getbase(BASE_FLOAT);
+  exp->desc = desc_from_base(BASE_FLOAT);
   exp->k.value.kind = BASE_FLOAT;
   exp->k.value.fval = val;
   return exp;
@@ -53,7 +53,7 @@ Expr *expr_from_bool(int val)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
-  exp->desc = desc_getbase(BASE_BOOL);
+  exp->desc = desc_from_base(BASE_BOOL);
   exp->k.value.kind = BASE_BOOL;
   exp->k.value.bval = val;
   return exp;
@@ -63,7 +63,7 @@ Expr *expr_from_string(char *val)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
-  exp->desc = desc_getbase(BASE_STR);
+  exp->desc = desc_from_base(BASE_STR);
   exp->k.value.kind = BASE_STR;
   exp->k.value.str = val;
   return exp;
@@ -73,7 +73,7 @@ Expr *expr_from_char(wchar val)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
-  exp->desc = desc_getbase(BASE_CHAR);
+  exp->desc = desc_from_base(BASE_CHAR);
   exp->k.value.kind = BASE_CHAR;
   exp->k.value.cval = val;
   return exp;
@@ -226,6 +226,7 @@ void expr_free(Expr *exp)
     kfree(exp);
     break;
   case ID_KIND:
+    TYPE_DECREF(exp->desc);
     kfree(exp);
     break;
   case UNARY_KIND:

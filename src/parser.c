@@ -16,7 +16,8 @@ static HashMap modules;
 
 void init_parser(void)
 {
-  Object *ob = Module_Load("lang");
+  _lang_.path = "lang";
+  Object *ob = Module_Load(_lang_.path);
   if (ob == NULL)
     panic("cannot find 'lang' module");
   mod_from_mobject(&_lang_, ob);
@@ -188,11 +189,11 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
-  case OP_GET_FIELD_VALUE:
+  case OP_GET_VALUE:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
-  case OP_SET_FIELD_VALUE:
+  case OP_SET_VALUE:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
@@ -342,7 +343,7 @@ static void merge_into_init(ParserUnit *u)
   Symbol *sym = stable_get(u->stbl, "__init__");
   if (sym == NULL) {
     debug("create __init__");
-    TypeDesc *proto = desc_getproto(NULL, NULL);
+    TypeDesc *proto = desc_from_proto(NULL, NULL);
     sym = stable_add_func(u->stbl, "__init__", proto);
     TYPE_DECREF(proto);
     sym->func.code = u->block;
@@ -410,6 +411,22 @@ void parser_exit_scope(ParserState *ps)
   }
 }
 
+static Symbol *find_id_symbol(ParserState *ps, char *name)
+{
+  Symbol *sym;
+  ParserUnit *u = ps->u;
+
+  /* find id from current scope */
+  sym = stable_get(u->stbl, name);
+  if (sym != NULL) {
+    debug("find symbol '%s' in scope-%d(%s)",
+          name, ps->depth, scopes[u->scope]);
+    ++sym->used;
+    return sym;
+  }
+  return NULL;
+}
+
 static Symbol *get_const_symbol(char kind)
 {
   Symbol *sym;
@@ -442,7 +459,7 @@ static Symbol *get_const_symbol(char kind)
   return sym;
 }
 
-static Symbol *get_func_ret_symbol(ParserState *ps, TypeDesc *desc)
+static Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
 {
   if (desc == NULL) {
     debug("no return");
@@ -474,16 +491,26 @@ static void parse_attr_expr(ParserState *ps, Expr *exp)
   Symbol *sym = NULL;
   STable *stbl = NULL;
   Ident *id = &exp->attr.id;
+  TypeDesc *desc;
 
   switch (lsym->kind) {
   case SYM_CONST:
     break;
   case SYM_VAR:
+    debug("left sym '%s' is a var", lsym->name);
+    desc = lsym->desc;
+    sym = get_desc_symbol(ps, desc);
+    if (sym == NULL || sym->kind != SYM_CLASS) {
+      syntax_error(ps, exp->row, exp->col,
+                   "cannot resolve symbol '%s' type", lsym->name);
+    } else {
+      sym = klass_find_member(sym, id->name);
+    }
     break;
   case SYM_FUNC:
     debug("left sym '%s' is a func", lsym->name);
-    TypeDesc *desc = lsym->desc;
-    sym = get_func_ret_symbol(ps, desc->proto.ret);
+    desc = lsym->desc;
+    sym = get_desc_symbol(ps, desc->proto.ret);
     if (sym != NULL) {
       if (sym->kind != SYM_CLASS)
         panic("func's retval is not a class");
@@ -507,7 +534,6 @@ static void parse_attr_expr(ParserState *ps, Expr *exp)
   }
 
   if (sym == NULL) {
-    Ident *id = &exp->attr.id;
     syntax_error(ps, id->row, id->col, "'%s' is not found in '%s'",
                  id->name, lsym->name);
     return;
@@ -532,11 +558,11 @@ static void code_attr_expr(ParserState *ps, Expr *exp)
 
   switch (sym->kind) {
   case SYM_VAR:
-    CODE_OP_S(OP_GET_FIELD_VALUE, id->name);
+    CODE_OP_S(OP_GET_VALUE, id->name);
     break;
   case SYM_FUNC:
     if (exp->ctx == EXPR_LOAD)
-      CODE_OP_S(OP_GET_FIELD_VALUE, id->name);
+      CODE_OP_S(OP_GET_VALUE, id->name);
     else if (exp->ctx == EXPR_CALL_FUNC)
       CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
     else if (exp->ctx == EXPR_LOAD_FUNC)
@@ -587,8 +613,19 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     break;
   }
   case ID_KIND: {
-    CODE_OP(OP_LOAD_0);
-    CODE_OP_S(OP_GET_FIELD_VALUE, exp->id.name);
+    Symbol *sym = find_id_symbol(ps, exp->id.name);
+    if (sym == NULL) {
+      syntax_error(ps, exp->row, exp->col,
+                   "cannot find symbol '%s'", exp->id.name);
+    } else {
+      exp->sym = sym;
+      exp->desc = TYPE_INCREF(sym->desc);
+      exp->id.where = CURRENT_SCOPE;
+      exp->id.scope = ps->u;
+
+      CODE_OP(OP_LOAD_0);
+      CODE_OP_S(OP_GET_VALUE, exp->id.name);
+    }
     break;
   }
   case UNARY_KIND: {
@@ -603,8 +640,9 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     Expr *lexp = exp->attr.lexp;
     lexp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, lexp);
-    if (lexp->sym == NULL)
-      panic("dot left sym is null");
+    if (lexp->sym == NULL) {
+      return;
+    }
     parse_attr_expr(ps, exp);
     code_attr_expr(ps, exp);
     break;
@@ -648,7 +686,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     //check_call_args(ps, exp, desc->proto.args);
     exp->desc = TYPE_INCREF(desc->proto.ret);
     /* set call exp's sym as func's retval symbol */
-    exp->sym = get_func_ret_symbol(ps, desc->proto.ret);
+    exp->sym = get_desc_symbol(ps, desc->proto.ret);
     break;
   }
   case SLICE_KIND: {
@@ -763,28 +801,34 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     break;
   }
   case VAR_KIND: {
+    Ident *id = &stmt->vardecl.id;
+    Type *type = &stmt->vardecl.type;
     Expr *exp = stmt->vardecl.exp;
     if (exp != NULL) {
       exp->ctx = EXPR_LOAD;
       parser_visit_expr(ps, exp);
     }
 
-    if (exp->desc == NULL)
-      syntax_error(ps, ps->row, ps->col, "cannot resolve right expr's type");
+    if (exp->desc == NULL) {
+      syntax_error(ps, exp->row, exp->col,
+                   "cannot resolve right expr's type");
+    }
 
-    Type *type = &stmt->vardecl.type;
     if (type->desc) {
       //check_var_type();
     } else {
-      //update_var_type();
+      // update var type
+      Symbol *sym = find_id_symbol(ps, id->name);
+      if (sym == NULL)
+        panic("cannot find variable '%s'", id->name);
+      sym->desc = TYPE_INCREF(exp->desc);
     }
 
     if (!has_error(ps)) {
       ScopeKind scope = ps->u->scope;
-      Ident *id = &stmt->vardecl.id;
       if (scope == SCOPE_MODULE) {
         CODE_OP(OP_LOAD_0);
-        CODE_OP_S(OP_SET_FIELD_VALUE, id->name);
+        CODE_OP_S(OP_SET_VALUE, id->name);
       }
     }
     break;

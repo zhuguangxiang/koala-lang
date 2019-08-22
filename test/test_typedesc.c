@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
   init_atom();
   init_typedesc();
 
-  Vector *list = string_todescs("Llang.Tuple;si");
+  Vector *list = string_to_descs("Llang.Tuple;si");
   TypeDesc *desc = vector_get(list, 0);
   assert(desc->kind == TYPE_KLASS);
   desc = vector_get(list, 1);
@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
   vector_fini(list, NULL, NULL);
   kfree(list);
 
-  list = string_todescs("s");
+  list = string_to_descs("s");
   desc = vector_get(list, 0);
   assert(desc->kind == TYPE_BASE);
   assert(desc->base.type == BASE_STR);

@@ -200,6 +200,7 @@ static Symbol *load_method(Object *ob)
 static Symbol *load_type(Object *ob)
 {
   TypeObject *type = (TypeObject *)ob;
+  ModuleObject *mob = (ModuleObject *)type->owner;
   if (type->mtbl == NULL) {
     warn("mtbl of type '%s' is null", type->name);
     return NULL;
@@ -225,6 +226,7 @@ static Symbol *load_type(Object *ob)
   }
 
   Symbol *clsSym = symbol_new(type->name, SYM_CLASS);
+  clsSym->desc = desc_from_klass(mob->path, type->name);
   clsSym->klass.stbl = stbl;
 
   TypeObject *item;
@@ -268,7 +270,7 @@ STable *stable_from_mobject(Object *ob)
     stable_add_symbol(stbl, sym);
     symbol_decref(sym);
   }
-  TypeDesc *desc = desc_getbase('s');
+  TypeDesc *desc = desc_from_base('s');
   stable_add_var(stbl, "__name__", desc);
   TYPE_DECREF(desc);
   return stbl;

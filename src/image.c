@@ -205,7 +205,7 @@ static void typeitem_show(Image *image, void *o)
   TypeItem *item = o;
   switch (item->kind) {
   case TYPE_BASE: {
-    char *s = basedesc_str(item->base);
+    char *s = desc_base_str(item->base);
     print("  (%s)\n", s);
     break;
   }
@@ -1545,7 +1545,7 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   TypeDesc *t = NULL;
   switch (item->kind) {
   case TYPE_BASE: {
-    t = desc_getbase(item->kind);
+    t = desc_from_base(item->kind);
     TYPE_INCREF(t);
     break;
   }
@@ -1562,7 +1562,7 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     s = _get_(image, ITEM_STRING, item->typeindex);
     type = atom(s->data);
     //FIXME: typeparas
-    t = desc_getklass(path, type);
+    t = desc_from_klass(path, type);
     break;
   }
   case TYPE_PROTO: {
@@ -1570,7 +1570,7 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     TypeItem *item = _get_(image, ITEM_TYPE, item->rindex);
     Vector *args = to_typedescvec(listitem, image);
     TypeDesc *ret = to_typedesc(item, image);
-    t = desc_getproto(args, ret);
+    t = desc_from_proto(args, ret);
     TYPE_DECREF(ret);
     break;
   }
@@ -1710,7 +1710,7 @@ void Image_Get_Funcs(Image *image, getfuncfunc func, void *arg)
     item = _get_(image, ITEM_TYPE, funcitem->rindex);
     args = to_typedescvec(listitem, image);
     ret = to_typedesc(item, image);
-    desc = desc_getproto(args, ret);
+    desc = desc_from_proto(args, ret);
     if (code != NULL)
       func(str->data, desc, funcitem->nrlocals, ITEM_FUNC,
            code->codes, code->size, arg);
@@ -1751,7 +1751,7 @@ void Image_Get_NFuncs(Image *image, getfuncfunc func, void *arg)
     item = _get_(image, ITEM_TYPE, nfuncitem->rindex);
     args = to_typedescvec(listitem, image);
     ret = to_typedesc(item, image);
-    desc = desc_getproto(args, ret);
+    desc = desc_from_proto(args, ret);
     func(str->data, desc, i, ITEM_NFUNC, NULL, 0, arg);
     TYPE_DECREF(desc);
   }
@@ -1837,7 +1837,7 @@ void Image_Get_Methods(Image *image, getmethodfunc func, void *arg)
     typeitem = _get_(image, ITEM_TYPE, item->rindex);
     args = to_typedescvec(listitem, image);
     ret = to_typedesc(typeitem, image);
-    desc = desc_getproto(args, ret);
+    desc = desc_from_proto(args, ret);
     func(str->data, desc, item->nrlocals,
          code->codes, code->size, classstr->data, arg);
     TYPE_DECREF(desc);

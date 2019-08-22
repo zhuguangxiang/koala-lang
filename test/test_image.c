@@ -13,8 +13,8 @@ void test_image(void)
   int val = 1234;
   Image_Add_Integer(image, val);
 #if 0
-  TypeDesc *desc = desc_getbase(BASE_STR);
-  TypeDesc *proto = desc_getproto(NULL, desc);
+  TypeDesc *desc = desc_from_base(BASE_STR);
+  TypeDesc *proto = desc_from_proto(NULL, desc);
   TYPE_DECREF(desc);
   uint8_t *psudo = kmalloc(4);
   psudo[0] = LOAD;
@@ -24,17 +24,17 @@ void test_image(void)
   Image_Add_Func(image, "Foo", proto, psudo, 4, 0);
   TYPE_DECREF(proto);
 
-  desc = desc_getbase(BASE_STR);
+  desc = desc_from_base(BASE_STR);
   Image_Add_Var(image, "Greeting", desc);
   TYPE_DECREF(desc);
 /*
-  desc = desc_getbase(BASE_INT);
+  desc = desc_from_base(BASE_INT);
   ConstValue val = {.kind = BASE_INT, .ival = 1000};
   Image_Add_Const(image, "MAX_LENGTH", desc, &val);
   TYPE_DECREF(desc);
 */
   ConstValue val2 = {.kind = BASE_STR, .str = "hello"};
-  desc = desc_getbase(BASE_STR);
+  desc = desc_from_base(BASE_STR);
   Image_Add_Const(image, "hello", desc, &val2);
   TYPE_DECREF(desc);
 
