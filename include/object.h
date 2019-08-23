@@ -118,11 +118,21 @@ typedef struct {
   func_t bor;
   func_t bxor;
   func_t bnot;
-  /* logic */
-  func_t land;
-  func_t lor;
-  func_t lnot;
 } NumberMethods;
+
+typedef struct {
+  /* arithmetic */
+  func_t add;
+  func_t sub;
+  func_t mul;
+  func_t div;
+  func_t mod;
+  func_t pow;
+  /* bit */
+  func_t band;
+  func_t bor;
+  func_t bxor;
+} InplaceMethods;
 
 typedef struct {
   /* __getitem__ */

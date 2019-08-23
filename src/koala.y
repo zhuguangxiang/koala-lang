@@ -43,6 +43,7 @@ void Cmd_SetSymbol(Ident id, Type type);
   Stmt *stmt;
   TypeDesc *desc;
   AssignOpKind assginop;
+  UnaryOpKind unaryop;
 }
 
 %token IMPORT
@@ -139,6 +140,7 @@ void Cmd_SetSymbol(Ident id, Type type);
 %type <expr> logic_or_expr
 %type <expr> basic_expr
 %type <expr> expr
+%type <unaryop> unary_operator
 
 %type <list> type_list
 %type <desc> type
@@ -258,9 +260,11 @@ unit:
 }
 | error
 {
-  syntax_error(ps, yyloc_row(@1), yyloc_col(@1), "invalid statements");
   if (ps->interactive) {
     ps->more = 0;
+    if (!ps->quit) {
+      syntax_error(ps, yyloc_row(@1), yyloc_col(@1), "invalid statement");
+    }
   }
 }
 ;
@@ -302,6 +306,7 @@ id_as_list:
 const_decl:
   CONST ID '=' basic_expr ';'
 | CONST ID type '=' basic_expr ';'
+| CONST ID error
 | CONST error
 ;
 
@@ -471,6 +476,9 @@ logic_or_expr:
   $$ = $1;
 }
 | logic_or_expr OP_OR logic_and_expr
+{
+  $$ = expr_from_binary(BINARY_LOR, $1, $3);
+}
 ;
 
 logic_and_expr:
@@ -479,6 +487,9 @@ logic_and_expr:
   $$ = $1;
 }
 | logic_and_expr OP_AND inclusive_or_expr
+{
+  $$ = expr_from_binary(BINARY_LAND, $1, $3);
+}
 ;
 
 inclusive_or_expr:
@@ -487,6 +498,9 @@ inclusive_or_expr:
   $$ = $1;
 }
 | inclusive_or_expr '|' exclusive_or_expr
+{
+  $$ = expr_from_binary(BINARY_BIT_OR, $1, $3);
+}
 ;
 
 exclusive_or_expr:
@@ -495,6 +509,9 @@ exclusive_or_expr:
   $$ = $1;
 }
 | exclusive_or_expr '^' and_expr
+{
+  $$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);
+}
 ;
 
 and_expr:
@@ -503,6 +520,9 @@ and_expr:
   $$ = $1;
 }
 | and_expr '&' equality_expr
+{
+  $$ = expr_from_binary(BINARY_BIT_AND, $1, $3);
+}
 ;
 
 equality_expr:
@@ -511,7 +531,13 @@ equality_expr:
   $$ = $1;
 }
 | equality_expr OP_EQ relation_expr
+{
+  $$ = expr_from_binary(BINARY_EQ, $1, $3);
+}
 | equality_expr OP_NE relation_expr
+{
+  $$ = expr_from_binary(BINARY_NEQ, $1, $3);
+}
 ;
 
 relation_expr:
@@ -520,9 +546,21 @@ relation_expr:
   $$ = $1;
 }
 | relation_expr '<' add_expr
+{
+  $$ = expr_from_binary(BINARY_LT, $1, $3);
+}
 | relation_expr '>' add_expr
+{
+  $$ = expr_from_binary(BINARY_GT, $1, $3);
+}
 | relation_expr OP_LE add_expr
+{
+  $$ = expr_from_binary(BINARY_LE, $1, $3);
+}
 | relation_expr OP_GE add_expr
+{
+  $$ = expr_from_binary(BINARY_GE, $1, $3);
+}
 ;
 
 add_expr:
@@ -531,7 +569,13 @@ add_expr:
   $$ = $1;
 }
 | add_expr '+' multi_expr
+{
+  $$ = expr_from_binary(BINARY_ADD, $1, $3);
+}
 | add_expr '-' multi_expr
+{
+  $$ = expr_from_binary(BINARY_SUB, $1, $3);
+}
 ;
 
 multi_expr:
@@ -540,9 +584,21 @@ multi_expr:
   $$ = $1;
 }
 | multi_expr '*' unary_expr
+{
+  $$ = expr_from_binary(BINARY_MULT, $1, $3);
+}
 | multi_expr '/' unary_expr
+{
+  $$ = expr_from_binary(BINARY_DIV, $1, $3);
+}
 | multi_expr '%' unary_expr
+{
+  $$ = expr_from_binary(BINARY_MOD, $1, $3);
+}
 | multi_expr OP_POWER unary_expr
+{
+  $$ = expr_from_binary(BINARY_POW, $1, $3);
+}
 ;
 
 unary_expr:
@@ -552,15 +608,27 @@ unary_expr:
 }
 | unary_operator unary_expr
 {
-
+  $$ = expr_from_unary($1, $2);
 }
 ;
 
 unary_operator:
   '+'
+{
+  $$ = UNARY_PLUS;
+}
 | '-'
+{
+  $$ = UNARY_NEG;
+}
 | '~'
+{
+  $$ = UNARY_BIT_NOT;
+}
 | OP_NOT
+{
+  $$ = UNARY_LNOT;
+}
 ;
 
 primary_expr:

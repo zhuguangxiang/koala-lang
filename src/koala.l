@@ -223,6 +223,14 @@ moddoc  "//!"[^\n]*
   return 0;
 }
 
+(\'{character}{character}+\') {
+  syntax_error(yyps, yyps->row, yyps->col, "invalid character:%s", yytext);
+  if (yyps->interactive) {
+    yyps->more = 0;
+    yyps->errnum = 0;
+  }
+}
+
 (\"{string}\") {
   yylval->sval = atom_nstring(yytext + 1, yyleng - 2);
   YY_RETURN(STRING_LITERAL);
@@ -263,6 +271,7 @@ moddoc  "//!"[^\n]*
   syntax_error(yyps, yyps->row, yyps->col, "invalid characters:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;
+    yyps->errnum = 0;
   }
 }
 

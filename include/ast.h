@@ -55,8 +55,8 @@ typedef enum unaryopkind {
 
 /* binary operator kind */
 typedef enum binaryopkind {
-  /* +, -, *, /, % */
-  BINARY_ADD = 1, BINARY_SUB, BINARY_MULT, BINARY_DIV, BINARY_MOD,
+  /* +, -, *, /, %, ** */
+  BINARY_ADD = 1, BINARY_SUB, BINARY_MULT, BINARY_DIV, BINARY_MOD, BINARY_POW,
   /* >, >=, <, <=, ==, != */
   BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE, BINARY_EQ, BINARY_NEQ,
   /* &, ^, | */

@@ -111,6 +111,8 @@ static void string_free(Object *self)
     return;
   }
   debug("[Freed] String '%.64s'", String_AsStr(self));
+  StringObject *s = (StringObject *)self;
+  kfree(s->wstr);
   kfree(self);
 }
 
@@ -136,12 +138,12 @@ TypeObject String_Type = {
 Object *String_New(char *str)
 {
   int len = strlen(str);
-  StringObject *string = kmalloc(sizeof(*string) + len + 1);
-  Init_Object_Head(string, &String_Type);
-  string->len = len;
-  string->wstr = (char *)(string + 1);
-  strcpy(string->wstr, str);
-  return (Object *)string;
+  StringObject *s = kmalloc(sizeof(*s));
+  Init_Object_Head(s, &String_Type);
+  s->len = len;
+  s->wstr = kmalloc(len + 1);
+  strcpy(s->wstr, str);
+  return (Object *)s;
 }
 
 char *String_AsStr(Object *self)
@@ -151,8 +153,21 @@ char *String_AsStr(Object *self)
     return NULL;
   }
 
-  StringObject *string = (StringObject *)self;
-  return string->wstr;
+  StringObject *s = (StringObject *)self;
+  return s->wstr;
+}
+
+void String_Set(Object *self, char *str)
+{
+  if (!String_Check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return;
+  }
+
+  StringObject *s = (StringObject *)self;
+  kfree(s->wstr);
+  s->wstr = kmalloc(strlen(str) + 1);
+  strcpy(s->wstr, str);
 }
 
 static void char_free(Object *ob)

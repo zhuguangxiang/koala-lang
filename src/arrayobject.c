@@ -83,6 +83,8 @@ static Object *array_setitem(Object *self, Object *args)
   ArrayObject *arr = (ArrayObject *)self;
   Object *index = Tuple_Get(args, 0);
   Object *val = Tuple_Get(args, 1);
+  Object *old = vector_get(&arr->items, Integer_AsInt(index));
+  OB_DECREF(old);
   vector_set(&arr->items, Integer_AsInt(index), OB_INCREF(val));
   return NULL;
 }

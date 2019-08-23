@@ -3,10 +3,12 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
+#include <math.h>
 #include <pthread.h>
 #include "eval.h"
 #include "codeobject.h"
 #include "intobject.h"
+#include "floatobject.h"
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "arrayobject.h"
@@ -144,8 +146,7 @@ Object *Koala_EvalFrame(Frame *f)
   Object *consts = co->consts;
   uint8_t op;
   int oparg;
-  Object *v, *v2, *x;
-  Object *retval;
+  Object *x, *y, *z, *o, *p, *q;
 
   while (loopflag) {
     if ((f->index + 1) >= co->size) {
@@ -155,128 +156,126 @@ Object *Koala_EvalFrame(Frame *f)
     op = NEXT_OP();
     switch (op) {
     case OP_POP_TOP: {
-      v = POP();
-      OB_DECREF(v);
+      x = POP();
+      OB_DECREF(x);
       break;
     }
     case OP_DUP: {
-      v = TOP();
-      PUSH(OB_INCREF(v));
+      x = TOP();
+      PUSH(OB_INCREF(x));
       break;
     }
     case OP_CONST_BYTE: {
       oparg = NEXT_BYTE();
-      v = Integer_New(oparg);
-      PUSH(v);
+      x = Integer_New(oparg);
+      PUSH(x);
       break;
     }
     case OP_CONST_SHORT: {
       oparg = NEXT_2BYTES();
-      v = Integer_New(oparg);
-      PUSH(v);
+      x = Integer_New(oparg);
+      PUSH(x);
       break;
     }
     case OP_LOAD_CONST: {
       oparg = NEXT_2BYTES();
-      v = Tuple_Get(consts, oparg);
-      PUSH(v);
+      x = Tuple_Get(consts, oparg);
+      PUSH(x);
       break;
     }
     case OP_LOAD_MODULE: {
-      char *path;
       oparg = NEXT_2BYTES();
-      v = Tuple_Get(consts, oparg);
-      path = String_AsStr(v);
-      x = Module_Load(path);
-      PUSH(x);
-      OB_DECREF(v);
+      x = Tuple_Get(consts, oparg);
+      y = Module_Load(String_AsStr(x));
+      PUSH(y);
+      OB_DECREF(x);
       break;
     }
     case OP_LOAD: {
       oparg = NEXT_BYTE();
-      v = GETLOCAL(oparg);
-      PUSH(OB_INCREF(v));
+      x = GETLOCAL(oparg);
+      PUSH(OB_INCREF(x));
       break;
     }
     case OP_LOAD_0: {
-      v = GETLOCAL(0);
-      PUSH(OB_INCREF(v));
+      x = GETLOCAL(0);
+      PUSH(OB_INCREF(x));
       break;
     }
     case OP_LOAD_1: {
-      v = GETLOCAL(1);
-      PUSH(OB_INCREF(v));
+      x = GETLOCAL(1);
+      PUSH(OB_INCREF(x));
       break;
     }
     case OP_LOAD_2: {
-      v = GETLOCAL(2);
-      PUSH(OB_INCREF(v));
+      x = GETLOCAL(2);
+      PUSH(OB_INCREF(x));
       break;
     }
     case OP_LOAD_3: {
-      v = GETLOCAL(3);
-      PUSH(OB_INCREF(v));
+      x = GETLOCAL(3);
+      PUSH(OB_INCREF(x));
       break;
     }
     case OP_STORE: {
       oparg = NEXT_BYTE();
-      v = POP();
-      SETLOCAL(oparg, v);
+      x = POP();
+      SETLOCAL(oparg, x);
       break;
     }
     case OP_STORE_0: {
-      v = POP();
-      SETLOCAL(0, v);
+      x = POP();
+      SETLOCAL(0, x);
       break;
     }
     case OP_STORE_1: {
-      v = POP();
-      SETLOCAL(1, v);
+      x = POP();
+      SETLOCAL(1, x);
       break;
     }
     case OP_STORE_2: {
-      v = POP();
-      SETLOCAL(2, v);
+      x = POP();
+      SETLOCAL(2, x);
       break;
     }
     case OP_STORE_3: {
-      v = POP();
-      SETLOCAL(3, v);
+      x = POP();
+      SETLOCAL(3, x);
       break;
     }
     case OP_GET_OBJECT: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
-      v = POP();
-      retval = Object_Lookup(v, String_AsStr(x));
-      PUSH(retval);
+      y = POP();
+      z = Object_Lookup(y, String_AsStr(x));
+      PUSH(z);
       OB_DECREF(x);
-      OB_DECREF(v);
+      OB_DECREF(y);
       break;
     }
     case OP_GET_VALUE: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
-      v = POP();
-      retval = Object_GetValue(v, String_AsStr(x));
-      PUSH(retval);
+      y = POP();
+      z = Object_GetValue(y, String_AsStr(x));
+      PUSH(z);
       OB_DECREF(x);
-      OB_DECREF(v);
+      OB_DECREF(y);
       break;
     }
     case OP_SET_VALUE: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
-      v2 = POP();
-      v = POP();
-      Object_SetValue(v2, String_AsStr(x), v);
+      y = POP();
+      z = POP();
+      Object_SetValue(y, String_AsStr(x), z);
       OB_DECREF(x);
-      OB_DECREF(v2);
-      OB_DECREF(v);
+      OB_DECREF(y);
+      OB_DECREF(z);
       break;
     }
     case OP_RETURN_VALUE: {
-      retval = POP();
+      x = POP();
       loopflag = 0;
       break;
     }
@@ -284,69 +283,73 @@ Object *Koala_EvalFrame(Frame *f)
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
       oparg = NEXT_BYTE();
-      v2 = POP();
+      y = POP();
       if (oparg == 0) {
-        v = NULL;
+        z = NULL;
       } else if (oparg == 1) {
-        v = POP();
+        z = POP();
       } else {
-        Object *arg;
-        v = Tuple_New(oparg);
+        z = Tuple_New(oparg);
         for (int i = 0; i < oparg; ++i) {
-          arg = POP();
-          Tuple_Set(v, i, arg);
-          OB_DECREF(arg);
+          o = POP();
+          Tuple_Set(z, i, o);
+          OB_DECREF(o);
         }
       }
-      retval = Object_Call(v2, String_AsStr(x), v);
-      PUSH(retval);
+      p = Object_Call(y, String_AsStr(x), z);
+      PUSH(p);
       OB_DECREF(x);
-      OB_DECREF(v2);
-      OB_DECREF(v);
+      OB_DECREF(y);
+      OB_DECREF(z);
       break;
     }
     case OP_PRINT: {
-      v = POP();
-      IoPrintln(v);
-      OB_DECREF(v);
+      x = POP();
+      IoPrintln(x);
+      OB_DECREF(x);
       break;
     }
     case OP_ADD: {
-      v2 = POP();
-      v = POP();
-      if (Integer_Check(v) && Integer_Check(v2)) {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x) && Integer_Check(y)) {
         int64_t a, b, r;
-        a = Integer_AsInt(v);
-        b = Integer_AsInt(v2);
+        a = Integer_AsInt(x);
+        b = Integer_AsInt(y);
         //overflow?
         r = (int64_t)((uint64_t)a + b);
-        x = Integer_New(r);
-      } else if (String_Check(v) && String_Check(v2)) {
-
+        z = Integer_New(r);
+      } else if (String_Check(x) && String_Check(y)) {
+        STRBUF(sbuf);
+        strbuf_append(&sbuf, String_AsStr(x));
+        strbuf_append(&sbuf, String_AsStr(y));
+        String_Set(x, strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
+        z = OB_INCREF(x);
       } else {
-        //x = Number_Add(v, w);
+        z = Object_Call(x, opcode_map(OP_ADD), y);
       }
-      OB_DECREF(v2);
-      OB_DECREF(v);
-      PUSH(x);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_SUB: {
-      v2 = POP();
-      v = POP();
-      if (Integer_Check(v) && Integer_Check(v2)) {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x) && Integer_Check(y)) {
         int64_t a, b, r;
-        a = Integer_AsInt(v);
-        b = Integer_AsInt(v2);
+        a = Integer_AsInt(x);
+        b = Integer_AsInt(y);
         //overflow?
         r = (int64_t)((uint64_t)a - b);
-        x = Integer_New(r);
+        z = Integer_New(r);
       } else {
-        //x = Number_Sub(v, w);
+        z = Object_Call(x, opcode_map(OP_SUB), y);
       }
-      OB_DECREF(v2);
-      OB_DECREF(v);
-      PUSH(x);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_MUL: {
@@ -403,13 +406,333 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_NOT: {
       break;
     }
+    case OP_INPLACE_ADD: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        if (Integer_Check(y)) {
+          b = Integer_AsInt(y);
+        } else if (Byte_Check(y)) {
+          b = Byte_AsInt(y);
+        } else if (Float_Check(y)) {
+          b = (int64_t)Float_AsFlt(y);
+        } else {
+          panic("not implemented");
+        }
+        //overflow?
+        r = (int64_t)((uint64_t)a + b);
+        Integer_Set(x, r);
+      } else if (Float_Check(x)) {
+        double a, r;
+        a = Float_AsFlt(x);
+        if (Float_Check(y)) {
+          double b = Float_AsFlt(y);
+          r = a + b;
+        } else if (Integer_Check(y)) {
+          int64_t b = Integer_AsInt(y);
+          r = a + b;
+        } else if (Byte_Check(y)) {
+          int b = Byte_AsInt(y);
+          r = a + b;
+        } else {
+          panic("not implemented");
+        }
+        Float_Set(x, r);
+      } else if (String_Check(x) && String_Check(y)) {
+        STRBUF(sbuf);
+        strbuf_append(&sbuf, String_AsStr(x));
+        strbuf_append(&sbuf, String_AsStr(y));
+        String_Set(x, strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_ADD), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_INPLACE_SUB: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        if (Integer_Check(y)) {
+          b = Integer_AsInt(y);
+          r = (int64_t)((uint64_t)a - b);
+        } else if (Byte_Check(y)) {
+          b = Byte_AsInt(y);
+          r = (int64_t)((uint64_t)a - b);
+        } else if (Float_Check(y)) {
+          double f = Float_AsFlt(y);
+          r = (int64_t)((double)a - f);
+        } else {
+          panic("not implemented");
+        }
+        Integer_Set(x, r);
+      } else if (Float_Check(x)) {
+        double a, r;
+        a = Float_AsFlt(x);
+        if (Float_Check(y)) {
+          double b = Float_AsFlt(y);
+          r = a - b;
+        } else if (Integer_Check(y)) {
+          int64_t b = Integer_AsInt(y);
+          r = a - b;
+        } else if (Byte_Check(y)) {
+          int b = Byte_AsInt(y);
+          r = a - b;
+        } else {
+          panic("not implemented");
+        }
+        Float_Set(x, r);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_INPLACE_MUL: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        if (Integer_Check(y)) {
+          b = Integer_AsInt(y);
+          r = (int64_t)((uint64_t)a * b);
+        } else if (Byte_Check(y)) {
+          b = Byte_AsInt(y);
+          r = (int64_t)((uint64_t)a * b);
+        } else if (Float_Check(y)) {
+          double f = Float_AsFlt(y);
+          r = (int64_t)((double)a * f);
+        } else {
+          panic("not implemented");
+        }
+        Integer_Set(x, r);
+      } else if (Float_Check(x)) {
+        double a, r;
+        a = Float_AsFlt(x);
+        if (Float_Check(y)) {
+          double b = Float_AsFlt(y);
+          r = a * b;
+        } else if (Integer_Check(y)) {
+          int64_t b = Integer_AsInt(y);
+          r = a * b;
+        } else if (Byte_Check(y)) {
+          int b = Byte_AsInt(y);
+          r = a * b;
+        } else {
+          panic("not implemented");
+        }
+        Float_Set(x, r);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_INPLACE_DIV: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        if (Integer_Check(y)) {
+          b = Integer_AsInt(y);
+          r = (int64_t)((uint64_t)a / b);
+        } else if (Byte_Check(y)) {
+          b = Byte_AsInt(y);
+          r = (int64_t)((uint64_t)a / b);
+        } else if (Float_Check(y)) {
+          double f = Float_AsFlt(y);
+          r = (int64_t)((double)a / f);
+        } else {
+          panic("not implemented");
+        }
+        Integer_Set(x, r);
+      } else if (Float_Check(x)) {
+        double a, r;
+        a = Float_AsFlt(x);
+        if (Float_Check(y)) {
+          double b = Float_AsFlt(y);
+          r = a / b;
+        } else if (Integer_Check(y)) {
+          int64_t b = Integer_AsInt(y);
+          r = a / b;
+        } else if (Byte_Check(y)) {
+          int b = Byte_AsInt(y);
+          r = a / b;
+        } else {
+          panic("not implemented");
+        }
+        Float_Set(x, r);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_INPLACE_POW: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        if (Integer_Check(y)) {
+          b = Integer_AsInt(y);
+          r = (int64_t)powl(a, b);
+        } else if (Byte_Check(y)) {
+          b = Byte_AsInt(y);
+          r = (int64_t)powl(a, b);
+        } else if (Float_Check(y)) {
+          double f = Float_AsFlt(y);
+          r = (int64_t)powl(a, f);
+        } else {
+          panic("not implemented");
+        }
+        Integer_Set(x, r);
+      } else if (Float_Check(x)) {
+        double a, r;
+        a = Float_AsFlt(x);
+        if (Float_Check(y)) {
+          double b = Float_AsFlt(y);
+          r = powl(a, b);
+        } else if (Integer_Check(y)) {
+          int64_t b = Integer_AsInt(y);
+          r = powl(a, b);
+        } else if (Byte_Check(y)) {
+          int b = Byte_AsInt(y);
+          r = powl(a, b);
+        } else {
+          panic("not implemented");
+        }
+        Float_Set(x, r);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_INPLACE_MOD: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        if (Integer_Check(y)) {
+          b = Integer_AsInt(y);
+          r = (int64_t)((uint64_t)a % b);
+        } else if (Byte_Check(y)) {
+          b = Byte_AsInt(y);
+          r = (int64_t)((uint64_t)a % b);
+        } else if (Float_Check(y)) {
+          double f = Float_AsFlt(y);
+          r = (int64_t)((uint64_t)a % (int64_t)f);
+        } else {
+          panic("not implemented");
+        }
+        Integer_Set(x, r);
+      } else if (Float_Check(x)) {
+        double a, r;
+        a = Float_AsFlt(x);
+        if (Float_Check(y)) {
+          double b = Float_AsFlt(y);
+          r = (int64_t)a % (int64_t)b;
+        } else if (Integer_Check(y)) {
+          int64_t b = Integer_AsInt(y);
+          r = (int64_t)a % (int64_t)b;
+        } else if (Byte_Check(y)) {
+          int b = Byte_AsInt(y);
+          r = (int64_t)a % (int64_t)b;
+        } else {
+          panic("not implemented");
+        }
+        Float_Set(x, r);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_INPLACE_AND: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x) && Integer_Check(y)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        b = Integer_AsInt(y);
+        r = (int64_t)((uint64_t)a & (uint64_t)b);
+        Integer_Set(x, r);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_INPLACE_OR: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x) && Integer_Check(y)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        b = Integer_AsInt(y);
+        r = (int64_t)((uint64_t)a | (uint64_t)b);
+        Integer_Set(x, r);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_INPLACE_XOR: {
+      x = POP();
+      y = POP();
+      if (Integer_Check(x) && Integer_Check(y)) {
+        int64_t a, b, r;
+        a = Integer_AsInt(x);
+        b = Integer_AsInt(y);
+        r = (int64_t)((uint64_t)a ^ (uint64_t)b);
+        Integer_Set(x, r);
+      } else {
+        Object_Call(x, opcode_map(OP_INPLACE_XOR), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
     case OP_SUBSCR_LOAD: {
-      v2 = POP();
-      v = POP();
-      retval = Object_Call(v2, "__getitem__", v);
-      PUSH(retval);
-      OB_DECREF(v2);
-      OB_DECREF(v);
+      x = POP();
+      y = POP();
+      z = Object_Call(x, opcode_map(OP_SUBSCR_LOAD), y);
+      PUSH(z);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_SUBSCR_STORE: {
+      x = POP();
+      y = POP();
+      z = POP();
+      o = Tuple_New(2);
+      Tuple_Set(o, 0, y);
+      Tuple_Set(o, 1, z);
+      p = Object_Call(x, opcode_map(OP_SUBSCR_STORE), o);
+      PUSH(p);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      OB_DECREF(z);
+      OB_DECREF(o);
       break;
     }
     case OP_JMP: {
@@ -449,9 +772,9 @@ Object *Koala_EvalFrame(Frame *f)
       oparg = NEXT_2BYTES();
       x = Tuple_New(oparg);
       for (int i = 0; i < oparg; ++i) {
-        v = POP();
-        Tuple_Set(x, i, v);
-        OB_DECREF(v);
+        y = POP();
+        Tuple_Set(x, i, y);
+        OB_DECREF(y);
       }
       PUSH(x);
       break;
@@ -460,25 +783,24 @@ Object *Koala_EvalFrame(Frame *f)
       x = Array_New();
       oparg = NEXT_2BYTES();
       for (int i = 0; i < oparg; ++i) {
-        v = POP();
-        Array_Set(x, i, v);
-        OB_DECREF(v);
+        y = POP();
+        Array_Set(x, i, y);
+        OB_DECREF(y);
       }
       PUSH(x);
       break;
     }
     case OP_NEW_MAP: {
-      Object *key, *val;
       x = Dict_New();
       oparg = NEXT_2BYTES();
       for (int i = 0; i < oparg; ++i) {
-        v = POP();
-        key = Tuple_Get(v, 0);
-        val = Tuple_Get(v, 1);
-        Dict_Put(x, key, val);
-        OB_DECREF(key);
-        OB_DECREF(val);
-        OB_DECREF(v);
+        y = POP();
+        z = Tuple_Get(y, 0);
+        o = Tuple_Get(y, 1);
+        Dict_Put(x, z, o);
+        OB_DECREF(z);
+        OB_DECREF(o);
+        OB_DECREF(y);
       }
       PUSH(x);
       break;
@@ -493,7 +815,7 @@ Object *Koala_EvalFrame(Frame *f)
   ks->frame = f->back;
   --ks->depth;
   free_frame(f);
-  return retval;
+  return x;
 }
 
 pthread_key_t kskey;

@@ -82,6 +82,8 @@ typedef struct parserstate {
   /* token position */
   short row;
   short col;
+  /* interactive quit */
+  int quit;
 
   /* current parserunit */
   ParserUnit *u;

@@ -29,6 +29,7 @@ extern TypeObject String_Type;
 #define String_Check(ob) (OB_TYPE(ob) == &String_Type)
 Object *String_New(char *str);
 char *String_AsStr(Object *self);
+void String_Set(Object *self, char *str);
 extern TypeObject Char_Type;
 #define Char_Check(ob) (OB_TYPE(ob) == &Char_Type)
 Object *Char_New(unsigned int val);

@@ -227,24 +227,25 @@ int interactive(ParserState *ps, char *buf, int size)
     if (ferror(stdin))
       clearerr(stdin);
     //clear_history();
+    ps->quit = 1;
     return 0;
   }
 
-  /* add history of readline */
-  //add_history(line);
-
-  strcpy(buf, line);
-  int len = strlen(buf);
-  /* apeend newline */
-  buf[len++] = '\n';
-  /* flex bug? leave last one char in buffer */
-  buf[len++] = ' ';
-
-  if (empty(buf, len)) {
+  int len = strlen(line);
+  if (empty(line, len)) {
     ps->more = 0;
+    len = 0;
   } else {
+    /* add history of readline */
+    //add_history(line);
     ps->more++;
+    strcpy(buf, line);
+    /* apeend newline */
+    buf[len++] = '\n';
+    /* flex bug? leave last one char in buffer */
+    buf[len++] = ' ';
   }
+
   free(line);
   return len;
 }

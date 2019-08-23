@@ -106,7 +106,7 @@ extern "C" {
 
 int opcode_argc(int op);
 char *opcode_str(int op);
-char *opcode_operator(int op);
+char *opcode_map(int op);
 
 #ifdef __cplusplus
 }

@@ -230,6 +230,15 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_EQ:
   case OP_NEQ:
   case OP_NEG:
+  case OP_INPLACE_ADD:
+  case OP_INPLACE_SUB:
+  case OP_INPLACE_MUL:
+  case OP_INPLACE_DIV:
+  case OP_INPLACE_POW:
+  case OP_INPLACE_MOD:
+  case OP_INPLACE_AND:
+  case OP_INPLACE_OR:
+  case OP_INPLACE_XOR:
   case OP_SUBSCR_LOAD:
   case OP_SUBSCR_STORE:
     break;
@@ -558,7 +567,12 @@ static void code_attr_expr(ParserState *ps, Expr *exp)
 
   switch (sym->kind) {
   case SYM_VAR:
-    CODE_OP_S(OP_GET_VALUE, id->name);
+    if (exp->ctx == EXPR_LOAD)
+      CODE_OP_S(OP_GET_VALUE, id->name);
+    else if (exp->ctx == EXPR_STORE)
+      CODE_OP_S(OP_SET_VALUE, id->name);
+    else
+      panic("invalid attr expr's ctx %d", exp->ctx);
     break;
   case SYM_FUNC:
     if (exp->ctx == EXPR_LOAD)
@@ -668,9 +682,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
     if (!has_error(ps)) {
-      if (exp->ctx != EXPR_LOAD)
-        panic("subscript expr ctx is not load");
-      if (!exp->leftside)
+      if (exp->ctx == EXPR_LOAD)
         CODE_OP(OP_SUBSCR_LOAD);
       else
         CODE_OP(OP_SUBSCR_STORE);
@@ -809,23 +821,31 @@ static void code_assign_stmt(ParserState *ps, AssignOpKind op)
     /* no need generate codes */
     break;
   case OP_PLUS_ASSIGN:
-
+    CODE_OP(OP_INPLACE_ADD);
     break;
   case OP_MINUS_ASSIGN:
+    CODE_OP(OP_INPLACE_SUB);
     break;
   case OP_MULT_ASSIGN:
+    CODE_OP(OP_INPLACE_MUL);
     break;
   case OP_DIV_ASSIGN:
+    CODE_OP(OP_INPLACE_DIV);
     break;
   case OP_POW_ASSIGN:
+    CODE_OP(OP_INPLACE_POW);
     break;
   case OP_MOD_ASSIGN:
+    CODE_OP(OP_INPLACE_MOD);
     break;
   case OP_AND_ASSIGN:
+    CODE_OP(OP_INPLACE_AND);
     break;
   case OP_OR_ASSIGN:
+    CODE_OP(OP_INPLACE_OR);
     break;
   case OP_XOR_ASSIGN:
+    CODE_OP(OP_INPLACE_XOR);
     break;
   default:
     panic("invalid AssignOpKind %d", op);
@@ -889,7 +909,8 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, lexp);
     TypeDesc *rdesc = rexp->desc;
     TypeDesc *ldesc = lexp->desc;
-    if (!rdesc || !ldesc) {
+    //if (!rdesc || !ldesc) {
+    if (0) {
       int row = stmt->assign.lexp->row;
       int col = stmt->assign.lexp->col;
       syntax_error(ps, row, col, "cannot resolve right or left exprs' type");

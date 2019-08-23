@@ -34,16 +34,35 @@ Object *Integer_New(int64_t val);
 static inline int64_t Integer_AsInt(Object *ob)
 {
   if (!Integer_Check(ob)) {
-    error("object of '%.64s' is not a type.", OB_TYPE(ob)->name);
+    error("object of '%.64s' is not a Integer.", OB_TYPE(ob)->name);
     return 0;
   }
   IntegerObject *int_obj = (IntegerObject *)ob;
   return int_obj->value;
 }
 
+static inline void Integer_Set(Object *ob, int64_t val)
+{
+  if (!Integer_Check(ob)) {
+    error("object of '%.64s' is not an Integer.", OB_TYPE(ob)->name);
+    return;
+  }
+  IntegerObject *int_obj = (IntegerObject *)ob;
+  int_obj->value = val;
+}
+
 extern TypeObject Byte_Type;
 #define Byte_Check(ob) (OB_TYPE(ob) == &Byte_Type)
 Object *Byte_New(int val);
+static inline int Byte_AsInt(Object *ob)
+{
+  if (!Byte_Check(ob)) {
+    error("object of '%.64s' is not a Byte.", OB_TYPE(ob)->name);
+    return 0;
+  }
+  ByteObject *byte_obj = (ByteObject *)ob;
+  return byte_obj->value;
+}
 
 extern TypeObject Bool_Type;
 #define Bool_Check(ob) (OB_TYPE(ob) == &Bool_Type)
