@@ -171,6 +171,9 @@ void Cmd_SetSymbol(Ident id, Type type)
 
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
 {
+  if (stmt == NULL)
+    return;
+
   parser_enter_scope(ps, SCOPE_MODULE);
   ps->u->stbl = mod.stbl;
   ps->u->sym = modSym;
@@ -231,19 +234,20 @@ int interactive(ParserState *ps, char *buf, int size)
     return 0;
   }
 
-  int len = strlen(line);
-  if (empty(line, len)) {
+  /* add history of readline */
+  //add_history(line);
+
+  strcpy(buf, line);
+  int len = strlen(buf);
+  /* apeend newline */
+  buf[len++] = '\n';
+  /* flex bug? leave last one char in buffer */
+  buf[len++] = ' ';
+
+  if (empty(buf, len)) {
     ps->more = 0;
-    len = 0;
   } else {
-    /* add history of readline */
-    //add_history(line);
     ps->more++;
-    strcpy(buf, line);
-    /* apeend newline */
-    buf[len++] = '\n';
-    /* flex bug? leave last one char in buffer */
-    buf[len++] = ' ';
   }
 
   free(line);

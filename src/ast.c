@@ -215,6 +215,9 @@ void exprlist_free(Vector *vec)
 
 void expr_free(Expr *exp)
 {
+  if (exp == NULL)
+    return;
+
   switch (exp->kind) {
   case NIL_KIND:
   case SELF_KIND:
@@ -347,6 +350,9 @@ Stmt *stmt_from_expr(Expr *exp)
 
  void stmt_free(Stmt *stmt)
 {
+  if (stmt == NULL)
+    return;
+
   switch (stmt->kind) {
   case IMPORT_KIND:
     kfree(stmt);

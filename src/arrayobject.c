@@ -177,8 +177,8 @@ Object *array_str(Object *self, Object *ob)
 TypeObject Array_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Array",
-  .str     = array_str,
   .free    = Array_Free,
+  .str     = array_str,
   .methods = array_methods,
 };
 

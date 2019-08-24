@@ -103,8 +103,8 @@ static Object *meth_str(Object *self, Object *args)
 TypeObject Method_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Method",
-  .str     = meth_str,
   .free    = meth_free,
+  .str     = meth_str,
   .methods = meth_methods,
 };
 

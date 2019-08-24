@@ -146,6 +146,10 @@ void Cmd_SetSymbol(Ident id, Type type);
 %type <desc> type
 %type <desc> no_array_type
 
+%destructor { printf("destructor expr\n"); expr_free($$); } <expr>
+%destructor { printf("destructor stmt\n"); stmt_free($$); } <stmt>
+%destructor { printf("destructor desc\n"); TYPE_DECREF($$); } <desc>
+
 %precedence ID
 %precedence ','
 %precedence ')'
@@ -175,21 +179,25 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    ps->errnum = 0;
   }
 }
 | const_decl
 {
   if (ps->interactive) {
     ps->more = 0;
+    ps->errnum = 0;
   }
 }
 | var_decl
 {
   if (ps->interactive) {
     ps->more = 0;
-    Cmd_SetSymbol($1->vardecl.id, $1->vardecl.type);
-    Cmd_EvalStmt(ps, $1);
-    stmt_free($1);
+    if ($1 != NULL) {
+      Cmd_SetSymbol($1->vardecl.id, $1->vardecl.type);
+      Cmd_EvalStmt(ps, $1);
+      stmt_free($1);
+    }
     ps->errnum = 0;
   } else {
   }
@@ -198,16 +206,17 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
-    Cmd_SetSymbol($1->vardecl.id, $1->vardecl.type);
-    Cmd_EvalStmt(ps, $1);
-    stmt_free($1);
+    if ($1 != NULL) {
+      Cmd_SetSymbol($1->vardecl.id, $1->vardecl.type);
+      Cmd_EvalStmt(ps, $1);
+      stmt_free($1);
+    }
     ps->errnum = 0;
   }
 }
 | assignment
 {
   if (ps->interactive) {
-    ps->more = 0;
     ps->more = 0;
     Cmd_EvalStmt(ps, $1);
     stmt_free($1);
@@ -229,6 +238,7 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    ps->errnum = 0;
   }
 }
   /*
@@ -238,34 +248,41 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    ps->errnum = 0;
   }
 }
 | COMMENT
 {
   if (ps->interactive) {
     ps->more = 0;
+    ps->errnum = 0;
   }
 }
 | DOC
 {
   if (ps->interactive) {
     ps->more = 0;
+    ps->errnum = 0;
   }
 }
 | MODDOC
 {
   if (ps->interactive) {
     ps->more = 0;
+    ps->errnum = 0;
   }
 }
 | error
 {
   if (ps->interactive) {
-    ps->more = 0;
     if (!ps->quit) {
       syntax_error(ps, yyloc_row(@1), yyloc_col(@1), "invalid statement");
     }
+    ps->more = 0;
+    ps->errnum = 0;
   }
+  //yyclearin;
+  yyerrok;
 }
 ;
 
@@ -290,10 +307,6 @@ import:
 | IMPORT ID STRING_LITERAL ';'
 | IMPORT '.' STRING_LITERAL ';'
 | IMPORT '{' id_as_list '}' STRING_LITERAL ';'
-| IMPORT error
-{
-  print("import error\n");
-}
 ;
 
 id_as_list:
@@ -306,8 +319,6 @@ id_as_list:
 const_decl:
   CONST ID '=' basic_expr ';'
 | CONST ID type '=' basic_expr ';'
-| CONST ID error
-| CONST error
 ;
 
 var_decl:
@@ -329,14 +340,6 @@ var_decl:
   TYPE(type, NULL, @3);
   $$ = stmt_from_vardecl(id, type, $4);
 }
-| VAR ID error
-{
-  syntax_error(ps, yyloc_row(@2), yyloc_col(@2), "invalid variable declaration");
-}
-| VAR error
-{
-  syntax_error(ps, yyloc_row(@2), yyloc_col(@2), "invalid variable declaration");
-}
 ;
 
 free_var_decl:
@@ -345,10 +348,6 @@ free_var_decl:
   IDENT(id, $1, @1);
   TYPE(type, NULL, @2);
   $$ = stmt_from_vardecl(id, type, $3);
-}
-| ID FREE_ASSIGN error
-{
-  syntax_error(ps, yyloc_row(@3), yyloc_col(@3), "invalid variable declaration");
 }
 ;
 
@@ -405,7 +404,6 @@ assign_operator:
 return_expr:
   RETURN ';'
 | RETURN expr ';'
-| RETURN error
 ;
 
 jump_expr:
@@ -779,11 +777,6 @@ tuple_object:
 {
   $$ = expr_from_tuple(NULL);
 }
-| '(' error ')'
-{
-  syntax_error(ps, ps->row, ps->col, "invalid tuple");
-  $$ = NULL;
-}
 ;
 
 array_object:
@@ -798,11 +791,6 @@ array_object:
 | '[' ']'
 {
   $$ = expr_from_array(NULL);
-}
-| '[' error ']'
-{
-  syntax_error(ps, ps->row, ps->col, "invalid array");
-  $$ = NULL;
 }
 ;
 
@@ -880,7 +868,6 @@ func_decl:
 | FUNC name '(' para_list ')' block
 | FUNC name '(' ')' type block
 | FUNC name '(' ')' block
-| FUNC error
 ;
 
 name:
@@ -1010,7 +997,6 @@ func_type:
 | FUNC '(' para_list ')'
 | FUNC '(' ')' type
 | FUNC '(' ')'
-| FUNC error
 ;
 
 type_varg_list:

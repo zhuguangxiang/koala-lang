@@ -10,25 +10,25 @@
 #include "utf8.h"
 #include "log.h"
 
-static Object *string_concat(Object *self, Object *args)
+static Object *str_num_add(Object *x, Object *y)
 {
-  if (!String_Check(self)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+  if (!String_Check(x)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(x));
     return NULL;
   }
 
-  if (!String_Check(args)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(args));
+  if (!String_Check(y)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(y));
     return NULL;
   }
 
-  Object *ret;
+  Object *z;
   STRBUF(sbuf);
-  strbuf_append(&sbuf, String_AsStr(self));
-  strbuf_append(&sbuf, String_AsStr(args));
-  ret = String_New(strbuf_tostr(&sbuf));
+  strbuf_append(&sbuf, String_AsStr(x));
+  strbuf_append(&sbuf, String_AsStr(y));
+  z = String_New(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
-  return ret;
+  return z;
 }
 
 static Object *string_length(Object *self, Object *args)
@@ -66,9 +66,8 @@ static Object *string_fmt(Object *self, Object *ob)
 }
 
 static MethodDef string_methods[] = {
-  {"concat",  "s",  "s", string_concat},
+  {"concat",  "s",  "s", str_num_add},
   {"length",  NULL, "i", string_length},
-  {"__add__", "s",  "s", string_concat},
   {"__fmt__", "Lfmt.Formatter;", NULL, string_fmt},
   {NULL}
 };
@@ -125,6 +124,93 @@ static Object *string_str(Object *self, Object *args)
   return OB_INCREF(self);
 }
 
+static int str_num_cmp(Object *x, Object *y)
+{
+  if (!String_Check(x)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(x));
+    return -1;
+  }
+
+  if (!String_Check(y)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(y));
+    return -1;
+  }
+
+  char *s1 = String_AsStr(x);
+  char *s2 = String_AsStr(y);
+  return strcmp(s1, s2);
+}
+
+static Object *str_num_gt(Object *x, Object *y)
+{
+  int r = str_num_cmp(x, y);
+  return (r > 0) ? Bool_True() : Bool_False();
+}
+
+static Object *str_num_ge(Object *x, Object *y)
+{
+  int r = str_num_cmp(x, y);
+  return (r >= 0) ? Bool_True() : Bool_False();
+}
+
+static Object *str_num_lt(Object *x, Object *y)
+{
+  int r = str_num_cmp(x, y);
+  return (r < 0) ? Bool_True() : Bool_False();
+}
+
+static Object *str_num_le(Object *x, Object *y)
+{
+  int r = str_num_cmp(x, y);
+  return (r < 0) ? Bool_True() : Bool_False();
+}
+
+static Object *str_num_eq(Object *x, Object *y)
+{
+  int r = str_num_cmp(x, y);
+  return (r == 0) ? Bool_True() : Bool_False();
+}
+
+static Object *str_num_neq(Object *x, Object *y)
+{
+  int r = str_num_cmp(x, y);
+  return (r != 0) ? Bool_True() : Bool_False();
+}
+
+static NumberMethods string_numbers = {
+  .add = str_num_add,
+  .gt  = str_num_gt,
+  .ge  = str_num_ge,
+  .lt  = str_num_lt,
+  .le  = str_num_le,
+  .eq  = str_num_eq,
+  .neq = str_num_neq,
+};
+
+static Object *str_num_inadd(Object *x, Object *y)
+{
+  if (!String_Check(x)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(x));
+    return NULL;
+  }
+
+  if (!String_Check(y)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(y));
+    return NULL;
+  }
+
+  STRBUF(sbuf);
+  strbuf_append(&sbuf, String_AsStr(x));
+  strbuf_append(&sbuf, String_AsStr(y));
+  String_Set(x, strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+  return NULL;
+}
+
+static InplaceMethods string_inplaces = {
+  .add = str_num_inadd,
+};
+
 TypeObject String_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "String",
@@ -132,6 +218,8 @@ TypeObject String_Type = {
   .equal   = string_equal,
   .free    = string_free,
   .str     = string_str,
+  .number  = &string_numbers,
+  .inplace = &string_inplaces,
   .methods = string_methods,
 };
 

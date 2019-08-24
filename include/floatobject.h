@@ -33,17 +33,6 @@ static inline double Float_AsFlt(Object *ob)
   return fo->value;
 }
 
-static inline void Float_Set(Object *ob, double f)
-{
-  if (!Float_Check(ob)) {
-    error("object of '%.64s' is not a Float", OB_TYPE_NAME(ob));
-    return;
-  }
-
-  FloatObject *fo = (FloatObject *)ob;
-  fo->value = f;
-}
-
 #ifdef __cplusplus
 }
 #endif

@@ -41,16 +41,6 @@ static inline int64_t Integer_AsInt(Object *ob)
   return int_obj->value;
 }
 
-static inline void Integer_Set(Object *ob, int64_t val)
-{
-  if (!Integer_Check(ob)) {
-    error("object of '%.64s' is not an Integer.", OB_TYPE(ob)->name);
-    return;
-  }
-  IntegerObject *int_obj = (IntegerObject *)ob;
-  int_obj->value = val;
-}
-
 extern TypeObject Byte_Type;
 #define Byte_Check(ob) (OB_TYPE(ob) == &Byte_Type)
 Object *Byte_New(int val);

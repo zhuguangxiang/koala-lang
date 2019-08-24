@@ -114,10 +114,10 @@ typedef struct {
   func_t eq;
   func_t neq;
   /* bit */
-  func_t band;
-  func_t bor;
-  func_t bxor;
-  func_t bnot;
+  func_t and;
+  func_t or;
+  func_t xor;
+  func_t not;
 } NumberMethods;
 
 typedef struct {
@@ -129,9 +129,9 @@ typedef struct {
   func_t mod;
   func_t pow;
   /* bit */
-  func_t band;
-  func_t bor;
-  func_t bxor;
+  func_t and;
+  func_t or;
+  func_t xor;
 } InplaceMethods;
 
 typedef struct {
@@ -143,13 +143,6 @@ typedef struct {
   func_t getslice;
   /* __setslice__ */
   func_t setslice;
-} SequenceMethods;
-
-typedef struct {
-  /* __getitem__ */
-  func_t getitem;
-  /* __setitem__ */
-  func_t setitem;
 } MappingMethods;
 
 typedef struct {
@@ -197,8 +190,8 @@ struct typeobject {
 
   /* number operations */
   NumberMethods *number;
-  /* sequence operations */
-  SequenceMethods *sequence;
+  /* inplace number operations */
+  InplaceMethods *inplace;
   /* mapping operations */
   MappingMethods *mapping;
   /* iterator operations */
@@ -227,6 +220,14 @@ struct typeobject {
 extern TypeObject Type_Type;
 extern TypeObject Any_Type;
 #define Type_Check(ob) (OB_TYPE(ob) == &Type_Type)
+#define OB_NUM_FUNC(ob, name) ({ \
+  NumberMethods *nu = OB_TYPE(ob)->number; \
+  nu ? nu->name : NULL; \
+})
+#define OB_INPLACE_FUNC(ob, name) ({ \
+  InplaceMethods *nu = OB_TYPE(ob)->inplace; \
+  nu ? nu->name : NULL; \
+})
 int Type_Ready(TypeObject *type);
 void Type_Fini(TypeObject *type);
 Object *Type_Lookup(TypeObject *type, char *name);

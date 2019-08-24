@@ -3,7 +3,6 @@
  * Copyright (c) 2018 James, https://github.com/zhuguangxiang
  */
 
-#include <math.h>
 #include <pthread.h>
 #include "eval.h"
 #include "codeobject.h"
@@ -312,20 +311,9 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_ADD: {
       x = POP();
       y = POP();
-      if (Integer_Check(x) && Integer_Check(y)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        b = Integer_AsInt(y);
-        //overflow?
-        r = (int64_t)((uint64_t)a + b);
-        z = Integer_New(r);
-      } else if (String_Check(x) && String_Check(y)) {
-        STRBUF(sbuf);
-        strbuf_append(&sbuf, String_AsStr(x));
-        strbuf_append(&sbuf, String_AsStr(y));
-        String_Set(x, strbuf_tostr(&sbuf));
-        strbuf_fini(&sbuf);
-        z = OB_INCREF(x);
+      func_t fn = OB_NUM_FUNC(x, add);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
         z = Object_Call(x, opcode_map(OP_ADD), y);
       }
@@ -337,13 +325,9 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_SUB: {
       x = POP();
       y = POP();
-      if (Integer_Check(x) && Integer_Check(y)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        b = Integer_AsInt(y);
-        //overflow?
-        r = (int64_t)((uint64_t)a - b);
-        z = Integer_New(r);
+      func_t fn = OB_NUM_FUNC(x, sub);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
         z = Object_Call(x, opcode_map(OP_SUB), y);
       }
@@ -353,48 +337,209 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_MUL: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, mul);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_MUL), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_DIV: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, div);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_DIV), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_MOD: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, mod);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_MOD), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_POW: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, pow);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_POW), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_NEG: {
+      x = POP();
+      func_t fn = OB_NUM_FUNC(x, neg);
+      if (fn != NULL) {
+        z = fn(x, NULL);
+      } else {
+        z = Object_Call(x, opcode_map(OP_NEG), NULL);
+      }
+      OB_DECREF(x);
+      PUSH(z);
       break;
     }
     case OP_GT: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, gt);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_GT), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_GE: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, ge);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_GE), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_LT: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, lt);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_LT), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_LE: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, le);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_LE), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_EQ: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, eq);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_EQ), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_NEQ: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, neq);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_NEQ), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_BAND: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, and);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_BAND), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_BOR: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, or);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_BOR), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_BXOR: {
+      x = POP();
+      y = POP();
+      func_t fn = OB_NUM_FUNC(x, xor);
+      if (fn != NULL) {
+        z = fn(x, y);
+      } else {
+        z = Object_Call(x, opcode_map(OP_BXOR), y);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_BNOT: {
+      x = POP();
+      func_t fn = OB_NUM_FUNC(x, not);
+      if (fn != NULL) {
+        z = fn(x, NULL);
+      } else {
+        z = Object_Call(x, opcode_map(OP_BNOT), NULL);
+      }
+      OB_DECREF(x);
+      PUSH(z);
       break;
     }
     case OP_AND: {
@@ -409,45 +554,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_ADD: {
       x = POP();
       y = POP();
-      if (Integer_Check(x)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        if (Integer_Check(y)) {
-          b = Integer_AsInt(y);
-        } else if (Byte_Check(y)) {
-          b = Byte_AsInt(y);
-        } else if (Float_Check(y)) {
-          b = (int64_t)Float_AsFlt(y);
-        } else {
-          panic("not implemented");
-        }
-        //overflow?
-        r = (int64_t)((uint64_t)a + b);
-        Integer_Set(x, r);
-      } else if (Float_Check(x)) {
-        double a, r;
-        a = Float_AsFlt(x);
-        if (Float_Check(y)) {
-          double b = Float_AsFlt(y);
-          r = a + b;
-        } else if (Integer_Check(y)) {
-          int64_t b = Integer_AsInt(y);
-          r = a + b;
-        } else if (Byte_Check(y)) {
-          int b = Byte_AsInt(y);
-          r = a + b;
-        } else {
-          panic("not implemented");
-        }
-        Float_Set(x, r);
-      } else if (String_Check(x) && String_Check(y)) {
-        STRBUF(sbuf);
-        strbuf_append(&sbuf, String_AsStr(x));
-        strbuf_append(&sbuf, String_AsStr(y));
-        String_Set(x, strbuf_tostr(&sbuf));
-        strbuf_fini(&sbuf);
+      func_t fn = OB_INPLACE_FUNC(x, add);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_ADD), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_ADD), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -456,40 +567,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_SUB: {
       x = POP();
       y = POP();
-      if (Integer_Check(x)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        if (Integer_Check(y)) {
-          b = Integer_AsInt(y);
-          r = (int64_t)((uint64_t)a - b);
-        } else if (Byte_Check(y)) {
-          b = Byte_AsInt(y);
-          r = (int64_t)((uint64_t)a - b);
-        } else if (Float_Check(y)) {
-          double f = Float_AsFlt(y);
-          r = (int64_t)((double)a - f);
-        } else {
-          panic("not implemented");
-        }
-        Integer_Set(x, r);
-      } else if (Float_Check(x)) {
-        double a, r;
-        a = Float_AsFlt(x);
-        if (Float_Check(y)) {
-          double b = Float_AsFlt(y);
-          r = a - b;
-        } else if (Integer_Check(y)) {
-          int64_t b = Integer_AsInt(y);
-          r = a - b;
-        } else if (Byte_Check(y)) {
-          int b = Byte_AsInt(y);
-          r = a - b;
-        } else {
-          panic("not implemented");
-        }
-        Float_Set(x, r);
+      func_t fn = OB_INPLACE_FUNC(x, sub);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -498,40 +580,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_MUL: {
       x = POP();
       y = POP();
-      if (Integer_Check(x)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        if (Integer_Check(y)) {
-          b = Integer_AsInt(y);
-          r = (int64_t)((uint64_t)a * b);
-        } else if (Byte_Check(y)) {
-          b = Byte_AsInt(y);
-          r = (int64_t)((uint64_t)a * b);
-        } else if (Float_Check(y)) {
-          double f = Float_AsFlt(y);
-          r = (int64_t)((double)a * f);
-        } else {
-          panic("not implemented");
-        }
-        Integer_Set(x, r);
-      } else if (Float_Check(x)) {
-        double a, r;
-        a = Float_AsFlt(x);
-        if (Float_Check(y)) {
-          double b = Float_AsFlt(y);
-          r = a * b;
-        } else if (Integer_Check(y)) {
-          int64_t b = Integer_AsInt(y);
-          r = a * b;
-        } else if (Byte_Check(y)) {
-          int b = Byte_AsInt(y);
-          r = a * b;
-        } else {
-          panic("not implemented");
-        }
-        Float_Set(x, r);
+      func_t fn = OB_INPLACE_FUNC(x, mul);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_MUL), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -540,40 +593,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_DIV: {
       x = POP();
       y = POP();
-      if (Integer_Check(x)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        if (Integer_Check(y)) {
-          b = Integer_AsInt(y);
-          r = (int64_t)((uint64_t)a / b);
-        } else if (Byte_Check(y)) {
-          b = Byte_AsInt(y);
-          r = (int64_t)((uint64_t)a / b);
-        } else if (Float_Check(y)) {
-          double f = Float_AsFlt(y);
-          r = (int64_t)((double)a / f);
-        } else {
-          panic("not implemented");
-        }
-        Integer_Set(x, r);
-      } else if (Float_Check(x)) {
-        double a, r;
-        a = Float_AsFlt(x);
-        if (Float_Check(y)) {
-          double b = Float_AsFlt(y);
-          r = a / b;
-        } else if (Integer_Check(y)) {
-          int64_t b = Integer_AsInt(y);
-          r = a / b;
-        } else if (Byte_Check(y)) {
-          int b = Byte_AsInt(y);
-          r = a / b;
-        } else {
-          panic("not implemented");
-        }
-        Float_Set(x, r);
+      func_t fn = OB_INPLACE_FUNC(x, div);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_DIV), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -582,40 +606,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_POW: {
       x = POP();
       y = POP();
-      if (Integer_Check(x)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        if (Integer_Check(y)) {
-          b = Integer_AsInt(y);
-          r = (int64_t)powl(a, b);
-        } else if (Byte_Check(y)) {
-          b = Byte_AsInt(y);
-          r = (int64_t)powl(a, b);
-        } else if (Float_Check(y)) {
-          double f = Float_AsFlt(y);
-          r = (int64_t)powl(a, f);
-        } else {
-          panic("not implemented");
-        }
-        Integer_Set(x, r);
-      } else if (Float_Check(x)) {
-        double a, r;
-        a = Float_AsFlt(x);
-        if (Float_Check(y)) {
-          double b = Float_AsFlt(y);
-          r = powl(a, b);
-        } else if (Integer_Check(y)) {
-          int64_t b = Integer_AsInt(y);
-          r = powl(a, b);
-        } else if (Byte_Check(y)) {
-          int b = Byte_AsInt(y);
-          r = powl(a, b);
-        } else {
-          panic("not implemented");
-        }
-        Float_Set(x, r);
+      func_t fn = OB_INPLACE_FUNC(x, pow);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_POW), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -624,40 +619,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_MOD: {
       x = POP();
       y = POP();
-      if (Integer_Check(x)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        if (Integer_Check(y)) {
-          b = Integer_AsInt(y);
-          r = (int64_t)((uint64_t)a % b);
-        } else if (Byte_Check(y)) {
-          b = Byte_AsInt(y);
-          r = (int64_t)((uint64_t)a % b);
-        } else if (Float_Check(y)) {
-          double f = Float_AsFlt(y);
-          r = (int64_t)((uint64_t)a % (int64_t)f);
-        } else {
-          panic("not implemented");
-        }
-        Integer_Set(x, r);
-      } else if (Float_Check(x)) {
-        double a, r;
-        a = Float_AsFlt(x);
-        if (Float_Check(y)) {
-          double b = Float_AsFlt(y);
-          r = (int64_t)a % (int64_t)b;
-        } else if (Integer_Check(y)) {
-          int64_t b = Integer_AsInt(y);
-          r = (int64_t)a % (int64_t)b;
-        } else if (Byte_Check(y)) {
-          int b = Byte_AsInt(y);
-          r = (int64_t)a % (int64_t)b;
-        } else {
-          panic("not implemented");
-        }
-        Float_Set(x, r);
+      func_t fn = OB_INPLACE_FUNC(x, mod);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_MOD), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -666,14 +632,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_AND: {
       x = POP();
       y = POP();
-      if (Integer_Check(x) && Integer_Check(y)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        b = Integer_AsInt(y);
-        r = (int64_t)((uint64_t)a & (uint64_t)b);
-        Integer_Set(x, r);
+      func_t fn = OB_INPLACE_FUNC(x, and);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_AND), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -682,14 +645,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_OR: {
       x = POP();
       y = POP();
-      if (Integer_Check(x) && Integer_Check(y)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        b = Integer_AsInt(y);
-        r = (int64_t)((uint64_t)a | (uint64_t)b);
-        Integer_Set(x, r);
+      func_t fn = OB_INPLACE_FUNC(x, or);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_OR), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -698,14 +658,11 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_XOR: {
       x = POP();
       y = POP();
-      if (Integer_Check(x) && Integer_Check(y)) {
-        int64_t a, b, r;
-        a = Integer_AsInt(x);
-        b = Integer_AsInt(y);
-        r = (int64_t)((uint64_t)a ^ (uint64_t)b);
-        Integer_Set(x, r);
+      func_t fn = OB_INPLACE_FUNC(x, xor);
+      if (fn != NULL) {
+        z = fn(x, y);
       } else {
-        Object_Call(x, opcode_map(OP_INPLACE_XOR), y);
+        z = Object_Call(x, opcode_map(OP_INPLACE_XOR), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);

@@ -184,6 +184,208 @@ static void type_show(TypeObject *type)
   }
 }
 
+static void Type_Add_Numbers(TypeObject *type, NumberMethods *meths)
+{
+  MethodDef def;
+  if (meths->add) {
+    def.name = "__add__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->sub) {
+    def.name = "__sub__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->sub;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->mul) {
+    def.name = "__mul__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->mul;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->div) {
+    def.name = "__div__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->div;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->mod) {
+    def.name = "__mod__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->mod;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->pow) {
+    def.name = "__pow__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->pow;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->neg) {
+    def.name = "__neg__";
+    def.ptype = NULL;
+    def.rtype = "A";
+    def.func = meths->neg;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->gt) {
+    def.name = "__gt__";
+    def.ptype = "A";
+    def.rtype = "z";
+    def.func = meths->gt;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->ge) {
+    def.name = "__ge__";
+    def.ptype = "A";
+    def.rtype = "z";
+    def.func = meths->ge;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->lt) {
+    def.name = "__lt__";
+    def.ptype = "A";
+    def.rtype = "z";
+    def.func = meths->lt;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->le) {
+    def.name = "__le__";
+    def.ptype = "A";
+    def.rtype = "z";
+    def.func = meths->le;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->eq) {
+    def.name = "__eq__";
+    def.ptype = "A";
+    def.rtype = "z";
+    def.func = meths->eq;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->neq) {
+    def.name = "__neq__";
+    def.ptype = "A";
+    def.rtype = "z";
+    def.func = meths->neq;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->and) {
+    def.name = "__and__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->and;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->or) {
+    def.name = "__or__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->or;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->xor) {
+    def.name = "__xor__";
+    def.ptype = "A";
+    def.rtype = "A";
+    def.func = meths->xor;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->not) {
+    def.name = "__not__";
+    def.ptype = NULL;
+    def.rtype = "A";
+    def.func = meths->not;
+    Type_Add_MethodDef(type, &def);
+  }
+}
+
+static void Type_Add_Inplaces(TypeObject *type, InplaceMethods *meths)
+{
+  MethodDef def;
+  if (meths->add) {
+    def.name = "__inadd__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->sub) {
+    def.name = "__insub__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->mul) {
+    def.name = "__inmul__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->div) {
+    def.name = "__indiv__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->mod) {
+    def.name = "__inmod__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->pow) {
+    def.name = "__inpow__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->and) {
+    def.name = "__inand__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->or) {
+    def.name = "__inor__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+  if (meths->xor) {
+    def.name = "__inxor__";
+    def.ptype = "A";
+    def.rtype = NULL;
+    def.func = meths->add;
+    Type_Add_MethodDef(type, &def);
+  }
+}
+
+static void Type_Add_Mapping(TypeObject *type, MappingMethods *meths)
+{
+
+}
+
+static void Type_Add_Iterator(TypeObject *type, IteratorMethods *meths)
+{
+
+}
+
 int Type_Ready(TypeObject *type)
 {
   if (type->hash && !type->equal) {
@@ -211,6 +413,22 @@ int Type_Ready(TypeObject *type)
   if (type->str != NULL) {
     MethodDef meth = {"__str__", NULL, "s", type->str};
     Type_Add_MethodDef(type, &meth);
+  }
+
+  if (type->number != NULL) {
+    Type_Add_Numbers(type, type->number);
+  }
+
+  if (type->inplace != NULL) {
+    Type_Add_Inplaces(type, type->inplace);
+  }
+
+  if (type->mapping != NULL) {
+    Type_Add_Mapping(type, type->mapping);
+  }
+
+  if (type->iterator != NULL) {
+    Type_Add_Iterator(type, type->iterator);
   }
 
   if (type->methods != NULL) {
