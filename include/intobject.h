@@ -73,15 +73,19 @@ static inline Object *Bool_False(void)
 
 static inline int Bool_IsTrue(Object *ob)
 {
-  if (OB_TYPE(ob) != &Bool_Type)
-    return -1;
+  if (!Bool_Check(ob)) {
+    error("object of '%.64s' is not a Bool.", OB_TYPE(ob)->name);
+    return 0;
+  }
   return ob == (Object *)&OB_True ? 1 : 0;
 }
 
 static inline int Bool_IsFalse(Object *ob)
 {
-  if (OB_TYPE(ob) != &Bool_Type)
-    return -1;
+  if (!Bool_Check(ob)) {
+    error("object of '%.64s' is not a Bool.", OB_TYPE(ob)->name);
+    return 0;
+  }
   return ob == (Object *)&OB_False ? 1 : 0;
 }
 

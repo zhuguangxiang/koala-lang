@@ -245,6 +245,21 @@ char *String_AsStr(Object *self)
   return s->wstr;
 }
 
+int String_IsEmpty(Object *self)
+{
+  if (!String_Check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  StringObject *s = (StringObject *)self;
+  if (s->wstr == NULL)
+    return 1;
+  if (strlen(s->wstr) == 0)
+    return 1;
+  return 0;
+}
+
 void String_Set(Object *self, char *str)
 {
   if (!String_Check(self)) {
@@ -272,7 +287,7 @@ static void char_free(Object *ob)
 static Object *char_str(Object *self, Object *ob)
 {
   if (!Char_Check(self)) {
-    error("object of '%.64s' is not an Char", OB_TYPE_NAME(self));
+    error("object of '%.64s' is not a Char", OB_TYPE_NAME(self));
     return NULL;
   }
 

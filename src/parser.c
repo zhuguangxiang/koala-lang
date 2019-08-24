@@ -222,14 +222,22 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_SUB:
   case OP_MUL:
   case OP_DIV:
+  case OP_POW:
   case OP_MOD:
+  case OP_NEG:
   case OP_GT:
   case OP_GE:
   case OP_LT:
   case OP_LE:
   case OP_EQ:
   case OP_NEQ:
-  case OP_NEG:
+  case OP_BAND:
+  case OP_BOR:
+  case OP_BXOR:
+  case OP_BNOT:
+  case OP_AND:
+  case OP_OR:
+  case OP_NOT:
   case OP_INPLACE_ADD:
   case OP_INPLACE_SUB:
   case OP_INPLACE_MUL:
@@ -592,6 +600,43 @@ static void code_attr_expr(ParserState *ps, Expr *exp)
   }
 }
 
+static void code_unary_expr(ParserState *ps, Expr *exp)
+{
+  if (has_error(ps))
+    return;
+
+  UnaryOpKind op = exp->unary.op;
+  switch (op) {
+  case UNARY_NEG:
+    CODE_OP(OP_NEG);
+    break;
+  case UNARY_BIT_NOT:
+    CODE_OP(OP_BNOT);
+    break;
+  case UNARY_LNOT:
+    CODE_OP(OP_NOT);
+    break;
+  default:
+    break;
+  }
+}
+
+static void code_binary_expr(ParserState *ps, Expr *exp)
+{
+  if (has_error(ps))
+    return;
+
+  static int opcodes[] = {
+    0,
+    OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
+    OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
+    OP_BAND, OP_BXOR, OP_BOR,
+    OP_AND, OP_OR,
+  };
+  BinaryOpKind op = exp->binary.op;
+  CODE_OP(opcodes[op]);
+}
+
 static void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
@@ -655,11 +700,29 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     break;
   }
   case UNARY_KIND: {
-    /* code */
+    Expr *e = exp->unary.exp;
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (e->desc == NULL || e->sym == NULL) {
+      syntax_error(ps, e->row, e->col, "cannot resolve expr's type");
+    }
+    code_unary_expr(ps, exp);
     break;
   }
   case BINARY_KIND: {
-    /* code */
+    Expr *rexp = exp->binary.rexp;
+    Expr *lexp = exp->binary.lexp;
+    rexp->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, rexp);
+    if (rexp->desc == NULL || rexp->sym == NULL) {
+      syntax_error(ps, rexp->row, rexp->col, "cannot resolve expr's type");
+    }
+    lexp->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, lexp);
+    if (lexp->desc == NULL || lexp->sym == NULL) {
+      syntax_error(ps, lexp->row, lexp->col, "cannot resolve expr's type");
+    }
+    code_binary_expr(ps, exp);
     break;
   }
   case ATTRIBUTE_KIND: {

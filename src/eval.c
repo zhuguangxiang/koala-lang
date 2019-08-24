@@ -135,6 +135,26 @@ static struct list_head kslist;
   f->locvars[i] = v;             \
 })
 
+static int logic_true(Object *ob)
+{
+  if (ob == NULL)
+    return 0;
+  if (Bool_Check(ob)) {
+    return Bool_IsTrue(ob) ? 1 : 0;
+  } else if (Integer_Check(ob)) {
+    return Integer_AsInt(ob) ? 1 : 0;
+  } else if (Byte_Check(ob)) {
+    return Byte_AsInt(ob) ? 1 : 0;
+  } else if (String_Check(ob)) {
+    return String_IsEmpty(ob) ? 0 : 1;
+  } else if (Char_Check(ob)) {
+    return Char_AsChar(ob) ? 1 : 0;
+  } else {
+    panic("Not Implemented");
+    return 0;
+  }
+}
+
 Object *Koala_EvalFrame(Frame *f)
 {
   int loopflag = 1;
@@ -543,12 +563,31 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_AND: {
+      x = POP();
+      y = POP();
+      int r = logic_true(x) && logic_true(y);
+      z = r ? Bool_True() : Bool_False();
+      PUSH(z);
+      OB_DECREF(x);
+      OB_DECREF(y);
       break;
     }
     case OP_OR: {
+      x = POP();
+      y = POP();
+      int r = logic_true(x) || logic_true(y);
+      z = r ? Bool_True() : Bool_False();
+      PUSH(z);
+      OB_DECREF(x);
+      OB_DECREF(y);
       break;
     }
     case OP_NOT: {
+      x = POP();
+      int r = logic_true(x);
+      z = r ? Bool_False() : Bool_True();
+      PUSH(z);
+      OB_DECREF(x);
       break;
     }
     case OP_INPLACE_ADD: {
