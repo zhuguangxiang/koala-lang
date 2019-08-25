@@ -12,6 +12,7 @@ Expr *expr_from_nil(void)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = NIL_KIND;
+  exp->hasvalue = 1;
   return exp;
 }
 
@@ -19,6 +20,7 @@ Expr *expr_from_self(void)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SELF_KIND;
+  exp->hasvalue = 1;
   return exp;
 }
 
@@ -300,12 +302,13 @@ Stmt *stmt_from_constdecl(Ident id, Type type, Expr *exp)
   return stmt;
 }
 
-Stmt *stmt_from_vardecl(Ident id, Type type, Expr *exp)
+Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = VAR_KIND;
   stmt->vardecl.id = id;
-  stmt->vardecl.type = type;
+  if (type != NULL)
+    stmt->vardecl.type = *type;
   stmt->vardecl.exp = exp;
   return stmt;
 }
@@ -320,15 +323,17 @@ Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right)
   return stmt;
 }
 
-Stmt *stmt_from_funcdecl(Ident id, Vector *typeparams, Vector *args,
-                         Type ret, Vector *stmts)
+Stmt *stmt_from_funcdecl(Ident id, Vector *typeparas, Vector *args,
+                         Type *ret, Stmt *s)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = FUNC_KIND;
   stmt->funcdecl.id = id;
+  stmt->funcdecl.typeparas = typeparas;
   stmt->funcdecl.args = args;
-  stmt->funcdecl.ret = ret;
-  stmt->funcdecl.body = stmts;
+  if (ret != NULL)
+    stmt->funcdecl.ret = *ret;
+  stmt->funcdecl.stmt = s;
   return stmt;
 }
 
@@ -348,7 +353,15 @@ Stmt *stmt_from_expr(Expr *exp)
   return stmt;
 }
 
- void stmt_free(Stmt *stmt)
+Stmt *stmt_from_block(Vector *list)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = BLOCK_KIND;
+  stmt->block.vec = list;
+  return stmt;
+}
+
+void stmt_free(Stmt *stmt)
 {
   if (stmt == NULL)
     return;

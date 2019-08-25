@@ -14,6 +14,8 @@
 #include "moduleobject.h"
 #include "tupleobject.h"
 #include "fieldobject.h"
+#include "methodobject.h"
+#include "codeobject.h"
 #include "eval.h"
 #include "codeobject.h"
 #include <readline/readline.h>
@@ -96,32 +98,6 @@ void Koala_ReadLine(void)
   fini_cmdline_env();
 }
 
-static void add_var(Symbol *sym, Object *ob)
-{
-  if (sym == NULL)
-    return;
-
-  switch (sym->kind) {
-  case SYM_CONST: {
-    break;
-  }
-  case SYM_VAR: {
-    Object *field = Field_New(sym->name, sym->desc);
-    Field_SetFunc(field, Field_Default_Set, Field_Default_Get);
-    Module_Add_Var(ob, field);
-    OB_DECREF(field);
-    break;
-  }
-  case SYM_FUNC: {
-    break;
-  }
-  default: {
-    panic("invalid branch:%d", sym->kind);
-    break;
-  }
-  }
-}
-
 static void _get_consts_(ConstValue *val, int index, void *arg)
 {
   Object *tuple = arg;
@@ -164,9 +140,45 @@ static Object *getcode(CodeBlock *block)
   return ob;
 }
 
-void Cmd_SetSymbol(Ident id, Type type)
+void Cmd_Add_Var(Ident id, Type type)
 {
   sym = stable_add_var(mod.stbl, id.name, type.desc);
+}
+
+void Cmd_Add_Func(Ident id, Type type)
+{
+  sym = stable_add_func(mod.stbl, id.name, type.desc);
+}
+
+static void add_symbol_to_mobject(Symbol *sym, Object *ob)
+{
+  if (sym == NULL)
+    return;
+
+  switch (sym->kind) {
+  case SYM_CONST: {
+    break;
+  }
+  case SYM_VAR: {
+    Object *field = Field_New(sym->name, sym->desc);
+    Field_SetFunc(field, Field_Default_Set, Field_Default_Get);
+    Module_Add_Var(ob, field);
+    OB_DECREF(field);
+    break;
+  }
+  case SYM_FUNC: {
+    Object *code = getcode(sym->func.code);
+    Object *meth = Method_New(sym->name, code);
+    Module_Add_Func(ob, meth);
+    OB_DECREF(code);
+    OB_DECREF(meth);
+    break;
+  }
+  default: {
+    panic("invalid branch:%d", sym->kind);
+    break;
+  }
+  }
 }
 
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
@@ -184,12 +196,14 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
     codeblock_free(funcsym->func.code);
     funcsym->func.code = NULL;
   } else {
-    add_var(sym, mo);
+    add_symbol_to_mobject(sym, mo);
     sym = NULL;
     if (funcsym->func.code != NULL) {
       KoalaState *ks = pthread_getspecific(kskey);
-      if (ks == NULL)
+      if (ks == NULL) {
+        kstate.top = -1;
         pthread_setspecific(kskey, &kstate);
+      }
       Object *code = getcode(funcsym->func.code);
       Koala_EvalCode(code, mo, NULL);
       OB_DECREF(code);

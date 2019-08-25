@@ -152,7 +152,7 @@ void Module_Add_VarDefs(Object *self, FieldDef *def)
 void Module_Add_Func(Object *self, Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
-  struct mnode *node = mnode_new(meth->name, (Object *)meth);
+  struct mnode *node = mnode_new(meth->name, ob);
   meth->owner = self;
   int res = hashmap_add(get_mtbl(self), node);
   if (res != 0)

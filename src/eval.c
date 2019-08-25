@@ -315,6 +315,7 @@ Object *Koala_EvalFrame(Frame *f)
           OB_DECREF(o);
         }
       }
+      ks->top = top - base;
       p = Object_Call(y, String_AsStr(x), z);
       PUSH(p);
       OB_DECREF(x);
@@ -824,8 +825,5 @@ Object *Koala_EvalCode(Object *self, Object *ob, Object *args)
   CodeObject *co = (CodeObject *)self;
   Frame *f = new_frame(ks, self, co->locals);
   prepare_args(f, ob, args);
-  Object *res = Koala_EvalFrame(f);
-  if (ks->frame)
-    panic("ks->frame is not null");
-  return res;
+  return Koala_EvalFrame(f);
 }

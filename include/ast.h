@@ -105,6 +105,7 @@ typedef struct expr {
   struct expr *right;
   int argc;
   int leftside;
+  int hasvalue;
   union {
     struct {
       int omit;
@@ -202,7 +203,7 @@ typedef enum stmtkind {
   /* expression */
   EXPR_KIND,
   /* statements */
-  LIST_KIND,
+  BLOCK_KIND,
   /* proto/native */
   PROTO_KIND,
   /* class */
@@ -230,6 +231,8 @@ typedef enum assignopkind {
 
 typedef struct stmt {
   StmtKind kind;
+  int last;
+  int hasvalue;
   union {
     struct {
       Ident id;
@@ -252,7 +255,7 @@ typedef struct stmt {
       /* return type */
       Type ret;
       /* body */
-      Vector *body;
+      struct stmt *stmt;
     } funcdecl;
     struct {
       Expr *exp;
@@ -260,17 +263,22 @@ typedef struct stmt {
     struct {
       Expr *exp;
     } expr;
+    struct {
+      Vector *vec;
+      int noscope;
+    } block;
   };
 } Stmt;
 
 void stmt_free(Stmt *stmt);
 Stmt *stmt_from_constdecl(Ident id, Type type, Expr *exp);
-Stmt *stmt_from_vardecl(Ident id, Type type, Expr *exp);
+Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);
-Stmt *stmt_from_funcDecl(Ident id, Vector *typeparams, Vector *args,
-                         Type ret, Vector *stmts);
+Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,
+                         Type *ret, Stmt *stmt);
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_expr(Expr *exp);
+Stmt *stmt_from_block(Vector *list);
 
 #ifdef __cplusplus
 }

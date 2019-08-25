@@ -207,6 +207,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
+  case OP_POP_TOP:
   case OP_PRINT:
   case OP_DUP:
   case OP_LOAD_0:
@@ -335,13 +336,13 @@ static inline void unit_check(ParserUnit *u)
     panic("u->jmps is not empty");
 }
 
-#define unit_free(ps) \
-({ \
-  unit_check(ps->u); \
-  vector_fini(&ps->u->jmps, NULL, NULL); \
-  kfree(ps->u); \
-  ps->u = NULL; \
-})
+static inline void unit_free(ParserState *ps)
+{
+  unit_check(ps->u);
+  vector_fini(&ps->u->jmps, NULL, NULL);
+  kfree(ps->u);
+  ps->u = NULL;
+}
 
 static void unit_show(ParserState *ps)
 {
@@ -355,41 +356,55 @@ static void unit_show(ParserState *ps)
   puts("---------------------------------------------");
 }
 
-static void merge_into_init(ParserUnit *u)
+static void merge_into_func(ParserUnit *u, char *name, int create)
 {
-  Symbol *sym = stable_get(u->stbl, "__init__");
+  Symbol *sym = stable_get(u->stbl, name);
   if (sym == NULL) {
-    debug("create __init__");
+    if (!create)
+      panic("func '%s' is not exist", name);
+    debug("create '%s'", name);
     TypeDesc *proto = desc_from_proto(NULL, NULL);
-    sym = stable_add_func(u->stbl, "__init__", proto);
+    sym = stable_add_func(u->stbl, name, proto);
     TYPE_DECREF(proto);
     sym->func.code = u->block;
-    u->block = NULL;
   } else {
-    debug("merge into __init__");
+    debug("'%s' exist", name);
     if (!sym->func.code) {
       sym->func.code = u->block;
     } else {
       codeblock_merge(u->block, sym->func.code);
       codeblock_free(u->block);
     }
-    u->block = NULL;
   }
+  u->block = NULL;
 }
 
-static void merge(ParserState *ps)
+static void parser_merge(ParserState *ps)
 {
   ParserUnit *u = ps->u;
 
   switch (u->scope) {
   case SCOPE_MODULE: {
     /* module has codes for __init__ */
-    if (u->block->bytes > 0) {
-      merge_into_init(u);
+    if (u->block && u->block->bytes > 0) {
+      merge_into_func(u, "__init__", 1);
     } else {
       codeblock_free(u->block);
       u->block = NULL;
     }
+    break;
+  }
+  case SCOPE_FUNC: {
+    Symbol *sym = u->sym;
+    if (sym == NULL)
+      panic("symbol is null");
+    if (sym->func.code != NULL)
+      panic("func '%s' already has codes", sym->name);
+    sym->func.code = u->block;
+    u->block = NULL;
+    /* free parserunit's symbol table */
+    stable_free(u->stbl);
+    u->sym = NULL;
     break;
   }
   default:
@@ -418,7 +433,7 @@ void parser_exit_scope(ParserState *ps)
 #if !defined(NDEBUG)
   unit_show(ps);
 #endif
-  merge(ps);
+  parser_merge(ps);
   unit_free(ps);
   ps->depth--;
 
@@ -643,6 +658,8 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
   if (ps->errnum > MAX_ERRORS)
     return;
 
+  /* default expr has value */
+  exp->hasvalue = 1;
   switch (exp->kind) {
   case SELF_KIND: {
     ParserUnit *u = ps->u;
@@ -693,6 +710,9 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
       } else if (exp->ctx == EXPR_ASSIGN) {
         CODE_OP(OP_LOAD_0);
         CODE_OP_S(OP_GET_VALUE, exp->id.name);
+      } else if (exp->ctx == EXPR_CALL_FUNC) {
+        CODE_OP(OP_LOAD_0);
+        CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
       } else {
         panic("invalid expr's ctx %d", exp->ctx);
       }
@@ -706,6 +726,8 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     if (e->desc == NULL || e->sym == NULL) {
       syntax_error(ps, e->row, e->col, "cannot resolve expr's type");
     }
+    exp->sym = e->sym;
+    exp->desc = TYPE_INCREF(e->desc);
     code_unary_expr(ps, exp);
     break;
   }
@@ -745,10 +767,11 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
     if (!has_error(ps)) {
-      if (exp->ctx == EXPR_LOAD)
+      if (exp->ctx == EXPR_LOAD || exp->ctx == EXPR_ASSIGN) {
         CODE_OP(OP_SUBSCR_LOAD);
-      else
+      } else {
         CODE_OP(OP_SUBSCR_STORE);
+      }
     }
     break;
   }
@@ -766,14 +789,17 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, lexp);
     if (lexp->sym == NULL)
       return;
-
+#if 0
+    //FIXME
     if (lexp->desc == NULL || lexp->desc->kind != TYPE_PROTO)
       panic("call proto error");
+
     TypeDesc *desc = lexp->desc;
     //check_call_args(ps, exp, desc->proto.args);
     exp->desc = TYPE_INCREF(desc->proto.ret);
     /* set call exp's sym as func's retval symbol */
     exp->sym = get_desc_symbol(ps, desc->proto.ret);
+#endif
     break;
   }
   case SLICE_KIND: {
@@ -984,6 +1010,21 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     break;
   }
   case FUNC_KIND: {
+    char *funcname = stmt->funcdecl.id.name;
+    parser_enter_scope(ps, SCOPE_FUNC);
+    debug("parse function '%s'", funcname);
+    ps->u->stbl = stable_new();
+    ParserUnit *up = vector_top_back(&ps->ustack);
+    if (up == NULL)
+      panic("func '%s' up-unit is null", funcname);
+    Symbol *sym = stable_get(up->stbl, funcname);
+    if (sym == NULL || sym->kind != SYM_FUNC)
+      panic("symbol '%s' is not a func", funcname);
+    ps->u->sym = sym;
+    stmt->funcdecl.stmt->block.noscope = 1;
+    parse_stmt(ps, stmt->funcdecl.stmt);
+    parser_exit_scope(ps);
+    debug("end of function '%s'", funcname);
     break;
   }
   case RETURN_KIND: {
@@ -996,18 +1037,47 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     exp->ctx = EXPR_LOAD;
     if (ps->interactive && ps->depth <= 1) {
       parser_visit_expr(ps, exp);
-      if (ps->errnum > MAX_ERRORS)
-        return;
-      CODE_OP(OP_PRINT);
-    } else if (exp->kind != LITERAL_KIND) {
+      if (!has_error(ps)) {
+        CODE_OP(OP_PRINT);
+      }
+    } else  {
       parser_visit_expr(ps, exp);
-      if (ps->errnum > MAX_ERRORS)
-        return;
-      CODE_OP(OP_POP_TOP);
-    } else {
-      /* empty branch */
-      panic("empty branch");
+      stmt->hasvalue = exp->hasvalue;
+      if (!has_error(ps)) {
+        if (!stmt->last && stmt->hasvalue) {
+          CODE_OP(OP_POP_TOP);
+        }
+      }
     }
+    break;
+  }
+  case BLOCK_KIND: {
+    if (!stmt->block.noscope)
+      parser_enter_scope(ps, SCOPE_BLOCK);
+    Vector *vec = stmt->block.vec;
+    int sz = vector_size(vec);
+    Stmt *s;
+    for (int i = 0; i < sz; ++i) {
+      s = vector_get(vec, i);
+      if (i == sz - 1)
+        s->last = 1;
+      parse_stmt(ps, s);
+    }
+    if (!has_error(ps)) {
+      if (s->last && s->hasvalue) {
+        ScopeKind scope = ps->u->scope;
+        if (scope == SCOPE_FUNC) {
+          CODE_OP(OP_RETURN_VALUE);
+        } else if (scope == SCOPE_BLOCK) {
+          CODE_OP(OP_POP_TOP);
+        } else {
+          /* what's here? */
+          ;
+        }
+      }
+    }
+    if (!stmt->block.noscope)
+      parser_exit_scope(ps);
     break;
   }
   default:

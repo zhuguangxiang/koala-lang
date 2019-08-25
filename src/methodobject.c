@@ -6,15 +6,28 @@
 #include "methodobject.h"
 #include "tupleobject.h"
 #include "stringobject.h"
+#include "codeobject.h"
+#include "eval.h"
 
 Object *CMethod_New(MethodDef *def)
 {
   MethodObject *method = kmalloc(sizeof(*method));
   Init_Object_Head(method, &Method_Type);
-  method->name = def->name;
-  method->desc = string_to_proto(def->ptype, def->rtype);
+  method->name  = def->name;
+  method->desc  = string_to_proto(def->ptype, def->rtype);
   method->cfunc = 1,
-  method->ptr = def->func;
+  method->ptr   = def->func;
+  return (Object *)method;
+}
+
+Object *Method_New(char *name, Object *code)
+{
+  CodeObject *co = (CodeObject *)code;
+  MethodObject *method = kmalloc(sizeof(*method));
+  Init_Object_Head(method, &Method_Type);
+  method->name = name;
+  method->desc = TYPE_INCREF(co->proto);
+  method->ptr  = OB_INCREF(code);
   return (Object *)method;
 }
 
@@ -29,7 +42,7 @@ Object *Method_Call(Object *self, Object *ob, Object *args)
     func_t fn = meth->ptr;
     return fn(ob, args);
   } else {
-    panic("not implemented");
+    return Koala_EvalCode(meth->ptr, ob, args);
   }
 }
 

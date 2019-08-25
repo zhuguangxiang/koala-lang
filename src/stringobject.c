@@ -249,7 +249,7 @@ int String_IsEmpty(Object *self)
 {
   if (!String_Check(self)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
-    return NULL;
+    return 0;
   }
 
   StringObject *s = (StringObject *)self;
