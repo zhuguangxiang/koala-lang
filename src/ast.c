@@ -12,7 +12,6 @@ Expr *expr_from_nil(void)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = NIL_KIND;
-  exp->hasvalue = 1;
   return exp;
 }
 
@@ -20,7 +19,6 @@ Expr *expr_from_self(void)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SELF_KIND;
-  exp->hasvalue = 1;
   return exp;
 }
 
@@ -111,6 +109,16 @@ Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right)
   exp->binary.op = op;
   exp->binary.lexp = left;
   exp->binary.rexp = right;
+  return exp;
+}
+
+Expr *expr_from_ternary(Expr *cond, Expr *left, Expr *right)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = TERNARY_KIND;
+  exp->ternary.cond = cond;
+  exp->ternary.lexp = left;
+  exp->ternary.rexp = right;
   return exp;
 }
 
@@ -245,6 +253,13 @@ void expr_free(Expr *exp)
     expr_free(exp->binary.rexp);
     kfree(exp);
     break;
+  case TERNARY_KIND:
+    TYPE_DECREF(exp->desc);
+    expr_free(exp->ternary.cond);
+    expr_free(exp->ternary.lexp);
+    expr_free(exp->ternary.rexp);
+    kfree(exp);
+    break;
   case ATTRIBUTE_KIND:
     TYPE_DECREF(exp->desc);
     expr_free(exp->attr.lexp);
@@ -324,7 +339,7 @@ Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right)
 }
 
 Stmt *stmt_from_funcdecl(Ident id, Vector *typeparas, Vector *args,
-                         Type *ret, Stmt *s)
+                         Type *ret,  Vector *body)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = FUNC_KIND;
@@ -333,7 +348,7 @@ Stmt *stmt_from_funcdecl(Ident id, Vector *typeparas, Vector *args,
   stmt->funcdecl.args = args;
   if (ret != NULL)
     stmt->funcdecl.ret = *ret;
-  stmt->funcdecl.stmt = s;
+  stmt->funcdecl.body = body;
   return stmt;
 }
 
@@ -361,6 +376,16 @@ Stmt *stmt_from_block(Vector *list)
   return stmt;
 }
 
+static void stmt_block_free(Vector *vec)
+{
+  int sz = vector_size(vec);
+  Stmt *stmt;
+  for (int i = 0; i < sz; ++i) {
+    stmt = vector_get(vec, i);
+    stmt_free(stmt);
+  }
+}
+
 void stmt_free(Stmt *stmt)
 {
   if (stmt == NULL)
@@ -384,6 +409,8 @@ void stmt_free(Stmt *stmt)
     kfree(stmt);
     break;
   case FUNC_KIND:
+    TYPE_DECREF(stmt->funcdecl.ret.desc);
+    stmt_block_free(stmt->funcdecl.body);
     kfree(stmt);
     break;
   case RETURN_KIND:
@@ -392,6 +419,10 @@ void stmt_free(Stmt *stmt)
     break;
   case EXPR_KIND:
     expr_free(stmt->expr.exp);
+    kfree(stmt);
+    break;
+  case BLOCK_KIND:
+    stmt_block_free(stmt->block.vec);
     kfree(stmt);
     break;
   default:

@@ -118,8 +118,9 @@ void Cmd_Add_Func(Ident id, Type type);
 %type <stmt> free_var_decl
 %type <stmt> assignment
 %type <assginop> assign_operator
+%type <stmt> return_stmt
 %type <stmt> func_decl
-%type <stmt> block
+%type <list> block
 %type <list> local_list
 %type <stmt> local
 %type <name> name
@@ -129,7 +130,7 @@ void Cmd_Add_Func(Ident id, Type type);
 %type <expr> map_object
 %type <expr> array_object
 %type <expr> tuple_object
-%type <list> basic_expr_list
+%type <list> expr_list
 %type <expr> atom
 %type <expr> dot_expr
 %type <expr> call_expr
@@ -145,7 +146,7 @@ void Cmd_Add_Func(Ident id, Type type);
 %type <expr> inclusive_or_expr
 %type <expr> logic_and_expr
 %type <expr> logic_or_expr
-%type <expr> basic_expr
+%type <expr> condition_or_expr
 %type <expr> expr
 %type <unaryop> unary_operator
 
@@ -241,6 +242,12 @@ unit:
   } else {
   }
 }
+/*
+| if_stmt
+| while_stmt
+| match_stmt
+| for_each_stmt
+*/
 | func_decl
 {
   if (ps->interactive) {
@@ -254,9 +261,9 @@ unit:
     ps->errnum = 0;
   }
 }
-  /*
+/*
 | type_decl
-  */
+*/
 | ';'
 {
   if (ps->interactive) {
@@ -303,7 +310,11 @@ unit:
 ;
 
 local:
-  var_decl
+  const_decl
+{
+  $$ = NULL;
+}
+| var_decl
 {
   $$ = $1;
 }
@@ -315,39 +326,34 @@ local:
 {
   $$ = $1;
 }
-| return_expr
+| return_stmt
 {
-  $$ = NULL;
+  $$ = $1;
 }
-| jump_expr
+| jump_stmt
 {
   $$ = NULL;
 }
 | block
 {
-  $$ = $1;
+  $$ = stmt_from_block($1);
 }
 | expr ';'
 {
   $$ = stmt_from_expr($1);
 }
+/*
+| if_stmt
+| while_stmt
+| match_stmt
+| for_each_stmt
+*/
 | ';'
 {
   $$ = NULL;
 }
 | COMMENT
 {
-  $$ = NULL;
-}
-| error
-{
-  if (ps->interactive) {
-    syntax_error(ps, yyloc_row(@1), yyloc_col(@1), "invalid local statement");
-    ps->more = 0;
-    ps->errnum = 0;
-  }
-  yyclearin;
-  yyerrok;
   $$ = NULL;
 }
 ;
@@ -370,8 +376,8 @@ id_as_list:
 ;
 
 const_decl:
-  CONST ID '=' basic_expr ';'
-| CONST ID type '=' basic_expr ';'
+  CONST ID '=' expr ';'
+| CONST ID type '=' expr ';'
 ;
 
 var_decl:
@@ -452,12 +458,18 @@ assign_operator:
 }
 ;
 
-return_expr:
+return_stmt:
   RETURN ';'
+{
+  $$ = stmt_from_return(NULL);
+}
 | RETURN expr ';'
+{
+  $$ = stmt_from_return($2);
+}
 ;
 
-jump_expr:
+jump_stmt:
   BREAK ';'
 | CONTINUE ';'
 ;
@@ -465,14 +477,17 @@ jump_expr:
 block:
   '{' local_list '}'
 {
-  $$ = stmt_from_block($2);
+  $$ = $2;
 }
-| '{' basic_expr '}'
+| '{' expr '}'
 {
+  $$ = vector_new();
   Stmt *stmt = stmt_from_expr($2);
-  Vector *vec = vector_new();
-  vector_push_back(vec, stmt);
-  $$ = stmt_from_block(vec);
+  vector_push_back($$, stmt);
+}
+| '{' '}'
+{
+  $$ = NULL;
 }
 ;
 
@@ -492,26 +507,17 @@ local_list:
 ;
 
 expr:
-  basic_expr
-{
-  $$ = $1;
-}
-  /*
-| if_expr
-| while_expr
-| match_expr
-| for_each_expr
-  */
-;
-
-basic_expr:
   range_object
 {
-
+  $$ = NULL;
 }
 | lambda_object
 {
-
+  $$ = NULL;
+}
+| condition_or_expr
+{
+  $$ = $1;
 }
 | logic_or_expr
 {
@@ -526,16 +532,23 @@ range_object:
 
 lambda_object:
   '(' ID ')' FAT_ARROW block
-| '(' ID ')' FAT_ARROW basic_expr
+| '(' ID ')' FAT_ARROW expr
 | '(' idlist ID ')' FAT_ARROW block
-| '(' idlist ID ')' FAT_ARROW basic_expr
+| '(' idlist ID ')' FAT_ARROW expr
 | '(' ')' FAT_ARROW block
-| '(' ')' FAT_ARROW basic_expr
+| '(' ')' FAT_ARROW expr
 ;
 
 idlist:
   ID ','
 | idlist ID ','
+;
+
+condition_or_expr:
+  logic_or_expr '?' logic_or_expr ':' logic_or_expr
+{
+  $$ = expr_from_ternary($1, $3, $5);
+}
 ;
 
 logic_or_expr:
@@ -723,7 +736,7 @@ call_expr:
 {
   $$ = expr_from_call(NULL, $1);
 }
-| primary_expr '(' basic_expr_list ')'
+| primary_expr '(' expr_list ')'
 {
   $$ = expr_from_call($3, $1);
 }
@@ -738,19 +751,19 @@ dot_expr:
 ;
 
 index_expr:
-  primary_expr '[' basic_expr ']'
+  primary_expr '[' expr ']'
 {
   $$ = expr_from_subScript($1, $3);
 }
-| primary_expr '[' basic_expr ':' basic_expr ']'
+| primary_expr '[' expr ':' expr ']'
 {
   $$ = expr_from_slice($1, $3, $5);
 }
-| primary_expr '[' ':' basic_expr ']'
+| primary_expr '[' ':' expr ']'
 {
   $$ = expr_from_slice($1, $4, NULL);
 }
-| primary_expr '[' basic_expr ':' ']'
+| primary_expr '[' expr ':' ']'
 {
   $$ = expr_from_slice($1, $3, NULL);
 }
@@ -811,7 +824,7 @@ atom:
   $$ = expr_from_super();
   set_expr_pos($$, @1);
 }
-| '(' basic_expr ')'
+| '(' expr ')'
 {
   $$ = $2;
 }
@@ -834,11 +847,11 @@ atom:
 ;
 
 tuple_object:
-  '(' basic_expr_list ',' ')'
+  '(' expr_list ',' ')'
 {
   $$ = expr_from_tuple($2);
 }
-| '(' basic_expr_list ',' basic_expr ')'
+| '(' expr_list ',' expr ')'
 {
   vector_push_back($2, $4);
   $$ = expr_from_tuple($2);
@@ -850,11 +863,11 @@ tuple_object:
 ;
 
 array_object:
-  '[' basic_expr_list ']'
+  '[' expr_list ']'
 {
   $$ = expr_from_array($2);
 }
-| '[' basic_expr_list ',' ']'
+| '[' expr_list ',' ']'
 {
   $$ = expr_from_array($2);
 }
@@ -864,13 +877,13 @@ array_object:
 }
 ;
 
-basic_expr_list:
-  basic_expr
+expr_list:
+  expr
 {
   $$ = vector_new();
   vector_push_back($$, $1);
 }
-| basic_expr_list ',' basic_expr
+| expr_list ',' expr
 {
   $$ = $1;
   vector_push_back($$, $3);
@@ -906,7 +919,7 @@ kv_list:
 ;
 
 kv:
-  basic_expr ':' basic_expr
+  expr ':' expr
 {
   $$ = expr_from_mapentry($1, $3);
 }

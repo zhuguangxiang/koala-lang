@@ -219,6 +219,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_STORE_2:
   case OP_STORE_3:
   case OP_RETURN_VALUE:
+  case OP_RETURN:
   case OP_ADD:
   case OP_SUB:
   case OP_MUL:
@@ -232,10 +233,10 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_LE:
   case OP_EQ:
   case OP_NEQ:
-  case OP_BAND:
-  case OP_BOR:
-  case OP_BXOR:
-  case OP_BNOT:
+  case OP_BIT_AND:
+  case OP_BIT_OR:
+  case OP_BIT_XOR:
+  case OP_BIT_NOT:
   case OP_AND:
   case OP_OR:
   case OP_NOT:
@@ -626,7 +627,7 @@ static void code_unary_expr(ParserState *ps, Expr *exp)
     CODE_OP(OP_NEG);
     break;
   case UNARY_BIT_NOT:
-    CODE_OP(OP_BNOT);
+    CODE_OP(OP_BIT_NOT);
     break;
   case UNARY_LNOT:
     CODE_OP(OP_NOT);
@@ -645,7 +646,7 @@ static void code_binary_expr(ParserState *ps, Expr *exp)
     0,
     OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
     OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
-    OP_BAND, OP_BXOR, OP_BOR,
+    OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
     OP_AND, OP_OR,
   };
   BinaryOpKind op = exp->binary.op;
@@ -660,6 +661,7 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
 
   /* default expr has value */
   exp->hasvalue = 1;
+
   switch (exp->kind) {
   case SELF_KIND: {
     ParserUnit *u = ps->u;
@@ -745,6 +747,9 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
       syntax_error(ps, lexp->row, lexp->col, "cannot resolve expr's type");
     }
     code_binary_expr(ps, exp);
+    break;
+  }
+  case TERNARY_KIND: {
     break;
   }
   case ATTRIBUTE_KIND: {
@@ -942,6 +947,51 @@ static void code_assign_stmt(ParserState *ps, AssignOpKind op)
   }
 }
 
+static void parse_block(ParserState *ps, Vector *vec)
+{
+  int sz = vector_size(vec);
+  Stmt *s = NULL;
+  for (int i = 0; i < sz; ++i) {
+    s = vector_get(vec, i);
+    parse_stmt(ps, s);
+  }
+}
+
+static void parse_func_body(ParserState *ps, Stmt *stmt)
+{
+  Vector *vec = stmt->funcdecl.body;
+  int sz = vector_size(vec);
+  Stmt *s = NULL;
+  for (int i = 0; i < sz; ++i) {
+    s = vector_get(vec, i);
+    if (i == sz - 1)
+      s->last = 1;
+    parse_stmt(ps, s);
+  }
+
+  if (s != NULL) {
+    /* check last statement has value or not */
+    if (s->kind == EXPR_KIND) {
+      if (s->hasvalue) {
+        debug("last expr-stmt and has value, add OP_RETURN_VALUE");
+        CODE_OP(OP_RETURN_VALUE);
+      } else {
+        debug("last expr-stmt and no value, add OP_RETURN");
+        CODE_OP(OP_RETURN);
+      }
+    } else {
+      if (s->kind != RETURN_KIND) {
+        debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
+        CODE_OP(OP_RETURN);
+      }
+    }
+  } else {
+    debug("func body is empty");
+    debug("add OP_RETURN");
+    CODE_OP(OP_RETURN);
+  }
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   switch (stmt->kind) {
@@ -1021,13 +1071,22 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     if (sym == NULL || sym->kind != SYM_FUNC)
       panic("symbol '%s' is not a func", funcname);
     ps->u->sym = sym;
-    stmt->funcdecl.stmt->block.noscope = 1;
-    parse_stmt(ps, stmt->funcdecl.stmt);
+    parse_func_body(ps, stmt);
     parser_exit_scope(ps);
     debug("end of function '%s'", funcname);
     break;
   }
   case RETURN_KIND: {
+    Expr *exp = stmt->ret.exp;
+    if (exp != NULL) {
+      debug("return has value");
+      exp->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, exp);
+      CODE_OP(OP_RETURN_VALUE);
+    } else {
+      debug("return has no value");
+      CODE_OP(OP_RETURN);
+    }
     break;
   }
   case EXPR_KIND: {
@@ -1045,6 +1104,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
       stmt->hasvalue = exp->hasvalue;
       if (!has_error(ps)) {
         if (!stmt->last && stmt->hasvalue) {
+          /* not last statement, pop its value */
           CODE_OP(OP_POP_TOP);
         }
       }
@@ -1052,32 +1112,10 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     break;
   }
   case BLOCK_KIND: {
-    if (!stmt->block.noscope)
-      parser_enter_scope(ps, SCOPE_BLOCK);
-    Vector *vec = stmt->block.vec;
-    int sz = vector_size(vec);
-    Stmt *s;
-    for (int i = 0; i < sz; ++i) {
-      s = vector_get(vec, i);
-      if (i == sz - 1)
-        s->last = 1;
-      parse_stmt(ps, s);
-    }
-    if (!has_error(ps)) {
-      if (s->last && s->hasvalue) {
-        ScopeKind scope = ps->u->scope;
-        if (scope == SCOPE_FUNC) {
-          CODE_OP(OP_RETURN_VALUE);
-        } else if (scope == SCOPE_BLOCK) {
-          CODE_OP(OP_POP_TOP);
-        } else {
-          /* what's here? */
-          ;
-        }
-      }
-    }
-    if (!stmt->block.noscope)
-      parser_exit_scope(ps);
+    parser_enter_scope(ps, SCOPE_BLOCK);
+    ps->u->stbl = stable_new();
+    parse_block(ps, stmt->block.vec);
+    parser_exit_scope(ps);
     break;
   }
   default:

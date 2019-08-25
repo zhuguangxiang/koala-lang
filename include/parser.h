@@ -119,7 +119,6 @@ void fini_parser(void);
 void parser_enter_scope(ParserState *ps, ScopeKind scope);
 void parser_exit_scope(ParserState *ps);
 void parse_stmt(ParserState *ps, Stmt *stmt);
-void parse_stmts(ParserState *ps, Vector *list);
 void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf);
 Symbol *find_from_builtins(char *name);
 void mod_from_mobject(Module *mod, Object *ob);

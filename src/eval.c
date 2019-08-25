@@ -65,14 +65,14 @@ static void prepare_args(Frame *f, Object *ob, Object *args)
   f->locvars[0] = OB_INCREF(ob);
   if (args != NULL) {
     if (Tuple_Check(args)) {
-      Object *o;
+      Object *v;
       int size = Tuple_Size(args);
       if (f->size != size + 1)
         panic("count of args error");
       for (int i = 0; i < size; i++) {
-        o = Tuple_Get(args, i);
-        f->locvars[i + 1] = OB_INCREF(o);
-        OB_DECREF(o);
+        v = Tuple_Get(args, i);
+        f->locvars[i + 1] = OB_INCREF(v);
+        OB_DECREF(v);
       }
     } else {
       if (f->size != 2)
@@ -165,7 +165,7 @@ Object *Koala_EvalFrame(Frame *f)
   Object *consts = co->consts;
   uint8_t op;
   int oparg;
-  Object *x, *y, *z, *o, *p, *q;
+  Object *x, *y, *z, *v, *w;
 
   while (loopflag) {
     if ((f->index + 1) >= co->size) {
@@ -298,6 +298,11 @@ Object *Koala_EvalFrame(Frame *f)
       loopflag = 0;
       break;
     }
+    case OP_RETURN: {
+      x = NULL;
+      loopflag = 0;
+      break;
+    }
     case OP_CALL: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
@@ -310,14 +315,14 @@ Object *Koala_EvalFrame(Frame *f)
       } else {
         z = Tuple_New(oparg);
         for (int i = 0; i < oparg; ++i) {
-          o = POP();
-          Tuple_Set(z, i, o);
-          OB_DECREF(o);
+          v = POP();
+          Tuple_Set(z, i, v);
+          OB_DECREF(v);
         }
       }
       ks->top = top - base;
-      p = Object_Call(y, String_AsStr(x), z);
-      PUSH(p);
+      w = Object_Call(y, String_AsStr(x), z);
+      PUSH(w);
       OB_DECREF(x);
       OB_DECREF(y);
       OB_DECREF(z);
@@ -509,55 +514,55 @@ Object *Koala_EvalFrame(Frame *f)
       PUSH(z);
       break;
     }
-    case OP_BAND: {
+    case OP_BIT_AND: {
       x = POP();
       y = POP();
       func_t fn = OB_NUM_FUNC(x, and);
       if (fn != NULL) {
         z = fn(x, y);
       } else {
-        z = Object_Call(x, opcode_map(OP_BAND), y);
+        z = Object_Call(x, opcode_map(OP_BIT_AND), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
       break;
     }
-    case OP_BOR: {
+    case OP_BIT_OR: {
       x = POP();
       y = POP();
       func_t fn = OB_NUM_FUNC(x, or);
       if (fn != NULL) {
         z = fn(x, y);
       } else {
-        z = Object_Call(x, opcode_map(OP_BOR), y);
+        z = Object_Call(x, opcode_map(OP_BIT_OR), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
       break;
     }
-    case OP_BXOR: {
+    case OP_BIT_XOR: {
       x = POP();
       y = POP();
       func_t fn = OB_NUM_FUNC(x, xor);
       if (fn != NULL) {
         z = fn(x, y);
       } else {
-        z = Object_Call(x, opcode_map(OP_BXOR), y);
+        z = Object_Call(x, opcode_map(OP_BIT_XOR), y);
       }
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
       break;
     }
-    case OP_BNOT: {
+    case OP_BIT_NOT: {
       x = POP();
       func_t fn = OB_NUM_FUNC(x, not);
       if (fn != NULL) {
         z = fn(x, NULL);
       } else {
-        z = Object_Call(x, opcode_map(OP_BNOT), NULL);
+        z = Object_Call(x, opcode_map(OP_BIT_NOT), NULL);
       }
       OB_DECREF(x);
       PUSH(z);
@@ -721,15 +726,15 @@ Object *Koala_EvalFrame(Frame *f)
       x = POP();
       y = POP();
       z = POP();
-      o = Tuple_New(2);
-      Tuple_Set(o, 0, y);
-      Tuple_Set(o, 1, z);
-      p = Object_Call(x, opcode_map(OP_SUBSCR_STORE), o);
-      PUSH(p);
+      v = Tuple_New(2);
+      Tuple_Set(v, 0, y);
+      Tuple_Set(v, 1, z);
+      w = Object_Call(x, opcode_map(OP_SUBSCR_STORE), v);
+      PUSH(w);
       OB_DECREF(x);
       OB_DECREF(y);
       OB_DECREF(z);
-      OB_DECREF(o);
+      OB_DECREF(v);
       break;
     }
     case OP_JMP: {
@@ -793,10 +798,10 @@ Object *Koala_EvalFrame(Frame *f)
       for (int i = 0; i < oparg; ++i) {
         y = POP();
         z = Tuple_Get(y, 0);
-        o = Tuple_Get(y, 1);
-        Dict_Put(x, z, o);
+        v = Tuple_Get(y, 1);
+        Dict_Put(x, z, v);
         OB_DECREF(z);
-        OB_DECREF(o);
+        OB_DECREF(v);
         OB_DECREF(y);
       }
       PUSH(x);

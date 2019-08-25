@@ -73,8 +73,8 @@ typedef enum exprkind {
   LITERAL_KIND,
   /* identifier expression */
   ID_KIND,
-  /* unary, binary op */
-  UNARY_KIND, BINARY_KIND,
+  /* unary, binary, ternary op */
+  UNARY_KIND, BINARY_KIND, TERNARY_KIND,
   /* dot, [], (), [:] access */
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, SLICE_KIND,
   /* map entry */
@@ -136,6 +136,11 @@ typedef struct expr {
       ConstValue val;
     } binary;
     struct {
+      struct expr *cond;
+      struct expr *lexp;
+      struct expr *rexp;
+    } ternary;
+    struct {
       Ident id;
       struct expr *lexp;
     } attr;
@@ -178,6 +183,7 @@ Expr *expr_from_char(wchar val);
 Expr *expr_from_ident(char *val);
 Expr *expr_from_unary(UnaryOpKind op, Expr *exp);
 Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right);
+Expr *expr_from_ternary(Expr *cond, Expr *left, Expr *right);
 Expr *expr_from_attribute(Ident id, Expr *left);
 Expr *expr_from_subScript(Expr *left, Expr *index);
 Expr *expr_from_call(Vector *args, Expr *left);
@@ -231,8 +237,8 @@ typedef enum assignopkind {
 
 typedef struct stmt {
   StmtKind kind;
-  int last;
-  int hasvalue;
+  short last;
+  short hasvalue;
   union {
     struct {
       Ident id;
@@ -255,7 +261,7 @@ typedef struct stmt {
       /* return type */
       Type ret;
       /* body */
-      struct stmt *stmt;
+      Vector *body;
     } funcdecl;
     struct {
       Expr *exp;
@@ -265,7 +271,6 @@ typedef struct stmt {
     } expr;
     struct {
       Vector *vec;
-      int noscope;
     } block;
   };
 } Stmt;
@@ -275,7 +280,7 @@ Stmt *stmt_from_constdecl(Ident id, Type type, Expr *exp);
 Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);
 Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,
-                         Type *ret, Stmt *stmt);
+                         Type *ret, Vector *body);
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_expr(Expr *exp);
 Stmt *stmt_from_block(Vector *list);

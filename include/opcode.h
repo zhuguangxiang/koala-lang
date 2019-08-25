@@ -33,11 +33,12 @@ extern "C" {
 #define OP_STORE_3 19
 
 #define OP_GET_OBJECT  20
-#define OP_GET_VALUE 22
-#define OP_SET_VALUE 23
-#define OP_RETURN_VALUE 24
-#define OP_CALL 25
-#define OP_PRINT 26
+#define OP_GET_VALUE 21
+#define OP_SET_VALUE 22
+#define OP_RETURN_VALUE 23
+#define OP_RETURN 24
+#define OP_CALL   25
+#define OP_PRINT  26
 
 /* 27 - 29 */
 
@@ -56,10 +57,10 @@ extern "C" {
 #define OP_EQ   41
 #define OP_NEQ  42
 
-#define OP_BAND 43
-#define OP_BOR  44
-#define OP_BXOR 45
-#define OP_BNOT 46
+#define OP_BIT_AND 43
+#define OP_BIT_OR  44
+#define OP_BIT_XOR 45
+#define OP_BIT_NOT 46
 
 #define OP_AND  47
 #define OP_OR   48
