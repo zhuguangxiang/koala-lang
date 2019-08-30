@@ -311,16 +311,15 @@ static const char *scopes[] = {
   NULL, "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
 
-ParserState *New_Parser(Module *mod, char *filename)
+ParserState *new_parser(char *filename)
 {
   ParserState *ps = kmalloc(sizeof(ParserState));
   ps->filename = filename;
-  ps->module = mod;
   vector_init(&ps->ustack);
   return ps;
 }
 
-void Free_Parser(ParserState *ps)
+void free_parser(ParserState *ps)
 {
   if (ps->u != NULL)
     panic("ps->u is not null");
@@ -329,17 +328,12 @@ void Free_Parser(ParserState *ps)
   kfree(ps);
 }
 
-static inline void unit_check(ParserUnit *u)
-{
-  if (u->block != NULL)
-    panic("u->block is not null");
-  if (vector_size(&u->jmps) > 0)
-    panic("u->jmps is not empty");
-}
-
 static inline void unit_free(ParserState *ps)
 {
-  unit_check(ps->u);
+  if (ps->u->block != NULL)
+    panic("u->block is not null");
+  if (vector_size(&ps->u->jmps) > 0)
+    panic("u->jmps is not empty");
   vector_fini(&ps->u->jmps, NULL, NULL);
   kfree(ps->u);
   ps->u = NULL;
@@ -380,7 +374,7 @@ static void merge_into_func(ParserUnit *u, char *name, int create)
   u->block = NULL;
 }
 
-static void parser_merge(ParserState *ps)
+static void unit_merge_free(ParserState *ps)
 {
   ParserUnit *u = ps->u;
 
@@ -403,8 +397,6 @@ static void parser_merge(ParserState *ps)
       panic("func '%s' already has codes", sym->name);
     sym->func.code = u->block;
     u->block = NULL;
-    /* free parserunit's symbol table */
-    stable_free(u->stbl);
     u->sym = NULL;
     break;
   }
@@ -412,6 +404,8 @@ static void parser_merge(ParserState *ps)
     panic("invalid branch:%d", u->scope);
     break;
   }
+
+  unit_free(ps);
 }
 
 void parser_enter_scope(ParserState *ps, ScopeKind scope)
@@ -434,8 +428,7 @@ void parser_exit_scope(ParserState *ps)
 #if !defined(NDEBUG)
   unit_show(ps);
 #endif
-  parser_merge(ps);
-  unit_free(ps);
+  unit_merge_free(ps);
   ps->depth--;
 
   /* restore ps->u to top of ps->ustack */
@@ -492,7 +485,7 @@ static Symbol *get_const_symbol(char kind)
   return sym;
 }
 
-static Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
+static Symbol *get_type_symbol(ParserState *ps, TypeDesc *desc)
 {
   if (desc == NULL) {
     debug("no return");
@@ -510,6 +503,12 @@ static Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
     else
       panic("not implemented");
     break;
+  case TYPE_ARRAY:
+    sym = find_from_builtins("Array");
+    break;
+  case TYPE_MAP:
+    sym = find_from_builtins("Dict");
+    break;
   default:
     panic("invalid desc kind %d", desc->kind);
     break;
@@ -517,37 +516,158 @@ static Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
   return sym;
 }
 
-static void parse_attr_expr(ParserState *ps, Expr *exp)
+static void parse_self(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+  if (exp->ctx != EXPR_LOAD)
+    panic("exp ctx is not load");
+  if (u->scope == SCOPE_MODULE) {
+    exp->sym = u->sym;
+    exp->desc = TYPE_INCREF(u->sym->desc);
+    CODE_OP(OP_LOAD_0);
+  } else if (u->scope == SCOPE_CLASS) {
+    panic("not implemented");
+  } else {
+    panic("not implemented");
+  }
+}
+
+static void parse_const(ParserState *ps, Expr *exp)
+{
+  if (exp->ctx != EXPR_LOAD)
+    panic("exp ctx is not load");
+  exp->sym = get_const_symbol(exp->k.value.kind);
+  if (!has_error(ps)) {
+    if (!exp->k.omit) {
+      CODE_OP_V(OP_LOAD_CONST, exp->k.value);
+    }
+  }
+}
+
+static void parse_ident(ParserState *ps, Expr *exp)
+{
+  Symbol *sym = find_id_symbol(ps, exp->id.name);
+  if (sym == NULL) {
+    syntax_error(ps, exp->row, exp->col,
+                 "cannot find symbol '%s'", exp->id.name);
+    return;
+  }
+
+  exp->sym = sym;
+  exp->desc = TYPE_INCREF(sym->desc);
+  exp->id.where = CURRENT_SCOPE;
+  exp->id.scope = ps->u;
+
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_OP(OP_LOAD_0);
+    CODE_OP_S(OP_GET_VALUE, exp->id.name);
+  } else if (exp->ctx == EXPR_STORE) {
+    CODE_OP(OP_LOAD_0);
+    CODE_OP_S(OP_SET_VALUE, exp->id.name);
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+    CODE_OP(OP_LOAD_0);
+    CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+  } else {
+    panic("invalid expr's ctx %d", exp->ctx);
+  }
+}
+
+static void parse_unary(ParserState *ps, Expr *exp)
+{
+  Expr *e = exp->unary.exp;
+  e->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, e);
+  if (e->desc == NULL) {
+    syntax_error(ps, e->row, e->col,
+                 "cannot resolve expr's type");
+  }
+  exp->sym = e->sym;
+  if (!has_error(ps)) {
+    static int opcodes[] = {
+      0, 0, OP_NEG, OP_BIT_NOT, OP_NOT
+    };
+    UnaryOpKind op = exp->unary.op;
+    if (op >= UNARY_NEG && op <= UNARY_LNOT)
+      CODE_OP(opcodes[op]);
+  }
+}
+
+static void parse_binary(ParserState *ps, Expr *exp)
+{
+  Expr *rexp = exp->binary.rexp;
+  Expr *lexp = exp->binary.lexp;
+
+  rexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, rexp);
+  if (rexp->desc == NULL) {
+    syntax_error(ps, rexp->row, rexp->col,
+                 "cannot resolve expr's type");
+  }
+
+  lexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, lexp);
+  if (lexp->desc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col,
+                 "cannot resolve expr's type");
+  }
+
+  exp->sym = get_type_symbol(ps, lexp->desc);
+  if (exp->binary.op == BINARY_ADD) {
+    Symbol *sym = klass_find_member(exp->sym, "__add__");
+    if (sym == NULL)
+      syntax_error(ps, lexp->row, lexp->col,
+                   "unsupported +");
+  }
+
+  if (!has_error(ps)) {
+    static int opcodes[] = {
+      0,
+      OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
+      OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
+      OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
+      OP_AND, OP_OR,
+    };
+    BinaryOpKind op = exp->binary.op;
+    if (op < BINARY_ADD || op > BINARY_LOR)
+      panic("invalid BinaryOpKind %d", op);
+    CODE_OP(opcodes[op]);
+  }
+}
+
+static void parse_atrr(ParserState *ps, Expr *exp)
 {
   Expr *lexp = exp->attr.lexp;
+  lexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, lexp);
+  if (lexp->desc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col,
+                 "cannot resolve expr's type");
+  }
+
   Symbol *lsym = lexp->sym;
-  Symbol *sym = NULL;
-  STable *stbl = NULL;
   Ident *id = &exp->attr.id;
   TypeDesc *desc;
-
+  Symbol *sym;
   switch (lsym->kind) {
   case SYM_CONST:
     break;
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
-    desc = lsym->desc;
-    sym = get_desc_symbol(ps, desc);
-    if (sym == NULL || sym->kind != SYM_CLASS) {
-      syntax_error(ps, exp->row, exp->col,
-                   "cannot resolve symbol '%s' type", lsym->name);
-    } else {
-      sym = klass_find_member(sym, id->name);
-    }
+    sym = klass_find_member(lsym->sym, id->name);
     break;
   case SYM_FUNC:
     debug("left sym '%s' is a func", lsym->name);
     desc = lsym->desc;
-    sym = get_desc_symbol(ps, desc->proto.ret);
-    if (sym != NULL) {
-      if (sym->kind != SYM_CLASS)
-        panic("func's retval is not a class");
-      sym = klass_find_member(sym, id->name);
+    if (vector_size(desc->proto.args)) {
+      syntax_error(ps, lexp->row, lexp->col,
+                   "func with arguments cannot be accessed like field.");
+    } else {
+      sym = get_type_symbol(ps, desc->proto.ret);
+      if (sym != NULL) {
+        if (sym->kind != SYM_CLASS)
+          panic("func's retval is not a class");
+        sym = klass_find_member(sym, id->name);
+      }
     }
     break;
   case SYM_MOD: {
@@ -562,98 +682,308 @@ static void parse_attr_expr(ParserState *ps, Expr *exp)
     break;
   }
   default:
-    panic("invalid left sym %d", lsym->kind);
+    panic("invalid left symbol %d", lsym->kind);
     break;
   }
 
   if (sym == NULL) {
-    syntax_error(ps, id->row, id->col, "'%s' is not found in '%s'",
+    syntax_error(ps, id->row, id->col,
+                 "'%s' is not found in '%s'",
                  id->name, lsym->name);
-    return;
-  }
-
-  exp->sym = sym;
-
-  if (!exp->desc) {
-    exp->desc = TYPE_INCREF(sym->desc);
   } else {
-    warn("exp's desc is not null");
+    exp->sym = sym;
+    exp->desc = TYPE_INCREF(sym->desc);
+  }
+
+  // generate codes
+  if (!has_error(ps)) {
+    switch (sym->kind) {
+    case SYM_VAR:
+      if (exp->ctx == EXPR_LOAD)
+        CODE_OP_S(OP_GET_VALUE, id->name);
+      else if (exp->ctx == EXPR_STORE)
+        CODE_OP_S(OP_SET_VALUE, id->name);
+      else
+        panic("invalid attr expr's ctx %d", exp->ctx);
+      break;
+    case SYM_FUNC:
+      if (exp->ctx == EXPR_LOAD)
+        CODE_OP_S(OP_GET_VALUE, id->name);
+      else if (exp->ctx == EXPR_CALL_FUNC)
+        CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
+      else if (exp->ctx == EXPR_LOAD_FUNC)
+        CODE_OP_S(OP_GET_OBJECT, id->name);
+      else if (exp->ctx == EXPR_STORE)
+        CODE_OP_S(OP_SET_VALUE, id->name);
+      else
+        panic("invalid exp's ctx %d", exp->ctx);
+      break;
+    default:
+      panic("invalid symbol kind %d", sym->kind);
+      break;
+    }
   }
 }
 
-static void code_attr_expr(ParserState *ps, Expr *exp)
+static void parse_subscr(ParserState *ps, Expr *exp)
 {
-  if (has_error(ps))
-    return;
+  Expr *idx = exp->subscr.index;
+  idx->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, idx);
+  if (idx->desc == NULL) {
+    syntax_error(ps, idx->row, idx->col,
+                 "cannot resolve expr's type");
+  }
 
-  Symbol *sym = exp->sym;
-  Ident *id = &exp->attr.id;
+  Expr *lexp = exp->subscr.lexp;
+  lexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, lexp);
+  if (lexp->desc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col,
+                 "cannot resolve expr's type");
+  }
 
-  switch (sym->kind) {
+  Symbol *lsym = lexp->sym;
+  Symbol *sym = NULL;
+  switch (lsym->kind) {
+  case SYM_CONST:
+    break;
   case SYM_VAR:
-    if (exp->ctx == EXPR_LOAD)
-      CODE_OP_S(OP_GET_VALUE, id->name);
-    else if (exp->ctx == EXPR_STORE)
-      CODE_OP_S(OP_SET_VALUE, id->name);
-    else
-      panic("invalid attr expr's ctx %d", exp->ctx);
+    debug("left sym '%s' is a var", lsym->name);
+    sym = klass_find_member(lsym->sym, "__getitem__");
     break;
-  case SYM_FUNC:
-    if (exp->ctx == EXPR_LOAD)
-      CODE_OP_S(OP_GET_VALUE, id->name);
-    else if (exp->ctx == EXPR_CALL_FUNC)
-      CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
-    else if (exp->ctx == EXPR_LOAD_FUNC)
-      CODE_OP_S(OP_GET_OBJECT, id->name);
-    else if (exp->ctx == EXPR_STORE)
-      CODE_OP_S(OP_SET_VALUE, id->name);
-    else
-      panic("invalid exp's ctx %d", exp->ctx);
+  case SYM_CLASS: {
+    debug("left sym '%s' is a class", lsym->name);
+    sym = klass_find_member(lsym, "__getitem__");
     break;
+  }
   default:
-    panic("invalid sym kind %d", sym->kind);
+    panic("invalid left symbol %d", lsym->kind);
     break;
+  }
+
+  if (sym == NULL || sym->kind != SYM_FUNC) {
+    syntax_error(ps, lexp->row, lexp->col,
+                 "'%s' is not supported subscript operation.",
+                 lsym->name);
+  }
+
+  if (sym != NULL) {
+    TypeDesc *desc = sym->desc;
+    Vector *args = desc->proto.args;
+    desc = vector_get(args, 0);
+    if (!desc_equal(idx->desc, desc)) {
+      syntax_error(ps, idx->row, idx->col,
+                  "subscript index type is error");
+    }
+  }
+
+  exp->desc = TYPE_INCREF(lexp->desc->array.para);
+  exp->sym = get_type_symbol(ps, exp->desc);
+
+  if (!has_error(ps)) {
+    if (exp->ctx == EXPR_LOAD) {
+      CODE_OP(OP_SUBSCR_LOAD);
+    } else {
+      CODE_OP(OP_SUBSCR_STORE);
+    }
   }
 }
 
-static void code_unary_expr(ParserState *ps, Expr *exp)
+static void parse_call(ParserState *ps, Expr *exp)
 {
-  if (has_error(ps))
-    return;
+  Vector *args = exp->call.args;
+  VECTOR_REVERSE_ITERATOR(iter, args);
+  Expr *arg;
+  iter_for_each(&iter, arg) {
+    arg->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, arg);
+    if (arg->desc == NULL) {
+      syntax_error(ps, arg->row, arg->col,
+                   "cannot resolve expr's type");
+    }
+  }
 
-  UnaryOpKind op = exp->unary.op;
-  switch (op) {
-  case UNARY_NEG:
-    CODE_OP(OP_NEG);
-    break;
-  case UNARY_BIT_NOT:
-    CODE_OP(OP_BIT_NOT);
-    break;
-  case UNARY_LNOT:
-    CODE_OP(OP_NOT);
-    break;
-  default:
-    break;
+  Expr *lexp = exp->call.lexp;
+  lexp->argc = vector_size(args);
+  lexp->ctx = EXPR_CALL_FUNC;
+  parser_visit_expr(ps, lexp);
+  TypeDesc *desc = lexp->desc;
+  if (desc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col,
+                 "cannot resolve expr's type");
+  } else {
+    if (desc->kind != TYPE_PROTO) {
+      syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
+    }
+  }
+
+  // check call arguments
+  if (!has_error(ps)) {
+    Vector *params = desc->proto.args;
+    int psz = vector_size(params);
+    int argc = vector_size(args);
+    if (psz != argc) {
+      syntax_error(ps, exp->row, exp->col,
+                  "count of arguments are not matched");
+    }
+    TypeDesc *pdesc, *indesc;
+    for (int i = 0; i < psz; ++i) {
+      pdesc = vector_get(params, i);
+      arg = vector_get(args, i);
+      if (!desc_equal(pdesc, arg->desc)) {
+        syntax_error(ps, exp->row, exp->col,
+                    "types are not compatible");
+      }
+    }
+    exp->desc = TYPE_INCREF(desc->proto.ret);
+    exp->sym = get_type_symbol(ps, exp->desc);
   }
 }
 
-static void code_binary_expr(ParserState *ps, Expr *exp)
+static void parse_slice(ParserState *ps, Expr *exp)
 {
-  if (has_error(ps))
-    return;
+  Expr *e = exp->slice.end;
+  e->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, e);
+  if (e->desc == NULL) {
+    syntax_error(ps, e->row, e->col,
+                 "cannot resolve expr's type");
+  }
 
-  static int opcodes[] = {
-    0,
-    OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
-    OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
-    OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
-    OP_AND, OP_OR,
-  };
-  BinaryOpKind op = exp->binary.op;
-  CODE_OP(opcodes[op]);
+  e = exp->slice.start;
+  e->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, e);
+  if (e->desc == NULL) {
+    syntax_error(ps, e->row, e->col,
+                 "cannot resolve expr's type");
+  }
+
+  e = exp->slice.lexp;
+  e->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, e);
+  if (e->desc == NULL) {
+    syntax_error(ps, e->row, e->col,
+                 "cannot resolve expr's type");
+  }
+
+  if (!has_error(ps)) {
+    if (exp->ctx != EXPR_LOAD)
+      panic("slice expr ctx is not load");
+    if (!exp->leftside)
+      CODE_OP(OP_SLICE_LOAD);
+    else
+      CODE_OP(OP_SLICE_STORE);
+  }
 }
 
-static void parser_visit_expr(ParserState *ps, Expr *exp)
+static void parse_tuple(ParserState *ps, Expr *exp)
+{
+  int size = vector_size(exp->tuple);
+  if (size > 16) {
+    syntax_error(ps, ps->row, ps->col,
+                 "length of tuple is larger than 16");
+  }
+
+  VECTOR_REVERSE_ITERATOR(iter, exp->tuple);
+  Expr *e;
+  iter_for_each(&iter, e) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (e->desc == NULL) {
+      syntax_error(ps, e->row, e->col,
+                   "cannot resolve expr's type");
+    }
+  }
+  exp->sym = find_from_builtins("Tuple");
+
+  if (!has_error(ps)) {
+    CODE_OP_I(OP_NEW_TUPLE, size);
+  }
+}
+
+static void parse_array(ParserState *ps, Expr *exp)
+{
+  Vector *vec = exp->array.elems;
+  int size = vector_size(vec);
+  if (size > 16) {
+    syntax_error(ps, ps->row, ps->col,
+                 "length of array is larger than 16");
+  }
+
+  Expr *e;
+  for (int i = size - 1; i >= 0; --i) {
+    e = vector_get(vec, i);
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (e->desc == NULL) {
+      syntax_error(ps, e->row, e->col,
+                   "cannot resolve expr's type");
+    }
+  }
+  exp->sym = find_from_builtins("Array");
+
+  if (!has_error(ps)) {
+    CODE_OP_I(OP_NEW_ARRAY, size);
+  }
+}
+
+static void parse_mapentry(ParserState *ps, Expr *exp)
+{
+  Expr *e = exp->mapentry.val;
+  e->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, e);
+  if (e->desc == NULL) {
+    syntax_error(ps, e->row, e->col,
+                  "cannot resolve expr's type");
+  }
+
+  e = exp->mapentry.key;
+  e->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, e);
+  if (e->desc == NULL) {
+    syntax_error(ps, e->row, e->col,
+                  "cannot resolve expr's type");
+  }
+
+  if (!has_error(ps)) {
+    if (exp->ctx != EXPR_LOAD)
+      panic("mapentry expr ctx is not load");
+    if (exp->leftside)
+      panic("mapentry is not at left side");
+    CODE_OP_I(OP_NEW_TUPLE, 2);
+  }
+}
+
+static void parse_map(ParserState *ps, Expr *exp)
+{
+  int size = vector_size(exp->map);
+  if (size > 16) {
+    syntax_error(ps, ps->row, ps->col,
+                 "length of dict is larger than 16");
+  }
+  VECTOR_REVERSE_ITERATOR(iter, exp->map);
+  Expr *e;
+  iter_for_each(&iter, e) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+  }
+  exp->sym = find_from_builtins("Dict");
+
+  if (!has_error(ps)) {
+    CODE_OP_I(OP_NEW_MAP, size);
+  }
+}
+
+static void parse_is(ParserState *ps, Expr *exp)
+{
+  parser_visit_expr(ps, exp->is.exp);
+
+  if (!has_error(ps)) {
+  }
+}
+
+void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
   if (ps->errnum > MAX_ERRORS)
@@ -662,299 +992,32 @@ static void parser_visit_expr(ParserState *ps, Expr *exp)
   /* default expr has value */
   exp->hasvalue = 1;
 
-  switch (exp->kind) {
-  case SELF_KIND: {
-    ParserUnit *u = ps->u;
-    if (exp->ctx != EXPR_LOAD)
-      panic("exp ctx is not load");
-    if (u->scope == SCOPE_MODULE) {
-      exp->sym = u->sym;
-      exp->desc = TYPE_INCREF(u->sym->desc);
-      CODE_OP(OP_LOAD_0);
-    } else if (u->scope == SCOPE_CLASS) {
-      panic("not implemented");
-    } else {
-      panic("not implemented");
-    }
-    break;
-  }
-  case SUPER_KIND: {
-    /* code */
-    break;
-  }
-  case LITERAL_KIND: {
-    if (exp->ctx != EXPR_LOAD)
-      panic("exp ctx is not load");
-    exp->sym = get_const_symbol(exp->k.value.kind);
-    if (has_error(ps))
-      return;
-    if (!exp->k.omit)
-      CODE_OP_V(OP_LOAD_CONST, exp->k.value);
-    break;
-  }
-  case ID_KIND: {
-    Symbol *sym = find_id_symbol(ps, exp->id.name);
-    if (sym == NULL) {
-      syntax_error(ps, exp->row, exp->col,
-                   "cannot find symbol '%s'", exp->id.name);
-    } else {
-      exp->sym = sym;
-      exp->desc = TYPE_INCREF(sym->desc);
-      exp->id.where = CURRENT_SCOPE;
-      exp->id.scope = ps->u;
+  static void (*handlers[])(ParserState *, Expr *) = {
+    NULL,               /* INVALID        */
+    NULL,               /* NIL_KIND       */
+    parse_self,         /* SELF_KIND      */
+    NULL,               /* SUPER_KIND     */
+    parse_const,        /* LITERAL_KIND   */
+    parse_ident,        /* ID_KIND        */
+    parse_unary,        /* UNARY_KIND     */
+    parse_binary,       /* BINARY_KIND    */
+    NULL,               /* TERNARY_KIND   */
+    parse_atrr,         /* ATTRIBUTE_KIND */
+    parse_subscr,       /* SUBSCRIPT_KIND */
+    parse_call,         /* CALL_KIND      */
+    parse_slice,        /* SLICE_KIND     */
+    parse_tuple,        /* TUPLE_KIND     */
+    parse_array,        /* ARRAY_KIND     */
+    parse_mapentry,     /* MAP_ENTRY_KIND */
+    parse_map,          /* MAP_KIND       */
+    NULL,               /* ANONY_KIND     */
+    parse_is,           /* IS_KIND        */
+    NULL,               /* AS_KIND        */
+  };
 
-      if (exp->ctx == EXPR_LOAD) {
-        CODE_OP(OP_LOAD_0);
-        CODE_OP_S(OP_GET_VALUE, exp->id.name);
-      } else if (exp->ctx == EXPR_STORE) {
-        CODE_OP(OP_LOAD_0);
-        CODE_OP_S(OP_SET_VALUE, exp->id.name);
-      } else if (exp->ctx == EXPR_ASSIGN) {
-        CODE_OP(OP_LOAD_0);
-        CODE_OP_S(OP_GET_VALUE, exp->id.name);
-      } else if (exp->ctx == EXPR_CALL_FUNC) {
-        CODE_OP(OP_LOAD_0);
-        CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
-      } else {
-        panic("invalid expr's ctx %d", exp->ctx);
-      }
-    }
-    break;
-  }
-  case UNARY_KIND: {
-    Expr *e = exp->unary.exp;
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    if (e->desc == NULL || e->sym == NULL) {
-      syntax_error(ps, e->row, e->col, "cannot resolve expr's type");
-    }
-    exp->sym = e->sym;
-    exp->desc = TYPE_INCREF(e->desc);
-    code_unary_expr(ps, exp);
-    break;
-  }
-  case BINARY_KIND: {
-    Expr *rexp = exp->binary.rexp;
-    Expr *lexp = exp->binary.lexp;
-    rexp->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, rexp);
-    if (rexp->desc == NULL || rexp->sym == NULL) {
-      syntax_error(ps, rexp->row, rexp->col, "cannot resolve expr's type");
-    }
-    lexp->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, lexp);
-    if (lexp->desc == NULL || lexp->sym == NULL) {
-      syntax_error(ps, lexp->row, lexp->col, "cannot resolve expr's type");
-    }
-    code_binary_expr(ps, exp);
-    break;
-  }
-  case TERNARY_KIND: {
-    break;
-  }
-  case ATTRIBUTE_KIND: {
-    Expr *lexp = exp->attr.lexp;
-    lexp->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, lexp);
-    if (lexp->sym == NULL) {
-      return;
-    }
-    parse_attr_expr(ps, exp);
-    code_attr_expr(ps, exp);
-    break;
-  }
-  case SUBSCRIPT_KIND: {
-    Expr *e;
-    e = exp->subscr.index;
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    e = exp->subscr.lexp;
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    if (!has_error(ps)) {
-      if (exp->ctx == EXPR_LOAD || exp->ctx == EXPR_ASSIGN) {
-        CODE_OP(OP_SUBSCR_LOAD);
-      } else {
-        CODE_OP(OP_SUBSCR_STORE);
-      }
-    }
-    break;
-  }
-  case CALL_KIND: {
-    VECTOR_REVERSE_ITERATOR(iter, exp->call.args);
-    Expr *arg;
-    iter_for_each(&iter, arg) {
-      arg->ctx = EXPR_LOAD;
-      parser_visit_expr(ps, arg);
-    }
-
-    Expr *lexp = exp->call.lexp;
-    lexp->argc = vector_size(exp->call.args);
-    lexp->ctx = EXPR_CALL_FUNC;
-    parser_visit_expr(ps, lexp);
-    if (lexp->sym == NULL)
-      return;
-#if 0
-    //FIXME
-    if (lexp->desc == NULL || lexp->desc->kind != TYPE_PROTO)
-      panic("call proto error");
-
-    TypeDesc *desc = lexp->desc;
-    //check_call_args(ps, exp, desc->proto.args);
-    exp->desc = TYPE_INCREF(desc->proto.ret);
-    /* set call exp's sym as func's retval symbol */
-    exp->sym = get_desc_symbol(ps, desc->proto.ret);
-#endif
-    break;
-  }
-  case SLICE_KIND: {
-    Expr *e;
-    e = exp->slice.end;
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    e = exp->slice.start;
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    e = exp->slice.lexp;
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    if (!has_error(ps)) {
-      if (exp->ctx != EXPR_LOAD)
-        panic("slice expr ctx is not load");
-      if (!exp->leftside)
-        CODE_OP(OP_SLICE_LOAD);
-      else
-        CODE_OP(OP_SLICE_STORE);
-    }
-    break;
-  }
-  case TUPLE_KIND: {
-    int size = vector_size(exp->tuple);
-    if (size > 16) {
-      syntax_error(ps, ps->row, ps->col, "length of tuple is larger than 16");
-      return;
-    }
-    VECTOR_REVERSE_ITERATOR(iter, exp->tuple);
-    Expr *elem;
-    iter_for_each(&iter, elem) {
-      elem->ctx = EXPR_LOAD;
-      parser_visit_expr(ps, elem);
-    }
-    exp->sym = find_from_builtins("Tuple");
-    exp->desc = TYPE_INCREF(exp->sym->desc);
-    if (!has_error(ps)) {
-      CODE_OP_I(OP_NEW_TUPLE, size);
-    }
-    break;
-  }
-  case ARRAY_KIND: {
-    int size = vector_size(exp->array.elems);
-    if (size > 16) {
-      syntax_error(ps, ps->row, ps->col, "length of array is larger than 16");
-      return;
-    }
-    VECTOR_REVERSE_ITERATOR(iter, exp->array.elems);
-    Expr *elem;
-    iter_for_each(&iter, elem) {
-      elem->ctx = EXPR_LOAD;
-      parser_visit_expr(ps, elem);
-    }
-    exp->sym = find_from_builtins("Array");
-    exp->desc = TYPE_INCREF(exp->sym->desc);
-    if (!has_error(ps)) {
-      CODE_OP_I(OP_NEW_ARRAY, size);
-    }
-    break;
-  }
-  case MAP_ENTRY_KIND: {
-    Expr *e;
-    e = exp->mapentry.val;
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    e = exp->mapentry.key;
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    if (!has_error(ps)) {
-      if (exp->ctx != EXPR_LOAD)
-        panic("mapentry expr ctx is not load");
-      if (exp->leftside)
-        panic("mapentry is not at left side");
-      CODE_OP_I(OP_NEW_TUPLE, 2);
-    }
-    break;
-  }
-  case MAP_KIND: {
-    int size = vector_size(exp->map);
-    if (size > 16) {
-      syntax_error(ps, ps->row, ps->col, "length of dict is larger than 16");
-      return;
-    }
-    VECTOR_REVERSE_ITERATOR(iter, exp->map);
-    Expr *elem;
-    iter_for_each(&iter, elem) {
-      elem->ctx = EXPR_LOAD;
-      parser_visit_expr(ps, elem);
-    }
-    exp->sym = find_from_builtins("Dict");
-    exp->desc = TYPE_INCREF(exp->sym->desc);
-    if (!has_error(ps)) {
-      CODE_OP_I(OP_NEW_MAP, size);
-    }
-    break;
-  }
-  default:
-    panic("invalid exp:%d", exp->kind);
-    break;
-  }
-}
-
-static void code_assign_stmt(ParserState *ps, AssignOpKind op)
-{
-  switch (op) {
-  case OP_ASSIGN:
-    /* no need generate codes */
-    break;
-  case OP_PLUS_ASSIGN:
-    CODE_OP(OP_INPLACE_ADD);
-    break;
-  case OP_MINUS_ASSIGN:
-    CODE_OP(OP_INPLACE_SUB);
-    break;
-  case OP_MULT_ASSIGN:
-    CODE_OP(OP_INPLACE_MUL);
-    break;
-  case OP_DIV_ASSIGN:
-    CODE_OP(OP_INPLACE_DIV);
-    break;
-  case OP_POW_ASSIGN:
-    CODE_OP(OP_INPLACE_POW);
-    break;
-  case OP_MOD_ASSIGN:
-    CODE_OP(OP_INPLACE_MOD);
-    break;
-  case OP_AND_ASSIGN:
-    CODE_OP(OP_INPLACE_AND);
-    break;
-  case OP_OR_ASSIGN:
-    CODE_OP(OP_INPLACE_OR);
-    break;
-  case OP_XOR_ASSIGN:
-    CODE_OP(OP_INPLACE_XOR);
-    break;
-  default:
-    panic("invalid AssignOpKind %d", op);
-    break;
-  }
-}
-
-static void parse_block(ParserState *ps, Vector *vec)
-{
-  int sz = vector_size(vec);
-  Stmt *s = NULL;
-  for (int i = 0; i < sz; ++i) {
-    s = vector_get(vec, i);
-    parse_stmt(ps, s);
-  }
+  if (exp->kind < NIL_KIND || exp->kind > MAP_KIND)
+    panic("invalid expression:%d", exp->kind);
+  handlers[exp->kind](ps, exp);
 }
 
 static void parse_func_body(ParserState *ps, Stmt *stmt)
@@ -992,134 +1055,215 @@ static void parse_func_body(ParserState *ps, Stmt *stmt)
   }
 }
 
-void parse_stmt(ParserState *ps, Stmt *stmt)
+static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
 {
-  switch (stmt->kind) {
-  case IMPORT_KIND: {
-    /* code */
+  ParserUnit *u = ps->u;
+  Symbol *sym;
+  switch (u->scope) {
+  case SCOPE_MODULE:
+  case SCOPE_CLASS:
+    sym = stable_get(u->stbl, id->name);
+    if (sym == NULL)
+      panic("cannot find var symbol '%s'", id->name);
+    break;
+  default:
+    panic("not implemented");
     break;
   }
-  case CONST_KIND: {
-    break;
-  }
-  case VAR_KIND: {
-    Ident *id = &stmt->vardecl.id;
-    Type *type = &stmt->vardecl.type;
-    Expr *exp = stmt->vardecl.exp;
-    if (exp != NULL) {
-      exp->ctx = EXPR_LOAD;
-      parser_visit_expr(ps, exp);
-    }
 
-    if (exp->desc == NULL) {
+  if (sym->kind != SYM_VAR)
+    panic("symbol '%s' is not variable", id->name);
+  if (sym->desc == NULL) {
+    sym->desc = TYPE_INCREF(desc);
+    sym->sym = get_type_symbol(ps, desc);
+  }
+}
+
+static void parse_vardecl(ParserState *ps, Stmt *stmt)
+{
+  Ident *id = &stmt->vardecl.id;
+  Type *type = &stmt->vardecl.type;
+  Expr *exp = stmt->vardecl.exp;
+  TypeDesc *desc = type->desc;
+
+  if (exp != NULL) {
+    exp->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, exp);
+    if (!exp->desc) {
       syntax_error(ps, exp->row, exp->col,
                    "cannot resolve right expr's type");
     }
+  }
 
-    if (type->desc) {
-      //check_var_type();
-    } else {
-      // update var type
-      Symbol *sym = find_id_symbol(ps, id->name);
-      if (sym == NULL)
-        panic("cannot find variable '%s'", id->name);
-      sym->desc = TYPE_INCREF(exp->desc);
-    }
+  // check variable's type
+  if (desc == NULL) {
+    desc = exp->desc;
+  }
 
-    if (!has_error(ps)) {
-      ScopeKind scope = ps->u->scope;
-      if (scope == SCOPE_MODULE) {
-        CODE_OP(OP_LOAD_0);
-        CODE_OP_S(OP_SET_VALUE, id->name);
-      }
+  if (!desc_equal(desc, exp->desc)) {
+    syntax_error(ps, exp->row, exp->col,
+                 "types are not compatible");
+  }
+
+  /* add or update variable symbol */
+  add_update_variable(ps, id, desc);
+
+  /* generate codes */
+  if (!has_error(ps)) {
+    ScopeKind scope = ps->u->scope;
+    if (scope == SCOPE_MODULE) {
+      CODE_OP(OP_LOAD_0);
+      CODE_OP_S(OP_SET_VALUE, id->name);
     }
-    break;
   }
-  case ASSIGN_KIND: {
-    AssignOpKind op = stmt->assign.op;
-    Expr *rexp = stmt->assign.rexp;
-    Expr *lexp = stmt->assign.lexp;
-    rexp->ctx = EXPR_LOAD;
-    if (op == OP_ASSIGN)
-      lexp->ctx = EXPR_STORE;
-    else
-      lexp->ctx = EXPR_ASSIGN;
-    parser_visit_expr(ps, rexp);
-    parser_visit_expr(ps, lexp);
-    TypeDesc *rdesc = rexp->desc;
-    TypeDesc *ldesc = lexp->desc;
-    //if (!rdesc || !ldesc) {
-    if (0) {
-      int row = stmt->assign.lexp->row;
-      int col = stmt->assign.lexp->col;
-      syntax_error(ps, row, col, "cannot resolve right or left exprs' type");
-    } else {
-      //check type is compatible
-      code_assign_stmt(ps, op);
+}
+
+static void parse_assignment(ParserState *ps, Stmt *stmt)
+{
+  AssignOpKind op = stmt->assign.op;
+  Expr *rexp = stmt->assign.rexp;
+  Expr *lexp = stmt->assign.lexp;
+  rexp->ctx = EXPR_LOAD;
+  if (op == OP_ASSIGN) {
+    lexp->ctx = EXPR_STORE;
+  } else {
+    lexp->ctx = EXPR_LOAD;
+  }
+
+  parser_visit_expr(ps, rexp);
+  if (!rexp->desc) {
+    syntax_error(ps, rexp->row, rexp->col,
+                 "cannot resolve right expr's type");
+  }
+
+  parser_visit_expr(ps, lexp);
+  if (!lexp->desc) {
+    syntax_error(ps, lexp->row, lexp->col,
+                 "cannot resolve left expr's type");
+  }
+
+  // check type is compatible
+  if (!has_error(ps)) {
+    if (!desc_equal(lexp->desc, rexp->desc)) {
+      syntax_error(ps, lexp->row, lexp->col,
+                    "types are not compatible");
     }
-    break;
   }
-  case FUNC_KIND: {
-    char *funcname = stmt->funcdecl.id.name;
-    parser_enter_scope(ps, SCOPE_FUNC);
-    debug("parse function '%s'", funcname);
-    ps->u->stbl = stable_new();
-    ParserUnit *up = vector_top_back(&ps->ustack);
-    if (up == NULL)
-      panic("func '%s' up-unit is null", funcname);
-    Symbol *sym = stable_get(up->stbl, funcname);
-    if (sym == NULL || sym->kind != SYM_FUNC)
-      panic("symbol '%s' is not a func", funcname);
-    ps->u->sym = sym;
-    parse_func_body(ps, stmt);
-    parser_exit_scope(ps);
-    debug("end of function '%s'", funcname);
-    break;
-  }
-  case RETURN_KIND: {
-    Expr *exp = stmt->ret.exp;
-    if (exp != NULL) {
-      debug("return has value");
-      exp->ctx = EXPR_LOAD;
-      parser_visit_expr(ps, exp);
-      CODE_OP(OP_RETURN_VALUE);
-    } else {
-      debug("return has no value");
-      CODE_OP(OP_RETURN);
+
+  if (!has_error(ps)) {
+    static int opmapings[] = {
+      -1,
+      -1,
+      OP_INPLACE_ADD, OP_INPLACE_SUB, OP_INPLACE_MUL,
+      OP_INPLACE_DIV, OP_INPLACE_POW, OP_INPLACE_MOD,
+      OP_INPLACE_AND, OP_INPLACE_OR, OP_INPLACE_XOR
+    };
+    if (op != OP_ASSIGN) {
+      if (op < OP_ASSIGN || op > OP_XOR_ASSIGN)
+        panic("invalid AssignOpKind %d", op);
+      CODE_OP(opmapings[op]);
     }
-    break;
   }
-  case EXPR_KIND: {
-    Expr *exp = stmt->expr.exp;
-    if (exp == NULL)
-      return;
+}
+
+static void parse_funcdecl(ParserState *ps, Stmt *stmt)
+{
+  ParserUnit *u = ps->u;
+  char *funcname = stmt->funcdecl.id.name;
+  ParserUnit *up;
+  Symbol *sym;
+  parser_enter_scope(ps, SCOPE_FUNC);
+  debug("parse function '%s'", funcname);
+  u->stbl = stable_new();
+
+  up = vector_top_back(&ps->ustack);
+  if (up == NULL)
+    panic("func '%s' up-unit is null", funcname);
+  sym = stable_get(up->stbl, funcname);
+  if (sym == NULL || sym->kind != SYM_FUNC)
+    panic("symbol '%s' is not a func", funcname);
+  u->sym = sym;
+  parse_func_body(ps, stmt);
+
+  stable_free(u->stbl);
+  u->stbl = NULL;
+  parser_exit_scope(ps);
+  debug("end of function '%s'", funcname);
+}
+
+static void parse_return(ParserState *ps, Stmt *stmt)
+{
+  Expr *exp = stmt->ret.exp;
+  if (exp != NULL) {
+    debug("return has value");
     exp->ctx = EXPR_LOAD;
-    if (ps->interactive && ps->depth <= 1) {
-      parser_visit_expr(ps, exp);
-      if (!has_error(ps)) {
-        CODE_OP(OP_PRINT);
-      }
-    } else  {
-      parser_visit_expr(ps, exp);
-      stmt->hasvalue = exp->hasvalue;
-      if (!has_error(ps)) {
-        if (!stmt->last && stmt->hasvalue) {
-          /* not last statement, pop its value */
-          CODE_OP(OP_POP_TOP);
-        }
+    parser_visit_expr(ps, exp);
+    CODE_OP(OP_RETURN_VALUE);
+  } else {
+    debug("return has no value");
+    CODE_OP(OP_RETURN);
+  }
+}
+
+static void parse_expr(ParserState *ps, Stmt *stmt)
+{
+  Expr *exp = stmt->expr.exp;
+  if (exp == NULL)
+    return;
+  exp->ctx = EXPR_LOAD;
+  if (ps->interactive && ps->depth <= 1) {
+    parser_visit_expr(ps, exp);
+    if (!has_error(ps)) {
+      CODE_OP(OP_PRINT);
+    }
+  } else  {
+    parser_visit_expr(ps, exp);
+    stmt->hasvalue = exp->hasvalue;
+    if (!has_error(ps)) {
+      if (!stmt->last && stmt->hasvalue) {
+        /* not last statement, pop its value */
+        CODE_OP(OP_POP_TOP);
       }
     }
-    break;
   }
-  case BLOCK_KIND: {
-    parser_enter_scope(ps, SCOPE_BLOCK);
-    ps->u->stbl = stable_new();
-    parse_block(ps, stmt->block.vec);
-    parser_exit_scope(ps);
-    break;
+}
+
+static void parse_block(ParserState *ps, Stmt *stmt)
+{
+  ParserUnit *u = ps->u;
+  Vector *vec = stmt->block.vec;
+  parser_enter_scope(ps, SCOPE_BLOCK);
+  u->stbl = stable_new();
+
+  int sz = vector_size(vec);
+  Stmt *s = NULL;
+  for (int i = 0; i < sz; ++i) {
+    s = vector_get(vec, i);
+    parse_stmt(ps, s);
   }
-  default:
-    panic("invalid stmt:%d", stmt->kind);
-    break;
-  }
+
+  stable_free(u->stbl);
+  u->stbl = NULL;
+  parser_exit_scope(ps);
+
+
+}
+
+void parse_stmt(ParserState *ps, Stmt *stmt)
+{
+  static void (*handlers[])(ParserState *, Stmt *) = {
+    NULL,               /* INVALID      */
+    NULL,               /* IMPORT_KIND  */
+    NULL,               /* CONST_KIND   */
+    parse_vardecl,      /* VAR_KIND     */
+    parse_assignment,   /* ASSIGN_KIND  */
+    parse_funcdecl,     /* FUNC_KIND    */
+    parse_return,       /* RETURN_KIND  */
+    parse_expr,         /* EXPR_KIND    */
+    parse_block,        /* BLOCK_KIND   */
+  };
+
+  if (stmt->kind < IMPORT_KIND || stmt->kind > BLOCK_KIND)
+    panic("invalid statement:%d", stmt->kind);
+  handlers[stmt->kind](ps, stmt);
 }

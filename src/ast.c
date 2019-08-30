@@ -163,18 +163,21 @@ Expr *expr_from_slice(Expr *left, Expr *start, Expr *end)
   return exp;
 }
 
-static int get_subarray_maxdims(Vector *exps)
+static TypeDesc *get_subarray_type(Vector *exps)
 {
-  int max = 0;
+  TypeDesc *desc = NULL;
   VECTOR_ITERATOR(iter, exps);
   Expr *exp;
   iter_for_each(&iter, exp) {
-    if (exp->kind == ARRAY_KIND) {
-      if (max < exp->array.dims)
-        max = exp->array.dims;
+    if (desc == NULL) {
+      desc = exp->desc;
+    } else {
+      if (!desc_equal(desc, exp->desc)) {
+        return desc_from_any();
+      }
     }
   }
-  return max;
+  return TYPE_INCREF(desc);
 }
 
 Expr *expr_from_tuple(Vector *exps)
@@ -189,7 +192,9 @@ Expr *expr_from_array(Vector *exps)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = ARRAY_KIND;
-  exp->array.dims = 1 + get_subarray_maxdims(exps);
+  TypeDesc *para = get_subarray_type(exps);
+  exp->desc = desc_from_array(para);
+  TYPE_DECREF(para);
   exp->array.elems = exps;
   return exp;
 }
@@ -211,7 +216,15 @@ Expr *expr_from_map(Vector *exps)
   return exp;
 }
 
-void expr_free(Expr *exp);
+Expr *expr_from_istype(Expr *e, Type *type)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = IS_KIND;
+  exp->is.exp = e;
+  if (type != NULL)
+    exp->is.type = *type;
+  return exp;
+}
 
 void exprlist_free(Vector *vec)
 {
@@ -228,6 +241,8 @@ void expr_free(Expr *exp)
   if (exp == NULL)
     return;
 
+  TYPE_DECREF(exp->desc);
+
   switch (exp->kind) {
   case NIL_KIND:
   case SELF_KIND:
@@ -235,50 +250,41 @@ void expr_free(Expr *exp)
     kfree(exp);
     break;
   case LITERAL_KIND:
-    TYPE_DECREF(exp->desc);
     kfree(exp);
     break;
   case ID_KIND:
-    TYPE_DECREF(exp->desc);
     kfree(exp);
     break;
   case UNARY_KIND:
-    TYPE_DECREF(exp->desc);
     expr_free(exp->unary.exp);
     kfree(exp);
     break;
   case BINARY_KIND:
-    TYPE_DECREF(exp->desc);
     expr_free(exp->binary.lexp);
     expr_free(exp->binary.rexp);
     kfree(exp);
     break;
   case TERNARY_KIND:
-    TYPE_DECREF(exp->desc);
     expr_free(exp->ternary.cond);
     expr_free(exp->ternary.lexp);
     expr_free(exp->ternary.rexp);
     kfree(exp);
     break;
   case ATTRIBUTE_KIND:
-    TYPE_DECREF(exp->desc);
     expr_free(exp->attr.lexp);
     kfree(exp);
     break;
   case SUBSCRIPT_KIND:
-    TYPE_DECREF(exp->desc);
     expr_free(exp->subscr.index);
     expr_free(exp->subscr.lexp);
     kfree(exp);
     break;
   case CALL_KIND:
-    TYPE_DECREF(exp->desc);
     exprlist_free(exp->call.args);
     expr_free(exp->call.lexp);
     kfree(exp);
     break;
   case SLICE_KIND:
-    TYPE_DECREF(exp->desc);
     expr_free(exp->slice.start);
     expr_free(exp->slice.end);
     expr_free(exp->slice.lexp);

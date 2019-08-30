@@ -116,9 +116,12 @@ typedef struct parserstate {
 void codeblock_free(CodeBlock *block);
 void init_parser(void);
 void fini_parser(void);
+ParserState *new_parser(char *filename);
+void free_parser(ParserState *ps);
 void parser_enter_scope(ParserState *ps, ScopeKind scope);
 void parser_exit_scope(ParserState *ps);
 void parse_stmt(ParserState *ps, Stmt *stmt);
+void parser_visit_expr(ParserState *ps, Expr *exp);
 void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf);
 Symbol *find_from_builtins(char *name);
 void mod_from_mobject(Module *mod, Object *ob);

@@ -31,17 +31,35 @@ int file_input(ParserState *ps, char *buf, int size, FILE *in)
   return result;
 }
 
-static inline int isdotkl(char *filename)
+int exist(char *path)
+{
+  struct stat sb;
+  if (stat(path, &sb) < 0)
+    return 0;
+  return 1;
+}
+
+int isdotkl(char *filename)
 {
   char *dot = strrchr(filename, '.');
   if (!dot || strlen(dot) != 3)
     return 0;
-  if (dot[1] == 'k' && dot[2] == 'l' && dot[3] == '\0')
+  if (dot[1] == 'k' && dot[2] == 'l')
     return 1;
   return 0;
 }
 
-static int valid_source(char *path)
+int isdotklc(char *filename)
+{
+  char *dot = strrchr(filename, '.');
+  if (!dot || strlen(dot) != 4)
+    return 0;
+  if (dot[1] == 'k' && dot[2] == 'l' && dot[3] == 'c')
+    return 1;
+  return 0;
+}
+
+int validate_srcfile(char *path)
 {
   char *filename = strrchr(path, '/');
   if (!filename)
@@ -86,37 +104,31 @@ static int valid_source(char *path)
   return 1;
 }
 
-static VECTOR(mods);
-
-ParserState ps_test;
-
 /* koala -c a/b/foo.kl [a/b/foo] */
 void Koala_Compile(char *path)
 {
-  struct stat sb;
-  if (stat(path, &sb) < 0) {
+  if (isdotkl(path)) {
+    /* single source file */
+
+  } else {
+    /* module directory */
+  }
+}
+
+void build_ast(Module *mod, char *path)
+{
+  /*
+  FILE *in = fopen(path, "r");
+  if (in == NULL) {
     error("%s: No such file or directory.", path);
     return;
   }
-
-  if (S_ISREG(sb.st_mode)) {
-    /* single source file */
-    if (!valid_source(path))
-      return;
-
-    FILE *in = fopen(path, "r");
-    if (!in)
-      panic("null pointer");
-    yyscan_t scanner;
-    yylex_init_extra(&ps_test, &scanner);
-    yyset_in(in, scanner);
-    yyparse(&ps_test, scanner);
-    yylex_destroy(scanner);
-    fclose(in);
-    return;
-  }
-
-  if (S_ISDIR(sb.st_mode)) {
-    /* module directory */
-  }
+  ParserState *ps = new_parser(mod, path);
+  yyscan_t scanner;
+  yylex_init_extra(ps, &scanner);
+  yyset_in(in, scanner);
+  yyparse(ps, scanner);
+  yylex_destroy(scanner);
+  fclose(in);
+  */
 }

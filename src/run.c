@@ -138,15 +138,66 @@ void Koala_Finalize(void)
 }
 
 /*
+static void run_klc(char *klc)
+{
+  if (exist(klc)) {
+    run();
+    return;
+  }
+
+  char *kl = str_ndup(klc, strlen(klc) - 1);
+  if (exist(kl)) {
+    compile();
+    run();
+    kfree(kl);
+    return;
+  }
+
+  char *dir = str_ndup(klc, strlen(klc) - 4);
+  if (exist(dir)) {
+    compile();
+    run();
+    kfree(dir);
+    return;
+  }
+
+  error();
+}
+
+static void run_kl(char *kl)
+{
+  char *klc;
+  if (exist(klc)) {
+    return;
+  }
+
+  if (!exist(kl)) {
+    return;
+  }
+
+  compile();
+  run_klc(klc);
+}
+
+static void run_dir(char *dir)
+{
+
+}
+*/
+
+/*
  * The following commands are valid.
  * ~$ koala a/b/foo.kl [a/b/foo.klc] [a/b/foo]
  */
 void Koala_Run(char *path)
 {
-
-}
-
-KoalaState *Koala_GetState(void)
-{
-
+  /*
+  if (isdotklc(path)) {
+    run_klc(path);
+  } else if (isdotkl(path)) {
+    run_kl(path);
+  } else {
+    run_dir(path);
+  }
+  */
 }

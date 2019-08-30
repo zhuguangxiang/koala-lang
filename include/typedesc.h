@@ -69,11 +69,15 @@ typedef struct typedesc {
     struct {
       char *path;
       char *type;
+      Vector *paras;
     } klass;
     struct {
       Vector *args;
       struct typedesc *ret;
     } proto;
+    struct {
+      struct typedesc *para;
+    } array;
   };
 } TypeDesc;
 
@@ -110,8 +114,9 @@ TypeDesc *desc_from_base(int kind);
 #define desc_from_string()  desc_from_base(BASE_STR)
 #define desc_from_bool()    desc_from_base(BASE_BOOL)
 #define desc_from_any()     desc_from_base(BASE_ANY)
-TypeDesc *desc_from_klass(char *path, char *type);
+TypeDesc *desc_from_klass(char *path, char *type, Vector *paras);
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
+TypeDesc *desc_from_array(TypeDesc *para);
 TypeDesc *string_to_desc(char *s);
 TypeDesc *string_to_proto(char *ptype, char *rtype);
 Vector *string_to_descs(char *s);

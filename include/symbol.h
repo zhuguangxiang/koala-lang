@@ -46,8 +46,10 @@ typedef struct symbol {
   SymKind kind;
   /* symbol key */
   char *name;
-  /* symbol type */
+  /* type descriptor */
   TypeDesc *desc;
+  /* type object */
+  struct symbol *sym;
   /* filename */
   char *filename;
   /* position */
@@ -59,21 +61,16 @@ typedef struct symbol {
   int used;
   union {
     struct {
+      /* constant value */
+      ConstValue value;
+    } k;
+    struct {
       /* variable index */
       int32_t index;
-      /* if is constant, save its value */
+      /* constant value */
       ConstValue value;
-      /* symbol's owner, module or class */
-      struct symbol *owner;
-      /* variable's stbl(typeparas), not need free */
-      union {
-        STable *stbl;
-        Vector *paras;
-      };
     } var;
     struct {
-      /* symbol's owner, module or class */
-      struct symbol *owner;
       /* type parameters, only for in module */
       Vector *typeparas;
       /* local varibles in the function */
@@ -84,22 +81,23 @@ typedef struct symbol {
     struct {
       /* type parameters */
       Vector *typeparas;
-      /* supers in liner-oder */
-      Vector supers;
+      /* bases in liner-oder */
+      Vector bases;
       /* symbol table */
       STable *stbl;
     } klass;
     struct {
       /* parameter types */
       Vector *typeparas;
-      /* symbol table for EnumSymbol and FuncSymbol */
+      /* symbol table for enum value and func */
       STable *stbl;
     } em;
     struct {
       /* which enum is it? */
       struct symbol *esym;
       /* associated types, TypeDesc */
-      Vector *types;
+      Vector *descs;
+      Vector *syms;
     } ev;
     struct {
       /* local varibles in the closure */

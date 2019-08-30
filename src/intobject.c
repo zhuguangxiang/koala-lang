@@ -64,7 +64,8 @@ static int64_t int_add(Object *x, Object *y)
         (a < 0 && b < 0 && r > 0))
       panic("overflow:%ld + %lf = %ld", a, b, r);
   } else {
-    panic("Not Implemented");
+    error("Unsupported operand type(s) for +: 'Integer' and '%s'",
+          OB_TYPE_NAME(y));
   }
   return r;
 }
@@ -90,7 +91,8 @@ static int64_t int_sub(Object *x, Object *y)
         (a < 0 && b > 0 && r > 0))
       panic("overflow:%ld + %lf = %ld", a, b, r);
   } else {
-    panic("Not Implemented");
+    error("Unsupported operand type(s) for -: 'Integer' and '%s'",
+          OB_TYPE_NAME(y));
   }
   return r;
 }
@@ -109,7 +111,8 @@ static int64_t int_mul(Object *x, Object *y)
     double b = Float_AsFlt(y);
     r = (int64_t)(a * b);
   } else {
-    panic("Not Implemented");
+    error("Unsupported operand type(s) for *: 'Integer' and '%s'",
+          OB_TYPE_NAME(y));
   }
   return r;
 }
@@ -128,7 +131,8 @@ static int64_t int_div(Object *x, Object *y)
     double b = Float_AsFlt(y);
     r = (int64_t)(a / b);
   } else {
-    panic("Not Implemented");
+    error("Unsupported operand type(s) for /: 'Integer' and '%s'",
+          OB_TYPE_NAME(y));
   }
   return r;
 }
@@ -147,7 +151,8 @@ static int64_t int_mod(Object *x, Object *y)
     double b = Float_AsFlt(y);
     r = (int64_t)fmod(a, b);
   } else {
-    panic("Not Implemented");
+    error("Unsupported operand type(s) for %%: 'Integer' and '%s'",
+          OB_TYPE_NAME(y));
   }
   return r;
 }
@@ -166,7 +171,8 @@ static int64_t int_pow(Object *x, Object *y)
     double b = Float_AsFlt(y);
     r = (int64_t)pow(a, b);
   } else {
-    panic("Not Implemented");
+    error("Unsupported operand type(s) for **: 'Integer' and '%s'",
+          OB_TYPE_NAME(y));
   }
   return r;
 }
@@ -423,7 +429,7 @@ static Object *int_num_not(Object *x, Object *y)
 }
 
 static NumberMethods int_numbers = {
-  .add = int_num_add,
+  .add = NULL,
   .sub = int_num_sub,
   .mul = int_num_mul,
   .div = int_num_div,
@@ -615,6 +621,7 @@ static InplaceMethods int_inplaces = {
 
 static MethodDef int_methods[]= {
   {"__fmt__", "Llang.Formatter;", NULL, integer_fmt},
+  {"__add__", "A", "i", int_num_add},
   {NULL}
 };
 

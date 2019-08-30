@@ -125,12 +125,12 @@ static inline void symbol_free(Symbol *sym)
   case SYM_CLASS:
     debug("[Symbol Freed] class '%s'", sym->name);
     stable_free(sym->klass.stbl);
-    VECTOR_REVERSE_ITERATOR(iter, &sym->klass.supers);
+    VECTOR_REVERSE_ITERATOR(iter, &sym->klass.bases);
     Symbol *tmp;
     iter_for_each(&iter, tmp) {
       symbol_decref(tmp);
     }
-    vector_fini(&sym->klass.supers, NULL, NULL);
+    vector_fini(&sym->klass.bases, NULL, NULL);
     break;
   case SYM_TRAIT:
     panic("SYM_TRAIT not implemented");
@@ -226,7 +226,7 @@ static Symbol *load_type(Object *ob)
   }
 
   Symbol *clsSym = symbol_new(type->name, SYM_CLASS);
-  clsSym->desc = desc_from_klass(mob->path, type->name);
+  clsSym->desc = desc_from_klass(mob->path, type->name, NULL);
   clsSym->klass.stbl = stbl;
 
   TypeObject *item;
@@ -237,7 +237,7 @@ static Symbol *load_type(Object *ob)
     sym = load_type((Object *)item);
     if (sym != NULL) {
       ++sym->refcnt;
-      vector_push_back(&clsSym->klass.supers, sym);
+      vector_push_back(&clsSym->klass.bases, sym);
       symbol_decref(sym);
     }
   }
@@ -287,7 +287,7 @@ Symbol *klass_find_member(Symbol *clsSym, char *name)
   if (sym != NULL)
     return sym;
 
-  VECTOR_REVERSE_ITERATOR(iter, &clsSym->klass.supers);
+  VECTOR_REVERSE_ITERATOR(iter, &clsSym->klass.bases);
   Symbol *item;
   iter_for_each(&iter, item) {
     sym = klass_find_member(item, name);

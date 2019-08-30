@@ -40,6 +40,7 @@ void Cmd_Add_Func(Ident id, Type type);
   char *sval;
   char *text;
   Vector *list;
+  Vector *exprlist;
   Expr *expr;
   Stmt *stmt;
   TypeDesc *desc;
@@ -65,6 +66,7 @@ void Cmd_Add_Func(Ident id, Type type);
 %token RETURN
 %token IN
 %token AS
+%token IS
 
 %token BYTE
 %token INTEGER
@@ -130,7 +132,7 @@ void Cmd_Add_Func(Ident id, Type type);
 %type <expr> map_object
 %type <expr> array_object
 %type <expr> tuple_object
-%type <list> expr_list
+%type <exprlist> expr_list
 %type <expr> atom
 %type <expr> dot_expr
 %type <expr> call_expr
@@ -149,14 +151,17 @@ void Cmd_Add_Func(Ident id, Type type);
 %type <expr> condition_or_expr
 %type <expr> expr
 %type <unaryop> unary_operator
+%type <expr> id_is_type
 
 %type <list> type_list
 %type <desc> type
 %type <desc> no_array_type
+%type <desc> klass_type
 
 %destructor { printf("free expr\n"); expr_free($$); } <expr>
 %destructor { printf("free stmt\n"); stmt_free($$); } <stmt>
 %destructor { printf("decref desc\n"); TYPE_DECREF($$); } <desc>
+%destructor { printf("free expr_list\n"); exprlist_free($$); } <exprlist>
 
 %precedence ID
 %precedence ','
@@ -523,6 +528,14 @@ expr:
 {
   $$ = $1;
 }
+| id_as_type
+{
+  $$ = NULL;
+}
+| id_is_type
+{
+  $$ = $1;
+}
 ;
 
 range_object:
@@ -542,6 +555,18 @@ lambda_object:
 idlist:
   ID ','
 | idlist ID ','
+;
+
+id_as_type:
+  ID AS type
+;
+
+id_is_type:
+  expr IS type
+{
+  TYPE(type, $3, @3);
+  $$ = expr_from_istype($1, &type);
+}
 ;
 
 condition_or_expr:
@@ -1036,8 +1061,7 @@ type:
 }
 | '[' type ']'
 {
-  $$ = NULL;
-  // desc_from_array();
+  $$ = desc_from_array($2);
 }
 ;
 
@@ -1080,7 +1104,7 @@ no_array_type:
 }
 | klass_type
 {
-  $$ = NULL;
+  $$ = $1;
 }
 | func_type
 {
@@ -1090,9 +1114,21 @@ no_array_type:
 
 klass_type:
   ID
+{
+  $$ = desc_from_klass(NULL, $1, NULL);
+}
 | ID '.' ID
+{
+  $$ = NULL;
+}
 | ID '<' type_list '>'
+{
+  $$ = desc_from_klass(NULL, $1, $3);
+}
 | ID '.' ID '<' type_list '>'
+{
+  $$ = NULL;
+}
 ;
 
 func_type:

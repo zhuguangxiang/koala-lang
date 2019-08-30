@@ -67,20 +67,18 @@ typedef enum binaryopkind {
 
 /* expression kind */
 typedef enum exprkind {
-  /* expr head only */
+  /* nil, self and super */
   NIL_KIND = 1, SELF_KIND, SUPER_KIND,
-  /* literal expr */
-  LITERAL_KIND,
-  /* identifier expression */
-  ID_KIND,
+  /* literal and ident */
+  LITERAL_KIND, ID_KIND,
   /* unary, binary, ternary op */
   UNARY_KIND, BINARY_KIND, TERNARY_KIND,
   /* dot, [], (), [:] access */
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, SLICE_KIND,
-  /* map entry */
-  MAP_ENTRY_KIND,
-  /* tuple, array, map, anonymous */
-  TUPLE_KIND, ARRAY_KIND, MAP_KIND, ANONY_FUNC_KIND,
+  /* tuple, array, map entry, map, anonymous */
+  TUPLE_KIND, ARRAY_KIND, MAP_ENTRY_KIND, MAP_KIND, ANONY_KIND,
+  /* is, as */
+  IS_KIND, AS_KIND,
   EXPR_KIND_MAX
 } ExprKind;
 
@@ -89,8 +87,6 @@ typedef enum exprctx {
   EXPR_INVALID,
   /* left or right value indicator */
   EXPR_LOAD, EXPR_STORE,
-  /* Assignment */
-  EXPR_ASSIGN,
   /* call or load function indicator */
   EXPR_CALL_FUNC, EXPR_LOAD_FUNC
 } ExprCtx;
@@ -99,9 +95,9 @@ typedef struct expr {
   ExprKind kind;
   short row;
   short col;
-  TypeDesc *desc;
   ExprCtx ctx;
   Symbol *sym;
+  TypeDesc *desc;
   struct expr *right;
   int argc;
   int leftside;
@@ -168,10 +164,15 @@ typedef struct expr {
       struct expr *key;
       struct expr *val;
     } mapentry;
+    struct {
+      struct expr *exp;
+      Type type;
+    } is;
   };
 } Expr;
 
 void expr_free(Expr *exp);
+void exprlist_free(Vector *vec);
 Expr *expr_from_nil(void);
 Expr *expr_from_self(void);
 Expr *expr_from_super(void);
@@ -192,6 +193,7 @@ Expr *expr_from_tuple(Vector *exps);
 Expr *expr_from_array(Vector *exps);
 Expr *expr_from_mapentry(Expr *key, Expr *val);
 Expr *expr_from_map(Vector *exps);
+Expr *expr_from_istype(Expr *exp, Type *type);
 
 typedef enum stmtkind {
   /* import */

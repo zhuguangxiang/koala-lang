@@ -93,13 +93,14 @@ void fini_typedesc(void)
   check_base_refcnt();
 }
 
-TypeDesc *desc_from_klass(char *path, char *type)
+TypeDesc *desc_from_klass(char *path, char *type, Vector *paras)
 {
   TypeDesc *desc = kmalloc(sizeof(TypeDesc));
   desc->kind = TYPE_KLASS;
   desc->refcnt = 1;
   desc->klass.path = path;
   desc->klass.type = type;
+  desc->klass.paras = paras;
   return desc;
 }
 
@@ -110,6 +111,15 @@ TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret)
   desc->refcnt = 1;
   desc->proto.args = args;
   desc->proto.ret  = TYPE_INCREF(ret);
+  return desc;
+}
+
+TypeDesc *desc_from_array(TypeDesc *para)
+{
+  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
+  desc->kind = TYPE_ARRAY;
+  desc->refcnt = 1;
+  desc->array.para = TYPE_INCREF(para);
   return desc;
 }
 
@@ -129,6 +139,11 @@ void desc_free(TypeDesc *desc)
     }
     vector_free(desc->proto.args, NULL, NULL);
     TYPE_DECREF(desc->proto.ret);
+    kfree(desc);
+    break;
+  }
+  case TYPE_ARRAY: {
+    TYPE_DECREF(desc->array.para);
     kfree(desc);
     break;
   }
@@ -155,9 +170,30 @@ void desc_show(TypeDesc *desc)
   }
 }
 
+/* desc1 <- desc2 */
 int desc_equal(TypeDesc *desc1, TypeDesc *desc2)
 {
+  if (desc1 == desc2)
+    return 1;
 
+  if (desc1->kind != desc2->kind)
+    return 0;
+
+  if ((desc1->kind == TYPE_BASE) &&
+      (desc1->base.type == BASE_ANY))
+    return 1;
+
+  switch (desc1->kind) {
+  case TYPE_KLASS:
+    break;
+  case TYPE_PROTO:
+    break;
+  case TYPE_ARRAY:
+    break;
+  default:
+    break;
+  }
+  return 0;
 }
 
 static TypeDesc *__to_klass(char *s, int len)
@@ -167,7 +203,7 @@ static TypeDesc *__to_klass(char *s, int len)
     panic("null pointer");
   char *path = atom_nstring(s, dot - s);
   char *type = atom_nstring(dot + 1, len - (dot - s) - 1);
-  return desc_from_klass(path, type);
+  return desc_from_klass(path, type, NULL);
 }
 
 static TypeDesc *__to_desc(char **str, int _dims, int _varg)

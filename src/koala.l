@@ -149,6 +149,7 @@ moddoc  "//!"[^\n]*
 "return"   { YY_RETURN(RETURN);       }
 "in"       { YY_RETURN(IN);           }
 "as"       { YY_RETURN(AS);           }
+"is"       { YY_RETURN(IS);           }
 
 "byte"     { YY_RETURN(BYTE);         }
 "int"      { YY_RETURN(INTEGER);      }

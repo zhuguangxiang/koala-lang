@@ -1562,7 +1562,7 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     s = _get_(image, ITEM_STRING, item->typeindex);
     type = atom(s->data);
     //FIXME: typeparas
-    t = desc_from_klass(path, type);
+    t = desc_from_klass(path, type, NULL);
     break;
   }
   case TYPE_PROTO: {
