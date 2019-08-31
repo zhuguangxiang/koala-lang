@@ -167,7 +167,7 @@ typedef struct expr {
     struct {
       struct expr *exp;
       Type type;
-    } is;
+    } isas;
   };
 } Expr;
 
@@ -193,7 +193,8 @@ Expr *expr_from_tuple(Vector *exps);
 Expr *expr_from_array(Vector *exps);
 Expr *expr_from_mapentry(Expr *key, Expr *val);
 Expr *expr_from_map(Vector *exps);
-Expr *expr_from_istype(Expr *exp, Type *type);
+Expr *expr_from_istype(Expr *exp, Type type);
+Expr *expr_from_astype(Expr *exp, Type type);
 
 typedef enum stmtkind {
   /* import */
@@ -243,6 +244,7 @@ typedef struct stmt {
   short hasvalue;
   union {
     struct {
+      int freevar;
       Ident id;
       Type type;
       Expr *exp;
@@ -278,7 +280,7 @@ typedef struct stmt {
 } Stmt;
 
 void stmt_free(Stmt *stmt);
-Stmt *stmt_from_constdecl(Ident id, Type type, Expr *exp);
+Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);
 Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,

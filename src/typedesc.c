@@ -189,6 +189,7 @@ int desc_equal(TypeDesc *desc1, TypeDesc *desc2)
   case TYPE_PROTO:
     break;
   case TYPE_ARRAY:
+    return desc_equal(desc1->array.para, desc2->array.para);
     break;
   default:
     break;

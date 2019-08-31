@@ -163,8 +163,19 @@ Expr *expr_from_slice(Expr *left, Expr *start, Expr *end)
   return exp;
 }
 
+Expr *expr_from_tuple(Vector *exps)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = TUPLE_KIND;
+  exp->tuple = exps;
+  return exp;
+}
+
 static TypeDesc *get_subarray_type(Vector *exps)
 {
+  if (exps == NULL)
+    return desc_from_any();
+
   TypeDesc *desc = NULL;
   VECTOR_ITERATOR(iter, exps);
   Expr *exp;
@@ -178,14 +189,6 @@ static TypeDesc *get_subarray_type(Vector *exps)
     }
   }
   return TYPE_INCREF(desc);
-}
-
-Expr *expr_from_tuple(Vector *exps)
-{
-  Expr *exp = kmalloc(sizeof(Expr));
-  exp->kind = TUPLE_KIND;
-  exp->tuple = exps;
-  return exp;
 }
 
 Expr *expr_from_array(Vector *exps)
@@ -216,13 +219,21 @@ Expr *expr_from_map(Vector *exps)
   return exp;
 }
 
-Expr *expr_from_istype(Expr *e, Type *type)
+Expr *expr_from_istype(Expr *e, Type type)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = IS_KIND;
-  exp->is.exp = e;
-  if (type != NULL)
-    exp->is.type = *type;
+  exp->isas.exp = e;
+  exp->isas.type = type;
+  return exp;
+}
+
+Expr *expr_from_astype(Expr *e, Type type)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = AS_KIND;
+  exp->isas.exp = e;
+  exp->isas.type = type;
   return exp;
 }
 
@@ -307,18 +318,25 @@ void expr_free(Expr *exp)
     exprlist_free(exp->map);
     kfree(exp);
     break;
+  case IS_KIND:
+  case AS_KIND:
+    TYPE_DECREF(exp->isas.type.desc);
+    expr_free(exp->isas.exp);
+    kfree(exp);
+    break;
   default:
     panic("invalid branch %d", exp->kind);
     break;
   }
 }
 
-Stmt *stmt_from_constdecl(Ident id, Type type, Expr *exp)
+Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = CONST_KIND;
   stmt->vardecl.id = id;
-  stmt->vardecl.type = type;
+  if (type != NULL)
+    stmt->vardecl.type = *type;
   stmt->vardecl.exp = exp;
   return stmt;
 }

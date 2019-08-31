@@ -11,6 +11,37 @@
 #include "utf8.h"
 #include "koala_yacc.h"
 
+static int esc_char(char esc)
+{
+  static struct {
+    char esc;
+    char ch;
+  } mappings[] = {
+    {'n',  10},
+    {'"',  34},
+    {'\'', 39},
+    {'\\', 92},
+    {10,   10},
+    {'r',  13},
+    {'a',  7 },
+    {'b',  8 },
+    {'f',  12},
+    {'t',  9 },
+    {'v',  11},
+  };
+
+  for (int i = 0; i < COUNT_OF(mappings); ++i) {
+    if (mappings[i].esc == esc)
+      return mappings[i].ch;
+  }
+  panic("invalid escape character");
+}
+
+static int hex_char(char *s)
+{
+
+}
+
 int interactive(ParserState *ps, char *buf, int size);
 int file_input(ParserState *ps, char *buf, int size, FILE *in);
 
@@ -90,7 +121,7 @@ u3  [\xe0-\xef]
 u4  [\xf0-\xf7]
 asc_char  {asc}
 utf8_char {u2}{u}|{u3}{u}{u}|{u4}{u}{u}{u}
-esc_char  \\[\xa]|\\\\|\\\'|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
+esc_char  \\\x0a\x20|\\\\|\\\'|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
 hex_char  \\x({hex}|{hex}{hex})
 u16_char  \\u{hex}{hex}{hex}{hex}
 u32_char  \\U{hex}{hex}{hex}{hex}{hex}{hex}{hex}{hex}
@@ -191,31 +222,37 @@ moddoc  "//!"[^\n]*
 }
 
 (\'{asc_char}\') {
-  print("ascii:%s\n", yytext);
+  printf("ascii:%s\n", yytext);
   char *s = yytext + 1;
-  yylval->cval.val = decode_one_utf8_char(&s);
+  yylval->cval.val = *s;
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{utf8_char}\') {
-  print("utf8:%s\n", yytext);
+  printf("utf8:%s\n", yytext);
   char *s = yytext + 1;
   yylval->cval.val = decode_one_utf8_char(&s);
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{esc_char}\') {
-  print("escape:%s\n", yytext);
-  return 0;
+  char *s = yytext + 2;
+  printf("escape:%c\n", *s);
+  yylval->cval.val = esc_char(*s);
+  return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{hex_char}\') {
-  print("hex:%s\n", yytext);
-  return 0;
+  char s[4];
+  printf("hex:%s\n", yytext);
+  char *nptr = yytext + 3;
+  strncpy(s, nptr, strlen(nptr) - 1);
+  yylval->cval.val = strtol(s, NULL, 16);
+  return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{u16_char}\') {
-  print("unicode-16:%s\n", yytext);
+  printf("unicode-16:%s\n", yytext);
   return 0;
 }
 
@@ -225,6 +262,7 @@ moddoc  "//!"[^\n]*
 }
 
 (\'{character}{character}+\') {
+  char *s = yytext;
   syntax_error(yyps, yyps->row, yyps->col, "invalid character:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;
@@ -232,7 +270,7 @@ moddoc  "//!"[^\n]*
   }
 }
 
-(\"{string}\") {
+(\"{string}?\") {
   yylval->sval = atom_nstring(yytext + 1, yyleng - 2);
   YY_RETURN(STRING_LITERAL);
 }

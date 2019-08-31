@@ -334,6 +334,12 @@ Object *Koala_EvalFrame(Frame *f)
       OB_DECREF(x);
       break;
     }
+    case OP_TYPECHECK: {
+      x = TOP();
+      if (!Integer_Check(x))
+        error("typecheck failed");
+      break;
+    }
     case OP_ADD: {
       x = POP();
       y = POP();

@@ -65,13 +65,6 @@ static Object *string_fmt(Object *self, Object *ob)
   return NULL;
 }
 
-static MethodDef string_methods[] = {
-  {"concat",  "s",  "s", str_num_add},
-  {"length",  NULL, "i", string_length},
-  {"__fmt__", "Lfmt.Formatter;", NULL, string_fmt},
-  {NULL}
-};
-
 static Object *string_hash(Object *self, Object *args)
 {
   if (!String_Check(self)) {
@@ -177,16 +170,6 @@ static Object *str_num_neq(Object *x, Object *y)
   return (r != 0) ? Bool_True() : Bool_False();
 }
 
-static NumberMethods string_numbers = {
-  .add = str_num_add,
-  .gt  = str_num_gt,
-  .ge  = str_num_ge,
-  .lt  = str_num_lt,
-  .le  = str_num_le,
-  .eq  = str_num_eq,
-  .neq = str_num_neq,
-};
-
 static Object *str_num_inadd(Object *x, Object *y)
 {
   if (!String_Check(x)) {
@@ -207,8 +190,19 @@ static Object *str_num_inadd(Object *x, Object *y)
   return NULL;
 }
 
-static InplaceMethods string_inplaces = {
-  .add = str_num_inadd,
+static MethodDef string_methods[] = {
+  {"concat",  "s",  "s", str_num_add},
+  {"length",  NULL, "i", string_length},
+  {"__fmt__", "Lfmt.Formatter;", NULL, string_fmt},
+  {"__add__", "s", "s", str_num_add},
+  {"__gt__", "s", "z", str_num_gt},
+  {"__ge__", "s", "z", str_num_ge},
+  {"__lt__", "s", "z", str_num_lt},
+  {"__le__", "s", "z", str_num_le},
+  {"__eq__", "s", "z", str_num_eq},
+  {"__neq__", "s", "z", str_num_neq},
+  {"__inadd__", "ss", NULL, str_num_inadd},
+  {NULL}
 };
 
 TypeObject String_Type = {
@@ -217,9 +211,6 @@ TypeObject String_Type = {
   .hash    = string_hash,
   .equal   = string_equal,
   .free    = string_free,
-  .str     = string_str,
-  .number  = &string_numbers,
-  .inplace = &string_inplaces,
   .methods = string_methods,
 };
 

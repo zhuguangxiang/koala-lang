@@ -28,7 +28,8 @@
 
 /* interactive mode */
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
-void Cmd_Add_Var(Ident id, Type type);
+void Cmd_Add_Const(Ident id, Type type);
+void Cmd_Add_Var(Ident id, Type type, int freevar);
 void Cmd_Add_Func(Ident id, Type type);
 
 %}
@@ -116,6 +117,7 @@ void Cmd_Add_Func(Ident id, Type type);
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
+%type <stmt> const_decl
 %type <stmt> var_decl
 %type <stmt> free_var_decl
 %type <stmt> assignment
@@ -151,7 +153,8 @@ void Cmd_Add_Func(Ident id, Type type);
 %type <expr> condition_or_expr
 %type <expr> expr
 %type <unaryop> unary_operator
-%type <expr> id_is_type
+%type <expr> expr_as_type
+%type <expr> expr_is_type
 
 %type <list> type_list
 %type <desc> type
@@ -199,6 +202,11 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    if ($1 != NULL) {
+      Cmd_Add_Const($1->vardecl.id, $1->vardecl.type);
+      Cmd_EvalStmt(ps, $1);
+      stmt_free($1);
+    }
     ps->errnum = 0;
   }
 }
@@ -207,7 +215,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type);
+      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type, 0);
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
@@ -220,7 +228,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type);
+      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type, 1);
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
@@ -315,11 +323,7 @@ unit:
 ;
 
 local:
-  const_decl
-{
-  $$ = NULL;
-}
-| var_decl
+  var_decl
 {
   $$ = $1;
 }
@@ -382,7 +386,13 @@ id_as_list:
 
 const_decl:
   CONST ID '=' expr ';'
+{
+  $$ = NULL;
+}
 | CONST ID type '=' expr ';'
+{
+  $$ = NULL;
+}
 ;
 
 var_decl:
@@ -528,11 +538,11 @@ expr:
 {
   $$ = $1;
 }
-| id_as_type
+| expr_as_type
 {
-  $$ = NULL;
+  $$ = $1;
 }
-| id_is_type
+| expr_is_type
 {
   $$ = $1;
 }
@@ -557,15 +567,19 @@ idlist:
 | idlist ID ','
 ;
 
-id_as_type:
-  ID AS type
-;
-
-id_is_type:
-  expr IS type
+expr_as_type:
+  logic_or_expr AS type
 {
   TYPE(type, $3, @3);
-  $$ = expr_from_istype($1, &type);
+  $$ = expr_from_astype($1, type);
+}
+;
+
+expr_is_type:
+  logic_or_expr IS type
+{
+  TYPE(type, $3, @3);
+  $$ = expr_from_istype($1, type);
 }
 ;
 
@@ -896,6 +910,11 @@ array_object:
 {
   $$ = expr_from_array($2);
 }
+| '[' expr_list ';' ']'
+{
+  /* auto insert semicolon */
+  $$ = expr_from_array($2);
+}
 | '[' ']'
 {
   $$ = expr_from_array(NULL);
@@ -922,6 +941,11 @@ map_object:
 }
 | '{' kv_list ',' '}'
 {
+  $$ = expr_from_map($2);
+}
+| '{' kv_list ';' '}'
+{
+  /* auto insert semicolon */
   $$ = expr_from_map($2);
 }
 | '{' ':' '}'

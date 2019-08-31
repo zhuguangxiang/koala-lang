@@ -65,6 +65,8 @@ typedef struct symbol {
       ConstValue value;
     } k;
     struct {
+      /* free var */
+      int freevar;
       /* variable index */
       int32_t index;
       /* constant value */

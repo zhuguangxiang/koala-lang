@@ -140,9 +140,15 @@ static Object *getcode(CodeBlock *block)
   return ob;
 }
 
-void Cmd_Add_Var(Ident id, Type type)
+void Cmd_Add_Const(Ident id, Type type)
+{
+  sym = stable_add_const(mod.stbl, id.name, type.desc);
+}
+
+void Cmd_Add_Var(Ident id, Type type, int freevar)
 {
   sym = stable_add_var(mod.stbl, id.name, type.desc);
+  sym->var.freevar = freevar;
 }
 
 void Cmd_Add_Func(Ident id, Type type)

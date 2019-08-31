@@ -32,13 +32,15 @@ extern "C" {
 #define OP_STORE_2 18
 #define OP_STORE_3 19
 
-#define OP_GET_OBJECT  20
-#define OP_GET_VALUE 21
-#define OP_SET_VALUE 22
+#define OP_GET_OBJECT   20
+#define OP_GET_VALUE    21
+#define OP_SET_VALUE    22
 #define OP_RETURN_VALUE 23
-#define OP_RETURN 24
-#define OP_CALL   25
-#define OP_PRINT  26
+#define OP_RETURN    24
+#define OP_CALL      25
+#define OP_PRINT     26
+#define OP_TYPEOF    27
+#define OP_TYPECHECK 28
 
 /* 27 - 29 */
 

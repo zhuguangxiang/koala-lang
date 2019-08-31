@@ -209,6 +209,8 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     break;
   case OP_POP_TOP:
   case OP_PRINT:
+  case OP_TYPEOF:
+  case OP_TYPECHECK:
   case OP_DUP:
   case OP_LOAD_0:
   case OP_LOAD_1:
@@ -503,6 +505,9 @@ static Symbol *get_type_symbol(ParserState *ps, TypeDesc *desc)
     else
       panic("not implemented");
     break;
+  case TYPE_PROTO:
+    sym = get_type_symbol(ps, desc->proto.ret);
+    break;
   case TYPE_ARRAY:
     sym = find_from_builtins("Array");
     break;
@@ -612,11 +617,23 @@ static void parse_binary(ParserState *ps, Expr *exp)
   }
 
   exp->sym = get_type_symbol(ps, lexp->desc);
+  if (exp->desc == NULL)
+    exp->desc = TYPE_INCREF(lexp->desc);
+
   if (exp->binary.op == BINARY_ADD) {
     Symbol *sym = klass_find_member(exp->sym, "__add__");
-    if (sym == NULL)
-      syntax_error(ps, lexp->row, lexp->col,
-                   "unsupported +");
+    if (sym == NULL) {
+      syntax_error(ps, lexp->row, lexp->col, "unsupported +");
+    } else {
+      TypeDesc *desc = sym->desc;
+      if (desc == NULL || desc->kind != TYPE_PROTO)
+        panic("__add__'s type descriptor is invalid");
+      desc = vector_get(desc->proto.args, 0);
+      if (!desc_equal(desc, rexp->desc)) {
+        syntax_error(ps, lexp->row, lexp->col,
+                    "left and right + is not matched");
+      }
+    }
   }
 
   if (!has_error(ps)) {
@@ -977,9 +994,36 @@ static void parse_map(ParserState *ps, Expr *exp)
 
 static void parse_is(ParserState *ps, Expr *exp)
 {
-  parser_visit_expr(ps, exp->is.exp);
+  Expr *is = exp->isas.exp;
+  is->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, is);
+  if (!is->desc) {
+    syntax_error(ps, is->row, is->col,
+                  "cannot resolve expr's type");
+  }
+  exp->desc = desc_from_bool();
+  exp->sym = get_type_symbol(ps, is->desc);
 
   if (!has_error(ps)) {
+    CODE_OP(OP_TYPEOF);
+  }
+}
+
+static void parse_as(ParserState *ps, Expr *exp)
+{
+  Expr *as = exp->isas.exp;
+  as->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, as);
+  if (!as->desc) {
+    syntax_error(ps, as->row, as->col,
+                  "cannot resolve expr's type");
+  }
+  TYPE_DECREF(exp->desc);
+  exp->desc = TYPE_INCREF(exp->isas.type.desc);
+  exp->sym = get_type_symbol(ps, as->desc);
+
+  if (!has_error(ps)) {
+    CODE_OP(OP_TYPECHECK);
   }
 }
 
@@ -1012,10 +1056,10 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_map,          /* MAP_KIND       */
     NULL,               /* ANONY_KIND     */
     parse_is,           /* IS_KIND        */
-    NULL,               /* AS_KIND        */
+    parse_as,           /* AS_KIND        */
   };
 
-  if (exp->kind < NIL_KIND || exp->kind > MAP_KIND)
+  if (exp->kind < NIL_KIND || exp->kind > AS_KIND)
     panic("invalid expression:%d", exp->kind);
   handlers[exp->kind](ps, exp);
 }
@@ -1095,12 +1139,11 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
     }
   }
 
-  // check variable's type
   if (desc == NULL) {
     desc = exp->desc;
   }
 
-  if (!desc_equal(desc, exp->desc)) {
+  if (!stmt->vardecl.freevar && !desc_equal(desc, exp->desc)) {
     syntax_error(ps, exp->row, exp->col,
                  "types are not compatible");
   }
@@ -1142,11 +1185,19 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
                  "cannot resolve left expr's type");
   }
 
-  // check type is compatible
-  if (!has_error(ps)) {
-    if (!desc_equal(lexp->desc, rexp->desc)) {
-      syntax_error(ps, lexp->row, lexp->col,
-                    "types are not compatible");
+  Symbol *sym = lexp->sym;
+  if (sym->kind == SYM_VAR && sym->var.freevar) {
+    if (sym->desc == NULL)
+      panic("symbol '%s' unknown type", sym->name);
+    TYPE_DECREF(sym->desc);
+    sym->desc = TYPE_INCREF(rexp->desc);
+  } else {
+    // check type is compatible
+    if (!has_error(ps)) {
+      if (!desc_equal(lexp->desc, rexp->desc)) {
+        syntax_error(ps, lexp->row, lexp->col,
+                      "types are not compatible");
+      }
     }
   }
 
@@ -1252,15 +1303,15 @@ static void parse_block(ParserState *ps, Stmt *stmt)
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   static void (*handlers[])(ParserState *, Stmt *) = {
-    NULL,               /* INVALID      */
-    NULL,               /* IMPORT_KIND  */
-    NULL,               /* CONST_KIND   */
-    parse_vardecl,      /* VAR_KIND     */
-    parse_assignment,   /* ASSIGN_KIND  */
-    parse_funcdecl,     /* FUNC_KIND    */
-    parse_return,       /* RETURN_KIND  */
-    parse_expr,         /* EXPR_KIND    */
-    parse_block,        /* BLOCK_KIND   */
+    NULL,               /* INVALID       */
+    NULL,               /* IMPORT_KIND   */
+    NULL,               /* CONST_KIND    */
+    parse_vardecl,      /* VAR_KIND      */
+    parse_assignment,   /* ASSIGN_KIND   */
+    parse_funcdecl,     /* FUNC_KIND     */
+    parse_return,       /* RETURN_KIND   */
+    parse_expr,         /* EXPR_KIND     */
+    parse_block,        /* BLOCK_KIND    */
   };
 
   if (stmt->kind < IMPORT_KIND || stmt->kind > BLOCK_KIND)
