@@ -158,13 +158,15 @@ static int logic_true(Object *ob)
 static int typecheck(Object *ob, Object *type)
 {
   if (!Desc_Check(type))
-    panic("OP_TYPECHECK: para is not DescType");
+    panic("typecheck: para is not DescType");
   TypeDesc *desc = ((DescObject *)type)->desc;
   if (Integer_Check(ob) && desc_is_int(desc))
     return 1;
   if (String_Check(ob) && desc_is_str(desc))
     return 1;
   if (Bool_Check(ob) && desc_is_bool(desc))
+    return 1;
+  if (Array_Check(ob) && desc_is_array(desc))
     return 1;
   return 0;
 }
@@ -346,6 +348,17 @@ Object *Koala_EvalFrame(Frame *f)
       x = POP();
       IoPrintln(x);
       OB_DECREF(x);
+      break;
+    }
+    case OP_TYPEOF: {
+      x = POP();
+      oparg = NEXT_2BYTES();
+      y = Tuple_Get(consts, oparg);
+      int bval = typecheck(x, y);
+      z = bval ? Bool_True() : Bool_False();
+      PUSH(z);
+      OB_DECREF(x);
+      OB_DECREF(y);
       break;
     }
     case OP_TYPECHECK: {

@@ -171,17 +171,16 @@ void desc_show(TypeDesc *desc)
 }
 
 /* desc1 <- desc2 */
-int desc_equal(TypeDesc *desc1, TypeDesc *desc2)
+int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 {
   if (desc1 == desc2)
     return 1;
 
+  if (desc_is_any(desc1))
+    return 1;
+
   if (desc1->kind != desc2->kind)
     return 0;
-
-  if ((desc1->kind == TYPE_BASE) &&
-      (desc1->base.type == BASE_ANY))
-    return 1;
 
   switch (desc1->kind) {
   case TYPE_KLASS:
@@ -189,7 +188,7 @@ int desc_equal(TypeDesc *desc1, TypeDesc *desc2)
   case TYPE_PROTO:
     break;
   case TYPE_ARRAY:
-    return desc_equal(desc1->array.para, desc2->array.para);
+    return desc_check(desc1->array.para, desc2->array.para);
     break;
   default:
     break;

@@ -264,8 +264,7 @@ static TypeItem *typeitem_proto_new(int32_t pindex, int32_t rindex)
   return item;
 }
 
-/*
-TypeItem *TypeItem_Array_New(int dims, int32_t typeindex)
+static TypeItem *typeitem_array_New(int dims, int32_t typeindex)
 {
   TypeItem *item = kmalloc(sizeof(TypeItem));
   item->kind = TYPE_ARRAY;
@@ -273,6 +272,8 @@ TypeItem *TypeItem_Array_New(int dims, int32_t typeindex)
   item->array.typeindex = typeindex;
   return item;
 }
+
+/*
 
 TypeItem *TypeItem_Varg_New(int32_t typeindex)
 {
@@ -1075,13 +1076,12 @@ static int typeitem_set(Image *image, TypeDesc *desc)
       item = typeitem_proto_new(pindex, rindex);
       break;
     }
-    /*
     case TYPE_ARRAY: {
-      ArrayDesc *array = (ArrayDesc *)desc;
-      int typeindex = typeitem_set(image, array->base);
-      item = TypeItem_Array_New(array->dims, typeindex);
+      int typeindex = typeitem_set(image, desc->array.para);
+      item = typeitem_array_New(0, typeindex);
       break;
     }
+    /*
     case TYPE_VARG: {
       VargDesc *varg = (VargDesc *)desc;
       int typeindex = typeitem_set(image, varg->base);
@@ -1586,7 +1586,6 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   switch (item->kind) {
   case TYPE_BASE: {
     t = desc_from_base(item->base);
-    TYPE_INCREF(t);
     break;
   }
   case TYPE_KLASS: {
@@ -1614,15 +1613,15 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     TYPE_DECREF(ret);
     break;
   }
-  /*
   case TYPE_ARRAY: {
-    TypeItem *base = _get_(image, ITEM_TYPE, item->array.typeindex);
-    TypeDesc *base_type = to_typedesc(base, image);
+    TypeItem *para = _get_(image, ITEM_TYPE, item->array.typeindex);
+    TypeDesc *desc = to_typedesc(para, image);
     //FIXME
-    t = TypeDesc_New_Array(base_type);
-    TYPE_DECREF(base_type);
+    t = desc_from_array(desc);
+    TYPE_DECREF(desc);
     break;
   }
+  /*
   case TYPE_VARG: {
     TypeItem *base = _get_(image, ITEM_TYPE, item->varg.typeindex);
     TypeDesc *desc = to_typedesc(base, image);
@@ -1631,10 +1630,9 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     break;
   }
   */
-  default: {
+  default:
     assert(0);
     break;
-  }
   }
   return t;
 }
@@ -1684,7 +1682,7 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
   LiteralItem *liteitem;
   TypeItem *typeitem;
   Literal val;
-  void *v;
+  TypeDesc *v;
   int size = _size_(image, ITEM_CONST);
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_CONST, i);
@@ -1697,6 +1695,7 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
       typeitem = _get_(image, ITEM_TYPE, item->index);
       v = to_typedesc(typeitem, image);
       func(v, CONST_TYPE, i, arg);
+      TYPE_DECREF(v);
     }
   }
 }

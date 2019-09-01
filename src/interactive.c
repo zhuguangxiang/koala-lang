@@ -245,12 +245,11 @@ int interactive(ParserState *ps, char *buf, int size)
   /* set TAB width as 2 spaces */
   rl_generic_bind(ISMACR, "\t", "  ", rl_get_keymap());
 
-  /* clear error */
-  ps->errnum = 0;
-
   if (ps->more) {
     line = readline(MORE_PROMPT);
   } else {
+    /* clear error */
+    ps->errnum = 0;
     line = readline(PROMPT);
   }
 

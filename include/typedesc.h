@@ -104,7 +104,7 @@ void init_typedesc(void);
 void fini_typedesc(void);
 void desc_free(TypeDesc *desc);
 void desc_tostr(TypeDesc *desc, StrBuf *buf);
-int desc_equal(TypeDesc *desc1, TypeDesc *desc2);
+int desc_check(TypeDesc *desc1, TypeDesc *desc2);
 
 TypeDesc *desc_from_base(int kind);
 #define desc_from_byte()    desc_from_base(BASE_BYTE)
@@ -136,6 +136,8 @@ void desc_show(TypeDesc *desc);
   (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_BOOL))
 #define desc_is_any(desc) \
   (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_ANY))
+#define desc_is_array(desc) \
+  ((desc)->kind == TYPE_ARRAY)
 
 #ifdef __cplusplus
 }

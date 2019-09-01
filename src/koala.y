@@ -1074,6 +1074,7 @@ type:
 | '[' type ']'
 {
   $$ = desc_from_array($2);
+  TYPE_DECREF($2);
 }
 ;
 

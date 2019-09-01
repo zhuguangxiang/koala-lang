@@ -183,7 +183,7 @@ static TypeDesc *get_subarray_type(Vector *exps)
     if (desc == NULL) {
       desc = exp->desc;
     } else {
-      if (!desc_equal(desc, exp->desc)) {
+      if (!desc_check(desc, exp->desc)) {
         return desc_from_any();
       }
     }

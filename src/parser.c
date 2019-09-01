@@ -656,7 +656,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
       if (desc == NULL || desc->kind != TYPE_PROTO)
         panic("__add__'s type descriptor is invalid");
       desc = vector_get(desc->proto.args, 0);
-      if (!desc_equal(desc, rexp->desc)) {
+      if (!desc_check(desc, rexp->desc)) {
         syntax_error(ps, lexp->row, lexp->col,
                     "left and right + is not matched");
       }
@@ -820,16 +820,16 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     TypeDesc *desc = sym->desc;
     Vector *args = desc->proto.args;
     desc = vector_get(args, 0);
-    if (!desc_equal(idx->desc, desc)) {
+    if (!desc_check(idx->desc, desc)) {
       syntax_error(ps, idx->row, idx->col,
                   "subscript index type is error");
     }
   }
 
-  exp->desc = TYPE_INCREF(lexp->desc->array.para);
-  exp->sym = get_type_symbol(ps, exp->desc);
-
   if (!has_error(ps)) {
+    TYPE_DECREF(exp->desc);
+    exp->desc = TYPE_INCREF(lexp->desc->array.para);
+    exp->sym = get_type_symbol(ps, exp->desc);
     if (exp->ctx == EXPR_LOAD) {
       CODE_OP(OP_SUBSCR_LOAD);
     } else {
@@ -879,7 +879,7 @@ static void parse_call(ParserState *ps, Expr *exp)
     for (int i = 0; i < psz; ++i) {
       pdesc = vector_get(params, i);
       arg = vector_get(args, i);
-      if (!desc_equal(pdesc, arg->desc)) {
+      if (!desc_check(pdesc, arg->desc)) {
         syntax_error(ps, exp->row, exp->col,
                     "types are not compatible");
       }
@@ -1025,33 +1025,34 @@ static void parse_map(ParserState *ps, Expr *exp)
 
 static void parse_is(ParserState *ps, Expr *exp)
 {
-  Expr *is = exp->isas.exp;
-  is->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, is);
-  if (!is->desc) {
-    syntax_error(ps, is->row, is->col,
-                  "cannot resolve expr's type");
+  Expr *e = exp->isas.exp;
+  e->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, e);
+  if (!e->desc) {
+    syntax_error(ps, e->row, e->col,
+                 "cannot resolve expr's type");
   }
+  TYPE_DECREF(exp->desc);
   exp->desc = desc_from_bool();
-  exp->sym = get_type_symbol(ps, is->desc);
+  exp->sym = get_type_symbol(ps, exp->desc);
 
   if (!has_error(ps)) {
-    CODE_OP_TYPE(OP_TYPEOF, exp->desc);
+    CODE_OP_TYPE(OP_TYPEOF, exp->isas.type.desc);
   }
 }
 
 static void parse_as(ParserState *ps, Expr *exp)
 {
-  Expr *as = exp->isas.exp;
-  as->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, as);
-  if (!as->desc) {
-    syntax_error(ps, as->row, as->col,
-                  "cannot resolve expr's type");
+  Expr *e = exp->isas.exp;
+  e->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, e);
+  if (!e->desc) {
+    syntax_error(ps, e->row, e->col,
+                 "cannot resolve expr's type");
   }
   TYPE_DECREF(exp->desc);
   exp->desc = TYPE_INCREF(exp->isas.type.desc);
-  exp->sym = get_type_symbol(ps, as->desc);
+  exp->sym = get_type_symbol(ps, exp->desc);
 
   if (!has_error(ps)) {
     CODE_OP_TYPE(OP_TYPECHECK, exp->desc);
@@ -1156,25 +1157,27 @@ static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
 
 static void parse_vardecl(ParserState *ps, Stmt *stmt)
 {
+  Expr *exp = stmt->vardecl.exp;
+  if (exp == NULL) {
+    return;
+  }
+
   Ident *id = &stmt->vardecl.id;
   Type *type = &stmt->vardecl.type;
-  Expr *exp = stmt->vardecl.exp;
   TypeDesc *desc = type->desc;
 
-  if (exp != NULL) {
-    exp->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, exp);
-    if (!exp->desc) {
-      syntax_error(ps, exp->row, exp->col,
-                   "cannot resolve right expr's type");
-    }
+  exp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, exp);
+  if (!exp->desc) {
+    syntax_error(ps, exp->row, exp->col,
+                  "cannot resolve right expr's type");
   }
 
   if (desc == NULL) {
     desc = exp->desc;
   }
 
-  if (!stmt->vardecl.freevar && !desc_equal(desc, exp->desc)) {
+  if (!stmt->vardecl.freevar && !desc_check(desc, exp->desc)) {
     syntax_error(ps, exp->row, exp->col,
                  "types are not compatible");
   }
@@ -1225,7 +1228,7 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
   } else {
     // check type is compatible
     if (!has_error(ps)) {
-      if (!desc_equal(lexp->desc, rexp->desc)) {
+      if (!desc_check(lexp->desc, rexp->desc)) {
         syntax_error(ps, lexp->row, lexp->col,
                       "types are not compatible");
       }
