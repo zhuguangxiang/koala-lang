@@ -62,7 +62,7 @@ typedef struct symbol {
   union {
     struct {
       /* constant value */
-      ConstValue value;
+      Literal value;
     } k;
     struct {
       /* free var */
@@ -70,7 +70,7 @@ typedef struct symbol {
       /* variable index */
       int32_t index;
       /* constant value */
-      ConstValue value;
+      Literal value;
     } var;
     struct {
       /* type parameters, only for in module */

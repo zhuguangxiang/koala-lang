@@ -16,11 +16,15 @@ static void init_types(void)
 
   int res = Type_Ready(&Type_Type);
   if (res != 0)
-    panic("Cannot initalize 'Class' type.");
+    panic("Cannot initalize 'Type' type.");
 
   res = Type_Ready(&Any_Type);
   if (res != 0)
     panic("Cannot initalize 'Any' type.");
+
+  res = Type_Ready(&Desc_Type);
+  if (res != 0)
+    panic("Cannot initalize 'DescType' type.");
 
   res = Type_Ready(&Byte_Type);
   if (res != 0)

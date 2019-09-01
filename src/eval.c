@@ -155,6 +155,20 @@ static int logic_true(Object *ob)
   }
 }
 
+static int typecheck(Object *ob, Object *type)
+{
+  if (!Desc_Check(type))
+    panic("OP_TYPECHECK: para is not DescType");
+  TypeDesc *desc = ((DescObject *)type)->desc;
+  if (Integer_Check(ob) && desc_is_int(desc))
+    return 1;
+  if (String_Check(ob) && desc_is_str(desc))
+    return 1;
+  if (Bool_Check(ob) && desc_is_bool(desc))
+    return 1;
+  return 0;
+}
+
 Object *Koala_EvalFrame(Frame *f)
 {
   int loopflag = 1;
@@ -336,8 +350,11 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_TYPECHECK: {
       x = TOP();
-      if (!Integer_Check(x))
-        error("typecheck failed");
+      oparg = NEXT_2BYTES();
+      y = Tuple_Get(consts, oparg);
+      if (!typecheck(x, y))
+        panic("typecheck failed");
+      OB_DECREF(y);
       break;
     }
     case OP_ADD: {

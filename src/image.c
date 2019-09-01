@@ -75,8 +75,8 @@ static inline void *vargitem_new(int bsize, int isize, int len)
 }
 
 static char *mapitem_string[] = {
-  "map", "string", "type", "typelist", "const", "locvar",
-  "variable", "function", "code",
+  "map", "string", "literal", "type", "typelist", "const",
+  "locvar", "variable", "function", "code",
   "class", "field", "method", "trait", "nfunc", "imeth", "enum", "eval"
 };
 
@@ -343,6 +343,83 @@ static TypeListItem *typelistitem_new(int size, int32_t index[])
   return item;
 }
 
+static int literalitem_length(void *o)
+{
+  return sizeof(LiteralItem);
+}
+
+static void literalitem_write(FILE *fp, void *o)
+{
+  fwrite(o, sizeof(LiteralItem), 1, fp);
+}
+
+static unsigned int literalitem_hash(void *k)
+{
+  return memhash(k, sizeof(LiteralItem));
+}
+
+static int literalitem_equal(void *k1, void *k2)
+{
+  int res = 0;
+  LiteralItem *item1 = k1;
+  LiteralItem *item2 = k2;
+  if (item1->type != item2->type)
+    return 0;
+  switch (item1->type) {
+  case LITERAL_INT:
+    res = (item1->ival == item2->ival);
+    break;
+  case LITERAL_FLOAT:
+    res = (item1->fval == item2->fval);
+    break;
+  case LITERAL_BOOL:
+    res = (item1 == item2);
+    break;
+  case LITERAL_STRING:
+    res = (item1->index == item2->index);
+    break;
+  case LITERAL_UCHAR:
+    res = item1->wch.val == item2->wch.val;
+    break;
+  default:
+    assert(0);
+    break;
+  }
+  return res;
+}
+
+static void literalitem_show(Image *image, void *o)
+{
+  LiteralItem *item = o;
+  switch (item->type) {
+  case LITERAL_INT:
+    print("  int:%ld\n", item->ival);
+    break;
+  case LITERAL_FLOAT:
+    print("  float:%.16lf\n", item->fval);
+    break;
+  case LITERAL_BOOL:
+    print("  bool:%s\n", item->bval ? "true" : "false");
+    break;
+  case LITERAL_STRING:
+    print("  index:%d\n", item->index);
+    StringItem *str = _get_(image, ITEM_STRING, item->index);
+    print("  (str:%s)\n", str->data);
+    break;
+  case LITERAL_UCHAR:
+    print("  uchar:%s\n", item->wch.data);
+    break;
+  default:
+    assert(0);
+    break;
+  }
+}
+
+static void literalitem_free(void *o)
+{
+  kfree(o);
+}
+
 static int constitem_length(void *o)
 {
   return sizeof(ConstItem);
@@ -353,113 +430,17 @@ static void constitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(ConstItem), 1, fp);
 }
 
-static unsigned int constitem_hash(void *k)
-{
-  return memhash(k, sizeof(ConstItem));
-}
-
-static int constitem_equal(void *k1, void *k2)
-{
-  int res = 0;
-  ConstItem *item1 = k1;
-  ConstItem *item2 = k2;
-  if (item1->type != item2->type)
-    return 0;
-  switch (item1->type) {
-  case CONST_INT:
-    res = (item1->ival == item2->ival);
-    break;
-  case CONST_FLOAT:
-    res = (item1->fval == item2->fval);
-    break;
-  case CONST_BOOL:
-    res = (item1 == item2);
-    break;
-  case CONST_STRING:
-    res = (item1->index == item2->index);
-    break;
-  case CONST_UCHAR:
-    res = item1->wch.val == item2->wch.val;
-    break;
-  default:
-    assert(0);
-    break;
-  }
-  return res;
-}
-
 static void constitem_show(Image *image, void *o)
 {
   ConstItem *item = o;
-  switch (item->type) {
-  case CONST_INT:
-    print("  int:%ld\n", item->ival);
-    break;
-  case CONST_FLOAT:
-    print("  float:%.16lf\n", item->fval);
-    break;
-  case CONST_BOOL:
-    print("  bool:%s\n", item->bval ? "true" : "false");
-    break;
-  case CONST_STRING:
-    print("  index:%d\n", item->index);
-    StringItem *str = _get_(image, ITEM_STRING, item->index);
-    print("  (str:%s)\n", str->data);
-    break;
-  case CONST_UCHAR:
-    print("  uchar:%s\n", item->wch.data);
-    break;
-  default:
-    assert(0);
-    break;
-  }
+  char *kindstr = item->kind == CONST_LITERAL ? "literal" : "type";
+  print("  kind:%s\n", kindstr);
+  print("  index:%d\n", item->index);
 }
 
 static void constitem_free(void *o)
 {
   kfree(o);
-}
-
-static inline ConstItem *constitem_new(int type)
-{
-  ConstItem *item = kmalloc(sizeof(ConstItem));
-  item->type = type;
-  return item;
-}
-
-static inline ConstItem *constitem_int_new(int64_t val)
-{
-  ConstItem *item = constitem_new(CONST_INT);
-  item->ival = val;
-  return item;
-}
-
-static inline ConstItem *constitem_float_new(double val)
-{
-  ConstItem *item = constitem_new(CONST_FLOAT);
-  item->fval = val;
-  return item;
-}
-
-static inline ConstItem *constitem_bool_new(int val)
-{
-  ConstItem *item = constitem_new(CONST_BOOL);
-  item->bval = val;
-  return item;
-}
-
-static inline ConstItem *constitem_string_new(int32_t val)
-{
-  ConstItem *item = constitem_new(CONST_STRING);
-  item->index = val;
-  return item;
-}
-
-static inline ConstItem *constitem_uchar_new(wchar val)
-{
-  ConstItem *item = constitem_new(CONST_UCHAR);
-  item->wch = val;
-  return item;
 }
 
 static int locvaritem_length(void *o)
@@ -1122,9 +1103,9 @@ static int typeitem_set(Image *image, TypeDesc *desc)
   return index;
 }
 
-static inline int constitem_get(Image *image, ConstItem *item)
+static inline int literalitem_get(Image *image, LiteralItem *item)
 {
-  return _index_(image, ITEM_CONST, item);
+  return _index_(image, ITEM_LITERAL, item);
 }
 
 static inline int codeitem_set(Image *image, uint8_t *codes, int size)
@@ -1157,6 +1138,11 @@ struct item_funcs {
     stringitem_show, stringitem_free,
   },
   {
+    literalitem_length, literalitem_write,
+    literalitem_hash, literalitem_equal,
+    literalitem_show, literalitem_free,
+  },
+  {
     typeitem_length, typeitem_write,
     typeitem_hash, typeitem_equal,
     typeitem_show, typeitem_free,
@@ -1168,7 +1154,7 @@ struct item_funcs {
   },
   {
     constitem_length, constitem_write,
-    constitem_hash, constitem_equal,
+    NULL, NULL,
     constitem_show, constitem_free,
   },
   {
@@ -1233,74 +1219,122 @@ struct item_funcs {
   },
 };
 
+static inline LiteralItem *literalitem_int_new(int64_t val)
+{
+  LiteralItem *item = kmalloc(sizeof(LiteralItem));
+  item->type = LITERAL_INT;
+  item->ival = val;
+  return item;
+}
+
+static inline LiteralItem *literalitem_float_new(double val)
+{
+  LiteralItem *item = kmalloc(sizeof(LiteralItem));
+  item->type = LITERAL_FLOAT;
+  item->fval = val;
+  return item;
+}
+
+static inline LiteralItem *literalitem_bool_new(int val)
+{
+  LiteralItem *item = kmalloc(sizeof(LiteralItem));
+  item->type = LITERAL_BOOL;
+  item->bval = val;
+  return item;
+}
+
+static inline LiteralItem *literalitem_string_new(int32_t val)
+{
+  LiteralItem *item = kmalloc(sizeof(LiteralItem));
+  item->type = LITERAL_STRING;
+  item->index = val;
+  return item;
+}
+
+static inline LiteralItem *literalitem_uchar_new(wchar val)
+{
+  LiteralItem *item = kmalloc(sizeof(LiteralItem));
+  item->type = LITERAL_UCHAR;
+  item->wch = val;
+  return item;
+}
+
+static int image_add_const(Image *image, int kind, int index)
+{
+  ConstItem *item = kmalloc(sizeof(ConstItem));
+  item->kind = kind;
+  item->index = index;
+  return _append_(image, ITEM_CONST, item, 0);
+}
+
 int Image_Add_Integer(Image *image, int64_t val)
 {
-  ConstItem k = {0};
-  k.type = CONST_INT;
+  LiteralItem k = {0};
+  k.type = LITERAL_INT;
   k.ival = val;
-  int index = constitem_get(image, &k);
+  int index = literalitem_get(image, &k);
   if (index < 0) {
-    ConstItem *item = constitem_int_new(val);
-    index = _append_(image, ITEM_CONST, item, 1);
+    LiteralItem *item = literalitem_int_new(val);
+    index = _append_(image, ITEM_LITERAL, item, 1);
   }
-  return index;
+  return image_add_const(image, CONST_LITERAL, index);
 }
 
 int Image_Add_Float(Image *image, double val)
 {
-  ConstItem k = {0};
-  k.type = CONST_FLOAT;
+  LiteralItem k = {0};
+  k.type = LITERAL_FLOAT;
   k.fval = val;
-  int index = constitem_get(image, &k);
+  int index = literalitem_get(image, &k);
   if (index < 0) {
-    ConstItem *item = constitem_float_new(val);
-    index = _append_(image, ITEM_CONST, item, 1);
+    LiteralItem *item = literalitem_float_new(val);
+    index = _append_(image, ITEM_LITERAL, item, 1);
   }
-  return index;
+  return image_add_const(image, CONST_LITERAL, index);
 }
 
 int Image_Add_Bool(Image *image, int val)
 {
-  ConstItem k = {0};
-  k.type = CONST_BOOL;
+  LiteralItem k = {0};
+  k.type = LITERAL_BOOL;
   k.bval = val;
-  int index = constitem_get(image, &k);
+  int index = literalitem_get(image, &k);
   if (index < 0) {
-    ConstItem *item = constitem_bool_new(val);
-    index = _append_(image, ITEM_CONST, item, 1);
+    LiteralItem *item = literalitem_bool_new(val);
+    index = _append_(image, ITEM_LITERAL, item, 1);
   }
-  return index;
+  return image_add_const(image, CONST_LITERAL, index);
 }
 
 int Image_Add_String(Image *image, char *val)
 {
   int32_t idx = stringitem_set(image, val);
   assert(idx >= 0);
-  ConstItem k = {0};
-  k.type = CONST_STRING;
+  LiteralItem k = {0};
+  k.type = LITERAL_STRING;
   k.index = idx;
-  int index = constitem_get(image, &k);
+  int index = literalitem_get(image, &k);
   if (index < 0) {
-    ConstItem *item = constitem_string_new(idx);
-    index = _append_(image, ITEM_CONST, item, 1);
+    LiteralItem *item = literalitem_string_new(idx);
+    index = _append_(image, ITEM_LITERAL, item, 1);
   }
-  return index;
+  return image_add_const(image, CONST_LITERAL, index);
 }
 
 int Image_Add_UChar(Image *image, wchar val)
 {
-  ConstItem k = {0};
-  k.type = CONST_UCHAR;
+  LiteralItem k = {0};
+  k.type = LITERAL_UCHAR;
   k.wch = val;
-  int index = constitem_get(image, &k);
+  int index = literalitem_get(image, &k);
   if (index < 0) {
-    ConstItem *item = constitem_uchar_new(val);
-    index = _append_(image, ITEM_CONST, item, 1);
+    LiteralItem *item = literalitem_uchar_new(val);
+    index = _append_(image, ITEM_LITERAL, item, 1);
   }
   return index;
 }
 
-int Image_Add_ConstValue(Image *image, ConstValue *val)
+int Image_Add_Literal(Image *image, Literal *val)
 {
   int index;
   if (val->kind == BASE_INT) {
@@ -1319,6 +1353,12 @@ int Image_Add_ConstValue(Image *image, ConstValue *val)
   return index;
 }
 
+int Image_Add_Desc(Image *image, TypeDesc *desc)
+{
+  int type_index = typeitem_set(image, desc);
+  return image_add_const(image, CONST_TYPE, type_index);
+}
+
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc)
 {
   int type_index = typeitem_set(image, desc);
@@ -1328,11 +1368,11 @@ void Image_Add_Var(Image *image, char *name, TypeDesc *desc)
 }
 
 void Image_Add_Const(Image *image, char *name, TypeDesc *desc,
-                     ConstValue *val)
+                     Literal *val)
 {
   int type_index = typeitem_set(image, desc);
   int name_index = stringitem_set(image, name);
-  int index = Image_Add_ConstValue(image, val);
+  int index = Image_Add_Literal(image, val);
   VarItem *varitem = varitem_new(name_index, type_index, 1, index);
   _append_(image, ITEM_VAR, varitem, 0);
 }
@@ -1545,7 +1585,7 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   TypeDesc *t = NULL;
   switch (item->kind) {
   case TYPE_BASE: {
-    t = desc_from_base(item->kind);
+    t = desc_from_base(item->base);
     TYPE_INCREF(t);
     break;
   }
@@ -1599,34 +1639,29 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   return t;
 }
 
-int Image_Get_ConstCount(Image *image)
+static Literal to_literal(LiteralItem *item, Image *image)
 {
-  return _size_(image, ITEM_CONST);
-}
-
-static ConstValue toconst(ConstItem *item, Image *image)
-{
-  ConstValue value;
+  Literal value;
   StringItem *s;
   switch (item->type) {
-  case CONST_INT:
+  case LITERAL_INT:
     value.kind = BASE_INT;
     value.ival = item->ival;
     break;
-  case CONST_STRING:
+  case LITERAL_STRING:
     s = _get_(image, ITEM_STRING, item->index);
     value.kind = BASE_STR;
     value.str = s->data;
     break;
-  case CONST_FLOAT:
+  case LITERAL_FLOAT:
     value.kind = BASE_FLOAT;
     value.fval = item->fval;
     break;
-  case CONST_BOOL:
+  case LITERAL_BOOL:
     value.kind = BASE_BOOL;
     value.bval = item->bval;
     break;
-  case CONST_UCHAR:
+  case LITERAL_UCHAR:
     value.kind = BASE_CHAR;
     value.cval = item->wch;
     break;
@@ -1637,16 +1672,32 @@ static ConstValue toconst(ConstItem *item, Image *image)
   return value;
 }
 
+int Image_Const_Count(Image *image)
+{
+  return _size_(image, ITEM_CONST);
+}
+
 void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
 {
   void *data;
   ConstItem *item;
-  ConstValue val;
+  LiteralItem *liteitem;
+  TypeItem *typeitem;
+  Literal val;
+  void *v;
   int size = _size_(image, ITEM_CONST);
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_CONST, i);
-    val = toconst(item, image);
-    func(&val, i, arg);
+    if (item->kind == CONST_LITERAL) {
+      liteitem = _get_(image, ITEM_LITERAL, item->index);
+      val = to_literal(liteitem, image);
+      func(&val, CONST_LITERAL, i, arg);
+    } else {
+      assert(item->kind == CONST_TYPE);
+      typeitem = _get_(image, ITEM_TYPE, item->index);
+      v = to_typedesc(typeitem, image);
+      func(v, CONST_TYPE, i, arg);
+    }
   }
 }
 
@@ -1656,7 +1707,7 @@ void Image_Get_Vars(Image *image, getvarfunc func, void *arg)
   StringItem *id;
   TypeItem *type;
   TypeDesc *desc;
-  ConstValue value;
+  Literal value;
   int size = _size_(image, ITEM_VAR);
   for (int i = 0; i < size; i++) {
     var = _get_(image, ITEM_VAR, i);
@@ -1664,8 +1715,8 @@ void Image_Get_Vars(Image *image, getvarfunc func, void *arg)
     type = _get_(image, ITEM_TYPE, var->typeindex);
     desc = to_typedesc(type, image);
     if (var->konst) {
-      ConstItem *item = _get_(image, ITEM_CONST, var->index);
-      value = toconst(item, image);
+      LiteralItem *item = _get_(image, ITEM_LITERAL, var->index);
+      value = to_literal(item, image);
       func(id->data, desc, 1, &value, arg);
     } else {
       func(id->data, desc, 0, NULL, arg);
@@ -2030,15 +2081,15 @@ Image *Image_Read_File(char *path, int unload)
         }
       }
       break;
-    case ITEM_CONST:
-      if (LOAD(ITEM_CONST)) {
-        ConstItem *item;
-        ConstItem items[map->size];
-        sz = fread(items, sizeof(ConstItem), map->size, fp);
+    case ITEM_LITERAL:
+      if (LOAD(ITEM_LITERAL)) {
+        LiteralItem *item;
+        LiteralItem items[map->size];
+        sz = fread(items, sizeof(LiteralItem), map->size, fp);
         assert(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = item_copy(sizeof(ConstItem), items + i);
-          _append_(image, ITEM_CONST, item, 1);
+          item = item_copy(sizeof(LiteralItem), items + i);
+          _append_(image, ITEM_LITERAL, item, 1);
         }
       }
       break;

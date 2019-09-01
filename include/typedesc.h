@@ -25,7 +25,7 @@ extern "C" {
 #define BASE_ANY   'A'
 
 /* constant value */
-typedef struct constvalue {
+typedef struct literal {
   /* see BASE_XXX */
   char kind;
   union {
@@ -35,9 +35,9 @@ typedef struct constvalue {
     int bval;
     char *str;
   };
-} ConstValue;
+} Literal;
 
-void constvalue_show(ConstValue *val, StrBuf *sbuf);
+void literal_show(Literal *val, StrBuf *sbuf);
 
 typedef enum desckind {
   TYPE_BASE = 1,
@@ -122,6 +122,20 @@ TypeDesc *string_to_proto(char *ptype, char *rtype);
 Vector *string_to_descs(char *s);
 char *desc_base_str(int kind);
 void desc_show(TypeDesc *desc);
+#define desc_is_int(desc) \
+  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_INT))
+#define desc_is_bye(desc) \
+  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_BYTE))
+#define desc_is_float(desc) \
+  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_FLOAT))
+#define desc_is_char(desc) \
+  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_CHAR))
+#define desc_is_str(desc) \
+  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_STR))
+#define desc_is_bool(desc) \
+  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_BOOL))
+#define desc_is_any(desc) \
+  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_ANY))
 
 #ifdef __cplusplus
 }

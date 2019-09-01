@@ -266,7 +266,6 @@ moddoc  "//!"[^\n]*
   syntax_error(yyps, yyps->row, yyps->col, "invalid character:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;
-    yyps->errnum = 0;
   }
 }
 
@@ -310,7 +309,6 @@ moddoc  "//!"[^\n]*
   syntax_error(yyps, yyps->row, yyps->col, "invalid characters:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;
-    yyps->errnum = 0;
   }
 }
 

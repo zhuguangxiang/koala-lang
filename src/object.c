@@ -671,37 +671,62 @@ int Object_SetValue(Object *self, char *name, Object *val)
   return 0;
 }
 
-Object *New_Const(ConstValue *val)
+Object *New_Literal(Literal *val)
 {
   Object *ob = NULL;
   switch (val->kind) {
   case BASE_INT:
-    debug("const int value: %ld", val->ival);
+    debug("literal int value: %ld", val->ival);
     ob = Integer_New(val->ival);
     break;
   case BASE_STR:
-    debug("const string value: %s", val->str);
+    debug("literal string value: %s", val->str);
     ob = String_New(val->str);
     break;
   case BASE_BOOL:
-    debug("const bool value: %s", val->bval ? "true" : "false");
+    debug("literal bool value: %s", val->bval ? "true" : "false");
     ob = val->bval ? Bool_True() : Bool_False();
     break;
   case BASE_BYTE:
-    debug("const byte value: %ld", val->ival);
+    debug("literal byte value: %ld", val->ival);
     ob = Byte_New((int)val->ival);
     break;
   case BASE_FLOAT:
-    debug("const string value: %lf", val->fval);
+    debug("literal string value: %lf", val->fval);
     ob = Float_New(val->fval);
     break;
   case BASE_CHAR:
-    debug("const string value: %s", (char *)&val->cval);
+    debug("literal string value: %s", (char *)&val->cval);
     ob = Char_New(val->cval.val);
     break;
   default:
-    panic("invalid branch %d", val->kind);
+    panic("invalid literal branch %d", val->kind);
     break;
   }
   return ob;
+}
+
+static void descob_free(Object *ob)
+{
+  if (!Desc_Check(ob)) {
+    error("object of '%.64s' is not a TypeDesc", OB_TYPE_NAME(ob));
+    return;
+  }
+  DescObject *descob = (DescObject *)ob;
+  TYPE_DECREF(descob->desc);
+  kfree(ob);
+}
+
+TypeObject Desc_Type = {
+  OBJECT_HEAD_INIT(&Type_Type)
+  .name = "TypeDesc",
+  .free = descob_free,
+};
+
+Object *New_Desc(TypeDesc *desc)
+{
+  DescObject *descob = kmalloc(sizeof(DescObject));
+  Init_Object_Head(descob, &Desc_Type);
+  descob->desc = TYPE_INCREF(desc);
+  return (Object *)descob;
 }

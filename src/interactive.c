@@ -85,9 +85,10 @@ static void fini_cmdline_env(void)
   mo = NULL;
 }
 
+yyscan_t scanner;
+
 void Koala_ReadLine(void)
 {
-  yyscan_t scanner;
   init_cmdline_env();
   show_banner();
   yylex_init_extra(&ps, &scanner);
@@ -98,10 +99,14 @@ void Koala_ReadLine(void)
   fini_cmdline_env();
 }
 
-static void _get_consts_(ConstValue *val, int index, void *arg)
+static void _get_const_(void *val, int kind, int index, void *arg)
 {
   Object *tuple = arg;
-  Object *ob = New_Const(val);
+  Object *ob;
+  if (kind == CONST_LITERAL)
+    ob = New_Literal(val);
+  else
+    ob = New_Desc(val);
   Tuple_Set(tuple, index, ob);
   OB_DECREF(ob);
 }
@@ -123,9 +128,9 @@ static Object *getcode(CodeBlock *block)
 #if !defined(NDEBUG)
   Image_Show(image);
 #endif
-  size = Image_Get_ConstCount(image);
+  size = Image_Const_Count(image);
   consts = Tuple_New(size);
-  Image_Get_Consts(image, _get_consts_, consts);
+  Image_Get_Consts(image, _get_const_, consts);
   TypeDesc *proto = desc_from_proto(NULL, NULL);
   size = bytebuffer_toarr(&buf, (char **)&code);
   ob = Code_New("__code__", proto, 0, code, size);
@@ -239,6 +244,9 @@ int interactive(ParserState *ps, char *buf, int size)
   rl_bind_key('\t', rl_insert);
   /* set TAB width as 2 spaces */
   rl_generic_bind(ISMACR, "\t", "  ", rl_get_keymap());
+
+  /* clear error */
+  ps->errnum = 0;
 
   if (ps->more) {
     line = readline(MORE_PROMPT);

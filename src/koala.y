@@ -195,7 +195,6 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
-    ps->errnum = 0;
   }
 }
 | const_decl
@@ -207,7 +206,6 @@ unit:
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
-    ps->errnum = 0;
   }
 }
 | var_decl
@@ -219,7 +217,6 @@ unit:
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
-    ps->errnum = 0;
   } else {
   }
 }
@@ -232,7 +229,6 @@ unit:
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
-    ps->errnum = 0;
   }
 }
 | assignment
@@ -241,7 +237,6 @@ unit:
     ps->more = 0;
     Cmd_EvalStmt(ps, $1);
     stmt_free($1);
-    ps->errnum = 0;
   }
 }
 | expr ';'
@@ -251,7 +246,6 @@ unit:
     ps->more = 0;
     Cmd_EvalStmt(ps, stmt);
     stmt_free(stmt);
-    ps->errnum = 0;
   } else {
   }
 }
@@ -271,7 +265,6 @@ unit:
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
-    ps->errnum = 0;
   }
 }
 /*
@@ -281,28 +274,24 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
-    ps->errnum = 0;
   }
 }
 | COMMENT
 {
   if (ps->interactive) {
     ps->more = 0;
-    ps->errnum = 0;
   }
 }
 | DOC
 {
   if (ps->interactive) {
     ps->more = 0;
-    ps->errnum = 0;
   }
 }
 | MODDOC
 {
   if (ps->interactive) {
     ps->more = 0;
-    ps->errnum = 0;
   }
 }
 | error
@@ -313,7 +302,6 @@ unit:
       yyclearin;
     }
     ps->more = 0;
-    ps->errnum = 0;
     yyerrok;
   } else {
     yyclearin;

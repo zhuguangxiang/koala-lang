@@ -105,7 +105,7 @@ typedef struct expr {
   union {
     struct {
       int omit;
-      ConstValue value;
+      Literal value;
     } k;
     struct {
       char *name;
@@ -123,13 +123,13 @@ typedef struct expr {
     struct {
       UnaryOpKind op;
       struct expr *exp;
-      ConstValue val;
+      Literal val;
     } unary;
     struct {
       BinaryOpKind op;
       struct expr *lexp;
       struct expr *rexp;
-      ConstValue val;
+      Literal val;
     } binary;
     struct {
       struct expr *cond;

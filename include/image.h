@@ -16,22 +16,23 @@ extern "C" {
 
 #define ITEM_MAP        0
 #define ITEM_STRING     1
-#define ITEM_TYPE       2
-#define ITEM_TYPELIST   3
-#define ITEM_CONST      4
-#define ITEM_LOCVAR     5
-#define ITEM_VAR        6
-#define ITEM_FUNC       7
-#define ITEM_CODE       8
-#define ITEM_CLASS      9
-#define ITEM_FIELD      10
-#define ITEM_METHOD     11
-#define ITEM_TRAIT      12
-#define ITEM_NFUNC      13
-#define ITEM_IMETH      14
-#define ITEM_ENUM       15
-#define ITEM_EVAL       16
-#define ITEM_MAX        17
+#define ITEM_LITERAL    2
+#define ITEM_TYPE       3
+#define ITEM_TYPELIST   4
+#define ITEM_CONST      5
+#define ITEM_LOCVAR     6
+#define ITEM_VAR        7
+#define ITEM_FUNC       8
+#define ITEM_CODE       9
+#define ITEM_CLASS      10
+#define ITEM_FIELD      11
+#define ITEM_METHOD     12
+#define ITEM_TRAIT      13
+#define ITEM_NFUNC      14
+#define ITEM_IMETH      15
+#define ITEM_ENUM       16
+#define ITEM_EVAL       17
+#define ITEM_MAX        18
 
 typedef struct mapitem {
   /* one of ITEM_XXX, self is ITEM_MAP */
@@ -77,13 +78,13 @@ typedef struct typelistitem {
   int32_t index[0]; /* ->TypeItem */
 } TypeListItem;
 
-#define CONST_INT     1
-#define CONST_FLOAT   2
-#define CONST_BOOL    3
-#define CONST_STRING  4
-#define CONST_UCHAR   5
+#define LITERAL_INT     1
+#define LITERAL_FLOAT   2
+#define LITERAL_BOOL    3
+#define LITERAL_STRING  4
+#define LITERAL_UCHAR   5
 
-typedef struct constitem {
+typedef struct literalitem {
   int type;
   union {
     int64_t ival;   /* int64 */
@@ -92,6 +93,14 @@ typedef struct constitem {
     int32_t index;  /* ->StringItem */
     wchar wch;      /* unicode char */
   };
+} LiteralItem;
+
+#define CONST_LITERAL 1
+#define CONST_TYPE    2
+
+typedef struct constitem {
+  int kind;
+  int32_t index;
 } ConstItem;
 
 typedef struct localvaritem {
@@ -201,11 +210,12 @@ int Image_Add_Float(Image *image, double val);
 int Image_Add_Bool(Image *image, int val);
 int Image_Add_String(Image *image, char *val);
 int Image_Add_UChar(Image *image, wchar val);
-int Image_Add_ConstValue(Image *image, ConstValue *val);
+int Image_Add_Literal(Image *image, Literal *val);
+int Image_Add_Desc(Image *image, TypeDesc *desc);
 
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc);
 void Image_Add_Const(Image *image, char *name, TypeDesc *desc,
-                     ConstValue *val);
+                     Literal *val);
 void Image_Add_LocVar(Image *image, char *name, TypeDesc *desc,
                       int pos, int index);
 int Image_Add_Func(Image *image, char *name, TypeDesc *proto,
@@ -229,10 +239,10 @@ void Image_Write_File(Image *image, char *path);
 /* flags is ITEM_XXX bits, marked not load */
 Image *Image_Read_File(char *path, int unload);
 
-int Image_Get_ConstCount(Image *image);
-typedef void (*getconstfunc)(ConstValue *, int, void *);
+int Image_Const_Count(Image *image);
+typedef void (*getconstfunc)(void *, int, int, void *);
 void Image_Get_Consts(Image *image, getconstfunc func, void *arg);
-typedef void (*getvarfunc)(char *, TypeDesc *, int, ConstValue *val, void *);
+typedef void (*getvarfunc)(char *, TypeDesc *, int, Literal *val, void *);
 void Image_Get_Vars(Image *image, getvarfunc func, void *arg);
 typedef void (*getlocvarfunc)(char *, TypeDesc *, int, int, void *);
 void Image_Get_LocVars(Image *image, getlocvarfunc func, void *arg);

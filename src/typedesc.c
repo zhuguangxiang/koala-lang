@@ -8,7 +8,7 @@
 #include "memory.h"
 #include "log.h"
 
-void constvalue_show(ConstValue *val, StrBuf *sbuf)
+void literal_show(Literal *val, StrBuf *sbuf)
 {
   char buf[128];
   switch (val->kind) {

@@ -57,7 +57,8 @@ typedef struct inst {
   int bytes;
   int argc;
   uint8_t op;
-  ConstValue arg;
+  Literal arg;
+  TypeDesc *desc;
   /* break and continue statements */
   int upbytes;
 } Inst;
@@ -79,7 +80,7 @@ static inline void codeblock_add_inst(CodeBlock *b, Inst *i)
   i->upbytes = b->bytes;
 }
 
-static Inst *inst_add(ParserState *ps, uint8_t op, ConstValue *val)
+static Inst *inst_new(uint8_t op, Literal *val, TypeDesc *desc)
 {
   Inst *i = kmalloc(sizeof(Inst));
   init_list_head(&i->link);
@@ -87,7 +88,19 @@ static Inst *inst_add(ParserState *ps, uint8_t op, ConstValue *val)
   i->bytes = 1 + opcode_argc(op);
   if (val)
     i->arg = *val;
+  i->desc = TYPE_INCREF(desc);
+  return i;
+}
 
+static void inst_free(Inst *i)
+{
+  TYPE_DECREF(i->desc);
+  kfree(i);
+}
+
+static Inst *inst_add(ParserState *ps, uint8_t op, Literal *val)
+{
+  Inst *i = inst_new(op, val, NULL);
   ParserUnit *u = ps->u;
   if (u->block == NULL)
     u->block = codeblock_new();
@@ -98,6 +111,16 @@ static Inst *inst_add(ParserState *ps, uint8_t op, ConstValue *val)
 static inline Inst *inst_add_noarg(ParserState *ps, uint8_t op)
 {
   return inst_add(ps, op, NULL);
+}
+
+static Inst *inst_add_type(ParserState *ps, uint8_t op, TypeDesc *desc)
+{
+  Inst *i = inst_new(op, NULL, desc);
+  ParserUnit *u = ps->u;
+  if (u->block == NULL)
+    u->block = codeblock_new();
+  codeblock_add_inst(u->block, i);
+  return i;
 }
 
 static inline CodeBlock *codeblock_new(void)
@@ -112,10 +135,11 @@ void codeblock_free(CodeBlock *block)
   if (block == NULL)
     return;
 
+  Inst *i;
   struct list_head *p, *n;
   list_for_each_safe(p, n, &block->insts) {
     list_del(p);
-    kfree(p);
+    inst_free((Inst *)p);
   }
 
   kfree(block);
@@ -167,7 +191,7 @@ void codeblock_show(CodeBlock *block)
       print("%6d", i->bytes);
       offset += i->bytes;
       print("  %-16s", opname);
-      constvalue_show(&i->arg, &sbuf);
+      literal_show(&i->arg, &sbuf);
       print("%.64s\n", strbuf_tostr(&sbuf));
       strbuf_fini(&sbuf);
     }
@@ -179,24 +203,15 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   int index = -1;
   bytebuffer_write_byte(buf, i->op);
   switch (i->op) {
-  case OP_LOAD_CONST: {
-    ConstValue *val = &i->arg;
-    index = Image_Add_ConstValue(image, val);
+  case OP_LOAD_CONST:
+  case OP_LOAD_MODULE:
+  case OP_GET_VALUE:
+  case OP_SET_VALUE: {
+    Literal *val = &i->arg;
+    index = Image_Add_Literal(image, val);
     bytebuffer_write_2bytes(buf, index);
     break;
   }
-  case OP_LOAD_MODULE:
-    index = Image_Add_String(image, i->arg.str);
-    bytebuffer_write_2bytes(buf, index);
-    break;
-  case OP_GET_VALUE:
-    index = Image_Add_String(image, i->arg.str);
-    bytebuffer_write_2bytes(buf, index);
-    break;
-  case OP_SET_VALUE:
-    index = Image_Add_String(image, i->arg.str);
-    bytebuffer_write_2bytes(buf, index);
-    break;
   case OP_CALL:
   case OP_NEW_EVAL:
     index = Image_Add_String(image, i->arg.str);
@@ -207,10 +222,13 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
-  case OP_POP_TOP:
-  case OP_PRINT:
   case OP_TYPEOF:
   case OP_TYPECHECK:
+    index = Image_Add_Desc(image, i->desc);
+    bytebuffer_write_2bytes(buf, index);
+    break;
+  case OP_POP_TOP:
+  case OP_PRINT:
   case OP_DUP:
   case OP_LOAD_0:
   case OP_LOAD_1:
@@ -291,14 +309,14 @@ void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf)
 })
 
 #define CODE_OP_I(op, i) ({ \
-  ConstValue v;             \
+  Literal v;                \
   v.kind = BASE_INT;        \
   v.ival = i;               \
   inst_add(ps, op, &v);     \
 })
 
 #define CODE_OP_S(op, s) ({ \
-  ConstValue v;             \
+  Literal v;                \
   v.kind = BASE_STR;        \
   v.str = s;                \
   inst_add(ps, op, &v);     \
@@ -307,6 +325,10 @@ void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf)
 #define CODE_OP_S_ARGC(op, s, _argc) ({ \
   Inst *i = CODE_OP_S(op, s);           \
   i->argc = _argc;                      \
+})
+
+#define CODE_OP_TYPE(op, type) ({ \
+  inst_add_type(ps, op, type);    \
 })
 
 static const char *scopes[] = {
@@ -455,7 +477,7 @@ static Symbol *find_id_symbol(ParserState *ps, char *name)
   return NULL;
 }
 
-static Symbol *get_const_symbol(char kind)
+static Symbol *get_literal_symbol(char kind)
 {
   Symbol *sym;
   switch (kind) {
@@ -497,7 +519,7 @@ static Symbol *get_type_symbol(ParserState *ps, TypeDesc *desc)
   Symbol *sym;
   switch (desc->kind) {
   case TYPE_BASE:
-    sym = get_const_symbol(desc->base.type);
+    sym = get_literal_symbol(desc->base.type);
     break;
   case TYPE_KLASS:
     if (!strcmp(desc->klass.path, "lang"))
@@ -541,7 +563,7 @@ static void parse_const(ParserState *ps, Expr *exp)
 {
   if (exp->ctx != EXPR_LOAD)
     panic("exp ctx is not load");
-  exp->sym = get_const_symbol(exp->k.value.kind);
+  exp->sym = get_literal_symbol(exp->k.value.kind);
   if (!has_error(ps)) {
     if (!exp->k.omit) {
       CODE_OP_V(OP_LOAD_CONST, exp->k.value);
@@ -617,8 +639,13 @@ static void parse_binary(ParserState *ps, Expr *exp)
   }
 
   exp->sym = get_type_symbol(ps, lexp->desc);
-  if (exp->desc == NULL)
+  if (exp->sym == NULL) {
+    return;
+  }
+
+  if (exp->desc == NULL) {
     exp->desc = TYPE_INCREF(lexp->desc);
+  }
 
   if (exp->binary.op == BINARY_ADD) {
     Symbol *sym = klass_find_member(exp->sym, "__add__");
@@ -761,6 +788,10 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   }
 
   Symbol *lsym = lexp->sym;
+  if (lsym == NULL) {
+    return;
+  }
+
   Symbol *sym = NULL;
   switch (lsym->kind) {
   case SYM_CONST:
@@ -1005,7 +1036,7 @@ static void parse_is(ParserState *ps, Expr *exp)
   exp->sym = get_type_symbol(ps, is->desc);
 
   if (!has_error(ps)) {
-    CODE_OP(OP_TYPEOF);
+    CODE_OP_TYPE(OP_TYPEOF, exp->desc);
   }
 }
 
@@ -1023,7 +1054,7 @@ static void parse_as(ParserState *ps, Expr *exp)
   exp->sym = get_type_symbol(ps, as->desc);
 
   if (!has_error(ps)) {
-    CODE_OP(OP_TYPECHECK);
+    CODE_OP_TYPE(OP_TYPECHECK, exp->desc);
   }
 }
 
