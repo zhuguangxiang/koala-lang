@@ -53,7 +53,7 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   static int tokens[] = {
     INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
     ID, SELF, SUPER, TRUE, FALSE, NIL,
-    RETURN, BREAK, CONTINUE, ')', ']', '}',
+    RETURN, BREAK, CONTINUE, ')', ']', '}', '>',
     BYTE, INTEGER, FLOAT, CHAR, STRING, BOOL, ANY,
     DOTDOTDOT, DOTDOTLESS, FAT_ARROW,
   };

@@ -50,6 +50,11 @@ typedef enum desckind {
   TYPE_PARAREF,
 } DescKind;
 
+typedef struct typeparadef {
+  char *name;
+  Vector *types;
+} TypeParaDef;
+
 /*
  * Type descriptor
  * Klass: Lio.File;
@@ -69,15 +74,22 @@ typedef struct typedesc {
     struct {
       char *path;
       char *type;
-      Vector *paras;
+      Vector *typeparas;
+      Vector *pararefs;
     } klass;
     struct {
+      Vector *typeparas;
       Vector *args;
       struct typedesc *ret;
     } proto;
     struct {
+      Vector *typeparas;
       struct typedesc *para;
     } array;
+    struct {
+      char *name;
+      int index;
+    } pararef;
   };
 } TypeDesc;
 

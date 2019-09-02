@@ -167,6 +167,8 @@ void Cmd_Add_Func(Ident id, Type type);
 %destructor { printf("free expr_list\n"); exprlist_free($$); } <exprlist>
 
 %precedence ID
+%precedence '.'
+%precedence '<'
 %precedence ','
 %precedence ')'
 
@@ -806,6 +808,13 @@ atom:
   $$ = expr_from_ident($1);
   set_expr_pos($$, @1);
 }
+| ID '.' ID
+{
+  Expr *e = expr_from_ident($1);
+  set_expr_pos(e, @1);
+  IDENT(id, $3, @3);
+  $$ = expr_from_attribute(id, e);
+}
 | INT_LITERAL
 {
   $$ = expr_from_integer($1);
@@ -868,6 +877,10 @@ atom:
   $$ = $1;
 }
 | anony_object
+{
+  $$ = NULL;
+}
+| new_object
 {
   $$ = NULL;
 }
@@ -967,6 +980,15 @@ anony_object:
 | FUNC '(' para_list ')' block
 | FUNC '(' ')' type block
 | FUNC '(' ')' block
+;
+
+new_object:
+  ID '<' type_list '>'
+{
+}
+| ID '.' ID '<' type_list '>'
+{
+}
 ;
 
 /*
