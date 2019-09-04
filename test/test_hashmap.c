@@ -10,7 +10,7 @@
 #include "hashmap.h"
 
 struct str {
-  HashMapEntry entry;
+  hashmapentry entry;
   char value[0];
 };
 
@@ -42,7 +42,7 @@ static void random_string(char *data, int len)
 
 void test_string_hash(void)
 {
-  HashMap strmap;
+  hashmap strmap;
   hashmap_init(&strmap, __str_cmp_cb__);
   srand(time(NULL));
   struct str *s;

@@ -135,7 +135,7 @@ static struct list_head kslist;
   f->locvars[i] = v;             \
 })
 
-static int logic_true(Object *ob)
+static int logic(Object *ob)
 {
   if (ob == NULL)
     return 0;
@@ -159,14 +159,12 @@ static int typecheck(Object *ob, Object *type)
 {
   if (!Desc_Check(type))
     panic("typecheck: para is not DescType");
-  TypeDesc *desc = ((DescObject *)type)->desc;
-  if (Integer_Check(ob) && desc_is_int(desc))
+  typedesc *desc = ((DescObject *)type)->desc;
+  if (Integer_Check(ob) && desc_isint(desc))
     return 1;
-  if (String_Check(ob) && desc_is_str(desc))
+  if (String_Check(ob) && desc_isstr(desc))
     return 1;
-  if (Bool_Check(ob) && desc_is_bool(desc))
-    return 1;
-  if (Array_Check(ob) && desc_is_array(desc))
+  if (Bool_Check(ob) && desc_isbool(desc))
     return 1;
   return 0;
 }
@@ -607,7 +605,7 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_AND: {
       x = POP();
       y = POP();
-      int r = logic_true(x) && logic_true(y);
+      int r = logic(x) && logic(y);
       z = r ? Bool_True() : Bool_False();
       PUSH(z);
       OB_DECREF(x);
@@ -617,7 +615,7 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_OR: {
       x = POP();
       y = POP();
-      int r = logic_true(x) || logic_true(y);
+      int r = logic(x) || logic(y);
       z = r ? Bool_True() : Bool_False();
       PUSH(z);
       OB_DECREF(x);
@@ -626,7 +624,7 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_NOT: {
       x = POP();
-      int r = logic_true(x);
+      int r = logic(x);
       z = r ? Bool_False() : Bool_True();
       PUSH(z);
       OB_DECREF(x);

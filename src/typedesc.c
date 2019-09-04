@@ -8,7 +8,7 @@
 #include "memory.h"
 #include "log.h"
 
-void literal_show(Literal *val, StrBuf *sbuf)
+void literal_show(literal *val, StrBuf *sbuf)
 {
   char buf[128];
   switch (val->kind) {
@@ -40,46 +40,57 @@ void literal_show(Literal *val, StrBuf *sbuf)
   }
 }
 
-static TypeDesc bases[] = {
-  {TYPE_BASE, 1, .base = {BASE_INT,   "int"   }},
-  {TYPE_BASE, 1, .base = {BASE_STR,   "string"}},
-  {TYPE_BASE, 1, .base = {BASE_ANY,   "any"   }},
-  {TYPE_BASE, 1, .base = {BASE_BYTE,  "byte"  }},
-  {TYPE_BASE, 1, .base = {BASE_CHAR,  "char"  }},
-  {TYPE_BASE, 1, .base = {BASE_FLOAT, "float" }},
-  {TYPE_BASE, 1, .base = {BASE_BOOL,  "bool"  }},
+static typedesc bases[] = {
+  {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_INT  },
+  {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_STR  },
+  {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_ANY  },
+  {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_BOOL },
+  {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_BYTE },
+  {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_CHAR },
+  {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_FLOAT},
 };
 
-TypeDesc *desc_from_base(int kind)
+static struct {
+  char base;
+  char *str;
+} basestrs[] = {
+  {BASE_INT,   "int"   },
+  {BASE_STR,   "string"},
+  {BASE_ANY,   "any"   },
+  {BASE_BOOL,  "bool"  },
+  {BASE_BYTE,  "byte"  },
+  {BASE_CHAR,  "char"  },
+  {BASE_FLOAT, "float" },
+};
+
+char *base_str(int kind)
 {
-  TypeDesc *p;
-  for (int i = 0; i < COUNT_OF(bases); ++i) {
-    p = bases + i;
-    if (p->base.type == kind)
-      return TYPE_INCREF(p);
+  for (int i = 0; i < COUNT_OF(basestrs); ++i) {
+    if (basestrs[i].base == kind)
+      return basestrs[i].str;
   }
   return NULL;
 }
 
-char *desc_base_str(int kind)
+typedesc *desc_from_base(int kind)
 {
-  TypeDesc *p;
+  typedesc *p;
   for (int i = 0; i < COUNT_OF(bases); ++i) {
     p = bases + i;
-    if (p->base.type == kind)
-      return p->base.str;
+    if (p->base == kind)
+      return desc_incref(p);
   }
   return NULL;
 }
 
 static inline void check_base_refcnt(void)
 {
-  TypeDesc *p;
+  typedesc *p;
   for (int i = 0; i < COUNT_OF(bases); ++i) {
     p = bases + i;
     if (p->refcnt != 1)
-      panic("type of '%s' refcnt %d checked failed.",
-            p->base.str, p->refcnt);
+      panic("type of '%s' refcnt is %d, but not 1",
+        base_str(p->base), p->refcnt);
   }
 }
 
@@ -93,57 +104,58 @@ void fini_typedesc(void)
   check_base_refcnt();
 }
 
-TypeDesc *desc_from_klass(char *path, char *type, Vector *paras)
+typedesc *desc_from_klass(char *path, char *type, vector *types)
 {
-  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
+  typedesc *desc = kmalloc(sizeof(typedesc));
   desc->kind = TYPE_KLASS;
   desc->refcnt = 1;
   desc->klass.path = path;
   desc->klass.type = type;
-  desc->klass.paras = paras;
+  desc->klass.types = types;
   return desc;
 }
 
-TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret)
+typedesc *desc_from_proto(vector *args, typedesc *ret)
 {
-  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
+  typedesc *desc = kmalloc(sizeof(typedesc));
   desc->kind = TYPE_PROTO;
   desc->refcnt = 1;
   desc->proto.args = args;
-  desc->proto.ret  = TYPE_INCREF(ret);
+  desc->proto.ret = desc_incref(ret);
   return desc;
 }
 
-TypeDesc *desc_from_array(TypeDesc *para)
+typedesc *desc_from_array(typedesc *para)
 {
-  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
-  desc->kind = TYPE_ARRAY;
-  desc->refcnt = 1;
-  desc->array.para = TYPE_INCREF(para);
-  return desc;
+  vector *types = vector_new();
+  vector_push_back(types, para);
+  return desc_from_klass("lang", "Array", types);
 }
 
-void desc_free(TypeDesc *desc)
+void desc_free(typedesc *desc)
 {
   int kind = desc->kind;
   switch (kind) {
   case TYPE_KLASS: {
+    vector *vec = desc->klass.types;
+    vector_iterator(iter, vec);
+    typedesc *tmp;
+    iter_for_each(&iter, tmp) {
+      desc_decref(tmp);
+    }
+    vector_free(vec, NULL, NULL);
     kfree(desc);
     break;
   }
   case TYPE_PROTO: {
-    VECTOR_ITERATOR(iter, desc->proto.args);
-    TypeDesc *tmp;
+    vector *vec = desc->proto.args;
+    vector_iterator(iter, vec);
+    typedesc *tmp;
     iter_for_each(&iter, tmp) {
-      TYPE_DECREF(tmp);
+      desc_decref(tmp);
     }
-    vector_free(desc->proto.args, NULL, NULL);
-    TYPE_DECREF(desc->proto.ret);
-    kfree(desc);
-    break;
-  }
-  case TYPE_ARRAY: {
-    TYPE_DECREF(desc->array.para);
+    vector_free(vec, NULL, NULL);
+    desc_decref(desc->proto.ret);
     kfree(desc);
     break;
   }
@@ -153,12 +165,12 @@ void desc_free(TypeDesc *desc)
   }
 }
 
-void desc_tostr(TypeDesc *desc, StrBuf *buf)
+void desc_tostr(typedesc *desc, StrBuf *buf)
 {
 
 }
 
-void desc_show(TypeDesc *desc)
+void desc_show(typedesc *desc)
 {
   if (desc != NULL) {
     STRBUF(sbuf);
@@ -171,12 +183,12 @@ void desc_show(TypeDesc *desc)
 }
 
 /* desc1 <- desc2 */
-int desc_check(TypeDesc *desc1, TypeDesc *desc2)
+int desc_check(typedesc *desc1, typedesc *desc2)
 {
   if (desc1 == desc2)
     return 1;
 
-  if (desc_is_any(desc1))
+  if (desc_isany(desc1))
     return 1;
 
   if (desc1->kind != desc2->kind)
@@ -187,16 +199,13 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
     break;
   case TYPE_PROTO:
     break;
-  case TYPE_ARRAY:
-    return desc_check(desc1->array.para, desc2->array.para);
-    break;
   default:
     break;
   }
   return 0;
 }
 
-static TypeDesc *__to_klass(char *s, int len)
+static typedesc *__to_klass(char *s, int len)
 {
   char *dot = strrchr(s, '.');
   if (!dot)
@@ -206,11 +215,11 @@ static TypeDesc *__to_klass(char *s, int len)
   return desc_from_klass(path, type, NULL);
 }
 
-static TypeDesc *__to_desc(char **str, int _dims, int _varg)
+static typedesc *__to_desc(char **str, int _dims, int _varg)
 {
   char *s = *str;
   char ch = *s;
-  TypeDesc *desc;
+  typedesc *desc;
 
   switch (ch) {
   case 'L': {
@@ -233,32 +242,34 @@ static TypeDesc *__to_desc(char **str, int _dims, int _varg)
   return desc;
 }
 
-TypeDesc *string_to_desc(char *s)
+typedesc *str_to_desc(char *s)
 {
-  if (!s)
+  if (s == NULL)
     return NULL;
   return __to_desc(&s, 0, 0);
 }
 
-TypeDesc *string_to_proto(char *ptype, char *rtype)
+typedesc *str_to_proto(char *ptype, char *rtype)
 {
-  Vector *args = string_to_descs(ptype);
-  TypeDesc *ret = string_to_desc(rtype);
-  TypeDesc *desc = desc_from_proto(args, ret);
-  TYPE_DECREF(ret);
-  return desc;
-}
-
-Vector *string_to_descs(char *s)
-{
-  if (!s)
-    return NULL;
-
-  Vector *list = kmalloc(sizeof(*list));
-  TypeDesc *desc;
-  while (*s) {
-    desc = __to_desc(&s, 0, 0);
-    vector_push_back(list, desc);
+  vector *args = NULL;
+  if (ptype != NULL) {
+    args = vector_new();
+    char *s = ptype;
+    typedesc *desc;
+    while (*s) {
+      desc = __to_desc(&s, 0, 0);
+      vector_push_back(args, desc);
+    }
   }
-  return list;
+
+  typedesc *ret = NULL;
+  if (rtype != NULL) {
+    char *s = rtype;
+    ret = __to_desc(&s, 0, 0);
+  }
+
+  typedesc *desc;
+  desc = desc_from_proto(args, ret);
+  desc_decref(ret);
+  return desc;
 }

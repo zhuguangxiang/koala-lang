@@ -24,7 +24,7 @@ extern "C" {
 #define BASE_STR   's'
 #define BASE_ANY   'A'
 
-/* constant value */
+/* literal value */
 typedef struct literal {
   /* see BASE_XXX */
   char kind;
@@ -35,71 +35,62 @@ typedef struct literal {
     int bval;
     char *str;
   };
-} Literal;
-
-void literal_show(Literal *val, StrBuf *sbuf);
+} literal;
 
 typedef enum desckind {
   TYPE_BASE = 1,
   TYPE_KLASS,
   TYPE_PROTO,
-  TYPE_ARRAY,
-  TYPE_MAP,
   TYPE_VARG,
-  TYPE_TUPLE,
   TYPE_PARAREF,
-} DescKind;
+} desckind;
 
 typedef struct typeparadef {
   char *name;
-  Vector *types;
-} TypeParaDef;
+  vector *types;
+} typeparadef;
 
 /*
- * Type descriptor
+ * type descriptor
  * Klass: Lio.File;
- * Array: [s
- * Map: Mss
  * Proto: Pis:e;
  * Varg: ...s
+ * Array: [s
+ * Map: Mss
  */
 typedef struct typedesc {
-  DescKind kind;
+  desckind kind;
   int refcnt;
   union {
-    struct {
-      char type; /* one of BASE_XXX */
-      char *str;
-    } base;
+    char base;  /* one of BASE_XXX */
     struct {
       char *path;
       char *type;
-      Vector *typeparas;
-      Vector *pararefs;
+      vector *typeparas;
+      vector *types;
     } klass;
     struct {
-      Vector *typeparas;
-      Vector *args;
+      vector *args;
       struct typedesc *ret;
+      vector *typeparas;
     } proto;
     struct {
-      Vector *typeparas;
-      struct typedesc *para;
-    } array;
+      struct typedesc *type;
+    } varg;
     struct {
       char *name;
       int index;
     } pararef;
   };
-} TypeDesc;
+} typedesc;
 
-#define TYPE_INCREF(desc) ({ \
+#define desc_incref(desc) ({ \
   if (desc)                  \
     ++(desc)->refcnt;        \
   desc;                      \
 })
 
-#define TYPE_DECREF(desc) ({             \
+#define desc_decref(desc) ({             \
   if (desc) {                            \
     --(desc)->refcnt;                    \
     if ((desc)->refcnt < 0)              \
@@ -114,42 +105,57 @@ typedef struct typedesc {
 
 void init_typedesc(void);
 void fini_typedesc(void);
-void desc_free(TypeDesc *desc);
-void desc_tostr(TypeDesc *desc, StrBuf *buf);
-int desc_check(TypeDesc *desc1, TypeDesc *desc2);
+void literal_show(literal *val, StrBuf *sbuf);
+void desc_free(typedesc *desc);
+void desc_tostr(typedesc *desc, StrBuf *buf);
+void desc_show(typedesc *desc);
+int desc_check(typedesc *desc1, typedesc *desc2);
+char *base_str(int kind);
 
-TypeDesc *desc_from_base(int kind);
-#define desc_from_byte()    desc_from_base(BASE_BYTE)
-#define desc_from_integer() desc_from_base(BASE_INT)
-#define desc_from_float()   desc_from_base(BASE_FLOAT)
-#define desc_from_char()    desc_from_base(BASE_CHAR)
-#define desc_from_string()  desc_from_base(BASE_STR)
-#define desc_from_bool()    desc_from_base(BASE_BOOL)
-#define desc_from_any()     desc_from_base(BASE_ANY)
-TypeDesc *desc_from_klass(char *path, char *type, Vector *paras);
-TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
-TypeDesc *desc_from_array(TypeDesc *para);
-TypeDesc *string_to_desc(char *s);
-TypeDesc *string_to_proto(char *ptype, char *rtype);
-Vector *string_to_descs(char *s);
-char *desc_base_str(int kind);
-void desc_show(TypeDesc *desc);
-#define desc_is_int(desc) \
-  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_INT))
-#define desc_is_bye(desc) \
-  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_BYTE))
+typedesc *desc_from_base(int kind);
+#define desc_from_byte \
+  desc_from_base(BASE_BYTE)
+#define desc_from_int \
+  desc_from_base(BASE_INT)
+#define desc_from_float \
+  desc_from_base(BASE_FLOAT)
+#define desc_from_char \
+  desc_from_base(BASE_CHAR)
+#define desc_from_str \
+  desc_from_base(BASE_STR)
+#define desc_from_bool \
+  desc_from_base(BASE_BOOL)
+#define desc_from_any \
+  desc_from_base(BASE_ANY)
+
+typedesc *desc_from_klass(char *path, char *type, vector *types);
+typedesc *desc_from_proto(vector *args, typedesc *ret);
+void desc_set_typeparas(typedesc *desc, vector *typeparas);
+typedesc *desc_from_array(typedesc *para);
+typedesc *str_to_desc(char *s);
+typedesc *str_to_proto(char *ptype, char *rtype);
+
+#define desc_isint(desc) \
+  (((desc)->kind == TYPE_BASE) && \
+    ((desc)->base == BASE_INT))
+#define desc_isbyte(desc) \
+  (((desc)->kind == TYPE_BASE) && \
+    ((desc)->base == BASE_BYTE))
 #define desc_is_float(desc) \
-  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_FLOAT))
-#define desc_is_char(desc) \
-  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_CHAR))
-#define desc_is_str(desc) \
-  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_STR))
-#define desc_is_bool(desc) \
-  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_BOOL))
-#define desc_is_any(desc) \
-  (((desc)->kind == TYPE_BASE) && ((desc)->base.type == BASE_ANY))
-#define desc_is_array(desc) \
-  ((desc)->kind == TYPE_ARRAY)
+  (((desc)->kind == TYPE_BASE) && \
+    ((desc)->base == BASE_FLOAT))
+#define desc_ischar(desc) \
+  (((desc)->kind == TYPE_BASE) && \
+    ((desc)->base == BASE_CHAR))
+#define desc_isstr(desc) \
+  (((desc)->kind == TYPE_BASE) && \
+    ((desc)->base == BASE_STR))
+#define desc_isbool(desc) \
+  (((desc)->kind == TYPE_BASE) && \
+    ((desc)->base == BASE_BOOL))
+#define desc_isany(desc) \
+  (((desc)->kind == TYPE_BASE) && \
+    ((desc)->base == BASE_ANY))
 
 #ifdef __cplusplus
 }

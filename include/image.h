@@ -48,7 +48,7 @@ typedef struct stringitem {
 } StringItem;
 
 typedef struct typeitem {
-  int kind;               /* see: DescKind in typedesc.h */
+  int kind;               /* see: desckind in typedesc.h */
   union {
     char base;            /* base type */
     struct {
@@ -59,14 +59,6 @@ typedef struct typeitem {
       int32_t pindex;     /* ->TypeListItem */
       int32_t rindex;     /* ->TypeItem */
     };
-    struct {
-      int dims;
-      int32_t typeindex;  /* ->TypeItem */
-    } array;
-    struct {
-      int32_t keyindex;   /* ->TypeItem */
-      int32_t valueindex; /* ->TypeItem */
-    } map;
     struct {
       int32_t typeindex;  /* ->TypeItem */
     } varg;
@@ -198,11 +190,11 @@ typedef struct image_header {
 typedef struct image {
   ImageHeader header;
   /* hash table for unique data */
-  HashMap map;
+  hashmap map;
   /* items' array size */
   int size;
   /* vector array */
-  Vector items[0];
+  vector items[0];
 } Image;
 
 int Image_Add_Integer(Image *image, int64_t val);
@@ -210,26 +202,26 @@ int Image_Add_Float(Image *image, double val);
 int Image_Add_Bool(Image *image, int val);
 int Image_Add_String(Image *image, char *val);
 int Image_Add_UChar(Image *image, wchar val);
-int Image_Add_Literal(Image *image, Literal *val);
-int Image_Add_Desc(Image *image, TypeDesc *desc);
+int Image_Add_Literal(Image *image, literal *val);
+int Image_Add_Desc(Image *image, typedesc *desc);
 
-void Image_Add_Var(Image *image, char *name, TypeDesc *desc);
-void Image_Add_Const(Image *image, char *name, TypeDesc *desc,
-                     Literal *val);
-void Image_Add_LocVar(Image *image, char *name, TypeDesc *desc,
+void Image_Add_Var(Image *image, char *name, typedesc *desc);
+void Image_Add_Const(Image *image, char *name, typedesc *desc,
+                     literal *val);
+void Image_Add_LocVar(Image *image, char *name, typedesc *desc,
                       int pos, int index);
-int Image_Add_Func(Image *image, char *name, TypeDesc *proto,
+int Image_Add_Func(Image *image, char *name, typedesc *proto,
                    uint8_t *codes, int size, int locals);
-void Image_Add_Class(Image *image, char *name, Vector *supers);
-void Image_Add_Trait(Image *image, char *name, Vector *traits);
+void Image_Add_Class(Image *image, char *name, vector *supers);
+void Image_Add_Trait(Image *image, char *name, vector *traits);
 void Image_Add_Enum(Image *image, char *name);
-void Image_Add_Field(Image *image, char *klazz, char *name, TypeDesc *desc);
-int Image_Add_Method(Image *image, char *klazz, char *name, TypeDesc *proto,
+void Image_Add_Field(Image *image, char *klazz, char *name, typedesc *desc);
+int Image_Add_Method(Image *image, char *klazz, char *name, typedesc *proto,
                      uint8_t *codes, int size, int locals);
-void Image_Add_NFunc(Image *image, char *klazz, char *name, TypeDesc *proto);
-void Image_Add_IMeth(Image *image, char *trait, char *name, TypeDesc *proto);
+void Image_Add_NFunc(Image *image, char *klazz, char *name, typedesc *proto);
+void Image_Add_IMeth(Image *image, char *trait, char *name, typedesc *proto);
 void Image_Add_EVal(Image *image, char *klazz, char *name,
-                    Vector *types, int val);
+                    vector *types, int val);
 
 Image *Image_New(char *name);
 void Image_Free(Image *image);
@@ -242,23 +234,23 @@ Image *Image_Read_File(char *path, int unload);
 int Image_Const_Count(Image *image);
 typedef void (*getconstfunc)(void *, int, int, void *);
 void Image_Get_Consts(Image *image, getconstfunc func, void *arg);
-typedef void (*getvarfunc)(char *, TypeDesc *, int, Literal *val, void *);
+typedef void (*getvarfunc)(char *, typedesc *, int, literal *val, void *);
 void Image_Get_Vars(Image *image, getvarfunc func, void *arg);
-typedef void (*getlocvarfunc)(char *, TypeDesc *, int, int, void *);
+typedef void (*getlocvarfunc)(char *, typedesc *, int, int, void *);
 void Image_Get_LocVars(Image *image, getlocvarfunc func, void *arg);
-typedef void (*getfuncfunc)(char *, TypeDesc *, int, int, uint8_t *, int, void *);
+typedef void (*getfuncfunc)(char *, typedesc *, int, int, uint8_t *, int, void *);
 void Image_Get_Funcs(Image *image, getfuncfunc func, void *arg);
 void Image_Get_NFuncs(Image *image, getfuncfunc func, void *arg);
 typedef void (*getclassfunc)(char *, void *);
 void Image_Get_Classes(Image *image, getclassfunc func, void *arg);
-typedef void (*getfieldfunc)(char *, TypeDesc *, char *, void *);
+typedef void (*getfieldfunc)(char *, typedesc *, char *, void *);
 void Image_Get_Fields(Image *image, getfieldfunc func, void *arg);
-typedef void (*getmethodfunc)(char *, TypeDesc *, int,
+typedef void (*getmethodfunc)(char *, typedesc *, int,
                               uint8_t *, int, char *, void *);
 void Image_Get_Methods(Image *image, getmethodfunc func, void *arg);
 typedef void (*getenumfunc)(char *, void *);
 void Image_Get_Enums(Image *image, getenumfunc func, void *arg);
-typedef void (*getevalfunc)(char *, TypeDesc *, int, char *, void *);
+typedef void (*getevalfunc)(char *, typedesc *, int, char *, void *);
 void Image_Get_EVals(Image *image, getevalfunc func, void *arg);
 
 #ifdef __cplusplus

@@ -17,9 +17,9 @@ typedef struct codeobject {
   OBJECT_HEAD
   char *name;
   Object *owner;
-  TypeDesc *proto;
+  typedesc *proto;
   int locals;
-  Vector locvec;
+  vector locvec;
   Object *consts;
   int size;
   uint8_t codes[0];
@@ -27,7 +27,7 @@ typedef struct codeobject {
 
 extern TypeObject Code_Type;
 #define Code_Check(ob) (OB_TYPE(ob) == &Code_Type)
-Object *Code_New(char *name, TypeDesc *proto, int locals,
+Object *Code_New(char *name, typedesc *proto, int locals,
                  uint8_t *codes, int size);
 
 #ifdef __cplusplus

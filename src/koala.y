@@ -21,16 +21,16 @@
 })
 
 #define IDENT(name, s, loc) \
-  Ident name = {s, yyloc_row(loc), yyloc_col(loc)}
+  ident name = {s, yyloc_row(loc), yyloc_col(loc)}
 
-#define TYPE(name, type, loc) \
-  Type name = {type, yyloc_row(loc), yyloc_col(loc)}
+#define TYPE(name, desc, loc) \
+  type name = {desc, yyloc_row(loc), yyloc_col(loc)}
 
 /* interactive mode */
-void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
-void Cmd_Add_Const(Ident id, Type type);
-void Cmd_Add_Var(Ident id, Type type, int freevar);
-void Cmd_Add_Func(Ident id, Type type);
+void Cmd_EvalStmt(parserstate *ps, stmt *stmt);
+void Cmd_Add_Const(ident id, type type);
+void Cmd_Add_Var(ident id, type type, int freevar);
+void Cmd_Add_Func(ident id, type type);
 
 %}
 
@@ -40,14 +40,14 @@ void Cmd_Add_Func(Ident id, Type type);
   wchar cval;
   char *sval;
   char *text;
-  Vector *list;
-  Vector *exprlist;
-  Expr *expr;
-  Stmt *stmt;
-  TypeDesc *desc;
-  AssignOpKind assginop;
-  UnaryOpKind unaryop;
-  Ident name;
+  vector *list;
+  vector *exprlist;
+  expr *expr;
+  stmt *stmt;
+  typedesc *desc;
+  assignopkind assginop;
+  unaryopkind unaryop;
+  ident name;
 }
 
 %token IMPORT
@@ -163,7 +163,7 @@ void Cmd_Add_Func(Ident id, Type type);
 
 %destructor { printf("free expr\n"); expr_free($$); } <expr>
 %destructor { printf("free stmt\n"); stmt_free($$); } <stmt>
-%destructor { printf("decref desc\n"); TYPE_DECREF($$); } <desc>
+%destructor { printf("decref desc\n"); desc_decref($$); } <desc>
 %destructor { printf("free expr_list\n"); exprlist_free($$); } <exprlist>
 
 %precedence ID
@@ -173,7 +173,7 @@ void Cmd_Add_Func(Ident id, Type type);
 %precedence ')'
 
 %locations
-%parse-param {ParserState *ps}
+%parse-param {parserstate *ps}
 %parse-param {void *scanner}
 %define api.pure full
 %lex-param {void *scanner}
@@ -243,7 +243,7 @@ unit:
 }
 | expr ';'
 {
-  Stmt *stmt = stmt_from_expr($1);
+  stmt *stmt = stmt_from_expr($1);
   if (ps->interactive) {
     ps->more = 0;
     Cmd_EvalStmt(ps, stmt);
@@ -262,7 +262,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Type type = {NULL};
+      type type = {NULL};
       Cmd_Add_Func($1->funcdecl.id, type);
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
@@ -487,7 +487,7 @@ block:
 | '{' expr '}'
 {
   $$ = vector_new();
-  Stmt *stmt = stmt_from_expr($2);
+  stmt *stmt = stmt_from_expr($2);
   vector_push_back($$, stmt);
 }
 | '{' '}'
@@ -810,7 +810,7 @@ atom:
 }
 | ID '.' ID
 {
-  Expr *e = expr_from_ident($1);
+  expr *e = expr_from_ident($1);
   set_expr_pos(e, @1);
   IDENT(id, $3, @3);
   $$ = expr_from_attribute(id, e);
@@ -1096,38 +1096,37 @@ type:
 | '[' type ']'
 {
   $$ = desc_from_array($2);
-  TYPE_DECREF($2);
 }
 ;
 
 no_array_type:
   BYTE
 {
-  $$ = desc_from_byte();
+  $$ = desc_from_byte;
 }
 | INTEGER
 {
-  $$ = desc_from_integer();
+  $$ = desc_from_int;
 }
 | FLOAT
 {
-  $$ = desc_from_float();
+  $$ = desc_from_float;
 }
 | CHAR
 {
-  $$ = desc_from_char();
+  $$ = desc_from_char;
 }
 | STRING
 {
-  $$ = desc_from_string();
+  $$ = desc_from_str;
 }
 | BOOL
 {
-  $$ = desc_from_bool();
+  $$ = desc_from_bool;
 }
 | ANY
 {
-  $$ = desc_from_any();
+  $$ = desc_from_any;
 }
 | '[' type ':' type ']'
 {

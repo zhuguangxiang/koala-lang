@@ -13,13 +13,13 @@ static void code_free(Object *ob)
   }
 
   CodeObject *co = (CodeObject *)ob;
-  VECTOR_ITERATOR(iter, &co->locvec);
+  vector_iterator(iter, &co->locvec);
   Object *item;
   iter_for_each(&iter, item) {
     OB_DECREF(item);
   }
   OB_DECREF(co->consts);
-  TYPE_DECREF(co->proto);
+  desc_decref(co->proto);
   kfree(ob);
 }
 
@@ -29,13 +29,13 @@ TypeObject Code_Type = {
   .free = code_free,
 };
 
-Object *Code_New(char *name, TypeDesc *proto, int locals,
+Object *Code_New(char *name, typedesc *proto, int locals,
                  uint8_t *codes, int size)
 {
   CodeObject *co = kmalloc(sizeof(CodeObject) + size);
   Init_Object_Head(co, &Code_Type);
   co->name = name;
-  co->proto = TYPE_INCREF(proto);
+  co->proto = desc_incref(proto);
   vector_init(&co->locvec);
   co->locals = locals;
   co->size = size;

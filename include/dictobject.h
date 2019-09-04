@@ -17,7 +17,7 @@ typedef struct dictobject {
   OBJECT_HEAD
   TypeObject *ktype;
   TypeObject *vtype;
-  HashMap map;
+  hashmap map;
 } DictObject;
 
 extern TypeObject Dict_Type;

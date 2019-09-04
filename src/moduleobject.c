@@ -48,7 +48,7 @@ static void module_free(Object *ob)
   }
 
   ModuleObject *module = (ModuleObject *)ob;
-  HashMap *map = module->mtbl;
+  hashmap *map = module->mtbl;
   if (map != NULL) {
     debug("fini module '%s'", module->name);
     hashmap_fini(map, mnode_free, NULL);
@@ -57,7 +57,7 @@ static void module_free(Object *ob)
     module->mtbl = NULL;
   }
 
-  VECTOR_ITERATOR(iter, &module->values);
+  vector_iterator(iter, &module->values);
   Object *item;
   iter_for_each(&iter, item) {
     OB_DECREF(item);
@@ -78,10 +78,10 @@ TypeObject Module_Type = {
   .methods = module_methods,
 };
 
-static HashMap *get_mtbl(Object *ob)
+static hashmap *get_mtbl(Object *ob)
 {
   ModuleObject *module = (ModuleObject *)ob;
-  HashMap *mtbl = module->mtbl;
+  hashmap *mtbl = module->mtbl;
   if (mtbl == NULL) {
     mtbl = kmalloc(sizeof(*mtbl));
     if (!mtbl)
@@ -132,9 +132,9 @@ void Module_Add_Var(Object *self, Object *ob)
 
 void Module_Add_VarDef(Object *self, FieldDef *f)
 {
-  TypeDesc *desc = string_to_desc(f->type);
+  typedesc *desc = str_to_desc(f->type);
   Object *field = Field_New(f->name, desc);
-  TYPE_DECREF(desc);
+  desc_decref(desc);
   Field_SetFunc(field, f->set, f->get);
   Module_Add_Var(self, field);
   OB_DECREF(field);
@@ -185,12 +185,12 @@ Object *Module_New(char *name)
 }
 
 struct modnode {
-  HashMapEntry entry;
+  hashmapentry entry;
   char *path;
   Object *ob;
 };
 
-static HashMap modmap;
+static hashmap modmap;
 
 static int _modnode_equal_(void *e1, void *e2)
 {

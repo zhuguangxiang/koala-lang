@@ -14,7 +14,7 @@ Object *CMethod_New(MethodDef *def)
   MethodObject *method = kmalloc(sizeof(*method));
   Init_Object_Head(method, &Method_Type);
   method->name  = def->name;
-  method->desc  = string_to_proto(def->ptype, def->rtype);
+  method->desc  = str_to_proto(def->ptype, def->rtype);
   method->cfunc = 1,
   method->ptr   = def->func;
   return (Object *)method;
@@ -26,7 +26,7 @@ Object *Method_New(char *name, Object *code)
   MethodObject *method = kmalloc(sizeof(*method));
   Init_Object_Head(method, &Method_Type);
   method->name = name;
-  method->desc = TYPE_INCREF(co->proto);
+  method->desc = desc_incref(co->proto);
   method->ptr  = OB_INCREF(code);
   return (Object *)method;
 }
@@ -93,7 +93,7 @@ static void meth_free(Object *ob)
   }
   MethodObject *meth = (MethodObject *)ob;
   debug("[Freed] Method %s", meth->name);
-  TYPE_DECREF(meth->desc);
+  desc_decref(meth->desc);
   kfree(ob);
 }
 

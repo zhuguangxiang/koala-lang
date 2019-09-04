@@ -42,10 +42,10 @@ static int hex_char(char *s)
 
 }
 
-int interactive(ParserState *ps, char *buf, int size);
-int file_input(ParserState *ps, char *buf, int size, FILE *in);
+int interactive(parserstate *ps, char *buf, int size);
+int file_input(parserstate *ps, char *buf, int size, FILE *in);
 
-#define YY_EXTRA_TYPE ParserState *
+#define YY_EXTRA_TYPE parserstate *
 #define yyps ((YY_EXTRA_TYPE)yyextra)
 
 static int need_semicolon(YY_EXTRA_TYPE ps)

@@ -16,7 +16,7 @@
 #include "vector.h"
 #include "log.h"
 
-int file_input(ParserState *ps, char *buf, int size, FILE *in)
+int file_input(parserstate *ps, char *buf, int size, FILE *in)
 {
   errno = 0;
   int result = 0;
@@ -115,7 +115,7 @@ void Koala_Compile(char *path)
   }
 }
 
-void build_ast(Module *mod, char *path)
+void build_ast(module *mod, char *path)
 {
   /*
   FILE *in = fopen(path, "r");
@@ -123,7 +123,7 @@ void build_ast(Module *mod, char *path)
     error("%s: No such file or directory.", path);
     return;
   }
-  ParserState *ps = new_parser(mod, path);
+  parserstate *ps = new_parser(mod, path);
   yyscan_t scanner;
   yylex_init_extra(ps, &scanner);
   yyset_in(in, scanner);

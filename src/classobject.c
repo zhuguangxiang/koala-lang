@@ -112,7 +112,7 @@ static Object *class_module(Object *self, Object *args)
 
 static int fill_array(struct hashmap *mtbl, Object *arr, int index)
 {
-  HASHMAP_ITERATOR(iter, mtbl);
+  hashmap_iterator(iter, mtbl);
   struct mnode *node;
   iter_for_each(&iter, node) {
     Array_Set(arr, index++, node->obj);

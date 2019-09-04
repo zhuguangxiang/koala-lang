@@ -15,7 +15,7 @@ extern "C" {
 typedef struct arrayobject {
   OBJECT_HEAD
   TypeObject *type;
-  Vector items;
+  vector items;
 } ArrayObject;
 
 extern TypeObject Array_Type;

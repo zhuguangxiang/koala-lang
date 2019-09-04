@@ -19,7 +19,7 @@ typedef struct bytebuffer {
   /* total bytes in the buffer */
   int total;
   /* byteblock's vector */
-  Vector vec;
+  vector vec;
 } ByteBuffer;
 
 /* Initialize the byte buffer. */

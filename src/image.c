@@ -16,7 +16,7 @@ static int version_build = 1; // 2 bytes
 
 typedef struct itementry {
   /* hash node for data is unique */
-  HashMapEntry entry;
+  hashmapentry entry;
   /* index of Image->item[type] */
   int type;
   /* index in 'type' vectors */
@@ -29,7 +29,7 @@ static unsigned int item_hash(ItemEntry *e);
 
 static int _append_(Image *image, int type, void *data, int unique)
 {
-  Vector *vec = image->items + type;
+  vector *vec = image->items + type;
   vector_push_back(vec, data);
   int index = vector_size(vec) - 1;
   if (index < 0)
@@ -205,7 +205,7 @@ static void typeitem_show(Image *image, void *o)
   TypeItem *item = o;
   switch (item->kind) {
   case TYPE_BASE: {
-    char *s = desc_base_str(item->base);
+    char *s = base_str(item->base);
     print("  (%s)\n", s);
     break;
   }
@@ -261,15 +261,6 @@ static TypeItem *typeitem_proto_new(int32_t pindex, int32_t rindex)
   item->kind = TYPE_PROTO;
   item->pindex = pindex;
   item->rindex = rindex;
-  return item;
-}
-
-static TypeItem *typeitem_array_New(int dims, int32_t typeindex)
-{
-  TypeItem *item = kmalloc(sizeof(TypeItem));
-  item->kind = TYPE_ARRAY;
-  item->array.dims = dims;
-  item->array.typeindex = typeindex;
   return item;
 }
 
@@ -935,10 +926,10 @@ static int stringitem_set(Image *image, char *str)
   return index;
 }
 
-static int typeitem_get(Image *image, TypeDesc *desc);
-static int typeitem_set(Image *image, TypeDesc *desc);
+static int typeitem_get(Image *image, typedesc *desc);
+static int typeitem_set(Image *image, typedesc *desc);
 
-static int typelistitem_get(Image *image, Vector *vec)
+static int typelistitem_get(Image *image, vector *vec)
 {
   int sz = vector_size(vec);
   if (sz <= 0)
@@ -959,7 +950,7 @@ static int typelistitem_get(Image *image, Vector *vec)
   return _index_(image, ITEM_TYPELIST, item);
 }
 
-static int typelistitem_set(Image *image, Vector *vec)
+static int typelistitem_set(Image *image, vector *vec)
 {
   int sz = vector_size(vec);
   if (sz <= 0)
@@ -980,13 +971,13 @@ static int typelistitem_set(Image *image, Vector *vec)
   return index;
 }
 
-static int typeitem_get(Image *image, TypeDesc *desc)
+static int typeitem_get(Image *image, typedesc *desc)
 {
   TypeItem item = {0};
   switch (desc->kind) {
   case TYPE_BASE: {
     item.kind = desc->kind;
-    item.base = desc->base.type;
+    item.base = desc->base;
     break;
   }
   case TYPE_KLASS: {
@@ -1043,7 +1034,7 @@ static int typeitem_get(Image *image, TypeDesc *desc)
   return _index_(image, ITEM_TYPE, &item);
 }
 
-static int typeitem_set(Image *image, TypeDesc *desc)
+static int typeitem_set(Image *image, typedesc *desc)
 {
   if (desc == NULL)
     return -1;
@@ -1053,7 +1044,7 @@ static int typeitem_set(Image *image, TypeDesc *desc)
   if (index < 0) {
     switch (desc->kind) {
     case TYPE_BASE: {
-      item = typeitem_base_new(desc->base.type);
+      item = typeitem_base_new(desc->base);
       break;
     }
     case TYPE_KLASS: {
@@ -1074,11 +1065,6 @@ static int typeitem_set(Image *image, TypeDesc *desc)
       int rindex = typeitem_get(image, desc->proto.ret);
       int pindex = typelistitem_get(image, desc->proto.args);
       item = typeitem_proto_new(pindex, rindex);
-      break;
-    }
-    case TYPE_ARRAY: {
-      int typeindex = typeitem_set(image, desc->array.para);
-      item = typeitem_array_New(0, typeindex);
       break;
     }
     /*
@@ -1334,7 +1320,7 @@ int Image_Add_UChar(Image *image, wchar val)
   return index;
 }
 
-int Image_Add_Literal(Image *image, Literal *val)
+int Image_Add_Literal(Image *image, literal *val)
 {
   int index;
   if (val->kind == BASE_INT) {
@@ -1353,13 +1339,13 @@ int Image_Add_Literal(Image *image, Literal *val)
   return index;
 }
 
-int Image_Add_Desc(Image *image, TypeDesc *desc)
+int Image_Add_Desc(Image *image, typedesc *desc)
 {
   int type_index = typeitem_set(image, desc);
   return image_add_const(image, CONST_TYPE, type_index);
 }
 
-void Image_Add_Var(Image *image, char *name, TypeDesc *desc)
+void Image_Add_Var(Image *image, char *name, typedesc *desc)
 {
   int type_index = typeitem_set(image, desc);
   int name_index = stringitem_set(image, name);
@@ -1367,8 +1353,8 @@ void Image_Add_Var(Image *image, char *name, TypeDesc *desc)
   _append_(image, ITEM_VAR, varitem, 0);
 }
 
-void Image_Add_Const(Image *image, char *name, TypeDesc *desc,
-                     Literal *val)
+void Image_Add_Const(Image *image, char *name, typedesc *desc,
+                     literal *val)
 {
   int type_index = typeitem_set(image, desc);
   int name_index = stringitem_set(image, name);
@@ -1377,7 +1363,7 @@ void Image_Add_Const(Image *image, char *name, TypeDesc *desc,
   _append_(image, ITEM_VAR, varitem, 0);
 }
 
-void Image_Add_LocVar(Image *image, char *name, TypeDesc *desc,
+void Image_Add_LocVar(Image *image, char *name, typedesc *desc,
                       int pos, int index)
 {
   int typeindex = typeitem_set(image, desc);
@@ -1386,7 +1372,7 @@ void Image_Add_LocVar(Image *image, char *name, TypeDesc *desc,
   _append_(image, ITEM_LOCVAR, item, 0);
 }
 
-int Image_Add_Func(Image *image, char *name, TypeDesc *desc,
+int Image_Add_Func(Image *image, char *name, typedesc *desc,
                    uint8_t *codes, int size, int locals)
 {
   int nameindex = stringitem_set(image, name);
@@ -1398,18 +1384,18 @@ int Image_Add_Func(Image *image, char *name, TypeDesc *desc,
   return _append_(image, ITEM_FUNC, funcitem, 0);
 }
 
-void Image_Add_Class(Image *image, char *name, Vector *supers)
+void Image_Add_Class(Image *image, char *name, vector *supers)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
+  typedesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
   int classindex = typeitem_set(image, &tmp);
   int superindex = typelistitem_set(image, supers);
   ClassItem *classitem = classitem_new(classindex, superindex);
   _append_(image, ITEM_CLASS, classitem, 0);
 }
 
-void Image_Add_Field(Image *image, char *clazz, char *name, TypeDesc *desc)
+void Image_Add_Field(Image *image, char *clazz, char *name, typedesc *desc)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = clazz};
+  typedesc tmp = {.kind = TYPE_KLASS, .klass.type = clazz};
   int classindex = typeitem_set(image, &tmp);
   int nameindex = stringitem_set(image, name);
   int typeindex = typeitem_set(image, desc);
@@ -1417,10 +1403,10 @@ void Image_Add_Field(Image *image, char *clazz, char *name, TypeDesc *desc)
   _append_(image, ITEM_FIELD, fielditem, 0);
 }
 
-int Image_Add_Method(Image *image, char *klazz, char *name, TypeDesc *desc,
+int Image_Add_Method(Image *image, char *klazz, char *name, typedesc *desc,
                       uint8_t *codes, int csz, int locals)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
+  typedesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
   int classindex = typeitem_set(image, &tmp);
   int nameindex = stringitem_set(image, name);
   int pindex = typelistitem_set(image, desc->proto.args);
@@ -1432,20 +1418,20 @@ int Image_Add_Method(Image *image, char *klazz, char *name, TypeDesc *desc,
   return _append_(image, ITEM_METHOD, methitem, 0);
 }
 
-void Image_Add_Trait(Image *image, char *name, Vector *traits)
+void Image_Add_Trait(Image *image, char *name, vector *traits)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
+  typedesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
   int classindex = typeitem_set(image, &tmp);
   int traitsindex = typelistitem_set(image, traits);
   TraitItem *traititem = traititem_new(classindex, traitsindex);
   _append_(image, ITEM_TRAIT, traititem, 0);
 }
 
-void Image_Add_NFunc(Image *image, char *klazz, char *name, TypeDesc *desc)
+void Image_Add_NFunc(Image *image, char *klazz, char *name, typedesc *desc)
 {
   int classindex = -1;
   if (klazz != NULL) {
-    TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
+    typedesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
     classindex = typeitem_set(image, &tmp);
   }
   int nameindex = stringitem_set(image, name);
@@ -1456,9 +1442,9 @@ void Image_Add_NFunc(Image *image, char *klazz, char *name, TypeDesc *desc)
   _append_(image, ITEM_NFUNC, nfuncitem, 0);
 }
 
-void Image_Add_IMeth(Image *image, char *trait, char *name, TypeDesc *desc)
+void Image_Add_IMeth(Image *image, char *trait, char *name, typedesc *desc)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = trait};
+  typedesc tmp = {.kind = TYPE_KLASS, .klass.type = trait};
   int classindex = typeitem_set(image, &tmp);
   int nameindex = stringitem_set(image, name);
   int pindex = typelistitem_set(image, desc->proto.args);
@@ -1470,16 +1456,16 @@ void Image_Add_IMeth(Image *image, char *trait, char *name, TypeDesc *desc)
 
 void Image_Add_Enum(Image *image, char *name)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
+  typedesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
   int classindex = typeitem_set(image, &tmp);
   EnumItem *enumitem = enumitem_new(classindex);
   _append_(image, ITEM_ENUM, enumitem, 0);
 }
 
 void Image_Add_EVal(Image *image, char *klazz, char *name,
-                     Vector *types, int32_t val)
+                     vector *types, int32_t val)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
+  typedesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
   int classindex = typeitem_set(image, &tmp);
   int nameindex = stringitem_set(image, name);
   int index = typelistitem_set(image, types);
@@ -1545,7 +1531,7 @@ static void init_header(ImageHeader *h, char *name)
 
 Image *Image_New(char *name)
 {
-  int sz = sizeof(Image) + ITEM_MAX * sizeof(Vector);
+  int sz = sizeof(Image) + ITEM_MAX * sizeof(vector);
   Image *image = kmalloc(sz);
   init_header(&image->header, name);
   hashmap_init(&image->map, _item_equal_);
@@ -1562,16 +1548,16 @@ void Image_Free(Image *image)
   kfree(image);
 }
 
-static TypeDesc *to_typedesc(TypeItem *item, Image *image);
+static typedesc *to_typedesc(TypeItem *item, Image *image);
 
-static Vector *to_typedescvec(TypeListItem *item, Image *atbl)
+static vector *to_typedescvec(TypeListItem *item, Image *atbl)
 {
   if (item == NULL)
     return NULL;
 
-  Vector *v = vector_new();
+  vector *v = vector_new();
   TypeItem *typeitem;
-  TypeDesc *t;
+  typedesc *t;
   for (int i = 0; i < item->size; i++) {
     typeitem = _get_(atbl, ITEM_TYPE, item->index[i]);
     t = to_typedesc(typeitem, atbl);
@@ -1580,9 +1566,9 @@ static Vector *to_typedescvec(TypeListItem *item, Image *atbl)
   return v;
 }
 
-static TypeDesc *to_typedesc(TypeItem *item, Image *image)
+static typedesc *to_typedesc(TypeItem *item, Image *image)
 {
-  TypeDesc *t = NULL;
+  typedesc *t = NULL;
   switch (item->kind) {
   case TYPE_BASE: {
     t = desc_from_base(item->base);
@@ -1607,26 +1593,18 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   case TYPE_PROTO: {
     TypeListItem *listitem = _get_(image, ITEM_TYPELIST, item->pindex);
     TypeItem *item = _get_(image, ITEM_TYPE, item->rindex);
-    Vector *args = to_typedescvec(listitem, image);
-    TypeDesc *ret = to_typedesc(item, image);
+    vector *args = to_typedescvec(listitem, image);
+    typedesc *ret = to_typedesc(item, image);
     t = desc_from_proto(args, ret);
-    TYPE_DECREF(ret);
-    break;
-  }
-  case TYPE_ARRAY: {
-    TypeItem *para = _get_(image, ITEM_TYPE, item->array.typeindex);
-    TypeDesc *desc = to_typedesc(para, image);
-    //FIXME
-    t = desc_from_array(desc);
-    TYPE_DECREF(desc);
+    desc_decref(ret);
     break;
   }
   /*
   case TYPE_VARG: {
     TypeItem *base = _get_(image, ITEM_TYPE, item->varg.typeindex);
-    TypeDesc *desc = to_typedesc(base, image);
+    typedesc *desc = to_typedesc(base, image);
     t = TypeDesc_New_Varg(desc);
-    TYPE_DECREF(desc);
+    desc_decref(desc);
     break;
   }
   */
@@ -1637,9 +1615,9 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   return t;
 }
 
-static Literal to_literal(LiteralItem *item, Image *image)
+static literal to_literal(LiteralItem *item, Image *image)
 {
-  Literal value;
+  literal value;
   StringItem *s;
   switch (item->type) {
   case LITERAL_INT:
@@ -1681,8 +1659,8 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
   ConstItem *item;
   LiteralItem *liteitem;
   TypeItem *typeitem;
-  Literal val;
-  TypeDesc *v;
+  literal val;
+  typedesc *v;
   int size = _size_(image, ITEM_CONST);
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_CONST, i);
@@ -1695,7 +1673,7 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
       typeitem = _get_(image, ITEM_TYPE, item->index);
       v = to_typedesc(typeitem, image);
       func(v, CONST_TYPE, i, arg);
-      TYPE_DECREF(v);
+      desc_decref(v);
     }
   }
 }
@@ -1705,8 +1683,8 @@ void Image_Get_Vars(Image *image, getvarfunc func, void *arg)
   VarItem *var;
   StringItem *id;
   TypeItem *type;
-  TypeDesc *desc;
-  Literal value;
+  typedesc *desc;
+  literal value;
   int size = _size_(image, ITEM_VAR);
   for (int i = 0; i < size; i++) {
     var = _get_(image, ITEM_VAR, i);
@@ -1720,7 +1698,7 @@ void Image_Get_Vars(Image *image, getvarfunc func, void *arg)
     } else {
       func(id->data, desc, 0, NULL, arg);
     }
-    TYPE_DECREF(desc);
+    desc_decref(desc);
   }
 }
 
@@ -1729,7 +1707,7 @@ void Image_Get_LocVars(Image *image, getlocvarfunc func, void *arg)
   LocVarItem *locvar;
   StringItem *str;
   TypeItem *type;
-  TypeDesc *desc;
+  typedesc *desc;
   int size = _size_(image, ITEM_LOCVAR);
   for (int i = 0; i < size; i++) {
     locvar = _get_(image, ITEM_LOCVAR, i);
@@ -1737,7 +1715,7 @@ void Image_Get_LocVars(Image *image, getlocvarfunc func, void *arg)
     type = _get_(image, ITEM_TYPE, locvar->typeindex);
     desc = to_typedesc(type, image);
     func(str->data, desc, locvar->pos, locvar->index, arg);
-    TYPE_DECREF(desc);
+    desc_decref(desc);
   }
 }
 
@@ -1747,9 +1725,9 @@ void Image_Get_Funcs(Image *image, getfuncfunc func, void *arg)
   StringItem *str;
   TypeListItem *listitem;
   TypeItem *item;
-  Vector *args;
-  TypeDesc *ret;
-  TypeDesc *desc;
+  vector *args;
+  typedesc *ret;
+  typedesc *desc;
   CodeItem *code;
   int size = _size_(image, ITEM_FUNC);
   for (int i = 0; i < size; i++) {
@@ -1766,7 +1744,7 @@ void Image_Get_Funcs(Image *image, getfuncfunc func, void *arg)
            code->codes, code->size, arg);
     else
       func(str->data, desc, funcitem->nrlocals, ITEM_FUNC, NULL, 0, arg);
-    TYPE_DECREF(desc);
+    desc_decref(desc);
   }
 }
 
@@ -1790,9 +1768,9 @@ void Image_Get_NFuncs(Image *image, getfuncfunc func, void *arg)
   StringItem *str;
   TypeListItem *listitem;
   TypeItem *item;
-  Vector *args;
-  TypeDesc *ret;
-  TypeDesc *desc;
+  vector *args;
+  typedesc *ret;
+  typedesc *desc;
   int size = _size_(image, ITEM_NFUNC);
   for (int i = 0; i < size; i++) {
     nfuncitem = _get_(image, ITEM_NFUNC, i);
@@ -1803,7 +1781,7 @@ void Image_Get_NFuncs(Image *image, getfuncfunc func, void *arg)
     ret = to_typedesc(item, image);
     desc = desc_from_proto(args, ret);
     func(str->data, desc, i, ITEM_NFUNC, NULL, 0, arg);
-    TYPE_DECREF(desc);
+    desc_decref(desc);
   }
 }
 
@@ -1829,7 +1807,7 @@ void Image_Get_EVals(Image *image, getevalfunc func, void *arg)
   TypeListItem *typelist;
   StringItem *estr;
   StringItem *str;
-  TypeDesc *desc;
+  typedesc *desc;
   int size = _size_(image, ITEM_EVAL);
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_EVAL, i);
@@ -1839,7 +1817,7 @@ void Image_Get_EVals(Image *image, getevalfunc func, void *arg)
     typelist = _get_(image, ITEM_TYPELIST, item->index);
     desc = TypeDesc_New_Tuple(TypeListItem_To_Vector(typelist, image));
     func(str->data, desc, item->value, estr->data, arg);
-    TYPE_DECREF(desc);
+    desc_decref(desc);
   }
 }
 */
@@ -1850,7 +1828,7 @@ void Image_Get_Fields(Image *image, getfieldfunc func, void *arg)
   TypeItem *type;
   StringItem *classstr;
   StringItem *str;
-  TypeDesc *desc;
+  typedesc *desc;
   int size = _size_(image, ITEM_FIELD);
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_FIELD, i);
@@ -1860,7 +1838,7 @@ void Image_Get_Fields(Image *image, getfieldfunc func, void *arg)
     type = _get_(image, ITEM_TYPE, item->typeindex);
     desc = to_typedesc(type, image);
     func(str->data, desc, classstr->data, arg);
-    TYPE_DECREF(desc);
+    desc_decref(desc);
   }
 }
 
@@ -1872,9 +1850,9 @@ void Image_Get_Methods(Image *image, getmethodfunc func, void *arg)
   StringItem *str;
   TypeListItem *listitem;
   TypeItem *typeitem;
-  Vector *args;
-  TypeDesc *ret;
-  TypeDesc *desc;
+  vector *args;
+  typedesc *ret;
+  typedesc *desc;
   CodeItem *code;
   int size = _size_(image, ITEM_METHOD);
   for (int i = 0; i < size; i++) {
@@ -1890,7 +1868,7 @@ void Image_Get_Methods(Image *image, getmethodfunc func, void *arg)
     desc = desc_from_proto(args, ret);
     func(str->data, desc, item->nrlocals,
          code->codes, code->size, classstr->data, arg);
-    TYPE_DECREF(desc);
+    desc_decref(desc);
   }
 }
 
