@@ -8,14 +8,14 @@
 
 typedef struct atom {
   /* hashmap entry of atom */
-  hashmapentry entry;
+  HashMapEntry entry;
   /* the string length */
   int len;
   /* the string pointer */
   char *str;
 } Atom;
 
-static hashmap atomtbl;
+static HashMap atomtbl;
 
 char *atom_nstring(char *s, int len)
 {

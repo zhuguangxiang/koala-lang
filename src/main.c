@@ -37,7 +37,7 @@ static void usage(void)
 
 #define MAX_PATH_LEN 1024
 int cflag;
-char modname[MAX_PATH_LEN];
+char module[MAX_PATH_LEN];
 
 static void save_path(char *arg)
 {
@@ -53,7 +53,7 @@ static void save_path(char *arg)
     exit(0);
   }
 
-  memcpy(modname, path, len);
+  memcpy(module, path, len);
 }
 
 void parse_command(int argc, char *argv[])
@@ -123,9 +123,9 @@ int main(int argc, char *argv[])
   Koala_Initialize();
 
   if (cflag == 1) {
-    Koala_Compile(modname);
+    Koala_Compile(module);
   } else if (cflag == 2) {
-    Koala_Run(modname);
+    Koala_Run(module);
   } else {
     Koala_ReadLine();
   }

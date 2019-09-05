@@ -40,9 +40,9 @@ void mnode_free(void *e, void *arg)
   kfree(node);
 }
 
-static hashmap *get_mtbl(TypeObject *type)
+static HashMap *get_mtbl(TypeObject *type)
 {
-  hashmap *mtbl = type->mtbl;
+  HashMap *mtbl = type->mtbl;
   if (mtbl == NULL) {
     mtbl = kmalloc(sizeof(*mtbl));
     if (!mtbl)
@@ -103,10 +103,10 @@ TypeObject Any_Type = {
   .str    = any_str,
 };
 
-static int lro_find(vector *vec, TypeObject *type)
+static int lro_find(Vector *vec, TypeObject *type)
 {
   TypeObject *item;
-  vector_iterator(iter, vec);
+  VECTOR_ITERATOR(iter, vec);
   iter_for_each(&iter, item) {
     if (item == type)
       return 1;
@@ -116,10 +116,10 @@ static int lro_find(vector *vec, TypeObject *type)
 
 static void lro_build_one(TypeObject *type, TypeObject *base)
 {
-  vector *vec = &type->lro;
+  Vector *vec = &type->lro;
 
   TypeObject *item;
-  vector_iterator(iter, &base->lro);
+  VECTOR_ITERATOR(iter, &base->lro);
   iter_for_each(&iter, item) {
     if (!lro_find(vec, item)) {
       vector_push_back(vec, item);
@@ -137,7 +137,7 @@ static int build_lro(TypeObject *type)
   lro_build_one(type, &Any_Type);
 
   /* add base classes */
-  vector_iterator(iter, type->bases);
+  VECTOR_ITERATOR(iter, type->bases);
   TypeObject *base;
   iter_for_each(&iter, base) {
     lro_build_one(type, base);
@@ -158,7 +158,7 @@ static void type_show(TypeObject *type)
 {
   print("#\n");
   print("%s: (", type->name);
-  vector_reverse_iterator(iter, &type->lro);
+  VECTOR_REVERSE_ITERATOR(iter, &type->lro);
   int size = vector_size(&type->lro);
   TypeObject *item;
   iter_for_each(&iter, item) {
@@ -172,7 +172,7 @@ static void type_show(TypeObject *type)
   size = hashmap_size(type->mtbl);
   if (size > 0) {
     print("(");
-    hashmap_iterator(mapiter, type->mtbl);
+    HASHMAP_ITERATOR(mapiter, type->mtbl);
     struct mnode *node;
     iter_for_each(&mapiter, node) {
       if (--size <= 0)
@@ -447,7 +447,7 @@ void Type_Fini(TypeObject *type)
 {
   destroy_lro(type);
 
-  hashmap *map = type->mtbl;
+  HashMap *map = type->mtbl;
   if (map != NULL) {
     debug("fini type '%s'", type->name);
     hashmap_fini(map, mnode_free, NULL);
@@ -471,9 +471,9 @@ void Type_Add_Field(TypeObject *type, Object *ob)
 
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
 {
-  typedesc *desc = str_to_desc(f->type);
+  TypeDesc *desc = str_to_desc(f->type);
   Object *field = Field_New(f->name, desc);
-  desc_decref(desc);
+  TYPE_DECREF(desc);
   Field_SetFunc(field, f->set, f->get);
   Type_Add_Field(type, field);
   OB_DECREF(field);
@@ -516,7 +516,7 @@ void Type_Add_MethodDefs(TypeObject *type, MethodDef *def)
 
 TypeObject Type_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
-  .name = "type",
+  .name = "Type",
 };
 
 /* look in type->mtbl and its bases */
@@ -525,7 +525,7 @@ Object *Type_Lookup(TypeObject *type, char *name)
   struct mnode key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
 
-  vector_reverse_iterator(iter, &type->lro);
+  VECTOR_REVERSE_ITERATOR(iter, &type->lro);
   TypeObject *item;
   struct mnode *node;
   iter_for_each(&iter, item) {
@@ -636,7 +636,7 @@ Object *Object_GetValue(Object *self, char *name)
     if (Method_Check(ob)) {
       /* if method has no any parameters, it can be accessed as field. */
       MethodObject *meth = (MethodObject *)ob;
-      typedesc *desc = meth->desc;
+      TypeDesc *desc = meth->desc;
       if (!desc->proto.args) {
         res = Method_Call(ob, self, NULL);
         OB_DECREF(ob);
@@ -671,7 +671,7 @@ int Object_SetValue(Object *self, char *name, Object *val)
   return 0;
 }
 
-Object *New_Literal(literal *val)
+Object *New_Literal(Literal *val)
 {
   Object *ob = NULL;
   switch (val->kind) {
@@ -709,24 +709,24 @@ Object *New_Literal(literal *val)
 static void descob_free(Object *ob)
 {
   if (!Desc_Check(ob)) {
-    error("object of '%.64s' is not a typedesc", OB_TYPE_NAME(ob));
+    error("object of '%.64s' is not a TypeDesc", OB_TYPE_NAME(ob));
     return;
   }
   DescObject *descob = (DescObject *)ob;
-  desc_decref(descob->desc);
+  TYPE_DECREF(descob->desc);
   kfree(ob);
 }
 
 TypeObject Desc_Type = {
   OBJECT_HEAD_INIT(&Type_Type)
-  .name = "typedesc",
+  .name = "TypeDesc",
   .free = descob_free,
 };
 
-Object *New_Desc(typedesc *desc)
+Object *New_Desc(TypeDesc *desc)
 {
   DescObject *descob = kmalloc(sizeof(DescObject));
   Init_Object_Head(descob, &Desc_Type);
-  descob->desc = desc_incref(desc);
+  descob->desc = TYPE_INCREF(desc);
   return (Object *)descob;
 }

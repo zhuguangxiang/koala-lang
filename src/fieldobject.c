@@ -8,12 +8,12 @@
 #include "moduleobject.h"
 #include "log.h"
 
-Object *Field_New(char *name, typedesc *desc)
+Object *Field_New(char *name, TypeDesc *desc)
 {
   FieldObject *field = kmalloc(sizeof(*field));
   Init_Object_Head(field, &Field_Type);
   field->name = name;
-  field->desc = desc_incref(desc);
+  field->desc = TYPE_INCREF(desc);
   return (Object *)field;
 }
 
@@ -107,7 +107,7 @@ static void field_free(Object *ob)
 
   FieldObject *field = (FieldObject *)ob;
   debug("[Freed] Field '%s'", field->name);
-  desc_decref(field->desc);
+  TYPE_DECREF(field->desc);
   kfree(ob);
 }
 

@@ -12,9 +12,9 @@ int main(int argc, char *argv[])
   init_atom();
   init_typedesc();
 
-  typedesc *proto = str_to_proto("Llang.Tuple;si", "z");
-  vector *vec = proto->proto.args;
-  typedesc *desc = vector_get(vec, 0);
+  TypeDesc *proto = str_to_proto("Llang.Tuple;si", "z");
+  Vector *vec = proto->proto.args;
+  TypeDesc *desc = vector_get(vec, 0);
   assert(desc->kind == TYPE_KLASS);
   desc = vector_get(vec, 1);
   assert(desc->kind == TYPE_BASE);
@@ -24,11 +24,11 @@ int main(int argc, char *argv[])
   assert(desc->base == BASE_INT);
   desc = vector_get(vec, 3);
   assert(!desc);
-  vector_iterator(iter, vec);
+  VECTOR_ITERATOR(iter, vec);
   iter_for_each(&iter, desc) {
-    desc_decref(desc);
+    TYPE_DECREF(desc);
   }
-  desc_decref(proto);
+  TYPE_DECREF(proto);
 
   fini_typedesc();
   fini_atom();

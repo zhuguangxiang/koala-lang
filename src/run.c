@@ -16,7 +16,7 @@ static void init_types(void)
 
   int res = Type_Ready(&Type_Type);
   if (res != 0)
-    panic("Cannot initalize 'type' type.");
+    panic("Cannot initalize 'Type' type.");
 
   res = Type_Ready(&Any_Type);
   if (res != 0)

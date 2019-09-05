@@ -38,7 +38,7 @@ typedef struct {
 } FieldDef;
 
 struct mnode {
-  hashmapentry entry;
+  HashMapEntry entry;
   char *name;
   Object *obj;
 };
@@ -198,11 +198,11 @@ struct typeobject {
   IteratorMethods *iterator;
 
   /* tuple: base classes */
-  vector *bases;
+  Vector *bases;
   /* line resolution order */
-  vector lro;
+  Vector lro;
   /* map: meta table */
-  hashmap *mtbl;
+  HashMap *mtbl;
 
   /* methods definition */
   MethodDef *methods;
@@ -248,16 +248,16 @@ Object *Object_GetField(Object *self, char *name);
 Object *Object_GetValue(Object *self, char *name);
 int Object_SetValue(Object *self, char *name, Object *val);
 Object *Object_Call(Object *self, char *name, Object *args);
-Object *New_Literal(literal *val);
+Object *New_Literal(Literal *val);
 
 typedef struct descobject {
   OBJECT_HEAD
-  typedesc *desc;
+  TypeDesc *desc;
 } DescObject;
 
 extern TypeObject Desc_Type;
 #define Desc_Check(ob) (OB_TYPE(ob) == &Desc_Type)
-Object *New_Desc(typedesc *desc);
+Object *New_Desc(TypeDesc *desc);
 
 #ifdef __cplusplus
 }

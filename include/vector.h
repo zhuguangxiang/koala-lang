@@ -24,25 +24,25 @@ typedef struct vector {
   int size;
   /* array of items */
   void *items;
-} vector;
+} Vector;
 
 /* Declare an empty vector with name. */
 #define VECTOR(name) \
-  vector name = {0, 0, NULL}
+  Vector name = {0, 0, NULL}
 
 /* Initialize a vector with item size. */
-static inline void vector_init(vector *self)
+static inline void vector_init(Vector *self)
 {
-  memset(self, 0, sizeof(vector));
+  memset(self, 0, sizeof(Vector));
 }
 
 /* Destroy a vector with item free function. 'freefunc' is optional. */
-void vector_fini(vector *self, freefunc freefunc, void *data);
+void vector_fini(Vector *self, freefunc freefunc, void *data);
 
 /* Create a new vector */
-static inline vector *vector_new(void)
+static inline Vector *vector_new(void)
 {
-  vector *vec = kmalloc(sizeof(*vec));
+  Vector *vec = kmalloc(sizeof(*vec));
   return vec;
 }
 
@@ -53,6 +53,7 @@ static inline vector *vector_new(void)
 ({                                        \
   vector_fini(self, freefunc, data);      \
   kfree(self);                            \
+  (self) = NULL;                          \
 })
 
 /*
@@ -60,7 +61,7 @@ static inline vector *vector_new(void)
  * The vector does not resize after removing the items. The memory is still
  * allocated for future uses.
  */
-static inline void vector_clear(vector *self)
+static inline void vector_clear(Vector *self)
 {
   memset(self->items, 0, self->capacity * sizeof(void *));
   self->size = 0;
@@ -70,13 +71,13 @@ static inline void vector_clear(vector *self)
  * Concatenate a vector's items into the end of another vector.
  * The source vector is unchanged.
  */
-int vector_concat(vector *self, vector *other);
+int vector_concat(Vector *self, Vector *other);
 
 /*
  * Create a new vector from a range of an existing vector.
  * The source vector is unchanged.
  */
-vector *vector_slice(vector *self, int start, int size);
+Vector *vector_slice(Vector *self, int start, int size);
 
 /*
  * Copy the vector's items to a new vector.
@@ -86,7 +87,7 @@ vector *vector_slice(vector *self, int start, int size);
   vector_slice(self, 0, (self)->size)
 
 /* Shrink the vector's memory to it's size for saving memory. */
-int vector_shrink_to_fit(vector *self);
+int vector_shrink_to_fit(Vector *self);
 
 /* Get the vector size. */
 #define vector_size(self) \
@@ -97,35 +98,35 @@ int vector_shrink_to_fit(vector *self);
   ((self) ? (self)->capacity : 0)
 
 /* Store an item at an index. The old item is returned. */
-void *vector_set(vector *self, int index, void *item);
+void *vector_set(Vector *self, int index, void *item);
 
 /* Get the item stored at an index. Index bound is checked. */
-void *vector_get(vector *self, int index);
+void *vector_get(Vector *self, int index);
 
 /*
  * Insert an item into the in-bound of the vector.
  * This is relatively expensive operation.
  */
-int vector_insert(vector *self, int index, void *item);
+int vector_insert(Vector *self, int index, void *item);
 
 /*
  * Remove the item at the index and shrink the vector by one.
  * The removed item is stored va 'prev'.
  * This is relatively expensive operation.
  */
-void *vector_remove(vector *self, int index);
+void *vector_remove(Vector *self, int index);
 
 /* Add an item at the end of the vector. */
-int vector_push_back(vector *self, void *item);
+int vector_push_back(Vector *self, void *item);
 
 /*
  * Remove an item at the end of the vector.
  * When used with 'push_back', the vector can be used as a stack.
  */
-void *vector_pop_back(vector *self);
+void *vector_pop_back(Vector *self);
 
 /* Get an item at the end of the vector, but not remove it. */
-static inline void *vector_top_back(vector *self)
+static inline void *vector_top_back(Vector *self)
 {
   return vector_get(self, self->size - 1);
 }
@@ -152,7 +153,7 @@ static inline void *vector_top_back(vector *self)
   qsort((self)->items, (self)->size, compare)
 
 /* Convert vector to array with null-terminated item. */
-void *vector_toarr(vector *self);
+void *vector_toarr(Vector *self);
 
 /*
  * Iterator callback function for vector iteration.
@@ -161,7 +162,7 @@ void *vector_toarr(vector *self);
 void *vector_iter_next(Iterator *iter);
 
 /* Declare an iterator of the vector. Deletion is not safe. */
-#define vector_iterator(name, vector) \
+#define VECTOR_ITERATOR(name, vector) \
   ITERATOR(name, vector, vector_iter_next)
 
 /*
@@ -171,7 +172,7 @@ void *vector_iter_next(Iterator *iter);
 void *vector_iter_prev(Iterator *iter);
 
 /* Declare an reverse iterator of the vector. Deletion is not safe. */
-#define vector_reverse_iterator(name, vector) \
+#define VECTOR_REVERSE_ITERATOR(name, vector) \
   ITERATOR(name, vector, vector_iter_prev)
 
 #ifdef __cplusplus

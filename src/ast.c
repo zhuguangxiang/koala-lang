@@ -8,30 +8,30 @@
 #include "memory.h"
 #include "strbuf.h"
 
-expr *expr_from_nil(void)
+Expr *expr_from_nil(void)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = NIL_KIND;
   return exp;
 }
 
-expr *expr_from_self(void)
+Expr *expr_from_self(void)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SELF_KIND;
   return exp;
 }
 
-expr *expr_from_super(void)
+Expr *expr_from_super(void)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SUPER_KIND;
   return exp;
 }
 
-expr *expr_from_integer(int64_t val)
+Expr *expr_from_integer(int64_t val)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_from_base(BASE_INT);
   exp->k.value.kind = BASE_INT;
@@ -39,9 +39,9 @@ expr *expr_from_integer(int64_t val)
   return exp;
 }
 
-expr *expr_from_float(double val)
+Expr *expr_from_float(double val)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_from_base(BASE_FLOAT);
   exp->k.value.kind = BASE_FLOAT;
@@ -49,9 +49,9 @@ expr *expr_from_float(double val)
   return exp;
 }
 
-expr *expr_from_bool(int val)
+Expr *expr_from_bool(int val)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_from_base(BASE_BOOL);
   exp->k.value.kind = BASE_BOOL;
@@ -59,9 +59,9 @@ expr *expr_from_bool(int val)
   return exp;
 }
 
-expr *expr_from_string(char *val)
+Expr *expr_from_string(char *val)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_from_base(BASE_STR);
   exp->k.value.kind = BASE_STR;
@@ -69,9 +69,9 @@ expr *expr_from_string(char *val)
   return exp;
 }
 
-expr *expr_from_char(wchar val)
+Expr *expr_from_char(wchar val)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
   exp->desc = desc_from_base(BASE_CHAR);
   exp->k.value.kind = BASE_CHAR;
@@ -79,42 +79,42 @@ expr *expr_from_char(wchar val)
   return exp;
 }
 
-expr *expr_from_ident(char *val)
+Expr *expr_from_ident(char *val)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = ID_KIND;
   exp->id.name = val;
   return exp;
 }
 
-expr *expr_from_unary(unaryopkind op, expr *exp)
+Expr *expr_from_unary(UnaryOpKind op, Expr *exp)
 {
-  expr *uexp = kmalloc(sizeof(expr));
+  Expr *uexp = kmalloc(sizeof(Expr));
   uexp->kind = UNARY_KIND;
   /* it does not matter that exp->desc is null */
   uexp->desc = exp->desc;
-  desc_incref(uexp->desc);
+  TYPE_INCREF(uexp->desc);
   uexp->unary.op = op;
   uexp->unary.exp = exp;
   return uexp;
 }
 
-expr *expr_from_binary(binaryopkind op, expr *left, expr *right)
+Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = BINARY_KIND;
   /* it does not matter that exp->desc is null */
   exp->desc = left->desc;
-  desc_incref(exp->desc);
+  TYPE_INCREF(exp->desc);
   exp->binary.op = op;
   exp->binary.lexp = left;
   exp->binary.rexp = right;
   return exp;
 }
 
-expr *expr_from_ternary(expr *cond, expr *left, expr *right)
+Expr *expr_from_ternary(Expr *cond, Expr *left, Expr *right)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = TERNARY_KIND;
   exp->ternary.cond = cond;
   exp->ternary.lexp = left;
@@ -122,9 +122,9 @@ expr *expr_from_ternary(expr *cond, expr *left, expr *right)
   return exp;
 }
 
-expr *expr_from_attribute(ident id, expr *left)
+Expr *expr_from_attribute(Ident id, Expr *left)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = ATTRIBUTE_KIND;
   exp->attr.id = id;
   exp->attr.lexp = left;
@@ -132,9 +132,9 @@ expr *expr_from_attribute(ident id, expr *left)
   return exp;
 }
 
-expr *expr_from_subScript(expr *left, expr *index)
+Expr *expr_from_subScript(Expr *left, Expr *index)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SUBSCRIPT_KIND;
   exp->subscr.index = index;
   exp->subscr.lexp = left;
@@ -142,9 +142,9 @@ expr *expr_from_subScript(expr *left, expr *index)
   return exp;
 }
 
-expr *expr_from_call(vector *args, expr *left)
+Expr *expr_from_call(Vector *args, Expr *left)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = CALL_KIND;
   exp->call.args = args;
   exp->call.lexp = left;
@@ -152,9 +152,9 @@ expr *expr_from_call(vector *args, expr *left)
   return exp;
 }
 
-expr *expr_from_slice(expr *left, expr *start, expr *end)
+Expr *expr_from_slice(Expr *left, Expr *start, Expr *end)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SLICE_KIND;
   exp->slice.start = start;
   exp->slice.end = end;
@@ -163,23 +163,23 @@ expr *expr_from_slice(expr *left, expr *start, expr *end)
   return exp;
 }
 
-expr *expr_from_tuple(vector *exps)
+Expr *expr_from_tuple(Vector *exps)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = TUPLE_KIND;
   exp->tuple = exps;
   exp->sym = find_from_builtins("Tuple");
   return exp;
 }
 
-static typedesc *get_subarray_type(vector *exps)
+static TypeDesc *get_subarray_type(Vector *exps)
 {
   if (exps == NULL)
     return desc_from_any;
 
-  typedesc *desc = NULL;
-  vector_iterator(iter, exps);
-  expr *exp;
+  TypeDesc *desc = NULL;
+  VECTOR_ITERATOR(iter, exps);
+  Expr *exp;
   iter_for_each(&iter, exp) {
     if (desc == NULL) {
       desc = exp->desc;
@@ -189,72 +189,72 @@ static typedesc *get_subarray_type(vector *exps)
       }
     }
   }
-  return desc_incref(desc);
+  return TYPE_INCREF(desc);
 }
 
-expr *expr_from_array(vector *exps)
+Expr *expr_from_array(Vector *exps)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = ARRAY_KIND;
-  typedesc *para = get_subarray_type(exps);
+  TypeDesc *para = get_subarray_type(exps);
   exp->desc = desc_from_array(para);
   exp->array.elems = exps;
   exp->sym = find_from_builtins("Array");
   return exp;
 }
 
-expr *expr_from_mapentry(expr *key, expr *val)
+Expr *expr_from_mapentry(Expr *key, Expr *val)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = MAP_ENTRY_KIND;
   exp->mapentry.key = key;
   exp->mapentry.val = val;
   return exp;
 }
 
-expr *expr_from_map(vector *exps)
+Expr *expr_from_map(Vector *exps)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = MAP_KIND;
   exp->map = exps;
   exp->sym = find_from_builtins("Dict");
   return exp;
 }
 
-expr *expr_from_istype(expr *e, type type)
+Expr *expr_from_istype(Expr *e, Type type)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = IS_KIND;
   exp->isas.exp = e;
   exp->isas.type = type;
   return exp;
 }
 
-expr *expr_from_astype(expr *e, type type)
+Expr *expr_from_astype(Expr *e, Type type)
 {
-  expr *exp = kmalloc(sizeof(expr));
+  Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = AS_KIND;
   exp->isas.exp = e;
   exp->isas.type = type;
   return exp;
 }
 
-void exprlist_free(vector *vec)
+void exprlist_free(Vector *vec)
 {
-  vector_iterator(iter, vec);
-  expr *exp;
+  VECTOR_ITERATOR(iter, vec);
+  Expr *exp;
   iter_for_each(&iter, exp) {
     expr_free(exp);
   }
   vector_free(vec, NULL, NULL);
 }
 
-void expr_free(expr *exp)
+void expr_free(Expr *exp)
 {
   if (exp == NULL)
     return;
 
-  desc_decref(exp->desc);
+  TYPE_DECREF(exp->desc);
 
   switch (exp->kind) {
   case NIL_KIND:
@@ -322,7 +322,7 @@ void expr_free(expr *exp)
     break;
   case IS_KIND:
   case AS_KIND:
-    desc_decref(exp->isas.type.desc);
+    TYPE_DECREF(exp->isas.type.desc);
     expr_free(exp->isas.exp);
     kfree(exp);
     break;
@@ -332,127 +332,127 @@ void expr_free(expr *exp)
   }
 }
 
-stmt *stmt_from_constdecl(ident id, type *type, expr *exp)
+Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp)
 {
-  stmt *s = kmalloc(sizeof(stmt));
-  s->kind = CONST_KIND;
-  s->vardecl.id = id;
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = CONST_KIND;
+  stmt->vardecl.id = id;
   if (type != NULL)
-    s->vardecl.type = *type;
-  s->vardecl.exp = exp;
-  return s;
+    stmt->vardecl.type = *type;
+  stmt->vardecl.exp = exp;
+  return stmt;
 }
 
-stmt *stmt_from_vardecl(ident id, type *type, expr *exp)
+Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp)
 {
-  stmt *s = kmalloc(sizeof(stmt));
-  s->kind = VAR_KIND;
-  s->vardecl.id = id;
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = VAR_KIND;
+  stmt->vardecl.id = id;
   if (type != NULL)
-    s->vardecl.type = *type;
-  s->vardecl.exp = exp;
-  return s;
+    stmt->vardecl.type = *type;
+  stmt->vardecl.exp = exp;
+  return stmt;
 }
 
-stmt *stmt_from_assign(assignopkind op, expr *left, expr *right)
+Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right)
 {
-  stmt *s = kmalloc(sizeof(stmt));
-  s->kind = ASSIGN_KIND;
-  s->assign.op = op;
-  s->assign.lexp = left;
-  s->assign.rexp = right;
-  return s;
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = ASSIGN_KIND;
+  stmt->assign.op = op;
+  stmt->assign.lexp = left;
+  stmt->assign.rexp = right;
+  return stmt;
 }
 
-stmt *stmt_from_funcdecl(ident id, vector *typeparas, vector *args,
-                         type *ret,  vector *body)
+Stmt *stmt_from_funcdecl(Ident id, Vector *typeparas, Vector *args,
+                         Type *ret,  Vector *body)
 {
-  stmt *s = kmalloc(sizeof(stmt));
-  s->kind = FUNC_KIND;
-  s->funcdecl.id = id;
-  s->funcdecl.typeparas = typeparas;
-  s->funcdecl.args = args;
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = FUNC_KIND;
+  stmt->funcdecl.id = id;
+  stmt->funcdecl.typeparas = typeparas;
+  stmt->funcdecl.args = args;
   if (ret != NULL)
-    s->funcdecl.ret = *ret;
-  s->funcdecl.body = body;
-  return s;
+    stmt->funcdecl.ret = *ret;
+  stmt->funcdecl.body = body;
+  return stmt;
 }
 
-stmt *stmt_from_return(expr *exp)
+Stmt *stmt_from_return(Expr *exp)
 {
-  stmt *stmt = kmalloc(sizeof(stmt));
+  Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = RETURN_KIND;
   stmt->ret.exp = exp;
   return stmt;
 }
 
-stmt *stmt_from_expr(expr *exp)
+Stmt *stmt_from_expr(Expr *exp)
 {
-  stmt *s = kmalloc(sizeof(stmt));
-  s->kind = EXPR_KIND;
-  s->expr.exp = exp;
-  return s;
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = EXPR_KIND;
+  stmt->expr.exp = exp;
+  return stmt;
 }
 
-stmt *stmt_from_block(vector *list)
+Stmt *stmt_from_block(Vector *list)
 {
-  stmt *stmt = kmalloc(sizeof(stmt));
+  Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = BLOCK_KIND;
   stmt->block.vec = list;
   return stmt;
 }
 
-static void stmt_block_free(vector *vec)
+static void stmt_block_free(Vector *vec)
 {
   int sz = vector_size(vec);
-  stmt *s;
+  Stmt *stmt;
   for (int i = 0; i < sz; ++i) {
-    s = vector_get(vec, i);
-    stmt_free(s);
+    stmt = vector_get(vec, i);
+    stmt_free(stmt);
   }
 }
 
-void stmt_free(stmt *s)
+void stmt_free(Stmt *stmt)
 {
-  if (s == NULL)
+  if (stmt == NULL)
     return;
 
-  switch (s->kind) {
+  switch (stmt->kind) {
   case IMPORT_KIND:
-    kfree(s);
+    kfree(stmt);
     break;
   case CONST_KIND:
-    kfree(s);
+    kfree(stmt);
     break;
   case VAR_KIND:
-    desc_decref(s->vardecl.type.desc);
-    expr_free(s->vardecl.exp);
-    kfree(s);
+    TYPE_DECREF(stmt->vardecl.type.desc);
+    expr_free(stmt->vardecl.exp);
+    kfree(stmt);
     break;
   case ASSIGN_KIND:
-    expr_free(s->assign.lexp);
-    expr_free(s->assign.rexp);
-    kfree(s);
+    expr_free(stmt->assign.lexp);
+    expr_free(stmt->assign.rexp);
+    kfree(stmt);
     break;
   case FUNC_KIND:
-    desc_decref(s->funcdecl.ret.desc);
-    stmt_block_free(s->funcdecl.body);
-    kfree(s);
+    TYPE_DECREF(stmt->funcdecl.ret.desc);
+    stmt_block_free(stmt->funcdecl.body);
+    kfree(stmt);
     break;
   case RETURN_KIND:
-    expr_free(s->ret.exp);
-    kfree(s);
+    expr_free(stmt->ret.exp);
+    kfree(stmt);
     break;
   case EXPR_KIND:
-    expr_free(s->expr.exp);
-    kfree(s);
+    expr_free(stmt->expr.exp);
+    kfree(stmt);
     break;
   case BLOCK_KIND:
-    stmt_block_free(s->block.vec);
-    kfree(s);
+    stmt_block_free(stmt->block.vec);
+    kfree(stmt);
     break;
   default:
-    panic("invalid stmt branch %d", s->kind);
+    panic("invalid stmt branch %d", stmt->kind);
     break;
   }
 }

@@ -9,7 +9,7 @@
 #include "log.h"
 
 struct node {
-  hashmapentry entry;
+  HashMapEntry entry;
   /* node name */
   char *name;
   /* parent node */
@@ -20,7 +20,7 @@ struct node {
   void *data;
 };
 
-static hashmap nodetbl;
+static HashMap nodetbl;
 static struct node root;
 static VECTOR(dir);
 
@@ -64,12 +64,12 @@ static inline struct node *find_node(char *name, struct node *parent)
 
 static struct node *__add_dirnode(char *name, struct node *parent)
 {
-  vector *vec;
+  Vector *vec;
   struct node *node = kmalloc(sizeof(*node) + sizeof(*vec));
   hashmap_entry_init(node, strhash(name));
   node->name = name;
   node->parent = parent;
-  vec = (vector *)(node + 1);
+  vec = (Vector *)(node + 1);
   vector_init(vec);
   node->data = vec;
   hashmap_add(&nodetbl, node);

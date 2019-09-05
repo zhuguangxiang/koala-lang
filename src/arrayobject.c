@@ -148,7 +148,7 @@ Object *array_str(Object *self, Object *ob)
 
   ArrayObject *arr = (ArrayObject *)self;
   STRBUF(sbuf);
-  vector_iterator(iter, &arr->items);
+  VECTOR_ITERATOR(iter, &arr->items);
   strbuf_append_char(&sbuf, '[');
   Object *str;
   Object *tmp;
@@ -193,7 +193,7 @@ Object *Array_New(void)
 void Array_Print(Object *ob)
 {
   ArrayObject *arr = (ArrayObject *)ob;
-  vector_iterator(iter, &arr->items);
+  VECTOR_ITERATOR(iter, &arr->items);
   print("[");
   Object *item;
   Object *str;

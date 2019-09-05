@@ -18,28 +18,28 @@ typedef struct ident {
   char *name;
   short row;
   short col;
-} ident;
+} Ident;
 
 /* typedesc with position */
 typedef struct type {
-  typedesc *desc;
+  TypeDesc *desc;
   short row;
   short col;
-} type;
+} Type;
 
 /* idtype for parameter-list in AST */
 typedef struct idtype {
-  ident id;
-  type type;
-} idtype;
+  Ident id;
+  Type type;
+} IdType;
 
 /* parameter type */
 typedef struct typepara {
-  ident id;       /* T: Foo & Bar */
-  vector *types;  /* Foo, Bar and etc, type */
+  Ident id;       /* T: Foo & Bar */
+  Vector *types;  /* Foo, Bar and etc, Type */
 } TypePara;
 
-void TypePara_IsDuplicated(vector *typeparas, ident *id);
+void TypePara_IsDuplicated(Vector *typeparas, Ident *id);
 
 /* unary operator kind */
 typedef enum unaryopkind {
@@ -51,7 +51,7 @@ typedef enum unaryopkind {
   UNARY_BIT_NOT,
   /* ! */
   UNARY_LNOT
-} unaryopkind;
+} UnaryOpKind;
 
 /* binary operator kind */
 typedef enum binaryopkind {
@@ -63,7 +63,7 @@ typedef enum binaryopkind {
   BINARY_BIT_AND, BINARY_BIT_XOR, BINARY_BIT_OR,
   /* &&, || */
   BINARY_LAND, BINARY_LOR,
-} binaryopkind;
+} BinaryOpKind;
 
 /* expression kind */
 typedef enum exprkind {
@@ -80,7 +80,7 @@ typedef enum exprkind {
   /* is, as */
   IS_KIND, AS_KIND,
   EXPR_KIND_MAX
-} exprkind;
+} ExprKind;
 
 /* expression context */
 typedef enum exprctx {
@@ -89,15 +89,15 @@ typedef enum exprctx {
   EXPR_LOAD, EXPR_STORE,
   /* call or load function indicator */
   EXPR_CALL_FUNC, EXPR_LOAD_FUNC
-} exprctx;
+} ExprCtx;
 
 typedef struct expr {
-  exprkind kind;
+  ExprKind kind;
   short row;
   short col;
-  exprctx ctx;
-  symbol *sym;
-  typedesc *desc;
+  ExprCtx ctx;
+  Symbol *sym;
+  TypeDesc *desc;
   struct expr *right;
   int argc;
   int leftside;
@@ -105,7 +105,7 @@ typedef struct expr {
   union {
     struct {
       int omit;
-      literal value;
+      Literal value;
     } k;
     struct {
       char *name;
@@ -121,15 +121,15 @@ typedef struct expr {
       void *scope;
     } id;
     struct {
-      unaryopkind op;
+      UnaryOpKind op;
       struct expr *exp;
-      literal val;
+      Literal val;
     } unary;
     struct {
-      binaryopkind op;
+      BinaryOpKind op;
       struct expr *lexp;
       struct expr *rexp;
-      literal val;
+      Literal val;
     } binary;
     struct {
       struct expr *cond;
@@ -137,7 +137,7 @@ typedef struct expr {
       struct expr *rexp;
     } ternary;
     struct {
-      ident id;
+      Ident id;
       struct expr *lexp;
     } attr;
     struct {
@@ -146,7 +146,7 @@ typedef struct expr {
     } subscr;
     struct {
       /* arguments list */
-      vector *args;
+      Vector *args;
       struct expr *lexp;
     } call;
     struct {
@@ -154,47 +154,47 @@ typedef struct expr {
       struct expr *start;
       struct expr *end;
     } slice;
-    vector *tuple;
+    Vector *tuple;
     struct {
       int dims;
-      vector *elems;
+      Vector *elems;
     } array;
-    vector *map;
+    Vector *map;
     struct {
       struct expr *key;
       struct expr *val;
     } mapentry;
     struct {
       struct expr *exp;
-      type type;
+      Type type;
     } isas;
   };
-} expr;
+} Expr;
 
-void expr_free(expr *exp);
-void exprlist_free(vector *vec);
-expr *expr_from_nil(void);
-expr *expr_from_self(void);
-expr *expr_from_super(void);
-expr *expr_from_integer(int64_t val);
-expr *expr_from_float(double val);
-expr *expr_from_bool(int val);
-expr *expr_from_string(char *val);
-expr *expr_from_char(wchar val);
-expr *expr_from_ident(char *val);
-expr *expr_from_unary(unaryopkind op, expr *exp);
-expr *expr_from_binary(binaryopkind op, expr *left, expr *right);
-expr *expr_from_ternary(expr *cond, expr *left, expr *right);
-expr *expr_from_attribute(ident id, expr *left);
-expr *expr_from_subScript(expr *left, expr *index);
-expr *expr_from_call(vector *args, expr *left);
-expr *expr_from_slice(expr *left, expr *start, expr *end);
-expr *expr_from_tuple(vector *exps);
-expr *expr_from_array(vector *exps);
-expr *expr_from_mapentry(expr *key, expr *val);
-expr *expr_from_map(vector *exps);
-expr *expr_from_istype(expr *exp, type type);
-expr *expr_from_astype(expr *exp, type type);
+void expr_free(Expr *exp);
+void exprlist_free(Vector *vec);
+Expr *expr_from_nil(void);
+Expr *expr_from_self(void);
+Expr *expr_from_super(void);
+Expr *expr_from_integer(int64_t val);
+Expr *expr_from_float(double val);
+Expr *expr_from_bool(int val);
+Expr *expr_from_string(char *val);
+Expr *expr_from_char(wchar val);
+Expr *expr_from_ident(char *val);
+Expr *expr_from_unary(UnaryOpKind op, Expr *exp);
+Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right);
+Expr *expr_from_ternary(Expr *cond, Expr *left, Expr *right);
+Expr *expr_from_attribute(Ident id, Expr *left);
+Expr *expr_from_subScript(Expr *left, Expr *index);
+Expr *expr_from_call(Vector *args, Expr *left);
+Expr *expr_from_slice(Expr *left, Expr *start, Expr *end);
+Expr *expr_from_tuple(Vector *exps);
+Expr *expr_from_array(Vector *exps);
+Expr *expr_from_mapentry(Expr *key, Expr *val);
+Expr *expr_from_map(Vector *exps);
+Expr *expr_from_istype(Expr *exp, Type type);
+Expr *expr_from_astype(Expr *exp, Type type);
 
 typedef enum stmtkind {
   /* import */
@@ -228,7 +228,7 @@ typedef enum stmtkind {
   /* continue */
   CONTINUE_KIND,
   STMT_KIND_MAX
-} stmtkind;
+} StmtKind;
 
 /* assignment operators */
 typedef enum assignopkind {
@@ -236,58 +236,58 @@ typedef enum assignopkind {
   OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
   OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_POW_ASSIGN, OP_MOD_ASSIGN,
   OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
-} assignopkind;
+} AssignOpKind;
 
 typedef struct stmt {
-  stmtkind kind;
+  StmtKind kind;
   short last;
   short hasvalue;
   union {
     struct {
       int freevar;
-      ident id;
-      type type;
-      expr *exp;
+      Ident id;
+      Type type;
+      Expr *exp;
     } vardecl;
     struct {
-      assignopkind op;
-      expr *lexp;
-      expr *rexp;
+      AssignOpKind op;
+      Expr *lexp;
+      Expr *rexp;
     } assign;
     struct {
-      ident id;
+      Ident id;
       /* native flag */
       int native;
       /* type parameters */
-      vector *typeparas;
+      Vector *typeparas;
       /* idtype */
-      vector *args;
+      Vector *args;
       /* return type */
-      type ret;
+      Type ret;
       /* body */
-      vector *body;
+      Vector *body;
     } funcdecl;
     struct {
-      expr *exp;
+      Expr *exp;
     } ret;
     struct {
-      expr *exp;
+      Expr *exp;
     } expr;
     struct {
-      vector *vec;
+      Vector *vec;
     } block;
   };
-} stmt;
+} Stmt;
 
-void stmt_free(stmt *s);
-stmt *stmt_from_constdecl(ident id, type *type, expr *exp);
-stmt *stmt_from_vardecl(ident id, type *type, expr *exp);
-stmt *stmt_from_assign(assignopkind op, expr *left, expr *right);
-stmt *stmt_from_funcdecl(ident id, vector *typeparam, vector *args,
-                         type *ret, vector *body);
-stmt *stmt_from_return(expr *exp);
-stmt *stmt_from_expr(expr *exp);
-stmt *stmt_from_block(vector *list);
+void stmt_free(Stmt *stmt);
+Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp);
+Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
+Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);
+Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,
+                         Type *ret, Vector *body);
+Stmt *stmt_from_return(Expr *exp);
+Stmt *stmt_from_expr(Expr *exp);
+Stmt *stmt_from_block(Vector *list);
 
 #ifdef __cplusplus
 }

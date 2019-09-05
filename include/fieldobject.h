@@ -19,7 +19,7 @@ typedef struct fieldobject {
   /* field owner */
   Object *owner;
   /* field type descriptor */
-  typedesc *desc;
+  TypeDesc *desc;
   /* getter & setter */
   func_t get;
   setfunc set;
@@ -31,7 +31,7 @@ typedef struct fieldobject {
 
 extern TypeObject Field_Type;
 #define Field_Check(ob) (OB_TYPE(ob) == &Field_Type)
-Object *Field_New(char *name, typedesc *desc);
+Object *Field_New(char *name, TypeDesc *desc);
 static inline void Field_SetFunc(Object *self, setfunc set, func_t get)
 {
   if (!Field_Check(self)) {

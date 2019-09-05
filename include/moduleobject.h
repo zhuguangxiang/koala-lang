@@ -21,11 +21,11 @@ typedef struct moduleobject {
   /* number of variables */
   int nrvars;
   /* meta table */
-  hashmap *mtbl;
+  HashMap *mtbl;
   /* value objects */
-  vector values;
+  Vector values;
   /* constant pool */
-  vector *consts;
+  Vector *consts;
 } ModuleObject;
 
 extern TypeObject Module_Type;

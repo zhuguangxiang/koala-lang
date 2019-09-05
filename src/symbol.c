@@ -12,14 +12,14 @@
 
 static int symbol_equal(void *k1, void *k2)
 {
-  symbol *s1 = k1;
-  symbol *s2 = k2;
+  Symbol *s1 = k1;
+  Symbol *s2 = k2;
   return !strcmp(s1->name, s2->name);
 }
 
-symtable *stable_new(void)
+STable *stable_new(void)
 {
-  symtable *stbl = kmalloc(sizeof(symtable));
+  STable *stbl = kmalloc(sizeof(STable));
   hashmap_init(&stbl->table, symbol_equal);
   /* [0]: module or class self */
   stbl->varindex = 1;
@@ -28,11 +28,11 @@ symtable *stable_new(void)
 
 static void _symbol_free_(void *e, void *arg)
 {
-  symbol *sym = e;
+  Symbol *sym = e;
   symbol_decref(sym);
 }
 
-void stable_free(symtable *stbl)
+void stable_free(STable *stbl)
 {
   if (stbl == NULL)
     return;
@@ -40,18 +40,18 @@ void stable_free(symtable *stbl)
   kfree(stbl);
 }
 
-symbol *stable_get(symtable *stbl, char *name)
+Symbol *stable_get(STable *stbl, char *name)
 {
   if (stbl == NULL)
     return NULL;
-  symbol key = {.name = name};
+  Symbol key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
   return hashmap_get(&stbl->table, &key);
 }
 
-symbol *symbol_new(char *name, SymKind kind)
+Symbol *symbol_new(char *name, SymKind kind)
 {
-  symbol *sym = kmalloc(sizeof(symbol));
+  Symbol *sym = kmalloc(sizeof(Symbol));
   sym->name = name;
   sym->kind = kind;
   hashmap_entry_init(sym, strhash(name));
@@ -59,7 +59,7 @@ symbol *symbol_new(char *name, SymKind kind)
   return sym;
 }
 
-int stable_add_symbol(symtable *stbl, symbol *sym)
+int stable_add_symbol(STable *stbl, Symbol *sym)
 {
   if (sym == NULL) {
     warn("null pointer");
@@ -68,7 +68,7 @@ int stable_add_symbol(symtable *stbl, symbol *sym)
 
   if (hashmap_add(&stbl->table, sym) < 0) {
     error("add symbol '%s' failed", sym->name);
-    symbol_decref((symbol *)sym);
+    symbol_decref((Symbol *)sym);
     return -1;
   }
 
@@ -76,57 +76,57 @@ int stable_add_symbol(symtable *stbl, symbol *sym)
   return 0;
 }
 
-symbol *stable_add_const(symtable *stbl, char *name, typedesc *desc)
+Symbol *stable_add_const(STable *stbl, char *name, TypeDesc *desc)
 {
-  symbol *sym = symbol_new(name, SYM_CONST);
+  Symbol *sym = symbol_new(name, SYM_CONST);
   if (stable_add_symbol(stbl, sym))
     return NULL;
-  sym->desc = desc_incref(desc);
+  sym->desc = TYPE_INCREF(desc);
   sym->var.index = stbl->varindex++;
   symbol_decref(sym);
   return sym;
 }
 
-symbol *stable_add_var(symtable *stbl, char *name, typedesc *desc)
+Symbol *stable_add_var(STable *stbl, char *name, TypeDesc *desc)
 {
-  symbol *sym = symbol_new(name, SYM_VAR);
+  Symbol *sym = symbol_new(name, SYM_VAR);
   if (stable_add_symbol(stbl, sym))
     return NULL;
-  sym->desc = desc_incref(desc);
+  sym->desc = TYPE_INCREF(desc);
   sym->var.index = stbl->varindex++;
   symbol_decref(sym);
   return sym;
 }
 
-symbol *stable_add_func(symtable *stbl, char *name, typedesc *proto)
+Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto)
 {
-  symbol *sym = symbol_new(name, SYM_FUNC);
+  Symbol *sym = symbol_new(name, SYM_FUNC);
   if (stable_add_symbol(stbl, sym))
     return NULL;
-  sym->desc = desc_incref(proto);
+  sym->desc = TYPE_INCREF(proto);
   symbol_decref(sym);
   return sym;
 }
 
-static inline void symbol_free(symbol *sym)
+static inline void symbol_free(Symbol *sym)
 {
-  desc_decref(sym->desc);
+  TYPE_DECREF(sym->desc);
 
   switch (sym->kind) {
   case SYM_CONST:
     panic("SYM_CONST not implemented");
     break;
   case SYM_VAR:
-    debug("[symbol Freed] var '%s'", sym->name);
+    debug("[Symbol Freed] var '%s'", sym->name);
     break;
   case SYM_FUNC:
-    debug("[symbol Freed] func '%s'", sym->name);
+    debug("[Symbol Freed] func '%s'", sym->name);
     break;
   case SYM_CLASS:
-    debug("[symbol Freed] class '%s'", sym->name);
+    debug("[Symbol Freed] class '%s'", sym->name);
     stable_free(sym->klass.stbl);
-    vector_reverse_iterator(iter, &sym->klass.bases);
-    symbol *tmp;
+    VECTOR_REVERSE_ITERATOR(iter, &sym->klass.bases);
+    Symbol *tmp;
     iter_for_each(&iter, tmp) {
       symbol_decref(tmp);
     }
@@ -151,7 +151,7 @@ static inline void symbol_free(symbol *sym)
     panic("SYM_MOD not implemented");
     break;
   case SYM_MOD:
-    debug("[symbol Freed] module '%s'", sym->name);
+    debug("[Symbol Freed] module '%s'", sym->name);
     break;
   case SYM_REF:
     panic("SYM_REF not implemented");
@@ -164,7 +164,7 @@ static inline void symbol_free(symbol *sym)
   kfree(sym);
 }
 
-void symbol_decref(symbol *sym)
+void symbol_decref(Symbol *sym)
 {
   if (sym == NULL)
     return;
@@ -179,25 +179,25 @@ void symbol_decref(symbol *sym)
   }
 }
 
-static symbol *load_field(Object *ob)
+static Symbol *load_field(Object *ob)
 {
   FieldObject *fo = (FieldObject *)ob;
   debug("load field '%s'", fo->name);
-  symbol *sym = symbol_new(fo->name, SYM_VAR);
-  sym->desc = desc_incref(fo->desc);
+  Symbol *sym = symbol_new(fo->name, SYM_VAR);
+  sym->desc = TYPE_INCREF(fo->desc);
   return sym;
 }
 
-static symbol *load_method(Object *ob)
+static Symbol *load_method(Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
   debug("load method '%s'", meth->name);
-  symbol *sym = symbol_new(meth->name, SYM_FUNC);
-  sym->desc = desc_incref(meth->desc);
+  Symbol *sym = symbol_new(meth->name, SYM_FUNC);
+  sym->desc = TYPE_INCREF(meth->desc);
   return sym;
 }
 
-static symbol *load_type(Object *ob)
+static Symbol *load_type(Object *ob)
 {
   TypeObject *type = (TypeObject *)ob;
   ModuleObject *mob = (ModuleObject *)type->owner;
@@ -207,11 +207,11 @@ static symbol *load_type(Object *ob)
   }
 
   debug("load type '%s'", type->name);
-  symtable *stbl = stable_new();
-  hashmap_iterator(iter, type->mtbl);
+  STable *stbl = stable_new();
+  HASHMAP_ITERATOR(iter, type->mtbl);
   struct mnode *node;
   Object *tmp;
-  symbol *sym;
+  Symbol *sym;
   iter_for_each(&iter, node) {
     tmp = node->obj;
     if (Field_Check(tmp)) {
@@ -225,12 +225,12 @@ static symbol *load_type(Object *ob)
     symbol_decref(sym);
   }
 
-  symbol *clsSym = symbol_new(type->name, SYM_CLASS);
+  Symbol *clsSym = symbol_new(type->name, SYM_CLASS);
   clsSym->desc = desc_from_klass(mob->path, type->name, NULL);
   clsSym->klass.stbl = stbl;
 
   TypeObject *item;
-  vector_reverse_iterator(iter2, &type->lro);
+  VECTOR_REVERSE_ITERATOR(iter2, &type->lro);
   iter_for_each(&iter2, item) {
     if (item == type)
       continue;
@@ -245,17 +245,17 @@ static symbol *load_type(Object *ob)
   return clsSym;
 }
 
-symtable *stable_from_mobject(Object *ob)
+STable *stable_from_mobject(Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
   if (mo->mtbl == NULL)
     panic("mtbl of mobject '%s' is null", mo->name);
 
-  symtable *stbl = stable_new();
-  hashmap_iterator(iter, mo->mtbl);
+  STable *stbl = stable_new();
+  HASHMAP_ITERATOR(iter, mo->mtbl);
   struct mnode *node;
   Object *tmp;
-  symbol *sym;
+  Symbol *sym;
   iter_for_each(&iter, node) {
     tmp = node->obj;
     if (Type_Check(tmp)) {
@@ -270,25 +270,25 @@ symtable *stable_from_mobject(Object *ob)
     stable_add_symbol(stbl, sym);
     symbol_decref(sym);
   }
-  typedesc *desc = desc_from_base('s');
+  TypeDesc *desc = desc_from_base('s');
   stable_add_var(stbl, "__name__", desc);
-  desc_decref(desc);
+  TYPE_DECREF(desc);
   return stbl;
 }
 
-symbol *klass_find_member(symbol *clsSym, char *name)
+Symbol *klass_find_member(Symbol *clsSym, char *name)
 {
   if (clsSym->kind != SYM_CLASS) {
     error("sym '%s' is not class", clsSym->name);
     return NULL;
   }
 
-  symbol *sym = stable_get(clsSym->klass.stbl, name);
+  Symbol *sym = stable_get(clsSym->klass.stbl, name);
   if (sym != NULL)
     return sym;
 
-  vector_reverse_iterator(iter, &clsSym->klass.bases);
-  symbol *item;
+  VECTOR_REVERSE_ITERATOR(iter, &clsSym->klass.bases);
+  Symbol *item;
   iter_for_each(&iter, item) {
     sym = klass_find_member(item, name);
     if (sym != NULL)

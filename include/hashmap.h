@@ -7,12 +7,12 @@
  * An example of using hashmap as hashset.
  *
  * struct string {
- *   hashmapentry entry;
+ *   HashMapEntry entry;
  *   int length;
  *   char *value;
  * };
  *
- * hashmap map;
+ * HashMap map;
  * int string_compare(void *k1, void *k2)
  * {
  *   struct string *s1 = k1;
@@ -63,12 +63,12 @@ typedef struct hashmapentry {
   struct hashmapentry *next;
   /* entry's hash code */
   unsigned int hash;
-} hashmapentry;
+} HashMapEntry;
 
 /* a hash map structure. */
 typedef struct hashmap {
   /* collision list array */
-  hashmapentry **entries;
+  HashMapEntry **entries;
   /* entries array size */
   int size;
   /* equal function */
@@ -79,49 +79,49 @@ typedef struct hashmap {
   int grow_at;
   /* shrink entries array point */
   int shrink_at;
-} hashmap;
+} HashMap;
 
 /* Initialize a hashmap_entry structure. */
 static inline void hashmap_entry_init(void *entry, unsigned int hash)
 {
-  hashmapentry *e = entry;
+  HashMapEntry *e = entry;
   e->hash = hash;
   e->next = NULL;
 }
 
 /* Return the number of items in the map. */
-static inline int hashmap_size(hashmap *self)
+static inline int hashmap_size(HashMap *self)
 {
   return self ? self->count : 0;
 }
 
 /* Initialize a hash map. */
-void hashmap_init(hashmap *self, equalfunc equalfunc);
+void hashmap_init(HashMap *self, equalfunc equalfunc);
 
 /* Destroy the hashmap and free its allocated memory. */
-void hashmap_fini(hashmap *self, freefunc freefunc, void *data);
+void hashmap_fini(HashMap *self, freefunc freefunc, void *data);
 
 /*
  * Retrieve the hashmap entry for the specified hash code.
  * Returns the hashmap entry or null if not found.
  */
-void *hashmap_get(hashmap *self, void *key);
+void *hashmap_get(HashMap *self, void *key);
 
 /*
  * Add a hashmap entry. If the hashmap contains duplicate entries, it will
  * return -1 failure.
  */
-int hashmap_add(hashmap *self, void *entry);
+int hashmap_add(HashMap *self, void *entry);
 
 /*
  * Add or replace a hashmap entry. If the hashmap contains duplicate entries,
  * the old entry will be replaced and returned.
  * Returns the replaced entry or null if no duplicated entry
  */
-void *hashmap_put(hashmap *self, void *entry);
+void *hashmap_put(HashMap *self, void *entry);
 
 /* Removes a hashmap entry matching the specified key. */
-void *hashmap_remove(hashmap *self, void *key);
+void *hashmap_remove(HashMap *self, void *key);
 
 /*
  * Iterator callback function for hashmap iteration.
@@ -130,7 +130,7 @@ void *hashmap_remove(hashmap *self, void *key);
 void *hashmap_iter_next(Iterator *iter);
 
 /* Declare an iterator of the hashmap. Deletion is not safe. */
-#define hashmap_iterator(name, hashmap) \
+#define HASHMAP_ITERATOR(name, hashmap) \
   ITERATOR(name, hashmap, hashmap_iter_next)
 
 #ifdef __cplusplus

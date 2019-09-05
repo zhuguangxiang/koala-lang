@@ -8,7 +8,7 @@
 #include "tupleobject.h"
 
 typedef struct dictentry {
-  hashmapentry entry;
+  HashMapEntry entry;
   Object *key;
   Object *val;
 } DictEntry;

@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
   Object *code = NULL; //code_from_cfunc(&func);
   CodeObject *co = (CodeObject *)code;
   assert(co->proto->refcnt == 1);
-  desc_decref(co->proto);
+  TYPE_DECREF(co->proto);
   kfree(code);
   */
   fini_typedesc();

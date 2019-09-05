@@ -8,11 +8,11 @@
 #include "moduleobject.h"
 
 /* lang module */
-static module _lang_;
+static Module _lang_;
 /* ModuleObject */
-static symbol *modClsSym;
+static Symbol *modClsSym;
 /* Module, path as key */
-static hashmap modules;
+static HashMap modules;
 
 void init_parser(void)
 {
@@ -32,21 +32,21 @@ void fini_parser(void)
   stable_free(_lang_.stbl);
 }
 
-symbol *find_from_builtins(char *name)
+Symbol *find_from_builtins(char *name)
 {
   return stable_get(_lang_.stbl, name);
 }
 
-void mod_from_mobject(module *mod, Object *ob)
+void mod_from_mobject(Module *mod, Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
   mod->name = mo->name;
   mod->stbl = stable_from_mobject(ob);
 }
 
-symbol *mod_find_symbol(module *mod, char *name)
+Symbol *mod_find_symbol(Module *mod, char *name)
 {
-  symbol *sym = stable_get(mod->stbl, name);
+  Symbol *sym = stable_get(mod->stbl, name);
   if (sym != NULL)
     return sym;
   return klass_find_member(modClsSym, name);
@@ -57,8 +57,8 @@ typedef struct inst {
   int bytes;
   int argc;
   uint8_t op;
-  literal arg;
-  typedesc *desc;
+  Literal arg;
+  TypeDesc *desc;
   /* break and continue statements */
   int upbytes;
 } Inst;
@@ -71,16 +71,16 @@ typedef struct jmp_inst {
   Inst *inst;
 } JmpInst;
 
-static inline codeblock *codeblock_new(void);
+static inline CodeBlock *codeblock_new(void);
 
-static inline void codeblock_add_inst(codeblock *b, Inst *i)
+static inline void codeblock_add_inst(CodeBlock *b, Inst *i)
 {
   list_add_tail(&i->link, &b->insts);
   b->bytes += i->bytes;
   i->upbytes = b->bytes;
 }
 
-static Inst *inst_new(uint8_t op, literal *val, typedesc *desc)
+static Inst *inst_new(uint8_t op, Literal *val, TypeDesc *desc)
 {
   Inst *i = kmalloc(sizeof(Inst));
   init_list_head(&i->link);
@@ -88,49 +88,49 @@ static Inst *inst_new(uint8_t op, literal *val, typedesc *desc)
   i->bytes = 1 + opcode_argc(op);
   if (val)
     i->arg = *val;
-  i->desc = desc_incref(desc);
+  i->desc = TYPE_INCREF(desc);
   return i;
 }
 
 static void inst_free(Inst *i)
 {
-  desc_decref(i->desc);
+  TYPE_DECREF(i->desc);
   kfree(i);
 }
 
-static Inst *inst_add(parserstate *ps, uint8_t op, literal *val)
+static Inst *inst_add(ParserState *ps, uint8_t op, Literal *val)
 {
   Inst *i = inst_new(op, val, NULL);
-  parserunit *u = ps->u;
+  ParserUnit *u = ps->u;
   if (u->block == NULL)
     u->block = codeblock_new();
   codeblock_add_inst(u->block, i);
   return i;
 }
 
-static inline Inst *inst_add_noarg(parserstate *ps, uint8_t op)
+static inline Inst *inst_add_noarg(ParserState *ps, uint8_t op)
 {
   return inst_add(ps, op, NULL);
 }
 
-static Inst *inst_add_type(parserstate *ps, uint8_t op, typedesc *desc)
+static Inst *inst_add_type(ParserState *ps, uint8_t op, TypeDesc *desc)
 {
   Inst *i = inst_new(op, NULL, desc);
-  parserunit *u = ps->u;
+  ParserUnit *u = ps->u;
   if (u->block == NULL)
     u->block = codeblock_new();
   codeblock_add_inst(u->block, i);
   return i;
 }
 
-static inline codeblock *codeblock_new(void)
+static inline CodeBlock *codeblock_new(void)
 {
-  codeblock *b = kmalloc(sizeof(codeblock));
+  CodeBlock *b = kmalloc(sizeof(CodeBlock));
   init_list_head(&b->insts);
   return b;
 }
 
-void codeblock_free(codeblock *block)
+void codeblock_free(CodeBlock *block)
 {
   if (block == NULL)
     return;
@@ -145,7 +145,7 @@ void codeblock_free(codeblock *block)
   kfree(block);
 }
 
-static void codeblock_merge(codeblock *from, codeblock *to)
+static void codeblock_merge(CodeBlock *from, CodeBlock *to)
 {
   Inst *i;
   struct list_head *p, *n;
@@ -158,7 +158,7 @@ static void codeblock_merge(codeblock *from, codeblock *to)
   if (from->bytes != 0)
     panic("block has %d bytes left", from->bytes);
 
-  codeblock *b = from->next;
+  CodeBlock *b = from->next;
   while (b) {
     list_for_each_safe(p, n, &b->insts) {
       i = (Inst *)p;
@@ -172,7 +172,7 @@ static void codeblock_merge(codeblock *from, codeblock *to)
   }
 }
 
-void codeblock_show(codeblock *block)
+void codeblock_show(CodeBlock *block)
 {
   if (block == NULL || block->bytes <= 0)
     return;
@@ -207,7 +207,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_LOAD_MODULE:
   case OP_GET_VALUE:
   case OP_SET_VALUE: {
-    literal *val = &i->arg;
+    Literal *val = &i->arg;
     index = Image_Add_Literal(image, val);
     bytebuffer_write_2bytes(buf, index);
     break;
@@ -290,7 +290,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   }
 }
 
-void code_gen(codeblock *block, Image *image, ByteBuffer *buf)
+void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf)
 {
   if (block == NULL)
     return;
@@ -309,14 +309,14 @@ void code_gen(codeblock *block, Image *image, ByteBuffer *buf)
 })
 
 #define CODE_OP_I(op, i) ({ \
-  literal v;                \
+  Literal v;                \
   v.kind = BASE_INT;        \
   v.ival = i;               \
   inst_add(ps, op, &v);     \
 })
 
 #define CODE_OP_S(op, s) ({ \
-  literal v;                \
+  Literal v;                \
   v.kind = BASE_STR;        \
   v.str = s;                \
   inst_add(ps, op, &v);     \
@@ -335,15 +335,15 @@ static const char *scopes[] = {
   NULL, "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
 
-parserstate *new_parser(char *filename)
+ParserState *new_parser(char *filename)
 {
-  parserstate *ps = kmalloc(sizeof(parserstate));
+  ParserState *ps = kmalloc(sizeof(ParserState));
   ps->filename = filename;
   vector_init(&ps->ustack);
   return ps;
 }
 
-void free_parser(parserstate *ps)
+void free_parser(ParserState *ps)
 {
   if (ps->u != NULL)
     panic("ps->u is not null");
@@ -352,7 +352,7 @@ void free_parser(parserstate *ps)
   kfree(ps);
 }
 
-static inline void unit_free(parserstate *ps)
+static inline void unit_free(ParserState *ps)
 {
   if (ps->u->block != NULL)
     panic("u->block is not null");
@@ -363,9 +363,9 @@ static inline void unit_free(parserstate *ps)
   ps->u = NULL;
 }
 
-static void unit_show(parserstate *ps)
+static void unit_show(ParserState *ps)
 {
-  parserunit *u = ps->u;
+  ParserUnit *u = ps->u;
   const char *scope = scopes[u->scope];
   char *name = u->sym != NULL ? u->sym->name : NULL;
   name = (name == NULL) ? ps->filename : name;
@@ -375,16 +375,16 @@ static void unit_show(parserstate *ps)
   puts("---------------------------------------------");
 }
 
-static void merge_into_func(parserunit *u, char *name, int create)
+static void merge_into_func(ParserUnit *u, char *name, int create)
 {
-  symbol *sym = stable_get(u->stbl, name);
+  Symbol *sym = stable_get(u->stbl, name);
   if (sym == NULL) {
     if (!create)
       panic("func '%s' is not exist", name);
     debug("create '%s'", name);
-    typedesc *proto = desc_from_proto(NULL, NULL);
+    TypeDesc *proto = desc_from_proto(NULL, NULL);
     sym = stable_add_func(u->stbl, name, proto);
-    desc_decref(proto);
+    TYPE_DECREF(proto);
     sym->func.code = u->block;
   } else {
     debug("'%s' exist", name);
@@ -398,9 +398,9 @@ static void merge_into_func(parserunit *u, char *name, int create)
   u->block = NULL;
 }
 
-static void unit_merge_free(parserstate *ps)
+static void unit_merge_free(ParserState *ps)
 {
-  parserunit *u = ps->u;
+  ParserUnit *u = ps->u;
 
   switch (u->scope) {
   case SCOPE_MODULE: {
@@ -414,7 +414,7 @@ static void unit_merge_free(parserstate *ps)
     break;
   }
   case SCOPE_FUNC: {
-    symbol *sym = u->sym;
+    Symbol *sym = u->sym;
     if (sym == NULL)
       panic("symbol is null");
     if (sym->func.code != NULL)
@@ -432,10 +432,10 @@ static void unit_merge_free(parserstate *ps)
   unit_free(ps);
 }
 
-void parser_enter_scope(parserstate *ps, scopekind scope)
+void parser_enter_scope(ParserState *ps, ScopeKind scope)
 {
   debug("Enter scope-%d(%s)", ps->depth + 1, scopes[scope]);
-  parserunit *u = kmalloc(sizeof(parserunit));
+  ParserUnit *u = kmalloc(sizeof(ParserUnit));
 	u->scope = scope;
 	vector_init(&u->jmps);
 
@@ -446,7 +446,7 @@ void parser_enter_scope(parserstate *ps, scopekind scope)
   ps->depth++;
 }
 
-void parser_exit_scope(parserstate *ps)
+void parser_exit_scope(ParserState *ps)
 {
   debug("Exit scope-%d(%s)", ps->depth, scopes[ps->u->scope]);
 #if !defined(NDEBUG)
@@ -461,10 +461,10 @@ void parser_exit_scope(parserstate *ps)
   }
 }
 
-static symbol *find_id_symbol(parserstate *ps, char *name)
+static Symbol *find_id_symbol(ParserState *ps, char *name)
 {
-  symbol *sym;
-  parserunit *u = ps->u;
+  Symbol *sym;
+  ParserUnit *u = ps->u;
 
   /* find id from current scope */
   sym = stable_get(u->stbl, name);
@@ -477,9 +477,9 @@ static symbol *find_id_symbol(parserstate *ps, char *name)
   return NULL;
 }
 
-static symbol *get_literal_symbol(char kind)
+static Symbol *get_literal_symbol(char kind)
 {
-  symbol *sym;
+  Symbol *sym;
   switch (kind) {
   case BASE_INT:
     sym = stable_get(_lang_.stbl, "Integer");
@@ -509,14 +509,14 @@ static symbol *get_literal_symbol(char kind)
   return sym;
 }
 
-static symbol *get_type_symbol(parserstate *ps, typedesc *desc)
+static Symbol *get_type_symbol(ParserState *ps, TypeDesc *desc)
 {
   if (desc == NULL) {
     debug("no return");
     return NULL;
   }
 
-  symbol *sym;
+  Symbol *sym;
   switch (desc->kind) {
   case TYPE_BASE:
     sym = get_literal_symbol(desc->base);
@@ -537,14 +537,14 @@ static symbol *get_type_symbol(parserstate *ps, typedesc *desc)
   return sym;
 }
 
-static void parse_self(parserstate *ps, expr *exp)
+static void parse_self(ParserState *ps, Expr *exp)
 {
-  parserunit *u = ps->u;
+  ParserUnit *u = ps->u;
   if (exp->ctx != EXPR_LOAD)
     panic("exp ctx is not load");
   if (u->scope == SCOPE_MODULE) {
     exp->sym = u->sym;
-    exp->desc = desc_incref(u->sym->desc);
+    exp->desc = TYPE_INCREF(u->sym->desc);
     CODE_OP(OP_LOAD_0);
   } else if (u->scope == SCOPE_CLASS) {
     panic("not implemented");
@@ -553,7 +553,7 @@ static void parse_self(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_const(parserstate *ps, expr *exp)
+static void parse_const(ParserState *ps, Expr *exp)
 {
   if (exp->ctx != EXPR_LOAD)
     panic("exp ctx is not load");
@@ -565,9 +565,9 @@ static void parse_const(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_ident(parserstate *ps, expr *exp)
+static void parse_ident(ParserState *ps, Expr *exp)
 {
-  symbol *sym = find_id_symbol(ps, exp->id.name);
+  Symbol *sym = find_id_symbol(ps, exp->id.name);
   if (sym == NULL) {
     syntax_error(ps, exp->row, exp->col,
                  "cannot find symbol '%s'", exp->id.name);
@@ -575,7 +575,7 @@ static void parse_ident(parserstate *ps, expr *exp)
   }
 
   exp->sym = sym;
-  exp->desc = desc_incref(sym->desc);
+  exp->desc = TYPE_INCREF(sym->desc);
   exp->id.where = CURRENT_SCOPE;
   exp->id.scope = ps->u;
 
@@ -593,9 +593,9 @@ static void parse_ident(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_unary(parserstate *ps, expr *exp)
+static void parse_unary(ParserState *ps, Expr *exp)
 {
-  expr *e = exp->unary.exp;
+  Expr *e = exp->unary.exp;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
   if (e->desc == NULL) {
@@ -607,16 +607,16 @@ static void parse_unary(parserstate *ps, expr *exp)
     static int opcodes[] = {
       0, 0, OP_NEG, OP_BIT_NOT, OP_NOT
     };
-    unaryopkind op = exp->unary.op;
+    UnaryOpKind op = exp->unary.op;
     if (op >= UNARY_NEG && op <= UNARY_LNOT)
       CODE_OP(opcodes[op]);
   }
 }
 
-static void parse_binary(parserstate *ps, expr *exp)
+static void parse_binary(ParserState *ps, Expr *exp)
 {
-  expr *rexp = exp->binary.rexp;
-  expr *lexp = exp->binary.lexp;
+  Expr *rexp = exp->binary.rexp;
+  Expr *lexp = exp->binary.lexp;
 
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
@@ -638,15 +638,15 @@ static void parse_binary(parserstate *ps, expr *exp)
   }
 
   if (exp->desc == NULL) {
-    exp->desc = desc_incref(lexp->desc);
+    exp->desc = TYPE_INCREF(lexp->desc);
   }
 
   if (exp->binary.op == BINARY_ADD) {
-    symbol *sym = klass_find_member(exp->sym, "__add__");
+    Symbol *sym = klass_find_member(exp->sym, "__add__");
     if (sym == NULL) {
       syntax_error(ps, lexp->row, lexp->col, "unsupported +");
     } else {
-      typedesc *desc = sym->desc;
+      TypeDesc *desc = sym->desc;
       if (desc == NULL || desc->kind != TYPE_PROTO)
         panic("__add__'s type descriptor is invalid");
       desc = vector_get(desc->proto.args, 0);
@@ -665,16 +665,16 @@ static void parse_binary(parserstate *ps, expr *exp)
       OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
       OP_AND, OP_OR,
     };
-    binaryopkind op = exp->binary.op;
+    BinaryOpKind op = exp->binary.op;
     if (op < BINARY_ADD || op > BINARY_LOR)
-      panic("invalid binaryopkind %d", op);
+      panic("invalid BinaryOpKind %d", op);
     CODE_OP(opcodes[op]);
   }
 }
 
-static void parse_atrr(parserstate *ps, expr *exp)
+static void parse_atrr(ParserState *ps, Expr *exp)
 {
-  expr *lexp = exp->attr.lexp;
+  Expr *lexp = exp->attr.lexp;
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
   if (lexp->desc == NULL) {
@@ -682,10 +682,10 @@ static void parse_atrr(parserstate *ps, expr *exp)
                  "cannot resolve expr's type");
   }
 
-  symbol *lsym = lexp->sym;
-  ident *id = &exp->attr.id;
-  typedesc *desc;
-  symbol *sym;
+  Symbol *lsym = lexp->sym;
+  Ident *id = &exp->attr.id;
+  TypeDesc *desc;
+  Symbol *sym;
   switch (lsym->kind) {
   case SYM_CONST:
     break;
@@ -710,7 +710,7 @@ static void parse_atrr(parserstate *ps, expr *exp)
     break;
   case SYM_MOD: {
     debug("left sym '%s' is a module", lsym->name);
-    module *mod = lsym->mod.ptr;
+    Module *mod = lsym->mod.ptr;
     sym = mod_find_symbol(mod, id->name);
     break;
   }
@@ -730,7 +730,7 @@ static void parse_atrr(parserstate *ps, expr *exp)
                  id->name, lsym->name);
   } else {
     exp->sym = sym;
-    exp->desc = desc_incref(sym->desc);
+    exp->desc = TYPE_INCREF(sym->desc);
   }
 
   // generate codes
@@ -763,9 +763,9 @@ static void parse_atrr(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_subscr(parserstate *ps, expr *exp)
+static void parse_subscr(ParserState *ps, Expr *exp)
 {
-  expr *idx = exp->subscr.index;
+  Expr *idx = exp->subscr.index;
   idx->ctx = EXPR_LOAD;
   parser_visit_expr(ps, idx);
   if (idx->desc == NULL) {
@@ -773,7 +773,7 @@ static void parse_subscr(parserstate *ps, expr *exp)
                  "cannot resolve expr's type");
   }
 
-  expr *lexp = exp->subscr.lexp;
+  Expr *lexp = exp->subscr.lexp;
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
   if (lexp->desc == NULL) {
@@ -781,12 +781,12 @@ static void parse_subscr(parserstate *ps, expr *exp)
                  "cannot resolve expr's type");
   }
 
-  symbol *lsym = lexp->sym;
+  Symbol *lsym = lexp->sym;
   if (lsym == NULL) {
     return;
   }
 
-  symbol *sym = NULL;
+  Symbol *sym = NULL;
   switch (lsym->kind) {
   case SYM_CONST:
     break;
@@ -811,8 +811,8 @@ static void parse_subscr(parserstate *ps, expr *exp)
   }
 
   if (sym != NULL) {
-    typedesc *desc = sym->desc;
-    vector *args = desc->proto.args;
+    TypeDesc *desc = sym->desc;
+    Vector *args = desc->proto.args;
     desc = vector_get(args, 0);
     if (!desc_check(idx->desc, desc)) {
       syntax_error(ps, idx->row, idx->col,
@@ -821,10 +821,10 @@ static void parse_subscr(parserstate *ps, expr *exp)
   }
 
   if (!has_error(ps)) {
-    desc_decref(exp->desc);
-    vector *types = lexp->desc->klass.types;
-    typedesc *desc = vector_get(types, 0);
-    exp->desc = desc_incref(desc);
+    TYPE_DECREF(exp->desc);
+    Vector *types = lexp->desc->klass.types;
+    TypeDesc *desc = vector_get(types, 0);
+    exp->desc = TYPE_INCREF(desc);
     exp->sym = get_type_symbol(ps, exp->desc);
     if (exp->ctx == EXPR_LOAD) {
       CODE_OP(OP_SUBSCR_LOAD);
@@ -834,11 +834,11 @@ static void parse_subscr(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_call(parserstate *ps, expr *exp)
+static void parse_call(ParserState *ps, Expr *exp)
 {
-  vector *args = exp->call.args;
-  vector_reverse_iterator(iter, args);
-  expr *arg;
+  Vector *args = exp->call.args;
+  VECTOR_REVERSE_ITERATOR(iter, args);
+  Expr *arg;
   iter_for_each(&iter, arg) {
     arg->ctx = EXPR_LOAD;
     parser_visit_expr(ps, arg);
@@ -848,11 +848,11 @@ static void parse_call(parserstate *ps, expr *exp)
     }
   }
 
-  expr *lexp = exp->call.lexp;
+  Expr *lexp = exp->call.lexp;
   lexp->argc = vector_size(args);
   lexp->ctx = EXPR_CALL_FUNC;
   parser_visit_expr(ps, lexp);
-  typedesc *desc = lexp->desc;
+  TypeDesc *desc = lexp->desc;
   if (desc == NULL) {
     syntax_error(ps, lexp->row, lexp->col,
                  "cannot resolve expr's type");
@@ -864,14 +864,14 @@ static void parse_call(parserstate *ps, expr *exp)
 
   // check call arguments
   if (!has_error(ps)) {
-    vector *params = desc->proto.args;
+    Vector *params = desc->proto.args;
     int psz = vector_size(params);
     int argc = vector_size(args);
     if (psz != argc) {
       syntax_error(ps, exp->row, exp->col,
                   "count of arguments are not matched");
     }
-    typedesc *pdesc, *indesc;
+    TypeDesc *pdesc, *indesc;
     for (int i = 0; i < psz; ++i) {
       pdesc = vector_get(params, i);
       arg = vector_get(args, i);
@@ -880,14 +880,14 @@ static void parse_call(parserstate *ps, expr *exp)
                     "types are not compatible");
       }
     }
-    exp->desc = desc_incref(desc->proto.ret);
+    exp->desc = TYPE_INCREF(desc->proto.ret);
     exp->sym = get_type_symbol(ps, exp->desc);
   }
 }
 
-static void parse_slice(parserstate *ps, expr *exp)
+static void parse_slice(ParserState *ps, Expr *exp)
 {
-  expr *e = exp->slice.end;
+  Expr *e = exp->slice.end;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
   if (e->desc == NULL) {
@@ -921,7 +921,7 @@ static void parse_slice(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_tuple(parserstate *ps, expr *exp)
+static void parse_tuple(ParserState *ps, Expr *exp)
 {
   int size = vector_size(exp->tuple);
   if (size > 16) {
@@ -929,8 +929,8 @@ static void parse_tuple(parserstate *ps, expr *exp)
                  "length of tuple is larger than 16");
   }
 
-  vector_reverse_iterator(iter, exp->tuple);
-  expr *e;
+  VECTOR_REVERSE_ITERATOR(iter, exp->tuple);
+  Expr *e;
   iter_for_each(&iter, e) {
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
@@ -945,16 +945,16 @@ static void parse_tuple(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_array(parserstate *ps, expr *exp)
+static void parse_array(ParserState *ps, Expr *exp)
 {
-  vector *vec = exp->array.elems;
+  Vector *vec = exp->array.elems;
   int size = vector_size(vec);
   if (size > 16) {
     syntax_error(ps, ps->row, ps->col,
                  "length of array is larger than 16");
   }
 
-  expr *e;
+  Expr *e;
   for (int i = size - 1; i >= 0; --i) {
     e = vector_get(vec, i);
     e->ctx = EXPR_LOAD;
@@ -970,9 +970,9 @@ static void parse_array(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_mapentry(parserstate *ps, expr *exp)
+static void parse_mapentry(ParserState *ps, Expr *exp)
 {
-  expr *e = exp->mapentry.val;
+  Expr *e = exp->mapentry.val;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
   if (e->desc == NULL) {
@@ -997,15 +997,15 @@ static void parse_mapentry(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_map(parserstate *ps, expr *exp)
+static void parse_map(ParserState *ps, Expr *exp)
 {
   int size = vector_size(exp->map);
   if (size > 16) {
     syntax_error(ps, ps->row, ps->col,
                  "length of dict is larger than 16");
   }
-  vector_reverse_iterator(iter, exp->map);
-  expr *e;
+  VECTOR_REVERSE_ITERATOR(iter, exp->map);
+  Expr *e;
   iter_for_each(&iter, e) {
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
@@ -1016,16 +1016,16 @@ static void parse_map(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_is(parserstate *ps, expr *exp)
+static void parse_is(ParserState *ps, Expr *exp)
 {
-  expr *e = exp->isas.exp;
+  Expr *e = exp->isas.exp;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
   if (!e->desc) {
     syntax_error(ps, e->row, e->col,
                  "cannot resolve expr's type");
   }
-  desc_decref(exp->desc);
+  TYPE_DECREF(exp->desc);
   exp->desc = desc_from_bool;
   exp->sym = get_type_symbol(ps, exp->desc);
 
@@ -1034,17 +1034,17 @@ static void parse_is(parserstate *ps, expr *exp)
   }
 }
 
-static void parse_as(parserstate *ps, expr *exp)
+static void parse_as(ParserState *ps, Expr *exp)
 {
-  expr *e = exp->isas.exp;
+  Expr *e = exp->isas.exp;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
   if (!e->desc) {
     syntax_error(ps, e->row, e->col,
                  "cannot resolve expr's type");
   }
-  desc_decref(exp->desc);
-  exp->desc = desc_incref(exp->isas.type.desc);
+  TYPE_DECREF(exp->desc);
+  exp->desc = TYPE_INCREF(exp->isas.type.desc);
   exp->sym = get_type_symbol(ps, exp->desc);
 
   if (!has_error(ps)) {
@@ -1052,7 +1052,7 @@ static void parse_as(parserstate *ps, expr *exp)
   }
 }
 
-void parser_visit_expr(parserstate *ps, expr *exp)
+void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
   if (ps->errnum > MAX_ERRORS)
@@ -1061,7 +1061,7 @@ void parser_visit_expr(parserstate *ps, expr *exp)
   /* default expr has value */
   exp->hasvalue = 1;
 
-  static void (*handlers[])(parserstate *, expr *) = {
+  static void (*handlers[])(ParserState *, Expr *) = {
     NULL,               /* INVALID        */
     NULL,               /* NIL_KIND       */
     parse_self,         /* SELF_KIND      */
@@ -1089,22 +1089,22 @@ void parser_visit_expr(parserstate *ps, expr *exp)
   handlers[exp->kind](ps, exp);
 }
 
-static void parse_func_body(parserstate *ps, stmt *s)
+static void parse_func_body(ParserState *ps, Stmt *stmt)
 {
-  vector *vec = s->funcdecl.body;
+  Vector *vec = stmt->funcdecl.body;
   int sz = vector_size(vec);
-  stmt *tmp = NULL;
+  Stmt *s = NULL;
   for (int i = 0; i < sz; ++i) {
-    tmp = vector_get(vec, i);
+    s = vector_get(vec, i);
     if (i == sz - 1)
-      tmp->last = 1;
-    parse_stmt(ps, tmp);
+      s->last = 1;
+    parse_stmt(ps, s);
   }
 
-  if (tmp != NULL) {
+  if (s != NULL) {
     /* check last statement has value or not */
-    if (tmp->kind == EXPR_KIND) {
-      if (tmp->hasvalue) {
+    if (s->kind == EXPR_KIND) {
+      if (s->hasvalue) {
         debug("last expr-stmt and has value, add OP_RETURN_VALUE");
         CODE_OP(OP_RETURN_VALUE);
       } else {
@@ -1112,7 +1112,7 @@ static void parse_func_body(parserstate *ps, stmt *s)
         CODE_OP(OP_RETURN);
       }
     } else {
-      if (tmp->kind != RETURN_KIND) {
+      if (s->kind != RETURN_KIND) {
         debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
         CODE_OP(OP_RETURN);
       }
@@ -1124,10 +1124,10 @@ static void parse_func_body(parserstate *ps, stmt *s)
   }
 }
 
-static void add_update_variable(parserstate *ps, ident *id, typedesc *desc)
+static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
 {
-  parserunit *u = ps->u;
-  symbol *sym;
+  ParserUnit *u = ps->u;
+  Symbol *sym;
   switch (u->scope) {
   case SCOPE_MODULE:
   case SCOPE_CLASS:
@@ -1143,21 +1143,21 @@ static void add_update_variable(parserstate *ps, ident *id, typedesc *desc)
   if (sym->kind != SYM_VAR)
     panic("symbol '%s' is not variable", id->name);
   if (sym->desc == NULL) {
-    sym->desc = desc_incref(desc);
+    sym->desc = TYPE_INCREF(desc);
     sym->sym = get_type_symbol(ps, desc);
   }
 }
 
-static void parse_vardecl(parserstate *ps, stmt *s)
+static void parse_vardecl(ParserState *ps, Stmt *stmt)
 {
-  expr *exp = s->vardecl.exp;
+  Expr *exp = stmt->vardecl.exp;
   if (exp == NULL) {
     return;
   }
 
-  ident *id = &s->vardecl.id;
-  type *type = &s->vardecl.type;
-  typedesc *desc = type->desc;
+  Ident *id = &stmt->vardecl.id;
+  Type *type = &stmt->vardecl.type;
+  TypeDesc *desc = type->desc;
 
   exp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, exp);
@@ -1170,7 +1170,7 @@ static void parse_vardecl(parserstate *ps, stmt *s)
     desc = exp->desc;
   }
 
-  if (!s->vardecl.freevar && !desc_check(desc, exp->desc)) {
+  if (!stmt->vardecl.freevar && !desc_check(desc, exp->desc)) {
     syntax_error(ps, exp->row, exp->col,
                  "types are not compatible");
   }
@@ -1180,7 +1180,7 @@ static void parse_vardecl(parserstate *ps, stmt *s)
 
   /* generate codes */
   if (!has_error(ps)) {
-    scopekind scope = ps->u->scope;
+    ScopeKind scope = ps->u->scope;
     if (scope == SCOPE_MODULE) {
       CODE_OP(OP_LOAD_0);
       CODE_OP_S(OP_SET_VALUE, id->name);
@@ -1188,11 +1188,11 @@ static void parse_vardecl(parserstate *ps, stmt *s)
   }
 }
 
-static void parse_assignment(parserstate *ps, stmt *s)
+static void parse_assignment(ParserState *ps, Stmt *stmt)
 {
-  assignopkind op = s->assign.op;
-  expr *rexp = s->assign.rexp;
-  expr *lexp = s->assign.lexp;
+  AssignOpKind op = stmt->assign.op;
+  Expr *rexp = stmt->assign.rexp;
+  Expr *lexp = stmt->assign.lexp;
   rexp->ctx = EXPR_LOAD;
   if (op == OP_ASSIGN) {
     lexp->ctx = EXPR_STORE;
@@ -1212,12 +1212,12 @@ static void parse_assignment(parserstate *ps, stmt *s)
                  "cannot resolve left expr's type");
   }
 
-  symbol *sym = lexp->sym;
+  Symbol *sym = lexp->sym;
   if (sym->kind == SYM_VAR && sym->var.freevar) {
     if (sym->desc == NULL)
       panic("symbol '%s' unknown type", sym->name);
-    desc_decref(sym->desc);
-    sym->desc = desc_incref(rexp->desc);
+    TYPE_DECREF(sym->desc);
+    sym->desc = TYPE_INCREF(rexp->desc);
   } else {
     // check type is compatible
     if (!has_error(ps)) {
@@ -1238,18 +1238,18 @@ static void parse_assignment(parserstate *ps, stmt *s)
     };
     if (op != OP_ASSIGN) {
       if (op < OP_ASSIGN || op > OP_XOR_ASSIGN)
-        panic("invalid assignopkind %d", op);
+        panic("invalid AssignOpKind %d", op);
       CODE_OP(opmapings[op]);
     }
   }
 }
 
-static void parse_funcdecl(parserstate *ps, stmt *s)
+static void parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
-  parserunit *u = ps->u;
-  char *funcname = s->funcdecl.id.name;
-  parserunit *up;
-  symbol *sym;
+  ParserUnit *u = ps->u;
+  char *funcname = stmt->funcdecl.id.name;
+  ParserUnit *up;
+  Symbol *sym;
   parser_enter_scope(ps, SCOPE_FUNC);
   debug("parse function '%s'", funcname);
   u->stbl = stable_new();
@@ -1261,7 +1261,7 @@ static void parse_funcdecl(parserstate *ps, stmt *s)
   if (sym == NULL || sym->kind != SYM_FUNC)
     panic("symbol '%s' is not a func", funcname);
   u->sym = sym;
-  parse_func_body(ps, s);
+  parse_func_body(ps, stmt);
 
   stable_free(u->stbl);
   u->stbl = NULL;
@@ -1269,9 +1269,9 @@ static void parse_funcdecl(parserstate *ps, stmt *s)
   debug("end of function '%s'", funcname);
 }
 
-static void parse_return(parserstate *ps, stmt *s)
+static void parse_return(ParserState *ps, Stmt *stmt)
 {
-  expr *exp = s->ret.exp;
+  Expr *exp = stmt->ret.exp;
   if (exp != NULL) {
     debug("return has value");
     exp->ctx = EXPR_LOAD;
@@ -1283,9 +1283,9 @@ static void parse_return(parserstate *ps, stmt *s)
   }
 }
 
-static void parse_expr(parserstate *ps, stmt *s)
+static void parse_expr(ParserState *ps, Stmt *stmt)
 {
-  expr *exp = s->expr.exp;
+  Expr *exp = stmt->expr.exp;
   if (exp == NULL)
     return;
   exp->ctx = EXPR_LOAD;
@@ -1296,9 +1296,9 @@ static void parse_expr(parserstate *ps, stmt *s)
     }
   } else  {
     parser_visit_expr(ps, exp);
-    s->hasvalue = exp->hasvalue;
+    stmt->hasvalue = exp->hasvalue;
     if (!has_error(ps)) {
-      if (!s->last && s->hasvalue) {
+      if (!stmt->last && stmt->hasvalue) {
         /* not last statement, pop its value */
         CODE_OP(OP_POP_TOP);
       }
@@ -1306,18 +1306,18 @@ static void parse_expr(parserstate *ps, stmt *s)
   }
 }
 
-static void parse_block(parserstate *ps, stmt *s)
+static void parse_block(ParserState *ps, Stmt *stmt)
 {
-  parserunit *u = ps->u;
-  vector *vec = s->block.vec;
+  ParserUnit *u = ps->u;
+  Vector *vec = stmt->block.vec;
   parser_enter_scope(ps, SCOPE_BLOCK);
   u->stbl = stable_new();
 
   int sz = vector_size(vec);
-  stmt *tmp = NULL;
+  Stmt *s = NULL;
   for (int i = 0; i < sz; ++i) {
-    tmp = vector_get(vec, i);
-    parse_stmt(ps, tmp);
+    s = vector_get(vec, i);
+    parse_stmt(ps, s);
   }
 
   stable_free(u->stbl);
@@ -1325,9 +1325,9 @@ static void parse_block(parserstate *ps, stmt *s)
   parser_exit_scope(ps);
 }
 
-void parse_stmt(parserstate *ps, stmt *s)
+void parse_stmt(ParserState *ps, Stmt *stmt)
 {
-  static void (*handlers[])(parserstate *, stmt *) = {
+  static void (*handlers[])(ParserState *, Stmt *) = {
     NULL,               /* INVALID       */
     NULL,               /* IMPORT_KIND   */
     NULL,               /* CONST_KIND    */
@@ -1339,7 +1339,7 @@ void parse_stmt(parserstate *ps, stmt *s)
     parse_block,        /* BLOCK_KIND    */
   };
 
-  if (s->kind < IMPORT_KIND || s->kind > BLOCK_KIND)
-    panic("invalid statement:%d", s->kind);
-  handlers[s->kind](ps, s);
+  if (stmt->kind < IMPORT_KIND || stmt->kind > BLOCK_KIND)
+    panic("invalid statement:%d", stmt->kind);
+  handlers[stmt->kind](ps, stmt);
 }

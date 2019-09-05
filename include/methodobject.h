@@ -19,7 +19,7 @@ typedef struct methodobject {
   /* method owner */
   Object *owner;
   /* method type descriptor */
-  typedesc *desc;
+  TypeDesc *desc;
   /* cfunc or kfunc ? */
   int cfunc;
   /* cfunc or kfunc pointer */
@@ -33,7 +33,7 @@ typedef struct protoobject {
   /* method owner */
   TypeObject *owner;
   /* method type descriptor */
-  typedesc *desc;
+  TypeDesc *desc;
 } ProtoObject;
 
 extern TypeObject Method_Type;

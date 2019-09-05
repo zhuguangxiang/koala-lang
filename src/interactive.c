@@ -36,11 +36,11 @@ static void show_banner(void)
   }
 }
 
-static symbol *sym;
-static symbol *funcsym;
-static symbol *modSym;
-static module mod;
-static parserstate ps;
+static Symbol *sym;
+static Symbol *funcsym;
+static Symbol *modSym;
+static Module mod;
+static ParserState ps;
 
 static Object *mo;
 static KoalaState kstate;
@@ -55,15 +55,15 @@ static void init_cmdline_env(void)
   modSym = symbol_new(mod.name, SYM_MOD);
   modSym->mod.ptr = &mod;
 
-  typedesc *strdesc = desc_from_base(BASE_STR);
-  typedesc *desc = desc_from_proto(NULL, strdesc);
+  TypeDesc *strdesc = desc_from_base(BASE_STR);
+  TypeDesc *desc = desc_from_proto(NULL, strdesc);
   stable_add_func(mod.stbl, "__name__", desc);
-  desc_decref(strdesc);
-  desc_decref(desc);
+  TYPE_DECREF(strdesc);
+  TYPE_DECREF(desc);
 
   desc = desc_from_proto(NULL, NULL);
   funcsym = stable_add_func(mod.stbl, "__init__", desc);
-  desc_decref(desc);
+  TYPE_DECREF(desc);
 
   ps.interactive = 1;
   ps.filename = "stdin";
@@ -111,7 +111,7 @@ static void _get_const_(void *val, int kind, int index, void *arg)
   OB_DECREF(ob);
 }
 
-static Object *getcode(codeblock *block)
+static Object *getcode(CodeBlock *block)
 {
   Object *ob;
   CodeObject *co;
@@ -131,10 +131,10 @@ static Object *getcode(codeblock *block)
   size = Image_Const_Count(image);
   consts = Tuple_New(size);
   Image_Get_Consts(image, _get_const_, consts);
-  typedesc *proto = desc_from_proto(NULL, NULL);
+  TypeDesc *proto = desc_from_proto(NULL, NULL);
   size = bytebuffer_toarr(&buf, (char **)&code);
   ob = Code_New("__code__", proto, 0, code, size);
-  desc_decref(proto);
+  TYPE_DECREF(proto);
   kfree(code);
   co = (CodeObject *)ob;
   co->consts = OB_INCREF(consts);
@@ -145,23 +145,23 @@ static Object *getcode(codeblock *block)
   return ob;
 }
 
-void Cmd_Add_Const(ident id, type type)
+void Cmd_Add_Const(Ident id, Type type)
 {
   sym = stable_add_const(mod.stbl, id.name, type.desc);
 }
 
-void Cmd_Add_Var(ident id, type type, int freevar)
+void Cmd_Add_Var(Ident id, Type type, int freevar)
 {
   sym = stable_add_var(mod.stbl, id.name, type.desc);
   sym->var.freevar = freevar;
 }
 
-void Cmd_Add_Func(ident id, type type)
+void Cmd_Add_Func(Ident id, Type type)
 {
   sym = stable_add_func(mod.stbl, id.name, type.desc);
 }
 
-static void add_symbol_to_mobject(symbol *sym, Object *ob)
+static void add_symbol_to_mobject(Symbol *sym, Object *ob)
 {
   if (sym == NULL)
     return;
@@ -192,7 +192,7 @@ static void add_symbol_to_mobject(symbol *sym, Object *ob)
   }
 }
 
-void Cmd_EvalStmt(parserstate *ps, stmt *stmt)
+void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
 {
   if (stmt == NULL)
     return;
@@ -237,7 +237,7 @@ static int empty(char *buf, int size)
   return 1;
 }
 
-int interactive(parserstate *ps, char *buf, int size)
+int interactive(ParserState *ps, char *buf, int size)
 {
   char *line;
   /* TAB as insert, not completion */

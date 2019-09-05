@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
   }
 
   int *val;
-  vector_iterator(iter, &int_vec);
+  VECTOR_ITERATOR(iter, &int_vec);
   int k = 0;
   iter_for_each(&iter, val) {
     assert(*val == numbers[k]);

@@ -25,51 +25,51 @@ typedef struct codeblock {
   struct codeblock *next;
   /* false, no OP_RET, needs add one */
   int ret;
-} codeblock;
+} CodeBlock;
 
 typedef struct module {
   /* saved in global modules */
-  hashmapentry entry;
+  HashMapEntry entry;
   /* deployed path */
   char *path;
   /* module name is file name, dir name or __name__ */
   char *name;
   /* symbol table per module(share between files) */
-  symtable *stbl;
-  /* parserstate per source file */
-  vector pss;
-} module;
+  STable *stbl;
+  /* ParserState per source file */
+  Vector pss;
+} Module;
 
-/* parserunit scope */
+/* ParserUnit scope */
 typedef enum scopekind {
   SCOPE_MODULE = 1,
   SCOPE_CLASS,
   SCOPE_FUNC,
   SCOPE_BLOCK,
   SCOPE_CLOSURE,
-} scopekind;
+} ScopeKind;
 
 /* parser unit, one of Scope */
 typedef struct parserunit {
-  /* one of scopekind */
-  scopekind scope;
+  /* one of ScopeKind */
+  ScopeKind scope;
   /* for module, function, class, trait and method */
-  symbol *sym;
+  Symbol *sym;
   /* symbol table for current scope */
-  symtable *stbl;
+  STable *stbl;
   /* instructions within current scope */
-  codeblock *block;
+  CodeBlock *block;
   int merge;
   int loop;
-  vector jmps;
-} parserunit;
+  Vector jmps;
+} ParserUnit;
 
 /* per source file */
 typedef struct parserstate {
   /* file name */
   char *filename;
   /* its module */
-  module *module;
+  Module *module;
 
   /* is interactive ? */
   int interactive;
@@ -86,15 +86,15 @@ typedef struct parserstate {
   int quit;
 
   /* current parserunit */
-  parserunit *u;
+  ParserUnit *u;
   /* depth of parserunit */
   int depth;
   /* parserunit stack */
-  vector ustack;
+  Vector ustack;
 
   /* error numbers */
   int errnum;
-} parserstate;
+} ParserState;
 
 /* more than MAX_ERRORS, discard left errors shown */
 #define MAX_ERRORS 8
@@ -113,19 +113,19 @@ typedef struct parserstate {
 
 #define has_error(ps) ((ps)->errnum > 0)
 
-void codeblock_free(codeblock *block);
+void codeblock_free(CodeBlock *block);
 void init_parser(void);
 void fini_parser(void);
-parserstate *new_parser(char *filename);
-void free_parser(parserstate *ps);
-void parser_enter_scope(parserstate *ps, scopekind scope);
-void parser_exit_scope(parserstate *ps);
-void parse_stmt(parserstate *ps, stmt *stmt);
-void parser_visit_expr(parserstate *ps, expr *exp);
-void code_gen(codeblock *block, Image *image, ByteBuffer *buf);
-symbol *find_from_builtins(char *name);
-void mod_from_mobject(module *mod, Object *ob);
-symbol *mod_find_symbol(module *mod, char *name);
+ParserState *new_parser(char *filename);
+void free_parser(ParserState *ps);
+void parser_enter_scope(ParserState *ps, ScopeKind scope);
+void parser_exit_scope(ParserState *ps);
+void parse_stmt(ParserState *ps, Stmt *stmt);
+void parser_visit_expr(ParserState *ps, Expr *exp);
+void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf);
+Symbol *find_from_builtins(char *name);
+void mod_from_mobject(Module *mod, Object *ob);
+Symbol *mod_find_symbol(Module *mod, char *name);
 
 #ifdef __cplusplus
 }
