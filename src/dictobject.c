@@ -33,7 +33,7 @@ static void dict_entry_free(void *e, void *arg)
 Object *Dict_New_Types(TypeObject *ktype, TypeObject *vtype)
 {
   DictObject *dict = kmalloc(sizeof(*dict));
-  Init_Object_Head(dict, &Dict_Type);
+  init_object_head(dict, &Dict_Type);
   dict->ktype = OB_INCREF(ktype);
   dict->vtype = OB_INCREF(vtype);
   hashmap_init(&dict->map, dict_entry_equal);
@@ -132,3 +132,11 @@ TypeObject Dict_Type = {
   .free    = dict_free,
   .methods = dict_methods,
 };
+
+void init_dict_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Dict");
+  Dict_Type.desc = desc;
+  if (type_ready(&Dict_Type) < 0)
+    panic("Cannot initalize 'Dict' type.");
+}

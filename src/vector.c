@@ -41,7 +41,7 @@ static int __vector_maybe_expand(Vector *self, int extrasize)
 
 void vector_fini(Vector *self, freefunc freefunc, void *data)
 {
-  if (!self)
+  if (self == NULL)
     return;
   if (freefunc != NULL) {
     VECTOR_ITERATOR(iter, self);
@@ -77,12 +77,17 @@ void *vector_set(Vector *self, int index, void *item)
   void *offset = __vector_offset(self, index);
   void *val = *(void **)offset;
   *(void **)offset = item;
-  ++self->size;
+  if (index == self->size) {
+    ++self->size;
+    val = NULL;
+  }
   return val;
 }
 
 void *vector_get(Vector *self, int index)
 {
+  if (self == NULL)
+    return NULL;
   if (index < 0 || index > self->size - 1)
     return NULL;
   void *offset = __vector_offset(self, index);
@@ -102,7 +107,7 @@ int vector_push_back(Vector *self, void *item)
 
 void *vector_pop_back(Vector *self)
 {
-  if (self->size <= 0)
+  if (self == NULL || self->size <= 0)
     return NULL;
 
   void *offset = __vector_offset(self, self->size - 1);

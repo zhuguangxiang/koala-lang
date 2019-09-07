@@ -17,8 +17,9 @@
 int main(int argc, char *argv[])
 {
   Koala_Initialize();
-  Object *arr = Array_New();
-
+  TypeDesc *desc = desc_from_str;
+  Object *arr = array_new(desc);
+  TYPE_DECREF(desc);
   Object *v = String_New("hello");
   Object_Call(arr, "append", v);
   OB_DECREF(v);

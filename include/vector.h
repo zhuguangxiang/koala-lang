@@ -175,6 +175,11 @@ void *vector_iter_prev(Iterator *iter);
 #define VECTOR_REVERSE_ITERATOR(name, vector) \
   ITERATOR(name, vector, vector_iter_prev)
 
+/* Vector foreach */
+#define vector_for_each(item, vector) \
+  for (int idx = 0; idx < vector_size(vector) && \
+    ({item = vector_get(vector, idx); 1;}); ++idx)
+
 #ifdef __cplusplus
 }
 #endif

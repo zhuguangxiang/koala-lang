@@ -61,7 +61,7 @@ struct object {
 #define OBJECT_HEAD_INIT(_type_) \
   .ob_refcnt = 1, .ob_type = (_type_),
 
-#define Init_Object_Head(_ob_, _type_) \
+#define init_object_head(_ob_, _type_) \
 ({                                     \
   Object *ob = (Object *)(_ob_);       \
   ob->ob_refcnt = 1;                   \
@@ -172,6 +172,8 @@ struct typeobject {
   char *name;
   /* one of KLASS_xxx */
   int flags;
+  /* type decriptor */
+  TypeDesc *desc;
 
   /* mark-and-sweep */
   ob_markfunc mark;
@@ -207,7 +209,7 @@ struct typeobject {
   /* methods definition */
   MethodDef *methods;
 
-  /* owner module */
+  /* in which module */
   Object *owner;
   /* offset of fields */
   int offset;
@@ -220,6 +222,7 @@ struct typeobject {
 extern TypeObject Type_Type;
 extern TypeObject Any_Type;
 #define Type_Check(ob) (OB_TYPE(ob) == &Type_Type)
+void init_any_type(void);
 #define OB_NUM_FUNC(ob, name) ({ \
   NumberMethods *nu = OB_TYPE(ob)->number; \
   nu ? nu->name : NULL; \
@@ -228,7 +231,7 @@ extern TypeObject Any_Type;
   InplaceMethods *nu = OB_TYPE(ob)->inplace; \
   nu ? nu->name : NULL; \
 })
-int Type_Ready(TypeObject *type);
+int type_ready(TypeObject *type);
 void Type_Fini(TypeObject *type);
 Object *Type_Lookup(TypeObject *type, char *name);
 
@@ -257,6 +260,7 @@ typedef struct descobject {
 
 extern TypeObject Desc_Type;
 #define Desc_Check(ob) (OB_TYPE(ob) == &Desc_Type)
+void init_desc_type(void);
 Object *New_Desc(TypeDesc *desc);
 
 #ifdef __cplusplus

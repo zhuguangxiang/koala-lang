@@ -198,6 +198,7 @@ Expr *expr_from_array(Vector *exps)
   exp->kind = ARRAY_KIND;
   TypeDesc *para = get_subarray_type(exps);
   exp->desc = desc_from_array(para);
+  TYPE_DECREF(para);
   exp->array.elems = exps;
   exp->sym = find_from_builtins("Array");
   return exp;

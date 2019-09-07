@@ -24,10 +24,6 @@ int main(int argc, char *argv[])
   assert(desc->base == BASE_INT);
   desc = vector_get(vec, 3);
   assert(!desc);
-  VECTOR_ITERATOR(iter, vec);
-  iter_for_each(&iter, desc) {
-    TYPE_DECREF(desc);
-  }
   TYPE_DECREF(proto);
 
   fini_typedesc();

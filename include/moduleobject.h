@@ -31,7 +31,7 @@ typedef struct moduleobject {
 extern TypeObject Module_Type;
 extern TypeObject Module_Class_Type;
 #define Module_Check(ob) (OB_TYPE(ob) == &Module_Type)
-
+void init_module_type(void);
 Object *Module_New(char *name);
 Object *Module_Lookup(Object *ob, char *name);
 void Module_Install(char *path, Object *ob);

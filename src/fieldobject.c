@@ -11,7 +11,7 @@
 Object *Field_New(char *name, TypeDesc *desc)
 {
   FieldObject *field = kmalloc(sizeof(*field));
-  Init_Object_Head(field, &Field_Type);
+  init_object_head(field, &Field_Type);
   field->name = name;
   field->desc = TYPE_INCREF(desc);
   return (Object *)field;
@@ -123,3 +123,11 @@ TypeObject Field_Type = {
   .free    = field_free,
   .methods = field_methods,
 };
+
+void init_field_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Field");
+  Field_Type.desc = desc;
+  if (type_ready(&Field_Type) < 0)
+    panic("Cannot initalize 'Field' type.");
+}

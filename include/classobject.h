@@ -17,8 +17,9 @@ typedef struct classobject {
   Object *obj;
 } ClassObject;
 
-extern TypeObject Class_Type;
-#define Class_Check(ob) (OB_TYPE(ob) == &Class_Type)
+extern TypeObject class_type;
+#define Class_Check(ob) (OB_TYPE(ob) == &class_type)
+void init_class_type(void);
 Object *Class_New(Object *obj);
 
 #ifdef __cplusplus

@@ -40,13 +40,13 @@ void init_lang_module(void)
   Module_Add_Type(m, &String_Type);
   Module_Add_Type(m, &Char_Type);
   Module_Add_Type(m, &Float_Type);
-  Module_Add_Type(m, &Array_Type);
-  Module_Add_Type(m, &Tuple_Type);
+  Module_Add_Type(m, &array_type);
+  Module_Add_Type(m, &tuple_type);
   Module_Add_Type(m, &Dict_Type);
   Module_Add_Type(m, &Field_Type);
-  Module_Add_Type(m, &Method_Type);
-  Module_Add_Type(m, &Proto_Type);
-  Module_Add_Type(m, &Class_Type);
+  Module_Add_Type(m, &method_type);
+  Module_Add_Type(m, &proto_type);
+  Module_Add_Type(m, &class_type);
   Module_Add_Type(m, &Module_Type);
   Module_Add_Type(m, &Code_Type);
   //Module_Add_FuncDefs(m, lang_methods);

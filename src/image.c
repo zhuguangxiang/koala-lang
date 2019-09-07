@@ -943,7 +943,7 @@ static int typelistitem_get(Image *image, Vector *vec)
   for (int i = 0; i < sz; i++) {
     index = typeitem_get(image, vector_get(vec, i));
     if (index < 0)
-      panic("index out of bound");
+      return -1;
     item->index[i] = index;
   }
 
@@ -1058,12 +1058,18 @@ static int typeitem_set(Image *image, TypeDesc *desc)
         typeindex = stringitem_set(image, desc->klass.type);
         assert(typeindex >= 0);
       }
+      int typesindex = -1;
+      if (desc->klass.types != NULL) {
+        typesindex = typelistitem_set(image, desc->klass.types);
+        assert(typesindex >= 0);
+      }
       item = typeitem_klass_new(pathindex, typeindex);
+      item->typesindex = typesindex;
       break;
     }
     case TYPE_PROTO: {
-      int rindex = typeitem_get(image, desc->proto.ret);
-      int pindex = typelistitem_get(image, desc->proto.args);
+      int rindex = typeitem_set(image, desc->proto.ret);
+      int pindex = typelistitem_set(image, desc->proto.args);
       item = typeitem_proto_new(pindex, rindex);
       break;
     }
@@ -1586,8 +1592,11 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     }
     s = _get_(image, ITEM_STRING, item->typeindex);
     type = atom(s->data);
-    //FIXME: typeparas
-    t = desc_from_klass(path, type, NULL);
+    t = desc_from_klass(path, type);
+    if (item->typesindex >= 0) {
+      TypeListItem *listitem = _get_(image, ITEM_TYPELIST, item->typesindex);
+      t->klass.types = to_typedescvec(listitem, image);
+    }
     break;
   }
   case TYPE_PROTO: {

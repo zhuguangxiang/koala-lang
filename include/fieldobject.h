@@ -31,6 +31,7 @@ typedef struct fieldobject {
 
 extern TypeObject Field_Type;
 #define Field_Check(ob) (OB_TYPE(ob) == &Field_Type)
+void init_field_type(void);
 Object *Field_New(char *name, TypeDesc *desc);
 static inline void Field_SetFunc(Object *self, setfunc set, func_t get)
 {

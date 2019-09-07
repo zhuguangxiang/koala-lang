@@ -22,6 +22,7 @@ typedef struct dictobject {
 
 extern TypeObject Dict_Type;
 #define Dict_Check(ob) (OB_TYPE(ob) == &Dict_Type)
+void init_dict_type(void);
 Object *Dict_New_Types(TypeObject *ktype, TypeObject *vtype);
 Object *Dict_Get(Object *self, Object *key);
 int Dict_Put(Object *self, Object *key, Object *val);

@@ -19,8 +19,9 @@ typedef struct tupleobject {
   Object *items[0];
 } TupleObject;
 
-extern TypeObject Tuple_Type;
-#define Tuple_Check(ob) (OB_TYPE(ob) == &Tuple_Type)
+extern TypeObject tuple_type;
+#define Tuple_Check(ob) (OB_TYPE(ob) == &tuple_type)
+void init_tuple_type(void);
 Object *Tuple_New(int size);
 Object *Tuple_Pack(int size, ...);
 int Tuple_Size(Object *self);

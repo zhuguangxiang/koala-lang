@@ -21,7 +21,9 @@ static Object *os_path_get(Object *self, Object *ob)
   ModuleObject *mo = (ModuleObject *)ob;
   Object *val = vector_get(&mo->values, field->offset);
   if (val == NULL) {
-    val = Array_New();
+    TypeDesc *desc = desc_from_str;
+    val = array_new(desc);
+    TYPE_DECREF(desc);
     vector_set(&mo->values, field->offset, val);
   }
   return OB_INCREF(val);

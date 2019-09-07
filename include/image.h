@@ -54,6 +54,7 @@ typedef struct typeitem {
     struct {
       int32_t pathindex;  /* ->StringItem */
       int32_t typeindex;  /* ->StringItem */
+      int32_t typesindex; /* ->TypeListItem */
     };
     struct {
       int32_t pindex;     /* ->TypeListItem */

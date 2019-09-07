@@ -40,7 +40,7 @@ typedef struct literal {
 typedef struct typeparadef {
   char *name;
   Vector *types;
-} typeparadef;
+} TypeParaDef;
 
 typedef enum desckind {
   TYPE_BASE = 1,
@@ -53,7 +53,7 @@ typedef enum desckind {
 /*
  * Type descriptor
  * Klass: Lio.File;
- * Proto: Pis:e;
+ * Proto: Pis:e
  * Varg: ...s
  * Array: [s
  * Map: Mss
@@ -61,18 +61,17 @@ typedef enum desckind {
 typedef struct typedesc {
   DescKind kind;
   int refcnt;
+  Vector *typeparas;
   union {
     char base;  /* one of BASE_XXX */
     struct {
       char *path;
       char *type;
-      Vector *typeparas;
       Vector *types;
     } klass;
     struct {
       Vector *args;
       struct typedesc *ret;
-      Vector *typeparas;
     } proto;
     struct {
       struct typedesc *type;
@@ -106,6 +105,7 @@ typedef struct typedesc {
 void init_typedesc(void);
 void fini_typedesc(void);
 void literal_show(Literal *val, StrBuf *sbuf);
+TypeParaDef *new_typeparadef(char *name, Vector *types);
 void desc_free(TypeDesc *desc);
 void desc_tostr(TypeDesc *desc, StrBuf *buf);
 char *base_str(int kind);
@@ -127,12 +127,14 @@ TypeDesc *desc_from_base(int kind);
   desc_from_base(BASE_BOOL)
 #define desc_from_any \
   desc_from_base(BASE_ANY)
-TypeDesc *desc_from_klass(char *path, char *type, Vector *types);
+TypeDesc *desc_from_klass(char *path, char *type);
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
-void desc_set_typeparas(TypeDesc *desc, Vector *typeparas);
 TypeDesc *desc_from_array(TypeDesc *para);
+TypeDesc *desc_from_varg(TypeDesc *base);
+TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val);
 TypeDesc *str_to_desc(char *s);
 TypeDesc *str_to_proto(char *ptype, char *rtype);
+
 
 #define desc_isint(desc) \
   (((desc)->kind == TYPE_BASE) && \

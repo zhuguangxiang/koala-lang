@@ -33,7 +33,7 @@ Object *Code_New(char *name, TypeDesc *proto, int locals,
                  uint8_t *codes, int size)
 {
   CodeObject *co = kmalloc(sizeof(CodeObject) + size);
-  Init_Object_Head(co, &Code_Type);
+  init_object_head(co, &Code_Type);
   co->name = name;
   co->proto = TYPE_INCREF(proto);
   vector_init(&co->locvec);

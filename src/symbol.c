@@ -226,7 +226,7 @@ static Symbol *load_type(Object *ob)
   }
 
   Symbol *clsSym = symbol_new(type->name, SYM_CLASS);
-  clsSym->desc = desc_from_klass(mob->path, type->name, NULL);
+  clsSym->desc = desc_from_klass(mob->path, type->name);
   clsSym->klass.stbl = stbl;
 
   TypeObject *item;

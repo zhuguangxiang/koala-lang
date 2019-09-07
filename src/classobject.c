@@ -115,7 +115,7 @@ static int fill_array(struct hashmap *mtbl, Object *arr, int index)
   HASHMAP_ITERATOR(iter, mtbl);
   struct mnode *node;
   iter_for_each(&iter, node) {
-    Array_Set(arr, index++, node->obj);
+    array_set(arr, index++, node->obj);
   }
   return index;
 }
@@ -128,7 +128,9 @@ static Object *class_members(Object *self, Object *args)
   }
 
   int index = 0;
-  Object *res = Array_New();
+  TypeDesc *desc = desc_from_any;
+  Object *res = array_new(desc);
+  TYPE_DECREF(desc);
   TypeObject *type;
   Object *ob = ((ClassObject *)self)->obj;
   if (OB_TYPE(ob) == &Type_Type) {
@@ -190,7 +192,7 @@ static MethodDef class_methods[] = {
   {NULL}
 };
 
-TypeObject Class_Type = {
+TypeObject class_type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Class",
   .free    = class_free,
@@ -201,7 +203,15 @@ TypeObject Class_Type = {
 Object *Class_New(Object *obj)
 {
   ClassObject *clazz = kmalloc(sizeof(*clazz));
-  Init_Object_Head(clazz, &Class_Type);
+  init_object_head(clazz, &class_type);
   clazz->obj = OB_INCREF(obj);
   return (Object *)clazz;
+}
+
+void init_class_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Class");
+  class_type.desc = desc;
+  if (type_ready(&class_type) < 0)
+    panic("Cannot initalize 'Class' type.");
 }

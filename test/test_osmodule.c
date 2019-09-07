@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
   Object *m = Module_Load("os");
   assert(m);
   Object *arr = Object_GetValue(m, "path");
-  assert(Array_Check(arr));
+  assert(array_check(arr));
 
   Object *str = String_New("~/.local/lib/koala/libs");
   Object_Call(arr, "append", str);

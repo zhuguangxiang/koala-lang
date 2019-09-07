@@ -12,7 +12,7 @@
 Object *CMethod_New(MethodDef *def)
 {
   MethodObject *method = kmalloc(sizeof(*method));
-  Init_Object_Head(method, &Method_Type);
+  init_object_head(method, &method_type);
   method->name  = def->name;
   method->desc  = str_to_proto(def->ptype, def->rtype);
   method->cfunc = 1,
@@ -24,7 +24,7 @@ Object *Method_New(char *name, Object *code)
 {
   CodeObject *co = (CodeObject *)code;
   MethodObject *method = kmalloc(sizeof(*method));
-  Init_Object_Head(method, &Method_Type);
+  init_object_head(method, &method_type);
   method->name = name;
   method->desc = TYPE_INCREF(co->proto);
   method->ptr  = OB_INCREF(code);
@@ -113,7 +113,7 @@ static Object *meth_str(Object *self, Object *args)
   return String_New(meth->name);
 }
 
-TypeObject Method_Type = {
+TypeObject method_type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Method",
   .free    = meth_free,
@@ -121,7 +121,23 @@ TypeObject Method_Type = {
   .methods = meth_methods,
 };
 
-TypeObject Proto_Type = {
+TypeObject proto_type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name = "Proto",
 };
+
+void init_method_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Method");
+  method_type.desc = desc;
+  if (type_ready(&method_type) < 0)
+    panic("Cannot initalize 'Method' type.");
+}
+
+void init_proto_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Proto");
+  proto_type.desc = desc;
+  if (type_ready(&proto_type) < 0)
+    panic("Cannot initalize 'Proto' type.");
+}

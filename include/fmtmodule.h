@@ -20,7 +20,7 @@ typedef struct fmtterobject {
 
 extern TypeObject Fmtter_Type;
 #define Fmtter_Check(ob) (OB_TYPE(ob) == &Fmtter_Type)
-
+void init_fmtter_type(void);
 void init_fmt_module(void);
 void fini_fmt_moudle(void);
 Object *Fmtter_New(void);

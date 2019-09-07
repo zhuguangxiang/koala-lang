@@ -14,16 +14,17 @@ extern "C" {
 
 typedef struct arrayobject {
   OBJECT_HEAD
-  TypeObject *type;
+  TypeDesc *desc;
   Vector items;
 } ArrayObject;
 
-extern TypeObject Array_Type;
-#define Array_Check(ob) (OB_TYPE(ob) == &Array_Type)
-Object *Array_New(void);
-void Array_Free(Object *ob);
+extern TypeObject array_type;
+#define array_check(ob) (OB_TYPE(ob) == &array_type)
+void init_array_type(void);
+Object *array_new(TypeDesc *desc);
+void array_free(Object *ob);
 void Array_Print(Object *ob);
-int Array_Set(Object *self, int index, Object *v);
+int array_set(Object *self, int index, Object *v);
 
 #ifdef __cplusplus
 }

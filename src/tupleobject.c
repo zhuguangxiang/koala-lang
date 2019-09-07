@@ -16,7 +16,7 @@
 Object *Tuple_New(int size)
 {
   TupleObject *tuple = kmalloc(MSIZE(size));
-  Init_Object_Head(tuple, &Tuple_Type);
+  init_object_head(tuple, &tuple_type);
   tuple->size = size;
   return (Object *)tuple;
 }
@@ -218,13 +218,21 @@ Object *tuple_str(Object *self, Object *ob)
   return str;
 }
 
-TypeObject Tuple_Type = {
+TypeObject tuple_type = {
   OBJECT_HEAD_INIT(&Type_Type)
   .name    = "Tuple",
   .free    = Tuple_Free,
   .str     = tuple_str,
   .methods = tuple_methods,
 };
+
+void init_tuple_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Tuple");
+  tuple_type.desc = desc;
+  if (type_ready(&tuple_type) < 0)
+    panic("Cannot initalize 'Tuple' type.");
+}
 
 void *tuple_iter_next(struct iterator *iter)
 {

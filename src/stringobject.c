@@ -214,11 +214,19 @@ TypeObject String_Type = {
   .methods = string_methods,
 };
 
+void init_string_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "String");
+  String_Type.desc = desc;
+  if (type_ready(&String_Type) < 0)
+    panic("Cannot initalize 'String_Type' type.");
+}
+
 Object *String_New(char *str)
 {
   int len = strlen(str);
   StringObject *s = kmalloc(sizeof(*s));
-  Init_Object_Head(s, &String_Type);
+  init_object_head(s, &String_Type);
   s->len = len;
   s->wstr = kmalloc(len + 1);
   strcpy(s->wstr, str);
@@ -296,10 +304,18 @@ TypeObject Char_Type = {
   .str     = char_str,
 };
 
+void init_char_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Character");
+  Char_Type.desc = desc;
+  if (type_ready(&Char_Type) < 0)
+    panic("Cannot initalize 'Character' type.");
+}
+
 Object *Char_New(unsigned int val)
 {
   CharObject *ch = kmalloc(sizeof(*ch));
-  Init_Object_Head(ch, &Char_Type);
+  init_object_head(ch, &Char_Type);
   ch->value = val;
   return (Object *)ch;
 }

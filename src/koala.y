@@ -1096,6 +1096,7 @@ type:
 | '[' type ']'
 {
   $$ = desc_from_array($2);
+  TYPE_DECREF($2);
 }
 ;
 
@@ -1149,7 +1150,7 @@ no_array_type:
 klass_type:
   ID
 {
-  $$ = desc_from_klass(NULL, $1, NULL);
+  $$ = desc_from_klass(NULL, $1);
 }
 | ID '.' ID
 {
@@ -1157,7 +1158,8 @@ klass_type:
 }
 | ID '<' type_list '>'
 {
-  $$ = desc_from_klass(NULL, $1, $3);
+  $$ = desc_from_klass(NULL, $1);
+  $$->klass.types = $3;
 }
 | ID '.' ID '<' type_list '>'
 {

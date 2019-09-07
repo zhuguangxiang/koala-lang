@@ -103,6 +103,14 @@ TypeObject Any_Type = {
   .str    = any_str,
 };
 
+void init_any_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Any");
+  Any_Type.desc = desc;
+  if (type_ready(&Any_Type) < 0)
+    panic("Cannot initalize 'Any' type.");
+}
+
 static int lro_find(Vector *vec, TypeObject *type)
 {
   TypeObject *item;
@@ -386,7 +394,7 @@ static void Type_Add_Iterator(TypeObject *type, IteratorMethods *meths)
 
 }
 
-int Type_Ready(TypeObject *type)
+int type_ready(TypeObject *type)
 {
   if (type->hash && !type->equal) {
     error("__equal__ must be implemented, "
@@ -413,22 +421,6 @@ int Type_Ready(TypeObject *type)
   if (type->str != NULL) {
     MethodDef meth = {"__str__", NULL, "s", type->str};
     Type_Add_MethodDef(type, &meth);
-  }
-
-  if (type->number != NULL) {
-    Type_Add_Numbers(type, type->number);
-  }
-
-  if (type->inplace != NULL) {
-    Type_Add_Inplaces(type, type->inplace);
-  }
-
-  if (type->mapping != NULL) {
-    Type_Add_Mapping(type, type->mapping);
-  }
-
-  if (type->iterator != NULL) {
-    Type_Add_Iterator(type, type->iterator);
   }
 
   if (type->methods != NULL) {
@@ -498,9 +490,42 @@ void Type_Add_Method(TypeObject *type, Object *ob)
     panic("'%.64s' add '%.64s' failed.", type->name, meth->name);
 }
 
+static int get_paraindex(Vector *vec, char *name)
+{
+  TypeParaDef *def;
+  vector_for_each(def, vec) {
+    if (!strcmp(def->name, name))
+      return idx;
+  }
+  return -1;
+}
+
+static void update_pararef(TypeDesc *para, TypeDesc *proto)
+{
+  int index;
+  TypeDesc *rtype = proto->proto.ret;
+  if (rtype != NULL && rtype->kind == TYPE_PARAREF) {
+    index = get_paraindex(para->typeparas, rtype->pararef.name);
+    if (index < 0)
+      panic("generic type: something wrong?");
+    rtype->pararef.index = index;
+  }
+
+  TypeDesc *ptype;
+  vector_for_each(ptype, proto->proto.args) {
+    if (ptype->kind == TYPE_PARAREF) {
+      index = get_paraindex(para->typeparas, ptype->pararef.name);
+      if (index < 0)
+        panic("generic type: something wrong?");
+      ptype->pararef.index = index;
+    }
+  }
+}
+
 void Type_Add_MethodDef(TypeObject *type, MethodDef *f)
 {
   Object *meth = CMethod_New(f);
+  update_pararef(type->desc, ((MethodObject *)meth)->desc);
   Type_Add_Method(type, meth);
   OB_DECREF(meth);
 }
@@ -726,7 +751,15 @@ TypeObject Desc_Type = {
 Object *New_Desc(TypeDesc *desc)
 {
   DescObject *descob = kmalloc(sizeof(DescObject));
-  Init_Object_Head(descob, &Desc_Type);
+  init_object_head(descob, &Desc_Type);
   descob->desc = TYPE_INCREF(desc);
   return (Object *)descob;
+}
+
+void init_desc_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "TypeDesc");
+  Desc_Type.desc = desc;
+  if (type_ready(&Desc_Type) < 0)
+    panic("Cannot initalize 'TypeDesc' type.");
 }

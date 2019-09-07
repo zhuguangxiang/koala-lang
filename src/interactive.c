@@ -26,13 +26,13 @@
 
 static void show_banner(void)
 {
-  printf("koala %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
+  printf("koala %s (%s)\n", KOALA_VERSION, __DATE__);
 
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
-    printf("[GCC %d.%d.%d] on %s %s\n",
+    printf("[GCC %d.%d.%d] on %s/%s %s\n",
            __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,
-           sysinfo.sysname, sysinfo.release);
+           sysinfo.sysname, sysinfo.machine, sysinfo.release);
   }
 }
 

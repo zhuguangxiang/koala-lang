@@ -96,7 +96,7 @@ static struct opcode {
 
   OPCODE(OP_NEW_OBJECT, 2),
   OPCODE(OP_NEW_TUPLE,  2),
-  OPCODE(OP_NEW_ARRAY,  2),
+  OPCODE(OP_NEW_ARRAY,  4),
   OPCODE(OP_NEW_SET,    2),
   OPCODE(OP_NEW_MAP,    0),
   OPCODE(OP_NEW_ITER,   0),

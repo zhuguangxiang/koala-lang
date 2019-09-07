@@ -40,6 +40,33 @@ void literal_show(Literal *val, StrBuf *sbuf)
   }
 }
 
+TypeParaDef *new_typeparadef(char *name, Vector *types)
+{
+  TypeParaDef *typepara = kmalloc(sizeof(TypeParaDef));
+  typepara->name = name;
+  typepara->types = types;
+  return typepara;
+}
+
+static void free_descs(Vector *vec)
+{
+  TypeDesc *tmp;
+  vector_for_each(tmp, vec) {
+    TYPE_DECREF(tmp);
+  }
+  vector_free(vec, NULL, NULL);
+}
+
+static void free_typeparadefs(Vector *vec)
+{
+  TypeParaDef *item;
+  vector_for_each(item, vec) {
+    free_descs(item->types);
+    kfree(item);
+  }
+  vector_free(vec, NULL, NULL);
+}
+
 static TypeDesc bases[] = {
   {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_INT  },
   {.kind = TYPE_BASE, .refcnt = 1, .base = BASE_STR  },
@@ -104,14 +131,13 @@ void fini_typedesc(void)
   check_base_refcnt();
 }
 
-TypeDesc *desc_from_klass(char *path, char *type, Vector *types)
+TypeDesc *desc_from_klass(char *path, char *type)
 {
   TypeDesc *desc = kmalloc(sizeof(TypeDesc));
   desc->kind = TYPE_KLASS;
   desc->refcnt = 1;
   desc->klass.path = path;
   desc->klass.type = type;
-  desc->klass.types = types;
   return desc;
 }
 
@@ -128,33 +154,53 @@ TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret)
 TypeDesc *desc_from_array(TypeDesc *para)
 {
   Vector *types = vector_new();
-  vector_push_back(types, para);
-  return desc_from_klass("lang", "Array", types);
+  vector_push_back(types, TYPE_INCREF(para));
+  TypeDesc *desc = desc_from_klass("lang", "Array");
+  desc->klass.types = types;
+  return desc;
+}
+
+TypeDesc *desc_from_varg(TypeDesc *base)
+{
+  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
+  desc->kind = TYPE_VARG;
+  desc->refcnt = 1;
+  desc->varg.type = TYPE_INCREF(base);
+  return desc;
+}
+
+TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val)
+{
+  Vector *types = vector_new();
+  vector_push_back(types, TYPE_INCREF(key));
+  vector_push_back(types, TYPE_INCREF(val));
+  TypeDesc *desc = desc_from_klass("lang", "Dict");
+  desc->klass.types = types;
+  return desc;
 }
 
 void desc_free(TypeDesc *desc)
 {
   int kind = desc->kind;
+  free_typeparadefs(desc->typeparas);
   switch (kind) {
   case TYPE_KLASS: {
-    Vector *vec = desc->klass.types;
-    VECTOR_ITERATOR(iter, vec);
-    TypeDesc *tmp;
-    iter_for_each(&iter, tmp) {
-      TYPE_DECREF(tmp);
-    }
-    vector_free(vec, NULL, NULL);
+    free_descs(desc->klass.types);
     kfree(desc);
     break;
   }
   case TYPE_PROTO: {
-    VECTOR_ITERATOR(iter, desc->proto.args);
-    TypeDesc *tmp;
-    iter_for_each(&iter, tmp) {
-      TYPE_DECREF(tmp);
-    }
-    vector_free(desc->proto.args, NULL, NULL);
+    free_descs(desc->proto.args);
     TYPE_DECREF(desc->proto.ret);
+    kfree(desc);
+    break;
+  }
+  case TYPE_VARG: {
+    TYPE_DECREF(desc->varg.type);
+    kfree(desc);
+    break;
+  }
+  case TYPE_PARAREF: {
     kfree(desc);
     break;
   }
@@ -195,7 +241,11 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 
   switch (desc1->kind) {
   case TYPE_KLASS:
-    break;
+    if (strcmp(desc1->klass.path, desc2->klass.path))
+      return 0;
+    if (strcmp(desc1->klass.type, desc2->klass.type))
+      return 0;
+    return 1;
   case TYPE_PROTO:
     break;
   default:
@@ -211,28 +261,98 @@ static TypeDesc *__to_klass(char *s, int len)
     panic("null pointer");
   char *path = atom_nstring(s, dot - s);
   char *type = atom_nstring(dot + 1, len - (dot - s) - 1);
-  return desc_from_klass(path, type, NULL);
+  return desc_from_klass(path, type);
 }
 
-static TypeDesc *__to_desc(char **str, int _dims, int _varg)
+static TypeDesc *__to_pararef(char *s, int len)
+{
+  TypeDesc *desc = kmalloc(sizeof(*desc));
+  desc->kind = TYPE_PARAREF;
+  desc->refcnt = 1;
+  desc->pararef.name = atom_nstring(s, len);
+  desc->pararef.index = -1;
+  return desc;
+}
+
+static TypeDesc *__to_desc(char **str)
 {
   char *s = *str;
   char ch = *s;
+  char *k;
   TypeDesc *desc;
+  TypeDesc *base;
 
   switch (ch) {
   case 'L': {
     s++;
-    char *k = s;
-    while (*s != ';') s++;
+    k = s;
+    while (*s != ';')
+      s++;
     desc = __to_klass(k, s - k);
     s++;
     break;
   }
+  case '<': {
+    s++;
+    k = s;
+    while (*s != '>')
+      s++;
+    desc = __to_pararef(k, s - k);
+    s++;
+    break;
+  }
+  case '.': {
+    if (s[1] != '.' && s[2] != '.')
+      panic("invalid variable argument");
+    s += 3;
+    if (s[0] == 'A') {
+      base = desc_from_any;
+      s++;
+    } else if (*s) {
+      base = __to_desc(&s);
+    } else {
+      base = desc_from_any;
+    }
+    desc = desc_from_varg(base);
+    TYPE_DECREF(base);
+    break;
+  }
+  case '[': {
+    base = __to_desc(&s);
+    desc = desc_from_array(base);
+    TYPE_DECREF(base);
+    break;
+  }
+  case 'M': {
+    s += 1;
+    TypeDesc *key = __to_desc(&s);
+    TypeDesc *val = __to_desc(&s);
+    desc = desc_from_map(key, val);
+    TYPE_DECREF(key);
+    TYPE_DECREF(val);
+    break;
+  }
+  case 'P': {
+    s++;
+    Vector *args = NULL;
+    if (*s != ':') {
+      args = vector_new();
+      TypeDesc *arg;
+      while (*s != ':') {
+        arg = __to_desc(&s);
+        vector_push_back(args, arg);
+      }
+    }
+    s++;
+    base = __to_desc(&s);
+    desc = desc_from_proto(args, base);
+    TYPE_DECREF(base);
+    break;
+  }
   default: {
-    if (_dims > 0 && _varg > 0)
-     panic("invalid dims '%d' & varg '%d'.", _dims, _varg);
     desc = desc_from_base(ch);
+    if (desc == NULL)
+      panic("invalid typestr:%s", s);
     s++;
     break;
   }
@@ -245,7 +365,7 @@ TypeDesc *str_to_desc(char *s)
 {
   if (s == NULL)
     return NULL;
-  return __to_desc(&s, 0, 0);
+  return __to_desc(&s);
 }
 
 TypeDesc *str_to_proto(char *ptype, char *rtype)
@@ -256,7 +376,7 @@ TypeDesc *str_to_proto(char *ptype, char *rtype)
     char *s = ptype;
     TypeDesc *desc;
     while (*s) {
-      desc = __to_desc(&s, 0, 0);
+      desc = __to_desc(&s);
       vector_push_back(args, desc);
     }
   }
@@ -264,7 +384,7 @@ TypeDesc *str_to_proto(char *ptype, char *rtype)
   TypeDesc *ret = NULL;
   if (rtype != NULL) {
     char *s = rtype;
-    ret = __to_desc(&s, 0, 0);
+    ret = __to_desc(&s);
   }
 
   TypeDesc *desc;

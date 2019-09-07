@@ -19,8 +19,7 @@ typedef struct floatobject {
 
 extern TypeObject Float_Type;
 #define Float_Check(ob) (OB_TYPE(ob) == &Float_Type)
-void init_floatobject(void);
-void fini_floatobject(void);
+void init_float_type(void);
 Object *Float_New(double val);
 static inline double Float_AsFlt(Object *ob)
 {

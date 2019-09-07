@@ -635,10 +635,18 @@ TypeObject Integer_Type = {
   .methods = int_methods,
 };
 
+void init_integer_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Integer");
+  Integer_Type.desc = desc;
+  if (type_ready(&Integer_Type) < 0)
+    panic("Cannot initalize 'Integer' type.");
+}
+
 Object *Integer_New(int64_t val)
 {
   IntegerObject *integer = kmalloc(sizeof(*integer));
-  Init_Object_Head(integer, &Integer_Type);
+  init_object_head(integer, &Integer_Type);
   integer->value = val;
   return (Object *)integer;
 }
@@ -674,10 +682,18 @@ TypeObject Byte_Type = {
   .str  = byte_str,
 };
 
+void init_byte_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Byte");
+  Byte_Type.desc = desc;
+  if (type_ready(&Byte_Type) < 0)
+    panic("Cannot initalize 'Byte' type.");
+}
+
 Object *Byte_New(int val)
 {
   ByteObject *b = kmalloc(sizeof(ByteObject));
-  Init_Object_Head(b, &Byte_Type);
+  init_object_head(b, &Byte_Type);
   b->value = val;
   return (Object *)b;
 }
@@ -700,6 +716,14 @@ TypeObject Bool_Type = {
   .name = "Bool",
   .str  = bool_str,
 };
+
+void init_bool_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Bool");
+  Bool_Type.desc = desc;
+  if (type_ready(&Bool_Type) < 0)
+    panic("Cannot initalize 'Bool' type.");
+}
 
 BoolObject OB_True = {
   OBJECT_HEAD_INIT(&Bool_Type)

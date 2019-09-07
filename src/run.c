@@ -14,81 +14,33 @@ static void init_types(void)
 {
   print("########\n");
 
-  int res = Type_Ready(&Type_Type);
+  int res = type_ready(&Type_Type);
   if (res != 0)
     panic("Cannot initalize 'Type' type.");
 
-  res = Type_Ready(&Any_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Any' type.");
+  init_any_type();
+  init_desc_type();
+  init_integer_type();
+  init_byte_type();
+  init_bool_type();
+  init_string_type();
+  init_char_type();
+  init_float_type();
 
-  res = Type_Ready(&Desc_Type);
-  if (res != 0)
-    panic("Cannot initalize 'DescType' type.");
+  init_array_type();
+  init_tuple_type();
+  init_dict_type();
+  init_field_type();
+  init_method_type();
+  init_proto_type();
+  init_class_type();
+  init_module_type();
 
-  res = Type_Ready(&Byte_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Byte' type.");
-
-  res = Type_Ready(&Integer_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Integer' type.");
-
-  res = Type_Ready(&Bool_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Bool' type.");
-
-  res = Type_Ready(&String_Type);
-  if (res != 0)
-    panic("Cannot initalize 'String' type.");
-
-  res = Type_Ready(&Char_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Char' type.");
-
-  res = Type_Ready(&Float_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Float' type.");
-
-  res = Type_Ready(&Array_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Array' type.");
-
-  res = Type_Ready(&Tuple_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Tuple' type.");
-
-  res = Type_Ready(&Dict_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Dict' type.");
-
-  res = Type_Ready(&Field_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Field' type.");
-
-  res = Type_Ready(&Method_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Method' type.");
-
-  res = Type_Ready(&Proto_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Proto' type.");
-
-  res = Type_Ready(&Class_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Class' type.");
-
-  res = Type_Ready(&Module_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Module' type.");
-
-  res = Type_Ready(&Code_Type);
+  res = type_ready(&Code_Type);
   if (res != 0)
     panic("Cannot initalize 'Code' type.");
 
-  res = Type_Ready(&Fmtter_Type);
-  if (res != 0)
-    panic("Cannot initalize 'Formatter' type.");
+  init_fmtter_type();
 
   print("########\n");
 }
@@ -104,13 +56,13 @@ static void fini_types(void)
   Type_Fini(&String_Type);
   Type_Fini(&Char_Type);
   Type_Fini(&Float_Type);
-  Type_Fini(&Array_Type);
-  Type_Fini(&Tuple_Type);
+  Type_Fini(&array_type);
+  Type_Fini(&tuple_type);
   Type_Fini(&Dict_Type);
   Type_Fini(&Field_Type);
-  Type_Fini(&Method_Type);
-  Type_Fini(&Proto_Type);
-  Type_Fini(&Class_Type);
+  Type_Fini(&method_type);
+  Type_Fini(&proto_type);
+  Type_Fini(&class_type);
   Type_Fini(&Module_Type);
   Type_Fini(&Code_Type);
   Type_Fini(&Fmtter_Type);

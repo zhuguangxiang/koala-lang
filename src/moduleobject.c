@@ -78,6 +78,14 @@ TypeObject Module_Type = {
   .methods = module_methods,
 };
 
+void init_module_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Module");
+  Module_Type.desc = desc;
+  if (type_ready(&Module_Type) < 0)
+    panic("Cannot initalize 'Module' type.");
+}
+
 static HashMap *get_mtbl(Object *ob)
 {
   ModuleObject *module = (ModuleObject *)ob;
@@ -178,7 +186,7 @@ void Module_Add_FuncDefs(Object *self, MethodDef *def)
 Object *Module_New(char *name)
 {
   ModuleObject *module = kmalloc(sizeof(*module));
-  Init_Object_Head(module, &Module_Type);
+  init_object_head(module, &Module_Type);
   module->name = name;
   Object *ob = (Object *)module;
   return ob;

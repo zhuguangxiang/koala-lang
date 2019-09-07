@@ -480,18 +480,18 @@ TypeObject Float_Type = {
   .inplace = &float_inplaces,
 };
 
-void init_floatobject(void)
+void init_float_type(void)
 {
-}
-
-void fini_floatobject(void)
-{
+  TypeDesc *desc = desc_from_klass("lang", "Float");
+  Float_Type.desc = desc;
+  if (type_ready(&Float_Type) < 0)
+    panic("Cannot initalize 'Float' type.");
 }
 
 Object *Float_New(double val)
 {
   FloatObject *f = kmalloc(sizeof(FloatObject));
-  Init_Object_Head(f, &Float_Type);
+  init_object_head(f, &Float_Type);
   f->value = val;
   return (Object *)f;
 }

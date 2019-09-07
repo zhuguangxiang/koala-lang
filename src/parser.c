@@ -280,8 +280,12 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_JMP_TRUE:
   case OP_JMP_FALSE:
   case OP_NEW_TUPLE:
-  case OP_NEW_ARRAY:
   case OP_NEW_MAP:
+    bytebuffer_write_2bytes(buf, i->arg.ival);
+    break;
+  case OP_NEW_ARRAY:
+    index = Image_Add_Desc(image, i->desc);
+    bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_2bytes(buf, i->arg.ival);
     break;
   default:
@@ -672,6 +676,59 @@ static void parse_binary(ParserState *ps, Expr *exp)
   }
 }
 
+static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
+{
+  if (para->kind == TYPE_BASE)
+    return TYPE_INCREF(ref);
+
+  switch (ref->kind) {
+  case TYPE_PROTO: {
+    if (ref->typeparas != NULL)
+      panic("Not Implemented of function");
+    if (para->kind != TYPE_KLASS)
+      panic("generic type bug!");
+    if (para->klass.types == NULL)
+      return TYPE_INCREF(ref);
+
+    TypeDesc *rtype = ref->proto.ret;
+    if (rtype != NULL && rtype->kind == TYPE_PARAREF) {
+      rtype = vector_get(para->klass.types, rtype->pararef.index);
+    }
+
+    Vector *args = vector_new();
+    TypeDesc *ptype;
+    vector_for_each(ptype, ref->proto.args) {
+      if (ptype != NULL && ptype->kind == TYPE_PARAREF) {
+        ptype = vector_get(para->klass.types, ptype->pararef.index);
+      }
+      vector_push_back(args, ptype);
+    }
+
+    if (rtype != ref->proto.ret || vector_size(args) != 0) {
+      return desc_from_proto(args, rtype);
+    } else {
+      vector_free(args, NULL, NULL);
+      return TYPE_INCREF(ref);
+    }
+    break;
+  }
+  case TYPE_PARAREF: {
+    if (para->kind != TYPE_KLASS)
+      panic("generic type bug!");
+    TypeDesc *desc = vector_get(para->klass.types, ref->pararef.index);
+    return TYPE_INCREF(desc);
+    break;
+  }
+  case TYPE_KLASS:
+    if (ref->typeparas != NULL)
+      panic("generic type bug!");
+    break;
+  default:
+    panic("which type? generic type bug!");
+    break;
+  }
+}
+
 static void parse_atrr(ParserState *ps, Expr *exp)
 {
   Expr *lexp = exp->attr.lexp;
@@ -683,8 +740,12 @@ static void parse_atrr(ParserState *ps, Expr *exp)
   }
 
   Symbol *lsym = lexp->sym;
+  if (lsym == NULL)
+    return;
+
   Ident *id = &exp->attr.id;
   TypeDesc *desc;
+  TypeDesc *ldesc = lsym->desc;
   Symbol *sym;
   switch (lsym->kind) {
   case SYM_CONST:
@@ -706,6 +767,7 @@ static void parse_atrr(ParserState *ps, Expr *exp)
           panic("func's retval is not a class");
         sym = klass_find_member(sym, id->name);
       }
+      ldesc = desc->proto.ret;
     }
     break;
   case SYM_MOD: {
@@ -730,7 +792,7 @@ static void parse_atrr(ParserState *ps, Expr *exp)
                  id->name, lsym->name);
   } else {
     exp->sym = sym;
-    exp->desc = TYPE_INCREF(sym->desc);
+    exp->desc = type_maybe_instanced(ldesc, sym->desc);
   }
 
   // generate codes
@@ -966,7 +1028,9 @@ static void parse_array(ParserState *ps, Expr *exp)
   }
 
   if (!has_error(ps)) {
-    CODE_OP_I(OP_NEW_ARRAY, size);
+    Inst *inst = CODE_OP_I(OP_NEW_ARRAY, size);
+    TypeDesc *desc = exp->desc;
+    inst->desc = vector_get(desc->klass.types, 0);
   }
 }
 

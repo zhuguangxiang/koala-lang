@@ -30,6 +30,7 @@ typedef struct byteobject {
 
 extern TypeObject Integer_Type;
 #define Integer_Check(ob) (OB_TYPE(ob) == &Integer_Type)
+void init_integer_type(void);
 Object *Integer_New(int64_t val);
 static inline int64_t Integer_AsInt(Object *ob)
 {
@@ -43,6 +44,7 @@ static inline int64_t Integer_AsInt(Object *ob)
 
 extern TypeObject Byte_Type;
 #define Byte_Check(ob) (OB_TYPE(ob) == &Byte_Type)
+void init_byte_type(void);
 Object *Byte_New(int val);
 static inline int Byte_AsInt(Object *ob)
 {
@@ -56,6 +58,7 @@ static inline int Byte_AsInt(Object *ob)
 
 extern TypeObject Bool_Type;
 #define Bool_Check(ob) (OB_TYPE(ob) == &Bool_Type)
+void init_bool_type(void);
 extern BoolObject OB_True;
 extern BoolObject OB_False;
 

@@ -166,6 +166,14 @@ static int typecheck(Object *ob, Object *type)
     return 1;
   if (Bool_Check(ob) && desc_isbool(desc))
     return 1;
+  TypeObject *typeob = OB_TYPE(ob);
+  if (desc_check(typeob->desc, desc)) {
+    if (array_check(ob)) {
+      ArrayObject *arr = (ArrayObject *)ob;
+      return desc_check(arr->desc, vector_get(desc->klass.types, 0));
+    }
+    return 1;
+  }
   return 0;
 }
 
@@ -816,14 +824,16 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_NEW_ARRAY: {
-      x = Array_New();
+      oparg = NEXT_2BYTES();
+      x = Tuple_Get(consts, oparg);
+      y = array_new(((DescObject *)x)->desc);
       oparg = NEXT_2BYTES();
       for (int i = 0; i < oparg; ++i) {
-        y = POP();
-        Array_Set(x, i, y);
-        OB_DECREF(y);
+        z = POP();
+        array_set(y, i, z);
+        OB_DECREF(z);
       }
-      PUSH(x);
+      PUSH(y);
       break;
     }
     case OP_NEW_MAP: {

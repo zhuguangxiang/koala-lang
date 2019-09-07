@@ -150,6 +150,14 @@ TypeObject Fmtter_Type = {
   .methods = fmtter_methods,
 };
 
+void init_fmtter_type(void)
+{
+  TypeDesc *desc = desc_from_klass("fmt", "Formatter");
+  Fmtter_Type.desc = desc;
+  if (type_ready(&Fmtter_Type) < 0)
+    panic("Cannot initalize 'Formatter' type.");
+}
+
 static Object *fmt_println(Object *self, Object *args)
 {
   if (!Module_Check(self)) {
@@ -205,7 +213,7 @@ void fini_fmt_moudle(void)
 Object *Fmtter_New(void)
 {
   FmtterObject *fmt = kmalloc(sizeof(*fmt));
-  Init_Object_Head(fmt, &Fmtter_Type);
+  init_object_head(fmt, &Fmtter_Type);
   return (Object *)fmt;
 }
 
