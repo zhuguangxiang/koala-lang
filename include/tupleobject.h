@@ -31,6 +31,9 @@ Object *Tuple_Slice(Object *self, int i, int j);
 void *tuple_iter_next(struct iterator *iter);
 #define TUPLE_ITERATOR(name, tuple) \
   ITERATOR(name, tuple, tuple_iter_next)
+#define tuple_for_each(item, tuple) \
+  for (int idx = 0; idx < ((TupleObject *)tuple)->size && \
+    ({item = Tuple_Get(tuple, idx); 1;}); ++idx)
 
 #ifdef __cplusplus
 }

@@ -48,15 +48,6 @@ TypeParaDef *new_typeparadef(char *name, Vector *types)
   return typepara;
 }
 
-static void free_descs(Vector *vec)
-{
-  TypeDesc *tmp;
-  vector_for_each(tmp, vec) {
-    TYPE_DECREF(tmp);
-  }
-  vector_free(vec, NULL, NULL);
-}
-
 static void free_typeparadefs(Vector *vec)
 {
   TypeParaDef *item;
@@ -177,6 +168,15 @@ TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val)
   TypeDesc *desc = desc_from_klass("lang", "Dict");
   desc->klass.types = types;
   return desc;
+}
+
+void free_descs(Vector *vec)
+{
+  TypeDesc *tmp;
+  vector_for_each(tmp, vec) {
+    TYPE_DECREF(tmp);
+  }
+  vector_free(vec, NULL, NULL);
 }
 
 void desc_free(TypeDesc *desc)

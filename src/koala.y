@@ -30,7 +30,7 @@
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 void Cmd_Add_Const(Ident id, Type type);
 void Cmd_Add_Var(Ident id, Type type, int freevar);
-void Cmd_Add_Func(Ident id, Type type);
+void Cmd_Add_Func(char *name, TypeDesc *desc);
 
 %}
 
@@ -167,10 +167,9 @@ void Cmd_Add_Func(Ident id, Type type);
 %destructor { printf("free expr_list\n"); exprlist_free($$); } <exprlist>
 
 %precedence ID
-%precedence '.'
-%precedence '<'
-%precedence ','
-%precedence ')'
+%precedence '.' '<'
+%precedence ',' ')'
+%precedence DOTDOTDOT '(' '['
 
 %locations
 %parse-param {ParserState *ps}
@@ -262,8 +261,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Type type = {NULL};
-      Cmd_Add_Func($1->funcdecl.id, type);
+      Cmd_Add_Func($1->funcdecl.id.name, NULL);
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
@@ -544,17 +542,38 @@ range_object:
 ;
 
 lambda_object:
-  '(' ID ')' FAT_ARROW block
-| '(' ID ')' FAT_ARROW expr
-| '(' idlist ID ')' FAT_ARROW block
-| '(' idlist ID ')' FAT_ARROW expr
+  '(' para_list ')' FAT_ARROW block
+{
+  printf("lambda_object_1\n");
+}
+| '(' para_list ')' FAT_ARROW expr
+{
+  printf("lambda_object_2\n");
+}
+| '(' para_list ')' type FAT_ARROW block
+{
+  printf("lambda_object_3\n");
+}
+| '(' para_list ')' type FAT_ARROW expr
+{
+  printf("lambda_object_4\n");
+}
 | '(' ')' FAT_ARROW block
+{
+  printf("lambda_object_5\n");
+}
+| '(' ')' type FAT_ARROW block
+{
+  printf("lambda_object_6\n");
+}
 | '(' ')' FAT_ARROW expr
-;
-
-idlist:
-  ID ','
-| idlist ID ','
+{
+  printf("lambda_object_7\n");
+}
+| '(' ')' type FAT_ARROW expr
+{
+  printf("lambda_object_8\n");
+}
 ;
 
 expr_as_type:
@@ -876,10 +895,6 @@ atom:
 {
   $$ = $1;
 }
-| anony_object
-{
-  $$ = NULL;
-}
 | new_object
 {
   $$ = NULL;
@@ -973,13 +988,6 @@ kv:
 {
   $$ = expr_from_mapentry($1, $3);
 }
-;
-
-anony_object:
-  FUNC '(' para_list ')' type block
-| FUNC '(' para_list ')' block
-| FUNC '(' ')' type block
-| FUNC '(' ')' block
 ;
 
 new_object:

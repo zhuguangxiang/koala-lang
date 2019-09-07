@@ -107,6 +107,7 @@ void fini_typedesc(void);
 void literal_show(Literal *val, StrBuf *sbuf);
 TypeParaDef *new_typeparadef(char *name, Vector *types);
 void desc_free(TypeDesc *desc);
+void free_descs(Vector *vec);
 void desc_tostr(TypeDesc *desc, StrBuf *buf);
 char *base_str(int kind);
 void desc_show(TypeDesc *desc);
@@ -134,7 +135,6 @@ TypeDesc *desc_from_varg(TypeDesc *base);
 TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val);
 TypeDesc *str_to_desc(char *s);
 TypeDesc *str_to_proto(char *ptype, char *rtype);
-
 
 #define desc_isint(desc) \
   (((desc)->kind == TYPE_BASE) && \

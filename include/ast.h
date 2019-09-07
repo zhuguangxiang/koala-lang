@@ -155,10 +155,7 @@ typedef struct expr {
       struct expr *end;
     } slice;
     Vector *tuple;
-    struct {
-      int dims;
-      Vector *elems;
-    } array;
+    Vector *array;
     Vector *map;
     struct {
       struct expr *key;

@@ -156,9 +156,11 @@ void Cmd_Add_Var(Ident id, Type type, int freevar)
   sym->var.freevar = freevar;
 }
 
-void Cmd_Add_Func(Ident id, Type type)
+void Cmd_Add_Func(char *name, TypeDesc *desc)
 {
-  sym = stable_add_func(mod.stbl, id.name, type.desc);
+  if (desc == NULL)
+    desc = desc_from_proto(NULL, NULL);
+  sym = stable_add_func(mod.stbl, name, desc);
 }
 
 static void add_symbol_to_mobject(Symbol *sym, Object *ob)

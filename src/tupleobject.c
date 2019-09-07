@@ -10,12 +10,10 @@
 #include "stringobject.h"
 #include "log.h"
 
-#define MSIZE(sz) \
-  (sizeof(TupleObject) + sizeof(Object *) * (sz))
-
 Object *Tuple_New(int size)
 {
-  TupleObject *tuple = kmalloc(MSIZE(size));
+  int msize = sizeof(TupleObject) + size * sizeof(Object *);
+  TupleObject *tuple = kmalloc(msize);
   init_object_head(tuple, &tuple_type);
   tuple->size = size;
   return (Object *)tuple;

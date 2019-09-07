@@ -1347,6 +1347,8 @@ int Image_Add_Literal(Image *image, Literal *val)
 
 int Image_Add_Desc(Image *image, TypeDesc *desc)
 {
+  if (desc == NULL)
+    panic("null pointer");
   int type_index = typeitem_set(image, desc);
   return image_add_const(image, CONST_TYPE, type_index);
 }

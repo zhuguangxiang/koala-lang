@@ -107,6 +107,8 @@ extern "C" {
 #define OP_NEW_EVAL    97
 #define OP_NEW_CLOSURE 98
 
+#define OP_UNPACK_TUPLE 99
+
 int opcode_argc(int op);
 char *opcode_str(int op);
 char *opcode_map(int op);

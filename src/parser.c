@@ -271,6 +271,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_INPLACE_XOR:
   case OP_SUBSCR_LOAD:
   case OP_SUBSCR_STORE:
+  case OP_UNPACK_TUPLE:
     break;
   case OP_LOAD:
   case OP_STORE:
@@ -560,7 +561,8 @@ static void parse_self(ParserState *ps, Expr *exp)
 static void parse_const(ParserState *ps, Expr *exp)
 {
   if (exp->ctx != EXPR_LOAD)
-    panic("exp ctx is not load");
+    syntax_error(ps, exp->row, exp->col, "constant is not writable");
+
   exp->sym = get_literal_symbol(exp->k.value.kind);
   if (!has_error(ps)) {
     if (!exp->k.omit) {
@@ -701,13 +703,13 @@ static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
       if (ptype != NULL && ptype->kind == TYPE_PARAREF) {
         ptype = vector_get(para->klass.types, ptype->pararef.index);
       }
-      vector_push_back(args, ptype);
+      vector_push_back(args, TYPE_INCREF(ptype));
     }
 
     if (rtype != ref->proto.ret || vector_size(args) != 0) {
       return desc_from_proto(args, rtype);
     } else {
-      vector_free(args, NULL, NULL);
+      free_descs(args);
       return TYPE_INCREF(ref);
     }
     break;
@@ -906,7 +908,7 @@ static void parse_call(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, arg);
     if (arg->desc == NULL) {
       syntax_error(ps, arg->row, arg->col,
-                   "cannot resolve expr's type");
+                   "cannot resolve argument's type");
     }
   }
 
@@ -991,29 +993,66 @@ static void parse_tuple(ParserState *ps, Expr *exp)
                  "length of tuple is larger than 16");
   }
 
-  VECTOR_REVERSE_ITERATOR(iter, exp->tuple);
+  TypeDesc *desc = desc_from_klass("lang", "Tuple");
+  Vector *types = NULL;
+  if (vector_size(exp->tuple) > 0) {
+    types = vector_new();
+    desc->klass.types = types;
+  }
+  exp->desc = desc;
+
   Expr *e;
-  iter_for_each(&iter, e) {
-    e->ctx = EXPR_LOAD;
+  vector_for_each_reverse(e, exp->tuple) {
+    if (exp->ctx == EXPR_STORE)
+      e->ctx = EXPR_STORE;
+    else
+      e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
     if (e->desc == NULL) {
       syntax_error(ps, e->row, e->col,
                    "cannot resolve expr's type");
+    } else {
+      vector_push_back(types, TYPE_INCREF(e->desc));
     }
   }
 
   if (!has_error(ps)) {
-    CODE_OP_I(OP_NEW_TUPLE, size);
+    if (exp->ctx == EXPR_LOAD)
+      CODE_OP_I(OP_NEW_TUPLE, size);
   }
+}
+
+static TypeDesc *get_subarray_type(Vector *vec)
+{
+  if (vec == NULL)
+    return desc_from_any;
+
+  TypeDesc *desc = NULL;
+  TypeDesc *tmp;
+  vector_for_each(tmp, vec) {
+    if (desc == NULL) {
+      desc = tmp;
+    } else {
+      if (!desc_check(desc, tmp)) {
+        return desc_from_any;
+      }
+    }
+  }
+  return TYPE_INCREF(desc);
 }
 
 static void parse_array(ParserState *ps, Expr *exp)
 {
-  Vector *vec = exp->array.elems;
+  Vector *vec = exp->array;
   int size = vector_size(vec);
   if (size > 16) {
     syntax_error(ps, ps->row, ps->col,
                  "length of array is larger than 16");
+  }
+
+  Vector *types = NULL;
+  if (vector_size(exp->array) > 0) {
+    types = vector_new();
   }
 
   Expr *e;
@@ -1024,8 +1063,15 @@ static void parse_array(ParserState *ps, Expr *exp)
     if (e->desc == NULL) {
       syntax_error(ps, e->row, e->col,
                    "cannot resolve expr's type");
+    } else {
+      vector_push_back(types, TYPE_INCREF(e->desc));
     }
   }
+
+  TypeDesc *para = get_subarray_type(types);
+  exp->desc = desc_from_array(para);
+  TYPE_DECREF(para);
+  free_descs(types);
 
   if (!has_error(ps)) {
     Inst *inst = CODE_OP_I(OP_NEW_ARRAY, size);
@@ -1264,10 +1310,37 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
     lexp->ctx = EXPR_LOAD;
   }
 
+  if (rexp->kind == TUPLE_KIND && lexp->kind != TUPLE_KIND) {
+    syntax_error(ps, lexp->row, lexp->col,
+      "cannot assign tuple to non-tuple");
+    return;
+  }
+
+  if (lexp->kind == TUPLE_KIND && rexp->kind != TUPLE_KIND) {
+    syntax_error(ps, lexp->row, lexp->col,
+      "cannot assign non-tuple to tuple");
+    return;
+  }
+
+  if (lexp->kind == TUPLE_KIND && rexp->kind == TUPLE_KIND) {
+    if (vector_size(lexp->tuple) != vector_size(rexp->tuple)) {
+      syntax_error(ps, lexp->row, lexp->col,
+        "left tuple size is not equal with right tuple size");
+      return;
+    }
+  }
+
   parser_visit_expr(ps, rexp);
   if (!rexp->desc) {
     syntax_error(ps, rexp->row, rexp->col,
                  "cannot resolve right expr's type");
+  }
+
+  if (rexp->kind == TUPLE_KIND) {
+    //de-box
+    if (!has_error(ps)) {
+      CODE_OP(OP_UNPACK_TUPLE);
+    }
   }
 
   parser_visit_expr(ps, lexp);
@@ -1310,18 +1383,16 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
 
 static void parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
-  ParserUnit *u = ps->u;
   char *funcname = stmt->funcdecl.id.name;
-  ParserUnit *up;
-  Symbol *sym;
   parser_enter_scope(ps, SCOPE_FUNC);
   debug("parse function '%s'", funcname);
+  ParserUnit *u = ps->u;
   u->stbl = stable_new();
 
-  up = vector_top_back(&ps->ustack);
+  ParserUnit *up = vector_top_back(&ps->ustack);
   if (up == NULL)
     panic("func '%s' up-unit is null", funcname);
-  sym = stable_get(up->stbl, funcname);
+  Symbol *sym = stable_get(up->stbl, funcname);
   if (sym == NULL || sym->kind != SYM_FUNC)
     panic("symbol '%s' is not a func", funcname);
   u->sym = sym;

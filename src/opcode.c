@@ -103,6 +103,8 @@ static struct opcode {
   OPCODE(OP_FOR_EACH,   0),
   OPCODE(OP_NEW_EVAL,   3),
   OPCODE(OP_NEW_CLOSURE, 0),
+
+  OPCODE(OP_UNPACK_TUPLE, 0),
 };
 
 #define OP_MAP(op, map) { op, #map }

@@ -196,10 +196,7 @@ Expr *expr_from_array(Vector *exps)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = ARRAY_KIND;
-  TypeDesc *para = get_subarray_type(exps);
-  exp->desc = desc_from_array(para);
-  TYPE_DECREF(para);
-  exp->array.elems = exps;
+  exp->array = exps;
   exp->sym = find_from_builtins("Array");
   return exp;
 }
@@ -309,7 +306,7 @@ void expr_free(Expr *exp)
     kfree(exp);
     break;
   case ARRAY_KIND:
-    exprlist_free(exp->array.elems);
+    exprlist_free(exp->array);
     kfree(exp);
     break;
   case MAP_ENTRY_KIND:

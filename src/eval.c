@@ -851,6 +851,14 @@ Object *Koala_EvalFrame(Frame *f)
       PUSH(x);
       break;
     }
+    case OP_UNPACK_TUPLE: {
+      x = POP();
+      tuple_for_each(y, x) {
+        PUSH(y);
+      }
+      OB_DECREF(x);
+      break;
+    }
     default: {
       panic("unknown opcode: %d", op);
       break;

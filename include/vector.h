@@ -180,6 +180,11 @@ void *vector_iter_prev(Iterator *iter);
   for (int idx = 0; idx < vector_size(vector) && \
     ({item = vector_get(vector, idx); 1;}); ++idx)
 
+/* Vector foreach reversely */
+#define vector_for_each_reverse(item, vector) \
+  for (int idx = vector_size(vector) - 1; idx >= 0 && \
+    ({item = vector_get(vector, idx); 1;}); --idx)
+
 #ifdef __cplusplus
 }
 #endif
