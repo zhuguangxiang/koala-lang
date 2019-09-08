@@ -520,10 +520,23 @@ block:
   Stmt *stmt = stmt_from_expr($2);
   vector_push_back($$, stmt);
 }
+| '{' expr2_list '}'
+{
+
+}
+| '{' expr2_list ';' '}'
+{
+
+}
 | '{' '}'
 {
   $$ = NULL;
 }
+;
+
+expr2_list:
+  expr ',' expr
+| expr2_list ',' expr
 ;
 
 local_list:
@@ -797,6 +810,10 @@ call_expr:
   $$ = expr_from_call(NULL, $1);
 }
 | primary_expr '(' expr_list ')'
+{
+  $$ = expr_from_call($3, $1);
+}
+| primary_expr '(' expr_list ';' ')'
 {
   $$ = expr_from_call($3, $1);
 }
