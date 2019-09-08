@@ -183,7 +183,7 @@ Expr *expr_from_unary(UnaryOpKind op, Expr *exp);
 Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right);
 Expr *expr_from_ternary(Expr *cond, Expr *left, Expr *right);
 Expr *expr_from_attribute(Ident id, Expr *left);
-Expr *expr_from_subScript(Expr *left, Expr *index);
+Expr *expr_from_subscr(Expr *left, Expr *index);
 Expr *expr_from_call(Vector *args, Expr *left);
 Expr *expr_from_slice(Expr *left, Expr *start, Expr *end);
 Expr *expr_from_tuple(Vector *exps);

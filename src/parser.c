@@ -683,6 +683,12 @@ static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
   if (para->kind == TYPE_BASE)
     return TYPE_INCREF(ref);
 
+  if (ref == NULL)
+    return NULL;
+
+  if (ref->kind == TYPE_BASE)
+    return TYPE_INCREF(ref);
+
   switch (ref->kind) {
   case TYPE_PROTO: {
     if (ref->typeparas != NULL)
@@ -754,7 +760,7 @@ static void parse_atrr(ParserState *ps, Expr *exp)
     break;
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
-    sym = klass_find_member(lsym->sym, id->name);
+    sym = klass_find_member(lsym->typesym, id->name);
     break;
   case SYM_FUNC:
     debug("left sym '%s' is a func", lsym->name);
@@ -829,11 +835,11 @@ static void parse_atrr(ParserState *ps, Expr *exp)
 
 static void parse_subscr(ParserState *ps, Expr *exp)
 {
-  Expr *idx = exp->subscr.index;
-  idx->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, idx);
-  if (idx->desc == NULL) {
-    syntax_error(ps, idx->row, idx->col,
+  Expr *iexp = exp->subscr.index;
+  iexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, iexp);
+  if (iexp->desc == NULL) {
+    syntax_error(ps, iexp->row, iexp->col,
                  "cannot resolve expr's type");
   }
 
@@ -850,17 +856,21 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     return;
   }
 
+  char *funcname = "__getitem__";
+  if (exp->ctx == EXPR_STORE)
+    funcname = "__setitem__";
+
   Symbol *sym = NULL;
   switch (lsym->kind) {
   case SYM_CONST:
     break;
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
-    sym = klass_find_member(lsym->sym, "__getitem__");
+    sym = klass_find_member(lsym->typesym, funcname);
     break;
   case SYM_CLASS: {
     debug("left sym '%s' is a class", lsym->name);
-    sym = klass_find_member(lsym, "__getitem__");
+    sym = klass_find_member(lsym, funcname);
     break;
   }
   default:
@@ -870,26 +880,57 @@ static void parse_subscr(ParserState *ps, Expr *exp)
 
   if (sym == NULL || sym->kind != SYM_FUNC) {
     syntax_error(ps, lexp->row, lexp->col,
-                 "'%s' is not supported subscript operation.",
-                 lsym->name);
+      "'%s' is not supported subscript operation.", lsym->name);
+  }
+
+  Vector *args = sym->desc->proto.args;
+  TypeDesc *desc = desc = sym->desc->proto.ret;
+
+  if (exp->ctx == EXPR_LOAD) {
+    if (vector_size(args) != 1) {
+      syntax_error(ps, exp->row, exp->col,
+        "Count of arguments of func %s is not only one", funcname);
+    }
+    if (desc == NULL) {
+      syntax_error(ps, exp->row, exp->col,
+        "Return value of func %s is void", funcname);
+    }
+  } else if (exp->ctx == EXPR_STORE) {
+    if (vector_size(args) != 2) {
+      syntax_error(ps, exp->row, exp->col,
+        "Count of arguments of func %s is not two", funcname);
+    }
+    if (desc != NULL) {
+      syntax_error(ps, exp->row, exp->col,
+        "Return value of func %s is not void", funcname);
+    }
+  } else {
+    panic("invalid expr's context");
   }
 
   if (sym != NULL) {
-    TypeDesc *desc = sym->desc;
-    Vector *args = desc->proto.args;
     desc = vector_get(args, 0);
-    if (!desc_check(idx->desc, desc)) {
-      syntax_error(ps, idx->row, idx->col,
-                  "subscript index type is error");
+    desc = type_maybe_instanced(lexp->desc, desc);
+    if (!desc_check(iexp->desc, desc)) {
+      syntax_error(ps, iexp->row, iexp->col, "subscript index type is error");
     }
+    TYPE_DECREF(desc);
+
+    TYPE_DECREF(exp->desc);
+    if (exp->ctx == EXPR_LOAD) {
+      desc = sym->desc->proto.ret;
+    } else if (exp->ctx == EXPR_STORE) {
+      desc = vector_get(args, 1);
+    } else {
+      desc = NULL;
+    }
+    desc = type_maybe_instanced(lexp->desc, desc);
+    exp->desc = TYPE_INCREF(desc);
+    exp->sym = get_type_symbol(ps, desc);
+    TYPE_DECREF(desc);
   }
 
   if (!has_error(ps)) {
-    TYPE_DECREF(exp->desc);
-    Vector *types = lexp->desc->klass.types;
-    TypeDesc *desc = vector_get(types, 0);
-    exp->desc = TYPE_INCREF(desc);
-    exp->sym = get_type_symbol(ps, exp->desc);
     if (exp->ctx == EXPR_LOAD) {
       CODE_OP(OP_SUBSCR_LOAD);
     } else {
@@ -1252,44 +1293,44 @@ static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
 
   if (sym->kind != SYM_VAR)
     panic("symbol '%s' is not variable", id->name);
+
   if (sym->desc == NULL) {
     sym->desc = TYPE_INCREF(desc);
-    sym->sym = get_type_symbol(ps, desc);
+  }
+
+  if (sym->typesym == NULL) {
+    sym->typesym = get_type_symbol(ps, sym->desc);
   }
 }
 
 static void parse_vardecl(ParserState *ps, Stmt *stmt)
 {
   Expr *exp = stmt->vardecl.exp;
-  if (exp == NULL) {
-    return;
-  }
-
   Ident *id = &stmt->vardecl.id;
   Type *type = &stmt->vardecl.type;
   TypeDesc *desc = type->desc;
 
-  exp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, exp);
-  if (!exp->desc) {
-    syntax_error(ps, exp->row, exp->col,
-                  "cannot resolve right expr's type");
+  if (exp != NULL) {
+    exp->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, exp);
+    if (!exp->desc) {
+      syntax_error(ps, exp->row, exp->col,
+        "cannot resolve right expr's type");
+    }
+    if (desc == NULL) {
+      desc = exp->desc;
+    }
+
+    if (!stmt->vardecl.freevar && !desc_check(desc, exp->desc)) {
+      syntax_error(ps, exp->row, exp->col, "types are not compatible");
+    }
   }
 
-  if (desc == NULL) {
-    desc = exp->desc;
-  }
-
-  if (!stmt->vardecl.freevar && !desc_check(desc, exp->desc)) {
-    syntax_error(ps, exp->row, exp->col,
-                 "types are not compatible");
-  }
-
-  /* add or update variable symbol */
+  /* add or update variable type symbol */
   add_update_variable(ps, id, desc);
 
   /* generate codes */
-  if (!has_error(ps)) {
+  if (exp != NULL && !has_error(ps)) {
     ScopeKind scope = ps->u->scope;
     if (scope == SCOPE_MODULE) {
       CODE_OP(OP_LOAD_0);
@@ -1300,49 +1341,29 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
 
 static void parse_assignment(ParserState *ps, Stmt *stmt)
 {
-  AssignOpKind op = stmt->assign.op;
   Expr *rexp = stmt->assign.rexp;
   Expr *lexp = stmt->assign.lexp;
+  AssignOpKind op = stmt->assign.op;
+
   rexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, rexp);
+  if (!rexp->desc) {
+    syntax_error(ps, rexp->row, rexp->col,
+                 "cannot resolve assignment right expr type");
+  }
+
+  if (lexp->kind == TUPLE_KIND) {
+    if (!has_error(ps) && desc_istuple(rexp->desc)) {
+      // unpack tuple
+      CODE_OP(OP_UNPACK_TUPLE);
+    }
+  }
+
   if (op == OP_ASSIGN) {
     lexp->ctx = EXPR_STORE;
   } else {
     lexp->ctx = EXPR_LOAD;
   }
-
-  if (rexp->kind == TUPLE_KIND && lexp->kind != TUPLE_KIND) {
-    syntax_error(ps, lexp->row, lexp->col,
-      "cannot assign tuple to non-tuple");
-    return;
-  }
-
-  if (lexp->kind == TUPLE_KIND && rexp->kind != TUPLE_KIND) {
-    syntax_error(ps, lexp->row, lexp->col,
-      "cannot assign non-tuple to tuple");
-    return;
-  }
-
-  if (lexp->kind == TUPLE_KIND && rexp->kind == TUPLE_KIND) {
-    if (vector_size(lexp->tuple) != vector_size(rexp->tuple)) {
-      syntax_error(ps, lexp->row, lexp->col,
-        "left tuple size is not equal with right tuple size");
-      return;
-    }
-  }
-
-  parser_visit_expr(ps, rexp);
-  if (!rexp->desc) {
-    syntax_error(ps, rexp->row, rexp->col,
-                 "cannot resolve right expr's type");
-  }
-
-  if (rexp->kind == TUPLE_KIND) {
-    //de-box
-    if (!has_error(ps)) {
-      CODE_OP(OP_UNPACK_TUPLE);
-    }
-  }
-
   parser_visit_expr(ps, lexp);
   if (!lexp->desc) {
     syntax_error(ps, lexp->row, lexp->col,
@@ -1350,6 +1371,9 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
   }
 
   Symbol *sym = lexp->sym;
+  if (sym == NULL)
+    return;
+
   if (sym->kind == SYM_VAR && sym->var.freevar) {
     if (sym->desc == NULL)
       panic("symbol '%s' unknown type", sym->name);

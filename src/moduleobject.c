@@ -132,6 +132,8 @@ void Module_Add_Var(Object *self, Object *ob)
   field->owner = self;
   field->offset = module->nrvars;
   ++module->nrvars;
+  // occurpy a place holder
+  vector_set(&module->values, field->offset, NULL);
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
   if (res != 0)

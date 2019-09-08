@@ -52,10 +52,16 @@ int Field_Set(Object *self, Object *ob, Object *val)
 Object *Field_Default_Get(Object *self, Object *ob)
 {
   FieldObject *field = (FieldObject *)self;
+  int index = field->offset;
   Object *old;
   if (Module_Check(ob)) {
     ModuleObject *mo = (ModuleObject *)ob;
-    old = vector_get(&mo->values, field->offset);
+    int size = vector_size(&mo->values);
+    if (index < 0 || index >= size) {
+      error("index %d out of range(0..<%d)", index, size);
+      return NULL;
+    }
+    old = vector_get(&mo->values, index);
     return OB_INCREF(old);
   } else {
     return NULL;
@@ -65,12 +71,17 @@ Object *Field_Default_Get(Object *self, Object *ob)
 int Field_Default_Set(Object *self, Object *ob, Object *val)
 {
   FieldObject *field = (FieldObject *)self;
+  int index = field->offset;
   Object *old;
   if (Module_Check(ob)) {
     ModuleObject *mo = (ModuleObject *)ob;
-    old = vector_get(&mo->values, field->offset);
+    int size = vector_size(&mo->values);
+    if (index < 0 || index > size) {
+      error("index %d out of range(0...%d)", index, size);
+      return -1;
+    }
+    old = vector_set(&mo->values, field->offset, OB_INCREF(val));
     OB_DECREF(old);
-    vector_set(&mo->values, field->offset, OB_INCREF(val));
     return 0;
   } else {
     return -1;

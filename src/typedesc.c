@@ -170,6 +170,13 @@ TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val)
   return desc;
 }
 
+TypeDesc *desc_from_tuple(Vector *types)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Tuple");
+  desc->klass.types = types;
+  return desc;
+}
+
 void free_descs(Vector *vec)
 {
   TypeDesc *tmp;
@@ -240,6 +247,12 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
     return 0;
 
   switch (desc1->kind) {
+  case TYPE_BASE:
+    if (desc1->base != desc2->base)
+      return 0;
+    else
+      return 1;
+    break;
   case TYPE_KLASS:
     if (strcmp(desc1->klass.path, desc2->klass.path))
       return 0;
@@ -249,6 +262,7 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
   case TYPE_PROTO:
     break;
   default:
+    panic("invalid desc kind %d for desc_check", desc1->kind);
     break;
   }
   return 0;
@@ -391,4 +405,19 @@ TypeDesc *str_to_proto(char *ptype, char *rtype)
   desc = desc_from_proto(args, ret);
   TYPE_DECREF(ret);
   return desc;
+}
+
+int desc_istuple(TypeDesc *desc)
+{
+  if (desc == NULL)
+    return 0;
+
+  if (desc->kind != TYPE_KLASS)
+    return 0;
+
+  if (!strcmp(desc->klass.path, "lang") &&
+      !strcmp(desc->klass.type, "Tuple"))
+    return 1;
+
+  return 0;
 }

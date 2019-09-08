@@ -77,6 +77,7 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
 %token BOOL
 %token ANY
 
+%token NEW
 %token SELF
 %token SUPER
 %token TRUE
@@ -150,7 +151,7 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
 %type <expr> inclusive_or_expr
 %type <expr> logic_and_expr
 %type <expr> logic_or_expr
-%type <expr> condition_or_expr
+%type <expr> condition_expr
 %type <expr> expr
 %type <unaryop> unary_operator
 %type <expr> expr_as_type
@@ -166,10 +167,10 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
 %destructor { printf("decref desc\n"); TYPE_DECREF($$); } <desc>
 %destructor { printf("free expr_list\n"); exprlist_free($$); } <exprlist>
 
+%precedence INT_LITERAL CHAR_LITERAL
+%precedence '|'
 %precedence ID
-%precedence '.' '<'
-%precedence ',' ')'
-%precedence DOTDOTDOT '(' '['
+%precedence '(' '.'
 
 %locations
 %parse-param {ParserState *ps}
@@ -250,12 +251,30 @@ unit:
   } else {
   }
 }
-/*
 | if_stmt
+{
+  if (ps->interactive) {
+    ps->more = 0;
+  }
+}
 | while_stmt
+{
+  if (ps->interactive) {
+    ps->more = 0;
+  }
+}
 | match_stmt
+{
+  if (ps->interactive) {
+    ps->more = 0;
+  }
+}
 | for_each_stmt
-*/
+{
+  if (ps->interactive) {
+    ps->more = 0;
+  }
+}
 | func_decl
 {
   if (ps->interactive) {
@@ -267,9 +286,12 @@ unit:
     }
   }
 }
-/*
 | type_decl
-*/
+{
+  if (ps->interactive) {
+    ps->more = 0;
+  }
+}
 | ';'
 {
   if (ps->interactive) {
@@ -339,12 +361,22 @@ local:
 {
   $$ = stmt_from_expr($1);
 }
-/*
 | if_stmt
+{
+  $$ = NULL;
+}
 | while_stmt
+{
+  $$ = NULL;
+}
 | match_stmt
+{
+  $$ = NULL;
+}
 | for_each_stmt
-*/
+{
+  $$ = NULL;
+}
 | ';'
 {
   $$ = NULL;
@@ -514,15 +546,7 @@ expr:
 {
   $$ = NULL;
 }
-| lambda_object
-{
-  $$ = NULL;
-}
-| condition_or_expr
-{
-  $$ = $1;
-}
-| logic_or_expr
+| condition_expr
 {
   $$ = $1;
 }
@@ -534,50 +558,34 @@ expr:
 {
   $$ = $1;
 }
+| new_object
+{
+  $$ = NULL;
+}
+;
+
+new_object:
+  NEW ID
+| NEW ID '.' ID
+| NEW ID '<' type_list '>'
+| NEW ID '.' ID '<' type_list '>'
+| NEW ID '(' ')'
+| NEW ID '.' ID '(' ')'
+| NEW ID '<' type_list '>' '(' ')'
+| NEW ID '.' ID '<' type_list '>' '(' ')'
+| NEW ID '(' expr_list ')'
+| NEW ID '.' ID '(' expr_list ')'
+| NEW ID '<' type_list '>' '(' expr_list ')'
+| NEW ID '.' ID '<' type_list '>' '(' expr_list ')'
 ;
 
 range_object:
-  logic_or_expr DOTDOTDOT logic_or_expr
-| logic_or_expr DOTDOTLESS logic_or_expr
-;
-
-lambda_object:
-  '(' para_list ')' FAT_ARROW block
-{
-  printf("lambda_object_1\n");
-}
-| '(' para_list ')' FAT_ARROW expr
-{
-  printf("lambda_object_2\n");
-}
-| '(' para_list ')' type FAT_ARROW block
-{
-  printf("lambda_object_3\n");
-}
-| '(' para_list ')' type FAT_ARROW expr
-{
-  printf("lambda_object_4\n");
-}
-| '(' ')' FAT_ARROW block
-{
-  printf("lambda_object_5\n");
-}
-| '(' ')' type FAT_ARROW block
-{
-  printf("lambda_object_6\n");
-}
-| '(' ')' FAT_ARROW expr
-{
-  printf("lambda_object_7\n");
-}
-| '(' ')' type FAT_ARROW expr
-{
-  printf("lambda_object_8\n");
-}
+  condition_expr DOTDOTDOT condition_expr
+| condition_expr DOTDOTLESS condition_expr
 ;
 
 expr_as_type:
-  logic_or_expr AS type
+  condition_expr AS type
 {
   TYPE(type, $3, @3);
   $$ = expr_from_astype($1, type);
@@ -585,15 +593,19 @@ expr_as_type:
 ;
 
 expr_is_type:
-  logic_or_expr IS type
+  condition_expr IS type
 {
   TYPE(type, $3, @3);
   $$ = expr_from_istype($1, type);
 }
 ;
 
-condition_or_expr:
-  logic_or_expr '?' logic_or_expr ':' logic_or_expr
+condition_expr:
+  logic_or_expr
+{
+  $$ = $1;
+}
+| logic_or_expr '?' logic_or_expr ':' logic_or_expr
 {
   $$ = expr_from_ternary($1, $3, $5);
 }
@@ -801,7 +813,7 @@ dot_expr:
 index_expr:
   primary_expr '[' expr ']'
 {
-  $$ = expr_from_subScript($1, $3);
+  $$ = expr_from_subscr($1, $3);
 }
 | primary_expr '[' expr ':' expr ']'
 {
@@ -826,13 +838,6 @@ atom:
 {
   $$ = expr_from_ident($1);
   set_expr_pos($$, @1);
-}
-| ID '.' ID
-{
-  Expr *e = expr_from_ident($1);
-  set_expr_pos(e, @1);
-  IDENT(id, $3, @3);
-  $$ = expr_from_attribute(id, e);
 }
 | INT_LITERAL
 {
@@ -895,7 +900,7 @@ atom:
 {
   $$ = $1;
 }
-| new_object
+| anony_object
 {
   $$ = NULL;
 }
@@ -907,6 +912,11 @@ tuple_object:
   $$ = expr_from_tuple($2);
 }
 | '(' expr_list ',' expr ')'
+{
+  vector_push_back($2, $4);
+  $$ = expr_from_tuple($2);
+}
+| '(' expr_list ',' expr ';' ')'
 {
   vector_push_back($2, $4);
   $$ = expr_from_tuple($2);
@@ -990,28 +1000,82 @@ kv:
 }
 ;
 
-new_object:
-  ID '<' type_list '>'
-{
-}
-| ID '.' ID '<' type_list '>'
-{
-}
+anony_object:
+  FUNC '(' para_list ')' type block
+| FUNC '(' para_list ')' block
+| FUNC '(' ')' type block
+| FUNC '(' ')' block
 ;
 
-/*
-if_expr:
+if_stmt:
+  IF expr block empty_else
 ;
 
-while_expr:
+empty_else:
+  %empty
+| ELSE block
+| ELSE if_stmt
 ;
 
-for_each_expr:
+while_stmt:
+  WHILE expr block
 ;
 
-match_expr:
+for_each_stmt:
+  FOR expr IN expr block
 ;
-*/
+
+match_stmt:
+  MATCH expr '{' match_clauses '}'
+;
+
+match_clauses:
+  match_clause
+| match_clauses match_clause
+;
+
+match_clause:
+  match_pattern FAT_ARROW match_block_expr ';'
+;
+
+match_pattern:
+  '_'
+| INT_LITERAL
+| int_seq INT_LITERAL
+| CHAR_LITERAL
+| char_seq CHAR_LITERAL
+| STRING_LITERAL
+| TRUE
+| FALSE
+| NIL
+| range_object
+| tuple_object
+| IS type
+| ID
+| ID '(' id_list ')'
+| ID '.' ID
+| ID '.' ID '(' id_list ')'
+;
+
+int_seq:
+  INT_LITERAL '|'
+| int_seq INT_LITERAL '|'
+;
+
+char_seq:
+  CHAR_LITERAL '|'
+| char_seq CHAR_LITERAL '|'
+;
+
+id_list:
+  ID
+| id_list ',' ID
+;
+
+match_block_expr:
+  block
+| expr
+;
 
 func_decl:
   FUNC name '(' para_list ')' type block
@@ -1078,10 +1142,86 @@ id_varg:
 | ID DOTDOTDOT no_array_type
 ;
 
-/*
 type_decl:
+  CLASS name extends '{' members '}'
+| CLASS name extends ';'
+| TRAIT name extends '{' members '}'
+| TRAIT name extends ';'
+| ENUM  name '{' enum_members '}'
 ;
-*/
+
+extends:
+  %empty
+| ':' bases
+;
+
+bases:
+  klass_type
+| bases ',' klass_type
+;
+
+members:
+  %empty
+| member_decls
+;
+
+member_decls:
+  member_decl
+| member_decls member_decl
+;
+
+member_decl:
+  field_decl
+| method_decl
+| proto_decl
+| ';'
+;
+
+field_decl:
+  ID type ';'
+| ID '=' expr ';'
+| ID type '=' expr ';'
+;
+
+method_decl:
+  FUNC ID '(' para_list')' type block
+| FUNC ID '(' para_list ')' block
+| FUNC ID '(' ')' type block
+| FUNC ID '(' ')' block
+;
+
+proto_decl:
+  FUNC ID '(' type_varg_list ')' type ';'
+| FUNC ID '(' para_list')' type ';'
+| FUNC ID '(' type_varg_list ')' ';'
+| FUNC ID '(' para_list ')' ';'
+| FUNC ID '(' ')' type ';'
+| FUNC ID '(' ')' ';'
+;
+
+enum_members:
+  enum_lables enum_methods
+| enum_lables ',' enum_methods
+| enum_lables ';' enum_methods
+;
+
+enum_lables:
+  enum_lable
+| enum_lables ',' enum_lable
+;
+
+enum_lable:
+  ID
+| ID '(' type_list ')'
+| ID '=' INT_LITERAL
+;
+
+enum_methods:
+  method_decl
+| method_decl ';'
+| enum_methods method_decl
+| enum_methods method_decl ';'
+;
 
 type_list:
   type
@@ -1143,7 +1283,7 @@ no_array_type:
 }
 | '(' type_list ')'
 {
-  $$ = NULL;
+  $$ = desc_from_tuple($2);
 }
 | klass_type
 {

@@ -132,7 +132,7 @@ Expr *expr_from_attribute(Ident id, Expr *left)
   return exp;
 }
 
-Expr *expr_from_subScript(Expr *left, Expr *index)
+Expr *expr_from_subscr(Expr *left, Expr *index)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SUBSCRIPT_KIND;

@@ -691,9 +691,9 @@ int Object_SetValue(Object *self, char *name, Object *val)
     return -1;
   }
 
-  Field_Set(ob, self, val);
+  int res = Field_Set(ob, self, val);
   OB_DECREF(ob);
-  return 0;
+  return res;
 }
 
 Object *New_Literal(Literal *val)

@@ -141,7 +141,7 @@ static Object *tuple_getitem(Object *self, Object *args)
   TupleObject *tuple = (TupleObject *)self;
   int index = Integer_AsInt(args);
   if (index < 0 || index >= tuple->size) {
-    error("%d out of range(0-%d)", index, tuple->size);
+    error("index %d out of range(0..<%d)", index, tuple->size);
     return NULL;
   }
   Object *val = tuple->items[index];

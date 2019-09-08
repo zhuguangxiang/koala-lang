@@ -190,6 +190,7 @@ moddoc  "//!"[^\n]*
 "bool"     { YY_RETURN(BOOL);         }
 "any"      { YY_RETURN(ANY);          }
 
+"new"      { YY_RETURN(NEW);          }
 "self"     { YY_RETURN(SELF);         }
 "super"    { YY_RETURN(SUPER);        }
 "true"     { YY_RETURN(TRUE);         }

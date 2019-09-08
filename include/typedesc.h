@@ -133,6 +133,7 @@ TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
 TypeDesc *desc_from_array(TypeDesc *para);
 TypeDesc *desc_from_varg(TypeDesc *base);
 TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val);
+TypeDesc *desc_from_tuple(Vector *types);
 TypeDesc *str_to_desc(char *s);
 TypeDesc *str_to_proto(char *ptype, char *rtype);
 
@@ -157,6 +158,7 @@ TypeDesc *str_to_proto(char *ptype, char *rtype);
 #define desc_isany(desc) \
   (((desc)->kind == TYPE_BASE) && \
     ((desc)->base == BASE_ANY))
+int desc_istuple(TypeDesc *desc);
 
 #ifdef __cplusplus
 }

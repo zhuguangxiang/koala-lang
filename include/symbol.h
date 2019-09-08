@@ -49,7 +49,7 @@ typedef struct symbol {
   /* type descriptor */
   TypeDesc *desc;
   /* type object */
-  struct symbol *sym;
+  struct symbol *typesym;
   /* filename */
   char *filename;
   /* position */

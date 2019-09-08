@@ -61,8 +61,8 @@ static Object *array_getitem(Object *self, Object *args)
   ArrayObject *arr = (ArrayObject *)self;
   int index = Integer_AsInt(args);
   int size = vector_size(&arr->items);
-  if (index < 0 || index > size) {
-    error("index %d out of range(0...%d)", index, size);
+  if (index < 0 || index >= size) {
+    error("index %d out of range(0..<%d)", index, size);
     return NULL;
   }
   Object *val = vector_get(&arr->items, index);
