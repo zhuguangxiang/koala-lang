@@ -219,8 +219,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     bytebuffer_write_byte(buf, i->argc);
     break;
   case OP_NEW_OBJECT:
-    index = Image_Add_String(image, i->arg.str);
+    index = Image_Add_Desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
+    bytebuffer_write_byte(buf, i->argc);
     break;
   case OP_TYPEOF:
   case OP_TYPECHECK:
@@ -482,6 +483,45 @@ static Symbol *find_id_symbol(ParserState *ps, char *name)
   return NULL;
 }
 
+static Symbol *find_type_symbol(ParserState *ps, char *path, char *name)
+{
+  Symbol *sym;
+  Module *mod = ps->module;
+
+  if (path == NULL) {
+    /* find type from current module */
+    sym = stable_get(mod->stbl, name);
+    if (sym != NULL) {
+      debug("find symbol '%s' in current module '%s'", name, mod->name);
+      if (sym->kind == SYM_CLASS) {
+        ++sym->used;
+        return sym;
+      } else {
+        error("symbol '%s' is not Class", name);
+        return NULL;
+      }
+    }
+
+    /* find type from auto-imported modules */
+    sym = find_from_builtins(name);
+    if (sym != NULL) {
+      debug("find symbol '%s' in auto-imported modules", name);
+      if (sym->kind == SYM_CLASS) {
+        ++sym->used;
+        return sym;
+      } else {
+        error("symbol '%s' is not Class", name);
+        return NULL;
+      }
+    }
+
+    error("cannot find symbol '%s'", name);
+    return NULL;
+  }
+
+  panic("not implemented");
+}
+
 static Symbol *get_literal_symbol(char kind)
 {
   Symbol *sym;
@@ -514,7 +554,7 @@ static Symbol *get_literal_symbol(char kind)
   return sym;
 }
 
-static Symbol *get_type_symbol(ParserState *ps, TypeDesc *desc)
+static Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
 {
   if (desc == NULL) {
     debug("no return");
@@ -533,7 +573,7 @@ static Symbol *get_type_symbol(ParserState *ps, TypeDesc *desc)
       panic("not implemented");
     break;
   case TYPE_PROTO:
-    sym = get_type_symbol(ps, desc->proto.ret);
+    sym = get_desc_symbol(ps, desc->proto.ret);
     break;
   default:
     panic("invalid desc kind %d", desc->kind);
@@ -638,7 +678,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
                  "cannot resolve expr's type");
   }
 
-  exp->sym = get_type_symbol(ps, lexp->desc);
+  exp->sym = get_desc_symbol(ps, lexp->desc);
   if (exp->sym == NULL) {
     return;
   }
@@ -769,7 +809,7 @@ static void parse_atrr(ParserState *ps, Expr *exp)
       syntax_error(ps, lexp->row, lexp->col,
                    "func with arguments cannot be accessed like field.");
     } else {
-      sym = get_type_symbol(ps, desc->proto.ret);
+      sym = get_desc_symbol(ps, desc->proto.ret);
       if (sym != NULL) {
         if (sym->kind != SYM_CLASS)
           panic("func's retval is not a class");
@@ -926,7 +966,7 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     }
     desc = type_maybe_instanced(lexp->desc, desc);
     exp->desc = TYPE_INCREF(desc);
-    exp->sym = get_type_symbol(ps, desc);
+    exp->sym = get_desc_symbol(ps, desc);
     TYPE_DECREF(desc);
   }
 
@@ -986,7 +1026,7 @@ static void parse_call(ParserState *ps, Expr *exp)
       }
     }
     exp->desc = TYPE_INCREF(desc->proto.ret);
-    exp->sym = get_type_symbol(ps, exp->desc);
+    exp->sym = get_desc_symbol(ps, exp->desc);
   }
 }
 
@@ -1178,7 +1218,7 @@ static void parse_is(ParserState *ps, Expr *exp)
   }
   TYPE_DECREF(exp->desc);
   exp->desc = desc_from_bool;
-  exp->sym = get_type_symbol(ps, exp->desc);
+  exp->sym = get_desc_symbol(ps, exp->desc);
 
   if (!has_error(ps)) {
     CODE_OP_TYPE(OP_TYPEOF, exp->isas.type.desc);
@@ -1196,11 +1236,71 @@ static void parse_as(ParserState *ps, Expr *exp)
   }
   TYPE_DECREF(exp->desc);
   exp->desc = TYPE_INCREF(exp->isas.type.desc);
-  exp->sym = get_type_symbol(ps, exp->desc);
+  exp->sym = get_desc_symbol(ps, exp->desc);
 
   if (!has_error(ps)) {
     CODE_OP_TYPE(OP_TYPECHECK, exp->desc);
   }
+}
+
+static void parse_new(ParserState *ps, Expr *exp)
+{
+  char *path = exp->newobj.path;
+  Ident *id = &exp->newobj.id;
+  Symbol *sym = find_type_symbol(ps, path, id->name);
+  if (sym == NULL) {
+    syntax_error(ps, id->row, id->col, "cannot find class '%s'", id->name);
+    return;
+  }
+
+  TypeDesc *desc = sym->desc;
+  if (desc == NULL) {
+    panic("type descriptor of symbol '%s' is null", sym->name);
+  }
+
+  Vector *types = exp->newobj.types;
+
+  /*
+  if (!check_typepara(desc->typeparas, types)) {
+    syntax_error(ps, id->row, id->col, "'%s' generic type check faield", id->name);
+  }
+  */
+
+  Vector *args = exp->newobj.args;
+  Expr *e;
+  vector_for_each_reverse(e, args) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+  }
+
+  /*
+  if (!check_call_arguments(sym, args)) {
+    syntax_error(ps, id->row, id->col, "'%s' arguments check failed", id->name);
+  }
+  */
+
+  if (!has_error(ps)) {
+    desc = desc_from_klass(desc->klass.path, desc->klass.type);
+    if (types != NULL) {
+      Vector *vec = vector_new();
+      TypeDesc *item;
+      vector_for_each(item, types) {
+        vector_push_back(vec, TYPE_INCREF(item));
+      }
+      desc->klass.types = vec;
+    }
+
+    exp->sym = sym;
+    exp->desc = desc;
+    // generate codes
+    Inst *i = CODE_OP_TYPE(OP_NEW_OBJECT, desc);
+    i->argc = vector_size(args);
+  }
+}
+
+static void parse_range(ParserState *ps, Expr *exp)
+{
+
 }
 
 void parser_visit_expr(ParserState *ps, Expr *exp)
@@ -1233,9 +1333,11 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     NULL,               /* ANONY_KIND     */
     parse_is,           /* IS_KIND        */
     parse_as,           /* AS_KIND        */
+    parse_new,          /* NEW_KIND       */
+    parse_range,        /* RANGE_KIND     */
   };
 
-  if (exp->kind < NIL_KIND || exp->kind > AS_KIND)
+  if (exp->kind < NIL_KIND || exp->kind > RANGE_KIND)
     panic("invalid expression:%d", exp->kind);
   handlers[exp->kind](ps, exp);
 }
@@ -1299,7 +1401,7 @@ static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
   }
 
   if (sym->typesym == NULL) {
-    sym->typesym = get_type_symbol(ps, sym->desc);
+    sym->typesym = get_desc_symbol(ps, sym->desc);
   }
 }
 

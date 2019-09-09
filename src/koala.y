@@ -156,6 +156,8 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
 %type <unaryop> unary_operator
 %type <expr> expr_as_type
 %type <expr> expr_is_type
+%type <expr> new_object
+%type <expr> range_object
 
 %type <list> type_list
 %type <desc> type
@@ -557,7 +559,7 @@ local_list:
 expr:
   range_object
 {
-  $$ = NULL;
+  $$ = $1;
 }
 | condition_expr
 {
@@ -573,28 +575,76 @@ expr:
 }
 | new_object
 {
-  $$ = NULL;
+  $$ = $1;
 }
 ;
 
 new_object:
   NEW ID
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, NULL, NULL);
+}
 | NEW ID '.' ID
+{
+  $$ = NULL;
+}
 | NEW ID '<' type_list '>'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, $4, NULL);
+}
 | NEW ID '.' ID '<' type_list '>'
+{
+  $$ = NULL;
+}
 | NEW ID '(' ')'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, NULL, NULL);
+}
 | NEW ID '.' ID '(' ')'
+{
+  $$ = NULL;
+}
 | NEW ID '<' type_list '>' '(' ')'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, $4, NULL);
+}
 | NEW ID '.' ID '<' type_list '>' '(' ')'
+{
+  $$ = NULL;
+}
 | NEW ID '(' expr_list ')'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, NULL, $4);
+}
 | NEW ID '.' ID '(' expr_list ')'
+{
+  $$ = NULL;
+}
 | NEW ID '<' type_list '>' '(' expr_list ')'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, $4, $7);
+}
 | NEW ID '.' ID '<' type_list '>' '(' expr_list ')'
+{
+  $$ = NULL;
+}
 ;
 
 range_object:
   condition_expr DOTDOTDOT condition_expr
+{
+  $$ = expr_from_range(0, $1, $3);
+}
 | condition_expr DOTDOTLESS condition_expr
+{
+  $$ = expr_from_range(1, $1, $3);
+}
 ;
 
 expr_as_type:
@@ -1064,7 +1114,6 @@ match_pattern:
 | STRING_LITERAL
 | TRUE
 | FALSE
-| NIL
 | range_object
 | tuple_object
 | IS type

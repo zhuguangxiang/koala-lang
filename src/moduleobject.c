@@ -100,8 +100,6 @@ static HashMap *get_mtbl(Object *ob)
   return mtbl;
 }
 
-#define MODULE_NAME(ob) (((ModuleObject *)ob)->name)
-
 void Module_Add_Type(Object *self, TypeObject *type)
 {
   type->owner = self;

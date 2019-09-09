@@ -35,7 +35,7 @@ void literal_show(Literal *val, StrBuf *sbuf)
     strbuf_append(sbuf, buf);
     break;
   default:
-    panic("invalid branch %d", val->kind);
+    panic("invalid basedesc branch %d", val->kind);
     break;
   }
 }
@@ -234,6 +234,31 @@ void desc_show(TypeDesc *desc)
   }
 }
 
+static int base_equal_klass(TypeDesc *desc1, TypeDesc *desc2)
+{
+  switch (desc1->base) {
+  case BASE_INT:
+    if (!strcmp(desc2->klass.path, "lang") &&
+      !strcmp(desc2->klass.type, "Integer"))
+      return 1;
+    break;
+  case BASE_STR:
+    if (!strcmp(desc2->klass.path, "lang") &&
+      !strcmp(desc2->klass.type, "String"))
+      return 1;
+    break;
+  case BASE_BOOL:
+    if (!strcmp(desc2->klass.path, "lang") &&
+      !strcmp(desc2->klass.type, "Bool"))
+      return 1;
+    break;
+  default:
+    panic("base_equal_klass not implemented");
+    break;
+  }
+  return 0;
+}
+
 /* desc1 <- desc2 */
 int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 {
@@ -242,6 +267,20 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 
   if (desc_isany(desc1))
     return 1;
+
+  if (desc1->kind == TYPE_BASE && desc2->kind == TYPE_KLASS) {
+    if (base_equal_klass(desc1, desc2))
+      return 1;
+    else
+      return 0;
+  }
+
+  if (desc1->kind == TYPE_KLASS && desc2->kind == TYPE_BASE) {
+    if (base_equal_klass(desc2, desc1))
+      return 1;
+    else
+      return 0;
+  }
 
   if (desc1->kind != desc2->kind)
     return 0;

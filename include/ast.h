@@ -27,6 +27,21 @@ typedef struct type {
   short col;
 } Type;
 
+static inline Type *new_type(TypeDesc *desc, short row, short col)
+{
+  Type *type = kmalloc(sizeof(*type));
+  type->desc = TYPE_INCREF(desc);
+  type->row = row;
+  type->col = col;
+  return type;
+}
+
+static inline void free_type(Type *type)
+{
+  TYPE_DECREF(type->desc);
+  kfree(type);
+}
+
 /* idtype for parameter-list in AST */
 typedef struct idtype {
   Ident id;
@@ -79,6 +94,10 @@ typedef enum exprkind {
   TUPLE_KIND, ARRAY_KIND, MAP_ENTRY_KIND, MAP_KIND, ANONY_KIND,
   /* is, as */
   IS_KIND, AS_KIND,
+  /* new object */
+  NEW_KIND,
+  /* range object */
+  RANGE_KIND,
   EXPR_KIND_MAX
 } ExprKind;
 
@@ -165,6 +184,17 @@ typedef struct expr {
       struct expr *exp;
       Type type;
     } isas;
+    struct {
+      char *path;
+      Ident id;
+      Vector *types;
+      Vector *args;
+    } newobj;
+    struct {
+      int type;
+      struct expr *left;
+      struct expr *right;
+    } range;
   };
 } Expr;
 
@@ -192,6 +222,8 @@ Expr *expr_from_mapentry(Expr *key, Expr *val);
 Expr *expr_from_map(Vector *exps);
 Expr *expr_from_istype(Expr *exp, Type type);
 Expr *expr_from_astype(Expr *exp, Type type);
+Expr *expr_from_object(char *path, Ident id, Vector *types, Vector *args);
+Expr *expr_from_range(int type, Expr *left, Expr *right);
 
 typedef enum stmtkind {
   /* import */

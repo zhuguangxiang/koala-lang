@@ -177,6 +177,41 @@ static int typecheck(Object *ob, Object *type)
   return 0;
 }
 
+static Object *new_object(Object *descob, Object *args)
+{
+  TypeDesc *desc = ((DescObject *)descob)->desc;
+  Object *mo = Module_Load(desc->klass.path);
+  if (mo == NULL) {
+    panic("cannot load module '%s'", MODULE_NAME(mo));
+    return NULL;
+  }
+
+  Object *typeob = Module_Lookup(mo, desc->klass.type);
+  if (typeob == NULL) {
+    panic("cannot find type '%s' in '%s'",
+      desc->klass.type, MODULE_NAME(mo));
+    return NULL;
+  }
+
+  TypeObject *type = (TypeObject *)typeob;
+  if (type == &Integer_Type) {
+    return OB_INCREF(args);
+  } else if (type == &String_Type) {
+    return OB_INCREF(args);
+  } else if (type == &Bool_Type) {
+    return OB_INCREF(args);
+  } else if (type == &array_type) {
+    desc = vector_get(desc->klass.types, 0);
+    return array_new(desc);
+  } else if (type == &Dict_Type) {
+    return NULL;
+  } else if (type == &tuple_type) {
+    return Tuple_New(0);
+  } else {
+    return NULL;
+  }
+}
+
 Object *Koala_EvalFrame(Frame *f)
 {
   int loopflag = 1;
@@ -810,6 +845,28 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_JMP_NOTNIL: {
+      break;
+    }
+    case OP_NEW_OBJECT: {
+      oparg = NEXT_2BYTES();
+      x = Tuple_Get(consts, oparg);
+      oparg = NEXT_BYTE();
+      if (oparg == 0) {
+        y = NULL;
+      } else if (oparg == 1) {
+        y = POP();
+      } else {
+        y = Tuple_New(oparg);
+        for (int i = 0; i < oparg; ++i) {
+          z = POP();
+          Tuple_Set(y, i, z);
+          OB_DECREF(z);
+        }
+      }
+      z = new_object(x, y);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_NEW_TUPLE: {
