@@ -217,7 +217,7 @@ Object *tuple_str(Object *self, Object *ob)
 }
 
 TypeObject tuple_type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Tuple",
   .free    = Tuple_Free,
   .str     = tuple_str,

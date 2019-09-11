@@ -19,7 +19,7 @@
 #include "stringobject.h"
 #include "arrayobject.h"
 #include "tupleobject.h"
-#include "dictobject.h"
+#include "mapobject.h"
 #include "moduleobject.h"
 #include "codeobject.h"
 #include "fmtmodule.h"
@@ -32,8 +32,8 @@
 extern "C" {
 #endif
 
-void Koala_Initialize(void);
-void Koala_Finalize(void);
+void koala_initialize(void);
+void koala_finalize(void);
 void Koala_ReadLine(void);
 void Koala_Compile(char *path);
 void Koala_Run(char *path);

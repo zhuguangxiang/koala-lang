@@ -122,6 +122,7 @@ void array_free(Object *ob)
   vector_for_each(item, &arr->items) {
     OB_DECREF(item);
   }
+  vector_fini(&arr->items, NULL, NULL);
   kfree(arr);
 }
 
@@ -161,7 +162,7 @@ Object *array_str(Object *self, Object *ob)
 }
 
 TypeObject array_type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Array",
   .free    = array_free,
   .str     = array_str,

@@ -129,7 +129,7 @@ static MethodDef field_methods[] = {
 };
 
 TypeObject Field_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Field",
   .free    = field_free,
   .methods = field_methods,

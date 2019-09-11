@@ -120,7 +120,7 @@ int main(int argc, char *argv[])
 {
   parse_command(argc, argv);
 
-  Koala_Initialize();
+  koala_initialize();
 
   if (cflag == 1) {
     Koala_Compile(module);
@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
     Koala_ReadLine();
   }
 
-  Koala_Finalize();
+  koala_finalize();
 
   return 0;
 }

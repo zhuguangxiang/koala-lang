@@ -625,8 +625,8 @@ static MethodDef int_methods[]= {
   {NULL}
 };
 
-TypeObject Integer_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject integer_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Integer",
   .free    = integer_free,
   .str     = integer_str,
@@ -638,15 +638,15 @@ TypeObject Integer_Type = {
 void init_integer_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Integer");
-  Integer_Type.desc = desc;
-  if (type_ready(&Integer_Type) < 0)
+  integer_type.desc = desc;
+  if (type_ready(&integer_type) < 0)
     panic("Cannot initalize 'Integer' type.");
 }
 
 Object *Integer_New(int64_t val)
 {
   IntegerObject *integer = kmalloc(sizeof(*integer));
-  init_object_head(integer, &Integer_Type);
+  init_object_head(integer, &integer_type);
   integer->value = val;
   return (Object *)integer;
 }
@@ -675,8 +675,8 @@ static Object *byte_str(Object *self, Object *ob)
   return String_New(buf);
 }
 
-TypeObject Byte_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject byte_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Byte",
   .free = byte_free,
   .str  = byte_str,
@@ -685,15 +685,15 @@ TypeObject Byte_Type = {
 void init_byte_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Byte");
-  Byte_Type.desc = desc;
-  if (type_ready(&Byte_Type) < 0)
+  byte_type.desc = desc;
+  if (type_ready(&byte_type) < 0)
     panic("Cannot initalize 'Byte' type.");
 }
 
 Object *Byte_New(int val)
 {
   ByteObject *b = kmalloc(sizeof(ByteObject));
-  init_object_head(b, &Byte_Type);
+  init_object_head(b, &byte_type);
   b->value = val;
   return (Object *)b;
 }
@@ -711,8 +711,8 @@ static Object *bool_str(Object *self, Object *ob)
   return String_New(buf);
 }
 
-TypeObject Bool_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject bool_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Bool",
   .str  = bool_str,
 };
@@ -720,17 +720,17 @@ TypeObject Bool_Type = {
 void init_bool_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Bool");
-  Bool_Type.desc = desc;
-  if (type_ready(&Bool_Type) < 0)
+  bool_type.desc = desc;
+  if (type_ready(&bool_type) < 0)
     panic("Cannot initalize 'Bool' type.");
 }
 
 BoolObject OB_True = {
-  OBJECT_HEAD_INIT(&Bool_Type)
+  OBJECT_HEAD_INIT(&bool_type)
   .value = 1,
 };
 
 BoolObject OB_False = {
-  OBJECT_HEAD_INIT(&Bool_Type)
+  OBJECT_HEAD_INIT(&bool_type)
   .value = 0,
 };

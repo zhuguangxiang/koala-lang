@@ -28,9 +28,9 @@ typedef struct moduleobject {
   Vector *consts;
 } ModuleObject;
 
-extern TypeObject Module_Type;
+extern TypeObject module_type;
 extern TypeObject Module_Class_Type;
-#define Module_Check(ob) (OB_TYPE(ob) == &Module_Type)
+#define Module_Check(ob) (OB_TYPE(ob) == &module_type)
 #define MODULE_NAME(ob) (((ModuleObject *)ob)->name)
 void init_module_type(void);
 Object *Module_New(char *name);

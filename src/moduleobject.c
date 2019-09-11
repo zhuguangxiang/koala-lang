@@ -71,8 +71,8 @@ static MethodDef module_methods[] = {
   {NULL}
 };
 
-TypeObject Module_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject module_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Module",
   .free    = module_free,
   .methods = module_methods,
@@ -81,8 +81,8 @@ TypeObject Module_Type = {
 void init_module_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Module");
-  Module_Type.desc = desc;
-  if (type_ready(&Module_Type) < 0)
+  module_type.desc = desc;
+  if (type_ready(&module_type) < 0)
     panic("Cannot initalize 'Module' type.");
 }
 
@@ -186,7 +186,7 @@ void Module_Add_FuncDefs(Object *self, MethodDef *def)
 Object *Module_New(char *name)
 {
   ModuleObject *module = kmalloc(sizeof(*module));
-  init_object_head(module, &Module_Type);
+  init_object_head(module, &module_type);
   module->name = name;
   Object *ob = (Object *)module;
   return ob;

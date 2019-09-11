@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[])
 {
-  Koala_Initialize();
+  koala_initialize();
 
   Object *m = Module_Load("fmt");
   Object *fmtstr = String_New("Hello, {}. I was born at {}.");
@@ -32,6 +32,6 @@ int main(int argc, char *argv[])
 
   OB_DECREF(m);
 
-  Koala_Finalize();
+  koala_finalize();
   return 0;
 }

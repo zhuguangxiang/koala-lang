@@ -11,7 +11,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "arrayobject.h"
-#include "dictobject.h"
+#include "mapobject.h"
 #include "moduleobject.h"
 #include "iomodule.h"
 #include "opcode.h"
@@ -194,17 +194,22 @@ static Object *new_object(Object *descob, Object *args)
   }
 
   TypeObject *type = (TypeObject *)typeob;
-  if (type == &Integer_Type) {
+  if (type == &integer_type) {
     return OB_INCREF(args);
-  } else if (type == &String_Type) {
+  } else if (type == &string_type) {
     return OB_INCREF(args);
-  } else if (type == &Bool_Type) {
+  } else if (type == &bool_type) {
     return OB_INCREF(args);
   } else if (type == &array_type) {
     desc = vector_get(desc->klass.types, 0);
     return array_new(desc);
-  } else if (type == &Dict_Type) {
-    return NULL;
+  } else if (type == &map_type) {
+    Object *kob = Tuple_Get(descob, 0);
+    Object *vob = Tuple_Get(descob, 1);
+    Object *map = map_new(((DescObject *)kob)->desc, ((DescObject *)vob)->desc);
+    OB_DECREF(kob);
+    OB_DECREF(vob);
+    return map;
   } else if (type == &tuple_type) {
     return Tuple_New(0);
   } else {
@@ -884,6 +889,7 @@ Object *Koala_EvalFrame(Frame *f)
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
       y = array_new(((DescObject *)x)->desc);
+      OB_DECREF(x);
       oparg = NEXT_2BYTES();
       for (int i = 0; i < oparg; ++i) {
         z = POP();
@@ -894,18 +900,23 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_NEW_MAP: {
-      x = Dict_New();
       oparg = NEXT_2BYTES();
+      x = Tuple_Get(consts, oparg);
+      y = Tuple_Get(x, 0);
+      z = Tuple_Get(x, 1);
+      v = map_new(((DescObject *)y)->desc, ((DescObject *)z)->desc);
+      OB_DECREF(y);
+      OB_DECREF(z);
+      OB_DECREF(x);
+      oparg = NEXT_BYTE();
       for (int i = 0; i < oparg; ++i) {
+        x = POP();
         y = POP();
-        z = Tuple_Get(y, 0);
-        v = Tuple_Get(y, 1);
-        Dict_Put(x, z, v);
-        OB_DECREF(z);
-        OB_DECREF(v);
+        map_put(v, x, y);
+        OB_DECREF(x);
         OB_DECREF(y);
       }
-      PUSH(x);
+      PUSH(v);
       break;
     }
     case OP_UNPACK_TUPLE: {

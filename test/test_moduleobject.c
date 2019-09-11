@@ -20,7 +20,7 @@
  */
 int main(int argc, char *argv[])
 {
-  Koala_Initialize();
+  koala_initialize();
 
   Object *m = Module_New("test");
 
@@ -55,6 +55,6 @@ int main(int argc, char *argv[])
 
   OB_DECREF(m);
 
-  Koala_Finalize();
+  koala_finalize();
   return 0;
 }

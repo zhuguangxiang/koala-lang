@@ -90,8 +90,8 @@ typedef enum exprkind {
   UNARY_KIND, BINARY_KIND, TERNARY_KIND,
   /* dot, [], (), [:] access */
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, SLICE_KIND,
-  /* tuple, array, map entry, map, anonymous */
-  TUPLE_KIND, ARRAY_KIND, MAP_ENTRY_KIND, MAP_KIND, ANONY_KIND,
+  /* tuple, array, map, anonymous */
+  TUPLE_KIND, ARRAY_KIND, MAP_KIND, ANONY_KIND,
   /* is, as */
   IS_KIND, AS_KIND,
   /* new object */
@@ -177,10 +177,6 @@ typedef struct expr {
     Vector *array;
     Vector *map;
     struct {
-      struct expr *key;
-      struct expr *val;
-    } mapentry;
-    struct {
       struct expr *exp;
       Type type;
     } isas;
@@ -197,6 +193,11 @@ typedef struct expr {
     } range;
   };
 } Expr;
+
+typedef struct mapentry {
+  Expr *key;
+  Expr *val;
+} MapEntry;
 
 void expr_free(Expr *exp);
 void exprlist_free(Vector *vec);
@@ -218,7 +219,7 @@ Expr *expr_from_call(Vector *args, Expr *left);
 Expr *expr_from_slice(Expr *left, Expr *start, Expr *end);
 Expr *expr_from_tuple(Vector *exps);
 Expr *expr_from_array(Vector *exps);
-Expr *expr_from_mapentry(Expr *key, Expr *val);
+MapEntry *new_mapentry(Expr *key, Expr *val);
 Expr *expr_from_map(Vector *exps);
 Expr *expr_from_istype(Expr *exp, Type type);
 Expr *expr_from_astype(Expr *exp, Type type);

@@ -83,7 +83,7 @@ static Object *class_name(Object *self, Object *args)
   }
 
   Object *ob = ((ClassObject *)self)->obj;
-  if (OB_TYPE(ob) == &Type_Type) {
+  if (OB_TYPE(ob) == &type_type) {
     return String_New(((TypeObject *)ob)->name);
   } else {
     return String_New(OB_TYPE_NAME(ob));
@@ -99,7 +99,7 @@ static Object *class_module(Object *self, Object *args)
 
   Object *res;
   Object *ob = ((ClassObject *)self)->obj;
-  if (OB_TYPE(ob) == &Type_Type) {
+  if (OB_TYPE(ob) == &type_type) {
     res = ((TypeObject *)ob)->owner;
   } else {
     res = OB_TYPE(ob)->owner;
@@ -133,7 +133,7 @@ static Object *class_members(Object *self, Object *args)
   TYPE_DECREF(desc);
   TypeObject *type;
   Object *ob = ((ClassObject *)self)->obj;
-  if (OB_TYPE(ob) == &Type_Type) {
+  if (OB_TYPE(ob) == &type_type) {
     type = (TypeObject *)ob;
     fill_array(type->mtbl, res, index);
   } else {
@@ -193,7 +193,7 @@ static MethodDef class_methods[] = {
 };
 
 TypeObject class_type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Class",
   .free    = class_free,
   .str     = class_str,

@@ -142,8 +142,8 @@ static Object *fmtter_str(Object *self, Object *args)
     return NULL;
 }
 
-TypeObject Fmtter_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject fmtter_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Formatter",
   .free    = Fmtter_Free,
   .str     = fmtter_str,
@@ -153,8 +153,8 @@ TypeObject Fmtter_Type = {
 void init_fmtter_type(void)
 {
   TypeDesc *desc = desc_from_klass("fmt", "Formatter");
-  Fmtter_Type.desc = desc;
-  if (type_ready(&Fmtter_Type) < 0)
+  fmtter_type.desc = desc;
+  if (type_ready(&fmtter_type) < 0)
     panic("Cannot initalize 'Formatter' type.");
 }
 
@@ -199,7 +199,7 @@ static MethodDef fmt_funcs[] = {
 void init_fmt_module(void)
 {
   Object *m = Module_New("fmt");
-  Module_Add_Type(m, &Fmtter_Type);
+  Module_Add_Type(m, &fmtter_type);
   Module_Add_FuncDefs(m, fmt_funcs);
   Module_Install("fmt", m);
   OB_DECREF(m);
@@ -213,7 +213,7 @@ void fini_fmt_moudle(void)
 Object *Fmtter_New(void)
 {
   FmtterObject *fmt = kmalloc(sizeof(*fmt));
-  init_object_head(fmt, &Fmtter_Type);
+  init_object_head(fmt, &fmtter_type);
   return (Object *)fmt;
 }
 

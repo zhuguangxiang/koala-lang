@@ -42,6 +42,7 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
   char *text;
   Vector *list;
   Vector *exprlist;
+  MapEntry *mapentry;
   Expr *expr;
   Stmt *stmt;
   TypeDesc *desc;
@@ -130,8 +131,8 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
 %type <stmt> local
 %type <name> name
 
-%type <expr> kv
-%type <list> kv_list
+%type <mapentry> mapentry
+%type <list> mapentry_list
 %type <expr> map_object
 %type <expr> array_object
 %type <expr> tuple_object
@@ -1028,15 +1029,15 @@ expr_list:
 ;
 
 map_object:
-  '{' kv_list '}'
+  '{' mapentry_list '}'
 {
   $$ = expr_from_map($2);
 }
-| '{' kv_list ',' '}'
+| '{' mapentry_list ',' '}'
 {
   $$ = expr_from_map($2);
 }
-| '{' kv_list ';' '}'
+| '{' mapentry_list ';' '}'
 {
   /* auto insert semicolon */
   $$ = expr_from_map($2);
@@ -1047,23 +1048,23 @@ map_object:
 }
 ;
 
-kv_list:
-  kv
+mapentry_list:
+  mapentry
 {
   $$ = vector_new();
   vector_push_back($$, $1);
 }
-| kv_list ',' kv
+| mapentry_list ',' mapentry
 {
   $$ = $1;
   vector_push_back($$, $3);
 }
 ;
 
-kv:
+mapentry:
   expr ':' expr
 {
-  $$ = expr_from_mapentry($1, $3);
+  $$ = new_mapentry($1, $3);
 }
 ;
 

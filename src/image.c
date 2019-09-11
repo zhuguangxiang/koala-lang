@@ -1349,8 +1349,16 @@ int Image_Add_Desc(Image *image, TypeDesc *desc)
 {
   if (desc == NULL)
     panic("null pointer");
-  int type_index = typeitem_set(image, desc);
-  return image_add_const(image, CONST_TYPE, type_index);
+  int index = typeitem_set(image, desc);
+  return image_add_const(image, CONST_TYPE, index);
+}
+
+int Image_Add_DescList(Image *image, Vector *vec)
+{
+  if (vec == NULL)
+    panic("null pointer");
+  int index = typelistitem_set(image, vec);
+  return image_add_const(image, CONST_TYPELIST, index);
 }
 
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc)
@@ -1670,8 +1678,10 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
   ConstItem *item;
   LiteralItem *liteitem;
   TypeItem *typeitem;
+  TypeListItem *typelistitem;
   Literal val;
-  TypeDesc *v;
+  TypeDesc *desc;
+  Vector *vec;
   int size = _size_(image, ITEM_CONST);
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_CONST, i);
@@ -1679,12 +1689,17 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
       liteitem = _get_(image, ITEM_LITERAL, item->index);
       val = to_literal(liteitem, image);
       func(&val, CONST_LITERAL, i, arg);
-    } else {
-      assert(item->kind == CONST_TYPE);
+    } else if (item->kind == CONST_TYPE) {
       typeitem = _get_(image, ITEM_TYPE, item->index);
-      v = to_typedesc(typeitem, image);
-      func(v, CONST_TYPE, i, arg);
-      TYPE_DECREF(v);
+      desc = to_typedesc(typeitem, image);
+      func(desc, CONST_TYPE, i, arg);
+      TYPE_DECREF(desc);
+    } else {
+      assert(item->kind == CONST_TYPELIST);
+      typelistitem = _get_(image, ITEM_TYPELIST, item->index);
+      vec = to_typedescvec(typelistitem, image);
+      func(vec, CONST_TYPELIST, i, arg);
+      free_descs(vec);
     }
   }
 }

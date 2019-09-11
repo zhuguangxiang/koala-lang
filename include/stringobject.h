@@ -25,15 +25,15 @@ typedef struct charobject {
   unsigned int value;
 } CharObject;
 
-extern TypeObject String_Type;
-#define String_Check(ob) (OB_TYPE(ob) == &String_Type)
+extern TypeObject string_type;
+#define String_Check(ob) (OB_TYPE(ob) == &string_type)
 void init_string_type(void);
 Object *String_New(char *str);
 char *String_AsStr(Object *self);
 int String_IsEmpty(Object *self);
 void String_Set(Object *self, char *str);
-extern TypeObject Char_Type;
-#define Char_Check(ob) (OB_TYPE(ob) == &Char_Type)
+extern TypeObject char_type;
+#define Char_Check(ob) (OB_TYPE(ob) == &char_type)
 void init_char_type(void);
 Object *Char_New(unsigned int val);
 static inline int Char_AsChar(Object *ob)

@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[])
 {
-  Koala_Initialize();
+  koala_initialize();
   Object *m = Module_Load("os");
   assert(m);
   Object *arr = Object_GetValue(m, "path");
@@ -27,6 +27,6 @@ int main(int argc, char *argv[])
 
   OB_DECREF(m);
 
-  Koala_Finalize();
+  koala_finalize();
   return 0;
 }

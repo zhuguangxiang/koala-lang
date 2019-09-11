@@ -16,7 +16,7 @@
  */
 int main(int argc, char *argv[])
 {
-  Koala_Initialize();
+  koala_initialize();
   TypeDesc *desc = desc_from_str;
   Object *arr = array_new(desc);
   TYPE_DECREF(desc);
@@ -46,6 +46,6 @@ int main(int argc, char *argv[])
   OB_DECREF(v);
 
   OB_DECREF(arr);
-  Koala_Finalize();
+  koala_finalize();
   return 0;
 }

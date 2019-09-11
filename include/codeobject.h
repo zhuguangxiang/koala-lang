@@ -25,8 +25,8 @@ typedef struct codeobject {
   uint8_t codes[0];
 } CodeObject;
 
-extern TypeObject Code_Type;
-#define Code_Check(ob) (OB_TYPE(ob) == &Code_Type)
+extern TypeObject code_type;
+#define Code_Check(ob) (OB_TYPE(ob) == &code_type)
 Object *Code_New(char *name, TypeDesc *proto, int locals,
                  uint8_t *codes, int size);
 

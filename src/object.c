@@ -94,8 +94,8 @@ static Object *any_class(Object *ob, Object *args)
   return Class_New(ob);
 }
 
-TypeObject Any_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject any_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name   = "Any",
   .hash   = any_hash,
   .equal  = any_equal,
@@ -106,8 +106,8 @@ TypeObject Any_Type = {
 void init_any_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Any");
-  Any_Type.desc = desc;
-  if (type_ready(&Any_Type) < 0)
+  any_type.desc = desc;
+  if (type_ready(&any_type) < 0)
     panic("Cannot initalize 'Any' type.");
 }
 
@@ -142,7 +142,7 @@ static void lro_build_one(TypeObject *type, TypeObject *base)
 static int build_lro(TypeObject *type)
 {
   /* add Any */
-  lro_build_one(type, &Any_Type);
+  lro_build_one(type, &any_type);
 
   /* add base classes */
   VECTOR_ITERATOR(iter, type->bases);
@@ -435,9 +435,10 @@ int type_ready(TypeObject *type)
   return 0;
 }
 
-void Type_Fini(TypeObject *type)
+void type_fini(TypeObject *type)
 {
   destroy_lro(type);
+  TYPE_DECREF(type->desc);
 
   HashMap *map = type->mtbl;
   if (map != NULL) {
@@ -539,8 +540,8 @@ void Type_Add_MethodDefs(TypeObject *type, MethodDef *def)
   }
 }
 
-TypeObject Type_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject type_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Type",
 };
 
@@ -742,8 +743,8 @@ static void descob_free(Object *ob)
   kfree(ob);
 }
 
-TypeObject Desc_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject desc_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name = "TypeDesc",
   .free = descob_free,
 };
@@ -751,7 +752,7 @@ TypeObject Desc_Type = {
 Object *New_Desc(TypeDesc *desc)
 {
   DescObject *descob = kmalloc(sizeof(DescObject));
-  init_object_head(descob, &Desc_Type);
+  init_object_head(descob, &desc_type);
   descob->desc = TYPE_INCREF(desc);
   return (Object *)descob;
 }
@@ -759,7 +760,7 @@ Object *New_Desc(TypeDesc *desc)
 void init_desc_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "TypeDesc");
-  Desc_Type.desc = desc;
-  if (type_ready(&Desc_Type) < 0)
+  desc_type.desc = desc;
+  if (type_ready(&desc_type) < 0)
     panic("Cannot initalize 'TypeDesc' type.");
 }

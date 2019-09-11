@@ -114,7 +114,7 @@ static Object *meth_str(Object *self, Object *args)
 }
 
 TypeObject method_type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Method",
   .free    = meth_free,
   .str     = meth_str,
@@ -122,7 +122,7 @@ TypeObject method_type = {
 };
 
 TypeObject proto_type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+  OBJECT_HEAD_INIT(&type_type)
   .name = "Proto",
 };
 

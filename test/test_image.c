@@ -51,8 +51,8 @@ void test_image(void)
 
 int main(int argc, char *argv[])
 {
-  //Koala_Initialize();
+  //koala_initialize();
   test_image();
-  //Koala_Finalize();
+  //koala_finalize();
   return 0;
 }

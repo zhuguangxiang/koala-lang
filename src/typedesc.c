@@ -165,7 +165,7 @@ TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val)
   Vector *types = vector_new();
   vector_push_back(types, TYPE_INCREF(key));
   vector_push_back(types, TYPE_INCREF(val));
-  TypeDesc *desc = desc_from_klass("lang", "Dict");
+  TypeDesc *desc = desc_from_klass("lang", "Map");
   desc->klass.types = types;
   return desc;
 }

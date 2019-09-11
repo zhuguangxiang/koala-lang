@@ -59,6 +59,7 @@ typedef struct inst {
   uint8_t op;
   Literal arg;
   TypeDesc *desc;
+  Vector *types;
   /* break and continue statements */
   int upbytes;
 } Inst;
@@ -95,6 +96,7 @@ static Inst *inst_new(uint8_t op, Literal *val, TypeDesc *desc)
 static void inst_free(Inst *i)
 {
   TYPE_DECREF(i->desc);
+  free_descs(i->types);
   kfree(i);
 }
 
@@ -283,7 +285,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_JMP_FALSE:
   case OP_NEW_TUPLE:
   case OP_NEW_MAP:
-    bytebuffer_write_2bytes(buf, i->arg.ival);
+    index = Image_Add_DescList(image, i->types);
+    bytebuffer_write_2bytes(buf, index);
+    bytebuffer_write_byte(buf, i->arg.ival);
     break;
   case OP_NEW_ARRAY:
     index = Image_Add_Desc(image, i->desc);
@@ -644,10 +648,7 @@ static void parse_unary(ParserState *ps, Expr *exp)
   Expr *e = exp->unary.exp;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
-  if (e->desc == NULL) {
-    syntax_error(ps, e->row, e->col,
-                 "cannot resolve expr's type");
-  }
+
   exp->sym = e->sym;
   if (!has_error(ps)) {
     static int opcodes[] = {
@@ -666,17 +667,9 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
-  if (rexp->desc == NULL) {
-    syntax_error(ps, rexp->row, rexp->col,
-                 "cannot resolve expr's type");
-  }
 
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
-  if (lexp->desc == NULL) {
-    syntax_error(ps, lexp->row, lexp->col,
-                 "cannot resolve expr's type");
-  }
 
   exp->sym = get_desc_symbol(ps, lexp->desc);
   if (exp->sym == NULL) {
@@ -782,10 +775,6 @@ static void parse_atrr(ParserState *ps, Expr *exp)
   Expr *lexp = exp->attr.lexp;
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
-  if (lexp->desc == NULL) {
-    syntax_error(ps, lexp->row, lexp->col,
-                 "cannot resolve expr's type");
-  }
 
   Symbol *lsym = lexp->sym;
   if (lsym == NULL)
@@ -878,18 +867,10 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   Expr *iexp = exp->subscr.index;
   iexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, iexp);
-  if (iexp->desc == NULL) {
-    syntax_error(ps, iexp->row, iexp->col,
-                 "cannot resolve expr's type");
-  }
 
   Expr *lexp = exp->subscr.lexp;
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
-  if (lexp->desc == NULL) {
-    syntax_error(ps, lexp->row, lexp->col,
-                 "cannot resolve expr's type");
-  }
 
   Symbol *lsym = lexp->sym;
   if (lsym == NULL) {
@@ -987,10 +968,6 @@ static void parse_call(ParserState *ps, Expr *exp)
   iter_for_each(&iter, arg) {
     arg->ctx = EXPR_LOAD;
     parser_visit_expr(ps, arg);
-    if (arg->desc == NULL) {
-      syntax_error(ps, arg->row, arg->col,
-                   "cannot resolve argument's type");
-    }
   }
 
   Expr *lexp = exp->call.lexp;
@@ -998,13 +975,8 @@ static void parse_call(ParserState *ps, Expr *exp)
   lexp->ctx = EXPR_CALL_FUNC;
   parser_visit_expr(ps, lexp);
   TypeDesc *desc = lexp->desc;
-  if (desc == NULL) {
-    syntax_error(ps, lexp->row, lexp->col,
-                 "cannot resolve expr's type");
-  } else {
-    if (desc->kind != TYPE_PROTO) {
-      syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
-    }
+  if (desc != NULL && desc->kind != TYPE_PROTO) {
+    syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
   }
 
   // check call arguments
@@ -1035,26 +1007,14 @@ static void parse_slice(ParserState *ps, Expr *exp)
   Expr *e = exp->slice.end;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
-  if (e->desc == NULL) {
-    syntax_error(ps, e->row, e->col,
-                 "cannot resolve expr's type");
-  }
 
   e = exp->slice.start;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
-  if (e->desc == NULL) {
-    syntax_error(ps, e->row, e->col,
-                 "cannot resolve expr's type");
-  }
 
   e = exp->slice.lexp;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
-  if (e->desc == NULL) {
-    syntax_error(ps, e->row, e->col,
-                 "cannot resolve expr's type");
-  }
 
   if (!has_error(ps)) {
     if (exp->ctx != EXPR_LOAD)
@@ -1089,10 +1049,7 @@ static void parse_tuple(ParserState *ps, Expr *exp)
     else
       e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
-    if (e->desc == NULL) {
-      syntax_error(ps, e->row, e->col,
-                   "cannot resolve expr's type");
-    } else {
+    if (e->desc != NULL) {
       vector_push_back(types, TYPE_INCREF(e->desc));
     }
   }
@@ -1141,51 +1098,22 @@ static void parse_array(ParserState *ps, Expr *exp)
     e = vector_get(vec, i);
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
-    if (e->desc == NULL) {
-      syntax_error(ps, e->row, e->col,
-                   "cannot resolve expr's type");
-    } else {
+    if (e->desc != NULL) {
       vector_push_back(types, TYPE_INCREF(e->desc));
     }
   }
 
   TypeDesc *para = get_subarray_type(types);
   exp->desc = desc_from_array(para);
-  TYPE_DECREF(para);
-  free_descs(types);
 
   if (!has_error(ps)) {
     Inst *inst = CODE_OP_I(OP_NEW_ARRAY, size);
     TypeDesc *desc = exp->desc;
-    inst->desc = vector_get(desc->klass.types, 0);
-  }
-}
-
-static void parse_mapentry(ParserState *ps, Expr *exp)
-{
-  Expr *e = exp->mapentry.val;
-  e->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, e);
-  if (e->desc == NULL) {
-    syntax_error(ps, e->row, e->col,
-                  "cannot resolve expr's type");
+    inst->desc = TYPE_INCREF(para);
   }
 
-  e = exp->mapentry.key;
-  e->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, e);
-  if (e->desc == NULL) {
-    syntax_error(ps, e->row, e->col,
-                  "cannot resolve expr's type");
-  }
-
-  if (!has_error(ps)) {
-    if (exp->ctx != EXPR_LOAD)
-      panic("mapentry expr ctx is not load");
-    if (exp->leftside)
-      panic("mapentry is not at left side");
-    CODE_OP_I(OP_NEW_TUPLE, 2);
-  }
+  TYPE_DECREF(para);
+  free_descs(types);
 }
 
 static void parse_map(ParserState *ps, Expr *exp)
@@ -1195,16 +1123,49 @@ static void parse_map(ParserState *ps, Expr *exp)
     syntax_error(ps, ps->row, ps->col,
                  "length of dict is larger than 16");
   }
-  VECTOR_REVERSE_ITERATOR(iter, exp->map);
-  Expr *e;
-  iter_for_each(&iter, e) {
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
+
+  MapEntry *entry;
+  Vector *kvec = vector_new();
+  Vector *vvec = vector_new();
+  TypeDesc *desc = NULL;
+  Expr *key;
+  Expr *val;
+  vector_for_each(entry, exp->map) {
+    val = entry->val;
+    val->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, val);
+    if (val->desc != NULL) {
+      vector_push_back(vvec, TYPE_INCREF(val->desc));
+    }
+    key = entry->key;
+    key->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, key);
+    if (key->desc != NULL) {
+      if (desc == NULL) {
+        desc = key->desc;
+      } else {
+        if (!desc_check(desc, key->desc)) {
+          syntax_error(ps, exp->row, exp->col,
+            "Key of Map is not the same");
+        }
+      }
+      vector_push_back(kvec, TYPE_INCREF(key->desc));
+    }
   }
 
   if (!has_error(ps)) {
-    CODE_OP_I(OP_NEW_MAP, size);
+    TypeDesc *kdesc = get_subarray_type(kvec);
+    TypeDesc *vdesc = get_subarray_type(vvec);
+    exp->desc = desc_from_map(kdesc, vdesc);
+    Vector *types = vector_new();
+    vector_push_back(types, kdesc);
+    vector_push_back(types, vdesc);
+    Inst *i = CODE_OP_I(OP_NEW_MAP, size);
+    i->types = types;
   }
+
+  free_descs(kvec);
+  free_descs(vvec);
 }
 
 static void parse_is(ParserState *ps, Expr *exp)
@@ -1212,10 +1173,6 @@ static void parse_is(ParserState *ps, Expr *exp)
   Expr *e = exp->isas.exp;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
-  if (!e->desc) {
-    syntax_error(ps, e->row, e->col,
-                 "cannot resolve expr's type");
-  }
   TYPE_DECREF(exp->desc);
   exp->desc = desc_from_bool;
   exp->sym = get_desc_symbol(ps, exp->desc);
@@ -1230,10 +1187,7 @@ static void parse_as(ParserState *ps, Expr *exp)
   Expr *e = exp->isas.exp;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
-  if (!e->desc) {
-    syntax_error(ps, e->row, e->col,
-                 "cannot resolve expr's type");
-  }
+
   TYPE_DECREF(exp->desc);
   exp->desc = TYPE_INCREF(exp->isas.type.desc);
   exp->sym = get_desc_symbol(ps, exp->desc);
@@ -1328,7 +1282,6 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_slice,        /* SLICE_KIND     */
     parse_tuple,        /* TUPLE_KIND     */
     parse_array,        /* ARRAY_KIND     */
-    parse_mapentry,     /* MAP_ENTRY_KIND */
     parse_map,          /* MAP_KIND       */
     NULL,               /* ANONY_KIND     */
     parse_is,           /* IS_KIND        */
@@ -1340,6 +1293,10 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
   if (exp->kind < NIL_KIND || exp->kind > RANGE_KIND)
     panic("invalid expression:%d", exp->kind);
   handlers[exp->kind](ps, exp);
+
+  if (exp->desc == NULL) {
+    syntax_error(ps, exp->row, exp->col, "cannot resolve expr's type");
+  }
 }
 
 static void parse_func_body(ParserState *ps, Stmt *stmt)
@@ -1415,10 +1372,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   if (exp != NULL) {
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
-    if (!exp->desc) {
-      syntax_error(ps, exp->row, exp->col,
-        "cannot resolve right expr's type");
-    }
+
     if (desc == NULL) {
       desc = exp->desc;
     }
@@ -1449,10 +1403,6 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
 
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
-  if (!rexp->desc) {
-    syntax_error(ps, rexp->row, rexp->col,
-                 "cannot resolve assignment right expr type");
-  }
 
   if (lexp->kind == TUPLE_KIND) {
     if (!has_error(ps) && desc_istuple(rexp->desc)) {
@@ -1467,10 +1417,6 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
     lexp->ctx = EXPR_LOAD;
   }
   parser_visit_expr(ps, lexp);
-  if (!lexp->desc) {
-    syntax_error(ps, lexp->row, lexp->col,
-                 "cannot resolve left expr's type");
-  }
 
   Symbol *sym = lexp->sym;
   if (sym == NULL)

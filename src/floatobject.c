@@ -471,8 +471,8 @@ static InplaceMethods float_inplaces = {
   .pow = flt_num_inpow,
 };
 
-TypeObject Float_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject float_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Float",
   .free    = float_free,
   .str     = float_str,
@@ -483,15 +483,15 @@ TypeObject Float_Type = {
 void init_float_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Float");
-  Float_Type.desc = desc;
-  if (type_ready(&Float_Type) < 0)
+  float_type.desc = desc;
+  if (type_ready(&float_type) < 0)
     panic("Cannot initalize 'Float' type.");
 }
 
 Object *Float_New(double val)
 {
   FloatObject *f = kmalloc(sizeof(FloatObject));
-  init_object_head(f, &Float_Type);
+  init_object_head(f, &float_type);
   f->value = val;
   return (Object *)f;
 }

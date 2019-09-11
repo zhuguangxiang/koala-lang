@@ -205,8 +205,8 @@ static MethodDef string_methods[] = {
   {NULL}
 };
 
-TypeObject String_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject string_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "String",
   .hash    = string_hash,
   .equal   = string_equal,
@@ -217,16 +217,16 @@ TypeObject String_Type = {
 void init_string_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "String");
-  String_Type.desc = desc;
-  if (type_ready(&String_Type) < 0)
-    panic("Cannot initalize 'String_Type' type.");
+  string_type.desc = desc;
+  if (type_ready(&string_type) < 0)
+    panic("Cannot initalize 'string_type' type.");
 }
 
 Object *String_New(char *str)
 {
   int len = strlen(str);
   StringObject *s = kmalloc(sizeof(*s));
-  init_object_head(s, &String_Type);
+  init_object_head(s, &string_type);
   s->len = len;
   s->wstr = kmalloc(len + 1);
   strcpy(s->wstr, str);
@@ -297,8 +297,8 @@ static Object *char_str(Object *self, Object *ob)
   return String_New(buf);
 }
 
-TypeObject Char_Type = {
-  OBJECT_HEAD_INIT(&Type_Type)
+TypeObject char_type = {
+  OBJECT_HEAD_INIT(&type_type)
   .name    = "Character",
   .free    = char_free,
   .str     = char_str,
@@ -307,15 +307,15 @@ TypeObject Char_Type = {
 void init_char_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Character");
-  Char_Type.desc = desc;
-  if (type_ready(&Char_Type) < 0)
+  char_type.desc = desc;
+  if (type_ready(&char_type) < 0)
     panic("Cannot initalize 'Character' type.");
 }
 
 Object *Char_New(unsigned int val)
 {
   CharObject *ch = kmalloc(sizeof(*ch));
-  init_object_head(ch, &Char_Type);
+  init_object_head(ch, &char_type);
   ch->value = val;
   return (Object *)ch;
 }

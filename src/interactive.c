@@ -103,10 +103,24 @@ static void _get_const_(void *val, int kind, int index, void *arg)
 {
   Object *tuple = arg;
   Object *ob;
-  if (kind == CONST_LITERAL)
+
+  if (kind == CONST_LITERAL) {
     ob = New_Literal(val);
-  else
+  } else if (kind == CONST_TYPE) {
     ob = New_Desc(val);
+  } else {
+    Vector *vec = val;
+    int size = vector_size(vec);
+    ob = Tuple_New(size);
+    TypeDesc *item;
+    Object *descob;
+    vector_for_each(item, vec) {
+      descob = New_Desc(item);
+      Tuple_Set(ob, idx, descob);
+      OB_DECREF(descob);
+    }
+  }
+
   Tuple_Set(tuple, index, ob);
   OB_DECREF(ob);
 }

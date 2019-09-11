@@ -201,13 +201,12 @@ Expr *expr_from_array(Vector *exps)
   return exp;
 }
 
-Expr *expr_from_mapentry(Expr *key, Expr *val)
+MapEntry *new_mapentry(Expr *key, Expr *val)
 {
-  Expr *exp = kmalloc(sizeof(Expr));
-  exp->kind = MAP_ENTRY_KIND;
-  exp->mapentry.key = key;
-  exp->mapentry.val = val;
-  return exp;
+  MapEntry *entry = kmalloc(sizeof(MapEntry));
+  entry->key = key;
+  entry->val = val;
+  return entry;
 }
 
 Expr *expr_from_map(Vector *exps)
@@ -215,7 +214,7 @@ Expr *expr_from_map(Vector *exps)
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = MAP_KIND;
   exp->map = exps;
-  exp->sym = find_from_builtins("Dict");
+  exp->sym = find_from_builtins("Map");
   return exp;
 }
 
@@ -330,15 +329,17 @@ void expr_free(Expr *exp)
     exprlist_free(exp->array);
     kfree(exp);
     break;
-  case MAP_ENTRY_KIND:
-    expr_free(exp->mapentry.key);
-    expr_free(exp->mapentry.val);
+  case MAP_KIND: {
+    MapEntry *entry;
+    vector_for_each(entry, exp->map) {
+      expr_free(entry->key);
+      expr_free(entry->val);
+      kfree(entry);
+    }
+    vector_free(exp->map, NULL, NULL);
     kfree(exp);
     break;
-  case MAP_KIND:
-    exprlist_free(exp->map);
-    kfree(exp);
-    break;
+  }
   case IS_KIND:
   case AS_KIND:
     TYPE_DECREF(exp->isas.type.desc);

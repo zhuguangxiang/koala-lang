@@ -88,8 +88,9 @@ typedef struct literalitem {
   };
 } LiteralItem;
 
-#define CONST_LITERAL 1
-#define CONST_TYPE    2
+#define CONST_LITERAL   1
+#define CONST_TYPE      2
+#define CONST_TYPELIST  3
 
 typedef struct constitem {
   int kind;
@@ -205,6 +206,7 @@ int Image_Add_String(Image *image, char *val);
 int Image_Add_UChar(Image *image, wchar val);
 int Image_Add_Literal(Image *image, Literal *val);
 int Image_Add_Desc(Image *image, TypeDesc *desc);
+int Image_Add_DescList(Image *image, Vector *vec);
 
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc);
 void Image_Add_Const(Image *image, char *name, TypeDesc *desc,

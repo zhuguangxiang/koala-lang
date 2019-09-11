@@ -18,8 +18,8 @@ typedef struct fmtterobject {
   StrBuf buf;
 } FmtterObject;
 
-extern TypeObject Fmtter_Type;
-#define Fmtter_Check(ob) (OB_TYPE(ob) == &Fmtter_Type)
+extern TypeObject fmtter_type;
+#define Fmtter_Check(ob) (OB_TYPE(ob) == &fmtter_type)
 void init_fmtter_type(void);
 void init_fmt_module(void);
 void fini_fmt_moudle(void);

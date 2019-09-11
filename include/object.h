@@ -219,9 +219,9 @@ struct typeobject {
   Object *consts;
 };
 
-extern TypeObject Type_Type;
-extern TypeObject Any_Type;
-#define Type_Check(ob) (OB_TYPE(ob) == &Type_Type)
+extern TypeObject type_type;
+extern TypeObject any_type;
+#define Type_Check(ob) (OB_TYPE(ob) == &type_type)
 void init_any_type(void);
 #define OB_NUM_FUNC(ob, name) ({ \
   NumberMethods *nu = OB_TYPE(ob)->number; \
@@ -232,7 +232,7 @@ void init_any_type(void);
   nu ? nu->name : NULL; \
 })
 int type_ready(TypeObject *type);
-void Type_Fini(TypeObject *type);
+void type_fini(TypeObject *type);
 Object *Type_Lookup(TypeObject *type, char *name);
 
 void Type_Add_Field(TypeObject *type, Object *ob);
@@ -258,8 +258,8 @@ typedef struct descobject {
   TypeDesc *desc;
 } DescObject;
 
-extern TypeObject Desc_Type;
-#define Desc_Check(ob) (OB_TYPE(ob) == &Desc_Type)
+extern TypeObject desc_type;
+#define Desc_Check(ob) (OB_TYPE(ob) == &desc_type)
 void init_desc_type(void);
 Object *New_Desc(TypeDesc *desc);
 

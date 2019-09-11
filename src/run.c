@@ -14,7 +14,7 @@ static void init_types(void)
 {
   print("########\n");
 
-  int res = type_ready(&Type_Type);
+  int res = type_ready(&type_type);
   if (res != 0)
     panic("Cannot initalize 'Type' type.");
 
@@ -29,14 +29,14 @@ static void init_types(void)
 
   init_array_type();
   init_tuple_type();
-  init_dict_type();
+  init_map_type();
   init_field_type();
   init_method_type();
   init_proto_type();
   init_class_type();
   init_module_type();
 
-  res = type_ready(&Code_Type);
+  res = type_ready(&code_type);
   if (res != 0)
     panic("Cannot initalize 'Code' type.");
 
@@ -48,28 +48,29 @@ static void init_types(void)
 static void fini_types(void)
 {
   print("########\n");
-  Type_Fini(&Type_Type);
-  Type_Fini(&Any_Type);
-  Type_Fini(&Byte_Type);
-  Type_Fini(&Integer_Type);
-  Type_Fini(&Bool_Type);
-  Type_Fini(&String_Type);
-  Type_Fini(&Char_Type);
-  Type_Fini(&Float_Type);
-  Type_Fini(&array_type);
-  Type_Fini(&tuple_type);
-  Type_Fini(&Dict_Type);
-  Type_Fini(&Field_Type);
-  Type_Fini(&method_type);
-  Type_Fini(&proto_type);
-  Type_Fini(&class_type);
-  Type_Fini(&Module_Type);
-  Type_Fini(&Code_Type);
-  Type_Fini(&Fmtter_Type);
+  type_fini(&type_type);
+  type_fini(&any_type);
+  type_fini(&desc_type);
+  type_fini(&byte_type);
+  type_fini(&integer_type);
+  type_fini(&bool_type);
+  type_fini(&string_type);
+  type_fini(&char_type);
+  type_fini(&float_type);
+  type_fini(&array_type);
+  type_fini(&tuple_type);
+  type_fini(&map_type);
+  type_fini(&Field_Type);
+  type_fini(&method_type);
+  type_fini(&proto_type);
+  type_fini(&class_type);
+  type_fini(&module_type);
+  type_fini(&code_type);
+  type_fini(&fmtter_type);
   print("########\n");
 }
 
-void Koala_Initialize(void)
+void koala_initialize(void)
 {
   init_atom();
   init_typedesc();
@@ -81,7 +82,7 @@ void Koala_Initialize(void)
   init_parser();
 }
 
-void Koala_Finalize(void)
+void koala_finalize(void)
 {
   fini_parser();
   fini_fmt_moudle();

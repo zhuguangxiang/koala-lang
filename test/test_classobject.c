@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[])
 {
-  Koala_Initialize();
+  koala_initialize();
 
   Object *s = String_New("Hello, Koala");
   Object *clazz = Object_GetValue(s, "__class__");
@@ -17,8 +17,8 @@ int main(int argc, char *argv[])
   OB_DECREF(s);
   OB_DECREF(clazz);
 
-  clazz = Class_New((Object *)&String_Type);
-  assert(((ClassObject *)clazz)->obj == (Object *)&String_Type);
+  clazz = Class_New((Object *)&string_type);
+  assert(((ClassObject *)clazz)->obj == (Object *)&string_type);
   Object *v = Object_GetValue(clazz, "__name__");
   assert(!strcmp("String", String_AsStr(v)));
   OB_DECREF(v);
@@ -49,6 +49,6 @@ int main(int argc, char *argv[])
   OB_DECREF(res);
   OB_DECREF(s);
 
-  Koala_Finalize();
+  koala_finalize();
   return 0;
 }
