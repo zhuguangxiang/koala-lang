@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include "mapobject.h"
 #include "intobject.h"
@@ -165,11 +184,9 @@ TypeObject map_type = {
 
 void init_map_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "Map");
-  Vector *vec = vector_new();
-  vector_push_back(vec, new_typeparadef("K", NULL));
-  vector_push_back(vec, new_typeparadef("V", NULL));
-  desc->typeparas = vec;
+  TypeDesc *desc = desc_from_map(NULL, NULL);
+  desc_add_paradef(desc, "K", NULL);
+  desc_add_paradef(desc, "V", NULL);
   map_type.desc = desc;
   if (type_ready(&map_type) < 0)
     panic("Cannot initalize 'Map' type.");

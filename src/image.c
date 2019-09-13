@@ -1,9 +1,27 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
 
-#include <assert.h>
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
+
 #include "image.h"
 #include "atom.h"
 #include "log.h"
@@ -32,8 +50,7 @@ static int _append_(Image *image, int type, void *data, int unique)
   Vector *vec = image->items + type;
   vector_push_back(vec, data);
   int index = vector_size(vec) - 1;
-  if (index < 0)
-    panic("index out of bound");
+  bug(index < 0, "index out of bound");
   if (unique) {
     ItemEntry *e = kmalloc(sizeof(ItemEntry));
     e->type  = type;
@@ -41,8 +58,7 @@ static int _append_(Image *image, int type, void *data, int unique)
     e->data  = data;
     hashmap_entry_init(e, item_hash(e));
     int res = hashmap_add(&image->map, e);
-    if (res != 0)
-      panic("duplicated data");
+    bug(res != 0, "duplicated");
   }
   return index;
 }
@@ -57,13 +73,13 @@ static inline int _index_(Image *image, int type, void *data)
 
 static inline void *_get_(Image *image, int type, int index)
 {
-  assert(type >= 0 && type < image->size);
+  bug(type < 0 || type >= image->size, "type out of range");
   return vector_get(image->items + type, index);
 }
 
 static inline int _size_(Image *image, int type)
 {
-  assert(type >= 0 && type < image->size);
+  bug(type < 0 || type >= image->size, "type out of range");
   return vector_size(image->items + type);
 }
 
@@ -226,10 +242,9 @@ static void typeitem_show(Image *image, void *o)
     }
     break;
   }
-  default: {
-    assert(0);
+  default:
+    bug(1, "invalid type %d", item->kind);
     break;
-  }
   }
 }
 
@@ -374,7 +389,7 @@ static int literalitem_equal(void *k1, void *k2)
     res = item1->wch.val == item2->wch.val;
     break;
   default:
-    assert(0);
+    bug(1, "invalid literal %d", item1->type);
     break;
   }
   return res;
@@ -402,7 +417,7 @@ static void literalitem_show(Image *image, void *o)
     print("  uchar:%s\n", item->wch.data);
     break;
   default:
-    assert(0);
+    bug(1, "invalid literal %d", item->type);
     break;
   }
 }
@@ -503,7 +518,6 @@ static char *access_tostring(int access)
     str = "const,private";
     break;
   default:
-    assert(0);
     str = "";
     break;
   }
@@ -961,8 +975,7 @@ static int typelistitem_set(Image *image, Vector *vec)
     int32_t indexes[sz];
     for (int i = 0; i < sz; i++) {
       index = typeitem_set(image, vector_get(vec, i));
-      if (index < 0)
-        panic("index out of bound");
+      bug(index < 0, "index out of range");
       indexes[i] = index;
     }
     TypeListItem *item = typelistitem_new(sz, indexes);
@@ -1027,7 +1040,7 @@ static int typeitem_get(Image *image, TypeDesc *desc)
     break;
   }
   default: {
-    assert(0);
+    bug(1, "invalid typedesc %d", desc->kind);
     break;
   }
   }
@@ -1049,19 +1062,16 @@ static int typeitem_set(Image *image, TypeDesc *desc)
     }
     case TYPE_KLASS: {
       int pathindex = -1;
-      if (desc->klass.path) {
+      if (desc->klass.path != NULL) {
         pathindex = stringitem_set(image, desc->klass.path);
-        assert(pathindex >= 0);
       }
       int typeindex = -1;
-      if (desc->klass.type) {
+      if (desc->klass.type != NULL) {
         typeindex = stringitem_set(image, desc->klass.type);
-        assert(typeindex >= 0);
       }
       int typesindex = -1;
-      if (desc->klass.types != NULL) {
-        typesindex = typelistitem_set(image, desc->klass.types);
-        assert(typesindex >= 0);
+      if (desc->types != NULL) {
+        typesindex = typelistitem_set(image, desc->types);
       }
       item = typeitem_klass_new(pathindex, typeindex);
       item->typesindex = typesindex;
@@ -1086,7 +1096,7 @@ static int typeitem_set(Image *image, TypeDesc *desc)
     }
     */
     default: {
-      assert(0);
+      bug(1, "invalid typedesc %d", desc->kind);
       break;
     }
     }
@@ -1301,7 +1311,6 @@ int Image_Add_Bool(Image *image, int val)
 int Image_Add_String(Image *image, char *val)
 {
   int32_t idx = stringitem_set(image, val);
-  assert(idx >= 0);
   LiteralItem k = {0};
   k.type = LITERAL_STRING;
   k.index = idx;
@@ -1347,16 +1356,14 @@ int Image_Add_Literal(Image *image, Literal *val)
 
 int Image_Add_Desc(Image *image, TypeDesc *desc)
 {
-  if (desc == NULL)
-    panic("null pointer");
+  bug(desc == NULL, "null pointer");
   int index = typeitem_set(image, desc);
   return image_add_const(image, CONST_TYPE, index);
 }
 
 int Image_Add_DescList(Image *image, Vector *vec)
 {
-  if (vec == NULL)
-    panic("null pointer");
+  bug(vec == NULL, "null pointer");
   int index = typelistitem_set(image, vec);
   return image_add_const(image, CONST_TYPELIST, index);
 }
@@ -1493,10 +1500,9 @@ void Image_Add_EVal(Image *image, char *klazz, char *name,
 static unsigned int item_hash(ItemEntry *e)
 {
   if (e->type < 0 || e->type >= ITEM_MAX)
-    panic("type '%d' out of band", e->type);
+    panic("type '%d' out of range", e->type);
   hashfunc fn = item_func[e->type].hash;
-  if (!fn)
-    panic("null pointer");
+  bug(fn == NULL, "null pointer");
   return fn(e->data);
 }
 
@@ -1504,25 +1510,15 @@ static int _item_equal_(void *k1, void *k2)
 {
   ItemEntry *e1 = k1;
   ItemEntry *e2 = k2;
-  assert(e1->type > 0 && e1->type < ITEM_MAX);
-  assert(e2->type > 0 && e2->type < ITEM_MAX);
+  bug(e1->type < 0 || e1->type >= ITEM_MAX,
+    "type '%d' out of range", e1->type);
+  bug(e2->type < 0 || e2->type >= ITEM_MAX,
+    "type '%d' out of range", e2->type);
   if (e1->type != e2->type)
     return 0;
   equalfunc fn = item_func[e1->type].equal;
-  if (!fn)
-    panic("null pointer");
+  bug(fn == NULL, "null pointer");
   return fn(e1->data, e2->data);
-}
-
-static void _itemdata_fini_(void *data, void *arg)
-{
-  int type = *(int *)arg;
-  if (type < 0 || type >= ITEM_MAX)
-    panic("type '%d' out of band", type);
-  itemfreefunc fn = item_func[type].free;
-  if (!fn)
-    panic("null pointer");
-  return fn(data);
 }
 
 static void _itementry_free_(void *entry, void *arg)
@@ -1558,8 +1554,16 @@ Image *Image_New(char *name)
 void Image_Free(Image *image)
 {
   hashmap_fini(&image->map, _itementry_free_, NULL);
+
+  void *data;
   for (int i = 0; i < image->size; i++) {
-    vector_fini(image->items + i, _itemdata_fini_, &i);
+    vector_for_each(data, image->items + i) {
+      bug(i < 0 || i >= ITEM_MAX, "type '%d' out of range", i);
+      itemfreefunc fn = item_func[i].free;
+      bug(fn == NULL, "null pointer");
+      fn(data);
+    }
+    vector_fini(image->items + i);
   }
   kfree(image);
 }
@@ -1605,7 +1609,7 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     t = desc_from_klass(path, type);
     if (item->typesindex >= 0) {
       TypeListItem *listitem = _get_(image, ITEM_TYPELIST, item->typesindex);
-      t->klass.types = to_typedescvec(listitem, image);
+      t->types = to_typedescvec(listitem, image);
     }
     break;
   }
@@ -1628,7 +1632,7 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   }
   */
   default:
-    assert(0);
+    bug(1, "invalid type %d", item->kind);
     break;
   }
   return t;
@@ -1661,7 +1665,7 @@ static Literal to_literal(LiteralItem *item, Image *image)
     value.cval = item->wch;
     break;
   default:
-    assert(0);
+    bug(1, "invalid literal %d", item->type);
     break;
   }
   return value;
@@ -1695,7 +1699,7 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
       func(desc, CONST_TYPE, i, arg);
       TYPE_DECREF(desc);
     } else {
-      assert(item->kind == CONST_TYPELIST);
+      bug(item->kind != CONST_TYPELIST, "type error");
       typelistitem = _get_(image, ITEM_TYPELIST, item->index);
       vec = to_typedescvec(typelistitem, image);
       func(vec, CONST_TYPELIST, i, arg);
@@ -1940,7 +1944,7 @@ static void __image_write_item(FILE *fp, Image *image, int type, int size)
 {
   void *o;
   itemwritefunc write = item_func[type].write;
-  assert(write);
+  bug(write == NULL, "null pointer");
   for (int i = 0; i < size; i++) {
     o = _get_(image, type, i);
     write(fp, o);
@@ -1968,7 +1972,7 @@ static FILE *open_image_file(char *path, char *mode)
     char *cmd = kmalloc(strlen(fmt) + strlen(dir));
     sprintf(cmd, fmt, dir);
     int status = system(cmd);
-    assert(!status);
+    bug(status != 0, "mkdir error");
     kfree(cmd);
     kfree(dir);
     fp = fopen(path, "w");
@@ -1979,7 +1983,7 @@ static FILE *open_image_file(char *path, char *mode)
 void Image_Write_File(Image *image, char *path)
 {
   FILE *fp = open_image_file(path, "w");
-  assert(fp);
+  bug(fp == NULL, "open file %s failed", path);
   __image_write_header(fp, image);
   __image_write_items(fp, image);
   fflush(fp);
@@ -2019,12 +2023,12 @@ Image *Image_Read_File(char *path, int unload)
   }
 
   Image *image = Image_New(header.name);
-  assert(image);
+  bug(image == NULL, "null pointer");
   memcpy(&image->header, &header, sizeof(ImageHeader));
 
   MapItem mapitems[header.map_size];
-  sz = fseek(fp, header.map_offset, SEEK_SET);
-  assert(sz == 0);
+  int status = fseek(fp, header.map_offset, SEEK_SET);
+  bug(status != 0, "fseek error");
   sz = fread(mapitems, sizeof(MapItem), header.map_size, fp);
   if (sz < (int)header.map_size) {
     print("error: file %s is not a valid .klc file\n", path);
@@ -2041,8 +2045,8 @@ Image *Image_Read_File(char *path, int unload)
 
   for (int i = 0; i < COUNT_OF(mapitems); i++) {
     map = mapitems + i;
-    sz = fseek(fp, map->offset, SEEK_SET);
-    assert(sz == 0);
+    status = fseek(fp, map->offset, SEEK_SET);
+    bug(status != 0, "fseek error");
     switch (map->type) {
     case ITEM_STRING:
       if (LOAD(ITEM_STRING)) {
@@ -2050,10 +2054,10 @@ Image *Image_Read_File(char *path, int unload)
         uint32_t len;
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
-          assert(sz == 1);
+          bug(sz != 1, "fread error");
           item = vargitem_new(sizeof(StringItem), sizeof(char), len);
           sz = fread(item->data, sizeof(char) * len, 1, fp);
-          assert(sz == 1);
+          bug(sz != 1, "fread error");
           _append_(image, ITEM_STRING, item, 1);
         }
       }
@@ -2063,7 +2067,7 @@ Image *Image_Read_File(char *path, int unload)
         TypeItem *item;
         TypeItem items[map->size];
         sz = fread(items, sizeof(TypeItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(TypeItem), items + i);
           _append_(image, ITEM_TYPE, item, 1);
@@ -2076,10 +2080,10 @@ Image *Image_Read_File(char *path, int unload)
         uint32_t len;
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
-          assert(sz == 1);
+          bug(sz != 1, "fread error");
           item = vargitem_new(sizeof(TypeListItem), sizeof(int32_t), len);
           sz = fread(item->index, sizeof(int32_t) * len, 1, fp);
-          assert(sz == 1);
+          bug(sz != 1, "fread error");
           _append_(image, ITEM_TYPELIST, item, 1);
         }
       }
@@ -2089,7 +2093,7 @@ Image *Image_Read_File(char *path, int unload)
         LiteralItem *item;
         LiteralItem items[map->size];
         sz = fread(items, sizeof(LiteralItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(LiteralItem), items + i);
           _append_(image, ITEM_LITERAL, item, 1);
@@ -2101,7 +2105,7 @@ Image *Image_Read_File(char *path, int unload)
         LocVarItem *item;
         LocVarItem items[map->size];
         sz = fread(items, sizeof(LocVarItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(LocVarItem), items + i);
           _append_(image, ITEM_LOCVAR, item, 0);
@@ -2113,7 +2117,7 @@ Image *Image_Read_File(char *path, int unload)
         VarItem *item;
         VarItem items[map->size];
         sz = fread(items, sizeof(VarItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(VarItem), items + i);
           _append_(image, ITEM_VAR, item, 0);
@@ -2125,7 +2129,7 @@ Image *Image_Read_File(char *path, int unload)
         FuncItem *item;
         FuncItem items[map->size];
         sz = fread(items, sizeof(FuncItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(FuncItem), items + i);
           _append_(image, ITEM_FUNC, item, 0);
@@ -2138,11 +2142,11 @@ Image *Image_Read_File(char *path, int unload)
         uint32_t len;
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
-          assert(sz == 1);
+          bug(sz != 1, "fread error");
           if (len > 0) {
             item = vargitem_new(sizeof(CodeItem), sizeof(uint8_t), len);
             sz = fread(item->codes, sizeof(uint8_t) * len, 1, fp);
-            assert(sz == 1);
+            bug(sz != 1, "fread error");
             _append_(image, ITEM_CODE, item, 0);
           }
         }
@@ -2153,7 +2157,7 @@ Image *Image_Read_File(char *path, int unload)
         ClassItem *item;
         ClassItem items[map->size];
         sz = fread(items, sizeof(ClassItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(ClassItem), items + i);
           _append_(image, ITEM_CLASS, item, 0);
@@ -2165,7 +2169,7 @@ Image *Image_Read_File(char *path, int unload)
         FieldItem *item;
         FieldItem items[map->size];
         sz = fread(items, sizeof(FieldItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(FieldItem), items + i);
           _append_(image, ITEM_FIELD, item, 0);
@@ -2177,7 +2181,7 @@ Image *Image_Read_File(char *path, int unload)
         MethodItem *item;
         MethodItem items[map->size];
         sz = fread(items, sizeof(MethodItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(MethodItem), items + i);
           _append_(image, ITEM_METHOD, item, 0);
@@ -2189,7 +2193,7 @@ Image *Image_Read_File(char *path, int unload)
         TraitItem *item;
         TraitItem items[map->size];
         sz = fread(items, sizeof(TraitItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(TraitItem), items + i);
           _append_(image, ITEM_TRAIT, item, 0);
@@ -2201,7 +2205,7 @@ Image *Image_Read_File(char *path, int unload)
         NFuncItem *item;
         NFuncItem items[map->size];
         sz = fread(items, sizeof(NFuncItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(NFuncItem), items + i);
           _append_(image, ITEM_NFUNC, item, 0);
@@ -2213,7 +2217,7 @@ Image *Image_Read_File(char *path, int unload)
         IMethItem *item;
         IMethItem items[map->size];
         sz = fread(items, sizeof(IMethItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(IMethItem), items + i);
           _append_(image, ITEM_IMETH, item, 0);
@@ -2225,7 +2229,7 @@ Image *Image_Read_File(char *path, int unload)
         EnumItem *item;
         EnumItem items[map->size];
         sz = fread(items, sizeof(EnumItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(EnumItem), items + i);
           _append_(image, ITEM_ENUM, item, 0);
@@ -2237,7 +2241,7 @@ Image *Image_Read_File(char *path, int unload)
         EValItem *item;
         EValItem items[map->size];
         sz = fread(items, sizeof(EValItem), map->size, fp);
-        assert(sz == map->size);
+        bug(sz != map->size, "fread error");
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(EValItem), items + i);
           _append_(image, ITEM_EVAL, item, 0);
@@ -2245,7 +2249,7 @@ Image *Image_Read_File(char *path, int unload)
       }
       break;
     default:
-      assert(0);
+      bug(1, "invalid map %d", map->type);
       break;
     }
   }

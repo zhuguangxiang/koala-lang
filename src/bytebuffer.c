@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include "bytebuffer.h"
 #include "log.h"
@@ -18,14 +37,13 @@ void bytebuffer_init(ByteBuffer *self, int bsize)
   vector_init(&self->vec);
 }
 
-static void byteblock_free_cb(void *block, void *data)
-{
-  kfree(block);
-}
-
 void bytebuffer_fini(ByteBuffer *self)
 {
-  vector_fini(&self->vec, byteblock_free_cb, NULL);
+  void *block;
+  vector_for_each(block, &self->vec) {
+    kfree(block);
+  }
+  vector_fini(&self->vec);
   memset(self, 0, sizeof(*self));
 }
 
@@ -49,12 +67,10 @@ int bytebuffer_write(ByteBuffer *self, char *data, int size)
       min = left > size ? size : left;
       memcpy(block->data + block->used, data, min);
       block->used += min;
-      if (block->used > self->bsize)
-        panic("unexpected error");
+      bug(block->used > self->bsize, "unexpected error");
       data += min;
       size -= min;
-      if (size < 0)
-        panic("unexpected error");
+      bug(size < 0, "unexpected error");
       self->total += min;
     }
   }
@@ -66,8 +82,7 @@ int bytebuffer_toarr(ByteBuffer *self, char **arr)
   char *buf = kmalloc((self->total + 3) & ~3);
   struct byteblock *block;
   int index = 0;
-  VECTOR_ITERATOR(iter, &self->vec);
-  iter_for_each(&iter, block) {
+  vector_for_each(block, &self->vec) {
     memcpy(buf + index, block->data, block->used);
     index += block->used;
   }

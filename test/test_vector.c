@@ -1,9 +1,28 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
 
-#include <assert.h>
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
+
+#include "log.h"
 #include "vector.h"
 
 int main(int argc, char *argv[])
@@ -18,35 +37,35 @@ int main(int argc, char *argv[])
 
   for (int j = 0; j < 100; ++j) {
     res = vector_push_back(&int_vec, &numbers[j]);
-    assert(res == 0);
+    expect(res == 0);
   }
 
   int *val;
   VECTOR_ITERATOR(iter, &int_vec);
   int k = 0;
   iter_for_each(&iter, val) {
-    assert(*val == numbers[k]);
+    expect(*val == numbers[k]);
     ++k;
   }
-  assert(k == 100);
+  expect(k == 100);
 
   int *v;
   v = vector_pop_back(&int_vec);
-  assert(*v == 1100);
+  expect(*v == 1100);
 
   iter_reset(&iter);
   k = 0;
   iter_for_each(&iter, val) {
-    assert(*val == numbers[k]);
+    expect(*val == numbers[k]);
     ++k;
   }
-  assert(k == 99);
+  expect(k == 99);
 
   v = vector_get(&int_vec, 99);
-  assert(v == NULL);
+  expect(v == NULL);
 
   v = vector_get(&int_vec, 98);
-  assert(*v == 1099);
+  expect(*v == 1099);
 
   int num2[20];
   for (int i = 0; i < 20; ++i)
@@ -55,23 +74,23 @@ int main(int argc, char *argv[])
   VECTOR(num2_vec);
   for (int j = 0; j < 20; ++j) {
     res = vector_push_back(&num2_vec, &num2[j]);
-    assert(res == 0);
+    expect(res == 0);
   }
   res = vector_concat(&int_vec, &num2_vec);
-  assert(res == 0);
-  assert(vector_size(&int_vec) == 99 + 20);
+  expect(res == 0);
+  expect(vector_size(&int_vec) == 99 + 20);
 
   iter_reset(&iter);
   k = 0;
   int vv;
   iter_for_each_as(&iter, int, vv) {
     if (k < 99)
-      assert(vv == numbers[k]);
+      expect(vv == numbers[k]);
     else
-      assert(vv == num2[k - 99]);
+      expect(vv == num2[k - 99]);
     ++k;
   }
-  assert(k == 99 + 20);
-  vector_fini(&int_vec, NULL, NULL);
-  vector_fini(&num2_vec, NULL, NULL);
+  expect(k == 99 + 20);
+  vector_fini(&int_vec);
+  vector_fini(&num2_vec);
 }

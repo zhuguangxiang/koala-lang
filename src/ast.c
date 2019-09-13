@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include <inttypes.h>
 #include "parser.h"
@@ -178,9 +197,8 @@ static TypeDesc *get_subarray_type(Vector *exps)
     return desc_from_any;
 
   TypeDesc *desc = NULL;
-  VECTOR_ITERATOR(iter, exps);
   Expr *exp;
-  iter_for_each(&iter, exp) {
+  vector_for_each(exp, exps) {
     if (desc == NULL) {
       desc = exp->desc;
     } else {
@@ -259,12 +277,11 @@ Expr *expr_from_range(int type, Expr *left, Expr *right)
 
 void exprlist_free(Vector *vec)
 {
-  VECTOR_ITERATOR(iter, vec);
   Expr *exp;
-  iter_for_each(&iter, exp) {
+  vector_for_each(exp, vec) {
     expr_free(exp);
   }
-  vector_free(vec, NULL, NULL);
+  vector_free(vec);
 }
 
 void expr_free(Expr *exp)
@@ -336,7 +353,7 @@ void expr_free(Expr *exp)
       expr_free(entry->val);
       kfree(entry);
     }
-    vector_free(exp->map, NULL, NULL);
+    vector_free(exp->map);
     kfree(exp);
     break;
   }
@@ -352,7 +369,7 @@ void expr_free(Expr *exp)
     kfree(exp);
     break;
   default:
-    panic("invalid expr branch %d", exp->kind);
+    panic("invalid expr kind %d", exp->kind);
     break;
   }
 }
@@ -477,7 +494,7 @@ void stmt_free(Stmt *stmt)
     kfree(stmt);
     break;
   default:
-    panic("invalid stmt branch %d", stmt->kind);
+    panic("invalid stmt kind %d", stmt->kind);
     break;
   }
 }

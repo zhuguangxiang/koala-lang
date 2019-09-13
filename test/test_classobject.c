@@ -1,10 +1,29 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include "koala.h"
-#include <assert.h>
+#include "log.h"
 
 int main(int argc, char *argv[])
 {
@@ -12,27 +31,27 @@ int main(int argc, char *argv[])
 
   Object *s = String_New("Hello, Koala");
   Object *clazz = Object_GetValue(s, "__class__");
-  assert(clazz);
-  assert(((ClassObject *)clazz)->obj == s);
+  expect(clazz);
+  expect(((ClassObject *)clazz)->obj == s);
   OB_DECREF(s);
   OB_DECREF(clazz);
 
   clazz = Class_New((Object *)&string_type);
-  assert(((ClassObject *)clazz)->obj == (Object *)&string_type);
+  expect(((ClassObject *)clazz)->obj == (Object *)&string_type);
   Object *v = Object_GetValue(clazz, "__name__");
-  assert(!strcmp("String", String_AsStr(v)));
+  expect(!strcmp("String", String_AsStr(v)));
   OB_DECREF(v);
 
   v = Object_GetValue(clazz, "__class__");
-  assert(v);
-  assert(((ClassObject *)v)->obj == clazz);
+  expect(v);
+  expect(((ClassObject *)v)->obj == clazz);
   OB_DECREF(v);
 
   v = Object_GetValue(clazz, "__module__");
-  assert(Module_Check(v));
+  expect(Module_Check(v));
   OB_DECREF(v);
   v = Object_GetValue(v, "__name__");
-  assert(!strcmp("lang", String_AsStr(v)));
+  expect(!strcmp("lang", String_AsStr(v)));
   OB_DECREF(v);
 
   s = String_New("length");
@@ -40,11 +59,11 @@ int main(int argc, char *argv[])
   OB_DECREF(clazz);
   OB_DECREF(s);
 
-  assert(Method_Check(v));
+  expect(Method_Check(v));
   s = String_New("Hello, Koala");
   Object *res = Method_Call(v, s, NULL);
-  assert(Integer_Check(res));
-  assert(12 == Integer_AsInt(res));
+  expect(Integer_Check(res));
+  expect(12 == Integer_AsInt(res));
   OB_DECREF(v);
   OB_DECREF(res);
   OB_DECREF(s);

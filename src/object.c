@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include <inttypes.h>
 #include "moduleobject.h"
@@ -25,8 +44,6 @@ int mnode_equal(void *e1, void *e2)
 struct mnode *mnode_new(char *name, Object *ob)
 {
   struct mnode *node = kmalloc(sizeof(*node));
-  if (!node)
-    panic("memory allocation failed.");
   node->name = name;
   hashmap_entry_init(node, strhash(name));
   node->obj = OB_INCREF(ob);
@@ -45,8 +62,6 @@ static HashMap *get_mtbl(TypeObject *type)
   HashMap *mtbl = type->mtbl;
   if (mtbl == NULL) {
     mtbl = kmalloc(sizeof(*mtbl));
-    if (!mtbl)
-      panic("memory allocation failed.");
     hashmap_init(mtbl, mnode_equal);
     type->mtbl = mtbl;
   }
@@ -105,8 +120,7 @@ TypeObject any_type = {
 
 void init_any_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "Any");
-  any_type.desc = desc;
+  any_type.desc = desc_from_any;
   if (type_ready(&any_type) < 0)
     panic("Cannot initalize 'Any' type.");
 }
@@ -114,8 +128,7 @@ void init_any_type(void)
 static int lro_find(Vector *vec, TypeObject *type)
 {
   TypeObject *item;
-  VECTOR_ITERATOR(iter, vec);
-  iter_for_each(&iter, item) {
+  vector_for_each(item, vec) {
     if (item == type)
       return 1;
   }
@@ -127,8 +140,7 @@ static void lro_build_one(TypeObject *type, TypeObject *base)
   Vector *vec = &type->lro;
 
   TypeObject *item;
-  VECTOR_ITERATOR(iter, &base->lro);
-  iter_for_each(&iter, item) {
+  vector_for_each(item, &base->lro) {
     if (!lro_find(vec, item)) {
       vector_push_back(vec, item);
     }
@@ -145,9 +157,8 @@ static int build_lro(TypeObject *type)
   lro_build_one(type, &any_type);
 
   /* add base classes */
-  VECTOR_ITERATOR(iter, type->bases);
   TypeObject *base;
-  iter_for_each(&iter, base) {
+  vector_for_each(base, type->bases) {
     lro_build_one(type, base);
   }
 
@@ -159,17 +170,16 @@ static int build_lro(TypeObject *type)
 
 static void destroy_lro(TypeObject *type)
 {
-  vector_fini(&type->lro, NULL, NULL);
+  vector_fini(&type->lro);
 }
 
 static void type_show(TypeObject *type)
 {
   print("#\n");
   print("%s: (", type->name);
-  VECTOR_REVERSE_ITERATOR(iter, &type->lro);
   int size = vector_size(&type->lro);
   TypeObject *item;
-  iter_for_each(&iter, item) {
+  vector_for_each_reverse(item, &type->lro) {
     if (--size <= 0)
       print("'%s'", item->name);
     else
@@ -458,8 +468,7 @@ void Type_Add_Field(TypeObject *type, Object *ob)
   ++type->nrvars;
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
-  if (res != 0)
-    panic("'%.64s' add '%.64s' failed.", type->name, field->name);
+  bug(res != 0, "'%s' add '%s' failed.", type->name, field->name);
 }
 
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
@@ -487,15 +496,14 @@ void Type_Add_Method(TypeObject *type, Object *ob)
   meth->owner = (Object *)type;
   struct mnode *node = mnode_new(meth->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
-  if (res != 0)
-    panic("'%.64s' add '%.64s' failed.", type->name, meth->name);
+  bug(res != 0, "'%s' add '%s' failed.", type->name, meth->name);
 }
 
-static int get_paraindex(Vector *vec, char *name)
+static int get_para_index(Vector *vec, char *name)
 {
-  TypeParaDef *def;
+  TypeDesc *def;
   vector_for_each(def, vec) {
-    if (!strcmp(def->name, name))
+    if (!strcmp(def->paradef.name, name))
       return idx;
   }
   return -1;
@@ -506,18 +514,16 @@ static void update_pararef(TypeDesc *para, TypeDesc *proto)
   int index;
   TypeDesc *rtype = proto->proto.ret;
   if (rtype != NULL && rtype->kind == TYPE_PARAREF) {
-    index = get_paraindex(para->typeparas, rtype->pararef.name);
-    if (index < 0)
-      panic("generic type: something wrong?");
+    index = get_para_index(para->paras, rtype->pararef.name);
+    bug(index < 0, "generic type: something wrong?");
     rtype->pararef.index = index;
   }
 
   TypeDesc *ptype;
   vector_for_each(ptype, proto->proto.args) {
     if (ptype->kind == TYPE_PARAREF) {
-      index = get_paraindex(para->typeparas, ptype->pararef.name);
-      if (index < 0)
-        panic("generic type: something wrong?");
+      index = get_para_index(para->paras, ptype->pararef.name);
+      bug(index < 0, "generic type: something wrong?");
       ptype->pararef.index = index;
     }
   }
@@ -551,10 +557,9 @@ Object *Type_Lookup(TypeObject *type, char *name)
   struct mnode key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
 
-  VECTOR_REVERSE_ITERATOR(iter, &type->lro);
   TypeObject *item;
   struct mnode *node;
-  iter_for_each(&iter, item) {
+  vector_for_each_reverse(item, &type->lro) {
     if (item->mtbl == NULL)
       continue;
     node = hashmap_get(item->mtbl, &key);
@@ -567,8 +572,7 @@ Object *Type_Lookup(TypeObject *type, char *name)
 unsigned int Object_Hash(Object *ob)
 {
   Object *res = Object_Call(ob, "__hash__", NULL);
-  if (!res)
-    panic("'__hash__' is not implemented");
+  bug(res == NULL, "'__hash__' is not implemented");
   unsigned int hash = Integer_AsInt(res);
   OB_DECREF(res);
   return hash;
@@ -637,12 +641,10 @@ Object *Object_GetField(Object *self, char *name)
 Object *Object_Call(Object *self, char *name, Object *args)
 {
   Object *ob = Object_Lookup(self, name);
-  if (!ob)
-    panic("object of '%.64s' has no '%.64s'", OB_TYPE_NAME(self), name);
+  bug(ob == NULL, "object of '%s' has no '%s'", OB_TYPE_NAME(self), name);
   if (Type_Check(ob)) {
     ob = Object_Lookup(ob, "__call__");
-    if (!ob)
-      panic("object of '%.64s' has no '__call__'", OB_TYPE_NAME(self));
+    bug(ob == NULL, "object of '%s' has no '__call__'", OB_TYPE_NAME(self));
   }
   Object *res = Method_Call(ob, self, args);
   OB_DECREF(ob);
@@ -726,7 +728,7 @@ Object *New_Literal(Literal *val)
     ob = Char_New(val->cval.val);
     break;
   default:
-    panic("invalid literal branch %d", val->kind);
+    panic("invalid literal %d", val->kind);
     break;
   }
   return ob;
@@ -759,8 +761,7 @@ Object *New_Desc(TypeDesc *desc)
 
 void init_desc_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "TypeDesc");
-  desc_type.desc = desc;
+  desc_type.desc = desc_from_desc;
   if (type_ready(&desc_type) < 0)
     panic("Cannot initalize 'TypeDesc' type.");
 }

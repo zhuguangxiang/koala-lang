@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include "moduleobject.h"
 #include "stringobject.h"
@@ -57,12 +76,11 @@ static void module_free(Object *ob)
     module->mtbl = NULL;
   }
 
-  VECTOR_ITERATOR(iter, &module->values);
   Object *item;
-  iter_for_each(&iter, item) {
+  vector_for_each(item, &module->values) {
     OB_DECREF(item);
   }
-  vector_fini(&module->values, NULL, NULL);
+  vector_fini(&module->values);
   kfree(ob);
 }
 
@@ -92,8 +110,6 @@ static HashMap *get_mtbl(Object *ob)
   HashMap *mtbl = module->mtbl;
   if (mtbl == NULL) {
     mtbl = kmalloc(sizeof(*mtbl));
-    if (!mtbl)
-      panic("memory allocation failed.");
     hashmap_init(mtbl, mnode_equal);
     module->mtbl = mtbl;
   }
@@ -105,8 +121,7 @@ void Module_Add_Type(Object *self, TypeObject *type)
   type->owner = self;
   struct mnode *node = mnode_new(type->name, (Object *)type);
   int res = hashmap_add(get_mtbl(self), node);
-  if (res != 0)
-    panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), type->name);
+  bug(res != 0, "'%s' add '%s' failed.", MODULE_NAME(self), type->name);
 }
 
 void Module_Add_Const(Object *self, Object *ob, Object *val)
@@ -119,8 +134,7 @@ void Module_Add_Const(Object *self, Object *ob, Object *val)
   ++module->nrvars;
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
-  if (res != 0)
-    panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), field->name);
+  bug(res != 0, "'%s' add '%s' failed.", MODULE_NAME(self), field->name);
 }
 
 void Module_Add_Var(Object *self, Object *ob)
@@ -134,8 +148,7 @@ void Module_Add_Var(Object *self, Object *ob)
   vector_set(&module->values, field->offset, NULL);
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
-  if (res != 0)
-    panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), field->name);
+  bug(res != 0, "'%s' add '%s' failed.", MODULE_NAME(self), field->name);
 }
 
 void Module_Add_VarDef(Object *self, FieldDef *f)
@@ -163,8 +176,7 @@ void Module_Add_Func(Object *self, Object *ob)
   struct mnode *node = mnode_new(meth->name, ob);
   meth->owner = self;
   int res = hashmap_add(get_mtbl(self), node);
-  if (res != 0)
-    panic("'%.64s' add '%.64s' failed.", MODULE_NAME(self), meth->name);
+  bug(res != 0, "'%s' add '%s' failed.", MODULE_NAME(self), meth->name);
 }
 
 void Module_Add_FuncDef(Object *self, MethodDef *f)
@@ -257,9 +269,7 @@ Object *Module_Load(char *path)
   struct modnode key = {.path = path};
   hashmap_entry_init(&key, strhash(path));
   struct modnode *node = hashmap_get(&modmap, &key);
-  if (node == NULL) {
-    /* find its source and compile it */
-    panic("cannot find module '%.64s'", path);
-  }
+  /* find its source and compile it */
+  bug(node == NULL, "cannot find module '%s'", path);
   return OB_INCREF(node->ob);
 }

@@ -22,33 +22,42 @@
  SOFTWARE.
 */
 
-#include <stdio.h>
+#include "koala.h"
+#include "log.h"
 
 int main(int argc, char *argv[])
 {
-  short a, b;
-  short r;
+  koala_initialize();
+  TypeDesc *kdesc = desc_from_str;
+  TypeDesc *vdesc = desc_from_int;
+  Object *dict = map_new(kdesc, vdesc);
+  TYPE_DECREF(kdesc);
+  TYPE_DECREF(vdesc);
 
-  a = 32767;
-  b = 10;
-  r = a + b;
-  if (r < 0)
-    printf("%d + %d = %d overflow\n", a, b, r);
+  Object *foo = String_New("foo");
+  Object *val = Integer_New(100);
+  map_put(dict, foo, val);
+  OB_DECREF(val);
+  OB_DECREF(foo);
 
-  a = -32768;
-  b = 10;
-  r = a - b;
-  if (r > 0)
-    printf("%d - %d = %d overflow\n", a, b, r);
-  r = b - a;
-  if (r < 0)
-    printf("%d - %d = %d overflow\n", b, a, r);
+  Object *bar = String_New("foo");
+  val = map_get(dict, bar);
+  expect(Integer_Check(val));
+  expect(100 == Integer_AsInt(val));
+  OB_DECREF(val);
 
+  val = Integer_New(200);
+  map_put(dict, foo, val);
+  OB_DECREF(val);
 
-  a = 32767;
-  b = 32766;
-  r = (unsigned short)a + b;
-  if (r < 0)
-    printf("%d + %d = %d overflow\n", a, b, r);
+  val = map_get(dict, bar);
+  expect(Integer_Check(val));
+  expect(200 == Integer_AsInt(val));
+  OB_DECREF(val);
+
+  OB_DECREF(bar);
+  OB_DECREF(dict);
+
+  koala_finalize();
   return 0;
 }

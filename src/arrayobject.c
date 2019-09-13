@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include "arrayobject.h"
 #include "intobject.h"
@@ -122,7 +141,7 @@ void array_free(Object *ob)
   vector_for_each(item, &arr->items) {
     OB_DECREF(item);
   }
-  vector_fini(&arr->items, NULL, NULL);
+  vector_fini(&arr->items);
   kfree(arr);
 }
 
@@ -135,13 +154,12 @@ Object *array_str(Object *self, Object *ob)
 
   ArrayObject *arr = (ArrayObject *)self;
   STRBUF(sbuf);
-  VECTOR_ITERATOR(iter, &arr->items);
   strbuf_append_char(&sbuf, '[');
   Object *str;
   Object *tmp;
   int i = 0;
   int size = vector_size(&arr->items);
-  iter_for_each(&iter, tmp) {
+  vector_for_each(tmp, &arr->items) {
     if (String_Check(tmp)) {
       strbuf_append_char(&sbuf, '"');
       strbuf_append(&sbuf, String_AsStr(tmp));
@@ -171,10 +189,8 @@ TypeObject array_type = {
 
 void init_array_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "Array");
-  Vector *vec = vector_new();
-  vector_push_back(vec, new_typeparadef("T", NULL));
-  desc->typeparas = vec;
+  TypeDesc *desc = desc_from_array(NULL);
+  desc_add_paradef(desc, "T", NULL);
   array_type.desc = desc;
   if (type_ready(&array_type) < 0)
     panic("Cannot initalize 'Array' type.");

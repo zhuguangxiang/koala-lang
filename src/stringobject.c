@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include "stringobject.h"
 #include "hashmap.h"
@@ -216,8 +235,7 @@ TypeObject string_type = {
 
 void init_string_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "String");
-  string_type.desc = desc;
+  string_type.desc = desc_from_str;
   if (type_ready(&string_type) < 0)
     panic("Cannot initalize 'string_type' type.");
 }
@@ -306,8 +324,7 @@ TypeObject char_type = {
 
 void init_char_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "Character");
-  char_type.desc = desc;
+  char_type.desc = desc_from_char;
   if (type_ready(&char_type) < 0)
     panic("Cannot initalize 'Character' type.");
 }

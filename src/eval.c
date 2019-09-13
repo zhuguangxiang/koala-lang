@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include <pthread.h>
 #include "eval.h"
@@ -34,9 +53,7 @@ typedef struct frame {
 
 static Frame *new_frame(KoalaState *ks, Object *code, int locsize)
 {
-  if (ks->depth >= MAX_FRAME_DEPTH) {
-    panic("StackOverflow");
-  }
+  bug(ks->depth >= MAX_FRAME_DEPTH, "StackOverflow");
 
   locsize += 1; /* self object */
 
@@ -67,16 +84,14 @@ static void prepare_args(Frame *f, Object *ob, Object *args)
     if (Tuple_Check(args)) {
       Object *v;
       int size = Tuple_Size(args);
-      if (f->size != size + 1)
-        panic("count of args error");
+      bug(f->size != size + 1, "count of args error");
       for (int i = 0; i < size; i++) {
         v = Tuple_Get(args, i);
         f->locvars[i + 1] = OB_INCREF(v);
         OB_DECREF(v);
       }
     } else {
-      if (f->size != 2)
-        panic("count of args is not 2");
+      bug(f->size != 2, "count of args is not 2");
       f->locvars[1] = OB_INCREF(args);
     }
   }
@@ -85,54 +100,46 @@ static void prepare_args(Frame *f, Object *ob, Object *args)
 /* global KoalaState list */
 static struct list_head kslist;
 
-#define TOP() ({                    \
-  if (top >= base + MAX_STACK_SIZE) \
-    panic("stack out of range");    \
-  *top;                             \
+#define TOP() ({ \
+  bug(top >= base + MAX_STACK_SIZE, "stack out of range"); \
+  *top; \
 })
 
-#define POP() ({             \
-  if (top < base)            \
-    panic("stack is empty"); \
-  *top--;                    \
+#define POP() ({ \
+  bug(top < base, "stack is empty"); \
+  *top--; \
 })
 
-#define PUSH(v) ({                      \
-  if (top >= base + MAX_STACK_SIZE - 1) \
-    panic("stack is full");             \
-  *++top = v;                           \
+#define PUSH(v) ({ \
+  bug(top >= base + MAX_STACK_SIZE - 1, "stack is full"); \
+  *++top = v; \
 })
 
-#define NEXT_OP() ({        \
-  if (f->index >= co->size) \
-    panic("out of range");  \
-  co->codes[++f->index];    \
+#define NEXT_OP() ({ \
+  bug(f->index >= co->size, "code out of range"); \
+  co->codes[++f->index]; \
 })
 
-#define NEXT_BYTE() ({      \
-  if (f->index >= co->size) \
-    panic("out of range");  \
-  co->codes[++f->index];    \
+#define NEXT_BYTE() ({ \
+  bug(f->index >= co->size, "code out of range"); \
+  co->codes[++f->index]; \
 })
 
-#define NEXT_2BYTES() ({             \
-  if (f->index >= co->size)          \
-    panic("out of range");           \
+#define NEXT_2BYTES() ({ \
+  bug(f->index >= co->size, "code out of range"); \
   uint8_t l = co->codes[++f->index]; \
   uint8_t h = co->codes[++f->index]; \
-  ((h << 8) + l);                    \
+  ((h << 8) + l); \
 })
 
-#define GETLOCAL(i) ({           \
-  if (i >= f->size)              \
-    panic("index out of range"); \
-  f->locvars[i];                 \
+#define GETLOCAL(i) ({ \
+  bug(i >= f->size, "index out of range"); \
+  f->locvars[i]; \
 })
 
-#define SETLOCAL(i, v) ({        \
-  if (i >= f->size)              \
-    panic("index out of range"); \
-  f->locvars[i] = v;             \
+#define SETLOCAL(i, v) ({ \
+  bug(i >= f->size, "index out of range"); \
+  f->locvars[i] = v; \
 })
 
 static int logic_true(Object *ob)
@@ -168,10 +175,12 @@ static int typecheck(Object *ob, Object *type)
     return 1;
   TypeObject *typeob = OB_TYPE(ob);
   if (desc_check(typeob->desc, desc)) {
+    #if 0
     if (array_check(ob)) {
       ArrayObject *arr = (ArrayObject *)ob;
-      return desc_check(arr->desc, vector_get(desc->klass.types, 0));
+      return desc_check(arr->desc, vector_get(desc->types->vec, 0));
     }
+    #endif
     return 1;
   }
   return 0;
@@ -181,17 +190,11 @@ static Object *new_object(Object *descob, Object *args)
 {
   TypeDesc *desc = ((DescObject *)descob)->desc;
   Object *mo = Module_Load(desc->klass.path);
-  if (mo == NULL) {
-    panic("cannot load module '%s'", MODULE_NAME(mo));
-    return NULL;
-  }
+  bug(mo == NULL, "cannot load module '%s'", MODULE_NAME(mo));
 
   Object *typeob = Module_Lookup(mo, desc->klass.type);
-  if (typeob == NULL) {
-    panic("cannot find type '%s' in '%s'",
-      desc->klass.type, MODULE_NAME(mo));
-    return NULL;
-  }
+  bug(typeob == NULL, "cannot find type '%s' in '%s'",
+    desc->klass.type, MODULE_NAME(mo));
 
   TypeObject *type = (TypeObject *)typeob;
   if (type == &integer_type) {
@@ -201,7 +204,7 @@ static Object *new_object(Object *descob, Object *args)
   } else if (type == &bool_type) {
     return OB_INCREF(args);
   } else if (type == &array_type) {
-    desc = vector_get(desc->klass.types, 0);
+    desc = vector_get(desc->types, 0);
     return array_new(desc);
   } else if (type == &map_type) {
     Object *kob = Tuple_Get(descob, 0);
@@ -945,8 +948,7 @@ pthread_key_t kskey;
 Object *Koala_EvalCode(Object *self, Object *ob, Object *args)
 {
   KoalaState *ks = pthread_getspecific(kskey);
-  if (ks == NULL)
-    panic("ks in pthread is null");
+  bug(ks == NULL, "ks in pthread is null");
   CodeObject *co = (CodeObject *)self;
   Frame *f = new_frame(ks, self, co->locals);
   prepare_args(f, ob, args);

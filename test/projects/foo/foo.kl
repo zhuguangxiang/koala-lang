@@ -12,3 +12,16 @@ import "io"
 /// library's name
 __name__ := "foo"
 
+
+trait Number<T: Number> {
+  func __add__(n Number) T;
+  func to() T;
+}
+
+class Integer : Number<Integer> {
+  func __add__(n Number) Integer {
+    match (n) {
+      is Integer =>
+    }
+  }
+}

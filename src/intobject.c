@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #include <math.h>
 #include "intobject.h"
@@ -637,8 +656,7 @@ TypeObject integer_type = {
 
 void init_integer_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "Integer");
-  integer_type.desc = desc;
+  integer_type.desc = desc_from_int;
   if (type_ready(&integer_type) < 0)
     panic("Cannot initalize 'Integer' type.");
 }
@@ -684,8 +702,7 @@ TypeObject byte_type = {
 
 void init_byte_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "Byte");
-  byte_type.desc = desc;
+  byte_type.desc = desc_from_byte;
   if (type_ready(&byte_type) < 0)
     panic("Cannot initalize 'Byte' type.");
 }
@@ -719,8 +736,7 @@ TypeObject bool_type = {
 
 void init_bool_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "Bool");
-  bool_type.desc = desc;
+  bool_type.desc = desc_from_bool;
   if (type_ready(&bool_type) < 0)
     panic("Cannot initalize 'Bool' type.");
 }

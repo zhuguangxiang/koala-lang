@@ -1,7 +1,26 @@
 /*
- * MIT License
- * Copyright (c) 2018 James, https://github.com/zhuguangxiang
- */
+ MIT License
+
+ Copyright (c) 2018 James, https://github.com/zhuguangxiang
+
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+*/
 
 #ifndef _KOALA_VECTOR_H_
 #define _KOALA_VECTOR_H_
@@ -36,24 +55,19 @@ static inline void vector_init(Vector *self)
   memset(self, 0, sizeof(Vector));
 }
 
-/* Destroy a vector with item free function. 'freefunc' is optional. */
-void vector_fini(Vector *self, freefunc freefunc, void *data);
+/* Destroy a vector */
+void vector_fini(Vector *self);
 
 /* Create a new vector */
-static inline Vector *vector_new(void)
-{
-  Vector *vec = kmalloc(sizeof(*vec));
-  return vec;
-}
+#define vector_new() \
+  (Vector *)kmalloc(sizeof(Vector));
 
-/* Destroy a vector, free all items in it if 'freefunc' is not null,
- * and free vector memory.
- */
-#define vector_free(self, freefunc, data) \
-({                                        \
-  vector_fini(self, freefunc, data);      \
-  kfree(self);                            \
-  (self) = NULL;                          \
+/* Destroy a vector, and free vector memory */
+#define vector_free(self) \
+({                        \
+  vector_fini(self);      \
+  kfree(self);            \
+  (self) = NULL;          \
 })
 
 /*
