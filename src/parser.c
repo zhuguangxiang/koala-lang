@@ -1210,7 +1210,9 @@ static void parse_new(ParserState *ps, Expr *exp)
   */
 
   if (!has_error(ps)) {
-    TypeDesc *desc = desc_from_klass(desc->klass.path, desc->klass.type);
+    TypeDesc *desc = sym->desc;
+    expect(desc->kind == TYPE_KLASS);
+    desc = desc_from_klass(desc->klass.path, desc->klass.type);
     if (types != NULL) {
       TypeDesc *item;
       vector_for_each(item, types) {

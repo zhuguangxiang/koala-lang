@@ -285,17 +285,6 @@ static TypeItem *typeitem_proto_new(int32_t pindex, int32_t rindex)
   return item;
 }
 
-/*
-
-TypeItem *TypeItem_Varg_New(int32_t typeindex)
-{
-  TypeItem *item = kmalloc(sizeof(TypeItem));
-  item->kind = TYPE_VARG;
-  item->varg.typeindex = typeindex;
-  return item;
-}
-*/
-
 static int typelistitem_length(void *o)
 {
   TypeListItem *item = o;
