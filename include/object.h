@@ -275,10 +275,11 @@ typedef struct descobject {
   TypeDesc *desc;
 } DescObject;
 
-extern TypeObject desc_type;
-#define Desc_Check(ob) (OB_TYPE(ob) == &desc_type)
-void init_desc_type(void);
-Object *New_Desc(TypeDesc *desc);
+extern TypeObject descob_type;
+#define descob_check(ob) (OB_TYPE(ob) == &descob_type)
+void init_descob_type(void);
+Object *new_descob(TypeDesc *desc);
+#define descob_getdesc(ob) (((DescObject *)(ob))->desc)
 
 typedef struct enumobject {
   OBJECT_HEAD

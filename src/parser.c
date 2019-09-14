@@ -590,6 +590,27 @@ Symbol *get_desc_symbol(TypeDesc *desc)
   return sym;
 }
 
+TypeDesc *get_symbol_desc(Symbol *sym)
+{
+  TypeDesc *desc = sym->desc;
+  expect(desc != NULL);
+  TypeDesc *ret = NULL;
+
+  switch (desc->kind) {
+  case TYPE_BASE:
+    ret = TYPE_INCREF(desc);
+    break;
+  case TYPE_KLASS:
+    ret = desc_from_klass(desc->klass.path, desc->klass.type);
+    break;
+  default:
+    panic("get_symbol_desc: invalid desc %d", desc->kind);
+    break;
+  }
+
+  return ret;
+}
+
 static void parse_self(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
@@ -1210,9 +1231,7 @@ static void parse_new(ParserState *ps, Expr *exp)
   */
 
   if (!has_error(ps)) {
-    TypeDesc *desc = sym->desc;
-    expect(desc->kind == TYPE_KLASS);
-    desc = desc_from_klass(desc->klass.path, desc->klass.type);
+    TypeDesc *desc = get_symbol_desc(sym);
     if (types != NULL) {
       TypeDesc *item;
       vector_for_each(item, types) {
@@ -1224,7 +1243,14 @@ static void parse_new(ParserState *ps, Expr *exp)
     exp->desc = desc;
     // generate codes
     Inst *i = CODE_OP_TYPE(OP_NEW_OBJECT, desc);
-    i->argc = vector_size(args);
+    int argc = vector_size(args);
+    if (desc->kind == TYPE_BASE) {
+      i->argc = argc;
+    }
+    if (desc->kind == TYPE_KLASS && argc > 0) {
+      CODE_OP(OP_DUP);
+      CODE_OP_S_ARGC(OP_CALL, "__init__", argc);
+    }
   }
 }
 

@@ -115,7 +115,6 @@ typedef struct literalitem {
 
 #define CONST_LITERAL   1
 #define CONST_TYPE      2
-#define CONST_TYPELIST  3
 
 typedef struct constitem {
   int kind;

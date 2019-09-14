@@ -164,7 +164,7 @@ static int logic_true(Object *ob)
 
 static int typecheck(Object *ob, Object *type)
 {
-  if (!Desc_Check(type))
+  if (!descob_check(type))
     panic("typecheck: para is not DescType");
   TypeDesc *desc = ((DescObject *)type)->desc;
   if (Integer_Check(ob) && desc_isint(desc))
@@ -186,37 +186,28 @@ static int typecheck(Object *ob, Object *type)
   return 0;
 }
 
-static Object *new_object(Object *descob, Object *args)
+static Object *new_object(TypeDesc *desc)
 {
-  TypeDesc *desc = ((DescObject *)descob)->desc;
-  Object *mo = Module_Load(desc->klass.path);
-  expect(mo != NULL);
+  Object *ret;
+  Object *ob = Module_Load(desc->klass.path);
+  expect(ob != NULL);
+  ob = Module_Lookup(ob, desc->klass.type);
+  expect(ob != NULL);
 
-  Object *typeob = Module_Lookup(mo, desc->klass.type);
-  expect(typeob != NULL);
-
-  TypeObject *type = (TypeObject *)typeob;
-  if (type == &integer_type) {
-    return OB_INCREF(args);
-  } else if (type == &string_type) {
-    return OB_INCREF(args);
-  } else if (type == &bool_type) {
-    return OB_INCREF(args);
-  } else if (type == &array_type) {
-    desc = vector_get(desc->types, 0);
-    return array_new(desc);
+  TypeObject *type = (TypeObject *)ob;
+  if (type == &array_type) {
+    TypeDesc *subdesc = vector_get(desc->types, 0);
+    ret = array_new(subdesc);
   } else if (type == &map_type) {
-    Object *kob = Tuple_Get(descob, 0);
-    Object *vob = Tuple_Get(descob, 1);
-    Object *map = map_new(((DescObject *)kob)->desc, ((DescObject *)vob)->desc);
-    OB_DECREF(kob);
-    OB_DECREF(vob);
-    return map;
+    TypeDesc *kdesc = vector_get(desc->types, 0);
+    TypeDesc *vdesc = vector_get(desc->types, 1);
+    ret= map_new(kdesc, vdesc);
   } else if (type == &tuple_type) {
-    return Tuple_New(0);
+    ret = Tuple_New(0);
   } else {
-    return NULL;
+    ret = NULL;
   }
+  return ret;
 }
 
 Object *Koala_EvalFrame(Frame *f)
@@ -860,17 +851,22 @@ Object *Koala_EvalFrame(Frame *f)
       oparg = NEXT_BYTE();
       if (oparg == 0) {
         y = NULL;
-      } else if (oparg == 1) {
-        y = POP();
       } else {
-        y = Tuple_New(oparg);
-        for (int i = 0; i < oparg; ++i) {
-          z = POP();
-          Tuple_Set(y, i, z);
-          OB_DECREF(z);
-        }
+        expect(oparg == 1);
+        y = POP();
       }
-      z = new_object(x, y);
+
+      expect(descob_check(x));
+      TypeDesc *desc = descob_getdesc(x);
+      expect(desc->paras == NULL);
+      if (desc_isbase(desc)) {
+        expect(desc = OB_TYPE(y)->desc);
+        z = OB_INCREF(y);
+      } else {
+        expect(desc->kind == TYPE_KLASS);
+        expect(y == NULL);
+        z = new_object(desc);
+      }
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);

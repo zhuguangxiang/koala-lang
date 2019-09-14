@@ -736,7 +736,7 @@ Object *New_Literal(Literal *val)
 
 static void descob_free(Object *ob)
 {
-  if (!Desc_Check(ob)) {
+  if (!descob_check(ob)) {
     error("object of '%.64s' is not a TypeDesc", OB_TYPE_NAME(ob));
     return;
   }
@@ -745,23 +745,23 @@ static void descob_free(Object *ob)
   kfree(ob);
 }
 
-TypeObject desc_type = {
+TypeObject descob_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name = "TypeDesc",
   .free = descob_free,
 };
 
-Object *New_Desc(TypeDesc *desc)
+Object *new_descob(TypeDesc *desc)
 {
   DescObject *descob = kmalloc(sizeof(DescObject));
-  init_object_head(descob, &desc_type);
+  init_object_head(descob, &descob_type);
   descob->desc = TYPE_INCREF(desc);
   return (Object *)descob;
 }
 
-void init_desc_type(void)
+void init_descob_type(void)
 {
-  desc_type.desc = desc_from_desc;
-  if (type_ready(&desc_type) < 0)
+  descob_type.desc = desc_from_desc;
+  if (type_ready(&descob_type) < 0)
     panic("Cannot initalize 'TypeDesc' type.");
 }

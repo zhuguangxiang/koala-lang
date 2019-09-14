@@ -38,7 +38,7 @@ static void init_types(void)
     panic("Cannot initalize 'Type' type.");
 
   init_any_type();
-  init_desc_type();
+  init_descob_type();
   init_integer_type();
   init_byte_type();
   init_bool_type();
@@ -69,7 +69,7 @@ static void fini_types(void)
   print("########\n");
   type_fini(&type_type);
   type_fini(&any_type);
-  type_fini(&desc_type);
+  type_fini(&descob_type);
   type_fini(&byte_type);
   type_fini(&integer_type);
   type_fini(&bool_type);

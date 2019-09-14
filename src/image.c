@@ -1566,6 +1566,10 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     s = _get_(image, ITEM_STRING, item->klass.typeindex);
     type = atom(s->data);
     t = desc_from_klass(path, type);
+    if (item->parasindex >= 0) {
+      TypeListItem *listitem = _get_(image, ITEM_TYPELIST, item->parasindex);
+      t->paras = to_typedescvec(listitem, image);
+    }
     if (item->typesindex >= 0) {
       TypeListItem *listitem = _get_(image, ITEM_TYPELIST, item->typesindex);
       t->types = to_typedescvec(listitem, image);

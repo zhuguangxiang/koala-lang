@@ -58,6 +58,7 @@ do {                                                      \
   if (!(expr)) {                                          \
     _print_(_ERR_COLOR_, "%s:%d: expect '%s' to be true", \
       _FILENAME_, __LINE__, #expr);                       \
+    abort();                                              \
   }                                                       \
 } while (0)
 

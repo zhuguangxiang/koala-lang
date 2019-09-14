@@ -172,6 +172,7 @@ TypeDesc *str_to_proto(char *ptype, char *rtype);
 #define desc_isstr(desc)    ((desc) == &type_base_str)
 #define desc_isbool(desc)   ((desc) == &type_base_bool)
 #define desc_isany(desc)    ((desc) == &type_base_any)
+#define desc_isbase(desc)   ((desc)->kind == TYPE_BASE)
 #define desc_istuple(desc) \
   ((desc)->kind == TYPE_KLASS && \
   !strcmp((desc)->klass.path, "lang") && \
