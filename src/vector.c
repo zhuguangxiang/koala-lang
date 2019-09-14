@@ -28,7 +28,7 @@
 
 static inline void *__vector_offset(Vector *self, int size)
 {
-  bug(self->items == NULL, "null pointer");
+  expect(self->items != NULL);
   return (void *)((char *)self->items + sizeof(void *) * size);
 }
 

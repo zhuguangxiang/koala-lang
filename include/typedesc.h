@@ -63,12 +63,8 @@ typedef enum desckind {
   TYPE_BASE,
   TYPE_KLASS,
   TYPE_PROTO,
-  TYPE_VARG,
   TYPE_PARAREF,
   TYPE_PARADEF,
-  TYPE_ARRAY,
-  TYPE_MAP,
-  TYPE_TUPLE,
   TYPE_MAX,
 } DescKind;
 
@@ -108,8 +104,6 @@ struct typedesc {
       char *name;
       Vector *types;
     } paradef;
-    /* TYPE_VARG  */
-    TypeDesc *varg;
   };
 };
 
@@ -119,15 +113,15 @@ struct typedesc {
   desc;                      \
 })
 
-#define TYPE_DECREF(desc) ({                    \
-  if (desc) {                                   \
-    --(desc)->refcnt;                           \
-    bug((desc)->refcnt < 0, "type refcnt < 0"); \
-    if ((desc)->refcnt == 0) {                  \
-      desc_free(desc);                          \
-      (desc) = NULL;                            \
-    }                                           \
-  }                                             \
+#define TYPE_DECREF(desc) ({      \
+  if (desc) {                     \
+    --(desc)->refcnt;             \
+    expect((desc)->refcnt >= 0);  \
+    if ((desc)->refcnt == 0) {    \
+      desc_free(desc);            \
+      (desc) = NULL;              \
+    }                             \
+  }                               \
 })
 
 void init_typedesc(void);
@@ -159,12 +153,14 @@ extern TypeDesc type_base_desc;
 TypeDesc *desc_from_base(int kind);
 TypeDesc *desc_from_klass(char *path, char *type);
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
-TypeDesc *desc_from_array(TypeDesc *para);
-TypeDesc *desc_from_varg(TypeDesc *base);
-TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val);
-TypeDesc *desc_from_tuple(Vector *types);
-void klass_add_subtype(TypeDesc *desc, TypeDesc *subtype);
-void desc_add_paradef(TypeDesc *desc, char *name, Vector *types);
+TypeDesc *desc_from_pararef(char *name, int index);
+TypeDesc *desc_from_paradef(char *name, Vector *types);
+#define desc_from_varg  desc_from_klass("lang", "VArg")
+#define desc_from_array desc_from_klass("lang", "Array")
+#define desc_from_map   desc_from_klass("lang", "Map")
+#define desc_from_tuple desc_from_klass("lang", "Tuple")
+void desc_add_paratype(TypeDesc *desc, TypeDesc *type);
+void desc_add_paradef(TypeDesc *desc, TypeDesc *type);
 
 TypeDesc *str_to_desc(char *s);
 TypeDesc *str_to_proto(char *ptype, char *rtype);
@@ -176,7 +172,10 @@ TypeDesc *str_to_proto(char *ptype, char *rtype);
 #define desc_isstr(desc)    ((desc) == &type_base_str)
 #define desc_isbool(desc)   ((desc) == &type_base_bool)
 #define desc_isany(desc)    ((desc) == &type_base_any)
-#define desc_istuple(desc)  ((desc)->kind == TYPE_TUPLE)
+#define desc_istuple(desc) \
+  ((desc)->kind == TYPE_KLASS && \
+  !strcmp((desc)->klass.path, "lang") && \
+  !strcmp((desc)->klass.path, "Tuple"))
 
 #ifdef __cplusplus
 }

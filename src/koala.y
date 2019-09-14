@@ -48,7 +48,7 @@
 /* interactive mode */
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 void Cmd_Add_Const(Ident id, Type type);
-void Cmd_Add_Var(Ident id, Type type, int freevar);
+void Cmd_Add_Var(Ident id, Type type);
 void Cmd_Add_Func(char *name, TypeDesc *desc);
 
 %}
@@ -61,7 +61,7 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
   char *text;
   Vector *list;
   Vector *exprlist;
-  MapEntry *mapentry;
+  void *ptr;
   Expr *expr;
   Stmt *stmt;
   TypeDesc *desc;
@@ -150,7 +150,7 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
 %type <stmt> local
 %type <name> name
 
-%type <mapentry> mapentry
+%type <ptr> mapentry
 %type <list> mapentry_list
 %type <expr> map_object
 %type <expr> array_object
@@ -237,7 +237,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type, 0);
+      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type);
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
@@ -249,7 +249,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type, 1);
+      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type);
       Cmd_EvalStmt(ps, $1);
       stmt_free($1);
     }
@@ -1286,20 +1286,24 @@ proto_decl:
 ;
 
 enum_members:
-  enum_lables enum_methods
-| enum_lables ',' enum_methods
-| enum_lables ';' enum_methods
+  enum_labels
+| enum_labels ','
+| enum_labels ';'
+| enum_labels enum_methods
+| enum_labels ',' enum_methods
+| enum_labels ';' enum_methods
 ;
 
-enum_lables:
-  enum_lable
-| enum_lables ',' enum_lable
+enum_labels:
+  enum_label
+| enum_labels ',' enum_label
 ;
 
-enum_lable:
+enum_label:
   ID
 | ID '(' type_list ')'
 | ID '=' INT_LITERAL
+| ID '=' '-' INT_LITERAL
 ;
 
 enum_methods:
@@ -1329,7 +1333,8 @@ type:
 }
 | '[' type ']'
 {
-  $$ = desc_from_array($2);
+  $$ = desc_from_array;
+  desc_add_paratype($$, $2);
   TYPE_DECREF($2);
 }
 ;
@@ -1369,7 +1374,12 @@ no_array_type:
 }
 | '(' type_list ')'
 {
-  $$ = desc_from_tuple($2);
+  $$ = desc_from_tuple;
+  TypeDesc *item;
+  vector_for_each(item, $2) {
+    desc_add_paratype($$, item);
+  }
+  free_descs($2);
 }
 | klass_type
 {

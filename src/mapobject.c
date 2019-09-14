@@ -38,7 +38,7 @@ static int mapentry_equal(void *e1, void *e2)
   MapEntry *me2 = e2;
   if (me1 == me2)
     return 1;
-  return Object_Equal(me1->key, me2->key);
+  return Object_Cmp(me1->key, me2->key);
 }
 
 static void mapentry_free(void *e, void *arg)
@@ -184,9 +184,13 @@ TypeObject map_type = {
 
 void init_map_type(void)
 {
-  TypeDesc *desc = desc_from_map(NULL, NULL);
-  desc_add_paradef(desc, "K", NULL);
-  desc_add_paradef(desc, "V", NULL);
+  TypeDesc *desc = desc_from_map;
+  TypeDesc *para = desc_from_paradef("K", NULL);
+  desc_add_paradef(desc, para);
+  TYPE_DECREF(para);
+  para = desc_from_paradef("V", NULL);
+  desc_add_paradef(desc, para);
+  TYPE_DECREF(para);
   map_type.desc = desc;
   if (type_ready(&map_type) < 0)
     panic("Cannot initalize 'Map' type.");

@@ -121,7 +121,7 @@ void Module_Add_Type(Object *self, TypeObject *type)
   type->owner = self;
   struct mnode *node = mnode_new(type->name, (Object *)type);
   int res = hashmap_add(get_mtbl(self), node);
-  bug(res != 0, "'%s' add '%s' failed.", MODULE_NAME(self), type->name);
+  expect(res == 0);
 }
 
 void Module_Add_Const(Object *self, Object *ob, Object *val)
@@ -134,7 +134,7 @@ void Module_Add_Const(Object *self, Object *ob, Object *val)
   ++module->nrvars;
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
-  bug(res != 0, "'%s' add '%s' failed.", MODULE_NAME(self), field->name);
+  expect(res == 0);
 }
 
 void Module_Add_Var(Object *self, Object *ob)
@@ -148,7 +148,7 @@ void Module_Add_Var(Object *self, Object *ob)
   vector_set(&module->values, field->offset, NULL);
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
-  bug(res != 0, "'%s' add '%s' failed.", MODULE_NAME(self), field->name);
+  expect(res == 0);
 }
 
 void Module_Add_VarDef(Object *self, FieldDef *f)
@@ -176,7 +176,7 @@ void Module_Add_Func(Object *self, Object *ob)
   struct mnode *node = mnode_new(meth->name, ob);
   meth->owner = self;
   int res = hashmap_add(get_mtbl(self), node);
-  bug(res != 0, "'%s' add '%s' failed.", MODULE_NAME(self), meth->name);
+  expect(res == 0);
 }
 
 void Module_Add_FuncDef(Object *self, MethodDef *f)
@@ -270,6 +270,6 @@ Object *Module_Load(char *path)
   hashmap_entry_init(&key, strhash(path));
   struct modnode *node = hashmap_get(&modmap, &key);
   /* find its source and compile it */
-  bug(node == NULL, "cannot find module '%s'", path);
+  expect(node != NULL);
   return OB_INCREF(node->ob);
 }

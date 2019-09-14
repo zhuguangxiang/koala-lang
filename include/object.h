@@ -101,17 +101,17 @@ struct object {
   (_ob_);                       \
 })
 
-#define OB_DECREF(_ob_)                   \
-({                                        \
-  Object *o = (Object *)(_ob_);           \
-  if (o != NULL) {                        \
-    --o->ob_refcnt;                       \
-    bug(o->ob_refcnt < 0, "refcnt < 0");  \
-    if (o->ob_refcnt == 0) {              \
-      OB_TYPE(o)->free(o);                \
-      (_ob_) = NULL;                      \
-    }                                     \
-  }                                       \
+#define OB_DECREF(_ob_)         \
+({                              \
+  Object *o = (Object *)(_ob_); \
+  if (o != NULL) {              \
+    --o->ob_refcnt;             \
+    expect(o->ob_refcnt >= 0);  \
+    if (o->ob_refcnt == 0) {    \
+      OB_TYPE(o)->free(o);      \
+      (_ob_) = NULL;            \
+    }                           \
+  }                             \
 })
 
 typedef struct {
@@ -178,16 +178,16 @@ typedef Object *(*ob_allocfunc)(TypeObject *);
 /* free object function */
 typedef void (*ob_freefunc)(Object *);
 
-#define TPFLAGS_CLASS 1
-#define TPFLAGS_TRAIT 2
-#define TPFLAGS_ENUM  3
-#define TPFLAGS_GC    4
+#define TPFLAGS_CLASS     0
+#define TPFLAGS_ABSTRACT  1
+#define TPFLAGS_TRAIT     2
+#define TPFLAGS_ENUM      3
 
 struct typeobject {
   OBJECT_HEAD
   /* type name */
   char *name;
-  /* one of KLASS_xxx */
+  /* one of TPFLAGS_xxx */
   int flags;
   /* type decriptor */
   TypeDesc *desc;
@@ -200,8 +200,8 @@ struct typeobject {
 
   /* __hash__  */
   func_t hash;
-  /* __equal__ */
-  func_t equal;
+  /* __cmp__ */
+  func_t cmp;
   /* __class__ */
   func_t clazz;
   /* __str__   */
@@ -261,7 +261,7 @@ void Type_Add_MethodDef(TypeObject *type, MethodDef *f);
 void Type_Add_MethodDefs(TypeObject *type, MethodDef *def);
 
 unsigned int Object_Hash(Object *ob);
-int Object_Equal(Object *ob1, Object *ob2);
+int Object_Cmp(Object *ob1, Object *ob2);
 Object *Object_Lookup(Object *self, char *name);
 Object *Object_GetMethod(Object *self, char *name);
 Object *Object_GetField(Object *self, char *name);
@@ -279,6 +279,14 @@ extern TypeObject desc_type;
 #define Desc_Check(ob) (OB_TYPE(ob) == &desc_type)
 void init_desc_type(void);
 Object *New_Desc(TypeDesc *desc);
+
+typedef struct enumobject {
+  OBJECT_HEAD
+  char *name;
+  Vector *values;
+} EnumObject;
+
+Object *new_eval(TypeObject *type, char *name, Vector *vals);
 
 #ifdef __cplusplus
 }

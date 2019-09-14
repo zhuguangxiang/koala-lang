@@ -67,10 +67,10 @@ int bytebuffer_write(ByteBuffer *self, char *data, int size)
       min = left > size ? size : left;
       memcpy(block->data + block->used, data, min);
       block->used += min;
-      bug(block->used > self->bsize, "unexpected error");
+      expect(block->used <= self->bsize);
       data += min;
       size -= min;
-      bug(size < 0, "unexpected error");
+      expect(size >= 0);
       self->total += min;
     }
   }

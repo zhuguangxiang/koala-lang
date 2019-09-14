@@ -100,7 +100,7 @@ int entry_equals(HashMap *self, HashMapEntry *e1, HashMapEntry *e2)
 
 static inline HashMapEntry **find_entry(HashMap *self, HashMapEntry *key)
 {
-  bug(key->hash == 0, "hash is 0");
+  expect(key->hash != 0);
 	HashMapEntry **e = &self->entries[bucket(self, key)];
 	while (*e && !entry_equals(self, *e, key))
 		e = &(*e)->next;

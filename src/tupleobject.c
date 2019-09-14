@@ -245,7 +245,7 @@ TypeObject tuple_type = {
 
 void init_tuple_type(void)
 {
-  tuple_type.desc = desc_from_tuple(NULL);
+  tuple_type.desc = desc_from_tuple;
   if (type_ready(&tuple_type) < 0)
     panic("Cannot initalize 'Tuple' type.");
 }

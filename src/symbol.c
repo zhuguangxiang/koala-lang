@@ -265,7 +265,7 @@ static Symbol *load_type(Object *ob)
 STable *stable_from_mobject(Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
-  bug(mo->mtbl == NULL, "mtbl of mobject '%s' is null", mo->name);
+  expect(mo->mtbl != NULL);
 
   STable *stbl = stable_new();
   HASHMAP_ITERATOR(iter, mo->mtbl);

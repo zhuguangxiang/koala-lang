@@ -22,45 +22,11 @@
  SOFTWARE.
 */
 
-#include <stdio.h>
-#include <inttypes.h>
-#include "memory.h"
-#include "log.h"
+#include "orderobject.h"
 
-/* max allocated memory size */
-int maxsize;
+TypeObject order_type = {
+  OBJECT_HEAD_INIT(&type_type)
+  .name   = "Order",
+  .flags  = TPFLAGS_ENUM,
 
-/* current allocated memory size */
-int usedsize;
-
-struct block {
-  size_t size;
-  uint32_t mask;
-};
-
-void *kmalloc(size_t size)
-{
-  struct block *blk = calloc(1, sizeof(struct block) + size);
-  expect(blk != NULL);
-  maxsize += size;
-  usedsize += size;
-  blk->size = size;
-  blk->mask = 0xdeadbeaf;
-  return (void *)(blk + 1);
-}
-
-void __kfree(void *ptr)
-{
-  struct block *blk = (struct block *)ptr - 1;
-  expect(blk->mask == 0xdeadbeaf);
-  usedsize -= blk->size;
-  free(blk);
-  expect(usedsize >= 0);
-}
-
-void kstat(void)
-{
-  puts("------ Memory Usage ------");
-  print("|  Max: %d Bytes\n|  Current: %d Bytes\n", maxsize, usedsize);
-  puts("--------------------------");
 }

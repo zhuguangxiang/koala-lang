@@ -44,7 +44,6 @@ extern "C" {
 
 #define _ERR_COLOR_   "\x1b[1;31merror:\x1b[0m "
 #define _PANIC_COLOR_ "\x1b[1;31mpanic:\x1b[0m "
-#define _BUG_COLOR_   "\x1b[1;31mbug:\x1b[0m "
 #define error(fmt, ...) _print_(_ERR_COLOR_, fmt, ##__VA_ARGS__)
 
 #define panic(fmt, ...)                   \
@@ -52,15 +51,6 @@ do {                                      \
   _print_(_PANIC_COLOR_, "%s:%d: " fmt,   \
     _FILENAME_, __LINE__, ##__VA_ARGS__); \
   abort();                                \
-} while (0)
-
-#define bug(expr, fmt, ...)                         \
-do {                                                \
-  if (expr) {                                       \
-    _print_(_BUG_COLOR_, "%s:%d: %s " fmt,          \
-      _FILENAME_, __LINE__, #expr, ##__VA_ARGS__);  \
-    abort();                                        \
-  }                                                 \
 } while (0)
 
 #define expect(expr)                                      \

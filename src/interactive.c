@@ -181,12 +181,13 @@ static Object *getcode(CodeBlock *block)
 void Cmd_Add_Const(Ident id, Type type)
 {
   sym = stable_add_const(mod.stbl, id.name, type.desc);
+  sym->k.typesym = get_desc_symbol(type.desc);
 }
 
-void Cmd_Add_Var(Ident id, Type type, int freevar)
+void Cmd_Add_Var(Ident id, Type type)
 {
   sym = stable_add_var(mod.stbl, id.name, type.desc);
-  sym->var.freevar = freevar;
+  sym->var.typesym = get_desc_symbol(type.desc);
 }
 
 void Cmd_Add_Func(char *name, TypeDesc *desc)

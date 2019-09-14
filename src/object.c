@@ -74,7 +74,7 @@ static Object *any_hash(Object *self, Object *args)
   return Integer_New(hash);
 }
 
-static Object *any_equal(Object *self, Object *other)
+static Object *any_cmp(Object *self, Object *other)
 {
   if (OB_TYPE(self) != OB_TYPE(other))
     return Bool_False();
@@ -83,8 +83,8 @@ static Object *any_equal(Object *self, Object *other)
 
 static Object *any_str(Object *ob, Object *args)
 {
-  char buf[80];
-  snprintf(buf, sizeof(buf)-1, "%.64s@%lx",
+  char buf[64];
+  snprintf(buf, sizeof(buf) - 1, "%.32s@%lx",
            OB_TYPE_NAME(ob), (uintptr_t)ob);
   return String_New(buf);
 }
@@ -111,11 +111,11 @@ static Object *any_class(Object *ob, Object *args)
 
 TypeObject any_type = {
   OBJECT_HEAD_INIT(&type_type)
-  .name   = "Any",
-  .hash   = any_hash,
-  .equal  = any_equal,
-  .clazz  = any_class,
-  .str    = any_str,
+  .name  = "Any",
+  .hash  = any_hash,
+  .cmp   = any_cmp,
+  .clazz = any_class,
+  .str   = any_str,
 };
 
 void init_any_type(void)
@@ -406,8 +406,8 @@ static void Type_Add_Iterator(TypeObject *type, IteratorMethods *meths)
 
 int type_ready(TypeObject *type)
 {
-  if (type->hash && !type->equal) {
-    error("__equal__ must be implemented, "
+  if (type->hash && !type->cmp) {
+    error("__cmp__ must be implemented, "
           "when __hash__ is implemented of '%.64s'",
           type->name);
     return -1;
@@ -418,8 +418,8 @@ int type_ready(TypeObject *type)
     Type_Add_MethodDef(type, &meth);
   }
 
-  if (type->equal != NULL) {
-    MethodDef meth = {"__equal__", "A", "i", type->equal};
+  if (type->cmp != NULL) {
+    MethodDef meth = {"__cmp__", "A", "i", type->cmp};
     Type_Add_MethodDef(type, &meth);
   }
 
@@ -468,7 +468,7 @@ void Type_Add_Field(TypeObject *type, Object *ob)
   ++type->nrvars;
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
-  bug(res != 0, "'%s' add '%s' failed.", type->name, field->name);
+  expect(res == 0);
 }
 
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
@@ -496,7 +496,7 @@ void Type_Add_Method(TypeObject *type, Object *ob)
   meth->owner = (Object *)type;
   struct mnode *node = mnode_new(meth->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
-  bug(res != 0, "'%s' add '%s' failed.", type->name, meth->name);
+  expect(res == 0);
 }
 
 static int get_para_index(Vector *vec, char *name)
@@ -515,7 +515,7 @@ static void update_pararef(TypeDesc *para, TypeDesc *proto)
   TypeDesc *rtype = proto->proto.ret;
   if (rtype != NULL && rtype->kind == TYPE_PARAREF) {
     index = get_para_index(para->paras, rtype->pararef.name);
-    bug(index < 0, "generic type: something wrong?");
+    expect(index >= 0);
     rtype->pararef.index = index;
   }
 
@@ -523,7 +523,7 @@ static void update_pararef(TypeDesc *para, TypeDesc *proto)
   vector_for_each(ptype, proto->proto.args) {
     if (ptype->kind == TYPE_PARAREF) {
       index = get_para_index(para->paras, ptype->pararef.name);
-      bug(index < 0, "generic type: something wrong?");
+      expect(index >= 0);
       ptype->pararef.index = index;
     }
   }
@@ -572,13 +572,13 @@ Object *Type_Lookup(TypeObject *type, char *name)
 unsigned int Object_Hash(Object *ob)
 {
   Object *res = Object_Call(ob, "__hash__", NULL);
-  bug(res == NULL, "'__hash__' is not implemented");
+  expect(res != NULL);
   unsigned int hash = Integer_AsInt(res);
   OB_DECREF(res);
   return hash;
 }
 
-int Object_Equal(Object *ob1, Object *ob2)
+int Object_Cmp(Object *ob1, Object *ob2)
 {
   if (ob1 == ob2)
     return 1;
@@ -587,7 +587,7 @@ int Object_Equal(Object *ob1, Object *ob2)
   TypeObject *type2 = OB_TYPE(ob2);
   if (type1 != type2)
     return 0;
-  Object *ob = Object_Call(ob1, "__equal__", ob2);
+  Object *ob = Object_Call(ob1, "__cmp__", ob2);
   if (ob == NULL)
     return 0;
   return Bool_IsTrue(ob) ? 1 : 0;
@@ -641,10 +641,10 @@ Object *Object_GetField(Object *self, char *name)
 Object *Object_Call(Object *self, char *name, Object *args)
 {
   Object *ob = Object_Lookup(self, name);
-  bug(ob == NULL, "object of '%s' has no '%s'", OB_TYPE_NAME(self), name);
+  expect(ob != NULL);
   if (Type_Check(ob)) {
     ob = Object_Lookup(ob, "__call__");
-    bug(ob == NULL, "object of '%s' has no '__call__'", OB_TYPE_NAME(self));
+    expect(ob != NULL);
   }
   Object *res = Method_Call(ob, self, args);
   OB_DECREF(ob);

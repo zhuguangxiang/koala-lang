@@ -22,45 +22,22 @@
  SOFTWARE.
 */
 
-#include <stdio.h>
-#include <inttypes.h>
-#include "memory.h"
-#include "log.h"
+#ifndef _KOALA_ORDER_OBJECT_H_
+#define _KOALA_ORDER_OBJECT_H_
 
-/* max allocated memory size */
-int maxsize;
+#include "object.h"
 
-/* current allocated memory size */
-int usedsize;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-struct block {
-  size_t size;
-  uint32_t mask;
-};
+typedef struct orderobject {
+  OBJECT_HEAD
+  char *name;
+} OrderObject;
 
-void *kmalloc(size_t size)
-{
-  struct block *blk = calloc(1, sizeof(struct block) + size);
-  expect(blk != NULL);
-  maxsize += size;
-  usedsize += size;
-  blk->size = size;
-  blk->mask = 0xdeadbeaf;
-  return (void *)(blk + 1);
+#ifdef __cplusplus
 }
+#endif
 
-void __kfree(void *ptr)
-{
-  struct block *blk = (struct block *)ptr - 1;
-  expect(blk->mask == 0xdeadbeaf);
-  usedsize -= blk->size;
-  free(blk);
-  expect(usedsize >= 0);
-}
-
-void kstat(void)
-{
-  puts("------ Memory Usage ------");
-  print("|  Max: %d Bytes\n|  Current: %d Bytes\n", maxsize, usedsize);
-  puts("--------------------------");
-}
+#endif /* _KOALA_ORDER_OBJECT_H_ */

@@ -110,10 +110,10 @@ static inline void check_base_refcnt(void)
   for (int i = 0; i < COUNT_OF(bases); ++i) {
     base = bases + i;
     refcnt = base->desc->refcnt;
-    bug(refcnt != 1, "type of '%s' refcnt is %d.", base->str, refcnt);
+    expect(refcnt == 1);
   }
   refcnt = type_base_desc.refcnt;
-  bug(refcnt != 1, "type of 'desc' refcnt is %d.", refcnt);
+  expect(refcnt == 1);
 }
 
 void init_typedesc(void)
@@ -138,6 +138,17 @@ TypeDesc *desc_from_klass(char *path, char *type)
 
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret)
 {
+  if (ret != NULL) {
+    expect(ret->kind != TYPE_PARADEF);
+  }
+
+  if (args != NULL) {
+    TypeDesc *item;
+    vector_for_each(item, args) {
+      expect(item->kind != TYPE_PARADEF);
+    }
+  }
+
   TypeDesc *desc = kmalloc(sizeof(TypeDesc));
   desc->kind = TYPE_PROTO;
   desc->refcnt = 1;
@@ -146,62 +157,17 @@ TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret)
   return desc;
 }
 
-TypeDesc *desc_from_varg(TypeDesc *base)
-{
-  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
-  desc->kind = TYPE_VARG;
-  desc->refcnt = 1;
-  desc->varg = TYPE_INCREF(base);
-  return desc;
-}
-
-TypeDesc *desc_from_array(TypeDesc *base)
-{
-  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
-  desc->kind = TYPE_ARRAY;
-  desc->refcnt = 1;
-  if (base != NULL) {
-    Vector *types = vector_new();
-    vector_push_back(types, TYPE_INCREF(base));
-    desc->types = types;
-  }
-  return desc;
-}
-
-TypeDesc *desc_from_map(TypeDesc *key, TypeDesc *val)
-{
-  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
-  desc->kind = TYPE_MAP;
-  desc->refcnt = 1;
-  if (key != NULL && val != NULL) {
-    Vector *types = vector_new();
-    vector_push_back(types, TYPE_INCREF(key));
-    vector_push_back(types, TYPE_INCREF(val));
-    desc->types = types;
-  }
-  return desc;
-}
-
-TypeDesc *desc_from_tuple(Vector *types)
-{
-  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
-  desc->kind = TYPE_TUPLE;
-  desc->refcnt = 1;
-  desc->types = types;
-  return desc;
-}
-
-static TypeDesc *new_pararef(char *name)
+TypeDesc *desc_from_pararef(char *name, int index)
 {
   TypeDesc *desc = kmalloc(sizeof(TypeDesc));
   desc->kind = TYPE_PARAREF;
   desc->refcnt = 1;
   desc->pararef.name = name;
-  desc->pararef.index = -1;
+  desc->pararef.index = index;
   return desc;
 }
 
-static TypeDesc *new_paradef(char *name, Vector *types)
+TypeDesc *desc_from_paradef(char *name, Vector *types)
 {
   TypeDesc *desc = kmalloc(sizeof(TypeDesc));
   desc->kind = TYPE_PARADEF;
@@ -211,14 +177,28 @@ static TypeDesc *new_paradef(char *name, Vector *types)
   return desc;
 }
 
-void desc_add_paradef(TypeDesc *desc, char *name, Vector *types)
+void desc_add_paratype(TypeDesc *desc, TypeDesc *type)
 {
+  expect(type->kind != TYPE_PARADEF);
+
+  Vector *types = desc->types;
+  if (types == NULL) {
+    types = vector_new();
+    desc->types = types;
+  }
+  vector_push_back(types, TYPE_INCREF(type));
+}
+
+void desc_add_paradef(TypeDesc *desc, TypeDesc *type)
+{
+  expect(type->kind == TYPE_PARADEF);
+
   Vector *vec = desc->paras;
   if (vec == NULL) {
     vec = vector_new();
     desc->paras = vec;
   }
-  vector_push_back(vec, new_paradef(name, types));
+  vector_push_back(vec, TYPE_INCREF(type));
 }
 
 void free_descs(Vector *vec)
@@ -252,29 +232,12 @@ void desc_free(TypeDesc *desc)
     kfree(desc);
     break;
   }
-  case TYPE_VARG: {
-    TYPE_DECREF(desc->varg);
-    kfree(desc);
-    break;
-  }
   case TYPE_PARAREF: {
     kfree(desc);
     break;
   }
   case TYPE_PARADEF: {
     free_descs(desc->paradef.types);
-    kfree(desc);
-    break;
-  }
-  case TYPE_ARRAY: {
-    kfree(desc);
-    break;
-  }
-  case TYPE_MAP: {
-    kfree(desc);
-    break;
-  }
-  case TYPE_TUPLE: {
     kfree(desc);
     break;
   }
@@ -304,12 +267,13 @@ void desc_show(TypeDesc *desc)
 /* desc1 <- desc2 */
 int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 {
-  bug(desc1->paras != NULL, "typeparas is not null");
-  bug(desc1->kind == TYPE_PARAREF, "TYPE_PARAREF here?");
-  bug(desc1->kind == TYPE_PARADEF, "TYPE_PARADEF here?");
-  bug(desc2->paras != NULL, "typeparas is not null");
-  bug(desc2->kind == TYPE_PARAREF, "TYPE_PARAREF here?");
-  bug(desc2->kind == TYPE_PARADEF, "TYPE_PARADEF here?");
+  expect(desc1->paras == NULL);
+  expect(desc1->kind != TYPE_PARADEF);
+  expect(desc1->kind != TYPE_PARAREF);
+
+  expect(desc2->paras == NULL);
+  expect(desc2->kind != TYPE_PARADEF);
+  expect(desc2->kind != TYPE_PARAREF);
 
   if (desc1 == desc2)
     return 1;
@@ -363,7 +327,7 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 static TypeDesc *__to_klass(char *s, int len)
 {
   char *dot = strrchr(s, '.');
-  bug(dot == NULL, "null pointer");
+  expect(dot != NULL);
   char *path = atom_nstring(s, dot - s);
   char *type = atom_nstring(dot + 1, len - (dot - s) - 1);
   return desc_from_klass(path, type);
@@ -393,7 +357,7 @@ static TypeDesc *__to_desc(char **str)
     while (*s != '>')
       s++;
     k = atom_nstring(k, s - k);
-    desc = new_pararef(k);
+    desc = desc_from_pararef(k, -1);
     s++;
     break;
   }
@@ -409,13 +373,15 @@ static TypeDesc *__to_desc(char **str)
     } else {
       base = desc_from_any;
     }
-    desc = desc_from_varg(base);
+    desc = desc_from_varg;
+    desc_add_paratype(desc, base);
     TYPE_DECREF(base);
     break;
   }
   case '[': {
     base = __to_desc(&s);
-    desc = desc_from_array(base);
+    desc = desc_from_array;
+    desc_add_paratype(desc, base);
     TYPE_DECREF(base);
     break;
   }
@@ -423,7 +389,9 @@ static TypeDesc *__to_desc(char **str)
     s += 1;
     TypeDesc *key = __to_desc(&s);
     TypeDesc *val = __to_desc(&s);
-    desc = desc_from_map(key, val);
+    desc = desc_from_map;
+    desc_add_paratype(desc, key);
+    desc_add_paratype(desc, val);
     TYPE_DECREF(key);
     TYPE_DECREF(val);
     break;
@@ -447,7 +415,7 @@ static TypeDesc *__to_desc(char **str)
   }
   default: {
     desc = desc_from_base(ch);
-    bug(desc == NULL, "invalid typestr:%c", ch);
+    expect(desc != NULL);
     s++;
     break;
   }

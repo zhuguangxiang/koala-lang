@@ -293,7 +293,6 @@ typedef struct stmt {
   short hasvalue;
   union {
     struct {
-      int freevar;
       Ident id;
       Type type;
       Expr *exp;

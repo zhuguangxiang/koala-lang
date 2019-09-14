@@ -228,7 +228,7 @@ TypeObject string_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "String",
   .hash    = string_hash,
-  .equal   = string_equal,
+  .cmp     = string_equal,
   .free    = string_free,
   .methods = string_methods,
 };

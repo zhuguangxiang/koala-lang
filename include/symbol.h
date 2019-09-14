@@ -57,8 +57,10 @@ typedef enum symbolkind {
   SYM_MAX
 } SymKind;
 
+typedef struct symbol Symbol;
+
 /* symbol structure */
-typedef struct symbol {
+struct symbol {
   /* hash node */
   HashMapEntry hnode;
   /* SymKind */
@@ -67,8 +69,6 @@ typedef struct symbol {
   char *name;
   /* type descriptor */
   TypeDesc *desc;
-  /* type object */
-  struct symbol *typesym;
   /* filename */
   char *filename;
   /* position */
@@ -80,12 +80,14 @@ typedef struct symbol {
   int used;
   union {
     struct {
+      /* type object */
+      Symbol *typesym;
       /* constant value */
       Literal value;
     } k;
     struct {
-      /* free var */
-      int freevar;
+      /* type object */
+      Symbol *typesym;
       /* variable index */
       int32_t index;
       /* constant value */
@@ -115,7 +117,7 @@ typedef struct symbol {
     } em;
     struct {
       /* which enum is it? */
-      struct symbol *esym;
+      Symbol *esym;
       /* associated types, TypeDesc */
       Vector *descs;
       Vector *syms;
@@ -136,12 +138,12 @@ typedef struct symbol {
       /* dot import path */
       char *path;
       /* reference symbol in module */
-      struct symbol *sym;
+      Symbol *sym;
       /* reference module */
       void *module;
     } ref;
   };
-} Symbol;
+};
 
 STable *stable_new(void);
 void stable_free(STable *stbl);

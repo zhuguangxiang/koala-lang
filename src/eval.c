@@ -53,7 +53,7 @@ typedef struct frame {
 
 static Frame *new_frame(KoalaState *ks, Object *code, int locsize)
 {
-  bug(ks->depth >= MAX_FRAME_DEPTH, "StackOverflow");
+  expect(ks->depth < MAX_FRAME_DEPTH);
 
   locsize += 1; /* self object */
 
@@ -84,14 +84,14 @@ static void prepare_args(Frame *f, Object *ob, Object *args)
     if (Tuple_Check(args)) {
       Object *v;
       int size = Tuple_Size(args);
-      bug(f->size != size + 1, "count of args error");
+      expect(f->size == size + 1);
       for (int i = 0; i < size; i++) {
         v = Tuple_Get(args, i);
         f->locvars[i + 1] = OB_INCREF(v);
         OB_DECREF(v);
       }
     } else {
-      bug(f->size != 2, "count of args is not 2");
+      expect(f->size == 2);
       f->locvars[1] = OB_INCREF(args);
     }
   }
@@ -101,44 +101,44 @@ static void prepare_args(Frame *f, Object *ob, Object *args)
 static struct list_head kslist;
 
 #define TOP() ({ \
-  bug(top >= base + MAX_STACK_SIZE, "stack out of range"); \
+  expect(top < base + MAX_STACK_SIZE); \
   *top; \
 })
 
 #define POP() ({ \
-  bug(top < base, "stack is empty"); \
+  expect(top >= base); \
   *top--; \
 })
 
 #define PUSH(v) ({ \
-  bug(top >= base + MAX_STACK_SIZE - 1, "stack is full"); \
+  expect(top < base + MAX_STACK_SIZE - 1); \
   *++top = v; \
 })
 
 #define NEXT_OP() ({ \
-  bug(f->index >= co->size, "code out of range"); \
+  expect(f->index < co->size); \
   co->codes[++f->index]; \
 })
 
 #define NEXT_BYTE() ({ \
-  bug(f->index >= co->size, "code out of range"); \
+  expect(f->index << co->size); \
   co->codes[++f->index]; \
 })
 
 #define NEXT_2BYTES() ({ \
-  bug(f->index >= co->size, "code out of range"); \
+  expect(f->index < co->size); \
   uint8_t l = co->codes[++f->index]; \
   uint8_t h = co->codes[++f->index]; \
   ((h << 8) + l); \
 })
 
 #define GETLOCAL(i) ({ \
-  bug(i >= f->size, "index out of range"); \
+  expect(i < f->size); \
   f->locvars[i]; \
 })
 
 #define SETLOCAL(i, v) ({ \
-  bug(i >= f->size, "index out of range"); \
+  expect(i < f->size); \
   f->locvars[i] = v; \
 })
 
@@ -190,11 +190,10 @@ static Object *new_object(Object *descob, Object *args)
 {
   TypeDesc *desc = ((DescObject *)descob)->desc;
   Object *mo = Module_Load(desc->klass.path);
-  bug(mo == NULL, "cannot load module '%s'", MODULE_NAME(mo));
+  expect(mo != NULL);
 
   Object *typeob = Module_Lookup(mo, desc->klass.type);
-  bug(typeob == NULL, "cannot find type '%s' in '%s'",
-    desc->klass.type, MODULE_NAME(mo));
+  expect(typeob != NULL);
 
   TypeObject *type = (TypeObject *)typeob;
   if (type == &integer_type) {
@@ -948,7 +947,7 @@ pthread_key_t kskey;
 Object *Koala_EvalCode(Object *self, Object *ob, Object *args)
 {
   KoalaState *ks = pthread_getspecific(kskey);
-  bug(ks == NULL, "ks in pthread is null");
+  expect(ks != NULL);
   CodeObject *co = (CodeObject *)self;
   Frame *f = new_frame(ks, self, co->locals);
   prepare_args(f, ob, args);

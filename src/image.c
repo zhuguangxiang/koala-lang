@@ -50,7 +50,7 @@ static int _append_(Image *image, int type, void *data, int unique)
   Vector *vec = image->items + type;
   vector_push_back(vec, data);
   int index = vector_size(vec) - 1;
-  bug(index < 0, "index out of bound");
+  expect(index >= 0);
   if (unique) {
     ItemEntry *e = kmalloc(sizeof(ItemEntry));
     e->type  = type;
@@ -58,7 +58,7 @@ static int _append_(Image *image, int type, void *data, int unique)
     e->data  = data;
     hashmap_entry_init(e, item_hash(e));
     int res = hashmap_add(&image->map, e);
-    bug(res != 0, "duplicated");
+    expect(res == 0);
   }
   return index;
 }
@@ -73,13 +73,13 @@ static inline int _index_(Image *image, int type, void *data)
 
 static inline void *_get_(Image *image, int type, int index)
 {
-  bug(type < 0 || type >= image->size, "type out of range");
+  expect(type >= 0 && type < image->size);
   return vector_get(image->items + type, index);
 }
 
 static inline int _size_(Image *image, int type)
 {
-  bug(type < 0 || type >= image->size, "type out of range");
+  expect(type >= 0 && type < image->size);
   return vector_size(image->items + type);
 }
 
@@ -197,9 +197,15 @@ static int typeitem_equal(void *k1, void *k2)
   TypeItem *item2 = k2;
   if (item1->kind != item2->kind)
     return 0;
-  if (item1->pathindex != item2->pathindex)
+  /*
+  if (item1->parasindex != item2->parasindex)
     return 0;
-  if (item1->typeindex != item2->typeindex)
+  if (item1->typesindex != item2->typesindex)
+    return 0;
+  */
+  if (item1->klass.pathindex != item2->klass.pathindex)
+    return 0;
+  if (item1->klass.typeindex != item2->klass.typeindex)
     return 0;
   return 1;
 }
@@ -227,23 +233,23 @@ static void typeitem_show(Image *image, void *o)
   }
   case TYPE_KLASS: {
     StringItem *str;
-    if (item->pathindex >= 0) {
-      str = _get_(image, ITEM_STRING, item->pathindex);
-      print("  pathindex:%d\n", item->pathindex);
+    if (item->klass.pathindex >= 0) {
+      str = _get_(image, ITEM_STRING, item->klass.pathindex);
+      print("  pathindex:%d\n", item->klass.pathindex);
       print("  (%s)\n", str->data);
     } else {
-      print("  pathindex:%d\n", item->pathindex);
+      print("  pathindex:%d\n", item->klass.pathindex);
     }
-    if (item->typeindex >= 0) {
-      str = _get_(image, ITEM_STRING, item->typeindex);
-      print("  typeindex:%d\n", item->typeindex);
+    if (item->klass.typeindex >= 0) {
+      str = _get_(image, ITEM_STRING, item->klass.typeindex);
+      print("  typeindex:%d\n", item->klass.typeindex);
     } else {
-      print("  typeindex:%d\n", item->typeindex);
+      print("  typeindex:%d\n", item->klass.typeindex);
     }
     break;
   }
   default:
-    bug(1, "invalid type %d", item->kind);
+    panic("invalid type %d", item->kind);
     break;
   }
 }
@@ -265,8 +271,8 @@ static TypeItem *typeitem_klass_new(int32_t pathindex, int32_t typeindex)
 {
   TypeItem *item = kmalloc(sizeof(TypeItem));
   item->kind = TYPE_KLASS;
-  item->pathindex = pathindex;
-  item->typeindex = typeindex;
+  item->klass.pathindex = pathindex;
+  item->klass.typeindex = typeindex;
   return item;
 }
 
@@ -274,8 +280,8 @@ static TypeItem *typeitem_proto_new(int32_t pindex, int32_t rindex)
 {
   TypeItem *item = kmalloc(sizeof(TypeItem));
   item->kind = TYPE_PROTO;
-  item->pindex = pindex;
-  item->rindex = rindex;
+  item->proto.pindex = pindex;
+  item->proto.rindex = rindex;
   return item;
 }
 
@@ -389,7 +395,7 @@ static int literalitem_equal(void *k1, void *k2)
     res = item1->wch.val == item2->wch.val;
     break;
   default:
-    bug(1, "invalid literal %d", item1->type);
+    panic("invalid literal %d", item1->type);
     break;
   }
   return res;
@@ -417,7 +423,7 @@ static void literalitem_show(Image *image, void *o)
     print("  uchar:%s\n", item->wch.data);
     break;
   default:
-    bug(1, "invalid literal %d", item->type);
+    panic("invalid literal %d", item->type);
     break;
   }
 }
@@ -975,7 +981,7 @@ static int typelistitem_set(Image *image, Vector *vec)
     int32_t indexes[sz];
     for (int i = 0; i < sz; i++) {
       index = typeitem_set(image, vector_get(vec, i));
-      bug(index < 0, "index out of range");
+      expect(index >= 0);
       indexes[i] = index;
     }
     TypeListItem *item = typelistitem_new(sz, indexes);
@@ -1007,40 +1013,20 @@ static int typeitem_get(Image *image, TypeDesc *desc)
         return typeindex;
     }
     item.kind = TYPE_KLASS;
-    item.pathindex = pathindex;
-    item.typeindex = typeindex;
+    item.klass.pathindex = pathindex;
+    item.klass.typeindex = typeindex;
     break;
   }
   case TYPE_PROTO: {
     int rindex = typeitem_get(image, desc->proto.ret);
     int pindex = typelistitem_get(image, desc->proto.args);
     item.kind = TYPE_PROTO;
-    item.pindex = pindex;
-    item.rindex = rindex;
-    break;
-  }
-  /*
-  case TYPE_ARRAY: {
-    ArrayDesc *array = (ArrayDesc *)desc;
-    item.kind = TYPE_ARRAY;
-    item.array.dims = array->dims;
-    item.array.typeindex = typeitem_get(image, array->base);
-    break;
-  }
-  case TYPE_VARG: {
-    VargDesc *varg = (VargDesc *)desc;
-    item.kind = TYPE_VARG;
-    item.varg.typeindex = typeitem_get(image, varg->base);
-    break;
-  }
-  */
-  case TYPE_PARAREF: {
-    item.kind = TYPE_BASE;
-    item.base = BASE_ANY;
+    item.proto.pindex = pindex;
+    item.proto.rindex = rindex;
     break;
   }
   default: {
-    bug(1, "invalid typedesc %d", desc->kind);
+    panic("invalid typedesc %d", desc->kind);
     break;
   }
   }
@@ -1069,11 +1055,16 @@ static int typeitem_set(Image *image, TypeDesc *desc)
       if (desc->klass.type != NULL) {
         typeindex = stringitem_set(image, desc->klass.type);
       }
+      int parasindex = -1;
+      if (desc->paras != NULL) {
+        parasindex = typelistitem_set(image, desc->paras);
+      }
       int typesindex = -1;
       if (desc->types != NULL) {
         typesindex = typelistitem_set(image, desc->types);
       }
       item = typeitem_klass_new(pathindex, typeindex);
+      item->parasindex = parasindex;
       item->typesindex = typesindex;
       break;
     }
@@ -1083,20 +1074,8 @@ static int typeitem_set(Image *image, TypeDesc *desc)
       item = typeitem_proto_new(pindex, rindex);
       break;
     }
-    /*
-    case TYPE_VARG: {
-      VargDesc *varg = (VargDesc *)desc;
-      int typeindex = typeitem_set(image, varg->base);
-      item = TypeItem_Varg_New(typeindex);
-      break;
-    }
-    case TYPE_PARAREF: {
-      item = TypeItem_Primitive_New(BASE_ANY);
-      break;
-    }
-    */
     default: {
-      bug(1, "invalid typedesc %d", desc->kind);
+      panic("invalid typedesc %d", desc->kind);
       break;
     }
     }
@@ -1356,16 +1335,9 @@ int Image_Add_Literal(Image *image, Literal *val)
 
 int Image_Add_Desc(Image *image, TypeDesc *desc)
 {
-  bug(desc == NULL, "null pointer");
+  expect(desc != NULL);
   int index = typeitem_set(image, desc);
   return image_add_const(image, CONST_TYPE, index);
-}
-
-int Image_Add_DescList(Image *image, Vector *vec)
-{
-  bug(vec == NULL, "null pointer");
-  int index = typelistitem_set(image, vec);
-  return image_add_const(image, CONST_TYPELIST, index);
 }
 
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc)
@@ -1502,7 +1474,7 @@ static unsigned int item_hash(ItemEntry *e)
   if (e->type < 0 || e->type >= ITEM_MAX)
     panic("type '%d' out of range", e->type);
   hashfunc fn = item_func[e->type].hash;
-  bug(fn == NULL, "null pointer");
+  expect(fn != NULL);
   return fn(e->data);
 }
 
@@ -1510,14 +1482,12 @@ static int _item_equal_(void *k1, void *k2)
 {
   ItemEntry *e1 = k1;
   ItemEntry *e2 = k2;
-  bug(e1->type < 0 || e1->type >= ITEM_MAX,
-    "type '%d' out of range", e1->type);
-  bug(e2->type < 0 || e2->type >= ITEM_MAX,
-    "type '%d' out of range", e2->type);
+  expect(e1->type >= 0 && e1->type < ITEM_MAX);
+  expect(e2->type >= 0 && e2->type < ITEM_MAX);
   if (e1->type != e2->type)
     return 0;
   equalfunc fn = item_func[e1->type].equal;
-  bug(fn == NULL, "null pointer");
+  expect(fn != NULL);
   return fn(e1->data, e2->data);
 }
 
@@ -1558,9 +1528,9 @@ void Image_Free(Image *image)
   void *data;
   for (int i = 0; i < image->size; i++) {
     vector_for_each(data, image->items + i) {
-      bug(i < 0 || i >= ITEM_MAX, "type '%d' out of range", i);
+      expect(i >= 0 && i < ITEM_MAX);
       itemfreefunc fn = item_func[i].free;
-      bug(fn == NULL, "null pointer");
+      expect(fn != NULL);
       fn(data);
     }
     vector_fini(image->items + i);
@@ -1598,13 +1568,13 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     StringItem *s;
     char *path;
     char *type;
-    if (item->pathindex >= 0) {
-      s = _get_(image, ITEM_STRING, item->pathindex);
+    if (item->klass.pathindex >= 0) {
+      s = _get_(image, ITEM_STRING, item->klass.pathindex);
       path = atom(s->data);
     } else {
       path = NULL;
     }
-    s = _get_(image, ITEM_STRING, item->typeindex);
+    s = _get_(image, ITEM_STRING, item->klass.typeindex);
     type = atom(s->data);
     t = desc_from_klass(path, type);
     if (item->typesindex >= 0) {
@@ -1614,25 +1584,16 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     break;
   }
   case TYPE_PROTO: {
-    TypeListItem *listitem = _get_(image, ITEM_TYPELIST, item->pindex);
-    TypeItem *item = _get_(image, ITEM_TYPE, item->rindex);
+    TypeListItem *listitem = _get_(image, ITEM_TYPELIST, item->proto.pindex);
+    TypeItem *item = _get_(image, ITEM_TYPE, item->proto.rindex);
     Vector *args = to_typedescvec(listitem, image);
     TypeDesc *ret = to_typedesc(item, image);
     t = desc_from_proto(args, ret);
     TYPE_DECREF(ret);
     break;
   }
-  /*
-  case TYPE_VARG: {
-    TypeItem *base = _get_(image, ITEM_TYPE, item->varg.typeindex);
-    TypeDesc *desc = to_typedesc(base, image);
-    t = TypeDesc_New_Varg(desc);
-    TYPE_DECREF(desc);
-    break;
-  }
-  */
   default:
-    bug(1, "invalid type %d", item->kind);
+    panic("invalid type %d", item->kind);
     break;
   }
   return t;
@@ -1665,7 +1626,7 @@ static Literal to_literal(LiteralItem *item, Image *image)
     value.cval = item->wch;
     break;
   default:
-    bug(1, "invalid literal %d", item->type);
+    panic("invalid literal %d", item->type);
     break;
   }
   return value;
@@ -1693,17 +1654,12 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
       liteitem = _get_(image, ITEM_LITERAL, item->index);
       val = to_literal(liteitem, image);
       func(&val, CONST_LITERAL, i, arg);
-    } else if (item->kind == CONST_TYPE) {
+    } else {
+      expect(item->kind == CONST_TYPE);
       typeitem = _get_(image, ITEM_TYPE, item->index);
       desc = to_typedesc(typeitem, image);
       func(desc, CONST_TYPE, i, arg);
       TYPE_DECREF(desc);
-    } else {
-      bug(item->kind != CONST_TYPELIST, "type error");
-      typelistitem = _get_(image, ITEM_TYPELIST, item->index);
-      vec = to_typedescvec(typelistitem, image);
-      func(vec, CONST_TYPELIST, i, arg);
-      free_descs(vec);
     }
   }
 }
@@ -1787,7 +1743,7 @@ void Image_Get_Classes(Image *image, getclassfunc func, void *arg)
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_CLASS, i);
     type = _get_(image, ITEM_TYPE, item->classindex);
-    str = _get_(image, ITEM_STRING, type->typeindex);
+    str = _get_(image, ITEM_STRING, type->klass.typeindex);
     func(str->data, arg);
   }
 }
@@ -1824,7 +1780,7 @@ void Image_Get_Enums(Image *image, getenumfunc func, void *arg)
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_ENUM, i);
     type = _get_(image, ITEM_TYPE, item->classindex);
-    str = _get_(image, ITEM_STRING, type->typeindex);
+    str = _get_(image, ITEM_STRING, type->klass.typeindex);
     func(str->data, arg);
   }
 }
@@ -1863,7 +1819,7 @@ void Image_Get_Fields(Image *image, getfieldfunc func, void *arg)
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_FIELD, i);
     type = _get_(image, ITEM_TYPE, item->classindex);
-    classstr = _get_(image, ITEM_STRING, type->typeindex);
+    classstr = _get_(image, ITEM_STRING, type->klass.typeindex);
     str = _get_(image, ITEM_STRING, item->nameindex);
     type = _get_(image, ITEM_TYPE, item->typeindex);
     desc = to_typedesc(type, image);
@@ -1888,7 +1844,7 @@ void Image_Get_Methods(Image *image, getmethodfunc func, void *arg)
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_METHOD, i);
     type = _get_(image, ITEM_TYPE, item->classindex);
-    classstr = _get_(image, ITEM_STRING, type->typeindex);
+    classstr = _get_(image, ITEM_STRING, type->klass.typeindex);
     str = _get_(image, ITEM_STRING, item->nameindex);
     code = _get_(image, ITEM_CODE, item->codeindex);
     listitem = _get_(image, ITEM_TYPELIST, item->pindex);
@@ -1944,7 +1900,7 @@ static void __image_write_item(FILE *fp, Image *image, int type, int size)
 {
   void *o;
   itemwritefunc write = item_func[type].write;
-  bug(write == NULL, "null pointer");
+  expect(write != NULL);
   for (int i = 0; i < size; i++) {
     o = _get_(image, type, i);
     write(fp, o);
@@ -1972,7 +1928,7 @@ static FILE *open_image_file(char *path, char *mode)
     char *cmd = kmalloc(strlen(fmt) + strlen(dir));
     sprintf(cmd, fmt, dir);
     int status = system(cmd);
-    bug(status != 0, "mkdir error");
+    expect(status == 0);
     kfree(cmd);
     kfree(dir);
     fp = fopen(path, "w");
@@ -1983,7 +1939,7 @@ static FILE *open_image_file(char *path, char *mode)
 void Image_Write_File(Image *image, char *path)
 {
   FILE *fp = open_image_file(path, "w");
-  bug(fp == NULL, "open file %s failed", path);
+  expect(fp != NULL);
   __image_write_header(fp, image);
   __image_write_items(fp, image);
   fflush(fp);
@@ -2023,12 +1979,12 @@ Image *Image_Read_File(char *path, int unload)
   }
 
   Image *image = Image_New(header.name);
-  bug(image == NULL, "null pointer");
+  expect(image != NULL);
   memcpy(&image->header, &header, sizeof(ImageHeader));
 
   MapItem mapitems[header.map_size];
   int status = fseek(fp, header.map_offset, SEEK_SET);
-  bug(status != 0, "fseek error");
+  expect(status == 0);
   sz = fread(mapitems, sizeof(MapItem), header.map_size, fp);
   if (sz < (int)header.map_size) {
     print("error: file %s is not a valid .klc file\n", path);
@@ -2046,7 +2002,7 @@ Image *Image_Read_File(char *path, int unload)
   for (int i = 0; i < COUNT_OF(mapitems); i++) {
     map = mapitems + i;
     status = fseek(fp, map->offset, SEEK_SET);
-    bug(status != 0, "fseek error");
+    expect(status == 0);
     switch (map->type) {
     case ITEM_STRING:
       if (LOAD(ITEM_STRING)) {
@@ -2054,10 +2010,10 @@ Image *Image_Read_File(char *path, int unload)
         uint32_t len;
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
-          bug(sz != 1, "fread error");
+          expect(sz == 1);
           item = vargitem_new(sizeof(StringItem), sizeof(char), len);
           sz = fread(item->data, sizeof(char) * len, 1, fp);
-          bug(sz != 1, "fread error");
+          expect(sz == 1);
           _append_(image, ITEM_STRING, item, 1);
         }
       }
@@ -2067,7 +2023,7 @@ Image *Image_Read_File(char *path, int unload)
         TypeItem *item;
         TypeItem items[map->size];
         sz = fread(items, sizeof(TypeItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(TypeItem), items + i);
           _append_(image, ITEM_TYPE, item, 1);
@@ -2080,10 +2036,10 @@ Image *Image_Read_File(char *path, int unload)
         uint32_t len;
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
-          bug(sz != 1, "fread error");
+          expect(sz == 1);
           item = vargitem_new(sizeof(TypeListItem), sizeof(int32_t), len);
           sz = fread(item->index, sizeof(int32_t) * len, 1, fp);
-          bug(sz != 1, "fread error");
+          expect(sz == 1);
           _append_(image, ITEM_TYPELIST, item, 1);
         }
       }
@@ -2093,7 +2049,7 @@ Image *Image_Read_File(char *path, int unload)
         LiteralItem *item;
         LiteralItem items[map->size];
         sz = fread(items, sizeof(LiteralItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(LiteralItem), items + i);
           _append_(image, ITEM_LITERAL, item, 1);
@@ -2105,7 +2061,7 @@ Image *Image_Read_File(char *path, int unload)
         LocVarItem *item;
         LocVarItem items[map->size];
         sz = fread(items, sizeof(LocVarItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(LocVarItem), items + i);
           _append_(image, ITEM_LOCVAR, item, 0);
@@ -2117,7 +2073,7 @@ Image *Image_Read_File(char *path, int unload)
         VarItem *item;
         VarItem items[map->size];
         sz = fread(items, sizeof(VarItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(VarItem), items + i);
           _append_(image, ITEM_VAR, item, 0);
@@ -2129,7 +2085,7 @@ Image *Image_Read_File(char *path, int unload)
         FuncItem *item;
         FuncItem items[map->size];
         sz = fread(items, sizeof(FuncItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(FuncItem), items + i);
           _append_(image, ITEM_FUNC, item, 0);
@@ -2142,11 +2098,11 @@ Image *Image_Read_File(char *path, int unload)
         uint32_t len;
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
-          bug(sz != 1, "fread error");
+          expect(sz == 1);
           if (len > 0) {
             item = vargitem_new(sizeof(CodeItem), sizeof(uint8_t), len);
             sz = fread(item->codes, sizeof(uint8_t) * len, 1, fp);
-            bug(sz != 1, "fread error");
+            expect(sz == 1);
             _append_(image, ITEM_CODE, item, 0);
           }
         }
@@ -2157,7 +2113,7 @@ Image *Image_Read_File(char *path, int unload)
         ClassItem *item;
         ClassItem items[map->size];
         sz = fread(items, sizeof(ClassItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(ClassItem), items + i);
           _append_(image, ITEM_CLASS, item, 0);
@@ -2169,7 +2125,7 @@ Image *Image_Read_File(char *path, int unload)
         FieldItem *item;
         FieldItem items[map->size];
         sz = fread(items, sizeof(FieldItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(FieldItem), items + i);
           _append_(image, ITEM_FIELD, item, 0);
@@ -2181,7 +2137,7 @@ Image *Image_Read_File(char *path, int unload)
         MethodItem *item;
         MethodItem items[map->size];
         sz = fread(items, sizeof(MethodItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(MethodItem), items + i);
           _append_(image, ITEM_METHOD, item, 0);
@@ -2193,7 +2149,7 @@ Image *Image_Read_File(char *path, int unload)
         TraitItem *item;
         TraitItem items[map->size];
         sz = fread(items, sizeof(TraitItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(TraitItem), items + i);
           _append_(image, ITEM_TRAIT, item, 0);
@@ -2205,7 +2161,7 @@ Image *Image_Read_File(char *path, int unload)
         NFuncItem *item;
         NFuncItem items[map->size];
         sz = fread(items, sizeof(NFuncItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(NFuncItem), items + i);
           _append_(image, ITEM_NFUNC, item, 0);
@@ -2217,7 +2173,7 @@ Image *Image_Read_File(char *path, int unload)
         IMethItem *item;
         IMethItem items[map->size];
         sz = fread(items, sizeof(IMethItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(IMethItem), items + i);
           _append_(image, ITEM_IMETH, item, 0);
@@ -2229,7 +2185,7 @@ Image *Image_Read_File(char *path, int unload)
         EnumItem *item;
         EnumItem items[map->size];
         sz = fread(items, sizeof(EnumItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(EnumItem), items + i);
           _append_(image, ITEM_ENUM, item, 0);
@@ -2241,7 +2197,7 @@ Image *Image_Read_File(char *path, int unload)
         EValItem *item;
         EValItem items[map->size];
         sz = fread(items, sizeof(EValItem), map->size, fp);
-        bug(sz != map->size, "fread error");
+        expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(EValItem), items + i);
           _append_(image, ITEM_EVAL, item, 0);
@@ -2249,7 +2205,7 @@ Image *Image_Read_File(char *path, int unload)
       }
       break;
     default:
-      bug(1, "invalid map %d", map->type);
+      panic("invalid map %d", map->type);
       break;
     }
   }

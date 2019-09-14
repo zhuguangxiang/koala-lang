@@ -68,20 +68,26 @@ typedef struct stringitem {
 
 typedef struct typeitem {
   int kind;               /* see: DescKind in typedesc.h */
+  int32_t parasindex;     /* ->TypeListItem */
+  int32_t typesindex;     /* ->TypeListItem */
   union {
     char base;            /* base type */
     struct {
       int32_t pathindex;  /* ->StringItem */
       int32_t typeindex;  /* ->StringItem */
-      int32_t typesindex; /* ->TypeListItem */
-    };
+    } klass;
     struct {
       int32_t pindex;     /* ->TypeListItem */
       int32_t rindex;     /* ->TypeItem */
-    };
+    } proto;
     struct {
-      int32_t typeindex;  /* ->TypeItem */
-    } varg;
+      int32_t nameindex;  /* ->StringItem */
+      int32_t indexvalue; /* int */
+    } pararef;
+    struct {
+      int32_t nameindex;  /* ->StringItem */
+      int32_t typesindex; /* ->TypeListItem */
+    } paradef;
   };
 } TypeItem;
 
@@ -225,7 +231,6 @@ int Image_Add_String(Image *image, char *val);
 int Image_Add_UChar(Image *image, wchar val);
 int Image_Add_Literal(Image *image, Literal *val);
 int Image_Add_Desc(Image *image, TypeDesc *desc);
-int Image_Add_DescList(Image *image, Vector *vec);
 
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc);
 void Image_Add_Const(Image *image, char *name, TypeDesc *desc,

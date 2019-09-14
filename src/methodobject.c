@@ -72,7 +72,7 @@ static Object *method_call(Object *self, Object *args)
     return NULL;
   }
 
-  bug(args == NULL, "'call' has no arguments");
+  expect(args != NULL);
 
   Object *ob;
   Object *para;
@@ -81,7 +81,7 @@ static Object *method_call(Object *self, Object *args)
     para = NULL;
   } else {
     int size = Tuple_Size(args);
-    bug(size <= 0, "args are less than 1");
+    expect(size > 0);
     ob = Tuple_Get(args, 0);
     if (size == 2)
       para = Tuple_Get(args, 1);
