@@ -139,6 +139,15 @@ static struct list_head kslist;
   f->locvars[i] = v; \
 })
 
+#define call_num_func(z, x, op, y) \
+do { \
+  if (fn != NULL) { \
+    z = fn(x, y); \
+  } else { \
+    z = Object_Call(x, opcode_map(op), y); \
+  } \
+} while (0)
+
 static int logic_true(Object *ob)
 {
   if (ob == NULL)
@@ -218,6 +227,9 @@ Object *Koala_EvalFrame(Frame *f)
   uint8_t op;
   int oparg;
   Object *x, *y, *z, *v, *w;
+  TypeDesc *desc, *xdesc, *ydesc;
+  func_t fn;
+  int i;
 
   while (loopflag) {
     if ((f->index + 1) >= co->size) {
@@ -366,7 +378,7 @@ Object *Koala_EvalFrame(Frame *f)
         z = POP();
       } else {
         z = Tuple_New(oparg);
-        for (int i = 0; i < oparg; ++i) {
+        for (i = 0; i < oparg; ++i) {
           v = POP();
           Tuple_Set(z, i, v);
           OB_DECREF(v);
@@ -409,12 +421,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_ADD: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, add);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_ADD), y);
-      }
+      fn = OB_NUM_FUNC(x, add);
+      call_num_func(z, x, OP_ADD, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -423,12 +431,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_SUB: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, sub);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_SUB), y);
-      }
+      fn = OB_NUM_FUNC(x, sub);
+      call_num_func(z, x, OP_SUB, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -437,12 +441,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_MUL: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, mul);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_MUL), y);
-      }
+      fn = OB_NUM_FUNC(x, mul);
+      call_num_func(z, x, OP_MUL, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -451,12 +451,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_DIV: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, div);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_DIV), y);
-      }
+      fn = OB_NUM_FUNC(x, div);
+      call_num_func(z, x, OP_DIV, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -465,12 +461,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_MOD: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, mod);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_MOD), y);
-      }
+      fn = OB_NUM_FUNC(x, mod);
+      call_num_func(z, x, OP_MOD, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -479,12 +471,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_POW: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, pow);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_POW), y);
-      }
+      fn = OB_NUM_FUNC(x, pow);
+      call_num_func(z, x, OP_POW, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -492,12 +480,8 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_NEG: {
       x = POP();
-      func_t fn = OB_NUM_FUNC(x, neg);
-      if (fn != NULL) {
-        z = fn(x, NULL);
-      } else {
-        z = Object_Call(x, opcode_map(OP_NEG), NULL);
-      }
+      fn = OB_NUM_FUNC(x, neg);
+      call_num_func(z, x, OP_NEG, NULL);
       OB_DECREF(x);
       PUSH(z);
       break;
@@ -505,12 +489,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_GT: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, gt);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_GT), y);
-      }
+      fn = OB_NUM_FUNC(x, gt);
+      call_num_func(z, x, OP_GT, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -519,12 +499,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_GE: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, ge);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_GE), y);
-      }
+      fn = OB_NUM_FUNC(x, ge);
+      call_num_func(z, x, OP_GE, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -533,12 +509,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_LT: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, lt);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_LT), y);
-      }
+      fn = OB_NUM_FUNC(x, lt);
+      call_num_func(z, x, OP_LT, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -547,12 +519,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_LE: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, le);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_LE), y);
-      }
+      fn = OB_NUM_FUNC(x, le);
+      call_num_func(z, x, OP_LE, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -561,12 +529,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_EQ: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, eq);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_EQ), y);
-      }
+      fn = OB_NUM_FUNC(x, eq);
+      call_num_func(z, x, OP_EQ, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -575,12 +539,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_NEQ: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, neq);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_NEQ), y);
-      }
+      fn = OB_NUM_FUNC(x, neq);
+      call_num_func(z, x, OP_NEQ, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -589,12 +549,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_BIT_AND: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, and);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_BIT_AND), y);
-      }
+      fn = OB_NUM_FUNC(x, and);
+      call_num_func(z, x, OP_BIT_AND, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -603,12 +559,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_BIT_OR: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, or);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_BIT_OR), y);
-      }
+      fn = OB_NUM_FUNC(x, or);
+      call_num_func(z, x, OP_BIT_OR, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -617,12 +569,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_BIT_XOR: {
       x = POP();
       y = POP();
-      func_t fn = OB_NUM_FUNC(x, xor);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_BIT_XOR), y);
-      }
+      fn = OB_NUM_FUNC(x, xor);
+      call_num_func(z, x, OP_BIT_XOR, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -630,12 +578,8 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_BIT_NOT: {
       x = POP();
-      func_t fn = OB_NUM_FUNC(x, not);
-      if (fn != NULL) {
-        z = fn(x, NULL);
-      } else {
-        z = Object_Call(x, opcode_map(OP_BIT_NOT), NULL);
-      }
+      fn = OB_NUM_FUNC(x, not);
+      call_num_func(z, x, OP_BIT_NOT, NULL);
       OB_DECREF(x);
       PUSH(z);
       break;
@@ -671,12 +615,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_ADD: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, add);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_ADD), y);
-      }
+      fn = OB_INPLACE_FUNC(x, add);
+      call_num_func(z, x, OP_INPLACE_ADD, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -684,12 +624,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_SUB: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, sub);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_SUB), y);
-      }
+      fn = OB_INPLACE_FUNC(x, sub);
+      call_num_func(z, x, OP_INPLACE_SUB, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -697,12 +633,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_MUL: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, mul);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_MUL), y);
-      }
+      fn = OB_INPLACE_FUNC(x, mul);
+      call_num_func(z, x, OP_INPLACE_MUL, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -710,12 +642,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_DIV: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, div);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_DIV), y);
-      }
+      fn = OB_INPLACE_FUNC(x, div);
+      call_num_func(z, x, OP_INPLACE_DIV, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -723,12 +651,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_POW: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, pow);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_POW), y);
-      }
+      fn = OB_INPLACE_FUNC(x, pow);
+      call_num_func(z, x, OP_INPLACE_POW, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -736,12 +660,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_MOD: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, mod);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_MOD), y);
-      }
+      fn = OB_INPLACE_FUNC(x, mod);
+      call_num_func(z, x, OP_INPLACE_MOD, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -749,12 +669,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_AND: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, and);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_AND), y);
-      }
+      fn = OB_INPLACE_FUNC(x, and);
+      call_num_func(z, x, OP_INPLACE_AND, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -762,12 +678,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_OR: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, or);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_OR), y);
-      }
+      fn = OB_INPLACE_FUNC(x, or);
+      call_num_func(z, x, OP_INPLACE_OR, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -775,12 +687,8 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_INPLACE_XOR: {
       x = POP();
       y = POP();
-      func_t fn = OB_INPLACE_FUNC(x, xor);
-      if (fn != NULL) {
-        z = fn(x, y);
-      } else {
-        z = Object_Call(x, opcode_map(OP_INPLACE_XOR), y);
-      }
+      fn = OB_INPLACE_FUNC(x, xor);
+      call_num_func(z, x, OP_INPLACE_XOR, y);
       OB_DECREF(x);
       OB_DECREF(y);
       break;
@@ -853,8 +761,7 @@ Object *Koala_EvalFrame(Frame *f)
         y = POP();
       }
 
-      expect(descob_check(x));
-      TypeDesc *desc = descob_getdesc(x);
+      desc = descob_getdesc(x);
       expect(desc->paras == NULL);
       if (desc_isbase(desc)) {
         expect(desc = OB_TYPE(y)->desc);
@@ -872,7 +779,7 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_NEW_TUPLE: {
       oparg = NEXT_2BYTES();
       x = Tuple_New(oparg);
-      for (int i = 0; i < oparg; ++i) {
+      for (i = 0; i < oparg; ++i) {
         y = POP();
         Tuple_Set(x, i, y);
         OB_DECREF(y);
@@ -883,10 +790,14 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_NEW_ARRAY: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
-      y = array_new(((DescObject *)x)->desc);
+      desc = descob_getdesc(x);
+      expect(desc->paras == NULL);
+      expect(desc->types != NULL);
+      xdesc = vector_get(desc->types, 0);
+      y = array_new(xdesc);
       OB_DECREF(x);
       oparg = NEXT_2BYTES();
-      for (int i = 0; i < oparg; ++i) {
+      for (i = 0; i < oparg; ++i) {
         z = POP();
         array_set(y, i, z);
         OB_DECREF(z);
@@ -897,14 +808,15 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_NEW_MAP: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
-      y = Tuple_Get(x, 0);
-      z = Tuple_Get(x, 1);
-      v = map_new(((DescObject *)y)->desc, ((DescObject *)z)->desc);
-      OB_DECREF(y);
-      OB_DECREF(z);
+      desc = descob_getdesc(x);
+      expect(desc->paras == NULL);
+      expect(desc->types != NULL);
+      xdesc = vector_get(desc->types, 0);
+      ydesc = vector_get(desc->types, 1);
+      v = map_new(xdesc, ydesc);
       OB_DECREF(x);
       oparg = NEXT_BYTE();
-      for (int i = 0; i < oparg; ++i) {
+      for (i = 0; i < oparg; ++i) {
         x = POP();
         y = POP();
         map_put(v, x, y);

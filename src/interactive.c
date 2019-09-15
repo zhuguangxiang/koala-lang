@@ -175,23 +175,29 @@ static Object *get_code_object(Symbol *sym)
   return ob;
 }
 
-void Cmd_Add_Const(Ident id, Type type)
+int Cmd_Add_Const(Ident id, Type type)
 {
   sym = stable_add_const(mod.stbl, id.name, type.desc);
   if (sym != NULL) {
     sym->k.typesym = get_desc_symbol(type.desc);
+    return 0;
+  } else {
+    return -1;
   }
 }
 
-void Cmd_Add_Var(Ident id, Type type)
+int Cmd_Add_Var(Ident id, Type type)
 {
   sym = stable_add_var(mod.stbl, id.name, type.desc);
   if (sym != NULL) {
     sym->var.typesym = get_desc_symbol(type.desc);
+    return 0;
+  } else {
+    return -1;
   }
 }
 
-void Cmd_Add_Func(char *name, Vector *idtypes, Type ret)
+int Cmd_Add_Func(char *name, Vector *idtypes, Type ret)
 {
   Vector *vec = NULL;
   if (vector_size(idtypes) > 0)
@@ -203,6 +209,7 @@ void Cmd_Add_Func(char *name, Vector *idtypes, Type ret)
   TypeDesc *proto = desc_from_proto(vec, ret.desc);
   sym = stable_add_func(mod.stbl, name, proto);
   TYPE_DECREF(proto);
+  return sym != NULL ? 0 : -1;
 }
 
 static void add_symbol_to_module(Symbol *sym, Object *ob)
@@ -270,8 +277,6 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
       funcsym->func.codeblock = NULL;
     }
   }
-
-  stmt_free(stmt);
 }
 
 static int empty(char *buf, int size)

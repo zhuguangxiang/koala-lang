@@ -197,12 +197,10 @@ static int typeitem_equal(void *k1, void *k2)
   TypeItem *item2 = k2;
   if (item1->kind != item2->kind)
     return 0;
-  /*
   if (item1->parasindex != item2->parasindex)
     return 0;
   if (item1->typesindex != item2->typesindex)
     return 0;
-  */
   if (item1->klass.pathindex != item2->klass.pathindex)
     return 0;
   if (item1->klass.typeindex != item2->klass.typeindex)
@@ -1001,9 +999,19 @@ static int typeitem_get(Image *image, TypeDesc *desc)
       if (typeindex < 0)
         return typeindex;
     }
+    int parasindex = -1;
+    if (desc->paras != NULL) {
+      parasindex = typelistitem_get(image, desc->paras);
+    }
+    int typesindex = -1;
+    if (desc->types != NULL) {
+      typesindex = typelistitem_get(image, desc->types);
+    }
     item.kind = TYPE_KLASS;
     item.klass.pathindex = pathindex;
     item.klass.typeindex = typeindex;
+    item.parasindex = parasindex;
+    item.typesindex = typesindex;
     break;
   }
   case TYPE_PROTO: {

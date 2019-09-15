@@ -47,9 +47,9 @@
 
 /* interactive mode */
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
-void Cmd_Add_Const(Ident id, Type type);
-void Cmd_Add_Var(Ident id, Type type);
-void Cmd_Add_Func(char *name, Vector *idtypes, Type ret);
+int Cmd_Add_Const(Ident id, Type type);
+int Cmd_Add_Var(Ident id, Type type);
+int Cmd_Add_Func(char *name, Vector *idtypes, Type ret);
 
 %}
 
@@ -259,8 +259,9 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Const($1->vardecl.id, $1->vardecl.type);
-      Cmd_EvalStmt(ps, $1);
+      if (!Cmd_Add_Const($1->vardecl.id, $1->vardecl.type))
+        Cmd_EvalStmt(ps, $1);
+      stmt_free($1);
     }
   }
 }
@@ -269,8 +270,9 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type);
-      Cmd_EvalStmt(ps, $1);
+      if (!Cmd_Add_Var($1->vardecl.id, $1->vardecl.type))
+        Cmd_EvalStmt(ps, $1);
+      stmt_free($1);
     }
   } else {
   }
@@ -280,8 +282,9 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Var($1->vardecl.id, $1->vardecl.type);
-      Cmd_EvalStmt(ps, $1);
+      if (!Cmd_Add_Var($1->vardecl.id, $1->vardecl.type))
+        Cmd_EvalStmt(ps, $1);
+      stmt_free($1);
     }
   }
 }
@@ -290,6 +293,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     Cmd_EvalStmt(ps, $1);
+    stmt_free($1);
   }
 }
 | expr ';'
@@ -298,6 +302,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     Cmd_EvalStmt(ps, stmt);
+    stmt_free(stmt);
   } else {
   }
 }
@@ -330,9 +335,10 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Func($1->funcdecl.id.name, $1->funcdecl.idtypes,
-        $1->funcdecl.ret);
-      Cmd_EvalStmt(ps, $1);
+      if (!Cmd_Add_Func($1->funcdecl.id.name, $1->funcdecl.idtypes,
+          $1->funcdecl.ret))
+        Cmd_EvalStmt(ps, $1);
+      stmt_free($1);
     }
   }
 }

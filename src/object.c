@@ -672,7 +672,7 @@ Object *Object_GetValue(Object *self, char *name)
       }
     }
     OB_DECREF(ob);
-    error("'%s' is not setable", name);
+    error("'%s' is not getable", name);
     return NULL;
   }
   res = field_get(ob, self);

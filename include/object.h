@@ -279,7 +279,11 @@ extern TypeObject descob_type;
 #define descob_check(ob) (OB_TYPE(ob) == &descob_type)
 void init_descob_type(void);
 Object *new_descob(TypeDesc *desc);
-#define descob_getdesc(ob) (((DescObject *)(ob))->desc)
+#define descob_getdesc(ob)    \
+({                            \
+  expect(descob_check(ob));   \
+  ((DescObject *)(ob))->desc; \
+})
 
 typedef struct enumobject {
   OBJECT_HEAD
