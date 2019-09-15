@@ -99,7 +99,7 @@ struct symbol {
       /* local varibles in the function */
       Vector locvec;
       /* CodeBlock */
-      void *code;
+      void *codeblock;
     } func;
     struct {
       /* type parameters */
@@ -149,6 +149,7 @@ STable *stable_new(void);
 void stable_free(STable *stbl);
 Symbol *symbol_new(char *name, SymKind kind);
 Symbol *stable_get(STable *stbl, char *name);
+Symbol *stable_remove(STable *stbl, char *name);
 Symbol *stable_add_const(STable *stbl, char *name, TypeDesc *desc);
 Symbol *stable_add_var(STable *stbl, char *name, TypeDesc *desc);
 Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto);

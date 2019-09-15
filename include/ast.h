@@ -46,9 +46,15 @@ typedef struct type {
   short col;
 } Type;
 
+/* idtype for parameter-list in AST */
+typedef struct idtype {
+  Ident id;
+  Type type;
+} IdType;
+
 static inline Type *new_type(TypeDesc *desc, short row, short col)
 {
-  Type *type = kmalloc(sizeof(*type));
+  Type *type = kmalloc(sizeof(Type));
   type->desc = TYPE_INCREF(desc);
   type->row = row;
   type->col = col;
@@ -61,19 +67,26 @@ static inline void free_type(Type *type)
   kfree(type);
 }
 
-/* idtype for parameter-list in AST */
-typedef struct idtype {
+static inline IdType *new_idtype(Ident id, Type type)
+{
+  IdType *idtype = kmalloc(sizeof(IdType));
+  idtype->id = id;
+  idtype->type = type;
+  return idtype;
+}
+
+static inline void free_idtype(IdType *idtype)
+{
+  TYPE_DECREF(idtype->type.desc);
+  kfree(idtype);
+}
+
+void free_idtypes(Vector *vec);
+
+typedef struct {
   Ident id;
-  Type type;
-} IdType;
-
-/* parameter type */
-typedef struct typepara {
-  Ident id;       /* T: Foo & Bar */
-  Vector *types;  /* Foo, Bar and etc, Type */
-} TypePara;
-
-void TypePara_IsDuplicated(Vector *typeparas, Ident *id);
+  Vector *vec;
+} IdParaDef;
 
 /* unary operator kind */
 typedef enum unaryopkind {
@@ -304,12 +317,10 @@ typedef struct stmt {
     } assign;
     struct {
       Ident id;
-      /* native flag */
-      int native;
       /* type parameters */
       Vector *typeparas;
       /* idtype */
-      Vector *args;
+      Vector *idtypes;
       /* return type */
       Type ret;
       /* body */
@@ -328,6 +339,7 @@ typedef struct stmt {
 } Stmt;
 
 void stmt_free(Stmt *stmt);
+void stmt_block_free(Vector *vec);
 Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);

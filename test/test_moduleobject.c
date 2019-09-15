@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
   OB_DECREF(v);
   OB_DECREF(mo);
 
-  Object *s = String_New("__name__");
+  Object *s = string_new("__name__");
   Object *meth = Object_Call(clazz, "getMethod", s);
   expect(Method_Check(meth));
   OB_DECREF(s);

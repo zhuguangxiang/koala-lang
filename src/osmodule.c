@@ -26,7 +26,7 @@
 
 static Object *os_path_get(Object *self, Object *ob)
 {
-  if (!Field_Check(self)) {
+  if (!field_check(self)) {
     error("object of '%.64s' is not a Field", OB_TYPE_NAME(self));
     return NULL;
   }

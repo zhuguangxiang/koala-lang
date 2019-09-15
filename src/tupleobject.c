@@ -229,7 +229,7 @@ Object *tuple_str(Object *self, Object *ob)
       strbuf_append(&sbuf, ", ");
   }
   strbuf_append(&sbuf, ")");
-  str = String_New(strbuf_tostr(&sbuf));
+  str = string_new(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
 
   return str;

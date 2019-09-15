@@ -61,7 +61,8 @@ typedef struct module {
 
 /* ParserUnit scope */
 typedef enum scopekind {
-  SCOPE_MODULE = 1,
+  SCOPE_INVALID = 0,
+  SCOPE_MODULE,
   SCOPE_CLASS,
   SCOPE_FUNC,
   SCOPE_BLOCK,

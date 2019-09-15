@@ -413,7 +413,7 @@ Stmt *stmt_from_funcdecl(Ident id, Vector *typeparas, Vector *args,
   stmt->kind = FUNC_KIND;
   stmt->funcdecl.id = id;
   stmt->funcdecl.typeparas = typeparas;
-  stmt->funcdecl.args = args;
+  stmt->funcdecl.idtypes = args;
   if (ret != NULL)
     stmt->funcdecl.ret = *ret;
   stmt->funcdecl.body = body;
@@ -444,7 +444,7 @@ Stmt *stmt_from_block(Vector *list)
   return stmt;
 }
 
-static void stmt_block_free(Vector *vec)
+void stmt_block_free(Vector *vec)
 {
   int sz = vector_size(vec);
   Stmt *stmt;
@@ -452,6 +452,16 @@ static void stmt_block_free(Vector *vec)
     stmt = vector_get(vec, i);
     stmt_free(stmt);
   }
+  vector_free(vec);
+}
+
+void free_idtypes(Vector *vec)
+{
+  IdType *item;
+  vector_for_each(item, vec) {
+    free_idtype(item);
+  }
+  vector_free(vec);
 }
 
 void stmt_free(Stmt *stmt)
@@ -477,6 +487,7 @@ void stmt_free(Stmt *stmt)
     kfree(stmt);
     break;
   case FUNC_KIND:
+    free_idtypes(stmt->funcdecl.idtypes);
     TYPE_DECREF(stmt->funcdecl.ret.desc);
     stmt_block_free(stmt->funcdecl.body);
     kfree(stmt);

@@ -86,7 +86,7 @@ static Object *any_str(Object *ob, Object *args)
   char buf[64];
   snprintf(buf, sizeof(buf) - 1, "%.32s@%lx",
            OB_TYPE_NAME(ob), (uintptr_t)ob);
-  return String_New(buf);
+  return string_new(buf);
 }
 
 static Object *any_fmt(Object *ob, Object *args)
@@ -408,7 +408,7 @@ int type_ready(TypeObject *type)
 {
   if (type->hash && !type->cmp) {
     error("__cmp__ must be implemented, "
-          "when __hash__ is implemented of '%.64s'",
+          "when __hash__ is implemented of '%s'",
           type->name);
     return -1;
   }
@@ -474,7 +474,7 @@ void Type_Add_Field(TypeObject *type, Object *ob)
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
 {
   TypeDesc *desc = str_to_desc(f->type);
-  Object *field = Field_New(f->name, desc);
+  Object *field = field_new(f->name, desc);
   TYPE_DECREF(desc);
   Field_SetFunc(field, f->set, f->get);
   Type_Add_Field(type, field);
@@ -629,7 +629,7 @@ Object *Object_GetMethod(Object *self, char *name)
 Object *Object_GetField(Object *self, char *name)
 {
   Object *ob = Object_Lookup(self, name);
-  if (Field_Check(ob)) {
+  if (field_check(ob)) {
     return ob;
   } else {
     error("'%s' is not a Field", name);
@@ -656,11 +656,11 @@ Object *Object_GetValue(Object *self, char *name)
   Object *res = NULL;
   Object *ob = Object_Lookup(self, name);
   if (ob == NULL) {
-    error("object of '%.64s' has no field '%.64s'", OB_TYPE_NAME(self), name);
+    error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
     return NULL;
   }
 
-  if (!Field_Check(ob)) {
+  if (!field_check(ob)) {
     if (Method_Check(ob)) {
       /* if method has no any parameters, it can be accessed as field. */
       MethodObject *meth = (MethodObject *)ob;
@@ -675,7 +675,7 @@ Object *Object_GetValue(Object *self, char *name)
     error("'%s' is not setable", name);
     return NULL;
   }
-  res = Field_Get(ob, self);
+  res = field_get(ob, self);
   OB_DECREF(ob);
   return res;
 }
@@ -684,17 +684,17 @@ int Object_SetValue(Object *self, char *name, Object *val)
 {
   Object *ob = Object_Lookup(self, name);
   if (ob == NULL) {
-    error("object of '%.64s' has no field '%.64s'", OB_TYPE_NAME(self), name);
+    error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
     return -1;
   }
 
-  if (!Field_Check(ob)) {
+  if (!field_check(ob)) {
     error("'%s' is not setable", name);
     OB_DECREF(ob);
     return -1;
   }
 
-  int res = Field_Set(ob, self, val);
+  int res = field_set(ob, self, val);
   OB_DECREF(ob);
   return res;
 }
@@ -709,7 +709,7 @@ Object *New_Literal(Literal *val)
     break;
   case BASE_STR:
     debug("literal string value: %s", val->str);
-    ob = String_New(val->str);
+    ob = string_new(val->str);
     break;
   case BASE_BOOL:
     debug("literal bool value: %s", val->bval ? "true" : "false");
@@ -737,7 +737,7 @@ Object *New_Literal(Literal *val)
 static void descob_free(Object *ob)
 {
   if (!descob_check(ob)) {
-    error("object of '%.64s' is not a TypeDesc", OB_TYPE_NAME(ob));
+    error("object of '%s' is not a TypeDesc", OB_TYPE_NAME(ob));
     return;
   }
   DescObject *descob = (DescObject *)ob;

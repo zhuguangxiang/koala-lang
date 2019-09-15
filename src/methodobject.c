@@ -112,6 +112,9 @@ static void meth_free(Object *ob)
   MethodObject *meth = (MethodObject *)ob;
   debug("[Freed] Method %s", meth->name);
   TYPE_DECREF(meth->desc);
+  if (!meth->cfunc) {
+    OB_DECREF(meth->ptr);
+  }
   kfree(ob);
 }
 
@@ -128,7 +131,7 @@ static Object *meth_str(Object *self, Object *args)
   }
 
   MethodObject *meth = (MethodObject *)self;
-  return String_New(meth->name);
+  return string_new(meth->name);
 }
 
 TypeObject method_type = {

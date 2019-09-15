@@ -39,11 +39,11 @@ int main(int argc, char *argv[])
   TypeDesc *desc = desc_from_str;
   Object *arr = array_new(desc);
   TYPE_DECREF(desc);
-  Object *v = String_New("hello");
+  Object *v = string_new("hello");
   Object_Call(arr, "append", v);
   OB_DECREF(v);
 
-  v = String_New("world");
+  v = string_new("world");
   Object_Call(arr, "append", v);
   OB_DECREF(v);
 

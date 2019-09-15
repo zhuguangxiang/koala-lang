@@ -56,7 +56,7 @@ static Object *module_name(Object *self, Object *args)
   }
 
   ModuleObject *module = (ModuleObject *)self;
-  return String_New(module->name);
+  return string_new(module->name);
 }
 
 static void module_free(Object *ob)
@@ -154,7 +154,7 @@ void Module_Add_Var(Object *self, Object *ob)
 void Module_Add_VarDef(Object *self, FieldDef *f)
 {
   TypeDesc *desc = str_to_desc(f->type);
-  Object *field = Field_New(f->name, desc);
+  Object *field = field_new(f->name, desc);
   TYPE_DECREF(desc);
   Field_SetFunc(field, f->set, f->get);
   Module_Add_Var(self, field);

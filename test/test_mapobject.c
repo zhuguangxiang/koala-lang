@@ -34,13 +34,13 @@ int main(int argc, char *argv[])
   TYPE_DECREF(kdesc);
   TYPE_DECREF(vdesc);
 
-  Object *foo = String_New("foo");
+  Object *foo = string_new("foo");
   Object *val = Integer_New(100);
   map_put(dict, foo, val);
   OB_DECREF(val);
   OB_DECREF(foo);
 
-  Object *bar = String_New("foo");
+  Object *bar = string_new("foo");
   val = map_get(dict, bar);
   expect(Integer_Check(val));
   expect(100 == Integer_AsInt(val));

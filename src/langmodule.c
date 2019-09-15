@@ -62,7 +62,7 @@ void init_lang_module(void)
   Module_Add_Type(m, &array_type);
   Module_Add_Type(m, &tuple_type);
   Module_Add_Type(m, &map_type);
-  Module_Add_Type(m, &Field_Type);
+  Module_Add_Type(m, &field_type);
   Module_Add_Type(m, &method_type);
   Module_Add_Type(m, &proto_type);
   Module_Add_Type(m, &class_type);

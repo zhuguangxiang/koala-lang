@@ -72,6 +72,7 @@ static void init_cmdline_env(void)
   vector_init(&mod.pss);
 
   modSym = symbol_new(mod.name, SYM_MOD);
+  modSym->desc = desc_from_klass("lang", "Module");
   modSym->mod.ptr = &mod;
 
   TypeDesc *strdesc = desc_from_base(BASE_STR);
@@ -102,6 +103,8 @@ static void fini_cmdline_env(void)
   modSym = NULL;
   OB_DECREF(mo);
   mo = NULL;
+  expect(vector_size(&ps.ustack) == 0);
+  vector_fini(&ps.ustack);
 }
 
 yyscan_t scanner;
@@ -134,34 +137,38 @@ static void _get_const_(void *val, int kind, int index, void *arg)
   OB_DECREF(ob);
 }
 
-static Object *getcode(CodeBlock *block)
+static Object *get_code_object(Symbol *sym)
 {
   Object *ob;
-  CodeObject *co;
   Object *consts;
   Image *image;
   uint8_t *code;
+  int locals;
   int size;
   ByteBuffer buf;
+
+  expect(sym->kind == SYM_FUNC);
 
   image = Image_New("__main__");
   bytebuffer_init(&buf, 32);
 
-  code_gen(block, image, &buf);
-#if !defined(NDEBUG)
+  code_gen(sym->func.codeblock, image, &buf);
+
+#if !defined(NLog)
   Image_Show(image);
 #endif
+
+  locals = vector_size(&sym->func.locvec);
+
   size = Image_Const_Count(image);
   consts = Tuple_New(size);
   Image_Get_Consts(image, _get_const_, consts);
-  TypeDesc *proto = desc_from_proto(NULL, NULL);
   size = bytebuffer_toarr(&buf, (char **)&code);
-  ob = Code_New("__code__", proto, 0, code, size);
-  TYPE_DECREF(proto);
-  kfree(code);
-  co = (CodeObject *)ob;
-  co->consts = OB_INCREF(consts);
+
+  ob = code_new(sym->name, sym->desc, locals, code, size);
+  code_set_consts(ob, consts);
   OB_DECREF(consts);
+  kfree(code);
 
   bytebuffer_fini(&buf);
   Image_Free(image);
@@ -171,40 +178,48 @@ static Object *getcode(CodeBlock *block)
 void Cmd_Add_Const(Ident id, Type type)
 {
   sym = stable_add_const(mod.stbl, id.name, type.desc);
-  sym->k.typesym = get_desc_symbol(type.desc);
+  if (sym != NULL) {
+    sym->k.typesym = get_desc_symbol(type.desc);
+  }
 }
 
 void Cmd_Add_Var(Ident id, Type type)
 {
   sym = stable_add_var(mod.stbl, id.name, type.desc);
-  sym->var.typesym = get_desc_symbol(type.desc);
+  if (sym != NULL) {
+    sym->var.typesym = get_desc_symbol(type.desc);
+  }
 }
 
-void Cmd_Add_Func(char *name, TypeDesc *desc)
+void Cmd_Add_Func(char *name, Vector *idtypes, Type ret)
 {
-  if (desc == NULL)
-    desc = desc_from_proto(NULL, NULL);
-  sym = stable_add_func(mod.stbl, name, desc);
+  Vector *vec = NULL;
+  if (vector_size(idtypes) > 0)
+    vec = vector_new();
+  IdType *item;
+  vector_for_each(item, idtypes) {
+    vector_push_back(vec, TYPE_INCREF(item->type.desc));
+  }
+  TypeDesc *proto = desc_from_proto(vec, ret.desc);
+  sym = stable_add_func(mod.stbl, name, proto);
+  TYPE_DECREF(proto);
 }
 
-static void add_symbol_to_mobject(Symbol *sym, Object *ob)
+static void add_symbol_to_module(Symbol *sym, Object *ob)
 {
-  if (sym == NULL)
-    return;
-
   switch (sym->kind) {
   case SYM_CONST: {
     break;
   }
   case SYM_VAR: {
-    Object *field = Field_New(sym->name, sym->desc);
-    Field_SetFunc(field, Field_Default_Set, Field_Default_Get);
+    Object *field = field_new(sym->name, sym->desc);
+    Field_SetFunc(field, field_default_setter, field_default_getter);
     Module_Add_Var(ob, field);
     OB_DECREF(field);
     break;
   }
   case SYM_FUNC: {
-    Object *code = getcode(sym->func.code);
+    Object *code = get_code_object(sym);
     Object *meth = Method_New(sym->name, code);
     Module_Add_Func(ob, meth);
     OB_DECREF(code);
@@ -230,24 +245,33 @@ void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
   parser_exit_scope(ps);
 
   if (has_error(ps)) {
-    codeblock_free(funcsym->func.code);
-    funcsym->func.code = NULL;
+    if (sym != NULL) {
+      stable_remove(mod.stbl, sym->name);
+      symbol_decref(sym);
+      sym = NULL;
+    }
+    codeblock_free(funcsym->func.codeblock);
+    funcsym->func.codeblock = NULL;
   } else {
-    add_symbol_to_mobject(sym, mo);
-    sym = NULL;
-    if (funcsym->func.code != NULL) {
+    if (sym != NULL) {
+      add_symbol_to_module(sym, mo);
+      sym = NULL;
+    }
+    if (funcsym->func.codeblock != NULL) {
       KoalaState *ks = pthread_getspecific(kskey);
       if (ks == NULL) {
         kstate.top = -1;
         pthread_setspecific(kskey, &kstate);
       }
-      Object *code = getcode(funcsym->func.code);
+      Object *code = get_code_object(funcsym);
       Koala_EvalCode(code, mo, NULL);
       OB_DECREF(code);
-      codeblock_free(funcsym->func.code);
-      funcsym->func.code = NULL;
+      codeblock_free(funcsym->func.codeblock);
+      funcsym->func.codeblock = NULL;
     }
   }
+
+  stmt_free(stmt);
 }
 
 static int empty(char *buf, int size)

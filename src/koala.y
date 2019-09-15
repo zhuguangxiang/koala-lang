@@ -49,7 +49,7 @@
 void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
 void Cmd_Add_Const(Ident id, Type type);
 void Cmd_Add_Var(Ident id, Type type);
-void Cmd_Add_Func(char *name, TypeDesc *desc);
+void Cmd_Add_Func(char *name, Vector *idtypes, Type ret);
 
 %}
 
@@ -61,13 +61,16 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
   char *text;
   Vector *list;
   Vector *exprlist;
+  Vector *stmtlist;
+  Vector *idtypelist;
+  Vector *desclist;
   void *ptr;
   Expr *expr;
   Stmt *stmt;
   TypeDesc *desc;
   AssignOpKind assginop;
   UnaryOpKind unaryop;
-  Ident name;
+  IdParaDef name;
 }
 
 %token IMPORT
@@ -145,10 +148,16 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
 %type <assginop> assign_operator
 %type <stmt> return_stmt
 %type <stmt> func_decl
-%type <list> block
-%type <list> local_list
+%type <stmtlist> block
+%type <stmtlist> local_list
 %type <stmt> local
 %type <name> name
+%type <list> type_para_list
+%type <desc> type_para
+%type <list> type_upbound_list
+%type <idtypelist> para_list
+%type <idtypelist> id_type_list
+%type <ptr> id_varg
 
 %type <ptr> mapentry
 %type <list> mapentry_list
@@ -184,10 +193,34 @@ void Cmd_Add_Func(char *name, TypeDesc *desc);
 %type <desc> no_array_type
 %type <desc> klass_type
 
-%destructor { printf("free expr\n"); expr_free($$); } <expr>
-%destructor { printf("free stmt\n"); stmt_free($$); } <stmt>
-%destructor { printf("decref desc\n"); TYPE_DECREF($$); } <desc>
-%destructor { printf("free expr_list\n"); exprlist_free($$); } <exprlist>
+%destructor {
+  printf("free expr\n");
+  expr_free($$);
+} <expr>
+%destructor {
+  printf("free stmt\n");
+  stmt_free($$);
+} <stmt>
+%destructor {
+  printf("decref desc\n");
+  TYPE_DECREF($$);
+} <desc>
+%destructor {
+  printf("free exprlist\n");
+  exprlist_free($$);
+} <exprlist>
+%destructor {
+  printf("free stmtblock\n");
+  stmt_block_free($$);
+} <stmtlist>
+%destructor {
+  printf("free idtypelist\n");
+  free_idtypes($$);
+} <idtypelist>
+%destructor {
+  printf("free name\n");
+  free_descs($$.vec);
+} <name>
 
 %precedence INT_LITERAL CHAR_LITERAL
 %precedence '|'
@@ -228,7 +261,6 @@ unit:
     if ($1 != NULL) {
       Cmd_Add_Const($1->vardecl.id, $1->vardecl.type);
       Cmd_EvalStmt(ps, $1);
-      stmt_free($1);
     }
   }
 }
@@ -239,7 +271,6 @@ unit:
     if ($1 != NULL) {
       Cmd_Add_Var($1->vardecl.id, $1->vardecl.type);
       Cmd_EvalStmt(ps, $1);
-      stmt_free($1);
     }
   } else {
   }
@@ -251,7 +282,6 @@ unit:
     if ($1 != NULL) {
       Cmd_Add_Var($1->vardecl.id, $1->vardecl.type);
       Cmd_EvalStmt(ps, $1);
-      stmt_free($1);
     }
   }
 }
@@ -260,7 +290,6 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     Cmd_EvalStmt(ps, $1);
-    stmt_free($1);
   }
 }
 | expr ';'
@@ -269,7 +298,6 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     Cmd_EvalStmt(ps, stmt);
-    stmt_free(stmt);
   } else {
   }
 }
@@ -302,9 +330,9 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      Cmd_Add_Func($1->funcdecl.id.name, NULL);
+      Cmd_Add_Func($1->funcdecl.id.name, $1->funcdecl.idtypes,
+        $1->funcdecl.ret);
       Cmd_EvalStmt(ps, $1);
-      stmt_free($1);
     }
   }
 }
@@ -1167,20 +1195,20 @@ func_decl:
   FUNC name '(' para_list ')' type block
 {
   TYPE(type, $6, @6);
-  $$ = stmt_from_funcdecl($2, NULL, NULL, &type, $7);
+  $$ = stmt_from_funcdecl($2.id, $2.vec, $4, &type, $7);
 }
 | FUNC name '(' para_list ')' block
 {
-  $$ = stmt_from_funcdecl($2, NULL, NULL, NULL, $6);
+  $$ = stmt_from_funcdecl($2.id, $2.vec, $4, NULL, $6);
 }
 | FUNC name '(' ')' type block
 {
   TYPE(type, $5, @5);
-  $$ = stmt_from_funcdecl($2, NULL, NULL, &type, $6);
+  $$ = stmt_from_funcdecl($2.id, $2.vec, NULL, &type, $6);
 }
 | FUNC name '(' ')' block
 {
-  $$ = stmt_from_funcdecl($2, NULL, NULL, NULL, $5);
+  $$ = stmt_from_funcdecl($2.id, $2.vec, NULL, NULL, $5);
 }
 ;
 
@@ -1188,44 +1216,101 @@ name:
   ID
 {
   IDENT(id, $1, @1);
-  $$ = id;
+  IdParaDef idpara = {id, NULL};
+  $$ = idpara;
 }
 | ID '<' type_para_list '>'
 {
   IDENT(id, $1, @1);
-  $$ = id;
+  IdParaDef idpara = {id, $3};
+  $$ = idpara;
 }
 ;
 
 type_para_list:
   type_para
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | type_para_list ',' type_para
+{
+  $$ = $1;
+  vector_push_back($$, $3);
+}
 ;
 
 type_para:
   ID
+{
+  $$ = desc_from_paradef($1, NULL);
+}
 | ID ':' type_upbound_list
+{
+  $$ = desc_from_paradef($1, $3);
+}
 ;
 
 type_upbound_list:
   klass_type
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | type_upbound_list '&' klass_type
+{
+  $$ = $1;
+  vector_push_back($$, $3);
+}
 ;
 
 para_list:
   id_type_list
+{
+  $$ = $1;
+}
 | id_varg
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | id_type_list ',' id_varg
+{
+  $$ = $1;
+  vector_push_back($$, $3);
+}
 ;
 
 id_type_list:
   ID type
+{
+  IDENT(id, $1, @1);
+  TYPE(type, $2, @2);
+  $$ = vector_new();
+  vector_push_back($$, new_idtype(id, type));
+}
 | id_type_list ',' ID type
+{
+  $$ = $1;
+  IDENT(id, $3, @3);
+  TYPE(type, $4, @4);
+  vector_push_back($$, new_idtype(id, type));
+}
 ;
 
 id_varg:
   ID DOTDOTDOT
+{
+  IDENT(id, $1, @1);
+  Type type = {desc_from_any, 0, 0};
+  $$ = new_idtype(id, type);
+}
 | ID DOTDOTDOT no_array_type
+{
+  IDENT(id, $1, @1);
+  TYPE(type, $3, @3);
+  $$ = new_idtype(id, type);
+}
 ;
 
 type_decl:
@@ -1370,7 +1455,11 @@ no_array_type:
 }
 | '[' type ':' type ']'
 {
-  $$ = NULL;
+  $$ = desc_from_map;
+  desc_add_paratype($$, $2);
+  desc_add_paratype($$, $4);
+  TYPE_DECREF($2);
+  TYPE_DECREF($4);
 }
 | '(' type_list ')'
 {

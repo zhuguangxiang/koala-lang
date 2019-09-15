@@ -33,11 +33,11 @@ int main(int argc, char *argv[])
   Object *arr = Object_GetValue(m, "path");
   expect(array_check(arr));
 
-  Object *str = String_New("~/.local/lib/koala/libs");
+  Object *str = string_new("~/.local/lib/koala/libs");
   Object_Call(arr, "append", str);
   OB_DECREF(str);
 
-  str = String_New("/usr/lib/koala/libs");
+  str = string_new("/usr/lib/koala/libs");
   Object_Call(arr, "append", str);
   OB_DECREF(str);
 

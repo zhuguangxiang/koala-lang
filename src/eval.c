@@ -48,18 +48,15 @@ typedef struct frame {
   /* local variables' size */
   int size;
   /* local variables's array */
-  Object *locvars[0];
+  Object *locvars[1];
 } Frame;
 
-static Frame *new_frame(KoalaState *ks, Object *code, int locsize)
+static Frame *new_frame(KoalaState *ks, Object *code, int locals)
 {
   expect(ks->depth < MAX_FRAME_DEPTH);
-
-  locsize += 1; /* self object */
-
-  Frame *f = kmalloc(sizeof(Frame) + locsize * sizeof(Object *));
+  Frame *f = kmalloc(sizeof(Frame) + locals * sizeof(Object *));
   f->code = OB_INCREF(code);
-  f->size = locsize;
+  f->size = locals + 1;
   f->index = -1;
   f->back = ks->frame;
   f->ks = ks;

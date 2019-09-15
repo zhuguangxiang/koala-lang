@@ -26,18 +26,26 @@
 
 static void code_free(Object *ob)
 {
-  if (!Code_Check(ob)) {
+  if (!code_check(ob)) {
     error("object of '%.64s' is not a Code", OB_TYPE_NAME(ob));
     return;
   }
 
   CodeObject *co = (CodeObject *)ob;
+
+  /* free local variables */
   Object *item;
   vector_for_each(item, &co->locvec) {
     OB_DECREF(item);
   }
+  vector_fini(&co->locvec);
+
+  /*free constant pool */
   OB_DECREF(co->consts);
+
+  /* free func's descriptor */
   TYPE_DECREF(co->proto);
+
   kfree(ob);
 }
 
@@ -47,16 +55,23 @@ TypeObject code_type = {
   .free = code_free,
 };
 
-Object *Code_New(char *name, TypeDesc *proto, int locals,
-                 uint8_t *codes, int size)
+Object *code_new(char *name, TypeDesc *proto, int locals,
+  uint8_t *codes, int size)
 {
+  debug("new '%s' code", name);
   CodeObject *co = kmalloc(sizeof(CodeObject) + size);
   init_object_head(co, &code_type);
   co->name = name;
   co->proto = TYPE_INCREF(proto);
-  vector_init(&co->locvec);
-  co->locals = locals;
+  co->locals = locals,
   co->size = size;
   memcpy(co->codes, codes, size);
   return (Object *)co;
+}
+
+void code_add_local(Object *code, Object *ob)
+{
+  CodeObject *co = (CodeObject *)code;
+  vector_push_back(&co->locvec, OB_INCREF(ob));
+  ++co->locals;
 }

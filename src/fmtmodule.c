@@ -117,7 +117,7 @@ Object *Fmtter_WriteTuple(Object *self, Object *args)
   }
 
   TupleObject *tuple = (TupleObject *)args;
-  Object *str = String_New("(");
+  Object *str = string_new("(");
   Fmtter_WriteString(self, str);
   OB_DECREF(str);
 
@@ -133,7 +133,7 @@ Object *Fmtter_WriteTuple(Object *self, Object *args)
       strbuf_append(sbuf, ", ");
   }
 
-  str = String_New(")");
+  str = string_new(")");
   Fmtter_WriteString(self, str);
   OB_DECREF(str);
 }
@@ -156,7 +156,7 @@ static Object *fmtter_str(Object *self, Object *args)
   FmtterObject *fmt = (FmtterObject *)self;
   StrBuf *sbuf = &fmt->buf;
   if (sbuf->len > 0)
-    return String_New(strbuf_tostr(sbuf));
+    return string_new(strbuf_tostr(sbuf));
   else
     return NULL;
 }

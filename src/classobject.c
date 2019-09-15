@@ -64,7 +64,7 @@ static Object *class_getfield(Object *self, Object *name)
   if (ob == NULL)
     return NULL;
 
-  if (!Field_Check(ob)) {
+  if (!field_check(ob)) {
     error("'%s' is not a Field", s);
     OB_DECREF(ob);
     return NULL;
@@ -103,9 +103,9 @@ static Object *class_name(Object *self, Object *args)
 
   Object *ob = ((ClassObject *)self)->obj;
   if (OB_TYPE(ob) == &type_type) {
-    return String_New(((TypeObject *)ob)->name);
+    return string_new(((TypeObject *)ob)->name);
   } else {
-    return String_New(OB_TYPE_NAME(ob));
+    return string_new(OB_TYPE_NAME(ob));
   }
 }
 
@@ -196,7 +196,7 @@ static Object *class_str(Object *self, Object *args)
   STRBUF(sbuf);
   strbuf_append(&sbuf, "class ");
   strbuf_append(&sbuf, OB_TYPE_NAME(ob));
-  Object *ret = String_New(strbuf_tostr(&sbuf));
+  Object *ret = string_new(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
   return ret;
 }

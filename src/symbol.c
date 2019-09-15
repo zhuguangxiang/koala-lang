@@ -22,9 +22,8 @@
  SOFTWARE.
 */
 
-#include "symbol.h"
+#include "parser.h"
 #include "memory.h"
-#include "log.h"
 #include "moduleobject.h"
 #include "fieldobject.h"
 #include "methodobject.h"
@@ -40,8 +39,6 @@ STable *stable_new(void)
 {
   STable *stbl = kmalloc(sizeof(STable));
   hashmap_init(&stbl->table, symbol_equal);
-  /* [0]: module or class self */
-  stbl->varindex = 1;
   return stbl;
 }
 
@@ -95,13 +92,24 @@ int stable_add_symbol(STable *stbl, Symbol *sym)
   return 0;
 }
 
+Symbol *stable_remove(STable *stbl, char *name)
+{
+  Symbol key = {.name = name};
+  hashmap_entry_init(&key, strhash(name));
+  Symbol *sym = hashmap_remove(&stbl->table, &key);
+  if (sym != NULL && sym->kind == SYM_VAR) {
+    --stbl->varindex;
+  }
+  return sym;
+}
+
 Symbol *stable_add_const(STable *stbl, char *name, TypeDesc *desc)
 {
   Symbol *sym = symbol_new(name, SYM_CONST);
   if (stable_add_symbol(stbl, sym))
     return NULL;
   sym->desc = TYPE_INCREF(desc);
-  sym->var.index = stbl->varindex++;
+  sym->var.index = ++stbl->varindex;
   symbol_decref(sym);
   return sym;
 }
@@ -112,7 +120,7 @@ Symbol *stable_add_var(STable *stbl, char *name, TypeDesc *desc)
   if (stable_add_symbol(stbl, sym))
     return NULL;
   sym->desc = TYPE_INCREF(desc);
-  sym->var.index = stbl->varindex++;
+  sym->var.index = ++stbl->varindex;
   symbol_decref(sym);
   return sym;
 }
@@ -127,7 +135,7 @@ Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto)
   return sym;
 }
 
-static inline void symbol_free(Symbol *sym)
+static void symbol_free(Symbol *sym)
 {
   TYPE_DECREF(sym->desc);
 
@@ -140,6 +148,12 @@ static inline void symbol_free(Symbol *sym)
     break;
   case SYM_FUNC:
     debug("[Symbol Freed] func '%s'", sym->name);
+    codeblock_free(sym->func.codeblock);
+    Symbol *locsym;
+    vector_for_each(locsym, &sym->func.locvec) {
+      symbol_decref(locsym);
+    }
+    vector_fini(&sym->func.locvec);
     break;
   case SYM_CLASS:
     debug("[Symbol Freed] class '%s'", sym->name);
@@ -191,7 +205,7 @@ void symbol_decref(Symbol *sym)
   if (sym->refcnt == 0) {
     symbol_free(sym);
   } else if (sym->refcnt < 0) {
-    panic("sym '%s' refcnt %d error", sym->name, sym->refcnt);
+    panic("symbol '%s' refcnt %d error", sym->name, sym->refcnt);
   } else {
     /* empty */
   }
@@ -232,7 +246,7 @@ static Symbol *load_type(Object *ob)
   Symbol *sym;
   iter_for_each(&iter, node) {
     tmp = node->obj;
-    if (Field_Check(tmp)) {
+    if (field_check(tmp)) {
       sym = load_field(tmp);
     } else if (Method_Check(tmp)) {
       sym = load_method(tmp);
@@ -276,7 +290,7 @@ STable *stable_from_mobject(Object *ob)
     tmp = node->obj;
     if (Type_Check(tmp)) {
       sym = load_type(tmp);
-    } else if (Field_Check(tmp)) {
+    } else if (field_check(tmp)) {
       sym = load_field(tmp);
     } else if (Method_Check(tmp)) {
       sym = load_method(tmp);

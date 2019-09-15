@@ -47,7 +47,7 @@ typedef struct charobject {
 extern TypeObject string_type;
 #define String_Check(ob) (OB_TYPE(ob) == &string_type)
 void init_string_type(void);
-Object *String_New(char *str);
+Object *string_new(char *str);
 char *String_AsStr(Object *self);
 int String_IsEmpty(Object *self);
 void String_Set(Object *self, char *str);

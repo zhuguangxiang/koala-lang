@@ -354,6 +354,36 @@ void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf)
   inst_add_type(ps, op, type);    \
 })
 
+#define CODE_LOAD(offset)       \
+({                              \
+  if (offset == 0) {            \
+    CODE_OP(OP_LOAD_0);         \
+  } else if (offset == 1) {     \
+    CODE_OP(OP_LOAD_1);         \
+  } else if (offset == 2) {     \
+    CODE_OP(OP_LOAD_2);         \
+  } else if (offset == 3) {     \
+    CODE_OP(OP_LOAD_3);         \
+  } else {                      \
+    CODE_OP_I(OP_LOAD, offset); \
+  }                             \
+})
+
+#define CODE_STORE(offset)        \
+({                                \
+  if (offset == 0) {              \
+    CODE_OP(OP_STORE_0);          \
+  } else if (offset == 1) {       \
+    CODE_OP(OP_STORE_1);          \
+  } else if (offset == 2) {       \
+    CODE_OP(OP_STORE_2);          \
+  } else if (offset == 3) {       \
+    CODE_OP(OP_STORE_3);          \
+  } else {                        \
+    CODE_OP_I(OP_STORE, offset);  \
+  }                               \
+})
+
 static const char *scopes[] = {
   NULL, "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
@@ -371,6 +401,11 @@ void free_parser(ParserState *ps)
   expect(ps->u == NULL);
   expect(vector_size(&ps->ustack) == 0);
   kfree(ps);
+}
+
+static inline ParserUnit *up_scope(ParserState *ps)
+{
+  return vector_top_back(&ps->ustack);
 }
 
 static inline void unit_free(ParserState *ps)
@@ -403,13 +438,13 @@ static void merge_into_func(ParserUnit *u, char *name, int create)
     TypeDesc *proto = desc_from_proto(NULL, NULL);
     sym = stable_add_func(u->stbl, name, proto);
     TYPE_DECREF(proto);
-    sym->func.code = u->block;
+    sym->func.codeblock = u->block;
   } else {
     debug("'%s' exist", name);
-    if (!sym->func.code) {
-      sym->func.code = u->block;
+    if (!sym->func.codeblock) {
+      sym->func.codeblock = u->block;
     } else {
-      codeblock_merge(u->block, sym->func.code);
+      codeblock_merge(u->block, sym->func.codeblock);
       codeblock_free(u->block);
     }
   }
@@ -434,8 +469,8 @@ static void unit_merge_free(ParserState *ps)
   case SCOPE_FUNC: {
     Symbol *sym = u->sym;
     expect(sym != NULL);
-    expect(sym->func.code == NULL);
-    sym->func.code = u->block;
+    expect(sym->func.codeblock == NULL);
+    sym->func.codeblock = u->block;
     u->block = NULL;
     u->sym = NULL;
     break;
@@ -465,7 +500,7 @@ void parser_enter_scope(ParserState *ps, ScopeKind scope)
 void parser_exit_scope(ParserState *ps)
 {
   debug("Exit scope-%d(%s)", ps->depth, scopes[ps->u->scope]);
-#if !defined(NDEBUG)
+#if !defined(NLog)
   unit_show(ps);
 #endif
   unit_merge_free(ps);
@@ -477,8 +512,9 @@ void parser_exit_scope(ParserState *ps)
   }
 }
 
-static Symbol *find_id_symbol(ParserState *ps, char *name)
+static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
 {
+  char *name = exp->id.name;
   Symbol *sym;
   ParserUnit *u = ps->u;
 
@@ -488,6 +524,10 @@ static Symbol *find_id_symbol(ParserState *ps, char *name)
     debug("find symbol '%s' in scope-%d(%s)",
           name, ps->depth, scopes[u->scope]);
     ++sym->used;
+    exp->sym = sym;
+    exp->desc = TYPE_INCREF(sym->desc);
+    exp->id.where = CURRENT_SCOPE;
+    exp->id.scope = ps->u;
     return sym;
   }
   return NULL;
@@ -587,6 +627,7 @@ Symbol *get_desc_symbol(TypeDesc *desc)
     panic("get_desc_symbol: invalid desc %d", desc->kind);
     break;
   }
+
   return sym;
 }
 
@@ -626,7 +667,7 @@ static void parse_self(ParserState *ps, Expr *exp)
   }
 }
 
-static void parse_const(ParserState *ps, Expr *exp)
+static void parse_literal(ParserState *ps, Expr *exp)
 {
   if (exp->ctx != EXPR_LOAD)
     syntax_error(ps, exp->row, exp->col, "constant is not writable");
@@ -639,20 +680,8 @@ static void parse_const(ParserState *ps, Expr *exp)
   }
 }
 
-static void parse_ident(ParserState *ps, Expr *exp)
+static void code_in_mod_cls(ParserState *ps, Expr *exp)
 {
-  Symbol *sym = find_id_symbol(ps, exp->id.name);
-  if (sym == NULL) {
-    syntax_error(ps, exp->row, exp->col,
-      "cannot find symbol '%s'", exp->id.name);
-    return;
-  }
-
-  exp->sym = sym;
-  exp->desc = TYPE_INCREF(sym->desc);
-  exp->id.where = CURRENT_SCOPE;
-  exp->id.scope = ps->u;
-
   if (exp->ctx == EXPR_LOAD) {
     CODE_OP(OP_LOAD_0);
     CODE_OP_S(OP_GET_VALUE, exp->id.name);
@@ -664,6 +693,60 @@ static void parse_ident(ParserState *ps, Expr *exp)
     CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
+  }
+}
+
+static void code_in_func_block_closure(ParserState *ps, Expr *exp)
+{
+  Symbol *sym = exp->sym;
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_LOAD(sym->var.index);
+  } else if (exp->ctx == EXPR_STORE) {
+    CODE_STORE(sym->var.index);
+  } else {
+    panic("invalid expr's ctx %d", exp->ctx);
+  }
+}
+
+typedef struct {
+  ScopeKind scope;
+  void (*code)(ParserState *, Expr *);
+} IdCodeGen;
+
+static IdCodeGen current_codegens[] = {
+  {SCOPE_MODULE,  code_in_mod_cls},
+  {SCOPE_CLASS,   code_in_mod_cls},
+  {SCOPE_FUNC,    code_in_func_block_closure},
+  {SCOPE_BLOCK,   code_in_func_block_closure},
+  {SCOPE_CLOSURE, code_in_func_block_closure},
+  {SCOPE_INVALID, NULL},
+};
+
+#define id_code_gen(codegens, _scope, ps, arg)  \
+({                                              \
+  IdCodeGen *gen = codegens;                    \
+  while (gen->scope != SCOPE_INVALID) {         \
+    if (_scope == gen->scope) {                 \
+      if (gen->code != NULL)                    \
+        gen->code(ps, arg);                     \
+      break;                                    \
+    }                                           \
+    ++gen;                                      \
+  }                                             \
+})
+
+static void parse_ident(ParserState *ps, Expr *exp)
+{
+  Symbol *sym = find_id_symbol(ps, exp);
+  if (sym == NULL) {
+    syntax_error(ps, exp->row, exp->col,
+      "cannot find symbol '%s'", exp->id.name);
+    return;
+  }
+
+  if (exp->id.where == CURRENT_SCOPE) {
+    ParserUnit *u = exp->id.scope;
+    id_code_gen(current_codegens, u->scope, ps, exp);
   }
 }
 
@@ -1273,7 +1356,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     NULL,               /* NIL_KIND       */
     parse_self,         /* SELF_KIND      */
     NULL,               /* SUPER_KIND     */
-    parse_const,        /* LITERAL_KIND   */
+    parse_literal,      /* LITERAL_KIND   */
     parse_ident,        /* ID_KIND        */
     parse_unary,        /* UNARY_KIND     */
     parse_binary,       /* BINARY_KIND    */
@@ -1301,41 +1384,6 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
   }
 }
 
-static void parse_func_body(ParserState *ps, Stmt *stmt)
-{
-  Vector *vec = stmt->funcdecl.body;
-  int sz = vector_size(vec);
-  Stmt *s = NULL;
-  for (int i = 0; i < sz; ++i) {
-    s = vector_get(vec, i);
-    if (i == sz - 1)
-      s->last = 1;
-    parse_stmt(ps, s);
-  }
-
-  if (s != NULL) {
-    /* check last statement has value or not */
-    if (s->kind == EXPR_KIND) {
-      if (s->hasvalue) {
-        debug("last expr-stmt and has value, add OP_RETURN_VALUE");
-        CODE_OP(OP_RETURN_VALUE);
-      } else {
-        debug("last expr-stmt and no value, add OP_RETURN");
-        CODE_OP(OP_RETURN);
-      }
-    } else {
-      if (s->kind != RETURN_KIND) {
-        debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
-        CODE_OP(OP_RETURN);
-      }
-    }
-  } else {
-    debug("func body is empty");
-    debug("add OP_RETURN");
-    CODE_OP(OP_RETURN);
-  }
-}
-
 static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
 {
   ParserUnit *u = ps->u;
@@ -1345,6 +1393,17 @@ static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
   case SCOPE_CLASS:
     sym = stable_get(u->stbl, id->name);
     expect(sym != NULL);
+    break;
+  case SCOPE_FUNC:
+    sym = stable_add_var(u->stbl, id->name, desc);
+    if (sym == NULL) {
+      syntax_error(ps, id->row, id->col, "parameter duplicated");
+      return;
+    } else {
+      Symbol *funcsym = u->sym;
+      vector_push_back(&funcsym->func.locvec, sym);
+      ++sym->refcnt;
+    }
     break;
   default:
     panic("not implemented");
@@ -1444,6 +1503,44 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
   }
 }
 
+static void parse_func_body(ParserState *ps, Stmt *stmt)
+{
+  Vector *vec = stmt->funcdecl.body;
+  int sz = vector_size(vec);
+  Stmt *s = NULL;
+  for (int i = 0; i < sz; ++i) {
+    s = vector_get(vec, i);
+    if (i == sz - 1)
+      s->last = 1;
+    parse_stmt(ps, s);
+  }
+
+  if (has_error(ps))
+    return;
+
+  if (s != NULL) {
+    /* check last statement has value or not */
+    if (s->kind == EXPR_KIND) {
+      if (s->hasvalue) {
+        debug("last expr-stmt and has value, add OP_RETURN_VALUE");
+        CODE_OP(OP_RETURN_VALUE);
+      } else {
+        debug("last expr-stmt and no value, add OP_RETURN");
+        CODE_OP(OP_RETURN);
+      }
+    } else {
+      if (s->kind != RETURN_KIND) {
+        debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
+        CODE_OP(OP_RETURN);
+      }
+    }
+  } else {
+    debug("func body is empty");
+    debug("add OP_RETURN");
+    CODE_OP(OP_RETURN);
+  }
+}
+
 static void parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
   char *funcname = stmt->funcdecl.id.name;
@@ -1452,11 +1549,20 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   ParserUnit *u = ps->u;
   u->stbl = stable_new();
 
-  ParserUnit *up = vector_top_back(&ps->ustack);
+  /* get func symbol */
+  ParserUnit *up = up_scope(ps);
   expect(up != NULL);
   Symbol *sym = stable_get(up->stbl, funcname);
   expect(sym != NULL && sym->kind == SYM_FUNC);
   u->sym = sym;
+
+  /* parse func arguments */
+  Vector *idtypes = stmt->funcdecl.idtypes;
+  IdType *item;
+  vector_for_each(item, idtypes) {
+    add_update_variable(ps, &item->id, item->type.desc);
+  }
+
   parse_func_body(ps, stmt);
 
   stable_free(u->stbl);

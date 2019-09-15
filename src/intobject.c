@@ -48,7 +48,7 @@ static Object *integer_str(Object *self, Object *ob)
   IntegerObject *i = (IntegerObject *)self;
   char buf[256];
   sprintf(buf, "%ld", i->value);
-  return String_New(buf);
+  return string_new(buf);
 }
 
 static Object *integer_fmt(Object *self, Object *ob)
@@ -690,7 +690,7 @@ static Object *byte_str(Object *self, Object *ob)
   ByteObject *b = (ByteObject *)ob;
   char buf[8];
   sprintf(buf, "%d", b->value);
-  return String_New(buf);
+  return string_new(buf);
 }
 
 TypeObject byte_type = {
@@ -725,7 +725,7 @@ static Object *bool_str(Object *self, Object *ob)
   BoolObject *b = (BoolObject *)self;
   char buf[8];
   sprintf(buf, "%s", b->value ? "true" : "false");
-  return String_New(buf);
+  return string_new(buf);
 }
 
 TypeObject bool_type = {

@@ -45,7 +45,7 @@ static Object *str_num_add(Object *x, Object *y)
   STRBUF(sbuf);
   strbuf_append(&sbuf, String_AsStr(x));
   strbuf_append(&sbuf, String_AsStr(y));
-  z = String_New(strbuf_tostr(&sbuf));
+  z = string_new(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
   return z;
 }
@@ -77,7 +77,7 @@ static Object *string_fmt(Object *self, Object *ob)
   strbuf_append_char(&sbuf, '\'');
   strbuf_append(&sbuf, String_AsStr(self));
   strbuf_append_char(&sbuf, '\'');
-  Object *str = String_New(strbuf_tostr(&sbuf));
+  Object *str = string_new(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
   Fmtter_WriteString(ob, str);
   OB_DECREF(str);
@@ -240,7 +240,7 @@ void init_string_type(void)
     panic("Cannot initalize 'string_type' type.");
 }
 
-Object *String_New(char *str)
+Object *string_new(char *str)
 {
   int len = strlen(str);
   StringObject *s = kmalloc(sizeof(*s));
@@ -312,7 +312,7 @@ static Object *char_str(Object *self, Object *ob)
   char buf[8] = {'\'', 0};
   int bytes = encode_one_utf8_char(ch->value, buf + 1);
   buf[bytes + 1] = '\'';
-  return String_New(buf);
+  return string_new(buf);
 }
 
 TypeObject char_type = {

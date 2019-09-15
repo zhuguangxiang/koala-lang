@@ -48,7 +48,7 @@ static Object *float_str(Object *self, Object *ob)
   FloatObject *f = (FloatObject *)self;
   char buf[256];
   sprintf(buf, "%lf", f->value);
-  return String_New(buf);
+  return string_new(buf);
 }
 
 static double flt_add(Object *x, Object *y)

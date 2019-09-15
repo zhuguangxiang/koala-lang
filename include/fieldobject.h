@@ -48,13 +48,13 @@ typedef struct fieldobject {
   int enumvalue;
 } FieldObject;
 
-extern TypeObject Field_Type;
-#define Field_Check(ob) (OB_TYPE(ob) == &Field_Type)
+extern TypeObject field_type;
+#define field_check(ob) (OB_TYPE(ob) == &field_type)
 void init_field_type(void);
-Object *Field_New(char *name, TypeDesc *desc);
+Object *field_new(char *name, TypeDesc *desc);
 static inline void Field_SetFunc(Object *self, setfunc set, func_t get)
 {
-  if (!Field_Check(self)) {
+  if (!field_check(self)) {
     error("object of '%.64s' is not a Field", OB_TYPE_NAME(self));
     return;
   }
@@ -64,11 +64,11 @@ static inline void Field_SetFunc(Object *self, setfunc set, func_t get)
   field->get = get;
 }
 
-Object *Field_Default_Get(Object *self, Object *ob);
-int Field_Default_Set(Object *self, Object *ob, Object *val);
+Object *field_default_getter(Object *self, Object *ob);
+int field_default_setter(Object *self, Object *ob, Object *val);
 
-Object *Field_Get(Object *self, Object *ob);
-int Field_Set(Object *self, Object *ob, Object *val);
+Object *field_get(Object *self, Object *ob);
+int field_set(Object *self, Object *ob, Object *val);
 
 #ifdef __cplusplus
 }

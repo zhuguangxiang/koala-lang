@@ -23,22 +23,23 @@
 */
 
 #include "fieldobject.h"
+#include "stringobject.h"
 #include "tupleobject.h"
 #include "moduleobject.h"
 #include "log.h"
 
-Object *Field_New(char *name, TypeDesc *desc)
+Object *field_new(char *name, TypeDesc *desc)
 {
   FieldObject *field = kmalloc(sizeof(*field));
-  init_object_head(field, &Field_Type);
+  init_object_head(field, &field_type);
   field->name = name;
   field->desc = TYPE_INCREF(desc);
   return (Object *)field;
 }
 
-Object *Field_Get(Object *self, Object *ob)
+Object *field_get(Object *self, Object *ob)
 {
-  if (!Field_Check(self)) {
+  if (!field_check(self)) {
     error("object of '%.64s' is not a Field", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -52,9 +53,9 @@ Object *Field_Get(Object *self, Object *ob)
   return field->get(self, ob);
 }
 
-int Field_Set(Object *self, Object *ob, Object *val)
+int field_set(Object *self, Object *ob, Object *val)
 {
-  if (!Field_Check(self)) {
+  if (!field_check(self)) {
     error("object of '%.64s' is not a Field", OB_TYPE_NAME(self));
     return -1;
   }
@@ -68,7 +69,7 @@ int Field_Set(Object *self, Object *ob, Object *val)
   return field->set(self, ob, val);
 }
 
-Object *Field_Default_Get(Object *self, Object *ob)
+Object *field_default_getter(Object *self, Object *ob)
 {
   FieldObject *field = (FieldObject *)self;
   int index = field->offset;
@@ -87,7 +88,7 @@ Object *Field_Default_Get(Object *self, Object *ob)
   }
 }
 
-int Field_Default_Set(Object *self, Object *ob, Object *val)
+int field_default_setter(Object *self, Object *ob, Object *val)
 {
   FieldObject *field = (FieldObject *)self;
   int index = field->offset;
@@ -107,7 +108,7 @@ int Field_Default_Set(Object *self, Object *ob, Object *val)
   }
 }
 
-static Object *field_set(Object *self, Object *args)
+static Object *_field_set_(Object *self, Object *args)
 {
   if (args == NULL) {
     error("'set' has no arguments");
@@ -122,7 +123,7 @@ static Object *field_set(Object *self, Object *args)
   Object *ob = Tuple_Get(args, 0);
   Object *val = Tuple_Get(args, 1);
 
-  Field_Set(self, ob, val);
+  field_set(self, ob, val);
   OB_DECREF(ob);
   OB_DECREF(val);
   return NULL;
@@ -130,7 +131,7 @@ static Object *field_set(Object *self, Object *args)
 
 static void field_free(Object *ob)
 {
-  if (!Field_Check(ob)) {
+  if (!field_check(ob)) {
     error("object of '%.64s' is not a Field", OB_TYPE_NAME(ob));
     return;
   }
@@ -141,23 +142,35 @@ static void field_free(Object *ob)
   kfree(ob);
 }
 
+static Object *field_str(Object *self, Object *ob)
+{
+  if (!field_check(self)) {
+    error("object of '%.64s' is not a Field", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  FieldObject *field = (FieldObject *)self;
+  return string_new(field->name);
+}
+
 static MethodDef field_methods[] = {
-  {"get", "A",  "A",  Field_Get},
-  {"set", "AA", NULL, field_set},
+  {"get", "A",  "A",  field_get},
+  {"set", "AA", NULL, _field_set_},
   {NULL}
 };
 
-TypeObject Field_Type = {
+TypeObject field_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "Field",
   .free    = field_free,
+  .str     = field_str,
   .methods = field_methods,
 };
 
 void init_field_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Field");
-  Field_Type.desc = desc;
-  if (type_ready(&Field_Type) < 0)
+  field_type.desc = desc;
+  if (type_ready(&field_type) < 0)
     panic("Cannot initalize 'Field' type.");
 }

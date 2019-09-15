@@ -45,9 +45,15 @@ typedef struct codeobject {
 } CodeObject;
 
 extern TypeObject code_type;
-#define Code_Check(ob) (OB_TYPE(ob) == &code_type)
-Object *Code_New(char *name, TypeDesc *proto, int locals,
-                 uint8_t *codes, int size);
+#define code_check(ob) (OB_TYPE(ob) == &code_type)
+Object *code_new(char *name, TypeDesc *proto, int locals,
+  uint8_t *codes, int size);
+void code_add_local(Object *code, Object *ob);
+static inline void code_set_consts(Object *code, Object *consts)
+{
+  CodeObject *co = (CodeObject *)code;
+  co->consts = OB_INCREF(consts);
+}
 
 #ifdef __cplusplus
 }

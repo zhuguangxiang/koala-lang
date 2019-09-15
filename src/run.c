@@ -79,7 +79,7 @@ static void fini_types(void)
   type_fini(&array_type);
   type_fini(&tuple_type);
   type_fini(&map_type);
-  type_fini(&Field_Type);
+  type_fini(&field_type);
   type_fini(&method_type);
   type_fini(&proto_type);
   type_fini(&class_type);

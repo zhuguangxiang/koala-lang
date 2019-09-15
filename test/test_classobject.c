@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 {
   koala_initialize();
 
-  Object *s = String_New("Hello, Koala");
+  Object *s = string_new("Hello, Koala");
   Object *clazz = Object_GetValue(s, "__class__");
   expect(clazz);
   expect(((ClassObject *)clazz)->obj == s);
@@ -54,13 +54,13 @@ int main(int argc, char *argv[])
   expect(!strcmp("lang", String_AsStr(v)));
   OB_DECREF(v);
 
-  s = String_New("length");
+  s = string_new("length");
   v = Object_Call(clazz, "getMethod", s);
   OB_DECREF(clazz);
   OB_DECREF(s);
 
   expect(Method_Check(v));
-  s = String_New("Hello, Koala");
+  s = string_new("Hello, Koala");
   Object *res = Method_Call(v, s, NULL);
   expect(Integer_Check(res));
   expect(12 == Integer_AsInt(res));
