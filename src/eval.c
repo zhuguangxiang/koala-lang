@@ -81,14 +81,12 @@ static void prepare_args(Frame *f, Object *ob, Object *args)
     if (Tuple_Check(args)) {
       Object *v;
       int size = Tuple_Size(args);
-      expect(f->size == size + 1);
       for (int i = 0; i < size; i++) {
         v = Tuple_Get(args, i);
         f->locvars[i + 1] = OB_INCREF(v);
         OB_DECREF(v);
       }
     } else {
-      expect(f->size == 2);
       f->locvars[1] = OB_INCREF(args);
     }
   }

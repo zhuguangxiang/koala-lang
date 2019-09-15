@@ -522,14 +522,37 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
   sym = stable_get(u->stbl, name);
   if (sym != NULL) {
     debug("find symbol '%s' in scope-%d(%s)",
-          name, ps->depth, scopes[u->scope]);
+      name, ps->depth, scopes[u->scope]);
     ++sym->used;
     exp->sym = sym;
     exp->desc = TYPE_INCREF(sym->desc);
     exp->id.where = CURRENT_SCOPE;
-    exp->id.scope = ps->u;
+    exp->id.scope = u;
+    // find class(function) with generic type ?
+    expect(exp->desc->paras == NULL);
     return sym;
   }
+
+  /* find ident from up scope */
+  ParserUnit *up;
+  int depth = ps->depth;
+  vector_for_each_reverse(up, &ps->ustack) {
+    depth -= 1;
+    sym = stable_get(up->stbl, name);
+    if (sym != NULL) {
+      debug("find symbol '%s' in up scope-%d(%s)",
+        name, depth, scopes[up->scope]);
+      sym->used++;
+      exp->sym = sym;
+      exp->desc = TYPE_INCREF(sym->desc);
+      exp->id.where = UP_SCOPE;
+      exp->id.scope = up;
+      // find class(function) with generic type ?
+      expect(exp->desc->paras == NULL);
+      return sym;
+    }
+  }
+
   return NULL;
 }
 
@@ -680,7 +703,7 @@ static void parse_literal(ParserState *ps, Expr *exp)
   }
 }
 
-static void code_in_mod_cls(ParserState *ps, Expr *exp)
+static void ident_in_mod(ParserState *ps, Expr *exp)
 {
   if (exp->ctx == EXPR_LOAD) {
     CODE_OP(OP_LOAD_0);
@@ -696,7 +719,7 @@ static void code_in_mod_cls(ParserState *ps, Expr *exp)
   }
 }
 
-static void code_in_func_block_closure(ParserState *ps, Expr *exp)
+static void ident_in_func(ParserState *ps, Expr *exp)
 {
   Symbol *sym = exp->sym;
   if (exp->ctx == EXPR_LOAD) {
@@ -708,31 +731,57 @@ static void code_in_func_block_closure(ParserState *ps, Expr *exp)
   }
 }
 
+static void ident_up_func(ParserState *ps, Expr *exp)
+{
+  ParserUnit *up = exp->id.scope;
+  if (up->scope == SCOPE_MODULE) {
+    if (exp->ctx == EXPR_LOAD) {
+      CODE_LOAD(0);
+      CODE_OP_S(OP_GET_VALUE, exp->id.name);
+    } else if (exp->ctx == EXPR_STORE) {
+      CODE_LOAD(0);
+      CODE_OP_S(OP_SET_VALUE, exp->id.name);
+    } else {
+      panic("invalid expr's ctx %d", exp->ctx);
+    }
+  }
+}
+
 typedef struct {
   ScopeKind scope;
   void (*code)(ParserState *, Expr *);
 } IdCodeGen;
 
-static IdCodeGen current_codegens[] = {
-  {SCOPE_MODULE,  code_in_mod_cls},
-  {SCOPE_CLASS,   code_in_mod_cls},
-  {SCOPE_FUNC,    code_in_func_block_closure},
-  {SCOPE_BLOCK,   code_in_func_block_closure},
-  {SCOPE_CLOSURE, code_in_func_block_closure},
+static IdCodeGen current_codes[] = {
+  {SCOPE_MODULE,  ident_in_mod},
+  {SCOPE_CLASS,   NULL},
+  {SCOPE_FUNC,    ident_in_func},
+  {SCOPE_BLOCK,   NULL},
+  {SCOPE_CLOSURE, NULL},
   {SCOPE_INVALID, NULL},
 };
 
-#define id_code_gen(codegens, _scope, ps, arg)  \
-({                                              \
-  IdCodeGen *gen = codegens;                    \
-  while (gen->scope != SCOPE_INVALID) {         \
-    if (_scope == gen->scope) {                 \
-      if (gen->code != NULL)                    \
-        gen->code(ps, arg);                     \
-      break;                                    \
-    }                                           \
-    ++gen;                                      \
-  }                                             \
+static IdCodeGen up_codes[] = {
+  {SCOPE_MODULE,  NULL},
+  {SCOPE_CLASS,   NULL},
+  {SCOPE_FUNC,    ident_up_func},
+  {SCOPE_BLOCK,   NULL},
+  {SCOPE_CLOSURE, NULL},
+  {SCOPE_INVALID, NULL},
+};
+
+#define ident_codegen(codegens, ps, arg)  \
+({                                        \
+  ParserUnit *u = (ps)->u;                \
+  IdCodeGen *gen = codegens;              \
+  while (gen->scope != SCOPE_INVALID) {   \
+    if (u->scope == gen->scope) {         \
+      if (gen->code != NULL)              \
+        gen->code(ps, arg);               \
+      break;                              \
+    }                                     \
+    ++gen;                                \
+  }                                       \
 })
 
 static void parse_ident(ParserState *ps, Expr *exp)
@@ -745,8 +794,9 @@ static void parse_ident(ParserState *ps, Expr *exp)
   }
 
   if (exp->id.where == CURRENT_SCOPE) {
-    ParserUnit *u = exp->id.scope;
-    id_code_gen(current_codegens, u->scope, ps, exp);
+    ident_codegen(current_codes, ps, exp);
+  } else if (exp->id.where == UP_SCOPE) {
+    ident_codegen(up_codes, ps, exp);
   }
 }
 
@@ -1001,6 +1051,7 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   if (sym == NULL || sym->kind != SYM_FUNC) {
     syntax_error(ps, lexp->row, lexp->col,
       "'%s' is not supported subscript operation.", lsym->name);
+    return;
   }
 
   Vector *args = sym->desc->proto.args;
@@ -1384,7 +1435,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
   }
 }
 
-static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
+static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
 {
   ParserUnit *u = ps->u;
   Symbol *sym;
@@ -1398,7 +1449,7 @@ static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
     sym = stable_add_var(u->stbl, id->name, desc);
     if (sym == NULL) {
       syntax_error(ps, id->row, id->col, "parameter duplicated");
-      return;
+      return NULL;
     } else {
       Symbol *funcsym = u->sym;
       vector_push_back(&funcsym->func.locvec, sym);
@@ -1419,6 +1470,8 @@ static void add_update_variable(ParserState *ps, Ident *id, TypeDesc *desc)
   if (sym->var.typesym == NULL) {
     sym->var.typesym = get_desc_symbol(sym->desc);
   }
+
+  return sym;
 }
 
 static void parse_vardecl(ParserState *ps, Stmt *stmt)
@@ -1442,14 +1495,17 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   }
 
   /* add or update variable type symbol */
-  add_update_variable(ps, id, desc);
+  Symbol *sym = add_update_var(ps, id, desc);
 
   /* generate codes */
   if (exp != NULL && !has_error(ps)) {
     ScopeKind scope = ps->u->scope;
-    if (scope == SCOPE_MODULE) {
+    if (scope == SCOPE_MODULE || scope == SCOPE_CLASS) {
       CODE_OP(OP_LOAD_0);
       CODE_OP_S(OP_SET_VALUE, id->name);
+    } else {
+      /* others are local variables */
+      CODE_STORE(sym->var.index);
     }
   }
 }
@@ -1560,7 +1616,7 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   Vector *idtypes = stmt->funcdecl.idtypes;
   IdType *item;
   vector_for_each(item, idtypes) {
-    add_update_variable(ps, &item->id, item->type.desc);
+    add_update_var(ps, &item->id, item->type.desc);
   }
 
   parse_func_body(ps, stmt);
