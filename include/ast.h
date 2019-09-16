@@ -285,10 +285,10 @@ typedef enum stmtkind {
   ENUM_KIND,
   /* enum value */
   ENUM_VALUE_KIND,
-  /* break */
-  BREAK_KIND,
-  /* continue */
-  CONTINUE_KIND,
+  /* break, continue */
+  BREAK_KIND, CONTINUE_KIND,
+  /* if, while, for, match */
+  IF_KIND, WHILE_KIND, FOR_KIND, MATCH_KIND,
   STMT_KIND_MAX
 } StmtKind;
 
@@ -304,6 +304,7 @@ typedef struct stmt {
   StmtKind kind;
   short last;
   short hasvalue;
+  TypeDesc *desc;
   union {
     struct {
       Ident id;

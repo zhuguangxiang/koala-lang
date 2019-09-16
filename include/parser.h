@@ -61,8 +61,7 @@ typedef struct module {
 
 /* ParserUnit scope */
 typedef enum scopekind {
-  SCOPE_INVALID = 0,
-  SCOPE_MODULE,
+  SCOPE_MODULE = 1,
   SCOPE_CLASS,
   SCOPE_FUNC,
   SCOPE_BLOCK,
@@ -146,7 +145,7 @@ void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf);
 Symbol *find_from_builtins(char *name);
 void mod_from_mobject(Module *mod, Object *ob);
 Symbol *mod_find_symbol(Module *mod, char *name);
-Symbol *get_desc_symbol(TypeDesc *desc);
+Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc);
 
 #ifdef __cplusplus
 }

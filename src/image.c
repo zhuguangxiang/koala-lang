@@ -947,11 +947,12 @@ static int typelistitem_get(Image *image, Vector *vec)
   item->size = sz;
 
   int index;
-  for (int i = 0; i < sz; i++) {
-    index = typeitem_get(image, vector_get(vec, i));
+  TypeDesc *desc;
+  vector_for_each(desc, vec) {
+    index = typeitem_get(image, desc);
     if (index < 0)
       return -1;
-    item->index[i] = index;
+    item->index[idx] = index;
   }
 
   return _index_(image, ITEM_TYPELIST, item);
@@ -966,10 +967,11 @@ static int typelistitem_set(Image *image, Vector *vec)
   int index = typelistitem_get(image, vec);
   if (index < 0) {
     int32_t indexes[sz];
-    for (int i = 0; i < sz; i++) {
-      index = typeitem_set(image, vector_get(vec, i));
+    TypeDesc *desc;
+    vector_for_each(desc, vec) {
+      index = typeitem_set(image, desc);
       expect(index >= 0);
-      indexes[i] = index;
+      indexes[idx] = index;
     }
     TypeListItem *item = typelistitem_new(sz, indexes);
     index = _append_(image, ITEM_TYPELIST, item, 1);

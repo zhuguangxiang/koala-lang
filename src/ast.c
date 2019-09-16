@@ -446,10 +446,8 @@ Stmt *stmt_from_block(Vector *list)
 
 void stmt_block_free(Vector *vec)
 {
-  int sz = vector_size(vec);
   Stmt *stmt;
-  for (int i = 0; i < sz; ++i) {
-    stmt = vector_get(vec, i);
+  vector_for_each(stmt, vec) {
     stmt_free(stmt);
   }
   vector_free(vec);

@@ -758,7 +758,6 @@ Object *Koala_EvalFrame(Frame *f)
         expect(oparg == 1);
         y = POP();
       }
-
       desc = descob_getdesc(x);
       expect(desc->paras == NULL);
       if (desc_isbase(desc)) {

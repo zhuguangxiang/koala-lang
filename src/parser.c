@@ -556,7 +556,7 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
   return NULL;
 }
 
-static Symbol *find_klass_symbol(ParserState *ps, char *path, char *name)
+static Symbol *get_klass_symbol(ParserState *ps, char *path, char *name)
 {
   Symbol *sym;
   Module *mod = ps->module;
@@ -627,7 +627,7 @@ static Symbol *get_literal_symbol(char kind)
   return sym;
 }
 
-Symbol *get_desc_symbol(TypeDesc *desc)
+Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
 {
   if (desc == NULL)
     return NULL;
@@ -638,16 +638,17 @@ Symbol *get_desc_symbol(TypeDesc *desc)
     sym = get_literal_symbol(desc->base);
     break;
   case TYPE_KLASS:
-    if (!strcmp(desc->klass.path, "lang"))
-      sym = find_from_builtins(desc->klass.type);
-    else
-      panic("not implemented");
+    sym = get_klass_symbol(ps, desc->klass.path, desc->klass.type);
+    // update auto-imported descriptor's path
+    if (sym != NULL && desc->klass.path == NULL) {
+      desc->klass.path = sym->desc->klass.path;
+    }
     break;
   case TYPE_PROTO:
-    sym = get_desc_symbol(desc->proto.ret);
+    sym = get_desc_symbol(ps, desc->proto.ret);
     break;
   default:
-    panic("get_desc_symbol: invalid desc %d", desc->kind);
+    panic("invalid desc %d", desc->kind);
     break;
   }
 
@@ -758,7 +759,7 @@ static IdCodeGen current_codes[] = {
   {SCOPE_FUNC,    ident_in_func},
   {SCOPE_BLOCK,   NULL},
   {SCOPE_CLOSURE, NULL},
-  {SCOPE_INVALID, NULL},
+  {0, NULL},
 };
 
 static IdCodeGen up_codes[] = {
@@ -767,14 +768,14 @@ static IdCodeGen up_codes[] = {
   {SCOPE_FUNC,    ident_up_func},
   {SCOPE_BLOCK,   NULL},
   {SCOPE_CLOSURE, NULL},
-  {SCOPE_INVALID, NULL},
+  {0, NULL},
 };
 
 #define ident_codegen(codegens, ps, arg)  \
 ({                                        \
   ParserUnit *u = (ps)->u;                \
   IdCodeGen *gen = codegens;              \
-  while (gen->scope != SCOPE_INVALID) {   \
+  while (gen->scope != 0) {               \
     if (u->scope == gen->scope) {         \
       if (gen->code != NULL)              \
         gen->code(ps, arg);               \
@@ -828,8 +829,9 @@ static void parse_binary(ParserState *ps, Expr *exp)
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
 
-  exp->sym = get_desc_symbol(lexp->desc);
+  exp->sym = get_desc_symbol(ps, lexp->desc);
   if (exp->sym == NULL) {
+    syntax_error(ps, exp->row, exp->col, "cannot find type");
     return;
   }
 
@@ -949,10 +951,12 @@ static void parse_atrr(ParserState *ps, Expr *exp)
       syntax_error(ps, lexp->row, lexp->col,
         "func with arguments cannot be accessed like field.");
     } else {
-      sym = get_desc_symbol(desc->proto.ret);
+      sym = get_desc_symbol(ps, desc->proto.ret);
       if (sym != NULL) {
         expect(sym->kind == SYM_CLASS);
         sym = klass_find_member(sym, id->name);
+      } else {
+        syntax_error(ps, exp->row, exp->col, "cannot find type");
       }
       ldesc = desc->proto.ret;
     }
@@ -1097,7 +1101,10 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     }
     desc = type_maybe_instanced(lexp->desc, desc);
     exp->desc = TYPE_INCREF(desc);
-    exp->sym = get_desc_symbol(desc);
+    exp->sym = get_desc_symbol(ps, desc);
+    if (exp->sym == NULL) {
+      syntax_error(ps, exp->row, exp->col, "cannot find type");
+    }
     TYPE_DECREF(desc);
   }
 
@@ -1146,7 +1153,10 @@ static void parse_call(ParserState *ps, Expr *exp)
       }
     }
     exp->desc = TYPE_INCREF(desc->proto.ret);
-    exp->sym = get_desc_symbol(exp->desc);
+    exp->sym = get_desc_symbol(ps, exp->desc);
+    if (exp->sym == NULL) {
+      syntax_error(ps, exp->row, exp->col, "cannot find type");
+    }
   }
 }
 
@@ -1233,8 +1243,7 @@ static void parse_array(ParserState *ps, Expr *exp)
   }
 
   Expr *e;
-  for (int i = size - 1; i >= 0; --i) {
-    e = vector_get(vec, i);
+  vector_for_each_reverse(e, vec) {
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
     if (e->desc != NULL) {
@@ -1298,6 +1307,8 @@ static void parse_map(ParserState *ps, Expr *exp)
     desc_add_paratype(exp->desc, vdesc);
     Inst *inst = CODE_OP_I(OP_NEW_MAP, size);
     inst->desc = TYPE_INCREF(exp->desc);
+    TYPE_DECREF(kdesc);
+    TYPE_DECREF(vdesc);
   }
 
   free_descs(kvec);
@@ -1311,7 +1322,10 @@ static void parse_is(ParserState *ps, Expr *exp)
   parser_visit_expr(ps, e);
   TYPE_DECREF(exp->desc);
   exp->desc = desc_from_bool;
-  exp->sym = get_desc_symbol(exp->desc);
+  exp->sym = get_desc_symbol(ps, exp->desc);
+  if (exp->sym == NULL) {
+    syntax_error(ps, exp->row, exp->col, "cannot find type");
+  }
 
   if (!has_error(ps)) {
     CODE_OP_TYPE(OP_TYPEOF, exp->isas.type.desc);
@@ -1326,7 +1340,10 @@ static void parse_as(ParserState *ps, Expr *exp)
 
   TYPE_DECREF(exp->desc);
   exp->desc = TYPE_INCREF(exp->isas.type.desc);
-  exp->sym = get_desc_symbol(exp->desc);
+  exp->sym = get_desc_symbol(ps, exp->desc);
+  if (exp->sym == NULL) {
+    syntax_error(ps, exp->row, exp->col, "cannot find type");
+  }
 
   if (!has_error(ps)) {
     CODE_OP_TYPE(OP_TYPECHECK, exp->desc);
@@ -1337,7 +1354,7 @@ static void parse_new(ParserState *ps, Expr *exp)
 {
   char *path = exp->newobj.path;
   Ident *id = &exp->newobj.id;
-  Symbol *sym = find_klass_symbol(ps, path, id->name);
+  Symbol *sym = get_klass_symbol(ps, path, id->name);
   if (sym == NULL) {
     syntax_error(ps, id->row, id->col, "cannot find class '%s'", id->name);
     return;
@@ -1468,7 +1485,7 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   }
 
   if (sym->var.typesym == NULL) {
-    sym->var.typesym = get_desc_symbol(sym->desc);
+    sym->var.typesym = get_desc_symbol(ps, sym->desc);
   }
 
   return sym;
@@ -1496,6 +1513,9 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
 
   /* add or update variable type symbol */
   Symbol *sym = add_update_var(ps, id, desc);
+  if (sym->var.typesym == NULL) {
+    syntax_error(ps, type->row, type->col, "cannot find type");
+  }
 
   /* generate codes */
   if (exp != NULL && !has_error(ps)) {
@@ -1564,9 +1584,8 @@ static void parse_func_body(ParserState *ps, Stmt *stmt)
   Vector *vec = stmt->funcdecl.body;
   int sz = vector_size(vec);
   Stmt *s = NULL;
-  for (int i = 0; i < sz; ++i) {
-    s = vector_get(vec, i);
-    if (i == sz - 1)
+  vector_for_each(s, vec) {
+    if (idx == sz - 1)
       s->last = 1;
     parse_stmt(ps, s);
   }
@@ -1671,10 +1690,8 @@ static void parse_block(ParserState *ps, Stmt *stmt)
   parser_enter_scope(ps, SCOPE_BLOCK);
   u->stbl = stable_new();
 
-  int sz = vector_size(vec);
-  Stmt *s = NULL;
-  for (int i = 0; i < sz; ++i) {
-    s = vector_get(vec, i);
+  Stmt *s;
+  vector_for_each(s, vec) {
     parse_stmt(ps, s);
   }
 

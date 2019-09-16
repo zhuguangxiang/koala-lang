@@ -175,29 +175,29 @@ static Object *get_code_object(Symbol *sym)
   return ob;
 }
 
-int Cmd_Add_Const(Ident id, Type type)
+int cmd_add_const(ParserState *ps, Ident id, Type type)
 {
   sym = stable_add_const(mod.stbl, id.name, type.desc);
   if (sym != NULL) {
-    sym->k.typesym = get_desc_symbol(type.desc);
+    sym->k.typesym = get_desc_symbol(ps, type.desc);
     return 0;
   } else {
     return -1;
   }
 }
 
-int Cmd_Add_Var(Ident id, Type type)
+int cmd_add_var(ParserState *ps, Ident id, Type type)
 {
   sym = stable_add_var(mod.stbl, id.name, type.desc);
   if (sym != NULL) {
-    sym->var.typesym = get_desc_symbol(type.desc);
+    sym->var.typesym = get_desc_symbol(ps, type.desc);
     return 0;
   } else {
     return -1;
   }
 }
 
-int Cmd_Add_Func(char *name, Vector *idtypes, Type ret)
+int cmd_add_func(char *name, Vector *idtypes, Type ret)
 {
   Vector *vec = NULL;
   if (vector_size(idtypes) > 0)
@@ -240,7 +240,7 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
   }
 }
 
-void Cmd_EvalStmt(ParserState *ps, Stmt *stmt)
+void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
 {
   if (stmt == NULL)
     return;

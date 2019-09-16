@@ -46,10 +46,10 @@
   Type name = {type, yyloc_row(loc), yyloc_col(loc)}
 
 /* interactive mode */
-void Cmd_EvalStmt(ParserState *ps, Stmt *stmt);
-int Cmd_Add_Const(Ident id, Type type);
-int Cmd_Add_Var(Ident id, Type type);
-int Cmd_Add_Func(char *name, Vector *idtypes, Type ret);
+void cmd_eval_stmt(ParserState *ps, Stmt *stmt);
+int cmd_add_const(ParserState *ps, Ident id, Type type);
+int cmd_add_var(ParserState *ps, Ident id, Type type);
+int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 
 %}
 
@@ -259,8 +259,8 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      if (!Cmd_Add_Const($1->vardecl.id, $1->vardecl.type))
-        Cmd_EvalStmt(ps, $1);
+      if (!cmd_add_const(ps, $1->vardecl.id, $1->vardecl.type))
+        cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
   }
@@ -270,8 +270,8 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      if (!Cmd_Add_Var($1->vardecl.id, $1->vardecl.type))
-        Cmd_EvalStmt(ps, $1);
+      if (!cmd_add_var(ps, $1->vardecl.id, $1->vardecl.type))
+        cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
   } else {
@@ -282,8 +282,8 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      if (!Cmd_Add_Var($1->vardecl.id, $1->vardecl.type))
-        Cmd_EvalStmt(ps, $1);
+      if (!cmd_add_var(ps, $1->vardecl.id, $1->vardecl.type))
+        cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
   }
@@ -292,7 +292,7 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
-    Cmd_EvalStmt(ps, $1);
+    cmd_eval_stmt(ps, $1);
     stmt_free($1);
   }
 }
@@ -301,7 +301,7 @@ unit:
   Stmt *stmt = stmt_from_expr($1);
   if (ps->interactive) {
     ps->more = 0;
-    Cmd_EvalStmt(ps, stmt);
+    cmd_eval_stmt(ps, stmt);
     stmt_free(stmt);
   } else {
   }
@@ -335,9 +335,9 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      if (!Cmd_Add_Func($1->funcdecl.id.name, $1->funcdecl.idtypes,
+      if (!cmd_add_func(ps, $1->funcdecl.id.name, $1->funcdecl.idtypes,
           $1->funcdecl.ret))
-        Cmd_EvalStmt(ps, $1);
+        cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
   }
