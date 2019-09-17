@@ -49,6 +49,22 @@ void fini_parser(void)
   stable_free(_lang_.stbl);
 }
 
+static int isbuiltin(char *path)
+{
+  static char *builtins[] = {
+    "lang",
+    NULL,
+  };
+
+  char **s = builtins;
+  while (*s != NULL) {
+    if (!strcmp(path, *s))
+      return 1;
+    ++s;
+  }
+  return 0;
+}
+
 Symbol *find_from_builtins(char *name)
 {
   return stable_get(_lang_.stbl, name);
@@ -590,9 +606,25 @@ static Symbol *get_klass_symbol(ParserState *ps, char *path, char *name)
 
     error("cannot find symbol '%s'", name);
     return NULL;
+  } else if (isbuiltin(path)) {
+    /* find type from auto-imported modules */
+    sym = find_from_builtins(name);
+    if (sym != NULL) {
+      debug("find symbol '%s' in auto-imported modules", name);
+      if (sym->kind == SYM_CLASS) {
+        ++sym->used;
+        return sym;
+      } else {
+        error("symbol '%s' is not Class", name);
+        return NULL;
+      }
+    }
+    error("cannot find symbol '%s'", name);
+    return NULL;
+  } else {
+    panic("not implemented");
   }
 
-  panic("not implemented");
 }
 
 static Symbol *get_literal_symbol(char kind)
@@ -1154,9 +1186,6 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
     exp->desc = TYPE_INCREF(desc->proto.ret);
     exp->sym = get_desc_symbol(ps, exp->desc);
-    if (exp->sym == NULL) {
-      syntax_error(ps, exp->row, exp->col, "cannot find type");
-    }
   }
 }
 
@@ -1507,7 +1536,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
     }
 
     if (!desc_check(desc, exp->desc)) {
-      syntax_error(ps, exp->row, exp->col, "types are not compatible");
+      syntax_error(ps, exp->row, exp->col, "types are not matched");
     }
   }
 
@@ -1553,14 +1582,18 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
   }
   parser_visit_expr(ps, lexp);
 
-  Symbol *sym = lexp->sym;
-  if (sym == NULL)
-    return;
+  if (lexp->desc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col, "cannot resolve left expr's type");
+  }
+
+  if (rexp->desc == NULL) {
+    syntax_error(ps, rexp->row, rexp->col, "right expr's type is void");
+  }
 
   // check type is compatible
-  if (!has_error(ps)) {
+  if (lexp->desc != NULL && rexp->desc != NULL) {
     if (!desc_check(lexp->desc, rexp->desc)) {
-      syntax_error(ps, lexp->row, lexp->col, "types are not compatible");
+      syntax_error(ps, lexp->row, lexp->col, "types are not matched");
     }
   }
 

@@ -197,7 +197,7 @@ int cmd_add_var(ParserState *ps, Ident id, Type type)
   }
 }
 
-int cmd_add_func(char *name, Vector *idtypes, Type ret)
+int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret)
 {
   Vector *vec = NULL;
   if (vector_size(idtypes) > 0)

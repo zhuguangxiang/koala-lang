@@ -1,0 +1,12 @@
+
+var s = "hello"
+s += " world"
+s
+s.__class__.__mbrs__
+var i int = 100
+i
+var arr Array<int> = [1,2,3]
+arr.append(100)
+arr
+arr[0] + i
+arr[0] + s
