@@ -13,8 +13,6 @@ arr[0] + i
 //arr[0] + s
 
 func add(a int, b int) int {
-  a + b
-  /*
   var a1 int
   var a2 int
   a1 = 100
@@ -27,10 +25,9 @@ func add(a int, b int) int {
     a2 = b1 - b2
     b1 - b2
   }
-  return a1 + a2 + a + b
-  //a1 + a2 + a + b
+  //return a1 + a2 + a + b
+  a1 + a2 + a + b
   //return "hello"
-  */
 }
 
 add(10, 10)

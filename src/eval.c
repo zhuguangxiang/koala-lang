@@ -134,6 +134,7 @@ static struct list_head kslist;
 
 #define SETLOCAL(i, v) ({ \
   expect(i < f->size); \
+  OB_DECREF(f->locvars[i]); \
   f->locvars[i] = v; \
 })
 
