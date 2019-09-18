@@ -57,6 +57,8 @@ typedef struct module {
   STable *stbl;
   /* ParserState per source file */
   Vector pss;
+  /* init func symbol */
+  Symbol *initsym;
 } Module;
 
 /* ParserUnit scope */

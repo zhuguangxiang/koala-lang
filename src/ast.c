@@ -467,6 +467,8 @@ void stmt_free(Stmt *stmt)
   if (stmt == NULL)
     return;
 
+  TYPE_DECREF(stmt->desc);
+
   switch (stmt->kind) {
   case IMPORT_KIND:
     kfree(stmt);

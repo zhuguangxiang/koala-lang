@@ -150,7 +150,9 @@ string    {character}+
 alpha      [A-Za-z_]
 identifier {alpha}({alpha}|{digit})*
 
-comment ("//"|#)[^\n]*
+comment   ("//"|#)[^\n]*
+blockcomment  "/*"(([^\*]*(\*[^\/])?)*)"*/"
+
 doc     "///"[^\n]*
 moddoc  "//!"[^\n]*
 
@@ -308,6 +310,10 @@ moddoc  "//!"[^\n]*
 }
 
 {comment} {
+  return COMMENT;
+}
+
+{blockcomment} {
   return COMMENT;
 }
 

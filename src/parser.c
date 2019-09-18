@@ -467,14 +467,24 @@ static void merge_into_func(ParserUnit *u, char *name, int create)
   u->block = NULL;
 }
 
+static void merge_up(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+  ParserUnit *up = up_scope(ps);
+  codeblock_merge(u->block, up->block);
+  codeblock_free(u->block);
+  u->block = NULL;
+  u->sym = NULL;
+}
+
 static void unit_merge_free(ParserState *ps)
 {
   ParserUnit *u = ps->u;
 
   switch (u->scope) {
   case SCOPE_MODULE: {
-    /* module has codes for __init__ */
-    if (u->block && u->block->bytes > 0) {
+    // module has codes for __init__
+    if (!has_error(ps) && u->block && u->block->bytes > 0) {
       merge_into_func(u, "__init__", 1);
     } else {
       codeblock_free(u->block);
@@ -486,9 +496,23 @@ static void unit_merge_free(ParserState *ps)
     Symbol *sym = u->sym;
     expect(sym != NULL);
     expect(sym->func.codeblock == NULL);
-    sym->func.codeblock = u->block;
+    if (!has_error(ps)) {
+      sym->func.codeblock = u->block;
+    } else {
+      codeblock_free(u->block);
+    }
     u->block = NULL;
     u->sym = NULL;
+    break;
+  }
+  case SCOPE_BLOCK: {
+    // block has codes, merge it into up unit
+    if (!has_error(ps) && u->block && u->block->bytes > 0) {
+      merge_up(ps);
+    } else {
+      codeblock_free(u->block);
+      u->block = NULL;
+    }
     break;
   }
   default:
@@ -764,6 +788,18 @@ static void ident_in_func(ParserState *ps, Expr *exp)
   }
 }
 
+static void ident_in_block(ParserState *ps, Expr *exp)
+{
+  Symbol *sym = exp->sym;
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_LOAD(sym->var.index);
+  } else if (exp->ctx == EXPR_STORE) {
+    CODE_STORE(sym->var.index);
+  } else {
+    panic("invalid expr's ctx %d", exp->ctx);
+  }
+}
+
 static void ident_up_func(ParserState *ps, Expr *exp)
 {
   ParserUnit *up = exp->id.scope;
@@ -780,6 +816,21 @@ static void ident_up_func(ParserState *ps, Expr *exp)
   }
 }
 
+static void ident_up_block(ParserState *ps, Expr *exp)
+{
+  ParserUnit *up = exp->id.scope;
+  Symbol *sym = exp->sym;
+  if (up->scope == SCOPE_FUNC) {
+    if (exp->ctx == EXPR_LOAD) {
+      CODE_LOAD(sym->var.index);
+    } else if (exp->ctx == EXPR_STORE) {
+      CODE_STORE(sym->var.index);
+    } else {
+      panic("invalid expr's ctx %d", exp->ctx);
+    }
+  }
+}
+
 typedef struct {
   ScopeKind scope;
   void (*code)(ParserState *, Expr *);
@@ -789,7 +840,7 @@ static IdCodeGen current_codes[] = {
   {SCOPE_MODULE,  ident_in_mod},
   {SCOPE_CLASS,   NULL},
   {SCOPE_FUNC,    ident_in_func},
-  {SCOPE_BLOCK,   NULL},
+  {SCOPE_BLOCK,   ident_in_block},
   {SCOPE_CLOSURE, NULL},
   {0, NULL},
 };
@@ -798,7 +849,7 @@ static IdCodeGen up_codes[] = {
   {SCOPE_MODULE,  NULL},
   {SCOPE_CLASS,   NULL},
   {SCOPE_FUNC,    ident_up_func},
-  {SCOPE_BLOCK,   NULL},
+  {SCOPE_BLOCK,   ident_up_block},
   {SCOPE_CLOSURE, NULL},
   {0, NULL},
 };
@@ -1481,10 +1532,37 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
   }
 }
 
+static ParserUnit *parse_block_vardecl(ParserState *ps, Ident *id)
+{
+  ParserUnit *u = ps->u;
+  ParserUnit *up;
+  Symbol *sym;
+  int depth = ps->depth;
+  vector_for_each_reverse(up, &ps->ustack) {
+    depth -= 1;
+    if (up->scope != SCOPE_MODULE) {
+      sym = stable_get(up->stbl, id->name);
+      if (sym != NULL) {
+        syntax_error(ps, id->row, id->col,
+          "symbol '%s' is already declared in scope-%d(%s)",
+          id->name, depth, scopes[up->scope]);
+        return NULL;
+      }
+    }
+    if (up->scope == SCOPE_FUNC || up->scope == SCOPE_CLOSURE)
+      return up;
+    if (up->scope == SCOPE_MODULE)
+      return u;
+    u = up;
+  }
+  return NULL;
+}
+
 static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
 {
   ParserUnit *u = ps->u;
   Symbol *sym;
+  Symbol *funcsym;
   switch (u->scope) {
   case SCOPE_MODULE:
   case SCOPE_CLASS:
@@ -1492,12 +1570,38 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     expect(sym != NULL);
     break;
   case SCOPE_FUNC:
+    // function scope has independent space for variables.
+    debug("var '%s' declaration in function.", id->name);
     sym = stable_add_var(u->stbl, id->name, desc);
     if (sym == NULL) {
       syntax_error(ps, id->row, id->col, "parameter duplicated");
       return NULL;
     } else {
-      Symbol *funcsym = u->sym;
+      funcsym = u->sym;
+      vector_push_back(&funcsym->func.locvec, sym);
+      ++sym->refcnt;
+    }
+    break;
+  case SCOPE_BLOCK:
+    // variables in block socpe must not be duplicated within function scope
+    debug("var '%s' declaration in block.", id->name);
+    // get up scope which has independent space for variables
+    ParserUnit *up = parse_block_vardecl(ps, id);
+    if (up == NULL)
+      return NULL;
+    sym = stable_add_var(u->stbl, id->name, desc);
+    if (sym == NULL) {
+      syntax_error(ps, id->row, id->col, "var '%s' is duplicated", id->name);
+      return NULL;
+    }
+    // set local var's index as its up's (func, closusre, etc) index
+    sym->var.index = ++up->stbl->varindex;
+    if (up->scope == SCOPE_MODULE) {
+      funcsym = ps->module->initsym;
+      vector_push_back(&funcsym->func.locvec, sym);
+      ++sym->refcnt;
+    } else {
+      funcsym = up->sym;
       vector_push_back(&funcsym->func.locvec, sym);
       ++sym->refcnt;
     }
@@ -1542,6 +1646,9 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
 
   /* add or update variable type symbol */
   Symbol *sym = add_update_var(ps, id, desc);
+  if (sym == NULL)
+    return;
+
   if (sym->var.typesym == NULL) {
     syntax_error(ps, type->row, type->col, "cannot find type");
   }
@@ -1615,6 +1722,7 @@ static void parse_assignment(ParserState *ps, Stmt *stmt)
 static void parse_func_body(ParserState *ps, Stmt *stmt)
 {
   Vector *vec = stmt->funcdecl.body;
+  Type ret = stmt->funcdecl.ret;
   int sz = vector_size(vec);
   Stmt *s = NULL;
   vector_for_each(s, vec) {
@@ -1626,25 +1734,69 @@ static void parse_func_body(ParserState *ps, Stmt *stmt)
   if (has_error(ps))
     return;
 
-  if (s != NULL) {
-    /* check last statement has value or not */
-    if (s->kind == EXPR_KIND) {
-      if (s->hasvalue) {
-        debug("last expr-stmt and has value, add OP_RETURN_VALUE");
-        CODE_OP(OP_RETURN_VALUE);
+  if (s == NULL) {
+    // body is empty
+    debug("func body is empty");
+    if (ret.desc != NULL) {
+      char *name = stmt->funcdecl.id.name;
+      syntax_error(ps, ret.row, ret.col,
+        "func '%s' needs return value", name);
+    } else {
+      debug("add OP_RETURN");
+      CODE_OP(OP_RETURN);
+    }
+    return;
+  }
+
+  // last one is expr-stmt, check it has value or not
+  if (s->kind == EXPR_KIND) {
+    if (s->hasvalue) {
+      // expr and has value and check types ara matched.
+      debug("last expr-stmt and has value, add OP_RETURN_VALUE");
+      if (ret.desc == NULL) {
+        char *name = stmt->funcdecl.id.name;
+        syntax_error(ps, ret.row, ret.col,
+          "func '%s' no return value", name);
+      } else {
+        if (!desc_check(ret.desc, s->desc)) {
+          syntax_error(ps, ret.row, ret.col, "return values are not matched");
+        } else {
+          CODE_OP(OP_RETURN_VALUE);
+        }
+      }
+    } else {
+      // expr and no value
+      if (ret.desc != NULL) {
+        char *name = stmt->funcdecl.id.name;
+        syntax_error(ps, ret.row, ret.col,
+          "func '%s' needs return value", name);
       } else {
         debug("last expr-stmt and no value, add OP_RETURN");
         CODE_OP(OP_RETURN);
       }
+    }
+    return;
+  }
+
+  // last one is return or other statement
+  debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
+  if (s->hasvalue) {
+    if (ret.desc == NULL) {
+      char *name = stmt->funcdecl.id.name;
+      syntax_error(ps, ret.row, ret.col, "func '%s' no return value", name);
     } else {
-      if (s->kind != RETURN_KIND) {
-        debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
-        CODE_OP(OP_RETURN);
+      if (!desc_check(ret.desc, s->desc)) {
+          syntax_error(ps, ret.row, ret.col, "return values are not matched");
       }
     }
   } else {
-    debug("func body is empty");
-    debug("add OP_RETURN");
+    if (ret.desc != NULL) {
+      char *name = stmt->funcdecl.id.name;
+      syntax_error(ps, ret.row, ret.col, "func '%s' needs return value", name);
+    }
+  }
+
+  if (!has_error(ps) && s->kind != RETURN_KIND) {
     CODE_OP(OP_RETURN);
   }
 }
@@ -1686,7 +1838,13 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     debug("return has value");
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
-    CODE_OP(OP_RETURN_VALUE);
+    if (exp->desc == NULL) {
+      syntax_error(ps, exp->row, exp->col, "expr has no value");
+    } else {
+      stmt->hasvalue = 1;
+      stmt->desc = TYPE_INCREF(exp->desc);
+      CODE_OP(OP_RETURN_VALUE);
+    }
   } else {
     debug("return has no value");
     CODE_OP(OP_RETURN);
@@ -1707,6 +1865,7 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
   } else  {
     parser_visit_expr(ps, exp);
     stmt->hasvalue = exp->hasvalue;
+    stmt->desc = TYPE_INCREF(exp->desc);
     if (!has_error(ps)) {
       if (!stmt->last && stmt->hasvalue) {
         /* not last statement, pop its value */
@@ -1718,12 +1877,12 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
 
 static void parse_block(ParserState *ps, Stmt *stmt)
 {
-  ParserUnit *u = ps->u;
-  Vector *vec = stmt->block.vec;
   parser_enter_scope(ps, SCOPE_BLOCK);
+  ParserUnit *u = ps->u;
   u->stbl = stable_new();
 
   Stmt *s;
+  Vector *vec = stmt->block.vec;
   vector_for_each(s, vec) {
     parse_stmt(ps, s);
   }
@@ -1736,15 +1895,15 @@ static void parse_block(ParserState *ps, Stmt *stmt)
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   static void (*handlers[])(ParserState *, Stmt *) = {
-    NULL,               /* INVALID       */
-    NULL,               /* IMPORT_KIND   */
-    NULL,               /* CONST_KIND    */
-    parse_vardecl,      /* VAR_KIND      */
-    parse_assignment,   /* ASSIGN_KIND   */
-    parse_funcdecl,     /* FUNC_KIND     */
-    parse_return,       /* RETURN_KIND   */
-    parse_expr,         /* EXPR_KIND     */
-    parse_block,        /* BLOCK_KIND    */
+    NULL,               /* INVALID      */
+    NULL,               /* IMPORT_KIND  */
+    NULL,               /* CONST_KIND   */
+    parse_vardecl,      /* VAR_KIND     */
+    parse_assignment,   /* ASSIGN_KIND  */
+    parse_funcdecl,     /* FUNC_KIND    */
+    parse_return,       /* RETURN_KIND  */
+    parse_expr,         /* EXPR_KIND    */
+    parse_block,        /* BLOCK_KIND   */
   };
 
   expect(stmt->kind >= IMPORT_KIND && stmt->kind <= BLOCK_KIND);

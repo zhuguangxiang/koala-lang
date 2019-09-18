@@ -7,6 +7,30 @@ var i int = 100
 i
 var arr Array<int> = [1,2,3]
 arr.append(100)
+arr.append("hello")
 arr
 arr[0] + i
-arr[0] + s
+//arr[0] + s
+
+func add(a int, b int) int {
+  a + b
+  /*
+  var a1 int
+  var a2 int
+  a1 = 100
+  a2 = a1 * 2
+  {
+    var b1 = 200
+    var b2 = 200
+    //var a1 int
+    a1 = b1 + b2
+    a2 = b1 - b2
+    b1 - b2
+  }
+  return a1 + a2 + a + b
+  //a1 + a2 + a + b
+  //return "hello"
+  */
+}
+
+add(10, 10)

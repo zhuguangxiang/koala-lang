@@ -257,8 +257,6 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
       symbol_decref(sym);
       sym = NULL;
     }
-    codeblock_free(funcsym->func.codeblock);
-    funcsym->func.codeblock = NULL;
   } else {
     if (sym != NULL) {
       add_symbol_to_module(sym, mo);
@@ -273,10 +271,10 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
       Object *code = get_code_object(funcsym);
       Koala_EvalCode(code, mo, NULL);
       OB_DECREF(code);
-      codeblock_free(funcsym->func.codeblock);
-      funcsym->func.codeblock = NULL;
     }
   }
+  codeblock_free(funcsym->func.codeblock);
+  funcsym->func.codeblock = NULL;
 }
 
 static int empty(char *buf, int size)
