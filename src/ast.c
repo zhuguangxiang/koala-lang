@@ -444,6 +444,25 @@ Stmt *stmt_from_block(Vector *list)
   return stmt;
 }
 
+Stmt *stmt_from_if(Expr *test, Stmt *block, Stmt *orelse)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = IF_KIND;
+  stmt->if_stmt.test = test;
+  stmt->if_stmt.block = block;
+  stmt->if_stmt.orelse = orelse;
+  return stmt;
+}
+
+Stmt *stmt_from_while(Expr *test, Stmt *block)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = WHILE_KIND;
+  stmt->while_stmt.test = test;
+  stmt->while_stmt.block = block;
+  return stmt;
+}
+
 void stmt_block_free(Vector *vec)
 {
   Stmt *stmt;
@@ -502,6 +521,17 @@ void stmt_free(Stmt *stmt)
     break;
   case BLOCK_KIND:
     stmt_block_free(stmt->block.vec);
+    kfree(stmt);
+    break;
+  case IF_KIND:
+    expr_free(stmt->if_stmt.test);
+    stmt_free(stmt->if_stmt.block);
+    stmt_free(stmt->if_stmt.orelse);
+    kfree(stmt);
+    break;
+  case WHILE_KIND:
+    expr_free(stmt->while_stmt.test);
+    stmt_free(stmt->while_stmt.block);
     kfree(stmt);
     break;
   default:

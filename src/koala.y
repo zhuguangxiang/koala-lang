@@ -147,6 +147,9 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %type <stmt> assignment
 %type <assginop> assign_operator
 %type <stmt> return_stmt
+%type <stmt> if_stmt
+%type <stmt> empty_else
+%type <stmt> while_stmt
 %type <stmt> func_decl
 %type <stmtlist> block
 %type <stmtlist> local_list
@@ -310,12 +313,20 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    cmd_eval_stmt(ps, $1);
+    stmt_free($1);
+  } else {
+
   }
 }
 | while_stmt
 {
   if (ps->interactive) {
     ps->more = 0;
+    cmd_eval_stmt(ps, $1);
+    stmt_free($1);
+  } else {
+
   }
 }
 | match_stmt
@@ -419,11 +430,11 @@ local:
 }
 | if_stmt
 {
-  $$ = NULL;
+  $$ = $1;
 }
 | while_stmt
 {
-  $$ = NULL;
+  $$ = $1;
 }
 | match_stmt
 {
@@ -578,11 +589,11 @@ block:
 }
 | '{' expr2_list '}'
 {
-
+  $$ = NULL;
 }
 | '{' expr2_list ';' '}'
 {
-
+  $$ = NULL;
 }
 | '{' '}'
 {
@@ -1130,16 +1141,31 @@ anony_object:
 
 if_stmt:
   IF expr block empty_else
+{
+  $$ = stmt_from_if($2, stmt_from_block($3), $4);
+}
 ;
 
 empty_else:
   %empty
+{
+  $$ = NULL;
+}
 | ELSE block
+{
+  $$ = stmt_from_block($2);
+}
 | ELSE if_stmt
+{
+  $$ = $2;
+}
 ;
 
 while_stmt:
   WHILE expr block
+{
+  $$ = stmt_from_while($2, stmt_from_block($3));
+}
 ;
 
 for_each_stmt:

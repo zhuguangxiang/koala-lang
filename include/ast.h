@@ -284,7 +284,7 @@ typedef enum stmtkind {
   /* enum */
   ENUM_KIND,
   /* enum value */
-  ENUM_VALUE_KIND,
+  EVAL_KIND,
   /* break, continue */
   BREAK_KIND, CONTINUE_KIND,
   /* if, while, for, match */
@@ -300,7 +300,9 @@ typedef enum assignopkind {
   OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
 } AssignOpKind;
 
-typedef struct stmt {
+typedef struct stmt Stmt;
+
+struct stmt {
   StmtKind kind;
   short last;
   short hasvalue;
@@ -336,8 +338,17 @@ typedef struct stmt {
     struct {
       Vector *vec;
     } block;
+    struct {
+      Expr *test;
+      Stmt *block;
+      Stmt *orelse;
+    } if_stmt;
+    struct {
+      Expr *test;
+      Stmt *block;
+    } while_stmt;
   };
-} Stmt;
+};
 
 void stmt_free(Stmt *stmt);
 void stmt_block_free(Vector *vec);
@@ -349,6 +360,8 @@ Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_expr(Expr *exp);
 Stmt *stmt_from_block(Vector *list);
+Stmt *stmt_from_if(Expr *test, Stmt *block, Stmt *orelse);
+Stmt *stmt_from_while(Expr *test, Stmt *block);
 
 #ifdef __cplusplus
 }

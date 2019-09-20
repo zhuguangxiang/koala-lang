@@ -116,14 +116,13 @@ static struct list_head kslist;
 })
 
 #define NEXT_BYTE() ({ \
-  expect(f->index << co->size); \
+  expect(f->index < co->size); \
   co->codes[++f->index]; \
 })
 
 #define NEXT_2BYTES() ({ \
-  expect(f->index < co->size); \
-  uint8_t l = co->codes[++f->index]; \
-  uint8_t h = co->codes[++f->index]; \
+  uint8_t l = NEXT_BYTE(); \
+  uint8_t h = NEXT_BYTE(); \
   ((h << 8) + l); \
 })
 
@@ -717,12 +716,22 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_JMP: {
+      oparg = (int16_t)NEXT_2BYTES();
+      f->index += oparg;
       break;
     }
     case OP_JMP_TRUE: {
+      oparg = (int16_t)NEXT_2BYTES();
+      x = POP();
+      if (Bool_IsTrue(x))
+        f->index += oparg;
       break;
     }
     case OP_JMP_FALSE: {
+      oparg = (int16_t)NEXT_2BYTES();
+      x = POP();
+      if (Bool_IsFalse(x))
+        f->index += oparg;
       break;
     }
     case OP_JMP_CMPEQ: {
@@ -744,9 +753,11 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_JMP_NIL: {
+      oparg = NEXT_2BYTES();
       break;
     }
     case OP_JMP_NOTNIL: {
+      oparg = NEXT_2BYTES();
       break;
     }
     case OP_NEW_OBJECT: {

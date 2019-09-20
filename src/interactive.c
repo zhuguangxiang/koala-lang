@@ -324,9 +324,7 @@ int interactive(ParserState *ps, char *buf, int size)
   /* flex bug? leave last one char in buffer */
   buf[len++] = ' ';
 
-  if (empty(buf, len)) {
-    ps->more = 0;
-  } else {
+  if (!empty(buf, len)) {
     ps->more++;
   }
 

@@ -104,7 +104,19 @@ typedef struct jmp_inst {
   Inst *inst;
 } JmpInst;
 
-static inline CodeBlock *codeblock_new(void);
+static inline CodeBlock *codeblock_new(void)
+{
+  CodeBlock *b = kmalloc(sizeof(CodeBlock));
+  init_list_head(&b->insts);
+  return b;
+}
+
+static inline int codeblock_bytes(CodeBlock *block)
+{
+  if (block == NULL)
+    return 0;
+  return block->bytes;
+}
 
 static inline void codeblock_add_inst(CodeBlock *b, Inst *i)
 {
@@ -156,13 +168,6 @@ static Inst *inst_add_type(ParserState *ps, uint8_t op, TypeDesc *desc)
   return i;
 }
 
-static inline CodeBlock *codeblock_new(void)
-{
-  CodeBlock *b = kmalloc(sizeof(CodeBlock));
-  init_list_head(&b->insts);
-  return b;
-}
-
 void codeblock_free(CodeBlock *block)
 {
   if (block == NULL)
@@ -211,7 +216,6 @@ void codeblock_show(CodeBlock *block)
   puts("---------------------------------------------");
   if (!list_empty(&block->insts)) {
     Inst *i;
-    STRBUF(sbuf);
     char *opname;
     int offset = 0;
     struct list_head *p;
@@ -222,9 +226,17 @@ void codeblock_show(CodeBlock *block)
       print("%6d", i->bytes);
       offset += i->bytes;
       print("  %-16s", opname);
-      literal_show(&i->arg, &sbuf);
-      print("%.64s\n", strbuf_tostr(&sbuf));
-      strbuf_fini(&sbuf);
+      if (i->arg.kind != 0) {
+        STRBUF(sbuf);
+        literal_show(&i->arg, &sbuf);
+        print("%.64s", strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
+      } else {
+        if (i->argc != 0) {
+          print("%d", i->argc);
+        }
+      }
+      print("\n");
     }
   }
 }
@@ -312,6 +324,8 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_JMP:
   case OP_JMP_TRUE:
   case OP_JMP_FALSE:
+    bytebuffer_write_2bytes(buf, i->argc);
+    break;
   case OP_NEW_TUPLE:
   case OP_NEW_MAP:
     index = Image_Add_Desc(image, i->desc);
@@ -471,8 +485,12 @@ static void merge_up(ParserState *ps)
 {
   ParserUnit *u = ps->u;
   ParserUnit *up = up_scope(ps);
-  codeblock_merge(u->block, up->block);
-  codeblock_free(u->block);
+  if (up->block != NULL) {
+    codeblock_merge(u->block, up->block);
+    codeblock_free(u->block);
+  } else {
+    up->block = u->block;
+  }
   u->block = NULL;
   u->sym = NULL;
 }
@@ -540,6 +558,7 @@ void parser_enter_scope(ParserState *ps, ScopeKind scope)
 void parser_exit_scope(ParserState *ps)
 {
   debug("Exit scope-%d(%s)", ps->depth, scopes[ps->u->scope]);
+
 #if !defined(NLog)
   unit_show(ps);
 #endif
@@ -813,6 +832,8 @@ static void ident_up_func(ParserState *ps, Expr *exp)
     } else {
       panic("invalid expr's ctx %d", exp->ctx);
     }
+  } else {
+    panic("invalid scope");
   }
 }
 
@@ -820,14 +841,13 @@ static void ident_up_block(ParserState *ps, Expr *exp)
 {
   ParserUnit *up = exp->id.scope;
   Symbol *sym = exp->sym;
-  if (up->scope == SCOPE_FUNC) {
-    if (exp->ctx == EXPR_LOAD) {
-      CODE_LOAD(sym->var.index);
-    } else if (exp->ctx == EXPR_STORE) {
-      CODE_STORE(sym->var.index);
-    } else {
-      panic("invalid expr's ctx %d", exp->ctx);
-    }
+
+  if (up->scope == SCOPE_MODULE) {
+    ident_in_mod(ps, exp);
+  } else if (up->scope == SCOPE_FUNC) {
+    ident_in_block(ps, exp);
+  } else {
+    panic("invalid scope");
   }
 }
 
@@ -1892,20 +1912,108 @@ static void parse_block(ParserState *ps, Stmt *stmt)
   parser_exit_scope(ps);
 }
 
+static void parse_if(ParserState *ps, Stmt *stmt)
+{
+  parser_enter_scope(ps, SCOPE_BLOCK);
+  Expr *test = stmt->if_stmt.test;
+  Stmt *block = stmt->if_stmt.block;
+  Stmt *orelse = stmt->if_stmt.orelse;
+  Inst *jmp = NULL;
+  Inst *jmp2 = NULL;
+  int offset = 0;
+  int offset2 = 0;
+
+  if (test != NULL) {
+    test->ctx = EXPR_LOAD;
+    // optimize binary compare operator
+    parser_visit_expr(ps, test);
+    if (desc_isbool(test->desc)) {
+      syntax_error(ps, test->row, test->col, "if cond expr is not bool");
+    }
+    jmp = CODE_OP(OP_JMP_FALSE);
+    offset = codeblock_bytes(ps->u->block);
+  }
+
+  if (block != NULL) {
+    parse_stmt(ps, block);
+    if (orelse != NULL) {
+      jmp2 = CODE_OP(OP_JMP);
+      offset2 = codeblock_bytes(ps->u->block);
+    }
+  }
+
+  if (jmp != NULL) {
+    offset = codeblock_bytes(ps->u->block) - offset;
+    jmp->argc = offset;
+  }
+
+  if (orelse != NULL) {
+    parse_stmt(ps, orelse);
+  }
+
+  if (jmp2 != NULL) {
+    offset2 = codeblock_bytes(ps->u->block) - offset2;
+    jmp2->argc = offset2;
+  }
+
+  parser_exit_scope(ps);
+}
+
+static void parse_while(ParserState *ps, Stmt *stmt)
+{
+  parser_enter_scope(ps, SCOPE_BLOCK);
+  Expr *test = stmt->while_stmt.test;
+  Stmt *block = stmt->while_stmt.block;
+  Inst *jmp = NULL;
+  int offset = 0;
+
+  test->ctx = EXPR_LOAD;
+  // optimize binary compare operator
+  parser_visit_expr(ps, test);
+  if (desc_isbool(test->desc)) {
+    syntax_error(ps, test->row, test->col, "if cond expr is not bool");
+  }
+  jmp = CODE_OP(OP_JMP_FALSE);
+  offset = codeblock_bytes(ps->u->block);
+
+  if (block != NULL) {
+    parse_stmt(ps, block);
+  }
+
+  Inst *jmp2 = CODE_OP(OP_JMP);
+  jmp2->argc = 0 - codeblock_bytes(ps->u->block);
+
+  if (jmp != NULL) {
+    offset = codeblock_bytes(ps->u->block) - offset;
+    jmp->argc = offset;
+  }
+
+  parser_exit_scope(ps);
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   static void (*handlers[])(ParserState *, Stmt *) = {
-    NULL,               /* INVALID      */
-    NULL,               /* IMPORT_KIND  */
-    NULL,               /* CONST_KIND   */
-    parse_vardecl,      /* VAR_KIND     */
-    parse_assignment,   /* ASSIGN_KIND  */
-    parse_funcdecl,     /* FUNC_KIND    */
-    parse_return,       /* RETURN_KIND  */
-    parse_expr,         /* EXPR_KIND    */
-    parse_block,        /* BLOCK_KIND   */
+    NULL,               /* INVALID        */
+    NULL,               /* IMPORT_KIND    */
+    NULL,               /* CONST_KIND     */
+    parse_vardecl,      /* VAR_KIND       */
+    parse_assignment,   /* ASSIGN_KIND    */
+    parse_funcdecl,     /* FUNC_KIND      */
+    parse_return,       /* RETURN_KIND    */
+    parse_expr,         /* EXPR_KIND      */
+    parse_block,        /* BLOCK_KIND     */
+    NULL,               /* PROTO_KIND     */
+    NULL,               /* CLASS_KIND     */
+    NULL,               /* TRAIT_KIND     */
+    NULL,               /* ENUM_KIND      */
+    NULL,               /* EVAL_KIND      */
+    NULL,               /* BREAK_KIND     */
+    NULL,               /* CONTINUE_KIND  */
+    parse_if,           /* IF_KIND        */
+    parse_while,        /* WHILE_KIND     */
   };
 
-  expect(stmt->kind >= IMPORT_KIND && stmt->kind <= BLOCK_KIND);
+  expect(stmt->kind >= IMPORT_KIND && stmt->kind <= WHILE_KIND);
   handlers[stmt->kind](ps, stmt);
 }
