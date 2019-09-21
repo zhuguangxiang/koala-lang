@@ -340,14 +340,21 @@ static TypeDesc *__to_desc(char **str)
   char *k;
   TypeDesc *desc;
   TypeDesc *base;
+  TypeDesc *type;
 
   switch (ch) {
   case 'L': {
     s++;
     k = s;
-    while (*s != ';')
+    while (*s != ';' && *s != '<') {
       s++;
+    }
     desc = __to_klass(k, s - k);
+    while (*s != ';') {
+      type = __to_desc(&s);
+      desc_add_paratype(desc, type);
+      TYPE_DECREF(type);
+    }
     s++;
     break;
   }

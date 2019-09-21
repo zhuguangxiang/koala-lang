@@ -263,7 +263,7 @@ void Type_Add_FieldDef(TypeObject *type, FieldDef *f);
 void Type_Add_FieldDefs(TypeObject *type, FieldDef *def);
 
 void Type_Add_Method(TypeObject *type, Object *ob);
-void Type_Add_MethodDef(TypeObject *type, MethodDef *f);
+void type_add_methoddef(TypeObject *type, MethodDef *f);
 void Type_Add_MethodDefs(TypeObject *type, MethodDef *def);
 
 unsigned int Object_Hash(Object *ob);
@@ -274,7 +274,8 @@ Object *Object_GetField(Object *self, char *name);
 Object *Object_GetValue(Object *self, char *name);
 int Object_SetValue(Object *self, char *name, Object *val);
 Object *Object_Call(Object *self, char *name, Object *args);
-Object *New_Literal(Literal *val);
+Object *new_literal(Literal *val);
+Object *dup_const_object(Object *ob);
 
 typedef struct descobject {
   OBJECT_HEAD

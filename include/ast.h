@@ -168,6 +168,7 @@ typedef struct expr {
     #define UP_SCOPE      2
     #define EXT_SCOPE     3
     #define EXTDOT_SCOPE  4
+    #define AUTO_IMPORTED 5
       /* scope pointer */
       void *scope;
     } id;
@@ -220,8 +221,8 @@ typedef struct expr {
     } newobj;
     struct {
       int type;
-      struct expr *left;
-      struct expr *right;
+      struct expr *start;
+      struct expr *end;
     } range;
   };
 } Expr;
@@ -256,7 +257,7 @@ Expr *expr_from_map(Vector *exps);
 Expr *expr_from_istype(Expr *exp, Type type);
 Expr *expr_from_astype(Expr *exp, Type type);
 Expr *expr_from_object(char *path, Ident id, Vector *types, Vector *args);
-Expr *expr_from_range(int type, Expr *left, Expr *right);
+Expr *expr_from_range(int type, Expr *start, Expr *end);
 
 typedef enum stmtkind {
   /* import */
@@ -340,18 +341,18 @@ struct stmt {
     } block;
     struct {
       Expr *test;
-      Stmt *block;
+      Vector *block;
       Stmt *orelse;
     } if_stmt;
     struct {
       Expr *test;
-      Stmt *block;
+      Vector *block;
     } while_stmt;
     struct {
       Expr *vexp;
       Expr *iter;
       Expr *step;
-      Stmt *block;
+      Vector *block;
     } for_stmt;
   };
 };
@@ -366,9 +367,9 @@ Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_expr(Expr *exp);
 Stmt *stmt_from_block(Vector *list);
-Stmt *stmt_from_if(Expr *test, Stmt *block, Stmt *orelse);
-Stmt *stmt_from_while(Expr *test, Stmt *block);
-Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Stmt *block);
+Stmt *stmt_from_if(Expr *test, Vector *block, Stmt *orelse);
+Stmt *stmt_from_while(Expr *test, Vector *block);
+Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Vector *block);
 
 #ifdef __cplusplus
 }

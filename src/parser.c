@@ -616,6 +616,54 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
     }
   }
 
+  /* find ident from external scope (imported) */
+  /* find ident from external scope (imported dot) */
+  /* find ident from auto-imported */
+  sym = find_from_builtins(name);
+  if (sym != NULL) {
+    debug("find symbol '%s' in auto-imported packages", name);
+    sym->used++;
+    exp->sym = sym;
+    exp->desc = TYPE_INCREF(sym->desc);
+    exp->id.where = AUTO_IMPORTED;
+    exp->id.scope = NULL;
+    // find class(function) with generic type ?
+    expect(exp->desc->paras == NULL);
+    return sym;
+  }
+  return NULL;
+}
+
+static Symbol *find_local_id_symbol(ParserState *ps, char *name)
+{
+  Symbol *sym;
+  ParserUnit *u = ps->u;
+
+  /* find id from current scope */
+  sym = stable_get(u->stbl, name);
+  if (sym != NULL) {
+    debug("find symbol '%s' in scope-%d(%s)",
+      name, ps->depth, scopes[u->scope]);
+    ++sym->used;
+    return sym;
+  }
+
+  /* find ident from up scope */
+  ParserUnit *up;
+  int depth = ps->depth;
+  vector_for_each_reverse(up, &ps->ustack) {
+    if (up->scope == SCOPE_MODULE || up->scope == SCOPE_CLASS)
+      break;
+    depth -= 1;
+    sym = stable_get(up->stbl, name);
+    if (sym != NULL) {
+      debug("find symbol '%s' in up scope-%d(%s)",
+        name, depth, scopes[up->scope]);
+      sym->used++;
+      return sym;
+    }
+  }
+
   return NULL;
 }
 
@@ -850,8 +898,26 @@ static void ident_up_block(ParserState *ps, Expr *exp)
     ident_in_mod(ps, exp);
   } else if (up->scope == SCOPE_FUNC) {
     ident_in_block(ps, exp);
+  } else if (up->scope == SCOPE_BLOCK) {
+    ident_in_block(ps, exp);
   } else {
     panic("invalid scope");
+  }
+}
+
+static void ident_builtin(ParserState *ps, Expr *exp)
+{
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_OP(OP_LOAD_0);
+    CODE_OP_S(OP_GET_VALUE, exp->id.name);
+  } else if (exp->ctx == EXPR_STORE) {
+    CODE_OP(OP_LOAD_0);
+    CODE_OP_S(OP_SET_VALUE, exp->id.name);
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+    CODE_OP(OP_LOAD_0);
+    CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+  } else {
+    panic("invalid expr's ctx %d", exp->ctx);
   }
 }
 
@@ -874,6 +940,15 @@ static IdCodeGen up_codes[] = {
   {SCOPE_CLASS,   NULL},
   {SCOPE_FUNC,    ident_up_func},
   {SCOPE_BLOCK,   ident_up_block},
+  {SCOPE_CLOSURE, NULL},
+  {0, NULL},
+};
+
+static IdCodeGen builtin_codes[] = {
+  {SCOPE_MODULE,  ident_builtin},
+  {SCOPE_CLASS,   NULL},
+  {SCOPE_FUNC,    NULL},
+  {SCOPE_BLOCK,   NULL},
   {SCOPE_CLOSURE, NULL},
   {0, NULL},
 };
@@ -905,6 +980,8 @@ static void parse_ident(ParserState *ps, Expr *exp)
     ident_codegen(current_codes, ps, exp);
   } else if (exp->id.where == UP_SCOPE) {
     ident_codegen(up_codes, ps, exp);
+  } else if (exp->id.where == AUTO_IMPORTED) {
+    ident_codegen(builtin_codes, ps, exp);
   }
 }
 
@@ -989,7 +1066,6 @@ static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
   switch (ref->kind) {
   case TYPE_PROTO: {
     expect(ref->paras == NULL);
-
     if (para->types == NULL)
       return TYPE_INCREF(ref);
 
@@ -1021,9 +1097,35 @@ static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
     return TYPE_INCREF(desc);
     break;
   }
-  case TYPE_KLASS:
-    expect(ref->types == NULL);
+  case TYPE_KLASS: {
+    Vector *types = vector_new();
+    TypeDesc *item;
+    TypeDesc *type;
+    vector_for_each(item, ref->types) {
+      if (item->kind == TYPE_PARAREF) {
+        type = vector_get(para->types, item->pararef.index);
+        expect(type != NULL);
+        expect(type->kind != TYPE_PARAREF);
+        expect(type->kind != TYPE_PARADEF);
+        TYPE_INCREF(type);
+        vector_push_back(types, type);
+      } else {
+        expect(item->kind != TYPE_PARADEF);
+        TYPE_INCREF(item);
+        vector_push_back(types, item);
+      }
+    }
+
+    if (vector_size(types) > 0) {
+      type = desc_from_klass(ref->klass.path, ref->klass.type);
+      type->types = types;
+      return type;
+    } else {
+      vector_free(types);
+      return TYPE_INCREF(ref);
+    }
     break;
+  }
   default:
     panic("which type? generic type bug!");
     break;
@@ -1920,7 +2022,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_BLOCK);
   Expr *test = stmt->if_stmt.test;
-  Stmt *block = stmt->if_stmt.block;
+  Vector *block = stmt->if_stmt.block;
   Stmt *orelse = stmt->if_stmt.orelse;
   Inst *jmp = NULL;
   Inst *jmp2 = NULL;
@@ -1939,7 +2041,10 @@ static void parse_if(ParserState *ps, Stmt *stmt)
   }
 
   if (block != NULL) {
-    parse_stmt(ps, block);
+    Stmt *s;
+    vector_for_each(s, block) {
+      parse_stmt(ps, s);
+    }
     if (orelse != NULL) {
       jmp2 = CODE_OP(OP_JMP);
       offset2 = codeblock_bytes(ps->u->block);
@@ -1967,7 +2072,7 @@ static void parse_while(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_BLOCK);
   Expr *test = stmt->while_stmt.test;
-  Stmt *block = stmt->while_stmt.block;
+  Vector *block = stmt->while_stmt.block;
   Inst *jmp = NULL;
   int offset = 0;
 
@@ -1983,7 +2088,10 @@ static void parse_while(ParserState *ps, Stmt *stmt)
   }
 
   if (block != NULL) {
-    parse_stmt(ps, block);
+    Stmt *s;
+    vector_for_each(s, block) {
+      parse_stmt(ps, s);
+    }
   }
 
   Inst *jmp2 = CODE_OP(OP_JMP);
@@ -2000,11 +2108,14 @@ static void parse_while(ParserState *ps, Stmt *stmt)
 static void parse_for(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_BLOCK);
+  ParserUnit *u = ps->u;
+  u->stbl = stable_new();
   Expr *vexp = stmt->for_stmt.vexp;
   Expr *iter = stmt->for_stmt.iter;
   Expr *step = stmt->for_stmt.step;
-  Stmt *block = stmt->for_stmt.block;
+  Vector *block = stmt->for_stmt.block;
   Symbol *sym;
+  TypeDesc *desc = NULL;
   Inst *jmp = NULL;
   int offset = 0;
 
@@ -2026,34 +2137,50 @@ static void parse_for(ParserState *ps, Stmt *stmt)
     panic("which kind of symbol? %d", sym->kind);
   }
 
-  /*
   sym = klass_find_member(sym, "__iter__");
   if (sym == NULL) {
     syntax_error(ps, iter->row, iter->col, "object is not iteratable.");
   } else {
+    expect(desc_isproto(sym->desc));
+    expect(vector_size(sym->desc->proto.ret->types) == 1);
+    TypeDesc *subtype = vector_get(sym->desc->proto.ret->types, 0);
+    desc = type_maybe_instanced(iter->sym->desc, subtype);
     CODE_OP(OP_ITER);
     jmp = CODE_OP(OP_FOR_ITER);
+    offset = codeblock_bytes(ps->u->block);
   }
-  */
-
-  CODE_OP(OP_ITER);
-  jmp = CODE_OP(OP_FOR_ITER);
-  offset = codeblock_bytes(ps->u->block);
 
   // if ident is not declared, declare it automatically.
-  /*
   if (vexp->kind == ID_KIND) {
-
+    sym = find_local_id_symbol(ps, vexp->id.name);
+    if (sym != NULL) {
+      if (!has_error(ps) && !desc_check(sym->desc, desc)) {
+        syntax_error(ps, vexp->row, vexp->col, "types are not matched");
+      }
+    } else {
+      // create local ident
+      Ident id = {vexp->id.name, vexp->row, vexp->col};
+      add_update_var(ps, &id, desc);
+    }
   } else if (vexp->kind == TUPLE_KIND) {
-
+    panic("not implemented");
+  } else {
+    // fallthrough
   }
-  */
 
   vexp->ctx = EXPR_STORE;
   parser_visit_expr(ps, vexp);
+  if (!has_error(ps) && !desc_check(vexp->desc, desc)) {
+    syntax_error(ps, vexp->row, vexp->col, "types are not matched");
+  }
+
+  TYPE_DECREF(desc);
 
   if (block != NULL) {
-    parse_stmt(ps, block);
+    Stmt *s;
+    vector_for_each(s, block) {
+      parse_stmt(ps, s);
+    }
   }
 
   Inst *jmp2 = CODE_OP(OP_JMP);
@@ -2064,6 +2191,8 @@ static void parse_for(ParserState *ps, Stmt *stmt)
     jmp->argc = offset;
   }
 
+  stable_free(u->stbl);
+  u->stbl = NULL;
   parser_exit_scope(ps);
 }
 

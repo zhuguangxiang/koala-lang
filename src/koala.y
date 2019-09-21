@@ -1148,7 +1148,7 @@ anony_object:
 if_stmt:
   IF expr block empty_else
 {
-  $$ = stmt_from_if($2, stmt_from_block($3), $4);
+  $$ = stmt_from_if($2, $3, $4);
 }
 ;
 
@@ -1170,22 +1170,22 @@ empty_else:
 while_stmt:
   WHILE expr block
 {
-  $$ = stmt_from_while($2, stmt_from_block($3));
+  $$ = stmt_from_while($2, $3);
 }
 | WHILE block
 {
-  $$ = stmt_from_while(NULL, stmt_from_block($2));
+  $$ = stmt_from_while(NULL, $2);
 }
 ;
 
 for_each_stmt:
   FOR expr IN expr block
 {
-  $$ = stmt_from_for($2, $4, NULL, stmt_from_block($5));
+  $$ = stmt_from_for($2, $4, NULL, $5);
 }
 | FOR expr IN expr BY expr block
 {
-  $$ = stmt_from_for($2, $4, $6, stmt_from_block($7));
+  $$ = stmt_from_for($2, $4, $6, $7);
 }
 ;
 

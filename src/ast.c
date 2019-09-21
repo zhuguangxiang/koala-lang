@@ -265,13 +265,13 @@ Expr *expr_from_object(char *path, Ident id, Vector *types, Vector *args)
   return exp;
 }
 
-Expr *expr_from_range(int type, Expr *left, Expr *right)
+Expr *expr_from_range(int type, Expr *start, Expr *end)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = RANGE_KIND;
   exp->range.type = type;
-  exp->range.left = left;
-  exp->range.right = right;
+  exp->range.start = start;
+  exp->range.end = end;
   return exp;
 }
 
@@ -368,6 +368,11 @@ void expr_free(Expr *exp)
     exprlist_free(exp->newobj.args);
     kfree(exp);
     break;
+  case RANGE_KIND:
+    expr_free(exp->range.start);
+    expr_free(exp->range.end);
+    kfree(exp);
+    break;
   default:
     panic("invalid expr kind %d", exp->kind);
     break;
@@ -444,7 +449,7 @@ Stmt *stmt_from_block(Vector *list)
   return stmt;
 }
 
-Stmt *stmt_from_if(Expr *test, Stmt *block, Stmt *orelse)
+Stmt *stmt_from_if(Expr *test, Vector *block, Stmt *orelse)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = IF_KIND;
@@ -454,7 +459,7 @@ Stmt *stmt_from_if(Expr *test, Stmt *block, Stmt *orelse)
   return stmt;
 }
 
-Stmt *stmt_from_while(Expr *test, Stmt *block)
+Stmt *stmt_from_while(Expr *test, Vector *block)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = WHILE_KIND;
@@ -463,7 +468,7 @@ Stmt *stmt_from_while(Expr *test, Stmt *block)
   return stmt;
 }
 
-Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Stmt *block)
+Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Vector *block)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = FOR_KIND;
@@ -536,20 +541,20 @@ void stmt_free(Stmt *stmt)
     break;
   case IF_KIND:
     expr_free(stmt->if_stmt.test);
-    stmt_free(stmt->if_stmt.block);
+    stmt_block_free(stmt->if_stmt.block);
     stmt_free(stmt->if_stmt.orelse);
     kfree(stmt);
     break;
   case WHILE_KIND:
     expr_free(stmt->while_stmt.test);
-    stmt_free(stmt->while_stmt.block);
+    stmt_block_free(stmt->while_stmt.block);
     kfree(stmt);
     break;
   case FOR_KIND:
     expr_free(stmt->for_stmt.vexp);
     expr_free(stmt->for_stmt.iter);
     expr_free(stmt->for_stmt.step);
-    stmt_free(stmt->for_stmt.block);
+    stmt_block_free(stmt->for_stmt.block);
     kfree(stmt);
     break;
   default:

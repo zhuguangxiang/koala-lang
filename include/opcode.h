@@ -122,8 +122,9 @@ extern "C" {
 #define OP_NEW_TUPLE    86
 #define OP_NEW_ARRAY    87
 #define OP_NEW_MAP      88
-#define OP_NEW_EVAL     89
-#define OP_NEW_CLOSURE  90
+#define OP_NEW_RANGE    89
+#define OP_NEW_EVAL     90
+#define OP_NEW_CLOSURE  91
 
 /* 91 - 94 */
 

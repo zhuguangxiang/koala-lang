@@ -210,119 +210,119 @@ static void Type_Add_Numbers(TypeObject *type, NumberMethods *meths)
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->sub) {
     def.name = "__sub__";
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->sub;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->mul) {
     def.name = "__mul__";
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->mul;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->div) {
     def.name = "__div__";
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->div;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->mod) {
     def.name = "__mod__";
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->mod;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->pow) {
     def.name = "__pow__";
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->pow;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->neg) {
     def.name = "__neg__";
     def.ptype = NULL;
     def.rtype = "A";
     def.func = meths->neg;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->gt) {
     def.name = "__gt__";
     def.ptype = "A";
     def.rtype = "z";
     def.func = meths->gt;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->ge) {
     def.name = "__ge__";
     def.ptype = "A";
     def.rtype = "z";
     def.func = meths->ge;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->lt) {
     def.name = "__lt__";
     def.ptype = "A";
     def.rtype = "z";
     def.func = meths->lt;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->le) {
     def.name = "__le__";
     def.ptype = "A";
     def.rtype = "z";
     def.func = meths->le;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->eq) {
     def.name = "__eq__";
     def.ptype = "A";
     def.rtype = "z";
     def.func = meths->eq;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->neq) {
     def.name = "__neq__";
     def.ptype = "A";
     def.rtype = "z";
     def.func = meths->neq;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->and) {
     def.name = "__and__";
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->and;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->or) {
     def.name = "__or__";
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->or;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->xor) {
     def.name = "__xor__";
     def.ptype = "A";
     def.rtype = "A";
     def.func = meths->xor;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->not) {
     def.name = "__not__";
     def.ptype = NULL;
     def.rtype = "A";
     def.func = meths->not;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
 }
 
@@ -334,63 +334,63 @@ static void Type_Add_Inplaces(TypeObject *type, InplaceMethods *meths)
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->sub) {
     def.name = "__insub__";
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->mul) {
     def.name = "__inmul__";
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->div) {
     def.name = "__indiv__";
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->mod) {
     def.name = "__inmod__";
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->pow) {
     def.name = "__inpow__";
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->and) {
     def.name = "__inand__";
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->or) {
     def.name = "__inor__";
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
   if (meths->xor) {
     def.name = "__inxor__";
     def.ptype = "A";
     def.rtype = NULL;
     def.func = meths->add;
-    Type_Add_MethodDef(type, &def);
+    type_add_methoddef(type, &def);
   }
 }
 
@@ -410,22 +410,22 @@ int type_ready(TypeObject *type)
 
   if (type->hash != NULL) {
     MethodDef meth = {"__hash__", NULL, "i", type->hash};
-    Type_Add_MethodDef(type, &meth);
+    type_add_methoddef(type, &meth);
   }
 
   if (type->cmp != NULL) {
     MethodDef meth = {"__cmp__", "A", "i", type->cmp};
-    Type_Add_MethodDef(type, &meth);
+    type_add_methoddef(type, &meth);
   }
 
   if (type->clazz != NULL) {
     MethodDef meth = {"__class__", NULL, "Llang.Class;", type->clazz};
-    Type_Add_MethodDef(type, &meth);
+    type_add_methoddef(type, &meth);
   }
 
   if (type->str != NULL) {
     MethodDef meth = {"__str__", NULL, "s", type->str};
-    Type_Add_MethodDef(type, &meth);
+    type_add_methoddef(type, &meth);
   }
 
   if (type->methods != NULL) {
@@ -508,10 +508,23 @@ static void update_pararef(TypeDesc *para, TypeDesc *proto)
 {
   int index;
   TypeDesc *rtype = proto->proto.ret;
-  if (rtype != NULL && rtype->kind == TYPE_PARAREF) {
-    index = get_para_index(para->paras, rtype->pararef.name);
-    expect(index >= 0);
-    rtype->pararef.index = index;
+  if (rtype != NULL) {
+    if (rtype->kind == TYPE_PARAREF) {
+      index = get_para_index(para->paras, rtype->pararef.name);
+      expect(index >= 0);
+      rtype->pararef.index = index;
+    } else if (rtype->kind == TYPE_KLASS) {
+      TypeDesc *item;
+      vector_for_each(item, rtype->types) {
+        if (item->kind == TYPE_PARAREF) {
+          index = get_para_index(para->paras, item->pararef.name);
+          expect(index >= 0);
+          item->pararef.index = index;
+        } else {
+          expect(item->kind != TYPE_PARADEF);
+        }
+      }
+    }
   }
 
   TypeDesc *ptype;
@@ -524,7 +537,7 @@ static void update_pararef(TypeDesc *para, TypeDesc *proto)
   }
 }
 
-void Type_Add_MethodDef(TypeObject *type, MethodDef *f)
+void type_add_methoddef(TypeObject *type, MethodDef *f)
 {
   Object *meth = CMethod_New(f);
   update_pararef(type->desc, ((MethodObject *)meth)->desc);
@@ -536,7 +549,7 @@ void Type_Add_MethodDefs(TypeObject *type, MethodDef *def)
 {
   MethodDef *f = def;
   while (f->name) {
-    Type_Add_MethodDef(type, f);
+    type_add_methoddef(type, f);
     ++f;
   }
 }
@@ -694,7 +707,7 @@ int Object_SetValue(Object *self, char *name, Object *val)
   return res;
 }
 
-Object *New_Literal(Literal *val)
+Object *new_literal(Literal *val)
 {
   Object *ob = NULL;
   switch (val->kind) {
@@ -727,6 +740,17 @@ Object *New_Literal(Literal *val)
     break;
   }
   return ob;
+}
+
+Object *dup_const_object(Object *ob)
+{
+  if (integer_check(ob)) {
+    return integer_new(integer_asint(ob));
+  }
+  if (string_check(ob)) {
+    return string_new(string_asstr(ob));
+  }
+  return NULL;
 }
 
 static void descob_free(Object *ob)

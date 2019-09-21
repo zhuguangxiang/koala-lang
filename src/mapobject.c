@@ -128,13 +128,13 @@ static void map_free(Object *ob)
 
 static void print_object(Object *ob, StrBuf *sbuf)
 {
-  if (String_Check(ob)) {
+  if (string_check(ob)) {
     strbuf_append_char(sbuf, '"');
-    strbuf_append(sbuf, String_AsStr(ob));
+    strbuf_append(sbuf, string_asstr(ob));
     strbuf_append_char(sbuf, '"');
   } else {
     Object *str = Object_Call(ob, "__str__", NULL);
-    strbuf_append(sbuf, String_AsStr(str));
+    strbuf_append(sbuf, string_asstr(str));
     OB_DECREF(str);
   }
 }

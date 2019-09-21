@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 
   Object *bar = string_new("foo");
   val = map_get(dict, bar);
-  expect(Integer_Check(val));
+  expect(integer_check(val));
   expect(100 == integer_asint(val));
   OB_DECREF(val);
 
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
   OB_DECREF(val);
 
   val = map_get(dict, bar);
-  expect(Integer_Check(val));
+  expect(integer_check(val));
   expect(200 == integer_asint(val));
   OB_DECREF(val);
 

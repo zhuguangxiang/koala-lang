@@ -52,16 +52,16 @@ int main(int argc, char *argv[])
   Object *i = integer_new(1);
 
   v = Object_Call(arr, "__getitem__", i);
-  expect(!strcmp("world", String_AsStr(v)));
+  expect(!strcmp("world", string_asstr(v)));
   OB_DECREF(i);
   OB_DECREF(v);
 
   v = Object_Call(arr, "pop", NULL);
-  expect(!strcmp("world", String_AsStr(v)));
+  expect(!strcmp("world", string_asstr(v)));
   OB_DECREF(v);
 
   v = Object_Call(arr, "pop", NULL);
-  expect(!strcmp("hello", String_AsStr(v)));
+  expect(!strcmp("hello", string_asstr(v)));
   OB_DECREF(v);
 
   OB_DECREF(arr);

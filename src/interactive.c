@@ -127,7 +127,7 @@ static void _get_const_(void *val, int kind, int index, void *arg)
   Object *ob;
 
   if (kind == CONST_LITERAL) {
-    ob = New_Literal(val);
+    ob = new_literal(val);
   } else {
     expect(kind == CONST_TYPE);
     ob = new_descob(val);

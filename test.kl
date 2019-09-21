@@ -7,7 +7,7 @@ var i int = 100
 i
 var arr Array<int> = [1,2,3]
 arr.append(100)
-arr.append("hello")
+//arr.append("hello")
 arr
 arr[0] + i
 //arr[0] + s
@@ -154,11 +154,25 @@ func test_while(a int, b int) int {
   res
 }
 
+func test_while2(arr [int]) int {
+  res := 0
+  i := 0
+  size := arr.length()
+  while i < size {
+    res += arr[i]
+    i += 1
+  }
+  return res
+}
+
+arr2 := [1, 2, 3, 4, 5, 10, 20, 30, 40, 50]
+
 test_while(10, 1)
+test_while2(arr2)
 
 func test_for(arr [int]) int {
   res := 0
-  v := 0
+  var v int
   for v in arr {
     res += v
   }
@@ -185,7 +199,15 @@ func test_for3(arr [int]) int {
   return res
 }
 
-arr := [1, 2, 3, 4, 5, 10, 20, 30, 40, 50]
-test_for(arr)
-test_for2(arr)
-test_for3(arr)
+func test_for4(arr [int]) int {
+  res := 0
+  for v in arr {
+    res += v
+  }
+  return res
+}
+
+test_for(arr2)
+test_for2(arr2)
+test_for3(arr2)
+test_for4(arr2)

@@ -39,7 +39,7 @@ Object *Fmtter_WriteFormat(Object *self, Object *args)
   FmtterObject *fmt = (FmtterObject *)self;
   StrBuf *sbuf = &fmt->buf;
   Object *str = Tuple_Get(args, 0);
-  char *fmtstr = String_AsStr(str);
+  char *fmtstr = string_asstr(str);
   int index = 0;
   char ch;
   Object *ob;
@@ -72,14 +72,14 @@ Object *Fmtter_WriteString(Object *self, Object *args)
     return NULL;
   }
 
-  if (!String_Check(args)) {
+  if (!string_check(args)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(args));
     return NULL;
   }
 
   FmtterObject *fmt = (FmtterObject *)self;
   StrBuf *sbuf = &fmt->buf;
-  strbuf_append(sbuf, String_AsStr(args));
+  strbuf_append(sbuf, string_asstr(args));
   return NULL;
 }
 
@@ -90,7 +90,7 @@ Object *Fmtter_WriteInteger(Object *self, Object *args)
     return NULL;
   }
 
-  if (!Integer_Check(args)) {
+  if (!integer_check(args)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(args));
     return NULL;
   }

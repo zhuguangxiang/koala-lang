@@ -45,12 +45,12 @@ typedef struct charobject {
 } CharObject;
 
 extern TypeObject string_type;
-#define String_Check(ob) (OB_TYPE(ob) == &string_type)
+#define string_check(ob) (OB_TYPE(ob) == &string_type)
 void init_string_type(void);
 Object *string_new(char *str);
-char *String_AsStr(Object *self);
-int String_IsEmpty(Object *self);
-void String_Set(Object *self, char *str);
+char *string_asstr(Object *self);
+int string_isempty(Object *self);
+void string_set(Object *self, char *str);
 extern TypeObject char_type;
 #define Char_Check(ob) (OB_TYPE(ob) == &char_type)
 void init_char_type(void);

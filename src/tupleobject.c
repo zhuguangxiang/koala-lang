@@ -216,13 +216,13 @@ Object *tuple_str(Object *self, Object *ob)
   int size = tuple->size;
   for (int i = 0; i < size; ++i) {
     tmp = tuple->items[i];
-    if (String_Check(tmp)) {
+    if (string_check(tmp)) {
       strbuf_append_char(&sbuf, '"');
-      strbuf_append(&sbuf, String_AsStr(tmp));
+      strbuf_append(&sbuf, string_asstr(tmp));
       strbuf_append_char(&sbuf, '"');
     } else {
       str = Object_Call(tmp, "__str__", NULL);
-      strbuf_append(&sbuf, String_AsStr(str));
+      strbuf_append(&sbuf, string_asstr(str));
       OB_DECREF(str);
     }
     if (i < size - 1)

@@ -116,6 +116,20 @@ static Object *array_length(Object *self, Object *args)
   return integer_new(len);
 }
 
+static Object *array_iter(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  Object *idx = integer_new(0);
+  Object *ret = iter_new(arr->desc, self, idx, args);
+  OB_DECREF(idx);
+  return ret;
+}
+
 static MethodDef array_methods[] = {
   {"append",      "<T>",  NULL,   array_append  },
   {"pop",         NULL,   "<T>",  array_pop     },
@@ -126,6 +140,7 @@ static MethodDef array_methods[] = {
   {"length",      NULL,   "i",    array_length  },
   {"__getitem__", "i",    "<T>",  array_getitem },
   {"__setitem__", "i<T>", NULL,   array_setitem },
+  {"__iter__", "i", "Llang.Iterator<T>;", array_iter},
   {NULL}
 };
 
@@ -161,13 +176,13 @@ Object *array_str(Object *self, Object *ob)
   int i = 0;
   int size = vector_size(&arr->items);
   vector_for_each(tmp, &arr->items) {
-    if (String_Check(tmp)) {
+    if (string_check(tmp)) {
       strbuf_append_char(&sbuf, '"');
-      strbuf_append(&sbuf, String_AsStr(tmp));
+      strbuf_append(&sbuf, string_asstr(tmp));
       strbuf_append_char(&sbuf, '"');
     } else {
       str = Object_Call(tmp, "__str__", NULL);
-      strbuf_append(&sbuf, String_AsStr(str));
+      strbuf_append(&sbuf, string_asstr(str));
       OB_DECREF(str);
     }
     if (i++ < size - 1)
@@ -178,20 +193,6 @@ Object *array_str(Object *self, Object *ob)
   strbuf_fini(&sbuf);
 
   return str;
-}
-
-static Object *array_iter(Object *self, Object *args)
-{
-  if (!array_check(self)) {
-    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  Object *idx = integer_new(0);
-  Object *ret = iter_new(self, idx, args);
-  OB_DECREF(args);
-  OB_DECREF(idx);
-  return ret;
 }
 
 static Object *array_iter_next(Object *iter, Object *args)
@@ -255,7 +256,7 @@ void Array_Print(Object *ob)
   Object *str;
   vector_for_each(item, &arr->items) {
     str = Object_Call(item, "__str__", NULL);
-    print("'%s', ", String_AsStr(str));
+    print("'%s', ", string_asstr(str));
     OB_DECREF(str);
   }
   print("]\n");

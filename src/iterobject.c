@@ -32,8 +32,10 @@ void iter_free(Object *self)
   }
 
   IterObject *iter = (IterObject *)self;
+  TYPE_DECREF(iter->desc);
   OB_DECREF(iter->ob);
   OB_DECREF(iter->args);
+  OB_DECREF(iter->step);
   kfree(iter);
 }
 
@@ -53,25 +55,35 @@ static Object *iter_next(Object *self, Object *args)
     return NULL;
 }
 
+static MethodDef iter_methods[] = {
+  {"__next__", NULL, "<T>", iter_next},
+  {NULL},
+};
+
 TypeObject iter_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "Iterator",
   .free    = iter_free,
   .iternext = iter_next,
+  .methods  = iter_methods,
 };
 
 void init_iter_type(void)
 {
   TypeDesc *desc = desc_from_klass("lang", "Iterator");
+  TypeDesc *para = desc_from_paradef("T", NULL);
+  desc_add_paradef(desc, para);
+  TYPE_DECREF(para);
   iter_type.desc = desc;
   if (type_ready(&iter_type) < 0)
     panic("Cannot initalize 'Iterator' type.");
 }
 
-Object *iter_new(Object *ob, Object *args, Object *step)
+Object *iter_new(TypeDesc *desc, Object *ob, Object *args, Object *step)
 {
   IterObject *iter = kmalloc(sizeof(IterObject));
   init_object_head(iter, &iter_type);
+  //iter->desc = TYPE_INCREF(desc);
   iter->ob = OB_INCREF(ob);
   iter->args = OB_INCREF(args);
   iter->step = OB_INCREF(step);

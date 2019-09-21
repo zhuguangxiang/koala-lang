@@ -54,12 +54,12 @@ static Object *class_get(Object *self, char *name)
 
 static Object *class_getfield(Object *self, Object *name)
 {
-  if (!String_Check(name)) {
+  if (!string_check(name)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(name));
     return NULL;
   }
 
-  char *s = String_AsStr(name);
+  char *s = string_asstr(name);
   Object *ob = class_get(self, s);
   if (ob == NULL)
     return NULL;
@@ -75,12 +75,12 @@ static Object *class_getfield(Object *self, Object *name)
 
 static Object *class_getmethod(Object *self, Object *name)
 {
-  if (!String_Check(name)) {
+  if (!string_check(name)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(name));
     return NULL;
   }
 
-  char *s = String_AsStr(name);
+  char *s = string_asstr(name);
   Object *ob = class_get(self, s);
   if (ob == NULL)
     return NULL;

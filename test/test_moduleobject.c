@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
   Object *m = Module_New("test");
 
   Object *v = Object_GetValue(m, "__name__");
-  expect(!strcmp("test", String_AsStr(v)));
+  expect(!strcmp("test", string_asstr(v)));
   OB_DECREF(v);
 
   Object *clazz = Object_GetValue(m, "__class__");
@@ -53,12 +53,12 @@ int main(int argc, char *argv[])
   expect(cls->obj == m);
 
   v = Object_GetValue(clazz, "__name__");
-  expect(!strcmp("Module", String_AsStr(v)));
+  expect(!strcmp("Module", string_asstr(v)));
   OB_DECREF(v);
 
   Object *mo = Object_GetValue(clazz, "__module__");
   v = Object_GetValue(mo, "__name__");
-  expect(!strcmp("lang", String_AsStr(v)));
+  expect(!strcmp("lang", string_asstr(v)));
   OB_DECREF(v);
   OB_DECREF(mo);
 
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
   expect(Method_Check(meth));
   OB_DECREF(s);
   v = Method_Call(meth, m, NULL);
-  expect(!strcmp("test", String_AsStr(v)));
+  expect(!strcmp("test", string_asstr(v)));
   OB_DECREF(meth);
   OB_DECREF(v);
   OB_DECREF(clazz);

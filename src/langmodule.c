@@ -24,28 +24,13 @@
 
 #include "koala.h"
 
-static Object *load_module(Object *self, Object *args)
-{
-
-}
-
-static Object *new_instance(Object *self, Object *args)
-{
-
-}
-
-static Object *is_module(Object *self, Object *args)
+static Object *disassemble(Object *self, Object *args)
 {
 
 }
 
 static MethodDef lang_methods[] = {
-  {"loadmodule", "s",    "Llang.Module;", load_module },
-  {"new",        "s...", "A",             new_instance},
-  {"ismodule",   "A",    "z",             is_module   },
-  {"isclass",    "A",    "z",             is_module   },
-  {"ismethod",   "A",    "z",             is_module   },
-  {"isfield",    "A",    "z",             is_module   },
+  {"disassemble", "A", "s", disassemble},
   {NULL}
 };
 
@@ -68,7 +53,7 @@ void init_lang_module(void)
   Module_Add_Type(m, &class_type);
   Module_Add_Type(m, &module_type);
   Module_Add_Type(m, &code_type);
-  //Module_Add_FuncDefs(m, lang_methods);
+  Module_Add_FuncDefs(m, lang_methods);
   Module_Install("lang", m);
   OB_DECREF(m);
 }

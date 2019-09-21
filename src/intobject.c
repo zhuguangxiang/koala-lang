@@ -30,7 +30,7 @@
 
 static void integer_free(Object *ob)
 {
-  if (!Integer_Check(ob)) {
+  if (!integer_check(ob)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(ob));
     return;
   }
@@ -40,7 +40,7 @@ static void integer_free(Object *ob)
 
 static Object *integer_str(Object *self, Object *ob)
 {
-  if (!Integer_Check(self)) {
+  if (!integer_check(self)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -53,7 +53,7 @@ static Object *integer_str(Object *self, Object *ob)
 
 static Object *integer_fmt(Object *self, Object *ob)
 {
-  if (!Integer_Check(self)) {
+  if (!integer_check(self)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -66,7 +66,7 @@ static int64_t int_add(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
   int64_t r;
-  if (Integer_Check(y)) {
+  if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a + b);
     if ((r ^ a) < 0 && (r ^ b) < 0)
@@ -93,7 +93,7 @@ static int64_t int_sub(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
   int64_t r;
-  if (Integer_Check(y)) {
+  if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
@@ -120,7 +120,7 @@ static int64_t int_mul(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
   int64_t r;
-  if (Integer_Check(y)) {
+  if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)(a * b);
   } else if (Byte_Check(y)) {
@@ -140,7 +140,7 @@ static int64_t int_div(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
   int64_t r;
-  if (Integer_Check(y)) {
+  if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)(a / b);
   } else if (Byte_Check(y)) {
@@ -160,7 +160,7 @@ static int64_t int_mod(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
   int64_t r;
-  if (Integer_Check(y)) {
+  if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)fmod(a, b);
   } else if (Byte_Check(y)) {
@@ -180,7 +180,7 @@ static int64_t int_pow(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
   int64_t r;
-  if (Integer_Check(y)) {
+  if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)pow(a, b);
   } else if (Byte_Check(y)) {
@@ -198,7 +198,7 @@ static int64_t int_pow(Object *x, Object *y)
 
 static Object *int_num_add(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -213,7 +213,7 @@ static Object *int_num_add(Object *x, Object *y)
 
 static Object *int_num_sub(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -228,7 +228,7 @@ static Object *int_num_sub(Object *x, Object *y)
 
 static Object *int_num_mul(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -243,7 +243,7 @@ static Object *int_num_mul(Object *x, Object *y)
 
 static Object *int_num_div(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -258,7 +258,7 @@ static Object *int_num_div(Object *x, Object *y)
 
 static Object *int_num_mod(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -273,7 +273,7 @@ static Object *int_num_mod(Object *x, Object *y)
 
 static Object *int_num_pow(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -288,7 +288,7 @@ static Object *int_num_pow(Object *x, Object *y)
 
 static Object *int_num_neg(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -306,7 +306,7 @@ static Object *int_num_neg(Object *x, Object *y)
 
 static int64_t int_num_cmp(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     //FIXME: retval?
     return 0;
@@ -314,7 +314,7 @@ static int64_t int_num_cmp(Object *x, Object *y)
 
   int64_t a = integer_asint(x);
   int64_t r;
-  if (Integer_Check(y)) {
+  if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
@@ -374,12 +374,12 @@ static Object *int_num_neq(Object *x, Object *y)
 
 static Object *int_num_and(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
 
-  if (!Integer_Check(y)) {
+  if (!integer_check(y)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(y));
     return NULL;
   }
@@ -393,12 +393,12 @@ static Object *int_num_and(Object *x, Object *y)
 
 static Object *int_num_or(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
 
-  if (!Integer_Check(y)) {
+  if (!integer_check(y)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(y));
     return NULL;
   }
@@ -412,12 +412,12 @@ static Object *int_num_or(Object *x, Object *y)
 
 static Object *int_num_xor(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
 
-  if (!Integer_Check(y)) {
+  if (!integer_check(y)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(y));
     return NULL;
   }
@@ -431,7 +431,7 @@ static Object *int_num_xor(Object *x, Object *y)
 
 static Object *int_num_not(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -471,7 +471,7 @@ static NumberMethods int_numbers = {
 
 static Object *int_num_inadd(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -488,7 +488,7 @@ static Object *int_num_inadd(Object *x, Object *y)
 
 static Object *int_num_insub(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -505,7 +505,7 @@ static Object *int_num_insub(Object *x, Object *y)
 
 static Object *int_num_inmul(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -522,7 +522,7 @@ static Object *int_num_inmul(Object *x, Object *y)
 
 static Object *int_num_indiv(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -539,7 +539,7 @@ static Object *int_num_indiv(Object *x, Object *y)
 
 static Object *int_num_inmod(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -556,7 +556,7 @@ static Object *int_num_inmod(Object *x, Object *y)
 
 static Object *int_num_inpow(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -573,12 +573,12 @@ static Object *int_num_inpow(Object *x, Object *y)
 
 static Object *int_num_inand(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
 
-  if (!Integer_Check(y)) {
+  if (!integer_check(y)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(y));
     return NULL;
   }
@@ -591,12 +591,12 @@ static Object *int_num_inand(Object *x, Object *y)
 
 static Object *int_num_inor(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
 
-  if (!Integer_Check(y)) {
+  if (!integer_check(y)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(y));
     return NULL;
   }
@@ -609,12 +609,12 @@ static Object *int_num_inor(Object *x, Object *y)
 
 static Object *int_num_inxor(Object *x, Object *y)
 {
-  if (!Integer_Check(x)) {
+  if (!integer_check(x)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
     return NULL;
   }
 
-  if (!Integer_Check(y)) {
+  if (!integer_check(y)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(y));
     return NULL;
   }

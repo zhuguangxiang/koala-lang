@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
   clazz = Class_New((Object *)&string_type);
   expect(((ClassObject *)clazz)->obj == (Object *)&string_type);
   Object *v = Object_GetValue(clazz, "__name__");
-  expect(!strcmp("String", String_AsStr(v)));
+  expect(!strcmp("String", string_asstr(v)));
   OB_DECREF(v);
 
   v = Object_GetValue(clazz, "__class__");
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
   expect(Module_Check(v));
   OB_DECREF(v);
   v = Object_GetValue(v, "__name__");
-  expect(!strcmp("lang", String_AsStr(v)));
+  expect(!strcmp("lang", string_asstr(v)));
   OB_DECREF(v);
 
   s = string_new("length");
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
   expect(Method_Check(v));
   s = string_new("Hello, Koala");
   Object *res = Method_Call(v, s, NULL);
-  expect(Integer_Check(res));
+  expect(integer_check(res));
   expect(12 == integer_asint(res));
   OB_DECREF(v);
   OB_DECREF(res);

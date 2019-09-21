@@ -70,12 +70,12 @@ void IoPrint(Object *ob)
   if (ob == NULL)
     return;
 
-  if (String_Check(ob)) {
-    printf("\"%s\"", String_AsStr(ob));
+  if (string_check(ob)) {
+    printf("\"%s\"", string_asstr(ob));
   } else {
     Object *str = Object_Call(ob, "__str__", NULL);
     if (str != NULL) {
-      printf("%s", String_AsStr(str));
+      printf("%s", string_asstr(str));
       OB_DECREF(str);
     } else {
       error("object of '%.64s' is not printable", OB_TYPE_NAME(ob));
@@ -88,12 +88,12 @@ void IoPrintln(Object *ob)
   if (ob == NULL)
     return;
 
-  if (String_Check(ob)) {
-    printf("\"%s\"\n", String_AsStr(ob));
+  if (string_check(ob)) {
+    printf("\"%s\"\n", string_asstr(ob));
   } else {
     Object *str = Object_Call(ob, "__str__", NULL);
     if (str != NULL) {
-      printf("%s\n", String_AsStr(str));
+      printf("%s\n", string_asstr(str));
       OB_DECREF(str);
     } else {
       error("object of '%.64s' is not printable", OB_TYPE_NAME(ob));

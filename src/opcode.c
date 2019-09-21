@@ -27,7 +27,7 @@
 #include "common.h"
 #include "opcode.h"
 
-#define OPCODE(op, size) { op, #op, size }
+#define OPCODE(op, size) { op, #op + 3, size }
 
 static struct opcode {
   int op;
@@ -117,6 +117,7 @@ static struct opcode {
   OPCODE(OP_NEW_TUPLE,    2),
   OPCODE(OP_NEW_ARRAY,    4),
   OPCODE(OP_NEW_MAP,      3),
+  OPCODE(OP_NEW_RANGE,    0),
   OPCODE(OP_NEW_EVAL,     3),
   OPCODE(OP_NEW_CLOSURE,  0),
 

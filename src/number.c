@@ -30,10 +30,10 @@
 Object *num_add(Object *x, Object *y)
 {
   Object *z;
-  if (Integer_Check(x) && Integer_Check(y)) {
+  if (integer_check(x) && integer_check(y)) {
     int64_t a, r;
     a = integer_asint(x);
-    if (Integer_Check(y)) {
+    if (integer_check(y)) {
       int64_t b = integer_asint(y);
       r = (int64_t)((uint64_t)a + b);
     } else if (Byte_Check(y)) {
@@ -51,18 +51,18 @@ Object *num_add(Object *x, Object *y)
     a = Float_AsFlt(x);
     if (Float_AsFlt(y)) {
 
-    } else if (Integer_Check(y)) {
+    } else if (integer_check(y)) {
 
     } else if (Byte_Check(y)) {
 
     } else {
       panic("Not implemented");
     }
-  } else if (String_Check(x) && String_Check(y)) {
+  } else if (string_check(x) && string_check(y)) {
     STRBUF(sbuf);
-    strbuf_append(&sbuf, String_AsStr(x));
-    strbuf_append(&sbuf, String_AsStr(y));
-    String_Set(x, strbuf_tostr(&sbuf));
+    strbuf_append(&sbuf, string_asstr(x));
+    strbuf_append(&sbuf, string_asstr(y));
+    string_set(x, strbuf_tostr(&sbuf));
     strbuf_fini(&sbuf);
     z = OB_INCREF(x);
   } else {
