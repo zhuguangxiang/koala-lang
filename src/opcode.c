@@ -117,7 +117,7 @@ static struct opcode {
   OPCODE(OP_NEW_TUPLE,    2),
   OPCODE(OP_NEW_ARRAY,    4),
   OPCODE(OP_NEW_MAP,      3),
-  OPCODE(OP_NEW_RANGE,    0),
+  OPCODE(OP_NEW_RANGE,    1),
   OPCODE(OP_NEW_EVAL,     3),
   OPCODE(OP_NEW_CLOSURE,  0),
 

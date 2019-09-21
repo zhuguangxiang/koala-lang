@@ -246,6 +246,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   int index = -1;
   bytebuffer_write_byte(buf, i->op);
   switch (i->op) {
+  case OP_CONST_BYTE:
+    bytebuffer_write_byte(buf, i->arg.ival);
+    break;
   case OP_LOAD_CONST:
   case OP_LOAD_MODULE:
   case OP_GET_VALUE:
@@ -337,6 +340,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     index = Image_Add_Desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_2bytes(buf, i->arg.ival);
+    break;
+  case OP_NEW_RANGE:
+    bytebuffer_write_byte(buf, i->arg.ival);
     break;
   case OP_FOR_ITER:
     bytebuffer_write_2bytes(buf, i->argc);
@@ -1613,7 +1619,28 @@ static void parse_new(ParserState *ps, Expr *exp)
 
 static void parse_range(ParserState *ps, Expr *exp)
 {
+  Expr *start = exp->range.start;
+  Expr *end = exp->range.end;
 
+  end->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, end);
+  if (end->desc == NULL || !desc_isint(end->desc)) {
+    syntax_error(ps, end->row, end->col,
+      "range expects integer of end");
+  }
+
+  start->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, start);
+  if (start->desc == NULL || !desc_isint(start->desc)) {
+    syntax_error(ps, start->row, start->col,
+      "range expects integer of start");
+  }
+
+  if (!has_error(ps)) {
+    exp->sym = find_from_builtins("Range");
+    exp->desc = TYPE_INCREF(exp->sym->desc);
+    CODE_OP_I(OP_NEW_RANGE, exp->range.type);
+  }
 }
 
 void parser_visit_expr(ParserState *ps, Expr *exp)

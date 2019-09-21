@@ -211,3 +211,38 @@ test_for(arr2)
 test_for2(arr2)
 test_for3(arr2)
 test_for4(arr2)
+
+
+1...10
+(1...10)[-1]
+(1...10)[0]
+(1...10)[9]
+(1...10)[10]
+(1...10).length()
+
+1..<10
+(1..<10)[-1]
+(1..<10)[0]
+(1..<10)[8]
+(1..<10)[9]
+(1..<10)[10]
+(1..<10).length()
+
+func test_range(start int, end int) int {
+  res := 0
+  for v in start...end {
+    res += v
+  }
+  res
+}
+
+func test_range2(start int, end int) int {
+  res := 0
+  for v in start..<end {
+    res += v
+  }
+  res
+}
+
+test_range(1, 10)
+test_range2(1, 10)

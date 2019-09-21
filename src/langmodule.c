@@ -52,6 +52,8 @@ void init_lang_module(void)
   Module_Add_Type(m, &proto_type);
   Module_Add_Type(m, &class_type);
   Module_Add_Type(m, &module_type);
+  Module_Add_Type(m, &iter_type);
+  Module_Add_Type(m, &range_type);
   Module_Add_Type(m, &code_type);
   Module_Add_FuncDefs(m, lang_methods);
   Module_Install("lang", m);

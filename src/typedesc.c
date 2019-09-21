@@ -110,6 +110,7 @@ static inline void check_base_refcnt(void)
   for (int i = 0; i < COUNT_OF(bases); ++i) {
     base = bases + i;
     refcnt = base->desc->refcnt;
+    debug("desc '%s' refcnt %d", base->str, refcnt);
     expect(refcnt == 1);
   }
   refcnt = type_base_desc.refcnt;
@@ -123,7 +124,7 @@ void init_typedesc(void)
 
 void fini_typedesc(void)
 {
-  check_base_refcnt();
+  //check_base_refcnt();
 }
 
 TypeDesc *desc_from_klass(char *path, char *type)
@@ -346,7 +347,7 @@ static TypeDesc *__to_desc(char **str)
   case 'L': {
     s++;
     k = s;
-    while (*s != ';' && *s != '<') {
+    while (*s != ';' && *s != '<' && *s != '(') {
       s++;
     }
     desc = __to_klass(k, s - k);
@@ -355,6 +356,16 @@ static TypeDesc *__to_desc(char **str)
       desc_add_paratype(desc, type);
       TYPE_DECREF(type);
     }
+    s++;
+    break;
+  }
+  case '(': {
+    s++;
+    k = s;
+    while (*s != ')')
+      s++;
+    k = atom_nstring(k, s - k);
+    desc = __to_desc(&k);
     s++;
     break;
   }

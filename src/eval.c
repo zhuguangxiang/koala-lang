@@ -30,6 +30,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "arrayobject.h"
+#include "rangeobject.h"
 #include "mapobject.h"
 #include "moduleobject.h"
 #include "iomodule.h"
@@ -837,6 +838,22 @@ Object *Koala_EvalFrame(Frame *f)
         OB_DECREF(y);
       }
       PUSH(v);
+      break;
+    }
+    case OP_NEW_RANGE: {
+      oparg = NEXT_BYTE();
+      x = POP();
+      y = POP();
+      int64_t start = integer_asint(x);
+      int64_t end = integer_asint(y);
+      if (start > end) {
+        z = range_new(x, 0);
+      } else {
+        z = range_new(x, end - start - oparg + 1);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_ITER: {
