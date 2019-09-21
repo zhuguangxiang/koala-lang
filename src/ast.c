@@ -463,12 +463,13 @@ Stmt *stmt_from_while(Expr *test, Stmt *block)
   return stmt;
 }
 
-Stmt *stmt_from_for(Expr *vexp, Expr *iter, Stmt *block)
+Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Stmt *block)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = FOR_KIND;
   stmt->for_stmt.vexp = vexp;
   stmt->for_stmt.iter = iter;
+  stmt->for_stmt.step = step;
   stmt->for_stmt.block = block;
   return stmt;
 }
@@ -547,6 +548,7 @@ void stmt_free(Stmt *stmt)
   case FOR_KIND:
     expr_free(stmt->for_stmt.vexp);
     expr_free(stmt->for_stmt.iter);
+    expr_free(stmt->for_stmt.step);
     stmt_free(stmt->for_stmt.block);
     kfree(stmt);
     break;

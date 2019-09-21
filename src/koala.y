@@ -89,6 +89,7 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %token CONTINUE
 %token RETURN
 %token IN
+%token BY
 %token AS
 %token IS
 
@@ -1180,7 +1181,11 @@ while_stmt:
 for_each_stmt:
   FOR expr IN expr block
 {
-  $$ = stmt_from_for($2, $4, stmt_from_block($5));
+  $$ = stmt_from_for($2, $4, NULL, stmt_from_block($5));
+}
+| FOR expr IN expr BY expr block
+{
+  $$ = stmt_from_for($2, $4, $6, stmt_from_block($7));
 }
 ;
 

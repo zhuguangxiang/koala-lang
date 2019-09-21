@@ -200,6 +200,7 @@ moddoc  "//!"[^\n]*
 "continue" { YY_RETURN(CONTINUE);     }
 "return"   { YY_RETURN(RETURN);       }
 "in"       { YY_RETURN(IN);           }
+"by"       { YY_RETURN(BY);           }
 "as"       { YY_RETURN(AS);           }
 "is"       { YY_RETURN(IS);           }
 

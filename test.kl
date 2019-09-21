@@ -165,5 +165,27 @@ func test_for(arr [int]) int {
   return res
 }
 
-arr := [1, 2, 3, 10, 20, 30]
+func test_for2(arr [int]) int {
+  res := 0
+  v := 0
+  for v in arr by 2 {
+    res += v
+  }
+  return res
+}
+
+func test_for3(arr [int]) int {
+  res := 0
+  v := 0
+  step := 1
+  for v in arr by step {
+    res += v
+    step += 1
+  }
+  return res
+}
+
+arr := [1, 2, 3, 4, 5, 10, 20, 30, 40, 50]
 test_for(arr)
+test_for2(arr)
+test_for3(arr)

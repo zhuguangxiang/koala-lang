@@ -350,6 +350,7 @@ struct stmt {
     struct {
       Expr *vexp;
       Expr *iter;
+      Expr *step;
       Stmt *block;
     } for_stmt;
   };
@@ -367,7 +368,7 @@ Stmt *stmt_from_expr(Expr *exp);
 Stmt *stmt_from_block(Vector *list);
 Stmt *stmt_from_if(Expr *test, Stmt *block, Stmt *orelse);
 Stmt *stmt_from_while(Expr *test, Stmt *block);
-Stmt *stmt_from_for(Expr *vexp, Expr *iter, Stmt *block);
+Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Stmt *block);
 
 #ifdef __cplusplus
 }

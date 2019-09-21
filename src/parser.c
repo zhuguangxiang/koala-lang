@@ -2002,10 +2002,18 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   parser_enter_scope(ps, SCOPE_BLOCK);
   Expr *vexp = stmt->for_stmt.vexp;
   Expr *iter = stmt->for_stmt.iter;
+  Expr *step = stmt->for_stmt.step;
   Stmt *block = stmt->for_stmt.block;
   Symbol *sym;
   Inst *jmp = NULL;
   int offset = 0;
+
+  if (step != NULL) {
+    step->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, step);
+  } else {
+    CODE_OP_I(OP_LOAD_CONST, 1);
+  }
 
   iter->ctx = EXPR_LOAD;
   parser_visit_expr(ps, iter);

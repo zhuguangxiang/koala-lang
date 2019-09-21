@@ -68,11 +68,12 @@ void init_iter_type(void)
     panic("Cannot initalize 'Iterator' type.");
 }
 
-Object *iter_new(Object *ob, Object *args)
+Object *iter_new(Object *ob, Object *args, Object *step)
 {
   IterObject *iter = kmalloc(sizeof(IterObject));
   init_object_head(iter, &iter_type);
   iter->ob = OB_INCREF(ob);
   iter->args = OB_INCREF(args);
+  iter->step = OB_INCREF(step);
   return (Object *)iter;
 }

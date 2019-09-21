@@ -188,7 +188,8 @@ static Object *array_iter(Object *self, Object *args)
   }
 
   Object *idx = integer_new(0);
-  Object *ret = iter_new(self, idx);
+  Object *ret = iter_new(self, idx, args);
+  OB_DECREF(args);
   OB_DECREF(idx);
   return ret;
 }
@@ -202,13 +203,16 @@ static Object *array_iter_next(Object *iter, Object *args)
 
   Object *ob = iter_obj(iter);
   Object *idx = iter_args(iter);
+  Object *step = iter_step(iter);
   ArrayObject *arr = (ArrayObject *)ob;
   int64_t index = integer_asint(idx);
+  int64_t by = integer_asint(step);
+  debug("array-iter, index: %ld, by: %ld", index, by);
 
   Object *ret = NULL;
   if (index < vector_size(&arr->items)) {
     ret = array_getitem(ob, idx);
-    integer_setint(idx, ++index);
+    integer_setint(idx, index + by);
   }
 
   return ret;

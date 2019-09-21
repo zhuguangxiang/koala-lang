@@ -839,13 +839,15 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_ITER: {
       x = POP();
+      y = POP();
       if (OB_TYPE(x)->iter != NULL) {
-        y = OB_TYPE(x)->iter(x, NULL);
+        v = OB_TYPE(x)->iter(x, y);
       } else {
         panic("object is not iteratable.");
       }
       OB_DECREF(x);
-      PUSH(y);
+      OB_DECREF(y);
+      PUSH(v);
       break;
     }
     case OP_FOR_ITER: {
