@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 
   Array_Print(arr);
 
-  Object *i = Integer_New(1);
+  Object *i = integer_new(1);
 
   v = Object_Call(arr, "__getitem__", i);
   expect(!strcmp("world", String_AsStr(v)));

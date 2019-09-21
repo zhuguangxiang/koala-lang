@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
   s = string_new("Hello, Koala");
   Object *res = Method_Call(v, s, NULL);
   expect(Integer_Check(res));
-  expect(12 == Integer_AsInt(res));
+  expect(12 == integer_asint(res));
   OB_DECREF(v);
   OB_DECREF(res);
   OB_DECREF(s);

@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
   Object *m = Module_Load("fmt");
   Object *fmtstr = string_new("Hello, {}. I was born at {}.");
   Object *name = string_new("Koala");
-  Object *year = Integer_New(2018);
+  Object *year = integer_new(2018);
   Object *args = Tuple_Pack(3, fmtstr, name, year);
   Object_Call(m, "println", args);
   OB_DECREF(args);

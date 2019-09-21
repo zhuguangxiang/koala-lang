@@ -155,3 +155,15 @@ func test_while(a int, b int) int {
 }
 
 test_while(10, 1)
+
+func test_for(arr [int]) int {
+  res := 0
+  v := 0
+  for v in arr {
+    res += v
+  }
+  return res
+}
+
+arr := [1, 2, 3, 10, 20, 30]
+test_for(arr)

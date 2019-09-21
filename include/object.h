@@ -167,7 +167,7 @@ typedef struct {
   func_t iter;
   /* __next__ */
   func_t next;
-} IteratorMethods;
+} IterMethods;
 
 /* mark and sweep callback */
 typedef void (*ob_markfunc)(Object *);
@@ -213,8 +213,10 @@ struct typeobject {
   InplaceMethods *inplace;
   /* mapping operations */
   MappingMethods *mapping;
-  /* iterator operations */
-  IteratorMethods *iterator;
+  /* __iter__ */
+  func_t iter;
+  /* __next__ */
+  func_t iternext;
 
   /* tuple: base classes */
   Vector *bases;
@@ -247,6 +249,10 @@ void init_any_type(void);
 #define OB_INPLACE_FUNC(ob, name) ({ \
   InplaceMethods *nu = OB_TYPE(ob)->inplace; \
   nu ? nu->name : NULL; \
+})
+#define OB_MAP_FUNC(ob, name) ({ \
+  MappingMethods *map = OB_TYPE(ob)->mapping; \
+  map ? map->name : NULL; \
 })
 int type_ready(TypeObject *type);
 void type_fini(TypeObject *type);

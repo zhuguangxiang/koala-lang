@@ -158,7 +158,7 @@ static Object *tuple_getitem(Object *self, Object *args)
   }
 
   TupleObject *tuple = (TupleObject *)self;
-  int index = Integer_AsInt(args);
+  int index = integer_asint(args);
   if (index < 0 || index >= tuple->size) {
     error("index %d out of range(0..<%d)", index, tuple->size);
     return NULL;
@@ -175,7 +175,7 @@ static Object *tuple_length(Object *self, Object *args)
   }
 
   TupleObject *tuple = (TupleObject *)self;
-  return Integer_New(tuple->size);
+  return integer_new(tuple->size);
 }
 
 static Object *tuple_fmt(Object *self, Object *args)

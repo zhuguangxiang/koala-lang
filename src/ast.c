@@ -463,6 +463,16 @@ Stmt *stmt_from_while(Expr *test, Stmt *block)
   return stmt;
 }
 
+Stmt *stmt_from_for(Expr *vexp, Expr *iter, Stmt *block)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = FOR_KIND;
+  stmt->for_stmt.vexp = vexp;
+  stmt->for_stmt.iter = iter;
+  stmt->for_stmt.block = block;
+  return stmt;
+}
+
 void stmt_block_free(Vector *vec)
 {
   Stmt *stmt;
@@ -532,6 +542,12 @@ void stmt_free(Stmt *stmt)
   case WHILE_KIND:
     expr_free(stmt->while_stmt.test);
     stmt_free(stmt->while_stmt.block);
+    kfree(stmt);
+    break;
+  case FOR_KIND:
+    expr_free(stmt->for_stmt.vexp);
+    expr_free(stmt->for_stmt.iter);
+    stmt_free(stmt->for_stmt.block);
     kfree(stmt);
     break;
   default:

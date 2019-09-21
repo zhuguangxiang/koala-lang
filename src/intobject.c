@@ -34,7 +34,7 @@ static void integer_free(Object *ob)
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(ob));
     return;
   }
-  debug("[Freed] Integer %ld", Integer_AsInt(ob));
+  debug("[Freed] Integer %ld", integer_asint(ob));
   kfree(ob);
 }
 
@@ -64,10 +64,10 @@ static Object *integer_fmt(Object *self, Object *ob)
 
 static int64_t int_add(Object *x, Object *y)
 {
-  int64_t a = Integer_AsInt(x);
+  int64_t a = integer_asint(x);
   int64_t r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a + b);
     if ((r ^ a) < 0 && (r ^ b) < 0)
       panic("overflow:%ld + %ld = %ld", a, b, r);
@@ -91,10 +91,10 @@ static int64_t int_add(Object *x, Object *y)
 
 static int64_t int_sub(Object *x, Object *y)
 {
-  int64_t a = Integer_AsInt(x);
+  int64_t a = integer_asint(x);
   int64_t r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
       panic("overflow:%ld + %ld = %ld", a, b, r);
@@ -118,10 +118,10 @@ static int64_t int_sub(Object *x, Object *y)
 
 static int64_t int_mul(Object *x, Object *y)
 {
-  int64_t a = Integer_AsInt(x);
+  int64_t a = integer_asint(x);
   int64_t r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = (int64_t)(a * b);
   } else if (Byte_Check(y)) {
     int b = Byte_AsInt(y);
@@ -138,10 +138,10 @@ static int64_t int_mul(Object *x, Object *y)
 
 static int64_t int_div(Object *x, Object *y)
 {
-  int64_t a = Integer_AsInt(x);
+  int64_t a = integer_asint(x);
   int64_t r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = (int64_t)(a / b);
   } else if (Byte_Check(y)) {
     int b = Byte_AsInt(y);
@@ -158,10 +158,10 @@ static int64_t int_div(Object *x, Object *y)
 
 static int64_t int_mod(Object *x, Object *y)
 {
-  int64_t a = Integer_AsInt(x);
+  int64_t a = integer_asint(x);
   int64_t r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = (int64_t)fmod(a, b);
   } else if (Byte_Check(y)) {
     int b = Byte_AsInt(y);
@@ -178,10 +178,10 @@ static int64_t int_mod(Object *x, Object *y)
 
 static int64_t int_pow(Object *x, Object *y)
 {
-  int64_t a = Integer_AsInt(x);
+  int64_t a = integer_asint(x);
   int64_t r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = (int64_t)pow(a, b);
   } else if (Byte_Check(y)) {
     int b = Byte_AsInt(y);
@@ -208,7 +208,7 @@ static Object *int_num_add(Object *x, Object *y)
     return NULL;
   }
 
-  return Integer_New(int_add(x, y));
+  return integer_new(int_add(x, y));
 }
 
 static Object *int_num_sub(Object *x, Object *y)
@@ -223,7 +223,7 @@ static Object *int_num_sub(Object *x, Object *y)
     return NULL;
   }
 
-  return Integer_New(int_sub(x, y));
+  return integer_new(int_sub(x, y));
 }
 
 static Object *int_num_mul(Object *x, Object *y)
@@ -238,7 +238,7 @@ static Object *int_num_mul(Object *x, Object *y)
     return NULL;
   }
 
-  return Integer_New(int_mul(x, y));
+  return integer_new(int_mul(x, y));
 }
 
 static Object *int_num_div(Object *x, Object *y)
@@ -253,7 +253,7 @@ static Object *int_num_div(Object *x, Object *y)
     return NULL;
   }
 
-  return Integer_New(int_div(x, y));
+  return integer_new(int_div(x, y));
 }
 
 static Object *int_num_mod(Object *x, Object *y)
@@ -268,7 +268,7 @@ static Object *int_num_mod(Object *x, Object *y)
     return NULL;
   }
 
-  return Integer_New(int_mod(x, y));
+  return integer_new(int_mod(x, y));
 }
 
 static Object *int_num_pow(Object *x, Object *y)
@@ -283,7 +283,7 @@ static Object *int_num_pow(Object *x, Object *y)
     return NULL;
   }
 
-  return Integer_New(int_pow(x, y));
+  return integer_new(int_pow(x, y));
 }
 
 static Object *int_num_neg(Object *x, Object *y)
@@ -299,8 +299,8 @@ static Object *int_num_neg(Object *x, Object *y)
   }
 
   Object *z;
-  int64_t a = Integer_AsInt(x);
-  z = Integer_New((int64_t)((uint64_t)0 - a));
+  int64_t a = integer_asint(x);
+  z = integer_new((int64_t)((uint64_t)0 - a));
   return z;
 }
 
@@ -312,10 +312,10 @@ static int64_t int_num_cmp(Object *x, Object *y)
     return 0;
   }
 
-  int64_t a = Integer_AsInt(x);
+  int64_t a = integer_asint(x);
   int64_t r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
       panic("overflow:%ld + %ld = %ld", a, b, r);
@@ -385,9 +385,9 @@ static Object *int_num_and(Object *x, Object *y)
   }
 
   Object *z;
-  int64_t a = Integer_AsInt(x);
-  int64_t b = Integer_AsInt(y);
-  z = Integer_New(a & b);
+  int64_t a = integer_asint(x);
+  int64_t b = integer_asint(y);
+  z = integer_new(a & b);
   return z;
 }
 
@@ -404,9 +404,9 @@ static Object *int_num_or(Object *x, Object *y)
   }
 
   Object *z;
-  int64_t a = Integer_AsInt(x);
-  int64_t b = Integer_AsInt(y);
-  z = Integer_New(a | b);
+  int64_t a = integer_asint(x);
+  int64_t b = integer_asint(y);
+  z = integer_new(a | b);
   return z;
 }
 
@@ -423,9 +423,9 @@ static Object *int_num_xor(Object *x, Object *y)
   }
 
   Object *z;
-  int64_t a = Integer_AsInt(x);
-  int64_t b = Integer_AsInt(y);
-  z = Integer_New(a ^ b);
+  int64_t a = integer_asint(x);
+  int64_t b = integer_asint(y);
+  z = integer_new(a ^ b);
   return z;
 }
 
@@ -442,8 +442,8 @@ static Object *int_num_not(Object *x, Object *y)
   }
 
   Object *z;
-  int64_t a = Integer_AsInt(x);
-  z = Integer_New(~a);
+  int64_t a = integer_asint(x);
+  z = integer_new(~a);
   return z;
 }
 
@@ -583,8 +583,8 @@ static Object *int_num_inand(Object *x, Object *y)
     return NULL;
   }
 
-  int64_t a = Integer_AsInt(x);
-  int64_t b = Integer_AsInt(y);
+  int64_t a = integer_asint(x);
+  int64_t b = integer_asint(y);
   IntegerObject *iob = (IntegerObject *)x;
   iob->value = (a & b);
 }
@@ -601,8 +601,8 @@ static Object *int_num_inor(Object *x, Object *y)
     return NULL;
   }
 
-  int64_t a = Integer_AsInt(x);
-  int64_t b = Integer_AsInt(y);
+  int64_t a = integer_asint(x);
+  int64_t b = integer_asint(y);
   IntegerObject *iob = (IntegerObject *)x;
   iob->value = (a | b);
 }
@@ -619,8 +619,8 @@ static Object *int_num_inxor(Object *x, Object *y)
     return NULL;
   }
 
-  int64_t a = Integer_AsInt(x);
-  int64_t b = Integer_AsInt(y);
+  int64_t a = integer_asint(x);
+  int64_t b = integer_asint(y);
   IntegerObject *iob = (IntegerObject *)x;
   iob->value = (a ^ b);
 }
@@ -661,7 +661,7 @@ void init_integer_type(void)
     panic("Cannot initalize 'Integer' type.");
 }
 
-Object *Integer_New(int64_t val)
+Object *integer_new(int64_t val)
 {
   IntegerObject *integer = kmalloc(sizeof(*integer));
   init_object_head(integer, &integer_type);

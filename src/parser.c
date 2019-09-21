@@ -315,6 +315,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_INPLACE_XOR:
   case OP_SUBSCR_LOAD:
   case OP_SUBSCR_STORE:
+  case OP_ITER:
   case OP_UNPACK_TUPLE:
     break;
   case OP_LOAD:
@@ -336,6 +337,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     index = Image_Add_Desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_2bytes(buf, i->arg.ival);
+    break;
+  case OP_FOR_ITER:
+    bytebuffer_write_2bytes(buf, i->argc);
     break;
   default:
     panic("invalid opcode %s", opcode_str(i->op));
@@ -1967,14 +1971,16 @@ static void parse_while(ParserState *ps, Stmt *stmt)
   Inst *jmp = NULL;
   int offset = 0;
 
-  test->ctx = EXPR_LOAD;
-  // optimize binary compare operator
-  parser_visit_expr(ps, test);
-  if (desc_isbool(test->desc)) {
-    syntax_error(ps, test->row, test->col, "if cond expr is not bool");
+  if (test != NULL) {
+    test->ctx = EXPR_LOAD;
+    // optimize binary compare operator
+    parser_visit_expr(ps, test);
+    if (desc_isbool(test->desc)) {
+      syntax_error(ps, test->row, test->col, "if cond expr is not bool");
+    }
+    jmp = CODE_OP(OP_JMP_FALSE);
+    offset = codeblock_bytes(ps->u->block);
   }
-  jmp = CODE_OP(OP_JMP_FALSE);
-  offset = codeblock_bytes(ps->u->block);
 
   if (block != NULL) {
     parse_stmt(ps, block);
@@ -1982,6 +1988,68 @@ static void parse_while(ParserState *ps, Stmt *stmt)
 
   Inst *jmp2 = CODE_OP(OP_JMP);
   jmp2->argc = 0 - codeblock_bytes(ps->u->block);
+
+  if (jmp != NULL) {
+    offset = codeblock_bytes(ps->u->block) - offset;
+    jmp->argc = offset;
+  }
+
+  parser_exit_scope(ps);
+}
+
+static void parse_for(ParserState *ps, Stmt *stmt)
+{
+  parser_enter_scope(ps, SCOPE_BLOCK);
+  Expr *vexp = stmt->for_stmt.vexp;
+  Expr *iter = stmt->for_stmt.iter;
+  Stmt *block = stmt->for_stmt.block;
+  Symbol *sym;
+  Inst *jmp = NULL;
+  int offset = 0;
+
+  iter->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, iter);
+  sym = iter->sym;
+  if (sym->kind == SYM_VAR) {
+    sym = sym->var.typesym;
+  } else if (sym->kind == SYM_CLASS) {
+
+  } else {
+    panic("which kind of symbol? %d", sym->kind);
+  }
+
+  /*
+  sym = klass_find_member(sym, "__iter__");
+  if (sym == NULL) {
+    syntax_error(ps, iter->row, iter->col, "object is not iteratable.");
+  } else {
+    CODE_OP(OP_ITER);
+    jmp = CODE_OP(OP_FOR_ITER);
+  }
+  */
+
+  CODE_OP(OP_ITER);
+  jmp = CODE_OP(OP_FOR_ITER);
+  offset = codeblock_bytes(ps->u->block);
+
+  // if ident is not declared, declare it automatically.
+  /*
+  if (vexp->kind == ID_KIND) {
+
+  } else if (vexp->kind == TUPLE_KIND) {
+
+  }
+  */
+
+  vexp->ctx = EXPR_STORE;
+  parser_visit_expr(ps, vexp);
+
+  if (block != NULL) {
+    parse_stmt(ps, block);
+  }
+
+  Inst *jmp2 = CODE_OP(OP_JMP);
+  jmp2->argc = offset - 3 - codeblock_bytes(ps->u->block);
 
   if (jmp != NULL) {
     offset = codeblock_bytes(ps->u->block) - offset;
@@ -2012,8 +2080,9 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     NULL,               /* CONTINUE_KIND  */
     parse_if,           /* IF_KIND        */
     parse_while,        /* WHILE_KIND     */
+    parse_for,          /* FOR_KIND       */
   };
 
-  expect(stmt->kind >= IMPORT_KIND && stmt->kind <= WHILE_KIND);
+  expect(stmt->kind >= IMPORT_KIND && stmt->kind <= FOR_KIND);
   handlers[stmt->kind](ps, stmt);
 }

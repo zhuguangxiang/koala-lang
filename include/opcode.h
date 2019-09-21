@@ -116,17 +116,21 @@ extern "C" {
 #define OP_JMP_NIL    79
 #define OP_JMP_NOTNIL 80
 
-#define OP_NEW_OBJECT  90
-#define OP_NEW_TUPLE   91
-#define OP_NEW_ARRAY   92
-#define OP_NEW_SET     93
-#define OP_NEW_MAP     94
-#define OP_NEW_ITER    95
-#define OP_FOR_EACH    96
-#define OP_NEW_EVAL    97
-#define OP_NEW_CLOSURE 98
+/* 81 - 84 */
 
-#define OP_UNPACK_TUPLE 99
+#define OP_NEW_OBJECT   85
+#define OP_NEW_TUPLE    86
+#define OP_NEW_ARRAY    87
+#define OP_NEW_MAP      88
+#define OP_NEW_EVAL     89
+#define OP_NEW_CLOSURE  90
+
+/* 91 - 94 */
+
+#define OP_ITER         95
+#define OP_FOR_ITER     96
+#define OP_UNPACK_TUPLE 97
+
 
 int opcode_argc(int op);
 char *opcode_str(int op);

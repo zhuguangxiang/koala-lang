@@ -347,6 +347,11 @@ struct stmt {
       Expr *test;
       Stmt *block;
     } while_stmt;
+    struct {
+      Expr *vexp;
+      Expr *iter;
+      Stmt *block;
+    } for_stmt;
   };
 };
 
@@ -356,12 +361,13 @@ Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);
 Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,
-                         Type *ret, Vector *body);
+  Type *ret, Vector *body);
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_expr(Expr *exp);
 Stmt *stmt_from_block(Vector *list);
 Stmt *stmt_from_if(Expr *test, Stmt *block, Stmt *orelse);
 Stmt *stmt_from_while(Expr *test, Stmt *block);
+Stmt *stmt_from_for(Expr *vexp, Expr *iter, Stmt *block);
 
 #ifdef __cplusplus
 }

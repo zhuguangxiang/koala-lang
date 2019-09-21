@@ -32,9 +32,9 @@ Object *num_add(Object *x, Object *y)
   Object *z;
   if (Integer_Check(x) && Integer_Check(y)) {
     int64_t a, r;
-    a = Integer_AsInt(x);
+    a = integer_asint(x);
     if (Integer_Check(y)) {
-      int64_t b = Integer_AsInt(y);
+      int64_t b = integer_asint(y);
       r = (int64_t)((uint64_t)a + b);
     } else if (Byte_Check(y)) {
       int b = Byte_AsInt(y);
@@ -45,7 +45,7 @@ Object *num_add(Object *x, Object *y)
     } else {
       panic("Not implemented");
     }
-    z = Integer_New(r);
+    z = integer_new(r);
   } else if (Float_Check(x) && Float_Check(y)) {
     double a, r;
     a = Float_AsFlt(x);

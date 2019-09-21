@@ -22,42 +22,30 @@
  SOFTWARE.
 */
 
-#include "koala.h"
-#include "log.h"
+#ifndef _KOALA_ITER_OBJECT_H_
+#define _KOALA_ITER_OBJECT_H_
 
-int main(int argc, char *argv[])
-{
-  koala_initialize();
-  TypeDesc *kdesc = desc_from_str;
-  TypeDesc *vdesc = desc_from_int;
-  Object *dict = map_new(kdesc, vdesc);
-  TYPE_DECREF(kdesc);
-  TYPE_DECREF(vdesc);
+#include "object.h"
 
-  Object *foo = string_new("foo");
-  Object *val = integer_new(100);
-  map_put(dict, foo, val);
-  OB_DECREF(val);
-  OB_DECREF(foo);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-  Object *bar = string_new("foo");
-  val = map_get(dict, bar);
-  expect(Integer_Check(val));
-  expect(100 == integer_asint(val));
-  OB_DECREF(val);
+typedef struct iterobject {
+  OBJECT_HEAD
+  Object *ob;
+  Object *args;
+} IterObject;
 
-  val = integer_new(200);
-  map_put(dict, foo, val);
-  OB_DECREF(val);
+extern TypeObject iter_type;
+#define iter_check(ob) (OB_TYPE(ob) == &iter_type)
+void init_iter_type(void);
+Object *iter_new(Object *ob, Object *args);
+#define iter_obj(self)  ((IterObject *)self)->ob
+#define iter_args(self) ((IterObject *)self)->args
 
-  val = map_get(dict, bar);
-  expect(Integer_Check(val));
-  expect(200 == integer_asint(val));
-  OB_DECREF(val);
-
-  OB_DECREF(bar);
-  OB_DECREF(dict);
-
-  koala_finalize();
-  return 0;
+#ifdef __cplusplus
 }
+#endif
+
+#endif /* _KOALA_ITER_OBJECT_H_ */

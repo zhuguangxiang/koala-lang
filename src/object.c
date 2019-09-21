@@ -71,7 +71,7 @@ static HashMap *get_mtbl(TypeObject *type)
 static Object *any_hash(Object *self, Object *args)
 {
   unsigned int hash = memhash(&self, sizeof(void *));
-  return Integer_New(hash);
+  return integer_new(hash);
 }
 
 static Object *any_cmp(Object *self, Object *other)
@@ -399,11 +399,6 @@ static void Type_Add_Mapping(TypeObject *type, MappingMethods *meths)
 
 }
 
-static void Type_Add_Iterator(TypeObject *type, IteratorMethods *meths)
-{
-
-}
-
 int type_ready(TypeObject *type)
 {
   if (type->hash && !type->cmp) {
@@ -573,7 +568,7 @@ unsigned int Object_Hash(Object *ob)
 {
   Object *res = Object_Call(ob, "__hash__", NULL);
   expect(res != NULL);
-  unsigned int hash = Integer_AsInt(res);
+  unsigned int hash = integer_asint(res);
   OB_DECREF(res);
   return hash;
 }
@@ -705,7 +700,7 @@ Object *New_Literal(Literal *val)
   switch (val->kind) {
   case BASE_INT:
     debug("literal int value: %ld", val->ival);
-    ob = Integer_New(val->ival);
+    ob = integer_new(val->ival);
     break;
   case BASE_STR:
     debug("literal string value: %s", val->str);

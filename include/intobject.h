@@ -50,8 +50,8 @@ typedef struct byteobject {
 extern TypeObject integer_type;
 #define Integer_Check(ob) (OB_TYPE(ob) == &integer_type)
 void init_integer_type(void);
-Object *Integer_New(int64_t val);
-static inline int64_t Integer_AsInt(Object *ob)
+Object *integer_new(int64_t val);
+static inline int64_t integer_asint(Object *ob)
 {
   if (!Integer_Check(ob)) {
     error("object of '%.64s' is not a Integer.", OB_TYPE(ob)->name);
@@ -59,6 +59,15 @@ static inline int64_t Integer_AsInt(Object *ob)
   }
   IntegerObject *int_obj = (IntegerObject *)ob;
   return int_obj->value;
+}
+static inline void integer_setint(Object *ob, int64_t val)
+{
+  if (!Integer_Check(ob)) {
+    error("object of '%.64s' is not a Integer.", OB_TYPE(ob)->name);
+    return;
+  }
+  IntegerObject *int_obj = (IntegerObject *)ob;
+  int_obj->value = val;
 }
 
 extern TypeObject byte_type;

@@ -56,7 +56,7 @@ static double flt_add(Object *x, Object *y)
   double a = Float_AsFlt(x);
   double r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = (a + b);
     if ((a > 0 && b > 0 && r < 0) ||
         (a < 0 && b < 0 && r > 0))
@@ -85,7 +85,7 @@ static double flt_sub(Object *x, Object *y)
   double a = Float_AsFlt(x);
   double r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = a - b;
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
@@ -113,7 +113,7 @@ static double flt_mul(Object *x, Object *y)
   double a = Float_AsFlt(x);
   double r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = a * b;
   } else if (Byte_Check(y)) {
     int b = Byte_AsInt(y);
@@ -132,7 +132,7 @@ static double flt_div(Object *x, Object *y)
   double a = Float_AsFlt(x);
   double r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = a / b;
   } else if (Byte_Check(y)) {
     int b = Byte_AsInt(y);
@@ -151,7 +151,7 @@ static double flt_mod(Object *x, Object *y)
   double a = Float_AsFlt(x);
   double r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = fmod(a, b);
   } else if (Byte_Check(y)) {
     int b = Byte_AsInt(y);
@@ -170,7 +170,7 @@ static int64_t flt_pow(Object *x, Object *y)
   double a = Float_AsFlt(x);
   double r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = pow(a, b);
   } else if (Byte_Check(y)) {
     int b = Byte_AsInt(y);
@@ -303,7 +303,7 @@ static double flt_num_cmp(Object *x, Object *y)
   double a = Float_AsFlt(x);
   double r;
   if (Integer_Check(y)) {
-    int64_t b = Integer_AsInt(y);
+    int64_t b = integer_asint(y);
     r = a - b;
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))

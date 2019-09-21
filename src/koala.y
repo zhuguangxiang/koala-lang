@@ -150,6 +150,7 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %type <stmt> if_stmt
 %type <stmt> empty_else
 %type <stmt> while_stmt
+%type <stmt> for_each_stmt
 %type <stmt> func_decl
 %type <stmtlist> block
 %type <stmtlist> local_list
@@ -339,6 +340,10 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    cmd_eval_stmt(ps, $1);
+    stmt_free($1);
+  } else {
+
   }
 }
 | func_decl
@@ -442,7 +447,7 @@ local:
 }
 | for_each_stmt
 {
-  $$ = NULL;
+  $$ = $1;
 }
 | ';'
 {
@@ -1166,10 +1171,17 @@ while_stmt:
 {
   $$ = stmt_from_while($2, stmt_from_block($3));
 }
+| WHILE block
+{
+  $$ = stmt_from_while(NULL, stmt_from_block($2));
+}
 ;
 
 for_each_stmt:
   FOR expr IN expr block
+{
+  $$ = stmt_from_for($2, $4, stmt_from_block($5));
+}
 ;
 
 match_stmt:

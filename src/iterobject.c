@@ -22,44 +22,57 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_API_H_
-#define _KOALA_API_H_
-
-#include "version.h"
-#include "log.h"
-#include "memory.h"
-#include "atom.h"
-#include "eval.h"
-#include "fieldobject.h"
-#include "methodobject.h"
-#include "classobject.h"
-#include "intobject.h"
-#include "floatobject.h"
-#include "stringobject.h"
-#include "arrayobject.h"
-#include "tupleobject.h"
-#include "mapobject.h"
-#include "moduleobject.h"
-#include "codeobject.h"
 #include "iterobject.h"
-#include "fmtmodule.h"
-#include "iomodule.h"
-#include "osmodule.h"
-#include "langmodule.h"
-#include "parser.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+void iter_free(Object *self)
+{
+  if (!iter_check(self)) {
+    error("object of '%.64s' is not an Iterator", OB_TYPE_NAME(self));
+    return;
+  }
 
-void koala_initialize(void);
-void koala_finalize(void);
-void Koala_ReadLine(void);
-void Koala_Compile(char *path);
-void Koala_Run(char *path);
-
-#ifdef __cplusplus
+  IterObject *iter = (IterObject *)self;
+  OB_DECREF(iter->ob);
+  OB_DECREF(iter->args);
+  kfree(iter);
 }
-#endif
 
-#endif /* _KOALA_API_H_ */
+static Object *iter_next(Object *self, Object *args)
+{
+  if (!iter_check(self)) {
+    error("object of '%.64s' is not an Iterator", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  IterObject *iter = (IterObject *)self;
+  Object *ob = iter->ob;
+  func_t fn = OB_TYPE(ob)->iternext;
+  if (fn != NULL)
+    return fn(self, NULL);
+  else
+    return NULL;
+}
+
+TypeObject iter_type = {
+  OBJECT_HEAD_INIT(&type_type)
+  .name    = "Iterator",
+  .free    = iter_free,
+  .iternext = iter_next,
+};
+
+void init_iter_type(void)
+{
+  TypeDesc *desc = desc_from_klass("lang", "Iterator");
+  iter_type.desc = desc;
+  if (type_ready(&iter_type) < 0)
+    panic("Cannot initalize 'Iterator' type.");
+}
+
+Object *iter_new(Object *ob, Object *args)
+{
+  IterObject *iter = kmalloc(sizeof(IterObject));
+  init_object_head(iter, &iter_type);
+  iter->ob = OB_INCREF(ob);
+  iter->args = OB_INCREF(args);
+  return (Object *)iter;
+}

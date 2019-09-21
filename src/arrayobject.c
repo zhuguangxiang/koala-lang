@@ -25,6 +25,7 @@
 #include "arrayobject.h"
 #include "intobject.h"
 #include "tupleobject.h"
+#include "iterobject.h"
 #include "strbuf.h"
 
 static Object *array_append(Object *self, Object *val)
@@ -78,7 +79,7 @@ static Object *array_getitem(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  int index = Integer_AsInt(args);
+  int index = integer_asint(args);
   int size = vector_size(&arr->items);
   if (index < 0 || index >= size) {
     error("index %d out of range(0..<%d)", index, size);
@@ -99,7 +100,7 @@ static Object *array_setitem(Object *self, Object *args)
   Object *index = Tuple_Get(args, 0);
   Object *val = Tuple_Get(args, 1);
   OB_INCREF(val);
-  array_set(self, Integer_AsInt(index), val);
+  array_set(self, integer_asint(index), val);
   return NULL;
 }
 
@@ -112,7 +113,7 @@ static Object *array_length(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   int len = vector_size(&arr->items);
-  return Integer_New(len);
+  return integer_new(len);
 }
 
 static MethodDef array_methods[] = {
@@ -179,12 +180,48 @@ Object *array_str(Object *self, Object *ob)
   return str;
 }
 
+static Object *array_iter(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  Object *idx = integer_new(0);
+  Object *ret = iter_new(self, idx);
+  OB_DECREF(idx);
+  return ret;
+}
+
+static Object *array_iter_next(Object *iter, Object *args)
+{
+  if (!iter_check(iter)) {
+    error("object of '%.64s' is not an Iterator", OB_TYPE_NAME(iter));
+    return NULL;
+  }
+
+  Object *ob = iter_obj(iter);
+  Object *idx = iter_args(iter);
+  ArrayObject *arr = (ArrayObject *)ob;
+  int64_t index = integer_asint(idx);
+
+  Object *ret = NULL;
+  if (index < vector_size(&arr->items)) {
+    ret = array_getitem(ob, idx);
+    integer_setint(idx, ++index);
+  }
+
+  return ret;
+}
+
 TypeObject array_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "Array",
   .free    = array_free,
   .str     = array_str,
-  .methods = array_methods,
+  .iter    = array_iter,
+  .iternext = array_iter_next,
+  .methods  = array_methods,
 };
 
 void init_array_type(void)

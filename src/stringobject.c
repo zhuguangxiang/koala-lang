@@ -63,7 +63,7 @@ static Object *string_length(Object *self, Object *args)
   }
 
   StringObject *s = (StringObject *)self;
-  return Integer_New(s->len);
+  return integer_new(s->len);
 }
 
 static Object *string_fmt(Object *self, Object *ob)
@@ -91,7 +91,7 @@ static Object *string_hash(Object *self, Object *args)
     return NULL;
   }
 
-  return Integer_New(strhash(String_AsStr(self)));
+  return integer_new(strhash(String_AsStr(self)));
 }
 
 static Object *string_equal(Object *self, Object *other)
