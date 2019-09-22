@@ -92,8 +92,10 @@ typedef struct inst {
   uint8_t op;
   Literal arg;
   TypeDesc *desc;
-  /* break and continue statements */
-  int upbytes;
+  /* jmp(iter) */
+  int offset;
+  /* break&continue */
+  int jmpdown;
 } Inst;
 
 #define JMP_BREAK    1
@@ -122,7 +124,6 @@ static inline void codeblock_add_inst(CodeBlock *b, Inst *i)
 {
   list_add_tail(&i->link, &b->insts);
   b->bytes += i->bytes;
-  i->upbytes = b->bytes;
 }
 
 static Inst *inst_new(uint8_t op, Literal *val, TypeDesc *desc)
@@ -234,6 +235,8 @@ void codeblock_show(CodeBlock *block)
       } else {
         if (i->argc != 0) {
           print("%d", i->argc);
+        } else if (i->offset != 0) {
+          print("%d", i->offset);
         }
       }
       print("\n");
@@ -328,7 +331,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_JMP:
   case OP_JMP_TRUE:
   case OP_JMP_FALSE:
-    bytebuffer_write_2bytes(buf, i->argc);
+    bytebuffer_write_2bytes(buf, i->offset);
     break;
   case OP_NEW_TUPLE:
   case OP_NEW_MAP:
@@ -345,7 +348,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     bytebuffer_write_byte(buf, i->arg.ival);
     break;
   case OP_FOR_ITER:
-    bytebuffer_write_2bytes(buf, i->argc);
+    bytebuffer_write_2bytes(buf, i->offset);
     break;
   default:
     panic("invalid opcode %s", opcode_str(i->op));
@@ -428,6 +431,10 @@ static const char *scopes[] = {
   NULL, "MODULE", "CLASS", "FUNCTION", "BLOCK", "CLOSURE"
 };
 
+static const char *blocks[] = {
+  NULL, "BLOCK", "IF-BLOCK", "WHILE-BLOCK", "FOR-BLOCK", "MATCH-BLOCK"
+};
+
 ParserState *new_parser(char *filename)
 {
   ParserState *ps = kmalloc(sizeof(ParserState));
@@ -450,10 +457,11 @@ static inline ParserUnit *up_scope(ParserState *ps)
 
 static inline void unit_free(ParserState *ps)
 {
-  expect(ps->u->block == NULL);
-  expect(vector_size(&ps->u->jmps) == 0);
-  vector_fini(&ps->u->jmps);
-  kfree(ps->u);
+  ParserUnit *u = ps->u;
+  expect(u->block == NULL);
+  expect(vector_size(&u->jmps) == 0);
+  vector_fini(&u->jmps);
+  kfree(u);
   ps->u = NULL;
 }
 
@@ -467,6 +475,27 @@ static void unit_show(ParserState *ps)
   print("scope-%d(%s, %s) symbols:\n", ps->depth, scope, name);
   codeblock_show(u->block);
   puts("---------------------------------------------");
+}
+
+static void parser_add_jmp(ParserState *ps, Inst *jmp)
+{
+  ParserUnit *u = ps->u;
+  vector_push_back(&u->jmps, jmp);
+}
+
+static void parser_handle_jmps(ParserState *ps, int upoffset)
+{
+  ParserUnit *u = ps->u;
+  int bytes = codeblock_bytes(u->block);
+  Inst *jmp;
+  vector_for_each(jmp, &u->jmps) {
+    if (jmp->jmpdown) {
+      jmp->offset = bytes - jmp->offset;
+    } else {
+      jmp->offset = upoffset - jmp->offset;
+    }
+  }
+  vector_fini(&u->jmps);
 }
 
 static void merge_into_func(ParserUnit *u, char *name, int create)
@@ -491,10 +520,24 @@ static void merge_into_func(ParserUnit *u, char *name, int create)
   u->block = NULL;
 }
 
+static void merge_jmps(ParserUnit *from, ParserUnit *to)
+{
+  int offset = codeblock_bytes(to->block);
+  Inst *jmp;
+  vector_for_each(jmp, &from->jmps) {
+    jmp->offset += offset;
+    vector_push_back(&to->jmps, jmp);
+  }
+  vector_fini(&from->jmps);
+}
+
 static void merge_up(ParserState *ps)
 {
   ParserUnit *u = ps->u;
   ParserUnit *up = up_scope(ps);
+  // merge jmps(break&continue)
+  merge_jmps(u, up);
+  // merge instructions
   if (up->block != NULL) {
     codeblock_merge(u->block, up->block);
     codeblock_free(u->block);
@@ -551,12 +594,21 @@ static void unit_merge_free(ParserState *ps)
   unit_free(ps);
 }
 
-void parser_enter_scope(ParserState *ps, ScopeKind scope)
+void parser_enter_scope(ParserState *ps, ScopeKind scope, int block)
 {
-  debug("Enter scope-%d(%s)", ps->depth + 1, scopes[scope]);
+#if !defined(NLog)
+  const char *scopestr;
+  if (scope != SCOPE_BLOCK)
+    scopestr = scopes[scope];
+  else
+    scopestr = blocks[block];
+  debug("Enter scope-%d(%s)", ps->depth + 1, scopestr);
+#endif
+
   ParserUnit *u = kmalloc(sizeof(ParserUnit));
 	u->scope = scope;
-	vector_init(&u->jmps);
+  vector_init(&u->jmps);
+  u->blocktype = block;
 
   /* push old unit into stack */
   if (ps->u != NULL)
@@ -567,11 +619,19 @@ void parser_enter_scope(ParserState *ps, ScopeKind scope)
 
 void parser_exit_scope(ParserState *ps)
 {
-  debug("Exit scope-%d(%s)", ps->depth, scopes[ps->u->scope]);
+#if !defined(NLog)
+  const char *scopestr;
+  if (ps->u->scope != SCOPE_BLOCK)
+    scopestr = scopes[ps->u->scope];
+  else
+    scopestr = blocks[ps->u->blocktype];
+  debug("Exit scope-%d(%s)", ps->depth, scopestr);
+#endif
 
 #if !defined(NLog)
   unit_show(ps);
 #endif
+
   unit_merge_free(ps);
   ps->depth--;
 
@@ -1957,7 +2017,7 @@ static void parse_func_body(ParserState *ps, Stmt *stmt)
 static void parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
   char *funcname = stmt->funcdecl.id.name;
-  parser_enter_scope(ps, SCOPE_FUNC);
+  parser_enter_scope(ps, SCOPE_FUNC, 0);
   debug("parse function '%s'", funcname);
   ParserUnit *u = ps->u;
   u->stbl = stable_new();
@@ -1984,8 +2044,42 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   debug("end of function '%s'", funcname);
 }
 
+static int infunc(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+  if (u->scope == SCOPE_FUNC || u->scope == SCOPE_CLOSURE)
+    return 1;
+
+  vector_for_each_reverse(u, &ps->ustack) {
+    if (u->scope == SCOPE_FUNC || u->scope == SCOPE_CLOSURE)
+      return 1;
+  }
+
+  return 0;
+}
+
+static int inloop(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+  if (u->scope == SCOPE_BLOCK &&
+      (u->blocktype == WHILE_BLOCK || u->blocktype == FOR_BLOCK))
+    return 1;
+
+  vector_for_each_reverse(u, &ps->ustack) {
+    if (u->scope == SCOPE_BLOCK &&
+        (u->blocktype == WHILE_BLOCK || u->blocktype == FOR_BLOCK))
+      return 1;
+  }
+
+  return 0;
+}
+
 static void parse_return(ParserState *ps, Stmt *stmt)
 {
+  if (!infunc(ps)) {
+    syntax_error(ps, stmt->row, stmt->col, "'return' outside function");
+  }
+
   Expr *exp = stmt->ret.exp;
   if (exp != NULL) {
     debug("return has value");
@@ -2002,6 +2096,30 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     debug("return has no value");
     CODE_OP(OP_RETURN);
   }
+}
+
+static void parse_break(ParserState *ps, Stmt *stmt)
+{
+  if (!inloop(ps)) {
+    syntax_error(ps, stmt->row, stmt->col, "'break' outside loop");
+  }
+
+  Inst *jmp = CODE_OP(OP_JMP);
+  jmp->offset = codeblock_bytes(ps->u->block);
+  jmp->jmpdown = 1;
+  parser_add_jmp(ps, jmp);
+}
+
+static void parse_continue(ParserState *ps, Stmt *stmt)
+{
+  if (!inloop(ps)) {
+    syntax_error(ps, stmt->row, stmt->col, "'continue' outside loop");
+  }
+
+  Inst *jmp = CODE_OP(OP_JMP);
+  jmp->offset = codeblock_bytes(ps->u->block);
+  jmp->jmpdown = 0;
+  parser_add_jmp(ps, jmp);
 }
 
 static void parse_expr(ParserState *ps, Stmt *stmt)
@@ -2030,7 +2148,7 @@ static void parse_expr(ParserState *ps, Stmt *stmt)
 
 static void parse_block(ParserState *ps, Stmt *stmt)
 {
-  parser_enter_scope(ps, SCOPE_BLOCK);
+  parser_enter_scope(ps, SCOPE_BLOCK, ONLY_BLOCK);
   ParserUnit *u = ps->u;
   u->stbl = stable_new();
 
@@ -2047,7 +2165,8 @@ static void parse_block(ParserState *ps, Stmt *stmt)
 
 static void parse_if(ParserState *ps, Stmt *stmt)
 {
-  parser_enter_scope(ps, SCOPE_BLOCK);
+  parser_enter_scope(ps, SCOPE_BLOCK, IF_BLOCK);
+  ParserUnit *u = ps->u;
   Expr *test = stmt->if_stmt.test;
   Vector *block = stmt->if_stmt.block;
   Stmt *orelse = stmt->if_stmt.orelse;
@@ -2064,7 +2183,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
       syntax_error(ps, test->row, test->col, "if cond expr is not bool");
     }
     jmp = CODE_OP(OP_JMP_FALSE);
-    offset = codeblock_bytes(ps->u->block);
+    offset = codeblock_bytes(u->block);
   }
 
   if (block != NULL) {
@@ -2074,13 +2193,13 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     }
     if (orelse != NULL) {
       jmp2 = CODE_OP(OP_JMP);
-      offset2 = codeblock_bytes(ps->u->block);
+      offset2 = codeblock_bytes(u->block);
     }
   }
 
   if (jmp != NULL) {
-    offset = codeblock_bytes(ps->u->block) - offset;
-    jmp->argc = offset;
+    offset = codeblock_bytes(u->block) - offset;
+    jmp->offset = offset;
   }
 
   if (orelse != NULL) {
@@ -2088,8 +2207,8 @@ static void parse_if(ParserState *ps, Stmt *stmt)
   }
 
   if (jmp2 != NULL) {
-    offset2 = codeblock_bytes(ps->u->block) - offset2;
-    jmp2->argc = offset2;
+    offset2 = codeblock_bytes(u->block) - offset2;
+    jmp2->offset = offset2;
   }
 
   parser_exit_scope(ps);
@@ -2097,7 +2216,8 @@ static void parse_if(ParserState *ps, Stmt *stmt)
 
 static void parse_while(ParserState *ps, Stmt *stmt)
 {
-  parser_enter_scope(ps, SCOPE_BLOCK);
+  parser_enter_scope(ps, SCOPE_BLOCK, WHILE_BLOCK);
+  ParserUnit *u = ps->u;
   Expr *test = stmt->while_stmt.test;
   Vector *block = stmt->while_stmt.block;
   Inst *jmp = NULL;
@@ -2111,7 +2231,7 @@ static void parse_while(ParserState *ps, Stmt *stmt)
       syntax_error(ps, test->row, test->col, "if cond expr is not bool");
     }
     jmp = CODE_OP(OP_JMP_FALSE);
-    offset = codeblock_bytes(ps->u->block);
+    offset = codeblock_bytes(u->block);
   }
 
   if (block != NULL) {
@@ -2122,19 +2242,21 @@ static void parse_while(ParserState *ps, Stmt *stmt)
   }
 
   Inst *jmp2 = CODE_OP(OP_JMP);
-  jmp2->argc = 0 - codeblock_bytes(ps->u->block);
+  jmp2->offset = 0 - codeblock_bytes(u->block);
 
   if (jmp != NULL) {
-    offset = codeblock_bytes(ps->u->block) - offset;
-    jmp->argc = offset;
+    offset = codeblock_bytes(u->block) - offset;
+    jmp->offset = offset;
   }
+
+  parser_handle_jmps(ps, 0);
 
   parser_exit_scope(ps);
 }
 
 static void parse_for(ParserState *ps, Stmt *stmt)
 {
-  parser_enter_scope(ps, SCOPE_BLOCK);
+  parser_enter_scope(ps, SCOPE_BLOCK, FOR_BLOCK);
   ParserUnit *u = ps->u;
   u->stbl = stable_new();
   Expr *vexp = stmt->for_stmt.vexp;
@@ -2174,7 +2296,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
     desc = type_maybe_instanced(iter->sym->desc, subtype);
     CODE_OP(OP_ITER);
     jmp = CODE_OP(OP_FOR_ITER);
-    offset = codeblock_bytes(ps->u->block);
+    offset = codeblock_bytes(u->block);
   }
 
   // if ident is not declared, declare it automatically.
@@ -2211,12 +2333,17 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   }
 
   Inst *jmp2 = CODE_OP(OP_JMP);
-  jmp2->argc = offset - 3 - codeblock_bytes(ps->u->block);
+  jmp2->offset = offset - 3 - codeblock_bytes(u->block);
+
+  parser_handle_jmps(ps, offset - 3);
 
   if (jmp != NULL) {
-    offset = codeblock_bytes(ps->u->block) - offset;
-    jmp->argc = offset;
+    offset = codeblock_bytes(u->block) - offset;
+    jmp->offset = offset;
   }
+
+  //pop iterator
+  CODE_OP(OP_POP_TOP);
 
   stable_free(u->stbl);
   u->stbl = NULL;
@@ -2240,8 +2367,8 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     NULL,               /* TRAIT_KIND     */
     NULL,               /* ENUM_KIND      */
     NULL,               /* EVAL_KIND      */
-    NULL,               /* BREAK_KIND     */
-    NULL,               /* CONTINUE_KIND  */
+    parse_break,        /* BREAK_KIND     */
+    parse_continue,     /* CONTINUE_KIND  */
     parse_if,           /* IF_KIND        */
     parse_while,        /* WHILE_KIND     */
     parse_for,          /* FOR_KIND       */

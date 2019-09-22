@@ -881,8 +881,6 @@ Object *Koala_EvalFrame(Frame *f)
         PUSH(y);
       } else {
         debug("iterator is ended.");
-        x = POP();
-        OB_DECREF(x);
         f->index += oparg;
       }
       break;

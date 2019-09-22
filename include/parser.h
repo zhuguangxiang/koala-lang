@@ -80,8 +80,14 @@ typedef struct parserunit {
   STable *stbl;
   /* instructions within current scope */
   CodeBlock *block;
-  int merge;
-  int loop;
+  /* which block scope */
+  int blocktype;
+#define ONLY_BLOCK    1
+#define IF_BLOCK      2
+#define WHILE_BLOCK   3
+#define FOR_BLOCK     4
+#define MATCH_BLOCK   5
+  /* save break & continue */
   Vector jmps;
 } ParserUnit;
 
@@ -139,7 +145,7 @@ void init_parser(void);
 void fini_parser(void);
 ParserState *new_parser(char *filename);
 void free_parser(ParserState *ps);
-void parser_enter_scope(ParserState *ps, ScopeKind scope);
+void parser_enter_scope(ParserState *ps, ScopeKind scope, int block);
 void parser_exit_scope(ParserState *ps);
 void parse_stmt(ParserState *ps, Stmt *stmt);
 void parser_visit_expr(ParserState *ps, Expr *exp);

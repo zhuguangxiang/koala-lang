@@ -31,19 +31,19 @@
 
 #define yyerror(loc, ps, scanner, msg) ((void)0)
 
-#define yyloc_row(loc) ((loc).first_line)
-#define yyloc_col(loc) ((loc).first_column)
+#define row(loc) ((loc).first_line)
+#define col(loc) ((loc).first_column)
 
 #define set_expr_pos(exp, loc) ({ \
-  (exp)->row = yyloc_row(loc);   \
-  (exp)->col = yyloc_col(loc);   \
+  (exp)->row = row(loc);   \
+  (exp)->col = col(loc);   \
 })
 
 #define IDENT(name, s, loc) \
-  Ident name = {s, yyloc_row(loc), yyloc_col(loc)}
+  Ident name = {s, row(loc), col(loc)}
 
 #define TYPE(name, type, loc) \
-  Type name = {type, yyloc_row(loc), yyloc_col(loc)}
+  Type name = {type, row(loc), col(loc)}
 
 /* interactive mode */
 void cmd_eval_stmt(ParserState *ps, Stmt *stmt);
@@ -148,6 +148,7 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %type <stmt> assignment
 %type <assginop> assign_operator
 %type <stmt> return_stmt
+%type <stmt> jump_stmt
 %type <stmt> if_stmt
 %type <stmt> empty_else
 %type <stmt> while_stmt
@@ -393,7 +394,7 @@ unit:
 {
   if (ps->interactive) {
     if (!ps->quit) {
-      syntax_error(ps, yyloc_row(@1), yyloc_col(@1), "invalid statement");
+      syntax_error(ps, row(@1), col(@1), "invalid statement");
       yyclearin;
     }
     ps->more = 0;
@@ -424,7 +425,7 @@ local:
 }
 | jump_stmt
 {
-  $$ = NULL;
+  $$ = $1;
 }
 | block
 {
@@ -579,7 +580,13 @@ return_stmt:
 
 jump_stmt:
   BREAK ';'
+{
+  $$ = stmt_from_break(row(@1), col(@1));
+}
 | CONTINUE ';'
+{
+  $$ = stmt_from_continue(row(@1), col(@1));
+}
 ;
 
 block:

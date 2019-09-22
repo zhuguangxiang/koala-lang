@@ -308,6 +308,8 @@ struct stmt {
   short last;
   short hasvalue;
   TypeDesc *desc;
+  short row;
+  short col;
   union {
     struct {
       Ident id;
@@ -365,6 +367,8 @@ Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);
 Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,
   Type *ret, Vector *body);
 Stmt *stmt_from_return(Expr *exp);
+Stmt *stmt_from_break(short row, short col);
+Stmt *stmt_from_continue(short row, short col);
 Stmt *stmt_from_expr(Expr *exp);
 Stmt *stmt_from_block(Vector *list);
 Stmt *stmt_from_if(Expr *test, Vector *block, Stmt *orelse);

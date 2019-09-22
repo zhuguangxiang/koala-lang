@@ -433,6 +433,24 @@ Stmt *stmt_from_return(Expr *exp)
   return stmt;
 }
 
+Stmt *stmt_from_break(short row, short col)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = BREAK_KIND;
+  stmt->row = row;
+  stmt->col = col;
+  return stmt;
+}
+
+Stmt *stmt_from_continue(short row, short col)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = CONTINUE_KIND;
+  stmt->row = row;
+  stmt->col = col;
+  return stmt;
+}
+
 Stmt *stmt_from_expr(Expr *exp)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
@@ -525,6 +543,10 @@ void stmt_free(Stmt *stmt)
     free_idtypes(stmt->funcdecl.idtypes);
     TYPE_DECREF(stmt->funcdecl.ret.desc);
     stmt_block_free(stmt->funcdecl.body);
+    kfree(stmt);
+    break;
+  case BREAK_KIND:
+  case CONTINUE_KIND:
     kfree(stmt);
     break;
   case RETURN_KIND:

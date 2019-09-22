@@ -233,7 +233,7 @@ func test_range(start int, end int) int {
   for v in start...end {
     res += v
   }
-  res
+  res + 1000
 }
 
 func test_range2(start int, end int) int {
@@ -246,3 +246,59 @@ func test_range2(start int, end int) int {
 
 test_range(1, 10)
 test_range2(1, 10)
+
+func test_jmp(arr [int]) int {
+  res := 0
+  for v in arr {
+    if v < 10 {
+      continue
+    }
+    res += v
+  }
+  res
+}
+
+func test_jmp2(arr [int]) int {
+  res := 0
+  for v in arr {
+    if v > 10 {
+      break
+    }
+    res += v
+  }
+  res
+}
+
+func test_jmp3(arr [int]) int {
+  res := 0
+  i := 0
+  size := arr.length()
+  while i < size {
+    if i > 5 {
+      break
+    }
+    res += arr[i]
+    i += 1
+  }
+  return res
+}
+
+func test_jmp4(arr [int]) int {
+  res := 0
+  i := 0
+  size := arr.length()
+  while i < size {
+    if i < 5 {
+      i += 1
+      continue
+    }
+    res += arr[i]
+    i += 1
+  }
+  return res
+}
+
+test_jmp(arr2)
+test_jmp2(arr2)
+test_jmp3(arr2)
+test_jmp4(arr2)

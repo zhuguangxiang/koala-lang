@@ -245,7 +245,7 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
   if (stmt == NULL)
     return;
 
-  parser_enter_scope(ps, SCOPE_MODULE);
+  parser_enter_scope(ps, SCOPE_MODULE, 0);
   ps->u->stbl = mod.stbl;
   ps->u->sym = modSym;
   parse_stmt(ps, stmt);
