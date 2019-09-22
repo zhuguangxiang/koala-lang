@@ -131,11 +131,11 @@ Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right)
   return exp;
 }
 
-Expr *expr_from_ternary(Expr *cond, Expr *left, Expr *right)
+Expr *expr_from_ternary(Expr *test, Expr *left, Expr *right)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = TERNARY_KIND;
-  exp->ternary.cond = cond;
+  exp->ternary.test = test;
   exp->ternary.lexp = left;
   exp->ternary.rexp = right;
   return exp;
@@ -313,7 +313,7 @@ void expr_free(Expr *exp)
     kfree(exp);
     break;
   case TERNARY_KIND:
-    expr_free(exp->ternary.cond);
+    expr_free(exp->ternary.test);
     expr_free(exp->ternary.lexp);
     expr_free(exp->ternary.rexp);
     kfree(exp);

@@ -448,7 +448,7 @@ static Object *int_num_not(Object *x, Object *y)
 }
 
 static NumberMethods int_numbers = {
-  .add = NULL,
+  .add = int_num_add,
   .sub = int_num_sub,
   .mul = int_num_mul,
   .div = int_num_div,
@@ -739,6 +739,14 @@ void init_bool_type(void)
   bool_type.desc = desc_from_bool;
   if (type_ready(&bool_type) < 0)
     panic("Cannot initalize 'Bool' type.");
+}
+
+void fini_bool_type(void)
+{
+  int refcnt = OB_True.ob_refcnt;
+  expect(refcnt == 1);
+  refcnt = OB_False.ob_refcnt;
+  expect(refcnt == 1);
 }
 
 BoolObject OB_True = {

@@ -142,6 +142,7 @@ extern TypeDesc type_base_byte;
 extern TypeDesc type_base_char;
 extern TypeDesc type_base_float;
 extern TypeDesc type_base_desc;
+extern TypeDesc type_base_nil;
 #define desc_from_byte  TYPE_INCREF(&type_base_byte)
 #define desc_from_int   TYPE_INCREF(&type_base_int)
 #define desc_from_float TYPE_INCREF(&type_base_float)
@@ -150,6 +151,7 @@ extern TypeDesc type_base_desc;
 #define desc_from_bool  TYPE_INCREF(&type_base_bool)
 #define desc_from_any   TYPE_INCREF(&type_base_any)
 #define desc_from_desc  TYPE_INCREF(&type_base_desc)
+#define desc_from_nil   TYPE_INCREF(&type_base_nil)
 TypeDesc *desc_from_base(int kind);
 TypeDesc *desc_from_klass(char *path, char *type);
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);

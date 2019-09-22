@@ -302,3 +302,31 @@ test_jmp(arr2)
 test_jmp2(arr2)
 test_jmp3(arr2)
 test_jmp4(arr2)
+
+
+func test_cond(a int, b int) int {
+  a > b ? a - b : b - a
+}
+
+test_cond(10, 10)
+test_cond(10, 20)
+test_cond(20, 10)
+test_cond(20, 20)
+
+func arr_reverse(arr [int]) [int] {
+  //if arr != nil {
+    i := 0
+    j := arr.length() - 1
+    var v int
+    while i < j {
+      v = arr[i]
+      arr[i] = arr[j]
+      arr[j] = v
+      i += 1
+      j -= 1
+    }
+    arr
+  //}
+}
+
+arr_reverse(arr2)

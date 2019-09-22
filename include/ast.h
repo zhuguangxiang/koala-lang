@@ -184,7 +184,7 @@ typedef struct expr {
       Literal val;
     } binary;
     struct {
-      struct expr *cond;
+      struct expr *test;
       struct expr *lexp;
       struct expr *rexp;
     } ternary;
@@ -245,7 +245,7 @@ Expr *expr_from_char(wchar val);
 Expr *expr_from_ident(char *val);
 Expr *expr_from_unary(UnaryOpKind op, Expr *exp);
 Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right);
-Expr *expr_from_ternary(Expr *cond, Expr *left, Expr *right);
+Expr *expr_from_ternary(Expr *test, Expr *left, Expr *right);
 Expr *expr_from_attribute(Ident id, Expr *left);
 Expr *expr_from_subscr(Expr *left, Expr *index);
 Expr *expr_from_call(Vector *args, Expr *left);

@@ -134,8 +134,9 @@ static struct list_head kslist;
 
 #define SETLOCAL(i, v) ({ \
   expect(i < f->size); \
-  OB_DECREF(f->locvars[i]); \
+  Object *old = f->locvars[i]; \
   f->locvars[i] = v; \
+  OB_DECREF(old); \
 })
 
 #define call_op_func(z, x, op, y) \
@@ -730,6 +731,7 @@ Object *Koala_EvalFrame(Frame *f)
       x = POP();
       if (Bool_IsTrue(x))
         f->index += oparg;
+      OB_DECREF(x);
       break;
     }
     case OP_JMP_FALSE: {
@@ -737,6 +739,7 @@ Object *Koala_EvalFrame(Frame *f)
       x = POP();
       if (Bool_IsFalse(x))
         f->index += oparg;
+      OB_DECREF(x);
       break;
     }
     case OP_JMP_CMPEQ: {

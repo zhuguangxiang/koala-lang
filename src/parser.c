@@ -1118,6 +1118,43 @@ static void parse_binary(ParserState *ps, Expr *exp)
   }
 }
 
+static void parse_ternary(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+
+  Expr *test = exp->ternary.test;
+  test->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, test);
+  //if not bool, error
+  if (desc_isbool(test->desc)) {
+    syntax_error(ps, test->row, test->col, "if cond expr is not bool");
+  }
+  Inst *jmp = CODE_OP(OP_JMP_FALSE);
+  int offset = codeblock_bytes(u->block);
+
+  Expr *lexp = exp->ternary.lexp;
+  lexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, lexp);
+  Inst *jmp2 = CODE_OP(OP_JMP);
+  int offset2 = codeblock_bytes(u->block);
+
+  jmp->offset = offset2 - offset;
+
+  Expr *rexp = exp->ternary.rexp;
+  rexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, rexp);
+
+  jmp2->offset = codeblock_bytes(u->block) - offset2;
+
+  if (!desc_check(lexp->desc, rexp->desc)) {
+    syntax_error(ps, rexp->row, rexp->col,
+      "type mismatch in conditonal expression");
+  }
+
+  exp->sym = lexp->sym;
+  exp->desc = TYPE_INCREF(exp->sym->desc);
+}
+
 static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
 {
   if (para->kind == TYPE_BASE)
@@ -1721,7 +1758,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_ident,        /* ID_KIND        */
     parse_unary,        /* UNARY_KIND     */
     parse_binary,       /* BINARY_KIND    */
-    NULL,               /* TERNARY_KIND   */
+    parse_ternary,      /* TERNARY_KIND   */
     parse_atrr,         /* ATTRIBUTE_KIND */
     parse_subscr,       /* SUBSCRIPT_KIND */
     parse_call,         /* CALL_KIND      */
@@ -2372,8 +2409,9 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     parse_if,           /* IF_KIND        */
     parse_while,        /* WHILE_KIND     */
     parse_for,          /* FOR_KIND       */
+    NULL,               /* MATCH_KIND     */
   };
 
-  expect(stmt->kind >= IMPORT_KIND && stmt->kind <= FOR_KIND);
+  expect(stmt->kind >= IMPORT_KIND && stmt->kind <= MATCH_KIND);
   handlers[stmt->kind](ps, stmt);
 }

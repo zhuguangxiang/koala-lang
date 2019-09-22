@@ -67,6 +67,7 @@ DECLARE_BASE(byte,  BASE_BYTE);
 DECLARE_BASE(char,  BASE_CHAR);
 DECLARE_BASE(float, BASE_FLOAT);
 DECLARE_BASE(desc,  -1);
+DECLARE_BASE(nil,  -2);
 
 static struct baseinfo {
   TypeDesc *desc;
@@ -115,6 +116,8 @@ static inline void check_base_refcnt(void)
   }
   refcnt = type_base_desc.refcnt;
   expect(refcnt == 1);
+  refcnt = type_base_nil.refcnt;
+  expect(refcnt == 1);
 }
 
 void init_typedesc(void)
@@ -124,7 +127,7 @@ void init_typedesc(void)
 
 void fini_typedesc(void)
 {
-  //check_base_refcnt();
+  check_base_refcnt();
 }
 
 TypeDesc *desc_from_klass(char *path, char *type)

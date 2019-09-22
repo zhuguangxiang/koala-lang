@@ -90,6 +90,7 @@ static void fini_types(void)
   type_fini(&range_type);
   type_fini(&iter_type);
   type_fini(&fmtter_type);
+  fini_bool_type();
   print("########\n");
 }
 

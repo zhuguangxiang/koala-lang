@@ -87,6 +87,7 @@ static inline int Byte_AsInt(Object *ob)
 extern TypeObject bool_type;
 #define Bool_Check(ob) (OB_TYPE(ob) == &bool_type)
 void init_bool_type(void);
+void fini_bool_type(void);
 extern BoolObject OB_True;
 extern BoolObject OB_False;
 
