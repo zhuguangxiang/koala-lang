@@ -35,7 +35,6 @@ void iter_free(Object *self)
   TYPE_DECREF(iter->desc);
   OB_DECREF(iter->ob);
   OB_DECREF(iter->args);
-  OB_DECREF(iter->step);
   kfree(iter);
 }
 
@@ -50,7 +49,7 @@ static Object *iter_next(Object *self, Object *args)
   Object *ob = iter->ob;
   func_t fn = OB_TYPE(ob)->iternext;
   if (fn != NULL)
-    return fn(self, NULL);
+    return fn(self, args);
   else
     return NULL;
 }
@@ -79,13 +78,12 @@ void init_iter_type(void)
     panic("Cannot initalize 'Iterator' type.");
 }
 
-Object *iter_new(TypeDesc *desc, Object *ob, Object *args, Object *step)
+Object *iter_new(TypeDesc *desc, Object *ob, Object *args)
 {
   IterObject *iter = kmalloc(sizeof(IterObject));
   init_object_head(iter, &iter_type);
   //iter->desc = TYPE_INCREF(desc);
   iter->ob = OB_INCREF(ob);
   iter->args = OB_INCREF(args);
-  iter->step = OB_INCREF(step);
   return (Object *)iter;
 }

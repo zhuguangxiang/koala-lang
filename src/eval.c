@@ -873,33 +873,33 @@ Object *Koala_EvalFrame(Frame *f)
       PUSH(z);
       break;
     }
-    case OP_ITER: {
+    case OP_NEW_ITER: {
       x = POP();
-      y = POP();
       if (OB_TYPE(x)->iter != NULL) {
-        v = OB_TYPE(x)->iter(x, y);
+        v = OB_TYPE(x)->iter(x, NULL);
       } else {
         panic("object is not iteratable.");
       }
       OB_DECREF(x);
-      OB_DECREF(y);
       PUSH(v);
       break;
     }
     case OP_FOR_ITER: {
       oparg = (int16_t)NEXT_2BYTES();
-      x = TOP();
-      if (OB_TYPE(x)->iternext != NULL) {
-        y = OB_TYPE(x)->iternext(x, NULL);
+      x = POP();
+      y = TOP();
+      if (OB_TYPE(y)->iternext != NULL) {
+        z = OB_TYPE(y)->iternext(y, x);
       } else {
         panic("object is not iteratable.");
       }
-      if (y != NULL) {
-        PUSH(y);
+      if (z != NULL) {
+        PUSH(z);
       } else {
         debug("iterator is ended.");
         f->index += oparg;
       }
+      OB_DECREF(x);
       break;
     }
     case OP_UNPACK_TUPLE: {

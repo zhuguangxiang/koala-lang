@@ -64,7 +64,7 @@ static Object *range_iter(Object *self, Object *args)
   RangeObject *range = (RangeObject *)self;
   Object *idx = integer_new(0);
   TypeDesc *desc = desc_from_int;
-  Object *ret = iter_new(desc, self, idx, args);
+  Object *ret = iter_new(desc, self, idx);
   TYPE_DECREF(desc);
   OB_DECREF(idx);
   return ret;
@@ -89,7 +89,7 @@ static void range_free(Object *ob)
   kfree(range);
 }
 
-static Object *range_iter_next(Object *iter, Object *args)
+static Object *range_iter_next(Object *iter, Object *step)
 {
   if (!iter_check(iter)) {
     error("object of '%.64s' is not an Iterator", OB_TYPE_NAME(iter));
@@ -98,7 +98,6 @@ static Object *range_iter_next(Object *iter, Object *args)
 
   Object *ob = iter_obj(iter);
   Object *idx = iter_args(iter);
-  Object *step = iter_step(iter);
   RangeObject *range = (RangeObject *)ob;
   int64_t index = integer_asint(idx);
   int64_t by = integer_asint(step);

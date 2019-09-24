@@ -122,7 +122,7 @@ static struct opcode {
   OPCODE(OP_NEW_EVAL,   3),
   OPCODE(OP_NEW_OBJECT, 3),
 
-  OPCODE(OP_ITER,         0),
+  OPCODE(OP_NEW_ITER,     0),
   OPCODE(OP_FOR_ITER,     2),
   OPCODE(OP_UNPACK_TUPLE, 0),
 };

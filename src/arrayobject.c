@@ -126,7 +126,7 @@ static Object *array_iter(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   Object *idx = integer_new(0);
-  Object *ret = iter_new(arr->desc, self, idx, args);
+  Object *ret = iter_new(arr->desc, self, idx);
   OB_DECREF(idx);
   return ret;
 }
@@ -196,7 +196,7 @@ Object *array_str(Object *self, Object *ob)
   return str;
 }
 
-static Object *array_iter_next(Object *iter, Object *args)
+static Object *array_iter_next(Object *iter, Object *step)
 {
   if (!iter_check(iter)) {
     error("object of '%.64s' is not an Iterator", OB_TYPE_NAME(iter));
@@ -205,7 +205,6 @@ static Object *array_iter_next(Object *iter, Object *args)
 
   Object *ob = iter_obj(iter);
   Object *idx = iter_args(iter);
-  Object *step = iter_step(iter);
   ArrayObject *arr = (ArrayObject *)ob;
   int64_t index = integer_asint(idx);
   int64_t by = integer_asint(step);

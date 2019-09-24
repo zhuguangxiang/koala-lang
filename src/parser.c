@@ -324,7 +324,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_INPLACE_XOR:
   case OP_SUBSCR_LOAD:
   case OP_SUBSCR_STORE:
-  case OP_ITER:
+  case OP_NEW_ITER:
   case OP_UNPACK_TUPLE:
     break;
   case OP_LOAD:
@@ -2452,13 +2452,6 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   Inst *jmp = NULL;
   int offset = 0;
 
-  if (step != NULL) {
-    step->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, step);
-  } else {
-    CODE_OP_I(OP_LOAD_CONST, 1);
-  }
-
   iter->ctx = EXPR_LOAD;
   parser_visit_expr(ps, iter);
   sym = iter->sym;
@@ -2478,9 +2471,17 @@ static void parse_for(ParserState *ps, Stmt *stmt)
     expect(vector_size(sym->desc->proto.ret->types) == 1);
     TypeDesc *subtype = vector_get(sym->desc->proto.ret->types, 0);
     desc = type_maybe_instanced(iter->sym->desc, subtype);
-    CODE_OP(OP_ITER);
-    jmp = CODE_OP(OP_FOR_ITER);
+    CODE_OP(OP_NEW_ITER);
     offset = codeblock_bytes(u->block);
+
+    if (step != NULL) {
+      step->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, step);
+    } else {
+      CODE_OP_I(OP_LOAD_CONST, 1);
+    }
+    jmp = CODE_OP(OP_FOR_ITER);
+    jmp->offset = codeblock_bytes(u->block);
   }
 
   // if ident is not declared, declare it automatically.
@@ -2517,13 +2518,12 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   }
 
   Inst *jmp2 = CODE_OP(OP_JMP);
-  jmp2->offset = offset - 3 - codeblock_bytes(u->block);
+  jmp2->offset = offset - codeblock_bytes(u->block);
 
-  parser_handle_jmps(ps, offset - 3);
+  parser_handle_jmps(ps, offset);
 
   if (jmp != NULL) {
-    offset = codeblock_bytes(u->block) - offset;
-    jmp->offset = offset;
+    jmp->offset = codeblock_bytes(u->block) - jmp->offset;
   }
 
   //pop iterator

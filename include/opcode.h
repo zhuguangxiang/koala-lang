@@ -126,10 +126,10 @@ extern "C" {
 #define OP_NEW_ANONY  89
 #define OP_NEW_EVAL   90
 #define OP_NEW_OBJECT 91
+#define OP_NEW_ITER   92
 
-/* 91 - 94 */
+/* 92 - 95 */
 
-#define OP_ITER         95
 #define OP_FOR_ITER     96
 #define OP_UNPACK_TUPLE 97
 

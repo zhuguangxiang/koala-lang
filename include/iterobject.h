@@ -36,16 +36,14 @@ typedef struct iterobject {
   TypeDesc *desc;
   Object *ob;
   Object *args;
-  Object *step;
 } IterObject;
 
 extern TypeObject iter_type;
 #define iter_check(ob) (OB_TYPE(ob) == &iter_type)
 void init_iter_type(void);
-Object *iter_new(TypeDesc *desc, Object *ob, Object *args, Object *step);
+Object *iter_new(TypeDesc *desc, Object *ob, Object *args);
 #define iter_obj(self)  ((IterObject *)self)->ob
 #define iter_args(self) ((IterObject *)self)->args
-#define iter_step(self) ((IterObject *)self)->step
 
 #ifdef __cplusplus
 }
