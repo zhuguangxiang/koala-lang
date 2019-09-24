@@ -326,74 +326,6 @@ static void Type_Add_Numbers(TypeObject *type, NumberMethods *meths)
   }
 }
 
-static void Type_Add_Inplaces(TypeObject *type, InplaceMethods *meths)
-{
-  MethodDef def;
-  if (meths->add) {
-    def.name = "__inadd__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->sub) {
-    def.name = "__insub__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->mul) {
-    def.name = "__inmul__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->div) {
-    def.name = "__indiv__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->mod) {
-    def.name = "__inmod__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->pow) {
-    def.name = "__inpow__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->and) {
-    def.name = "__inand__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->or) {
-    def.name = "__inor__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->xor) {
-    def.name = "__inxor__";
-    def.ptype = "A";
-    def.rtype = NULL;
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-}
-
 static void Type_Add_Mapping(TypeObject *type, MappingMethods *meths)
 {
 
@@ -740,17 +672,6 @@ Object *new_literal(Literal *val)
     break;
   }
   return ob;
-}
-
-Object *dup_const_object(Object *ob)
-{
-  if (integer_check(ob)) {
-    return integer_new(integer_asint(ob));
-  }
-  if (string_check(ob)) {
-    return string_new(string_asstr(ob));
-  }
-  return NULL;
 }
 
 static void descob_free(Object *ob)

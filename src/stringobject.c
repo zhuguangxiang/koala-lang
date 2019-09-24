@@ -189,26 +189,6 @@ static Object *str_num_neq(Object *x, Object *y)
   return (r != 0) ? Bool_True() : Bool_False();
 }
 
-static Object *str_num_inadd(Object *x, Object *y)
-{
-  if (!string_check(x)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(x));
-    return NULL;
-  }
-
-  if (!string_check(y)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(y));
-    return NULL;
-  }
-
-  STRBUF(sbuf);
-  strbuf_append(&sbuf, string_asstr(x));
-  strbuf_append(&sbuf, string_asstr(y));
-  string_set(x, strbuf_tostr(&sbuf));
-  strbuf_fini(&sbuf);
-  return NULL;
-}
-
 static MethodDef string_methods[] = {
   {"concat",  "s",  "s", str_num_add},
   {"length",  NULL, "i", string_length},
@@ -220,7 +200,6 @@ static MethodDef string_methods[] = {
   {"__le__", "s", "z", str_num_le},
   {"__eq__", "s", "z", str_num_eq},
   {"__neq__", "s", "z", str_num_neq},
-  {"__inadd__", "ss", NULL, str_num_inadd},
   {NULL}
 };
 

@@ -117,8 +117,8 @@ typedef struct literalitem {
 #define CONST_TYPE      2
 
 typedef struct constitem {
-  int kind;
-  int32_t index;
+  int kind;           /* CONST_XXX */
+  int32_t index;      /* index of literal, type */
 } ConstItem;
 
 typedef struct localvaritem {

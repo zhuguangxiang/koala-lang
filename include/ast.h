@@ -52,21 +52,6 @@ typedef struct idtype {
   Type type;
 } IdType;
 
-static inline Type *new_type(TypeDesc *desc, short row, short col)
-{
-  Type *type = kmalloc(sizeof(Type));
-  type->desc = TYPE_INCREF(desc);
-  type->row = row;
-  type->col = col;
-  return type;
-}
-
-static inline void free_type(Type *type)
-{
-  TYPE_DECREF(type->desc);
-  kfree(type);
-}
-
 static inline IdType *new_idtype(Ident id, Type type)
 {
   IdType *idtype = kmalloc(sizeof(IdType));
@@ -138,21 +123,27 @@ typedef enum exprctx {
   EXPR_INVALID,
   /* left or right value indicator */
   EXPR_LOAD, EXPR_STORE,
+  /* inplace assign */
+  EXPR_INPLACE,
   /* call or load function indicator */
   EXPR_CALL_FUNC, EXPR_LOAD_FUNC
 } ExprCtx;
 
-typedef struct expr {
+typedef struct expr Expr;
+typedef struct stmt Stmt;
+
+struct expr {
   ExprKind kind;
   short row;
   short col;
   ExprCtx ctx;
   Symbol *sym;
   TypeDesc *desc;
-  struct expr *right;
+  Expr *right;
   int argc;
   int leftside;
   int hasvalue;
+  Stmt *inplace;
   union {
     struct {
       int omit;
@@ -174,43 +165,48 @@ typedef struct expr {
     } id;
     struct {
       UnaryOpKind op;
-      struct expr *exp;
+      Expr *exp;
       Literal val;
     } unary;
     struct {
       BinaryOpKind op;
-      struct expr *lexp;
-      struct expr *rexp;
+      Expr *lexp;
+      Expr *rexp;
       Literal val;
     } binary;
     struct {
-      struct expr *test;
-      struct expr *lexp;
-      struct expr *rexp;
+      Expr *test;
+      Expr *lexp;
+      Expr *rexp;
     } ternary;
     struct {
       Ident id;
-      struct expr *lexp;
+      Expr *lexp;
     } attr;
     struct {
-      struct expr *lexp;
-      struct expr *index;
+      Expr *lexp;
+      Expr *index;
     } subscr;
     struct {
       /* arguments list */
       Vector *args;
-      struct expr *lexp;
+      Expr *lexp;
     } call;
     struct {
-      struct expr *lexp;
-      struct expr *start;
-      struct expr *end;
+      Expr *lexp;
+      Expr *start;
+      Expr *end;
     } slice;
     Vector *tuple;
     Vector *array;
     Vector *map;
     struct {
-      struct expr *exp;
+      Vector *idtypes;
+      Type ret;
+      Vector *body;
+    } anony;
+    struct {
+      Expr *exp;
       Type type;
     } isas;
     struct {
@@ -221,11 +217,11 @@ typedef struct expr {
     } newobj;
     struct {
       int type;
-      struct expr *start;
-      struct expr *end;
+      Expr *start;
+      Expr *end;
     } range;
   };
-} Expr;
+};
 
 typedef struct mapentry {
   Expr *key;
@@ -254,6 +250,7 @@ Expr *expr_from_tuple(Vector *exps);
 Expr *expr_from_array(Vector *exps);
 MapEntry *new_mapentry(Expr *key, Expr *val);
 Expr *expr_from_map(Vector *exps);
+Expr *expr_from_anony(Vector *idtypes, Type *ret, Vector *body);
 Expr *expr_from_istype(Expr *exp, Type type);
 Expr *expr_from_astype(Expr *exp, Type type);
 Expr *expr_from_object(char *path, Ident id, Vector *types, Vector *args);
@@ -297,11 +294,9 @@ typedef enum stmtkind {
 typedef enum assignopkind {
   OP_ASSIGN = 1,
   OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
-  OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_POW_ASSIGN, OP_MOD_ASSIGN,
+  OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_MOD_ASSIGN, OP_POW_ASSIGN,
   OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
 } AssignOpKind;
-
-typedef struct stmt Stmt;
 
 struct stmt {
   StmtKind kind;

@@ -236,6 +236,17 @@ Expr *expr_from_map(Vector *exps)
   return exp;
 }
 
+Expr *expr_from_anony(Vector *idtypes, Type *ret, Vector *body)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = ANONY_KIND;
+  exp->anony.idtypes = idtypes;
+  if (ret != NULL)
+    exp->anony.ret = *ret;
+  exp->anony.body = body;
+  return exp;
+}
+
 Expr *expr_from_istype(Expr *e, Type type)
 {
   Expr *exp = kmalloc(sizeof(Expr));
@@ -357,6 +368,13 @@ void expr_free(Expr *exp)
     kfree(exp);
     break;
   }
+  case ANONY_KIND: {
+    free_idtypes(exp->anony.idtypes);
+    TYPE_DECREF(exp->anony.ret.desc);
+    stmt_block_free(exp->anony.body);
+    kfree(exp);
+    break;
+  }
   case IS_KIND:
   case AS_KIND:
     TYPE_DECREF(exp->isas.type.desc);
@@ -408,6 +426,7 @@ Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right)
   stmt->assign.op = op;
   stmt->assign.lexp = left;
   stmt->assign.rexp = right;
+  right->ctx = EXPR_LOAD;
   return stmt;
 }
 

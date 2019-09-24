@@ -51,7 +51,7 @@ typedef enum symbolkind {
   SYM_EVAL   = 7,   /* enum value         */
   SYM_IFUNC  = 8,   /* interface method   */
   SYM_NFUNC  = 9,   /* native function    */
-  SYM_AFUNC  = 10,  /* anonymous function */
+  SYM_ANONY  = 10,  /* anonymous function */
   SYM_MOD    = 11,  /* (external) module  */
   SYM_REF    = 12,  /* reference symbol   */
   SYM_MAX
@@ -128,7 +128,7 @@ struct symbol {
       /* up local variables */
       Vector uplocvec;
       /* codeblock */
-      void *code;
+      void *codeblock;
     } anony;
     struct {
       /* module, not need free */

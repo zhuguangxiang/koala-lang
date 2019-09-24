@@ -379,124 +379,12 @@ static NumberMethods float_numbers = {
   .neq = flt_num_neq,
 };
 
-static Object *flt_num_inadd(Object *x, Object *y)
-{
-  if (!Float_Check(x)) {
-    error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
-    return NULL;
-  }
-
-  if (y == NULL) {
-    error("'+=' must be two operands");
-    return NULL;
-  }
-
-  FloatObject *fo = (FloatObject *)x;
-  fo->value = flt_add(x, y);
-  return NULL;
-}
-
-static Object *flt_num_insub(Object *x, Object *y)
-{
-  if (!Float_Check(x)) {
-    error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
-    return NULL;
-  }
-
-  if (y == NULL) {
-    error("'-=' must be two operands");
-    return NULL;
-  }
-
-  FloatObject *fo = (FloatObject *)x;
-  fo->value = flt_sub(x, y);
-  return NULL;
-}
-
-static Object *flt_num_inmul(Object *x, Object *y)
-{
-  if (!Float_Check(x)) {
-    error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
-    return NULL;
-  }
-
-  if (y == NULL) {
-    error("'*=' must be two operands");
-    return NULL;
-  }
-
-  FloatObject *fo = (FloatObject *)x;
-  fo->value = flt_mul(x, y);
-  return NULL;
-}
-
-static Object *flt_num_indiv(Object *x, Object *y)
-{
-  if (!Float_Check(x)) {
-    error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
-    return NULL;
-  }
-
-  if (y == NULL) {
-    error("'/=' must be two operands");
-    return NULL;
-  }
-
-  FloatObject *fo = (FloatObject *)x;
-  fo->value = flt_div(x, y);
-  return NULL;
-}
-
-static Object *flt_num_inmod(Object *x, Object *y)
-{
-  if (!Float_Check(x)) {
-    error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
-    return NULL;
-  }
-
-  if (y == NULL) {
-    error("'%%=' must be two operands");
-    return NULL;
-  }
-
-  FloatObject *fo = (FloatObject *)x;
-  fo->value = flt_mod(x, y);
-  return NULL;
-}
-
-static Object *flt_num_inpow(Object *x, Object *y)
-{
-  if (!Float_Check(x)) {
-    error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
-    return NULL;
-  }
-
-  if (y == NULL) {
-    error("'**=' must be two operands");
-    return NULL;
-  }
-
-  FloatObject *fo = (FloatObject *)x;
-  fo->value = flt_pow(x, y);
-  return NULL;
-}
-
-static InplaceMethods float_inplaces = {
-  .add = flt_num_inadd,
-  .sub = flt_num_insub,
-  .mul = flt_num_inmul,
-  .div = flt_num_indiv,
-  .mod = flt_num_inmod,
-  .pow = flt_num_inpow,
-};
-
 TypeObject float_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "Float",
   .free    = float_free,
   .str     = float_str,
   .number  = &float_numbers,
-  .inplace = &float_inplaces,
 };
 
 void init_float_type(void)

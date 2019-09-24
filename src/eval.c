@@ -248,6 +248,13 @@ Object *Koala_EvalFrame(Frame *f)
       PUSH(OB_INCREF(x));
       break;
     }
+    case OP_SWAP: {
+      x = POP();
+      y = POP();
+      PUSH(x);
+      PUSH(y);
+      break;
+    }
     case OP_CONST_BYTE: {
       oparg = NEXT_BYTE();
       x = integer_new(oparg);
@@ -263,9 +270,7 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_LOAD_CONST: {
       oparg = NEXT_2BYTES();
       x = Tuple_Get(consts, oparg);
-      y = dup_const_object(x);
-      OB_DECREF(x);
-      PUSH(y);
+      PUSH(x);
       break;
     }
     case OP_LOAD_MODULE: {
@@ -615,84 +620,93 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_INPLACE_ADD: {
-      x = POP();
       y = POP();
-      fn = OB_INPLACE_FUNC(x, add);
-      call_op_func(z, x, OP_INPLACE_ADD, y);
+      x = POP();
+      fn = OB_NUM_FUNC(x, add);
+      call_op_func(z, x, OP_ADD, y);
       OB_DECREF(x);
       OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_INPLACE_SUB: {
-      x = POP();
       y = POP();
-      fn = OB_INPLACE_FUNC(x, sub);
-      call_op_func(z, x, OP_INPLACE_SUB, y);
+      x = POP();
+      fn = OB_NUM_FUNC(x, sub);
+      call_op_func(z, x, OP_SUB, y);
       OB_DECREF(x);
       OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_INPLACE_MUL: {
-      x = POP();
       y = POP();
-      fn = OB_INPLACE_FUNC(x, mul);
-      call_op_func(z, x, OP_INPLACE_MUL, y);
+      x = POP();
+      fn = OB_NUM_FUNC(x, mul);
+      call_op_func(z, x, OP_MUL, y);
       OB_DECREF(x);
       OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_INPLACE_DIV: {
-      x = POP();
       y = POP();
-      fn = OB_INPLACE_FUNC(x, div);
-      call_op_func(z, x, OP_INPLACE_DIV, y);
+      x = POP();
+      fn = OB_NUM_FUNC(x, div);
+      call_op_func(z, x, OP_DIV, y);
       OB_DECREF(x);
       OB_DECREF(y);
-      break;
-    }
-    case OP_INPLACE_POW: {
-      x = POP();
-      y = POP();
-      fn = OB_INPLACE_FUNC(x, pow);
-      call_op_func(z, x, OP_INPLACE_POW, y);
-      OB_DECREF(x);
-      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_INPLACE_MOD: {
-      x = POP();
       y = POP();
-      fn = OB_INPLACE_FUNC(x, mod);
-      call_op_func(z, x, OP_INPLACE_MOD, y);
+      x = POP();
+      fn = OB_NUM_FUNC(x, mod);
+      call_op_func(z, x, OP_MOD, y);
       OB_DECREF(x);
       OB_DECREF(y);
+      PUSH(z);
+      break;
+    }
+    case OP_INPLACE_POW: {
+      y = POP();
+      x = POP();
+      fn = OB_NUM_FUNC(x, pow);
+      call_op_func(z, x, OP_POW, y);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_INPLACE_AND: {
-      x = POP();
       y = POP();
-      fn = OB_INPLACE_FUNC(x, and);
-      call_op_func(z, x, OP_INPLACE_AND, y);
+      x = POP();
+      fn = OB_NUM_FUNC(x, and);
+      call_op_func(z, x, OP_BIT_AND, y);
       OB_DECREF(x);
       OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_INPLACE_OR: {
-      x = POP();
       y = POP();
-      fn = OB_INPLACE_FUNC(x, or);
-      call_op_func(z, x, OP_INPLACE_OR, y);
+      x = POP();
+      fn = OB_NUM_FUNC(x, or);
+      call_op_func(z, x, OP_BIT_OR, y);
       OB_DECREF(x);
       OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_INPLACE_XOR: {
-      x = POP();
       y = POP();
-      fn = OB_INPLACE_FUNC(x, xor);
-      call_op_func(z, x, OP_INPLACE_XOR, y);
+      x = POP();
+      fn = OB_NUM_FUNC(x, xor);
+      call_op_func(z, x, OP_BIT_XOR, y);
       OB_DECREF(x);
       OB_DECREF(y);
+      PUSH(z);
       break;
     }
     case OP_SUBSCR_LOAD: {

@@ -32,12 +32,13 @@ extern "C" {
 #define OP_HALT    0
 #define OP_POP_TOP 1
 #define OP_DUP     2
-#define OP_CONST_BYTE  3
-#define OP_CONST_SHORT 4
-#define OP_LOAD_CONST  5
-#define OP_LOAD_MODULE 6
+#define OP_SWAP    3
+#define OP_CONST_BYTE  4
+#define OP_CONST_SHORT 5
+#define OP_LOAD_CONST  6
+#define OP_LOAD_MODULE 7
 
-/* 7 - 9 */
+/* 8 - 9 */
 
 #define OP_LOAD   10
 #define OP_LOAD_0 11
@@ -91,8 +92,8 @@ extern "C" {
 #define OP_INPLACE_SUB  51
 #define OP_INPLACE_MUL  52
 #define OP_INPLACE_DIV  53
-#define OP_INPLACE_POW  54
-#define OP_INPLACE_MOD  55
+#define OP_INPLACE_MOD  54
+#define OP_INPLACE_POW  55
 #define OP_INPLACE_AND  56
 #define OP_INPLACE_OR   57
 #define OP_INPLACE_XOR  58
@@ -118,13 +119,13 @@ extern "C" {
 
 /* 81 - 84 */
 
-#define OP_NEW_OBJECT   85
-#define OP_NEW_TUPLE    86
-#define OP_NEW_ARRAY    87
-#define OP_NEW_MAP      88
-#define OP_NEW_RANGE    89
-#define OP_NEW_EVAL     90
-#define OP_NEW_CLOSURE  91
+#define OP_NEW_TUPLE  85
+#define OP_NEW_ARRAY  86
+#define OP_NEW_MAP    87
+#define OP_NEW_RANGE  88
+#define OP_NEW_ANONY  89
+#define OP_NEW_EVAL   90
+#define OP_NEW_OBJECT 91
 
 /* 91 - 94 */
 

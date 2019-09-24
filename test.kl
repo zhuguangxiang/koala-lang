@@ -253,7 +253,7 @@ func test_jmp(arr [int]) int {
     if v < 10 {
       continue
     }
-    res += v
+    res = res + v
   }
   res
 }

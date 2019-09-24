@@ -67,7 +67,7 @@ typedef enum scopekind {
   SCOPE_CLASS,
   SCOPE_FUNC,
   SCOPE_BLOCK,
-  SCOPE_CLOSURE,
+  SCOPE_ANONY,
 } ScopeKind;
 
 /* parser unit, one of Scope */

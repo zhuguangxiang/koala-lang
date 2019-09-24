@@ -156,6 +156,7 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %type <stmt> func_decl
 %type <stmtlist> block
 %type <stmtlist> local_list
+%type <stmtlist> expr2_list
 %type <stmt> local
 %type <name> name
 %type <list> type_para_list
@@ -165,6 +166,8 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %type <idtypelist> id_type_list
 %type <ptr> id_varg
 
+%type <expr> new_object
+%type <expr> anony_func
 %type <ptr> mapentry
 %type <list> mapentry_list
 %type <expr> map_object
@@ -191,13 +194,14 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %type <unaryop> unary_operator
 %type <expr> expr_as_type
 %type <expr> expr_is_type
-%type <expr> new_object
 %type <expr> range_object
 
-%type <list> type_list
+%type <desclist> type_list
+%type <desclist> type_varg_list
 %type <desc> type
 %type <desc> no_array_type
 %type <desc> klass_type
+%type <desc> func_type
 
 %destructor {
   printf("free expr\n");
@@ -597,16 +601,16 @@ block:
 | '{' expr '}'
 {
   $$ = vector_new();
-  Stmt *stmt = stmt_from_expr($2);
-  vector_push_back($$, stmt);
+  Stmt *s = stmt_from_expr($2);
+  vector_push_back($$, s);
 }
 | '{' expr2_list '}'
 {
-  $$ = NULL;
+  $$ = $2;
 }
 | '{' expr2_list ';' '}'
 {
-  $$ = NULL;
+  $$ = $2;
 }
 | '{' '}'
 {
@@ -616,7 +620,19 @@ block:
 
 expr2_list:
   expr ',' expr
+{
+  $$ = vector_new();
+  Stmt *s = stmt_from_expr($1);
+  vector_push_back($$, s);
+  s = stmt_from_expr($3);
+  vector_push_back($$, s);
+}
 | expr2_list ',' expr
+{
+  $$ = $1;
+  Stmt *s = stmt_from_expr($3);
+  vector_push_back($$, s);
+}
 ;
 
 local_list:
@@ -650,67 +666,6 @@ expr:
 | expr_is_type
 {
   $$ = $1;
-}
-| new_object
-{
-  $$ = $1;
-}
-;
-
-new_object:
-  NEW ID
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, NULL, NULL);
-}
-| NEW ID '.' ID
-{
-  $$ = NULL;
-}
-| NEW ID '<' type_list '>'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, $4, NULL);
-}
-| NEW ID '.' ID '<' type_list '>'
-{
-  $$ = NULL;
-}
-| NEW ID '(' ')'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, NULL, NULL);
-}
-| NEW ID '.' ID '(' ')'
-{
-  $$ = NULL;
-}
-| NEW ID '<' type_list '>' '(' ')'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, $4, NULL);
-}
-| NEW ID '.' ID '<' type_list '>' '(' ')'
-{
-  $$ = NULL;
-}
-| NEW ID '(' expr_list ')'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, NULL, $4);
-}
-| NEW ID '.' ID '(' expr_list ')'
-{
-  $$ = NULL;
-}
-| NEW ID '<' type_list '>' '(' expr_list ')'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, $4, $7);
-}
-| NEW ID '.' ID '<' type_list '>' '(' expr_list ')'
-{
-  $$ = NULL;
 }
 ;
 
@@ -1045,9 +1000,13 @@ atom:
 {
   $$ = $1;
 }
-| anony_object
+| anony_func
 {
-  $$ = NULL;
+  $$ = $1;
+}
+| new_object
+{
+  $$ = $1;
 }
 ;
 
@@ -1145,11 +1104,64 @@ mapentry:
 }
 ;
 
-anony_object:
+anony_func:
   FUNC '(' para_list ')' type block
+{
+  TYPE(type, $5, @5);
+  $$ = expr_from_anony($3, &type, $6);
+}
 | FUNC '(' para_list ')' block
+{
+  $$ = expr_from_anony($3, NULL, $5);
+}
 | FUNC '(' ')' type block
+{
+  TYPE(type, $4, @4);
+  $$ = expr_from_anony(NULL, &type, $5);
+}
 | FUNC '(' ')' block
+{
+  $$ = expr_from_anony(NULL, NULL, $4);
+}
+;
+
+new_object:
+  NEW ID '(' ')'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, NULL, NULL);
+}
+| NEW ID '.' ID '(' ')'
+{
+  $$ = NULL;
+}
+| NEW ID '<' type_list '>' '(' ')'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, $4, NULL);
+}
+| NEW ID '.' ID '<' type_list '>' '(' ')'
+{
+  $$ = NULL;
+}
+| NEW ID '(' expr_list ')'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, NULL, $4);
+}
+| NEW ID '.' ID '(' expr_list ')'
+{
+  $$ = NULL;
+}
+| NEW ID '<' type_list '>' '(' expr_list ')'
+{
+  IDENT(id, $2, @2);
+  $$ = expr_from_object(NULL, id, $4, $7);
+}
+| NEW ID '.' ID '<' type_list '>' '(' expr_list ')'
+{
+  $$ = NULL;
+}
 ;
 
 if_stmt:
@@ -1532,7 +1544,7 @@ no_array_type:
 }
 | func_type
 {
-  $$ = NULL;
+  $$ = $1;
 }
 ;
 
@@ -1558,17 +1570,65 @@ klass_type:
 
 func_type:
   FUNC '(' type_varg_list ')' type
-| FUNC '(' para_list')' type
+{
+  $$ = desc_from_proto($3, $5);
+}
+| FUNC '(' para_list ')' type
+{
+  Vector *vec = vector_new();
+  IdType *item;
+  vector_for_each(item, $3) {
+    vector_push_back(vec, TYPE_INCREF(item->type.desc));
+  }
+  $$ = desc_from_proto(vec, $5);
+  free_idtypes($3);
+}
 | FUNC '(' type_varg_list ')'
+{
+  $$ = desc_from_proto($3, NULL);
+}
 | FUNC '(' para_list ')'
+{
+  Vector *vec = vector_new();
+  IdType *item;
+  vector_for_each(item, $3) {
+    vector_push_back(vec, TYPE_INCREF(item->type.desc));
+  }
+  $$ = desc_from_proto(vec, NULL);
+  free_idtypes($3);
+}
 | FUNC '(' ')' type
+{
+  $$ = desc_from_proto(NULL, $4);
+}
 | FUNC '(' ')'
+{
+  $$ = desc_from_proto(NULL, NULL);
+}
 ;
 
 type_varg_list:
   type_list
+{
+  $$ = $1;
+}
 | type_list ',' DOTDOTDOT
+{
+  $$ = $1;
+  TypeDesc *varg = desc_from_varg;
+  TypeDesc *any = desc_from_any;
+  desc_add_paratype(varg, any);
+  TYPE_DECREF(any);
+  vector_push_back($$, varg);
+}
 | type_list ',' DOTDOTDOT no_array_type
+{
+  $$ = $1;
+  TypeDesc *varg = desc_from_varg;
+  desc_add_paratype(varg, $4);
+  TYPE_DECREF($4);
+  vector_push_back($$, varg);
+}
 ;
 
 %%

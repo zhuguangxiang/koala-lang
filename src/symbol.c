@@ -179,8 +179,8 @@ static void symbol_free(Symbol *sym)
   case SYM_NFUNC:
     panic("SYM_NFUNC not implemented");
     break;
-  case SYM_AFUNC:
-    panic("SYM_MOD not implemented");
+  case SYM_ANONY:
+    panic("SYM_ANONY not implemented");
     break;
   case SYM_MOD:
     debug("[Symbol Freed] module '%s'", sym->name);

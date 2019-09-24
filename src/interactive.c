@@ -55,8 +55,8 @@ static void show_banner(void)
   }
 }
 
-static Symbol *sym;
-static Symbol *funcsym;
+static Symbol *cursym;
+static Symbol *evalsym;
 static Symbol *modSym;
 static Module mod;
 static ParserState ps;
@@ -82,7 +82,7 @@ static void init_cmdline_env(void)
   TYPE_DECREF(desc);
 
   desc = desc_from_proto(NULL, NULL);
-  funcsym = stable_add_func(mod.stbl, "__init__", desc);
+  evalsym = stable_add_func(mod.stbl, "__init__", desc);
   TYPE_DECREF(desc);
 
   ps.interactive = 1;
@@ -177,9 +177,9 @@ static Object *get_code_object(Symbol *sym)
 
 int cmd_add_const(ParserState *ps, Ident id, Type type)
 {
-  sym = stable_add_const(mod.stbl, id.name, type.desc);
-  if (sym != NULL) {
-    sym->k.typesym = get_desc_symbol(ps, type.desc);
+  cursym = stable_add_const(mod.stbl, id.name, type.desc);
+  if (cursym != NULL) {
+    cursym->k.typesym = get_desc_symbol(ps, type.desc);
     return 0;
   } else {
     return -1;
@@ -188,9 +188,9 @@ int cmd_add_const(ParserState *ps, Ident id, Type type)
 
 int cmd_add_var(ParserState *ps, Ident id, Type type)
 {
-  sym = stable_add_var(mod.stbl, id.name, type.desc);
-  if (sym != NULL) {
-    sym->var.typesym = get_desc_symbol(ps, type.desc);
+  cursym = stable_add_var(mod.stbl, id.name, type.desc);
+  if (cursym != NULL) {
+    cursym->var.typesym = get_desc_symbol(ps, type.desc);
     return 0;
   } else {
     return -1;
@@ -207,9 +207,9 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret)
     vector_push_back(vec, TYPE_INCREF(item->type.desc));
   }
   TypeDesc *proto = desc_from_proto(vec, ret.desc);
-  sym = stable_add_func(mod.stbl, name, proto);
+  cursym = stable_add_func(mod.stbl, name, proto);
   TYPE_DECREF(proto);
-  return sym != NULL ? 0 : -1;
+  return cursym != NULL ? 0 : -1;
 }
 
 static void add_symbol_to_module(Symbol *sym, Object *ob)
@@ -252,29 +252,29 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
   parser_exit_scope(ps);
 
   if (has_error(ps)) {
-    if (sym != NULL) {
-      stable_remove(mod.stbl, sym->name);
-      symbol_decref(sym);
-      sym = NULL;
+    if (cursym != NULL) {
+      stable_remove(mod.stbl, cursym->name);
+      symbol_decref(cursym);
+      cursym = NULL;
     }
   } else {
-    if (sym != NULL) {
-      add_symbol_to_module(sym, mo);
-      sym = NULL;
+    if (cursym != NULL) {
+      add_symbol_to_module(cursym, mo);
+      cursym = NULL;
     }
-    if (funcsym->func.codeblock != NULL) {
+    if (evalsym->func.codeblock != NULL) {
       KoalaState *ks = pthread_getspecific(kskey);
       if (ks == NULL) {
         kstate.top = -1;
         pthread_setspecific(kskey, &kstate);
       }
-      Object *code = get_code_object(funcsym);
+      Object *code = get_code_object(evalsym);
       Koala_EvalCode(code, mo, NULL);
       OB_DECREF(code);
     }
   }
-  codeblock_free(funcsym->func.codeblock);
-  funcsym->func.codeblock = NULL;
+  codeblock_free(evalsym->func.codeblock);
+  evalsym->func.codeblock = NULL;
 }
 
 static int empty(char *buf, int size)

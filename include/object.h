@@ -138,20 +138,6 @@ typedef struct {
 } NumberMethods;
 
 typedef struct {
-  /* arithmetic */
-  func_t add;
-  func_t sub;
-  func_t mul;
-  func_t div;
-  func_t mod;
-  func_t pow;
-  /* bit */
-  func_t and;
-  func_t or;
-  func_t xor;
-} InplaceMethods;
-
-typedef struct {
   /* __getitem__ */
   func_t getitem;
   /* __setitem__ */
@@ -209,8 +195,6 @@ struct typeobject {
 
   /* number operations */
   NumberMethods *number;
-  /* inplace number operations */
-  InplaceMethods *inplace;
   /* mapping operations */
   MappingMethods *mapping;
   /* __iter__ */
@@ -246,10 +230,6 @@ void init_any_type(void);
   NumberMethods *nu = OB_TYPE(ob)->number; \
   nu ? nu->name : NULL; \
 })
-#define OB_INPLACE_FUNC(ob, name) ({ \
-  InplaceMethods *nu = OB_TYPE(ob)->inplace; \
-  nu ? nu->name : NULL; \
-})
 #define OB_MAP_FUNC(ob, name) ({ \
   MappingMethods *map = OB_TYPE(ob)->mapping; \
   map ? map->name : NULL; \
@@ -275,7 +255,6 @@ Object *Object_GetValue(Object *self, char *name);
 int Object_SetValue(Object *self, char *name, Object *val);
 Object *Object_Call(Object *self, char *name, Object *args);
 Object *new_literal(Literal *val);
-Object *dup_const_object(Object *ob);
 
 typedef struct descobject {
   OBJECT_HEAD
