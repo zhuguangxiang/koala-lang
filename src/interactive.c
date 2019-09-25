@@ -84,6 +84,7 @@ static void init_cmdline_env(void)
   desc = desc_from_proto(NULL, NULL);
   evalsym = stable_add_func(mod.stbl, "__init__", desc);
   TYPE_DECREF(desc);
+  mod.initsym = evalsym;
 
   ps.interactive = 1;
   ps.filename = "stdin";

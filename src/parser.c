@@ -1712,26 +1712,25 @@ static void parse_map(ParserState *ps, Expr *exp)
 
 static ParserUnit *parse_block_vardecl(ParserState *ps, Ident *id)
 {
-  ParserUnit *u = ps->u;
-  ParserUnit *up;
+  ParserUnit *u;
   Symbol *sym;
   int depth = ps->depth;
-  vector_for_each_reverse(up, &ps->ustack) {
+  vector_for_each_reverse(u, &ps->ustack) {
     depth -= 1;
-    if (up->scope != SCOPE_MODULE) {
-      sym = stable_get(up->stbl, id->name);
+    if (u->scope != SCOPE_MODULE && u->scope != SCOPE_CLASS) {
+      sym = stable_get(u->stbl, id->name);
       if (sym != NULL) {
         syntax_error(ps, id->row, id->col,
           "symbol '%s' is already declared in scope-%d(%s)",
-          id->name, depth, scopes[up->scope]);
+          id->name, depth, scopes[u->scope]);
         return NULL;
       }
     }
-    if (up->scope == SCOPE_FUNC || up->scope == SCOPE_ANONY)
-      return up;
-    if (up->scope == SCOPE_MODULE)
+
+    if (u->scope == SCOPE_MODULE ||
+        u->scope == SCOPE_FUNC ||
+        u->scope == SCOPE_ANONY)
       return u;
-    u = up;
   }
   return NULL;
 }
@@ -1772,17 +1771,19 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       syntax_error(ps, id->row, id->col, "var '%s' is duplicated", id->name);
       return NULL;
     }
-    // set local var's index as its up's (func, closusre, etc) index
-    sym->var.index = ++up->stbl->varindex;
+
     if (up->scope == SCOPE_MODULE) {
       funcsym = ps->module->initsym;
       vector_push_back(&funcsym->func.locvec, sym);
-      ++sym->refcnt;
+      sym->var.index = vector_size(&funcsym->func.locvec);
     } else {
+      // set local var's index as its up's (func, closusre, etc) index
+      sym->var.index = ++up->stbl->varindex;
       funcsym = up->sym;
       vector_push_back(&funcsym->func.locvec, sym);
-      ++sym->refcnt;
     }
+    debug("var '%s' index %d", id->name, sym->var.index);
+    ++sym->refcnt;
     break;
   case SCOPE_ANONY:
     // anonymous scope has independent space for variables.

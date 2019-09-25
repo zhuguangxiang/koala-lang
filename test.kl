@@ -212,6 +212,13 @@ test_for2(arr2)
 test_for3(arr2)
 test_for4(arr2)
 
+for i in 1...10 {
+  sum := 0
+  sum += i
+  res = sum
+}
+
+res
 
 1...10
 (1...10)[-1]
