@@ -146,7 +146,7 @@ static void symbol_free(Symbol *sym)
   case SYM_VAR:
     debug("[Symbol Freed] var '%s'", sym->name);
     break;
-  case SYM_FUNC:
+  case SYM_FUNC: {
     debug("[Symbol Freed] func '%s'", sym->name);
     codeblock_free(sym->func.codeblock);
     Symbol *locsym;
@@ -155,6 +155,7 @@ static void symbol_free(Symbol *sym)
     }
     vector_fini(&sym->func.locvec);
     break;
+  }
   case SYM_CLASS:
     debug("[Symbol Freed] class '%s'", sym->name);
     stable_free(sym->klass.stbl);
@@ -179,9 +180,17 @@ static void symbol_free(Symbol *sym)
   case SYM_NFUNC:
     panic("SYM_NFUNC not implemented");
     break;
-  case SYM_ANONY:
-    panic("SYM_ANONY not implemented");
+  case SYM_ANONY: {
+    debug("[Symbol Freed] anonymous '%s'", sym->name);
+    codeblock_free(sym->anony.codeblock);
+    Symbol *locsym;
+    vector_for_each(locsym, &sym->anony.locvec) {
+      symbol_decref(locsym);
+    }
+    vector_fini(&sym->anony.locvec);
+    vector_fini(&sym->anony.upvalvec);
     break;
+  }
   case SYM_MOD:
     debug("[Symbol Freed] module '%s'", sym->name);
     break;

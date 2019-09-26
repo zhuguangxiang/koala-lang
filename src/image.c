@@ -432,9 +432,11 @@ static void constitem_write(FILE *fp, void *o)
 
 static void constitem_show(Image *image, void *o)
 {
+  static char *kindstr[] = {
+    "", "literal", "type", "anonymous"
+  };
   ConstItem *item = o;
-  char *kindstr = item->kind == CONST_LITERAL ? "literal" : "type";
-  print("  kind:%s\n", kindstr);
+  print("  kind:%s\n", kindstr[item->kind]);
   print("  index:%d\n", item->index);
 }
 
@@ -569,6 +571,7 @@ static void funcitem_show(Image *image, void *o)
   print("  pindex:%d\n", item->pindex);
   print("  rindex:%d\n", item->rindex);
   print("  codeindex:%d\n", item->codeindex);
+  print("  locals:%d\n", item->nrlocals);
 }
 
 static void funcitem_free(void *o)
@@ -584,6 +587,47 @@ static FuncItem *funcitem_new(int nameindex, int pindex, int rindex,
   item->pindex = pindex;
   item->rindex = rindex;
   item->codeindex = codeindex;
+  return item;
+}
+
+static int anonyitem_length(void *o)
+{
+  return sizeof(AnonyItem);
+}
+
+static void anonyitem_write(FILE *fp, void *o)
+{
+  fwrite(o, sizeof(AnonyItem), 1, fp);
+}
+
+static void anonyitem_show(Image *image, void *o)
+{
+  AnonyItem *item = o;
+  StringItem *str;
+  print("  nameindex:%d\n", item->nameindex);
+  str = _get_(image, ITEM_STRING, item->nameindex);
+  print("  (%s)\n", str->data);
+  print("  pindex:%d\n", item->pindex);
+  print("  rindex:%d\n", item->rindex);
+  print("  codeindex:%d\n", item->codeindex);
+  print("  locals:%d\n", item->nrlocals);
+  print("  upvals:%d\n", item->nrupvals);
+}
+
+static void anonyitem_free(void *o)
+{
+  kfree(o);
+}
+
+static AnonyItem *anonyitem_new(int nameindex, int pindex, int rindex,
+  int codeindex, int locals, int upvals)
+{
+  AnonyItem *item = kmalloc(sizeof(AnonyItem));
+  item->pindex = pindex;
+  item->rindex = rindex;
+  item->codeindex = codeindex;
+  item->nrlocals = locals;
+  item->nrupvals = upvals;
   return item;
 }
 
@@ -1153,6 +1197,11 @@ struct item_funcs {
     funcitem_show, funcitem_free,
   },
   {
+    anonyitem_length, anonyitem_write,
+    NULL, NULL,
+    anonyitem_show, anonyitem_free,
+  },
+  {
     codeitem_length, codeitem_write,
     NULL, NULL,
     codeitem_show, codeitem_free,
@@ -1337,6 +1386,19 @@ int Image_Add_Desc(Image *image, TypeDesc *desc)
   expect(desc != NULL);
   int index = typeitem_set(image, desc);
   return image_add_const(image, CONST_TYPE, index);
+}
+
+int Image_Add_Anony(Image *image, char *name, TypeDesc *desc,
+                    uint8_t *codes, int size, int locals, int upvals)
+{
+  int nameindex = stringitem_set(image, name);
+  int pindex = typelistitem_set(image, desc->proto.args);
+  int rindex = typeitem_set(image, desc->proto.ret);
+  int codeindex = codeitem_set(image, codes, size);
+  AnonyItem *anony = anonyitem_new(nameindex, pindex, rindex, codeindex,
+                                   locals, upvals);
+  int index = _append_(image, ITEM_ANONY, anony, 0);
+  return image_add_const(image, CONST_ANONY, index);
 }
 
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc)
@@ -1647,6 +1709,7 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
   LiteralItem *liteitem;
   TypeItem *typeitem;
   TypeListItem *typelistitem;
+  AnonyItem *anony;
   Literal val;
   TypeDesc *desc;
   Vector *vec;
@@ -1657,11 +1720,27 @@ void Image_Get_Consts(Image *image, getconstfunc func, void *arg)
       liteitem = _get_(image, ITEM_LITERAL, item->index);
       val = to_literal(liteitem, image);
       func(&val, CONST_LITERAL, i, arg);
-    } else {
-      expect(item->kind == CONST_TYPE);
+    } else if (item->kind == CONST_TYPE) {
       typeitem = _get_(image, ITEM_TYPE, item->index);
       desc = to_typedesc(typeitem, image);
       func(desc, CONST_TYPE, i, arg);
+      TYPE_DECREF(desc);
+    } else {
+      expect(item->kind == CONST_ANONY);
+      anony = _get_(image, ITEM_ANONY, item->index);
+      StringItem *str = _get_(image, ITEM_STRING, anony->nameindex);
+      CodeItem *code = _get_(image, ITEM_CODE, anony->codeindex);
+      TypeListItem *listitem = _get_(image, ITEM_TYPELIST, anony->pindex);
+      TypeItem *item = _get_(image, ITEM_TYPE, anony->rindex);
+      Vector *args = to_typedescvec(listitem, image);
+      TypeDesc *ret = to_typedesc(item, image);
+      desc = desc_from_proto(args, ret);
+      FuncInfo funcinfo = {
+        str->data, desc, code->codes, code->size,
+        anony->nrlocals, anony->nrupvals
+      };
+      func(&funcinfo, CONST_ANONY, i, arg);
+      TYPE_DECREF(ret);
       TYPE_DECREF(desc);
     }
   }

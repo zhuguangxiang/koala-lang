@@ -61,6 +61,7 @@ static void init_types(void)
 
   init_range_type();
   init_iter_type();
+  init_closure_type();
   init_fmtter_type();
 
   print("########\n");
@@ -90,6 +91,7 @@ static void fini_types(void)
   type_fini(&range_type);
   type_fini(&iter_type);
   type_fini(&fmtter_type);
+  type_fini(&closure_type);
   fini_bool_type();
   print("########\n");
 }

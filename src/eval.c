@@ -33,6 +33,7 @@
 #include "rangeobject.h"
 #include "mapobject.h"
 #include "moduleobject.h"
+#include "closureobject.h"
 #include "iomodule.h"
 #include "opcode.h"
 #include "log.h"
@@ -46,17 +47,39 @@ typedef struct frame {
   Object *code;
   /* code index */
   int index;
+  /* free variables */
+  Vector *freevars;
   /* local variables' size */
   int size;
   /* local variables's array */
   Object *locvars[1];
 } Frame;
 
+static Vector *getfreevars(Frame *f, Object *code)
+{
+  CodeObject *co = (CodeObject *)code;
+  Vector *freevec = NULL;
+  if (vector_size(&co->freevec) > 0) {
+    freevec = vector_new();
+  }
+
+  int index;
+  UpVal *up;
+  vector_for_each(index, &co->freevec) {
+    expect(index != -1);
+    up = upval_new(f->locvars + index);
+    vector_push_back(freevec, up);
+  }
+
+  return freevec;
+}
+
 static Frame *new_frame(KoalaState *ks, Object *code, int locals)
 {
   expect(ks->depth < MAX_FRAME_DEPTH);
   Frame *f = kmalloc(sizeof(Frame) + locals * sizeof(Object *));
   f->code = OB_INCREF(code);
+  f->freevars = getfreevars(f, code);
   f->size = locals + 1;
   f->index = -1;
   f->back = ks->frame;
@@ -214,6 +237,26 @@ static Object *new_object(TypeDesc *desc)
     ret = NULL;
   }
   return ret;
+}
+
+static Vector *getupvals(Frame *f, Object *ob)
+{
+  CodeObject *co = (CodeObject *)ob;
+  Vector *upvals = NULL;
+
+  if (vector_size(&co->upvec) > 0) {
+    upvals = vector_new();
+  }
+
+  UpVal *up;
+  int index;
+  vector_for_each(index, &co->upvec) {
+    up = vector_get(f->freevars, index - 1);
+    expect(up != NULL);
+    vector_push_back(upvals, up);
+  }
+
+  return upvals;
 }
 
 Object *Koala_EvalFrame(Frame *f)
@@ -423,6 +466,25 @@ Object *Koala_EvalFrame(Frame *f)
       if (!typecheck(x, y))
         panic("typecheck failed");
       OB_DECREF(y);
+      break;
+    }
+    case OP_EVAL_CLOSURE: {
+      oparg = NEXT_BYTE();
+      y = POP();
+      if (oparg > 0) {
+        v = Tuple_New(oparg);
+        for (i = 0; i < oparg; ++i) {
+          z = POP();
+          Tuple_Set(v, i, z);
+          OB_DECREF(z);
+        }
+      } else {
+        v = NULL;
+      }
+      x = Koala_EvalCode(closure_getcode(y), y, v);
+      OB_DECREF(y);
+      OB_DECREF(v);
+      PUSH(x);
       break;
     }
     case OP_ADD: {
@@ -782,31 +844,6 @@ Object *Koala_EvalFrame(Frame *f)
       oparg = NEXT_2BYTES();
       break;
     }
-    case OP_NEW_OBJECT: {
-      oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
-      oparg = NEXT_BYTE();
-      if (oparg == 0) {
-        y = NULL;
-      } else {
-        expect(oparg == 1);
-        y = POP();
-      }
-      desc = descob_getdesc(x);
-      expect(desc->paras == NULL);
-      if (desc_isbase(desc)) {
-        expect(desc = OB_TYPE(y)->desc);
-        z = OB_INCREF(y);
-      } else {
-        expect(desc->kind == TYPE_KLASS);
-        expect(y == NULL);
-        z = new_object(desc);
-      }
-      OB_DECREF(x);
-      OB_DECREF(y);
-      PUSH(z);
-      break;
-    }
     case OP_NEW_TUPLE: {
       oparg = NEXT_2BYTES();
       x = Tuple_New(oparg);
@@ -873,6 +910,39 @@ Object *Koala_EvalFrame(Frame *f)
       PUSH(z);
       break;
     }
+    case OP_NEW_CLOSURE: {
+      oparg = NEXT_2BYTES();
+      x = Tuple_Get(consts, oparg);
+      y = closure_new(x, getupvals(f, x));
+      OB_DECREF(x);
+      PUSH(y);
+      break;
+    }
+    case OP_NEW_OBJECT: {
+      oparg = NEXT_2BYTES();
+      x = Tuple_Get(consts, oparg);
+      oparg = NEXT_BYTE();
+      if (oparg == 0) {
+        y = NULL;
+      } else {
+        expect(oparg == 1);
+        y = POP();
+      }
+      desc = descob_getdesc(x);
+      expect(desc->paras == NULL);
+      if (desc_isbase(desc)) {
+        expect(desc = OB_TYPE(y)->desc);
+        z = OB_INCREF(y);
+      } else {
+        expect(desc->kind == TYPE_KLASS);
+        expect(y == NULL);
+        z = new_object(desc);
+      }
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
+      break;
+    }
     case OP_NEW_ITER: {
       x = POP();
       if (OB_TYPE(x)->iter != NULL) {
@@ -908,6 +978,14 @@ Object *Koala_EvalFrame(Frame *f)
         PUSH(y);
       }
       OB_DECREF(x);
+      break;
+    }
+    case OP_UPVAL_LOAD: {
+      oparg = NEXT_BYTE();
+      x = POP();
+      y = closure_load(x, oparg);
+      OB_DECREF(x);
+      PUSH(y);
       break;
     }
     default: {

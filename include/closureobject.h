@@ -22,46 +22,37 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_API_H_
-#define _KOALA_API_H_
+#ifndef _KOALA_CLOSURE_OBJECT_H_
+#define _KOALA_CLOSURE_OBJECT_H_
 
-#include "version.h"
-#include "log.h"
-#include "memory.h"
-#include "atom.h"
-#include "eval.h"
-#include "fieldobject.h"
-#include "methodobject.h"
-#include "classobject.h"
-#include "intobject.h"
-#include "floatobject.h"
-#include "stringobject.h"
-#include "arrayobject.h"
-#include "tupleobject.h"
-#include "mapobject.h"
-#include "moduleobject.h"
-#include "codeobject.h"
-#include "rangeobject.h"
-#include "iterobject.h"
-#include "closureobject.h"
-#include "fmtmodule.h"
-#include "iomodule.h"
-#include "osmodule.h"
-#include "langmodule.h"
-#include "parser.h"
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void koala_initialize(void);
-void koala_finalize(void);
-void Koala_ReadLine(void);
-void Koala_Compile(char *path);
-void Koala_Run(char *path);
+typedef struct upval {
+  char *name;
+  Object **ref;
+  Object *value;
+} UpVal;
+
+typedef struct closureobject {
+  OBJECT_HEAD
+  Vector *upvals;
+  Object *code;
+} ClosureObject;
+
+extern TypeObject closure_type;
+#define closure_check(ob) (OB_TYPE(ob) == &closure_type)
+void init_closure_type(void);
+Object *closure_new(Object *code, Vector *upvals);
+UpVal *upval_new(Object **ref);
+#define closure_getcode(ob) (((ClosureObject *)ob)->code)
+Object *closure_load(Object *ob, int index);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_API_H_ */
+#endif /* _KOALA_CLOSURE_OBJECT_H_ */

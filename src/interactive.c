@@ -126,12 +126,20 @@ static void _get_const_(void *val, int kind, int index, void *arg)
 {
   Object *tuple = arg;
   Object *ob;
+  FuncInfo *fn;
 
   if (kind == CONST_LITERAL) {
     ob = new_literal(val);
-  } else {
-    expect(kind == CONST_TYPE);
+  } else if (kind == CONST_TYPE) {
     ob = new_descob(val);
+  } else {
+    expect(kind == CONST_ANONY);
+    fn = val;
+    ob = code_new(fn->name, fn->desc, fn->locals, fn->code, fn->size);
+    // FIXME: refcnt
+    ((CodeObject *)ob)->anony = 1;
+    ((CodeObject *)ob)->consts = tuple;
+    vector_push_back(&((CodeObject *)ob)->upvec, 1);
   }
 
   Tuple_Set(tuple, index, ob);
@@ -160,7 +168,6 @@ static Object *get_code_object(Symbol *sym)
 #endif
 
   locals = vector_size(&sym->func.locvec);
-
   size = Image_Const_Count(image);
   consts = Tuple_New(size);
   Image_Get_Consts(image, _get_const_, consts);
@@ -168,6 +175,10 @@ static Object *get_code_object(Symbol *sym)
 
   ob = code_new(sym->name, sym->desc, locals, code, size);
   code_set_consts(ob, consts);
+  int index;
+  vector_for_each(index, &sym->func.freevec) {
+    vector_push_back(&((CodeObject *)ob)->freevec, index);
+  }
   OB_DECREF(consts);
   kfree(code);
 

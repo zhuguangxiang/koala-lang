@@ -98,6 +98,8 @@ struct symbol {
       Vector *typeparas;
       /* local varibles in the function */
       Vector locvec;
+      /* free variables' name */
+      Vector freevec;
       /* CodeBlock */
       void *codeblock;
     } func;
@@ -125,8 +127,8 @@ struct symbol {
     struct {
       /* local varibles in the closure */
       Vector locvec;
-      /* up local variables */
-      Vector uplocvec;
+      /* up values */
+      Vector upvalvec;
       /* codeblock */
       void *codeblock;
     } anony;

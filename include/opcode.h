@@ -56,13 +56,12 @@ extern "C" {
 #define OP_GET_VALUE    21
 #define OP_SET_VALUE    22
 #define OP_RETURN_VALUE 23
-#define OP_RETURN    24
-#define OP_CALL      25
-#define OP_PRINT     26
-#define OP_TYPEOF    27
-#define OP_TYPECHECK 28
-
-/* 27 - 29 */
+#define OP_RETURN       24
+#define OP_CALL         25
+#define OP_PRINT        26
+#define OP_TYPEOF       27
+#define OP_TYPECHECK    28
+#define OP_EVAL_CLOSURE 29
 
 #define OP_ADD  30
 #define OP_SUB  31
@@ -119,20 +118,24 @@ extern "C" {
 
 /* 81 - 84 */
 
-#define OP_NEW_TUPLE  85
-#define OP_NEW_ARRAY  86
-#define OP_NEW_MAP    87
-#define OP_NEW_RANGE  88
-#define OP_NEW_ANONY  89
-#define OP_NEW_EVAL   90
-#define OP_NEW_OBJECT 91
-#define OP_NEW_ITER   92
+#define OP_NEW_TUPLE    85
+#define OP_NEW_ARRAY    86
+#define OP_NEW_MAP      87
+#define OP_NEW_RANGE    88
+#define OP_NEW_CLOSURE  89
+#define OP_NEW_EVAL     90
+#define OP_NEW_OBJECT   91
+#define OP_NEW_ITER     92
 
 /* 92 - 95 */
 
 #define OP_FOR_ITER     96
 #define OP_UNPACK_TUPLE 97
 
+/* 98 - 99 */
+
+#define OP_UPVAL_LOAD   100
+#define OP_UPVAL_STORE  101
 
 int opcode_argc(int op);
 char *opcode_str(int op);

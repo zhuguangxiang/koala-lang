@@ -337,3 +337,17 @@ func arr_reverse(arr [int]) [int] {
 }
 
 arr_reverse(arr2)
+
+anony := func(v1 int, v2 int) int {
+  v1 + v2 + 100
+}
+anony(1, 2)
+
+func foo() int {
+  return func(v1 int, v2 int) int { v1 - v2 + 100}(1,2)
+}
+
+func bar() int {
+  v1 := 1
+  return func(v2 int) int { v1 - v2 + 100}(2)
+}

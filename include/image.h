@@ -42,16 +42,17 @@ extern "C" {
 #define ITEM_LOCVAR     6
 #define ITEM_VAR        7
 #define ITEM_FUNC       8
-#define ITEM_CODE       9
-#define ITEM_CLASS      10
-#define ITEM_FIELD      11
-#define ITEM_METHOD     12
-#define ITEM_TRAIT      13
-#define ITEM_NFUNC      14
-#define ITEM_IMETH      15
-#define ITEM_ENUM       16
-#define ITEM_EVAL       17
-#define ITEM_MAX        18
+#define ITEM_ANONY      9
+#define ITEM_CODE       10
+#define ITEM_CLASS      11
+#define ITEM_FIELD      12
+#define ITEM_METHOD     13
+#define ITEM_TRAIT      14
+#define ITEM_NFUNC      15
+#define ITEM_IMETH      16
+#define ITEM_ENUM       17
+#define ITEM_EVAL       18
+#define ITEM_MAX        19
 
 typedef struct mapitem {
   /* one of ITEM_XXX, self is ITEM_MAP */
@@ -115,10 +116,11 @@ typedef struct literalitem {
 
 #define CONST_LITERAL   1
 #define CONST_TYPE      2
+#define CONST_ANONY     3
 
 typedef struct constitem {
   int kind;           /* CONST_XXX */
-  int32_t index;      /* index of literal, type */
+  int32_t index;      /* index of literal, type or anonymous */
 } ConstItem;
 
 typedef struct localvaritem {
@@ -142,6 +144,15 @@ typedef struct funcitem {
   int32_t codeindex;  /* ->CodeItem */
   int32_t nrlocals;   /* number of locals */
 } FuncItem;
+
+typedef struct anonyitem {
+  int32_t nameindex;  /* ->StringItem */
+  int32_t pindex;     /* ->TypeListItem */
+  int32_t rindex;     /* ->TypeItem */
+  int32_t codeindex;  /* ->CodeItem */
+  int32_t nrlocals;   /* number of locals */
+  int32_t nrupvals;   /* closure's upvals */
+} AnonyItem;
 
 typedef struct codeitem {
   int32_t size;
@@ -230,7 +241,8 @@ int Image_Add_String(Image *image, char *val);
 int Image_Add_UChar(Image *image, wchar val);
 int Image_Add_Literal(Image *image, Literal *val);
 int Image_Add_Desc(Image *image, TypeDesc *desc);
-
+int Image_Add_Anony(Image *image, char *name, TypeDesc *proto,
+                    uint8_t *codes, int size, int locals, int upvals);
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc);
 void Image_Add_Const(Image *image, char *name, TypeDesc *desc,
                      Literal *val);
@@ -264,6 +276,14 @@ typedef void (*getvarfunc)(char *, TypeDesc *, int, Literal *val, void *);
 void Image_Get_Vars(Image *image, getvarfunc func, void *arg);
 typedef void (*getlocvarfunc)(char *, TypeDesc *, int, int, void *);
 void Image_Get_LocVars(Image *image, getlocvarfunc func, void *arg);
+typedef struct funcinfo {
+  char *name;
+  TypeDesc *desc;
+  uint8_t *code;
+  int size;
+  int locals;
+  int upvals;
+} FuncInfo;
 typedef void (*getfuncfunc)(char *, TypeDesc *, int, int, uint8_t *, int, void *);
 void Image_Get_Funcs(Image *image, getfuncfunc func, void *arg);
 void Image_Get_NFuncs(Image *image, getfuncfunc func, void *arg);

@@ -37,8 +37,14 @@ typedef struct codeobject {
   char *name;
   Object *owner;
   TypeDesc *proto;
+  int anony;
   int locals;
+  /* local variables */
   Vector locvec;
+  /* index of free variables */
+  Vector freevec;
+  /* index of upvals */
+  Vector upvec;
   Object *consts;
   int size;
   uint8_t codes[0];

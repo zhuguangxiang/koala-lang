@@ -143,6 +143,7 @@ static Inst *inst_new(uint8_t op, Literal *val, TypeDesc *desc)
 static void inst_free(Inst *i)
 {
   TYPE_DECREF(i->desc);
+  symbol_decref(i->anonysym);
   kfree(i);
 }
 
@@ -246,10 +247,38 @@ void codeblock_show(CodeBlock *block)
   }
 }
 
+static void code_gen_closure(Inst *i, Image *image, ByteBuffer *buf)
+{
+  Symbol *sym = i->anonysym;
+  ByteBuffer tmpbuf;
+  uint8_t *code;
+  int size;
+  int locals;
+  int upvals;
+
+  bytebuffer_init(&tmpbuf, 32);
+  code_gen(sym->anony.codeblock, image, &tmpbuf);
+  size = bytebuffer_toarr(&tmpbuf, (char **)&code);
+  locals = vector_size(&sym->anony.locvec);
+  upvals = vector_size(&sym->anony.upvalvec);
+  int index = Image_Add_Anony(image, sym->name, sym->desc, code, size,
+                              locals, upvals);
+  bytebuffer_fini(&tmpbuf);
+
+  // upvals
+  void *item;
+  vector_for_each(item, &sym->anony.upvalvec) {
+  }
+  bytebuffer_write_byte(buf, i->op);
+  bytebuffer_write_2bytes(buf, index);
+}
+
 static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
 {
   int index = -1;
-  bytebuffer_write_byte(buf, i->op);
+  if (i->op != OP_NEW_CLOSURE) {
+    bytebuffer_write_byte(buf, i->op);
+  }
   switch (i->op) {
   case OP_CONST_BYTE:
     bytebuffer_write_byte(buf, i->arg.ival);
@@ -278,6 +307,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_TYPECHECK:
     index = Image_Add_Desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
+    break;
+  case OP_EVAL_CLOSURE:
+    bytebuffer_write_byte(buf, i->arg.ival);
     break;
   case OP_POP_TOP:
   case OP_SWAP:
@@ -350,11 +382,14 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_NEW_RANGE:
     bytebuffer_write_byte(buf, i->arg.ival);
     break;
-  case OP_NEW_ANONY:
-    expect(0);
+  case OP_NEW_CLOSURE:
+    code_gen_closure(i, image, buf);
     break;
   case OP_FOR_ITER:
     bytebuffer_write_2bytes(buf, i->offset);
+    break;
+  case OP_UPVAL_LOAD:
+    bytebuffer_write_byte(buf, i->arg.ival);
     break;
   default:
     panic("invalid opcode %s", opcode_str(i->op));
@@ -404,7 +439,7 @@ void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf)
 })
 
 #define CODE_OP_ANONY(sym) ({ \
-  Inst *i = inst_add_noarg(ps, OP_NEW_ANONY); \
+  Inst *i = inst_add_noarg(ps, OP_NEW_CLOSURE); \
   i->anonysym = sym; \
 })
 
@@ -980,12 +1015,30 @@ static void ident_in_func(ParserState *ps, Expr *exp)
     CODE_LOAD(sym->var.index);
     parse_local_inplace(ps, exp);
     CODE_STORE(sym->var.index);
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
 }
 
 static void ident_in_block(ParserState *ps, Expr *exp)
+{
+  Symbol *sym = exp->sym;
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_LOAD(sym->var.index);
+  } else if (exp->ctx == EXPR_STORE) {
+    CODE_STORE(sym->var.index);
+  } else if (exp->ctx == EXPR_INPLACE) {
+    CODE_LOAD(sym->var.index);
+    parse_local_inplace(ps, exp);
+    CODE_STORE(sym->var.index);
+  } else {
+    panic("invalid expr's ctx %d", exp->ctx);
+  }
+}
+
+static void ident_in_anony(ParserState *ps, Expr *exp)
 {
   Symbol *sym = exp->sym;
   if (exp->ctx == EXPR_LOAD) {
@@ -1038,6 +1091,38 @@ static void ident_up_block(ParserState *ps, Expr *exp)
   }
 }
 
+static void ident_up_anony(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+  ParserUnit *up = exp->id.scope;
+  Symbol *sym = exp->sym;
+
+  /*
+  if (up->scope == SCOPE_MODULE) {
+    ident_in_mod(ps, exp);
+  } else
+  */
+  if (up->scope == SCOPE_FUNC) {
+    Symbol *funcsym = up->sym;
+    Vector *vec = &funcsym->func.freevec;
+    vector_push_back(vec, (void *)(uintptr_t)sym->var.index);
+    CODE_OP(OP_LOAD_0);
+
+    Symbol *anonysym = u->sym;
+    Vector *vec2 = &anonysym->anony.upvalvec;
+    vector_push_back(vec2, (void *)(uintptr_t)vector_size(vec));
+    //FIXME: load_0
+    CODE_OP_I(OP_UPVAL_LOAD, vector_size(vec2));
+  }
+  /*
+  else if (up->scope == SCOPE_BLOCK) {
+    ident_in_block(ps, exp);
+  } else {
+    panic("invalid scope");
+  }
+  */
+}
+
 static void ident_builtin(ParserState *ps, Expr *exp)
 {
   if (exp->ctx == EXPR_LOAD) {
@@ -1064,7 +1149,7 @@ static IdCodeGen current_codes[] = {
   {SCOPE_CLASS,   NULL},
   {SCOPE_FUNC,    ident_in_func},
   {SCOPE_BLOCK,   ident_in_block},
-  {SCOPE_ANONY,   NULL},
+  {SCOPE_ANONY,   ident_in_anony},
   {0, NULL},
 };
 
@@ -1073,7 +1158,7 @@ static IdCodeGen up_codes[] = {
   {SCOPE_CLASS,   NULL},
   {SCOPE_FUNC,    ident_up_func},
   {SCOPE_BLOCK,   ident_up_block},
-  {SCOPE_ANONY,   NULL},
+  {SCOPE_ANONY,   ident_up_anony},
   {0, NULL},
 };
 
@@ -1941,6 +2026,9 @@ static void parse_anony(ParserState *ps, Expr *exp)
 
   if (!has_error(ps)) {
     CODE_OP_ANONY(sym);
+    if (exp->ctx == EXPR_CALL_FUNC) {
+      CODE_OP_I(OP_EVAL_CLOSURE, exp->argc);
+    }
   }
 }
 

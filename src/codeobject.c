@@ -23,6 +23,7 @@
 */
 
 #include "codeobject.h"
+#include "closureobject.h"
 
 static void code_free(Object *ob)
 {
@@ -41,7 +42,8 @@ static void code_free(Object *ob)
   vector_fini(&co->locvec);
 
   /*free constant pool */
-  OB_DECREF(co->consts);
+  if (!co->anony)
+    OB_DECREF(co->consts);
 
   /* free func's descriptor */
   TYPE_DECREF(co->proto);
