@@ -52,7 +52,7 @@ Object *Method_New(char *name, Object *code)
 
 Object *Method_Call(Object *self, Object *ob, Object *args)
 {
-  if (!Method_Check(self)) {
+  if (!method_check(self)) {
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -65,9 +65,24 @@ Object *Method_Call(Object *self, Object *ob, Object *args)
   }
 }
 
+Object *method_getcode(Object *self)
+{
+  if (!method_check(self)) {
+    error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
+    return NULL;
+  }
+  MethodObject *meth = (MethodObject *)self;
+  if (!meth->cfunc) {
+    return OB_INCREF(meth->ptr);
+  } else {
+    error("method '%s' is cfunc", meth->name);
+    return NULL;
+  }
+}
+
 static Object *method_call(Object *self, Object *args)
 {
-  if (!Method_Check(self)) {
+  if (!method_check(self)) {
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -82,9 +97,9 @@ static Object *method_call(Object *self, Object *args)
   } else {
     int size = Tuple_Size(args);
     expect(size > 0);
-    ob = Tuple_Get(args, 0);
+    ob = tuple_get(args, 0);
     if (size == 2)
-      para = Tuple_Get(args, 1);
+      para = tuple_get(args, 1);
     else
       para = Tuple_Slice(args, 1, -1);
   }
@@ -105,7 +120,7 @@ static Object *method_call(Object *self, Object *args)
 
 static void meth_free(Object *ob)
 {
-  if (!Method_Check(ob)) {
+  if (!method_check(ob)) {
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(ob));
     return;
   }
@@ -125,7 +140,7 @@ static MethodDef meth_methods[] = {
 
 static Object *meth_str(Object *self, Object *args)
 {
-  if (!Method_Check(self)) {
+  if (!method_check(self)) {
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
     return NULL;
   }

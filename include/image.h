@@ -37,7 +37,7 @@ extern "C" {
 #define ITEM_STRING     1
 #define ITEM_LITERAL    2
 #define ITEM_TYPE       3
-#define ITEM_TYPELIST   4
+#define ITEM_INDEX      4
 #define ITEM_CONST      5
 #define ITEM_LOCVAR     6
 #define ITEM_VAR        7
@@ -69,8 +69,8 @@ typedef struct stringitem {
 
 typedef struct typeitem {
   int kind;               /* see: DescKind in typedesc.h */
-  int32_t parasindex;     /* ->TypeListItem */
-  int32_t typesindex;     /* ->TypeListItem */
+  int32_t parasindex;     /* ->Indexitem */
+  int32_t typesindex;     /* ->Indexitem */
   union {
     char base;            /* base type */
     struct {
@@ -78,7 +78,7 @@ typedef struct typeitem {
       int32_t typeindex;  /* ->StringItem */
     } klass;
     struct {
-      int32_t pindex;     /* ->TypeListItem */
+      int32_t pindex;     /* ->Indexitem */
       int32_t rindex;     /* ->TypeItem */
     } proto;
     struct {
@@ -87,15 +87,18 @@ typedef struct typeitem {
     } pararef;
     struct {
       int32_t nameindex;  /* ->StringItem */
-      int32_t typesindex; /* ->TypeListItem */
+      int32_t typesindex; /* ->Indexitem */
     } paradef;
   };
 } TypeItem;
 
-typedef struct typelistitem {
+#define INDEX_TYPELIST  1
+#define INDEX_VALUE     2
+typedef struct indexitem {
+  int kind;
   int32_t size;
-  int32_t index[0]; /* ->TypeItem */
-} TypeListItem;
+  int32_t index[0]; /* ->TypeItem(value only) */
+} Indexitem;
 
 #define LITERAL_INT     1
 #define LITERAL_FLOAT   2
@@ -126,8 +129,7 @@ typedef struct constitem {
 typedef struct localvaritem {
   int32_t nameindex;  /* ->StringItem */
   int32_t typeindex;  /* ->TypeItem */
-  int32_t pos;        /* ->index of locvars */
-  int32_t index;      /* ->Index of FuncItem or MethodItem */
+  int32_t index;      /* ->index of locvars */
 } LocVarItem;
 
 typedef struct varitem {
@@ -139,19 +141,21 @@ typedef struct varitem {
 
 typedef struct funcitem {
   int32_t nameindex;  /* ->StringItem */
-  int32_t pindex;     /* ->TypeListItem */
+  int32_t pindex;     /* ->Indexitem */
   int32_t rindex;     /* ->TypeItem */
   int32_t codeindex;  /* ->CodeItem */
-  int32_t nrlocals;   /* number of locals */
+  int32_t locindex;   /* ->IndexItem */
+  int32_t freeindex;  /* ->IndexItem */
 } FuncItem;
 
 typedef struct anonyitem {
   int32_t nameindex;  /* ->StringItem */
-  int32_t pindex;     /* ->TypeListItem */
+  int32_t pindex;     /* ->Indexitem */
   int32_t rindex;     /* ->TypeItem */
   int32_t codeindex;  /* ->CodeItem */
-  int32_t nrlocals;   /* number of locals */
-  int32_t nrupvals;   /* closure's upvals */
+  int32_t locindex;   /* ->IndexItem */
+  int32_t freeindex;  /* ->IndexItem */
+  int32_t upindex;    /* ->IndexItem */
 } AnonyItem;
 
 typedef struct codeitem {
@@ -172,7 +176,7 @@ typedef struct feilditem {
 
 typedef struct methoditem {
   int32_t nameindex;  /* ->StringItem */
-  int32_t pindex;     /* ->TypeListItem */
+  int32_t pindex;     /* ->Indexitem */
   int32_t rindex;     /* ->TypeItem */
   int32_t classindex; /* ->TypeItem */
   int32_t codeindex;  /* ->CodeItem */
@@ -181,19 +185,19 @@ typedef struct methoditem {
 
 typedef struct traititem {
   int32_t classindex;  /* ->TypeItem */
-  int32_t traitsindex; /* ->TypeListItem */
+  int32_t traitsindex; /* ->Indexitem */
 } TraitItem;
 
 typedef struct nfuncitem {
   int32_t nameindex;  /* ->StringItem */
-  int32_t pindex;     /* ->TypeListItem */
+  int32_t pindex;     /* ->Indexitem */
   int32_t rindex;     /* ->TypeItem */
   int32_t classindex; /* ->TypeItem */
 } NFuncItem;
 
 typedef struct imethitem {
   int32_t nameindex;  /* ->StringItem */
-  int32_t pindex;     /* ->TypeListItem */
+  int32_t pindex;     /* ->Indexitem */
   int32_t rindex;     /* ->TypeItem */
   int32_t classindex; /* ->TypeItem */
 } IMethItem;
@@ -205,7 +209,7 @@ typedef struct enumitem {
 typedef struct evalitem {
   int32_t nameindex;  /* ->StringItem */
   int32_t classindex; /* ->TypeItem */
-  int32_t index;      /* ->TypeListItem */
+  int32_t index;      /* ->Indexitem */
   int32_t value;      /* enum integer value */
 } EValItem;
 
@@ -234,6 +238,25 @@ typedef struct image {
   Vector items[0];
 } Image;
 
+typedef struct codeinfo {
+  char *name;
+  TypeDesc *desc;
+  uint8_t *codes;
+  int size;
+  Vector *locvec;
+  Vector *freevec;
+  Vector *upvec;
+} CodeInfo;
+
+typedef struct locvar {
+  char *name;
+  TypeDesc *desc;
+  int index;
+} LocVar;
+
+LocVar *locvar_new(char *name, TypeDesc *desc, int index);
+void locvar_free(LocVar *loc);
+
 int Image_Add_Integer(Image *image, int64_t val);
 int Image_Add_Float(Image *image, double val);
 int Image_Add_Bool(Image *image, int val);
@@ -241,15 +264,11 @@ int Image_Add_String(Image *image, char *val);
 int Image_Add_UChar(Image *image, wchar val);
 int Image_Add_Literal(Image *image, Literal *val);
 int Image_Add_Desc(Image *image, TypeDesc *desc);
-int Image_Add_Anony(Image *image, char *name, TypeDesc *proto,
-                    uint8_t *codes, int size, int locals, int upvals);
+int image_add_anony(Image *image, CodeInfo *ci);
 void Image_Add_Var(Image *image, char *name, TypeDesc *desc);
-void Image_Add_Const(Image *image, char *name, TypeDesc *desc,
-                     Literal *val);
-void Image_Add_LocVar(Image *image, char *name, TypeDesc *desc,
-                      int pos, int index);
-int Image_Add_Func(Image *image, char *name, TypeDesc *proto,
-                   uint8_t *codes, int size, int locals);
+void Image_Add_Const(Image *image, char *name, TypeDesc *desc, Literal *val);
+void Image_Add_LocVar(Image *image, char *name, TypeDesc *desc, int index);
+int image_add_func(Image *image, CodeInfo *ci);
 void Image_Add_Class(Image *image, char *name, Vector *supers);
 void Image_Add_Trait(Image *image, char *name, Vector *traits);
 void Image_Add_Enum(Image *image, char *name);
@@ -258,8 +277,7 @@ int Image_Add_Method(Image *image, char *klazz, char *name, TypeDesc *proto,
                      uint8_t *codes, int size, int locals);
 void Image_Add_NFunc(Image *image, char *klazz, char *name, TypeDesc *proto);
 void Image_Add_IMeth(Image *image, char *trait, char *name, TypeDesc *proto);
-void Image_Add_EVal(Image *image, char *klazz, char *name,
-                    Vector *types, int val);
+void Image_Add_EVal(Image *image, char *klazz, char *name, Vector *types, int val);
 
 Image *Image_New(char *name);
 void Image_Free(Image *image);
@@ -269,22 +287,12 @@ void Image_Write_File(Image *image, char *path);
 /* flags is ITEM_XXX bits, marked not load */
 Image *Image_Read_File(char *path, int unload);
 
-int Image_Const_Count(Image *image);
+int image_const_size(Image *image);
 typedef void (*getconstfunc)(void *, int, int, void *);
-void Image_Get_Consts(Image *image, getconstfunc func, void *arg);
+void image_load_consts(Image *image, getconstfunc func, void *arg);
 typedef void (*getvarfunc)(char *, TypeDesc *, int, Literal *val, void *);
 void Image_Get_Vars(Image *image, getvarfunc func, void *arg);
-typedef void (*getlocvarfunc)(char *, TypeDesc *, int, int, void *);
-void Image_Get_LocVars(Image *image, getlocvarfunc func, void *arg);
-typedef struct funcinfo {
-  char *name;
-  TypeDesc *desc;
-  uint8_t *code;
-  int size;
-  int locals;
-  int upvals;
-} FuncInfo;
-typedef void (*getfuncfunc)(char *, TypeDesc *, int, int, uint8_t *, int, void *);
+typedef void (*getfuncfunc)(char *, TypeDesc *, int, uint8_t *, int, void *);
 void Image_Get_Funcs(Image *image, getfuncfunc func, void *arg);
 void Image_Get_NFuncs(Image *image, getfuncfunc func, void *arg);
 typedef void (*getclassfunc)(char *, void *);

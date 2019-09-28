@@ -25,7 +25,6 @@
 #ifndef _KOALA_SYMBOL_H_
 #define _KOALA_SYMBOL_H_
 
-#include "image.h"
 #include "object.h"
 
 #ifdef __cplusplus
@@ -127,8 +126,10 @@ struct symbol {
     struct {
       /* local varibles in the closure */
       Vector locvec;
+      /* free values */
+      Vector freevec;
       /* up values */
-      Vector upvalvec;
+      Vector upvec;
       /* codeblock */
       void *codeblock;
     } anony;

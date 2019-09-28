@@ -57,13 +57,14 @@ typedef struct protoobject {
 
 extern TypeObject method_type;
 extern TypeObject proto_type;
-#define Method_Check(ob) (OB_TYPE(ob) == &method_type)
+#define method_check(ob) (OB_TYPE(ob) == &method_type)
 #define Proto_Check(ob) (OB_TYPE(ob) == &Proto_Type)
 void init_method_type(void);
 void init_proto_type(void);
 Object *CMethod_New(MethodDef *m);
 Object *Method_New(char *name, Object *code);
 Object *Method_Call(Object *self, Object *ob, Object *args);
+Object *method_getcode(Object *self);
 
 #ifdef __cplusplus
 }

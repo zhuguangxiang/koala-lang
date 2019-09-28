@@ -85,7 +85,7 @@ static Object *class_getmethod(Object *self, Object *name)
   if (ob == NULL)
     return NULL;
 
-  if (!Method_Check(ob)) {
+  if (!method_check(ob)) {
     error("'%s' is not a Method", s);
     OB_DECREF(ob);
     return NULL;

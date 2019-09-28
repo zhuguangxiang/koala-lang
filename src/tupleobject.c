@@ -29,16 +29,16 @@
 #include "stringobject.h"
 #include "log.h"
 
-Object *Tuple_New(int size)
+Object *tuple_new(int size)
 {
   int msize = sizeof(TupleObject) + size * sizeof(Object *);
-  TupleObject *tuple = kmalloc(msize);
+  TupleObject *tuple = gcmalloc(msize);
   init_object_head(tuple, &tuple_type);
   tuple->size = size;
   return (Object *)tuple;
 }
 
-void Tuple_Free(Object *ob)
+static void tuple_clean(Object *ob)
 {
   if (!Tuple_Check(ob)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(ob));
@@ -51,12 +51,17 @@ void Tuple_Free(Object *ob)
     item = tuple->items[i];
     OB_DECREF(item);
   }
-  kfree(ob);
+}
+
+static void tuple_free(Object *ob)
+{
+  tuple_clean(ob);
+  gcfree(ob);
 }
 
 Object *Tuple_Pack(int size, ...)
 {
-  Object *ob = Tuple_New(size);
+  Object *ob = tuple_new(size);
   va_list ap;
 
   va_start(ap, size);
@@ -86,7 +91,7 @@ int Tuple_Size(Object *self)
   return ((TupleObject *)self)->size;
 }
 
-Object *Tuple_Get(Object *self, int index)
+Object *tuple_get(Object *self, int index)
 {
   if (!Tuple_Check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
@@ -103,7 +108,7 @@ Object *Tuple_Get(Object *self, int index)
   return OB_INCREF(ob);
 }
 
-int Tuple_Set(Object *self, int index, Object *val)
+int tuple_set(Object *self, int index, Object *val)
 {
   if (!Tuple_Check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
@@ -141,7 +146,7 @@ Object *Tuple_Slice(Object *self, int i, int j)
   }
 
   int len = j - i;
-  TupleObject *tuple = (TupleObject *)Tuple_New(len);
+  TupleObject *tuple = (TupleObject *)tuple_new(len);
   Object **src = ((TupleObject *)self)->items + i;
   Object **dest = tuple->items;
   for (int k = 0; k < len; ++k) {
@@ -238,7 +243,8 @@ Object *tuple_str(Object *self, Object *ob)
 TypeObject tuple_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "Tuple",
-  .free    = Tuple_Free,
+  .clean   = tuple_clean,
+  .free    = tuple_free,
   .str     = tuple_str,
   .methods = tuple_methods,
 };
@@ -257,7 +263,7 @@ void *tuple_iter_next(struct iterator *iter)
     return NULL;
 
   if (iter->index < tuple->size) {
-    iter->item = Tuple_Get((Object *)tuple, iter->index);
+    iter->item = tuple_get((Object *)tuple, iter->index);
     ++iter->index;
   } else {
     iter->item = NULL;

@@ -557,7 +557,7 @@ Object *Object_Lookup(Object *self, char *name)
 Object *Object_GetMethod(Object *self, char *name)
 {
   Object *ob = Object_Lookup(self, name);
-  if (Method_Check(ob)) {
+  if (method_check(ob)) {
     return ob;
   } else {
     error("'%s' is not a Method", name);
@@ -601,7 +601,7 @@ Object *Object_GetValue(Object *self, char *name)
   }
 
   if (!field_check(ob)) {
-    if (Method_Check(ob)) {
+    if (method_check(ob)) {
       /* if method has no any parameters, it can be accessed as field. */
       MethodObject *meth = (MethodObject *)ob;
       TypeDesc *desc = meth->desc;

@@ -338,10 +338,13 @@ func arr_reverse(arr [int]) [int] {
 
 arr_reverse(arr2)
 
+/*
 anony := func(v1 int, v2 int) int {
   v1 + v2 + 100
 }
 anony(1, 2)
+
+*/
 
 func foo() int {
   return func(v1 int, v2 int) int { v1 - v2 + 100}(1,2)
@@ -351,3 +354,45 @@ func bar() int {
   v1 := 1
   return func(v2 int) int { v1 - v2 + 100}(2)
 }
+
+foo()
+bar()
+
+func foov(v1 int, v2 int) int {
+  return func(v3 int) int { v1 - v3 + 100}(v2)
+}
+
+foov(100, 200)
+
+func barv(v1 int, v2 int) int {
+  v3 := 1
+  v4 := 2
+  return func(vv2 int, vv3 int) int {
+    v1 + vv2 + vv3 + v4
+  } (v2, v3)
+}
+
+func foov1(v1 int) int {
+  g := func(v2 int) int { v1 - v2 + 100}
+  return g(2)
+}
+
+func foov2(v1 int) func(int) int {
+  lv := 100
+  return func(v2 int) int { v1 - v2 + 100 + lv}
+}
+
+g := foov2(100)
+g(50)
+foov2(100)(200)
+foov2(100)(200)(300)
+
+func foov3(fn func(int) int, v1 int) int {
+  return fn(v1) + 500
+}
+
+func fn(v1 int) int {
+  v1 + 200
+}
+
+//foov3(fn, 100)

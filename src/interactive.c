@@ -37,6 +37,7 @@
 #include "codeobject.h"
 #include "eval.h"
 #include "codeobject.h"
+#include "image.h"
 #include <readline/readline.h>
 #include <readline/history.h>
 
@@ -122,11 +123,11 @@ void Koala_ReadLine(void)
   fini_cmdline_env();
 }
 
-static void _get_const_(void *val, int kind, int index, void *arg)
+static void _load_const_(void *val, int kind, int index, void *arg)
 {
   Object *tuple = arg;
   Object *ob;
-  FuncInfo *fn;
+  CodeInfo *ci;
 
   if (kind == CONST_LITERAL) {
     ob = new_literal(val);
@@ -134,19 +135,22 @@ static void _get_const_(void *val, int kind, int index, void *arg)
     ob = new_descob(val);
   } else {
     expect(kind == CONST_ANONY);
-    fn = val;
-    ob = code_new(fn->name, fn->desc, fn->locals, fn->code, fn->size);
-    // FIXME: refcnt
-    ((CodeObject *)ob)->anony = 1;
-    ((CodeObject *)ob)->consts = tuple;
-    vector_push_back(&((CodeObject *)ob)->upvec, 1);
+    ci = val;
+    ob = code_new(ci->name, ci->desc, ci->codes, ci->size);
+    code_set_consts(ob, tuple);
+    code_set_locvars(ob, ci->locvec);
+    code_set_freevals(ob, ci->freevec);
+    code_set_upvals(ob, ci->upvec);
+    debug("'%s': %d locvars, %d freevals and %d upvals",
+          ci->name, vector_size(ci->locvec),
+          vector_size(ci->freevec), vector_size(ci->upvec));
   }
 
-  Tuple_Set(tuple, index, ob);
+  tuple_set(tuple, index, ob);
   OB_DECREF(ob);
 }
 
-static Object *get_code_object(Symbol *sym)
+static Object *code_from_symbol(Symbol *sym)
 {
   Object *ob;
   Object *consts;
@@ -168,17 +172,17 @@ static Object *get_code_object(Symbol *sym)
 #endif
 
   locals = vector_size(&sym->func.locvec);
-  size = Image_Const_Count(image);
-  consts = Tuple_New(size);
-  Image_Get_Consts(image, _get_const_, consts);
+  consts = tuple_new(image_const_size(image));
+  image_load_consts(image, _load_const_, consts);
   size = bytebuffer_toarr(&buf, (char **)&code);
 
-  ob = code_new(sym->name, sym->desc, locals, code, size);
+  ob = code_new(sym->name, sym->desc, code, size);
   code_set_consts(ob, consts);
-  int index;
-  vector_for_each(index, &sym->func.freevec) {
-    vector_push_back(&((CodeObject *)ob)->freevec, index);
-  }
+  Vector *locvec = vector_new();
+  fill_locvars(sym, locvec);
+  code_set_locvars(ob, locvec);
+  code_set_freevals(ob, &sym->func.freevec);
+  vector_free(locvec);
   OB_DECREF(consts);
   kfree(code);
 
@@ -238,7 +242,7 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
     break;
   }
   case SYM_FUNC: {
-    Object *code = get_code_object(sym);
+    Object *code = code_from_symbol(sym);
     Object *meth = Method_New(sym->name, code);
     Module_Add_Func(ob, meth);
     OB_DECREF(code);
@@ -280,7 +284,7 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
         kstate.top = -1;
         pthread_setspecific(kskey, &kstate);
       }
-      Object *code = get_code_object(evalsym);
+      Object *code = code_from_symbol(evalsym);
       Koala_EvalCode(code, mo, NULL);
       OB_DECREF(code);
     }

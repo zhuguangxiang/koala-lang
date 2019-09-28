@@ -123,11 +123,12 @@ extern "C" {
 #define OP_NEW_MAP      87
 #define OP_NEW_RANGE    88
 #define OP_NEW_CLOSURE  89
-#define OP_NEW_EVAL     90
-#define OP_NEW_OBJECT   91
-#define OP_NEW_ITER     92
+#define OP_FUNC_CLOSURE 90
+#define OP_NEW_EVAL     91
+#define OP_NEW_OBJECT   92
+#define OP_NEW_ITER     93
 
-/* 92 - 95 */
+/* 94 - 95 */
 
 #define OP_FOR_ITER     96
 #define OP_UNPACK_TUPLE 97

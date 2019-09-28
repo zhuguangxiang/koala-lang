@@ -22,39 +22,68 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_CLOSURE_OBJECT_H_
-#define _KOALA_CLOSURE_OBJECT_H_
-
+#include "gc.h"
 #include "object.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define GC_STOPPED  1
+#define GC_MARKING  2
+#define GC_SWEEPING 3
 
-typedef struct upval {
-  int refcnt;
-  char *name;
-  Object **ref;
-  Object *value;
-} UpVal;
+static int state = GC_STOPPED;
+static LIST_HEAD(oblist);
+static LIST_HEAD(garbage);
 
-typedef struct closureobject {
-  OBJECT_HEAD
-  Vector *upvals;
-  Object *code;
-} ClosureObject;
-
-extern TypeObject closure_type;
-#define closure_check(ob) (OB_TYPE(ob) == &closure_type)
-void init_closure_type(void);
-Object *closure_new(Object *code, Vector *upvals);
-UpVal *upval_new(char *name, Object **ref);
-void upval_free(UpVal *val);
-#define closure_getcode(ob) (((ClosureObject *)ob)->code)
-Object *upval_load(Object *ob, int index);
-
-#ifdef __cplusplus
+void *gcmalloc(int size)
+{
+  size += sizeof(GCHeader);
+  GCHeader *ob = kmalloc(size);
+  init_list_head(&ob->link);
+  list_add(&ob->link, &oblist);
+  return (void *)(ob + 1);
 }
-#endif
 
-#endif /* _KOALA_CLOSURE_OBJECT_H_ */
+void gcfree(void *ptr)
+{
+  GCHeader *ob = (GCHeader *)ptr - 1;
+  list_del(&ob->link);
+  kfree(ob);
+}
+
+void gc(void)
+{
+  expect(state == GC_STOPPED);
+
+  state = GC_MARKING;
+
+  GCHeader *gch;
+  struct list_head *p, *n;
+  list_for_each_safe(p, n, &oblist) {
+    gch = (GCHeader *)p;
+    if (!gch->marked) {
+      list_del(p);
+      list_add_tail(p, &garbage);
+    }
+  }
+
+  state = GC_SWEEPING;
+
+  Object *ob;
+  list_for_each(p, &garbage) {
+    ob = (Object *)((GCHeader *)p + 1);
+    if (OB_TYPE(ob)->clean != NULL)
+      OB_TYPE(ob)->clean(ob);
+  }
+
+  list_for_each_safe(p, n, &garbage) {
+    ob = (Object *)((GCHeader *)p + 1);
+    expect(ob->ob_refcnt == 0);
+    gcfree(ob);
+  }
+
+  state = GC_STOPPED;
+}
+
+int isgc(void)
+{
+  return state != GC_STOPPED;
+}

@@ -23,6 +23,7 @@
 */
 
 #include <string.h>
+#include <inttypes.h>
 #include "vector.h"
 #include "log.h"
 
@@ -126,6 +127,12 @@ void *vector_pop_back(Vector *self)
   void *val = *(void **)offset;
   --self->size;
   return val;
+}
+
+int vector_append_int(Vector *self, int val)
+{
+  vector_push_back(self, (void *)(intptr_t)val);
+  return self->size - 1;
 }
 
 void *vector_toarr(Vector *self)

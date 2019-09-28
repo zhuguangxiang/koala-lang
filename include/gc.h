@@ -22,39 +22,32 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_CLOSURE_OBJECT_H_
-#define _KOALA_CLOSURE_OBJECT_H_
+#ifndef _KOALA_GC_H_
+#define _KOALA_GC_H_
 
-#include "object.h"
+#include "list.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct upval {
-  int refcnt;
-  char *name;
-  Object **ref;
-  Object *value;
-} UpVal;
+typedef struct gcheader {
+  struct list_head link;
+  int marked;
+} GCHeader;
 
-typedef struct closureobject {
-  OBJECT_HEAD
-  Vector *upvals;
-  Object *code;
-} ClosureObject;
-
-extern TypeObject closure_type;
-#define closure_check(ob) (OB_TYPE(ob) == &closure_type)
-void init_closure_type(void);
-Object *closure_new(Object *code, Vector *upvals);
-UpVal *upval_new(char *name, Object **ref);
-void upval_free(UpVal *val);
-#define closure_getcode(ob) (((ClosureObject *)ob)->code)
-Object *upval_load(Object *ob, int index);
+void *gcmalloc(int size);
+void gcfree(void *ptr);
+void gc(void);
+static inline void gcmark(void *ptr)
+{
+  GCHeader *ob = (GCHeader *)ptr - 1;
+  ob->marked = 1;
+}
+int isgc(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_CLOSURE_OBJECT_H_ */
+#endif /* _KOALA_GC_H_ */

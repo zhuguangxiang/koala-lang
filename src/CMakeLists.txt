@@ -26,7 +26,7 @@ SET(KOALA_BUILTIN_MODULES
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c
   typedesc.c eval.c image.c opcode.c symbol.c ast.c parser.c
-  koala_lex.c koala_yacc.c run.c compile.c interactive.c
+  koala_lex.c koala_yacc.c run.c compile.c interactive.c gc.c
   ${KOALA_OBJECTS_SOURCES} ${KOALA_BUILTIN_MODULES})
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})

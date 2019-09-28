@@ -126,7 +126,7 @@ typedef enum exprctx {
   /* inplace assign */
   EXPR_INPLACE,
   /* call or load function indicator */
-  EXPR_CALL_FUNC, EXPR_LOAD_FUNC
+  EXPR_CALL_FUNC, EXPR_LOAD_FUNC,
 } ExprCtx;
 
 typedef struct expr Expr;

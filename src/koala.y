@@ -1572,34 +1572,16 @@ func_type:
   FUNC '(' type_varg_list ')' type
 {
   $$ = desc_from_proto($3, $5);
-}
-| FUNC '(' para_list ')' type
-{
-  Vector *vec = vector_new();
-  IdType *item;
-  vector_for_each(item, $3) {
-    vector_push_back(vec, TYPE_INCREF(item->type.desc));
-  }
-  $$ = desc_from_proto(vec, $5);
-  free_idtypes($3);
+  TYPE_DECREF($5);
 }
 | FUNC '(' type_varg_list ')'
 {
   $$ = desc_from_proto($3, NULL);
 }
-| FUNC '(' para_list ')'
-{
-  Vector *vec = vector_new();
-  IdType *item;
-  vector_for_each(item, $3) {
-    vector_push_back(vec, TYPE_INCREF(item->type.desc));
-  }
-  $$ = desc_from_proto(vec, NULL);
-  free_idtypes($3);
-}
 | FUNC '(' ')' type
 {
   $$ = desc_from_proto(NULL, $4);
+  TYPE_DECREF($4);
 }
 | FUNC '(' ')'
 {

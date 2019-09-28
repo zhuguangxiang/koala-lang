@@ -28,6 +28,7 @@
 #include "osmodule.h"
 #include "iomodule.h"
 #include "fmtmodule.h"
+#include "gc.h"
 
 static void init_types(void)
 {
@@ -110,6 +111,7 @@ void koala_initialize(void)
 
 void koala_finalize(void)
 {
+  gc();
   fini_parser();
   fini_fmt_moudle();
   fini_io_module();

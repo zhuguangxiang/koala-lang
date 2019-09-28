@@ -29,6 +29,7 @@
 #include "hashmap.h"
 #include "vector.h"
 #include "log.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -101,17 +102,17 @@ struct object {
   (_ob_);                       \
 })
 
-#define OB_DECREF(_ob_)         \
-({                              \
-  Object *o = (Object *)(_ob_); \
-  if (o != NULL) {              \
-    --o->ob_refcnt;             \
-    expect(o->ob_refcnt >= 0);  \
-    if (o->ob_refcnt == 0) {    \
-      OB_TYPE(o)->free(o);      \
-      (_ob_) = NULL;            \
-    }                           \
-  }                             \
+#define OB_DECREF(_ob_)                 \
+({                                      \
+  Object *o = (Object *)(_ob_);         \
+  if (o != NULL) {                      \
+    --o->ob_refcnt;                     \
+    expect(o->ob_refcnt >= 0);          \
+    if (!isgc() && o->ob_refcnt == 0) { \
+      OB_TYPE(o)->free(o);              \
+      (_ob_) = NULL;                    \
+    }                                   \
+  }                                     \
 })
 
 typedef struct {
@@ -157,6 +158,7 @@ typedef struct {
 
 /* mark and sweep callback */
 typedef void (*ob_markfunc)(Object *);
+typedef void (*ob_cleanfunc)(Object *);
 
 /* alloc object function */
 typedef Object *(*ob_allocfunc)(TypeObject *);
@@ -178,8 +180,11 @@ struct typeobject {
   /* type decriptor */
   TypeDesc *desc;
 
-  /* mark-and-sweep */
+  /* mark object */
   ob_markfunc mark;
+  /* clean garbage */
+  ob_cleanfunc clean;
+
   /* alloc and free */
   ob_allocfunc alloc;
   ob_freefunc free;

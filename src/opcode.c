@@ -120,6 +120,7 @@ static struct opcode {
   OPCODE(OP_NEW_MAP,      3),
   OPCODE(OP_NEW_RANGE,    1),
   OPCODE(OP_NEW_CLOSURE,  2),
+  OPCODE(OP_FUNC_CLOSURE, 0),
   OPCODE(OP_NEW_EVAL,     3),
   OPCODE(OP_NEW_OBJECT,   3),
   OPCODE(OP_NEW_ITER,     0),

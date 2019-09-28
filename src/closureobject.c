@@ -35,8 +35,16 @@ static void closure_free(Object *ob)
   OB_DECREF(closure->code);
   UpVal *up;
   vector_for_each(up, closure->upvals) {
-
+    --up->refcnt;
+    expect(up->refcnt >= 0);
+    if (up->refcnt == 0) {
+      debug("[Closure] free upval '%s'", up->name);
+      upval_free(up);
+    } else {
+      debug("[Closure] upval '%s' refcnt is %d ", up->name, up->refcnt);
+    }
   }
+  vector_free(closure->upvals);
   kfree(ob);
 }
 
@@ -63,14 +71,22 @@ Object *closure_new(Object *code, Vector *upvals)
   return (Object *)closure;
 }
 
-UpVal *upval_new(Object **ref)
+UpVal *upval_new(char *name, Object **ref)
 {
   UpVal *up = kmalloc(sizeof(UpVal));
+  up->name = name;
+  up->refcnt = 1;
   up->ref = ref;
   return up;
 }
 
-Object *closure_load(Object *ob, int index)
+void upval_free(UpVal *val)
+{
+  OB_DECREF(val->value);
+  kfree(val);
+}
+
+Object *upval_load(Object *ob, int index)
 {
   if (!closure_check(ob)) {
     error("object of '%.64s' is not a Closure", OB_TYPE_NAME(ob));
@@ -78,9 +94,10 @@ Object *closure_load(Object *ob, int index)
   }
 
   ClosureObject *self = (ClosureObject *)ob;
-  debug("closure load index %d", index);
-  UpVal *up = vector_get(self->upvals, index - 1);
+  UpVal *up = vector_get(self->upvals, index);
   expect(up != NULL);
+  debug("load upval('%s') by index %d", up->name, index);
   expect(up->ref != NULL);
-  return *up->ref;
+  Object *res = *up->ref;
+  return OB_INCREF(res);
 }

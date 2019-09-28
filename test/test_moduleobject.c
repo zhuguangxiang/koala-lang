@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 
   Object *s = string_new("__name__");
   Object *meth = Object_Call(clazz, "getMethod", s);
-  expect(Method_Check(meth));
+  expect(method_check(meth));
   OB_DECREF(s);
   v = Method_Call(meth, m, NULL);
   expect(!strcmp("test", string_asstr(v)));

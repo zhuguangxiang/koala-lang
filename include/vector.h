@@ -146,6 +146,11 @@ static inline void *vector_top_back(Vector *self)
 }
 
 /*
+ * Add an integer at the end of the vector and return its index
+ */
+int vector_append_int(Vector *self, int val);
+
+/*
  * Sort a vector in-place.
  *
  * self

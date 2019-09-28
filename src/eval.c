@@ -34,8 +34,10 @@
 #include "mapobject.h"
 #include "moduleobject.h"
 #include "closureobject.h"
+#include "methodobject.h"
 #include "iomodule.h"
 #include "opcode.h"
+#include "image.h"
 #include "log.h"
 
 typedef struct frame {
@@ -44,7 +46,7 @@ typedef struct frame {
   /* KoalaState */
   KoalaState *ks;
   /* code */
-  Object *code;
+  CodeObject *code;
   /* code index */
   int index;
   /* free variables */
@@ -55,32 +57,47 @@ typedef struct frame {
   Object *locvars[1];
 } Frame;
 
-static Vector *getfreevars(Frame *f, Object *code)
+static char *get_freeval_name(CodeObject *co, int index)
 {
-  CodeObject *co = (CodeObject *)code;
+  LocVar *var;
+  vector_for_each(var, &co->locvec) {
+    if (var->index == index) {
+      debug("load freeval '%s'", var->name);
+      return var->name;
+    }
+  }
+  return NULL;
+}
+
+static Vector *getfreevars(Frame *f, CodeObject *co)
+{
   Vector *freevec = NULL;
   if (vector_size(&co->freevec) > 0) {
     freevec = vector_new();
   }
 
+  void *item;
   int index;
   UpVal *up;
-  vector_for_each(index, &co->freevec) {
+  vector_for_each(item, &co->freevec) {
+    index = (intptr_t)item;
     expect(index != -1);
-    up = upval_new(f->locvars + index);
+    up = upval_new(get_freeval_name(co, index), f->locvars + index);
     vector_push_back(freevec, up);
   }
 
   return freevec;
 }
 
-static Frame *new_frame(KoalaState *ks, Object *code, int locals)
+static Frame *new_frame(KoalaState *ks, CodeObject *co)
 {
   expect(ks->depth < MAX_FRAME_DEPTH);
-  Frame *f = kmalloc(sizeof(Frame) + locals * sizeof(Object *));
-  f->code = OB_INCREF(code);
-  f->freevars = getfreevars(f, code);
-  f->size = locals + 1;
+  int locsize = vector_size(&co->locvec);
+  debug("code '%s' has %d locvars", co->name, locsize);
+  Frame *f = kmalloc(sizeof(Frame) + locsize * sizeof(Object *));
+  f->code = OB_INCREF(co);
+  f->freevars = getfreevars(f, co);
+  f->size = locsize + 1;
   f->index = -1;
   f->back = ks->frame;
   f->ks = ks;
@@ -91,10 +108,27 @@ static Frame *new_frame(KoalaState *ks, Object *code, int locals)
 
 static void free_frame(Frame *f)
 {
+  UpVal *up;
+  vector_for_each(up, f->freevars) {
+    --up->refcnt;
+    expect(up->refcnt >= 0);
+    if (up->refcnt == 0) {
+      debug("free upval '%s'", up->name);
+      upval_free(up);
+    } else {
+      debug("set upval '%s' as freeval", up->name);
+      up->value = *up->ref;
+      OB_INCREF(up->value);
+      up->ref = &up->value;
+    }
+  }
+  vector_free(f->freevars);
+
   for (int i = 0; i < f->size; i++) {
     OB_DECREF(f->locvars[i]);
   }
   OB_DECREF(f->code);
+
   kfree(f);
 }
 
@@ -106,7 +140,7 @@ static void prepare_args(Frame *f, Object *ob, Object *args)
       Object *v;
       int size = Tuple_Size(args);
       for (int i = 0; i < size; i++) {
-        v = Tuple_Get(args, i);
+        v = tuple_get(args, i);
         f->locvars[i + 1] = OB_INCREF(v);
         OB_DECREF(v);
       }
@@ -232,7 +266,7 @@ static Object *new_object(TypeDesc *desc)
     TypeDesc *vdesc = vector_get(desc->types, 1);
     ret= map_new(kdesc, vdesc);
   } else if (type == &tuple_type) {
-    ret = Tuple_New(0);
+    ret = tuple_new(0);
   } else {
     ret = NULL;
   }
@@ -249,10 +283,14 @@ static Vector *getupvals(Frame *f, Object *ob)
   }
 
   UpVal *up;
+  void *item;
   int index;
-  vector_for_each(index, &co->upvec) {
-    up = vector_get(f->freevars, index - 1);
+  vector_for_each(item, &co->upvec) {
+    index = (intptr_t)item;
+    expect(index != -1);
+    up = vector_get(f->freevars, index);
     expect(up != NULL);
+    ++up->refcnt;
     vector_push_back(upvals, up);
   }
 
@@ -265,7 +303,7 @@ Object *Koala_EvalFrame(Frame *f)
   KoalaState *ks = f->ks;
   Object **base = ks->stack;
   Object **top = base + ks->top;
-  CodeObject *co = (CodeObject *)f->code;
+  CodeObject *co = f->code;
   Object *consts = co->consts;
   uint8_t op;
   int oparg;
@@ -312,13 +350,13 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_LOAD_CONST: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       PUSH(x);
       break;
     }
     case OP_LOAD_MODULE: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       y = Module_Load(string_asstr(x));
       PUSH(y);
       OB_DECREF(x);
@@ -378,7 +416,7 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_GET_OBJECT: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       y = POP();
       z = Object_Lookup(y, string_asstr(x));
       PUSH(z);
@@ -388,7 +426,7 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_GET_VALUE: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       y = POP();
       z = Object_GetValue(y, string_asstr(x));
       PUSH(z);
@@ -398,7 +436,7 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_SET_VALUE: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       y = POP();
       z = POP();
       Object_SetValue(y, string_asstr(x), z);
@@ -419,7 +457,7 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_CALL: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       oparg = NEXT_BYTE();
       y = POP();
       if (oparg == 0) {
@@ -427,10 +465,10 @@ Object *Koala_EvalFrame(Frame *f)
       } else if (oparg == 1) {
         z = POP();
       } else {
-        z = Tuple_New(oparg);
+        z = tuple_new(oparg);
         for (i = 0; i < oparg; ++i) {
           v = POP();
-          Tuple_Set(z, i, v);
+          tuple_set(z, i, v);
           OB_DECREF(v);
         }
       }
@@ -451,7 +489,7 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_TYPEOF: {
       x = POP();
       oparg = NEXT_2BYTES();
-      y = Tuple_Get(consts, oparg);
+      y = tuple_get(consts, oparg);
       int bval = typecheck(x, y);
       z = bval ? Bool_True() : Bool_False();
       PUSH(z);
@@ -462,7 +500,7 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_TYPECHECK: {
       x = TOP();
       oparg = NEXT_2BYTES();
-      y = Tuple_Get(consts, oparg);
+      y = tuple_get(consts, oparg);
       if (!typecheck(x, y))
         panic("typecheck failed");
       OB_DECREF(y);
@@ -472,15 +510,16 @@ Object *Koala_EvalFrame(Frame *f)
       oparg = NEXT_BYTE();
       y = POP();
       if (oparg > 0) {
-        v = Tuple_New(oparg);
+        v = tuple_new(oparg);
         for (i = 0; i < oparg; ++i) {
           z = POP();
-          Tuple_Set(v, i, z);
+          tuple_set(v, i, z);
           OB_DECREF(z);
         }
       } else {
         v = NULL;
       }
+      expect(closure_check(y));
       x = Koala_EvalCode(closure_getcode(y), y, v);
       OB_DECREF(y);
       OB_DECREF(v);
@@ -785,9 +824,9 @@ Object *Koala_EvalFrame(Frame *f)
       x = POP();
       y = POP();
       z = POP();
-      v = Tuple_New(2);
-      Tuple_Set(v, 0, y);
-      Tuple_Set(v, 1, z);
+      v = tuple_new(2);
+      tuple_set(v, 0, y);
+      tuple_set(v, 1, z);
       fn = OB_MAP_FUNC(x, setitem);
       call_op_func(w, x, OP_SUBSCR_STORE, v);
       PUSH(w);
@@ -846,10 +885,10 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_NEW_TUPLE: {
       oparg = NEXT_2BYTES();
-      x = Tuple_New(oparg);
+      x = tuple_new(oparg);
       for (i = 0; i < oparg; ++i) {
         y = POP();
-        Tuple_Set(x, i, y);
+        tuple_set(x, i, y);
         OB_DECREF(y);
       }
       PUSH(x);
@@ -857,7 +896,7 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_NEW_ARRAY: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       desc = descob_getdesc(x);
       expect(desc->paras == NULL);
       expect(desc->types != NULL);
@@ -875,7 +914,7 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_NEW_MAP: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       desc = descob_getdesc(x);
       expect(desc->paras == NULL);
       expect(desc->types != NULL);
@@ -912,15 +951,24 @@ Object *Koala_EvalFrame(Frame *f)
     }
     case OP_NEW_CLOSURE: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       y = closure_new(x, getupvals(f, x));
       OB_DECREF(x);
       PUSH(y);
       break;
     }
+    case OP_FUNC_CLOSURE: {
+      x = POP();
+      z = method_getcode(x);
+      y = closure_new(z, NULL);
+      OB_DECREF(x);
+      OB_DECREF(z);
+      PUSH(y);
+      break;
+    }
     case OP_NEW_OBJECT: {
       oparg = NEXT_2BYTES();
-      x = Tuple_Get(consts, oparg);
+      x = tuple_get(consts, oparg);
       oparg = NEXT_BYTE();
       if (oparg == 0) {
         y = NULL;
@@ -983,7 +1031,7 @@ Object *Koala_EvalFrame(Frame *f)
     case OP_UPVAL_LOAD: {
       oparg = NEXT_BYTE();
       x = POP();
-      y = closure_load(x, oparg);
+      y = upval_load(x, oparg);
       OB_DECREF(x);
       PUSH(y);
       break;
@@ -1007,8 +1055,7 @@ Object *Koala_EvalCode(Object *self, Object *ob, Object *args)
 {
   KoalaState *ks = pthread_getspecific(kskey);
   expect(ks != NULL);
-  CodeObject *co = (CodeObject *)self;
-  Frame *f = new_frame(ks, self, co->locals);
+  Frame *f = new_frame(ks, (CodeObject *)self);
   prepare_args(f, ob, args);
   return Koala_EvalFrame(f);
 }

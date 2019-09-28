@@ -40,7 +40,7 @@ void test_image(void)
   psudo[1] = LOAD_CONST;
   psudo[2] = ADD;
   psudo[3] = RETURN_VALUE;
-  Image_Add_Func(image, "Foo", proto, psudo, 4, 0);
+  image_add_func(image, "Foo", proto, psudo, 4, 0);
   TYPE_DECREF(proto);
 
   desc = desc_from_base(BASE_STR);

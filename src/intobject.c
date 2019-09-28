@@ -28,17 +28,17 @@
 #include "floatobject.h"
 #include "fmtmodule.h"
 
-static void integer_free(Object *ob)
+static void int_free(Object *ob)
 {
   if (!integer_check(ob)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(ob));
     return;
   }
   debug("[Freed] Integer %ld", integer_asint(ob));
-  kfree(ob);
+  gcfree(ob);
 }
 
-static Object *integer_str(Object *self, Object *ob)
+static Object *int_str(Object *self, Object *ob)
 {
   if (!integer_check(self)) {
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(self));
@@ -478,8 +478,8 @@ static MethodDef int_methods[]= {
 TypeObject integer_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "Integer",
-  .free    = integer_free,
-  .str     = integer_str,
+  .free    = int_free,
+  .str     = int_str,
   .number  = &int_numbers,
   .methods = int_methods,
 };
@@ -493,7 +493,7 @@ void init_integer_type(void)
 
 Object *integer_new(int64_t val)
 {
-  IntegerObject *integer = kmalloc(sizeof(*integer));
+  IntegerObject *integer = gcmalloc(sizeof(IntegerObject));
   init_object_head(integer, &integer_type);
   integer->value = val;
   return (Object *)integer;

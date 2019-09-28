@@ -154,6 +154,7 @@ static void symbol_free(Symbol *sym)
       symbol_decref(locsym);
     }
     vector_fini(&sym->func.locvec);
+    vector_fini(&sym->func.freevec);
     break;
   }
   case SYM_CLASS:
@@ -188,7 +189,8 @@ static void symbol_free(Symbol *sym)
       symbol_decref(locsym);
     }
     vector_fini(&sym->anony.locvec);
-    vector_fini(&sym->anony.upvalvec);
+    vector_fini(&sym->anony.freevec);
+    vector_fini(&sym->anony.upvec);
     break;
   }
   case SYM_MOD:
@@ -257,7 +259,7 @@ static Symbol *load_type(Object *ob)
     tmp = node->obj;
     if (field_check(tmp)) {
       sym = load_field(tmp);
-    } else if (Method_Check(tmp)) {
+    } else if (method_check(tmp)) {
       sym = load_method(tmp);
     } else {
       panic("object of '%s'?", OB_TYPE(tmp)->name);
@@ -301,7 +303,7 @@ STable *stable_from_mobject(Object *ob)
       sym = load_type(tmp);
     } else if (field_check(tmp)) {
       sym = load_field(tmp);
-    } else if (Method_Check(tmp)) {
+    } else if (method_check(tmp)) {
       sym = load_method(tmp);
     } else {
       panic("object of '%s'?", OB_TYPE(tmp)->name);

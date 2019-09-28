@@ -38,7 +38,7 @@ Object *Fmtter_WriteFormat(Object *self, Object *args)
 
   FmtterObject *fmt = (FmtterObject *)self;
   StrBuf *sbuf = &fmt->buf;
-  Object *str = Tuple_Get(args, 0);
+  Object *str = tuple_get(args, 0);
   char *fmtstr = string_asstr(str);
   int index = 0;
   char ch;
@@ -48,7 +48,7 @@ Object *Fmtter_WriteFormat(Object *self, Object *args)
     if (ch == '{') {
       ch = *++fmtstr;
       if (ch == '}') {
-        ob = Tuple_Get(args, ++index);
+        ob = tuple_get(args, ++index);
         if (ob != NULL) {
           Object_Call(ob, "__fmt__", self);
           OB_DECREF(ob);

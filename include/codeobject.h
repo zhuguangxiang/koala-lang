@@ -37,11 +37,9 @@ typedef struct codeobject {
   char *name;
   Object *owner;
   TypeDesc *proto;
-  int anony;
-  int locals;
   /* local variables */
   Vector locvec;
-  /* index of free variables */
+  /* index of freevals */
   Vector freevec;
   /* index of upvals */
   Vector upvec;
@@ -52,13 +50,38 @@ typedef struct codeobject {
 
 extern TypeObject code_type;
 #define code_check(ob) (OB_TYPE(ob) == &code_type)
-Object *code_new(char *name, TypeDesc *proto, int locals,
-  uint8_t *codes, int size);
-void code_add_local(Object *code, Object *ob);
+Object *code_new(char *name, TypeDesc *proto, uint8_t *codes, int size);
 static inline void code_set_consts(Object *code, Object *consts)
 {
   CodeObject *co = (CodeObject *)code;
   co->consts = OB_INCREF(consts);
+}
+
+static inline void code_set_locvars(Object *code,  Vector *vars)
+{
+  CodeObject *co = (CodeObject *)code;
+  void *item;
+  vector_for_each(item, vars) {
+    vector_push_back(&co->locvec, item);
+  }
+}
+
+static inline void code_set_freevals(Object *code, Vector *freevals)
+{
+  CodeObject *co = (CodeObject *)code;
+  void *item;
+  vector_for_each(item, freevals) {
+    vector_push_back(&co->freevec, item);
+  }
+}
+
+static inline void code_set_upvals(Object *code, Vector *upvals)
+{
+  CodeObject *co = (CodeObject *)code;
+  void *item;
+  vector_for_each(item, upvals) {
+    vector_push_back(&co->upvec, item);
+  }
 }
 
 #ifdef __cplusplus

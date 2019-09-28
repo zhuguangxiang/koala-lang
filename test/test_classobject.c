@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
   OB_DECREF(clazz);
   OB_DECREF(s);
 
-  expect(Method_Check(v));
+  expect(method_check(v));
   s = string_new("Hello, Koala");
   Object *res = Method_Call(v, s, NULL);
   expect(integer_check(res));

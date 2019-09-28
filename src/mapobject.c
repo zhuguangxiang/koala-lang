@@ -104,8 +104,8 @@ static Object *map_set(Object *self, Object *args)
     return Bool_False();
   }
 
-  Object *key = Tuple_Get(args, 0);
-  Object *val = Tuple_Get(args, 1);
+  Object *key = tuple_get(args, 0);
+  Object *val = tuple_get(args, 1);
   int res = map_put(self, key, val);
   OB_DECREF(key);
   OB_DECREF(val);

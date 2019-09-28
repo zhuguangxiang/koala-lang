@@ -24,6 +24,7 @@
 
 #include "parser.h"
 #include "opcode.h"
+#include "codeobject.h"
 #include "moduleobject.h"
 
 /* lang module */
@@ -247,6 +248,35 @@ void codeblock_show(CodeBlock *block)
   }
 }
 
+void fill_locvars(Symbol *sym, Vector *vec)
+{
+  Vector *locvec = NULL;
+  SymKind kind = sym->kind;
+  if (kind == SYM_FUNC) {
+    locvec = &sym->func.locvec;
+  } else if (kind == SYM_ANONY) {
+    locvec = &sym->anony.locvec;
+  } else {
+    panic("getlocvars invalid symbol kind %d", kind);
+  }
+
+  LocVar *var;
+  Symbol *varsym;
+  vector_for_each(varsym, locvec) {
+    expect(varsym->kind == SYM_VAR);
+    var = locvar_new(varsym->name, varsym->desc, varsym->var.index);
+    vector_push_back(vec, var);
+  }
+}
+
+void free_locvars(Vector *locvec)
+{
+  LocVar *var;
+  vector_for_each(var, locvec) {
+    locvar_free(var);
+  }
+}
+
 static void code_gen_closure(Inst *i, Image *image, ByteBuffer *buf)
 {
   Symbol *sym = i->anonysym;
@@ -255,22 +285,22 @@ static void code_gen_closure(Inst *i, Image *image, ByteBuffer *buf)
   int size;
   int locals;
   int upvals;
+  VECTOR(locvec);
 
   bytebuffer_init(&tmpbuf, 32);
   code_gen(sym->anony.codeblock, image, &tmpbuf);
   size = bytebuffer_toarr(&tmpbuf, (char **)&code);
-  locals = vector_size(&sym->anony.locvec);
-  upvals = vector_size(&sym->anony.upvalvec);
-  int index = Image_Add_Anony(image, sym->name, sym->desc, code, size,
-                              locals, upvals);
-  bytebuffer_fini(&tmpbuf);
-
-  // upvals
-  void *item;
-  vector_for_each(item, &sym->anony.upvalvec) {
-  }
+  fill_locvars(sym, &locvec);
+  CodeInfo ci = {
+    sym->name, sym->desc, code, size,
+    &locvec, &sym->anony.freevec, &sym->anony.upvec,
+  };
+  int index = image_add_anony(image, &ci);
   bytebuffer_write_byte(buf, i->op);
   bytebuffer_write_2bytes(buf, index);
+  free_locvars(&locvec);
+  vector_fini(&locvec);
+  bytebuffer_fini(&tmpbuf);
 }
 
 static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
@@ -289,6 +319,11 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_SET_VALUE: {
     Literal *val = &i->arg;
     index = Image_Add_Literal(image, val);
+    bytebuffer_write_2bytes(buf, index);
+    break;
+  }
+  case OP_GET_OBJECT: {
+    index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
   }
@@ -358,6 +393,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_SUBSCR_STORE:
   case OP_NEW_ITER:
   case OP_UNPACK_TUPLE:
+  case OP_FUNC_CLOSURE:
     break;
   case OP_LOAD:
   case OP_STORE:
@@ -987,6 +1023,9 @@ static void parse_local_inplace(ParserState *ps, Expr *exp)
 
 static void ident_in_mod(ParserState *ps, Expr *exp)
 {
+  Symbol *sym = exp->sym;
+  debug("ident '%s' in module", exp->id.name);
+
   if (exp->ctx == EXPR_LOAD) {
     CODE_OP(OP_LOAD_0);
     CODE_OP_S(OP_GET_VALUE, exp->id.name);
@@ -994,11 +1033,25 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
     CODE_OP(OP_LOAD_0);
     CODE_OP_S(OP_SET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
-    CODE_OP(OP_LOAD_0);
-    CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+    if (sym->kind == SYM_FUNC) {
+      CODE_OP(OP_LOAD_0);
+      CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+    } else if (sym->kind == SYM_VAR) {
+      // closure or function, not allowed method?
+      expect(sym->desc->kind == TYPE_PROTO);
+      CODE_OP(OP_LOAD_0);
+      CODE_OP_S(OP_GET_VALUE, exp->id.name);
+      CODE_OP_I(OP_EVAL_CLOSURE, exp->argc);
+    } else {
+      panic("symbol %d is claled?", sym->kind);
+    }
   } else if (exp->ctx == EXPR_INPLACE) {
     CODE_OP(OP_LOAD_0);
     parse_attr_inplace(ps, exp->id.name, exp);
+  } else if (exp->ctx == EXPR_LOAD_FUNC) {
+    CODE_OP(OP_LOAD_0);
+    CODE_OP_S(OP_GET_OBJECT, exp->id.name);
+    CODE_OP(OP_FUNC_CLOSURE);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1016,7 +1069,10 @@ static void ident_in_func(ParserState *ps, Expr *exp)
     parse_local_inplace(ps, exp);
     CODE_STORE(sym->var.index);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
-
+    debug("call function:%s, argc:%d", sym->name, exp->argc);
+    expect(sym->desc->kind == TYPE_PROTO);
+    CODE_LOAD(sym->var.index);
+    CODE_OP_I(OP_EVAL_CLOSURE, exp->argc);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1104,15 +1160,14 @@ static void ident_up_anony(ParserState *ps, Expr *exp)
   */
   if (up->scope == SCOPE_FUNC) {
     Symbol *funcsym = up->sym;
-    Vector *vec = &funcsym->func.freevec;
-    vector_push_back(vec, (void *)(uintptr_t)sym->var.index);
-    CODE_OP(OP_LOAD_0);
-
+    Vector *freevec = &funcsym->func.freevec;
+    int index = vector_append_int(freevec, sym->var.index);
     Symbol *anonysym = u->sym;
-    Vector *vec2 = &anonysym->anony.upvalvec;
-    vector_push_back(vec2, (void *)(uintptr_t)vector_size(vec));
-    //FIXME: load_0
-    CODE_OP_I(OP_UPVAL_LOAD, vector_size(vec2));
+    Vector *upvec = &anonysym->anony.upvec;
+    index = vector_append_int(upvec, index);
+    CODE_OP(OP_LOAD_0);
+    //FIXME: upval_load_0
+    CODE_OP_I(OP_UPVAL_LOAD, index);
   }
   /*
   else if (up->scope == SCOPE_BLOCK) {
@@ -1195,9 +1250,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
   }
 
   if (sym->kind == SYM_FUNC && exp->right == NULL) {
-    syntax_error(ps, exp->row, exp->col,
-      "call func '%s' or return itself?", exp->id.name);
-    return;
+    exp->ctx = EXPR_LOAD_FUNC;
   }
 
   if (exp->id.where == CURRENT_SCOPE) {
@@ -1618,6 +1671,11 @@ static void parse_call(ParserState *ps, Expr *exp)
     syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
   }
 
+  if (lexp->kind == CALL_KIND && desc->kind == TYPE_PROTO) {
+    debug("left expr is func call and ret is func, its closure call");
+    CODE_OP_I(OP_EVAL_CLOSURE, lexp->argc);
+  }
+
   // check call arguments
   if (!has_error(ps)) {
     Vector *params = desc->proto.args;
@@ -1951,8 +2009,6 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
     return;
   }
 
-  // last one is return or other statement
-  debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
   if (s->hasvalue) {
     if (ret.desc == NULL) {
       syntax_error(ps, ret.row, ret.col, "func '%s' no return value", name);
@@ -1968,6 +2024,8 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
   }
 
   if (!has_error(ps) && s->kind != RETURN_KIND) {
+    // last one is return or other statement
+    debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
     CODE_OP(OP_RETURN);
   }
 }

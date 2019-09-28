@@ -120,8 +120,8 @@ static Object *_field_set_(Object *self, Object *args)
     return NULL;
   }
 
-  Object *ob = Tuple_Get(args, 0);
-  Object *val = Tuple_Get(args, 1);
+  Object *ob = tuple_get(args, 0);
+  Object *val = tuple_get(args, 1);
 
   field_set(self, ob, val);
   OB_DECREF(ob);
