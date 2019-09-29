@@ -520,6 +520,7 @@ Object *Koala_EvalFrame(Frame *f)
         v = NULL;
       }
       expect(closure_check(y));
+      ks->top = top - base;
       x = Koala_EvalCode(closure_getcode(y), y, v);
       OB_DECREF(y);
       OB_DECREF(v);
@@ -1043,6 +1044,7 @@ Object *Koala_EvalFrame(Frame *f)
     }
   }
 
+  ks->top = top - base;
   ks->frame = f->back;
   --ks->depth;
   free_frame(f);

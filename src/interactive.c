@@ -286,6 +286,7 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
       }
       Object *code = code_from_symbol(evalsym);
       Koala_EvalCode(code, mo, NULL);
+      expect(kstate.top == -1);
       OB_DECREF(code);
     }
   }

@@ -12,6 +12,14 @@ arr
 arr[0] + i
 //arr[0] + s
 
+func test() int {
+  100
+}
+
+func test2(v int) int {
+  100 + v
+}
+
 func add(a int, b int) int {
   var a1 int
   var a2 int
@@ -395,4 +403,4 @@ func fn(v1 int) int {
   v1 + 200
 }
 
-//foov3(fn, 100)
+foov3(fn, 100)
