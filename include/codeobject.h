@@ -35,7 +35,7 @@ extern "C" {
 typedef struct codeobject {
   OBJECT_HEAD
   char *name;
-  Object *owner;
+  Object *module;
   TypeDesc *proto;
   /* local variables */
   Vector locvec;
@@ -51,6 +51,12 @@ typedef struct codeobject {
 extern TypeObject code_type;
 #define code_check(ob) (OB_TYPE(ob) == &code_type)
 Object *code_new(char *name, TypeDesc *proto, uint8_t *codes, int size);
+static inline void code_set_module(Object *code, Object *module)
+{
+  CodeObject *co = (CodeObject *)code;
+  co->module = module;
+}
+
 static inline void code_set_consts(Object *code, Object *consts)
 {
   CodeObject *co = (CodeObject *)code;

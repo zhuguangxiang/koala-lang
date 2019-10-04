@@ -52,7 +52,7 @@ extern "C" {
 #define OP_STORE_2 18
 #define OP_STORE_3 19
 
-#define OP_GET_OBJECT   20
+#define OP_GET_METHOD   20
 #define OP_GET_VALUE    21
 #define OP_SET_VALUE    22
 #define OP_RETURN_VALUE 23
@@ -61,7 +61,6 @@ extern "C" {
 #define OP_PRINT        26
 #define OP_TYPEOF       27
 #define OP_TYPECHECK    28
-#define OP_EVAL_CLOSURE 29
 
 #define OP_ADD  30
 #define OP_SUB  31
@@ -123,7 +122,6 @@ extern "C" {
 #define OP_NEW_MAP      87
 #define OP_NEW_RANGE    88
 #define OP_NEW_CLOSURE  89
-#define OP_FUNC_CLOSURE 90
 #define OP_NEW_EVAL     91
 #define OP_NEW_OBJECT   92
 #define OP_NEW_ITER     93
@@ -137,6 +135,8 @@ extern "C" {
 
 #define OP_UPVAL_LOAD   100
 #define OP_UPVAL_STORE  101
+
+#define OP_LOAD_GLOBAL  103
 
 int opcode_argc(int op);
 char *opcode_str(int op);

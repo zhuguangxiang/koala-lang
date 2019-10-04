@@ -26,6 +26,7 @@
 #include <stddef.h>
 #include "common.h"
 #include "opcode.h"
+#include "log.h"
 
 #define OPCODE(op, size) { op, #op + 3, size }
 
@@ -54,16 +55,15 @@ static struct opcode {
   OPCODE(OP_STORE_2, 0),
   OPCODE(OP_STORE_3, 0),
 
-  OPCODE(OP_GET_OBJECT, 2),
+  OPCODE(OP_GET_METHOD, 2),
   OPCODE(OP_GET_VALUE, 2),
   OPCODE(OP_SET_VALUE, 2),
   OPCODE(OP_RETURN_VALUE, 0),
   OPCODE(OP_RETURN, 0),
-  OPCODE(OP_CALL, 3),
+  OPCODE(OP_CALL, 2),
   OPCODE(OP_PRINT, 0),
   OPCODE(OP_TYPEOF, 2),
   OPCODE(OP_TYPECHECK, 2),
-  OPCODE(OP_EVAL_CLOSURE, 1),
 
   OPCODE(OP_ADD, 0),
   OPCODE(OP_SUB, 0),
@@ -120,7 +120,6 @@ static struct opcode {
   OPCODE(OP_NEW_MAP,      3),
   OPCODE(OP_NEW_RANGE,    1),
   OPCODE(OP_NEW_CLOSURE,  2),
-  OPCODE(OP_FUNC_CLOSURE, 0),
   OPCODE(OP_NEW_EVAL,     3),
   OPCODE(OP_NEW_OBJECT,   3),
   OPCODE(OP_NEW_ITER,     0),
@@ -129,6 +128,8 @@ static struct opcode {
   OPCODE(OP_UNPACK_TUPLE, 0),
 
   OPCODE(OP_UPVAL_LOAD, 1),
+
+  OPCODE(OP_LOAD_GLOBAL,  0),
 };
 
 #define OP_MAP(op, map) { op, #map }
@@ -169,6 +170,7 @@ int opcode_argc(int op)
     if (opcode->op == op)
       return opcode->argsize;
   }
+  expect(0);
   return -1;
 }
 
@@ -180,6 +182,7 @@ char *opcode_str(int op)
     if (opcode->op == op)
       return opcode->opstr;
   }
+  expect(0);
   return NULL;
 }
 
@@ -191,5 +194,6 @@ char *opcode_map(int op)
     if (map->op == op)
       return map->map;
   }
+  expect(0);
   return NULL;
 }

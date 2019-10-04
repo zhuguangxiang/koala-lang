@@ -49,10 +49,9 @@ typedef enum symbolkind {
   SYM_ENUM   = 6,   /* enum               */
   SYM_EVAL   = 7,   /* enum value         */
   SYM_IFUNC  = 8,   /* interface method   */
-  SYM_NFUNC  = 9,   /* native function    */
-  SYM_ANONY  = 10,  /* anonymous function */
-  SYM_MOD    = 11,  /* (external) module  */
-  SYM_REF    = 12,  /* reference symbol   */
+  SYM_ANONY  = 9,   /* anonymous function */
+  SYM_MOD    = 10,  /* (external) module  */
+  SYM_REF    = 11,  /* reference symbol   */
   SYM_MAX
 } SymKind;
 

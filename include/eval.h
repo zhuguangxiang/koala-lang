@@ -54,7 +54,7 @@ typedef struct koalastate {
   Object *stack[MAX_STACK_SIZE];
 } KoalaState;
 
-Object *Koala_EvalCode(Object *self, Object *ob, Object *args);
+Object *koala_evalcode(Object *self, Object *ob, Object *args);
 
 #ifdef __cplusplus
 }

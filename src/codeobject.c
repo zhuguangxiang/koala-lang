@@ -49,6 +49,9 @@ static void code_clean(Object *ob)
   /* free constant pool */
   OB_DECREF(co->consts);
 
+  /* free its module */
+  //OB_DECREF(co->module);
+
   /* free func's descriptor */
   TYPE_DECREF(co->proto);
 }

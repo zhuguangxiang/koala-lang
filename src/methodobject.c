@@ -61,7 +61,7 @@ Object *Method_Call(Object *self, Object *ob, Object *args)
     func_t fn = meth->ptr;
     return fn(ob, args);
   } else {
-    return Koala_EvalCode(meth->ptr, ob, args);
+    return koala_evalcode(meth->ptr, ob, args);
   }
 }
 

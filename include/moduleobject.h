@@ -70,6 +70,9 @@ void Module_Add_Func(Object *self, Object *ob);
 void Module_Add_FuncDef(Object *self, MethodDef *f);
 void Module_Add_FuncDefs(Object *self, MethodDef *def);
 
+Object *module_get(Object *self, char *name);
+void module_set(Object *self, char *name, Object *val);
+
 #ifdef __cplusplus
 }
 #endif

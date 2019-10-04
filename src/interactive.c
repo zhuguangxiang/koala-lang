@@ -137,6 +137,7 @@ static void _load_const_(void *val, int kind, int index, void *arg)
     expect(kind == CONST_ANONY);
     ci = val;
     ob = code_new(ci->name, ci->desc, ci->codes, ci->size);
+    code_set_module(ob, mo);
     code_set_consts(ob, tuple);
     code_set_locvars(ob, ci->locvec);
     code_set_freevals(ob, ci->freevec);
@@ -245,6 +246,7 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
     Object *code = code_from_symbol(sym);
     Object *meth = Method_New(sym->name, code);
     Module_Add_Func(ob, meth);
+    code_set_module(code, ob);
     OB_DECREF(code);
     OB_DECREF(meth);
     break;
@@ -285,7 +287,8 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
         pthread_setspecific(kskey, &kstate);
       }
       Object *code = code_from_symbol(evalsym);
-      Koala_EvalCode(code, mo, NULL);
+      code_set_module(code, mo);
+      koala_evalcode(code, NULL, NULL);
       expect(kstate.top == -1);
       OB_DECREF(code);
     }

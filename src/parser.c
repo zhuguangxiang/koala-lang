@@ -90,6 +90,7 @@ typedef struct inst {
   struct list_head link;
   int bytes;
   int argc;
+  int hasob;
   uint8_t op;
   Literal arg;
   TypeDesc *desc;
@@ -322,12 +323,16 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     bytebuffer_write_2bytes(buf, index);
     break;
   }
-  case OP_GET_OBJECT: {
+  case OP_GET_METHOD: {
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
   }
-  case OP_CALL:
+  case OP_CALL: {
+    bytebuffer_write_byte(buf, i->hasob);
+    bytebuffer_write_byte(buf, i->argc);
+    break;
+  }
   case OP_NEW_EVAL:
     index = Image_Add_String(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
@@ -342,9 +347,6 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_TYPECHECK:
     index = Image_Add_Desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
-    break;
-  case OP_EVAL_CLOSURE:
-    bytebuffer_write_byte(buf, i->arg.ival);
     break;
   case OP_POP_TOP:
   case OP_SWAP:
@@ -393,7 +395,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_SUBSCR_STORE:
   case OP_NEW_ITER:
   case OP_UNPACK_TUPLE:
-  case OP_FUNC_CLOSURE:
+  case OP_LOAD_GLOBAL:
     break;
   case OP_LOAD:
   case OP_STORE:
@@ -465,9 +467,10 @@ void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf)
   inst_add(ps, op, &v);     \
 })
 
-#define CODE_OP_S_ARGC(op, s, _argc) ({ \
-  Inst *i = CODE_OP_S(op, s);           \
-  i->argc = _argc;                      \
+#define CODE_OP_ARGC(op, _hasob, _argc) ({ \
+  Inst *i = CODE_OP(op);           \
+  i->hasob = _hasob; \
+  i->argc = _argc;                 \
 })
 
 #define CODE_OP_TYPE(op, type) ({ \
@@ -1027,31 +1030,31 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
   debug("ident '%s' in module", exp->id.name);
 
   if (exp->ctx == EXPR_LOAD) {
-    CODE_OP(OP_LOAD_0);
+    CODE_OP(OP_LOAD_GLOBAL);
     CODE_OP_S(OP_GET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_STORE) {
-    CODE_OP(OP_LOAD_0);
+    CODE_OP(OP_LOAD_GLOBAL);
     CODE_OP_S(OP_SET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
     if (sym->kind == SYM_FUNC) {
-      CODE_OP(OP_LOAD_0);
-      CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+      CODE_OP(OP_LOAD_GLOBAL);
+      CODE_OP_S(OP_GET_METHOD, exp->id.name);
+      CODE_OP_ARGC(OP_CALL, 0, exp->argc);
     } else if (sym->kind == SYM_VAR) {
       // closure or function, not allowed method?
       expect(sym->desc->kind == TYPE_PROTO);
-      CODE_OP(OP_LOAD_0);
+      CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S(OP_GET_VALUE, exp->id.name);
-      CODE_OP_I(OP_EVAL_CLOSURE, exp->argc);
+      CODE_OP_ARGC(OP_CALL, 0, exp->argc);
     } else {
       panic("symbol %d is claled?", sym->kind);
     }
   } else if (exp->ctx == EXPR_INPLACE) {
-    CODE_OP(OP_LOAD_0);
+    CODE_OP(OP_LOAD_GLOBAL);
     parse_attr_inplace(ps, exp->id.name, exp);
   } else if (exp->ctx == EXPR_LOAD_FUNC) {
-    CODE_OP(OP_LOAD_0);
-    CODE_OP_S(OP_GET_OBJECT, exp->id.name);
-    CODE_OP(OP_FUNC_CLOSURE);
+    CODE_OP(OP_LOAD_GLOBAL);
+    CODE_OP_S(OP_GET_METHOD, exp->id.name);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1072,7 +1075,7 @@ static void ident_in_func(ParserState *ps, Expr *exp)
     debug("call function:%s, argc:%d", sym->name, exp->argc);
     expect(sym->desc->kind == TYPE_PROTO);
     CODE_LOAD(sym->var.index);
-    CODE_OP_I(OP_EVAL_CLOSURE, exp->argc);
+    CODE_OP_ARGC(OP_CALL, 0, exp->argc);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1188,7 +1191,7 @@ static void ident_builtin(ParserState *ps, Expr *exp)
     CODE_OP_S(OP_SET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
     CODE_OP(OP_LOAD_0);
-    CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+    //CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1530,10 +1533,12 @@ static void parse_atrr(ParserState *ps, Expr *exp)
     case SYM_FUNC: {
       if (exp->ctx == EXPR_LOAD)
         CODE_OP_S(OP_GET_VALUE, id->name);
-      else if (exp->ctx == EXPR_CALL_FUNC)
-        CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
-      else if (exp->ctx == EXPR_LOAD_FUNC)
-        CODE_OP_S(OP_GET_OBJECT, id->name);
+      else if (exp->ctx == EXPR_CALL_FUNC) {
+        CODE_OP(OP_DUP);
+        CODE_OP_S(OP_GET_METHOD, id->name);
+        CODE_OP_ARGC(OP_CALL, 1, exp->argc);
+      } else if (exp->ctx == EXPR_LOAD_FUNC)
+        CODE_OP_S(OP_GET_METHOD, id->name);
       else if (exp->ctx == EXPR_STORE)
         CODE_OP_S(OP_SET_VALUE, id->name);
       else
@@ -1672,8 +1677,8 @@ static void parse_call(ParserState *ps, Expr *exp)
   }
 
   if (lexp->kind == CALL_KIND && desc->kind == TYPE_PROTO) {
-    debug("left expr is func call and ret is func, its closure call");
-    CODE_OP_I(OP_EVAL_CLOSURE, lexp->argc);
+    debug("left expr is func call and ret is func");
+    CODE_OP_ARGC(OP_CALL, 0, lexp->argc);
   }
 
   // check call arguments
@@ -2085,7 +2090,7 @@ static void parse_anony(ParserState *ps, Expr *exp)
   if (!has_error(ps)) {
     CODE_OP_ANONY(sym);
     if (exp->ctx == EXPR_CALL_FUNC) {
-      CODE_OP_I(OP_EVAL_CLOSURE, exp->argc);
+      CODE_OP_ARGC(OP_CALL, 0, exp->argc);
     }
   }
 }
@@ -2175,7 +2180,7 @@ static void parse_new(ParserState *ps, Expr *exp)
     }
     if (desc->kind == TYPE_KLASS && argc > 0) {
       CODE_OP(OP_DUP);
-      CODE_OP_S_ARGC(OP_CALL, "__init__", argc);
+      //CODE_OP_S_ARGC(OP_CALL, "__init__", argc);
     }
   }
 }
@@ -2280,7 +2285,10 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   /* generate codes */
   if (exp != NULL && !has_error(ps)) {
     ScopeKind scope = ps->u->scope;
-    if (scope == SCOPE_MODULE || scope == SCOPE_CLASS) {
+    if (scope == SCOPE_MODULE) {
+      CODE_OP(OP_LOAD_GLOBAL);
+      CODE_OP_S(OP_SET_VALUE, id->name);
+    } else if (scope == SCOPE_CLASS) {
       CODE_OP(OP_LOAD_0);
       CODE_OP_S(OP_SET_VALUE, id->name);
     } else {

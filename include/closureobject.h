@@ -40,6 +40,7 @@ typedef struct upval {
 
 typedef struct closureobject {
   OBJECT_HEAD
+  char *name;
   Vector *upvals;
   Object *code;
 } ClosureObject;

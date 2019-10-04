@@ -132,24 +132,6 @@ static void free_frame(Frame *f)
   kfree(f);
 }
 
-static void prepare_args(Frame *f, Object *ob, Object *args)
-{
-  f->locvars[0] = OB_INCREF(ob);
-  if (args != NULL) {
-    if (Tuple_Check(args)) {
-      Object *v;
-      int size = Tuple_Size(args);
-      for (int i = 0; i < size; i++) {
-        v = tuple_get(args, i);
-        f->locvars[i + 1] = OB_INCREF(v);
-        OB_DECREF(v);
-      }
-    } else {
-      f->locvars[1] = OB_INCREF(args);
-    }
-  }
-}
-
 /* global KoalaState list */
 static struct list_head kslist;
 
@@ -414,11 +396,11 @@ Object *Koala_EvalFrame(Frame *f)
       SETLOCAL(3, x);
       break;
     }
-    case OP_GET_OBJECT: {
+    case OP_GET_METHOD: {
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       y = POP();
-      z = Object_Lookup(y, string_asstr(x));
+      z = Object_GetMethod(y, string_asstr(x));
       PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -455,31 +437,43 @@ Object *Koala_EvalFrame(Frame *f)
       loopflag = 0;
       break;
     }
-    case OP_CALL: {
-      oparg = NEXT_2BYTES();
-      x = tuple_get(consts, oparg);
+    case OP_CALL:
+      x = POP();
       oparg = NEXT_BYTE();
-      y = POP();
+      debug("call:hasob:%d", oparg);
+      if (method_check(x)) {
+        if (oparg > 0)
+          w = POP();
+        else
+          w = NULL;
+      }
+      oparg = NEXT_BYTE();
       if (oparg == 0) {
-        z = NULL;
+        y = NULL;
       } else if (oparg == 1) {
-        z = POP();
+        y = POP();
       } else {
-        z = tuple_new(oparg);
+        y = tuple_new(oparg);
         for (i = 0; i < oparg; ++i) {
           v = POP();
-          tuple_set(z, i, v);
+          tuple_set(y, i, v);
           OB_DECREF(v);
         }
       }
       ks->top = top - base;
-      w = Object_Call(y, string_asstr(x), z);
-      PUSH(w);
+      if (method_check(x)) {
+        debug("call method '%s' argc %d", ((MethodObject *)x)->name, oparg);
+        z = Method_Call(x, w, y);
+        OB_DECREF(w);
+      } else {
+        debug("call closure '%s' argc %d", ((ClosureObject *)x)->name, oparg);
+        expect(closure_check(x));
+        z = koala_evalcode(closure_getcode(x), x, y);
+      }
+      PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
-      OB_DECREF(z);
       break;
-    }
     case OP_PRINT: {
       x = POP();
       IoPrintln(x);
@@ -504,27 +498,6 @@ Object *Koala_EvalFrame(Frame *f)
       if (!typecheck(x, y))
         panic("typecheck failed");
       OB_DECREF(y);
-      break;
-    }
-    case OP_EVAL_CLOSURE: {
-      oparg = NEXT_BYTE();
-      y = POP();
-      if (oparg > 0) {
-        v = tuple_new(oparg);
-        for (i = 0; i < oparg; ++i) {
-          z = POP();
-          tuple_set(v, i, z);
-          OB_DECREF(z);
-        }
-      } else {
-        v = NULL;
-      }
-      expect(closure_check(y));
-      ks->top = top - base;
-      x = Koala_EvalCode(closure_getcode(y), y, v);
-      OB_DECREF(y);
-      OB_DECREF(v);
-      PUSH(x);
       break;
     }
     case OP_ADD: {
@@ -958,15 +931,6 @@ Object *Koala_EvalFrame(Frame *f)
       PUSH(y);
       break;
     }
-    case OP_FUNC_CLOSURE: {
-      x = POP();
-      z = method_getcode(x);
-      y = closure_new(z, NULL);
-      OB_DECREF(x);
-      OB_DECREF(z);
-      PUSH(y);
-      break;
-    }
     case OP_NEW_OBJECT: {
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
@@ -1037,6 +1001,11 @@ Object *Koala_EvalFrame(Frame *f)
       PUSH(y);
       break;
     }
+    case OP_LOAD_GLOBAL: {
+      x = ((CodeObject *)f->code)->module;
+      PUSH(OB_INCREF(x));
+      break;
+    }
     default: {
       panic("unknown opcode: %d", op);
       break;
@@ -1053,11 +1022,24 @@ Object *Koala_EvalFrame(Frame *f)
 
 pthread_key_t kskey;
 
-Object *Koala_EvalCode(Object *self, Object *ob, Object *args)
+Object *koala_evalcode(Object *self, Object *ob, Object *args)
 {
   KoalaState *ks = pthread_getspecific(kskey);
   expect(ks != NULL);
   Frame *f = new_frame(ks, (CodeObject *)self);
-  prepare_args(f, ob, args);
+  f->locvars[0] = OB_INCREF(ob);
+  if (args != NULL) {
+    if (Tuple_Check(args)) {
+      Object *v;
+      int size = Tuple_Size(args);
+      for (int i = 0; i < size; i++) {
+        v = tuple_get(args, i);
+        f->locvars[i + 1] = OB_INCREF(v);
+        OB_DECREF(v);
+      }
+    } else {
+      f->locvars[1] = OB_INCREF(args);
+    }
+  }
   return Koala_EvalFrame(f);
 }

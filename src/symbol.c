@@ -178,9 +178,6 @@ static void symbol_free(Symbol *sym)
   case SYM_IFUNC:
     panic("SYM_IFUNC not implemented");
     break;
-  case SYM_NFUNC:
-    panic("SYM_NFUNC not implemented");
-    break;
   case SYM_ANONY: {
     debug("[Symbol Freed] anonymous '%s'", sym->name);
     codeblock_free(sym->anony.codeblock);

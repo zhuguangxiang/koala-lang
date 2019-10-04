@@ -195,6 +195,30 @@ void Module_Add_FuncDefs(Object *self, MethodDef *def)
   }
 }
 
+Object *module_get(Object *self, char *name)
+{
+  Object *ob = Module_Lookup(self, name);
+  expect(ob != NULL);
+
+  if (field_check(ob)) {
+    Object *res = field_get(ob, self);
+    OB_DECREF(ob);
+    return res;
+  }
+
+  expect(method_check(ob));
+  return ob;
+}
+
+void module_set(Object *self, char *name, Object *val)
+{
+  Object *ob = Module_Lookup(self, name);
+  expect(ob != NULL);
+  expect(field_check(ob));
+  int res = field_set(ob, self, val);
+  expect(res == 0);
+}
+
 Object *Module_New(char *name)
 {
   ModuleObject *module = kmalloc(sizeof(*module));
