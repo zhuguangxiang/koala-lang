@@ -249,35 +249,6 @@ void codeblock_show(CodeBlock *block)
   }
 }
 
-void fill_locvars(Symbol *sym, Vector *vec)
-{
-  Vector *locvec = NULL;
-  SymKind kind = sym->kind;
-  if (kind == SYM_FUNC) {
-    locvec = &sym->func.locvec;
-  } else if (kind == SYM_ANONY) {
-    locvec = &sym->anony.locvec;
-  } else {
-    panic("getlocvars invalid symbol kind %d", kind);
-  }
-
-  LocVar *var;
-  Symbol *varsym;
-  vector_for_each(varsym, locvec) {
-    expect(varsym->kind == SYM_VAR);
-    var = locvar_new(varsym->name, varsym->desc, varsym->var.index);
-    vector_push_back(vec, var);
-  }
-}
-
-void free_locvars(Vector *locvec)
-{
-  LocVar *var;
-  vector_for_each(var, locvec) {
-    locvar_free(var);
-  }
-}
-
 static void code_gen_closure(Inst *i, Image *image, ByteBuffer *buf)
 {
   Symbol *sym = i->anonysym;
@@ -319,12 +290,12 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_GET_VALUE:
   case OP_SET_VALUE: {
     Literal *val = &i->arg;
-    index = Image_Add_Literal(image, val);
+    index = image_add_literal(image, val);
     bytebuffer_write_2bytes(buf, index);
     break;
   }
   case OP_GET_METHOD: {
-    index = Image_Add_String(image, i->arg.str);
+    index = image_add_string(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     break;
   }
@@ -334,18 +305,18 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     break;
   }
   case OP_NEW_EVAL:
-    index = Image_Add_String(image, i->arg.str);
+    index = image_add_string(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_byte(buf, i->argc);
     break;
   case OP_NEW_OBJECT:
-    index = Image_Add_Desc(image, i->desc);
+    index = image_add_desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_byte(buf, i->argc);
     break;
   case OP_TYPEOF:
   case OP_TYPECHECK:
-    index = Image_Add_Desc(image, i->desc);
+    index = image_add_desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
     break;
   case OP_POP_TOP:
@@ -408,12 +379,12 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     break;
   case OP_NEW_TUPLE:
   case OP_NEW_MAP:
-    index = Image_Add_Desc(image, i->desc);
+    index = image_add_desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_byte(buf, i->arg.ival);
     break;
   case OP_NEW_ARRAY:
-    index = Image_Add_Desc(image, i->desc);
+    index = image_add_desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_2bytes(buf, i->arg.ival);
     break;
@@ -583,11 +554,10 @@ static void parser_handle_jmps(ParserState *ps, int upoffset)
   vector_fini(&u->jmps);
 }
 
-static void merge_into_func(ParserUnit *u, char *name, int create)
+static void merge_into_func(ParserUnit *u, char *name)
 {
   Symbol *sym = stable_get(u->stbl, name);
   if (sym == NULL) {
-    expect(create != 0);
     debug("create '%s'", name);
     TypeDesc *proto = desc_from_proto(NULL, NULL);
     sym = stable_add_func(u->stbl, name, proto);
@@ -641,7 +611,7 @@ static void unit_merge_free(ParserState *ps)
   case SCOPE_MODULE: {
     // module has codes for __init__
     if (!has_error(ps) && u->block && u->block->bytes > 0) {
-      merge_into_func(u, "__init__", 1);
+      merge_into_func(u, "__init__");
     } else {
       codeblock_free(u->block);
       u->block = NULL;
@@ -677,6 +647,19 @@ static void unit_merge_free(ParserState *ps)
     expect(sym->anony.codeblock == NULL);
     if (!has_error(ps)) {
       sym->anony.codeblock = u->block;
+    } else {
+      codeblock_free(u->block);
+    }
+    u->block = NULL;
+    u->sym = NULL;
+    break;
+  }
+  case SCOPE_CLASS: {
+    Symbol *sym = u->sym;
+    expect(sym != NULL);
+    expect(sym->type.stbl != NULL);
+    if (!has_error(ps) && u->block && u->block->bytes > 0) {
+      merge_into_func(u, "__init__");
     } else {
       codeblock_free(u->block);
     }
@@ -974,7 +957,7 @@ static void parse_self(ParserState *ps, Expr *exp)
   if (u->scope == SCOPE_MODULE) {
     exp->sym = u->sym;
     exp->desc = TYPE_INCREF(u->sym->desc);
-    CODE_OP(OP_LOAD_0);
+    CODE_OP(OP_LOAD_GLOBAL);
   } else if (u->scope == SCOPE_CLASS) {
     panic("not implemented");
   } else {
@@ -2045,15 +2028,8 @@ static Symbol *new_anony_symbol(Expr *exp)
 
   // parse anonymous's proto
   Vector *idtypes = exp->anony.idtypes;
-  Vector *vec = NULL;
-  if (vector_size(idtypes) > 0)
-    vec = vector_new();
-  IdType *item;
-  vector_for_each(item, idtypes) {
-    vector_push_back(vec, TYPE_INCREF(item->type.desc));
-  }
   Type *ret = &exp->anony.ret;
-  TypeDesc *proto = desc_from_proto(vec, ret->desc);
+  TypeDesc *proto = parse_proto(idtypes, ret);
 
   //new anonymous symbol
   Symbol *sym = symbol_new(atom(name), SYM_ANONY);
@@ -2351,6 +2327,18 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
       break;
     }
   }
+}
+
+TypeDesc *parse_proto(Vector *idtypes, Type *ret)
+{
+  Vector *vec = NULL;
+  if (vector_size(idtypes) > 0)
+    vec = vector_new();
+  IdType *item;
+  vector_for_each(item, idtypes) {
+    vector_push_back(vec, TYPE_INCREF(item->type.desc));
+  }
+  return desc_from_proto(vec, ret->desc);
 }
 
 static void parse_funcdecl(ParserState *ps, Stmt *stmt)
@@ -2689,6 +2677,46 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   parser_exit_scope(ps);
 }
 
+static void parse_ifunc(ParserState *ps, Stmt *stmt)
+{
+  Ident *id = &stmt->funcdecl.id;
+  debug("add ifunc '%s'", id->name);
+  Vector *idtypes = stmt->funcdecl.idtypes;
+  Type *ret = &stmt->funcdecl.ret;
+  TypeDesc *proto = parse_proto(idtypes, ret);
+  stable_add_ifunc(ps->u->stbl, id->name, proto);
+  TYPE_DECREF(proto);
+}
+
+static void parse_typedecl(ParserState *ps, Stmt *stmt)
+{
+  Ident *id = &stmt->class_stmt.id;
+#if !defined(NLog)
+  char *typename = stmt->kind == CLASS_KIND ? "class" : "trait";
+#endif
+  debug("parse %s '%s'", typename, id->name);
+  Symbol *sym = stable_get(ps->u->stbl, id->name);
+  expect(sym != NULL);
+
+  //parse_class_extends(ps, stmt);
+
+  parser_enter_scope(ps, SCOPE_CLASS, 0);
+  ps->u->sym = sym;
+  ps->u->stbl = sym->type.stbl;
+
+  /* parse class body */
+  Vector *body = stmt->class_stmt.body;
+  int sz = vector_size(body);
+  Stmt *s = NULL;
+  vector_for_each(s, body) {
+    parse_stmt(ps, s);
+  }
+
+  parser_exit_scope(ps);
+
+  debug("end of %s '%s'", typename, id->name);
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   static void (*handlers[])(ParserState *, Stmt *) = {
@@ -2701,9 +2729,9 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     parse_return,       /* RETURN_KIND    */
     parse_expr,         /* EXPR_KIND      */
     parse_block,        /* BLOCK_KIND     */
-    NULL,               /* PROTO_KIND     */
-    NULL,               /* CLASS_KIND     */
-    NULL,               /* TRAIT_KIND     */
+    parse_ifunc,        /* IFUNC_KIND     */
+    parse_typedecl,     /* CLASS_KIND     */
+    parse_typedecl,     /* TRAIT_KIND     */
     NULL,               /* ENUM_KIND      */
     NULL,               /* EVAL_KIND      */
     parse_break,        /* BREAK_KIND     */

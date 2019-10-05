@@ -73,7 +73,7 @@ Object *field_default_getter(Object *self, Object *ob)
 {
   FieldObject *field = (FieldObject *)self;
   int index = field->offset;
-  Object *old;
+  Object *res;
   if (Module_Check(ob)) {
     ModuleObject *mo = (ModuleObject *)ob;
     int size = vector_size(&mo->values);
@@ -81,10 +81,13 @@ Object *field_default_getter(Object *self, Object *ob)
       error("index %d out of range(0..<%d)", index, size);
       return NULL;
     }
-    old = vector_get(&mo->values, index);
-    return OB_INCREF(old);
+    res = vector_get(&mo->values, index);
+    return OB_INCREF(res);
   } else {
-    return NULL;
+    HeapObject *ho = (HeapObject *)ob;
+    expect(index >= 0 && index < ho->size);
+    res = ho->items[index];
+    return OB_INCREF(res);
   }
 }
 
@@ -104,7 +107,12 @@ int field_default_setter(Object *self, Object *ob, Object *val)
     OB_DECREF(old);
     return 0;
   } else {
-    return -1;
+    HeapObject *ho = (HeapObject *)ob;
+    expect(index >= 0 && index < ho->size);
+    old = ho->items[index];
+    OB_DECREF(old);
+    ho->items[index] = OB_INCREF(val);
+    return 0;
   }
 }
 

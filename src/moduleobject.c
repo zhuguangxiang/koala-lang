@@ -67,6 +67,13 @@ static void module_free(Object *ob)
   }
 
   ModuleObject *module = (ModuleObject *)ob;
+
+  Object *item;
+  vector_for_each(item, &module->values) {
+    OB_DECREF(item);
+  }
+  vector_fini(&module->values);
+
   HashMap *map = module->mtbl;
   if (map != NULL) {
     debug("fini module '%s'", module->name);
@@ -76,11 +83,6 @@ static void module_free(Object *ob)
     module->mtbl = NULL;
   }
 
-  Object *item;
-  vector_for_each(item, &module->values) {
-    OB_DECREF(item);
-  }
-  vector_fini(&module->values);
   kfree(ob);
 }
 

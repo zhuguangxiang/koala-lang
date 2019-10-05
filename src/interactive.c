@@ -157,22 +157,20 @@ static Object *code_from_symbol(Symbol *sym)
   Object *consts;
   Image *image;
   uint8_t *code;
-  int locals;
   int size;
   ByteBuffer buf;
 
   expect(sym->kind == SYM_FUNC);
 
-  image = Image_New("__main__");
+  image = image_new("__main__");
   bytebuffer_init(&buf, 32);
 
   code_gen(sym->func.codeblock, image, &buf);
 
 #if !defined(NLog)
-  Image_Show(image);
+  image_show(image);
 #endif
 
-  locals = vector_size(&sym->func.locvec);
   consts = tuple_new(image_const_size(image));
   image_load_consts(image, _load_const_, consts);
   size = bytebuffer_toarr(&buf, (char **)&code);
@@ -188,7 +186,7 @@ static Object *code_from_symbol(Symbol *sym)
   kfree(code);
 
   bytebuffer_fini(&buf);
-  Image_Free(image);
+  image_free(image);
   return ob;
 }
 
@@ -216,17 +214,112 @@ int cmd_add_var(ParserState *ps, Ident id, Type type)
 
 int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret)
 {
-  Vector *vec = NULL;
-  if (vector_size(idtypes) > 0)
-    vec = vector_new();
-  IdType *item;
-  vector_for_each(item, idtypes) {
-    vector_push_back(vec, TYPE_INCREF(item->type.desc));
-  }
-  TypeDesc *proto = desc_from_proto(vec, ret.desc);
+  TypeDesc *proto = parse_proto(idtypes, &ret);
   cursym = stable_add_func(mod.stbl, name, proto);
   TYPE_DECREF(proto);
   return cursym != NULL ? 0 : -1;
+}
+
+static void cmd_visit_type(Symbol *sym, Vector *body)
+{
+  STable *stbl = sym->type.stbl;
+  Stmt *s;
+  vector_for_each(s, body) {
+    if (s->kind == VAR_KIND) {
+      stable_add_var(stbl, s->vardecl.id.name, s->vardecl.type.desc);
+    } else if (s->kind == FUNC_KIND) {
+      Vector *idtypes = s->funcdecl.idtypes;
+      Type *ret = &s->funcdecl.ret;
+      TypeDesc *proto = parse_proto(idtypes, ret);
+      stable_add_func(stbl, s->funcdecl.id.name, proto);
+      TYPE_DECREF(proto);
+    } else if (s->kind == IFUNC_KIND) {
+      Vector *idtypes = s->funcdecl.idtypes;
+      Type *ret = &s->funcdecl.ret;
+      TypeDesc *proto = parse_proto(idtypes, ret);
+      stable_add_ifunc(stbl, s->funcdecl.id.name, proto);
+      TYPE_DECREF(proto);
+    } else if (s->kind == EVAL_KIND) {
+
+    } else {
+      panic("invalid type's body statement: %d", s->kind);
+    }
+  }
+}
+
+int cmd_add_type(ParserState *ps, Stmt *stmt)
+{
+  Symbol *sym = NULL;
+  Symbol *any;
+  switch (stmt->kind) {
+  case CLASS_KIND: {
+    sym = stable_add_class(mod.stbl, stmt->class_stmt.id.name);
+    any = find_from_builtins("Any");
+    ++any->refcnt;
+    vector_push_back(&sym->type.bases, any);
+    cmd_visit_type(sym, stmt->class_stmt.body);
+    break;
+  }
+  case TRAIT_KIND: {
+    sym = stable_add_trait(mod.stbl, stmt->class_stmt.id.name);
+    any = find_from_builtins("Any");
+    ++any->refcnt;
+    vector_push_back(&sym->type.bases, any);
+    cmd_visit_type(sym, stmt->class_stmt.body);
+    break;
+  }
+  case ENUM_KIND: {
+    break;
+  }
+  default:
+    panic("invalid stmt kind %d", stmt->kind);
+    break;
+  }
+  cursym = sym;
+  return sym != NULL ? 0 : -1;
+}
+
+static void _load_mbr__(char *name, int kind, TypeDesc *desc, void *arg)
+{
+  TypeObject *type = arg;
+  if (kind == MBR_FIELD) {
+    type_add_field_default(type, atom(name), desc);
+  } else {
+    panic("_load_mbr__: not implemented");
+  }
+}
+
+static void _load_class_(char *name, int index, Image *image, void *arg)
+{
+  TypeObject *type = arg;
+  expect(!strcmp(name, type->name));
+  image_load_mbrs(image, index, _load_mbr__, type);
+}
+
+static void type_from_symbol(Symbol *clssym, TypeObject *type)
+{
+  Image *image = image_new("__main__");
+  class_write_image(clssym, image);
+  image_load_class(image, 0, _load_class_, type);
+  image_free(image);
+}
+
+static inline TypeObject *class_from_symbol(Symbol *sym)
+{
+  TypeObject *tp = type_new(NULL, sym->name, TPFLAGS_CLASS);
+  type_from_symbol(sym, tp);
+  if (type_ready(tp) < 0)
+    panic("Cannot initalize '%s' type.", sym->name);
+  return tp;
+}
+
+static inline TypeObject *trait_from_symbol(Symbol *sym)
+{
+  TypeObject *tp = type_new(NULL, sym->name, TPFLAGS_TRAIT);
+  type_from_symbol(sym, tp);
+  if (type_ready(tp) < 0)
+    panic("Cannot initalize '%s' type.", sym->name);
+  return tp;
 }
 
 static void add_symbol_to_module(Symbol *sym, Object *ob)
@@ -249,6 +342,18 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
     code_set_module(code, ob);
     OB_DECREF(code);
     OB_DECREF(meth);
+    break;
+  }
+  case SYM_CLASS: {
+    TypeObject *tp = class_from_symbol(sym);
+    Module_Add_Type(ob, tp);
+    OB_DECREF(tp);
+    break;
+  }
+  case SYM_TRAIT: {
+    TypeObject *tp = trait_from_symbol(sym);
+    Module_Add_Type(ob, tp);
+    OB_DECREF(tp);
     break;
   }
   default: {

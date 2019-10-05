@@ -407,3 +407,18 @@ func fn(v1 int) int {
 }
 
 foov3(fn, 100)
+
+class Animal {
+  name string;
+  type string;
+  age int;
+}
+
+an := new Animal()
+an.name = "WangWang"
+an.type = "dog"
+an.age = 24
+an
+an.name
+an.type
+an.age

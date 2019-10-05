@@ -151,11 +151,11 @@ void parser_exit_scope(ParserState *ps);
 void parse_stmt(ParserState *ps, Stmt *stmt);
 void parser_visit_expr(ParserState *ps, Expr *exp);
 void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf);
+TypeDesc *parse_proto(Vector *idtypes, Type *ret);
 Symbol *find_from_builtins(char *name);
 void mod_from_mobject(Module *mod, Object *ob);
 Symbol *mod_find_symbol(Module *mod, char *name);
 Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc);
-void fill_locvars(Symbol *sym, Vector *vec);
 
 #ifdef __cplusplus
 }

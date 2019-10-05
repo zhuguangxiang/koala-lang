@@ -372,6 +372,61 @@ int type_ready(TypeObject *type)
   return 0;
 }
 
+static Object *object_alloc(TypeObject *type)
+{
+  // FIXME: inheritance
+  int isize = type->nrvars;
+  int msize = sizeof(HeapObject) + sizeof(Object *) * isize;
+  HeapObject *ob = gcnew(msize);
+  init_object_head(ob, type);
+  ob->size = isize;
+  return (Object *)ob;
+}
+
+static void object_clean(Object *self)
+{
+  debug("clean object '%s'", OB_TYPE_NAME(self));
+  HeapObject *ob = (HeapObject *)self;
+  Object *item;
+  for (int i = 0; i < ob->size; i++) {
+    item = ob->items[i];
+    OB_DECREF(item);
+  }
+}
+
+static void object_free(Object *self)
+{
+  object_clean(self);
+  gcfree(self);
+}
+
+static void object_mark(Object *self)
+{
+  HeapObject *ob = (HeapObject *)self;
+  Object *item;
+  ob_markfunc mark;
+  for (int i = 0; i < ob->size; i++) {
+    item = ob->items[i];
+    mark = OB_TYPE(item)->mark;
+    if (mark != NULL)
+      mark(item);
+  }
+}
+
+TypeObject *type_new(char *path, char *name, int flags)
+{
+  TypeObject *tp = gcnew(sizeof(TypeObject));
+  init_object_head(tp, &type_type);
+  tp->name  = atom(name);
+  tp->desc  = desc_from_klass(path, name);
+  tp->flags = flags | TPFLAGS_GC;
+  tp->mark  = object_mark,
+  tp->clean = object_clean,
+  tp->alloc = object_alloc;
+  tp->free  = object_free;
+  return tp;
+}
+
 void type_fini(TypeObject *type)
 {
   destroy_lro(type);
@@ -396,6 +451,14 @@ void Type_Add_Field(TypeObject *type, Object *ob)
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
   expect(res == 0);
+}
+
+void type_add_field_default(TypeObject *type, char *name, TypeDesc *desc)
+{
+  Object *field = field_new(name, desc);
+  Field_SetFunc(field, field_default_setter, field_default_getter);
+  Type_Add_Field(type, field);
+  OB_DECREF(field);
 }
 
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
@@ -486,9 +549,31 @@ void Type_Add_MethodDefs(TypeObject *type, MethodDef *def)
   }
 }
 
+static void type_clean(Object *ob)
+{
+  if (!Type_Check(ob)) {
+    error("object of '%.64s' is not a Type", OB_TYPE_NAME(ob));
+    return;
+  }
+
+  TypeObject *tp = (TypeObject *)ob;
+  debug("clean type '%s'", tp->name);
+  type_fini(tp);
+}
+
+static void type_free(Object *ob)
+{
+  TypeObject *tp = (TypeObject *)ob;
+  type_clean(ob);
+  debug("free type '%s'", tp->name);
+  gcfree(ob);
+}
+
 TypeObject type_type = {
   OBJECT_HEAD_INIT(&type_type)
-  .name = "Type",
+  .name  = "Type",
+  .clean = type_clean,
+  .free  = type_free,
 };
 
 /* look in type->mtbl and its bases */

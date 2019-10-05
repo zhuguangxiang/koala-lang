@@ -33,7 +33,7 @@ static int state = GC_STOPPED;
 static LIST_HEAD(oblist);
 static LIST_HEAD(garbage);
 
-void *gcmalloc(int size)
+void *gcnew(int size)
 {
   size += sizeof(GCHeader);
   GCHeader *ob = kmalloc(size);

@@ -203,6 +203,8 @@ moddoc  "//!"[^\n]*
 "by"       { YY_RETURN(BY);           }
 "as"       { YY_RETURN(AS);           }
 "is"       { YY_RETURN(IS);           }
+"extends"  { YY_RETURN(EXTENDS);      }
+"with"     { YY_RETURN(WITH);         }
 
 "byte"     { YY_RETURN(BYTE);         }
 "int"      { YY_RETURN(INTEGER);      }

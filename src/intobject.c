@@ -493,7 +493,7 @@ void init_integer_type(void)
 
 Object *integer_new(int64_t val)
 {
-  IntegerObject *integer = gcmalloc(sizeof(IntegerObject));
+  IntegerObject *integer = gcnew(sizeof(IntegerObject));
   init_object_head(integer, &integer_type);
   integer->value = val;
   return (Object *)integer;

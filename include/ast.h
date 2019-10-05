@@ -68,10 +68,52 @@ static inline void free_idtype(IdType *idtype)
 
 void free_idtypes(Vector *vec);
 
-typedef struct {
+typedef struct idparadef {
   Ident id;
   Vector *vec;
 } IdParaDef;
+
+typedef struct extendsdef {
+  Type type;
+  Vector *withes;
+} ExtendsDef;
+
+static inline Type *new_type(TypeDesc *desc, short row, short col)
+{
+  Type *type = kmalloc(sizeof(Type));
+  type->desc = TYPE_INCREF(desc);
+  type->row = row;
+  type->col = col;
+  return type;
+}
+
+static inline void free_type(Type *type)
+{
+  TYPE_DECREF(type->desc);
+  kfree(type);
+}
+
+static inline ExtendsDef *new_extends(Type type, Vector *withes)
+{
+  ExtendsDef *extends = kmalloc(sizeof(ExtendsDef));
+  extends->type = type;
+  extends->withes = withes;
+  return extends;
+}
+
+static inline void free_extends(ExtendsDef *extends)
+{
+  if (extends == NULL)
+    return;
+
+  TYPE_DECREF(extends->type.desc);
+  Type *type;
+  vector_for_each(type, extends->withes) {
+    free_type(type);
+  }
+  vector_free(extends->withes);
+  kfree(extends);
+}
 
 /* unary operator kind */
 typedef enum unaryopkind {
@@ -273,8 +315,8 @@ typedef enum stmtkind {
   EXPR_KIND,
   /* statements */
   BLOCK_KIND,
-  /* proto/native */
-  PROTO_KIND,
+  /* ifunc */
+  IFUNC_KIND,
   /* class */
   CLASS_KIND,
   /* trait */
@@ -351,6 +393,15 @@ struct stmt {
       Expr *step;
       Vector *block;
     } for_stmt;
+    struct {
+      Ident id;
+      /* type parameters */
+      Vector *typeparas;
+      /* extends */
+      ExtendsDef *extends;
+      /* body */
+      Vector *body;
+    } class_stmt;
   };
 };
 
@@ -359,8 +410,8 @@ void stmt_block_free(Vector *vec);
 Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);
-Stmt *stmt_from_funcdecl(Ident id, Vector *typeparam, Vector *args,
-  Type *ret, Vector *body);
+Stmt *stmt_from_funcdecl(Ident id, Vector *typeparas, Vector *args,
+                         Type *ret, Vector *body);
 Stmt *stmt_from_return(Expr *exp);
 Stmt *stmt_from_break(short row, short col);
 Stmt *stmt_from_continue(short row, short col);
@@ -369,6 +420,11 @@ Stmt *stmt_from_block(Vector *list);
 Stmt *stmt_from_if(Expr *test, Vector *block, Stmt *orelse);
 Stmt *stmt_from_while(Expr *test, Vector *block);
 Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Vector *block);
+Stmt *stmt_from_class(Ident id, Vector *typeparas, ExtendsDef *extends,
+                      Vector *body);
+Stmt *stmt_from_trait(Ident id, Vector *typeparas, ExtendsDef *extends,
+                      Vector *body);
+Stmt *stmt_from_ifunc(Ident id, Vector *args, Type *ret);
 
 #ifdef __cplusplus
 }

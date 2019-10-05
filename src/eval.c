@@ -40,23 +40,6 @@
 #include "image.h"
 #include "log.h"
 
-typedef struct frame {
-  /* back call frame */
-  struct frame *back;
-  /* KoalaState */
-  KoalaState *ks;
-  /* code */
-  CodeObject *code;
-  /* code index */
-  int index;
-  /* free variables */
-  Vector *freevars;
-  /* local variables' size */
-  int size;
-  /* local variables's array */
-  Object *locvars[1];
-} Frame;
-
 static char *get_freeval_name(CodeObject *co, int index)
 {
   LocVar *var;
@@ -69,7 +52,7 @@ static char *get_freeval_name(CodeObject *co, int index)
   return NULL;
 }
 
-static Vector *getfreevars(Frame *f, CodeObject *co)
+static Vector *getfreevars(CallFrame *f, CodeObject *co)
 {
   Vector *freevec = NULL;
   if (vector_size(&co->freevec) > 0) {
@@ -89,12 +72,12 @@ static Vector *getfreevars(Frame *f, CodeObject *co)
   return freevec;
 }
 
-static Frame *new_frame(KoalaState *ks, CodeObject *co)
+static CallFrame *new_frame(KoalaState *ks, CodeObject *co)
 {
   expect(ks->depth < MAX_FRAME_DEPTH);
   int locsize = vector_size(&co->locvec);
   debug("code '%s' has %d locvars", co->name, locsize);
-  Frame *f = kmalloc(sizeof(Frame) + locsize * sizeof(Object *));
+  CallFrame *f = kmalloc(sizeof(CallFrame) + locsize * sizeof(Object *));
   f->code = OB_INCREF(co);
   f->freevars = getfreevars(f, co);
   f->size = locsize + 1;
@@ -106,7 +89,7 @@ static Frame *new_frame(KoalaState *ks, CodeObject *co)
   return f;
 }
 
-static void free_frame(Frame *f)
+static void free_frame(CallFrame *f)
 {
   UpVal *up;
   vector_for_each(up, f->freevars) {
@@ -231,10 +214,14 @@ static int typecheck(Object *ob, Object *type)
   return 0;
 }
 
-static Object *new_object(TypeDesc *desc)
+static Object *new_object(CallFrame *f, TypeDesc *desc)
 {
   Object *ret;
-  Object *ob = Module_Load(desc->klass.path);
+  Object *ob;
+  if (desc->klass.path != NULL)
+    ob = Module_Load(desc->klass.path);
+  else
+    ob = f->code->module;
   expect(ob != NULL);
   ob = Module_Lookup(ob, desc->klass.type);
   expect(ob != NULL);
@@ -250,12 +237,14 @@ static Object *new_object(TypeDesc *desc)
   } else if (type == &tuple_type) {
     ret = tuple_new(0);
   } else {
-    ret = NULL;
+    expect(type->alloc != NULL);
+    ret = type->alloc(type);
   }
+  OB_DECREF(ob);
   return ret;
 }
 
-static Vector *getupvals(Frame *f, Object *ob)
+static Vector *getupvals(CallFrame *f, Object *ob)
 {
   CodeObject *co = (CodeObject *)ob;
   Vector *upvals = NULL;
@@ -279,7 +268,7 @@ static Vector *getupvals(Frame *f, Object *ob)
   return upvals;
 }
 
-Object *Koala_EvalFrame(Frame *f)
+Object *Koala_EvalFrame(CallFrame *f)
 {
   int loopflag = 1;
   KoalaState *ks = f->ks;
@@ -949,7 +938,7 @@ Object *Koala_EvalFrame(Frame *f)
       } else {
         expect(desc->kind == TYPE_KLASS);
         expect(y == NULL);
-        z = new_object(desc);
+        z = new_object(f, desc);
       }
       OB_DECREF(x);
       OB_DECREF(y);
@@ -1002,7 +991,7 @@ Object *Koala_EvalFrame(Frame *f)
       break;
     }
     case OP_LOAD_GLOBAL: {
-      x = ((CodeObject *)f->code)->module;
+      x = f->code->module;
       PUSH(OB_INCREF(x));
       break;
     }
@@ -1026,7 +1015,7 @@ Object *koala_evalcode(Object *self, Object *ob, Object *args)
 {
   KoalaState *ks = pthread_getspecific(kskey);
   expect(ks != NULL);
-  Frame *f = new_frame(ks, (CodeObject *)self);
+  CallFrame *f = new_frame(ks, (CodeObject *)self);
   f->locvars[0] = OB_INCREF(ob);
   if (args != NULL) {
     if (Tuple_Check(args)) {

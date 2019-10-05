@@ -26,6 +26,7 @@
 #define _KOALA_SYMBOL_H_
 
 #include "object.h"
+#include "image.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -108,13 +109,7 @@ struct symbol {
       Vector bases;
       /* symbol table */
       STable *stbl;
-    } klass;
-    struct {
-      /* parameter types */
-      Vector *typeparas;
-      /* symbol table for enum value and func */
-      STable *stbl;
-    } em;
+    } type;
     struct {
       /* which enum is it? */
       Symbol *esym;
@@ -155,9 +150,15 @@ Symbol *stable_remove(STable *stbl, char *name);
 Symbol *stable_add_const(STable *stbl, char *name, TypeDesc *desc);
 Symbol *stable_add_var(STable *stbl, char *name, TypeDesc *desc);
 Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto);
+Symbol *stable_add_ifunc(STable *stbl, char *name, TypeDesc *proto);
+Symbol *stable_add_class(STable *stbl, char *name);
+Symbol *stable_add_trait(STable *stbl, char *name);
 void symbol_decref(Symbol *sym);
 STable *stable_from_mobject(Object *ob);
 Symbol *klass_find_member(Symbol *clsSym, char *name);
+void fill_locvars(Symbol *sym, Vector *vec);
+void free_locvars(Vector *locvec);
+void class_write_image(Symbol *clssym, Image *image);
 
 #ifdef __cplusplus
 }

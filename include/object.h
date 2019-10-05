@@ -83,9 +83,9 @@ struct object {
 
 #define init_object_head(_ob_, _type_) \
 ({                                     \
-  Object *ob = (Object *)(_ob_);       \
-  ob->ob_refcnt = 1;                   \
-  ob->ob_type = (_type_);              \
+  Object *_ob = (Object *)(_ob_);      \
+  _ob->ob_refcnt = 1;                  \
+  _ob->ob_type = (_type_);             \
 })
 
 #define OB_TYPE(_ob_) \
@@ -167,9 +167,9 @@ typedef Object *(*ob_allocfunc)(TypeObject *);
 typedef void (*ob_freefunc)(Object *);
 
 #define TPFLAGS_CLASS     0
-#define TPFLAGS_ABSTRACT  1
-#define TPFLAGS_TRAIT     2
-#define TPFLAGS_ENUM      3
+#define TPFLAGS_TRAIT     1
+#define TPFLAGS_ENUM      2
+#define TPFLAGS_GC        (1 << 2)
 
 struct typeobject {
   OBJECT_HEAD
@@ -241,11 +241,13 @@ void init_any_type(void);
 })
 int type_ready(TypeObject *type);
 void type_fini(TypeObject *type);
+TypeObject *type_new(char *path, char *name, int flags);
 Object *Type_Lookup(TypeObject *type, char *name);
 
 void Type_Add_Field(TypeObject *type, Object *ob);
 void Type_Add_FieldDef(TypeObject *type, FieldDef *f);
 void Type_Add_FieldDefs(TypeObject *type, FieldDef *def);
+void type_add_field_default(TypeObject *type, char *name, TypeDesc *desc);
 
 void Type_Add_Method(TypeObject *type, Object *ob);
 void type_add_methoddef(TypeObject *type, MethodDef *f);
@@ -283,6 +285,12 @@ typedef struct enumobject {
 } EnumObject;
 
 Object *new_eval(TypeObject *type, char *name, Vector *vals);
+
+typedef struct heapobject {
+  OBJECT_HEAD
+  int size;
+  Object *items[0];
+} HeapObject;
 
 #ifdef __cplusplus
 }

@@ -28,9 +28,9 @@
 
 void test_image(void)
 {
-  Image *image = Image_New("test");
+  Image *image = image_new("test");
   int val = 1234;
-  Image_Add_Integer(image, val);
+  image_add_integer(image, val);
 #if 0
   TypeDesc *desc = desc_from_base(BASE_STR);
   TypeDesc *proto = desc_from_proto(NULL, desc);
@@ -44,28 +44,28 @@ void test_image(void)
   TYPE_DECREF(proto);
 
   desc = desc_from_base(BASE_STR);
-  Image_Add_Var(image, "Greeting", desc);
+  image_add_var(image, "Greeting", desc);
   TYPE_DECREF(desc);
 /*
   desc = desc_from_base(BASE_INT);
   ConstValue val = {.kind = BASE_INT, .ival = 1000};
-  Image_Add_Const(image, "MAX_LENGTH", desc, &val);
+  image_add_constvar(image, "MAX_LENGTH", desc, &val);
   TYPE_DECREF(desc);
 */
   ConstValue val2 = {.kind = BASE_STR, .str = "hello"};
   desc = desc_from_base(BASE_STR);
-  Image_Add_Const(image, "hello", desc, &val2);
+  image_add_constvar(image, "hello", desc, &val2);
   TYPE_DECREF(desc);
 
-  Image_Finish(image);
-  Image_Show(image);
-  Image_Write_File(image, "foo.klc");
-  Image_Free(image);
-  image = Image_Read_File("foo.klc", 0);
-  Image_Show(image);
-  Image_Free(image);
+  image_finish(image);
+  image_show(image);
+  image_write_file(image, "foo.klc");
+  image_free(image);
+  image = image_read_file("foo.klc", 0);
+  image_show(image);
+  image_free(image);
 #endif
-  Image_Free(image);
+  image_free(image);
 }
 
 int main(int argc, char *argv[])

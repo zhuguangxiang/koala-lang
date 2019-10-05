@@ -36,7 +36,7 @@ typedef struct gcheader {
   int marked;
 } GCHeader;
 
-void *gcmalloc(int size);
+void *gcnew(int size);
 void gcfree(void *ptr);
 void gc(void);
 static inline void gcmark(void *ptr)

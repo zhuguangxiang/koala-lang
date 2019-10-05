@@ -135,6 +135,38 @@ Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto)
   return sym;
 }
 
+Symbol *stable_add_ifunc(STable *stbl, char *name, TypeDesc *proto)
+{
+  Symbol *sym = symbol_new(name, SYM_IFUNC);
+  if (stable_add_symbol(stbl, sym))
+    return NULL;
+  sym->desc = TYPE_INCREF(proto);
+  symbol_decref(sym);
+  return sym;
+}
+
+Symbol *stable_add_class(STable *stbl, char *name)
+{
+  Symbol *sym = symbol_new(name, SYM_CLASS);
+  if (stable_add_symbol(stbl, sym))
+    return NULL;
+  sym->desc = desc_from_klass(NULL, name);
+  sym->type.stbl = stable_new();
+  symbol_decref(sym);
+  return sym;
+}
+
+Symbol *stable_add_trait(STable *stbl, char *name)
+{
+   Symbol *sym = symbol_new(name, SYM_TRAIT);
+  if (stable_add_symbol(stbl, sym))
+    return NULL;
+  sym->desc = desc_from_klass(NULL, name);
+  sym->type.stbl = stable_new();
+  symbol_decref(sym);
+  return sym;
+}
+
 static void symbol_free(Symbol *sym)
 {
   TYPE_DECREF(sym->desc);
@@ -159,12 +191,12 @@ static void symbol_free(Symbol *sym)
   }
   case SYM_CLASS:
     debug("[Symbol Freed] class '%s'", sym->name);
-    stable_free(sym->klass.stbl);
+    stable_free(sym->type.stbl);
     Symbol *tmp;
-    vector_for_each_reverse(tmp, &sym->klass.bases) {
+    vector_for_each_reverse(tmp, &sym->type.bases) {
       symbol_decref(tmp);
     }
-    vector_fini(&sym->klass.bases);
+    vector_fini(&sym->type.bases);
     break;
   case SYM_TRAIT:
     panic("SYM_TRAIT not implemented");
@@ -176,7 +208,7 @@ static void symbol_free(Symbol *sym)
     panic("SYM_EVAL not implemented");
     break;
   case SYM_IFUNC:
-    panic("SYM_IFUNC not implemented");
+    debug("[Symbol Freed] ifunc '%s'", sym->name);
     break;
   case SYM_ANONY: {
     debug("[Symbol Freed] anonymous '%s'", sym->name);
@@ -267,7 +299,7 @@ static Symbol *load_type(Object *ob)
 
   Symbol *clsSym = symbol_new(type->name, SYM_CLASS);
   clsSym->desc = TYPE_INCREF(type->desc);
-  clsSym->klass.stbl = stbl;
+  clsSym->type.stbl = stbl;
 
   TypeObject *item;
   vector_for_each_reverse(item, &type->lro) {
@@ -276,7 +308,7 @@ static Symbol *load_type(Object *ob)
     sym = load_type((Object *)item);
     if (sym != NULL) {
       ++sym->refcnt;
-      vector_push_back(&clsSym->klass.bases, sym);
+      vector_push_back(&clsSym->type.bases, sym);
       symbol_decref(sym);
     }
   }
@@ -314,6 +346,103 @@ STable *stable_from_mobject(Object *ob)
   return stbl;
 }
 
+void fill_locvars(Symbol *sym, Vector *vec)
+{
+  Vector *locvec = NULL;
+  SymKind kind = sym->kind;
+  if (kind == SYM_FUNC) {
+    locvec = &sym->func.locvec;
+  } else if (kind == SYM_ANONY) {
+    locvec = &sym->anony.locvec;
+  } else {
+    panic("getlocvars invalid symbol kind %d", kind);
+  }
+
+  LocVar *var;
+  Symbol *varsym;
+  vector_for_each(varsym, locvec) {
+    expect(varsym->kind == SYM_VAR);
+    var = locvar_new(varsym->name, varsym->desc, varsym->var.index);
+    vector_push_back(vec, var);
+  }
+}
+
+void free_locvars(Vector *locvec)
+{
+  LocVar *var;
+  vector_for_each(var, locvec) {
+    locvar_free(var);
+  }
+}
+
+static void fill_codeinfo(Symbol *sym, Image *image, CodeInfo *ci)
+{
+  ByteBuffer buf;
+  uint8_t *code;
+  int size;
+
+  bytebuffer_init(&buf, 32);
+  code_gen(sym->func.codeblock, image, &buf);
+  size = bytebuffer_toarr(&buf, (char **)&code);
+  ci->name = sym->name;
+  ci->desc = sym->desc;
+  ci->codes = code;
+  ci->size = size;
+  ci->freevec = &sym->func.freevec;
+  bytebuffer_fini(&buf);
+}
+
+void class_write_image(Symbol *clssym, Image *image)
+{
+  int size = hashmap_size(&clssym->type.stbl->table);
+  MbrIndex indexes[size];
+  HASHMAP_ITERATOR(iter, &clssym->type.stbl->table);
+  Symbol *sym;
+  int j = 0;
+  int index;
+  iter_for_each(&iter, sym) {
+    switch (sym->kind) {
+    case SYM_VAR:
+      index = image_add_field(image, sym->name, sym->desc);
+      indexes[j].kind = MBR_FIELD;
+      indexes[j].index = index;
+      break;
+    case SYM_FUNC: {
+      VECTOR(locvec);
+      CodeInfo ci = {.locvec = &locvec};
+      fill_codeinfo(sym, image, &ci);
+      fill_locvars(sym, &locvec);
+      index = image_add_method(image, &ci);
+      free_locvars(&locvec);
+      vector_fini(&locvec);
+      indexes[j].kind = MBR_METHOD;
+      indexes[j].index = index;
+      break;
+    }
+    case SYM_IFUNC:
+      index = image_add_ifunc(image, sym->name, sym->desc);
+      indexes[j].kind = MBR_IFUNC;
+      indexes[j].index = index;
+      break;
+    default:
+      panic("invalid symbol kind %d in class/trait/enum", sym->kind);
+      break;
+    }
+    ++j;
+  }
+
+  index = image_add_mbrs(image, indexes, size);
+
+  Vector *bases = &clssym->type.bases;
+  Vector *descs = vector_new();
+  Symbol *s;
+  vector_for_each(s, bases) {
+    vector_push_back(descs, s->desc);
+  }
+  image_add_class(image, clssym->name, descs, index);
+  vector_free(descs);
+}
+
 Symbol *klass_find_member(Symbol *clsSym, char *name)
 {
   if (clsSym->kind != SYM_CLASS) {
@@ -321,12 +450,12 @@ Symbol *klass_find_member(Symbol *clsSym, char *name)
     return NULL;
   }
 
-  Symbol *sym = stable_get(clsSym->klass.stbl, name);
+  Symbol *sym = stable_get(clsSym->type.stbl, name);
   if (sym != NULL)
     return sym;
 
   Symbol *item;
-  vector_for_each_reverse(item, &clsSym->klass.bases) {
+  vector_for_each_reverse(item, &clsSym->type.bases) {
     sym = klass_find_member(item, name);
     if (sym != NULL)
       return sym;

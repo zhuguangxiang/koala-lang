@@ -50,6 +50,7 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt);
 int cmd_add_const(ParserState *ps, Ident id, Type type);
 int cmd_add_var(ParserState *ps, Ident id, Type type);
 int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
+int cmd_add_type(ParserState *ps, Stmt *stmt);
 
 %}
 
@@ -71,6 +72,8 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
   AssignOpKind assginop;
   UnaryOpKind unaryop;
   IdParaDef name;
+  ExtendsDef *extendsdef;
+  Vector *typelist;
 }
 
 %token IMPORT
@@ -92,6 +95,8 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %token BY
 %token AS
 %token IS
+%token EXTENDS
+%token WITH
 
 %token BYTE
 %token INTEGER
@@ -165,6 +170,18 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 %type <idtypelist> para_list
 %type <idtypelist> id_type_list
 %type <ptr> id_varg
+%type <stmt> type_decl
+%type <extendsdef> extends
+%type <typelist> withes
+%type <list> members
+%type <list> member_decls
+%type <stmt> member_decl
+%type <stmt> field_decl
+%type <stmt> method_decl
+%type <list> trait_members
+%type <list> trait_member_decls
+%type <stmt> trait_member_decl
+%type <stmt> proto_decl
 
 %type <expr> new_object
 %type <expr> anony_func
@@ -231,6 +248,9 @@ int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
   printf("free name\n");
   free_descs($$.vec);
 } <name>
+%destructor {
+  printf("free extends\n");
+} <extendsdef>
 
 %precedence INT_LITERAL CHAR_LITERAL
 %precedence '|'
@@ -262,6 +282,8 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+  } else {
+
   }
 }
 | const_decl
@@ -273,6 +295,8 @@ unit:
         cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
+  } else {
+
   }
 }
 | var_decl
@@ -296,6 +320,8 @@ unit:
         cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
+  } else {
+
   }
 }
 | assignment
@@ -304,6 +330,8 @@ unit:
     ps->more = 0;
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
+  } else {
+
   }
 }
 | expr ';'
@@ -340,6 +368,8 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+  } else {
+
   }
 }
 | for_each_stmt
@@ -362,12 +392,21 @@ unit:
         cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
+  } else {
+
   }
 }
 | type_decl
 {
   if (ps->interactive) {
     ps->more = 0;
+    if ($1 != NULL) {
+      if (!cmd_add_type(ps, $1))
+        cmd_eval_stmt(ps, $1);
+      stmt_free($1);
+    }
+  } else {
+
   }
 }
 | ';'
@@ -1383,59 +1422,211 @@ id_varg:
 
 type_decl:
   CLASS name extends '{' members '}'
+{
+  $$ = stmt_from_class($2.id, $2.vec, $3, $5);
+}
 | CLASS name extends ';'
-| TRAIT name extends '{' members '}'
+{
+  $$ = stmt_from_class($2.id, $2.vec, $3, NULL);
+}
+| TRAIT name extends '{' trait_members '}'
+{
+  $$ = stmt_from_trait($2.id, $2.vec, $3, $5);
+}
 | TRAIT name extends ';'
-| ENUM  name '{' enum_members '}'
+{
+  $$ = stmt_from_trait($2.id, $2.vec, $3, NULL);
+}
+| ENUM name '{' enum_members '}'
+{
+  $$ = NULL;
+}
 ;
 
 extends:
   %empty
-| ':' bases
+{
+  $$ = NULL;
+}
+| EXTENDS klass_type
+{
+  TYPE(type, $2, @2);
+  $$ = new_extends(type, NULL);
+}
+| EXTENDS klass_type withes
+{
+  TYPE(type, $2, @2);
+  $$ = new_extends(type, $3);
+}
 ;
 
-bases:
-  klass_type
-| bases ',' klass_type
+withes:
+  WITH klass_type
+{
+  $$ = vector_new();
+  Type *type = new_type($2, row(@2), col(@2));
+  TYPE_DECREF($2);
+  vector_push_back($$, type);
+}
+| withes WITH klass_type
+{
+  $$ = $1;
+  Type *type = new_type($3, row(@3), col(@3));
+  TYPE_DECREF($3);
+  vector_push_back($$, type);
+}
 ;
 
 members:
   %empty
+{
+  $$ = NULL;
+}
 | member_decls
+{
+  $$ = $1;
+}
 ;
 
 member_decls:
   member_decl
+{
+  $$ = vector_new();
+  if ($1 != NULL)
+    vector_push_back($$, $1);
+}
 | member_decls member_decl
+{
+  $$ = $1;
+  if ($2 != NULL)
+    vector_push_back($$, $2);
+}
 ;
 
 member_decl:
   field_decl
+{
+  $$ = $1;
+}
 | method_decl
-| proto_decl
+{
+  $$ = $1;
+}
 | ';'
+{
+  $$ = NULL;
+}
 ;
 
 field_decl:
   ID type ';'
+{
+  IDENT(id, $1, @1);
+  TYPE(type, $2, @2);
+  $$ = stmt_from_vardecl(id, &type, NULL);
+}
 | ID '=' expr ';'
+{
+  IDENT(id, $1, @1);
+  $$ = stmt_from_vardecl(id, NULL, $3);
+}
 | ID type '=' expr ';'
+{
+  IDENT(id, $1, @1);
+  TYPE(type, $2, @2);
+  $$ = stmt_from_vardecl(id, &type, $4);
+}
 ;
 
 method_decl:
-  FUNC ID '(' para_list')' type block
+  FUNC ID '(' para_list ')' type block
+{
+  IDENT(id, $2, @2);
+  TYPE(type, $6, @6);
+  $$ = stmt_from_funcdecl(id, NULL, $4, &type, $7);
+}
 | FUNC ID '(' para_list ')' block
+{
+  IDENT(id, $2, @2);
+  $$ = stmt_from_funcdecl(id, NULL, $4, NULL, $6);
+}
 | FUNC ID '(' ')' type block
+{
+  IDENT(id, $2, @2);
+  TYPE(type, $5, @5);
+  $$ = stmt_from_funcdecl(id, NULL, NULL, &type, $6);
+}
 | FUNC ID '(' ')' block
+{
+  IDENT(id, $2, @2);
+  $$ = stmt_from_funcdecl(id, NULL, NULL, NULL, $5);
+}
+;
+
+trait_members:
+  %empty
+{
+  $$ = NULL;
+}
+| trait_member_decls
+{
+  $$ = $1;
+}
+;
+
+trait_member_decls:
+  trait_member_decl
+{
+  $$ = vector_new();
+  if ($1 != NULL)
+    vector_push_back($$, $1);
+}
+| trait_member_decls trait_member_decl
+{
+  $$ = $1;
+  if ($2 != NULL)
+    vector_push_back($$, $2);
+}
+;
+
+trait_member_decl:
+  method_decl
+{
+  $$ = $1;
+}
+| proto_decl
+{
+  $$ = $1;
+}
+| ';'
+{
+  $$ = NULL;
+}
 ;
 
 proto_decl:
-  FUNC ID '(' type_varg_list ')' type ';'
-| FUNC ID '(' para_list')' type ';'
-| FUNC ID '(' type_varg_list ')' ';'
+  FUNC ID '(' para_list ')' type ';'
+{
+  IDENT(id, $2, @2);
+  TYPE(type, $6, @6);
+  $$ = stmt_from_ifunc(id, $4, &type);
+}
 | FUNC ID '(' para_list ')' ';'
+{
+  IDENT(id, $2, @2);
+  $$ = stmt_from_ifunc(id, $4, NULL);
+}
 | FUNC ID '(' ')' type ';'
+{
+  IDENT(id, $2, @2);
+  TYPE(type, $5, @5);
+  $$ = stmt_from_ifunc(id, NULL, &type);
+}
 | FUNC ID '(' ')' ';'
+{
+  IDENT(id, $2, @2);
+  $$ = stmt_from_ifunc(id, NULL, NULL);
+}
 ;
 
 enum_members:

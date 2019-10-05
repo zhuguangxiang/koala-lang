@@ -32,7 +32,7 @@
 Object *tuple_new(int size)
 {
   int msize = sizeof(TupleObject) + size * sizeof(Object *);
-  TupleObject *tuple = gcmalloc(msize);
+  TupleObject *tuple = gcnew(msize);
   init_object_head(tuple, &tuple_type);
   tuple->size = size;
   return (Object *)tuple;

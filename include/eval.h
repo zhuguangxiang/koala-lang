@@ -25,7 +25,7 @@
 #ifndef _KOALA_EVAL_H_
 #define _KOALA_EVAL_H_
 
-#include "object.h"
+#include "codeobject.h"
 #include "list.h"
 
 #ifdef __cplusplus
@@ -36,14 +36,32 @@ extern "C" {
 #define MAX_FRAME_DEPTH 64
 
 /* forward declaration */
-struct frame;
+typedef struct callframe CallFrame;
+typedef struct koalastate KoalaState;
+
+struct callframe {
+  /* back call frame */
+  CallFrame *back;
+  /* KoalaState */
+  KoalaState *ks;
+  /* code */
+  CodeObject *code;
+  /* code index */
+  int index;
+  /* free variables */
+  Vector *freevars;
+  /* local variables' size */
+  int size;
+  /* local variables's array */
+  Object *locvars[1];
+};
 
 /* one Task has one KoalaState */
-typedef struct koalastate {
+struct koalastate {
   /* linked in global kslist */
   struct list_head ksnode;
   /* call frame */
-  struct frame *frame;
+  CallFrame *frame;
   /* frame depth */
   int depth;
   /* store per-task state*/
@@ -52,7 +70,7 @@ typedef struct koalastate {
   int top;
   /* objects stack */
   Object *stack[MAX_STACK_SIZE];
-} KoalaState;
+};
 
 Object *koala_evalcode(Object *self, Object *ob, Object *args);
 

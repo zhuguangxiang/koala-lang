@@ -285,28 +285,28 @@ static TypeItem *typeitem_proto_new(int32_t pindex, int32_t rindex)
 
 static int indexitem_length(void *o)
 {
-  Indexitem *item = o;
-  return sizeof(Indexitem) + item->size * sizeof(int32_t);
+  IndexItem *item = o;
+  return sizeof(IndexItem) + item->size * sizeof(int32_t);
 }
 
 static void indexitem_write(FILE *fp, void *o)
 {
-  Indexitem *item = o;
-  fwrite(o, sizeof(Indexitem) + item->size * sizeof(int32_t), 1, fp);
+  IndexItem *item = o;
+  fwrite(o, sizeof(IndexItem) + item->size * sizeof(int32_t), 1, fp);
 }
 
 static unsigned int indexitem_hash(void *k)
 {
-  int size = sizeof(Indexitem);
-  Indexitem *item = k;
+  int size = sizeof(IndexItem);
+  IndexItem *item = k;
   size += item->size * sizeof(int32_t);
   return memhash(k, size);
 }
 
 static int indexitem_equal(void *k1, void *k2)
 {
-  Indexitem *item1 = k1;
-  Indexitem *item2 = k2;
+  IndexItem *item1 = k1;
+  IndexItem *item2 = k2;
   if (item1->kind != item2->kind)
     return 0;
   if (item1->size != item2->size)
@@ -320,7 +320,7 @@ static int indexitem_equal(void *k1, void *k2)
 
 static void indexitem_show(Image *image, void *o)
 {
-  Indexitem *item = o;
+  IndexItem *item = o;
   TypeItem *type;
   for (int i = 0; i < item->size; i++) {
     puts("  ---------");
@@ -337,9 +337,9 @@ static void indexitem_free(void *o)
   kfree(o);
 }
 
-static Indexitem *indexitem_new(int kind, int size, int32_t index[])
+static IndexItem *indexitem_new(int kind, int size, int32_t index[])
 {
-  Indexitem *item = kmalloc(sizeof(Indexitem) + size * sizeof(int32_t));
+  IndexItem *item = kmalloc(sizeof(IndexItem) + size * sizeof(int32_t));
   item->kind = kind;
   item->size = size;
   for (int i = 0; i < size; i++) {
@@ -500,29 +500,6 @@ static void varitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(VarItem), 1, fp);
 }
 
-static char *access_tostring(int access)
-{
-  char *str;
-  switch (access) {
-  case 0:
-    str = "var,public";
-    break;
-  case 1:
-    str = "var,private";
-    break;
-  case 2:
-    str = "const,public";
-    break;
-  case 3:
-    str = "const,private";
-    break;
-  default:
-    str = "";
-    break;
-  }
-  return str;
-}
-
 static void varitem_show(Image *image, void *o)
 {
   VarItem *item = o;
@@ -535,8 +512,6 @@ static void varitem_show(Image *image, void *o)
   print("  typeindex:%d\n", item->typeindex);
   type = _get_(image, ITEM_TYPE, item->typeindex);
   typeitem_show(image, type);
-  print("  const:%s\n", item->konst ? "true" : "false");
-
 }
 
 static void varitem_free(void *o)
@@ -544,13 +519,49 @@ static void varitem_free(void *o)
   kfree(o);
 }
 
-static VarItem *varitem_new(int32_t nameindex, int32_t typeindex,
-                            int konst, int index)
+static VarItem *varitem_new(int32_t nameindex, int32_t typeindex)
 {
   VarItem *item = kmalloc(sizeof(VarItem));
   item->nameindex = nameindex;
   item->typeindex = typeindex;
-  item->konst = konst;
+  return item;
+}
+
+static int constvaritem_length(void *o)
+{
+  return sizeof(ConstVarItem);
+}
+
+static void constvaritem_write(FILE *fp, void *o)
+{
+  fwrite(o, sizeof(ConstVarItem), 1, fp);
+}
+
+static void constvaritem_show(Image *image, void *o)
+{
+  ConstVarItem *item = o;
+  StringItem *str;
+  TypeItem *type;
+
+  print("  nameindex:%d\n", item->nameindex);
+  str = _get_(image, ITEM_STRING, item->nameindex);
+  print("  (%s)\n", str->data);
+  print("  typeindex:%d\n", item->typeindex);
+  type = _get_(image, ITEM_TYPE, item->typeindex);
+  typeitem_show(image, type);
+}
+
+static void constvaritem_free(void *o)
+{
+  kfree(o);
+}
+
+static ConstVarItem *constvaritem_new(int32_t nameindex, int32_t typeindex,
+                                      int32_t index)
+{
+  ConstVarItem *item = kmalloc(sizeof(ConstVarItem));
+  item->nameindex = nameindex;
+  item->typeindex = typeindex;
   item->index = index;
   return item;
 }
@@ -580,17 +591,6 @@ static void funcitem_show(Image *image, void *o)
 static void funcitem_free(void *o)
 {
   kfree(o);
-}
-
-static FuncItem *funcitem_new(int nameindex, int pindex, int rindex,
-                              int codeindex)
-{
-  FuncItem *item = kmalloc(sizeof(FuncItem));
-  item->nameindex = nameindex;
-  item->pindex = pindex;
-  item->rindex = rindex;
-  item->codeindex = codeindex;
-  return item;
 }
 
 static int anonyitem_length(void *o)
@@ -674,10 +674,13 @@ static void classitem_write(FILE *fp, void *o)
 static void classitem_show(Image *image, void *o)
 {
   ClassItem *item = o;
-  print("  classindex:%d\n", item->classindex);
-  if (item->superindex >= 0) {
-    print("  superinfo:\n");
-    TypeItem *type = _get_(image, ITEM_TYPE, item->superindex);
+  StringItem *str;
+  print("  nameindex:%d\n", item->nameindex);
+  str = _get_(image, ITEM_STRING, item->nameindex);
+  print("  (%s)\n", str->data);
+  if (item->basesindex >= 0) {
+    print("  basesinfo:\n");
+    TypeItem *type = _get_(image, ITEM_TYPE, item->basesindex);
     typeitem_show(image, type);
   }
 }
@@ -687,138 +690,27 @@ static void classitem_free(void *o)
   kfree(o);
 }
 
-static ClassItem *classitem_new(int classindex, int superindex)
+static ClassItem *classitem_new(int nameindex, int basesindex)
 {
   ClassItem *item = kmalloc(sizeof(ClassItem));
-  item->classindex = classindex;
-  item->superindex = superindex;
-  return item;
-}
-
-static int fielditem_length(void *o)
-{
-  return sizeof(FieldItem);
-}
-
-static void fielditem_write(FILE *fp, void *o)
-{
-  fwrite(o, sizeof(FieldItem), 1, fp);
-}
-
-static void fielditem_show(Image *image, void *o)
-{
-  FieldItem *item = o;
-  print("  classindex:%d\n", item->classindex);
-  StringItem *id = _get_(image, ITEM_STRING, item->nameindex);
-  stringitem_show(image, id);
-  TypeItem *type = _get_(image, ITEM_TYPE, item->typeindex);
-  typeitem_show(image, type);
-}
-
-static void fielditem_free(void *o)
-{
-  kfree(o);
-}
-
-static FieldItem *fielditem_new(int nameindex, int classindex, int typeindex)
-{
-  FieldItem *item = kmalloc(sizeof(FieldItem));
-  item->classindex = classindex;
   item->nameindex = nameindex;
-  item->typeindex = typeindex;
+  item->basesindex = basesindex;
   return item;
 }
 
-static int methoditem_length(void *o)
+static int ifuncitem_length(void *o)
 {
-  return sizeof(MethodItem);
+  return sizeof(IFuncItem);
 }
 
-static void methoditem_write(FILE *fp, void *o)
+static void ifuncitem_write(FILE *fp, void *o)
 {
-  fwrite(o, sizeof(MethodItem), 1, fp);
+  fwrite(o, sizeof(IFuncItem), 1, fp);
 }
 
-static void methoditem_show(Image *image, void *o)
+static void ifuncitem_show(Image *image, void *o)
 {
-  MethodItem *item = o;
-  print("  classindex:%d\n", item->classindex);
-  StringItem *str;
-  print("  nameindex:%d\n", item->nameindex);
-  str = _get_(image, ITEM_STRING, item->nameindex);
-  print("  (%s)\n", str->data);
-  print("  pindex:%d\n", item->pindex);
-  print("  rindex:%d\n", item->rindex);
-  print("  codeindex:%d\n", item->codeindex);
-}
-
-static void methoditem_free(void *o)
-{
-  kfree(o);
-}
-
-static MethodItem *methoditem_new(int nameindex, int classindex,
-                                  int pindex, int rindex, int codeindex)
-{
-  MethodItem *item = kmalloc(sizeof(MethodItem));
-  item->classindex = classindex;
-  item->nameindex = nameindex;
-  item->pindex = pindex;
-  item->rindex = rindex;
-  item->codeindex = codeindex;
-  return item;
-}
-
-static int traititem_length(void *o)
-{
-  return sizeof(TraitItem);
-}
-
-static void traititem_write(FILE *fp, void *o)
-{
-  fwrite(o, sizeof(TraitItem), 1, fp);
-}
-
-static void traititem_show(Image *image, void *o)
-{
-  TraitItem *item = o;
-  print("  classindex:%d\n", item->classindex);
-  TypeItem *type = _get_(image, ITEM_TYPE, item->classindex);
-  typeitem_show(image, type);
-  if (item->traitsindex >= 0) {
-    Indexitem *typelist;
-    typelist = _get_(image, ITEM_INDEX, item->traitsindex);
-    indexitem_show(image, typelist);
-  }
-}
-
-static void traititem_free(void *o)
-{
-  kfree(o);
-}
-
-static TraitItem *traititem_new(int classindex, int traitsindex)
-{
-  TraitItem *item = kmalloc(sizeof(TraitItem));
-  item->classindex = classindex;
-  item->traitsindex = traitsindex;
-  return item;
-}
-
-static int nfuncitem_length(void *o)
-{
-  return sizeof(NFuncItem);
-}
-
-static void nfuncitem_write(FILE *fp, void *o)
-{
-  fwrite(o, sizeof(NFuncItem), 1, fp);
-}
-
-static void nfuncitem_show(Image *image, void *o)
-{
-  NFuncItem *item = o;
-  print("  classindex:%d\n", item->classindex);
+  IFuncItem *item = o;
   StringItem *str;
   print("  nameindex:%d\n", item->nameindex);
   str = _get_(image, ITEM_STRING, item->nameindex);
@@ -827,54 +719,14 @@ static void nfuncitem_show(Image *image, void *o)
   print("  rindex:%d\n", item->rindex);
 }
 
-static void nfuncitem_free(void *o)
+static void ifuncitem_free(void *o)
 {
   kfree(o);
 }
 
-static NFuncItem *nfuncitem_new(int nameindex, int classindex,
-                                int pindex, int rindex)
+static IFuncItem *ifuncitem_new(int nameindex, int pindex, int rindex)
 {
-  NFuncItem *item = kmalloc(sizeof(NFuncItem));
-  item->classindex = classindex;
-  item->nameindex = nameindex;
-  item->pindex = pindex;
-  item->rindex = rindex;
-  return item;
-}
-
-static int imethitem_length(void *o)
-{
-  return sizeof(IMethItem);
-}
-
-static void imethitem_write(FILE *fp, void *o)
-{
-  fwrite(o, sizeof(IMethItem), 1, fp);
-}
-
-static void imethitem_show(Image *image, void *o)
-{
-  IMethItem *item = o;
-  print("  classindex:%d\n", item->classindex);
-  StringItem *str;
-  print("  nameindex:%d\n", item->nameindex);
-  str = _get_(image, ITEM_STRING, item->nameindex);
-  print("  (%s)\n", str->data);
-  print("  pindex:%d\n", item->pindex);
-  print("  rindex:%d\n", item->rindex);
-}
-
-static void imethitem_free(void *o)
-{
-  kfree(o);
-}
-
-static IMethItem *imethoditem_new(int nameindex, int classindex,
-                                  int pindex, int rindex)
-{
-  IMethItem *item = kmalloc(sizeof(IMethItem));
-  item->classindex = classindex;
+  IFuncItem *item = kmalloc(sizeof(IFuncItem));
   item->nameindex = nameindex;
   item->pindex = pindex;
   item->rindex = rindex;
@@ -894,7 +746,10 @@ static void enumitem_write(FILE *fp, void *o)
 static void enumitem_show(Image *image, void *o)
 {
   EnumItem *item = o;
-  print("  classindex:%d\n", item->classindex);
+  StringItem *str;
+  print("  nameindex:%d\n", item->nameindex);
+  str = _get_(image, ITEM_STRING, item->nameindex);
+  print("  (%s)\n", str->data);
 }
 
 static void enumitem_free(void *o)
@@ -902,10 +757,10 @@ static void enumitem_free(void *o)
   kfree(o);
 }
 
-static EnumItem *enumitem_new(int classindex)
+static EnumItem *enumitem_new(int nameindex)
 {
   EnumItem *item = kmalloc(sizeof(EnumItem));
-  item->classindex = classindex;
+  item->nameindex = nameindex;
   return item;
 }
 
@@ -922,7 +777,6 @@ static void evalitem_write(FILE *fp, void *o)
 static void evalitem_show(Image *image, void *o)
 {
   EValItem *item = o;
-  print("  classindex:%d\n", item->classindex);
   StringItem *str;
   print("  nameindex:%d\n", item->nameindex);
   str = _get_(image, ITEM_STRING, item->nameindex);
@@ -936,14 +790,42 @@ static void evalitem_free(void *o)
   kfree(o);
 }
 
-static EValItem *evalitem_new(int nameindex, int classindex, int index, int32_t val)
+static EValItem *evalitem_new(int nameindex, int index, int32_t val)
 {
   EValItem *item = kmalloc(sizeof(EValItem));
-  item->classindex = classindex;
   item->nameindex = nameindex;
   item->index = index;
   item->value = val;
   return item;
+}
+
+static int mbritem_length(void *o)
+{
+  MbrItem *item = o;
+  return sizeof(MbrItem) + item->size * sizeof(MbrIndex);
+}
+
+static void mbritem_write(FILE *fp, void *o)
+{
+  MbrItem *item = o;
+  fwrite(o, sizeof(MbrItem) + item->size * sizeof(MbrIndex), 1, fp);
+}
+
+static void mbritem_show(Image *image, void *o)
+{
+  MbrItem *item = o;
+  MbrIndex *index;
+  for (int i = 0; i < item->size; i++) {
+    puts("  ---------");
+    index = item->indexes + i;
+    print("  kind:%d", index->kind);
+    print("  index:%d", index->index);
+  }
+}
+
+static void mbritem_free(void *o)
+{
+  kfree(o);
 }
 
 static inline void *item_copy(int size, void *src)
@@ -985,8 +867,8 @@ static int indexitem_get(Image *image, int kind, Vector *vec)
   if (sz <= 0)
     return -1;
 
-  uint8_t data[sizeof(Indexitem) + sizeof(int32_t) * sz];
-  Indexitem *item = (Indexitem *)data;
+  uint8_t data[sizeof(IndexItem) + sizeof(int32_t) * sz];
+  IndexItem *item = (IndexItem *)data;
   item->kind = kind;
   item->size = sz;
 
@@ -1027,7 +909,7 @@ static int indexitem_set(Image *image, int kind, Vector *vec)
       expect(index >= 0);
       indexes[idx] = index;
     }
-    Indexitem *item = indexitem_new(kind, sz, indexes);
+    IndexItem *item = indexitem_new(kind, sz, indexes);
     index = _append_(image, ITEM_INDEX, item, 1);
   }
   return index;
@@ -1202,6 +1084,11 @@ struct item_funcs {
     varitem_show, varitem_free,
   },
   {
+    constvaritem_length, constvaritem_write,
+    NULL, NULL,
+    constvaritem_show, constvaritem_free,
+  },
+  {
     funcitem_length, funcitem_write,
     NULL, NULL,
     funcitem_show, funcitem_free,
@@ -1222,29 +1109,24 @@ struct item_funcs {
     classitem_show, classitem_free,
   },
   {
-    fielditem_length, fielditem_write,
+    varitem_length, varitem_write,
     NULL, NULL,
-    fielditem_show, fielditem_free,
+    varitem_show, varitem_free,
   },
   {
-    methoditem_length, methoditem_write,
+    funcitem_length, funcitem_write,
     NULL, NULL,
-    methoditem_show, methoditem_free,
+    funcitem_show, funcitem_free,
   },
   {
-    traititem_length, traititem_write,
+    classitem_length, classitem_write,
     NULL, NULL,
-    traititem_show, traititem_free,
+    classitem_show, classitem_free,
   },
   {
-    nfuncitem_length, nfuncitem_write,
+    ifuncitem_length, ifuncitem_write,
     NULL, NULL,
-    nfuncitem_show, nfuncitem_free,
-  },
-  {
-    imethitem_length, imethitem_write,
-    NULL, NULL,
-    imethitem_show, imethitem_free,
+    ifuncitem_show, ifuncitem_free,
   },
   {
     enumitem_length, enumitem_write,
@@ -1255,6 +1137,11 @@ struct item_funcs {
     evalitem_length, evalitem_write,
     NULL, NULL,
     evalitem_show, evalitem_free,
+  },
+  {
+    mbritem_length, mbritem_write,
+    NULL, NULL,
+    mbritem_show, mbritem_free,
   },
 };
 
@@ -1306,7 +1193,7 @@ static int image_add_const(Image *image, int kind, int index)
   return _append_(image, ITEM_CONST, item, 0);
 }
 
-int Image_Add_Integer(Image *image, int64_t val)
+int image_add_integer(Image *image, int64_t val)
 {
   LiteralItem k = {0};
   k.type = LITERAL_INT;
@@ -1319,7 +1206,7 @@ int Image_Add_Integer(Image *image, int64_t val)
   return image_add_const(image, CONST_LITERAL, index);
 }
 
-int Image_Add_Float(Image *image, double val)
+int image_add_float(Image *image, double val)
 {
   LiteralItem k = {0};
   k.type = LITERAL_FLOAT;
@@ -1332,7 +1219,7 @@ int Image_Add_Float(Image *image, double val)
   return image_add_const(image, CONST_LITERAL, index);
 }
 
-int Image_Add_Bool(Image *image, int val)
+int image_add_bool(Image *image, int val)
 {
   LiteralItem k = {0};
   k.type = LITERAL_BOOL;
@@ -1345,7 +1232,7 @@ int Image_Add_Bool(Image *image, int val)
   return image_add_const(image, CONST_LITERAL, index);
 }
 
-int Image_Add_String(Image *image, char *val)
+int image_add_string(Image *image, char *val)
 {
   int32_t idx = stringitem_set(image, val);
   LiteralItem k = {0};
@@ -1359,7 +1246,7 @@ int Image_Add_String(Image *image, char *val)
   return image_add_const(image, CONST_LITERAL, index);
 }
 
-int Image_Add_UChar(Image *image, wchar val)
+int image_add_uchar(Image *image, wchar val)
 {
   LiteralItem k = {0};
   k.type = LITERAL_UCHAR;
@@ -1372,26 +1259,26 @@ int Image_Add_UChar(Image *image, wchar val)
   return index;
 }
 
-int Image_Add_Literal(Image *image, Literal *val)
+int image_add_literal(Image *image, Literal *val)
 {
   int index;
   if (val->kind == BASE_INT) {
-    index = Image_Add_Integer(image, val->ival);
+    index = image_add_integer(image, val->ival);
   } else if (val->kind == BASE_STR) {
-    index = Image_Add_String(image, val->str);
+    index = image_add_string(image, val->str);
   } else if (val->kind == BASE_BOOL) {
-    index = Image_Add_Bool(image, val->bval);
+    index = image_add_bool(image, val->bval);
   } else if (val->kind == BASE_FLOAT) {
-    index = Image_Add_Float(image, val->fval);
+    index = image_add_float(image, val->fval);
   } else if (val->kind == BASE_CHAR) {
-    index = Image_Add_UChar(image, val->cval);
+    index = image_add_uchar(image, val->cval);
   } else {
     index = -1;
   }
   return index;
 }
 
-int Image_Add_Desc(Image *image, TypeDesc *desc)
+int image_add_desc(Image *image, TypeDesc *desc)
 {
   expect(desc != NULL);
   int index = typeitem_set(image, desc);
@@ -1452,7 +1339,7 @@ static LocVar *load_locvar(Image *image, int index)
   return var;
 }
 
-static Vector *load_locvars(Image *image, Indexitem *indexes)
+static Vector *load_locvars(Image *image, IndexItem *indexes)
 {
   if (indexes == NULL)
     return NULL;
@@ -1483,123 +1370,112 @@ int image_add_anony(Image *image, CodeInfo *ci)
   return image_add_const(image, CONST_ANONY, index);
 }
 
-void Image_Add_Var(Image *image, char *name, TypeDesc *desc)
+void image_add_var(Image *image, char *name, TypeDesc *desc)
 {
   int type_index = typeitem_set(image, desc);
   int name_index = stringitem_set(image, name);
-  VarItem *varitem = varitem_new(name_index, type_index, 0, -1);
+  VarItem *varitem = varitem_new(name_index, type_index);
   _append_(image, ITEM_VAR, varitem, 0);
 }
 
-void Image_Add_Const(Image *image, char *name, TypeDesc *desc, Literal *val)
+void image_add_kvar(Image *image, char *name, TypeDesc *desc, Literal *val)
 {
   int type_index = typeitem_set(image, desc);
   int name_index = stringitem_set(image, name);
-  int index = Image_Add_Literal(image, val);
-  VarItem *varitem = varitem_new(name_index, type_index, 1, index);
-  _append_(image, ITEM_VAR, varitem, 0);
+  int index = image_add_literal(image, val);
+  ConstVarItem *item = constvaritem_new(name_index, type_index, index);
+  _append_(image, ITEM_CONSTVAR, item, 0);
 }
 
-int image_add_func(Image *image, CodeInfo *ci)
+static FuncItem *funcitem_new(Image *image, CodeInfo *ci)
 {
   int nameindex = stringitem_set(image, ci->name);
   int pindex = indexitem_set(image, INDEX_TYPELIST, ci->desc->proto.args);
   int rindex = typeitem_set(image, ci->desc->proto.ret);
   int codeindex = codeitem_set(image, ci->codes, ci->size);
-  FuncItem *funcitem = funcitem_new(nameindex, pindex, rindex, codeindex);
-  funcitem->locindex = add_locvars(image, ci->locvec);
-  funcitem->freeindex = indexitem_set(image, INDEX_VALUE, ci->freevec);
+  FuncItem *item = kmalloc(sizeof(FuncItem));
+  item->nameindex = nameindex;
+  item->pindex = pindex;
+  item->rindex = rindex;
+  item->codeindex = codeindex;
+  item->locindex = add_locvars(image, ci->locvec);
+  item->freeindex = indexitem_set(image, INDEX_VALUE, ci->freevec);
+  return item;
+}
+
+int image_add_func(Image *image, CodeInfo *ci)
+{
+  FuncItem *funcitem = funcitem_new(image, ci);
   return _append_(image, ITEM_FUNC, funcitem, 0);
 }
 
-void Image_Add_Class(Image *image, char *name, Vector *supers)
+static inline ClassItem *klass_new(Image *image, char *name, Vector *bases)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
-  int classindex = typeitem_set(image, &tmp);
-  int superindex = indexitem_set(image, INDEX_TYPELIST, supers);
-  ClassItem *classitem = classitem_new(classindex, superindex);
+  int nameindex = stringitem_set(image, name);
+  int basesindex = indexitem_set(image, INDEX_TYPELIST, bases);
+  return classitem_new(nameindex, basesindex);
+}
+
+void image_add_class(Image *image, char *name, Vector *bases, int mbrindex)
+{
+  ClassItem *classitem = klass_new(image, name, bases);
+  classitem->mbrindex = mbrindex;
   _append_(image, ITEM_CLASS, classitem, 0);
 }
 
-void Image_Add_Field(Image *image, char *clazz, char *name, TypeDesc *desc)
+int image_add_field(Image *image, char *name, TypeDesc *desc)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = clazz};
-  int classindex = typeitem_set(image, &tmp);
-  int nameindex = stringitem_set(image, name);
-  int typeindex = typeitem_set(image, desc);
-  FieldItem *fielditem = fielditem_new(classindex, nameindex, typeindex);
-  _append_(image, ITEM_FIELD, fielditem, 0);
+  int name_index = stringitem_set(image, name);
+  int type_index = typeitem_set(image, desc);
+  VarItem *varitem = varitem_new(name_index, type_index);
+  return _append_(image, ITEM_FIELD, varitem, 0);
 }
 
-int Image_Add_Method(Image *image, char *klazz, char *name, TypeDesc *desc,
-                      uint8_t *codes, int csz, int locals)
+int image_add_method(Image *image, CodeInfo *ci)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
-  int classindex = typeitem_set(image, &tmp);
-  int nameindex = stringitem_set(image, name);
-  int pindex = indexitem_set(image, INDEX_TYPELIST, desc->proto.args);
-  int rindex = typeitem_set(image, desc->proto.ret);
-  int codeindex = codeitem_set(image, codes, csz);
-  MethodItem *methitem = methoditem_new(classindex, nameindex,
-                                        pindex, rindex, codeindex);
-  methitem->nrlocals = locals;
-  return _append_(image, ITEM_METHOD, methitem, 0);
+  FuncItem *funcitem = funcitem_new(image, ci);
+  return _append_(image, ITEM_METHOD, funcitem, 0);
 }
 
-void Image_Add_Trait(Image *image, char *name, Vector *traits)
+void image_add_trait(Image *image, char *name, Vector *bases, int mbrindex)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
-  int classindex = typeitem_set(image, &tmp);
-  int traitsindex = indexitem_set(image, INDEX_TYPELIST, traits);
-  TraitItem *traititem = traititem_new(classindex, traitsindex);
-  _append_(image, ITEM_TRAIT, traititem, 0);
+  ClassItem *classitem = klass_new(image, name, bases);
+  classitem->mbrindex = mbrindex;
+  _append_(image, ITEM_TRAIT, classitem, 0);
 }
 
-void Image_Add_NFunc(Image *image, char *klazz, char *name, TypeDesc *desc)
+int image_add_ifunc(Image *image, char *name, TypeDesc *desc)
 {
-  int classindex = -1;
-  if (klazz != NULL) {
-    TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
-    classindex = typeitem_set(image, &tmp);
-  }
   int nameindex = stringitem_set(image, name);
   int pindex = indexitem_set(image, INDEX_TYPELIST, desc->proto.args);
   int rindex = typeitem_set(image, desc->proto.ret);
-  NFuncItem *nfuncitem = nfuncitem_new(classindex, nameindex,
-                                       pindex, rindex);
-  _append_(image, ITEM_NFUNC, nfuncitem, 0);
+  IFuncItem *ifuncitem = ifuncitem_new(nameindex, pindex, rindex);
+  return _append_(image, ITEM_IFUNC, ifuncitem, 0);
 }
 
-void Image_Add_IMeth(Image *image, char *trait, char *name, TypeDesc *desc)
+void image_add_enum(Image *image, char *name, int mbrindex)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = trait};
-  int classindex = typeitem_set(image, &tmp);
   int nameindex = stringitem_set(image, name);
-  int pindex = indexitem_set(image, INDEX_TYPELIST, desc->proto.args);
-  int rindex = typeitem_set(image, desc->proto.ret);
-  IMethItem *imethitem = imethoditem_new(classindex, nameindex,
-                                         pindex, rindex);
-  _append_(image, ITEM_IMETH, imethitem, 0);
-}
-
-void Image_Add_Enum(Image *image, char *name)
-{
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = name};
-  int classindex = typeitem_set(image, &tmp);
-  EnumItem *enumitem = enumitem_new(classindex);
+  EnumItem *enumitem = enumitem_new(nameindex);
+  enumitem->mbrindex = mbrindex;
   _append_(image, ITEM_ENUM, enumitem, 0);
 }
 
-void Image_Add_EVal(Image *image, char *klazz, char *name,
-                     Vector *types, int32_t val)
+int image_add_eval(Image *image, char *name, Vector *types, int32_t val)
 {
-  TypeDesc tmp = {.kind = TYPE_KLASS, .klass.type = klazz};
-  int classindex = typeitem_set(image, &tmp);
   int nameindex = stringitem_set(image, name);
   int index = indexitem_set(image, INDEX_TYPELIST, types);
+  EValItem *evitem = evalitem_new(nameindex, index, val);
+  return _append_(image, ITEM_EVAL, evitem, 0);
+}
 
-  EValItem *evitem = evalitem_new(classindex, nameindex, index, val);
-  _append_(image, ITEM_EVAL, evitem, 0);
+int image_add_mbrs(Image *image, MbrIndex *indexes, int size)
+{
+  int isize = size * sizeof(MbrIndex);
+  MbrItem *item = kmalloc(sizeof(MbrItem) + isize);
+  item->size = size;
+  memcpy(item->indexes, indexes, isize);
+  return _append_(image, ITEM_MBR, item, 0);
 }
 
 static unsigned int item_hash(ItemEntry *e)
@@ -1644,7 +1520,7 @@ static void init_header(ImageHeader *h, char *name)
   strncpy(h->name, name, PKG_NAME_MAX-1);
 }
 
-Image *Image_New(char *name)
+Image *image_new(char *name)
 {
   int sz = sizeof(Image) + ITEM_MAX * sizeof(Vector);
   Image *image = kmalloc(sz);
@@ -1654,7 +1530,7 @@ Image *Image_New(char *name)
   return image;
 }
 
-void Image_Free(Image *image)
+void image_free(Image *image)
 {
   hashmap_fini(&image->map, _itementry_free_, NULL);
 
@@ -1671,7 +1547,7 @@ void Image_Free(Image *image)
   kfree(image);
 }
 
-static Vector *to_typedescvec(Indexitem *item, Image *image)
+static Vector *to_typedescvec(IndexItem *item, Image *image)
 {
   if (item == NULL)
     return NULL;
@@ -1709,17 +1585,17 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     type = atom(s->data);
     t = desc_from_klass(path, type);
     if (item->parasindex >= 0) {
-      Indexitem *listitem = _get_(image, ITEM_INDEX, item->parasindex);
+      IndexItem *listitem = _get_(image, ITEM_INDEX, item->parasindex);
       t->paras = to_typedescvec(listitem, image);
     }
     if (item->typesindex >= 0) {
-      Indexitem *listitem = _get_(image, ITEM_INDEX, item->typesindex);
+      IndexItem *listitem = _get_(image, ITEM_INDEX, item->typesindex);
       t->types = to_typedescvec(listitem, image);
     }
     break;
   }
   case TYPE_PROTO: {
-    Indexitem *listitem = _get_(image, ITEM_INDEX, item->proto.pindex);
+    IndexItem *listitem = _get_(image, ITEM_INDEX, item->proto.pindex);
     TypeItem *item = _get_(image, ITEM_TYPE, item->proto.rindex);
     Vector *args = to_typedescvec(listitem, image);
     TypeDesc *ret = to_typedesc(item, image);
@@ -1772,7 +1648,7 @@ int image_const_size(Image *image)
   return _size_(image, ITEM_CONST);
 }
 
-static Vector *getindexvec(Indexitem *index)
+static Vector *getindexvec(IndexItem *index)
 {
   Vector *vec = NULL;
   if (index != NULL) {
@@ -1789,18 +1665,18 @@ static void image_load_anony(Image *image, ConstItem *item, CodeInfo *ci)
   AnonyItem *anony = _get_(image, ITEM_ANONY, item->index);
   StringItem *str = _get_(image, ITEM_STRING, anony->nameindex);
   CodeItem *code = _get_(image, ITEM_CODE, anony->codeindex);
-  Indexitem *listitem = _get_(image, ITEM_INDEX, anony->pindex);
+  IndexItem *listitem = _get_(image, ITEM_INDEX, anony->pindex);
   TypeItem *typeitem = _get_(image, ITEM_TYPE, anony->rindex);
   Vector *args = to_typedescvec(listitem, image);
   TypeDesc *ret = to_typedesc(typeitem, image);
   TypeDesc *desc = desc_from_proto(args, ret);
   TYPE_DECREF(ret);
 
-  Indexitem *locindex = _get_(image, ITEM_INDEX, anony->locindex);
+  IndexItem *locindex = _get_(image, ITEM_INDEX, anony->locindex);
   Vector *locvec = load_locvars(image, locindex);
-  Indexitem *freeindex = _get_(image, ITEM_INDEX, anony->freeindex);
+  IndexItem *freeindex = _get_(image, ITEM_INDEX, anony->freeindex);
   Vector *freevec = getindexvec(freeindex);
-  Indexitem *upindex = _get_(image, ITEM_INDEX, anony->upindex);
+  IndexItem *upindex = _get_(image, ITEM_INDEX, anony->upindex);
   Vector *upvec = getindexvec(upindex);
   ci->name = str->data;
   ci->desc = TYPE_INCREF(desc);
@@ -1849,6 +1725,70 @@ void image_load_consts(Image *image, getconstfunc func, void *arg)
   }
 }
 
+void image_load_class(Image *image, int index, getclassfunc func, void *arg)
+{
+  ClassItem *item = _get_(image, ITEM_CLASS, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  func(str->data, item->mbrindex, image, arg);
+}
+
+void image_load_trait(Image *image, int index, getclassfunc func, void *arg)
+{
+  ClassItem *item = _get_(image, ITEM_TRAIT, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  func(str->data, item->mbrindex, image, arg);
+}
+
+void image_load_enum(Image *image, int index, getclassfunc func, void *arg)
+{
+  EnumItem *item = _get_(image, ITEM_ENUM, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  func(str->data, item->mbrindex, image, arg);
+}
+
+void image_load_field(Image *image, int index, getmbrfunc func, void *arg)
+{
+  VarItem *item = _get_(image, ITEM_FIELD, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  TypeItem *type = _get_(image, ITEM_TYPE, item->typeindex);
+  TypeDesc *desc = to_typedesc(type, image);
+  func(str->data, MBR_FIELD, desc, arg);
+  TYPE_DECREF(desc);
+}
+
+void image_load_method(Image *image, int index, getmbrfunc func, void *arg)
+{
+
+}
+
+void image_load_mbrs(Image *image, int index, getmbrfunc func, void *arg)
+{
+  MbrItem *item = _get_(image, ITEM_MBR, index);
+  MbrIndex *mbr;
+  for (int i = 0; i < item->size; i++) {
+    mbr = item->indexes + i;
+    switch (mbr->kind) {
+    case MBR_FIELD:
+      /* code */
+      image_load_field(image, mbr->index, func, arg);
+      break;
+    case MBR_METHOD:
+      image_load_method(image, mbr->index, func, arg);
+      break;
+    case MBR_IFUNC:
+      panic("MBR_IFUNC: not implemented");
+      break;
+    case MBR_EVAL:
+      panic("MBR_EVAL: not implemented");
+      break;
+    default:
+      panic("invalid mbr kind %d", mbr->kind);
+      break;
+    }
+  }
+}
+
+#if 0
 void Image_Get_Vars(Image *image, getvarfunc func, void *arg)
 {
   VarItem *var;
@@ -1877,7 +1817,7 @@ void Image_Get_Funcs(Image *image, getfuncfunc func, void *arg)
 {
   FuncItem *funcitem;
   StringItem *str;
-  Indexitem *listitem;
+  IndexItem *listitem;
   TypeItem *item;
   Vector *args;
   TypeDesc *ret;
@@ -1915,29 +1855,6 @@ void Image_Get_Classes(Image *image, getclassfunc func, void *arg)
   }
 }
 
-void Image_Get_NFuncs(Image *image, getfuncfunc func, void *arg)
-{
-  NFuncItem *nfuncitem;
-  StringItem *str;
-  Indexitem *listitem;
-  TypeItem *item;
-  Vector *args;
-  TypeDesc *ret;
-  TypeDesc *desc;
-  int size = _size_(image, ITEM_NFUNC);
-  for (int i = 0; i < size; i++) {
-    nfuncitem = _get_(image, ITEM_NFUNC, i);
-    str = _get_(image, ITEM_STRING, nfuncitem->nameindex);
-    listitem = _get_(image, ITEM_INDEX, nfuncitem->pindex);
-    item = _get_(image, ITEM_TYPE, nfuncitem->rindex);
-    args = to_typedescvec(listitem, image);
-    ret = to_typedesc(item, image);
-    desc = desc_from_proto(args, ret);
-    func(str->data, desc, ITEM_NFUNC, NULL, 0, arg);
-    TYPE_DECREF(desc);
-  }
-}
-
 void Image_Get_Enums(Image *image, getenumfunc func, void *arg)
 {
   EnumItem *item;
@@ -1951,13 +1868,14 @@ void Image_Get_Enums(Image *image, getenumfunc func, void *arg)
     func(str->data, arg);
   }
 }
+#endif
 
 /*
 void Image_Get_EVals(Image *image, getevalfunc func, void *arg)
 {
   EValItem *item;
   TypeItem *type;
-  Indexitem *typelist;
+  IndexItem *typelist;
   StringItem *estr;
   StringItem *str;
   TypeDesc *desc;
@@ -1974,7 +1892,7 @@ void Image_Get_EVals(Image *image, getevalfunc func, void *arg)
   }
 }
 */
-
+#if 0
 void Image_Get_Fields(Image *image, getfieldfunc func, void *arg)
 {
   FieldItem *item;
@@ -2001,7 +1919,7 @@ void Image_Get_Methods(Image *image, getmethodfunc func, void *arg)
   TypeItem *type;
   StringItem *classstr;
   StringItem *str;
-  Indexitem *listitem;
+  IndexItem *listitem;
   TypeItem *typeitem;
   Vector *args;
   TypeDesc *ret;
@@ -2024,8 +1942,9 @@ void Image_Get_Methods(Image *image, getmethodfunc func, void *arg)
     TYPE_DECREF(desc);
   }
 }
+#endif
 
-void Image_Finish(Image *image)
+void image_finish(Image *image)
 {
   int size, length = 0, offset;
   MapItem *mapitem;
@@ -2103,7 +2022,7 @@ static FILE *open_image_file(char *path, char *mode)
   return fp;
 }
 
-void Image_Write_File(Image *image, char *path)
+void image_write_file(Image *image, char *path)
 {
   FILE *fp = open_image_file(path, "w");
   expect(fp != NULL);
@@ -2122,7 +2041,7 @@ static int header_check(ImageHeader *header)
   return 0;
 }
 
-Image *Image_Read_File(char *path, int unload)
+Image *image_read_file(char *path, int unload)
 {
 #define LOAD(item) (!(unload & (1 << (item))))
 
@@ -2145,7 +2064,7 @@ Image *Image_Read_File(char *path, int unload)
     return NULL;
   }
 
-  Image *image = Image_New(header.name);
+  Image *image = image_new(header.name);
   expect(image != NULL);
   memcpy(&image->header, &header, sizeof(ImageHeader));
 
@@ -2185,6 +2104,18 @@ Image *Image_Read_File(char *path, int unload)
         }
       }
       break;
+    case ITEM_LITERAL:
+      if (LOAD(ITEM_LITERAL)) {
+        LiteralItem *item;
+        LiteralItem items[map->size];
+        sz = fread(items, sizeof(LiteralItem), map->size, fp);
+        expect(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = item_copy(sizeof(LiteralItem), items + i);
+          _append_(image, ITEM_LITERAL, item, 1);
+        }
+      }
+      break;
     case ITEM_TYPE:
       if (LOAD(ITEM_TYPE)) {
         TypeItem *item;
@@ -2199,27 +2130,27 @@ Image *Image_Read_File(char *path, int unload)
       break;
     case ITEM_INDEX:
       if (LOAD(ITEM_INDEX)) {
-        Indexitem *item;
+        IndexItem *item;
         uint32_t len;
         for (int i = 0; i < map->size; i++) {
           sz = fread(&len, 4, 1, fp);
           expect(sz == 1);
-          item = vargitem_new(sizeof(Indexitem), sizeof(int32_t), len);
+          item = vargitem_new(sizeof(IndexItem), sizeof(int32_t), len);
           sz = fread(item->index, sizeof(int32_t) * len, 1, fp);
           expect(sz == 1);
           _append_(image, ITEM_INDEX, item, 1);
         }
       }
       break;
-    case ITEM_LITERAL:
-      if (LOAD(ITEM_LITERAL)) {
-        LiteralItem *item;
-        LiteralItem items[map->size];
-        sz = fread(items, sizeof(LiteralItem), map->size, fp);
+    case ITEM_CONST:
+      if (LOAD(ITEM_CONST)) {
+        ConstItem *item;
+        ConstItem items[map->size];
+        sz = fread(items, sizeof(ConstItem), map->size, fp);
         expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = item_copy(sizeof(LiteralItem), items + i);
-          _append_(image, ITEM_LITERAL, item, 1);
+          item = item_copy(sizeof(ConstItem), items + i);
+          _append_(image, ITEM_CONST, item, 0);
         }
       }
       break;
@@ -2247,6 +2178,18 @@ Image *Image_Read_File(char *path, int unload)
         }
       }
       break;
+    case ITEM_CONSTVAR:
+      if (LOAD(ITEM_CONSTVAR)) {
+        ConstVarItem *item;
+        ConstVarItem items[map->size];
+        sz = fread(items, sizeof(ConstVarItem), map->size, fp);
+        expect(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = item_copy(sizeof(ConstVarItem), items + i);
+          _append_(image, ITEM_CONSTVAR, item, 0);
+        }
+      }
+      break;
     case ITEM_FUNC:
       if (LOAD(ITEM_FUNC)) {
         FuncItem *item;
@@ -2256,6 +2199,18 @@ Image *Image_Read_File(char *path, int unload)
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(FuncItem), items + i);
           _append_(image, ITEM_FUNC, item, 0);
+        }
+      }
+      break;
+    case ITEM_ANONY:
+      if (LOAD(ITEM_ANONY)) {
+        AnonyItem *item;
+        AnonyItem items[map->size];
+        sz = fread(items, sizeof(AnonyItem), map->size, fp);
+        expect(sz == map->size);
+        for (int i = 0; i < map->size; i++) {
+          item = item_copy(sizeof(AnonyItem), items + i);
+          _append_(image, ITEM_ANONY, item, 0);
         }
       }
       break;
@@ -2289,61 +2244,49 @@ Image *Image_Read_File(char *path, int unload)
       break;
     case ITEM_FIELD:
       if (LOAD(ITEM_FIELD)) {
-        FieldItem *item;
-        FieldItem items[map->size];
-        sz = fread(items, sizeof(FieldItem), map->size, fp);
+        VarItem *item;
+        VarItem items[map->size];
+        sz = fread(items, sizeof(VarItem), map->size, fp);
         expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = item_copy(sizeof(FieldItem), items + i);
+          item = item_copy(sizeof(VarItem), items + i);
           _append_(image, ITEM_FIELD, item, 0);
         }
       }
       break;
     case ITEM_METHOD:
       if (LOAD(ITEM_METHOD)) {
-        MethodItem *item;
-        MethodItem items[map->size];
-        sz = fread(items, sizeof(MethodItem), map->size, fp);
+        FuncItem *item;
+        FuncItem items[map->size];
+        sz = fread(items, sizeof(FuncItem), map->size, fp);
         expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = item_copy(sizeof(MethodItem), items + i);
+          item = item_copy(sizeof(FuncItem), items + i);
           _append_(image, ITEM_METHOD, item, 0);
         }
       }
       break;
     case ITEM_TRAIT:
       if (LOAD(ITEM_TRAIT)) {
-        TraitItem *item;
-        TraitItem items[map->size];
-        sz = fread(items, sizeof(TraitItem), map->size, fp);
+        ClassItem *item;
+        ClassItem items[map->size];
+        sz = fread(items, sizeof(ClassItem), map->size, fp);
         expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = item_copy(sizeof(TraitItem), items + i);
+          item = item_copy(sizeof(ClassItem), items + i);
           _append_(image, ITEM_TRAIT, item, 0);
         }
       }
       break;
-    case ITEM_NFUNC:
-      if (LOAD(ITEM_NFUNC)) {
-        NFuncItem *item;
-        NFuncItem items[map->size];
-        sz = fread(items, sizeof(NFuncItem), map->size, fp);
+    case ITEM_IFUNC:
+      if (LOAD(ITEM_IFUNC)) {
+        IFuncItem *item;
+        IFuncItem items[map->size];
+        sz = fread(items, sizeof(IFuncItem), map->size, fp);
         expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = item_copy(sizeof(NFuncItem), items + i);
-          _append_(image, ITEM_NFUNC, item, 0);
-        }
-      }
-      break;
-    case ITEM_IMETH:
-      if (LOAD(ITEM_IMETH)) {
-        IMethItem *item;
-        IMethItem items[map->size];
-        sz = fread(items, sizeof(IMethItem), map->size, fp);
-        expect(sz == map->size);
-        for (int i = 0; i < map->size; i++) {
-          item = item_copy(sizeof(IMethItem), items + i);
-          _append_(image, ITEM_IMETH, item, 0);
+          item = item_copy(sizeof(IFuncItem), items + i);
+          _append_(image, ITEM_IFUNC, item, 0);
         }
       }
       break;
@@ -2371,6 +2314,20 @@ Image *Image_Read_File(char *path, int unload)
         }
       }
       break;
+    case ITEM_MBR:
+      if (LOAD(ITEM_MBR)) {
+        MbrItem *item;
+        uint32_t len;
+        for (int i = 0; i < map->size; i++) {
+          sz = fread(&len, 4, 1, fp);
+          expect(sz == 1);
+          item = vargitem_new(sizeof(MbrItem), sizeof(MbrIndex), len);
+          sz = fread(item->indexes, sizeof(MbrIndex) * len, 1, fp);
+          expect(sz == 1);
+          _append_(image, ITEM_MBR, item, 0);
+        }
+      }
+      break;
     default:
       panic("invalid map %d", map->type);
       break;
@@ -2392,7 +2349,7 @@ void header_show(ImageHeader *h)
   puts("--------------------");
 }
 
-void Image_Show(Image *image)
+void image_show(Image *image)
 {
   if (image == NULL)
     return;

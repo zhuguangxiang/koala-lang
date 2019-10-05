@@ -516,6 +516,41 @@ Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Vector *block)
   return stmt;
 }
 
+Stmt *stmt_from_class(Ident id, Vector *typeparas, ExtendsDef *extends,
+                      Vector *body)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = CLASS_KIND;
+  stmt->class_stmt.id = id;
+  stmt->class_stmt.typeparas = typeparas;
+  stmt->class_stmt.extends = extends;
+  stmt->class_stmt.body = body;
+  return stmt;
+}
+
+Stmt *stmt_from_trait(Ident id, Vector *typeparas, ExtendsDef *extends,
+                      Vector *body)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = TRAIT_KIND;
+  stmt->class_stmt.id = id;
+  stmt->class_stmt.typeparas = typeparas;
+  stmt->class_stmt.extends = extends;
+  stmt->class_stmt.body = body;
+  return stmt;
+}
+
+Stmt *stmt_from_ifunc(Ident id, Vector *args, Type *ret)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = IFUNC_KIND;
+  stmt->funcdecl.id = id;
+  stmt->funcdecl.idtypes = args;
+  if (ret != NULL)
+    stmt->funcdecl.ret = *ret;
+  return stmt;
+}
+
 void stmt_block_free(Vector *vec)
 {
   Stmt *stmt;
@@ -596,6 +631,17 @@ void stmt_free(Stmt *stmt)
     expr_free(stmt->for_stmt.iter);
     expr_free(stmt->for_stmt.step);
     stmt_block_free(stmt->for_stmt.block);
+    kfree(stmt);
+    break;
+  case CLASS_KIND:
+  case TRAIT_KIND:
+    free_extends(stmt->class_stmt.extends);
+    stmt_block_free(stmt->class_stmt.body);
+    kfree(stmt);
+    break;
+  case IFUNC_KIND:
+    free_idtypes(stmt->funcdecl.idtypes);
+    TYPE_DECREF(stmt->funcdecl.ret.desc);
     kfree(stmt);
     break;
   default:

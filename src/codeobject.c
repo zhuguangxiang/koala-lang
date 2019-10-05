@@ -72,7 +72,7 @@ TypeObject code_type = {
 Object *code_new(char *name, TypeDesc *proto, uint8_t *codes, int size)
 {
   debug("new '%s' code", name);
-  CodeObject *co = gcmalloc(sizeof(CodeObject) + size);
+  CodeObject *co = gcnew(sizeof(CodeObject) + size);
   init_object_head(co, &code_type);
   co->name = atom(name);
   expect(proto->kind == TYPE_PROTO);
