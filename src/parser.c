@@ -1151,12 +1151,9 @@ static void ident_up_anony(ParserState *ps, Expr *exp)
   ParserUnit *up = exp->id.scope;
   Symbol *sym = exp->sym;
 
-  /*
   if (up->scope == SCOPE_MODULE) {
     ident_in_mod(ps, exp);
-  } else
-  */
-  if (up->scope == SCOPE_FUNC) {
+  } else if (up->scope == SCOPE_FUNC) {
     Symbol *funcsym = up->sym;
     Vector *freevec = &funcsym->func.freevec;
     int index = vector_append_int(freevec, sym->var.index);
@@ -1297,6 +1294,9 @@ static void parse_binary(ParserState *ps, Expr *exp)
   if (exp->desc == NULL) {
     exp->desc = TYPE_INCREF(lexp->desc);
   }
+
+  if (has_error(ps))
+    return;
 
   if (exp->binary.op == BINARY_ADD) {
     Symbol *sym = klass_find_member(exp->sym, "__add__");
