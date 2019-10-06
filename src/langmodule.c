@@ -112,6 +112,7 @@ static Object *disassemble(Object *self, Object *arg)
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(arg));
     return NULL;
   }
+
   MethodObject *meth = (MethodObject *)arg;
   if (meth->cfunc) {
     printf("'%.64s' is cfunc\n", meth->name);
@@ -125,7 +126,9 @@ static Object *disassemble(Object *self, Object *arg)
   int op;
   char *opname;
   int bytes;
-  printf("assembly of '%.64s':\n", co->name);
+  printf("assembly of func '%.64s':\n", co->name);
+  printf("  locals=%d, freevals=%d, upvals=%d\n", vector_size(&co->locvec),
+         vector_size(&co->freevec), vector_size(&co->upvec));
   while (index < co->size) {
     printf("%6d", index);
     op = codes[index++];
@@ -141,8 +144,23 @@ static Object *disassemble(Object *self, Object *arg)
   return NULL;
 }
 
+static Object *help(Object *self, Object *arg)
+{
+
+}
+
+static Object *_exit_(Object *self, Object *arg)
+{
+  extern int halt;
+  //graceful halt
+  halt = 1;
+  return NULL;
+}
+
 static MethodDef lang_methods[] = {
   {"disassemble", "A", NULL, disassemble},
+  {"help", "A", NULL, help},
+  {"exit", NULL, NULL, _exit_},
   {NULL}
 };
 

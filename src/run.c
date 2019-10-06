@@ -174,7 +174,7 @@ static void run_dir(char *dir)
  * The following commands are valid.
  * ~$ koala a/b/foo.kl [a/b/foo.klc] [a/b/foo]
  */
-void Koala_Run(char *path)
+void koala_execute(char *path)
 {
   /*
   if (isdotklc(path)) {

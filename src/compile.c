@@ -124,7 +124,7 @@ int validate_srcfile(char *path)
 }
 
 /* koala -c a/b/foo.kl [a/b/foo] */
-void Koala_Compile(char *path)
+void koala_compile(char *path)
 {
   if (isdotkl(path)) {
     /* single source file */

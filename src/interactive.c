@@ -110,8 +110,9 @@ static void fini_cmdline_env(void)
 }
 
 yyscan_t scanner;
+int halt = 0;
 
-void Koala_ReadLine(void)
+void koala_readline(void)
 {
   init_cmdline_env();
   show_banner();
@@ -437,6 +438,10 @@ static int empty(char *buf, int size)
 
 int interactive(ParserState *ps, char *buf, int size)
 {
+  if (halt) {
+    return 0;
+  }
+
   char *line;
   /* TAB as insert, not completion */
   rl_bind_key('\t', rl_insert);

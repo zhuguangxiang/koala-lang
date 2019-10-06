@@ -56,9 +56,9 @@ extern "C" {
 
 void koala_initialize(void);
 void koala_finalize(void);
-void Koala_ReadLine(void);
-void Koala_Compile(char *path);
-void Koala_Run(char *path);
+void koala_readline(void);
+void koala_compile(char *path);
+void koala_execute(char *path);
 
 #ifdef __cplusplus
 }

@@ -1728,7 +1728,7 @@ static void parse_call(ParserState *ps, Expr *exp)
   // check call arguments
   if (!has_error(ps)) {
     if (check_call_args(desc, args)) {
-      syntax_error(ps, arg->row, arg->col, "call args check failed");
+      syntax_error(ps, exp->row, exp->col, "call args check failed");
     } else {
       exp->desc = TYPE_INCREF(desc->proto.ret);
       exp->sym = get_desc_symbol(ps, exp->desc);

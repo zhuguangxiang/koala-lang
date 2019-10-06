@@ -142,11 +142,11 @@ int main(int argc, char *argv[])
   koala_initialize();
 
   if (cflag == 1) {
-    Koala_Compile(module);
+    koala_compile(module);
   } else if (cflag == 2) {
-    Koala_Run(module);
+    koala_execute(module);
   } else {
-    Koala_ReadLine();
+    koala_readline();
   }
 
   koala_finalize();
