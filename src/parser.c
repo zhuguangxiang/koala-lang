@@ -300,16 +300,20 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     break;
   }
   case OP_CALL: {
-    bytebuffer_write_byte(buf, i->hasob);
+    index = image_add_string(image, i->arg.str);
+    bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_byte(buf, i->argc);
     break;
   }
+  case OP_EVAL:
+    bytebuffer_write_byte(buf, i->argc);
+    break;
   case OP_NEW_EVAL:
     index = image_add_string(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_byte(buf, i->argc);
     break;
-  case OP_NEW_OBJECT:
+  case OP_NEW:
     index = image_add_desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_byte(buf, i->argc);
@@ -400,6 +404,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_UPVAL_LOAD:
     bytebuffer_write_byte(buf, i->arg.ival);
     break;
+  case OP_INIT_CALL:
+    bytebuffer_write_byte(buf, i->argc);
+    break;
   default:
     panic("invalid opcode %s", opcode_str(i->op));
     break;
@@ -438,9 +445,13 @@ void code_gen(CodeBlock *block, Image *image, ByteBuffer *buf)
   inst_add(ps, op, &v);     \
 })
 
-#define CODE_OP_ARGC(op, _hasob, _argc) ({ \
+#define CODE_OP_S_ARGC(op, s, _argc) ({ \
+  Inst *i = CODE_OP_S(op, s);           \
+  i->argc = _argc;                      \
+})
+
+#define CODE_OP_ARGC(op, _argc) ({ \
   Inst *i = CODE_OP(op);           \
-  i->hasob = _hasob; \
   i->argc = _argc;                 \
 })
 
@@ -929,37 +940,29 @@ Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
   return sym;
 }
 
-TypeDesc *get_symbol_desc(Symbol *sym)
-{
-  TypeDesc *desc = sym->desc;
-  expect(desc != NULL);
-  TypeDesc *ret = NULL;
-
-  switch (desc->kind) {
-  case TYPE_BASE:
-    ret = TYPE_INCREF(desc);
-    break;
-  case TYPE_KLASS:
-    ret = desc_from_klass(desc->klass.path, desc->klass.type);
-    break;
-  default:
-    panic("get_symbol_desc: invalid desc %d", desc->kind);
-    break;
-  }
-
-  return ret;
-}
-
 static void parse_self(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
   expect(exp->ctx == EXPR_LOAD);
-  if (u->scope == SCOPE_MODULE) {
+  if (u->scope == SCOPE_FUNC) {
+    ParserUnit *up = up_scope(ps);
+    if (up->scope != SCOPE_CLASS) {
+      syntax_error(ps, exp->row, exp->col, "self must be used in method");
+      return;
+    }
+    exp->sym = up->sym;
+    exp->desc = TYPE_INCREF(up->sym->desc);
+    CODE_LOAD(0);
+  } else if (u->scope == SCOPE_BLOCK) {
+    panic("SCOPE_BLOCK: not implemented");
+  } else if (u->scope == SCOPE_ANONY) {
+    panic("SCOPE_ANONY: not implemented");
+  } else if (u->scope == SCOPE_MODULE) {
     exp->sym = u->sym;
     exp->desc = TYPE_INCREF(u->sym->desc);
     CODE_OP(OP_LOAD_GLOBAL);
   } else if (u->scope == SCOPE_CLASS) {
-    panic("not implemented");
+    panic("SCOPE_CLASS: not implemented");
   } else {
     panic("not implemented");
   }
@@ -1021,16 +1024,15 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
   } else if (exp->ctx == EXPR_CALL_FUNC) {
     if (sym->kind == SYM_FUNC) {
       CODE_OP(OP_LOAD_GLOBAL);
-      CODE_OP_S(OP_GET_METHOD, exp->id.name);
-      CODE_OP_ARGC(OP_CALL, 0, exp->argc);
+      CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
     } else if (sym->kind == SYM_VAR) {
-      // closure or function, not allowed method?
+      // FIXME: closure or function, not allowed method?
       expect(sym->desc->kind == TYPE_PROTO);
       CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S(OP_GET_VALUE, exp->id.name);
-      CODE_OP_ARGC(OP_CALL, 0, exp->argc);
+      CODE_OP_ARGC(OP_EVAL, exp->argc);
     } else {
-      panic("symbol %d is claled?", sym->kind);
+      panic("symbol %d is callable?", sym->kind);
     }
   } else if (exp->ctx == EXPR_INPLACE) {
     CODE_OP(OP_LOAD_GLOBAL);
@@ -1058,7 +1060,7 @@ static void ident_in_func(ParserState *ps, Expr *exp)
     debug("call function:%s, argc:%d", sym->name, exp->argc);
     expect(sym->desc->kind == TYPE_PROTO);
     CODE_LOAD(sym->var.index);
-    CODE_OP_ARGC(OP_CALL, 0, exp->argc);
+    CODE_OP_ARGC(OP_EVAL, exp->argc);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1101,14 +1103,24 @@ static void ident_up_func(ParserState *ps, Expr *exp)
   ParserUnit *up = exp->id.scope;
   if (up->scope == SCOPE_MODULE) {
     if (exp->ctx == EXPR_LOAD) {
+      CODE_OP(OP_LOAD_GLOBAL);
+      CODE_OP_S(OP_GET_VALUE, exp->id.name);
+    } else if (exp->ctx == EXPR_STORE) {
+      CODE_OP(OP_LOAD_GLOBAL);
+      CODE_OP_S(OP_SET_VALUE, exp->id.name);
+    } else if (exp->ctx == EXPR_INPLACE) {
+      CODE_OP(OP_LOAD_GLOBAL);
+      parse_attr_inplace(ps, exp->id.name, exp);
+    } else {
+      panic("invalid expr's ctx %d", exp->ctx);
+    }
+  } else if (up->scope == SCOPE_CLASS) {
+    if (exp->ctx == EXPR_LOAD) {
       CODE_LOAD(0);
       CODE_OP_S(OP_GET_VALUE, exp->id.name);
     } else if (exp->ctx == EXPR_STORE) {
       CODE_LOAD(0);
       CODE_OP_S(OP_SET_VALUE, exp->id.name);
-    } else if (exp->ctx == EXPR_INPLACE) {
-      CODE_LOAD(0);
-      parse_attr_inplace(ps, exp->id.name, exp);
     } else {
       panic("invalid expr's ctx %d", exp->ctx);
     }
@@ -1151,7 +1163,7 @@ static void ident_up_anony(ParserState *ps, Expr *exp)
     Symbol *anonysym = u->sym;
     Vector *upvec = &anonysym->anony.upvec;
     index = vector_append_int(upvec, index);
-    CODE_OP(OP_LOAD_0);
+    CODE_LOAD(0);
     //FIXME: upval_load_0
     CODE_OP_I(OP_UPVAL_LOAD, index);
   }
@@ -1167,13 +1179,13 @@ static void ident_up_anony(ParserState *ps, Expr *exp)
 static void ident_builtin(ParserState *ps, Expr *exp)
 {
   if (exp->ctx == EXPR_LOAD) {
-    CODE_OP(OP_LOAD_0);
+    CODE_LOAD(0);
     CODE_OP_S(OP_GET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_STORE) {
-    CODE_OP(OP_LOAD_0);
+    CODE_LOAD(0);
     CODE_OP_S(OP_SET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
-    CODE_OP(OP_LOAD_0);
+    CODE_LOAD(0);
     //CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
@@ -1517,9 +1529,7 @@ static void parse_atrr(ParserState *ps, Expr *exp)
       if (exp->ctx == EXPR_LOAD)
         CODE_OP_S(OP_GET_VALUE, id->name);
       else if (exp->ctx == EXPR_CALL_FUNC) {
-        CODE_OP(OP_DUP);
-        CODE_OP_S(OP_GET_METHOD, id->name);
-        CODE_OP_ARGC(OP_CALL, 1, exp->argc);
+        CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
       } else if (exp->ctx == EXPR_LOAD_FUNC)
         CODE_OP_S(OP_GET_METHOD, id->name);
       else if (exp->ctx == EXPR_STORE)
@@ -1641,6 +1651,25 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   }
 }
 
+static int check_call_args(TypeDesc *proto, Vector *args)
+{
+  Vector *descs = proto->proto.args;
+  int sz = vector_size(descs);
+  int argc = vector_size(args);
+  if (sz != argc)
+    return -1;
+
+  TypeDesc *desc;
+  Expr *arg;
+  for (int i = 0; i < sz; ++i) {
+    desc = vector_get(descs, i);
+    arg = vector_get(args, i);
+    if (!desc_check(desc, arg->desc))
+      return -1;
+  }
+  return 0;
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
   Vector *args = exp->call.args;
@@ -1661,28 +1690,17 @@ static void parse_call(ParserState *ps, Expr *exp)
 
   if (lexp->kind == CALL_KIND && desc->kind == TYPE_PROTO) {
     debug("left expr is func call and ret is func");
-    CODE_OP_ARGC(OP_CALL, 0, lexp->argc);
+    CODE_OP_ARGC(OP_EVAL, lexp->argc);
   }
 
   // check call arguments
   if (!has_error(ps)) {
-    Vector *params = desc->proto.args;
-    int psz = vector_size(params);
-    int argc = vector_size(args);
-    if (psz != argc) {
-      syntax_error(ps, exp->row, exp->col,
-        "count of arguments are not matched");
+    if (check_call_args(desc, args)) {
+      syntax_error(ps, arg->row, arg->col, "call args check failed");
+    } else {
+      exp->desc = TYPE_INCREF(desc->proto.ret);
+      exp->sym = get_desc_symbol(ps, exp->desc);
     }
-    TypeDesc *pdesc, *indesc;
-    for (int i = 0; i < psz; ++i) {
-      pdesc = vector_get(params, i);
-      arg = vector_get(args, i);
-      if (!desc_check(pdesc, arg->desc)) {
-        syntax_error(ps, exp->row, exp->col, "types are not compatible");
-      }
-    }
-    exp->desc = TYPE_INCREF(desc->proto.ret);
-    exp->sym = get_desc_symbol(ps, exp->desc);
   }
 }
 
@@ -2066,7 +2084,7 @@ static void parse_anony(ParserState *ps, Expr *exp)
   if (!has_error(ps)) {
     CODE_OP_ANONY(sym);
     if (exp->ctx == EXPR_CALL_FUNC) {
-      CODE_OP_ARGC(OP_CALL, 0, exp->argc);
+      CODE_OP_ARGC(OP_EVAL, exp->argc);
     }
   }
 }
@@ -2106,6 +2124,53 @@ static void parse_as(ParserState *ps, Expr *exp)
   }
 }
 
+static void check_new_args(ParserState *ps, Symbol *sym, Expr *exp)
+{
+  Ident *id = &exp->newobj.id;
+  char *name = id->name;
+  int row = id->row;
+  int col = id->col;
+
+  if (sym->kind != SYM_CLASS) {
+    syntax_error(ps, row, col, "'%s' is not a class", name);
+    return;
+  }
+
+  /*
+  Vector *types = exp->newobj.types;
+  if (!check_typepara(desc->paras, types)) {
+    syntax_error(ps, id->row, id->col,
+                 "'%s' generic type check faield", id->name);
+  }
+  */
+
+  Vector *args = exp->newobj.args;
+  int argc = vector_size(args);
+
+  Symbol *initsym = stable_get(sym->type.stbl, "__init__");
+  if (initsym == NULL && argc == 0)
+    return;
+
+  if (initsym == NULL && argc > 0) {
+    syntax_error(ps, row, col, "'%s' has no __init__()", name);
+    return;
+  }
+
+  TypeDesc *desc = initsym->desc;
+  if (desc->kind != TYPE_PROTO) {
+    syntax_error(ps, row, col, "'%s': __init__ is not a func", name);
+    return;
+  }
+
+  if (desc->proto.ret != NULL) {
+    syntax_error(ps, row, col, "'%s': __init__ must be no return", name);
+    return;
+  }
+
+  if (check_call_args(desc, args))
+    syntax_error(ps, row, col, "'%s' args are not mached", name);
+}
+
 static void parse_new(ParserState *ps, Expr *exp)
 {
   char *path = exp->newobj.path;
@@ -2116,47 +2181,52 @@ static void parse_new(ParserState *ps, Expr *exp)
     return;
   }
 
-  Vector *types = exp->newobj.types;
-
-  /*
-  if (!check_typepara(desc->typeparas, types)) {
-    syntax_error(ps, id->row, id->col, "'%s' generic type check faield", id->name);
-  }
-  */
-
-  Vector *args = exp->newobj.args;
-  Expr *e;
-  vector_for_each_reverse(e, args) {
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-  }
-
-  /*
-  if (!check_call_arguments(sym, args)) {
-    syntax_error(ps, id->row, id->col, "'%s' arguments check failed", id->name);
-  }
-  */
+  check_new_args(ps, sym, exp);
 
   if (!has_error(ps)) {
-    TypeDesc *desc = get_symbol_desc(sym);
+    exp->sym = sym;
+    exp->desc = TYPE_INCREF(sym->desc);
+
+    /*
+    Vector *types = exp->newobj.types;
     if (types != NULL) {
       TypeDesc *item;
       vector_for_each(item, types) {
-        desc_add_paratype(desc, item);
+        desc_add_paratype(exp->desc, item);
       }
     }
+    */
 
-    exp->sym = sym;
-    exp->desc = desc;
     // generate codes
-    Inst *i = CODE_OP_TYPE(OP_NEW_OBJECT, desc);
+    Vector *args = exp->newobj.args;
     int argc = vector_size(args);
+    TypeDesc *desc = exp->desc;
     if (desc->kind == TYPE_BASE) {
+      Expr *e;
+      vector_for_each_reverse(e, args) {
+        e->ctx = EXPR_LOAD;
+        parser_visit_expr(ps, e);
+      }
+      Inst *i = CODE_OP_TYPE(OP_NEW, desc);
       i->argc = argc;
     }
-    if (desc->kind == TYPE_KLASS && argc > 0) {
-      CODE_OP(OP_DUP);
-      //CODE_OP_S_ARGC(OP_CALL, "__init__", argc);
+
+    if (desc->kind == TYPE_KLASS)  {
+      CODE_OP_TYPE(OP_NEW, desc);
+      if (argc > 0) {
+        CODE_OP(OP_DUP);
+        Expr *e;
+        vector_for_each_reverse(e, args) {
+          e->ctx = EXPR_LOAD;
+          parser_visit_expr(ps, e);
+        }
+        CODE_OP_ARGC(OP_INIT_CALL, argc);
+      } else {
+        Symbol *initsym = stable_get(sym->type.stbl, "__init__");
+        if (initsym != NULL) {
+          CODE_OP_ARGC(OP_INIT_CALL, 0);
+        }
+      }
     }
   }
 }
@@ -2244,6 +2314,10 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
       desc = exp->desc;
     }
 
+    if (desc == NULL) {
+      return;
+    }
+
     if (!desc_check(desc, exp->desc)) {
       syntax_error(ps, exp->row, exp->col, "types are not matched");
     }
@@ -2265,7 +2339,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
       CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S(OP_SET_VALUE, id->name);
     } else if (scope == SCOPE_CLASS) {
-      CODE_OP(OP_LOAD_0);
+      CODE_LOAD(0);
       CODE_OP_S(OP_SET_VALUE, id->name);
     } else {
       /* others are local variables */

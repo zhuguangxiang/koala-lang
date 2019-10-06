@@ -1516,6 +1516,10 @@ member_decl:
 {
   $$ = NULL;
 }
+| COMMENT
+{
+  $$ = NULL;
+}
 ;
 
 field_decl:
@@ -1599,6 +1603,10 @@ trait_member_decl:
   $$ = $1;
 }
 | ';'
+{
+  $$ = NULL;
+}
+| COMMENT
 {
   $$ = NULL;
 }

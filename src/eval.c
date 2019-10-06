@@ -427,15 +427,31 @@ Object *Koala_EvalFrame(CallFrame *f)
       break;
     }
     case OP_CALL:
-      x = POP();
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
       oparg = NEXT_BYTE();
-      debug("call:hasob:%d", oparg);
-      if (method_check(x)) {
-        if (oparg > 0)
-          w = POP();
-        else
-          w = NULL;
+      y = POP();
+      if (oparg == 0) {
+        z = NULL;
+      } else if (oparg == 1) {
+        z = POP();
+      } else {
+        z = tuple_new(oparg);
+        for (i = 0; i < oparg; ++i) {
+          v = POP();
+          tuple_set(z, i, v);
+          OB_DECREF(v);
+        }
       }
+      ks->top = top - base;
+      w = Object_Call(y, string_asstr(x), z);
+      PUSH(w);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      OB_DECREF(z);
+      break;
+    case OP_EVAL:
+      x = POP();
       oparg = NEXT_BYTE();
       if (oparg == 0) {
         y = NULL;
@@ -452,8 +468,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       ks->top = top - base;
       if (method_check(x)) {
         debug("call method '%s' argc %d", ((MethodObject *)x)->name, oparg);
-        z = Method_Call(x, w, y);
-        OB_DECREF(w);
+        z = Method_Call(x, NULL, y);
       } else {
         debug("call closure '%s' argc %d", ((ClosureObject *)x)->name, oparg);
         expect(closure_check(x));
@@ -920,7 +935,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       PUSH(y);
       break;
     }
-    case OP_NEW_OBJECT: {
+    case OP_NEW: {
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       oparg = NEXT_BYTE();
@@ -993,6 +1008,28 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_LOAD_GLOBAL: {
       x = f->code->module;
       PUSH(OB_INCREF(x));
+      break;
+    }
+    case OP_INIT_CALL: {
+      oparg = NEXT_BYTE();
+      if (oparg == 0) {
+        z = NULL;
+      } else if (oparg == 1) {
+        z = POP();
+      } else {
+        z = tuple_new(oparg);
+        for (i = 0; i < oparg; ++i) {
+          v = POP();
+          tuple_set(z, i, v);
+          OB_DECREF(v);
+        }
+      }
+      y = POP();
+      ks->top = top - base;
+      w = Object_Call(y, "__init__", z);
+      expect(w == NULL);
+      OB_DECREF(y);
+      OB_DECREF(z);
       break;
     }
     default: {

@@ -283,7 +283,7 @@ typedef void (*getclassfunc)(char *, int, Image *, void *);
 void image_load_class(Image *image, int index, getclassfunc func, void *arg);
 void image_load_trait(Image *image, int index, getclassfunc func, void *arg);
 void image_load_enum(Image *image, int index, getclassfunc func, void *arg);
-typedef void (*getmbrfunc)(char *, int, TypeDesc *, void *);
+typedef void (*getmbrfunc)(char *, int, void *, void *);
 void image_load_mbrs(Image *iamge, int index, getmbrfunc func, void *arg);
 
 #ifdef __cplusplus

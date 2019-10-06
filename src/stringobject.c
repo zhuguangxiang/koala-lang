@@ -115,16 +115,21 @@ static Object *string_equal(Object *self, Object *other)
   return !strcmp(s1->wstr, s2->wstr) ? Bool_True() : Bool_False();
 }
 
-static void string_free(Object *self)
+static void string_clean(Object *self)
 {
   if (!string_check(self)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
     return;
   }
-  debug("[Freed] String '%.64s'", string_asstr(self));
+  debug("clean String '%.64s'", string_asstr(self));
   StringObject *s = (StringObject *)self;
   kfree(s->wstr);
-  kfree(self);
+}
+
+static void string_free(Object *self)
+{
+  string_clean(self);
+  gcfree(self);
 }
 
 static Object *string_str(Object *self, Object *args)
@@ -208,6 +213,7 @@ TypeObject string_type = {
   .name    = "String",
   .hash    = string_hash,
   .cmp     = string_equal,
+  .clean   = string_clean,
   .free    = string_free,
   .methods = string_methods,
 };
@@ -221,8 +227,9 @@ void init_string_type(void)
 
 Object *string_new(char *str)
 {
+  debug("string_new:%s", str);
   int len = strlen(str);
-  StringObject *s = kmalloc(sizeof(*s));
+  StringObject *s = gcnew(sizeof(StringObject));
   init_object_head(s, &string_type);
   s->len = len;
   s->wstr = kmalloc(len + 1);

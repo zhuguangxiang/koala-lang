@@ -29,14 +29,14 @@
 extern "C" {
 #endif
 
-#define OP_HALT    0
-#define OP_POP_TOP 1
-#define OP_DUP     2
-#define OP_SWAP    3
-#define OP_CONST_BYTE  4
-#define OP_CONST_SHORT 5
-#define OP_LOAD_CONST  6
-#define OP_LOAD_MODULE 7
+#define OP_HALT         0
+#define OP_POP_TOP      1
+#define OP_DUP          2
+#define OP_SWAP         3
+#define OP_CONST_BYTE   4
+#define OP_CONST_SHORT  5
+#define OP_LOAD_CONST   6
+#define OP_LOAD_MODULE  7
 
 /* 8 - 9 */
 
@@ -58,9 +58,10 @@ extern "C" {
 #define OP_RETURN_VALUE 23
 #define OP_RETURN       24
 #define OP_CALL         25
-#define OP_PRINT        26
-#define OP_TYPEOF       27
-#define OP_TYPECHECK    28
+#define OP_EVAL         26
+#define OP_PRINT        27
+#define OP_TYPEOF       28
+#define OP_TYPECHECK    29
 
 #define OP_ADD  30
 #define OP_SUB  31
@@ -123,7 +124,7 @@ extern "C" {
 #define OP_NEW_RANGE    88
 #define OP_NEW_CLOSURE  89
 #define OP_NEW_EVAL     91
-#define OP_NEW_OBJECT   92
+#define OP_NEW   92
 #define OP_NEW_ITER     93
 
 /* 94 - 95 */
@@ -137,6 +138,7 @@ extern "C" {
 #define OP_UPVAL_STORE  101
 
 #define OP_LOAD_GLOBAL  103
+#define OP_INIT_CALL    104
 
 int opcode_argc(int op);
 char *opcode_str(int op);

@@ -125,7 +125,7 @@ void Koala_ReadLine(void)
 
 static void _load_const_(void *val, int kind, int index, void *arg)
 {
-  Object *tuple = arg;
+  Object *consts = arg;
   Object *ob;
   CodeInfo *ci;
 
@@ -138,7 +138,7 @@ static void _load_const_(void *val, int kind, int index, void *arg)
     ci = val;
     ob = code_new(ci->name, ci->desc, ci->codes, ci->size);
     code_set_module(ob, mo);
-    code_set_consts(ob, tuple);
+    code_set_consts(ob, consts);
     code_set_locvars(ob, ci->locvec);
     code_set_freevals(ob, ci->freevec);
     code_set_upvals(ob, ci->upvec);
@@ -147,7 +147,7 @@ static void _load_const_(void *val, int kind, int index, void *arg)
           vector_size(ci->freevec), vector_size(ci->upvec));
   }
 
-  tuple_set(tuple, index, ob);
+  tuple_set(consts, index, ob);
   OB_DECREF(ob);
 }
 
@@ -170,8 +170,11 @@ static Object *code_from_symbol(Symbol *sym)
 #if !defined(NLog)
   image_show(image);
 #endif
-
-  consts = tuple_new(image_const_size(image));
+  size = image_const_size(image);
+  if (size > 0)
+    consts = tuple_new(size);
+  else
+    consts = NULL;
   image_load_consts(image, _load_const_, consts);
   size = bytebuffer_toarr(&buf, (char **)&code);
 
@@ -279,11 +282,22 @@ int cmd_add_type(ParserState *ps, Stmt *stmt)
   return sym != NULL ? 0 : -1;
 }
 
-static void _load_mbr__(char *name, int kind, TypeDesc *desc, void *arg)
+static void _load_mbr_(char *name, int kind, void *data, void *arg)
 {
   TypeObject *type = arg;
   if (kind == MBR_FIELD) {
-    type_add_field_default(type, atom(name), desc);
+    type_add_field_default(type, atom(name), data);
+  } else if (kind == MBR_METHOD) {
+    CodeInfo *ci = data;
+    Object *code = code_new(name, ci->desc, ci->codes, ci->size);
+    code_set_locvars(code, ci->locvec);
+    code_set_freevals(code, ci->freevec);
+    code_set_module(code, mo);
+    code_set_consts(code, type->consts);
+    Object *meth = Method_New(name, code);
+    type_add_method(type, meth);
+    OB_DECREF(code);
+    OB_DECREF(meth);
   } else {
     panic("_load_mbr__: not implemented");
   }
@@ -293,7 +307,13 @@ static void _load_class_(char *name, int index, Image *image, void *arg)
 {
   TypeObject *type = arg;
   expect(!strcmp(name, type->name));
-  image_load_mbrs(image, index, _load_mbr__, type);
+  int size = image_const_size(image);
+  Object *consts = NULL;
+  if (size > 0)
+    consts = tuple_new(size);
+  image_load_consts(image, _load_const_, consts);
+  type->consts = consts;
+  image_load_mbrs(image, index, _load_mbr_, type);
 }
 
 static void type_from_symbol(Symbol *clssym, TypeObject *type)

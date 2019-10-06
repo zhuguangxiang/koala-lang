@@ -440,6 +440,8 @@ void type_fini(TypeObject *type)
     kfree(map);
     type->mtbl = NULL;
   }
+
+  OB_DECREF(type->consts);
 }
 
 void Type_Add_Field(TypeObject *type, Object *ob)
@@ -480,7 +482,7 @@ void Type_Add_FieldDefs(TypeObject *type, FieldDef *def)
   }
 }
 
-void Type_Add_Method(TypeObject *type, Object *ob)
+void type_add_method(TypeObject *type, Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
   meth->owner = (Object *)type;
@@ -536,7 +538,7 @@ void type_add_methoddef(TypeObject *type, MethodDef *f)
 {
   Object *meth = CMethod_New(f);
   update_pararef(type->desc, ((MethodObject *)meth)->desc);
-  Type_Add_Method(type, meth);
+  type_add_method(type, meth);
   OB_DECREF(meth);
 }
 
@@ -759,7 +761,7 @@ Object *new_literal(Literal *val)
   return ob;
 }
 
-static void descob_free(Object *ob)
+static void descob_clean(Object *ob)
 {
   if (!descob_check(ob)) {
     error("object of '%s' is not a TypeDesc", OB_TYPE_NAME(ob));
@@ -767,18 +769,24 @@ static void descob_free(Object *ob)
   }
   DescObject *descob = (DescObject *)ob;
   TYPE_DECREF(descob->desc);
-  kfree(ob);
+}
+
+static void descob_free(Object *ob)
+{
+  descob_clean(ob);
+  gcfree(ob);
 }
 
 TypeObject descob_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name = "TypeDesc",
+  .clean = descob_clean,
   .free = descob_free,
 };
 
 Object *new_descob(TypeDesc *desc)
 {
-  DescObject *descob = kmalloc(sizeof(DescObject));
+  DescObject *descob = gcnew(sizeof(DescObject));
   init_object_head(descob, &descob_type);
   descob->desc = TYPE_INCREF(desc);
   return (Object *)descob;

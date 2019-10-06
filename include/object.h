@@ -249,7 +249,7 @@ void Type_Add_FieldDef(TypeObject *type, FieldDef *f);
 void Type_Add_FieldDefs(TypeObject *type, FieldDef *def);
 void type_add_field_default(TypeObject *type, char *name, TypeDesc *desc);
 
-void Type_Add_Method(TypeObject *type, Object *ob);
+void type_add_method(TypeObject *type, Object *ob);
 void type_add_methoddef(TypeObject *type, MethodDef *f);
 void Type_Add_MethodDefs(TypeObject *type, MethodDef *def);
 

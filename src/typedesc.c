@@ -297,7 +297,11 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
   case TYPE_KLASS: {
     char *path1 = desc1->klass.path;
     char *path2 = desc2->klass.path;
-    if (strcmp(path1, path2))
+    if (path1 != NULL && path2 == NULL)
+      return 0;
+    if (path1 == NULL && path2 != NULL)
+      return 0;
+    if (path1 != NULL && path2 != NULL && strcmp(path1, path2))
       return 0;
 
     char *name1 = desc1->klass.type;

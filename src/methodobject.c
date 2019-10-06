@@ -27,6 +27,7 @@
 #include "stringobject.h"
 #include "codeobject.h"
 #include "eval.h"
+#include "atom.h"
 
 Object *CMethod_New(MethodDef *def)
 {
@@ -44,7 +45,7 @@ Object *Method_New(char *name, Object *code)
   CodeObject *co = (CodeObject *)code;
   MethodObject *method = kmalloc(sizeof(*method));
   init_object_head(method, &method_type);
-  method->name = name;
+  method->name = atom(name);
   method->desc = TYPE_INCREF(co->proto);
   method->ptr  = OB_INCREF(code);
   return (Object *)method;

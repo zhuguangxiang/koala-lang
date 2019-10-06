@@ -31,6 +31,7 @@
 
 Object *tuple_new(int size)
 {
+  expect(size > 0);
   int msize = sizeof(TupleObject) + size * sizeof(Object *);
   TupleObject *tuple = gcnew(msize);
   init_object_head(tuple, &tuple_type);

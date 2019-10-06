@@ -91,9 +91,9 @@ static inline void *vargitem_new(int bsize, int isize, int len)
 }
 
 static char *mapitem_string[] = {
-  "map", "string", "literal", "type", "typelist", "const",
-  "locvar", "variable", "function", "code",
-  "class", "field", "method", "trait", "nfunc", "imeth", "enum", "eval"
+  "map", "string", "literal", "type", "index", "const",
+  "locvar", "var", "constvar", "func", "anony", "code",
+  "class", "field", "method", "trait", "ifunc", "enum", "eval", "mbr",
 };
 
 static int mapitem_length(void *o)
@@ -624,6 +624,7 @@ static AnonyItem *anonyitem_new(int nameindex, int pindex, int rindex,
                                 int codeindex)
 {
   AnonyItem *item = kmalloc(sizeof(AnonyItem));
+  item->nameindex = nameindex;
   item->pindex = pindex;
   item->rindex = rindex;
   item->codeindex = codeindex;
@@ -1314,7 +1315,7 @@ static int add_locvars(Image *image, Vector *locvec)
 LocVar *locvar_new(char *name, TypeDesc *desc, int index)
 {
   LocVar *loc = kmalloc(sizeof(LocVar));
-  loc->name = name;
+  loc->name = atom(name);
   loc->desc = TYPE_INCREF(desc);
   loc->index = index;
   return loc;
@@ -1565,6 +1566,9 @@ static Vector *to_typedescvec(IndexItem *item, Image *image)
 
 static TypeDesc *to_typedesc(TypeItem *item, Image *image)
 {
+  if (item == NULL)
+    return NULL;
+
   TypeDesc *t = NULL;
   switch (item->kind) {
   case TYPE_BASE: {
@@ -1679,16 +1683,14 @@ static void image_load_anony(Image *image, ConstItem *item, CodeInfo *ci)
   IndexItem *upindex = _get_(image, ITEM_INDEX, anony->upindex);
   Vector *upvec = getindexvec(upindex);
   ci->name = str->data;
-  ci->desc = TYPE_INCREF(desc);
+  ci->desc = desc;
   ci->codes = code->codes;
   ci->size = code->size;
   ci->locvec = locvec;
   ci->freevec = freevec;
   ci->upvec = upvec;
-  TYPE_DECREF(desc);
-  debug("image_load_anony: %s-%d-%d-%d",
-        ci->name, vector_size(ci->locvec),
-        vector_size(ci->freevec), vector_size(ci->upvec));
+  debug("load_anony: %s: %d locvars, %d freevals, %d upvals", str->data,
+        vector_size(locvec), vector_size(freevec), vector_size(upvec));
 }
 
 void image_load_consts(Image *image, getconstfunc func, void *arg)
@@ -1758,7 +1760,35 @@ void image_load_field(Image *image, int index, getmbrfunc func, void *arg)
 
 void image_load_method(Image *image, int index, getmbrfunc func, void *arg)
 {
+  FuncItem *item = _get_(image, ITEM_METHOD, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  CodeItem *code = _get_(image, ITEM_CODE, item->codeindex);
+  IndexItem *listitem = _get_(image, ITEM_INDEX, item->pindex);
+  TypeItem *typeitem = _get_(image, ITEM_TYPE, item->rindex);
+  Vector *args = to_typedescvec(listitem, image);
+  TypeDesc *ret = to_typedesc(typeitem, image);
+  TypeDesc *desc = desc_from_proto(args, ret);
+  TYPE_DECREF(ret);
 
+  IndexItem *locindex = _get_(image, ITEM_INDEX, item->locindex);
+  Vector *locvec = load_locvars(image, locindex);
+  IndexItem *freeindex = _get_(image, ITEM_INDEX, item->freeindex);
+  Vector *freevec = getindexvec(freeindex);
+  CodeInfo ci;
+  ci.name = str->data;
+  ci.desc = desc;
+  ci.codes = code->codes;
+  ci.size = code->size;
+  ci.locvec = locvec;
+  ci.freevec = freevec;
+
+  debug("load_method: %s: %d locvars, %d freevals", str->data,
+        vector_size(locvec), vector_size(freevec));
+
+  func(ci.name, MBR_METHOD, &ci, arg);
+  TYPE_DECREF(ci.desc);
+  vector_free(ci.locvec);
+  vector_free(ci.freevec);
 }
 
 void image_load_mbrs(Image *image, int index, getmbrfunc func, void *arg)

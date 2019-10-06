@@ -60,7 +60,8 @@ static struct opcode {
   OPCODE(OP_SET_VALUE, 2),
   OPCODE(OP_RETURN_VALUE, 0),
   OPCODE(OP_RETURN, 0),
-  OPCODE(OP_CALL, 2),
+  OPCODE(OP_CALL, 3),
+  OPCODE(OP_EVAL, 1),
   OPCODE(OP_PRINT, 0),
   OPCODE(OP_TYPEOF, 2),
   OPCODE(OP_TYPECHECK, 2),
@@ -121,7 +122,7 @@ static struct opcode {
   OPCODE(OP_NEW_RANGE,    1),
   OPCODE(OP_NEW_CLOSURE,  2),
   OPCODE(OP_NEW_EVAL,     3),
-  OPCODE(OP_NEW_OBJECT,   3),
+  OPCODE(OP_NEW,   3),
   OPCODE(OP_NEW_ITER,     0),
 
   OPCODE(OP_FOR_ITER,     2),
@@ -130,6 +131,7 @@ static struct opcode {
   OPCODE(OP_UPVAL_LOAD, 1),
 
   OPCODE(OP_LOAD_GLOBAL,  0),
+  OPCODE(OP_INIT_CALL, 1),
 };
 
 #define OP_MAP(op, map) { op, #map }
