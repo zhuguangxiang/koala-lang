@@ -1,4 +1,6 @@
 
+self.__class__().__mbrs__()
+
 var s = "hello"
 s += " world"
 s
@@ -446,7 +448,7 @@ func get_age_cl2(age int) func() int {
   ani.age = age
   i := 100
   cl := func() int {ani.age + i}
-  i += 1
+  i += 123
   return cl
 }
 
@@ -482,3 +484,28 @@ dog.name = "ErHa";
 dog.age = 31;
 dog.get_name()
 dog.get_age()
+
+func get_dog_age(age int) func() int {
+  dog := new Dog("LittleErHa", 30)
+  dog.age = age
+  i := 100
+  cl := func() int {dog.age + i}
+  i += 456
+  return cl
+}
+
+// import tests
+import "io"
+io.__class__().__mbrs__()
+io.println(s)
+io.print(s)
+io.__name__
+
+import mylang "lang"
+mylang.__class__().__mbrs__()
+mylang.disassemble(test_cond)
+
+disassemble(disassemble)
+disassemble(test_cond)
+disassemble(arr_reverse)
+disassemble(get_dog_age)

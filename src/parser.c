@@ -1205,17 +1205,17 @@ static void ident_up_anony(ParserState *ps, Expr *exp)
   */
 }
 
-static void ident_builtin(ParserState *ps, Expr *exp)
+static void ident_builtin_mod(ParserState *ps, Expr *exp)
 {
+  CODE_OP_S(OP_LOAD_MODULE, "lang");
   if (exp->ctx == EXPR_LOAD) {
-    CODE_LOAD(0);
     CODE_OP_S(OP_GET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_STORE) {
-    CODE_LOAD(0);
     CODE_OP_S(OP_SET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
-    CODE_LOAD(0);
-    //CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+    CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+  } else if (exp->ctx == EXPR_LOAD_FUNC) {
+    CODE_OP_S(OP_GET_METHOD, exp->id.name);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1245,7 +1245,7 @@ static IdCodeGen up_codes[] = {
 };
 
 static IdCodeGen builtin_codes[] = {
-  {SCOPE_MODULE,  ident_builtin},
+  {SCOPE_MODULE,  ident_builtin_mod},
   {SCOPE_CLASS,   NULL},
   {SCOPE_FUNC,    NULL},
   {SCOPE_BLOCK,   NULL},
