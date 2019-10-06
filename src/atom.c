@@ -73,7 +73,7 @@ char *atom_vstring(int n, ...)
   return s;
 }
 
-static int _atom_equal_cb_(void *e1, void *e2)
+static int _atom_equal_(void *e1, void *e2)
 {
   Atom *a1 = e1;
   Atom *a2 = e2;
@@ -82,17 +82,17 @@ static int _atom_equal_cb_(void *e1, void *e2)
   return !strncmp(a1->str, a2->str, a1->len);
 }
 
-static void _atom_free_cb_(void *entry, void *data)
+static void _atom_free_(void *entry, void *data)
 {
   kfree(entry);
 }
 
 void init_atom(void)
 {
-  hashmap_init(&atomtbl, _atom_equal_cb_);
+  hashmap_init(&atomtbl, _atom_equal_);
 }
 
 void fini_atom(void)
 {
-  hashmap_fini(&atomtbl, _atom_free_cb_, NULL);
+  hashmap_fini(&atomtbl, _atom_free_, NULL);
 }

@@ -571,11 +571,18 @@ static void type_free(Object *ob)
   gcfree(ob);
 }
 
+static Object *type_str(Object *ob, Object *arg)
+{
+  TypeObject *tp = (TypeObject *)ob;
+  return string_new(tp->name);
+}
+
 TypeObject type_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name  = "Type",
   .clean = type_clean,
   .free  = type_free,
+  .str   = type_str,
 };
 
 /* look in type->mtbl and its bases */

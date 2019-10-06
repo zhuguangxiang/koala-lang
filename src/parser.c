@@ -34,20 +34,41 @@ static Symbol *modClsSym;
 /* Module, path as key */
 static HashMap modules;
 
+static int _mod_equal_(void *e1, void *e2)
+{
+  Module *m1 = e1;
+  Module *m2 = e2;
+  if (m1 == m2)
+    return 1;
+  if (m1->path == m2->path)
+    return 1;
+  return !strcmp(m1->path, m2->path);
+}
+
+static void _mod_free_(void *e, void *arg)
+{
+  Module *mod = e;
+  debug("free module(parser) '%s'", mod->path);
+  stable_free(mod->stbl);
+  kfree(mod);
+}
+
 void init_parser(void)
 {
   _lang_.path = "lang";
-  Object *ob = Module_Load(_lang_.path);
+  Object *ob = module_load(_lang_.path);
   expect(ob != NULL);
   mod_from_mobject(&_lang_, ob);
   OB_DECREF(ob);
   modClsSym = find_from_builtins("Module");
   expect(modClsSym != NULL);
+  hashmap_init(&modules, _mod_equal_);
 }
 
 void fini_parser(void)
 {
   stable_free(_lang_.stbl);
+  hashmap_fini(&modules, _mod_free_, NULL);
 }
 
 static int isbuiltin(char *path)
@@ -1014,6 +1035,11 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
 {
   Symbol *sym = exp->sym;
   debug("ident '%s' in module", exp->id.name);
+  if (sym->kind == SYM_MOD) {
+    expect(exp->ctx == EXPR_LOAD);
+    CODE_OP_S(OP_LOAD_MODULE, sym->mod.path);
+    return;
+  }
 
   if (exp->ctx == EXPR_LOAD) {
     CODE_OP(OP_LOAD_GLOBAL);
@@ -1102,6 +1128,12 @@ static void ident_up_func(ParserState *ps, Expr *exp)
 {
   ParserUnit *up = exp->id.scope;
   if (up->scope == SCOPE_MODULE) {
+    Symbol *sym = exp->sym;
+    if (sym->kind == SYM_MOD) {
+      expect(exp->ctx == EXPR_LOAD);
+      CODE_OP_S(OP_LOAD_MODULE, sym->mod.path);
+      return;
+    }
     if (exp->ctx == EXPR_LOAD) {
       CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S(OP_GET_VALUE, exp->id.name);
@@ -2299,6 +2331,74 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
   }
 }
 
+static Module *new_mod_from_mobject(char *path)
+{
+  Object *ob = module_load(path);
+  expect(ob != NULL);
+  debug("new module(parser) '%s' from memory", path);
+  Module *mod = kmalloc(sizeof(Module));
+  ModuleObject *mo = (ModuleObject *)ob;
+  mod->path = path;
+  mod->name = mo->name;
+  mod->stbl = stable_from_mobject(ob);
+  hashmap_entry_init(mod, strhash(path));
+  hashmap_add(&modules, mod);
+  OB_DECREF(ob);
+  return mod;
+}
+
+static void parse_import(ParserState *ps, Stmt *s)
+{
+  ParserUnit *u = ps->u;
+  int type = s->import.type;
+
+  if (type == IMPORT_ALL) {
+
+  } else if (type == IMPORT_PARTIAL) {
+
+  } else {
+    expect(type == 0);
+    Ident *id = &s->import.id;
+    char *name = id->name;
+    char *path = s->import.path;
+    path = atom(path);
+    if (name == NULL) {
+      name = strrchr(path, '/');
+      name = (name == NULL) ? path : atom(name + 1);
+    }
+    debug("import from '%s' as '%s'", path, name);
+    Symbol *sym = symbol_new(name, SYM_MOD);
+    sym->mod.path = path;
+    sym->desc = desc_from_klass("lang", "Module");
+    if (stable_add_symbol(u->stbl, sym) < 0) {
+      syntax_error(ps, s->row, s->col, "symbol '%s' is duplicated", name);
+      return;
+    } else {
+      symbol_decref(sym);
+    }
+
+    Module key = {.path = path};
+    hashmap_entry_init(&key, strhash(path));
+    Module *mod = hashmap_get(&modules, &key);
+    if (mod == NULL) {
+      // firstly load from memory
+      mod = new_mod_from_mobject(path);
+
+      // then load from disk
+      //
+      // compile it and try to load it again
+      //
+
+      // FIXME: delay-load?
+      expect(mod != NULL);
+      sym->mod.ptr = mod;
+    } else {
+      debug("'%s' already imported", path);
+      sym->mod.ptr = mod;
+    }
+  }
+}
+
 static void parse_vardecl(ParserState *ps, Stmt *stmt)
 {
   Expr *exp = stmt->vardecl.exp;
@@ -2795,7 +2895,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   static void (*handlers[])(ParserState *, Stmt *) = {
     NULL,               /* INVALID        */
-    NULL,               /* IMPORT_KIND    */
+    parse_import,       /* IMPORT_KIND    */
     NULL,               /* CONST_KIND     */
     parse_vardecl,      /* VAR_KIND       */
     parse_assign,       /* ASSIGN_KIND    */

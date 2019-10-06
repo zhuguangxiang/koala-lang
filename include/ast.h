@@ -115,6 +115,37 @@ static inline void free_extends(ExtendsDef *extends)
   kfree(extends);
 }
 
+typedef struct alias {
+  Ident id;
+  Ident alias;
+} Alias;
+
+static inline Alias *new_alias(Ident id, Ident *_alias)
+{
+  Alias *alias = kmalloc(sizeof(Alias));
+  alias->id = id;
+  if (_alias != NULL)
+    alias->alias = *_alias;
+  return alias;
+}
+
+static inline void free_alias(Alias *alias)
+{
+  kfree(alias);
+}
+
+static inline void free_aliases(Vector *vec)
+{
+  if (vec == NULL)
+    return;
+
+  Alias *alias;
+  vector_for_each(alias, vec) {
+    free_alias(alias);
+  }
+  vector_free(vec);
+}
+
 /* unary operator kind */
 typedef enum unaryopkind {
   /* + */
@@ -349,6 +380,14 @@ struct stmt {
   short col;
   union {
     struct {
+      int type;
+#define IMPORT_ALL      1
+#define IMPORT_PARTIAL  2
+      Ident id;
+      char *path;
+      Vector *aliases;
+    } import;
+    struct {
       Ident id;
       Type type;
       Expr *exp;
@@ -407,6 +446,9 @@ struct stmt {
 
 void stmt_free(Stmt *stmt);
 void stmt_block_free(Vector *vec);
+Stmt *stmt_from_import(Ident *id, char *path);
+Stmt *stmt_from_import_all(char *path);
+Stmt *stmt_from_import_partial(Vector *vec, char *path);
 Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);

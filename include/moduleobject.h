@@ -55,7 +55,7 @@ void init_module_type(void);
 Object *Module_New(char *name);
 Object *Module_Lookup(Object *ob, char *name);
 void Module_Install(char *path, Object *ob);
-Object *Module_Load(char *path);
+Object *module_load(char *path);
 void Module_Uninstall(char *path);
 
 void Module_Add_Type(Object *self, TypeObject *type);

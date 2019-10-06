@@ -290,7 +290,7 @@ void Module_Uninstall(char *path)
   }
 }
 
-Object *Module_Load(char *path)
+Object *module_load(char *path)
 {
   struct modnode key = {.path = path};
   hashmap_entry_init(&key, strhash(path));

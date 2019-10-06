@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 {
   koala_initialize();
 
-  Object *m = Module_Load("fmt");
+  Object *m = module_load("fmt");
   Object *fmtstr = string_new("Hello, {}. I was born at {}.");
   Object *name = string_new("Koala");
   Object *year = integer_new(2018);

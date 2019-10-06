@@ -74,6 +74,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
   IdParaDef name;
   ExtendsDef *extendsdef;
   Vector *typelist;
+  Vector *aliaslist;
 }
 
 %token IMPORT
@@ -147,6 +148,8 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
+%type <stmt> import
+%type <aliaslist> id_as_list
 %type <stmt> const_decl
 %type <stmt> var_decl
 %type <stmt> free_var_decl
@@ -250,7 +253,12 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 } <name>
 %destructor {
   printf("free extends\n");
+  free_extends($$);
 } <extendsdef>
+%destructor {
+  printf("free alias\n");
+  free_aliases($$);
+} <aliaslist>
 
 %precedence INT_LITERAL CHAR_LITERAL
 %precedence '|'
@@ -282,6 +290,10 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    if ($1 != NULL) {
+      cmd_eval_stmt(ps, $1);
+      stmt_free($1);
+    }
   } else {
 
   }
@@ -507,18 +519,50 @@ local:
 import:
   IMPORT STRING_LITERAL ';'
 {
-  print("import STRING_LITERAL;\n");
+  $$ = stmt_from_import(NULL, $2);
 }
 | IMPORT ID STRING_LITERAL ';'
+{
+  IDENT(id, $2, @2);
+  $$ = stmt_from_import(&id, $3);
+}
 | IMPORT '.' STRING_LITERAL ';'
+{
+  $$ = stmt_from_import_all($3);
+}
 | IMPORT '{' id_as_list '}' STRING_LITERAL ';'
+{
+  $$ = stmt_from_import_partial($3, $5);
+}
 ;
 
 id_as_list:
   ID
+{
+  IDENT(id, $1, @1);
+  $$ = vector_new();
+  vector_push_back($$, new_alias(id, NULL));
+}
 | ID AS ID
+{
+  IDENT(id, $1, @1);
+  IDENT(id2, $3, @3);
+  $$ = vector_new();
+  vector_push_back($$, new_alias(id, &id2));
+}
 | id_as_list ',' ID
+{
+  IDENT(id, $3, @3);
+  $$ = $1;
+  vector_push_back($$, new_alias(id, NULL));
+}
 | id_as_list ',' ID AS ID
+{
+  IDENT(id, $3, @3);
+  IDENT(id2, $5, @5);
+  $$ = $1;
+  vector_push_back($$, new_alias(id, &id2));
+}
 ;
 
 const_decl:

@@ -167,7 +167,7 @@ Symbol *stable_add_trait(STable *stbl, char *name)
   return sym;
 }
 
-static void symbol_free(Symbol *sym)
+void symbol_free(Symbol *sym)
 {
   TYPE_DECREF(sym->desc);
 

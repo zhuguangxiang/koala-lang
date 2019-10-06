@@ -28,7 +28,7 @@
 int main(int argc, char *argv[])
 {
   koala_initialize();
-  Object *m = Module_Load("os");
+  Object *m = module_load("os");
   expect(m);
   Object *arr = Object_GetValue(m, "path");
   expect(array_check(arr));

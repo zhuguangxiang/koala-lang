@@ -397,6 +397,35 @@ void expr_free(Expr *exp)
   }
 }
 
+Stmt *stmt_from_import(Ident *id, char *path)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = IMPORT_KIND;
+  if (id != NULL)
+    stmt->import.id = *id;
+  stmt->import.path = path;
+  return stmt;
+}
+
+Stmt *stmt_from_import_all(char *path)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = IMPORT_KIND;
+  stmt->import.type = IMPORT_ALL;
+  stmt->import.path = path;
+  return stmt;
+}
+
+Stmt *stmt_from_import_partial(Vector *vec, char *path)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = IMPORT_KIND;
+  stmt->import.type = IMPORT_PARTIAL;
+  stmt->import.aliases = vec;
+  stmt->import.path = path;
+  return stmt;
+}
+
 Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
@@ -578,6 +607,7 @@ void stmt_free(Stmt *stmt)
 
   switch (stmt->kind) {
   case IMPORT_KIND:
+    free_aliases(stmt->import.aliases);
     kfree(stmt);
     break;
   case CONST_KIND:

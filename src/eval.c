@@ -219,7 +219,7 @@ static Object *new_object(CallFrame *f, TypeDesc *desc)
   Object *ret;
   Object *ob;
   if (desc->klass.path != NULL)
-    ob = Module_Load(desc->klass.path);
+    ob = module_load(desc->klass.path);
   else
     ob = f->code->module;
   expect(ob != NULL);
@@ -328,7 +328,7 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_LOAD_MODULE: {
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
-      y = Module_Load(string_asstr(x));
+      y = module_load(string_asstr(x));
       PUSH(y);
       OB_DECREF(x);
       break;

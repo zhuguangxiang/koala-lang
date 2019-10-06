@@ -128,8 +128,10 @@ struct symbol {
       void *codeblock;
     } anony;
     struct {
-      /* module, not need free */
+      /* module(no free) */
       void *ptr;
+      /* atom(no free) */
+      char *path;
     } mod;
     struct {
       /* dot import path */
@@ -147,6 +149,7 @@ void stable_free(STable *stbl);
 Symbol *symbol_new(char *name, SymKind kind);
 Symbol *stable_get(STable *stbl, char *name);
 Symbol *stable_remove(STable *stbl, char *name);
+int stable_add_symbol(STable *stbl, Symbol *sym);
 Symbol *stable_add_const(STable *stbl, char *name, TypeDesc *desc);
 Symbol *stable_add_var(STable *stbl, char *name, TypeDesc *desc);
 Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto);
@@ -154,6 +157,7 @@ Symbol *stable_add_ifunc(STable *stbl, char *name, TypeDesc *proto);
 Symbol *stable_add_class(STable *stbl, char *name);
 Symbol *stable_add_trait(STable *stbl, char *name);
 void symbol_decref(Symbol *sym);
+void symbol_free(Symbol *sym);
 STable *stable_from_mobject(Object *ob);
 Symbol *klass_find_member(Symbol *clsSym, char *name);
 void fill_locvars(Symbol *sym, Vector *vec);
