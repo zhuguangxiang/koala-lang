@@ -38,6 +38,23 @@ static void int_free(Object *ob)
   gcfree(ob);
 }
 
+static Object *int_equal(Object *self, Object *ob)
+{
+  if (!integer_check(self)) {
+    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(self));
+    return bool_false();
+  }
+
+  if (!integer_check(ob)) {
+    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(ob));
+    return bool_false();
+  }
+
+  IntegerObject *i1 = (IntegerObject *)self;
+  IntegerObject *i2 = (IntegerObject *)ob;
+  return (i1->value == i2->value) ? bool_true() : bool_false();
+}
+
 static Object *int_str(Object *self, Object *ob)
 {
   if (!integer_check(self)) {
@@ -71,8 +88,8 @@ static int64_t int_add(Object *x, Object *y)
     r = (int64_t)((uint64_t)a + b);
     if ((r ^ a) < 0 && (r ^ b) < 0)
       panic("overflow:%ld + %ld = %ld", a, b, r);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = (int64_t)((uint64_t)a + b);
     if ((r ^ a) < 0 && (r ^ b) < 0)
       panic("overflow:%ld + %d = %ld", a, b, r);
@@ -98,8 +115,8 @@ static int64_t int_sub(Object *x, Object *y)
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
       panic("overflow:%ld + %ld = %ld", a, b, r);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
       panic("overflow:%ld + %d = %ld", a, b, r);
@@ -123,8 +140,8 @@ static int64_t int_mul(Object *x, Object *y)
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)(a * b);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = (int64_t)(a * b);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
@@ -143,8 +160,8 @@ static int64_t int_div(Object *x, Object *y)
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)(a / b);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = (int64_t)(a / b);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
@@ -163,8 +180,8 @@ static int64_t int_mod(Object *x, Object *y)
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)fmod(a, b);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = (int64_t)fmod(a, b);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
@@ -183,8 +200,8 @@ static int64_t int_pow(Object *x, Object *y)
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)pow(a, b);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = (int64_t)pow(a, b);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
@@ -319,8 +336,8 @@ static int64_t int_num_cmp(Object *x, Object *y)
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
       panic("overflow:%ld + %ld = %ld", a, b, r);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
       panic("overflow:%ld + %d = %ld", a, b, r);
@@ -339,37 +356,37 @@ static int64_t int_num_cmp(Object *x, Object *y)
 static Object *int_num_gt(Object *x, Object *y)
 {
   int64_t r = int_num_cmp(x, y);
-  return (r > 0) ? Bool_True() : Bool_False();
+  return (r > 0) ? bool_true() : bool_false();
 }
 
 static Object *int_num_ge(Object *x, Object *y)
 {
   int64_t r = int_num_cmp(x, y);
-  return (r >= 0) ? Bool_True() : Bool_False();
+  return (r >= 0) ? bool_true() : bool_false();
 }
 
 static Object *int_num_lt(Object *x, Object *y)
 {
   int64_t r = int_num_cmp(x, y);
-  return (r < 0) ? Bool_True() : Bool_False();
+  return (r < 0) ? bool_true() : bool_false();
 }
 
 static Object *int_num_le(Object *x, Object *y)
 {
   int64_t r = int_num_cmp(x, y);
-  return (r <= 0) ? Bool_True() : Bool_False();
+  return (r <= 0) ? bool_true() : bool_false();
 }
 
 static Object *int_num_eq(Object *x, Object *y)
 {
   int64_t r = int_num_cmp(x, y);
-  return (r == 0) ? Bool_True() : Bool_False();
+  return (r == 0) ? bool_true() : bool_false();
 }
 
 static Object *int_num_neq(Object *x, Object *y)
 {
   int64_t r = int_num_cmp(x, y);
-  return (r != 0) ? Bool_True() : Bool_False();
+  return (r != 0) ? bool_true() : bool_false();
 }
 
 static Object *int_num_and(Object *x, Object *y)
@@ -479,6 +496,7 @@ TypeObject integer_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "Integer",
   .free    = int_free,
+  .equal   = int_equal,
   .str     = int_str,
   .number  = &int_numbers,
   .methods = int_methods,
@@ -501,7 +519,7 @@ Object *integer_new(int64_t val)
 
 static void byte_free(Object *ob)
 {
-  if (!Byte_Check(ob)) {
+  if (!byte_check(ob)) {
     error("object of '%.64s' is not a Byte", OB_TYPE_NAME(ob));
     return;
   }
@@ -512,7 +530,7 @@ static void byte_free(Object *ob)
 
 static Object *byte_str(Object *self, Object *ob)
 {
-  if (!Byte_Check(self)) {
+  if (!byte_check(self)) {
     error("object of '%.64s' is not a Byte", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -537,7 +555,7 @@ void init_byte_type(void)
     panic("Cannot initalize 'Byte' type.");
 }
 
-Object *Byte_New(int val)
+Object *byte_new(int val)
 {
   ByteObject *b = kmalloc(sizeof(ByteObject));
   init_object_head(b, &byte_type);
@@ -547,7 +565,7 @@ Object *Byte_New(int val)
 
 static Object *bool_str(Object *self, Object *ob)
 {
-  if (!Bool_Check(self)) {
+  if (!bool_check(self)) {
     error("object of '%.64s' is not a Bool", OB_TYPE_NAME(self));
     return NULL;
   }

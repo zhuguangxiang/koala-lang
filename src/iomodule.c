@@ -26,7 +26,7 @@
 
 static Object *_io_print_(Object *self, Object *args)
 {
-  if (!Module_Check(self)) {
+  if (!module_check(self)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -37,7 +37,7 @@ static Object *_io_print_(Object *self, Object *args)
 
 static Object *_io_println_(Object *self, Object *args)
 {
-  if (!Module_Check(self)) {
+  if (!module_check(self)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -54,15 +54,15 @@ static MethodDef io_methods[] = {
 
 void init_io_module(void)
 {
-  Object *m = Module_New("io");
-  Module_Add_FuncDefs(m, io_methods);
-  Module_Install("io", m);
+  Object *m = module_new("io");
+  module_add_funcdefs(m, io_methods);
+  module_install("io", m);
   OB_DECREF(m);
 }
 
 void fini_io_module(void)
 {
-  Module_Uninstall("io");
+  module_uninstall("io");
 }
 
 void IoPrint(Object *ob)
@@ -73,7 +73,7 @@ void IoPrint(Object *ob)
   if (string_check(ob)) {
     printf("\"%s\"", string_asstr(ob));
   } else {
-    Object *str = Object_Call(ob, "__str__", NULL);
+    Object *str = object_call(ob, "__str__", NULL);
     if (str != NULL) {
       printf("%s", string_asstr(str));
       OB_DECREF(str);
@@ -91,7 +91,7 @@ void IoPrintln(Object *ob)
   if (string_check(ob)) {
     printf("\"%s\"\n", string_asstr(ob));
   } else {
-    Object *str = Object_Call(ob, "__str__", NULL);
+    Object *str = object_call(ob, "__str__", NULL);
     if (str != NULL) {
       printf("%s\n", string_asstr(str));
       OB_DECREF(str);

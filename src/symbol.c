@@ -328,7 +328,7 @@ STable *stable_from_mobject(Object *ob)
   Symbol *sym;
   iter_for_each(&iter, node) {
     tmp = node->obj;
-    if (Type_Check(tmp)) {
+    if (type_check(tmp)) {
       sym = load_type(tmp);
     } else if (field_check(tmp)) {
       sym = load_field(tmp);

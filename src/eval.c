@@ -166,7 +166,7 @@ do { \
   if (fn != NULL) { \
     z = fn(x, y); \
   } else { \
-    z = Object_Call(x, opcode_map(op), y); \
+    z = object_call(x, opcode_map(op), y); \
   } \
 } while (0)
 
@@ -174,16 +174,16 @@ static int logic_true(Object *ob)
 {
   if (ob == NULL)
     return 0;
-  if (Bool_Check(ob)) {
-    return Bool_IsTrue(ob) ? 1 : 0;
+  if (bool_check(ob)) {
+    return bool_istrue(ob) ? 1 : 0;
   } else if (integer_check(ob)) {
     return integer_asint(ob) ? 1 : 0;
-  } else if (Byte_Check(ob)) {
-    return Byte_AsInt(ob) ? 1 : 0;
+  } else if (byte_check(ob)) {
+    return byte_asint(ob) ? 1 : 0;
   } else if (string_check(ob)) {
     return string_isempty(ob) ? 0 : 1;
-  } else if (Char_Check(ob)) {
-    return Char_AsChar(ob) ? 1 : 0;
+  } else if (char_check(ob)) {
+    return char_asch(ob) ? 1 : 0;
   } else {
     panic("Not Implemented");
     return 0;
@@ -199,7 +199,7 @@ static int typecheck(Object *ob, Object *type)
     return 1;
   if (string_check(ob) && desc_isstr(desc))
     return 1;
-  if (Bool_Check(ob) && desc_isbool(desc))
+  if (bool_check(ob) && desc_isbool(desc))
     return 1;
   TypeObject *typeob = OB_TYPE(ob);
   if (desc_check(typeob->desc, desc)) {
@@ -389,7 +389,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       y = POP();
-      z = Object_GetMethod(y, string_asstr(x));
+      z = object_getmethod(y, string_asstr(x));
       PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -399,7 +399,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       y = POP();
-      z = Object_GetValue(y, string_asstr(x));
+      z = object_getvalue(y, string_asstr(x));
       PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -410,7 +410,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = tuple_get(consts, oparg);
       y = POP();
       z = POP();
-      Object_SetValue(y, string_asstr(x), z);
+      object_setvalue(y, string_asstr(x), z);
       OB_DECREF(x);
       OB_DECREF(y);
       OB_DECREF(z);
@@ -444,7 +444,7 @@ Object *Koala_EvalFrame(CallFrame *f)
         }
       }
       ks->top = top - base;
-      w = Object_Call(y, string_asstr(x), z);
+      w = object_call(y, string_asstr(x), z);
       PUSH(w);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -489,7 +489,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       y = tuple_get(consts, oparg);
       int bval = typecheck(x, y);
-      z = bval ? Bool_True() : Bool_False();
+      z = bval ? bool_true() : bool_false();
       PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -674,7 +674,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = POP();
       y = POP();
       int r = logic_true(x) && logic_true(y);
-      z = r ? Bool_True() : Bool_False();
+      z = r ? bool_true() : bool_false();
       PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -684,7 +684,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = POP();
       y = POP();
       int r = logic_true(x) || logic_true(y);
-      z = r ? Bool_True() : Bool_False();
+      z = r ? bool_true() : bool_false();
       PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -693,7 +693,7 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_NOT: {
       x = POP();
       int r = logic_true(x);
-      z = r ? Bool_False() : Bool_True();
+      z = r ? bool_false() : bool_true();
       PUSH(z);
       OB_DECREF(x);
       break;
@@ -822,7 +822,7 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_JMP_TRUE: {
       oparg = (int16_t)NEXT_2BYTES();
       x = POP();
-      if (Bool_IsTrue(x))
+      if (bool_istrue(x))
         f->index += oparg;
       OB_DECREF(x);
       break;
@@ -830,7 +830,7 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_JMP_FALSE: {
       oparg = (int16_t)NEXT_2BYTES();
       x = POP();
-      if (Bool_IsFalse(x))
+      if (bool_isfalse(x))
         f->index += oparg;
       OB_DECREF(x);
       break;
@@ -1026,7 +1026,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       }
       y = POP();
       ks->top = top - base;
-      w = Object_Call(y, "__init__", z);
+      w = object_call(y, "__init__", z);
       expect(w == NULL);
       OB_DECREF(y);
       OB_DECREF(z);
@@ -1055,9 +1055,9 @@ Object *koala_evalcode(Object *self, Object *ob, Object *args)
   CallFrame *f = new_frame(ks, (CodeObject *)self);
   f->locvars[0] = OB_INCREF(ob);
   if (args != NULL) {
-    if (Tuple_Check(args)) {
+    if (tuple_check(args)) {
       Object *v;
-      int size = Tuple_Size(args);
+      int size = tuple_size(args);
       for (int i = 0; i < size; i++) {
         v = tuple_get(args, i);
         f->locvars[i + 1] = OB_INCREF(v);

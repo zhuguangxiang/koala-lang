@@ -33,15 +33,15 @@ int main(int argc, char *argv[])
   Object *fmtstr = string_new("Hello, {}. I was born at {}.");
   Object *name = string_new("Koala");
   Object *year = integer_new(2018);
-  Object *args = Tuple_Pack(3, fmtstr, name, year);
-  Object_Call(m, "println", args);
+  Object *args = tuple_pack(3, fmtstr, name, year);
+  object_call(m, "println", args);
   OB_DECREF(args);
   OB_DECREF(fmtstr);
 
   fmtstr = string_new("{}");
-  Object *tuple = Tuple_Pack(4, name, year, name, year);
-  args = Tuple_Pack(2, fmtstr, tuple);
-  Object_Call(m, "println", args);
+  Object *tuple = tuple_pack(4, name, year, name, year);
+  args = tuple_pack(2, fmtstr, tuple);
+  object_call(m, "println", args);
   OB_DECREF(args);
   OB_DECREF(tuple);
   OB_DECREF(fmtstr);

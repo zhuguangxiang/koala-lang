@@ -33,7 +33,7 @@
 
 Object *Module_Lookup(Object *ob, char *name)
 {
-  if (!Module_Check(ob)) {
+  if (!module_check(ob)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(ob));
     return NULL;
   }
@@ -45,12 +45,12 @@ Object *Module_Lookup(Object *ob, char *name)
   if (node != NULL)
     return OB_INCREF(node->obj);
 
-  return Type_Lookup(OB_TYPE(ob), name);
+  return type_lookup(OB_TYPE(ob), name);
 }
 
 static Object *module_name(Object *self, Object *args)
 {
-  if (!Module_Check(self)) {
+  if (!module_check(self)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -61,7 +61,7 @@ static Object *module_name(Object *self, Object *args)
 
 static void module_free(Object *ob)
 {
-  if (!Module_Check(ob)) {
+  if (!module_check(ob)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(ob));
     return;
   }
@@ -118,7 +118,7 @@ static HashMap *get_mtbl(Object *ob)
   return mtbl;
 }
 
-void Module_Add_Type(Object *self, TypeObject *type)
+void module_add_type(Object *self, TypeObject *type)
 {
   type->owner = self;
   struct mnode *node = mnode_new(type->name, (Object *)type);
@@ -126,7 +126,7 @@ void Module_Add_Type(Object *self, TypeObject *type)
   expect(res == 0);
 }
 
-void Module_Add_Const(Object *self, Object *ob, Object *val)
+void module_add_const(Object *self, Object *ob, Object *val)
 {
   ModuleObject *module = (ModuleObject *)self;
   FieldObject *field = (FieldObject *)ob;
@@ -139,7 +139,7 @@ void Module_Add_Const(Object *self, Object *ob, Object *val)
   expect(res == 0);
 }
 
-void Module_Add_Var(Object *self, Object *ob)
+void module_add_var(Object *self, Object *ob)
 {
   ModuleObject *module = (ModuleObject *)self;
   FieldObject *field = (FieldObject *)ob;
@@ -153,21 +153,21 @@ void Module_Add_Var(Object *self, Object *ob)
   expect(res == 0);
 }
 
-void Module_Add_VarDef(Object *self, FieldDef *f)
+void module_add_vardef(Object *self, FieldDef *f)
 {
   TypeDesc *desc = str_to_desc(f->type);
   Object *field = field_new(f->name, desc);
   TYPE_DECREF(desc);
   Field_SetFunc(field, f->set, f->get);
-  Module_Add_Var(self, field);
+  module_add_var(self, field);
   OB_DECREF(field);
 }
 
-void Module_Add_VarDefs(Object *self, FieldDef *def)
+void module_add_vardefs(Object *self, FieldDef *def)
 {
   FieldDef *f = def;
   while (f->name) {
-    Module_Add_VarDef(self, f);
+    module_add_vardef(self, f);
     ++f;
   }
 }
@@ -188,7 +188,7 @@ void Module_Add_FuncDef(Object *self, MethodDef *f)
   OB_DECREF(meth);
 }
 
-void Module_Add_FuncDefs(Object *self, MethodDef *def)
+void module_add_funcdefs(Object *self, MethodDef *def)
 {
   MethodDef *f = def;
   while (f->name) {
@@ -221,7 +221,7 @@ void module_set(Object *self, char *name, Object *val)
   expect(res == 0);
 }
 
-Object *Module_New(char *name)
+Object *module_new(char *name)
 {
   ModuleObject *module = kmalloc(sizeof(*module));
   init_object_head(module, &module_type);
@@ -245,9 +245,9 @@ static int _modnode_equal_(void *e1, void *e2)
   return n1 == n2 || !strcmp(n1->path, n2->path);
 }
 
-void Module_Install(char *path, Object *ob)
+void module_install(char *path, Object *ob)
 {
-  if (Module_Check(ob) < 0) {
+  if (module_check(ob) < 0) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(ob));
     return;
   }
@@ -274,7 +274,7 @@ void Module_Install(char *path, Object *ob)
   }
 }
 
-void Module_Uninstall(char *path)
+void module_uninstall(char *path)
 {
   struct modnode key = {.path = path};
   hashmap_entry_init(&key, strhash(path));

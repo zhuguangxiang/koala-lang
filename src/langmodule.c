@@ -166,32 +166,32 @@ static MethodDef lang_methods[] = {
 
 void init_lang_module(void)
 {
-  Object *m = Module_New("lang");
-  Module_Add_Type(m, &any_type);
-  Module_Add_Type(m, &byte_type);
-  Module_Add_Type(m, &integer_type);
-  Module_Add_Type(m, &bool_type);
-  Module_Add_Type(m, &string_type);
-  Module_Add_Type(m, &char_type);
-  Module_Add_Type(m, &float_type);
-  Module_Add_Type(m, &array_type);
-  Module_Add_Type(m, &tuple_type);
-  Module_Add_Type(m, &map_type);
-  Module_Add_Type(m, &field_type);
-  Module_Add_Type(m, &method_type);
-  Module_Add_Type(m, &proto_type);
-  Module_Add_Type(m, &class_type);
-  Module_Add_Type(m, &module_type);
-  Module_Add_Type(m, &iter_type);
-  Module_Add_Type(m, &range_type);
-  Module_Add_Type(m, &code_type);
-  Module_Add_Type(m, &closure_type);
-  Module_Add_FuncDefs(m, lang_methods);
-  Module_Install("lang", m);
+  Object *m = module_new("lang");
+  module_add_type(m, &any_type);
+  module_add_type(m, &byte_type);
+  module_add_type(m, &integer_type);
+  module_add_type(m, &bool_type);
+  module_add_type(m, &string_type);
+  module_add_type(m, &char_type);
+  module_add_type(m, &float_type);
+  module_add_type(m, &array_type);
+  module_add_type(m, &tuple_type);
+  module_add_type(m, &map_type);
+  module_add_type(m, &field_type);
+  module_add_type(m, &method_type);
+  module_add_type(m, &proto_type);
+  module_add_type(m, &class_type);
+  module_add_type(m, &module_type);
+  module_add_type(m, &iter_type);
+  module_add_type(m, &range_type);
+  module_add_type(m, &code_type);
+  module_add_type(m, &closure_type);
+  module_add_funcdefs(m, lang_methods);
+  module_install("lang", m);
   OB_DECREF(m);
 }
 
 void fini_lang_module(void)
 {
-  Module_Uninstall("lang");
+  module_uninstall("lang");
 }

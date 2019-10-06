@@ -74,11 +74,11 @@ static Object *any_hash(Object *self, Object *args)
   return integer_new(hash);
 }
 
-static Object *any_cmp(Object *self, Object *other)
+static Object *any_equal(Object *self, Object *other)
 {
   if (OB_TYPE(self) != OB_TYPE(other))
-    return Bool_False();
-  return (self == other) ? Bool_True() : Bool_False();
+    return bool_false();
+  return (self == other) ? bool_true() : bool_false();
 }
 
 static Object *any_str(Object *ob, Object *args)
@@ -113,7 +113,7 @@ TypeObject any_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name  = "Any",
   .hash  = any_hash,
-  .cmp   = any_cmp,
+  .equal = any_equal,
   .clazz = any_class,
   .str   = any_str,
 };
@@ -333,8 +333,8 @@ static void Type_Add_Mapping(TypeObject *type, MappingMethods *meths)
 
 int type_ready(TypeObject *type)
 {
-  if (type->hash && !type->cmp) {
-    error("__cmp__ must be implemented, "
+  if (type->hash && !type->equal) {
+    error("__equal__ must be implemented, "
           "when __hash__ is implemented of '%s'",
           type->name);
     return -1;
@@ -345,8 +345,8 @@ int type_ready(TypeObject *type)
     type_add_methoddef(type, &meth);
   }
 
-  if (type->cmp != NULL) {
-    MethodDef meth = {"__cmp__", "A", "i", type->cmp};
+  if (type->equal != NULL) {
+    MethodDef meth = {"__equal__", "A", "i", type->equal};
     type_add_methoddef(type, &meth);
   }
 
@@ -361,7 +361,7 @@ int type_ready(TypeObject *type)
   }
 
   if (type->methods != NULL) {
-    Type_Add_MethodDefs(type, type->methods);
+    type_add_methoddefs(type, type->methods);
   }
 
   if (build_lro(type) < 0)
@@ -444,7 +444,7 @@ void type_fini(TypeObject *type)
   OB_DECREF(type->consts);
 }
 
-void Type_Add_Field(TypeObject *type, Object *ob)
+void type_add_field(TypeObject *type, Object *ob)
 {
   FieldObject *field = (FieldObject *)ob;
   field->owner = (Object *)type;
@@ -459,25 +459,25 @@ void type_add_field_default(TypeObject *type, char *name, TypeDesc *desc)
 {
   Object *field = field_new(name, desc);
   Field_SetFunc(field, field_default_setter, field_default_getter);
-  Type_Add_Field(type, field);
+  type_add_field(type, field);
   OB_DECREF(field);
 }
 
-void Type_Add_FieldDef(TypeObject *type, FieldDef *f)
+void type_add_fielddef(TypeObject *type, FieldDef *f)
 {
   TypeDesc *desc = str_to_desc(f->type);
   Object *field = field_new(f->name, desc);
   TYPE_DECREF(desc);
   Field_SetFunc(field, f->set, f->get);
-  Type_Add_Field(type, field);
+  type_add_field(type, field);
   OB_DECREF(field);
 }
 
-void Type_Add_FieldDefs(TypeObject *type, FieldDef *def)
+void type_add_fielddefs(TypeObject *type, FieldDef *def)
 {
   FieldDef *f = def;
   while (f->name) {
-    Type_Add_FieldDef(type, f);
+    type_add_fielddef(type, f);
     ++f;
   }
 }
@@ -542,7 +542,7 @@ void type_add_methoddef(TypeObject *type, MethodDef *f)
   OB_DECREF(meth);
 }
 
-void Type_Add_MethodDefs(TypeObject *type, MethodDef *def)
+void type_add_methoddefs(TypeObject *type, MethodDef *def)
 {
   MethodDef *f = def;
   while (f->name) {
@@ -553,7 +553,7 @@ void Type_Add_MethodDefs(TypeObject *type, MethodDef *def)
 
 static void type_clean(Object *ob)
 {
-  if (!Type_Check(ob)) {
+  if (!type_check(ob)) {
     error("object of '%.64s' is not a Type", OB_TYPE_NAME(ob));
     return;
   }
@@ -586,7 +586,7 @@ TypeObject type_type = {
 };
 
 /* look in type->mtbl and its bases */
-Object *Type_Lookup(TypeObject *type, char *name)
+Object *type_lookup(TypeObject *type, char *name)
 {
   struct mnode key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
@@ -603,16 +603,16 @@ Object *Type_Lookup(TypeObject *type, char *name)
   return NULL;
 }
 
-unsigned int Object_Hash(Object *ob)
+unsigned int object_hash(Object *ob)
 {
-  Object *res = Object_Call(ob, "__hash__", NULL);
+  Object *res = object_call(ob, "__hash__", NULL);
   expect(res != NULL);
   unsigned int hash = integer_asint(res);
   OB_DECREF(res);
   return hash;
 }
 
-int Object_Cmp(Object *ob1, Object *ob2)
+int object_equal(Object *ob1, Object *ob2)
 {
   if (ob1 == ob2)
     return 1;
@@ -621,10 +621,10 @@ int Object_Cmp(Object *ob1, Object *ob2)
   TypeObject *type2 = OB_TYPE(ob2);
   if (type1 != type2)
     return 0;
-  Object *ob = Object_Call(ob1, "__cmp__", ob2);
+  Object *ob = object_call(ob1, "__equal__", ob2);
   if (ob == NULL)
     return 0;
-  return Bool_IsTrue(ob) ? 1 : 0;
+  return bool_istrue(ob) ? 1 : 0;
 }
 
 Object *Object_Class(Object *ob)
@@ -637,20 +637,20 @@ Object *Object_String(Object *ob)
 
 }
 
-Object *Object_Lookup(Object *self, char *name)
+Object *object_lookup(Object *self, char *name)
 {
   Object *res;
-  if (Module_Check(self)) {
+  if (module_check(self)) {
     res = Module_Lookup(self, name);
   } else {
-    res = Type_Lookup(OB_TYPE(self), name);
+    res = type_lookup(OB_TYPE(self), name);
   }
   return res;
 }
 
-Object *Object_GetMethod(Object *self, char *name)
+Object *object_getmethod(Object *self, char *name)
 {
-  Object *ob = Object_Lookup(self, name);
+  Object *ob = object_lookup(self, name);
   if (method_check(ob)) {
     return ob;
   } else {
@@ -660,9 +660,9 @@ Object *Object_GetMethod(Object *self, char *name)
   }
 }
 
-Object *Object_GetField(Object *self, char *name)
+Object *object_getfield(Object *self, char *name)
 {
-  Object *ob = Object_Lookup(self, name);
+  Object *ob = object_lookup(self, name);
   if (field_check(ob)) {
     return ob;
   } else {
@@ -672,12 +672,12 @@ Object *Object_GetField(Object *self, char *name)
   }
 }
 
-Object *Object_Call(Object *self, char *name, Object *args)
+Object *object_call(Object *self, char *name, Object *args)
 {
-  Object *ob = Object_Lookup(self, name);
+  Object *ob = object_lookup(self, name);
   expect(ob != NULL);
-  if (Type_Check(ob)) {
-    ob = Object_Lookup(ob, "__call__");
+  if (type_check(ob)) {
+    ob = object_lookup(ob, "__call__");
     expect(ob != NULL);
   }
   Object *res = Method_Call(ob, self, args);
@@ -685,10 +685,10 @@ Object *Object_Call(Object *self, char *name, Object *args)
   return res;
 }
 
-Object *Object_GetValue(Object *self, char *name)
+Object *object_getvalue(Object *self, char *name)
 {
   Object *res = NULL;
-  Object *ob = Object_Lookup(self, name);
+  Object *ob = object_lookup(self, name);
   if (ob == NULL) {
     error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
     return NULL;
@@ -714,9 +714,9 @@ Object *Object_GetValue(Object *self, char *name)
   return res;
 }
 
-int Object_SetValue(Object *self, char *name, Object *val)
+int object_setvalue(Object *self, char *name, Object *val)
 {
-  Object *ob = Object_Lookup(self, name);
+  Object *ob = object_lookup(self, name);
   if (ob == NULL) {
     error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
     return -1;
@@ -747,11 +747,11 @@ Object *new_literal(Literal *val)
     break;
   case BASE_BOOL:
     debug("literal bool value: %s", val->bval ? "true" : "false");
-    ob = val->bval ? Bool_True() : Bool_False();
+    ob = val->bval ? bool_true() : bool_false();
     break;
   case BASE_BYTE:
     debug("literal byte value: %ld", val->ival);
-    ob = Byte_New((int)val->ival);
+    ob = byte_new((int)val->ival);
     break;
   case BASE_FLOAT:
     debug("literal string value: %lf", val->fval);
@@ -759,7 +759,7 @@ Object *new_literal(Literal *val)
     break;
   case BASE_CHAR:
     debug("literal string value: %s", (char *)&val->cval);
-    ob = Char_New(val->cval.val);
+    ob = char_new(val->cval.val);
     break;
   default:
     panic("invalid literal %d", val->kind);

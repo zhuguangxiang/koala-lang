@@ -40,27 +40,27 @@ int main(int argc, char *argv[])
   Object *arr = array_new(desc);
   TYPE_DECREF(desc);
   Object *v = string_new("hello");
-  Object_Call(arr, "append", v);
+  object_call(arr, "append", v);
   OB_DECREF(v);
 
   v = string_new("world");
-  Object_Call(arr, "append", v);
+  object_call(arr, "append", v);
   OB_DECREF(v);
 
   Array_Print(arr);
 
   Object *i = integer_new(1);
 
-  v = Object_Call(arr, "__getitem__", i);
+  v = object_call(arr, "__getitem__", i);
   expect(!strcmp("world", string_asstr(v)));
   OB_DECREF(i);
   OB_DECREF(v);
 
-  v = Object_Call(arr, "pop", NULL);
+  v = object_call(arr, "pop", NULL);
   expect(!strcmp("world", string_asstr(v)));
   OB_DECREF(v);
 
-  v = Object_Call(arr, "pop", NULL);
+  v = object_call(arr, "pop", NULL);
   expect(!strcmp("hello", string_asstr(v)));
   OB_DECREF(v);
 

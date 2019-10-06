@@ -107,12 +107,12 @@ static Object *string_equal(Object *self, Object *other)
   }
 
   if (self == other)
-    return Bool_True();
+    return bool_true();
 
   StringObject *s1 = (StringObject *)self;
   StringObject *s2 = (StringObject *)other;
 
-  return !strcmp(s1->wstr, s2->wstr) ? Bool_True() : Bool_False();
+  return !strcmp(s1->wstr, s2->wstr) ? bool_true() : bool_false();
 }
 
 static void string_clean(Object *self)
@@ -161,37 +161,37 @@ static int str_num_cmp(Object *x, Object *y)
 static Object *str_num_gt(Object *x, Object *y)
 {
   int r = str_num_cmp(x, y);
-  return (r > 0) ? Bool_True() : Bool_False();
+  return (r > 0) ? bool_true() : bool_false();
 }
 
 static Object *str_num_ge(Object *x, Object *y)
 {
   int r = str_num_cmp(x, y);
-  return (r >= 0) ? Bool_True() : Bool_False();
+  return (r >= 0) ? bool_true() : bool_false();
 }
 
 static Object *str_num_lt(Object *x, Object *y)
 {
   int r = str_num_cmp(x, y);
-  return (r < 0) ? Bool_True() : Bool_False();
+  return (r < 0) ? bool_true() : bool_false();
 }
 
 static Object *str_num_le(Object *x, Object *y)
 {
   int r = str_num_cmp(x, y);
-  return (r < 0) ? Bool_True() : Bool_False();
+  return (r < 0) ? bool_true() : bool_false();
 }
 
 static Object *str_num_eq(Object *x, Object *y)
 {
   int r = str_num_cmp(x, y);
-  return (r == 0) ? Bool_True() : Bool_False();
+  return (r == 0) ? bool_true() : bool_false();
 }
 
 static Object *str_num_neq(Object *x, Object *y)
 {
   int r = str_num_cmp(x, y);
-  return (r != 0) ? Bool_True() : Bool_False();
+  return (r != 0) ? bool_true() : bool_false();
 }
 
 static MethodDef string_methods[] = {
@@ -212,7 +212,7 @@ TypeObject string_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "String",
   .hash    = string_hash,
-  .cmp     = string_equal,
+  .equal   = string_equal,
   .clean   = string_clean,
   .free    = string_free,
   .methods = string_methods,
@@ -278,7 +278,7 @@ void string_set(Object *self, char *str)
 
 static void char_free(Object *ob)
 {
-  if (!Char_Check(ob)) {
+  if (!char_check(ob)) {
     error("object of '%.64s' is not a Char", OB_TYPE_NAME(ob));
     return;
   }
@@ -289,7 +289,7 @@ static void char_free(Object *ob)
 
 static Object *char_str(Object *self, Object *ob)
 {
-  if (!Char_Check(self)) {
+  if (!char_check(self)) {
     error("object of '%.64s' is not a Char", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -315,7 +315,7 @@ void init_char_type(void)
     panic("Cannot initalize 'Character' type.");
 }
 
-Object *Char_New(unsigned int val)
+Object *char_new(unsigned int val)
 {
   CharObject *ch = kmalloc(sizeof(*ch));
   init_object_head(ch, &char_type);

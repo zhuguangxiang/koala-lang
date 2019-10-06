@@ -24,18 +24,41 @@
 
 #include "koala.h"
 
-int main(int argc, char *argv[])
+static Object *assert_equal(Object *self, Object *arg)
 {
-  koala_initialize();
+  extern int halt;
+  expect(module_check(self));
+  expect(tuple_check(arg));
+  expect(tuple_size(arg) == 2);
+  Object *ob1 = tuple_get(arg, 0);
+  Object *ob2 = tuple_get(arg, 1);
+  Object *res = OB_TYPE(ob1)->equal(ob1, ob2);
+  int failed = bool_isfalse(res);
+  OB_DECREF(ob1);
+  OB_DECREF(ob2);
+  OB_DECREF(res);
 
-  TypeObject Person_Type = {
-    OBJECT_HEAD_INIT(&type_type)
-    .name = "Person",
-  };
+  if (failed) {
+    error("assert.equal failed\n");
+    halt = 1;
+  }
+  return NULL;
+}
 
-  //FieldDef name = {"name", "s"};
-  //type_add_fielddef(&Person_Type, &name);
+static MethodDef assertfuncs[] = {
+  {"equal", "AA", NULL, assert_equal},
+  {NULL}
+};
 
-  koala_finalize();
-  return 0;
+void init_assert_module(void)
+{
+  Object *m = module_new("assert");
+  module_add_funcdefs(m, assertfuncs);
+  module_install("assert", m);
+  OB_DECREF(m);
+}
+
+void fini_assert_module(void)
+{
+  module_uninstall("assert");
 }

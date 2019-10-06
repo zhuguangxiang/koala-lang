@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
   koala_initialize();
 
   Object *s = string_new("Hello, Koala");
-  Object *clazz = Object_GetValue(s, "__class__");
+  Object *clazz = object_getvalue(s, "__class__");
   expect(clazz);
   expect(((ClassObject *)clazz)->obj == s);
   OB_DECREF(s);
@@ -38,24 +38,24 @@ int main(int argc, char *argv[])
 
   clazz = Class_New((Object *)&string_type);
   expect(((ClassObject *)clazz)->obj == (Object *)&string_type);
-  Object *v = Object_GetValue(clazz, "__name__");
+  Object *v = object_getvalue(clazz, "__name__");
   expect(!strcmp("String", string_asstr(v)));
   OB_DECREF(v);
 
-  v = Object_GetValue(clazz, "__class__");
+  v = object_getvalue(clazz, "__class__");
   expect(v);
   expect(((ClassObject *)v)->obj == clazz);
   OB_DECREF(v);
 
-  v = Object_GetValue(clazz, "__module__");
-  expect(Module_Check(v));
+  v = object_getvalue(clazz, "__module__");
+  expect(module_check(v));
   OB_DECREF(v);
-  v = Object_GetValue(v, "__name__");
+  v = object_getvalue(v, "__name__");
   expect(!strcmp("lang", string_asstr(v)));
   OB_DECREF(v);
 
   s = string_new("length");
-  v = Object_Call(clazz, "getMethod", s);
+  v = object_call(clazz, "getMethod", s);
   OB_DECREF(clazz);
   OB_DECREF(s);
 

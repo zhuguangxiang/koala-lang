@@ -38,7 +38,7 @@ static int mapentry_equal(void *e1, void *e2)
   MapEntry *me2 = e2;
   if (me1 == me2)
     return 1;
-  return Object_Cmp(me1->key, me2->key);
+  return object_equal(me1->key, me2->key);
 }
 
 static void mapentry_free(void *e, void *arg)
@@ -67,7 +67,7 @@ Object *map_get(Object *self, Object *key)
   }
 
   MapObject *map = (MapObject *)self;
-  unsigned int hash = Object_Hash(key);
+  unsigned int hash = object_hash(key);
   MapEntry entry = {.key = OB_INCREF(key)};
   hashmap_entry_init(&entry, hash);
   MapEntry *val = hashmap_get(&map->map, &entry);
@@ -83,7 +83,7 @@ int map_put(Object *self, Object *key, Object *val)
   }
 
   MapObject *map = (MapObject *)self;
-  unsigned int hash = Object_Hash(key);
+  unsigned int hash = object_hash(key);
   MapEntry *entry = kmalloc(sizeof(*entry));
   hashmap_entry_init(entry, hash);
   entry->key = OB_INCREF(key);
@@ -99,9 +99,9 @@ int map_put(Object *self, Object *key, Object *val)
 
 static Object *map_set(Object *self, Object *args)
 {
-  if (!Tuple_Check(args)) {
+  if (!tuple_check(args)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(args));
-    return Bool_False();
+    return bool_false();
   }
 
   Object *key = tuple_get(args, 0);
@@ -109,7 +109,7 @@ static Object *map_set(Object *self, Object *args)
   int res = map_put(self, key, val);
   OB_DECREF(key);
   OB_DECREF(val);
-  return (res < 0) ? Bool_False() : Bool_True();
+  return (res < 0) ? bool_false() : bool_true();
 }
 
 static void map_free(Object *ob)
@@ -133,7 +133,7 @@ static void print_object(Object *ob, StrBuf *sbuf)
     strbuf_append(sbuf, string_asstr(ob));
     strbuf_append_char(sbuf, '"');
   } else {
-    Object *str = Object_Call(ob, "__str__", NULL);
+    Object *str = object_call(ob, "__str__", NULL);
     strbuf_append(sbuf, string_asstr(str));
     OB_DECREF(str);
   }

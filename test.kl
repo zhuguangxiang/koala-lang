@@ -1,17 +1,24 @@
 
 self.__class__().__mbrs__()
 
+import "assert"
+
 var s = "hello"
 s += " world"
 s
+assert.equal(s, "hello world")
+
 s.__class__.__mbrs__
 var i int = 100
 i
+assert.equal(i, 100)
+
 var arr Array<int> = [1,2,3]
 arr.append(100)
 //arr.append("hello")
 arr
-arr[0] + i
+assert.equal(arr[0] + i, 101)
+
 //arr[0] + s
 
 func test() int {
@@ -22,8 +29,8 @@ func test2(v int) int {
   100 + v
 }
 
-test()
-test2(2)
+assert.equal(test(), 300)
+assert.equal(test2(2), 102)
 
 func add(a int, b int) int {
   var a1 int
@@ -43,7 +50,7 @@ func add(a int, b int) int {
   //return "hello"
 }
 
-add(10, 10)
+assert.equal(add(10, 10), 420)
 
 func test_if(a int, b int) int {
   res := 0
@@ -53,9 +60,9 @@ func test_if(a int, b int) int {
   return res
 }
 
-test_if(1, 2)
-test_if(2, 1)
-test_if(3, 3)
+assert.equal(test_if(1, 2), 0)
+assert.equal(test_if(2, 1), 1)
+assert.equal(test_if(3, 3), 0)
 
 func test_if2(a int, b int) int {
   res := 0
@@ -67,9 +74,9 @@ func test_if2(a int, b int) int {
   res
 }
 
-test_if2(1, 2)
-test_if2(2, 1)
-test_if2(3, 3)
+assert.equal(test_if2(1, 2), 11)
+assert.equal(test_if2(2, 1), 1)
+assert.equal(test_if2(3, 3), 0)
 
 func test_if3(a int, b int) int {
   res := 0
@@ -83,9 +90,9 @@ func test_if3(a int, b int) int {
   res
 }
 
-test_if3(1, 2)
-test_if3(2, 1)
-test_if3(3, 3)
+assert.equal(test_if3(1, 2), 11)
+assert.equal(test_if3(2, 1), 1)
+assert.equal(test_if3(3, 3), 1234)
 
 func test_if4(a int, b int) int {
   res := 0
@@ -99,9 +106,9 @@ func test_if4(a int, b int) int {
   res
 }
 
-test_if4(1, 2)
-test_if4(2, 1)
-test_if4(3, 3)
+assert.equal(test_if4(1, 2), 0)
+assert.equal(test_if4(2, 1), 0)
+assert.equal(test_if4(3, 3), 0)
 
 res := -1
 a := 2
@@ -113,7 +120,8 @@ if a > b {
 } else {
   res = 1234
 }
-res
+assert.equal(res, 11)
+
 a = 3
 b = 2
 if a > b {
@@ -123,7 +131,8 @@ if a > b {
 } else {
   res = 1234
 }
-res
+assert.equal(res, 1)
+
 a = 3
 b = 3
 if a > b {
@@ -133,7 +142,7 @@ if a > b {
 } else {
   res = 1234
 }
-res
+assert.equal(res, 1234)
 
 func test_if5(a int, b int) int {
   res := 0
@@ -154,9 +163,15 @@ a = 10
 b = 3
 while a > b {
   res -= 1
-  a -= 1
+  a -= 2
 }
-res
+assert.equal(res, -4)
+
+while a > b {
+  res -= 1
+  a -= 2
+}
+assert.equal(res, -4)
 
 func test_while(a int, b int) int {
   res := 0
@@ -180,8 +195,8 @@ func test_while2(arr [int]) int {
 
 arr2 := [1, 2, 3, 4, 5, 10, 20, 30, 40, 50]
 
-test_while(10, 1)
-test_while2(arr2)
+assert.equal(test_while(10, 1), -9)
+assert.equal(test_while2(arr2), 165)
 
 func test_for(arr [int]) int {
   res := 0
@@ -220,10 +235,10 @@ func test_for4(arr [int]) int {
   return res
 }
 
-test_for(arr2)
-test_for2(arr2)
-test_for3(arr2)
-test_for4(arr2)
+assert.equal(test_for(arr2), 165)
+assert.equal(test_for2(arr2), 69)
+assert.equal(test_for3(arr2), 27)
+assert.equal(test_for4(arr2), 165)
 
 for i in 1...10 {
   sum := 0
@@ -231,22 +246,22 @@ for i in 1...10 {
   res = sum
 }
 
-res
+assert.equal(res, 10)
 
 1...10
 (1...10)[-1]
-(1...10)[0]
-(1...10)[9]
+assert.equal((1...10)[0], 1)
+assert.equal((1...10)[9], 10)
 (1...10)[10]
-(1...10).length()
+assert.equal((1...10).length(), 10)
 
 1..<10
 (1..<10)[-1]
-(1..<10)[0]
-(1..<10)[8]
+assert.equal((1..<10)[0], 1)
+assert.equal((1..<10)[8], 9)
 (1..<10)[9]
 (1..<10)[10]
-(1..<10).length()
+assert.equal((1..<10).length(), 9)
 
 func test_range(start int, end int) int {
   res := 0
@@ -264,8 +279,8 @@ func test_range2(start int, end int) int {
   res
 }
 
-test_range(1, 10)
-test_range2(1, 10)
+assert.equal(test_range(1, 10), 1055)
+assert.equal(test_range2(1, 10), 45)
 
 func test_jmp(arr [int]) int {
   res := 0
@@ -318,20 +333,31 @@ func test_jmp4(arr [int]) int {
   return res
 }
 
-test_jmp(arr2)
-test_jmp2(arr2)
-test_jmp3(arr2)
-test_jmp4(arr2)
-
+assert.equal(test_jmp(arr2), 150)
+assert.equal(test_jmp2(arr2), 25)
+assert.equal(test_jmp3(arr2), 25)
+assert.equal(test_jmp4(arr2), 150)
 
 func test_cond(a int, b int) int {
   a > b ? a - b : b - a
 }
 
-test_cond(10, 10)
-test_cond(10, 20)
-test_cond(20, 10)
-test_cond(20, 20)
+assert.equal(test_cond(10, 10), 0)
+assert.equal(test_cond(10, 20), 10)
+assert.equal(test_cond(20, 10), 10)
+assert.equal(test_cond(20, 20), 0)
+
+func sub(a int, b int) int {
+  a - b
+}
+
+func test_cond2(a int, b int) int {
+  a > b ? sub(a, b) : sub(b, a)
+}
+
+assert.equal(test_cond2(10, 20), 10)
+assert.equal(test_cond2(20, 10), 10)
+assert.equal(test_cond2(20, 20), 0)
 
 func arr_reverse(arr [int]) [int] {
   //if arr != nil {
@@ -349,17 +375,21 @@ func arr_reverse(arr [int]) [int] {
   //}
 }
 
+assert.equal(arr2[0], 1)
+assert.equal(arr2[9], 50)
 arr_reverse(arr2)
+assert.equal(arr2[0], 50)
+assert.equal(arr2[9], 1)
 
 anony := func(v1 int, v2 int) int {
   v1 + v2 + 100
 }
-anony(1, 2)
+assert.equal(anony(1, 2), 103)
 
 anony = func(v1 int, v2 int) int {
   v1 + v2 + arr[3]
 }
-anony(1, 2)
+assert.equal(anony(1, 2), 103)
 
 func foo() int {
   return func(v1 int, v2 int) int { v1 - v2 + 100}(1,2)
@@ -370,14 +400,14 @@ func bar() int {
   return func(v2 int) int { v1 - v2 + 100}(2)
 }
 
-foo()
-bar()
+assert.equal(foo(), 99)
+assert.equal(bar(), 99)
 
 func foov(v1 int, v2 int) int {
   return func(v3 int) int { v1 - v3 + 100}(v2)
 }
 
-foov(100, 200)
+assert.equal(foov(100, 200), 0)
 
 func barv(v1 int, v2 int) int {
   v3 := 1
@@ -398,8 +428,9 @@ func foov2(v1 int) func(int) int {
 }
 
 g := foov2(100)
-g(50)
-foov2(100)(200)
+assert.equal(g(50), 250)
+assert.equal(foov2(100)(200), 100)
+
 foov2(100)(200)(300)
 
 func foov3(fn func(int) int, v1 int) int {
@@ -411,7 +442,7 @@ func fn(v1 int) int {
   //100
 }
 
-foov3(fn, 100)
+assert.equal(foov3(fn, 100), 800)
 
 class Animal {
   name string;
@@ -424,24 +455,27 @@ an.name = "WangWang"
 an.type = "dog"
 an.age = 24
 an
-an.name
-an.type
-an.age
+assert.equal(an.name, "WangWang")
+assert.equal(an.type, "dog")
+assert.equal(an.age, 24)
 
 func get_age(ani Animal) int {
   ani.age
 }
 
-get_age(an)
+assert.equal(get_age(an), 24)
+
+an.age = 25
+assert.equal(get_age(an), 25)
 
 func get_age_cl(ani Animal) func() int {
   return func() int {ani.age}
 }
 
 cl := get_age_cl(an)
-cl()
+assert.equal(cl(), 25)
 an.age = 28
-cl()
+assert.equal(cl(), 28)
 
 func get_age_cl2(age int) func() int {
   ani := new Animal()
@@ -453,8 +487,8 @@ func get_age_cl2(age int) func() int {
 }
 
 cl2 := get_age_cl2(20)
-cl2()
-cl2()
+assert.equal(cl2(), 243)
+assert.equal(cl2(), 243)
 
 class Dog {
   name string
@@ -478,12 +512,12 @@ class Dog {
 new Dog()
 
 dog := new Dog("LittleErHa", 30)
-dog.name
-dog.age
+assert.equal(dog.name, "LittleErHa")
+assert.equal(dog.age, 30)
 dog.name = "ErHa";
 dog.age = 31;
-dog.get_name()
-dog.get_age()
+assert.equal(dog.get_name(), "ErHa")
+assert.equal(dog.get_age(), 31)
 
 func get_dog_age(age int) func() int {
   dog := new Dog("LittleErHa", 30)
@@ -494,12 +528,15 @@ func get_dog_age(age int) func() int {
   return cl
 }
 
+cl = get_dog_age(10)
+assert.equal(cl(), 566)
+
 // import tests
 import "io"
 io.__class__().__mbrs__()
 io.println(s)
 io.print(s)
-io.__name__
+assert.equal(io.__name__, "io")
 
 import mylang "lang"
 mylang.__class__().__mbrs__()

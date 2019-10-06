@@ -182,7 +182,7 @@ Object *array_str(Object *self, Object *ob)
       strbuf_append(&sbuf, string_asstr(tmp));
       strbuf_append_char(&sbuf, '"');
     } else {
-      str = Object_Call(tmp, "__str__", NULL);
+      str = object_call(tmp, "__str__", NULL);
       strbuf_append(&sbuf, string_asstr(str));
       OB_DECREF(str);
     }
@@ -255,7 +255,7 @@ void Array_Print(Object *ob)
   Object *item;
   Object *str;
   vector_for_each(item, &arr->items) {
-    str = Object_Call(item, "__str__", NULL);
+    str = object_call(item, "__str__", NULL);
     print("'%s', ", string_asstr(str));
     OB_DECREF(str);
   }

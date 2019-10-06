@@ -36,8 +36,8 @@ Object *num_add(Object *x, Object *y)
     if (integer_check(y)) {
       int64_t b = integer_asint(y);
       r = (int64_t)((uint64_t)a + b);
-    } else if (Byte_Check(y)) {
-      int b = Byte_AsInt(y);
+    } else if (byte_check(y)) {
+      int b = byte_asint(y);
       r = (int64_t)((uint64_t)a + b);
     } else if (Float_Check(y)) {
       double b = Float_AsFlt(y);
@@ -53,7 +53,7 @@ Object *num_add(Object *x, Object *y)
 
     } else if (integer_check(y)) {
 
-    } else if (Byte_Check(y)) {
+    } else if (byte_check(y)) {
 
     } else {
       panic("Not implemented");
@@ -66,6 +66,6 @@ Object *num_add(Object *x, Object *y)
     strbuf_fini(&sbuf);
     z = OB_INCREF(x);
   } else {
-    z = Object_Call(x, opcode_map(OP_ADD), y);
+    z = object_call(x, opcode_map(OP_ADD), y);
   }
 }

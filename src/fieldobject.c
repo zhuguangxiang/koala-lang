@@ -74,7 +74,7 @@ Object *field_default_getter(Object *self, Object *ob)
   FieldObject *field = (FieldObject *)self;
   int index = field->offset;
   Object *res;
-  if (Module_Check(ob)) {
+  if (module_check(ob)) {
     ModuleObject *mo = (ModuleObject *)ob;
     int size = vector_size(&mo->values);
     if (index < 0 || index >= size) {
@@ -96,7 +96,7 @@ int field_default_setter(Object *self, Object *ob, Object *val)
   FieldObject *field = (FieldObject *)self;
   int index = field->offset;
   Object *old;
-  if (Module_Check(ob)) {
+  if (module_check(ob)) {
     ModuleObject *mo = (ModuleObject *)ob;
     int size = vector_size(&mo->values);
     if (index < 0 || index > size) {
@@ -123,7 +123,7 @@ static Object *_field_set_(Object *self, Object *args)
     return NULL;
   }
 
-  if (!Tuple_Check(args)) {
+  if (!tuple_check(args)) {
     error("arguments of '%.64s' is not a Tuple", OB_TYPE_NAME(args));
     return NULL;
   }

@@ -24,7 +24,6 @@
 
 #include <pthread.h>
 #include "koala.h"
-#include "langmodule.h"
 #include "osmodule.h"
 #include "iomodule.h"
 #include "fmtmodule.h"
@@ -106,6 +105,7 @@ void koala_initialize(void)
   init_os_module();
   init_io_module();
   init_fmt_module();
+  init_assert_module();
   init_parser();
 }
 
@@ -113,6 +113,7 @@ void koala_finalize(void)
 {
   gc();
   fini_parser();
+  fini_assert_module();
   fini_fmt_moudle();
   fini_io_module();
   fini_os_module();

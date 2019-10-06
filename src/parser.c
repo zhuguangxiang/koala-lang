@@ -1143,6 +1143,9 @@ static void ident_up_func(ParserState *ps, Expr *exp)
     } else if (exp->ctx == EXPR_INPLACE) {
       CODE_OP(OP_LOAD_GLOBAL);
       parse_attr_inplace(ps, exp->id.name, exp);
+    } else if (exp->ctx == EXPR_CALL_FUNC) {
+      CODE_OP(OP_LOAD_GLOBAL);
+      CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
     } else {
       panic("invalid expr's ctx %d", exp->ctx);
     }

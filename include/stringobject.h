@@ -52,12 +52,12 @@ char *string_asstr(Object *self);
 int string_isempty(Object *self);
 void string_set(Object *self, char *str);
 extern TypeObject char_type;
-#define Char_Check(ob) (OB_TYPE(ob) == &char_type)
+#define char_check(ob) (OB_TYPE(ob) == &char_type)
 void init_char_type(void);
-Object *Char_New(unsigned int val);
-static inline int Char_AsChar(Object *ob)
+Object *char_new(unsigned int val);
+static inline int char_asch(Object *ob)
 {
-  if (Char_Check(ob)) {
+  if (char_check(ob)) {
     error("object of '%.64s' is not a Char.", OB_TYPE(ob)->name);
     return 0;
   }

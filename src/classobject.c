@@ -38,10 +38,10 @@ static Object *class_get(Object *self, char *name)
 
   Object *res;
   Object *ob = ((ClassObject *)self)->obj;
-  if (Type_Check(ob)) {
-    res = Type_Lookup((TypeObject *)ob, name);
+  if (type_check(ob)) {
+    res = type_lookup((TypeObject *)ob, name);
   } else {
-    res = Object_Lookup(ob, name);
+    res = object_lookup(ob, name);
   }
 
   if (!res) {
@@ -156,7 +156,7 @@ static Object *class_members(Object *self, Object *args)
     type = (TypeObject *)ob;
     fill_array(type->mtbl, res, index);
   } else {
-    if (Module_Check(ob)) {
+    if (module_check(ob)) {
       ModuleObject *mo = (ModuleObject *)ob;
       index = fill_array(mo->mtbl, res, index);
       index = fill_array(OB_TYPE(mo)->mtbl, res, index);

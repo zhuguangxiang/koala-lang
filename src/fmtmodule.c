@@ -31,7 +31,7 @@ Object *Fmtter_WriteFormat(Object *self, Object *args)
     return NULL;
   }
 
-  if (!Tuple_Check(args)) {
+  if (!tuple_check(args)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(args));
     return NULL;
   }
@@ -50,7 +50,7 @@ Object *Fmtter_WriteFormat(Object *self, Object *args)
       if (ch == '}') {
         ob = tuple_get(args, ++index);
         if (ob != NULL) {
-          Object_Call(ob, "__fmt__", self);
+          object_call(ob, "__fmt__", self);
           OB_DECREF(ob);
         }
       } else {
@@ -111,7 +111,7 @@ Object *Fmtter_WriteTuple(Object *self, Object *args)
     return NULL;
   }
 
-  if (!Tuple_Check(args)) {
+  if (!tuple_check(args)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(args));
     return NULL;
   }
@@ -123,12 +123,12 @@ Object *Fmtter_WriteTuple(Object *self, Object *args)
 
   FmtterObject *fmt = (FmtterObject *)self;
   StrBuf *sbuf = &fmt->buf;
-  int size = Tuple_Size(args);
+  int size = tuple_size(args);
   TUPLE_ITERATOR(iter, tuple);
   Object *item;
   int i = 0;
   iter_for_each(&iter, item) {
-    Object_Call(item, "__fmt__", self);
+    object_call(item, "__fmt__", self);
     if (i++ < size - 1)
       strbuf_append(sbuf, ", ");
   }
@@ -179,7 +179,7 @@ void init_fmtter_type(void)
 
 static Object *fmt_println(Object *self, Object *args)
 {
-  if (!Module_Check(self)) {
+  if (!module_check(self)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -195,7 +195,7 @@ static Object *fmt_println(Object *self, Object *args)
 
 static Object *fmt_print(Object *self, Object *args)
 {
-  if (!Module_Check(self)) {
+  if (!module_check(self)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -217,16 +217,16 @@ static MethodDef fmt_funcs[] = {
 
 void init_fmt_module(void)
 {
-  Object *m = Module_New("fmt");
-  Module_Add_Type(m, &fmtter_type);
-  Module_Add_FuncDefs(m, fmt_funcs);
-  Module_Install("fmt", m);
+  Object *m = module_new("fmt");
+  module_add_type(m, &fmtter_type);
+  module_add_funcdefs(m, fmt_funcs);
+  module_install("fmt", m);
   OB_DECREF(m);
 }
 
 void fini_fmt_moudle(void)
 {
-  Module_Uninstall("fmt");
+  module_uninstall("fmt");
 }
 
 Object *Fmtter_New(void)

@@ -39,14 +39,14 @@ typedef struct tupleobject {
 } TupleObject;
 
 extern TypeObject tuple_type;
-#define Tuple_Check(ob) (OB_TYPE(ob) == &tuple_type)
+#define tuple_check(ob) (OB_TYPE(ob) == &tuple_type)
 void init_tuple_type(void);
 Object *tuple_new(int size);
-Object *Tuple_Pack(int size, ...);
-int Tuple_Size(Object *self);
+Object *tuple_pack(int size, ...);
+int tuple_size(Object *self);
 Object *tuple_get(Object *self, int index);
 int tuple_set(Object *self, int index, Object *val);
-Object *Tuple_Slice(Object *self, int i, int j);
+Object *tuple_slice(Object *self, int i, int j);
 void *tuple_iter_next(struct iterator *iter);
 #define TUPLE_ITERATOR(name, tuple) \
   ITERATOR(name, tuple, tuple_iter_next)

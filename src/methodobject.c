@@ -92,17 +92,17 @@ static Object *method_call(Object *self, Object *args)
 
   Object *ob;
   Object *para;
-  if (!Tuple_Check(args)) {
+  if (!tuple_check(args)) {
     ob = OB_INCREF(args);
     para = NULL;
   } else {
-    int size = Tuple_Size(args);
+    int size = tuple_size(args);
     expect(size > 0);
     ob = tuple_get(args, 0);
     if (size == 2)
       para = tuple_get(args, 1);
     else
-      para = Tuple_Slice(args, 1, -1);
+      para = tuple_slice(args, 1, -1);
   }
 
   MethodObject *meth = (MethodObject *)self;

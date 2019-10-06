@@ -41,29 +41,29 @@ int main(int argc, char *argv[])
 {
   koala_initialize();
 
-  Object *m = Module_New("test");
+  Object *m = module_new("test");
 
-  Object *v = Object_GetValue(m, "__name__");
+  Object *v = object_getvalue(m, "__name__");
   expect(!strcmp("test", string_asstr(v)));
   OB_DECREF(v);
 
-  Object *clazz = Object_GetValue(m, "__class__");
+  Object *clazz = object_getvalue(m, "__class__");
   expect(Class_Check(clazz));
   ClassObject *cls = (ClassObject *)clazz;
   expect(cls->obj == m);
 
-  v = Object_GetValue(clazz, "__name__");
+  v = object_getvalue(clazz, "__name__");
   expect(!strcmp("Module", string_asstr(v)));
   OB_DECREF(v);
 
-  Object *mo = Object_GetValue(clazz, "__module__");
-  v = Object_GetValue(mo, "__name__");
+  Object *mo = object_getvalue(clazz, "__module__");
+  v = object_getvalue(mo, "__name__");
   expect(!strcmp("lang", string_asstr(v)));
   OB_DECREF(v);
   OB_DECREF(mo);
 
   Object *s = string_new("__name__");
-  Object *meth = Object_Call(clazz, "getMethod", s);
+  Object *meth = object_call(clazz, "getMethod", s);
   expect(method_check(meth));
   OB_DECREF(s);
   v = Method_Call(meth, m, NULL);

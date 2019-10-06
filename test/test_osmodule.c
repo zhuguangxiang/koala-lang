@@ -30,15 +30,15 @@ int main(int argc, char *argv[])
   koala_initialize();
   Object *m = module_load("os");
   expect(m);
-  Object *arr = Object_GetValue(m, "path");
+  Object *arr = object_getvalue(m, "path");
   expect(array_check(arr));
 
   Object *str = string_new("~/.local/lib/koala/libs");
-  Object_Call(arr, "append", str);
+  object_call(arr, "append", str);
   OB_DECREF(str);
 
   str = string_new("/usr/lib/koala/libs");
-  Object_Call(arr, "append", str);
+  object_call(arr, "append", str);
   OB_DECREF(str);
 
   Array_Print(arr);

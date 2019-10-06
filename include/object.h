@@ -191,8 +191,8 @@ struct typeobject {
 
   /* __hash__  */
   func_t hash;
-  /* __cmp__ */
-  func_t cmp;
+  /* __equal__ */
+  func_t equal;
   /* __class__ */
   func_t clazz;
   /* __str__   */
@@ -229,7 +229,7 @@ struct typeobject {
 
 extern TypeObject type_type;
 extern TypeObject any_type;
-#define Type_Check(ob) (OB_TYPE(ob) == &type_type)
+#define type_check(ob) (OB_TYPE(ob) == &type_type)
 void init_any_type(void);
 #define OB_NUM_FUNC(ob, name) ({ \
   NumberMethods *nu = OB_TYPE(ob)->number; \
@@ -242,25 +242,25 @@ void init_any_type(void);
 int type_ready(TypeObject *type);
 void type_fini(TypeObject *type);
 TypeObject *type_new(char *path, char *name, int flags);
-Object *Type_Lookup(TypeObject *type, char *name);
+Object *type_lookup(TypeObject *type, char *name);
 
-void Type_Add_Field(TypeObject *type, Object *ob);
-void Type_Add_FieldDef(TypeObject *type, FieldDef *f);
-void Type_Add_FieldDefs(TypeObject *type, FieldDef *def);
+void type_add_field(TypeObject *type, Object *ob);
+void type_add_fielddef(TypeObject *type, FieldDef *f);
+void type_add_fielddefs(TypeObject *type, FieldDef *def);
 void type_add_field_default(TypeObject *type, char *name, TypeDesc *desc);
 
 void type_add_method(TypeObject *type, Object *ob);
 void type_add_methoddef(TypeObject *type, MethodDef *f);
-void Type_Add_MethodDefs(TypeObject *type, MethodDef *def);
+void type_add_methoddefs(TypeObject *type, MethodDef *def);
 
-unsigned int Object_Hash(Object *ob);
-int Object_Cmp(Object *ob1, Object *ob2);
-Object *Object_Lookup(Object *self, char *name);
-Object *Object_GetMethod(Object *self, char *name);
-Object *Object_GetField(Object *self, char *name);
-Object *Object_GetValue(Object *self, char *name);
-int Object_SetValue(Object *self, char *name, Object *val);
-Object *Object_Call(Object *self, char *name, Object *args);
+unsigned int object_hash(Object *ob);
+int object_equal(Object *ob1, Object *ob2);
+Object *object_lookup(Object *self, char *name);
+Object *object_getmethod(Object *self, char *name);
+Object *object_getfield(Object *self, char *name);
+Object *object_getvalue(Object *self, char *name);
+int object_setvalue(Object *self, char *name, Object *val);
+Object *object_call(Object *self, char *name, Object *args);
 Object *new_literal(Literal *val);
 
 typedef struct descobject {

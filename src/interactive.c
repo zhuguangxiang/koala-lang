@@ -92,7 +92,7 @@ static void init_cmdline_env(void)
   ps.module = &mod;
   vector_init(&ps.ustack);
 
-  mo = Module_New("__main__");
+  mo = module_new("__main__");
 
   pthread_key_create(&kskey, NULL);
 }
@@ -352,7 +352,7 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
   case SYM_VAR: {
     Object *field = field_new(sym->name, sym->desc);
     Field_SetFunc(field, field_default_setter, field_default_getter);
-    Module_Add_Var(ob, field);
+    module_add_var(ob, field);
     OB_DECREF(field);
     break;
   }
@@ -367,13 +367,13 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
   }
   case SYM_CLASS: {
     TypeObject *tp = class_from_symbol(sym);
-    Module_Add_Type(ob, tp);
+    module_add_type(ob, tp);
     OB_DECREF(tp);
     break;
   }
   case SYM_TRAIT: {
     TypeObject *tp = trait_from_symbol(sym);
-    Module_Add_Type(ob, tp);
+    module_add_type(ob, tp);
     OB_DECREF(tp);
     break;
   }

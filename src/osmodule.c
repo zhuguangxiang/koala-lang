@@ -31,7 +31,7 @@ static Object *os_path_get(Object *self, Object *ob)
     return NULL;
   }
 
-  if (!Module_Check(ob)) {
+  if (!module_check(ob)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(ob));
     return NULL;
   }
@@ -55,13 +55,13 @@ static FieldDef os_fields[] = {
 
 void init_os_module(void)
 {
-  Object *m = Module_New("os");
-  Module_Add_VarDefs(m, os_fields);
-  Module_Install("os", m);
+  Object *m = module_new("os");
+  module_add_vardefs(m, os_fields);
+  module_install("os", m);
   OB_DECREF(m);
 }
 
 void fini_os_module(void)
 {
-  Module_Uninstall("os");
+  module_uninstall("os");
 }

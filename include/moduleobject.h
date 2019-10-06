@@ -49,26 +49,26 @@ typedef struct moduleobject {
 
 extern TypeObject module_type;
 extern TypeObject Module_Class_Type;
-#define Module_Check(ob) (OB_TYPE(ob) == &module_type)
+#define module_check(ob) (OB_TYPE(ob) == &module_type)
 #define MODULE_NAME(ob) (((ModuleObject *)ob)->name)
 void init_module_type(void);
-Object *Module_New(char *name);
+Object *module_new(char *name);
 Object *Module_Lookup(Object *ob, char *name);
-void Module_Install(char *path, Object *ob);
+void module_install(char *path, Object *ob);
 Object *module_load(char *path);
-void Module_Uninstall(char *path);
+void module_uninstall(char *path);
 
-void Module_Add_Type(Object *self, TypeObject *type);
+void module_add_type(Object *self, TypeObject *type);
 
-void Module_Add_Const(Object *self, Object *ob, Object *val);
+void module_add_const(Object *self, Object *ob, Object *val);
 
-void Module_Add_Var(Object *self, Object *ob);
-void Module_Add_VarDef(Object *self, FieldDef *f);
-void Module_Add_VarDefs(Object *self, FieldDef *def);
+void module_add_var(Object *self, Object *ob);
+void module_add_vardef(Object *self, FieldDef *f);
+void module_add_vardefs(Object *self, FieldDef *def);
 
 void Module_Add_Func(Object *self, Object *ob);
 void Module_Add_FuncDef(Object *self, MethodDef *f);
-void Module_Add_FuncDefs(Object *self, MethodDef *def);
+void module_add_funcdefs(Object *self, MethodDef *def);
 
 Object *module_get(Object *self, char *name);
 void module_set(Object *self, char *name, Object *val);

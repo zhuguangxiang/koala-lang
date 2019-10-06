@@ -71,12 +71,12 @@ static inline void integer_setint(Object *ob, int64_t val)
 }
 
 extern TypeObject byte_type;
-#define Byte_Check(ob) (OB_TYPE(ob) == &byte_type)
+#define byte_check(ob) (OB_TYPE(ob) == &byte_type)
 void init_byte_type(void);
-Object *Byte_New(int val);
-static inline int Byte_AsInt(Object *ob)
+Object *byte_new(int val);
+static inline int byte_asint(Object *ob)
 {
-  if (!Byte_Check(ob)) {
+  if (!byte_check(ob)) {
     error("object of '%.64s' is not a Byte.", OB_TYPE(ob)->name);
     return 0;
   }
@@ -85,36 +85,36 @@ static inline int Byte_AsInt(Object *ob)
 }
 
 extern TypeObject bool_type;
-#define Bool_Check(ob) (OB_TYPE(ob) == &bool_type)
+#define bool_check(ob) (OB_TYPE(ob) == &bool_type)
 void init_bool_type(void);
 void fini_bool_type(void);
 extern BoolObject OB_True;
 extern BoolObject OB_False;
 
-static inline Object *Bool_True(void)
+static inline Object *bool_true(void)
 {
   Object *res = (Object *)&OB_True;
   return OB_INCREF(res);
 }
 
-static inline Object *Bool_False(void)
+static inline Object *bool_false(void)
 {
   Object *res = (Object *)&OB_False;
   return OB_INCREF(res);
 }
 
-static inline int Bool_IsTrue(Object *ob)
+static inline int bool_istrue(Object *ob)
 {
-  if (!Bool_Check(ob)) {
+  if (!bool_check(ob)) {
     error("object of '%.64s' is not a Bool.", OB_TYPE(ob)->name);
     return 0;
   }
   return ob == (Object *)&OB_True ? 1 : 0;
 }
 
-static inline int Bool_IsFalse(Object *ob)
+static inline int bool_isfalse(Object *ob)
 {
-  if (!Bool_Check(ob)) {
+  if (!bool_check(ob)) {
     error("object of '%.64s' is not a Bool.", OB_TYPE(ob)->name);
     return 0;
   }

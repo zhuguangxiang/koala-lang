@@ -22,8 +22,8 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_LANG_MODULE_H_
-#define _KOALA_LANG_MODULE_H_
+#ifndef _KOALA_MODULES_H_
+#define _KOALA_MODULES_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,8 +32,11 @@ extern "C" {
 void init_lang_module(void);
 void fini_lang_module(void);
 
+void init_assert_module(void);
+void fini_assert_module(void);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_LANG_MODULE_H_ */
+#endif /* _KOALA_MODULES_H_ */

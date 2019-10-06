@@ -41,11 +41,11 @@ Object *tuple_new(int size)
 
 static void tuple_clean(Object *ob)
 {
-  if (!Tuple_Check(ob)) {
+  if (!tuple_check(ob)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(ob));
     return;
   }
-  int size = Tuple_Size(ob);
+  int size = tuple_size(ob);
   TupleObject *tuple = (TupleObject *)ob;
   Object *item;
   for (int i = 0; i < size; ++i) {
@@ -60,7 +60,7 @@ static void tuple_free(Object *ob)
   gcfree(ob);
 }
 
-Object *Tuple_Pack(int size, ...)
+Object *tuple_pack(int size, ...)
 {
   Object *ob = tuple_new(size);
   va_list ap;
@@ -77,14 +77,14 @@ Object *Tuple_Pack(int size, ...)
   return ob;
 }
 
-int Tuple_Size(Object *self)
+int tuple_size(Object *self)
 {
   if (self == NULL) {
     warn("tuple pointer is null.");
     return -1;
   }
 
-  if (!Tuple_Check(self)) {
+  if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return -1;
   }
@@ -94,7 +94,7 @@ int Tuple_Size(Object *self)
 
 Object *tuple_get(Object *self, int index)
 {
-  if (!Tuple_Check(self)) {
+  if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -111,7 +111,7 @@ Object *tuple_get(Object *self, int index)
 
 int tuple_set(Object *self, int index, Object *val)
 {
-  if (!Tuple_Check(self)) {
+  if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return -1;
   }
@@ -127,14 +127,14 @@ int tuple_set(Object *self, int index, Object *val)
 }
 
 /* [i ..< j] */
-Object *Tuple_Slice(Object *self, int i, int j)
+Object *tuple_slice(Object *self, int i, int j)
 {
-  if (!Tuple_Check(self)) {
+  if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return NULL;
   }
 
-  int size = Tuple_Size(self);
+  int size = tuple_size(self);
   if (i < 0)
     i = 0;
   if (j < 0 || j > size)
@@ -158,7 +158,7 @@ Object *Tuple_Slice(Object *self, int i, int j)
 
 static Object *tuple_getitem(Object *self, Object *args)
 {
-  if (!Tuple_Check(self)) {
+  if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -175,7 +175,7 @@ static Object *tuple_getitem(Object *self, Object *args)
 
 static Object *tuple_length(Object *self, Object *args)
 {
-  if (!Tuple_Check(self)) {
+  if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -186,7 +186,7 @@ static Object *tuple_length(Object *self, Object *args)
 
 static Object *tuple_fmt(Object *self, Object *args)
 {
-  if (!Tuple_Check(self)) {
+  if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -209,7 +209,7 @@ static MethodDef tuple_methods[] = {
 
 Object *tuple_str(Object *self, Object *ob)
 {
-  if (!Tuple_Check(self)) {
+  if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -227,7 +227,7 @@ Object *tuple_str(Object *self, Object *ob)
       strbuf_append(&sbuf, string_asstr(tmp));
       strbuf_append_char(&sbuf, '"');
     } else {
-      str = Object_Call(tmp, "__str__", NULL);
+      str = object_call(tmp, "__str__", NULL);
       strbuf_append(&sbuf, string_asstr(str));
       OB_DECREF(str);
     }

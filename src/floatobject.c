@@ -61,8 +61,8 @@ static double flt_add(Object *x, Object *y)
     if ((a > 0 && b > 0 && r < 0) ||
         (a < 0 && b < 0 && r > 0))
       panic("overflow:%lf + %ld = %lf", a, b, r);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = (a + b);
     if ((a > 0 && b > 0 && r < 0) ||
         (a < 0 && b < 0 && r > 0))
@@ -90,8 +90,8 @@ static double flt_sub(Object *x, Object *y)
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
       panic("overflow:%lf + %ld = %lf", a, b, r);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = a - b;
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
@@ -115,8 +115,8 @@ static double flt_mul(Object *x, Object *y)
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = a * b;
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = a * b;
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
@@ -134,8 +134,8 @@ static double flt_div(Object *x, Object *y)
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = a / b;
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = a / b;
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
@@ -153,8 +153,8 @@ static double flt_mod(Object *x, Object *y)
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = fmod(a, b);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = fmod(a, b);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
@@ -172,8 +172,8 @@ static int64_t flt_pow(Object *x, Object *y)
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = pow(a, b);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = pow(a, b);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
@@ -308,8 +308,8 @@ static double flt_num_cmp(Object *x, Object *y)
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
       panic("overflow:%lf + %ld = %lf", a, b, r);
-  } else if (Byte_Check(y)) {
-    int b = Byte_AsInt(y);
+  } else if (byte_check(y)) {
+    int b = byte_asint(y);
     r = a - b;
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
@@ -329,37 +329,37 @@ static double flt_num_cmp(Object *x, Object *y)
 static Object *flt_num_gt(Object *x, Object *y)
 {
   double r = flt_num_cmp(x, y);
-  return (r > 0) ? Bool_True() : Bool_False();
+  return (r > 0) ? bool_true() : bool_false();
 }
 
 static Object *flt_num_ge(Object *x, Object *y)
 {
   double r = flt_num_cmp(x, y);
-  return (r >= 0) ? Bool_True() : Bool_False();
+  return (r >= 0) ? bool_true() : bool_false();
 }
 
 static Object *flt_num_lt(Object *x, Object *y)
 {
   double r = flt_num_cmp(x, y);
-  return (r < 0) ? Bool_True() : Bool_False();
+  return (r < 0) ? bool_true() : bool_false();
 }
 
 static Object *flt_num_le(Object *x, Object *y)
 {
   double r = flt_num_cmp(x, y);
-  return (r <= 0) ? Bool_True() : Bool_False();
+  return (r <= 0) ? bool_true() : bool_false();
 }
 
 static Object *flt_num_eq(Object *x, Object *y)
 {
   double r = flt_num_cmp(x, y);
-  return (r == 0) ? Bool_True() : Bool_False();
+  return (r == 0) ? bool_true() : bool_false();
 }
 
 static Object *flt_num_neq(Object *x, Object *y)
 {
   double r = flt_num_cmp(x, y);
-  return (r != 0) ? Bool_True() : Bool_False();
+  return (r != 0) ? bool_true() : bool_false();
 }
 
 static NumberMethods float_numbers = {

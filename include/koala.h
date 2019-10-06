@@ -47,7 +47,7 @@
 #include "fmtmodule.h"
 #include "iomodule.h"
 #include "osmodule.h"
-#include "langmodule.h"
+#include "modules.h"
 #include "parser.h"
 
 #ifdef __cplusplus
