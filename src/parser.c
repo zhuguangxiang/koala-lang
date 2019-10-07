@@ -1505,6 +1505,8 @@ static void parse_atrr(ParserState *ps, Expr *exp)
   Symbol *sym;
   switch (lsym->kind) {
   case SYM_CONST:
+    debug("left sym '%s' is a const var", lsym->name);
+    sym = klass_find_member(lsym->var.typesym, id->name);
     break;
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
