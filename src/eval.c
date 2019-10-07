@@ -807,7 +807,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       tuple_set(v, 1, z);
       fn = OB_MAP_FUNC(x, setitem);
       call_op_func(w, x, OP_SUBSCR_STORE, v);
-      PUSH(w);
+      expect(w == NULL);
       OB_DECREF(x);
       OB_DECREF(y);
       OB_DECREF(z);

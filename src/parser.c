@@ -104,7 +104,7 @@ Symbol *mod_find_symbol(Module *mod, char *name)
   Symbol *sym = stable_get(mod->stbl, name);
   if (sym != NULL)
     return sym;
-  return klass_find_member(modClsSym, name);
+  return type_find_mbr(modClsSym, name);
 }
 
 typedef struct inst {
@@ -859,6 +859,9 @@ static Symbol *get_klass_symbol(ParserState *ps, char *path, char *name)
       if (sym->kind == SYM_CLASS) {
         ++sym->used;
         return sym;
+      } else if(sym->kind == SYM_ENUM) {
+        ++sym->used;
+        return sym;
       } else {
         error("symbol '%s' is not Class", name);
         return NULL;
@@ -1038,6 +1041,10 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
   if (sym->kind == SYM_MOD) {
     expect(exp->ctx == EXPR_LOAD);
     CODE_OP_S(OP_LOAD_MODULE, sym->mod.path);
+    return;
+  } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+    syntax_error(ps, exp->row, exp->col,
+                 "Class/Trait '%s' cannot be accessed directly", exp->id.name);
     return;
   }
 
@@ -1344,7 +1351,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     return;
 
   if (exp->binary.op == BINARY_ADD) {
-    Symbol *sym = klass_find_member(exp->sym, "__add__");
+    Symbol *sym = type_find_mbr(exp->sym, "__add__");
     if (sym == NULL) {
       syntax_error(ps, lexp->row, lexp->col, "unsupported +");
     } else {
@@ -1506,11 +1513,11 @@ static void parse_atrr(ParserState *ps, Expr *exp)
   switch (lsym->kind) {
   case SYM_CONST:
     debug("left sym '%s' is a const var", lsym->name);
-    sym = klass_find_member(lsym->var.typesym, id->name);
+    sym = type_find_mbr(lsym->var.typesym, id->name);
     break;
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
-    sym = klass_find_member(lsym->var.typesym, id->name);
+    sym = type_find_mbr(lsym->var.typesym, id->name);
     break;
   case SYM_FUNC:
     debug("left sym '%s' is a func", lsym->name);
@@ -1522,7 +1529,7 @@ static void parse_atrr(ParserState *ps, Expr *exp)
       sym = get_desc_symbol(ps, desc->proto.ret);
       if (sym != NULL) {
         expect(sym->kind == SYM_CLASS);
-        sym = klass_find_member(sym, id->name);
+        sym = type_find_mbr(sym, id->name);
       } else {
         syntax_error(ps, exp->row, exp->col, "cannot find type");
       }
@@ -1537,7 +1544,12 @@ static void parse_atrr(ParserState *ps, Expr *exp)
   }
   case SYM_CLASS: {
     debug("left sym '%s' is a class", lsym->name);
-    sym = klass_find_member(lsym, id->name);
+    sym = type_find_mbr(lsym, id->name);
+    break;
+  }
+  case SYM_ENUM: {
+    debug("left sym '%s' is an enum", lsym->name);
+    sym = type_find_mbr(lsym, id->name);
     break;
   }
   default:
@@ -1585,6 +1597,14 @@ static void parse_atrr(ParserState *ps, Expr *exp)
         panic("invalid exp's ctx %d", exp->ctx);
       break;
     }
+    case SYM_LABEL: {
+      if (exp->ctx == EXPR_LOAD) {
+        CODE_OP_S(OP_GET_VALUE, id->name);
+      } else {
+        syntax_error(ps, id->row, id->col, "enum '%s' is readonly", id->name);
+      }
+      break;
+    }
     default:
       panic("invalid symbol kind %d", sym->kind);
       break;
@@ -1617,11 +1637,11 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     break;
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
-    sym = klass_find_member(lsym->var.typesym, funcname);
+    sym = type_find_mbr(lsym->var.typesym, funcname);
     break;
   case SYM_CLASS: {
     debug("left sym '%s' is a class", lsym->name);
-    sym = klass_find_member(lsym, funcname);
+    sym = type_find_mbr(lsym, funcname);
     break;
   }
   default:
@@ -1842,9 +1862,10 @@ static void parse_array(ParserState *ps, Expr *exp)
     }
   }
 
-  TypeDesc *para = get_subarray_type(types);
   exp->desc = desc_from_array;
-  desc_add_paratype(exp->desc, para);
+  TypeDesc *para = get_subarray_type(types);
+  if (para != NULL)
+    desc_add_paratype(exp->desc, para);
 
   if (!has_error(ps)) {
     Inst *inst = CODE_OP_I(OP_NEW_ARRAY, size);
@@ -2845,12 +2866,12 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   if (sym->kind == SYM_VAR) {
     sym = sym->var.typesym;
   } else if (sym->kind == SYM_CLASS) {
-
+    expect(!strcmp(sym->name, "Range"));
   } else {
     panic("which kind of symbol? %d", sym->kind);
   }
 
-  sym = klass_find_member(sym, "__iter__");
+  sym = type_find_mbr(sym, "__iter__");
   if (sym == NULL) {
     syntax_error(ps, iter->row, iter->col, "object is not iteratable.");
   } else {
@@ -2887,6 +2908,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
     panic("not implemented");
   } else {
     // fallthrough
+    panic("why ? not implemented");
   }
 
   vexp->ctx = EXPR_STORE;
@@ -2961,6 +2983,30 @@ static void parse_typedecl(ParserState *ps, Stmt *stmt)
   debug("end of %s '%s'", typename, id->name);
 }
 
+static void parse_enumdecl(ParserState *ps, Stmt *stmt)
+{
+  Ident *id = &stmt->enum_stmt.id;
+  debug("parse enum '%s'", id->name);
+
+  Symbol *sym = stable_get(ps->u->stbl, id->name);
+  expect(sym != NULL);
+
+  parser_enter_scope(ps, SCOPE_CLASS, 0);
+  ps->u->sym = sym;
+  ps->u->stbl = sym->type.stbl;
+
+  /* parse enum methods */
+  Vector *methods = stmt->enum_stmt.mbrs.methods;
+  Stmt *s = NULL;
+  vector_for_each(s, methods) {
+    parse_funcdecl(ps, s);
+  }
+
+  parser_exit_scope(ps);
+
+  debug("end of enum '%s'", id->name);
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   static void (*handlers[])(ParserState *, Stmt *) = {
@@ -2976,8 +3022,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     parse_ifunc,        /* IFUNC_KIND     */
     parse_typedecl,     /* CLASS_KIND     */
     parse_typedecl,     /* TRAIT_KIND     */
-    NULL,               /* ENUM_KIND      */
-    NULL,               /* EVAL_KIND      */
+    parse_enumdecl,     /* ENUM_KIND      */
     parse_break,        /* BREAK_KIND     */
     parse_continue,     /* CONTINUE_KIND  */
     parse_if,           /* IF_KIND        */

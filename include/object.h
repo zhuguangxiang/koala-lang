@@ -169,6 +169,7 @@ typedef void (*ob_freefunc)(Object *);
 #define TPFLAGS_CLASS     0
 #define TPFLAGS_TRAIT     1
 #define TPFLAGS_ENUM      2
+#define TPFLAGS_MASK      3
 #define TPFLAGS_GC        (1 << 2)
 
 struct typeobject {
@@ -230,6 +231,18 @@ struct typeobject {
 extern TypeObject type_type;
 extern TypeObject any_type;
 #define type_check(ob) (OB_TYPE(ob) == &type_type)
+#define type_isclass(type) \
+  ((((TypeObject *)type)->flags & TPFLAGS_MASK) == TPFLAGS_CLASS)
+
+#define type_istrait(type) \
+  ((((TypeObject *)type)->flags & TPFLAGS_MASK) == TPFLAGS_TRAIT)
+
+#define type_isenum(type) \
+  ((((TypeObject *)type)->flags & TPFLAGS_MASK) == TPFLAGS_ENUM)
+
+#define type_isgc(type) \
+  (((TypeObject *)type)->flags & TPFLAGS_GC)
+
 void init_any_type(void);
 #define OB_NUM_FUNC(ob, name) ({ \
   NumberMethods *nu = OB_TYPE(ob)->number; \
@@ -278,13 +291,14 @@ Object *new_descob(TypeDesc *desc);
   ((DescObject *)(ob))->desc; \
 })
 
-typedef struct enumobject {
+typedef struct labelobject {
   OBJECT_HEAD
   char *name;
-  Vector *values;
-} EnumObject;
+  Vector *types;
+} LabelObject;
 
-Object *new_eval(TypeObject *type, char *name, Vector *vals);
+TypeObject *enum_type_new(char *path, char *name);
+void type_add_label(TypeObject *type, char *name, Vector *types);
 
 typedef struct heapobject {
   OBJECT_HEAD

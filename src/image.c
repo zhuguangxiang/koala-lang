@@ -93,7 +93,7 @@ static inline void *vargitem_new(int bsize, int isize, int len)
 static char *mapitem_string[] = {
   "map", "string", "literal", "type", "index", "const",
   "locvar", "var", "constvar", "func", "anony", "code",
-  "class", "field", "method", "trait", "ifunc", "enum", "eval", "mbr",
+  "class", "field", "method", "trait", "ifunc", "enum", "label", "mbr",
 };
 
 static int mapitem_length(void *o)
@@ -765,19 +765,19 @@ static EnumItem *enumitem_new(int nameindex)
   return item;
 }
 
-static int evalitem_length(void *o)
+static int labelitem_length(void *o)
 {
-  return sizeof(EValItem);
+  return sizeof(LabelItem);
 }
 
-static void evalitem_write(FILE *fp, void *o)
+static void labelitem_write(FILE *fp, void *o)
 {
-  fwrite(o, sizeof(EValItem), 1, fp);
+  fwrite(o, sizeof(LabelItem), 1, fp);
 }
 
-static void evalitem_show(Image *image, void *o)
+static void labelitem_show(Image *image, void *o)
 {
-  EValItem *item = o;
+  LabelItem *item = o;
   StringItem *str;
   print("  nameindex:%d\n", item->nameindex);
   str = _get_(image, ITEM_STRING, item->nameindex);
@@ -786,14 +786,14 @@ static void evalitem_show(Image *image, void *o)
   print("  value:%d\n", item->value);
 }
 
-static void evalitem_free(void *o)
+static void labelitem_free(void *o)
 {
   kfree(o);
 }
 
-static EValItem *evalitem_new(int nameindex, int index, int32_t val)
+static LabelItem *labelitem_new(int nameindex, int index, int32_t val)
 {
-  EValItem *item = kmalloc(sizeof(EValItem));
+  LabelItem *item = kmalloc(sizeof(LabelItem));
   item->nameindex = nameindex;
   item->index = index;
   item->value = val;
@@ -1135,9 +1135,9 @@ struct item_funcs {
     enumitem_show, enumitem_free,
   },
   {
-    evalitem_length, evalitem_write,
+    labelitem_length, labelitem_write,
     NULL, NULL,
-    evalitem_show, evalitem_free,
+    labelitem_show, labelitem_free,
   },
   {
     mbritem_length, mbritem_write,
@@ -1462,12 +1462,12 @@ void image_add_enum(Image *image, char *name, int mbrindex)
   _append_(image, ITEM_ENUM, enumitem, 0);
 }
 
-int image_add_eval(Image *image, char *name, Vector *types, int32_t val)
+int image_add_label(Image *image, char *name, Vector *types, int32_t val)
 {
   int nameindex = stringitem_set(image, name);
   int index = indexitem_set(image, INDEX_TYPELIST, types);
-  EValItem *evitem = evalitem_new(nameindex, index, val);
-  return _append_(image, ITEM_EVAL, evitem, 0);
+  LabelItem *label = labelitem_new(nameindex, index, val);
+  return _append_(image, ITEM_LABEL, label, 0);
 }
 
 int image_add_mbrs(Image *image, MbrIndex *indexes, int size)
@@ -1791,6 +1791,15 @@ void image_load_method(Image *image, int index, getmbrfunc func, void *arg)
   vector_free(ci.freevec);
 }
 
+void image_load_label(Image *image, int index, getmbrfunc func, void *arg)
+{
+  LabelItem *item = _get_(image, ITEM_LABEL, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  IndexItem *listitem = _get_(image, ITEM_INDEX, item->index);
+  Vector *types = to_typedescvec(listitem, image);
+  func(str->data, MBR_LABEL, types, arg);
+}
+
 void image_load_mbrs(Image *image, int index, getmbrfunc func, void *arg)
 {
   MbrItem *item = _get_(image, ITEM_MBR, index);
@@ -1808,8 +1817,8 @@ void image_load_mbrs(Image *image, int index, getmbrfunc func, void *arg)
     case MBR_IFUNC:
       panic("MBR_IFUNC: not implemented");
       break;
-    case MBR_EVAL:
-      panic("MBR_EVAL: not implemented");
+    case MBR_LABEL:
+      image_load_label(image, mbr->index, func, arg);
       break;
     default:
       panic("invalid mbr kind %d", mbr->kind);
@@ -2332,15 +2341,15 @@ Image *image_read_file(char *path, int unload)
         }
       }
       break;
-    case ITEM_EVAL:
-      if (LOAD(ITEM_EVAL)) {
-        EValItem *item;
-        EValItem items[map->size];
-        sz = fread(items, sizeof(EValItem), map->size, fp);
+    case ITEM_LABEL:
+      if (LOAD(ITEM_LABEL)) {
+        LabelItem *item;
+        LabelItem items[map->size];
+        sz = fread(items, sizeof(LabelItem), map->size, fp);
         expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
-          item = item_copy(sizeof(EValItem), items + i);
-          _append_(image, ITEM_EVAL, item, 0);
+          item = item_copy(sizeof(LabelItem), items + i);
+          _append_(image, ITEM_LABEL, item, 0);
         }
       }
       break;

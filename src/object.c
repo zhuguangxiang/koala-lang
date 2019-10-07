@@ -687,13 +687,36 @@ Object *object_call(Object *self, char *name, Object *args)
 
 Object *object_getvalue(Object *self, char *name)
 {
-  Object *res = NULL;
-  Object *ob = object_lookup(self, name);
-  if (ob == NULL) {
-    error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
-    return NULL;
+  Object *ob;
+  if (type_check(self)) {
+     TypeObject *type = (TypeObject *)self;
+    ob = type_lookup(type, name);
+    if (ob == NULL) {
+      error("type of '%s' has no mbr '%s'", type->name, name);
+      return NULL;
+    } else {
+      // no OB_INCREF
+      return ob;
+    }
+  } else {
+    ob = object_lookup(self, name);
+    if (ob == NULL) {
+      error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
+      return NULL;
+    }
   }
 
+  if (type_check(ob)) {
+    TypeObject *type = (TypeObject *)ob;
+    if (!type_isenum(ob)) {
+      error("type of '%s' is not enum", type->name);
+      return NULL;
+    }
+    // no OB_INCREF
+    return ob;
+  }
+
+  Object *res = NULL;
   if (!field_check(ob)) {
     if (method_check(ob)) {
       /* if method has no any parameters, it can be accessed as field. */
@@ -804,4 +827,57 @@ void init_descob_type(void)
   descob_type.desc = desc_from_desc;
   if (type_ready(&descob_type) < 0)
     panic("Cannot initalize 'TypeDesc' type.");
+}
+
+LabelObject *new_label(char *name, Vector *types)
+{
+  LabelObject *label = kmalloc(sizeof(LabelObject));
+  label->name = atom(name);
+  label->types = types;
+  return label;
+}
+
+void type_add_label(TypeObject *type, char *name, Vector *types)
+{
+  expect(type_isenum(type));
+  expect(!type_isgc(type));
+  debug("enum '%s' add label '%s'", type->name, name);
+
+  LabelObject *label = new_label(name, types);
+  init_object_head(label, type);
+
+  struct mnode *node = mnode_new(label->name, (Object *)label);
+  int res = hashmap_add(get_mtbl(type), node);
+  expect(res == 0);
+  OB_DECREF(label);
+}
+
+static void label_free(Object *ob)
+{
+  expect(type_isenum(OB_TYPE(ob)));
+
+  LabelObject *label = (LabelObject *)ob;
+  debug("free label '%s' in enum '%s'", label->name, OB_TYPE_NAME(ob));
+
+  free_descs(label->types);
+  kfree(ob);
+}
+
+static Object *label_str(Object *ob, Object *arg)
+{
+  expect(type_isenum(OB_TYPE(ob)));
+  LabelObject *label = (LabelObject *)ob;
+  return string_new(label->name);
+}
+
+TypeObject *enum_type_new(char *path, char *name)
+{
+  TypeObject *tp = gcnew(sizeof(TypeObject));
+  init_object_head(tp, &type_type);
+  tp->name  = atom(name);
+  tp->desc  = desc_from_klass(path, name);
+  tp->flags = TPFLAGS_ENUM;
+  tp->free  = label_free;
+  tp->str   = label_str;
+  return tp;
 }

@@ -146,6 +146,47 @@ static inline void free_aliases(Vector *vec)
   vector_free(vec);
 }
 
+typedef struct enummembrs {
+  Vector *labels;
+  Vector *methods;
+} EnumMembers;
+
+typedef struct enumlabel {
+  Ident id;
+  int value;
+  Vector *types;
+} EnumLabel;
+
+static inline EnumLabel *new_label(Ident id, int value, Vector *types)
+{
+  EnumLabel *label = kmalloc(sizeof(EnumLabel));
+  label->id = id;
+  label->value = value;
+  label->types = types;
+}
+
+static inline void free_label(EnumLabel *label)
+{
+  TypeDesc *item;
+  vector_for_each(item, label->types) {
+    TYPE_DECREF(item);
+  }
+  vector_free(label->types);
+  kfree(label);
+}
+
+static inline void free_labels(Vector *vec)
+{
+  if (vec == NULL)
+    return;
+
+  EnumLabel *label;
+  vector_for_each(label, vec) {
+    free_label(label);
+  }
+  vector_free(vec);
+}
+
 /* unary operator kind */
 typedef enum unaryopkind {
   /* + */
@@ -354,8 +395,6 @@ typedef enum stmtkind {
   TRAIT_KIND,
   /* enum */
   ENUM_KIND,
-  /* enum value */
-  EVAL_KIND,
   /* break, continue */
   BREAK_KIND, CONTINUE_KIND,
   /* if, while, for, match */
@@ -441,6 +480,12 @@ struct stmt {
       /* body */
       Vector *body;
     } class_stmt;
+    struct {
+      Ident id;
+      /* type parameters */
+      Vector *typeparas;
+      EnumMembers mbrs;
+    } enum_stmt;
   };
 };
 
@@ -467,6 +512,7 @@ Stmt *stmt_from_class(Ident id, Vector *typeparas, ExtendsDef *extends,
 Stmt *stmt_from_trait(Ident id, Vector *typeparas, ExtendsDef *extends,
                       Vector *body);
 Stmt *stmt_from_ifunc(Ident id, Vector *args, Type *ret);
+Stmt *stmt_from_enum(Ident id, Vector *typeparas, EnumMembers mbrs);
 
 #ifdef __cplusplus
 }

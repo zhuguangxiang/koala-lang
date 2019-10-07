@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/utsname.h>
+#include <sys/time.h>
 #include <pthread.h>
 #include "version.h"
 #include "parser.h"
@@ -243,10 +244,27 @@ static void cmd_visit_type(Symbol *sym, Vector *body)
       TypeDesc *proto = parse_proto(idtypes, ret);
       stable_add_ifunc(stbl, s->funcdecl.id.name, proto);
       TYPE_DECREF(proto);
-    } else if (s->kind == EVAL_KIND) {
-
     } else {
       panic("invalid type's body statement: %d", s->kind);
+    }
+  }
+}
+
+static void cmd_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
+{
+  STable *stbl = sym->type.stbl;
+  Symbol *lblsym;
+  EnumLabel *label;
+  vector_for_each(label, labels) {
+    lblsym = stable_add_label(stbl, label->id.name);
+    if (lblsym == NULL) {
+      syntax_error(ps, label->id.row, label->id.col,
+                   "enum label '%s' duplicated.", label->id.name);
+    } else {
+      lblsym->label.esym = sym;
+      lblsym->desc = TYPE_INCREF(sym->desc);
+      lblsym->label.types = label->types;
+      label->types = NULL;
     }
   }
 }
@@ -273,6 +291,12 @@ int cmd_add_type(ParserState *ps, Stmt *stmt)
     break;
   }
   case ENUM_KIND: {
+    sym = stable_add_enum(mod.stbl, stmt->enum_stmt.id.name);
+    any = find_from_builtins("Any");
+    ++any->refcnt;
+    vector_push_back(&sym->type.bases, any);
+    cmd_visit_label(ps, sym, stmt->enum_stmt.mbrs.labels);
+    cmd_visit_type(sym, stmt->enum_stmt.mbrs.methods);
     break;
   }
   default:
@@ -299,12 +323,14 @@ static void _load_mbr_(char *name, int kind, void *data, void *arg)
     type_add_method(type, meth);
     OB_DECREF(code);
     OB_DECREF(meth);
+  } else if (kind == MBR_LABEL) {
+    type_add_label(type, name, data);
   } else {
     panic("_load_mbr__: not implemented");
   }
 }
 
-static void _load_class_(char *name, int index, Image *image, void *arg)
+static void _load_type_(char *name, int index, Image *image, void *arg)
 {
   TypeObject *type = arg;
   expect(!strcmp(name, type->name));
@@ -317,27 +343,43 @@ static void _load_class_(char *name, int index, Image *image, void *arg)
   image_load_mbrs(image, index, _load_mbr_, type);
 }
 
-static void type_from_symbol(Symbol *clssym, TypeObject *type)
-{
-  Image *image = image_new("__main__");
-  class_write_image(clssym, image);
-  image_load_class(image, 0, _load_class_, type);
-  image_free(image);
-}
-
-static inline TypeObject *class_from_symbol(Symbol *sym)
+static TypeObject *class_from_symbol(Symbol *sym)
 {
   TypeObject *tp = type_new(NULL, sym->name, TPFLAGS_CLASS);
-  type_from_symbol(sym, tp);
+
+  Image *image = image_new("__main__");
+  type_write_image(sym, image);
+  image_load_class(image, 0, _load_type_, tp);
+  image_free(image);
+
   if (type_ready(tp) < 0)
     panic("Cannot initalize '%s' type.", sym->name);
   return tp;
 }
 
-static inline TypeObject *trait_from_symbol(Symbol *sym)
+static TypeObject *trait_from_symbol(Symbol *sym)
 {
   TypeObject *tp = type_new(NULL, sym->name, TPFLAGS_TRAIT);
-  type_from_symbol(sym, tp);
+
+  Image *image = image_new("__main__");
+  type_write_image(sym, image);
+  image_load_trait(image, 0, _load_type_, tp);
+  image_free(image);
+
+  if (type_ready(tp) < 0)
+    panic("Cannot initalize '%s' type.", sym->name);
+  return tp;
+}
+
+static TypeObject *enum_from_symbol(Symbol *sym)
+{
+  TypeObject *tp = enum_type_new(NULL, sym->name);
+
+  Image *image = image_new("__main__");
+  type_write_image(sym, image);
+  image_load_enum(image, 0, _load_type_, tp);
+  image_free(image);
+
   if (type_ready(tp) < 0)
     panic("Cannot initalize '%s' type.", sym->name);
   return tp;
@@ -371,6 +413,12 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
   }
   case SYM_TRAIT: {
     TypeObject *tp = trait_from_symbol(sym);
+    module_add_type(ob, tp);
+    OB_DECREF(tp);
+    break;
+  }
+  case SYM_ENUM: {
+    TypeObject *tp = enum_from_symbol(sym);
     module_add_type(ob, tp);
     OB_DECREF(tp);
     break;
@@ -412,7 +460,12 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
       }
       Object *code = code_from_symbol(evalsym);
       code_set_module(code, mo);
+      struct timeval past, future, cost;
+      gettimeofday(&past, NULL);
       koala_evalcode(code, NULL, NULL);
+      gettimeofday(&future, NULL);
+      timersub(&future, &past, &cost);
+      printf("cost: %ld.%06lds\n", cost.tv_sec, cost.tv_usec);
       expect(kstate.top == -1);
       OB_DECREF(code);
     }

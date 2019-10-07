@@ -512,7 +512,6 @@ assert.equal(cl2(), 243)
 
 class Dog {
   name string
-  age int
 
   func __init__(name string, age int) {
     self.name = name
@@ -526,6 +525,8 @@ class Dog {
   func get_age() int {
     age
   }
+
+  age int
 }
 
 // error new Dog()
@@ -554,7 +555,7 @@ func get_dog_age(age int) func() int {
 cl = get_dog_age(10)
 assert.equal(cl(), 566)
 
-const kdog = new Dog("LittleErHa", 30)
+const kdog = new Dog("LittleErHa", 20)
 kdog.name
 // ok
 kdog.age = 26
@@ -578,3 +579,45 @@ disassemble(disassemble)
 disassemble(test_cond)
 disassemble(arr_reverse)
 disassemble(get_dog_age)
+
+new Dog("LittleErHa", 20).get_age()
+
+*/
+//valgrind big data??? 1000_000
+arr3 := [new Dog("LittleErHa", 20)]
+for i in 1...10000 {
+  arr3[i] = new Dog("ErHa", 20 + i)
+}
+//new Array<int>()
+
+import "io"
+// 1000_000, time cost:
+// debug: 5.154327s
+// release: 4.303628s
+// openjdk 11.0.4:
+// cost: 6.734s(the same machine)
+func test_cost() {
+  var dog Dog
+  for i in 1...10000 {
+    dog = arr3[i]
+    //dog.get_name()
+    //dog.get_age()
+    io.println(dog.get_name())
+    io.println(dog.get_age())
+  }
+}
+test_cost()
+
+enum Result {
+  Ok,
+  Err(int, string),
+}
+
+Result.Ok
+Result.Err
+
+r := Result.Ok
+assert.equal(r, Result.Ok)
+
+r = Result.Err
+assert.equal(r, Result.Err)

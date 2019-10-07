@@ -167,6 +167,26 @@ Symbol *stable_add_trait(STable *stbl, char *name)
   return sym;
 }
 
+Symbol *stable_add_enum(STable *stbl, char *name)
+{
+   Symbol *sym = symbol_new(name, SYM_ENUM);
+  if (stable_add_symbol(stbl, sym))
+    return NULL;
+  sym->desc = desc_from_klass(NULL, name);
+  sym->type.stbl = stable_new();
+  symbol_decref(sym);
+  return sym;
+}
+
+Symbol *stable_add_label(STable *stbl, char *name)
+{
+   Symbol *sym = symbol_new(name, SYM_LABEL);
+  if (stable_add_symbol(stbl, sym))
+    return NULL;
+  symbol_decref(sym);
+  return sym;
+}
+
 void symbol_free(Symbol *sym)
 {
   TYPE_DECREF(sym->desc);
@@ -190,7 +210,9 @@ void symbol_free(Symbol *sym)
     break;
   }
   case SYM_CLASS:
-    debug("[Symbol Freed] class '%s'", sym->name);
+  case SYM_TRAIT:
+  case SYM_ENUM:
+    debug("[Symbol Freed] class/trait/enum '%s'", sym->name);
     stable_free(sym->type.stbl);
     Symbol *tmp;
     vector_for_each_reverse(tmp, &sym->type.bases) {
@@ -198,14 +220,9 @@ void symbol_free(Symbol *sym)
     }
     vector_fini(&sym->type.bases);
     break;
-  case SYM_TRAIT:
-    panic("SYM_TRAIT not implemented");
-    break;
-  case SYM_ENUM:
-    panic("SYM_ENUM not implemented");
-    break;
-  case SYM_EVAL:
-    panic("SYM_EVAL not implemented");
+  case SYM_LABEL:
+    debug("[Symbol Freed] enum label '%s'", sym->name);
+    free_descs(sym->label.types);
     break;
   case SYM_IFUNC:
     debug("[Symbol Freed] ifunc '%s'", sym->name);
@@ -392,11 +409,11 @@ static void fill_codeinfo(Symbol *sym, Image *image, CodeInfo *ci)
   bytebuffer_fini(&buf);
 }
 
-void class_write_image(Symbol *clssym, Image *image)
+void type_write_image(Symbol *typesym, Image *image)
 {
-  int size = hashmap_size(&clssym->type.stbl->table);
+  int size = hashmap_size(&typesym->type.stbl->table);
   MbrIndex indexes[size];
-  HASHMAP_ITERATOR(iter, &clssym->type.stbl->table);
+  HASHMAP_ITERATOR(iter, &typesym->type.stbl->table);
   Symbol *sym;
   int j = 0;
   int index;
@@ -424,6 +441,11 @@ void class_write_image(Symbol *clssym, Image *image)
       indexes[j].kind = MBR_IFUNC;
       indexes[j].index = index;
       break;
+    case SYM_LABEL:
+      index = image_add_label(image, sym->name, sym->label.types, 0);
+      indexes[j].kind = MBR_LABEL;
+      indexes[j].index = index;
+      break;
     default:
       panic("invalid symbol kind %d in class/trait/enum", sym->kind);
       break;
@@ -433,30 +455,37 @@ void class_write_image(Symbol *clssym, Image *image)
 
   index = image_add_mbrs(image, indexes, size);
 
-  Vector *bases = &clssym->type.bases;
-  Vector *descs = vector_new();
+  Vector *bases = &typesym->type.bases;
+  Vector *types = vector_new();
   Symbol *s;
   vector_for_each(s, bases) {
-    vector_push_back(descs, s->desc);
+    vector_push_back(types, s->desc);
   }
-  image_add_class(image, clssym->name, descs, index);
-  vector_free(descs);
+  if (typesym->kind == SYM_CLASS) {
+    image_add_class(image, typesym->name, types, index);
+  } else if (typesym->kind == SYM_TRAIT) {
+    image_add_trait(image, typesym->name, types, index);
+  } else {
+    expect(typesym->kind == SYM_ENUM);
+    image_add_enum(image, typesym->name, index);
+  }
+  vector_free(types);
 }
 
-Symbol *klass_find_member(Symbol *clsSym, char *name)
+Symbol *type_find_mbr(Symbol *typeSym, char *name)
 {
-  if (clsSym->kind != SYM_CLASS) {
-    error("sym '%s' is not class", clsSym->name);
+  if (typeSym->kind != SYM_CLASS && typeSym->kind != SYM_ENUM) {
+    error("sym '%s' is not class/trait/enum", typeSym->name);
     return NULL;
   }
 
-  Symbol *sym = stable_get(clsSym->type.stbl, name);
+  Symbol *sym = stable_get(typeSym->type.stbl, name);
   if (sym != NULL)
     return sym;
 
   Symbol *item;
-  vector_for_each_reverse(item, &clsSym->type.bases) {
-    sym = klass_find_member(item, name);
+  vector_for_each_reverse(item, &typeSym->type.bases) {
+    sym = type_find_mbr(item, name);
     if (sym != NULL)
       return sym;
   }

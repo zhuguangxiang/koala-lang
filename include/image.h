@@ -51,7 +51,7 @@ extern "C" {
 #define ITEM_TRAIT      15
 #define ITEM_IFUNC      16
 #define ITEM_ENUM       17
-#define ITEM_EVAL       18
+#define ITEM_LABEL      18
 #define ITEM_MBR        19
 #define ITEM_MAX        20
 
@@ -184,16 +184,16 @@ typedef struct enumitem {
   int32_t mbrindex;    /* ->IndexItem */
 } EnumItem;
 
-typedef struct evalitem {
+typedef struct labelitem {
   int32_t nameindex;  /* ->StringItem */
   int32_t index;      /* ->IndexItem */
-  int32_t value;      /* enum integer value */
-} EValItem;
+  int32_t value;      /* integer value */
+} LabelItem;
 
 #define MBR_FIELD   1
 #define MBR_METHOD  2
 #define MBR_IFUNC   3
-#define MBR_EVAL    4
+#define MBR_LABEL   4
 typedef struct mbrindex {
   int kind;
   int index;
@@ -265,7 +265,7 @@ void image_add_enum(Image *image, char *name, int mbrindex);
 int image_add_field(Image *image, char *name, TypeDesc *desc);
 int image_add_method(Image *image, CodeInfo *ci);
 int image_add_ifunc(Image *image, char *name, TypeDesc *desc);
-int image_add_eval(Image *image, char *name, Vector *types, int32_t val);
+int image_add_label(Image *image, char *name, Vector *types, int32_t val);
 int image_add_mbrs(Image *image, MbrIndex *indexes, int size);
 
 Image *image_new(char *name);

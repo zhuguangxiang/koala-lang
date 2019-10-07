@@ -27,21 +27,28 @@
 static Object *assert_equal(Object *self, Object *arg)
 {
   extern int halt;
+  int failed = 0;
   expect(module_check(self));
   expect(tuple_check(arg));
   expect(tuple_size(arg) == 2);
+
   Object *ob1 = tuple_get(arg, 0);
   Object *ob2 = tuple_get(arg, 1);
-  Object *res = OB_TYPE(ob1)->equal(ob1, ob2);
-  int failed = bool_isfalse(res);
+
+  if (ob1 != ob2) {
+    Object *res = OB_TYPE(ob1)->equal(ob1, ob2);
+    int failed = bool_isfalse(res);
+    OB_DECREF(res);
+  }
+
   OB_DECREF(ob1);
   OB_DECREF(ob2);
-  OB_DECREF(res);
 
   if (failed) {
     error("assert.equal failed\n");
     halt = 1;
   }
+
   return NULL;
 }
 

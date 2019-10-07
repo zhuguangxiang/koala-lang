@@ -580,8 +580,21 @@ Stmt *stmt_from_ifunc(Ident id, Vector *args, Type *ret)
   return stmt;
 }
 
+Stmt *stmt_from_enum(Ident id, Vector *typeparas, EnumMembers mbrs)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = ENUM_KIND;
+  stmt->enum_stmt.id = id;
+  stmt->enum_stmt.typeparas = typeparas;
+  stmt->enum_stmt.mbrs = mbrs;
+  return stmt;
+}
+
 void stmt_block_free(Vector *vec)
 {
+  if (vec == NULL)
+    return;
+
   Stmt *stmt;
   vector_for_each(stmt, vec) {
     stmt_free(stmt);
@@ -665,6 +678,11 @@ void stmt_free(Stmt *stmt)
   case TRAIT_KIND:
     free_extends(stmt->class_stmt.extends);
     stmt_block_free(stmt->class_stmt.body);
+    kfree(stmt);
+    break;
+  case ENUM_KIND:
+    free_labels(stmt->enum_stmt.mbrs.labels);
+    stmt_block_free(stmt->enum_stmt.mbrs.methods);
     kfree(stmt);
     break;
   case IFUNC_KIND:

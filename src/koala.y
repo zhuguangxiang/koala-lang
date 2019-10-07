@@ -75,6 +75,8 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
   ExtendsDef *extendsdef;
   Vector *typelist;
   Vector *aliaslist;
+  EnumMembers enummbrs;
+  EnumLabel *enumlabel;
 }
 
 %token IMPORT
@@ -185,6 +187,10 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 %type <list> trait_member_decls
 %type <stmt> trait_member_decl
 %type <stmt> proto_decl
+%type <enummbrs> enum_members
+%type <list> enum_labels
+%type <list> enum_methods
+%type <enumlabel> enum_label
 
 %type <expr> new_object
 %type <expr> anony_func
@@ -1486,7 +1492,7 @@ type_decl:
 }
 | ENUM name '{' enum_members '}'
 {
-  $$ = NULL;
+  $$ = stmt_from_enum($2.id, $2.vec, $4);
 }
 ;
 
@@ -1686,30 +1692,98 @@ proto_decl:
 
 enum_members:
   enum_labels
+{
+  $$.labels = $1;
+  $$.methods = NULL;
+}
 | enum_labels ','
+{
+  $$.labels = $1;
+  $$.methods = NULL;
+}
 | enum_labels ';'
+{
+  $$.labels = $1;
+  $$.methods = NULL;
+}
 | enum_labels enum_methods
+{
+  $$.labels = $1;
+  $$.methods = $2;
+}
 | enum_labels ',' enum_methods
+{
+  $$.labels = $1;
+  $$.methods = $3;
+}
 | enum_labels ';' enum_methods
+{
+  $$.labels = $1;
+  $$.methods = $3;
+}
 ;
 
 enum_labels:
   enum_label
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | enum_labels ',' enum_label
+{
+  $$ = $1;
+  vector_push_back($$, $3);
+}
 ;
 
 enum_label:
   ID
+{
+  IDENT(id, $1, @1);
+  $$ = new_label(id, -1, NULL);
+}
 | ID '(' type_list ')'
+{
+  IDENT(id, $1, @1);
+  $$ = new_label(id, -1, $3);
+}
+/*
+NOTES: unsupport C-like enum yet. Is it really need support ?
+
 | ID '=' INT_LITERAL
+{
+  IDENT(id, $1, @1);
+  $$ = new_label(id, $3, NULL);
+}
 | ID '=' '-' INT_LITERAL
+{
+  IDENT(id, $1, @1);
+  $$ = new_label(id, -$4, NULL);
+}
+*/
 ;
 
 enum_methods:
   method_decl
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | method_decl ';'
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | enum_methods method_decl
+{
+  $$ = $1;
+  vector_push_back($$, $2);
+}
 | enum_methods method_decl ';'
+{
+  $$ = $1;
+  vector_push_back($$, $2);
+}
 ;
 
 type_list:

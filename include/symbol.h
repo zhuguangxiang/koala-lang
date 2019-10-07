@@ -48,7 +48,7 @@ typedef enum symbolkind {
   SYM_CLASS  = 4,   /* class              */
   SYM_TRAIT  = 5,   /* trait              */
   SYM_ENUM   = 6,   /* enum               */
-  SYM_EVAL   = 7,   /* enum value         */
+  SYM_LABEL  = 7,   /* enum label         */
   SYM_IFUNC  = 8,   /* interface method   */
   SYM_ANONY  = 9,   /* anonymous function */
   SYM_MOD    = 10,  /* (external) module  */
@@ -112,9 +112,8 @@ struct symbol {
       /* which enum is it? */
       Symbol *esym;
       /* associated types, TypeDesc */
-      Vector *descs;
-      Vector *syms;
-    } ev;
+      Vector *types;
+    } label;
     struct {
       /* local varibles in the closure */
       Vector locvec;
@@ -154,13 +153,16 @@ Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto);
 Symbol *stable_add_ifunc(STable *stbl, char *name, TypeDesc *proto);
 Symbol *stable_add_class(STable *stbl, char *name);
 Symbol *stable_add_trait(STable *stbl, char *name);
+Symbol *stable_add_enum(STable *stbl, char *name);
+Symbol *stable_add_label(STable *stbl, char *name);
 void symbol_decref(Symbol *sym);
 void symbol_free(Symbol *sym);
 STable *stable_from_mobject(Object *ob);
-Symbol *klass_find_member(Symbol *clsSym, char *name);
+Symbol *type_find_mbr(Symbol *clsSym, char *name);
+Symbol *enum_find_mbr(Symbol *eSym, char *name);
 void fill_locvars(Symbol *sym, Vector *vec);
 void free_locvars(Vector *locvec);
-void class_write_image(Symbol *clssym, Image *image);
+void type_write_image(Symbol *clssym, Image *image);
 
 #ifdef __cplusplus
 }
