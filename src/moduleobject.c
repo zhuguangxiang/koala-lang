@@ -126,19 +126,6 @@ void module_add_type(Object *self, TypeObject *type)
   expect(res == 0);
 }
 
-void module_add_const(Object *self, Object *ob, Object *val)
-{
-  ModuleObject *module = (ModuleObject *)self;
-  FieldObject *field = (FieldObject *)ob;
-  field->owner = self;
-  field->offset = module->nrvars;
-  vector_set(&module->values, module->nrvars, OB_INCREF(val));
-  ++module->nrvars;
-  struct mnode *node = mnode_new(field->name, ob);
-  int res = hashmap_add(get_mtbl(self), node);
-  expect(res == 0);
-}
-
 void module_add_var(Object *self, Object *ob)
 {
   ModuleObject *module = (ModuleObject *)self;

@@ -173,7 +173,7 @@ void symbol_free(Symbol *sym)
 
   switch (sym->kind) {
   case SYM_CONST:
-    panic("SYM_CONST not implemented");
+    debug("[Symbol Freed] const '%s'", sym->name);
     break;
   case SYM_VAR:
     debug("[Symbol Freed] var '%s'", sym->name);

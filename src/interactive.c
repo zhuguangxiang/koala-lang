@@ -346,9 +346,7 @@ static inline TypeObject *trait_from_symbol(Symbol *sym)
 static void add_symbol_to_module(Symbol *sym, Object *ob)
 {
   switch (sym->kind) {
-  case SYM_CONST: {
-    break;
-  }
+  case SYM_CONST:
   case SYM_VAR: {
     Object *field = field_new(sym->name, sym->desc);
     Field_SetFunc(field, field_default_setter, field_default_getter);

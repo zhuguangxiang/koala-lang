@@ -89,8 +89,6 @@ struct symbol {
       Symbol *typesym;
       /* variable index */
       int32_t index;
-      /* constant value */
-      Literal value;
     } var;
     struct {
       /* type parameters, only for in module */

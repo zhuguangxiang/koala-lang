@@ -60,8 +60,6 @@ void module_uninstall(char *path);
 
 void module_add_type(Object *self, TypeObject *type);
 
-void module_add_const(Object *self, Object *ob, Object *val);
-
 void module_add_var(Object *self, Object *ob);
 void module_add_vardef(Object *self, FieldDef *f);
 void module_add_vardefs(Object *self, FieldDef *def);

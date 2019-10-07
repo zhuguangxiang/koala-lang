@@ -21,6 +21,22 @@ assert.equal(arr[0] + i, 101)
 
 //arr[0] + s
 
+const NAME = "James Chu"
+assert.equal(NAME, "James Chu")
+
+// error: cannot assign to const 'NAME'
+NAME = "Jacky Chu"
+
+// error: cannot assign to const 'NAME'
+func change_const() {
+  NAME = 123
+}
+
+// error: invalid statement(not allowed to define in func)
+func define_const() {
+  const VAL = 123
+}
+
 func test() int {
   100 + 200
 }
@@ -448,9 +464,13 @@ class Animal {
   name string;
   type string;
   age int;
+  func __init__() {
+    type = "Cat"
+  }
 }
 
 an := new Animal()
+assert.equal(an.type, "Cat")
 an.name = "WangWang"
 an.type = "dog"
 an.age = 24

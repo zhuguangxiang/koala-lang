@@ -611,8 +611,6 @@ void stmt_free(Stmt *stmt)
     kfree(stmt);
     break;
   case CONST_KIND:
-    kfree(stmt);
-    break;
   case VAR_KIND:
     TYPE_DECREF(stmt->vardecl.type.desc);
     expr_free(stmt->vardecl.exp);

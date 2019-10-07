@@ -1045,8 +1045,13 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
     CODE_OP(OP_LOAD_GLOBAL);
     CODE_OP_S(OP_GET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_STORE) {
-    CODE_OP(OP_LOAD_GLOBAL);
-    CODE_OP_S(OP_SET_VALUE, exp->id.name);
+    if (sym->kind == SYM_CONST) {
+      syntax_error(ps, exp->row, exp->col,
+                   "cannot assign to const '%s'", sym->name);
+    } else {
+      CODE_OP(OP_LOAD_GLOBAL);
+      CODE_OP_S(OP_SET_VALUE, exp->id.name);
+    }
   } else if (exp->ctx == EXPR_CALL_FUNC) {
     if (sym->kind == SYM_FUNC) {
       CODE_OP(OP_LOAD_GLOBAL);
@@ -1138,8 +1143,13 @@ static void ident_up_func(ParserState *ps, Expr *exp)
       CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S(OP_GET_VALUE, exp->id.name);
     } else if (exp->ctx == EXPR_STORE) {
-      CODE_OP(OP_LOAD_GLOBAL);
-      CODE_OP_S(OP_SET_VALUE, exp->id.name);
+      if (sym->kind == SYM_CONST) {
+        syntax_error(ps, exp->row, exp->col,
+                     "cannot assign to const '%s'", sym->name);
+      } else {
+        CODE_OP(OP_LOAD_GLOBAL);
+        CODE_OP_S(OP_SET_VALUE, exp->id.name);
+      }
     } else if (exp->ctx == EXPR_INPLACE) {
       CODE_OP(OP_LOAD_GLOBAL);
       parse_attr_inplace(ps, exp->id.name, exp);
@@ -2248,8 +2258,8 @@ static void parse_new(ParserState *ps, Expr *exp)
 
     if (desc->kind == TYPE_KLASS)  {
       CODE_OP_TYPE(OP_NEW, desc);
+      CODE_OP(OP_DUP);
       if (argc > 0) {
-        CODE_OP(OP_DUP);
         Expr *e;
         vector_for_each_reverse(e, args) {
           e->ctx = EXPR_LOAD;
@@ -2398,6 +2408,61 @@ static void parse_import(ParserState *ps, Stmt *s)
     } else {
       debug("'%s' already imported", path);
       sym->mod.ptr = mod;
+    }
+  }
+}
+
+static void parse_constdecl(ParserState *ps, Stmt *stmt)
+{
+  Expr *exp = stmt->vardecl.exp;
+  Ident *id = &stmt->vardecl.id;
+  Type *type = &stmt->vardecl.type;
+  TypeDesc *desc = type->desc;
+
+  if (exp != NULL) {
+    exp->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, exp);
+
+    if (desc == NULL) {
+      desc = exp->desc;
+    }
+
+    if (desc == NULL) {
+      return;
+    }
+
+    if (!desc_check(desc, exp->desc)) {
+      syntax_error(ps, exp->row, exp->col, "types are not matched");
+    }
+  }
+
+  ParserUnit *u = ps->u;
+
+  /* get const variable type symbol */
+  Symbol *sym = stable_get(u->stbl, id->name);
+  if (sym == NULL) {
+    syntax_error(ps, id->row, id->col, "cannot find symbol '%s'", id->name);
+    return;
+  }
+
+  expect(sym->kind == SYM_CONST);
+
+  if (sym->desc == NULL) {
+    sym->desc = TYPE_INCREF(desc);
+  }
+
+  if (sym->var.typesym == NULL) {
+    sym->var.typesym = get_desc_symbol(ps, sym->desc);
+  }
+
+  /* generate codes */
+  if (exp != NULL && !has_error(ps)) {
+    ScopeKind scope = u->scope;
+    if (scope == SCOPE_MODULE) {
+      CODE_OP(OP_LOAD_GLOBAL);
+      CODE_OP_S(OP_SET_VALUE, id->name);
+    } else {
+      panic("bug? const can be only defined in module.");
     }
   }
 }
@@ -2899,7 +2964,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
   static void (*handlers[])(ParserState *, Stmt *) = {
     NULL,               /* INVALID        */
     parse_import,       /* IMPORT_KIND    */
-    NULL,               /* CONST_KIND     */
+    parse_constdecl,    /* CONST_KIND     */
     parse_vardecl,      /* VAR_KIND       */
     parse_assign,       /* ASSIGN_KIND    */
     parse_funcdecl,     /* FUNC_KIND      */

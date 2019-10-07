@@ -568,11 +568,14 @@ id_as_list:
 const_decl:
   CONST ID '=' expr ';'
 {
-  $$ = NULL;
+  IDENT(id, $2, @2);
+  $$ = stmt_from_constdecl(id, NULL, $4);
 }
 | CONST ID type '=' expr ';'
 {
-  $$ = NULL;
+  IDENT(id, $2, @2);
+  TYPE(type, $3, @3);
+  $$ = stmt_from_constdecl(id, &type, $5);
 }
 ;
 
