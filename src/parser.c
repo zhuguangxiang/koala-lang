@@ -1490,6 +1490,10 @@ static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
     }
     break;
   }
+  case TYPE_LABEL: {
+    return TYPE_INCREF(ref);
+    break;
+  }
   default:
     panic("which type? generic type bug!");
     break;
@@ -1599,7 +1603,18 @@ static void parse_atrr(ParserState *ps, Expr *exp)
     }
     case SYM_LABEL: {
       if (exp->ctx == EXPR_LOAD) {
-        CODE_OP_S(OP_GET_VALUE, id->name);
+        if (sym->label.types != NULL) {
+          syntax_error(ps, id->row, id->col,
+                       "enum '%s' needs values", id->name);
+        } else{
+          CODE_OP_S_ARGC(OP_NEW_EVAL, id->name, exp->argc);
+        }
+      } else if (exp->ctx == EXPR_CALL_FUNC) {
+        if (sym->label.types == NULL) {
+          syntax_error(ps, id->row, id->col, "enum '%s' no values", id->name);
+        } else {
+          CODE_OP_S_ARGC(OP_NEW_EVAL, id->name, exp->argc);
+        }
       } else {
         syntax_error(ps, id->row, id->col, "enum '%s' is readonly", id->name);
       }
@@ -1737,6 +1752,25 @@ static int check_call_args(TypeDesc *proto, Vector *args)
   return 0;
 }
 
+static int check_label_args(TypeDesc *label, Vector *args)
+{
+  Vector *descs = label->label.types;
+  int sz = vector_size(descs);
+  int argc = vector_size(args);
+  if (sz != argc)
+    return -1;
+
+  TypeDesc *desc;
+  Expr *arg;
+  for (int i = 0; i < sz; ++i) {
+    desc = vector_get(descs, i);
+    arg = vector_get(args, i);
+    if (!desc_check(desc, arg->desc))
+      return -1;
+  }
+  return 0;
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
   Vector *args = exp->call.args;
@@ -1751,23 +1785,32 @@ static void parse_call(ParserState *ps, Expr *exp)
   lexp->ctx = EXPR_CALL_FUNC;
   parser_visit_expr(ps, lexp);
   TypeDesc *desc = lexp->desc;
-  if (desc != NULL && desc->kind != TYPE_PROTO) {
-    syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
+  if (desc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col, "cannot resolve left expr's type");
+    return;
   }
 
-  if (lexp->kind == CALL_KIND && desc->kind == TYPE_PROTO) {
-    debug("left expr is func call and ret is func");
-    CODE_OP_ARGC(OP_EVAL, lexp->argc);
-  }
-
-  // check call arguments
-  if (!has_error(ps)) {
+  if (desc->kind == TYPE_PROTO) {
     if (check_call_args(desc, args)) {
       syntax_error(ps, exp->row, exp->col, "call args check failed");
     } else {
       exp->desc = TYPE_INCREF(desc->proto.ret);
       exp->sym = get_desc_symbol(ps, exp->desc);
     }
+  } else if (desc->kind == TYPE_LABEL) {
+    if (check_label_args(desc, args)) {
+      syntax_error(ps, exp->row, exp->col, "enum args check failed");
+    } else {
+      exp->desc = TYPE_INCREF(desc->label.edesc);
+      exp->sym = get_desc_symbol(ps, exp->desc);
+    }
+  } else {
+    syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
+  }
+
+  if (lexp->kind == CALL_KIND && desc->kind == TYPE_PROTO) {
+    debug("left expr is func call and ret is func");
+    CODE_OP_ARGC(OP_EVAL, lexp->argc);
   }
 }
 

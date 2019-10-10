@@ -1798,6 +1798,7 @@ void image_load_label(Image *image, int index, getmbrfunc func, void *arg)
   IndexItem *listitem = _get_(image, ITEM_INDEX, item->index);
   Vector *types = to_typedescvec(listitem, image);
   func(str->data, MBR_LABEL, types, arg);
+  free_descs(types);
 }
 
 void image_load_mbrs(Image *image, int index, getmbrfunc func, void *arg)

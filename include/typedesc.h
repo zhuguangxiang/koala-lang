@@ -65,6 +65,7 @@ typedef enum desckind {
   TYPE_PROTO,
   TYPE_PARAREF,
   TYPE_PARADEF,
+  TYPE_LABEL,
   TYPE_MAX,
 } DescKind;
 
@@ -104,6 +105,13 @@ struct typedesc {
       char *name;
       Vector *types;
     } paradef;
+    /* TYPE_LABEL */
+    struct {
+      /* its enum type */
+      TypeDesc *edesc;
+      /* associated types */
+      Vector *types;
+    } label;
   };
 };
 
@@ -157,6 +165,7 @@ TypeDesc *desc_from_klass(char *path, char *type);
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
 TypeDesc *desc_from_pararef(char *name, int index);
 TypeDesc *desc_from_paradef(char *name, Vector *types);
+TypeDesc *desc_from_label(TypeDesc *edesc, Vector *types);
 #define desc_from_varg  desc_from_klass("lang", "VArg")
 #define desc_from_array desc_from_klass("lang", "Array")
 #define desc_from_map   desc_from_klass("lang", "Map")

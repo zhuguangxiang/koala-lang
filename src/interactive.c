@@ -262,7 +262,7 @@ static void cmd_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
                    "enum label '%s' duplicated.", label->id.name);
     } else {
       lblsym->label.esym = sym;
-      lblsym->desc = TYPE_INCREF(sym->desc);
+      lblsym->desc = desc_from_label(sym->desc, label->types);
       lblsym->label.types = label->types;
       label->types = NULL;
     }

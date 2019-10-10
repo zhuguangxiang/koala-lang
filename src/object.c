@@ -829,22 +829,40 @@ void init_descob_type(void)
     panic("Cannot initalize 'TypeDesc' type.");
 }
 
-LabelObject *new_label(char *name, Vector *types)
+static void label_free(Object *ob)
 {
-  LabelObject *label = kmalloc(sizeof(LabelObject));
-  label->name = atom(name);
-  label->types = types;
-  return label;
+  expect(label_check(ob));
+
+  LabelObject *label = (LabelObject *)ob;
+  debug("free label '%s'", label->name);
+
+  free_descs(label->types);
+  kfree(ob);
 }
 
-void type_add_label(TypeObject *type, char *name, Vector *types)
+TypeObject label_type = {
+  OBJECT_HEAD_INIT(&type_type)
+  .name = "EnumLabel",
+  .free = label_free,
+};
+
+void type_add_label(TypeObject *type, char *name, Vector *_types)
 {
   expect(type_isenum(type));
-  expect(!type_isgc(type));
   debug("enum '%s' add label '%s'", type->name, name);
 
-  LabelObject *label = new_label(name, types);
-  init_object_head(label, type);
+  LabelObject *label = kmalloc(sizeof(LabelObject));
+  init_object_head(label, &label_type);
+  label->name = atom(name);
+  Vector *types = NULL;
+  if (_types != NULL) {
+    types = vector_new();
+    TypeDesc *item;
+    vector_for_each(item, _types) {
+      vector_push_back(types, TYPE_INCREF(item));
+    }
+  }
+  label->types = types;
 
   struct mnode *node = mnode_new(label->name, (Object *)label);
   int res = hashmap_add(get_mtbl(type), node);
@@ -852,22 +870,31 @@ void type_add_label(TypeObject *type, char *name, Vector *types)
   OB_DECREF(label);
 }
 
-static void label_free(Object *ob)
+static void enum_free(Object *ob)
 {
   expect(type_isenum(OB_TYPE(ob)));
 
-  LabelObject *label = (LabelObject *)ob;
-  debug("free label '%s' in enum '%s'", label->name, OB_TYPE_NAME(ob));
+  EnumObject *eob = (EnumObject *)ob;
+  debug("free enum object '%s' of '%s'", eob->name, OB_TYPE_NAME(ob));
 
-  free_descs(label->types);
+  OB_DECREF(eob->values);
   kfree(ob);
 }
 
-static Object *label_str(Object *ob, Object *arg)
+static Object *enum_str(Object *ob, Object *arg)
 {
   expect(type_isenum(OB_TYPE(ob)));
-  LabelObject *label = (LabelObject *)ob;
-  return string_new(label->name);
+  EnumObject *eob = (EnumObject *)ob;
+  return string_new(eob->name);
+}
+
+static Object *enum_equal(Object *ob1, Object *ob2)
+{
+  expect(type_isenum(OB_TYPE(ob1)));
+  expect(OB_TYPE(ob1) == OB_TYPE(ob2));
+  EnumObject *eob1 = (EnumObject *)ob1;
+  EnumObject *eob2 = (EnumObject *)ob2;
+  return !strcmp(eob1->name, eob2->name) ? bool_true() : bool_false();
 }
 
 TypeObject *enum_type_new(char *path, char *name)
@@ -877,7 +904,18 @@ TypeObject *enum_type_new(char *path, char *name)
   tp->name  = atom(name);
   tp->desc  = desc_from_klass(path, name);
   tp->flags = TPFLAGS_ENUM;
-  tp->free  = label_free;
-  tp->str   = label_str;
+  tp->free  = enum_free;
+  tp->str   = enum_str;
+  tp->equal = enum_equal;
   return tp;
+}
+
+Object *enum_new(Object *type, char *name, Object *values)
+{
+  expect(type_isenum(type));
+  EnumObject *eob = kmalloc(sizeof(EnumObject));
+  init_object_head(eob, (TypeObject *)type);
+  eob->name = name;
+  eob->values = OB_INCREF(values);
+  return (Object *)eob;
 }

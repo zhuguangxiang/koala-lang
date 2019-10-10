@@ -181,6 +181,24 @@ TypeDesc *desc_from_paradef(char *name, Vector *types)
   return desc;
 }
 
+TypeDesc *desc_from_label(TypeDesc *edesc, Vector *_types)
+{
+  TypeDesc *desc = kmalloc(sizeof(TypeDesc));
+  desc->kind = TYPE_LABEL;
+  desc->refcnt = 1;
+  desc->label.edesc = TYPE_INCREF(edesc);
+  Vector *types = NULL;
+  if (_types != NULL) {
+    types = vector_new();
+    TypeDesc *item;
+    vector_for_each(item, _types) {
+      vector_push_back(types, TYPE_INCREF(item));
+    }
+  }
+  desc->label.types = types;
+  return desc;
+}
+
 void desc_add_paratype(TypeDesc *desc, TypeDesc *type)
 {
   expect(type->kind != TYPE_PARADEF);
@@ -242,6 +260,12 @@ void desc_free(TypeDesc *desc)
   }
   case TYPE_PARADEF: {
     free_descs(desc->paradef.types);
+    kfree(desc);
+    break;
+  }
+  case TYPE_LABEL: {
+    TYPE_DECREF(desc->label.edesc);
+    free_descs(desc->label.types);
     kfree(desc);
     break;
   }

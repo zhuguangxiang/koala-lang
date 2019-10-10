@@ -1032,6 +1032,30 @@ Object *Koala_EvalFrame(CallFrame *f)
       OB_DECREF(z);
       break;
     }
+    case OP_NEW_EVAL: {
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      oparg = NEXT_BYTE();
+      y = POP();
+      if (oparg == 0) {
+        z = NULL;
+      } else if (oparg == 1) {
+        z = POP();
+      } else {
+        z = tuple_new(oparg);
+        for (i = 0; i < oparg; ++i) {
+          v = POP();
+          tuple_set(z, i, v);
+          OB_DECREF(v);
+        }
+      }
+      w = enum_new(y, string_asstr(x), z);
+      PUSH(w);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      OB_DECREF(z);
+      break;
+    }
     default: {
       panic("unknown opcode: %d", op);
       break;
