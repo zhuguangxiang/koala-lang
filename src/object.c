@@ -842,9 +842,16 @@ static void label_free(Object *ob)
 
 TypeObject label_type = {
   OBJECT_HEAD_INIT(&type_type)
-  .name = "EnumLabel",
+  .name = "Label",
   .free = label_free,
 };
+
+void init_label_type(void)
+{
+  label_type.desc = desc_from_klass("lang", "Label");
+  if (type_ready(&label_type) < 0)
+    panic("Cannot initalize 'Label' type.");
+}
 
 void type_add_label(TypeObject *type, char *name, Vector *_types)
 {
@@ -891,11 +898,19 @@ static Object *enum_str(Object *ob, Object *arg)
 static Object *enum_equal(Object *ob1, Object *ob2)
 {
   expect(type_isenum(OB_TYPE(ob1)));
+  expect(type_isenum(OB_TYPE(ob2)));
   expect(OB_TYPE(ob1) == OB_TYPE(ob2));
   EnumObject *eob1 = (EnumObject *)ob1;
   EnumObject *eob2 = (EnumObject *)ob2;
+  if (eob1 == eob2)
+    return bool_true();
   return !strcmp(eob1->name, eob2->name) ? bool_true() : bool_false();
 }
+
+static MethodDef enum_methods[] = {
+  {"__eq__", "A", "z", enum_equal},
+  {NULL},
+};
 
 TypeObject *enum_type_new(char *path, char *name)
 {
@@ -907,15 +922,30 @@ TypeObject *enum_type_new(char *path, char *name)
   tp->free  = enum_free;
   tp->str   = enum_str;
   tp->equal = enum_equal;
+  tp->methods = enum_methods;
   return tp;
 }
 
-Object *enum_new(Object *type, char *name, Object *values)
+static Object *enum_new_values(TypeObject *type, char *name, Object *values)
 {
-  expect(type_isenum(type));
   EnumObject *eob = kmalloc(sizeof(EnumObject));
-  init_object_head(eob, (TypeObject *)type);
-  eob->name = name;
+  init_object_head(eob, type);
+  eob->name = atom(name);
   eob->values = OB_INCREF(values);
   return (Object *)eob;
+}
+
+Object *enum_new(Object *ob, char *name, Object *values)
+{
+  if (type_isenum(ob)) {
+    return enum_new_values((TypeObject *)ob, name, values);
+  } else {
+    expect(type_isenum(OB_TYPE(ob)));
+    if (values == NULL) {
+      // return itself
+      return OB_INCREF(ob);
+    } else {
+      return enum_new_values(OB_TYPE(ob), name, values);
+    }
+  }
 }

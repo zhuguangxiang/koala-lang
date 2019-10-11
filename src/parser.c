@@ -403,6 +403,8 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     bytebuffer_write_2bytes(buf, i->offset);
     break;
   case OP_NEW_TUPLE:
+    bytebuffer_write_2bytes(buf, i->arg.ival);
+    break;
   case OP_NEW_MAP:
     index = image_add_desc(image, i->desc);
     bytebuffer_write_2bytes(buf, index);
@@ -956,6 +958,9 @@ Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
   case TYPE_PROTO:
     sym = get_desc_symbol(ps, desc->proto.ret);
     break;
+  case TYPE_LABEL:
+    sym = get_desc_symbol(ps, desc->label.edesc);
+    break;
   default:
     panic("invalid desc %d", desc->kind);
     break;
@@ -1138,6 +1143,7 @@ static void ident_in_anony(ParserState *ps, Expr *exp)
 
 static void ident_up_func(ParserState *ps, Expr *exp)
 {
+  Symbol *sym = exp->sym;
   ParserUnit *up = exp->id.scope;
   if (up->scope == SCOPE_MODULE) {
     Symbol *sym = exp->sym;
@@ -1169,7 +1175,12 @@ static void ident_up_func(ParserState *ps, Expr *exp)
   } else if (up->scope == SCOPE_CLASS) {
     if (exp->ctx == EXPR_LOAD) {
       CODE_LOAD(0);
-      CODE_OP_S(OP_GET_VALUE, exp->id.name);
+      if (sym->kind == SYM_LABEL) {
+        debug("sym '%s' is enum label", sym->name);
+        CODE_OP_S_ARGC(OP_NEW_EVAL, exp->id.name, exp->argc);
+      } else {
+        CODE_OP_S(OP_GET_VALUE, exp->id.name);
+      }
     } else if (exp->ctx == EXPR_STORE) {
       CODE_LOAD(0);
       CODE_OP_S(OP_SET_VALUE, exp->id.name);

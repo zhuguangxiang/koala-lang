@@ -182,6 +182,7 @@ void init_lang_module(void)
   module_add_type(m, &proto_type);
   module_add_type(m, &class_type);
   module_add_type(m, &module_type);
+  module_add_type(m, &label_type);
   module_add_type(m, &iter_type);
   module_add_type(m, &range_type);
   module_add_type(m, &code_type);

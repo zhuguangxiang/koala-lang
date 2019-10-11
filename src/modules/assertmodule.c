@@ -37,7 +37,7 @@ static Object *assert_equal(Object *self, Object *arg)
 
   if (ob1 != ob2) {
     Object *res = OB_TYPE(ob1)->equal(ob1, ob2);
-    int failed = bool_isfalse(res);
+    failed = bool_isfalse(res);
     OB_DECREF(res);
   }
 

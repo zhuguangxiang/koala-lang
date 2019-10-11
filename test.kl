@@ -615,9 +615,37 @@ enum Result {
 
 Result.Ok
 Result.Err
+Result.Err(1, 2)
+Result.Err(1, "hello")
 
-r := Result.Ok
-assert.equal(r, Result.Ok)
+import "assert"
 
-r = Result.Err
-assert.equal(r, Result.Err)
+ok := Result.Ok
+assert.equal(ok, Result.Ok)
+
+err := Result.Err(1, "foo")
+assert.equal(err, Result.Err(1, "foo"))
+
+ok == err
+
+Result.Err(1, "hello").0
+
+enum Option {
+  None,
+  Some(int, string),
+
+  func is_some() bool {
+    return (self == None) ? false : true
+  }
+
+  func is_none() bool {
+    return (self == None) ? true : false
+  }
+}
+
+opt := Option.None
+
+opt.is_some()
+opt.is_none()
+
+opt = Option.Some(1, "foo")

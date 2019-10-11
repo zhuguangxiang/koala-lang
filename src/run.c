@@ -58,7 +58,7 @@ static void init_types(void)
   res = type_ready(&code_type);
   if (res != 0)
     panic("Cannot initalize 'Code' type.");
-
+  init_label_type();
   init_range_type();
   init_iter_type();
   init_closure_type();
@@ -88,6 +88,7 @@ static void fini_types(void)
   type_fini(&class_type);
   type_fini(&module_type);
   type_fini(&code_type);
+  type_fini(&label_type);
   type_fini(&range_type);
   type_fini(&iter_type);
   type_fini(&fmtter_type);

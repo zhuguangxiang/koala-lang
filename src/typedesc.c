@@ -365,6 +365,9 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
     }
     return 1;
   }
+  case TYPE_LABEL: {
+    return desc_check(desc1->label.edesc, desc2->label.edesc);
+  }
   default:
     panic("who goes here? descriptor %d", desc1->kind);
   }

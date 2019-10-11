@@ -188,7 +188,7 @@ TypeDesc *str_to_proto(char *ptype, char *rtype);
 #define desc_istuple(desc) \
   ((desc)->kind == TYPE_KLASS && \
   !strcmp((desc)->klass.path, "lang") && \
-  !strcmp((desc)->klass.path, "Tuple"))
+  !strcmp((desc)->klass.type, "Tuple"))
 
 #ifdef __cplusplus
 }
