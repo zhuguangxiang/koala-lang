@@ -1565,6 +1565,15 @@ static void parse_atrr(ParserState *ps, Expr *exp)
   case SYM_ENUM: {
     debug("left sym '%s' is an enum", lsym->name);
     sym = type_find_mbr(lsym, id->name);
+    if (lexp->kind == ID_KIND && sym != NULL && sym->kind != SYM_LABEL) {
+      // only allowed SYM_LABEL
+      sym = NULL;
+    }
+    break;
+  }
+  case SYM_LABEL: {
+    debug("left sym '%s' is an enum label", lsym->name);
+    sym = type_find_mbr(lsym->label.esym, id->name);
     break;
   }
   default:
@@ -2076,7 +2085,11 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   expect(sym->kind == SYM_VAR);
 
   if (sym->desc == NULL) {
-    sym->desc = TYPE_INCREF(desc);
+    if (desc->kind == TYPE_LABEL) {
+      sym->desc = TYPE_INCREF(desc->label.edesc);
+    } else {
+      sym->desc = TYPE_INCREF(desc);
+    }
   }
 
   if (sym->var.typesym == NULL) {
@@ -2593,58 +2606,91 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   }
 }
 
-static void parse_assign(ParserState *ps, Stmt *stmt)
+static void parse_simple_assign(ParserState *ps, Stmt *stmt)
 {
   Expr *rexp = stmt->assign.rexp;
   Expr *lexp = stmt->assign.lexp;
-  AssignOpKind op = stmt->assign.op;
 
-  // assignment
-  if (op == OP_ASSIGN) {
-    rexp->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, rexp);
+  rexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, rexp);
 
-    if (lexp->kind == TUPLE_KIND) {
-      if (!has_error(ps) && desc_istuple(rexp->desc)) {
-        // unpack tuple
-        CODE_OP(OP_UNPACK_TUPLE);
-      }
+  if (lexp->kind == TUPLE_KIND) {
+    if (!has_error(ps) && desc_istuple(rexp->desc)) {
+      // unpack tuple
+      CODE_OP(OP_UNPACK_TUPLE);
     }
+  }
 
-    lexp->ctx = EXPR_STORE;
+  lexp->ctx = EXPR_STORE;
+  parser_visit_expr(ps, lexp);
+
+  if (lexp->desc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col,
+      "cannot resolve left expr's type");
+  }
+
+  if (rexp->desc == NULL) {
+    syntax_error(ps, rexp->row, rexp->col,
+      "right expr's type is void");
+  }
+
+  // check type is compatible
+  TypeDesc *ldesc = lexp->desc;
+  if (ldesc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col, "cannot resolve left expr");
+    return;
+  }
+
+  TypeDesc *rdesc = rexp->desc;
+  if (rdesc == NULL) {
+    syntax_error(ps, rexp->row, rexp->col, "cannot resolve right expr");
+    return;
+  }
+
+  if (ldesc->kind == TYPE_LABEL) {
+    syntax_error(ps, lexp->row, lexp->col, "left expr is not settable");
+    return;
+  }
+
+  if (rdesc->kind == TYPE_LABEL) {
+    rdesc = rdesc->label.edesc;
+    debug("right expr is enum '%s' label '%s'",
+          rdesc->klass.type, rexp->sym->name);
+  }
+
+  if (!desc_check(ldesc, rdesc)) {
+    syntax_error(ps, lexp->row, lexp->col, "types are not matched");
+  }
+}
+
+static void parser_inplace_assign(ParserState *ps, Stmt *stmt)
+{
+  Expr *rexp = stmt->assign.rexp;
+  Expr *lexp = stmt->assign.lexp;
+
+  lexp->ctx = EXPR_INPLACE;
+  lexp->inplace = stmt;
+  switch (lexp->kind) {
+  case ATTRIBUTE_KIND:
+  case SUBSCRIPT_KIND:
+  case ID_KIND:
     parser_visit_expr(ps, lexp);
+    break;
+  default:
+    syntax_error(ps, lexp->row, lexp->col, "invalid inplace assignment");
+    break;
+  }
+}
 
-    if (lexp->desc == NULL) {
-      syntax_error(ps, lexp->row, lexp->col,
-        "cannot resolve left expr's type");
-    }
-
-    if (rexp->desc == NULL) {
-      syntax_error(ps, rexp->row, rexp->col,
-        "right expr's type is void");
-    }
-
-    // check type is compatible
-    if (lexp->desc != NULL && rexp->desc != NULL) {
-      if (!desc_check(lexp->desc, rexp->desc)) {
-        syntax_error(ps, lexp->row, lexp->col,
-          "types are not matched");
-      }
-    }
+static void parse_assign(ParserState *ps, Stmt *stmt)
+{
+  AssignOpKind op = stmt->assign.op;
+  if (op == OP_ASSIGN) {
+    // simple assignment
+    parse_simple_assign(ps, stmt);
   } else {
-    // inplace operations
-    lexp->ctx = EXPR_INPLACE;
-    lexp->inplace = stmt;
-    switch (lexp->kind) {
-    case ATTRIBUTE_KIND:
-    case SUBSCRIPT_KIND:
-    case ID_KIND:
-      parser_visit_expr(ps, lexp);
-      break;
-    default:
-      syntax_error(ps, lexp->row, lexp->col, "invalid inplace assignment");
-      break;
-    }
+    // inplace assignment
+    parser_inplace_assign(ps, stmt);
   }
 }
 

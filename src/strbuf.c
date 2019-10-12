@@ -57,6 +57,9 @@ static int available(StrBuf *self, int size)
 
 void strbuf_append(StrBuf *self, char *s)
 {
+  if (s == NULL)
+    return;
+
   int len = strlen(s);
   if (len <= 0)
     return;

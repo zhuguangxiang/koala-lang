@@ -209,6 +209,9 @@ static MethodDef tuple_methods[] = {
 
 Object *tuple_str(Object *self, Object *ob)
 {
+  if (self == NULL)
+    return NULL;
+
   if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
     return NULL;

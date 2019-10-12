@@ -41,6 +41,7 @@
 #include "mapobject.h"
 #include "moduleobject.h"
 #include "codeobject.h"
+#include "enumobject.h"
 #include "rangeobject.h"
 #include "iterobject.h"
 #include "closureobject.h"

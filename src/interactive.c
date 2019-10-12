@@ -39,6 +39,7 @@
 #include "eval.h"
 #include "codeobject.h"
 #include "image.h"
+#include "enumobject.h"
 #include <readline/readline.h>
 #include <readline/history.h>
 

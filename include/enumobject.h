@@ -22,41 +22,36 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_TUPLE_OBJECT_H_
-#define _KOALA_TUPLE_OBJECT_H_
+#ifndef _KOALA_ENUM_OBJECT_H_
+#define _KOALA_ENUM_OBJECT_H_
 
 #include "object.h"
-#include "iterator.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct tupleobject {
+typedef struct labelobject {
   OBJECT_HEAD
-  int size;
-  Object *items[0];
-} TupleObject;
+  char *name;
+  Vector *types;
+} LabelObject;
+extern TypeObject label_type;
+#define label_check(ob) (OB_TYPE(ob) == &label_type)
+void init_label_type(void);
 
-extern TypeObject tuple_type;
-#define tuple_check(ob) (OB_TYPE(ob) == &tuple_type)
-void init_tuple_type(void);
-Object *tuple_new(int size);
-Object *tuple_pack(int size, ...);
-int tuple_size(Object *self);
-Object *tuple_get(Object *self, int index);
-int tuple_set(Object *self, int index, Object *val);
-Object *tuple_str(Object *self, Object *ob);
-Object *tuple_slice(Object *self, int i, int j);
-void *tuple_iter_next(struct iterator *iter);
-#define TUPLE_ITERATOR(name, tuple) \
-  ITERATOR(name, tuple, tuple_iter_next)
-#define tuple_for_each(item, tuple) \
-  for (int idx = 0; idx < ((TupleObject *)tuple)->size && \
-    ({item = tuple_get(tuple, idx); 1;}); ++idx)
+typedef struct enumobject {
+  OBJECT_HEAD
+  char *name;
+  Object *values;
+} EnumObject;
+
+TypeObject *enum_type_new(char *path, char *name);
+void type_add_label(TypeObject *type, char *name, Vector *types);
+Object *enum_new(Object *ob, char *name, Object *values);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_TUPLE_OBJECT_H_ */
+#endif /* _KOALA_ENUM_OBJECT_H_ */

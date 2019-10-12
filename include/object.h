@@ -291,25 +291,6 @@ Object *new_descob(TypeDesc *desc);
   ((DescObject *)(ob))->desc; \
 })
 
-typedef struct labelobject {
-  OBJECT_HEAD
-  char *name;
-  Vector *types;
-} LabelObject;
-extern TypeObject label_type;
-#define label_check(ob) (OB_TYPE(ob) == &label_type)
-void init_label_type(void);
-TypeObject *enum_type_new(char *path, char *name);
-void type_add_label(TypeObject *type, char *name, Vector *types);
-
-typedef struct enumobject {
-  OBJECT_HEAD
-  char *name;
-  Object *values;
-} EnumObject;
-
-Object *enum_new(Object *ob, char *name, Object *values);
-
 typedef struct heapobject {
   OBJECT_HEAD
   int size;

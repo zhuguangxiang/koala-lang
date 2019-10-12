@@ -51,6 +51,7 @@ Object *string_new(char *str);
 char *string_asstr(Object *self);
 int string_isempty(Object *self);
 void string_set(Object *self, char *str);
+
 extern TypeObject char_type;
 #define char_check(ob) (OB_TYPE(ob) == &char_type)
 void init_char_type(void);

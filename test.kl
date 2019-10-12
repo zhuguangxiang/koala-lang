@@ -644,8 +644,19 @@ enum Option {
 }
 
 opt := Option.None
+opt
+opt.is_some()
+opt.is_none()
+Option.None.is_some()
+Option.Some(1, "foo").is_none()
 
+opt = Option.Some(1, "foo")
 opt.is_some()
 opt.is_none()
 
-opt = Option.Some(1, "foo")
+opt = Option.None
+opt.is_some()
+opt.is_none()
+
+opt == Option.Some(1, "foo")
+assert.equal(Option.Some(1, "foo").is_some(), true)

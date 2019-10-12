@@ -239,6 +239,9 @@ Object *string_new(char *str)
 
 char *string_asstr(Object *self)
 {
+  if (self == NULL)
+    return NULL;
+
   if (!string_check(self)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
     return NULL;

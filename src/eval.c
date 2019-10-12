@@ -33,6 +33,7 @@
 #include "rangeobject.h"
 #include "mapobject.h"
 #include "moduleobject.h"
+#include "enumobject.h"
 #include "closureobject.h"
 #include "methodobject.h"
 #include "iomodule.h"
