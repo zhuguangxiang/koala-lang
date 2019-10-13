@@ -41,6 +41,7 @@ extern TypeObject range_type;
 #define range_check(ob) (OB_TYPE(ob) == &range_type)
 void init_range_type(void);
 Object *range_new(Object *start, int len);
+Object *in_range(Object *ob, Object *val);
 
 #ifdef __cplusplus
 }

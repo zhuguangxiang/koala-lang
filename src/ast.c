@@ -48,7 +48,7 @@ Expr *expr_from_super(void)
   return exp;
 }
 
-Expr *expr_from_integer(int64_t val)
+Expr *expr_from_int(int64_t val)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
@@ -78,7 +78,7 @@ Expr *expr_from_bool(int val)
   return exp;
 }
 
-Expr *expr_from_string(char *val)
+Expr *expr_from_str(char *val)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;
@@ -103,6 +103,13 @@ Expr *expr_from_ident(char *val)
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = ID_KIND;
   exp->id.name = val;
+  return exp;
+}
+
+Expr *expr_from_underscore(void)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = UNDER_KIND;
   return exp;
 }
 
@@ -286,6 +293,19 @@ Expr *expr_from_range(int type, Expr *start, Expr *end)
   return exp;
 }
 
+Expr *expr_enum_pattern(Ident id, Ident *ename, Ident *mname, Vector *exps)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = ENUM_PATTERN_KIND;
+  exp->enum_pattern.id = id;
+  if (ename != NULL)
+    exp->enum_pattern.ename = *ename;
+  if (mname != NULL)
+    exp->enum_pattern.mname = *mname;
+  exp->enum_pattern.exps = exps;
+  return exp;
+}
+
 void exprlist_free(Vector *vec)
 {
   Expr *exp;
@@ -312,6 +332,10 @@ void expr_free(Expr *exp)
     kfree(exp);
     break;
   case ID_KIND:
+    TYPE_DECREF(exp->id.etype);
+    kfree(exp);
+    break;
+  case UNDER_KIND:
     kfree(exp);
     break;
   case UNARY_KIND:
@@ -391,6 +415,9 @@ void expr_free(Expr *exp)
     expr_free(exp->range.end);
     kfree(exp);
     break;
+  case ENUM_PATTERN_KIND:
+    exprlist_free(exp->enum_pattern.exps);
+    break;
   default:
     panic("invalid expr kind %d", exp->kind);
     break;
@@ -442,8 +469,21 @@ Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp)
   Stmt *stmt = kmalloc(sizeof(Stmt));
   stmt->kind = VAR_KIND;
   stmt->vardecl.id = id;
-  if (type != NULL)
+  if (type != NULL) {
     stmt->vardecl.type = *type;
+    if (exp != NULL) {
+      Expr *lexp = NULL;
+      if (exp->kind == ID_KIND) {
+        lexp = exp;
+      } else if (exp->kind == CALL_KIND) {
+        lexp = exp->call.lexp;
+        lexp = (lexp->kind == ID_KIND) ? lexp : NULL;
+      }
+      if (lexp != NULL) {
+        lexp->id.etype = TYPE_INCREF(type->desc);
+      }
+    }
+  }
   stmt->vardecl.exp = exp;
   return stmt;
 }
@@ -590,6 +630,15 @@ Stmt *stmt_from_enum(Ident id, Vector *typeparas, EnumMembers mbrs)
   return stmt;
 }
 
+Stmt *stmt_from_match(Expr *exp, Vector *clauses)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = MATCH_KIND;
+  stmt->match_stmt.exp = exp;
+  stmt->match_stmt.clauses = clauses;
+  return stmt;
+}
+
 void stmt_block_free(Vector *vec)
 {
   if (vec == NULL)
@@ -688,6 +737,11 @@ void stmt_free(Stmt *stmt)
   case IFUNC_KIND:
     free_idtypes(stmt->funcdecl.idtypes);
     TYPE_DECREF(stmt->funcdecl.ret.desc);
+    kfree(stmt);
+    break;
+  case MATCH_KIND:
+    expr_free(stmt->match_stmt.exp);
+    free_match_clauses(stmt->match_stmt.clauses);
     kfree(stmt);
     break;
   default:

@@ -309,6 +309,9 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
   if (desc_isany(desc1))
     return 1;
 
+  if (desc_isany(desc2))
+    return 1;
+
   if (desc1->kind != desc2->kind)
     return 0;
 

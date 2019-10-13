@@ -138,3 +138,17 @@ Object *range_new(Object *start, int len)
   range->len = len;
   return (Object *)range;
 }
+
+Object *in_range(Object *ob, Object *val)
+{
+  if (!range_check(ob)) {
+    error("object of '%.64s' is not a Range", OB_TYPE_NAME(ob));
+    return NULL;
+  }
+
+  RangeObject *range = (RangeObject *)ob;
+  int64_t start = integer_asint(range->start);
+  int64_t end = start + range->len;
+  int64_t v = integer_asint(val);
+  return (v < start || v > end) ? bool_false() : bool_true();
+}

@@ -628,7 +628,7 @@ assert.equal(err, Result.Err(1, "foo"))
 
 ok == err
 
-Result.Err(1, "hello").0
+var ok2 Result = Result.Ok
 
 enum Option {
   None,
@@ -660,3 +660,29 @@ opt.is_none()
 
 opt == Option.Some(1, "foo")
 assert.equal(Option.Some(1, "foo").is_some(), true)
+
+var opt2 Option = Option.None
+opt2
+opt2.is_some()
+opt2.is_none()
+
+// auto detect enum from var's type
+var opt3 Option = Some(2, "bar")
+opt3
+opt3.is_some()
+opt3.is_none()
+//how to auto detect in assignment ?
+opt3 = None
+opt3
+opt3.is_some()
+opt3.is_none()
+
+var opt4 Option = None
+opt4
+opt4.is_some()
+opt4.is_none()
+//how to auto detect in assignment ?
+opt4 = Some(2, "bar")
+opt4
+opt4.is_some()
+opt4.is_none()

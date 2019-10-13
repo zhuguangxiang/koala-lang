@@ -392,6 +392,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_NEW_ITER:
   case OP_UNPACK_TUPLE:
   case OP_LOAD_GLOBAL:
+  case OP_MATCH:
     break;
   case OP_LOAD:
   case OP_STORE:
@@ -756,6 +757,8 @@ void parser_exit_scope(ParserState *ps)
   }
 }
 
+Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc);
+
 static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
 {
   char *name = exp->id.name;
@@ -766,7 +769,7 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
   sym = stable_get(u->stbl, name);
   if (sym != NULL) {
     debug("find symbol '%s' in scope-%d(%s)",
-      name, ps->depth, scopes[u->scope]);
+          name, ps->depth, scopes[u->scope]);
     ++sym->used;
     exp->sym = sym;
     exp->desc = TYPE_INCREF(sym->desc);
@@ -812,6 +815,28 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
     expect(exp->desc->paras == NULL);
     return sym;
   }
+
+  /* find from enum type */
+  if (exp->id.etype != NULL) {
+    TypeDesc *desc = exp->id.etype;
+    expect(desc->kind == TYPE_KLASS);
+    Symbol *esym = get_desc_symbol(ps, desc);
+    expect(esym != NULL);
+    expect(esym->kind == SYM_ENUM);
+    sym = stable_get(esym->type.stbl, name);
+    if (sym != NULL && sym->kind == SYM_LABEL) {
+      debug("find enum label '%s' in enum(%s)", name, esym->name);
+      ++sym->used;
+      exp->sym = sym;
+      exp->desc = TYPE_INCREF(sym->desc);
+      exp->id.where = ID_IN_ENUM;
+      exp->id.scope = NULL;
+      // find class(function) with generic type ?
+      expect(exp->desc->paras == NULL);
+      return sym;
+    }
+  }
+
   return NULL;
 }
 
@@ -1252,6 +1277,20 @@ static void ident_builtin_mod(ParserState *ps, Expr *exp)
   }
 }
 
+static void ident_in_enum_mod(ParserState *ps, Expr *exp)
+{
+  CODE_OP(OP_LOAD_GLOBAL);
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_OP_S(OP_GET_VALUE, exp->id.etype->klass.type);
+    CODE_OP_S_ARGC(OP_NEW_EVAL, exp->id.name, exp->argc);
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+    CODE_OP_S(OP_GET_VALUE, exp->id.etype->klass.type);
+    CODE_OP_S_ARGC(OP_NEW_EVAL, exp->id.name, exp->argc);
+  } else {
+    panic("invalid expr's ctx %d", exp->ctx);
+  }
+}
+
 typedef struct {
   ScopeKind scope;
   void (*code)(ParserState *, Expr *);
@@ -1277,6 +1316,15 @@ static IdCodeGen up_codes[] = {
 
 static IdCodeGen builtin_codes[] = {
   {SCOPE_MODULE,  ident_builtin_mod},
+  {SCOPE_CLASS,   NULL},
+  {SCOPE_FUNC,    NULL},
+  {SCOPE_BLOCK,   NULL},
+  {SCOPE_ANONY,   NULL},
+  {0, NULL},
+};
+
+static IdCodeGen in_enum_codes[] = {
+  {SCOPE_MODULE,  ident_in_enum_mod},
   {SCOPE_CLASS,   NULL},
   {SCOPE_FUNC,    NULL},
   {SCOPE_BLOCK,   NULL},
@@ -1317,7 +1365,18 @@ static void parse_ident(ParserState *ps, Expr *exp)
     ident_codegen(up_codes, ps, exp);
   } else if (exp->id.where == AUTO_IMPORTED) {
     ident_codegen(builtin_codes, ps, exp);
+  } else if (exp->id.where == ID_IN_ENUM) {
+    ident_codegen(in_enum_codes, ps, exp);
+  } else {
+    panic("invalid ident scope");
   }
+}
+
+static void parse_underscore(ParserState *ps, Expr *exp)
+{
+  printf("expr is underscore(_)\n");
+  exp->desc = desc_from_any;
+  exp->sym = NULL;
 }
 
 static void parse_unary(ParserState *ps, Expr *exp)
@@ -2227,8 +2286,10 @@ static void parse_anony(ParserState *ps, Expr *exp)
 static void parse_is(ParserState *ps, Expr *exp)
 {
   Expr *e = exp->isas.exp;
-  e->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, e);
+  if (e != NULL) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+  }
   TYPE_DECREF(exp->desc);
   exp->desc = desc_from_bool;
   exp->sym = get_desc_symbol(ps, exp->desc);
@@ -2408,6 +2469,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     NULL,               /* SUPER_KIND     */
     parse_literal,      /* LITERAL_KIND   */
     parse_ident,        /* ID_KIND        */
+    parse_underscore,   /* UNDER_KIND     */
     parse_unary,        /* UNARY_KIND     */
     parse_binary,       /* BINARY_KIND    */
     parse_ternary,      /* TERNARY_KIND   */
@@ -2567,17 +2629,23 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   if (exp != NULL) {
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
-
-    if (desc == NULL) {
-      desc = exp->desc;
-    }
-
-    if (desc == NULL) {
+    TypeDesc *rdesc = exp->desc;
+    if (rdesc == NULL) {
+      syntax_error(ps, exp->row, exp->col, "cannot resolve right expr's type");
       return;
     }
 
-    if (!desc_check(desc, exp->desc)) {
-      syntax_error(ps, exp->row, exp->col, "types are not matched");
+    if (desc == NULL) {
+      desc = exp->desc;
+    } else {
+      if (rdesc->kind == TYPE_LABEL) {
+        rdesc = rdesc->label.edesc;
+        debug("update expr's type as its enum '%s'", rdesc->klass.type);
+      }
+
+      if (!desc_check(desc, rdesc)) {
+        syntax_error(ps, exp->row, exp->col, "types are not matched");
+      }
     }
   }
 
@@ -2610,6 +2678,8 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
 {
   Expr *rexp = stmt->assign.rexp;
   Expr *lexp = stmt->assign.lexp;
+
+  // enum auto detect, how?
 
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
@@ -3107,6 +3177,167 @@ static void parse_enumdecl(ParserState *ps, Stmt *stmt)
   debug("end of enum '%s'", id->name);
 }
 
+static void parse_match(ParserState *ps, Stmt *stmt)
+{
+  debug("parse match");
+  Expr *exp = stmt->match_stmt.exp;
+  exp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, exp);
+  /*
+  Symbol *sym = type_find_mbr(exp->sym, "__eq__");
+  if (sym == NULL) {
+    syntax_error(ps, exp->row, exp->col, "unsupported match operation");
+  }
+  */
+
+  parser_enter_scope(ps, SCOPE_BLOCK, MATCH_BLOCK);
+  ParserUnit *u = ps->u;
+
+  Vector *clauses = stmt->match_stmt.clauses;
+  int count = vector_size(clauses);
+  MatchClause *match;
+  MatchClause *underscore = NULL;
+  int islast = 0;
+  Inst *matchjmps[count];
+  Inst *blockjmps[count];
+  Inst *underjmp = NULL;
+  int matchoffset[count];
+  int blockoffset[count];
+  int blockjmpoffset[count];
+  int matchindex = 0;
+  int blockindex = 0;
+  int underoffset = 0;
+  int blockjmpindex = 0;
+
+  // parse conditons
+  vector_for_each(match, clauses) {
+    Expr *test = match->test;
+    TypeDesc *testdesc = NULL;
+    if (test->kind == UNDER_KIND) {
+      if (underscore != NULL) {
+        syntax_error(ps, test->row, test->col, "duplicated underscore(_)");
+      }
+      underscore = match;
+      if (idx == count - 1) {
+        islast = 1;
+      }
+      continue;
+    }
+    test->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, test);
+    if (test->kind == ARRAY_KIND) {
+      debug("match pattern is array");
+      Expr *subexp = vector_get(test->array, 0);
+      if (subexp == NULL) {
+        syntax_error(ps, test->row, test->col,
+                    "cannot resolve array's subtype");
+      } else {
+        testdesc = subexp->desc;
+      }
+    } else if (test->kind == RANGE_KIND) {
+      debug("match pattern is range");
+      testdesc = test->range.start->desc;
+    } else if (test->kind == IS_KIND) {
+      debug("match pattern is IS TYPE");
+      testdesc = test->isas.type.desc;
+    } else {
+      testdesc = test->desc;
+    }
+
+    if (testdesc == NULL) {
+      syntax_error(ps, test->row, test->col, "cannot resolve test type");
+    } else if (!desc_check(testdesc, exp->desc)) {
+      syntax_error(ps, test->row, test->col, "types are not matched");
+    } else {
+      CODE_OP(OP_MATCH);
+      Inst *jmp = CODE_OP(OP_JMP_TRUE); //where to jmp?
+      matchjmps[matchindex] = jmp;
+      matchoffset[matchindex] = codeblock_bytes(u->block);
+      ++matchindex;
+    }
+  }
+
+  // parse underscore(_) pattern
+  if (underscore != NULL) {
+    int understart = codeblock_bytes(u->block);
+    parse_stmt(ps, underscore->block);
+    if (vector_size(clauses) > 1) {
+      Inst *jmp = CODE_OP(OP_JMP); //where to jmp?
+      underjmp = jmp;
+      underoffset = codeblock_bytes(u->block);
+    }
+  }
+
+  // parse each body
+  vector_for_each(match, clauses) {
+    int blockstart = codeblock_bytes(u->block);
+    Inst *jmp = NULL;
+    if (match == underscore) {
+      if (match->cond != NULL) {
+        syntax_error(ps, match->cond->row, match->cond->col,
+                     "underscore(_) must not have if condition");
+      }
+      continue;
+    }
+
+    if (match->cond != NULL) {
+      match->cond->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, match->cond);
+      CODE_OP(OP_JMP_FALSE); //where to jmp?
+    }
+
+    parse_stmt(ps, match->block);
+
+    if (islast) {
+      // last one is underscore clause
+      if (idx < count - 2) {
+        // last second clause not need jmp
+        jmp = CODE_OP(OP_JMP); //where to jmp?
+      }
+    } else {
+      // last one is not underscore clause
+      if (idx < count - 1) {
+        // last one clause not need jmp
+        jmp = CODE_OP(OP_JMP); //where to jmp?
+      }
+    }
+
+    if (jmp != NULL) {
+      blockjmps[blockjmpindex] = jmp;
+      blockjmpoffset[blockjmpindex] = codeblock_bytes(u->block);
+      ++blockjmpindex;
+    }
+    blockoffset[blockindex] = blockstart;
+    ++blockindex;
+  }
+
+  // handle jumps' offset
+  if (!has_error(ps)) {
+    expect(matchindex == blockindex);
+    int totalsize = codeblock_bytes(u->block);
+    int matchsize = matchoffset[matchindex - 1];
+
+    for (int i = 0; i < matchindex; ++i) {
+      matchjmps[i]->offset = blockoffset[i] - matchoffset[i];
+    }
+
+    if (underjmp != NULL) {
+      underjmp->offset = totalsize - underoffset;
+    }
+
+    for (int i = 0; i < blockjmpindex; ++i) {
+      blockjmps[i]->offset = totalsize - blockjmpoffset[i];
+    }
+  }
+
+  parser_exit_scope(ps);
+
+  // pop stmt->match_stmt.exp
+  CODE_OP(OP_POP_TOP);
+
+  debug("end of match");
+}
+
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
   static void (*handlers[])(ParserState *, Stmt *) = {
@@ -3128,7 +3359,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     parse_if,           /* IF_KIND        */
     parse_while,        /* WHILE_KIND     */
     parse_for,          /* FOR_KIND       */
-    NULL,               /* MATCH_KIND     */
+    parse_match,        /* MATCH_KIND     */
   };
 
   expect(stmt->kind >= IMPORT_KIND && stmt->kind <= MATCH_KIND);

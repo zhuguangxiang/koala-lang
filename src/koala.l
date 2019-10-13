@@ -72,7 +72,7 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   static int tokens[] = {
     INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
     ID, SELF, SUPER, TRUE, FALSE, NIL,
-    RETURN, BREAK, CONTINUE, ')', ']', '}', '>',
+    RETURN, BREAK, CONTINUE, ')', ']', '}', '>', '_',
     BYTE, INTEGER, FLOAT, CHAR, STRING, BOOL, ANY,
     DOTDOTDOT, DOTDOTLESS, FAT_ARROW,
   };
@@ -158,6 +158,11 @@ moddoc  "//!"[^\n]*
 
 /* lex scan rules */
 %%
+
+[\+\-\*\/\%\|\=\&\>\<\,\;\^\~\:\?\.\{\}\[\]\(\)\_] {
+  /* single character */
+  YY_RETURN(yytext[0]);
+}
 
 "=="       { YY_RETURN(OP_EQ);        }
 "!="       { YY_RETURN(OP_NE);        }
@@ -325,20 +330,13 @@ moddoc  "//!"[^\n]*
   YY_NEWLINE
 }
 
-[\+\-\*\/\%\|\=\&\>\<\,\;\^\~\:\?\.\{\}\[\]\(\)] {
-  /* single character */
-  YY_RETURN(yytext[0]);
-}
-
 [ \t\r]+ {
   /* blank character */
 }
 
 . {
-  syntax_error(yyps, yyps->row, yyps->col, "invalid characters:%s", yytext);
-  if (yyps->interactive) {
-    yyps->more = 0;
-  }
+  yylval->sval = yytext;
+  return INVALID;
 }
 
 %%

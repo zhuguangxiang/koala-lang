@@ -269,6 +269,33 @@ static Vector *getupvals(CallFrame *f, Object *ob)
   return upvals;
 }
 
+static Object *do_match(Object *match, Object *pattern)
+{
+  if (array_check(pattern)) {
+    ArrayObject *arr = (ArrayObject *)pattern;
+    Object *z;
+    Object *item;
+    vector_for_each(item, &arr->items) {
+      z = do_match(match, item);
+      if (bool_istrue(z)) {
+        return z;
+      } else {
+         OB_DECREF(z);
+      }
+    }
+    return bool_false();
+  } else if (range_check(pattern)) {
+    return in_range(pattern, match);
+  } else if (bool_check(pattern)) {
+    return (match == pattern) ? bool_true() : bool_false();
+  } else {
+    Object *z;
+    func_t fn = OB_NUM_FUNC(match, eq);
+    call_op_func(z, match, OP_EQ, pattern);
+    return z;
+  }
+}
+
 Object *Koala_EvalFrame(CallFrame *f)
 {
   int loopflag = 1;
@@ -1055,6 +1082,14 @@ Object *Koala_EvalFrame(CallFrame *f)
       OB_DECREF(x);
       OB_DECREF(y);
       OB_DECREF(z);
+      break;
+    }
+    case OP_MATCH: {
+      y = POP();
+      x = TOP();
+      z = do_match(x, y);
+      PUSH(z);
+      OB_DECREF(y);
       break;
     }
     default: {

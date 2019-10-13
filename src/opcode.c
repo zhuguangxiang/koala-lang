@@ -132,6 +132,8 @@ static struct opcode {
 
   OPCODE(OP_LOAD_GLOBAL,  0),
   OPCODE(OP_INIT_CALL, 1),
+
+  OPCODE(OP_MATCH, 0),
 };
 
 #define OP_MAP(op, map) { op, #map }

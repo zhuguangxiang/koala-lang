@@ -77,6 +77,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
   Vector *aliaslist;
   EnumMembers enummbrs;
   EnumLabel *enumlabel;
+  MatchClause *matchclause;
 }
 
 %token IMPORT
@@ -139,6 +140,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 %token DOTDOTDOT
 %token DOTDOTLESS
 %token FAT_ARROW
+%token <sval> INVALID
 
 %token <text> COMMENT
 %token <text> DOC
@@ -150,7 +152,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
-%type <stmt> import
+%type <stmt> import_stmt
 %type <aliaslist> id_as_list
 %type <stmt> const_decl
 %type <stmt> var_decl
@@ -162,6 +164,21 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 %type <stmt> if_stmt
 %type <stmt> empty_else
 %type <stmt> while_stmt
+%type <stmt> match_stmt
+%type <list> match_clauses
+%type <matchclause> match_clause
+%type <expr> match_pattern;
+%type <expr> int_pattern;
+%type <expr> char_pattern;
+%type <expr> str_pattern;
+%type <expr> float_pattern;
+%type <expr> enum_pattern;
+%type <list> int_seq
+%type <list> char_seq
+%type <list> str_seq
+%type <list> float_seq
+%type <expr> match_condition
+%type <stmt> match_block
 %type <stmt> for_each_stmt
 %type <stmt> func_decl
 %type <stmtlist> block
@@ -266,9 +283,9 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
   free_aliases($$);
 } <aliaslist>
 
-%precedence INT_LITERAL CHAR_LITERAL
-%precedence '|'
-%precedence ID
+%precedence '-'
+%precedence INT_LITERAL CHAR_LITERAL STRING_LITERAL FLOAT_LITERAL
+%precedence '|' ID
 %precedence '(' '.'
 
 %locations
@@ -292,7 +309,7 @@ units:
 ;
 
 unit:
-  import
+  import_stmt
 {
   if (ps->interactive) {
     ps->more = 0;
@@ -386,6 +403,8 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    cmd_eval_stmt(ps, $1);
+    stmt_free($1);
   } else {
 
   }
@@ -451,6 +470,13 @@ unit:
     ps->more = 0;
   }
 }
+| INVALID
+{
+  if (ps->interactive) {
+    syntax_error(ps, ps->row, ps->col, "invalid input:%s", $1);
+    ps->more = 0;
+  }
+}
 | error
 {
   if (ps->interactive) {
@@ -506,7 +532,7 @@ local:
 }
 | match_stmt
 {
-  $$ = NULL;
+  $$ = $1;
 }
 | for_each_stmt
 {
@@ -522,7 +548,7 @@ local:
 }
 ;
 
-import:
+import_stmt:
   IMPORT STRING_LITERAL ';'
 {
   $$ = stmt_from_import(NULL, $2);
@@ -1031,9 +1057,13 @@ atom:
   $$ = expr_from_ident($1);
   set_expr_pos($$, @1);
 }
+| '_'
+{
+  $$ = expr_from_underscore();
+}
 | INT_LITERAL
 {
-  $$ = expr_from_integer($1);
+  $$ = expr_from_int($1);
   set_expr_pos($$, @1);
 }
 | FLOAT_LITERAL
@@ -1048,7 +1078,7 @@ atom:
 }
 | STRING_LITERAL
 {
-  $$ = expr_from_string($1);
+  $$ = expr_from_str($1);
   set_expr_pos($$, @1);
 }
 | TRUE
@@ -1302,53 +1332,276 @@ for_each_stmt:
 
 match_stmt:
   MATCH expr '{' match_clauses '}'
+{
+  $$ = stmt_from_match($2, $4);
+}
 ;
 
 match_clauses:
   match_clause
+{
+  $$ = vector_new();
+  vector_push_back($$, $1);
+}
 | match_clauses match_clause
+{
+  $$ = $1;
+  vector_push_back($$, $2);
+}
 ;
 
 match_clause:
-  match_pattern FAT_ARROW match_block_expr ';'
+  match_pattern match_condition FAT_ARROW match_block ';'
+{
+  $$ = new_match_clause($1, $2, $4);
+}
 ;
 
 match_pattern:
   '_'
-| INT_LITERAL
-| int_seq INT_LITERAL
-| CHAR_LITERAL
-| char_seq CHAR_LITERAL
-| STRING_LITERAL
+{
+  $$ = expr_from_underscore();
+}
+| int_pattern
+{
+  $$ = $1;
+}
+| char_pattern
+{
+  $$ = $1;
+}
+| str_pattern
+{
+  $$ = $1;
+}
+| float_pattern
+{
+  $$ = $1;
+}
+| enum_pattern
+{
+  $$ = $1;
+}
 | TRUE
+{
+  $$ = expr_from_bool(1);
+}
 | FALSE
-| range_object
+{
+  $$ = expr_from_bool(0);
+}
 | tuple_object
+{
+  $$ = $1;
+}
+| range_object
+{
+  $$ = $1;
+}
 | IS type
-| ID
-| ID '(' id_list ')'
-| ID '.' ID
-| ID '.' ID '(' id_list ')'
+{
+  TYPE(type, $2, @2);
+  $$ = expr_from_istype(NULL, type);
+}
+;
+
+int_pattern:
+  INT_LITERAL
+{
+  $$ = expr_from_int($1);
+}
+| '-' INT_LITERAL
+{
+  $$ = expr_from_int(0 - $2);
+}
+| int_seq INT_LITERAL
+{
+  vector_push_back($1, expr_from_int($2));
+  $$ = expr_from_array($1);
+}
+| int_seq '-' INT_LITERAL
+{
+  vector_push_back($1, expr_from_int(0 - $3));
+  $$ = expr_from_array($1);
+}
 ;
 
 int_seq:
   INT_LITERAL '|'
+{
+  $$ = vector_new();
+  vector_push_back($$, expr_from_int($1));
+}
+| '-' INT_LITERAL '|'
+{
+  $$ = vector_new();
+  vector_push_back($$, expr_from_int(0 - $2));
+}
 | int_seq INT_LITERAL '|'
+{
+  $$ = $1;
+  vector_push_back($$, expr_from_int($2));
+}
+| int_seq '-' INT_LITERAL '|'
+{
+  $$ = $1;
+  vector_push_back($$, expr_from_int(0 - $3));
+}
+;
+
+char_pattern:
+  CHAR_LITERAL
+{
+  $$ = expr_from_char($1);
+}
+| char_seq CHAR_LITERAL
+{
+  vector_push_back($1, expr_from_char($2));
+  $$ = expr_from_array($1);
+}
 ;
 
 char_seq:
   CHAR_LITERAL '|'
+{
+  $$ = vector_new();
+  vector_push_back($$, expr_from_char($1));
+}
 | char_seq CHAR_LITERAL '|'
+{
+  $$ = $1;
+  vector_push_back($$, expr_from_char($2));
+}
 ;
 
-id_list:
+str_pattern:
+  STRING_LITERAL
+{
+  $$ = expr_from_str($1);
+}
+| str_seq STRING_LITERAL
+{
+  vector_push_back($1, expr_from_str($2));
+  $$ = expr_from_array($1);
+}
+;
+
+str_seq:
+  STRING_LITERAL '|'
+{
+  $$ = vector_new();
+  vector_push_back($$, expr_from_str($1));
+}
+| str_seq STRING_LITERAL '|'
+{
+  $$ = $1;
+  vector_push_back($$, expr_from_str($2));
+}
+;
+
+float_pattern:
+  FLOAT_LITERAL
+{
+  $$ = expr_from_float($1);
+}
+| '-' FLOAT_LITERAL
+{
+  $$ = expr_from_float(0 - $2);
+}
+| float_seq FLOAT_LITERAL
+{
+  vector_push_back($1, expr_from_float($2));
+  $$ = expr_from_array($1);
+}
+| float_seq '-' FLOAT_LITERAL
+{
+  vector_push_back($1, expr_from_float(0 - $3));
+  $$ = expr_from_array($1);
+}
+;
+
+float_seq:
+  FLOAT_LITERAL '|'
+{
+  $$ = vector_new();
+  vector_push_back($$, expr_from_float($1));
+}
+| '-' FLOAT_LITERAL '|'
+{
+  $$ = vector_new();
+  vector_push_back($$, expr_from_float(0 - $2));
+}
+| float_seq FLOAT_LITERAL '|'
+{
+  $$ = $1;
+  vector_push_back($$, expr_from_float($2));
+}
+| float_seq '-' FLOAT_LITERAL '|'
+{
+  $$ = $1;
+  vector_push_back($$, expr_from_float(0 - $3));
+}
+;
+
+enum_pattern:
   ID
-| id_list ',' ID
+{
+  IDENT(id, $1, @1);
+  $$ = expr_enum_pattern(id, NULL, NULL, NULL);
+}
+| ID '(' expr_list ')'
+{
+  IDENT(id, $1, @1);
+  $$ = expr_enum_pattern(id, NULL, NULL, $3);
+}
+| ID '.' ID
+{
+  IDENT(id, $3, @3);
+  IDENT(ename, $1, @1);
+  $$ = expr_enum_pattern(id, &ename, NULL, NULL);
+}
+| ID '.' ID '(' expr_list ')'
+{
+  IDENT(id, $3, @3);
+  IDENT(ename, $1, @1);
+  $$ = expr_enum_pattern(id, &ename, NULL, $5);
+}
+| ID '.' ID '.' ID
+{
+  IDENT(id, $5, @5);
+  IDENT(ename, $3, @3);
+  IDENT(mname, $1, @1);
+  $$ = expr_enum_pattern(id, &ename, &mname, NULL);
+}
+| ID '.' ID '.' ID '(' expr_list ')'
+{
+  IDENT(id, $5, @5);
+  IDENT(ename, $3, @3);
+  IDENT(mname, $1, @1);
+  $$ = expr_enum_pattern(id, &ename, &mname, $7);
+}
 ;
 
-match_block_expr:
+match_condition:
+  %empty
+{
+  $$ = NULL;
+}
+| IF expr
+{
+  $$ = $2;
+}
+;
+
+match_block:
   block
+{
+  $$ = stmt_from_block($1);
+}
 | expr
+{
+  $$ = stmt_from_expr($1);
+}
 ;
 
 func_decl:

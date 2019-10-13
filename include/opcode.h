@@ -140,6 +140,8 @@ extern "C" {
 #define OP_LOAD_GLOBAL  103
 #define OP_INIT_CALL    104
 
+#define OP_MATCH  105
+
 int opcode_argc(int op);
 char *opcode_str(int op);
 char *opcode_map(int op);

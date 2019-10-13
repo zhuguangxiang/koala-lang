@@ -32,6 +32,9 @@
 extern "C" {
 #endif
 
+typedef struct expr Expr;
+typedef struct stmt Stmt;
+
 /* identifier */
 typedef struct ident {
   char *name;
@@ -187,6 +190,47 @@ static inline void free_labels(Vector *vec)
   vector_free(vec);
 }
 
+typedef struct matchclause {
+  Expr *test;
+  Expr *cond;
+  Stmt *block;
+} MatchClause;
+
+static inline MatchClause *new_match_clause(Expr *test, Expr *cond, Stmt *block)
+{
+  MatchClause *match = kmalloc(sizeof(MatchClause));
+  match->test = test;
+  match->cond = cond;
+  match->block = block;
+  return match;
+}
+
+void expr_free(Expr *exp);
+void exprlist_free(Vector *vec);
+void stmt_free(Stmt *stmt);
+
+static inline void free_match_clause(MatchClause *match)
+{
+  expr_free(match->test);
+  expr_free(match->cond);
+  stmt_free(match->block);
+  kfree(match);
+}
+
+static inline void free_match_clauses(Vector *vec)
+{
+  if (vec == NULL)
+    return;
+
+  MatchClause *match;
+  vector_for_each(match, vec) {
+    free_match_clause(match);
+  }
+  vector_free(vec);
+}
+
+Expr *expr_enum_pattern(Ident id, Ident *ename, Ident *mname, Vector *exps);
+
 /* unary operator kind */
 typedef enum unaryopkind {
   /* + */
@@ -215,8 +259,8 @@ typedef enum binaryopkind {
 typedef enum exprkind {
   /* nil, self and super */
   NIL_KIND = 1, SELF_KIND, SUPER_KIND,
-  /* literal and ident */
-  LITERAL_KIND, ID_KIND,
+  /* literal, ident and underscore(_) */
+  LITERAL_KIND, ID_KIND, UNDER_KIND,
   /* unary, binary, ternary op */
   UNARY_KIND, BINARY_KIND, TERNARY_KIND,
   /* dot, [], (), [:] access */
@@ -229,6 +273,8 @@ typedef enum exprkind {
   NEW_KIND,
   /* range object */
   RANGE_KIND,
+  /* enum pattern */
+  ENUM_PATTERN_KIND,
   EXPR_KIND_MAX
 } ExprKind;
 
@@ -242,9 +288,6 @@ typedef enum exprctx {
   /* call or load function indicator */
   EXPR_CALL_FUNC, EXPR_LOAD_FUNC,
 } ExprCtx;
-
-typedef struct expr Expr;
-typedef struct stmt Stmt;
 
 struct expr {
   ExprKind kind;
@@ -265,6 +308,8 @@ struct expr {
     } k;
     struct {
       char *name;
+      /* saved as enum type, if ident is enum type */
+      TypeDesc *etype;
       /*
       * where is the identifier?
       */
@@ -274,6 +319,7 @@ struct expr {
     #define EXT_SCOPE     3
     #define EXTDOT_SCOPE  4
     #define AUTO_IMPORTED 5
+    #define ID_IN_ENUM    6
       /* scope pointer */
       void *scope;
     } id;
@@ -334,6 +380,12 @@ struct expr {
       Expr *start;
       Expr *end;
     } range;
+    struct {
+      Ident id;
+      Ident ename;
+      Ident mname;
+      Vector *exps;
+    } enum_pattern;
   };
 };
 
@@ -342,17 +394,16 @@ typedef struct mapentry {
   Expr *val;
 } MapEntry;
 
-void expr_free(Expr *exp);
-void exprlist_free(Vector *vec);
 Expr *expr_from_nil(void);
 Expr *expr_from_self(void);
 Expr *expr_from_super(void);
-Expr *expr_from_integer(int64_t val);
+Expr *expr_from_int(int64_t val);
 Expr *expr_from_float(double val);
 Expr *expr_from_bool(int val);
-Expr *expr_from_string(char *val);
+Expr *expr_from_str(char *val);
 Expr *expr_from_char(wchar val);
 Expr *expr_from_ident(char *val);
+Expr *expr_from_underscore(void);
 Expr *expr_from_unary(UnaryOpKind op, Expr *exp);
 Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right);
 Expr *expr_from_ternary(Expr *test, Expr *left, Expr *right);
@@ -486,10 +537,13 @@ struct stmt {
       Vector *typeparas;
       EnumMembers mbrs;
     } enum_stmt;
+    struct {
+      Expr *exp;
+      Vector *clauses;
+    } match_stmt;
   };
 };
 
-void stmt_free(Stmt *stmt);
 void stmt_block_free(Vector *vec);
 Stmt *stmt_from_import(Ident *id, char *path);
 Stmt *stmt_from_import_all(char *path);
@@ -513,6 +567,7 @@ Stmt *stmt_from_trait(Ident id, Vector *typeparas, ExtendsDef *extends,
                       Vector *body);
 Stmt *stmt_from_ifunc(Ident id, Vector *args, Type *ret);
 Stmt *stmt_from_enum(Ident id, Vector *typeparas, EnumMembers mbrs);
+Stmt *stmt_from_match(Expr *exp, Vector *clauses);
 
 #ifdef __cplusplus
 }
