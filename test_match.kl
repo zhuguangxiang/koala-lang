@@ -76,8 +76,8 @@ match i {
       j -= 1
     }
     io.println(sum)
-  }
-  _ => io.println("i != 100")
+  },
+  _ => io.println("i != 100"),
 }
 
 match i {
@@ -91,9 +91,11 @@ match i {
 }
 
 /*
-match i {
-  is int => io.println("i is int")
-  _ => io.println("i is not int")
+if obj is any, others are not allowed.
+match obj {
+  is int => io.println("type of obj is int")
+  is string => io.println("type of obj is string")
+  _ => io.println("type of obj is others")
 }
 */
 
@@ -101,7 +103,7 @@ match i {
 opt = Option.Some(1, "foo")
 
 match opt {
-  Option.Some(1, "foo") => io.println("Option.Some(1, \"foo\")")
+  Option.Some(100, "foo") => io.println("Option.Some(1, \"foo\")")
   _ => io.println("not Option.Some")
 }
 
@@ -119,3 +121,79 @@ match opt {
   }
 }
 */
+
+enum Option {
+  None,
+  Some(int, string),
+
+  func is_some() bool {
+    return (self == None) ? false : true
+  }
+
+  func is_none() bool {
+    return (self == None) ? true : false
+  }
+}
+
+opt := Option.Some(100, "foo")
+
+match opt {
+  Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
+  _ => io.println("not Option.Some(100, \"foo\")")
+}
+
+match opt {
+  Option.Some(_, "foo") => io.println("Option.Some(_, \"foo\")")
+  Option.Some(_, "bar") => io.println("Option.Some(_, \"bar\")")
+  _ => io.println("not Option.Some(_, \"foo\")")
+}
+
+match opt {
+  Option.Some(_, y) => {
+    io.println("Option.Some(_, y)")
+    io.println(y)
+  },
+  _ => io.println("not Option.Some(_, y)")
+}
+
+match opt {
+  Option.Some(x, y) => {
+    io.println("Option.Some(x, y)")
+    io.println(x); io.println(y)
+  }
+  _ => io.println("not Option.Some(x, y)")
+}
+
+// short for match enum with only two cases
+
+if Option.Some(100, "foo") = opt {
+  // Option.Some
+  io.println("Option.Some(100, \"foo\")")
+} else {
+  // others, except Option.Some
+  io.println("not Option.Some(100, \"foo\")")
+}
+
+if Option.Some(_, "foo") = opt {
+  // Option.Some
+  io.println("Option.Some(_, \"foo\")")
+} else {
+  // others, except Option.Some
+  io.println("not Option.Some(_, \"foo\")")
+}
+
+if Option.Some(_, y) = opt {
+  // Option.Some
+  io.println("Option.Some(_, y)")
+  io.println(y)
+} else {
+  // others, except Option.Some
+  io.println("not Option.Some(_, y)")
+}
+
+if Option.Some(x, y) = opt {
+  // Option.Some
+
+} else {
+  // others, except Option.Some
+}

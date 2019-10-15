@@ -162,17 +162,19 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 %type <stmt> return_stmt
 %type <stmt> jump_stmt
 %type <stmt> if_stmt
+%type <stmt> empty_else_if
 %type <stmt> empty_else
 %type <stmt> while_stmt
 %type <stmt> match_stmt
 %type <list> match_clauses
 %type <matchclause> match_clause
-%type <expr> match_pattern;
-%type <expr> int_pattern;
-%type <expr> char_pattern;
-%type <expr> str_pattern;
-%type <expr> float_pattern;
-%type <expr> enum_pattern;
+%type <expr> match_pattern
+%type <expr> int_pattern
+%type <expr> char_pattern
+%type <expr> str_pattern
+%type <expr> float_pattern
+%type <expr> enum_pattern
+%type <list> enum_pattern_args
 %type <list> int_seq
 %type <list> char_seq
 %type <list> str_seq
@@ -409,6 +411,10 @@ unit:
 
   }
 }
+| if_asign_stmt
+{
+
+}
 | for_each_stmt
 {
   if (ps->interactive) {
@@ -534,6 +540,10 @@ local:
 {
   $$ = $1;
 }
+| if_asign_stmt
+{
+  $$ = NULL;
+}
 | for_each_stmt
 {
   $$ = $1;
@@ -629,6 +639,27 @@ var_decl:
   IDENT(id, $2, @2);
   $$ = stmt_from_vardecl(id, NULL, $4);
 }
+| VAR '(' id_list ',' ')' type '=' expr ';'
+{
+  $$ = NULL;
+}
+| VAR '(' id_list ',' ID ')' type '=' expr ';'
+{
+  $$ = NULL;
+}
+| VAR '(' id_list ',' ')' '=' expr ';'
+{
+  $$ = NULL;
+}
+| VAR '(' id_list ',' ID ')' '=' expr ';'
+{
+  $$ = NULL;
+}
+;
+
+id_list:
+  ID
+| id_list ',' ID
 ;
 
 free_var_decl:
@@ -636,6 +667,15 @@ free_var_decl:
 {
   IDENT(id, $1, @1);
   $$ = stmt_from_vardecl(id, NULL, $3);
+}
+/* expr_list is id-list, expr is id */
+| '(' expr_list ',' ')' FREE_ASSIGN expr ';'
+{
+  $$ = NULL;
+}
+| '(' expr_list ',' expr ')' FREE_ASSIGN expr ';'
+{
+  $$ = NULL;
 }
 ;
 
@@ -1026,6 +1066,10 @@ dot_expr:
   IDENT(id, $3, @3);
   $$ = expr_from_attribute(id, $1);
 }
+| primary_expr '.' INT_LITERAL
+{
+  $$ = NULL;
+}
 ;
 
 index_expr:
@@ -1287,9 +1331,20 @@ new_object:
 ;
 
 if_stmt:
-  IF expr block empty_else
+  IF expr block empty_else_if
 {
   $$ = stmt_from_if($2, $3, $4);
+}
+;
+
+empty_else_if:
+  empty_else
+{
+  $$ = $1;
+}
+| ELSE if_stmt
+{
+  $$ = $2;
 }
 ;
 
@@ -1301,10 +1356,6 @@ empty_else:
 | ELSE block
 {
   $$ = stmt_from_block($2);
-}
-| ELSE if_stmt
-{
-  $$ = $2;
 }
 ;
 
@@ -1351,10 +1402,15 @@ match_clauses:
 ;
 
 match_clause:
-  match_pattern match_condition FAT_ARROW match_block ';'
+  match_pattern match_condition FAT_ARROW match_block match_tail
 {
   $$ = new_match_clause($1, $2, $4);
 }
+;
+
+match_tail:
+  ';'
+| ','
 ;
 
 match_pattern:
@@ -1374,6 +1430,7 @@ match_pattern:
 {
   $$ = $1;
 }
+/* float equal is not allowed, not accurate ?*/
 | float_pattern
 {
   $$ = $1;
@@ -1549,7 +1606,7 @@ enum_pattern:
   IDENT(id, $1, @1);
   $$ = expr_enum_pattern(id, NULL, NULL, NULL);
 }
-| ID '(' expr_list ')'
+| ID '(' enum_pattern_args ')'
 {
   IDENT(id, $1, @1);
   $$ = expr_enum_pattern(id, NULL, NULL, $3);
@@ -1560,7 +1617,7 @@ enum_pattern:
   IDENT(ename, $1, @1);
   $$ = expr_enum_pattern(id, &ename, NULL, NULL);
 }
-| ID '.' ID '(' expr_list ')'
+| ID '.' ID '(' enum_pattern_args ')'
 {
   IDENT(id, $3, @3);
   IDENT(ename, $1, @1);
@@ -1573,13 +1630,39 @@ enum_pattern:
   IDENT(mname, $1, @1);
   $$ = expr_enum_pattern(id, &ename, &mname, NULL);
 }
-| ID '.' ID '.' ID '(' expr_list ')'
+| ID '.' ID '.' ID '(' enum_pattern_args ')'
 {
   IDENT(id, $5, @5);
   IDENT(ename, $3, @3);
   IDENT(mname, $1, @1);
   $$ = expr_enum_pattern(id, &ename, &mname, $7);
 }
+;
+
+enum_pattern_args:
+  enum_pattern_arg
+{
+  $$ = vector_new();
+}
+| enum_pattern_args ',' enum_pattern_arg
+{
+  $$ = vector_new();
+}
+;
+
+/* float equal is not allowed, not accurate ? */
+/* any operations(+,-) in enum pattern arguments are not allowed */
+enum_pattern_arg:
+  ID
+| '_'
+| INT_LITERAL
+| '-' INT_LITERAL
+| FLOAT_LITERAL
+| '-' FLOAT_LITERAL
+| STRING_LITERAL
+| CHAR_LITERAL
+| TRUE
+| FALSE
 ;
 
 match_condition:
@@ -1602,6 +1685,11 @@ match_block:
 {
   $$ = stmt_from_expr($1);
 }
+;
+
+/* is short for match enum with only two cases */
+if_asign_stmt:
+  IF enum_pattern '=' expr block empty_else
 ;
 
 func_decl:

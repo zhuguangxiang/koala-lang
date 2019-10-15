@@ -667,7 +667,7 @@ opt2.is_some()
 opt2.is_none()
 
 // auto detect enum from var's type
-var opt3 Option = Some(2, "bar")
+var opt3 Option = Some(2+3, "bar")
 opt3
 opt3.is_some()
 opt3.is_none()
@@ -686,3 +686,8 @@ opt4 = Some(2, "bar")
 opt4
 opt4.is_some()
 opt4.is_none()
+
+// not allowed, type maybe not equal. opt := Option.None
+// use if Option.Some(x, y) = opt
+Option.Some(x, y) = Option.Some(1, "bar")
+Option.Some(x, y) = opt

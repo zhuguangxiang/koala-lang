@@ -3070,7 +3070,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
         syntax_error(ps, vexp->row, vexp->col, "types are not matched");
       }
     } else {
-      // create local ident
+      // create local variable
       Ident id = {vexp->id.name, vexp->row, vexp->col};
       add_update_var(ps, &id, desc);
     }
