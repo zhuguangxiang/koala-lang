@@ -170,3 +170,37 @@ Object *enum_new(Object *ob, char *name, Object *values)
     }
   }
 }
+
+int enum_check_byname(Object *ob, Object *name)
+{
+  expect(type_isenum(OB_TYPE(ob)));
+  EnumObject *eob = (EnumObject *)ob;
+  return !strcmp(eob->name, string_asstr(name));
+}
+
+int enum_check_value(Object *ob, Object *idx, Object *val)
+{
+  expect(type_isenum(OB_TYPE(ob)));
+  EnumObject *eob = (EnumObject *)ob;
+  int i = (int)integer_asint(idx);
+  Object *val2 = tuple_get(eob->values, i);
+  func_t fn = OB_NUM_FUNC(val, eq);
+  Object *bval;
+  if (fn != NULL) {
+    bval = fn(val, val2);
+  } else {
+    bval = object_call(val, "__eq__", val2);
+  }
+  OB_DECREF(val2);
+  int res = bool_istrue(bval);
+  OB_DECREF(bval);
+  return res;
+}
+
+Object *enum_get_value(Object *ob, Object *idx)
+{
+  expect(type_isenum(OB_TYPE(ob)));
+  EnumObject *eob = (EnumObject *)ob;
+  int i = (int)integer_asint(idx);
+  return tuple_get(eob->values, i);
+}

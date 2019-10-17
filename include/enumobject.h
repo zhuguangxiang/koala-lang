@@ -49,6 +49,9 @@ typedef struct enumobject {
 TypeObject *enum_type_new(char *path, char *name);
 void type_add_label(TypeObject *type, char *name, Vector *types);
 Object *enum_new(Object *ob, char *name, Object *values);
+int enum_check_byname(Object *ob, Object *name);
+int enum_check_value(Object *ob, Object *idx, Object *val);
+Object *enum_get_value(Object *ob, Object *idx);
 
 #ifdef __cplusplus
 }

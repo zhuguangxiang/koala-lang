@@ -208,6 +208,16 @@ static MethodDef string_methods[] = {
   {NULL}
 };
 
+static NumberMethods string_num_methods = {
+  .add = str_num_add,
+
+  .gt  = str_num_gt,
+  .ge  = str_num_ge,
+  .lt  = str_num_lt,
+  .le  = str_num_le,
+  .eq  = str_num_eq,
+};
+
 TypeObject string_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name    = "String",
@@ -215,6 +225,7 @@ TypeObject string_type = {
   .equal   = string_equal,
   .clean   = string_clean,
   .free    = string_free,
+  .number  = &string_num_methods,
   .methods = string_methods,
 };
 

@@ -175,11 +175,11 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 %type <expr> float_pattern
 %type <expr> enum_pattern
 %type <list> enum_pattern_args
+%type <expr> enum_pattern_arg
 %type <list> int_seq
 %type <list> char_seq
 %type <list> str_seq
 %type <list> float_seq
-%type <expr> match_condition
 %type <stmt> match_block
 %type <stmt> for_each_stmt
 %type <stmt> func_decl
@@ -1402,9 +1402,9 @@ match_clauses:
 ;
 
 match_clause:
-  match_pattern match_condition FAT_ARROW match_block match_tail
+  match_pattern FAT_ARROW match_block match_tail
 {
-  $$ = new_match_clause($1, $2, $4);
+  $$ = new_match_clause($1, $3);
 }
 ;
 
@@ -1563,7 +1563,7 @@ float_pattern:
 }
 | '-' FLOAT_LITERAL
 {
-  $$ = expr_from_float(0 - $2);
+  $$ = expr_from_float(0.0 - $2);
 }
 | float_seq FLOAT_LITERAL
 {
@@ -1572,7 +1572,7 @@ float_pattern:
 }
 | float_seq '-' FLOAT_LITERAL
 {
-  vector_push_back($1, expr_from_float(0 - $3));
+  vector_push_back($1, expr_from_float(0.0 - $3));
   $$ = expr_from_array($1);
 }
 ;
@@ -1586,7 +1586,7 @@ float_seq:
 | '-' FLOAT_LITERAL '|'
 {
   $$ = vector_new();
-  vector_push_back($$, expr_from_float(0 - $2));
+  vector_push_back($$, expr_from_float(0.0 - $2));
 }
 | float_seq FLOAT_LITERAL '|'
 {
@@ -1596,7 +1596,7 @@ float_seq:
 | float_seq '-' FLOAT_LITERAL '|'
 {
   $$ = $1;
-  vector_push_back($$, expr_from_float(0 - $3));
+  vector_push_back($$, expr_from_float(0.0 - $3));
 }
 ;
 
@@ -1643,10 +1643,12 @@ enum_pattern_args:
   enum_pattern_arg
 {
   $$ = vector_new();
+  vector_push_back($$, $1);
 }
 | enum_pattern_args ',' enum_pattern_arg
 {
-  $$ = vector_new();
+  $$ = $1;
+  vector_push_back($$, $3);
 }
 ;
 
@@ -1654,25 +1656,44 @@ enum_pattern_args:
 /* any operations(+,-) in enum pattern arguments are not allowed */
 enum_pattern_arg:
   ID
-| '_'
-| INT_LITERAL
-| '-' INT_LITERAL
-| FLOAT_LITERAL
-| '-' FLOAT_LITERAL
-| STRING_LITERAL
-| CHAR_LITERAL
-| TRUE
-| FALSE
-;
-
-match_condition:
-  %empty
 {
-  $$ = NULL;
+  $$ = expr_from_ident($1);
 }
-| IF expr
+| '_'
 {
-  $$ = $2;
+  $$ = expr_from_underscore();
+}
+| INT_LITERAL
+{
+  $$ = expr_from_int($1);
+}
+| '-' INT_LITERAL
+{
+  $$ = expr_from_int(0 - $2);
+}
+| FLOAT_LITERAL
+{
+  $$ = expr_from_float($1);
+}
+| '-' FLOAT_LITERAL
+{
+  $$ = expr_from_float(0.0 - $2);
+}
+| STRING_LITERAL
+{
+  $$ = expr_from_str($1);
+}
+| CHAR_LITERAL
+{
+  $$ = expr_from_char($1);
+}
+| TRUE
+{
+  $$ = expr_from_bool(1);
+}
+| FALSE
+{
+  $$ = expr_from_bool(0);
 }
 ;
 

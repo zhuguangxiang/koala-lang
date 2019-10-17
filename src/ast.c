@@ -417,6 +417,7 @@ void expr_free(Expr *exp)
     break;
   case ENUM_PATTERN_KIND:
     exprlist_free(exp->enum_pattern.exps);
+    kfree(exp);
     break;
   default:
     panic("invalid expr kind %d", exp->kind);

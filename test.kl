@@ -687,7 +687,9 @@ opt4
 opt4.is_some()
 opt4.is_none()
 
+/*
 // not allowed, type maybe not equal. opt := Option.None
 // use if Option.Some(x, y) = opt
 Option.Some(x, y) = Option.Some(1, "bar")
 Option.Some(x, y) = opt
+*/

@@ -269,6 +269,57 @@ static Vector *getupvals(CallFrame *f, Object *ob)
   return upvals;
 }
 
+static Object *do_match_enum_args(Object *match, Object *pattern)
+{
+  Object *name = tuple_get(pattern, 0);
+  int res = enum_check_byname(match, name);
+  OB_DECREF(name);
+  if (!res) {
+    return bool_false();
+  }
+
+  int size = tuple_size(pattern);
+  Object *ob;
+  Vector *vec = vector_new();
+  for (int i = 1; i < size; ++i) {
+    ob = tuple_get(pattern, i);
+    if (tuple_check(ob)) {
+      Object *idx = tuple_get(ob, 0);
+      Object *val = tuple_get(ob, 1);
+      OB_DECREF(ob);
+      res = enum_check_value(match, idx, val);
+      OB_DECREF(idx);
+      OB_DECREF(val);
+      if (!res) {
+        vector_for_each(ob, vec) {
+          OB_DECREF(ob);
+        }
+        vector_free(vec);
+        return bool_false();
+      }
+    } else {
+      expect(integer_check(ob));
+      vector_push_back(vec, enum_get_value(match, ob));
+      OB_DECREF(ob);
+    }
+  }
+
+  size = vector_size(vec);
+  if (size <= 0) {
+    vector_free(vec);
+    return bool_true();
+  } else {
+    Object *tuple = tuple_new(size);
+    Object *ob;
+    vector_for_each(ob, vec) {
+      tuple_set(tuple, idx, ob);
+      OB_DECREF(ob);
+    }
+    vector_free(vec);
+    return tuple;
+  }
+}
+
 static Object *do_match(Object *match, Object *pattern)
 {
   if (array_check(pattern)) {
@@ -288,6 +339,12 @@ static Object *do_match(Object *match, Object *pattern)
     return in_range(pattern, match);
   } else if (bool_check(pattern)) {
     return (match == pattern) ? bool_true() : bool_false();
+  } else if (type_isenum(OB_TYPE(match))) {
+    if (tuple_check(pattern)) {
+      return do_match_enum_args(match, pattern);
+    } else {
+      return enum_check_byname(match, pattern) ? bool_true() : bool_false();
+    }
   } else {
     Object *z;
     func_t fn = OB_NUM_FUNC(match, eq);
@@ -1085,7 +1142,18 @@ Object *Koala_EvalFrame(CallFrame *f)
       break;
     }
     case OP_MATCH: {
-      y = POP();
+      oparg = NEXT_BYTE();
+      if (oparg == 1) {
+        y = POP();
+      } else {
+        expect(oparg >= 2);
+        y = tuple_new(oparg);
+        for (i = 0; i < oparg; ++i) {
+          v = POP();
+          tuple_set(y, i, v);
+          OB_DECREF(v);
+        }
+      }
       x = TOP();
       z = do_match(x, y);
       PUSH(z);

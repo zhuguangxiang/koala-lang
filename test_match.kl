@@ -61,15 +61,15 @@ match true {
   false => io.println("false")
 }
 
-i = 100
+i = 20
 
 match i {
-  100 => {
+  20 => {
     io.println("i == 100")
     j := i
     sum := 0
     while j > 0 {
-      if (j < 50) {
+      if (j < 10) {
         break
       }
       sum += 1
@@ -77,11 +77,14 @@ match i {
     }
     io.println(sum)
   },
-  _ => io.println("i != 100"),
+  _ => io.println("i != 20"),
 }
+
+i = 100
 
 match i {
   1 | 3 | 100 | 300 => io.println("1 | 3 | 100 | 300")
+  2 | 4 | 200 | 500 => io.println("2 | 4 | 200 | 500")
   _ => io.println("other value")
 }
 
@@ -139,15 +142,25 @@ opt := Option.Some(100, "foo")
 
 match opt {
   Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
+  1 | 3 | 100 | 300 => io.println("1 | 3 | 100 | 300")
+  123 => io.println("opt is 123")
   _ => io.println("not Option.Some(100, \"foo\")")
 }
 
 match opt {
-  Option.Some(_, "foo") => io.println("Option.Some(_, \"foo\")")
+  Option.Some(200, "foo") => io.println("Option.Some(200, \"foo\")")
+  Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
+  Option.None => io.println("Option.None")
+  _ => io.println("not Option.Some(100, \"foo\")")
+}
+
+match opt {
   Option.Some(_, "bar") => io.println("Option.Some(_, \"bar\")")
+  Option.Some(_, "foo") => io.println("Option.Some(_, \"foo\")")
   _ => io.println("not Option.Some(_, \"foo\")")
 }
 
+/*
 match opt {
   Option.Some(_, y) => {
     io.println("Option.Some(_, y)")
@@ -197,3 +210,4 @@ if Option.Some(x, y) = opt {
 } else {
   // others, except Option.Some
 }
+*/

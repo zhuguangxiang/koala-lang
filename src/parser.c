@@ -392,7 +392,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_NEW_ITER:
   case OP_UNPACK_TUPLE:
   case OP_LOAD_GLOBAL:
+    break;
   case OP_MATCH:
+    bytebuffer_write_byte(buf, i->argc);
     break;
   case OP_LOAD:
   case OP_STORE:
@@ -2453,6 +2455,123 @@ static void parse_range(ParserState *ps, Expr *exp)
   }
 }
 
+static void parse_enum_pattern_args(ParserState *ps, Vector *types, Expr *exp)
+{
+  Ident *id = &exp->enum_pattern.id;
+  int row = id->row;
+  int col = id->col;
+  Vector *exps = exp->enum_pattern.exps;
+
+  int size = vector_size(types);
+  int argc = vector_size(exps);
+  if (size != argc) {
+    syntax_error(ps, row, col, "expected %d args, but %d", size, argc);
+    return;
+  }
+
+  Expr *e;
+  vector_for_each(e, exps) {
+    switch (e->kind) {
+    case UNDER_KIND:
+      /* place holder, do nothing */
+      debug("pattern is place holder(_), do nothing");
+      break;
+    case ID_KIND:
+      debug("pattern is ident, new variable");
+      Ident id = {e->id.name, e->row, e->col};
+      add_update_var(ps, &id, vector_get(types, idx));
+      break;
+    case LITERAL_KIND:
+      debug("pattern is literal");
+      e->ctx = EXPR_LOAD;
+      parse_literal(ps, e);
+      if (!desc_check(vector_get(types, idx), e->desc)) {
+        syntax_error(ps, e->row, e->col, "pattern type checked failed");
+      }
+      CODE_OP_I(OP_LOAD_CONST, idx);
+      CODE_OP_I(OP_NEW_TUPLE, 2);
+      ++exp->enum_pattern.argc;
+      break;
+    default:
+      panic("invalid enum pattern kind %d", e->kind);
+      break;
+    }
+  }
+}
+
+static void parse_enum_pattern(ParserState *ps, Expr *exp)
+{
+  Ident *id = &exp->enum_pattern.id;
+  Ident *ename = &exp->enum_pattern.ename;
+  Ident *mod = &exp->enum_pattern.mname;
+
+  Symbol *msym = NULL;
+  if (mod->name != NULL) {
+    msym = stable_get(ps->module->stbl, mod->name);
+    if (msym == NULL) {
+      syntax_error(ps, mod->row, mod->col,
+                  "cannot find symbol '%s'", mod->name);
+    }
+
+    if (msym->kind != SYM_MOD) {
+      syntax_error(ps, id->row, id->col,
+                  "'%s' is not module", id->name);
+      msym = NULL;
+    }
+  }
+
+  Symbol *esym = NULL;
+  if (ename->name != NULL) {
+    Module *m = (msym != NULL) ? msym->mod.ptr : ps->module;
+    esym = stable_get(m->stbl, ename->name);
+    if (esym == NULL) {
+      syntax_error(ps, ename->row, ename->col,
+                  "cannot find symbol '%s'", ename->name);
+    }
+
+    if (esym->kind != SYM_ENUM) {
+      syntax_error(ps, ename->row, ename->col,
+                  "'%s' is not enum", ename->name);
+      esym = NULL;
+    }
+  }
+
+  STable *stbl = NULL;
+  if (esym != NULL) {
+    stbl = esym->type.stbl;
+  } else {
+    // auto detect from match expr
+    Symbol *sym = exp->enum_pattern.sym;
+    if (sym == NULL || sym->kind != SYM_ENUM) {
+      syntax_error(ps, id->row, id->col,
+                  "cannot resolve '%s' symbol", id->name);
+    }
+  }
+
+  if (stbl == NULL)
+    return;
+
+  Symbol *lsym = stable_get(stbl, id->name);
+  if (lsym == NULL) {
+    syntax_error(ps, id->row, id->col,
+                "cannot resolve '%s' symbol", id->name);
+    return;
+  }
+
+  if (lsym->kind != SYM_LABEL) {
+    syntax_error(ps, id->row, id->col,
+                "'%s' is not enum value", id->name);
+    return;
+  }
+
+  parse_enum_pattern_args(ps, lsym->label.types, exp);
+
+  if (!has_error(ps)) {
+    exp->sym = lsym;
+    exp->desc = TYPE_INCREF(lsym->desc->label.edesc);
+  }
+}
+
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
@@ -2463,31 +2582,32 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
   exp->hasvalue = 1;
 
   static void (*handlers[])(ParserState *, Expr *) = {
-    NULL,               /* INVALID        */
-    NULL,               /* NIL_KIND       */
-    parse_self,         /* SELF_KIND      */
-    NULL,               /* SUPER_KIND     */
-    parse_literal,      /* LITERAL_KIND   */
-    parse_ident,        /* ID_KIND        */
-    parse_underscore,   /* UNDER_KIND     */
-    parse_unary,        /* UNARY_KIND     */
-    parse_binary,       /* BINARY_KIND    */
-    parse_ternary,      /* TERNARY_KIND   */
-    parse_atrr,         /* ATTRIBUTE_KIND */
-    parse_subscr,       /* SUBSCRIPT_KIND */
-    parse_call,         /* CALL_KIND      */
-    parse_slice,        /* SLICE_KIND     */
-    parse_tuple,        /* TUPLE_KIND     */
-    parse_array,        /* ARRAY_KIND     */
-    parse_map,          /* MAP_KIND       */
-    parse_anony,        /* ANONY_KIND     */
-    parse_is,           /* IS_KIND        */
-    parse_as,           /* AS_KIND        */
-    parse_new,          /* NEW_KIND       */
-    parse_range,        /* RANGE_KIND     */
+    NULL,                 /* INVALID            */
+    NULL,                 /* NIL_KIND           */
+    parse_self,           /* SELF_KIND          */
+    NULL,                 /* SUPER_KIND         */
+    parse_literal,        /* LITERAL_KIND       */
+    parse_ident,          /* ID_KIND            */
+    parse_underscore,     /* UNDER_KIND         */
+    parse_unary,          /* UNARY_KIND         */
+    parse_binary,         /* BINARY_KIND        */
+    parse_ternary,        /* TERNARY_KIND       */
+    parse_atrr,           /* ATTRIBUTE_KIND     */
+    parse_subscr,         /* SUBSCRIPT_KIND     */
+    parse_call,           /* CALL_KIND          */
+    parse_slice,          /* SLICE_KIND         */
+    parse_tuple,          /* TUPLE_KIND         */
+    parse_array,          /* ARRAY_KIND         */
+    parse_map,            /* MAP_KIND           */
+    parse_anony,          /* ANONY_KIND         */
+    parse_is,             /* IS_KIND            */
+    parse_as,             /* AS_KIND            */
+    parse_new,            /* NEW_KIND           */
+    parse_range,          /* RANGE_KIND         */
+    parse_enum_pattern,   /* ENUM_PATTERN_KIND  */
   };
 
-  expect(exp->kind >= NIL_KIND && exp->kind <= RANGE_KIND);
+  expect(exp->kind >= NIL_KIND && exp->kind <= ENUM_PATTERN_KIND);
   handlers[exp->kind](ps, exp);
 
   /* function's return maybe null */
@@ -3211,11 +3331,12 @@ static void parse_match(ParserState *ps, Stmt *stmt)
 
   // parse conditons
   vector_for_each(match, clauses) {
-    Expr *test = match->test;
-    TypeDesc *testdesc = NULL;
-    if (test->kind == UNDER_KIND) {
+    Expr *pattern = match->pattern;
+    TypeDesc *patterndesc = NULL;
+    if (pattern->kind == UNDER_KIND) {
       if (underscore != NULL) {
-        syntax_error(ps, test->row, test->col, "duplicated underscore(_)");
+        syntax_error(ps, pattern->row, pattern->col,
+                    "duplicated underscore(_)");
       }
       underscore = match;
       if (idx == count - 1) {
@@ -3223,33 +3344,46 @@ static void parse_match(ParserState *ps, Stmt *stmt)
       }
       continue;
     }
-    test->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, test);
-    if (test->kind == ARRAY_KIND) {
+
+    pattern->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, pattern);
+
+    if (pattern->kind == ARRAY_KIND) {
       debug("match pattern is array");
-      Expr *subexp = vector_get(test->array, 0);
+      Expr *subexp = vector_get(pattern->array, 0);
       if (subexp == NULL) {
-        syntax_error(ps, test->row, test->col,
+        syntax_error(ps, pattern->row, pattern->col,
                     "cannot resolve array's subtype");
       } else {
-        testdesc = subexp->desc;
+        patterndesc = subexp->desc;
       }
-    } else if (test->kind == RANGE_KIND) {
+      pattern->enum_pattern.argc = 1;
+    } else if (pattern->kind == RANGE_KIND) {
       debug("match pattern is range");
-      testdesc = test->range.start->desc;
-    } else if (test->kind == IS_KIND) {
+      patterndesc = pattern->range.start->desc;
+      pattern->enum_pattern.argc = 1;
+    } else if (pattern->kind == IS_KIND) {
       debug("match pattern is IS TYPE");
-      testdesc = test->isas.type.desc;
+      patterndesc = pattern->isas.type.desc;
+      pattern->enum_pattern.argc = 1;
+    } else if (pattern->kind == ENUM_PATTERN_KIND) {
+      debug("match pattern is enum");
+      patterndesc = pattern->desc;
+      //for enum label name
+      ++pattern->enum_pattern.argc;
+      CODE_OP_S(OP_LOAD_CONST, pattern->enum_pattern.id.name);
     } else {
-      testdesc = test->desc;
+      // single literal
+      patterndesc = pattern->desc;
+      pattern->enum_pattern.argc = 1;
     }
 
-    if (testdesc == NULL) {
-      syntax_error(ps, test->row, test->col, "cannot resolve test type");
-    } else if (!desc_check(testdesc, exp->desc)) {
-      syntax_error(ps, test->row, test->col, "types are not matched");
+    if (patterndesc == NULL) {
+      syntax_error(ps, pattern->row, pattern->col, "cannot resolve test type");
+    } else if (!desc_check(patterndesc, exp->desc)) {
+      syntax_error(ps, pattern->row, pattern->col, "types are not matched");
     } else {
-      CODE_OP(OP_MATCH);
+      CODE_OP_ARGC(OP_MATCH, pattern->enum_pattern.argc);
       Inst *jmp = CODE_OP(OP_JMP_TRUE); //where to jmp?
       matchjmps[matchindex] = jmp;
       matchoffset[matchindex] = codeblock_bytes(u->block);
@@ -3273,17 +3407,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
     int blockstart = codeblock_bytes(u->block);
     Inst *jmp = NULL;
     if (match == underscore) {
-      if (match->cond != NULL) {
-        syntax_error(ps, match->cond->row, match->cond->col,
-                     "underscore(_) must not have if condition");
-      }
       continue;
-    }
-
-    if (match->cond != NULL) {
-      match->cond->ctx = EXPR_LOAD;
-      parser_visit_expr(ps, match->cond);
-      CODE_OP(OP_JMP_FALSE); //where to jmp?
     }
 
     parse_stmt(ps, match->block);

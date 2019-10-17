@@ -191,16 +191,14 @@ static inline void free_labels(Vector *vec)
 }
 
 typedef struct matchclause {
-  Expr *test;
-  Expr *cond;
+  Expr *pattern;
   Stmt *block;
 } MatchClause;
 
-static inline MatchClause *new_match_clause(Expr *test, Expr *cond, Stmt *block)
+static inline MatchClause *new_match_clause(Expr *pattern, Stmt *block)
 {
   MatchClause *match = kmalloc(sizeof(MatchClause));
-  match->test = test;
-  match->cond = cond;
+  match->pattern = pattern;
   match->block = block;
   return match;
 }
@@ -211,8 +209,7 @@ void stmt_free(Stmt *stmt);
 
 static inline void free_match_clause(MatchClause *match)
 {
-  expr_free(match->test);
-  expr_free(match->cond);
+  expr_free(match->pattern);
   stmt_free(match->block);
   kfree(match);
 }
@@ -385,6 +382,8 @@ struct expr {
       Ident ename;
       Ident mname;
       Vector *exps;
+      Symbol *sym; // match expr's symbol
+      int argc; // count of literals of exps
     } enum_pattern;
   };
 };
