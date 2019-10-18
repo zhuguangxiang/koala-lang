@@ -141,7 +141,7 @@ u4  [\xf0-\xf7]
 asc_char  {asc}
 utf8_char {u2}{u}|{u3}{u}{u}|{u4}{u}{u}{u}
 esc_char  \\\x0a\x20|\\\\|\\\'|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
-hex_char  \\x({hex}|{hex}{hex})
+hex_char  \\x({hex}{hex})
 u16_char  \\u{hex}{hex}{hex}{hex}
 u32_char  \\U{hex}{hex}{hex}{hex}{hex}{hex}{hex}{hex}
 character {asc_char}|{utf8_char}|{esc_char}|{hex_char}|{u16_char}|{u32_char}

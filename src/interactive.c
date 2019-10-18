@@ -40,19 +40,18 @@
 #include "codeobject.h"
 #include "image.h"
 #include "enumobject.h"
-#include <readline/readline.h>
-#include <readline/history.h>
+#include "readline.h"
 
 #define PROMPT      "> "
 #define MORE_PROMPT "  "
 
 static void show_banner(void)
 {
-  printf("koala %s (%s)\n", KOALA_VERSION, __DATE__);
+  printf("koala %s (%s)\r\n", KOALA_VERSION, __DATE__);
 
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
-    printf("[GCC %d.%d.%d] on %s/%s %s\n",
+    printf("[GCC %d.%d.%d] on %s/%s %s\r\n",
            __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,
            sysinfo.sysname, sysinfo.machine, sysinfo.release);
   }
@@ -97,10 +96,14 @@ static void init_cmdline_env(void)
   mo = module_new("__main__");
 
   pthread_key_create(&kskey, NULL);
+
+  init_stdin();
 }
 
 static void fini_cmdline_env(void)
 {
+  reset_stdin();
+
   stable_free(mod.stbl);
   mod.stbl = NULL;
   symbol_decref(modSym);
@@ -495,10 +498,6 @@ int interactive(ParserState *ps, char *buf, int size)
   }
 
   char *line;
-  /* TAB as insert, not completion */
-  rl_bind_key('\t', rl_insert);
-  /* set TAB width as 2 spaces */
-  rl_generic_bind(ISMACR, "\t", "  ", rl_get_keymap());
 
   if (ps->more) {
     line = readline(MORE_PROMPT);
@@ -530,6 +529,6 @@ int interactive(ParserState *ps, char *buf, int size)
     ps->more++;
   }
 
-  free(line);
+  freeline(line);
   return len;
 }

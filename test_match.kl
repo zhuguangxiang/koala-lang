@@ -160,6 +160,15 @@ match opt {
   _ => io.println("not Option.Some(_, \"foo\")")
 }
 
+opt = Option.None
+
+match opt {
+  Option.Some(200, "foo") => io.println("Option.Some(200, \"foo\")")
+  Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
+  Option.None => io.println("Option.None")
+  _ => io.println("not Option.Some(100, \"foo\")")
+}
+
 /*
 match opt {
   Option.Some(_, y) => {
