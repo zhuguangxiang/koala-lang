@@ -280,44 +280,21 @@ static Object *do_match_enum_args(Object *match, Object *pattern)
 
   int size = tuple_size(pattern);
   Object *ob;
-  Vector *vec = vector_new();
   for (int i = 1; i < size; ++i) {
     ob = tuple_get(pattern, i);
-    if (tuple_check(ob)) {
-      Object *idx = tuple_get(ob, 0);
-      Object *val = tuple_get(ob, 1);
-      OB_DECREF(ob);
-      res = enum_check_value(match, idx, val);
-      OB_DECREF(idx);
-      OB_DECREF(val);
-      if (!res) {
-        vector_for_each(ob, vec) {
-          OB_DECREF(ob);
-        }
-        vector_free(vec);
-        return bool_false();
-      }
-    } else {
-      expect(integer_check(ob));
-      vector_push_back(vec, enum_get_value(match, ob));
-      OB_DECREF(ob);
+    expect(tuple_check(ob));
+    Object *idx = tuple_get(ob, 0);
+    Object *val = tuple_get(ob, 1);
+    OB_DECREF(ob);
+    res = enum_check_value(match, idx, val);
+    OB_DECREF(idx);
+    OB_DECREF(val);
+    if (!res) {
+      return bool_false();
     }
   }
 
-  size = vector_size(vec);
-  if (size <= 0) {
-    vector_free(vec);
-    return bool_true();
-  } else {
-    Object *tuple = tuple_new(size);
-    Object *ob;
-    vector_for_each(ob, vec) {
-      tuple_set(tuple, idx, ob);
-      OB_DECREF(ob);
-    }
-    vector_free(vec);
-    return tuple;
-  }
+  return bool_true();
 }
 
 static Object *do_match(Object *match, Object *pattern)
@@ -331,7 +308,7 @@ static Object *do_match(Object *match, Object *pattern)
       if (bool_istrue(z)) {
         return z;
       } else {
-         OB_DECREF(z);
+        OB_DECREF(z);
       }
     }
     return bool_false();
@@ -350,6 +327,16 @@ static Object *do_match(Object *match, Object *pattern)
     func_t fn = OB_NUM_FUNC(match, eq);
     call_op_func(z, match, OP_EQ, pattern);
     return z;
+  }
+}
+
+static Object *do_dot_index(Object *ob, int index)
+{
+  if (tuple_check(ob)) {
+    panic("tuple index not implemented.");
+  } else {
+    expect(type_isenum(OB_TYPE(ob)));
+    return enum_get_value(ob, index);
   }
 }
 
@@ -1158,6 +1145,14 @@ Object *Koala_EvalFrame(CallFrame *f)
       z = do_match(x, y);
       PUSH(z);
       OB_DECREF(y);
+      break;
+    }
+    case OP_DOT_INDEX: {
+      oparg = NEXT_BYTE();
+      x = POP();
+      y = do_dot_index(x, oparg);
+      PUSH(y);
+      OB_DECREF(x);
       break;
     }
     default: {

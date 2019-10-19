@@ -193,6 +193,7 @@ static inline void free_labels(Vector *vec)
 typedef struct matchclause {
   Expr *pattern;
   Stmt *block;
+  STable *stbl;
 } MatchClause;
 
 static inline MatchClause *new_match_clause(Expr *pattern, Stmt *block)

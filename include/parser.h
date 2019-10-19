@@ -88,6 +88,8 @@ typedef struct parserunit {
 #define WHILE_BLOCK   3
 #define FOR_BLOCK     4
 #define MATCH_BLOCK   5
+#define MATCH_PATTERN 6
+#define MATCH_CLAUSE  7
   /* save break & continue */
   Vector jmps;
 } ParserUnit;

@@ -197,10 +197,11 @@ int enum_check_value(Object *ob, Object *idx, Object *val)
   return res;
 }
 
-Object *enum_get_value(Object *ob, Object *idx)
+Object *enum_get_value(Object *ob, int index)
 {
   expect(type_isenum(OB_TYPE(ob)));
   EnumObject *eob = (EnumObject *)ob;
-  int i = (int)integer_asint(idx);
-  return tuple_get(eob->values, i);
+  expect(index >= 0 && index <= 31);
+  expect(eob->values != NULL);
+  return tuple_get(eob->values, index);
 }

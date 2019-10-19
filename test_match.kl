@@ -169,7 +169,16 @@ match opt {
   _ => io.println("not Option.Some(100, \"foo\")")
 }
 
-/*
+match opt {
+  Option.Some(_, y) => {
+    io.println("Option.Some(_, y)")
+    io.println(y)
+  },
+  _ => io.println("not Option.Some(_, y)")
+}
+
+opt = Option.Some(100, "jack&rose");
+
 match opt {
   Option.Some(_, y) => {
     io.println("Option.Some(_, y)")
@@ -186,6 +195,52 @@ match opt {
   _ => io.println("not Option.Some(x, y)")
 }
 
+match opt {
+  Option.Some(100, x) => {
+    io.println("""
+    Option.Some(100, x)
+    """)
+    io.println(x)
+  }
+  Option.Some(200, x) => {
+    io.println("Option.Some(100, x)")
+    io.println(x)
+  }
+  Option.None => io.println("Option.None")
+  _ => io.println("not Option.Some(100, x)")
+}
+
+opt = Option.Some(200, "foo&bar");
+
+match opt {
+  Option.Some(100, x) => {
+    io.println("Option.Some(100, x)")
+    io.println(x)
+  }
+  Option.Some(200, x) => {
+    io.println("Option.Some(200, x)")
+    io.println(x)
+  }
+  Option.None => io.println("Option.None")
+  _ => io.println("not Option.Some(100, x)")
+}
+
+opt = Option.None
+
+match opt {
+  Option.Some(100, x) => {
+    io.println("Option.Some(100, x)")
+    io.println(x)
+  }
+  Option.Some(200, x) => {
+    io.println("Option.Some(200, x)")
+    io.println(x)
+  }
+  Option.None => io.println("Option.None")
+  _ => io.println("not Option.Some(100, x)")
+}
+
+/*
 // short for match enum with only two cases
 
 if Option.Some(100, "foo") = opt {

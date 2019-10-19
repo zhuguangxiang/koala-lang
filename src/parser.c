@@ -430,6 +430,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_UPVAL_LOAD:
     bytebuffer_write_byte(buf, i->arg.ival);
     break;
+  case OP_DOT_INDEX:
   case OP_INIT_CALL:
     bytebuffer_write_byte(buf, i->argc);
     break;
@@ -525,7 +526,8 @@ static const char *scopes[] = {
 };
 
 static const char *blocks[] = {
-  NULL, "BLOCK", "IF-BLOCK", "WHILE-BLOCK", "FOR-BLOCK", "MATCH-BLOCK"
+  NULL, "BLOCK", "IF-BLOCK", "WHILE-BLOCK", "FOR-BLOCK", "MATCH-BLOCK",
+  "MATCH-PATTERN", "MATCH-CLAUSE",
 };
 
 ParserState *new_parser(char *filename)
@@ -2479,7 +2481,10 @@ static void parse_enum_pattern_args(ParserState *ps, Vector *types, Expr *exp)
     case ID_KIND:
       debug("pattern is ident, new variable");
       Ident id = {e->id.name, e->row, e->col};
-      add_update_var(ps, &id, vector_get(types, idx));
+      Symbol *sym = add_update_var(ps, &id, vector_get(types, idx));
+      if (sym != NULL) {
+        sym->var.dotindex = idx;
+      }
       break;
     case LITERAL_KIND:
       debug("pattern is literal");
@@ -3297,6 +3302,43 @@ static void parse_enumdecl(ParserState *ps, Stmt *stmt)
   debug("end of enum '%s'", id->name);
 }
 
+static void parse_match_clause(ParserState *ps, MatchClause *clause)
+{
+  parser_enter_scope(ps, SCOPE_BLOCK, MATCH_CLAUSE);
+  ParserUnit *u = ps->u;
+  if (clause->stbl != NULL) {
+    u->stbl = clause->stbl;
+    clause->stbl = NULL;
+  } else {
+    u->stbl = stable_new();
+  }
+
+  HASHMAP_ITERATOR(iter, &u->stbl->table);
+  Symbol *sym;
+  iter_for_each(&iter, sym) {
+    expect(sym->kind == SYM_VAR);
+    CODE_OP(OP_DUP);
+    CODE_OP_ARGC(OP_DOT_INDEX, sym->var.dotindex);
+    CODE_STORE(sym->var.index);
+  }
+
+  Stmt *s = clause->block;
+  if (s->kind == EXPR_KIND) {
+    parse_expr(ps, s);
+  } else {
+    expect(s->kind == BLOCK_KIND);
+    Stmt *item;
+    Vector *vec = s->block.vec;
+    vector_for_each(item, vec) {
+      parse_stmt(ps, item);
+    }
+  }
+
+  stable_free(u->stbl);
+  u->stbl = NULL;
+  parser_exit_scope(ps);
+}
+
 static void parse_match(ParserState *ps, Stmt *stmt)
 {
   debug("parse match");
@@ -3345,8 +3387,25 @@ static void parse_match(ParserState *ps, Stmt *stmt)
       continue;
     }
 
+    if (pattern->kind == ENUM_PATTERN_KIND) {
+      parser_enter_scope(ps, SCOPE_BLOCK, MATCH_PATTERN);
+      ps->u->stbl = stable_new();
+    }
+
     pattern->ctx = EXPR_LOAD;
     parser_visit_expr(ps, pattern);
+
+    if (pattern->kind == ENUM_PATTERN_KIND) {
+      if (hashmap_size(&ps->u->stbl->table) > 0) {
+        // save symbol table for parsing match clauses.
+        match->stbl = ps->u->stbl;
+      } else {
+        match->stbl = NULL;
+        stable_free(ps->u->stbl);
+      }
+      ps->u->stbl = NULL;
+      parser_exit_scope(ps);
+    }
 
     if (pattern->kind == ARRAY_KIND) {
       debug("match pattern is array");
@@ -3374,6 +3433,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
       CODE_OP_S(OP_LOAD_CONST, pattern->enum_pattern.id.name);
     } else {
       // single literal
+      expect(pattern->kind == LITERAL_KIND);
       patterndesc = pattern->desc;
       pattern->enum_pattern.argc = 1;
     }
@@ -3394,7 +3454,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
   // parse underscore(_) pattern
   if (underscore != NULL) {
     int understart = codeblock_bytes(u->block);
-    parse_stmt(ps, underscore->block);
+    parse_match_clause(ps, underscore);
     if (vector_size(clauses) > 1) {
       Inst *jmp = CODE_OP(OP_JMP); //where to jmp?
       underjmp = jmp;
@@ -3410,7 +3470,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
       continue;
     }
 
-    parse_stmt(ps, match->block);
+    parse_match_clause(ps, match);
 
     if (islast) {
       // last one is underscore clause

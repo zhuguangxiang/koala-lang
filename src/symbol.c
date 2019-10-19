@@ -94,6 +94,7 @@ int stable_add_symbol(STable *stbl, Symbol *sym)
 
 Symbol *stable_remove(STable *stbl, char *name)
 {
+  expect(stbl != NULL);
   Symbol key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
   Symbol *sym = hashmap_remove(&stbl->table, &key);
@@ -105,6 +106,7 @@ Symbol *stable_remove(STable *stbl, char *name)
 
 Symbol *stable_add_const(STable *stbl, char *name, TypeDesc *desc)
 {
+  expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_CONST);
   if (stable_add_symbol(stbl, sym))
     return NULL;
@@ -116,6 +118,7 @@ Symbol *stable_add_const(STable *stbl, char *name, TypeDesc *desc)
 
 Symbol *stable_add_var(STable *stbl, char *name, TypeDesc *desc)
 {
+  expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_VAR);
   if (stable_add_symbol(stbl, sym))
     return NULL;
@@ -127,6 +130,7 @@ Symbol *stable_add_var(STable *stbl, char *name, TypeDesc *desc)
 
 Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto)
 {
+  expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_FUNC);
   if (stable_add_symbol(stbl, sym))
     return NULL;
@@ -137,6 +141,7 @@ Symbol *stable_add_func(STable *stbl, char *name, TypeDesc *proto)
 
 Symbol *stable_add_ifunc(STable *stbl, char *name, TypeDesc *proto)
 {
+  expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_IFUNC);
   if (stable_add_symbol(stbl, sym))
     return NULL;
@@ -147,6 +152,7 @@ Symbol *stable_add_ifunc(STable *stbl, char *name, TypeDesc *proto)
 
 Symbol *stable_add_class(STable *stbl, char *name)
 {
+  expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_CLASS);
   if (stable_add_symbol(stbl, sym))
     return NULL;
@@ -158,7 +164,8 @@ Symbol *stable_add_class(STable *stbl, char *name)
 
 Symbol *stable_add_trait(STable *stbl, char *name)
 {
-   Symbol *sym = symbol_new(name, SYM_TRAIT);
+  expect(stbl != NULL);
+  Symbol *sym = symbol_new(name, SYM_TRAIT);
   if (stable_add_symbol(stbl, sym))
     return NULL;
   sym->desc = desc_from_klass(NULL, name);
@@ -169,7 +176,8 @@ Symbol *stable_add_trait(STable *stbl, char *name)
 
 Symbol *stable_add_enum(STable *stbl, char *name)
 {
-   Symbol *sym = symbol_new(name, SYM_ENUM);
+  expect(stbl != NULL);
+  Symbol *sym = symbol_new(name, SYM_ENUM);
   if (stable_add_symbol(stbl, sym))
     return NULL;
   sym->desc = desc_from_klass(NULL, name);
@@ -180,7 +188,8 @@ Symbol *stable_add_enum(STable *stbl, char *name)
 
 Symbol *stable_add_label(STable *stbl, char *name)
 {
-   Symbol *sym = symbol_new(name, SYM_LABEL);
+  expect(stbl != NULL);
+  Symbol *sym = symbol_new(name, SYM_LABEL);
   if (stable_add_symbol(stbl, sym))
     return NULL;
   symbol_decref(sym);
