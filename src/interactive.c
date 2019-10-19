@@ -523,7 +523,7 @@ int interactive(ParserState *ps, char *buf, int size)
   /* apeend newline */
   buf[len++] = '\n';
   /* flex bug? leave last one char in buffer */
-  buf[len++] = ' ';
+  //buf[len++] = ' ';
 
   if (!empty(buf, len)) {
     ps->more++;

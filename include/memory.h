@@ -48,7 +48,7 @@ void __kfree(void *ptr);
 void kstat(void);
 
 /* duplicate c-string, replace of strndup. */
-static inline char *string_ndup(char *s, size_t size)
+static inline char *str_ndup(char *s, size_t size)
 {
   char *str = kmalloc(size + 1);
   memcpy(str, s, size);
@@ -56,7 +56,7 @@ static inline char *string_ndup(char *s, size_t size)
 }
 
 /* duplicate c-string, with extra available size. */
-static inline char *string_ndup_extra(char *s, size_t size, size_t extra)
+static inline char *str_ndup_ex(char *s, size_t size, size_t extra)
 {
   char *str = kmalloc(size + extra + 1);
   memcpy(str, s, size);
@@ -64,10 +64,13 @@ static inline char *string_ndup_extra(char *s, size_t size, size_t extra)
 }
 
 /* duplicate c-string, replace of strdup. */
-static inline char *string_dup(char *s)
+static inline char *str_dup(char *s)
 {
-  return string_ndup(s, strlen(s));
+  return str_ndup(s, strlen(s));
 }
+
+/* trim c-string */
+char *str_trim(char *s, int len);
 
 #ifdef __cplusplus
 }

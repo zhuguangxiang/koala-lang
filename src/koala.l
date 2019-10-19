@@ -133,19 +133,24 @@ hex_const   0[xX]{hex}+
 oct_const   0{oct}*
 bin_const   0b{bin}+
 
-asc [\x00-\t\v-\x21\x23-\x26\x28-\x5b\x5d-\x7f]
+asc [\x00-\x21\x23-\x26\x28-\x5b\x5d-\x7f]
+more_asc [\x00-\x26\x28-\x5b\x5d-\x7f]
 u   [\x80-\xbf]
 u2  [\xc0-\xdf]
 u3  [\xe0-\xef]
 u4  [\xf0-\xf7]
 asc_char  {asc}
+more_asc_char {more_asc}
 utf8_char {u2}{u}|{u3}{u}{u}|{u4}{u}{u}{u}
-esc_char  \\\x0a\x20|\\\\|\\\'|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
+esc_char  \\\\|\\\'|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
 hex_char  \\x({hex}{hex})
 u16_char  \\u{hex}{hex}{hex}{hex}
 u32_char  \\U{hex}{hex}{hex}{hex}{hex}{hex}{hex}{hex}
-character {asc_char}|{utf8_char}|{esc_char}|{hex_char}|{u16_char}|{u32_char}
+unasc_char {utf8_char}|{esc_char}|{hex_char}|{u16_char}|{u32_char}
+character {asc_char}|{unasc_char}
+morecharacter {more_asc_char}|{unasc_char}
 string    {character}+
+morestring {morecharacter}+
 
 alpha      [A-Za-z_]
 identifier {alpha}({alpha}|{digit})*
@@ -304,28 +309,46 @@ moddoc  "//!"[^\n]*
   YY_RETURN(STRING_LITERAL);
 }
 
+('''{morestring}?''') {
+  yyps->more = 0;
+  yylval->sval = atom_nstring(yytext + 3, yyleng - 6);
+  YY_RETURN(STRING_LITERAL);
+}
+
 {identifier} {
   yylval->sval = atom_nstring(yytext, yyleng);
   YY_RETURN(ID);
 }
 
 {doc} {
-  return DOC;
+  yyps->more = 0;
+  char *s = str_trim(yytext + 3, yyleng - 3);
+  if (s) {
+    yylval->text = s;
+    return DOC;
+  }
 }
 
 {moddoc} {
-  return MODDOC;
+  yyps->more = 0;
+  char *s = str_trim(yytext + 3, yyleng - 3);
+  if (s) {
+    yylval->text = s;
+    return DOC;
+  }
 }
 
 {comment} {
-  return COMMENT;
+  /* omit single line comment */
+  yyps->more = 0;
 }
 
 {blockcomment} {
-  return COMMENT;
+  /* omit multi lines comment */
+  yyps->more = 0;
 }
 
-[\n]+ {
+[\n] {
   /* new line */
   YY_NEWLINE
 }

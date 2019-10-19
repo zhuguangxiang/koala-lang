@@ -468,12 +468,14 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
+    printf("DOC: %s\n", $1);
   }
 }
 | MODDOC
 {
   if (ps->interactive) {
     ps->more = 0;
+    printf("MODDOC: %s\n", $1);
   }
 }
 | INVALID

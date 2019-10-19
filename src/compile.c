@@ -91,7 +91,7 @@ int validate_srcfile(char *path)
 
   struct stat sb;
 
-  char *dir = string_ndup(path, strlen(path) - 3);
+  char *dir = str_ndup(path, strlen(path) - 3);
   if (!stat(dir, &sb)) {
     kfree(dir);
     error("%s: The same name file or directory exist.", path);
@@ -109,7 +109,7 @@ int validate_srcfile(char *path)
     }
   } else {
     int extra = strlen("./__init__.kl");
-    dir = string_ndup_extra(path, dir - path + 1, extra);
+    dir = str_ndup_ex(path, dir - path + 1, extra);
     strcat(dir, "./__init__.kl");
     if (!stat(dir, &sb)) {
       kfree(dir);

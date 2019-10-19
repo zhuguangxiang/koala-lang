@@ -24,6 +24,7 @@
 
 #include <stdio.h>
 #include <inttypes.h>
+#include <ctype.h>
 #include "memory.h"
 #include "log.h"
 
@@ -63,4 +64,21 @@ void kstat(void)
   puts("------ Memory Usage ------");
   print("|  Max: %d Bytes\n|  Current: %d Bytes\n", maxsize, usedsize);
   puts("--------------------------");
+}
+
+char *str_trim(char *s, int len)
+{
+  if (s == NULL) return NULL;
+  if (s[0] == '\0') return s;
+
+  char *fp = s;
+  char *ep = s + len;
+
+  while (isspace(*fp)) { ++fp; }
+  if (ep != fp) {
+    while (isspace(*--ep) && ep != fp);
+  }
+
+  if (ep == fp) return NULL;
+  return strndup(fp, ep - fp);
 }
