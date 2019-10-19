@@ -204,7 +204,7 @@ int cmd_add_const(ParserState *ps, Ident id, Type type)
 {
   cursym = stable_add_const(mod.stbl, id.name, type.desc);
   if (cursym != NULL) {
-    cursym->k.typesym = get_desc_symbol(ps, type.desc);
+    cursym->k.typesym = get_desc_symbol(ps->module, type.desc);
     return 0;
   } else {
     return -1;
@@ -215,7 +215,7 @@ int cmd_add_var(ParserState *ps, Ident id, Type type)
 {
   cursym = stable_add_var(mod.stbl, id.name, type.desc);
   if (cursym != NULL) {
-    cursym->var.typesym = get_desc_symbol(ps, type.desc);
+    cursym->var.typesym = get_desc_symbol(ps->module, type.desc);
     return 0;
   } else {
     return -1;

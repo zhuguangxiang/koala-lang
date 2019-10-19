@@ -26,6 +26,8 @@
 #include "opcode.h"
 #include "codeobject.h"
 #include "moduleobject.h"
+#include "methodobject.h"
+#include "fieldobject.h"
 
 /* lang module */
 static Module _lang_;
@@ -92,11 +94,42 @@ Symbol *find_from_builtins(char *name)
   return stable_get(_lang_.stbl, name);
 }
 
+static STable *stable_from_mobject(Module *mod, Object *ob)
+{
+  ModuleObject *mo = (ModuleObject *)ob;
+  STable *stbl = stable_new();
+  if (mo->mtbl != NULL) {
+    HASHMAP_ITERATOR(iter, mo->mtbl);
+    struct mnode *node;
+    Object *tmp;
+    Symbol *sym;
+    iter_for_each(&iter, node) {
+      tmp = node->obj;
+      if (type_check(tmp)) {
+        sym = load_type(tmp);
+      } else if (field_check(tmp)) {
+        sym = load_field(tmp);
+        sym->var.typesym = get_desc_symbol(mod, sym->desc);
+      } else if (method_check(tmp)) {
+        sym = load_method(tmp);
+      } else {
+        panic("object of '%s'?", OB_TYPE(tmp)->name);
+      }
+      stable_add_symbol(stbl, sym);
+      symbol_decref(sym);
+    }
+  }
+  TypeDesc *desc = desc_from_base('s');
+  stable_add_var(stbl, "__name__", desc);
+  TYPE_DECREF(desc);
+  return stbl;
+}
+
 void mod_from_mobject(Module *mod, Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
   mod->name = mo->name;
-  mod->stbl = stable_from_mobject(ob);
+  mod->stbl = stable_from_mobject(mod, ob);
 }
 
 Symbol *mod_find_symbol(Module *mod, char *name)
@@ -761,7 +794,7 @@ void parser_exit_scope(ParserState *ps)
   }
 }
 
-Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc);
+Symbol *get_desc_symbol(Module *mod, TypeDesc *desc);
 
 static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
 {
@@ -824,7 +857,7 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
   if (exp->id.etype != NULL) {
     TypeDesc *desc = exp->id.etype;
     expect(desc->kind == TYPE_KLASS);
-    Symbol *esym = get_desc_symbol(ps, desc);
+    Symbol *esym = get_desc_symbol(ps->module, desc);
     expect(esym != NULL);
     expect(esym->kind == SYM_ENUM);
     sym = stable_get(esym->type.stbl, name);
@@ -877,10 +910,9 @@ static Symbol *find_local_id_symbol(ParserState *ps, char *name)
   return NULL;
 }
 
-static Symbol *get_klass_symbol(ParserState *ps, char *path, char *name)
+static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
 {
   Symbol *sym;
-  Module *mod = ps->module;
 
   if (path == NULL) {
     /* find type from current module */
@@ -967,7 +999,7 @@ static Symbol *get_literal_symbol(char kind)
   return sym;
 }
 
-Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
+Symbol *get_desc_symbol(Module *mod, TypeDesc *desc)
 {
   if (desc == NULL)
     return NULL;
@@ -978,17 +1010,17 @@ Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc)
     sym = get_literal_symbol(desc->base);
     break;
   case TYPE_KLASS:
-    sym = get_klass_symbol(ps, desc->klass.path, desc->klass.type);
+    sym = get_klass_symbol(mod, desc->klass.path, desc->klass.type);
     // update auto-imported descriptor's path
     if (sym != NULL && desc->klass.path == NULL) {
       desc->klass.path = sym->desc->klass.path;
     }
     break;
   case TYPE_PROTO:
-    sym = get_desc_symbol(ps, desc->proto.ret);
+    sym = get_desc_symbol(mod, desc->proto.ret);
     break;
   case TYPE_LABEL:
-    sym = get_desc_symbol(ps, desc->label.edesc);
+    sym = get_desc_symbol(mod, desc->label.edesc);
     break;
   default:
     panic("invalid desc %d", desc->kind);
@@ -1411,7 +1443,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
 
-  exp->sym = get_desc_symbol(ps, lexp->desc);
+  exp->sym = get_desc_symbol(ps->module, lexp->desc);
   if (exp->sym == NULL) {
     syntax_error(ps, exp->row, exp->col, "cannot find type");
     return;
@@ -1604,7 +1636,7 @@ static void parse_atrr(ParserState *ps, Expr *exp)
       syntax_error(ps, lexp->row, lexp->col,
         "func with arguments cannot be accessed like field.");
     } else {
-      sym = get_desc_symbol(ps, desc->proto.ret);
+      sym = get_desc_symbol(ps->module, desc->proto.ret);
       if (sym != NULL) {
         expect(sym->kind == SYM_CLASS);
         sym = type_find_mbr(sym, id->name);
@@ -1796,7 +1828,7 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     }
     desc = type_maybe_instanced(lexp->desc, desc);
     exp->desc = TYPE_INCREF(desc);
-    exp->sym = get_desc_symbol(ps, desc);
+    exp->sym = get_desc_symbol(ps->module, desc);
     if (exp->sym == NULL) {
       syntax_error(ps, exp->row, exp->col, "cannot find type");
     }
@@ -1878,14 +1910,14 @@ static void parse_call(ParserState *ps, Expr *exp)
       syntax_error(ps, exp->row, exp->col, "call args check failed");
     } else {
       exp->desc = TYPE_INCREF(desc->proto.ret);
-      exp->sym = get_desc_symbol(ps, exp->desc);
+      exp->sym = get_desc_symbol(ps->module, exp->desc);
     }
   } else if (desc->kind == TYPE_LABEL) {
     if (check_label_args(desc, args)) {
       syntax_error(ps, exp->row, exp->col, "enum args check failed");
     } else {
       exp->desc = TYPE_INCREF(desc->label.edesc);
-      exp->sym = get_desc_symbol(ps, exp->desc);
+      exp->sym = get_desc_symbol(ps->module, exp->desc);
     }
   } else {
     syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
@@ -2156,7 +2188,7 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   }
 
   if (sym->var.typesym == NULL) {
-    sym->var.typesym = get_desc_symbol(ps, sym->desc);
+    sym->var.typesym = get_desc_symbol(ps->module, sym->desc);
   }
 
   return sym;
@@ -2296,7 +2328,7 @@ static void parse_is(ParserState *ps, Expr *exp)
   }
   TYPE_DECREF(exp->desc);
   exp->desc = desc_from_bool;
-  exp->sym = get_desc_symbol(ps, exp->desc);
+  exp->sym = get_desc_symbol(ps->module, exp->desc);
   if (exp->sym == NULL) {
     syntax_error(ps, exp->row, exp->col, "cannot find type");
   }
@@ -2314,7 +2346,7 @@ static void parse_as(ParserState *ps, Expr *exp)
 
   TYPE_DECREF(exp->desc);
   exp->desc = TYPE_INCREF(exp->isas.type.desc);
-  exp->sym = get_desc_symbol(ps, exp->desc);
+  exp->sym = get_desc_symbol(ps->module, exp->desc);
   if (exp->sym == NULL) {
     syntax_error(ps, exp->row, exp->col, "cannot find type");
   }
@@ -2375,7 +2407,7 @@ static void parse_new(ParserState *ps, Expr *exp)
 {
   char *path = exp->newobj.path;
   Ident *id = &exp->newobj.id;
-  Symbol *sym = get_klass_symbol(ps, path, id->name);
+  Symbol *sym = get_klass_symbol(ps->module, path, id->name);
   if (sym == NULL) {
     syntax_error(ps, id->row, id->col, "cannot find class '%s'", id->name);
     return;
@@ -2621,7 +2653,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
   }
 }
 
-static Module *new_mod_from_mobject(char *path)
+static Module *new_mod_from_mobject(Module *_mod, char *path)
 {
   Object *ob = module_load(path);
   expect(ob != NULL);
@@ -2630,7 +2662,7 @@ static Module *new_mod_from_mobject(char *path)
   ModuleObject *mo = (ModuleObject *)ob;
   mod->path = path;
   mod->name = mo->name;
-  mod->stbl = stable_from_mobject(ob);
+  mod->stbl = stable_from_mobject(_mod, ob);
   hashmap_entry_init(mod, strhash(path));
   hashmap_add(&modules, mod);
   OB_DECREF(ob);
@@ -2672,7 +2704,7 @@ static void parse_import(ParserState *ps, Stmt *s)
     Module *mod = hashmap_get(&modules, &key);
     if (mod == NULL) {
       // firstly load from memory
-      mod = new_mod_from_mobject(path);
+      mod = new_mod_from_mobject(ps->module, path);
 
       // then load from disk
       //
@@ -2729,7 +2761,7 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
   }
 
   if (sym->var.typesym == NULL) {
-    sym->var.typesym = get_desc_symbol(ps, sym->desc);
+    sym->var.typesym = get_desc_symbol(ps->module, sym->desc);
   }
 
   /* generate codes */

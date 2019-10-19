@@ -449,6 +449,7 @@ static TypeDesc *__to_desc(char **str)
     break;
   }
   case '[': {
+    ++s;
     base = __to_desc(&s);
     desc = desc_from_array;
     desc_add_paratype(desc, base);

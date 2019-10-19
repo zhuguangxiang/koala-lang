@@ -1,0 +1,6 @@
+
+import sys "os"
+
+sys.load_library("./libtestmodule.so")
+
+import test "testmodule"

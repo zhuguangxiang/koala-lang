@@ -22,6 +22,7 @@
  SOFTWARE.
 */
 
+#include <dlfcn.h>
 #include "koala.h"
 
 static Object *os_path_get(Object *self, Object *ob)
@@ -49,14 +50,51 @@ static Object *os_path_get(Object *self, Object *ob)
 }
 
 static FieldDef os_fields[] = {
-  {"path", "Llang.Array;", os_path_get, NULL},
-  {NULL}
+  {"path", "[s", os_path_get, NULL},
+  {NULL},
+};
+
+static Object *os_load_library(Object *self, Object *ob)
+{
+  if (!module_check(self)) {
+    error("object of '%.64s' is not a Module", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  char *str = string_asstr(ob);
+  debug("load library '%s'", str);
+
+  void *dlptr = dlopen(str, RTLD_LAZY);
+  if (dlptr == NULL) {
+    error("load library '%s' failed", str);
+    return NULL;
+  }
+
+  void (*init)(void *) = dlsym(dlptr, "init_module");
+  if (init == NULL) {
+    error("library '%s' is has not 'void init_module(void *)'", str);
+    dlclose(dlptr);
+    return NULL;
+  }
+
+  Object *m = module_new("testmodule");
+  init(m);
+  module_install("testmodule", m);
+  OB_DECREF(m);
+  //dlclose(dlptr);
+  return NULL;
+}
+
+static MethodDef os_funcs[] = {
+  {"load_library", "s", NULL, os_load_library},
+  {NULL},
 };
 
 void init_os_module(void)
 {
   Object *m = module_new("os");
   module_add_vardefs(m, os_fields);
+  module_add_funcdefs(m, os_funcs);
   module_install("os", m);
   OB_DECREF(m);
 }

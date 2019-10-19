@@ -277,7 +277,7 @@ void symbol_decref(Symbol *sym)
   }
 }
 
-static Symbol *load_field(Object *ob)
+Symbol *load_field(Object *ob)
 {
   FieldObject *fo = (FieldObject *)ob;
   debug("load field '%s'", fo->name);
@@ -286,7 +286,7 @@ static Symbol *load_field(Object *ob)
   return sym;
 }
 
-static Symbol *load_method(Object *ob)
+Symbol *load_method(Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
   debug("load method '%s'", meth->name);
@@ -295,7 +295,7 @@ static Symbol *load_method(Object *ob)
   return sym;
 }
 
-static Symbol *load_type(Object *ob)
+Symbol *load_type(Object *ob)
 {
   TypeObject *type = (TypeObject *)ob;
   ModuleObject *mob = (ModuleObject *)type->owner;
@@ -340,36 +340,6 @@ static Symbol *load_type(Object *ob)
   }
 
   return clsSym;
-}
-
-STable *stable_from_mobject(Object *ob)
-{
-  ModuleObject *mo = (ModuleObject *)ob;
-  expect(mo->mtbl != NULL);
-
-  STable *stbl = stable_new();
-  HASHMAP_ITERATOR(iter, mo->mtbl);
-  struct mnode *node;
-  Object *tmp;
-  Symbol *sym;
-  iter_for_each(&iter, node) {
-    tmp = node->obj;
-    if (type_check(tmp)) {
-      sym = load_type(tmp);
-    } else if (field_check(tmp)) {
-      sym = load_field(tmp);
-    } else if (method_check(tmp)) {
-      sym = load_method(tmp);
-    } else {
-      panic("object of '%s'?", OB_TYPE(tmp)->name);
-    }
-    stable_add_symbol(stbl, sym);
-    symbol_decref(sym);
-  }
-  TypeDesc *desc = desc_from_base('s');
-  stable_add_var(stbl, "__name__", desc);
-  TYPE_DECREF(desc);
-  return stbl;
 }
 
 void fill_locvars(Symbol *sym, Vector *vec)

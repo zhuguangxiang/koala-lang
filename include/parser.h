@@ -157,7 +157,7 @@ TypeDesc *parse_proto(Vector *idtypes, Type *ret);
 Symbol *find_from_builtins(char *name);
 void mod_from_mobject(Module *mod, Object *ob);
 Symbol *mod_find_symbol(Module *mod, char *name);
-Symbol *get_desc_symbol(ParserState *ps, TypeDesc *desc);
+Symbol *get_desc_symbol(Module *mod, TypeDesc *desc);
 
 #ifdef __cplusplus
 }

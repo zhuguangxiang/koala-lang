@@ -53,6 +53,7 @@ struct mnode *mnode_new(char *name, Object *ob)
 void mnode_free(void *e, void *arg)
 {
   struct mnode *node = e;
+  debug("free '%s", node->name);
   OB_DECREF(node->obj);
   kfree(node);
 }

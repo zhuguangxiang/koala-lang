@@ -159,12 +159,14 @@ Symbol *stable_add_enum(STable *stbl, char *name);
 Symbol *stable_add_label(STable *stbl, char *name);
 void symbol_decref(Symbol *sym);
 void symbol_free(Symbol *sym);
-STable *stable_from_mobject(Object *ob);
 Symbol *type_find_mbr(Symbol *clsSym, char *name);
 Symbol *enum_find_mbr(Symbol *eSym, char *name);
 void fill_locvars(Symbol *sym, Vector *vec);
 void free_locvars(Vector *locvec);
 void type_write_image(Symbol *clssym, Image *image);
+Symbol *load_type(Object *ob);
+Symbol *load_method(Object *ob);
+Symbol *load_field(Object *ob);
 
 #ifdef __cplusplus
 }

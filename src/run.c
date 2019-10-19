@@ -112,13 +112,13 @@ void koala_initialize(void)
 
 void koala_finalize(void)
 {
-  gc();
   fini_parser();
   fini_assert_module();
   fini_fmt_moudle();
   fini_io_module();
   fini_os_module();
   fini_lang_module();
+  gc();
   fini_types();
   fini_typedesc();
   fini_atom();

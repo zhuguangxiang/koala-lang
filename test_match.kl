@@ -102,29 +102,6 @@ match obj {
 }
 */
 
-/*
-opt = Option.Some(1, "foo")
-
-match opt {
-  Option.Some(100, "foo") => io.println("Option.Some(1, \"foo\")")
-  _ => io.println("not Option.Some")
-}
-
-match opt {
-  Some(x, y) if x < 10 => {
-    io.println(x)
-    io.println(y)
-  }
-  Option.Some(x, y) if x >= 10 => {
-    io.println(x)
-    io.println(y)
-  }
-  None => {
-    io.Println("None")
-  }
-}
-*/
-
 enum Option {
   None,
   Some(int, string),
