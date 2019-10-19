@@ -27,6 +27,7 @@
 #include <sys/utsname.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <ctype.h>
 #include "version.h"
 #include "parser.h"
 #include "koala_yacc.h"
@@ -491,9 +492,52 @@ static int empty(char *buf, int size)
   return 1;
 }
 
+static int textblock;
+static int lexwrap = 1;
+static char tch = '"';
+static int is_textblock(char *line)
+{
+  int len = strlen(line);
+  if (len < 3)
+    return 0;
+
+  int i = 0;
+  while (isspace(line[i]) && i < len) { ++i; }
+  if (len - i < 3)
+    return 0;
+
+  if (line[i] == tch && line[i+1] == tch && line[i+2] == tch)
+    return 1;
+
+  while (isspace(line[len-1])) { --len; }
+  if (len < 3)
+    return 0;
+
+  if (line[len-1] == tch && line[len-2] == tch && line[len-3] == tch) {
+    if (len >= 4 && line[len-4] == '\\') {
+      return 0;
+    }
+    return 1;
+  }
+  return 0;
+}
+
+int yywrap(yyscan_t yyscanner)
+{
+  return lexwrap;
+}
+
 int interactive(ParserState *ps, char *buf, int size)
 {
   if (halt) {
+    return 0;
+  }
+
+  lexwrap = 1;
+
+  if (textblock == 2) {
+    lexwrap = 0;
+    textblock = 0;
     return 0;
   }
 
@@ -520,15 +564,19 @@ int interactive(ParserState *ps, char *buf, int size)
 
   strcpy(buf, line);
   int len = strlen(buf);
-  /* apeend newline */
-  buf[len++] = '\n';
-  /* flex bug? leave last one char in buffer */
-  //buf[len++] = ' ';
+  if (textblock == 0) {
+    /* flex bug? leave last one char in buffer */
+    buf[len++] = '\r';
+  }
 
   if (!empty(buf, len)) {
     ps->more++;
   }
 
-  freeline(line);
+  if (is_textblock(line)) {
+    ++textblock;
+  }
+
+  free(line);
   return len;
 }

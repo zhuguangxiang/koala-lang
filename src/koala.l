@@ -61,6 +61,11 @@ static int hex_char(char *s)
 
 }
 
+static int is_newline_return(char ch)
+{
+  return ch == '\n' || ch == '\r';
+}
+
 int interactive(ParserState *ps, char *buf, int size);
 int file_input(ParserState *ps, char *buf, int size, FILE *in);
 
@@ -117,7 +122,6 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
 %option bison-locations
 %option nounput
 %option noinput
-%option noyywrap
 %option never-interactive
 
 digit [0-9]
@@ -133,24 +137,27 @@ hex_const   0[xX]{hex}+
 oct_const   0{oct}*
 bin_const   0b{bin}+
 
-asc [\x00-\x21\x23-\x26\x28-\x5b\x5d-\x7f]
-more_asc [\x00-\x26\x28-\x5b\x5d-\x7f]
+asc [\x00-\x26\x28-\x5b\x5d-\x7f]
 u   [\x80-\xbf]
 u2  [\xc0-\xdf]
 u3  [\xe0-\xef]
 u4  [\xf0-\xf7]
 asc_char  {asc}
-more_asc_char {more_asc}
+
 utf8_char {u2}{u}|{u3}{u}{u}|{u4}{u}{u}{u}
-esc_char  \\\\|\\\'|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
+esc_char  \\\\|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
 hex_char  \\x({hex}{hex})
 u16_char  \\u{hex}{hex}{hex}{hex}
 u32_char  \\U{hex}{hex}{hex}{hex}{hex}{hex}{hex}{hex}
 unasc_char {utf8_char}|{esc_char}|{hex_char}|{u16_char}|{u32_char}
-character {asc_char}|{unasc_char}
-morecharacter {more_asc_char}|{unasc_char}
+character2 {asc_char}|{unasc_char}
+
+str_char  [\x00-\x21\x23-\x5b\x5d-\x7f]
+character {str_char}|{unasc_char}
 string    {character}+
-morestring {morecharacter}+
+
+more_char [\x00-\xff]
+morestring {more_char}+
 
 alpha      [A-Za-z_]
 identifier {alpha}({alpha}|{digit})*
@@ -277,6 +284,13 @@ moddoc  "//!"[^\n]*
   return YY_RETURN(CHAR_LITERAL);
 }
 
+(\'\\\'\') {
+  char *s = yytext + 2;
+  printf("escape:%c\n", *s);
+  yylval->cval.val = esc_char(*s);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
 (\'{hex_char}\') {
   char s[4];
   printf("hex:%s\n", yytext);
@@ -296,9 +310,16 @@ moddoc  "//!"[^\n]*
   return 0;
 }
 
-(\'{character}{character}+\') {
+(\'\') {
+  syntax_error(yyps, yyps->row, yyps->col, "illegal character");
+  if (yyps->interactive) {
+    yyps->more = 0;
+  }
+}
+
+(\'{character2}{character2}+\') {
   char *s = yytext;
-  syntax_error(yyps, yyps->row, yyps->col, "invalid character:%s", yytext);
+  syntax_error(yyps, yyps->row, yyps->col, "illegal character:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;
   }
@@ -309,9 +330,13 @@ moddoc  "//!"[^\n]*
   YY_RETURN(STRING_LITERAL);
 }
 
-('''{morestring}?''') {
+(\"\"\"{morestring}?\"\"\") {
   yyps->more = 0;
-  yylval->sval = atom_nstring(yytext + 3, yyleng - 6);
+  char *front = yytext + 3;
+  while (is_newline_return(*front)) { ++front; }
+  char *tail = yytext + yyleng - 3 - 1;
+  while (is_newline_return(*tail)) { --tail; }
+  yylval->sval = atom_nstring(front, tail - front + 1);
   YY_RETURN(STRING_LITERAL);
 }
 
@@ -321,31 +346,25 @@ moddoc  "//!"[^\n]*
 }
 
 {doc} {
-  yyps->more = 0;
   char *s = str_trim(yytext + 3, yyleng - 3);
-  if (s) {
-    yylval->text = s;
-    return DOC;
-  }
+  if (s) { yylval->text = s;}
+  return DOC;
 }
 
 {moddoc} {
-  yyps->more = 0;
   char *s = str_trim(yytext + 3, yyleng - 3);
-  if (s) {
-    yylval->text = s;
-    return DOC;
-  }
+  if (s) { yylval->text = s;}
+  return DOC;
 }
 
 {comment} {
   /* omit single line comment */
-  yyps->more = 0;
+  return COMMENT;
 }
 
 {blockcomment} {
   /* omit multi lines comment */
-  yyps->more = 0;
+  return COMMENT;
 }
 
 [\n] {
@@ -358,6 +377,7 @@ moddoc  "//!"[^\n]*
 }
 
 . {
+  printf("invalid\n");
   yylval->sval = yytext;
   return INVALID;
 }

@@ -32,7 +32,6 @@ extern "C" {
 void init_stdin(void);
 void reset_stdin(void);
 char *readline(const char *prompt);
-void freeline(char *line);
 void add_histroy(char *line);
 
 #ifdef __cplusplus

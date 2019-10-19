@@ -71,7 +71,7 @@ void IoPrint(Object *ob)
     return;
 
   if (string_check(ob)) {
-    printf("\"%s\"", string_asstr(ob));
+    printf("%s", string_asstr(ob));
   } else {
     Object *str = object_call(ob, "__str__", NULL);
     if (str != NULL) {
@@ -89,7 +89,7 @@ void IoPrintln(Object *ob)
     return;
 
   if (string_check(ob)) {
-    printf("\"%s\"\n", string_asstr(ob));
+    printf("%s\n", string_asstr(ob));
   } else {
     Object *str = object_call(ob, "__str__", NULL);
     if (str != NULL) {

@@ -1,0 +1,37 @@
+
+"""
+func test() int {
+  100 + 200
+}
+
+test();
+"""
+
+"""
+{
+  "name": "jacky",
+  "age": 123
+}
+"""
+
+"""
+SELECT `EMP_ID`, `LAST_NAME` FROM `EMPLOYEE_TB`
+WHERE `CITY` = 'INDIANAPOLIS'
+ORDER BY `EMP_ID`, `LAST_NAME`;
+"""
+
+s := """
+  <html>
+    <body>
+      <p>Hello, world</p>
+    </body>
+  </html>
+"""
+
+s
+
+func test() int {
+  100 + 200
+}
+
+test()

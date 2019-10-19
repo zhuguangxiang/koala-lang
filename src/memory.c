@@ -72,13 +72,13 @@ char *str_trim(char *s, int len)
   if (s[0] == '\0') return s;
 
   char *fp = s;
-  char *ep = s + len;
+  char *ep = s + len - 1;
 
   while (isspace(*fp)) { ++fp; }
   if (ep != fp) {
-    while (isspace(*--ep) && ep != fp);
+    while (isspace(*ep) && ep != fp) { --ep; }
   }
 
   if (ep == fp) return NULL;
-  return strndup(fp, ep - fp);
+  return strndup(fp, ep - fp + 1);
 }

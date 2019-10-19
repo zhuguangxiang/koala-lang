@@ -34,6 +34,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define LINE_MAX_LINE 1024
 #define LINE_DEFAULT_COLUMNS  80
@@ -153,7 +154,7 @@ static inline void insert_tab(struct linestate *ls)
 static inline void do_newline(struct linestate *ls)
 {
   ls->pos = ls->len;
-  line_insert(ls, "\r\n", 2);
+  line_insert(ls, "\n", 1);
 }
 
 static inline void move_home(struct linestate *ls)
@@ -262,8 +263,9 @@ static int line_edit(int in, int out, char *buf, size_t len, const char *prompt)
     case CTRL_D:
       return 0;
     case CTRL_C:
-      errno = EAGAIN;
-      return -1;
+      write(ls.out, "^C", 2);
+      raise(SIGINT);
+      break;
     case ESC: // escape sequence
       do_esc(&ls);
       break;
@@ -307,10 +309,4 @@ char *readline(const char *prompt)
 
   if (count <= 0) return NULL;
   return strndup(buf, count);
-}
-
-void freeline(char *line)
-{
-  if (line != NULL)
-    free(line);
 }
