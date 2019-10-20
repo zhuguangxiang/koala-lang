@@ -22,6 +22,7 @@
  SOFTWARE.
 */
 
+#include <dlfcn.h>
 #include "moduleobject.h"
 #include "stringobject.h"
 #include "methodobject.h"
@@ -81,6 +82,10 @@ static void module_free(Object *ob)
     debug("------------------------");
     kfree(map);
     module->mtbl = NULL;
+  }
+
+  if (module->dlptr != NULL) {
+    dlclose(module->dlptr);
   }
 
   kfree(ob);

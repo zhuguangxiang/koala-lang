@@ -55,6 +55,8 @@ static inline void strbuf_fini(StrBuf *self)
   memset(self, 0, sizeof(*self));
 }
 
+/* Write string with len */
+void strbuf_nappend(StrBuf *self, char *s, int len);
 /* Write a null-terminated string. */
 void strbuf_append(StrBuf *self, char *s);
 

@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include "parser.h"
 #include "utf8.h"
+#include "textblock.h"
 #include "koala_yacc.h"
 
 static int esc_char(char esc)
@@ -115,6 +116,10 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
     YY_RETURN(';');           \
   }
 
+void do_others(char *text) {
+
+}
+
 %}
 
 %option bison-bridge
@@ -155,9 +160,6 @@ character2 {asc_char}|{unasc_char}
 str_char  [\x00-\x21\x23-\x5b\x5d-\x7f]
 character {str_char}|{unasc_char}
 string    {character}+
-
-more_char [\x00-\xff]
-morestring {more_char}+
 
 alpha      [A-Za-z_]
 identifier {alpha}({alpha}|{digit})*
@@ -330,14 +332,18 @@ moddoc  "//!"[^\n]*
   YY_RETURN(STRING_LITERAL);
 }
 
-(\"\"\"{morestring}?\"\"\") {
-  yyps->more = 0;
-  char *front = yytext + 3;
-  while (is_newline_return(*front)) { ++front; }
-  char *tail = yytext + yyleng - 3 - 1;
-  while (is_newline_return(*tail)) { --tail; }
-  yylval->sval = atom_nstring(front, tail - front + 1);
-  YY_RETURN(STRING_LITERAL);
+(\"\"\") {
+  int state = textblock_state();
+  if (state == TB_END) {
+    char *data = textblock_data();
+    if (data != NULL) {
+      char *s = str_trim(data);
+      yylval->sval = atom(s);
+      free(s);
+      reset_textblock();
+      YY_RETURN(STRING_LITERAL);
+    }
+  }
 }
 
 {identifier} {
@@ -346,13 +352,13 @@ moddoc  "//!"[^\n]*
 }
 
 {doc} {
-  char *s = str_trim(yytext + 3, yyleng - 3);
+  char *s = str_ntrim(yytext + 3, yyleng - 3);
   if (s) { yylval->text = s;}
   return DOC;
 }
 
 {moddoc} {
-  char *s = str_trim(yytext + 3, yyleng - 3);
+  char *s = str_ntrim(yytext + 3, yyleng - 3);
   if (s) { yylval->text = s;}
   return DOC;
 }
@@ -377,9 +383,14 @@ moddoc  "//!"[^\n]*
 }
 
 . {
-  printf("invalid\n");
-  yylval->sval = yytext;
-  return INVALID;
+  if (*yytext != 1) {
+    printf("invalid\n");
+    yylval->sval = yytext;
+    do_others(yytext);
+    return INVALID;
+  } else {
+    printf("continue to read\n");
+  }
 }
 
 %%

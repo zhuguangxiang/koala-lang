@@ -66,7 +66,7 @@ void kstat(void)
   puts("--------------------------");
 }
 
-char *str_trim(char *s, int len)
+char *str_ntrim(char *s, int len)
 {
   if (s == NULL) return NULL;
   if (s[0] == '\0') return s;
@@ -81,4 +81,9 @@ char *str_trim(char *s, int len)
 
   if (ep == fp) return NULL;
   return strndup(fp, ep - fp + 1);
+}
+
+char *str_trim(char *s)
+{
+  return str_ntrim(s, strlen(s));
 }

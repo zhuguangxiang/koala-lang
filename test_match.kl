@@ -180,7 +180,7 @@ match opt {
     io.println(x)
   }
   Option.Some(200, x) => {
-    io.println("Option.Some(100, x)")
+    io.println("Option.Some(200, x)")
     io.println(x)
   }
   Option.None => io.println("Option.None")
@@ -195,7 +195,7 @@ match opt {
     io.println(x)
   }
   Option.Some(200, x) => {
-    io.println("Option.Some(200, x)")
+    io.println("""Option.Some(200, x)""")
     io.println(x)
   }
   Option.None => io.println("Option.None")

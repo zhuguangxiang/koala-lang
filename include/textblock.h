@@ -22,59 +22,24 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_MEMORY_H_
-#define _KOALA_MEMORY_H_
-
-#include <stdlib.h>
-#include <string.h>
+#ifndef _KOALA_TEXTBLOCK_H_
+#define _KOALA_TEXTBLOCK_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* Allocate memory for size. */
-void *kmalloc(size_t size);
+#define TB_END    0
+#define TB_CONT   1
+#define TB_ERR    2
 
-/* Free memory which is allocated by 'kmalloc'. */
-void __kfree(void *ptr);
-#define kfree(ptr) \
-({                 \
-  if (ptr)         \
-    __kfree(ptr);  \
-  ptr = NULL;      \
-})
-
-/* Stat memory usage with 'kmalloc' and 'kfree'. */
-void kstat(void);
-
-/* duplicate c-string, replace of strndup. */
-static inline char *str_ndup(char *s, size_t size)
-{
-  char *str = kmalloc(size + 1);
-  memcpy(str, s, size);
-  return str;
-}
-
-/* duplicate c-string, with extra available size. */
-static inline char *str_ndup_ex(char *s, size_t size, size_t extra)
-{
-  char *str = kmalloc(size + extra + 1);
-  memcpy(str, s, size);
-  return str;
-}
-
-/* duplicate c-string, replace of strdup. */
-static inline char *str_dup(char *s)
-{
-  return str_ndup(s, strlen(s));
-}
-
-/* trim c-string */
-char *str_ntrim(char *s, int len);
-char *str_trim(char *s);
+void reset_textblock(void);
+int textblock_state(void);
+char *textblock_data(void);
+int textblock_input(char *line, char *buf);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_MEMORY_H_ */
+#endif /* _KOALA_TEXTBLOCK_H_ */

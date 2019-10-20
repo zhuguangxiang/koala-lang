@@ -78,6 +78,7 @@ static Object *os_load_library(Object *self, Object *ob)
   }
 
   Object *m = module_new("testmodule");
+  ((ModuleObject *)m)->dlptr = dlptr;
   init(m);
   module_install("testmodule", m);
   OB_DECREF(m);

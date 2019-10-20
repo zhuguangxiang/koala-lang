@@ -42,6 +42,7 @@
 #include "image.h"
 #include "enumobject.h"
 #include "readline.h"
+#include "textblock.h"
 
 #define PROMPT      "> "
 #define MORE_PROMPT "  "
@@ -492,35 +493,7 @@ static int empty(char *buf, int size)
   return 1;
 }
 
-static int textblock;
 static int lexwrap = 1;
-static char tch = '"';
-static int is_textblock(char *line)
-{
-  int len = strlen(line);
-  if (len < 3)
-    return 0;
-
-  int i = 0;
-  while (isspace(line[i]) && i < len) { ++i; }
-  if (len - i < 3)
-    return 0;
-
-  if (line[i] == tch && line[i+1] == tch && line[i+2] == tch)
-    return 1;
-
-  while (isspace(line[len-1])) { --len; }
-  if (len < 3)
-    return 0;
-
-  if (line[len-1] == tch && line[len-2] == tch && line[len-3] == tch) {
-    if (len >= 4 && line[len-4] == '\\') {
-      return 0;
-    }
-    return 1;
-  }
-  return 0;
-}
 
 int yywrap(yyscan_t yyscanner)
 {
@@ -530,14 +503,6 @@ int yywrap(yyscan_t yyscanner)
 int interactive(ParserState *ps, char *buf, int size)
 {
   if (halt) {
-    return 0;
-  }
-
-  lexwrap = 1;
-
-  if (textblock == 2) {
-    lexwrap = 0;
-    textblock = 0;
     return 0;
   }
 
@@ -562,21 +527,36 @@ int interactive(ParserState *ps, char *buf, int size)
   /* add history of readline */
   //add_history(line);
 
-  strcpy(buf, line);
-  int len = strlen(buf);
-  if (textblock == 0) {
-    /* flex bug? leave last one char in buffer */
+  int res = textblock_input(line, buf);
+  if (res) {
+    free(line);
+    int state = textblock_state();
+    if (state == TB_CONT) {
+      ps->more++;
+    }
+
+    int len = strlen(buf);
+    if (len == 0) {
+      lexwrap = 0;
+      return 0;
+    }
+
+    lexwrap = 1;
+    // flex bug? leave last one char in buffer
     buf[len++] = '\r';
-  }
+    return len;
+  } else {
+    strcpy(buf, line);
+    free(line);
+    int len = strlen(buf);
 
-  if (!empty(buf, len)) {
-    ps->more++;
-  }
+    // flex bug? leave last one char in buffer
+    buf[len++] = '\r';
 
-  if (is_textblock(line)) {
-    ++textblock;
-  }
+    if (!empty(buf, len)) {
+      ps->more++;
+    }
 
-  free(line);
-  return len;
+    return len;
+  }
 }

@@ -582,7 +582,6 @@ disassemble(get_dog_age)
 
 new Dog("LittleErHa", 20).get_age()
 
-*/
 //valgrind big data??? 1000_000
 arr3 := [new Dog("LittleErHa", 20)]
 for i in 1...10000 {

@@ -55,6 +55,21 @@ static int available(StrBuf *self, int size)
   return self->size - self->len - 1 - size;
 }
 
+void strbuf_nappend(StrBuf *self, char *s, int len)
+{
+  if (s == NULL)
+    return;
+
+  if (len <= 0)
+    return;
+
+  if (available(self, len) <= 0)
+    return;
+
+  strncat(self->buf, s, len);
+  self->len += len;
+}
+
 void strbuf_append(StrBuf *self, char *s)
 {
   if (s == NULL)

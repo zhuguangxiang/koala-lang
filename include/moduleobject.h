@@ -45,6 +45,8 @@ typedef struct moduleobject {
   Vector values;
   /* constant pool */
   Vector *consts;
+  /* dlptr */
+  void *dlptr;
 } ModuleObject;
 
 extern TypeObject module_type;
