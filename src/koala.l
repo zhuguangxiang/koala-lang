@@ -91,14 +91,17 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   return 0;
 }
 
-#define YY_USER_ACTION                \
-{                                     \
-  if (!yyps->interactive) {           \
-    yyps->col += yyps->len;           \
-    yyps->len = strlen(yytext);       \
-    yylloc->first_column = yyps->col; \
-    yylloc->first_line = yylineno;    \
-  }                                   \
+#define YY_USER_ACTION                    \
+{                                         \
+  if (yylloc->first_line == yyps->row) {  \
+    yyps->col += yyps->len;               \
+    yyps->len = strlen(yytext);           \
+  } else {                                \
+    yyps->col = 1;                        \
+    yyps->len = strlen(yytext);           \
+  }                                       \
+  yylloc->first_column = yyps->col;       \
+  yylloc->first_line = yyps->row;         \
 }
 
 #define YY_RETURN(_token) \
@@ -112,13 +115,10 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
     result = file_input(yyps, buf, size, yyin);
 
 #define YY_NEWLINE            \
+  ++yyps->row;                \
   if (need_semicolon(yyps)) { \
     YY_RETURN(';');           \
   }
-
-void do_others(char *text) {
-
-}
 
 %}
 
@@ -353,14 +353,18 @@ moddoc  "//!"[^\n]*
 
 {doc} {
   char *s = str_ntrim(yytext + 3, yyleng - 3);
-  if (s) { yylval->text = s;}
-  return DOC;
+  if (s != NULL) {
+    yylval->text = s;
+    return DOC;
+  }
 }
 
 {moddoc} {
   char *s = str_ntrim(yytext + 3, yyleng - 3);
-  if (s) { yylval->text = s;}
-  return DOC;
+  if (s != NULL) {
+    yylval->text = s;
+    return DOC;
+  }
 }
 
 {comment} {
@@ -383,14 +387,8 @@ moddoc  "//!"[^\n]*
 }
 
 . {
-  if (*yytext != 1) {
-    printf("invalid\n");
-    yylval->sval = yytext;
-    do_others(yytext);
-    return INVALID;
-  } else {
-    printf("continue to read\n");
-  }
+  yylval->sval = yytext;
+  return INVALID;
 }
 
 %%

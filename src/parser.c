@@ -567,14 +567,21 @@ ParserState *new_parser(char *filename)
 {
   ParserState *ps = kmalloc(sizeof(ParserState));
   ps->filename = filename;
+  ps->row = 1;
   vector_init(&ps->ustack);
+  vector_init(&ps->stmts);
   return ps;
 }
 
 void free_parser(ParserState *ps)
 {
   expect(ps->u == NULL);
-  expect(vector_size(&ps->ustack) == 0);
+  Stmt *stmt;
+  vector_for_each(stmt, &ps->stmts) {
+    stmt_free(stmt);
+  }
+  vector_fini(&ps->stmts);
+  vector_fini(&ps->ustack);
   kfree(ps);
 }
 
@@ -2612,7 +2619,7 @@ static void parse_enum_pattern(ParserState *ps, Expr *exp)
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
-  if (ps->errnum > MAX_ERRORS)
+  if (ps->errors > MAX_ERRORS)
     return;
 
   /* default expr has value */

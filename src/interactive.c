@@ -93,6 +93,7 @@ static void init_cmdline_env(void)
   ps.interactive = 1;
   ps.filename = "stdin";
   ps.module = &mod;
+  ps.row = 1;
   vector_init(&ps.ustack);
 
   mo = module_new("__main__");
@@ -512,7 +513,7 @@ int interactive(ParserState *ps, char *buf, int size)
     line = readline(MORE_PROMPT);
   } else {
     /* clear error */
-    ps->errnum = 0;
+    ps->errors = 0;
     line = readline(PROMPT);
   }
 

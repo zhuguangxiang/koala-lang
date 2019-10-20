@@ -295,6 +295,9 @@ void desc_show(TypeDesc *desc)
 /* desc1 <- desc2 */
 int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 {
+  if (desc1 == NULL || desc2 == NULL)
+    return 0;
+
   expect(desc1->paras == NULL);
   expect(desc1->kind != TYPE_PARADEF);
   expect(desc1->kind != TYPE_PARAREF);

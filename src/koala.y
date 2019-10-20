@@ -52,6 +52,11 @@ int cmd_add_var(ParserState *ps, Ident id, Type type);
 int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
 int cmd_add_type(ParserState *ps, Stmt *stmt);
 
+/* compile mode */
+void comp_add_stmt(ParserState *ps, Stmt *s);
+int comp_add_const(ParserState *ps, Ident id, Type type);
+int comp_add_var(ParserState *ps, Ident id, Type type);
+
 %}
 
 %union {
@@ -320,7 +325,9 @@ unit:
       stmt_free($1);
     }
   } else {
-
+    if ($1 != NULL) {
+      comp_add_stmt(ps, $1);
+    }
   }
 }
 | const_decl
@@ -333,7 +340,10 @@ unit:
       stmt_free($1);
     }
   } else {
-
+    if ($1 != NULL &&
+        !comp_add_const(ps, $1->vardecl.id, $1->vardecl.type)) {
+      comp_add_stmt(ps, $1);
+    }
   }
 }
 | var_decl
@@ -346,6 +356,10 @@ unit:
       stmt_free($1);
     }
   } else {
+    if ($1 != NULL &&
+        !comp_add_var(ps, $1->vardecl.id, $1->vardecl.type)) {
+      comp_add_stmt(ps, $1);
+    }
   }
 }
 | free_var_decl
@@ -358,7 +372,10 @@ unit:
       stmt_free($1);
     }
   } else {
-
+    if ($1 != NULL &&
+        !comp_add_var(ps, $1->vardecl.id, $1->vardecl.type)) {
+      comp_add_stmt(ps, $1);
+    }
   }
 }
 | assignment
@@ -368,7 +385,7 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-
+    comp_add_stmt(ps, $1);
   }
 }
 | expr ';'
@@ -379,6 +396,7 @@ unit:
     cmd_eval_stmt(ps, stmt);
     stmt_free(stmt);
   } else {
+    comp_add_stmt(ps, stmt);
   }
 }
 | if_stmt
@@ -388,7 +406,7 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-
+    comp_add_stmt(ps, $1);
   }
 }
 | while_stmt
@@ -398,7 +416,7 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-
+    comp_add_stmt(ps, $1);
   }
 }
 | match_stmt
@@ -422,7 +440,7 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-
+    comp_add_stmt(ps, $1);
   }
 }
 | func_decl
@@ -468,20 +486,20 @@ unit:
 {
   if (ps->interactive) {
     ps->more = 0;
-    printf("DOC: %s\n", $1);
   }
+  free($1);
 }
 | MODDOC
 {
   if (ps->interactive) {
     ps->more = 0;
-    printf("MODDOC: %s\n", $1);
   }
+  free($1);
 }
 | INVALID
 {
+  syntax_error(ps, ps->row, ps->col, "invalid input:%s", $1);
   if (ps->interactive) {
-    syntax_error(ps, ps->row, ps->col, "invalid input:%s", $1);
     ps->more = 0;
   }
 }
@@ -489,12 +507,13 @@ unit:
 {
   if (ps->interactive) {
     if (!ps->quit) {
-      syntax_error(ps, row(@1), col(@1), "invalid statement");
+      syntax_error(ps, ps->row, ps->col, "invalid statement");
       yyclearin;
     }
     ps->more = 0;
     yyerrok;
   } else {
+    syntax_error(ps, ps->row, ps->col, "invalid statement");
     yyclearin;
     yyerrok;
   }
@@ -814,18 +833,22 @@ expr:
   range_object
 {
   $$ = $1;
+  set_expr_pos($$, @1);
 }
 | condition_expr
 {
   $$ = $1;
+  set_expr_pos($$, @1);
 }
 | expr_as_type
 {
   $$ = $1;
+  set_expr_pos($$, @1);
 }
 | expr_is_type
 {
   $$ = $1;
+  set_expr_pos($$, @1);
 }
 ;
 

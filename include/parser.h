@@ -60,6 +60,10 @@ typedef struct module {
   Vector pss;
   /* init func symbol */
   Symbol *initsym;
+  /* self symbol */
+  Symbol *sym;
+  /* errors */
+  int errors;
 } Module;
 
 /* ParserUnit scope */
@@ -105,15 +109,19 @@ typedef struct parserstate {
   int interactive;
   /* is complete ? */
   int more;
-  /* token */
+  /* interactive quit */
+  int quit;
+
+  /* all statements  */
+  Vector stmts;
+
+  /* token kind */
   int token;
   /* token length */
   int len;
   /* token position */
   short row;
   short col;
-  /* interactive quit */
-  int quit;
 
   /* current parserunit */
   ParserUnit *u;
@@ -123,7 +131,7 @@ typedef struct parserstate {
   Vector ustack;
 
   /* error numbers */
-  int errnum;
+  int errors;
 } ParserState;
 
 /* more than MAX_ERRORS, discard left errors shown */
@@ -132,7 +140,7 @@ typedef struct parserstate {
 /* Record and print syntax error. */
 #define syntax_error(ps, row, col, fmt, ...)           \
 ({                                                     \
-  if (++ps->errnum > MAX_ERRORS) {                     \
+  if (++ps->errors > MAX_ERRORS) {                     \
     fprintf(stderr, "%s: " _ERR_COLOR_                 \
             "Too many errors.\n", ps->filename);       \
   } else {                                             \
@@ -141,7 +149,7 @@ typedef struct parserstate {
   }                                                    \
 })
 
-#define has_error(ps) ((ps)->errnum > 0)
+#define has_error(ps) ((ps)->errors > 0)
 
 void codeblock_free(CodeBlock *block);
 void init_parser(void);

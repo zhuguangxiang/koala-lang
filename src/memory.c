@@ -69,7 +69,7 @@ void kstat(void)
 char *str_ntrim(char *s, int len)
 {
   if (s == NULL) return NULL;
-  if (s[0] == '\0') return s;
+  if (len == 0) return NULL;
 
   char *fp = s;
   char *ep = s + len - 1;

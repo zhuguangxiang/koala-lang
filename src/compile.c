@@ -123,31 +123,124 @@ int validate_srcfile(char *path)
   return 1;
 }
 
-/* koala -c a/b/foo.kl [a/b/foo] */
-void koala_compile(char *path)
+int comp_add_const(ParserState *ps, Ident id, Type type)
 {
-  if (isdotkl(path)) {
-    /* single source file */
-
+  Module *mod = ps->module;
+  Symbol *sym = stable_add_const(mod->stbl, id.name, type.desc);
+  if (sym != NULL) {
+    sym->k.typesym = get_desc_symbol(mod, type.desc);
+    return 0;
   } else {
-    /* module directory */
+    return -1;
   }
 }
 
-void build_ast(Module *mod, char *path)
+int comp_add_var(ParserState *ps, Ident id, Type type)
 {
-  /*
+  Module *mod = ps->module;
+  Symbol *sym = stable_add_var(mod->stbl, id.name, type.desc);
+  if (sym != NULL) {
+    sym->var.typesym = get_desc_symbol(mod, type.desc);
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
+void comp_add_stmt(ParserState *ps, Stmt *s)
+{
+  if (s != NULL)
+    vector_push_back(&ps->stmts, s);
+  else
+    warn("stmt is null");
+}
+
+static void build_ast(char *path, Module *mod)
+{
   FILE *in = fopen(path, "r");
   if (in == NULL) {
     error("%s: No such file or directory.", path);
     return;
   }
-  ParserState *ps = new_parser(mod, path);
+
+  ParserState *ps = new_parser(path);
+  ps->interactive = 0;
+  ps->module = mod;
+  vector_push_back(&mod->pss, ps);
+
+  debug("\x1b[34m----STARTING BUILDING AST------\x1b[0m");
   yyscan_t scanner;
   yylex_init_extra(ps, &scanner);
   yyset_in(in, scanner);
   yyparse(ps, scanner);
   yylex_destroy(scanner);
+  debug("\x1b[34m----END OF BUILDING AST--------\x1b[0m");
+
+  mod->errors += ps->errors;
   fclose(in);
-  */
+}
+
+static void parse_ast(ParserState *ps)
+{
+  debug("\x1b[32m----STARTING SEMANTIC ANALYSIS & CODE GEN----\x1b[0m");
+  parser_enter_scope(ps, SCOPE_MODULE, 0);
+  ps->u->stbl = ps->module->stbl;
+  ps->u->sym = ps->module->sym;
+  Stmt *stmt;
+  vector_for_each(stmt, &ps->stmts) {
+    parse_stmt(ps, stmt);
+    if (ps->errors >= MAX_ERRORS) {
+      break;
+    }
+  }
+  parser_exit_scope(ps);
+  debug("\x1b[32m----END OF SEMANTIC ANALYSIS & CODE GEN------\x1b[0m");
+}
+
+static void write_image(Module *mod)
+{
+  debug("\x1b[32m----STARTING GENERATING IMAGE----\x1b[0m");
+  debug("\x1b[32m----END OF GENERATING IMAGE------\x1b[0m");
+}
+
+/* koala -c a/b/foo.kl [a/b/foo] */
+void koala_compile(char *path)
+{
+  Module mod = {0};
+  Symbol *modSym;
+
+  mod.name = path;
+  mod.stbl = stable_new();
+  vector_init(&mod.pss);
+
+  modSym = symbol_new(mod.name, SYM_MOD);
+  modSym->desc = desc_from_klass("lang", "Module");
+  modSym->mod.ptr = &mod;
+  mod.sym = modSym;
+
+  if (isdotkl(path)) {
+    // single source file, build one ast
+    build_ast(path, &mod);
+  } else {
+    /* module directory */
+  }
+
+  // parse all source files in the same directory as one module
+  ParserState *ps;
+  vector_for_each(ps, &mod.pss) {
+    if (!has_error(ps)) {
+      parse_ast(ps);
+      mod.errors += ps->errors;
+    }
+    free_parser(ps);
+  }
+
+  // write image file
+  if (mod.errors == 0) {
+    write_image(&mod);
+  }
+
+  vector_fini(&mod.pss);
+  stable_free(mod.stbl);
+  symbol_decref(modSym);
 }

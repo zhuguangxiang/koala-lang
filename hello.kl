@@ -1,0 +1,15 @@
+//!
+//! This is a hello program of koala language
+//!
+
+// declare a string variable
+greeting := "hello, world"
+
+// import io module
+import "io"
+
+// call println
+io.println(greeting)
+
+// compile command:
+// valgrind --leak-check=full src/koala -c ../hello.kl
