@@ -2615,7 +2615,7 @@ static void parse_enum_pattern(ParserState *ps, Expr *exp)
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
-  if (ps->errors > MAX_ERRORS)
+  if (ps->errors >= MAX_ERRORS)
     return;
 
   /* default expr has value */
@@ -2652,7 +2652,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
 
   /* function's return maybe null */
   if (exp->kind != CALL_KIND && exp->desc == NULL) {
-    syntax_error(ps, exp->row, exp->col, "cannot resolve expr's type");
+    ++ps->errors;
   }
 }
 
@@ -3193,6 +3193,10 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   iter->ctx = EXPR_LOAD;
   parser_visit_expr(ps, iter);
   sym = iter->sym;
+  if (sym == NULL) {
+    goto exit_label;
+  }
+
   if (sym->kind == SYM_VAR) {
     sym = sym->var.typesym;
   } else if (sym->kind == SYM_CLASS) {
@@ -3268,6 +3272,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   //pop iterator
   CODE_OP(OP_POP_TOP);
 
+exit_label:
   stable_free(u->stbl);
   u->stbl = NULL;
   parser_exit_scope(ps);
@@ -3559,6 +3564,10 @@ static void parse_match(ParserState *ps, Stmt *stmt)
 
 void parse_stmt(ParserState *ps, Stmt *stmt)
 {
+  /* if errors is greater than MAX_ERRORS, stop parsing */
+  if (ps->errors >= MAX_ERRORS)
+    return;
+
   static void (*handlers[])(ParserState *, Stmt *) = {
     NULL,               /* INVALID        */
     parse_import,       /* IMPORT_KIND    */

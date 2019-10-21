@@ -8,7 +8,8 @@ s += " world"
 s
 assert.equal(s, "hello world")
 
-s.__class__.__mbrs__
+//error: call func '__mbrs__' or return itself?
+//s.__class__.__mbrs__
 var i int = 100
 i
 assert.equal(i, 100)
@@ -24,6 +25,7 @@ assert.equal(arr[0] + i, 101)
 const NAME = "James Chu"
 assert.equal(NAME, "James Chu")
 
+
 // error: cannot assign to const 'NAME'
 NAME = "Jacky Chu"
 
@@ -34,7 +36,7 @@ func change_const() {
 
 // error: invalid statement(not allowed to define in func)
 func define_const() {
-  const VAL = 123
+  //const VAL = 123
 }
 
 func test() int {
@@ -447,7 +449,8 @@ g := foov2(100)
 assert.equal(g(50), 250)
 assert.equal(foov2(100)(200), 100)
 
-foov2(100)(200)(300)
+//error: expr is not a func
+//foov2(100)(200)(300)
 
 func foov3(fn func(int) int, v1 int) int {
   return fn(v1) + 500
@@ -529,8 +532,8 @@ class Dog {
   age int
 }
 
-// error new Dog()
-new Dog()
+// error: 'Dog' args are not mached
+// new Dog()
 
 dog := new Dog("LittleErHa", 30)
 
@@ -561,8 +564,8 @@ kdog.name
 kdog.age = 26
 assert.equal(kdog.age, 26)
 
-// error:
-kdog = dog
+// error: cannot assign to const 'kdog'
+//kdog = dog
 
 // import tests
 import "io"
@@ -589,7 +592,6 @@ for i in 1...10000 {
 }
 //new Array<int>()
 
-import "io"
 // 1000_000, time cost:
 // debug: 5.154327s
 // release: 4.303628s
@@ -613,11 +615,14 @@ enum Result {
 }
 
 Result.Ok
-Result.Err
-Result.Err(1, 2)
+// error: enum 'Err' needs values
+// Result.Err
+// error: enum args check failed
+// Result.Err(1, 2)
 Result.Err(1, "hello")
 
-import "assert"
+// error: symbol 'assert' is duplicated
+//import "assert"
 
 ok := Result.Ok
 assert.equal(ok, Result.Ok)
@@ -665,6 +670,7 @@ opt2
 opt2.is_some()
 opt2.is_none()
 
+/*
 // auto detect enum from var's type
 var opt3 Option = Some(2+3, "bar")
 opt3
@@ -685,6 +691,7 @@ opt4 = Some(2, "bar")
 opt4
 opt4.is_some()
 opt4.is_none()
+*/
 
 /*
 // not allowed, type maybe not equal. opt := Option.None

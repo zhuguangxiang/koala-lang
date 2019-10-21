@@ -140,7 +140,7 @@ typedef struct parserstate {
 /* Record and print syntax error. */
 #define syntax_error(ps, row, col, fmt, ...)           \
 ({                                                     \
-  if (++ps->errors > MAX_ERRORS) {                     \
+  if (ps->errors++ >= MAX_ERRORS) {                    \
     fprintf(stderr, "%s: " _ERR_COLOR_                 \
             "Too many errors.\n", ps->filename);       \
   } else {                                             \

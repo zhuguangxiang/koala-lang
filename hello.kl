@@ -11,5 +11,12 @@ import "io"
 // call println
 io.println(greeting)
 
+func add(a int, b int) {
+  r := a + b
+  io.println(r)
+}
+
+add(1, 2)
+
 // compile command:
 // valgrind --leak-check=full src/koala -c ../hello.kl

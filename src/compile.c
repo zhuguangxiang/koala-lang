@@ -307,6 +307,11 @@ void koala_compile(char *path)
   modSym = symbol_new(mod.name, SYM_MOD);
   modSym->desc = desc_from_klass("lang", "Module");
   modSym->mod.ptr = &mod;
+
+  TypeDesc *desc = desc_from_proto(NULL, NULL);
+  Symbol *initsym = stable_add_func(mod.stbl, "__init__", desc);
+  TYPE_DECREF(desc);
+  mod.initsym = initsym;
   mod.sym = modSym;
 
   if (isdotkl(path)) {
