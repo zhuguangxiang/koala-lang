@@ -147,6 +147,97 @@ int comp_add_var(ParserState *ps, Ident id, Type type)
   }
 }
 
+int comp_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret)
+{
+  Module *mod = ps->module;
+  TypeDesc *proto = parse_proto(idtypes, &ret);
+  Symbol *sym = stable_add_func(mod->stbl, name, proto);
+  TYPE_DECREF(proto);
+  return sym != NULL ? 0 : -1;
+}
+
+static void comp_visit_type(Symbol *sym, Vector *body)
+{
+  STable *stbl = sym->type.stbl;
+  Stmt *s;
+  vector_for_each(s, body) {
+    if (s->kind == VAR_KIND) {
+      stable_add_var(stbl, s->vardecl.id.name, s->vardecl.type.desc);
+    } else if (s->kind == FUNC_KIND) {
+      Vector *idtypes = s->funcdecl.idtypes;
+      Type *ret = &s->funcdecl.ret;
+      TypeDesc *proto = parse_proto(idtypes, ret);
+      stable_add_func(stbl, s->funcdecl.id.name, proto);
+      TYPE_DECREF(proto);
+    } else if (s->kind == IFUNC_KIND) {
+      Vector *idtypes = s->funcdecl.idtypes;
+      Type *ret = &s->funcdecl.ret;
+      TypeDesc *proto = parse_proto(idtypes, ret);
+      stable_add_ifunc(stbl, s->funcdecl.id.name, proto);
+      TYPE_DECREF(proto);
+    } else {
+      panic("invalid type's body statement: %d", s->kind);
+    }
+  }
+}
+
+static void comp_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
+{
+  STable *stbl = sym->type.stbl;
+  Symbol *lblsym;
+  EnumLabel *label;
+  vector_for_each(label, labels) {
+    lblsym = stable_add_label(stbl, label->id.name);
+    if (lblsym == NULL) {
+      syntax_error(ps, label->id.row, label->id.col,
+                   "enum label '%s' duplicated.", label->id.name);
+    } else {
+      lblsym->label.esym = sym;
+      lblsym->desc = desc_from_label(sym->desc, label->types);
+      lblsym->label.types = label->types;
+      label->types = NULL;
+    }
+  }
+}
+
+int comp_add_type(ParserState *ps, Stmt *stmt)
+{
+  Module *mod = ps->module;
+  Symbol *sym = NULL;
+  Symbol *any;
+  switch (stmt->kind) {
+  case CLASS_KIND: {
+    sym = stable_add_class(mod->stbl, stmt->class_stmt.id.name);
+    any = find_from_builtins("Any");
+    ++any->refcnt;
+    vector_push_back(&sym->type.bases, any);
+    comp_visit_type(sym, stmt->class_stmt.body);
+    break;
+  }
+  case TRAIT_KIND: {
+    sym = stable_add_trait(mod->stbl, stmt->class_stmt.id.name);
+    any = find_from_builtins("Any");
+    ++any->refcnt;
+    vector_push_back(&sym->type.bases, any);
+    comp_visit_type(sym, stmt->class_stmt.body);
+    break;
+  }
+  case ENUM_KIND: {
+    sym = stable_add_enum(mod->stbl, stmt->enum_stmt.id.name);
+    any = find_from_builtins("Any");
+    ++any->refcnt;
+    vector_push_back(&sym->type.bases, any);
+    comp_visit_label(ps, sym, stmt->enum_stmt.mbrs.labels);
+    comp_visit_type(sym, stmt->enum_stmt.mbrs.methods);
+    break;
+  }
+  default:
+    panic("invalid stmt kind %d", stmt->kind);
+    break;
+  }
+  return sym != NULL ? 0 : -1;
+}
+
 void comp_add_stmt(ParserState *ps, Stmt *s)
 {
   if (s != NULL)

@@ -2228,30 +2228,25 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
 
   // last one is expr-stmt, check it has value or not
   if (s->kind == EXPR_KIND) {
-    if (s->hasvalue) {
-      // expr and has value and check types ara matched.
-      debug("last expr-stmt and has value, add OP_RETURN_VALUE");
-      if (ret.desc == NULL) {
-        syntax_error(ps, ret.row, ret.col, "func '%s' no return value", name);
+    if (ret.desc == NULL && s->desc == NULL) {
+      debug("last expr-stmt and no value, add OP_RETURN");
+      CODE_OP(OP_RETURN);
+    } else if (ret.desc != NULL && s->desc != NULL) {
+      if (!desc_check(ret.desc, s->desc)) {
+        syntax_error(ps, s->row, s->col, "return values are not matched");
       } else {
-        if (!desc_check(ret.desc, s->desc)) {
-          syntax_error(ps, ret.row, ret.col, "return values are not matched");
-        } else {
-          CODE_OP(OP_RETURN_VALUE);
-        }
+        debug("last expr-stmt and has value, add OP_RETURN_VALUE");
+        CODE_OP(OP_RETURN_VALUE);
       }
+    } else if (ret.desc == NULL && s->desc != NULL ) {
+      syntax_error(ps, s->row, s->col, "func '%s' no return value", name);
     } else {
-      // expr and no value
-      if (ret.desc != NULL) {
-        syntax_error(ps, ret.row, ret.col, "func '%s' no return value", name);
-      } else {
-        debug("last expr-stmt and no value, add OP_RETURN");
-        CODE_OP(OP_RETURN);
-      }
+      syntax_error(ps, s->row, s->col, "func '%s' needs return value", name);
     }
     return;
   }
 
+  /*
   if (s->hasvalue) {
     if (ret.desc == NULL) {
       syntax_error(ps, ret.row, ret.col, "func '%s' no return value", name);
@@ -2265,6 +2260,7 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
       syntax_error(ps, ret.row, ret.col, "func '%s' needs return value", name);
     }
   }
+  */
 
   if (!has_error(ps) && s->kind != RETURN_KIND) {
     // last one is return or other statement

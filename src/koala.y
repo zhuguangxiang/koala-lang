@@ -56,6 +56,8 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 void comp_add_stmt(ParserState *ps, Stmt *s);
 int comp_add_const(ParserState *ps, Ident id, Type type);
 int comp_add_var(ParserState *ps, Ident id, Type type);
+int comp_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret);
+int comp_add_type(ParserState *ps, Stmt *stmt);
 
 %}
 
@@ -426,7 +428,7 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-
+    comp_add_stmt(ps, $1);
   }
 }
 | if_asign_stmt
@@ -454,7 +456,11 @@ unit:
       stmt_free($1);
     }
   } else {
-
+    if ($1 != NULL &&
+        !comp_add_func(ps, $1->funcdecl.id.name, $1->funcdecl.idtypes,
+                        $1->funcdecl.ret)) {
+      comp_add_stmt(ps, $1);
+    }
   }
 }
 | type_decl
@@ -467,7 +473,9 @@ unit:
       stmt_free($1);
     }
   } else {
-
+    if ($1 != NULL && !comp_add_type(ps, $1)) {
+      comp_add_stmt(ps, $1);
+    }
   }
 }
 | ';'
