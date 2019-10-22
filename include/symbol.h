@@ -167,6 +167,7 @@ void type_write_image(Symbol *clssym, Image *image);
 Symbol *load_type(Object *ob);
 Symbol *load_method(Object *ob);
 Symbol *load_field(Object *ob);
+void stable_write_image(STable *stbl, Image *image);
 
 #ifdef __cplusplus
 }

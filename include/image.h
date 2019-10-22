@@ -69,7 +69,7 @@ typedef struct stringitem {
 } StringItem;
 
 typedef struct typeitem {
-  int kind;               /* see: DescKind in typedesc.h */
+  int32_t kind;           /* see: DescKind in typedesc.h */
   int32_t parasindex;     /* ->IndexItem */
   int32_t typesindex;     /* ->IndexItem */
   union {
@@ -96,8 +96,8 @@ typedef struct typeitem {
 #define INDEX_TYPELIST  1
 #define INDEX_VALUE     2
 typedef struct indexitem {
-  int kind;
   int32_t size;
+  int32_t kind;
   int32_t index[0]; /* ->TypeItem(value only) */
 } IndexItem;
 
@@ -122,7 +122,7 @@ typedef struct literalitem {
 #define CONST_TYPE      2
 #define CONST_ANONY     3
 typedef struct constitem {
-  int kind;           /* CONST_XXX */
+  int32_t kind;       /* CONST_XXX */
   int32_t index;      /* index of literal, type or anonymous */
 } ConstItem;
 

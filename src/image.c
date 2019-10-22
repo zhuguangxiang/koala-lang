@@ -246,6 +246,8 @@ static void typeitem_show(Image *image, void *o)
     }
     break;
   }
+  case TYPE_PROTO:
+    break;
   default:
     panic("invalid type %d", item->kind);
     break;
@@ -322,6 +324,7 @@ static void indexitem_show(Image *image, void *o)
 {
   IndexItem *item = o;
   TypeItem *type;
+  print("  kind: %s\n", item->kind == INDEX_TYPELIST ? "typelist" : "values");
   for (int i = 0; i < item->size; i++) {
     puts("  ---------");
     print("  index:%d\n", item->index[i]);
@@ -433,6 +436,18 @@ static int constitem_length(void *o)
 static void constitem_write(FILE *fp, void *o)
 {
   fwrite(o, sizeof(ConstItem), 1, fp);
+}
+
+static unsigned int constitem_hash(void *k)
+{
+  return memhash(k, sizeof(ConstItem));
+}
+
+static int constitem_equal(void *k1, void *k2)
+{
+  ConstItem *item1 = k1;
+  ConstItem *item2 = k2;
+  return (item1->kind == item2->kind) && (item2->index == item2->index);
 }
 
 static void constitem_show(Image *image, void *o)
@@ -1071,7 +1086,7 @@ struct item_funcs {
   },
   {
     constitem_length, constitem_write,
-    NULL, NULL,
+    constitem_hash, constitem_equal,
     constitem_show, constitem_free,
   },
   {
@@ -1188,10 +1203,15 @@ static inline LiteralItem *literalitem_uchar_new(wchar val)
 
 static int image_add_const(Image *image, int kind, int index)
 {
-  ConstItem *item = kmalloc(sizeof(ConstItem));
-  item->kind = kind;
-  item->index = index;
-  return _append_(image, ITEM_CONST, item, 0);
+  ConstItem key = {kind, index};
+  int idx = _index_(image, ITEM_CONST, &key);
+  if (idx < 0) {
+    ConstItem *item = kmalloc(sizeof(ConstItem));
+    item->kind = kind;
+    item->index = index;
+    idx = _append_(image, ITEM_CONST, item, 1);
+  }
+  return idx;
 }
 
 int image_add_integer(Image *image, int64_t val)
@@ -2176,7 +2196,7 @@ Image *image_read_file(char *path, int unload)
           sz = fread(&len, 4, 1, fp);
           expect(sz == 1);
           item = vargitem_new(sizeof(IndexItem), sizeof(int32_t), len);
-          sz = fread(item->index, sizeof(int32_t) * len, 1, fp);
+          sz = fread(&item->kind, sizeof(int32_t) * (len + 1), 1, fp);
           expect(sz == 1);
           _append_(image, ITEM_INDEX, item, 1);
         }
@@ -2190,7 +2210,7 @@ Image *image_read_file(char *path, int unload)
         expect(sz == map->size);
         for (int i = 0; i < map->size; i++) {
           item = item_copy(sizeof(ConstItem), items + i);
-          _append_(image, ITEM_CONST, item, 0);
+          _append_(image, ITEM_CONST, item, 1);
         }
       }
       break;

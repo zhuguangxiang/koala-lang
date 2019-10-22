@@ -186,5 +186,10 @@ void koala_execute(char *path)
   } else {
     run_dir(path);
   }
+  image = image_read_file(path, 0);
+#if !defined(NLog)
+  image_show(image);
+#endif
+  image_free(image);
   */
 }

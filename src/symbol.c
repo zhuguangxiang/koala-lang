@@ -471,3 +471,44 @@ Symbol *type_find_mbr(Symbol *typeSym, char *name)
 
   return NULL;
 }
+
+void stable_write_image(STable *stbl, Image *image)
+{
+  HASHMAP_ITERATOR(iter, &stbl->table);
+  Symbol *sym;
+  iter_for_each(&iter, sym) {
+    switch (sym->kind) {
+    case SYM_VAR:
+      debug("write variable '%s'", sym->name);
+      image_add_var(image, sym->name, sym->desc);
+      break;
+    case SYM_FUNC: {
+      debug("write function '%s'", sym->name);
+      VECTOR(locvec);
+      CodeInfo ci = {.locvec = &locvec};
+      fill_codeinfo(sym, image, &ci);
+      fill_locvars(sym, &locvec);
+      image_add_func(image, &ci);
+      free_locvars(&locvec);
+      vector_fini(&locvec);
+      break;
+    }
+    case SYM_CLASS:
+    case SYM_TRAIT:
+    case SYM_ENUM:
+      debug("write type(class/trait/enum) '%s'", sym->name);
+      type_write_image(sym, image);
+      break;
+    case SYM_CONST:
+      debug("write constvar '%s'", sym->name);
+      image_add_kvar(image, sym->name, sym->desc, &sym->k.value);
+      break;
+    case SYM_MOD:
+      debug("skip imported module '%s'", sym->name);
+      break;
+    default:
+      panic("invalid symbol %d write to image", sym->kind);
+      break;
+    }
+  }
+}

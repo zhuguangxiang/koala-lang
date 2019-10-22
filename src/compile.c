@@ -291,6 +291,25 @@ static void parse_ast(ParserState *ps)
 static void write_image(Module *mod)
 {
   debug("\x1b[32m----STARTING GENERATING IMAGE----\x1b[0m");
+  Image *image = image_new(mod->name);
+  stable_write_image(mod->stbl, image);
+  image_finish(image);
+#if !defined(NLog)
+  image_show(image);
+#endif
+  STRBUF(klcfile);
+  if (isdotkl(mod->name)) {
+    strbuf_append(&klcfile, mod->name);
+    strbuf_append_char(&klcfile, 'c');
+  } else {
+    strbuf_append(&klcfile, mod->name);
+    strbuf_append(&klcfile, ".klc");
+  }
+  char *path = strbuf_tostr(&klcfile);
+  debug("write iamge to '%s'", path);
+  image_write_file(image, path);
+  image_free(image);
+  strbuf_fini(&klcfile);
   debug("\x1b[32m----END OF GENERATING IMAGE------\x1b[0m");
 }
 
