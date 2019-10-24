@@ -27,6 +27,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <sys/utsname.h>
+#include <pthread.h>
 #include "koala.h"
 
 static void version(void)
@@ -135,11 +136,15 @@ void parse_command(int argc, char *argv[])
   }
 }
 
+extern pthread_key_t kskey;
+
 int main(int argc, char *argv[])
 {
   parse_command(argc, argv);
 
   koala_initialize();
+
+  pthread_key_create(&kskey, NULL);
 
   if (cflag == 1) {
     koala_compile(module);

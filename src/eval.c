@@ -224,7 +224,7 @@ static Object *new_object(CallFrame *f, TypeDesc *desc)
   else
     ob = f->code->module;
   expect(ob != NULL);
-  ob = Module_Lookup(ob, desc->klass.type);
+  ob = module_lookup(ob, desc->klass.type);
   expect(ob != NULL);
 
   TypeObject *type = (TypeObject *)ob;

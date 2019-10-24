@@ -98,8 +98,6 @@ static void init_cmdline_env(void)
 
   mo = module_new("__main__");
 
-  pthread_key_create(&kskey, NULL);
-
   init_stdin();
 }
 
@@ -179,7 +177,7 @@ static Object *code_from_symbol(Symbol *sym)
 #if !defined(NLog)
   image_show(image);
 #endif
-  size = image_const_size(image);
+  size = _size_(image, ITEM_CONST);
   if (size > 0)
     consts = tuple_new(size);
   else
@@ -341,7 +339,7 @@ static void _load_type_(char *name, int index, Image *image, void *arg)
 {
   TypeObject *type = arg;
   expect(!strcmp(name, type->name));
-  int size = image_const_size(image);
+  int size = _size_(image, ITEM_CONST);
   Object *consts = NULL;
   if (size > 0)
     consts = tuple_new(size);
@@ -406,7 +404,7 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
   case SYM_FUNC: {
     Object *code = code_from_symbol(sym);
     Object *meth = Method_New(sym->name, code);
-    Module_Add_Func(ob, meth);
+    module_add_func(ob, meth);
     code_set_module(code, ob);
     OB_DECREF(code);
     OB_DECREF(meth);

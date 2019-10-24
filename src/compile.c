@@ -306,7 +306,7 @@ static void write_image(Module *mod)
     strbuf_append(&klcfile, ".klc");
   }
   char *path = strbuf_tostr(&klcfile);
-  debug("write iamge to '%s'", path);
+  debug("write image to '%s'", path);
   image_write_file(image, path);
   image_free(image);
   strbuf_fini(&klcfile);

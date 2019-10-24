@@ -118,6 +118,7 @@ void koala_finalize(void)
   fini_io_module();
   fini_os_module();
   fini_lang_module();
+  fini_modules();
   gc();
   fini_types();
   fini_typedesc();
@@ -125,71 +126,25 @@ void koala_finalize(void)
 }
 
 /*
-static void run_klc(char *klc)
-{
-  if (exist(klc)) {
-    run();
-    return;
-  }
-
-  char *kl = str_ndup(klc, strlen(klc) - 1);
-  if (exist(kl)) {
-    compile();
-    run();
-    kfree(kl);
-    return;
-  }
-
-  char *dir = str_ndup(klc, strlen(klc) - 4);
-  if (exist(dir)) {
-    compile();
-    run();
-    kfree(dir);
-    return;
-  }
-
-  error();
-}
-
-static void run_kl(char *kl)
-{
-  char *klc;
-  if (exist(klc)) {
-    return;
-  }
-
-  if (!exist(kl)) {
-    return;
-  }
-
-  compile();
-  run_klc(klc);
-}
-
-static void run_dir(char *dir)
-{
-
-}
-*/
-
-/*
  * The following commands are valid.
  * ~$ koala a/b/foo.kl [a/b/foo.klc] [a/b/foo]
  */
 void koala_execute(char *path)
 {
-  /*
-  if (isdotklc(path)) {
-    run_klc(path);
-  } else if (isdotkl(path)) {
-    run_kl(path);
+  extern pthread_key_t kskey;
+  Object *mo = module_load(path);
+  if (mo != NULL) {
+    Object *_init_ = module_lookup(mo, "__init__");
+    expect(_init_ != NULL && method_check(_init_));
+    KoalaState kstate = {NULL};
+    kstate.top = -1;
+    pthread_setspecific(kskey, &kstate);
+    Object *code = method_getcode(_init_);
+    koala_evalcode(code, mo, NULL);
+    OB_DECREF(code);
+    OB_DECREF(_init_);
+    OB_DECREF(mo);
   } else {
-    run_dir(path);
+    error("cannot load module '%s'", path);
   }
-  image = image_read_file(path, 0);
-#if !defined(NLog)
-  image_show(image);
-#endif
-  image_free(image);
-  */
 }

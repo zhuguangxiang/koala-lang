@@ -53,7 +53,7 @@ struct mnode *mnode_new(char *name, Object *ob)
 void mnode_free(void *e, void *arg)
 {
   struct mnode *node = e;
-  debug("free '%s", node->name);
+  debug("[Freed] '%s'", node->name);
   OB_DECREF(node->obj);
   kfree(node);
 }
@@ -642,7 +642,7 @@ Object *object_lookup(Object *self, char *name)
 {
   Object *res;
   if (module_check(self)) {
-    res = Module_Lookup(self, name);
+    res = module_lookup(self, name);
   } else {
     res = type_lookup(OB_TYPE(self), name);
   }

@@ -276,7 +276,7 @@ void image_write_file(Image *image, char *path);
 /* flags is ITEM_XXX bits, marked not load */
 Image *image_read_file(char *path, int unload);
 
-int image_const_size(Image *image);
+int _size_(Image *image, int type);
 typedef void (*getconstfunc)(void *, int, int, void *);
 void image_load_consts(Image *image, getconstfunc func, void *arg);
 typedef void (*getclassfunc)(char *, int, Image *, void *);
@@ -284,7 +284,30 @@ void image_load_class(Image *image, int index, getclassfunc func, void *arg);
 void image_load_trait(Image *image, int index, getclassfunc func, void *arg);
 void image_load_enum(Image *image, int index, getclassfunc func, void *arg);
 typedef void (*getmbrfunc)(char *, int, void *, void *);
-void image_load_mbrs(Image *iamge, int index, getmbrfunc func, void *arg);
+void image_load_mbrs(Image *image, int index, getmbrfunc func, void *arg);
+typedef void (*getvarfunc)(char *, int, TypeDesc *, void *);
+void image_load_var(Image *image, int index, getvarfunc func, void *arg);
+void image_load_constvar(Image *image, int index, getvarfunc func, void *arg);
+typedef void (*getfuncfunc)(char *, CodeInfo *, void *);
+void image_load_func(Image *image, int index, getfuncfunc func, void *arg);
+#define IMAGE_LOAD_ITEMS(image, kind, which, func, arg) \
+({ \
+  int size = _size_(image, kind); \
+  for (int i = 0; i < size; ++i) \
+    image_load_##which(image, i, func, arg); \
+})
+#define IMAGE_LOAD_VARS(image, func, arg) \
+  IMAGE_LOAD_ITEMS(image, ITEM_VAR, var, func, arg)
+#define IMAGE_LOAD_FUNCS(image, _func, arg) \
+  IMAGE_LOAD_ITEMS(image, ITEM_FUNC, func, _func, arg)
+#define IMAGE_LOAD_CONSTVARS(image, func, arg) \
+  IMAGE_LOAD_ITEMS(image, ITEM_CONSTVAR, constvar, func, arg)
+#define IMAGE_LOAD_CLASSES(image, func, arg) \
+  IMAGE_LOAD_ITEMS(image, ITEM_CLASS, class, func, arg)
+#define IMAGE_LOAD_TRAITS(image, func, arg) \
+  IMAGE_LOAD_ITEMS(image, ITEM_TRAIT, trait, func, arg)
+#define IMAGE_LOAD_ENUMS(image, func, arg) \
+  IMAGE_LOAD_ITEMS(image, ITEM_ENUM, enum, func, arg)
 
 #ifdef __cplusplus
 }

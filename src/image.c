@@ -77,7 +77,7 @@ static inline void *_get_(Image *image, int type, int index)
   return vector_get(image->items + type, index);
 }
 
-static inline int _size_(Image *image, int type)
+int _size_(Image *image, int type)
 {
   expect(type >= 0 && type < image->size);
   return vector_size(image->items + type);
@@ -1667,11 +1667,6 @@ static Literal to_literal(LiteralItem *item, Image *image)
   return value;
 }
 
-int image_const_size(Image *image)
-{
-  return _size_(image, ITEM_CONST);
-}
-
 static Vector *getindexvec(IndexItem *index)
 {
   Vector *vec = NULL;
@@ -1848,161 +1843,58 @@ void image_load_mbrs(Image *image, int index, getmbrfunc func, void *arg)
   }
 }
 
-#if 0
-void Image_Get_Vars(Image *image, getvarfunc func, void *arg)
+void image_load_var(Image *image, int index, getvarfunc func, void *arg)
 {
-  VarItem *var;
-  StringItem *id;
-  TypeItem *type;
-  TypeDesc *desc;
-  Literal value;
-  int size = _size_(image, ITEM_VAR);
-  for (int i = 0; i < size; i++) {
-    var = _get_(image, ITEM_VAR, i);
-    id = _get_(image, ITEM_STRING, var->nameindex);
-    type = _get_(image, ITEM_TYPE, var->typeindex);
-    desc = to_typedesc(type, image);
-    if (var->konst) {
-      LiteralItem *item = _get_(image, ITEM_LITERAL, var->index);
-      value = to_literal(item, image);
-      func(id->data, desc, 1, &value, arg);
-    } else {
-      func(id->data, desc, 0, NULL, arg);
-    }
-    TYPE_DECREF(desc);
-  }
+  VarItem *item = _get_(image, ITEM_VAR, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  TypeItem *type = _get_(image, ITEM_TYPE, item->typeindex);
+  TypeDesc *desc = to_typedesc(type, image);
+  func(str->data, 0, desc, arg);
+  TYPE_DECREF(desc);
 }
 
-void Image_Get_Funcs(Image *image, getfuncfunc func, void *arg)
+void image_load_constvar(Image *image, int index, getvarfunc func, void *arg)
 {
-  FuncItem *funcitem;
-  StringItem *str;
-  IndexItem *listitem;
-  TypeItem *item;
-  Vector *args;
-  TypeDesc *ret;
-  TypeDesc *desc;
-  CodeItem *code;
-  int size = _size_(image, ITEM_FUNC);
-  for (int i = 0; i < size; i++) {
-    funcitem = _get_(image, ITEM_FUNC, i);
-    str = _get_(image, ITEM_STRING, funcitem->nameindex);
-    code = _get_(image, ITEM_CODE, funcitem->codeindex);
-    listitem = _get_(image, ITEM_INDEX, funcitem->pindex);
-    item = _get_(image, ITEM_TYPE, funcitem->rindex);
-    args = to_typedescvec(listitem, image);
-    ret = to_typedesc(item, image);
-    desc = desc_from_proto(args, ret);
-    if (code != NULL)
-      func(str->data, desc, ITEM_FUNC, code->codes, code->size, arg);
-    else
-      func(str->data, desc, ITEM_FUNC, NULL, 0, arg);
-    TYPE_DECREF(desc);
-  }
+  ConstVarItem *item = _get_(image, ITEM_CONSTVAR, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  TypeItem *type = _get_(image, ITEM_TYPE, item->typeindex);
+  TypeDesc *desc = to_typedesc(type, image);
+  func(str->data, 1, desc, arg);
+  TYPE_DECREF(desc);
 }
 
-void Image_Get_Classes(Image *image, getclassfunc func, void *arg)
+void image_load_func(Image *image, int index, getfuncfunc func, void *arg)
 {
-  ClassItem *item;
-  TypeItem *type;
-  StringItem *str;
-  int size = _size_(image, ITEM_CLASS);
-  for (int i = 0; i < size; i++) {
-    item = _get_(image, ITEM_CLASS, i);
-    type = _get_(image, ITEM_TYPE, item->classindex);
-    str = _get_(image, ITEM_STRING, type->klass.typeindex);
-    func(str->data, arg);
-  }
-}
+  FuncItem *item = _get_(image, ITEM_FUNC, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  CodeItem *code = _get_(image, ITEM_CODE, item->codeindex);
+  IndexItem *listitem = _get_(image, ITEM_INDEX, item->pindex);
+  TypeItem *typeitem = _get_(image, ITEM_TYPE, item->rindex);
+  Vector *args = to_typedescvec(listitem, image);
+  TypeDesc *ret = to_typedesc(typeitem, image);
+  TypeDesc *desc = desc_from_proto(args, ret);
+  TYPE_DECREF(ret);
 
-void Image_Get_Enums(Image *image, getenumfunc func, void *arg)
-{
-  EnumItem *item;
-  TypeItem *type;
-  StringItem *str;
-  int size = _size_(image, ITEM_ENUM);
-  for (int i = 0; i < size; i++) {
-    item = _get_(image, ITEM_ENUM, i);
-    type = _get_(image, ITEM_TYPE, item->classindex);
-    str = _get_(image, ITEM_STRING, type->klass.typeindex);
-    func(str->data, arg);
-  }
-}
-#endif
+  IndexItem *locindex = _get_(image, ITEM_INDEX, item->locindex);
+  Vector *locvec = load_locvars(image, locindex);
+  IndexItem *freeindex = _get_(image, ITEM_INDEX, item->freeindex);
+  Vector *freevec = getindexvec(freeindex);
+  CodeInfo ci;
+  ci.name = str->data;
+  ci.desc = desc;
+  ci.codes = code->codes;
+  ci.size = code->size;
+  ci.locvec = locvec;
+  ci.freevec = freevec;
 
-/*
-void Image_Get_EVals(Image *image, getevalfunc func, void *arg)
-{
-  EValItem *item;
-  TypeItem *type;
-  IndexItem *typelist;
-  StringItem *estr;
-  StringItem *str;
-  TypeDesc *desc;
-  int size = _size_(image, ITEM_EVAL);
-  for (int i = 0; i < size; i++) {
-    item = _get_(image, ITEM_EVAL, i);
-    type = _get_(image, ITEM_TYPE, item->classindex);
-    estr = _get_(image, ITEM_STRING, type->typeindex);
-    str = _get_(image, ITEM_STRING, item->nameindex);
-    typelist = _get_(image, ITEM_TYPELIST, item->index);
-    desc = TypeDesc_New_Tuple(TypeListItem_To_Vector(typelist, image));
-    func(str->data, desc, item->value, estr->data, arg);
-    TYPE_DECREF(desc);
-  }
-}
-*/
-#if 0
-void Image_Get_Fields(Image *image, getfieldfunc func, void *arg)
-{
-  FieldItem *item;
-  TypeItem *type;
-  StringItem *classstr;
-  StringItem *str;
-  TypeDesc *desc;
-  int size = _size_(image, ITEM_FIELD);
-  for (int i = 0; i < size; i++) {
-    item = _get_(image, ITEM_FIELD, i);
-    type = _get_(image, ITEM_TYPE, item->classindex);
-    classstr = _get_(image, ITEM_STRING, type->klass.typeindex);
-    str = _get_(image, ITEM_STRING, item->nameindex);
-    type = _get_(image, ITEM_TYPE, item->typeindex);
-    desc = to_typedesc(type, image);
-    func(str->data, desc, classstr->data, arg);
-    TYPE_DECREF(desc);
-  }
-}
+  debug("load_func: %s: %d locvars, %d freevals", str->data,
+        vector_size(locvec), vector_size(freevec));
 
-void Image_Get_Methods(Image *image, getmethodfunc func, void *arg)
-{
-  MethodItem *item;
-  TypeItem *type;
-  StringItem *classstr;
-  StringItem *str;
-  IndexItem *listitem;
-  TypeItem *typeitem;
-  Vector *args;
-  TypeDesc *ret;
-  TypeDesc *desc;
-  CodeItem *code;
-  int size = _size_(image, ITEM_METHOD);
-  for (int i = 0; i < size; i++) {
-    item = _get_(image, ITEM_METHOD, i);
-    type = _get_(image, ITEM_TYPE, item->classindex);
-    classstr = _get_(image, ITEM_STRING, type->klass.typeindex);
-    str = _get_(image, ITEM_STRING, item->nameindex);
-    code = _get_(image, ITEM_CODE, item->codeindex);
-    listitem = _get_(image, ITEM_INDEX, item->pindex);
-    typeitem = _get_(image, ITEM_TYPE, item->rindex);
-    args = to_typedescvec(listitem, image);
-    ret = to_typedesc(typeitem, image);
-    desc = desc_from_proto(args, ret);
-    func(str->data, desc, item->nrlocals,
-         code->codes, code->size, classstr->data, arg);
-    TYPE_DECREF(desc);
-  }
+  func(ci.name, &ci, arg);
+  TYPE_DECREF(ci.desc);
+  vector_free(ci.locvec);
+  vector_free(ci.freevec);
 }
-#endif
 
 void image_finish(Image *image)
 {

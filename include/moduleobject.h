@@ -44,7 +44,7 @@ typedef struct moduleobject {
   /* value objects */
   Vector values;
   /* constant pool */
-  Vector *consts;
+  Object *consts;
   /* dlptr */
   void *dlptr;
 } ModuleObject;
@@ -54,8 +54,9 @@ extern TypeObject Module_Class_Type;
 #define module_check(ob) (OB_TYPE(ob) == &module_type)
 #define MODULE_NAME(ob) (((ModuleObject *)ob)->name)
 void init_module_type(void);
+void fini_modules(void);
 Object *module_new(char *name);
-Object *Module_Lookup(Object *ob, char *name);
+Object *module_lookup(Object *ob, char *name);
 void module_install(char *path, Object *ob);
 Object *module_load(char *path);
 void module_uninstall(char *path);
@@ -66,8 +67,8 @@ void module_add_var(Object *self, Object *ob);
 void module_add_vardef(Object *self, FieldDef *f);
 void module_add_vardefs(Object *self, FieldDef *def);
 
-void Module_Add_Func(Object *self, Object *ob);
-void Module_Add_FuncDef(Object *self, MethodDef *f);
+void module_add_func(Object *self, Object *ob);
+void module_add_funcdef(Object *self, MethodDef *f);
 void module_add_funcdefs(Object *self, MethodDef *def);
 
 Object *module_get(Object *self, char *name);

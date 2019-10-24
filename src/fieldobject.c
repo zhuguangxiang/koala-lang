@@ -26,13 +26,14 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "moduleobject.h"
+#include "atom.h"
 #include "log.h"
 
 Object *field_new(char *name, TypeDesc *desc)
 {
   FieldObject *field = kmalloc(sizeof(*field));
   init_object_head(field, &field_type);
-  field->name = name;
+  field->name = atom(name);
   field->desc = TYPE_INCREF(desc);
   return (Object *)field;
 }
