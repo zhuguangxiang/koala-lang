@@ -135,14 +135,18 @@ void koala_execute(char *path)
   Object *mo = module_load(path);
   if (mo != NULL) {
     Object *_init_ = module_lookup(mo, "__init__");
-    expect(_init_ != NULL && method_check(_init_));
-    KoalaState kstate = {NULL};
-    kstate.top = -1;
-    pthread_setspecific(kskey, &kstate);
-    Object *code = method_getcode(_init_);
-    koala_evalcode(code, mo, NULL);
-    OB_DECREF(code);
-    OB_DECREF(_init_);
+    if (_init_ != NULL) {
+      expect(method_check(_init_));
+      KoalaState kstate = {NULL};
+      kstate.top = -1;
+      pthread_setspecific(kskey, &kstate);
+      Object *code = method_getcode(_init_);
+      koala_evalcode(code, mo, NULL);
+      OB_DECREF(code);
+      OB_DECREF(_init_);
+    } else {
+      warn("__init__ is empty");
+    }
     OB_DECREF(mo);
   } else {
     error("cannot load module '%s'", path);

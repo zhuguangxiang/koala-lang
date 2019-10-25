@@ -487,8 +487,12 @@ void stable_write_image(STable *stbl, Image *image)
       VECTOR(locvec);
       CodeInfo ci = {.locvec = &locvec};
       fill_codeinfo(sym, image, &ci);
-      fill_locvars(sym, &locvec);
-      image_add_func(image, &ci);
+      if (ci.size != 0) {
+        fill_locvars(sym, &locvec);
+        image_add_func(image, &ci);
+      } else {
+        warn("function '%s' is empty", sym->name);
+      }
       free_locvars(&locvec);
       vector_fini(&locvec);
       break;

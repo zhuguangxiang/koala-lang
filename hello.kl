@@ -18,5 +18,13 @@ func add(a int, b int) {
 
 add(1, 2)
 
+import "foo"
+fn := foo.get_op("add")
+io.println(fn(1, 2))
+fn = foo.get_op("sub")
+io.println(fn(1, 2))
+io.println(foo.add(100, 200))
+io.println(foo.sub(100, 200))
+
 // compile command:
 // valgrind --leak-check=full src/koala -c ../hello.kl
