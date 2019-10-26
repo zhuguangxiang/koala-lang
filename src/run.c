@@ -22,6 +22,7 @@
  SOFTWARE.
 */
 
+#include <sys/stat.h>
 #include <pthread.h>
 #include "koala.h"
 #include "osmodule.h"
@@ -125,12 +126,32 @@ void koala_finalize(void)
   fini_atom();
 }
 
+int isdotkl(char *filename);
+int isdotklc(char *filename);
+
 /*
  * The following commands are valid.
  * ~$ koala a/b/foo.kl [a/b/foo.klc] [a/b/foo]
  */
-void koala_execute(char *path)
+void koala_run(char *path)
 {
+  if (isdotkl(path)) {
+    koala_compile(path);
+    path = str_ndup(path, strlen(path) - 3);
+  } else if (isdotklc(path)) {
+    path = str_ndup(path, strlen(path) - 4);
+  } else {
+    // trim slash at the tail.
+    char *end = path + strlen(path) - 1;
+    while (*end == '/') --end;
+    path = str_ndup_ex(path, end - path + 1, 3);
+    // for script with not have suffix .kl
+    struct stat sb;
+    if (!lstat(path, &sb) && S_ISREG(sb.st_mode)) {
+      koala_compile(path);
+    }
+  }
+
   extern pthread_key_t kskey;
   Object *mo = module_load(path);
   if (mo != NULL) {
@@ -148,7 +169,7 @@ void koala_execute(char *path)
       warn("__init__ is empty");
     }
     OB_DECREF(mo);
-  } else {
-    error("cannot load module '%s'", path);
   }
+
+  kfree(path);
 }

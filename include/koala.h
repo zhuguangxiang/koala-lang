@@ -59,7 +59,7 @@ void koala_initialize(void);
 void koala_finalize(void);
 void koala_readline(void);
 void koala_compile(char *path);
-void koala_execute(char *path);
+void koala_run(char *path);
 
 #ifdef __cplusplus
 }

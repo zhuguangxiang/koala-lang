@@ -51,14 +51,6 @@ int file_input(ParserState *ps, char *buf, int size, FILE *in)
   return result;
 }
 
-int exist(char *path)
-{
-  struct stat sb;
-  if (stat(path, &sb) < 0)
-    return 0;
-  return 1;
-}
-
 int isdotkl(char *filename)
 {
   char *dot = strrchr(filename, '.');
@@ -402,9 +394,15 @@ void koala_compile(char *path)
       build_ast(path, &mod);
     }
   } else {
-    // module directory
-    if (!check_dir(&mod, path)) {
-      build_dir_ast(path, &mod);
+    // for script with no suffix .kl
+    struct stat sb;
+    if (!lstat(path, &sb) && S_ISREG(sb.st_mode)) {
+      build_ast(path, &mod);
+    } else {
+      // module directory
+      if (!check_dir(&mod, path)) {
+        build_dir_ast(path, &mod);
+      }
     }
   }
 

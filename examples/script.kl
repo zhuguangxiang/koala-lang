@@ -1,0 +1,15 @@
+#!/home/james/.local/bin/koala
+
+greeting := "hello, world"
+
+// import io module
+import "io"
+
+io.println(greeting)
+
+func add(a int, b int) {
+  r := a + b
+  io.println(r)
+}
+
+add(1, 2)

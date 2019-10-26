@@ -378,12 +378,13 @@ static Object *module_from_file(char *path, char *name)
     */
     image_free(image);
   } else {
-    warn("cannot load '%s'", klcpath);
+    error("cannot load '%s'", klcpath);
   }
   strbuf_fini(&klcfile);
   return mo;
 }
 
+// path: a/b/foo, not allowed a/b/foo/
 Object *module_load(char *path)
 {
   struct modnode key = {.path = path};

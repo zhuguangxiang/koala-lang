@@ -149,7 +149,7 @@ int main(int argc, char *argv[])
   if (cflag == 1) {
     koala_compile(module);
   } else if (cflag == 2) {
-    koala_execute(module);
+    koala_run(module);
   } else {
     koala_readline();
   }
