@@ -145,6 +145,10 @@ struct symbol {
 
 STable *stable_new(void);
 void stable_free(STable *stbl);
+static inline int stable_size(STable *stbl)
+{
+  return hashmap_size(&stbl->table);
+}
 Symbol *symbol_new(char *name, SymKind kind);
 Symbol *stable_get(STable *stbl, char *name);
 Symbol *stable_remove(STable *stbl, char *name);

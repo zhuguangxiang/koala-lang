@@ -134,6 +134,9 @@ void mod_from_mobject(Module *mod, Object *ob)
 
 Symbol *mod_find_symbol(Module *mod, char *name)
 {
+  if (mod == NULL)
+    return NULL;
+
   Symbol *sym = stable_get(mod->stbl, name);
   if (sym != NULL)
     return sym;
@@ -820,7 +823,9 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
     exp->id.where = CURRENT_SCOPE;
     exp->id.scope = u;
     // find class(function) with generic type ?
-    expect(exp->desc->paras == NULL);
+    if (exp->desc != NULL) {
+      expect(exp->desc->paras == NULL);
+    }
     return sym;
   }
 
@@ -839,7 +844,9 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
       exp->id.where = UP_SCOPE;
       exp->id.scope = up;
       // find class(function) with generic type ?
-      expect(exp->desc->paras == NULL);
+      if (exp->desc != NULL) {
+        expect(exp->desc->paras == NULL);
+      }
       return sym;
     }
   }
@@ -856,7 +863,9 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
     exp->id.where = AUTO_IMPORTED;
     exp->id.scope = NULL;
     // find class(function) with generic type ?
-    expect(exp->desc->paras == NULL);
+    if (exp->desc != NULL) {
+      expect(exp->desc->paras == NULL);
+    }
     return sym;
   }
 
@@ -876,7 +885,9 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
       exp->id.where = ID_IN_ENUM;
       exp->id.scope = NULL;
       // find class(function) with generic type ?
-      expect(exp->desc->paras == NULL);
+      if (exp->desc != NULL) {
+        expect(exp->desc->paras == NULL);
+      }
       return sym;
     }
   }
@@ -1403,6 +1414,10 @@ static void parse_ident(ParserState *ps, Expr *exp)
 
   if (sym->kind == SYM_FUNC && exp->right == NULL) {
     exp->ctx = EXPR_LOAD_FUNC;
+  }
+
+  if (has_error(ps)) {
+    return;
   }
 
   if (exp->id.where == CURRENT_SCOPE) {
@@ -2662,7 +2677,10 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
 static Module *new_mod_from_mobject(Module *_mod, char *path)
 {
   Object *ob = module_load(path);
-  expect(ob != NULL);
+  if (ob == NULL) {
+    warn("cannot load module '%s'", path);
+    return NULL;
+  }
   debug("new module(parser) '%s' from memory", path);
   Module *mod = kmalloc(sizeof(Module));
   ModuleObject *mo = (ModuleObject *)ob;
@@ -2711,15 +2729,15 @@ static void parse_import(ParserState *ps, Stmt *s)
     if (mod == NULL) {
       // firstly load from memory
       mod = new_mod_from_mobject(ps->module, path);
-
-      // then load from disk
-      //
-      // compile it and try to load it again
-      //
-
-      // FIXME: delay-load?
-      expect(mod != NULL);
-      sym->mod.ptr = mod;
+      if (mod == NULL) {
+        // NOTE: do not compile it from source, if its source exist.
+        syntax_error(ps, s->import.row, s->import.col,
+                    "cannot load module '%s'", path);
+        sym->mod.ptr = NULL;
+      } else {
+        // FIXME: delay-load?
+        sym->mod.ptr = mod;
+      }
     } else {
       debug("'%s' already imported", path);
       sym->mod.ptr = mod;
@@ -3439,7 +3457,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, pattern);
 
     if (pattern->kind == ENUM_PATTERN_KIND) {
-      if (hashmap_size(&ps->u->stbl->table) > 0) {
+      if (stable_size(ps->u->stbl) > 0) {
         // save symbol table for parsing match clauses.
         match->stbl = ps->u->stbl;
       } else {

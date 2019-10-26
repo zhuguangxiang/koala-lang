@@ -475,6 +475,8 @@ struct stmt {
 #define IMPORT_PARTIAL  2
       Ident id;
       char *path;
+      int row;
+      int col;
       Vector *aliases;
     } import;
     struct {

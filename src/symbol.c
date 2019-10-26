@@ -390,7 +390,7 @@ static void fill_codeinfo(Symbol *sym, Image *image, CodeInfo *ci)
 
 void type_write_image(Symbol *typesym, Image *image)
 {
-  int size = hashmap_size(&typesym->type.stbl->table);
+  int size = stable_size(typesym->type.stbl);
   MbrIndex indexes[size];
   HASHMAP_ITERATOR(iter, &typesym->type.stbl->table);
   Symbol *sym;

@@ -640,6 +640,10 @@ Object *Object_String(Object *ob)
 
 Object *object_lookup(Object *self, char *name)
 {
+  if (self == NULL) {
+    return NULL;
+  }
+
   Object *res;
   if (module_check(self)) {
     res = module_lookup(self, name);

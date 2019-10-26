@@ -391,13 +391,13 @@ Object *module_load(char *path)
   struct modnode *node = hashmap_get(&modmap, &key);
   if (node == NULL) {
     char *name = strrchr(path, '/');
-    name = name ?: path;
+    name = name ? name + 1 : path;
     Object *mo = module_from_file(path, name);
     if (mo == NULL) {
       warn("cannot find module '%s'", path);
       return NULL;
     } else {
-      module_install(name, mo);
+      module_install(path, mo);
       return mo;
     }
   }

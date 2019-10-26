@@ -29,6 +29,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <dirent.h>
 #include "parser.h"
 #include "koala_yacc.h"
 #include "koala_lex.h"
@@ -78,49 +79,67 @@ int isdotklc(char *filename)
   return 0;
 }
 
-int validate_srcfile(char *path)
+int check_dotkl(Module *mod, char *path)
 {
-  char *filename = strrchr(path, '/');
-  if (!filename)
-    filename = path;
+  struct stat sb;
 
-  if (!isdotkl(filename)) {
-    error("%s: Not a valid koala source file.", path);
-    return 0;
+  if (stat(path, &sb)) {
+    error("%s: %s", path, strerror(errno));
+    errno = 0;
+    ++mod->errors;
+    return -1;
   }
 
-  struct stat sb;
+  if (!S_ISREG(sb.st_mode)) {
+    error("%s: Not a regular file", path);
+    ++mod->errors;
+    return -1;
+  }
 
   char *dir = str_ndup(path, strlen(path) - 3);
   if (!stat(dir, &sb)) {
+    error("%s: The same name file or directory exist", dir);
     kfree(dir);
-    error("%s: The same name file or directory exist.", path);
-    return 0;
-  } else {
-    kfree(dir);
+    ++mod->errors;
+    return -1;
   }
 
-  dir = strrchr(path, '/');
-  if (!dir) {
-    if (!stat("./__init__.kl", &sb)) {
-      error("Not allowed '__init__.kl' exist, "
-             "when single source file '%s' is compiled.", path);
-      return 0;
-    }
-  } else {
-    int extra = strlen("./__init__.kl");
-    dir = str_ndup_ex(path, dir - path + 1, extra);
-    strcat(dir, "./__init__.kl");
-    if (!stat(dir, &sb)) {
-      kfree(dir);
-      error("Not allowed '__init__.kl' exist, "
-             "when single source file '%s' is compiled.", path);
-      return 0;
-    }
-    kfree(dir);
+  kfree(dir);
+  errno = 0;
+  return 0;
+}
+
+int check_dir(Module *mod, char *path)
+{
+  struct stat sb;
+
+  if (stat(path, &sb)) {
+    error("%s: %s", path, strerror(errno));
+    errno = 0;
+    ++mod->errors;
+    return -1;
   }
 
-  return 1;
+  if (!S_ISDIR(sb.st_mode)) {
+    error("%s: Not a module directory", path);
+    ++mod->errors;
+    return -1;
+  }
+
+  char *end = path + strlen(path) - 1;
+  while (*end == '/') --end;
+  char *dotkl = str_ndup_ex(path, end - path + 1, 3);
+  strcat(dotkl, ".kl");
+  if (!stat(dotkl, &sb)) {
+    error("%s: The same name file or directory exist", dotkl);
+    kfree(dotkl);
+    ++mod->errors;
+    return -1;
+  }
+
+  kfree(dotkl);
+  errno = 0;
+  return 0;
 }
 
 int comp_add_const(ParserState *ps, Ident id, Type type)
@@ -259,16 +278,56 @@ static void build_ast(char *path, Module *mod)
   ps->module = mod;
   vector_push_back(&mod->pss, ps);
 
-  debug("\x1b[34m----STARTING BUILDING AST------\x1b[0m");
   yyscan_t scanner;
   yylex_init_extra(ps, &scanner);
   yyset_in(in, scanner);
   yyparse(ps, scanner);
   yylex_destroy(scanner);
-  debug("\x1b[34m----END OF BUILDING AST--------\x1b[0m");
 
   mod->errors += ps->errors;
   fclose(in);
+}
+
+void build_dir_ast(char *path, Module *mod)
+{
+  DIR *dir = opendir(path);
+  if (dir == NULL) {
+    fprintf(stderr, "%s: No such file or directory\n", path);
+    return;
+  }
+
+  char *end = path + strlen(path) - 1;
+  while (*end == '/') --end;
+  char *prefix = str_ndup(path, end - path + 1);
+  int prefixlen = strlen(prefix);
+  char fullpath[4096];
+  char *filename;
+
+  if (prefixlen >= sizeof(fullpath)) {
+    fprintf(stderr, "path '%.64s' is too long\n", path);
+    return;
+  }
+
+  struct stat sb;
+  struct dirent *dent;
+  while ((dent = readdir(dir))) {
+    if (!isdotkl(dent->d_name))
+      continue;
+
+    filename = dent->d_name;
+    if (prefixlen + strlen(filename) >= sizeof(fullpath)) {
+      fprintf(stderr, "path '%.64s' is too long\n", path);
+      ++mod->errors;
+      continue;
+    }
+    snprintf(fullpath, sizeof(fullpath) - 1, "%s/%s", prefix, filename);
+
+    if (lstat(fullpath, &sb) || !S_ISREG(sb.st_mode))
+      continue;
+
+    build_ast(fullpath, mod);
+  }
+  closedir(dir);
 }
 
 static void parse_ast(ParserState *ps)
@@ -291,25 +350,29 @@ static void parse_ast(ParserState *ps)
 static void write_image(Module *mod)
 {
   debug("\x1b[32m----STARTING GENERATING IMAGE----\x1b[0m");
-  Image *image = image_new(mod->name);
-  stable_write_image(mod->stbl, image);
-  image_finish(image);
+  if (stable_size(mod->stbl) > 0) {
+    Image *image = image_new(mod->name);
+    stable_write_image(mod->stbl, image);
+    image_finish(image);
 #if !defined(NLog)
-  image_show(image);
+    image_show(image);
 #endif
-  STRBUF(klcfile);
-  if (isdotkl(mod->name)) {
-    strbuf_append(&klcfile, mod->name);
-    strbuf_append_char(&klcfile, 'c');
+    STRBUF(klcfile);
+    if (isdotkl(mod->name)) {
+      strbuf_append(&klcfile, mod->name);
+      strbuf_append_char(&klcfile, 'c');
+    } else {
+      strbuf_append(&klcfile, mod->name);
+      strbuf_append(&klcfile, ".klc");
+    }
+    char *path = strbuf_tostr(&klcfile);
+    debug("write image to '%s'", path);
+    image_write_file(image, path);
+    image_free(image);
+    strbuf_fini(&klcfile);
   } else {
-    strbuf_append(&klcfile, mod->name);
-    strbuf_append(&klcfile, ".klc");
+    warn("module '%s' is empty", mod->name);
   }
-  char *path = strbuf_tostr(&klcfile);
-  debug("write image to '%s'", path);
-  image_write_file(image, path);
-  image_free(image);
-  strbuf_fini(&klcfile);
   debug("\x1b[32m----END OF GENERATING IMAGE------\x1b[0m");
 }
 
@@ -334,20 +397,27 @@ void koala_compile(char *path)
   mod.sym = modSym;
 
   if (isdotkl(path)) {
-    // single source file, build one ast
-    build_ast(path, &mod);
+    // single source file
+    if (!check_dotkl(&mod, path)) {
+      build_ast(path, &mod);
+    }
   } else {
-    /* module directory */
+    // module directory
+    if (!check_dir(&mod, path)) {
+      build_dir_ast(path, &mod);
+    }
   }
 
   // parse all source files in the same directory as one module
-  ParserState *ps;
-  vector_for_each(ps, &mod.pss) {
-    if (!has_error(ps)) {
-      parse_ast(ps);
-      mod.errors += ps->errors;
+  if (mod.errors == 0) {
+    ParserState *ps;
+    vector_for_each(ps, &mod.pss) {
+      if (!has_error(ps)) {
+        parse_ast(ps);
+        mod.errors += ps->errors;
+      }
+      free_parser(ps);
     }
-    free_parser(ps);
   }
 
   // write image file

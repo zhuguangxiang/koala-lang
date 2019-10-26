@@ -591,11 +591,15 @@ import_stmt:
   IMPORT STRING_LITERAL ';'
 {
   $$ = stmt_from_import(NULL, $2);
+  $$->import.row = row(@2);
+  $$->import.col = col(@2);
 }
 | IMPORT ID STRING_LITERAL ';'
 {
   IDENT(id, $2, @2);
   $$ = stmt_from_import(&id, $3);
+  $$->import.row = row(@3);
+  $$->import.col = col(@3);
 }
 | IMPORT '.' STRING_LITERAL ';'
 {

@@ -26,5 +26,11 @@ io.println(fn(1, 2))
 io.println(foo.add(100, 200))
 io.println(foo.sub(100, 200))
 
+import fb "github.com/koala-examples/foobar"
+fn = fb.get_op("add")
+io.println(fn(1, 2))
+fn = fb.bar_get_op("sub")
+io.println(fn(1, 2))
+
 // compile command:
 // valgrind --leak-check=full src/koala -c ../hello.kl

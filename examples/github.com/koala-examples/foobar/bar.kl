@@ -1,0 +1,19 @@
+
+func bar_add(a int, b int) int {
+  a + b
+}
+
+func bar_sub(a int, b int) int {
+  a - b
+}
+
+func bar_get_op(op string) func(int, int) int {
+  op == "add" ? add : sub
+  /*
+  if (op == "add") {
+    return add
+  } else {
+    return sub
+  }
+  */
+}
