@@ -1,5 +1,5 @@
 
-# About Koala
+# Koala
 
 Koala is a fast, flexible and modularized modern language.
 
@@ -59,7 +59,36 @@ io.println(value)
 
 ## Execution Result
 
-![Execution Result](./docs/example.png)
+```shell
+koala 0.9.1 (Oct 27 2019)
+[GCC 8.3.0] on Linux/x86_64 5.0.0-32-generic
+> // define a string variable
+> greeting := "hello, world"
+> // define a int variable
+> var value = 100
+> // also define a string variable
+> var name string = "james"
+> // also define a int variable, but no initial value
+> var age int
+>
+> // function: right bracket must be at line end.
+> func add(v1 int, v2 int) int {
+    v1 + v2
+  }
+>
+> // name: "james, Chu"
+> name += ", Chu"
+> // value: 300
+> value = add(100, 200)
+>
+> // import "io" for print
+> import "io"
+> io.println(name)
+james, Chu
+> io.println(value)
+300
+>
+```
 
 ## More Examples
 
