@@ -22,8 +22,9 @@ cmake ..
 The program `koala` is at build/src/koala, you can copy it to other places.
 
 ## Examples
-see examples/*
+see directory of examples/*
 
 ## Feedback
 You can add issues on github, or contact me by zhuguangxiang@gmail.com
+
 If you are using `Tencent` QQ, please add QQ: 963606291
