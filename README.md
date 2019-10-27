@@ -13,10 +13,9 @@ Hello World
 ## Install
 ```shell
 git clone https://github.com/zhuguangxiang/koala-lang.git
-unzip koala-lang-master.zip
-cd koala-lang-master
+cd koala-lang/
 mkdir build
-cd build
+cd build/
 cmake ..
 ```
 The program `koala` is at build/src/koala, you can copy it to other places.
