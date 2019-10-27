@@ -962,7 +962,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
       }
     }
 
-    error("cannot find symbol '%s'", name);
+    warn("cannot find symbol '%s'", name);
     return NULL;
   } else if (isbuiltin(path)) {
     /* find type from auto-imported modules */
@@ -977,7 +977,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         return NULL;
       }
     }
-    error("cannot find symbol '%s'", name);
+    warn("cannot find symbol '%s'", name);
     return NULL;
   } else {
     panic("not implemented");
@@ -1458,7 +1458,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
   if (rexp->desc == NULL) {
-    syntax_error(ps, rexp->row, rexp->col, "type is unknown");
     return;
   }
 
@@ -1466,7 +1465,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
   parser_visit_expr(ps, lexp);
 
   if (lexp->desc == NULL) {
-    syntax_error(ps, lexp->row, lexp->col, "type is unknown");
     return;
   }
 
@@ -1488,8 +1486,8 @@ static void parse_binary(ParserState *ps, Expr *exp)
       expect(desc != NULL && desc->kind == TYPE_PROTO);
       desc = vector_get(desc->proto.args, 0);
       if (!desc_check(desc, rexp->desc)) {
-        syntax_error(ps, lexp->row, lexp->col,
-                     "types of two sides + are not matched");
+        syntax_error(ps, exp->binary.oprow, exp->binary.opcol,
+                     "types on both sides '+' are not matched");
       }
     }
   }
@@ -2428,7 +2426,7 @@ static void parse_new(ParserState *ps, Expr *exp)
   Ident *id = &exp->newobj.id;
   Symbol *sym = get_klass_symbol(ps->module, path, id->name);
   if (sym == NULL) {
-    syntax_error(ps, id->row, id->col, "cannot find class '%s'", id->name);
+    syntax_error(ps, id->row, id->col, "'%s' is not defined", id->name);
     return;
   }
 
@@ -2751,14 +2749,14 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
   if (exp != NULL) {
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
-
-    if (desc == NULL) {
-      desc = exp->desc;
-    }
-
-    if (desc == NULL) {
+    if (exp->desc == NULL)
       return;
-    }
+
+    if (desc == NULL)
+      desc = exp->desc;
+
+    if (desc == NULL)
+      return;
 
     if (!desc_check(desc, exp->desc)) {
       STRBUF(sbuf1);
@@ -2811,7 +2809,6 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, exp);
     TypeDesc *rdesc = exp->desc;
     if (rdesc == NULL) {
-      syntax_error(ps, exp->row, exp->col, "cannot resolve right expr's type");
       return;
     }
 
@@ -2824,7 +2821,14 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
       }
 
       if (!desc_check(desc, rdesc)) {
-        syntax_error(ps, exp->row, exp->col, "types are not matched");
+        STRBUF(sbuf1);
+        STRBUF(sbuf2);
+        desc_tostr(desc, &sbuf1);
+        desc_tostr(exp->desc, &sbuf2);
+        syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+                    strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+        strbuf_fini(&sbuf1);
+        strbuf_fini(&sbuf2);
       }
     }
   }
@@ -2835,7 +2839,11 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
     return;
 
   if (sym->var.typesym == NULL) {
-    syntax_error(ps, type->row, type->col, "cannot find type");
+    STRBUF(sbuf);
+    desc_tostr(type->desc, &sbuf);
+    syntax_error(ps, type->row, type->col,
+                 "'%s' is not defined", strbuf_tostr(&sbuf));
+    strbuf_fini(&sbuf);
   }
 
   /* generate codes */

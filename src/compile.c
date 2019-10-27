@@ -132,6 +132,7 @@ int comp_add_const(ParserState *ps, Ident id, Type type)
     sym->k.typesym = get_desc_symbol(mod, type.desc);
     return 0;
   } else {
+    syntax_error(ps, id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
 }
@@ -144,6 +145,7 @@ int comp_add_var(ParserState *ps, Ident id, Type type)
     sym->var.typesym = get_desc_symbol(mod, type.desc);
     return 0;
   } else {
+    syntax_error(ps, id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
 }

@@ -915,6 +915,8 @@ logic_or_expr:
 {
   $$ = expr_from_binary(BINARY_LOR, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -927,6 +929,8 @@ logic_and_expr:
 {
   $$ = expr_from_binary(BINARY_LAND, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -939,6 +943,8 @@ inclusive_or_expr:
 {
   $$ = expr_from_binary(BINARY_BIT_OR, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -951,6 +957,8 @@ exclusive_or_expr:
 {
   $$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -963,6 +971,8 @@ and_expr:
 {
   $$ = expr_from_binary(BINARY_BIT_AND, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -975,11 +985,15 @@ equality_expr:
 {
   $$ = expr_from_binary(BINARY_EQ, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | equality_expr OP_NE relation_expr
 {
   $$ = expr_from_binary(BINARY_NEQ, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -992,21 +1006,29 @@ relation_expr:
 {
   $$ = expr_from_binary(BINARY_LT, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | relation_expr '>' add_expr
 {
   $$ = expr_from_binary(BINARY_GT, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | relation_expr OP_LE add_expr
 {
   $$ = expr_from_binary(BINARY_LE, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | relation_expr OP_GE add_expr
 {
   $$ = expr_from_binary(BINARY_GE, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -1019,11 +1041,15 @@ add_expr:
 {
   $$ = expr_from_binary(BINARY_ADD, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | add_expr '-' multi_expr
 {
   $$ = expr_from_binary(BINARY_SUB, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -1036,21 +1062,29 @@ multi_expr:
 {
   $$ = expr_from_binary(BINARY_MULT, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | multi_expr '/' unary_expr
 {
   $$ = expr_from_binary(BINARY_DIV, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | multi_expr '%' unary_expr
 {
   $$ = expr_from_binary(BINARY_MOD, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | multi_expr OP_POWER unary_expr
 {
   $$ = expr_from_binary(BINARY_POW, $1, $3);
   set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 

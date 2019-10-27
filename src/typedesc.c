@@ -287,7 +287,11 @@ void desc_tostr(TypeDesc *desc, StrBuf *buf)
     break;
   }
   case TYPE_KLASS: {
-    panic("not implemented");
+    if (desc->klass.path != NULL) {
+      strbuf_append(buf, desc->klass.path);
+      strbuf_append_char(buf, '.');
+    }
+    strbuf_append(buf, desc->klass.type);
     break;
   }
   case TYPE_PROTO: {

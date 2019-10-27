@@ -328,6 +328,8 @@ struct expr {
     } unary;
     struct {
       BinaryOpKind op;
+      int oprow;
+      int opcol;
       Expr *lexp;
       Expr *rexp;
       Literal val;
