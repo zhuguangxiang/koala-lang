@@ -60,6 +60,7 @@ io.println(value)
 ## Execution Result
 
 ```shell
+[james@host ~]$ koala
 koala 0.9.1 (Oct 27 2019)
 [GCC 8.3.0] on Linux/x86_64 5.0.0-32-generic
 > // define a string variable
