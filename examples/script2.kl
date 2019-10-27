@@ -13,4 +13,3 @@ func add(a int, b int) {
 }
 
 add(1, 2)
-add(3, 4)

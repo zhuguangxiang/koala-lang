@@ -58,8 +58,8 @@ static inline char *str_ndup(char *s, size_t size)
 /* duplicate c-string, with extra string. */
 static inline char *str_ndup_ex(char *s, size_t size, char *extra)
 {
-  size += strlen(extra);
-  char *str = kmalloc(size + 1);
+  int msize = size + strlen(extra);
+  char *str = kmalloc(msize + 1);
   memcpy(str, s, size);
   strcat(str, extra);
   return str;

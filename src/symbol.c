@@ -374,7 +374,7 @@ void free_locvars(Vector *locvec)
 static void fill_codeinfo(Symbol *sym, Image *image, CodeInfo *ci)
 {
   ByteBuffer buf;
-  uint8_t *code;
+  uint8_t *code = NULL;
   int size;
 
   bytebuffer_init(&buf, 32);
@@ -491,6 +491,7 @@ void stable_write_image(STable *stbl, Image *image)
         fill_locvars(sym, &locvec);
         image_add_func(image, &ci);
       } else {
+        kfree(ci.codes);
         warn("function '%s' is empty", sym->name);
       }
       free_locvars(&locvec);

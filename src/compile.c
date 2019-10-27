@@ -72,7 +72,7 @@ int isdotklc(char *filename)
   return 0;
 }
 
-static int check_dotkl(char *path)
+int check_dotkl(char *path)
 {
   struct stat sb;
 
@@ -391,7 +391,8 @@ void koala_compile(char *path)
       while (*end == '/') --end;
       char *klpath = str_ndup_ex(path, end - path + 1, ".kl");
       if (!lstat(klpath, &sb) && S_ISREG(sb.st_mode)) {
-        build_ast(klpath, &mod);
+        if (!check_dotkl(klpath))
+          build_ast(klpath, &mod);
       } else {
         // module directory
         if (!check_dir(path))

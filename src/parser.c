@@ -569,7 +569,7 @@ static const char *blocks[] = {
 ParserState *new_parser(char *filename)
 {
   ParserState *ps = kmalloc(sizeof(ParserState));
-  ps->filename = filename;
+  ps->filename = atom(filename);
   ps->row = 1;
   vector_init(&ps->ustack);
   vector_init(&ps->stmts);
@@ -1541,10 +1541,10 @@ static void parse_ternary(ParserState *ps, Expr *exp)
   if (!desc_check(lexp->desc, rexp->desc)) {
     syntax_error(ps, rexp->row, rexp->col,
       "type mismatch in conditonal expression");
+  } else {
+    exp->sym = lexp->sym;
+    exp->desc = TYPE_INCREF(exp->sym->desc);
   }
-
-  exp->sym = lexp->sym;
-  exp->desc = TYPE_INCREF(exp->sym->desc);
 }
 
 static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)

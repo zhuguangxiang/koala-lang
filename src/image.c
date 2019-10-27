@@ -1620,9 +1620,9 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   }
   case TYPE_PROTO: {
     IndexItem *listitem = _get_(image, ITEM_INDEX, item->proto.pindex);
-    TypeItem *item = _get_(image, ITEM_TYPE, item->proto.rindex);
+    TypeItem *item2 = _get_(image, ITEM_TYPE, item->proto.rindex);
     Vector *args = to_typedescvec(listitem, image);
-    TypeDesc *ret = to_typedesc(item, image);
+    TypeDesc *ret = to_typedesc(item2, image);
     t = desc_from_proto(args, ret);
     TYPE_DECREF(ret);
     break;

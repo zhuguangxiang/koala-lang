@@ -8,7 +8,7 @@ func bar_sub(a int, b int) int {
 }
 
 func bar_get_op(op string) func(int, int) int {
-  op == "add" ? add : sub
+  op == "add" ? bar_add : bar_sub
   /*
   if (op == "add") {
     return add
@@ -18,6 +18,6 @@ func bar_get_op(op string) func(int, int) int {
   */
 }
 
-func bar_mul(a int, a int) int {
+func bar_mul(a int, b int) int {
   a * b
 }

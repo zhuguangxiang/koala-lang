@@ -132,6 +132,7 @@ void koala_finalize(void)
   fini_atom();
 }
 
+int check_dotkl(char *path);
 int check_dir(char *path);
 int isdotkl(char *filename);
 int isdotklc(char *filename);
@@ -229,26 +230,27 @@ int dir_need_compile(char *path)
 
 static int need_compile(char *path)
 {
+  int res = 0;
   // for script with no suffix .kl
   struct stat sb;
   if (!lstat(path, &sb) && S_ISREG(sb.st_mode)) {
     if (file_need_compile(path))
-      return 1;
+      res = 1;
   } else {
     // check path.kl file exist?
     char *klpath = str_dup_ex(path, ".kl");
     if (!lstat(klpath, &sb) && S_ISREG(sb.st_mode)) {
-      if (file_need_compile(klpath))
-        return 1;
+      if (!check_dotkl(klpath) && file_need_compile(klpath))
+        res = 1;
     } else {
       // module directory
       if (!check_dir(path) && dir_need_compile(path)) {
-        return 1;
+        res = 1;
       }
     }
     kfree(klpath);
   }
-  return 0;
+  return res;
 }
 
 /*
