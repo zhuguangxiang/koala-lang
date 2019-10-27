@@ -351,10 +351,7 @@ static void _load_func_(char *name, CodeInfo *ci, void *arg)
 
 static Object *module_from_file(char *path, char *name)
 {
-  STRBUF(klcfile);
-  strbuf_append(&klcfile, path);
-  strbuf_append(&klcfile, ".klc");
-  char *klcpath = strbuf_tostr(&klcfile);
+  char *klcpath = str_dup_ex(path, ".klc");
   debug("read image from '%s'", klcpath);
   Image *image = image_read_file(klcpath, 0);
   Object *mo = NULL;
@@ -380,7 +377,7 @@ static Object *module_from_file(char *path, char *name)
   } else {
     error("cannot load '%s'", klcpath);
   }
-  strbuf_fini(&klcfile);
+  kfree(klcpath);
   return mo;
 }
 

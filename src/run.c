@@ -22,13 +22,19 @@
  SOFTWARE.
 */
 
+#include <sys/types.h>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <time.h>
+#include <errno.h>
 #include <pthread.h>
 #include "koala.h"
 #include "osmodule.h"
 #include "iomodule.h"
 #include "fmtmodule.h"
 #include "gc.h"
+#include "log.h"
 
 static void init_types(void)
 {
@@ -126,8 +132,124 @@ void koala_finalize(void)
   fini_atom();
 }
 
+int check_dir(char *path);
 int isdotkl(char *filename);
 int isdotklc(char *filename);
+
+static inline int timespec_cmp(struct timespec *t1, struct timespec *t2)
+{
+  if (t1->tv_sec == t2->tv_sec) {
+    return t1->tv_nsec > t2->tv_nsec;
+  } else {
+    return t1->tv_sec > t2->tv_sec;
+  }
+}
+
+int file_need_compile(char *path)
+{
+  struct stat sb1, sb2;
+  char *klcpath;
+  int need;
+
+  if (isdotkl(path)) {
+    klcpath = str_dup_ex(path, "c");
+  } else {
+    klcpath = str_dup_ex(path, ".klc");
+  }
+  int status = lstat(klcpath, &sb1);
+  kfree(klcpath);
+
+  if (status) {
+    // .klc not exist
+    warn("%s: %s", klcpath, strerror(errno));
+    need = 1;
+  } else {
+    if (lstat(path, &sb2)) {
+      error("%s: %s", path, strerror(errno));
+      need = 0;
+    } else {
+      // last modified time .kl file > .klc file
+      need = timespec_cmp(&sb2.st_mtim, &sb1.st_mtim);
+    }
+  }
+
+  debug("file %s need compile:%d", path, need);
+  return need;
+}
+
+int dir_need_compile(char *path)
+{
+  struct stat sb1, sb2;
+  char *klcpath = str_dup_ex(path, ".klc");
+  int need;
+  int status = lstat(klcpath, &sb1);
+  kfree(klcpath);
+
+  if (status) {
+    // .klc not exist
+    warn("%s: %s", klcpath, strerror(errno));
+    need = 1;
+  } else {
+    DIR *dir = opendir(path);
+    if (dir == NULL) {
+      fprintf(stderr, "%s: No such file or directory\n", path);
+      need = 0;
+    } else {
+      char *filename;
+      char fullpath[4096];
+      int pathlen = strlen(path) + 1;
+      struct dirent *dent;
+      while ((dent = readdir(dir))) {
+        filename = dent->d_name;
+        if (!isdotkl(filename))
+          continue;
+
+        if (pathlen + strlen(filename) >= sizeof(fullpath)) {
+          fprintf(stderr, "path '%s/%s' is too long\n", path, filename);
+          continue;
+        }
+
+        snprintf(fullpath, sizeof(fullpath) - 1, "%s/%s", path, filename);
+
+        if (lstat(fullpath, &sb2) || !S_ISREG(sb2.st_mode))
+          continue;
+
+        // last modified time .kl file > .klc file
+        need = timespec_cmp(&sb2.st_mtim, &sb1.st_mtim);
+        if (need)
+          break;
+      }
+      closedir(dir);
+    }
+  }
+
+  debug("dir %s need compile:%d", path, need);
+  return need;
+}
+
+static int need_compile(char *path)
+{
+  // for script with no suffix .kl
+  struct stat sb;
+  if (!lstat(path, &sb) && S_ISREG(sb.st_mode)) {
+    if (file_need_compile(path))
+      return 1;
+  } else {
+    // check path.kl file exist?
+    char *klpath = str_dup_ex(path, ".kl");
+    if (!lstat(klpath, &sb) && S_ISREG(sb.st_mode)) {
+      if (file_need_compile(klpath))
+        return 1;
+    } else {
+      // module directory
+      if (!check_dir(path) && dir_need_compile(path)) {
+        return 1;
+      }
+    }
+    kfree(klpath);
+  }
+  return 0;
+}
 
 /*
  * The following commands are valid.
@@ -136,7 +258,6 @@ int isdotklc(char *filename);
 void koala_run(char *path)
 {
   if (isdotkl(path)) {
-    koala_compile(path);
     path = str_ndup(path, strlen(path) - 3);
   } else if (isdotklc(path)) {
     path = str_ndup(path, strlen(path) - 4);
@@ -144,12 +265,13 @@ void koala_run(char *path)
     // trim slash at the tail.
     char *end = path + strlen(path) - 1;
     while (*end == '/') --end;
-    path = str_ndup_ex(path, end - path + 1, 3);
-    // for script with not have suffix .kl
-    struct stat sb;
-    if (!lstat(path, &sb) && S_ISREG(sb.st_mode)) {
-      koala_compile(path);
-    }
+    path = str_ndup(path, end - path + 1);
+  }
+
+  // path: a/b/foo, try compile it
+  if (need_compile(path)) {
+    debug("try to compile '%s'", path);
+    koala_compile(path);
   }
 
   extern pthread_key_t kskey;

@@ -17,3 +17,7 @@ func get_op(op string) func(int, int) int {
   }
   */
 }
+
+func mult(a int, b int) int {
+  a * b
+}

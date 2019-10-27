@@ -26,10 +26,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <dirent.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <dirent.h>
 #include "parser.h"
 #include "koala_yacc.h"
 #include "koala_lex.h"
@@ -54,7 +55,7 @@ int file_input(ParserState *ps, char *buf, int size, FILE *in)
 int isdotkl(char *filename)
 {
   char *dot = strrchr(filename, '.');
-  if (!dot || strlen(dot) != 3)
+  if (dot == NULL || strlen(dot) != 3)
     return 0;
   if (dot[1] == 'k' && dot[2] == 'l')
     return 1;
@@ -64,73 +65,62 @@ int isdotkl(char *filename)
 int isdotklc(char *filename)
 {
   char *dot = strrchr(filename, '.');
-  if (!dot || strlen(dot) != 4)
+  if (dot == NULL || strlen(dot) != 4)
     return 0;
   if (dot[1] == 'k' && dot[2] == 'l' && dot[3] == 'c')
     return 1;
   return 0;
 }
 
-int check_dotkl(Module *mod, char *path)
+static int check_dotkl(char *path)
 {
   struct stat sb;
 
-  if (stat(path, &sb)) {
+  if (lstat(path, &sb)) {
     error("%s: %s", path, strerror(errno));
-    errno = 0;
-    ++mod->errors;
     return -1;
   }
 
   if (!S_ISREG(sb.st_mode)) {
     error("%s: Not a regular file", path);
-    ++mod->errors;
     return -1;
   }
 
   char *dir = str_ndup(path, strlen(path) - 3);
-  if (!stat(dir, &sb)) {
+  if (!lstat(dir, &sb)) {
     error("%s: The same name file or directory exist", dir);
     kfree(dir);
-    ++mod->errors;
     return -1;
   }
 
   kfree(dir);
-  errno = 0;
   return 0;
 }
 
-int check_dir(Module *mod, char *path)
+int check_dir(char *path)
 {
   struct stat sb;
 
-  if (stat(path, &sb)) {
+  if (lstat(path, &sb)) {
     error("%s: %s", path, strerror(errno));
-    errno = 0;
-    ++mod->errors;
     return -1;
   }
 
   if (!S_ISDIR(sb.st_mode)) {
     error("%s: Not a module directory", path);
-    ++mod->errors;
     return -1;
   }
 
   char *end = path + strlen(path) - 1;
   while (*end == '/') --end;
-  char *dotkl = str_ndup_ex(path, end - path + 1, 3);
-  strcat(dotkl, ".kl");
-  if (!stat(dotkl, &sb)) {
+  char *dotkl = str_ndup_ex(path, end - path + 1, ".kl");
+  if (!lstat(dotkl, &sb)) {
     error("%s: The same name file or directory exist", dotkl);
     kfree(dotkl);
-    ++mod->errors;
     return -1;
   }
 
   kfree(dotkl);
-  errno = 0;
   return 0;
 }
 
@@ -349,19 +339,16 @@ static void write_image(Module *mod)
 #if !defined(NLog)
     image_show(image);
 #endif
-    STRBUF(klcfile);
+    char *path;
     if (isdotkl(mod->name)) {
-      strbuf_append(&klcfile, mod->name);
-      strbuf_append_char(&klcfile, 'c');
+      path = str_dup_ex(mod->name, "c");
     } else {
-      strbuf_append(&klcfile, mod->name);
-      strbuf_append(&klcfile, ".klc");
+      path = str_dup_ex(mod->name, ".klc");
     }
-    char *path = strbuf_tostr(&klcfile);
     debug("write image to '%s'", path);
     image_write_file(image, path);
     image_free(image);
-    strbuf_fini(&klcfile);
+    kfree(path);
   } else {
     warn("module '%s' is empty", mod->name);
   }
@@ -371,6 +358,7 @@ static void write_image(Module *mod)
 /* koala -c a/b/foo.kl [a/b/foo] */
 void koala_compile(char *path)
 {
+  int need_image = 1;
   Module mod = {0};
   Symbol *modSym;
 
@@ -390,36 +378,47 @@ void koala_compile(char *path)
 
   if (isdotkl(path)) {
     // single source file
-    if (!check_dotkl(&mod, path)) {
+    if (!check_dotkl(path))
       build_ast(path, &mod);
-    }
   } else {
     // for script with no suffix .kl
     struct stat sb;
     if (!lstat(path, &sb) && S_ISREG(sb.st_mode)) {
       build_ast(path, &mod);
     } else {
-      // module directory
-      if (!check_dir(&mod, path)) {
-        build_dir_ast(path, &mod);
+      // check path.kl file exist?
+      char *end = path + strlen(path) - 1;
+      while (*end == '/') --end;
+      char *klpath = str_ndup_ex(path, end - path + 1, ".kl");
+      if (!lstat(klpath, &sb) && S_ISREG(sb.st_mode)) {
+        build_ast(klpath, &mod);
+      } else {
+        // module directory
+        if (!check_dir(path))
+          build_dir_ast(path, &mod);
       }
+      kfree(klpath);
     }
   }
 
   // parse all source files in the same directory as one module
   if (mod.errors == 0) {
-    ParserState *ps;
-    vector_for_each(ps, &mod.pss) {
-      if (!has_error(ps)) {
-        parse_ast(ps);
-        mod.errors += ps->errors;
+    if (vector_size(&mod.pss) <= 0) {
+      need_image = 0;
+    } else {
+      ParserState *ps;
+      vector_for_each(ps, &mod.pss) {
+        if (!has_error(ps)) {
+          parse_ast(ps);
+          mod.errors += ps->errors;
+        }
+        free_parser(ps);
       }
-      free_parser(ps);
     }
   }
 
   // write image file
-  if (mod.errors == 0) {
+  if (mod.errors == 0 && need_image == 1) {
     write_image(&mod);
   }
 
