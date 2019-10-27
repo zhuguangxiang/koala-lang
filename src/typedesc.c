@@ -277,7 +277,39 @@ void desc_free(TypeDesc *desc)
 
 void desc_tostr(TypeDesc *desc, StrBuf *buf)
 {
+  if (desc == NULL)
+    return;
 
+  int kind = desc->kind;
+  switch (kind) {
+  case TYPE_BASE: {
+    strbuf_append(buf, base_str(desc->base));
+    break;
+  }
+  case TYPE_KLASS: {
+    panic("not implemented");
+    break;
+  }
+  case TYPE_PROTO: {
+    panic("not implemented");
+    break;
+  }
+  case TYPE_PARAREF: {
+    panic("not implemented");
+    break;
+  }
+  case TYPE_PARADEF: {
+    panic("not implemented");
+    break;
+  }
+  case TYPE_LABEL: {
+    panic("not implemented");
+    break;
+  }
+  default:
+    panic("invalid typedesc %d", kind);
+    break;
+  }
 }
 
 void desc_show(TypeDesc *desc)

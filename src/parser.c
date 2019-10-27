@@ -1136,10 +1136,7 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
     CODE_OP(OP_LOAD_GLOBAL);
     CODE_OP_S(OP_GET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_STORE) {
-    if (sym->kind == SYM_CONST) {
-      syntax_error(ps, exp->row, exp->col,
-                   "cannot assign to const '%s'", sym->name);
-    } else {
+    if (sym->kind != SYM_CONST) {
       CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S(OP_SET_VALUE, exp->id.name);
     }
@@ -1235,10 +1232,7 @@ static void ident_up_func(ParserState *ps, Expr *exp)
       CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S(OP_GET_VALUE, exp->id.name);
     } else if (exp->ctx == EXPR_STORE) {
-      if (sym->kind == SYM_CONST) {
-        syntax_error(ps, exp->row, exp->col,
-                     "cannot assign to const '%s'", sym->name);
-      } else {
+      if (sym->kind != SYM_CONST) {
         CODE_OP(OP_LOAD_GLOBAL);
         CODE_OP_S(OP_SET_VALUE, exp->id.name);
       }
@@ -1407,8 +1401,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
 {
   Symbol *sym = find_id_symbol(ps, exp);
   if (sym == NULL) {
-    syntax_error(ps, exp->row, exp->col,
-      "cannot find symbol '%s'", exp->id.name);
+    syntax_error(ps, exp->row, exp->col, "'%s' is not defined", exp->id.name);
     return;
   }
 
@@ -1464,16 +1457,21 @@ static void parse_binary(ParserState *ps, Expr *exp)
 
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
+  if (rexp->desc == NULL) {
+    syntax_error(ps, rexp->row, rexp->col, "type is unknown");
+    return;
+  }
 
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
 
-  exp->sym = get_desc_symbol(ps->module, lexp->desc);
-  if (exp->sym == NULL) {
-    syntax_error(ps, exp->row, exp->col, "cannot find type");
+  if (lexp->desc == NULL) {
+    syntax_error(ps, lexp->row, lexp->col, "type is unknown");
     return;
   }
 
+  exp->sym = get_desc_symbol(ps->module, lexp->desc);
+  expect(exp->sym != NULL);
   if (exp->desc == NULL) {
     exp->desc = TYPE_INCREF(lexp->desc);
   }
@@ -1491,7 +1489,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
       desc = vector_get(desc->proto.args, 0);
       if (!desc_check(desc, rexp->desc)) {
         syntax_error(ps, lexp->row, lexp->col,
-          "left and right + is not matched");
+                     "types of two sides + are not matched");
       }
     }
   }
@@ -2763,7 +2761,14 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
     }
 
     if (!desc_check(desc, exp->desc)) {
-      syntax_error(ps, exp->row, exp->col, "types are not matched");
+      STRBUF(sbuf1);
+      STRBUF(sbuf2);
+      desc_tostr(desc, &sbuf1);
+      desc_tostr(exp->desc, &sbuf2);
+      syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+                   strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      strbuf_fini(&sbuf1);
+      strbuf_fini(&sbuf2);
     }
   }
 
@@ -2771,11 +2776,7 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
 
   /* get const variable type symbol */
   Symbol *sym = stable_get(u->stbl, id->name);
-  if (sym == NULL) {
-    syntax_error(ps, id->row, id->col, "cannot find symbol '%s'", id->name);
-    return;
-  }
-
+  expect(sym != NULL);
   expect(sym->kind == SYM_CONST);
 
   if (sym->desc == NULL) {
@@ -2873,6 +2874,17 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
   lexp->ctx = EXPR_STORE;
   parser_visit_expr(ps, lexp);
 
+  Symbol *sym = lexp->sym;
+  if (sym == NULL)
+    return;
+  if (sym->kind == SYM_CONST) {
+    syntax_error(ps, rexp->row, rexp->col, "cannot assign to '%s'", sym->name);
+    return;
+  }
+
+  if (has_error(ps))
+    return;
+
   if (lexp->desc == NULL) {
     syntax_error(ps, lexp->row, lexp->col,
       "cannot resolve left expr's type");
@@ -2908,7 +2920,14 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
   }
 
   if (!desc_check(ldesc, rdesc)) {
-    syntax_error(ps, lexp->row, lexp->col, "types are not matched");
+    STRBUF(sbuf1);
+    STRBUF(sbuf2);
+    desc_tostr(ldesc, &sbuf1);
+    desc_tostr(rdesc, &sbuf2);
+    syntax_error(ps, rexp->row, rexp->col, "expected '%s', but found '%s'",
+                  strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    strbuf_fini(&sbuf1);
+    strbuf_fini(&sbuf2);
   }
 }
 

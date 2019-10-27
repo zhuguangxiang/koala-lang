@@ -256,39 +256,30 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <desc> func_type
 
 %destructor {
-  printf("free expr\n");
   expr_free($$);
 } <expr>
 %destructor {
-  printf("free stmt\n");
   stmt_free($$);
 } <stmt>
 %destructor {
-  printf("decref desc\n");
   TYPE_DECREF($$);
 } <desc>
 %destructor {
-  printf("free exprlist\n");
   exprlist_free($$);
 } <exprlist>
 %destructor {
-  printf("free stmtblock\n");
   stmt_block_free($$);
 } <stmtlist>
 %destructor {
-  printf("free idtypelist\n");
   free_idtypes($$);
 } <idtypelist>
 %destructor {
-  printf("free name\n");
   free_descs($$.vec);
 } <name>
 %destructor {
-  printf("free extends\n");
   free_extends($$);
 } <extendsdef>
 %destructor {
-  printf("free alias\n");
   free_aliases($$);
 } <aliaslist>
 
@@ -648,12 +639,16 @@ const_decl:
   CONST ID '=' expr ';'
 {
   IDENT(id, $2, @2);
+  $4->row = row(@4);
+  $4->col = col(@4);
   $$ = stmt_from_constdecl(id, NULL, $4);
 }
 | CONST ID type '=' expr ';'
 {
   IDENT(id, $2, @2);
   TYPE(type, $3, @3);
+  $5->row = row(@5);
+  $5->col = col(@5);
   $$ = stmt_from_constdecl(id, &type, $5);
 }
 ;
@@ -872,10 +867,12 @@ range_object:
   condition_expr DOTDOTDOT condition_expr
 {
   $$ = expr_from_range(0, $1, $3);
+  set_expr_pos($$, @1);
 }
 | condition_expr DOTDOTLESS condition_expr
 {
   $$ = expr_from_range(1, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -884,6 +881,7 @@ expr_as_type:
 {
   TYPE(type, $3, @3);
   $$ = expr_from_astype($1, type);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -892,6 +890,7 @@ expr_is_type:
 {
   TYPE(type, $3, @3);
   $$ = expr_from_istype($1, type);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -903,6 +902,7 @@ condition_expr:
 | logic_or_expr '?' logic_or_expr ':' logic_or_expr
 {
   $$ = expr_from_ternary($1, $3, $5);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -914,6 +914,7 @@ logic_or_expr:
 | logic_or_expr OP_OR logic_and_expr
 {
   $$ = expr_from_binary(BINARY_LOR, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -925,6 +926,7 @@ logic_and_expr:
 | logic_and_expr OP_AND inclusive_or_expr
 {
   $$ = expr_from_binary(BINARY_LAND, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -936,6 +938,7 @@ inclusive_or_expr:
 | inclusive_or_expr '|' exclusive_or_expr
 {
   $$ = expr_from_binary(BINARY_BIT_OR, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -947,6 +950,7 @@ exclusive_or_expr:
 | exclusive_or_expr '^' and_expr
 {
   $$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -958,6 +962,7 @@ and_expr:
 | and_expr '&' equality_expr
 {
   $$ = expr_from_binary(BINARY_BIT_AND, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -969,10 +974,12 @@ equality_expr:
 | equality_expr OP_EQ relation_expr
 {
   $$ = expr_from_binary(BINARY_EQ, $1, $3);
+  set_expr_pos($$, @1);
 }
 | equality_expr OP_NE relation_expr
 {
   $$ = expr_from_binary(BINARY_NEQ, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -984,18 +991,22 @@ relation_expr:
 | relation_expr '<' add_expr
 {
   $$ = expr_from_binary(BINARY_LT, $1, $3);
+  set_expr_pos($$, @1);
 }
 | relation_expr '>' add_expr
 {
   $$ = expr_from_binary(BINARY_GT, $1, $3);
+  set_expr_pos($$, @1);
 }
 | relation_expr OP_LE add_expr
 {
   $$ = expr_from_binary(BINARY_LE, $1, $3);
+  set_expr_pos($$, @1);
 }
 | relation_expr OP_GE add_expr
 {
   $$ = expr_from_binary(BINARY_GE, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -1007,10 +1018,12 @@ add_expr:
 | add_expr '+' multi_expr
 {
   $$ = expr_from_binary(BINARY_ADD, $1, $3);
+  set_expr_pos($$, @1);
 }
 | add_expr '-' multi_expr
 {
   $$ = expr_from_binary(BINARY_SUB, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -1022,18 +1035,22 @@ multi_expr:
 | multi_expr '*' unary_expr
 {
   $$ = expr_from_binary(BINARY_MULT, $1, $3);
+  set_expr_pos($$, @1);
 }
 | multi_expr '/' unary_expr
 {
   $$ = expr_from_binary(BINARY_DIV, $1, $3);
+  set_expr_pos($$, @1);
 }
 | multi_expr '%' unary_expr
 {
   $$ = expr_from_binary(BINARY_MOD, $1, $3);
+  set_expr_pos($$, @1);
 }
 | multi_expr OP_POWER unary_expr
 {
   $$ = expr_from_binary(BINARY_POW, $1, $3);
+  set_expr_pos($$, @1);
 }
 ;
 
@@ -1045,6 +1062,7 @@ unary_expr:
 | unary_operator unary_expr
 {
   $$ = expr_from_unary($1, $2);
+  set_expr_pos($$, @1);
 }
 ;
 

@@ -83,7 +83,7 @@ int stable_add_symbol(STable *stbl, Symbol *sym)
   }
 
   if (hashmap_add(&stbl->table, sym) < 0) {
-    error("add symbol '%s' failed", sym->name);
+    warn("add symbol '%s' failed", sym->name);
     symbol_decref((Symbol *)sym);
     return -1;
   }

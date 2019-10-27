@@ -382,7 +382,11 @@ moddoc  "//!"[^\n]*
   YY_NEWLINE
 }
 
-[ \t\r]+ {
+[ \t]+ {
+  /* blank character */
+}
+
+[\r]+ {
   /* blank character */
 }
 
