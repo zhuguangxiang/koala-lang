@@ -27,6 +27,6 @@ Examples: see directory of examples/*
 Manual: see [Koala Language Manual](https://github.com/zhuguangxiang/koala-lang/blob/master/docs/manual.md "Koala Language Manual")
 
 ## Feedback
-You can add issues on github, or contact me by zhuguangxiang@gmail.com
+You can add issues on github, or contact us by zhuguangxiang@gmail.com
 
 If you are using `Tencent` QQ, please add QQ: 963606291
