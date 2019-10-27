@@ -2712,16 +2712,6 @@ static void parse_import(ParserState *ps, Stmt *s)
       name = strrchr(path, '/');
       name = (name == NULL) ? path : atom(name + 1);
     }
-    debug("import from '%s' as '%s'", path, name);
-    Symbol *sym = symbol_new(name, SYM_MOD);
-    sym->mod.path = path;
-    sym->desc = desc_from_klass("lang", "Module");
-    if (stable_add_symbol(u->stbl, sym) < 0) {
-      syntax_error(ps, s->row, s->col, "symbol '%s' is duplicated", name);
-      return;
-    } else {
-      symbol_decref(sym);
-    }
 
     Module key = {.path = path};
     hashmap_entry_init(&key, strhash(path));
@@ -2731,16 +2721,24 @@ static void parse_import(ParserState *ps, Stmt *s)
       mod = new_mod_from_mobject(ps->module, path);
       if (mod == NULL) {
         // NOTE: do not compile it from source, if its source exist.
-        syntax_error(ps, s->import.row, s->import.col,
-                    "cannot load module '%s'", path);
-        sym->mod.ptr = NULL;
-      } else {
-        // FIXME: delay-load?
-        sym->mod.ptr = mod;
+        syntax_error(ps, s->import.pathrow, s->import.pathcol,
+                    "no such module '%s'", path);
       }
     } else {
       debug("'%s' already imported", path);
-      sym->mod.ptr = mod;
+    }
+
+    if (!has_error(ps)) {
+      debug("import from '%s' as '%s'", path, name);
+      Symbol *sym = symbol_new(name, SYM_MOD);
+      sym->mod.path = path;
+      sym->desc = desc_from_klass("lang", "Module");
+      if (stable_add_symbol(u->stbl, sym) < 0) {
+        syntax_error(ps, s->row, s->col, "symbol '%s' is duplicated", name);
+      } else {
+        sym->mod.ptr = mod;
+        symbol_decref(sym);
+      }
     }
   }
 }

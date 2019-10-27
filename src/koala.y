@@ -515,13 +515,13 @@ unit:
 {
   if (ps->interactive) {
     if (!ps->quit) {
-      syntax_error(ps, ps->row, ps->col, "invalid statement");
+      syntax_error(ps, ps->row, ps->col, "invalid syntax");
       yyclearin;
     }
     ps->more = 0;
     yyerrok;
   } else {
-    syntax_error(ps, ps->row, ps->col, "invalid statement");
+    syntax_error(ps, ps->row, ps->col, "invalid syntax");
     yyclearin;
     yyerrok;
   }
@@ -591,23 +591,27 @@ import_stmt:
   IMPORT STRING_LITERAL ';'
 {
   $$ = stmt_from_import(NULL, $2);
-  $$->import.row = row(@2);
-  $$->import.col = col(@2);
+  $$->import.pathrow = row(@2);
+  $$->import.pathcol = col(@2);
 }
 | IMPORT ID STRING_LITERAL ';'
 {
   IDENT(id, $2, @2);
   $$ = stmt_from_import(&id, $3);
-  $$->import.row = row(@3);
-  $$->import.col = col(@3);
+  $$->import.pathrow = row(@3);
+  $$->import.pathcol = col(@3);
 }
 | IMPORT '.' STRING_LITERAL ';'
 {
   $$ = stmt_from_import_all($3);
+  $$->import.pathrow = row(@3);
+  $$->import.pathcol = col(@3);
 }
 | IMPORT '{' id_as_list '}' STRING_LITERAL ';'
 {
   $$ = stmt_from_import_partial($3, $5);
+  $$->import.pathrow = row(@5);
+  $$->import.pathcol = col(@5);
 }
 ;
 

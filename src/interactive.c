@@ -94,6 +94,7 @@ static void init_cmdline_env(void)
   ps.filename = "stdin";
   ps.module = &mod;
   ps.row = 1;
+  ps.col = 1;
   vector_init(&ps.ustack);
 
   mo = module_new("__main__");
@@ -492,11 +493,21 @@ static int empty(char *buf, int size)
   return 1;
 }
 
-static int lexwrap = 1;
+static volatile int lexwrap = -1;
+/*
+When the scanner receives an end-of-file indication from YY_INPUT, it then
+checks the yywrap() function.
 
+If yywrap() returns false (zero), then it is assumed that the function has gone
+ahead and set up yyin to point to another input file, and scanning continues.
+
+If it returns true (non-zero), then the scanner terminates.
+*/
 int yywrap(yyscan_t yyscanner)
 {
-  return lexwrap;
+  int ret = lexwrap;
+  lexwrap = -1;
+  return ret;
 }
 
 int interactive(ParserState *ps, char *buf, int size)
@@ -540,7 +551,6 @@ int interactive(ParserState *ps, char *buf, int size)
       return 0;
     }
 
-    lexwrap = 1;
     // flex bug? leave last one char in buffer
     buf[len++] = '\r';
     return len;

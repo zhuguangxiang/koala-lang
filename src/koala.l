@@ -91,17 +91,15 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   return 0;
 }
 
-#define YY_USER_ACTION                    \
-{                                         \
-  if (yylloc->first_line == yyps->row) {  \
-    yyps->col += yyps->len;               \
-    yyps->len = strlen(yytext);           \
-  } else {                                \
-    yyps->col = 1;                        \
-    yyps->len = strlen(yytext);           \
-  }                                       \
-  yylloc->first_column = yyps->col;       \
-  yylloc->first_line = yyps->row;         \
+#define YY_USER_ACTION                \
+{                                     \
+  char ch = *yytext;                  \
+  if (ch != '\r' && ch != '\n') {     \
+    yyps->col += yyps->len;           \
+    yyps->len = strlen(yytext);       \
+    yylloc->first_column = yyps->col; \
+    yylloc->first_line = yyps->row;   \
+  }                                   \
 }
 
 #define YY_RETURN(_token) \
@@ -116,6 +114,8 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
 
 #define YY_NEWLINE            \
   ++yyps->row;                \
+  yyps->len = 0;              \
+  yyps->col = 1;              \
   if (need_semicolon(yyps)) { \
     YY_RETURN(';');           \
   }

@@ -375,7 +375,7 @@ static Object *module_from_file(char *path, char *name)
     */
     image_free(image);
   } else {
-    error("cannot load '%s'", klcpath);
+    warn("cannot load '%s'", klcpath);
   }
   kfree(klcpath);
   return mo;
