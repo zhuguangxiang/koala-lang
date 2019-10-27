@@ -53,6 +53,8 @@
 
 ## Option And Result
 
+## Generic Type
+
 ## Type Casting
 
 ## Concurrence
