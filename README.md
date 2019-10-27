@@ -19,7 +19,7 @@ cd build/
 cmake ..
 make
 ```
-The program `koala` is at build/src/koala, you can copy it to other places.
+The program `koala` is at `build/src/koala`, you can copy it to other places.
 
 ## Examples And Manual
 Examples: see directory of examples/*
