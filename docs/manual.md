@@ -3,7 +3,7 @@
 
 Koala is a new programming language for general app development.
 
-In Koala, Everything is an object.
+In Koala, everything is an object.
 Like common object, function can be assigned to a variable and as return value.
 And it also supports map, filter and reduce operations.
 
