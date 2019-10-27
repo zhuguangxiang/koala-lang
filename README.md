@@ -17,6 +17,7 @@ cd koala-lang/
 mkdir build
 cd build/
 cmake ..
+make
 ```
 The program `koala` is at build/src/koala, you can copy it to other places.
 
