@@ -1536,7 +1536,7 @@ static void parse_ternary(ParserState *ps, Expr *exp)
 
   if (!desc_check(lexp->desc, rexp->desc)) {
     syntax_error(ps, rexp->row, rexp->col,
-      "type mismatch in conditonal expression");
+      "type mismatch in conditional expression");
   } else {
     exp->sym = lexp->sym;
     exp->desc = TYPE_INCREF(exp->sym->desc);
@@ -2147,7 +2147,7 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     debug("var '%s' declaration in func.", id->name);
     sym = stable_add_var(u->stbl, id->name, desc);
     if (sym == NULL) {
-      syntax_error(ps, id->row, id->col, "parameter duplicated");
+      syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
       return NULL;
     } else {
       funcsym = u->sym;
@@ -2164,7 +2164,7 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       return NULL;
     sym = stable_add_var(u->stbl, id->name, desc);
     if (sym == NULL) {
-      syntax_error(ps, id->row, id->col, "var '%s' is duplicated", id->name);
+      syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
       return NULL;
     }
 
@@ -2186,7 +2186,7 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     debug("var '%s' declaration in anony func.", id->name);
     sym = stable_add_var(u->stbl, id->name, desc);
     if (sym == NULL) {
-      syntax_error(ps, id->row, id->col, "parameter duplicated");
+      syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
       return NULL;
     } else {
       vector_push_back(&u->sym->anony.locvec, sym);
@@ -2746,28 +2746,26 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
   Type *type = &stmt->vardecl.type;
   TypeDesc *desc = type->desc;
 
-  if (exp != NULL) {
-    exp->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, exp);
-    if (exp->desc == NULL)
-      return;
+  exp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, exp);
+  if (exp->desc == NULL)
+    return;
 
-    if (desc == NULL)
-      desc = exp->desc;
+  if (desc == NULL)
+    desc = exp->desc;
 
-    if (desc == NULL)
-      return;
+  if (desc == NULL)
+    return;
 
-    if (!desc_check(desc, exp->desc)) {
-      STRBUF(sbuf1);
-      STRBUF(sbuf2);
-      desc_tostr(desc, &sbuf1);
-      desc_tostr(exp->desc, &sbuf2);
-      syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
-                   strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-      strbuf_fini(&sbuf1);
-      strbuf_fini(&sbuf2);
-    }
+  if (!desc_check(desc, exp->desc)) {
+    STRBUF(sbuf1);
+    STRBUF(sbuf2);
+    desc_tostr(desc, &sbuf1);
+    desc_tostr(exp->desc, &sbuf2);
+    syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+                  strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    strbuf_fini(&sbuf1);
+    strbuf_fini(&sbuf2);
   }
 
   ParserUnit *u = ps->u;
@@ -2783,6 +2781,13 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
 
   if (sym->var.typesym == NULL) {
     sym->var.typesym = get_desc_symbol(ps->module, sym->desc);
+    if (type != NULL && sym->var.typesym == NULL) {
+      STRBUF(sbuf);
+      desc_tostr(sym->desc, &sbuf);
+      syntax_error(ps, type->row, type->col,
+                   "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+    }
   }
 
   /* generate codes */
@@ -3001,7 +3006,25 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   Vector *idtypes = stmt->funcdecl.idtypes;
   IdType *item;
   vector_for_each(item, idtypes) {
-    add_update_var(ps, &item->id, item->type.desc);
+    sym = add_update_var(ps, &item->id, item->type.desc);
+    if (sym != NULL && sym->var.typesym == NULL) {
+      STRBUF(sbuf);
+      desc_tostr(item->type.desc, &sbuf);
+      syntax_error(ps, item->type.row, item->type.col,
+                  "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+    }
+  }
+
+  // check return type
+  Type *ret = &stmt->funcdecl.ret;
+  sym = get_desc_symbol(ps->module, ret->desc);
+  if (sym == NULL) {
+    STRBUF(sbuf);
+    desc_tostr(ret->desc, &sbuf);
+    syntax_error(ps, ret->row, ret->col,
+                "'%s' is not defined", strbuf_tostr(&sbuf));
+    strbuf_fini(&sbuf);
   }
 
   parse_body(ps, funcname, stmt->funcdecl.body, stmt->funcdecl.ret);
