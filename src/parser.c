@@ -3036,18 +3036,18 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   debug("end of function '%s'", funcname);
 }
 
-static int infunc(ParserState *ps)
+static ParserUnit *get_func_scope(ParserState *ps)
 {
   ParserUnit *u = ps->u;
   if (u->scope == SCOPE_FUNC || u->scope == SCOPE_ANONY)
-    return 1;
+    return u;
 
   vector_for_each_reverse(u, &ps->ustack) {
     if (u->scope == SCOPE_FUNC || u->scope == SCOPE_ANONY)
-      return 1;
+      return u;
   }
 
-  return 0;
+  return NULL;
 }
 
 static int inloop(ParserState *ps)
@@ -3068,7 +3068,8 @@ static int inloop(ParserState *ps)
 
 static void parse_return(ParserState *ps, Stmt *stmt)
 {
-  if (!infunc(ps)) {
+  ParserUnit *fu = get_func_scope(ps);
+  if (fu == NULL) {
     syntax_error(ps, stmt->row, stmt->col, "'return' outside function");
   }
 
@@ -3080,9 +3081,15 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     if (exp->desc == NULL) {
       syntax_error(ps, exp->row, exp->col, "expr has no value");
     } else {
-      stmt->hasvalue = 1;
-      stmt->desc = TYPE_INCREF(exp->desc);
-      CODE_OP(OP_RETURN_VALUE);
+      TypeDesc *desc = fu->sym->desc;
+      expect(desc != NULL);
+      if (!desc_check(desc->proto.ret, exp->desc)) {
+        syntax_error(ps, exp->row, exp->col, "return values are not matched");
+      } else {
+        stmt->hasvalue = 1;
+        stmt->desc = TYPE_INCREF(exp->desc);
+        CODE_OP(OP_RETURN_VALUE);
+      }
     }
   } else {
     debug("return has no value");
