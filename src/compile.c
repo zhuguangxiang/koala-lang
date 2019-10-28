@@ -150,13 +150,17 @@ int comp_add_var(ParserState *ps, Ident id, Type type)
   }
 }
 
-int comp_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret)
+int comp_add_func(ParserState *ps, Ident id, Vector *idtypes, Type ret)
 {
   Module *mod = ps->module;
   TypeDesc *proto = parse_proto(idtypes, &ret);
-  Symbol *sym = stable_add_func(mod->stbl, name, proto);
+  Symbol *sym = stable_add_func(mod->stbl, id.name, proto);
   TYPE_DECREF(proto);
-  return sym != NULL ? 0 : -1;
+  if (sym == NULL) {
+    syntax_error(ps, id.row, id.col, "'%s' is redeclared", id.name);
+    return -1;
+  }
+  return 0;
 }
 
 static void comp_visit_type(Symbol *sym, Vector *body)

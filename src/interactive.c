@@ -225,12 +225,16 @@ int cmd_add_var(ParserState *ps, Ident id, Type type)
   }
 }
 
-int cmd_add_func(ParserState *ps, char *name, Vector *idtypes, Type ret)
+int cmd_add_func(ParserState *ps, Ident id, Vector *idtypes, Type ret)
 {
   TypeDesc *proto = parse_proto(idtypes, &ret);
-  cursym = stable_add_func(mod.stbl, name, proto);
+  cursym = stable_add_func(mod.stbl, id.name, proto);
   TYPE_DECREF(proto);
-  return cursym != NULL ? 0 : -1;
+  if (cursym == NULL) {
+    syntax_error(ps, id.row, id.col, "'%s' is redeclared", id.name);
+    return -1;
+  }
+  return 0;
 }
 
 static void cmd_visit_type(Symbol *sym, Vector *body)
