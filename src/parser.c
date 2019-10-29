@@ -2463,8 +2463,8 @@ static void parse_new(ParserState *ps, Expr *exp)
 
     if (desc->kind == TYPE_KLASS)  {
       CODE_OP_TYPE(OP_NEW, desc);
-      CODE_OP(OP_DUP);
       if (argc > 0) {
+        CODE_OP(OP_DUP);
         Expr *e;
         vector_for_each_reverse(e, args) {
           e->ctx = EXPR_LOAD;
@@ -2474,6 +2474,7 @@ static void parse_new(ParserState *ps, Expr *exp)
       } else {
         Symbol *initsym = stable_get(sym->type.stbl, "__init__");
         if (initsym != NULL) {
+          CODE_OP(OP_DUP);
           CODE_OP_ARGC(OP_INIT_CALL, 0);
         }
       }
@@ -3019,13 +3020,15 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
 
   // check return type
   Type *ret = &stmt->funcdecl.ret;
-  sym = get_desc_symbol(ps->module, ret->desc);
-  if (sym == NULL) {
-    STRBUF(sbuf);
-    desc_tostr(ret->desc, &sbuf);
-    syntax_error(ps, ret->row, ret->col,
-                "'%s' is not defined", strbuf_tostr(&sbuf));
-    strbuf_fini(&sbuf);
+  if (ret->desc != NULL) {
+    sym = get_desc_symbol(ps->module, ret->desc);
+    if (sym == NULL) {
+      STRBUF(sbuf);
+      desc_tostr(ret->desc, &sbuf);
+      syntax_error(ps, ret->row, ret->col,
+                  "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+    }
   }
 
   parse_body(ps, funcname, stmt->funcdecl.body, stmt->funcdecl.ret);

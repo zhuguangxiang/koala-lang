@@ -502,7 +502,7 @@ unit:
     ps->more = 0;
   }
 }
-| error
+| error ';'
 {
   if (ps->interactive) {
     if (!ps->quit) {
