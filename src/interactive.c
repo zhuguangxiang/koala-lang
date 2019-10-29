@@ -237,28 +237,40 @@ int cmd_add_func(ParserState *ps, Ident id, Vector *idtypes, Type ret)
   return 0;
 }
 
-static void cmd_visit_type(Symbol *sym, Vector *body)
+static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
 {
+  if (body == NULL)
+    return;
+
+  Symbol *sym2 = NULL;
   STable *stbl = sym->type.stbl;
+  Ident *id;
   Stmt *s;
   vector_for_each(s, body) {
     if (s->kind == VAR_KIND) {
-      stable_add_var(stbl, s->vardecl.id.name, s->vardecl.type.desc);
+      id = &s->vardecl.id;
+      sym2 = stable_add_var(stbl, id->name, s->vardecl.type.desc);
     } else if (s->kind == FUNC_KIND) {
       Vector *idtypes = s->funcdecl.idtypes;
       Type *ret = &s->funcdecl.ret;
       TypeDesc *proto = parse_proto(idtypes, ret);
-      stable_add_func(stbl, s->funcdecl.id.name, proto);
+      id = &s->funcdecl.id;
+      sym2 = stable_add_func(stbl, id->name, proto);
       TYPE_DECREF(proto);
     } else if (s->kind == IFUNC_KIND) {
       Vector *idtypes = s->funcdecl.idtypes;
       Type *ret = &s->funcdecl.ret;
       TypeDesc *proto = parse_proto(idtypes, ret);
-      stable_add_ifunc(stbl, s->funcdecl.id.name, proto);
+      id = &s->funcdecl.id;
+      sym2 = stable_add_ifunc(stbl, id->name, proto);
       TYPE_DECREF(proto);
     } else {
       panic("invalid type's body statement: %d", s->kind);
     }
+  }
+
+  if (sym2 == NULL) {
+    syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
   }
 }
 
@@ -284,39 +296,56 @@ static void cmd_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
 int cmd_add_type(ParserState *ps, Stmt *stmt)
 {
   Symbol *sym = NULL;
+  Ident *id;
   Symbol *any;
   switch (stmt->kind) {
   case CLASS_KIND: {
-    sym = stable_add_class(mod.stbl, stmt->class_stmt.id.name);
-    any = find_from_builtins("Any");
-    ++any->refcnt;
-    vector_push_back(&sym->type.bases, any);
-    cmd_visit_type(sym, stmt->class_stmt.body);
+    id = &stmt->class_stmt.id;
+    sym = stable_add_class(mod.stbl, id->name);
+    if (sym != NULL) {
+      any = find_from_builtins("Any");
+      ++any->refcnt;
+      vector_push_back(&sym->type.bases, any);
+      cmd_visit_type(ps, sym, stmt->class_stmt.body);
+    }
     break;
   }
   case TRAIT_KIND: {
-    sym = stable_add_trait(mod.stbl, stmt->class_stmt.id.name);
-    any = find_from_builtins("Any");
-    ++any->refcnt;
-    vector_push_back(&sym->type.bases, any);
-    cmd_visit_type(sym, stmt->class_stmt.body);
+    id = &stmt->class_stmt.id;
+    sym = stable_add_trait(mod.stbl, id->name);
+    if (sym != NULL) {
+      any = find_from_builtins("Any");
+      ++any->refcnt;
+      vector_push_back(&sym->type.bases, any);
+      cmd_visit_type(ps, sym, stmt->class_stmt.body);
+    }
     break;
   }
   case ENUM_KIND: {
-    sym = stable_add_enum(mod.stbl, stmt->enum_stmt.id.name);
-    any = find_from_builtins("Any");
-    ++any->refcnt;
-    vector_push_back(&sym->type.bases, any);
-    cmd_visit_label(ps, sym, stmt->enum_stmt.mbrs.labels);
-    cmd_visit_type(sym, stmt->enum_stmt.mbrs.methods);
+    id = &stmt->enum_stmt.id;
+    sym = stable_add_enum(mod.stbl, id->name);
+    if (sym != NULL) {
+      any = find_from_builtins("Any");
+      ++any->refcnt;
+      vector_push_back(&sym->type.bases, any);
+      cmd_visit_label(ps, sym, stmt->enum_stmt.mbrs.labels);
+      cmd_visit_type(ps, sym, stmt->enum_stmt.mbrs.methods);
+    }
     break;
   }
   default:
     panic("invalid stmt kind %d", stmt->kind);
     break;
   }
+
+  if (sym == NULL) {
+    syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
+    cursym = NULL;
+    return -1;
+  }
+
   cursym = sym;
-  return sym != NULL ? 0 : -1;
+  return 0;
 }
 
 static void _load_mbr_(char *name, int kind, void *data, void *arg)
