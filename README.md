@@ -1,7 +1,7 @@
 
 # Koala
 
-Koala is a fast, flexible and modularized modern language.
+Koala is a fast, flexible and modularized modern programming language.
 
 # Hello World
 
