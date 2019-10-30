@@ -7,11 +7,16 @@ It's features are below and more:
 
 ## Koala is object-oriented
 
-Everything is an object in Koala. Types are described by classes, traits and enumerations. Classes are extended by subclass and a mixin mechanism as a replacement for multiple inheritance.
+- Everything is an object in Koala.
+- Types are described by classes, traits and enumerations.
+- Classes are extended by subclass and a `mixin` mechanism as a replacement for multiple inheritance.
 
 ## Koala is functional
 
-Koala is also a functional language in some sense that every function is an object. Koala also supports anonymous functions and allows anonymous functions to be nested. One function can be as a common value assigned to a variable, and as a function's or anonymous function's return value. It also supports map, filter and reduce operations.
+- Koala is also a functional language in some sense that every function is an object.
+- Koala also supports anonymous functions and allows anonymous functions to be nested.
+- One function can be as a common value assigned to a variable, and as a function's or anonymous function's return value.
+- It also supports map, filter and reduce operations.
 
 ## Koala is a type-safe language
 
@@ -26,7 +31,11 @@ Koala has a strong type system. All types are checked at compile-time. And it al
 
 ## Trying Koala
 
-Koala supports three running mode. One is interactive mode, it's like python and other language's similar mode. The second mode is compile mode. It's like `javac` and other compiled languages to convert source code into binary code. The last mode is running mode. It's like `java` to run koala's binary code, called '.klc' ('dot klc')
+Koala supports four running mode.
+
+- One is interactive mode, it's like python and other language's similar mode. - The second mode is compile mode. It's like `javac` and other compiled languages to convert source code into binary code.
+- The third mode is running mode. It's like `java` to run koala's binary code, called '.klc' ('dot klc')
+- The last one is script mode. You can write `koala shell` script. see: script and script.kl in [example of scripts](https://github.com/zhuguangxiang/koala-lang/tree/master/examples/)
 
 For examples, interactive mode:
 
@@ -99,7 +108,7 @@ foo.kl  foo.klc main.kl main.klc
 
 ```
 
-If there is no .klc file, using `koala <file-name>` command will compile and run it automatically. If `<fil-name>` is a directory, koala will try to compile the directory as a module and run it.
+If there is no .klc file, using `koala <file-name>` command will compile and run it automatically. If `<file-name>` is a directory, koala will try to compile the directory as a module and run it.
 
 ## Keywords And Identifer
 
