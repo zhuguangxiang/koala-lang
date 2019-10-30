@@ -61,6 +61,8 @@ false
 
 ```
 
+compile mode:
+
 The below command to compile koala source into binary code.
 
 `koala -c <file-name.kl>[<file-name>][<dir-name>]`
@@ -82,6 +84,8 @@ foo.kl
 foo.kl  foo.klc
 
 ```
+
+running mode:
 
 If given dir-name to koala, it means see the source files in directory as a module named `dir-name`.
 
