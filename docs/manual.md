@@ -20,7 +20,7 @@ It's features are below and more:
 
 ## Koala is a type-safe language
 
-Koala has a strong type system. All types are checked at compile-time. And it also support generic types.
+Koala has a static type checked system. All types are checked at compile-time. And it also support generic types.
 
 ## More in Koala
 
@@ -35,7 +35,7 @@ Koala supports four running mode.
 
 - One is interactive mode, it's like python and other language's similar mode. - The second mode is compile mode. It's like `javac` and other compiled languages to convert source code into binary code.
 - The third mode is running mode. It's like `java` to run koala's binary code, called '.klc' ('dot klc')
-- The last one is script mode. You can write `koala shell` script. see: script and script.kl in [example of scripts](https://github.com/zhuguangxiang/koala-lang/tree/master/examples/)
+- The last one is script mode. You can write `koala shell` script. see: `script` and `script2.kl`man in [example of scripts](https://github.com/zhuguangxiang/koala-lang/tree/master/examples/)
 
 For examples, interactive mode:
 
