@@ -224,10 +224,11 @@ void symbol_free(Symbol *sym)
     debug("[Symbol Freed] class/trait/enum '%s'", sym->name);
     stable_free(sym->type.stbl);
     Symbol *tmp;
-    vector_for_each_reverse(tmp, &sym->type.bases) {
+    vector_for_each_reverse(tmp, &sym->type.lro) {
       symbol_decref(tmp);
     }
-    vector_fini(&sym->type.bases);
+    vector_fini(&sym->type.lro);
+    vector_fini(&sym->type.traits);
     break;
   case SYM_LABEL:
     debug("[Symbol Freed] enum label '%s'", sym->name);
@@ -334,7 +335,7 @@ Symbol *load_type(Object *ob)
     sym = load_type((Object *)item);
     if (sym != NULL) {
       ++sym->refcnt;
-      vector_push_back(&clsSym->type.bases, sym);
+      vector_push_back(&clsSym->type.lro, sym);
       symbol_decref(sym);
     }
   }
@@ -434,11 +435,15 @@ void type_write_image(Symbol *typesym, Image *image)
 
   index = image_add_mbrs(image, indexes, size);
 
-  Vector *bases = &typesym->type.bases;
   Vector *types = vector_new();
-  Symbol *s;
-  vector_for_each(s, bases) {
+  Symbol *s = typesym->type.base;
+  if (s != NULL && !desc_isany(s->desc))
     vector_push_back(types, s->desc);
+
+  Vector *traits = &typesym->type.traits;
+  vector_for_each(s, traits) {
+    if (!desc_isany(s->desc))
+      vector_push_back(types, s->desc);
   }
   if (typesym->kind == SYM_CLASS) {
     image_add_class(image, typesym->name, types, index);
@@ -463,7 +468,7 @@ Symbol *type_find_mbr(Symbol *typeSym, char *name)
     return sym;
 
   Symbol *item;
-  vector_for_each_reverse(item, &typeSym->type.bases) {
+  vector_for_each_reverse(item, &typeSym->type.lro) {
     sym = type_find_mbr(item, name);
     if (sym != NULL)
       return sym;

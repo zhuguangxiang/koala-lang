@@ -305,7 +305,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt)
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
-      vector_push_back(&sym->type.bases, any);
+      vector_push_back(&sym->type.lro, any);
       cmd_visit_type(ps, sym, stmt->class_stmt.body);
     }
     break;
@@ -316,7 +316,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt)
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
-      vector_push_back(&sym->type.bases, any);
+      vector_push_back(&sym->type.lro, any);
       cmd_visit_type(ps, sym, stmt->class_stmt.body);
     }
     break;
@@ -327,7 +327,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt)
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
-      vector_push_back(&sym->type.bases, any);
+      vector_push_back(&sym->type.lro, any);
       cmd_visit_label(ps, sym, stmt->enum_stmt.mbrs.labels);
       cmd_visit_type(ps, sym, stmt->enum_stmt.mbrs.methods);
     }
@@ -371,7 +371,25 @@ static void _load_mbr_(char *name, int kind, void *data, void *arg)
   }
 }
 
-static void _load_type_(char *name, int index, Image *image, void *arg)
+static void _load_base_(TypeDesc *desc, void *arg)
+{
+  TypeObject *type = arg;
+  expect(desc->kind == TYPE_KLASS);
+  Object *mobj;
+  if (desc->klass.path != NULL) {
+    mobj = module_load(desc->klass.path);
+  } else {
+    mobj = mo;
+  }
+  expect(mobj != NULL);
+  Object *tp = module_get(mobj, desc->klass.type);
+  expect(tp != NULL);
+  expect(type_check(tp));
+  vector_push_back(&type->bases, tp);
+  OB_DECREF(tp);
+}
+
+void _load_type_(char *name, int baseidx, int mbridx, Image *image, void *arg)
 {
   TypeObject *type = arg;
   expect(!strcmp(name, type->name));
@@ -381,7 +399,9 @@ static void _load_type_(char *name, int index, Image *image, void *arg)
     consts = tuple_new(size);
   image_load_consts(image, _load_const_, consts);
   type->consts = consts;
-  image_load_mbrs(image, index, _load_mbr_, type);
+  image_load_mbrs(image, mbridx, _load_mbr_, type);
+  if (baseidx >= 0)
+    image_load_bases(image, baseidx, _load_base_, type);
 }
 
 static TypeObject *class_from_symbol(Symbol *sym)

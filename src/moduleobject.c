@@ -26,7 +26,6 @@
 #include "moduleobject.h"
 #include "stringobject.h"
 #include "methodobject.h"
-#include "fieldobject.h"
 #include "classobject.h"
 #include "tupleobject.h"
 #include "codeobject.h"
@@ -191,30 +190,6 @@ void module_add_funcdefs(Object *self, MethodDef *def)
     module_add_funcdef(self, f);
     ++f;
   }
-}
-
-Object *module_get(Object *self, char *name)
-{
-  Object *ob = module_lookup(self, name);
-  expect(ob != NULL);
-
-  if (field_check(ob)) {
-    Object *res = field_get(ob, self);
-    OB_DECREF(ob);
-    return res;
-  }
-
-  expect(method_check(ob));
-  return ob;
-}
-
-void module_set(Object *self, char *name, Object *val)
-{
-  Object *ob = module_lookup(self, name);
-  expect(ob != NULL);
-  expect(field_check(ob));
-  int res = field_set(ob, self, val);
-  expect(res == 0);
 }
 
 Object *module_new(char *name)

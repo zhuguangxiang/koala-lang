@@ -105,8 +105,12 @@ struct symbol {
     struct {
       /* type parameters */
       Vector *typeparas;
-      /* bases in liner-oder */
-      Vector bases;
+      /* base class */
+      Symbol *base;
+      /* traits */
+      Vector traits;
+      /* classes in liner-oder */
+      Vector lro;
       /* symbol table */
       STable *stbl;
     } type;

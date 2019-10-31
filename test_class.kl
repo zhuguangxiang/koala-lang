@@ -1,0 +1,25 @@
+
+import "io"
+
+class Pet {
+  name string
+
+  func petbark() {
+    io.println(name)
+  }
+}
+
+class Cat extends Pet {
+  age int
+
+  func bark() {
+    petbark()
+    io.println(name)
+    io.println(age)
+  }
+}
+
+pet := new Pet()
+pet.bark()
+
+cat := new Cat()

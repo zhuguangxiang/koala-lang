@@ -806,6 +806,25 @@ void parser_exit_scope(ParserState *ps)
 
 Symbol *get_desc_symbol(Module *mod, TypeDesc *desc);
 
+static Symbol *find_from_supers(Symbol *sym, char *name)
+{
+  if (sym == NULL)
+    return NULL;
+
+  if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT)
+    return NULL;
+
+  Symbol *ret;
+  Symbol *item;
+  vector_for_each(item, &sym->type.lro) {
+    ret = stable_get(item->type.stbl, name);
+    if (ret != NULL) {
+      return ret;
+    }
+  }
+  return NULL;
+}
+
 static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
 {
   char *name = exp->id.name;
@@ -837,7 +856,24 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
     sym = stable_get(up->stbl, name);
     if (sym != NULL) {
       debug("find symbol '%s' in up scope-%d(%s)",
-        name, depth, scopes[up->scope]);
+            name, depth, scopes[up->scope]);
+      sym->used++;
+      exp->sym = sym;
+      exp->desc = TYPE_INCREF(sym->desc);
+      exp->id.where = UP_SCOPE;
+      exp->id.scope = up;
+      // find class(function) with generic type ?
+      if (exp->desc != NULL) {
+        expect(exp->desc->paras == NULL);
+      }
+      return sym;
+    }
+
+    // try to find ident from class's supers
+    sym = find_from_supers(up->sym, name);
+    if (sym != NULL) {
+      debug("find symbol '%s' in up scope-%d(%s)'s super class/traits",
+            name, depth, scopes[up->scope]);
       sym->used++;
       exp->sym = sym;
       exp->desc = TYPE_INCREF(sym->desc);
@@ -940,11 +976,14 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
       if (sym->kind == SYM_CLASS) {
         ++sym->used;
         return sym;
+      } else if (sym->kind == SYM_TRAIT) {
+        ++sym->used;
+        return sym;
       } else if(sym->kind == SYM_ENUM) {
         ++sym->used;
         return sym;
       } else {
-        error("symbol '%s' is not Class", name);
+        error("symbol '%s' is not class/trait/enum", name);
         return NULL;
       }
     }
@@ -957,7 +996,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         ++sym->used;
         return sym;
       } else {
-        error("symbol '%s' is not Class", name);
+        error("symbol '%s' is not class/trait/enum", name);
         return NULL;
       }
     }
@@ -973,7 +1012,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         ++sym->used;
         return sym;
       } else {
-        error("symbol '%s' is not Class", name);
+        error("symbol '%s' is not class/trait/enum", name);
         return NULL;
       }
     }
@@ -1260,6 +1299,9 @@ static void ident_up_func(ParserState *ps, Expr *exp)
     } else if (exp->ctx == EXPR_STORE) {
       CODE_LOAD(0);
       CODE_OP_S(OP_SET_VALUE, exp->id.name);
+    } else if (exp->ctx == EXPR_CALL_FUNC) {
+      CODE_LOAD(0);
+      CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
     } else {
       panic("invalid expr's ctx %d", exp->ctx);
     }
@@ -3369,13 +3411,118 @@ static void parse_ifunc(ParserState *ps, Stmt *stmt)
   TYPE_DECREF(proto);
 }
 
-static void parse_typedecl(ParserState *ps, Stmt *stmt)
+static int lro_exist(Vector *vec, Symbol *sym)
+{
+  Symbol *item;
+  vector_for_each(item, vec) {
+    if (desc_isany(item->desc))
+      continue;
+    if (desc_check(item->desc, sym->desc))
+      return 1;
+  }
+  return 0;
+}
+
+static void lro_add(Symbol *base, Symbol *clssym)
+{
+  Symbol *sym;
+  vector_for_each(sym, &base->type.lro) {
+    if (desc_isany(sym->desc))
+      continue;
+    if (!lro_exist(&clssym->type.lro, sym)) {
+      debug("add sym '%s' into '%s' lro", sym->name, clssym->name);
+      vector_push_back(&clssym->type.lro, sym);
+      ++sym->refcnt;
+    }
+  }
+
+  if (!desc_isany(base->desc) && !lro_exist(&clssym->type.lro, base)) {
+    debug("add sym '%s' into '%s' lro", base->name, clssym->name);
+    vector_push_back(&clssym->type.lro, base);
+    ++base->refcnt;
+  }
+}
+
+static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
+{
+  ExtendsDef *ext = stmt->class_stmt.extends;
+  if (ext == NULL)
+    return;
+
+  // parse base class
+  Symbol *sym;
+  Type *base = &ext->type;
+  sym = get_desc_symbol(ps->module, base->desc);
+  if (sym == NULL) {
+    STRBUF(sbuf);
+    desc_tostr(base->desc, &sbuf);
+    syntax_error(ps, base->row, base->col,
+                 "'%s' is not defined", strbuf_tostr(&sbuf));
+    strbuf_fini(&sbuf);
+  } else if (sym->kind != SYM_CLASS) {
+    syntax_error(ps, base->row, base->col, "'%s' is not class", sym->name);
+  } else {
+    clssym->type.base = sym;
+  }
+
+  // parse traits
+  Type *trait;
+  vector_for_each(trait, ext->withes) {
+    sym = get_desc_symbol(ps->module, trait->desc);
+    if (sym == NULL) {
+      STRBUF(sbuf);
+      desc_tostr(trait->desc, &sbuf);
+      syntax_error(ps, trait->row, trait->col,
+                   "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+    } else if (sym->kind != SYM_TRAIT) {
+      syntax_error(ps, trait->row, trait->col, "'%s' is not trait", sym->name);
+    } else {
+      vector_push_back(&clssym->type.traits, sym);
+    }
+  }
+
+  // build lro
+  sym = clssym->type.base;
+  if (sym != NULL) {
+    lro_add(sym, clssym);
+  }
+
+  vector_for_each(sym, &clssym->type.traits) {
+    lro_add(sym, clssym);
+  }
+}
+
+static void parse_class(ParserState *ps, Stmt *stmt)
 {
   Ident *id = &stmt->class_stmt.id;
-#if !defined(NLog)
-  char *typename = stmt->kind == CLASS_KIND ? "class" : "trait";
-#endif
-  debug("parse %s '%s'", typename, id->name);
+  debug("parse class '%s'", id->name);
+  Symbol *sym = stable_get(ps->u->stbl, id->name);
+  expect(sym != NULL);
+
+  parse_class_extends(ps, sym, stmt);
+
+  parser_enter_scope(ps, SCOPE_CLASS, 0);
+  ps->u->sym = sym;
+  ps->u->stbl = sym->type.stbl;
+
+  /* parse class body */
+  Vector *body = stmt->class_stmt.body;
+  int sz = vector_size(body);
+  Stmt *s = NULL;
+  vector_for_each(s, body) {
+    parse_stmt(ps, s);
+  }
+
+  parser_exit_scope(ps);
+
+  debug("end of class '%s'", id->name);
+}
+
+static void parse_trait(ParserState *ps, Stmt *stmt)
+{
+  Ident *id = &stmt->class_stmt.id;
+  debug("parse trait '%s'", id->name);
   Symbol *sym = stable_get(ps->u->stbl, id->name);
   expect(sym != NULL);
 
@@ -3395,10 +3542,10 @@ static void parse_typedecl(ParserState *ps, Stmt *stmt)
 
   parser_exit_scope(ps);
 
-  debug("end of %s '%s'", typename, id->name);
+  debug("end of trait '%s'", id->name);
 }
 
-static void parse_enumdecl(ParserState *ps, Stmt *stmt)
+static void parse_enum(ParserState *ps, Stmt *stmt)
 {
   Ident *id = &stmt->enum_stmt.id;
   debug("parse enum '%s'", id->name);
@@ -3659,9 +3806,9 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     parse_expr,         /* EXPR_KIND      */
     parse_block,        /* BLOCK_KIND     */
     parse_ifunc,        /* IFUNC_KIND     */
-    parse_typedecl,     /* CLASS_KIND     */
-    parse_typedecl,     /* TRAIT_KIND     */
-    parse_enumdecl,     /* ENUM_KIND      */
+    parse_class,        /* CLASS_KIND     */
+    parse_trait,        /* TRAIT_KIND     */
+    parse_enum,         /* ENUM_KIND      */
     parse_break,        /* BREAK_KIND     */
     parse_continue,     /* CONTINUE_KIND  */
     parse_if,           /* IF_KIND        */

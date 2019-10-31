@@ -150,6 +150,7 @@ static void lro_build_one(TypeObject *type, TypeObject *base)
     vector_push_back(vec, base);
   }
   type->offset += base->offset;
+  type->nrvars += base->nrvars;
 }
 
 static int build_lro(TypeObject *type)
@@ -159,7 +160,7 @@ static int build_lro(TypeObject *type)
 
   /* add base classes */
   TypeObject *base;
-  vector_for_each(base, type->bases) {
+  vector_for_each(base, &type->bases) {
     lro_build_one(type, base);
   }
 
@@ -443,6 +444,7 @@ void type_fini(TypeObject *type)
   }
 
   OB_DECREF(type->consts);
+  vector_fini(&type->bases);
 }
 
 void type_add_field(TypeObject *type, Object *ob)

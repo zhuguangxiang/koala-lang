@@ -232,7 +232,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
-      vector_push_back(&sym->type.bases, any);
+      vector_push_back(&sym->type.lro, any);
       comp_visit_type(ps, sym, stmt->class_stmt.body);
     }
     break;
@@ -243,7 +243,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
-      vector_push_back(&sym->type.bases, any);
+      vector_push_back(&sym->type.lro, any);
       comp_visit_type(ps, sym, stmt->class_stmt.body);
     }
     break;
@@ -254,7 +254,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
-      vector_push_back(&sym->type.bases, any);
+      vector_push_back(&sym->type.lro, any);
       comp_visit_label(ps, sym, stmt->enum_stmt.mbrs.labels);
       comp_visit_type(ps, sym, stmt->enum_stmt.mbrs.methods);
     }

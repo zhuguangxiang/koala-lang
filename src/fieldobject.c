@@ -108,11 +108,11 @@ int field_default_setter(Object *self, Object *ob, Object *val)
     OB_DECREF(old);
     return 0;
   } else {
-    HeapObject *ho = (HeapObject *)ob;
-    expect(index >= 0 && index < ho->size);
-    old = ho->items[index];
+    HeapObject *hob = (HeapObject *)ob;
+    expect(index >= 0 && index < hob->size);
+    old = hob->items[index];
     OB_DECREF(old);
-    ho->items[index] = OB_INCREF(val);
+    hob->items[index] = OB_INCREF(val);
     return 0;
   }
 }

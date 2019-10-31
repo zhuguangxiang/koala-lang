@@ -2020,6 +2020,10 @@ member_decl:
 {
   $$ = $1;
 }
+| proto_decl
+{
+  $$ = $1;
+}
 | ';'
 {
   $$ = NULL;

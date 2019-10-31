@@ -1746,21 +1746,36 @@ void image_load_class(Image *image, int index, getclassfunc func, void *arg)
 {
   ClassItem *item = _get_(image, ITEM_CLASS, index);
   StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
-  func(str->data, item->mbrindex, image, arg);
+  func(str->data, item->basesindex, item->mbrindex, image, arg);
 }
 
 void image_load_trait(Image *image, int index, getclassfunc func, void *arg)
 {
   ClassItem *item = _get_(image, ITEM_TRAIT, index);
   StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
-  func(str->data, item->mbrindex, image, arg);
+  func(str->data, item->basesindex, item->mbrindex, image, arg);
 }
 
 void image_load_enum(Image *image, int index, getclassfunc func, void *arg)
 {
   EnumItem *item = _get_(image, ITEM_ENUM, index);
   StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
-  func(str->data, item->mbrindex, image, arg);
+  func(str->data, -1, item->mbrindex, image, arg);
+}
+
+void image_load_bases(Image *image, int index, getbasefunc func, void *arg)
+{
+  IndexItem *item = _get_(image, ITEM_INDEX, index);
+  expect(item->kind == INDEX_TYPELIST);
+
+  TypeDesc *desc;
+  TypeItem *type;
+  for (int i = 0; i < item->size; ++i) {
+    type = _get_(image, ITEM_TYPE, item->index[i]);
+    desc = to_typedesc(type, image);
+    func(desc, arg);
+    TYPE_DECREF(desc);
+  }
 }
 
 void image_load_field(Image *image, int index, getmbrfunc func, void *arg)

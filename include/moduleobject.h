@@ -25,7 +25,7 @@
 #ifndef _KOALA_MODULE_OBJECT_H_
 #define _KOALA_MODULE_OBJECT_H_
 
-#include "object.h"
+#include "fieldobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -71,8 +71,19 @@ void module_add_func(Object *self, Object *ob);
 void module_add_funcdef(Object *self, MethodDef *f);
 void module_add_funcdefs(Object *self, MethodDef *def);
 
-Object *module_get(Object *self, char *name);
-void module_set(Object *self, char *name, Object *val);
+static inline Object *module_get(Object *self, char *name)
+{
+  return module_lookup(self, name);
+}
+
+static inline void module_set(Object *self, char *name, Object *val)
+{
+  Object *ob = module_lookup(self, name);
+  expect(ob != NULL);
+  expect(field_check(ob));
+  int res = field_set(ob, self, val);
+  expect(res == 0);
+}
 
 #ifdef __cplusplus
 }

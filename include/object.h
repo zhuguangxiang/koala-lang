@@ -208,8 +208,8 @@ struct typeobject {
   /* __next__ */
   func_t iternext;
 
-  /* tuple: base classes */
-  Vector *bases;
+  /* base classes */
+  Vector bases;
   /* line resolution order */
   Vector lro;
   /* map: meta table */
