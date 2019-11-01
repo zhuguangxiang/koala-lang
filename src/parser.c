@@ -636,8 +636,9 @@ static void parser_handle_jmps(ParserState *ps, int upoffset)
   vector_fini(&u->jmps);
 }
 
-static void merge_into_func(ParserUnit *u, char *name)
+static void merge_into_initfunc(ParserUnit *u)
 {
+  static char *name = "__init__";
   Symbol *sym = stable_get(u->stbl, name);
   if (sym == NULL) {
     debug("create '%s'", name);
@@ -693,7 +694,7 @@ static void unit_merge_free(ParserState *ps)
   case SCOPE_MODULE: {
     // module has codes for __init__
     if (!has_error(ps) && u->block && u->block->bytes > 0) {
-      merge_into_func(u, "__init__");
+      merge_into_initfunc(u);
     } else {
       codeblock_free(u->block);
       u->block = NULL;
@@ -741,7 +742,7 @@ static void unit_merge_free(ParserState *ps)
     expect(sym != NULL);
     expect(sym->type.stbl != NULL);
     if (!has_error(ps) && u->block && u->block->bytes > 0) {
-      merge_into_func(u, "__init__");
+      merge_into_initfunc(u);
     } else {
       codeblock_free(u->block);
     }
@@ -2276,8 +2277,12 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
     if (ret.desc != NULL) {
       syntax_error(ps, ret.row, ret.col, "'%s' needs return value", name);
     } else {
-      debug("add OP_RETURN");
-      CODE_OP(OP_RETURN);
+      if (strcmp(name, "__init__")) {
+        debug("add OP_RETURN");
+        CODE_OP(OP_RETURN);
+      } else {
+        debug("__init__ func no need add OP_RETURN");
+      }
     }
     return;
   }
@@ -2321,8 +2326,12 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
 
   if (!has_error(ps) && s->kind != RETURN_KIND) {
     // last one is return or other statement
-    debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
-    CODE_OP(OP_RETURN);
+    if (strcmp(name, "__init__")) {
+      debug("last not expr-stmt and not ret-stmt, add OP_RETURN");
+      CODE_OP(OP_RETURN);
+    } else {
+      debug("__init__ func no need add OP_RETURN");
+    }
   }
 }
 
@@ -3063,13 +3072,17 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   // check return type
   Type *ret = &stmt->funcdecl.ret;
   if (ret->desc != NULL) {
-    sym = get_desc_symbol(ps->module, ret->desc);
-    if (sym == NULL) {
-      STRBUF(sbuf);
-      desc_tostr(ret->desc, &sbuf);
-      syntax_error(ps, ret->row, ret->col,
-                  "'%s' is not defined", strbuf_tostr(&sbuf));
-      strbuf_fini(&sbuf);
+    if (!strcmp(funcname, "__init__")) {
+      syntax_error(ps, ret->row, ret->col, "__init__ needs no value");
+    } else {
+      sym = get_desc_symbol(ps->module, ret->desc);
+      if (sym == NULL) {
+        STRBUF(sbuf);
+        desc_tostr(ret->desc, &sbuf);
+        syntax_error(ps, ret->row, ret->col,
+                    "'%s' is not defined", strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
+      }
     }
   }
 

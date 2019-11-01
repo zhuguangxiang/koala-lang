@@ -342,7 +342,6 @@ static Object *do_dot_index(Object *ob, int index)
 
 Object *Koala_EvalFrame(CallFrame *f)
 {
-  int loopflag = 1;
   KoalaState *ks = f->ks;
   Object **base = ks->stack;
   Object **top = base + ks->top;
@@ -355,10 +354,10 @@ Object *Koala_EvalFrame(CallFrame *f)
   func_t fn;
   int i;
 
-  while (loopflag) {
+  while (1) {
     if ((f->index + 1) >= co->size) {
-      loopflag = 0;
-      break;
+      x = NULL;
+      goto exit_loop;
     }
     op = NEXT_OP();
     switch (op) {
@@ -490,13 +489,11 @@ Object *Koala_EvalFrame(CallFrame *f)
     }
     case OP_RETURN_VALUE: {
       x = POP();
-      loopflag = 0;
-      break;
+      goto exit_loop;
     }
     case OP_RETURN: {
       x = NULL;
-      loopflag = 0;
-      break;
+      goto exit_loop;
     }
     case OP_CALL:
       oparg = NEXT_2BYTES();
@@ -1162,6 +1159,7 @@ Object *Koala_EvalFrame(CallFrame *f)
     }
   }
 
+exit_loop:
   ks->top = top - base;
   ks->frame = f->back;
   --ks->depth;
