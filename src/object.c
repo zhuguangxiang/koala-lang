@@ -149,8 +149,6 @@ static void lro_build_one(TypeObject *type, TypeObject *base)
   if (!lro_find(vec, base)) {
     vector_push_back(vec, base);
   }
-  type->offset += base->offset;
-  type->nrvars += base->nrvars;
 }
 
 static int build_lro(TypeObject *type)
@@ -162,6 +160,7 @@ static int build_lro(TypeObject *type)
   TypeObject *base;
   vector_for_each(base, &type->bases) {
     lro_build_one(type, base);
+    type->offset += base->nrvars;
   }
 
   /* add self */
@@ -376,8 +375,7 @@ int type_ready(TypeObject *type)
 
 static Object *object_alloc(TypeObject *type)
 {
-  // FIXME: inheritance
-  int isize = type->nrvars;
+  int isize = type->offset + type->nrvars;
   int msize = sizeof(HeapObject) + sizeof(Object *) * isize;
   HeapObject *ob = gcnew(msize);
   init_object_head(ob, type);
@@ -451,8 +449,7 @@ void type_add_field(TypeObject *type, Object *ob)
 {
   FieldObject *field = (FieldObject *)ob;
   field->owner = (Object *)type;
-  field->offset = type->nrvars;
-  ++type->nrvars;
+  field->offset = type->nrvars++;
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(type), node);
   expect(res == 0);
@@ -640,7 +637,7 @@ Object *Object_String(Object *ob)
 
 }
 
-Object *object_lookup(Object *self, char *name)
+Object *object_lookup(Object *self, char *name, TypeObject *type)
 {
   if (self == NULL) {
     return NULL;
@@ -650,14 +647,16 @@ Object *object_lookup(Object *self, char *name)
   if (module_check(self)) {
     res = module_lookup(self, name);
   } else {
-    res = type_lookup(OB_TYPE(self), name);
+    if (type == NULL)
+      type = OB_TYPE(self);
+    res = type_lookup(type, name);
   }
   return res;
 }
 
 Object *object_getmethod(Object *self, char *name)
 {
-  Object *ob = object_lookup(self, name);
+  Object *ob = object_lookup(self, name, NULL);
   if (method_check(ob)) {
     return ob;
   } else {
@@ -669,7 +668,7 @@ Object *object_getmethod(Object *self, char *name)
 
 Object *object_getfield(Object *self, char *name)
 {
-  Object *ob = object_lookup(self, name);
+  Object *ob = object_lookup(self, name, NULL);
   if (field_check(ob)) {
     return ob;
   } else {
@@ -679,24 +678,31 @@ Object *object_getfield(Object *self, char *name)
   }
 }
 
-Object *object_call(Object *self, char *name, Object *args)
+Object *object_super_call(Object *self, char *name, Object *args,
+                          TypeObject *type)
 {
-  Object *ob = object_lookup(self, name);
+  Object *ob = object_lookup(self, name, type);
   expect(ob != NULL);
-  if (type_check(ob)) {
-    ob = object_lookup(ob, "__call__");
-    expect(ob != NULL);
-  }
   Object *res = Method_Call(ob, self, args);
   OB_DECREF(ob);
   return res;
 }
 
-Object *object_getvalue(Object *self, char *name)
+Object *object_call(Object *self, char *name, Object *args)
+{
+  Object *ob = object_lookup(self, name, NULL);
+  expect(ob != NULL);
+  Object *res = Method_Call(ob, self, args);
+  OB_DECREF(ob);
+  return res;
+}
+
+Object *object_getvalue(Object *self, char *name, TypeObject *parent)
 {
   Object *ob;
   if (type_check(self)) {
-     TypeObject *type = (TypeObject *)self;
+    // ENUM?
+    TypeObject *type = (TypeObject *)self;
     ob = type_lookup(type, name);
     if (ob == NULL) {
       error("type of '%s' has no mbr '%s'", type->name, name);
@@ -706,7 +712,7 @@ Object *object_getvalue(Object *self, char *name)
       return ob;
     }
   } else {
-    ob = object_lookup(self, name);
+    ob = object_lookup(self, name, parent);
     if (ob == NULL) {
       error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
       return NULL;
@@ -744,9 +750,9 @@ Object *object_getvalue(Object *self, char *name)
   return res;
 }
 
-int object_setvalue(Object *self, char *name, Object *val)
+int object_setvalue(Object *self, char *name, Object *val, TypeObject *parent)
 {
-  Object *ob = object_lookup(self, name);
+  Object *ob = object_lookup(self, name, parent);
   if (ob == NULL) {
     error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
     return -1;

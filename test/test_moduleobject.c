@@ -40,7 +40,7 @@
 int main(int argc, char *argv[])
 {
   koala_initialize();
-
+/*
   Object *m = module_new("test");
 
   Object *v = object_getvalue(m, "__name__");
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
   OB_DECREF(clazz);
 
   OB_DECREF(m);
-
+*/
   koala_finalize();
   return 0;
 }

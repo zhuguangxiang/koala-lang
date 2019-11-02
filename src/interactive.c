@@ -359,6 +359,7 @@ static void _load_mbr_(char *name, int kind, void *data, void *arg)
     code_set_locvars(code, ci->locvec);
     code_set_freevals(code, ci->freevec);
     code_set_module(code, mo);
+    code_set_type(code, type);
     code_set_consts(code, type->consts);
     Object *meth = Method_New(name, code);
     type_add_method(type, meth);

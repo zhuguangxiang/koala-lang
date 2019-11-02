@@ -28,6 +28,7 @@
 int main(int argc, char *argv[])
 {
   koala_initialize();
+  /*
   Object *m = module_load("os");
   expect(m);
   Object *arr = object_getvalue(m, "path");
@@ -45,7 +46,7 @@ int main(int argc, char *argv[])
   OB_DECREF(arr);
 
   OB_DECREF(m);
-
+  */
   koala_finalize();
   return 0;
 }

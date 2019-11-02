@@ -85,7 +85,10 @@ Object *field_default_getter(Object *self, Object *ob)
     res = vector_get(&mo->values, index);
     return OB_INCREF(res);
   } else {
+    expect(type_check(field->owner));
+    TypeObject *tp = (TypeObject *)field->owner;
     HeapObject *ho = (HeapObject *)ob;
+    index += tp->offset;
     expect(index >= 0 && index < ho->size);
     res = ho->items[index];
     return OB_INCREF(res);
@@ -108,7 +111,10 @@ int field_default_setter(Object *self, Object *ob, Object *val)
     OB_DECREF(old);
     return 0;
   } else {
+    expect(type_check(field->owner));
+    TypeObject *tp = (TypeObject *)field->owner;
     HeapObject *hob = (HeapObject *)ob;
+    index += tp->offset;
     expect(index >= 0 && index < hob->size);
     old = hob->items[index];
     OB_DECREF(old);

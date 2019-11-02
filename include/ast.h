@@ -299,6 +299,9 @@ struct expr {
   int leftside;
   int hasvalue;
   Stmt *inplace;
+  char *funcname;
+  short first;
+  short super;
   union {
     struct {
       int omit;

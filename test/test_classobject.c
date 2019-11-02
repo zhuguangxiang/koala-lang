@@ -28,7 +28,7 @@
 int main(int argc, char *argv[])
 {
   koala_initialize();
-
+/*
   Object *s = string_new("Hello, Koala");
   Object *clazz = object_getvalue(s, "__class__");
   expect(clazz);
@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
   OB_DECREF(v);
   OB_DECREF(res);
   OB_DECREF(s);
-
+*/
   koala_finalize();
   return 0;
 }

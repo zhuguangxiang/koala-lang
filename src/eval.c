@@ -340,6 +340,11 @@ static Object *do_dot_index(Object *ob, int index)
   }
 }
 
+static inline TypeObject *get_parent_type(TypeObject *type)
+{
+  return vector_get(&type->lro, 1);
+}
+
 Object *Koala_EvalFrame(CallFrame *f)
 {
   KoalaState *ks = f->ks;
@@ -470,7 +475,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       y = POP();
-      z = object_getvalue(y, string_asstr(x));
+      z = object_getvalue(y, string_asstr(x), co->type);
       PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -481,7 +486,28 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = tuple_get(consts, oparg);
       y = POP();
       z = POP();
-      object_setvalue(y, string_asstr(x), z);
+      object_setvalue(y, string_asstr(x), z, co->type);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      OB_DECREF(z);
+      break;
+    }
+    case OP_GET_SUPER_VALUE: {
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      y = POP();
+      z = object_getvalue(y, string_asstr(x), get_parent_type(co->type));
+      PUSH(z);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_SET_SUPER_VALUE: {
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      y = POP();
+      z = POP();
+      object_setvalue(y, string_asstr(x), z, get_parent_type(co->type));
       OB_DECREF(x);
       OB_DECREF(y);
       OB_DECREF(z);
@@ -494,6 +520,31 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_RETURN: {
       x = NULL;
       goto exit_loop;
+    }
+    case OP_SUPER_CALL: {
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      oparg = NEXT_BYTE();
+      y = POP();
+      if (oparg == 0) {
+        z = NULL;
+      } else if (oparg == 1) {
+        z = POP();
+      } else {
+        z = tuple_new(oparg);
+        for (i = 0; i < oparg; ++i) {
+          v = POP();
+          tuple_set(z, i, v);
+          OB_DECREF(v);
+        }
+      }
+      ks->top = top - base;
+      w = object_super_call(y, string_asstr(x), z, get_parent_type(co->type));
+      PUSH(w);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      OB_DECREF(z);
+      break;
     }
     case OP_CALL:
       oparg = NEXT_2BYTES();
@@ -1097,6 +1148,29 @@ Object *Koala_EvalFrame(CallFrame *f)
       ks->top = top - base;
       w = object_call(y, "__init__", z);
       expect(w == NULL);
+      OB_DECREF(y);
+      OB_DECREF(z);
+      break;
+    }
+    case OP_SUPER_INIT_CALL: {
+      y = POP();
+      oparg = NEXT_BYTE();
+      if (oparg == 0) {
+        z = NULL;
+      } else if (oparg == 1) {
+        z = POP();
+      } else {
+        z = tuple_new(oparg);
+        for (i = 0; i < oparg; ++i) {
+          v = POP();
+          tuple_set(z, i, v);
+          OB_DECREF(v);
+        }
+      }
+      ks->top = top - base;
+      w = object_super_call(y, "__init__", z, get_parent_type(co->type));
+      expect(w == NULL);
+      PUSH(w);
       OB_DECREF(y);
       OB_DECREF(z);
       break;

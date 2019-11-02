@@ -248,6 +248,9 @@ void codeblock_free(CodeBlock *block)
 
 static void codeblock_merge(CodeBlock *from, CodeBlock *to)
 {
+  if (from == NULL)
+    return;
+
   Inst *i;
   struct list_head *p, *n;
   list_for_each_safe(p, n, &from->insts) {
@@ -345,7 +348,9 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_LOAD_CONST:
   case OP_LOAD_MODULE:
   case OP_GET_VALUE:
-  case OP_SET_VALUE: {
+  case OP_SET_VALUE:
+  case OP_GET_SUPER_VALUE:
+  case OP_SET_SUPER_VALUE: {
     Literal *val = &i->arg;
     index = image_add_literal(image, val);
     bytebuffer_write_2bytes(buf, index);
@@ -356,7 +361,8 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     bytebuffer_write_2bytes(buf, index);
     break;
   }
-  case OP_CALL: {
+  case OP_CALL:
+  case OP_SUPER_CALL: {
     index = image_add_string(image, i->arg.str);
     bytebuffer_write_2bytes(buf, index);
     bytebuffer_write_byte(buf, i->argc);
@@ -468,6 +474,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     break;
   case OP_DOT_INDEX:
   case OP_INIT_CALL:
+  case OP_SUPER_INIT_CALL:
     bytebuffer_write_byte(buf, i->argc);
     break;
   default:
@@ -610,7 +617,7 @@ static void unit_show(ParserState *ps)
   char *name = u->sym != NULL ? u->sym->name : NULL;
   name = (name == NULL) ? ps->filename : name;
   puts("---------------------------------------------");
-  print("scope-%d(%s, %s) symbols:\n", ps->depth, scope, name);
+  print("scope-%d(%s, %s) codes:\n", ps->depth, scope, name);
   codeblock_show(u->block);
   puts("---------------------------------------------");
 }
@@ -655,6 +662,14 @@ static void merge_into_initfunc(ParserUnit *u)
       codeblock_free(u->block);
     }
   }
+
+#if !defined(NLog)
+  puts("---------------------------------------------");
+  print("__init__ codes:\n");
+  codeblock_show(sym->func.codeblock);
+  puts("---------------------------------------------");
+#endif
+
   u->block = NULL;
 }
 
@@ -1113,6 +1128,32 @@ static void parse_self(ParserState *ps, Expr *exp)
     panic("SCOPE_CLASS: not implemented");
   } else {
     panic("not implemented");
+  }
+}
+
+static void parse_super(ParserState *ps, Expr *exp)
+{
+  ParserUnit *u = ps->u;
+  if (u->scope == SCOPE_FUNC) {
+    ParserUnit *up = up_scope(ps);
+    if (up->scope != SCOPE_CLASS) {
+      syntax_error(ps, exp->row, exp->col, "super must be used in method");
+      return;
+    }
+    exp->super = 1;
+    exp->sym = up->sym;
+    exp->desc = TYPE_INCREF(up->sym->desc);
+  } else {
+    syntax_error(ps, exp->row, exp->col, "super must be used in method");
+    return;
+  }
+
+  if (exp->ctx == EXPR_CALL_FUNC) {
+    CODE_LOAD(0);
+    CODE_OP_ARGC(OP_SUPER_INIT_CALL, exp->argc);
+  } else {
+    expect(exp->ctx == EXPR_LOAD);
+    CODE_LOAD(0);
   }
 }
 
@@ -1718,7 +1759,11 @@ static void parse_atrr(ParserState *ps, Expr *exp)
   }
   case SYM_CLASS: {
     debug("left sym '%s' is a class", lsym->name);
-    sym = type_find_mbr(lsym, id->name);
+    if (!lexp->super) {
+      sym = type_find_mbr(lsym, id->name);
+    } else {
+      sym = type_find_super_mbr(lsym, id->name);
+    }
     break;
   }
   case SYM_ENUM: {
@@ -1757,21 +1802,31 @@ static void parse_atrr(ParserState *ps, Expr *exp)
   if (!has_error(ps)) {
     switch (sym->kind) {
     case SYM_VAR: {
-      if (exp->ctx == EXPR_LOAD)
-        CODE_OP_S(OP_GET_VALUE, id->name);
-      else if (exp->ctx == EXPR_STORE)
-        CODE_OP_S(OP_SET_VALUE, id->name);
-      else if (exp->ctx == EXPR_INPLACE)
+      if (exp->ctx == EXPR_LOAD) {
+        if (!lexp->super)
+          CODE_OP_S(OP_GET_VALUE, id->name);
+        else
+          CODE_OP_S(OP_GET_SUPER_VALUE, id->name);
+      } else if (exp->ctx == EXPR_STORE) {
+        if (!lexp->super)
+          CODE_OP_S(OP_SET_VALUE, id->name);
+        else
+          CODE_OP_S(OP_SET_SUPER_VALUE, id->name);
+      } else if (exp->ctx == EXPR_INPLACE) {
         parse_attr_inplace(ps, id->name, exp);
-      else
+      } else {
         panic("invalid attr expr's ctx %d", exp->ctx);
+      }
       break;
     }
     case SYM_FUNC: {
       if (exp->ctx == EXPR_LOAD)
         CODE_OP_S(OP_GET_VALUE, id->name);
       else if (exp->ctx == EXPR_CALL_FUNC) {
-        CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
+        if (!lexp->super)
+          CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
+        else
+          CODE_OP_S_ARGC(OP_SUPER_CALL, id->name, exp->argc);
       } else if (exp->ctx == EXPR_LOAD_FUNC)
         CODE_OP_S(OP_GET_METHOD, id->name);
       else if (exp->ctx == EXPR_STORE)
@@ -1953,6 +2008,7 @@ static int check_label_args(TypeDesc *label, Vector *args)
 static void parse_call(ParserState *ps, Expr *exp)
 {
   Vector *args = exp->call.args;
+  int argc = vector_size(args);
   Expr *arg;
   vector_for_each_reverse(arg, args) {
     arg->ctx = EXPR_LOAD;
@@ -1982,6 +2038,43 @@ static void parse_call(ParserState *ps, Expr *exp)
     } else {
       exp->desc = TYPE_INCREF(desc->label.edesc);
       exp->sym = get_desc_symbol(ps->module, exp->desc);
+    }
+  } else if (desc->kind == TYPE_KLASS) {
+    expect(lexp->super);
+    if (!exp->first) {
+      syntax_error(ps, lexp->row, lexp->col,
+                   "call to super must be first statement");
+    }
+
+    if (exp->funcname != NULL && strcmp(exp->funcname, "__init__")) {
+      syntax_error(ps, lexp->row, lexp->col,
+                   "call to super must be in __init__");
+    }
+
+    Symbol *init = stable_get(lexp->sym->type.stbl, "__init__");
+    expect(init != NULL);
+    init->super = 1;
+
+    Symbol *base = lexp->sym->type.base;
+    if (base == NULL) {
+      if (argc != 0) {
+        syntax_error(ps, lexp->row, lexp->col, "super requires no arguments");
+      } else {
+        syntax_error(ps, lexp->row, lexp->col, "no super exist");
+      }
+    } else if (base != NULL) {
+      init = stable_get(base->type.stbl, "__init__");
+      if (init == NULL) {
+        if (argc != 0) {
+          syntax_error(ps, lexp->row, lexp->col, "super requires no arguments");
+        } else {
+          syntax_error(ps, lexp->row, lexp->col, "super no __init__");
+        }
+      } else {
+        if (check_call_args(init->desc, args)) {
+          syntax_error(ps, lexp->row, lexp->col, "call args check failed");
+        }
+      }
     }
   } else {
     syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
@@ -2263,6 +2356,10 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
   int sz = vector_size(body);
   Stmt *s = NULL;
   vector_for_each(s, body) {
+    if ((idx == 0) && (s->kind == EXPR_KIND)) {
+      s->expr.exp->first = 1;
+      s->expr.exp->funcname = name;
+    }
     if (idx == sz - 1)
       s->last = 1;
     parse_stmt(ps, s);
@@ -2692,7 +2789,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     NULL,                 /* INVALID            */
     NULL,                 /* NIL_KIND           */
     parse_self,           /* SELF_KIND          */
-    NULL,                 /* SUPER_KIND         */
+    parse_super,          /* SUPER_KIND         */
     parse_literal,        /* LITERAL_KIND       */
     parse_ident,          /* ID_KIND            */
     parse_underscore,     /* UNDER_KIND         */
@@ -2783,7 +2880,7 @@ static void parse_import(ParserState *ps, Stmt *s)
       sym->mod.path = path;
       sym->desc = desc_from_klass("lang", "Module");
       if (stable_add_symbol(u->stbl, sym) < 0) {
-        syntax_error(ps, s->row, s->col, "symbol '%s' is duplicated", name);
+        warn("symbol '%s' is duplicated", name);
       } else {
         sym->mod.ptr = mod;
         symbol_decref(sym);
@@ -3506,6 +3603,19 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
   }
 }
 
+static void addcode_supercall_noargs(CodeBlock **old)
+{
+  CodeBlock *block = codeblock_new();
+  Inst *inst = inst_new(OP_LOAD_0, NULL, NULL);
+  codeblock_add_inst(block, inst);
+  inst = inst_new(OP_SUPER_INIT_CALL, NULL, NULL);
+  inst->argc = 0;
+  codeblock_add_inst(block, inst);
+  codeblock_merge(*old, block);
+  codeblock_free(*old);
+  *old = block;
+}
+
 static void parse_class(ParserState *ps, Stmt *stmt)
 {
   Ident *id = &stmt->class_stmt.id;
@@ -3525,6 +3635,48 @@ static void parse_class(ParserState *ps, Stmt *stmt)
   Stmt *s = NULL;
   vector_for_each(s, body) {
     parse_stmt(ps, s);
+  }
+
+  Symbol *initsym = stable_get(ps->u->stbl, "__init__");
+  Symbol *basesym = sym->type.base;
+  Symbol *baseinitsym = NULL;
+  int baseinitargc = 0;
+  if (basesym != NULL) {
+    baseinitsym = stable_get(basesym->type.stbl, "__init__");
+  }
+  if (baseinitsym != NULL) {
+    expect(baseinitsym->desc->kind == TYPE_PROTO);
+    baseinitargc = vector_size(baseinitsym->desc->proto.args);
+  }
+
+  if (initsym == NULL) {
+    if (baseinitargc != 0) {
+      syntax_error(ps, stmt->row, stmt->col, "require call super");
+    } else {
+      if (baseinitsym != NULL) {
+        debug("create '__init__' and add code to call super()");
+        TypeDesc *proto = desc_from_proto(NULL, NULL);
+        initsym = stable_add_func(ps->u->stbl, "__init__", proto);
+        TYPE_DECREF(proto);
+        CodeBlock *code = NULL;
+        addcode_supercall_noargs(&code);
+        initsym->func.codeblock = code;
+      }
+    }
+  } else {
+    if (baseinitargc != 0) {
+      if (!initsym->super) {
+        syntax_error(ps, stmt->row, stmt->col, "require call super");
+      }
+    } else {
+      if (baseinitsym != NULL && !initsym->super) {
+        // auto call super() with no arguments
+        debug("exist '__init__' and add code to call super()");
+        CodeBlock *code = initsym->func.codeblock;
+        addcode_supercall_noargs(&code);
+        initsym->func.codeblock = code;
+      }
+    }
   }
 
   parser_exit_scope(ps);

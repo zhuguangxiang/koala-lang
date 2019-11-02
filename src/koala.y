@@ -1932,22 +1932,32 @@ type_decl:
   CLASS name extends '{' members '}'
 {
   $$ = stmt_from_class($2.id, $2.vec, $3, $5);
+  $$->row = row(@1);
+  $$->col = col(@1);
 }
 | CLASS name extends ';'
 {
   $$ = stmt_from_class($2.id, $2.vec, $3, NULL);
+  $$->row = row(@1);
+  $$->col = col(@1);
 }
 | TRAIT name extends '{' trait_members '}'
 {
   $$ = stmt_from_trait($2.id, $2.vec, $3, $5);
+  $$->row = row(@1);
+  $$->col = col(@1);
 }
 | TRAIT name extends ';'
 {
   $$ = stmt_from_trait($2.id, $2.vec, $3, NULL);
+  $$->row = row(@1);
+  $$->col = col(@1);
 }
 | ENUM name '{' enum_members '}'
 {
   $$ = stmt_from_enum($2.id, $2.vec, $4);
+  $$->row = row(@1);
+  $$->col = col(@1);
 }
 ;
 

@@ -47,11 +47,11 @@ typedef struct methodobject {
 
 typedef struct protoobject {
   OBJECT_HEAD
-  /* method name */
+  /* proto name */
   char *name;
-  /* method owner */
-  TypeObject *owner;
-  /* method type descriptor */
+  /* proto owner */
+  Object *owner;
+  /* proto type descriptor */
   TypeDesc *desc;
 } ProtoObject;
 

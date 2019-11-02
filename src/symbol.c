@@ -477,6 +477,24 @@ Symbol *type_find_mbr(Symbol *typeSym, char *name)
   return NULL;
 }
 
+Symbol *type_find_super_mbr(Symbol *typeSym, char *name)
+{
+  if (typeSym->kind != SYM_CLASS && typeSym->kind != SYM_ENUM) {
+    error("sym '%s' is not class/trait/enum", typeSym->name);
+    return NULL;
+  }
+
+  Symbol *sym;
+  Symbol *item;
+  vector_for_each_reverse(item, &typeSym->type.lro) {
+    sym = type_find_mbr(item, name);
+    if (sym != NULL)
+      return sym;
+  }
+
+  return NULL;
+}
+
 void stable_write_image(STable *stbl, Image *image)
 {
   HASHMAP_ITERATOR(iter, &stbl->table);

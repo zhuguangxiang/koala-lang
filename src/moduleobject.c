@@ -139,8 +139,7 @@ void module_add_var(Object *self, Object *ob)
   ModuleObject *module = (ModuleObject *)self;
   FieldObject *field = (FieldObject *)ob;
   field->owner = self;
-  field->offset = module->nrvars;
-  ++module->nrvars;
+  field->offset = module->nrvars++;
   // occurpy a place holder
   vector_set(&module->values, field->offset, NULL);
   struct mnode *node = mnode_new(field->name, ob);

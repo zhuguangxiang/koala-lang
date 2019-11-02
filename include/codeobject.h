@@ -36,6 +36,7 @@ typedef struct codeobject {
   OBJECT_HEAD
   char *name;
   Object *module;
+  TypeObject *type;
   TypeDesc *proto;
   /* local variables */
   Vector locvec;
@@ -55,6 +56,12 @@ static inline void code_set_module(Object *code, Object *module)
 {
   CodeObject *co = (CodeObject *)code;
   co->module = module;
+}
+
+static inline void code_set_type(Object *code, TypeObject *type)
+{
+  CodeObject *co = (CodeObject *)code;
+  co->type = type;
 }
 
 static inline void code_set_consts(Object *code, Object *consts)

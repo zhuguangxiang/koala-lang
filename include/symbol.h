@@ -77,6 +77,8 @@ struct symbol {
   int refcnt;
   /* used */
   int used;
+  /* super() call */
+  int super;
   union {
     struct {
       /* type object */
@@ -168,6 +170,7 @@ Symbol *stable_add_label(STable *stbl, char *name);
 void symbol_decref(Symbol *sym);
 void symbol_free(Symbol *sym);
 Symbol *type_find_mbr(Symbol *clsSym, char *name);
+Symbol *type_find_super_mbr(Symbol *typeSym, char *name);
 Symbol *enum_find_mbr(Symbol *eSym, char *name);
 void fill_locvars(Symbol *sym, Vector *vec);
 void free_locvars(Vector *locvec);

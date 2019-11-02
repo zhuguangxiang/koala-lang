@@ -143,6 +143,11 @@ extern "C" {
 #define OP_MATCH  105
 #define OP_DOT_INDEX  106
 
+#define OP_SUPER_CALL       107
+#define OP_SUPER_INIT_CALL  108
+#define OP_GET_SUPER_VALUE  109
+#define OP_SET_SUPER_VALUE  110
+
 int opcode_argc(int op);
 char *opcode_str(int op);
 char *opcode_map(int op);

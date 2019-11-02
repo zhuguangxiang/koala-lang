@@ -220,7 +220,7 @@ struct typeobject {
 
   /* in which module */
   Object *owner;
-  /* offset of fields */
+  /* start index of fields */
   int offset;
   /* number of fields */
   int nrvars;
@@ -268,12 +268,14 @@ void type_add_methoddefs(TypeObject *type, MethodDef *def);
 
 unsigned int object_hash(Object *ob);
 int object_equal(Object *ob1, Object *ob2);
-Object *object_lookup(Object *self, char *name);
+Object *object_lookup(Object *self, char *name, TypeObject *type);
 Object *object_getmethod(Object *self, char *name);
 Object *object_getfield(Object *self, char *name);
-Object *object_getvalue(Object *self, char *name);
-int object_setvalue(Object *self, char *name, Object *val);
+Object *object_getvalue(Object *self, char *name, TypeObject *type);
+int object_setvalue(Object *self, char *name, Object *val, TypeObject *type);
 Object *object_call(Object *self, char *name, Object *args);
+Object *object_super_call(Object *self, char *name, Object *args,
+                          TypeObject *type);
 Object *new_literal(Literal *val);
 
 typedef struct descobject {

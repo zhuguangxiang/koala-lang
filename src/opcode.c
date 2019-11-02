@@ -135,6 +135,11 @@ static struct opcode {
 
   OPCODE(OP_MATCH, 1),
   OPCODE(OP_DOT_INDEX, 1),
+
+  OPCODE(OP_SUPER_CALL, 3),
+  OPCODE(OP_SUPER_INIT_CALL, 1),
+  OPCODE(OP_GET_SUPER_VALUE, 2),
+  OPCODE(OP_SET_SUPER_VALUE, 2),
 };
 
 #define OP_MAP(op, map) { op, #map }

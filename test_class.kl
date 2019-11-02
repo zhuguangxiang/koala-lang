@@ -2,24 +2,120 @@
 import "io"
 
 class Pet {
-  name string
-
-  func petbark() {
-    io.println(name)
-  }
-}
-
-class Cat extends Pet {
-  age int
+  name string = "Hello-Petty"
 
   func bark() {
-    petbark()
     io.println(name)
-    io.println(age)
   }
 }
 
 pet := new Pet()
 pet.bark()
 
-cat := new Cat()
+class Cat {
+  name string
+  age = 12
+
+  func __init__(n string) {
+    name = n
+  }
+
+  func bark() {
+    io.println(name)
+  }
+}
+
+cat := new Cat("Kitty")
+cat.bark()
+cat.age
+
+import "io"
+
+class Base {
+  name = "Base"
+
+  func hello() string {
+    name
+  }
+}
+
+class Sub extends Base {
+  name = "Sub"
+
+  func subhello() {
+    io.println(name)
+    io.println(super.name)
+  }
+}
+
+sub := new Sub()
+sub.name
+sub.hello()
+sub.subhello()
+
+//var base Base = new Sub()
+//base.name
+
+import "io"
+
+class Foo {
+  name string
+
+  func __init__(name string) {
+    self.name = name
+  }
+
+  func hello() {
+    io.println("hello in Foo")
+  }
+
+  func foohello() {
+    hello()
+  }
+}
+
+class Bar extends Foo {
+  name string
+  age int
+
+  func __init__(name string, age int) {
+    super(name + "-In-Foo")
+    self.name = name
+    self.age = age
+  }
+
+  func hello() {
+    io.println("hello in Bar")
+    io.println(name)
+    io.println(age)
+    io.println(super.name)
+    super.hello()
+    // recursive call
+    //foohello()
+  }
+}
+
+bar := new Bar("BAR", 123)
+bar.hello()
+bar.foohello()
+
+class TestError {
+  // name string = super(); //error: super must be used in method
+  name string
+
+  //func __init__(val int) { // SubError: error: require call super
+  func __init__() {
+    //super(); // error: no super exist
+    //super(123); // error: super requires no arguments
+    name = "TestError"
+    //super()
+  }
+
+  func hello() {
+    //super(); // error: call to super must be in __init__
+  }
+}
+
+class SubError extends TestError {
+  func __init__() {}
+}
