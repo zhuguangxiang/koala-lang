@@ -32,7 +32,7 @@ static int symbol_equal(void *k1, void *k2)
 {
   Symbol *s1 = k1;
   Symbol *s2 = k2;
-  return !strcmp(s1->name, s2->name);
+  return k1 == k2 || !strcmp(s1->name, s2->name);
 }
 
 STable *stable_new(void)
@@ -458,7 +458,8 @@ void type_write_image(Symbol *typesym, Image *image)
 
 Symbol *type_find_mbr(Symbol *typeSym, char *name)
 {
-  if (typeSym->kind != SYM_CLASS && typeSym->kind != SYM_ENUM) {
+  if (typeSym->kind != SYM_CLASS && typeSym->kind != SYM_ENUM &&
+      typeSym->kind != SYM_TRAIT) {
     error("sym '%s' is not class/trait/enum", typeSym->name);
     return NULL;
   }
@@ -479,7 +480,8 @@ Symbol *type_find_mbr(Symbol *typeSym, char *name)
 
 Symbol *type_find_super_mbr(Symbol *typeSym, char *name)
 {
-  if (typeSym->kind != SYM_CLASS && typeSym->kind != SYM_ENUM) {
+  if (typeSym->kind != SYM_CLASS && typeSym->kind != SYM_ENUM &&
+      typeSym->kind != SYM_TRAIT) {
     error("sym '%s' is not class/trait/enum", typeSym->name);
     return NULL;
   }

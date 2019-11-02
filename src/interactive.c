@@ -361,12 +361,16 @@ static void _load_mbr_(char *name, int kind, void *data, void *arg)
     code_set_module(code, mo);
     code_set_type(code, type);
     code_set_consts(code, type->consts);
-    Object *meth = Method_New(name, code);
+    Object *meth = method_new(name, code);
     type_add_method(type, meth);
     OB_DECREF(code);
     OB_DECREF(meth);
   } else if (kind == MBR_LABEL) {
     type_add_label(type, name, data);
+  } else if (kind == MBR_IFUNC) {
+    Object *proto = proto_new(name, data);
+    type_add_ifunc(type, proto);
+    OB_DECREF(proto);
   } else {
     panic("_load_mbr__: not implemented");
   }
@@ -460,7 +464,7 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
   }
   case SYM_FUNC: {
     Object *code = code_from_symbol(sym);
-    Object *meth = Method_New(sym->name, code);
+    Object *meth = method_new(sym->name, code);
     module_add_func(ob, meth);
     code_set_module(code, ob);
     OB_DECREF(code);

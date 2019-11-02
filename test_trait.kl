@@ -1,0 +1,36 @@
+
+import "io"
+
+trait Base {
+  func sayhello()
+  /*
+  func __init__() {
+    io.println("base")
+  }
+  */
+}
+
+class SayHello extends Base {
+  func sayhello() {
+    io.print("hello ")
+  }
+}
+
+var base Base = new SayHello()
+base.sayhello()
+
+say := new SayHello()
+say.sayhello()
+
+trait SayWorld extends Base {
+  func sayhello() {
+    super.sayhello()
+    io.println("world")
+  }
+}
+
+class HelloWorld extends SayHello with SayWorld;
+// ('HelloWorld', 'SayWorld', 'SayHello', 'Base', 'Any')
+
+hw := new HelloWorld()
+hw.sayhello()

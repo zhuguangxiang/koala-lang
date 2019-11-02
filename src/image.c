@@ -1821,6 +1821,20 @@ void image_load_method(Image *image, int index, getmbrfunc func, void *arg)
   vector_free(ci.freevec);
 }
 
+void image_load_ifunc(Image *image, int index, getmbrfunc func, void *arg)
+{
+  IFuncItem *item = _get_(image, ITEM_IFUNC, index);
+  StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
+  IndexItem *listitem = _get_(image, ITEM_INDEX, item->pindex);
+  TypeItem *typeitem = _get_(image, ITEM_TYPE, item->rindex);
+  Vector *args = to_typedescvec(listitem, image);
+  TypeDesc *ret = to_typedesc(typeitem, image);
+  TypeDesc *desc = desc_from_proto(args, ret);
+  TYPE_DECREF(ret);
+  func(str->data, MBR_IFUNC, desc, arg);
+  TYPE_DECREF(desc);
+}
+
 void image_load_label(Image *image, int index, getmbrfunc func, void *arg)
 {
   LabelItem *item = _get_(image, ITEM_LABEL, index);
@@ -1846,7 +1860,7 @@ void image_load_mbrs(Image *image, int index, getmbrfunc func, void *arg)
       image_load_method(image, mbr->index, func, arg);
       break;
     case MBR_IFUNC:
-      panic("MBR_IFUNC: not implemented");
+      image_load_ifunc(image, mbr->index, func, arg);
       break;
     case MBR_LABEL:
       image_load_label(image, mbr->index, func, arg);

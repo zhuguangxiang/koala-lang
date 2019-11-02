@@ -121,3 +121,52 @@ class TestError {
 class SubError extends TestError {
   func __init__() {}
 }
+
+/*
+abstract class Pet {
+  name string
+  func __init__(name string) {
+    self.name = name
+  }
+
+  func bark() string
+}
+
+class Dog extends Pet {
+
+  func __init_() {
+    super("ErHa")
+  }
+
+  func bark() string {
+    msg := name + "dog is barking"
+    io.println(msg)
+  }
+}
+
+
+import "io"
+
+trait Animal {
+  func bark() {
+    msg := name() + " is barking"
+    io.println(msg)
+  }
+  func name() string
+}
+
+trait Bark {
+  func bark() {
+    msg := " who is barking?"
+    io.println(msg)
+  }
+}
+
+class Dog extends Animal with Bark {
+  name = "WangWang"
+
+  func name() string {
+    return name
+  }
+}
+*/

@@ -340,9 +340,12 @@ static Object *do_dot_index(Object *ob, int index)
   }
 }
 
-static inline TypeObject *get_parent_type(TypeObject *type)
+static inline TypeObject *get_parent_type(TypeObject *cls, TypeObject *type)
 {
-  return vector_get(&type->lro, 1);
+  expect(type_isclass(cls));
+  TypeObject *parent = type_parent(cls, type);
+  expect(parent != NULL && parent != type);
+  return parent;
 }
 
 Object *Koala_EvalFrame(CallFrame *f)
@@ -496,7 +499,8 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       y = POP();
-      z = object_getvalue(y, string_asstr(x), get_parent_type(co->type));
+      z = object_getvalue(y, string_asstr(x),
+                          get_parent_type(OB_TYPE(y), co->type));
       PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -507,7 +511,8 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = tuple_get(consts, oparg);
       y = POP();
       z = POP();
-      object_setvalue(y, string_asstr(x), z, get_parent_type(co->type));
+      object_setvalue(y, string_asstr(x), z,
+                      get_parent_type(OB_TYPE(y), co->type));
       OB_DECREF(x);
       OB_DECREF(y);
       OB_DECREF(z);
@@ -539,7 +544,8 @@ Object *Koala_EvalFrame(CallFrame *f)
         }
       }
       ks->top = top - base;
-      w = object_super_call(y, string_asstr(x), z, get_parent_type(co->type));
+      w = object_super_call(y, string_asstr(x), z,
+                            get_parent_type(OB_TYPE(y), co->type));
       PUSH(w);
       OB_DECREF(x);
       OB_DECREF(y);
@@ -588,7 +594,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       ks->top = top - base;
       if (method_check(x)) {
         debug("call method '%s' argc %d", ((MethodObject *)x)->name, oparg);
-        z = Method_Call(x, NULL, y);
+        z = method_call(x, NULL, y);
       } else {
         debug("call closure '%s' argc %d", ((ClosureObject *)x)->name, oparg);
         expect(closure_check(x));
@@ -1168,7 +1174,8 @@ Object *Koala_EvalFrame(CallFrame *f)
         }
       }
       ks->top = top - base;
-      w = object_super_call(y, "__init__", z, get_parent_type(co->type));
+      w = object_super_call(y, "__init__", z,
+                            get_parent_type(OB_TYPE(y), co->type));
       expect(w == NULL);
       PUSH(w);
       OB_DECREF(y);

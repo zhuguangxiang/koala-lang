@@ -1780,14 +1780,29 @@ static void parse_atrr(ParserState *ps, Expr *exp)
     sym = type_find_mbr(lsym->label.esym, id->name);
     break;
   }
+  case SYM_TRAIT: {
+    debug("left sym '%s' is a trait", lsym->name);
+    if (!lexp->super) {
+      sym = type_find_mbr(lsym, id->name);
+    } else {
+      sym = type_find_super_mbr(lsym, id->name);
+    }
+    break;
+  }
   default:
     panic("invalid left symbol %d", lsym->kind);
     break;
   }
 
   if (sym == NULL) {
-    syntax_error(ps, id->row, id->col,
-      "'%s' is not found in '%s'", id->name, lsym->name);
+    if (!lexp->super) {
+      syntax_error(ps, id->row, id->col,
+                   "'%s' is not found in '%s'", id->name, lsym->name);
+    } else {
+      syntax_error(ps, id->row, id->col,
+                   "'%s' is not found in super of '%s'",
+                   id->name, lsym->name);
+    }
   } else {
     if (sym->kind == SYM_FUNC && exp->right == NULL) {
       syntax_error(ps, exp->row, exp->col,
@@ -1829,10 +1844,11 @@ static void parse_atrr(ParserState *ps, Expr *exp)
           CODE_OP_S_ARGC(OP_SUPER_CALL, id->name, exp->argc);
       } else if (exp->ctx == EXPR_LOAD_FUNC)
         CODE_OP_S(OP_GET_METHOD, id->name);
-      else if (exp->ctx == EXPR_STORE)
+      else if (exp->ctx == EXPR_STORE) {
         CODE_OP_S(OP_SET_VALUE, id->name);
-      else
+      } else {
         panic("invalid exp's ctx %d", exp->ctx);
+      }
       break;
     }
     case SYM_LABEL: {
@@ -1851,6 +1867,17 @@ static void parse_atrr(ParserState *ps, Expr *exp)
         }
       } else {
         syntax_error(ps, id->row, id->col, "enum '%s' is readonly", id->name);
+      }
+      break;
+    }
+    case SYM_IFUNC: {
+      if (exp->ctx == EXPR_CALL_FUNC) {
+        if (!lexp->super)
+          CODE_OP_S_ARGC(OP_CALL, id->name, exp->argc);
+        else
+          CODE_OP_S_ARGC(OP_SUPER_CALL, id->name, exp->argc);
+      } else {
+        panic("invalid exp's ctx %d", exp->ctx);
       }
       break;
     }
@@ -2021,7 +2048,7 @@ static void parse_call(ParserState *ps, Expr *exp)
   parser_visit_expr(ps, lexp);
   TypeDesc *desc = lexp->desc;
   if (desc == NULL) {
-    syntax_error(ps, lexp->row, lexp->col, "cannot resolve left expr's type");
+    ++ps->errors;
     return;
   }
 
@@ -3532,12 +3559,9 @@ exit_label:
 static void parse_ifunc(ParserState *ps, Stmt *stmt)
 {
   Ident *id = &stmt->funcdecl.id;
-  debug("add ifunc '%s'", id->name);
-  Vector *idtypes = stmt->funcdecl.idtypes;
-  Type *ret = &stmt->funcdecl.ret;
-  TypeDesc *proto = parse_proto(idtypes, ret);
-  stable_add_ifunc(ps->u->stbl, id->name, proto);
-  TYPE_DECREF(proto);
+  debug("parse ifunc '%s'", id->name);
+  Symbol *sym = stable_get(ps->u->stbl, id->name);
+  expect(sym != NULL && sym->kind == SYM_IFUNC);
 }
 
 static int lro_exist(Vector *vec, Symbol *sym)
@@ -3588,10 +3612,14 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
     syntax_error(ps, base->row, base->col,
                  "'%s' is not defined", strbuf_tostr(&sbuf));
     strbuf_fini(&sbuf);
-  } else if (sym->kind != SYM_CLASS) {
-    syntax_error(ps, base->row, base->col, "'%s' is not class", sym->name);
+  } else if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) {
+    syntax_error(ps, base->row, base->col,
+                 "'%s' is not class/trait", sym->name);
   } else {
-    clssym->type.base = sym;
+    if (sym->kind == SYM_CLASS)
+      clssym->type.base = sym;
+    else
+      vector_push_back(&clssym->type.traits, sym);
   }
 
   // parse traits
@@ -3633,6 +3661,59 @@ static void addcode_supercall_noargs(CodeBlock **old)
   codeblock_merge(*old, block);
   codeblock_free(*old);
   *old = block;
+}
+
+static
+void check_one_proto_impl(ParserState *ps, Symbol *s, int idx, Symbol *cls)
+{
+  Symbol *ret;
+  Symbol *sub;
+  int size = vector_size(&cls->type.lro);
+  for (int i = idx; i < size; ++i) {
+    sub = vector_get(&cls->type.lro, i);
+    ret = stable_get(sub->type.stbl, s->name);
+    if (ret != NULL && ret->kind == SYM_FUNC) {
+      return;
+    }
+  }
+
+  sub = cls;
+  ret = stable_get(sub->type.stbl, s->name);
+  if (ret != NULL && ret->kind == SYM_FUNC) {
+    return;
+  }
+
+  syntax_error(ps, 0, 0, "'%s' is not implemented", s->name);
+}
+
+static void check_proto_impl(ParserState *ps)
+{
+  Symbol *sym = ps->u->sym;
+  expect(sym->kind == SYM_CLASS);
+
+  Symbol *item;
+  vector_for_each(item, &sym->type.lro) {
+    if (idx == 0) {
+      expect(!strcmp(item->name, "Any"));
+      continue;
+    }
+
+    if (item->kind == SYM_CLASS) {
+      if (item->type.abstract) {
+
+      }
+    } else {
+      expect(item->kind == SYM_TRAIT);
+      HASHMAP_ITERATOR(iter, &item->type.stbl->table);
+      Symbol *s;
+      iter_for_each(&iter, s) {
+        if (s->kind == SYM_IFUNC)
+          check_one_proto_impl(ps, s, idx, sym);
+        else
+          expect(s->kind == SYM_FUNC);
+      }
+    }
+  }
 }
 
 static void parse_class(ParserState *ps, Stmt *stmt)
@@ -3698,9 +3779,57 @@ static void parse_class(ParserState *ps, Stmt *stmt)
     }
   }
 
+  // check protos are all implemented.
+  check_proto_impl(ps);
+
   parser_exit_scope(ps);
 
   debug("end of class '%s'", id->name);
+}
+
+static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
+{
+  ExtendsDef *ext = stmt->class_stmt.extends;
+  if (ext == NULL)
+    return;
+
+  // parse base trait
+  Symbol *sym;
+  Type *base = &ext->type;
+  sym = get_desc_symbol(ps->module, base->desc);
+  if (sym == NULL) {
+    STRBUF(sbuf);
+    desc_tostr(base->desc, &sbuf);
+    syntax_error(ps, base->row, base->col,
+                 "'%s' is not defined", strbuf_tostr(&sbuf));
+    strbuf_fini(&sbuf);
+  } else if (sym->kind != SYM_TRAIT) {
+    syntax_error(ps, base->row, base->col, "'%s' is not trait", sym->name);
+  } else {
+    vector_push_back(&traitsym->type.traits, sym);
+  }
+
+  // parse with traits
+  Type *trait;
+  vector_for_each(trait, ext->withes) {
+    sym = get_desc_symbol(ps->module, trait->desc);
+    if (sym == NULL) {
+      STRBUF(sbuf);
+      desc_tostr(trait->desc, &sbuf);
+      syntax_error(ps, trait->row, trait->col,
+                   "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+    } else if (sym->kind != SYM_TRAIT) {
+      syntax_error(ps, trait->row, trait->col, "'%s' is not trait", sym->name);
+    } else {
+      vector_push_back(&traitsym->type.traits, sym);
+    }
+  }
+
+  // build lro
+  vector_for_each(sym, &traitsym->type.traits) {
+    lro_add(sym, traitsym);
+  }
 }
 
 static void parse_trait(ParserState *ps, Stmt *stmt)
@@ -3710,7 +3839,7 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
   Symbol *sym = stable_get(ps->u->stbl, id->name);
   expect(sym != NULL);
 
-  //parse_class_extends(ps, stmt);
+  parse_trait_extends(ps, sym, stmt);
 
   parser_enter_scope(ps, SCOPE_CLASS, 0);
   ps->u->sym = sym;
@@ -3722,6 +3851,12 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
   Stmt *s = NULL;
   vector_for_each(s, body) {
     parse_stmt(ps, s);
+  }
+
+  Symbol *initsym = stable_get(ps->u->stbl, "__init__");
+  if (initsym != NULL) {
+    syntax_error(ps, stmt->row, stmt->col,
+                 "'__init__' is not allowed in trait");
   }
 
   parser_exit_scope(ps);

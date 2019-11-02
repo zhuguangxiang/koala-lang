@@ -536,7 +536,7 @@ static void update_pararef(TypeDesc *para, TypeDesc *proto)
 
 void type_add_methoddef(TypeObject *type, MethodDef *f)
 {
-  Object *meth = CMethod_New(f);
+  Object *meth = cmethod_new(f);
   update_pararef(type->desc, ((MethodObject *)meth)->desc);
   type_add_method(type, meth);
   OB_DECREF(meth);
@@ -549,6 +549,15 @@ void type_add_methoddefs(TypeObject *type, MethodDef *def)
     type_add_methoddef(type, f);
     ++f;
   }
+}
+
+void type_add_ifunc(TypeObject *type, Object *ob)
+{
+  ProtoObject *proto = (ProtoObject *)ob;
+  proto->owner = (Object *)type;
+  struct mnode *node = mnode_new(proto->name, ob);
+  int res = hashmap_add(get_mtbl(type), node);
+  expect(res == 0);
 }
 
 static void type_clean(Object *ob)
@@ -584,6 +593,18 @@ TypeObject type_type = {
   .free  = type_free,
   .str   = type_str,
 };
+
+TypeObject *type_parent(TypeObject *tp, TypeObject *base)
+{
+  TypeObject *item;
+  vector_for_each_reverse(item, &tp->lro) {
+    if (item == base) {
+      expect(idx > 0);
+      return vector_get(&tp->lro, idx - 1);
+    }
+  }
+  return NULL;
+}
 
 /* look in type->mtbl and its bases */
 Object *type_lookup(TypeObject *type, char *name)
@@ -683,7 +704,7 @@ Object *object_super_call(Object *self, char *name, Object *args,
 {
   Object *ob = object_lookup(self, name, type);
   expect(ob != NULL);
-  Object *res = Method_Call(ob, self, args);
+  Object *res = method_call(ob, self, args);
   OB_DECREF(ob);
   return res;
 }
@@ -692,7 +713,7 @@ Object *object_call(Object *self, char *name, Object *args)
 {
   Object *ob = object_lookup(self, name, NULL);
   expect(ob != NULL);
-  Object *res = Method_Call(ob, self, args);
+  Object *res = method_call(ob, self, args);
   OB_DECREF(ob);
   return res;
 }
@@ -736,7 +757,7 @@ Object *object_getvalue(Object *self, char *name, TypeObject *parent)
       MethodObject *meth = (MethodObject *)ob;
       TypeDesc *desc = meth->desc;
       if (!desc->proto.args) {
-        res = Method_Call(ob, self, NULL);
+        res = method_call(ob, self, NULL);
         OB_DECREF(ob);
         return res;
       }

@@ -177,7 +177,7 @@ void module_add_func(Object *self, Object *ob)
 
 void module_add_funcdef(Object *self, MethodDef *f)
 {
-  Object *meth = CMethod_New(f);
+  Object *meth = cmethod_new(f);
   module_add_func(self, meth);
   OB_DECREF(meth);
 }
@@ -317,7 +317,7 @@ static void _load_func_(char *name, CodeInfo *ci, void *arg)
   code_set_freevals(code, ci->freevec);
   code_set_module(code, arg);
   code_set_consts(code, module->consts);
-  Object *meth = Method_New(name, code);
+  Object *meth = method_new(name, code);
   module_add_func(arg, meth);
   OB_DECREF(code);
   OB_DECREF(meth);

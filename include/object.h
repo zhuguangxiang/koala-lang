@@ -243,6 +243,8 @@ extern TypeObject any_type;
 #define type_isgc(type) \
   (((TypeObject *)type)->flags & TPFLAGS_GC)
 
+TypeObject *type_parent(TypeObject *tp, TypeObject *base);
+
 void init_any_type(void);
 #define OB_NUM_FUNC(ob, name) ({ \
   NumberMethods *nu = OB_TYPE(ob)->number; \
@@ -265,6 +267,8 @@ void type_add_field_default(TypeObject *type, char *name, TypeDesc *desc);
 void type_add_method(TypeObject *type, Object *ob);
 void type_add_methoddef(TypeObject *type, MethodDef *f);
 void type_add_methoddefs(TypeObject *type, MethodDef *def);
+
+void type_add_ifunc(TypeObject *type, Object *proto);
 
 unsigned int object_hash(Object *ob);
 int object_equal(Object *ob1, Object *ob2);

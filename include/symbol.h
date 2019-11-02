@@ -105,6 +105,8 @@ struct symbol {
       void *codeblock;
     } func;
     struct {
+      /* abstract class */
+      int abstract;
       /* type parameters */
       Vector *typeparas;
       /* base class */

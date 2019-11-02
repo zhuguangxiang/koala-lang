@@ -29,7 +29,7 @@
 #include "eval.h"
 #include "atom.h"
 
-Object *CMethod_New(MethodDef *def)
+Object *cmethod_new(MethodDef *def)
 {
   MethodObject *method = kmalloc(sizeof(*method));
   init_object_head(method, &method_type);
@@ -40,7 +40,7 @@ Object *CMethod_New(MethodDef *def)
   return (Object *)method;
 }
 
-Object *Method_New(char *name, Object *code)
+Object *method_new(char *name, Object *code)
 {
   CodeObject *co = (CodeObject *)code;
   MethodObject *method = kmalloc(sizeof(*method));
@@ -51,7 +51,7 @@ Object *Method_New(char *name, Object *code)
   return (Object *)method;
 }
 
-Object *Method_Call(Object *self, Object *ob, Object *args)
+Object *method_call(Object *self, Object *ob, Object *args)
 {
   if (!method_check(self)) {
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
@@ -81,7 +81,7 @@ Object *method_getcode(Object *self)
   }
 }
 
-static Object *method_call(Object *self, Object *args)
+static Object *_method_call_(Object *self, Object *args)
 {
   if (!method_check(self)) {
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
@@ -119,6 +119,11 @@ static Object *method_call(Object *self, Object *args)
   return res;
 }
 
+static MethodDef meth_methods[] = {
+  {"call", "...", "A", _method_call_},
+  {NULL}
+};
+
 static void meth_free(Object *ob)
 {
   if (!method_check(ob)) {
@@ -133,11 +138,6 @@ static void meth_free(Object *ob)
   }
   kfree(ob);
 }
-
-static MethodDef meth_methods[] = {
-  {"call", "...", "A", method_call},
-  {NULL}
-};
 
 static Object *meth_str(Object *self, Object *args)
 {
@@ -158,9 +158,34 @@ TypeObject method_type = {
   .methods = meth_methods,
 };
 
+static void proto_free(Object *ob)
+{
+  if (!proto_check(ob)) {
+    error("object of '%.64s' is not a Proto", OB_TYPE_NAME(ob));
+    return;
+  }
+  ProtoObject *proto = (ProtoObject *)ob;
+  debug("[Freed] Protot %s", proto->name);
+  TYPE_DECREF(proto->desc);
+  kfree(ob);
+}
+
+static Object *proto_str(Object *self, Object *args)
+{
+  if (!proto_check(self)) {
+    error("object of '%.64s' is not a Proto", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ProtoObject *proto = (ProtoObject *)self;
+  return string_new(proto->name);
+}
+
 TypeObject proto_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name = "Proto",
+  .free = proto_free,
+  .str  = proto_str,
 };
 
 void init_method_type(void)
@@ -177,4 +202,13 @@ void init_proto_type(void)
   proto_type.desc = desc;
   if (type_ready(&proto_type) < 0)
     panic("Cannot initalize 'Proto' type.");
+}
+
+Object *proto_new(char *name, TypeDesc *desc)
+{
+  ProtoObject *proto = kmalloc(sizeof(ProtoObject));
+  init_object_head(proto, &proto_type);
+  proto->name = atom(name);
+  proto->desc = TYPE_INCREF(desc);
+  return (Object *)proto;
 }
