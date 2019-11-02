@@ -2889,6 +2889,19 @@ static void parse_import(ParserState *ps, Stmt *s)
   }
 }
 
+static int check_inherit(TypeDesc *desc, Symbol *sym)
+{
+  if (sym->kind != SYM_CLASS)
+    return 0;
+
+  Symbol *item;
+  vector_for_each_reverse(item, &sym->type.lro) {
+    if (desc_check(desc, item->desc))
+      return 1;
+  }
+  return 0;
+}
+
 static void parse_constdecl(ParserState *ps, Stmt *stmt)
 {
   Expr *exp = stmt->vardecl.exp;
@@ -2908,14 +2921,16 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
     return;
 
   if (!desc_check(desc, exp->desc)) {
-    STRBUF(sbuf1);
-    STRBUF(sbuf2);
-    desc_tostr(desc, &sbuf1);
-    desc_tostr(exp->desc, &sbuf2);
-    syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
-                  strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-    strbuf_fini(&sbuf1);
-    strbuf_fini(&sbuf2);
+    if (!check_inherit(desc, exp->sym)) {
+      STRBUF(sbuf1);
+      STRBUF(sbuf2);
+      desc_tostr(desc, &sbuf1);
+      desc_tostr(exp->desc, &sbuf2);
+      syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+                   strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      strbuf_fini(&sbuf1);
+      strbuf_fini(&sbuf2);
+    }
   }
 
   ParserUnit *u = ps->u;
@@ -2976,14 +2991,16 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
       }
 
       if (!desc_check(desc, rdesc)) {
-        STRBUF(sbuf1);
-        STRBUF(sbuf2);
-        desc_tostr(desc, &sbuf1);
-        desc_tostr(exp->desc, &sbuf2);
-        syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
-                    strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-        strbuf_fini(&sbuf1);
-        strbuf_fini(&sbuf2);
+        if (!check_inherit(desc, exp->sym)) {
+          STRBUF(sbuf1);
+          STRBUF(sbuf2);
+          desc_tostr(desc, &sbuf1);
+          desc_tostr(exp->desc, &sbuf2);
+          syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+                       strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+          strbuf_fini(&sbuf1);
+          strbuf_fini(&sbuf2);
+        }
       }
     }
   }
@@ -3083,14 +3100,16 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
   }
 
   if (!desc_check(ldesc, rdesc)) {
-    STRBUF(sbuf1);
-    STRBUF(sbuf2);
-    desc_tostr(ldesc, &sbuf1);
-    desc_tostr(rdesc, &sbuf2);
-    syntax_error(ps, rexp->row, rexp->col, "expected '%s', but found '%s'",
-                  strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-    strbuf_fini(&sbuf1);
-    strbuf_fini(&sbuf2);
+    if (!check_inherit(ldesc, rexp->sym)) {
+      STRBUF(sbuf1);
+      STRBUF(sbuf2);
+      desc_tostr(ldesc, &sbuf1);
+      desc_tostr(rdesc, &sbuf2);
+      syntax_error(ps, rexp->row, rexp->col, "expected '%s', but found '%s'",
+                   strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      strbuf_fini(&sbuf1);
+      strbuf_fini(&sbuf2);
+    }
   }
 }
 

@@ -53,8 +53,10 @@ sub.name
 sub.hello()
 sub.subhello()
 
-//var base Base = new Sub()
-//base.name
+var base Base = new Sub()
+base.name
+base.hello()
+base.subhello(); //error: 'subhello' is not found
 
 import "io"
 
