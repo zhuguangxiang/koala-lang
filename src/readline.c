@@ -35,6 +35,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <signal.h>
+#include "readline.h"
 
 #define LINE_MAX_LINE 1024
 #define LINE_DEFAULT_COLUMNS  80
@@ -59,6 +60,7 @@ enum KEY_ACTION {
   CTRL_T = 20,        /* Ctrl-t */
   CTRL_U = 21,        /* Ctrl+u */
   CTRL_W = 23,        /* Ctrl+w */
+  CTRL_Z = 26,        /* Ctrl+z */
   ESC = 27,           /* Escape */
   BACKSPACE = 127,    /* Backspace */
 };
@@ -274,6 +276,11 @@ static int line_edit(int in, int out, char *buf, size_t len, const char *prompt)
       break;
     case CTRL_E: // go to the end of the line
       move_end(&ls);
+      break;
+    case CTRL_Z: // stop self
+      raise(SIGTSTP);
+      reset_stdin();
+      init_stdin();
       break;
     }
   }
