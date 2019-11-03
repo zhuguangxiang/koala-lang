@@ -2923,6 +2923,8 @@ static int check_inherit(TypeDesc *desc, Symbol *sym)
 
   Symbol *item;
   vector_for_each_reverse(item, &sym->type.lro) {
+    if (desc_isany(item->desc))
+      continue;
     if (desc_check(desc, item->desc))
       return 1;
   }

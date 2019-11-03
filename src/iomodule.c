@@ -81,6 +81,7 @@ void IoPrint(Object *ob)
       error("object of '%.64s' is not printable", OB_TYPE_NAME(ob));
     }
   }
+  fflush(stdout);
 }
 
 void IoPrintln(Object *ob)
@@ -99,4 +100,5 @@ void IoPrintln(Object *ob)
       error("object of '%.64s' is not printable", OB_TYPE_NAME(ob));
     }
   }
+  fflush(stdout);
 }

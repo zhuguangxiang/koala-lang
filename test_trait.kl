@@ -1,6 +1,7 @@
 
 import "io"
 
+// example1: abstract super call and override method/proto
 trait Base {
   func sayhello()
   /*
@@ -29,8 +30,50 @@ trait SayWorld extends Base {
   }
 }
 
-class HelloWorld extends SayHello with SayWorld;
-// ('HelloWorld', 'SayWorld', 'SayHello', 'Base', 'Any')
+class SayHelloWorld extends SayHello with SayWorld;
+// ('SayHelloWorld', 'SayWorld', 'SayHello', 'Base', 'Any')
 
-hw := new HelloWorld()
+hw := new SayHelloWorld()
 hw.sayhello()
+
+// example2: override base method
+trait HelloWorld {
+  func sayhello() {
+    io.println("Hello World!");
+  }
+}
+
+class HelloUniverse extends HelloWorld {
+  func sayhello() {
+    io.println("Hello Universe!")
+  }
+}
+
+var hello Hello;
+hello = new SayHello(); // error
+hello = new HelloUniverse()
+hello.sayhello(); // Hello Universe!
+
+// example3: multiple traits and no any ovverride
+trait Hello {
+  func sayhello() {
+    io.print("Hello ")
+  }
+}
+
+trait World {
+  func sayworld() {
+    io.print("World")
+  }
+}
+
+class MyHelloWorld extends Hello with World {
+  func say() {
+    io.println("!")
+  }
+}
+
+mhw := new MyHelloWorld()
+mhw.sayhello()
+mhw.sayworld()
+mhw.say()
