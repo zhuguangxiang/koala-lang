@@ -2020,6 +2020,26 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   }
 }
 
+static int check_inherit(TypeDesc *desc, Symbol *sym)
+{
+  Symbol *typesym;
+  if (sym->kind == SYM_VAR) {
+    typesym = sym->var.typesym;
+  } else {
+    expect(sym->kind != SYM_CLASS);
+    typesym = sym;
+  }
+
+  Symbol *item;
+  vector_for_each_reverse(item, &typesym->type.lro) {
+    if (desc_isany(item->desc))
+      continue;
+    if (desc_check(desc, item->desc))
+      return 1;
+  }
+  return 0;
+}
+
 static int check_call_args(TypeDesc *proto, Vector *args)
 {
   Vector *descs = proto->proto.args;
@@ -2033,8 +2053,10 @@ static int check_call_args(TypeDesc *proto, Vector *args)
   for (int i = 0; i < sz; ++i) {
     desc = vector_get(descs, i);
     arg = vector_get(args, i);
-    if (!desc_check(desc, arg->desc))
-      return -1;
+    if (!desc_check(desc, arg->desc)) {
+      if (!check_inherit(desc, arg->sym))
+        return -1;
+    }
   }
   return 0;
 }
@@ -2940,21 +2962,6 @@ static void parse_import(ParserState *ps, Stmt *s)
       }
     }
   }
-}
-
-static int check_inherit(TypeDesc *desc, Symbol *sym)
-{
-  if (sym->kind != SYM_CLASS)
-    return 0;
-
-  Symbol *item;
-  vector_for_each_reverse(item, &sym->type.lro) {
-    if (desc_isany(item->desc))
-      continue;
-    if (desc_check(desc, item->desc))
-      return 1;
-  }
-  return 0;
 }
 
 static void parse_constdecl(ParserState *ps, Stmt *stmt)

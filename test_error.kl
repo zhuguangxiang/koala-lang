@@ -1,0 +1,47 @@
+
+// import error
+import "notexist"
+import "abc"
+import "abc"
+import     "def"
+
+// const error
+const 123 = 456
+const name = abc + 100 + "hello"
+const name2 = 100 + abc
+const name2 = 100
+const name2 = 200
+const name int = "hello"
+const name = 1
+      name = false
+const name = "hello" + true
+const name = "hello" + "world" + 12
+
+// var error
+var a int = "hello"
+var a int;
+a = "hello"
+b := 1
+b = true
+const dog Dog = new Dog()
+var dog Dog = new Dog()
+
+// func error
+func add(dog Dog) {
+
+}
+
+func add(dog) Dog {
+
+}
+
+// return error
+func add() int {
+  "foo"
+}
+
+func add() int {
+  return "foo"
+}
+
+// class

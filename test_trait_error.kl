@@ -1,0 +1,58 @@
+
+import "io"
+
+// example1: abstract super call and override method/proto
+trait Base {
+  func sayhello() {
+    io.println("Base")
+  }
+}
+
+trait TraitSub extends Base {
+  func sayhello();
+}
+
+class Sub extends TraitSub {
+  func sayhello() { //func syahello2() is error: 'sayhello' is not implemented
+    io.println("Sub")
+  }
+}
+
+sub := new Sub()
+sub.sayhello()
+var base Base = sub
+base.sayhello()
+
+var sub2 Sub
+sub2 = base as Sub
+sub2.sayhello()
+sub2 = base as TraitSub; //error: expected 'Sub', but found 'TraitSub'
+
+func sayhello(base Base) {
+  base.sayhello()
+}
+
+sayhello(base)
+sayhello(sub)
+
+/*
+class Base {
+  void hello() {
+    System.out.println("Base");
+  }
+}
+
+abstract class AbsSub extends Base {
+  abstract void hello();
+}
+
+class Sub extends AbsSub {
+  void hello2() {            // -> void hello() is ok
+    System.out.println("Sub");
+  }
+}
+
+Inherit.java:12: error: Sub is not abstract and does not override
+abstract method hello() in AbsSub
+
+*/
