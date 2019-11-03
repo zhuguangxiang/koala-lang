@@ -606,21 +606,36 @@ TypeObject *type_parent(TypeObject *tp, TypeObject *base)
   return NULL;
 }
 
-/* look in type->mtbl and its bases */
-Object *type_lookup(TypeObject *type, char *name)
+/* look up type->mtbl only */
+Object *type_lookup(TypeObject *type, TypeObject *start, char *name)
 {
   struct mnode key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
 
-  TypeObject *item;
-  struct mnode *node;
-  vector_for_each_reverse(item, &type->lro) {
-    if (item->mtbl == NULL)
-      continue;
-    node = hashmap_get(item->mtbl, &key);
-    if (node != NULL)
-      return OB_INCREF(node->obj);
+  int index = vector_size(&type->lro) - 1;
+  debug("type '%s' search range is 0 ... %d", type->name, index);
+
+  if (start != NULL) {
+    TypeObject *item;
+    vector_for_each_reverse(item, &type->lro) {
+      if (item == start) {
+        index = idx;
+        break;
+      }
+    }
   }
+
+  debug("type '%s' search start at %d", type->name, index);
+  TypeObject *search;
+  struct mnode *node;
+  while (index >= 0) {
+    search = vector_get(&type->lro, index);
+    node = hashmap_get(search->mtbl, &key);
+    if (node != NULL) return OB_INCREF(node->obj);
+    --index;
+  }
+
+  warn("type '%s' search '%s' failed", type->name, name);
   return NULL;
 }
 
@@ -668,9 +683,7 @@ Object *object_lookup(Object *self, char *name, TypeObject *type)
   if (module_check(self)) {
     res = module_lookup(self, name);
   } else {
-    if (type == NULL)
-      type = OB_TYPE(self);
-    res = type_lookup(type, name);
+    res = type_lookup(OB_TYPE(self), type, name);
   }
   return res;
 }
@@ -724,7 +737,7 @@ Object *object_getvalue(Object *self, char *name, TypeObject *parent)
   if (type_check(self)) {
     // ENUM?
     TypeObject *type = (TypeObject *)self;
-    ob = type_lookup(type, name);
+    ob = type_lookup(type, NULL, name);
     if (ob == NULL) {
       error("type of '%s' has no mbr '%s'", type->name, name);
       return NULL;

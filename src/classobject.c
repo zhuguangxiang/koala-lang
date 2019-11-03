@@ -39,7 +39,7 @@ static Object *class_get(Object *self, char *name)
   Object *res;
   Object *ob = ((ClassObject *)self)->obj;
   if (type_check(ob)) {
-    res = type_lookup((TypeObject *)ob, name);
+    res = type_lookup((TypeObject *)ob, NULL, name);
   } else {
     res = object_lookup(ob, name, NULL);
   }

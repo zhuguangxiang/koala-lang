@@ -588,7 +588,7 @@ new Dog("LittleErHa", 20).get_age()
 
 //valgrind big data??? 1000_000
 arr3 := [new Dog("LittleErHa", 20)]
-for i in 1...10000 {
+for i in 1...20 {
   arr3[i] = new Dog("ErHa", 20 + i)
 }
 //new Array<int>()
@@ -600,7 +600,7 @@ for i in 1...10000 {
 // cost: 6.734s(the same machine)
 func test_cost() {
   var dog Dog
-  for i in 1...10000 {
+  for i in 1...20 {
     dog = arr3[i]
     //dog.get_name()
     //dog.get_age()

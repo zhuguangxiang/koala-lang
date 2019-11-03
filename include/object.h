@@ -257,7 +257,7 @@ void init_any_type(void);
 int type_ready(TypeObject *type);
 void type_fini(TypeObject *type);
 TypeObject *type_new(char *path, char *name, int flags);
-Object *type_lookup(TypeObject *type, char *name);
+Object *type_lookup(TypeObject *type, TypeObject *start, char *name);
 
 void type_add_field(TypeObject *type, Object *ob);
 void type_add_fielddef(TypeObject *type, FieldDef *f);

@@ -1,0 +1,76 @@
+
+import "io"
+
+trait Base {
+  func msg() {
+    io.println("Base")
+  }
+}
+
+trait A extends Base {
+  func msg() {
+    super.msg()
+    io.println("A")
+  }
+}
+
+trait B extends Base {
+  func msg() {
+    super.msg()
+    io.println("B")
+  }
+}
+
+class M extends A with B {
+  func msg() {
+    super.msg()
+    io.println("M")
+  }
+}
+
+m := new M()
+m.msg()
+
+// IntQueue trait
+trait IntQueue {
+  func get() int
+  func put(x int)
+}
+
+// A BasicIntQueue implemented with array
+class BasicIntQueue extends IntQueue {
+  arr [int] = []
+  func get() int { arr.pop() }
+  func put(x int) { arr.append(x) }
+}
+
+// The Doubling stackable modification trait.
+// super calls in a trait are dynamically bound.
+trait Doubling extends IntQueue {
+  func put(x int) { super.put(2 * x) }
+}
+
+class DoubleIntQueue extends BasicIntQueue with Doubling
+
+diq := new DoubleIntQueue()
+diq.put(10)
+diq.get()
+
+trait Incrementing extends IntQueue {
+  func put(x int) { super.put(x + 1) }
+}
+
+trait Filtering extends IntQueue {
+  func put(x int) {
+    if x >= 0 { super.put(x) }
+  }
+}
+
+class IncrFilterIntQueue extends BasicIntQueue with Incrementing with Filtering
+
+ifiq := new IncrFilterIntQueue()
+ifiq.put(-1)
+ifiq.put(0)
+ifiq.put(1)
+ifiq.get(); // 2
+ifiq.get(); // 1

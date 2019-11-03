@@ -47,7 +47,7 @@ Object *module_lookup(Object *ob, char *name)
   if (node != NULL)
     return OB_INCREF(node->obj);
 
-  return type_lookup(OB_TYPE(ob), name);
+  return type_lookup(OB_TYPE(ob), NULL, name);
 }
 
 static Object *module_name(Object *self, Object *args)

@@ -1144,8 +1144,34 @@ static void parse_super(ParserState *ps, Expr *exp)
     exp->sym = up->sym;
     exp->desc = TYPE_INCREF(up->sym->desc);
   } else {
-    syntax_error(ps, exp->row, exp->col, "super must be used in method");
-    return;
+    int infunc = 0;
+    vector_for_each_reverse(u, &ps->ustack) {
+      if (u->scope == SCOPE_FUNC) {
+        infunc = 1;
+        break;
+      }
+    }
+    if (!infunc) {
+      syntax_error(ps, exp->row, exp->col, "super must be used in method");
+      return;
+    }
+
+    ParserUnit *up = NULL;
+    vector_for_each_reverse(u, &ps->ustack) {
+      if (u->scope == SCOPE_CLASS) {
+        up = u;
+        break;
+      }
+    }
+
+    if (up == NULL) {
+      syntax_error(ps, exp->row, exp->col, "super must be used in method");
+      return;
+    }
+
+    exp->super = 1;
+    exp->sym = up->sym;
+    exp->desc = TYPE_INCREF(up->sym->desc);
   }
 
   if (exp->ctx == EXPR_CALL_FUNC) {
@@ -1183,7 +1209,7 @@ static void parse_inplace_mapping(ParserState *ps, AssignOpKind op)
   CODE_OP(opmapings[op]);
 }
 
-static void parse_attr_inplace(ParserState *ps, char *name, Expr *exp)
+static void code_inplace(ParserState *ps, char *name, Expr *exp)
 {
   CODE_OP(OP_DUP);
   CODE_OP_S(OP_GET_VALUE, name);
@@ -1236,7 +1262,7 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
     }
   } else if (exp->ctx == EXPR_INPLACE) {
     CODE_OP(OP_LOAD_GLOBAL);
-    parse_attr_inplace(ps, exp->id.name, exp);
+    code_inplace(ps, exp->id.name, exp);
   } else if (exp->ctx == EXPR_LOAD_FUNC) {
     CODE_OP(OP_LOAD_GLOBAL);
     CODE_OP_S(OP_GET_METHOD, exp->id.name);
@@ -1319,7 +1345,7 @@ static void ident_up_func(ParserState *ps, Expr *exp)
       }
     } else if (exp->ctx == EXPR_INPLACE) {
       CODE_OP(OP_LOAD_GLOBAL);
-      parse_attr_inplace(ps, exp->id.name, exp);
+      code_inplace(ps, exp->id.name, exp);
     } else if (exp->ctx == EXPR_CALL_FUNC) {
       CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
@@ -1711,7 +1737,7 @@ static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
   }
 }
 
-static void parse_atrr(ParserState *ps, Expr *exp)
+static void parse_attr(ParserState *ps, Expr *exp)
 {
   Expr *lexp = exp->attr.lexp;
   lexp->ctx = EXPR_LOAD;
@@ -1828,7 +1854,7 @@ static void parse_atrr(ParserState *ps, Expr *exp)
         else
           CODE_OP_S(OP_SET_SUPER_VALUE, id->name);
       } else if (exp->ctx == EXPR_INPLACE) {
-        parse_attr_inplace(ps, id->name, exp);
+        code_inplace(ps, id->name, exp);
       } else {
         panic("invalid attr expr's ctx %d", exp->ctx);
       }
@@ -2823,7 +2849,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_unary,          /* UNARY_KIND         */
     parse_binary,         /* BINARY_KIND        */
     parse_ternary,        /* TERNARY_KIND       */
-    parse_atrr,           /* ATTRIBUTE_KIND     */
+    parse_attr,           /* ATTRIBUTE_KIND     */
     parse_subscr,         /* SUBSCRIPT_KIND     */
     parse_call,           /* CALL_KIND          */
     parse_slice,          /* SLICE_KIND         */

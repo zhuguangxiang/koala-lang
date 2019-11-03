@@ -49,7 +49,7 @@ class HelloUniverse extends HelloWorld {
   }
 }
 
-var hello Hello;
+var hello HelloWorld;
 hello = new SayHello(); // error
 hello = new HelloUniverse()
 hello.sayhello(); // Hello Universe!
