@@ -191,10 +191,21 @@ static int logic_true(Object *ob)
   }
 }
 
+static int typecheck_inherit(TypeObject *tp, TypeDesc *desc)
+{
+  TypeObject *base;
+  vector_for_each_reverse(base, &tp->lro) {
+    if (desc_check(base->desc, desc))
+      return 1;
+  }
+  return 0;
+}
+
 static int typecheck(Object *ob, Object *type)
 {
   if (!descob_check(type))
     panic("typecheck: para is not DescType");
+
   TypeDesc *desc = ((DescObject *)type)->desc;
   if (integer_check(ob) && desc_isint(desc))
     return 1;
@@ -202,8 +213,9 @@ static int typecheck(Object *ob, Object *type)
     return 1;
   if (bool_check(ob) && desc_isbool(desc))
     return 1;
-  TypeObject *typeob = OB_TYPE(ob);
-  if (desc_check(typeob->desc, desc)) {
+
+  TypeObject *tp = OB_TYPE(ob);
+  if (desc_check(tp->desc, desc)) {
     #if 0
     if (array_check(ob)) {
       ArrayObject *arr = (ArrayObject *)ob;
@@ -211,8 +223,10 @@ static int typecheck(Object *ob, Object *type)
     }
     #endif
     return 1;
+  } else {
+    // check inherit
+    return typecheck_inherit(tp, desc);
   }
-  return 0;
 }
 
 static Object *new_object(CallFrame *f, TypeDesc *desc)

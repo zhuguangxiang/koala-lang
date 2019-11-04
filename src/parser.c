@@ -1616,6 +1616,26 @@ static void parse_binary(ParserState *ps, Expr *exp)
   }
 }
 
+static int check_inherit(TypeDesc *desc, Symbol *sym)
+{
+  Symbol *typesym;
+  if (sym->kind == SYM_VAR) {
+    typesym = sym->var.typesym;
+  } else {
+    expect(sym->kind == SYM_CLASS);
+    typesym = sym;
+  }
+
+  Symbol *item;
+  vector_for_each_reverse(item, &typesym->type.lro) {
+    if (desc_isany(item->desc))
+      continue;
+    if (desc_check(desc, item->desc))
+      return 1;
+  }
+  return 0;
+}
+
 static void parse_ternary(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
@@ -1644,9 +1664,11 @@ static void parse_ternary(ParserState *ps, Expr *exp)
 
   jmp2->offset = codeblock_bytes(u->block) - offset2;
 
-  if (!desc_check(lexp->desc, rexp->desc)) {
+  if (!desc_check(lexp->desc, rexp->desc) &&
+      !check_inherit(lexp->desc, rexp->sym) &&
+      !check_inherit(rexp->desc, lexp->sym)) {
     syntax_error(ps, rexp->row, rexp->col,
-      "type mismatch in conditional expression");
+                 "type mismatch in conditional expression");
   } else {
     exp->sym = lexp->sym;
     exp->desc = TYPE_INCREF(exp->sym->desc);
@@ -2018,26 +2040,6 @@ static void parse_subscr(ParserState *ps, Expr *exp)
       panic("invalid subscribe expr's ctx");
     }
   }
-}
-
-static int check_inherit(TypeDesc *desc, Symbol *sym)
-{
-  Symbol *typesym;
-  if (sym->kind == SYM_VAR) {
-    typesym = sym->var.typesym;
-  } else {
-    expect(sym->kind != SYM_CLASS);
-    typesym = sym;
-  }
-
-  Symbol *item;
-  vector_for_each_reverse(item, &typesym->type.lro) {
-    if (desc_isany(item->desc))
-      continue;
-    if (desc_check(desc, item->desc))
-      return 1;
-  }
-  return 0;
 }
 
 static int check_call_args(TypeDesc *proto, Vector *args)
@@ -2447,7 +2449,8 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
     // body is empty
     debug("func body is empty");
     if (ret.desc != NULL) {
-      syntax_error(ps, ret.row, ret.col, "'%s' needs return value", name);
+      syntax_error(ps, ret.row, ret.col,
+                   "'%s' incompatible return type", name);
     } else {
       if (strcmp(name, "__init__")) {
         debug("add OP_RETURN");
@@ -2462,20 +2465,24 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
   // last one is expr-stmt, check it has value or not
   if (s->kind == EXPR_KIND) {
     Expr *exp = s->expr.exp;
-    if (ret.desc == NULL && s->desc == NULL) {
+    if (ret.desc == NULL && exp->desc == NULL) {
       debug("last expr-stmt and no value, add OP_RETURN");
       CODE_OP(OP_RETURN);
-    } else if (ret.desc != NULL && s->desc != NULL) {
-      if (!desc_check(ret.desc, s->desc)) {
-        syntax_error(ps, exp->row, exp->col, "return values are not matched");
+    } else if (ret.desc != NULL && exp->desc != NULL) {
+      if (!desc_check(ret.desc, exp->desc) &&
+          !check_inherit(ret.desc, exp->sym)) {
+        syntax_error(ps, exp->row, exp->col,
+                     "'%s' incompatible return type", name);
       } else {
         debug("last expr-stmt and has value, add OP_RETURN_VALUE");
         CODE_OP(OP_RETURN_VALUE);
       }
-    } else if (ret.desc == NULL && s->desc != NULL ) {
-      syntax_error(ps, exp->row, exp->col, "'%s' has not return value", name);
+    } else if (ret.desc == NULL && exp->desc != NULL ) {
+      syntax_error(ps, exp->row, exp->col,
+                   "'%s' incompatible return type", name);
     } else {
-      syntax_error(ps, exp->row, exp->col, "'%s' needs return value", name);
+      syntax_error(ps, exp->row, exp->col,
+                   "'%s' incompatible return type", name);
     }
     return;
   }
@@ -3319,8 +3326,9 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     } else {
       TypeDesc *desc = fu->sym->desc;
       expect(desc != NULL);
-      if (!desc_check(desc->proto.ret, exp->desc)) {
-        syntax_error(ps, exp->row, exp->col, "return values are not matched");
+      if (!desc_check(desc->proto.ret, exp->desc) &&
+          !check_inherit(desc->proto.ret, exp->sym)) {
+        syntax_error(ps, exp->row, exp->col, "incompatible return types");
       } else {
         stmt->hasvalue = 1;
         stmt->desc = TYPE_INCREF(exp->desc);

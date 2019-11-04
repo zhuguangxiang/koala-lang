@@ -101,6 +101,59 @@ bar := new Bar("BAR", 123)
 bar.hello()
 bar.foohello()
 
+func hello_foo(foo Foo) {
+  //if foo != nil {
+    foo.hello()
+  //}
+}
+
+hello_foo(bar)
+hello_foo(new Bar("BAR", 100))
+var foo Foo = new Bar("Foo_Bar", 100)
+hello_foo(foo)
+
+func get_foo() Foo {
+  return new Bar("BAR", 200)
+}
+
+foo = get_foo()
+foo.hello()
+get_foo().hello()
+bar = get_foo(); // expected 'Bar', but found 'Foo'
+bar = get_foo() as Bar;  // downcasting
+bar.hello()
+var who any = get_foo()
+(who as Bar).hello()
+(who as Foo).hello()
+
+func get_foo_byname(name string) Foo {
+  return name == "foo" ? new Foo("Foo") : new Bar("Bar", 200)
+}
+foo = get_foo_byname("foo")
+foo.hello()
+foo = get_foo_byname("bar")
+foo.hello()
+
+func get_foo_byname2(name string) Foo {
+  name == "foo" ? new Foo("Foo") : new Bar("Bar", 200)
+}
+foo = get_foo_byname2("foo")
+foo.hello()
+foo = get_foo_byname2("bar")
+foo.hello()
+
+func get_foo_byname3(name string) Foo {
+  if name == "foo" {
+    return new Foo("Foo")
+  } else {
+    return new Bar("Bar", 200)
+  }
+}
+foo = get_foo_byname3("foo")
+foo.hello()
+foo = get_foo_byname3("bar")
+foo.hello()
+
 class TestError {
   // name string = super(); //error: super must be used in method
   name string
