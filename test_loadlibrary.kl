@@ -1,6 +1,6 @@
 
 import sys "os"
 
-sys.load_library("./libtestmodule.so")
+sys.load_library("./modules/libtestmodule.so")
 
 import test "testmodule"
