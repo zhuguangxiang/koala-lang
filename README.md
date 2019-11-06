@@ -32,13 +32,16 @@ sudo apt install build-essential
 sudo apt install flex
 sudo apt install bison
 sudo apt install cmake
+
+// set environment variables
+echo 'export PATH="~/.local/bin:$PATH"' >> ~/.profile
 ```
 
 For Apple/MacOS, needs `cmake`, `XCode`, `flex/bison`, in MacOS, using
 [`homebrew`](https://brew.sh/) to install dependencies softwares.
 
 ```shell
-// XCode installed from `Apple` app store. It's too large, be patient!
+// XCode installed from `Apple` app store. It is too large, be patient!
 
 brew install cmake
 brew install flex
