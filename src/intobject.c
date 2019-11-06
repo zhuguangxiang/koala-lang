@@ -34,7 +34,7 @@ static void int_free(Object *ob)
     error("object of '%.64s' is not an Integer", OB_TYPE_NAME(ob));
     return;
   }
-  debug("[Freed] Integer %ld", integer_asint(ob));
+  debug("[Freed] Integer %"PRId64, integer_asint(ob));
   gcfree(ob);
 }
 

@@ -101,7 +101,7 @@ static Object *range_iter_next(Object *iter, Object *step)
   RangeObject *range = (RangeObject *)ob;
   int64_t index = integer_asint(idx);
   int64_t by = integer_asint(step);
-  debug("range-iter, index: %ld, by: %ld", index, by);
+  debug("range-iter, index: %"PRId64", by: %"PRId64, index, by);
 
   Object *ret = NULL;
   if (index >= 0 && index < range->len) {

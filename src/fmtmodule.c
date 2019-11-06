@@ -63,6 +63,7 @@ Object *Fmtter_WriteFormat(Object *self, Object *args)
     ++fmtstr;
   }
   OB_DECREF(str);
+  return NULL;
 }
 
 Object *Fmtter_WriteString(Object *self, Object *args)

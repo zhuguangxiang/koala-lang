@@ -208,7 +208,7 @@ static Object *array_iter_next(Object *iter, Object *step)
   ArrayObject *arr = (ArrayObject *)ob;
   int64_t index = integer_asint(idx);
   int64_t by = integer_asint(step);
-  debug("array-iter, index: %ld, by: %ld", index, by);
+  debug("array-iter, index: %"PRId64", by: %"PRId64, index, by);
 
   Object *ret = NULL;
   if (index < vector_size(&arr->items)) {

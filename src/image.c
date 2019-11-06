@@ -401,7 +401,7 @@ static void literalitem_show(Image *image, void *o)
   LiteralItem *item = o;
   switch (item->type) {
   case LITERAL_INT:
-    print("  int:%ld\n", item->ival);
+    print("  int:%"PRId64"\n", item->ival);
     break;
   case LITERAL_FLOAT:
     print("  float:%.16lf\n", item->fval);

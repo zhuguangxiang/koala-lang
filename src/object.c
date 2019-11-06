@@ -808,7 +808,7 @@ Object *new_literal(Literal *val)
   Object *ob = NULL;
   switch (val->kind) {
   case BASE_INT:
-    debug("literal int value: %ld", val->ival);
+    debug("literal int value: %"PRId64, val->ival);
     ob = integer_new(val->ival);
     break;
   case BASE_STR:
@@ -820,7 +820,7 @@ Object *new_literal(Literal *val)
     ob = val->bval ? bool_true() : bool_false();
     break;
   case BASE_BYTE:
-    debug("literal byte value: %ld", val->ival);
+    debug("literal byte value: %"PRId64, val->ival);
     ob = byte_new((int)val->ival);
     break;
   case BASE_FLOAT:
