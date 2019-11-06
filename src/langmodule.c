@@ -48,7 +48,7 @@ static void show_args(int op, int index, uint8_t *codes, Object *consts)
     val = TWO_BYTES();
     ob = tuple_get(consts, val);
     if (integer_check(ob)) {
-      printf("%ld", integer_asint(ob));
+      printf("%"PRId64, integer_asint(ob));
     } else if (string_check(ob)) {
       printf("'%.64s'", string_asstr(ob));
     } else {
@@ -146,7 +146,7 @@ static Object *disassemble(Object *self, Object *arg)
 
 static Object *help(Object *self, Object *arg)
 {
-
+  return NULL;
 }
 
 static Object *_exit_(Object *self, Object *arg)

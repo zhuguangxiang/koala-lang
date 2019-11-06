@@ -57,11 +57,6 @@ static int esc_char(char esc)
   panic("invalid escape character");
 }
 
-static int hex_char(char *s)
-{
-
-}
-
 static int is_newline_return(char ch)
 {
   return ch == '\n' || ch == '\r';

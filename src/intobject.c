@@ -64,7 +64,7 @@ static Object *int_str(Object *self, Object *ob)
 
   IntegerObject *i = (IntegerObject *)self;
   char buf[256];
-  sprintf(buf, "%ld", i->value);
+  sprintf(buf, "%"PRId64, i->value);
   return string_new(buf);
 }
 
@@ -87,18 +87,18 @@ static int64_t int_add(Object *x, Object *y)
     int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a + b);
     if ((r ^ a) < 0 && (r ^ b) < 0)
-      panic("overflow:%ld + %ld = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %"PRId64" = %"PRId64, a, b, r);
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = (int64_t)((uint64_t)a + b);
     if ((r ^ a) < 0 && (r ^ b) < 0)
-      panic("overflow:%ld + %d = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %d = %"PRId64, a, b, r);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
     r = (int64_t)((double)a + b);
     if ((a > 0 && b > 0 && r < 0) ||
         (a < 0 && b < 0 && r > 0))
-      panic("overflow:%ld + %lf = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %lf = %"PRId64, a, b, r);
   } else {
     error("Unsupported operand type(s) for +: 'Integer' and '%s'",
           OB_TYPE_NAME(y));
@@ -114,18 +114,18 @@ static int64_t int_sub(Object *x, Object *y)
     int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
-      panic("overflow:%ld + %ld = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %"PRId64" = %"PRId64, a, b, r);
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
-      panic("overflow:%ld + %d = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %d = %"PRId64, a, b, r);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
     r = (int64_t)((double)a - b);
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
-      panic("overflow:%ld + %lf = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %lf = %"PRId64, a, b, r);
   } else {
     error("Unsupported operand type(s) for -: 'Integer' and '%s'",
           OB_TYPE_NAME(y));
@@ -335,18 +335,18 @@ static int64_t int_num_cmp(Object *x, Object *y)
     int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
-      panic("overflow:%ld + %ld = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %"PRId64" = %"PRId64, a, b, r);
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
-      panic("overflow:%ld + %d = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %d = %"PRId64, a, b, r);
   } else if (Float_Check(y)) {
     double b = Float_AsFlt(y);
     r = (int64_t)((double)a - b);
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
-      panic("overflow:%ld + %lf = %ld", a, b, r);
+      panic("overflow:%"PRId64" + %lf = %"PRId64, a, b, r);
   } else {
     panic("Not Implemented");
   }

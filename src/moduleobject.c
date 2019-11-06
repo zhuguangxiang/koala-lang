@@ -216,7 +216,7 @@ static int _modnode_equal_(void *e1, void *e2)
 
 void module_install(char *path, Object *ob)
 {
-  if (module_check(ob) < 0) {
+  if (!module_check(ob)) {
     error("object of '%.64s' is not a Module", OB_TYPE_NAME(ob));
     return;
   }

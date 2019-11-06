@@ -99,7 +99,7 @@ Object *Fmtter_WriteInteger(Object *self, Object *args)
   StrBuf *sbuf = &fmt->buf;
   IntegerObject *i = (IntegerObject *)args;
   char buf[256];
-  sprintf(buf, "%ld", i->value);
+  sprintf(buf, "%"PRId64, i->value);
   strbuf_append(sbuf, buf);
   return NULL;
 }
@@ -136,6 +136,7 @@ Object *Fmtter_WriteTuple(Object *self, Object *args)
   str = string_new(")");
   Fmtter_WriteString(self, str);
   OB_DECREF(str);
+  return NULL;
 }
 
 static MethodDef fmtter_methods[] = {

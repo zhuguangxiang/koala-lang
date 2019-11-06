@@ -92,7 +92,7 @@ static Object *any_str(Object *ob, Object *args)
 
 static Object *any_fmt(Object *ob, Object *args)
 {
-
+  return NULL;
 }
 
 static Object *any_class(Object *ob, Object *args)
@@ -665,12 +665,12 @@ int object_equal(Object *ob1, Object *ob2)
 
 Object *Object_Class(Object *ob)
 {
-
+  return NULL;
 }
 
 Object *Object_String(Object *ob)
 {
-
+  return NULL;
 }
 
 Object *object_lookup(Object *self, char *name, TypeObject *type)

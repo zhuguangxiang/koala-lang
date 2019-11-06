@@ -1,0 +1,65 @@
+
+macos:~ james$ HOMEBREW_NO_AUTO_UPDATE=1 brew install cmake
+==> Pouring cmake-3.15.5.mojave.bottle.tar.gz
+==> Caveats
+Emacs Lisp files have been installed to:
+  /usr/local/share/emacs/site-lisp/cmake
+==> Summary
+  /usr/local/Cellar/cmake/3.15.5: 5,801 files, 53.4MB
+
+-----------------------------------------------------------------------------
+
+macos:~ james$ HOMEBREW_NO_AUTO_UPDATE=1 brew install bison
+==> Pouring bison-3.4.2.mojave.bottle.tar.gz
+==> Caveats
+bison is keg-only, which means it was not symlinked into /usr/local,
+because some formulae require a newer version of bison.
+
+If you need to have bison first in your PATH run:
+  echo 'export PATH="/usr/local/opt/bison/bin:$PATH"' >> ~/.bash_profile
+
+For compilers to find bison you may need to set:
+  export LDFLAGS="-L/usr/local/opt/bison/lib"
+
+==> Summary
+  /usr/local/Cellar/bison/3.4.2: 85 files, 2.6MB
+
+-----------------------------------------------------------------------------
+
+macos:~ james$ HOMEBREW_NO_AUTO_UPDATE=1 brew install flex
+==> Pouring gettext-0.20.1.mojave.bottle.tar.gz
+==> Caveats
+gettext is keg-only, which means it was not symlinked into /usr/local,
+because macOS provides the BSD gettext library & some software gets confused if both are in the library path.
+
+If you need to have gettext first in your PATH run:
+  echo 'export PATH="/usr/local/opt/gettext/bin:$PATH"' >> ~/.bash_profile
+
+For compilers to find gettext you may need to set:
+  export LDFLAGS="-L/usr/local/opt/gettext/lib"
+  export CPPFLAGS="-I/usr/local/opt/gettext/include"
+
+==> Summary
+  /usr/local/Cellar/gettext/0.20.1: 1,899 files, 18.5MB
+
+==> Pouring flex-2.6.4_1.mojave.bottle.tar.gz
+==> Caveats
+flex is keg-only, which means it was not symlinked into /usr/local,
+because some formulae require a newer version of flex.
+
+If you need to have flex first in your PATH run:
+  echo 'export PATH="/usr/local/opt/flex/bin:$PATH"' >> ~/.bash_profile
+
+For compilers to find flex you may need to set:
+  export LDFLAGS="-L/usr/local/opt/flex/lib"
+  export CPPFLAGS="-I/usr/local/opt/flex/include"
+
+==> Summary
+  /usr/local/Cellar/flex/2.6.4_1: 45 files, 1.4MB
+
+-----------------------------------------------------------------------------
+
+echo 'export PATH="/usr/local/opt/bison/bin:$PATH"' >> ~/.bash_profile
+echo 'export PATH="/usr/local/opt/gettext/bin:$PATH"' >> ~/.bash_profile
+echo 'export PATH="/usr/local/opt/flex/bin:$PATH"' >> ~/.bash_profile
+echo 'export PATH="~/.local/bin:$PATH"' >> ~/.bash_profile

@@ -137,6 +137,19 @@ int check_dir(char *path);
 int isdotkl(char *filename);
 int isdotklc(char *filename);
 
+static struct timespec *get_mtimespec(struct stat *sb)
+{
+#if defined(__clang__)
+  return &sb->st_mtimespec;
+#elif defined(__GNUC__)
+  return &sb->st_mtim;
+#elif defined(_MSC_VER)
+  return &sb->st_mtim;
+#else
+  return &sb->st_mtim;
+#endif
+}
+
 static inline int timespec_cmp(struct timespec *t1, struct timespec *t2)
 {
   if (t1->tv_sec == t2->tv_sec) {
@@ -170,7 +183,7 @@ int file_need_compile(char *path)
       need = 0;
     } else {
       // last modified time .kl file > .klc file
-      need = timespec_cmp(&sb2.st_mtim, &sb1.st_mtim);
+      need = timespec_cmp(get_mtimespec(&sb2), get_mtimespec(&sb1));
     }
   }
 
@@ -216,7 +229,7 @@ int dir_need_compile(char *path)
           continue;
 
         // last modified time .kl file > .klc file
-        need = timespec_cmp(&sb2.st_mtim, &sb1.st_mtim);
+        need = timespec_cmp(get_mtimespec(&sb2), get_mtimespec(&sb1));
         if (need)
           break;
       }

@@ -60,7 +60,7 @@ static double flt_add(Object *x, Object *y)
     r = (a + b);
     if ((a > 0 && b > 0 && r < 0) ||
         (a < 0 && b < 0 && r > 0))
-      panic("overflow:%lf + %ld = %lf", a, b, r);
+      panic("overflow:%lf + %"PRId64" = %lf", a, b, r);
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = (a + b);
@@ -89,7 +89,7 @@ static double flt_sub(Object *x, Object *y)
     r = a - b;
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
-      panic("overflow:%lf + %ld = %lf", a, b, r);
+      panic("overflow:%lf + %"PRId64" = %lf", a, b, r);
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = a - b;
@@ -307,7 +307,7 @@ static double flt_num_cmp(Object *x, Object *y)
     r = a - b;
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
-      panic("overflow:%lf + %ld = %lf", a, b, r);
+      panic("overflow:%lf + %"PRId64" = %lf", a, b, r);
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = a - b;

@@ -166,6 +166,7 @@ static inline EnumLabel *new_label(Ident id, int value, Vector *types)
   label->id = id;
   label->value = value;
   label->types = types;
+  return label;
 }
 
 static inline void free_label(EnumLabel *label)

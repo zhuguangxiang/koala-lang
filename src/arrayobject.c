@@ -53,22 +53,22 @@ static Object *array_pop(Object *self, Object *args)
 
 static Object *array_insert(Object *self, Object *args)
 {
-
+  return NULL;
 }
 
 static Object *array_remove(Object *self, Object *args)
 {
-
+  return NULL;
 }
 
 static Object *array_sort(Object *self, Object *args)
 {
-
+  return NULL;
 }
 
 static Object *array_reverse(Object *self, Object *args)
 {
-
+  return NULL;
 }
 
 static Object *array_getitem(Object *self, Object *args)
