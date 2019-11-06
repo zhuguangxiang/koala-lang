@@ -49,13 +49,21 @@
 
 static void show_banner(void)
 {
-  printf("koala %s (%s)\r\n", KOALA_VERSION, __DATE__);
+  printf("koala %s\r\n", KOALA_VERSION);
 
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
-    printf("[GCC %d.%d.%d] on %s/%s %s\r\n",
-           __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,
-           sysinfo.sysname, sysinfo.machine, sysinfo.release);
+#if defined(__clang__)
+  printf("[clang %d.%d.%d] on %s/%s %s\r\n",
+         __clang_major__, __clang_minor__, __clang_patchlevel__,
+         sysinfo.sysname, sysinfo.machine, sysinfo.release);
+#elif defined(__GNUC__)
+  printf("[gcc %d.%d.%d] on %s/%s %s\r\n",
+         __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,
+         sysinfo.sysname, sysinfo.machine, sysinfo.release);
+#elif defined(_MSC_VER)
+#else
+#endif
   }
 }
 
