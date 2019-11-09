@@ -1035,9 +1035,26 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
     warn("cannot find symbol '%s'", name);
     return NULL;
   } else {
-    panic("not implemented");
+    // path is not null and is not builtin path, search for external module
+    sym = stable_get(mod->stbl, path);
+    if (sym != NULL) {
+      debug("find symbol '%s'", path);
+      if (sym->kind == SYM_MOD) {
+        Module *m = sym->mod.ptr;
+        sym = stable_get(m->stbl, name);
+        if (sym != NULL) {
+          debug("find symbol '%s' in '%s'", name, sym->mod.path);
+          ++sym->used;
+          return sym;
+        }
+      } else {
+        warn("symbol '%s' is not module", path);
+        return NULL;
+      }
+    }
+    warn("cannot find symbol '%s'", path);
+    return NULL;
   }
-
 }
 
 static Symbol *get_literal_symbol(char kind)
@@ -2042,6 +2059,47 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   }
 }
 
+static int check_generic(TypeDesc *ptype, Symbol *sym)
+{
+  expect(ptype->kind == TYPE_PARADEF);
+
+  Symbol *typesym;
+  if (sym->kind == SYM_VAR) {
+    typesym = sym->var.typesym;
+  } else {
+    expect(sym->kind == SYM_CLASS);
+    typesym = sym;
+  }
+
+  if (typesym->kind == SYM_PTYPE) {
+    // all generic type is the same desc struct, just compare their address
+    if (ptype != typesym->desc)
+      return 0;
+    else
+      return 1;
+  }
+
+  int exist;
+  Symbol *item;
+  TypeDesc *desc;
+  vector_for_each(desc, ptype->paradef.types) {
+    if (desc_check(desc, typesym->desc))
+      continue;
+    exist = 0;
+    vector_for_each_reverse(item, &typesym->type.lro) {
+      if (desc_isany(item->desc))
+        continue;
+      if (desc_check(desc, item->desc)) {
+        exist = 1;
+        break;
+      }
+    }
+    if (!exist)
+      return 0;
+  }
+  return 1;
+}
+
 static int check_call_args(TypeDesc *proto, Vector *args)
 {
   Vector *descs = proto->proto.args;
@@ -2055,9 +2113,14 @@ static int check_call_args(TypeDesc *proto, Vector *args)
   for (int i = 0; i < sz; ++i) {
     desc = vector_get(descs, i);
     arg = vector_get(args, i);
-    if (!desc_check(desc, arg->desc)) {
-      if (!check_inherit(desc, arg->sym))
+    if (desc->kind == TYPE_PARADEF) {
+      if (!check_generic(desc, arg->sym))
         return -1;
+    } else {
+      if (!desc_check(desc, arg->desc)) {
+        if (!check_inherit(desc, arg->sym))
+          return -1;
+      }
     }
   }
   return 0;
@@ -2080,6 +2143,18 @@ static int check_label_args(TypeDesc *label, Vector *args)
       return -1;
   }
   return 0;
+}
+
+static Symbol *get_generic_symbol(Vector *parasyms, TypeDesc *desc)
+{
+  expect(desc->kind == TYPE_PARADEF);
+  Symbol *item;
+  vector_for_each(item, parasyms) {
+    expect(item->kind == SYM_PTYPE);
+    if (!strcmp(item->name, desc->paradef.name))
+      return item;
+  }
+  return NULL;
 }
 
 static void parse_call(ParserState *ps, Expr *exp)
@@ -2107,7 +2182,11 @@ static void parse_call(ParserState *ps, Expr *exp)
       syntax_error(ps, exp->row, exp->col, "call args check failed");
     } else {
       exp->desc = TYPE_INCREF(desc->proto.ret);
-      exp->sym = get_desc_symbol(ps->module, exp->desc);
+      if (exp->desc != NULL && exp->desc->kind == TYPE_PARADEF) {
+        exp->sym = get_generic_symbol(lexp->sym->func.typesyms, exp->desc);
+      } else {
+        exp->sym = get_desc_symbol(ps->module, exp->desc);
+      }
     }
   } else if (desc->kind == TYPE_LABEL) {
     if (check_label_args(desc, args)) {
@@ -2351,9 +2430,18 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   Symbol *funcsym;
   switch (u->scope) {
   case SCOPE_MODULE:
+    sym = stable_get(u->stbl, id->name);
+    expect(sym != NULL);
+    break;
   case SCOPE_CLASS:
     sym = stable_get(u->stbl, id->name);
     expect(sym != NULL);
+    expect(sym->kind == SYM_VAR);
+    if (sym->var.typesym == NULL) {
+      // generic type refernce
+      if (desc->kind == TYPE_KLASS && desc->klass.path == NULL)
+        sym->var.typesym = stable_get(u->stbl, desc->klass.type);
+    }
     break;
   case SCOPE_FUNC:
     // function scope has independent space for variables.
@@ -2366,6 +2454,19 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       funcsym = u->sym;
       vector_push_back(&funcsym->func.locvec, sym);
       ++sym->refcnt;
+    }
+    expect(sym->kind == SYM_VAR);
+    if (sym->var.typesym == NULL) {
+      // generic type refernce
+      if (desc->kind == TYPE_PARADEF) {
+        Symbol *parasym = stable_get(u->stbl, desc->paradef.name);
+        expect(parasym != NULL && parasym->kind == SYM_PTYPE);
+        debug("var '%s' type is generic", id->name);
+        sym->var.typesym = parasym;
+        //update variable's type
+        TYPE_DECREF(sym->desc);
+        sym->desc = TYPE_INCREF(parasym->desc);
+      }
     }
     break;
   case SCOPE_BLOCK:
@@ -2469,11 +2570,19 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
       debug("last expr-stmt and no value, add OP_RETURN");
       CODE_OP(OP_RETURN);
     } else if (ret.desc != NULL && exp->desc != NULL) {
-      if (!desc_check(ret.desc, exp->desc) &&
-          !check_inherit(ret.desc, exp->sym)) {
-        syntax_error(ps, exp->row, exp->col,
-                     "'%s' incompatible return type", name);
+      if (ret.desc->kind == TYPE_PARADEF) {
+        if (!check_generic(ret.desc, exp->sym)) {
+          syntax_error(ps, exp->row, exp->col,
+                       "'%s' incompatible return type", name);
+        }
       } else {
+        if (!desc_check(ret.desc, exp->desc) &&
+          !check_inherit(ret.desc, exp->sym)) {
+          syntax_error(ps, exp->row, exp->col,
+                       "'%s' incompatible return type", name);
+        }
+      }
+      if (!has_error(ps)) {
         debug("last expr-stmt and has value, add OP_RETURN_VALUE");
         CODE_OP(OP_RETURN_VALUE);
       }
@@ -3043,6 +3152,15 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   Type *type = &stmt->vardecl.type;
   TypeDesc *desc = type->desc;
 
+  if (desc != NULL && desc->kind == TYPE_KLASS && desc->klass.path == NULL) {
+    //update generic type
+    Symbol *gtsym = stable_get(ps->u->stbl, desc->klass.type);
+    if (gtsym != NULL) {
+      debug("'%s' is a generic type", gtsym->name);
+      desc = gtsym->desc;
+    }
+  }
+
   if (exp != NULL) {
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
@@ -3059,16 +3177,22 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
         debug("update expr's type as its enum '%s'", rdesc->klass.type);
       }
 
-      if (!desc_check(desc, rdesc)) {
-        if (!check_inherit(desc, exp->sym)) {
-          STRBUF(sbuf1);
-          STRBUF(sbuf2);
-          desc_tostr(desc, &sbuf1);
-          desc_tostr(exp->desc, &sbuf2);
-          syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
-                       strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-          strbuf_fini(&sbuf1);
-          strbuf_fini(&sbuf2);
+      if (desc->kind == TYPE_PARADEF) {
+        if (!check_generic(desc, exp->sym)) {
+          syntax_error(ps, exp->row, exp->col, "generic type checked failed");
+        }
+      } else {
+        if (!desc_check(desc, rdesc)) {
+          if (!check_inherit(desc, exp->sym)) {
+            STRBUF(sbuf1);
+            STRBUF(sbuf2);
+            desc_tostr(desc, &sbuf1);
+            desc_tostr(exp->desc, &sbuf2);
+            syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+                        strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+            strbuf_fini(&sbuf1);
+            strbuf_fini(&sbuf2);
+          }
         }
       }
     }
@@ -3168,6 +3292,13 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
           rdesc->klass.type, rexp->sym->name);
   }
 
+  if (rdesc->kind == TYPE_PARADEF) {
+    if (!check_generic(rdesc, lexp->sym)) {
+      syntax_error(ps, lexp->row, lexp->col, "assignment is not macthed");
+    }
+    return;
+  }
+
   if (!desc_check(ldesc, rdesc)) {
     if (!check_inherit(ldesc, rexp->sym)) {
       STRBUF(sbuf1);
@@ -3225,26 +3356,196 @@ TypeDesc *parse_proto(Vector *idtypes, Type *ret)
   return desc_from_proto(vec, ret->desc);
 }
 
+static int lro_exist(Vector *vec, Symbol *sym)
+{
+  Symbol *item;
+  vector_for_each(item, vec) {
+    if (desc_isany(item->desc))
+      continue;
+    if (desc_check(item->desc, sym->desc))
+      return 1;
+  }
+  return 0;
+}
+
+static void lro_add(Symbol *base, Vector *lro, char *symname)
+{
+  Symbol *sym;
+  vector_for_each(sym, &base->type.lro) {
+    if (desc_isany(sym->desc))
+      continue;
+    if (!lro_exist(lro, sym)) {
+      debug("add sym '%s' into '%s' lro", sym->name, symname);
+      vector_push_back(lro, sym);
+      ++sym->refcnt;
+    }
+  }
+
+  if (!desc_isany(base->desc) && !lro_exist(lro, base)) {
+    debug("add sym '%s' into '%s' lro", base->name, symname);
+    vector_push_back(lro, base);
+    ++base->refcnt;
+  }
+}
+
+static int check_paratype_valid(ParserState *ps, Symbol *sym, Vector *types)
+{
+  Symbol *para;
+  TypeDesc *item;
+  vector_for_each(item, types) {
+    para = get_desc_symbol(ps->module, item);
+    if (para == NULL) {
+      STRBUF(sbuf);
+      desc_tostr(item, &sbuf);
+      syntax_error(ps, 0, 0, "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+      return -1;
+    }
+
+    if (item->types != NULL) {
+      if (check_paratype_valid(ps, para, item->types))
+        return -1;
+    }
+
+    // check sym->paratype is in para->type.lro
+    int flag = 0;
+    Symbol *s, *s2;
+    vector_for_each(s, sym->paratype.typesyms) {
+      flag = 0;
+      vector_for_each_reverse(s2, &para->type.lro) {
+        if (s == s2) {
+          flag = 1;
+          break;
+        }
+      }
+      if (!flag) {
+        syntax_error(ps, 0, 0, "'%s' is not subclass of '%s'",
+                     para->name, sym->name);
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+static
+void parse_paratype_decl(ParserState *ps, Vector *paratypes, Vector **parasyms)
+{
+  Vector *paras = NULL;
+  if (vector_size(paratypes) > 0)
+    paras = vector_new();
+
+  ParserUnit *u = ps->u;
+  Symbol *sym;
+  Symbol *basesym;
+  TypeDesc *desc, *desc2;
+  vector_for_each(desc, paratypes) {
+    // check paratype's bases
+    expect(desc->kind == TYPE_PARADEF);
+    Vector *bases = desc->paradef.types;
+    debug("parse generic type '%s'", desc->paradef.name);
+    Vector *descs = NULL;
+    Vector *typesyms = NULL;
+    if (vector_size(bases) > 0) {
+      descs = vector_new();
+      typesyms = vector_new();
+    }
+    vector_for_each(desc2, bases) {
+      expect(desc2->kind == TYPE_KLASS);
+      expect(desc2->paras == NULL);
+      basesym = get_desc_symbol(ps->module, desc2);
+      if (basesym == NULL) {
+        STRBUF(sbuf);
+        desc_tostr(desc2, &sbuf);
+        syntax_error(ps, 0, 0, "'%s' is not defined", strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
+      } else {
+        // check para types are correct
+        if (basesym->type.typeparas == NULL && desc2->types != NULL) {
+          syntax_error(ps, 0, 0, "'%s' no generic types", basesym->name);
+        } else if (basesym->type.typeparas != NULL && desc2->types == NULL) {
+          syntax_error(ps, 0, 0, "'%s' need generic types", basesym->name);
+        } else if (basesym->type.typeparas == NULL && desc2->types == NULL) {
+          debug("'%s' no generic types", basesym->name);
+        } else {
+          if (check_paratype_valid(ps, basesym, desc2->types)) {
+            *parasyms = NULL;
+            return;
+          }
+        }
+        vector_push_back(typesyms, basesym);
+        ++basesym->refcnt;
+        vector_push_back(descs, TYPE_INCREF(basesym->desc));
+      }
+    }
+    // add parameter type into current parserunit
+    sym = stable_add_paratype(u->stbl, desc->paradef.name);
+    if (sym == NULL) {
+      syntax_error(ps, 0, 0, "'%s' is redeclared", desc->paradef.name);
+      *parasyms = NULL;
+      return;
+    }
+    sym->desc = desc_from_paradef(sym->name, descs);
+    sym->paratype.typesyms = typesyms;
+    sym->paratype.index = idx;
+    vector_push_back(paras, sym);
+    ++sym->refcnt;
+  }
+
+  *parasyms = paras;
+}
+
 static void parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
   char *funcname = stmt->funcdecl.id.name;
   debug("parse function '%s'", funcname);
+
+  /* get func symbol */
+  Symbol *sym = stable_get(ps->u->stbl, funcname);
+  expect(sym != NULL && sym->kind == SYM_FUNC);
+
   parser_enter_scope(ps, SCOPE_FUNC, 0);
   ParserUnit *u = ps->u;
   u->stbl = stable_new();
-
-  /* get func symbol */
-  ParserUnit *up = up_scope(ps);
-  expect(up != NULL);
-  Symbol *sym = stable_get(up->stbl, funcname);
-  expect(sym != NULL && sym->kind == SYM_FUNC);
   u->sym = sym;
 
+  /* parse func's generic types */
+  parse_paratype_decl(ps, stmt->funcdecl.typeparas, &sym->func.typesyms);
+
+  /* update func's proto for generic types */
+  TypeDesc *desc = sym->desc;
+  if (!has_error(ps)) {
+    // parametter types
+    TypeDesc *item;
+    vector_for_each(item, desc->proto.args) {
+      if (item->kind == TYPE_KLASS && item->klass.path == NULL) {
+        Symbol *parasym = stable_get(u->stbl, item->klass.type);
+        if (parasym != NULL && parasym->kind == SYM_PTYPE) {
+          debug("type '%s' is generic", item->klass.type);
+          TYPE_DECREF(item);
+          vector_set(desc->proto.args, idx, TYPE_INCREF(parasym->desc));
+        }
+      }
+    }
+    // return type
+    item = desc->proto.ret;
+    if (item != NULL &&
+        item->kind == TYPE_KLASS && item->klass.path == NULL) {
+      Symbol *parasym = stable_get(u->stbl, item->klass.type);
+      if (parasym != NULL && parasym->kind == SYM_PTYPE) {
+        debug("type '%s' is generic", parasym->name);
+        TYPE_DECREF(item);
+        desc->proto.ret = TYPE_INCREF(parasym->desc);
+      }
+    }
+  }
+
   /* parse func arguments */
+  Vector *argtypes = desc->proto.args;
   Vector *idtypes = stmt->funcdecl.idtypes;
   IdType *item;
   vector_for_each(item, idtypes) {
-    sym = add_update_var(ps, &item->id, item->type.desc);
+    sym = add_update_var(ps, &item->id, vector_get(argtypes, idx));
     if (sym != NULL && sym->var.typesym == NULL) {
       STRBUF(sbuf);
       desc_tostr(item->type.desc, &sbuf);
@@ -3255,23 +3556,31 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   }
 
   // check return type
+  TypeDesc *rettype = desc->proto.ret;
   Type *ret = &stmt->funcdecl.ret;
-  if (ret->desc != NULL) {
+  if (rettype != NULL) {
     if (!strcmp(funcname, "__init__")) {
       syntax_error(ps, ret->row, ret->col, "__init__ needs no value");
     } else {
-      sym = get_desc_symbol(ps->module, ret->desc);
-      if (sym == NULL) {
-        STRBUF(sbuf);
-        desc_tostr(ret->desc, &sbuf);
-        syntax_error(ps, ret->row, ret->col,
-                    "'%s' is not defined", strbuf_tostr(&sbuf));
-        strbuf_fini(&sbuf);
+      if (rettype->kind == TYPE_PARADEF) {
+        Symbol *parasym = stable_get(u->stbl, rettype->paradef.name);
+        expect(parasym != NULL && parasym->kind == SYM_PTYPE);
+        debug("ret type '%s' is generic", parasym->name);
+      } else {
+        sym = get_desc_symbol(ps->module, rettype);
+        if (sym == NULL) {
+          STRBUF(sbuf);
+          desc_tostr(rettype, &sbuf);
+          syntax_error(ps, ret->row, ret->col,
+                      "'%s' is not defined", strbuf_tostr(&sbuf));
+          strbuf_fini(&sbuf);
+        }
       }
     }
   }
 
-  parse_body(ps, funcname, stmt->funcdecl.body, stmt->funcdecl.ret);
+  Type ret2 = {rettype, ret->row, ret->col};
+  parse_body(ps, funcname, stmt->funcdecl.body, ret2);
 
   stable_free(u->stbl);
   u->stbl = NULL;
@@ -3314,6 +3623,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
   ParserUnit *fu = get_func_scope(ps);
   if (fu == NULL) {
     syntax_error(ps, stmt->row, stmt->col, "'return' outside function");
+    return;
   }
 
   Expr *exp = stmt->ret.exp;
@@ -3321,24 +3631,38 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     debug("return has value");
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
+
     if (exp->desc == NULL) {
       syntax_error(ps, exp->row, exp->col, "expr has no value");
+      return;
+    }
+
+    TypeDesc *desc = fu->sym->desc;
+    expect(desc != NULL);
+    TypeDesc *ret = desc->proto.ret;
+    if (ret->kind == TYPE_PARADEF) {
+      if (!check_generic(ret, exp->sym)) {
+        syntax_error(ps, exp->row, exp->col,
+                      "incompatible return types with generic type");
+      }
     } else {
-      TypeDesc *desc = fu->sym->desc;
-      expect(desc != NULL);
-      if (!desc_check(desc->proto.ret, exp->desc) &&
-          !check_inherit(desc->proto.ret, exp->sym)) {
+      if (!desc_check(ret, exp->desc) &&
+          !check_inherit(ret, exp->sym)) {
         syntax_error(ps, exp->row, exp->col, "incompatible return types");
-      } else {
-        stmt->hasvalue = 1;
-        stmt->desc = TYPE_INCREF(exp->desc);
-        CODE_OP(OP_RETURN_VALUE);
       }
     }
-  } else {
-    debug("return has no value");
-    CODE_OP(OP_RETURN);
+
+    if (!has_error(ps)) {
+      stmt->hasvalue = 1;
+      stmt->desc = TYPE_INCREF(exp->desc);
+      CODE_OP(OP_RETURN_VALUE);
+    }
+
+    return;
   }
+
+  debug("return has no value");
+  CODE_OP(OP_RETURN);
 }
 
 static void parse_break(ParserState *ps, Stmt *stmt)
@@ -3607,38 +3931,6 @@ static void parse_ifunc(ParserState *ps, Stmt *stmt)
   expect(sym != NULL && sym->kind == SYM_IFUNC);
 }
 
-static int lro_exist(Vector *vec, Symbol *sym)
-{
-  Symbol *item;
-  vector_for_each(item, vec) {
-    if (desc_isany(item->desc))
-      continue;
-    if (desc_check(item->desc, sym->desc))
-      return 1;
-  }
-  return 0;
-}
-
-static void lro_add(Symbol *base, Symbol *clssym)
-{
-  Symbol *sym;
-  vector_for_each(sym, &base->type.lro) {
-    if (desc_isany(sym->desc))
-      continue;
-    if (!lro_exist(&clssym->type.lro, sym)) {
-      debug("add sym '%s' into '%s' lro", sym->name, clssym->name);
-      vector_push_back(&clssym->type.lro, sym);
-      ++sym->refcnt;
-    }
-  }
-
-  if (!desc_isany(base->desc) && !lro_exist(&clssym->type.lro, base)) {
-    debug("add sym '%s' into '%s' lro", base->name, clssym->name);
-    vector_push_back(&clssym->type.lro, base);
-    ++base->refcnt;
-  }
-}
-
 static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
 {
   ExtendsDef *ext = stmt->class_stmt.extends;
@@ -3684,12 +3976,14 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
 
   // build lro
   sym = clssym->type.base;
+  Vector *lro = &clssym->type.lro;
+  char *symname = clssym->name;
   if (sym != NULL) {
-    lro_add(sym, clssym);
+    lro_add(sym, lro, symname);
   }
 
   vector_for_each(sym, &clssym->type.traits) {
-    lro_add(sym, clssym);
+    lro_add(sym, lro, symname);
   }
 }
 
@@ -3870,8 +4164,10 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
   }
 
   // build lro
+  Vector *lro = &traitsym->type.lro;
+  char *symname = traitsym->name;
   vector_for_each(sym, &traitsym->type.traits) {
-    lro_add(sym, traitsym);
+    lro_add(sym, lro, symname);
   }
 }
 

@@ -1,0 +1,57 @@
+
+import "io"
+
+class Pet {
+  name string = "Hello-Petty"
+
+  func bark() {
+    io.println(name)
+  }
+}
+
+pet := new Pet()
+pet.bark()
+
+class Cat extends Pet {
+  name string
+  age = 12
+
+  func __init__(n string) {
+    name = n
+  }
+
+  func bark() {
+    io.println(name)
+  }
+}
+
+cat := new Cat("Kitty")
+cat.bark()
+cat.age
+
+func bark<T:Pet>(pet T) {
+  pet.bark()
+}
+
+bark(pet)
+bark(cat)
+
+func new_pet<T:Pet>(kind string) T {
+  //return new Cat("Kitty")
+  //return kind == "pet" ? new Pet() : new Cat("Kitty")
+  kind == "pet" ? new Pet() : new Cat("Kitty")
+}
+
+pet = new_pet("pet")
+pet.bark()
+cat = new_pet("cat")
+cat.bark()
+
+func bark2<T:Pet>(pet T) {
+  pet.bark()
+  var p T = pet
+  p.bark()
+}
+
+bark2(pet)
+bark2(cat)

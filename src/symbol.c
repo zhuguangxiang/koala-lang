@@ -196,6 +196,16 @@ Symbol *stable_add_label(STable *stbl, char *name)
   return sym;
 }
 
+Symbol *stable_add_paratype(STable *stbl, char *name)
+{
+  expect(stbl != NULL);
+  Symbol *sym = symbol_new(name, SYM_PTYPE);
+  if (stable_add_symbol(stbl, sym))
+    return NULL;
+  symbol_decref(sym);
+  return sym;
+}
+
 void symbol_free(Symbol *sym)
 {
   TYPE_DECREF(sym->desc);
@@ -254,6 +264,9 @@ void symbol_free(Symbol *sym)
     break;
   case SYM_REF:
     panic("SYM_REF not implemented");
+    break;
+  case SYM_PTYPE:
+    debug("[Symbol Freed] paratype '%s'", sym->name);
     break;
   default:
     panic("invalide symbol '%s' kind %d", sym->name, sym->kind);
@@ -456,20 +469,20 @@ void type_write_image(Symbol *typesym, Image *image)
   vector_free(types);
 }
 
-Symbol *type_find_mbr(Symbol *typeSym, char *name)
+static Symbol *_find_mbr_(Symbol *typesym, char *name)
 {
-  if (typeSym->kind != SYM_CLASS && typeSym->kind != SYM_ENUM &&
-      typeSym->kind != SYM_TRAIT) {
-    error("sym '%s' is not class/trait/enum", typeSym->name);
+  if (typesym->kind != SYM_CLASS && typesym->kind != SYM_ENUM &&
+      typesym->kind != SYM_TRAIT) {
+    error("sym '%s' is not class/trait/enum", typesym->name);
     return NULL;
   }
 
-  Symbol *sym = stable_get(typeSym->type.stbl, name);
+  Symbol *sym = stable_get(typesym->type.stbl, name);
   if (sym != NULL)
     return sym;
 
   Symbol *item;
-  vector_for_each_reverse(item, &typeSym->type.lro) {
+  vector_for_each_reverse(item, &typesym->type.lro) {
     sym = type_find_mbr(item, name);
     if (sym != NULL)
       return sym;
@@ -478,17 +491,38 @@ Symbol *type_find_mbr(Symbol *typeSym, char *name)
   return NULL;
 }
 
-Symbol *type_find_super_mbr(Symbol *typeSym, char *name)
+Symbol *type_find_mbr(Symbol *typesym, char *name)
 {
-  if (typeSym->kind != SYM_CLASS && typeSym->kind != SYM_ENUM &&
-      typeSym->kind != SYM_TRAIT) {
-    error("sym '%s' is not class/trait/enum", typeSym->name);
+  if (typesym->kind != SYM_CLASS && typesym->kind != SYM_ENUM &&
+      typesym->kind != SYM_TRAIT && typesym->kind != SYM_PTYPE) {
+    error("sym '%s' is not class/trait/enum/paratype", typesym->name);
+    return NULL;
+  }
+
+  if (typesym->kind == SYM_PTYPE) {
+    Symbol *sym;
+    Symbol *base;
+    vector_for_each_reverse(base, typesym->paratype.typesyms) {
+      sym = _find_mbr_(base, name);
+      if (sym != NULL)
+        return sym;
+    }
+  }
+
+  return _find_mbr_(typesym, name);
+}
+
+Symbol *type_find_super_mbr(Symbol *typesym, char *name)
+{
+  if (typesym->kind != SYM_CLASS && typesym->kind != SYM_ENUM &&
+      typesym->kind != SYM_TRAIT) {
+    error("sym '%s' is not class/trait/enum", typesym->name);
     return NULL;
   }
 
   Symbol *sym;
   Symbol *item;
-  vector_for_each_reverse(item, &typeSym->type.lro) {
+  vector_for_each_reverse(item, &typesym->type.lro) {
     sym = type_find_mbr(item, name);
     if (sym != NULL)
       return sym;

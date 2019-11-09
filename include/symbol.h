@@ -53,6 +53,7 @@ typedef enum symbolkind {
   SYM_ANONY  = 9,   /* anonymous function */
   SYM_MOD    = 10,  /* (external) module  */
   SYM_REF    = 11,  /* reference symbol   */
+  SYM_PTYPE  = 12,  /* parameter type     */
   SYM_MAX
 } SymKind;
 
@@ -96,7 +97,7 @@ struct symbol {
     } var;
     struct {
       /* type parameters, only for in module */
-      Vector *typeparas;
+      Vector *typesyms;
       /* local varibles in the function */
       Vector locvec;
       /* free variables' name */
@@ -148,6 +149,12 @@ struct symbol {
       /* reference module */
       void *module;
     } ref;
+    struct {
+      /* class symbols */
+      Vector *typesyms;
+      /* index in paratypes */
+      int index;
+    } paratype;
   };
 };
 
@@ -169,6 +176,7 @@ Symbol *stable_add_class(STable *stbl, char *name);
 Symbol *stable_add_trait(STable *stbl, char *name);
 Symbol *stable_add_enum(STable *stbl, char *name);
 Symbol *stable_add_label(STable *stbl, char *name);
+Symbol *stable_add_paratype(STable *stbl, char *name);
 void symbol_decref(Symbol *sym);
 void symbol_free(Symbol *sym);
 Symbol *type_find_mbr(Symbol *clsSym, char *name);

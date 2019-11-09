@@ -2344,7 +2344,7 @@ klass_type:
 }
 | ID '.' ID
 {
-  $$ = NULL;
+  $$ = desc_from_klass($1, $3);
 }
 | ID '<' type_list '>'
 {
@@ -2353,7 +2353,8 @@ klass_type:
 }
 | ID '.' ID '<' type_list '>'
 {
-  $$ = NULL;
+  $$ = desc_from_klass($1, $3);
+  $$->types = $5;
 }
 ;
 
