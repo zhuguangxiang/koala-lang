@@ -3461,11 +3461,11 @@ void parse_paratype_decl(ParserState *ps, Vector *paratypes, Vector **parasyms)
         strbuf_fini(&sbuf);
       } else {
         // check para types are correct
-        if (basesym->type.typeparas == NULL && desc2->types != NULL) {
+        if (basesym->type.typesyms == NULL && desc2->types != NULL) {
           syntax_error(ps, 0, 0, "'%s' no generic types", basesym->name);
-        } else if (basesym->type.typeparas != NULL && desc2->types == NULL) {
+        } else if (basesym->type.typesyms != NULL && desc2->types == NULL) {
           syntax_error(ps, 0, 0, "'%s' need generic types", basesym->name);
-        } else if (basesym->type.typeparas == NULL && desc2->types == NULL) {
+        } else if (basesym->type.typesyms == NULL && desc2->types == NULL) {
           debug("'%s' no generic types", basesym->name);
         } else {
           if (check_paratype_valid(ps, basesym, desc2->types)) {

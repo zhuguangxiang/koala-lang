@@ -25,6 +25,8 @@ fn = foo.get_op("sub")
 io.println(fn(1, 2))
 io.println(foo.add(100, 200))
 io.println(foo.sub(100, 200))
+var fv foo.Foo
+fv.name
 
 import fb "github.com/koala-examples/foobar"
 fn = fb.get_op("add")

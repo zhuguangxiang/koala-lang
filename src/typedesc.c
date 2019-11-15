@@ -142,17 +142,6 @@ TypeDesc *desc_from_klass(char *path, char *type)
 
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret)
 {
-  if (ret != NULL) {
-    expect(ret->kind != TYPE_PARADEF);
-  }
-
-  if (args != NULL) {
-    TypeDesc *item;
-    vector_for_each(item, args) {
-      expect(item->kind != TYPE_PARADEF);
-    }
-  }
-
   TypeDesc *desc = kmalloc(sizeof(TypeDesc));
   desc->kind = TYPE_PROTO;
   desc->refcnt = 1;

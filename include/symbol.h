@@ -109,7 +109,7 @@ struct symbol {
       /* abstract class */
       int abstract;
       /* type parameters */
-      Vector *typeparas;
+      Vector *typesyms;
       /* base class */
       Symbol *base;
       /* traits */

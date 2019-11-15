@@ -285,6 +285,15 @@ static TypeItem *typeitem_proto_new(int32_t pindex, int32_t rindex)
   return item;
 }
 
+static TypeItem *typeitem_paradef_new(int32_t nameindex, int32_t typesindex)
+{
+  TypeItem *item = kmalloc(sizeof(TypeItem));
+  item->kind = TYPE_PARADEF;
+  item->paradef.nameindex  = nameindex;
+  item->paradef.typesindex = typesindex;
+  return item;
+}
+
 static int indexitem_length(void *o)
 {
   IndexItem *item = o;
@@ -976,6 +985,14 @@ static int typeitem_get(Image *image, TypeDesc *desc)
     item.proto.rindex = rindex;
     break;
   }
+  case TYPE_PARADEF: {
+    int nameindex = stringitem_get(image, desc->paradef.name);
+    int typesindex = indexitem_get(image, INDEX_TYPELIST, desc->paradef.types);
+    item.kind = TYPE_PARADEF;
+    item.paradef.nameindex = nameindex;
+    item.paradef.typesindex = typesindex;
+    break;
+  }
   default: {
     panic("invalid typedesc %d", desc->kind);
     break;
@@ -1025,10 +1042,15 @@ static int typeitem_set(Image *image, TypeDesc *desc)
       item = typeitem_proto_new(pindex, rindex);
       break;
     }
-    default: {
-      panic("invalid typedesc %d", desc->kind);
+    case TYPE_PARADEF: {
+      int nameindex = stringitem_set(image, desc->paradef.name);
+      int typesindex = indexitem_set(image, INDEX_TYPELIST, desc->paradef.types);
+      item = typeitem_paradef_new(nameindex, typesindex);
       break;
     }
+    default:
+      panic("invalid typedesc %d", desc->kind);
+      break;
     }
     index = _append_(image, ITEM_TYPE, item, 1);
   }
@@ -1568,7 +1590,7 @@ void image_free(Image *image)
   kfree(image);
 }
 
-static Vector *to_typedescvec(IndexItem *item, Image *image)
+static Vector *to_desc_vec(IndexItem *item, Image *image)
 {
   if (item == NULL)
     return NULL;
@@ -1589,10 +1611,10 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
   if (item == NULL)
     return NULL;
 
-  TypeDesc *t = NULL;
+  TypeDesc *desc = NULL;
   switch (item->kind) {
   case TYPE_BASE: {
-    t = desc_from_base(item->base);
+    desc = desc_from_base(item->base);
     break;
   }
   case TYPE_KLASS: {
@@ -1607,31 +1629,38 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     }
     s = _get_(image, ITEM_STRING, item->klass.typeindex);
     type = atom(s->data);
-    t = desc_from_klass(path, type);
+    desc = desc_from_klass(path, type);
     if (item->parasindex >= 0) {
       IndexItem *listitem = _get_(image, ITEM_INDEX, item->parasindex);
-      t->paras = to_typedescvec(listitem, image);
+      desc->paras = to_desc_vec(listitem, image);
     }
     if (item->typesindex >= 0) {
       IndexItem *listitem = _get_(image, ITEM_INDEX, item->typesindex);
-      t->types = to_typedescvec(listitem, image);
+      desc->types = to_desc_vec(listitem, image);
     }
     break;
   }
   case TYPE_PROTO: {
     IndexItem *listitem = _get_(image, ITEM_INDEX, item->proto.pindex);
     TypeItem *item2 = _get_(image, ITEM_TYPE, item->proto.rindex);
-    Vector *args = to_typedescvec(listitem, image);
+    Vector *args = to_desc_vec(listitem, image);
     TypeDesc *ret = to_typedesc(item2, image);
-    t = desc_from_proto(args, ret);
+    desc = desc_from_proto(args, ret);
     TYPE_DECREF(ret);
+    break;
+  }
+  case TYPE_PARADEF: {
+    StringItem *stritem = _get_(image, ITEM_STRING, item->paradef.nameindex);
+    IndexItem *idxitem = _get_(image, ITEM_INDEX, item->paradef.typesindex);
+    Vector *types = to_desc_vec(idxitem, image);
+    desc = desc_from_paradef(stritem->data, types);
     break;
   }
   default:
     panic("invalid type %d", item->kind);
     break;
   }
-  return t;
+  return desc;
 }
 
 static Literal to_literal(LiteralItem *item, Image *image)
@@ -1686,7 +1715,7 @@ static void image_load_anony(Image *image, ConstItem *item, CodeInfo *ci)
   CodeItem *code = _get_(image, ITEM_CODE, anony->codeindex);
   IndexItem *listitem = _get_(image, ITEM_INDEX, anony->pindex);
   TypeItem *typeitem = _get_(image, ITEM_TYPE, anony->rindex);
-  Vector *args = to_typedescvec(listitem, image);
+  Vector *args = to_desc_vec(listitem, image);
   TypeDesc *ret = to_typedesc(typeitem, image);
   TypeDesc *desc = desc_from_proto(args, ret);
   TYPE_DECREF(ret);
@@ -1795,7 +1824,7 @@ void image_load_method(Image *image, int index, getmbrfunc func, void *arg)
   CodeItem *code = _get_(image, ITEM_CODE, item->codeindex);
   IndexItem *listitem = _get_(image, ITEM_INDEX, item->pindex);
   TypeItem *typeitem = _get_(image, ITEM_TYPE, item->rindex);
-  Vector *args = to_typedescvec(listitem, image);
+  Vector *args = to_desc_vec(listitem, image);
   TypeDesc *ret = to_typedesc(typeitem, image);
   TypeDesc *desc = desc_from_proto(args, ret);
   TYPE_DECREF(ret);
@@ -1827,7 +1856,7 @@ void image_load_ifunc(Image *image, int index, getmbrfunc func, void *arg)
   StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
   IndexItem *listitem = _get_(image, ITEM_INDEX, item->pindex);
   TypeItem *typeitem = _get_(image, ITEM_TYPE, item->rindex);
-  Vector *args = to_typedescvec(listitem, image);
+  Vector *args = to_desc_vec(listitem, image);
   TypeDesc *ret = to_typedesc(typeitem, image);
   TypeDesc *desc = desc_from_proto(args, ret);
   TYPE_DECREF(ret);
@@ -1840,7 +1869,7 @@ void image_load_label(Image *image, int index, getmbrfunc func, void *arg)
   LabelItem *item = _get_(image, ITEM_LABEL, index);
   StringItem *str = _get_(image, ITEM_STRING, item->nameindex);
   IndexItem *listitem = _get_(image, ITEM_INDEX, item->index);
-  Vector *types = to_typedescvec(listitem, image);
+  Vector *types = to_desc_vec(listitem, image);
   func(str->data, MBR_LABEL, types, arg);
   free_descs(types);
 }
@@ -1899,7 +1928,7 @@ void image_load_func(Image *image, int index, getfuncfunc func, void *arg)
   CodeItem *code = _get_(image, ITEM_CODE, item->codeindex);
   IndexItem *listitem = _get_(image, ITEM_INDEX, item->pindex);
   TypeItem *typeitem = _get_(image, ITEM_TYPE, item->rindex);
-  Vector *args = to_typedescvec(listitem, image);
+  Vector *args = to_desc_vec(listitem, image);
   TypeDesc *ret = to_typedesc(typeitem, image);
   TypeDesc *desc = desc_from_proto(args, ret);
   TYPE_DECREF(ret);
