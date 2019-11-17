@@ -196,7 +196,7 @@ Symbol *stable_add_label(STable *stbl, char *name)
   return sym;
 }
 
-Symbol *stable_add_paratype(STable *stbl, char *name)
+Symbol *stable_add_typepara(STable *stbl, char *name)
 {
   expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_PTYPE);
@@ -438,6 +438,10 @@ void type_write_image(Symbol *typesym, Image *image)
       index = image_add_label(image, sym->name, sym->label.types, 0);
       indexes[j].kind = MBR_LABEL;
       indexes[j].index = index;
+      break;
+    case SYM_PTYPE:
+      // omit type paramter
+      --size;
       break;
     default:
       panic("invalid symbol kind %d in class/trait/enum", sym->kind);

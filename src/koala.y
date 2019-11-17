@@ -197,7 +197,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <name> name
 %type <list> type_para_list
 %type <desc> type_para
-%type <list> type_upbound_list
+%type <list> type_bound_list
 %type <idtypelist> para_list
 %type <idtypelist> id_type_list
 %type <ptr> id_varg
@@ -1860,19 +1860,19 @@ type_para:
 {
   $$ = desc_from_paradef($1, NULL);
 }
-| ID ':' type_upbound_list
+| ID ':' type_bound_list
 {
   $$ = desc_from_paradef($1, $3);
 }
 ;
 
-type_upbound_list:
+type_bound_list:
   klass_type
 {
   $$ = vector_new();
   vector_push_back($$, $1);
 }
-| type_upbound_list '&' klass_type
+| type_bound_list '&' klass_type
 {
   $$ = $1;
   vector_push_back($$, $3);

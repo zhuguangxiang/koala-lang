@@ -176,7 +176,7 @@ Symbol *stable_add_class(STable *stbl, char *name);
 Symbol *stable_add_trait(STable *stbl, char *name);
 Symbol *stable_add_enum(STable *stbl, char *name);
 Symbol *stable_add_label(STable *stbl, char *name);
-Symbol *stable_add_paratype(STable *stbl, char *name);
+Symbol *stable_add_typepara(STable *stbl, char *name);
 void symbol_decref(Symbol *sym);
 void symbol_free(Symbol *sym);
 Symbol *type_find_mbr(Symbol *clsSym, char *name);

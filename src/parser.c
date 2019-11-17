@@ -3479,7 +3479,7 @@ void parse_paratype_decl(ParserState *ps, Vector *paratypes, Vector **parasyms)
       }
     }
     // add parameter type into current parserunit
-    sym = stable_add_paratype(u->stbl, desc->paradef.name);
+    sym = stable_add_typepara(u->stbl, desc->paradef.name);
     if (sym == NULL) {
       syntax_error(ps, 0, 0, "'%s' is redeclared", desc->paradef.name);
       *parasyms = NULL;
@@ -4053,6 +4053,210 @@ static void check_proto_impl(ParserState *ps)
   }
 }
 
+Symbol *get_bound_symbol(ParserState *ps, TypeDesc *type)
+{
+  ParserUnit *u = ps->u;
+  expect(type->kind == TYPE_KLASS);
+  char *path = type->klass.path;
+  char *name = type->klass.type;
+  Symbol *sym = NULL;
+
+  if (path == NULL) {
+    // check it is a type parameter or not
+    sym = stable_get(u->stbl, name);
+    if (sym != NULL && sym->kind != SYM_PTYPE) {
+      syntax_error(ps, 0, 0, "'%s' is not a type paramter", name);
+      return NULL;
+    }
+
+    if (sym != NULL) {
+      // type parameter has no any more sub type parameters
+      if (vector_size(type->types) != 0) {
+        syntax_error(ps, 0, 0, "'%s' is not compatible", name);
+        return NULL;
+      }
+      debug("'%s' is type parameter", name);
+    }
+  }
+
+  // not a type parameter, check it is a class/trait or not
+  if (sym == NULL) {
+    sym = get_desc_symbol(ps->module, type);
+    if (sym == NULL) {
+      syntax_error(ps, 0, 0, "'%s' is not defined", name);
+      return NULL;
+    }
+
+    if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) {
+      syntax_error(ps, 0, 0, "'%s' is not a class/trait", name);
+      return NULL;
+    }
+
+    if (vector_size(sym->type.typesyms) != vector_size(type->types)) {
+      syntax_error(ps, 0, 0, "'%s' is not compatible", name);
+      return NULL;
+    }
+
+    debug("'%s' is class/trait", name);
+  }
+
+  return sym;
+}
+
+int match_subtype(Symbol *subtype, Symbol *type)
+{
+  // self is self's subtype
+  if (subtype == type)
+    return 1;
+
+  // check bases class and traits
+  Symbol *item;
+  vector_for_each(item, &subtype->type.lro) {
+    if (item == type)
+      return 1;
+  }
+
+  // type is not subtype's parent
+  return 0;
+}
+
+void tp_match_typepara(ParserState *ps, Symbol *tp1, Symbol *tp2)
+{
+  Symbol *item1;
+  Symbol *item2;
+  vector_for_each(item2, tp2->paratype.typesyms) {
+    while (item2->kind == SYM_PTYPE) {
+      item2 = get_bound_symbol(ps, item2->desc);
+    }
+
+    item1 = vector_get(tp1->paratype.typesyms, idx);
+    while (item1->kind == SYM_PTYPE) {
+      item1 = get_bound_symbol(ps, item1->desc);
+    }
+
+    debug("match '%s' is subtype of '%s'?", item1->name, item2->name);
+    if (!match_subtype(item1, item2)) {
+      syntax_error(ps, 0, 0, "'%s' is not subtype of '%s'",
+                   item1->name, item2->name);
+    }
+  }
+}
+
+void kls_match_typepara(ParserState *ps, Symbol *kls, Symbol *tp)
+{
+  Symbol *item2;
+  vector_for_each(item2, tp->paratype.typesyms) {
+    while (item2->kind == SYM_PTYPE) {
+      item2 = get_bound_symbol(ps, item2->desc);
+    }
+
+    debug("match '%s' is subtype of '%s'?", kls->name, item2->name);
+    if (!match_subtype(kls, item2)) {
+      syntax_error(ps, 0, 0, "'%s' is not subtype of '%s'",
+                   kls->name, item2->name);
+    }
+  }
+}
+
+void check_subtype(ParserState *ps, Symbol *tpsym, Symbol *sym)
+{
+  expect(tpsym->kind == SYM_PTYPE);
+  debug("'%s' is type parameter, and try to be matched by '%s'",
+        tpsym->name, sym->name);
+
+  // any type is ok for no bounds
+  if (tpsym->paratype.typesyms == NULL) {
+    debug("'%s' no bounds, match any", tpsym->name);
+    return;
+  }
+
+  if (sym->kind == SYM_PTYPE) {
+    debug("'%s' is type parameter", sym->name);
+    tp_match_typepara(ps, sym, tpsym);
+  } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+    debug("'%s' is class/trait", sym->name);
+    kls_match_typepara(ps, sym, tpsym);
+  } else {
+    panic("invalid type %d in subtype", sym->kind);
+  }
+}
+
+void parse_subtype(ParserState *ps, Symbol *clssym, Vector *subtypes)
+{
+  Symbol *bndsym;
+  Symbol *tpsym;
+  TypeDesc *item;
+  vector_for_each(item, subtypes) {
+    bndsym = get_bound_symbol(ps, item);
+    if (bndsym == NULL)
+      continue;
+
+    tpsym = vector_get(clssym->type.typesyms, idx);
+    check_subtype(ps, tpsym, bndsym);
+
+    if (bndsym->kind == SYM_CLASS || bndsym->kind == SYM_TRAIT)
+      parse_subtype(ps, bndsym, item->types);
+  }
+}
+
+void parse_bound(ParserState *ps, Symbol *sym, Vector *bounds)
+{
+  Symbol *bndsym;
+  TypeDesc *item;
+  vector_for_each(item, bounds) {
+    bndsym = get_bound_symbol(ps, item);
+    if (bndsym == NULL)
+     return;
+
+    if (idx > 0 && bndsym->kind == SYM_CLASS) {
+      syntax_error(ps, 0, 0, " expect '%s' is a trait", item->klass.type);
+      return;
+    }
+
+    Vector *typesyms = sym->paratype.typesyms;
+    if (typesyms == NULL) {
+      typesyms = vector_new();
+      sym->paratype.typesyms = typesyms;
+    }
+    vector_push_back(typesyms, bndsym);
+
+    if (bndsym->kind == SYM_PTYPE) {
+      debug("bound '%s' is type parameter", bndsym->name);
+      continue;
+    }
+
+    parse_subtype(ps, bndsym, item->types);
+  }
+}
+
+void parse_typepara_decl(ParserState *ps, Vector *typeparas)
+{
+  ParserUnit *u = ps->u;
+  char *name;
+  Symbol *sym;
+  TypeDesc *item;
+  vector_for_each(item, typeparas) {
+    name = item->paradef.name;
+    debug("parse type parameter '%s'", name);
+    sym = stable_add_typepara(u->stbl, name);
+    if (sym == NULL) {
+      syntax_error(ps, 0, 0, "'%s' is redeclared", name);
+      continue;
+    }
+    parse_bound(ps, sym, item->paradef.types);
+
+    if (!has_error(ps)) {
+      Vector *typesyms = u->sym->type.typesyms;
+      if (typesyms == NULL) {
+        typesyms = vector_new();
+        u->sym->type.typesyms = typesyms;
+      }
+      vector_push_back(typesyms, sym);
+    }
+    debug("end of type parameter '%s'", name);
+  }
+}
+
 static void parse_class(ParserState *ps, Stmt *stmt)
 {
   Ident *id = &stmt->class_stmt.id;
@@ -4065,6 +4269,8 @@ static void parse_class(ParserState *ps, Stmt *stmt)
   parser_enter_scope(ps, SCOPE_CLASS, 0);
   ps->u->sym = sym;
   ps->u->stbl = sym->type.stbl;
+
+  parse_typepara_decl(ps, stmt->class_stmt.typeparas);
 
   /* parse class body */
   Vector *body = stmt->class_stmt.body;

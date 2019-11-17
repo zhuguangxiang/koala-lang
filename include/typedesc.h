@@ -87,6 +87,7 @@ struct typedesc {
     char base;
     /* TYPE_KLASS */
     struct {
+      // Vector *bases;
       char *path;
       char *type;
     } klass;
