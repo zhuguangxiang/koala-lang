@@ -243,11 +243,11 @@ static Object *new_object(CallFrame *f, TypeDesc *desc)
 
   TypeObject *type = (TypeObject *)ob;
   if (type == &array_type) {
-    TypeDesc *subdesc = vector_get(desc->types, 0);
+    TypeDesc *subdesc = vector_get(desc->klass.typeargs, 0);
     ret = array_new(subdesc);
   } else if (type == &map_type) {
-    TypeDesc *kdesc = vector_get(desc->types, 0);
-    TypeDesc *vdesc = vector_get(desc->types, 1);
+    TypeDesc *kdesc = vector_get(desc->klass.typeargs, 0);
+    TypeDesc *vdesc = vector_get(desc->klass.typeargs, 1);
     ret= map_new(kdesc, vdesc);
   } else if (type == &tuple_type) {
     ret = tuple_new(0);
@@ -1016,9 +1016,9 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       desc = descob_getdesc(x);
-      expect(desc->paras == NULL);
-      expect(desc->types != NULL);
-      xdesc = vector_get(desc->types, 0);
+      //expect(desc->paras == NULL);
+      //expect(desc->types != NULL);
+      xdesc = vector_get(desc->klass.typeargs, 0);
       y = array_new(xdesc);
       OB_DECREF(x);
       oparg = NEXT_2BYTES();
@@ -1034,10 +1034,10 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       desc = descob_getdesc(x);
-      expect(desc->paras == NULL);
-      expect(desc->types != NULL);
-      xdesc = vector_get(desc->types, 0);
-      ydesc = vector_get(desc->types, 1);
+      //expect(desc->paras == NULL);
+      //expect(desc->types != NULL);
+      xdesc = vector_get(desc->klass.typeargs, 0);
+      ydesc = vector_get(desc->klass.typeargs, 1);
       v = map_new(xdesc, ydesc);
       OB_DECREF(x);
       oparg = NEXT_BYTE();
@@ -1086,7 +1086,7 @@ Object *Koala_EvalFrame(CallFrame *f)
         y = POP();
       }
       desc = descob_getdesc(x);
-      expect(desc->paras == NULL);
+      //expect(desc->paras == NULL);
       if (desc_isbase(desc)) {
         expect(desc = OB_TYPE(y)->desc);
         z = OB_INCREF(y);

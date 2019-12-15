@@ -181,12 +181,29 @@ static void type_show(TypeObject *type)
   int size = vector_size(&type->lro);
   TypeObject *item;
   vector_for_each_reverse(item, &type->lro) {
-    if (--size <= 0)
+    size--;
+    if (item == type)
+      continue;
+    if (size <= 0)
       print("'%s'", item->name);
     else
       print("'%s', ", item->name);
   }
   print(")\n");
+
+  size = vector_size(type->tps);
+  if (size > 0) {
+    print("<");
+    TypePara *tp;
+    vector_for_each(tp, type->tps) {
+      size--;
+      if (size <= 0)
+        print("%s", tp->name);
+      else
+        print("%s, ", tp->name);
+    }
+    print(">\n");
+  }
 
   size = hashmap_size(type->mtbl);
   if (size > 0) {
@@ -194,7 +211,8 @@ static void type_show(TypeObject *type)
     HASHMAP_ITERATOR(mapiter, type->mtbl);
     struct mnode *node;
     iter_for_each(&mapiter, node) {
-      if (--size <= 0)
+      size--;
+      if (size <= 0)
         print("'%s'", node->name);
       else
         print("'%s', ", node->name);
@@ -493,51 +511,48 @@ void type_add_method(TypeObject *type, Object *ob)
 
 static int get_para_index(Vector *vec, char *name)
 {
-  TypeDesc *def;
-  vector_for_each(def, vec) {
-    if (!strcmp(def->paradef.name, name))
+  TypePara *tp;
+  vector_for_each(tp, vec) {
+    if (!strcmp(tp->name, name))
       return idx;
   }
   return -1;
 }
 
-static void update_pararef(TypeDesc *para, TypeDesc *proto)
+static void update_pararef(TypeObject *type, TypeDesc *desc)
 {
-  int index;
-  TypeDesc *rtype = proto->proto.ret;
-  if (rtype != NULL) {
-    if (rtype->kind == TYPE_PARAREF) {
-      index = get_para_index(para->paras, rtype->pararef.name);
-      expect(index >= 0);
-      rtype->pararef.index = index;
-    } else if (rtype->kind == TYPE_KLASS) {
-      TypeDesc *item;
-      vector_for_each(item, rtype->types) {
-        if (item->kind == TYPE_PARAREF) {
-          index = get_para_index(para->paras, item->pararef.name);
-          expect(index >= 0);
-          item->pararef.index = index;
-        } else {
-          expect(item->kind != TYPE_PARADEF);
-        }
-      }
-    }
-  }
+  if (desc == NULL)
+    return;
 
-  TypeDesc *ptype;
-  vector_for_each(ptype, proto->proto.args) {
-    if (ptype->kind == TYPE_PARAREF) {
-      index = get_para_index(para->paras, ptype->pararef.name);
-      expect(index >= 0);
-      ptype->pararef.index = index;
+  if (desc->kind == TYPE_PARAREF) {
+    int index = get_para_index(type->tps, desc->pararef.name);
+    expect(index >= 0);
+    desc->pararef.index = index;
+    debug("%s: update_pararef: %s, %d", type->name, desc->pararef.name, index);
+  } else if (desc->kind == TYPE_KLASS) {
+    TypeDesc *item;
+    vector_for_each(item, desc->klass.typeargs) {
+      update_pararef(type, item);
     }
+  } else {
+    // not pararef, skip it.
+  }
+}
+
+static void update_proto_pararef(TypeObject *type, TypeDesc *proto)
+{
+  update_pararef(type, proto->proto.ret);
+  TypeDesc *desc;
+  vector_for_each(desc, proto->proto.args) {
+    update_pararef(type, desc);
   }
 }
 
 void type_add_methoddef(TypeObject *type, MethodDef *f)
 {
   Object *meth = cmethod_new(f);
-  update_pararef(type->desc, ((MethodObject *)meth)->desc);
+  debug("try to update func '%s' type parameters", f->name);
+  update_proto_pararef(type, ((MethodObject *)meth)->desc);
   type_add_method(type, meth);
   OB_DECREF(meth);
 }
@@ -724,6 +739,10 @@ Object *object_super_call(Object *self, char *name, Object *args,
 
 Object *object_call(Object *self, char *name, Object *args)
 {
+  if (self == NULL) {
+    error("[Exception] null pointer");
+    return NULL;
+  }
   Object *ob = object_lookup(self, name, NULL);
   expect(ob != NULL);
   Object *res = method_call(ob, self, args);

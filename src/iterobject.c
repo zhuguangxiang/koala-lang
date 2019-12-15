@@ -69,11 +69,8 @@ TypeObject iter_type = {
 
 void init_iter_type(void)
 {
-  TypeDesc *desc = desc_from_klass("lang", "Iterator");
-  TypeDesc *para = desc_from_paradef("T", NULL);
-  desc_add_paradef(desc, para);
-  TYPE_DECREF(para);
-  iter_type.desc = desc;
+  iter_type.desc = desc_from_klass("lang", "Iterator");
+  type_add_tp(&iter_type, "T", NULL);
   if (type_ready(&iter_type) < 0)
     panic("Cannot initalize 'Iterator' type.");
 }

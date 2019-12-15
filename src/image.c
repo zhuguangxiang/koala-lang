@@ -197,13 +197,11 @@ static int typeitem_equal(void *k1, void *k2)
   TypeItem *item2 = k2;
   if (item1->kind != item2->kind)
     return 0;
-  if (item1->parasindex != item2->parasindex)
-    return 0;
-  if (item1->typesindex != item2->typesindex)
-    return 0;
   if (item1->klass.pathindex != item2->klass.pathindex)
     return 0;
   if (item1->klass.typeindex != item2->klass.typeindex)
+    return 0;
+  if (item1->klass.typesindex != item2->klass.typesindex)
     return 0;
   return 1;
 }
@@ -285,11 +283,22 @@ static TypeItem *typeitem_proto_new(int32_t pindex, int32_t rindex)
   return item;
 }
 
-static TypeItem *typeitem_paradef_new(int32_t nameindex, int32_t typesindex)
+static TypeItem *typeitem_pararef_new(int32_t nameindex, int index)
+{
+  TypeItem *item = kmalloc(sizeof(TypeItem));
+  item->kind = TYPE_PARAREF;
+  item->pararef.nameindex  = nameindex;
+  item->pararef.value = index;
+  return item;
+}
+
+static
+TypeItem *typeitem_paradef_new(int32_t nameindex, int index, int32_t typesindex)
 {
   TypeItem *item = kmalloc(sizeof(TypeItem));
   item->kind = TYPE_PARADEF;
   item->paradef.nameindex  = nameindex;
+  item->paradef.value = index;
   item->paradef.typesindex = typesindex;
   return item;
 }
@@ -715,10 +724,11 @@ static void classitem_free(void *o)
   kfree(o);
 }
 
-static ClassItem *classitem_new(int nameindex, int basesindex)
+static ClassItem *classitem_new(int nameindex, int parasindex, int basesindex)
 {
   ClassItem *item = kmalloc(sizeof(ClassItem));
   item->nameindex = nameindex;
+  item->parasindex = parasindex;
   item->basesindex = basesindex;
   return item;
 }
@@ -962,19 +972,14 @@ static int typeitem_get(Image *image, TypeDesc *desc)
       if (typeindex < 0)
         return typeindex;
     }
-    int parasindex = -1;
-    if (desc->paras != NULL) {
-      parasindex = indexitem_get(image, INDEX_TYPELIST, desc->paras);
-    }
     int typesindex = -1;
-    if (desc->types != NULL) {
-      typesindex = indexitem_get(image, INDEX_TYPELIST, desc->types);
+    if (desc->klass.typeargs != NULL) {
+      typesindex = indexitem_get(image, INDEX_TYPELIST, desc->klass.typeargs);
     }
     item.kind = TYPE_KLASS;
     item.klass.pathindex = pathindex;
     item.klass.typeindex = typeindex;
-    item.parasindex = parasindex;
-    item.typesindex = typesindex;
+    item.klass.typesindex = typesindex;
     break;
   }
   case TYPE_PROTO: {
@@ -985,11 +990,20 @@ static int typeitem_get(Image *image, TypeDesc *desc)
     item.proto.rindex = rindex;
     break;
   }
+  case TYPE_PARAREF: {
+    int nameindex = stringitem_get(image, desc->pararef.name);
+    item.kind = TYPE_PARAREF;
+    item.pararef.nameindex = nameindex;
+    item.pararef.value = desc->pararef.index;
+    break;
+  }
   case TYPE_PARADEF: {
     int nameindex = stringitem_get(image, desc->paradef.name);
-    int typesindex = indexitem_get(image, INDEX_TYPELIST, desc->paradef.types);
+    int typesindex = indexitem_get(image, INDEX_TYPELIST,
+                                  desc->paradef.typeparas);
     item.kind = TYPE_PARADEF;
     item.paradef.nameindex = nameindex;
+    item.paradef.value = desc->paradef.index;
     item.paradef.typesindex = typesindex;
     break;
   }
@@ -1023,17 +1037,12 @@ static int typeitem_set(Image *image, TypeDesc *desc)
       if (desc->klass.type != NULL) {
         typeindex = stringitem_set(image, desc->klass.type);
       }
-      int parasindex = -1;
-      if (desc->paras != NULL) {
-        parasindex = indexitem_set(image, INDEX_TYPELIST, desc->paras);
-      }
       int typesindex = -1;
-      if (desc->types != NULL) {
-        typesindex = indexitem_set(image, INDEX_TYPELIST, desc->types);
+      if (desc->klass.typeargs != NULL) {
+        typesindex = indexitem_set(image, INDEX_TYPELIST, desc->klass.typeargs);
       }
       item = typeitem_klass_new(pathindex, typeindex);
-      item->parasindex = parasindex;
-      item->typesindex = typesindex;
+      item->klass.typesindex = typesindex;
       break;
     }
     case TYPE_PROTO: {
@@ -1042,10 +1051,16 @@ static int typeitem_set(Image *image, TypeDesc *desc)
       item = typeitem_proto_new(pindex, rindex);
       break;
     }
+    case TYPE_PARAREF: {
+      int nameindex = stringitem_set(image, desc->pararef.name);
+      item = typeitem_pararef_new(nameindex, desc->pararef.index);
+      break;
+    }
     case TYPE_PARADEF: {
       int nameindex = stringitem_set(image, desc->paradef.name);
-      int typesindex = indexitem_set(image, INDEX_TYPELIST, desc->paradef.types);
-      item = typeitem_paradef_new(nameindex, typesindex);
+      int typesindex = indexitem_set(image, INDEX_TYPELIST,
+                                    desc->paradef.typeparas);
+      item = typeitem_paradef_new(nameindex, desc->paradef.index, typesindex);
       break;
     }
     default:
@@ -1452,16 +1467,19 @@ int image_add_func(Image *image, CodeInfo *ci)
   return _append_(image, ITEM_FUNC, funcitem, 0);
 }
 
-static inline ClassItem *klass_new(Image *image, char *name, Vector *bases)
+static inline
+ClassItem *klass_new(Image *image, char *name, Vector *typeparas, Vector *bases)
 {
   int nameindex = stringitem_set(image, name);
+  int parasindex = indexitem_set(image, INDEX_TYPELIST, typeparas);
   int basesindex = indexitem_set(image, INDEX_TYPELIST, bases);
-  return classitem_new(nameindex, basesindex);
+  return classitem_new(nameindex, parasindex, basesindex);
 }
 
-void image_add_class(Image *image, char *name, Vector *bases, int mbrindex)
+void image_add_class(Image *image, char *name, Vector *typeparas,
+                    Vector *bases, int mbrindex)
 {
-  ClassItem *classitem = klass_new(image, name, bases);
+  ClassItem *classitem = klass_new(image, name, typeparas, bases);
   classitem->mbrindex = mbrindex;
   _append_(image, ITEM_CLASS, classitem, 0);
 }
@@ -1482,7 +1500,7 @@ int image_add_method(Image *image, CodeInfo *ci)
 
 void image_add_trait(Image *image, char *name, Vector *bases, int mbrindex)
 {
-  ClassItem *classitem = klass_new(image, name, bases);
+  ClassItem *classitem = klass_new(image, name, NULL, bases);
   classitem->mbrindex = mbrindex;
   _append_(image, ITEM_TRAIT, classitem, 0);
 }
@@ -1630,13 +1648,9 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     s = _get_(image, ITEM_STRING, item->klass.typeindex);
     type = atom(s->data);
     desc = desc_from_klass(path, type);
-    if (item->parasindex >= 0) {
-      IndexItem *listitem = _get_(image, ITEM_INDEX, item->parasindex);
-      desc->paras = to_desc_vec(listitem, image);
-    }
-    if (item->typesindex >= 0) {
-      IndexItem *listitem = _get_(image, ITEM_INDEX, item->typesindex);
-      desc->types = to_desc_vec(listitem, image);
+    if (item->klass.typesindex >= 0) {
+      IndexItem *listitem = _get_(image, ITEM_INDEX, item->klass.typesindex);
+      desc->klass.typeargs = to_desc_vec(listitem, image);
     }
     break;
   }
@@ -1649,11 +1663,20 @@ static TypeDesc *to_typedesc(TypeItem *item, Image *image)
     TYPE_DECREF(ret);
     break;
   }
+  case TYPE_PARAREF: {
+    StringItem *stritem = _get_(image, ITEM_STRING, item->pararef.nameindex);
+    desc = desc_from_pararef(stritem->data, item->pararef.value);
+    break;
+  }
   case TYPE_PARADEF: {
     StringItem *stritem = _get_(image, ITEM_STRING, item->paradef.nameindex);
     IndexItem *idxitem = _get_(image, ITEM_INDEX, item->paradef.typesindex);
     Vector *types = to_desc_vec(idxitem, image);
-    desc = desc_from_paradef(stritem->data, types);
+    desc = desc_from_paradef(stritem->data, item->paradef.value);
+    TypeDesc *tmp;
+    vector_for_each(tmp, types) {
+      desc_add_paradef(desc, tmp);
+    }
     break;
   }
   default:

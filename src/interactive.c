@@ -223,9 +223,9 @@ int cmd_add_const(ParserState *ps, Ident id, Type type)
 
 int cmd_add_var(ParserState *ps, Ident id, Type type)
 {
-  cursym = stable_add_var(mod.stbl, id.name, type.desc);
+  cursym = stable_add_var(mod.stbl, id.name, NULL);
   if (cursym != NULL) {
-    cursym->var.typesym = get_desc_symbol(ps->module, type.desc);
+    //cursym->var.typesym = get_desc_symbol(ps->module, type.desc);
     return 0;
   } else {
     syntax_error(ps, id.row, id.col, "'%s' is redeclared", id.name);
@@ -257,14 +257,16 @@ static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
   vector_for_each(s, body) {
     if (s->kind == VAR_KIND) {
       id = &s->vardecl.id;
-      sym2 = stable_add_var(stbl, id->name, s->vardecl.type.desc);
+      sym2 = stable_add_var(stbl, id->name, NULL);
     } else if (s->kind == FUNC_KIND) {
+      /*
       Vector *idtypes = s->funcdecl.idtypes;
       Type *ret = &s->funcdecl.ret;
       TypeDesc *proto = parse_proto(idtypes, ret);
+      */
       id = &s->funcdecl.id;
-      sym2 = stable_add_func(stbl, id->name, proto);
-      TYPE_DECREF(proto);
+      sym2 = stable_add_func(stbl, id->name, NULL);
+      //TYPE_DECREF(proto);
     } else if (s->kind == IFUNC_KIND) {
       Vector *idtypes = s->funcdecl.idtypes;
       Type *ret = &s->funcdecl.ret;

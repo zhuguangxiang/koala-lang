@@ -76,6 +76,19 @@ typedef struct idparadef {
   Vector *vec;
 } IdParaDef;
 
+typedef struct typepara {
+  Ident type;
+  Vector *bounds;
+} TypeParaDef;
+
+static inline TypeParaDef *new_type_para(Ident type, Vector *bounds)
+{
+  TypeParaDef *tp = kmalloc(sizeof(TypeParaDef));
+  tp->type = type;
+  tp->bounds = bounds;
+  return tp;
+}
+
 typedef struct extendsdef {
   Type type;
   Vector *withes;

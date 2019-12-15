@@ -119,6 +119,7 @@ static STable *stable_from_mobject(Module *mod, Object *ob)
       symbol_decref(sym);
     }
   }
+
   TypeDesc *desc = desc_from_base('s');
   stable_add_var(stbl, "__name__", desc);
   TYPE_DECREF(desc);
@@ -140,7 +141,7 @@ Symbol *mod_find_symbol(Module *mod, char *name)
   Symbol *sym = stable_get(mod->stbl, name);
   if (sym != NULL)
     return sym;
-  return type_find_mbr(modClsSym, name);
+  return type_find_mbr(modClsSym, name, NULL);
 }
 
 typedef struct inst {
@@ -857,10 +858,6 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
     exp->desc = TYPE_INCREF(sym->desc);
     exp->id.where = CURRENT_SCOPE;
     exp->id.scope = u;
-    // find class(function) with generic type ?
-    if (exp->desc != NULL) {
-      expect(exp->desc->paras == NULL);
-    }
     return sym;
   }
 
@@ -878,10 +875,6 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
       exp->desc = TYPE_INCREF(sym->desc);
       exp->id.where = UP_SCOPE;
       exp->id.scope = up;
-      // find class(function) with generic type ?
-      if (exp->desc != NULL) {
-        expect(exp->desc->paras == NULL);
-      }
       return sym;
     }
 
@@ -895,10 +888,6 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
       exp->desc = TYPE_INCREF(sym->desc);
       exp->id.where = UP_SCOPE;
       exp->id.scope = up;
-      // find class(function) with generic type ?
-      if (exp->desc != NULL) {
-        expect(exp->desc->paras == NULL);
-      }
       return sym;
     }
   }
@@ -914,10 +903,6 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
     exp->desc = TYPE_INCREF(sym->desc);
     exp->id.where = AUTO_IMPORTED;
     exp->id.scope = NULL;
-    // find class(function) with generic type ?
-    if (exp->desc != NULL) {
-      expect(exp->desc->paras == NULL);
-    }
     return sym;
   }
 
@@ -936,10 +921,6 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
       exp->desc = TYPE_INCREF(sym->desc);
       exp->id.where = ID_IN_ENUM;
       exp->id.scope = NULL;
-      // find class(function) with generic type ?
-      if (exp->desc != NULL) {
-        expect(exp->desc->paras == NULL);
-      }
       return sym;
     }
   }
@@ -947,7 +928,7 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
   return NULL;
 }
 
-static Symbol *find_local_id_symbol(ParserState *ps, char *name)
+static Symbol *find_symbol_byname(ParserState *ps, char *name)
 {
   Symbol *sym;
   ParserUnit *u = ps->u;
@@ -965,8 +946,10 @@ static Symbol *find_local_id_symbol(ParserState *ps, char *name)
   ParserUnit *up;
   int depth = ps->depth;
   vector_for_each_reverse(up, &ps->ustack) {
+    /*
     if (up->scope == SCOPE_MODULE || up->scope == SCOPE_CLASS)
       break;
+    */
     depth -= 1;
     sym = stable_get(up->stbl, name);
     if (sym != NULL) {
@@ -999,7 +982,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         ++sym->used;
         return sym;
       } else {
-        error("symbol '%s' is not class/trait/enum", name);
+        error("symbol '%s' is not klass", name);
         return NULL;
       }
     }
@@ -1012,7 +995,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         ++sym->used;
         return sym;
       } else {
-        error("symbol '%s' is not class/trait/enum", name);
+        error("symbol '%s' is not klass", name);
         return NULL;
       }
     }
@@ -1028,7 +1011,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         ++sym->used;
         return sym;
       } else {
-        error("symbol '%s' is not class/trait/enum", name);
+        error("symbol '%s' is not klass", name);
         return NULL;
       }
     }
@@ -1605,7 +1588,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
     return;
 
   if (exp->binary.op == BINARY_ADD) {
-    Symbol *sym = type_find_mbr(exp->sym, "__add__");
+    Symbol *sym = type_find_mbr(exp->sym, "__add__", NULL);
     if (sym == NULL) {
       syntax_error(ps, lexp->row, lexp->col, "unsupported +");
     } else {
@@ -1692,34 +1675,25 @@ static void parse_ternary(ParserState *ps, Expr *exp)
   }
 }
 
-static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
+TypeDesc *specialize_type(TypeDesc *para, TypeDesc *ref)
 {
-  if (para->kind == TYPE_BASE)
+  if (para == NULL || para->kind == TYPE_BASE)
     return TYPE_INCREF(ref);
 
   if (ref == NULL)
     return NULL;
 
-  if (ref->kind == TYPE_BASE)
-    return TYPE_INCREF(ref);
-
   switch (ref->kind) {
   case TYPE_PROTO: {
-    expect(ref->paras == NULL);
-    if (para->types == NULL)
-      return TYPE_INCREF(ref);
-
     TypeDesc *rtype = ref->proto.ret;
-    if (rtype != NULL && rtype->kind == TYPE_PARAREF) {
-      rtype = vector_get(para->types, rtype->pararef.index);
+    if (rtype != NULL) {
+      rtype = specialize_type(para, rtype);
     }
 
     Vector *args = vector_new();
     TypeDesc *ptype;
     vector_for_each(ptype, ref->proto.args) {
-      if (ptype != NULL && ptype->kind == TYPE_PARAREF) {
-        ptype = vector_get(para->types, ptype->pararef.index);
-      }
+      ptype = specialize_type(para, ptype);
       vector_push_back(args, TYPE_INCREF(ptype));
     }
 
@@ -1729,46 +1703,30 @@ static TypeDesc *type_maybe_instanced(TypeDesc *para, TypeDesc *ref)
       free_descs(args);
       return TYPE_INCREF(ref);
     }
-    break;
-  }
-  case TYPE_PARAREF: {
-    expect(para->types != NULL);
-    TypeDesc *desc = vector_get(para->types, ref->pararef.index);
-    return TYPE_INCREF(desc);
-    break;
   }
   case TYPE_KLASS: {
-    Vector *types = vector_new();
+    Vector *typeargs = vector_new();
     TypeDesc *item;
-    TypeDesc *type;
-    vector_for_each(item, ref->types) {
-      if (item->kind == TYPE_PARAREF) {
-        type = vector_get(para->types, item->pararef.index);
-        expect(type != NULL);
-        expect(type->kind != TYPE_PARAREF);
-        expect(type->kind != TYPE_PARADEF);
-        TYPE_INCREF(type);
-        vector_push_back(types, type);
-      } else {
-        expect(item->kind != TYPE_PARADEF);
-        TYPE_INCREF(item);
-        vector_push_back(types, item);
-      }
+    vector_for_each(item, ref->klass.typeargs) {
+      item = specialize_type(para, item);
+      vector_push_back(typeargs, TYPE_INCREF(item));
     }
-
-    if (vector_size(types) > 0) {
-      type = desc_from_klass(ref->klass.path, ref->klass.type);
-      type->types = types;
-      return type;
+    if (vector_size(typeargs) != 0) {
+      TypeDesc *desc = desc_from_klass(ref->klass.path, ref->klass.type);
+      desc->klass.typeargs = typeargs;
+      return desc;
     } else {
-      vector_free(types);
+      free_descs(typeargs);
       return TYPE_INCREF(ref);
     }
-    break;
   }
+  case TYPE_PARAREF: {
+    TypeDesc *desc = vector_get(para->klass.typeargs, ref->pararef.index);
+    return TYPE_INCREF(desc);
+  }
+  case TYPE_BASE:
   case TYPE_LABEL: {
     return TYPE_INCREF(ref);
-    break;
   }
   default:
     panic("which type? generic type bug!");
@@ -1788,16 +1746,22 @@ static void parse_attr(ParserState *ps, Expr *exp)
 
   Ident *id = &exp->attr.id;
   TypeDesc *desc;
-  TypeDesc *ldesc = lsym->desc;
+  TypeDesc *ldesc = lexp->desc;
   Symbol *sym;
+  TypeDesc *pdesc = NULL;
   switch (lsym->kind) {
   case SYM_CONST:
     debug("left sym '%s' is a const var", lsym->name);
-    sym = type_find_mbr(lsym->var.typesym, id->name);
+    sym = type_find_mbr(lsym->var.typesym, id->name, &pdesc);
     break;
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
-    sym = type_find_mbr(lsym->var.typesym, id->name);
+    Symbol *ltypesym = lsym->var.typesym;
+    if (ltypesym->kind == SYM_PTYPE && ldesc->kind != TYPE_PARAREF) {
+      debug("get left sym's instanced type");
+      ltypesym = get_desc_symbol(ps->module, ldesc);
+    }
+    sym = type_find_mbr(ltypesym, id->name, &pdesc);
     break;
   case SYM_FUNC:
     debug("left sym '%s' is a func", lsym->name);
@@ -1809,7 +1773,7 @@ static void parse_attr(ParserState *ps, Expr *exp)
       sym = get_desc_symbol(ps->module, desc->proto.ret);
       if (sym != NULL) {
         expect(sym->kind == SYM_CLASS);
-        sym = type_find_mbr(sym, id->name);
+        sym = type_find_mbr(sym, id->name, &pdesc);
       } else {
         syntax_error(ps, exp->row, exp->col, "cannot find type");
       }
@@ -1825,7 +1789,7 @@ static void parse_attr(ParserState *ps, Expr *exp)
   case SYM_CLASS: {
     debug("left sym '%s' is a class", lsym->name);
     if (!lexp->super) {
-      sym = type_find_mbr(lsym, id->name);
+      sym = type_find_mbr(lsym, id->name, &pdesc);
     } else {
       sym = type_find_super_mbr(lsym, id->name);
     }
@@ -1833,7 +1797,7 @@ static void parse_attr(ParserState *ps, Expr *exp)
   }
   case SYM_ENUM: {
     debug("left sym '%s' is an enum", lsym->name);
-    sym = type_find_mbr(lsym, id->name);
+    sym = type_find_mbr(lsym, id->name, &pdesc);
     if (lexp->kind == ID_KIND && sym != NULL && sym->kind != SYM_LABEL) {
       // only allowed SYM_LABEL
       sym = NULL;
@@ -1842,13 +1806,13 @@ static void parse_attr(ParserState *ps, Expr *exp)
   }
   case SYM_LABEL: {
     debug("left sym '%s' is an enum label", lsym->name);
-    sym = type_find_mbr(lsym->label.esym, id->name);
+    sym = type_find_mbr(lsym->label.esym, id->name, &pdesc);
     break;
   }
   case SYM_TRAIT: {
     debug("left sym '%s' is a trait", lsym->name);
     if (!lexp->super) {
-      sym = type_find_mbr(lsym, id->name);
+      sym = type_find_mbr(lsym, id->name, &pdesc);
     } else {
       sym = type_find_super_mbr(lsym, id->name);
     }
@@ -1874,7 +1838,14 @@ static void parse_attr(ParserState *ps, Expr *exp)
         "call func '%s' or return itself?", id->name);
     } else {
       exp->sym = sym;
-      exp->desc = type_maybe_instanced(ldesc, sym->desc);
+      desc = specialize_type(pdesc, sym->desc);
+      exp->desc = specialize_type(ldesc, desc);
+      STRBUF(sbuf);
+      desc_tostr(exp->desc, &sbuf);
+      printf("sym '%s' \x1b[1;35mINSTANCED TYPE: \x1b[0m%s\n",
+            sym->name, strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+      TYPE_DECREF(desc);
     }
   }
 
@@ -1972,17 +1943,18 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   if (exp->ctx == EXPR_STORE)
     funcname = "__setitem__";
 
+  TypeDesc *pdesc = NULL;
   Symbol *sym = NULL;
   switch (lsym->kind) {
   case SYM_CONST:
     break;
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
-    sym = type_find_mbr(lsym->var.typesym, funcname);
+    sym = type_find_mbr(lsym->var.typesym, funcname, &pdesc);
     break;
   case SYM_CLASS: {
     debug("left sym '%s' is a class", lsym->name);
-    sym = type_find_mbr(lsym, funcname);
+    sym = type_find_mbr(lsym, funcname, &pdesc);
     break;
   }
   default:
@@ -1997,7 +1969,7 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   }
 
   Vector *args = sym->desc->proto.args;
-  TypeDesc *desc = desc = sym->desc->proto.ret;
+  TypeDesc *desc = sym->desc->proto.ret;
 
   if (exp->ctx == EXPR_LOAD) {
     if (vector_size(args) != 1) {
@@ -2023,11 +1995,12 @@ static void parse_subscr(ParserState *ps, Expr *exp)
 
   if (sym != NULL) {
     desc = vector_get(args, 0);
-    desc = type_maybe_instanced(lexp->desc, desc);
-    if (!desc_check(iexp->desc, desc)) {
+    desc = specialize_type(pdesc, desc);
+    TypeDesc *tmp = specialize_type(lexp->desc, desc);
+    TYPE_DECREF(desc);
+    if (!desc_check(iexp->desc, tmp)) {
       syntax_error(ps, iexp->row, iexp->col, "subscript index type is error");
     }
-    TYPE_DECREF(desc);
 
     TYPE_DECREF(exp->desc);
     if (exp->ctx == EXPR_LOAD) {
@@ -2037,9 +2010,10 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     } else {
       desc = NULL;
     }
-    desc = type_maybe_instanced(lexp->desc, desc);
-    exp->desc = TYPE_INCREF(desc);
-    exp->sym = get_desc_symbol(ps->module, desc);
+    desc = specialize_type(pdesc, desc);
+    tmp = specialize_type(lexp->desc, desc);
+    exp->desc = tmp;
+    exp->sym = get_desc_symbol(ps->module, tmp);
     if (exp->sym == NULL) {
       syntax_error(ps, exp->row, exp->col, "cannot find type");
     }
@@ -2059,48 +2033,7 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   }
 }
 
-static int check_generic(TypeDesc *ptype, Symbol *sym)
-{
-  expect(ptype->kind == TYPE_PARADEF);
-
-  Symbol *typesym;
-  if (sym->kind == SYM_VAR) {
-    typesym = sym->var.typesym;
-  } else {
-    expect(sym->kind == SYM_CLASS);
-    typesym = sym;
-  }
-
-  if (typesym->kind == SYM_PTYPE) {
-    // all generic type is the same desc struct, just compare their address
-    if (ptype != typesym->desc)
-      return 0;
-    else
-      return 1;
-  }
-
-  int exist;
-  Symbol *item;
-  TypeDesc *desc;
-  vector_for_each(desc, ptype->paradef.types) {
-    if (desc_check(desc, typesym->desc))
-      continue;
-    exist = 0;
-    vector_for_each_reverse(item, &typesym->type.lro) {
-      if (desc_isany(item->desc))
-        continue;
-      if (desc_check(desc, item->desc)) {
-        exist = 1;
-        break;
-      }
-    }
-    if (!exist)
-      return 0;
-  }
-  return 1;
-}
-
-static int check_call_args(TypeDesc *proto, Vector *args)
+static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
 {
   Vector *descs = proto->proto.args;
   int sz = vector_size(descs);
@@ -2113,13 +2046,17 @@ static int check_call_args(TypeDesc *proto, Vector *args)
   for (int i = 0; i < sz; ++i) {
     desc = vector_get(descs, i);
     arg = vector_get(args, i);
-    if (desc->kind == TYPE_PARADEF) {
-      if (!check_generic(desc, arg->sym))
+    if (!desc_check(desc, arg->desc)) {
+      if (!check_inherit(desc, arg->sym)) {
+        STRBUF(sbuf1);
+        STRBUF(sbuf2);
+        desc_tostr(desc, &sbuf1);
+        desc_tostr(arg->desc, &sbuf2);
+        syntax_error(ps, arg->row, arg->col, "expected '%s', but found '%s'",
+                    strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+        strbuf_fini(&sbuf1);
+        strbuf_fini(&sbuf2);
         return -1;
-    } else {
-      if (!desc_check(desc, arg->desc)) {
-        if (!check_inherit(desc, arg->sym))
-          return -1;
       }
     }
   }
@@ -2178,8 +2115,8 @@ static void parse_call(ParserState *ps, Expr *exp)
   }
 
   if (desc->kind == TYPE_PROTO) {
-    if (check_call_args(desc, args)) {
-      syntax_error(ps, exp->row, exp->col, "call args check failed");
+    if (check_call_args(ps, desc, args)) {
+      return;
     } else {
       exp->desc = TYPE_INCREF(desc->proto.ret);
       if (exp->desc != NULL && exp->desc->kind == TYPE_PARADEF) {
@@ -2227,8 +2164,8 @@ static void parse_call(ParserState *ps, Expr *exp)
           syntax_error(ps, lexp->row, lexp->col, "super no __init__");
         }
       } else {
-        if (check_call_args(init->desc, args)) {
-          syntax_error(ps, lexp->row, lexp->col, "call args check failed");
+        if (check_call_args(ps, init->desc, args)) {
+          return;
         }
       }
     }
@@ -2423,7 +2360,9 @@ static ParserUnit *parse_block_vardecl(ParserState *ps, Ident *id)
   return NULL;
 }
 
-static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
+Symbol *get_type_symbol(ParserState *ps, TypeDesc *type);
+
+static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
 {
   ParserUnit *u = ps->u;
   Symbol *sym;
@@ -2436,12 +2375,6 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   case SCOPE_CLASS:
     sym = stable_get(u->stbl, id->name);
     expect(sym != NULL);
-    expect(sym->kind == SYM_VAR);
-    if (sym->var.typesym == NULL) {
-      // generic type refernce
-      if (desc->kind == TYPE_KLASS && desc->klass.path == NULL)
-        sym->var.typesym = stable_get(u->stbl, desc->klass.type);
-    }
     break;
   case SCOPE_FUNC:
     // function scope has independent space for variables.
@@ -2455,19 +2388,7 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       vector_push_back(&funcsym->func.locvec, sym);
       ++sym->refcnt;
     }
-    expect(sym->kind == SYM_VAR);
-    if (sym->var.typesym == NULL) {
-      // generic type refernce
-      if (desc->kind == TYPE_PARADEF) {
-        Symbol *parasym = stable_get(u->stbl, desc->paradef.name);
-        expect(parasym != NULL && parasym->kind == SYM_PTYPE);
-        debug("var '%s' type is generic", id->name);
-        sym->var.typesym = parasym;
-        //update variable's type
-        TYPE_DECREF(sym->desc);
-        sym->desc = TYPE_INCREF(parasym->desc);
-      }
-    }
+    expect(sym != NULL);
     break;
   case SCOPE_BLOCK:
     // variables in block socpe must not be duplicated within function scope
@@ -2514,6 +2435,7 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
 
   expect(sym->kind == SYM_VAR);
 
+  // update type's descriptor
   if (sym->desc == NULL) {
     if (desc->kind == TYPE_LABEL) {
       sym->desc = TYPE_INCREF(desc->label.edesc);
@@ -2522,8 +2444,12 @@ static Symbol *add_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     }
   }
 
+  // update var's type's symbol
   if (sym->var.typesym == NULL) {
-    sym->var.typesym = get_desc_symbol(ps->module, sym->desc);
+    if (desc->kind == TYPE_PARAREF)
+      sym->var.typesym = find_symbol_byname(ps, desc->pararef.name);
+    else
+      sym->var.typesym = get_type_symbol(ps, sym->desc);
   }
 
   return sym;
@@ -2570,17 +2496,10 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
       debug("last expr-stmt and no value, add OP_RETURN");
       CODE_OP(OP_RETURN);
     } else if (ret.desc != NULL && exp->desc != NULL) {
-      if (ret.desc->kind == TYPE_PARADEF) {
-        if (!check_generic(ret.desc, exp->sym)) {
-          syntax_error(ps, exp->row, exp->col,
-                       "'%s' incompatible return type", name);
-        }
-      } else {
-        if (!desc_check(ret.desc, exp->desc) &&
-          !check_inherit(ret.desc, exp->sym)) {
-          syntax_error(ps, exp->row, exp->col,
-                       "'%s' incompatible return type", name);
-        }
+      if (!desc_check(ret.desc, exp->desc) &&
+        !check_inherit(ret.desc, exp->sym)) {
+        syntax_error(ps, exp->row, exp->col,
+                      "'%s' incompatible return type", name);
       }
       if (!has_error(ps)) {
         debug("last expr-stmt and has value, add OP_RETURN_VALUE");
@@ -2659,7 +2578,7 @@ static void parse_anony(ParserState *ps, Expr *exp)
   Vector *idtypes = exp->anony.idtypes;
   IdType *item;
   vector_for_each(item, idtypes) {
-    add_update_var(ps, &item->id, item->type.desc);
+    new_update_var(ps, &item->id, item->type.desc);
   }
 
   parse_body(ps, sym->name, exp->anony.body, exp->anony.ret);
@@ -2756,8 +2675,7 @@ static void check_new_args(ParserState *ps, Symbol *sym, Expr *exp)
     return;
   }
 
-  if (check_call_args(desc, args))
-    syntax_error(ps, row, col, "'%s' args are not mached", name);
+  check_call_args(ps, desc, args);
 }
 
 static void parse_new(ParserState *ps, Expr *exp)
@@ -2774,17 +2692,27 @@ static void parse_new(ParserState *ps, Expr *exp)
 
   if (!has_error(ps)) {
     exp->sym = sym;
-    exp->desc = TYPE_INCREF(sym->desc);
-
-    /*
     Vector *types = exp->newobj.types;
     if (types != NULL) {
+      exp->desc = desc_dup(sym->desc);
       TypeDesc *item;
       vector_for_each(item, types) {
-        desc_add_paratype(exp->desc, item);
+        if (item->kind == TYPE_KLASS) {
+          sym = get_klass_symbol(ps->module,
+                                item->klass.path, item->klass.type);
+          if (sym == NULL) {
+            syntax_error(ps, id->row, id->col, "'%s' is not defined", id->name);
+            return;
+          }
+          item->klass.path = sym->desc->klass.path;
+          desc_add_paratype(exp->desc, item);
+        } else {
+          desc_add_paratype(exp->desc, item);
+        }
       }
+    } else {
+      exp->desc = TYPE_INCREF(sym->desc);
     }
-    */
 
     // generate codes
     Vector *args = exp->newobj.args;
@@ -2871,7 +2799,7 @@ static void parse_enum_pattern_args(ParserState *ps, Vector *types, Expr *exp)
     case ID_KIND:
       debug("pattern is ident, new variable");
       Ident id = {e->id.name, e->row, e->col};
-      Symbol *sym = add_update_var(ps, &id, vector_get(types, idx));
+      Symbol *sym = new_update_var(ps, &id, vector_get(types, idx));
       if (sym != NULL) {
         sym->var.dotindex = idx;
       }
@@ -3145,6 +3073,9 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
   }
 }
 
+void parse_subtype(ParserState *ps, Symbol *clssym, Vector *subtypes);
+Symbol *get_type_symbol(ParserState *ps, TypeDesc *type);
+
 static void parse_vardecl(ParserState *ps, Stmt *stmt)
 {
   Expr *exp = stmt->vardecl.exp;
@@ -3152,12 +3083,15 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   Type *type = &stmt->vardecl.type;
   TypeDesc *desc = type->desc;
 
-  if (desc != NULL && desc->kind == TYPE_KLASS && desc->klass.path == NULL) {
-    //update generic type
-    Symbol *gtsym = stable_get(ps->u->stbl, desc->klass.type);
-    if (gtsym != NULL) {
-      debug("'%s' is a generic type", gtsym->name);
-      desc = gtsym->desc;
+  // maybe update variable's type
+  if (desc != NULL) {
+    Symbol *sym = get_type_symbol(ps, desc);
+    if (sym != NULL) {
+      if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+        parse_subtype(ps, sym, desc->klass.typeargs);
+      } else if (sym->kind == SYM_PTYPE) {
+        desc = desc_from_pararef(sym->name, sym->paratype.index);
+      }
     }
   }
 
@@ -3169,21 +3103,25 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
       return;
     }
 
-    if (desc == NULL) {
-      desc = exp->desc;
-    } else {
+    if (desc != NULL) {
       if (rdesc->kind == TYPE_LABEL) {
         rdesc = rdesc->label.edesc;
         debug("update expr's type as its enum '%s'", rdesc->klass.type);
       }
 
-      if (desc->kind == TYPE_PARADEF) {
-        if (!check_generic(desc, exp->sym)) {
-          syntax_error(ps, exp->row, exp->col, "generic type checked failed");
-        }
-      } else {
-        if (!desc_check(desc, rdesc)) {
-          if (!check_inherit(desc, exp->sym)) {
+      if (!desc_check(desc, rdesc)) {
+        if (!check_inherit(desc, exp->sym)) {
+          STRBUF(sbuf1);
+          STRBUF(sbuf2);
+          desc_tostr(desc, &sbuf1);
+          desc_tostr(exp->desc, &sbuf2);
+          syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+                      strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+          strbuf_fini(&sbuf1);
+          strbuf_fini(&sbuf2);
+        } else {
+          //check subtype
+          if (!check_subdesc(desc, rdesc)) {
             STRBUF(sbuf1);
             STRBUF(sbuf2);
             desc_tostr(desc, &sbuf1);
@@ -3195,11 +3133,13 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
           }
         }
       }
+    } else {
+      desc = exp->desc;
     }
   }
 
   /* add or update variable type symbol */
-  Symbol *sym = add_update_var(ps, id, desc);
+  Symbol *sym = new_update_var(ps, id, desc);
   if (sym == NULL)
     return;
 
@@ -3292,13 +3232,6 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
           rdesc->klass.type, rexp->sym->name);
   }
 
-  if (rdesc->kind == TYPE_PARADEF) {
-    if (!check_generic(rdesc, lexp->sym)) {
-      syntax_error(ps, lexp->row, lexp->col, "assignment is not macthed");
-    }
-    return;
-  }
-
   if (!desc_check(ldesc, rdesc)) {
     if (!check_inherit(ldesc, rexp->sym)) {
       STRBUF(sbuf1);
@@ -3388,111 +3321,58 @@ static void lro_add(Symbol *base, Vector *lro, char *symname)
   }
 }
 
-static int check_paratype_valid(ParserState *ps, Symbol *sym, Vector *types)
+TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
 {
-  Symbol *para;
-  TypeDesc *item;
-  vector_for_each(item, types) {
-    para = get_desc_symbol(ps->module, item);
-    if (para == NULL) {
-      STRBUF(sbuf);
-      desc_tostr(item, &sbuf);
-      syntax_error(ps, 0, 0, "'%s' is not defined", strbuf_tostr(&sbuf));
-      strbuf_fini(&sbuf);
-      return -1;
-    }
-
-    if (item->types != NULL) {
-      if (check_paratype_valid(ps, para, item->types))
-        return -1;
-    }
-
-    // check sym->paratype is in para->type.lro
-    int flag = 0;
-    Symbol *s, *s2;
-    vector_for_each(s, sym->paratype.typesyms) {
-      flag = 0;
-      vector_for_each_reverse(s2, &para->type.lro) {
-        if (s == s2) {
-          flag = 1;
-          break;
-        }
-      }
-      if (!flag) {
-        syntax_error(ps, 0, 0, "'%s' is not subclass of '%s'",
-                     para->name, sym->name);
-        return -1;
-      }
-    }
-  }
-  return 0;
-}
-
-static
-void parse_paratype_decl(ParserState *ps, Vector *paratypes, Vector **parasyms)
-{
-  Vector *paras = NULL;
-  if (vector_size(paratypes) > 0)
-    paras = vector_new();
-
-  ParserUnit *u = ps->u;
+  TypeDesc *proto = NULL;
+  TypeDesc *desc;
   Symbol *sym;
-  Symbol *basesym;
-  TypeDesc *desc, *desc2;
-  vector_for_each(desc, paratypes) {
-    // check paratype's bases
-    expect(desc->kind == TYPE_PARADEF);
-    Vector *bases = desc->paradef.types;
-    debug("parse generic type '%s'", desc->paradef.name);
-    Vector *descs = NULL;
-    Vector *typesyms = NULL;
-    if (vector_size(bases) > 0) {
-      descs = vector_new();
-      typesyms = vector_new();
-    }
-    vector_for_each(desc2, bases) {
-      expect(desc2->kind == TYPE_KLASS);
-      expect(desc2->paras == NULL);
-      basesym = get_desc_symbol(ps->module, desc2);
-      if (basesym == NULL) {
+  Vector *vec = NULL;
+  if (vector_size(idtypes) > 0) {
+    vec = vector_new();
+    IdType *item;
+    vector_for_each(item, idtypes) {
+      desc = item->type.desc;
+      sym = get_type_symbol(ps, desc);
+      if (sym == NULL) {
         STRBUF(sbuf);
-        desc_tostr(desc2, &sbuf);
-        syntax_error(ps, 0, 0, "'%s' is not defined", strbuf_tostr(&sbuf));
-        strbuf_fini(&sbuf);
+        desc_tostr(desc, &sbuf);
+        synerr(ps, item->type.row, item->type.col,
+              "'%s' is not defined", strbuf_tostr(&sbuf));
       } else {
-        // check para types are correct
-        if (basesym->type.typesyms == NULL && desc2->types != NULL) {
-          syntax_error(ps, 0, 0, "'%s' no generic types", basesym->name);
-        } else if (basesym->type.typesyms != NULL && desc2->types == NULL) {
-          syntax_error(ps, 0, 0, "'%s' need generic types", basesym->name);
-        } else if (basesym->type.typesyms == NULL && desc2->types == NULL) {
-          debug("'%s' no generic types", basesym->name);
+        if (sym->kind == SYM_PTYPE) {
+          desc = desc_from_pararef(sym->name, sym->paratype.index);
+          vector_push_back(vec, desc);
         } else {
-          if (check_paratype_valid(ps, basesym, desc2->types)) {
-            *parasyms = NULL;
-            return;
-          }
+          vector_push_back(vec, TYPE_INCREF(desc));
         }
-        vector_push_back(typesyms, basesym);
-        ++basesym->refcnt;
-        vector_push_back(descs, TYPE_INCREF(basesym->desc));
       }
     }
-    // add parameter type into current parserunit
-    sym = stable_add_typepara(u->stbl, desc->paradef.name);
-    if (sym == NULL) {
-      syntax_error(ps, 0, 0, "'%s' is redeclared", desc->paradef.name);
-      *parasyms = NULL;
-      return;
-    }
-    sym->desc = desc_from_paradef(sym->name, descs);
-    sym->paratype.typesyms = typesyms;
-    sym->paratype.index = idx;
-    vector_push_back(paras, sym);
-    ++sym->refcnt;
   }
 
-  *parasyms = paras;
+  desc = ret->desc;
+  if (desc != NULL) {
+    sym = get_type_symbol(ps, desc);
+    if (sym == NULL) {
+      STRBUF(sbuf);
+      desc_tostr(desc, &sbuf);
+      synerr(ps, ret->row, ret->col,
+            "'%s' is not defined", strbuf_tostr(&sbuf));
+    } else {
+      if (sym->kind == SYM_PTYPE) {
+        desc = desc_from_paradef(sym->name, sym->paratype.index);
+        proto = desc_from_proto(vec, desc);
+        TYPE_DECREF(desc);
+      } else {
+        proto = desc_from_proto(vec, desc);
+      }
+    }
+  }
+
+  if (proto == NULL) {
+    return desc_from_proto(vec, NULL);
+  }
+
+  return proto;
 }
 
 static void parse_funcdecl(ParserState *ps, Stmt *stmt)
@@ -3510,42 +3390,18 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   u->sym = sym;
 
   /* parse func's generic types */
-  parse_paratype_decl(ps, stmt->funcdecl.typeparas, &sym->func.typesyms);
+  //parse_paratype_decl(ps, stmt->funcdecl.typeparas, &sym->func.typesyms);
 
-  /* update func's proto for generic types */
-  TypeDesc *desc = sym->desc;
-  if (!has_error(ps)) {
-    // parametter types
-    TypeDesc *item;
-    vector_for_each(item, desc->proto.args) {
-      if (item->kind == TYPE_KLASS && item->klass.path == NULL) {
-        Symbol *parasym = stable_get(u->stbl, item->klass.type);
-        if (parasym != NULL && parasym->kind == SYM_PTYPE) {
-          debug("type '%s' is generic", item->klass.type);
-          TYPE_DECREF(item);
-          vector_set(desc->proto.args, idx, TYPE_INCREF(parasym->desc));
-        }
-      }
-    }
-    // return type
-    item = desc->proto.ret;
-    if (item != NULL &&
-        item->kind == TYPE_KLASS && item->klass.path == NULL) {
-      Symbol *parasym = stable_get(u->stbl, item->klass.type);
-      if (parasym != NULL && parasym->kind == SYM_PTYPE) {
-        debug("type '%s' is generic", parasym->name);
-        TYPE_DECREF(item);
-        desc->proto.ret = TYPE_INCREF(parasym->desc);
-      }
-    }
-  }
+  /* parse func's proto */
+  Vector *idtypes = stmt->funcdecl.idtypes;
+  Type *ret = &stmt->funcdecl.ret;
+  sym->desc = parse_func_proto(ps, idtypes, ret);
 
   /* parse func arguments */
-  Vector *argtypes = desc->proto.args;
-  Vector *idtypes = stmt->funcdecl.idtypes;
+  Vector *argtypes = sym->desc->proto.args;
   IdType *item;
   vector_for_each(item, idtypes) {
-    sym = add_update_var(ps, &item->id, vector_get(argtypes, idx));
+    sym = new_update_var(ps, &item->id, vector_get(argtypes, idx));
     if (sym != NULL && sym->var.typesym == NULL) {
       STRBUF(sbuf);
       desc_tostr(item->type.desc, &sbuf);
@@ -3556,8 +3412,7 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   }
 
   // check return type
-  TypeDesc *rettype = desc->proto.ret;
-  Type *ret = &stmt->funcdecl.ret;
+  TypeDesc *rettype = sym->desc->proto.ret;
   if (rettype != NULL) {
     if (!strcmp(funcname, "__init__")) {
       syntax_error(ps, ret->row, ret->col, "__init__ needs no value");
@@ -3640,16 +3495,9 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     TypeDesc *desc = fu->sym->desc;
     expect(desc != NULL);
     TypeDesc *ret = desc->proto.ret;
-    if (ret->kind == TYPE_PARADEF) {
-      if (!check_generic(ret, exp->sym)) {
-        syntax_error(ps, exp->row, exp->col,
-                      "incompatible return types with generic type");
-      }
-    } else {
-      if (!desc_check(ret, exp->desc) &&
-          !check_inherit(ret, exp->sym)) {
-        syntax_error(ps, exp->row, exp->col, "incompatible return types");
-      }
+    if (!desc_check(ret, exp->desc) &&
+        !check_inherit(ret, exp->sym)) {
+      syntax_error(ps, exp->row, exp->col, "incompatible return types");
     }
 
     if (!has_error(ps)) {
@@ -3850,14 +3698,15 @@ static void parse_for(ParserState *ps, Stmt *stmt)
     panic("which kind of symbol? %d", sym->kind);
   }
 
-  sym = type_find_mbr(sym, "__iter__");
+  TypeDesc *pdesc = NULL;
+  sym = type_find_mbr(sym, "__iter__", &pdesc);
   if (sym == NULL) {
     syntax_error(ps, iter->row, iter->col, "object is not iteratable.");
   } else {
     expect(desc_isproto(sym->desc));
-    expect(vector_size(sym->desc->proto.ret->types) == 1);
-    TypeDesc *subtype = vector_get(sym->desc->proto.ret->types, 0);
-    desc = type_maybe_instanced(iter->sym->desc, subtype);
+    //expect(vector_size(sym->desc->proto.ret->types) == 1);
+    //TypeDesc *subtype = vector_get(sym->desc->proto.ret->types, 0);
+    //desc = type_maybe_instanced(iter->sym->desc, subtype);
     CODE_OP(OP_NEW_ITER);
     offset = codeblock_bytes(u->block);
 
@@ -3873,7 +3722,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
 
   // if ident is not declared, declare it automatically.
   if (vexp->kind == ID_KIND) {
-    sym = find_local_id_symbol(ps, vexp->id.name);
+    sym = find_symbol_byname(ps, vexp->id.name);
     if (sym != NULL) {
       if (!has_error(ps) && !desc_check(sym->desc, desc)) {
         syntax_error(ps, vexp->row, vexp->col, "types are not matched");
@@ -3881,7 +3730,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
     } else {
       // create local variable
       Ident id = {vexp->id.name, vexp->row, vexp->col};
-      add_update_var(ps, &id, desc);
+      new_update_var(ps, &id, desc);
     }
   } else if (vexp->kind == TUPLE_KIND) {
     panic("not implemented");
@@ -4036,9 +3885,6 @@ static void check_proto_impl(ParserState *ps)
     }
 
     if (item->kind == SYM_CLASS) {
-      if (item->type.abstract) {
-
-      }
     } else {
       expect(item->kind == SYM_TRAIT);
       HASHMAP_ITERATOR(iter, &item->type.stbl->table);
@@ -4053,29 +3899,27 @@ static void check_proto_impl(ParserState *ps)
   }
 }
 
-Symbol *get_bound_symbol(ParserState *ps, TypeDesc *type)
+Symbol *get_type_symbol(ParserState *ps, TypeDesc *type)
 {
   ParserUnit *u = ps->u;
-  expect(type->kind == TYPE_KLASS);
+  if (type->kind != TYPE_KLASS) {
+    return get_desc_symbol(ps->module, type);
+  }
+
   char *path = type->klass.path;
   char *name = type->klass.type;
   Symbol *sym = NULL;
 
   if (path == NULL) {
     // check it is a type parameter or not
-    sym = stable_get(u->stbl, name);
-    if (sym != NULL && sym->kind != SYM_PTYPE) {
-      syntax_error(ps, 0, 0, "'%s' is not a type paramter", name);
-      return NULL;
-    }
-
+    sym = find_symbol_byname(ps, name);
     if (sym != NULL) {
-      // type parameter has no any more sub type parameters
-      if (vector_size(type->types) != 0) {
-        syntax_error(ps, 0, 0, "'%s' is not compatible", name);
-        return NULL;
+      if (sym->kind == SYM_PTYPE) {
+        debug("'%s' is type parameter", name);
+      } else {
+        expect(sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
+        debug("'%s' is a klass", name);
       }
-      debug("'%s' is type parameter", name);
     }
   }
 
@@ -4092,12 +3936,7 @@ Symbol *get_bound_symbol(ParserState *ps, TypeDesc *type)
       return NULL;
     }
 
-    if (vector_size(sym->type.typesyms) != vector_size(type->types)) {
-      syntax_error(ps, 0, 0, "'%s' is not compatible", name);
-      return NULL;
-    }
-
-    debug("'%s' is class/trait", name);
+    debug("'%s' is klass", name);
   }
 
   return sym;
@@ -4126,12 +3965,12 @@ void tp_match_typepara(ParserState *ps, Symbol *tp1, Symbol *tp2)
   Symbol *item2;
   vector_for_each(item2, tp2->paratype.typesyms) {
     while (item2->kind == SYM_PTYPE) {
-      item2 = get_bound_symbol(ps, item2->desc);
+      item2 = get_type_symbol(ps, item2->desc);
     }
 
     item1 = vector_get(tp1->paratype.typesyms, idx);
     while (item1->kind == SYM_PTYPE) {
-      item1 = get_bound_symbol(ps, item1->desc);
+      item1 = get_type_symbol(ps, item1->desc);
     }
 
     debug("match '%s' is subtype of '%s'?", item1->name, item2->name);
@@ -4147,7 +3986,7 @@ void kls_match_typepara(ParserState *ps, Symbol *kls, Symbol *tp)
   Symbol *item2;
   vector_for_each(item2, tp->paratype.typesyms) {
     while (item2->kind == SYM_PTYPE) {
-      item2 = get_bound_symbol(ps, item2->desc);
+      item2 = get_type_symbol(ps, item2->desc);
     }
 
     debug("match '%s' is subtype of '%s'?", kls->name, item2->name);
@@ -4161,20 +4000,20 @@ void kls_match_typepara(ParserState *ps, Symbol *kls, Symbol *tp)
 void check_subtype(ParserState *ps, Symbol *tpsym, Symbol *sym)
 {
   expect(tpsym->kind == SYM_PTYPE);
-  debug("'%s' is type parameter, and try to be matched by '%s'",
-        tpsym->name, sym->name);
+
+  debug("paratype '%s' <- typearg '%s'", tpsym->name, sym->name);
 
   // any type is ok for no bounds
   if (tpsym->paratype.typesyms == NULL) {
-    debug("'%s' no bounds, match any", tpsym->name);
+    debug("no bounds of paratype '%s' (it matches any)", tpsym->name);
     return;
   }
 
   if (sym->kind == SYM_PTYPE) {
-    debug("'%s' is type parameter", sym->name);
+    debug("'%s' is typepara", sym->name);
     tp_match_typepara(ps, sym, tpsym);
   } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
-    debug("'%s' is class/trait", sym->name);
+    debug("'%s' is klass", sym->name);
     kls_match_typepara(ps, sym, tpsym);
   } else {
     panic("invalid type %d in subtype", sym->kind);
@@ -4183,19 +4022,30 @@ void check_subtype(ParserState *ps, Symbol *tpsym, Symbol *sym)
 
 void parse_subtype(ParserState *ps, Symbol *clssym, Vector *subtypes)
 {
-  Symbol *bndsym;
+  Symbol *subsym;
   Symbol *tpsym;
   TypeDesc *item;
   vector_for_each(item, subtypes) {
-    bndsym = get_bound_symbol(ps, item);
-    if (bndsym == NULL)
+    subsym = get_type_symbol(ps, item);
+    if (subsym == NULL)
       continue;
 
     tpsym = vector_get(clssym->type.typesyms, idx);
-    check_subtype(ps, tpsym, bndsym);
+    if (tpsym == NULL) {
+      synerr(ps, 0, 0, "symbol '%s' no typeparas", clssym->name);
+      continue;
+    }
 
-    if (bndsym->kind == SYM_CLASS || bndsym->kind == SYM_TRAIT)
-      parse_subtype(ps, bndsym, item->types);
+    check_subtype(ps, tpsym, subsym);
+
+    if (subsym->kind == SYM_CLASS || subsym->kind == SYM_TRAIT) {
+      parse_subtype(ps, subsym, item->klass.typeargs);
+    } else if (subsym->kind == SYM_PTYPE) {
+      // update subtype's descriptor as type para ref
+      TYPE_DECREF(item);
+      item = desc_from_pararef(subsym->name, subsym->paratype.index);
+      vector_set(subtypes, idx, item);
+    }
   }
 }
 
@@ -4204,28 +4054,37 @@ void parse_bound(ParserState *ps, Symbol *sym, Vector *bounds)
   Symbol *bndsym;
   TypeDesc *item;
   vector_for_each(item, bounds) {
-    bndsym = get_bound_symbol(ps, item);
+    bndsym = get_type_symbol(ps, item);
     if (bndsym == NULL)
      return;
 
     if (idx > 0 && bndsym->kind == SYM_CLASS) {
-      syntax_error(ps, 0, 0, " expect '%s' is a trait", item->klass.type);
+      synerr(ps, 0, 0, " expect '%s' is a trait", item->klass.type);
       return;
     }
 
-    Vector *typesyms = sym->paratype.typesyms;
-    if (typesyms == NULL) {
-      typesyms = vector_new();
-      sym->paratype.typesyms = typesyms;
-    }
-    vector_push_back(typesyms, bndsym);
-
     if (bndsym->kind == SYM_PTYPE) {
       debug("bound '%s' is type parameter", bndsym->name);
+      if (item->klass.typeargs != NULL) {
+        synerr(ps, 0, 0, "'%s' no need type parameter", bndsym->name);
+      }
       continue;
     }
 
-    parse_subtype(ps, bndsym, item->types);
+    if (bndsym->type.typesyms == NULL) {
+      debug("'%s' no typepara", bndsym->name);
+      typepara_add_bound(sym, bndsym);
+      if (item->klass.typeargs != NULL) {
+        synerr(ps, 0, 0, "'%s' no need type parameter", bndsym->name);
+      }
+    } else {
+      debug("new '%s' typeref", bndsym->name);
+      Symbol *refsym = symbol_new(bndsym->name, SYM_TYPEREF);
+      refsym->desc = TYPE_INCREF(item);
+      refsym->typeref.sym = sym;
+      typepara_add_bound(sym, refsym);
+      parse_subtype(ps, bndsym, item->klass.typeargs);
+    }
   }
 }
 
@@ -4234,26 +4093,18 @@ void parse_typepara_decl(ParserState *ps, Vector *typeparas)
   ParserUnit *u = ps->u;
   char *name;
   Symbol *sym;
-  TypeDesc *item;
+  TypeParaDef *item;
   vector_for_each(item, typeparas) {
-    name = item->paradef.name;
-    debug("parse type parameter '%s'", name);
-    sym = stable_add_typepara(u->stbl, name);
+    name = item->type.name;
+    debug("parse typepara '%s'", name);
+    sym = stable_add_typepara(u->stbl, name, idx);
     if (sym == NULL) {
       syntax_error(ps, 0, 0, "'%s' is redeclared", name);
       continue;
     }
-    parse_bound(ps, sym, item->paradef.types);
-
-    if (!has_error(ps)) {
-      Vector *typesyms = u->sym->type.typesyms;
-      if (typesyms == NULL) {
-        typesyms = vector_new();
-        u->sym->type.typesyms = typesyms;
-      }
-      vector_push_back(typesyms, sym);
-    }
-    debug("end of type parameter '%s'", name);
+    sym_add_typepara(u->sym, sym);
+    parse_bound(ps, sym, item->bounds);
+    debug("end of typepara '%s'", name);
   }
 }
 

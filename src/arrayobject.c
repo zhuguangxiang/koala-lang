@@ -231,11 +231,8 @@ TypeObject array_type = {
 
 void init_array_type(void)
 {
-  TypeDesc *desc = desc_from_array;
-  TypeDesc *para = desc_from_paradef("T", NULL);
-  desc_add_paradef(desc, para);
-  TYPE_DECREF(para);
-  array_type.desc = desc;
+  array_type.desc = desc_from_array;
+  type_add_tp(&array_type, "T", NULL);
   if (type_ready(&array_type) < 0)
     panic("Cannot initalize 'Array' type.");
 }

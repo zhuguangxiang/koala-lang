@@ -184,14 +184,9 @@ TypeObject map_type = {
 
 void init_map_type(void)
 {
-  TypeDesc *desc = desc_from_map;
-  TypeDesc *para = desc_from_paradef("K", NULL);
-  desc_add_paradef(desc, para);
-  TYPE_DECREF(para);
-  para = desc_from_paradef("V", NULL);
-  desc_add_paradef(desc, para);
-  TYPE_DECREF(para);
-  map_type.desc = desc;
+  map_type.desc = desc_from_map;
+  type_add_tp(&map_type, "K", NULL);
+  type_add_tp(&map_type, "V", NULL);
   if (type_ready(&map_type) < 0)
     panic("Cannot initalize 'Map' type.");
 }

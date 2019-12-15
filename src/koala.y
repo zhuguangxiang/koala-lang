@@ -76,6 +76,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
   Expr *expr;
   Stmt *stmt;
   TypeDesc *desc;
+  TypeParaDef *typepara;
   AssignOpKind assginop;
   UnaryOpKind unaryop;
   IdParaDef name;
@@ -196,7 +197,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <stmt> local
 %type <name> name
 %type <list> type_para_list
-%type <desc> type_para
+%type <typepara> type_para
 %type <list> type_bound_list
 %type <idtypelist> para_list
 %type <idtypelist> id_type_list
@@ -274,7 +275,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
   free_idtypes($$);
 } <idtypelist>
 %destructor {
-  free_descs($$.vec);
+  //free_descs($$.vec);
 } <name>
 %destructor {
   free_extends($$);
@@ -1858,11 +1859,13 @@ type_para_list:
 type_para:
   ID
 {
-  $$ = desc_from_paradef($1, NULL);
+  IDENT(id, $1, @1);
+  $$ = new_type_para(id, NULL);
 }
 | ID ':' type_bound_list
 {
-  $$ = desc_from_paradef($1, $3);
+  IDENT(id, $1, @1);
+  $$ = new_type_para(id, $3);
 }
 ;
 
@@ -1934,24 +1937,28 @@ type_decl:
   $$ = stmt_from_class($2.id, $2.vec, $3, $5);
   $$->row = row(@1);
   $$->col = col(@1);
+  ps->semicolon = 0;
 }
 | CLASS name extends ';'
 {
   $$ = stmt_from_class($2.id, $2.vec, $3, NULL);
   $$->row = row(@1);
   $$->col = col(@1);
+  ps->semicolon = 0;
 }
 | TRAIT name extends '{' trait_members '}'
 {
   $$ = stmt_from_trait($2.id, $2.vec, $3, $5);
   $$->row = row(@1);
   $$->col = col(@1);
+  ps->semicolon = 0;
 }
 | TRAIT name extends ';'
 {
   $$ = stmt_from_trait($2.id, $2.vec, $3, NULL);
   $$->row = row(@1);
   $$->col = col(@1);
+  ps->semicolon = 0;
 }
 | ENUM name '{' enum_members '}'
 {
@@ -2027,10 +2034,6 @@ member_decl:
   $$ = $1;
 }
 | method_decl
-{
-  $$ = $1;
-}
-| proto_decl
 {
   $$ = $1;
 }
@@ -2349,12 +2352,12 @@ klass_type:
 | ID '<' type_list '>'
 {
   $$ = desc_from_klass(NULL, $1);
-  $$->types = $3;
+  $$->klass.typeargs = $3;
 }
 | ID '.' ID '<' type_list '>'
 {
   $$ = desc_from_klass($1, $3);
-  $$->types = $5;
+  $$->klass.typeargs = $5;
 }
 ;
 

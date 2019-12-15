@@ -42,18 +42,19 @@ typedef struct symboltable {
 
 /* symbol kind */
 typedef enum symbolkind {
-  SYM_CONST  = 1,   /* constant           */
-  SYM_VAR    = 2,   /* variable           */
-  SYM_FUNC   = 3,   /* function or method */
-  SYM_CLASS  = 4,   /* class              */
-  SYM_TRAIT  = 5,   /* trait              */
-  SYM_ENUM   = 6,   /* enum               */
-  SYM_LABEL  = 7,   /* enum label         */
-  SYM_IFUNC  = 8,   /* interface method   */
-  SYM_ANONY  = 9,   /* anonymous function */
-  SYM_MOD    = 10,  /* (external) module  */
-  SYM_REF    = 11,  /* reference symbol   */
-  SYM_PTYPE  = 12,  /* parameter type     */
+  SYM_CONST   = 1,   /* constant           */
+  SYM_VAR     = 2,   /* variable           */
+  SYM_FUNC    = 3,   /* function or method */
+  SYM_CLASS   = 4,   /* class              */
+  SYM_TRAIT   = 5,   /* trait              */
+  SYM_ENUM    = 6,   /* enum               */
+  SYM_LABEL   = 7,   /* enum label         */
+  SYM_IFUNC   = 8,   /* interface method   */
+  SYM_ANONY   = 9,   /* anonymous function */
+  SYM_MOD     = 10,  /* (external) module  */
+  SYM_REF     = 11,  /* reference symbol   */
+  SYM_PTYPE   = 12,  /* parameter type     */
+  SYM_TYPEREF = 13,  /* paratype ref       */
   SYM_MAX
 } SymKind;
 
@@ -96,9 +97,9 @@ struct symbol {
       int dotindex;
     } var;
     struct {
-      /* type parameters, only for in module */
+      /* type parameters */
       Vector *typesyms;
-      /* local varibles in the function */
+      /* local varibles */
       Vector locvec;
       /* free variables' name */
       Vector freevec;
@@ -106,8 +107,6 @@ struct symbol {
       void *codeblock;
     } func;
     struct {
-      /* abstract class */
-      int abstract;
       /* type parameters */
       Vector *typesyms;
       /* base class */
@@ -155,6 +154,10 @@ struct symbol {
       /* index in paratypes */
       int index;
     } paratype;
+    struct {
+      // refer to symbol
+      Symbol *sym;
+    } typeref;
   };
 };
 
@@ -176,10 +179,10 @@ Symbol *stable_add_class(STable *stbl, char *name);
 Symbol *stable_add_trait(STable *stbl, char *name);
 Symbol *stable_add_enum(STable *stbl, char *name);
 Symbol *stable_add_label(STable *stbl, char *name);
-Symbol *stable_add_typepara(STable *stbl, char *name);
+Symbol *stable_add_typepara(STable *stbl, char *name, int idx);
 void symbol_decref(Symbol *sym);
 void symbol_free(Symbol *sym);
-Symbol *type_find_mbr(Symbol *clsSym, char *name);
+Symbol *type_find_mbr(Symbol *clsSym, char *name, TypeDesc **ppdesc);
 Symbol *type_find_super_mbr(Symbol *typeSym, char *name);
 Symbol *enum_find_mbr(Symbol *eSym, char *name);
 void fill_locvars(Symbol *sym, Vector *vec);
@@ -189,6 +192,9 @@ Symbol *load_type(Object *ob);
 Symbol *load_method(Object *ob);
 Symbol *load_field(Object *ob);
 void stable_write_image(STable *stbl, Image *image);
+void typepara_add_bound(Symbol *sym, Symbol *bnd);
+void sym_add_typepara(Symbol *sym, Symbol *tp);
+Symbol *new_typepara_symbol(char *name, int idx);
 
 #ifdef __cplusplus
 }

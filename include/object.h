@@ -116,6 +116,24 @@ struct object {
 })
 
 typedef struct {
+  char *name;
+  Vector *bounds;
+} TypePara;
+
+static inline TypePara *new_typepara(char *name, Vector *bounds)
+{
+  TypePara *tp = kmalloc(sizeof(TypePara));
+  tp->name = name;
+  tp->bounds = bounds;
+  return tp;
+}
+
+typedef struct typeref {
+  TypeObject *tob;
+  TypeDesc *desc;
+} TypeRef;
+
+typedef struct {
   /* arithmetic */
   func_t add;
   func_t sub;
@@ -180,6 +198,8 @@ struct typeobject {
   int flags;
   /* type decriptor */
   TypeDesc *desc;
+  /* type parameters */
+  Vector *tps;
 
   /* mark object */
   ob_markfunc mark;
@@ -227,6 +247,17 @@ struct typeobject {
   /* constant pool */
   Object *consts;
 };
+
+static inline void type_add_tp(TypeObject *to, char *name, Vector *bounds)
+{
+  TypePara *tp = new_typepara(name, bounds);
+  Vector *tps = to->tps;
+  if (tps == NULL) {
+    tps = vector_new();
+    to->tps = tps;
+  }
+  vector_push_back(tps, tp);
+}
 
 extern TypeObject type_type;
 extern TypeObject any_type;

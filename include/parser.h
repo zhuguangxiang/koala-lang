@@ -104,6 +104,8 @@ typedef struct parserstate {
   char *filename;
   /* its module */
   Module *module;
+  /* semicolon flag */
+  int semicolon;
 
   /* is interactive ? */
   int interactive;
@@ -148,6 +150,8 @@ typedef struct parserstate {
             ps->filename, row, col, ##__VA_ARGS__);    \
   }                                                    \
 })
+
+#define synerr syntax_error
 
 #define has_error(ps) ((ps)->errors > 0)
 

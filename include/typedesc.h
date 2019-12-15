@@ -80,16 +80,14 @@ typedef enum desckind {
 struct typedesc {
   DescKind kind;
   int refcnt;
-  Vector *paras;
-  Vector *types;
   union {
      /* TYPE_BASE */
     char base;
     /* TYPE_KLASS */
     struct {
-      // Vector *bases;
-      char *path;
       char *type;
+      char *path;
+      Vector *typeargs;
     } klass;
     /* TYPE_PROTO */
     struct {
@@ -104,7 +102,8 @@ struct typedesc {
     /* TYPE_PARADEF */
     struct {
       char *name;
-      Vector *types;
+      int index;
+      Vector *typeparas;
     } paradef;
     /* TYPE_LABEL */
     struct {
@@ -142,6 +141,7 @@ void desc_tostr(TypeDesc *desc, StrBuf *buf);
 char *base_str(int kind);
 void desc_show(TypeDesc *desc);
 int desc_check(TypeDesc *desc1, TypeDesc *desc2);
+int check_subdesc(TypeDesc *desc1, TypeDesc *desc2);
 
 extern TypeDesc type_base_int;
 extern TypeDesc type_base_str;
@@ -165,7 +165,7 @@ TypeDesc *desc_from_base(int kind);
 TypeDesc *desc_from_klass(char *path, char *type);
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
 TypeDesc *desc_from_pararef(char *name, int index);
-TypeDesc *desc_from_paradef(char *name, Vector *types);
+TypeDesc *desc_from_paradef(char *name, int index);
 TypeDesc *desc_from_label(TypeDesc *edesc, Vector *types);
 #define desc_from_varg  desc_from_klass("lang", "VArg")
 #define desc_from_array desc_from_klass("lang", "Array")
@@ -173,6 +173,7 @@ TypeDesc *desc_from_label(TypeDesc *edesc, Vector *types);
 #define desc_from_tuple desc_from_klass("lang", "Tuple")
 void desc_add_paratype(TypeDesc *desc, TypeDesc *type);
 void desc_add_paradef(TypeDesc *desc, TypeDesc *type);
+TypeDesc *desc_dup(TypeDesc *desc);
 
 TypeDesc *str_to_desc(char *s);
 TypeDesc *str_to_proto(char *ptype, char *rtype);

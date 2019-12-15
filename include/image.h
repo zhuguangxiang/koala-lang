@@ -70,23 +70,23 @@ typedef struct stringitem {
 
 typedef struct typeitem {
   int32_t kind;           /* see: DescKind in typedesc.h */
-  int32_t parasindex;     /* ->IndexItem */
-  int32_t typesindex;     /* ->IndexItem */
   union {
     char base;            /* base type */
     struct {
-      int32_t pathindex;  /* ->StringItem */
       int32_t typeindex;  /* ->StringItem */
+      int32_t pathindex;  /* ->StringItem */
+      int32_t typesindex; /* ->IndexItem */
     } klass;
     struct {
       int32_t pindex;     /* ->IndexItem */
       int32_t rindex;     /* ->TypeItem */
     } proto;
     struct {
+      int32_t value;      /* index value */
       int32_t nameindex;  /* ->StringItem */
-      int32_t indexvalue; /* int */
     } pararef;
     struct {
+      int32_t value;      /* index value */
       int32_t nameindex;  /* ->StringItem */
       int32_t typesindex; /* ->IndexItem */
     } paradef;
@@ -169,6 +169,7 @@ typedef struct codeitem {
 
 typedef struct classitem {
   int32_t nameindex;   /* ->StringItem */
+  int32_t parasindex;  /* ->IndexItem */
   int32_t basesindex;  /* ->IndexItem */
   int32_t mbrindex;    /* ->IndexItem */
 } ClassItem;
@@ -181,6 +182,7 @@ typedef struct ifuncitem {
 
 typedef struct enumitem {
   int32_t nameindex;   /* ->StringItem */
+  int32_t parasindex;  /* ->IndexItem */
   int32_t mbrindex;    /* ->IndexItem */
 } EnumItem;
 
@@ -259,7 +261,8 @@ int image_add_anony(Image *image, CodeInfo *ci);
 void image_add_var(Image *image, char *name, TypeDesc *desc);
 void image_add_kvar(Image *image, char *name, TypeDesc *desc, Literal *val);
 int image_add_func(Image *image, CodeInfo *ci);
-void image_add_class(Image *image, char *name, Vector *bases, int mbrindex);
+void image_add_class(Image *image, char *name, Vector *typeparas,
+                    Vector *bases, int mbrindex);
 void image_add_trait(Image *image, char *name, Vector *bases, int mbrindex);
 void image_add_enum(Image *image, char *name, int mbrindex);
 int image_add_field(Image *image, char *name, TypeDesc *desc);

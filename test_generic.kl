@@ -1,0 +1,48 @@
+
+import "io"
+class Box<ITEM> {
+  good ITEM
+  arr Array<ITEM>
+  func show() {
+    io.println("{")
+    io.print("  good: ")
+    io.print(good)
+    io.println("")
+    io.print("  arr: ")
+    io.print(arr)
+    io.println("")
+    io.println("}")
+  }
+
+  func add(item ITEM) {
+    arr.append(item)
+  }
+}
+
+var box Box<string> = new Box<string>()
+box.good.length()
+// runtime: null pointer exception
+box.good = "foo"
+box.good = 123
+box.good.length()
+box.arr.append("bar")
+// runtime: null pointer exception
+box.arr = new Array<int>()
+//error: expected 'lang.Array<string>', but found 'lang.Array<int>'
+box.arr = new Array<string>()
+box.show()
+arr := box.arr
+arr.append("foo")
+arr.append(true)
+// error: expected 'string', but found 'bool'
+box.arr.append("bar")
+box.arr
+box.arr.append(100)
+// error: expected 'string', but found 'int'
+box.add("foobar")
+box.show()
+
+var box2 Box<int> = new Box<int>()
+box2.add("foo")
+box2.add(100)
+box2.show()

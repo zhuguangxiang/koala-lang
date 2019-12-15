@@ -160,13 +160,13 @@ TypeDesc *desc_from_pararef(char *name, int index)
   return desc;
 }
 
-TypeDesc *desc_from_paradef(char *name, Vector *types)
+TypeDesc *desc_from_paradef(char *name, int index)
 {
   TypeDesc *desc = kmalloc(sizeof(TypeDesc));
   desc->kind = TYPE_PARADEF;
   desc->refcnt = 1;
   desc->paradef.name = name;
-  desc->paradef.types = types;
+  desc->paradef.index = index;
   return desc;
 }
 
@@ -190,26 +190,34 @@ TypeDesc *desc_from_label(TypeDesc *edesc, Vector *_types)
 
 void desc_add_paratype(TypeDesc *desc, TypeDesc *type)
 {
-  expect(type->kind != TYPE_PARADEF);
+  expect(desc->kind == TYPE_KLASS);
 
-  Vector *types = desc->types;
+  Vector *types = desc->klass.typeargs;
   if (types == NULL) {
     types = vector_new();
-    desc->types = types;
+    desc->klass.typeargs = types;
   }
   vector_push_back(types, TYPE_INCREF(type));
 }
 
 void desc_add_paradef(TypeDesc *desc, TypeDesc *type)
 {
-  expect(type->kind == TYPE_PARADEF);
+  expect(desc->kind == TYPE_PARADEF);
 
-  Vector *vec = desc->paras;
-  if (vec == NULL) {
-    vec = vector_new();
-    desc->paras = vec;
+  Vector *types = desc->paradef.typeparas;
+  if (types == NULL) {
+    types = vector_new();
+    desc->paradef.typeparas = types;
   }
-  vector_push_back(vec, TYPE_INCREF(type));
+  vector_push_back(types, TYPE_INCREF(type));
+}
+
+TypeDesc *desc_dup(TypeDesc *desc)
+{
+  if (desc->kind != TYPE_KLASS)
+    return TYPE_INCREF(desc);
+
+  return desc_from_klass(desc->klass.path, desc->klass.type);
 }
 
 void free_descs(Vector *vec)
@@ -228,12 +236,10 @@ void desc_free(TypeDesc *desc)
   if (desc == NULL)
     return;
 
-  free_descs(desc->paras);
-  free_descs(desc->types);
-
   int kind = desc->kind;
   switch (kind) {
   case TYPE_KLASS: {
+    free_descs(desc->klass.typeargs);
     kfree(desc);
     break;
   }
@@ -248,7 +254,6 @@ void desc_free(TypeDesc *desc)
     break;
   }
   case TYPE_PARADEF: {
-    free_descs(desc->paradef.types);
     kfree(desc);
     break;
   }
@@ -281,14 +286,43 @@ void desc_tostr(TypeDesc *desc, StrBuf *buf)
       strbuf_append_char(buf, '.');
     }
     strbuf_append(buf, desc->klass.type);
+    if (desc->klass.typeargs != NULL) {
+      strbuf_append_char(buf, '<');
+      int size = vector_size(desc->klass.typeargs);
+      TypeDesc *item;
+      vector_for_each(item, desc->klass.typeargs) {
+        desc_tostr(item, buf);
+        if (idx < size - 1)
+          strbuf_append(buf, ", ");
+      }
+      strbuf_append_char(buf, '>');
+    }
     break;
   }
   case TYPE_PROTO: {
-    panic("not implemented");
+    TypeDesc *item;
+
+    int size = vector_size(desc->proto.args);
+    strbuf_append_char(buf, '(');
+    if (size > 0) {
+      vector_for_each(item, desc->proto.args) {
+        desc_tostr(item, buf);
+        if (idx < size - 1)
+          strbuf_append(buf, ", ");
+      }
+    }
+    strbuf_append(buf, ") -> ");
+
+    item = desc->proto.ret;
+    if (item != NULL) {
+      desc_tostr(item, buf);
+    } else {
+      strbuf_append(buf, "void");
+    }
     break;
   }
   case TYPE_PARAREF: {
-    panic("not implemented");
+    strbuf_append(buf, desc->pararef.name);
     break;
   }
   case TYPE_PARADEF: {
@@ -317,19 +351,37 @@ void desc_show(TypeDesc *desc)
   }
 }
 
-/* desc1 <- desc2 */
+int check_subdesc(TypeDesc *desc1, TypeDesc *desc2)
+{
+  if (desc1->kind != TYPE_KLASS)
+    return 0;
+  if (desc2->kind != TYPE_KLASS)
+    return 0;
+
+  Vector *vec1 = desc1->klass.typeargs;
+  Vector *vec2 = desc2->klass.typeargs;
+  int size1 = vector_size(vec1);
+  int size2 = vector_size(vec2);
+  if (size1 != size2)
+    return 0;
+
+  TypeDesc *type1;
+  TypeDesc *type2;
+  for (int i = 0; i < size1; ++i) {
+    type1 = vector_get(vec1, i);
+    type2 = vector_get(vec2, i);
+    if (!desc_check(type1, type2))
+      return 0;
+  }
+  return 1;
+}
+
+// desc1 <- desc2
+// one is any, returns true
 int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 {
   if (desc1 == NULL || desc2 == NULL)
     return 0;
-
-  expect(desc1->paras == NULL);
-  expect(desc1->kind != TYPE_PARADEF);
-  expect(desc1->kind != TYPE_PARAREF);
-
-  expect(desc2->paras == NULL);
-  expect(desc2->kind != TYPE_PARADEF);
-  expect(desc2->kind != TYPE_PARAREF);
 
   if (desc1 == desc2)
     return 1;
@@ -364,21 +416,9 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
     if (strcmp(name1, name2))
       return 0;
 
-    Vector *vec1 = desc1->types;
-    Vector *vec2 = desc2->types;
-    int size1 = vector_size(vec1);
-    int size2 = vector_size(vec2);
-    if (size1 != size2)
+    if (!check_subdesc(desc1, desc2))
       return 0;
 
-    TypeDesc *type1;
-    TypeDesc *type2;
-    for (int i = 0; i < size1; ++i) {
-      type1 = vector_get(vec1, i);
-      type2 = vector_get(vec2, i);
-      if (!desc_check(type1, type2))
-        return 0;
-    }
     return 1;
   }
   case TYPE_PROTO: {
@@ -395,6 +435,15 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
         return 0;
     }
     return 1;
+  }
+  case TYPE_PARAREF: {
+    char *name1 = desc1->pararef.name;
+    char *name2 = desc1->pararef.name;
+    if (strcmp(name1, name2)) {
+      debug("pararef name not equal:%s-%s", name1, name2);
+      return 0;
+    }
+    return desc1->pararef.index == desc2->pararef.index;
   }
   case TYPE_LABEL: {
     return desc_check(desc1->label.edesc, desc2->label.edesc);

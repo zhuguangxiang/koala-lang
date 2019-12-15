@@ -196,14 +196,44 @@ Symbol *stable_add_label(STable *stbl, char *name)
   return sym;
 }
 
-Symbol *stable_add_typepara(STable *stbl, char *name)
+Symbol *stable_add_typepara(STable *stbl, char *name, int idx)
 {
   expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_PTYPE);
   if (stable_add_symbol(stbl, sym))
     return NULL;
+  sym->desc = desc_from_paradef(name, idx);
+  sym->paratype.index = idx;
   symbol_decref(sym);
   return sym;
+}
+
+Symbol *new_typepara_symbol(char *name, int idx)
+{
+  Symbol *sym = symbol_new(name, SYM_PTYPE);
+  sym->desc = desc_from_paradef(name, idx);
+  sym->paratype.index = idx;
+  return sym;
+}
+
+void typepara_add_bound(Symbol *sym, Symbol *bnd)
+{
+  Vector *typesyms = sym->paratype.typesyms;
+  if (typesyms == NULL) {
+    typesyms = vector_new();
+    sym->paratype.typesyms = typesyms;
+  }
+  vector_push_back(typesyms, bnd);
+}
+
+void sym_add_typepara(Symbol *sym, Symbol *tp)
+{
+  Vector *typesyms = sym->type.typesyms;
+  if (typesyms == NULL) {
+    typesyms = vector_new();
+    sym->type.typesyms = typesyms;
+  }
+  vector_push_back(typesyms, tp);
 }
 
 void symbol_free(Symbol *sym)
@@ -294,7 +324,7 @@ void symbol_decref(Symbol *sym)
 Symbol *load_field(Object *ob)
 {
   FieldObject *fo = (FieldObject *)ob;
-  debug("load field '%s'", fo->name);
+  //debug("load field '%s'", fo->name);
   Symbol *sym = symbol_new(fo->name, SYM_VAR);
   sym->desc = TYPE_INCREF(fo->desc);
   return sym;
@@ -303,7 +333,7 @@ Symbol *load_field(Object *ob)
 Symbol *load_method(Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
-  debug("load method '%s'", meth->name);
+  //debug("load method '%s'", meth->name);
   Symbol *sym = symbol_new(meth->name, SYM_FUNC);
   sym->desc = TYPE_INCREF(meth->desc);
   return sym;
@@ -337,10 +367,21 @@ Symbol *load_type(Object *ob)
     symbol_decref(sym);
   }
 
-  Symbol *clsSym = symbol_new(type->name, SYM_CLASS);
-  clsSym->desc = TYPE_INCREF(type->desc);
-  clsSym->type.stbl = stbl;
+  Symbol *clssym = symbol_new(type->name, SYM_CLASS);
+  clssym->desc = TYPE_INCREF(type->desc);
+  clssym->type.stbl = stbl;
 
+  if (type->tps != NULL) {
+    debug("load type '%s' type parameters", type->name);
+    Symbol *tpsym;
+    TypePara *tp;
+    vector_for_each(tp, type->tps) {
+      tpsym = new_typepara_symbol(tp->name, idx);
+      sym_add_typepara(clssym, tpsym);
+    }
+  }
+
+  // load super's classes' symbols
   TypeObject *item;
   vector_for_each_reverse(item, &type->lro) {
     if (item == type)
@@ -348,12 +389,12 @@ Symbol *load_type(Object *ob)
     sym = load_type((Object *)item);
     if (sym != NULL) {
       ++sym->refcnt;
-      vector_push_back(&clsSym->type.lro, sym);
+      vector_push_back(&clssym->type.lro, sym);
       symbol_decref(sym);
     }
   }
 
-  return clsSym;
+  return clssym;
 }
 
 void fill_locvars(Symbol *sym, Vector *vec)
@@ -406,6 +447,7 @@ void type_write_image(Symbol *typesym, Image *image)
 {
   int size = stable_size(typesym->type.stbl);
   MbrIndex indexes[size];
+  memset(indexes, 0, sizeof(indexes));
   HASHMAP_ITERATOR(iter, &typesym->type.stbl->table);
   Symbol *sym;
   int j = 0;
@@ -442,7 +484,7 @@ void type_write_image(Symbol *typesym, Image *image)
     case SYM_PTYPE:
       // omit type paramter
       --size;
-      break;
+      continue;
     default:
       panic("invalid symbol kind %d in class/trait/enum", sym->kind);
       break;
@@ -452,54 +494,92 @@ void type_write_image(Symbol *typesym, Image *image)
 
   index = image_add_mbrs(image, indexes, size);
 
-  Vector *types = vector_new();
+  Vector *bases = vector_new();
   Symbol *s = typesym->type.base;
   if (s != NULL && !desc_isany(s->desc))
-    vector_push_back(types, s->desc);
+    vector_push_back(bases, s->desc);
 
   Vector *traits = &typesym->type.traits;
   vector_for_each(s, traits) {
     if (!desc_isany(s->desc))
-      vector_push_back(types, s->desc);
+      vector_push_back(bases, s->desc);
   }
+
+  Vector *typeparas = vector_new();
+  Vector *typesyms = typesym->type.typesyms;
+  TypeDesc *desc;
+  vector_for_each(s, typesyms) {
+    expect(s->kind == SYM_PTYPE);
+    desc = s->desc;
+    Vector *subtypes = NULL;
+    if (s->paratype.typesyms != NULL) {
+      subtypes = vector_new();
+      Symbol *subsym;
+      vector_for_each(subsym, s->paratype.typesyms) {
+        vector_push_back(subtypes, subsym->desc);
+      }
+    }
+    desc->paradef.typeparas = subtypes;
+    vector_push_back(typeparas, desc);
+  }
+
   if (typesym->kind == SYM_CLASS) {
-    image_add_class(image, typesym->name, types, index);
+    image_add_class(image, typesym->name, typeparas, bases, index);
   } else if (typesym->kind == SYM_TRAIT) {
-    image_add_trait(image, typesym->name, types, index);
+    image_add_trait(image, typesym->name, bases, index);
   } else {
     expect(typesym->kind == SYM_ENUM);
     image_add_enum(image, typesym->name, index);
   }
-  vector_free(types);
+
+  vector_free(bases);
+  vector_free(typeparas);
 }
 
-static Symbol *_find_mbr_(Symbol *typesym, char *name)
+static Symbol *_find_mbr_(Symbol *typesym, char *name, TypeDesc **ppdesc)
 {
-  if (typesym->kind != SYM_CLASS && typesym->kind != SYM_ENUM &&
-      typesym->kind != SYM_TRAIT) {
-    error("sym '%s' is not class/trait/enum", typesym->name);
+  if (typesym->kind != SYM_CLASS &&
+      typesym->kind != SYM_ENUM &&
+      typesym->kind != SYM_TRAIT &&
+      typesym->kind != SYM_PTYPE &&
+      typesym->kind != SYM_TYPEREF) {
+    error("sym '%s' is not klass", typesym->name);
     return NULL;
   }
 
+  TypeDesc *desc = NULL;
+
+  if (typesym->kind == SYM_TYPEREF) {
+    desc = typesym->desc;
+    typesym = typesym->typeref.sym;
+  }
+
   Symbol *sym = stable_get(typesym->type.stbl, name);
-  if (sym != NULL)
+  if (sym != NULL) {
+    if (ppdesc != NULL)
+      *ppdesc = desc;
     return sym;
+  }
 
   Symbol *item;
   vector_for_each_reverse(item, &typesym->type.lro) {
-    sym = type_find_mbr(item, name);
-    if (sym != NULL)
+    sym = type_find_mbr(item, name, ppdesc);
+    if (sym != NULL) {
       return sym;
+    }
   }
 
   return NULL;
 }
 
-Symbol *type_find_mbr(Symbol *typesym, char *name)
+Symbol *type_find_mbr(Symbol *typesym, char *name, TypeDesc **ppdesc)
 {
-  if (typesym->kind != SYM_CLASS && typesym->kind != SYM_ENUM &&
-      typesym->kind != SYM_TRAIT && typesym->kind != SYM_PTYPE) {
-    error("sym '%s' is not class/trait/enum/paratype", typesym->name);
+  if (typesym->kind != SYM_CLASS &&
+      typesym->kind != SYM_ENUM &&
+      typesym->kind != SYM_TRAIT &&
+      typesym->kind != SYM_PTYPE &&
+      typesym->kind != SYM_TYPEREF) {
+    error("sym '%s' is not klass", typesym->name);
     return NULL;
   }
 
@@ -507,27 +587,27 @@ Symbol *type_find_mbr(Symbol *typesym, char *name)
     Symbol *sym;
     Symbol *base;
     vector_for_each_reverse(base, typesym->paratype.typesyms) {
-      sym = _find_mbr_(base, name);
+      sym = _find_mbr_(base, name, ppdesc);
       if (sym != NULL)
         return sym;
     }
   }
 
-  return _find_mbr_(typesym, name);
+  return _find_mbr_(typesym, name, ppdesc);
 }
 
 Symbol *type_find_super_mbr(Symbol *typesym, char *name)
 {
   if (typesym->kind != SYM_CLASS && typesym->kind != SYM_ENUM &&
       typesym->kind != SYM_TRAIT) {
-    error("sym '%s' is not class/trait/enum", typesym->name);
+    error("sym '%s' is not klass in super", typesym->name);
     return NULL;
   }
 
   Symbol *sym;
   Symbol *item;
   vector_for_each_reverse(item, &typesym->type.lro) {
-    sym = type_find_mbr(item, name);
+    sym = type_find_mbr(item, name, NULL);
     if (sym != NULL)
       return sym;
   }
