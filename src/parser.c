@@ -3179,22 +3179,36 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
     }
   }
 
+  TypeDesc *rdesc = NULL;
   if (exp != NULL) {
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
-    TypeDesc *rdesc = exp->desc;
-    if (rdesc == NULL) {
-      return;
+    rdesc = exp->desc;
+  }
+
+  if (rdesc == NULL) {
+    return;
+  }
+
+  if (desc != NULL) {
+    if (rdesc->kind == TYPE_LABEL) {
+      rdesc = rdesc->label.edesc;
+      debug("update expr's type as its enum '%s'", rdesc->klass.type);
     }
 
-    if (desc != NULL) {
-      if (rdesc->kind == TYPE_LABEL) {
-        rdesc = rdesc->label.edesc;
-        debug("update expr's type as its enum '%s'", rdesc->klass.type);
-      }
-
-      if (!desc_check(desc, rdesc)) {
-        if (!check_inherit(desc, exp->sym)) {
+    if (!desc_isnull(rdesc) && !desc_check(desc, rdesc)) {
+      if (!check_inherit(desc, exp->sym)) {
+        STRBUF(sbuf1);
+        STRBUF(sbuf2);
+        desc_tostr(desc, &sbuf1);
+        desc_tostr(exp->desc, &sbuf2);
+        synerr(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+                    strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+        strbuf_fini(&sbuf1);
+        strbuf_fini(&sbuf2);
+      } else {
+        //check subtype
+        if (!check_subdesc(desc, rdesc)) {
           STRBUF(sbuf1);
           STRBUF(sbuf2);
           desc_tostr(desc, &sbuf1);
@@ -3203,20 +3217,13 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
                       strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
           strbuf_fini(&sbuf1);
           strbuf_fini(&sbuf2);
-        } else {
-          //check subtype
-          if (!check_subdesc(desc, rdesc)) {
-            STRBUF(sbuf1);
-            STRBUF(sbuf2);
-            desc_tostr(desc, &sbuf1);
-            desc_tostr(exp->desc, &sbuf2);
-            synerr(ps, exp->row, exp->col, "expected '%s', but found '%s'",
-                        strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-            strbuf_fini(&sbuf1);
-            strbuf_fini(&sbuf2);
-          }
         }
       }
+    }
+  } else {
+    if (desc_isnull(rdesc)) {
+      synerr(ps, id->row, id->col, "unknown type of var '%s'", id->name);
+      return;
     } else {
       desc = exp->desc;
     }
@@ -3315,6 +3322,9 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
     debug("right expr is enum '%s' label '%s'",
           rdesc->klass.type, rexp->sym->name);
   }
+
+  if (desc_isnull(rdesc))
+    return;
 
   if (!desc_check(ldesc, rdesc)) {
     if (!check_inherit(ldesc, rexp->sym)) {

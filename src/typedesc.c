@@ -80,7 +80,7 @@ static struct baseinfo {
   {&type_base_byte,  "byte"  },
   {&type_base_char,  "char"  },
   {&type_base_float, "float" },
-  {&type_base_null,  "null" },
+  {&type_base_null,  "nulltype" },
 };
 
 char *base_str(int kind)
