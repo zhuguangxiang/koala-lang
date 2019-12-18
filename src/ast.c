@@ -27,10 +27,10 @@
 #include "memory.h"
 #include "strbuf.h"
 
-Expr *expr_from_nil(void)
+Expr *expr_from_null(void)
 {
   Expr *exp = kmalloc(sizeof(Expr));
-  exp->kind = NIL_KIND;
+  exp->kind = NULL_KIND;
   return exp;
 }
 
@@ -323,7 +323,7 @@ void expr_free(Expr *exp)
   TYPE_DECREF(exp->desc);
 
   switch (exp->kind) {
-  case NIL_KIND:
+  case NULL_KIND:
   case SELF_KIND:
   case SUPER_KIND:
     kfree(exp);

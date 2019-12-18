@@ -72,7 +72,7 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
 {
   static int tokens[] = {
     INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
-    ID, SELF, SUPER, TRUE, FALSE, NIL,
+    ID, SELF, SUPER, TRUE, FALSE, CONST_NULL,
     RETURN, BREAK, CONTINUE, ')', ']', '}', '>', '_',
     BYTE, INTEGER, FLOAT, CHAR, STRING, BOOL, ANY,
     DOTDOTDOT, DOTDOTLESS, FAT_ARROW,
@@ -233,7 +233,7 @@ moddoc  "//!"[^\n]*
 "super"    { YY_RETURN(SUPER);        }
 "true"     { YY_RETURN(TRUE);         }
 "false"    { YY_RETURN(FALSE);        }
-"nil"      { YY_RETURN(NIL);          }
+"null"     { YY_RETURN(CONST_NULL);   }
 
 {bin_const} {
   yylval->ival = strtoll(yytext+2, NULL, 2);
@@ -308,7 +308,7 @@ moddoc  "//!"[^\n]*
 }
 
 (\'\') {
-  syntax_error(yyps, yyps->row, yyps->col, "illegal character");
+  synerr(yyps, yyps->row, yyps->col, "illegal character");
   if (yyps->interactive) {
     yyps->more = 0;
   }
@@ -316,7 +316,7 @@ moddoc  "//!"[^\n]*
 
 (\'{character2}{character2}+\') {
   char *s = yytext;
-  syntax_error(yyps, yyps->row, yyps->col, "illegal character:%s", yytext);
+  synerr(yyps, yyps->row, yyps->col, "illegal character:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;
   }

@@ -123,7 +123,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token SUPER
 %token TRUE
 %token FALSE
-%token NIL
+%token CONST_NULL
 
 %token FREE_ASSIGN
 %token PLUS_ASSIGN
@@ -498,7 +498,7 @@ unit:
 }
 | INVALID
 {
-  syntax_error(ps, ps->row, ps->col, "invalid input:%s", $1);
+  synerr(ps, ps->row, ps->col, "invalid input:%s", $1);
   if (ps->interactive) {
     ps->more = 0;
   }
@@ -507,13 +507,13 @@ unit:
 {
   if (ps->interactive) {
     if (!ps->quit) {
-      syntax_error(ps, ps->row, ps->col, "invalid syntax");
+      synerr(ps, ps->row, ps->col, "invalid syntax");
       yyclearin;
     }
     ps->more = 0;
     yyerrok;
   } else {
-    syntax_error(ps, ps->row, ps->col, "invalid syntax");
+    synerr(ps, ps->row, ps->col, "invalid syntax");
     yyclearin;
     yyerrok;
   }
@@ -1229,9 +1229,9 @@ atom:
   $$ = expr_from_bool(0);
   set_expr_pos($$, @1);
 }
-| NIL
+| CONST_NULL
 {
-  $$ = expr_from_nil();
+  $$ = expr_from_null();
   set_expr_pos($$, @1);
 }
 | SELF

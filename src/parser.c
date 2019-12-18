@@ -35,6 +35,8 @@ static Module _lang_;
 static Symbol *modClsSym;
 /* Module, path as key */
 static HashMap modules;
+/* null symbol */
+static Symbol nullsym;
 
 static int _mod_equal_(void *e1, void *e2)
 {
@@ -55,6 +57,25 @@ static void _mod_free_(void *e, void *arg)
   kfree(mod);
 }
 
+static void init_nullsym(void)
+{
+  nullsym.name = "NullType";
+  nullsym.kind = SYM_CLASS;
+  STable *stbl = stable_new();
+  Vector *args = vector_new();
+  vector_push_back(args, desc_from_any);
+  TypeDesc *proto = desc_from_proto(args, desc_from_bool);
+  stable_add_func(stbl, "__eq__", proto);
+  stable_add_func(stbl, "__neq__", proto);
+  TYPE_DECREF(proto);
+  nullsym.type.stbl = stbl;
+}
+
+static void fini_nullsym(void)
+{
+
+}
+
 void init_parser(void)
 {
   _lang_.path = "lang";
@@ -65,12 +86,14 @@ void init_parser(void)
   modClsSym = find_from_builtins("Module");
   expect(modClsSym != NULL);
   hashmap_init(&modules, _mod_equal_);
+  init_nullsym();
 }
 
 void fini_parser(void)
 {
   stable_free(_lang_.stbl);
   hashmap_fini(&modules, _mod_free_, NULL);
+  fini_nullsym();
 }
 
 static int isbuiltin(char *path)
@@ -389,6 +412,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     break;
   case OP_POP_TOP:
   case OP_SWAP:
+  case OP_CONST_NULL:
   case OP_PRINT:
   case OP_DUP:
   case OP_LOAD_0:
@@ -1103,6 +1127,14 @@ Symbol *get_desc_symbol(Module *mod, TypeDesc *desc)
   return sym;
 }
 
+static void parse_null(ParserState *ps, Expr *exp)
+{
+  expect(exp->ctx == EXPR_LOAD);
+  exp->sym = &nullsym;
+  exp->desc = desc_from_null;
+  CODE_OP(OP_CONST_NULL);
+}
+
 static void parse_self(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
@@ -1110,7 +1142,7 @@ static void parse_self(ParserState *ps, Expr *exp)
   if (u->scope == SCOPE_FUNC) {
     ParserUnit *up = up_scope(ps);
     if (up->scope != SCOPE_CLASS) {
-      syntax_error(ps, exp->row, exp->col, "self must be used in method");
+      synerr(ps, exp->row, exp->col, "self must be used in method");
       return;
     }
     exp->sym = up->sym;
@@ -1137,7 +1169,7 @@ static void parse_super(ParserState *ps, Expr *exp)
   if (u->scope == SCOPE_FUNC) {
     ParserUnit *up = up_scope(ps);
     if (up->scope != SCOPE_CLASS) {
-      syntax_error(ps, exp->row, exp->col, "super must be used in method");
+      synerr(ps, exp->row, exp->col, "super must be used in method");
       return;
     }
     exp->super = 1;
@@ -1152,7 +1184,7 @@ static void parse_super(ParserState *ps, Expr *exp)
       }
     }
     if (!infunc) {
-      syntax_error(ps, exp->row, exp->col, "super must be used in method");
+      synerr(ps, exp->row, exp->col, "super must be used in method");
       return;
     }
 
@@ -1165,7 +1197,7 @@ static void parse_super(ParserState *ps, Expr *exp)
     }
 
     if (up == NULL) {
-      syntax_error(ps, exp->row, exp->col, "super must be used in method");
+      synerr(ps, exp->row, exp->col, "super must be used in method");
       return;
     }
 
@@ -1186,7 +1218,7 @@ static void parse_super(ParserState *ps, Expr *exp)
 static void parse_literal(ParserState *ps, Expr *exp)
 {
   if (exp->ctx != EXPR_LOAD)
-    syntax_error(ps, exp->row, exp->col, "constant is not writable");
+    synerr(ps, exp->row, exp->col, "constant is not writable");
 
   exp->sym = get_literal_symbol(exp->k.value.kind);
   if (!has_error(ps)) {
@@ -1234,7 +1266,7 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
     CODE_OP_S(OP_LOAD_MODULE, sym->mod.path);
     return;
   } else if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
-    syntax_error(ps, exp->row, exp->col,
+    synerr(ps, exp->row, exp->col,
                  "Class/Trait '%s' cannot be accessed directly", exp->id.name);
     return;
   }
@@ -1511,7 +1543,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
 {
   Symbol *sym = find_id_symbol(ps, exp);
   if (sym == NULL) {
-    syntax_error(ps, exp->row, exp->col, "'%s' is not defined", exp->id.name);
+    synerr(ps, exp->row, exp->col, "'%s' is not defined", exp->id.name);
     return;
   }
 
@@ -1560,49 +1592,102 @@ static void parse_unary(ParserState *ps, Expr *exp)
   }
 }
 
+static int bop_isbool(BinaryOpKind op)
+{
+  if ((op >= BINARY_GT && op <= BINARY_NEQ) ||
+      (op == BINARY_LAND) || (op == BINARY_LOR))
+    return 1;
+  else
+    return 0;
+}
+
 static void parse_binary(ParserState *ps, Expr *exp)
 {
+  static char *funcnames[] = {
+    NULL,         // INVALID
+    "__add__",    // BINARY_ADD
+    "__sub__",    // BINARY_SUB
+    "__mul__",    // BINARY_MULT
+    "__div__",    // BINARY_DIV
+    "__mod__",    // BINARY_MOD
+    "__pow__",    // BINARY_POW
+
+    "__gt__",     // BINARY_GT
+    "__ge__",     // BINARY_GE
+    "__lt__",     // BINARY_LT
+    "__le__",     // BINARY_LE
+    "__eq__",     // BINARY_EQ
+    "__neq__",    // BINARY_NEQ
+
+    "__and__",    // BINARY_BIT_AND
+    "__xor__",    // BINARY_BIT_XOR
+    "__or__",     // BINARY_BIT_OR
+
+    "__land__",   // BINARY_LAND
+    "__lor__",    // BINARY_LOR
+  };
+
   Expr *rexp = exp->binary.rexp;
   Expr *lexp = exp->binary.lexp;
+  TypeDesc *ldesc, *rdesc;
 
   rexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, rexp);
-  if (rexp->desc == NULL) {
+  rdesc = rexp->desc;
+  if (rdesc == NULL)
     return;
-  }
 
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
-
-  if (lexp->desc == NULL) {
-    return;
-  }
-
-  exp->sym = get_desc_symbol(ps->module, lexp->desc);
-  expect(exp->sym != NULL);
-  if (exp->desc == NULL) {
-    exp->desc = TYPE_INCREF(lexp->desc);
-  }
-
-  if (has_error(ps))
+  ldesc = lexp->desc;
+  if (ldesc == NULL)
     return;
 
-  if (exp->binary.op == BINARY_ADD) {
-    Symbol *sym = type_find_mbr(exp->sym, "__add__", NULL);
+  int check = 1;
+  BinaryOpKind op = exp->binary.op;
+  if (op == BINARY_EQ || op == BINARY_NEQ) {
+    if (desc_isnull(ldesc) || desc_isnull(rdesc)) {
+      check = 0;
+    }
+  }
+
+  if (op != BINARY_EQ && op != BINARY_NEQ) {
+    if (desc_isnull(ldesc) || desc_isnull(rdesc)) {
+      synerr(ps, lexp->row, lexp->col, "unsupported 'null' value operations");
+      check = 0;
+    }
+  }
+
+  if (check) {
+    char *funcname = funcnames[op];
+    expect(funcname != NULL);
+    Symbol *sym = type_find_mbr(lexp->sym, funcname, NULL);
     if (sym == NULL) {
-      syntax_error(ps, lexp->row, lexp->col, "unsupported +");
+      synerr(ps, lexp->row, lexp->col, "unsupported '%s'", funcname);
+      return;
     } else {
       TypeDesc *desc = sym->desc;
       expect(desc != NULL && desc->kind == TYPE_PROTO);
       desc = vector_get(desc->proto.args, 0);
       if (!desc_check(desc, rexp->desc)) {
-        syntax_error(ps, exp->binary.oprow, exp->binary.opcol,
-                     "types on both sides '+' are not matched");
+        synerr(ps, exp->binary.oprow, exp->binary.opcol,
+              "types of '%s' are not matched", funcname);
+        return;
       }
     }
   }
 
   if (!has_error(ps)) {
+    if (bop_isbool(op)) {
+      exp->sym = find_from_builtins("Bool");
+      expect(exp->sym != NULL);
+      exp->desc = desc_from_bool;
+    } else {
+      exp->sym = get_desc_symbol(ps->module, lexp->desc);
+      expect(exp->sym != NULL);
+      exp->desc = TYPE_INCREF(lexp->desc);
+    }
+
     static int opcodes[] = {
       0,
       OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
@@ -1610,7 +1695,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
       OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
       OP_AND, OP_OR,
     };
-    BinaryOpKind op = exp->binary.op;
     expect(op >= BINARY_ADD && op <= BINARY_LOR);
     CODE_OP(opcodes[op]);
   }
@@ -1645,7 +1729,7 @@ static void parse_ternary(ParserState *ps, Expr *exp)
   parser_visit_expr(ps, test);
   //if not bool, error
   if (desc_isbool(test->desc)) {
-    syntax_error(ps, test->row, test->col, "if cond expr is not bool");
+    synerr(ps, test->row, test->col, "if cond expr is not bool");
   }
   Inst *jmp = CODE_OP(OP_JMP_FALSE);
   int offset = codeblock_bytes(u->block);
@@ -1667,7 +1751,7 @@ static void parse_ternary(ParserState *ps, Expr *exp)
   if (!desc_check(lexp->desc, rexp->desc) &&
       !check_inherit(lexp->desc, rexp->sym) &&
       !check_inherit(rexp->desc, lexp->sym)) {
-    syntax_error(ps, rexp->row, rexp->col,
+    synerr(ps, rexp->row, rexp->col,
                  "type mismatch in conditional expression");
   } else {
     exp->sym = lexp->sym;
@@ -1767,7 +1851,7 @@ static void parse_attr(ParserState *ps, Expr *exp)
     debug("left sym '%s' is a func", lsym->name);
     desc = lsym->desc;
     if (vector_size(desc->proto.args)) {
-      syntax_error(ps, lexp->row, lexp->col,
+      synerr(ps, lexp->row, lexp->col,
         "func with arguments cannot be accessed like field.");
     } else {
       sym = get_desc_symbol(ps->module, desc->proto.ret);
@@ -1775,7 +1859,7 @@ static void parse_attr(ParserState *ps, Expr *exp)
         expect(sym->kind == SYM_CLASS);
         sym = type_find_mbr(sym, id->name, &pdesc);
       } else {
-        syntax_error(ps, exp->row, exp->col, "cannot find type");
+        synerr(ps, exp->row, exp->col, "cannot find type");
       }
       ldesc = desc->proto.ret;
     }
@@ -1825,16 +1909,16 @@ static void parse_attr(ParserState *ps, Expr *exp)
 
   if (sym == NULL) {
     if (!lexp->super) {
-      syntax_error(ps, id->row, id->col,
+      synerr(ps, id->row, id->col,
                    "'%s' is not found in '%s'", id->name, lsym->name);
     } else {
-      syntax_error(ps, id->row, id->col,
+      synerr(ps, id->row, id->col,
                    "'%s' is not found in super of '%s'",
                    id->name, lsym->name);
     }
   } else {
     if (sym->kind == SYM_FUNC && exp->right == NULL) {
-      syntax_error(ps, exp->row, exp->col,
+      synerr(ps, exp->row, exp->col,
         "call func '%s' or return itself?", id->name);
     } else {
       exp->sym = sym;
@@ -1890,19 +1974,19 @@ static void parse_attr(ParserState *ps, Expr *exp)
     case SYM_LABEL: {
       if (exp->ctx == EXPR_LOAD) {
         if (sym->label.types != NULL) {
-          syntax_error(ps, id->row, id->col,
+          synerr(ps, id->row, id->col,
                        "enum '%s' needs values", id->name);
         } else{
           CODE_OP_S_ARGC(OP_NEW_EVAL, id->name, exp->argc);
         }
       } else if (exp->ctx == EXPR_CALL_FUNC) {
         if (sym->label.types == NULL) {
-          syntax_error(ps, id->row, id->col, "enum '%s' no values", id->name);
+          synerr(ps, id->row, id->col, "enum '%s' no values", id->name);
         } else {
           CODE_OP_S_ARGC(OP_NEW_EVAL, id->name, exp->argc);
         }
       } else {
-        syntax_error(ps, id->row, id->col, "enum '%s' is readonly", id->name);
+        synerr(ps, id->row, id->col, "enum '%s' is readonly", id->name);
       }
       break;
     }
@@ -1963,7 +2047,7 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   }
 
   if (sym == NULL || sym->kind != SYM_FUNC) {
-    syntax_error(ps, lexp->row, lexp->col,
+    synerr(ps, lexp->row, lexp->col,
       "'%s' is not supported subscript operation.", lsym->name);
     return;
   }
@@ -1973,20 +2057,20 @@ static void parse_subscr(ParserState *ps, Expr *exp)
 
   if (exp->ctx == EXPR_LOAD) {
     if (vector_size(args) != 1) {
-      syntax_error(ps, exp->row, exp->col,
+      synerr(ps, exp->row, exp->col,
         "Count of arguments of func %s is not only one", funcname);
     }
     if (desc == NULL) {
-      syntax_error(ps, exp->row, exp->col,
+      synerr(ps, exp->row, exp->col,
         "Return value of func %s is void", funcname);
     }
   } else if (exp->ctx == EXPR_STORE) {
     if (vector_size(args) != 2) {
-      syntax_error(ps, exp->row, exp->col,
+      synerr(ps, exp->row, exp->col,
         "Count of arguments of func %s is not two", funcname);
     }
     if (desc != NULL) {
-      syntax_error(ps, exp->row, exp->col,
+      synerr(ps, exp->row, exp->col,
         "Return value of func %s is not void", funcname);
     }
   } else {
@@ -1999,7 +2083,7 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     TypeDesc *tmp = specialize_type(lexp->desc, desc);
     TYPE_DECREF(desc);
     if (!desc_check(iexp->desc, tmp)) {
-      syntax_error(ps, iexp->row, iexp->col, "subscript index type is error");
+      synerr(ps, iexp->row, iexp->col, "subscript index type is error");
     }
 
     TYPE_DECREF(exp->desc);
@@ -2015,7 +2099,7 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     exp->desc = tmp;
     exp->sym = get_desc_symbol(ps->module, tmp);
     if (exp->sym == NULL) {
-      syntax_error(ps, exp->row, exp->col, "cannot find type");
+      synerr(ps, exp->row, exp->col, "cannot find type");
     }
     TYPE_DECREF(desc);
   }
@@ -2052,7 +2136,7 @@ static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
         STRBUF(sbuf2);
         desc_tostr(desc, &sbuf1);
         desc_tostr(arg->desc, &sbuf2);
-        syntax_error(ps, arg->row, arg->col, "expected '%s', but found '%s'",
+        synerr(ps, arg->row, arg->col, "expected '%s', but found '%s'",
                     strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
         strbuf_fini(&sbuf1);
         strbuf_fini(&sbuf2);
@@ -2127,7 +2211,7 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
   } else if (desc->kind == TYPE_LABEL) {
     if (check_label_args(desc, args)) {
-      syntax_error(ps, exp->row, exp->col, "enum args check failed");
+      synerr(ps, exp->row, exp->col, "enum args check failed");
     } else {
       exp->desc = TYPE_INCREF(desc->label.edesc);
       exp->sym = get_desc_symbol(ps->module, exp->desc);
@@ -2135,12 +2219,12 @@ static void parse_call(ParserState *ps, Expr *exp)
   } else if (desc->kind == TYPE_KLASS) {
     expect(lexp->super);
     if (!exp->first) {
-      syntax_error(ps, lexp->row, lexp->col,
+      synerr(ps, lexp->row, lexp->col,
                    "call to super must be first statement");
     }
 
     if (exp->funcname != NULL && strcmp(exp->funcname, "__init__")) {
-      syntax_error(ps, lexp->row, lexp->col,
+      synerr(ps, lexp->row, lexp->col,
                    "call to super must be in __init__");
     }
 
@@ -2151,17 +2235,17 @@ static void parse_call(ParserState *ps, Expr *exp)
     Symbol *base = lexp->sym->type.base;
     if (base == NULL) {
       if (argc != 0) {
-        syntax_error(ps, lexp->row, lexp->col, "super requires no arguments");
+        synerr(ps, lexp->row, lexp->col, "super requires no arguments");
       } else {
-        syntax_error(ps, lexp->row, lexp->col, "no super exist");
+        synerr(ps, lexp->row, lexp->col, "no super exist");
       }
     } else if (base != NULL) {
       init = stable_get(base->type.stbl, "__init__");
       if (init == NULL) {
         if (argc != 0) {
-          syntax_error(ps, lexp->row, lexp->col, "super requires no arguments");
+          synerr(ps, lexp->row, lexp->col, "super requires no arguments");
         } else {
-          syntax_error(ps, lexp->row, lexp->col, "super no __init__");
+          synerr(ps, lexp->row, lexp->col, "super no __init__");
         }
       } else {
         if (check_call_args(ps, init->desc, args)) {
@@ -2170,7 +2254,7 @@ static void parse_call(ParserState *ps, Expr *exp)
       }
     }
   } else {
-    syntax_error(ps, lexp->row, lexp->col, "expr is not a func");
+    synerr(ps, lexp->row, lexp->col, "expr is not a func");
   }
 
   if (lexp->kind == CALL_KIND && desc->kind == TYPE_PROTO) {
@@ -2206,7 +2290,7 @@ static void parse_tuple(ParserState *ps, Expr *exp)
 {
   int size = vector_size(exp->tuple);
   if (size > 16) {
-    syntax_error(ps, ps->row, ps->col, "length of tuple is larger than 16");
+    synerr(ps, ps->row, ps->col, "length of tuple is larger than 16");
   }
 
   exp->desc = desc_from_tuple;
@@ -2253,7 +2337,7 @@ static void parse_array(ParserState *ps, Expr *exp)
   Vector *vec = exp->array;
   int size = vector_size(vec);
   if (size > 16) {
-    syntax_error(ps, ps->row, ps->col, "length of array is larger than 16");
+    synerr(ps, ps->row, ps->col, "length of array is larger than 16");
   }
 
   Vector *types = NULL;
@@ -2288,7 +2372,7 @@ static void parse_map(ParserState *ps, Expr *exp)
 {
   int size = vector_size(exp->map);
   if (size > 16) {
-    syntax_error(ps, ps->row, ps->col, "length of dict is larger than 16");
+    synerr(ps, ps->row, ps->col, "length of dict is larger than 16");
   }
 
   MapEntry *entry;
@@ -2312,7 +2396,7 @@ static void parse_map(ParserState *ps, Expr *exp)
         desc = key->desc;
       } else {
         if (!desc_check(desc, key->desc)) {
-          syntax_error(ps, exp->row, exp->col, "Key of Map is not the same");
+          synerr(ps, exp->row, exp->col, "Key of Map is not the same");
         }
       }
       vector_push_back(kvec, TYPE_INCREF(key->desc));
@@ -2345,7 +2429,7 @@ static ParserUnit *parse_block_vardecl(ParserState *ps, Ident *id)
     if (u->scope != SCOPE_MODULE && u->scope != SCOPE_CLASS) {
       sym = stable_get(u->stbl, id->name);
       if (sym != NULL) {
-        syntax_error(ps, id->row, id->col,
+        synerr(ps, id->row, id->col,
           "symbol '%s' is already declared in scope-%d(%s)",
           id->name, depth, scopes[u->scope]);
         return NULL;
@@ -2381,7 +2465,7 @@ static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     debug("var '%s' declaration in func.", id->name);
     sym = stable_add_var(u->stbl, id->name, desc);
     if (sym == NULL) {
-      syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
+      synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
       return NULL;
     } else {
       funcsym = u->sym;
@@ -2399,7 +2483,7 @@ static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       return NULL;
     sym = stable_add_var(u->stbl, id->name, desc);
     if (sym == NULL) {
-      syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
+      synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
       return NULL;
     }
 
@@ -2421,7 +2505,7 @@ static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     debug("var '%s' declaration in anony func.", id->name);
     sym = stable_add_var(u->stbl, id->name, desc);
     if (sym == NULL) {
-      syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
+      synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
       return NULL;
     } else {
       vector_push_back(&u->sym->anony.locvec, sym);
@@ -2476,7 +2560,7 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
     // body is empty
     debug("func body is empty");
     if (ret.desc != NULL) {
-      syntax_error(ps, ret.row, ret.col,
+      synerr(ps, ret.row, ret.col,
                    "'%s' incompatible return type", name);
     } else {
       if (strcmp(name, "__init__")) {
@@ -2498,7 +2582,7 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
     } else if (ret.desc != NULL && exp->desc != NULL) {
       if (!desc_check(ret.desc, exp->desc) &&
         !check_inherit(ret.desc, exp->sym)) {
-        syntax_error(ps, exp->row, exp->col,
+        synerr(ps, exp->row, exp->col,
                       "'%s' incompatible return type", name);
       }
       if (!has_error(ps)) {
@@ -2506,10 +2590,10 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
         CODE_OP(OP_RETURN_VALUE);
       }
     } else if (ret.desc == NULL && exp->desc != NULL ) {
-      syntax_error(ps, exp->row, exp->col,
+      synerr(ps, exp->row, exp->col,
                    "'%s' incompatible return type", name);
     } else {
-      syntax_error(ps, exp->row, exp->col,
+      synerr(ps, exp->row, exp->col,
                    "'%s' incompatible return type", name);
     }
     return;
@@ -2518,15 +2602,15 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
   /*
   if (s->hasvalue) {
     if (ret.desc == NULL) {
-      syntax_error(ps, ret.row, ret.col, "func '%s' no return value", name);
+      synerr(ps, ret.row, ret.col, "func '%s' no return value", name);
     } else {
       if (!desc_check(ret.desc, s->desc)) {
-          syntax_error(ps, ret.row, ret.col, "return values are not matched");
+          synerr(ps, ret.row, ret.col, "return values are not matched");
       }
     }
   } else {
     if (ret.desc != NULL) {
-      syntax_error(ps, ret.row, ret.col, "func '%s' needs return value", name);
+      synerr(ps, ret.row, ret.col, "func '%s' needs return value", name);
     }
   }
   */
@@ -2606,7 +2690,7 @@ static void parse_is(ParserState *ps, Expr *exp)
   exp->desc = desc_from_bool;
   exp->sym = get_desc_symbol(ps->module, exp->desc);
   if (exp->sym == NULL) {
-    syntax_error(ps, exp->row, exp->col, "cannot find type");
+    synerr(ps, exp->row, exp->col, "cannot find type");
   }
 
   if (!has_error(ps)) {
@@ -2624,7 +2708,7 @@ static void parse_as(ParserState *ps, Expr *exp)
   exp->desc = TYPE_INCREF(exp->isas.type.desc);
   exp->sym = get_desc_symbol(ps->module, exp->desc);
   if (exp->sym == NULL) {
-    syntax_error(ps, exp->row, exp->col, "cannot find type");
+    synerr(ps, exp->row, exp->col, "cannot find type");
   }
 
   if (!has_error(ps)) {
@@ -2640,14 +2724,14 @@ static void check_new_args(ParserState *ps, Symbol *sym, Expr *exp)
   int col = id->col;
 
   if (sym->kind != SYM_CLASS) {
-    syntax_error(ps, row, col, "'%s' is not a class", name);
+    synerr(ps, row, col, "'%s' is not a class", name);
     return;
   }
 
   /*
   Vector *types = exp->newobj.types;
   if (!check_typepara(desc->paras, types)) {
-    syntax_error(ps, id->row, id->col,
+    synerr(ps, id->row, id->col,
                  "'%s' generic type check faield", id->name);
   }
   */
@@ -2660,18 +2744,18 @@ static void check_new_args(ParserState *ps, Symbol *sym, Expr *exp)
     return;
 
   if (initsym == NULL && argc > 0) {
-    syntax_error(ps, row, col, "'%s' has no __init__()", name);
+    synerr(ps, row, col, "'%s' has no __init__()", name);
     return;
   }
 
   TypeDesc *desc = initsym->desc;
   if (desc->kind != TYPE_PROTO) {
-    syntax_error(ps, row, col, "'%s': __init__ is not a func", name);
+    synerr(ps, row, col, "'%s': __init__ is not a func", name);
     return;
   }
 
   if (desc->proto.ret != NULL) {
-    syntax_error(ps, row, col, "'%s': __init__ must be no return", name);
+    synerr(ps, row, col, "'%s': __init__ must be no return", name);
     return;
   }
 
@@ -2684,7 +2768,7 @@ static void parse_new(ParserState *ps, Expr *exp)
   Ident *id = &exp->newobj.id;
   Symbol *sym = get_klass_symbol(ps->module, path, id->name);
   if (sym == NULL) {
-    syntax_error(ps, id->row, id->col, "'%s' is not defined", id->name);
+    synerr(ps, id->row, id->col, "'%s' is not defined", id->name);
     return;
   }
 
@@ -2701,7 +2785,7 @@ static void parse_new(ParserState *ps, Expr *exp)
           sym = get_klass_symbol(ps->module,
                                 item->klass.path, item->klass.type);
           if (sym == NULL) {
-            syntax_error(ps, id->row, id->col, "'%s' is not defined", id->name);
+            synerr(ps, id->row, id->col, "'%s' is not defined", id->name);
             return;
           }
           item->klass.path = sym->desc->klass.path;
@@ -2757,14 +2841,14 @@ static void parse_range(ParserState *ps, Expr *exp)
   end->ctx = EXPR_LOAD;
   parser_visit_expr(ps, end);
   if (end->desc == NULL || !desc_isint(end->desc)) {
-    syntax_error(ps, end->row, end->col,
+    synerr(ps, end->row, end->col,
       "range expects integer of end");
   }
 
   start->ctx = EXPR_LOAD;
   parser_visit_expr(ps, start);
   if (start->desc == NULL || !desc_isint(start->desc)) {
-    syntax_error(ps, start->row, start->col,
+    synerr(ps, start->row, start->col,
       "range expects integer of start");
   }
 
@@ -2785,7 +2869,7 @@ static void parse_enum_pattern_args(ParserState *ps, Vector *types, Expr *exp)
   int size = vector_size(types);
   int argc = vector_size(exps);
   if (size != argc) {
-    syntax_error(ps, row, col, "expected %d args, but %d", size, argc);
+    synerr(ps, row, col, "expected %d args, but %d", size, argc);
     return;
   }
 
@@ -2809,7 +2893,7 @@ static void parse_enum_pattern_args(ParserState *ps, Vector *types, Expr *exp)
       e->ctx = EXPR_LOAD;
       parse_literal(ps, e);
       if (!desc_check(vector_get(types, idx), e->desc)) {
-        syntax_error(ps, e->row, e->col, "pattern type checked failed");
+        synerr(ps, e->row, e->col, "pattern type checked failed");
       }
       CODE_OP_I(OP_LOAD_CONST, idx);
       CODE_OP_I(OP_NEW_TUPLE, 2);
@@ -2832,12 +2916,12 @@ static void parse_enum_pattern(ParserState *ps, Expr *exp)
   if (mod->name != NULL) {
     msym = stable_get(ps->module->stbl, mod->name);
     if (msym == NULL) {
-      syntax_error(ps, mod->row, mod->col,
+      synerr(ps, mod->row, mod->col,
                   "cannot find symbol '%s'", mod->name);
     }
 
     if (msym->kind != SYM_MOD) {
-      syntax_error(ps, id->row, id->col,
+      synerr(ps, id->row, id->col,
                   "'%s' is not module", id->name);
       msym = NULL;
     }
@@ -2848,12 +2932,12 @@ static void parse_enum_pattern(ParserState *ps, Expr *exp)
     Module *m = (msym != NULL) ? msym->mod.ptr : ps->module;
     esym = stable_get(m->stbl, ename->name);
     if (esym == NULL) {
-      syntax_error(ps, ename->row, ename->col,
+      synerr(ps, ename->row, ename->col,
                   "cannot find symbol '%s'", ename->name);
     }
 
     if (esym->kind != SYM_ENUM) {
-      syntax_error(ps, ename->row, ename->col,
+      synerr(ps, ename->row, ename->col,
                   "'%s' is not enum", ename->name);
       esym = NULL;
     }
@@ -2866,7 +2950,7 @@ static void parse_enum_pattern(ParserState *ps, Expr *exp)
     // auto detect from match expr
     Symbol *sym = exp->enum_pattern.sym;
     if (sym == NULL || sym->kind != SYM_ENUM) {
-      syntax_error(ps, id->row, id->col,
+      synerr(ps, id->row, id->col,
                   "cannot resolve '%s' symbol", id->name);
     }
   }
@@ -2876,13 +2960,13 @@ static void parse_enum_pattern(ParserState *ps, Expr *exp)
 
   Symbol *lsym = stable_get(stbl, id->name);
   if (lsym == NULL) {
-    syntax_error(ps, id->row, id->col,
+    synerr(ps, id->row, id->col,
                 "cannot resolve '%s' symbol", id->name);
     return;
   }
 
   if (lsym->kind != SYM_LABEL) {
-    syntax_error(ps, id->row, id->col,
+    synerr(ps, id->row, id->col,
                 "'%s' is not enum value", id->name);
     return;
   }
@@ -2906,7 +2990,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
 
   static void (*handlers[])(ParserState *, Expr *) = {
     NULL,                 /* INVALID            */
-    NULL,                 /* NIL_KIND           */
+    parse_null,           /* NULL_KIND          */
     parse_self,           /* SELF_KIND          */
     parse_super,          /* SUPER_KIND         */
     parse_literal,        /* LITERAL_KIND       */
@@ -2930,7 +3014,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_enum_pattern,   /* ENUM_PATTERN_KIND  */
   };
 
-  expect(exp->kind >= NIL_KIND && exp->kind <= ENUM_PATTERN_KIND);
+  expect(exp->kind >= NULL_KIND && exp->kind <= ENUM_PATTERN_KIND);
   handlers[exp->kind](ps, exp);
 
   /* function's return maybe null */
@@ -2986,7 +3070,7 @@ static void parse_import(ParserState *ps, Stmt *s)
       mod = new_mod_from_mobject(ps->module, path);
       if (mod == NULL) {
         // NOTE: do not compile it from source, if its source exist.
-        syntax_error(ps, s->import.pathrow, s->import.pathcol,
+        synerr(ps, s->import.pathrow, s->import.pathcol,
                     "no such module '%s'", path);
       }
     } else {
@@ -3032,7 +3116,7 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
       STRBUF(sbuf2);
       desc_tostr(desc, &sbuf1);
       desc_tostr(exp->desc, &sbuf2);
-      syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+      synerr(ps, exp->row, exp->col, "expected '%s', but found '%s'",
                    strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
       strbuf_fini(&sbuf1);
       strbuf_fini(&sbuf2);
@@ -3055,7 +3139,7 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
     if (type != NULL && sym->var.typesym == NULL) {
       STRBUF(sbuf);
       desc_tostr(sym->desc, &sbuf);
-      syntax_error(ps, type->row, type->col,
+      synerr(ps, type->row, type->col,
                    "'%s' is not defined", strbuf_tostr(&sbuf));
       strbuf_fini(&sbuf);
     }
@@ -3115,7 +3199,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
           STRBUF(sbuf2);
           desc_tostr(desc, &sbuf1);
           desc_tostr(exp->desc, &sbuf2);
-          syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+          synerr(ps, exp->row, exp->col, "expected '%s', but found '%s'",
                       strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
           strbuf_fini(&sbuf1);
           strbuf_fini(&sbuf2);
@@ -3126,7 +3210,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
             STRBUF(sbuf2);
             desc_tostr(desc, &sbuf1);
             desc_tostr(exp->desc, &sbuf2);
-            syntax_error(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+            synerr(ps, exp->row, exp->col, "expected '%s', but found '%s'",
                         strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
             strbuf_fini(&sbuf1);
             strbuf_fini(&sbuf2);
@@ -3146,7 +3230,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   if (sym->var.typesym == NULL) {
     STRBUF(sbuf);
     desc_tostr(type->desc, &sbuf);
-    syntax_error(ps, type->row, type->col,
+    synerr(ps, type->row, type->col,
                  "'%s' is not defined", strbuf_tostr(&sbuf));
     strbuf_fini(&sbuf);
   }
@@ -3191,7 +3275,7 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
   if (sym == NULL)
     return;
   if (sym->kind == SYM_CONST) {
-    syntax_error(ps, rexp->row, rexp->col, "cannot assign to '%s'", sym->name);
+    synerr(ps, rexp->row, rexp->col, "cannot assign to '%s'", sym->name);
     return;
   }
 
@@ -3199,30 +3283,30 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
     return;
 
   if (lexp->desc == NULL) {
-    syntax_error(ps, lexp->row, lexp->col,
+    synerr(ps, lexp->row, lexp->col,
       "cannot resolve left expr's type");
   }
 
   if (rexp->desc == NULL) {
-    syntax_error(ps, rexp->row, rexp->col,
+    synerr(ps, rexp->row, rexp->col,
       "right expr's type is void");
   }
 
   // check type is compatible
   TypeDesc *ldesc = lexp->desc;
   if (ldesc == NULL) {
-    syntax_error(ps, lexp->row, lexp->col, "cannot resolve left expr");
+    synerr(ps, lexp->row, lexp->col, "cannot resolve left expr");
     return;
   }
 
   TypeDesc *rdesc = rexp->desc;
   if (rdesc == NULL) {
-    syntax_error(ps, rexp->row, rexp->col, "cannot resolve right expr");
+    synerr(ps, rexp->row, rexp->col, "cannot resolve right expr");
     return;
   }
 
   if (ldesc->kind == TYPE_LABEL) {
-    syntax_error(ps, lexp->row, lexp->col, "left expr is not settable");
+    synerr(ps, lexp->row, lexp->col, "left expr is not settable");
     return;
   }
 
@@ -3238,7 +3322,7 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
       STRBUF(sbuf2);
       desc_tostr(ldesc, &sbuf1);
       desc_tostr(rdesc, &sbuf2);
-      syntax_error(ps, rexp->row, rexp->col, "expected '%s', but found '%s'",
+      synerr(ps, rexp->row, rexp->col, "expected '%s', but found '%s'",
                    strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
       strbuf_fini(&sbuf1);
       strbuf_fini(&sbuf2);
@@ -3260,7 +3344,7 @@ static void parser_inplace_assign(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, lexp);
     break;
   default:
-    syntax_error(ps, lexp->row, lexp->col, "invalid inplace assignment");
+    synerr(ps, lexp->row, lexp->col, "invalid inplace assignment");
     break;
   }
 }
@@ -3405,7 +3489,7 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
     if (sym != NULL && sym->var.typesym == NULL) {
       STRBUF(sbuf);
       desc_tostr(item->type.desc, &sbuf);
-      syntax_error(ps, item->type.row, item->type.col,
+      synerr(ps, item->type.row, item->type.col,
                   "'%s' is not defined", strbuf_tostr(&sbuf));
       strbuf_fini(&sbuf);
     }
@@ -3415,7 +3499,7 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   TypeDesc *rettype = sym->desc->proto.ret;
   if (rettype != NULL) {
     if (!strcmp(funcname, "__init__")) {
-      syntax_error(ps, ret->row, ret->col, "__init__ needs no value");
+      synerr(ps, ret->row, ret->col, "__init__ needs no value");
     } else {
       if (rettype->kind == TYPE_PARADEF) {
         Symbol *parasym = stable_get(u->stbl, rettype->paradef.name);
@@ -3426,7 +3510,7 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
         if (sym == NULL) {
           STRBUF(sbuf);
           desc_tostr(rettype, &sbuf);
-          syntax_error(ps, ret->row, ret->col,
+          synerr(ps, ret->row, ret->col,
                       "'%s' is not defined", strbuf_tostr(&sbuf));
           strbuf_fini(&sbuf);
         }
@@ -3477,7 +3561,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
 {
   ParserUnit *fu = get_func_scope(ps);
   if (fu == NULL) {
-    syntax_error(ps, stmt->row, stmt->col, "'return' outside function");
+    synerr(ps, stmt->row, stmt->col, "'return' outside function");
     return;
   }
 
@@ -3488,7 +3572,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     parser_visit_expr(ps, exp);
 
     if (exp->desc == NULL) {
-      syntax_error(ps, exp->row, exp->col, "expr has no value");
+      synerr(ps, exp->row, exp->col, "expr has no value");
       return;
     }
 
@@ -3497,7 +3581,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     TypeDesc *ret = desc->proto.ret;
     if (!desc_check(ret, exp->desc) &&
         !check_inherit(ret, exp->sym)) {
-      syntax_error(ps, exp->row, exp->col, "incompatible return types");
+      synerr(ps, exp->row, exp->col, "incompatible return types");
     }
 
     if (!has_error(ps)) {
@@ -3516,7 +3600,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
 static void parse_break(ParserState *ps, Stmt *stmt)
 {
   if (!inloop(ps)) {
-    syntax_error(ps, stmt->row, stmt->col, "'break' outside loop");
+    synerr(ps, stmt->row, stmt->col, "'break' outside loop");
   }
 
   Inst *jmp = CODE_OP(OP_JMP);
@@ -3528,7 +3612,7 @@ static void parse_break(ParserState *ps, Stmt *stmt)
 static void parse_continue(ParserState *ps, Stmt *stmt)
 {
   if (!inloop(ps)) {
-    syntax_error(ps, stmt->row, stmt->col, "'continue' outside loop");
+    synerr(ps, stmt->row, stmt->col, "'continue' outside loop");
   }
 
   Inst *jmp = CODE_OP(OP_JMP);
@@ -3594,8 +3678,8 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     test->ctx = EXPR_LOAD;
     // optimize binary compare operator
     parser_visit_expr(ps, test);
-    if (desc_isbool(test->desc)) {
-      syntax_error(ps, test->row, test->col, "if cond expr is not bool");
+    if (!desc_isbool(test->desc)) {
+      synerr(ps, test->row, test->col, "expected bool type");
     }
     jmp = CODE_OP(OP_JMP_FALSE);
     offset = codeblock_bytes(u->block);
@@ -3642,8 +3726,8 @@ static void parse_while(ParserState *ps, Stmt *stmt)
     test->ctx = EXPR_LOAD;
     // optimize binary compare operator
     parser_visit_expr(ps, test);
-    if (desc_isbool(test->desc)) {
-      syntax_error(ps, test->row, test->col, "if cond expr is not bool");
+    if (!desc_isbool(test->desc)) {
+      synerr(ps, test->row, test->col, "expected bool type");
     }
     jmp = CODE_OP(OP_JMP_FALSE);
     offset = codeblock_bytes(u->block);
@@ -3701,7 +3785,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   TypeDesc *pdesc = NULL;
   sym = type_find_mbr(sym, "__iter__", &pdesc);
   if (sym == NULL) {
-    syntax_error(ps, iter->row, iter->col, "object is not iteratable.");
+    synerr(ps, iter->row, iter->col, "object is not iteratable.");
   } else {
     expect(desc_isproto(sym->desc));
     //expect(vector_size(sym->desc->proto.ret->types) == 1);
@@ -3725,7 +3809,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
     sym = find_symbol_byname(ps, vexp->id.name);
     if (sym != NULL) {
       if (!has_error(ps) && !desc_check(sym->desc, desc)) {
-        syntax_error(ps, vexp->row, vexp->col, "types are not matched");
+        synerr(ps, vexp->row, vexp->col, "types are not matched");
       }
     } else {
       // create local variable
@@ -3742,7 +3826,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   vexp->ctx = EXPR_STORE;
   parser_visit_expr(ps, vexp);
   if (!has_error(ps) && !desc_check(vexp->desc, desc)) {
-    syntax_error(ps, vexp->row, vexp->col, "types are not matched");
+    synerr(ps, vexp->row, vexp->col, "types are not matched");
   }
 
   TYPE_DECREF(desc);
@@ -3793,11 +3877,11 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
   if (sym == NULL) {
     STRBUF(sbuf);
     desc_tostr(base->desc, &sbuf);
-    syntax_error(ps, base->row, base->col,
+    synerr(ps, base->row, base->col,
                  "'%s' is not defined", strbuf_tostr(&sbuf));
     strbuf_fini(&sbuf);
   } else if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) {
-    syntax_error(ps, base->row, base->col,
+    synerr(ps, base->row, base->col,
                  "'%s' is not class/trait", sym->name);
   } else {
     if (sym->kind == SYM_CLASS)
@@ -3813,11 +3897,11 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
     if (sym == NULL) {
       STRBUF(sbuf);
       desc_tostr(trait->desc, &sbuf);
-      syntax_error(ps, trait->row, trait->col,
+      synerr(ps, trait->row, trait->col,
                    "'%s' is not defined", strbuf_tostr(&sbuf));
       strbuf_fini(&sbuf);
     } else if (sym->kind != SYM_TRAIT) {
-      syntax_error(ps, trait->row, trait->col, "'%s' is not trait", sym->name);
+      synerr(ps, trait->row, trait->col, "'%s' is not trait", sym->name);
     } else {
       vector_push_back(&clssym->type.traits, sym);
     }
@@ -3869,7 +3953,7 @@ void check_one_proto_impl(ParserState *ps, Symbol *s, int idx, Symbol *cls)
     return;
   }
 
-  syntax_error(ps, 0, 0, "'%s' is not implemented", s->name);
+  synerr(ps, 0, 0, "'%s' is not implemented", s->name);
 }
 
 static void check_proto_impl(ParserState *ps)
@@ -3927,12 +4011,12 @@ Symbol *get_type_symbol(ParserState *ps, TypeDesc *type)
   if (sym == NULL) {
     sym = get_desc_symbol(ps->module, type);
     if (sym == NULL) {
-      syntax_error(ps, 0, 0, "'%s' is not defined", name);
+      synerr(ps, 0, 0, "'%s' is not defined", name);
       return NULL;
     }
 
     if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) {
-      syntax_error(ps, 0, 0, "'%s' is not a class/trait", name);
+      synerr(ps, 0, 0, "'%s' is not a class/trait", name);
       return NULL;
     }
 
@@ -3975,7 +4059,7 @@ void tp_match_typepara(ParserState *ps, Symbol *tp1, Symbol *tp2)
 
     debug("match '%s' is subtype of '%s'?", item1->name, item2->name);
     if (!match_subtype(item1, item2)) {
-      syntax_error(ps, 0, 0, "'%s' is not subtype of '%s'",
+      synerr(ps, 0, 0, "'%s' is not subtype of '%s'",
                    item1->name, item2->name);
     }
   }
@@ -3991,7 +4075,7 @@ void kls_match_typepara(ParserState *ps, Symbol *kls, Symbol *tp)
 
     debug("match '%s' is subtype of '%s'?", kls->name, item2->name);
     if (!match_subtype(kls, item2)) {
-      syntax_error(ps, 0, 0, "'%s' is not subtype of '%s'",
+      synerr(ps, 0, 0, "'%s' is not subtype of '%s'",
                    kls->name, item2->name);
     }
   }
@@ -4099,7 +4183,7 @@ void parse_typepara_decl(ParserState *ps, Vector *typeparas)
     debug("parse typepara '%s'", name);
     sym = stable_add_typepara(u->stbl, name, idx);
     if (sym == NULL) {
-      syntax_error(ps, 0, 0, "'%s' is redeclared", name);
+      synerr(ps, 0, 0, "'%s' is redeclared", name);
       continue;
     }
     sym_add_typepara(u->sym, sym);
@@ -4145,7 +4229,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
 
   if (initsym == NULL) {
     if (baseinitargc != 0) {
-      syntax_error(ps, stmt->row, stmt->col, "require call super");
+      synerr(ps, stmt->row, stmt->col, "require call super");
     } else {
       if (baseinitsym != NULL) {
         debug("create '__init__' and add code to call super()");
@@ -4160,7 +4244,7 @@ static void parse_class(ParserState *ps, Stmt *stmt)
   } else {
     if (baseinitargc != 0) {
       if (!initsym->super) {
-        syntax_error(ps, stmt->row, stmt->col, "require call super");
+        synerr(ps, stmt->row, stmt->col, "require call super");
       }
     } else {
       if (baseinitsym != NULL && !initsym->super) {
@@ -4194,11 +4278,11 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
   if (sym == NULL) {
     STRBUF(sbuf);
     desc_tostr(base->desc, &sbuf);
-    syntax_error(ps, base->row, base->col,
+    synerr(ps, base->row, base->col,
                  "'%s' is not defined", strbuf_tostr(&sbuf));
     strbuf_fini(&sbuf);
   } else if (sym->kind != SYM_TRAIT) {
-    syntax_error(ps, base->row, base->col, "'%s' is not trait", sym->name);
+    synerr(ps, base->row, base->col, "'%s' is not trait", sym->name);
   } else {
     vector_push_back(&traitsym->type.traits, sym);
   }
@@ -4210,11 +4294,11 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
     if (sym == NULL) {
       STRBUF(sbuf);
       desc_tostr(trait->desc, &sbuf);
-      syntax_error(ps, trait->row, trait->col,
+      synerr(ps, trait->row, trait->col,
                    "'%s' is not defined", strbuf_tostr(&sbuf));
       strbuf_fini(&sbuf);
     } else if (sym->kind != SYM_TRAIT) {
-      syntax_error(ps, trait->row, trait->col, "'%s' is not trait", sym->name);
+      synerr(ps, trait->row, trait->col, "'%s' is not trait", sym->name);
     } else {
       vector_push_back(&traitsym->type.traits, sym);
     }
@@ -4251,7 +4335,7 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
 
   Symbol *initsym = stable_get(ps->u->stbl, "__init__");
   if (initsym != NULL) {
-    syntax_error(ps, stmt->row, stmt->col,
+    synerr(ps, stmt->row, stmt->col,
                  "'__init__' is not allowed in trait");
   }
 
@@ -4330,7 +4414,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
   /*
   Symbol *sym = type_find_mbr(exp->sym, "__eq__");
   if (sym == NULL) {
-    syntax_error(ps, exp->row, exp->col, "unsupported match operation");
+    synerr(ps, exp->row, exp->col, "unsupported match operation");
   }
   */
 
@@ -4359,7 +4443,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
     TypeDesc *patterndesc = NULL;
     if (pattern->kind == UNDER_KIND) {
       if (underscore != NULL) {
-        syntax_error(ps, pattern->row, pattern->col,
+        synerr(ps, pattern->row, pattern->col,
                     "duplicated underscore(_)");
       }
       underscore = match;
@@ -4393,7 +4477,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
       debug("match pattern is array");
       Expr *subexp = vector_get(pattern->array, 0);
       if (subexp == NULL) {
-        syntax_error(ps, pattern->row, pattern->col,
+        synerr(ps, pattern->row, pattern->col,
                     "cannot resolve array's subtype");
       } else {
         patterndesc = subexp->desc;
@@ -4421,9 +4505,9 @@ static void parse_match(ParserState *ps, Stmt *stmt)
     }
 
     if (patterndesc == NULL) {
-      syntax_error(ps, pattern->row, pattern->col, "cannot resolve test type");
+      synerr(ps, pattern->row, pattern->col, "cannot resolve test type");
     } else if (!desc_check(patterndesc, exp->desc)) {
-      syntax_error(ps, pattern->row, pattern->col, "types are not matched");
+      synerr(ps, pattern->row, pattern->col, "types are not matched");
     } else {
       CODE_OP_ARGC(OP_MATCH, pattern->enum_pattern.argc);
       Inst *jmp = CODE_OP(OP_JMP_TRUE); //where to jmp?

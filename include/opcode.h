@@ -35,10 +35,11 @@ extern "C" {
 #define OP_SWAP         3
 #define OP_CONST_BYTE   4
 #define OP_CONST_SHORT  5
-#define OP_LOAD_CONST   6
-#define OP_LOAD_MODULE  7
+#define OP_CONST_NULL   6
+#define OP_LOAD_CONST   7
+#define OP_LOAD_MODULE  8
 
-/* 8 - 9 */
+/* 9 - 9 */
 
 #define OP_LOAD   10
 #define OP_LOAD_0 11
@@ -124,7 +125,7 @@ extern "C" {
 #define OP_NEW_RANGE    88
 #define OP_NEW_CLOSURE  89
 #define OP_NEW_EVAL     91
-#define OP_NEW   92
+#define OP_NEW          92
 #define OP_NEW_ITER     93
 
 /* 94 - 95 */

@@ -216,7 +216,7 @@ int cmd_add_const(ParserState *ps, Ident id, Type type)
     cursym->k.typesym = get_desc_symbol(ps->module, type.desc);
     return 0;
   } else {
-    syntax_error(ps, id.row, id.col, "'%s' is redeclared", id.name);
+    synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
 }
@@ -228,7 +228,7 @@ int cmd_add_var(ParserState *ps, Ident id, Type type)
     //cursym->var.typesym = get_desc_symbol(ps->module, type.desc);
     return 0;
   } else {
-    syntax_error(ps, id.row, id.col, "'%s' is redeclared", id.name);
+    synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
 }
@@ -239,7 +239,7 @@ int cmd_add_func(ParserState *ps, Ident id, Vector *idtypes, Type ret)
   cursym = stable_add_func(mod.stbl, id.name, proto);
   TYPE_DECREF(proto);
   if (cursym == NULL) {
-    syntax_error(ps, id.row, id.col, "'%s' is redeclared", id.name);
+    synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
   return 0;
@@ -280,7 +280,7 @@ static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
   }
 
   if (sym2 == NULL) {
-    syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
+    synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
   }
 }
 
@@ -292,7 +292,7 @@ static void cmd_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
   vector_for_each(label, labels) {
     lblsym = stable_add_label(stbl, label->id.name);
     if (lblsym == NULL) {
-      syntax_error(ps, label->id.row, label->id.col,
+      synerr(ps, label->id.row, label->id.col,
                    "enum label '%s' duplicated.", label->id.name);
     } else {
       lblsym->label.esym = sym;
@@ -349,7 +349,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt)
   }
 
   if (sym == NULL) {
-    syntax_error(ps, id->row, id->col, "'%s' is redeclared", id->name);
+    synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
     cursym = NULL;
     return -1;
   }

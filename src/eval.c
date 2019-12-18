@@ -412,6 +412,11 @@ Object *Koala_EvalFrame(CallFrame *f)
       PUSH(x);
       break;
     }
+    case OP_CONST_NULL: {
+      x = NULL;
+      PUSH(x);
+      break;
+    }
     case OP_LOAD_CONST: {
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
@@ -755,8 +760,14 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_EQ: {
       x = POP();
       y = POP();
-      fn = OB_NUM_FUNC(x, eq);
-      call_op_func(z, x, OP_EQ, y);
+      if (x == NULL) {
+        z = (y == NULL ? bool_true() : bool_false());
+      } else if (y == NULL) {
+        z = bool_false();
+      } else {
+        fn = OB_NUM_FUNC(x, eq);
+        call_op_func(z, x, OP_EQ, y);
+      }
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -765,8 +776,14 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_NEQ: {
       x = POP();
       y = POP();
-      fn = OB_NUM_FUNC(x, neq);
-      call_op_func(z, x, OP_NEQ, y);
+      if (x == NULL) {
+        z = (y != NULL ? bool_true() : bool_false());
+      } else if (y == NULL) {
+        z = bool_true();
+      } else {
+        fn = OB_NUM_FUNC(x, neq);
+        call_op_func(z, x, OP_NEQ, y);
+      }
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
@@ -970,8 +987,12 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_JMP_FALSE: {
       oparg = (int16_t)NEXT_2BYTES();
       x = POP();
-      if (bool_isfalse(x))
-        f->index += oparg;
+      if (bool_check(x)) {
+        if (bool_isfalse(x)) f->index += oparg;
+      } else {
+        // null or zero?
+        if (x == NULL) f->index += oparg;
+      }
       OB_DECREF(x);
       break;
     }
@@ -994,11 +1015,11 @@ Object *Koala_EvalFrame(CallFrame *f)
       break;
     }
     case OP_JMP_NIL: {
-      oparg = NEXT_2BYTES();
+      oparg = (int16_t)NEXT_2BYTES();
       break;
     }
     case OP_JMP_NOTNIL: {
-      oparg = NEXT_2BYTES();
+      oparg = (int16_t)NEXT_2BYTES();
       break;
     }
     case OP_NEW_TUPLE: {

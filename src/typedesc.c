@@ -31,7 +31,7 @@ void literal_show(Literal *val, StrBuf *sbuf)
 {
   switch (val->kind) {
   case 0:
-    strbuf_append(sbuf, "(nil)");
+    strbuf_append(sbuf, "(null)");
     break;
   case BASE_INT:
     strbuf_append_int(sbuf, val->ival);
@@ -67,7 +67,7 @@ DECLARE_BASE(byte,  BASE_BYTE);
 DECLARE_BASE(char,  BASE_CHAR);
 DECLARE_BASE(float, BASE_FLOAT);
 DECLARE_BASE(desc,  -1);
-DECLARE_BASE(nil,  -2);
+DECLARE_BASE(null,  -2);
 
 static struct baseinfo {
   TypeDesc *desc;
@@ -80,6 +80,7 @@ static struct baseinfo {
   {&type_base_byte,  "byte"  },
   {&type_base_char,  "char"  },
   {&type_base_float, "float" },
+  {&type_base_null,  "null" },
 };
 
 char *base_str(int kind)
@@ -116,7 +117,7 @@ static inline void check_base_refcnt(void)
   }
   refcnt = type_base_desc.refcnt;
   expect(refcnt == 1);
-  refcnt = type_base_nil.refcnt;
+  refcnt = type_base_null.refcnt;
   expect(refcnt == 1);
 }
 

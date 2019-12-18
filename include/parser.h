@@ -140,7 +140,7 @@ typedef struct parserstate {
 #define MAX_ERRORS 8
 
 /* Record and print syntax error. */
-#define syntax_error(ps, row, col, fmt, ...)           \
+#define synerr(ps, row, col, fmt, ...)                 \
 ({                                                     \
   if (ps->errors++ >= MAX_ERRORS) {                    \
     fprintf(stderr, "%s: " _ERR_COLOR_                 \
@@ -150,8 +150,6 @@ typedef struct parserstate {
             ps->filename, row, col, ##__VA_ARGS__);    \
   }                                                    \
 })
-
-#define synerr syntax_error
 
 #define has_error(ps) ((ps)->errors > 0)
 

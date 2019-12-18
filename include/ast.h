@@ -269,8 +269,8 @@ typedef enum binaryopkind {
 
 /* expression kind */
 typedef enum exprkind {
-  /* nil, self and super */
-  NIL_KIND = 1, SELF_KIND, SUPER_KIND,
+  /* null, self and super */
+  NULL_KIND = 1, SELF_KIND, SUPER_KIND,
   /* literal, ident and underscore(_) */
   LITERAL_KIND, ID_KIND, UNDER_KIND,
   /* unary, binary, ternary op */
@@ -413,7 +413,7 @@ typedef struct mapentry {
   Expr *val;
 } MapEntry;
 
-Expr *expr_from_nil(void);
+Expr *expr_from_null(void);
 Expr *expr_from_self(void);
 Expr *expr_from_super(void);
 Expr *expr_from_int(int64_t val);
