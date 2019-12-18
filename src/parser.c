@@ -2130,7 +2130,7 @@ static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
   for (int i = 0; i < sz; ++i) {
     desc = vector_get(descs, i);
     arg = vector_get(args, i);
-    if (!desc_check(desc, arg->desc)) {
+    if (!desc_isnull(arg->desc) && !desc_check(desc, arg->desc)) {
       if (!check_inherit(desc, arg->sym)) {
         STRBUF(sbuf1);
         STRBUF(sbuf2);
@@ -3589,7 +3589,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     TypeDesc *desc = fu->sym->desc;
     expect(desc != NULL);
     TypeDesc *ret = desc->proto.ret;
-    if (!desc_check(ret, exp->desc) &&
+    if (!desc_isnull(exp->desc) && !desc_check(ret, exp->desc) &&
         !check_inherit(ret, exp->sym)) {
       synerr(ps, exp->row, exp->col, "incompatible return types");
     }
