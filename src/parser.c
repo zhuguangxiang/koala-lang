@@ -2759,7 +2759,9 @@ static void check_new_args(ParserState *ps, Symbol *sym, Expr *exp)
     return;
   }
 
-  check_call_args(ps, desc, args);
+  if (check_call_args(ps, desc, args) < 0) {
+    synerr(ps, exp->row, exp->col, "arguments checked failed.");
+  }
 }
 
 static void parse_new(ParserState *ps, Expr *exp)
@@ -2772,64 +2774,62 @@ static void parse_new(ParserState *ps, Expr *exp)
     return;
   }
 
-  check_new_args(ps, sym, exp);
-
-  if (!has_error(ps)) {
-    exp->sym = sym;
-    Vector *types = exp->newobj.types;
-    if (types != NULL) {
-      exp->desc = desc_dup(sym->desc);
-      TypeDesc *item;
-      vector_for_each(item, types) {
-        if (item->kind == TYPE_KLASS) {
-          sym = get_klass_symbol(ps->module,
-                                item->klass.path, item->klass.type);
-          if (sym == NULL) {
-            synerr(ps, id->row, id->col, "'%s' is not defined", id->name);
-            return;
-          }
-          item->klass.path = sym->desc->klass.path;
-          desc_add_paratype(exp->desc, item);
-        } else {
-          desc_add_paratype(exp->desc, item);
+  exp->sym = sym;
+  Vector *types = exp->newobj.types;
+  if (types != NULL) {
+    exp->desc = desc_dup(sym->desc);
+    TypeDesc *item;
+    vector_for_each(item, types) {
+      if (item->kind == TYPE_KLASS) {
+        Symbol *sym2 = get_klass_symbol(ps->module,
+                                        item->klass.path, item->klass.type);
+        if (sym2 == NULL) {
+          synerr(ps, id->row, id->col, "'%s' is not defined", id->name);
+          return;
         }
+        item->klass.path = sym2->desc->klass.path;
+        desc_add_paratype(exp->desc, item);
+      } else {
+        desc_add_paratype(exp->desc, item);
       }
-    } else {
-      exp->desc = TYPE_INCREF(sym->desc);
     }
+  } else {
+    exp->desc = TYPE_INCREF(sym->desc);
+  }
 
-    // generate codes
-    Vector *args = exp->newobj.args;
-    int argc = vector_size(args);
-    TypeDesc *desc = exp->desc;
-    if (desc->kind == TYPE_BASE) {
+  // generate codes
+  Vector *args = exp->newobj.args;
+  int argc = vector_size(args);
+  TypeDesc *desc = exp->desc;
+  if (desc->kind == TYPE_BASE) {
+    Expr *e;
+    vector_for_each_reverse(e, args) {
+      e->ctx = EXPR_LOAD;
+      parser_visit_expr(ps, e);
+    }
+    check_new_args(ps, sym, exp);
+    Inst *i = CODE_OP_TYPE(OP_NEW, desc);
+    i->argc = argc;
+  } else if (desc->kind == TYPE_KLASS)  {
+    CODE_OP_TYPE(OP_NEW, desc);
+    if (argc > 0) {
+      CODE_OP(OP_DUP);
       Expr *e;
       vector_for_each_reverse(e, args) {
         e->ctx = EXPR_LOAD;
         parser_visit_expr(ps, e);
       }
-      Inst *i = CODE_OP_TYPE(OP_NEW, desc);
-      i->argc = argc;
-    }
-
-    if (desc->kind == TYPE_KLASS)  {
-      CODE_OP_TYPE(OP_NEW, desc);
-      if (argc > 0) {
+      check_new_args(ps, sym, exp);
+      CODE_OP_ARGC(OP_INIT_CALL, argc);
+    } else {
+      Symbol *initsym = stable_get(sym->type.stbl, "__init__");
+      if (initsym != NULL) {
         CODE_OP(OP_DUP);
-        Expr *e;
-        vector_for_each_reverse(e, args) {
-          e->ctx = EXPR_LOAD;
-          parser_visit_expr(ps, e);
-        }
-        CODE_OP_ARGC(OP_INIT_CALL, argc);
-      } else {
-        Symbol *initsym = stable_get(sym->type.stbl, "__init__");
-        if (initsym != NULL) {
-          CODE_OP(OP_DUP);
-          CODE_OP_ARGC(OP_INIT_CALL, 0);
-        }
+        CODE_OP_ARGC(OP_INIT_CALL, 0);
       }
     }
+  } else {
+    panic("invalid desc kind : %d", desc->kind);
   }
 }
 
@@ -3184,19 +3184,18 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
     rdesc = exp->desc;
-  }
-
-  if (rdesc == NULL) {
-    return;
+    if (rdesc == NULL) {
+      return;
+    }
   }
 
   if (desc != NULL) {
-    if (rdesc->kind == TYPE_LABEL) {
+    if (rdesc && rdesc->kind == TYPE_LABEL) {
       rdesc = rdesc->label.edesc;
       debug("update expr's type as its enum '%s'", rdesc->klass.type);
     }
 
-    if (!desc_isnull(rdesc) && !desc_check(desc, rdesc)) {
+    if (rdesc && !desc_isnull(rdesc) && !desc_check(desc, rdesc)) {
       if (!check_inherit(desc, exp->sym)) {
         STRBUF(sbuf1);
         STRBUF(sbuf2);
@@ -3221,7 +3220,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
       }
     }
   } else {
-    if (desc_isnull(rdesc)) {
+    if (rdesc && desc_isnull(rdesc)) {
       synerr(ps, id->row, id->col, "unknown type of var '%s'", id->name);
       return;
     } else {
@@ -3323,8 +3322,10 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
           rdesc->klass.type, rexp->sym->name);
   }
 
-  if (desc_isnull(rdesc))
+  if (desc_isnull(rdesc)) {
+    debug("rigth expr is null");
     return;
+  }
 
   if (!desc_check(ldesc, rdesc)) {
     if (!check_inherit(ldesc, rexp->sym)) {
@@ -3797,10 +3798,16 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   if (sym == NULL) {
     synerr(ps, iter->row, iter->col, "object is not iteratable.");
   } else {
-    expect(desc_isproto(sym->desc));
-    //expect(vector_size(sym->desc->proto.ret->types) == 1);
-    //TypeDesc *subtype = vector_get(sym->desc->proto.ret->types, 0);
-    //desc = type_maybe_instanced(iter->sym->desc, subtype);
+    desc = sym->desc;
+    expect(desc_isproto(desc));
+    desc = specialize_type(pdesc, desc);
+    desc = specialize_type(iter->desc, desc);
+    expect(desc_isproto(desc));
+    desc = desc->proto.ret;
+    expect(desc->kind == TYPE_KLASS);
+    desc = vector_get(desc->klass.typeargs, 0);
+    expect(desc != NULL);
+
     CODE_OP(OP_NEW_ITER);
     offset = codeblock_bytes(u->block);
 

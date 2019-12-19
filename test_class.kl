@@ -223,3 +223,59 @@ class Dog extends Animal with Bark {
   }
 }
 */
+
+import "io"
+
+class Node {
+  nxt Node
+  val int
+
+  func __init__(val int) {
+    self.val = val
+  }
+
+  func show() {
+    io.print(val)
+  }
+}
+
+class List {
+  head Node
+  tail Node
+  count int
+
+  func __init__() {
+    head = new Node(0)
+    tail = head
+  }
+
+  func add(node Node) {
+    node.nxt = head.nxt
+    head.nxt = node
+  }
+
+  func append(node Node) {
+    tail.nxt = node
+    tail = node
+  }
+
+  func show() {
+    it := head.nxt
+    while it != null {
+      it.show()
+      io.print(", ")
+      it = it.nxt
+    }
+    io.println("")
+  }
+
+  func sort() {
+
+  }
+}
+
+list := new List()
+for i in 1...20 {
+  list.add(new Node(i))
+}
+list.show()
