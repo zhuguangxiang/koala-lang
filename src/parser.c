@@ -37,6 +37,8 @@ static Symbol *modClsSym;
 static HashMap modules;
 /* null symbol */
 static Symbol nullsym;
+/* any symbol */
+Symbol *anysym;
 
 static int _mod_equal_(void *e1, void *e2)
 {
@@ -64,15 +66,18 @@ static void init_nullsym(void)
   STable *stbl = stable_new();
   Vector *args = vector_new();
   vector_push_back(args, desc_from_any);
-  TypeDesc *proto = desc_from_proto(args, desc_from_bool);
+  TypeDesc *ret = desc_from_bool;
+  TypeDesc *proto = desc_from_proto(args, ret);
   stable_add_func(stbl, "__eq__", proto);
   stable_add_func(stbl, "__neq__", proto);
+  TYPE_DECREF(ret);
   TYPE_DECREF(proto);
   nullsym.type.stbl = stbl;
 }
 
 static void fini_nullsym(void)
 {
+  stable_free(nullsym.type.stbl);
 
 }
 

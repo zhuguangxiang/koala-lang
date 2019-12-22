@@ -48,6 +48,7 @@ typedef struct {
   char *ptype;
   char *rtype;
   func_t func;
+  int proto;
 } MethodDef;
 
 typedef struct {
@@ -126,6 +127,11 @@ static inline TypePara *new_typepara(char *name, Vector *bounds)
   tp->name = name;
   tp->bounds = bounds;
   return tp;
+}
+
+static inline void free_typepara(TypePara *tp)
+{
+  kfree(tp);
 }
 
 typedef struct typeref {

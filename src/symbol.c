@@ -267,6 +267,10 @@ void symbol_free(Symbol *sym)
     vector_for_each_reverse(tmp, &sym->type.lro) {
       symbol_decref(tmp);
     }
+    vector_for_each(tmp, sym->type.typesyms) {
+      symbol_decref(tmp);
+    }
+    vector_free(sym->type.typesyms);
     vector_fini(&sym->type.lro);
     vector_fini(&sym->type.traits);
     break;
@@ -339,6 +343,16 @@ Symbol *load_method(Object *ob)
   return sym;
 }
 
+Symbol *load_proto(Object *ob)
+{
+  ProtoObject *meth = (ProtoObject *)ob;
+  Symbol *sym = symbol_new(meth->name, SYM_IFUNC);
+  sym->desc = TYPE_INCREF(meth->desc);
+  return sym;
+}
+
+extern Symbol *anysym;
+
 Symbol *load_type(Object *ob)
 {
   TypeObject *type = (TypeObject *)ob;
@@ -349,6 +363,13 @@ Symbol *load_type(Object *ob)
   }
 
   debug("load type '%s'", type->name);
+
+  if (type == &any_type && anysym != NULL) {
+    debug("return type 'Any'");
+    ++anysym->refcnt;
+    return anysym;
+  }
+
   STable *stbl = stable_new();
   HASHMAP_ITERATOR(iter, type->mtbl);
   struct mnode *node;
@@ -360,6 +381,8 @@ Symbol *load_type(Object *ob)
       sym = load_field(tmp);
     } else if (method_check(tmp)) {
       sym = load_method(tmp);
+    } else if (proto_check(tmp)) {
+      sym = load_proto(tmp);
     } else {
       panic("object of '%s'?", OB_TYPE(tmp)->name);
     }
@@ -406,6 +429,11 @@ Symbol *load_type(Object *ob)
       vector_push_back(&clssym->type.lro, sym);
       symbol_decref(sym);
     }
+  }
+
+  if (type == &any_type && anysym == NULL) {
+    debug("new 'Any' type");
+    anysym = clssym;
   }
 
   return clssym;

@@ -113,6 +113,7 @@ static Object *any_class(Object *ob, Object *args)
 TypeObject any_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name  = "Any",
+  .flags = TPFLAGS_TRAIT,
   .hash  = any_hash,
   .equal = any_equal,
   .clazz = any_class,
@@ -445,6 +446,19 @@ TypeObject *type_new(char *path, char *name, int flags)
   return tp;
 }
 
+void fini_tps(Vector *vec)
+{
+  if (vec == NULL)
+    return;
+
+  TypePara *tp;
+  vector_for_each(tp, vec) {
+    free_typepara(tp);
+  }
+
+  vector_free(vec);
+}
+
 void type_fini(TypeObject *type)
 {
   destroy_lro(type);
@@ -459,6 +473,7 @@ void type_fini(TypeObject *type)
     type->mtbl = NULL;
   }
 
+  fini_tps(type->tps);
   OB_DECREF(type->consts);
   vector_fini(&type->bases);
 }
@@ -550,10 +565,20 @@ static void update_proto_pararef(TypeObject *type, TypeDesc *proto)
 
 void type_add_methoddef(TypeObject *type, MethodDef *f)
 {
-  Object *meth = cmethod_new(f);
-  debug("try to update func '%s' type parameters", f->name);
-  update_proto_pararef(type, ((MethodObject *)meth)->desc);
-  type_add_method(type, meth);
+  Object *meth;
+  if (f->proto) {
+    TypeDesc *desc = str_to_proto(f->ptype, f->rtype);
+    meth = proto_new(f->name, desc);
+    TYPE_DECREF(desc);
+    debug("try to update ifunc '%s' type parameters", f->name);
+    update_proto_pararef(type, ((ProtoObject *)meth)->desc);
+    type_add_ifunc(type, meth);
+  } else {
+    meth = cmethod_new(f);
+    debug("try to update func '%s' type parameters", f->name);
+    update_proto_pararef(type, ((MethodObject *)meth)->desc);
+    type_add_method(type, meth);
+  }
   OB_DECREF(meth);
 }
 

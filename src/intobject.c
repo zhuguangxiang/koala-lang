@@ -455,7 +455,7 @@ static Object *int_num_not(Object *x, Object *y)
   }
 
   if (y != NULL) {
-    error("'-' must be only one operand");
+    error("'~' must be only one operand");
     return NULL;
   }
 
@@ -487,26 +487,82 @@ static NumberMethods int_numbers = {
   .not = int_num_not,
 };
 
+static Object *int_num_bytevalue(Object *x, Object *y)
+{
+  if (!integer_check(x)) {
+    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
+    return NULL;
+  }
+
+  if (y != NULL) {
+    error("'bytevalue' has not arguments");
+    return NULL;
+  }
+
+  Object *z;
+  int64_t a = integer_asint(x);
+  z = byte_new((char)a);
+  return z;
+}
+
+static Object *int_num_intvalue(Object *x, Object *y)
+{
+  if (!integer_check(x)) {
+    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
+    return NULL;
+  }
+
+  if (y != NULL) {
+    error("'intvalue' has not arguments");
+    return NULL;
+  }
+
+  return OB_INCREF(x);
+}
+
+static Object *int_num_floatvalue(Object *x, Object *y)
+{
+  if (!integer_check(x)) {
+    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
+    return NULL;
+  }
+
+  if (y != NULL) {
+    error("'floatvalue' has not arguments");
+    return NULL;
+  }
+
+  Object *z;
+  int64_t a = integer_asint(x);
+  z = float_new((double)a);
+  return z;
+}
+
 static MethodDef int_methods[]= {
   {"__fmt__", "Llang.Formatter;", NULL, integer_fmt},
   {"__add__", "Llang.Number;", "i", int_num_add},
-  {"__sub__", "A", "i", int_num_sub},
-  {"__mul__", "A", "i", int_num_mul},
-  {"__div__", "A", "i", int_num_div},
-  {"__mod__", "A", "i", int_num_mod},
-  {"__pow__", "A", "i", int_num_pow},
-  {"__neg__", "A", "i", int_num_neg},
+  {"__sub__", "Llang.Number;", "i", int_num_sub},
+  {"__mul__", "Llang.Number;", "i", int_num_mul},
+  {"__div__", "Llang.Number;", "i", int_num_div},
+  {"__mod__", "Llang.Number;", "i", int_num_mod},
+  {"__pow__", "Llang.Number;", "i", int_num_pow},
+  {"__neg__", NULL, "i", int_num_neg},
 
-  {"__gt__", "A", "i", int_num_add},
-  {"__ge__", "A", "i", int_num_add},
-  {"__lt__", "A", "i", int_num_add},
-  {"__le__", "A", "i", int_num_add},
-  {"__eq__", "A", "i", int_num_add},
-  {"__neq__", "A", "i", int_num_add},
-  {"__and__", "A", "i", int_num_add},
-  {"__or__", "A", "i", int_num_add},
-  {"__xor__", "A", "i", int_num_add},
-  {"__not__", "A", "i", int_num_add},
+  {"__gt__",  "Llang.Number;", "i", int_num_gt},
+  {"__ge__",  "Llang.Number;", "i", int_num_ge},
+  {"__lt__",  "Llang.Number;", "i", int_num_lt},
+  {"__le__",  "Llang.Number;", "i", int_num_le},
+  {"__eq__",  "Llang.Number;", "i", int_num_eq},
+  {"__neq__", "Llang.Number;", "i", int_num_neq},
+
+  {"__and__", "Llang.Number;", "i", int_num_and},
+  {"__or__",  "Llang.Number;", "i", int_num_or},
+  {"__xor__", "Llang.Number;", "i", int_num_xor},
+  {"__not__", NULL, "i", int_num_not},
+
+  {"bytevalue",  NULL, "i", int_num_bytevalue},
+  {"intvalue",   NULL, "b", int_num_intvalue},
+  {"floatvalue", NULL, "f", int_num_floatvalue},
   {NULL}
 };
 
@@ -570,6 +626,7 @@ TypeObject byte_type = {
 void init_byte_type(void)
 {
   byte_type.desc = desc_from_byte;
+  vector_push_back(&byte_type.bases, &number_type);
   if (type_ready(&byte_type) < 0)
     panic("Cannot initalize 'Byte' type.");
 }

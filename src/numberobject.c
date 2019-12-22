@@ -26,46 +26,10 @@
 #include "intobject.h"
 #include "floatobject.h"
 
-static Object *num_bytevalue(Object *x, Object *y)
-{
-  expect(x != NULL);
-
-  if (y != NULL) {
-    error("\"bytevalue\" must be no arguments");
-    return NULL;
-  }
-
-  return byte_new(0);
-}
-
-static Object *num_intvalue(Object *x, Object *y)
-{
-  expect(x != NULL);
-
-  if (y != NULL) {
-    error("\"bytevalue\" must be no arguments");
-    return NULL;
-  }
-
-  return integer_new(0);
-}
-
-static Object *num_floatvalue(Object *x, Object *y)
-{
-  expect(x != NULL);
-
-  if (y != NULL) {
-    error("\"bytevalue\" must be no arguments");
-    return NULL;
-  }
-
-  return float_new(0);
-}
-
 static MethodDef number_methods[]= {
-  {"bytevalue",   NULL, "b", num_bytevalue},
-  {"intvalue",    NULL, "i", num_intvalue},
-  {"floatvalue",  NULL, "f", num_floatvalue},
+  {"bytevalue",   NULL, "b", NULL, 1},
+  {"intvalue",    NULL, "i", NULL, 1},
+  {"floatvalue",  NULL, "f", NULL, 1},
   {NULL}
 };
 
