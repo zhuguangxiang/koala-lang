@@ -94,8 +94,8 @@ static int64_t int_add(Object *x, Object *y)
     r = (int64_t)((uint64_t)a + b);
     if ((r ^ a) < 0 && (r ^ b) < 0)
       panic("overflow:%"PRId64" + %d = %"PRId64, a, b, r);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = (int64_t)((double)a + b);
     if ((a > 0 && b > 0 && r < 0) ||
         (a < 0 && b < 0 && r > 0))
@@ -121,8 +121,8 @@ static int64_t int_sub(Object *x, Object *y)
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
       panic("overflow:%"PRId64" + %d = %"PRId64, a, b, r);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = (int64_t)((double)a - b);
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
@@ -144,8 +144,8 @@ static int64_t int_mul(Object *x, Object *y)
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = (int64_t)(a * b);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = (int64_t)(a * b);
   } else {
     error("Unsupported operand type(s) for *: 'Integer' and '%s'",
@@ -164,8 +164,8 @@ static int64_t int_div(Object *x, Object *y)
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = (int64_t)(a / b);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = (int64_t)(a / b);
   } else {
     error("Unsupported operand type(s) for /: 'Integer' and '%s'",
@@ -184,8 +184,8 @@ static int64_t int_mod(Object *x, Object *y)
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = (int64_t)fmod(a, b);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = (int64_t)fmod(a, b);
   } else {
     error("Unsupported operand type(s) for %%: 'Integer' and '%s'",
@@ -204,8 +204,8 @@ static int64_t int_pow(Object *x, Object *y)
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = (int64_t)pow(a, b);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = (int64_t)pow(a, b);
   } else {
     error("Unsupported operand type(s) for **: 'Integer' and '%s'",
@@ -342,8 +342,8 @@ static int64_t int_num_cmp(Object *x, Object *y)
     r = (int64_t)((uint64_t)a - b);
     if ((r ^ a) < 0 && (r ^ ~b) < 0)
       panic("overflow:%"PRId64" + %d = %"PRId64, a, b, r);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = (int64_t)((double)a - b);
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
@@ -548,20 +548,20 @@ static MethodDef int_methods[]= {
   {"__pow__", "Llang.Number;", "i", int_num_pow},
   {"__neg__", NULL, "i", int_num_neg},
 
-  {"__gt__",  "Llang.Number;", "i", int_num_gt},
-  {"__ge__",  "Llang.Number;", "i", int_num_ge},
-  {"__lt__",  "Llang.Number;", "i", int_num_lt},
-  {"__le__",  "Llang.Number;", "i", int_num_le},
-  {"__eq__",  "Llang.Number;", "i", int_num_eq},
-  {"__neq__", "Llang.Number;", "i", int_num_neq},
+  {"__gt__",  "Llang.Number;", "z", int_num_gt},
+  {"__ge__",  "Llang.Number;", "z", int_num_ge},
+  {"__lt__",  "Llang.Number;", "z", int_num_lt},
+  {"__le__",  "Llang.Number;", "z", int_num_le},
+  {"__eq__",  "Llang.Number;", "z", int_num_eq},
+  {"__neq__", "Llang.Number;", "z", int_num_neq},
 
   {"__and__", "Llang.Number;", "i", int_num_and},
   {"__or__",  "Llang.Number;", "i", int_num_or},
   {"__xor__", "Llang.Number;", "i", int_num_xor},
   {"__not__", NULL, "i", int_num_not},
 
-  {"bytevalue",  NULL, "i", int_num_bytevalue},
-  {"intvalue",   NULL, "b", int_num_intvalue},
+  {"bytevalue",  NULL, "b", int_num_bytevalue},
+  {"intvalue",   NULL, "i", int_num_intvalue},
   {"floatvalue", NULL, "f", int_num_floatvalue},
   {NULL}
 };
@@ -610,7 +610,7 @@ static Object *byte_str(Object *self, Object *ob)
     return NULL;
   }
 
-  ByteObject *b = (ByteObject *)ob;
+  ByteObject *b = (ByteObject *)self;
   char buf[8];
   sprintf(buf, "%d", b->value);
   return string_new(buf);
@@ -652,10 +652,68 @@ static Object *bool_str(Object *self, Object *ob)
   return string_new(buf);
 }
 
+static Object *bool_and(Object *self, Object *ob)
+{
+  if (!bool_check(self)) {
+    error("object of '%.64s' is not a Bool", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (!bool_check(ob)) {
+    error("object of '%.64s' is not a Bool", OB_TYPE_NAME(ob));
+    return NULL;
+  }
+
+  BoolObject *b = (BoolObject *)self;
+  BoolObject *o = (BoolObject *)ob;
+  return b->value && o->value ? bool_true() : bool_false();
+}
+
+static Object *bool_or(Object *self, Object *ob)
+{
+  if (!bool_check(self)) {
+    error("object of '%.64s' is not a Bool", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (!bool_check(ob)) {
+    error("object of '%.64s' is not a Bool", OB_TYPE_NAME(ob));
+    return NULL;
+  }
+
+  BoolObject *b = (BoolObject *)self;
+  BoolObject *o = (BoolObject *)ob;
+  return b->value || o->value ? bool_true() : bool_false();
+}
+
+static Object *bool_not(Object *self, Object *ob)
+{
+  if (!bool_check(self)) {
+    error("object of '%.64s' is not a Bool", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (ob != NULL) {
+    error("'not' has no arguments");
+    return NULL;
+  }
+
+  BoolObject *b = (BoolObject *)self;
+  return b->value ? bool_false() : bool_true();
+}
+
+static MethodDef bool_methods[]= {
+  {"__land__", "z",  "z",  bool_and},
+  {"__lor__",  "z",  "z",  bool_or},
+  {"__lnot__", NULL, "z",  bool_not},
+  {NULL}
+};
+
 TypeObject bool_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name = "Bool",
   .str  = bool_str,
+  .methods = bool_methods,
 };
 
 void init_bool_type(void)

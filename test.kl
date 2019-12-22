@@ -64,7 +64,7 @@ func add(a int, b int) int {
     a2 = b1 - b2
     b1 - b2
   }
-  //return a1 + a2 + a + b
+  //retur`n a1 + a2 + a + b
   a1 + a2 + a + b
   //return "hello"
 }
@@ -357,6 +357,7 @@ assert.equal(test_jmp2(arr2), 25)
 assert.equal(test_jmp3(arr2), 25)
 assert.equal(test_jmp4(arr2), 150)
 
+/*
 func test_cond(a int, b int) int {
   a > b ? a - b : b - a
 }
@@ -377,6 +378,7 @@ func test_cond2(a int, b int) int {
 assert.equal(test_cond2(10, 20), 10)
 assert.equal(test_cond2(20, 10), 10)
 assert.equal(test_cond2(20, 20), 0)
+*/
 
 func arr_reverse(arr [int]) [int] {
   //if arr != nil {
@@ -516,6 +518,7 @@ assert.equal(cl2(), 243)
 
 class Dog {
   name string
+  age int
 
   func __init__(name string, age int) {
     self.name = name
@@ -529,8 +532,6 @@ class Dog {
   func get_age() int {
     age
   }
-
-  age int
 }
 
 // error: 'Dog' args are not mached
@@ -700,3 +701,70 @@ opt4.is_none()
 Option.Some(x, y) = Option.Some(1, "bar")
 Option.Some(x, y) = opt
 */
+
+func add(i int, j int) int {
+  return i + j
+}
+
+func fib(n int) int {
+  if n <= 1 {
+    return n
+  }
+  return fib(n-1) + fib(n-2)
+}
+
+func fib2(n int) int {
+  if n <= 1 {
+    return n
+  }
+
+  f1 := 0
+  f2 := 1
+  f3 := 0
+  for i in 2...n {
+    f3 = f1 + f2;
+    f1 = f2;
+    f2 = f3;
+  }
+  return f3
+}
+
+arr := new Array<int>()
+
+for i in 0...50 {
+  arr.append(0)
+}
+
+func fib3(n int) int {
+  if n <= 1 {
+    return n
+  }
+
+  if (arr[n] != 0) {
+    return arr[n]
+  }
+
+  val := fib3(n-1) + fib3(n-2)
+  arr[n] = val
+  return val
+}
+
+import "io"
+
+for i in 1...9 {
+  for j in 1...i {
+    io.print(j)
+    io.print("x")
+    io.print(i)
+    io.print("=")
+    io.print(i*j)
+    io.print(" ")
+  }
+  io.println("")
+}
+
+func show() {
+  for i in 0...3 {
+    io.println(i)
+  }
+}

@@ -41,11 +41,26 @@ Object *module_lookup(Object *ob, char *name)
   }
 
   ModuleObject *module = (ModuleObject *)ob;
+  // find from cache
+  struct mnode *node;
+  vector_for_each(node, &module->cache) {
+    if (!strcmp(node->name, name)) {
+      debug("find '%s' from module '%s' cache", name, module->name);
+      return OB_INCREF(node->obj);
+    }
+  }
+
   struct mnode key = {.name = name};
   hashmap_entry_init(&key, strhash(name));
-  struct mnode *node = hashmap_get(module->mtbl, &key);
-  if (node != NULL)
+  node = hashmap_get(module->mtbl, &key);
+  if (node != NULL) {
+    if (vector_size(&module->cache) >= 5) {
+      // cache latest 5 objects
+      vector_pop_back(&module->cache);
+    }
+    vector_push_back(&module->cache, node);
     return OB_INCREF(node->obj);
+  }
 
   return type_lookup(OB_TYPE(ob), NULL, name);
 }
@@ -90,6 +105,8 @@ static void module_free(Object *ob)
   if (module->dlptr != NULL) {
     dlclose(module->dlptr);
   }
+
+  vector_fini(&module->cache);
 
   kfree(ob);
 }

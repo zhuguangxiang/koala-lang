@@ -47,9 +47,9 @@
 
 /* interactive mode */
 void cmd_eval_stmt(ParserState *ps, Stmt *stmt);
-int cmd_add_const(ParserState *ps, Ident id, Type type);
-int cmd_add_var(ParserState *ps, Ident id, Type type);
-int cmd_add_func(ParserState *ps, Ident id, Vector *idtypes, Type ret);
+int cmd_add_const(ParserState *ps, Ident id);
+int cmd_add_var(ParserState *ps, Ident id);
+int cmd_add_func(ParserState *ps, Ident id);
 int cmd_add_type(ParserState *ps, Stmt *stmt);
 
 /* compile mode */
@@ -329,7 +329,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      if (!cmd_add_const(ps, $1->vardecl.id, $1->vardecl.type))
+      if (!cmd_add_const(ps, $1->vardecl.id))
         cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
@@ -345,7 +345,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      if (!cmd_add_var(ps, $1->vardecl.id, $1->vardecl.type))
+      if (!cmd_add_var(ps, $1->vardecl.id))
         cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
@@ -361,7 +361,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      if (!cmd_add_var(ps, $1->vardecl.id, $1->vardecl.type))
+      if (!cmd_add_var(ps, $1->vardecl.id))
         cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }
@@ -442,8 +442,7 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
     if ($1 != NULL) {
-      if (!cmd_add_func(ps, $1->funcdecl.id, $1->funcdecl.idtypes,
-          $1->funcdecl.ret))
+      if (!cmd_add_func(ps, $1->funcdecl.id))
         cmd_eval_stmt(ps, $1);
       stmt_free($1);
     }

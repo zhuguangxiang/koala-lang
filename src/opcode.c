@@ -72,6 +72,7 @@ static struct opcode {
   OPCODE(OP_MUL, 0),
   OPCODE(OP_DIV, 0),
   OPCODE(OP_MOD, 0),
+  OPCODE(OP_POW, 0),
   OPCODE(OP_NEG, 0),
 
   OPCODE(OP_GT,  0),

@@ -30,7 +30,7 @@
 
 static void float_free(Object *ob)
 {
-  if (!Float_Check(ob)) {
+  if (!float_check(ob)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(ob));
     return;
   }
@@ -41,7 +41,7 @@ static void float_free(Object *ob)
 
 static Object *float_str(Object *self, Object *ob)
 {
-  if (!Float_Check(self)) {
+  if (!float_check(self)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(self));
     return NULL;
   }
@@ -54,7 +54,7 @@ static Object *float_str(Object *self, Object *ob)
 
 static double flt_add(Object *x, Object *y)
 {
-  double a = Float_AsFlt(x);
+  double a = float_asflt(x);
   double r;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
@@ -68,8 +68,8 @@ static double flt_add(Object *x, Object *y)
     if ((a > 0 && b > 0 && r < 0) ||
         (a < 0 && b < 0 && r > 0))
       panic("overflow:%lf + %d = %lf", a, b, r);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = (a + b);
     if ((a > 0 && b > 0 && r < 0) ||
         (a < 0 && b < 0 && r > 0))
@@ -83,7 +83,7 @@ static double flt_add(Object *x, Object *y)
 
 static double flt_sub(Object *x, Object *y)
 {
-  double a = Float_AsFlt(x);
+  double a = float_asflt(x);
   double r;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
@@ -97,8 +97,8 @@ static double flt_sub(Object *x, Object *y)
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
       panic("overflow:%lf + %d = %lf", a, b, r);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = a - b;
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
@@ -111,7 +111,7 @@ static double flt_sub(Object *x, Object *y)
 
 static double flt_mul(Object *x, Object *y)
 {
-  double a = Float_AsFlt(x);
+  double a = float_asflt(x);
   double r;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
@@ -119,8 +119,8 @@ static double flt_mul(Object *x, Object *y)
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = a * b;
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = a * b;
   } else {
     panic("Not Implemented");
@@ -130,7 +130,7 @@ static double flt_mul(Object *x, Object *y)
 
 static double flt_div(Object *x, Object *y)
 {
-  double a = Float_AsFlt(x);
+  double a = float_asflt(x);
   double r;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
@@ -138,8 +138,8 @@ static double flt_div(Object *x, Object *y)
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = a / b;
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = a / b;
   } else {
     panic("Not Implemented");
@@ -149,7 +149,7 @@ static double flt_div(Object *x, Object *y)
 
 static double flt_mod(Object *x, Object *y)
 {
-  double a = Float_AsFlt(x);
+  double a = float_asflt(x);
   double r;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
@@ -157,8 +157,8 @@ static double flt_mod(Object *x, Object *y)
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = fmod(a, b);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = fmod(a, b);
   } else {
     panic("Not Implemented");
@@ -168,7 +168,7 @@ static double flt_mod(Object *x, Object *y)
 
 static int64_t flt_pow(Object *x, Object *y)
 {
-  double a = Float_AsFlt(x);
+  double a = float_asflt(x);
   double r;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
@@ -176,8 +176,8 @@ static int64_t flt_pow(Object *x, Object *y)
   } else if (byte_check(y)) {
     int b = byte_asint(y);
     r = pow(a, b);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = pow(a, b);
   } else {
     panic("Not Implemented");
@@ -187,7 +187,7 @@ static int64_t flt_pow(Object *x, Object *y)
 
 static Object *flt_num_add(Object *x, Object *y)
 {
-  if (!Float_Check(x)) {
+  if (!float_check(x)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -202,7 +202,7 @@ static Object *flt_num_add(Object *x, Object *y)
 
 static Object *flt_num_sub(Object *x, Object *y)
 {
-  if (!Float_Check(x)) {
+  if (!float_check(x)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -217,7 +217,7 @@ static Object *flt_num_sub(Object *x, Object *y)
 
 static Object *flt_num_mul(Object *x, Object *y)
 {
-  if (!Float_Check(x)) {
+  if (!float_check(x)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -232,7 +232,7 @@ static Object *flt_num_mul(Object *x, Object *y)
 
 static Object *flt_num_div(Object *x, Object *y)
 {
-  if (!Float_Check(x)) {
+  if (!float_check(x)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -247,7 +247,7 @@ static Object *flt_num_div(Object *x, Object *y)
 
 static Object *flt_num_mod(Object *x, Object *y)
 {
-  if (!Float_Check(x)) {
+  if (!float_check(x)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -262,7 +262,7 @@ static Object *flt_num_mod(Object *x, Object *y)
 
 static Object *flt_num_pow(Object *x, Object *y)
 {
-  if (!Float_Check(x)) {
+  if (!float_check(x)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -277,7 +277,7 @@ static Object *flt_num_pow(Object *x, Object *y)
 
 static Object *flt_num_neg(Object *x, Object *y)
 {
-  if (!Float_Check(x)) {
+  if (!float_check(x)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
     return NULL;
   }
@@ -288,20 +288,20 @@ static Object *flt_num_neg(Object *x, Object *y)
   }
 
   Object *z;
-  double a = Float_AsFlt(x);
+  double a = float_asflt(x);
   z = float_new((double)0 - a);
   return z;
 }
 
 static double flt_num_cmp(Object *x, Object *y)
 {
-  if (!Float_Check(x)) {
+  if (!float_check(x)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(x));
     //FIXME: retval?
     return 0;
   }
 
-  double a = Float_AsFlt(x);
+  double a = float_asflt(x);
   double r;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
@@ -315,8 +315,8 @@ static double flt_num_cmp(Object *x, Object *y)
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))
       panic("overflow:%lf + %d = %lf", a, b, r);
-  } else if (Float_Check(y)) {
-    double b = Float_AsFlt(y);
+  } else if (float_check(y)) {
+    double b = float_asflt(y);
     r = a - b;
     if ((a > 0 && b < 0 && r < 0) ||
         (a < 0 && b > 0 && r > 0))

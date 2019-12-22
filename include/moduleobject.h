@@ -47,6 +47,8 @@ typedef struct moduleobject {
   Object *consts;
   /* dlptr */
   void *dlptr;
+  /* cache */
+  Vector cache;
 } ModuleObject;
 
 extern TypeObject module_type;

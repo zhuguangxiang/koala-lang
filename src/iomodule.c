@@ -74,6 +74,10 @@ void IoPrint(Object *ob)
     printf("%s", string_asstr(ob));
   } else if (integer_check(ob)) {
     printf("%ld", integer_asint(ob));
+  } else if (byte_check(ob)) {
+    printf("%d", byte_asint(ob));
+  } else if (float_check(ob)) {
+    printf("%lf", float_asflt(ob));
   } else {
     Object *str = object_call(ob, "__str__", NULL);
     if (str != NULL) {
@@ -95,6 +99,10 @@ void IoPrintln(Object *ob)
     printf("%s\n", string_asstr(ob));
   } else if (integer_check(ob)) {
     printf("%ld\n", integer_asint(ob));
+  } else if (byte_check(ob)) {
+    printf("%d\n", byte_asint(ob));
+  } else if (float_check(ob)) {
+    printf("%lf\n", float_asflt(ob));
   } else {
     Object *str = object_call(ob, "__str__", NULL);
     if (str != NULL) {

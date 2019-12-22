@@ -599,8 +599,7 @@ TypeDesc *str_to_proto(char *ptype, char *rtype)
     ret = __to_desc(&s);
   }
 
-  TypeDesc *desc;
-  desc = desc_from_proto(args, ret);
+  TypeDesc *desc = desc_from_proto(args, ret);
   TYPE_DECREF(ret);
   return desc;
 }

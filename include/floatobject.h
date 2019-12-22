@@ -37,12 +37,12 @@ typedef struct floatobject {
 } FloatObject;
 
 extern TypeObject float_type;
-#define Float_Check(ob) (OB_TYPE(ob) == &float_type)
+#define float_check(ob) (OB_TYPE(ob) == &float_type)
 void init_float_type(void);
 Object *float_new(double val);
-static inline double Float_AsFlt(Object *ob)
+static inline double float_asflt(Object *ob)
 {
-  if (!Float_Check(ob)) {
+  if (!float_check(ob)) {
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(ob));
     return 0;
   }

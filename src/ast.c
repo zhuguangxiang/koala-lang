@@ -117,9 +117,6 @@ Expr *expr_from_unary(UnaryOpKind op, Expr *exp)
 {
   Expr *uexp = kmalloc(sizeof(Expr));
   uexp->kind = UNARY_KIND;
-  /* it does not matter that exp->desc is null */
-  uexp->desc = exp->desc;
-  TYPE_INCREF(uexp->desc);
   uexp->unary.op = op;
   uexp->unary.exp = exp;
   return uexp;
@@ -129,9 +126,6 @@ Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = BINARY_KIND;
-  /* it does not matter that exp->desc is null */
-  exp->desc = left->desc;
-  TYPE_INCREF(exp->desc);
   exp->binary.op = op;
   exp->binary.lexp = left;
   exp->binary.rexp = right;

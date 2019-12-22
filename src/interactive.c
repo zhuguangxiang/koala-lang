@@ -209,11 +209,11 @@ static Object *code_from_symbol(Symbol *sym)
   return ob;
 }
 
-int cmd_add_const(ParserState *ps, Ident id, Type type)
+int cmd_add_const(ParserState *ps, Ident id)
 {
-  cursym = stable_add_const(mod.stbl, id.name, type.desc);
+  cursym = stable_add_const(mod.stbl, id.name, NULL);
   if (cursym != NULL) {
-    cursym->k.typesym = get_desc_symbol(ps->module, type.desc);
+    //cursym->k.typesym = get_desc_symbol(ps->module, type.desc);
     return 0;
   } else {
     synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
@@ -221,11 +221,10 @@ int cmd_add_const(ParserState *ps, Ident id, Type type)
   }
 }
 
-int cmd_add_var(ParserState *ps, Ident id, Type type)
+int cmd_add_var(ParserState *ps, Ident id)
 {
   cursym = stable_add_var(mod.stbl, id.name, NULL);
   if (cursym != NULL) {
-    //cursym->var.typesym = get_desc_symbol(ps->module, type.desc);
     return 0;
   } else {
     synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
@@ -233,11 +232,9 @@ int cmd_add_var(ParserState *ps, Ident id, Type type)
   }
 }
 
-int cmd_add_func(ParserState *ps, Ident id, Vector *idtypes, Type ret)
+int cmd_add_func(ParserState *ps, Ident id)
 {
-  TypeDesc *proto = parse_proto(idtypes, &ret);
-  cursym = stable_add_func(mod.stbl, id.name, proto);
-  TYPE_DECREF(proto);
+  cursym = stable_add_func(mod.stbl, id.name, NULL);
   if (cursym == NULL) {
     synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
