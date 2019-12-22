@@ -367,7 +367,21 @@ Symbol *load_type(Object *ob)
     symbol_decref(sym);
   }
 
-  Symbol *clssym = symbol_new(type->name, SYM_CLASS);
+  Symbol *clssym = NULL;
+  switch (type->flags & TPFLAGS_MASK) {
+  case TPFLAGS_CLASS:
+    clssym = symbol_new(type->name, SYM_CLASS);
+    break;
+  case TPFLAGS_TRAIT:
+    clssym = symbol_new(type->name, SYM_TRAIT);
+    break;
+  case TPFLAGS_ENUM:
+    clssym = symbol_new(type->name, SYM_ENUM);
+    break;
+  default:
+    panic("invalid type->flags:0x%x", type->flags);
+    break;
+  }
   clssym->desc = TYPE_INCREF(type->desc);
   clssym->type.stbl = stbl;
 
@@ -574,6 +588,10 @@ static Symbol *_find_mbr_(Symbol *typesym, char *name, TypeDesc **ppdesc)
 
 Symbol *type_find_mbr(Symbol *typesym, char *name, TypeDesc **ppdesc)
 {
+  if (typesym->kind == SYM_VAR) {
+    typesym = typesym->var.typesym;
+  }
+
   if (typesym->kind != SYM_CLASS &&
       typesym->kind != SYM_ENUM &&
       typesym->kind != SYM_TRAIT &&

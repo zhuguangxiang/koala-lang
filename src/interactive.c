@@ -536,12 +536,12 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
       }
       Object *code = code_from_symbol(evalsym);
       code_set_module(code, mo);
-      //struct timeval past, future, cost;
-      //gettimeofday(&past, NULL);
+      struct timeval past, future, cost;
+      gettimeofday(&past, NULL);
       koala_evalcode(code, NULL, NULL);
-      //gettimeofday(&future, NULL);
-      //timersub(&future, &past, &cost);
-      //printf("cost: %ld.%06lds\n", cost.tv_sec, cost.tv_usec);
+      gettimeofday(&future, NULL);
+      timersub(&future, &past, &cost);
+      printf("cost: %ld.%06lds\n", cost.tv_sec, cost.tv_usec);
       expect(kstate.top == -1);
       OB_DECREF(code);
     }

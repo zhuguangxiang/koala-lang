@@ -1018,6 +1018,12 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
       if (sym->kind == SYM_CLASS) {
         ++sym->used;
         return sym;
+      } else if (sym->kind == SYM_TRAIT) {
+        ++sym->used;
+        return sym;
+      } else if(sym->kind == SYM_ENUM) {
+        ++sym->used;
+        return sym;
       } else {
         error("symbol '%s' is not klass", name);
         return NULL;
@@ -1032,6 +1038,12 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
     if (sym != NULL) {
       debug("find symbol '%s' in auto-imported modules", name);
       if (sym->kind == SYM_CLASS) {
+        ++sym->used;
+        return sym;
+      } else if (sym->kind == SYM_TRAIT) {
+        ++sym->used;
+        return sym;
+      } else if(sym->kind == SYM_ENUM) {
         ++sym->used;
         return sym;
       } else {
@@ -1601,6 +1613,8 @@ static int bop_isbool(BinaryOpKind op)
     return 0;
 }
 
+static int check_inherit(TypeDesc *desc, Symbol *sym);
+
 static void parse_binary(ParserState *ps, Expr *exp)
 {
   static char *funcnames[] = {
@@ -1670,9 +1684,11 @@ static void parse_binary(ParserState *ps, Expr *exp)
       expect(desc != NULL && desc->kind == TYPE_PROTO);
       desc = vector_get(desc->proto.args, 0);
       if (!desc_check(desc, rexp->desc)) {
-        synerr(ps, exp->binary.oprow, exp->binary.opcol,
-              "types of '%s' are not matched", funcname);
-        return;
+        if (!check_inherit(desc, rexp->sym)) {
+          synerr(ps, exp->binary.oprow, exp->binary.opcol,
+                "types of '%s' are not matched", funcname);
+          return;
+        }
       }
     }
   }
@@ -2774,6 +2790,11 @@ static void parse_new(ParserState *ps, Expr *exp)
     return;
   }
 
+  if (sym->kind != SYM_CLASS) {
+    synerr(ps, id->row, id->col, "'%s' is not Class", id->name);
+    return;
+  }
+
   exp->sym = sym;
   Vector *types = exp->newobj.types;
   if (types != NULL) {
@@ -3496,8 +3517,8 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   Vector *argtypes = sym->desc->proto.args;
   IdType *item;
   vector_for_each(item, idtypes) {
-    sym = new_update_var(ps, &item->id, vector_get(argtypes, idx));
-    if (sym != NULL && sym->var.typesym == NULL) {
+    Symbol *sym2 = new_update_var(ps, &item->id, vector_get(argtypes, idx));
+    if (sym2 != NULL && sym2->var.typesym == NULL) {
       STRBUF(sbuf);
       desc_tostr(item->type.desc, &sbuf);
       synerr(ps, item->type.row, item->type.col,

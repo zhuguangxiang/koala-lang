@@ -39,7 +39,7 @@ typedef struct floatobject {
 extern TypeObject float_type;
 #define Float_Check(ob) (OB_TYPE(ob) == &float_type)
 void init_float_type(void);
-Object *Float_New(double val);
+Object *float_new(double val);
 static inline double Float_AsFlt(Object *ob)
 {
   if (!Float_Check(ob)) {

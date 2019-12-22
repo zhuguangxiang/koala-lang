@@ -168,6 +168,7 @@ void init_lang_module(void)
 {
   Object *m = module_new("lang");
   module_add_type(m, &any_type);
+  module_add_type(m, &number_type);
   module_add_type(m, &byte_type);
   module_add_type(m, &integer_type);
   module_add_type(m, &bool_type);

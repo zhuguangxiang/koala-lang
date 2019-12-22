@@ -23,6 +23,7 @@
 */
 
 #include <math.h>
+#include "numberobject.h"
 #include "intobject.h"
 #include "stringobject.h"
 #include "floatobject.h"
@@ -488,7 +489,24 @@ static NumberMethods int_numbers = {
 
 static MethodDef int_methods[]= {
   {"__fmt__", "Llang.Formatter;", NULL, integer_fmt},
-  {"__add__", "A", "i", int_num_add},
+  {"__add__", "Llang.Number;", "i", int_num_add},
+  {"__sub__", "A", "i", int_num_sub},
+  {"__mul__", "A", "i", int_num_mul},
+  {"__div__", "A", "i", int_num_div},
+  {"__mod__", "A", "i", int_num_mod},
+  {"__pow__", "A", "i", int_num_pow},
+  {"__neg__", "A", "i", int_num_neg},
+
+  {"__gt__", "A", "i", int_num_add},
+  {"__ge__", "A", "i", int_num_add},
+  {"__lt__", "A", "i", int_num_add},
+  {"__le__", "A", "i", int_num_add},
+  {"__eq__", "A", "i", int_num_add},
+  {"__neq__", "A", "i", int_num_add},
+  {"__and__", "A", "i", int_num_add},
+  {"__or__", "A", "i", int_num_add},
+  {"__xor__", "A", "i", int_num_add},
+  {"__not__", "A", "i", int_num_add},
   {NULL}
 };
 
@@ -505,6 +523,7 @@ TypeObject integer_type = {
 void init_integer_type(void)
 {
   integer_type.desc = desc_from_int;
+  vector_push_back(&integer_type.bases, &number_type);
   if (type_ready(&integer_type) < 0)
     panic("Cannot initalize 'Integer' type.");
 }

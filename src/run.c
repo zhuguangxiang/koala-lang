@@ -46,6 +46,7 @@ static void init_types(void)
 
   init_any_type();
   init_descob_type();
+  init_number_type();
   init_integer_type();
   init_byte_type();
   init_bool_type();
@@ -80,6 +81,7 @@ static void fini_types(void)
   type_fini(&type_type);
   type_fini(&any_type);
   type_fini(&descob_type);
+  type_fini(&number_type);
   type_fini(&byte_type);
   type_fini(&integer_type);
   type_fini(&bool_type);

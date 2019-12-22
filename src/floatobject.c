@@ -23,6 +23,7 @@
 */
 
 #include <math.h>
+#include "numberobject.h"
 #include "floatobject.h"
 #include "intobject.h"
 #include "stringobject.h"
@@ -196,7 +197,7 @@ static Object *flt_num_add(Object *x, Object *y)
     return NULL;
   }
 
-  return Float_New(flt_add(x, y));
+  return float_new(flt_add(x, y));
 }
 
 static Object *flt_num_sub(Object *x, Object *y)
@@ -211,7 +212,7 @@ static Object *flt_num_sub(Object *x, Object *y)
     return NULL;
   }
 
-  return Float_New(flt_sub(x, y));
+  return float_new(flt_sub(x, y));
 }
 
 static Object *flt_num_mul(Object *x, Object *y)
@@ -226,7 +227,7 @@ static Object *flt_num_mul(Object *x, Object *y)
     return NULL;
   }
 
-  return Float_New(flt_mul(x, y));
+  return float_new(flt_mul(x, y));
 }
 
 static Object *flt_num_div(Object *x, Object *y)
@@ -241,7 +242,7 @@ static Object *flt_num_div(Object *x, Object *y)
     return NULL;
   }
 
-  return Float_New(flt_div(x, y));
+  return float_new(flt_div(x, y));
 }
 
 static Object *flt_num_mod(Object *x, Object *y)
@@ -256,7 +257,7 @@ static Object *flt_num_mod(Object *x, Object *y)
     return NULL;
   }
 
-  return Float_New(flt_mod(x, y));
+  return float_new(flt_mod(x, y));
 }
 
 static Object *flt_num_pow(Object *x, Object *y)
@@ -271,7 +272,7 @@ static Object *flt_num_pow(Object *x, Object *y)
     return NULL;
   }
 
-  return Float_New(flt_pow(x, y));
+  return float_new(flt_pow(x, y));
 }
 
 static Object *flt_num_neg(Object *x, Object *y)
@@ -288,7 +289,7 @@ static Object *flt_num_neg(Object *x, Object *y)
 
   Object *z;
   double a = Float_AsFlt(x);
-  z = Float_New((double)0 - a);
+  z = float_new((double)0 - a);
   return z;
 }
 
@@ -390,11 +391,12 @@ TypeObject float_type = {
 void init_float_type(void)
 {
   float_type.desc = desc_from_float;
+  vector_push_back(&float_type.bases, &number_type);
   if (type_ready(&float_type) < 0)
     panic("Cannot initalize 'Float' type.");
 }
 
-Object *Float_New(double val)
+Object *float_new(double val)
 {
   FloatObject *f = kmalloc(sizeof(FloatObject));
   init_object_head(f, &float_type);

@@ -844,7 +844,7 @@ Object *new_literal(Literal *val)
     break;
   case BASE_FLOAT:
     debug("literal string value: %lf", val->fval);
-    ob = Float_New(val->fval);
+    ob = float_new(val->fval);
     break;
   case BASE_CHAR:
     debug("literal string value: %s", (char *)&val->cval);
