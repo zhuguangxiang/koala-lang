@@ -1598,12 +1598,38 @@ static void parse_unary(ParserState *ps, Expr *exp)
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
 
-  exp->sym = e->sym;
+  static char *funcnames[] = {
+    NULL,         // INVALID
+    NULL,         // UNARY_PLUS
+    "__neg__",    // UNARY_NEG
+    "__not__",    // UNARY_BIT_NOT
+    "__lnot__",   // UNARY_LNOT
+  };
+
+  TypeDesc *desc = NULL;
+  UnaryOpKind op = exp->unary.op;
+  char *funcname = funcnames[op];
+  if (funcname != NULL) {
+    Symbol *sym = type_find_mbr(e->sym, funcname, NULL);
+    if (sym == NULL) {
+      synerr(ps, e->row, e->col, "unsupported '%s'", funcname);
+      return;
+    } else {
+      desc = sym->desc;
+      expect(desc != NULL && desc->kind == TYPE_PROTO);
+      expect(desc->proto.args == NULL);
+      desc = desc->proto.ret;
+      expect(desc != NULL);
+    }
+  }
+
+  exp->sym  = e->sym;
+  exp->desc = TYPE_INCREF(desc);
+
   if (!has_error(ps)) {
     static int opcodes[] = {
       0, 0, OP_NEG, OP_BIT_NOT, OP_NOT
     };
-    UnaryOpKind op = exp->unary.op;
     if (op >= UNARY_NEG && op <= UNARY_LNOT)
       CODE_OP(opcodes[op]);
   }
