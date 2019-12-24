@@ -1,5 +1,34 @@
 
 import "io"
+
+class Box<E> {
+  g E
+  func __init__(g E) {
+    self.g = g
+  }
+}
+
+class Box2<E> {
+  g Array<E> = new Array<E>()
+}
+
+class Box3<E> {
+  g E
+
+  func __init__(g E) {
+    self.g = g
+  }
+
+  func setg(arr Array<E>) {
+    arr.append(g)
+  }
+
+  func getg() E {
+    return g
+  }
+}
+
+
 class Box<ITEM> {
   good ITEM
   arr Array<ITEM>
