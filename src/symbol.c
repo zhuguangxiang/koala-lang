@@ -271,6 +271,7 @@ void symbol_free(Symbol *sym)
       symbol_decref(tmp);
     }
     vector_free(sym->type.typesyms);
+    symbol_decref(sym->type.base);
     vector_fini(&sym->type.lro);
     vector_fini(&sym->type.traits);
     break;
@@ -425,9 +426,7 @@ Symbol *load_type(Object *ob)
       continue;
     sym = load_type((Object *)item);
     if (sym != NULL) {
-      ++sym->refcnt;
       vector_push_back(&clssym->type.lro, sym);
-      symbol_decref(sym);
     }
   }
 

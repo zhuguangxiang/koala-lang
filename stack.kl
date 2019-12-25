@@ -1,0 +1,37 @@
+
+class Stack<E> {
+  arr Array<E>
+
+  func push(e E) {
+    arr.append(e)
+  }
+
+  func pop() E {
+    sz := arr.length()
+    if sz > 0 {
+      return arr.pop()
+    } else {
+      return null
+    }
+  }
+
+  func top() E {
+    sz := arr.length()
+    if sz > 0 {
+      return arr[sz - 1]
+    } else {
+      return null
+    }
+  }
+
+  func __init__() {
+    arr = new Array<E>()
+  }
+}
+
+istk := new Stack<int>()
+istk.push("hello")
+//stdin:27:11: error: expected 'int', but found 'string'
+istk.push(123)
+istk.top()
+istk.pop()

@@ -192,25 +192,6 @@ Expr *expr_from_tuple(Vector *exps)
   return exp;
 }
 
-static TypeDesc *get_subarray_type(Vector *exps)
-{
-  if (exps == NULL)
-    return desc_from_any;
-
-  TypeDesc *desc = NULL;
-  Expr *exp;
-  vector_for_each(exp, exps) {
-    if (desc == NULL) {
-      desc = exp->desc;
-    } else {
-      if (!desc_check(desc, exp->desc)) {
-        return desc_from_any;
-      }
-    }
-  }
-  return TYPE_INCREF(desc);
-}
-
 Expr *expr_from_array(Vector *exps)
 {
   Expr *exp = kmalloc(sizeof(Expr));
@@ -580,6 +561,25 @@ Stmt *stmt_from_for(Expr *vexp, Expr *iter, Expr *step, Vector *block)
   return stmt;
 }
 
+void free_type_para(TypeParaDef *typepara)
+{
+  TypeDesc *item;
+  vector_for_each(item, typepara->bounds) {
+    TYPE_DECREF(item);
+  }
+  vector_free(typepara->bounds);
+  kfree(typepara);
+}
+
+void free_type_paras(Vector *vec)
+{
+  TypeParaDef *item;
+  vector_for_each(item, vec) {
+    free_type_para(item);
+  }
+  vector_free(vec);
+}
+
 Stmt *stmt_from_class(Ident id, Vector *typeparas, ExtendsDef *extends,
                       Vector *body)
 {
@@ -721,6 +721,7 @@ void stmt_free(Stmt *stmt)
   case CLASS_KIND:
   case TRAIT_KIND:
     free_extends(stmt->class_stmt.extends);
+    free_type_paras(stmt->class_stmt.typeparas);
     stmt_block_free(stmt->class_stmt.body);
     kfree(stmt);
     break;

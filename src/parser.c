@@ -1373,6 +1373,28 @@ static void ident_in_anony(ParserState *ps, Expr *exp)
   }
 }
 
+static void ident_in_class(ParserState *ps, Expr *exp)
+{
+  Symbol *sym = exp->sym;
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_LOAD(0);
+    if (sym->kind == SYM_LABEL) {
+      debug("sym '%s' is enum label", sym->name);
+      CODE_OP_S_ARGC(OP_NEW_EVAL, exp->id.name, exp->argc);
+    } else {
+      CODE_OP_S(OP_GET_VALUE, exp->id.name);
+    }
+  } else if (exp->ctx == EXPR_STORE) {
+    CODE_LOAD(0);
+    CODE_OP_S(OP_SET_VALUE, exp->id.name);
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+    CODE_LOAD(0);
+    CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+  } else {
+    panic("invalid expr's ctx %d", exp->ctx);
+  }
+}
+
 static void ident_up_func(ParserState *ps, Expr *exp)
 {
   Symbol *sym = exp->sym;
@@ -1438,6 +1460,8 @@ static void ident_up_block(ParserState *ps, Expr *exp)
     ident_in_block(ps, exp);
   } else if (up->scope == SCOPE_BLOCK) {
     ident_in_block(ps, exp);
+  } else if (up->scope == SCOPE_CLASS) {
+    ident_in_class(ps, exp);
   } else {
     panic("invalid scope");
   }
@@ -1775,7 +1799,7 @@ static void parse_ternary(ParserState *ps, Expr *exp)
   test->ctx = EXPR_LOAD;
   parser_visit_expr(ps, test);
   //if not bool, error
-  if (desc_isbool(test->desc)) {
+  if (!desc_isbool(test->desc)) {
     synerr(ps, test->row, test->col, "if cond expr is not bool");
   }
   Inst *jmp = CODE_OP(OP_JMP_FALSE);
@@ -1806,9 +1830,9 @@ static void parse_ternary(ParserState *ps, Expr *exp)
   }
 }
 
-TypeDesc *specialize_type(TypeDesc *para, TypeDesc *ref)
+TypeDesc *specialize_one(TypeDesc *para, TypeDesc *ref)
 {
-  if (para == NULL || para->kind == TYPE_BASE)
+  if (para == NULL || para->kind != TYPE_KLASS)
     return TYPE_INCREF(ref);
 
   if (ref == NULL)
@@ -1818,19 +1842,22 @@ TypeDesc *specialize_type(TypeDesc *para, TypeDesc *ref)
   case TYPE_PROTO: {
     TypeDesc *rtype = ref->proto.ret;
     if (rtype != NULL) {
-      rtype = specialize_type(para, rtype);
+      rtype = specialize_one(para, rtype);
     }
 
     Vector *args = vector_new();
     TypeDesc *ptype;
     vector_for_each(ptype, ref->proto.args) {
-      ptype = specialize_type(para, ptype);
-      vector_push_back(args, TYPE_INCREF(ptype));
+      ptype = specialize_one(para, ptype);
+      vector_push_back(args, ptype);
     }
 
-    if (rtype != ref->proto.ret || vector_size(args) != 0) {
-      return desc_from_proto(args, rtype);
+    if (rtype != NULL || vector_size(args) != 0) {
+      TypeDesc *proto = desc_from_proto(args, rtype);
+      TYPE_DECREF(rtype);
+      return proto;
     } else {
+      TYPE_DECREF(rtype);
       free_descs(args);
       return TYPE_INCREF(ref);
     }
@@ -1839,15 +1866,16 @@ TypeDesc *specialize_type(TypeDesc *para, TypeDesc *ref)
     Vector *typeargs = vector_new();
     TypeDesc *item;
     vector_for_each(item, ref->klass.typeargs) {
-      item = specialize_type(para, item);
-      vector_push_back(typeargs, TYPE_INCREF(item));
+      item = specialize_one(para, item);
+      vector_push_back(typeargs, item);
     }
+
     if (vector_size(typeargs) != 0) {
       TypeDesc *desc = desc_from_klass(ref->klass.path, ref->klass.type);
       desc->klass.typeargs = typeargs;
       return desc;
     } else {
-      free_descs(typeargs);
+      vector_free(typeargs);
       return TYPE_INCREF(ref);
     }
   }
@@ -1868,8 +1896,27 @@ TypeDesc *specialize_type(TypeDesc *para, TypeDesc *ref)
   }
 }
 
+static inline
+TypeDesc *specialize_types(TypeDesc *para1, TypeDesc *para2, TypeDesc *ref)
+{
+  TypeDesc *desc, *res;
+  desc = specialize_one(para1, ref);
+  res = specialize_one(para2, desc);
+  TYPE_DECREF(desc);
+  return res;
+}
+
 Symbol *get_type_symbol(ParserState *ps, TypeDesc *type);
 void parse_subtype(ParserState *ps, Symbol *clssym, Vector *subtypes);
+
+static void show_specialized_type(Symbol *sym, TypeDesc *desc)
+{
+  STRBUF(sbuf);
+  desc_tostr(desc, &sbuf);
+  printf("sym '%s' \x1b[1;35m specialized-type: \x1b[0m%s\n",
+        sym->name, strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+}
 
 static void parse_attr(ParserState *ps, Expr *exp)
 {
@@ -1975,14 +2022,9 @@ static void parse_attr(ParserState *ps, Expr *exp)
         "call func '%s' or return itself?", id->name);
     } else {
       exp->sym = sym;
-      desc = specialize_type(pdesc, sym->desc);
-      exp->desc = specialize_type(ldesc, desc);
-      STRBUF(sbuf);
-      desc_tostr(exp->desc, &sbuf);
-      debug("sym '%s' \x1b[1;35mINSTANCED TYPE: \x1b[0m%s\n",
-            sym->name, strbuf_tostr(&sbuf));
-      strbuf_fini(&sbuf);
-      TYPE_DECREF(desc);
+      exp->desc = specialize_types(pdesc, ldesc, sym->desc);
+      TYPE_DECREF(pdesc);
+      show_specialized_type(sym, exp->desc);
     }
   }
 
@@ -2130,31 +2172,32 @@ static void parse_subscr(ParserState *ps, Expr *exp)
     panic("invalid expr's context");
   }
 
-  if (sym != NULL) {
-    desc = vector_get(args, 0);
-    desc = specialize_type(pdesc, desc);
-    TypeDesc *tmp = specialize_type(lexp->desc, desc);
-    TYPE_DECREF(desc);
-    if (!desc_check(iexp->desc, tmp)) {
-      synerr(ps, iexp->row, iexp->col, "subscript index type is error");
-    }
+  // check index in 'map[index]'
+  TypeDesc *tmp = vector_get(args, 0);
+  desc = specialize_types(pdesc, lexp->desc, tmp);
+  show_specialized_type(sym, desc);
+  if (!desc_check(iexp->desc, desc)) {
+    synerr(ps, iexp->row, iexp->col, "subscript index type is error");
+  }
+  TYPE_DECREF(desc);
 
-    TYPE_DECREF(exp->desc);
-    if (exp->ctx == EXPR_LOAD) {
-      desc = sym->desc->proto.ret;
-    } else if (exp->ctx == EXPR_STORE) {
-      desc = vector_get(args, 1);
-    } else {
-      desc = NULL;
-    }
-    desc = specialize_type(pdesc, desc);
-    tmp = specialize_type(lexp->desc, desc);
-    exp->desc = tmp;
-    exp->sym = get_type_symbol(ps, tmp);
-    if (exp->sym == NULL) {
-      synerr(ps, exp->row, exp->col, "cannot find type");
-    }
-    TYPE_DECREF(desc);
+  // check value in 'map[index] = value'
+  expect(exp->desc == NULL);
+  if (exp->ctx == EXPR_LOAD) {
+    tmp = sym->desc->proto.ret;
+  } else if (exp->ctx == EXPR_STORE) {
+    tmp = vector_get(args, 1);
+  } else {
+    tmp = NULL;
+  }
+  desc = specialize_types(pdesc, lexp->desc, tmp);
+  show_specialized_type(sym, desc);
+  TYPE_DECREF(pdesc);
+
+  exp->desc = desc;
+  exp->sym = get_type_symbol(ps, desc);
+  if (exp->sym == NULL) {
+    synerr(ps, exp->row, exp->col, "cannot find type");
   }
 
   if (!has_error(ps)) {
@@ -2812,10 +2855,12 @@ void check_new_args(ParserState *ps, Symbol *sym, TypeDesc *para, Expr *exp)
     return;
   }
 
-  TypeDesc *instanced = specialize_type(para, desc);
+  TypeDesc *instanced = specialize_one(para, desc);
+  show_specialized_type(initsym, instanced);
   if (check_call_args(ps, instanced, args) < 0) {
     synerr(ps, row, col, "instanced-arguments checked failed.");
   }
+  TYPE_DECREF(instanced);
 }
 
 static void parse_new(ParserState *ps, Expr *exp)
@@ -2852,10 +2897,12 @@ static void parse_new(ParserState *ps, Expr *exp)
       }
       if (sym2->kind == SYM_CLASS || sym2->kind == SYM_TRAIT) {
         parse_subtype(ps, sym2, item->klass.typeargs);
+        desc_add_paratype(exp->desc, item);
       } else if (sym2->kind == SYM_PTYPE) {
         item = desc_from_pararef(sym2->name, sym2->paratype.index);
+        desc_add_paratype(exp->desc, item);
+        TYPE_DECREF(item);
       }
-      desc_add_paratype(exp->desc, item);
     }
   } else {
     exp->desc = TYPE_INCREF(sym->desc);
@@ -3230,6 +3277,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   Ident *id = &stmt->vardecl.id;
   Type *type = &stmt->vardecl.type;
   TypeDesc *desc = type->desc;
+  int dec = 0;
 
   // maybe update variable's type
   if (desc != NULL) {
@@ -3239,6 +3287,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
         parse_subtype(ps, sym, desc->klass.typeargs);
       } else if (sym->kind == SYM_PTYPE) {
         desc = desc_from_pararef(sym->name, sym->paratype.index);
+        dec = 1;
       }
     }
   }
@@ -3294,8 +3343,8 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
 
   /* add or update variable type symbol */
   Symbol *sym = new_update_var(ps, id, desc);
-  if (sym == NULL)
-    return;
+  if (dec) TYPE_DECREF(desc);
+  if (sym == NULL) return;
 
   if (sym->var.typesym == NULL) {
     STRBUF(sbuf);
@@ -3482,13 +3531,12 @@ static void lro_add(Symbol *base, Vector *lro, char *symname)
 
 TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
 {
-  TypeDesc *proto = NULL;
+  TypeDesc *proto;
   TypeDesc *desc;
   Symbol *sym;
   Vector *vec = NULL;
-  if (vector_size(idtypes) > 0) {
+  if (vector_size(idtypes) > 0)
     vec = vector_new();
-  }
 
   IdType *item;
   vector_for_each(item, idtypes) {
@@ -3499,7 +3547,7 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
       desc_tostr(desc, &sbuf);
       synerr(ps, item->type.row, item->type.col,
             "'%s' is not defined", strbuf_tostr(&sbuf));
-      return NULL;
+      goto error_exit;
     } else {
       if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         parse_subtype(ps, sym, desc->klass.typeargs);
@@ -3511,8 +3559,8 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
     }
   }
 
-
   desc = ret->desc;
+  int dec = 0;
   if (desc != NULL) {
     sym = get_type_symbol(ps, desc);
     if (sym == NULL) {
@@ -3520,17 +3568,27 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
       desc_tostr(desc, &sbuf);
       synerr(ps, ret->row, ret->col,
             "'%s' is not defined", strbuf_tostr(&sbuf));
-      return NULL;
+      goto error_exit;
     } else {
       if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
         parse_subtype(ps, sym, desc->klass.typeargs);
       } else if (sym->kind == SYM_PTYPE) {
         desc = desc_from_pararef(sym->name, sym->paratype.index);
+        dec = 1;
       }
     }
   }
 
-  return desc_from_proto(vec, desc);
+  proto = desc_from_proto(vec, desc);
+  if (dec) TYPE_DECREF(desc);
+  return proto;
+
+error_exit:
+  vector_for_each(desc, vec) {
+    TYPE_DECREF(desc);
+  }
+  vector_free(vec);
+  return NULL;
 }
 
 static void parse_funcdecl(ParserState *ps, Stmt *stmt)
@@ -3858,10 +3916,12 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   if (sym == NULL) {
     synerr(ps, iter->row, iter->col, "object is not iteratable.");
   } else {
-    desc = sym->desc;
-    expect(desc_isproto(desc));
-    desc = specialize_type(pdesc, desc);
-    desc = specialize_type(iter->desc, desc);
+    TypeDesc *tmp = sym->desc;
+    expect(desc_isproto(tmp));
+    desc = specialize_types(pdesc, iter->desc, tmp);
+    TYPE_DECREF(pdesc);
+    show_specialized_type(sym, desc);
+
     expect(desc_isproto(desc));
     desc = desc->proto.ret;
     expect(desc->kind == TYPE_KLASS);
