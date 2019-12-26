@@ -236,6 +236,14 @@ void sym_add_typepara(Symbol *sym, Symbol *tp)
   vector_push_back(typesyms, tp);
 }
 
+Symbol *new_typeref_symbol(TypeDesc *desc, Symbol *sym)
+{
+  Symbol *sym2 = symbol_new(sym->name, SYM_TYPEREF);
+  sym2->desc = TYPE_INCREF(desc);
+  sym2->typeref.sym = sym;
+  return sym2;
+}
+
 void symbol_free(Symbol *sym)
 {
   TYPE_DECREF(sym->desc);
@@ -263,16 +271,23 @@ void symbol_free(Symbol *sym)
   case SYM_ENUM:
     debug("[Symbol Freed] class/trait/enum '%s'", sym->name);
     stable_free(sym->type.stbl);
+
     Symbol *tmp;
     vector_for_each_reverse(tmp, &sym->type.lro) {
       symbol_decref(tmp);
     }
+    vector_fini(&sym->type.lro);
+
     vector_for_each(tmp, sym->type.typesyms) {
       symbol_decref(tmp);
     }
     vector_free(sym->type.typesyms);
+
     symbol_decref(sym->type.base);
-    vector_fini(&sym->type.lro);
+
+    vector_for_each(tmp, &sym->type.traits) {
+      symbol_decref(tmp);
+    }
     vector_fini(&sym->type.traits);
     break;
   case SYM_LABEL:
@@ -302,6 +317,9 @@ void symbol_free(Symbol *sym)
     break;
   case SYM_PTYPE:
     debug("[Symbol Freed] paratype '%s'", sym->name);
+    break;
+  case SYM_TYPEREF:
+    debug("[Symbol Freed] typeref '%s'", sym->name);
     break;
   default:
     panic("invalide symbol '%s' kind %d", sym->name, sym->kind);

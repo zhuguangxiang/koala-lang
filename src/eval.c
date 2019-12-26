@@ -233,15 +233,17 @@ static Object *new_object(CallFrame *f, TypeDesc *desc)
 {
   Object *ret;
   Object *ob;
+  Object *tob;
   if (desc->klass.path != NULL)
     ob = module_load(desc->klass.path);
   else
-    ob = f->code->module;
+    ob = OB_INCREF(f->code->module);
   expect(ob != NULL);
-  ob = module_lookup(ob, desc->klass.type);
-  expect(ob != NULL);
+  tob = module_lookup(ob, desc->klass.type);
+  expect(tob != NULL);
+  OB_DECREF(ob);
 
-  TypeObject *type = (TypeObject *)ob;
+  TypeObject *type = (TypeObject *)tob;
   if (type == &array_type) {
     TypeDesc *subdesc = vector_get(desc->klass.typeargs, 0);
     ret = array_new(subdesc);
@@ -255,7 +257,7 @@ static Object *new_object(CallFrame *f, TypeDesc *desc)
     expect(type->alloc != NULL);
     ret = type->alloc(type);
   }
-  OB_DECREF(ob);
+  OB_DECREF(tob);
   return ret;
 }
 

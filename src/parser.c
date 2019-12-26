@@ -1781,6 +1781,17 @@ static int check_inherit(TypeDesc *desc, Symbol *sym)
     typesym = sym;
   }
 
+  if (typesym->kind == SYM_PTYPE) {
+    Symbol *item;
+    vector_for_each_reverse(item, typesym->type.typesyms) {
+      if (desc_isany(item->desc))
+        continue;
+      if (desc_check(desc, item->desc))
+        return 1;
+    }
+    return 0;
+  }
+
   Symbol *item;
   vector_for_each_reverse(item, &typesym->type.lro) {
     if (desc_isany(item->desc))
@@ -1913,7 +1924,7 @@ static void show_specialized_type(Symbol *sym, TypeDesc *desc)
 {
   STRBUF(sbuf);
   desc_tostr(desc, &sbuf);
-  printf("sym '%s' \x1b[1;35m specialized-type: \x1b[0m%s\n",
+  debug("sym '%s' \x1b[1;35mspecialized-type: \x1b[0m%s\n",
         sym->name, strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
 }
@@ -3511,8 +3522,13 @@ static int lro_exist(Vector *vec, Symbol *sym)
 
 static void lro_add(Symbol *base, Vector *lro, char *symname)
 {
+  Vector *lrovec = &base->type.lro;
+  if (base->kind == SYM_TYPEREF) {
+    lrovec = &base->typeref.sym->type.lro;
+  }
+
   Symbol *sym;
-  vector_for_each(sym, &base->type.lro) {
+  vector_for_each(sym, lrovec) {
     if (desc_isany(sym->desc))
       continue;
     if (!lro_exist(lro, sym)) {
@@ -3527,6 +3543,19 @@ static void lro_add(Symbol *base, Vector *lro, char *symname)
     vector_push_back(lro, base);
     ++base->refcnt;
   }
+}
+
+static void lro_show(Symbol *sym)
+{
+  debug("------lro of '%s'------", sym->name);
+  Symbol *s;
+  vector_for_each(s, &sym->type.lro) {
+    STRBUF(sbuf);
+    desc_tostr(s->desc, &sbuf);
+    debug("%s", strbuf_tostr(&sbuf));
+    strbuf_fini(&sbuf);
+  }
+  debug("------------------------");
 }
 
 TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
@@ -3547,6 +3576,7 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
       desc_tostr(desc, &sbuf);
       synerr(ps, item->type.row, item->type.col,
             "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
       goto error_exit;
     } else {
       if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
@@ -3568,6 +3598,7 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
       desc_tostr(desc, &sbuf);
       synerr(ps, ret->row, ret->col,
             "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
       goto error_exit;
     } else {
       if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
@@ -3795,6 +3826,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_BLOCK, IF_BLOCK);
   ParserUnit *u = ps->u;
+  u->stbl = stable_new();
   Expr *test = stmt->if_stmt.test;
   Vector *block = stmt->if_stmt.block;
   Stmt *orelse = stmt->if_stmt.orelse;
@@ -3839,6 +3871,8 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     jmp2->offset = offset2;
   }
 
+  stable_free(u->stbl);
+  u->stbl = NULL;
   parser_exit_scope(ps);
 }
 
@@ -4021,10 +4055,26 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
     synerr(ps, base->row, base->col,
                  "'%s' is not class/trait", sym->name);
   } else {
-    if (sym->kind == SYM_CLASS)
-      clssym->type.base = sym;
-    else
-      vector_push_back(&clssym->type.traits, sym);
+    TypeDesc *desc = base->desc;
+    parse_subtype(ps, sym, desc->klass.typeargs);
+    if (!has_error(ps)) {
+      if (vector_size(desc->klass.typeargs) > 0) {
+        Symbol *refsym = new_typeref_symbol(desc, sym);
+        if (sym->kind == SYM_CLASS) {
+          debug("add typeref symbol '%s'", refsym->name);
+          clssym->type.base = refsym;
+        } else {
+          vector_push_back(&clssym->type.traits, refsym);
+        }
+      } else {
+        ++sym->refcnt;
+        if (sym->kind == SYM_CLASS) {
+          clssym->type.base = sym;
+        } else {
+          vector_push_back(&clssym->type.traits, sym);
+        }
+      }
+    }
   }
 
   // parse traits
@@ -4040,7 +4090,18 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
     } else if (sym->kind != SYM_TRAIT) {
       synerr(ps, trait->row, trait->col, "'%s' is not trait", sym->name);
     } else {
-      vector_push_back(&clssym->type.traits, sym);
+      TypeDesc *desc = trait->desc;
+      parse_subtype(ps, sym, desc->klass.typeargs);
+      if (!has_error(ps)) {
+        if (vector_size(desc->klass.typeargs) > 0) {
+          Symbol *refsym = new_typeref_symbol(desc, sym);
+          debug("add typeref symbol '%s'", refsym->name);
+          vector_push_back(&clssym->type.traits, refsym);
+        } else {
+          ++sym->refcnt;
+          vector_push_back(&clssym->type.traits, sym);
+        }
+      }
     }
   }
 
@@ -4055,6 +4116,9 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
   vector_for_each(sym, &clssym->type.traits) {
     lro_add(sym, lro, symname);
   }
+
+  // show lro
+  lro_show(clssym);
 }
 
 static void addcode_supercall_noargs(CodeBlock **old)
@@ -4093,6 +4157,19 @@ void check_one_proto_impl(ParserState *ps, Symbol *s, int idx, Symbol *cls)
   synerr(ps, 0, 0, "'%s' is not implemented", s->name);
 }
 
+static void check_trait_ifunc_impl(int idx, Symbol *item,
+                                  Symbol *clssym, ParserState *ps)
+{
+  HASHMAP_ITERATOR(iter, &item->type.stbl->table);
+  Symbol *s;
+  iter_for_each(&iter, s) {
+    if (s->kind == SYM_IFUNC)
+      check_one_proto_impl(ps, s, idx, clssym);
+    else
+      expect(s->kind == SYM_FUNC);
+  }
+}
+
 static void check_proto_impl(ParserState *ps)
 {
   Symbol *sym = ps->u->sym;
@@ -4106,15 +4183,14 @@ static void check_proto_impl(ParserState *ps)
     }
 
     if (item->kind == SYM_CLASS) {
+      //no check
+    } else if (item->kind == SYM_TRAIT) {
+      check_trait_ifunc_impl(idx, item, sym, ps);
     } else {
-      expect(item->kind == SYM_TRAIT);
-      HASHMAP_ITERATOR(iter, &item->type.stbl->table);
-      Symbol *s;
-      iter_for_each(&iter, s) {
-        if (s->kind == SYM_IFUNC)
-          check_one_proto_impl(ps, s, idx, sym);
-        else
-          expect(s->kind == SYM_FUNC);
+      expect(item->kind == SYM_TYPEREF);
+      item = item->typeref.sym;
+      if (item->kind == SYM_TRAIT) {
+        check_trait_ifunc_impl(idx, item, sym, ps);
       }
     }
   }
@@ -4343,13 +4419,13 @@ static void parse_class(ParserState *ps, Stmt *stmt)
   Symbol *sym = stable_get(ps->u->stbl, id->name);
   expect(sym != NULL);
 
-  parse_class_extends(ps, sym, stmt);
-
   parser_enter_scope(ps, SCOPE_CLASS, 0);
   ps->u->sym = sym;
   ps->u->stbl = sym->type.stbl;
 
   parse_typepara_decl(ps, stmt->class_stmt.typeparas);
+
+  parse_class_extends(ps, sym, stmt);
 
   /* parse class body */
   Vector *body = stmt->class_stmt.body;
@@ -4429,6 +4505,19 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
     synerr(ps, base->row, base->col, "'%s' is not trait", sym->name);
   } else {
     vector_push_back(&traitsym->type.traits, sym);
+
+    TypeDesc *desc = base->desc;
+    parse_subtype(ps, sym, desc->klass.typeargs);
+    if (!has_error(ps)) {
+      if (vector_size(desc->klass.typeargs) > 0) {
+        Symbol *refsym = new_typeref_symbol(desc, sym);
+        debug("add typeref symbol '%s'", refsym->name);
+        vector_push_back(&traitsym->type.traits, refsym);
+      } else {
+        ++sym->refcnt;
+        vector_push_back(&traitsym->type.traits, sym);
+      }
+    }
   }
 
   // parse with traits
@@ -4444,7 +4533,18 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
     } else if (sym->kind != SYM_TRAIT) {
       synerr(ps, trait->row, trait->col, "'%s' is not trait", sym->name);
     } else {
-      vector_push_back(&traitsym->type.traits, sym);
+      TypeDesc *desc = trait->desc;
+      parse_subtype(ps, sym, desc->klass.typeargs);
+      if (!has_error(ps)) {
+        if (vector_size(desc->klass.typeargs) > 0) {
+          Symbol *refsym = new_typeref_symbol(desc, sym);
+          debug("add typeref symbol '%s'", refsym->name);
+          vector_push_back(&traitsym->type.traits, refsym);
+        } else {
+          ++sym->refcnt;
+          vector_push_back(&traitsym->type.traits, sym);
+        }
+      }
     }
   }
 
@@ -4454,6 +4554,9 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
   vector_for_each(sym, &traitsym->type.traits) {
     lro_add(sym, lro, symname);
   }
+
+  // show lro
+  lro_show(traitsym);
 }
 
 static void parse_trait(ParserState *ps, Stmt *stmt)
@@ -4463,11 +4566,12 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
   Symbol *sym = stable_get(ps->u->stbl, id->name);
   expect(sym != NULL);
 
-  parse_trait_extends(ps, sym, stmt);
-
   parser_enter_scope(ps, SCOPE_CLASS, 0);
   ps->u->sym = sym;
   ps->u->stbl = sym->type.stbl;
+
+  parse_typepara_decl(ps, stmt->class_stmt.typeparas);
+  parse_trait_extends(ps, sym, stmt);
 
   /* parse class body */
   Vector *body = stmt->class_stmt.body;
