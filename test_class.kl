@@ -279,3 +279,24 @@ for i in 1...20 {
   list.add(new Node(i))
 }
 list.show()
+
+class Pet<T> {
+  name T
+
+  func __init__(name T) {
+    self.name = name
+  }
+
+  func getname() T {
+    return name
+  }
+}
+
+class Cat extends Pet<string> {
+  func __init__() {
+    super("kitty")
+  }
+}
+
+cat := new Cat()
+cat.getname()

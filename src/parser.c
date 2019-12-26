@@ -2347,6 +2347,8 @@ static void parse_call(ParserState *ps, Expr *exp)
         synerr(ps, lexp->row, lexp->col, "no super exist");
       }
     } else if (base != NULL) {
+      if (base->kind == SYM_TYPEREF)
+        base = base->typeref.sym;
       init = stable_get(base->type.stbl, "__init__");
       if (init == NULL) {
         if (argc != 0) {
@@ -2355,7 +2357,9 @@ static void parse_call(ParserState *ps, Expr *exp)
           synerr(ps, lexp->row, lexp->col, "super no __init__");
         }
       } else {
-        if (check_call_args(ps, init->desc, args)) {
+        TypeDesc *initdesc;
+        initdesc = specialize_types(NULL, lexp->sym->type.base->desc, init->desc);
+        if (check_call_args(ps, initdesc, args)) {
           return;
         }
       }
