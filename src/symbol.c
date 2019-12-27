@@ -616,7 +616,7 @@ static Symbol *_find_mbr_(Symbol *typesym, char *name, TypeDesc **ppdesc)
   Symbol *sym = stable_get(typesym->type.stbl, name);
   if (sym != NULL) {
     if (ppdesc != NULL)
-      *ppdesc = desc;
+      *ppdesc = TYPE_INCREF(desc);
     return sym;
   }
 

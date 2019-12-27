@@ -42,6 +42,21 @@ func new_pet<T:Pet>(kind string) T {
   kind == "pet" ? new Pet() : new Cat("Kitty")
 }
 
+func new_pet_array<T>(o T) Array<T> {
+  arr := new Array<T>();
+  arr.append(new Cat("Kitty")); //error
+  arr.append(new Pet()); //error
+  arr.append(o) //ok
+  return arr
+}
+
+func new_pet_array2<T>(o Array<T>) Array<Array<T>> {
+  arr := new Array<Array<T>>();
+  aaa.append(o) //ok
+  return arr
+}
+
+
 pet = new_pet("pet")
 pet.bark()
 cat = new_pet("cat")
@@ -55,3 +70,16 @@ func bark2<T:Pet>(pet T) {
 
 bark2(pet)
 bark2(cat)
+
+
+func array_sort<T>(arr Array<T>, cmp func(T, T) int) {
+
+}
+
+func int_cmp(v1 int, v2 int) int {
+
+}
+
+arr := new Array<int>()
+
+array_sort(arr, int_cmp)

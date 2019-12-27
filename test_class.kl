@@ -296,7 +296,20 @@ class Cat extends Pet<string> {
   func __init__() {
     super("kitty")
   }
+  func getname() string {
+    return name
+  }
 }
 
 cat := new Cat()
 cat.getname()
+var pet Pet<string> = cat
+
+class Dog<E> extends Pet<E> {
+  func __init__(name E) {
+    super(name)
+  }
+}
+
+dog := new Dog<string>("erha")
+var pet3 Pet<string> = dog

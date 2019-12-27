@@ -1,0 +1,206 @@
+
+import "io"
+
+class Animal
+class Pet<T: Animal>
+class Dog<E: Pet<E>>;    //error: 'Pet' is not subtype of 'Animal'
+class Dog<E: Pet<Animal>>
+class Cat<Foo: Pet<Cat>>; //error 'Cat' is not subtype of 'Animal'
+class Cat<Foo: Pet<Cat>> extends Animal
+class Cat2<Foo: Pet<Cat<Pet<Animal>>>, Bar: Foo> extends Animal
+class Cat3<Foo: Pet<Cat<Pet<Animal>>>, Bar: Foo<Bar>> extends Animal; //error
+class Pet2<T: Animal> extends Animal
+class Dog2<E: Pet2<E>>
+class Pet3<E1: Animal, E2: Animal> extends Animal
+class Cat4<V1: Animal, V2: Animal, V: Pet3<V1, V2>>
+class Cat5<K: Cat4<Animal, Animal, Pet3<Animal, Animal>>>
+
+new Pet<Animal>()
+
+class Kitty extends Animal
+new Pet<Kitty>()
+new Pet(); //error: 'Pet' needs type arguments
+new Dog<Pet>()
+
+class List<E>
+class ArrayList<T>
+new ArrayList<List<string>>()
+var arr ArrayList<int> = new ArrayList<int>()
+
+class Foo
+class Bar
+trait TBar
+class FooBar<K: Foo & Bar>; //error:  expect 'Bar' is a trait
+class FooBar<K: Foo & TBar>
+class FooBar2<K: FooBar<FooBar2>> extends Foo with TBar
+class FooBar3<T: Foo & TBar, K: FooBar<T>>
+
+class Box<T1, T2> {
+  good T1
+  good2 T2
+  box Box<T1, int>
+  box2 Box<int, string>
+  box3 Box<T2, int>
+}
+
+import "io"
+class Box<ITEM> {
+  good ITEM
+  arr Array<ITEM>
+  func show() {
+    io.println("{")
+    io.print("  good: ")
+    io.print(good)
+    io.println("")
+    io.println("}")
+  }
+  /*
+  func add(good ITEM) {
+    arr.append(good)
+  }
+  */
+}
+
+var box Box<string> = new Box<string>()
+box.good.length()
+box.good = "foo"
+box.good.length()
+box.arr.append("bar")
+box.arr = new Array<int>()
+//error: expected 'lang.Array<string>', but found 'lang.Array<int>'
+box.arr = new Array<string>()
+box.show()
+arr := box.arr
+arr.append("foo")
+box.arr.append("bar")
+
+var box2 Box<string> = new Box()
+var box3 Box<string> = new Box<int>()
+//error: expected 'Box<string>', but found 'Box<int>'
+
+class MyArray<T> extends Array<T> {}
+
+class Box<T> {
+  good T
+  func add(g T) {
+    good = g
+  }
+
+  func get() T {
+    return good
+  }
+}
+
+class Box2<T2> {
+  list Array<T2>
+}
+
+var arr Array<string> = new Array<string>()
+
+class Box3 {
+  type T2 extends Pet
+  type T3 extends T2
+
+  extends Pet with Bark
+
+  list Array<T2>
+
+  func test() {
+    var item T2 = list.get(0)
+    check(item)
+  }
+
+  func check(g T2) {
+    if item.getname() == "dog" {
+      io.println("dog")
+    } else {
+      io.println("other")
+    }
+    io.println(item)
+  }
+
+  func getindex(idx int) T2 {
+    if list != nil {
+      return list.get(idx)
+    } else {
+      return nil
+    }
+  }
+
+  func getlist() Array<T2> {
+    return list
+  }
+}
+
+var box Box3<int> = new Box3<int>()
+var list Array<int> = box.getlist()
+
+//var box Box<Pet> = new Box()
+var box Box<Pet> = new Box<Pet>()
+
+
+class Pet
+class Dog extends Pet
+class Box<E : Pet>
+class Cat
+class Kitty extends Pet
+
+var box Box<Dog>
+var box Box<Dog> = new Box<Dog>()
+var box2 Box<Dog> = new Box<Cat>()
+var box2 Box<Kitty>
+box = box2
+
+class Box2<E : Pet> {
+  list Array<E>
+  func __init__() {
+    list = new Array<E>()
+  }
+}
+
+class Node {
+  next Node
+  val int
+}
+
+class List {
+  first Node
+  count int
+}
+
+list := new List()
+node := new Node()
+node.val = 100
+list.first = node;
+var next Node
+list.count = 1;
+
+i := 1
+while i < 20 {
+  next = new Node()
+  next.val = 100 + i
+  node.next = next
+  node = next
+  i = i + 1
+  list.count += 1
+}
+
+next = new Node()
+next.val = 0
+node.next = next
+
+list.count
+
+import "io"
+node = list.first
+while node.val != 0 {
+  io.println(node.val)
+  node = node.next
+}
+
+func reverse(list List) {
+  i := 0
+  while i < list.count {
+
+  }
+}

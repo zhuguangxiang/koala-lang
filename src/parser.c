@@ -1668,7 +1668,7 @@ static int bop_isbool(BinaryOpKind op)
     return 0;
 }
 
-static int check_inherit(TypeDesc *desc, Symbol *sym);
+static int check_inherit(TypeDesc *desc, Symbol *sym, TypeDesc *symdesc);
 
 static void parse_binary(ParserState *ps, Expr *exp)
 {
@@ -1739,7 +1739,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
       expect(desc != NULL && desc->kind == TYPE_PROTO);
       desc = vector_get(desc->proto.args, 0);
       if (!desc_check(desc, rexp->desc)) {
-        if (!check_inherit(desc, rexp->sym)) {
+        if (!check_inherit(desc, rexp->sym, NULL)) {
           synerr(ps, exp->binary.oprow, exp->binary.opcol,
                 "types of '%s' are not matched", funcname);
           return;
@@ -1771,7 +1771,9 @@ static void parse_binary(ParserState *ps, Expr *exp)
   }
 }
 
-static int check_inherit(TypeDesc *desc, Symbol *sym)
+TypeDesc *specialize_one(TypeDesc *para, TypeDesc *ref);
+
+static int check_inherit(TypeDesc *desc, Symbol *sym, TypeDesc *symdesc)
 {
   Symbol *typesym;
   if (sym->kind == SYM_VAR) {
@@ -1796,8 +1798,19 @@ static int check_inherit(TypeDesc *desc, Symbol *sym)
   vector_for_each_reverse(item, &typesym->type.lro) {
     if (desc_isany(item->desc))
       continue;
-    if (desc_check(desc, item->desc))
-      return 1;
+    if (item->kind == SYM_TYPEREF) {
+      TypeDesc *instanced = specialize_one(symdesc, item->desc);
+      if (desc_check(desc, instanced)) {
+        TYPE_DECREF(instanced);
+        return 1;
+      } else {
+        TYPE_DECREF(instanced);
+      }
+    } else {
+      if (desc_check(desc, item->desc)) {
+        return 1;
+      }
+    }
   }
   return 0;
 }
@@ -1831,8 +1844,8 @@ static void parse_ternary(ParserState *ps, Expr *exp)
   jmp2->offset = codeblock_bytes(u->block) - offset2;
 
   if (!desc_check(lexp->desc, rexp->desc) &&
-      !check_inherit(lexp->desc, rexp->sym) &&
-      !check_inherit(rexp->desc, lexp->sym)) {
+      !check_inherit(lexp->desc, rexp->sym, NULL) &&
+      !check_inherit(rexp->desc, lexp->sym, NULL)) {
     synerr(ps, rexp->row, rexp->col,
                  "type mismatch in conditional expression");
   } else {
@@ -2238,7 +2251,7 @@ static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
     desc = vector_get(descs, i);
     arg = vector_get(args, i);
     if (!desc_isnull(arg->desc) && !desc_check(desc, arg->desc)) {
-      if (!check_inherit(desc, arg->sym)) {
+      if (!check_inherit(desc, arg->sym, NULL)) {
         STRBUF(sbuf1);
         STRBUF(sbuf2);
         desc_tostr(desc, &sbuf1);
@@ -2358,9 +2371,12 @@ static void parse_call(ParserState *ps, Expr *exp)
         }
       } else {
         TypeDesc *initdesc;
-        initdesc = specialize_types(NULL, lexp->sym->type.base->desc, init->desc);
+        initdesc = specialize_one(lexp->sym->type.base->desc, init->desc);
         if (check_call_args(ps, initdesc, args)) {
+          TYPE_DECREF(initdesc);
           return;
+        } else {
+          TYPE_DECREF(initdesc);
         }
       }
     }
@@ -2692,7 +2708,7 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
       CODE_OP(OP_RETURN);
     } else if (ret.desc != NULL && exp->desc != NULL) {
       if (!desc_check(ret.desc, exp->desc) &&
-        !check_inherit(ret.desc, exp->sym)) {
+        !check_inherit(ret.desc, exp->sym, NULL)) {
         synerr(ps, exp->row, exp->col,
                       "'%s' incompatible return type", name);
       }
@@ -3238,7 +3254,7 @@ static void parse_constdecl(ParserState *ps, Stmt *stmt)
     return;
 
   if (!desc_check(desc, exp->desc)) {
-    if (!check_inherit(desc, exp->sym)) {
+    if (!check_inherit(desc, exp->sym, NULL)) {
       STRBUF(sbuf1);
       STRBUF(sbuf2);
       desc_tostr(desc, &sbuf1);
@@ -3324,7 +3340,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
     }
 
     if (rdesc && !desc_isnull(rdesc) && !desc_check(desc, rdesc)) {
-      if (!check_inherit(desc, exp->sym)) {
+      if (!check_inherit(desc, exp->sym, rdesc)) {
         STRBUF(sbuf1);
         STRBUF(sbuf2);
         desc_tostr(desc, &sbuf1);
@@ -3333,19 +3349,20 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
                     strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
         strbuf_fini(&sbuf1);
         strbuf_fini(&sbuf2);
-      } else {
-        //check subtype
-        if (!check_subdesc(desc, rdesc)) {
-          STRBUF(sbuf1);
-          STRBUF(sbuf2);
-          desc_tostr(desc, &sbuf1);
-          desc_tostr(exp->desc, &sbuf2);
-          synerr(ps, exp->row, exp->col, "expected '%s', but found '%s'",
-                      strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-          strbuf_fini(&sbuf1);
-          strbuf_fini(&sbuf2);
-        }
       }
+      // } else {
+      //   //check subtype
+      //   if (!check_subdesc(desc, rdesc)) {
+      //     STRBUF(sbuf1);
+      //     STRBUF(sbuf2);
+      //     desc_tostr(desc, &sbuf1);
+      //     desc_tostr(exp->desc, &sbuf2);
+      //     synerr(ps, exp->row, exp->col, "expected '%s', but found '%s'",
+      //                 strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      //     strbuf_fini(&sbuf1);
+      //     strbuf_fini(&sbuf2);
+      //   }
+      // }
     }
   } else {
     if (rdesc && desc_isnull(rdesc)) {
@@ -3456,7 +3473,7 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
   }
 
   if (!desc_check(ldesc, rdesc)) {
-    if (!check_inherit(ldesc, rexp->sym)) {
+    if (!check_inherit(ldesc, rexp->sym, NULL)) {
       STRBUF(sbuf1);
       STRBUF(sbuf2);
       desc_tostr(ldesc, &sbuf1);
@@ -3744,7 +3761,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     expect(desc != NULL);
     TypeDesc *ret = desc->proto.ret;
     if (!desc_isnull(exp->desc) && !desc_check(ret, exp->desc) &&
-        !check_inherit(ret, exp->sym)) {
+        !check_inherit(ret, exp->sym, NULL)) {
       synerr(ps, exp->row, exp->col, "incompatible return types");
     }
 

@@ -255,6 +255,9 @@ static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
     if (s->kind == VAR_KIND) {
       id = &s->vardecl.id;
       sym2 = stable_add_var(stbl, id->name, NULL);
+      if (sym2 == NULL) {
+        synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
+      }
     } else if (s->kind == FUNC_KIND) {
       /*
       Vector *idtypes = s->funcdecl.idtypes;
@@ -264,6 +267,9 @@ static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
       id = &s->funcdecl.id;
       sym2 = stable_add_func(stbl, id->name, NULL);
       //TYPE_DECREF(proto);
+      if (sym2 == NULL) {
+        synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
+      }
     } else if (s->kind == IFUNC_KIND) {
       Vector *idtypes = s->funcdecl.idtypes;
       Type *ret = &s->funcdecl.ret;
@@ -271,13 +277,12 @@ static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
       id = &s->funcdecl.id;
       sym2 = stable_add_ifunc(stbl, id->name, proto);
       TYPE_DECREF(proto);
+      if (sym2 == NULL) {
+        synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
+      }
     } else {
       panic("invalid type's body statement: %d", s->kind);
     }
-  }
-
-  if (sym2 == NULL) {
-    synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
   }
 }
 
