@@ -142,6 +142,7 @@ char *base_str(int kind);
 void desc_show(TypeDesc *desc);
 int desc_check(TypeDesc *desc1, TypeDesc *desc2);
 int check_subdesc(TypeDesc *desc1, TypeDesc *desc2);
+int check_klassdesc(TypeDesc *desc1, TypeDesc *desc2);
 
 extern TypeDesc type_base_int;
 extern TypeDesc type_base_str;

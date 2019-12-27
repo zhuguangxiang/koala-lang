@@ -377,6 +377,24 @@ int check_subdesc(TypeDesc *desc1, TypeDesc *desc2)
   return 1;
 }
 
+int check_klassdesc(TypeDesc *desc1, TypeDesc *desc2)
+{
+  char *path1 = desc1->klass.path;
+  char *path2 = desc2->klass.path;
+  if (path1 != NULL && path2 == NULL)
+    return 0;
+  if (path1 == NULL && path2 != NULL)
+    return 0;
+  if (path1 != NULL && path2 != NULL && strcmp(path1, path2))
+    return 0;
+
+  char *name1 = desc1->klass.type;
+  char *name2 = desc2->klass.type;
+  if (strcmp(name1, name2))
+    return 0;
+  return 1;
+}
+
 // desc1 <- desc2
 // one is any, returns true
 int desc_check(TypeDesc *desc1, TypeDesc *desc2)

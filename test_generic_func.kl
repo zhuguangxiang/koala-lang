@@ -83,3 +83,28 @@ func int_cmp(v1 int, v2 int) int {
 arr := new Array<int>()
 
 array_sort(arr, int_cmp)
+
+///////////////////////////////////////////////////////////
+
+func foo<T>(v T) {
+}
+foo(123)
+foo(new Array<int>())
+
+func bar<T>(arr Array<T>) {
+}
+bar(123)
+bar(new Array<string>())
+
+class Pet<E> {}
+
+class Cat extends Pet<string> {}
+
+class Dog {}
+
+func foobar<T>(v int, pet Pet<T>) {
+
+}
+foobar(123, new Pet<string>())
+foobar(new Cat())
+foobar(new Dog())

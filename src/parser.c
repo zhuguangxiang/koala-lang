@@ -2298,6 +2298,58 @@ static Symbol *get_generic_symbol(Vector *parasyms, TypeDesc *desc)
   return NULL;
 }
 
+typedef struct typeparaval {
+  char *name;
+  TypeDesc *desc;
+} TypeParaVal;
+
+void parse_typepara_value(TypeDesc *para, TypeDesc *arg,
+                          ParserState *ps, Vector *values)
+{
+#if !defined(NLog)
+  STRBUF(sbuf1);
+  STRBUF(sbuf2);
+  desc_tostr(para, &sbuf1);
+  desc_tostr(arg, &sbuf2);
+#endif
+
+  switch (para->kind) {
+  case /* constant-expression */:
+    /* code */
+    break;
+
+  default:
+    break;
+  }
+  if (para->kind == TYPE_PARAREF) {
+    printf("'%s' <- %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+  } else if (para->kind == TYPE_KLASS) {
+    if (arg->kind == TYPE_KLASS) {
+      if (!check_klassdesc(para, arg)) {
+        printf("error: '%s' and '%s' are not matched\n",
+                strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      } else {
+        TypeDesc *tmp;
+        TypeDesc *tmp2;
+        vector_for_each(tmp, para->klass.typeargs) {
+          tmp2 = vector_get(arg->klass.typeargs, idx);
+          parse_typepara_value(tmp, tmp2, ps, values);
+        }
+      }
+    } else {
+      printf("error: '%s' and '%s' are not matched\n",
+              strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    }
+  } else {
+    printf("%s vs %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+  }
+
+#if !defined(NLog)
+  strbuf_fini(&sbuf1);
+  strbuf_fini(&sbuf2);
+#endif
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
   Vector *args = exp->call.args;
@@ -2319,14 +2371,25 @@ static void parse_call(ParserState *ps, Expr *exp)
   }
 
   if (desc->kind == TYPE_PROTO) {
-    if (check_call_args(ps, desc, args)) {
-      return;
+    Symbol *fnsym = lexp->sym;
+    if (vector_size(fnsym->func.typesyms) > 0) {
+      // type parameter <- type argument
+      Expr *arg;
+      TypeDesc *para;
+      vector_for_each(para, desc->proto.args) {
+        arg = vector_get(args, idx);
+        get_typepara_value(para, arg->desc);
+      }
     } else {
-      exp->desc = TYPE_INCREF(desc->proto.ret);
-      if (exp->desc != NULL && exp->desc->kind == TYPE_PARADEF) {
-        exp->sym = get_generic_symbol(lexp->sym->func.typesyms, exp->desc);
+      if (check_call_args(ps, desc, args)) {
+        return;
       } else {
-        exp->sym = get_type_symbol(ps, exp->desc);
+        exp->desc = TYPE_INCREF(desc->proto.ret);
+        if (exp->desc != NULL && exp->desc->kind == TYPE_PARADEF) {
+          exp->sym = get_generic_symbol(lexp->sym->func.typesyms, exp->desc);
+        } else {
+          exp->sym = get_type_symbol(ps, exp->desc);
+        }
       }
     }
   } else if (desc->kind == TYPE_LABEL) {
@@ -3643,6 +3706,8 @@ error_exit:
   return NULL;
 }
 
+void parse_typepara_decl(ParserState *ps, Vector *typeparas);
+
 static void parse_funcdecl(ParserState *ps, Stmt *stmt)
 {
   char *funcname = stmt->funcdecl.id.name;
@@ -3657,10 +3722,14 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   u->stbl = stable_new();
   u->sym = sym;
 
+  parse_typepara_decl(ps, stmt->funcdecl.typeparas);
+
   /* parse func's proto */
   Vector *idtypes = stmt->funcdecl.idtypes;
   Type *ret = &stmt->funcdecl.ret;
   sym->desc = parse_func_proto(ps, idtypes, ret);
+  if (sym->desc == NULL)
+    goto exit_label;
 
   /* parse func arguments */
   Vector *argtypes = sym->desc->proto.args;
@@ -3702,6 +3771,7 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   Type ret2 = {rettype, ret->row, ret->col};
   parse_body(ps, funcname, stmt->funcdecl.body, ret2);
 
+exit_label:
   stable_free(u->stbl);
   u->stbl = NULL;
   parser_exit_scope(ps);
