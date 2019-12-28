@@ -296,9 +296,11 @@ class Cat extends Pet<string> {
   func __init__() {
     super("kitty")
   }
+  /*
   func getname() string {
     return name
   }
+  */
 }
 
 cat := new Cat()

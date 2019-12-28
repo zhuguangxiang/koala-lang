@@ -96,15 +96,33 @@ func bar<T>(arr Array<T>) {
 bar(123)
 bar(new Array<string>())
 
-class Pet<E> {}
+class Pet<E> {
+  name E
+}
 
 class Cat extends Pet<string> {}
 
-class Dog {}
+class Dog<T> extends Pet<T> {}
 
-func foobar<T>(v int, pet Pet<T>) {
+class Mouse<T> extends Pet<string> {}
 
+import "io"
+func foobar<T>(v T, pet Pet<T>) T {
+  pet.name = v
+  io.println(pet.name)
+  return pet.name
 }
-foobar(123, new Pet<string>())
-foobar(new Cat())
-foobar(new Dog())
+foobar(123, new Pet<int>())
+foobar(123, new Cat())
+arr := ["hello"]
+foobar(arr, new Dog<Array<string>>())
+foobar(arr, new Dog<Array<string>>())[0]
+foobar("mouse", new Mouse<string>())
+
+func barfoo<T>(v int, pet Pet<T>) {
+  io.println(pet.name)
+}
+
+p := new Pet<string>();
+p.name = "pet"
+barfoo(123, p);

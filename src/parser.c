@@ -1854,25 +1854,21 @@ static void parse_ternary(ParserState *ps, Expr *exp)
   }
 }
 
-TypeDesc *specialize_one(TypeDesc *para, TypeDesc *ref)
+TypeDesc *specialize(TypeDesc *ref, Vector *tpvec)
 {
-  if (para == NULL || para->kind != TYPE_KLASS)
-    return TYPE_INCREF(ref);
-
   if (ref == NULL)
     return NULL;
-
   switch (ref->kind) {
   case TYPE_PROTO: {
     TypeDesc *rtype = ref->proto.ret;
     if (rtype != NULL) {
-      rtype = specialize_one(para, rtype);
+      rtype = specialize(rtype, tpvec);
     }
 
     Vector *args = vector_new();
     TypeDesc *ptype;
     vector_for_each(ptype, ref->proto.args) {
-      ptype = specialize_one(para, ptype);
+      ptype = specialize(ptype, tpvec);
       vector_push_back(args, ptype);
     }
 
@@ -1890,7 +1886,7 @@ TypeDesc *specialize_one(TypeDesc *para, TypeDesc *ref)
     Vector *typeargs = vector_new();
     TypeDesc *item;
     vector_for_each(item, ref->klass.typeargs) {
-      item = specialize_one(para, item);
+      item = specialize(item, tpvec);
       vector_push_back(typeargs, item);
     }
 
@@ -1904,10 +1900,10 @@ TypeDesc *specialize_one(TypeDesc *para, TypeDesc *ref)
     }
   }
   case TYPE_PARAREF: {
-    if (vector_size(para->klass.typeargs) <= 0) {
+    if (vector_size(tpvec) <= 0) {
       return TYPE_INCREF(ref);
     }
-    TypeDesc *desc = vector_get(para->klass.typeargs, ref->pararef.index);
+    TypeDesc *desc = vector_get(tpvec, ref->pararef.index);
     return TYPE_INCREF(desc);
   }
   case TYPE_BASE:
@@ -1918,6 +1914,14 @@ TypeDesc *specialize_one(TypeDesc *para, TypeDesc *ref)
     panic("which type? generic type bug!");
     break;
   }
+}
+
+TypeDesc *specialize_one(TypeDesc *para, TypeDesc *ref)
+{
+  if (para == NULL || para->kind != TYPE_KLASS)
+    return TYPE_INCREF(ref);
+
+  return specialize(ref, para->klass.typeargs);
 }
 
 static inline
@@ -2286,68 +2290,68 @@ static int check_label_args(TypeDesc *label, Vector *args)
   return 0;
 }
 
-static Symbol *get_generic_symbol(Vector *parasyms, TypeDesc *desc)
+static TypeDesc *check_inherit_only(TypeDesc *desc, Symbol *sym)
 {
-  expect(desc->kind == TYPE_PARADEF);
   Symbol *item;
-  vector_for_each(item, parasyms) {
-    expect(item->kind == SYM_PTYPE);
-    if (!strcmp(item->name, desc->paradef.name))
-      return item;
+  vector_for_each_reverse(item, &sym->type.lro) {
+    if (desc_isany(item->desc))
+      continue;
+    if (check_klassdesc(desc, item->desc))
+      return item->desc;
   }
   return NULL;
 }
 
-typedef struct typeparaval {
-  char *name;
-  TypeDesc *desc;
-} TypeParaVal;
-
-void parse_typepara_value(TypeDesc *para, TypeDesc *arg,
+void parse_typepara_value(TypeDesc *para, TypeDesc *arg, Symbol *argsym,
                           ParserState *ps, Vector *values)
 {
-#if !defined(NLog)
   STRBUF(sbuf1);
   STRBUF(sbuf2);
   desc_tostr(para, &sbuf1);
   desc_tostr(arg, &sbuf2);
-#endif
 
-  switch (para->kind) {
-  case /* constant-expression */:
-    /* code */
-    break;
-
-  default:
-    break;
-  }
   if (para->kind == TYPE_PARAREF) {
-    printf("'%s' <- %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    debug("'%s' <- %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    vector_set(values, para->pararef.index, arg);
   } else if (para->kind == TYPE_KLASS) {
     if (arg->kind == TYPE_KLASS) {
       if (!check_klassdesc(para, arg)) {
-        printf("error: '%s' and '%s' are not matched\n",
-                strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+        TypeDesc *arg2 = check_inherit_only(para, argsym);
+        if (arg2 == NULL) {
+          synerr(ps, 0, 0, "'%s' and '%s' are not matched-1\n",
+                  strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+        } else {
+          TypeDesc *arg2inst = specialize_one(arg, arg2);
+          TypeDesc *tmp;
+          TypeDesc *tmp2;
+          Symbol *tmp2sym;
+          vector_for_each(tmp, para->klass.typeargs) {
+            tmp2 = vector_get(arg2inst->klass.typeargs, idx);
+            tmp2sym = get_type_symbol(ps, tmp2);
+            parse_typepara_value(tmp, tmp2, tmp2sym, ps, values);
+          }
+          TYPE_DECREF(arg2inst);
+        }
       } else {
         TypeDesc *tmp;
         TypeDesc *tmp2;
+        Symbol *tmp2sym;
         vector_for_each(tmp, para->klass.typeargs) {
           tmp2 = vector_get(arg->klass.typeargs, idx);
-          parse_typepara_value(tmp, tmp2, ps, values);
+          tmp2sym = get_type_symbol(ps, tmp2);
+          parse_typepara_value(tmp, tmp2, tmp2sym, ps, values);
         }
       }
     } else {
-      printf("error: '%s' and '%s' are not matched\n",
-              strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      synerr(ps, 0, 0, "'%s' and '%s' are not matched-2\n",
+            strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
     }
   } else {
-    printf("%s vs %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    debug("%s vs %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
   }
 
-#if !defined(NLog)
   strbuf_fini(&sbuf1);
   strbuf_fini(&sbuf2);
-#endif
 }
 
 static void parse_call(ParserState *ps, Expr *exp)
@@ -2374,22 +2378,27 @@ static void parse_call(ParserState *ps, Expr *exp)
     Symbol *fnsym = lexp->sym;
     if (vector_size(fnsym->func.typesyms) > 0) {
       // type parameter <- type argument
+      VECTOR(tpvec);
       Expr *arg;
       TypeDesc *para;
       vector_for_each(para, desc->proto.args) {
         arg = vector_get(args, idx);
-        get_typepara_value(para, arg->desc);
+        parse_typepara_value(para, arg->desc, arg->sym, ps, &tpvec);
       }
+      if (!has_error(ps)) {
+        TypeDesc *ret = desc->proto.ret;
+        TypeDesc *retinst = specialize(ret, &tpvec);
+        exp->desc = TYPE_INCREF(retinst);
+        exp->sym = get_type_symbol(ps, exp->desc);
+        TYPE_DECREF(retinst);
+      }
+      vector_fini(&tpvec);
     } else {
       if (check_call_args(ps, desc, args)) {
         return;
       } else {
         exp->desc = TYPE_INCREF(desc->proto.ret);
-        if (exp->desc != NULL && exp->desc->kind == TYPE_PARADEF) {
-          exp->sym = get_generic_symbol(lexp->sym->func.typesyms, exp->desc);
-        } else {
-          exp->sym = get_type_symbol(ps, exp->desc);
-        }
+        exp->sym = get_type_symbol(ps, exp->desc);
       }
     }
   } else if (desc->kind == TYPE_LABEL) {
