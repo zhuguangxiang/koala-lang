@@ -2376,9 +2376,13 @@ static void parse_call(ParserState *ps, Expr *exp)
 
   if (desc->kind == TYPE_PROTO) {
     Symbol *fnsym = lexp->sym;
-    if (vector_size(fnsym->func.typesyms) > 0) {
+    int sz = vector_size(fnsym->func.typesyms);
+    if (sz > 0) {
       // type parameter <- type argument
       VECTOR(tpvec);
+      for (int i = 0; i < sz; ++i) {
+        vector_push_back(&tpvec, NULL);
+      }
       Expr *arg;
       TypeDesc *para;
       vector_for_each(para, desc->proto.args) {

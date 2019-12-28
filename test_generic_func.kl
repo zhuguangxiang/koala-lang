@@ -125,4 +125,11 @@ func barfoo<T>(v int, pet Pet<T>) {
 
 p := new Pet<string>();
 p.name = "pet"
-barfoo(123, p);
+barfoo(123, p)
+
+func kvtest<K, V>(v V, pet Pet<K>) {
+  io.println(v)
+  io.println(pet.name)
+}
+
+kvtest(234, p)
