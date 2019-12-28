@@ -331,7 +331,6 @@ void desc_tostr(TypeDesc *desc, StrBuf *buf)
     break;
   }
   case TYPE_LABEL: {
-    panic("not implemented");
     break;
   }
   default:

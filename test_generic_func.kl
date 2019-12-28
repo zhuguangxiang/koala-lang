@@ -127,9 +127,10 @@ p := new Pet<string>();
 p.name = "pet"
 barfoo(123, p)
 
-func kvtest<K, V>(v V, pet Pet<K>) {
+func kvtest<K, V>(v V, pet Pet<K>) Pet<K> {
   io.println(v)
   io.println(pet.name)
+  return pet
 }
 
-kvtest(234, p)
+kvtest(234, p).name

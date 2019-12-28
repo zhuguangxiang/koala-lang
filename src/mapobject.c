@@ -101,7 +101,8 @@ static Object *map_set(Object *self, Object *args)
 {
   if (!tuple_check(args)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(args));
-    return bool_false();
+    //return bool_false();
+    return NULL;
   }
 
   Object *key = tuple_get(args, 0);
@@ -109,7 +110,8 @@ static Object *map_set(Object *self, Object *args)
   int res = map_put(self, key, val);
   OB_DECREF(key);
   OB_DECREF(val);
-  return (res < 0) ? bool_false() : bool_true();
+  //return (res < 0) ? bool_false() : bool_true();
+  return NULL;
 }
 
 static void map_free(Object *ob)

@@ -4326,7 +4326,7 @@ Symbol *get_type_symbol(ParserState *ps, TypeDesc *type)
       if (sym->kind == SYM_PTYPE) {
         debug("'%s' is type parameter", name);
       } else {
-        expect(sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
+        //expect(sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT);
         debug("'%s' is a klass", name);
       }
       return sym;
