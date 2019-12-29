@@ -1226,8 +1226,6 @@ Object *Koala_EvalFrame(CallFrame *f)
       y = POP();
       if (oparg == 0) {
         z = NULL;
-      } else if (oparg == 1) {
-        z = POP();
       } else {
         z = tuple_new(oparg);
         for (i = 0; i < oparg; ++i) {

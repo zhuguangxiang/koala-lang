@@ -124,7 +124,22 @@ static Object *enum_equal(Object *ob1, Object *ob2)
   EnumObject *eob2 = (EnumObject *)ob2;
   if (eob1 == eob2)
     return bool_true();
-  return !strcmp(eob1->name, eob2->name) ? bool_true() : bool_false();
+  if (strcmp(eob1->name, eob2->name))
+    return bool_false();
+
+  // check associated values
+  Object *values1 = eob1->values;
+  Object *values2 = eob2->values;
+  if (tuple_size(values1) != tuple_size(values2))
+    return bool_false();
+  Object *item1;
+  Object *item2;
+  tuple_for_each(item1, values1) {
+    item2 = tuple_get(values2, idx);
+    if (OB_TYPE(item1) != OB_TYPE(item2))
+      return bool_false();
+  }
+  return bool_true();
 }
 
 static MethodDef enum_methods[] = {

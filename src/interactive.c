@@ -460,6 +460,15 @@ static TypeObject *enum_from_symbol(Symbol *sym)
 
   if (type_ready(tp) < 0)
     panic("Cannot initalize '%s' type.", sym->name);
+
+  // add __eq__ to enum symbol
+  Vector *args = vector_new();
+  vector_push_back(args, desc_from_any);
+  TypeDesc *ret = desc_from_bool;
+  TypeDesc *proto = desc_from_proto(args, ret);
+  TYPE_DECREF(ret);
+  stable_add_func(sym->type.stbl, "__eq__", proto);
+
   return tp;
 }
 

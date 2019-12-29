@@ -27,6 +27,7 @@
 #include "moduleobject.h"
 #include "fieldobject.h"
 #include "methodobject.h"
+#include "enumobject.h"
 
 static int symbol_equal(void *k1, void *k2)
 {
@@ -347,7 +348,6 @@ void symbol_decref(Symbol *sym)
 Symbol *load_field(Object *ob)
 {
   FieldObject *fo = (FieldObject *)ob;
-  //debug("load field '%s'", fo->name);
   Symbol *sym = symbol_new(fo->name, SYM_VAR);
   sym->desc = TYPE_INCREF(fo->desc);
   return sym;
@@ -356,7 +356,6 @@ Symbol *load_field(Object *ob)
 Symbol *load_method(Object *ob)
 {
   MethodObject *meth = (MethodObject *)ob;
-  //debug("load method '%s'", meth->name);
   Symbol *sym = symbol_new(meth->name, SYM_FUNC);
   sym->desc = TYPE_INCREF(meth->desc);
   return sym;
@@ -367,6 +366,16 @@ Symbol *load_proto(Object *ob)
   ProtoObject *meth = (ProtoObject *)ob;
   Symbol *sym = symbol_new(meth->name, SYM_IFUNC);
   sym->desc = TYPE_INCREF(meth->desc);
+  return sym;
+}
+
+Symbol *load_label(Object *ob, TypeDesc *edesc, Symbol *esym)
+{
+  LabelObject *lo = (LabelObject *)ob;
+  Symbol *sym = symbol_new(lo->name, SYM_LABEL);
+  sym->desc = desc_from_label(edesc, lo->types);
+  sym->label.types = lo->types;
+  sym->label.esym = esym;
   return sym;
 }
 
@@ -390,6 +399,25 @@ Symbol *load_type(Object *ob)
   }
 
   STable *stbl = stable_new();
+  Symbol *clssym = NULL;
+  switch (type->flags & TPFLAGS_MASK) {
+  case TPFLAGS_CLASS:
+    clssym = symbol_new(type->name, SYM_CLASS);
+    break;
+  case TPFLAGS_TRAIT:
+    clssym = symbol_new(type->name, SYM_TRAIT);
+    break;
+  case TPFLAGS_ENUM: {
+    clssym = symbol_new(type->name, SYM_ENUM);
+    break;
+  }
+  default:
+    panic("invalid type->flags:0x%x", type->flags);
+    break;
+  }
+  clssym->desc = TYPE_INCREF(type->desc);
+  clssym->type.stbl = stbl;
+
   HASHMAP_ITERATOR(iter, type->mtbl);
   struct mnode *node;
   Object *tmp;
@@ -402,30 +430,14 @@ Symbol *load_type(Object *ob)
       sym = load_method(tmp);
     } else if (proto_check(tmp)) {
       sym = load_proto(tmp);
+    } else if (label_check(tmp)) {
+      sym = load_label(tmp, type->desc, clssym);
     } else {
       panic("object of '%s'?", OB_TYPE(tmp)->name);
     }
     stable_add_symbol(stbl, sym);
     symbol_decref(sym);
   }
-
-  Symbol *clssym = NULL;
-  switch (type->flags & TPFLAGS_MASK) {
-  case TPFLAGS_CLASS:
-    clssym = symbol_new(type->name, SYM_CLASS);
-    break;
-  case TPFLAGS_TRAIT:
-    clssym = symbol_new(type->name, SYM_TRAIT);
-    break;
-  case TPFLAGS_ENUM:
-    clssym = symbol_new(type->name, SYM_ENUM);
-    break;
-  default:
-    panic("invalid type->flags:0x%x", type->flags);
-    break;
-  }
-  clssym->desc = TYPE_INCREF(type->desc);
-  clssym->type.stbl = stbl;
 
   if (type->tps != NULL) {
     debug("load type '%s' type parameters", type->name);

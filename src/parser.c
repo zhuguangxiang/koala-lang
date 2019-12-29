@@ -2271,7 +2271,7 @@ static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
   return 0;
 }
 
-static int check_label_args(TypeDesc *label, Vector *args)
+static int check_label_args(TypeDesc *label, Vector *args, Vector *tpvals)
 {
   Vector *descs = label->label.types;
   int sz = vector_size(descs);
@@ -2284,6 +2284,8 @@ static int check_label_args(TypeDesc *label, Vector *args)
   for (int i = 0; i < sz; ++i) {
     desc = vector_get(descs, i);
     arg = vector_get(args, i);
+    if (desc->kind == TYPE_PARAREF)
+      desc = vector_get(tpvals, desc->pararef.index);
     if (!desc_check(desc, arg->desc))
       return -1;
   }
@@ -2354,6 +2356,47 @@ void parse_typepara_value(TypeDesc *para, TypeDesc *arg, Symbol *argsym,
   strbuf_fini(&sbuf2);
 }
 
+void parse_label_tppval(TypeDesc *para, Symbol *esym, TypeDesc *arg,
+                        ParserState *ps, Vector *values)
+{
+  STRBUF(sbuf1);
+  STRBUF(sbuf2);
+  desc_tostr(para, &sbuf1);
+  desc_tostr(arg, &sbuf2);
+
+  if (para->kind == TYPE_PARAREF) {
+    debug("'%s' <- %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    vector_set(values, para->pararef.index, arg);
+  }
+
+
+  strbuf_fini(&sbuf1);
+  strbuf_fini(&sbuf2);
+}
+
+void parse_label_tpvals(Symbol *sym, Vector *args,
+                        ParserState *ps, Vector *values)
+{
+  TypeDesc *desc = sym->desc;
+  Vector *lbltypes = desc->label.types;
+
+  int psz = vector_size(lbltypes);
+  int argsz = vector_size(args);
+  if (psz != argsz) {
+    synerr(ps, 0, 0, "count of arguments expected %d, but %d", psz, argsz);
+    return;
+  }
+
+  TypeDesc *tmp;
+  Expr *arg;
+  vector_for_each(tmp, lbltypes) {
+    arg = vector_get(args, idx);
+    if (tmp->kind == TYPE_PARAREF) {
+
+    }
+  }
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
   Vector *args = exp->call.args;
@@ -2389,6 +2432,7 @@ static void parse_call(ParserState *ps, Expr *exp)
         arg = vector_get(args, idx);
         parse_typepara_value(para, arg->desc, arg->sym, ps, &tpvec);
       }
+      // check arg's bounds
       if (!has_error(ps)) {
         TypeDesc *ret = desc->proto.ret;
         TypeDesc *retinst = specialize(ret, &tpvec);
@@ -2406,11 +2450,41 @@ static void parse_call(ParserState *ps, Expr *exp)
       }
     }
   } else if (desc->kind == TYPE_LABEL) {
-    if (check_label_args(desc, args)) {
-      synerr(ps, exp->row, exp->col, "enum args check failed");
+    Symbol *esym = lexp->sym->label.esym;
+    int sz = vector_size(esym->type.typesyms);
+    if (sz > 0) {
+      VECTOR(tpvec);
+      for (int i = 0; i < sz; ++i) {
+        vector_push_back(&tpvec, NULL);
+      }
+      Expr *arg;
+      TypeDesc *para;
+      vector_for_each(para, desc->label.types) {
+        arg = vector_get(args, idx);
+        parse_typepara_value(para, arg->desc, arg->sym, ps, &tpvec);
+      }
+      // check arg's bounds
+      if (!has_error(ps)) {
+        if (check_label_args(desc, args, &tpvec)) {
+          synerr(ps, exp->row, exp->col, "enum args check failed");
+        } else {
+          TypeDesc *edesc = desc_dup(desc->label.edesc);
+          TypeDesc *tmp;
+          vector_for_each(tmp, &tpvec) {
+            desc_add_paratype(edesc, tmp);
+          }
+          exp->desc = edesc;
+          exp->sym = lexp->sym->label.esym;
+        }
+      }
+      vector_fini(&tpvec);
     } else {
-      exp->desc = TYPE_INCREF(desc->label.edesc);
-      exp->sym = get_type_symbol(ps, exp->desc);
+      if (check_label_args(desc, args, NULL)) {
+        synerr(ps, exp->row, exp->col, "enum args check failed");
+      } else {
+        exp->desc = TYPE_INCREF(desc->label.edesc);
+        exp->sym = lexp->sym->label.esym;
+      }
     }
   } else if (desc->kind == TYPE_KLASS) {
     expect(lexp->super);
@@ -4340,8 +4414,9 @@ Symbol *get_type_symbol(ParserState *ps, TypeDesc *type)
     return NULL;
   }
 
-  if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT) {
-    synerr(ps, 0, 0, "'%s' is not a class/trait", name);
+  if (sym->kind != SYM_CLASS && sym->kind != SYM_TRAIT &&
+      sym->kind != SYM_ENUM) {
+    synerr(ps, 0, 0, "'%s' is not klass", name);
     return NULL;
   }
 
