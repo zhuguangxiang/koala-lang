@@ -152,6 +152,15 @@ Expr *expr_from_attribute(Ident id, Expr *left)
   return exp;
 }
 
+Expr *expr_from_dottuple(int64_t index, Expr *left)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = DOT_TUPLE_KIND;
+  exp->dottuple.index = index;
+  exp->dottuple.lexp = left;
+  return exp;
+}
+
 Expr *expr_from_subscr(Expr *left, Expr *index)
 {
   Expr *exp = kmalloc(sizeof(Expr));
@@ -346,6 +355,10 @@ void expr_free(Expr *exp)
     expr_free(exp->slice.start);
     expr_free(exp->slice.end);
     expr_free(exp->slice.lexp);
+    kfree(exp);
+    break;
+  case DOT_TUPLE_KIND:
+    expr_free(exp->dottuple.lexp);
     kfree(exp);
     break;
   case TUPLE_KIND:

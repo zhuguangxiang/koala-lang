@@ -19,24 +19,17 @@ tuple := (200, 300)
 i = tuple.1
 assert.equal(i, 300)
 
-(j, k) := (1, 2)
-assert.equal(j, 1)
-assert.equal(k, 2)
-
-var (l, m) = (1, "jack")
-var (n, o) (int, string) = (2, "rose")
-
 func test_tuple(t (int, string)) string {
   t.1
-}
-
-func test_tuple2(v1 int, v2 string)) (int, string) {
-  (v1, v2)
 }
 
 s = test_tuple((1, "jack"))
 assert.equal(s, "jack")
 
-(l, m) = test_tuple2(2, "rose")
-assert.equal(l, 2)
-assert.equal(m, "rose")
+func test_tuple2(v1 int, v2 string) (int, string) {
+  (v1, v2)
+}
+
+(i, s) = test_tuple2(2, "rose")
+assert.equal(i, 2)
+assert.equal(s, "rose")

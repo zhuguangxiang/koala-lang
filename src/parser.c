@@ -1614,6 +1614,11 @@ static void parse_underscore(ParserState *ps, Expr *exp)
   printf("expr is underscore(_)\n");
   exp->desc = desc_from_any;
   exp->sym = NULL;
+  if (exp->ctx == EXPR_STORE) {
+    CODE_OP(OP_POP_TOP);
+  } else {
+    synerr(ps, exp->row, exp->col, "invalid operation of placeholder(__");
+  }
 }
 
 static void parse_unary(ParserState *ps, Expr *exp)
@@ -2131,6 +2136,40 @@ static void parse_attr(ParserState *ps, Expr *exp)
   }
 }
 
+static void parse_dottuple(ParserState *ps, Expr *exp)
+{
+  expect(exp->ctx == EXPR_LOAD);
+
+  int64_t index = exp->dottuple.index;
+  Expr *lexp = exp->dottuple.lexp;
+
+  if (index >= 16) {
+    synerr(ps, exp->row, exp->col, "index of tuple must be in 0...15");
+  }
+
+  CODE_OP_I(OP_LOAD_CONST, index);
+
+  lexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, lexp);
+  if (!desc_istuple(lexp->desc)) {
+    synerr(ps, lexp->row, lexp->col, "expr is not tuple.");
+  }
+
+  TypeDesc *ldesc = lexp->desc;
+  int size = vector_size(ldesc->klass.typeargs);
+  if (index >= size) {
+    synerr(ps, exp->row, exp->col, "index out of range(0..<%d)", size);
+  }
+
+  if (!has_error(ps)) {
+    exp->desc = vector_get(ldesc->klass.typeargs, index);
+    TYPE_INCREF(exp->desc);
+    exp->sym = get_type_symbol(ps, exp->desc);
+    expect(exp->sym != NULL);
+    CODE_OP(OP_SUBSCR_LOAD);
+  }
+}
+
 static void parse_subscr(ParserState *ps, Expr *exp)
 {
   Expr *iexp = exp->subscr.index;
@@ -2571,7 +2610,7 @@ static void parse_tuple(ParserState *ps, Expr *exp)
   }
 
   exp->desc = desc_from_tuple;
-
+  VECTOR(subtypes);
   Expr *e;
   vector_for_each_reverse(e, exp->tuple) {
     if (exp->ctx == EXPR_STORE)
@@ -2580,13 +2619,22 @@ static void parse_tuple(ParserState *ps, Expr *exp)
       e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);
     if (e->desc != NULL) {
-      desc_add_paratype(exp->desc, e->desc);
+      vector_push_back(&subtypes, e->desc);
     }
   }
 
+  TypeDesc *desc = vector_pop_back(&subtypes);
+  while (desc != NULL) {
+    desc_add_paratype(exp->desc, desc);
+    desc = vector_pop_back(&subtypes);
+  }
+  vector_fini(&subtypes);
+
   if (!has_error(ps)) {
-    if (exp->ctx == EXPR_LOAD)
+    if (exp->ctx == EXPR_LOAD) {
+      debug("new tuple");
       CODE_OP_I(OP_NEW_TUPLE, size);
+    }
   }
 }
 
@@ -3296,6 +3344,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_subscr,         /* SUBSCRIPT_KIND     */
     parse_call,           /* CALL_KIND          */
     parse_slice,          /* SLICE_KIND         */
+    parse_dottuple,       /* DOT_TUPLE_KIND     */
     parse_tuple,          /* TUPLE_KIND         */
     parse_array,          /* ARRAY_KIND         */
     parse_map,            /* MAP_KIND           */
@@ -3575,6 +3624,7 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
   Symbol *sym = lexp->sym;
   if (sym == NULL)
     return;
+
   if (sym->kind == SYM_CONST) {
     synerr(ps, rexp->row, rexp->col, "cannot assign to '%s'", sym->name);
     return;
@@ -4504,6 +4554,10 @@ void check_subtype(ParserState *ps, Symbol *tpsym, Symbol *sym)
 
 void parse_subtype(ParserState *ps, Symbol *clssym, Vector *subtypes)
 {
+  // uncheck tuple's type parameters.
+  if (desc_istuple(clssym->desc))
+    return;
+
   Symbol *subsym;
   Symbol *tpsym;
   TypeDesc *item;
@@ -4514,7 +4568,7 @@ void parse_subtype(ParserState *ps, Symbol *clssym, Vector *subtypes)
 
     tpsym = vector_get(clssym->type.typesyms, idx);
     if (tpsym == NULL) {
-      synerr(ps, 0, 0, "symbol '%s' no typeparas", clssym->name);
+      synerr(ps, 0, 0, "symbol '%s' has no typeparas", clssym->name);
       continue;
     }
 
@@ -5022,25 +5076,25 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
     return;
 
   static void (*handlers[])(ParserState *, Stmt *) = {
-    NULL,               /* INVALID        */
-    parse_import,       /* IMPORT_KIND    */
-    parse_constdecl,    /* CONST_KIND     */
-    parse_vardecl,      /* VAR_KIND       */
-    parse_assign,       /* ASSIGN_KIND    */
-    parse_funcdecl,     /* FUNC_KIND      */
-    parse_return,       /* RETURN_KIND    */
-    parse_expr,         /* EXPR_KIND      */
-    parse_block,        /* BLOCK_KIND     */
-    parse_ifunc,        /* IFUNC_KIND     */
-    parse_class,        /* CLASS_KIND     */
-    parse_trait,        /* TRAIT_KIND     */
-    parse_enum,         /* ENUM_KIND      */
-    parse_break,        /* BREAK_KIND     */
-    parse_continue,     /* CONTINUE_KIND  */
-    parse_if,           /* IF_KIND        */
-    parse_while,        /* WHILE_KIND     */
-    parse_for,          /* FOR_KIND       */
-    parse_match,        /* MATCH_KIND     */
+    NULL,               /* INVALID          */
+    parse_import,       /* IMPORT_KIND      */
+    parse_constdecl,    /* CONST_KIND       */
+    parse_vardecl,      /* VAR_KIND         */
+    parse_assign,       /* ASSIGN_KIND      */
+    parse_funcdecl,     /* FUNC_KIND        */
+    parse_return,       /* RETURN_KIND      */
+    parse_expr,         /* EXPR_KIND        */
+    parse_block,        /* BLOCK_KIND       */
+    parse_ifunc,        /* IFUNC_KIND       */
+    parse_class,        /* CLASS_KIND       */
+    parse_trait,        /* TRAIT_KIND       */
+    parse_enum,         /* ENUM_KIND        */
+    parse_break,        /* BREAK_KIND       */
+    parse_continue,     /* CONTINUE_KIND    */
+    parse_if,           /* IF_KIND          */
+    parse_while,        /* WHILE_KIND       */
+    parse_for,          /* FOR_KIND         */
+    parse_match,        /* MATCH_KIND       */
   };
 
   expect(stmt->kind >= IMPORT_KIND && stmt->kind <= MATCH_KIND);

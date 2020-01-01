@@ -144,6 +144,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token OP_LE
 %token OP_GE
 %token OP_POWER
+%token OP_MATCH
 
 %token DOTDOTDOT
 %token DOTDOTLESS
@@ -176,20 +177,8 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <stmt> match_stmt
 %type <list> match_clauses
 %type <matchclause> match_clause
-%type <expr> match_pattern
-%type <expr> int_pattern
-%type <expr> char_pattern
-%type <expr> str_pattern
-%type <expr> float_pattern
-%type <expr> enum_pattern
-%type <list> enum_pattern_args
-%type <expr> enum_pattern_arg
-%type <list> int_seq
-%type <list> char_seq
-%type <list> str_seq
-%type <list> float_seq
 %type <stmt> match_block
-%type <stmt> for_each_stmt
+%type <stmt> for_stmt
 %type <stmt> func_decl
 %type <stmtlist> block
 %type <stmtlist> local_list
@@ -283,11 +272,6 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %destructor {
   free_aliases($$);
 } <aliaslist>
-
-%precedence '-'
-%precedence INT_LITERAL CHAR_LITERAL STRING_LITERAL FLOAT_LITERAL
-%precedence '|' ID
-%precedence '(' '.'
 
 %locations
 %parse-param {ParserState *ps}
@@ -423,11 +407,7 @@ unit:
     comp_add_stmt(ps, $1);
   }
 }
-| if_asign_stmt
-{
-
-}
-| for_each_stmt
+| for_stmt
 {
   if (ps->interactive) {
     ps->more = 0;
@@ -560,11 +540,7 @@ local:
 {
   $$ = $1;
 }
-| if_asign_stmt
-{
-  $$ = NULL;
-}
-| for_each_stmt
+| for_stmt
 {
   $$ = $1;
 }
@@ -671,27 +647,6 @@ var_decl:
   IDENT(id, $2, @2);
   $$ = stmt_from_vardecl(id, NULL, $4);
 }
-| VAR '(' id_list ',' ')' type '=' expr ';'
-{
-  $$ = NULL;
-}
-| VAR '(' id_list ',' ID ')' type '=' expr ';'
-{
-  $$ = NULL;
-}
-| VAR '(' id_list ',' ')' '=' expr ';'
-{
-  $$ = NULL;
-}
-| VAR '(' id_list ',' ID ')' '=' expr ';'
-{
-  $$ = NULL;
-}
-;
-
-id_list:
-  ID
-| id_list ',' ID
 ;
 
 free_var_decl:
@@ -699,15 +654,6 @@ free_var_decl:
 {
   IDENT(id, $1, @1);
   $$ = stmt_from_vardecl(id, NULL, $3);
-}
-/* expr_list is id-list, expr is id */
-| '(' expr_list ',' ')' FREE_ASSIGN expr ';'
-{
-  $$ = NULL;
-}
-| '(' expr_list ',' expr ')' FREE_ASSIGN expr ';'
-{
-  $$ = NULL;
 }
 ;
 
@@ -860,6 +806,21 @@ expr:
 {
   $$ = $1;
   set_expr_pos($$, @1);
+}
+| expr_match
+{
+  $$ = $1;
+  set_expr_pos($$, @1);
+}
+;
+
+expr_match:
+  condition_expr OP_MATCH condition_expr
+{
+  $$ = expr_from_binary(BINARY_MATCH, $1, $3);
+  set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -1161,6 +1122,10 @@ dot_expr:
 }
 | primary_expr '.' INT_LITERAL
 {
+  $$ = expr_from_dottuple($3, $1);
+}
+| primary_expr '.' '<' type_list '>'
+{
   $$ = NULL;
 }
 ;
@@ -1426,6 +1391,7 @@ new_object:
 if_stmt:
   IF expr block empty_else_if
 {
+  // pattern match: expr is enum(tuple) with vars to be unboxed.
   $$ = stmt_from_if($2, $3, $4);
 }
 ;
@@ -1463,7 +1429,8 @@ while_stmt:
 }
 ;
 
-for_each_stmt:
+// pattern match: expr is enum(tuple) with vars to be unboxed.
+for_stmt:
   FOR expr IN expr block
 {
   $$ = stmt_from_for($2, $4, NULL, $5);
@@ -1474,6 +1441,7 @@ for_each_stmt:
 }
 ;
 
+// pattern match: expr is enum(tuple) with vars to be unboxed.
 match_stmt:
   MATCH expr '{' match_clauses '}'
 {
@@ -1495,299 +1463,15 @@ match_clauses:
 ;
 
 match_clause:
-  match_pattern FAT_ARROW match_block match_tail
+  expr_list FAT_ARROW match_block match_tail
 {
-  $$ = new_match_clause($1, $3);
+  $$ = NULL; //new_match_clause($1, $3);
 }
 ;
 
 match_tail:
   ';'
 | ','
-;
-
-match_pattern:
-  '_'
-{
-  $$ = expr_from_underscore();
-}
-| int_pattern
-{
-  $$ = $1;
-}
-| char_pattern
-{
-  $$ = $1;
-}
-| str_pattern
-{
-  $$ = $1;
-}
-/* float equal is not allowed, not accurate ?*/
-| float_pattern
-{
-  $$ = $1;
-}
-| enum_pattern
-{
-  $$ = $1;
-}
-| TRUE
-{
-  $$ = expr_from_bool(1);
-}
-| FALSE
-{
-  $$ = expr_from_bool(0);
-}
-| tuple_object
-{
-  $$ = $1;
-}
-| range_object
-{
-  $$ = $1;
-}
-| IS type
-{
-  TYPE(type, $2, @2);
-  $$ = expr_from_istype(NULL, type);
-}
-;
-
-int_pattern:
-  INT_LITERAL
-{
-  $$ = expr_from_int($1);
-}
-| '-' INT_LITERAL
-{
-  $$ = expr_from_int(0 - $2);
-}
-| int_seq INT_LITERAL
-{
-  vector_push_back($1, expr_from_int($2));
-  $$ = expr_from_array($1);
-}
-| int_seq '-' INT_LITERAL
-{
-  vector_push_back($1, expr_from_int(0 - $3));
-  $$ = expr_from_array($1);
-}
-;
-
-int_seq:
-  INT_LITERAL '|'
-{
-  $$ = vector_new();
-  vector_push_back($$, expr_from_int($1));
-}
-| '-' INT_LITERAL '|'
-{
-  $$ = vector_new();
-  vector_push_back($$, expr_from_int(0 - $2));
-}
-| int_seq INT_LITERAL '|'
-{
-  $$ = $1;
-  vector_push_back($$, expr_from_int($2));
-}
-| int_seq '-' INT_LITERAL '|'
-{
-  $$ = $1;
-  vector_push_back($$, expr_from_int(0 - $3));
-}
-;
-
-char_pattern:
-  CHAR_LITERAL
-{
-  $$ = expr_from_char($1);
-}
-| char_seq CHAR_LITERAL
-{
-  vector_push_back($1, expr_from_char($2));
-  $$ = expr_from_array($1);
-}
-;
-
-char_seq:
-  CHAR_LITERAL '|'
-{
-  $$ = vector_new();
-  vector_push_back($$, expr_from_char($1));
-}
-| char_seq CHAR_LITERAL '|'
-{
-  $$ = $1;
-  vector_push_back($$, expr_from_char($2));
-}
-;
-
-str_pattern:
-  STRING_LITERAL
-{
-  $$ = expr_from_str($1);
-}
-| str_seq STRING_LITERAL
-{
-  vector_push_back($1, expr_from_str($2));
-  $$ = expr_from_array($1);
-}
-;
-
-str_seq:
-  STRING_LITERAL '|'
-{
-  $$ = vector_new();
-  vector_push_back($$, expr_from_str($1));
-}
-| str_seq STRING_LITERAL '|'
-{
-  $$ = $1;
-  vector_push_back($$, expr_from_str($2));
-}
-;
-
-float_pattern:
-  FLOAT_LITERAL
-{
-  $$ = expr_from_float($1);
-}
-| '-' FLOAT_LITERAL
-{
-  $$ = expr_from_float(0.0 - $2);
-}
-| float_seq FLOAT_LITERAL
-{
-  vector_push_back($1, expr_from_float($2));
-  $$ = expr_from_array($1);
-}
-| float_seq '-' FLOAT_LITERAL
-{
-  vector_push_back($1, expr_from_float(0.0 - $3));
-  $$ = expr_from_array($1);
-}
-;
-
-float_seq:
-  FLOAT_LITERAL '|'
-{
-  $$ = vector_new();
-  vector_push_back($$, expr_from_float($1));
-}
-| '-' FLOAT_LITERAL '|'
-{
-  $$ = vector_new();
-  vector_push_back($$, expr_from_float(0.0 - $2));
-}
-| float_seq FLOAT_LITERAL '|'
-{
-  $$ = $1;
-  vector_push_back($$, expr_from_float($2));
-}
-| float_seq '-' FLOAT_LITERAL '|'
-{
-  $$ = $1;
-  vector_push_back($$, expr_from_float(0.0 - $3));
-}
-;
-
-enum_pattern:
-  ID
-{
-  IDENT(id, $1, @1);
-  $$ = expr_enum_pattern(id, NULL, NULL, NULL);
-}
-| ID '(' enum_pattern_args ')'
-{
-  IDENT(id, $1, @1);
-  $$ = expr_enum_pattern(id, NULL, NULL, $3);
-}
-| ID '.' ID
-{
-  IDENT(id, $3, @3);
-  IDENT(ename, $1, @1);
-  $$ = expr_enum_pattern(id, &ename, NULL, NULL);
-}
-| ID '.' ID '(' enum_pattern_args ')'
-{
-  IDENT(id, $3, @3);
-  IDENT(ename, $1, @1);
-  $$ = expr_enum_pattern(id, &ename, NULL, $5);
-}
-| ID '.' ID '.' ID
-{
-  IDENT(id, $5, @5);
-  IDENT(ename, $3, @3);
-  IDENT(mname, $1, @1);
-  $$ = expr_enum_pattern(id, &ename, &mname, NULL);
-}
-| ID '.' ID '.' ID '(' enum_pattern_args ')'
-{
-  IDENT(id, $5, @5);
-  IDENT(ename, $3, @3);
-  IDENT(mname, $1, @1);
-  $$ = expr_enum_pattern(id, &ename, &mname, $7);
-}
-;
-
-enum_pattern_args:
-  enum_pattern_arg
-{
-  $$ = vector_new();
-  vector_push_back($$, $1);
-}
-| enum_pattern_args ',' enum_pattern_arg
-{
-  $$ = $1;
-  vector_push_back($$, $3);
-}
-;
-
-/* float equal is not allowed, not accurate ? */
-/* any operations(+,-) in enum pattern arguments are not allowed */
-enum_pattern_arg:
-  ID
-{
-  $$ = expr_from_ident($1);
-}
-| '_'
-{
-  $$ = expr_from_underscore();
-}
-| INT_LITERAL
-{
-  $$ = expr_from_int($1);
-}
-| '-' INT_LITERAL
-{
-  $$ = expr_from_int(0 - $2);
-}
-| FLOAT_LITERAL
-{
-  $$ = expr_from_float($1);
-}
-| '-' FLOAT_LITERAL
-{
-  $$ = expr_from_float(0.0 - $2);
-}
-| STRING_LITERAL
-{
-  $$ = expr_from_str($1);
-}
-| CHAR_LITERAL
-{
-  $$ = expr_from_char($1);
-}
-| TRUE
-{
-  $$ = expr_from_bool(1);
-}
-| FALSE
-{
-  $$ = expr_from_bool(0);
-}
 ;
 
 match_block:
@@ -1799,11 +1483,6 @@ match_block:
 {
   $$ = stmt_from_expr($1);
 }
-;
-
-/* is short for match enum with only two cases */
-if_asign_stmt:
-  IF enum_pattern '=' expr block empty_else
 ;
 
 func_decl:
@@ -2220,7 +1899,6 @@ enum_label:
 }
 /*
 NOTES: unsupport C-like enum yet. Is it really need support ?
-
 | ID '=' INT_LITERAL
 {
   IDENT(id, $1, @1);
