@@ -2164,40 +2164,6 @@ static void parse_attr(ParserState *ps, Expr *exp)
   }
 }
 
-static void parse_dottuple(ParserState *ps, Expr *exp)
-{
-  expect(exp->ctx == EXPR_LOAD);
-
-  int64_t index = exp->dottuple.index;
-  Expr *lexp = exp->dottuple.lexp;
-
-  if (index >= 16) {
-    synerr(ps, exp->row, exp->col, "index of tuple must be in 0...15");
-  }
-
-  CODE_OP_I(OP_LOAD_CONST, index);
-
-  lexp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, lexp);
-  if (!desc_istuple(lexp->desc)) {
-    synerr(ps, lexp->row, lexp->col, "expr is not tuple.");
-  }
-
-  TypeDesc *ldesc = lexp->desc;
-  int size = vector_size(ldesc->klass.typeargs);
-  if (index >= size) {
-    synerr(ps, exp->row, exp->col, "index out of range(0..<%d)", size);
-  }
-
-  if (!has_error(ps)) {
-    exp->desc = vector_get(ldesc->klass.typeargs, index);
-    TYPE_INCREF(exp->desc);
-    exp->sym = get_type_symbol(ps, exp->desc);
-    expect(exp->sym != NULL);
-    CODE_OP(OP_SUBSCR_LOAD);
-  }
-}
-
 static void parse_subscr(ParserState *ps, Expr *exp)
 {
   Expr *lexp = exp->subscr.lexp;
@@ -3486,7 +3452,6 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_subscr,         /* SUBSCRIPT_KIND     */
     parse_call,           /* CALL_KIND          */
     parse_slice,          /* SLICE_KIND         */
-    parse_dottuple,       /* DOT_TUPLE_KIND     */
     parse_tuple,          /* TUPLE_KIND         */
     parse_array,          /* ARRAY_KIND         */
     parse_map,            /* MAP_KIND           */
