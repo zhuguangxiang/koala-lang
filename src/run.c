@@ -103,7 +103,6 @@ static void fini_types(void)
   type_fini(&iter_type);
   type_fini(&fmtter_type);
   type_fini(&closure_type);
-  type_fini(result_type);
   fini_bool_type();
   print("########\n");
 }
@@ -130,6 +129,7 @@ void koala_finalize(void)
   fini_os_module();
   fini_lang_module();
   fini_modules();
+  fini_result_type();
   gc();
   fini_types();
   fini_typedesc();

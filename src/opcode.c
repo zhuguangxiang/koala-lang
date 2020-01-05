@@ -172,6 +172,8 @@ struct opmap {
 
   OP_MAP(OP_SUBSCR_LOAD,  __getitem__),
   OP_MAP(OP_SUBSCR_STORE, __setitem__),
+
+  OP_MAP(OP_MATCH, __match__),
 };
 
 int opcode_argc(int op)

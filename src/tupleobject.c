@@ -200,10 +200,33 @@ static Object *tuple_fmt(Object *self, Object *args)
   return NULL;
 }
 
+static Object *tuple_match(Object *self, Object *args)
+{
+  if (!tuple_check(self)) {
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (!tuple_check(args)) {
+    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(args));
+    return NULL;
+  }
+
+  TupleObject *patt = (TupleObject *)self;
+  TupleObject *some = (TupleObject *)args;
+
+  for (int i = 0; i < patt->size; ++i) {
+
+  }
+
+  return bool_true();
+}
+
 static MethodDef tuple_methods[] = {
   {"length",      NULL, "i",  tuple_length },
   {"__getitem__", "i",  "A",  tuple_getitem},
   {"__fmt__",     "Llang.Formatter;", NULL, tuple_fmt},
+  {"__match__",   "Llang.Tuple;", "z", tuple_match},
   {NULL}
 };
 
@@ -250,6 +273,7 @@ TypeObject tuple_type = {
   .clean   = tuple_clean,
   .free    = tuple_free,
   .str     = tuple_str,
+  .match   = tuple_match,
   .methods = tuple_methods,
 };
 

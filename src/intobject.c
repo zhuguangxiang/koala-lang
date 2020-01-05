@@ -465,6 +465,23 @@ static Object *int_num_not(Object *x, Object *y)
   return z;
 }
 
+static Object *int_num_match(Object *x, Object *y)
+{
+  if (!integer_check(x)) {
+    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(x));
+    return NULL;
+  }
+
+  if (!integer_check(y)) {
+    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(y));
+    return NULL;
+  }
+
+  IntegerObject *xob = (IntegerObject *)x;
+  IntegerObject *yob = (IntegerObject *)y;
+  return xob->value == yob->value ? bool_true() : bool_false();
+}
+
 static NumberMethods int_numbers = {
   .add = int_num_add,
   .sub = int_num_sub,
@@ -559,6 +576,7 @@ static MethodDef int_methods[]= {
   {"__or__",  "Llang.Number;", "i", int_num_or},
   {"__xor__", "Llang.Number;", "i", int_num_xor},
   {"__not__", NULL, "i", int_num_not},
+  {"__match__", "Llang.Number;", "z", int_num_match},
 
   {"bytevalue",  NULL, "b", int_num_bytevalue},
   {"intvalue",   NULL, "i", int_num_intvalue},

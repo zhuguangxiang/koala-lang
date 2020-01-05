@@ -374,7 +374,17 @@ Symbol *load_label(Object *ob, TypeDesc *edesc, Symbol *esym)
   LabelObject *lo = (LabelObject *)ob;
   Symbol *sym = symbol_new(lo->name, SYM_LABEL);
   sym->desc = desc_from_label(edesc, lo->types);
-  sym->label.types = lo->types;
+
+  Vector *types = NULL;
+  if (vector_size(lo->types) > 0)
+    types = vector_new();
+
+  TypeDesc *item;
+  vector_for_each(item, lo->types) {
+    vector_push_back(types, TYPE_INCREF(item));
+  }
+
+  sym->label.types = types;
   sym->label.esym = esym;
   return sym;
 }

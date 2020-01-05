@@ -237,6 +237,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <expr> expr_as_type
 %type <expr> expr_is_type
 %type <expr> range_object
+%type <expr> expr_match
 
 %type <desclist> type_list
 %type <desclist> type_varg_list
@@ -817,10 +818,8 @@ expr:
 expr_match:
   condition_expr OP_MATCH condition_expr
 {
-  $$ = expr_from_binary(BINARY_MATCH, $1, $3);
+  $$ = expr_from_binary_match($1, $3);
   set_expr_pos($$, @1);
-  $$->binary.oprow = row(@2);
-  $$->binary.opcol = col(@2);
 }
 ;
 

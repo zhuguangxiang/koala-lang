@@ -259,14 +259,12 @@ typedef enum unaryopkind {
 typedef enum binaryopkind {
   /* +, -, *, /, %, ** */
   BINARY_ADD = 1, BINARY_SUB, BINARY_MULT, BINARY_DIV, BINARY_MOD, BINARY_POW,
-  /* >, >=, <, <=, ==, != */
-  BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE, BINARY_EQ, BINARY_NEQ,
   /* &, ^, | */
   BINARY_BIT_AND, BINARY_BIT_XOR, BINARY_BIT_OR,
+  /* >, >=, <, <=, ==, != */
+  BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE, BINARY_EQ, BINARY_NEQ,
   /* &&, || */
   BINARY_LAND, BINARY_LOR,
-  /* ~= */
-  BINARY_MATCH,
 } BinaryOpKind;
 
 /* expression kind */
@@ -291,6 +289,8 @@ typedef enum exprkind {
   RANGE_KIND,
   /* enum pattern */
   ENUM_PATTERN_KIND,
+  /* binary match */
+  BINARY_MATCH_KIND,
   EXPR_KIND_MAX
 } ExprKind;
 
@@ -313,13 +313,20 @@ struct expr {
   Symbol *sym;
   TypeDesc *desc;
   Expr *right;
-  int argc;
-  int leftside;
-  int hasvalue;
   Stmt *inplace;
   char *funcname;
-  short first;
-  short super;
+  int argc;
+  int8_t leftside;
+  int8_t hasvalue;
+  int8_t first;
+  int8_t super;
+
+  /* for match */
+  Expr *pattern;
+  Vector *types;
+  int16_t index;
+  int16_t newvar;
+
   union {
     struct {
       int omit;
@@ -413,6 +420,10 @@ struct expr {
       Symbol *sym; // match expr's symbol
       int argc; // count of literals of exps
     } enum_pattern;
+    struct {
+      Expr *some;
+      Expr *pattern;
+    } binary_match;
   };
 };
 
@@ -448,6 +459,7 @@ Expr *expr_from_istype(Expr *exp, Type type);
 Expr *expr_from_astype(Expr *exp, Type type);
 Expr *expr_from_object(char *path, Ident id, Vector *types, Vector *args);
 Expr *expr_from_range(int type, Expr *start, Expr *end);
+Expr *expr_from_binary_match(Expr *pattern, Expr *some);
 
 typedef enum stmtkind {
   /* import */

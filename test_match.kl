@@ -1,4 +1,67 @@
 
+// if-match
+import "io"
+
+z := 100
+if 100 ~= z {
+  io.println("100 ~= z")
+}
+
+if z ~= 100 {
+  io.println("z ~= 100")
+}
+
+if 100 + z ~= 200 {
+  io.println("100 + z ~= 200")
+}
+
+
+var y string = "foo"
+
+var x int = 200
+import "io"
+zz := (100, "foo")
+if (x, y) ~= zz {
+  io.println("if-match")
+  io.println(x + 1)
+  io.println(y)
+} else {
+  io.println("not if-match")
+}
+
+if (_, y) ~= zz {
+  io.println("if-match")
+  io.println(y)
+}
+
+if (100, y + 1) ~= zz {
+  io.println("if-match")
+  io.println(y)
+}
+
+zz2 := (100, (200, 300), "foo")
+
+if (100, (200, x), y) ~= zz2 {
+  io.println("if-match")
+  io.println(x)
+  io.println(y)
+}
+
+if (100, (200, _), _) ~= zz2 {
+  io.println("if-match2")
+}
+
+arr := [(100, "foo"), (200, "bar"), (404, "not found")]
+// for statement: variable and tuple only
+for (x, y) in arr {
+
+}
+
+// match-statement
+if Result.Ok(100) ~= Result.Ok(100) {
+  io.println("Result.Ok(100) ~= Result.Ok(100)")
+}
+
 i := 100
 import "io"
 
@@ -118,8 +181,8 @@ enum Option {
 opt := Option.Some(100, "foo")
 
 match opt {
-  Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
-  1 | 3 | 100 | 300 => io.println("1 | 3 | 100 | 300")
+  case Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
+  case 1 | 3 | 100 | 300 => io.println("1 | 3 | 100 | 300")
   123 => io.println("opt is 123")
   _ => io.println("not Option.Some(100, \"foo\")")
 }

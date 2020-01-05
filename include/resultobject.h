@@ -33,6 +33,7 @@ extern "C" {
 
 extern TypeObject *result_type;
 void init_result_type(void);
+void fini_result_type(void);
 
 #ifdef __cplusplus
 }

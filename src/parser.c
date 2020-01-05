@@ -1234,8 +1234,10 @@ static void parse_super(ParserState *ps, Expr *exp)
 
 static void parse_literal(ParserState *ps, Expr *exp)
 {
-  if (exp->ctx != EXPR_LOAD)
+  if (exp->ctx != EXPR_LOAD) {
     synerr(ps, exp->row, exp->col, "constant is not writable");
+    return;
+  }
 
   exp->sym = get_literal_symbol(exp->k.value.kind);
   if (!has_error(ps)) {
@@ -1580,11 +1582,24 @@ static IdCodeGen in_enum_codes[] = {
   }                                       \
 })
 
+static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc);
+
 static void parse_ident(ParserState *ps, Expr *exp)
 {
   Symbol *sym = find_id_symbol(ps, exp);
   if (sym == NULL) {
-    synerr(ps, exp->row, exp->col, "'%s' is not defined", exp->id.name);
+    if (exp->pattern != NULL) {
+      debug("[pattern]: new var '%s'", exp->id.name);
+      exp->desc = vector_get(exp->pattern->types, exp->index);
+      TYPE_INCREF(exp->desc);
+      Ident id = {exp->id.name, exp->row, exp->col};
+      exp->sym = new_update_var(ps, &id, exp->desc);
+      exp->newvar = 1;
+      debug("[pattern]: load null value");
+      CODE_OP(OP_CONST_NULL);
+    } else {
+      synerr(ps, exp->row, exp->col, "'%s' is not defined", exp->id.name);
+    }
     return;
   }
 
@@ -1595,6 +1610,14 @@ static void parse_ident(ParserState *ps, Expr *exp)
   if (has_error(ps)) {
     return;
   }
+
+/*
+  if (exp->pattern) {
+    // change var in pattern as store.
+    debug("var '%s' in pattern", exp->id.name);
+    exp->ctx = EXPR_STORE;
+  }
+*/
 
   if (exp->id.where == CURRENT_SCOPE) {
     ident_codegen(current_codes, ps, exp);
@@ -1614,6 +1637,13 @@ static void parse_underscore(ParserState *ps, Expr *exp)
   printf("expr is underscore(_)\n");
   exp->desc = desc_from_any;
   exp->sym = NULL;
+
+  if (exp->pattern != NULL) {
+    debug("[pattern]: placeholder");
+    CODE_OP(OP_CONST_NULL);
+    return;
+  }
+
   if (exp->ctx == EXPR_STORE) {
     CODE_OP(OP_POP_TOP);
   } else {
@@ -1666,8 +1696,7 @@ static void parse_unary(ParserState *ps, Expr *exp)
 
 static int bop_isbool(BinaryOpKind op)
 {
-  if ((op >= BINARY_GT && op <= BINARY_NEQ) ||
-      (op == BINARY_LAND) || (op == BINARY_LOR))
+  if (op >= BINARY_GT && op <= BINARY_LOR)
     return 1;
   else
     return 0;
@@ -1686,6 +1715,10 @@ static void parse_binary(ParserState *ps, Expr *exp)
     "__mod__",    // BINARY_MOD
     "__pow__",    // BINARY_POW
 
+    "__and__",    // BINARY_BIT_AND
+    "__xor__",    // BINARY_BIT_XOR
+    "__or__",     // BINARY_BIT_OR
+
     "__gt__",     // BINARY_GT
     "__ge__",     // BINARY_GE
     "__lt__",     // BINARY_LT
@@ -1693,14 +1726,10 @@ static void parse_binary(ParserState *ps, Expr *exp)
     "__eq__",     // BINARY_EQ
     "__neq__",    // BINARY_NEQ
 
-    "__and__",    // BINARY_BIT_AND
-    "__xor__",    // BINARY_BIT_XOR
-    "__or__",     // BINARY_BIT_OR
-
     "__land__",   // BINARY_LAND
     "__lor__",    // BINARY_LOR
   };
-
+  BinaryOpKind op = exp->binary.op;
   Expr *rexp = exp->binary.rexp;
   Expr *lexp = exp->binary.lexp;
   TypeDesc *ldesc, *rdesc;
@@ -1718,7 +1747,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
     return;
 
   int check = 1;
-  BinaryOpKind op = exp->binary.op;
   if (op == BINARY_EQ || op == BINARY_NEQ) {
     if (desc_isnull(ldesc) || desc_isnull(rdesc)) {
       check = 0;
@@ -1767,8 +1795,8 @@ static void parse_binary(ParserState *ps, Expr *exp)
     static int opcodes[] = {
       0,
       OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
-      OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
       OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
+      OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
       OP_AND, OP_OR,
     };
     expect(op >= BINARY_ADD && op <= BINARY_LOR);
@@ -2172,16 +2200,18 @@ static void parse_dottuple(ParserState *ps, Expr *exp)
 
 static void parse_subscr(ParserState *ps, Expr *exp)
 {
-  Expr *iexp = exp->subscr.index;
-  iexp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, iexp);
-
   Expr *lexp = exp->subscr.lexp;
   lexp->ctx = EXPR_LOAD;
   parser_visit_expr(ps, lexp);
-
   Symbol *lsym = lexp->sym;
   if (lsym == NULL) {
+    return;
+  }
+
+  Expr *iexp = exp->subscr.index;
+  iexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, iexp);
+  if (iexp->sym == NULL) {
     return;
   }
 
@@ -2257,9 +2287,37 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   } else {
     tmp = NULL;
   }
-  desc = specialize_types(pdesc, lexp->desc, tmp);
-  show_specialized_type(sym, desc);
+
+  // update tuple's __getitem__
+  if (desc_istuple(lexp->desc)) {
+    expect(tmp != NULL && desc_isany(tmp));
+    expect(lexp->desc->klass.typeargs != NULL);
+    if (iexp->kind != LITERAL_KIND) {
+      synerr(ps, iexp->row, iexp->col, "index must be integer");
+    } else {
+      Literal *lit = &iexp->k.value;
+      if (lit->kind != BASE_INT) {
+        synerr(ps, iexp->row, iexp->col, "index must be integer");
+      } else {
+        int64_t ival = lit->ival;
+        int sz = vector_size(lexp->desc->klass.typeargs);
+        if (ival >= sz) {
+          synerr(ps, iexp->row, iexp->col, "index must be 0...%d", sz - 1);
+        } else {
+          debug("get item from tuple by index %ld", ival);
+          desc = vector_get(lexp->desc->klass.typeargs, ival);
+          TYPE_INCREF(desc);
+        }
+      }
+    }
+  } else {
+    desc = specialize_types(pdesc, lexp->desc, tmp);
+    show_specialized_type(sym, desc);
+  }
   TYPE_DECREF(pdesc);
+
+  if (has_error(ps))
+    return;
 
   exp->desc = desc;
   exp->sym = get_type_symbol(ps, desc);
@@ -2446,6 +2504,9 @@ static void parse_call(ParserState *ps, Expr *exp)
     parser_visit_expr(ps, arg);
   }
 
+  if (has_error(ps))
+    return;
+
   Expr *lexp = exp->call.lexp;
   lexp->argc = vector_size(args);
   lexp->ctx = EXPR_CALL_FUNC;
@@ -2610,6 +2671,7 @@ static void parse_tuple(ParserState *ps, Expr *exp)
   }
 
   exp->desc = desc_from_tuple;
+
   VECTOR(subtypes);
   Expr *e;
   vector_for_each_reverse(e, exp->tuple) {
@@ -2617,8 +2679,18 @@ static void parse_tuple(ParserState *ps, Expr *exp)
       e->ctx = EXPR_STORE;
     else
       e->ctx = EXPR_LOAD;
+    e->pattern = exp->pattern;
+    e->index = idx;
     parser_visit_expr(ps, e);
     if (e->desc != NULL) {
+      if (exp->types != NULL) {
+        TypeDesc *rdesc = vector_get(exp->types, idx);
+        if (!desc_check(rdesc, e->desc)) {
+          if (!check_inherit(rdesc, e->sym, e->desc)) {
+            synerr(ps, e->row, e->col, "item %d in tuple not matched.", idx);
+          }
+        }
+      }
       vector_push_back(&subtypes, e->desc);
     }
   }
@@ -2630,12 +2702,14 @@ static void parse_tuple(ParserState *ps, Expr *exp)
   }
   vector_fini(&subtypes);
 
-  if (!has_error(ps)) {
-    if (exp->ctx == EXPR_LOAD) {
-      debug("new tuple");
-      CODE_OP_I(OP_NEW_TUPLE, size);
-    }
-  }
+  if (has_error(ps))
+    return;
+
+  if (exp->ctx != EXPR_LOAD)
+    return;
+
+  debug("new tuple");
+  CODE_OP_I(OP_NEW_TUPLE, size);
 }
 
 static TypeDesc *get_subarray_type(Vector *vec)
@@ -3320,6 +3394,71 @@ static void parse_enum_pattern(ParserState *ps, Expr *exp)
   }
 }
 
+static void parse_tuple_match(ParserState *ps, Expr *patt, Expr *some)
+{
+  some->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, some);
+  if (has_error(ps))
+    return;
+
+  if (!desc_istuple(some->desc)) {
+    synerr(ps, some->row, some->col, "right expr is not tuple");
+    return;
+  }
+
+  CODE_OP(OP_DUP);
+
+  patt->ctx = EXPR_LOAD;
+  patt->pattern->types = some->desc->klass.typeargs;
+  parser_visit_expr(ps, patt);
+  if (has_error(ps))
+    return;
+
+  if (!desc_istuple(patt->desc)) {
+    synerr(ps, patt->row, patt->col, "left expr is not tuple");
+    return;
+  }
+
+  CODE_OP_ARGC(OP_MATCH, 1);
+}
+
+static void parse_binary_match(ParserState *ps, Expr *exp)
+{
+  Expr *some = exp->binary_match.some;
+  Expr *patt = exp->binary_match.pattern;
+
+  ExprKind eknd = patt->kind;
+  switch (eknd) {
+  case TUPLE_KIND: {
+    debug("tuple pattern");
+    patt->pattern = exp;
+    parse_tuple_match(ps, patt, some);
+    break;
+  }
+  case CALL_KIND: {
+    debug("enum pattern");
+    break;
+  }
+  default: {
+    debug("no pattern");
+    Expr e = {
+      .kind = BINARY_KIND,
+      .row = exp->row,
+      .col = exp->col,
+      .binary.op = BINARY_EQ,
+      .binary.lexp = patt,
+      .binary.rexp = some,
+    };
+    parser_visit_expr(ps, &e);
+    TYPE_DECREF(e.desc);
+    break;
+  }
+  }
+  exp->sym = find_from_builtins("Bool");
+  expect(exp->sym != NULL);
+  exp->desc = desc_from_bool;
+}
+
 void parser_visit_expr(ParserState *ps, Expr *exp)
 {
   /* if errors is greater than MAX_ERRORS, stop parsing */
@@ -3354,9 +3493,10 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_new,            /* NEW_KIND           */
     parse_range,          /* RANGE_KIND         */
     parse_enum_pattern,   /* ENUM_PATTERN_KIND  */
+    parse_binary_match,   /* BINARY_MATCH_KIND  */
   };
 
-  expect(exp->kind >= NULL_KIND && exp->kind <= ENUM_PATTERN_KIND);
+  expect(exp->kind >= NULL_KIND && exp->kind <= BINARY_MATCH_KIND);
   handlers[exp->kind](ps, exp);
 
   /* function's return maybe null */
@@ -4050,6 +4190,36 @@ static void parse_block(ParserState *ps, Stmt *stmt)
   parser_exit_scope(ps);
 }
 
+static void parse_if_unbox(ParserState *ps, Vector *exps)
+{
+  if (has_error(ps))
+    return;
+
+  // handle unpacked objects
+  Symbol *sym;
+  Expr *item;
+  vector_for_each_reverse(item, exps) {
+    sym = item->sym;
+    if (item->newvar && sym->kind == SYM_VAR) {
+      debug("store var '%s', index %d", sym->name, sym->var.index);
+      CODE_OP(OP_DUP);
+      CODE_OP_I(OP_LOAD_CONST, item->index);
+      CODE_OP(OP_SUBSCR_LOAD);
+      CODE_STORE(sym->var.index);
+    } else if (item->kind == TUPLE_KIND) {
+      debug("item is tuple in if-pattern");
+      CODE_OP(OP_DUP);
+      CODE_OP_I(OP_LOAD_CONST, item->index);
+      CODE_OP(OP_SUBSCR_LOAD);
+      parse_if_unbox(ps, item->tuple);
+    } else {
+      debug("do nothing of if-unbox");
+    }
+  }
+  // pop some object
+  CODE_OP(OP_POP_TOP);
+}
+
 static void parse_if(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_BLOCK, IF_BLOCK);
@@ -4068,17 +4238,29 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     // optimize binary compare operator
     parser_visit_expr(ps, test);
     if (!desc_isbool(test->desc)) {
-      synerr(ps, test->row, test->col, "expected bool type");
+      synerr(ps, test->row, test->col, "expr is expected as bool");
     }
     jmp = CODE_OP(OP_JMP_FALSE);
     offset = codeblock_bytes(u->block);
   }
 
   if (block != NULL) {
+    if (test != NULL && test->kind == BINARY_MATCH_KIND) {
+      Expr *patt = test->binary_match.pattern;
+      if (patt->kind == TUPLE_KIND) {
+        parse_if_unbox(ps, patt->tuple);
+      } else if (patt->kind == CALL_KIND) {
+
+      } else {
+        debug("no pattern in if-statement");
+      }
+    }
+
     Stmt *s;
     vector_for_each(s, block) {
       parse_stmt(ps, s);
     }
+
     if (orelse != NULL) {
       jmp2 = CODE_OP(OP_JMP);
       offset2 = codeblock_bytes(u->block);
@@ -4118,7 +4300,7 @@ static void parse_while(ParserState *ps, Stmt *stmt)
     // optimize binary compare operator
     parser_visit_expr(ps, test);
     if (!desc_isbool(test->desc)) {
-      synerr(ps, test->row, test->col, "expected bool type");
+      synerr(ps, test->row, test->col, "expr is expected as bool");
     }
     jmp = CODE_OP(OP_JMP_FALSE);
     offset = codeblock_bytes(u->block);

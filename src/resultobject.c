@@ -116,10 +116,15 @@ void init_result_type(void)
   vector_push_back(&prefs, pref);
   type_add_label(result_type, err_str, &prefs);
   TYPE_DECREF(pref);
-  vector_clear(&prefs);
+  vector_fini(&prefs);
 
   type_add_methoddefs(result_type, result_methods);
 
   if (type_ready(result_type) < 0)
     panic("Cannot initalize 'Result' type.");
+}
+
+void fini_result_type(void)
+{
+  OB_DECREF(result_type);
 }

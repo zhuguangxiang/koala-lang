@@ -225,6 +225,9 @@ struct typeobject {
   /* __str__   */
   func_t str;
 
+  /* __match__ */
+  func_t match;
+
   /* number operations */
   NumberMethods *number;
   /* mapping operations */

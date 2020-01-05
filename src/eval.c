@@ -340,8 +340,8 @@ static Object *do_match(Object *match, Object *pattern)
     }
   } else {
     Object *z;
-    func_t fn = OB_NUM_FUNC(match, eq);
-    call_op_func(z, match, OP_EQ, pattern);
+    func_t fn = OB_TYPE(pattern)->match;
+    call_op_func(z, match, OP_MATCH, pattern);
     return z;
   }
 }
@@ -946,8 +946,8 @@ Object *Koala_EvalFrame(CallFrame *f)
       break;
     }
     case OP_SUBSCR_LOAD: {
-      x = POP();
       y = POP();
+      x = POP();
       fn = OB_MAP_FUNC(x, getitem);
       call_op_func(z, x, OP_SUBSCR_LOAD, y);
       PUSH(z);
@@ -1252,9 +1252,11 @@ Object *Koala_EvalFrame(CallFrame *f)
           OB_DECREF(v);
         }
       }
-      x = TOP();
+      //x = TOP();
+      x = POP();
       z = do_match(x, y);
       PUSH(z);
+      OB_DECREF(x);
       OB_DECREF(y);
       break;
     }

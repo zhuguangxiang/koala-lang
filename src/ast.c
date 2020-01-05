@@ -290,6 +290,15 @@ Expr *expr_enum_pattern(Ident id, Ident *ename, Ident *mname, Vector *exps)
   return exp;
 }
 
+Expr *expr_from_binary_match(Expr *pattern, Expr *some)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = BINARY_MATCH_KIND;
+  exp->binary_match.pattern = pattern;
+  exp->binary_match.some = some;
+  return exp;
+}
+
 void exprlist_free(Vector *vec)
 {
   Expr *exp;
@@ -405,6 +414,11 @@ void expr_free(Expr *exp)
     break;
   case ENUM_PATTERN_KIND:
     exprlist_free(exp->enum_pattern.exps);
+    kfree(exp);
+    break;
+  case BINARY_MATCH_KIND:
+    expr_free(exp->binary_match.pattern);
+    expr_free(exp->binary_match.some);
     kfree(exp);
     break;
   default:

@@ -434,6 +434,9 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
     if (strcmp(name1, name2))
       return 0;
 
+    if (desc_istuple(desc1))
+      return 1;
+
     if (!check_subdesc(desc1, desc2))
       return 0;
 
