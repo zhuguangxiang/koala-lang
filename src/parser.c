@@ -2692,6 +2692,9 @@ static void parse_tuple(ParserState *ps, Expr *exp)
         }
       }
       vector_push_back(&subtypes, e->desc);
+      if (e->newvar) {
+        exp->newvar = 1;
+      }
     }
   }
 
@@ -4206,7 +4209,7 @@ static void parse_if_unbox(ParserState *ps, Vector *exps)
       CODE_OP_I(OP_LOAD_CONST, item->index);
       CODE_OP(OP_SUBSCR_LOAD);
       CODE_STORE(sym->var.index);
-    } else if (item->kind == TUPLE_KIND) {
+    } else if (item->newvar && item->kind == TUPLE_KIND) {
       debug("item is tuple in if-pattern");
       CODE_OP(OP_DUP);
       CODE_OP_I(OP_LOAD_CONST, item->index);
