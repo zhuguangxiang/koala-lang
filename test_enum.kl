@@ -1,0 +1,7 @@
+
+import "io"
+
+Result.<int, string>.Err("error")
+Result.Ok(100)
+
+var r Result<int, string> = Result.Ok(100)

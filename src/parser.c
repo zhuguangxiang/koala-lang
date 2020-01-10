@@ -2221,6 +2221,9 @@ static void parse_dottypeargs(ParserState *ps, Expr *exp)
     return;
   }
 
+  if (has_error(ps))
+    return;
+
   Symbol *lsym = lexp->sym;
   Vector *types = exp->typeargs.types;
   parse_subtype(ps, lsym, types);
@@ -2518,6 +2521,15 @@ void parse_label_tpvals(Symbol *sym, Vector *args,
   }
 }
 
+static void parse_enum_value(ParserState *ps, Expr *exp)
+{
+  Expr *lexp = exp->call.lexp;
+  Vector *args = exp->call.args;
+  Symbol *esym = lexp->sym->label.esym;
+  int sz = vector_size(esym->type.typesyms);
+
+}
+
 static void parse_call(ParserState *ps, Expr *exp)
 {
   Vector *args = exp->call.args;
@@ -2576,6 +2588,7 @@ static void parse_call(ParserState *ps, Expr *exp)
       }
     }
   } else if (desc->kind == TYPE_LABEL) {
+    parse_enum_value(ps, exp);
     Symbol *esym = lexp->sym->label.esym;
     int sz = vector_size(esym->type.typesyms);
     if (sz > 0) {

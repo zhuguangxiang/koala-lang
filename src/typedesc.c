@@ -332,6 +332,17 @@ void desc_tostr(TypeDesc *desc, StrBuf *buf)
   }
   case TYPE_LABEL: {
     desc_tostr(desc->label.edesc, buf);
+    if (desc->label.types != NULL) {
+      strbuf_append_char(buf, '<');
+      int size = vector_size(desc->label.types);
+      TypeDesc *item;
+      vector_for_each(item, desc->label.types) {
+        desc_tostr(item, buf);
+        if (idx < size - 1)
+          strbuf_append(buf, ", ");
+      }
+      strbuf_append_char(buf, '>');
+    }
     break;
   }
   default:
