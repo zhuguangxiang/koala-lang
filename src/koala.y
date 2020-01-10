@@ -1119,9 +1119,13 @@ dot_expr:
   IDENT(id, $3, @3);
   $$ = expr_from_attribute(id, $1);
 }
+| primary_expr '.' INT_LITERAL
+{
+  $$ = expr_from_dottuple($3, $1);
+}
 | primary_expr '.' '<' type_list '>'
 {
-  $$ = NULL;
+  $$ = expr_from_typeargs($4, $1);
 }
 ;
 

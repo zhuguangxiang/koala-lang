@@ -1552,10 +1552,10 @@ static IdCodeGen up_codes[] = {
 
 static IdCodeGen builtin_codes[] = {
   {SCOPE_MODULE,  ident_builtin_mod},
-  {SCOPE_CLASS,   NULL},
-  {SCOPE_FUNC,    NULL},
-  {SCOPE_BLOCK,   NULL},
-  {SCOPE_ANONY,   NULL},
+  {SCOPE_CLASS,   ident_builtin_mod},
+  {SCOPE_FUNC,    ident_builtin_mod},
+  {SCOPE_BLOCK,   ident_builtin_mod},
+  {SCOPE_ANONY,   ident_builtin_mod},
   {0, NULL},
 };
 
@@ -1939,9 +1939,27 @@ TypeDesc *specialize(TypeDesc *ref, Vector *tpvec)
     TypeDesc *desc = vector_get(tpvec, ref->pararef.index);
     return TYPE_INCREF(desc);
   }
-  case TYPE_BASE:
-  case TYPE_LABEL: {
+  case TYPE_BASE: {
     return TYPE_INCREF(ref);
+  }
+  case TYPE_LABEL: {
+    Vector *typeargs = vector_new();
+    TypeDesc *item;
+    vector_for_each(item, ref->label.types) {
+      item = specialize(item, tpvec);
+      vector_push_back(typeargs, item);
+    }
+    if (vector_size(typeargs) != 0) {
+      TypeDesc *desc = desc_from_label(ref->label.edesc, typeargs);
+      TypeDesc *item;
+      vector_for_each(item, typeargs) {
+        TYPE_DECREF(item);
+      }
+      return desc;
+    } else {
+      vector_free(typeargs);
+      return TYPE_INCREF(ref);
+    }
   }
   default:
     panic("which type? generic type bug!");
@@ -2164,6 +2182,64 @@ static void parse_attr(ParserState *ps, Expr *exp)
   }
 }
 
+static void parse_dottuple(ParserState *ps, Expr *exp)
+{
+  expect(exp->ctx == EXPR_LOAD);
+
+  Expr *lexp = exp->dottuple.lexp;
+  lexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, lexp);
+  if (!desc_istuple(lexp->desc)) {
+    synerr(ps, lexp->row, lexp->col, "expr is not tuple.");
+  }
+
+  TypeDesc *ldesc = lexp->desc;
+  int size = vector_size(ldesc->klass.typeargs);
+  int64_t index = exp->dottuple.index;
+  if (index >= size) {
+    synerr(ps, exp->row, exp->col, "index out of range(0..<%d)", size);
+  }
+
+  if (!has_error(ps)) {
+    CODE_OP_I(OP_LOAD_CONST, index);
+    exp->desc = vector_get(ldesc->klass.typeargs, index);
+    TYPE_INCREF(exp->desc);
+    exp->sym = get_type_symbol(ps, exp->desc);
+    expect(exp->sym != NULL);
+    CODE_OP(OP_SUBSCR_LOAD);
+  }
+}
+
+static void parse_dottypeargs(ParserState *ps, Expr *exp)
+{
+  Expr *lexp = exp->typeargs.lexp;
+  lexp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, lexp);
+  TypeDesc *ldesc = lexp->desc;
+  if (ldesc != NULL && ldesc->kind != TYPE_KLASS) {
+    synerr(ps, lexp->row, lexp->col, "expr is not class.");
+    return;
+  }
+
+  Symbol *lsym = lexp->sym;
+  Vector *types = exp->typeargs.types;
+  parse_subtype(ps, lsym, types);
+
+  exp->sym = lexp->sym;
+  exp->desc = desc_dup(ldesc);
+  TypeDesc *type;
+  vector_for_each(type, types) {
+    desc_add_paratype(exp->desc, type);
+  }
+
+#if !defined(NLog)
+  STRBUF(sbuf);
+  desc_tostr(exp->desc, &sbuf);
+  debug("type: %s", strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+#endif
+}
+
 static void parse_subscr(ParserState *ps, Expr *exp)
 {
   Expr *lexp = exp->subscr.lexp;
@@ -2256,26 +2332,8 @@ static void parse_subscr(ParserState *ps, Expr *exp)
 
   // update tuple's __getitem__
   if (desc_istuple(lexp->desc)) {
-    expect(tmp != NULL && desc_isany(tmp));
-    expect(lexp->desc->klass.typeargs != NULL);
-    if (iexp->kind != LITERAL_KIND) {
-      synerr(ps, iexp->row, iexp->col, "index must be integer");
-    } else {
-      Literal *lit = &iexp->k.value;
-      if (lit->kind != BASE_INT) {
-        synerr(ps, iexp->row, iexp->col, "index must be integer");
-      } else {
-        int64_t ival = lit->ival;
-        int sz = vector_size(lexp->desc->klass.typeargs);
-        if (ival >= sz) {
-          synerr(ps, iexp->row, iexp->col, "index must be 0...%d", sz - 1);
-        } else {
-          debug("get item from tuple by index %ld", ival);
-          desc = vector_get(lexp->desc->klass.typeargs, ival);
-          TYPE_INCREF(desc);
-        }
-      }
-    }
+    desc = NULL;
+    synerr(ps, lexp->row, lexp->col, "cannot access tuple by subscript.");
   } else {
     desc = specialize_types(pdesc, lexp->desc, tmp);
     show_specialized_type(sym, desc);
@@ -2467,6 +2525,8 @@ static void parse_call(ParserState *ps, Expr *exp)
   Expr *arg;
   vector_for_each_reverse(arg, args) {
     arg->ctx = EXPR_LOAD;
+    arg->pattern = exp->pattern;
+    arg->index = idx;
     parser_visit_expr(ps, arg);
   }
 
@@ -3391,6 +3451,37 @@ static void parse_tuple_match(ParserState *ps, Expr *patt, Expr *some)
   CODE_OP_ARGC(OP_MATCH, 1);
 }
 
+static void parse_enum_match(ParserState *ps, Expr *patt, Expr *some)
+{
+  some->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, some);
+  if (has_error(ps))
+    return;
+
+  Symbol *sym = some->sym;
+  if (sym->kind == SYM_VAR)
+    sym = sym->var.typesym;
+  if (sym->kind != SYM_ENUM) {
+    synerr(ps, some->row, some->col, "right expr is not enum");
+    return;
+  }
+
+  CODE_OP(OP_DUP);
+
+  patt->ctx = EXPR_LOAD;
+  patt->pattern->types = some->desc->klass.typeargs;
+  parser_visit_expr(ps, patt);
+  if (has_error(ps))
+    return;
+
+  if (patt->sym->kind != SYM_ENUM) {
+    synerr(ps, patt->row, patt->col, "left expr is not enum");
+    return;
+  }
+
+  CODE_OP_ARGC(OP_MATCH, 1);
+}
+
 static void parse_binary_match(ParserState *ps, Expr *exp)
 {
   Expr *some = exp->binary_match.some;
@@ -3406,6 +3497,8 @@ static void parse_binary_match(ParserState *ps, Expr *exp)
   }
   case CALL_KIND: {
     debug("enum pattern");
+    patt->pattern = exp;
+    parse_enum_match(ps, patt, some);
     break;
   }
   default: {
@@ -3452,6 +3545,8 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_subscr,         /* SUBSCRIPT_KIND     */
     parse_call,           /* CALL_KIND          */
     parse_slice,          /* SLICE_KIND         */
+    parse_dottypeargs,    /* DOT_TYPEARGS_KIND  */
+    parse_dottuple,       /* DOT_TUPLE_KIND     */
     parse_tuple,          /* TUPLE_KIND         */
     parse_array,          /* ARRAY_KIND         */
     parse_map,            /* MAP_KIND           */
@@ -4218,7 +4313,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
       if (patt->kind == TUPLE_KIND) {
         parse_if_unbox(ps, patt->tuple);
       } else if (patt->kind == CALL_KIND) {
-
+        parse_if_unbox(ps, patt->call.args);
       } else {
         debug("no pattern in if-statement");
       }
@@ -4745,7 +4840,7 @@ void parse_bound(ParserState *ps, Symbol *sym, Vector *bounds)
      return;
 
     if (idx > 0 && bndsym->kind == SYM_CLASS) {
-      synerr(ps, 0, 0, " expect '%s' is a trait", item->klass.type);
+      synerr(ps, 0, 0, "expect '%s' is a trait", item->klass.type);
       return;
     }
 

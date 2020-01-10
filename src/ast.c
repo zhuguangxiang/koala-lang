@@ -152,6 +152,16 @@ Expr *expr_from_attribute(Ident id, Expr *left)
   return exp;
 }
 
+Expr *expr_from_typeargs(Vector *types, Expr *left)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = DOT_TYPEARGS_KIND;
+  exp->typeargs.types = types;
+  exp->typeargs.lexp = left;
+  left->right = exp;
+  return exp;
+}
+
 Expr *expr_from_subscr(Expr *left, Expr *index)
 {
   Expr *exp = kmalloc(sizeof(Expr));
@@ -180,6 +190,15 @@ Expr *expr_from_slice(Expr *left, Expr *start, Expr *end)
   exp->slice.end = end;
   exp->slice.lexp = left;
   left->right = exp;
+  return exp;
+}
+
+Expr *expr_from_dottuple(int64_t index, Expr *left)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = DOT_TUPLE_KIND;
+  exp->dottuple.index = index;
+  exp->dottuple.lexp = left;
   return exp;
 }
 
@@ -355,6 +374,15 @@ void expr_free(Expr *exp)
     expr_free(exp->slice.start);
     expr_free(exp->slice.end);
     expr_free(exp->slice.lexp);
+    kfree(exp);
+    break;
+  case DOT_TYPEARGS_KIND:
+    free_descs(exp->typeargs.types);
+    expr_free(exp->typeargs.lexp);
+    kfree(exp);
+    break;
+  case DOT_TUPLE_KIND:
+    expr_free(exp->dottuple.lexp);
     kfree(exp);
     break;
   case TUPLE_KIND:

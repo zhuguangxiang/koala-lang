@@ -52,6 +52,7 @@ Object *enum_new(Object *ob, char *name, Object *values);
 int enum_check_byname(Object *ob, Object *name);
 int enum_check_value(Object *ob, Object *idx, Object *val);
 Object *enum_get_value(Object *ob, int index);
+Object *enum_match(Object *patt, Object *some);
 
 #ifdef __cplusplus
 }

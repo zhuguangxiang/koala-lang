@@ -332,12 +332,8 @@ static Object *do_match(Object *match, Object *pattern)
     return in_range(pattern, match);
   } else if (bool_check(pattern)) {
     return (match == pattern) ? bool_true() : bool_false();
-  } else if (type_isenum(OB_TYPE(match))) {
-    if (tuple_check(pattern)) {
-      return do_match_enum_args(match, pattern);
-    } else {
-      return enum_check_byname(match, pattern) ? bool_true() : bool_false();
-    }
+  } else if (type_isenum(OB_TYPE(pattern))) {
+    return enum_match(pattern, match);
   } else {
     Object *z;
     func_t fn = OB_TYPE(pattern)->match;

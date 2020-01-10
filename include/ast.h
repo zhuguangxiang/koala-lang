@@ -277,6 +277,10 @@ typedef enum exprkind {
   UNARY_KIND, BINARY_KIND, TERNARY_KIND,
   /* dot, [], (), [:] access */
   ATTRIBUTE_KIND, SUBSCRIPT_KIND, CALL_KIND, SLICE_KIND,
+  /* type arguments */
+  DOT_TYPEARGS_KIND,
+  /* dot tuple */
+  DOT_TUPLE_KIND,
   /* tuple, array, map, anonymous */
   TUPLE_KIND, ARRAY_KIND, MAP_KIND, ANONY_KIND,
   /* is, as */
@@ -422,6 +426,10 @@ struct expr {
       Expr *some;
       Expr *pattern;
     } binary_match;
+    struct {
+      Vector *types;
+      Expr *lexp;
+    } typeargs;
   };
 };
 
@@ -444,9 +452,11 @@ Expr *expr_from_unary(UnaryOpKind op, Expr *exp);
 Expr *expr_from_binary(BinaryOpKind op, Expr *left, Expr *right);
 Expr *expr_from_ternary(Expr *test, Expr *left, Expr *right);
 Expr *expr_from_attribute(Ident id, Expr *left);
+Expr *expr_from_typeargs(Vector *types, Expr *left);
 Expr *expr_from_subscr(Expr *left, Expr *index);
 Expr *expr_from_call(Vector *args, Expr *left);
 Expr *expr_from_slice(Expr *left, Expr *start, Expr *end);
+Expr *expr_from_dottuple(int64_t index, Expr *left);
 Expr *expr_from_tuple(Vector *exps);
 Expr *expr_from_array(Vector *exps);
 MapEntry *new_mapentry(Expr *key, Expr *val);

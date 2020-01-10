@@ -142,8 +142,25 @@ static Object *enum_equal(Object *ob1, Object *ob2)
   return bool_true();
 }
 
+Object *enum_match(Object *patt, Object *some)
+{
+  return bool_true();
+}
+
+static Object *enum_getitem(Object *self, Object *args)
+{
+  if (!integer_check(args)) {
+    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(args));
+    return NULL;
+  }
+
+  int index = (int)integer_asint(args);
+  return enum_get_value(self, index);
+}
+
 static MethodDef enum_methods[] = {
   {"__eq__", "A", "z", enum_equal},
+  {"__getitem__", "i", "A", enum_getitem},
   {NULL},
 };
 

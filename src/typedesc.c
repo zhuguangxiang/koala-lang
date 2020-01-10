@@ -331,6 +331,7 @@ void desc_tostr(TypeDesc *desc, StrBuf *buf)
     break;
   }
   case TYPE_LABEL: {
+    desc_tostr(desc->label.edesc, buf);
     break;
   }
   default:
