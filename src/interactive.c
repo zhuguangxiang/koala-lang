@@ -295,12 +295,7 @@ static void cmd_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
     lblsym = stable_add_label(stbl, label->id.name);
     if (lblsym == NULL) {
       synerr(ps, label->id.row, label->id.col,
-                   "enum label '%s' duplicated.", label->id.name);
-    } else {
-      lblsym->label.esym = sym;
-      lblsym->desc = desc_from_label(sym->desc, label->types);
-      lblsym->label.types = label->types;
-      label->types = NULL;
+            "enum label '%s' duplicated.", label->id.name);
     }
   }
 }

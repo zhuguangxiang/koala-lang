@@ -210,6 +210,38 @@ static inline int codeblock_bytes(CodeBlock *block)
   return block->bytes;
 }
 
+static inline Inst *codeblock_last_inst(CodeBlock *b)
+{
+  if (b == NULL)
+    return NULL;
+  return (Inst *)list_last(&b->insts);
+}
+
+static void codeblock_move(CodeBlock *b, Inst *start, Inst *end)
+{
+  if (b == NULL)
+    return;
+
+  Inst *rover = NULL;
+  if (start == NULL) {
+    rover = (Inst *)list_first(&b->insts);
+  } else {
+    rover = (Inst *)list_next(&start->link, &b->insts);
+  }
+
+  while (rover != end) {
+    list_del(&rover->link);
+    list_add_tail(&rover->link, &b->insts);
+    if (start == NULL) {
+      rover = (Inst *)list_first(&b->insts);
+    } else {
+      rover = (Inst *)list_next(&start->link, &b->insts);
+    }
+  }
+  list_del(&end->link);
+  list_add_tail(&end->link, &b->insts);
+}
+
 static inline void codeblock_add_inst(CodeBlock *b, Inst *i)
 {
   list_add_tail(&i->link, &b->insts);
@@ -2084,6 +2116,20 @@ static void parse_attr(ParserState *ps, Expr *exp)
         }
       }
     }
+
+    // no associcated types, check type parameters
+    if (exp->right == NULL) {
+      TypeDesc *tmp;
+      Symbol *tpsym;
+      vector_for_each(tpsym, lsym->type.typesyms) {
+        tmp = vector_get(ldesc->klass.typeargs, idx);
+        if (tmp == NULL) {
+          synerr(ps, exp->row, exp->col,
+                "type parameter '%s' could not inferred.", tpsym->name);
+        }
+      }
+    }
+
     break;
   }
   case SYM_LABEL: {
@@ -2122,6 +2168,20 @@ static void parse_attr(ParserState *ps, Expr *exp)
       exp->sym = sym;
       exp->desc = specialize_types(pdesc, ldesc, sym->desc);
       TYPE_DECREF(pdesc);
+      if (exp->desc->kind == TYPE_LABEL) {
+        // maybe update type arguments
+        TypeDesc *edesc = exp->desc->label.edesc;
+        if (edesc->klass.typeargs == NULL &&
+            vector_size(ldesc->klass.typeargs) > 0) {
+          edesc = desc_dup(edesc);
+          TypeDesc *item;
+          vector_for_each(item, ldesc->klass.typeargs) {
+            desc_add_paratype(edesc, item);
+          }
+          TYPE_DECREF(exp->desc->label.edesc);
+          exp->desc->label.edesc = edesc;
+        }
+      }
       show_specialized_type(sym, exp->desc);
     }
   }
@@ -3877,21 +3937,12 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
 {
   Expr *rexp = stmt->assign.rexp;
   Expr *lexp = stmt->assign.lexp;
+  Inst *start, *end;
 
-  // enum auto detect, how?
-
-  rexp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, rexp);
-
-  if (lexp->kind == TUPLE_KIND) {
-    if (!has_error(ps) && desc_istuple(rexp->desc)) {
-      // unpack tuple
-      CODE_OP(OP_UNPACK_TUPLE);
-    }
-  }
-
+  start = codeblock_last_inst(ps->u->block);
   lexp->ctx = EXPR_STORE;
   parser_visit_expr(ps, lexp);
+  end = codeblock_last_inst(ps->u->block);
 
   Symbol *sym = lexp->sym;
   if (sym == NULL)
@@ -3901,6 +3952,19 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
     synerr(ps, rexp->row, rexp->col, "cannot assign to '%s'", sym->name);
     return;
   }
+
+  rexp->ctx = EXPR_LOAD;
+  rexp->decl_desc = lexp->desc;
+  parser_visit_expr(ps, rexp);
+
+  if (lexp->kind == TUPLE_KIND) {
+    if (!has_error(ps) && desc_istuple(rexp->desc)) {
+      // unpack tuple
+      CODE_OP(OP_UNPACK_TUPLE);
+    }
+  }
+
+  codeblock_move(ps->u->block, start, end);
 
   if (has_error(ps))
     return;
@@ -5150,6 +5214,53 @@ static void parse_enum(ParserState *ps, Stmt *stmt)
   parser_enter_scope(ps, SCOPE_CLASS, 0);
   ps->u->sym = sym;
   ps->u->stbl = sym->type.stbl;
+
+  parse_typepara_decl(ps, stmt->enum_stmt.typeparas);
+
+  /* parse enum labels' associated types */
+  Vector *labels = stmt->enum_stmt.mbrs.labels;
+  STable *stbl = ps->u->stbl;
+  Symbol *lblsym;
+  EnumLabel *label;
+  vector_for_each(label, labels) {
+    lblsym = stable_get(stbl, label->id.name);
+    if (lblsym == NULL) {
+      synerr(ps, label->id.row, label->id.col,
+            "'%s' is not defined", label->id.name);
+      continue;
+    }
+
+    lblsym->label.esym = sym;
+    Vector *vec = vector_new();
+    Symbol *isym;
+    TypeDesc *item;
+    vector_for_each(item, label->types) {
+      isym = get_type_symbol(ps, item);
+      if (isym == NULL) {
+        STRBUF(sbuf);
+        desc_tostr(item, &sbuf);
+        synerr(ps, 0, 0, "'%s' is not defined", strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
+      } else {
+        if (isym->kind == SYM_CLASS || isym->kind == SYM_TRAIT) {
+          parse_subtype(ps, isym, item->klass.typeargs);
+          TYPE_INCREF(item);
+        } else if (isym->kind == SYM_PTYPE) {
+          item = desc_from_pararef(isym->name, isym->paratype.index);
+        }
+        vector_push_back(vec, item);
+      }
+    }
+
+    if (vector_size(vec) > 0) {
+      lblsym->label.types = vec;
+      lblsym->desc = desc_from_label(sym->desc, vec);
+    } else {
+      vector_free(vec);
+      lblsym->label.types = NULL;
+      lblsym->desc = desc_from_label(sym->desc, NULL);
+    }
+  }
 
   /* parse enum methods */
   Vector *methods = stmt->enum_stmt.mbrs.methods;

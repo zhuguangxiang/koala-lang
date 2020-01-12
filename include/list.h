@@ -112,6 +112,13 @@ void list_del(struct list_head *entry)
 /* Gets the last element from a list */
 #define list_last(head) (list_empty(head) ? NULL : (head)->prev)
 
+/* Get the next element in list */
+#define list_next(pos, head) \
+({ \
+  struct list_head *next = (pos)->next; \
+  (next == head) ? NULL : next; \
+})
+
 /* iterate over a list */
 #define list_for_each(pos, head) \
   for (pos = (head)->next; pos != (head); pos = pos->next)
