@@ -19,6 +19,7 @@ if 100 + z ~= 200 {
 var y string = "foo"
 
 var x int = 200
+
 import "io"
 zz := (100, "foo")
 if (x, y) ~= zz {
@@ -58,8 +59,35 @@ for (x, y) in arr {
 }
 
 // match-statement
+import "io"
 if Result.Ok(100) ~= Result.Ok(100) {
   io.println("Result.Ok(100) ~= Result.Ok(100)")
+}
+
+if Result.Ok(x) ~= Result.Ok(100) {
+  io.println("Result.Ok(x) ~= Result.Ok(100)")
+  io.println(x)
+}
+
+ok := Result.Ok("foo")
+if Result.Ok(x) ~= ok {
+  io.println("Result.Ok(x) ~= ok")
+  io.println(x)
+}
+
+ok2 := Result.Ok("foo")
+if ok2 ~= ok {
+  io.println("ok2 ~= ok")
+}
+
+ok3 := Result.Ok((100, "foo"))
+if Result.Ok((_, y)) ~= ok3 {
+  io.println("Result.Ok((_, y)) ~= ok3")
+}
+
+if Result.Ok(x) ~= Result.Err(100) {
+  io.println("Result.Ok(x) ~= Result.Err(100)")
+  io.println(x)
 }
 
 i := 100

@@ -314,6 +314,7 @@ struct expr {
   ExprCtx ctx;
   Symbol *sym;
   TypeDesc *desc;
+  TypeDesc *decl_desc;
   Expr *right;
   Stmt *inplace;
   char *funcname;

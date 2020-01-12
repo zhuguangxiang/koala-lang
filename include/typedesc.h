@@ -190,6 +190,7 @@ TypeDesc *str_to_proto(char *ptype, char *rtype);
 #define desc_isproto(desc)  ((desc)->kind == TYPE_PROTO)
 #define desc_istuple(desc) \
   ((desc)->kind == TYPE_KLASS && \
+  (desc)->klass.path != NULL && \
   !strcmp((desc)->klass.path, "lang") && \
   !strcmp((desc)->klass.type, "Tuple"))
 #define desc_isnull(desc)   ((desc) == &type_base_null)

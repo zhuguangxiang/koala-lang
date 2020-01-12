@@ -130,8 +130,12 @@ static Object *enum_equal(Object *ob1, Object *ob2)
   // check associated values
   Object *values1 = eob1->values;
   Object *values2 = eob2->values;
+  if (values1 == NULL && values2 == NULL)
+    return bool_true();
+
   if (tuple_size(values1) != tuple_size(values2))
     return bool_false();
+
   Object *item1;
   Object *item2;
   tuple_for_each(item1, values1) {
@@ -139,6 +143,7 @@ static Object *enum_equal(Object *ob1, Object *ob2)
     if (OB_TYPE(item1) != OB_TYPE(item2))
       return bool_false();
   }
+
   return bool_true();
 }
 

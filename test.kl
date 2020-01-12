@@ -611,34 +611,35 @@ func test_cost() {
 }
 test_cost()
 
-enum Result {
+enum Result2 {
   Ok,
   Err(int, string),
 }
 
-Result.Ok
+Result2.Ok
+
 // error: enum 'Err' needs values
-// Result.Err
-// error: enum args check failed
-// Result.Err(1, 2)
-Result.Err(1, "hello")
+Result2.Err
 
-// error: symbol 'assert' is duplicated
-//import "assert"
+// error: expected 'string', but found 'int'
+Result2.Err(1, 2)
+Result2.Err(1, "hello")
 
-ok := Result.Ok
-assert.equal(ok, Result.Ok)
+import "assert"
 
-err := Result.Err(1, "foo")
-assert.equal(err, Result.Err(1, "foo"))
+ok := Result2.Ok
+assert.equal(ok, Result2.Ok)
+
+err := Result2.Err(1, "foo")
+assert.equal(err, Result2.Err(1, "foo"))
 
 ok == err
 
-var ok2 Result = Result.Ok
+var ok2 Result2 = Result2.Ok
 
-enum Option {
+enum Option<T> {
   None,
-  Some(int, string),
+  Some(T),
 
   func is_some() bool {
     return (self == None) ? false : true

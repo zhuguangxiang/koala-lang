@@ -1950,11 +1950,17 @@ TypeDesc *specialize(TypeDesc *ref, Vector *tpvec)
       vector_push_back(typeargs, item);
     }
     if (vector_size(typeargs) != 0) {
-      TypeDesc *desc = desc_from_label(ref->label.edesc, typeargs);
+      TypeDesc *edesc = desc_dup(ref->label.edesc);
       TypeDesc *item;
+      vector_for_each(item, tpvec) {
+        desc_add_paratype(edesc, item);
+      }
+      TypeDesc *desc = desc_from_label(edesc, typeargs);
+      TYPE_DECREF(edesc);
       vector_for_each(item, typeargs) {
         TYPE_DECREF(item);
       }
+      vector_free(typeargs);
       return desc;
     } else {
       vector_free(typeargs);
@@ -1992,7 +1998,7 @@ static void show_specialized_type(Symbol *sym, TypeDesc *desc)
 {
   STRBUF(sbuf);
   desc_tostr(desc, &sbuf);
-  debug("sym '%s' \x1b[1;35mspecialized-type: \x1b[0m%s\n",
+  debug("sym '%s' \x1b[1;35mspecialized-type: \x1b[0m%s",
         sym->name, strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
 }
@@ -2064,6 +2070,19 @@ static void parse_attr(ParserState *ps, Expr *exp)
     if (lexp->kind == ID_KIND && sym != NULL && sym->kind != SYM_LABEL) {
       // only allowed SYM_LABEL
       sym = NULL;
+    }
+
+    // try to get type parameters from variable declaration.
+    if (vector_size(ldesc->klass.typeargs) <= 0) {
+      TypeDesc *decl_desc = exp->decl_desc;
+      if (decl_desc != NULL) {
+        debug("try to get type arguments from vardecl");
+        expect(decl_desc->kind == TYPE_KLASS);
+        TypeDesc *item;
+        vector_for_each(item, decl_desc->klass.typeargs) {
+          desc_add_paratype(ldesc, item);
+        }
+      }
     }
     break;
   }
@@ -2395,7 +2414,8 @@ static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
   return 0;
 }
 
-static int check_label_args(TypeDesc *label, Vector *args, Vector *tpvals)
+static int check_label_args(ParserState *ps, TypeDesc *label, Vector *args,
+                            Vector *tpvals)
 {
   Vector *descs = label->label.types;
   int sz = vector_size(descs);
@@ -2410,8 +2430,18 @@ static int check_label_args(TypeDesc *label, Vector *args, Vector *tpvals)
     arg = vector_get(args, i);
     if (desc->kind == TYPE_PARAREF)
       desc = vector_get(tpvals, desc->pararef.index);
-    if (!desc_check(desc, arg->desc))
+    if (!desc_check(desc, arg->desc) &&
+        !check_inherit(desc, arg->sym, arg->desc)) {
+      STRBUF(sbuf1);
+      STRBUF(sbuf2);
+      desc_tostr(desc, &sbuf1);
+      desc_tostr(arg->desc, &sbuf2);
+      synerr(ps, arg->row, arg->col, "expected '%s', but found '%s'",
+            strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      strbuf_fini(&sbuf1);
+      strbuf_fini(&sbuf2);
       return -1;
+    }
   }
   return 0;
 }
@@ -2437,14 +2467,14 @@ void parse_typepara_value(TypeDesc *para, TypeDesc *arg, Symbol *argsym,
   desc_tostr(arg, &sbuf2);
 
   if (para->kind == TYPE_PARAREF) {
-    debug("'%s' <- %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    debug("'%s' <- %s", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
     vector_set(values, para->pararef.index, arg);
   } else if (para->kind == TYPE_KLASS) {
     if (arg->kind == TYPE_KLASS) {
       if (!check_klassdesc(para, arg)) {
         TypeDesc *arg2 = check_inherit_only(para, argsym);
         if (arg2 == NULL) {
-          synerr(ps, 0, 0, "'%s' and '%s' are not matched-1\n",
+          synerr(ps, 0, 0, "'%s' and '%s' are not matched-1",
                   strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
         } else {
           TypeDesc *arg2inst = specialize_one(arg, arg2);
@@ -2469,11 +2499,11 @@ void parse_typepara_value(TypeDesc *para, TypeDesc *arg, Symbol *argsym,
         }
       }
     } else {
-      synerr(ps, 0, 0, "'%s' and '%s' are not matched-2\n",
+      synerr(ps, 0, 0, "'%s' and '%s' are not matched-2",
             strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
     }
   } else {
-    debug("%s vs %s\n", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    debug("%s vs %s", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
   }
 
   strbuf_fini(&sbuf1);
@@ -2523,11 +2553,71 @@ void parse_label_tpvals(Symbol *sym, Vector *args,
 
 static void parse_enum_value(ParserState *ps, Expr *exp)
 {
-  Expr *lexp = exp->call.lexp;
   Vector *args = exp->call.args;
+  Expr *lexp = exp->call.lexp;
+  TypeDesc *ldesc = lexp->desc;
   Symbol *esym = lexp->sym->label.esym;
   int sz = vector_size(esym->type.typesyms);
 
+  if (sz <= 0) {
+    debug("enum '%s' has not type parameters.", esym->name);
+    if (!check_label_args(ps, ldesc, args, NULL)) {
+      exp->desc = TYPE_INCREF(ldesc->label.edesc);
+      exp->sym = lexp->sym->label.esym;
+    }
+    return;
+  }
+
+  TypeDesc *edesc = ldesc->label.edesc;
+  if (vector_size(edesc->klass.typeargs) <= 0) {
+    debug("enum '%s' no explict type arguments.", esym->name);
+
+    VECTOR(tpvec);
+    // fill null to check it after types are inferred from args.
+    for (int i = 0; i < sz; ++i) {
+      vector_push_back(&tpvec, NULL);
+    }
+
+    // infer types from arguments.
+    Expr *arg;
+    TypeDesc *para;
+    vector_for_each(para, ldesc->label.types) {
+      arg = vector_get(args, idx);
+      parse_typepara_value(para, arg->desc, arg->sym, ps, &tpvec);
+    }
+
+    // check all type parameters are inferred.
+    TypeDesc *item;
+    vector_for_each(item, &tpvec) {
+      if (item == NULL) {
+        Symbol *tpsym = vector_get(esym->type.typesyms, idx);
+        synerr(ps, 0, 0, "type parameter '%s' could not be inferred.",
+              tpsym->name);
+      }
+    }
+
+    if (!has_error(ps)) {
+      if (!check_label_args(ps, ldesc, args, &tpvec)) {
+        TypeDesc *edesc = desc_dup(ldesc->label.edesc);
+        TypeDesc *tmp;
+        vector_for_each(tmp, &tpvec) {
+          desc_add_paratype(edesc, tmp);
+        }
+        exp->desc = edesc;
+        exp->sym = lexp->sym->label.esym;
+      }
+    }
+
+    vector_fini(&tpvec);
+    return;
+  }
+
+  // explict type parameters
+  debug("enum '%s' with explict type arguments.", esym->name);
+  if (!check_label_args(ps, ldesc, args, NULL)) {
+    exp->desc = TYPE_INCREF(ldesc->label.edesc);
+    exp->sym = lexp->sym->label.esym;
+  }
 }
 
 static void parse_call(ParserState *ps, Expr *exp)
@@ -2548,6 +2638,7 @@ static void parse_call(ParserState *ps, Expr *exp)
   Expr *lexp = exp->call.lexp;
   lexp->argc = vector_size(args);
   lexp->ctx = EXPR_CALL_FUNC;
+  lexp->decl_desc = exp->decl_desc;
   parser_visit_expr(ps, lexp);
   TypeDesc *desc = lexp->desc;
   if (desc == NULL) {
@@ -2589,42 +2680,6 @@ static void parse_call(ParserState *ps, Expr *exp)
     }
   } else if (desc->kind == TYPE_LABEL) {
     parse_enum_value(ps, exp);
-    Symbol *esym = lexp->sym->label.esym;
-    int sz = vector_size(esym->type.typesyms);
-    if (sz > 0) {
-      VECTOR(tpvec);
-      for (int i = 0; i < sz; ++i) {
-        vector_push_back(&tpvec, NULL);
-      }
-      Expr *arg;
-      TypeDesc *para;
-      vector_for_each(para, desc->label.types) {
-        arg = vector_get(args, idx);
-        parse_typepara_value(para, arg->desc, arg->sym, ps, &tpvec);
-      }
-      // check arg's bounds
-      if (!has_error(ps)) {
-        if (check_label_args(desc, args, &tpvec)) {
-          synerr(ps, exp->row, exp->col, "enum args check failed");
-        } else {
-          TypeDesc *edesc = desc_dup(desc->label.edesc);
-          TypeDesc *tmp;
-          vector_for_each(tmp, &tpvec) {
-            desc_add_paratype(edesc, tmp);
-          }
-          exp->desc = edesc;
-          exp->sym = lexp->sym->label.esym;
-        }
-      }
-      vector_fini(&tpvec);
-    } else {
-      if (check_label_args(desc, args, NULL)) {
-        synerr(ps, exp->row, exp->col, "enum args check failed");
-      } else {
-        exp->desc = TYPE_INCREF(desc->label.edesc);
-        exp->sym = lexp->sym->label.esym;
-      }
-    }
   } else if (desc->kind == TYPE_KLASS) {
     expect(lexp->super);
     if (!exp->first) {
@@ -3741,6 +3796,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   TypeDesc *rdesc = NULL;
   if (exp != NULL) {
     exp->ctx = EXPR_LOAD;
+    exp->decl_desc = desc;
     parser_visit_expr(ps, exp);
     rdesc = exp->desc;
     if (rdesc == NULL) {

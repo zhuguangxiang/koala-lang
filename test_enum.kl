@@ -2,6 +2,19 @@
 import "io"
 
 Result.<int, string>.Err("error")
+//error: type parameter 'E' could not be inferred.
 Result.Ok(100)
 
-var r Result<int, string> = Result.Ok(100)
+var r Result<int, string> = Result.<int, string>.Ok(100)
+r.is_ok()
+r.is_err()
+r.ok()
+r.err()
+
+var r2 Result<int, (int, string)> = Result.Err((404, "not found"));
+r2.is_ok()
+r2.is_err()
+err := r2.err()
+err.0
+err.1
+r2.ok()
