@@ -1251,9 +1251,14 @@ Object *Koala_EvalFrame(CallFrame *f)
       //x = TOP();
       x = POP();
       z = do_match(x, y);
-      PUSH(z);
       OB_DECREF(x);
       OB_DECREF(y);
+
+      if (bool_isfalse(z)) {
+        x = POP();
+        OB_DECREF(x);
+      }
+      PUSH(z);
       break;
     }
     case OP_DOT_INDEX: {

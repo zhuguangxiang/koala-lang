@@ -640,13 +640,21 @@ var ok2 Result2 = Result2.Ok
 enum Option<T> {
   None,
   Some(T),
+}
 
+// error: type parameter 'T' could not inferred.
+Option.None
+Option.<int>.None
+var opt Option<int> = Option.<int>.None
+opt = Option.Some(100)
+
+{
   func is_some() bool {
-    return (self == None) ? false : true
+    return (self ~= Some(_)) ? false : true
   }
 
   func is_none() bool {
-    return (self == None) ? true : false
+    return (self ~= None) ? true : false
   }
 }
 

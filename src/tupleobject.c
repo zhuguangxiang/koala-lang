@@ -200,7 +200,7 @@ static Object *tuple_fmt(Object *self, Object *args)
   return NULL;
 }
 
-static Object *tuple_match(Object *self, Object *args)
+Object *tuple_match(Object *self, Object *args)
 {
   if (!tuple_check(self)) {
     error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(self));
@@ -215,8 +215,12 @@ static Object *tuple_match(Object *self, Object *args)
   TupleObject *patt = (TupleObject *)self;
   TupleObject *some = (TupleObject *)args;
 
+  Object *ob1, *ob2;
   for (int i = 0; i < patt->size; ++i) {
+    ob1 = patt->items[i];
+    if (ob1 != NULL) {
 
+    }
   }
 
   return bool_true();

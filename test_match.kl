@@ -60,35 +60,39 @@ for (x, y) in arr {
 
 // match-statement
 import "io"
-if Result.Ok(100) ~= Result.Ok(100) {
+if Result.Ok(100) ~= Result.<int, string>.Ok(100) {
   io.println("Result.Ok(100) ~= Result.Ok(100)")
 }
 
-if Result.Ok(x) ~= Result.Ok(100) {
+if Result.Ok(x) ~= Result.<int, string>.Ok(100) {
   io.println("Result.Ok(x) ~= Result.Ok(100)")
   io.println(x)
 }
 
-ok := Result.Ok("foo")
+ok := Result.<int, string>.Ok(100)
 if Result.Ok(x) ~= ok {
   io.println("Result.Ok(x) ~= ok")
   io.println(x)
 }
 
-ok2 := Result.Ok("foo")
+ok2 := Result.<string, string>.Ok("foo")
 if ok2 ~= ok {
   io.println("ok2 ~= ok")
 }
 
-ok3 := Result.Ok((100, "foo"))
+ok3 := Result.<(int, string), int>.Ok((100, "foo"))
+ok3.ok()
 if Result.Ok((_, y)) ~= ok3 {
   io.println("Result.Ok((_, y)) ~= ok3")
+  io.println(y)
 }
 
-if Result.Ok(x) ~= Result.Err(100) {
+if Result.Ok(x) ~= Result.<int,int>.Err(100) {
   io.println("Result.Ok(x) ~= Result.Err(100)")
   io.println(x)
 }
+
+/////////////////////////////////////////////////////////////////////////////
 
 i := 100
 import "io"

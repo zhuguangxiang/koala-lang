@@ -54,6 +54,7 @@ void *tuple_iter_next(struct iterator *iter);
 #define tuple_for_each(item, tuple) \
   for (int idx = 0; idx < ((TupleObject *)tuple)->size && \
     ({item = tuple_get(tuple, idx); 1;}); ++idx)
+Object *tuple_match(Object *self, Object *args);
 
 #ifdef __cplusplus
 }

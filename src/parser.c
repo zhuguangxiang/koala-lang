@@ -1651,6 +1651,13 @@ static void parse_ident(ParserState *ps, Expr *exp)
   }
 */
 
+  // for class type parameters will be set into desc, so dup it.
+  SymKind kind = exp->sym->kind;
+  if (kind == SYM_CLASS || kind == SYM_TRAIT || kind == SYM_ENUM) {
+    TYPE_DECREF(exp->desc);
+    exp->desc = desc_dup(sym->desc);
+  }
+
   if (exp->id.where == CURRENT_SCOPE) {
     ident_codegen(current_codes, ps, exp);
   } else if (exp->id.where == UP_SCOPE) {
@@ -3597,6 +3604,7 @@ static void parse_enum_match(ParserState *ps, Expr *patt, Expr *some)
   CODE_OP(OP_DUP);
 
   patt->ctx = EXPR_LOAD;
+  patt->decl_desc = some->desc;
   patt->pattern->types = some->desc->klass.typeargs;
   parser_visit_expr(ps, patt);
   if (has_error(ps))
@@ -3605,6 +3613,17 @@ static void parse_enum_match(ParserState *ps, Expr *patt, Expr *some)
   if (patt->sym->kind != SYM_ENUM) {
     synerr(ps, patt->row, patt->col, "left expr is not enum");
     return;
+  }
+
+  if (!desc_check(patt->desc, some->desc)) {
+    STRBUF(sbuf1);
+    STRBUF(sbuf2);
+    desc_tostr(patt->desc, &sbuf1);
+    desc_tostr(some->desc, &sbuf2);
+    synerr(ps, some->row, some->col, "expected '%s', but found '%s'",
+          strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    strbuf_fini(&sbuf1);
+    strbuf_fini(&sbuf2);
   }
 
   CODE_OP_ARGC(OP_MATCH, 1);

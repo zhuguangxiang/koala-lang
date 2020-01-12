@@ -149,7 +149,24 @@ static Object *enum_equal(Object *ob1, Object *ob2)
 
 Object *enum_match(Object *patt, Object *some)
 {
-  return bool_true();
+  expect(type_isenum(OB_TYPE(patt)));
+  expect(type_isenum(OB_TYPE(some)));
+  expect(OB_TYPE(patt) == OB_TYPE(some));
+  EnumObject *eob1 = (EnumObject *)patt;
+  EnumObject *eob2 = (EnumObject *)some;
+  if (eob1 == eob2)
+    return bool_true();
+  if (strcmp(eob1->name, eob2->name))
+    return bool_false();
+
+  // check associated values
+  Object *values1 = eob1->values;
+  Object *values2 = eob2->values;
+  if (values1 == NULL && values2 == NULL)
+    return bool_true();
+
+  expect(tuple_size(values1) == tuple_size(values2));
+  return tuple_match(values1, values2);
 }
 
 static Object *enum_getitem(Object *self, Object *args)
