@@ -914,7 +914,7 @@ static int indexitem_get(Image *image, int kind, Vector *vec)
       index = typeitem_get(image, ptr);
     } else {
       expect(kind == INDEX_VALUE);
-      index = (intptr_t)ptr;
+      index = PTR2INT(ptr);
     }
     if (index < 0)
       return -1;
@@ -939,7 +939,7 @@ static int indexitem_set(Image *image, int kind, Vector *vec)
         index = typeitem_set(image, ptr);
       } else {
         expect(kind == INDEX_VALUE);
-        index = (intptr_t)ptr;
+        index = PTR2INT(ptr);
       }
       expect(index >= 0);
       indexes[idx] = index;

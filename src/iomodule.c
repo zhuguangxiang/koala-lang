@@ -69,25 +69,23 @@ void IoPrint(Object *ob)
 {
   if (ob == NULL)
     return;
-  Object *v = tuple_get(ob, 0);
-  if (string_check(v)) {
-    printf("%s", string_asstr(v));
-  } else if (integer_check(v)) {
-    printf("%ld", integer_asint(v));
-  } else if (byte_check(v)) {
-    printf("%d", byte_asint(v));
-  } else if (float_check(v)) {
-    printf("%lf", float_asflt(v));
+  if (string_check(ob)) {
+    printf("%s", string_asstr(ob));
+  } else if (integer_check(ob)) {
+    printf("%ld", integer_asint(ob));
+  } else if (byte_check(ob)) {
+    printf("%d", byte_asint(ob));
+  } else if (float_check(ob)) {
+    printf("%lf", float_asflt(ob));
   } else {
-    Object *str = object_call(v, "__str__", NULL);
+    Object *str = object_call(ob, "__str__", NULL);
     if (str != NULL) {
       printf("%s", string_asstr(str));
       OB_DECREF(str);
     } else {
-      error("object of '%.64s' is not printable", OB_TYPE_NAME(v));
+      error("object of '%.64s' is not printable", OB_TYPE_NAME(ob));
     }
   }
-  OB_DECREF(v);
   fflush(stdout);
 }
 
@@ -95,24 +93,22 @@ void IoPrintln(Object *ob)
 {
   if (ob == NULL)
     return;
-  Object *v = tuple_get(ob, 0);
-  if (string_check(v)) {
-    printf("%s\n", string_asstr(v));
-  } else if (integer_check(v)) {
-    printf("%ld\n", integer_asint(v));
-  } else if (byte_check(v)) {
-    printf("%d\n", byte_asint(v));
-  } else if (float_check(v)) {
-    printf("%lf\n", float_asflt(v));
+  if (string_check(ob)) {
+    printf("%s\n", string_asstr(ob));
+  } else if (integer_check(ob)) {
+    printf("%ld\n", integer_asint(ob));
+  } else if (byte_check(ob)) {
+    printf("%d\n", byte_asint(ob));
+  } else if (float_check(ob)) {
+    printf("%lf\n", float_asflt(ob));
   } else {
-    Object *str = object_call(v, "__str__", NULL);
+    Object *str = object_call(ob, "__str__", NULL);
     if (str != NULL) {
       printf("%s\n", string_asstr(str));
       OB_DECREF(str);
     } else {
-      error("object of '%.64s' is not printable", OB_TYPE_NAME(v));
+      error("object of '%.64s' is not printable", OB_TYPE_NAME(ob));
     }
   }
-  OB_DECREF(v);
   fflush(stdout);
 }

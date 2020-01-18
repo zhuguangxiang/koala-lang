@@ -101,3 +101,22 @@ Object *upval_load(Object *ob, int index)
   Object *res = *up->ref;
   return OB_INCREF(res);
 }
+
+Object *upval_store(Object *ob, int index, Object *val)
+{
+  if (!closure_check(ob)) {
+    error("object of '%.64s' is not a Closure", OB_TYPE_NAME(ob));
+    return NULL;
+  }
+
+  ClosureObject *self = (ClosureObject *)ob;
+  UpVal *up = vector_get(self->upvals, index);
+  expect(up != NULL);
+  debug("store upval('%s') by index %d", up->name, index);
+  expect(up->ref != NULL);
+  Object *res = *up->ref;
+  OB_DECREF(res);
+  OB_INCREF(val);
+  *up->ref = val;
+  return NULL;
+}

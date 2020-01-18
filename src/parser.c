@@ -532,6 +532,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
     bytebuffer_write_2bytes(buf, i->offset);
     break;
   case OP_UPVAL_LOAD:
+  case OP_UPVAL_STORE:
     bytebuffer_write_byte(buf, i->arg.ival);
     break;
   case OP_DOT_INDEX:
@@ -1512,13 +1513,36 @@ static void ident_up_anony(ParserState *ps, Expr *exp)
   } else if (up->scope == SCOPE_FUNC) {
     Symbol *funcsym = up->sym;
     Vector *freevec = &funcsym->func.freevec;
-    int index = vector_append_int(freevec, sym->var.index);
-    Symbol *anonysym = u->sym;
-    Vector *upvec = &anonysym->anony.upvec;
-    index = vector_append_int(upvec, index);
-    CODE_LOAD(0);
-    //FIXME: upval_load_0
-    CODE_OP_I(OP_UPVAL_LOAD, index);
+    void *item;
+    int index;
+    int found = -1;
+    vector_for_each(item, freevec) {
+      index = PTR2INT(item);
+      if (index == sym->var.index)
+        found = idx;
+    }
+
+    if (found >= 0) {
+      if (exp->ctx == EXPR_LOAD) {
+        CODE_LOAD(0);
+        CODE_OP_I(OP_UPVAL_LOAD, found);
+      } else {
+        CODE_LOAD(0);
+        CODE_OP_I(OP_UPVAL_STORE, found);
+      }
+    } else {
+      index = vector_append_int(freevec, sym->var.index);
+      Symbol *anonysym = u->sym;
+      Vector *upvec = &anonysym->anony.upvec;
+      index = vector_append_int(upvec, index);
+      if (exp->ctx == EXPR_LOAD) {
+        CODE_LOAD(0);
+        CODE_OP_I(OP_UPVAL_LOAD, index);
+      } else {
+        CODE_LOAD(0);
+        CODE_OP_I(OP_UPVAL_STORE, index);
+      }
+    }
   }
   /*
   else if (up->scope == SCOPE_BLOCK) {

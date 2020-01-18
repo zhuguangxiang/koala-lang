@@ -85,8 +85,8 @@ static Object *any_equal(Object *self, Object *other)
 static Object *any_str(Object *ob, Object *args)
 {
   char buf[64];
-  snprintf(buf, sizeof(buf) - 1, "%.32s@%lx",
-           OB_TYPE_NAME(ob), (uintptr_t)ob);
+  snprintf(buf, sizeof(buf) - 1, "%.32s@%x",
+           OB_TYPE_NAME(ob), PTR2INT(ob));
   return string_new(buf);
 }
 

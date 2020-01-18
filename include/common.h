@@ -42,6 +42,9 @@ typedef union wchar {
 /* Count the number of elements in an array */
 #define COUNT_OF(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
 
+/* pointer to integer */
+#define PTR2INT(p) ((int)(intptr_t)(p))
+
 /*
  * Free function to free each item.
  */

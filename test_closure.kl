@@ -1,0 +1,11 @@
+
+func counter(v int) func(int) int {
+  count := v
+  return func(v2 int) int {
+    count = count + v2
+    return count
+  }
+}
+
+cl := counter(1)
+cl(2) + cl(2)

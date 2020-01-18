@@ -64,7 +64,7 @@ static Vector *getfreevars(CallFrame *f, CodeObject *co)
   int index;
   UpVal *up;
   vector_for_each(item, &co->freevec) {
-    index = (intptr_t)item;
+    index = PTR2INT(item);
     expect(index != -1);
     up = upval_new(get_freeval_name(co, index), f->locvars + index);
     vector_push_back(freevec, up);
@@ -274,7 +274,7 @@ static Vector *getupvals(CallFrame *f, Object *ob)
   void *item;
   int index;
   vector_for_each(item, &co->upvec) {
-    index = (intptr_t)item;
+    index = PTR2INT(item);
     expect(index != -1);
     up = vector_get(f->freevars, index);
     expect(up != NULL);
@@ -576,6 +576,8 @@ Object *Koala_EvalFrame(CallFrame *f)
       y = POP();
       if (oparg == 0) {
         z = NULL;
+      } else if (oparg == 1) {
+        z = POP();
       } else {
         z = tuple_new(oparg);
         for (i = 0; i < oparg; ++i) {
@@ -1160,6 +1162,16 @@ Object *Koala_EvalFrame(CallFrame *f)
       y = upval_load(x, oparg);
       OB_DECREF(x);
       PUSH(y);
+      break;
+    }
+    case OP_UPVAL_STORE: {
+      oparg = NEXT_BYTE();
+      x = POP();
+      y = POP();
+      z = upval_store(x, oparg, y);
+      expect(z == NULL);
+      OB_DECREF(x);
+      OB_DECREF(y);
       break;
     }
     case OP_LOAD_GLOBAL: {
