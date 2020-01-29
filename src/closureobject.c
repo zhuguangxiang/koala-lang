@@ -86,6 +86,17 @@ void upval_free(UpVal *val)
   kfree(val);
 }
 
+UpVal *closure_getupval(Object *ob, int index)
+{
+  if (!closure_check(ob)) {
+    error("object of '%.64s' is not a Closure", OB_TYPE_NAME(ob));
+    return NULL;
+  }
+
+  ClosureObject *self = (ClosureObject *)ob;
+  return vector_get(self->upvals, index);
+}
+
 Object *upval_load(Object *ob, int index)
 {
   if (!closure_check(ob)) {

@@ -9,3 +9,44 @@ func counter(v int) func(int) int {
 
 cl := counter(1)
 cl(2) + cl(2)
+cl(2) + cl(2)
+
+import "io"
+
+func f1() func() {
+  v := 100
+  return func() {
+    v2 := 200
+    inner := func() {
+      io.println(v2 + v)
+    }
+    inner()
+  }
+}
+
+cl2 := f1()
+cl2()
+
+var cl3 func()
+func fcl3() {
+  io.println("func() called")
+}
+
+cl3 = fcl3
+cl3()
+
+func f2() func() {
+  v := 999
+  cl3 = func() { v += 1; }
+  f3 := func() {
+    io.println(v)
+  }
+  return f3
+}
+
+cl2 = f2()
+cl2(); //999
+cl3()
+cl2(); //1000
+cl3()
+cl2(); //1001

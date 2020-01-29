@@ -132,6 +132,9 @@ typedef struct parserstate {
   /* parserunit stack */
   Vector ustack;
 
+  /* upvals of anonymous */
+  Vector upanonies;
+
   /* error numbers */
   int errors;
 } ParserState;

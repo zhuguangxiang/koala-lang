@@ -54,6 +54,7 @@ void upval_free(UpVal *val);
 #define closure_getcode(ob) (((ClosureObject *)ob)->code)
 Object *upval_load(Object *ob, int index);
 Object *upval_store(Object *ob, int index, Object *val);
+UpVal *closure_getupval(Object *ob, int index);
 
 #ifdef __cplusplus
 }

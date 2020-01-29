@@ -44,6 +44,8 @@ struct callframe {
   CallFrame *back;
   /* KoalaState */
   KoalaState *ks;
+  /* closure temporarily */
+  Object *other;
   /* code */
   CodeObject *code;
   /* code index */
@@ -72,7 +74,7 @@ struct koalastate {
   Object *stack[MAX_STACK_SIZE];
 };
 
-Object *koala_evalcode(Object *self, Object *ob, Object *args);
+Object *koala_evalcode(Object *self, Object *ob, Object *args, Object *other);
 
 #ifdef __cplusplus
 }

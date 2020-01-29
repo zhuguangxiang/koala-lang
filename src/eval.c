@@ -276,7 +276,12 @@ static Vector *getupvals(CallFrame *f, Object *ob)
   vector_for_each(item, &co->upvec) {
     index = PTR2INT(item);
     expect(index != -1);
-    up = vector_get(f->freevars, index);
+    if (index & 0x8000) {
+      debug("upval is passed from anonymous");
+      up = closure_getupval(f->other, index & ~0x8000);
+    } else {
+      up = vector_get(f->freevars, index);
+    }
     expect(up != NULL);
     ++up->refcnt;
     vector_push_back(upvals, up);
@@ -615,7 +620,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       } else {
         debug("call closure '%s' argc %d", ((ClosureObject *)x)->name, oparg);
         expect(closure_check(x));
-        z = koala_evalcode(closure_getcode(x), x, y);
+        z = koala_evalcode(closure_getcode(x), x, y, x);
       }
       PUSH(z);
       OB_DECREF(x);
@@ -1298,11 +1303,12 @@ exit_loop:
 
 pthread_key_t kskey;
 
-Object *koala_evalcode(Object *self, Object *ob, Object *args)
+Object *koala_evalcode(Object *self, Object *ob, Object *args, Object *other)
 {
   KoalaState *ks = pthread_getspecific(kskey);
   expect(ks != NULL);
   CallFrame *f = new_frame(ks, (CodeObject *)self);
+  f->other = other;
   f->locvars[0] = OB_INCREF(ob);
   if (args != NULL) {
     if (tuple_check(args)) {

@@ -459,13 +459,25 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
     int argc2 = vector_size(desc2->proto.args);
     if (argc1 != argc2)
       return 0;
-    if (!desc_check(desc1->proto.ret, desc2->proto.ret))
+
+    if (desc1->proto.ret == NULL && desc2->proto.ret != NULL)
       return 0;
-    TypeDesc *type1, *type2;
-    vector_for_each(type1, desc1->proto.args) {
-      type2 = vector_get(desc2->proto.args, idx);
-      if (!desc_check(type1, type2))
-        return 0;
+
+    if (desc1->proto.ret != NULL && desc2->proto.ret == NULL)
+      return 0;
+
+    if (desc1->proto.ret != NULL && desc2->proto.ret != NULL &&
+        !desc_check(desc1->proto.ret, desc2->proto.ret)) {
+      return 0;
+    }
+
+    if (argc1 != 0 && argc2 != 0) {
+      TypeDesc *type1, *type2;
+      vector_for_each(type1, desc1->proto.args) {
+        type2 = vector_get(desc2->proto.args, idx);
+        if (!desc_check(type1, type2))
+          return 0;
+      }
     }
     return 1;
   }

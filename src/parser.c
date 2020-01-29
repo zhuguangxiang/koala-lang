@@ -1309,6 +1309,12 @@ static void parse_local_inplace(ParserState *ps, Expr *exp)
   parse_inplace_mapping(ps, exp->inplace->assign.op);
 }
 
+static void parse_upvar_inplace(ParserState *ps, Expr *exp)
+{
+  parser_visit_expr(ps, exp->inplace->assign.rexp);
+  parse_inplace_mapping(ps, exp->inplace->assign.op);
+}
+
 static void ident_in_mod(ParserState *ps, Expr *exp)
 {
   Symbol *sym = exp->sym;
@@ -1403,6 +1409,11 @@ static void ident_in_anony(ParserState *ps, Expr *exp)
     CODE_LOAD(sym->var.index);
     parse_local_inplace(ps, exp);
     CODE_STORE(sym->var.index);
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+    debug("call function:%s, argc:%d", sym->name, exp->argc);
+    expect(sym->desc->kind == TYPE_PROTO);
+    CODE_LOAD(sym->var.index);
+    CODE_OP_ARGC(OP_EVAL, exp->argc);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1502,6 +1513,89 @@ static void ident_up_block(ParserState *ps, Expr *exp)
   }
 }
 
+// find or update index of anonymous' upvals
+static int update_anony_upval(ParserUnit *u, int index)
+{
+  Symbol *anonysym = u->sym;
+  Vector *upvec = &anonysym->anony.upvec;
+  void *item;
+  int tmp;
+  vector_for_each(item, upvec) {
+    tmp = PTR2INT(item);
+    if (tmp == index)
+      return idx;
+  }
+
+  return vector_append_int(upvec, index);
+}
+
+static void parse_var_up_anony(ParserState *ps, Expr *exp)
+{
+  // update freevec of func or anony
+  ParserUnit *u = ps->u;
+  Symbol *varsym = exp->sym;
+  ParserUnit *up = exp->id.scope;
+  Vector *freevec;
+  if (up->scope == SCOPE_FUNC) {
+    freevec = &up->sym->func.freevec;
+  } else {
+    expect(up->scope == SCOPE_ANONY);
+    freevec = &up->sym->anony.freevec;
+  }
+
+  void *item;
+  int index = -1;
+  int tmp;
+  vector_for_each(item, freevec) {
+    tmp = PTR2INT(item);
+    if (tmp == varsym->var.index) {
+      index = idx;
+      break;
+    }
+  }
+
+  if (index < 0) {
+    index = vector_append_int(freevec, varsym->var.index);
+  }
+
+  // update index in all up anonymous
+  int start = -1;
+  int end = vector_size(&ps->upanonies);
+  vector_for_each(u, &ps->upanonies) {
+    if (u == up) {
+      start = idx + 1;
+      break;
+    }
+  }
+
+  if (start < 0)
+    start = 0;
+
+  u = vector_get(&ps->upanonies, start);
+  index = update_anony_upval(u, index);
+  for (int i = start + 1; i < end; i++) {
+    u = vector_get(&ps->upanonies, i);
+    index = update_anony_upval(u, index | 0x8000);
+  }
+
+  // generate code
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_LOAD(0);
+    CODE_OP_I(OP_UPVAL_LOAD, index);
+  } else if (exp->ctx == EXPR_STORE) {
+    CODE_LOAD(0);
+    CODE_OP_I(OP_UPVAL_STORE, index);
+  } else if (exp->ctx == EXPR_INPLACE) {
+    CODE_LOAD(0);
+    CODE_OP_I(OP_UPVAL_LOAD, index);
+    parse_upvar_inplace(ps, exp);
+    CODE_LOAD(0);
+    CODE_OP_I(OP_UPVAL_STORE, index);
+  } else {
+    panic("expr's ctx %d not implemented", exp->ctx);
+  }
+}
+
 static void ident_up_anony(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
@@ -1510,47 +1604,11 @@ static void ident_up_anony(ParserState *ps, Expr *exp)
 
   if (up->scope == SCOPE_MODULE) {
     ident_in_mod(ps, exp);
-  } else if (up->scope == SCOPE_FUNC) {
-    Symbol *funcsym = up->sym;
-    Vector *freevec = &funcsym->func.freevec;
-    void *item;
-    int index;
-    int found = -1;
-    vector_for_each(item, freevec) {
-      index = PTR2INT(item);
-      if (index == sym->var.index)
-        found = idx;
-    }
-
-    if (found >= 0) {
-      if (exp->ctx == EXPR_LOAD) {
-        CODE_LOAD(0);
-        CODE_OP_I(OP_UPVAL_LOAD, found);
-      } else {
-        CODE_LOAD(0);
-        CODE_OP_I(OP_UPVAL_STORE, found);
-      }
-    } else {
-      index = vector_append_int(freevec, sym->var.index);
-      Symbol *anonysym = u->sym;
-      Vector *upvec = &anonysym->anony.upvec;
-      index = vector_append_int(upvec, index);
-      if (exp->ctx == EXPR_LOAD) {
-        CODE_LOAD(0);
-        CODE_OP_I(OP_UPVAL_LOAD, index);
-      } else {
-        CODE_LOAD(0);
-        CODE_OP_I(OP_UPVAL_STORE, index);
-      }
-    }
-  }
-  /*
-  else if (up->scope == SCOPE_BLOCK) {
-    ident_in_block(ps, exp);
+  } else if (up->scope == SCOPE_FUNC || up->scope == SCOPE_ANONY) {
+    parse_var_up_anony(ps, exp);
   } else {
-    panic("invalid scope");
+    panic("[ident_up_anony] invalid scope");
   }
-  */
 }
 
 static void ident_builtin_mod(ParserState *ps, Expr *exp)
@@ -3119,8 +3177,14 @@ static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   if (sym->var.typesym == NULL) {
     if (desc->kind == TYPE_PARAREF)
       sym->var.typesym = find_symbol_byname(ps, desc->pararef.name);
-    else
+    else if (desc_isproto(desc)) {
+      STRBUF(sbuf);
+      desc_tostr(desc, &sbuf);
+      debug("desc is proto:%s", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+    } else {
       sym->var.typesym = get_type_symbol(ps, sym->desc);
+    }
   }
 
   return sym;
@@ -3242,6 +3306,7 @@ static void parse_anony(ParserState *ps, Expr *exp)
   // parse anonymous func
   parser_enter_scope(ps, SCOPE_ANONY, 0);
   ParserUnit *u = ps->u;
+  vector_push_back(&ps->upanonies, u);
   u->stbl = stable_new();
   u->sym = sym;
 
@@ -3256,6 +3321,7 @@ static void parse_anony(ParserState *ps, Expr *exp)
 
   stable_free(u->stbl);
   u->stbl = NULL;
+  vector_pop_back(&ps->upanonies);
   parser_exit_scope(ps);
 
   if (!has_error(ps)) {
@@ -3952,11 +4018,11 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
   if (dec) TYPE_DECREF(desc);
   if (sym == NULL) return;
 
-  if (sym->var.typesym == NULL) {
+  if (!desc_isproto(desc) && sym->var.typesym == NULL) {
     STRBUF(sbuf);
     desc_tostr(type->desc, &sbuf);
     synerr(ps, type->row, type->col,
-                 "'%s' is not defined", strbuf_tostr(&sbuf));
+          "'%s' is not defined", strbuf_tostr(&sbuf));
     strbuf_fini(&sbuf);
   }
 
@@ -4171,7 +4237,7 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
   vector_for_each(item, idtypes) {
     desc = item->type.desc;
     sym = get_type_symbol(ps, desc);
-    if (sym == NULL) {
+    if (!desc_isproto(desc) && sym == NULL) {
       STRBUF(sbuf);
       desc_tostr(desc, &sbuf);
       synerr(ps, item->type.row, item->type.col,
@@ -4179,13 +4245,15 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
       strbuf_fini(&sbuf);
       goto error_exit;
     } else {
-      if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
-        parse_subtype(ps, sym, desc->klass.typeargs);
-        TYPE_INCREF(desc);
-      } else if (sym->kind == SYM_PTYPE) {
-        desc = desc_from_pararef(sym->name, sym->paratype.index);
+      if (sym != NULL) {
+        if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+          parse_subtype(ps, sym, desc->klass.typeargs);
+          TYPE_INCREF(desc);
+        } else if (sym->kind == SYM_PTYPE) {
+          desc = desc_from_pararef(sym->name, sym->paratype.index);
+        }
+        vector_push_back(vec, desc);
       }
-      vector_push_back(vec, desc);
     }
   }
 
@@ -4193,7 +4261,7 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
   int dec = 0;
   if (desc != NULL) {
     sym = get_type_symbol(ps, desc);
-    if (sym == NULL) {
+    if (!desc_isproto(desc) && sym == NULL) {
       STRBUF(sbuf);
       desc_tostr(desc, &sbuf);
       synerr(ps, ret->row, ret->col,
@@ -4201,11 +4269,13 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
       strbuf_fini(&sbuf);
       goto error_exit;
     } else {
-      if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
-        parse_subtype(ps, sym, desc->klass.typeargs);
-      } else if (sym->kind == SYM_PTYPE) {
-        desc = desc_from_pararef(sym->name, sym->paratype.index);
-        dec = 1;
+      if (sym != NULL) {
+        if (sym->kind == SYM_CLASS || sym->kind == SYM_TRAIT) {
+          parse_subtype(ps, sym, desc->klass.typeargs);
+        } else if (sym->kind == SYM_PTYPE) {
+          desc = desc_from_pararef(sym->name, sym->paratype.index);
+          dec = 1;
+        }
       }
     }
   }
@@ -4273,7 +4343,7 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
         debug("ret type '%s' is generic", parasym->name);
       } else {
         sym = get_type_symbol(ps, rettype);
-        if (sym == NULL) {
+        if (!desc_isproto(rettype) && sym == NULL) {
           STRBUF(sbuf);
           desc_tostr(rettype, &sbuf);
           synerr(ps, ret->row, ret->col,

@@ -303,7 +303,7 @@ void koala_run(char *path)
       kstate.top = -1;
       pthread_setspecific(kskey, &kstate);
       Object *code = method_getcode(_init_);
-      koala_evalcode(code, mo, NULL);
+      koala_evalcode(code, mo, NULL, NULL);
       OB_DECREF(code);
       OB_DECREF(_init_);
     } else {

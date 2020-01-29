@@ -952,6 +952,9 @@ static int indexitem_set(Image *image, int kind, Vector *vec)
 
 static int typeitem_get(Image *image, TypeDesc *desc)
 {
+  if (desc == NULL)
+    return -1;
+
   TypeItem item = {0};
   switch (desc->kind) {
   case TYPE_BASE: {
