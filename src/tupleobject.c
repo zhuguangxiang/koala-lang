@@ -215,6 +215,9 @@ Object *tuple_match(Object *self, Object *args)
   TupleObject *patt = (TupleObject *)self;
   TupleObject *some = (TupleObject *)args;
 
+  if (patt->size != some->size)
+    return bool_false();
+
   Object *ob1, *ob2;
   for (int i = 0; i < patt->size; ++i) {
     ob1 = patt->items[i];

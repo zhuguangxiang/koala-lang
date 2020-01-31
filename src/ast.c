@@ -697,6 +697,20 @@ void free_idtypes(Vector *vec)
   vector_free(vec);
 }
 
+static inline void free_match_clauses(Vector *vec)
+{
+  if (vec == NULL)
+    return;
+
+  MatchClause *match;
+  vector_for_each(match, vec) {
+    exprlist_free(match->patterns);
+    stmt_free(match->block);
+    kfree(match);
+  }
+  vector_free(vec);
+}
+
 void stmt_free(Stmt *stmt)
 {
   if (stmt == NULL)

@@ -4533,7 +4533,8 @@ static void parse_if(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_BLOCK, IF_BLOCK);
   ParserUnit *u = ps->u;
-  u->stbl = stable_new();
+  STable *stbl = stable_new();
+  u->stbl = stbl;
   Expr *test = stmt->if_stmt.test;
   Vector *block = stmt->if_stmt.block;
   Stmt *orelse = stmt->if_stmt.orelse;
@@ -4582,7 +4583,18 @@ static void parse_if(ParserState *ps, Stmt *stmt)
   }
 
   if (orelse != NULL) {
+    if (test != NULL && test->kind == BINARY_MATCH_KIND) {
+      Expr *patt = test->binary_match.pattern;
+      if (patt->kind == TUPLE_KIND || patt->kind == CALL_KIND) {
+        debug("POP_TOP");
+        CODE_OP(OP_POP_TOP);
+      } else {
+        debug("no pattern in if-statement");
+      }
+    }
+    u->stbl = NULL;
     parse_stmt(ps, orelse);
+    u->stbl = stbl;
   }
 
   if (jmp2 != NULL) {
@@ -5424,7 +5436,7 @@ static void parse_match_clause(ParserState *ps, MatchClause *clause)
   parser_exit_scope(ps);
 }
 
-static void parse_match(ParserState *ps, Stmt *stmt)
+static void parse_match2(ParserState *ps, Stmt *stmt)
 {
   debug("parse match");
   Expr *exp = stmt->match_stmt.exp;
@@ -5456,9 +5468,9 @@ static void parse_match(ParserState *ps, Stmt *stmt)
   int underoffset = 0;
   int blockjmpindex = 0;
 
-  // parse conditons
+  // parse pattern
   vector_for_each(match, clauses) {
-    Expr *pattern = match->pattern;
+    Expr *pattern = NULL; //match->pattern;
     TypeDesc *patterndesc = NULL;
     if (pattern->kind == UNDER_KIND) {
       if (underscore != NULL) {
@@ -5604,6 +5616,25 @@ static void parse_match(ParserState *ps, Stmt *stmt)
   // pop stmt->match_stmt.exp
   CODE_OP(OP_POP_TOP);
 
+  debug("end of match");
+}
+
+static void parse_match(ParserState *ps, Stmt *stmt)
+{
+  debug("parse match");
+  Expr *exp = stmt->match_stmt.exp;
+  exp->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, exp);
+
+  parser_enter_scope(ps, SCOPE_BLOCK, MATCH_BLOCK);
+  ParserUnit *u = ps->u;
+
+  Vector *clauses = stmt->match_stmt.clauses;
+  int count = vector_size(clauses);
+
+  parser_exit_scope(ps);
+  // pop some
+  CODE_OP(OP_POP_TOP);
   debug("end of match");
 }
 

@@ -1374,7 +1374,8 @@ new_object:
 }
 | NEW ID '.' ID '(' expr_list ')'
 {
-  $$ = NULL;
+  IDENT(id, $4, @4);
+  $$ = expr_from_object($2, id, NULL, $6);
 }
 | NEW ID '<' type_list '>' '(' expr_list ')'
 {
@@ -1383,7 +1384,8 @@ new_object:
 }
 | NEW ID '.' ID '<' type_list '>' '(' expr_list ')'
 {
-  $$ = NULL;
+  IDENT(id, $4, @4);
+  $$ = expr_from_object($2, id, $6, $9);
 }
 ;
 
@@ -1464,7 +1466,7 @@ match_clauses:
 match_clause:
   expr_list FAT_ARROW match_block match_tail
 {
-  $$ = NULL; //new_match_clause($1, $3);
+  $$ = new_match_clause($1, $3);
 }
 ;
 

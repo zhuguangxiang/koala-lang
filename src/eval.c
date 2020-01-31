@@ -1270,11 +1270,12 @@ Object *Koala_EvalFrame(CallFrame *f)
       z = do_match(x, y);
       OB_DECREF(x);
       OB_DECREF(y);
-
+      /*
       if (bool_isfalse(z)) {
         x = POP();
         OB_DECREF(x);
       }
+      */
       PUSH(z);
       break;
     }

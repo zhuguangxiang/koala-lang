@@ -205,15 +205,15 @@ static inline void free_labels(Vector *vec)
 }
 
 typedef struct matchclause {
-  Expr *pattern;
+  Vector *patterns;
   Stmt *block;
   STable *stbl;
 } MatchClause;
 
-static inline MatchClause *new_match_clause(Expr *pattern, Stmt *block)
+static inline MatchClause *new_match_clause(Vector *patterns, Stmt *block)
 {
   MatchClause *match = kmalloc(sizeof(MatchClause));
-  match->pattern = pattern;
+  match->patterns = patterns;
   match->block = block;
   return match;
 }
@@ -221,25 +221,6 @@ static inline MatchClause *new_match_clause(Expr *pattern, Stmt *block)
 void expr_free(Expr *exp);
 void exprlist_free(Vector *vec);
 void stmt_free(Stmt *stmt);
-
-static inline void free_match_clause(MatchClause *match)
-{
-  expr_free(match->pattern);
-  stmt_free(match->block);
-  kfree(match);
-}
-
-static inline void free_match_clauses(Vector *vec)
-{
-  if (vec == NULL)
-    return;
-
-  MatchClause *match;
-  vector_for_each(match, vec) {
-    free_match_clause(match);
-  }
-  vector_free(vec);
-}
 
 Expr *expr_enum_pattern(Ident id, Ident *ename, Ident *mname, Vector *exps);
 
