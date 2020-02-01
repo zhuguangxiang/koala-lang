@@ -205,15 +205,15 @@ static inline void free_labels(Vector *vec)
 }
 
 typedef struct matchclause {
-  Vector *patterns;
+  Vector *patts;
   Stmt *block;
   STable *stbl;
 } MatchClause;
 
-static inline MatchClause *new_match_clause(Vector *patterns, Stmt *block)
+static inline MatchClause *new_matchclause(Vector *patts, Stmt *block)
 {
   MatchClause *match = kmalloc(sizeof(MatchClause));
-  match->patterns = patterns;
+  match->patts = patts;
   match->block = block;
   return match;
 }

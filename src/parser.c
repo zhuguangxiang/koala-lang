@@ -3575,7 +3575,7 @@ static void parse_enum_pattern_args(ParserState *ps, Vector *types, Expr *exp)
   }
 }
 
-static void parse_enum_pattern(ParserState *ps, Expr *exp)
+static void parse_enum_pattern2(ParserState *ps, Expr *exp)
 {
   Ident *id = &exp->enum_pattern.id;
   Ident *ename = &exp->enum_pattern.ename;
@@ -3650,11 +3650,6 @@ static void parse_enum_pattern(ParserState *ps, Expr *exp)
 
 static void parse_tuple_match(ParserState *ps, Expr *patt, Expr *some)
 {
-  some->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, some);
-  if (has_error(ps))
-    return;
-
   if (!desc_istuple(some->desc)) {
     synerr(ps, some->row, some->col, "right expr is not tuple");
     return;
@@ -3678,11 +3673,6 @@ static void parse_tuple_match(ParserState *ps, Expr *patt, Expr *some)
 
 static void parse_enum_match(ParserState *ps, Expr *patt, Expr *some)
 {
-  some->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, some);
-  if (has_error(ps))
-    return;
-
   Symbol *sym = some->sym;
   if (sym->kind == SYM_VAR)
     sym = sym->var.typesym;
@@ -3719,6 +3709,33 @@ static void parse_enum_match(ParserState *ps, Expr *patt, Expr *some)
   CODE_OP_ARGC(OP_MATCH, 1);
 }
 
+static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
+{
+  ExprKind eknd = patt->kind;
+  switch (eknd) {
+  case TUPLE_KIND: {
+    debug("tuple pattern");
+    patt->pattern = patt;
+    patt->ctx = EXPR_LOAD;
+    parse_tuple_match(ps, patt, some);
+    break;
+  }
+  case CALL_KIND: {
+    debug("enum pattern");
+    patt->pattern = patt;
+    patt->ctx = EXPR_LOAD;
+    parse_enum_match(ps, patt, some);
+    break;
+  }
+  default: {
+    debug("no pattern");
+    patt->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, patt);
+    break;
+  }
+  }
+}
+
 static void parse_binary_match(ParserState *ps, Expr *exp)
 {
   Expr *some = exp->binary_match.some;
@@ -3728,14 +3745,22 @@ static void parse_binary_match(ParserState *ps, Expr *exp)
   switch (eknd) {
   case TUPLE_KIND: {
     debug("tuple pattern");
-    patt->pattern = exp;
-    parse_tuple_match(ps, patt, some);
+    some->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, some);
+    if (!has_error(ps)) {
+      patt->pattern = exp;
+      parse_tuple_match(ps, patt, some);
+    }
     break;
   }
   case CALL_KIND: {
     debug("enum pattern");
-    patt->pattern = exp;
-    parse_enum_match(ps, patt, some);
+    some->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, some);
+    if (!has_error(ps)) {
+      patt->pattern = exp;
+      parse_enum_match(ps, patt, some);
+    }
     break;
   }
   default: {
@@ -3792,7 +3817,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_as,             /* AS_KIND            */
     parse_new,            /* NEW_KIND           */
     parse_range,          /* RANGE_KIND         */
-    parse_enum_pattern,   /* ENUM_PATTERN_KIND  */
+    parse_enum_pattern2,   /* ENUM_PATTERN_KIND  */
     parse_binary_match,   /* BINARY_MATCH_KIND  */
   };
 
@@ -5622,19 +5647,37 @@ static void parse_match2(ParserState *ps, Stmt *stmt)
 static void parse_match(ParserState *ps, Stmt *stmt)
 {
   debug("parse match");
-  Expr *exp = stmt->match_stmt.exp;
-  exp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, exp);
+
+  // parse match some
+  Expr *some = stmt->match_stmt.exp;
+  some->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, some);
+  if (has_error(ps))
+    return;
 
   parser_enter_scope(ps, SCOPE_BLOCK, MATCH_BLOCK);
   ParserUnit *u = ps->u;
-
   Vector *clauses = stmt->match_stmt.clauses;
   int count = vector_size(clauses);
+
+  MatchClause *clause;
+  Expr *patt;
+  vector_for_each(clause, clauses) {
+    if (vector_size(clause->patts) == 1) {
+      patt = vector_get(clause->patts, 0);
+      parse_pattern(ps, patt, some);
+      parse_match_clause(ps, clause);
+    } else {
+      vector_for_each(patt, clause->patts) {
+        parse_pattern(ps, patt, some);
+      }
+    }
+  }
 
   parser_exit_scope(ps);
   // pop some
   CODE_OP(OP_POP_TOP);
+
   debug("end of match");
 }
 

@@ -1466,7 +1466,7 @@ match_clauses:
 match_clause:
   expr_list FAT_ARROW match_block match_tail
 {
-  $$ = new_match_clause($1, $3);
+  $$ = new_matchclause($1, $3);
 }
 ;
 
