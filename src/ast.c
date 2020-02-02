@@ -704,9 +704,11 @@ static inline void free_match_clauses(Vector *vec)
 
   MatchClause *match;
   vector_for_each(match, vec) {
-    exprlist_free(match->patts);
-    stmt_free(match->block);
-    kfree(match);
+    if (match != NULL) {
+      exprlist_free(match->patts);
+      stmt_free(match->block);
+      kfree(match);
+    }
   }
   vector_free(vec);
 }

@@ -218,11 +218,17 @@ Object *tuple_match(Object *self, Object *args)
   if (patt->size != some->size)
     return bool_false();
 
+  Object *res;
   Object *ob1, *ob2;
   for (int i = 0; i < patt->size; ++i) {
     ob1 = patt->items[i];
+    ob2 = some->items[i];
     if (ob1 != NULL) {
-
+      res = object_call(ob1, "__match__", ob2);
+      if (bool_isfalse(res)) {
+        return res;
+      }
+      OB_DECREF(res);
     }
   }
 

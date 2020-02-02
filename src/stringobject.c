@@ -205,6 +205,7 @@ static MethodDef string_methods[] = {
   {"__le__", "s", "z", str_num_le},
   {"__eq__", "s", "z", str_num_eq},
   {"__neq__", "s", "z", str_num_neq},
+  {"__match__", "s", "z", string_equal},
   {NULL}
 };
 

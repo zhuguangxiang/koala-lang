@@ -3709,33 +3709,6 @@ static void parse_enum_match(ParserState *ps, Expr *patt, Expr *some)
   CODE_OP_ARGC(OP_MATCH, 1);
 }
 
-static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
-{
-  ExprKind eknd = patt->kind;
-  switch (eknd) {
-  case TUPLE_KIND: {
-    debug("tuple pattern");
-    patt->pattern = patt;
-    patt->ctx = EXPR_LOAD;
-    parse_tuple_match(ps, patt, some);
-    break;
-  }
-  case CALL_KIND: {
-    debug("enum pattern");
-    patt->pattern = patt;
-    patt->ctx = EXPR_LOAD;
-    parse_enum_match(ps, patt, some);
-    break;
-  }
-  default: {
-    debug("no pattern");
-    patt->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, patt);
-    break;
-  }
-  }
-}
-
 static void parse_binary_match(ParserState *ps, Expr *exp)
 {
   Expr *some = exp->binary_match.some;
@@ -5644,6 +5617,92 @@ static void parse_match2(ParserState *ps, Stmt *stmt)
   debug("end of match");
 }
 
+#define literal_allow_patt(kind) \
+  (kind == BASE_INT || kind == BASE_STR || \
+   kind == BASE_CHAR || kind == BASE_BOOL)
+
+static void parse_literal_match(ParserState *ps, Expr *patt, Expr *some)
+{
+  Symbol *sym = some->sym;
+  if (sym->kind == SYM_VAR)
+    sym = sym->var.typesym;
+
+  int kind = patt->k.value.kind;
+  if (!literal_allow_patt(kind)) {
+    synerr(ps, patt->row, patt->col, "expected int, str, char or bool");
+    return;
+  }
+
+  CODE_OP(OP_DUP);
+
+  patt->ctx = EXPR_LOAD;
+  patt->decl_desc = some->desc;
+  patt->pattern->types = some->desc->klass.typeargs;
+  parser_visit_expr(ps, patt);
+  if (has_error(ps))
+    return;
+
+  if (!desc_check(patt->desc, some->desc)) {
+    STRBUF(sbuf1);
+    STRBUF(sbuf2);
+    desc_tostr(patt->desc, &sbuf1);
+    desc_tostr(some->desc, &sbuf2);
+    synerr(ps, some->row, some->col, "expected '%s', but found '%s'",
+          strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    strbuf_fini(&sbuf1);
+    strbuf_fini(&sbuf2);
+  }
+
+  CODE_OP_ARGC(OP_MATCH, 1);
+}
+
+static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
+{
+  ExprKind eknd = patt->kind;
+  switch (eknd) {
+  case TUPLE_KIND: {
+    debug("tuple pattern");
+    patt->pattern = patt;
+    patt->ctx = EXPR_LOAD;
+    parse_tuple_match(ps, patt, some);
+    break;
+  }
+  case CALL_KIND: {
+    debug("enum pattern");
+    patt->pattern = patt;
+    patt->ctx = EXPR_LOAD;
+    parse_enum_match(ps, patt, some);
+    break;
+  }
+  case LITERAL_KIND: {
+    debug("literal pattern");
+    patt->pattern = patt;
+    patt->ctx = EXPR_LOAD;
+    parse_literal_match(ps, patt, some);
+    break;
+  }
+  case IS_KIND: {
+    debug("is pattern");
+    patt->pattern = patt;
+    patt->ctx = EXPR_LOAD;
+    //parse_is_match(ps, patt, some);
+    break;
+  }
+  case RANGE_KIND: {
+    debug("range pattern");
+    patt->ctx = EXPR_LOAD;
+    //parse_range_match(ps, patt, some);
+    break;
+  }
+  default: {
+    synerr(ps, patt->row, patt->col, "not allowed in match-pattern");
+    break;
+  }
+  }
+}
+
+#define codesize(u) codeblock_bytes((u)->block)
+
 static void parse_match(ParserState *ps, Stmt *stmt)
 {
   debug("parse match");
@@ -5658,18 +5717,62 @@ static void parse_match(ParserState *ps, Stmt *stmt)
   parser_enter_scope(ps, SCOPE_BLOCK, MATCH_BLOCK);
   ParserUnit *u = ps->u;
   Vector *clauses = stmt->match_stmt.clauses;
-  int count = vector_size(clauses);
-
+  int offset = codesize(u);
+  int start, end;
+  Inst *jmp;
+  MatchClause *last;
+  MatchClause *underclause = NULL;
   MatchClause *clause;
   Expr *patt;
   vector_for_each(clause, clauses) {
     if (vector_size(clause->patts) == 1) {
       patt = vector_get(clause->patts, 0);
+      if (patt->kind == UNDER_KIND) {
+        if (underclause != NULL) {
+          synerr(ps, patt->row, patt->col, "duplicated placeholder(_)");
+        } else {
+          underclause = clause;
+          vector_set(clauses, idx, NULL);
+        }
+        continue;
+      }
+
+      parser_enter_scope(ps, SCOPE_BLOCK, MATCH_PATTERN);
+      ps->u->stbl = stable_new();
+
       parse_pattern(ps, patt, some);
+      jmp = CODE_OP(OP_JMP_FALSE);
+      start = codesize(ps->u);
       parse_match_clause(ps, clause);
+      clause->endjmp = CODE_OP(OP_JMP);
+      end = codesize(ps->u);
+      clause->offset = offset = offset + end;
+      jmp->offset = end - start;
+
+      stable_free(ps->u->stbl);
+      ps->u->stbl = NULL;
+      parser_exit_scope(ps);
     } else {
       vector_for_each(patt, clause->patts) {
         parse_pattern(ps, patt, some);
+      }
+    }
+  }
+
+  if (!has_error(ps)) {
+    if (underclause != NULL) {
+      vector_push_back(clauses, underclause);
+      parse_match_clause(ps, underclause);
+      underclause->endjmp = CODE_OP(OP_JMP);
+      underclause->offset = codesize(u);
+    }
+
+    // handle end jump of each block
+    last = vector_top_back(clauses);
+    vector_for_each(clause, clauses) {
+      if (clause != NULL) {
+        jmp = clause->endjmp;
+        jmp->offset = last->offset - clause->offset;
       }
     }
   }

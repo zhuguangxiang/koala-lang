@@ -208,6 +208,9 @@ typedef struct matchclause {
   Vector *patts;
   Stmt *block;
   STable *stbl;
+  void *nextjmp;
+  void *endjmp;
+  int offset;
 } MatchClause;
 
 static inline MatchClause *new_matchclause(Vector *patts, Stmt *block)

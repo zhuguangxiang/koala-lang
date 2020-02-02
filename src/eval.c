@@ -342,7 +342,7 @@ static Object *do_match(Object *match, Object *pattern)
   } else {
     Object *z;
     func_t fn = OB_TYPE(pattern)->match;
-    call_op_func(z, match, OP_MATCH, pattern);
+    call_op_func(z, pattern, OP_MATCH, match);
     return z;
   }
 }
