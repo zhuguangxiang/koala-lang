@@ -3740,6 +3740,47 @@ static void parse_enum_match(ParserState *ps, Expr *patt, Expr *some)
   CODE_OP_ARGC(OP_MATCH, 1);
 }
 
+static void parse_enum_noargs_match(ParserState *ps, Expr *patt, Expr *some)
+{
+  Symbol *sym = some->sym;
+  if (sym->kind == SYM_VAR)
+    sym = sym->var.typesym;
+  if (sym->kind != SYM_ENUM) {
+    synerr(ps, some->row, some->col, "right expr is not enum");
+    return;
+  }
+
+  CODE_OP(OP_DUP);
+
+  patt->ctx = EXPR_LOAD;
+  patt->decl_desc = some->desc;
+  patt->pattern->types = some->desc->klass.typeargs;
+  parser_visit_expr(ps, patt);
+  if (has_error(ps))
+    return;
+
+  if (patt->sym->kind != SYM_LABEL) {
+    synerr(ps, patt->row, patt->col, "left expr is not enum label");
+    return;
+  }
+
+  TypeDesc *edesc = patt->desc->label.edesc;
+  expect(patt->desc->label.types == NULL);
+
+  if (!desc_check(edesc, some->desc)) {
+    STRBUF(sbuf1);
+    STRBUF(sbuf2);
+    desc_tostr(edesc, &sbuf1);
+    desc_tostr(some->desc, &sbuf2);
+    synerr(ps, some->row, some->col, "expected '%s', but found '%s'",
+          strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    strbuf_fini(&sbuf1);
+    strbuf_fini(&sbuf2);
+  }
+
+  CODE_OP_ARGC(OP_MATCH, 1);
+}
+
 static void parse_binary_match(ParserState *ps, Expr *exp)
 {
   Expr *some = exp->binary_match.some;
@@ -3758,12 +3799,22 @@ static void parse_binary_match(ParserState *ps, Expr *exp)
     break;
   }
   case CALL_KIND: {
-    debug("enum pattern");
+    debug("enum pattern(with args)");
     some->ctx = EXPR_LOAD;
     parser_visit_expr(ps, some);
     if (!has_error(ps)) {
       patt->pattern = exp;
       parse_enum_match(ps, patt, some);
+    }
+    break;
+  }
+  case ATTRIBUTE_KIND : {
+    debug("enum pattern(no args)");
+    some->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, some);
+    if (!has_error(ps)) {
+      patt->pattern = exp;
+      parse_enum_noargs_match(ps, patt, some);
     }
     break;
   }
@@ -4590,8 +4641,11 @@ static void parse_if(ParserState *ps, Stmt *stmt)
         parse_if_unbox(ps, patt->tuple);
       } else if (patt->kind == CALL_KIND) {
         parse_if_unbox(ps, patt->call.args);
+      } else if (patt->kind == ATTRIBUTE_KIND) {
+        // pop some object
+        CODE_OP(OP_POP_TOP);
       } else {
-        debug("no pattern in if-statement");
+        debug("no need unbox in if-statement");
       }
     }
 
@@ -4600,10 +4654,8 @@ static void parse_if(ParserState *ps, Stmt *stmt)
       parse_stmt(ps, s);
     }
 
-    if (orelse != NULL) {
-      jmp2 = CODE_OP(OP_JMP);
-      offset2 = codeblock_bytes(u->block);
-    }
+    jmp2 = CODE_OP(OP_JMP);
+    offset2 = codeblock_bytes(u->block);
   }
 
   if (jmp != NULL) {
@@ -4611,16 +4663,18 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     jmp->offset = offset;
   }
 
-  if (orelse != NULL) {
-    if (test != NULL && test->kind == BINARY_MATCH_KIND) {
-      Expr *patt = test->binary_match.pattern;
-      if (patt->kind == TUPLE_KIND || patt->kind == CALL_KIND) {
-        debug("POP_TOP");
-        CODE_OP(OP_POP_TOP);
-      } else {
-        debug("no pattern in if-statement");
-      }
+  if (test != NULL && test->kind == BINARY_MATCH_KIND) {
+    Expr *patt = test->binary_match.pattern;
+    if (patt->kind == TUPLE_KIND || patt->kind == CALL_KIND ||
+        patt->kind == ATTRIBUTE_KIND) {
+      debug("POP_TOP");
+      CODE_OP(OP_POP_TOP);
+    } else {
+      debug("no need unbox in if-statement");
     }
+  }
+
+  if (orelse) {
     u->stbl = NULL;
     parse_stmt(ps, orelse);
     u->stbl = stbl;
@@ -5715,7 +5769,7 @@ static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
     break;
   }
   case CALL_KIND: {
-    debug("enum pattern");
+    debug("enum pattern(with args)");
     patt->pattern = patt;
     patt->ctx = EXPR_LOAD;
     parse_enum_match(ps, patt, some);
@@ -5739,6 +5793,13 @@ static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
     debug("range pattern");
     patt->ctx = EXPR_LOAD;
     parse_range_match(ps, patt, some);
+    break;
+  }
+  case ATTRIBUTE_KIND: {
+    debug("enum pattern(no args)");
+    patt->pattern = patt;
+    patt->ctx = EXPR_LOAD;
+    parse_enum_noargs_match(ps, patt, some);
     break;
   }
   default: {

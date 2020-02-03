@@ -300,3 +300,55 @@ match r2 {
   Result.Ok(x) => {io.print("ok:"); io.println(x);}
   Result.Err(x) => {io.println(x);io.println(x.0);io.println(x.1);}
 }
+
+enum Color {
+  RED,
+  GREEN,
+  BLUE,
+}
+
+color := Color.RED
+import "io"
+match color {
+  Color.RED => io.println("red")
+  Color.GREEN => io.println("green")
+  Color.BLUE => io.println("blue")
+}
+
+if Color.RED ~= color {
+  io.println("red")
+} else if Color.GREEN ~= color {
+  io.println("green")
+} else if Color.BLUE ~= color {
+  io.println("blue")
+}
+
+color = Color.BLUE
+match color {
+  Color.RED => io.println("red")
+  Color.GREEN => io.println("green")
+  Color.BLUE => io.println("blue")
+}
+
+if Color.RED ~= color {
+  io.println("red")
+} else if Color.GREEN ~= color {
+  io.println("green")
+} else if Color.BLUE ~= color {
+  io.println("blue")
+}
+
+color = Color.GREEN
+match color {
+  Color.RED => io.println("red")
+  Color.GREEN => io.println("green")
+  Color.BLUE => io.println("blue")
+}
+
+if Color.RED ~= color {
+  io.println("red")
+} else if Color.GREEN ~= color {
+  io.println("green")
+} else if Color.BLUE ~= color {
+  io.println("blue")
+}

@@ -463,6 +463,7 @@ static TypeObject *enum_from_symbol(Symbol *sym)
   TypeDesc *proto = desc_from_proto(args, ret);
   TYPE_DECREF(ret);
   stable_add_func(sym->type.stbl, "__eq__", proto);
+  TYPE_DECREF(proto);
 
   return tp;
 }
