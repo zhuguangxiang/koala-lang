@@ -21,7 +21,14 @@ var y string = "foo"
 var x int = 200
 
 import "io"
-zz := (100, "foo")
+zz := (100, "foo", 3)
+if (100, "foo") ~= zz {
+  io.println("if-match")
+} else {
+  io.println("if-not-match")
+}
+
+zz = (100, "foo")
 if (x, y) ~= zz {
   io.println("if-match")
   io.println(x + 1)
@@ -52,13 +59,6 @@ if (100, (200, _), _) ~= zz2 {
   io.println("if-match2")
 }
 
-arr := [(100, "foo"), (200, "bar"), (404, "not found")]
-// for statement: variable and tuple only
-for (x, y) in arr {
-
-}
-
-// match-statement
 import "io"
 if Result.Ok(100) ~= Result.<int, string>.Ok(100) {
   io.println("Result.Ok(100) ~= Result.Ok(100)")
@@ -92,6 +92,18 @@ if Result.Ok(x) ~= Result.<int,int>.Err(100) {
   io.println(x)
 }
 
+err := Result.<int, (int, string)>.Err((404, "not found"))
+if Result.Err((_, y)) ~= err {
+  io.println("Result.Err((_, y)) ~= err")
+  io.println(y)
+}
+
+arr := [(100, "foo"), (200, "bar"), (404, "not found")]
+// for statement: variable and tuple only
+for (x, y) in arr {
+
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 i := 100
@@ -101,21 +113,15 @@ match i {
 }
 
 match i {
-  _ => {}
-}
-
-match i {
-  _ => io.println("i == i");
+  _ => io.println("_"),
 }
 
 match i {
   100 => io.println("i == 100")
   200 => io.println("i == 200")
-  _ => io.println("i != 100 and i != 200")
 }
 
 i = 200
-
 match i {
   _ => io.println("i != 100 and i != 200")
   100 => io.println("i == 100")
@@ -123,7 +129,6 @@ match i {
 }
 
 i = 300
-
 match i {
   100 => io.println("i == 100")
   _ => io.println("i != 100 and i != 200")
@@ -138,6 +143,7 @@ match i {
 
 match i {
   1...10 => io.println("1...10")
+  100 => io.println("i == 100")
   _ => io.println("out of 1...10")
 }
 
@@ -146,7 +152,42 @@ match i {
   false => io.println("false")
 }
 
-match false {
+s := "foo"
+match s {
+  "foo" => io.println("foo")
+  "bar" => io.println("bar")
+  _ => io.println("other strings")
+}
+
+s = "bar"
+match s {
+  "foo" => io.println("foo")
+  "bar" => io.println("bar")
+  _ => io.println("other strings")
+}
+
+s = "foobar"
+match s {
+  "foo" => io.println("foo")
+  "bar" => io.println("bar")
+  _ => io.println("other strings")
+}
+
+/*
+ch := 'A'
+match ch {
+  'A' => io.println("Char A")
+}
+*/
+
+b := false
+match b {
+  true => io.println("true")
+  false => io.println("false")
+}
+
+b = true
+match b {
   true => io.println("true")
   false => io.println("false")
 }
@@ -178,13 +219,8 @@ match i {
 i = 100
 
 match i {
-  1 | 3 | 100 | 300 => io.println("1 | 3 | 100 | 300")
-  2 | 4 | 200 | 500 => io.println("2 | 4 | 200 | 500")
-  _ => io.println("other value")
-}
-
-match i {
-  20...200 => io.println("20...200")
+  1, 3, 100, 300 => io.println("1, 3, 100, 300")
+  2, 4, 200, 500 => io.println("2, 4, 200, 500")
   _ => io.println("other value")
 }
 
@@ -197,153 +233,70 @@ match obj {
 }
 */
 
-enum Option {
-  None,
-  Some(int, string),
-
-  func is_some() bool {
-    return (self == None) ? false : true
-  }
-
-  func is_none() bool {
-    return (self == None) ? true : false
-  }
+import "io"
+zzz := (100, "foo")
+match zzz {
+  (_, "foo") => io.println("(_, foo)")
+}
+match zzz {
+  (100, y) => io.println(y)
+}
+match zzz {
+  (x, "foo") => io.println(x)
+}
+match zzz {
+  (x, y) => { io.println(x); io.println(y);},
 }
 
-opt := Option.Some(100, "foo")
-
-match opt {
-  case Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
-  case 1 | 3 | 100 | 300 => io.println("1 | 3 | 100 | 300")
-  123 => io.println("opt is 123")
-  _ => io.println("not Option.Some(100, \"foo\")")
+match zzz {
+  (100, y) => io.println(y)
+  (200, y) => io.println(y)
+  (_, y) => {io.println("any of x"); io.println(y);}
 }
 
-match opt {
-  Option.Some(200, "foo") => io.println("Option.Some(200, \"foo\")")
-  Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
-  Option.None => io.println("Option.None")
-  _ => io.println("not Option.Some(100, \"foo\")")
+zzz = (200, "bar")
+match zzz {
+  (100, y) => io.println(y)
+  (200, y) => io.println(y)
+  (_, y) => {io.println("any of x"); io.println(y);}
 }
 
-match opt {
-  Option.Some(_, "bar") => io.println("Option.Some(_, \"bar\")")
-  Option.Some(_, "foo") => io.println("Option.Some(_, \"foo\")")
-  _ => io.println("not Option.Some(_, \"foo\")")
+zzz = (200, ("ok", "msg"))
+match zzz {
+  (100, y) => io.println(y)
+  (200, y) => io.println(y)
+  (_, y) => {io.println("any of x"); io.println(y);}
 }
 
-opt = Option.None
-
-match opt {
-  Option.Some(200, "foo") => io.println("Option.Some(200, \"foo\")")
-  Option.Some(100, "foo") => io.println("Option.Some(100, \"foo\")")
-  Option.None => io.println("Option.None")
-  _ => io.println("not Option.Some(100, \"foo\")")
+zzz = (300, ("anyone"))
+match zzz {
+  (100, y) => io.println(y)
+  (200, y) => io.println(y)
+  (_, y) => {io.println("any of x"); io.println(y);}
+  100 => io.println("error")
 }
 
-match opt {
-  Option.Some(_, y) => {
-    io.println("Option.Some(_, y)")
-    io.println(y)
-  },
-  _ => io.println("not Option.Some(_, y)")
+import "io"
+r := Result.<int, string>.Ok(100)
+match r {
+  Result.Ok(x) => {io.print("ok:"); io.println(x);}
+  Result.Err(x) => {io.println(x);}
 }
 
-opt = Option.Some(100, "jack&rose");
-
-match opt {
-  Option.Some(_, y) => {
-    io.println("Option.Some(_, y)")
-    io.println(y)
-  },
-  _ => io.println("not Option.Some(_, y)")
+r = Result.Err("err:404")
+match r {
+  Result.Ok(x) => {io.print("ok:"); io.println(x);}
+  Result.Err(x) => {io.println(x);}
 }
 
-match opt {
-  Option.Some(x, y) => {
-    io.println("Option.Some(x, y)")
-    io.println(x); io.println(y)
-  }
-  _ => io.println("not Option.Some(x, y)")
+r2 := Result.<int, (int, string)>.Ok(200)
+match r2 {
+  Result.Ok(x) => {io.print("ok:"); io.println(x);}
+  Result.Err(x) => {io.println(x);}
 }
 
-match opt {
-  Option.Some(100, x) => {
-    io.println("""
-    Option.Some(100, x)
-    """)
-    io.println(x)
-  }
-  Option.Some(200, x) => {
-    io.println("Option.Some(200, x)")
-    io.println(x)
-  }
-  Option.None => io.println("Option.None")
-  _ => io.println("not Option.Some(100, x)")
+r2 = Result.Err((404, "not found"))
+match r2 {
+  Result.Ok(x) => {io.print("ok:"); io.println(x);}
+  Result.Err(x) => {io.println(x);io.println(x.0);io.println(x.1);}
 }
-
-opt = Option.Some(200, "foo&bar");
-
-match opt {
-  Option.Some(100, x) => {
-    io.println("Option.Some(100, x)")
-    io.println(x)
-  }
-  Option.Some(200, x) => {
-    io.println("""Option.Some(200, x)""")
-    io.println(x)
-  }
-  Option.None => io.println("Option.None")
-  _ => io.println("not Option.Some(100, x)")
-}
-
-opt = Option.None
-
-match opt {
-  Option.Some(100, x) => {
-    io.println("Option.Some(100, x)")
-    io.println(x)
-  }
-  Option.Some(200, x) => {
-    io.println("Option.Some(200, x)")
-    io.println(x)
-  }
-  Option.None => io.println("Option.None")
-  _ => io.println("not Option.Some(100, x)")
-}
-
-/*
-// short for match enum with only two cases
-
-if Option.Some(100, "foo") = opt {
-  // Option.Some
-  io.println("Option.Some(100, \"foo\")")
-} else {
-  // others, except Option.Some
-  io.println("not Option.Some(100, \"foo\")")
-}
-
-if Option.Some(_, "foo") = opt {
-  // Option.Some
-  io.println("Option.Some(_, \"foo\")")
-} else {
-  // others, except Option.Some
-  io.println("not Option.Some(_, \"foo\")")
-}
-
-if Option.Some(_, y) = opt {
-  // Option.Some
-  io.println("Option.Some(_, y)")
-  io.println(y)
-} else {
-  // others, except Option.Some
-  io.println("not Option.Some(_, y)")
-}
-
-if Option.Some(x, y) = opt {
-  // Option.Some
-
-} else {
-  // others, except Option.Some
-}
-*/

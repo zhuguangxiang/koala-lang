@@ -1395,6 +1395,10 @@ if_stmt:
   // pattern match: expr is enum(tuple) with vars to be unboxed.
   $$ = stmt_from_if($2, $3, $4);
 }
+| IF expr IN range_object block empty_else_if
+{
+
+}
 ;
 
 empty_else_if:
@@ -1467,6 +1471,10 @@ match_clause:
   expr_list FAT_ARROW match_block match_tail
 {
   $$ = new_matchclause($1, $3);
+}
+| IS type FAT_ARROW match_block match_tail
+{
+
 }
 ;
 

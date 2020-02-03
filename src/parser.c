@@ -2717,6 +2717,37 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
     return;
   }
 
+  // update variables' type in enum unbox.
+  Symbol *sym;
+  Expr *arg;
+  vector_for_each(arg, args) {
+    sym = arg->sym;
+    if (arg->newvar && sym->kind == SYM_VAR) {
+
+#if !defined(NLog)
+      STRBUF(sbuf1);
+      STRBUF(sbuf2);
+      desc_tostr(sym->desc, &sbuf1);
+#endif
+
+      TYPE_DECREF(sym->desc);
+      sym->desc = vector_get(ldesc->label.types, idx);
+      TYPE_INCREF(sym->desc);
+
+#if !defined(NLog)
+      desc_tostr(sym->desc, &sbuf2);
+      debug("update var '%s' type: '%s' -> '%s'", sym->name,
+            strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      strbuf_fini(&sbuf1);
+      strbuf_fini(&sbuf2);
+#endif
+
+      TYPE_DECREF(arg->desc);
+      arg->desc = sym->desc;
+      TYPE_INCREF(arg->desc);
+    }
+  }
+
   TypeDesc *edesc = ldesc->label.edesc;
   if (vector_size(edesc->klass.typeargs) <= 0) {
     debug("enum '%s' no explict type arguments.", esym->name);
@@ -5623,10 +5654,6 @@ static void parse_match2(ParserState *ps, Stmt *stmt)
 
 static void parse_literal_match(ParserState *ps, Expr *patt, Expr *some)
 {
-  Symbol *sym = some->sym;
-  if (sym->kind == SYM_VAR)
-    sym = sym->var.typesym;
-
   int kind = patt->k.value.kind;
   if (!literal_allow_patt(kind)) {
     synerr(ps, patt->row, patt->col, "expected int, str, char or bool");
@@ -5651,6 +5678,26 @@ static void parse_literal_match(ParserState *ps, Expr *patt, Expr *some)
           strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
     strbuf_fini(&sbuf1);
     strbuf_fini(&sbuf2);
+  }
+
+  CODE_OP_ARGC(OP_MATCH, 1);
+}
+
+static void parse_range_match(ParserState *ps, Expr *patt, Expr *some)
+{
+  CODE_OP(OP_DUP);
+
+  patt->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, patt);
+  if (has_error(ps))
+    return;
+
+  if (!desc_isint(some->desc)) {
+    STRBUF(sbuf1);
+    desc_tostr(some->desc, &sbuf1);
+    synerr(ps, some->row, some->col, "expected 'int', but found '%s'",
+          strbuf_tostr(&sbuf1));
+    strbuf_fini(&sbuf1);
   }
 
   CODE_OP_ARGC(OP_MATCH, 1);
@@ -5691,13 +5738,53 @@ static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
   case RANGE_KIND: {
     debug("range pattern");
     patt->ctx = EXPR_LOAD;
-    //parse_range_match(ps, patt, some);
+    parse_range_match(ps, patt, some);
     break;
   }
   default: {
     synerr(ps, patt->row, patt->col, "not allowed in match-pattern");
     break;
   }
+  }
+}
+
+static void unbox_pattern(ParserState *ps, Expr *patt)
+{
+  if (has_error(ps))
+    return;
+
+  Vector *exps;
+  if (patt->kind == TUPLE_KIND) {
+    debug("tuple pattern");
+    exps = patt->tuple;
+  } else if (patt->kind == CALL_KIND) {
+    debug("enum pattern");
+    exps = patt->call.args;
+  } else {
+    debug("no pattern");
+    exps = NULL;
+  }
+
+  // handle unpacked objects
+  Symbol *sym;
+  Expr *item;
+  vector_for_each_reverse(item, exps) {
+    sym = item->sym;
+    if (item->newvar && sym->kind == SYM_VAR) {
+      debug("store var '%s', index %d", sym->name, sym->var.index);
+      CODE_OP(OP_DUP);
+      CODE_OP_I(OP_LOAD_CONST, item->index);
+      CODE_OP(OP_SUBSCR_LOAD);
+      CODE_STORE(sym->var.index);
+    } else if (item->newvar && item->kind == TUPLE_KIND) {
+      debug("item is tuple in unbox pattern");
+      CODE_OP(OP_DUP);
+      CODE_OP_I(OP_LOAD_CONST, item->index);
+      CODE_OP(OP_SUBSCR_LOAD);
+      parse_if_unbox(ps, item->tuple);
+    } else {
+      debug("do nothing of unbox pattern");
+    }
   }
 }
 
@@ -5743,6 +5830,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
       parse_pattern(ps, patt, some);
       jmp = CODE_OP(OP_JMP_FALSE);
       start = codesize(ps->u);
+      unbox_pattern(ps, patt);
       parse_match_clause(ps, clause);
       clause->endjmp = CODE_OP(OP_JMP);
       end = codesize(ps->u);
