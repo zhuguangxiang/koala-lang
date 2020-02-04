@@ -207,12 +207,18 @@ static int typecheck(Object *ob, Object *type)
     panic("typecheck: para is not DescType");
 
   TypeDesc *desc = ((DescObject *)type)->desc;
-  if (integer_check(ob) && desc_isint(desc))
-    return 1;
-  if (string_check(ob) && desc_isstr(desc))
-    return 1;
-  if (bool_check(ob) && desc_isbool(desc))
-    return 1;
+
+  if (integer_check(ob)) {
+    return desc_isint(desc) ? 1 : 0;
+  }
+
+  if (string_check(ob)) {
+    return desc_isstr(desc) ? 1 : 0;
+  }
+
+  if (bool_check(ob)) {
+    return desc_isbool(desc) ? 1 : 0;
+  }
 
   TypeObject *tp = OB_TYPE(ob);
   if (desc_check(tp->desc, desc)) {
@@ -318,14 +324,19 @@ static Object *do_match_enum_args(Object *match, Object *pattern)
   return bool_true();
 }
 
-static Object *do_match(Object *match, Object *pattern)
+static Object *do_match(Object *some, Object *patt)
 {
-  if (array_check(pattern)) {
-    ArrayObject *arr = (ArrayObject *)pattern;
+  if (tuple_check(patt)) {
+    return tuple_match(patt, some);
+  } else if (enum_check(patt)) {
+    return enum_match(patt, some);
+    return enum_match(patt, some);
+  } else if (array_check(patt)) {
+    ArrayObject *arr = (ArrayObject *)patt;
     Object *z;
     Object *item;
     vector_for_each(item, &arr->items) {
-      z = do_match(match, item);
+      z = do_match(some, item);
       if (bool_istrue(z)) {
         return z;
       } else {
@@ -333,16 +344,14 @@ static Object *do_match(Object *match, Object *pattern)
       }
     }
     return bool_false();
-  } else if (range_check(pattern)) {
-    return in_range(pattern, match);
-  } else if (bool_check(pattern)) {
-    return (match == pattern) ? bool_true() : bool_false();
-  } else if (type_isenum(OB_TYPE(pattern))) {
-    return enum_match(pattern, match);
-  } else {
+  } else if (range_check(patt)) {
+    return in_range(patt, some);
+  } else if (bool_check(patt)) {
+    return (patt == some) ? bool_true() : bool_false();
+  }  else {
     Object *z;
-    func_t fn = OB_TYPE(pattern)->match;
-    call_op_func(z, pattern, OP_MATCH, match);
+    func_t fn = OB_TYPE(patt)->match;
+    call_op_func(z, patt, OP_MATCH, some);
     return z;
   }
 }

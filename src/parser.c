@@ -5702,14 +5702,14 @@ static void parse_match2(ParserState *ps, Stmt *stmt)
   debug("end of match");
 }
 
-#define literal_allow_patt(kind) \
+#define allow_literal_patt(kind) \
   (kind == BASE_INT || kind == BASE_STR || \
    kind == BASE_CHAR || kind == BASE_BOOL)
 
 static void parse_literal_match(ParserState *ps, Expr *patt, Expr *some)
 {
   int kind = patt->k.value.kind;
-  if (!literal_allow_patt(kind)) {
+  if (!allow_literal_patt(kind)) {
     synerr(ps, patt->row, patt->col, "expected int, str, char or bool");
     return;
   }
@@ -5757,6 +5757,12 @@ static void parse_range_match(ParserState *ps, Expr *patt, Expr *some)
   CODE_OP_ARGC(OP_MATCH, 1);
 }
 
+static void parse_istype_match(ParserState *ps, Expr *patt, Expr *some)
+{
+  CODE_OP(OP_DUP);
+  CODE_OP_TYPE(OP_TYPEOF, patt->isas.type.desc);
+}
+
 static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
 {
   ExprKind eknd = patt->kind;
@@ -5786,7 +5792,7 @@ static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
     debug("is pattern");
     patt->pattern = patt;
     patt->ctx = EXPR_LOAD;
-    //parse_is_match(ps, patt, some);
+    parse_istype_match(ps, patt, some);
     break;
   }
   case RANGE_KIND: {
@@ -5807,6 +5813,55 @@ static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
     break;
   }
   }
+}
+
+static inline int allow_array_patt(TypeDesc *desc)
+{
+  if (desc_isint(desc)) return 1;
+  if (desc_isstr(desc)) return 1;
+  if (desc_ischar(desc)) return 1;
+  return 0;
+}
+
+static void parse_array_pattern(ParserState *ps, Vector *patts, Expr *some)
+{
+  debug("array pattern");
+
+  CODE_OP(OP_DUP);
+
+  Expr *patt;
+  vector_for_each(patt, patts) {
+    patt->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, patt);
+    if (!has_error(ps)) {
+      if (!allow_array_patt(patt->desc)) {
+        STRBUF(sbuf);
+        desc_tostr(patt->desc, &sbuf);
+        synerr(ps, patt->row, patt->col,
+              "'%s' not allowed in match-list-pattern", strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
+      }
+
+      if (!desc_check(patt->desc, some->desc)) {
+        STRBUF(sbuf1);
+        STRBUF(sbuf2);
+        desc_tostr(patt->desc, &sbuf1);
+        desc_tostr(some->desc, &sbuf2);
+        synerr(ps, some->row, some->col, "expected '%s', but found '%s'",
+              strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+        strbuf_fini(&sbuf1);
+        strbuf_fini(&sbuf2);
+      }
+    }
+  }
+
+  // new array
+  int size = vector_size(patts);
+  Inst *inst = CODE_OP_I(OP_NEW_ARRAY, size);
+  inst->desc = TYPE_INCREF(some->desc);
+
+  // do_match
+  CODE_OP_ARGC(OP_MATCH, 1);
 }
 
 static void unbox_pattern(ParserState *ps, Expr *patt)
@@ -5902,26 +5957,32 @@ static void parse_match(ParserState *ps, Stmt *stmt)
       ps->u->stbl = NULL;
       parser_exit_scope(ps);
     } else {
-      vector_for_each(patt, clause->patts) {
-        parse_pattern(ps, patt, some);
-      }
+      parse_array_pattern(ps, clause->patts, some);
+      jmp = CODE_OP(OP_JMP_FALSE);
+      start = codesize(u);
+      parse_match_clause(ps, clause);
+      clause->endjmp = CODE_OP(OP_JMP);
+      end = codesize(u);
+      clause->offset = offset = end;
+      jmp->offset = end - start;
     }
   }
 
-  if (!has_error(ps)) {
-    if (underclause != NULL) {
-      vector_push_back(clauses, underclause);
-      parse_match_clause(ps, underclause);
-      underclause->endjmp = CODE_OP(OP_JMP);
-      underclause->offset = codesize(u);
-    }
+  if (underclause != NULL) {
+    vector_push_back(clauses, underclause);
+    parse_match_clause(ps, underclause);
+    underclause->endjmp = CODE_OP(OP_JMP);
+    underclause->offset = codesize(u);
+  }
 
+  if (!has_error(ps)) {
     // handle end jump of each block
     last = vector_top_back(clauses);
     vector_for_each(clause, clauses) {
       if (clause != NULL) {
         jmp = clause->endjmp;
         jmp->offset = last->offset - clause->offset;
+        expect(jmp->offset >= 0);
       }
     }
   }

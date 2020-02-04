@@ -165,7 +165,6 @@ Object *enum_match(Object *patt, Object *some)
   if (values1 == NULL && values2 == NULL)
     return bool_true();
 
-  expect(tuple_size(values1) == tuple_size(values2));
   return tuple_match(values1, values2);
 }
 

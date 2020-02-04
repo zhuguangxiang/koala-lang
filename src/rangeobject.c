@@ -74,6 +74,7 @@ static MethodDef range_methods[] = {
   {"length", NULL, "i", range_length},
   {"__getitem__", "i", "i", range_getitem},
   {"__iter__", "i", "Llang.Iterator(i);", range_iter},
+  {"contains", "i", "z", in_range},
   {NULL}
 };
 
@@ -150,5 +151,5 @@ Object *in_range(Object *ob, Object *val)
   int64_t start = integer_asint(range->start);
   int64_t end = start + range->len;
   int64_t v = integer_asint(val);
-  return (v < start || v > end) ? bool_false() : bool_true();
+  return (v < start || v >= end) ? bool_false() : bool_true();
 }

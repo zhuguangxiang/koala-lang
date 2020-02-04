@@ -1395,10 +1395,6 @@ if_stmt:
   // pattern match: expr is enum(tuple) with vars to be unboxed.
   $$ = stmt_from_if($2, $3, $4);
 }
-| IF expr IN range_object block empty_else_if
-{
-
-}
 ;
 
 empty_else_if:
@@ -1474,7 +1470,11 @@ match_clause:
 }
 | IS type FAT_ARROW match_block match_tail
 {
-
+  TYPE(type, $2, @2);
+  Expr *e = expr_from_istype(NULL, type);
+  Vector *vec = vector_new();
+  vector_push_back(vec, e);
+  $$ = new_matchclause(vec, $4);
 }
 ;
 

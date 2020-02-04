@@ -98,6 +98,21 @@ if Result.Err((_, y)) ~= err {
   io.println(y)
 }
 
+if (1...10).contains(2) {
+  io.println("2 in 1...10")
+}
+
+if 100 is int {
+  io.println("100 is int")
+}
+
+if 100 is string {
+  io.println("100 is string")
+} else {
+  io.println("100 is not string")
+}
+
+
 arr := [(100, "foo"), (200, "bar"), (404, "not found")]
 // for statement: variable and tuple only
 for (x, y) in arr {
@@ -143,6 +158,7 @@ match i {
 
 match i {
   1...10 => io.println("1...10")
+  11..<20 => io.println("11..<20")
   100 => io.println("i == 100")
   _ => io.println("out of 1...10")
 }
@@ -224,14 +240,18 @@ match i {
   _ => io.println("other value")
 }
 
-/*
-if obj is any, others are not allowed.
-match obj {
-  is int => io.println("type of obj is int")
-  is string => io.println("type of obj is string")
-  _ => io.println("type of obj is others")
+s2 := "foo"
+match s2 {
+  "foo", "bar" => io.println("foo | bar")
+  _ => io.println("other value")
 }
-*/
+
+s = "foo"
+match s {
+  is int => io.println("type is int")
+  is string => io.println("type is string")
+  _ => io.println("type is others")
+}
 
 import "io"
 zzz := (100, "foo")
@@ -351,4 +371,20 @@ if Color.RED ~= color {
   io.println("green")
 } else if Color.BLUE ~= color {
   io.println("blue")
+}
+
+class Pet {
+  name string
+}
+
+class Dog extends Pet {
+}
+
+class Cat extends Pet
+
+var pet Pet = new Dog()
+match pet {
+  is Dog => io.println("is dog")
+  is Cat => io.println("is cat")
+  _ => io.println("unknown type")
 }
