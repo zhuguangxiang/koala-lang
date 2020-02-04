@@ -61,7 +61,6 @@ static Object *range_iter(Object *self, Object *args)
     return NULL;
   }
 
-  RangeObject *range = (RangeObject *)self;
   Object *idx = integer_new(0);
   TypeDesc *desc = desc_from_int;
   Object *ret = iter_new(desc, self, idx);

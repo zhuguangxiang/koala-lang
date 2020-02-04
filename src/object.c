@@ -90,11 +90,6 @@ static Object *any_str(Object *ob, Object *args)
   return string_new(buf);
 }
 
-static Object *any_fmt(Object *ob, Object *args)
-{
-  return NULL;
-}
-
 static Object *any_class(Object *ob, Object *args)
 {
   if (ob == NULL) {
@@ -175,6 +170,7 @@ static void destroy_lro(TypeObject *type)
   vector_fini(&type->lro);
 }
 
+#if !defined(NLog)
 static void type_show(TypeObject *type)
 {
   print("#\n");
@@ -221,135 +217,7 @@ static void type_show(TypeObject *type)
     print(")\n");
   }
 }
-
-static void Type_Add_Numbers(TypeObject *type, NumberMethods *meths)
-{
-  MethodDef def;
-  if (meths->add) {
-    def.name = "__add__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->add;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->sub) {
-    def.name = "__sub__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->sub;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->mul) {
-    def.name = "__mul__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->mul;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->div) {
-    def.name = "__div__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->div;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->mod) {
-    def.name = "__mod__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->mod;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->pow) {
-    def.name = "__pow__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->pow;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->neg) {
-    def.name = "__neg__";
-    def.ptype = NULL;
-    def.rtype = "A";
-    def.func = meths->neg;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->gt) {
-    def.name = "__gt__";
-    def.ptype = "A";
-    def.rtype = "z";
-    def.func = meths->gt;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->ge) {
-    def.name = "__ge__";
-    def.ptype = "A";
-    def.rtype = "z";
-    def.func = meths->ge;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->lt) {
-    def.name = "__lt__";
-    def.ptype = "A";
-    def.rtype = "z";
-    def.func = meths->lt;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->le) {
-    def.name = "__le__";
-    def.ptype = "A";
-    def.rtype = "z";
-    def.func = meths->le;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->eq) {
-    def.name = "__eq__";
-    def.ptype = "A";
-    def.rtype = "z";
-    def.func = meths->eq;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->neq) {
-    def.name = "__neq__";
-    def.ptype = "A";
-    def.rtype = "z";
-    def.func = meths->neq;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->and) {
-    def.name = "__and__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->and;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->or) {
-    def.name = "__or__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->or;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->xor) {
-    def.name = "__xor__";
-    def.ptype = "A";
-    def.rtype = "A";
-    def.func = meths->xor;
-    type_add_methoddef(type, &def);
-  }
-  if (meths->not) {
-    def.name = "__not__";
-    def.ptype = NULL;
-    def.rtype = "A";
-    def.func = meths->not;
-    type_add_methoddef(type, &def);
-  }
-}
-
-static void Type_Add_Mapping(TypeObject *type, MappingMethods *meths)
-{
-
-}
+#endif
 
 int type_ready(TypeObject *type)
 {
@@ -387,7 +255,9 @@ int type_ready(TypeObject *type)
   if (build_lro(type) < 0)
     return -1;
 
+#if !defined(NLog)
   type_show(type);
+#endif
 
   return 0;
 }
@@ -614,9 +484,12 @@ static void type_clean(Object *ob)
 
 static void type_free(Object *ob)
 {
+#if !defined(NLog)
   TypeObject *tp = (TypeObject *)ob;
-  type_clean(ob);
   debug("free type '%s'", tp->name);
+#endif
+
+  type_clean(ob);
   gcfree(ob);
 }
 

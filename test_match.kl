@@ -102,6 +102,10 @@ if (1...10).contains(2) {
   io.println("2 in 1...10")
 }
 
+if (400...500) ~= i {
+  io.println("in 400...500")
+}
+
 if 100 is int {
   io.println("100 is int")
 }
@@ -293,7 +297,6 @@ match zzz {
   (100, y) => io.println(y)
   (200, y) => io.println(y)
   (_, y) => {io.println("any of x"); io.println(y);}
-  100 => io.println("error")
 }
 
 import "io"

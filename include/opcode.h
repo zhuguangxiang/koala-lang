@@ -142,7 +142,6 @@ extern "C" {
 #define OP_INIT_CALL    104
 
 #define OP_MATCH  105
-#define OP_DOT_INDEX  106
 
 #define OP_SUPER_CALL       107
 #define OP_SUPER_INIT_CALL  108

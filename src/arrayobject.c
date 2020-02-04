@@ -96,7 +96,6 @@ static Object *array_setitem(Object *self, Object *args)
     return NULL;
   }
 
-  ArrayObject *arr = (ArrayObject *)self;
   Object *index = tuple_get(args, 0);
   Object *val = tuple_get(args, 1);
   array_set(self, integer_asint(index), val);

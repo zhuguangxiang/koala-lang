@@ -57,11 +57,6 @@ static int esc_char(char esc)
   panic("invalid escape character");
 }
 
-static int is_newline_return(char ch)
-{
-  return ch == '\n' || ch == '\r';
-}
-
 int interactive(ParserState *ps, char *buf, int size);
 int file_input(ParserState *ps, char *buf, int size, FILE *in);
 
@@ -316,7 +311,6 @@ moddoc  "//!"[^\n]*
 }
 
 (\'{character2}{character2}+\') {
-  char *s = yytext;
   synerr(yyps, yyps->row, yyps->col, "illegal character:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;

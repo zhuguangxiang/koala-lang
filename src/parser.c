@@ -297,7 +297,6 @@ void codeblock_free(CodeBlock *block)
   if (block == NULL)
     return;
 
-  Inst *i;
   struct list_head *p, *n;
   list_for_each_safe(p, n, &block->insts) {
     list_del(p);
@@ -335,7 +334,8 @@ static void codeblock_merge(CodeBlock *from, CodeBlock *to)
   }
 }
 
-void codeblock_show(CodeBlock *block)
+#if !defined(NLog)
+static void codeblock_show(CodeBlock *block)
 {
   if (block == NULL || block->bytes <= 0)
     return;
@@ -369,6 +369,7 @@ void codeblock_show(CodeBlock *block)
     }
   }
 }
+#endif
 
 static void code_gen_closure(Inst *i, Image *image, ByteBuffer *buf)
 {
@@ -376,8 +377,6 @@ static void code_gen_closure(Inst *i, Image *image, ByteBuffer *buf)
   ByteBuffer tmpbuf;
   uint8_t *code;
   int size;
-  int locals;
-  int upvals;
   VECTOR(locvec);
 
   bytebuffer_init(&tmpbuf, 32);
@@ -535,7 +534,6 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_UPVAL_STORE:
     bytebuffer_write_byte(buf, i->arg.ival);
     break;
-  case OP_DOT_INDEX:
   case OP_INIT_CALL:
   case OP_SUPER_INIT_CALL:
     bytebuffer_write_byte(buf, i->argc);
@@ -631,10 +629,12 @@ static const char *scopes[] = {
   NULL, "MODULE", "CLASS", "FUNCTION", "BLOCK", "ANONY"
 };
 
+#if !defined(NLog)
 static const char *blocks[] = {
   NULL, "BLOCK", "IF-BLOCK", "WHILE-BLOCK", "FOR-BLOCK", "MATCH-BLOCK",
   "MATCH-PATTERN", "MATCH-CLAUSE",
 };
+#endif
 
 ParserState *new_parser(char *filename)
 {
@@ -673,6 +673,7 @@ static inline void unit_free(ParserState *ps)
   ps->u = NULL;
 }
 
+#if !defined(NLog)
 static void unit_show(ParserState *ps)
 {
   ParserUnit *u = ps->u;
@@ -684,6 +685,7 @@ static void unit_show(ParserState *ps)
   codeblock_show(u->block);
   puts("---------------------------------------------");
 }
+#endif
 
 static void parser_add_jmp(ParserState *ps, Inst *jmp)
 {
@@ -1498,7 +1500,6 @@ static void ident_up_func(ParserState *ps, Expr *exp)
 static void ident_up_block(ParserState *ps, Expr *exp)
 {
   ParserUnit *up = exp->id.scope;
-  Symbol *sym = exp->sym;
 
   if (up->scope == SCOPE_MODULE) {
     ident_in_mod(ps, exp);
@@ -1598,9 +1599,7 @@ static void parse_var_up_anony(ParserState *ps, Expr *exp)
 
 static void ident_up_anony(ParserState *ps, Expr *exp)
 {
-  ParserUnit *u = ps->u;
   ParserUnit *up = exp->id.scope;
-  Symbol *sym = exp->sym;
 
   if (up->scope == SCOPE_MODULE) {
     ident_in_mod(ps, exp);
@@ -2137,7 +2136,7 @@ static void parse_attr(ParserState *ps, Expr *exp)
   Ident *id = &exp->attr.id;
   TypeDesc *desc;
   TypeDesc *ldesc = lexp->desc;
-  Symbol *sym;
+  Symbol *sym = NULL;
   TypeDesc *pdesc = NULL;
   switch (lsym->kind) {
   case SYM_CONST:
@@ -2677,29 +2676,6 @@ void parse_label_tppval(TypeDesc *para, Symbol *esym, TypeDesc *arg,
   strbuf_fini(&sbuf2);
 }
 
-void parse_label_tpvals(Symbol *sym, Vector *args,
-                        ParserState *ps, Vector *values)
-{
-  TypeDesc *desc = sym->desc;
-  Vector *lbltypes = desc->label.types;
-
-  int psz = vector_size(lbltypes);
-  int argsz = vector_size(args);
-  if (psz != argsz) {
-    synerr(ps, 0, 0, "count of arguments expected %d, but %d", psz, argsz);
-    return;
-  }
-
-  TypeDesc *tmp;
-  Expr *arg;
-  vector_for_each(tmp, lbltypes) {
-    arg = vector_get(args, idx);
-    if (tmp->kind == TYPE_PARAREF) {
-
-    }
-  }
-}
-
 static void parse_enum_value(ParserState *ps, Expr *exp)
 {
   Vector *args = exp->call.args;
@@ -2752,10 +2728,10 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
   if (vector_size(edesc->klass.typeargs) <= 0) {
     debug("enum '%s' no explict type arguments.", esym->name);
 
-    VECTOR(tpvec);
+    Vector *tpvec = vector_new();
     // fill null to check it after types are inferred from args.
     for (int i = 0; i < sz; ++i) {
-      vector_push_back(&tpvec, NULL);
+      vector_push_back(tpvec, NULL);
     }
 
     // infer types from arguments.
@@ -2763,12 +2739,12 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
     TypeDesc *para;
     vector_for_each(para, ldesc->label.types) {
       arg = vector_get(args, idx);
-      parse_typepara_value(para, arg->desc, arg->sym, ps, &tpvec);
+      parse_typepara_value(para, arg->desc, arg->sym, ps, tpvec);
     }
 
     // check all type parameters are inferred.
     TypeDesc *item;
-    vector_for_each(item, &tpvec) {
+    vector_for_each(item, tpvec) {
       if (item == NULL) {
         Symbol *tpsym = vector_get(esym->type.typesyms, idx);
         synerr(ps, 0, 0, "type parameter '%s' could not be inferred.",
@@ -2777,10 +2753,10 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
     }
 
     if (!has_error(ps)) {
-      if (!check_label_args(ps, ldesc, args, &tpvec)) {
+      if (!check_label_args(ps, ldesc, args, tpvec)) {
         TypeDesc *edesc = desc_dup(ldesc->label.edesc);
         TypeDesc *tmp;
-        vector_for_each(tmp, &tpvec) {
+        vector_for_each(tmp, tpvec) {
           desc_add_paratype(edesc, tmp);
         }
         exp->desc = edesc;
@@ -2788,7 +2764,7 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
       }
     }
 
-    vector_fini(&tpvec);
+    vector_free(tpvec);
     return;
   }
 
@@ -3559,126 +3535,6 @@ static void parse_range(ParserState *ps, Expr *exp)
   }
 }
 
-static void parse_enum_pattern_args(ParserState *ps, Vector *types, Expr *exp)
-{
-  Ident *id = &exp->enum_pattern.id;
-  int row = id->row;
-  int col = id->col;
-  Vector *exps = exp->enum_pattern.exps;
-
-  int size = vector_size(types);
-  int argc = vector_size(exps);
-  if (size != argc) {
-    synerr(ps, row, col, "expected %d args, but %d", size, argc);
-    return;
-  }
-
-  Expr *e;
-  vector_for_each(e, exps) {
-    switch (e->kind) {
-    case UNDER_KIND:
-      /* place holder, do nothing */
-      debug("pattern is place holder(_), do nothing");
-      break;
-    case ID_KIND:
-      debug("pattern is ident, new variable");
-      Ident id = {e->id.name, e->row, e->col};
-      Symbol *sym = new_update_var(ps, &id, vector_get(types, idx));
-      if (sym != NULL) {
-        sym->var.dotindex = idx;
-      }
-      break;
-    case LITERAL_KIND:
-      debug("pattern is literal");
-      e->ctx = EXPR_LOAD;
-      parse_literal(ps, e);
-      if (!desc_check(vector_get(types, idx), e->desc)) {
-        synerr(ps, e->row, e->col, "pattern type checked failed");
-      }
-      CODE_OP_I(OP_LOAD_CONST, idx);
-      CODE_OP_I(OP_NEW_TUPLE, 2);
-      ++exp->enum_pattern.argc;
-      break;
-    default:
-      panic("invalid enum pattern kind %d", e->kind);
-      break;
-    }
-  }
-}
-
-static void parse_enum_pattern2(ParserState *ps, Expr *exp)
-{
-  Ident *id = &exp->enum_pattern.id;
-  Ident *ename = &exp->enum_pattern.ename;
-  Ident *mod = &exp->enum_pattern.mname;
-
-  Symbol *msym = NULL;
-  if (mod->name != NULL) {
-    msym = stable_get(ps->module->stbl, mod->name);
-    if (msym == NULL) {
-      synerr(ps, mod->row, mod->col,
-                  "cannot find symbol '%s'", mod->name);
-    }
-
-    if (msym->kind != SYM_MOD) {
-      synerr(ps, id->row, id->col,
-                  "'%s' is not module", id->name);
-      msym = NULL;
-    }
-  }
-
-  Symbol *esym = NULL;
-  if (ename->name != NULL) {
-    Module *m = (msym != NULL) ? msym->mod.ptr : ps->module;
-    esym = stable_get(m->stbl, ename->name);
-    if (esym == NULL) {
-      synerr(ps, ename->row, ename->col,
-                  "cannot find symbol '%s'", ename->name);
-    }
-
-    if (esym->kind != SYM_ENUM) {
-      synerr(ps, ename->row, ename->col,
-                  "'%s' is not enum", ename->name);
-      esym = NULL;
-    }
-  }
-
-  STable *stbl = NULL;
-  if (esym != NULL) {
-    stbl = esym->type.stbl;
-  } else {
-    // auto detect from match expr
-    Symbol *sym = exp->enum_pattern.sym;
-    if (sym == NULL || sym->kind != SYM_ENUM) {
-      synerr(ps, id->row, id->col,
-                  "cannot resolve '%s' symbol", id->name);
-    }
-  }
-
-  if (stbl == NULL)
-    return;
-
-  Symbol *lsym = stable_get(stbl, id->name);
-  if (lsym == NULL) {
-    synerr(ps, id->row, id->col,
-                "cannot resolve '%s' symbol", id->name);
-    return;
-  }
-
-  if (lsym->kind != SYM_LABEL) {
-    synerr(ps, id->row, id->col,
-                "'%s' is not enum value", id->name);
-    return;
-  }
-
-  parse_enum_pattern_args(ps, lsym->label.types, exp);
-
-  if (!has_error(ps)) {
-    exp->sym = lsym;
-    exp->desc = TYPE_INCREF(lsym->desc->label.edesc);
-  }
-}
-
 static void parse_tuple_match(ParserState *ps, Expr *patt, Expr *some)
 {
   if (!desc_istuple(some->desc)) {
@@ -3872,7 +3728,6 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
     parse_as,             /* AS_KIND            */
     parse_new,            /* NEW_KIND           */
     parse_range,          /* RANGE_KIND         */
-    parse_enum_pattern2,   /* ENUM_PATTERN_KIND  */
     parse_binary_match,   /* BINARY_MATCH_KIND  */
   };
 
@@ -4213,7 +4068,6 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
 
 static void parser_inplace_assign(ParserState *ps, Stmt *stmt)
 {
-  Expr *rexp = stmt->assign.rexp;
   Expr *lexp = stmt->assign.lexp;
 
   lexp->ctx = EXPR_INPLACE;
@@ -4291,6 +4145,7 @@ static void lro_add(Symbol *base, Vector *lro, char *symname)
   }
 }
 
+#if !defined(NLog)
 static void lro_show(Symbol *sym)
 {
   debug("------lro of '%s'------", sym->name);
@@ -4303,6 +4158,7 @@ static void lro_show(Symbol *sym)
   }
   debug("------------------------");
 }
+#endif
 
 TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
 {
@@ -4932,7 +4788,9 @@ static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
   }
 
   // show lro
+#if !defined(NLog)
   lro_show(clssym);
+#endif
 }
 
 static void addcode_supercall_noargs(CodeBlock **old)
@@ -5020,7 +4878,6 @@ Symbol *get_type_symbol(ParserState *ps, TypeDesc *type)
     return find_symbol_byname(ps, type->pararef.name);
   }
 
-  ParserUnit *u = ps->u;
   if (type->kind != TYPE_KLASS) {
     return get_desc_symbol(ps->module, type);
   }
@@ -5248,7 +5105,6 @@ static void parse_class(ParserState *ps, Stmt *stmt)
 
   /* parse class body */
   Vector *body = stmt->class_stmt.body;
-  int sz = vector_size(body);
   Stmt *s = NULL;
   vector_for_each(s, body) {
     parse_stmt(ps, s);
@@ -5318,7 +5174,7 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
     STRBUF(sbuf);
     desc_tostr(base->desc, &sbuf);
     synerr(ps, base->row, base->col,
-                 "'%s' is not defined", strbuf_tostr(&sbuf));
+          "'%s' is not defined", strbuf_tostr(&sbuf));
     strbuf_fini(&sbuf);
   } else if (sym->kind != SYM_TRAIT) {
     synerr(ps, base->row, base->col, "'%s' is not trait", sym->name);
@@ -5375,7 +5231,9 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
   }
 
   // show lro
+#if !defined(NLog)
   lro_show(traitsym);
+#endif
 }
 
 static void parse_trait(ParserState *ps, Stmt *stmt)
@@ -5394,7 +5252,6 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
 
   /* parse class body */
   Vector *body = stmt->class_stmt.body;
-  int sz = vector_size(body);
   Stmt *s = NULL;
   vector_for_each(s, body) {
     parse_stmt(ps, s);
@@ -5403,7 +5260,7 @@ static void parse_trait(ParserState *ps, Stmt *stmt)
   Symbol *initsym = stable_get(ps->u->stbl, "__init__");
   if (initsym != NULL) {
     synerr(ps, stmt->row, stmt->col,
-                 "'__init__' is not allowed in trait");
+          "'__init__' is not allowed in trait");
   }
 
   parser_exit_scope(ps);
@@ -5493,15 +5350,6 @@ static void parse_match_clause(ParserState *ps, MatchClause *clause)
     u->stbl = stable_new();
   }
 
-  HASHMAP_ITERATOR(iter, &u->stbl->table);
-  Symbol *sym;
-  iter_for_each(&iter, sym) {
-    expect(sym->kind == SYM_VAR);
-    CODE_OP(OP_DUP);
-    CODE_OP_ARGC(OP_DOT_INDEX, sym->var.dotindex);
-    CODE_STORE(sym->var.index);
-  }
-
   Stmt *s = clause->block;
   if (s->kind == EXPR_KIND) {
     parse_expr(ps, s);
@@ -5517,189 +5365,6 @@ static void parse_match_clause(ParserState *ps, MatchClause *clause)
   stable_free(u->stbl);
   u->stbl = NULL;
   parser_exit_scope(ps);
-}
-
-static void parse_match2(ParserState *ps, Stmt *stmt)
-{
-  debug("parse match");
-  Expr *exp = stmt->match_stmt.exp;
-  exp->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, exp);
-  /*
-  Symbol *sym = type_find_mbr(exp->sym, "__eq__");
-  if (sym == NULL) {
-    synerr(ps, exp->row, exp->col, "unsupported match operation");
-  }
-  */
-
-  parser_enter_scope(ps, SCOPE_BLOCK, MATCH_BLOCK);
-  ParserUnit *u = ps->u;
-
-  Vector *clauses = stmt->match_stmt.clauses;
-  int count = vector_size(clauses);
-  MatchClause *match;
-  MatchClause *underscore = NULL;
-  int islast = 0;
-  Inst *matchjmps[count];
-  Inst *blockjmps[count];
-  Inst *underjmp = NULL;
-  int matchoffset[count];
-  int blockoffset[count];
-  int blockjmpoffset[count];
-  int matchindex = 0;
-  int blockindex = 0;
-  int underoffset = 0;
-  int blockjmpindex = 0;
-
-  // parse pattern
-  vector_for_each(match, clauses) {
-    Expr *pattern = NULL; //match->pattern;
-    TypeDesc *patterndesc = NULL;
-    if (pattern->kind == UNDER_KIND) {
-      if (underscore != NULL) {
-        synerr(ps, pattern->row, pattern->col,
-                    "duplicated underscore(_)");
-      }
-      underscore = match;
-      if (idx == count - 1) {
-        islast = 1;
-      }
-      continue;
-    }
-
-    if (pattern->kind == ENUM_PATTERN_KIND) {
-      parser_enter_scope(ps, SCOPE_BLOCK, MATCH_PATTERN);
-      ps->u->stbl = stable_new();
-    }
-
-    pattern->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, pattern);
-
-    if (pattern->kind == ENUM_PATTERN_KIND) {
-      if (stable_size(ps->u->stbl) > 0) {
-        // save symbol table for parsing match clauses.
-        match->stbl = ps->u->stbl;
-      } else {
-        match->stbl = NULL;
-        stable_free(ps->u->stbl);
-      }
-      ps->u->stbl = NULL;
-      parser_exit_scope(ps);
-    }
-
-    if (pattern->kind == ARRAY_KIND) {
-      debug("match pattern is array");
-      Expr *subexp = vector_get(pattern->array, 0);
-      if (subexp == NULL) {
-        synerr(ps, pattern->row, pattern->col,
-                    "cannot resolve array's subtype");
-      } else {
-        patterndesc = subexp->desc;
-      }
-      pattern->enum_pattern.argc = 1;
-    } else if (pattern->kind == RANGE_KIND) {
-      debug("match pattern is range");
-      patterndesc = pattern->range.start->desc;
-      pattern->enum_pattern.argc = 1;
-    } else if (pattern->kind == IS_KIND) {
-      debug("match pattern is IS TYPE");
-      patterndesc = pattern->isas.type.desc;
-      pattern->enum_pattern.argc = 1;
-    } else if (pattern->kind == ENUM_PATTERN_KIND) {
-      debug("match pattern is enum");
-      patterndesc = pattern->desc;
-      //for enum label name
-      ++pattern->enum_pattern.argc;
-      CODE_OP_S(OP_LOAD_CONST, pattern->enum_pattern.id.name);
-    } else {
-      // single literal
-      expect(pattern->kind == LITERAL_KIND);
-      patterndesc = pattern->desc;
-      pattern->enum_pattern.argc = 1;
-    }
-
-    if (patterndesc == NULL) {
-      synerr(ps, pattern->row, pattern->col, "cannot resolve test type");
-    } else if (!desc_check(patterndesc, exp->desc)) {
-      synerr(ps, pattern->row, pattern->col, "types are not matched");
-    } else {
-      CODE_OP_ARGC(OP_MATCH, pattern->enum_pattern.argc);
-      Inst *jmp = CODE_OP(OP_JMP_TRUE); //where to jmp?
-      matchjmps[matchindex] = jmp;
-      matchoffset[matchindex] = codeblock_bytes(u->block);
-      ++matchindex;
-    }
-  }
-
-  // parse underscore(_) pattern
-  if (underscore != NULL) {
-    int understart = codeblock_bytes(u->block);
-    parse_match_clause(ps, underscore);
-    if (vector_size(clauses) > 1) {
-      Inst *jmp = CODE_OP(OP_JMP); //where to jmp?
-      underjmp = jmp;
-      underoffset = codeblock_bytes(u->block);
-    }
-  }
-
-  // parse each body
-  vector_for_each(match, clauses) {
-    int blockstart = codeblock_bytes(u->block);
-    Inst *jmp = NULL;
-    if (match == underscore) {
-      continue;
-    }
-
-    parse_match_clause(ps, match);
-
-    if (islast) {
-      // last one is underscore clause
-      if (idx < count - 2) {
-        // last second clause not need jmp
-        jmp = CODE_OP(OP_JMP); //where to jmp?
-      }
-    } else {
-      // last one is not underscore clause
-      if (idx < count - 1) {
-        // last one clause not need jmp
-        jmp = CODE_OP(OP_JMP); //where to jmp?
-      }
-    }
-
-    if (jmp != NULL) {
-      blockjmps[blockjmpindex] = jmp;
-      blockjmpoffset[blockjmpindex] = codeblock_bytes(u->block);
-      ++blockjmpindex;
-    }
-    blockoffset[blockindex] = blockstart;
-    ++blockindex;
-  }
-
-  // handle jumps' offset
-  if (!has_error(ps)) {
-    expect(matchindex == blockindex);
-    int totalsize = codeblock_bytes(u->block);
-    int matchsize = matchoffset[matchindex - 1];
-
-    for (int i = 0; i < matchindex; ++i) {
-      matchjmps[i]->offset = blockoffset[i] - matchoffset[i];
-    }
-
-    if (underjmp != NULL) {
-      underjmp->offset = totalsize - underoffset;
-    }
-
-    for (int i = 0; i < blockjmpindex; ++i) {
-      blockjmps[i]->offset = totalsize - blockjmpoffset[i];
-    }
-  }
-
-  parser_exit_scope(ps);
-
-  // pop stmt->match_stmt.exp
-  CODE_OP(OP_POP_TOP);
-
-  debug("end of match");
 }
 
 #define allow_literal_patt(kind) \

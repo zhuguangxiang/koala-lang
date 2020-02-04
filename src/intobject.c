@@ -83,7 +83,7 @@ static Object *integer_fmt(Object *self, Object *ob)
 static int64_t int_add(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
-  int64_t r;
+  int64_t r = 0;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a + b);
@@ -110,7 +110,7 @@ static int64_t int_add(Object *x, Object *y)
 static int64_t int_sub(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
-  int64_t r;
+  int64_t r = 0;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)((uint64_t)a - b);
@@ -137,7 +137,7 @@ static int64_t int_sub(Object *x, Object *y)
 static int64_t int_mul(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
-  int64_t r;
+  int64_t r = 0;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)(a * b);
@@ -157,7 +157,7 @@ static int64_t int_mul(Object *x, Object *y)
 static int64_t int_div(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
-  int64_t r;
+  int64_t r = 0;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)(a / b);
@@ -177,7 +177,7 @@ static int64_t int_div(Object *x, Object *y)
 static int64_t int_mod(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
-  int64_t r;
+  int64_t r = 0;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)fmod(a, b);
@@ -197,7 +197,7 @@ static int64_t int_mod(Object *x, Object *y)
 static int64_t int_pow(Object *x, Object *y)
 {
   int64_t a = integer_asint(x);
-  int64_t r;
+  int64_t r = 0;
   if (integer_check(y)) {
     int64_t b = integer_asint(y);
     r = (int64_t)pow(a, b);
@@ -616,8 +616,10 @@ static void byte_free(Object *ob)
     error("object of '%.64s' is not a Byte", OB_TYPE_NAME(ob));
     return;
   }
+#if !defined(NLog)
   ByteObject *b = (ByteObject *)ob;
   debug("[Freed] Byte %d", b->value);
+#endif
   kfree(ob);
 }
 

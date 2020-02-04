@@ -86,9 +86,6 @@ void parse_command(int argc, char *argv[])
     {NULL, 0, NULL, 0}
   };
   int opt;
-  char *slash;
-  char *arg;
-  int len;
 
   while ((opt = getopt_long(argc, argv, "c:vh?", options, NULL)) != -1) {
     switch (opt) {

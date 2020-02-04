@@ -100,7 +100,7 @@ static void refresh(struct linestate *ls)
   len += ls->len - ls->pos;
   // move cursor again
   len += sprintf(buf + len, "\r\x1b[%ldC", ls->pos + ls->plen);
-  write(ls->out, buf, len);
+  if (write(ls->out, buf, len) < 0) return;
 }
 
 static void refresh_cursor(struct linestate *ls)
@@ -108,7 +108,7 @@ static void refresh_cursor(struct linestate *ls)
   char buf[16];
   // move cursor to ->pos+plen
   int len = sprintf(buf, "\r\x1b[%ldC", ls->pos + ls->plen);
-  write(ls->out, buf, len);
+  if (write(ls->out, buf, len) < 0) return;
 }
 
 static void line_insert(struct linestate *ls, char *s, int count)
@@ -124,7 +124,7 @@ static void line_insert(struct linestate *ls, char *s, int count)
     }
     if (ls->plen + ls->len < ls->cols) {
       // not wrap line
-      write(ls->out, s, count);
+      if (write(ls->out, s, count) < 0) return;
     } else {
       refresh(ls);
     }
@@ -207,7 +207,7 @@ static inline void move_right(struct linestate *ls)
 static void do_esc(struct linestate *ls)
 {
   char seq[2];
-  read(ls->in, seq, 2);
+  if (read(ls->in, seq, 2) < 0) return;
 
   if (seq[0] == '[') {
     // ESC [ sequences
@@ -243,7 +243,7 @@ static int line_edit(int in, int out, char *buf, size_t len, const char *prompt)
   ls.pos = 0;
   ls.len = 0;
 
-  write(ls.out, ls.prompt, ls.plen);
+  if (write(ls.out, ls.prompt, ls.plen) < 0) return -1;
 
   while (1) {
     char ch;
@@ -265,7 +265,7 @@ static int line_edit(int in, int out, char *buf, size_t len, const char *prompt)
     case CTRL_D:
       return 0;
     case CTRL_C:
-      write(ls.out, "^C", 2);
+      if (write(ls.out, "^C", 2) < 0) return -1;
       raise(SIGINT);
       break;
     case ESC: // escape sequence

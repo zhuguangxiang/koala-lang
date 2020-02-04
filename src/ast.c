@@ -287,19 +287,6 @@ Expr *expr_from_range(int type, Expr *start, Expr *end)
   return exp;
 }
 
-Expr *expr_enum_pattern(Ident id, Ident *ename, Ident *mname, Vector *exps)
-{
-  Expr *exp = kmalloc(sizeof(Expr));
-  exp->kind = ENUM_PATTERN_KIND;
-  exp->enum_pattern.id = id;
-  if (ename != NULL)
-    exp->enum_pattern.ename = *ename;
-  if (mname != NULL)
-    exp->enum_pattern.mname = *mname;
-  exp->enum_pattern.exps = exps;
-  return exp;
-}
-
 Expr *expr_from_binary_match(Expr *pattern, Expr *some)
 {
   Expr *exp = kmalloc(sizeof(Expr));
@@ -425,10 +412,6 @@ void expr_free(Expr *exp)
   case RANGE_KIND:
     expr_free(exp->range.start);
     expr_free(exp->range.end);
-    kfree(exp);
-    break;
-  case ENUM_PATTERN_KIND:
-    exprlist_free(exp->enum_pattern.exps);
     kfree(exp);
     break;
   case BINARY_MATCH_KIND:

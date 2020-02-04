@@ -132,15 +132,6 @@ static void string_free(Object *self)
   gcfree(self);
 }
 
-static Object *string_str(Object *self, Object *args)
-{
-  if (!string_check(self)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
-    return NULL;
-  }
-  return OB_INCREF(self);
-}
-
 static int str_num_cmp(Object *x, Object *y)
 {
   if (!string_check(x)) {
@@ -297,8 +288,10 @@ static void char_free(Object *ob)
     error("object of '%.64s' is not a Char", OB_TYPE_NAME(ob));
     return;
   }
+#if !defined(NLog)
   CharObject *ch = (CharObject *)ob;
   debug("[Freed] Char %s", (char *)&ch->value);
+#endif
   kfree(ob);
 }
 

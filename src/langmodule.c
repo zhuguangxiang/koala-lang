@@ -120,7 +120,6 @@ static Object *disassemble(Object *self, Object *arg)
   }
 
   CodeObject *co = (CodeObject *)meth->ptr;
-  int size = co->size;
   uint8_t *codes = co->codes;
   int index = 0;
   int op;

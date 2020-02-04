@@ -34,8 +34,10 @@ static void float_free(Object *ob)
     error("object of '%.64s' is not a Float", OB_TYPE_NAME(ob));
     return;
   }
+#if !defined(NLog)
   FloatObject *f = (FloatObject *)ob;
   debug("[Freed] float %lf", f->value);
+#endif
   kfree(ob);
 }
 

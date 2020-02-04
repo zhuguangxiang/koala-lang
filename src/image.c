@@ -90,11 +90,13 @@ static inline void *vargitem_new(int bsize, int isize, int len)
   return data;
 }
 
+#if !defined(NLog)
 static char *mapitem_string[] = {
   "map", "string", "literal", "type", "index", "const",
   "locvar", "var", "constvar", "func", "anony", "code",
   "class", "field", "method", "trait", "ifunc", "enum", "label", "mbr",
 };
+#endif
 
 static int mapitem_length(void *o)
 {
@@ -106,6 +108,7 @@ static void mapitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(MapItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void mapitem_show(Image *image, void *o)
 {
   MapItem *item = o;
@@ -113,6 +116,7 @@ static void mapitem_show(Image *image, void *o)
   print("  offset:0x%x\n", item->offset);
   print("  size:%d\n", item->size);
 }
+#endif
 
 static void mapitem_free(void *o)
 {
@@ -154,12 +158,14 @@ static int stringitem_equal(void *k1, void *k2)
   return !strcmp(item1->data, item2->data);
 }
 
+#if !defined(NLog)
 static void stringitem_show(Image *image, void *o)
 {
   StringItem *item = o;
   print("  length:%d\n", item->length);
   print("  string:%s\n", item->data);
 }
+#endif
 
 void stringitem_free(void *o)
 {
@@ -206,18 +212,7 @@ static int typeitem_equal(void *k1, void *k2)
   return 1;
 }
 
-static char *array_string(int dims)
-{
-  char *data = kmalloc(dims * 2 + 1);
-  int i = 0;
-  while (dims-- > 0) {
-    data[i] = '['; data[i+1] = ']';
-    i += 2;
-  }
-  data[i] = '\0';
-  return data;
-}
-
+#if !defined(NLog)
 static void typeitem_show(Image *image, void *o)
 {
   TypeItem *item = o;
@@ -251,6 +246,7 @@ static void typeitem_show(Image *image, void *o)
     break;
   }
 }
+#endif
 
 static void typeitem_free(void *o)
 {
@@ -338,6 +334,7 @@ static int indexitem_equal(void *k1, void *k2)
   return 1;
 }
 
+#if !defined(NLog)
 static void indexitem_show(Image *image, void *o)
 {
   IndexItem *item = o;
@@ -352,6 +349,7 @@ static void indexitem_show(Image *image, void *o)
     }
   }
 }
+#endif
 
 static void indexitem_free(void *o)
 {
@@ -414,6 +412,7 @@ static int literalitem_equal(void *k1, void *k2)
   return res;
 }
 
+#if !defined(NLog)
 static void literalitem_show(Image *image, void *o)
 {
   LiteralItem *item = o;
@@ -440,6 +439,7 @@ static void literalitem_show(Image *image, void *o)
     break;
   }
 }
+#endif
 
 static void literalitem_free(void *o)
 {
@@ -465,9 +465,10 @@ static int constitem_equal(void *k1, void *k2)
 {
   ConstItem *item1 = k1;
   ConstItem *item2 = k2;
-  return (item1->kind == item2->kind) && (item2->index == item2->index);
+  return (item1->kind == item2->kind) && (item1->index == item2->index);
 }
 
+#if !defined(NLog)
 static void constitem_show(Image *image, void *o)
 {
   static char *kindstr[] = {
@@ -477,6 +478,7 @@ static void constitem_show(Image *image, void *o)
   print("  kind:%s\n", kindstr[item->kind]);
   print("  index:%d\n", item->index);
 }
+#endif
 
 static void constitem_free(void *o)
 {
@@ -493,6 +495,7 @@ static void locvaritem_write(FILE *fp, void *o)
   fwrite(o, sizeof(LocVarItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void locvaritem_show(Image *image, void *o)
 {
   LocVarItem *item = o;
@@ -507,6 +510,7 @@ static void locvaritem_show(Image *image, void *o)
   typeitem_show(image, type);
   print("  index:%d\n", item->index);
 }
+#endif
 
 static void locvaritem_free(void *o)
 {
@@ -533,6 +537,7 @@ static void varitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(VarItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void varitem_show(Image *image, void *o)
 {
   VarItem *item = o;
@@ -546,6 +551,7 @@ static void varitem_show(Image *image, void *o)
   type = _get_(image, ITEM_TYPE, item->typeindex);
   typeitem_show(image, type);
 }
+#endif
 
 static void varitem_free(void *o)
 {
@@ -570,6 +576,7 @@ static void constvaritem_write(FILE *fp, void *o)
   fwrite(o, sizeof(ConstVarItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void constvaritem_show(Image *image, void *o)
 {
   ConstVarItem *item = o;
@@ -583,6 +590,7 @@ static void constvaritem_show(Image *image, void *o)
   type = _get_(image, ITEM_TYPE, item->typeindex);
   typeitem_show(image, type);
 }
+#endif
 
 static void constvaritem_free(void *o)
 {
@@ -609,6 +617,7 @@ static void funcitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(FuncItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void funcitem_show(Image *image, void *o)
 {
   FuncItem *item = o;
@@ -620,6 +629,7 @@ static void funcitem_show(Image *image, void *o)
   print("  rindex:%d\n", item->rindex);
   print("  codeindex:%d\n", item->codeindex);
 }
+#endif
 
 static void funcitem_free(void *o)
 {
@@ -636,6 +646,7 @@ static void anonyitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(AnonyItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void anonyitem_show(Image *image, void *o)
 {
   AnonyItem *item = o;
@@ -647,6 +658,7 @@ static void anonyitem_show(Image *image, void *o)
   print("  rindex:%d\n", item->rindex);
   print("  codeindex:%d\n", item->codeindex);
 }
+#endif
 
 static void anonyitem_free(void *o)
 {
@@ -676,9 +688,11 @@ static void codeitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(CodeItem) + sizeof(uint8_t) * item->size, 1, fp);
 }
 
+#if !defined(NLog)
 static void codeitem_show(Image *image, void *o)
 {
 }
+#endif
 
 static void codeitem_free(void *o)
 {
@@ -705,6 +719,7 @@ static void classitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(ClassItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void classitem_show(Image *image, void *o)
 {
   ClassItem *item = o;
@@ -718,6 +733,7 @@ static void classitem_show(Image *image, void *o)
     typeitem_show(image, type);
   }
 }
+#endif
 
 static void classitem_free(void *o)
 {
@@ -743,6 +759,7 @@ static void ifuncitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(IFuncItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void ifuncitem_show(Image *image, void *o)
 {
   IFuncItem *item = o;
@@ -753,6 +770,7 @@ static void ifuncitem_show(Image *image, void *o)
   print("  pindex:%d\n", item->pindex);
   print("  rindex:%d\n", item->rindex);
 }
+#endif
 
 static void ifuncitem_free(void *o)
 {
@@ -778,6 +796,7 @@ static void enumitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(EnumItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void enumitem_show(Image *image, void *o)
 {
   EnumItem *item = o;
@@ -786,6 +805,7 @@ static void enumitem_show(Image *image, void *o)
   str = _get_(image, ITEM_STRING, item->nameindex);
   print("  (%s)\n", str->data);
 }
+#endif
 
 static void enumitem_free(void *o)
 {
@@ -809,6 +829,7 @@ static void labelitem_write(FILE *fp, void *o)
   fwrite(o, sizeof(LabelItem), 1, fp);
 }
 
+#if !defined(NLog)
 static void labelitem_show(Image *image, void *o)
 {
   LabelItem *item = o;
@@ -819,6 +840,7 @@ static void labelitem_show(Image *image, void *o)
   print("  index:%d\n", item->index);
   print("  value:%d\n", item->value);
 }
+#endif
 
 static void labelitem_free(void *o)
 {
@@ -846,6 +868,7 @@ static void mbritem_write(FILE *fp, void *o)
   fwrite(o, sizeof(MbrItem) + item->size * sizeof(MbrIndex), 1, fp);
 }
 
+#if !defined(NLog)
 static void mbritem_show(Image *image, void *o)
 {
   MbrItem *item = o;
@@ -857,6 +880,7 @@ static void mbritem_show(Image *image, void *o)
     print("  index:%d", index->index);
   }
 }
+#endif
 
 static void mbritem_free(void *o)
 {
@@ -1096,108 +1120,170 @@ struct item_funcs {
   itemwritefunc write;
   hashfunc hash;
   equalfunc equal;
-  itemshowfunc show;
   itemfreefunc free;
+#if !defined(NLog)
+  itemshowfunc show;
+#endif
 } item_func[ITEM_MAX] = {
   {
     mapitem_length, mapitem_write,
     NULL, NULL,
-    mapitem_show, mapitem_free,
+    mapitem_free,
+#if !defined(NLog)
+    mapitem_show,
+#endif
   },
   {
     stringitem_length, stringitem_write,
     stringitem_hash, stringitem_equal,
-    stringitem_show, stringitem_free,
+    stringitem_free,
+#if !defined(NLog)
+    stringitem_show,
+#endif
   },
   {
     literalitem_length, literalitem_write,
     literalitem_hash, literalitem_equal,
-    literalitem_show, literalitem_free,
+    literalitem_free,
+#if !defined(NLog)
+    literalitem_show,
+#endif
   },
   {
     typeitem_length, typeitem_write,
     typeitem_hash, typeitem_equal,
-    typeitem_show, typeitem_free,
+    typeitem_free,
+#if !defined(NLog)
+    typeitem_show,
+#endif
   },
   {
     indexitem_length, indexitem_write,
     indexitem_hash, indexitem_equal,
-    indexitem_show, indexitem_free,
+    indexitem_free,
+#if !defined(NLog)
+    indexitem_show,
+#endif
   },
   {
     constitem_length, constitem_write,
     constitem_hash, constitem_equal,
-    constitem_show, constitem_free,
+    constitem_free,
+#if !defined(NLog)
+    constitem_show,
+#endif
   },
   {
     locvaritem_length, locvaritem_write,
     NULL, NULL,
-    locvaritem_show, locvaritem_free,
+    locvaritem_free,
+#if !defined(NLog)
+    locvaritem_show,
+#endif
   },
   {
     varitem_length, varitem_write,
     NULL, NULL,
-    varitem_show, varitem_free,
+    varitem_free,
+#if !defined(NLog)
+    varitem_show,
+#endif
   },
   {
     constvaritem_length, constvaritem_write,
     NULL, NULL,
-    constvaritem_show, constvaritem_free,
+    constvaritem_free,
+#if !defined(NLog)
+    constvaritem_show,
+#endif
   },
   {
     funcitem_length, funcitem_write,
     NULL, NULL,
-    funcitem_show, funcitem_free,
+    funcitem_free,
+#if !defined(NLog)
+    funcitem_show,
+#endif
   },
   {
     anonyitem_length, anonyitem_write,
     NULL, NULL,
-    anonyitem_show, anonyitem_free,
+    anonyitem_free,
+#if !defined(NLog)
+    anonyitem_show,
+#endif
   },
   {
     codeitem_length, codeitem_write,
     NULL, NULL,
-    codeitem_show, codeitem_free,
+    codeitem_free,
+#if !defined(NLog)
+    codeitem_show,
+#endif
   },
   {
     classitem_length, classitem_write,
     NULL, NULL,
-    classitem_show, classitem_free,
+    classitem_free,
+#if !defined(NLog)
+    classitem_show,
+#endif
   },
   {
     varitem_length, varitem_write,
     NULL, NULL,
-    varitem_show, varitem_free,
+    varitem_free,
+#if !defined(NLog)
+    varitem_show,
+#endif
   },
   {
     funcitem_length, funcitem_write,
     NULL, NULL,
-    funcitem_show, funcitem_free,
+    funcitem_free,
+#if !defined(NLog)
+    funcitem_show,
+#endif
   },
   {
     classitem_length, classitem_write,
     NULL, NULL,
-    classitem_show, classitem_free,
+    classitem_free,
+#if !defined(NLog)
+    classitem_show,
+#endif
   },
   {
     ifuncitem_length, ifuncitem_write,
     NULL, NULL,
-    ifuncitem_show, ifuncitem_free,
+    ifuncitem_free,
+#if !defined(NLog)
+    ifuncitem_show,
+#endif
   },
   {
     enumitem_length, enumitem_write,
     NULL, NULL,
-    enumitem_show, enumitem_free,
+    enumitem_free,
+#if !defined(NLog)
+    enumitem_show,
+#endif
   },
   {
     labelitem_length, labelitem_write,
     NULL, NULL,
-    labelitem_show, labelitem_free,
+    labelitem_free,
+#if !defined(NLog)
+    labelitem_show,
+#endif
   },
   {
     mbritem_length, mbritem_write,
     NULL, NULL,
-    mbritem_show, mbritem_free,
+    mbritem_free,
+#if !defined(NLog)
+    mbritem_show,
+#endif
   },
 };
 
@@ -1765,13 +1851,11 @@ static void image_load_anony(Image *image, ConstItem *item, CodeInfo *ci)
 
 void image_load_consts(Image *image, getconstfunc func, void *arg)
 {
-  void *data;
   ConstItem *item;
   LiteralItem *liteitem;
   TypeItem *typeitem;
   Literal val;
   TypeDesc *desc;
-  Vector *vec;
   int size = _size_(image, ITEM_CONST);
   for (int i = 0; i < size; i++) {
     item = _get_(image, ITEM_CONST, i);
@@ -2374,6 +2458,7 @@ Image *image_read_file(char *path, int unload)
   return image;
 }
 
+#if !defined(NLog)
 void header_show(ImageHeader *h)
 {
   print("magic:%s\n", (char *)h->magic);
@@ -2384,7 +2469,9 @@ void header_show(ImageHeader *h)
   print("map_size:%d\n\n", h->map_size);
   puts("--------------------");
 }
+#endif
 
+#if !defined(NLog)
 void image_show(Image *image)
 {
   if (image == NULL)
@@ -2420,3 +2507,4 @@ void image_show(Image *image)
 
   puts("\n------end of image------------");
 }
+#endif

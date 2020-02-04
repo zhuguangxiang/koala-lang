@@ -273,7 +273,9 @@ int image_add_mbrs(Image *image, MbrIndex *indexes, int size);
 
 Image *image_new(char *name);
 void image_free(Image *image);
+#if !defined(NLog)
 void image_show(Image *image);
+#endif
 void image_finish(Image *image);
 void image_write_file(Image *image, char *path);
 /* flags is ITEM_XXX bits, marked not load */

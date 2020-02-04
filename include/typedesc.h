@@ -115,6 +115,11 @@ struct typedesc {
   };
 };
 
+#define _TYPE_INCREF_(desc) ({  \
+  ++(desc)->refcnt;             \
+  desc;                         \
+})
+
 #define TYPE_INCREF(desc) ({ \
   if (desc)                  \
     ++(desc)->refcnt;        \
@@ -153,15 +158,15 @@ extern TypeDesc type_base_char;
 extern TypeDesc type_base_float;
 extern TypeDesc type_base_desc;
 extern TypeDesc type_base_null;
-#define desc_from_byte  TYPE_INCREF(&type_base_byte)
-#define desc_from_int   TYPE_INCREF(&type_base_int)
-#define desc_from_float TYPE_INCREF(&type_base_float)
-#define desc_from_char  TYPE_INCREF(&type_base_char)
-#define desc_from_str   TYPE_INCREF(&type_base_str)
-#define desc_from_bool  TYPE_INCREF(&type_base_bool)
-#define desc_from_any   TYPE_INCREF(&type_base_any)
-#define desc_from_desc  TYPE_INCREF(&type_base_desc)
-#define desc_from_null   TYPE_INCREF(&type_base_null)
+#define desc_from_byte  _TYPE_INCREF_(&type_base_byte)
+#define desc_from_int   _TYPE_INCREF_(&type_base_int)
+#define desc_from_float _TYPE_INCREF_(&type_base_float)
+#define desc_from_char  _TYPE_INCREF_(&type_base_char)
+#define desc_from_str   _TYPE_INCREF_(&type_base_str)
+#define desc_from_bool  _TYPE_INCREF_(&type_base_bool)
+#define desc_from_any   _TYPE_INCREF_(&type_base_any)
+#define desc_from_desc  _TYPE_INCREF_(&type_base_desc)
+#define desc_from_null  _TYPE_INCREF_(&type_base_null)
 TypeDesc *desc_from_base(int kind);
 TypeDesc *desc_from_klass(char *path, char *type);
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);

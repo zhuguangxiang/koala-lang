@@ -225,8 +225,6 @@ void expr_free(Expr *exp);
 void exprlist_free(Vector *vec);
 void stmt_free(Stmt *stmt);
 
-Expr *expr_enum_pattern(Ident id, Ident *ename, Ident *mname, Vector *exps);
-
 /* unary operator kind */
 typedef enum unaryopkind {
   /* + */
@@ -273,8 +271,6 @@ typedef enum exprkind {
   NEW_KIND,
   /* range object */
   RANGE_KIND,
-  /* enum pattern */
-  ENUM_PATTERN_KIND,
   /* binary match */
   BINARY_MATCH_KIND,
   EXPR_KIND_MAX

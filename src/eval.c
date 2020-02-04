@@ -117,7 +117,7 @@ static void free_frame(CallFrame *f)
 }
 
 /* global KoalaState list */
-static struct list_head kslist;
+//static struct list_head kslist;
 
 #define TOP() ({ \
   expect(top < base + MAX_STACK_SIZE); \
@@ -296,34 +296,6 @@ static Vector *getupvals(CallFrame *f, Object *ob)
   return upvals;
 }
 
-static Object *do_match_enum_args(Object *match, Object *pattern)
-{
-  Object *name = tuple_get(pattern, 0);
-  int res = enum_check_byname(match, name);
-  OB_DECREF(name);
-  if (!res) {
-    return bool_false();
-  }
-
-  int size = tuple_size(pattern);
-  Object *ob;
-  for (int i = 1; i < size; ++i) {
-    ob = tuple_get(pattern, i);
-    expect(tuple_check(ob));
-    Object *idx = tuple_get(ob, 0);
-    Object *val = tuple_get(ob, 1);
-    OB_DECREF(ob);
-    res = enum_check_value(match, idx, val);
-    OB_DECREF(idx);
-    OB_DECREF(val);
-    if (!res) {
-      return bool_false();
-    }
-  }
-
-  return bool_true();
-}
-
 static Object *do_match(Object *some, Object *patt)
 {
   if (tuple_check(patt)) {
@@ -353,16 +325,6 @@ static Object *do_match(Object *some, Object *patt)
     func_t fn = OB_TYPE(patt)->match;
     call_op_func(z, patt, OP_MATCH, some);
     return z;
-  }
-}
-
-static Object *do_dot_index(Object *ob, int index)
-{
-  if (tuple_check(ob)) {
-    panic("tuple index not implemented.");
-  } else {
-    expect(type_isenum(OB_TYPE(ob)));
-    return enum_get_value(ob, index);
   }
 }
 
@@ -1286,14 +1248,6 @@ Object *Koala_EvalFrame(CallFrame *f)
       }
       */
       PUSH(z);
-      break;
-    }
-    case OP_DOT_INDEX: {
-      oparg = NEXT_BYTE();
-      x = POP();
-      y = do_dot_index(x, oparg);
-      PUSH(y);
-      OB_DECREF(x);
       break;
     }
     default: {

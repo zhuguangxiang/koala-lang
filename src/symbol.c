@@ -394,7 +394,6 @@ extern Symbol *anysym;
 Symbol *load_type(Object *ob)
 {
   TypeObject *type = (TypeObject *)ob;
-  ModuleObject *mob = (ModuleObject *)type->owner;
   if (type->mtbl == NULL) {
     warn("mtbl of type '%s' is null", type->name);
     return NULL;
