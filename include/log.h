@@ -53,13 +53,13 @@ do {                                      \
   abort();                                \
 } while (0)
 
-#define expect(expr)                                   \
-do {                                                   \
-  if (!(expr)) {                                       \
-    _print_(_ERR_COLOR_, "%s:%d: expect '%s' is true", \
-      _FILENAME_, __LINE__, #expr);                    \
-    abort();                                           \
-  }                                                    \
+#define expect(expr)                           \
+do {                                           \
+  if (!(expr)) {                               \
+    _print_(_ERR_COLOR_, "%s:%d: expect '%s'", \
+      _FILENAME_, __LINE__, #expr);            \
+    abort();                                   \
+  }                                            \
 } while (0)
 
 #ifdef NLog

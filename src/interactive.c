@@ -213,7 +213,6 @@ int cmd_add_const(ParserState *ps, Ident id)
 {
   cursym = stable_add_const(mod.stbl, id.name, NULL);
   if (cursym != NULL) {
-    //cursym->k.typesym = get_desc_symbol(ps->module, type.desc);
     return 0;
   } else {
     synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
@@ -259,24 +258,20 @@ static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
         synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
       }
     } else if (s->kind == FUNC_KIND) {
+      id = &s->funcdecl.id;
+      sym2 = stable_add_func(stbl, id->name, NULL);
+      if (sym2 == NULL) {
+        synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
+      }
+    } else if (s->kind == IFUNC_KIND) {
       /*
       Vector *idtypes = s->funcdecl.idtypes;
       Type *ret = &s->funcdecl.ret;
       TypeDesc *proto = parse_proto(idtypes, ret);
       */
       id = &s->funcdecl.id;
-      sym2 = stable_add_func(stbl, id->name, NULL);
+      sym2 = stable_add_ifunc(stbl, id->name, NULL);
       //TYPE_DECREF(proto);
-      if (sym2 == NULL) {
-        synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
-      }
-    } else if (s->kind == IFUNC_KIND) {
-      Vector *idtypes = s->funcdecl.idtypes;
-      Type *ret = &s->funcdecl.ret;
-      TypeDesc *proto = parse_proto(idtypes, ret);
-      id = &s->funcdecl.id;
-      sym2 = stable_add_ifunc(stbl, id->name, proto);
-      TYPE_DECREF(proto);
       if (sym2 == NULL) {
         synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
       }
@@ -401,6 +396,7 @@ static void _load_base_(TypeDesc *desc, void *arg)
   OB_DECREF(tp);
 }
 
+static
 void _load_type_(char *name, int baseidx, int mbridx, Image *image, void *arg)
 {
   TypeObject *type = arg;

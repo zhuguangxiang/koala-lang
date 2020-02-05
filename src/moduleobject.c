@@ -29,9 +29,11 @@
 #include "classobject.h"
 #include "tupleobject.h"
 #include "codeobject.h"
+#include "enumobject.h"
 #include "hashmap.h"
 #include "image.h"
 #include "log.h"
+#include "atom.h"
 
 Object *module_lookup(Object *ob, char *name)
 {
@@ -340,6 +342,102 @@ static void _load_func_(char *name, CodeInfo *ci, void *arg)
   OB_DECREF(meth);
 }
 
+static void _load_mbr_(char *name, int kind, void *data, void *arg)
+{
+  TypeObject *type = arg;
+  if (kind == MBR_FIELD) {
+    type_add_field_default(type, atom(name), data);
+  } else if (kind == MBR_METHOD) {
+    CodeInfo *ci = data;
+    Object *code = code_new(name, ci->desc, ci->codes, ci->size);
+    code_set_locvars(code, ci->locvec);
+    code_set_freevals(code, ci->freevec);
+    code_set_module(code, type->owner);
+    code_set_type(code, type);
+    code_set_consts(code, type->consts);
+    Object *meth = method_new(name, code);
+    type_add_method(type, meth);
+    OB_DECREF(code);
+    OB_DECREF(meth);
+  } else if (kind == MBR_LABEL) {
+    type_add_label(type, name, data);
+  } else if (kind == MBR_IFUNC) {
+    Object *proto = proto_new(name, data);
+    type_add_ifunc(type, proto);
+    OB_DECREF(proto);
+  } else {
+    panic("_load_mbr__: not implemented");
+  }
+}
+
+static void _load_base_(TypeDesc *desc, void *arg)
+{
+  TypeObject *type = arg;
+  expect(desc->kind == TYPE_KLASS);
+  Object *mobj;
+  if (desc->klass.path != NULL) {
+    mobj = module_load(desc->klass.path);
+  } else {
+    mobj = type->owner;
+  }
+  expect(mobj != NULL);
+  Object *tp = module_get(mobj, desc->klass.type);
+  expect(tp != NULL);
+  expect(type_check(tp));
+  vector_push_back(&type->bases, tp);
+  OB_DECREF(tp);
+}
+
+static
+void _load_class_(char *name, int baseidx, int mbridx, Image *image, void *arg)
+{
+  TypeObject *type = type_new(NULL, name, TPFLAGS_CLASS);
+  module_add_type(arg, type);
+  type->consts = ((ModuleObject *)arg)->consts;
+  OB_INCREF(type->consts);
+  OB_DECREF(type);
+
+  image_load_mbrs(image, mbridx, _load_mbr_, type);
+  if (baseidx >= 0)
+    image_load_bases(image, baseidx, _load_base_, type);
+
+  if (type_ready(type) < 0)
+    panic("Cannot initalize '%s' type.", name);
+}
+
+static
+void _load_trait_(char *name, int baseidx, int mbridx, Image *image, void *arg)
+{
+  TypeObject *type = type_new(NULL, name, TPFLAGS_TRAIT);
+  module_add_type(arg, type);
+  type->consts = ((ModuleObject *)arg)->consts;
+  OB_INCREF(type->consts);
+  OB_DECREF(type);
+
+  image_load_mbrs(image, mbridx, _load_mbr_, type);
+  if (baseidx >= 0)
+    image_load_bases(image, baseidx, _load_base_, type);
+
+  if (type_ready(type) < 0)
+    panic("Cannot initalize '%s' type.", name);
+}
+
+static
+void _load_enum_(char *name, int baseidx, int mbridx, Image *image, void *arg)
+{
+  TypeObject *type = enum_type_new(NULL, name);
+  module_add_type(arg, type);
+  type->consts = ((ModuleObject *)arg)->consts;
+  OB_INCREF(type->consts);
+  OB_DECREF(type);
+
+  image_load_mbrs(image, mbridx, _load_mbr_, type);
+  expect(baseidx < 0);
+
+  if (type_ready(type) < 0)
+    panic("Cannot initalize '%s' type.", name);
+}
+
 static Object *module_from_file(char *path, char *name)
 {
   char *klcpath = str_dup_ex(path, ".klc");
@@ -359,11 +457,9 @@ static Object *module_from_file(char *path, char *name)
     IMAGE_LOAD_VARS(image, _load_var_, mo);
     IMAGE_LOAD_CONSTVARS(image, _load_var_, mo);
     IMAGE_LOAD_FUNCS(image, _load_func_, mo);
-    /*
     IMAGE_LOAD_CLASSES(image, _load_class_, mo);
     IMAGE_LOAD_TRAITS(image, _load_trait_, mo);
     IMAGE_LOAD_ENUMS(image, _load_enum_, mo);
-    */
     image_free(image);
   } else {
     warn("cannot load '%s'", klcpath);

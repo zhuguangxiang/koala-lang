@@ -2935,9 +2935,19 @@ static void parse_tuple(ParserState *ps, Expr *exp)
     if (e->desc != NULL) {
       if (exp->types != NULL) {
         TypeDesc *rdesc = vector_get(exp->types, idx);
-        if (!desc_check(rdesc, e->desc)) {
-          if (!check_inherit(rdesc, e->sym, e->desc)) {
-            synerr(ps, e->row, e->col, "item %d in tuple not matched.", idx);
+        if (e->kind == RANGE_KIND) {
+          if (!desc_isint(rdesc)) {
+            STRBUF(sbuf);
+            desc_tostr(rdesc, &sbuf);
+            synerr(ps, e->row, e->col,
+                  "expected 'int', but '%s'", strbuf_tostr(&sbuf));
+            strbuf_fini(&sbuf);
+          }
+        } else {
+          if (!desc_check(rdesc, e->desc)) {
+            if (!check_inherit(rdesc, e->sym, e->desc)) {
+              synerr(ps, e->row, e->col, "item %d in tuple not matched.", idx);
+            }
           }
         }
       }
@@ -3925,19 +3935,6 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
         strbuf_fini(&sbuf1);
         strbuf_fini(&sbuf2);
       }
-      // } else {
-      //   //check subtype
-      //   if (!check_subdesc(desc, rdesc)) {
-      //     STRBUF(sbuf1);
-      //     STRBUF(sbuf2);
-      //     desc_tostr(desc, &sbuf1);
-      //     desc_tostr(exp->desc, &sbuf2);
-      //     synerr(ps, exp->row, exp->col, "expected '%s', but found '%s'",
-      //                 strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-      //     strbuf_fini(&sbuf1);
-      //     strbuf_fini(&sbuf2);
-      //   }
-      // }
     }
   } else {
     if (rdesc && desc_isnull(rdesc)) {
@@ -4703,6 +4700,10 @@ static void parse_ifunc(ParserState *ps, Stmt *stmt)
   debug("parse ifunc '%s'", id->name);
   Symbol *sym = stable_get(ps->u->stbl, id->name);
   expect(sym != NULL && sym->kind == SYM_IFUNC);
+  // update proto
+  Vector *idtypes = stmt->funcdecl.idtypes;
+  Type *ret = &stmt->funcdecl.ret;
+  sym->desc = parse_func_proto(ps, idtypes, ret);
 }
 
 static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)

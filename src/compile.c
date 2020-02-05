@@ -124,12 +124,11 @@ int check_dir(char *path)
   return 0;
 }
 
-int comp_add_const(ParserState *ps, Ident id, Type type)
+int comp_add_const(ParserState *ps, Ident id)
 {
   Module *mod = ps->module;
-  Symbol *sym = stable_add_const(mod->stbl, id.name, type.desc);
+  Symbol *sym = stable_add_const(mod->stbl, id.name, NULL);
   if (sym != NULL) {
-    sym->k.typesym = get_desc_symbol(mod, type.desc);
     return 0;
   } else {
     synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
@@ -137,12 +136,11 @@ int comp_add_const(ParserState *ps, Ident id, Type type)
   }
 }
 
-int comp_add_var(ParserState *ps, Ident id, Type type)
+int comp_add_var(ParserState *ps, Ident id)
 {
   Module *mod = ps->module;
-  Symbol *sym = stable_add_var(mod->stbl, id.name, type.desc);
+  Symbol *sym = stable_add_var(mod->stbl, id.name, NULL);
   if (sym != NULL) {
-    sym->var.typesym = get_desc_symbol(mod, type.desc);
     return 0;
   } else {
     synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
@@ -150,12 +148,10 @@ int comp_add_var(ParserState *ps, Ident id, Type type)
   }
 }
 
-int comp_add_func(ParserState *ps, Ident id, Vector *idtypes, Type ret)
+int comp_add_func(ParserState *ps, Ident id)
 {
   Module *mod = ps->module;
-  TypeDesc *proto = parse_proto(idtypes, &ret);
-  Symbol *sym = stable_add_func(mod->stbl, id.name, proto);
-  TYPE_DECREF(proto);
+  Symbol *sym = stable_add_func(mod->stbl, id.name, NULL);
   if (sym == NULL) {
     synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
@@ -175,30 +171,28 @@ static void comp_visit_type(ParserState *ps, Symbol *sym, Vector *body)
   vector_for_each(s, body) {
     if (s->kind == VAR_KIND) {
       id = &s->vardecl.id;
-      sym2 = stable_add_var(stbl, id->name, s->vardecl.type.desc);
+      sym2 = stable_add_var(stbl, id->name, NULL);
       if (sym2 == NULL) {
         synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
       }
     } else if (s->kind == FUNC_KIND) {
-      Vector *idtypes = s->funcdecl.idtypes;
-      Type *ret = &s->funcdecl.ret;
-      TypeDesc *proto = parse_proto(idtypes, ret);
       id = &s->funcdecl.id;
-      sym2 = stable_add_func(stbl, id->name, proto);
+      sym2 = stable_add_func(stbl, id->name, NULL);
       if (sym2 == NULL) {
         synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
       }
-      TYPE_DECREF(proto);
     } else if (s->kind == IFUNC_KIND) {
+      /*
       Vector *idtypes = s->funcdecl.idtypes;
       Type *ret = &s->funcdecl.ret;
       TypeDesc *proto = parse_proto(idtypes, ret);
+      */
       id = &s->funcdecl.id;
-      sym2 = stable_add_ifunc(stbl, id->name, proto);
+      sym2 = stable_add_ifunc(stbl, id->name, NULL);
+      //TYPE_DECREF(proto);
       if (sym2 == NULL) {
         synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
       }
-      TYPE_DECREF(proto);
     } else {
       panic("invalid type's body statement: %d", s->kind);
     }
@@ -214,12 +208,7 @@ static void comp_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
     lblsym = stable_add_label(stbl, label->id.name);
     if (lblsym == NULL) {
       synerr(ps, label->id.row, label->id.col,
-                   "enum label '%s' duplicated.", label->id.name);
-    } else {
-      lblsym->label.esym = sym;
-      lblsym->desc = desc_from_label(sym->desc, label->types);
-      lblsym->label.types = label->types;
-      label->types = NULL;
+            "enum label '%s' duplicated.", label->id.name);
     }
   }
 }
@@ -394,10 +383,21 @@ static void write_image(Module *mod)
   debug("\x1b[32m----END OF GENERATING IMAGE------\x1b[0m");
 }
 
+static inline void fini_mod(Module *mod)
+{
+  ParserState *ps;
+  vector_for_each(ps, &mod->pss) {
+    if (ps != NULL) free_parser(ps);
+  }
+
+  vector_fini(&mod->pss);
+  stable_free(mod->stbl);
+}
+
 /* koala -c a/b/foo.kl [a/b/foo] */
 void koala_compile(char *path)
 {
-  int need_image = 1;
+  int needimage = 1;
   Module mod = {0};
   Symbol *modSym;
 
@@ -444,7 +444,7 @@ void koala_compile(char *path)
   // parse all source files in the same directory as one module
   if (mod.errors == 0) {
     if (vector_size(&mod.pss) <= 0) {
-      need_image = 0;
+      needimage = 0;
     } else {
       ParserState *ps;
       vector_for_each(ps, &mod.pss) {
@@ -452,17 +452,17 @@ void koala_compile(char *path)
           parse_ast(ps);
           mod.errors += ps->errors;
         }
+        vector_set(&mod.pss, idx, NULL);
         free_parser(ps);
       }
     }
   }
 
   // write image file
-  if (mod.errors == 0 && need_image == 1) {
+  if (mod.errors == 0 && needimage == 1) {
     write_image(&mod);
   }
 
-  vector_fini(&mod.pss);
-  stable_free(mod.stbl);
+  fini_mod(&mod);
   symbol_decref(modSym);
 }
