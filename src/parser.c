@@ -4532,7 +4532,7 @@ static void parse_if(ParserState *ps, Stmt *stmt)
     }
   }
 
-  if (orelse) {
+  if (orelse != NULL) {
     u->stbl = NULL;
     parse_stmt(ps, orelse);
     u->stbl = stbl;
@@ -4552,6 +4552,7 @@ static void parse_while(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_BLOCK, WHILE_BLOCK);
   ParserUnit *u = ps->u;
+  u->stbl = stable_new();
   Expr *test = stmt->while_stmt.test;
   Vector *block = stmt->while_stmt.block;
   Inst *jmp = NULL;
@@ -4569,6 +4570,20 @@ static void parse_while(ParserState *ps, Stmt *stmt)
   }
 
   if (block != NULL) {
+    if (test != NULL && test->kind == BINARY_MATCH_KIND) {
+      Expr *patt = test->binary_match.pattern;
+      if (patt->kind == TUPLE_KIND) {
+        parse_if_unbox(ps, patt->tuple);
+      } else if (patt->kind == CALL_KIND) {
+        parse_if_unbox(ps, patt->call.args);
+      } else if (patt->kind == ATTRIBUTE_KIND) {
+        // pop some object
+        CODE_OP(OP_POP_TOP);
+      } else {
+        debug("no need unbox in while-statement");
+      }
+    }
+
     Stmt *s;
     vector_for_each(s, block) {
       parse_stmt(ps, s);
@@ -4585,6 +4600,8 @@ static void parse_while(ParserState *ps, Stmt *stmt)
 
   parser_handle_jmps(ps, 0);
 
+  stable_free(u->stbl);
+  u->stbl = NULL;
   parser_exit_scope(ps);
 }
 
