@@ -4616,6 +4616,77 @@ static void parse_while(ParserState *ps, Stmt *stmt)
   parser_exit_scope(ps);
 }
 
+static void parse_for_var(ParserState *ps, Expr *vexp, TypeDesc *vdesc)
+{
+  Symbol *sym = find_symbol_byname(ps, vexp->id.name);
+  if (sym != NULL) {
+    if (!desc_check(sym->desc, vdesc)) {
+      synerr(ps, vexp->row, vexp->col, "types are not matched");
+    }
+  } else {
+    // create local variable
+    Ident id = {vexp->id.name, vexp->row, vexp->col};
+    new_update_var(ps, &id, vdesc);
+  }
+  vexp->ctx = EXPR_STORE;
+  parser_visit_expr(ps, vexp);
+}
+
+static void parse_for_tuple_match(ParserState *ps, Expr *vexp, TypeDesc *vdesc)
+{
+  if (!desc_istuple(vdesc)) {
+    synerr(ps, vexp->row, vexp->col, "right expr is not tuple");
+    return;
+  }
+
+  CODE_OP(OP_DUP);
+
+  vexp->pattern = vexp;
+  vexp->ctx = EXPR_LOAD;
+  vexp->pattern->types = vdesc->klass.typeargs;
+  parser_visit_expr(ps, vexp);
+  if (has_error(ps))
+    return;
+
+  if (!desc_istuple(vexp->desc)) {
+    synerr(ps, vexp->row, vexp->col, "left expr is not tuple");
+    return;
+  }
+
+  CODE_OP_ARGC(OP_MATCH, 1);
+}
+
+static void parse_for_enum_match(ParserState *ps, Expr *vexp, TypeDesc *vdesc)
+{
+  CODE_OP(OP_DUP);
+
+  vexp->pattern = vexp;
+  vexp->ctx = EXPR_LOAD;
+  vexp->decl_desc = vdesc;
+  vexp->pattern->types = vdesc->klass.typeargs;
+  parser_visit_expr(ps, vexp);
+  if (has_error(ps))
+    return;
+
+  if (vexp->sym->kind != SYM_ENUM) {
+    synerr(ps, vexp->row, vexp->col, "left expr is not enum");
+    return;
+  }
+
+  if (!desc_check(vexp->desc, vdesc)) {
+    STRBUF(sbuf1);
+    STRBUF(sbuf2);
+    desc_tostr(vexp->desc, &sbuf1);
+    desc_tostr(vdesc, &sbuf2);
+    synerr(ps, vexp->row, vexp->col, "expected '%s', but found '%s'",
+          strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+    strbuf_fini(&sbuf1);
+    strbuf_fini(&sbuf2);
+  }
+
+  CODE_OP_ARGC(OP_MATCH, 1);
+}
+
 static void parse_for(ParserState *ps, Stmt *stmt)
 {
   parser_enter_scope(ps, SCOPE_BLOCK, FOR_BLOCK);
@@ -4627,8 +4698,12 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   Vector *block = stmt->for_stmt.block;
   Symbol *sym;
   TypeDesc *desc = NULL;
+  TypeDesc *desc2 = NULL;
   Inst *jmp = NULL;
   int offset = 0;
+  Inst *jmp2;
+  Inst *jmp3 = NULL;
+  int match = 0;
 
   iter->ctx = EXPR_LOAD;
   parser_visit_expr(ps, iter);
@@ -4650,69 +4725,83 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   if (sym == NULL) {
     synerr(ps, iter->row, iter->col, "object is not iteratable.");
     goto exit_label;
-  } else {
-    TypeDesc *tmp = sym->desc;
-    expect(desc_isproto(tmp));
-    desc = specialize_types(pdesc, iter->desc, tmp);
-    TYPE_DECREF(pdesc);
-    show_specialized_type(sym, desc);
-
-    expect(desc_isproto(desc));
-    desc = desc->proto.ret;
-    expect(desc->kind == TYPE_KLASS);
-    desc = vector_get(desc->klass.typeargs, 0);
-    expect(desc != NULL);
-
-    CODE_OP(OP_NEW_ITER);
-    offset = codeblock_bytes(u->block);
-
-    if (step != NULL) {
-      step->ctx = EXPR_LOAD;
-      parser_visit_expr(ps, step);
-    } else {
-      CODE_OP_I(OP_LOAD_CONST, 1);
-    }
-    jmp = CODE_OP(OP_FOR_ITER);
-    jmp->offset = codeblock_bytes(u->block);
   }
+
+  expect(desc_isproto(sym->desc));
+  desc2 = specialize_types(pdesc, iter->desc, sym->desc);
+  TYPE_DECREF(pdesc);
+  show_specialized_type(sym, desc2);
+
+  expect(desc_isproto(desc2));
+  desc = desc2->proto.ret;
+  expect(desc->kind == TYPE_KLASS);
+  desc = vector_get(desc->klass.typeargs, 0);
+  expect(desc != NULL);
+  TYPE_DECREF(desc2);
+
+  CODE_OP(OP_NEW_ITER);
+  offset = codeblock_bytes(u->block);
+
+  if (step != NULL) {
+    step->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, step);
+  } else {
+    CODE_OP_I(OP_LOAD_CONST, 1);
+  }
+  jmp = CODE_OP(OP_FOR_ITER);
+  jmp->offset = codeblock_bytes(u->block);
 
   // if ident is not declared, declare it automatically.
   if (vexp->kind == ID_KIND) {
-    sym = find_symbol_byname(ps, vexp->id.name);
-    if (sym != NULL) {
-      if (!has_error(ps) && !desc_check(sym->desc, desc)) {
-        synerr(ps, vexp->row, vexp->col, "types are not matched");
-      }
-    } else {
-      // create local variable
-      Ident id = {vexp->id.name, vexp->row, vexp->col};
-      new_update_var(ps, &id, desc);
-    }
-    vexp->ctx = EXPR_STORE;
-    parser_visit_expr(ps, vexp);
+    parse_for_var(ps, vexp, desc);
   } else if (vexp->kind == TUPLE_KIND) {
-    panic("not implemented");
+    parse_for_tuple_match(ps, vexp, desc);
+    jmp3 = CODE_OP(OP_JMP_FALSE);
+    jmp3->offset = codeblock_bytes(u->block);
   } else if (vexp->kind == CALL_KIND) {
+    parse_for_enum_match(ps, vexp, desc);
+    jmp3 = CODE_OP(OP_JMP_FALSE);
+    jmp3->offset = codeblock_bytes(u->block);
   } else {
-    // fallthrough
-    synerr(ps, vexp->row, vexp->col, "only support var, tuple or enum for-in");
+    synerr(ps, vexp->row, vexp->col,
+          "only support var, tuple or enum for-statement");
   }
 
   if (!has_error(ps) && !desc_check(vexp->desc, desc)) {
     synerr(ps, vexp->row, vexp->col, "types are not matched");
   }
 
-  TYPE_DECREF(desc);
-
   if (block != NULL) {
+    if (vexp->kind == TUPLE_KIND) {
+      parse_if_unbox(ps, vexp->tuple);
+    } else if (vexp->kind == CALL_KIND) {
+      parse_if_unbox(ps, vexp->call.args);
+    } else {
+      debug("no need unbox in for-statement");
+    }
+
     Stmt *s;
     vector_for_each(s, block) {
       parse_stmt(ps, s);
     }
+  } else {
+    // pop some
+    if (jmp3 != NULL) {
+      CODE_OP(OP_POP_TOP);
+    }
   }
 
-  Inst *jmp2 = CODE_OP(OP_JMP);
+  jmp2 = CODE_OP(OP_JMP);
   jmp2->offset = offset - codeblock_bytes(u->block);
+
+  if (jmp3 != NULL) {
+    jmp3->offset = codeblock_bytes(u->block) - jmp3->offset;
+    // pop some
+    CODE_OP(OP_POP_TOP);
+    // jump back to iterate next object
+    jmp2 = CODE_OP(OP_JMP);
+    jmp2->offset = offset - codeblock_bytes(u->block);
+  }
 
   parser_handle_jmps(ps, offset);
 

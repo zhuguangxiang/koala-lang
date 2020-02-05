@@ -31,8 +31,8 @@ if (100, "foo") ~= zz {
 zz = (100, "foo")
 if (x, y) ~= zz {
   io.println("if-match")
-  io.println(x + 1)
-  io.println(y)
+  //io.println(x + 1)
+  //io.println(y)
 } else {
   io.println("not if-match")
 }
@@ -324,6 +324,14 @@ match r2 {
   Result.Err(x) => {io.println(x);io.println(x.0);io.println(x.1);}
 }
 
+person := ("Hellen", 25)
+import "io"
+match person {
+  ("Hellen", age) => io.println(age)
+  (_, 13...19) => io.println("13...19")
+  _ => io.println("_")
+}
+
 enum Color {
   RED,
   GREEN,
@@ -381,13 +389,85 @@ class Pet {
 }
 
 class Dog extends Pet {
+  age int
 }
 
 class Cat extends Pet
 
 var pet Pet = new Dog()
+
+import "io"
+
 match pet {
   is Dog => io.println("is dog")
   is Cat => io.println("is cat")
-  _ => io.println("unknown type")
+  _ => io.println("unknown pet's real type")
+}
+
+pet = new Cat()
+
+if pet is Dog {
+  io.println("is dog")
+  (pet as Dog).age = 24
+  io.println((pet as Dog).age)
+} else if pet is Cat {
+  io.println("is cat")
+} else {
+  io.println("unknown pet's real type")
+}
+
+import "io"
+
+enum Media {
+  Book(string, string, int),
+  Movie(string, string, int),
+  WebSite(string),
+}
+
+m := Media.Movie("Captain America: Civil War", "Russo Brothers", 2016)
+if Media.Movie(title, _, _) ~= m {
+  io.print("This is a movie named ")
+  io.println(title)
+}
+
+match m {
+  Media.Movie(title, _, _) => {
+    io.print("This is a movie named ")
+    io.println(title)
+  }
+  _ => {}
+}
+
+ml := [
+  m,
+  Media.Movie("Harry Potter and Philosopher's Stone", "Chris Columbus", 2001),
+  Media.Book("Harry Potter and Prisoner of Azkaban", "J.K. Rowling", 1999),
+  Media.Movie("J.K. Rowling: A Year in the Life", "James Runcie", 2007),
+]
+
+i := 0
+sz := ml.length()
+while Media.Movie(title, _, _) ~= ml[i] {
+  io.println(title)
+  i = i + 1
+  if i >= sz {
+    break
+  }
+}
+
+for Media.Movie(title, _, year) in ml {
+  io.print("This is a movie named ")
+  io.print(title); io.print(", "); io.println(year)
+}
+
+ta := [
+  ("abc", 2),
+  ("def", 4),
+  ("ghi", 6),
+]
+
+import "io"
+for (x, y) in ta {
+  io.println(x)
+  io.println(y)
 }
