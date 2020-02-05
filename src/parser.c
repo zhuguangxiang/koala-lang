@@ -4598,6 +4598,17 @@ static void parse_while(ParserState *ps, Stmt *stmt)
     jmp->offset = offset;
   }
 
+  if (test != NULL && test->kind == BINARY_MATCH_KIND) {
+    Expr *patt = test->binary_match.pattern;
+    if (patt->kind == TUPLE_KIND || patt->kind == CALL_KIND ||
+        patt->kind == ATTRIBUTE_KIND) {
+      debug("POP_TOP");
+      CODE_OP(OP_POP_TOP);
+    } else {
+      debug("no need unbox in while-statement");
+    }
+  }
+
   parser_handle_jmps(ps, 0);
 
   stable_free(u->stbl);
