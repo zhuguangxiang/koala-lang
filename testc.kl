@@ -1,0 +1,75 @@
+#!/home/james/.local/bin/koala
+/*
+var i int = 100
+
+import "io"
+
+io.println(i)
+
+import "assert"
+
+var s = "hello"
+s += " world"
+s
+io.println(s)
+assert.equal(s, "hello world")
+
+func test() int {
+  100 + 200
+}
+
+func test2(v int) int {
+  100 + v
+}
+
+assert.equal(test(), 300)
+assert.equal(test2(2), 102)
+
+
+class Dog {
+  name string
+  age int
+
+  func __init__(name string, age int) {
+    self.name = name
+    self.age = age
+  }
+
+  func get_name() string {
+    name
+  }
+
+  func get_age() int {
+    age
+  }
+}
+
+dog := new Dog("LittleErHa", 30)
+io.println(dog.get_name())
+
+enum Color {
+  RED,
+  GREEN,
+  BLUE,
+}
+
+color := Color.RED
+import "io"
+match color {
+  Color.RED => io.println("red")
+  Color.GREEN => io.println("green")
+  Color.BLUE => io.println("blue")
+}
+*/
+
+ta := [
+  ("abc", 2),
+  ("def", 4),
+  ("ghi", 6),
+]
+
+import "io"
+for (_, _) in ta {
+  io.println("iter tuple array")
+  //io.println(x)
+}
