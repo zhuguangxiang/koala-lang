@@ -74,6 +74,7 @@ static MethodDef range_methods[] = {
   {"__getitem__", "i", "i", range_getitem},
   {"__iter__", "i", "Llang.Iterator(i);", range_iter},
   {"contains", "i", "z", in_range},
+  {"__match__", "i", "z", in_range},
   {NULL}
 };
 

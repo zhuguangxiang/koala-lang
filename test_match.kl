@@ -327,8 +327,8 @@ match r2 {
 person := ("Hellen", 25)
 import "io"
 match person {
-  ("Hellen", age) => io.println(age)
   (_, 13...19) => io.println("13...19")
+  ("Hellen", age) => io.println(age)
   _ => io.println("_")
 }
 

@@ -182,6 +182,7 @@ static Object *enum_getitem(Object *self, Object *args)
 static MethodDef enum_methods[] = {
   {"__eq__", "A", "z", enum_equal},
   {"__getitem__", "i", "A", enum_getitem},
+  {"__match__", "A", "z", enum_match},
   {NULL},
 };
 
