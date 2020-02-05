@@ -27,21 +27,21 @@ CONFIGURE_FILE(
 SET(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/lib)
 
 IF(NOT CMAKE_BUILD_TYPE)
-  SET(CMAKE_BUILD_TYPE NDebug)
+  SET(CMAKE_BUILD_TYPE Release)
 ENDIF()
 
 IF(CMAKE_BUILD_TYPE STREQUAL Debug)
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g -DNDEBUG")
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g -fvar-tracking -DNDEBUG")
 ELSE()
   IF(CMAKE_BUILD_TYPE STREQUAL Coverage)
   # lcov --rc lcov_branch_coverage=1 -c -d ./ -o app.info
   # genhtml --rc lcov_branch_coverage=1 app.info -o cc_result
     SET(CMAKE_C_FLAGS
-        "${CMAKE_C_FLAGS} -std=gnu11 -g -DNDEBUG -DNLog
+        "${CMAKE_C_FLAGS} -std=gnu11 -g -fvar-tracking -DNDEBUG -DNLog
         -fprofile-arcs -ftest-coverage")
   ELSE()
     IF(CMAKE_BUILD_TYPE STREQUAL NDebug)
-      SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g -DNDEBUG -DNLog")
+      SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g -fvar-tracking -DNDEBUG -DNLog")
     ELSE()
       SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Ofast -Wall -DNDEBUG -DNLog")
     ENDIF()
