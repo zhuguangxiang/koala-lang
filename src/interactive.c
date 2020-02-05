@@ -544,7 +544,7 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
       koala_evalcode(code, NULL, NULL, NULL);
       gettimeofday(&future, NULL);
       timersub(&future, &past, &cost);
-      printf("cost: %ld.%06lds\n", cost.tv_sec, cost.tv_usec);
+      //printf("cost: %ld.%06lds\n", cost.tv_sec, cost.tv_usec);
       expect(kstate.top == -1);
       OB_DECREF(code);
     }

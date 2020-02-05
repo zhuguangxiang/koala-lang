@@ -1704,7 +1704,12 @@ static void parse_ident(ParserState *ps, Expr *exp)
     if (exp->pattern != NULL) {
       debug("[pattern]: new var '%s'", exp->id.name);
       exp->desc = vector_get(exp->pattern->types, exp->index);
-      TYPE_INCREF(exp->desc);
+      if (exp->desc == NULL) {
+        debug("[pattern]: var '%s' set default type int", exp->id.name);
+        exp->desc = desc_from_int;
+      } else {
+        TYPE_INCREF(exp->desc);
+      }
       Ident id = {exp->id.name, exp->row, exp->col};
       exp->sym = new_update_var(ps, &id, exp->desc);
       exp->newvar = 1;
@@ -1754,7 +1759,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
 
 static void parse_underscore(ParserState *ps, Expr *exp)
 {
-  printf("expr is underscore(_)\n");
+  //printf("expr is underscore(_)\n");
   exp->desc = desc_from_any;
   exp->sym = NULL;
 
@@ -2682,16 +2687,6 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
   Expr *lexp = exp->call.lexp;
   TypeDesc *ldesc = lexp->desc;
   Symbol *esym = lexp->sym->label.esym;
-  int sz = vector_size(esym->type.typesyms);
-
-  if (sz <= 0) {
-    debug("enum '%s' has not type parameters.", esym->name);
-    if (!check_label_args(ps, ldesc, args, NULL)) {
-      exp->desc = TYPE_INCREF(ldesc->label.edesc);
-      exp->sym = lexp->sym->label.esym;
-    }
-    return;
-  }
 
   // update variables' type in enum unbox.
   Symbol *sym;
@@ -2722,6 +2717,16 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
       arg->desc = sym->desc;
       TYPE_INCREF(arg->desc);
     }
+  }
+
+  int sz = vector_size(esym->type.typesyms);
+  if (sz <= 0) {
+    debug("enum '%s' has not type parameters.", esym->name);
+    if (!check_label_args(ps, ldesc, args, NULL)) {
+      exp->desc = TYPE_INCREF(ldesc->label.edesc);
+      exp->sym = lexp->sym->label.esym;
+    }
+    return;
   }
 
   TypeDesc *edesc = ldesc->label.edesc;
@@ -3182,7 +3187,7 @@ static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   expect(sym->kind == SYM_VAR);
 
   // update type's descriptor
-  if (sym->desc == NULL) {
+  if (sym->desc == NULL && desc != NULL) {
     if (desc->kind == TYPE_LABEL) {
       sym->desc = TYPE_INCREF(desc->label.edesc);
     } else {
@@ -3191,7 +3196,7 @@ static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
   }
 
   // update var's type's symbol
-  if (sym->var.typesym == NULL) {
+  if (sym->var.typesym == NULL && desc != NULL) {
     if (desc->kind == TYPE_PARAREF)
       sym->var.typesym = find_symbol_byname(ps, desc->pararef.name);
     else if (desc_isproto(desc)) {
@@ -4616,6 +4621,7 @@ static void parse_for(ParserState *ps, Stmt *stmt)
   sym = type_find_mbr(sym, "__iter__", &pdesc);
   if (sym == NULL) {
     synerr(ps, iter->row, iter->col, "object is not iteratable.");
+    goto exit_label;
   } else {
     TypeDesc *tmp = sym->desc;
     expect(desc_isproto(tmp));
@@ -4654,15 +4660,16 @@ static void parse_for(ParserState *ps, Stmt *stmt)
       Ident id = {vexp->id.name, vexp->row, vexp->col};
       new_update_var(ps, &id, desc);
     }
+    vexp->ctx = EXPR_STORE;
+    parser_visit_expr(ps, vexp);
   } else if (vexp->kind == TUPLE_KIND) {
     panic("not implemented");
+  } else if (vexp->kind == CALL_KIND) {
   } else {
     // fallthrough
-    panic("why ? not implemented");
+    synerr(ps, vexp->row, vexp->col, "only support var, tuple or enum for-in");
   }
 
-  vexp->ctx = EXPR_STORE;
-  parser_visit_expr(ps, vexp);
   if (!has_error(ps) && !desc_check(vexp->desc, desc)) {
     synerr(ps, vexp->row, vexp->col, "types are not matched");
   }

@@ -195,6 +195,8 @@ static int typecheck_inherit(TypeObject *tp, TypeDesc *desc)
 {
   TypeObject *base;
   vector_for_each_reverse(base, &tp->lro) {
+    if (desc_isany(base->desc))
+      continue;
     if (desc_check(base->desc, desc))
       return 1;
   }
