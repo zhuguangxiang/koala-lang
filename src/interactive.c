@@ -49,7 +49,7 @@
 
 static void show_banner(void)
 {
-  printf("koala %s\r\n", KOALA_VERSION);
+  printf("Koala %s\r\n", KOALA_VERSION);
 
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
