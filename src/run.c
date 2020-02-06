@@ -72,6 +72,7 @@ static void init_types(void)
   init_closure_type();
   init_fmtter_type();
   init_result_type();
+  init_error_type();
 
   print("########\n");
 }
@@ -104,6 +105,7 @@ static void fini_types(void)
   type_fini(&fmtter_type);
   type_fini(&closure_type);
   fini_bool_type();
+  fini_error_type();
   print("########\n");
 }
 

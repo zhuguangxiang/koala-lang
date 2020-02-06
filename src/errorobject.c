@@ -22,50 +22,30 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_API_H_
-#define _KOALA_API_H_
-
-#include "version.h"
-#include "log.h"
-#include "memory.h"
-#include "atom.h"
-#include "eval.h"
-#include "numberobject.h"
-#include "fieldobject.h"
 #include "methodobject.h"
-#include "classobject.h"
-#include "intobject.h"
-#include "floatobject.h"
-#include "stringobject.h"
-#include "arrayobject.h"
-#include "tupleobject.h"
-#include "mapobject.h"
-#include "moduleobject.h"
-#include "codeobject.h"
-#include "enumobject.h"
-#include "rangeobject.h"
-#include "iterobject.h"
-#include "closureobject.h"
-#include "resultobject.h"
-#include "errorobject.h"
-#include "fmtmodule.h"
-#include "iomodule.h"
-#include "osmodule.h"
-#include "modules.h"
-#include "parser.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+TypeObject error_type = {
+  OBJECT_HEAD_INIT(&type_type)
+  .name  = "Error",
+  .flags = TPFLAGS_ENUM,
+};
 
-void koala_initialize(void);
-void koala_finalize(void);
-void koala_readline(void);
-int koala_compile(char *path);
-void koala_run(char *path);
+void init_error_type(void)
+{
+  error_type.desc = desc_from_klass("lang", "Error");
+  TypeDesc *ret = desc_from_str;
+  TypeDesc *desc = desc_from_proto(NULL, ret);
+  Object *proto = proto_new("error", desc);
+  type_add_ifunc(&error_type, proto);
+  OB_DECREF(proto);
+  TYPE_DECREF(desc);
+  TYPE_DECREF(ret);
 
-#ifdef __cplusplus
+  if (type_ready(&error_type) < 0)
+    panic("Cannot initalize 'Error' type.");
 }
-#endif
 
-#endif /* _KOALA_API_H_ */
+void fini_error_type(void)
+{
+  type_fini(&error_type);
+}

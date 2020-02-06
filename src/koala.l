@@ -61,7 +61,6 @@ int interactive(ParserState *ps, char *buf, int size);
 int file_input(ParserState *ps, char *buf, int size, FILE *in);
 
 #define YY_EXTRA_TYPE ParserState *
-#define yyps ((YY_EXTRA_TYPE)yyextra)
 
 static int need_semicolon(YY_EXTRA_TYPE ps)
 {
@@ -80,6 +79,9 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   }
   return 0;
 }
+
+#define yyps ((YY_EXTRA_TYPE)yyextra)
+#define ps ((YY_EXTRA_TYPE)yyextra)
 
 #define YY_USER_ACTION                \
 {                                     \
@@ -304,14 +306,14 @@ moddoc  "//!"[^\n]*
 }
 
 (\'\') {
-  synerr(yyps, yyps->row, yyps->col, "illegal character");
+  synerr(ps, ps->row, ps->col, "illegal character");
   if (yyps->interactive) {
     yyps->more = 0;
   }
 }
 
 (\'{character2}{character2}+\') {
-  synerr(yyps, yyps->row, yyps->col, "illegal character:%s", yytext);
+  synerr(ps, ps->row, ps->col, "illegal character:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;
   }
