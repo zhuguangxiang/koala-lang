@@ -191,7 +191,7 @@ TypeObject *enum_type_new(char *path, char *name)
   TypeObject *tp = gcnew(sizeof(TypeObject));
   init_object_head(tp, &type_type);
   tp->name  = atom(name);
-  tp->desc  = desc_from_klass(path, name);
+  tp->desc  = desc_from_klass(path, tp->name);
   tp->flags = TPFLAGS_ENUM;
   tp->free  = enum_free;
   tp->str   = enum_str;

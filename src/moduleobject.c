@@ -233,6 +233,9 @@ static int _modnode_equal_(void *e1, void *e2)
   return n1 == n2 || !strcmp(n1->path, n2->path);
 }
 
+extern int compflag;
+extern void run_func(Object *mo, char *funcname, Object *args);
+
 void module_install(char *path, Object *ob)
 {
   if (!module_check(ob)) {
@@ -255,6 +258,9 @@ void module_install(char *path, Object *ob)
   if (!res) {
     debug("install module '%.64s' in path '%.64s' successfully.",
           MODULE_NAME(ob), path);
+    if (!compflag) {
+      run_func(ob, "__init__", NULL);
+    }
   } else {
     error("install module '%.64s' in path '%.64s' failed.",
           MODULE_NAME(ob), path);
@@ -281,13 +287,13 @@ void module_uninstall(char *path)
 static void _fini_mod_(void *e, void *arg)
 {
   struct modnode *node = e;
+  debug("fini module '%s'", node->path);
   OB_DECREF(node->ob);
   kfree(node);
 }
 
 void fini_modules(void)
 {
-  debug("fini module map");
   hashmap_fini(&modmap, _fini_mod_, NULL);
 }
 
@@ -374,14 +380,16 @@ static void _load_base_(TypeDesc *desc, void *arg)
 {
   TypeObject *type = arg;
   expect(desc->kind == TYPE_KLASS);
-  Object *mobj;
+
+  Object *tp;
   if (desc->klass.path != NULL) {
-    mobj = module_load(desc->klass.path);
+    Object *m = module_load(desc->klass.path);
+    tp = module_get(m, desc->klass.type);
+    OB_DECREF(m);
   } else {
-    mobj = type->owner;
+    tp = module_get(type->owner, desc->klass.type);
   }
-  expect(mobj != NULL);
-  Object *tp = module_get(mobj, desc->klass.type);
+
   expect(tp != NULL);
   expect(type_check(tp));
   vector_push_back(&type->bases, tp);
@@ -391,9 +399,10 @@ static void _load_base_(TypeDesc *desc, void *arg)
 static
 void _load_class_(char *name, int baseidx, int mbridx, Image *image, void *arg)
 {
-  TypeObject *type = type_new(NULL, name, TPFLAGS_CLASS);
+  ModuleObject *mo = (ModuleObject *)arg;
+  TypeObject *type = type_new(mo->path, name, TPFLAGS_CLASS);
   module_add_type(arg, type);
-  type->consts = ((ModuleObject *)arg)->consts;
+  type->consts = mo->consts;
   OB_INCREF(type->consts);
   OB_DECREF(type);
 
@@ -408,9 +417,10 @@ void _load_class_(char *name, int baseidx, int mbridx, Image *image, void *arg)
 static
 void _load_trait_(char *name, int baseidx, int mbridx, Image *image, void *arg)
 {
-  TypeObject *type = type_new(NULL, name, TPFLAGS_TRAIT);
+  ModuleObject *mo = (ModuleObject *)arg;
+  TypeObject *type = type_new(mo->path, name, TPFLAGS_TRAIT);
   module_add_type(arg, type);
-  type->consts = ((ModuleObject *)arg)->consts;
+  type->consts = mo->consts;
   OB_INCREF(type->consts);
   OB_DECREF(type);
 
@@ -425,9 +435,10 @@ void _load_trait_(char *name, int baseidx, int mbridx, Image *image, void *arg)
 static
 void _load_enum_(char *name, int baseidx, int mbridx, Image *image, void *arg)
 {
-  TypeObject *type = enum_type_new(NULL, name);
+  ModuleObject *mo = (ModuleObject *)arg;
+  TypeObject *type = enum_type_new(mo->path, name);
   module_add_type(arg, type);
-  type->consts = ((ModuleObject *)arg)->consts;
+  type->consts = mo->consts;
   OB_INCREF(type->consts);
   OB_DECREF(type);
 
@@ -453,6 +464,7 @@ static Object *module_from_file(char *path, char *name)
     else
       consts = NULL;
     ((ModuleObject *)mo)->consts = consts;
+    ((ModuleObject *)mo)->path = atom(path);
     image_load_consts(image, _load_const_, mo);
     IMAGE_LOAD_VARS(image, _load_var_, mo);
     IMAGE_LOAD_CONSTVARS(image, _load_var_, mo);

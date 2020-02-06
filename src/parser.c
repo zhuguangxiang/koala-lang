@@ -1095,14 +1095,14 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
     return NULL;
   } else {
     // path is not null and is not builtin path, search for external module
-    sym = stable_get(mod->stbl, path);
-    if (sym != NULL) {
+    Symbol *sym2 = stable_get(mod->stbl, path);
+    if (sym2 != NULL) {
       debug("find symbol '%s'", path);
-      if (sym->kind == SYM_MOD) {
-        Module *m = sym->mod.ptr;
+      if (sym2->kind == SYM_MOD) {
+        Module *m = sym2->mod.ptr;
         sym = stable_get(m->stbl, name);
         if (sym != NULL) {
-          debug("find symbol '%s' in '%s'", name, sym->mod.path);
+          debug("find symbol '%s' in '%s'", name, sym2->mod.path);
           ++sym->used;
           return sym;
         }
@@ -4339,6 +4339,10 @@ static void parse_return(ParserState *ps, Stmt *stmt)
   Expr *exp = stmt->ret.exp;
   if (exp != NULL) {
     debug("return has value");
+    TypeDesc *desc = fu->sym->desc;
+    expect(desc != NULL);
+    TypeDesc *ret = desc->proto.ret;
+    exp->decl_desc = ret;
     exp->ctx = EXPR_LOAD;
     parser_visit_expr(ps, exp);
 
@@ -4347,10 +4351,8 @@ static void parse_return(ParserState *ps, Stmt *stmt)
       return;
     }
 
-    TypeDesc *desc = fu->sym->desc;
-    expect(desc != NULL);
-    TypeDesc *ret = desc->proto.ret;
-    if (!desc_isnull(exp->desc) && !desc_check(ret, exp->desc) &&
+    if (!desc_isnull(exp->desc) &&
+        !desc_check(ret, exp->desc) &&
         !check_inherit(ret, exp->sym, NULL)) {
       serror(exp->row, exp->col, "incompatible return types");
     }

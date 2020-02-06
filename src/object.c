@@ -307,7 +307,7 @@ TypeObject *type_new(char *path, char *name, int flags)
   TypeObject *tp = gcnew(sizeof(TypeObject));
   init_object_head(tp, &type_type);
   tp->name  = atom(name);
-  tp->desc  = desc_from_klass(path, name);
+  tp->desc  = desc_from_klass(path, tp->name);
   tp->flags = flags | TPFLAGS_GC;
   tp->mark  = object_mark,
   tp->clean = object_clean,

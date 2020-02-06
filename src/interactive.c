@@ -382,14 +382,16 @@ static void _load_base_(TypeDesc *desc, void *arg)
 {
   TypeObject *type = arg;
   expect(desc->kind == TYPE_KLASS);
-  Object *mobj;
+
+  Object *tp;
   if (desc->klass.path != NULL) {
-    mobj = module_load(desc->klass.path);
+    Object *m = module_load(desc->klass.path);
+    tp = module_get(m, desc->klass.type);
+    OB_DECREF(m);
   } else {
-    mobj = mo;
+    tp = module_get(mo, desc->klass.type);
   }
-  expect(mobj != NULL);
-  Object *tp = module_get(mobj, desc->klass.type);
+
   expect(tp != NULL);
   expect(type_check(tp));
   vector_push_back(&type->bases, tp);

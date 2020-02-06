@@ -272,6 +272,27 @@ static int need_compile(char *path)
   return res;
 }
 
+extern pthread_key_t kskey;
+
+void run_func(Object *mo, char *funcname, Object *args)
+{
+  Object *func = module_lookup(mo, funcname);
+  if (func != NULL) {
+    expect(method_check(func));
+    void *oldks = pthread_getspecific(kskey);
+    KoalaState kstate = {NULL};
+    kstate.top = -1;
+    pthread_setspecific(kskey, &kstate);
+    Object *code = method_getcode(func);
+    koala_evalcode(code, mo, args, NULL);
+    OB_DECREF(code);
+    OB_DECREF(func);
+    pthread_setspecific(kskey, oldks);
+  } else {
+    warn("cannot find function '%s'", funcname);
+  }
+}
+
 /*
  * The following commands are valid.
  * ~$ koala a/b/foo.kl [a/b/foo.klc] [a/b/foo]
@@ -295,7 +316,6 @@ void koala_run(char *path)
     koala_compile(path);
   }
 
-  extern pthread_key_t kskey;
   Object *mo = module_load(path);
   if (mo != NULL) {
     Object *_init_ = module_lookup(mo, "__init__");
