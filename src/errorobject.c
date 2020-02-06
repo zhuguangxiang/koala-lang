@@ -24,10 +24,16 @@
 
 #include "methodobject.h"
 
+/*
+  trait Error {
+    func error() string
+  }
+*/
+
 TypeObject error_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name  = "Error",
-  .flags = TPFLAGS_ENUM,
+  .flags = TPFLAGS_TRAIT,
 };
 
 void init_error_type(void)

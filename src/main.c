@@ -118,7 +118,7 @@ void parse_command(int argc, char *argv[])
       exit(0);
     }
     if (cflag) {
-      error("Only one module is allowed.");
+      error("Only one path is allowed.");
       usage();
       exit(0);
     }
@@ -127,7 +127,7 @@ void parse_command(int argc, char *argv[])
   }
 
   if (optind < argc) {
-    error("Only one module is allowed.");
+    error("Only one path is allowed.");
     usage();
     exit(0);
   }

@@ -1161,8 +1161,8 @@ Symbol *get_desc_symbol(Module *mod, TypeDesc *desc)
   case TYPE_KLASS:
     sym = get_klass_symbol(mod, desc->klass.path, desc->klass.type);
     // update auto-imported descriptor's path
-    if (sym != NULL && desc->klass.path == NULL) {
-      desc->klass.path = sym->desc->klass.path;
+    if (sym != NULL) {
+      desc->klass.path = atom(sym->desc->klass.path);
     }
     break;
   case TYPE_PROTO:
@@ -3805,6 +3805,16 @@ static void parse_import(ParserState *ps, Stmt *s)
         // NOTE: do not compile it from source, if its source exist.
         serror(s->import.pathrow, s->import.pathcol,
               "no such module '%s'", path);
+      } else {
+        Symbol *sym = symbol_new(path, SYM_MOD);
+        sym->mod.path = path;
+        sym->desc = desc_from_klass("lang", "Module");
+        if (stable_add_symbol(u->stbl, sym) < 0) {
+          error("symbol '%s' is duplicated", path);
+        } else {
+          sym->mod.ptr = mod;
+          symbol_decref(sym);
+        }
       }
     } else {
       debug("'%s' already imported", path);
