@@ -2703,6 +2703,10 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
       sym->desc = vector_get(ldesc->label.types, idx);
       TYPE_INCREF(sym->desc);
 
+      if (sym->kind == SYM_VAR) {
+        // update var's typesym
+        sym->var.typesym = get_type_symbol(ps, sym->desc);
+      }
 #if !defined(NLog)
       desc_tostr(sym->desc, &sbuf2);
       debug("update var '%s' type: '%s' -> '%s'", sym->name,
@@ -3198,10 +3202,13 @@ static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
     if (desc->kind == TYPE_PARAREF)
       sym->var.typesym = find_symbol_byname(ps, desc->pararef.name);
     else if (desc_isproto(desc)) {
+      sym->var.typesym = NULL;
+#if !defined(NLog)
       STRBUF(sbuf);
       desc_tostr(desc, &sbuf);
       debug("desc is proto:%s", strbuf_tostr(&sbuf));
       strbuf_fini(&sbuf);
+#endif
     } else {
       sym->var.typesym = get_type_symbol(ps, sym->desc);
     }
