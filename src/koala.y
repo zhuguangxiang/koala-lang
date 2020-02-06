@@ -473,7 +473,7 @@ unit:
 }
 | INVALID
 {
-  synerr(ps, ps->row, ps->col, "invalid input:%s", $1);
+  serror(ps->row, ps->col, "invalid input:%s", $1);
   if (ps->interactive) {
     ps->more = 0;
   }
@@ -482,13 +482,13 @@ unit:
 {
   if (ps->interactive) {
     if (!ps->quit) {
-      synerr(ps, ps->row, ps->col, "invalid syntax");
+      serror(ps->row, ps->col, "invalid syntax");
       yyclearin;
     }
     ps->more = 0;
     yyerrok;
   } else {
-    synerr(ps, ps->row, ps->col, "invalid syntax");
+    serror(ps->row, ps->col, "invalid syntax");
     yyclearin;
     yyerrok;
   }

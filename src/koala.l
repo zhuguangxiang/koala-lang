@@ -306,14 +306,14 @@ moddoc  "//!"[^\n]*
 }
 
 (\'\') {
-  synerr(ps, ps->row, ps->col, "illegal character");
+  serror(ps->row, ps->col, "illegal character");
   if (yyps->interactive) {
     yyps->more = 0;
   }
 }
 
 (\'{character2}{character2}+\') {
-  synerr(ps, ps->row, ps->col, "illegal character:%s", yytext);
+  serror(ps->row, ps->col, "illegal character:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;
   }

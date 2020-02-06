@@ -143,15 +143,15 @@ typedef struct parserstate {
 #define MAX_ERRORS 8
 
 /* Record and print syntax error. */
-#define synerr(ps, row, col, fmt, ...)                 \
-({                                                     \
-  if (ps->errors++ >= MAX_ERRORS) {                    \
-    fprintf(stderr, "%s: " _ERR_COLOR_                 \
-            "Too many errors.\n", ps->filename);       \
-  } else {                                             \
-    fprintf(stderr, "%s:%d:%d: " _ERR_COLOR_ fmt "\n", \
-            ps->filename, row, col, ##__VA_ARGS__);    \
-  }                                                    \
+#define serror(row, col, fmt, ...)                      \
+({                                                      \
+  if (ps->errors++ >= MAX_ERRORS) {                     \
+    fprintf(stderr, "%s: " _ERR_COLOR_                  \
+            "Too many errors.\n", ps->filename);        \
+  } else {                                              \
+    fprintf(stderr, "%s:%d:%d: " _ERR_COLOR_ fmt "\n",  \
+            ps->filename, row, col, ##__VA_ARGS__);     \
+  }                                                     \
 })
 
 #define has_error(ps) ((ps)->errors > 0)

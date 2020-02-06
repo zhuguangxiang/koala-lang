@@ -215,7 +215,7 @@ int cmd_add_const(ParserState *ps, Ident id)
   if (cursym != NULL) {
     return 0;
   } else {
-    synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
+    serror(id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
 }
@@ -226,7 +226,7 @@ int cmd_add_var(ParserState *ps, Ident id)
   if (cursym != NULL) {
     return 0;
   } else {
-    synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
+    serror(id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
 }
@@ -235,7 +235,7 @@ int cmd_add_func(ParserState *ps, Ident id)
 {
   cursym = stable_add_func(mod.stbl, id.name, NULL);
   if (cursym == NULL) {
-    synerr(ps, id.row, id.col, "'%s' is redeclared", id.name);
+    serror(id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
   return 0;
@@ -255,13 +255,13 @@ static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
       id = &s->vardecl.id;
       sym2 = stable_add_var(stbl, id->name, NULL);
       if (sym2 == NULL) {
-        synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
+        serror(id->row, id->col, "'%s' is redeclared", id->name);
       }
     } else if (s->kind == FUNC_KIND) {
       id = &s->funcdecl.id;
       sym2 = stable_add_func(stbl, id->name, NULL);
       if (sym2 == NULL) {
-        synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
+        serror(id->row, id->col, "'%s' is redeclared", id->name);
       }
     } else if (s->kind == IFUNC_KIND) {
       /*
@@ -273,7 +273,7 @@ static void cmd_visit_type(ParserState *ps, Symbol *sym, Vector *body)
       sym2 = stable_add_ifunc(stbl, id->name, NULL);
       //TYPE_DECREF(proto);
       if (sym2 == NULL) {
-        synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
+        serror(id->row, id->col, "'%s' is redeclared", id->name);
       }
     } else {
       panic("invalid type's body statement: %d", s->kind);
@@ -289,7 +289,7 @@ static void cmd_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
   vector_for_each(label, labels) {
     lblsym = stable_add_label(stbl, label->id.name);
     if (lblsym == NULL) {
-      synerr(ps, label->id.row, label->id.col,
+      serror(label->id.row, label->id.col,
             "enum label '%s' duplicated.", label->id.name);
     }
   }
@@ -341,7 +341,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt)
   }
 
   if (sym == NULL) {
-    synerr(ps, id->row, id->col, "'%s' is redeclared", id->name);
+    serror(id->row, id->col, "'%s' is redeclared", id->name);
     cursym = NULL;
     return -1;
   }
