@@ -552,7 +552,7 @@ void type_write_image(Symbol *typesym, Image *image)
       break;
     }
     case SYM_IFUNC:
-      index = image_add_ifunc(image, sym->name, sym->desc);
+      index = image_add_ifunc(image, sym->name, sym->desc, sym->native);
       indexes[j].kind = MBR_IFUNC;
       indexes[j].index = index;
       break;
@@ -734,6 +734,14 @@ void stable_write_image(STable *stbl, Image *image)
     case SYM_CONST:
       debug("write constvar '%s'", sym->name);
       image_add_kvar(image, sym->name, sym->desc, &sym->k.value);
+      break;
+    case SYM_IFUNC:
+      if (sym->native) {
+        debug("write native function '%s'", sym->name);
+        image_add_ifunc(image, sym->name, sym->desc, 1);
+      } else {
+        panic("invalid symbol %d write to image", sym->kind);
+      }
       break;
     case SYM_MOD:
       debug("skip imported module '%s'", sym->name);

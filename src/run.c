@@ -119,6 +119,7 @@ void koala_initialize(void)
   init_io_module();
   init_fmt_module();
   init_assert_module();
+  init_test_module();
   init_parser();
 }
 
@@ -276,8 +277,10 @@ extern pthread_key_t kskey;
 
 void run_func(Object *mo, char *funcname, Object *args)
 {
+  ModuleObject *mob = (ModuleObject *)mo;
   Object *func = module_lookup(mo, funcname);
   if (func != NULL) {
+    debug("run '%s' function of module '%s'.", funcname, mob->name);
     expect(method_check(func));
     void *oldks = pthread_getspecific(kskey);
     KoalaState kstate = {NULL};
@@ -289,7 +292,7 @@ void run_func(Object *mo, char *funcname, Object *args)
     OB_DECREF(func);
     pthread_setspecific(kskey, oldks);
   } else {
-    warn("cannot find function '%s'", funcname);
+    warn("cannot find '%s' function of module '%s'.", funcname, mob->name);
   }
 }
 

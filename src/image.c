@@ -769,6 +769,7 @@ static void ifuncitem_show(Image *image, void *o)
   print("  (%s)\n", str->data);
   print("  pindex:%d\n", item->pindex);
   print("  rindex:%d\n", item->rindex);
+  print("  native:%d\n", item->native);
 }
 #endif
 
@@ -1594,12 +1595,13 @@ void image_add_trait(Image *image, char *name, Vector *bases, int mbrindex)
   _append_(image, ITEM_TRAIT, classitem, 0);
 }
 
-int image_add_ifunc(Image *image, char *name, TypeDesc *desc)
+int image_add_ifunc(Image *image, char *name, TypeDesc *desc, int native)
 {
   int nameindex = stringitem_set(image, name);
   int pindex = indexitem_set(image, INDEX_TYPELIST, desc->proto.args);
   int rindex = typeitem_set(image, desc->proto.ret);
   IFuncItem *ifuncitem = ifuncitem_new(nameindex, pindex, rindex);
+  ifuncitem->native = native;
   return _append_(image, ITEM_IFUNC, ifuncitem, 0);
 }
 

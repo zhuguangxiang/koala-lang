@@ -527,6 +527,8 @@ struct stmt {
       Type ret;
       /* body */
       Vector *body;
+      /* be native func */
+      int native;
     } funcdecl;
     struct {
       Expr *exp;

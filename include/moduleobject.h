@@ -49,6 +49,10 @@ typedef struct moduleobject {
   void *dlptr;
   /* cache */
   Vector cache;
+  /* module is ready or partial? */
+  int ready;
+  /* native functions */
+  HashMap *nftbl;
 } ModuleObject;
 
 extern TypeObject module_type;
@@ -86,6 +90,15 @@ static inline void module_set(Object *self, char *name, Object *val)
   int res = field_set(ob, self, val);
   expect(res == 0);
 }
+
+static inline void module_ready(Object *self, int ready)
+{
+  ModuleObject *module = (ModuleObject *)self;
+  module->ready = ready;
+}
+
+void *module_get_native(Object *self, char *name);
+void module_add_native(Object *self, char *name, void *code);
 
 #ifdef __cplusplus
 }

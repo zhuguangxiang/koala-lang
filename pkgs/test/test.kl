@@ -1,0 +1,7 @@
+
+import "io"
+
+native func hello() string
+
+s := hello()
+io.println(s)

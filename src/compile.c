@@ -159,6 +159,17 @@ int comp_add_func(ParserState *ps, Ident id)
   return 0;
 }
 
+int comp_add_native_func(ParserState *ps, Ident id)
+{
+  Module *mod = ps->module;
+  Symbol *sym = stable_add_ifunc(mod->stbl, id.name, NULL);
+  if (sym == NULL) {
+    serror(id.row, id.col, "'%s' is redeclared", id.name);
+    return -1;
+  }
+  return 0;
+}
+
 static void comp_visit_type(ParserState *ps, Symbol *sym, Vector *body)
 {
   if (body == NULL)

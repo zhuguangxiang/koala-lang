@@ -58,6 +58,7 @@ int comp_add_const(ParserState *ps, Ident id);
 int comp_add_var(ParserState *ps, Ident id);
 int comp_add_func(ParserState *ps, Ident id);
 int comp_add_type(ParserState *ps, Stmt *stmt);
+int comp_add_native_func(ParserState *ps, Ident id);
 
 %}
 
@@ -109,6 +110,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token IS
 %token EXTENDS
 %token WITH
+%token NATIVE
 
 %token BYTE
 %token INTEGER
@@ -203,6 +205,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <list> trait_member_decls
 %type <stmt> trait_member_decl
 %type <stmt> proto_decl
+%type <stmt> native_func_decl
 %type <enummbrs> enum_members
 %type <list> enum_labels
 %type <list> enum_methods
@@ -426,6 +429,21 @@ unit:
     }
   } else {
     if ($1 != NULL && !comp_add_func(ps, $1->funcdecl.id)) {
+      comp_add_stmt(ps, $1);
+    }
+  }
+}
+| native_func_decl
+{
+  if (ps->interactive) {
+    ps->more = 0;
+    if ($1 != NULL) {
+      serror(ps->row, ps->col,
+            "native function is not allowed in interactive mode");
+      stmt_free($1);
+    }
+  } else {
+    if ($1 != NULL && !comp_add_native_func(ps, $1->funcdecl.id)) {
       comp_add_stmt(ps, $1);
     }
   }
@@ -1841,6 +1859,14 @@ proto_decl:
 {
   IDENT(id, $2, @2);
   $$ = stmt_from_ifunc(id, NULL, NULL);
+}
+;
+
+native_func_decl:
+  NATIVE proto_decl
+{
+  $2->funcdecl.native = 1;
+  $$ = $2;
 }
 ;
 

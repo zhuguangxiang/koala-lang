@@ -51,6 +51,19 @@ Object *method_new(char *name, Object *code)
   return (Object *)method;
 }
 
+Object *nmethod_new(char *name, TypeDesc *desc, void *ptr)
+{
+  MethodObject *method = kmalloc(sizeof(*method));
+  init_object_head(method, &method_type);
+  method->name = atom(name);
+  method->desc = TYPE_INCREF(desc);
+  method->ptr  = NULL;
+  method->cfunc = 1;
+  method->native = 1;
+  method->ptr = ptr;
+  return (Object *)method;
+}
+
 Object *method_call(Object *self, Object *ob, Object *args)
 {
   if (!method_check(self)) {
@@ -60,6 +73,9 @@ Object *method_call(Object *self, Object *ob, Object *args)
   MethodObject *meth = (MethodObject *)self;
   if (meth->cfunc) {
     func_t fn = meth->ptr;
+    if (fn == NULL && meth->native) {
+      debug("try to find native function '%s'", meth->name);
+    }
     return fn(ob, args);
   } else {
     return koala_evalcode(meth->ptr, ob, args, NULL);

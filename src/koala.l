@@ -217,6 +217,7 @@ moddoc  "//!"[^\n]*
 "is"       { YY_RETURN(IS);           }
 "extends"  { YY_RETURN(EXTENDS);      }
 "with"     { YY_RETURN(WITH);         }
+"native"   { YY_RETURN(NATIVE);       }
 
 "byte"     { YY_RETURN(BYTE);         }
 "int"      { YY_RETURN(INTEGER);      }

@@ -22,51 +22,9 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_API_H_
-#define _KOALA_API_H_
+#ifndef _KOALA_TEST_NATIVE_H_
+#define _KOALA_TEST_NATIVE_H_
 
-#include "version.h"
-#include "log.h"
-#include "memory.h"
-#include "atom.h"
-#include "eval.h"
-#include "numberobject.h"
-#include "fieldobject.h"
-#include "methodobject.h"
-#include "classobject.h"
-#include "intobject.h"
-#include "floatobject.h"
-#include "stringobject.h"
-#include "arrayobject.h"
-#include "tupleobject.h"
-#include "mapobject.h"
-#include "moduleobject.h"
-#include "codeobject.h"
-#include "enumobject.h"
-#include "rangeobject.h"
-#include "iterobject.h"
-#include "closureobject.h"
-#include "resultobject.h"
-#include "errorobject.h"
-#include "fmtmodule.h"
-#include "iomodule.h"
-#include "osmodule.h"
-#include "testnative.h"
-#include "modules.h"
-#include "parser.h"
+void init_test_module(void);
 
-#ifdef __cplusplus
-extern "C" {
 #endif
-
-void koala_initialize(void);
-void koala_finalize(void);
-void koala_readline(void);
-int koala_compile(char *path);
-void koala_run(char *path);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* _KOALA_API_H_ */

@@ -1349,6 +1349,14 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
       CODE_OP(OP_LOAD_GLOBAL);
       CODE_OP_S(OP_GET_VALUE, exp->id.name);
       CODE_OP_ARGC(OP_EVAL, exp->argc);
+    } else if (sym->kind == SYM_IFUNC) {
+      if (sym->native) {
+        debug("call native function '%s'", sym->name);
+        CODE_OP(OP_LOAD_GLOBAL);
+        CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+      } else {
+        serror(exp->row, exp->col, "'%s' is not callable", sym->name);
+      }
     } else {
       panic("symbol %d is callable?", sym->kind);
     }
@@ -3763,9 +3771,10 @@ static Module *new_mod_from_mobject(Module *_mod, char *path)
     warn("cannot load module '%s'", path);
     return NULL;
   }
+
+  ModuleObject *mo = (ModuleObject *)ob;
   debug("new module(parser) '%s' from memory", path);
   Module *mod = kmalloc(sizeof(Module));
-  ModuleObject *mo = (ModuleObject *)ob;
   mod->path = path;
   mod->name = mo->name;
   mod->stbl = stable_from_mobject(_mod, ob);
@@ -3806,6 +3815,7 @@ static void parse_import(ParserState *ps, Stmt *s)
         serror(s->import.pathrow, s->import.pathcol,
               "no such module '%s'", path);
       } else {
+        debug("import from '%s' as '%s'", path, name);
         Symbol *sym = symbol_new(path, SYM_MOD);
         sym->mod.path = path;
         sym->desc = desc_from_klass("lang", "Module");
@@ -3818,9 +3828,6 @@ static void parse_import(ParserState *ps, Stmt *s)
       }
     } else {
       debug("'%s' already imported", path);
-    }
-
-    if (!has_error(ps)) {
       debug("import from '%s' as '%s'", path, name);
       Symbol *sym = symbol_new(name, SYM_MOD);
       sym->mod.path = path;
@@ -4843,6 +4850,7 @@ static void parse_ifunc(ParserState *ps, Stmt *stmt)
   Vector *idtypes = stmt->funcdecl.idtypes;
   Type *ret = &stmt->funcdecl.ret;
   sym->desc = parse_func_proto(ps, idtypes, ret);
+  sym->native = stmt->funcdecl.native;
 }
 
 static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)

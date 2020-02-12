@@ -40,7 +40,9 @@ typedef struct methodobject {
   /* method type descriptor */
   TypeDesc *desc;
   /* cfunc or kfunc ? */
-  int cfunc;
+  short cfunc;
+  /* native */
+  short native;
   /* cfunc or kfunc pointer */
   void *ptr;
 } MethodObject;
@@ -63,6 +65,7 @@ void init_method_type(void);
 void init_proto_type(void);
 Object *cmethod_new(MethodDef *m);
 Object *method_new(char *name, Object *code);
+Object *nmethod_new(char *name, TypeDesc *desc, void *ptr);
 Object *method_call(Object *self, Object *ob, Object *args);
 Object *method_getcode(Object *self);
 Object *proto_new(char *name, TypeDesc *desc);

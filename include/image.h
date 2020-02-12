@@ -178,6 +178,7 @@ typedef struct ifuncitem {
   int32_t nameindex;  /* ->StringItem */
   int32_t pindex;     /* ->IndexItem */
   int32_t rindex;     /* ->TypeItem */
+  int32_t native;     /* native flag */
 } IFuncItem;
 
 typedef struct enumitem {
@@ -267,7 +268,7 @@ void image_add_trait(Image *image, char *name, Vector *bases, int mbrindex);
 void image_add_enum(Image *image, char *name, int mbrindex);
 int image_add_field(Image *image, char *name, TypeDesc *desc);
 int image_add_method(Image *image, CodeInfo *ci);
-int image_add_ifunc(Image *image, char *name, TypeDesc *desc);
+int image_add_ifunc(Image *image, char *name, TypeDesc *desc, int native);
 int image_add_label(Image *image, char *name, Vector *types, int32_t val);
 int image_add_mbrs(Image *image, MbrIndex *indexes, int size);
 
@@ -297,6 +298,7 @@ void image_load_var(Image *image, int index, getvarfunc func, void *arg);
 void image_load_constvar(Image *image, int index, getvarfunc func, void *arg);
 typedef void (*getfuncfunc)(char *, CodeInfo *, void *);
 void image_load_func(Image *image, int index, getfuncfunc func, void *arg);
+void image_load_ifunc(Image *image, int index, getmbrfunc func, void *arg);
 #define IMAGE_LOAD_ITEMS(image, kind, which, func, arg) \
 ({ \
   int size = _size_(image, kind); \
@@ -307,6 +309,8 @@ void image_load_func(Image *image, int index, getfuncfunc func, void *arg);
   IMAGE_LOAD_ITEMS(image, ITEM_VAR, var, func, arg)
 #define IMAGE_LOAD_FUNCS(image, _func, arg) \
   IMAGE_LOAD_ITEMS(image, ITEM_FUNC, func, _func, arg)
+#define IMAGE_LOAD_NFUNCS(image, _func, arg) \
+  IMAGE_LOAD_ITEMS(image, ITEM_IFUNC, ifunc, _func, arg)
 #define IMAGE_LOAD_CONSTVARS(image, func, arg) \
   IMAGE_LOAD_ITEMS(image, ITEM_CONSTVAR, constvar, func, arg)
 #define IMAGE_LOAD_CLASSES(image, func, arg) \
