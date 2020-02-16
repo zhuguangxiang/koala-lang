@@ -2543,31 +2543,79 @@ static void parse_subscr(ParserState *ps, Expr *exp)
   }
 }
 
+static int check_one_arg(ParserState *ps, TypeDesc *desc, Expr *arg)
+{
+  if (!desc_isnull(arg->desc) && !desc_check(desc, arg->desc)) {
+    if (!check_inherit(desc, arg->sym, NULL)) {
+      STRBUF(sbuf1);
+      STRBUF(sbuf2);
+      desc_tostr(desc, &sbuf1);
+      desc_tostr(arg->desc, &sbuf2);
+      serror(arg->row, arg->col, "expected '%s', but found '%s'",
+            strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      strbuf_fini(&sbuf1);
+      strbuf_fini(&sbuf2);
+      return -1;
+    }
+  }
+  return 0;
+}
+
 static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
 {
   Vector *descs = proto->proto.args;
   int sz = vector_size(descs);
   int argc = vector_size(args);
-  if (sz != argc)
-    return -1;
 
-  TypeDesc *desc;
-  Expr *arg;
-  for (int i = 0; i < sz; ++i) {
-    desc = vector_get(descs, i);
-    arg = vector_get(args, i);
-    if (!desc_isnull(arg->desc) && !desc_check(desc, arg->desc)) {
-      if (!check_inherit(desc, arg->sym, NULL)) {
-        STRBUF(sbuf1);
-        STRBUF(sbuf2);
-        desc_tostr(desc, &sbuf1);
-        desc_tostr(arg->desc, &sbuf2);
-        serror(arg->row, arg->col, "expected '%s', but found '%s'",
-                    strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
-        strbuf_fini(&sbuf1);
-        strbuf_fini(&sbuf2);
+  if (sz > argc) {
+    TypeDesc *last = vector_get(descs, sz - 1);
+    if (desc_isvalist(last)) {
+      if (sz - 1 != argc) {
+        serror(0, 0, "expected %d arguments, but %d", sz - 1, argc);
         return -1;
       }
+      TypeDesc *desc;
+      Expr *arg;
+      for (int i = 0; i < sz - 1; ++i) {
+        desc = vector_get(descs, i);
+        arg = vector_get(args, i);
+        if (check_one_arg(ps, desc, arg))
+          return -1;
+      }
+    } else {
+      serror(0, 0, "expected %d arguments, but %d", sz, argc);
+      return -1;
+    }
+  } else if (sz < argc) {
+    TypeDesc *last = vector_get(descs, sz - 1);
+    if (!desc_isvalist(last)) {
+      serror(0, 0, "expected %d arguments, but %d", sz, argc);
+      return -1;
+    }
+
+    TypeDesc *desc;
+    Expr *arg;
+    for (int i = 0; i < sz - 1; ++i) {
+      desc = vector_get(descs, i);
+      arg = vector_get(args, i);
+      if (check_one_arg(ps, desc, arg))
+        return -1;
+    }
+
+    desc = vector_get(last->klass.typeargs, 0);
+    for (int i = sz - 1; i < argc; ++i) {
+      arg = vector_get(args, i);
+      if (check_one_arg(ps, desc, arg))
+        return -1;
+    }
+  } else {
+    TypeDesc *desc;
+    Expr *arg;
+    for (int i = 0; i < sz; ++i) {
+      desc = vector_get(descs, i);
+      arg = vector_get(args, i);
+      if (check_one_arg(ps, desc, arg))
+        return -1;
     }
   }
   return 0;
@@ -4209,6 +4257,12 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
           desc = desc_from_pararef(sym->name, sym->paratype.index);
         }
         vector_push_back(vec, desc);
+      }
+    }
+    // check valist
+    if (desc_isvalist(desc)) {
+      if (idx != vector_size(idtypes) - 1) {
+        serror(item->type.row, item->type.col, "VaList(...) must be at last");
       }
     }
   }

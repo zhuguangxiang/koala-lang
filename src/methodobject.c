@@ -23,6 +23,7 @@
 */
 
 #include "methodobject.h"
+#include "valistobject.h"
 #include "tupleobject.h"
 #include "stringobject.h"
 #include "codeobject.h"
@@ -64,22 +65,93 @@ Object *nmethod_new(char *name, TypeDesc *desc, void *ptr)
   return (Object *)method;
 }
 
+static Object *get_valist_args(Object *args, Vector *argtypes)
+{
+  int size = vector_size(argtypes);
+  int start = size - 1;
+  TypeDesc *lasttype = vector_top_back(argtypes);
+  TypeDesc *subtype = vector_get(lasttype->klass.typeargs, 0);
+
+  if (start == 0) {
+    if (args == NULL) {
+      return valist_new(0, subtype);
+    }
+
+    if (!tuple_check(args)) {
+      Object *valist = valist_new(1, subtype);
+      valist_set(valist, 0, args);
+      return valist;
+    } else {
+      Object *ob;
+      Object *valist = valist_new(tuple_size(args), subtype);
+      for (int i = 0; i < tuple_size(args); ++i) {
+        ob = tuple_get(args, i);
+        valist_set(valist, i, ob);
+        OB_DECREF(ob);
+      }
+      return valist;
+    }
+  } else {
+    expect(start >= 1);
+    expect(args != NULL);
+    if (!tuple_check(args)) {
+      Object *nargs = tuple_new(size);
+      tuple_set(nargs, 0, args);
+      Object *valist = valist_new(0, subtype);
+      tuple_set(nargs, 1, valist);
+      OB_DECREF(valist);
+      return nargs;
+    } else {
+      Object *ob;
+      Object *nargs = tuple_new(size);
+      for (int i = 0; i < start; ++i) {
+        ob = tuple_get(args, i);
+        tuple_set(nargs, i, ob);
+        OB_DECREF(ob);
+      }
+      Object *valist = valist_new(tuple_size(args) - start, subtype);
+      for (int i = start; i < tuple_size(args); ++i) {
+        ob = tuple_get(args, i);
+        valist_set(valist, i - start, ob);
+        OB_DECREF(ob);
+      }
+      tuple_set(nargs, start, valist);
+      OB_DECREF(valist);
+      return nargs;
+    }
+  }
+}
+
 Object *method_call(Object *self, Object *ob, Object *args)
 {
   if (!method_check(self)) {
     error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
     return NULL;
   }
+
   MethodObject *meth = (MethodObject *)self;
+  Vector *argtypes = meth->desc->proto.args;
+  TypeDesc *lasttype = vector_top_back(argtypes);
+  Object *nargs = args;
+  if (desc_isvalist(lasttype)) {
+    nargs = get_valist_args(args, argtypes);
+  }
+
+  Object *res;
   if (meth->cfunc) {
     func_t fn = meth->ptr;
     if (fn == NULL && meth->native) {
       debug("try to find native function '%s'", meth->name);
     }
-    return fn(ob, args);
+    res = fn(ob, nargs);
   } else {
-    return koala_evalcode(meth->ptr, ob, args, NULL);
+    res = koala_evalcode(meth->ptr, ob, nargs, NULL);
   }
+
+  if (nargs != args)
+    OB_DECREF(nargs);
+
+  return res;
 }
 
 Object *method_getcode(Object *self)

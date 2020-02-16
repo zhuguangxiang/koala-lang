@@ -54,6 +54,7 @@ static void init_types(void)
   init_char_type();
   init_float_type();
 
+  init_valist_type();
   init_array_type();
   init_tuple_type();
   init_map_type();
@@ -90,6 +91,7 @@ static void fini_types(void)
   type_fini(&string_type);
   type_fini(&char_type);
   type_fini(&float_type);
+  type_fini(&valist_type);
   type_fini(&array_type);
   type_fini(&tuple_type);
   type_fini(&map_type);

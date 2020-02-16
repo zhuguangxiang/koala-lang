@@ -173,7 +173,7 @@ TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
 TypeDesc *desc_from_pararef(char *name, int index);
 TypeDesc *desc_from_paradef(char *name, int index);
 TypeDesc *desc_from_label(TypeDesc *edesc, Vector *types);
-#define desc_from_varg  desc_from_klass("lang", "VArg")
+#define desc_from_valist  desc_from_klass("lang", "VaList")
 #define desc_from_array desc_from_klass("lang", "Array")
 #define desc_from_map   desc_from_klass("lang", "Map")
 #define desc_from_tuple desc_from_klass("lang", "Tuple")
@@ -199,6 +199,11 @@ TypeDesc *str_to_proto(char *ptype, char *rtype);
   !strcmp((desc)->klass.path, "lang") && \
   !strcmp((desc)->klass.type, "Tuple"))
 #define desc_isnull(desc)   ((desc) == &type_base_null)
+#define desc_isvalist(desc) \
+  ((desc)->kind == TYPE_KLASS && \
+  (desc)->klass.path != NULL && \
+  !strcmp((desc)->klass.path, "lang") && \
+  !strcmp((desc)->klass.type, "VaList"))
 
 #ifdef __cplusplus
 }

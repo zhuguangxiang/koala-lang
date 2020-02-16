@@ -174,6 +174,7 @@ void init_lang_module(void)
   module_add_type(m, &string_type);
   module_add_type(m, &char_type);
   module_add_type(m, &float_type);
+  module_add_type(m, &valist_type);
   module_add_type(m, &array_type);
   module_add_type(m, &tuple_type);
   module_add_type(m, &map_type);

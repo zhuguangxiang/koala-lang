@@ -1620,13 +1620,20 @@ id_varg:
   ID DOTDOTDOT
 {
   IDENT(id, $1, @1);
-  Type type = {desc_from_any, 0, 0};
+  TypeDesc *varg = desc_from_valist;
+  TypeDesc *any = desc_from_any;
+  desc_add_paratype(varg, any);
+  TYPE_DECREF(any);
+  TYPE(type, varg, @2);
   $$ = new_idtype(id, type);
 }
 | ID DOTDOTDOT no_array_type
 {
   IDENT(id, $1, @1);
-  TYPE(type, $3, @3);
+  TypeDesc *varg = desc_from_valist;
+  desc_add_paratype(varg, $3);
+  TYPE_DECREF($3);
+  TYPE(type, varg, @2);
   $$ = new_idtype(id, type);
 }
 ;
@@ -2097,7 +2104,7 @@ type_varg_list:
 | type_list ',' DOTDOTDOT
 {
   $$ = $1;
-  TypeDesc *varg = desc_from_varg;
+  TypeDesc *varg = desc_from_valist;
   TypeDesc *any = desc_from_any;
   desc_add_paratype(varg, any);
   TYPE_DECREF(any);
@@ -2106,7 +2113,7 @@ type_varg_list:
 | type_list ',' DOTDOTDOT no_array_type
 {
   $$ = $1;
-  TypeDesc *varg = desc_from_varg;
+  TypeDesc *varg = desc_from_valist;
   desc_add_paratype(varg, $4);
   TYPE_DECREF($4);
   vector_push_back($$, varg);

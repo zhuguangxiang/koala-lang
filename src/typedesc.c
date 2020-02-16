@@ -565,7 +565,7 @@ static TypeDesc *__to_desc(char **str)
     } else {
       base = desc_from_any;
     }
-    desc = desc_from_varg;
+    desc = desc_from_valist;
     desc_add_paratype(desc, base);
     TYPE_DECREF(base);
     break;

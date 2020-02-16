@@ -1,0 +1,44 @@
+
+import io2 "pkg/io"
+import "io"
+
+class StringWriterError extends Error {
+  func error() string {
+    "length of string is too large."
+  }
+  func __str__() string {
+    "StringWriterError"
+  }
+}
+
+class StringWriter extends io2.Writer {
+  func write(buf [int]) Result<int, Error> {
+    if buf[0] == 100 {
+      return Result.Ok(200)
+    } else {
+      return Result.Err(new StringWriterError())
+    }
+  }
+}
+
+func foo(sw io2.Writer) {
+  arr := [100, 200, 300]
+  r := sw.write(arr)
+  io.println(r)
+}
+
+foo(new StringWriter())
+
+var sw io2.Writer = new StringWriter()
+//sw := new StringWriter()
+arr := [200, 200, 300]
+r := sw.write(arr)
+
+match r {
+  Result.Ok(x) => {
+    io.print("ok:");io.println(x)
+  }
+  Result.Err(x) => {
+    io.print("err:"); io.println(x.error())
+  }
+}

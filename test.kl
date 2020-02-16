@@ -777,3 +777,27 @@ func show() {
     io.println(i)
   }
 }
+
+import "io"
+
+func foo(args ...int) {
+  io.println(args[0])
+  io.println(args[1])
+  io.println(args[2])
+}
+
+foo()
+foo(100, "bar")
+foo("foo", 200)
+foo("foo", "bar")
+foo(100, 200)
+
+func bar(s string, args ...any) {
+  io.println(s)
+  io.println(args[0])
+  io.println(args[1])
+}
+
+bar("bar", 100, 200)
+bar("bar")
+bar()
