@@ -28,58 +28,38 @@
 #include "memory.h"
 #include "iterator.h"
 #include "common.h"
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define VECTOR_MINIMUM_CAPACITY 8
-
 /* a dynamic array */
 typedef struct vector {
-  /* total slots */
-  int capacity;
-  /* used slots */
+  /* used items */
   int size;
+  /* total items */
+  int capacity;
+  /* item size */
+  int isize;
   /* array of items */
-  void *items;
+  char *items;
 } Vector;
 
-/* Declare an empty vector with name. */
-#define VECTOR(name) \
-  Vector name = {0, 0, NULL}
-
 /* Initialize a vector with item size. */
-static inline void vector_init(Vector *self)
-{
-  memset(self, 0, sizeof(Vector));
-}
+int vector_init(Vector *self, int capacity, int isize);
 
 /* Destroy a vector */
 void vector_fini(Vector *self);
 
 /* Create a new vector */
-#define vector_new() \
-  (Vector *)kmalloc(sizeof(Vector));
+Vector *vector_new(int capacity, int isize);
 
 /* Destroy a vector, and free vector memory */
-#define vector_free(self) \
-({                        \
-  vector_fini(self);      \
-  kfree(self);            \
-  (self) = NULL;          \
-})
+void vector_free(Vector *self);
 
-/*
- * Remove all items from the vector, leaving the container with a size of 0.
- * The vector does not resize after removing the items. The memory is still
- * allocated for future uses.
- */
-static inline void vector_clear(Vector *self)
-{
-  memset(self->items, 0, self->capacity * sizeof(void *));
-  self->size = 0;
-}
+/* Remove all items from the vector, and restore it as initial state. */
+int vector_clear(Vector *self);
 
 /*
  * Concatenate a vector's items into the end of another vector.
@@ -97,66 +77,71 @@ Vector *vector_slice(Vector *self, int start, int size);
  * Copy the vector's items to a new vector.
  * The source vector is unchanged.
  */
-#define vector_clone(self) \
-  vector_slice(self, 0, (self)->size)
-
-/* Shrink the vector's memory to it's size for saving memory. */
-int vector_shrink_to_fit(Vector *self);
+#define vector_copy(self) vector_slice(self, 0, (self)->size)
 
 /* Get the vector size. */
-#define vector_size(self) \
-  ((self) ? (self)->size : 0)
+#define vector_size(self) ((self) != NULL ? (self)->size : 0)
 
-/* Get the vector capacity(allocated spaces). */
-#define vector_capacity(self) \
-  ((self) ? (self)->capacity : 0)
+/* Check the vector is empty or not */
+#define vector_empty(self) (vector_size(self) == 0)
 
-/* Store an item at an index. The old item is returned. */
-void *vector_set(Vector *self, int index, void *item);
+/* Get the vector's raw items */
+#define vector_toarr(self) ((self) != NULL ? (void *)(self)->items : NULL)
 
-/* Get the item stored at an index. Index bound is checked. */
-void *vector_get(Vector *self, int index);
+/* Store the pointer's content at an index */
+int vector_set(Vector *self, int index, void *item);
+
+/* Get the data's pointer at an index. Index bound is checked. */
+void *__vector_get(Vector *self, int index);
+
+/* Return the index item as 'type'. Index bound is checked. */
+#define vector_get(self, index, type) *(type *)__vector_get(self, index)
 
 /*
- * Insert an item into the in-bound of the vector.
+ * Insert the pointer's content into the in-bound of the vector.
  * This is relatively expensive operation.
  */
 int vector_insert(Vector *self, int index, void *item);
 
 /*
  * Remove the item at the index and shrink the vector by one.
- * The removed item is stored va 'prev'.
  * This is relatively expensive operation.
  */
-void *vector_remove(Vector *self, int index);
+int vector_remove(Vector *self, int index, void *prev);
 
-/* Add an item at the end of the vector. */
-int vector_push_back(Vector *self, void *item);
+/* Add an item at the end of the vector and return 'slot' index */
+#define vector_push_back(self, item) ({                 \
+  int ret = vector_set(self, vector_size(self), item);  \
+  (ret != 0) ? vector_size(self) - 1 : -1;              \
+})
+
+/* Add an item at the front of the vector */
+#define vector_push_front(self, item) vector_insert(self, 0, item)
 
 /*
  * Remove an item at the end of the vector.
  * When used with 'push_back', the vector can be used as a stack.
  */
-void *vector_pop_back(Vector *self);
+#define vector_pop_back(self, prev) \
+  vector_remove(self, vector_size(self) - 1, (void *)prev)
 
-/* Get an item at the end of the vector, but not remove it. */
-static inline void *vector_top_back(Vector *self)
-{
-  return vector_get(self, self->size - 1);
-}
+/* Remove an item at the front of the vector. */
+#define vector_pop_front(self, prev) vector_remove(self, 0, (void *)prev)
 
-/*
- * Add an integer at the end of the vector and return its index
- */
-int vector_append_int(Vector *self, int val);
+/* Get the last item in the vector as 'type', but not remove it. */
+#define vector_top_back(self, type) \
+  vector_get(self, vector_size(self) - 1, type)
+
+/* Get the front item in the vector as 'type', but not remove it. */
+#define vector_top_front(self, type) vector_get(self, 0, type)
 
 /*
  * Sort a vector in-place.
  *
- * self
- * compare - The function used to compare two items.
- *           Returns -1, 0, or 1 if the item is less than, equal to,
- *           or greater than the other one.
+ * self - the vector to be sorted.
+ * cmp  - The function used to compare two items.
+ *        Returns -1, 0, or 1 if the item is less than, equal to,
+ *        or greater than the other one.
  *
  * Returns nothing.
  *
@@ -168,41 +153,20 @@ int vector_append_int(Vector *self, int val);
  *   }
  *   vector_sort(vec, str_cmp);
  */
-#define vector_sort(self, compare) \
-  qsort((self)->items, (self)->size, compare)
-
-/* Convert vector to array with null-terminated item. */
-void *vector_toarr(Vector *self);
-
-/*
- * Iterator callback function for vector iteration.
- * See iterator.h.
- */
-void *vector_iter_next(Iterator *iter);
-
-/* Declare an iterator of the vector. Deletion is not safe. */
-#define VECTOR_ITERATOR(name, vector) \
-  ITERATOR(name, vector, vector_iter_next)
-
-/*
- * Reverse iterator callback function for vector iteration.
- * See iterator.h.
- */
-void *vector_iter_prev(Iterator *iter);
-
-/* Declare an reverse iterator of the vector. Deletion is not safe. */
-#define VECTOR_REVERSE_ITERATOR(name, vector) \
-  ITERATOR(name, vector, vector_iter_prev)
+#define vector_sort(self, cmp) \
+  qsort((self)->items, (self)->size, (self)->isize, cmp)
 
 /* Vector foreach */
-#define vector_for_each(item, vector) \
-  for (int idx = 0; idx < vector_size(vector) && \
-    ({item = vector_get(vector, idx); 1;}); ++idx)
+#define vector_foreach(item, vector)                        \
+  for (int idx = 0; idx < vector_size(vector) &&            \
+      ({item = vector_get(vector, idx, typeof(item)); 1;}); \
+      ++idx)
 
 /* Vector foreach reversely */
-#define vector_for_each_reverse(item, vector) \
-  for (int idx = vector_size(vector) - 1; idx >= 0 && \
-    ({item = vector_get(vector, idx); 1;}); --idx)
+#define vector_foreach_reverse(item, vector)                \
+  for (int idx = vector_size(vector) - 1; idx >= 0 &&       \
+      ({item = vector_get(vector, idx, typeof(item)); 1;}); \
+      --idx)
 
 #ifdef __cplusplus
 }

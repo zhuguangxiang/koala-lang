@@ -25,72 +25,278 @@
 #include "log.h"
 #include "vector.h"
 
+static void test_int(void)
+{
+  Vector vec;
+  vector_init(&vec, 4, sizeof(int));
+
+  int numbers[20];
+  for (int i = 0; i < 20; ++i)
+    numbers[i] = 100 + i;
+
+  for (int i = 0; i < 20; ++i) {
+    vector_push_back(&vec, &numbers[i]);
+  }
+
+  int val = 0;
+  for (int i = 0; i < 20; ++i) {
+    vector_pop_back(&vec, &val);
+    expect(val == 119 - i);
+  }
+
+  vector_fini(&vec);
+}
+
+static void test_string(void)
+{
+  Vector vec;
+  vector_init(&vec, 4, sizeof(char));
+
+  int val = 'a';
+  for (int i = 0; i < 26; ++i) {
+    vector_push_back(&vec, &val);
+    ++val;
+  }
+
+  for (int i = 0; i < 26; ++i) {
+    vector_pop_back(&vec, &val);
+    expect(val == 'z'- i);
+  }
+
+  vector_fini(&vec);
+}
+
+struct person {
+  char *name;
+  int age;
+};
+
+static void test_struct(void)
+{
+  Vector vec;
+  vector_init(&vec, 4, sizeof(struct person));
+
+  struct person p = {"foo", 0};
+
+  for (int i = 0; i < 20; ++i) {
+    p.age = i + 1;
+    vector_push_back(&vec, &p);
+  }
+
+  for (int i = 0; i < 20; ++i) {
+    vector_pop_back(&vec, &p);
+    expect(p.age == 20 - i);
+  }
+
+  vector_fini(&vec);
+}
+
+static void test_ptr(void)
+{
+  Vector vec;
+  vector_init(&vec, 4, sizeof(void *));
+
+  struct person p[8] = {
+    {"foo", 1},
+    {"bar", 2},
+    {"bar1", 3},
+    {"bar2", 4},
+    {"bar3", 5},
+    {"bar4", 6},
+    {"bar5", 7},
+    {"bar6", 8},
+  };
+
+  struct person *ps;
+  for (int i = 0; i < 8; ++i) {
+    ps = &p[i];
+    vector_push_back(&vec, &ps);
+  }
+
+  for (int i = 0; i < 8; ++i) {
+    vector_pop_back(&vec, &ps);
+    expect(ps == &p[7-i]);
+    expect(ps->age = 8 - i);
+  }
+
+  vector_fini(&vec);
+}
+
+static void test_push_pop(void)
+{
+  Vector vec;
+  vector_init(&vec, 4, sizeof(int));
+
+  int i = 0;
+  int v;
+  for (v = 1; v <= 20; ++v) {
+    vector_push_back(&vec, &v);
+    ++i;
+  }
+
+  vector_foreach(v, &vec) {
+    expect(v == idx + 1);
+  }
+
+  vector_foreach_reverse(v, &vec) {
+    expect(v == idx + 1);
+  }
+
+  v = vector_top_back(&vec, int);
+  expect(v == 20);
+  v = vector_top_front(&vec, int);
+  expect(v == 1);
+
+  v = 0;
+  vector_push_front(&vec, &v);
+  v = -1;
+  vector_push_front(&vec, &v);
+
+  v = vector_top_front(&vec, int);
+  expect(v == -1);
+
+  i = -1;
+  while (!vector_empty(&vec)) {
+    vector_pop_front(&vec, &v);
+    expect(v == i);
+    ++i;
+  }
+
+  vector_fini(&vec);
+}
+
+static void test_insert_remove(void)
+{
+  Vector vec;
+  vector_init(&vec, 4, sizeof(int));
+
+  int v;
+  for (v = 1; v <= 5; ++v) {
+    vector_push_back(&vec, &v);
+  }
+
+  for (v = 7; v <= 10; ++v) {
+    vector_push_back(&vec, &v);
+  }
+
+  v = 6;
+  vector_insert(&vec, 5, &v);
+
+  vector_foreach(v, &vec) {
+    expect(v == idx + 1);
+  }
+
+  vector_remove(&vec, 7, NULL);
+  vector_remove(&vec, 7, NULL);
+  vector_remove(&vec, 7, NULL);
+
+  int i = 1;
+  while (!vector_empty(&vec)) {
+    vector_pop_front(&vec, &v);
+    expect(v == i);
+    ++i;
+  }
+
+  vector_fini(&vec);
+}
+
+static void test_concat(void)
+{
+  Vector vec1;
+  vector_init(&vec1, 4, sizeof(int));
+
+  int v;
+  for (v = 1; v <= 5; ++v) {
+    vector_push_back(&vec1, &v);
+  }
+
+  Vector vec2;
+  vector_init(&vec2, 2, sizeof(int));
+
+  for (v = 6; v <= 8; ++v) {
+    vector_push_back(&vec2, &v);
+  }
+
+  vector_concat(&vec1, &vec2);
+
+  int i = 8;
+  while (vector_empty(&vec1)) {
+    vector_pop_back(&vec1, &v);
+    expect(v == i);
+    --i;
+  }
+
+  i = 8;
+  while (vector_empty(&vec2)) {
+    vector_pop_back(&vec1, &v);
+    expect(v == i);
+    --i;
+  }
+
+  vector_fini(&vec1);
+  vector_fini(&vec2);
+}
+
+static void test_slice(void)
+{
+  Vector vec;
+  vector_init(&vec, 4, sizeof(int));
+
+  int v;
+  for (v = 1; v <= 13; ++v) {
+    vector_push_back(&vec, &v);
+  }
+
+  Vector *slice = vector_slice(&vec, 8, 3);
+  expect(vector_size(slice) == 3);
+  vector_foreach(v, slice) {
+    expect(v == idx + 9);
+  }
+
+  vector_foreach(v, &vec) {
+    expect(v == idx + 1);
+  }
+
+  vector_fini(&vec);
+  vector_free(slice);
+}
+
+static int int_cmp(const void *v1, const void *v2)
+{
+  int iv1 = *(int *)v1;
+  int iv2 = *(int *)v2;
+  return (iv2 - iv1);
+}
+
+static void test_sort(void)
+{
+  Vector vec;
+  vector_init(&vec, 4, sizeof(int));
+
+  int v;
+  for (v = 1; v <= 13; ++v) {
+    vector_push_back(&vec, &v);
+  }
+
+  vector_sort(&vec, int_cmp);
+
+  vector_foreach_reverse(v, &vec) {
+    expect(v == 13 - idx);
+  }
+
+  vector_fini(&vec);
+}
+
 int main(int argc, char *argv[])
 {
-  VECTOR(int_vec);
-
-  int numbers[100];
-  for (int i = 0; i < 100; ++i)
-    numbers[i] = 1001 + i;
-
-  int res = 0;
-
-  for (int j = 0; j < 100; ++j) {
-    res = vector_push_back(&int_vec, &numbers[j]);
-    expect(res == 0);
-  }
-
-  int *val;
-  VECTOR_ITERATOR(iter, &int_vec);
-  int k = 0;
-  iter_for_each(&iter, val) {
-    expect(*val == numbers[k]);
-    ++k;
-  }
-  expect(k == 100);
-
-  int *v;
-  v = vector_pop_back(&int_vec);
-  expect(*v == 1100);
-
-  iter_reset(&iter);
-  k = 0;
-  iter_for_each(&iter, val) {
-    expect(*val == numbers[k]);
-    ++k;
-  }
-  expect(k == 99);
-
-  v = vector_get(&int_vec, 99);
-  expect(v == NULL);
-
-  v = vector_get(&int_vec, 98);
-  expect(*v == 1099);
-
-  int num2[20];
-  for (int i = 0; i < 20; ++i)
-    num2[i] = 101 + i;
-
-  VECTOR(num2_vec);
-  for (int j = 0; j < 20; ++j) {
-    res = vector_push_back(&num2_vec, &num2[j]);
-    expect(res == 0);
-  }
-  res = vector_concat(&int_vec, &num2_vec);
-  expect(res == 0);
-  expect(vector_size(&int_vec) == 99 + 20);
-
-  iter_reset(&iter);
-  k = 0;
-  int vv;
-  iter_for_each_as(&iter, int, vv) {
-    if (k < 99)
-      expect(vv == numbers[k]);
-    else
-      expect(vv == num2[k - 99]);
-    ++k;
-  }
-  expect(k == 99 + 20);
-  vector_fini(&int_vec);
-  vector_fini(&num2_vec);
+  test_int();
+  test_string();
+  test_struct();
+  test_ptr();
+  test_push_pop();
+  test_insert_remove();
+  test_concat();
+  test_slice();
+  test_sort();
+  return 0;
 }
