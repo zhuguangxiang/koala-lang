@@ -309,8 +309,11 @@ static Object *do_match(Object *some, Object *patt)
     ArrayObject *arr = (ArrayObject *)patt;
     Object *z;
     Object *item;
-    vector_for_each(item, &arr->items) {
+    RawValue raw;
+    gvector_foreach(raw, &arr->vec) {
+      item = box(arr->desc, &raw, 1);
       z = do_match(some, item);
+      OB_DECREF(item);
       if (bool_istrue(z)) {
         return z;
       } else {

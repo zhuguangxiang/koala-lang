@@ -73,14 +73,14 @@ static struct baseinfo {
   TypeDesc *desc;
   char *str;
 } bases[] = {
-  {&type_base_int,   "int"   },
-  {&type_base_str,   "string"},
-  {&type_base_any,   "any"   },
-  {&type_base_bool,  "bool"  },
-  {&type_base_byte,  "byte"  },
-  {&type_base_char,  "char"  },
-  {&type_base_float, "float" },
-  {&type_base_null,  "nulltype" },
+  {&type_base_int,    "int"     },
+  {&type_base_str,    "string"  },
+  {&type_base_any,    "any"     },
+  {&type_base_bool,   "bool"    },
+  {&type_base_byte,   "byte"    },
+  {&type_base_char,   "char"    },
+  {&type_base_float,  "float"   },
+  {&type_base_null,   "nulltype"},
 };
 
 char *base_str(int kind)

@@ -144,6 +144,15 @@ void desc_free(TypeDesc *desc);
 void free_descs(Vector *vec);
 void desc_tostr(TypeDesc *desc, StrBuf *buf);
 char *base_str(int kind);
+
+#define INT_SIZE  sizeof(int64_t)
+#define PTR_SIZE  sizeof(void *)
+#define BOOL_SIZE 1
+#define BYTE_SIZE 1
+#define CHAR_SIZE sizeof(int)
+#define FLT_SIZE  sizeof(double)
+
+int base_size(int kind);
 void desc_show(TypeDesc *desc);
 int desc_check(TypeDesc *desc1, TypeDesc *desc2);
 int check_subdesc(TypeDesc *desc1, TypeDesc *desc2);

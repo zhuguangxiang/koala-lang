@@ -24,9 +24,223 @@
 
 #include "arrayobject.h"
 #include "intobject.h"
+#include "floatobject.h"
+#include "stringobject.h"
 #include "tupleobject.h"
 #include "iterobject.h"
 #include "strbuf.h"
+
+static int isobj(TypeDesc *desc)
+{
+  if (desc->kind != TYPE_BASE)
+    return 1;
+
+  char base = desc->base;
+  switch (base) {
+  case BASE_BYTE:
+    return 0;
+  case BASE_INT:
+    return 0;
+  case BASE_CHAR:
+    return 0;
+  case BASE_FLOAT:
+    return 0;
+  case BASE_BOOL:
+    return 0;
+  default:
+    return 1;
+  }
+}
+
+static int type_size(TypeDesc *desc)
+{
+  if (desc->kind != TYPE_BASE)
+    return PTR_SIZE;
+
+  int size;
+  char base = desc->base;
+  switch (base) {
+  case BASE_BYTE:
+    size = BYTE_SIZE;
+    break;
+  case BASE_INT:
+    size = INT_SIZE;
+    break;
+  case BASE_CHAR:
+    size = CHAR_SIZE;
+    break;
+  case BASE_FLOAT:
+    size = FLT_SIZE;
+    break;
+  case BASE_BOOL:
+    size = BOOL_SIZE;
+    break;
+  default:
+    size = PTR_SIZE;
+    break;
+  }
+  return size;
+}
+
+static void unbox(TypeDesc *desc, Object *val, RawValue *raw)
+{
+  if (desc->kind != TYPE_BASE) {
+    raw->obj = OB_INCREF(val);
+    return;
+  }
+
+  char base = desc->base;
+  switch (base) {
+  case BASE_BYTE:
+    raw->bval = ((ByteObject *)val)->value;
+    break;
+  case BASE_INT:
+    raw->ival = ((IntegerObject *)val)->value;
+    break;
+  case BASE_CHAR:
+    raw->cval = ((CharObject *)val)->value;
+    break;
+  case BASE_FLOAT:
+    raw->fval = ((FloatObject *)val)->value;
+    break;
+  case BASE_BOOL:
+    raw->zval = ((BoolObject *)val)->value;
+    break;
+  default:
+    raw->obj = OB_INCREF(val);
+    break;
+  }
+}
+
+Object *box(TypeDesc *desc, RawValue *raw, int inc)
+{
+  if (desc->kind != TYPE_BASE) {
+    return inc ? OB_INCREF(raw->obj) : raw->obj;
+  }
+
+  char base = desc->base;
+  switch (base) {
+  case BASE_BYTE:
+    return byte_new(raw->bval);
+  case BASE_INT:
+    return integer_new(raw->ival);
+  case BASE_CHAR:
+    return char_new(raw->cval);
+  case BASE_FLOAT:
+    return float_new(raw->fval);
+  case BASE_BOOL:
+    return raw->zval ? bool_true() : bool_false();
+  default:
+    return inc ? OB_INCREF(raw->obj) : raw->obj;
+  }
+}
+
+static void byte_tostr(ArrayObject *arr, StrBuf *buf)
+{
+  char *items = gvector_toarr(&arr->vec);
+  int size = gvector_size(&arr->vec);
+  for (int i = 0; i < size; ++i) {
+    strbuf_append_int(buf, items[i]);
+    if (i < size - 1)
+      strbuf_append(buf, ", ");
+  }
+}
+
+static void int_tostr(ArrayObject *arr, StrBuf *buf)
+{
+  int64_t *items = gvector_toarr(&arr->vec);
+  int size = gvector_size(&arr->vec);
+  for (int i = 0; i < size; ++i) {
+    strbuf_append_int(buf, items[i]);
+    if (i < size - 1)
+      strbuf_append(buf, ", ");
+  }
+}
+
+static void char_tostr(ArrayObject *arr, StrBuf *buf)
+{
+  panic("char: not implemented");
+}
+
+static void float_tostr(ArrayObject *arr, StrBuf *buf)
+{
+  double *items = gvector_toarr(&arr->vec);
+  int size = gvector_size(&arr->vec);
+  for (int i = 0; i < size; ++i) {
+    strbuf_append_float(buf, items[i]);
+    if (i < size - 1)
+      strbuf_append(buf, ", ");
+  }
+}
+
+static void bool_tostr(ArrayObject *arr, StrBuf *buf)
+{
+  int *items = gvector_toarr(&arr->vec);
+  int size = gvector_size(&arr->vec);
+  for (int i = 0; i < size; ++i) {
+    strbuf_append(buf, items[i] ? "true" : "false");
+    if (i < size - 1)
+      strbuf_append(buf, ", ");
+  }
+}
+
+static void string_tostr(ArrayObject *arr, StrBuf *buf)
+{
+  Object **items = gvector_toarr(&arr->vec);
+  int size = gvector_size(&arr->vec);
+  for (int i = 0; i < size; ++i) {
+    strbuf_append(buf, string_asstr(items[i]));
+    if (i < size - 1)
+      strbuf_append(buf, ", ");
+  }
+}
+
+static void obj_tostr(ArrayObject *arr, StrBuf *buf)
+{
+  Object **items = gvector_toarr(&arr->vec);
+  int size = gvector_size(&arr->vec);
+  for (int i = 0; i < size; ++i) {
+    Object *str = object_call(items[i], "__str__", NULL);
+    strbuf_append(buf, string_asstr(str));
+    OB_DECREF(str);
+    if (i < size - 1)
+      strbuf_append(buf, ", ");
+  }
+}
+
+static void tostr(ArrayObject *arr, StrBuf *buf)
+{
+  TypeDesc *desc = arr->desc;
+  if (desc->kind != TYPE_BASE) {
+    obj_tostr(arr, buf);
+    return;
+  }
+
+  char base = desc->base;
+  switch (base) {
+  case BASE_BYTE:
+    byte_tostr(arr, buf);
+    break;
+  case BASE_INT:
+    int_tostr(arr, buf);
+    break;
+  case BASE_CHAR:
+    char_tostr(arr, buf);
+    break;
+  case BASE_FLOAT:
+    float_tostr(arr, buf);
+    break;
+  case BASE_BOOL:
+    bool_tostr(arr, buf);
+    break;
+  case BASE_STR:
+    string_tostr(arr, buf);
+    break;
+  default:
+    obj_tostr(arr, buf);
+    break;
+  }
+}
 
 static Object *array_append(Object *self, Object *val)
 {
@@ -36,7 +250,9 @@ static Object *array_append(Object *self, Object *val)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  vector_push_back(&arr->items, OB_INCREF(val));
+  RawValue raw;
+  unbox(arr->desc, val, &raw);
+  gvector_push_back(&arr->vec, &raw);
   return NULL;
 }
 
@@ -48,7 +264,9 @@ static Object *array_pop(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  return vector_pop_back(&arr->items);
+  RawValue raw;
+  gvector_pop_back(&arr->vec, &raw);
+  return box(arr->desc, &raw, 0);
 }
 
 static Object *array_insert(Object *self, Object *args)
@@ -80,13 +298,15 @@ static Object *array_getitem(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   int index = integer_asint(args);
-  int size = vector_size(&arr->items);
+  int size = gvector_size(&arr->vec);
   if (index < 0 || index >= size) {
     error("index %d out of range(0..<%d)", index, size);
     return NULL;
   }
-  Object *val = vector_get(&arr->items, index);
-  return OB_INCREF(val);
+
+  RawValue raw;
+  gvector_get(&arr->vec, index, &raw);
+  return box(arr->desc, &raw, 1);
 }
 
 static Object *array_setitem(Object *self, Object *args)
@@ -112,7 +332,7 @@ static Object *array_length(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  int len = vector_size(&arr->items);
+  int len = gvector_size(&arr->vec);
   return integer_new(len);
 }
 
@@ -153,11 +373,14 @@ void array_free(Object *ob)
 
   ArrayObject *arr = (ArrayObject *)ob;
   TYPE_DECREF(arr->desc);
-  Object *item;
-  vector_for_each(item, &arr->items) {
-    OB_DECREF(item);
+
+  if (isobj(arr->desc)) {
+    RawValue raw;
+    gvector_foreach(raw, &arr->vec) {
+      OB_DECREF(raw.obj);
+    }
   }
-  vector_fini(&arr->items);
+  gvector_fini(&arr->vec);
   kfree(arr);
 }
 
@@ -169,27 +392,12 @@ Object *array_str(Object *self, Object *ob)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
+
   STRBUF(sbuf);
   strbuf_append_char(&sbuf, '[');
-  Object *str;
-  Object *tmp;
-  int i = 0;
-  int size = vector_size(&arr->items);
-  vector_for_each(tmp, &arr->items) {
-    if (string_check(tmp)) {
-      strbuf_append_char(&sbuf, '"');
-      strbuf_append(&sbuf, string_asstr(tmp));
-      strbuf_append_char(&sbuf, '"');
-    } else {
-      str = object_call(tmp, "__str__", NULL);
-      strbuf_append(&sbuf, string_asstr(str));
-      OB_DECREF(str);
-    }
-    if (i++ < size - 1)
-      strbuf_append(&sbuf, ", ");
-  }
+  tostr(arr, &sbuf);
   strbuf_append(&sbuf, "]");
-  str = string_new(strbuf_tostr(&sbuf));
+  Object *str = string_new(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
 
   return str;
@@ -210,7 +418,7 @@ static Object *array_iter_next(Object *iter, Object *step)
   debug("array-iter, index: %"PRId64", by: %"PRId64, index, by);
 
   Object *ret = NULL;
-  if (index < vector_size(&arr->items)) {
+  if (index < gvector_size(&arr->vec)) {
     ret = array_getitem(ob, idx);
     integer_setint(idx, index + by);
   }
@@ -241,21 +449,8 @@ Object *array_new(TypeDesc *desc)
   ArrayObject *arr = kmalloc(sizeof(*arr));
   init_object_head(arr, &array_type);
   arr->desc = TYPE_INCREF(desc);
+  gvector_init(&arr->vec, 0, type_size(desc));
   return (Object *)arr;
-}
-
-void Array_Print(Object *ob)
-{
-  ArrayObject *arr = (ArrayObject *)ob;
-  print("[");
-  Object *item;
-  Object *str;
-  vector_for_each(item, &arr->items) {
-    str = object_call(item, "__str__", NULL);
-    print("'%s', ", string_asstr(str));
-    OB_DECREF(str);
-  }
-  print("]\n");
 }
 
 int array_set(Object *self, int index, Object *v)
@@ -267,13 +462,19 @@ int array_set(Object *self, int index, Object *v)
 
   ArrayObject *arr = (ArrayObject *)self;
 
-  int size = vector_size(&arr->items);
+  int size = gvector_size(&arr->vec);
   if (index < 0 || index > size) {
     error("index %d out of range(0...%d)", index, size);
     return -1;
   }
 
-  Object *oldval = vector_set(&arr->items, index, OB_INCREF(v));
-  OB_DECREF(oldval);
+  RawValue raw = {0};
+  gvector_get(&arr->vec, index, &raw);
+  if (isobj(arr->desc)) {
+    OB_DECREF(raw.obj);
+  }
+
+  unbox(arr->desc, v, &raw);
+  gvector_set(&arr->vec, index, &raw);
   return 0;
 }

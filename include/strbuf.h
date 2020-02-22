@@ -68,7 +68,7 @@ void strbuf_vnappend(StrBuf *self, int count, va_list args);
 void strbuf_append_char(StrBuf *self, char ch);
 
 /* Write an integer. */
-void strbuf_append_int(StrBuf *self, long long val);
+void strbuf_append_int(StrBuf *self, int64_t val);
 
 /* Write a float. */
 void strbuf_append_float(StrBuf *self, double val);

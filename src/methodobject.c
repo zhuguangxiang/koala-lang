@@ -133,7 +133,7 @@ Object *method_call(Object *self, Object *ob, Object *args)
   Vector *argtypes = meth->desc->proto.args;
   TypeDesc *lasttype = vector_top_back(argtypes);
   Object *nargs = args;
-  if (desc_isvalist(lasttype)) {
+  if (lasttype != NULL && desc_isvalist(lasttype)) {
     nargs = get_valist_args(args, argtypes);
   }
 

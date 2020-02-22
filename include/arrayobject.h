@@ -25,7 +25,8 @@
 #ifndef _KOALA_ARRAY_OBJECT_H_
 #define _KOALA_ARRAY_OBJECT_H_
 
-#include "stringobject.h"
+#include "object.h"
+#include "gvector.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,16 +35,24 @@ extern "C" {
 typedef struct arrayobject {
   OBJECT_HEAD
   TypeDesc *desc;
-  Vector items;
+  GVector vec;
 } ArrayObject;
+
+typedef union rawvalue {
+  int64_t ival;
+  int bval;
+  unsigned int cval;
+  int zval;
+  double fval;
+  Object *obj;
+} RawValue;
 
 extern TypeObject array_type;
 #define array_check(ob) (OB_TYPE(ob) == &array_type)
 void init_array_type(void);
 Object *array_new(TypeDesc *desc);
-void array_free(Object *ob);
-void Array_Print(Object *ob);
 int array_set(Object *self, int index, Object *v);
+Object *box(TypeDesc *desc, RawValue *raw, int inc);
 
 #ifdef __cplusplus
 }

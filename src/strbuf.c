@@ -110,10 +110,10 @@ void strbuf_append_char(StrBuf *self, char ch)
   self->buf[self->len++] = ch;
 }
 
-void strbuf_append_int(StrBuf *self, long long val)
+void strbuf_append_int(StrBuf *self, int64_t val)
 {
   char buf[64];
-  snprintf(buf, 63, "%lld", val);
+  snprintf(buf, 63, "%ld", val);
   strbuf_append(self, buf);
 }
 
