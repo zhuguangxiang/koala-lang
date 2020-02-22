@@ -1016,8 +1016,6 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       desc = descob_getdesc(x);
-      //expect(desc->paras == NULL);
-      //expect(desc->types != NULL);
       xdesc = vector_get(desc->klass.typeargs, 0);
       y = array_new(xdesc);
       OB_DECREF(x);
@@ -1034,8 +1032,6 @@ Object *Koala_EvalFrame(CallFrame *f)
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       desc = descob_getdesc(x);
-      //expect(desc->paras == NULL);
-      //expect(desc->types != NULL);
       xdesc = vector_get(desc->klass.typeargs, 0);
       ydesc = vector_get(desc->klass.typeargs, 1);
       v = map_new(xdesc, ydesc);

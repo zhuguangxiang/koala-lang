@@ -5732,7 +5732,9 @@ static void parse_array_pattern(ParserState *ps, Vector *patts, Expr *some)
   // new array
   int size = vector_size(patts);
   Inst *inst = CODE_OP_I(OP_NEW_ARRAY, size);
-  inst->desc = TYPE_INCREF(some->desc);
+  TypeDesc *desc = desc_from_array;
+  desc_add_paratype(desc, some->desc);
+  inst->desc = desc;
 
   // do_match
   CODE_OP_ARGC(OP_MATCH, 1);
