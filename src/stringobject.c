@@ -25,6 +25,7 @@
 #include "stringobject.h"
 #include "hashmap.h"
 #include "intobject.h"
+#include "arrayobject.h"
 #include "fmtmodule.h"
 #include "utf8.h"
 #include "log.h"
@@ -115,6 +116,32 @@ static Object *string_equal(Object *self, Object *other)
   return !strcmp(s1->wstr, s2->wstr) ? bool_true() : bool_false();
 }
 
+/* func asbytes() [byte] */
+static Object *string_asbytes(Object *self, Object *args)
+{
+  if (!string_check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  StringObject *s = (StringObject *)self;
+  TypeDesc *desc = desc_from_byte;
+  Object *ob = array_new(desc);
+  TYPE_DECREF(desc);
+  if (ob == NULL) {
+    error("memory allocated failed.");
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)ob;
+  gvector_fini(&arr->vec);
+  gvector_init(&arr->vec, s->len + 1, 1);
+  arr->vec.size = s->len;
+  char *buf = array_raw(ob);
+  memcpy(buf, s->wstr, s->len);
+  return ob;
+}
+
 static void string_clean(Object *self)
 {
   if (!string_check(self)) {
@@ -197,6 +224,7 @@ static MethodDef string_methods[] = {
   {"__eq__", "s", "z", str_num_eq},
   {"__neq__", "s", "z", str_num_neq},
   {"__match__", "s", "z", string_equal},
+  {"as_bytes", NULL, "[b", string_asbytes},
   {NULL}
 };
 

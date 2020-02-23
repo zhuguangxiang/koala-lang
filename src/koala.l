@@ -80,6 +80,55 @@ static int need_semicolon(YY_EXTRA_TYPE ps)
   return 0;
 }
 
+static char esc_convert(char ch)
+{
+  char val;
+  switch (ch) {
+  case 'a':
+    val = 7;
+    break;
+  case 'b':
+    val = 8;
+    break;
+  case 'f':
+    val = 12;
+    break;
+  case 'n':
+    val = 10;
+    break;
+  case 'r':
+    val = 13;
+    break;
+  case 't':
+    val = 9;
+    break;
+  case 'v':
+    val = 11;
+    break;
+  default:
+    val = ch;
+    break;
+  }
+  return val;
+}
+
+static void parse_escape(char *buf, char *esc, int len)
+{
+  int j = 0;
+  char ch;
+  for (int i = 0; i < len; ++i) {
+    ch = esc[i];
+    if (ch == '\\') {
+      if (i + 1 < len) {
+        ch = esc[++i];
+        buf[j++] = esc_convert(ch);
+      }
+    } else {
+      buf[j++] = ch;
+    }
+  }
+}
+
 #define yyps ((YY_EXTRA_TYPE)yyextra)
 #define ps ((YY_EXTRA_TYPE)yyextra)
 
@@ -321,7 +370,10 @@ moddoc  "//!"[^\n]*
 }
 
 (\"{string}?\") {
-  yylval->sval = atom_nstring(yytext + 1, yyleng - 2);
+  char *buf = kmalloc(yyleng - 2 + 1);
+  parse_escape(buf, yytext + 1, yyleng - 2);
+  yylval->sval = atom(buf);
+  kfree(buf);
   YY_RETURN(STRING_LITERAL);
 }
 

@@ -1,0 +1,47 @@
+
+import "fs"
+import "sys"
+
+func print_file() {
+  file := fs.open("./fs_test.txt", "r")
+  arr := new Array<byte>()
+  file.read(arr, 32)
+  sys.stdout.write(arr)
+  return
+}
+
+print_file()
+
+var arr [byte] = [65, 66, 10]
+
+file := fs.open("./fs_test.txt", "a")
+res := file.write(arr)
+file.close()
+res
+
+file = fs.open("./fs_test.txt", "r")
+data := new Array<byte>()
+res = file.read(data, 64)
+file.close()
+
+res := sys.stdout.write(arr)
+res
+
+stdout := sys.stdout
+sys.stdout = file
+sys.stdout.write(arr)
+sys.stdout.write(arr)
+sys.stdout.write(arr)
+
+data := new Array<byte>()
+res = file.read(data, 64)
+
+sys.stdout = stdout
+sys.stdout.write(arr)
+sys.stdout.write(arr)
+sys.stdout.write(arr)
+
+sys.stdout = file
+sys.stdout.write(arr)
+sys.stdout.write(arr)
+sys.stdout.write(arr)

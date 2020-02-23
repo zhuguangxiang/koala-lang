@@ -34,8 +34,9 @@ extern "C" {
 extern TypeObject *result_type;
 void init_result_type(void);
 void fini_result_type(void);
-Object *result_new_ok(Object *val);
-Object *result_new_err(Object *val);
+Object *result_new(int ok, Object *val);
+#define result_ok(val)  result_new(1, val)
+#define result_err(val) result_new(0, val)
 
 #ifdef __cplusplus
 }

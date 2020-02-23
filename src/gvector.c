@@ -250,3 +250,13 @@ int gvector_remove(GVector *self, int index, void *prev)
   --self->size;
   return 0;
 }
+
+int gvector_fill(GVector *self, char *items, int size)
+{
+  if (self == NULL)
+    return -1;
+
+  self->size = 0;
+  if (__gvector_maybe_expand(self, size))
+    return -1;
+}

@@ -31,8 +31,13 @@
 extern "C" {
 #endif
 
+#define FILE_CAN_READ   (1 << 0)
+#define FILE_CAN_WRITE  (1 << 1)
+#define FILE_CAN_CLOSE  (1 << 2)
+
 typedef struct fileobject {
   OBJECT_HEAD
+  int flags;
   char *path;
   FILE *fp;
 } FileObject;
@@ -41,7 +46,7 @@ extern TypeObject file_type;
 #define file_check(ob) (OB_TYPE(ob) == &file_type)
 void init_fs_module(void);
 void fini_fs_module(void);
-Object *file_new(FILE *fp);
+Object *file_new(FILE *fp, char *path);
 
 #ifdef __cplusplus
 }

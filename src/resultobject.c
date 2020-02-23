@@ -130,16 +130,11 @@ void fini_result_type(void)
   OB_DECREF(result_type);
 }
 
-Object *result_new_ok(Object *val)
+Object *result_new(int ok, Object *val)
 {
   Object *args = tuple_new(1);
   tuple_set(args, 0, val);
-  return enum_new((Object *)result_type, ok_str, args);
-}
-
-Object *result_new_err(Object *val)
-{
-  Object *args = tuple_new(1);
-  tuple_set(args, 0, val);
-  return enum_new((Object *)result_type, err_str, args);
+  Object *res = enum_new((Object *)result_type, ok ? ok_str : err_str, args);
+  OB_DECREF(args);
+  return res;
 }

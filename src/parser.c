@@ -2185,7 +2185,7 @@ static void parse_attr(ParserState *ps, Expr *exp)
         desc_tostr(lsym->desc, &sbuf);
         serror(lexp->row, lexp->col, "'%s' is not found", strbuf_tostr(&sbuf));
         strbuf_fini(&sbuf);
-        exit(0);
+        return;
       } else {
         lsym->var.typesym = ltypesym;
       }

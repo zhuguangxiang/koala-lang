@@ -85,7 +85,7 @@ static Object *default_path(void)
 
 static Object *default_stdout(void)
 {
-  return file_new(stdout);
+  return file_new(stdout, "stdout");
 }
 
 static FieldDef sys_vars[] = {
