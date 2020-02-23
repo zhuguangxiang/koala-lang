@@ -136,6 +136,9 @@ int gvector_remove(GVector *self, int index, void *prev);
 /* Get the front item in the vector as 'type', but not remove it. */
 #define gvector_top_front(self, item) gvector_get(self, 0, item)
 
+/* Add # items at the end of the vector */
+int gvector_append_array(GVector *self, void *item, int size);
+
 /*
  * Sort a vector in-place.
  *

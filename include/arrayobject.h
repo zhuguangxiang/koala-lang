@@ -35,7 +35,7 @@ extern "C" {
 typedef struct arrayobject {
   OBJECT_HEAD
   TypeDesc *desc;
-  GVector vec;
+  GVector *vec;
 } ArrayObject;
 
 typedef union rawvalue {
@@ -50,7 +50,7 @@ typedef union rawvalue {
 extern TypeObject array_type;
 #define array_check(ob) (OB_TYPE(ob) == &array_type)
 void init_array_type(void);
-Object *array_new(TypeDesc *desc);
+Object *array_new(TypeDesc *desc, GVector *vec);
 int array_set(Object *self, int index, Object *v);
 Object *box(TypeDesc *desc, RawValue *raw, int inc);
 int array_size(Object *self);

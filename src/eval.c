@@ -254,7 +254,7 @@ static Object *new_object(CallFrame *f, TypeDesc *desc)
   TypeObject *type = (TypeObject *)tob;
   if (type == &array_type) {
     TypeDesc *subdesc = vector_get(desc->klass.typeargs, 0);
-    ret = array_new(subdesc);
+    ret = array_new(subdesc, NULL);
   } else if (type == &map_type) {
     TypeDesc *kdesc = vector_get(desc->klass.typeargs, 0);
     TypeDesc *vdesc = vector_get(desc->klass.typeargs, 1);
@@ -310,7 +310,7 @@ static Object *do_match(Object *some, Object *patt)
     Object *z;
     Object *item;
     RawValue raw;
-    gvector_foreach(raw, &arr->vec) {
+    gvector_foreach(raw, arr->vec) {
       item = box(arr->desc, &raw, 1);
       z = do_match(some, item);
       OB_DECREF(item);
@@ -1017,7 +1017,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = tuple_get(consts, oparg);
       desc = descob_getdesc(x);
       xdesc = vector_get(desc->klass.typeargs, 0);
-      y = array_new(xdesc);
+      y = array_new(xdesc, NULL);
       OB_DECREF(x);
       oparg = NEXT_2BYTES();
       for (i = 0; i < oparg; ++i) {

@@ -137,8 +137,8 @@ Object *box(TypeDesc *desc, RawValue *raw, int inc)
 
 static void byte_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  char *items = gvector_toarr(&arr->vec);
-  int size = gvector_size(&arr->vec);
+  char *items = gvector_toarr(arr->vec);
+  int size = gvector_size(arr->vec);
   for (int i = 0; i < size; ++i) {
     strbuf_append_int(buf, items[i]);
     if (i < size - 1)
@@ -148,8 +148,8 @@ static void byte_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void int_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  int64_t *items = gvector_toarr(&arr->vec);
-  int size = gvector_size(&arr->vec);
+  int64_t *items = gvector_toarr(arr->vec);
+  int size = gvector_size(arr->vec);
   for (int i = 0; i < size; ++i) {
     strbuf_append_int(buf, items[i]);
     if (i < size - 1)
@@ -164,8 +164,8 @@ static void char_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void float_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  double *items = gvector_toarr(&arr->vec);
-  int size = gvector_size(&arr->vec);
+  double *items = gvector_toarr(arr->vec);
+  int size = gvector_size(arr->vec);
   for (int i = 0; i < size; ++i) {
     strbuf_append_float(buf, items[i]);
     if (i < size - 1)
@@ -175,8 +175,8 @@ static void float_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void bool_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  int *items = gvector_toarr(&arr->vec);
-  int size = gvector_size(&arr->vec);
+  int *items = gvector_toarr(arr->vec);
+  int size = gvector_size(arr->vec);
   for (int i = 0; i < size; ++i) {
     strbuf_append(buf, items[i] ? "true" : "false");
     if (i < size - 1)
@@ -186,8 +186,8 @@ static void bool_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void string_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  Object **items = gvector_toarr(&arr->vec);
-  int size = gvector_size(&arr->vec);
+  Object **items = gvector_toarr(arr->vec);
+  int size = gvector_size(arr->vec);
   for (int i = 0; i < size; ++i) {
     strbuf_append(buf, string_asstr(items[i]));
     if (i < size - 1)
@@ -197,8 +197,8 @@ static void string_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void obj_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  Object **items = gvector_toarr(&arr->vec);
-  int size = gvector_size(&arr->vec);
+  Object **items = gvector_toarr(arr->vec);
+  int size = gvector_size(arr->vec);
   for (int i = 0; i < size; ++i) {
     Object *str = object_call(items[i], "__str__", NULL);
     strbuf_append(buf, string_asstr(str));
@@ -242,6 +242,16 @@ static void tostr(ArrayObject *arr, StrBuf *buf)
   }
 }
 
+static GVector *get_vec(ArrayObject *arr)
+{
+  GVector *vec = arr->vec;
+  if (vec == NULL) {
+    vec = gvector_new(0, type_size(arr->desc));
+    arr->vec = vec;
+  }
+  return vec;
+}
+
 static Object *array_append(Object *self, Object *val)
 {
   if (!array_check(self)) {
@@ -252,7 +262,7 @@ static Object *array_append(Object *self, Object *val)
   ArrayObject *arr = (ArrayObject *)self;
   RawValue raw;
   unbox(arr->desc, val, &raw);
-  gvector_push_back(&arr->vec, &raw);
+  gvector_push_back(get_vec(arr), &raw);
   return NULL;
 }
 
@@ -265,7 +275,7 @@ static Object *array_pop(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   RawValue raw;
-  gvector_pop_back(&arr->vec, &raw);
+  gvector_pop_back(get_vec(arr), &raw);
   return box(arr->desc, &raw, 0);
 }
 
@@ -298,14 +308,14 @@ static Object *array_getitem(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   int index = integer_asint(args);
-  int size = gvector_size(&arr->vec);
+  int size = gvector_size(arr->vec);
   if (index < 0 || index >= size) {
     error("index %d out of range(0..<%d)", index, size);
     return NULL;
   }
 
   RawValue raw;
-  gvector_get(&arr->vec, index, &raw);
+  gvector_get(get_vec(arr), index, &raw);
   return box(arr->desc, &raw, 1);
 }
 
@@ -332,7 +342,7 @@ static Object *array_length(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  int len = gvector_size(&arr->vec);
+  int len = gvector_size(arr->vec);
   return integer_new(len);
 }
 
@@ -376,11 +386,11 @@ void array_free(Object *ob)
 
   if (isobj(arr->desc)) {
     RawValue raw;
-    gvector_foreach(raw, &arr->vec) {
+    gvector_foreach(raw, arr->vec) {
       OB_DECREF(raw.obj);
     }
   }
-  gvector_fini(&arr->vec);
+  gvector_free(arr->vec);
   kfree(arr);
 }
 
@@ -418,7 +428,7 @@ static Object *array_iter_next(Object *iter, Object *step)
   debug("array-iter, index: %"PRId64", by: %"PRId64, index, by);
 
   Object *ret = NULL;
-  if (index < gvector_size(&arr->vec)) {
+  if (index < gvector_size(arr->vec)) {
     ret = array_getitem(ob, idx);
     integer_setint(idx, index + by);
   }
@@ -444,12 +454,12 @@ void init_array_type(void)
     panic("Cannot initalize 'Array' type.");
 }
 
-Object *array_new(TypeDesc *desc)
+Object *array_new(TypeDesc *desc, GVector *vec)
 {
   ArrayObject *arr = kmalloc(sizeof(*arr));
   init_object_head(arr, &array_type);
   arr->desc = TYPE_INCREF(desc);
-  gvector_init(&arr->vec, 0, type_size(desc));
+  arr->vec = vec;
   return (Object *)arr;
 }
 
@@ -462,20 +472,20 @@ int array_set(Object *self, int index, Object *v)
 
   ArrayObject *arr = (ArrayObject *)self;
 
-  int size = gvector_size(&arr->vec);
+  int size = gvector_size(arr->vec);
   if (index < 0 || index > size) {
     error("index %d out of range(0...%d)", index, size);
     return -1;
   }
 
   RawValue raw = {0};
-  gvector_get(&arr->vec, index, &raw);
+  gvector_get(get_vec(arr), index, &raw);
   if (isobj(arr->desc)) {
     OB_DECREF(raw.obj);
   }
 
   unbox(arr->desc, v, &raw);
-  gvector_set(&arr->vec, index, &raw);
+  gvector_set(get_vec(arr), index, &raw);
   return 0;
 }
 
@@ -487,7 +497,7 @@ int array_size(Object *self)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  return gvector_size(&arr->vec);
+  return gvector_size(arr->vec);
 }
 
 char *array_raw(Object *self)
@@ -498,5 +508,5 @@ char *array_raw(Object *self)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  return gvector_toarr(&arr->vec);
+  return gvector_toarr(arr->vec);
 }

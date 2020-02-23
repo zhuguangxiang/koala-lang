@@ -125,20 +125,16 @@ static Object *string_asbytes(Object *self, Object *args)
   }
 
   StringObject *s = (StringObject *)self;
+  GVector *vec = gvector_new(s->len, 1);
+  gvector_append_array(vec, s->wstr, s->len);
   TypeDesc *desc = desc_from_byte;
-  Object *ob = array_new(desc);
+  Object *ob = array_new(desc, vec);
   TYPE_DECREF(desc);
   if (ob == NULL) {
+    gvector_free(vec);
     error("memory allocated failed.");
     return NULL;
   }
-
-  ArrayObject *arr = (ArrayObject *)ob;
-  gvector_fini(&arr->vec);
-  gvector_init(&arr->vec, s->len + 1, 1);
-  arr->vec.size = s->len;
-  char *buf = array_raw(ob);
-  memcpy(buf, s->wstr, s->len);
   return ob;
 }
 

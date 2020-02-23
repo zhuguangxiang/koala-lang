@@ -78,11 +78,11 @@ static Object *file_read(Object *self, Object *args)
   ArrayObject *arr = (ArrayObject *)ob;
   Object *cnt = tuple_get(args, 1);
   int size = integer_asint(cnt);
-  gvector_fini(&arr->vec);
-  gvector_init(&arr->vec, size, 1);
+  gvector_free(arr->vec);
+  arr->vec = gvector_new(size, 1);
   char *buf = array_raw(ob);
   int nbytes = fread(buf, 1, size, file->fp);
-  arr->vec.size = nbytes;
+  arr->vec->size = nbytes;
   debug("max %d bytes read, and really read %d bytes", size, nbytes);
 
   OB_DECREF(ob);

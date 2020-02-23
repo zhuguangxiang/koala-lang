@@ -251,12 +251,17 @@ int gvector_remove(GVector *self, int index, void *prev)
   return 0;
 }
 
-int gvector_fill(GVector *self, char *items, int size)
+int gvector_append_array(GVector *self, void *item, int size)
 {
   if (self == NULL)
     return -1;
 
-  self->size = 0;
   if (__gvector_maybe_expand(self, size))
     return -1;
+
+  /* insert items */
+  void *offset = __gvector_offset(self, self->size);
+  memcpy(offset, item, self->isize * size);
+  self->size += size;
+  return 0;
 }
