@@ -801,3 +801,7 @@ func bar(s string, args ...any) {
 bar("bar", 100, 200)
 bar("bar")
 bar()
+
+import "fmt"
+
+fmt.format("hello, {}, {}!\n", "james", 118)
