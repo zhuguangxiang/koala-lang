@@ -478,3 +478,25 @@ int array_set(Object *self, int index, Object *v)
   gvector_set(&arr->vec, index, &raw);
   return 0;
 }
+
+int array_size(Object *self)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return 0;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  return gvector_size(&arr->vec);
+}
+
+char *array_raw(Object *self)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  return gvector_toarr(&arr->vec);
+}

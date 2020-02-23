@@ -33,7 +33,7 @@ void init_test_module(void)
 {
   Object *m = module_new("test");
   module_add_native(m, "hello", test_hello);
-  module_ready(m, 0);
+  module_not_ready(m);
   module_install("test", m);
   OB_DECREF(m);
 }

@@ -22,8 +22,8 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_RESULT_OBJECT_H_
-#define _KOALA_RESULT_OBJECT_H_
+#ifndef _KOALA_FS_MODULE_H_
+#define _KOALA_FS_MODULE_H_
 
 #include "object.h"
 
@@ -31,14 +31,20 @@
 extern "C" {
 #endif
 
-extern TypeObject *result_type;
-void init_result_type(void);
-void fini_result_type(void);
-Object *result_new_ok(Object *val);
-Object *result_new_err(Object *val);
+typedef struct fileobject {
+  OBJECT_HEAD
+  char *path;
+  FILE *fp;
+} FileObject;
+
+extern TypeObject file_type;
+#define file_check(ob) (OB_TYPE(ob) == &file_type)
+void init_fs_module(void);
+void fini_fs_module(void);
+Object *file_new(FILE *fp);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_RESULT_OBJECT_H_ */
+#endif /* _KOALA_FS_MODULE_H_ */

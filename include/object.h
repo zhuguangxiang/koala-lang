@@ -42,6 +42,7 @@ typedef Object *(*func_t)(Object *, Object *);
 typedef Object *(*lookupfunc)(Object *, char *name);
 typedef Object *(*callfunc)(Object *, Object *, Object *);
 typedef int (*setfunc)(Object *, Object *, Object *);
+typedef Object *(*defvalfunc)(void);
 
 typedef struct {
   char *name;
@@ -56,6 +57,7 @@ typedef struct {
   char *type;
   func_t get;
   setfunc set;
+  defvalfunc defval;
 } FieldDef;
 
 struct mnode {

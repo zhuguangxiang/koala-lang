@@ -935,8 +935,8 @@ Object *Koala_EvalFrame(CallFrame *f)
       break;
     }
     case OP_SUBSCR_STORE: {
-      x = POP();
       y = POP();
+      x = POP();
       z = POP();
       v = tuple_new(2);
       tuple_set(v, 0, y);

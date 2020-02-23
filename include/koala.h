@@ -51,8 +51,9 @@
 #include "errorobject.h"
 #include "fmtmodule.h"
 #include "iomodule.h"
-#include "osmodule.h"
+#include "sysmodule.h"
 #include "testnative.h"
+#include "fsmodule.h"
 #include "modules.h"
 #include "parser.h"
 

@@ -36,6 +36,9 @@ void literal_show(Literal *val, StrBuf *sbuf)
   case BASE_INT:
     strbuf_append_int(sbuf, val->ival);
     break;
+  case BASE_BYTE:
+    strbuf_append_int(sbuf, val->ival);
+    break;
   case BASE_FLOAT:
     strbuf_append_float(sbuf, val->fval);
     break;
@@ -483,7 +486,7 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
   }
   case TYPE_PARAREF: {
     char *name1 = desc1->pararef.name;
-    char *name2 = desc1->pararef.name;
+    char *name2 = desc2->pararef.name;
     if (strcmp(name1, name2)) {
       debug("pararef name not equal:%s-%s", name1, name2);
       return 0;
@@ -501,7 +504,7 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 
 static TypeDesc *__to_klass(char *s, int len)
 {
-  char *dot = strrchr(s, '.');
+  char *dot = strchr(s, '.');
   expect(dot != NULL);
   char *path = atom_nstring(s, dot - s);
   char *type = atom_nstring(dot + 1, len - (dot - s) - 1);

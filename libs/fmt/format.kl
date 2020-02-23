@@ -1,0 +1,87 @@
+
+class Formatter {
+  w Writer
+
+}
+
+func fprintf(w Writer, format string, args ...)
+{
+  s = sprintf(fmt, args)
+  w.write(s.as_bytes())
+}
+
+func fprint(w Writer, args ...)
+{
+  s = sprint(args)
+  w.write(s.as_bytes())
+}
+
+func fprintln(w Writer, args ...)
+{
+  p := new Printer()
+  for arg in args {
+    arg.__print__(p)
+  }
+  p.newline()
+  w.write(p.buf)
+}
+
+trait Printable {
+  func __fmt__(fmt Formatter)
+}
+
+class Person {
+  name string
+  age int
+
+  func __fmt__(fmt Formatter) {
+    fmt.write_str(name)
+  }
+}
+
+func _printf(w Writer, args Arguments) {
+  fmt := new Formatter(w)
+
+}
+
+func printf(fmt string, args ...) {
+  fmtargs = format_args(fmt, args)
+  var buf [byte] = []
+
+  idx := 0
+
+  for s in fmtargs.pieces {
+    if s != nil {
+      buf.write_str()
+    } else {
+      arg = fmtargs.args[idx]
+      arg.val.__fmt__(arg.fmt)
+      idx += 1
+    }
+  }
+}
+
+person := new Person()
+printf("person:{}", person)
+
+class Formatter {
+  fill char
+  width int
+  w Writer
+  func write_str(s string) {
+    w.write(s.as_bytes())
+  }
+  func list_format() ListFormatter {
+
+  }
+}
+
+class Argument {
+  fmt Formatter
+  val any
+}
+
+class Arguments {
+  pieces [string]
+  args [Argument]
+}

@@ -1070,7 +1070,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
       }
     }
 
-    warn("cannot find symbol '%s'", name);
+    warn("'%s' is not found", name);
     return NULL;
   } else if (isbuiltin(path)) {
     /* find type from auto-imported modules */
@@ -1091,7 +1091,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         return NULL;
       }
     }
-    warn("cannot find symbol '%s'", name);
+    warn("'%s' is not found", name);
     return NULL;
   } else {
     // path is not null and is not builtin path, search for external module
@@ -1111,7 +1111,7 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         return NULL;
       }
     }
-    warn("cannot find symbol '%s'", path);
+    warn("'%s' is not found", path);
     return NULL;
   }
 }
@@ -1267,6 +1267,11 @@ static void parse_super(ParserState *ps, Expr *exp)
   }
 }
 
+static int check_byte_range(int64_t val)
+{
+  return 0;
+}
+
 static void parse_literal(ParserState *ps, Expr *exp)
 {
   if (exp->ctx != EXPR_LOAD) {
@@ -1274,6 +1279,19 @@ static void parse_literal(ParserState *ps, Expr *exp)
     return;
   }
 
+  char kind = exp->k.value.kind;
+  TypeDesc *decl_desc = exp->decl_desc;
+  if (kind == BASE_INT) {
+    if (decl_desc != NULL && desc_isbyte(decl_desc)) {
+      if (check_byte_range(exp->k.value.ival)) {
+        serror(exp->row, exp->col, "out of byte range(-128...127)");
+      } else {
+        exp->k.value.kind = BASE_BYTE;
+        TYPE_DECREF(exp->desc);
+        exp->desc = desc_from_base(BASE_BYTE);
+      }
+    }
+  }
   exp->sym = get_literal_symbol(exp->k.value.kind);
   if (!has_error(ps)) {
     if (!exp->k.omit) {
@@ -1788,6 +1806,7 @@ static void parse_unary(ParserState *ps, Expr *exp)
 {
   Expr *e = exp->unary.exp;
   e->ctx = EXPR_LOAD;
+  //e->decl_desc = exp->decl_desc;
   parser_visit_expr(ps, e);
 
   static char *funcnames[] = {
@@ -2159,6 +2178,19 @@ static void parse_attr(ParserState *ps, Expr *exp)
   case SYM_VAR:
     debug("left sym '%s' is a var", lsym->name);
     Symbol *ltypesym = lsym->var.typesym;
+    if (ltypesym == NULL) {
+      ltypesym = get_desc_symbol(ps->module, lsym->desc);
+      if (ltypesym == NULL) {
+        STRBUF(sbuf);
+        desc_tostr(lsym->desc, &sbuf);
+        serror(lexp->row, lexp->col, "'%s' is not found", strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
+        exit(0);
+      } else {
+        lsym->var.typesym = ltypesym;
+      }
+    }
+
     if (ltypesym->kind == SYM_PTYPE && ldesc->kind != TYPE_PARAREF) {
       debug("get left sym's instanced type");
       ltypesym = get_type_symbol(ps, ldesc);
@@ -3070,9 +3102,16 @@ static void parse_array(ParserState *ps, Expr *exp)
     types = vector_new();
   }
 
+  TypeDesc *sub_decl_desc = NULL;
+  if (exp->decl_desc != NULL) {
+    expect(desc_isarray(exp->decl_desc));
+    sub_decl_desc = vector_get(exp->decl_desc->klass.typeargs, 0);
+  }
+
   Expr *e;
   vector_for_each_reverse(e, vec) {
     e->ctx = EXPR_LOAD;
+    e->decl_desc = sub_decl_desc;
     parser_visit_expr(ps, e);
     if (e->desc != NULL) {
       vector_push_back(types, TYPE_INCREF(e->desc));

@@ -25,6 +25,7 @@
 
 #include "enumobject.h"
 #include "intobject.h"
+#include "tupleobject.h"
 
 TypeObject *result_type;
 
@@ -127,4 +128,18 @@ void init_result_type(void)
 void fini_result_type(void)
 {
   OB_DECREF(result_type);
+}
+
+Object *result_new_ok(Object *val)
+{
+  Object *args = tuple_new(1);
+  tuple_set(args, 0, val);
+  return enum_new((Object *)result_type, ok_str, args);
+}
+
+Object *result_new_err(Object *val)
+{
+  Object *args = tuple_new(1);
+  tuple_set(args, 0, val);
+  return enum_new((Object *)result_type, err_str, args);
 }

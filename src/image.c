@@ -1354,6 +1354,19 @@ int image_add_integer(Image *image, int64_t val)
   return image_add_const(image, CONST_LITERAL, index);
 }
 
+int image_add_byte(Image *image, int64_t val)
+{
+  LiteralItem k = {0};
+  k.type = LITERAL_BYTE;
+  k.ival = val;
+  int index = literalitem_get(image, &k);
+  if (index < 0) {
+    LiteralItem *item = literalitem_int_new(val);
+    index = _append_(image, ITEM_LITERAL, item, 1);
+  }
+  return image_add_const(image, CONST_LITERAL, index);
+}
+
 int image_add_float(Image *image, double val)
 {
   LiteralItem k = {0};
@@ -1412,6 +1425,8 @@ int image_add_literal(Image *image, Literal *val)
   int index;
   if (val->kind == BASE_INT) {
     index = image_add_integer(image, val->ival);
+  } else if (val->kind == BASE_BYTE) {
+    index = image_add_byte(image, val->ival);
   } else if (val->kind == BASE_STR) {
     index = image_add_string(image, val->str);
   } else if (val->kind == BASE_BOOL) {
@@ -1784,6 +1799,10 @@ static Literal to_literal(LiteralItem *item, Image *image)
   switch (item->type) {
   case LITERAL_INT:
     value.kind = BASE_INT;
+    value.ival = item->ival;
+    break;
+  case LITERAL_BYTE:
+    value.kind = BASE_BYTE;
     value.ival = item->ival;
     break;
   case LITERAL_STRING:

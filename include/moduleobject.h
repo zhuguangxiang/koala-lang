@@ -69,7 +69,7 @@ void module_uninstall(char *path);
 
 void module_add_type(Object *self, TypeObject *type);
 
-void module_add_var(Object *self, Object *ob);
+void module_add_var(Object *self, Object *ob, Object *defval);
 void module_add_vardef(Object *self, FieldDef *f);
 void module_add_vardefs(Object *self, FieldDef *def);
 
@@ -91,10 +91,10 @@ static inline void module_set(Object *self, char *name, Object *val)
   expect(res == 0);
 }
 
-static inline void module_ready(Object *self, int ready)
+static inline void module_not_ready(Object *self)
 {
   ModuleObject *module = (ModuleObject *)self;
-  module->ready = ready;
+  module->ready = 0;
 }
 
 void *module_get_native(Object *self, char *name);

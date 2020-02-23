@@ -30,7 +30,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include "koala.h"
-#include "osmodule.h"
+#include "sysmodule.h"
 #include "iomodule.h"
 #include "fmtmodule.h"
 #include "gc.h"
@@ -117,7 +117,8 @@ void koala_initialize(void)
   init_typedesc();
   init_types();
   init_lang_module();
-  init_os_module();
+  init_fs_module();
+  init_sys_module();
   init_io_module();
   init_fmt_module();
   init_assert_module();
@@ -131,7 +132,8 @@ void koala_finalize(void)
   fini_assert_module();
   fini_fmt_moudle();
   fini_io_module();
-  fini_os_module();
+  fini_sys_module();
+  fini_fs_module();
   fini_lang_module();
   fini_modules();
   fini_result_type();

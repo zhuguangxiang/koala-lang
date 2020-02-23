@@ -232,7 +232,7 @@ moddoc  "//!"[^\n]*
 "super"    { YY_RETURN(SUPER);        }
 "true"     { YY_RETURN(TRUE);         }
 "false"    { YY_RETURN(FALSE);        }
-"null"     { YY_RETURN(CONST_NULL);   }
+"nil"      { YY_RETURN(CONST_NULL);   }
 
 {bin_const} {
   yylval->ival = strtoll(yytext+2, NULL, 2);

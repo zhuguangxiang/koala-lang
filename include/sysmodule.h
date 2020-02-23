@@ -22,18 +22,18 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_OS_MODULE_H_
-#define _KOALA_OS_MODULE_H_
+#ifndef _KOALA_SYS_MODULE_H_
+#define _KOALA_SYS_MODULE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void init_os_module(void);
-void fini_os_module(void);
+void init_sys_module(void);
+void fini_sys_module(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_LANG_MODULE_H_ */
+#endif /* _KOALA_SYS_MODULE_H_ */

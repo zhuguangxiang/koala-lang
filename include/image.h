@@ -102,10 +102,11 @@ typedef struct indexitem {
 } IndexItem;
 
 #define LITERAL_INT     1
-#define LITERAL_FLOAT   2
-#define LITERAL_BOOL    3
-#define LITERAL_STRING  4
-#define LITERAL_UCHAR   5
+#define LITERAL_BYTE    2
+#define LITERAL_FLOAT   3
+#define LITERAL_BOOL    4
+#define LITERAL_STRING  5
+#define LITERAL_UCHAR   6
 
 typedef struct literalitem {
   int type;
@@ -252,6 +253,7 @@ LocVar *locvar_new(char *name, TypeDesc *desc, int index);
 void locvar_free(LocVar *loc);
 
 int image_add_integer(Image *image, int64_t val);
+int image_add_byte(Image *image, int64_t val);
 int image_add_float(Image *image, double val);
 int image_add_bool(Image *image, int val);
 int image_add_string(Image *image, char *val);

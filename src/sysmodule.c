@@ -25,7 +25,7 @@
 #include <dlfcn.h>
 #include "koala.h"
 
-static Object *os_path_get(Object *self, Object *ob)
+static Object *get_path(Object *self, Object *ob)
 {
   if (!field_check(self)) {
     error("object of '%.64s' is not a Field", OB_TYPE_NAME(self));
@@ -40,17 +40,58 @@ static Object *os_path_get(Object *self, Object *ob)
   FieldObject *field = (FieldObject *)self;
   ModuleObject *mo = (ModuleObject *)ob;
   Object *val = vector_get(&mo->values, field->offset);
-  if (val == NULL) {
-    TypeDesc *desc = desc_from_str;
-    val = array_new(desc);
-    TYPE_DECREF(desc);
-    vector_set(&mo->values, field->offset, val);
-  }
+  expect(val != NULL);
   return OB_INCREF(val);
 }
 
-static FieldDef os_fields[] = {
-  {"path", "[s", os_path_get, NULL},
+static int set_path(Object *self, Object *ob, Object *val)
+{
+  if (!field_check(self)) {
+    error("object of '%.64s' is not a Field", OB_TYPE_NAME(self));
+    return -1;
+  }
+
+  if (!module_check(ob)) {
+    error("object of '%.64s' is not a Module", OB_TYPE_NAME(ob));
+    return -1;
+  }
+
+  if (!array_check(val)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(val));
+    return -1;
+  }
+
+  FieldObject *field = (FieldObject *)self;
+  ModuleObject *mo = (ModuleObject *)ob;
+  ArrayObject *arr = (ArrayObject *)val;
+
+  if (!desc_isstr(arr->desc)) {
+    error("object of '%.64s' is not an Array<String>", OB_TYPE_NAME(val));
+    return -1;
+  }
+
+  Object *old = vector_set(&mo->values, field->offset, OB_INCREF(val));
+  OB_DECREF(old);
+  return 0;
+}
+
+static Object *default_path(void)
+{
+  TypeDesc *desc = desc_from_str;
+  Object *val = array_new(desc);
+  TYPE_DECREF(desc);
+  return val;
+}
+
+static Object *default_stdout(void)
+{
+  return file_new(stdout);
+}
+
+static FieldDef sys_vars[] = {
+  {"path",    "[s",  field_default_getter, field_default_setter, default_path  },
+  //{"stdin",   "Lfs.File;",  get_stdin,  set_stdin,  default_stdin },
+  {"stdout",  "Lfs.File;",  field_default_getter, field_default_setter, default_stdout},
   {NULL},
 };
 
@@ -86,21 +127,21 @@ static Object *os_load_library(Object *self, Object *ob)
   return NULL;
 }
 
-static MethodDef os_funcs[] = {
+static MethodDef sys_funcs[] = {
   {"load_library", "s", NULL, os_load_library},
   {NULL},
 };
 
-void init_os_module(void)
+void init_sys_module(void)
 {
-  Object *m = module_new("os");
-  module_add_vardefs(m, os_fields);
-  module_add_funcdefs(m, os_funcs);
-  module_install("os", m);
+  Object *m = module_new("sys");
+  module_add_vardefs(m, sys_vars);
+  module_add_funcdefs(m, sys_funcs);
+  module_install("sys", m);
   OB_DECREF(m);
 }
 
-void fini_os_module(void)
+void fini_sys_module(void)
 {
-  module_uninstall("os");
+  module_uninstall("sys");
 }

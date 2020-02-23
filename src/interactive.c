@@ -473,7 +473,7 @@ static void add_symbol_to_module(Symbol *sym, Object *ob)
   case SYM_VAR: {
     Object *field = field_new(sym->name, sym->desc);
     Field_SetFunc(field, field_default_setter, field_default_getter);
-    module_add_var(ob, field);
+    module_add_var(ob, field, NULL);
     OB_DECREF(field);
     break;
   }

@@ -1,0 +1,75 @@
+
+// Copyright (c) 2019 https://github.com/zhuguangxiang. All rights reserved.
+//
+
+
+trait Reader {
+  func read(buf [byte]) Result<int, Error>
+}
+
+trait Writer {
+  func write(buf [byte]) Result<int, Error>
+}
+
+var foo = "foo"
+
+// fmt module
+func fprint(w Writer, ...)
+func fprintf(w Writer, format string, ...)
+func fprintln(w Writer, ...)
+
+func print(...)
+func printf(format string, ...)
+func println(...)
+
+class Formatter extends io.Writer {
+  buf Writer
+  func set_buf(buf Writer) {
+    self.buf = buf
+  }
+
+  func write(buf [byte]) Result<int, Error> {
+    buf.write(buf)
+  }
+
+  func write_str(s string) Result<int, Error> {
+    buf.write(s.as_bytes())
+  }
+
+  func builder(name string) FormatBuilder {
+
+  }
+}
+
+trait Printable {
+  func fmt(fmt Formatter);
+}
+
+fmt.class_formatter()
+
+
+# sys module
+path := ["."]
+stdin := new StdinReader()
+stdout := new StdoutWriter()
+class StdinReader extends Reader {
+  in = fs.File
+  func read(buf [byte]) Result<int, Error> {
+    in.read(buf)
+  }
+  func read_str() Result<string, Error> {
+    buf := new Array<byte>()
+    r := in.read(buf)
+    if Result.Ok(_) ~= r {
+      return Result.Ok(buf.as_str())
+    } else {
+      return r
+    }
+  }
+}
+
+class StdoutWriter extends Writer {
+  func write(buf [byte]) Result<int, Error> {
+
+  }
+}

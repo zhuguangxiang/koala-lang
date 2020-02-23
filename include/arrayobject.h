@@ -53,6 +53,8 @@ void init_array_type(void);
 Object *array_new(TypeDesc *desc);
 int array_set(Object *self, int index, Object *v);
 Object *box(TypeDesc *desc, RawValue *raw, int inc);
+int array_size(Object *self);
+char *array_raw(Object *self);
 
 #ifdef __cplusplus
 }

@@ -163,14 +163,15 @@ void module_add_type(Object *self, TypeObject *type)
   expect(res == 0);
 }
 
-void module_add_var(Object *self, Object *ob)
+void module_add_var(Object *self, Object *ob, Object *defval)
 {
   ModuleObject *module = (ModuleObject *)self;
   FieldObject *field = (FieldObject *)ob;
   field->owner = self;
   field->offset = module->nrvars++;
-  // occurpy a place holder
-  vector_set(&module->values, field->offset, NULL);
+  // set var's default value
+  vector_set(&module->values, field->offset, defval);
+  OB_INCREF(defval);
   struct mnode *node = mnode_new(field->name, ob);
   int res = hashmap_add(get_mtbl(self), node);
   expect(res == 0);
@@ -182,7 +183,9 @@ void module_add_vardef(Object *self, FieldDef *f)
   Object *field = field_new(f->name, desc);
   TYPE_DECREF(desc);
   Field_SetFunc(field, f->set, f->get);
-  module_add_var(self, field);
+  Object *defval = (f->defval != NULL) ? f->defval() : NULL;
+  module_add_var(self, field, defval);
+  OB_DECREF(defval);
   OB_DECREF(field);
 }
 
@@ -404,7 +407,7 @@ static void _load_var_(char *name, int kind, TypeDesc *desc, void *arg)
 {
   Object *field = field_new(name, desc);
   Field_SetFunc(field, field_default_setter, field_default_getter);
-  module_add_var(arg, field);
+  module_add_var(arg, field, NULL);
   OB_DECREF(field);
 }
 
