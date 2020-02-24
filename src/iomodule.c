@@ -56,6 +56,7 @@ void init_io_module(void)
 {
   Object *m = module_new("io");
   module_add_funcdefs(m, io_methods);
+  module_not_ready(m);
   module_install("io", m);
   OB_DECREF(m);
 }

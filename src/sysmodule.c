@@ -23,6 +23,7 @@
 */
 
 #include <dlfcn.h>
+#include <unistd.h>
 #include "koala.h"
 
 static Object *get_path(Object *self, Object *ob)
@@ -88,10 +89,27 @@ static Object *default_stdout(void)
   return file_new(stdout, "stdout");
 }
 
+static Object *default_pkgpath(void)
+{
+  printf("default_pkgpath\n");
+#define PATH_MAX  1024
+  char exepath[PATH_MAX + 1] = {0};
+  readlink("/proc/self/exe", exepath, PATH_MAX);
+  printf("%s\n", exepath);
+  char *path = strstr(exepath, "bin/koala");
+  expect(path != NULL);
+  STRBUF(sbuf);
+  strbuf_nappend(&sbuf, exepath, path - exepath);
+  strbuf_append(&sbuf, "lib/koala/pkgs");
+  Object *pkgpath = string_new(strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+  return pkgpath;
+}
+
 static FieldDef sys_vars[] = {
-  {"path",    "[s",  field_default_getter, field_default_setter, default_path  },
+  //{"path", "[s", field_default_getter, field_default_setter, default_path},
   //{"stdin",   "Lfs.File;",  get_stdin,  set_stdin,  default_stdin },
-  {"stdout",  "Lfs.File;",  field_default_getter, field_default_setter, default_stdout},
+  //{"stdout", "Lfs.File;", field_default_getter, field_default_setter, default_stdout},
   {NULL},
 };
 
@@ -137,6 +155,9 @@ void init_sys_module(void)
   Object *m = module_new("sys");
   module_add_vardefs(m, sys_vars);
   module_add_funcdefs(m, sys_funcs);
+  module_add_native(m, "default_stdout", default_stdout);
+  module_add_native(m, "default_pkgpath", default_pkgpath);
+  module_not_ready(m);
   module_install("sys", m);
   OB_DECREF(m);
 }

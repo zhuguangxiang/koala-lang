@@ -805,3 +805,4 @@ bar()
 import "fmt"
 
 fmt.format("hello, {}, {}!\n", "james", 118)
+printf("hello, {}, {}!\n", "james", 118)

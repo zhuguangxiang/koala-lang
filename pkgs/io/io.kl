@@ -1,0 +1,12 @@
+//
+// Copyright (c) 2020 James, https://github.com/zhuguangxiang
+// All rights reserved.
+//
+
+trait Reader {
+  func read(buf [byte]) Result<int, Error>
+}
+
+trait Writer {
+  func write(buf [byte]) Result<int, Error>
+}

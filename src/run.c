@@ -324,22 +324,6 @@ void koala_run(char *path)
   }
 
   Object *mo = module_load(path);
-  if (mo != NULL) {
-    Object *_init_ = module_lookup(mo, "__init__");
-    if (_init_ != NULL) {
-      expect(method_check(_init_));
-      KoalaState kstate = {NULL};
-      kstate.top = -1;
-      pthread_setspecific(kskey, &kstate);
-      Object *code = method_getcode(_init_);
-      koala_evalcode(code, mo, NULL, NULL);
-      OB_DECREF(code);
-      OB_DECREF(_init_);
-    } else {
-      warn("__init__ is empty");
-    }
-    OB_DECREF(mo);
-  }
-
+  OB_DECREF(mo);
   kfree(path);
 }

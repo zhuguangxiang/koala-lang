@@ -139,9 +139,9 @@ int main(int argc, char *argv[])
 {
   parse_command(argc, argv);
 
-  koala_initialize();
-
   pthread_key_create(&kskey, NULL);
+
+  koala_initialize();
 
   if (cflag == 1) {
     koala_compile(module);

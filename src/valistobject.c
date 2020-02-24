@@ -56,8 +56,20 @@ static Object *valist_getitem(Object *self, Object *args)
   return valist_get(self, index);
 }
 
+static Object *valist_size(Object *self, Object *args)
+{
+  if (!valist_check(self)) {
+    error("object of '%.64s' is not a VaList", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  VaListObject *valist = (VaListObject *)self;
+  return integer_new(valist->size);
+}
+
 static MethodDef valist_methods[] = {
   {"__getitem__", "i",    "<T>",  valist_getitem},
+  {"size", NULL, "i", valist_size},
   {NULL}
 };
 

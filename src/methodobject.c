@@ -109,11 +109,20 @@ static Object *get_valist_args(Object *args, Vector *argtypes)
         tuple_set(nargs, i, ob);
         OB_DECREF(ob);
       }
-      Object *valist = valist_new(tuple_size(args) - start, subtype);
-      for (int i = start; i < tuple_size(args); ++i) {
-        ob = tuple_get(args, i);
-        valist_set(valist, i - start, ob);
+
+      Object *valist;
+      ob = tuple_get(args, start);
+      if (!valist_check(ob)) {
         OB_DECREF(ob);
+        valist = valist_new(tuple_size(args) - start, subtype);
+        for (int i = start; i < tuple_size(args); ++i) {
+          ob = tuple_get(args, i);
+          valist_set(valist, i - start, ob);
+          OB_DECREF(ob);
+        }
+      } else {
+        valist = ob;
+        expect(tuple_size(args) == start + 1);
       }
       tuple_set(nargs, start, valist);
       OB_DECREF(valist);

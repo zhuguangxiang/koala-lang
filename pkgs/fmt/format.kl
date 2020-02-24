@@ -1,0 +1,54 @@
+//
+// Copyright (c) 2020 James, https://github.com/zhuguangxiang
+// All rights reserved.
+//
+
+import "io"
+import "fs"
+
+native func format(fmt string, args ...) string
+
+trait Writer extends io.Writer {
+  func write_str(s string) Result<int, Error>
+  func write_fmt(fmt string, args ...) Result<int, Error>
+}
+
+func fprintf(w fs.File, fmt string, args ...) {
+  s := format(fmt, args)
+  w.write(s.as_bytes())
+  return
+}
+
+/*
+func fprintln(w Writer, args ...) {
+  size := args.size() - 1
+  if size < 0 {
+    return
+  }
+
+  sbuf := new StringBuffer()
+  for i in 0 ..< size {
+    sbuf.write_str("{} ")
+  }
+  sbuf.write_str("{}\n")
+  s = format(sbuf.as_str(), args)
+  w.write_str(s)
+  return
+}
+
+func fprint(w Writer, args ...) {
+  size := args.size() - 1
+  if size < 0 {
+    return
+  }
+
+  sbuf := new StringBuffer()
+  for i in 0 ..< size {
+    sbuf.write_str("{} ")
+  }
+  sbuf.write_str("{}")
+  s = format(sbuf.as_str(), args)
+  w.write_str(s)
+  return
+}
+*/

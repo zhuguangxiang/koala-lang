@@ -191,6 +191,7 @@ void init_lang_module(void)
   module_add_funcdefs(m, lang_methods);
   module_add_type(m, result_type);
   module_add_type(m, &error_type);
+  module_not_ready(m);
   module_install("lang", m);
   OB_DECREF(m);
 }

@@ -295,7 +295,7 @@ static Object *format(Object *self, Object *args)
 static MethodDef fmt_funcs[] = {
   {"println", "s...", NULL, fmt_println},
   {"print",   "s...", NULL, fmt_print},
-  {"format", "s...", "s", format},
+  //{"format", "s...", "s", format},
   {NULL}
 };
 
@@ -304,6 +304,8 @@ void init_fmt_module(void)
   Object *m = module_new("fmt");
   module_add_type(m, &fmtter_type);
   module_add_funcdefs(m, fmt_funcs);
+  module_add_native(m, "format", format);
+  module_not_ready(m);
   module_install("fmt", m);
   OB_DECREF(m);
 }

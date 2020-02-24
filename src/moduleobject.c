@@ -592,13 +592,11 @@ Object *module_load(char *path)
       char *name = strrchr(path, '/');
       name = name ? name + 1 : path;
       Object *ob = module_from_file(path, name, node->ob);
-      if (ob == NULL) {
-        warn("cannot find module '%s'", path);
-        return NULL;
-      }
-      mo->ready = 1;
-      if (!compflag) {
-        run_func(ob, "__init__", NULL);
+      if (ob != NULL) {
+        if (!compflag) {
+          run_func(ob, "__init__", NULL);
+        }
+        mo->ready = 1;
       }
     }
   }

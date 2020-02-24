@@ -1,0 +1,22 @@
+//
+// Copyright (c) 2020 James, https://github.com/zhuguangxiang
+// All rights reserved.
+//
+
+import "fmt"
+import "fs"
+import "sys"
+
+func printf(format string, args ...) {
+  fmt.fprintf(sys.stdout, format, args)
+}
+
+/*
+func println(args ...) {
+  fprintln(sys.stdout, args)
+}
+
+func print(args ...) {
+  fprint(sys.stdout, args)
+}
+*/
