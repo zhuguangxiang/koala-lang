@@ -593,10 +593,10 @@ Object *module_load(char *path)
       name = name ? name + 1 : path;
       Object *ob = module_from_file(path, name, node->ob);
       if (ob != NULL) {
+        mo->ready = 1;
         if (!compflag) {
           run_func(ob, "__init__", NULL);
         }
-        mo->ready = 1;
       }
     }
   }

@@ -1,0 +1,36 @@
+//
+// Copyright (c) 2020 James, https://github.com/zhuguangxiang
+// All rights reserved.
+//
+
+import "github.com/fmt"
+import "fs"
+
+native func default_stdout() fs.File
+native func default_pkgpath() string
+
+class PrintWriter extends fmt.Writer {
+  //file = default_stdout()
+  file fs.File
+
+  func __init__() {
+    file = default_stdout()
+  }
+
+  func write(buf [byte]) Result<int, Error> {
+    file.write(buf)
+  }
+
+  func write_str(s string) Result<int, Error> {
+    file.write(s.as_bytes())
+  }
+
+  func write_fmt(format string, args ...) Result<int, Error> {
+    s := fmt.format(format, args)
+    write_str(s)
+  }
+}
+
+var stdout fmt.Writer = new PrintWriter()
+var path [string] = [".", default_pkgpath()]
+var args [string]

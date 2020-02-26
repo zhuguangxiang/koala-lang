@@ -13,9 +13,9 @@ trait Writer extends io.Writer {
   func write_fmt(fmt string, args ...) Result<int, Error>
 }
 
-func fprintf(w fs.File, fmt string, args ...) {
+func fprintf(w Writer, fmt string, args ...) {
   s := format(fmt, args)
-  w.write(s.as_bytes())
+  w.write_str(s)
   return
 }
 

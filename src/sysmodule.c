@@ -100,8 +100,9 @@ static Object *default_pkgpath(void)
   expect(path != NULL);
   STRBUF(sbuf);
   strbuf_nappend(&sbuf, exepath, path - exepath);
-  strbuf_append(&sbuf, "lib/koala/pkgs");
+  strbuf_append(&sbuf, "pkg/");
   Object *pkgpath = string_new(strbuf_tostr(&sbuf));
+  printf("%s\n", strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
   return pkgpath;
 }

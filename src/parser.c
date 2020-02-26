@@ -157,6 +157,7 @@ static STable *stable_from_mobject(Module *mod, Object *ob)
 void mod_from_mobject(Module *mod, Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
+  mod->path = mo->name;
   mod->name = mo->name;
   mod->stbl = stable_from_mobject(mod, ob);
 }
@@ -1027,6 +1028,8 @@ static Symbol *find_symbol_byname(ParserState *ps, char *name)
   return NULL;
 }
 
+static Module *new_mod_from_mobject(Module *_mod, char *path);
+
 static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
 {
   Symbol *sym;
@@ -1095,6 +1098,17 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
     return NULL;
   } else {
     // path is not null and is not builtin path, search for external module
+    if (!strcmp(path, mod->path)) {
+      // the current module
+      debug("the current module");
+      sym = stable_get(mod->stbl, name);
+      if (sym != NULL) {
+        debug("find symbol '%s' in '%s'", name, path);
+        ++sym->used;
+        return sym;
+      }
+    }
+
     Symbol *sym2 = stable_get(mod->stbl, path);
     if (sym2 != NULL) {
       debug("find symbol '%s'", path);
@@ -1111,6 +1125,34 @@ static Symbol *get_klass_symbol(Module *mod, char *path, char *name)
         return NULL;
       }
     }
+
+    // find from global modules
+    Module key = {.path = path};
+    hashmap_entry_init(&key, strhash(path));
+    Module *mod2 = hashmap_get(&modules, &key);
+    if (mod2 != NULL){
+      sym = stable_get(mod2->stbl, name);
+      if (sym != NULL) {
+        debug("find symbol '%s' in '%s'", name, path);
+        ++sym->used;
+        return sym;
+      }
+    } else {
+      // try to load it
+      mod2 = new_mod_from_mobject(mod, path);
+      if (mod2 == NULL) {
+        // NOTE: do not compile it from source, even if its source exists.
+        error("no such module '%s'", path);
+      } else {
+        sym = stable_get(mod2->stbl, name);
+        if (sym != NULL) {
+          debug("find symbol '%s' in '%s'", name, path);
+          ++sym->used;
+          return sym;
+        }
+      }
+    }
+
     warn("'%s' is not found", path);
     return NULL;
   }
@@ -3573,6 +3615,10 @@ static void parse_new(ParserState *ps, Expr *exp)
       if (sym2->kind == SYM_CLASS ||
           sym2->kind == SYM_TRAIT ||
           sym2->kind == SYM_ENUM) {
+        if (item->klass.path == NULL) {
+          // update klass path
+          item->klass.path = atom(ps->module->path);
+        }
         parse_subtype(ps, sym2, item->klass.typeargs);
         desc_add_paratype(exp->desc, item);
       } else if (sym2->kind == SYM_PTYPE) {
@@ -3895,26 +3941,26 @@ static void parse_import(ParserState *ps, Stmt *s)
     hashmap_entry_init(&key, strhash(path));
     Module *mod = hashmap_get(&modules, &key);
     if (mod == NULL) {
-      // firstly load from memory
       mod = new_mod_from_mobject(ps->module, path);
       if (mod == NULL) {
-        // NOTE: do not compile it from source, if its source exist.
+        // NOTE: do not compile it from source, even if its source exists.
         serror(s->import.pathrow, s->import.pathcol,
               "no such module '%s'", path);
       } else {
         debug("import from '%s' as '%s'", path, name);
-        Symbol *sym = symbol_new(path, SYM_MOD);
+        Symbol *sym = symbol_new(name, SYM_MOD);
         sym->mod.path = path;
         sym->desc = desc_from_klass("lang", "Module");
         if (stable_add_symbol(u->stbl, sym) < 0) {
-          error("symbol '%s' is duplicated", path);
+          serror(s->import.pathrow, s->import.pathcol,
+                "'%s' redeclared as imported package name", name);
         } else {
           sym->mod.ptr = mod;
           symbol_decref(sym);
         }
       }
     } else {
-      debug("'%s' already imported", path);
+      debug("'%s' is already loaded", path);
       debug("import from '%s' as '%s'", path, name);
       Symbol *sym = symbol_new(name, SYM_MOD);
       sym->mod.path = path;
@@ -4009,6 +4055,10 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
       if (sym->kind == SYM_CLASS ||
           sym->kind == SYM_TRAIT ||
           sym->kind == SYM_ENUM) {
+        if (desc->klass.path == NULL) {
+          // update klass path
+          desc->klass.path = atom(ps->module->path);
+        }
         parse_subtype(ps, sym, desc->klass.typeargs);
       } else if (sym->kind == SYM_PTYPE) {
         desc = desc_from_pararef(sym->name, sym->paratype.index);
@@ -4290,6 +4340,10 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
         if (sym->kind == SYM_CLASS ||
             sym->kind == SYM_TRAIT ||
             sym->kind == SYM_ENUM) {
+          if (desc->klass.path == NULL) {
+            // update klass path
+            desc->klass.path = atom(ps->module->path);
+          }
           parse_subtype(ps, sym, desc->klass.typeargs);
           TYPE_INCREF(desc);
         } else if (sym->kind == SYM_PTYPE) {
@@ -4322,6 +4376,10 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
         if (sym->kind == SYM_CLASS ||
             sym->kind == SYM_TRAIT ||
             sym->kind == SYM_ENUM) {
+          if (desc->klass.path == NULL) {
+            // update klass path
+            desc->klass.path = atom(ps->module->path);
+          }
           parse_subtype(ps, sym, desc->klass.typeargs);
         } else if (sym->kind == SYM_PTYPE) {
           desc = desc_from_pararef(sym->name, sym->paratype.index);
@@ -5264,6 +5322,10 @@ static void parse_subtype(ParserState *ps, Symbol *clssym, Vector *subtypes)
     if (subsym->kind == SYM_CLASS ||
         subsym->kind == SYM_TRAIT ||
         subsym->kind == SYM_ENUM) {
+      if (item->klass.path == NULL) {
+        // update klass path
+        item->klass.path = atom(ps->module->path);
+      }
       parse_subtype(ps, subsym, item->klass.typeargs);
     } else if (subsym->kind == SYM_PTYPE) {
       // update subtype's descriptor as type para ref
@@ -5425,8 +5487,6 @@ static void parse_trait_extends(ParserState *ps, Symbol *traitsym, Stmt *stmt)
   } else if (sym->kind != SYM_TRAIT) {
     serror(base->row, base->col, "'%s' is not trait", sym->name);
   } else {
-    vector_push_back(&traitsym->type.traits, sym);
-
     TypeDesc *desc = base->desc;
     parse_subtype(ps, sym, desc->klass.typeargs);
     if (!has_error(ps)) {
@@ -5556,6 +5616,10 @@ static void parse_enum(ParserState *ps, Stmt *stmt)
         if (isym->kind == SYM_CLASS ||
             isym->kind == SYM_TRAIT ||
             isym->kind == SYM_ENUM) {
+          if (item->klass.path == NULL) {
+            // update klass path
+            item->klass.path = atom(ps->module->path);
+          }
           parse_subtype(ps, isym, item->klass.typeargs);
           TYPE_INCREF(item);
         } else if (isym->kind == SYM_PTYPE) {

@@ -151,37 +151,37 @@ Symbol *stable_add_ifunc(STable *stbl, char *name, TypeDesc *proto)
   return sym;
 }
 
-Symbol *stable_add_class(STable *stbl, char *name)
+Symbol *stable_add_class(STable *stbl, char *path, char *name)
 {
   expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_CLASS);
   if (stable_add_symbol(stbl, sym))
     return NULL;
-  sym->desc = desc_from_klass(NULL, name);
+  sym->desc = desc_from_klass(path, name);
   sym->type.stbl = stable_new();
   symbol_decref(sym);
   return sym;
 }
 
-Symbol *stable_add_trait(STable *stbl, char *name)
+Symbol *stable_add_trait(STable *stbl, char *path, char *name)
 {
   expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_TRAIT);
   if (stable_add_symbol(stbl, sym))
     return NULL;
-  sym->desc = desc_from_klass(NULL, name);
+  sym->desc = desc_from_klass(path, name);
   sym->type.stbl = stable_new();
   symbol_decref(sym);
   return sym;
 }
 
-Symbol *stable_add_enum(STable *stbl, char *name)
+Symbol *stable_add_enum(STable *stbl, char *path, char *name)
 {
   expect(stbl != NULL);
   Symbol *sym = symbol_new(name, SYM_ENUM);
   if (stable_add_symbol(stbl, sym))
     return NULL;
-  sym->desc = desc_from_klass(NULL, name);
+  sym->desc = desc_from_klass(path, name);
   sym->type.stbl = stable_new();
   symbol_decref(sym);
   return sym;

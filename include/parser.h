@@ -50,7 +50,7 @@ typedef struct codeblock {
 typedef struct module {
   /* saved in global modules */
   HashMapEntry entry;
-  /* deployed path */
+  /* module path */
   char *path;
   /* module name is file name, dir name or __name__ */
   char *name;

@@ -233,7 +233,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
   switch (stmt->kind) {
   case CLASS_KIND: {
     id = &stmt->class_stmt.id;
-    sym = stable_add_class(mod->stbl, id->name);
+    sym = stable_add_class(mod->stbl, atom(ps->module->path), id->name);
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
@@ -244,7 +244,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
   }
   case TRAIT_KIND: {
     id = &stmt->class_stmt.id;
-    sym = stable_add_trait(mod->stbl, id->name);
+    sym = stable_add_trait(mod->stbl, atom(ps->module->path), id->name);
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
@@ -255,7 +255,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
   }
   case ENUM_KIND: {
     id = &stmt->enum_stmt.id;
-    sym = stable_add_enum(mod->stbl, id->name);
+    sym = stable_add_enum(mod->stbl, atom(ps->module->path), id->name);
     if (sym != NULL) {
       any = find_from_builtins("Any");
       ++any->refcnt;
@@ -415,6 +415,7 @@ void koala_compile(char *path)
   Module mod = {0};
   Symbol *modSym;
 
+  mod.path = path;
   mod.name = path;
   mod.stbl = stable_new();
   vector_init(&mod.pss);

@@ -306,7 +306,7 @@ void init_fmt_module(void)
   module_add_funcdefs(m, fmt_funcs);
   module_add_native(m, "format", format);
   module_not_ready(m);
-  module_install("fmt", m);
+  module_install("github.com/fmt", m);
   OB_DECREF(m);
 }
 
