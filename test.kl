@@ -802,7 +802,14 @@ bar("bar", 100, 200)
 bar("bar")
 bar()
 
-import "fmt"
+// test external modules
+
+import "github.com/fmt"
 
 fmt.format("hello, {}, {}!\n", "james", 118)
 printf("hello, {}, {}!\n", "james", 118)
+
+import "sys"
+sys.stdout.write("hello\n".as_bytes())
+sys.stdout.write_str("hello\n")
+sys.stdout.write_fmt("hello, {}, {}!\n", "james", 118)

@@ -162,6 +162,8 @@ typedef struct {
   func_t or;
   func_t xor;
   func_t not;
+  func_t lshift;
+  func_t rshift;
 } NumberMethods;
 
 typedef struct {

@@ -768,6 +768,34 @@ Object *Koala_EvalFrame(CallFrame *f)
       PUSH(z);
       break;
     }
+    case OP_AND: {
+      x = POP();
+      y = POP();
+      int r = logic_true(x) && logic_true(y);
+      z = r ? bool_true() : bool_false();
+      PUSH(z);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_OR: {
+      x = POP();
+      y = POP();
+      int r = logic_true(x) || logic_true(y);
+      z = r ? bool_true() : bool_false();
+      PUSH(z);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      break;
+    }
+    case OP_NOT: {
+      x = POP();
+      int r = logic_true(x);
+      z = r ? bool_false() : bool_true();
+      PUSH(z);
+      OB_DECREF(x);
+      break;
+    }
     case OP_BIT_AND: {
       x = POP();
       y = POP();
@@ -806,32 +834,20 @@ Object *Koala_EvalFrame(CallFrame *f)
       PUSH(z);
       break;
     }
-    case OP_AND: {
+    case OP_BIT_LSHIFT: {
       x = POP();
-      y = POP();
-      int r = logic_true(x) && logic_true(y);
-      z = r ? bool_true() : bool_false();
-      PUSH(z);
+      fn = OB_NUM_FUNC(x, not);
+      call_op_func(z, x, OP_BIT_LSHIFT, NULL);
       OB_DECREF(x);
-      OB_DECREF(y);
+      PUSH(z);
       break;
     }
-    case OP_OR: {
+    case OP_BIT_RSHIFT: {
       x = POP();
-      y = POP();
-      int r = logic_true(x) || logic_true(y);
-      z = r ? bool_true() : bool_false();
-      PUSH(z);
+      fn = OB_NUM_FUNC(x, not);
+      call_op_func(z, x, OP_BIT_RSHIFT, NULL);
       OB_DECREF(x);
-      OB_DECREF(y);
-      break;
-    }
-    case OP_NOT: {
-      x = POP();
-      int r = logic_true(x);
-      z = r ? bool_false() : bool_true();
       PUSH(z);
-      OB_DECREF(x);
       break;
     }
     case OP_INPLACE_ADD: {
@@ -919,6 +935,26 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = POP();
       fn = OB_NUM_FUNC(x, xor);
       call_op_func(z, x, OP_BIT_XOR, y);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
+      break;
+    }
+    case OP_INPLACE_LSHIFT: {
+      y = POP();
+      x = POP();
+      fn = OB_NUM_FUNC(x, lshift);
+      call_op_func(z, x, OP_BIT_LSHIFT, y);
+      OB_DECREF(x);
+      OB_DECREF(y);
+      PUSH(z);
+      break;
+    }
+    case OP_INPLACE_RSHIFT: {
+      y = POP();
+      x = POP();
+      fn = OB_NUM_FUNC(x, rshift);
+      call_op_func(z, x, OP_BIT_RSHIFT, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);

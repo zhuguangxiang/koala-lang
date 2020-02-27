@@ -475,13 +475,15 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_LE:
   case OP_EQ:
   case OP_NEQ:
+  case OP_AND:
+  case OP_OR:
+  case OP_NOT:
   case OP_BIT_AND:
   case OP_BIT_OR:
   case OP_BIT_XOR:
   case OP_BIT_NOT:
-  case OP_AND:
-  case OP_OR:
-  case OP_NOT:
+  case OP_BIT_LSHIFT:
+  case OP_BIT_RSHIFT:
   case OP_INPLACE_ADD:
   case OP_INPLACE_SUB:
   case OP_INPLACE_MUL:
@@ -491,6 +493,8 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_INPLACE_AND:
   case OP_INPLACE_OR:
   case OP_INPLACE_XOR:
+  case OP_INPLACE_LSHIFT:
+  case OP_INPLACE_RSHIFT:
   case OP_SUBSCR_LOAD:
   case OP_SUBSCR_STORE:
   case OP_NEW_ITER:
@@ -1348,10 +1352,11 @@ static void parse_inplace_mapping(ParserState *ps, AssignOpKind op)
     -1, -1,
     OP_INPLACE_ADD, OP_INPLACE_SUB, OP_INPLACE_MUL,
     OP_INPLACE_DIV, OP_INPLACE_MOD, OP_INPLACE_POW,
-    OP_INPLACE_AND, OP_INPLACE_OR, OP_INPLACE_XOR
+    OP_INPLACE_AND, OP_INPLACE_OR, OP_INPLACE_XOR,
+    OP_INPLACE_LSHIFT, OP_INPLACE_RSHIFT,
   };
 
-  expect(op >= OP_PLUS_ASSIGN && op <= OP_XOR_ASSIGN);
+  expect(op >= OP_PLUS_ASSIGN && op <= OP_RSHIFT_ASSIGN);
   CODE_OP(opmapings[op]);
 }
 
@@ -1912,6 +1917,8 @@ static void parse_binary(ParserState *ps, Expr *exp)
     "__and__",    // BINARY_BIT_AND
     "__xor__",    // BINARY_BIT_XOR
     "__or__",     // BINARY_BIT_OR
+    "__lshift__", // BINARY_BIT_LSHIFT
+    "__rshift__", // BINARY_BIT_RSHIFT
 
     "__gt__",     // BINARY_GT
     "__ge__",     // BINARY_GE

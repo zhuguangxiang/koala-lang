@@ -79,31 +79,35 @@ extern "C" {
 #define OP_EQ   41
 #define OP_NEQ  42
 
-#define OP_BIT_AND 43
-#define OP_BIT_OR  44
-#define OP_BIT_XOR 45
-#define OP_BIT_NOT 46
+#define OP_AND  43
+#define OP_OR   44
+#define OP_NOT  45
 
-#define OP_AND  47
-#define OP_OR   48
-#define OP_NOT  49
+#define OP_BIT_AND    46
+#define OP_BIT_OR     47
+#define OP_BIT_XOR    48
+#define OP_BIT_NOT    49
+#define OP_BIT_LSHIFT 50
+#define OP_BIT_RSHIFT 51
 
-#define OP_INPLACE_ADD  50
-#define OP_INPLACE_SUB  51
-#define OP_INPLACE_MUL  52
-#define OP_INPLACE_DIV  53
-#define OP_INPLACE_MOD  54
-#define OP_INPLACE_POW  55
-#define OP_INPLACE_AND  56
-#define OP_INPLACE_OR   57
-#define OP_INPLACE_XOR  58
+#define OP_INPLACE_ADD    52
+#define OP_INPLACE_SUB    53
+#define OP_INPLACE_MUL    54
+#define OP_INPLACE_DIV    55
+#define OP_INPLACE_MOD    56
+#define OP_INPLACE_POW    57
+#define OP_INPLACE_AND    58
+#define OP_INPLACE_OR     59
+#define OP_INPLACE_XOR    60
+#define OP_INPLACE_LSHIFT 61
+#define OP_INPLACE_RSHIFT 62
 
-#define OP_SUBSCR_LOAD  59
-#define OP_SUBSCR_STORE 60
-#define OP_SLICE_LOAD   61
-#define OP_SLICE_STORE  62
+#define OP_SUBSCR_LOAD    63
+#define OP_SUBSCR_STORE   64
+#define OP_SLICE_LOAD     65
+#define OP_SLICE_STORE    66
 
-/* 63 - 69 */
+/* 67 - 69 */
 
 #define OP_JMP        70
 #define OP_JMP_TRUE   71

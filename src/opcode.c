@@ -82,14 +82,16 @@ static struct opcode {
   OPCODE(OP_EQ,  0),
   OPCODE(OP_NEQ, 0),
 
+  OPCODE(OP_AND, 0),
+  OPCODE(OP_OR,  0),
+  OPCODE(OP_NOT, 0),
+
   OPCODE(OP_BIT_AND, 0),
   OPCODE(OP_BIT_OR,  0),
   OPCODE(OP_BIT_XOR, 0),
   OPCODE(OP_BIT_NOT, 0),
-
-  OPCODE(OP_AND, 0),
-  OPCODE(OP_OR,  0),
-  OPCODE(OP_NOT, 0),
+  OPCODE(OP_BIT_LSHIFT, 0),
+  OPCODE(OP_BIT_RSHIFT, 0),
 
   OPCODE(OP_INPLACE_ADD, 0),
   OPCODE(OP_INPLACE_SUB, 0),
@@ -100,6 +102,8 @@ static struct opcode {
   OPCODE(OP_INPLACE_AND, 0),
   OPCODE(OP_INPLACE_OR,  0),
   OPCODE(OP_INPLACE_XOR, 0),
+  OPCODE(OP_INPLACE_LSHIFT, 0),
+  OPCODE(OP_INPLACE_RSHIFT, 0),
 
   OPCODE(OP_SUBSCR_LOAD,  0),
   OPCODE(OP_SUBSCR_STORE, 0),
@@ -169,6 +173,8 @@ struct opmap {
   OP_MAP(OP_BIT_OR,  __or__),
   OP_MAP(OP_BIT_XOR, __xor__),
   OP_MAP(OP_BIT_NOT, __not__),
+  OP_MAP(OP_BIT_LSHIFT, __lshift__),
+  OP_MAP(OP_BIT_RSHIFT, __rshift__),
 
   OP_MAP(OP_SUBSCR_LOAD,  __getitem__),
   OP_MAP(OP_SUBSCR_STORE, __setitem__),
