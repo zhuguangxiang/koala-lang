@@ -393,7 +393,7 @@ TypeObject float_type = {
 void init_float_type(void)
 {
   float_type.desc = desc_from_float;
-  vector_push_back(&float_type.bases, &number_type);
+  type_add_base(&float_type, &number_type);
   if (type_ready(&float_type) < 0)
     panic("Cannot initalize 'Float' type.");
 }

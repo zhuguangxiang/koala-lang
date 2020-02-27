@@ -597,7 +597,7 @@ TypeObject integer_type = {
 void init_integer_type(void)
 {
   integer_type.desc = desc_from_int;
-  vector_push_back(&integer_type.bases, &number_type);
+  type_add_base(&integer_type, &number_type);
   if (type_ready(&integer_type) < 0)
     panic("Cannot initalize 'Integer' type.");
 }
@@ -646,7 +646,7 @@ TypeObject byte_type = {
 void init_byte_type(void)
 {
   byte_type.desc = desc_from_byte;
-  vector_push_back(&byte_type.bases, &number_type);
+  type_add_base(&byte_type, &number_type);
   if (type_ready(&byte_type) < 0)
     panic("Cannot initalize 'Byte' type.");
 }

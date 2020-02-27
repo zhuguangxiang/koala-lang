@@ -478,7 +478,7 @@ static void _load_base_(TypeDesc *desc, void *arg)
 
   expect(tp != NULL);
   expect(type_check(tp));
-  vector_push_back(&type->bases, tp);
+  type_add_base(type, tp);
   OB_DECREF(tp);
 }
 

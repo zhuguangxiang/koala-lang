@@ -272,6 +272,8 @@ static inline void type_add_tp(TypeObject *to, char *name, Vector *bounds)
   vector_push_back(tps, tp);
 }
 
+#define type_add_base(type, base) vector_push_back(&(type)->bases, base)
+
 extern TypeObject type_type;
 extern TypeObject any_type;
 #define type_check(ob) (OB_TYPE(ob) == &type_type)
