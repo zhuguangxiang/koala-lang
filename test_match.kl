@@ -239,9 +239,9 @@ match i {
 i = 100
 
 match i {
-  1, 3, 100, 300 => io.println("1, 3, 100, 300")
-  2, 4, 200, 500 => io.println("2, 4, 200, 500")
-  _ => io.println("other value")
+  1, 3, 100, 300 => printf("1, 3, 100, 300\n")
+  2, 4, 200, 500 => printf("2, 4, 200, 500\n")
+  _ => printf("other value\n")
 }
 
 s2 := "foo"

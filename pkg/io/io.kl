@@ -3,10 +3,51 @@
 // All rights reserved.
 //
 
+import "io"
+
+/*()
 trait Reader {
   func read(buf [byte]) Result<int, Error>
+  func read()
 }
 
 trait Writer {
   func write(buf [byte]) Result<int, Error>
+}
+*/
+
+class BufferedReader extends io.Reader {
+  func lines() Iterator<string> {
+
+  }
+
+}
+
+class BufferedWriter extends io.Writer {
+  w io.Writer
+  buf [byte]
+  func __init__(w io.Writer) {
+    self.w = w
+    buf = new Array<byte>()
+  }
+
+  func write(buf [byte]) Result<int, Error> {
+    w.write(buf)
+    return Result.Ok(buf.length())
+  }
+
+  func flush() {
+    w.flush();
+  }
+}
+
+class PrintWriter extends io.Writer {
+
+  func write(buf [byte]) Result<int, Error> {
+    Result.<int, Error>.Ok(buf.length())
+  }
+
+  func flush() {
+
+  }
 }

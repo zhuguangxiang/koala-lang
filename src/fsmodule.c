@@ -237,8 +237,9 @@ static MethodDef fs_funcs[] = {
 void init_fs_module(void)
 {
   file_type.desc = desc_from_klass("fs", "File");
-  int res = type_ready(&file_type);
-  if (res != 0)
+  type_add_base(&file_type, &io_writer_type);
+  type_add_base(&file_type, &io_reader_type);
+  if (type_ready(&file_type) < 0)
     panic("Cannot initalize 'File' type.");
 
   Object *m = module_new("fs");

@@ -106,6 +106,7 @@ static void fini_types(void)
   type_fini(&iter_type);
   type_fini(&fmtter_type);
   type_fini(&closure_type);
+  fini_io_types();
   fini_bool_type();
   fini_error_type();
   print("########\n");
@@ -117,6 +118,7 @@ void koala_initialize(void)
   init_typedesc();
   init_types();
   init_lang_module();
+  init_io_types();
   init_fs_module();
   init_sys_module();
   init_io_module();

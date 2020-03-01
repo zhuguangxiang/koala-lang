@@ -211,64 +211,6 @@ static Object *fmt_print(Object *self, Object *args)
   return NULL;
 }
 
-static void byte_tostr(Object *ob, StrBuf *buf)
-{
-
-}
-
-static void obj_tostr(Object *ob, StrBuf *buf)
-{
-  TypeDesc *desc = OB_TYPE(ob)->desc;
-  char base = desc->base;
-  switch (base) {
-  case BASE_BYTE:
-    strbuf_append_int(buf, byte_asint(ob));
-    break;
-  case BASE_INT:
-    strbuf_append_int(buf, integer_asint(ob));
-    break;
-  case BASE_CHAR:
-    strbuf_append_int(buf, char_asch(ob));
-    break;
-  case BASE_FLOAT:
-    strbuf_append_float(buf, float_asflt(ob));
-    break;
-  case BASE_BOOL:
-    strbuf_append(buf, bool_istrue(ob) ? "true" : "false");
-    break;
-  case BASE_STR:
-    strbuf_append(buf, string_asstr(ob));
-    break;
-  default:
-    break;
-  }
-}
-
-static void _format(StrBuf *buf, char *format, Object *vargs)
-{
-  char *s = format;
-  char ch;
-  int idx = 0;
-  Object *ob;
-  while ((ch = *s++)) {
-    if (ch == '{') {
-      if ((ch = *s++)) {
-        if (ch == '}') {
-          ob = valist_get(vargs, idx++);
-          obj_tostr(ob, buf);
-          OB_DECREF(ob);
-        } else {
-          strbuf_append_char(buf, ch);
-        }
-      } else {
-        return;
-      }
-    } else {
-      strbuf_append_char(buf, ch);
-    }
-  }
-}
-
 static Object *format(Object *self, Object *args)
 {
   if (!module_check(self)) {
@@ -283,13 +225,10 @@ static Object *format(Object *self, Object *args)
 
   Object *s = tuple_get(args, 0);
   Object *vargs = tuple_get(args, 1);
-  STRBUF(sbuf);
-  _format(&sbuf, string_asstr(s), vargs);
+  Object *res = string_format(s, vargs);
   OB_DECREF(s);
   OB_DECREF(vargs);
-  s = string_new(strbuf_tostr(&sbuf));
-  strbuf_fini(&sbuf);
-  return s;
+  return res;
 }
 
 static MethodDef fmt_funcs[] = {

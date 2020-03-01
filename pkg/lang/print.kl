@@ -10,12 +10,10 @@ func printf(format string, args ...) {
   fmt.fprintf(sys.stdout, format, args)
 }
 
-/*
 func println(args ...) {
-  fprintln(sys.stdout, args)
+  fmt.fprintln(sys.stdout, args)
 }
 
 func print(args ...) {
-  fprint(sys.stdout, args)
+  fmt.fprint(sys.stdout, args)
 }
-*/

@@ -5132,7 +5132,7 @@ void check_one_proto_impl(ParserState *ps, Symbol *s, int idx, Symbol *cls)
     return;
   }
 
-  serror(0, 0, "'%s' is not implemented", s->name);
+  serror(cls->row, cls->col, "'%s' is not implemented", s->name);
 }
 
 static void check_trait_ifunc_impl(int idx, Symbol *item,
@@ -5409,6 +5409,8 @@ static void parse_class(ParserState *ps, Stmt *stmt)
   debug("parse class '%s'", id->name);
   Symbol *sym = stable_get(ps->u->stbl, id->name);
   expect(sym != NULL);
+  sym->row = id->row;
+  sym->col = id->col;
 
   parser_enter_scope(ps, SCOPE_CLASS, 0);
   ps->u->sym = sym;

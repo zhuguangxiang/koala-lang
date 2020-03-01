@@ -291,7 +291,7 @@ Object *module_new(char *name)
   ModuleObject *module = kmalloc(sizeof(*module));
   init_object_head(module, &module_type);
   module->name = name;
-  module->ready = 1;
+  module->state = MOD_READY;
   return (Object *)module;
 }
 
@@ -563,6 +563,7 @@ static Object *module_from_file(char *path, char *name, Object *ob)
     image_free(image);
   } else {
     warn("cannot load '%s'", klcpath);
+    mo = NULL;
   }
   kfree(klcpath);
   return mo;
@@ -582,22 +583,30 @@ Object *module_load(char *path)
       warn("cannot find module '%s'", path);
       return NULL;
     } else {
+      printf("module '%s' is loaded.\n", path);
       module_install(path, mo);
       return mo;
     }
   } else {
     ModuleObject *mo = (ModuleObject *)node->ob;
-    if (!mo->ready) {
-      debug("module '%s' is not ready", mo->name);
+    if (mo->state == MOD_NOT_READY) {
+      printf("module '%s' is not ready\n", mo->name);
+      debug("module '%s' is not ready.", mo->name);
+      mo->state = MOD_LOADING;
       char *name = strrchr(path, '/');
       name = name ? name + 1 : path;
       Object *ob = module_from_file(path, name, node->ob);
       if (ob != NULL) {
-        mo->ready = 1;
+        mo->state = MOD_READY;
+        printf("module '%s' is ready.\n", mo->name);
         if (!compflag) {
           run_func(ob, "__init__", NULL);
         }
       }
+    } else if (mo->state == MOD_LOADING) {
+      printf("module '%s' is loading.\n", mo->name);
+    } else {
+      printf("module '%s' is ready.\n", mo->name);
     }
   }
   return OB_INCREF(node->ob);

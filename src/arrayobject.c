@@ -463,6 +463,14 @@ Object *array_new(TypeDesc *desc, GVector *vec)
   return (Object *)arr;
 }
 
+Object *byte_array_new(void)
+{
+  TypeDesc *desc = desc_from_byte;
+  Object *bytes = array_new(desc, NULL);
+  TYPE_DECREF(desc);
+  return bytes;
+}
+
 int array_set(Object *self, int index, Object *v)
 {
   if (!array_check(self)) {

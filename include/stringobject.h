@@ -66,6 +66,8 @@ static inline int char_asch(Object *ob)
   CharObject *ch = (CharObject *)ob;
   return ch->value;
 }
+Object *string_asbytes(Object *self, Object *args);
+Object *string_format(Object *self, Object *args);
 
 #ifdef __cplusplus
 }

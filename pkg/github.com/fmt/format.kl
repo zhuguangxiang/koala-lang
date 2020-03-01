@@ -6,32 +6,23 @@
 import "io"
 import "fs"
 
-native func format(fmt string, args ...) string
-
-trait Writer extends io.Writer {
-  func write_str(s string) Result<int, Error>
-  func write_fmt(fmt string, args ...) Result<int, Error>
-}
-
 func fprintf(w Writer, fmt string, args ...) {
-  s := format(fmt, args)
-  w.write_str(s)
+  w.write_fmt(fmt, args)
   return
 }
 
-/*
 func fprintln(w Writer, args ...) {
   size := args.size() - 1
   if size < 0 {
     return
   }
 
-  sbuf := new StringBuffer()
+  b := new StringBuilder()
   for i in 0 ..< size {
-    sbuf.write_str("{} ")
+    b.write_str("{} ")
   }
-  sbuf.write_str("{}\n")
-  s = format(sbuf.as_str(), args)
+  b.write_str("{}\n")
+  s = format(b.as_str(), args)
   w.write_str(s)
   return
 }
@@ -42,13 +33,12 @@ func fprint(w Writer, args ...) {
     return
   }
 
-  sbuf := new StringBuffer()
+  b := new StringBuilder()
   for i in 0 ..< size {
-    sbuf.write_str("{} ")
+    b.write_str("{} ")
   }
-  sbuf.write_str("{}")
-  s = format(sbuf.as_str(), args)
+  b.write_str("{}")
+  s = format(b.as_str(), args)
   w.write_str(s)
   return
 }
-*/

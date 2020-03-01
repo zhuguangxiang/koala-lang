@@ -50,7 +50,10 @@ typedef struct moduleobject {
   /* cache */
   Vector cache;
   /* module is ready or partial? */
-  int ready;
+#define MOD_NOT_READY 0
+#define MOD_LOADING   1
+#define MOD_READY     2
+  int state;
   /* native functions */
   HashMap *nftbl;
 } ModuleObject;
@@ -94,7 +97,7 @@ static inline void module_set(Object *self, char *name, Object *val)
 static inline void module_not_ready(Object *self)
 {
   ModuleObject *module = (ModuleObject *)self;
-  module->ready = 0;
+  module->state = MOD_NOT_READY;
 }
 
 void *module_get_native(Object *self, char *name);

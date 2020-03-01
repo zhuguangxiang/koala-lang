@@ -1406,7 +1406,8 @@ new_object:
 }
 | NEW ID '.' ID '(' ')'
 {
-  $$ = NULL;
+  IDENT(id, $4, @4);
+  $$ = expr_from_object($2, id, NULL, NULL);
 }
 | NEW ID '<' type_list '>' '(' ')'
 {

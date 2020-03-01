@@ -31,6 +31,10 @@
 extern "C" {
 #endif
 
+extern TypeObject io_writer_type;
+extern TypeObject io_reader_type;
+void init_io_types(void);
+void fini_io_types(void);
 void init_io_module(void);
 void fini_io_module(void);
 void IoPrint(Object *ob);

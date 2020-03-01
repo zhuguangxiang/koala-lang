@@ -25,7 +25,9 @@
 #include "stringobject.h"
 #include "hashmap.h"
 #include "intobject.h"
+#include "floatobject.h"
 #include "arrayobject.h"
+#include "valistobject.h"
 #include "fmtmodule.h"
 #include "utf8.h"
 #include "log.h"
@@ -116,8 +118,8 @@ static Object *string_equal(Object *self, Object *other)
   return !strcmp(s1->wstr, s2->wstr) ? bool_true() : bool_false();
 }
 
-/* func asbytes() [byte] */
-static Object *string_asbytes(Object *self, Object *args)
+/* func as_bytes() [byte] */
+Object *string_asbytes(Object *self, Object *args)
 {
   if (!string_check(self)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
@@ -136,6 +138,87 @@ static Object *string_asbytes(Object *self, Object *args)
     return NULL;
   }
   return ob;
+}
+
+static void obj_tostr(Object *ob, StrBuf *buf)
+{
+  TypeDesc *desc = OB_TYPE(ob)->desc;
+  char base = desc->base;
+  switch (base) {
+  case BASE_BYTE:
+    strbuf_append_int(buf, byte_asint(ob));
+    break;
+  case BASE_INT:
+    strbuf_append_int(buf, integer_asint(ob));
+    break;
+  case BASE_CHAR:
+    strbuf_append_int(buf, char_asch(ob));
+    break;
+  case BASE_FLOAT:
+    strbuf_append_float(buf, float_asflt(ob));
+    break;
+  case BASE_BOOL:
+    strbuf_append(buf, bool_istrue(ob) ? "true" : "false");
+    break;
+  case BASE_STR:
+    strbuf_append(buf, string_asstr(ob));
+    break;
+  default:
+    break;
+  }
+}
+
+static Object *__format__(char *format, Object *vargs)
+{
+  STRBUF(buf);
+  char *s = format;
+  char ch;
+  int idx = 0;
+  Object *ob;
+
+  while ((ch = *s++)) {
+    if (ch == '{') {
+      if ((ch = *s++)) {
+        if (ch == '}') {
+          ob = valist_get(vargs, idx++);
+          obj_tostr(ob, &buf);
+          OB_DECREF(ob);
+        } else {
+          strbuf_append_char(&buf, ch);
+        }
+      } else {
+        goto exit_label;
+      }
+    } else {
+      strbuf_append_char(&buf, ch);
+    }
+  }
+
+exit_label:
+  ob = string_new(strbuf_tostr(&buf));
+  strbuf_fini(&buf);
+  return ob;
+}
+
+/* func format(args ...) string */
+Object *string_format(Object *self, Object *args)
+{
+  if (!string_check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (args == NULL) {
+    // no any arguments, just return string self.
+    return OB_INCREF(self);
+  }
+
+  if (!valist_check(args)) {
+    error("object of '%.64s' is not a VaList", OB_TYPE_NAME(args));
+    return NULL;
+  }
+
+  return __format__(string_asstr(self), args);
 }
 
 static void string_clean(Object *self)
@@ -221,6 +304,7 @@ static MethodDef string_methods[] = {
   {"__neq__", "s", "z", str_num_neq},
   {"__match__", "s", "z", string_equal},
   {"as_bytes", NULL, "[b", string_asbytes},
+  {"format", "...", "s", string_format},
   {NULL}
 };
 

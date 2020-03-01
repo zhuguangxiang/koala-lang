@@ -66,7 +66,7 @@ static Object *result_iserr(Object *self, Object *arg)
   }
 }
 
-static Object *result_ok(Object *self, Object *arg)
+Object *result_get_ok(Object *self, Object *arg)
 {
   if (!result_check(self)) {
     error("object of '%.64s' is not a Result", OB_TYPE_NAME(self));
@@ -78,7 +78,7 @@ static Object *result_ok(Object *self, Object *arg)
   return enum_get_value(self, 0);
 }
 
-static Object *result_err(Object *self, Object *arg)
+Object *result_get_err(Object *self, Object *arg)
 {
   if (!result_check(self)) {
     error("object of '%.64s' is not a Result", OB_TYPE_NAME(self));
@@ -93,8 +93,8 @@ static Object *result_err(Object *self, Object *arg)
 static MethodDef result_methods[] = {
   {"is_ok",  NULL, "z",   result_isok },
   {"is_err", NULL, "z",   result_iserr},
-  {"ok",     NULL, "<T>", result_ok   },
-  {"err",    NULL, "<E>", result_err  },
+  {"ok",     NULL, "<T>", result_get_ok },
+  {"err",    NULL, "<E>", result_get_err},
   {NULL}
 };
 
@@ -137,4 +137,20 @@ Object *result_new(int ok, Object *val)
   Object *res = enum_new((Object *)result_type, ok ? ok_str : err_str, args);
   OB_DECREF(args);
   return res;
+}
+
+int result_test(Object *self)
+{
+  if (!result_check(self)) {
+    error("object of '%.64s' is not a Result", OB_TYPE_NAME(self));
+    return 0;
+  }
+
+  EnumObject *eob = (EnumObject *)self;
+  if (!strcmp(eob->name, ok_str)) {
+    return 1;
+  } else {
+    expect(!strcmp(eob->name, err_str));
+    return 0;
+  }
 }
