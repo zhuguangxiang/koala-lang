@@ -1768,7 +1768,79 @@ static IdCodeGen in_enum_codes[] = {
   }                                       \
 })
 
+static void ident_codegen_label(ParserState *ps, Expr *exp)
+{
+  TypeDesc *desc = exp->desc;
+  TypeDesc *edesc = desc->label.edesc;
+  Symbol *sym = exp->sym;
+
+  CODE_OP_S(OP_LOAD_MODULE, edesc->klass.path);
+  CODE_OP_S(OP_GET_VALUE, edesc->klass.type);
+
+  if (exp->ctx == EXPR_LOAD) {
+    if (sym->label.types != NULL) {
+      serror(exp->row, exp->col, "enum '%s' needs values", exp->id.name);
+    } else{
+      CODE_OP_S_ARGC(OP_NEW_EVAL, exp->id.name, exp->argc);
+    }
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+    if (sym->label.types == NULL) {
+      serror(exp->row, exp->col, "enum '%s' no values", exp->id.name);
+    } else {
+      CODE_OP_S_ARGC(OP_NEW_EVAL, exp->id.name, exp->argc);
+    }
+  } else {
+    serror(exp->row, exp->col, "enum '%s' is readonly", exp->id.name);
+  }
+}
+
 static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc);
+static inline
+TypeDesc *specialize_types(TypeDesc *para1, TypeDesc *para2, TypeDesc *ref);
+static void show_specialized_type(Symbol *sym, TypeDesc *desc);
+
+static void parse_ident_label(ParserState *ps, Expr *exp, Symbol *esym)
+{
+  TypeDesc *pdesc = NULL;
+  Symbol *sym = type_find_mbr(esym, exp->id.name, &pdesc);
+  if (sym != NULL && sym->kind != SYM_LABEL) {
+    // only allowed SYM_LABEL
+    serror(exp->row, exp->col, "'%s' is not defined", exp->id.name);
+    return;
+  }
+
+  // try to get type parameters from variable declaration.
+  TypeDesc *desc = exp->decl_desc;
+  TypeDesc *ldesc = desc_dup(esym->desc);
+  if (vector_size(esym->desc->klass.typeargs) <= 0) {
+    debug("try to get type arguments from decl_desc");
+    expect(desc->kind == TYPE_KLASS);
+    TypeDesc *item;
+    vector_for_each(item, desc->klass.typeargs) {
+      desc_add_paratype(ldesc, item);
+    }
+  }
+
+  exp->id.where = ID_LABEL;
+  exp->sym = sym;
+  exp->desc = specialize_types(pdesc, ldesc, sym->desc);
+  expect(exp->desc->kind == TYPE_LABEL);
+  // maybe update type arguments
+  TypeDesc *edesc = exp->desc->label.edesc;
+  if (edesc->klass.typeargs == NULL &&
+      vector_size(ldesc->klass.typeargs) > 0) {
+    edesc = desc_dup(edesc);
+    TypeDesc *item;
+    vector_for_each(item, ldesc->klass.typeargs) {
+      desc_add_paratype(edesc, item);
+    }
+    TYPE_DECREF(exp->desc->label.edesc);
+    exp->desc->label.edesc = edesc;
+  }
+  TYPE_DECREF(ldesc);
+  TYPE_DECREF(pdesc);
+  show_specialized_type(sym, exp->desc);
+}
 
 static void parse_ident(ParserState *ps, Expr *exp)
 {
@@ -1789,17 +1861,26 @@ static void parse_ident(ParserState *ps, Expr *exp)
       debug("[pattern]: load null value");
       CODE_OP(OP_CONST_NULL);
     } else {
-      serror(exp->row, exp->col, "'%s' is not defined", exp->id.name);
+      TypeDesc *desc = exp->decl_desc;
+      if (desc != NULL) {
+        Symbol *typesym = get_desc_symbol(ps->module, desc);
+        if (typesym != NULL && typesym->kind == SYM_ENUM) {
+          parse_ident_label(ps, exp, typesym);
+        } else {
+          serror(exp->row, exp->col, "'%s' is not defined", exp->id.name);
+        }
+      } else {
+        serror(exp->row, exp->col, "'%s' is not defined", exp->id.name);
+      }
     }
-    return;
-  }
-
-  if (sym->kind == SYM_FUNC && exp->right == NULL) {
-    exp->ctx = EXPR_LOAD_FUNC;
   }
 
   if (has_error(ps)) {
     return;
+  }
+
+  if (sym != NULL && sym->kind == SYM_FUNC && exp->right == NULL) {
+    exp->ctx = EXPR_LOAD_FUNC;
   }
 
 /*
@@ -1825,6 +1906,8 @@ static void parse_ident(ParserState *ps, Expr *exp)
     ident_codegen(builtin_codes, ps, exp);
   } else if (exp->id.where == ID_IN_ENUM) {
     ident_codegen(in_enum_codes, ps, exp);
+  } else if (exp->id.where == ID_LABEL) {
+    ident_codegen_label(ps, exp);
   } else {
     panic("invalid ident scope");
   }
@@ -3366,7 +3449,10 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
   int sz = vector_size(body);
   Stmt *s = NULL;
   vector_for_each(s, body) {
-    if ((idx == 0) && (s->kind == EXPR_KIND)) {
+    if (s->kind == EXPR_KIND) {
+      s->expr.exp->decl_desc = ret.desc;
+    }
+    if (idx == 0 && s->kind == EXPR_KIND) {
       s->expr.exp->first = 1;
       s->expr.exp->funcname = name;
     }

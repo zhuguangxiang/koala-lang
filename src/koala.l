@@ -312,6 +312,22 @@ moddoc  "//!"[^\n]*
   YY_RETURN(FLOAT_LITERAL);
 }
 
+(b\'{asc_char}\') {
+  printf("b'%c'\n", *(yytext + 2));
+  yylval->ival = *(yytext + 2);
+  YY_RETURN(INT_LITERAL);
+}
+
+(b\'{hex_char}\') {
+  char s[4];
+  printf("'%s'\n", yytext);
+  char *nptr = yytext + 4;
+  strncpy(s, nptr, strlen(nptr) - 1);
+  yylval->ival = strtoll(s, NULL, 16);
+  printf("b'%c'\n", (char)yylval->ival);
+  YY_RETURN(INT_LITERAL);
+}
+
 (\'{asc_char}\') {
   printf("ascii:%s\n", yytext);
   char *s = yytext + 1;

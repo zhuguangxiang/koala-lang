@@ -242,7 +242,7 @@ static Object *new_object(CallFrame *f, TypeDesc *desc)
   Object *ret;
   Object *ob;
   Object *tob;
-  if (desc->klass.path != NULL)
+  if (desc->klass.path != NULL && strcmp(desc->klass.path, "__main__"))
     ob = module_load(desc->klass.path);
   else
     ob = OB_INCREF(f->code->module);

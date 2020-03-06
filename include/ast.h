@@ -331,6 +331,7 @@ struct expr {
     #define EXTDOT_SCOPE  4
     #define AUTO_IMPORTED 5
     #define ID_IN_ENUM    6
+    #define ID_LABEL      7
       /* scope pointer */
       void *scope;
     } id;
