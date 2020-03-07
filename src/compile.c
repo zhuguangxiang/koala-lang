@@ -275,6 +275,10 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
     return -1;
   }
 
+  if (has_error(ps)) {
+    return -1;
+  }
+
   return 0;
 }
 

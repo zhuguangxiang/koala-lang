@@ -237,7 +237,7 @@ static int typecheck(Object *ob, Object *type)
   }
 }
 
-static Object *new_object(CallFrame *f, TypeDesc *desc)
+static Object *_new_object_(CallFrame *f, TypeDesc *desc)
 {
   Object *ret;
   Object *ob;
@@ -405,7 +405,11 @@ Object *Koala_EvalFrame(CallFrame *f)
     case OP_LOAD_MODULE: {
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
-      y = module_load(string_asstr(x));
+      if (!strcmp(string_asstr(x), "__main__")) {
+        y = OB_INCREF(f->code->module);
+      } else {
+        y = module_load(string_asstr(x));
+      }
       PUSH(y);
       OB_DECREF(x);
       break;
@@ -1125,7 +1129,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       } else {
         expect(desc->kind == TYPE_KLASS);
         expect(y == NULL);
-        z = new_object(f, desc);
+        z = _new_object_(f, desc);
       }
       OB_DECREF(x);
       OB_DECREF(y);

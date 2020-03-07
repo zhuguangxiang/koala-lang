@@ -1799,7 +1799,7 @@ field_decl:
   TYPE(type, $2, @2);
   $$ = stmt_from_vardecl(id, &type, NULL);
 }
-| ID '=' expr ';'
+| ID FREE_ASSIGN expr ';'
 {
   IDENT(id, $1, @1);
   $$ = stmt_from_vardecl(id, NULL, $3);

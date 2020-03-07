@@ -720,6 +720,24 @@ int object_setvalue(Object *self, char *name, Object *val, TypeObject *parent)
   return res;
 }
 
+Object *new_object(char *path, char *name, Object *args)
+{
+  Object *mo = module_load(path);
+  expect(mo != NULL);
+  Object *type = module_get(mo, name);
+  expect(type != NULL && type_check(type) && type_isclass(type));
+  Object *ob = object_alloc((TypeObject *)type);
+  Object *meth = object_lookup(ob, "__init__", NULL);
+  if (meth == NULL) {
+    expect(args == NULL);
+    return ob;
+  } else {
+    method_call(meth, ob, args);
+    OB_DECREF(meth);
+    return ob;
+  }
+}
+
 Object *new_literal(Literal *val)
 {
   Object *ob = NULL;

@@ -346,6 +346,12 @@ match color {
   Color.BLUE => io.println("blue")
 }
 
+match color {
+  RED => io.println("red")
+  GREEN => io.println("green")
+  BLUE => io.println("blue")
+}
+
 if Color.RED ~= color {
   io.println("red")
 } else if Color.GREEN ~= color {

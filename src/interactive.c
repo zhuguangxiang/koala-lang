@@ -105,6 +105,7 @@ static void init_cmdline_env(void)
   ps.row = 1;
   ps.col = 1;
   vector_init(&ps.ustack);
+  vector_init(&ps.upanonies);
 
   mo = module_new("__main__");
 
@@ -123,6 +124,8 @@ static void fini_cmdline_env(void)
   mo = NULL;
   expect(vector_size(&ps.ustack) == 0);
   vector_fini(&ps.ustack);
+  expect(vector_size(&ps.upanonies) == 0);
+  vector_fini(&ps.upanonies);
 }
 
 yyscan_t scanner;
@@ -344,6 +347,11 @@ int cmd_add_type(ParserState *ps, Stmt *stmt)
 
   if (sym == NULL) {
     serror(id->row, id->col, "'%s' is redeclared", id->name);
+    cursym = NULL;
+    return -1;
+  }
+
+  if (has_error(ps)) {
     cursym = NULL;
     return -1;
   }

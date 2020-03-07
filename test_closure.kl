@@ -50,3 +50,179 @@ cl3()
 cl2(); //1000
 cl3()
 cl2(); //1001
+
+
+import "io"
+
+class Test {
+  name := "Test Func"
+  func test() int {
+    v := 100
+    return func() int {
+      io.println(name)
+      name = "BAR"
+      v2 := 200
+      inner := func() {
+        io.println(v2 + v)
+        v = 1000
+        v2 = 2000
+      }
+      inner()
+      io.println(v + v2)
+      return 100
+    }()
+  }
+
+  func testmore() int {
+    v := 100
+    v2 := 200
+    return func() int {
+      v3 := 300
+      inner := func() {
+        v4 := 400
+        io.println(v3 + v)
+        if (v > 200) {
+          v5 := 500
+          io.println(v4)
+          io.println(v5)
+          io.println("v > 200")
+          io.println(v3)
+          io.println(v)
+        } else {
+          v5 := 600
+          io.println(v4)
+          io.println(v5)
+          io.println("v < 200")
+          io.println(v3)
+          io.println(v)
+        }
+      }
+      inner()
+      io.println(v2)
+      return v2
+    }()
+  }
+
+  func testfunc(f func(int, int) int) int {
+    f(100, 200)
+  }
+}
+
+t := new Test()
+t.testfunc(func(a int, b int) int {
+  a + b
+})
+
+import "io"
+class TestSelf {
+  name := "TestSelf"
+  func test() int {
+    v := 100
+    return func() int {
+      io.println(self.name)
+      return 100
+    }()
+  }
+}
+
+import "io"
+
+func f1() int {
+  v := 100
+  v2 := 200
+  return func() int {
+    v3 := 300
+    inner := func() {
+      v4 := 400
+      io.println(v3 + v)
+      if (v > 200) {
+        v5 := 500
+        io.println(v4)
+        io.println(v5)
+        io.println("v > 200")
+        io.println(v3)
+        io.println(v)
+      } else {
+        v5 := 600
+        io.println(v4)
+        io.println(v5)
+        io.println("v < 200")
+        io.println(v3)
+        io.println(v)
+      }
+    }
+    inner()
+    io.println(v2)
+    return v2
+  }()
+}
+
+func f2(f func() int) int {
+  return f()
+}
+
+f2(func() int {
+  100
+})
+
+enum Hello {
+  Ok,
+  Err,
+
+  func and_then(f func() int) int {
+    if Hello.Ok ~= self {
+      return f();
+    } else {
+      return -1;
+    }
+    /*
+    match self {
+      Hello.Ok => {return f();}
+      Hello.Err => {return -1;}
+    }
+    */
+  }
+
+  func or_then(f func() int) int {
+    if Ok ~= self {
+      return f();
+    } else {
+      return -1;
+    }
+    /*
+    match self {
+      Ok => {return f();}
+      Err => {return -1;}
+    }
+    */
+  }
+}
+
+h := Hello.Ok
+h.or_then(func() int {
+  return 2000
+})
+
+h = Hello.Err
+h.or_then(func() int {
+  return 2000
+})
+
+enum Hello2 {
+  Ok,
+  Err,
+
+  func and_then(f func() int) int {
+    match self {
+      Hello2.Ok => {return f();}
+      Hello2.Err => {return -1;}
+    }
+  }
+
+  func or_then(f func() int) int {
+    match self {
+      Ok => {return f();}
+      Err => {return -1;}
+    }
+  }
+}

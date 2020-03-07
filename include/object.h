@@ -326,6 +326,7 @@ int object_setvalue(Object *self, char *name, Object *val, TypeObject *type);
 Object *object_call(Object *self, char *name, Object *args);
 Object *object_super_call(Object *self, char *name, Object *args,
                           TypeObject *type);
+Object *new_object(char *path, char *type, Object *args);
 Object *new_literal(Literal *val);
 
 typedef struct descobject {

@@ -660,6 +660,7 @@ void free_parser(ParserState *ps)
   }
   vector_fini(&ps->stmts);
   vector_fini(&ps->ustack);
+  vector_fini(&ps->upanonies);
   kfree(ps);
 }
 
@@ -1233,31 +1234,175 @@ static void parse_null(ParserState *ps, Expr *exp)
   CODE_OP(OP_CONST_NULL);
 }
 
+static ParserUnit *func_anony_scope(ParserState *ps)
+{
+  ParserUnit *u = ps->u;
+  if (u->scope == SCOPE_FUNC || u->scope == SCOPE_ANONY)
+    return u;
+
+  vector_for_each_reverse(u, &ps->ustack) {
+    if (u->scope == SCOPE_FUNC || u->scope == SCOPE_ANONY)
+      return u;
+  }
+
+  return NULL;
+}
+
+static ParserUnit *func_scope(ParserState *ps)
+{
+  ParserUnit *up = NULL;
+  ParserUnit *u;
+  vector_for_each_reverse(u, &ps->ustack) {
+    if (u->scope == SCOPE_FUNC) {
+      up = u;
+      break;
+    }
+  }
+  return up;
+}
+
+static ParserUnit *class_scope(ParserState *ps)
+{
+  ParserUnit *u;
+  vector_for_each_reverse(u, &ps->ustack) {
+    if (u->scope == SCOPE_CLASS)
+      return u;
+  }
+  return NULL;
+}
+
+// find or update index of anonymous' upvals
+static int update_anony_upval(ParserUnit *u, int index)
+{
+  Symbol *anonysym = u->sym;
+  Vector *upvec = &anonysym->anony.upvec;
+  void *item;
+  int tmp;
+  vector_for_each(item, upvec) {
+    tmp = PTR2INT(item);
+    if (tmp == index)
+      return idx;
+  }
+
+  return vector_append_int(upvec, index);
+}
+
+static int block_in_anony(ParserState *ps, ParserUnit *end)
+{
+  expect(ps->u->scope == SCOPE_BLOCK);
+  ParserUnit *u;
+  vector_for_each_reverse(u, &ps->ustack) {
+    if (u == end)
+      return 0;
+    if (u->scope == SCOPE_ANONY)
+      return 1;
+  }
+  return 0;
+}
+
+static void parse_self_in_anony(ParserState *ps)
+{
+  ParserUnit *up = func_scope(ps);
+  expect(up != NULL);
+  Vector *freevec = &up->sym->func.freevec;
+
+  // get up var whether is used or not
+  void *item;
+  int index = -1;
+  int tmp;
+  vector_for_each(item, freevec) {
+    tmp = PTR2INT(item);
+    if (tmp == 0) {
+      index = idx;
+      break;
+    }
+  }
+
+  if (index < 0) {
+    // up var is used firstly
+    index = vector_append_int(freevec, 0);
+  }
+
+  // update index in all up anonymous(nested anonymous)
+  int start = 0;
+  int end = vector_size(&ps->upanonies);
+  ParserUnit *u = vector_get(&ps->upanonies, start);
+  index = update_anony_upval(u, index);
+  for (int i = start + 1; i < end; i++) {
+    u = vector_get(&ps->upanonies, i);
+    index = update_anony_upval(u, index | 0x8000);
+  }
+
+  // generate code
+  CODE_LOAD(0);
+  CODE_OP_I(OP_UPVAL_LOAD, index);
+}
+
 static void parse_self(ParserState *ps, Expr *exp)
 {
   ParserUnit *u = ps->u;
   expect(exp->ctx == EXPR_LOAD);
-  if (u->scope == SCOPE_FUNC) {
-    ParserUnit *up = up_scope(ps);
-    if (up->scope != SCOPE_CLASS) {
+  switch (u->scope) {
+  case SCOPE_FUNC: {
+    debug("self in SCOPE_FUNC");
+    ParserUnit *up = class_scope(ps);
+    if (up == NULL) {
       serror(exp->row, exp->col, "self must be used in method");
       return;
     }
     exp->sym = up->sym;
     exp->desc = TYPE_INCREF(up->sym->desc);
     CODE_LOAD(0);
-  } else if (u->scope == SCOPE_BLOCK) {
-    panic("SCOPE_BLOCK: not implemented");
-  } else if (u->scope == SCOPE_ANONY) {
-    panic("SCOPE_ANONY: not implemented");
-  } else if (u->scope == SCOPE_MODULE) {
+    break;
+  }
+  case SCOPE_BLOCK: {
+    debug("self in SCOPE_BLOCK");
+    ParserUnit *up = class_scope(ps);
+    if (up == NULL) {
+      serror(exp->row, exp->col, "self must be used in method");
+      return;
+    }
+
+    if (block_in_anony(ps, NULL)) {
+      debug("block in anonymous");
+      parse_self_in_anony(ps);
+    } else {
+      exp->sym = up->sym;
+      exp->desc = TYPE_INCREF(up->sym->desc);
+      CODE_LOAD(0);
+    }
+
+    break;
+  }
+  case SCOPE_ANONY: {
+    debug("self in SCOPE_ANONY");
+    ParserUnit *up = class_scope(ps);
+    if (up == NULL) {
+      serror(exp->row, exp->col, "self must be used in method");
+      return;
+    }
+    exp->sym = up->sym;
+    exp->desc = TYPE_INCREF(up->sym->desc);
+    parse_self_in_anony(ps);
+    break;
+  }
+  case SCOPE_MODULE: {
+    debug("self in SCOPE_MODULE");
     exp->sym = u->sym;
     exp->desc = TYPE_INCREF(u->sym->desc);
     CODE_OP(OP_LOAD_GLOBAL);
-  } else if (u->scope == SCOPE_CLASS) {
-    panic("SCOPE_CLASS: not implemented");
-  } else {
-    panic("not implemented");
+    break;
+  }
+  case SCOPE_CLASS: {
+    debug("self in SCOPE_CLASS");
+    exp->sym = u->sym;
+    exp->desc = TYPE_INCREF(u->sym->desc);
+    CODE_LOAD(0);
+    break;
+  }
+  default:
+    panic("bug, bug and bug!");
+    break;
   }
 }
 
@@ -1448,7 +1593,7 @@ static void ident_in_func(ParserState *ps, Expr *exp)
     parse_local_inplace(ps, exp);
     CODE_STORE(sym->var.index);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
-    debug("call function:%s, argc:%d", sym->name, exp->argc);
+    debug("call: %s, argc:%d", sym->name, exp->argc);
     expect(sym->desc->kind == TYPE_PROTO);
     CODE_LOAD(sym->var.index);
     CODE_OP_ARGC(OP_EVAL, exp->argc);
@@ -1468,6 +1613,11 @@ static void ident_in_block(ParserState *ps, Expr *exp)
     CODE_LOAD(sym->var.index);
     parse_local_inplace(ps, exp);
     CODE_STORE(sym->var.index);
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+    debug("call: %s, argc:%d", sym->name, exp->argc);
+    expect(sym->desc->kind == TYPE_PROTO);
+    CODE_LOAD(sym->var.index);
+    CODE_OP_ARGC(OP_EVAL, exp->argc);
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -1485,7 +1635,7 @@ static void ident_in_anony(ParserState *ps, Expr *exp)
     parse_local_inplace(ps, exp);
     CODE_STORE(sym->var.index);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
-    debug("call function:%s, argc:%d", sym->name, exp->argc);
+    debug("call: %s, argc:%d", sym->name, exp->argc);
     expect(sym->desc->kind == TYPE_PROTO);
     CODE_LOAD(sym->var.index);
     CODE_OP_ARGC(OP_EVAL, exp->argc);
@@ -1570,37 +1720,22 @@ static void ident_up_func(ParserState *ps, Expr *exp)
   }
 }
 
-static void ident_up_block(ParserState *ps, Expr *exp)
+// save object into anony, object is slot-0 in method
+static void parse_var_up_anony_in_class(ParserState *ps, Expr *exp)
 {
-  ParserUnit *up = exp->id.scope;
+  ParserUnit *u = ps->u;
+  expect(u->scope == SCOPE_ANONY);
+  parse_self_in_anony(ps);
 
-  if (up->scope == SCOPE_MODULE) {
-    ident_in_mod(ps, exp);
-  } else if (up->scope == SCOPE_FUNC) {
-    ident_in_block(ps, exp);
-  } else if (up->scope == SCOPE_BLOCK) {
-    ident_in_block(ps, exp);
-  } else if (up->scope == SCOPE_CLASS) {
-    ident_in_class(ps, exp);
+  if (exp->ctx == EXPR_LOAD) {
+    CODE_OP_S(OP_GET_VALUE, exp->id.name);
+  } else if (exp->ctx == EXPR_STORE) {
+    CODE_OP_S(OP_SET_VALUE, exp->id.name);
+  } else if (exp->ctx == EXPR_CALL_FUNC) {
+    CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
   } else {
-    panic("invalid scope");
+    panic("invalid expr's ctx %d", exp->ctx);
   }
-}
-
-// find or update index of anonymous' upvals
-static int update_anony_upval(ParserUnit *u, int index)
-{
-  Symbol *anonysym = u->sym;
-  Vector *upvec = &anonysym->anony.upvec;
-  void *item;
-  int tmp;
-  vector_for_each(item, upvec) {
-    tmp = PTR2INT(item);
-    if (tmp == index)
-      return idx;
-  }
-
-  return vector_append_int(upvec, index);
 }
 
 static void parse_var_up_anony(ParserState *ps, Expr *exp)
@@ -1617,6 +1752,7 @@ static void parse_var_up_anony(ParserState *ps, Expr *exp)
     freevec = &up->sym->anony.freevec;
   }
 
+  // get up var whether is used or not
   void *item;
   int index = -1;
   int tmp;
@@ -1629,10 +1765,11 @@ static void parse_var_up_anony(ParserState *ps, Expr *exp)
   }
 
   if (index < 0) {
+    // up var is used firstly
     index = vector_append_int(freevec, varsym->var.index);
   }
 
-  // update index in all up anonymous
+  // update index in all up anonymous(nested anonymous)
   int start = -1;
   int end = vector_size(&ps->upanonies);
   vector_for_each(u, &ps->upanonies) {
@@ -1676,10 +1813,38 @@ static void ident_up_anony(ParserState *ps, Expr *exp)
 
   if (up->scope == SCOPE_MODULE) {
     ident_in_mod(ps, exp);
-  } else if (up->scope == SCOPE_FUNC || up->scope == SCOPE_ANONY) {
+  } else if (up->scope == SCOPE_FUNC) {
     parse_var_up_anony(ps, exp);
+  } else if (up->scope == SCOPE_ANONY) {
+    parse_var_up_anony(ps, exp);
+  } else if (up->scope == SCOPE_CLASS) {
+    parse_var_up_anony_in_class(ps, exp);
   } else {
     panic("[ident_up_anony] invalid scope");
+  }
+}
+
+static void ident_up_block(ParserState *ps, Expr *exp)
+{
+  ParserUnit *up = exp->id.scope;
+
+  if (block_in_anony(ps, up)) {
+    ident_up_anony(ps, exp);
+    return;
+  }
+
+  if (up->scope == SCOPE_MODULE) {
+    ident_in_mod(ps, exp);
+  } else if (up->scope == SCOPE_FUNC) {
+    ident_in_block(ps, exp);
+  } else if (up->scope == SCOPE_BLOCK) {
+    ident_in_block(ps, exp);
+  } else if (up->scope == SCOPE_ANONY) {
+    ident_in_block(ps, exp);
+  } else if (up->scope == SCOPE_CLASS) {
+    ident_in_class(ps, exp);
+  } else {
+    panic("invalid scope");
   }
 }
 
@@ -3026,12 +3191,17 @@ static void parse_call(ParserState *ps, Expr *exp)
   TypeDesc *desc = lexp->desc;
   if (desc == NULL) {
     ++ps->errors;
-    return;
   }
+
+  if (has_error(ps))
+    return;
 
   if (desc->kind == TYPE_PROTO) {
     Symbol *fnsym = lexp->sym;
-    int sz = vector_size(fnsym->func.typesyms);
+    int sz = 0;
+    if (fnsym->kind == SYM_FUNC) {
+      sz = vector_size(fnsym->func.typesyms);
+    }
     if (sz > 0) {
       // type parameter <- type argument
       VECTOR(tpvec);
@@ -3387,11 +3557,16 @@ static Symbol *new_update_var(ParserState *ps, Ident *id, TypeDesc *desc)
       funcsym = ps->module->initsym;
       vector_push_back(&funcsym->func.locvec, sym);
       sym->var.index = vector_size(&funcsym->func.locvec);
-    } else {
+    } else if (up->scope == SCOPE_FUNC) {
       // set local var's index as its up's (func, closusre, etc) index
       sym->var.index = ++up->stbl->varindex;
       funcsym = up->sym;
       vector_push_back(&funcsym->func.locvec, sym);
+    } else {
+      expect(up->scope == SCOPE_ANONY);
+      sym->var.index = ++up->stbl->varindex;
+      funcsym = up->sym;
+      vector_push_back(&funcsym->anony.locvec, sym);
     }
     debug("var '%s' index %d", id->name, sym->var.index);
     ++sym->refcnt;
@@ -3582,6 +3757,8 @@ static void parse_anony(ParserState *ps, Expr *exp)
     if (exp->ctx == EXPR_CALL_FUNC) {
       CODE_OP_ARGC(OP_EVAL, exp->argc);
     }
+  } else {
+    symbol_decref(sym);
   }
 }
 
@@ -3887,6 +4064,18 @@ static void parse_enum_noargs_match(ParserState *ps, Expr *patt, Expr *some)
   CODE_OP_ARGC(OP_MATCH, 1);
 }
 
+static void parse_id_match(ParserState *ps, Expr *patt, Expr *some)
+{
+  CODE_OP(OP_DUP);
+
+  patt->ctx = EXPR_LOAD;
+  parser_visit_expr(ps, patt);
+  if (has_error(ps))
+    return;
+
+  CODE_OP_ARGC(OP_MATCH, 1);
+}
+
 static void parse_binary_match(ParserState *ps, Expr *exp)
 {
   Expr *some = exp->binary_match.some;
@@ -3894,6 +4083,15 @@ static void parse_binary_match(ParserState *ps, Expr *exp)
 
   ExprKind eknd = patt->kind;
   switch (eknd) {
+  case ID_KIND: {
+    debug("ID pattern");
+    some->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, some);
+    if (!has_error(ps)) {
+      parse_id_match(ps, patt, some);
+    }
+    break;
+  }
   case TUPLE_KIND: {
     debug("tuple pattern");
     some->ctx = EXPR_LOAD;
@@ -4258,10 +4456,10 @@ static void parse_simple_assign(ParserState *ps, Stmt *stmt)
     }
   }
 
-  codeblock_move(ps->u->block, start, end);
-
   if (has_error(ps))
     return;
+
+  codeblock_move(ps->u->block, start, end);
 
   if (lexp->desc == NULL) {
     serror(lexp->row, lexp->col, "cannot resolve left expr's type");
@@ -4524,7 +4722,8 @@ static void parse_funcdecl(ParserState *ps, Stmt *stmt)
   IdType *item;
   vector_for_each(item, idtypes) {
     Symbol *sym2 = new_update_var(ps, &item->id, vector_get(argtypes, idx));
-    if (sym2 != NULL && sym2->var.typesym == NULL) {
+    if (sym2 != NULL && !desc_isproto(sym2->desc) &&
+        sym2->var.typesym == NULL) {
       STRBUF(sbuf);
       desc_tostr(item->type.desc, &sbuf);
       serror(item->type.row, item->type.col,
@@ -4566,20 +4765,6 @@ exit_label:
   debug("end of function '%s'", funcname);
 }
 
-static ParserUnit *get_func_scope(ParserState *ps)
-{
-  ParserUnit *u = ps->u;
-  if (u->scope == SCOPE_FUNC || u->scope == SCOPE_ANONY)
-    return u;
-
-  vector_for_each_reverse(u, &ps->ustack) {
-    if (u->scope == SCOPE_FUNC || u->scope == SCOPE_ANONY)
-      return u;
-  }
-
-  return NULL;
-}
-
 static int inloop(ParserState *ps)
 {
   ParserUnit *u = ps->u;
@@ -4598,7 +4783,7 @@ static int inloop(ParserState *ps)
 
 static void parse_return(ParserState *ps, Stmt *stmt)
 {
-  ParserUnit *fu = get_func_scope(ps);
+  ParserUnit *fu = func_anony_scope(ps);
   if (fu == NULL) {
     serror(stmt->row, stmt->col, "'return' outside function");
     return;
@@ -5839,6 +6024,14 @@ static void parse_pattern(ParserState *ps, Expr *patt, Expr *some)
 {
   ExprKind eknd = patt->kind;
   switch (eknd) {
+  case ID_KIND: {
+    debug("ID pattern");
+    if (!has_error(ps)) {
+      patt->ctx = EXPR_LOAD;
+      parse_id_match(ps, patt, some);
+    }
+    break;
+  }
   case TUPLE_KIND: {
     debug("tuple pattern");
     patt->pattern = patt;
@@ -6016,7 +6209,7 @@ static void parse_match(ParserState *ps, Stmt *stmt)
 
       parser_enter_scope(ps, SCOPE_BLOCK, MATCH_PATTERN);
       ps->u->stbl = stable_new();
-
+      patt->decl_desc = some->desc;
       parse_pattern(ps, patt, some);
       jmp = CODE_OP(OP_JMP_FALSE);
       start = codesize(ps->u);
