@@ -977,6 +977,7 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
   }
 
   /* find from enum type */
+  /*
   if (exp->id.etype != NULL) {
     TypeDesc *desc = exp->id.etype;
     expect(desc->kind == TYPE_KLASS);
@@ -994,6 +995,7 @@ static Symbol *find_id_symbol(ParserState *ps, Expr *exp)
       return sym;
     }
   }
+  */
 
   return NULL;
 }
@@ -1404,6 +1406,23 @@ static void parse_self(ParserState *ps, Expr *exp)
     panic("bug, bug and bug!");
     break;
   }
+
+  Symbol *sym = exp->sym;
+  if (sym->kind == SYM_CLASS ||
+      sym->kind == SYM_TRAIT ||
+      sym->kind == SYM_ENUM) {
+    // self has para types, set it's speicalized type as any??
+    int sz = vector_size(sym->type.typesyms);
+    if (sz > 0) {
+      TypeDesc *desc = desc_dup(exp->desc);
+      while (sz > 0) {
+        desc_add_paratype(desc, &type_base_any);
+        --sz;
+      }
+      TYPE_DECREF(exp->desc);
+      exp->desc = desc;
+    }
+  }
 }
 
 static void parse_super(ParserState *ps, Expr *exp)
@@ -1660,7 +1679,12 @@ static void ident_in_class(ParserState *ps, Expr *exp)
     CODE_OP_S(OP_SET_VALUE, exp->id.name);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
     CODE_LOAD(0);
-    CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+    if (sym->kind == SYM_LABEL) {
+      debug("sym '%s' is enum label", sym->name);
+      CODE_OP_S_ARGC(OP_NEW_EVAL, exp->id.name, exp->argc);
+    } else {
+      CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
+    }
   } else {
     panic("invalid expr's ctx %d", exp->ctx);
   }
@@ -2025,6 +2049,7 @@ static void parse_ident(ParserState *ps, Expr *exp)
       exp->newvar = 1;
       debug("[pattern]: load null value");
       CODE_OP(OP_CONST_NULL);
+      return;
     } else {
       TypeDesc *desc = exp->decl_desc;
       if (desc != NULL) {
@@ -4781,12 +4806,27 @@ static int inloop(ParserState *ps)
   return 0;
 }
 
+static int return_in_match(ParserState *ps)
+{
+  ParserUnit *u;
+  vector_for_each_reverse(u, &ps->ustack) {
+    if (u->scope == SCOPE_BLOCK && u->blocktype == MATCH_BLOCK)
+      return 1;
+  }
+  return 0;
+}
+
 static void parse_return(ParserState *ps, Stmt *stmt)
 {
   ParserUnit *fu = func_anony_scope(ps);
   if (fu == NULL) {
     serror(stmt->row, stmt->col, "'return' outside function");
     return;
+  }
+
+  if (return_in_match(ps)) {
+    // return in match
+    CODE_OP(OP_POP_TOP);
   }
 
   Expr *exp = stmt->ret.exp;

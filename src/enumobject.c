@@ -95,7 +95,7 @@ static void enum_free(Object *ob)
 
   EnumObject *eob = (EnumObject *)ob;
   debug("free enum object '%s' of '%s'", eob->name, OB_TYPE_NAME(ob));
-
+  debug("object: %p", ob);
   OB_DECREF(eob->values);
   kfree(ob);
 }
@@ -206,6 +206,7 @@ static Object *enum_new_values(TypeObject *type, char *name, Object *values)
   init_object_head(eob, type);
   eob->name = atom(name);
   eob->values = OB_INCREF(values);
+  debug("new enum object: %p", eob);
   return (Object *)eob;
 }
 

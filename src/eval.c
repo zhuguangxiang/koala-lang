@@ -304,7 +304,6 @@ static Object *do_match(Object *some, Object *patt)
     return tuple_match(patt, some);
   } else if (enum_check(patt)) {
     return enum_match(patt, some);
-    return enum_match(patt, some);
   } else if (array_check(patt)) {
     ArrayObject *arr = (ArrayObject *)patt;
     Object *z;
