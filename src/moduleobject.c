@@ -452,7 +452,7 @@ static void _load_mbr_(char *name, int kind, void *data, void *arg)
     OB_DECREF(code);
     OB_DECREF(meth);
   } else if (kind == MBR_LABEL) {
-    type_add_label(type, name, data);
+    enum_add_label(type, name, data);
   } else if (kind == MBR_IFUNC) {
     Object *proto = proto_new(name, data);
     type_add_ifunc(type, proto);

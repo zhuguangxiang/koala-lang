@@ -109,13 +109,13 @@ void init_result_type(void)
 
   pref = desc_from_pararef("T", 0);
   vector_push_back(&prefs, pref);
-  type_add_label(result_type, ok_str, &prefs);
+  enum_add_label(result_type, ok_str, &prefs);
   TYPE_DECREF(pref);
   vector_clear(&prefs);
 
   pref = desc_from_pararef("E", 1);
   vector_push_back(&prefs, pref);
-  type_add_label(result_type, err_str, &prefs);
+  enum_add_label(result_type, err_str, &prefs);
   TYPE_DECREF(pref);
   vector_fini(&prefs);
 

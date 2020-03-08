@@ -74,6 +74,7 @@ static void init_types(void)
   init_fmtter_type();
   init_result_type();
   init_error_type();
+  init_option_type();
 
   print("########\n");
 }
@@ -139,6 +140,7 @@ void koala_finalize(void)
   fini_lang_module();
   fini_modules();
   fini_result_type();
+  fini_option_type();
   gc();
   fini_types();
   fini_typedesc();

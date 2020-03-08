@@ -19,7 +19,8 @@ SET(KOALA_OBJECTS_SOURCES
   object.c fieldobject.c methodobject.c classobject.c intobject.c
   floatobject.c stringobject.c tupleobject.c mapobject.c arrayobject.c
   moduleobject.c codeobject.c rangeobject.c iterobject.c closureobject.c
-  enumobject.c numberobject.c resultobject.c errorobject.c valistobject.c)
+  enumobject.c numberobject.c resultobject.c errorobject.c valistobject.c
+  optionobject.c)
 
 SET(KOALA_BUILTIN_MODULES
   langmodule.c sysmodule.c iomodule.c fmtmodule.c modules/assertmodule.c

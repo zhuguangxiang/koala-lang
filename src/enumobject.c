@@ -41,10 +41,23 @@ static void label_free(Object *ob)
   kfree(ob);
 }
 
+static Object *label_str(Object *ob, Object *arg)
+{
+  expect(label_check(ob));
+  LabelObject *label = (LabelObject *)ob;
+  STRBUF(sbuf);
+  strbuf_append(&sbuf, "Label@");
+  strbuf_append(&sbuf, label->name);
+  Object *str = string_new(strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+  return str;
+}
+
 TypeObject label_type = {
   OBJECT_HEAD_INIT(&type_type)
   .name = "Label",
   .free = label_free,
+  .str  = label_str,
 };
 
 void init_label_type(void)
@@ -65,7 +78,7 @@ static HashMap *get_mtbl(TypeObject *type)
   return mtbl;
 }
 
-void type_add_label(TypeObject *type, char *name, Vector *_types)
+void enum_add_label(TypeObject *type, char *name, Vector *_types)
 {
   expect(type_isenum(type));
   debug("enum '%s' add label '%s'", type->name, name);

@@ -404,6 +404,8 @@ static int get_para_index(Vector *vec, char *name)
   return -1;
 }
 
+static void update_proto_pararef(TypeObject *type, TypeDesc *proto);
+
 static void update_pararef(TypeObject *type, TypeDesc *desc)
 {
   if (desc == NULL)
@@ -419,6 +421,8 @@ static void update_pararef(TypeObject *type, TypeDesc *desc)
     vector_for_each(item, desc->klass.typeargs) {
       update_pararef(type, item);
     }
+  } else if (desc->kind == TYPE_PROTO) {
+    update_proto_pararef(type, desc);
   } else {
     // not pararef, skip it.
   }

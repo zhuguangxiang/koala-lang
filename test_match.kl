@@ -306,6 +306,11 @@ match r {
   Result.Err(x) => {io.println(x);}
 }
 
+match r {
+  Ok(x) => {io.print("ok:"); io.println(x);}
+  Err(x) => {io.println(x);}
+}
+
 r = Result.Err("err:404")
 match r {
   Result.Ok(x) => {io.print("ok:"); io.println(x);}

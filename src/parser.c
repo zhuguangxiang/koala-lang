@@ -3730,7 +3730,48 @@ static void parse_body(ParserState *ps, char *name, Vector *body, Type ret)
   }
 }
 
-static Symbol *new_anony_symbol(Expr *exp)
+TypeDesc *parse_proto(ParserState *ps, Vector *idtypes, Type *ret)
+{
+  TypeDesc *desc;
+  Vector *vec = NULL;
+  if (vector_size(idtypes) > 0)
+    vec = vector_new();
+  Symbol *sym;
+  IdType *item;
+  vector_for_each(item, idtypes) {
+    sym = get_desc_symbol(ps->module, item->type.desc);
+    if (sym == NULL) {
+      STRBUF(sbuf);
+      desc_tostr(item->type.desc, &sbuf);
+      serror(item->type.row, item->type.col,
+            "'%s' is not defined", strbuf_tostr(&sbuf));
+      strbuf_fini(&sbuf);
+      goto error_label;
+    }
+    vector_push_back(vec, TYPE_INCREF(item->type.desc));
+  }
+
+  sym = get_desc_symbol(ps->module, ret->desc);
+  if (sym == NULL) {
+    STRBUF(sbuf);
+    desc_tostr(ret->desc, &sbuf);
+    serror(item->type.row, item->type.col,
+          "'%s' is not defined", strbuf_tostr(&sbuf));
+    strbuf_fini(&sbuf);
+    goto error_label;
+  }
+
+  return desc_from_proto(vec, ret->desc);
+
+error_label:
+  vector_for_each(desc, vec) {
+    TYPE_DECREF(desc);
+  }
+  vector_free(vec);
+  return NULL;
+}
+
+static Symbol *new_anony_symbol(ParserState *ps, Expr *exp)
 {
   static int id = 1;
 #define ANONY_PREFIX "anony_%d"
@@ -3741,7 +3782,9 @@ static Symbol *new_anony_symbol(Expr *exp)
   // parse anonymous's proto
   Vector *idtypes = exp->anony.idtypes;
   Type *ret = &exp->anony.ret;
-  TypeDesc *proto = parse_proto(idtypes, ret);
+  TypeDesc *proto = parse_proto(ps, idtypes, ret);
+  if (proto == NULL)
+    return NULL;
 
   //new anonymous symbol
   Symbol *sym = symbol_new(atom(name), SYM_ANONY);
@@ -3752,7 +3795,10 @@ static Symbol *new_anony_symbol(Expr *exp)
 static void parse_anony(ParserState *ps, Expr *exp)
 {
   // new anonymous symbol
-  Symbol *sym = new_anony_symbol(exp);
+  Symbol *sym = new_anony_symbol(ps, exp);
+  if (sym == NULL)
+    return;
+
   exp->sym = sym;
   exp->desc = TYPE_INCREF(sym->desc);
 
@@ -4565,18 +4611,6 @@ static void parse_assign(ParserState *ps, Stmt *stmt)
     // inplace assignment
     parser_inplace_assign(ps, stmt);
   }
-}
-
-TypeDesc *parse_proto(Vector *idtypes, Type *ret)
-{
-  Vector *vec = NULL;
-  if (vector_size(idtypes) > 0)
-    vec = vector_new();
-  IdType *item;
-  vector_for_each(item, idtypes) {
-    vector_push_back(vec, TYPE_INCREF(item->type.desc));
-  }
-  return desc_from_proto(vec, ret->desc);
 }
 
 static int lro_exist(Vector *vec, Symbol *sym)
