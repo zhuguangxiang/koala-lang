@@ -53,22 +53,13 @@ do {                                      \
   abort();                                \
 } while (0)
 
-#define expect(expr)                           \
-do {                                           \
-  if (!(expr)) {                               \
-    _print_(_ERR_COLOR_, "%s:%d: expect '%s'", \
-      _FILENAME_, __LINE__, #expr);            \
-    abort();                                   \
-  }                                            \
-} while (0)
-
 #ifdef NLog
 
 /* disabled */
 #define debug(fmt, ...) ((void)0)
 #define warn(fmt, ...)  ((void)0)
 #define print(ftm, ...) ((void)0)
-//#define expect(expr)    ((void)0)
+#define expect(expr)    ((void)0)
 
 #else /* !NLog */
 
@@ -77,6 +68,15 @@ do {                                           \
 #define debug(fmt, ...) _print_(_DBG_COLOR_, fmt, ##__VA_ARGS__)
 #define warn(fmt, ...)  _print_(_WARN_COLOR_, fmt, ##__VA_ARGS__)
 #define print(fmt, ...) fprintf(stdout, fmt, ##__VA_ARGS__)
+
+#define expect(expr)                           \
+do {                                           \
+  if (!(expr)) {                               \
+    _print_(_ERR_COLOR_, "%s:%d: expect '%s'", \
+      _FILENAME_, __LINE__, #expr);            \
+    abort();                                   \
+  }                                            \
+} while (0)
 
 #endif /* NLog */
 

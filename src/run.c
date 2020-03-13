@@ -126,12 +126,14 @@ void koala_initialize(void)
   init_fmt_module();
   init_assert_module();
   init_test_module();
+  init_jit_module();
   init_parser();
 }
 
 void koala_finalize(void)
 {
   fini_parser();
+  fini_jit_module();
   fini_assert_module();
   fini_fmt_moudle();
   fini_io_module();

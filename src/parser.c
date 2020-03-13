@@ -2270,6 +2270,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
       0,
       OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
       OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
+      0, 0,
       OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
       OP_AND, OP_OR,
     };

@@ -4,6 +4,7 @@
 #
 
 INCLUDE(${PROJECT_SOURCE_DIR}/cmake/bison.cmake)
+INCLUDE(${PROJECT_SOURCE_DIR}/cmake/llvm.cmake)
 
 RUN_FLEX(
   ${PROJECT_SOURCE_DIR}/src/koala.l
@@ -24,7 +25,7 @@ SET(KOALA_OBJECTS_SOURCES
 
 SET(KOALA_BUILTIN_MODULES
   langmodule.c sysmodule.c iomodule.c fmtmodule.c modules/assertmodule.c
-  testnative.c fsmodule.c)
+  testnative.c fsmodule.c jit.c)
 
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c
@@ -34,9 +35,9 @@ SET(KOALA_SOURCES
   ${KOALA_OBJECTS_SOURCES} ${KOALA_BUILTIN_MODULES})
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})
-TARGET_LINK_LIBRARIES(koala pthread m dl)
+TARGET_LINK_LIBRARIES(koala pthread m dl ${llvm_libs})
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})
-TARGET_LINK_LIBRARIES(koala_so pthread m dl)
+TARGET_LINK_LIBRARIES(koala_so pthread m dl ${llvm_libs})
 SET_TARGET_PROPERTIES(koala_so PROPERTIES
   VERSION ${KOALA_VERSION}
   SOVERSION ${KOALA_VERSION_MAJOR}
