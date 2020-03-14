@@ -57,11 +57,11 @@ static Object *exec_sum(void *ptr, Object *vargs)
 /*
 import "jit"
 
-func sum3(a int, b int) int {
-  return a + b + 300 + 400
+func sum(a int, b int) int {
+  return a - b
 }
 
-jit.jit_sum(sum3, 20, 20)
+jit.jit_sum(sum, 10, 20)
 */
 /*
   LOAD_CONST
@@ -71,35 +71,87 @@ jit.jit_sum(sum3, 20, 20)
   ADD
   RETURN_VALUE
 */
-static LLVMExecutionEngineRef engine;
+/*
+  func locvar(a int, b int) int {
+    v := 200
+    return a - b + v
+  }
+  import "jit"
+  jit.jit_sum(locvar, 10, 20)
+ */
+/*
+  g := 200
+  func gblvar(a int, b int) int {
+    g = 300
+    v := a - b + g
+    g = 500
+    return v
+  }
+  import "jit"
+  jit.jit_sum(gblvar, 10, 20)
 
+  func gblvar2(a int, b int) int {
+    return a - b + g
+  }
+  jit.jit_sum(gblvar2, 10, 20)
+ */
+
+/*
+func branch(a int, b int) int {
+  res := 0
+  if a > 100 {
+    return b + 100
+  } else {
+    res = b - 100
+  }
+  return res
+}
+
+func branch2(a int, b int) int {
+  res := 0
+  if a > 100 {
+    return b + 100
+  }
+  return res
+}
+
+import "jit"
+jit.jit_sum(branch, 10, 20)
+*/
+static LLVMExecutionEngineRef engine;
+static LLVMModuleRef mod;
 static Object *jit(CodeObject *co, Object *vargs)
 {
   if (engine != NULL) {
     printf("sum is exist.\n");
-    void *ptr = (void *)LLVMGetFunctionAddress(engine, "sum");
+    void *ptr = (void *)LLVMGetFunctionAddress(engine, co->name);
     if (ptr != NULL) {
       Object *res = exec_sum(ptr, vargs);
       return res;
-    } else {
-      panic("cannot find sum in llvm");
-      return NULL;
     }
   }
 
-  LLVMModuleRef mod = LLVMModuleCreateWithName("test_jit_module");
+  if (mod == NULL) {
+    mod = LLVMModuleCreateWithName("test_jit_module");
+  }
 
   LLVMTypeRef param_types[] = { LLVMInt64Type(), LLVMInt64Type() };
   LLVMTypeRef ret_type = LLVMFunctionType(LLVMInt64Type(), param_types, 2, 0);
-  LLVMValueRef sum = LLVMAddFunction(mod, "sum", ret_type);
+  LLVMValueRef func = LLVMAddFunction(mod, co->name, ret_type);
+  LLVMValueRef arg;
+  int argc = LLVMCountParams(func);
+  //LLVMGetParams(sum, params);
+  arg = LLVMGetParam(func, 0);
+  LLVMSetValueName2(arg, "v1", 2);
+  arg = LLVMGetParam(func, 1);
+  LLVMSetValueName2(arg, "v2", 2);
 
-  LLVMBasicBlockRef entry = LLVMAppendBasicBlock(sum, "entry");
+  LLVMBasicBlockRef entry = LLVMAppendBasicBlock(func, "entry");
 
   LLVMBuilderRef builder = LLVMCreateBuilder();
   LLVMPositionBuilderAtEnd(builder, entry);
 
   uint8_t *codes = co->codes;
-  int argc = 2;
   int index = 0;
   uint8_t op;
   LLVMValueRef tmp;
@@ -108,14 +160,22 @@ static Object *jit(CodeObject *co, Object *vargs)
   LLVMValueRef val;
   int oparg;
   Object *consts = co->consts;
-  Object *x;
+  Object *x, *y;
   VECTOR(stack);
+  VECTOR(locvars);
+  Object *curmod;
+  LLVMBasicBlockRef cond_true = NULL;
+  LLVMBasicBlockRef cond_false = NULL;
+  LLVMBasicBlockRef end = NULL;
+  int cond_cont = 0;
+  LLVMValueRef zero = LLVMConstInt(LLVMInt64Type(), 0, 1);
   while (1) {
     if (index >= co->size)
       break;
     op = NEXT_OP();
     switch (op) {
     case OP_LOAD_CONST: {
+      printf("OP_LOAD_CONST\n");
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
       val = LLVMConstInt(LLVMInt64Type(), integer_asint(x), 1);
@@ -125,7 +185,7 @@ static Object *jit(CodeObject *co, Object *vargs)
     case OP_LOAD_1: {
       printf("OP_LOAD_1\n");
       if (argc >= 1) {
-        val = LLVMGetParam(sum, 0);
+        val = LLVMGetParam(func, 0);
         vector_push_back(&stack, val);
       }
       break;
@@ -133,8 +193,47 @@ static Object *jit(CodeObject *co, Object *vargs)
     case OP_LOAD_2: {
       printf("OP_LOAD_2\n");
       if (argc >= 2) {
-        val = LLVMGetParam(sum, 1);
+        val = LLVMGetParam(func, 1);
         vector_push_back(&stack, val);
+      }
+      break;
+    }
+    case OP_LOAD_3: {
+      printf("OP_LOAD_3\n");
+      if (argc >= 3) {
+        // func parameter
+        val = LLVMGetParam(func, 2);
+        vector_push_back(&stack, val);
+      } else {
+        // local variable
+        v1 = vector_get(&locvars, 3);
+        vector_push_back(&stack, v1);
+      }
+      break;
+    }
+    case OP_STORE_3: {
+      printf("OP_STORE_3\n");
+      if (argc >= 3) {
+
+      } else {
+        char name[32] = {0};
+        int locindex = 3;
+        snprintf(name, 32, "loc_%d", locindex);
+        while (vector_size(&locvars) < locindex) {
+          vector_push_back(&locvars, NULL);
+        }
+        v1 = vector_get(&locvars, locindex);
+        if (v1 == NULL) {
+          printf("new locvar: %s\n", name);
+          v1 = LLVMBuildAlloca(builder, LLVMInt64Type(), name);
+          v2 = vector_pop_back(&stack);
+          vector_set(&locvars, 3, v2);
+          LLVMBuildStore(builder, v2, v1);
+        } else {
+          printf("store locvar: %s\n", name);
+          v2 = vector_pop_back(&stack);
+          vector_set(&locvars, 3, v2);
+        }
       }
       break;
     }
@@ -146,10 +245,100 @@ static Object *jit(CodeObject *co, Object *vargs)
       vector_push_back(&stack, val);
       break;
     }
+    case OP_SUB: {
+      printf("OP_SUB\n");
+      v1 = vector_pop_back(&stack);
+      v2 = vector_pop_back(&stack);
+      val = LLVMBuildSub(builder, v1, v2, "tmp");
+      vector_push_back(&stack, val);
+      break;
+    }
     case OP_RETURN_VALUE: {
       printf("OP_RETURN_VALUE\n");
       val = vector_pop_back(&stack);
       LLVMBuildRet(builder, val);
+      break;
+    }
+    case OP_RETURN: {
+      printf("OP_RETURN\n");
+      //LLVMBuildRetVoid(builder);
+      break;
+    }
+    case OP_LOAD_GLOBAL: {
+      printf("OP_LOAD_GLOBAL\n");
+      curmod = co->module;
+      vector_push_back(&stack, curmod);
+      break;
+    }
+    case OP_GET_VALUE: {
+      printf("OP_GET_VALUE\n");
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      y = vector_pop_back(&stack);
+      printf("get global variable:%s\n", string_asstr(x));
+      v1 = LLVMGetNamedGlobal(mod, string_asstr(x));
+      if (v1 == NULL) {
+        printf("global %s is not set\n", string_asstr(x));
+        v1 = LLVMAddGlobal(mod, LLVMInt64Type(), string_asstr(x));
+        x = object_getvalue(y, string_asstr(x), co->type);
+        val = LLVMConstInt(LLVMInt64Type(), integer_asint(x), 1);
+        LLVMSetInitializer(v1, val);
+      } else {
+        val = LLVMGetInitializer(v1);
+      }
+      vector_push_back(&stack, val);
+      break;
+    }
+    case OP_SET_VALUE: {
+      printf("OP_SET_VALUE\n");
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      y = vector_pop_back(&stack);
+      printf("set global variable:%s\n", string_asstr(x));
+      v1 = LLVMGetNamedGlobal(mod, string_asstr(x));
+      if (v1 == NULL) {
+        printf("global %s is not set\n", string_asstr(x));
+        v1 = LLVMAddGlobal(mod, LLVMInt64Type(), string_asstr(x));
+      }
+      val = vector_pop_back(&stack);
+      LLVMSetInitializer(v1, val);
+      break;
+    }
+    case OP_GT: {
+      printf("OP_GT\n");
+      v1 = vector_pop_back(&stack);
+      v2 = vector_pop_back(&stack);
+      val = LLVMBuildICmp(builder, LLVMIntSGT, v1, v2, "tmp");
+      vector_push_back(&stack, val);
+      break;
+    }
+    case OP_JMP_FALSE: {
+      printf("OP_JMP_FALSE\n");
+      oparg = (int16_t)NEXT_2BYTES();
+      val = vector_pop_back(&stack);
+      cond_true = LLVMAppendBasicBlock(func, "cond_true");
+      cond_false = LLVMAppendBasicBlock(func, "cond_false");
+      //end = LLVMAppendBasicBlock(func, "end");
+      LLVMBuildCondBr(builder, val, cond_true, cond_false);
+      if (oparg > 0) {
+        LLVMPositionBuilderAtEnd(builder, cond_true);
+        cond_cont = oparg;
+      } else {
+        LLVMPositionBuilderAtEnd(builder, cond_false);
+      }
+      break;
+    }
+    case OP_JMP: {
+      printf("OP_JMP\n");
+      oparg = (int16_t)NEXT_2BYTES();
+      LLVMPositionBuilderAtEnd(builder, cond_false);
+      cond_cont = oparg;
+      /*
+      if (oparg <= 0) {
+        LLVMBuildBr(builder, end);
+        LLVMPositionBuilderAtEnd(builder, end);
+      }
+      */
       break;
     }
     default: {
@@ -161,7 +350,7 @@ static Object *jit(CodeObject *co, Object *vargs)
   LLVMDisposeBuilder(builder);
 
   char *error = NULL;
-  LLVMVerifyModule(mod, LLVMAbortProcessAction, &error);
+  LLVMVerifyModule(mod, LLVMPrintMessageAction, &error);
   LLVMDisposeMessage(error);
   LLVMDumpModule(mod);
 
@@ -170,7 +359,7 @@ static Object *jit(CodeObject *co, Object *vargs)
   LLVMInitializeNativeAsmPrinter();
   LLVMInitializeNativeAsmParser();
   LLVMCreateExecutionEngineForModule(&engine, mod, &error);
-  void *ptr = (void *)LLVMGetFunctionAddress(engine, "sum");
+  void *ptr = (void *)LLVMGetFunctionAddress(engine, co->name);
   Object *res = exec_sum(ptr, vargs);
   //LLVMDisposeExecutionEngine(engine);
   return res;
