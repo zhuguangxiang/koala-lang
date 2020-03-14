@@ -118,6 +118,17 @@ func branch2(a int, b int) int {
 import "jit"
 jit.jit_sum(branch, 10, 20)
 */
+
+/*
+func fib(n int, o int) int {
+  if n < 3 {
+    return 1
+  }
+  return fib(n - 1, 0) + fib(n - 2, 0)
+}
+import "jit"
+jit.jit_sum(fib, 40, 0)
+ */
 static LLVMExecutionEngineRef engine;
 static LLVMModuleRef mod;
 static Object *jit(CodeObject *co, Object *vargs)
@@ -241,6 +252,7 @@ static Object *jit(CodeObject *co, Object *vargs)
       printf("OP_ADD\n");
       v1 = vector_pop_back(&stack);
       v2 = vector_pop_back(&stack);
+      expect(v2 != NULL);
       val = LLVMBuildAdd(builder, v1, v2, "tmp");
       vector_push_back(&stack, val);
       break;
@@ -312,6 +324,14 @@ static Object *jit(CodeObject *co, Object *vargs)
       vector_push_back(&stack, val);
       break;
     }
+    case OP_LT: {
+      printf("OP_LT\n");
+      v1 = vector_pop_back(&stack);
+      v2 = vector_pop_back(&stack);
+      val = LLVMBuildICmp(builder, LLVMIntSLT, v1, v2, "tmp");
+      vector_push_back(&stack, val);
+      break;
+    }
     case OP_JMP_FALSE: {
       printf("OP_JMP_FALSE\n");
       oparg = (int16_t)NEXT_2BYTES();
@@ -339,6 +359,20 @@ static Object *jit(CodeObject *co, Object *vargs)
         LLVMPositionBuilderAtEnd(builder, end);
       }
       */
+      break;
+    }
+    case OP_CALL: {
+      printf("OP_CALL\n");
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      oparg = NEXT_BYTE();
+      vector_pop_back(&stack);
+      val = vector_pop_back(&stack);
+      vector_pop_back(&stack);
+      printf("call:%s\n", string_asstr(x));
+      LLVMValueRef call_args[] = {val, zero};
+      val = LLVMBuildCall(builder, func, call_args, 2, string_asstr(x));
+      vector_push_back(&stack, val);
       break;
     }
     default: {
