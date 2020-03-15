@@ -638,6 +638,10 @@ TypeDesc *str_to_proto(char *ptype, char *rtype)
       desc = __to_desc(&s);
       vector_push_back(args, desc);
     }
+    if (vector_size(args) <= 0) {
+      vector_free(args);
+      args = NULL;
+    }
   }
 
   TypeDesc *ret = NULL;

@@ -395,9 +395,13 @@ static void _load_base_(TypeDesc *desc, void *arg)
 
   Object *tp;
   if (desc->klass.path != NULL) {
-    Object *m = module_load(desc->klass.path);
-    tp = module_get(m, desc->klass.type);
-    OB_DECREF(m);
+    if (!strcmp(desc->klass.path, "__main__")) {
+      tp = module_get(mo, desc->klass.type);
+    } else {
+      Object *m = module_load(desc->klass.path);
+      tp = module_get(m, desc->klass.type);
+      OB_DECREF(m);
+    }
   } else {
     tp = module_get(mo, desc->klass.type);
   }

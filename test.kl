@@ -815,8 +815,9 @@ sys.stdout.write_str("hello\n")
 sys.stdout.write_fmt("hello, {}, {}!\n", "james", 118)
 
 
-class Pet<U:Pet> {
+class Pet {
   name string
+
   func __init__(name string) {
     self.name = name
   }
@@ -825,8 +826,8 @@ class Pet<U:Pet> {
     self.name
   }
 
-  func foo<T:Pet<T>>(f T) string {
-    return f.get_name()
+  func foo<U>(f U) U {
+    return f
   }
 }
 

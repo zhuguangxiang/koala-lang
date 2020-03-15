@@ -3239,6 +3239,11 @@ static void parse_call(ParserState *ps, Expr *exp)
         exp->desc = TYPE_INCREF(retinst);
         exp->sym = get_type_symbol(ps, exp->desc);
         TYPE_DECREF(retinst);
+        STRBUF(sbuf);
+        desc_tostr(retinst, &sbuf);
+        debug("sym '%s' \x1b[1;35mspecialized-return-type: \x1b[0m%s",
+              fnsym->name, strbuf_tostr(&sbuf));
+        strbuf_fini(&sbuf);
       }
       vector_fini(&tpvec);
     } else {
@@ -4670,7 +4675,13 @@ TypeDesc *parse_func_proto(ParserState *ps, Vector *idtypes, Type *ret)
   IdType *item;
   vector_for_each(item, idtypes) {
     desc = item->type.desc;
-    sym = get_type_symbol(ps, desc);
+    if (desc_isproto(desc)) {
+      expect(0);
+      sym = NULL;
+    } else {
+      sym = get_type_symbol(ps, desc);
+    }
+
     if (!desc_isproto(desc) && sym == NULL) {
       STRBUF(sbuf);
       desc_tostr(desc, &sbuf);

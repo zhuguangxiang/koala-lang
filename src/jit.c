@@ -400,7 +400,7 @@ static Object *jit(CodeObject *co, Object *vargs)
   LLVMCreateExecutionEngineForModule(&engine, mod, &error);
 
   void *ptr = (void *)LLVMGetFunctionAddress(engine, co->name);
-  Object *res =exec_sum(ptr, vargs);
+  Object *res = exec_sum(ptr, vargs);
   //LLVMDisposeExecutionEngine(engine);
 
   vector_fini(&stack);
@@ -438,7 +438,6 @@ static MethodDef jit_methods[] = {
 void init_jit_module(void)
 {
   Object *m = module_new("jit");
-  module_add_type(m, &any_type);
   module_add_funcdefs(m, jit_methods);
   module_install("jit", m);
   OB_DECREF(m);
