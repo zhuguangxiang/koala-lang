@@ -229,8 +229,6 @@ moddoc  "//!"[^\n]*
 "and"       { YY_RETURN(OP_AND);        }
 "or"        { YY_RETURN(OP_OR);         }
 "not"       { YY_RETURN(OP_NOT);        }
-"<<"        { YY_RETURN(OP_LSHIFT);     }
-">>"        { YY_RETURN(OP_RSHIFT);     }
 "**"        { YY_RETURN(OP_POWER);      }
 ":="        { YY_RETURN(FREE_ASSIGN);   }
 "+="        { YY_RETURN(PLUS_ASSIGN);   }
@@ -242,8 +240,6 @@ moddoc  "//!"[^\n]*
 "&="        { YY_RETURN(AND_ASSIGN);    }
 "|="        { YY_RETURN(OR_ASSIGN);     }
 "^="        { YY_RETURN(XOR_ASSIGN);    }
-"<<="       { YY_RETURN(LSHIFT_ASSIGN); }
-">>="       { YY_RETURN(RSHIFT_ASSIGN); }
 "..."       { YY_RETURN(DOTDOTDOT);     }
 "..<"       { YY_RETURN(DOTDOTLESS);    }
 "=>"        { YY_RETURN(FAT_ARROW);     }

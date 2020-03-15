@@ -482,8 +482,6 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_BIT_OR:
   case OP_BIT_XOR:
   case OP_BIT_NOT:
-  case OP_BIT_LSHIFT:
-  case OP_BIT_RSHIFT:
   case OP_INPLACE_ADD:
   case OP_INPLACE_SUB:
   case OP_INPLACE_MUL:
@@ -493,8 +491,6 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_INPLACE_AND:
   case OP_INPLACE_OR:
   case OP_INPLACE_XOR:
-  case OP_INPLACE_LSHIFT:
-  case OP_INPLACE_RSHIFT:
   case OP_SUBSCR_LOAD:
   case OP_SUBSCR_STORE:
   case OP_NEW_ITER:
@@ -1517,10 +1513,9 @@ static void parse_inplace_mapping(ParserState *ps, AssignOpKind op)
     OP_INPLACE_ADD, OP_INPLACE_SUB, OP_INPLACE_MUL,
     OP_INPLACE_DIV, OP_INPLACE_MOD, OP_INPLACE_POW,
     OP_INPLACE_AND, OP_INPLACE_OR, OP_INPLACE_XOR,
-    OP_INPLACE_LSHIFT, OP_INPLACE_RSHIFT,
   };
 
-  expect(op >= OP_PLUS_ASSIGN && op <= OP_RSHIFT_ASSIGN);
+  expect(op >= OP_PLUS_ASSIGN && op <= OP_XOR_ASSIGN);
   CODE_OP(opmapings[op]);
 }
 
@@ -2190,8 +2185,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
     "__and__",    // BINARY_BIT_AND
     "__xor__",    // BINARY_BIT_XOR
     "__or__",     // BINARY_BIT_OR
-    "__lshift__", // BINARY_BIT_LSHIFT
-    "__rshift__", // BINARY_BIT_RSHIFT
 
     "__gt__",     // BINARY_GT
     "__ge__",     // BINARY_GE
@@ -2270,7 +2263,6 @@ static void parse_binary(ParserState *ps, Expr *exp)
       0,
       OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
       OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
-      0, 0,
       OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
       OP_AND, OP_OR,
     };
@@ -5718,12 +5710,17 @@ void parse_bound(ParserState *ps, Symbol *sym, Vector *bounds)
         serror(0, 0, "'%s' no need type parameter", bndsym->name);
       }
     } else {
-      debug("new '%s' typeref", bndsym->name);
-      Symbol *refsym = symbol_new(bndsym->name, SYM_TYPEREF);
-      refsym->desc = TYPE_INCREF(item);
-      refsym->typeref.sym = sym;
-      typepara_add_bound(sym, refsym);
-      parse_subtype(ps, bndsym, item->klass.typeargs);
+      if (bndsym == ps->u->sym) {
+        debug("'%s' is self", bndsym->name);
+        typepara_add_bound(sym, bndsym);
+      } else {
+        debug("new '%s' typeref", bndsym->name);
+        Symbol *refsym = symbol_new(bndsym->name, SYM_TYPEREF);
+        refsym->desc = TYPE_INCREF(item);
+        refsym->typeref.sym = sym;
+        typepara_add_bound(sym, refsym);
+        parse_subtype(ps, bndsym, item->klass.typeargs);
+      }
     }
   }
 }

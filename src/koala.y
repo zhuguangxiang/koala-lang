@@ -137,8 +137,6 @@ int comp_add_native_func(ParserState *ps, Ident id);
 %token AND_ASSIGN
 %token OR_ASSIGN
 %token XOR_ASSIGN
-%token RSHIFT_ASSIGN
-%token LSHIFT_ASSIGN
 
 %token OP_AND
 %token OP_OR
@@ -148,8 +146,6 @@ int comp_add_native_func(ParserState *ps, Ident id);
 %token OP_LE
 %token OP_GE
 %token OP_POWER
-%token OP_LSHIFT
-%token OP_RSHIFT
 %token OP_MATCH
 
 %token DOTDOTDOT
@@ -204,7 +200,6 @@ int comp_add_native_func(ParserState *ps, Ident id);
 %type <list> member_decls
 %type <stmt> member_decl
 %type <stmt> field_decl
-%type <stmt> method_decl
 %type <list> trait_members
 %type <list> trait_member_decls
 %type <stmt> trait_member_decl
@@ -231,7 +226,6 @@ int comp_add_native_func(ParserState *ps, Ident id);
 %type <expr> unary_expr
 %type <expr> multi_expr
 %type <expr> add_expr
-%type <expr> shift_expr
 %type <expr> relation_expr
 %type <expr> equality_expr
 %type <expr> and_expr
@@ -724,14 +718,6 @@ assign_operator:
 {
   $$ = OP_XOR_ASSIGN;
 }
-| LSHIFT_ASSIGN
-{
-  $$ = OP_LSHIFT_ASSIGN;
-}
-| RSHIFT_ASSIGN
-{
-  $$ = OP_RSHIFT_ASSIGN;
-}
 ;
 
 return_stmt:
@@ -984,55 +970,34 @@ equality_expr:
 ;
 
 relation_expr:
-  shift_expr
+  add_expr
 {
   $$ = $1;
 }
-| relation_expr '<' shift_expr
+| relation_expr '<' add_expr
 {
   $$ = expr_from_binary(BINARY_LT, $1, $3);
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
 }
-| relation_expr '>' shift_expr
+| relation_expr '>' add_expr
 {
   $$ = expr_from_binary(BINARY_GT, $1, $3);
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
 }
-| relation_expr OP_LE shift_expr
+| relation_expr OP_LE add_expr
 {
   $$ = expr_from_binary(BINARY_LE, $1, $3);
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
 }
-| relation_expr OP_GE shift_expr
+| relation_expr OP_GE add_expr
 {
   $$ = expr_from_binary(BINARY_GE, $1, $3);
-  set_expr_pos($$, @1);
-  $$->binary.oprow = row(@2);
-  $$->binary.opcol = col(@2);
-}
-;
-
-shift_expr:
-  add_expr
-{
-  $$ = $1;
-}
-| shift_expr OP_LSHIFT add_expr
-{
-  $$ = expr_from_binary(BINARY_BIT_LSHIFT, $1, $3);
-  set_expr_pos($$, @1);
-  $$->binary.oprow = row(@2);
-  $$->binary.opcol = col(@2);
-}
-| shift_expr OP_RSHIFT add_expr
-{
-  $$ = expr_from_binary(BINARY_BIT_RSHIFT, $1, $3);
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
@@ -1778,7 +1743,7 @@ member_decl:
 {
   $$ = $1;
 }
-| method_decl
+| func_decl
 {
   $$ = $1;
 }
@@ -1812,31 +1777,6 @@ field_decl:
 }
 ;
 
-method_decl:
-  FUNC ID '(' para_list ')' type block
-{
-  IDENT(id, $2, @2);
-  TYPE(type, $6, @6);
-  $$ = stmt_from_funcdecl(id, NULL, $4, &type, $7);
-}
-| FUNC ID '(' para_list ')' block
-{
-  IDENT(id, $2, @2);
-  $$ = stmt_from_funcdecl(id, NULL, $4, NULL, $6);
-}
-| FUNC ID '(' ')' type block
-{
-  IDENT(id, $2, @2);
-  TYPE(type, $5, @5);
-  $$ = stmt_from_funcdecl(id, NULL, NULL, &type, $6);
-}
-| FUNC ID '(' ')' block
-{
-  IDENT(id, $2, @2);
-  $$ = stmt_from_funcdecl(id, NULL, NULL, NULL, $5);
-}
-;
-
 trait_members:
   %empty
 {
@@ -1864,7 +1804,7 @@ trait_member_decls:
 ;
 
 trait_member_decl:
-  method_decl
+  func_decl
 {
   $$ = $1;
 }
@@ -1883,26 +1823,26 @@ trait_member_decl:
 ;
 
 proto_decl:
-  FUNC ID '(' para_list ')' type ';'
+  FUNC name '(' para_list ')' type ';'
 {
-  IDENT(id, $2, @2);
+  IDENT(id, $2.id.name, @2);
   TYPE(type, $6, @6);
   $$ = stmt_from_ifunc(id, $4, &type);
 }
-| FUNC ID '(' para_list ')' ';'
+| FUNC name '(' para_list ')' ';'
 {
-  IDENT(id, $2, @2);
+  IDENT(id, $2.id.name, @2);
   $$ = stmt_from_ifunc(id, $4, NULL);
 }
-| FUNC ID '(' ')' type ';'
+| FUNC name '(' ')' type ';'
 {
-  IDENT(id, $2, @2);
+  IDENT(id, $2.id.name, @2);
   TYPE(type, $5, @5);
   $$ = stmt_from_ifunc(id, NULL, &type);
 }
-| FUNC ID '(' ')' ';'
+| FUNC name '(' ')' ';'
 {
-  IDENT(id, $2, @2);
+  IDENT(id, $2.id.name, @2);
   $$ = stmt_from_ifunc(id, NULL, NULL);
 }
 ;
@@ -1988,22 +1928,22 @@ NOTES: unsupport C-like enum yet. Is it really need support ?
 ;
 
 enum_methods:
-  method_decl
+  func_decl
 {
   $$ = vector_new();
   vector_push_back($$, $1);
 }
-| method_decl ';'
+| func_decl ';'
 {
   $$ = vector_new();
   vector_push_back($$, $1);
 }
-| enum_methods method_decl
+| enum_methods func_decl
 {
   $$ = $1;
   vector_push_back($$, $2);
 }
-| enum_methods method_decl ';'
+| enum_methods func_decl ';'
 {
   $$ = $1;
   vector_push_back($$, $2);

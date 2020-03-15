@@ -813,3 +813,29 @@ import "sys"
 sys.stdout.write("hello\n".as_bytes())
 sys.stdout.write_str("hello\n")
 sys.stdout.write_fmt("hello, {}, {}!\n", "james", 118)
+
+
+class Pet<U:Pet> {
+  name string
+  func __init__(name string) {
+    self.name = name
+  }
+
+  func get_name() string {
+    self.name
+  }
+
+  func foo<T:Pet<T>>(f T) string {
+    return f.get_name()
+  }
+}
+
+class Cat extends Pet {
+  func __init__() {
+    super("Cat")
+  }
+
+  func get_name() string {
+    "Cat"
+  }
+}

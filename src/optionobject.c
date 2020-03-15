@@ -171,7 +171,7 @@ void init_option_type(void)
   vector_push_back(&prefs, pref);
   enum_add_label(option_type, some_str, &prefs);
   TYPE_DECREF(pref);
-  vector_clear(&prefs);
+  vector_fini(&prefs);
 
   enum_add_label(option_type, none_str, NULL);
 

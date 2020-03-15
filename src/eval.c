@@ -837,22 +837,6 @@ Object *Koala_EvalFrame(CallFrame *f)
       PUSH(z);
       break;
     }
-    case OP_BIT_LSHIFT: {
-      x = POP();
-      fn = OB_NUM_FUNC(x, not);
-      call_op_func(z, x, OP_BIT_LSHIFT, NULL);
-      OB_DECREF(x);
-      PUSH(z);
-      break;
-    }
-    case OP_BIT_RSHIFT: {
-      x = POP();
-      fn = OB_NUM_FUNC(x, not);
-      call_op_func(z, x, OP_BIT_RSHIFT, NULL);
-      OB_DECREF(x);
-      PUSH(z);
-      break;
-    }
     case OP_INPLACE_ADD: {
       y = POP();
       x = POP();
@@ -938,26 +922,6 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = POP();
       fn = OB_NUM_FUNC(x, xor);
       call_op_func(z, x, OP_BIT_XOR, y);
-      OB_DECREF(x);
-      OB_DECREF(y);
-      PUSH(z);
-      break;
-    }
-    case OP_INPLACE_LSHIFT: {
-      y = POP();
-      x = POP();
-      fn = OB_NUM_FUNC(x, lshift);
-      call_op_func(z, x, OP_BIT_LSHIFT, y);
-      OB_DECREF(x);
-      OB_DECREF(y);
-      PUSH(z);
-      break;
-    }
-    case OP_INPLACE_RSHIFT: {
-      y = POP();
-      x = POP();
-      fn = OB_NUM_FUNC(x, rshift);
-      call_op_func(z, x, OP_BIT_RSHIFT, y);
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);

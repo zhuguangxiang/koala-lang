@@ -61,7 +61,7 @@ func sum(a int, b int) int {
   return a - b
 }
 
-jit.jit_sum(sum, 10, 20)
+jit.go(sum, 10, 20)
 */
 /*
   LOAD_CONST
@@ -77,7 +77,7 @@ jit.jit_sum(sum, 10, 20)
     return a - b + v
   }
   import "jit"
-  jit.jit_sum(locvar, 10, 20)
+  jit.go(locvar, 10, 20)
  */
 /*
   g := 200
@@ -88,12 +88,12 @@ jit.jit_sum(sum, 10, 20)
     return v
   }
   import "jit"
-  jit.jit_sum(gblvar, 10, 20)
+  jit.go(gblvar, 10, 20)
 
   func gblvar2(a int, b int) int {
     return a - b + g
   }
-  jit.jit_sum(gblvar2, 10, 20)
+  jit.go(gblvar2, 10, 20)
  */
 
 /*
@@ -116,7 +116,7 @@ func branch2(a int, b int) int {
 }
 
 import "jit"
-jit.jit_sum(branch, 10, 20)
+jit.go(branch, 10, 20)
 */
 
 /*
@@ -127,7 +127,7 @@ func fib(n int, o int) int {
   return fib(n - 1, 0) + fib(n - 2, 0)
 }
 import "jit"
-jit.jit_sum(fib, 40, 0)
+jit.go(fib, 40, 0)
  */
 static LLVMExecutionEngineRef engine;
 static LLVMModuleRef mod;
@@ -143,7 +143,7 @@ static Object *jit(CodeObject *co, Object *vargs)
   }
 
   if (mod == NULL) {
-    mod = LLVMModuleCreateWithName("test_jit_module");
+    mod = LLVMModuleCreateWithName("jit_module");
   }
 
   LLVMTypeRef param_types[] = { LLVMInt64Type(), LLVMInt64Type() };
@@ -171,7 +171,7 @@ static Object *jit(CodeObject *co, Object *vargs)
   LLVMValueRef val;
   int oparg;
   Object *consts = co->consts;
-  Object *x, *y;
+  Object *x, *y, *z;
   VECTOR(stack);
   VECTOR(locvars);
   Object *curmod;
@@ -191,6 +191,7 @@ static Object *jit(CodeObject *co, Object *vargs)
       x = tuple_get(consts, oparg);
       val = LLVMConstInt(LLVMInt64Type(), integer_asint(x), 1);
       vector_push_back(&stack, val);
+      OB_DECREF(x);
       break;
     }
     case OP_LOAD_1: {
@@ -292,13 +293,15 @@ static Object *jit(CodeObject *co, Object *vargs)
       if (v1 == NULL) {
         printf("global %s is not set\n", string_asstr(x));
         v1 = LLVMAddGlobal(mod, LLVMInt64Type(), string_asstr(x));
-        x = object_getvalue(y, string_asstr(x), co->type);
-        val = LLVMConstInt(LLVMInt64Type(), integer_asint(x), 1);
+        z = object_getvalue(y, string_asstr(x), co->type);
+        val = LLVMConstInt(LLVMInt64Type(), integer_asint(z), 1);
         LLVMSetInitializer(v1, val);
       } else {
         val = LLVMGetInitializer(v1);
       }
       vector_push_back(&stack, val);
+      OB_DECREF(x);
+      OB_DECREF(z);
       break;
     }
     case OP_SET_VALUE: {
@@ -314,6 +317,7 @@ static Object *jit(CodeObject *co, Object *vargs)
       }
       val = vector_pop_back(&stack);
       LLVMSetInitializer(v1, val);
+      OB_DECREF(x);
       break;
     }
     case OP_GT: {
@@ -373,6 +377,7 @@ static Object *jit(CodeObject *co, Object *vargs)
       LLVMValueRef call_args[] = {val, zero};
       val = LLVMBuildCall(builder, func, call_args, 2, string_asstr(x));
       vector_push_back(&stack, val);
+      OB_DECREF(x);
       break;
     }
     default: {
@@ -393,25 +398,40 @@ static Object *jit(CodeObject *co, Object *vargs)
   LLVMInitializeNativeAsmPrinter();
   LLVMInitializeNativeAsmParser();
   LLVMCreateExecutionEngineForModule(&engine, mod, &error);
+
   void *ptr = (void *)LLVMGetFunctionAddress(engine, co->name);
-  Object *res = exec_sum(ptr, vargs);
+  Object *res =exec_sum(ptr, vargs);
   //LLVMDisposeExecutionEngine(engine);
+
+  vector_fini(&stack);
+  vector_fini(&locvars);
   return res;
 }
 
-Object *jit_sum(Object *self, Object *args)
+Object *jit_go(Object *self, Object *args)
 {
   Object *meth = tuple_get(args, 0);
   CodeObject *co = (CodeObject *)method_getcode(meth);
   Object *vargs = tuple_get(args, 1);
   Object *res = jit(co, vargs);
   OB_DECREF(meth);
+  OB_DECREF(co);
   OB_DECREF(vargs);
   return res;
 }
 
+Object *jit_reset(Object *self, Object *args)
+{
+  LLVMDisposeExecutionEngine(engine);
+  //LLVMDisposeModule(mod);
+  engine = NULL;
+  mod = NULL;
+  return NULL;
+}
+
 static MethodDef jit_methods[] = {
-  {"jit_sum", "A...i", "i", jit_sum},
+  {"go", "A...i", "i", jit_go},
+  {"reset", NULL, NULL, jit_reset},
   {NULL}
 };
 
@@ -426,5 +446,9 @@ void init_jit_module(void)
 
 void fini_jit_module(void)
 {
+  if (engine != NULL) {
+    LLVMDisposeExecutionEngine(engine);
+  }
+  LLVMShutdown();
   module_uninstall("jit");
 }

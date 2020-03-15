@@ -157,7 +157,7 @@ static Object *_exit_(Object *self, Object *arg)
 }
 
 static MethodDef lang_methods[] = {
-  {"disassemble", "A", NULL, disassemble},
+  {"disasm", "A", NULL, disassemble},
   {"help", "A", NULL, help},
   {"exit", NULL, NULL, _exit_},
   {NULL}
