@@ -35,6 +35,7 @@ extern "C" {
 typedef struct codeobject {
   OBJECT_HEAD
   char *name;
+  char *longname;
   Object *module;
   TypeObject *type;
   TypeDesc *proto;

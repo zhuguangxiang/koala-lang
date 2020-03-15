@@ -62,6 +62,7 @@ extern TypeObject module_type;
 extern TypeObject Module_Class_Type;
 #define module_check(ob) (OB_TYPE(ob) == &module_type)
 #define MODULE_NAME(ob) (((ModuleObject *)ob)->name)
+#define MODULE_PATH(ob) (((ModuleObject *)ob)->path)
 void init_module_type(void);
 void fini_modules(void);
 Object *module_new(char *name);

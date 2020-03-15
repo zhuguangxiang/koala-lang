@@ -31,6 +31,10 @@
 extern "C" {
 #endif
 
+typedef enum {
+  KFUNC_KIND, CFUNC_KIND, JITFUNC_KIND,
+} MethodKind;
+
 typedef struct methodobject {
   OBJECT_HEAD
   /* method name */
@@ -39,12 +43,14 @@ typedef struct methodobject {
   Object *owner;
   /* method type descriptor */
   TypeDesc *desc;
-  /* cfunc or kfunc ? */
-  short cfunc;
+  /* cfunc or kfunc, or jited-func ? */
+  MethodKind kind;
   /* native */
-  short native;
+  int native;
   /* cfunc or kfunc pointer */
   void *ptr;
+  /* jited func pointer */
+  void *jitptr;
 } MethodObject;
 
 typedef struct protoobject {
@@ -69,6 +75,7 @@ Object *nmethod_new(char *name, TypeDesc *desc, void *ptr);
 Object *method_call(Object *self, Object *ob, Object *args);
 Object *method_getcode(Object *self);
 Object *proto_new(char *name, TypeDesc *desc);
+void method_update_jit(MethodObject *meth, void *fn, void *jitptr);
 
 #ifdef __cplusplus
 }

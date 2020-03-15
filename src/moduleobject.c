@@ -291,6 +291,7 @@ Object *module_new(char *name)
   ModuleObject *module = kmalloc(sizeof(*module));
   init_object_head(module, &module_type);
   module->name = name;
+  module->path = name;
   module->state = MOD_READY;
   return (Object *)module;
 }
@@ -598,7 +599,7 @@ Object *module_load(char *path)
       Object *ob = module_from_file(path, name, node->ob);
       if (ob != NULL) {
         mo->state = MOD_READY;
-        printf("module '%s' is ready.\n", mo->name);
+        //printf("module '%s' is ready.\n", mo->name);
         if (!compflag) {
           run_func(ob, "__init__", NULL);
         }
@@ -606,7 +607,7 @@ Object *module_load(char *path)
     } else if (mo->state == MOD_LOADING) {
       printf("module '%s' is loading.\n", mo->name);
     } else {
-      printf("module '%s' is ready.\n", mo->name);
+      //printf("module '%s' is ready.\n", mo->name);
     }
   }
   return OB_INCREF(node->ob);

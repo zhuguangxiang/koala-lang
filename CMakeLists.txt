@@ -37,13 +37,14 @@ ELSE()
   # lcov --rc lcov_branch_coverage=1 -c -d ./ -o app.info
   # genhtml --rc lcov_branch_coverage=1 app.info -o cc_result
     SET(CMAKE_C_FLAGS
-        "${CMAKE_C_FLAGS} -std=gnu11 -g -fvar-tracking -DNDEBUG -DNLog
+        "${CMAKE_C_FLAGS} -std=gnu11 -g -fvar-tracking -DNDEBUG -DNLog \
         -fprofile-arcs -ftest-coverage")
   ELSE()
     IF(CMAKE_BUILD_TYPE STREQUAL NDebug)
       SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -g -fvar-tracking -DNDEBUG -DNLog")
     ELSE()
-      SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Ofast -Wall -DNDEBUG -DNLog")
+      SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -O2 -Wall \
+        -fomit-frame-pointer -foptimize-strlen -ffast-math -DNDEBUG -DNLog")
     ENDIF()
   ENDIF()
 ENDIF()

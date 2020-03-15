@@ -24,6 +24,7 @@
 
 #include "koala.h"
 #include "opcode.h"
+#include "jit.h"
 
 static void show_args(int op, int index, uint8_t *codes, Object *consts)
 {
@@ -114,8 +115,8 @@ static Object *disassemble(Object *self, Object *arg)
   }
 
   MethodObject *meth = (MethodObject *)arg;
-  if (meth->cfunc) {
-    printf("'%.64s' is cfunc\n", meth->name);
+  if (meth->kind != KFUNC_KIND) {
+    printf("'%.64s' is not Koala Function.\n", meth->name);
     return NULL;
   }
 
@@ -160,6 +161,7 @@ static MethodDef lang_methods[] = {
   {"disasm", "A", NULL, disassemble},
   {"help", "A", NULL, help},
   {"exit", NULL, NULL, _exit_},
+  {"jit", "A", "Llang.Option(Llang.Method;);", jit_go},
   {NULL}
 };
 
@@ -199,5 +201,6 @@ void init_lang_module(void)
 
 void fini_lang_module(void)
 {
+  jit_shutdown();
   module_uninstall("lang");
 }

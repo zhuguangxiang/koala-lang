@@ -1629,6 +1629,7 @@ static void ident_in_block(ParserState *ps, Expr *exp)
     CODE_STORE(sym->var.index);
   } else if (exp->ctx == EXPR_CALL_FUNC) {
     debug("call: %s, argc:%d", sym->name, exp->argc);
+    // desc is lang.Method??
     expect(sym->desc->kind == TYPE_PROTO);
     CODE_LOAD(sym->var.index);
     CODE_OP_ARGC(OP_EVAL, exp->argc);

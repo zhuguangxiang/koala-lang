@@ -1,0 +1,25 @@
+
+func sum(a int, b int) int {
+  return a - b
+}
+
+sum(10, 20)
+
+jit(sum)
+sum(10, 20)
+
+func fib(n int) int {
+  if n < 3 {
+    return 1
+  }
+  return fib(n - 1) + fib(n - 2)
+}
+
+fib(30)
+jit(fib)
+fib(50)
+
+if Option.Some(fn) ~= opt {
+  io.println(fn)
+  fn(10, -20)
+}

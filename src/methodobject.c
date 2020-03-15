@@ -36,7 +36,7 @@ Object *cmethod_new(MethodDef *def)
   init_object_head(method, &method_type);
   method->name  = def->name;
   method->desc  = str_to_proto(def->ptype, def->rtype);
-  method->cfunc = 1,
+  method->kind  = CFUNC_KIND;
   method->ptr   = def->func;
   return (Object *)method;
 }
@@ -49,6 +49,7 @@ Object *method_new(char *name, Object *code)
   method->name = atom(name);
   method->desc = TYPE_INCREF(co->proto);
   method->ptr  = OB_INCREF(code);
+  method->kind = KFUNC_KIND;
   return (Object *)method;
 }
 
@@ -59,7 +60,7 @@ Object *nmethod_new(char *name, TypeDesc *desc, void *ptr)
   method->name = atom(name);
   method->desc = TYPE_INCREF(desc);
   method->ptr  = NULL;
-  method->cfunc = 1;
+  method->kind = CFUNC_KIND;
   method->native = 1;
   method->ptr = ptr;
   return (Object *)method;
@@ -147,12 +148,16 @@ Object *method_call(Object *self, Object *ob, Object *args)
   }
 
   Object *res;
-  if (meth->cfunc) {
+  if (meth->kind == CFUNC_KIND) {
     func_t fn = meth->ptr;
     if (fn == NULL && meth->native) {
       debug("try to find native function '%s'", meth->name);
     }
     res = fn(ob, nargs);
+  } else if (meth->kind == JITFUNC_KIND) {
+    typedef Object *(*jit_func_t)(Object *, Object *, void *);
+    jit_func_t fn = meth->ptr;
+    res = fn(ob, nargs, meth->jitptr);
   } else {
     res = koala_evalcode(meth->ptr, ob, nargs, NULL);
   }
@@ -170,56 +175,13 @@ Object *method_getcode(Object *self)
     return NULL;
   }
   MethodObject *meth = (MethodObject *)self;
-  if (!meth->cfunc) {
+  if (meth->kind == CFUNC_KIND) {
     return OB_INCREF(meth->ptr);
   } else {
     error("method '%s' is cfunc", meth->name);
     return NULL;
   }
 }
-
-static Object *_method_call_(Object *self, Object *args)
-{
-  if (!method_check(self)) {
-    error("object of '%.64s' is not a Method", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  expect(args != NULL);
-
-  Object *ob;
-  Object *para;
-  if (!tuple_check(args)) {
-    ob = OB_INCREF(args);
-    para = NULL;
-  } else {
-    int size = tuple_size(args);
-    expect(size > 0);
-    ob = tuple_get(args, 0);
-    if (size == 2)
-      para = tuple_get(args, 1);
-    else
-      para = tuple_slice(args, 1, -1);
-  }
-
-  MethodObject *meth = (MethodObject *)self;
-  Object *res;
-  if (meth->cfunc) {
-    func_t fn = meth->ptr;
-    res = fn(ob, para);
-  } else {
-    panic("not implemented");
-    res = NULL;
-  }
-  OB_DECREF(ob);
-  OB_DECREF(para);
-  return res;
-}
-
-static MethodDef meth_methods[] = {
-  {"call", "...", "A", _method_call_},
-  {NULL}
-};
 
 static void meth_free(Object *ob)
 {
@@ -230,7 +192,7 @@ static void meth_free(Object *ob)
   MethodObject *meth = (MethodObject *)ob;
   debug("[Freed] Method %s", meth->name);
   TYPE_DECREF(meth->desc);
-  if (!meth->cfunc) {
+  if (meth->kind == KFUNC_KIND) {
     OB_DECREF(meth->ptr);
   }
   kfree(ob);
@@ -252,8 +214,22 @@ TypeObject method_type = {
   .name    = "Method",
   .free    = meth_free,
   .str     = meth_str,
-  .methods = meth_methods,
 };
+
+void method_update_jit(MethodObject *meth, void *fn, void *jitptr)
+{
+  if (meth->kind != KFUNC_KIND) {
+    warn("only support Koala Function");
+    return;
+  }
+
+  OB_DECREF(meth->ptr);
+  // any other is using ?
+  meth->kind = JITFUNC_KIND;
+  meth->native = 0;
+  meth->ptr = fn;
+  meth->jitptr = jitptr;
+}
 
 static void proto_free(Object *ob)
 {

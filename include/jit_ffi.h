@@ -22,54 +22,32 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_API_H_
-#define _KOALA_API_H_
+#ifndef _KOALA_JIT_FFI_H_
+#define _KOALA_JIT_FFI_H_
 
-#include "version.h"
-#include "log.h"
-#include "memory.h"
-#include "atom.h"
-#include "eval.h"
-#include "numberobject.h"
-#include "fieldobject.h"
-#include "methodobject.h"
-#include "classobject.h"
-#include "intobject.h"
-#include "floatobject.h"
-#include "stringobject.h"
-#include "valistobject.h"
-#include "arrayobject.h"
-#include "tupleobject.h"
-#include "mapobject.h"
-#include "moduleobject.h"
-#include "codeobject.h"
-#include "enumobject.h"
-#include "rangeobject.h"
-#include "iterobject.h"
-#include "closureobject.h"
-#include "resultobject.h"
-#include "errorobject.h"
-#include "optionobject.h"
-#include "fmtmodule.h"
-#include "iomodule.h"
-#include "sysmodule.h"
-#include "testnative.h"
-#include "fsmodule.h"
-#include "modules.h"
-#include "parser.h"
+#include <ffi.h>
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void koala_initialize(void);
-void koala_finalize(void);
-void koala_readline(void);
-int koala_compile(char *path);
-void koala_run(char *path);
+typedef struct jit_func {
+  void *mcptr;
+  TypeDesc *desc;
+  ffi_cif cif;
+  ffi_type *rtype;
+  int nargs;
+  ffi_type *argtypes[0];
+} jit_func_t;
+
+ffi_type *jit_ffi_type(TypeDesc *desc);
+Object *jit_ffi_call(jit_func_t *fninfo, Object *args);
+jit_func_t *jit_get_func(void *mcptr, TypeDesc *desc);
+void fini_jit_ffi(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_API_H_ */
+#endif /* _KOALA_JIT_FFI_H_ */

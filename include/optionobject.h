@@ -37,7 +37,7 @@ void fini_option_type(void);
 Object *option_new(int some, Object *val);
 Object *option_get_some(Object *self, Object *arg);
 #define option_some(val)  option_new(1, val)
-#define option_none() result_new(0, NULL)
+#define option_none() option_new(0, NULL)
 int option_test(Object *self);
 
 #ifdef __cplusplus

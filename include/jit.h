@@ -25,12 +25,15 @@
 #ifndef _KOALA_JIT_H_
 #define _KOALA_JIT_H_
 
+#include "object.h"
+#include "jit_ffi.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void init_jit_module(void);
-void fini_jit_module(void);
+Object *jit_go(Object *self, Object *args);
+void jit_shutdown(void);
 
 #ifdef __cplusplus
 }

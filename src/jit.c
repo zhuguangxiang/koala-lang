@@ -22,14 +22,98 @@
  SOFTWARE.
 */
 
-#include "koala.h"
-#include "opcode.h"
-
 #include <llvm-c/Core.h>
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm-c/Target.h>
 #include <llvm-c/Analysis.h>
 #include <llvm-c/BitWriter.h>
+
+#include "koala.h"
+#include "opcode.h"
+#include "jit.h"
+
+static LLVMExecutionEngineRef engine;
+static LLVMModuleRef llvmmod;
+
+static inline LLVMModuleRef llvm_module(void)
+{
+  if (llvmmod == NULL) {
+    llvmmod = LLVMModuleCreateWithName("koala_jit_module");
+  }
+  return llvmmod;
+}
+
+static inline LLVMExecutionEngineRef llvm_engine(void)
+{
+  char *error = NULL;
+  if (engine == NULL) {
+    LLVMLinkInMCJIT();
+    LLVMInitializeNativeTarget();
+    LLVMInitializeNativeAsmPrinter();
+    LLVMInitializeNativeAsmParser();
+    LLVMCreateExecutionEngineForModule(&engine, llvm_module(), &error);
+  }
+  return engine;
+}
+
+static inline void *llvm_code(const char *name)
+{
+  return (void *)LLVMGetFunctionAddress(llvm_engine(), name);
+}
+
+static void *llvm_function_name(CodeObject *co)
+{
+  char *name;
+  if (co->longname != NULL) {
+    name = co->longname;
+  } else {
+    Object *mo = co->module;
+    STRBUF(sbuf);
+    strbuf_append(&sbuf, MODULE_PATH(mo));
+    strbuf_append(&sbuf, "::");
+    strbuf_append(&sbuf, co->name);
+    name = atom(strbuf_tostr(&sbuf));
+    strbuf_fini(&sbuf);
+    co->longname = name;
+  }
+  return name;
+}
+
+static LLVMTypeRef llvm_type(TypeDesc *desc)
+{
+  return LLVMInt64Type();
+}
+
+static LLVMValueRef llvm_function(CodeObject *co)
+{
+  TypeDesc *desc = co->proto;
+  Vector *args = desc->proto.args;
+  int argc = vector_size(args);
+  TypeDesc *type;
+  LLVMTypeRef params[argc];
+  for (int i = 0; i < argc; i++) {
+    type = vector_get(args, i);
+    params[i] = llvm_type(type);
+  }
+
+  type = desc->proto.ret;
+  LLVMTypeRef ret = LLVMFunctionType(llvm_type(type), params, argc, 0);
+  return LLVMAddFunction(llvm_module(), llvm_function_name(co), ret);
+}
+
+void jit_shutdown(void)
+{
+  if (engine != NULL)
+    LLVMDisposeExecutionEngine(engine);
+  LLVMShutdown();
+  fini_jit_ffi();
+}
+
+static Object *do_jit_func(Object *self, Object *args, void *jitptr)
+{
+  jit_func_t *fninfo = jitptr;
+  return jit_ffi_call(fninfo, args);
+}
 
 #define NEXT_OP() ({ \
   codes[index++]; \
@@ -40,10 +124,72 @@
 })
 
 #define NEXT_2BYTES() ({ \
-  uint8_t l = NEXT_BYTE(); \
-  uint8_t h = NEXT_BYTE(); \
-  ((h << 8) + l); \
+  int16_t v = *(int16_t *)(codes + index); \
+  index += 2; \
+  v; \
 })
+
+typedef struct translate {
+  void *engine;
+  void *mod;
+  CodeObject *co;
+  Object *consts;
+  Vector *locinfo;
+  Vector blocks;
+  void *mcptr;
+  Vector stack;
+  Vector locvars;
+} Translate;
+
+typedef struct basicblock {
+  uint8_t *codes;
+  int size;
+  Translate *trans;
+} BasicBlock;
+
+static void split_blocks(Translate *trans)
+{
+  CodeObject *co = trans->co;
+  uint8_t *codes = co->codes;
+  int size = co->size;
+  uint8_t op;
+  int oparg;
+  int index = 0;
+  BasicBlock *blk;
+  uint8_t *start = codes;
+  uint8_t *end = codes;
+  while (index < size) {
+    op = NEXT_OP();
+    switch (op) {
+    case OP_JMP_FALSE: {
+      printf("%-16s2\n", "JMP_FALSE");
+      oparg = NEXT_2BYTES();
+      end = codes + index;
+      printf("\x1b[1;35m%-14s\x1b[0m\t%ld-%ld\n", "Block", start - codes, end - codes);
+      //blk = new_basicblock(start, end);
+      //vector_push_back(&trans->blocks, blk);
+      start = end;
+      break;
+    }
+    case OP_JMP: {
+      printf("%-16s0\n", "JMP");
+      oparg = NEXT_2BYTES();
+      break;
+    }
+    default: {
+      int argc = opcode_argc(op);
+      printf("%-16s%d\n", opcode_str(op), argc);
+      index += argc;
+      break;
+    }
+    }
+  }
+}
+
+static int jit_support(CodeObject *co)
+{
+  return 1;
+}
 
 static Object *exec_sum(void *ptr, Object *vargs)
 {
@@ -61,7 +207,7 @@ func sum(a int, b int) int {
   return a - b
 }
 
-jit.go(sum, 10, 20)
+jit.go(sum)
 */
 /*
   LOAD_CONST
@@ -115,50 +261,58 @@ func branch2(a int, b int) int {
   return res
 }
 
+func branch3(a int, b int) int {
+  res := 0
+  if a > 100 {
+    if (a > 200) {
+      return b + 100
+    } else {
+      if a < 150 {
+        return b + 200
+      }
+    }
+  }
+  return res
+}
+
+func branch4(a int, b int) int {
+  res := 0
+  if a > 100 {
+    return b + 100
+  } else if a < 50 {
+    return b + 50
+  } else {
+    return b + 1
+  }
+  return res
+}
+
 import "jit"
 jit.go(branch, 10, 20)
 */
 
 /*
-func fib(n int, o int) int {
+func fib(n int) int {
   if n < 3 {
     return 1
   }
-  return fib(n - 1, 0) + fib(n - 2, 0)
+  return fib(n - 1) + fib(n - 2)
 }
 import "jit"
 jit.go(fib, 40, 0)
  */
-static LLVMExecutionEngineRef engine;
-static LLVMModuleRef mod;
-static Object *jit(CodeObject *co, Object *vargs)
+
+static void translate_basicblock()
 {
-  if (engine != NULL) {
-    printf("sum is exist.\n");
-    void *ptr = (void *)LLVMGetFunctionAddress(engine, co->name);
-    if (ptr != NULL) {
-      Object *res = exec_sum(ptr, vargs);
-      return res;
-    }
-  }
 
-  if (mod == NULL) {
-    mod = LLVMModuleCreateWithName("jit_module");
-  }
+}
 
-  LLVMTypeRef param_types[] = { LLVMInt64Type(), LLVMInt64Type() };
-  LLVMTypeRef ret_type = LLVMFunctionType(LLVMInt64Type(), param_types, 2, 0);
-  LLVMValueRef func = LLVMAddFunction(mod, co->name, ret_type);
-  LLVMValueRef arg;
-  int argc = LLVMCountParams(func);
-  //LLVMGetParams(sum, params);
-  arg = LLVMGetParam(func, 0);
-  LLVMSetValueName2(arg, "v1", 2);
-  arg = LLVMGetParam(func, 1);
-  LLVMSetValueName2(arg, "v2", 2);
-
+static void *translate(CodeObject *co)
+{
+  LLVMModuleRef mod = llvm_module();
+  LLVMValueRef func = llvm_function(co);
   LLVMBasicBlockRef entry = LLVMAppendBasicBlock(func, "entry");
-
+  int argc = LLVMCountParams(func);
   LLVMBuilderRef builder = LLVMCreateBuilder();
   LLVMPositionBuilderAtEnd(builder, entry);
 
@@ -357,12 +511,12 @@ static Object *jit(CodeObject *co, Object *vargs)
       oparg = (int16_t)NEXT_2BYTES();
       LLVMPositionBuilderAtEnd(builder, cond_false);
       cond_cont = oparg;
-      /*
-      if (oparg <= 0) {
-        LLVMBuildBr(builder, end);
-        LLVMPositionBuilderAtEnd(builder, end);
-      }
-      */
+
+      //if (oparg <= 0) {
+      //  LLVMBuildBr(builder, end);
+      //  LLVMPositionBuilderAtEnd(builder, end);
+      //}
+
       break;
     }
     case OP_CALL: {
@@ -372,10 +526,9 @@ static Object *jit(CodeObject *co, Object *vargs)
       oparg = NEXT_BYTE();
       vector_pop_back(&stack);
       val = vector_pop_back(&stack);
-      vector_pop_back(&stack);
       printf("call:%s\n", string_asstr(x));
-      LLVMValueRef call_args[] = {val, zero};
-      val = LLVMBuildCall(builder, func, call_args, 2, string_asstr(x));
+      LLVMValueRef call_args[1] = {val};
+      val = LLVMBuildCall(builder, func, call_args, 1, string_asstr(x));
       vector_push_back(&stack, val);
       OB_DECREF(x);
       break;
@@ -393,61 +546,55 @@ static Object *jit(CodeObject *co, Object *vargs)
   LLVMDisposeMessage(error);
   LLVMDumpModule(mod);
 
-  LLVMLinkInMCJIT();
-  LLVMInitializeNativeTarget();
-  LLVMInitializeNativeAsmPrinter();
-  LLVMInitializeNativeAsmParser();
-  LLVMCreateExecutionEngineForModule(&engine, mod, &error);
-
-  void *ptr = (void *)LLVMGetFunctionAddress(engine, co->name);
-  Object *res = exec_sum(ptr, vargs);
-  //LLVMDisposeExecutionEngine(engine);
-
+  void *ptr = (void *)LLVMGetFunctionAddress(llvm_engine(), llvm_function_name(co));
   vector_fini(&stack);
   vector_fini(&locvars);
-  return res;
+  return ptr;
 }
 
+/*
+  func go(f any) Option<Method>
+*/
 Object *jit_go(Object *self, Object *args)
 {
-  Object *meth = tuple_get(args, 0);
-  CodeObject *co = (CodeObject *)method_getcode(meth);
-  Object *vargs = tuple_get(args, 1);
-  Object *res = jit(co, vargs);
-  OB_DECREF(meth);
-  OB_DECREF(co);
-  OB_DECREF(vargs);
-  return res;
-}
-
-Object *jit_reset(Object *self, Object *args)
-{
-  LLVMDisposeExecutionEngine(engine);
-  //LLVMDisposeModule(mod);
-  engine = NULL;
-  mod = NULL;
-  return NULL;
-}
-
-static MethodDef jit_methods[] = {
-  {"go", "A...i", "i", jit_go},
-  {"reset", NULL, NULL, jit_reset},
-  {NULL}
-};
-
-void init_jit_module(void)
-{
-  Object *m = module_new("jit");
-  module_add_funcdefs(m, jit_methods);
-  module_install("jit", m);
-  OB_DECREF(m);
-}
-
-void fini_jit_module(void)
-{
-  if (engine != NULL) {
-    LLVMDisposeExecutionEngine(engine);
+  Object *ob = args;
+  if (!method_check(ob)) {
+    warn("[KOALA-JIT]: '%s' is not a Fuction.", OB_TYPE_NAME(ob));
+    return option_none();
   }
-  LLVMShutdown();
-  module_uninstall("jit");
+
+  MethodObject *meth = (MethodObject *)ob;
+  if (!module_check(meth->owner)) {
+    warn("[KOALA-JIT]: only Function supported.");
+    return option_none();
+  }
+
+  if (meth->kind == JITFUNC_KIND) {
+    debug("[KOALA-JIT]: already jit function");
+    return option_some(ob);
+  }
+
+  if (meth->kind != KFUNC_KIND) {
+    warn("[KOALA-JIT]: only Koala Function supported.");
+    return option_none();
+  }
+
+  CodeObject *co = meth->ptr;
+  if (!jit_support(co)) {
+    return option_none();
+  }
+
+  Translate trans = {0};
+  trans.co = co;
+  split_blocks(&trans);
+
+  void *mcptr = translate(co);
+  if (mcptr == NULL) {
+    warn("[KOALA-JIT]: '%s' is translated failed.", meth->name);
+    return option_none();
+  }
+
+  jit_func_t *fninfo = jit_get_func(mcptr, meth->desc);
+  method_update_jit(meth, do_jit_func, fninfo);
+  return option_some(ob);
 }

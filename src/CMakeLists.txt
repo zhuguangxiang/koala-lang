@@ -25,7 +25,7 @@ SET(KOALA_OBJECTS_SOURCES
 
 SET(KOALA_BUILTIN_MODULES
   langmodule.c sysmodule.c iomodule.c fmtmodule.c modules/assertmodule.c
-  testnative.c fsmodule.c jit.c)
+  testnative.c fsmodule.c jit_llvm.c jit_ffi.c jit.c)
 
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c
