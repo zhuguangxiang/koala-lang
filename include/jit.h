@@ -33,7 +33,8 @@ extern "C" {
 #endif
 
 Object *jit_go(Object *self, Object *args);
-void jit_shutdown(void);
+void jit_initialize(void);
+void jit_finalize(void);
 
 #ifdef __cplusplus
 }

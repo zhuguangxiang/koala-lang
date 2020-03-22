@@ -158,7 +158,7 @@ static Object *_exit_(Object *self, Object *arg)
 }
 
 static MethodDef lang_methods[] = {
-  {"disasm", "A", NULL, disassemble},
+  {"asm", "A", NULL, disassemble},
   {"help", "A", NULL, help},
   {"exit", NULL, NULL, _exit_},
   {"jit", "A", "Llang.Option(Llang.Method;);", jit_go},
@@ -201,6 +201,5 @@ void init_lang_module(void)
 
 void fini_lang_module(void)
 {
-  jit_shutdown();
   module_uninstall("lang");
 }

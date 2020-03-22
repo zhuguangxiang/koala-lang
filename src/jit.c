@@ -22,94 +22,12 @@
  SOFTWARE.
 */
 
-#include <llvm-c/Core.h>
-#include <llvm-c/ExecutionEngine.h>
-#include <llvm-c/Target.h>
-#include <llvm-c/Analysis.h>
-#include <llvm-c/BitWriter.h>
-
 #include "koala.h"
 #include "opcode.h"
 #include "jit.h"
+#include "jit_llvm.h"
 
-static LLVMExecutionEngineRef engine;
-static LLVMModuleRef llvmmod;
-
-static inline LLVMModuleRef llvm_module(void)
-{
-  if (llvmmod == NULL) {
-    llvmmod = LLVMModuleCreateWithName("koala_jit_module");
-  }
-  return llvmmod;
-}
-
-static inline LLVMExecutionEngineRef llvm_engine(void)
-{
-  char *error = NULL;
-  if (engine == NULL) {
-    LLVMLinkInMCJIT();
-    LLVMInitializeNativeTarget();
-    LLVMInitializeNativeAsmPrinter();
-    LLVMInitializeNativeAsmParser();
-    LLVMCreateExecutionEngineForModule(&engine, llvm_module(), &error);
-  }
-  return engine;
-}
-
-static inline void *llvm_code(const char *name)
-{
-  return (void *)LLVMGetFunctionAddress(llvm_engine(), name);
-}
-
-static void *llvm_function_name(CodeObject *co)
-{
-  char *name;
-  if (co->longname != NULL) {
-    name = co->longname;
-  } else {
-    Object *mo = co->module;
-    STRBUF(sbuf);
-    strbuf_append(&sbuf, MODULE_PATH(mo));
-    strbuf_append(&sbuf, "::");
-    strbuf_append(&sbuf, co->name);
-    name = atom(strbuf_tostr(&sbuf));
-    strbuf_fini(&sbuf);
-    co->longname = name;
-  }
-  return name;
-}
-
-static LLVMTypeRef llvm_type(TypeDesc *desc)
-{
-  return LLVMInt64Type();
-}
-
-static LLVMValueRef llvm_function(CodeObject *co)
-{
-  TypeDesc *desc = co->proto;
-  Vector *args = desc->proto.args;
-  int argc = vector_size(args);
-  TypeDesc *type;
-  LLVMTypeRef params[argc];
-  for (int i = 0; i < argc; i++) {
-    type = vector_get(args, i);
-    params[i] = llvm_type(type);
-  }
-
-  type = desc->proto.ret;
-  LLVMTypeRef ret = LLVMFunctionType(llvm_type(type), params, argc, 0);
-  return LLVMAddFunction(llvm_module(), llvm_function_name(co), ret);
-}
-
-void jit_shutdown(void)
-{
-  if (engine != NULL)
-    LLVMDisposeExecutionEngine(engine);
-  LLVMShutdown();
-  fini_jit_ffi();
-}
-
-static Object *do_jit_func(Object *self, Object *args, void *jitptr)
+static Object *jit_func_wrapper(Object *self, Object *args, void *jitptr)
 {
   jit_func_t *fninfo = jitptr;
   return jit_ffi_call(fninfo, args);
@@ -128,6 +46,12 @@ static Object *do_jit_func(Object *self, Object *args, void *jitptr)
   index += 2; \
   v; \
 })
+
+#define POP()   vector_pop_back(&ctx.stack)
+#define PUSH(v) vector_push_back(&ctx.stack, v)
+
+#define GETLOCAL(i) vector_get(&ctx.locals, i)
+#define SETLOCAL(i, v) vector_set(&ctx.locals, i, v)
 
 typedef struct translate {
   void *engine;
@@ -307,6 +231,113 @@ static void translate_basicblock()
 
 }
 
+static JITFunction *translate(CodeObject *co)
+{
+  uint8_t *codes = co->codes;
+  Object *consts = co->consts;
+  int size = co->size;
+  int index = 0;
+  uint8_t op;
+  int oparg;
+  Object *x, *y, *z;
+
+  JITContext ctx;
+  JITFunction *fn = jit_function(co);
+  jit_context_init(&ctx, fn);
+
+  JITValue *val, *lhs, *rhs;
+  JITInstruction *inst;
+  JITBlock *curblk = vector_get(&fn->blocks, ctx.curblk);
+
+  while (index < size) {
+    op = NEXT_OP();
+    switch (op) {
+    case OP_LOAD_CONST: {
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      val = jit_const(x);
+      PUSH(val);
+      OB_DECREF(x);
+      break;
+    }
+    case OP_LOAD: {
+      oparg = NEXT_BYTE();
+      val = GETLOCAL(oparg);
+      PUSH(val);
+      break;
+    }
+    case OP_LOAD_0: {
+      val = GETLOCAL(0);
+      PUSH(val);
+      break;
+    }
+    case OP_LOAD_1: {
+      val = GETLOCAL(1);
+      PUSH(val);
+      break;
+    }
+    case OP_LOAD_2: {
+      val = GETLOCAL(2);
+      PUSH(val);
+      break;
+    }
+    case OP_LOAD_3: {
+      val = GETLOCAL(3);
+      PUSH(val);
+      break;
+    }
+    case OP_STORE: {
+      oparg = NEXT_BYTE();
+      val = POP();
+      SETLOCAL(oparg, val);
+      break;
+    }
+    case OP_STORE_0: {
+      val = POP();
+      SETLOCAL(0, val);
+      break;
+    }
+    case OP_STORE_1: {
+      val = POP();
+      SETLOCAL(1, val);
+      break;
+    }
+    case OP_STORE_2: {
+      val = POP();
+      SETLOCAL(2, val);
+      break;
+    }
+    case OP_STORE_3: {
+      val = POP();
+      SETLOCAL(3, val);
+      break;
+    }
+    case OP_RETURN_VALUE: {
+      val = POP();
+      jit_inst_ret(curblk, val);
+      break;
+    }
+    case OP_ADD: {
+      lhs = POP();
+      rhs = POP();
+      inst = jit_inst_add(curblk, lhs, rhs);
+      PUSH(inst->ret);
+      break;
+    }
+    default: {
+      panic("invalid op: %d", op);
+      break;
+    }
+    }
+  }
+
+  jit_emit_ir(&ctx);
+
+  jit_context_fini(&ctx);
+  return fn;
+}
+
+/*
 static void *translate(CodeObject *co)
 {
   LLVMModuleRef mod = llvm_module();
@@ -525,10 +556,27 @@ static void *translate(CodeObject *co)
       x = tuple_get(consts, oparg);
       oparg = NEXT_BYTE();
       vector_pop_back(&stack);
-      val = vector_pop_back(&stack);
+      v1 = vector_pop_back(&stack);
+      v2 = vector_pop_back(&stack);
       printf("call:%s\n", string_asstr(x));
-      LLVMValueRef call_args[1] = {val};
-      val = LLVMBuildCall(builder, func, call_args, 1, string_asstr(x));
+      LLVMValueRef call_args[2] = {v1, v2};
+
+      int argc;
+      LLVMValueRef *args;
+      LLVMValueRef fn = NULL;
+      LLVMFindFunction(llvm_engine(), string_asstr(x), &fn);
+      if (fn == NULL) {
+        LLVMValueRef kfunc_args[4] = {};
+        args = kfunc_args;
+        argc = 4;
+        fn = jit_kfunc_entry();
+      } else {
+        LLVMValueRef llvm_args[oparg];
+
+        args = llvm_args;
+        argc = oparg
+      }
+      val = LLVMBuildCall(builder, fn, args, argc, string_asstr(x));
       vector_push_back(&stack, val);
       OB_DECREF(x);
       break;
@@ -546,11 +594,15 @@ static void *translate(CodeObject *co)
   LLVMDisposeMessage(error);
   LLVMDumpModule(mod);
 
+  void *v = LLVMRecompileAndRelinkFunction(llvm_engine(), kfunc);
+  printf("%p\n", v);
   void *ptr = (void *)LLVMGetFunctionAddress(llvm_engine(), llvm_function_name(co));
+
   vector_fini(&stack);
   vector_fini(&locvars);
   return ptr;
 }
+*/
 
 /*
   func go(f any) Option<Method>
@@ -584,6 +636,10 @@ Object *jit_go(Object *self, Object *args)
     return option_none();
   }
 
+  JITFunction *fn = translate(co);
+  jit_free_function(fn);
+
+  /*
   Translate trans = {0};
   trans.co = co;
   split_blocks(&trans);
@@ -595,6 +651,19 @@ Object *jit_go(Object *self, Object *args)
   }
 
   jit_func_t *fninfo = jit_get_func(mcptr, meth->desc);
-  method_update_jit(meth, do_jit_func, fninfo);
+  method_update_jit(meth, jit_func_wrapper, fninfo);
+  */
+
   return option_some(ob);
+}
+
+void jit_initialize(void)
+{
+  init_jit_llvm();
+}
+
+void jit_finalize(void)
+{
+  fini_jit_llvm();
+  fini_jit_ffi();
 }

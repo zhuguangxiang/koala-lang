@@ -41,7 +41,7 @@ static int __vector_maybe_expand(Vector *self, int extrasize)
 
   int capacity;
   if (self->capacity != 0)
-    capacity = self->capacity << 2;
+    capacity = self->capacity << 1;
   else
     capacity = VECTOR_MINIMUM_CAPACITY;
 
@@ -56,6 +56,13 @@ static int __vector_maybe_expand(Vector *self, int extrasize)
   self->items = items;
   self->capacity = capacity;
   return 0;
+}
+
+void vector_init_capacity(Vector *self, int capacity)
+{
+  self->capacity = capacity;
+  self->size = capacity;
+  self->items = kmalloc(capacity * sizeof(void *));
 }
 
 void vector_fini(Vector *self)

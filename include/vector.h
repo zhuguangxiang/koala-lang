@@ -55,6 +55,11 @@ static inline void vector_init(Vector *self)
   memset(self, 0, sizeof(Vector));
 }
 
+/* Initialize a vector with capacity, and items ara allocated.
+ * It's accessed randomly at 0 ..< capacity
+ */
+void vector_init_capacity(Vector *self, int capacity);
+
 /* Destroy a vector */
 void vector_fini(Vector *self);
 
