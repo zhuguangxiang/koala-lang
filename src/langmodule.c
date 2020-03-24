@@ -158,7 +158,7 @@ static Object *_exit_(Object *self, Object *arg)
 }
 
 static MethodDef lang_methods[] = {
-  {"asm", "A", NULL, disassemble},
+  {"dis", "A", NULL, disassemble},
   {"help", "A", NULL, help},
   {"exit", NULL, NULL, _exit_},
   {"jit", "A", "Llang.Option(Llang.Method;);", jit_go},

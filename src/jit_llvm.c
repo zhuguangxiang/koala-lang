@@ -29,7 +29,7 @@ JITType JITByteType   = {NULL, 1, "byte" };
 JITType JITFloatType  = {NULL, 1, "float"};
 JITType JITBoolType   = {NULL, 1, "bool" };
 JITType JITCharType   = {NULL, 1, "char" };
-JITType JITStrType    = {NULL, 1, "str"  };
+JITType JITStrType    = {NULL, 0, "str"  };
 JITType JITKlassType  = {NULL, 0, "klass"};
 
 static void init_types(void)
@@ -39,7 +39,7 @@ static void init_types(void)
   JITFloatType.lltype = LLVMDoubleType();
   JITBoolType.lltype  = LLVMInt8Type();
   JITCharType.lltype  = LLVMInt32Type();
-  JITStrType.lltype   = LLVMStringType();
+  JITStrType.lltype   = LLVMVoidPtrType();
   JITKlassType.lltype = LLVMVoidPtrType();
 }
 
@@ -162,34 +162,6 @@ static LLVMExecutionEngineRef llvm_engine(void)
   return gstate.engine;
 }
 
-static char *function_name(CodeObject *co)
-{
-  char *name;
-  if (co->longname != NULL) {
-    name = co->longname;
-  } else {
-    Object *mo = co->module;
-    STRBUF(sbuf);
-    strbuf_append(&sbuf, MODULE_PATH(mo));
-    strbuf_append(&sbuf, "::");
-    if (co->type != NULL) {
-      strbuf_append(&sbuf, co->type->name);
-      strbuf_append(&sbuf, "::");
-    }
-    strbuf_append(&sbuf, co->name);
-    name = atom(strbuf_tostr(&sbuf));
-    strbuf_fini(&sbuf);
-    co->longname = name;
-  }
-  return name;
-}
-
-void *jit_emit_code(JITFunction *func)
-{
-  char *name = function_name(func->co);
-  return (void *)LLVMGetFunctionAddress(llvm_engine(), name);
-}
-
 static void init_wheels(void)
 {
   LLVMTypeRef proto;
@@ -208,7 +180,7 @@ static void init_wheels(void)
   gstate.decref = llvm_cfunction("kobj_decref", proto, kobj_decref);
 
   // void kobj_incref(void *self);
-  gstate.decref = llvm_cfunction("kobj_incref", proto, kobj_incref);
+  gstate.incref = llvm_cfunction("kobj_incref", proto, kobj_incref);
 
   // void jit_initargs(void *args[], int32_t argc);
   params[0] = LLVMVoidPtrPtrType();
@@ -234,45 +206,34 @@ void fini_jit_llvm(void)
   LLVMShutdown();
 }
 
-JITValue *jit_const(Object *ob)
+LLVMValueRef jit_const(Object *ob)
 {
-  JITValue *val = kmalloc(sizeof(JITValue));
-  val->konst = 1;
-  val->ob = ob;
-
   if (integer_check(ob)) {
-    val->type = JITIntType;
     int64_t ival = integer_asint(ob);
-    val->llvalue = LLVMConstInt(JITIntType.lltype, ival, 1);
+    return LLVMConstInt(JITIntType.lltype, ival, 1);
   } else if (byte_check(ob)) {
-    val->type = JITByteType;
     int8_t bval = byte_asint(ob);
-    val->llvalue = LLVMConstInt(JITByteType.lltype, bval, 0);
+    return LLVMConstInt(JITByteType.lltype, bval, 0);
   } else if (bool_check(ob)) {
-    val->type = JITBoolType;
     int8_t zval = bool_istrue(ob);
-    val->llvalue = LLVMConstInt(JITBoolType.lltype, zval, 0);
+    return LLVMConstInt(JITBoolType.lltype, zval, 0);
   } else if (float_check(ob)) {
-    val->type = JITFloatType;
     double fval = float_asflt(ob);
-    val->llvalue = LLVMConstReal(JITFloatType.lltype, fval);
+    return LLVMConstReal(JITFloatType.lltype, fval);
   } else if (char_check(ob)) {
-    val->type = JITCharType;
     int32_t ival = char_asch(ob);
-    val->llvalue = LLVMConstInt(JITCharType.lltype, ival, 0);
+    return LLVMConstInt(JITCharType.lltype, ival, 0);
   } else if (string_check(ob)) {
     // LLVMConstString is (u8*) ?
-    val->type = JITStrType;
     char *sval = string_asstr(ob);
-    val->llvalue = LLVMConstString(sval, strlen(sval), 0);
+    return LLVMConstString(sval, strlen(sval), 0);
   } else {
     panic("MUST not here!!");
+    return NULL;
   }
-
-  return val;
 }
 
-JITValue *jit_variable(char *name, JITType type)
+JITValue *jit_value(char *name, JITType type)
 {
   JITValue *var = kmalloc(sizeof(JITValue));
   var->konst = 0;
@@ -282,47 +243,57 @@ JITValue *jit_variable(char *name, JITType type)
   return var;
 }
 
-JITValue *jit_param(char *name, JITType type, LLVMValueRef val)
-{
-  JITValue *var = jit_variable(name, type);
-  var->llvalue = val;
-  return var;
-}
-
 void jit_free_value(JITValue *val)
 {
   kfree(val);
 }
 
-static void jit_decref(LLVMBuilderRef builder, JITValue *val)
+static void jit_decref(JITContext *ctx, JITValue *var)
 {
+  printf("decref object:%s\n", var->name);
+  LLVMBuilderRef builder = ctx->builder;
   LLVMFunction *cf = &gstate.decref;
-  LLVMBuildCall2(builder, cf->proto, cf->llfunc, &val->llvalue, 1, cf->name);
+  LLVMValueRef params[] = {var->llvalue};
+  LLVMBuildCall2(builder, cf->proto, cf->llfunc, params, 1, "");
 }
 
-static
-void jit_store_value(LLVMBuilderRef builder, JITValue *dest, JITValue *src)
+void jit_store_value(JITContext *ctx, JITValue *var, LLVMValueRef val)
 {
-  if (dest->konst) {
-    panic("[JIT]: target of store is constant");
+  LLVMBuilderRef builder = ctx->builder;
+  JITType type = var->type;
+  if (!type.basic && var->llvalue != NULL) {
+    // decrease object refcnt
+    jit_decref(ctx, var);
   }
+  var->llvalue = val;
+}
 
-  JITType dtype = dest->type;
-  JITType stype = src->type;
-  if (dtype.str != stype.str) {
-    panic("[JIT]: types of target and source are not the same");
-  }
-
-  if (dest->llvalue == NULL) {
-    dest->llvalue = LLVMBuildAlloca(builder, dtype.lltype, dest->name);
+static char *function_name(CodeObject *co)
+{
+  char *name;
+  if (co->longname != NULL) {
+    name = co->longname;
   } else {
-    if (!dtype.basic) {
-      // decrease object refcnt
-      jit_decref(builder, dest);
+    Object *mo = co->module;
+    STRBUF(sbuf);
+    strbuf_append(&sbuf, MODULE_PATH(mo));
+    strbuf_append(&sbuf, ".");
+    if (co->type != NULL) {
+      strbuf_append(&sbuf, co->type->name);
+      strbuf_append(&sbuf, ".");
     }
+    strbuf_append(&sbuf, co->name);
+    name = atom(strbuf_tostr(&sbuf));
+    strbuf_fini(&sbuf);
+    co->longname = name;
   }
-  LLVMBuildStore(builder, src->llvalue, dest->llvalue);
-  dest->ob = src->ob;
+  return name;
+}
+
+void *jit_emit_code(JITFunction *func)
+{
+  char *name = function_name(func->co);
+  return (void *)LLVMGetFunctionAddress(llvm_engine(), name);
 }
 
 LLVMFunction llvm_function(char *name, LLVMTypeRef proto)
@@ -366,10 +337,6 @@ JITFunction *jit_function(CodeObject *co)
   f->func = llvm_function(function_name(co), llproto);
   f->co = co;
 
-  // create default block
-  JITBlock *blk = jit_block("entry");
-  vector_push_back(&f->blocks, blk);
-  f->root = blk;
   return f;
 }
 
@@ -383,9 +350,18 @@ void jit_context_init(JITContext *ctx, JITFunction *f)
 {
   CodeObject *co = f->co;
 
+  vector_init(&ctx->stack);
+  ctx->func = f;
+  // create default block
+  ctx->curblk = 0;
+  vector_init(&ctx->blocks);
+  JITBlock *blk = jit_block(ctx, "entry");
+  ctx->builder = LLVMCreateBuilder();
+  LLVMPositionBuilderAtEnd(ctx->builder, blk->bb);
+
   int num = vector_size(&co->locvec);
   vector_init_capacity(&ctx->locals, num);
-
+  // initialize local variables, include arguments.
   Vector *locvars = &co->locvec;
   LocVar *locvar;
   JITType type;
@@ -393,100 +369,46 @@ void jit_context_init(JITContext *ctx, JITFunction *f)
   for (int i = 0; i < num; ++i) {
     locvar = vector_get(locvars, i);
     type = jit_type(locvar->desc);
-    var = jit_variable(locvar->name, type);
+    var = jit_value(locvar->name, type);
     vector_set(&ctx->locals, i + 1, var);
   }
 
+  // initialize arguments
   LLVMValueRef llfunc = f->func.llfunc;
   int args = LLVMCountParams(llfunc);
   LLVMValueRef llvalue;
   for (int i = 0; i < args; ++i) {
     var = vector_get(&ctx->locals, i + 1);
     llvalue = LLVMGetParam(llfunc, i);
-    var->llvalue = llvalue;
     LLVMSetValueName2(llvalue, var->name, strlen(var->name));
+    var->llvalue = llvalue;
   }
-
-  vector_init(&ctx->stack);
-  ctx->func = f;
-  ctx->curblk = 0;
 }
 
 void jit_context_fini(JITContext *ctx)
 {
+  LLVMDisposeBuilder(ctx->builder);
   vector_fini(&ctx->locals);
   expect(vector_size(&ctx->stack) == 0);
   vector_fini(&ctx->stack);
 }
 
-JITBlock *jit_block(char *label)
+JITBlock *jit_block(JITContext *ctx, char *label)
 {
+  JITFunction *f = ctx->func;
+  LLVMFunction *func = &f->func;
   JITBlock *blk = kmalloc(sizeof(JITBlock));
   blk->label = label;
+  blk->index = vector_size(&ctx->blocks);
+  blk->func = f;
+  blk->bb = LLVMAppendBasicBlock(func->llfunc, blk->label);
+  vector_push_back(&ctx->blocks, blk);
   return blk;
 }
 
 void jit_free_block(JITBlock *blk)
 {
   free(blk);
-}
-
-void jit_block_add(JITBlock *blk, JITInstruction *inst)
-{
-  vector_push_back(&blk->insts, inst);
-}
-
-#define JIT_ADD  1
-#define JIT_SUB  2
-#define JIT_MUL  3
-#define JIT_RET  4
-
-const char *opnames[] = {
-  NULL,
-  "add",
-  "sub",
-  "mul",
-  "ret",
-};
-
-static inline
-JITInstruction *jit_inst(int op, JITValue *lhs, JITValue *rhs, JITValue *ret)
-{
-  JITInstruction *inst = kmalloc(sizeof(JITInstruction));
-  inst->op = op;
-  inst->opname = opnames[op];
-  inst->lhs = lhs;
-  inst->rhs = rhs;
-  inst->ret = ret;
-  return inst;
-}
-
-void jit_free_inst(JITInstruction *inst)
-{
-  kfree(inst);
-}
-
-JITInstruction *jit_inst_add(JITBlock *blk, JITValue *lhs, JITValue *rhs)
-{
-  JITInstruction *inst = jit_inst(JIT_ADD, lhs, rhs, NULL);
-  inst->ret = jit_variable("tmp", lhs->type);
-  jit_block_add(blk, inst);
-  return inst;
-}
-
-JITInstruction *jit_inst_sub(JITBlock *blk, JITValue *lhs, JITValue *rhs)
-{
-  JITInstruction *inst = jit_inst(JIT_SUB, lhs, rhs, NULL);
-  inst->ret = jit_variable("tmp", lhs->type);
-  jit_block_add(blk, inst);
-  return inst;
-}
-
-JITInstruction *jit_inst_ret(JITBlock *blk, JITValue *ret)
-{
-  JITInstruction *inst = jit_inst(JIT_RET, NULL, NULL, ret);
-  jit_block_add(blk, inst);
-  return inst;
 }
 
 /*
@@ -505,7 +427,7 @@ void maybe_handle_refcnt(LLVMBuilderRef builder, Vector *locals)
 }
 */
 
-static void jit_verify_ir(void)
+void jit_verify_ir(void)
 {
   char *errmsg = NULL;
   int res = LLVMVerifyModule(llvm_module(), LLVMReturnStatusAction, &errmsg);
@@ -516,46 +438,4 @@ static void jit_verify_ir(void)
 //#if !defined(NLog)
   LLVMDumpModule(llvm_module());
 //#endif
-}
-
-void jit_emit_ir(JITContext *ctx)
-{
-  JITFunction *fn = ctx->func;
-  LLVMFunction *func = &fn->func;
-  JITInstruction *inst;
-  JITBlock *blk;
-  LLVMValueRef lhs;
-  LLVMValueRef rhs;
-
-  LLVMBuilderRef builder = LLVMCreateBuilder();
-  vector_for_each(blk, &fn->blocks) {
-    if (blk->bb == NULL) {
-      blk->bb = LLVMAppendBasicBlock(func->llfunc, blk->label);
-    }
-    LLVMPositionBuilderAtEnd(builder, blk->bb);
-    vector_for_each(inst, &blk->insts) {
-      switch (inst->op) {
-      case JIT_ADD: {
-        lhs = inst->lhs->llvalue;
-        rhs = inst->rhs->llvalue;
-        lhs = LLVMBuildAdd(builder, lhs, rhs, "tmp");
-        inst->ret->llvalue = lhs;
-        break;
-      }
-      case JIT_RET: {
-        // reference counting
-        //maybe_handle_refcnt(builder, &ctx->locals);
-        LLVMBuildRet(builder, inst->ret->llvalue);
-        break;
-      }
-      default:
-        panic("MUST not here!!");
-        break;
-      }
-    }
-  }
-  LLVMDisposeBuilder(builder);
-
-  // verify ir
-  jit_verify_ir();
 }

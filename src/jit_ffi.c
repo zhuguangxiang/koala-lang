@@ -53,18 +53,17 @@ static void *bool_value(Object *ob)
   return val;
 }
 
-static void *str_value(Object *ob)
-{
-  char *s = string_asstr(ob);
-  char *val = kmalloc(strlen(s) + 1);
-  strcpy(val, s);
-  return val;
-}
-
 static void *char_value(Object *ob)
 {
   uint32_t *val = kmalloc(sizeof(uint32_t));
   *val = char_asch(ob);
+  return val;
+}
+
+static void *klass_value(Object *ob)
+{
+  void *val = kmalloc(sizeof(void *));
+  *(void **)val = ob;
   return val;
 }
 
@@ -84,9 +83,9 @@ static struct base_mapping {
   {BASE_BYTE,   &ffi_type_uint8,    byte_value,   int_object},
   {BASE_FLOAT,  &ffi_type_double,   float_value,  int_object},
   {BASE_BOOL,   &ffi_type_uint8,    bool_value,   int_object},
-  {BASE_STR,    &ffi_type_pointer,  str_value,    int_object},
+  {BASE_STR,    &ffi_type_pointer,  klass_value,  int_object},
   {BASE_CHAR,   &ffi_type_uint32,   char_value,   int_object},
-  {BASE_ANY,    &ffi_type_pointer,  NULL,         int_object},
+  {BASE_ANY,    &ffi_type_pointer,  klass_value,  int_object},
   {0,           NULL,               NULL,         int_object},
 };
 
@@ -115,7 +114,7 @@ static void *obj_to_val(Object *ob, TypeDesc *desc)
 {
   if (!desc_isbase(desc)) {
     // koala's klass ?
-    return NULL;
+    return klass_value(ob);
   }
 
   // koala's type is base type

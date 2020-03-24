@@ -50,8 +50,15 @@ static Object *jit_func_wrapper(Object *self, Object *args, void *jitptr)
 #define POP()   vector_pop_back(&ctx.stack)
 #define PUSH(v) vector_push_back(&ctx.stack, v)
 
-#define GETLOCAL(i) vector_get(&ctx.locals, i)
-#define SETLOCAL(i, v) vector_set(&ctx.locals, i, v)
+#define GETLOCAL(i) ({ \
+  JITValue *var = vector_get(&ctx.locals, i); \
+  var->llvalue; \
+})
+
+#define SETLOCAL(i, v) ({\
+  JITValue *var = vector_get(&ctx.locals, i); \
+  jit_store_value(&ctx, var, (v)); \
+})
 
 typedef struct translate {
   void *engine;
@@ -245,9 +252,9 @@ static JITFunction *translate(CodeObject *co)
   JITFunction *fn = jit_function(co);
   jit_context_init(&ctx, fn);
 
-  JITValue *val, *lhs, *rhs;
-  JITInstruction *inst;
-  JITBlock *curblk = vector_get(&fn->blocks, ctx.curblk);
+  JITValue *var;
+  LLVMValueRef val, lhs, rhs;
+  LLVMBuilderRef builder = ctx.builder;
 
   while (index < size) {
     op = NEXT_OP();
@@ -314,14 +321,14 @@ static JITFunction *translate(CodeObject *co)
     }
     case OP_RETURN_VALUE: {
       val = POP();
-      jit_inst_ret(curblk, val);
+      LLVMBuildRet(builder, val);
       break;
     }
     case OP_ADD: {
       lhs = POP();
       rhs = POP();
-      inst = jit_inst_add(curblk, lhs, rhs);
-      PUSH(inst->ret);
+      val = LLVMBuildAdd(builder, lhs, rhs, "tmp");
+      PUSH(val);
       break;
     }
     default: {
@@ -331,8 +338,7 @@ static JITFunction *translate(CodeObject *co)
     }
   }
 
-  jit_emit_ir(&ctx);
-
+  jit_verify_ir();
   jit_context_fini(&ctx);
   return fn;
 }
@@ -637,14 +643,7 @@ Object *jit_go(Object *self, Object *args)
   }
 
   JITFunction *fn = translate(co);
-  jit_free_function(fn);
-
-  /*
-  Translate trans = {0};
-  trans.co = co;
-  split_blocks(&trans);
-
-  void *mcptr = translate(co);
+  void *mcptr = jit_emit_code(fn);
   if (mcptr == NULL) {
     warn("[KOALA-JIT]: '%s' is translated failed.", meth->name);
     return option_none();
@@ -652,8 +651,7 @@ Object *jit_go(Object *self, Object *args)
 
   jit_func_t *fninfo = jit_get_func(mcptr, meth->desc);
   method_update_jit(meth, jit_func_wrapper, fninfo);
-  */
-
+  jit_free_function(fn);
   return option_some(ob);
 }
 

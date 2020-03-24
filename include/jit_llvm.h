@@ -64,7 +64,6 @@ typedef struct jitvalue {
   LLVMValueRef llvalue;
   JITType type;
   int konst;
-  Object *ob;
   char *name;
 } JITValue;
 
@@ -73,8 +72,6 @@ typedef struct jitfunction {
   GVector argtypes;
   JITType rettype;
   LLVMFunction func;
-  struct jitblock *root;
-  Vector blocks;
 } JITFunction;
 
 /*
@@ -85,30 +82,22 @@ typedef struct jitfunction {
  */
 typedef struct jitblock {
   char *label;
-  JITFunction *fn;
   int index;
+  JITFunction *func;
+  LLVMBasicBlockRef bb;
   int start;
   int end;
   struct jitblock *parent;
-  struct jitblock *next;
   Vector children;
-  Vector insts;
-  LLVMBasicBlockRef bb;
 } JITBlock;
-
-typedef struct jitinstruction {
-  int op;
-  const char *opname;
-  JITValue *lhs;
-  JITValue *rhs;
-  JITValue *ret;
-} JITInstruction;
 
 typedef struct jitcontext {
   Vector locals;
   Vector stack;
   JITFunction *func;
   int curblk;
+  Vector blocks;
+  LLVMBuilderRef builder;
 } JITContext;
 
 void init_jit_llvm(void);
@@ -143,25 +132,21 @@ void jit_context_init(JITContext *ctx, JITFunction *f);
 void jit_context_fini(JITContext *ctx);
 
 JITType jit_type(TypeDesc *desc);
-JITValue *jit_const(Object *ob);
-JITValue *jit_variable(char *name, JITType type);
-JITValue *jit_param(char *name, JITType type, LLVMValueRef val);
+LLVMValueRef jit_const(Object *ob);
+JITValue *jit_value(char *name, JITType type);
 void jit_free_value(JITValue *val);
+void jit_store_value(JITContext *ctx, JITValue *var, LLVMValueRef val);
 
 LLVMFunction llvm_function(char *name, LLVMTypeRef proto);
 LLVMFunction llvm_cfunction(char *name, LLVMTypeRef proto, void *addr);
 JITFunction *jit_function(CodeObject *co);
+void *jit_emit_code(JITFunction *func);
 void jit_free_function(JITFunction *func);
 
-JITBlock *jit_block(char *label);
+JITBlock *jit_block(JITContext *ctx, char *label);
 void jit_free_block(JITBlock *blk);
 
-void jit_free_inst(JITInstruction *inst);
-JITInstruction *jit_inst_add(JITBlock *blk, JITValue *lhs, JITValue *rhs);
-JITInstruction *jit_inst_sub(JITBlock *blk, JITValue *lhs, JITValue *rhs);
-JITInstruction *jit_inst_ret(JITBlock *blk, JITValue *ret);
-
-void jit_emit_ir(JITContext *ctx);
+void jit_verify_ir(void);
 
 #ifdef __cplusplus
 }

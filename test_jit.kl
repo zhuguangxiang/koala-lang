@@ -1,6 +1,20 @@
 
+gval := 100
+
+func sum2(a int, b int) int {
+  val := 100 + a
+  val = 200
+  //a = 555
+  return a + b + val;
+}
+
 func sum(a int, b int) int {
-  return a - b
+  c := 200 + 300
+  return a + b + c
+}
+
+func add(a int, b int) int {
+  sum(a, b)
 }
 
 sum(10, 20)
@@ -17,9 +31,25 @@ func fib(n int) int {
 
 fib(30)
 jit(fib)
-fib(50)
+fib(40)
 
 if Option.Some(fn) ~= opt {
   io.println(fn)
   fn(10, -20)
 }
+
+
+class Pet {
+  age int
+}
+
+func testklass(p Pet, age int) int {
+  p2 := p
+  p2 = p
+  return 100
+}
+
+p := new Pet()
+p.age = 120
+jit(testklass)
+testklass(p, 100)
