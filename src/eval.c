@@ -258,7 +258,7 @@ static Object *_new_object_(CallFrame *f, TypeDesc *desc)
   } else if (type == &map_type) {
     TypeDesc *kdesc = vector_get(desc->klass.typeargs, 0);
     TypeDesc *vdesc = vector_get(desc->klass.typeargs, 1);
-    ret= map_new(kdesc, vdesc);
+    ret = map_new(kdesc, vdesc);
   } else if (type == &tuple_type) {
     ret = tuple_new(0);
   } else {
@@ -1085,9 +1085,8 @@ Object *Koala_EvalFrame(CallFrame *f)
         y = POP();
       }
       desc = descob_getdesc(x);
-      //expect(desc->paras == NULL);
       if (desc_isbase(desc)) {
-        expect(desc = OB_TYPE(y)->desc);
+        expect(desc == OB_TYPE(y)->desc);
         z = OB_INCREF(y);
       } else {
         expect(desc->kind == TYPE_KLASS);

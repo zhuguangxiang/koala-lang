@@ -73,24 +73,63 @@ static Object *int_object(void *ptr)
   return integer_new(val);
 }
 
+static Object *byte_object(void *ptr)
+{
+  uint8_t val = *(uint8_t *)ptr;
+  return byte_new(val);
+}
+
+static Object *float_object(void *ptr)
+{
+  double val = *(double *)ptr;
+  return float_new(val);
+}
+
+static Object *bool_object(void *ptr)
+{
+  uint8_t val = *(uint8_t *)ptr;
+  return val ? bool_true() : bool_false();
+}
+
+static Object *str_object(void *ptr)
+{
+  char *s = *(char **)ptr;
+  return string_new(s);
+}
+
+static Object *char_object(void *ptr)
+{
+  uint32_t val = *(uint32_t *)ptr;
+  return char_new(val);
+}
+
+static Object *klass_object(void *ptr)
+{
+  return *(void **)ptr;
+}
+
 static struct base_mapping {
   int kind;
   ffi_type *type;
   void *(*value)(Object *);
   Object *(*object)(void *);
 } base_mappings[] = {
-  {BASE_INT,    &ffi_type_sint64,   int_value,    int_object},
-  {BASE_BYTE,   &ffi_type_uint8,    byte_value,   int_object},
-  {BASE_FLOAT,  &ffi_type_double,   float_value,  int_object},
-  {BASE_BOOL,   &ffi_type_uint8,    bool_value,   int_object},
-  {BASE_STR,    &ffi_type_pointer,  klass_value,  int_object},
-  {BASE_CHAR,   &ffi_type_uint32,   char_value,   int_object},
-  {BASE_ANY,    &ffi_type_pointer,  klass_value,  int_object},
-  {0,           NULL,               NULL,         int_object},
+  {BASE_INT,    &ffi_type_sint64,   int_value,    int_object  },
+  {BASE_BYTE,   &ffi_type_uint8,    byte_value,   byte_object },
+  {BASE_FLOAT,  &ffi_type_double,   float_value,  float_object},
+  {BASE_BOOL,   &ffi_type_uint8,    bool_value,   bool_object },
+  {BASE_STR,    &ffi_type_pointer,  klass_value,  str_object  },
+  {BASE_CHAR,   &ffi_type_uint32,   char_value,   char_object },
+  {BASE_ANY,    &ffi_type_pointer,  klass_value,  klass_object},
+  {0,           NULL,               NULL,         NULL        },
 };
 
-ffi_type *jit_ffi_type(TypeDesc *desc)
+static ffi_type *jit_ffi_type(TypeDesc *desc)
 {
+  if (desc == NULL) {
+    return &ffi_type_void;
+  }
+
   if (!desc_isbase(desc)) {
     // type of koala's klass maybe ffi_type_pointer of struct.
     return &ffi_type_pointer;
@@ -133,9 +172,14 @@ static void *obj_to_val(Object *ob, TypeDesc *desc)
 
 static Object *val_to_obj(void *rval, TypeDesc *desc)
 {
+  if (desc == NULL) {
+    expect(*(int **)rval == NULL);
+    return NULL;
+  }
+
   if (!desc_isbase(desc)) {
     // koala's klass ?
-    return NULL;
+    return *(void **)rval;
   }
 
   // koala's type is base type

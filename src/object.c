@@ -262,7 +262,7 @@ int type_ready(TypeObject *type)
   return 0;
 }
 
-static Object *object_alloc(TypeObject *type)
+Object *object_alloc(TypeObject *type)
 {
   int isize = type->offset + type->nrvars;
   int msize = sizeof(HeapObject) + sizeof(Object *) * isize;

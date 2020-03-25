@@ -49,30 +49,34 @@ typedef struct jitstate {
   LLVMFunction call;
   LLVMFunction decref;
   LLVMFunction incref;
-  LLVMFunction initargs;
-  LLVMFunction clearstk;
+  LLVMFunction enterfunc;
+  LLVMFunction exitfunc;
+  LLVMFunction newarray;
+  LLVMFunction newmap;
+  LLVMFunction newtuple;
+  LLVMFunction newobject;
   HashMap map;
-} JITState;
+} JitState;
 
 typedef struct jittype {
   LLVMTypeRef lltype;
   int basic;
   char *str;
-} JITType;
+} JitType;
 
 typedef struct jitvalue {
   LLVMValueRef llvalue;
-  JITType type;
+  JitType type;
   int konst;
   char *name;
-} JITValue;
+} JitValue;
 
 typedef struct jitfunction {
   CodeObject *co;
   GVector argtypes;
-  JITType rettype;
+  JitType rettype;
   LLVMFunction func;
-} JITFunction;
+} JitFunction;
 
 /*
   A LLVM IR basic block. A basic block is a sequence of instructions
@@ -83,22 +87,22 @@ typedef struct jitfunction {
 typedef struct jitblock {
   char *label;
   int index;
-  JITFunction *func;
+  JitFunction *func;
   LLVMBasicBlockRef bb;
   int start;
   int end;
   struct jitblock *parent;
   Vector children;
-} JITBlock;
+} JitBlock;
 
 typedef struct jitcontext {
   Vector locals;
   Vector stack;
-  JITFunction *func;
+  JitFunction *func;
   int curblk;
   Vector blocks;
   LLVMBuilderRef builder;
-} JITContext;
+} JitContext;
 
 void init_jit_llvm(void);
 void fini_jit_llvm(void);
@@ -128,25 +132,27 @@ static inline LLVMTypeRef LLVMIntPtrType2(void)
   return sizeof(void *) == 8 ? LLVMInt64Type() : LLVMInt32Type();
 }
 
-void jit_context_init(JITContext *ctx, JITFunction *f);
-void jit_context_fini(JITContext *ctx);
+void jit_context_init(JitContext *ctx, JitFunction *f);
+void jit_context_fini(JitContext *ctx);
 
-JITType jit_type(TypeDesc *desc);
+JitType jit_type(TypeDesc *desc);
 LLVMValueRef jit_const(Object *ob);
-JITValue *jit_value(char *name, JITType type);
-void jit_free_value(JITValue *val);
-void jit_store_value(JITContext *ctx, JITValue *var, LLVMValueRef val);
+JitValue *jit_value(char *name, JitType type);
+void jit_free_value(JitValue *val);
+void jit_store_value(JitContext *ctx, JitValue *var, LLVMValueRef val);
 
 LLVMFunction llvm_function(char *name, LLVMTypeRef proto);
 LLVMFunction llvm_cfunction(char *name, LLVMTypeRef proto, void *addr);
-JITFunction *jit_function(CodeObject *co);
-void *jit_emit_code(JITFunction *func);
-void jit_free_function(JITFunction *func);
+JitFunction *jit_function(CodeObject *co);
+void *jit_emit_code(JitFunction *func);
+void jit_free_function(JitFunction *func);
 
-JITBlock *jit_block(JITContext *ctx, char *label);
-void jit_free_block(JITBlock *blk);
+JitBlock *jit_block(JitContext *ctx, char *label);
+void jit_free_block(JitBlock *blk);
 
 void jit_verify_ir(void);
+
+LLVMValueRef jit_OP_NEW(JitContext *ctx, CodeObject *co, TypeDesc *desc);
 
 #ifdef __cplusplus
 }

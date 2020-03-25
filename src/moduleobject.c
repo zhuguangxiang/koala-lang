@@ -573,6 +573,9 @@ static Object *module_from_file(char *path, char *name, Object *ob)
 // path: a/b/foo, not allowed a/b/foo/
 Object *module_load(char *path)
 {
+  if (path == NULL)
+    return NULL;
+
   struct modnode key = {.path = path};
   hashmap_entry_init(&key, strhash(path));
   struct modnode *node = hashmap_get(&modmap, &key);

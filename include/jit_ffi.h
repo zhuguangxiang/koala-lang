@@ -41,7 +41,6 @@ typedef struct jit_func {
   ffi_type *argtypes[0];
 } jit_func_t;
 
-ffi_type *jit_ffi_type(TypeDesc *desc);
 Object *jit_ffi_call(jit_func_t *fninfo, Object *args);
 jit_func_t *jit_get_func(void *mcptr, TypeDesc *desc);
 void fini_jit_ffi(void);

@@ -90,7 +90,7 @@ static void show_args(int op, int index, uint8_t *codes, Object *consts)
       path = desc->klass.path;
       type = desc->klass.type;
       if (path != NULL)
-        printf("%.64s", path);
+        printf("%.64s.", path);
       printf("%.64s", type);
     }
     OB_DECREF(ob);

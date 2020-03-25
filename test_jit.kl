@@ -17,6 +17,10 @@ func add(a int, b int) int {
   sum(a, b)
 }
 
+func noreturn(a int, b int) {
+  c := a + b
+}
+
 sum(10, 20)
 
 jit(sum)
@@ -38,9 +42,12 @@ if Option.Some(fn) ~= opt {
   fn(10, -20)
 }
 
-
 class Pet {
   age int
+}
+
+func new_pet() Pet {
+  new Pet()
 }
 
 func testklass(p Pet, age int) int {

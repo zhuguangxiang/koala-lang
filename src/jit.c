@@ -51,12 +51,12 @@ static Object *jit_func_wrapper(Object *self, Object *args, void *jitptr)
 #define PUSH(v) vector_push_back(&ctx.stack, v)
 
 #define GETLOCAL(i) ({ \
-  JITValue *var = vector_get(&ctx.locals, i); \
+  JitValue *var = vector_get(&ctx.locals, i); \
   var->llvalue; \
 })
 
 #define SETLOCAL(i, v) ({\
-  JITValue *var = vector_get(&ctx.locals, i); \
+  JitValue *var = vector_get(&ctx.locals, i); \
   jit_store_value(&ctx, var, (v)); \
 })
 
@@ -238,7 +238,7 @@ static void translate_basicblock()
 
 }
 
-static JITFunction *translate(CodeObject *co)
+static JitFunction *translate(CodeObject *co)
 {
   uint8_t *codes = co->codes;
   Object *consts = co->consts;
@@ -246,14 +246,14 @@ static JITFunction *translate(CodeObject *co)
   int index = 0;
   uint8_t op;
   int oparg;
-  Object *x, *y, *z;
+  Object *x;
 
-  JITContext ctx;
-  JITFunction *fn = jit_function(co);
+  JitContext ctx;
+  JitFunction *fn = jit_function(co);
   jit_context_init(&ctx, fn);
 
-  JITValue *var;
-  LLVMValueRef val, lhs, rhs;
+  JitValue *var;
+  LLVMValueRef val, lhs, rhs, v1, v2;
   LLVMBuilderRef builder = ctx.builder;
 
   while (index < size) {
@@ -324,10 +324,37 @@ static JITFunction *translate(CodeObject *co)
       LLVMBuildRet(builder, val);
       break;
     }
+    case OP_RETURN: {
+      LLVMBuildRetVoid(builder);
+      break;
+    }
     case OP_ADD: {
       lhs = POP();
       rhs = POP();
       val = LLVMBuildAdd(builder, lhs, rhs, "tmp");
+      PUSH(val);
+      break;
+    }
+    case OP_NEW: {
+      oparg = NEXT_2BYTES();
+      x = tuple_get(consts, oparg);
+      oparg = NEXT_BYTE();
+      if (oparg == 0) {
+        v1 = NULL;
+      } else {
+        expect(oparg == 1);
+        v1 = POP();
+      }
+      TypeDesc *desc = descob_getdesc(x);
+      //expect(desc->paras == NULL);
+      if (desc_isbase(desc)) {
+        val = v1;
+      } else {
+        expect(desc->kind == TYPE_KLASS);
+        expect(v1 == NULL);
+        val = jit_OP_NEW(&ctx, co, desc);
+      }
+      OB_DECREF(x);
       PUSH(val);
       break;
     }
@@ -642,7 +669,7 @@ Object *jit_go(Object *self, Object *args)
     return option_none();
   }
 
-  JITFunction *fn = translate(co);
+  JitFunction *fn = translate(co);
   void *mcptr = jit_emit_code(fn);
   if (mcptr == NULL) {
     warn("[KOALA-JIT]: '%s' is translated failed.", meth->name);
