@@ -143,6 +143,11 @@ static void jit_exitfunc(void *args[], int32_t argc)
 
 }
 
+static Object *__new_tuple__(Object *args[], int argc)
+{
+
+}
+
 static JitState gstate;
 
 static LLVMModuleRef llvm_module(void)
@@ -210,6 +215,10 @@ static void init_wheels(void)
   // void jit_exitfunc(Object *args[], int32_t argc);
   proto = LLVMFunctionType(LLVMVoidType(), params, 2, 0);
   gstate.exitfunc = llvm_cfunction("exitfunc", proto, jit_exitfunc);
+
+  // Object *__new_tuple__(Object *args[], int argc);
+  proto = LLVMFunctionType(LLVMVoidPtrType(), params, 2, 0);
+  gstate.newtuple = llvm_cfunction("newtuple", proto, __new_tuple__);
 }
 
 void init_jit_llvm(void)
@@ -469,6 +478,7 @@ static LLVMValueRef LLVMConstVoidPtr(void *ptr)
   return LLVMConstIntToPtr(llvalue, LLVMVoidPtrType());
 }
 
+static
 LLVMValueRef jit_new_array(JitContext *ctx, TypeDesc *sub)
 {
   LLVMBuilderRef builder = ctx->builder;
@@ -482,6 +492,7 @@ LLVMValueRef jit_new_array(JitContext *ctx, TypeDesc *sub)
   return llvalue;
 }
 
+static
 LLVMValueRef jit_new_map(JitContext *ctx, TypeDesc *ktype, TypeDesc *vtype)
 {
   LLVMBuilderRef builder = ctx->builder;
@@ -495,7 +506,7 @@ LLVMValueRef jit_new_map(JitContext *ctx, TypeDesc *ktype, TypeDesc *vtype)
   return llvalue;
 }
 
-LLVMValueRef jit_new_object(JitContext *ctx, TypeObject *type)
+static LLVMValueRef jit_new_object(JitContext *ctx, TypeObject *type)
 {
   LLVMBuilderRef builder = ctx->builder;
   LLVMFunction *cf = &gstate.newobject;
@@ -504,6 +515,21 @@ LLVMValueRef jit_new_object(JitContext *ctx, TypeObject *type)
   };
   LLVMValueRef llvalue;
   llvalue = LLVMBuildCall2(builder, cf->proto, cf->llfunc, params, 1, "");
+  return llvalue;
+}
+
+LLVMValueRef jit_OP_NEW_TUPLE(JitContext *ctx, Vector *args)
+{
+  int size = vector_size(args);
+
+  LLVMBuilderRef builder = ctx->builder;
+  LLVMFunction *cf = &gstate.newtuple;
+  LLVMValueRef params[] = {
+    NULL,
+    LLVMConstInt(LLVMInt32Type(), size, 1),
+  };
+  LLVMValueRef llvalue;
+  llvalue = LLVMBuildCall2(builder, cf->proto, cf->llfunc, params, 2, "");
   return llvalue;
 }
 

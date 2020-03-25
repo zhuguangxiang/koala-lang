@@ -153,6 +153,7 @@ void jit_free_block(JitBlock *blk);
 void jit_verify_ir(void);
 
 LLVMValueRef jit_OP_NEW(JitContext *ctx, CodeObject *co, TypeDesc *desc);
+LLVMValueRef jit_OP_NEW_TUPLE(JitContext *ctx, Vector *args);
 
 #ifdef __cplusplus
 }

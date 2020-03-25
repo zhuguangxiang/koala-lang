@@ -247,6 +247,7 @@ static JitFunction *translate(CodeObject *co)
   uint8_t op;
   int oparg;
   Object *x;
+  Vector *vec;
 
   JitContext ctx;
   JitFunction *fn = jit_function(co);
@@ -335,6 +336,22 @@ static JitFunction *translate(CodeObject *co)
       PUSH(val);
       break;
     }
+    case OP_NEW_TUPLE: {
+      oparg = NEXT_2BYTES();
+      if (oparg > 0) {
+        vec = vector_new();
+        for (int i = 0; i < oparg; ++i) {
+          v1 = POP();
+          vector_push_back(vec, v1);
+        }
+      } else {
+        vec = NULL;
+      }
+      val = jit_OP_NEW_TUPLE(&ctx, vec);
+      vector_free(vec);
+      PUSH(val);
+      break;
+    }
     case OP_NEW: {
       oparg = NEXT_2BYTES();
       x = tuple_get(consts, oparg);
@@ -342,16 +359,12 @@ static JitFunction *translate(CodeObject *co)
       if (oparg == 0) {
         v1 = NULL;
       } else {
-        expect(oparg == 1);
         v1 = POP();
       }
       TypeDesc *desc = descob_getdesc(x);
-      //expect(desc->paras == NULL);
       if (desc_isbase(desc)) {
         val = v1;
       } else {
-        expect(desc->kind == TYPE_KLASS);
-        expect(v1 == NULL);
         val = jit_OP_NEW(&ctx, co, desc);
       }
       OB_DECREF(x);
