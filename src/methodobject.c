@@ -195,6 +195,7 @@ static void meth_free(Object *ob)
   if (meth->kind == KFUNC_KIND) {
     OB_DECREF(meth->ptr);
   }
+  OB_DECREF(meth->backptr);
   kfree(ob);
 }
 
@@ -223,7 +224,7 @@ void method_update_jit(MethodObject *meth, void *fn, void *jitptr)
     return;
   }
 
-  OB_DECREF(meth->ptr);
+  meth->backptr = meth->ptr;
   // any other is using ?
   meth->kind = JITFUNC_KIND;
   meth->native = 0;

@@ -111,9 +111,9 @@ int gvector_insert(GVector *self, int index, void *item);
 int gvector_remove(GVector *self, int index, void *prev);
 
 /* Add an item at the end of the vector and return 'slot' index */
-#define gvector_push_back(self, item) ({                 \
-  int ret = gvector_set(self, gvector_size(self), item); \
-  (ret != 0) ? gvector_size(self) - 1 : -1;              \
+#define gvector_push_back(self, item) ({                    \
+  int _ret_ = gvector_set(self, gvector_size(self), item);  \
+  (_ret_ != 0) ? gvector_size(self) - 1 : -1;               \
 })
 
 /* Add an item at the front of the vector */

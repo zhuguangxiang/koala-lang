@@ -149,7 +149,7 @@ char *base_str(int kind);
 #define PTR_SIZE  sizeof(void *)
 #define BOOL_SIZE 1
 #define BYTE_SIZE 1
-#define CHAR_SIZE sizeof(int)
+#define CHAR_SIZE sizeof(int32_t)
 #define FLT_SIZE  sizeof(double)
 
 int base_size(int kind);

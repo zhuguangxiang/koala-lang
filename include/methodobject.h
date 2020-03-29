@@ -51,6 +51,8 @@ typedef struct methodobject {
   void *ptr;
   /* jited func pointer */
   void *jitptr;
+  /* backup kfunc */
+  void *backptr;
 } MethodObject;
 
 typedef struct protoobject {

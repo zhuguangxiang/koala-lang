@@ -47,19 +47,6 @@ static Object *jit_func_wrapper(Object *self, Object *args, void *jitptr)
   v; \
 })
 
-#define POP()   vector_pop_back(&ctx.stack)
-#define PUSH(v) vector_push_back(&ctx.stack, v)
-
-#define GETLOCAL(i) ({ \
-  JitValue *var = vector_get(&ctx.locals, i); \
-  var->llvalue; \
-})
-
-#define SETLOCAL(i, v) ({\
-  JitValue *var = vector_get(&ctx.locals, i); \
-  jit_store_value(&ctx, var, (v)); \
-})
-
 typedef struct translate {
   void *engine;
   void *mod;
@@ -238,137 +225,103 @@ static void translate_basicblock()
 
 }
 
-static JitFunction *translate(CodeObject *co)
+static void translate(JitContext *ctx)
 {
+  CodeObject *co = ctx->co;
   uint8_t *codes = co->codes;
-  Object *consts = co->consts;
   int size = co->size;
   int index = 0;
   uint8_t op;
-  int oparg;
+  int oparg, oparg2;
   Object *x;
   Vector *vec;
 
-  JitContext ctx;
-  JitFunction *fn = jit_function(co);
-  jit_context_init(&ctx, fn);
-
   JitValue *var;
-  LLVMValueRef val, lhs, rhs, v1, v2;
-  LLVMBuilderRef builder = ctx.builder;
+  JitValue val, lhs, rhs, v1, v2;
 
   while (index < size) {
     op = NEXT_OP();
     switch (op) {
     case OP_LOAD_CONST: {
       oparg = NEXT_2BYTES();
-      x = tuple_get(consts, oparg);
-      val = jit_const(x);
-      PUSH(val);
-      OB_DECREF(x);
+      jit_OP_LOAD_CONST(ctx, oparg);
       break;
     }
     case OP_LOAD: {
       oparg = NEXT_BYTE();
-      val = GETLOCAL(oparg);
-      PUSH(val);
+      jit_OP_LOAD(ctx, oparg);
       break;
     }
     case OP_LOAD_0: {
-      val = GETLOCAL(0);
-      PUSH(val);
+      jit_OP_LOAD(ctx, 0);
       break;
     }
     case OP_LOAD_1: {
-      val = GETLOCAL(1);
-      PUSH(val);
+      jit_OP_LOAD(ctx, 1);
       break;
     }
     case OP_LOAD_2: {
-      val = GETLOCAL(2);
-      PUSH(val);
+      jit_OP_LOAD(ctx, 2);
       break;
     }
     case OP_LOAD_3: {
-      val = GETLOCAL(3);
-      PUSH(val);
+      jit_OP_LOAD(ctx, 3);
       break;
     }
     case OP_STORE: {
       oparg = NEXT_BYTE();
-      val = POP();
-      SETLOCAL(oparg, val);
+      jit_OP_STORE(ctx, oparg);
       break;
     }
     case OP_STORE_0: {
-      val = POP();
-      SETLOCAL(0, val);
+      jit_OP_STORE(ctx, 0);
       break;
     }
     case OP_STORE_1: {
-      val = POP();
-      SETLOCAL(1, val);
+      jit_OP_STORE(ctx, 1);
       break;
     }
     case OP_STORE_2: {
-      val = POP();
-      SETLOCAL(2, val);
+      jit_OP_STORE(ctx, 2);
       break;
     }
     case OP_STORE_3: {
-      val = POP();
-      SETLOCAL(3, val);
+      jit_OP_STORE(ctx, 3);
       break;
     }
     case OP_RETURN_VALUE: {
-      val = POP();
-      LLVMBuildRet(builder, val);
+      jit_OP_RETURN_VALUE(ctx);
       break;
     }
     case OP_RETURN: {
-      LLVMBuildRetVoid(builder);
+      jit_OP_RETURN(ctx);
       break;
     }
     case OP_ADD: {
-      lhs = POP();
-      rhs = POP();
-      val = LLVMBuildAdd(builder, lhs, rhs, "tmp");
-      PUSH(val);
+      jit_OP_ADD(ctx);
       break;
     }
     case OP_NEW_TUPLE: {
       oparg = NEXT_2BYTES();
-      if (oparg > 0) {
-        vec = vector_new();
-        for (int i = 0; i < oparg; ++i) {
-          v1 = POP();
-          vector_push_back(vec, v1);
-        }
-      } else {
-        vec = NULL;
-      }
-      val = jit_OP_NEW_TUPLE(&ctx, vec);
-      vector_free(vec);
-      PUSH(val);
+      jit_OP_NEW_TUPLE(ctx, oparg);
+      break;
+    }
+    case OP_NEW_ARRAY: {
+      oparg = NEXT_2BYTES();
+      oparg2 = NEXT_2BYTES();
+      jit_OP_NEW_ARRAY(ctx, oparg, oparg2);
+      break;
+    }
+    case OP_NEW_MAP: {
+      oparg = NEXT_2BYTES();
+      oparg2 = NEXT_BYTE();
+      jit_OP_NEW_MAP(ctx, oparg, oparg2);
       break;
     }
     case OP_NEW: {
       oparg = NEXT_2BYTES();
-      x = tuple_get(consts, oparg);
+      jit_OP_NEW(ctx, oparg);
       oparg = NEXT_BYTE();
-      if (oparg == 0) {
-        v1 = NULL;
-      } else {
-        v1 = POP();
-      }
-      TypeDesc *desc = descob_getdesc(x);
-      if (desc_isbase(desc)) {
-        val = v1;
-      } else {
-        val = jit_OP_NEW(&ctx, co, desc);
-      }
-      OB_DECREF(x);
-      PUSH(val);
       break;
     }
     default: {
@@ -379,8 +332,6 @@ static JitFunction *translate(CodeObject *co)
   }
 
   jit_verify_ir();
-  jit_context_fini(&ctx);
-  return fn;
 }
 
 /*
@@ -682,8 +633,10 @@ Object *jit_go(Object *self, Object *args)
     return option_none();
   }
 
-  JitFunction *fn = translate(co);
-  void *mcptr = jit_emit_code(fn);
+  JitContext ctx;
+  jit_context_init(&ctx, co);
+  translate(&ctx);
+  void *mcptr = jit_emit_code(&ctx);
   if (mcptr == NULL) {
     warn("[KOALA-JIT]: '%s' is translated failed.", meth->name);
     return option_none();
@@ -691,7 +644,8 @@ Object *jit_go(Object *self, Object *args)
 
   jit_func_t *fninfo = jit_get_func(mcptr, meth->desc);
   method_update_jit(meth, jit_func_wrapper, fninfo);
-  jit_free_function(fn);
+  jit_context_fini(&ctx);
+
   return option_some(ob);
 }
 
