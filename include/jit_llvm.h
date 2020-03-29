@@ -132,16 +132,19 @@ void jit_free_variable(JitVariable *var);
 JitBlock *jit_block(JitContext *ctx, char *label);
 void jit_free_block(JitBlock *blk);
 
+void jit_OP_POP_TOP(JitContext *ctx);
 void jit_OP_LOAD_CONST(JitContext *ctx, int index);
 void jit_OP_LOAD(JitContext *ctx, int index);
 void jit_OP_STORE(JitContext *ctx, int index);
 void jit_OP_RETURN_VALUE(JitContext *ctx);
 void jit_OP_RETURN(JitContext *ctx);
+void jit_OP_CALL(JitContext *ctx, int index, int count);
 void jit_OP_ADD(JitContext *ctx);
 void jit_OP_NEW_TUPLE(JitContext *ctx, int count);
 void jit_OP_NEW_ARRAY(JitContext *ctx, int index, int count);
 void jit_OP_NEW_MAP(JitContext *ctx, int index, int count);
 void jit_OP_NEW(JitContext *ctx, int index);
+void jit_OP_LOAD_GLOBAL(JitContext *ctx);
 
 #ifdef __cplusplus
 }

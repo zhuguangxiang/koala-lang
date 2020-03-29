@@ -236,12 +236,13 @@ static void translate(JitContext *ctx)
   Object *x;
   Vector *vec;
 
-  JitValue *var;
-  JitValue val, lhs, rhs, v1, v2;
-
   while (index < size) {
     op = NEXT_OP();
     switch (op) {
+    case OP_POP_TOP: {
+      jit_OP_POP_TOP(ctx);
+      break;
+    }
     case OP_LOAD_CONST: {
       oparg = NEXT_2BYTES();
       jit_OP_LOAD_CONST(ctx, oparg);
@@ -297,6 +298,12 @@ static void translate(JitContext *ctx)
       jit_OP_RETURN(ctx);
       break;
     }
+    case OP_CALL: {
+      oparg = NEXT_2BYTES();
+      oparg2 = NEXT_BYTE();
+      jit_OP_CALL(ctx, oparg, oparg2);
+      break;
+    }
     case OP_ADD: {
       jit_OP_ADD(ctx);
       break;
@@ -322,6 +329,10 @@ static void translate(JitContext *ctx)
       oparg = NEXT_2BYTES();
       jit_OP_NEW(ctx, oparg);
       oparg = NEXT_BYTE();
+      break;
+    }
+    case OP_LOAD_GLOBAL: {
+      jit_OP_LOAD_GLOBAL(ctx);
       break;
     }
     default: {

@@ -1,5 +1,4 @@
 
-
 func sum(a int, b int) int {
   c := 200 + 300
   return a + b + c
@@ -43,25 +42,22 @@ func new_map2() [string: string] {
   map
 }
 
-
-gval := 100
-
-func sum2(a int, b int) int {
-  val := 100 + a
-  val = 200
-  //a = 555
-  return a + b + val;
-}
-
-
-
 func add(a int, b int) int {
   sum(a, b)
 }
 
-func noreturn(a int, b int) {
+func noret(a int, b int) {
   c := a + b
 }
+
+func sum2(a int, b int) int {
+  val := 100 + a
+  val = 200
+  noret(a, b)
+  return a + b + val;
+}
+
+gval := 100
 
 sum(10, 20)
 

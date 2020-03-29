@@ -46,7 +46,7 @@ static LLVMModuleRef llvm_module(void)
 
 static LLVMExecutionEngineRef llvm_engine(void)
 {
-  if (llengine == NULL) {
+  //if (llengine == NULL) {
     char *error;
     LLVMExecutionEngineRef engine;
     LLVMLinkInMCJIT();
@@ -55,8 +55,9 @@ static LLVMExecutionEngineRef llvm_engine(void)
     LLVMInitializeNativeAsmParser();
     LLVMCreateExecutionEngineForModule(&engine, llvm_module(), &error);
     llengine = engine;
-  }
-  return llengine;
+    return engine;
+  //}
+  //return llengine;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -722,7 +723,10 @@ void jit_context_fini(JitContext *ctx)
 void *jit_emit_code(JitContext *ctx)
 {
   char *name = function_name(ctx->co);
-  return (void *)LLVMGetFunctionAddress(llvm_engine(), name);
+  void *mcptr = (void *)LLVMGetFunctionAddress(llvm_engine(), name);
+  LLVMDisposeExecutionEngine(llengine);
+ // llengine = NULL;
+  return mcptr;
 }
 
 void jit_verify_ir(void)
@@ -825,6 +829,12 @@ static LLVMValueRef jit_types_array(JitContext *ctx, GVector *values)
 
 /*--------------------------------------------------------------------------*/
 
+void jit_OP_POP_TOP(JitContext *ctx)
+{
+  JitValue value;
+  gvector_pop_back(&ctx->stack, &value);
+}
+
 void jit_OP_LOAD_CONST(JitContext *ctx, int index)
 {
   CodeObject *co = ctx->co;
@@ -869,6 +879,44 @@ void jit_OP_RETURN(JitContext *ctx)
 {
   LLVMBuilderRef builder = ctx->builder;
   LLVMBuildRetVoid(builder);
+}
+
+void jit_OP_CALL(JitContext *ctx, int index, int count)
+{
+  LLVMBuilderRef builder = ctx->builder;
+  CodeObject *co = ctx->co;
+  Object *consts = co->consts;
+  Object *x = tuple_get(consts, index);
+
+  JitValue value;
+  gvector_pop_back(&ctx->stack, &value);
+
+  char *funcname;
+  Object *mo = co->module;
+  STRBUF(sbuf);
+  strbuf_append(&sbuf, MODULE_PATH(mo));
+  strbuf_append_char(&sbuf, '.');
+  strbuf_append(&sbuf, string_asstr(x));
+  funcname = atom(strbuf_tostr(&sbuf));
+  strbuf_fini(&sbuf);
+  LLVMValueRef fn = NULL;
+  LLVMFindFunction(llvm_engine(), funcname, &fn);
+ // LLVMDisposeExecutionEngine(llengine);
+ // llengine = NULL;
+
+  if (fn != NULL) {
+    LLVMValueRef params[count];
+    for (int i = 0; i < count; ++i) {
+      gvector_pop_back(&ctx->stack, &value);
+      params[i] = value.llvalue;
+    }
+    LLVMValueRef res = LLVMBuildCall(builder, fn, params, count, "");
+    value.llvalue = res;
+    value.type = JitIntType;
+    gvector_push_back(&ctx->stack, &value);
+  } else {
+
+  }
 }
 
 void jit_OP_ADD(JitContext *ctx)
@@ -1054,4 +1102,12 @@ void jit_OP_NEW(JitContext *ctx, int index)
   }
   OB_DECREF(type);
   gvector_push_back(&ctx->stack, &ret);
+}
+
+void jit_OP_LOAD_GLOBAL(JitContext *ctx)
+{
+  CodeObject *co = ctx->co;
+  Object *mod = co->module;
+  JitValue value = jit_const_ptr(mod);
+  gvector_push_back(&ctx->stack, &value);
 }
