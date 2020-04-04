@@ -117,3 +117,18 @@ p := new Pet()
 p.age = 120
 jit(testklass)
 testklass(p, 100)
+
+func testklass(p Pet, age int) int {
+  p.age = age
+  p.age
+}
+
+class Cat {
+  pet Pet
+}
+
+func newcat(p Pet) Cat {
+  cat := new Cat()
+  cat.pet = p
+  return cat
+}

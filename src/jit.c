@@ -290,6 +290,16 @@ static void translate(JitContext *ctx)
       jit_OP_STORE(ctx, 3);
       break;
     }
+    case OP_GET_VALUE: {
+      oparg = NEXT_2BYTES();
+      jit_OP_GET_VALUE(ctx, oparg);
+      break;
+    }
+    case OP_SET_VALUE: {
+      oparg = NEXT_2BYTES();
+      jit_OP_SET_VALUE(ctx, oparg);
+      break;
+    }
     case OP_RETURN_VALUE: {
       jit_OP_RETURN_VALUE(ctx);
       break;

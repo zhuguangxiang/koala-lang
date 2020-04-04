@@ -30,7 +30,9 @@
 #define WHEEL_NEW_MAP     2
 #define WHEEL_NEW_OBJECT  3
 #define WHEEL_KOALA_CALL  4
-#define MAX_WHEEL_NR      5
+#define WHEEL_GET_VALUE   5
+#define WHEEL_SET_VALUE   6
+#define MAX_WHEEL_NR      7
 
 static JitFunction wheel_funcs[MAX_WHEEL_NR];
 static LLVMExecutionEngineRef llengine;
@@ -129,11 +131,11 @@ static void init_types(void)
 JitType jit_type(TypeDesc *desc)
 {
   if (desc == NULL) {
-    return JitIntType;
+    return JitVoidType;
   }
 
   if (!desc_isbase(desc)) {
-    return JitIntType;
+    return JitPtrType;
   }
 
   JitType type = JitVoidType;
@@ -353,6 +355,35 @@ int64_t koala_call(Object *func, Object *ob, void *args[], int32_t argc)
   return __obj_unbox__(res);
 }
 
+int64_t __get_value__(Object *self, char *name, TypeObject *type)
+{
+  Object *ob = object_getvalue(self, name, type);
+  int64_t val = __obj_unbox__(ob);
+  OB_DECREF(ob);
+  return val;
+}
+
+void __set_value__(Object *self, char *name, void *raw, int kind,
+                  TypeObject *type)
+{
+  Object *ob = object_lookup(self, name, type);
+  if (ob == NULL) {
+    error("object of '%s' has no field '%s'", OB_TYPE_NAME(self), name);
+    return;
+  }
+
+  if (!field_check(ob)) {
+    error("'%s' is not setable", name);
+    OB_DECREF(ob);
+    return;
+  }
+
+  Object *val = __obj_box__(kind, raw);
+  int res = field_set(ob, self, val);
+  OB_DECREF(ob);
+  OB_DECREF(val);
+}
+
 /* Object *__new_tuple__(void *args[], int32_t kind[], int32_t argc) */
 static void init_new_tuple(void)
 {
@@ -420,6 +451,39 @@ static void init_koala_call(void)
   jit_init_cfunc(f, "koala_call", ret, params, 4);
 }
 
+/*
+  int64_t __get_value__(Object *self, char *name, TypeObject *type);
+ */
+static void init_get_value(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_GET_VALUE];
+  JitType params[] = {
+    JitPtrType,
+    JitPtrType,
+    JitPtrType,
+  };
+  JitType ret = JitIntType;
+  jit_init_cfunc(f, "__get_value__", ret, params, 3);
+}
+
+/*
+  void __set_value__(Object *self, char *name, void *val, int kind,
+                    TypeObject *type);
+ */
+static void init_set_value(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_SET_VALUE];
+  JitType params[] = {
+    JitPtrType,
+    JitPtrType,
+    JitPtrType,
+    JitIntType,
+    JitPtrType,
+  };
+  JitType ret = JitVoidType;
+  jit_init_cfunc(f, "__set_value__", ret, params, 5);
+}
+
 static void init_wheel_funcs(void)
 {
   init_new_tuple();
@@ -427,6 +491,8 @@ static void init_wheel_funcs(void)
   init_new_map();
   init_new_object();
   init_koala_call();
+  init_get_value();
+  init_set_value();
 
   /*
   LLVMTypeRef proto;
@@ -435,10 +501,6 @@ static void init_wheel_funcs(void)
   params[1] = LLVMVoidPtrType();
   params[2] = LLVMVoidPtrPtrType();
   params[3] = LLVMInt32Type();
-
-  // void *kfunc_call(Object *self, Object *ob, void *args[], int32_t argc);
-  proto = LLVMFunctionType(LLVMVoidPtrType(), params, 4, 0);
-  gstate.call = llvm_cfunction("kfunc_call", proto, kfunc_call);
 
   // void kobj_decref(Object *self);
   proto = LLVMFunctionType(LLVMVoidType(), params, 1, 0);
@@ -961,6 +1023,54 @@ void jit_OP_STORE(JitContext *ctx, int index)
   var->llvalue = value.llvalue;
 }
 
+/*
+  int64_t __set_value__(Object *self, char *name, TypeObject *type);
+ */
+void jit_OP_GET_VALUE(JitContext *ctx, int index)
+{
+  CodeObject *co = ctx->co;
+  Object *consts = co->consts;
+  Object *x = tuple_get(consts, index);
+
+  JitValue y;
+  gvector_pop_back(&ctx->stack, &y);
+  JitFunction *f = &wheel_funcs[WHEEL_GET_VALUE];
+  LLVMValueRef params[] = {
+    y.llvalue,
+    jit_const_ptr(string_asstr(x)).llvalue,
+    jit_const_ptr(co->type).llvalue,
+  };
+  JitValue value = jit_build_call(ctx, f, params, 3);
+  gvector_push_back(&ctx->stack, &value);
+  OB_DECREF(x);
+}
+
+/*
+  void __set_value__(Object *self, char *name, void *val, int kind,
+                    TypeObject *type);
+ */
+void jit_OP_SET_VALUE(JitContext *ctx, int index)
+{
+  CodeObject *co = ctx->co;
+  Object *consts = co->consts;
+  Object *x = tuple_get(consts, index);
+
+  JitValue y, z;
+  gvector_pop_back(&ctx->stack, &y);
+  gvector_pop_back(&ctx->stack, &z);
+
+  JitFunction *f = &wheel_funcs[WHEEL_SET_VALUE];
+  LLVMValueRef params[] = {
+    y.llvalue,
+    jit_const_ptr(string_asstr(x)).llvalue,
+    jit_value_to_voidptr(ctx, &z),
+    jit_const_int(z.type.kind).llvalue,
+    jit_const_ptr(co->type).llvalue,
+  };
+  jit_build_call(ctx, f, params, 5);
+  OB_DECREF(x);
+}
+
 void jit_OP_RETURN_VALUE(JitContext *ctx)
 {
   JitValue value;
@@ -1041,6 +1151,7 @@ void jit_OP_CALL(JitContext *ctx, int index, int count)
     gvector_push_back(&ctx->stack, &value);
     gvector_fini(&vec);
   }
+  OB_DECREF(x);
 }
 
 void jit_OP_ADD(JitContext *ctx)

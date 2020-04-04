@@ -140,6 +140,8 @@ void jit_OP_POP_TOP(JitContext *ctx);
 void jit_OP_LOAD_CONST(JitContext *ctx, int index);
 void jit_OP_LOAD(JitContext *ctx, int index);
 void jit_OP_STORE(JitContext *ctx, int index);
+void jit_OP_GET_VALUE(JitContext *ctx, int index);
+void jit_OP_SET_VALUE(JitContext *ctx, int index);
 void jit_OP_RETURN_VALUE(JitContext *ctx);
 void jit_OP_RETURN(JitContext *ctx);
 void jit_OP_CALL(JitContext *ctx, int index, int count);
