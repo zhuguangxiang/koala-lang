@@ -132,3 +132,26 @@ func newcat(p Pet) Cat {
   cat.pet = p
   return cat
 }
+
+func testsubscr() int {
+  arr := [1,2,3]
+  arr[1] = 100
+  arr[1]
+}
+
+func testsubscr2() string {
+  arr := ["foo", "bar", "alpha"]
+  arr[1] = "foobar"
+  arr[1]
+}
+
+func array3(a int, b int) Array<Array<int>> {
+  [[100, a, b], [200, 201, 202, 203]]
+}
+
+func array4(a int, b int) Array<int> {
+  arr := array3(a, b)
+  arr[1]
+}
+
+jit(array4)

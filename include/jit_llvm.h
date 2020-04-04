@@ -146,6 +146,8 @@ void jit_OP_RETURN_VALUE(JitContext *ctx);
 void jit_OP_RETURN(JitContext *ctx);
 void jit_OP_CALL(JitContext *ctx, int index, int count);
 void jit_OP_ADD(JitContext *ctx);
+void jit_OP_SUBSCR_LOAD(JitContext *ctx);
+void jit_OP_SUBSCR_STORE(JitContext *ctx);
 void jit_OP_NEW_TUPLE(JitContext *ctx, int count);
 void jit_OP_NEW_ARRAY(JitContext *ctx, int index, int count);
 void jit_OP_NEW_MAP(JitContext *ctx, int index, int count);

@@ -318,6 +318,14 @@ static void translate(JitContext *ctx)
       jit_OP_ADD(ctx);
       break;
     }
+    case OP_SUBSCR_LOAD: {
+      jit_OP_SUBSCR_LOAD(ctx);
+      break;
+    }
+    case OP_SUBSCR_STORE: {
+      jit_OP_SUBSCR_STORE(ctx);
+      break;
+    }
     case OP_NEW_TUPLE: {
       oparg = NEXT_2BYTES();
       jit_OP_NEW_TUPLE(ctx, oparg);

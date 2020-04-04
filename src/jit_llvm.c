@@ -23,16 +23,19 @@
 */
 
 #include "jit_llvm.h"
+#include "opcode.h"
 //#include <llvm-c/OrcBindings.h>
 
-#define WHEEL_NEW_TUPLE   0
-#define WHEEL_NEW_ARRAY   1
-#define WHEEL_NEW_MAP     2
-#define WHEEL_NEW_OBJECT  3
-#define WHEEL_KOALA_CALL  4
-#define WHEEL_GET_VALUE   5
-#define WHEEL_SET_VALUE   6
-#define MAX_WHEEL_NR      7
+#define WHEEL_NEW_TUPLE     0
+#define WHEEL_NEW_ARRAY     1
+#define WHEEL_NEW_MAP       2
+#define WHEEL_NEW_OBJECT    3
+#define WHEEL_KOALA_CALL    4
+#define WHEEL_GET_VALUE     5
+#define WHEEL_SET_VALUE     6
+#define WHEEL_SUBSCR_LOAD   7
+#define WHEEL_SUBSCR_STORE  8
+#define MAX_WHEEL_NR        9
 
 static JitFunction wheel_funcs[MAX_WHEEL_NR];
 static LLVMExecutionEngineRef llengine;
@@ -259,9 +262,45 @@ static int64_t __obj_unbox__(Object *ob)
   } else if (string_check(ob)) {
     val = (int64_t)string_asstr(ob);
   } else {
-    val = (int64_t)(intptr_t)ob;
+    val = (int64_t)(intptr_t)OB_INCREF(ob);
   }
   return val;
+}
+
+/* int64_t __subscr_load__(Object *ob, int64_t index); */
+int64_t __subscr_load__(Object *ob, int64_t index)
+{
+  func_t fn = OB_MAP_FUNC(ob, getitem);
+  Object *value = integer_new(index);
+  Object *z;
+  if (fn != NULL) {
+    z = fn(ob, value);
+  } else {
+    z = object_call(ob, opcode_map(OP_SUBSCR_LOAD), value);
+  }
+  OB_DECREF(value);
+  int64_t res = __obj_unbox__(z);
+  OB_DECREF(z);
+  return res;
+}
+
+/* void __subscr_store__(Object *ob, int64_t index, void *val, int kind); */
+void __subscr_store__(Object *ob, int64_t index, void *val, int kind)
+{
+  func_t fn = OB_MAP_FUNC(ob, setitem);
+  Object *value = integer_new(index);
+  Object *arg = __obj_box__(kind, val);
+  Object *tuple = tuple_new(2);
+  tuple_set(tuple, 0, value);
+  tuple_set(tuple, 1, arg);
+  if (fn != NULL) {
+    fn(ob, tuple);
+  } else {
+    object_call(ob, opcode_map(OP_SUBSCR_STORE), tuple);
+  }
+  OB_DECREF(tuple);
+  OB_DECREF(value);
+  OB_DECREF(arg);
 }
 
 Object *__new_tuple__(void *args[], int32_t kind[], int32_t argc)
@@ -352,7 +391,9 @@ int64_t koala_call(Object *func, Object *ob, void *args[], int32_t argc)
     }
   }
   Object *res = method_call(func, ob, tuple);
-  return __obj_unbox__(res);
+  int64_t value = __obj_unbox__(res);
+  OB_DECREF(res);
+  return value;
 }
 
 int64_t __get_value__(Object *self, char *name, TypeObject *type)
@@ -384,6 +425,32 @@ void __set_value__(Object *self, char *name, void *raw, int kind,
   OB_DECREF(val);
 }
 
+/* int64_t __subscr_load__(Object *ob, int64_t index); */
+static void init_subscr_load(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_SUBSCR_LOAD];
+  JitType params[] = {
+    JitPtrType,
+    JitIntType,
+  };
+  JitType ret = JitIntType;
+  jit_init_cfunc(f, "__subscr_load__", ret, params, 2);
+}
+
+/* void __subscr_store__(Object *ob, int64_t index, void *val, int kind); */
+static void init_subscr_store(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_SUBSCR_STORE];
+  JitType params[] = {
+    JitPtrType,
+    JitIntType,
+    JitPtrType,
+    JitIntType,
+  };
+  JitType ret = JitVoidType;
+  jit_init_cfunc(f, "__subscr_store__", ret, params, 4);
+}
+
 /* Object *__new_tuple__(void *args[], int32_t kind[], int32_t argc) */
 static void init_new_tuple(void)
 {
@@ -406,7 +473,7 @@ static void init_new_array(void)
     JitArgsType,
     JitNrType,
   };
-  JitType ret = JitIntType;
+  JitType ret = JitPtrType;
   jit_init_cfunc(f, "__new_array__", ret, params, 3);
 }
 
@@ -493,6 +560,8 @@ static void init_wheel_funcs(void)
   init_koala_call();
   init_get_value();
   init_set_value();
+  init_subscr_load();
+  init_subscr_store();
 
   /*
   LLVMTypeRef proto;
@@ -1167,6 +1236,38 @@ void jit_OP_ADD(JitContext *ctx)
   ret.llvalue = llvalue;
   ret.type = lhs.type;
   gvector_push_back(&ctx->stack, &ret);
+}
+
+/* int64_t __subscr_load__(Object *ob, int64_t index); */
+void jit_OP_SUBSCR_LOAD(JitContext *ctx)
+{
+  JitValue x, y;
+  gvector_pop_back(&ctx->stack, &x);
+  gvector_pop_back(&ctx->stack, &y);
+  JitFunction *f = &wheel_funcs[WHEEL_SUBSCR_LOAD];
+  LLVMValueRef params[] = {
+    y.llvalue,
+    x.llvalue,
+  };
+  JitValue value = jit_build_call(ctx, f, params, 2);
+  gvector_push_back(&ctx->stack, &value);
+}
+
+/* void __subscr_store__(Object *ob, int64_t index, void *val, int kind); */
+void jit_OP_SUBSCR_STORE(JitContext *ctx)
+{
+  JitValue x, y, z;
+  gvector_pop_back(&ctx->stack, &y);
+  gvector_pop_back(&ctx->stack, &x);
+  gvector_pop_back(&ctx->stack, &z);
+  JitFunction *f = &wheel_funcs[WHEEL_SUBSCR_STORE];
+  LLVMValueRef params[] = {
+    x.llvalue,
+    y.llvalue,
+    jit_value_to_voidptr(ctx, &z),
+    jit_const_int(z.type.kind).llvalue,
+  };
+  jit_build_call(ctx, f, params, 4);
 }
 
 /* Object *__new_tuple__(void *args[], int32_t kinds[], int argc); */
