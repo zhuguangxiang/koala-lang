@@ -27,9 +27,11 @@
 
 #include <llvm-c/Core.h>
 #include <llvm-c/ExecutionEngine.h>
-//#include <llvm-c/Target.h>
+#include <llvm-c/Target.h>
 #include <llvm-c/Analysis.h>
-//#include <llvm-c/BitWriter.h>
+#include <llvm-c/BitWriter.h>
+#include <llvm-c/Transforms/Scalar.h>
+#include <llvm-c/Transforms/Utils.h>
 
 #include "koala.h"
 
@@ -44,6 +46,7 @@ typedef struct jittype {
 
 #define JIT_VALUE_HEAD  \
   LLVMValueRef llvalue; \
+  int64_t raw; \
   JitType type;
 
 typedef struct jitvalue {
@@ -122,6 +125,7 @@ void jit_context_init(JitContext *ctx, CodeObject *co);
 void jit_context_fini(JitContext *ctx);
 void *jit_emit_code(JitContext *ctx);
 void jit_verify_ir(void);
+void jit_optimize(void);
 
 /*
 JitType jit_type(TypeDesc *desc);

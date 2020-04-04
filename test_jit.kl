@@ -6,13 +6,32 @@ func sum(a int, b int) int {
 jit(sum)
 sum(1,2)
 
+func sum2(a int, b int) int {
+  c := 200 + 100
+  return a + b + c
+}
+jit(sum2)
+sum2(1,2)
+
+func sum3(a int, b int) int {
+  return sum(a, b)
+}
+jit(sum3)
+sum3(1,2)
+
 func array(a int, b int) Array<Array<int>> {
-  arr := [[100, a, b], [200, 201, 202, 203]]
-  arr
+  [[100, a, b], [200, 201, 202, 203]]
 }
 
 jit(array)
 array(1,2)
+
+func array2(a int, b int) Array<Array<int>> {
+  array(a, b)
+}
+
+jit(array2)
+arr := array2(1,2)
 
 class Pet {
   name string

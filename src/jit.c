@@ -342,6 +342,7 @@ static void translate(JitContext *ctx)
     }
   }
 
+  jit_optimize();
   jit_verify_ir();
 }
 

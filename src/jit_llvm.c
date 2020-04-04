@@ -23,16 +23,54 @@
 */
 
 #include "jit_llvm.h"
+//#include <llvm-c/OrcBindings.h>
 
 #define WHEEL_NEW_TUPLE   0
 #define WHEEL_NEW_ARRAY   1
 #define WHEEL_NEW_MAP     2
 #define WHEEL_NEW_OBJECT  3
-#define MAX_WHEEL_NR      4
+#define WHEEL_KOALA_CALL  4
+#define MAX_WHEEL_NR      5
 
 static JitFunction wheel_funcs[MAX_WHEEL_NR];
 static LLVMExecutionEngineRef llengine;
 static LLVMModuleRef llmod;
+static HashMap funcmap;
+
+typedef struct funcnode {
+  HashMapEntry entry;
+  char *name;
+  JitFunction *func;
+} FuncNode;
+
+static int funcnode_equal(void *p1, void *p2)
+{
+  FuncNode *n1 = p1;
+  FuncNode *n2 = p2;
+  return !strcmp(n1->name, n2->name);
+}
+
+void init_func_map(void)
+{
+  hashmap_init(&funcmap, funcnode_equal);
+}
+
+int jit_add_function(JitFunction *func)
+{
+  FuncNode *node = kmalloc(sizeof(FuncNode));
+  node->name = func->name;
+  node->func = func;
+  hashmap_entry_init(node, strhash(node->name));
+  return hashmap_add(&funcmap, node);
+}
+
+JitFunction *jit_find_function(char *name)
+{
+  FuncNode key = {.name = name};
+  hashmap_entry_init(&key, strhash(name));
+  FuncNode *node = hashmap_get(&funcmap, &key);
+  return node ? node->func : NULL;
+}
 
 #define JIT_MODULE_NAME "__koala_jitter__"
 
@@ -44,20 +82,21 @@ static LLVMModuleRef llvm_module(void)
   return llmod;
 }
 
-static LLVMExecutionEngineRef llvm_engine(void)
+static LLVMExecutionEngineRef llvm_engine(LLVMModuleRef mod)
 {
-  //if (llengine == NULL) {
+  if (llengine == NULL) {
     char *error;
     LLVMExecutionEngineRef engine;
     LLVMLinkInMCJIT();
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
     LLVMInitializeNativeAsmParser();
-    LLVMCreateExecutionEngineForModule(&engine, llvm_module(), &error);
+    LLVMCreateExecutionEngineForModule(&engine, mod, &error);
     llengine = engine;
-    return engine;
-  //}
-  //return llengine;
+  } else {
+    LLVMAddModule(llengine, mod);
+  }
+  return llengine;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -90,11 +129,11 @@ static void init_types(void)
 JitType jit_type(TypeDesc *desc)
 {
   if (desc == NULL) {
-    return JitVoidType;
+    return JitIntType;
   }
 
   if (!desc_isbase(desc)) {
-    return JitPtrType;
+    return JitIntType;
   }
 
   JitType type = JitVoidType;
@@ -130,31 +169,6 @@ JitType jit_type(TypeDesc *desc)
 
 /*--------------------------------------------------------------------------*/
 
-static Object *val_to_obj(void *val, TypeDesc *desc)
-{
-  if (!desc_isbase(desc)) {
-    // koala's object
-    return val;
-  }
-/*
-  // koala's type is base type
-  struct base_mapping *m = base_mappings;
-  while (m->type != NULL) {
-    if (m->kind == desc->base) {
-      return m->object(rval);
-    }
-    ++m;
-  }
-*/
-}
-
-static void *obj_to_val()
-{
-  return NULL;
-}
-
-/*--------------------------------------------------------------------------*/
-
 /* NOTE: Parameter 'name' is c function name with external attribute */
 static void jit_init_cfunc(JitFunction *func, char *name,
                           JitType rtype, JitType *ptypes, int size)
@@ -175,20 +189,6 @@ static void jit_init_cfunc(JitFunction *func, char *name,
   func->rettype = rtype;
   func->llproto = llproto;
   func->llfunc  = llfunc;
-}
-
-static void *kfunc_call(void *self, void *ob, void *args[], int32_t argc)
-{
-  Object *value;
-  if (argc <= 0) {
-    value = NULL;
-  } else if (argc == 1) {
-
-  } else {
-    value = tuple_new(argc);
-  }
-
-  return NULL;
 }
 
 static void kobj_decref(void *self)
@@ -239,6 +239,27 @@ static Object *__obj_box__(int kind, void *ptr)
     break;
   }
   return ob;
+}
+
+static int64_t __obj_unbox__(Object *ob)
+{
+  int64_t val;
+  if (integer_check(ob)) {
+    val = integer_asint(ob);
+  } else if (byte_check(ob)) {
+    val = byte_asint(ob);
+  } else if (bool_check(ob)) {
+    val = bool_istrue(ob);
+  } else if (float_check(ob)) {
+    val = (int64_t)float_asflt(ob);
+  } else if (char_check(ob)) {
+    val = char_asch(ob);
+  } else if (string_check(ob)) {
+    val = (int64_t)string_asstr(ob);
+  } else {
+    val = (int64_t)(intptr_t)ob;
+  }
+  return val;
 }
 
 Object *__new_tuple__(void *args[], int32_t kind[], int32_t argc)
@@ -307,6 +328,31 @@ Object *__new_map__(TypeDesc *ktype, TypeDesc *vtype,
   return map;
 }
 
+int64_t koala_call(Object *func, Object *ob, void *args[], int32_t argc)
+{
+  TypeDesc *desc = ((MethodObject *)func)->desc;
+  Vector *argtypes = desc->proto.args;
+  JitType type;
+  Object *tuple;
+  if (argc <= 0) {
+    tuple = NULL;
+  } else if (argc == 1) {
+    type = jit_type(vector_get(argtypes, 0));
+    tuple = __obj_box__(type.kind, args[0]);
+  } else {
+    tuple = tuple_new(argc);
+    Object *arg;
+    for (int i = 0; i < argc; i++) {
+      type = jit_type(vector_get(argtypes, i));
+      arg = __obj_box__(type.kind, args[i]);
+      tuple_set(tuple, i, arg);
+      OB_DECREF(arg);
+    }
+  }
+  Object *res = method_call(func, ob, tuple);
+  return __obj_unbox__(res);
+}
+
 /* Object *__new_tuple__(void *args[], int32_t kind[], int32_t argc) */
 static void init_new_tuple(void)
 {
@@ -329,7 +375,7 @@ static void init_new_array(void)
     JitArgsType,
     JitNrType,
   };
-  JitType ret = JitPtrType;
+  JitType ret = JitIntType;
   jit_init_cfunc(f, "__new_array__", ret, params, 3);
 }
 
@@ -360,12 +406,27 @@ static void init_new_object(void)
   jit_init_cfunc(f, "object_alloc", ret, params, 1);
 }
 
+/* int64_t koala_call(Object *func, Object *ob, void *args[], int32_t argc); */
+static void init_koala_call(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_KOALA_CALL];
+  JitType params[] = {
+    JitPtrType,
+    JitPtrType,
+    JitArgsType,
+    JitNrType,
+  };
+  JitType ret = JitIntType;
+  jit_init_cfunc(f, "koala_call", ret, params, 4);
+}
+
 static void init_wheel_funcs(void)
 {
   init_new_tuple();
   init_new_array();
   init_new_map();
   init_new_object();
+  init_koala_call();
 
   /*
   LLVMTypeRef proto;
@@ -374,18 +435,6 @@ static void init_wheel_funcs(void)
   params[1] = LLVMVoidPtrType();
   params[2] = LLVMVoidPtrPtrType();
   params[3] = LLVMInt32Type();
-
-  // Object *array_new(TypeDesc *desc, GVector *vec);
-  proto = LLVMFunctionType(LLVMVoidPtrType(), params, 2, 0);
-  gstate.newarray = llvm_cfunction("newarray", proto, array_new);
-
-  // Object *map_new(TypeDesc *ktype, TypeDesc *vtype);
-  proto = LLVMFunctionType(LLVMVoidPtrType(), params, 2, 0);
-  gstate.newmap = llvm_cfunction("newmap", proto, map_new);
-
-  // Object *object_alloc(typeObject *type);
-  proto = LLVMFunctionType(LLVMVoidPtrType(), params, 1, 0);
-  gstate.newobject = llvm_cfunction("newobject", proto, object_alloc);
 
   // void *kfunc_call(Object *self, Object *ob, void *args[], int32_t argc);
   proto = LLVMFunctionType(LLVMVoidPtrType(), params, 4, 0);
@@ -409,9 +458,6 @@ static void init_wheel_funcs(void)
   proto = LLVMFunctionType(LLVMVoidType(), params, 2, 0);
   gstate.exitfunc = llvm_cfunction("exitfunc", proto, jit_exitfunc);
 
-  // Object *__new_tuple__(Object *args[], int argc);
-  proto = LLVMFunctionType(LLVMVoidPtrType(), params, 2, 0);
-  gstate.newtuple = llvm_cfunction("newtuple", proto, __new_tuple__);
   */
 }
 
@@ -435,10 +481,38 @@ static void jit_decref(JitContext *ctx, JitVariable *var)
 
 /*--------------------------------------------------------------------------*/
 
+LLVMPassManagerRef llpass;
+
 void init_jit_llvm(void)
 {
   init_types();
   init_wheel_funcs();
+  init_func_map();
+  /*
+  if (llpass == NULL) {
+    llpass = LLVMCreateFunctionPassManagerForModule(llvm_module());
+    // This pass should eliminate all the load and store instructions
+	  LLVMAddPromoteMemoryToRegisterPass(llpass);
+
+    // Add some optimization passes
+    LLVMAddScalarReplAggregatesPass(llpass);
+    LLVMAddLICMPass(llpass);
+    LLVMAddAggressiveDCEPass(llpass);
+    LLVMAddCFGSimplificationPass(llpass);
+    LLVMAddInstructionCombiningPass(llpass);
+
+    // Run the pass
+    //LLVMInitializeFunctionPassManager(gallivm->passmgr);
+    //LLVMRunFunctionPassManager(gallivm->passmgr, ctx->main_fn);
+    //LLVMFinalizeFunctionPassManager(gallivm->passmgr);
+
+	  //LLVMDisposeBuilder(gallivm->builder);
+	  //LLVMDisposePassManager(gallivm->passmgr);
+
+    int res = LLVMInitializeFunctionPassManager(llpass);
+    printf("LLVMInitializeFunctionPassManager:%d\n", res);
+  }
+  */
 }
 
 void fini_jit_llvm(void)
@@ -457,6 +531,7 @@ static JitValue jit_const_int(int64_t ival)
 {
   JitValue value;
   value.llvalue = LLVMConstInt(JitIntType.lltype, ival, 1);
+  value.raw = ival;
   value.type = JitIntType;
   return value;
 }
@@ -465,6 +540,7 @@ static JitValue jit_const_byte(int8_t bval)
 {
   JitValue value;
   value.llvalue = LLVMConstInt(JitByteType.lltype, bval, 0);
+  value.raw = bval;
   value.type = JitByteType;
   return value;
 }
@@ -473,6 +549,7 @@ static JitValue jit_const_bool(int8_t zval)
 {
   JitValue value;
   value.llvalue = LLVMConstInt(JitBoolType.lltype, zval, 0);
+  value.raw = zval;
   value.type = JitBoolType;
   return value;
 }
@@ -481,6 +558,7 @@ static JitValue jit_const_float(double fval)
 {
   JitValue value;
   value.llvalue = LLVMConstReal(JitFloatType.lltype, fval);
+  value.raw = (int64_t)fval;
   value.type = JitFloatType;
   return value;
 }
@@ -489,6 +567,7 @@ static JitValue jit_const_char(int32_t ival)
 {
   JitValue value;
   value.llvalue = LLVMConstInt(JitCharType.lltype, ival, 1);
+  value.raw = ival;
   value.type = JitCharType;
   return value;
 }
@@ -498,6 +577,7 @@ static JitValue jit_const_str(void *ptr)
   JitValue value;
   LLVMValueRef llvalue = LLVMConstInt(LLVMIntPtrType2(), (intptr_t)ptr, 0);
   value.llvalue = LLVMConstIntToPtr(llvalue, JitStrType.lltype);
+  value.raw = (int64_t)ptr;
   value.type = JitStrType;
   return value;
 }
@@ -507,6 +587,7 @@ static JitValue jit_const_ptr(void *ptr)
   JitValue value;
   LLVMValueRef llvalue = LLVMConstInt(LLVMIntPtrType2(), (intptr_t)ptr, 0);
   value.llvalue = LLVMConstIntToPtr(llvalue, JitPtrType.lltype);
+  value.raw = (int64_t)ptr;
   value.type = JitPtrType;
   return value;
 }
@@ -515,6 +596,7 @@ static JitValue jit_const_num(int32_t ival)
 {
   JitValue value;
   value.llvalue = LLVMConstInt(JitNrType.lltype, ival, 1);
+  value.raw = ival;
   value.type = JitNrType;
   return value;
 }
@@ -549,7 +631,6 @@ JitVariable *jit_variable(char *name, JitType type)
 {
   JitVariable *var = kmalloc(sizeof(JitVariable));
   var->type = type;
-  var->llvalue = NULL;
   var->name = name;
   return var;
 }
@@ -609,10 +690,10 @@ static char *function_name(CodeObject *co)
     Object *mo = co->module;
     STRBUF(sbuf);
     strbuf_append(&sbuf, MODULE_PATH(mo));
-    strbuf_append_char(&sbuf, '.');
+    strbuf_append_char(&sbuf, '$');
     if (co->type != NULL) {
       strbuf_append(&sbuf, co->type->name);
-      strbuf_append_char(&sbuf, '.');
+      strbuf_append_char(&sbuf, '$');
     }
     strbuf_append(&sbuf, co->name);
     name = atom(strbuf_tostr(&sbuf));
@@ -644,9 +725,10 @@ JitFunction *jit_function(CodeObject *co)
   f->rettype = type;
   LLVMTypeRef ret = type.lltype;
 
+  f->name = function_name(co);
   f->llproto = LLVMFunctionType(ret, params, nargs, 0);
-  f->llfunc  = LLVMAddFunction(llvm_module(), function_name(co), f->llproto);
-
+  f->llfunc  = LLVMAddFunction(llvm_module(), f->name, f->llproto);
+  jit_add_function(f);
   return f;
 }
 
@@ -717,16 +799,29 @@ void jit_context_fini(JitContext *ctx)
   expect(vector_size(&ctx->stack) == 0);
   gvector_fini(&ctx->stack);
 
-  jit_free_function(ctx->func);
+  //jit_free_function(ctx->func);
 }
 
 void *jit_emit_code(JitContext *ctx)
 {
   char *name = function_name(ctx->co);
-  void *mcptr = (void *)LLVMGetFunctionAddress(llvm_engine(), name);
-  LLVMDisposeExecutionEngine(llengine);
- // llengine = NULL;
+  LLVMModuleRef mod = llvm_module();
+  JitFunction *f = jit_find_function(name);
+  //int res = LLVMRunFunctionPassManager(llpass, f->llfunc);
+  //printf("jit_optimize:%d\n", res);
+
+  void *mcptr = (void *)LLVMGetFunctionAddress(llvm_engine(mod), name);
+  LLVMRemoveModule(llengine, mod, &mod, NULL);
+  LLVMDeleteFunction(f->llfunc);
+  LLVMValueRef llfunc = LLVMAddFunction(llvm_module(), name, f->llproto);
+  LLVMSetLinkage(llfunc, LLVMExternalLinkage);
+  LLVMAddGlobalMapping(llengine, llfunc, mcptr);
+  f->llfunc = llfunc;
   return mcptr;
+}
+
+void jit_optimize(void)
+{
 }
 
 void jit_verify_ir(void)
@@ -772,7 +867,7 @@ jit_build_call(JitContext *ctx, JitFunction *f, LLVMValueRef *args, int argc)
 {
   LLVMBuilderRef builder = ctx->builder;
   LLVMValueRef llvalue = LLVMBuildCall(builder, f->llfunc, args, argc, "");
-  JitValue value = {llvalue, f->rettype};
+  JitValue value = {llvalue, 0, f->rettype};
   return value;
 }
 
@@ -881,6 +976,25 @@ void jit_OP_RETURN(JitContext *ctx)
   LLVMBuildRetVoid(builder);
 }
 
+/* int64_t koala_call(Object *func, Object *ob, void *args[], int32_t argc); */
+static JitValue jit_koala_call(JitContext *ctx, Object *self,
+                              char *funcname, GVector *args)
+{
+  Object *meth = module_get(self, funcname);
+  JitFunction *f = &wheel_funcs[WHEEL_KOALA_CALL];
+  int size = gvector_size(args);
+  LLVMValueRef llargs = jit_voidptr_array(ctx, args);
+  LLVMValueRef params[] = {
+    jit_const_ptr(meth).llvalue,
+    jit_const_ptr(self).llvalue,
+    llargs,
+    jit_const_num(size).llvalue,
+  };
+  JitValue res = jit_build_call(ctx, f, params, 4);
+  jit_free_array(ctx, llargs);
+  return res;
+}
+
 void jit_OP_CALL(JitContext *ctx, int index, int count)
 {
   LLVMBuilderRef builder = ctx->builder;
@@ -892,30 +1006,40 @@ void jit_OP_CALL(JitContext *ctx, int index, int count)
   gvector_pop_back(&ctx->stack, &value);
 
   char *funcname;
-  Object *mo = co->module;
+  Object *self = (Object *)value.raw;
   STRBUF(sbuf);
-  strbuf_append(&sbuf, MODULE_PATH(mo));
-  strbuf_append_char(&sbuf, '.');
+  if (module_check(self)) {
+    strbuf_append(&sbuf, MODULE_PATH(self));
+  } else {
+    TypeObject *type = OB_TYPE(self);
+    strbuf_append(&sbuf, MODULE_PATH(type->owner));
+    strbuf_append_char(&sbuf, '$');
+    strbuf_append(&sbuf, type->name);
+  }
+  strbuf_append_char(&sbuf, '$');
   strbuf_append(&sbuf, string_asstr(x));
   funcname = atom(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
-  LLVMValueRef fn = NULL;
-  LLVMFindFunction(llvm_engine(), funcname, &fn);
- // LLVMDisposeExecutionEngine(llengine);
- // llengine = NULL;
+  JitFunction *func = jit_find_function(funcname);
 
-  if (fn != NULL) {
+  if (func != NULL) {
     LLVMValueRef params[count];
     for (int i = 0; i < count; ++i) {
       gvector_pop_back(&ctx->stack, &value);
       params[i] = value.llvalue;
     }
-    LLVMValueRef res = LLVMBuildCall(builder, fn, params, count, "");
-    value.llvalue = res;
-    value.type = JitIntType;
+    value = jit_build_call(ctx, func, params, count);
     gvector_push_back(&ctx->stack, &value);
   } else {
-
+    GVector vec;
+    gvector_init(&vec, 16, sizeof(JitValue));
+    for (int i = 0; i < count; ++i) {
+      gvector_pop_back(&ctx->stack, &value);
+      gvector_push_back(&vec, &value);
+    }
+    value = jit_koala_call(ctx, self, string_asstr(x), &vec);
+    gvector_push_back(&ctx->stack, &value);
+    gvector_fini(&vec);
   }
 }
 
