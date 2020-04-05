@@ -104,7 +104,7 @@ static LLVMModuleRef llvm_module(void)
   return llmod;
 }
 
-static LLVMExecutionEngineRef llvm_engine(LLVMModuleRef mod)
+static LLVMExecutionEngineRef llvm_engine(void)
 {
   if (llengine == NULL) {
     char *error;
@@ -113,11 +113,11 @@ static LLVMExecutionEngineRef llvm_engine(LLVMModuleRef mod)
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
     LLVMInitializeNativeAsmParser();
-    //LLVMCreateExecutionEngineForModule(&engine, mod, &error);
-    LLVMCreateJITCompilerForModule(&engine, mod, 2, &error);
+    LLVMCreateExecutionEngineForModule(&engine, llvm_module(), &error);
+    //LLVMCreateJITCompilerForModule(&engine, mod, 2, &error);
     llengine = engine;
   } else {
-    LLVMAddModule(llengine, mod);
+    LLVMAddModule(llengine, llvm_module());
   }
   return llengine;
 }
@@ -193,7 +193,7 @@ JitType jit_type(TypeDesc *desc)
 /*--------------------------------------------------------------------------*/
 
 /* NOTE: Parameter 'name' is c function name with external attribute */
-static void jit_init_cfunc(JitFunction *func, char *name,
+static void jit_init_cfunc(JitFunction *func, char *name, void *addr,
                           JitType rtype, JitType *ptypes, int size)
 {
   gvector_init(&func->argtypes, 8, sizeof(JitType));
@@ -206,7 +206,7 @@ static void jit_init_cfunc(JitFunction *func, char *name,
   LLVMTypeRef llproto = LLVMFunctionType(rtype.lltype, params, size, 0);
   LLVMValueRef llfunc  = LLVMAddFunction(llvm_module(), name, llproto);
   LLVMSetLinkage(llfunc, LLVMExternalLinkage);
-  //LLVMAddGlobalMapping(llvm_engine(), llfunc, addr);
+  LLVMAddGlobalMapping(llvm_engine(), llfunc, addr);
 
   func->name    = name;
   func->rettype = rtype;
@@ -461,7 +461,7 @@ static void init_subscr_load(void)
     JitIntType,
   };
   JitType ret = JitIntType;
-  jit_init_cfunc(f, "__subscr_load__", ret, params, 2);
+  jit_init_cfunc(f, "__subscr_load__", __subscr_load__, ret, params, 2);
 }
 
 /* void __subscr_store__(Object *ob, int64_t index, void *val, int kind); */
@@ -475,7 +475,7 @@ static void init_subscr_store(void)
     JitIntType,
   };
   JitType ret = JitVoidType;
-  jit_init_cfunc(f, "__subscr_store__", ret, params, 4);
+  jit_init_cfunc(f, "__subscr_store__", __subscr_store__, ret, params, 4);
 }
 
 /* Object *__new_tuple__(void *args[], int32_t kind[], int32_t argc) */
@@ -488,7 +488,7 @@ static void init_new_tuple(void)
     JitNrType,
   };
   JitType ret = JitPtrType;
-  jit_init_cfunc(f, "__new_tuple__", ret, params, 3);
+  jit_init_cfunc(f, "__new_tuple__", __new_tuple__, ret, params, 3);
 }
 
 /* Object *__new_array__(TypeDesc *type, void *args[], int32_t argc) */
@@ -501,7 +501,7 @@ static void init_new_array(void)
     JitNrType,
   };
   JitType ret = JitPtrType;
-  jit_init_cfunc(f, "__new_array__", ret, params, 3);
+  jit_init_cfunc(f, "__new_array__", __new_array__, ret, params, 3);
 }
 
 /*
@@ -517,7 +517,7 @@ static void init_new_map(void)
     JitNrType,
   };
   JitType ret = JitPtrType;
-  jit_init_cfunc(f, "__new_map__", ret, params, 4);
+  jit_init_cfunc(f, "__new_map__", __new_map__, ret, params, 4);
 }
 
 /* Object *object_alloc(typeObject *type); */
@@ -528,7 +528,7 @@ static void init_new_object(void)
     JitPtrType,
   };
   JitType ret = JitPtrType;
-  jit_init_cfunc(f, "object_alloc", ret, params, 1);
+  jit_init_cfunc(f, "object_alloc", object_alloc, ret, params, 1);
 }
 
 /* int64_t koala_call(Object *func, Object *ob, void *args[], int32_t argc); */
@@ -542,7 +542,7 @@ static void init_koala_call(void)
     JitNrType,
   };
   JitType ret = JitIntType;
-  jit_init_cfunc(f, "koala_call", ret, params, 4);
+  jit_init_cfunc(f, "koala_call", koala_call, ret, params, 4);
 }
 
 /*
@@ -557,7 +557,7 @@ static void init_get_value(void)
     JitPtrType,
   };
   JitType ret = JitIntType;
-  jit_init_cfunc(f, "__get_value__", ret, params, 3);
+  jit_init_cfunc(f, "__get_value__", __get_value__, ret, params, 3);
 }
 
 /*
@@ -575,7 +575,7 @@ static void init_set_value(void)
     JitPtrType,
   };
   JitType ret = JitVoidType;
-  jit_init_cfunc(f, "__set_value__", ret, params, 5);
+  jit_init_cfunc(f, "__set_value__", __set_value__, ret, params, 5);
 }
 
 /* void __obj_incref__(void *self) */
@@ -586,7 +586,7 @@ static void init_inc_obj(void)
     JitPtrType,
   };
   JitType ret = JitVoidType;
-  jit_init_cfunc(f, "__obj_incref__", ret, params, 1);
+  jit_init_cfunc(f, "__obj_incref__", __obj_incref__, ret, params, 1);
 }
 
 /* void __obj_decref__(void *self) */
@@ -597,7 +597,7 @@ static void init_dec_obj(void)
     JitPtrType,
   };
   JitType ret = JitVoidType;
-  jit_init_cfunc(f, "__obj_decref__", ret, params, 1);
+  jit_init_cfunc(f, "__obj_decref__", __obj_decref__, ret, params, 1);
 }
 
 /* void __enterfunc__(void *args[], int32_t argc); */
@@ -609,7 +609,7 @@ static void init_enter_func(void)
     JitNrType,
   };
   JitType ret = JitVoidType;
-  jit_init_cfunc(f, "__enterfunc__", ret, params, 2);
+  jit_init_cfunc(f, "__enterfunc__", __enterfunc__, ret, params, 2);
 }
 
 /* void __exitfunc__(void *args[], int32_t argc); */
@@ -621,7 +621,7 @@ static void init_exit_func(void)
     JitNrType,
   };
   JitType ret = JitVoidType;
-  jit_init_cfunc(f, "__exitfunc__", ret, params, 2);
+  jit_init_cfunc(f, "__exitfunc__", __exitfunc__, ret, params, 2);
 }
 
 static void init_wheel_funcs(void)
@@ -990,7 +990,7 @@ void *jit_emit_code(JitContext *ctx)
   //int res = LLVMRunFunctionPassManager(llpass, f->llfunc);
   //printf("jit_optimize:%d\n", res);
 
-  void *mcptr = (void *)LLVMGetFunctionAddress(llvm_engine(mod), name);
+  void *mcptr = (void *)LLVMGetFunctionAddress(llvm_engine(), name);
   LLVMRemoveModule(llengine, mod, &mod, NULL);
   LLVMDeleteFunction(f->llfunc);
   LLVMValueRef llfunc = LLVMAddFunction(llvm_module(), name, f->llproto);

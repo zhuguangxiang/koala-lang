@@ -47,33 +47,14 @@ static Object *jit_func_wrapper(Object *self, Object *args, void *jitptr)
   v; \
 })
 
-typedef struct translate {
-  void *engine;
-  void *mod;
-  CodeObject *co;
-  Object *consts;
-  Vector *locinfo;
-  Vector blocks;
-  void *mcptr;
-  Vector stack;
-  Vector locvars;
-} Translate;
-
-typedef struct basicblock {
-  uint8_t *codes;
-  int size;
-  Translate *trans;
-} BasicBlock;
-
-static void split_blocks(Translate *trans)
+static void split(JitContext *ctx)
 {
-  CodeObject *co = trans->co;
+  CodeObject *co = ctx->co;
   uint8_t *codes = co->codes;
   int size = co->size;
   uint8_t op;
   int oparg;
   int index = 0;
-  BasicBlock *blk;
   uint8_t *start = codes;
   uint8_t *end = codes;
   while (index < size) {
@@ -107,15 +88,6 @@ static void split_blocks(Translate *trans)
 static int jit_support(CodeObject *co)
 {
   return 1;
-}
-
-static Object *exec_sum(void *ptr, Object *vargs)
-{
-  int (*code)(int, int) = ptr;
-  Object *v1 = valist_get(vargs, 0);
-  Object *v2 = valist_get(vargs, 1);
-  int res = code(integer_asint(v1), integer_asint(v2));
-  return integer_new(res);
 }
 
 /*
@@ -219,11 +191,6 @@ func fib(n int) int {
 import "jit"
 jit.go(fib, 40, 0)
  */
-
-static void translate_basicblock()
-{
-
-}
 
 static void translate(JitContext *ctx)
 {
@@ -690,4 +657,21 @@ void jit_finalize(void)
 {
   fini_jit_llvm();
   fini_jit_ffi();
+}
+
+static MethodDef jit_methods[] = {
+  {"go", "A", "Llang.Option(Llang.Method;);", jit_go},
+  {NULL}
+};
+
+void init_module(void *mptr)
+{
+  init_jit_llvm();
+  Object *mo = mptr;
+  module_add_funcdefs(mo, jit_methods);
+}
+
+void fini_module(void *ptr)
+{
+  jit_finalize();
 }

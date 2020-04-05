@@ -175,7 +175,7 @@ Object *method_getcode(Object *self)
     return NULL;
   }
   MethodObject *meth = (MethodObject *)self;
-  if (meth->kind == CFUNC_KIND) {
+  if (meth->kind == KFUNC_KIND) {
     return OB_INCREF(meth->ptr);
   } else {
     error("method '%s' is cfunc", meth->name);

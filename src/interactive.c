@@ -54,13 +54,13 @@ static void show_banner(void)
   struct utsname sysinfo;
   if (!uname(&sysinfo)) {
 #if defined(__clang__)
-  printf("[clang %d.%d.%d] on %s/%s %s\r\n",
+  printf("[clang %d.%d.%d on %s/%s]\r\n",
          __clang_major__, __clang_minor__, __clang_patchlevel__,
-         sysinfo.sysname, sysinfo.machine, sysinfo.release);
+         sysinfo.sysname, sysinfo.machine);
 #elif defined(__GNUC__)
-  printf("[gcc %d.%d.%d] on %s/%s %s\r\n",
+  printf("[gcc %d.%d.%d on %s/%s]\r\n",
          __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__,
-         sysinfo.sysname, sysinfo.machine, sysinfo.release);
+         sysinfo.sysname, sysinfo.machine);
 #elif defined(_MSC_VER)
 #else
 #endif

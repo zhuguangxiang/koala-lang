@@ -24,7 +24,6 @@
 
 #include "koala.h"
 #include "opcode.h"
-#include "jit.h"
 
 static void show_args(int op, int index, uint8_t *codes, Object *consts)
 {
@@ -161,7 +160,6 @@ static MethodDef lang_methods[] = {
   {"dis", "A", NULL, disassemble},
   {"help", "A", NULL, help},
   {"exit", NULL, NULL, _exit_},
-  {"jit", "A", "Llang.Option(Llang.Method;);", jit_go},
   {NULL}
 };
 

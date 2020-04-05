@@ -107,6 +107,10 @@ static void module_free(Object *ob)
   }
 
   if (module->dlptr != NULL) {
+    void (*fini)(void *) = dlsym(module->dlptr, "fini_module");
+    if (fini != NULL) {
+      fini(module);
+    }
     dlclose(module->dlptr);
   }
 
@@ -541,6 +545,7 @@ static Object *module_from_file(char *path, char *name, Object *ob)
   char *klcpath = str_dup_ex(path, ".klc");
   debug("read image from '%s'", klcpath);
   Image *image = image_read_file(klcpath, 0);
+  kfree(klcpath);
   Object *mo = ob;
   if (image != NULL) {
     if (mo == NULL)
@@ -563,10 +568,28 @@ static Object *module_from_file(char *path, char *name, Object *ob)
     IMAGE_LOAD_ENUMS(image, _load_enum_, mo);
     image_free(image);
   } else {
-    warn("cannot load '%s'", klcpath);
-    mo = NULL;
+    debug("load 'lib%s.so'", path);
+    STRBUF(sbuf);
+    strbuf_append(&sbuf, "lib");
+    strbuf_append(&sbuf, name);
+    strbuf_append(&sbuf, ".so");
+    char *so_path = strbuf_tostr(&sbuf);
+    void *dlptr = dlopen(so_path, RTLD_LAZY);
+    strbuf_fini(&sbuf);
+    if (dlptr == NULL) {
+      error("cannot load '%s' module", path);
+      return NULL;
+    }
+    void (*init)(void *) = dlsym(dlptr, "init_module");
+    if (init == NULL) {
+      error("init_module is not found in '%s''", path);
+      dlclose(dlptr);
+      return NULL;
+    }
+    mo = module_new(name);
+    init(mo);
+    ((ModuleObject *)mo)->dlptr = dlptr;
   }
-  kfree(klcpath);
   return mo;
 }
 
@@ -587,14 +610,14 @@ Object *module_load(char *path)
       warn("cannot find module '%s'", path);
       return NULL;
     } else {
-      printf("module '%s' is loaded.\n", path);
+      debug("module '%s' is loaded.\n", path);
       module_install(path, mo);
+      //OB_DECREF(mo);
       return mo;
     }
   } else {
     ModuleObject *mo = (ModuleObject *)node->ob;
     if (mo->state == MOD_NOT_READY) {
-      printf("module '%s' is not ready\n", mo->name);
       debug("module '%s' is not ready.", mo->name);
       mo->state = MOD_LOADING;
       char *name = strrchr(path, '/');
@@ -602,15 +625,15 @@ Object *module_load(char *path)
       Object *ob = module_from_file(path, name, node->ob);
       if (ob != NULL) {
         mo->state = MOD_READY;
-        //printf("module '%s' is ready.\n", mo->name);
+        //debug("module '%s' is ready.\n", mo->name);
         if (!compflag) {
           run_func(ob, "__init__", NULL);
         }
       }
     } else if (mo->state == MOD_LOADING) {
-      printf("module '%s' is loading.\n", mo->name);
+      debug("module '%s' is loading.\n", mo->name);
     } else {
-      //printf("module '%s' is ready.\n", mo->name);
+      //debug("module '%s' is ready.\n", mo->name);
     }
   }
   return OB_INCREF(node->ob);

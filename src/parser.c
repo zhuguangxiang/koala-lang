@@ -3262,6 +3262,7 @@ static void parse_call(ParserState *ps, Expr *exp)
     if (!exp->first) {
       serror(lexp->row, lexp->col,
             "call to super must be first statement");
+      return;
     }
 
     if (exp->funcname != NULL && strcmp(exp->funcname, "__init__")) {

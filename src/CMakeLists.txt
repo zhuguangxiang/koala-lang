@@ -4,7 +4,6 @@
 #
 
 INCLUDE(${PROJECT_SOURCE_DIR}/cmake/bison.cmake)
-INCLUDE(${PROJECT_SOURCE_DIR}/cmake/llvm.cmake)
 
 RUN_FLEX(
   ${PROJECT_SOURCE_DIR}/src/koala.l
@@ -25,26 +24,27 @@ SET(KOALA_OBJECTS_SOURCES
 
 SET(KOALA_BUILTIN_MODULES
   langmodule.c sysmodule.c iomodule.c fmtmodule.c modules/assertmodule.c
-  testnative.c fsmodule.c jit_llvm.c jit_ffi.c jit.c)
+  testnative.c fsmodule.c)
 
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c
   typedesc.c eval.c image.c opcode.c symbol.c ast.c parser.c
   koala_lex.c koala_yacc.c run.c compile.c interactive.c readline.c gc.c
-  textblock.c gvector.c
+  textblock.c gvector.c jit_ffi.c
   ${KOALA_OBJECTS_SOURCES} ${KOALA_BUILTIN_MODULES})
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})
-TARGET_LINK_LIBRARIES(koala pthread m dl ${llvm_libs})
+TARGET_LINK_LIBRARIES(koala pthread m dl)
+
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})
-TARGET_LINK_LIBRARIES(koala_so pthread m dl ${llvm_libs})
+TARGET_LINK_LIBRARIES(koala_so pthread m dl ffi)
 SET_TARGET_PROPERTIES(koala_so PROPERTIES
   VERSION ${KOALA_VERSION}
   SOVERSION ${KOALA_VERSION_MAJOR}
   OUTPUT_NAME koala)
 
 ADD_EXECUTABLE(koala_out main.c)
-TARGET_LINK_LIBRARIES(koala_out koala)
+TARGET_LINK_LIBRARIES(koala_out koala_so)
 SET_TARGET_PROPERTIES(koala_out PROPERTIES
   OUTPUT_NAME koala)
 

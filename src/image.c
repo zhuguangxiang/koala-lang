@@ -2186,11 +2186,11 @@ Image *image_read_file(char *path, int unload)
 {
 #define LOAD(item) (!(unload & (1 << (item))))
 
-  printf("load image from '%s'\n", path);
+  print("load image from '%s'\n", path);
 
   FILE *fp = fopen(path, "r");
   if (!fp) {
-    printf("error: cannot open %s file\n", path);
+    print("error: cannot open %s file\n", path);
     return NULL;
   }
 

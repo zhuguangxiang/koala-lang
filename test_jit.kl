@@ -3,14 +3,14 @@ func sum(a int, b int) int {
   c := 200 + 300
   return a + b + c
 }
-jit(sum)
+jit.go(sum)
 sum(1,2)
 
 func sum2(a int, b int) int {
   c := 200 + 100
   return a + b + c
 }
-jit(sum2)
+jit.go(sum2)
 sum2(1,2)
 
 func sum3(a int, b int) int {
@@ -23,7 +23,7 @@ func array(a int, b int) Array<Array<int>> {
   [[100, a, b], [200, 201, 202, 203]]
 }
 
-jit(array)
+jit.go(array)
 array(1,2)
 
 func array2(a int, b int) Array<Array<int>> {
@@ -109,6 +109,10 @@ func testklass(p Pet, age int) int {
   return 100
 }
 
+class Pet {
+  name string
+  age int
+}
 p := new Pet()
 p.age = 120
 p.name = "MYPET"
@@ -123,7 +127,7 @@ func testklass(p Pet, age int) int {
   "HELLO WORLD"
   p.age
 }
-jit(testklass)
+jit.go(testklass)
 testklass(p, 100)
 
 class Cat {

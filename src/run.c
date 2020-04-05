@@ -35,7 +35,6 @@
 #include "fmtmodule.h"
 #include "gc.h"
 #include "log.h"
-#include "jit.h"
 
 static void init_types(void)
 {
@@ -128,7 +127,6 @@ void koala_initialize(void)
   init_assert_module();
   init_test_module();
   init_parser();
-  jit_initialize();
 }
 
 void koala_finalize(void)
@@ -147,7 +145,6 @@ void koala_finalize(void)
   fini_types();
   fini_typedesc();
   fini_atom();
-  jit_finalize();
 }
 
 int check_dotkl(char *path);
