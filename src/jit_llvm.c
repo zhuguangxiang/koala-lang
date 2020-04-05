@@ -34,9 +34,11 @@
 #define WHEEL_SET_VALUE     6
 #define WHEEL_SUBSCR_LOAD   7
 #define WHEEL_SUBSCR_STORE  8
-#define WHEEL_ENTER_FUNC    9
-#define WHEEL_EXIT_FUNC     10
-#define MAX_WHEEL_NR        11
+#define WHEEL_INCREF_OBJ    9
+#define WHEEL_DECREF_OBJ    10
+#define WHEEL_ENTER_FUNC    11
+#define WHEEL_EXIT_FUNC     12
+#define MAX_WHEEL_NR        13
 
 static JitFunction wheel_funcs[MAX_WHEEL_NR];
 static LLVMExecutionEngineRef llengine;
@@ -212,14 +214,18 @@ static void jit_init_cfunc(JitFunction *func, char *name,
   func->llfunc  = llfunc;
 }
 
-static void kobj_decref(void *self)
+void __obj_decref__(void *self)
 {
-
+  Object *ob = self;
+  printf("decref of '%s', count: %d\n", OB_TYPE_NAME(ob), ob->ob_refcnt);
+  OB_DECREF(ob);
 }
 
-static void kobj_incref(void *self)
+void __obj_incref__(void *self)
 {
-
+  Object *ob = self;
+  printf("incref of '%s', count: %d\n", OB_TYPE_NAME(ob), ob->ob_refcnt);
+  OB_INCREF(ob);
 }
 
 void __enterfunc__(void *args[], int32_t argc)
@@ -572,6 +578,28 @@ static void init_set_value(void)
   jit_init_cfunc(f, "__set_value__", ret, params, 5);
 }
 
+/* void __obj_incref__(void *self) */
+static void init_inc_obj(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_INCREF_OBJ];
+  JitType params[] = {
+    JitPtrType,
+  };
+  JitType ret = JitVoidType;
+  jit_init_cfunc(f, "__obj_incref__", ret, params, 1);
+}
+
+/* void __obj_decref__(void *self) */
+static void init_dec_obj(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_DECREF_OBJ];
+  JitType params[] = {
+    JitPtrType,
+  };
+  JitType ret = JitVoidType;
+  jit_init_cfunc(f, "__obj_decref__", ret, params, 1);
+}
+
 /* void __enterfunc__(void *args[], int32_t argc); */
 static void init_enter_func(void)
 {
@@ -607,25 +635,10 @@ static void init_wheel_funcs(void)
   init_set_value();
   init_subscr_load();
   init_subscr_store();
+  init_inc_obj();
+  init_dec_obj();
   init_enter_func();
   init_exit_func();
-
-  /*
-  LLVMTypeRef proto;
-  LLVMTypeRef params[4];
-  params[0] = LLVMVoidPtrType();
-  params[1] = LLVMVoidPtrType();
-  params[2] = LLVMVoidPtrPtrType();
-  params[3] = LLVMInt32Type();
-
-  // void kobj_decref(Object *self);
-  proto = LLVMFunctionType(LLVMVoidType(), params, 1, 0);
-  gstate.decref = llvm_cfunction("obj_decref", proto, kobj_decref);
-
-  // void kobj_incref(Object *self);
-  proto = LLVMFunctionType(LLVMVoidType(), params, 1, 0);
-  gstate.incref = llvm_cfunction("obj_incref", proto, kobj_incref);
-  */
 }
 
 static void fini_wheel_funcs(void)
@@ -635,15 +648,6 @@ static void fini_wheel_funcs(void)
     f = &wheel_funcs[i];
     gvector_fini(&f->argtypes);
   }
-}
-
-static void jit_decref(JitContext *ctx, JitVariable *var)
-{
-  printf("decref object:%s\n", var->name);
-  LLVMBuilderRef builder = ctx->builder;
-  //LLVMFunction *cf = &gstate.decref;
-  //LLVMValueRef params[] = {var->llvalue};
-  //LLVMBuildCall(builder, cf->llfunc, params, 1, "");
 }
 
 /*--------------------------------------------------------------------------*/
@@ -656,29 +660,32 @@ void init_jit_llvm(void)
   init_wheel_funcs();
   init_func_map();
   /*
-  if (llpass == NULL) {
-    llpass = LLVMCreateFunctionPassManagerForModule(llvm_module());
-    // This pass should eliminate all the load and store instructions
-	  LLVMAddPromoteMemoryToRegisterPass(llpass);
+  llpass = LLVMCreateFunctionPassManagerForModule(llvm_module());
+  // This pass should eliminate all the load and store instructions
+  LLVMAddPromoteMemoryToRegisterPass(llpass);
 
-    // Add some optimization passes
-    LLVMAddScalarReplAggregatesPass(llpass);
-    LLVMAddLICMPass(llpass);
-    LLVMAddAggressiveDCEPass(llpass);
-    LLVMAddCFGSimplificationPass(llpass);
-    LLVMAddInstructionCombiningPass(llpass);
+  // Add some optimization passes
+  LLVMAddScalarReplAggregatesPass(llpass);
+  LLVMAddLICMPass(llpass);
+  LLVMAddAggressiveDCEPass(llpass);
+  LLVMAddCFGSimplificationPass(llpass);
+  LLVMAddInstructionCombiningPass(llpass);
+  LLVMAddTailCallEliminationPass(llpass);
+  LLVMAddBasicAliasAnalysisPass(llpass);
+  LLVMAddDeadStoreEliminationPass(llpass);
+  LLVMAddMergedLoadStoreMotionPass(llpass);
+  LLVMAddLowerAtomicPass(llpass);
 
-    // Run the pass
-    //LLVMInitializeFunctionPassManager(gallivm->passmgr);
-    //LLVMRunFunctionPassManager(gallivm->passmgr, ctx->main_fn);
-    //LLVMFinalizeFunctionPassManager(gallivm->passmgr);
+  // Run the pass
+  //LLVMInitializeFunctionPassManager(gallivm->passmgr);
+  //LLVMRunFunctionPassManager(gallivm->passmgr, ctx->main_fn);
+  //LLVMFinalizeFunctionPassManager(gallivm->passmgr);
 
-	  //LLVMDisposeBuilder(gallivm->builder);
-	  //LLVMDisposePassManager(gallivm->passmgr);
+  //LLVMDisposeBuilder(gallivm->builder);
+  //LLVMDisposePassManager(gallivm->passmgr);
 
-    int res = LLVMInitializeFunctionPassManager(llpass);
-    printf("LLVMInitializeFunctionPassManager:%d\n", res);
-  }
+  int res = LLVMInitializeFunctionPassManager(llpass);
+  printf("LLVMInitializeFunctionPassManager:%d\n", res);
   */
 }
 
@@ -686,6 +693,8 @@ void fini_jit_llvm(void)
 {
   fini_wheel_funcs();
   fini_func_map();
+  //LLVMFinalizeFunctionPassManager(llpass);
+  //LLVMDisposePassManager(llpass);
 
   if (llengine != NULL) {
     LLVMDisposeExecutionEngine(llengine);
@@ -808,11 +817,11 @@ void jit_free_variable(JitVariable *var)
   kfree(var);
 }
 
-static inline int jit_has_object(JitVariable *var)
+static inline int jit_is_object(JitValue *value)
 {
-  JitType *type = &var->type;
+  JitType *type = &value->type;
   int isobj = type->kind == 'p' || type->kind == 's';
-  return isobj && var->llvalue != NULL;
+  return isobj && value->llvalue != NULL;
 }
 
 static LLVMValueRef jit_value_to_voidptr(JitContext *ctx, JitValue *val)
@@ -1095,10 +1104,33 @@ static LLVMValueRef jit_types_array(JitContext *ctx, GVector *values)
 
 /*--------------------------------------------------------------------------*/
 
+/* void __obj_incref__(void *self) */
+static void jit_incref(JitContext *ctx, JitValue *value)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_INCREF_OBJ];
+  LLVMValueRef params[] = {
+    value->llvalue
+  };
+  jit_build_call(ctx, f, params, 1);
+}
+
+/* void __obj_decref__(void *self) */
+static void jit_decref(JitContext *ctx, JitValue *value)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_DECREF_OBJ];
+  LLVMValueRef params[] = {
+    value->llvalue
+  };
+  jit_build_call(ctx, f, params, 1);
+}
+
 void jit_OP_POP_TOP(JitContext *ctx)
 {
   JitValue value;
   gvector_pop_back(&ctx->stack, &value);
+  if (jit_is_object(&value)) {
+    jit_decref(ctx, &value);
+  }
 }
 
 void jit_OP_LOAD_CONST(JitContext *ctx, int index)
@@ -1107,6 +1139,9 @@ void jit_OP_LOAD_CONST(JitContext *ctx, int index)
   Object *consts = co->consts;
   Object *x = tuple_get(consts, index);
   JitValue value = jit_const(x);
+  if (jit_is_object(&value)) {
+    jit_incref(ctx, &value);
+  }
   gvector_push_back(&ctx->stack, &value);
   OB_DECREF(x);
 }
@@ -1125,9 +1160,9 @@ void jit_OP_STORE(JitContext *ctx, int index)
   JitVariable *var = vector_get(&ctx->locals, index);
 
   JitType type = var->type;
-  if (jit_has_object(var)) {
+  if (jit_is_object((JitValue *)var)) {
     // decrease object refcnt
-    jit_decref(ctx, var);
+    jit_decref(ctx, (JitValue *)var);
   }
   var->llvalue = value.llvalue;
 }
@@ -1199,7 +1234,7 @@ void jit_OP_RETURN(JitContext *ctx)
 static JitValue jit_koala_call(JitContext *ctx, Object *self,
                               char *funcname, GVector *args)
 {
-  Object *meth = module_get(self, funcname);
+  Object *meth = object_lookup(self, funcname, NULL);
   JitFunction *f = &wheel_funcs[WHEEL_KOALA_CALL];
   int size = gvector_size(args);
   LLVMValueRef llargs = jit_voidptr_array(ctx, args);
@@ -1497,7 +1532,7 @@ void jit_enter_func(JitContext *ctx)
   JitVariable *var;
   for (int i = 0; i < ctx->nrargs; ++i) {
     var = vector_get(&ctx->locals, i + 1);
-    if (jit_has_object(var)) {
+    if (jit_is_object((JitValue *)var)) {
       printf("arg:'%s' is object\n", var->name);
       value = *(JitValue *)var;
       gvector_push_back(&vec, &value);
@@ -1528,7 +1563,7 @@ void jit_exit_func(JitContext *ctx)
   int locals = vector_size(&ctx->locals);
   for (int i = ctx->nrargs + 1; i < locals; ++i) {
     var = vector_get(&ctx->locals, i);
-    if (jit_has_object(var)) {
+    if (jit_is_object((JitValue *)var)) {
       printf("[FUNC-EXIT]: loc:'%s' is object\n", var->name);
       value = *(JitValue *)var;
       gvector_push_back(&vec, &value);

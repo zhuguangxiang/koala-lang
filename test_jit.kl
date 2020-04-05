@@ -33,16 +33,6 @@ func array2(a int, b int) Array<Array<int>> {
 jit(array2)
 arr := array2(1,2)
 
-class Pet {
-  name string
-  age int
-}
-
-func newobj() Pet {
-  pet := new Pet()
-  pet
-}
-
 func array() Array<any> {
   new Array<int>()
 }
@@ -100,7 +90,13 @@ if Option.Some(fn) ~= opt {
 }
 
 class Pet {
+  name string
   age int
+}
+
+func newobj() Pet {
+  pet := new Pet()
+  pet
 }
 
 func new_pet() Pet {
@@ -115,13 +111,20 @@ func testklass(p Pet, age int) int {
 
 p := new Pet()
 p.age = 120
+p.name = "MYPET"
 jit(testklass)
 testklass(p, 100)
 
 func testklass(p Pet, age int) int {
   p.age = age
+  p.name = "JIT_PET"
+  s := "HELLO"
+  s = "WORLD"
+  "HELLO WORLD"
   p.age
 }
+jit(testklass)
+testklass(p, 100)
 
 class Cat {
   pet Pet
