@@ -113,8 +113,8 @@ static LLVMExecutionEngineRef llvm_engine(void)
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
     LLVMInitializeNativeAsmParser();
-    LLVMCreateExecutionEngineForModule(&engine, llvm_module(), &error);
-    //LLVMCreateJITCompilerForModule(&engine, mod, 2, &error);
+    //LLVMCreateExecutionEngineForModule(&engine, llvm_module(), &error);
+    LLVMCreateJITCompilerForModule(&engine, llvm_module(), 3, &error);
     llengine = engine;
   } else {
     LLVMAddModule(llengine, llvm_module());

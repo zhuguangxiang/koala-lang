@@ -570,7 +570,6 @@ static Object *module_from_file(char *path, char *name, Object *ob)
   } else {
     debug("load 'lib%s.so'", path);
     STRBUF(sbuf);
-    strbuf_append(&sbuf, "lib");
     strbuf_append(&sbuf, name);
     strbuf_append(&sbuf, ".so");
     char *so_path = strbuf_tostr(&sbuf);
