@@ -301,10 +301,12 @@ static void translate(JitContext *ctx)
       break;
     }
     case OP_RETURN_VALUE: {
+      jit_exit_func(ctx);
       jit_OP_RETURN_VALUE(ctx);
       break;
     }
     case OP_RETURN: {
+      jit_exit_func(ctx);
       jit_OP_RETURN(ctx);
       break;
     }

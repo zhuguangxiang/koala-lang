@@ -24,7 +24,6 @@
 
 #include "jit_llvm.h"
 #include "opcode.h"
-//#include <llvm-c/OrcBindings.h>
 
 #define WHEEL_NEW_TUPLE     0
 #define WHEEL_NEW_ARRAY     1
@@ -35,7 +34,9 @@
 #define WHEEL_SET_VALUE     6
 #define WHEEL_SUBSCR_LOAD   7
 #define WHEEL_SUBSCR_STORE  8
-#define MAX_WHEEL_NR        9
+#define WHEEL_ENTER_FUNC    9
+#define WHEEL_EXIT_FUNC     10
+#define MAX_WHEEL_NR        11
 
 static JitFunction wheel_funcs[MAX_WHEEL_NR];
 static LLVMExecutionEngineRef llengine;
@@ -55,9 +56,23 @@ static int funcnode_equal(void *p1, void *p2)
   return !strcmp(n1->name, n2->name);
 }
 
+void jit_free_function(JitFunction *f);
+
+static void _funcnode_free_(void *p, void *q)
+{
+  FuncNode *n = p;
+  jit_free_function(n->func);
+  kfree(n);
+}
+
 void init_func_map(void)
 {
   hashmap_init(&funcmap, funcnode_equal);
+}
+
+void fini_func_map(void)
+{
+  hashmap_fini(&funcmap, _funcnode_free_, NULL);
 }
 
 int jit_add_function(JitFunction *func)
@@ -96,7 +111,8 @@ static LLVMExecutionEngineRef llvm_engine(LLVMModuleRef mod)
     LLVMInitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
     LLVMInitializeNativeAsmParser();
-    LLVMCreateExecutionEngineForModule(&engine, mod, &error);
+    //LLVMCreateExecutionEngineForModule(&engine, mod, &error);
+    LLVMCreateJITCompilerForModule(&engine, mod, 2, &error);
     llengine = engine;
   } else {
     LLVMAddModule(llengine, mod);
@@ -206,14 +222,19 @@ static void kobj_incref(void *self)
 
 }
 
-static void jit_enterfunc(void *args[], int32_t argc)
+void __enterfunc__(void *args[], int32_t argc)
 {
 
 }
 
-static void jit_exitfunc(void *args[], int32_t argc)
+void __exitfunc__(void *args[], int32_t argc)
 {
-
+  Object *ob;
+  for (int i = 0; i < argc; ++i) {
+    ob = args[i];
+    printf("decref of '%s', count: %d\n", OB_TYPE_NAME(ob), ob->ob_refcnt);
+    OB_DECREF(ob);
+  }
 }
 
 static Object *__obj_box__(int kind, void *ptr)
@@ -551,6 +572,30 @@ static void init_set_value(void)
   jit_init_cfunc(f, "__set_value__", ret, params, 5);
 }
 
+/* void __enterfunc__(void *args[], int32_t argc); */
+static void init_enter_func(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_ENTER_FUNC];
+  JitType params[] = {
+    JitArgsType,
+    JitNrType,
+  };
+  JitType ret = JitVoidType;
+  jit_init_cfunc(f, "__enterfunc__", ret, params, 2);
+}
+
+/* void __exitfunc__(void *args[], int32_t argc); */
+static void init_exit_func(void)
+{
+  JitFunction *f = &wheel_funcs[WHEEL_EXIT_FUNC];
+  JitType params[] = {
+    JitArgsType,
+    JitNrType,
+  };
+  JitType ret = JitVoidType;
+  jit_init_cfunc(f, "__exitfunc__", ret, params, 2);
+}
+
 static void init_wheel_funcs(void)
 {
   init_new_tuple();
@@ -562,6 +607,8 @@ static void init_wheel_funcs(void)
   init_set_value();
   init_subscr_load();
   init_subscr_store();
+  init_enter_func();
+  init_exit_func();
 
   /*
   LLVMTypeRef proto;
@@ -578,17 +625,6 @@ static void init_wheel_funcs(void)
   // void kobj_incref(Object *self);
   proto = LLVMFunctionType(LLVMVoidType(), params, 1, 0);
   gstate.incref = llvm_cfunction("obj_incref", proto, kobj_incref);
-
-  // void jit_enterfunc(Object *args[], int32_t argc);
-  params[0] = LLVMVoidPtrPtrType();
-  params[1] = LLVMInt32Type();
-  proto = LLVMFunctionType(LLVMVoidType(), params, 2, 0);
-  gstate.enterfunc = llvm_cfunction("enterfunc", proto, jit_enterfunc);
-
-  // void jit_exitfunc(Object *args[], int32_t argc);
-  proto = LLVMFunctionType(LLVMVoidType(), params, 2, 0);
-  gstate.exitfunc = llvm_cfunction("exitfunc", proto, jit_exitfunc);
-
   */
 }
 
@@ -649,6 +685,7 @@ void init_jit_llvm(void)
 void fini_jit_llvm(void)
 {
   fini_wheel_funcs();
+  fini_func_map();
 
   if (llengine != NULL) {
     LLVMDisposeExecutionEngine(llengine);
@@ -887,6 +924,7 @@ void jit_context_init(JitContext *ctx, CodeObject *co)
 
   int num = vector_size(&co->locvec);
   vector_init_capacity(&ctx->locals, num);
+
   // initialize local variables, include arguments.
   Vector *locvars = &co->locvec;
   LocVar *locvar;
@@ -909,6 +947,7 @@ void jit_context_init(JitContext *ctx, CodeObject *co)
     LLVMSetValueName(llvalue, var->name);
     var->llvalue = llvalue;
   }
+  ctx->nrargs = args;
 }
 
 void jit_context_fini(JitContext *ctx)
@@ -931,6 +970,7 @@ void jit_context_fini(JitContext *ctx)
   gvector_fini(&ctx->stack);
 
   //jit_free_function(ctx->func);
+
 }
 
 void *jit_emit_code(JitContext *ctx)
@@ -1446,4 +1486,65 @@ void jit_OP_LOAD_GLOBAL(JitContext *ctx)
   Object *mod = co->module;
   JitValue value = jit_const_ptr(mod);
   gvector_push_back(&ctx->stack, &value);
+}
+
+void jit_enter_func(JitContext *ctx)
+{
+  GVector vec;
+  gvector_init(&vec, 16, sizeof(JitValue));
+
+  JitValue value;
+  JitVariable *var;
+  for (int i = 0; i < ctx->nrargs; ++i) {
+    var = vector_get(&ctx->locals, i + 1);
+    if (jit_has_object(var)) {
+      printf("arg:'%s' is object\n", var->name);
+      value = *(JitValue *)var;
+      gvector_push_back(&vec, &value);
+    }
+  }
+
+  if (gvector_size(&vec) > 0) {
+    JitFunction *f = &wheel_funcs[WHEEL_ENTER_FUNC];
+    LLVMValueRef llargs = jit_voidptr_array(ctx, &vec);
+    LLVMValueRef params[] = {
+      llargs,
+      jit_const_num(gvector_size(&vec)).llvalue,
+    };
+    JitValue res = jit_build_call(ctx, f, params, 2);
+    jit_free_array(ctx, llargs);
+  }
+
+  gvector_fini(&vec);
+}
+
+void jit_exit_func(JitContext *ctx)
+{
+  GVector vec;
+  gvector_init(&vec, 16, sizeof(JitValue));
+
+  JitValue value;
+  JitVariable *var;
+  int locals = vector_size(&ctx->locals);
+  for (int i = ctx->nrargs + 1; i < locals; ++i) {
+    var = vector_get(&ctx->locals, i);
+    if (jit_has_object(var)) {
+      printf("[FUNC-EXIT]: loc:'%s' is object\n", var->name);
+      value = *(JitValue *)var;
+      gvector_push_back(&vec, &value);
+    }
+  }
+
+  if (gvector_size(&vec) > 0) {
+    JitFunction *f = &wheel_funcs[WHEEL_EXIT_FUNC];
+    LLVMValueRef llargs = jit_voidptr_array(ctx, &vec);
+    LLVMValueRef params[] = {
+      llargs,
+      jit_const_num(gvector_size(&vec)).llvalue,
+    };
+    JitValue res = jit_build_call(ctx, f, params, 2);
+    jit_free_array(ctx, llargs);
+  }
+
+  gvector_fini(&vec);
 }

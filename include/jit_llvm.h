@@ -32,6 +32,7 @@
 #include <llvm-c/BitWriter.h>
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/Utils.h>
+#include <llvm-c/OrcBindings.h>
 
 #include "koala.h"
 
@@ -68,6 +69,7 @@ typedef struct jitfunction {
 
 typedef struct jitcontext {
   CodeObject *co;
+  int nrargs;
   JitFunction *func;
   Vector locals;
   GVector stack;
@@ -123,6 +125,8 @@ static inline LLVMTypeRef LLVMIntPtrType2(void)
 
 void jit_context_init(JitContext *ctx, CodeObject *co);
 void jit_context_fini(JitContext *ctx);
+void jit_enter_func(JitContext *ctx);
+void jit_exit_func(JitContext *ctx);
 void *jit_emit_code(JitContext *ctx);
 void jit_verify_ir(void);
 void jit_optimize(void);
