@@ -125,7 +125,6 @@ void koala_initialize(void)
   init_io_module();
   init_fmt_module();
   init_assert_module();
-  init_test_module();
   init_parser();
 }
 

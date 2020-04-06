@@ -16,7 +16,7 @@ sum2(1,2)
 func sum3(a int, b int) int {
   return sum(a, b)
 }
-jit(sum3)
+jit.go(sum3)
 sum3(1,2)
 
 func array(a int, b int) Array<Array<int>> {

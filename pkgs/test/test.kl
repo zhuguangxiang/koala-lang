@@ -1,7 +1,10 @@
 
 import "io"
 
-native func hello() string
+var greeting string
+
+native "testex"
 
 s := hello()
 io.println(s)
+io.println(greeting)

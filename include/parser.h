@@ -64,6 +64,10 @@ typedef struct module {
   Symbol *sym;
   /* errors */
   int errors;
+  /* native path */
+  char *npath;
+  /* module(native) object */
+  Object *native;
 } Module;
 
 /* ParserUnit scope */

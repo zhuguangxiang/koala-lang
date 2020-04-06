@@ -22,35 +22,31 @@
  SOFTWARE.
 */
 
-#include "koala/moduleobject.h"
+#include "koala.h"
 
-static Object *test_display(Object *self, Object *ob)
+static Object *hello(Object *self, Object *ob)
 {
-  printf("test_display()\n");
-  return NULL;
+  return string_new("hello, native extension");
 }
 
-static MethodDef testmodule_funcs[] = {
-  {"display", NULL, NULL, test_display},
+static MethodDef testex_funcs[] = {
+  {"hello", NULL, "s", hello},
   {NULL},
 };
 
-void init_module(Object *self)
+void init_module(void *ptr)
 {
-  expect(module_check(self));
-  ModuleObject *mo = (ModuleObject *)self;
-  printf("init_module(): testmodule\n");
-  printf("module-name: %s\n", mo->name);
-  module_add_funcdefs(self, testmodule_funcs);
+  Object *mo = ptr;
+  printf("init_module(): testex\n");
+  module_add_funcdefs(mo, testex_funcs);
+  Object *var = module_get(mo, "greeting");
+  Object *s = string_new("greeting from native extension");
+  field_set(var, mo, s);
+  OB_DECREF(var);
+  OB_DECREF(s);
 }
 
-void fini_module(Object *self)
+void fini_module(void *ptr)
 {
-  expect(module_check(self));
-  ModuleObject *mo = (ModuleObject *)self;
-  printf("fini_module(): testmodule\n");
-  printf("module-name: %s\n", mo->name);
-  module_uninstall("testmodule");
+  printf("fini_module(): testex\n");
 }
-
-// gcc testmodule/testmodule.c -fPIC -shared -o libtestmodule.so

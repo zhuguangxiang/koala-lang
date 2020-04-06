@@ -156,9 +156,6 @@ void init_sys_module(void)
   Object *m = module_new("sys");
   module_add_vardefs(m, sys_vars);
   module_add_funcdefs(m, sys_funcs);
-  module_add_native(m, "default_stdout", default_stdout);
-  module_add_native(m, "default_pkgpath", default_pkgpath);
-  module_not_ready(m);
   module_install("sys", m);
   OB_DECREF(m);
 }

@@ -122,6 +122,33 @@ Symbol *find_from_builtins(char *name)
   return stable_get(_lang_.stbl, name);
 }
 
+static void stable_from_native(Module *m, Object *ob)
+{
+  ModuleObject *mo = (ModuleObject *)ob;
+  STable *stbl = m->stbl;
+  if (mo->mtbl != NULL) {
+    HASHMAP_ITERATOR(iter, mo->mtbl);
+    struct mnode *node;
+    Object *tmp;
+    Symbol *sym;
+    iter_for_each(&iter, node) {
+      tmp = node->obj;
+      if (type_check(tmp)) {
+        sym = load_type(tmp);
+      } else if (field_check(tmp)) {
+        sym = load_field(tmp);
+        sym->var.typesym = get_desc_symbol(m, sym->desc);
+      } else if (method_check(tmp)) {
+        sym = load_method(tmp);
+      } else {
+        panic("object of '%s'?", OB_TYPE(tmp)->name);
+      }
+      stable_add_symbol(stbl, sym);
+      symbol_decref(sym);
+    }
+  }
+}
+
 static STable *stable_from_mobject(Module *mod, Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
@@ -1574,13 +1601,7 @@ static void ident_in_mod(ParserState *ps, Expr *exp)
       CODE_OP_S(OP_GET_VALUE, exp->id.name);
       CODE_OP_ARGC(OP_EVAL, exp->argc);
     } else if (sym->kind == SYM_IFUNC) {
-      if (sym->native) {
-        debug("call native function '%s'", sym->name);
-        CODE_OP(OP_LOAD_GLOBAL);
-        CODE_OP_S_ARGC(OP_CALL, exp->id.name, exp->argc);
-      } else {
-        serror(exp->row, exp->col, "'%s' is not callable", sym->name);
-      }
+      serror(exp->row, exp->col, "'%s' is not callable", sym->name);
     } else {
       panic("symbol %d is callable?", sym->kind);
     }
@@ -2936,7 +2957,7 @@ static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
     }
   } else if (sz < argc) {
     TypeDesc *last = vector_get(descs, sz - 1);
-    if (!desc_isvalist(last)) {
+    if (last == NULL || !desc_isvalist(last)) {
       serror(0, 0, "expected %d arguments, but %d", sz, argc);
       return -1;
     }
@@ -4337,6 +4358,30 @@ static void parse_import(ParserState *ps, Stmt *s)
   }
 }
 
+static void parse_native(ParserState *ps, Stmt *s)
+{
+  Module *m = ps->module;
+  Object *mob = m->native;
+  if (mob == NULL) {
+    mob = module_new(m->name);
+    m->native = mob;
+  }
+
+  // only once
+  if (m->npath != NULL) {
+    error("already loaded native '%s'", m->npath);
+    return;
+  }
+
+  char *path = s->native.path;
+  m->npath = path;
+  module_load_native(mob, path);
+  if (!ps->interactive) {
+    // interactive mode does not load, it's already loaded.
+    stable_from_native(m, mob);
+  }
+}
+
 static void parse_constdecl(ParserState *ps, Stmt *stmt)
 {
   Expr *exp = stmt->vardecl.exp;
@@ -5359,7 +5404,6 @@ static void parse_ifunc(ParserState *ps, Stmt *stmt)
   Vector *idtypes = stmt->funcdecl.idtypes;
   Type *ret = &stmt->funcdecl.ret;
   sym->desc = parse_func_proto(ps, idtypes, ret);
-  sym->native = stmt->funcdecl.native;
 }
 
 static void parse_class_extends(ParserState *ps, Symbol *clssym, Stmt *stmt)
@@ -6355,6 +6399,7 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
   static void (*handlers[])(ParserState *, Stmt *) = {
     NULL,               /* INVALID          */
     parse_import,       /* IMPORT_KIND      */
+    parse_native,       /* NATIVE_KIND      */
     parse_constdecl,    /* CONST_KIND       */
     parse_vardecl,      /* VAR_KIND         */
     parse_assign,       /* ASSIGN_KIND      */

@@ -75,8 +75,6 @@ struct symbol {
   /* position */
   short row;
   short col;
-  /* native function */
-  int native;
   /* refcnt */
   int refcnt;
   /* used */

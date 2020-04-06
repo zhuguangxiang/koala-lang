@@ -454,6 +454,14 @@ Stmt *stmt_from_import_partial(Vector *vec, char *path)
   return stmt;
 }
 
+Stmt *stmt_from_native(char *path)
+{
+  Stmt *stmt = kmalloc(sizeof(Stmt));
+  stmt->kind = NATIVE_KIND;
+  stmt->native.path = path;
+  return stmt;
+}
+
 Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp)
 {
   Stmt *stmt = kmalloc(sizeof(Stmt));
@@ -706,6 +714,9 @@ void stmt_free(Stmt *stmt)
   switch (stmt->kind) {
   case IMPORT_KIND:
     free_aliases(stmt->import.aliases);
+    kfree(stmt);
+    break;
+  case NATIVE_KIND:
     kfree(stmt);
     break;
   case CONST_KIND:

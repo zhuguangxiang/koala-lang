@@ -646,7 +646,10 @@ Object *object_call(Object *self, char *name, Object *args)
     return NULL;
   }
   Object *ob = object_lookup(self, name, NULL);
-  expect(ob != NULL);
+  if (ob == NULL) {
+    error("[Exception] null pointer");
+    return NULL;
+  }
   Object *res = method_call(ob, self, args);
   OB_DECREF(ob);
   return res;

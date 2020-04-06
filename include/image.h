@@ -179,7 +179,6 @@ typedef struct ifuncitem {
   int32_t nameindex;  /* ->StringItem */
   int32_t pindex;     /* ->IndexItem */
   int32_t rindex;     /* ->TypeItem */
-  int32_t native;     /* native flag */
 } IFuncItem;
 
 typedef struct enumitem {
@@ -217,6 +216,7 @@ typedef struct image_header {
   uint32_t file_size;
   uint32_t header_size;
   uint32_t endian_tag;
+  int32_t  native;
   uint32_t map_offset;
   uint32_t map_size;
   uint32_t crc32;
@@ -251,7 +251,7 @@ typedef struct locvar {
 
 LocVar *locvar_new(char *name, TypeDesc *desc, int index);
 void locvar_free(LocVar *loc);
-
+char *image_get_native(Image *image);
 int image_add_integer(Image *image, int64_t val);
 int image_add_byte(Image *image, int64_t val);
 int image_add_float(Image *image, double val);
@@ -270,9 +270,10 @@ void image_add_trait(Image *image, char *name, Vector *bases, int mbrindex);
 void image_add_enum(Image *image, char *name, int mbrindex);
 int image_add_field(Image *image, char *name, TypeDesc *desc);
 int image_add_method(Image *image, CodeInfo *ci);
-int image_add_ifunc(Image *image, char *name, TypeDesc *desc, int native);
+int image_add_ifunc(Image *image, char *name, TypeDesc *desc);
 int image_add_label(Image *image, char *name, Vector *types, int32_t val);
 int image_add_mbrs(Image *image, MbrIndex *indexes, int size);
+int image_add_native(Image *image, char *path);
 
 Image *image_new(char *name);
 void image_free(Image *image);
@@ -311,8 +312,6 @@ void image_load_ifunc(Image *image, int index, getmbrfunc func, void *arg);
   IMAGE_LOAD_ITEMS(image, ITEM_VAR, var, func, arg)
 #define IMAGE_LOAD_FUNCS(image, _func, arg) \
   IMAGE_LOAD_ITEMS(image, ITEM_FUNC, func, _func, arg)
-#define IMAGE_LOAD_NFUNCS(image, _func, arg) \
-  IMAGE_LOAD_ITEMS(image, ITEM_IFUNC, ifunc, _func, arg)
 #define IMAGE_LOAD_CONSTVARS(image, func, arg) \
   IMAGE_LOAD_ITEMS(image, ITEM_CONSTVAR, constvar, func, arg)
 #define IMAGE_LOAD_CLASSES(image, func, arg) \

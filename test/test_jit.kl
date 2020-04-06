@@ -1,0 +1,15 @@
+
+import "jit"
+
+func sum(a int, b int) int {
+  c := 200 + 300
+  return a + b + c
+}
+
+jit.go(sum)
+
+res := sum(1,2)
+
+import "io"
+
+io.println(res)

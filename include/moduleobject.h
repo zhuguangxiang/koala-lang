@@ -49,13 +49,6 @@ typedef struct moduleobject {
   void *dlptr;
   /* cache */
   Vector cache;
-  /* module is ready or partial? */
-#define MOD_NOT_READY 0
-#define MOD_LOADING   1
-#define MOD_READY     2
-  int state;
-  /* native functions */
-  HashMap *nftbl;
 } ModuleObject;
 
 extern TypeObject module_type;
@@ -69,6 +62,7 @@ Object *module_new(char *name);
 Object *module_lookup(Object *ob, char *name);
 void module_install(char *path, Object *ob);
 Object *module_load(char *path);
+void module_load_native(Object *ob, char *path);
 void module_uninstall(char *path);
 
 void module_add_type(Object *self, TypeObject *type);
@@ -94,15 +88,6 @@ static inline void module_set(Object *self, char *name, Object *val)
   int res = field_set(ob, self, val);
   expect(res == 0);
 }
-
-static inline void module_not_ready(Object *self)
-{
-  ModuleObject *module = (ModuleObject *)self;
-  module->state = MOD_NOT_READY;
-}
-
-void *module_get_native(Object *self, char *name);
-void module_add_native(Object *self, char *name, void *code);
 
 #ifdef __cplusplus
 }

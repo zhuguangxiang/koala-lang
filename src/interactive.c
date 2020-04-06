@@ -108,6 +108,7 @@ static void init_cmdline_env(void)
   vector_init(&ps.upanonies);
 
   mo = module_new("__main__");
+  mod.native = mo;
 
   init_stdin();
 }
@@ -118,6 +119,7 @@ static void fini_cmdline_env(void)
 
   stable_free(mod.stbl);
   mod.stbl = NULL;
+  mod.native = NULL;
   symbol_decref(modSym);
   modSym = NULL;
   OB_DECREF(mo);

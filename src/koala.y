@@ -58,7 +58,6 @@ int comp_add_const(ParserState *ps, Ident id);
 int comp_add_var(ParserState *ps, Ident id);
 int comp_add_func(ParserState *ps, Ident id);
 int comp_add_type(ParserState *ps, Stmt *stmt);
-int comp_add_native_func(ParserState *ps, Ident id);
 
 %}
 
@@ -164,6 +163,7 @@ int comp_add_native_func(ParserState *ps, Ident id);
 %token <sval> ID
 
 %type <stmt> import_stmt
+%type <stmt> native_stmt
 %type <aliaslist> id_as_list
 %type <stmt> const_decl
 %type <stmt> var_decl
@@ -204,7 +204,6 @@ int comp_add_native_func(ParserState *ps, Ident id);
 %type <list> trait_member_decls
 %type <stmt> trait_member_decl
 %type <stmt> proto_decl
-%type <stmt> native_func_decl
 %type <enummbrs> enum_members
 %type <list> enum_labels
 %type <list> enum_methods
@@ -298,6 +297,20 @@ units:
 
 unit:
   import_stmt
+{
+  if (ps->interactive) {
+    ps->more = 0;
+    if ($1 != NULL) {
+      cmd_eval_stmt(ps, $1);
+      stmt_free($1);
+    }
+  } else {
+    if ($1 != NULL) {
+      comp_add_stmt(ps, $1);
+    }
+  }
+}
+| native_stmt
 {
   if (ps->interactive) {
     ps->more = 0;
@@ -428,21 +441,6 @@ unit:
     }
   } else {
     if ($1 != NULL && !comp_add_func(ps, $1->funcdecl.id)) {
-      comp_add_stmt(ps, $1);
-    }
-  }
-}
-| native_func_decl
-{
-  if (ps->interactive) {
-    ps->more = 0;
-    if ($1 != NULL) {
-      serror(ps->row, ps->col,
-            "native function is not allowed in interactive mode");
-      stmt_free($1);
-    }
-  } else {
-    if ($1 != NULL && !comp_add_native_func(ps, $1->funcdecl.id)) {
       comp_add_stmt(ps, $1);
     }
   }
@@ -592,6 +590,15 @@ import_stmt:
   $$ = stmt_from_import_partial($3, $5);
   $$->import.pathrow = row(@5);
   $$->import.pathcol = col(@5);
+}
+;
+
+native_stmt:
+  NATIVE STRING_LITERAL ';'
+{
+  $$ = stmt_from_native($2);
+  $$->native.row = row(@2);
+  $$->native.col = col(@2);
 }
 ;
 
@@ -1844,14 +1851,6 @@ proto_decl:
 {
   IDENT(id, $2.id.name, @2);
   $$ = stmt_from_ifunc(id, NULL, NULL);
-}
-;
-
-native_func_decl:
-  NATIVE proto_decl
-{
-  $2->funcdecl.native = 1;
-  $$ = $2;
 }
 ;
 

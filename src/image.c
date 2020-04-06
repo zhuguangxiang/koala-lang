@@ -769,7 +769,6 @@ static void ifuncitem_show(Image *image, void *o)
   print("  (%s)\n", str->data);
   print("  pindex:%d\n", item->pindex);
   print("  rindex:%d\n", item->rindex);
-  print("  native:%d\n", item->native);
 }
 #endif
 
@@ -1341,6 +1340,15 @@ static int image_add_const(Image *image, int kind, int index)
   return idx;
 }
 
+char *image_get_native(Image *image)
+{
+  int index = image->header.native;
+  if (index < 0)
+    return NULL;
+  StringItem *item = _get_(image, ITEM_STRING, index);
+  return item->data;
+}
+
 int image_add_integer(Image *image, int64_t val)
 {
   LiteralItem k = {0};
@@ -1610,13 +1618,12 @@ void image_add_trait(Image *image, char *name, Vector *bases, int mbrindex)
   _append_(image, ITEM_TRAIT, classitem, 0);
 }
 
-int image_add_ifunc(Image *image, char *name, TypeDesc *desc, int native)
+int image_add_ifunc(Image *image, char *name, TypeDesc *desc)
 {
   int nameindex = stringitem_set(image, name);
   int pindex = indexitem_set(image, INDEX_TYPELIST, desc->proto.args);
   int rindex = typeitem_set(image, desc->proto.ret);
   IFuncItem *ifuncitem = ifuncitem_new(nameindex, pindex, rindex);
-  ifuncitem->native = native;
   return _append_(image, ITEM_IFUNC, ifuncitem, 0);
 }
 
@@ -1643,6 +1650,12 @@ int image_add_mbrs(Image *image, MbrIndex *indexes, int size)
   item->size = size;
   memcpy(item->indexes, indexes, isize);
   return _append_(image, ITEM_MBR, item, 0);
+}
+
+int image_add_native(Image *image, char *path)
+{
+  int32_t index = stringitem_set(image, path);
+  image->header.native = index;
 }
 
 static unsigned int item_hash(ItemEntry *e)
@@ -1682,6 +1695,7 @@ static void init_header(ImageHeader *h, char *name)
   h->file_size   = 0;
   h->header_size = sizeof(ImageHeader);
   h->endian_tag  = ENDIAN_TAG;
+  h->native = -1;
   h->map_offset  = sizeof(ImageHeader);
   h->map_size    = ITEM_MAX;
   strncpy(h->name, name, PKG_NAME_MAX-1);
@@ -2488,6 +2502,7 @@ void header_show(ImageHeader *h)
   print("version:%d.%d.%d\n", h->version[0] - '0', h->version[1] - '0', 0);
   print("header_size:%d\n", h->header_size);
   print("endian:0x%x\n", h->endian_tag);
+  print("native:%d\n", h->native);
   print("map_offset:0x%x\n", h->map_offset);
   print("map_size:%d\n\n", h->map_size);
   puts("--------------------");

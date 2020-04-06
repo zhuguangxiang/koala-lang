@@ -53,7 +53,7 @@ static Object *read_str(Object *self, Object *args)
 
 static MethodDef reader_methods[]= {
   {"read", "[bi", "Llang.Result(i)(Llang.Error;);", NULL, 1},
-  {"read_str", "Lio.Writer;", "Llang.Result(i)(Llang.Error;);", read_str},
+  {"read_str", "Lstr.Builder;", "Llang.Result(i)(Llang.Error;);", read_str},
   {NULL}
 };
 
@@ -144,7 +144,6 @@ void init_io_module(void)
   module_add_funcdefs(m, io_methods);
   module_add_type(m, &io_writer_type);
   module_add_type(m, &io_reader_type);
-  module_not_ready(m);
   module_install("io", m);
   OB_DECREF(m);
 }

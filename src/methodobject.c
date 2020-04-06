@@ -53,19 +53,6 @@ Object *method_new(char *name, Object *code)
   return (Object *)method;
 }
 
-Object *nmethod_new(char *name, TypeDesc *desc, void *ptr)
-{
-  MethodObject *method = kmalloc(sizeof(*method));
-  init_object_head(method, &method_type);
-  method->name = atom(name);
-  method->desc = TYPE_INCREF(desc);
-  method->ptr  = NULL;
-  method->kind = CFUNC_KIND;
-  method->native = 1;
-  method->ptr = ptr;
-  return (Object *)method;
-}
-
 static Object *get_valist_args(Object *args, Vector *argtypes)
 {
   int size = vector_size(argtypes);
@@ -150,9 +137,6 @@ Object *method_call(Object *self, Object *ob, Object *args)
   Object *res;
   if (meth->kind == CFUNC_KIND) {
     func_t fn = meth->ptr;
-    if (fn == NULL && meth->native) {
-      debug("try to find native function '%s'", meth->name);
-    }
     res = fn(ob, nargs);
   } else if (meth->kind == JITFUNC_KIND) {
     typedef Object *(*jit_func_t)(Object *, Object *, void *);
@@ -227,7 +211,6 @@ void method_update_jit(MethodObject *meth, void *fn, void *jitptr)
   meth->backptr = meth->ptr;
   // any other is using ?
   meth->kind = JITFUNC_KIND;
-  meth->native = 0;
   meth->ptr = fn;
   meth->jitptr = jitptr;
 }

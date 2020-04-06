@@ -205,6 +205,22 @@ rect.area()
 
 ## Module
 
+The Koala module can be written by koala, c or mixed them.
+
+One kl can be as a module, multi kl sources in one directory can be as a module,
+
+One `so` can be as a module as its name, which must have
+`void init_module(void *)` function defined and not `static`.
+
+When it is mixed, the part of c can extend the part of koala. In mixed mode,
+c part not only can initialize variables which defined in koala,
+but also can define functions, variables or classes.
+In koala, use `native "so-name"` to include c part of the module.
+The c part may have two functions:
+
+- `void init_module(void *)`
+- `void fini_module(void *)`
+
 ## Using External Modules
 
 ## Extension Using C

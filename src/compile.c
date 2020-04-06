@@ -159,17 +159,6 @@ int comp_add_func(ParserState *ps, Ident id)
   return 0;
 }
 
-int comp_add_native_func(ParserState *ps, Ident id)
-{
-  Module *mod = ps->module;
-  Symbol *sym = stable_add_ifunc(mod->stbl, id.name, NULL);
-  if (sym == NULL) {
-    serror(id.row, id.col, "'%s' is redeclared", id.name);
-    return -1;
-  }
-  return 0;
-}
-
 static void comp_visit_type(ParserState *ps, Symbol *sym, Vector *body)
 {
   if (body == NULL)
@@ -378,6 +367,11 @@ static void write_image(Module *mod)
   if (stable_size(mod->stbl) > 0) {
     Image *image = image_new(mod->name);
     stable_write_image(mod->stbl, image);
+    if (mod->npath != NULL) {
+      // add native extension
+      //printf("add native '%s'\n", mod->npath);
+      image_add_native(image, mod->npath);
+    }
     image_finish(image);
 #if !defined(NLog)
     image_show(image);
@@ -407,6 +401,7 @@ static inline void fini_mod(Module *mod)
 
   vector_fini(&mod->pss);
   stable_free(mod->stbl);
+  OB_DECREF(mod->native);
 }
 
 int compflag;

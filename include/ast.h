@@ -453,6 +453,8 @@ Expr *expr_from_binary_match(Expr *pattern, Expr *some);
 typedef enum stmtkind {
   /* import */
   IMPORT_KIND = 1,
+  /* native */
+  NATIVE_KIND,
   /* const */
   CONST_KIND,
   /* variable */
@@ -509,6 +511,11 @@ struct stmt {
       Vector *aliases;
     } import;
     struct {
+      char *path;
+      int row;
+      int col;
+    } native;
+    struct {
       Ident id;
       Type type;
       Expr *exp;
@@ -528,8 +535,6 @@ struct stmt {
       Type ret;
       /* body */
       Vector *body;
-      /* be native func */
-      int native;
     } funcdecl;
     struct {
       Expr *exp;
@@ -581,6 +586,7 @@ void stmt_block_free(Vector *vec);
 Stmt *stmt_from_import(Ident *id, char *path);
 Stmt *stmt_from_import_all(char *path);
 Stmt *stmt_from_import_partial(Vector *vec, char *path);
+Stmt *stmt_from_native(char *path);
 Stmt *stmt_from_constdecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_vardecl(Ident id, Type *type, Expr *exp);
 Stmt *stmt_from_assign(AssignOpKind op, Expr *left, Expr *right);

@@ -45,8 +45,6 @@ typedef struct methodobject {
   TypeDesc *desc;
   /* cfunc or kfunc, or jited-func ? */
   MethodKind kind;
-  /* native */
-  int native;
   /* cfunc or kfunc pointer */
   void *ptr;
   /* jited func pointer */

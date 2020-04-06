@@ -78,8 +78,6 @@ static Object *module_name(Object *self, Object *args)
   return string_new(module->name);
 }
 
-static void nfnode_free(void *e, void *arg);
-
 static void module_free(Object *ob)
 {
   if (!module_check(ob)) {
@@ -115,15 +113,6 @@ static void module_free(Object *ob)
   }
 
   vector_fini(&module->cache);
-
-  map = module->nftbl;
-  if (map != NULL) {
-    hashmap_fini(map, nfnode_free, NULL);
-    debug("------------------------");
-    kfree(map);
-    module->nftbl = NULL;
-  }
-
   kfree(ob);
 }
 
@@ -227,76 +216,12 @@ void module_add_funcdefs(Object *self, MethodDef *def)
   }
 }
 
-struct nfnode {
-  HashMapEntry entry;
-  char *name;
-  void *code;
-};
-
-static int nfnode_equal(void *e1, void *e2)
-{
-  struct nfnode *n1 = e1;
-  struct nfnode *n2 = e2;
-  return (n1 == n2) || !strcmp(n1->name, n2->name);
-}
-
-static struct nfnode *nfnode_new(char *name, void *code)
-{
-  struct nfnode *node = kmalloc(sizeof(*node));
-  node->name = name;
-  hashmap_entry_init(node, strhash(name));
-  node->code = code;
-  return node;
-}
-
-static void nfnode_free(void *e, void *arg)
-{
-  struct nfnode *node = e;
-  debug("[NFuncNode Freed] '%s'", node->name);
-  kfree(node);
-}
-
-static HashMap *get_nftbl(ModuleObject *mob)
-{
-  HashMap *nftbl = mob->nftbl;
-  if (nftbl == NULL) {
-    nftbl = kmalloc(sizeof(*nftbl));
-    hashmap_init(nftbl, nfnode_equal);
-    mob->nftbl = nftbl;
-  }
-  return nftbl;
-}
-
-void *module_get_native(Object *self, char *name)
-{
-  ModuleObject *module = (ModuleObject *)self;
-  struct nfnode key = {.name = name};
-  hashmap_entry_init(&key, strhash(name));
-  struct nfnode *node = hashmap_get(get_nftbl(module), &key);
-  if (node != NULL) {
-    debug("find native function '%s'", name);
-    return node->code;
-  } else {
-    warn("cannot find native function '%s'", name);
-    return NULL;
-  }
-}
-
-void module_add_native(Object *self, char *name, void *code)
-{
-  ModuleObject *module = (ModuleObject *)self;
-  struct nfnode *node = nfnode_new(name, code);
-  int res = hashmap_add(get_nftbl(module), node);
-  expect(res == 0);
-}
-
 Object *module_new(char *name)
 {
   ModuleObject *module = kmalloc(sizeof(*module));
   init_object_head(module, &module_type);
   module->name = name;
   module->path = name;
-  module->state = MOD_READY;
   return (Object *)module;
 }
 
@@ -430,15 +355,6 @@ static void _load_func_(char *name, CodeInfo *ci, void *arg)
   OB_DECREF(meth);
 }
 
-static void _load_nfunc_(char *name, int kind, void *data, void *arg)
-{
-  expect(kind == MBR_IFUNC);
-  void *code = module_get_native(arg, name);
-  Object *meth = nmethod_new(name, data, code);
-  module_add_func(arg, meth);
-  OB_DECREF(meth);
-}
-
 static void _load_mbr_(char *name, int kind, void *data, void *arg)
 {
   TypeObject *type = arg;
@@ -540,6 +456,30 @@ void _load_enum_(char *name, int baseidx, int mbridx, Image *image, void *arg)
     panic("Cannot initalize '%s' type.", name);
 }
 
+void module_load_native(Object *self, char *name)
+{
+  debug("load '%s.so'", name);
+  STRBUF(sbuf);
+  strbuf_append(&sbuf, name);
+  strbuf_append(&sbuf, ".so");
+  char *so_path = strbuf_tostr(&sbuf);
+  void *dlptr = dlopen(so_path, RTLD_LAZY);
+  strbuf_fini(&sbuf);
+  if (dlptr == NULL) {
+    error("cannot load '%s' module", name);
+    return;
+  }
+
+  void (*init)(void *) = dlsym(dlptr, "init_module");
+  if (init == NULL) {
+    error("init_module is not found in '%s''", name);
+    dlclose(dlptr);
+    return;
+  }
+  init(self);
+  ((ModuleObject *)self)->dlptr = dlptr;
+}
+
 static Object *module_from_file(char *path, char *name, Object *ob)
 {
   char *klcpath = str_dup_ex(path, ".klc");
@@ -562,13 +502,17 @@ static Object *module_from_file(char *path, char *name, Object *ob)
     IMAGE_LOAD_VARS(image, _load_var_, mo);
     IMAGE_LOAD_CONSTVARS(image, _load_var_, mo);
     IMAGE_LOAD_FUNCS(image, _load_func_, mo);
-    IMAGE_LOAD_NFUNCS(image, _load_nfunc_, mo);
     IMAGE_LOAD_CLASSES(image, _load_class_, mo);
     IMAGE_LOAD_TRAITS(image, _load_trait_, mo);
     IMAGE_LOAD_ENUMS(image, _load_enum_, mo);
+    char *npath = image_get_native(image);
+    if (npath != NULL) {
+      //printf("load native '%s'\n", npath);
+      module_load_native(mo, npath);
+    }
     image_free(image);
   } else {
-    debug("load 'lib%s.so'", path);
+    debug("load '%s.so'", path);
     STRBUF(sbuf);
     strbuf_append(&sbuf, name);
     strbuf_append(&sbuf, ".so");
@@ -606,33 +550,12 @@ Object *module_load(char *path)
     name = name ? name + 1 : path;
     Object *mo = module_from_file(path, name, NULL);
     if (mo == NULL) {
-      warn("cannot find module '%s'", path);
+      error("cannot find module '%s'", path);
       return NULL;
     } else {
       debug("module '%s' is loaded.\n", path);
       module_install(path, mo);
-      //OB_DECREF(mo);
       return mo;
-    }
-  } else {
-    ModuleObject *mo = (ModuleObject *)node->ob;
-    if (mo->state == MOD_NOT_READY) {
-      debug("module '%s' is not ready.", mo->name);
-      mo->state = MOD_LOADING;
-      char *name = strrchr(path, '/');
-      name = name ? name + 1 : path;
-      Object *ob = module_from_file(path, name, node->ob);
-      if (ob != NULL) {
-        mo->state = MOD_READY;
-        //debug("module '%s' is ready.\n", mo->name);
-        if (!compflag) {
-          run_func(ob, "__init__", NULL);
-        }
-      }
-    } else if (mo->state == MOD_LOADING) {
-      debug("module '%s' is loading.\n", mo->name);
-    } else {
-      //debug("module '%s' is ready.\n", mo->name);
     }
   }
   return OB_INCREF(node->ob);
