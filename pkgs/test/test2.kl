@@ -1,0 +1,5 @@
+import "test"
+import "io"
+io.println(test.greeting)
+
+

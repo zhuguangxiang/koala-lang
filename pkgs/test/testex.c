@@ -34,16 +34,29 @@ static MethodDef testex_funcs[] = {
   {NULL},
 };
 
-void init_module(void *ptr)
+void init_module(void *ptr, int stage)
 {
   Object *mo = ptr;
-  printf("init_module(): testex\n");
-  module_add_funcdefs(mo, testex_funcs);
-  Object *var = module_get(mo, "greeting");
-  Object *s = string_new("greeting from native extension");
-  field_set(var, mo, s);
-  OB_DECREF(var);
-  OB_DECREF(s);
+  printf("init_module(): testex in %d stage\n", stage);
+  if (stage == 0 || stage == 1 || stage == 2) {
+    module_add_funcdefs(mo, testex_funcs);
+  }
+
+  if (stage == 0 || stage == 2) {
+    Object *var = module_get(mo, "greeting");
+    Object *s = string_new("greeting from native extension");
+    field_set(var, mo, s);
+    OB_DECREF(var);
+    OB_DECREF(s);
+  }
+
+  if (stage == 3) {
+    Object *var = module_get(mo, "greeting");
+    Object *s = string_new("after initialized greeting");
+    field_set(var, mo, s);
+    OB_DECREF(var);
+    OB_DECREF(s);
+  }
 }
 
 void fini_module(void *ptr)

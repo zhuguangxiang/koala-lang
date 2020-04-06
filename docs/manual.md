@@ -218,7 +218,9 @@ but also can define functions, variables or classes.
 In koala, use `native "so-name"` to include c part of the module.
 The c part may have two functions:
 
-- `void init_module(void *)`
+- `void init_module(void *, int)`
+  In this stage, you can add new functions, variables and classes.
+  This function can be called at compile time and run time.
 - `void fini_module(void *)`
 
 ## Using External Modules

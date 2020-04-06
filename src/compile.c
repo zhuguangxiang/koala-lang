@@ -404,12 +404,11 @@ static inline void fini_mod(Module *mod)
   OB_DECREF(mod->native);
 }
 
-int compflag;
+extern int stage;
 
 /* koala -c a/b/foo.kl [a/b/foo] */
 void koala_compile(char *path)
 {
-  compflag = 1;
   int needimage = 1;
   Module mod = {0};
   Symbol *modSym;
@@ -460,6 +459,7 @@ void koala_compile(char *path)
     if (vector_size(&mod.pss) <= 0) {
       needimage = 0;
     } else {
+      stage = 1;
       ParserState *ps;
       vector_for_each(ps, &mod.pss) {
         if (!has_error(ps)) {
@@ -479,5 +479,4 @@ void koala_compile(char *path)
 
   fini_mod(&mod);
   symbol_decref(modSym);
-  compflag = 0;
 }

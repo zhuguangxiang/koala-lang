@@ -303,6 +303,8 @@ void run_func(Object *mo, char *funcname, Object *args)
   }
 }
 
+extern int stage;
+
 /*
  * The following commands are valid.
  * ~$ koala a/b/foo.kl [a/b/foo.klc] [a/b/foo]
@@ -323,9 +325,11 @@ void koala_run(char *path)
   // path: a/b/foo, try compile it
   if (need_compile(path)) {
     debug("try to compile '%s'", path);
+    stage = 1;
     koala_compile(path);
   }
 
+  stage = 2;
   Object *mo = module_load(path);
   OB_DECREF(mo);
   kfree(path);

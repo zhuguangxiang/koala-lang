@@ -664,7 +664,7 @@ static MethodDef jit_methods[] = {
   {NULL}
 };
 
-void init_module(void *mptr)
+void init_module(void *mptr, int stage)
 {
   init_jit_llvm();
   Object *mo = mptr;

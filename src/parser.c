@@ -143,8 +143,10 @@ static void stable_from_native(Module *m, Object *ob)
       } else {
         panic("object of '%s'?", OB_TYPE(tmp)->name);
       }
-      stable_add_symbol(stbl, sym);
-      symbol_decref(sym);
+      int res = stable_add_symbol(stbl, sym);
+      if (res == 0) {
+        symbol_decref(sym);
+      }
     }
   }
 }
@@ -4376,10 +4378,7 @@ static void parse_native(ParserState *ps, Stmt *s)
   char *path = s->native.path;
   m->npath = path;
   module_load_native(mob, path);
-  if (!ps->interactive) {
-    // interactive mode does not load, it's already loaded.
-    stable_from_native(m, mob);
-  }
+  stable_from_native(m, mob);
 }
 
 static void parse_constdecl(ParserState *ps, Stmt *stmt)

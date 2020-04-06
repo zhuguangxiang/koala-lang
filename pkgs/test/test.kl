@@ -4,6 +4,7 @@ import "io"
 var greeting string
 
 native "testex"
+io.println(greeting)
 
 s := hello()
 io.println(s)

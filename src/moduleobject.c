@@ -240,8 +240,10 @@ static int _modnode_equal_(void *e1, void *e2)
   return n1 == n2 || !strcmp(n1->path, n2->path);
 }
 
-extern int compflag;
-extern void run_func(Object *mo, char *funcname, Object *args);
+void run_func(Object *mo, char *funcname, Object *args);
+
+// 0: interactive, 1: compile, 2: run, 3: initialized
+int stage;
 
 void module_install(char *path, Object *ob)
 {
@@ -265,8 +267,17 @@ void module_install(char *path, Object *ob)
   if (!res) {
     debug("install module '%.64s' in path '%.64s' successfully.",
           MODULE_NAME(ob), path);
-    if (!compflag) {
+    if (stage != 1) {
+      // not compile stage
       run_func(ob, "__init__", NULL);
+    }
+    void *dlptr = mob->dlptr;
+    if (dlptr != NULL) {
+      void (*init)(void *, int) = dlsym(dlptr, "init_module");
+      if (init != NULL) {
+        stage = 3;
+        init(mob, stage);
+      }
     }
   } else {
     error("install module '%.64s' in path '%.64s' failed.",
@@ -469,14 +480,10 @@ void module_load_native(Object *self, char *name)
     error("cannot load '%s' module", name);
     return;
   }
-
-  void (*init)(void *) = dlsym(dlptr, "init_module");
-  if (init == NULL) {
-    error("init_module is not found in '%s''", name);
-    dlclose(dlptr);
-    return;
+  void (*init)(void *, int) = dlsym(dlptr, "init_module");
+  if (init != NULL) {
+    init(self, stage);
   }
-  init(self);
   ((ModuleObject *)self)->dlptr = dlptr;
 }
 
@@ -523,14 +530,14 @@ static Object *module_from_file(char *path, char *name, Object *ob)
       error("cannot load '%s' module", path);
       return NULL;
     }
-    void (*init)(void *) = dlsym(dlptr, "init_module");
+    void (*init)(void *, int) = dlsym(dlptr, "init_module");
     if (init == NULL) {
       error("init_module is not found in '%s''", path);
       dlclose(dlptr);
       return NULL;
     }
     mo = module_new(name);
-    init(mo);
+    init(mo, stage);
     ((ModuleObject *)mo)->dlptr = dlptr;
   }
   return mo;
