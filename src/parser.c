@@ -1504,7 +1504,9 @@ static void parse_super(ParserState *ps, Expr *exp)
 
 static int check_byte_range(int64_t val)
 {
-  return 0;
+  if (val > 255 || val < 0)
+    return 0;
+  return 1;
 }
 
 static void parse_literal(ParserState *ps, Expr *exp)
@@ -1518,8 +1520,8 @@ static void parse_literal(ParserState *ps, Expr *exp)
   TypeDesc *decl_desc = exp->decl_desc;
   if (kind == BASE_INT) {
     if (decl_desc != NULL && desc_isbyte(decl_desc)) {
-      if (check_byte_range(exp->k.value.ival)) {
-        serror(exp->row, exp->col, "out of byte range(-128...127)");
+      if (!check_byte_range(exp->k.value.ival)) {
+        serror(exp->row, exp->col, "out of byte range(0...255)");
       } else {
         exp->k.value.kind = BASE_BYTE;
         TYPE_DECREF(exp->desc);

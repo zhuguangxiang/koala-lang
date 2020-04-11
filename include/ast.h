@@ -423,6 +423,7 @@ typedef struct mapentry {
 Expr *expr_from_null(void);
 Expr *expr_from_self(void);
 Expr *expr_from_super(void);
+Expr *expr_from_byte(uint8_t val);
 Expr *expr_from_int(int64_t val);
 Expr *expr_from_float(double val);
 Expr *expr_from_bool(int val);

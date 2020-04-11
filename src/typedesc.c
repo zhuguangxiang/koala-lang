@@ -409,6 +409,15 @@ int check_klassdesc(TypeDesc *desc1, TypeDesc *desc2)
   return 1;
 }
 
+static int desc_check_base(TypeDesc *b1, TypeDesc *b2)
+{
+  if (b1->base == b2->base)
+    return 1;
+  if (b1->base == BASE_INT && b2->base == BASE_BYTE)
+    return 1;
+  return 0;
+}
+
 // desc1 <- desc2
 // one is any, returns true
 int desc_check(TypeDesc *desc1, TypeDesc *desc2)
@@ -430,10 +439,7 @@ int desc_check(TypeDesc *desc1, TypeDesc *desc2)
 
   switch (desc1->kind) {
   case TYPE_BASE:
-    if (desc1->base != desc2->base)
-      return 0;
-    else
-      return 1;
+    return desc_check_base(desc1, desc2);
   case TYPE_KLASS: {
     char *path1 = desc1->klass.path;
     char *path2 = desc2->klass.path;

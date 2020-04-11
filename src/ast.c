@@ -48,6 +48,16 @@ Expr *expr_from_super(void)
   return exp;
 }
 
+Expr *expr_from_byte(uint8_t val)
+{
+  Expr *exp = kmalloc(sizeof(Expr));
+  exp->kind = LITERAL_KIND;
+  exp->desc = desc_from_base(BASE_BYTE);
+  exp->k.value.kind = BASE_BYTE;
+  exp->k.value.ival = val;
+  return exp;
+}
+
 Expr *expr_from_int(int64_t val)
 {
   Expr *exp = kmalloc(sizeof(Expr));

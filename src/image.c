@@ -1295,6 +1295,14 @@ static inline LiteralItem *literalitem_int_new(int64_t val)
   return item;
 }
 
+static inline LiteralItem *literalitem_byte_new(int64_t val)
+{
+  LiteralItem *item = kmalloc(sizeof(LiteralItem));
+  item->type = LITERAL_BYTE;
+  item->ival = val;
+  return item;
+}
+
 static inline LiteralItem *literalitem_float_new(double val)
 {
   LiteralItem *item = kmalloc(sizeof(LiteralItem));
@@ -1425,7 +1433,7 @@ int image_add_uchar(Image *image, wchar val)
     LiteralItem *item = literalitem_uchar_new(val);
     index = _append_(image, ITEM_LITERAL, item, 1);
   }
-  return index;
+  return image_add_const(image, CONST_LITERAL, index);
 }
 
 int image_add_literal(Image *image, Literal *val)

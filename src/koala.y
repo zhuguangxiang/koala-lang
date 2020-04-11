@@ -156,6 +156,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token <text> DOC
 %token <text> MODDOC
 
+%token <ival> BYTE_LITERAL
 %token <ival> INT_LITERAL
 %token <fval> FLOAT_LITERAL
 %token <cval> CHAR_LITERAL
@@ -1183,6 +1184,11 @@ atom:
 | '_'
 {
   $$ = expr_from_underscore();
+}
+| BYTE_LITERAL
+{
+  $$ = expr_from_byte($1);
+  set_expr_pos($$, @1);
 }
 | INT_LITERAL
 {

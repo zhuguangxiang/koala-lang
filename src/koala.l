@@ -65,7 +65,7 @@ int file_input(ParserState *ps, char *buf, int size, FILE *in);
 static int need_semicolon(YY_EXTRA_TYPE ps)
 {
   static int tokens[] = {
-    INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
+    INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL, BYTE_LITERAL,
     ID, SELF, SUPER, TRUE, FALSE, CONST_NULL,
     RETURN, BREAK, CONTINUE, ')', ']', '}', '>', '_',
     BYTE, INTEGER, FLOAT, CHAR, STRING, BOOL, ANY,
@@ -192,7 +192,7 @@ asc_char  {asc}
 
 utf8_char {u2}{u}|{u3}{u}{u}|{u4}{u}{u}{u}
 esc_char  \\\\|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
-hex_char  \\x({hex}{hex})
+hex_char  \\x{hex}{hex}
 u16_char  \\u{hex}{hex}{hex}{hex}
 u32_char  \\U{hex}{hex}{hex}{hex}{hex}{hex}{hex}{hex}
 unasc_char {utf8_char}|{esc_char}|{hex_char}|{u16_char}|{u32_char}
@@ -309,30 +309,30 @@ moddoc  "//!"[^\n]*
 }
 
 (b\'{asc_char}\') {
-  printf("b'%c'\n", *(yytext + 2));
+  print("b'%c'\n", *(yytext + 2));
   yylval->ival = *(yytext + 2);
-  YY_RETURN(INT_LITERAL);
+  YY_RETURN(BYTE_LITERAL);
 }
 
 (b\'{hex_char}\') {
   char s[4];
-  printf("'%s'\n", yytext);
+  print("'%s'\n", yytext);
   char *nptr = yytext + 4;
   strncpy(s, nptr, strlen(nptr) - 1);
   yylval->ival = strtoll(s, NULL, 16);
-  printf("b'%c'\n", (char)yylval->ival);
-  YY_RETURN(INT_LITERAL);
+  print("b'%c'\n", (char)yylval->ival);
+  YY_RETURN(BYTE_LITERAL);
 }
 
 (\'{asc_char}\') {
-  printf("ascii:%s\n", yytext);
+  print("ascii:%s\n", yytext);
   char *s = yytext + 1;
   yylval->cval.val = *s;
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{utf8_char}\') {
-  printf("utf8:%s\n", yytext);
+  print("utf8:%s\n", yytext);
   char *s = yytext + 1;
   yylval->cval.val = decode_one_utf8_char(&s);
   return YY_RETURN(CHAR_LITERAL);
@@ -340,21 +340,21 @@ moddoc  "//!"[^\n]*
 
 (\'{esc_char}\') {
   char *s = yytext + 2;
-  printf("escape:%c\n", *s);
+  print("escape:%c\n", *s);
   yylval->cval.val = esc_char(*s);
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'\\\'\') {
   char *s = yytext + 2;
-  printf("escape:%c\n", *s);
+  print("escape:%c\n", *s);
   yylval->cval.val = esc_char(*s);
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{hex_char}\') {
   char s[4];
-  printf("hex:%s\n", yytext);
+  print("hex:%s\n", yytext);
   char *nptr = yytext + 3;
   strncpy(s, nptr, strlen(nptr) - 1);
   yylval->cval.val = strtol(s, NULL, 16);
@@ -362,7 +362,7 @@ moddoc  "//!"[^\n]*
 }
 
 (\'{u16_char}\') {
-  printf("unicode-16:%s\n", yytext);
+  print("unicode-16:%s\n", yytext);
   return 0;
 }
 
