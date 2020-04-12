@@ -525,6 +525,7 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_NEW_ITER:
   case OP_UNPACK_TUPLE:
   case OP_LOAD_GLOBAL:
+  case OP_NEW_SLICE:
     break;
   case OP_MATCH:
     bytebuffer_write_byte(buf, i->argc);
@@ -3339,24 +3340,90 @@ static void parse_call(ParserState *ps, Expr *exp)
 
 static void parse_slice(ParserState *ps, Expr *exp)
 {
-  Expr *e = exp->slice.end;
-  e->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, e);
+  if (exp->ctx != EXPR_LOAD) {
+    serror(exp->row, exp->col, "slice must be rexp");
+    return;
+  }
+
+  Expr *e = exp->slice.step;
+  if (e != NULL) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (e->desc == NULL || !desc_isint(e->desc)) {
+      serror(e->row, e->col, "indices of slice must be integer.");
+      return;
+    }
+  } else {
+    Literal v = {.kind = BASE_INT, .ival = -1};
+    CODE_OP_V(OP_LOAD_CONST, v);
+  }
+
+  e = exp->slice.end;
+  if (e != NULL) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (e->desc == NULL || !desc_isint(e->desc)) {
+      serror(e->row, e->col, "indices of slice must be integer.");
+      return;
+    }
+  } else {
+    Literal v = {.kind = BASE_INT, .ival = -1};
+    CODE_OP_V(OP_LOAD_CONST, v);
+  }
 
   e = exp->slice.start;
-  e->ctx = EXPR_LOAD;
-  parser_visit_expr(ps, e);
+  if (e != NULL) {
+    e->ctx = EXPR_LOAD;
+    parser_visit_expr(ps, e);
+    if (e->desc == NULL || !desc_isint(e->desc)) {
+      serror(e->row, e->col, "indices of slice must be integer.");
+      return;
+    }
+  } else {
+    Literal v = {.kind = BASE_INT, .ival = -1};
+    CODE_OP_V(OP_LOAD_CONST, v);
+  }
 
   e = exp->slice.lexp;
   e->ctx = EXPR_LOAD;
   parser_visit_expr(ps, e);
+  Symbol *sym = e->sym;
+  if (sym == NULL) {
+    serror(e->row, e->col, "unknown expr's type");
+    return;
+  }
+
+  if (sym->kind == SYM_VAR) {
+    sym = sym->var.typesym;
+  }
+
+  if (sym == NULL) {
+    serror(e->row, e->col, "unknown expr's type");
+    return;
+  }
+
+  char *symname = sym->name;
+  if (sym->kind != SYM_CLASS) {
+    serror(e->row, e->col, "type '%s' is not class", symname);
+    return;
+  }
+
+  STable *stbl = sym->type.stbl;
+  if (stbl == NULL) {
+    serror(e->row, e->col, "type '%s' has not __slice__", symname);
+    return;
+  }
+
+  sym = stable_get(stbl, "__slice__");
+  if (sym == NULL) {
+    serror(e->row, e->col, "type '%s' has not __slice__", symname);
+    return;
+  }
 
   if (!has_error(ps)) {
-    expect(exp->ctx == EXPR_LOAD);
-    if (!exp->leftside)
-      CODE_OP(OP_SLICE_LOAD);
-    else
-      CODE_OP(OP_SLICE_STORE);
+    exp->desc = TYPE_INCREF(e->desc);
+    exp->sym = e->sym;
+    CODE_OP(OP_NEW_SLICE);
   }
 }
 
@@ -4280,6 +4347,7 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
 
   /* function's return maybe null */
   if (exp->kind != CALL_KIND && exp->desc == NULL) {
+    error("unknown expr's type");
     ++ps->errors;
   }
 }

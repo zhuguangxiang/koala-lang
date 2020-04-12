@@ -360,6 +360,90 @@ static Object *array_iter(Object *self, Object *args)
   return ret;
 }
 
+static Object *array_slice(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  GVector *vec = arr->vec;
+  if (vec == NULL) {
+    return array_new(arr->desc, NULL);
+  }
+
+  Object *start = tuple_get(args, 0);
+  Object *end = tuple_get(args, 1);
+  Object *step = tuple_get(args, 2);
+  int64_t i = integer_asint(start);
+  int64_t j = integer_asint(end);
+  int64_t k = integer_asint(step);
+  if (i < 0) {
+    i = 0;
+  }
+  if (j < 0) {
+    j = gvector_size(arr->vec);
+  }
+  if (k < 0) {
+    k = 1;
+  }
+
+  GVector *svec = gvector_new(0, sizeof(RawValue));
+  int basekind = arr->desc->kind == TYPE_BASE;
+  RawValue raw = {0};
+  for (int ii = i, jj = 0; ii < j; ii += k, jj++) {
+    gvector_get(vec, ii, &raw);
+    if (!basekind) {
+      OB_INCREF(raw.obj);
+    }
+    gvector_set(svec, jj, &raw);
+  }
+  return array_new(arr->desc, svec);
+}
+
+static Object *array_index(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  Object *idx = integer_new(0);
+  Object *ret = iter_new(arr->desc, self, idx);
+  OB_DECREF(idx);
+  return ret;
+}
+
+static Object *array_lastindex(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  Object *idx = integer_new(0);
+  Object *ret = iter_new(arr->desc, self, idx);
+  OB_DECREF(idx);
+  return ret;
+}
+
+static Object *array_concat(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  Object *idx = integer_new(0);
+  Object *ret = iter_new(arr->desc, self, idx);
+  OB_DECREF(idx);
+  return ret;
+}
+
 static MethodDef array_methods[] = {
   {"append",      "<T>",  NULL,   array_append  },
   {"pop",         NULL,   "<T>",  array_pop     },
@@ -371,6 +455,10 @@ static MethodDef array_methods[] = {
   {"__getitem__", "i",    "<T>",  array_getitem },
   {"__setitem__", "i<T>", NULL,   array_setitem },
   {"__iter__", "i", "Llang.Iterator<T>;", array_iter},
+  {"__slice__",   "iii",  "Llang.Array<T>;", array_slice},
+  {"index",       "<T>",  "i",    array_index},
+  {"lastindex",   "<T>",  "i",    array_lastindex},
+  {"__add__",     "Llang.Array<T>;", "Llang.Array<T>;", array_concat},
   {NULL}
 };
 

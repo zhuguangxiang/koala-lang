@@ -192,12 +192,13 @@ Expr *expr_from_call(Vector *args, Expr *left)
   return exp;
 }
 
-Expr *expr_from_slice(Expr *left, Expr *start, Expr *end)
+Expr *expr_from_slice(Expr *left, Expr *start, Expr *end, Expr *step)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = SLICE_KIND;
   exp->slice.start = start;
   exp->slice.end = end;
+  exp->slice.step = step;
   exp->slice.lexp = left;
   left->right = exp;
   return exp;
@@ -370,6 +371,7 @@ void expr_free(Expr *exp)
   case SLICE_KIND:
     expr_free(exp->slice.start);
     expr_free(exp->slice.end);
+    expr_free(exp->slice.step);
     expr_free(exp->slice.lexp);
     kfree(exp);
     break;

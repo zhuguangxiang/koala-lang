@@ -1109,6 +1109,20 @@ Object *Koala_EvalFrame(CallFrame *f)
       PUSH(v);
       break;
     }
+    case OP_NEW_SLICE: {
+      x = POP();
+      z = tuple_new(3);
+      for (int i = 0; i < 3; i++) {
+        y = POP();
+        tuple_set(z, i, y);
+        OB_DECREF(y);
+      }
+      v = object_call(x, "__slice__", z);
+      OB_DECREF(x);
+      OB_DECREF(z);
+      PUSH(v);
+      break;
+    }
     case OP_FOR_ITER: {
       oparg = (int16_t)NEXT_2BYTES();
       x = POP();

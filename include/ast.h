@@ -299,7 +299,6 @@ struct expr {
   Stmt *inplace;
   char *funcname;
   int argc;
-  int8_t leftside;
   int8_t hasvalue;
   int8_t first;
   int8_t super;
@@ -372,6 +371,7 @@ struct expr {
       Expr *lexp;
       Expr *start;
       Expr *end;
+      Expr *step;
     } slice;
     Vector *tuple;
     Vector *array;
@@ -438,7 +438,7 @@ Expr *expr_from_attribute(Ident id, Expr *left);
 Expr *expr_from_typeargs(Vector *types, Expr *left);
 Expr *expr_from_subscr(Expr *left, Expr *index);
 Expr *expr_from_call(Vector *args, Expr *left);
-Expr *expr_from_slice(Expr *left, Expr *start, Expr *end);
+Expr *expr_from_slice(Expr *left, Expr *start, Expr *end, Expr *step);
 Expr *expr_from_dottuple(int64_t index, Expr *left);
 Expr *expr_from_tuple(Vector *exps);
 Expr *expr_from_array(Vector *exps);

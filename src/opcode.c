@@ -103,8 +103,6 @@ static struct opcode {
 
   OPCODE(OP_SUBSCR_LOAD,  0),
   OPCODE(OP_SUBSCR_STORE, 0),
-  OPCODE(OP_SLICE_LOAD,  0),
-  OPCODE(OP_SLICE_STORE, 0),
 
   OPCODE(OP_JMP,        2),
   OPCODE(OP_JMP_TRUE,   2),
@@ -124,8 +122,9 @@ static struct opcode {
   OPCODE(OP_NEW_RANGE,    1),
   OPCODE(OP_NEW_CLOSURE,  2),
   OPCODE(OP_NEW_EVAL,     3),
-  OPCODE(OP_NEW,   3),
+  OPCODE(OP_NEW,          3),
   OPCODE(OP_NEW_ITER,     0),
+  OPCODE(OP_NEW_SLICE,    0),
 
   OPCODE(OP_FOR_ITER,     2),
   OPCODE(OP_UNPACK_TUPLE, 0),
