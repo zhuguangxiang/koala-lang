@@ -1377,7 +1377,7 @@ int image_add_byte(Image *image, int64_t val)
   k.ival = val;
   int index = literalitem_get(image, &k);
   if (index < 0) {
-    LiteralItem *item = literalitem_int_new(val);
+    LiteralItem *item = literalitem_byte_new(val);
     index = _append_(image, ITEM_LITERAL, item, 1);
   }
   return image_add_const(image, CONST_LITERAL, index);

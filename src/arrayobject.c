@@ -159,7 +159,13 @@ static void int_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void char_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  panic("char: not implemented");
+  int *items = gvector_toarr(arr->vec);
+  int size = gvector_size(arr->vec);
+  for (int i = 0; i < size; ++i) {
+    strbuf_append_wchar(buf, items[i]);
+    if (i < size - 1)
+      strbuf_append(buf, ", ");
+  }
 }
 
 static void float_tostr(ArrayObject *arr, StrBuf *buf)
@@ -189,7 +195,9 @@ static void string_tostr(ArrayObject *arr, StrBuf *buf)
   Object **items = gvector_toarr(arr->vec);
   int size = gvector_size(arr->vec);
   for (int i = 0; i < size; ++i) {
+    strbuf_append(buf, "\"");
     strbuf_append(buf, string_asstr(items[i]));
+    strbuf_append(buf, "\"");
     if (i < size - 1)
       strbuf_append(buf, ", ");
   }
@@ -402,6 +410,48 @@ static Object *array_slice(Object *self, Object *args)
   return array_new(arr->desc, svec);
 }
 
+static int raw_equal(TypeDesc *desc, RawValue *val, Object *ob)
+{
+  int res;
+  if (desc->kind != TYPE_BASE) {
+    Object *bob = object_call(ob, "__equal__", val->obj);
+    res = bool_istrue(bob);
+    OB_DECREF(bob);
+    return res;
+  }
+
+  char base = desc->base;
+  switch (base) {
+  case BASE_BYTE:
+    res = (val->ival == byte_asint(ob));
+    break;
+  case BASE_INT:
+    if (byte_check(ob)) {
+      res = (val->ival == byte_asint(ob));
+    } else {
+      res = (val->ival == integer_asint(ob));
+    }
+    break;
+  case BASE_CHAR:
+    res = (val->cval == char_asch(ob));
+    break;
+  case BASE_FLOAT:
+    res = (val->fval == float_asflt(ob)); //right?
+    break;
+  case BASE_BOOL:
+    res = (val->bval == ((BoolObject *)ob)->value);
+  case BASE_STR:
+    res = !strcmp(string_asstr(val->obj), string_asstr(ob));
+    break;
+  default: {
+    Object *bob = object_call(ob, "__equal__", val->obj);
+    res = bool_istrue(bob);
+    OB_DECREF(bob);
+    break;
+  }
+  }
+}
+
 static Object *array_index(Object *self, Object *args)
 {
   if (!array_check(self)) {
@@ -410,10 +460,20 @@ static Object *array_index(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  Object *idx = integer_new(0);
-  Object *ret = iter_new(arr->desc, self, idx);
-  OB_DECREF(idx);
-  return ret;
+  GVector *vec = arr->vec;
+  if (vec == NULL || vec->size == 0) {
+    return NULL;
+  }
+
+  int size = vec->size;
+  RawValue *items = gvector_toarr(vec);
+  for (int i = 0; i < size; i++) {
+    if (raw_equal(arr->desc, items + i, args)) {
+      return integer_new(i);
+    }
+  }
+
+  return NULL;
 }
 
 static Object *array_lastindex(Object *self, Object *args)
@@ -424,10 +484,20 @@ static Object *array_lastindex(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  Object *idx = integer_new(0);
-  Object *ret = iter_new(arr->desc, self, idx);
-  OB_DECREF(idx);
-  return ret;
+  GVector *vec = arr->vec;
+  if (vec == NULL || vec->size == 0) {
+    return NULL;
+  }
+
+  int size = vec->size;
+  RawValue *items = gvector_toarr(vec);
+  for (int i = size - 1; i >= 0; i--) {
+    if (raw_equal(arr->desc, items + i, args)) {
+      return integer_new(i);
+    }
+  }
+
+  return NULL;
 }
 
 static Object *array_concat(Object *self, Object *args)
@@ -437,11 +507,61 @@ static Object *array_concat(Object *self, Object *args)
     return NULL;
   }
 
+  if (!array_check(args)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(args));
+    return NULL;
+  }
+
   ArrayObject *arr = (ArrayObject *)self;
-  Object *idx = integer_new(0);
-  Object *ret = iter_new(arr->desc, self, idx);
-  OB_DECREF(idx);
-  return ret;
+  ArrayObject *arr2 = (ArrayObject *)args;
+
+  GVector *svec = gvector_new(0, sizeof(RawValue));
+  int basekind = arr->desc->kind == TYPE_BASE;
+  RawValue raw = {0};
+  for (int i = 0; i < gvector_size(arr->vec); i++) {
+    gvector_get(arr->vec, i, &raw);
+    if (!basekind) {
+      OB_INCREF(raw.obj);
+    }
+    gvector_push_back(svec, &raw);
+  }
+
+  for (int i = 0; i < gvector_size(arr2->vec); i++) {
+    gvector_get(arr2->vec, i, &raw);
+    if (!basekind) {
+      OB_INCREF(raw.obj);
+    }
+    gvector_push_back(svec, &raw);
+  }
+
+  return array_new(arr->desc, svec);
+}
+
+static Object *array_join(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (!array_check(args)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(args));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  ArrayObject *arr2 = (ArrayObject *)args;
+  GVector *gvec = arr->vec;
+  int basekind = arr->desc->kind == TYPE_BASE;
+  RawValue raw = {0};
+  for (int i = 0; i < gvector_size(arr2->vec); i++) {
+    gvector_get(arr2->vec, i, &raw);
+    if (!basekind) {
+      OB_INCREF(raw.obj);
+    }
+    gvector_push_back(gvec, &raw);
+  }
+  return OB_INCREF(self);
 }
 
 static MethodDef array_methods[] = {
@@ -459,6 +579,7 @@ static MethodDef array_methods[] = {
   {"index",       "<T>",  "i",    array_index},
   {"lastindex",   "<T>",  "i",    array_lastindex},
   {"__add__",     "Llang.Array<T>;", "Llang.Array<T>;", array_concat},
+  {"join",        "Llang.Array<T>;", "Llang.Array<T>;", array_join},
   {NULL}
 };
 

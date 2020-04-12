@@ -2265,8 +2265,9 @@ static void parse_binary(ParserState *ps, Expr *exp)
       TypeDesc *desc = sym->desc;
       expect(desc != NULL && desc->kind == TYPE_PROTO);
       desc = vector_get(desc->proto.args, 0);
-      if (!desc_check(desc, rexp->desc)) {
-        if (!check_inherit(desc, rexp->sym, NULL)) {
+      TypeDesc *desc2 = specialize_types(NULL, lexp->desc, desc);
+      if (!desc_check(desc2, rexp->desc)) {
+        if (!check_inherit(desc2, rexp->sym, NULL)) {
           serror(exp->binary.oprow, exp->binary.opcol,
                 "types of '%s' are not matched", funcname);
           return;

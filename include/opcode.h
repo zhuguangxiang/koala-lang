@@ -100,10 +100,8 @@ extern "C" {
 
 #define OP_SUBSCR_LOAD    63
 #define OP_SUBSCR_STORE   64
-#define OP_SLICE_LOAD     65
-#define OP_SLICE_STORE    66
 
-/* 67 - 69 */
+/* 65 - 69 */
 
 #define OP_JMP        70
 #define OP_JMP_TRUE   71
@@ -127,8 +125,9 @@ extern "C" {
 #define OP_NEW_EVAL     91
 #define OP_NEW          92
 #define OP_NEW_ITER     93
+#define OP_NEW_SLICE    94
 
-/* 94 - 95 */
+/* 95 - 95 */
 
 #define OP_FOR_ITER     96
 #define OP_UNPACK_TUPLE 97
