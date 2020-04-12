@@ -517,6 +517,12 @@ static Object *array_concat(Object *self, Object *args)
 
   GVector *svec = gvector_new(0, sizeof(RawValue));
   int basekind = arr->desc->kind == TYPE_BASE;
+  if (basekind) {
+    if (arr->desc->base == BASE_STR ||
+        arr->desc->base == BASE_ANY) {
+      basekind = 0;
+    }
+  }
   RawValue raw = {0};
   for (int i = 0; i < gvector_size(arr->vec); i++) {
     gvector_get(arr->vec, i, &raw);
@@ -553,6 +559,12 @@ static Object *array_join(Object *self, Object *args)
   ArrayObject *arr2 = (ArrayObject *)args;
   GVector *gvec = arr->vec;
   int basekind = arr->desc->kind == TYPE_BASE;
+  if (basekind) {
+    if (arr->desc->base == BASE_STR ||
+        arr->desc->base == BASE_ANY) {
+      basekind = 0;
+    }
+  }
   RawValue raw = {0};
   for (int i = 0; i < gvector_size(arr2->vec); i++) {
     gvector_get(arr2->vec, i, &raw);

@@ -110,6 +110,19 @@ void strbuf_append_char(StrBuf *self, char ch)
   self->buf[self->len++] = ch;
 }
 
+void strbuf_append_wchar(StrBuf *self, int64_t ch)
+{
+  char buf[64];
+  if (ch < 255) {
+    snprintf(buf, 63, "'%c'", (char)ch);
+    strbuf_append(self, buf);
+  } else {
+    strbuf_append_char(self, '\'');
+    strbuf_append(self, (char *)&ch);
+    strbuf_append_char(self, '\'');
+  }
+}
+
 void strbuf_append_int(StrBuf *self, int64_t val)
 {
   char buf[64];
