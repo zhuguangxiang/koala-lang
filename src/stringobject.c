@@ -32,6 +32,13 @@
 #include "utf8.h"
 #include "log.h"
 
+static Object *str_init(Object *x, Object *y)
+{
+  // not run here!!
+  expect(0);
+  return NULL;
+}
+
 static Object *str_num_add(Object *x, Object *y)
 {
   if (!string_check(x)) {
@@ -53,7 +60,7 @@ static Object *str_num_add(Object *x, Object *y)
   return z;
 }
 
-static Object *string_length(Object *self, Object *args)
+Object *string_length(Object *self, Object *args)
 {
   if (!string_check(self)) {
     error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
@@ -114,8 +121,9 @@ static Object *string_equal(Object *self, Object *other)
 
   StringObject *s1 = (StringObject *)self;
   StringObject *s2 = (StringObject *)other;
-
-  return !strcmp(s1->wstr, s2->wstr) ? bool_true() : bool_false();
+  char *raw1 = vec_toarr(&s1->buf);
+  char *raw2 = vec_toarr(&s2->buf);
+  return !strcmp(raw1, raw2) ? bool_true() : bool_false();
 }
 
 /* func as_bytes() [byte] */
@@ -127,13 +135,11 @@ Object *string_asbytes(Object *self, Object *args)
   }
 
   StringObject *s = (StringObject *)self;
-  GVector *vec = gvector_new(s->len, 1);
-  gvector_append_array(vec, s->wstr, s->len);
   TypeDesc *desc = desc_from_byte;
-  Object *ob = array_new(desc, vec);
+  Object *ob = array_new(desc);
+  vec_push_arr(array_raw(ob), string_asstr(self), s->len);
   TYPE_DECREF(desc);
   if (ob == NULL) {
-    gvector_free(vec);
     error("memory allocated failed.");
     return NULL;
   }
@@ -229,7 +235,8 @@ static void string_clean(Object *self)
   }
   debug("clean String '%.64s'", string_asstr(self));
   StringObject *s = (StringObject *)self;
-  kfree(s->wstr);
+  vec_fini(&s->buf);
+  s->len = 0;
 }
 
 static void string_free(Object *self)
@@ -292,8 +299,9 @@ static Object *str_num_neq(Object *x, Object *y)
 }
 
 static MethodDef string_methods[] = {
+  {"__init__", "s", NULL, str_init},
   {"concat",  "s",  "s", str_num_add},
-  {"length",  NULL, "i", string_length},
+  {"len",  NULL, "i", string_length},
   {"__fmt__", "Lfmt.Formatter;", NULL, string_fmt},
   {"__add__", "s", "s", str_num_add},
   {"__gt__", "s", "z", str_num_gt},
@@ -310,7 +318,6 @@ static MethodDef string_methods[] = {
 
 static NumberMethods string_num_methods = {
   .add = str_num_add,
-
   .gt  = str_num_gt,
   .ge  = str_num_ge,
   .lt  = str_num_lt,
@@ -343,8 +350,8 @@ Object *string_new(char *str)
   StringObject *s = gcnew(sizeof(StringObject));
   init_object_head(s, &string_type);
   s->len = len;
-  s->wstr = kmalloc(len + 1);
-  strcpy(s->wstr, str);
+  vec_init_capacity(&s->buf, 1, len + 1);
+  vec_push_arr(&s->buf, str, len + 1);
   return (Object *)s;
 }
 
@@ -359,35 +366,7 @@ char *string_asstr(Object *self)
   }
 
   StringObject *s = (StringObject *)self;
-  return s->wstr;
-}
-
-int string_isempty(Object *self)
-{
-  if (!string_check(self)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
-    return 0;
-  }
-
-  StringObject *s = (StringObject *)self;
-  if (s->wstr == NULL)
-    return 1;
-  if (strlen(s->wstr) == 0)
-    return 1;
-  return 0;
-}
-
-void string_set(Object *self, char *str)
-{
-  if (!string_check(self)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
-    return;
-  }
-
-  StringObject *s = (StringObject *)self;
-  kfree(s->wstr);
-  s->wstr = kmalloc(strlen(str) + 1);
-  strcpy(s->wstr, str);
+  return vec_toarr(&s->buf);
 }
 
 static void char_free(Object *ob)

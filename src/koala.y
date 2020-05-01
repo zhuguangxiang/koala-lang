@@ -1334,6 +1334,10 @@ array_object:
 {
   $$ = expr_from_array(NULL);
 }
+| NEW '[' type ']'
+{
+  $$ = NULL;
+}
 ;
 
 expr_list:
@@ -1366,6 +1370,10 @@ map_object:
 | '{' ':' '}'
 {
   $$ = expr_from_map(NULL);
+}
+| NEW '[' type ':' type ']'
+{
+  $$ = NULL;
 }
 ;
 
@@ -1428,7 +1436,8 @@ new_object:
 }
 | NEW ID '.' ID '<' type_list '>' '(' ')'
 {
-  $$ = NULL;
+  IDENT(id, $4, @4);
+  $$ = expr_from_object($2, id, $6, NULL);
 }
 | NEW ID '(' expr_list ')'
 {

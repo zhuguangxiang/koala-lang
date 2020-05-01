@@ -23,14 +23,14 @@ SET(KOALA_OBJECTS_SOURCES
   optionobject.c)
 
 SET(KOALA_BUILTIN_MODULES
-  langmodule.c sysmodule.c iomodule.c fmtmodule.c modules/assertmodule.c
-  fsmodule.c)
+  langmodule.c ../pkgs/sys/sysmodule.c ../pkgs/io/iomodule.c ../pkgs/fmt/fmtmodule.c modules/assertmodule.c
+  ../pkgs/fs/fsmodule.c)
 
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c
   typedesc.c eval.c image.c opcode.c symbol.c ast.c parser.c
   koala_lex.c koala_yacc.c run.c compile.c interactive.c readline.c gc.c
-  textblock.c gvector.c jit_ffi.c
+  textblock.c vec.c jit_ffi.c
   ${KOALA_OBJECTS_SOURCES} ${KOALA_BUILTIN_MODULES})
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})

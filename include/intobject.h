@@ -88,19 +88,24 @@ extern TypeObject bool_type;
 #define bool_check(ob) (OB_TYPE(ob) == &bool_type)
 void init_bool_type(void);
 void fini_bool_type(void);
-extern BoolObject OB_True;
-extern BoolObject OB_False;
+extern BoolObject ob_true;
+extern BoolObject ob_false;
 
 static inline Object *bool_true(void)
 {
-  Object *res = (Object *)&OB_True;
+  Object *res = (Object *)&ob_true;
   return OB_INCREF(res);
 }
 
 static inline Object *bool_false(void)
 {
-  Object *res = (Object *)&OB_False;
+  Object *res = (Object *)&ob_false;
   return OB_INCREF(res);
+}
+
+static inline Object *bool_new(int val)
+{
+  return !val ? bool_true() : bool_false();
 }
 
 static inline int bool_istrue(Object *ob)
@@ -109,7 +114,7 @@ static inline int bool_istrue(Object *ob)
     error("object of '%.64s' is not a Bool.", OB_TYPE(ob)->name);
     return 0;
   }
-  return ob == (Object *)&OB_True ? 1 : 0;
+  return ob == (Object *)&ob_true ? 1 : 0;
 }
 
 static inline int bool_isfalse(Object *ob)
@@ -118,7 +123,7 @@ static inline int bool_isfalse(Object *ob)
     error("object of '%.64s' is not a Bool.", OB_TYPE(ob)->name);
     return 0;
   }
-  return ob == (Object *)&OB_False ? 1 : 0;
+  return ob == (Object *)&ob_false ? 1 : 0;
 }
 
 #ifdef __cplusplus

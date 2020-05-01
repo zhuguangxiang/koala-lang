@@ -69,6 +69,13 @@ static Object *int_str(Object *self, Object *ob)
   return string_new(buf);
 }
 
+static Object *integer_init(Object *x, Object *y)
+{
+  // not run here!!
+  expect(0);
+  return NULL;
+}
+
 static Object *integer_fmt(Object *self, Object *ob)
 {
   if (!integer_check(self)) {
@@ -556,6 +563,7 @@ static Object *int_num_floatvalue(Object *x, Object *y)
 }
 
 static MethodDef int_methods[]= {
+  {"__init__", "i", NULL, integer_init},
   {"__fmt__", "Llang.Formatter;", NULL, integer_fmt},
   {"__add__", "Llang.Number;", "i", int_num_add},
   {"__sub__", "Llang.Number;", "i", int_num_sub},
@@ -736,6 +744,16 @@ TypeObject bool_type = {
   .methods = bool_methods,
 };
 
+BoolObject ob_true = {
+  OBJECT_HEAD_INIT(&bool_type)
+  .value = 1,
+};
+
+BoolObject ob_false = {
+  OBJECT_HEAD_INIT(&bool_type)
+  .value = 0,
+};
+
 void init_bool_type(void)
 {
   bool_type.desc = desc_from_bool;
@@ -745,18 +763,8 @@ void init_bool_type(void)
 
 void fini_bool_type(void)
 {
-  int refcnt = OB_True.ob_refcnt;
+  int refcnt = ob_true.ob_refcnt;
   expect(refcnt == 1);
-  refcnt = OB_False.ob_refcnt;
+  refcnt = ob_false.ob_refcnt;
   expect(refcnt == 1);
 }
-
-BoolObject OB_True = {
-  OBJECT_HEAD_INIT(&bool_type)
-  .value = 1,
-};
-
-BoolObject OB_False = {
-  OBJECT_HEAD_INIT(&bool_type)
-  .value = 0,
-};

@@ -75,7 +75,7 @@ static void init_types(void)
   init_result_type();
   init_error_type();
   init_option_type();
-
+  //init_sbuf_type();
   print("########\n");
 }
 

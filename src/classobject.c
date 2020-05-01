@@ -148,7 +148,7 @@ static Object *class_members(Object *self, Object *args)
 
   int index = 0;
   TypeDesc *desc = desc_from_any;
-  Object *res = array_new(desc, NULL);
+  Object *res = array_new(desc);
   TYPE_DECREF(desc);
   TypeObject *type;
   Object *ob = ((ClassObject *)self)->obj;

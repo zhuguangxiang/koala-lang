@@ -27,6 +27,7 @@
 
 #include "common.h"
 #include "object.h"
+#include "vec.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +37,7 @@ typedef struct stringobject {
   OBJECT_HEAD
   /* unicode length */
   int len;
-  char *wstr;
+  Vec buf;
 } StringObject;
 
 typedef struct charobject {
@@ -49,8 +50,7 @@ extern TypeObject string_type;
 void init_string_type(void);
 Object *string_new(char *str);
 char *string_asstr(Object *self);
-int string_isempty(Object *self);
-void string_set(Object *self, char *str);
+Object *string_length(Object *self, Object *args);
 
 extern TypeObject char_type;
 #define char_check(ob) (OB_TYPE(ob) == &char_type)

@@ -326,6 +326,7 @@ int object_setvalue(Object *self, char *name, Object *val, TypeObject *type);
 Object *object_call(Object *self, char *name, Object *args);
 Object *object_super_call(Object *self, char *name, Object *args,
                           TypeObject *type);
+Object *new_object(char *path, char *type, Object *args);
 Object *new_literal(Literal *val);
 Object *object_alloc(TypeObject *type);
 
@@ -349,6 +350,22 @@ typedef struct heapobject {
   int size;
   Object *items[0];
 } HeapObject;
+
+// convert value between object and raw value
+typedef union rawvalue {
+  int64_t ival;
+  int bval;
+  unsigned int cval;
+  int zval;
+  double fval;
+  void *ptr;
+} RawValue;
+
+// Get object from raw value
+Object *obj_from_raw(TypeDesc *type, RawValue raw);
+
+// Get Value from object
+RawValue obj_to_raw(TypeDesc *type, Object *ob);
 
 #ifdef __cplusplus
 }

@@ -24,36 +24,73 @@
 
 #include "koala.h"
 
-/*
-  func read(buf [byte], count int) Result<int, Error>;
+#define RESULT  "Llang.Result(i)(Llang.Error;);"
 
-  func read_str(w io.Writer) Result<int, Error> {
-    buf := new Array<byte>()
-    read(buf, 32)
-    return w.write(buf)
+/*
+  func read(buf [byte], size int) Result<int, Error>;
+
+  func read_to_end(buf [byte]) Result<int, Error> {
+
+  }
+
+  func read_to_str(sb str.Buffer) Result<int, Error> {
+    buf := [byte]
+    read_to_end(buf)
+    s := str.from_utf8(buf)
+    sb.join(s)
+    Ok(s.len())
   }
  */
-static Object *read_str(Object *self, Object *args)
+
+static Object *read_to_end(Object *self, Object *args)
 {
   Object *arr = byte_array_new();
+  Vec *buf = ((ArrayObject *)arr)->buf;
   Object *count = integer_new(32);
   Object *tuple = tuple_new(2);
   tuple_set(tuple, 0, arr);
   tuple_set(tuple, 1, count);
   OB_DECREF(arr);
   OB_DECREF(count);
-  Object *res = object_call(self, "read", tuple);
-  if (result_test(res)) {
-    OB_DECREF(res);
-    res = object_call(args, "write", arr);
+  int64_t len = 0, n;
+  Object *res, *nob;
+  while (1) {
+    res = object_call(self, "read", tuple);
+    if (result_test(res)) {
+      nob = result_get_ok(res, NULL);
+      n = integer_asint(nob);
+      OB_DECREF(res);
+      OB_DECREF(nob);
+      if (n <= 0) {
+        break;
+      } else {
+        len += n;
+        vec_clear(buf);
+      }
+    } else {
+      OB_DECREF(res);
+      break;
+    }
   }
   OB_DECREF(tuple);
-  return res;
+  return result_ok(integer_new(len));
+}
+
+static Object *read_to_str(Object *self, Object *args)
+{
+  Object *arr = byte_array_new();
+  read_to_end(self, arr);
+  //Object *s = str_from_utf8(arr);
+  //sbuf_join(args, s);
+  //Object *res = result_ok(string_length(s, NULL));
+  //OB_DECREF(s);
+  return NULL;
 }
 
 static MethodDef reader_methods[]= {
-  {"read", "[bi", "Llang.Result(i)(Llang.Error;);", NULL, 1},
-  {"read_str", "Lstr.Builder;", "Llang.Result(i)(Llang.Error;);", read_str},
+  {"read", "[bi", RESULT, NULL, 1},
+  {"read_to_end", "[b", RESULT, read_to_end},
+  {"read_to_str", "Lstr.Builder;", RESULT, read_to_str},
   {NULL}
 };
 
@@ -80,8 +117,8 @@ static Object *write_str(Object *self, Object *args)
 }
 
 static MethodDef writer_methods[]= {
-  {"write", "[b", "Llang.Result(i)(Llang.Error;);", NULL, 1},
-  {"write_str", "s", "Llang.Result(i)(Llang.Error;);", write_str},
+  {"write", "[b", RESULT, NULL, 1},
+  {"write_str", "s", RESULT, write_str},
   {"flush", NULL, NULL, NULL, 1},
   {NULL}
 };
@@ -180,7 +217,7 @@ void IoPrint(Object *ob)
 void IoPrintln(Object *ob)
 {
   if (ob == NULL) {
-    printf("nil\n");
+    //printf("nil\n");
     return;
   }
   if (string_check(ob)) {

@@ -182,7 +182,7 @@ static int logic_true(Object *ob)
   } else if (byte_check(ob)) {
     return byte_asint(ob) ? 1 : 0;
   } else if (string_check(ob)) {
-    return string_isempty(ob) ? 0 : 1;
+    return 1;
   } else if (char_check(ob)) {
     return char_asch(ob) ? 1 : 0;
   } else {
@@ -254,7 +254,7 @@ static Object *_new_object_(CallFrame *f, TypeDesc *desc)
   TypeObject *type = (TypeObject *)tob;
   if (type == &array_type) {
     TypeDesc *subdesc = vector_get(desc->klass.typeargs, 0);
-    ret = array_new(subdesc, NULL);
+    ret = array_new(subdesc);
   } else if (type == &map_type) {
     TypeDesc *kdesc = vector_get(desc->klass.typeargs, 0);
     TypeDesc *vdesc = vector_get(desc->klass.typeargs, 1);
@@ -308,6 +308,7 @@ static Object *do_match(Object *some, Object *patt)
     ArrayObject *arr = (ArrayObject *)patt;
     Object *z;
     Object *item;
+    /*
     RawValue raw;
     gvector_foreach(raw, arr->vec) {
       item = box(arr->desc, &raw, 1);
@@ -319,6 +320,7 @@ static Object *do_match(Object *some, Object *patt)
         OB_DECREF(z);
       }
     }
+    */
     return bool_false();
   } else if (range_check(patt)) {
     return in_range(patt, some);
@@ -1020,7 +1022,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       x = tuple_get(consts, oparg);
       desc = descob_getdesc(x);
       xdesc = vector_get(desc->klass.typeargs, 0);
-      y = array_new(xdesc, NULL);
+      y = array_new(xdesc);
       OB_DECREF(x);
       oparg = NEXT_2BYTES();
       for (i = 0; i < oparg; ++i) {

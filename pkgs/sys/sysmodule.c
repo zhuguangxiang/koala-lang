@@ -79,7 +79,7 @@ static int set_path(Object *self, Object *ob, Object *val)
 static Object *default_path(void)
 {
   TypeDesc *desc = desc_from_str;
-  Object *val = array_new(desc, NULL);
+  Object *val = array_new(desc);
   TYPE_DECREF(desc);
   return val;
 }

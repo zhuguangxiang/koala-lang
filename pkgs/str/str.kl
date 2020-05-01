@@ -1,26 +1,4 @@
-//
-// Copyright (c) 2020 James, https://github.com/zhuguangxiang
-// All rights reserved.
-//
 
-import "io"
+class builder extends io.Writer {
 
-class Builder extends io.Writer {
-  buf [byte]
-
-  func __init__(w io.Writer) {
-    buf = new Array<byte>()
-  }
-
-  func write(buf [byte]) Result<int, Error> {
-    bytes.concat(self.buf, buf)
-  }
-
-  func write_char(ch char) Result<int, Error> {
-    bytes.append_char(ch)
-  }
-
-  func flush() Result<int, Error> {
-    Ok(0)
-  }
 }

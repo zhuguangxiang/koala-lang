@@ -4,10 +4,13 @@
 //
 
 import "fs"
+import "__sys"
 
-native func default_stdout() fs.File
-native func default_pkgpath() string
+const stdout io.Writer = new LineWriter(fs.stdout)
+const stdin io.Reader = _ext_.stdin()
+const path [string] = _ext_.env("KOALA_PATH").as_strings()
 
-//var stdout io.Writer = new PrintWriter()
-var path [string] = [".", default_pkgpath()]
-var args [string]
+
+func get_env(key string) string {
+  _ext_.env(key)
+}

@@ -6,12 +6,6 @@
 import "fmt"
 import "io"
 
-func write(w Writer, fmt string, args ...) {
-  s := format(fmt, args)
-  w.write_str(s)
-  return
-}
-
 class PrintList {
   fmt Formatter
   result Result<int, Error>

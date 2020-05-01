@@ -152,7 +152,6 @@ char *base_str(int kind);
 #define CHAR_SIZE sizeof(int32_t)
 #define FLT_SIZE  sizeof(double)
 
-int base_size(int kind);
 void desc_show(TypeDesc *desc);
 int desc_check(TypeDesc *desc1, TypeDesc *desc2);
 int check_subdesc(TypeDesc *desc1, TypeDesc *desc2);

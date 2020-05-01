@@ -1,0 +1,97 @@
+class BufferedReader extends io.Reader {
+  r io.Reader
+  buf [byte]
+  cap int
+
+  func __init__(r io.Reader, size int) {
+    self.r = r
+    buf = new Array<byte>()
+    cap = size
+  }
+
+  func read(buf [byte], count int) Result<int, Error> {
+    return nil
+  }
+
+  func read_line() string {
+    return nil
+  }
+
+  func lines() Iterator<string> {
+    return nil
+  }
+}
+
+class BufferedWriter extends io.Writer {
+  w io.Writer
+  buf [byte]
+  cap int
+
+  func __init__(w io.Writer, size int) {
+    self.w = w
+    buf = new Array<byte>()
+    cap = size
+  }
+
+  func write(buf [byte]) Result<int, Error> {
+    if (self.buf.len() + buf.len() > cap) {
+      flush_buf();
+    }
+
+    if (buf.len() > cap) {
+      return w.write(buf)
+    } else {
+      return bytes.concat(self.buf, buf)
+    }
+  }
+
+  func flush_buf() Result<int, Error> {
+
+  }
+
+  func flush() Result<int, Error> {
+    w.flush();
+  }
+}
+
+const DEFAULT_BUF_SIZE = 1024
+
+class LineWriter extends io.Writer {
+  buf BufferedWriter
+
+  func __init__(w io.Writer) {
+    buf = new BufferedWriter(w, DEFAULT_BUF_SIZE);
+  }
+
+  func write(buf [byte]) Result<int, Error> {
+    n := 0
+    res := buf.lastindex(b'\n')
+    match res {
+      Some(i) => {
+        n = i
+      }
+      Err(_) => {
+        return buf.write(buf)
+      }
+    }
+
+    n = buf.write(buf, n).unwrap();
+    if flush().is_err() or n != i + 1 {
+      return Ok(n)
+    }
+
+    res = buf.write()
+    match res {
+      Ok(i) => {
+        return Ok(n + i)
+      },
+      Err(_) => {
+        return Ok(n)
+      }
+    }
+  }
+
+  func flush() Result<int, Error> {
+    buf.flush();
+  }
+}

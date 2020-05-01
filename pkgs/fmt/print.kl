@@ -1,0 +1,57 @@
+//
+// Copyright (c) 2020 James, https://github.com/zhuguangxiang
+// All rights reserved.
+//
+
+import "io"
+import "sys"
+
+func fprintf(w io.Writer, fmt string, args ...) {
+  s := fmt.format(args)
+  w.write_str(s)
+  return
+}
+
+func fprintln(w io.Writer, args ...) {
+  size := args.size()
+  bldr := new str.Builder()
+
+  for i in 0 ..< size - 1 {
+    bldr.write_str("{} ")
+  }
+
+  if size > 0 {
+    bldr.write_str("{}\r\n")
+  }
+
+  fmt := bldr.as_str()
+  fprintf(w, fmt, args)
+}
+
+func fprint(w io.Writer, args ...) {
+  size := args.size()
+  bldr := new str.Builder()
+
+  for i in 0 ..< size - 1 {
+    bldr.write_str("{} ")
+  }
+
+  if size > 0 {
+    bldr.write_str("{}")
+  }
+
+  fmt := bldr.as_str()
+  fprintf(w, fmt, args)
+}
+
+func printf(fmt string, args ...) {
+  fprintf(sys.stdout, fmt, args)
+}
+
+func println(args ...) {
+  fprintln(sys.stdout, args)
+}
+
+func print(args ...) {
+  fprint(sys.stdout, args)
+}

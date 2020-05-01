@@ -799,3 +799,86 @@ void init_descob_type(void)
   if (type_ready(&descob_type) < 0)
     panic("Cannot initalize 'TypeDesc' type.");
 }
+
+Object *new_object(char *path, char *name, Object *args)
+{
+  Object *mo = module_load(path);
+  expect(mo != NULL);
+  Object *type = module_get(mo, name);
+  expect(type != NULL && type_check(type) && type_isclass(type));
+  Object *ob = object_alloc((TypeObject *)type);
+  Object *meth = object_lookup(ob, "__init__", NULL);
+  if (meth == NULL) {
+    expect(args == NULL);
+    return ob;
+  } else {
+    method_call(meth, ob, args);
+    OB_DECREF(meth);
+    return ob;
+  }
+}
+
+// New object from raw value
+Object *obj_from_raw(TypeDesc *type, RawValue raw)
+{
+  if (type->kind != TYPE_BASE) {
+    return raw.ptr;
+  }
+
+  Object *ob;
+  char kind = type->base;
+  switch (kind) {
+  case BASE_BYTE:
+    ob = byte_new(raw.bval);
+    break;
+  case BASE_INT:
+    ob = integer_new(raw.ival);
+    break;
+  case BASE_CHAR:
+    ob = char_new(raw.cval);
+    break;
+  case BASE_FLOAT:
+    ob = float_new(raw.fval);
+    break;
+  case BASE_BOOL:
+    ob = bool_new(raw.zval);
+    break;
+  default:
+    ob = raw.ptr;
+    break;
+  }
+  return ob;
+}
+
+// Get Value from object
+RawValue obj_to_raw(TypeDesc *type, Object *ob)
+{
+  RawValue raw;
+  if (type->kind != TYPE_BASE) {
+    raw.ptr = ob;
+    return raw;
+  }
+
+  char kind = type->base;
+  switch (kind) {
+  case BASE_BYTE:
+    raw.bval = ((ByteObject *)ob)->value;
+    break;
+  case BASE_INT:
+    raw.ival = ((IntegerObject *)ob)->value;
+    break;
+  case BASE_CHAR:
+    raw.cval = ((CharObject *)ob)->value;
+    break;
+  case BASE_FLOAT:
+    raw.fval = ((FloatObject *)ob)->value;
+    break;
+  case BASE_BOOL:
+    raw.zval = ((BoolObject *)ob)->value;
+    break;
+  default:
+    raw.ptr = ob;
+    break;
+  }
+  return raw;
+}
