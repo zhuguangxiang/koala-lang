@@ -103,31 +103,22 @@ static elem_cmp_t __cmp(TypeDesc *desc)
   }
 }
 
-#define slice_check(arr) ((arr)->buf != &(arr)->_buf_)
-
-static inline Vec *__vec(ArrayObject *arr)
+static inline void *__ptr(ArrayObject *arr)
 {
-  ArrayObject *b = arr->buf;
-  return (slice_check(arr)) ? b->buf : b;
-}
-
-static inline int __offset(ArrayObject *arr)
-{
-  return slice_check(arr) ? arr->offset : 0;
+  return slice_ptr(&arr->buf, 0);
 }
 
 static inline int __len(ArrayObject *arr)
 {
-  return slice_check(arr) ? arr->len : ((Vec *)arr->buf)->length;
+  return arr->buf.length;
 }
 
 static void byte_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  char *items = vec_toarr(__vec(arr));
-  int offset = __offset(arr);
+  char *items = __ptr(arr);
   int len = __len(arr);
   for (int i = 0; i < len; ++i) {
-    strbuf_append_int(buf, items[offset + i]);
+    strbuf_append_int(buf, items[i]);
     if (i < len - 1)
       strbuf_append(buf, ", ");
   }
@@ -135,11 +126,10 @@ static void byte_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void int_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  int64_t *items = vec_toarr(__vec(arr));
-  int offset = __offset(arr);
+  int64_t *items = __ptr(arr);
   int len = __len(arr);
   for (int i = 0; i < len; ++i) {
-    strbuf_append_int(buf, items[offset + i]);
+    strbuf_append_int(buf, items[i]);
     if (i < len - 1)
       strbuf_append(buf, ", ");
   }
@@ -147,11 +137,10 @@ static void int_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void char_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  int *items = vec_toarr(__vec(arr));
-  int offset = __offset(arr);
+  int *items = __ptr(arr);
   int len = __len(arr);
   for (int i = 0; i < len; ++i) {
-    strbuf_append_wchar(buf, items[offset + i]);
+    strbuf_append_wchar(buf, items[i]);
     if (i < len - 1)
       strbuf_append(buf, ", ");
   }
@@ -159,11 +148,10 @@ static void char_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void float_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  double *items = vec_toarr(__vec(arr));
-  int offset = __offset(arr);
+  double *items = __ptr(arr);
   int len = __len(arr);
   for (int i = 0; i < len; ++i) {
-    strbuf_append_float(buf, items[offset + i]);
+    strbuf_append_float(buf, items[i]);
     if (i < len - 1)
       strbuf_append(buf, ", ");
   }
@@ -171,11 +159,10 @@ static void float_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void bool_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  int *items = vec_toarr(__vec(arr));
-  int offset = __offset(arr);
+  int *items = __ptr(arr);
   int len = __len(arr);
   for (int i = 0; i < len; ++i) {
-    strbuf_append(buf, items[offset + i] ? "true" : "false");
+    strbuf_append(buf, items[i] ? "true" : "false");
     if (i < len - 1)
       strbuf_append(buf, ", ");
   }
@@ -183,12 +170,11 @@ static void bool_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void string_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  Object **items = vec_toarr(__vec(arr));
-  int offset = __offset(arr);
+  Object **items = __ptr(arr);
   int len = __len(arr);
   for (int i = 0; i < len; ++i) {
     strbuf_append(buf, "\"");
-    strbuf_append(buf, string_asstr(items[offset + i]));
+    strbuf_append(buf, string_asstr(items[i]));
     strbuf_append(buf, "\"");
     if (i < len - 1)
       strbuf_append(buf, ", ");
@@ -197,13 +183,16 @@ static void string_tostr(ArrayObject *arr, StrBuf *buf)
 
 static void obj_tostr(ArrayObject *arr, StrBuf *buf)
 {
-  Object **items = vec_toarr(__vec(arr));
-  int offset = __offset(arr);
+  Object **items = __ptr(arr);
   int len = __len(arr);
   for (int i = 0; i < len; ++i) {
-    Object *str = object_call(items[offset + i], "__str__", NULL);
-    strbuf_append(buf, string_asstr(str));
-    OB_DECREF(str);
+    if (items[i] == NULL) {
+      strbuf_append(buf, "nil");
+    } else {
+      Object *str = object_call(items[i], "__str__", NULL);
+      strbuf_append(buf, string_asstr(str));
+      OB_DECREF(str);
+    }
     if (i < len - 1)
       strbuf_append(buf, ", ");
   }
@@ -263,9 +252,13 @@ static Object *array_pop_back(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
+  if (__len(arr) <= 0) {
+    error("array is empty.");
+    return NULL;
+  }
+
   RawValue raw;
-  vec_remove(__vec(arr), __offset(arr) + __len(arr) - 1, &raw);
-  if (slice_check(arr)) --arr->len;
+  slice_pop_back(&arr->buf, &raw);
   return obj_from_raw(arr->desc, raw);
 }
 
@@ -278,12 +271,19 @@ static Object *array_insert(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   Object *index = tuple_get(args, 0);
+  int idx = integer_asint(index);
+  int len = __len(arr);
+  if (idx < 0 || idx > __len(arr)) {
+    error("index %d out of range(0...%d)", idx, len);
+    OB_DECREF(index);
+    return NULL;
+  }
+
   Object *val = tuple_get(args, 1);
   RawValue raw = obj_to_raw(arr->desc, val);
-  vec_insert(__vec(arr), __offset(arr) + integer_asint(index), &raw);
-  OB_DECREF(index);
+  slice_insert(&arr->buf, idx, &raw);
   if (!elem_isobj(arr->desc)) OB_DECREF(val);
-  if (slice_check(arr)) ++arr->len;
+  OB_DECREF(index);
   return NULL;
 }
 
@@ -295,9 +295,15 @@ static Object *array_remove(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
+  int idx = integer_asint(args);
+  int len = __len(arr);
+  if (idx < 0 || idx >= __len(arr)) {
+    error("index %d out of range(0..<%d)", idx, __len(arr));
+    return NULL;
+  }
+
   RawValue raw;
-  vec_remove(__vec(arr), __offset(arr) + integer_asint(args), &raw);
-  if (slice_check(arr)) --arr->len;
+  slice_remove(&arr->buf, idx, &raw);
   return obj_from_raw(arr->desc, raw);
 }
 
@@ -309,13 +315,7 @@ static Object *array_sort(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  Vec *vec = __vec(arr);
-  Vec svec = {
-    .elems = vec->elems + __offset(arr),
-    .objsize = vec->objsize,
-    .length = __len(arr),
-  };
-  vec_sort(&svec, __cmp(arr->desc));
+  slice_sort(&arr->buf, __cmp(arr->desc));
   return NULL;
 }
 
@@ -327,7 +327,7 @@ static Object *array_reverse(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  vec_reverse(__vec(arr), __offset(arr), __len(arr));
+  slice_reverse(&arr->buf);
   return NULL;
 }
 
@@ -339,15 +339,15 @@ static Object *array_getitem(Object *self, Object *args)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  int len = __len(arr);
   int index = integer_asint(args);
+  int len = __len(arr);
   if (index < 0 || index >= len) {
     error("index %d out of range(0..<%d)", index, len);
     return NULL;
   }
 
   RawValue raw;
-  vec_get(__vec(arr), __offset(arr) + index, &raw);
+  slice_get(&arr->buf, index, &raw);
   Object *ob = obj_from_raw(arr->desc, raw);
   if (elem_isobj(arr->desc)) OB_INCREF(ob);
   return ob;
@@ -360,9 +360,18 @@ static Object *array_setitem(Object *self, Object *args)
     return NULL;
   }
 
+  ArrayObject *arr = (ArrayObject *)self;
   Object *index = tuple_get(args, 0);
+  int idx = integer_asint(index);
+  int len = __len(arr);
+  if (idx < 0 || idx >= len) {
+    OB_DECREF(index);
+    error("index %d out of range(0..<%d)", idx, len);
+    return NULL;
+  }
+
   Object *val = tuple_get(args, 1);
-  array_set(self, integer_asint(index), val);
+  array_set(self, idx, val);
   OB_DECREF(index);
   OB_DECREF(val);
   return NULL;
@@ -395,14 +404,12 @@ static Object *array_iter(Object *self, Object *args)
 }
 */
 
-static Object *slice_new(ArrayObject *arr, int offset, int len)
+static Object *slice_new(ArrayObject *arr, int offset, int length)
 {
   ArrayObject *slice = kmalloc(sizeof(*slice));
   init_object_head(slice, &array_type);
   slice->desc = TYPE_INCREF(arr->desc);
-  slice->offset = __offset(arr) + offset;
-  slice->len = len;
-  slice->buf = slice_check(arr) ? OB_INCREF(arr->buf) : OB_INCREF(arr);
+  slice_slice(&slice->buf, &arr->buf, offset, length);
   return (Object *)slice;
 }
 
@@ -417,59 +424,27 @@ static Object *array_slice(Object *self, Object *args)
 
   Object *start = tuple_get(args, 0);
   Object *end = tuple_get(args, 1);
-  Object *step = tuple_get(args, 2);
   int64_t i = integer_asint(start);
   int64_t j = integer_asint(end);
-  int64_t k = integer_asint(step);
   OB_DECREF(start);
   OB_DECREF(end);
-  OB_DECREF(step);
+
+  int len = __len(arr);
+  if (i < 0) i = 0;
+  if (j < 0) j = len;
+
+  if (j < i) {
+    error("start index %ld must be less than end index %ld", i, j);
+    return NULL;
+  }
+
+  if (j > len) {
+    error("range(%ld..<%ld) is out of range(0..<%d)", i, j, len);
+    return NULL;
+  }
+
   return slice_new(arr, i, j - i);
 }
-
-/*
-static int raw_equal(TypeDesc *desc, RawValue *val, Object *ob)
-{
-  int res;
-  if (desc->kind != TYPE_BASE) {
-    Object *bob = object_call(ob, "__equal__", val->obj);
-    res = bool_istrue(bob);
-    OB_DECREF(bob);
-    return res;
-  }
-
-  char base = desc->base;
-  switch (base) {
-  case BASE_BYTE:
-    res = (val->ival == byte_asint(ob));
-    break;
-  case BASE_INT:
-    if (byte_check(ob)) {
-      res = (val->ival == byte_asint(ob));
-    } else {
-      res = (val->ival == integer_asint(ob));
-    }
-    break;
-  case BASE_CHAR:
-    res = (val->cval == char_asch(ob));
-    break;
-  case BASE_FLOAT:
-    res = (val->fval == float_asflt(ob)); //right?
-    break;
-  case BASE_BOOL:
-    res = (val->bval == ((BoolObject *)ob)->value);
-  case BASE_STR:
-    res = !strcmp(string_asstr(val->obj), string_asstr(ob));
-    break;
-  default: {
-    Object *bob = object_call(ob, "__equal__", val->obj);
-    res = bool_istrue(bob);
-    OB_DECREF(bob);
-    break;
-  }
-  }
-}
-*/
 
 static Object *array_index(Object *self, Object *args)
 {
@@ -481,23 +456,17 @@ static Object *array_index(Object *self, Object *args)
   ArrayObject *arr = (ArrayObject *)self;
   int len = __len(arr);
   if (len <= 0) {
+    error("array is empty.");
     return NULL;
   }
 
-  Vec *vec = __vec(arr);
-  Vec svec = {
-    .elems = vec->elems + __offset(arr),
-    .objsize = vec->objsize,
-    .length = __len(arr),
-  };
-
   RawValue raw = obj_to_raw(arr->desc, args);
-  int index = vec_find(&svec, &raw, __cmp(arr->desc));
+  int index = slice_index(&arr->buf, &raw, __cmp(arr->desc));
   if (index >= 0) return integer_new(index);
   return NULL;
 }
 
-static Object *array_lastindex(Object *self, Object *args)
+static Object *array_last_index(Object *self, Object *args)
 {
   if (!array_check(self)) {
     error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
@@ -507,23 +476,16 @@ static Object *array_lastindex(Object *self, Object *args)
   ArrayObject *arr = (ArrayObject *)self;
   int len = __len(arr);
   if (len <= 0) {
+    error("array is empty.");
     return NULL;
   }
 
-  Vec *vec = __vec(arr);
-  Vec svec = {
-    .elems = vec->elems + __offset(arr),
-    .objsize = vec->objsize,
-    .length = __len(arr),
-  };
-
   RawValue raw = obj_to_raw(arr->desc, args);
-  int index = vec_find_rev(&svec, &raw, __cmp(arr->desc));
+  int index = slice_last_index(&arr->buf, &raw, __cmp(arr->desc));
   if (index >= 0) return integer_new(index);
   return NULL;
 }
 
-/*
 static Object *array_concat(Object *self, Object *args)
 {
   if (!array_check(self)) {
@@ -538,37 +500,20 @@ static Object *array_concat(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   ArrayObject *arr2 = (ArrayObject *)args;
-
-  GVector *svec = gvector_new(0, sizeof(RawValue));
-  int basekind = arr->desc->kind == TYPE_BASE;
-  if (basekind) {
-    if (arr->desc->base == BASE_STR ||
-        arr->desc->base == BASE_ANY) {
-      basekind = 0;
+  ArrayObject *newarr = (ArrayObject *)array_new(arr->desc);
+  slice_extend(&newarr->buf, &arr->buf);
+  slice_extend(&newarr->buf, &arr2->buf);
+  if (elem_isobj(arr->desc)) {
+    Object **ptr;
+    int i;
+    slice_foreach(ptr, i, &newarr->buf) {
+      OB_INCREF(*ptr);
     }
   }
-  RawValue raw = {0};
-  for (int i = 0; i < gvector_size(arr->vec); i++) {
-    gvector_get(arr->vec, i, &raw);
-    if (!basekind) {
-      OB_INCREF(raw.obj);
-    }
-    gvector_push_back(svec, &raw);
-  }
-
-  for (int i = 0; i < gvector_size(arr2->vec); i++) {
-    gvector_get(arr2->vec, i, &raw);
-    if (!basekind) {
-      OB_INCREF(raw.obj);
-    }
-    gvector_push_back(svec, &raw);
-  }
-
-  return array_new(arr->desc, svec);
+  return (Object *)newarr;
 }
-*/
 
-static Object *array_join(Object *self, Object *args)
+static Object *array_extend(Object *self, Object *args)
 {
   if (!array_check(self)) {
     error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
@@ -582,10 +527,56 @@ static Object *array_join(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   ArrayObject *arr2 = (ArrayObject *)args;
-  Vec *vec = __vec(arr);
-  Vec *vec2 = __vec(arr2);
-  vec_join(vec, vec2);
+  slice_extend(&arr->buf, &arr2->buf);
+  if (elem_isobj(arr2->desc)) {
+    Object **ptr;
+    int i;
+    slice_foreach(ptr, i, &arr2->buf) {
+      OB_INCREF(*ptr);
+    }
+  }
   return OB_INCREF(self);
+}
+
+static Object *array_reserve(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  int64_t size = integer_asint(args);
+  slice_expand(&arr->buf, size);
+  return NULL;
+}
+
+static Object *array_swap(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  Object *x = tuple_get(args, 0);
+  Object *y = tuple_get(args, 1);
+  int64_t i = integer_asint(x);
+  int64_t j = integer_asint(y);
+  OB_DECREF(x);
+  OB_DECREF(y);
+  int len = __len(arr);
+  if (i < 0 || i > len) {
+    error("index %ld out of range(0..<%d)", i, len);
+    return NULL;
+  }
+  if (j < 0 || j > len) {
+    error("index %ld out of range(0..<%d)", j, len);
+    return NULL;
+  }
+
+  slice_swap(&arr->buf, i, j);
+  return NULL;
 }
 
 static MethodDef array_methods[] = {
@@ -603,9 +594,11 @@ static MethodDef array_methods[] = {
   */
   {"__slice__",   "iii",  "Llang.Array<T>;", array_slice},
   {"index",       "<T>",  "i",    array_index},
-  {"last_index",   "<T>",  "i",    array_lastindex},
-  // {"__add__",     "Llang.Array<T>;", "Llang.Array<T>;", array_concat},
-  //{"join",        "Llang.Array<T>;", "Llang.Array<T>;", array_join},
+  {"last_index",  "<T>",  "i",    array_last_index},
+  {"__add__",     "Llang.Array<T>;", "Llang.Array<T>;", array_concat},
+  {"extend",      "Llang.Array<T>;", "Llang.Array<T>;", array_extend},
+  {"reserve",     "i",    NULL, array_reserve},
+  {"swap",        "Llang.Array<T>;ii",  NULL, array_swap},
   {NULL}
 };
 
@@ -618,18 +611,14 @@ void array_free(Object *ob)
 
   ArrayObject *arr = (ArrayObject *)ob;
   TYPE_DECREF(arr->desc);
-  if (!slice_check(arr)) {
-    if (elem_isobj(arr->desc)) {
-      void **pptr;
-      int i;
-      vec_foreach(pptr, i, __vec(arr)) {
-        OB_DECREF(*pptr);
-      }
+  if (elem_isobj(arr->desc)) {
+    Object **ptr;
+    int i;
+    slice_foreach(ptr, i, &arr->buf) {
+      OB_DECREF(*ptr);
     }
-    vec_fini(arr->buf);
-  } else {
-    OB_DECREF(arr->buf);
   }
+  slice_fini(&arr->buf);
   kfree(arr);
 }
 
@@ -700,8 +689,7 @@ Object *array_new(TypeDesc *desc)
   ArrayObject *arr = kmalloc(sizeof(*arr));
   init_object_head(arr, &array_type);
   arr->desc = TYPE_INCREF(desc);
-  arr->buf = &arr->_buf_;
-  vec_init(arr->buf, elem_size(desc));
+  slice_init(&arr->buf, elem_size(desc));
   return (Object *)arr;
 }
 
@@ -721,7 +709,6 @@ int array_set(Object *self, int index, Object *v)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  int offset = __offset(arr);
   int len = __len(arr);
   if (index < 0 || index > len) {
     error("index %d out of range(0...%d)", index, len);
@@ -731,14 +718,13 @@ int array_set(Object *self, int index, Object *v)
   RawValue raw;
   int isobj = elem_isobj(arr->desc);
   if (index != len && isobj) {
-    vec_get(__vec(arr), offset + index, &raw);
+    slice_get(&arr->buf, index, &raw);
     OB_DECREF(raw.ptr);
   }
 
   raw = obj_to_raw(arr->desc, v);
-  vec_set(__vec(arr), offset + index, &raw);
+  slice_set(&arr->buf, index, &raw);
   if (isobj) OB_INCREF(v);
-  if (slice_check(arr) && index == len) ++arr->len;
   return 0;
 }
 
@@ -753,7 +739,7 @@ int array_len(Object *self)
   return __len(arr);
 }
 
-Vec *array_raw(Object *self)
+Slice *array_raw(Object *self)
 {
   if (!array_check(self)) {
     error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
@@ -761,5 +747,5 @@ Vec *array_raw(Object *self)
   }
 
   ArrayObject *arr = (ArrayObject *)self;
-  return __vec(arr);
+  return &arr->buf;
 }

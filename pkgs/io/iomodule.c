@@ -30,11 +30,20 @@
   func read(buf [byte], size int) Result<int, Error>;
 
   func read_to_end(buf [byte]) Result<int, Error> {
+    s := buf[buf.len() ...]
+    res := read(s, 32)
+    match res {
+      Ok(n) => {
 
+      }
+      Err(e) => {
+
+      }
+    }
   }
 
   func read_to_str(sb str.Buffer) Result<int, Error> {
-    buf := [byte]
+    buf := sb.as_slice()
     read_to_end(buf)
     s := str.from_utf8(buf)
     sb.join(s)
@@ -45,7 +54,7 @@
 static Object *read_to_end(Object *self, Object *args)
 {
   Object *arr = byte_array_new();
-  Vec *buf = ((ArrayObject *)arr)->buf;
+  Vec *buf = NULL; //((ArrayObject *)arr)->buf;
   Object *count = integer_new(32);
   Object *tuple = tuple_new(2);
   tuple_set(tuple, 0, arr);

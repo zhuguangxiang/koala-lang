@@ -26,7 +26,7 @@
 #define _KOALA_ARRAY_OBJECT_H_
 
 #include "object.h"
-#include "vec.h"
+#include "slice.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,14 +35,7 @@ extern "C" {
 typedef struct arrayobject {
   OBJECT_HEAD
   TypeDesc *desc;
-  void *buf;
-  union {
-    Vec _buf_;
-    struct {
-      int offset;
-      int len;
-    };
-  };
+  Slice buf;
 } ArrayObject;
 
 extern TypeObject array_type;
@@ -51,7 +44,7 @@ void init_array_type(void);
 Object *array_new(TypeDesc *desc);
 int array_set(Object *self, int index, Object *v);
 int array_len(Object *self);
-Vec *array_raw(Object *self);
+Slice *array_raw(Object *self);
 Object *byte_array_new(void);
 
 #ifdef __cplusplus

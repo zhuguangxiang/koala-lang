@@ -137,7 +137,7 @@ Object *string_asbytes(Object *self, Object *args)
   StringObject *s = (StringObject *)self;
   TypeDesc *desc = desc_from_byte;
   Object *ob = array_new(desc);
-  vec_push_arr(array_raw(ob), string_asstr(self), s->len);
+  //vec_push_arr(array_raw(ob), string_asstr(self), s->len);
   TYPE_DECREF(desc);
   if (ob == NULL) {
     error("memory allocated failed.");

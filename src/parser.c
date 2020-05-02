@@ -3346,20 +3346,7 @@ static void parse_slice(ParserState *ps, Expr *exp)
     return;
   }
 
-  Expr *e = exp->slice.step;
-  if (e != NULL) {
-    e->ctx = EXPR_LOAD;
-    parser_visit_expr(ps, e);
-    if (e->desc == NULL || !desc_isint(e->desc)) {
-      serror(e->row, e->col, "indices of slice must be integer.");
-      return;
-    }
-  } else {
-    Literal v = {.kind = BASE_INT, .ival = -1};
-    CODE_OP_V(OP_LOAD_CONST, v);
-  }
-
-  e = exp->slice.end;
+  Expr *e = exp->slice.end;
   if (e != NULL) {
     e->ctx = EXPR_LOAD;
     parser_visit_expr(ps, e);

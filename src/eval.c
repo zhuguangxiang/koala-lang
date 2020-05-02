@@ -1113,8 +1113,8 @@ Object *Koala_EvalFrame(CallFrame *f)
     }
     case OP_NEW_SLICE: {
       x = POP();
-      z = tuple_new(3);
-      for (int i = 0; i < 3; i++) {
+      z = tuple_new(2);
+      for (int i = 0; i < 2; i++) {
         y = POP();
         tuple_set(z, i, y);
         OB_DECREF(y);

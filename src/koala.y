@@ -75,7 +75,6 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
   struct {
     Expr *start;
     Expr *end;
-    Expr *step;
   } slice;
   void *ptr;
   Expr *expr;
@@ -227,7 +226,6 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <expr> dot_expr
 %type <expr> call_expr
 %type <slice> slice_expr
-%type <slice> slice_step_expr
 %type <expr> index_expr
 %type <expr> primary_expr
 %type <expr> unary_expr
@@ -1164,21 +1162,9 @@ index_expr:
 {
   $$ = expr_from_subscr($1, $3);
 }
-| primary_expr '[' slice_step_expr ']'
+| primary_expr '[' slice_expr ']'
 {
-  $$ = expr_from_slice($1, $3.start, $3.end, $3.step);
-}
-;
-
-slice_step_expr:
-  slice_expr
-{
-  $$ = $1;
-}
-| slice_expr ':' expr
-{
-  $1.step = $3;
-  $$ = $1;
+  $$ = expr_from_slice($1, $3.start, $3.end);
 }
 ;
 
@@ -1187,25 +1173,21 @@ slice_expr:
 {
   $$.start = $1;
   $$.end = $3;
-  $$.step = NULL;
 }
 | ':' expr
 {
   $$.start = NULL;
   $$.end = $2;
-  $$.step = NULL;
 }
 | expr ':'
 {
   $$.start = $1;
   $$.end = NULL;
-  $$.step = NULL;
 }
 | ':'
 {
   $$.start = NULL;
   $$.end = NULL;
-  $$.step = NULL;
 }
 ;
 
