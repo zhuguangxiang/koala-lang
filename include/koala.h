@@ -50,7 +50,6 @@
 #include "resultobject.h"
 #include "errorobject.h"
 #include "optionobject.h"
-#include "fmtmodule.h"
 #include "iomodule.h"
 #include "sysmodule.h"
 #include "testnative.h"

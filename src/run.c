@@ -30,11 +30,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include "koala.h"
-#include "sysmodule.h"
-#include "iomodule.h"
-#include "fmtmodule.h"
 #include "gc.h"
-#include "log.h"
 
 static void init_types(void)
 {
@@ -71,7 +67,6 @@ static void init_types(void)
   init_range_type();
   init_iter_type();
   init_closure_type();
-  init_fmtter_type();
   init_result_type();
   init_error_type();
   init_option_type();
@@ -105,7 +100,6 @@ static void fini_types(void)
   type_fini(&label_type);
   type_fini(&range_type);
   type_fini(&iter_type);
-  type_fini(&fmtter_type);
   type_fini(&closure_type);
   fini_io_types();
   fini_bool_type();
@@ -123,7 +117,6 @@ void koala_initialize(void)
   init_fs_module();
   init_sys_module();
   init_io_module();
-  init_fmt_module();
   init_assert_module();
   init_str_module();
   init_parser();
@@ -133,7 +126,6 @@ void koala_finalize(void)
 {
   fini_parser();
   fini_assert_module();
-  fini_fmt_moudle();
   fini_io_module();
   fini_sys_module();
   fini_fs_module();

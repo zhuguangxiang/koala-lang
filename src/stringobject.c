@@ -28,7 +28,6 @@
 #include "floatobject.h"
 #include "arrayobject.h"
 #include "valistobject.h"
-#include "fmtmodule.h"
 #include "utf8.h"
 #include "log.h"
 
@@ -74,24 +73,6 @@ static Object *string_length(Object *self, Object *args)
   }
 
   return integer_new(string_len(self));
-}
-
-static Object *string_fmt(Object *self, Object *ob)
-{
-  if (!string_check(self)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  STRBUF(sbuf);
-  strbuf_append_char(&sbuf, '\'');
-  strbuf_append(&sbuf, __asstr(self));
-  strbuf_append_char(&sbuf, '\'');
-  Object *str = string_new(strbuf_tostr(&sbuf));
-  strbuf_fini(&sbuf);
-  Fmtter_WriteString(ob, str);
-  OB_DECREF(str);
-  return NULL;
 }
 
 static Object *string_hash(Object *self, Object *args)
@@ -310,7 +291,6 @@ static MethodDef string_methods[] = {
   {"__init__", "s", NULL, str_init},
   {"concat",  "s",  "s", str_num_add},
   {"len",  NULL, "i", string_length},
-  {"__fmt__", "Lfmt.Formatter;", NULL, string_fmt},
   {"__add__", "s", "s", str_num_add},
   {"__gt__", "s", "z", str_num_gt},
   {"__ge__", "s", "z", str_num_ge},

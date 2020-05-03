@@ -27,7 +27,6 @@
 #include "intobject.h"
 #include "stringobject.h"
 #include "floatobject.h"
-#include "fmtmodule.h"
 
 static void int_free(Object *ob)
 {
@@ -73,17 +72,6 @@ static Object *integer_init(Object *x, Object *y)
 {
   // not run here!!
   expect(0);
-  return NULL;
-}
-
-static Object *integer_fmt(Object *self, Object *ob)
-{
-  if (!integer_check(self)) {
-    error("object of '%.64s' is not an Integer", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  Fmtter_WriteInteger(ob, self);
   return NULL;
 }
 
@@ -564,7 +552,6 @@ static Object *int_num_floatvalue(Object *x, Object *y)
 
 static MethodDef int_methods[]= {
   {"__init__", "i", NULL, integer_init},
-  {"__fmt__", "Llang.Formatter;", NULL, integer_fmt},
   {"__add__", "Llang.Number;", "i", int_num_add},
   {"__sub__", "Llang.Number;", "i", int_num_sub},
   {"__mul__", "Llang.Number;", "i", int_num_mul},

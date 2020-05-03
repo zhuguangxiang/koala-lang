@@ -23,7 +23,7 @@ SET(KOALA_OBJECTS_SOURCES
   optionobject.c)
 
 SET(KOALA_BUILTIN_MODULES
-  langmodule.c ../pkgs/sys/sysmodule.c ../pkgs/io/iomodule.c ../pkgs/fmt/fmtmodule.c modules/assertmodule.c
+  langmodule.c ../pkgs/sys/sysmodule.c ../pkgs/io/iomodule.c modules/assertmodule.c
   ../pkgs/fs/fsmodule.c ../pkgs/str/strmodule.c)
 
 SET(KOALA_SOURCES
