@@ -36,7 +36,7 @@
 #include "enumobject.h"
 #include "closureobject.h"
 #include "methodobject.h"
-#include "iomodule.h"
+#include "sysmodule.h"
 #include "opcode.h"
 #include "image.h"
 #include "log.h"
@@ -609,7 +609,7 @@ Object *Koala_EvalFrame(CallFrame *f)
       break;
     case OP_PRINT: {
       x = POP();
-      IoPrintln(x);
+      sys_println(x);
       OB_DECREF(x);
       break;
     }

@@ -118,6 +118,32 @@ static Object *file_write(Object *self, Object *args)
   return nbytes >= 0 ? file_result_ok(nbytes) : file_result_error(errno);
 }
 
+/* func write_str(s string) Result<int, Error> */
+static Object *file_write_str(Object *self, Object *args)
+{
+  if (!file_check(self)) {
+    error("object of '%.64s' is not a File", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  if (!string_check(args)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(args));
+    return NULL;
+  }
+
+  FileObject *file = (FileObject *)self;
+  if (file->fp == NULL) {
+    error("file '%s' is closed.", file->path);
+    return NULL;
+  }
+
+  char *s = string_ptr(args);
+  int len = string_len(args);
+  int nbytes = fwrite(s, 1, len, file->fp);
+  debug("expect %d bytes, and write %d bytes", len, nbytes);
+  return nbytes >= 0 ? file_result_ok(nbytes) : file_result_error(errno);
+}
+
 /* func flush() */
 static Object *file_flush(Object *self, Object *args)
 {
@@ -166,6 +192,7 @@ static Object *file_close(Object *self, Object *args)
 static MethodDef file_methods[] = {
   {"read", "[b",  RESULT,  file_read},
   {"write", "[b", RESULT, file_write},
+  {"write_str", "s", RESULT, file_write_str},
   {"flush", NULL, NULL, file_flush},
   {"close", NULL, NULL, file_close},
   {NULL}

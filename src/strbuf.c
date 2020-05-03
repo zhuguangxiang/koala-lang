@@ -123,6 +123,13 @@ void strbuf_append_wchar(StrBuf *self, int64_t ch)
   }
 }
 
+void strbuf_append_byte(StrBuf *self, int val)
+{
+  char buf[64];
+  snprintf(buf, 63, "%d", val);
+  strbuf_append(self, buf);
+}
+
 void strbuf_append_int(StrBuf *self, int64_t val)
 {
   char buf[64];
@@ -133,6 +140,6 @@ void strbuf_append_int(StrBuf *self, int64_t val)
 void strbuf_append_float(StrBuf *self, double val)
 {
   char buf[64];
-  snprintf(buf, 63, "%.8f", val);
+  snprintf(buf, 63, "%lf", val);
   strbuf_append(self, buf);
 }

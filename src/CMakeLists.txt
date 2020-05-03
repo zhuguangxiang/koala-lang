@@ -23,8 +23,12 @@ SET(KOALA_OBJECTS_SOURCES
   optionobject.c)
 
 SET(KOALA_BUILTIN_MODULES
-  langmodule.c ../pkgs/sys/sysmodule.c ../pkgs/io/iomodule.c modules/assertmodule.c
-  ../pkgs/fs/fsmodule.c ../pkgs/str/strmodule.c)
+  langmodule.c
+  ../pkgs/sys/sysmodule.c
+  ../pkgs/io/iomodule.c
+  modules/assertmodule.c
+  ../pkgs/fs/fsmodule.c
+  ../pkgs/str/strmodule.c)
 
 SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c
@@ -66,8 +70,8 @@ INSTALL_SYMLINK(
   ./koala-${KOALA_VERSION_MAIN}
   ${CMAKE_INSTALL_PREFIX}/koala)
 INSTALL_SYMLINK(
-  ../lib/koala-${KOALA_VERSION_MAIN}/bin/koala
+  ../lib/koala/bin/koala
   ${CMAKE_INSTALL_PREFIX}/../bin/koala)
 INSTALL_SYMLINK(
-  ../lib/koala-${KOALA_VERSION_MAIN}/include
+  ../lib/koala/include
   ${CMAKE_INSTALL_PREFIX}/../include/koala)

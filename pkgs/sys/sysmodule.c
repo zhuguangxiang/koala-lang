@@ -26,49 +26,71 @@
 #include "koala.h"
 
 /*
+  var path [string]
   var stdout io.Writer
   var stdin io.Reader
-  var path [string]
  */
 
-static Object *sys_stdout;
-static Object *sys_stdin;
-static Object *sys_path;
+static Object *__path;
+static Object *__stdout;
+static Object *__stdin;
 
-static Object *__path(void)
+static Object *__get_path(Object *field, Object *ob)
 {
-  return sys_path;
+  return OB_INCREF(__path);
 }
 
-static Object *__stdout(void)
+static int __set_path(Object *self, Object *ob, Object *val)
 {
-  return sys_stdout;
+  if (!array_check(val)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(val));
+    return -1;
+  }
+
+  ArrayObject *arr = (ArrayObject *)val;
+  if (!desc_isstr(arr->desc)) {
+    STRBUF(buf);
+    desc_tostr(arr->desc, &buf);
+    error("array's subtype '%s' is not String", strbuf_tostr(&buf));
+    strbuf_fini(&buf);
+    return -1;
+  }
+
+  OB_DECREF(__path);
+  __path = OB_INCREF(val);
+  return 0;
 }
 
-static Object *__stdin(void)
+static Object *__get_stdout(Object *field, Object *ob)
 {
-  return sys_stdin;
+  return OB_INCREF(__stdout);
+}
+
+static int __set_stdout(Object *field, Object *ob, Object *val)
+{
+  // NOTES: check it is io.Writer
+  OB_DECREF(__stdout);
+  __stdout = OB_INCREF(val);
+  return 0;
+}
+
+static Object *__get_stdin(Object *field, Object *ob)
+{
+  return OB_INCREF(__stdin);
+}
+
+static int __set_stdin(Object *field, Object *ob, Object *val)
+{
+  // NOTES: check it is io.Reader
+  OB_DECREF(__stdin);
+  __stdin = OB_INCREF(val);
+  return 0;
 }
 
 static FieldDef sys_vars[] = {
-  {
-    "path",   "[s",
-    field_default_getter,
-    NULL,
-    __path
-  },
-  {
-    "stdin",  "Lio.Reader;",
-    field_default_getter,
-    field_default_setter,
-    __stdin
-  },
-  {
-    "stdout", "Lio.Writer;",
-    field_default_getter,
-    field_default_setter,
-    __stdout
-  },
+  {"path",   "[s", __get_path, __set_path},
+  {"stdout", "Lio.Writer;", __get_stdout, __set_stdout},
+  {"stdin",  "Lio.Reader;", __get_stdin, __set_stdin},
   {NULL},
 };
 
@@ -79,7 +101,7 @@ static MethodDef sys_funcs[] = {
 static void init_sys_path(void)
 {
   Object *arr = array_new(&type_base_str);
-  sys_path = arr;
+  __path = arr;
   Object *s = string_new(".");
   array_push_back(arr, s);
   OB_DECREF(s);
@@ -112,8 +134,8 @@ static void init_sys_path(void)
 
 void init_sys_module(void)
 {
-  sys_stdout = file_new(stdout, "stdout");
-  sys_stdin = file_new(stdin, "stdin");
+  __stdout = file_new(stdout, "stdout");
+  __stdin = file_new(stdin, "stdin");
   init_sys_path();
 
   Object *m = module_new("sys");
@@ -125,5 +147,42 @@ void init_sys_module(void)
 
 void fini_sys_module(void)
 {
+  OB_DECREF(__path);
+  OB_DECREF(__stdout);
+  OB_DECREF(__stdin);
   module_uninstall("sys");
+}
+
+void sys_println(Object *ob)
+{
+  if (ob == NULL) return;
+
+  Object *s;
+  STRBUF(buf);
+  if (string_check(ob)) {
+    strbuf_append(&buf, string_asstr(ob));
+  } else if (integer_check(ob)) {
+    strbuf_append_int(&buf, integer_asint(ob));
+  } else if (byte_check(ob)) {
+    strbuf_append_byte(&buf, byte_asint(ob));
+  } else if (float_check(ob)) {
+    strbuf_append_float(&buf, float_asflt(ob));
+  } else {
+    s = object_call(ob, "__str__", NULL);
+    strbuf_append(&buf, string_asstr(s));
+    OB_DECREF(s);
+  }
+  strbuf_append(&buf, "\r\n");
+  s = string_new(strbuf_tostr(&buf));
+  strbuf_fini(&buf);
+
+  // sym_stdout is io.Writer
+  Object *out = __get_stdout(NULL, NULL);
+
+  Object *ret = object_call(out, "write_str", s);
+  OB_DECREF(s);
+  OB_DECREF(ret);
+
+  // release sysm_stdout
+  OB_DECREF(out);
 }

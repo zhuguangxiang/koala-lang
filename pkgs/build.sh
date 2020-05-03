@@ -1,17 +1,21 @@
 #!/bin/bash
 
-modules=(io fmt sys lang)
+modules=(fmt)
 
-for m in $(modules[@])
+for m in $modules
 do
   echo "compile '$m' module"
   koala -c $m
 done
 
-#installed=$KOALA_HOME/pkg
-#if [ ! -d $installed ]; then
-#  mkdir $installed
-#if
+if [ -n "$KOALA_HOME" ]; then
+  installed=$KOALA_HOME/pkgs
+  if [ ! -d $installed ]; then
+    mkdir $installed
+  fi
+  echo "copy '*.klc' into '$installed'"
+  find . -name "*.klc" | xargs cp --parents -t $installed
+fi
 
-# find . -name ".klc" | xargs cp --parents -t $installed
-find . -name ".kl" | xargs zip src.zip
+echo "pack '*.kl' into src.izp"
+find . -name "*.kl" | xargs zip src.zip

@@ -31,6 +31,7 @@ extern "C" {
 
 void init_sys_module(void);
 void fini_sys_module(void);
+void sys_println(Object *ob);
 
 #ifdef __cplusplus
 }

@@ -71,6 +71,9 @@ void strbuf_append_wchar(StrBuf *self, int64_t ch);
 /* Write an integer. */
 void strbuf_append_int(StrBuf *self, int64_t val);
 
+/* Write a byte. */
+void strbuf_append_byte(StrBuf *self, int val);
+
 /* Write a float. */
 void strbuf_append_float(StrBuf *self, double val);
 
