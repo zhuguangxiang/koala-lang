@@ -22,24 +22,30 @@
  SOFTWARE.
 */
 
-#ifndef _KOALA_MODULES_H_
-#define _KOALA_MODULES_H_
+#ifndef _KOALA_SBLDR_OBJECT_H_
+#define _KOALA_SBLDR_OBJECT_H_
+
+#include "object.h"
+#include "slice.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void init_lang_module(void);
-void fini_lang_module(void);
+typedef struct sbldrobject {
+  OBJECT_HEAD
+  Slice buf;
+} SBldrObject;
 
-void init_assert_module(void);
-void fini_assert_module(void);
-
-void init_str_module(void);
-void fini_str_module(void);
+extern TypeObject sbldr_type;
+#define sbldr_check(ob) (OB_TYPE(ob) == &sbldr_type)
+void init_sbldr_type(void);
+Slice *sbldr_slice(Object *self);
+int sbldr_len(Object *self);
+char *sbldr_ptr(Object *self);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_MODULES_H_ */
+#endif /* _KOALA_SBLDR_OBJECT_H_ */

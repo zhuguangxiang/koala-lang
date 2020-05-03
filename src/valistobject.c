@@ -58,18 +58,12 @@ static Object *valist_getitem(Object *self, Object *args)
 
 static Object *valist_size(Object *self, Object *args)
 {
-  if (!valist_check(self)) {
-    error("object of '%.64s' is not a VaList", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  VaListObject *valist = (VaListObject *)self;
-  return integer_new(valist->size);
+  return integer_new(valist_len(self));
 }
 
 static MethodDef valist_methods[] = {
   {"__getitem__", "i",    "<T>",  valist_getitem},
-  {"size", NULL, "i", valist_size},
+  {"len", NULL, "i", valist_size},
   {NULL}
 };
 
@@ -121,4 +115,15 @@ void init_valist_type(void)
   type_add_tp(&valist_type, "T", NULL);
   if (type_ready(&valist_type) < 0)
     panic("Cannot initalize 'VaList' type.");
+}
+
+int valist_len(Object *self)
+{
+  if (!valist_check(self)) {
+    error("object of '%.64s' is not a VaList", OB_TYPE_NAME(self));
+    return -1;
+  }
+
+  VaListObject *valist = (VaListObject *)self;
+  return valist->size;
 }

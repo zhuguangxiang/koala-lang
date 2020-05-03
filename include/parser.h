@@ -158,6 +158,17 @@ typedef struct parserstate {
   }                                                     \
 })
 
+#define serror_noline(fmt, ...)                         \
+({                                                      \
+  if (ps->errors++ >= MAX_ERRORS) {                     \
+    fprintf(stderr, "%s: " _ERR_COLOR_                  \
+            "Too many errors.\n", ps->filename);        \
+  } else {                                              \
+    fprintf(stderr, "%s:" _ERR_COLOR_ fmt "\n",         \
+            ps->filename, ##__VA_ARGS__);               \
+  }                                                     \
+})
+
 #define has_error(ps) ((ps)->errors > 0)
 
 void codeblock_free(CodeBlock *block);

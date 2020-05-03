@@ -37,6 +37,10 @@ int encode_one_utf8_char(int unicode, char *buf);
 int decode_one_utf16_char(wchar **start);
 int encode_one_utf16_char(int unicode, wchar *buf);
 
+// return count of utf8 characters, or -1 if not valid.
+int check_utf8_valid(void *str);
+int check_utf8_valid_with_len(void *str, int len);
+
 #ifdef  __cplusplus
 }
 #endif

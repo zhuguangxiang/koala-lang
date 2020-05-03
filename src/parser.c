@@ -2936,63 +2936,113 @@ static int check_one_arg(ParserState *ps, TypeDesc *desc, Expr *arg)
   return 0;
 }
 
+#define PRINT_TYPE_ERROR(type1, type2) \
+do { \
+  STRBUF(sbuf1); \
+  STRBUF(sbuf2); \
+  desc_tostr(type1, &sbuf1); \
+  desc_tostr(type2, &sbuf2); \
+  serror_noline("expected '%s', but found '%s'", \
+                strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2)); \
+  strbuf_fini(&sbuf1); \
+  strbuf_fini(&sbuf2); \
+} while (0)
+
+static int check_call_valist(ParserState *ps, Vector *descs, Vector *args)
+{
+  int sz = vector_size(descs);
+  int argc = vector_size(args);
+  int vaindex = sz - 1;
+  TypeDesc *last = vector_get(descs, vaindex);
+  TypeDesc *subtype = vector_get(last->klass.typeargs, 0);
+  TypeDesc *desc;
+  Expr *arg;
+
+  // no valist
+  if (argc == vaindex) return 0;
+
+  if (argc < vaindex) {
+    // argc must >= vaindex
+    serror_noline("expected at least %d arguments, but %d", vaindex, argc);
+    return -1;
+  }
+
+  // check 0 ..< vaindex
+  for (int i = 0; i < vaindex; i++) {
+    desc = vector_get(descs, i);
+    arg = vector_get(args, i);
+    if (desc_isvalist(arg->desc)) {
+      serror_noline("nested 'lang.VaList' is not allowed.");
+      return -1;
+    } else {
+      if (check_one_arg(ps, desc, arg))
+        return -1;
+    }
+  }
+
+  // argc > vaindex
+  int right = argc - vaindex;
+  expect(right >= 1);
+
+  if (right == 1) {
+    // valist or not
+    arg = vector_get(args, vaindex);
+    if (desc_isvalist(arg->desc)) {
+      TypeDesc *argsubtype = vector_get(arg->desc->klass.typeargs, 0);
+      if (!desc_check(subtype, argsubtype)) {
+        PRINT_TYPE_ERROR(subtype, argsubtype);
+        return -1;
+      }
+    } else {
+      if (check_one_arg(ps, subtype, arg))
+        return -1;
+    }
+    return 0;
+  }
+
+  // right >= 2, must no valist
+  // check vaindex ...< argc
+  for (int i = vaindex; i < argc; i++) {
+    arg = vector_get(args, i);
+    if (desc_isvalist(arg->desc)) {
+      serror_noline("nested 'lang.VaList' is not allowed.");
+      return -1;
+    } else {
+      if (check_one_arg(ps, subtype, arg))
+        return -1;
+    }
+  }
+
+  return 0;
+}
+
 static int check_call_args(ParserState *ps, TypeDesc *proto, Vector *args)
 {
   Vector *descs = proto->proto.args;
   int sz = vector_size(descs);
   int argc = vector_size(args);
+  int vaindex = sz - 1;
+  TypeDesc *last = vector_get(descs, vaindex);
+  TypeDesc *desc;
+  Expr *arg;
 
-  if (sz > argc) {
-    TypeDesc *last = vector_get(descs, sz - 1);
-    if (desc_isvalist(last)) {
-      if (sz - 1 != argc) {
-        serror(0, 0, "expected %d arguments, but %d", sz - 1, argc);
-        return -1;
-      }
-      TypeDesc *desc;
-      Expr *arg;
-      for (int i = 0; i < sz - 1; ++i) {
-        desc = vector_get(descs, i);
-        arg = vector_get(args, i);
-        if (check_one_arg(ps, desc, arg))
-          return -1;
-      }
-    } else {
-      serror(0, 0, "expected %d arguments, but %d", sz, argc);
-      return -1;
-    }
-  } else if (sz < argc) {
-    TypeDesc *last = vector_get(descs, sz - 1);
-    if (last == NULL || !desc_isvalist(last)) {
-      serror(0, 0, "expected %d arguments, but %d", sz, argc);
-      return -1;
-    }
+  // have valist
+  if (last != NULL && desc_isvalist(last))
+    return check_call_valist(ps, descs, args);
 
-    TypeDesc *desc;
-    Expr *arg;
-    for (int i = 0; i < sz - 1; ++i) {
-      desc = vector_get(descs, i);
-      arg = vector_get(args, i);
-      if (check_one_arg(ps, desc, arg))
-        return -1;
-    }
-
-    desc = vector_get(last->klass.typeargs, 0);
-    for (int i = sz - 1; i < argc; ++i) {
-      arg = vector_get(args, i);
-      if (check_one_arg(ps, desc, arg))
-        return -1;
-    }
-  } else {
-    TypeDesc *desc;
-    Expr *arg;
-    for (int i = 0; i < sz; ++i) {
-      desc = vector_get(descs, i);
-      arg = vector_get(args, i);
-      if (check_one_arg(ps, desc, arg))
-        return -1;
-    }
+  // no valist
+  if (sz != argc) {
+    serror_noline("expected %d arguments, but %d", sz, argc);
+    return -1;
   }
+
+  for (int i = 0; i < sz; i++) {
+    desc = vector_get(descs, i);
+    arg = vector_get(args, i);
+    if (check_one_arg(ps, desc, arg))
+      return -1;
+  }
+
   return 0;
 }
 
@@ -3056,8 +3106,8 @@ void parse_typepara_value(TypeDesc *para, TypeDesc *arg, Symbol *argsym,
       if (!check_klassdesc(para, arg)) {
         TypeDesc *arg2 = check_inherit_only(para, argsym);
         if (arg2 == NULL) {
-          serror(0, 0, "'%s' and '%s' are not matched-1",
-                  strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+          serror_noline("'%s' and '%s' are not matched-1",
+                        strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
         } else {
           TypeDesc *arg2inst = specialize_one(arg, arg2);
           TypeDesc *tmp;
@@ -3081,8 +3131,8 @@ void parse_typepara_value(TypeDesc *para, TypeDesc *arg, Symbol *argsym,
         }
       }
     } else {
-      serror(0, 0, "'%s' and '%s' are not matched-2",
-            strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
+      serror_noline("'%s' and '%s' are not matched-2",
+                    strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
     }
   } else {
     debug("%s vs %s", strbuf_tostr(&sbuf1), strbuf_tostr(&sbuf2));
@@ -3185,8 +3235,8 @@ static void parse_enum_value(ParserState *ps, Expr *exp)
     vector_for_each(item, tpvec) {
       if (item == NULL) {
         Symbol *tpsym = vector_get(esym->type.typesyms, idx);
-        serror(0, 0, "type parameter '%s' could not be inferred.",
-              tpsym->name);
+        serror_noline("type parameter '%s' could not be inferred.",
+                      tpsym->name);
       }
     }
 
@@ -4335,8 +4385,9 @@ void parser_visit_expr(ParserState *ps, Expr *exp)
 
   /* function's return maybe null */
   if (exp->kind != CALL_KIND && exp->desc == NULL) {
-    error("unknown expr's type");
-    ++ps->errors;
+    if (!has_error(ps)) {
+      serror_noline("unknown expr's type");
+    }
   }
 }
 
@@ -5661,14 +5712,14 @@ Symbol *get_type_symbol(ParserState *ps, TypeDesc *type)
   // not a type parameter, check it is a class/trait or not
   sym = get_desc_symbol(ps->module, type);
   if (sym == NULL) {
-    serror(0, 0, "'%s' is not defined", name);
+    serror_noline("'%s' is not defined", name);
     return NULL;
   }
 
   if (sym->kind != SYM_CLASS &&
       sym->kind != SYM_TRAIT &&
       sym->kind != SYM_ENUM) {
-    serror(0, 0, "'%s' is not klass", name);
+    serror_noline("'%s' is not klass", name);
     return NULL;
   }
 
@@ -5709,8 +5760,8 @@ void tp_match_typepara(ParserState *ps, Symbol *tp1, Symbol *tp2)
 
     debug("match '%s' is subtype of '%s'?", item1->name, item2->name);
     if (!match_subtype(item1, item2)) {
-      serror(0, 0, "'%s' is not subtype of '%s'",
-                   item1->name, item2->name);
+      serror_noline("'%s' is not subtype of '%s'",
+                    item1->name, item2->name);
     }
   }
 }
@@ -5725,8 +5776,8 @@ void kls_match_typepara(ParserState *ps, Symbol *kls, Symbol *tp)
 
     debug("match '%s' is subtype of '%s'?", kls->name, item2->name);
     if (!match_subtype(kls, item2)) {
-      serror(0, 0, "'%s' is not subtype of '%s'",
-                   kls->name, item2->name);
+      serror_noline("'%s' is not subtype of '%s'",
+                    kls->name, item2->name);
     }
   }
 }
@@ -5772,7 +5823,7 @@ static void parse_subtype(ParserState *ps, Symbol *clssym, Vector *subtypes)
 
     tpsym = vector_get(clssym->type.typesyms, idx);
     if (tpsym == NULL) {
-      serror(0, 0, "symbol '%s' has no typeparas", clssym->name);
+      serror_noline("symbol '%s' has no typeparas", clssym->name);
       continue;
     }
 
@@ -5805,14 +5856,14 @@ void parse_bound(ParserState *ps, Symbol *sym, Vector *bounds)
      return;
 
     if (idx > 0 && bndsym->kind == SYM_CLASS) {
-      serror(0, 0, "expect '%s' is a trait", item->klass.type);
+      serror_noline("expect '%s' is a trait", item->klass.type);
       return;
     }
 
     if (bndsym->kind == SYM_PTYPE) {
       debug("bound '%s' is type parameter", bndsym->name);
       if (item->klass.typeargs != NULL) {
-        serror(0, 0, "'%s' no need type parameter", bndsym->name);
+        serror_noline("'%s' no need type parameter", bndsym->name);
       }
       continue;
     }
@@ -5821,7 +5872,7 @@ void parse_bound(ParserState *ps, Symbol *sym, Vector *bounds)
       debug("'%s' no typepara", bndsym->name);
       typepara_add_bound(sym, bndsym);
       if (item->klass.typeargs != NULL) {
-        serror(0, 0, "'%s' no need type parameter", bndsym->name);
+        serror_noline("'%s' no need type parameter", bndsym->name);
       }
     } else {
       if (bndsym == ps->u->sym) {
@@ -5850,7 +5901,7 @@ void parse_typepara_decl(ParserState *ps, Vector *typeparas)
     debug("parse typepara '%s'", name);
     sym = stable_add_typepara(u->stbl, name, idx);
     if (sym == NULL) {
-      serror(0, 0, "'%s' is redeclared", name);
+      serror_noline("'%s' is redeclared", name);
       continue;
     }
     ++sym->refcnt;
@@ -6076,7 +6127,7 @@ static void parse_enum(ParserState *ps, Stmt *stmt)
       if (isym == NULL) {
         STRBUF(sbuf);
         desc_tostr(item, &sbuf);
-        serror(0, 0, "'%s' is not defined", strbuf_tostr(&sbuf));
+        serror_noline("'%s' is not defined", strbuf_tostr(&sbuf));
         strbuf_fini(&sbuf);
       } else {
         if (isym->kind == SYM_CLASS ||

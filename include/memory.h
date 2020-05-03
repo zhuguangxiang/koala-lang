@@ -85,6 +85,9 @@ static inline char *str_dup_ex(char *s, char *extra)
 char *str_ntrim(char *s, int len);
 char *str_trim(char *s);
 
+/* string split */
+int str_sep(char **str, char ch, char **out);
+
 #ifdef __cplusplus
 }
 #endif

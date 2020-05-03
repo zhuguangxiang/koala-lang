@@ -58,14 +58,17 @@ static inline int slice_init(Slice *self, int objsize)
 /* Get slice's slice */
 int slice_slice(Slice *self, Slice *src, int offset, int len);
 
+/* Get slice's slice from offset to end */
+int slice_slice_to_end(Slice *self, Slice *src, int offset);
+
+/* Copy slice (new memory) */
+int slice_copy(Slice *dst, Slice *src);
+
 /* Destroy a slice */
 void slice_fini(Slice *self);
 
 /* Remove all elements from the slice */
 int slice_clear(Slice *self);
-
-/* Reset slice(remove all elements and reset its length) */
-int slice_reset(Slice *self);
 
 /*
  * Concatenate a slice's items into the end of another slice.

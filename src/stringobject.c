@@ -39,6 +39,12 @@ static Object *str_init(Object *x, Object *y)
   return NULL;
 }
 
+static char *__asstr(Object *self)
+{
+  StringObject *s = (StringObject *)self;
+  return slice_ptr(&s->buf, 0);
+}
+
 static Object *str_num_add(Object *x, Object *y)
 {
   if (!string_check(x)) {
@@ -53,27 +59,21 @@ static Object *str_num_add(Object *x, Object *y)
 
   Object *z;
   STRBUF(sbuf);
-  strbuf_append(&sbuf, string_asstr(x));
-  strbuf_append(&sbuf, string_asstr(y));
+  strbuf_append(&sbuf, __asstr(x));
+  strbuf_append(&sbuf, __asstr(y));
   z = string_new(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
   return z;
 }
 
-Object *string_length(Object *self, Object *args)
+static Object *string_length(Object *self, Object *args)
 {
-  if (!string_check(self)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
   if (args != NULL) {
     error("length() of 'String' has no arguments");
     return NULL;
   }
 
-  StringObject *s = (StringObject *)self;
-  return integer_new(s->len);
+  return integer_new(string_len(self));
 }
 
 static Object *string_fmt(Object *self, Object *ob)
@@ -85,7 +85,7 @@ static Object *string_fmt(Object *self, Object *ob)
 
   STRBUF(sbuf);
   strbuf_append_char(&sbuf, '\'');
-  strbuf_append(&sbuf, string_asstr(self));
+  strbuf_append(&sbuf, __asstr(self));
   strbuf_append_char(&sbuf, '\'');
   Object *str = string_new(strbuf_tostr(&sbuf));
   strbuf_fini(&sbuf);
@@ -101,7 +101,7 @@ static Object *string_hash(Object *self, Object *args)
     return NULL;
   }
 
-  return integer_new(strhash(string_asstr(self)));
+  return integer_new(strhash(__asstr(self)));
 }
 
 static Object *string_equal(Object *self, Object *other)
@@ -119,11 +119,9 @@ static Object *string_equal(Object *self, Object *other)
   if (self == other)
     return bool_true();
 
-  StringObject *s1 = (StringObject *)self;
-  StringObject *s2 = (StringObject *)other;
-  char *raw1 = vec_toarr(&s1->buf);
-  char *raw2 = vec_toarr(&s2->buf);
-  return !strcmp(raw1, raw2) ? bool_true() : bool_false();
+  char *s1 = slice_ptr(&((StringObject *)self)->buf, 0);
+  char *s2 = slice_ptr(&((StringObject *)other)->buf, 0);
+  return !strcmp(s1, s2) ? bool_true() : bool_false();
 }
 
 /* func as_bytes() [byte] */
@@ -135,14 +133,9 @@ Object *string_asbytes(Object *self, Object *args)
   }
 
   StringObject *s = (StringObject *)self;
-  TypeDesc *desc = desc_from_byte;
-  Object *ob = array_new(desc);
-  //vec_push_arr(array_raw(ob), string_asstr(self), s->len);
-  TYPE_DECREF(desc);
-  if (ob == NULL) {
-    error("memory allocated failed.");
-    return NULL;
-  }
+  Object *ob = byte_array_no_buf();
+  Slice *buf = array_slice(ob);
+  slice_copy(buf, &s->buf);
   return ob;
 }
 
@@ -167,7 +160,7 @@ static void obj_tostr(Object *ob, StrBuf *buf)
     strbuf_append(buf, bool_istrue(ob) ? "true" : "false");
     break;
   case BASE_STR:
-    strbuf_append(buf, string_asstr(ob));
+    strbuf_append(buf, __asstr(ob));
     break;
   default:
     break;
@@ -181,14 +174,24 @@ static Object *__format__(char *format, Object *vargs)
   char ch;
   int idx = 0;
   Object *ob;
+  int len = valist_len(vargs);
 
   while ((ch = *s++)) {
     if (ch == '{') {
       if ((ch = *s++)) {
         if (ch == '}') {
-          ob = valist_get(vargs, idx++);
-          obj_tostr(ob, &buf);
-          OB_DECREF(ob);
+          if (len <= 0) {
+            // output original
+            strbuf_append(&buf, "{}");
+          } else {
+            if (idx >= len) {
+              goto exit_label;
+            } else {
+              ob = valist_get(vargs, idx++);
+              obj_tostr(ob, &buf);
+              OB_DECREF(ob);
+            }
+          }
         } else {
           strbuf_append_char(&buf, ch);
         }
@@ -201,9 +204,15 @@ static Object *__format__(char *format, Object *vargs)
   }
 
 exit_label:
-  ob = string_new(strbuf_tostr(&buf));
-  strbuf_fini(&buf);
-  return ob;
+  s = strbuf_tostr(&buf);
+  if (s == NULL) {
+    strbuf_fini(&buf);
+    return string_new("");
+  } else {
+    ob = string_new(s);
+    strbuf_fini(&buf);
+    return ob;
+  }
 }
 
 /* func format(args ...) string */
@@ -224,7 +233,7 @@ Object *string_format(Object *self, Object *args)
     return NULL;
   }
 
-  return __format__(string_asstr(self), args);
+  return __format__(__asstr(self), args);
 }
 
 static void string_clean(Object *self)
@@ -233,10 +242,9 @@ static void string_clean(Object *self)
     error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
     return;
   }
-  debug("clean String '%.64s'", string_asstr(self));
+  debug("clean String '%.64s'", __asstr(self));
   StringObject *s = (StringObject *)self;
-  vec_fini(&s->buf);
-  s->len = 0;
+  slice_fini(&s->buf);
 }
 
 static void string_free(Object *self)
@@ -257,8 +265,8 @@ static int str_num_cmp(Object *x, Object *y)
     return -1;
   }
 
-  char *s1 = string_asstr(x);
-  char *s2 = string_asstr(y);
+  char *s1 = __asstr(x);
+  char *s2 = __asstr(y);
   return strcmp(s1, s2);
 }
 
@@ -346,12 +354,20 @@ void init_string_type(void)
 Object *string_new(char *str)
 {
   debug("string_new:%s", str);
-  int len = strlen(str);
   StringObject *s = gcnew(sizeof(StringObject));
   init_object_head(s, &string_type);
-  s->len = len;
-  vec_init_capacity(&s->buf, 1, len + 1);
-  vec_push_arr(&s->buf, str, len + 1);
+  int clen = strlen(str);
+  slice_init_capacity(&s->buf, 1, clen + 1);
+  slice_push_array(&s->buf, str, clen);
+  return (Object *)s;
+}
+
+Object *string_with_len(char *str, int len)
+{
+  StringObject *s = gcnew(sizeof(StringObject));
+  init_object_head(s, &string_type);
+  slice_init_capacity(&s->buf, 1, len + 1);
+  slice_push_array(&s->buf, str, len);
   return (Object *)s;
 }
 
@@ -365,8 +381,40 @@ char *string_asstr(Object *self)
     return NULL;
   }
 
+  return __asstr(self);
+}
+
+int string_len(Object *self)
+{
+  if (!string_check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return -1;
+  }
+
   StringObject *s = (StringObject *)self;
-  return vec_toarr(&s->buf);
+  return slice_len(&s->buf);
+}
+
+Slice *string_slice(Object *self)
+{
+  if (!string_check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  StringObject *s = (StringObject *)self;
+  return &s->buf;
+}
+
+char *string_ptr(Object *self)
+{
+  if (!string_check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  StringObject *s = (StringObject *)self;
+  return slice_ptr(&s->buf, 0);
 }
 
 static void char_free(Object *ob)

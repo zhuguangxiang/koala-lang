@@ -309,7 +309,7 @@ static Object *do_match(Object *some, Object *patt)
     Object *z;
     Object *item;
     /*
-    RawValue raw;
+    RawValue raw = {0};
     gvector_foreach(raw, arr->vec) {
       item = box(arr->desc, &raw, 1);
       z = do_match(some, item);

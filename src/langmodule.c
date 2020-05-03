@@ -192,7 +192,6 @@ void init_lang_module(void)
   module_add_type(m, result_type);
   module_add_type(m, &error_type);
   module_add_type(m, option_type);
-  //module_add_type(m, &sbuf_type);
   module_install("lang", m);
   OB_DECREF(m);
 }

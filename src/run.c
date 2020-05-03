@@ -125,6 +125,7 @@ void koala_initialize(void)
   init_io_module();
   init_fmt_module();
   init_assert_module();
+  init_str_module();
   init_parser();
 }
 
@@ -137,6 +138,7 @@ void koala_finalize(void)
   fini_sys_module();
   fini_fs_module();
   fini_lang_module();
+  fini_str_module();
   fini_modules();
   fini_result_type();
   fini_option_type();

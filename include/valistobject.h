@@ -44,6 +44,7 @@ void init_valist_type(void);
 Object *valist_new(int size, TypeDesc *desc);
 int valist_set(Object *self, int index, Object *v);
 Object *valist_get(Object *self, int index);
+int valist_len(Object *self);
 
 #ifdef __cplusplus
 }

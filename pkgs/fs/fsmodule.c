@@ -49,7 +49,23 @@ static void file_free(Object *ob)
   kfree(file);
 }
 
-/* func read(buf [byte], count int) Result<int, Error> */
+static Object *file_result_ok(int val)
+{
+  Object *iob = integer_new(val);
+  Object *res = result_ok(iob);
+  OB_DECREF(iob);
+  return res;
+}
+
+static Object *file_result_error(int val)
+{
+  Object *iob = integer_new(val);
+  Object *res = result_err(iob);
+  OB_DECREF(iob);
+  return res;
+}
+
+/* func read(buf [byte]) Result<int, Error> */
 static Object *file_read(Object *self, Object *args)
 {
   if (!file_check(self)) {
@@ -57,46 +73,23 @@ static Object *file_read(Object *self, Object *args)
     return NULL;
   }
 
-  if (!tuple_check(args)) {
-    error("object of '%.64s' is not a Tuple", OB_TYPE_NAME(args));
-    return NULL;
-  }
-
   FileObject *file = (FileObject *)self;
-  Object *ob = tuple_get(args, 0);
-
   if (file->fp == NULL) {
     error("file '%s' is closed.", file->path);
     return NULL;
   }
 
-  if (!array_check(ob)) {
-    error("object of '%.64s' is not an Array", OB_TYPE_NAME(ob));
+  Object *arr = args;
+  if (!array_check(arr)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(arr));
     return NULL;
   }
 
-  ArrayObject *arr = (ArrayObject *)ob;
-  Object *cnt = tuple_get(args, 1);
-  int size = integer_asint(cnt);
-//  gvector_free(arr->vec);
-  //arr->vec = gvector_new(size, 1);
-  //char *buf = array_raw(ob);
-  int nbytes = 0; //fread(buf, 1, size, file->fp);
-  //arr->vec->size = nbytes;
+  char *ptr = array_ptr(arr);
+  int size = array_len(arr);
+  int nbytes = fread(ptr, 1, size, file->fp);
   debug("max %d bytes read, and really read %d bytes", size, nbytes);
-
-  OB_DECREF(ob);
-  OB_DECREF(cnt);
-
-  Object *val;
-  if (nbytes >= 0) {
-    val = integer_new(nbytes);
-  } else {
-    val = integer_new(errno);
-  }
-  Object *res = result_ok(val);
-  OB_DECREF(val);
-  return res;
+  return nbytes >= 0 ? file_result_ok(nbytes) : file_result_error(errno);
 }
 
 /* func write(buf [byte]) Result<int, Error> */
@@ -118,20 +111,11 @@ static Object *file_write(Object *self, Object *args)
     return NULL;
   }
 
-  char *buf = NULL; //array_raw(args);
+  char *buf = array_ptr(args);
   int size = array_len(args);
   int nbytes = fwrite(buf, 1, size, file->fp);
   debug("expect %d bytes, and write %d bytes", size, nbytes);
-
-  Object *val;
-  if (nbytes >= 0) {
-    val = integer_new(nbytes);
-  } else {
-    val = integer_new(errno);
-  }
-  Object *res = result_ok(val);
-  OB_DECREF(val);
-  return res;
+  return nbytes >= 0 ? file_result_ok(nbytes) : file_result_error(errno);
 }
 
 /* func flush() */
@@ -177,10 +161,11 @@ static Object *file_close(Object *self, Object *args)
   return NULL;
 }
 
+#define RESULT  "Llang.Result(i)(Llang.Error;);"
+
 static MethodDef file_methods[] = {
-  {"read", "[bi",  "Llang.Result(i)(Llang.Error;);",  file_read},
-  //{"lines", NULL,  "", NULL},
-  {"write", "[b", "Llang.Result(i)(Llang.Error;);", file_write},
+  {"read", "[b",  RESULT,  file_read},
+  {"write", "[b", RESULT, file_write},
   {"flush", NULL, NULL, file_flush},
   {"close", NULL, NULL, file_close},
   {NULL}

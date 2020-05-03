@@ -87,3 +87,23 @@ char *str_trim(char *s)
 {
   return str_ntrim(s, strlen(s));
 }
+
+int str_sep(char **str, char ch, char **out)
+{
+  if (*str == NULL) return 0;
+
+  char *s = *str;
+  int count = 0;
+  while (*s) {
+    if (*s == ch) {
+      *out = *str;
+      *str = s + 1;
+      return count;
+    }
+    s++;
+    count++;
+  }
+  *out = *str;
+  *str = NULL;
+  return count;
+}

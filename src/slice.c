@@ -24,9 +24,9 @@
 
 #include "slice.h"
 
-#define MINIMUM_CAPACITY 8
-#define DOUBLE_GROWTH_CAPACITY 1024
-#define GROWTH_FACTOR  (5 / 4)
+#define MINIMUM_CAPACITY  32
+#define DOUBLE_GROWTH_CAPACITY  4096
+#define QUART_GROWTH_FACTOR 1.25
 
 typedef struct sarray {
   // Pointer to the stored memory
@@ -70,7 +70,7 @@ static int expand_sarray(SArray *sarr, int new_cap)
     if (capacity < DOUBLE_GROWTH_CAPACITY) {
       capacity = capacity << 1;
     } else {
-      capacity = capacity * GROWTH_FACTOR;
+      capacity = capacity * QUART_GROWTH_FACTOR;
     }
   }
 
@@ -83,6 +83,13 @@ static int expand_sarray(SArray *sarr, int new_cap)
   sarr->objs = objs;
   sarr->capacity = capacity;
   return 0;
+}
+
+static SArray *copy_sarray(SArray *sarr)
+{
+  SArray *newsarr = new_sarray(sarr->objsize, sarr->capacity);
+  memcpy(newsarr->objs, sarr->objs, sarr->objsize * sarr->capacity);
+  return newsarr;
 }
 
 int slice_init_capacity(Slice *self, int objsize, int capacity)
@@ -124,8 +131,28 @@ int slice_slice(Slice *self, Slice *src, int offset, int len)
   return 0;
 }
 
+int slice_slice_to_end(Slice *self, Slice *src, int offset)
+{
+  if (offset < 0 || offset > src->length) return -1;
+  SArray *sarr = __SARR(src);
+  ++sarr->refcnt;
+  self->ptr = src->ptr;
+  self->offset = src->offset + offset;
+  self->length = src->length - offset;
+  return 0;
+}
+
+int slice_copy(Slice *dst, Slice *src)
+{
+  *dst = *src;
+  SArray *sarr = copy_sarray( __SARR(src));
+  dst->ptr = sarr;
+  return 0;
+}
+
 void slice_fini(Slice *self)
 {
+  if (self->ptr == NULL) return;
   SArray *sarr = __SARR(self);
   if (--sarr->refcnt <= 0) free_sarray(sarr);
   memset(self, 0, sizeof(Slice));
@@ -137,12 +164,6 @@ int slice_clear(Slice *self)
   void *ptr = __PTR(self, 0);
   int size = __SIZE(self);
   memset(ptr, 0, size);
-  return 0;
-}
-
-int slice_reset(Slice *self)
-{
-  slice_clear(self);
   self->length = 0;
   return 0;
 }

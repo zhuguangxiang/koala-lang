@@ -853,7 +853,7 @@ Object *obj_from_raw(TypeDesc *type, RawValue raw)
 // Get Value from object
 RawValue obj_to_raw(TypeDesc *type, Object *ob)
 {
-  RawValue raw;
+  RawValue raw = {0};
   if (type->kind != TYPE_BASE) {
     raw.ptr = ob;
     return raw;

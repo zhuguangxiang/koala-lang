@@ -1,0 +1,7 @@
+import "sys"
+func fprintf(w io.Writer, fmt string, args ...) {
+  s := fmt.format(args)
+  w.write_str(s)
+  return
+}
+fprintf(sys.stdout, "hello\n")

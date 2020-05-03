@@ -42,10 +42,15 @@ extern TypeObject array_type;
 #define array_check(ob) (OB_TYPE(ob) == &array_type)
 void init_array_type(void);
 Object *array_new(TypeDesc *desc);
+Object *array_with_buf(TypeDesc *desc, Slice buf);
+Object *array_push_back(Object *self, Object *val);
 int array_set(Object *self, int index, Object *v);
 int array_len(Object *self);
-Slice *array_raw(Object *self);
+void *array_ptr(Object *self);
+Slice *array_slice(Object *self);
 Object *byte_array_new(void);
+Object *byte_array_with_buf(Slice buf);
+Object *byte_array_no_buf(void);
 
 #ifdef __cplusplus
 }

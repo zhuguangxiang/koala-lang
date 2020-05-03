@@ -56,67 +56,84 @@ Object *method_new(char *name, Object *code)
 static Object *get_valist_args(Object *args, Vector *argtypes)
 {
   int size = vector_size(argtypes);
-  int start = size - 1;
+  int vaindex = size - 1;
   TypeDesc *lasttype = vector_top_back(argtypes);
   TypeDesc *subtype = vector_get(lasttype->klass.typeargs, 0);
 
-  if (start == 0) {
+  if (vaindex == 0) {
+    // function has only one valist parameter.
     if (args == NULL) {
+      // no any arguments
       return valist_new(0, subtype);
     }
 
+    Object *valist;
     if (!tuple_check(args)) {
-      Object *valist = valist_new(1, subtype);
-      valist_set(valist, 0, args);
-      return valist;
-    } else {
-      Object *ob;
-      Object *valist = valist_new(tuple_size(args), subtype);
-      for (int i = 0; i < tuple_size(args); ++i) {
-        ob = tuple_get(args, i);
-        valist_set(valist, i, ob);
-        OB_DECREF(ob);
-      }
-      return valist;
-    }
-  } else {
-    expect(start >= 1);
-    expect(args != NULL);
-    if (!tuple_check(args)) {
-      Object *nargs = tuple_new(size);
-      tuple_set(nargs, 0, args);
-      Object *valist = valist_new(0, subtype);
-      tuple_set(nargs, 1, valist);
-      OB_DECREF(valist);
-      return nargs;
-    } else {
-      Object *ob;
-      Object *nargs = tuple_new(size);
-      for (int i = 0; i < start; ++i) {
-        ob = tuple_get(args, i);
-        tuple_set(nargs, i, ob);
-        OB_DECREF(ob);
-      }
-
-      Object *valist;
-      ob = tuple_get(args, start);
-      if (!valist_check(ob)) {
-        OB_DECREF(ob);
-        valist = valist_new(tuple_size(args) - start, subtype);
-        for (int i = start; i < tuple_size(args); ++i) {
-          ob = tuple_get(args, i);
-          valist_set(valist, i - start, ob);
-          OB_DECREF(ob);
-        }
+      // only one argument
+      if (!valist_check(args)) {
+        valist = valist_new(1, subtype);
+        valist_set(valist, 0, args);
+        return valist;
       } else {
-        valist = ob;
-        expect(tuple_size(args) == start + 1);
+        // args is valist
+        return args;
       }
-      tuple_set(nargs, start, valist);
-      OB_DECREF(valist);
-      return nargs;
+    }
+
+    // more than one arguments
+    int argc = tuple_size(args);
+    valist = valist_new(argc, subtype);
+    Object *ob;
+    for (int i = 0; i < argc; ++i) {
+      ob = tuple_get(args, i);
+      valist_set(valist, i, ob);
+      OB_DECREF(ob);
+    }
+    return valist;
+  }
+
+  // function has more than one parameters, and last one is valist.
+  expect(vaindex >= 1);
+  expect(args != NULL);
+  Object *valist;
+  Object *nargs = tuple_new(size);
+  if (!tuple_check(args)) {
+    // no argument is paassed to valist.
+    expect(vaindex == 1);
+    tuple_set(nargs, 0, args);
+    valist = valist_new(0, subtype);
+    tuple_set(nargs, 1, valist);
+    OB_DECREF(valist);
+    return nargs;
+  }
+
+  // there are argc - vaindex arguments are passed to valist.
+  int argc = tuple_size(args);
+  Object *ob;
+  for (int i = 0; i < vaindex; ++i) {
+    ob = tuple_get(args, i);
+    expect(!valist_check(ob));
+    tuple_set(nargs, i, ob);
+    OB_DECREF(ob);
+  }
+
+  ob = tuple_get(args, vaindex);
+  if (ob != NULL && valist_check(ob)) {
+    expect(argc == vaindex + 1);
+    valist = ob;
+  } else {
+    OB_DECREF(ob);
+    valist = valist_new(argc - vaindex, subtype);
+    for (int i = vaindex; i < argc; ++i) {
+      ob = tuple_get(args, i);
+      expect(!valist_check(ob));
+      valist_set(valist, i - vaindex, ob);
+      OB_DECREF(ob);
     }
   }
+  tuple_set(nargs, vaindex, valist);
+  OB_DECREF(valist);
+  return nargs;
 }
 
 Object *method_call(Object *self, Object *ob, Object *args)

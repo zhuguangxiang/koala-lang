@@ -23,81 +23,124 @@
 */
 
 #include "koala.h"
+#include "sbldrobject.h"
+#include "utf8.h"
 
 #define RESULT  "Llang.Result(i)(Llang.Error;);"
 
+static Object *io_result_error(int val)
+{
+  Object *iob = integer_new(val);
+  Object *res = result_err(iob);
+  OB_DECREF(iob);
+  return res;
+}
+
 /*
-  func read(buf [byte], size int) Result<int, Error>;
+  func read(buf [byte]) Result<int, Error>;
 
   func read_to_end(buf [byte]) Result<int, Error> {
-    s := buf[buf.len() ...]
-    res := read(s, 32)
-    match res {
-      Ok(n) => {
-
+    start_len := buf.len()
+    len := buf.len()
+    var ret Result<int, Error>
+    while {
+      if len == buf.len() {
+        buf.reserve(32)
       }
-      Err(e) => {
-
+      match read(buf[len :]) {
+        Ok(0) => {
+          ret = Ok(buf.len() - start_len)
+          break
+        }
+        Ok(n) => {
+          len += n
+        }
+        Err(e) => {
+          ret = Err(e)
+          break
+        }
       }
     }
+    ret
   }
 
   func read_to_str(sb str.Buffer) Result<int, Error> {
-    buf := sb.as_slice()
+    buf := sb.as_shared_bytes()
     read_to_end(buf)
-    s := str.from_utf8(buf)
-    sb.join(s)
-    Ok(s.len())
+    sb.check_utf8(buf)
+    Ok(sb.len())
   }
  */
 
 static Object *read_to_end(Object *self, Object *args)
 {
-  Object *arr = byte_array_new();
-  Vec *buf = NULL; //((ArrayObject *)arr)->buf;
-  Object *count = integer_new(32);
-  Object *tuple = tuple_new(2);
-  tuple_set(tuple, 0, arr);
-  tuple_set(tuple, 1, count);
-  OB_DECREF(arr);
-  OB_DECREF(count);
-  int64_t len = 0, n;
-  Object *res, *nob;
+  Slice *buf = array_slice(args);
+  int start_len = slice_len(buf);
+  int len = slice_len(buf);
+
+  Object *bytes = byte_array_no_buf();
+  Slice *slice = array_slice(bytes);
+  Object *res, *val;
+  int n;
+
   while (1) {
-    res = object_call(self, "read", tuple);
-    if (result_test(res)) {
-      nob = result_get_ok(res, NULL);
-      n = integer_asint(nob);
-      OB_DECREF(res);
-      OB_DECREF(nob);
-      if (n <= 0) {
-        break;
-      } else {
-        len += n;
-        vec_clear(buf);
-      }
-    } else {
-      OB_DECREF(res);
+    if (len == slice_len(buf))
+      slice_expand(buf, 32);
+
+    slice_slice_to_end(slice, buf, len);
+    res = object_call(self, "read", bytes);
+    slice_fini(slice);
+
+    if (!result_test(res))
       break;
+
+    val = result_get_ok(res, NULL);
+    OB_DECREF(res);
+    n = integer_asint(val);
+    OB_DECREF(val);
+    if (n <= 0) {
+      val = integer_new(len - start_len);
+      res = result_ok(val);
+      OB_DECREF(val);
+      break;
+    } else {
+      len += n;
     }
   }
-  OB_DECREF(tuple);
-  return result_ok(integer_new(len));
+
+  OB_DECREF(bytes);
+  return res;
 }
 
+/* func read_to_str(sb str.Buffer) Result<int, Error> */
 static Object *read_to_str(Object *self, Object *args)
 {
-  Object *arr = byte_array_new();
-  read_to_end(self, arr);
-  //Object *s = str_from_utf8(arr);
-  //sbuf_join(args, s);
-  //Object *res = result_ok(string_length(s, NULL));
-  //OB_DECREF(s);
-  return NULL;
+  Object *bytes = byte_array_no_buf();
+  Slice *slice = array_slice(bytes);
+  Slice *buf = sbldr_slice(args);
+  slice_slice_to_end(slice, buf, 0);
+  Object *res = read_to_end(self, bytes);
+
+  // restore to string builder
+  slice_fini(buf);
+  slice_slice_to_end(buf, slice, 0);
+  OB_DECREF(bytes);
+
+  if (!result_test(res))
+    return res;
+
+  char *ptr = sbldr_ptr(args);
+  int len = sbldr_len(args);
+  if (check_utf8_valid_with_len(ptr, len) < 0) {
+    OB_DECREF(res);
+    error("not valid utf8 string.");
+    return io_result_error(-1);
+  }
+  return res;
 }
 
 static MethodDef reader_methods[]= {
-  {"read", "[bi", RESULT, NULL, 1},
+  {"read", "[b", RESULT, NULL, 1},
   {"read_to_end", "[b", RESULT, read_to_end},
   {"read_to_str", "Lstr.Builder;", RESULT, read_to_str},
   {NULL}
@@ -116,12 +159,17 @@ TypeObject io_reader_type = {
   func write_str(s string) Result<int, Error> {
     return write(s.as_bytes())
   }
+
+  func flush();
  */
 static Object *write_str(Object *self, Object *args)
 {
-  Object *arr = string_asbytes(args, NULL);
-  Object *res = object_call(self, "write", arr);
-  OB_DECREF(arr);
+  Object *bytes = byte_array_no_buf();
+  Slice *slice = array_slice(bytes);
+  Slice *buf = string_slice(args);
+  slice_slice_to_end(slice, buf, 0);
+  Object *res = object_call(self, "write", bytes);
+  OB_DECREF(bytes);
   return res;
 }
 

@@ -5,53 +5,56 @@
 
 import "io"
 import "sys"
+import "str"
 
-func fprintf(w io.Writer, fmt string, args ...) {
-  s := fmt.format(args)
-  w.write_str(s)
-  return
+func write_fmt(w io.Writer, fmt string, args ...) {
+  len := args.len()
+  if len > 0 {
+    s := fmt.format(args)
+    w.write_str(s)
+  } else {
+    w.write_str(fmt)
+  }
 }
 
-func fprintln(w io.Writer, args ...) {
-  size := args.size()
+func __fmt_str__(count int, newline bool) string {
   bldr := new str.Builder()
 
-  for i in 0 ..< size - 1 {
+  for i in 0 ..< count - 1 {
     bldr.write_str("{} ")
   }
 
-  if size > 0 {
-    bldr.write_str("{}\r\n")
-  }
-
-  fmt := bldr.as_str()
-  fprintf(w, fmt, args)
-}
-
-func fprint(w io.Writer, args ...) {
-  size := args.size()
-  bldr := new str.Builder()
-
-  for i in 0 ..< size - 1 {
-    bldr.write_str("{} ")
-  }
-
-  if size > 0 {
+  if count > 0 {
     bldr.write_str("{}")
   }
 
-  fmt := bldr.as_str()
-  fprintf(w, fmt, args)
+  if newline {
+    bldr.write_str("\r\n")
+  }
+
+  bldr.as_str()
+}
+
+func write(w io.Writer, args ...) {
+  len := args.len()
+  fmt := __fmt_str__(len, false)
+  write_fmt(w, fmt, args)
+}
+
+func writeln(w io.Writer, args ...) {
+  len := args.len()
+  fmt := __fmt_str__(len, true)
+  write_fmt(w, fmt, args)
 }
 
 func printf(fmt string, args ...) {
-  fprintf(sys.stdout, fmt, args)
+  write_fmt(sys.stdout, fmt, args)
 }
 
 func println(args ...) {
-  fprintln(sys.stdout, args)
+  writeln(sys.stdout, args)
 }
 
 func print(args ...) {
-  fprint(sys.stdout, args)
+  write(sys.stdout, args)
 }

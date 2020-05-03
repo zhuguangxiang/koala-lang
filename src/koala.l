@@ -200,7 +200,10 @@ character2 {asc_char}|{unasc_char}
 
 str_char  [\x00-\x21\x23-\x5b\x5d-\x7f]
 character {str_char}|{unasc_char}
-string    {character}+
+U     [\x80-\xff]
+USTR  {str_char}|{esc_char}|{U}
+utf8_str  {USTR}+
+/* utf8_str  {character}+ */
 
 alpha      [A-Za-z_]
 identifier {alpha}({alpha}|{digit})*
@@ -385,12 +388,18 @@ moddoc  "//!"[^\n]*
   }
 }
 
-(\"{string}?\") {
+(\"{utf8_str}?\") {
   char *buf = kmalloc(yyleng - 2 + 1);
   parse_escape(buf, yytext + 1, yyleng - 2);
-  yylval->sval = atom(buf);
-  kfree(buf);
-  YY_RETURN(STRING_LITERAL);
+  if (check_utf8_valid(buf) < 0) {
+    kfree(buf);
+    serror(ps->row, ps->col, "invalid utf8 string");
+    YY_RETURN(';');
+  } else {
+    yylval->sval = atom(buf);
+    kfree(buf);
+    YY_RETURN(STRING_LITERAL);
+  }
 }
 
 (\"\"\") {

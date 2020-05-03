@@ -28,6 +28,7 @@
 #include "stringobject.h"
 #include "tupleobject.h"
 #include "iterobject.h"
+#include "methodobject.h"
 #include "strbuf.h"
 
 static int elem_isobj(TypeDesc *desc)
@@ -74,14 +75,12 @@ static int elem_size(TypeDesc *desc)
   }
 }
 
-typedef int (*elem_cmp_t)(const void *, const void *);
-
 static int elem_int_cmp(const void *v1, const void *v2)
 {
   return *(int64_t *)v1 - *(int64_t *)v2;
 }
 
-static elem_cmp_t __cmp(TypeDesc *desc)
+static __compar_fn_t __cmp(TypeDesc *desc)
 {
   if (desc->kind != TYPE_BASE)
     return NULL;
@@ -110,7 +109,7 @@ static inline void *__ptr(ArrayObject *arr)
 
 static inline int __len(ArrayObject *arr)
 {
-  return arr->buf.length;
+  return slice_len(&arr->buf);
 }
 
 static void byte_tostr(ArrayObject *arr, StrBuf *buf)
@@ -232,7 +231,7 @@ static void tostr(ArrayObject *arr, StrBuf *buf)
   }
 }
 
-static Object *array_push_back(Object *self, Object *val)
+Object *array_push_back(Object *self, Object *val)
 {
   if (!array_check(self)) {
     error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
@@ -257,7 +256,7 @@ static Object *array_pop_back(Object *self, Object *args)
     return NULL;
   }
 
-  RawValue raw;
+  RawValue raw = {0};
   slice_pop_back(&arr->buf, &raw);
   return obj_from_raw(arr->desc, raw);
 }
@@ -302,7 +301,7 @@ static Object *array_remove(Object *self, Object *args)
     return NULL;
   }
 
-  RawValue raw;
+  RawValue raw = {0};
   slice_remove(&arr->buf, idx, &raw);
   return obj_from_raw(arr->desc, raw);
 }
@@ -346,7 +345,7 @@ static Object *array_getitem(Object *self, Object *args)
     return NULL;
   }
 
-  RawValue raw;
+  RawValue raw = {0};
   slice_get(&arr->buf, index, &raw);
   Object *ob = obj_from_raw(arr->desc, raw);
   if (elem_isobj(arr->desc)) OB_INCREF(ob);
@@ -413,7 +412,7 @@ static Object *slice_new(ArrayObject *arr, int offset, int length)
   return (Object *)slice;
 }
 
-static Object *array_slice(Object *self, Object *args)
+static Object *array_as_slice(Object *self, Object *args)
 {
   if (!array_check(self)) {
     error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
@@ -579,6 +578,30 @@ static Object *array_swap(Object *self, Object *args)
   return NULL;
 }
 
+static Object *array_clear(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  slice_clear(&arr->buf);
+  return NULL;
+}
+
+static Object *array_empty(Object *self, Object *args)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  int empty = slice_empty(&arr->buf);
+  return empty ? bool_true() : bool_false();
+}
+
 static MethodDef array_methods[] = {
   {"push_back",   "<T>",  NULL,   array_push_back },
   {"pop_back",    NULL,   "<T>",  array_pop_back  },
@@ -592,13 +615,18 @@ static MethodDef array_methods[] = {
   /*
   {"__iter__", "i", "Llang.Iterator<T>;", array_iter},
   */
-  {"__slice__",   "iii",  "Llang.Array<T>;", array_slice},
+  {"__slice__",   "iii",  "Llang.Array<T>;", array_as_slice},
   {"index",       "<T>",  "i",    array_index},
   {"last_index",  "<T>",  "i",    array_last_index},
   {"__add__",     "Llang.Array<T>;", "Llang.Array<T>;", array_concat},
   {"extend",      "Llang.Array<T>;", "Llang.Array<T>;", array_extend},
   {"reserve",     "i",    NULL, array_reserve},
   {"swap",        "Llang.Array<T>;ii",  NULL, array_swap},
+  {"clear",       "Llang.Array<T>;", NULL, array_clear},
+  {"is_empty",    "Llang.Array<T>;", "z",  array_empty},
+  {"sort_by",     "P<T><T>:i", NULL,  NULL},
+  {"bsearch", "<T>", "i", NULL},
+  {"binary_search_by", "<T>", "i", NULL},
   {NULL}
 };
 
@@ -693,12 +721,39 @@ Object *array_new(TypeDesc *desc)
   return (Object *)arr;
 }
 
+Object *array_with_buf(TypeDesc *desc, Slice buf)
+{
+  ArrayObject *arr = kmalloc(sizeof(*arr));
+  init_object_head(arr, &array_type);
+  arr->desc = TYPE_INCREF(desc);
+  arr->buf = buf;
+  return (Object *)arr;
+}
+
 Object *byte_array_new(void)
 {
-  TypeDesc *desc = desc_from_byte;
-  Object *bytes = array_new(desc);
-  TYPE_DECREF(desc);
-  return bytes;
+  ArrayObject *arr = kmalloc(sizeof(*arr));
+  init_object_head(arr, &array_type);
+  arr->desc = desc_from_byte;
+  slice_init(&arr->buf, elem_size(arr->desc));
+  return (Object *)arr;
+}
+
+Object *byte_array_with_buf(Slice buf)
+{
+  ArrayObject *arr = kmalloc(sizeof(*arr));
+  init_object_head(arr, &array_type);
+  arr->desc = desc_from_byte;
+  arr->buf = buf;
+  return (Object *)arr;
+}
+
+Object *byte_array_no_buf(void)
+{
+  ArrayObject *arr = kmalloc(sizeof(*arr));
+  init_object_head(arr, &array_type);
+  arr->desc = desc_from_byte;
+  return (Object *)arr;
 }
 
 int array_set(Object *self, int index, Object *v)
@@ -715,7 +770,7 @@ int array_set(Object *self, int index, Object *v)
     return -1;
   }
 
-  RawValue raw;
+  RawValue raw = {0};
   int isobj = elem_isobj(arr->desc);
   if (index != len && isobj) {
     slice_get(&arr->buf, index, &raw);
@@ -739,7 +794,7 @@ int array_len(Object *self)
   return __len(arr);
 }
 
-Slice *array_raw(Object *self)
+Slice *array_slice(Object *self)
 {
   if (!array_check(self)) {
     error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
@@ -748,4 +803,15 @@ Slice *array_raw(Object *self)
 
   ArrayObject *arr = (ArrayObject *)self;
   return &arr->buf;
+}
+
+void *array_ptr(Object *self)
+{
+  if (!array_check(self)) {
+    error("object of '%.64s' is not an Array", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  ArrayObject *arr = (ArrayObject *)self;
+  return slice_ptr(&arr->buf, 0);
 }
