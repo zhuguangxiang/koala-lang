@@ -1,15 +1,15 @@
 import "io"
 func show_valist(args ...) {
-      len := args.len()
-      for i in 0 ..< len {
-        io.println(args[i])
-      }
-    }
+	len := args.len()
+	for i in 0 ..< len {
+		io.println(args[i])
+	}
+}
 show_valist(1,2)
 
 func vavalist(args ...) {
-        show_valist(args)
-      }
+		show_valist(args)
+	  }
 vavalist(1,2,3)
 
 "{}\n{}".format(1,2)
