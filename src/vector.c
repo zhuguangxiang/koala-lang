@@ -75,6 +75,13 @@ void vector_fini(Vector *self)
   self->items = NULL;
 }
 
+int vector_reserve(Vector *self, int size)
+{
+  if (__vector_maybe_expand(self, size))
+    return -1;
+  return 0;
+}
+
 int vector_concat(Vector *self, Vector *other)
 {
   if (__vector_maybe_expand(self, other->size))

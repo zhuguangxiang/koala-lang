@@ -29,6 +29,7 @@
 #include "arrayobject.h"
 #include "valistobject.h"
 #include "utf8.h"
+#include "atom.h"
 #include "log.h"
 
 static Object *str_init(Object *x, Object *y)
@@ -41,7 +42,13 @@ static Object *str_init(Object *x, Object *y)
 static char *__asstr(Object *self)
 {
   StringObject *s = (StringObject *)self;
-  return slice_ptr(&s->buf, 0);
+  return s->str;
+}
+
+static int __len(Object *self)
+{
+  StringObject *s = (StringObject *)self;
+  return s->len;
 }
 
 static Object *str_num_add(Object *x, Object *y)
@@ -67,12 +74,17 @@ static Object *str_num_add(Object *x, Object *y)
 
 static Object *string_length(Object *self, Object *args)
 {
+  if (!string_check(self)) {
+    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
   if (args != NULL) {
     error("length() of 'String' has no arguments");
     return NULL;
   }
 
-  return integer_new(string_len(self));
+  return integer_new(__len(self));
 }
 
 static Object *string_hash(Object *self, Object *args)
@@ -100,8 +112,8 @@ static Object *string_equal(Object *self, Object *other)
   if (self == other)
     return bool_true();
 
-  char *s1 = slice_ptr(&((StringObject *)self)->buf, 0);
-  char *s2 = slice_ptr(&((StringObject *)other)->buf, 0);
+  char *s1 = __asstr(self);
+  char *s2 = __asstr(other);
   return !strcmp(s1, s2) ? bool_true() : bool_false();
 }
 
@@ -113,10 +125,9 @@ Object *string_asbytes(Object *self, Object *args)
     return NULL;
   }
 
-  StringObject *s = (StringObject *)self;
-  Object *ob = byte_array_no_buf();
+  Object *ob = byte_array_new();
   Slice *buf = array_slice(ob);
-  slice_copy(buf, &s->buf);
+  slice_push_array(buf, __asstr(self), __len(self));
   return ob;
 }
 
@@ -224,8 +235,6 @@ static void string_clean(Object *self)
     return;
   }
   debug("clean String '%.64s'", __asstr(self));
-  StringObject *s = (StringObject *)self;
-  slice_fini(&s->buf);
 }
 
 static void string_free(Object *self)
@@ -336,9 +345,8 @@ Object *string_new(char *str)
   debug("string_new:%s", str);
   StringObject *s = gcnew(sizeof(StringObject));
   init_object_head(s, &string_type);
-  int clen = strlen(str);
-  slice_init_capacity(&s->buf, 1, clen + 1);
-  slice_push_array(&s->buf, str, clen);
+  s->len = strlen(str);
+  s->str = atom(str);
   return (Object *)s;
 }
 
@@ -346,8 +354,8 @@ Object *string_with_len(char *str, int len)
 {
   StringObject *s = gcnew(sizeof(StringObject));
   init_object_head(s, &string_type);
-  slice_init_capacity(&s->buf, 1, len + 1);
-  slice_push_array(&s->buf, str, len);
+  s->len = len;
+  s->str = atom_nstring(str, len);
   return (Object *)s;
 }
 
@@ -371,30 +379,7 @@ int string_len(Object *self)
     return -1;
   }
 
-  StringObject *s = (StringObject *)self;
-  return slice_len(&s->buf);
-}
-
-Slice *string_slice(Object *self)
-{
-  if (!string_check(self)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  StringObject *s = (StringObject *)self;
-  return &s->buf;
-}
-
-char *string_ptr(Object *self)
-{
-  if (!string_check(self)) {
-    error("object of '%.64s' is not a String", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  StringObject *s = (StringObject *)self;
-  return slice_ptr(&s->buf, 0);
+  return __len(self);
 }
 
 static void char_free(Object *ob)

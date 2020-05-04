@@ -3301,9 +3301,7 @@ static void parse_call(ParserState *ps, Expr *exp)
     if (sz > 0) {
       // type parameter <- type argument
       VECTOR(tpvec);
-      for (int i = 0; i < sz; ++i) {
-        vector_push_back(&tpvec, NULL);
-      }
+      vector_reserve(&tpvec, sz);
       Expr *arg;
       TypeDesc *para;
       vector_for_each(para, desc->proto.args) {

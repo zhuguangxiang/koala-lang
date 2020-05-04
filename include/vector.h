@@ -33,7 +33,7 @@
 extern "C" {
 #endif
 
-#define VECTOR_MINIMUM_CAPACITY 8
+#define VECTOR_MINIMUM_CAPACITY 16
 
 /* a dynamic array */
 typedef struct vector {
@@ -74,6 +74,9 @@ void vector_fini(Vector *self);
   kfree(self);            \
   (self) = NULL;          \
 })
+
+/* Reserve 'size' spaces */
+int vector_reserve(Vector *self, int size);
 
 /*
  * Remove all items from the vector, leaving the container with a size of 0.

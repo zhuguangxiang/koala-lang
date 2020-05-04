@@ -27,7 +27,6 @@
 
 #include "common.h"
 #include "object.h"
-#include "slice.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +34,8 @@ extern "C" {
 
 typedef struct stringobject {
   OBJECT_HEAD
-  Slice buf;
+  int len;
+  char *str;
 } StringObject;
 
 typedef struct charobject {
@@ -50,8 +50,6 @@ Object *string_new(char *str);
 Object *string_with_len(char *s, int len);
 char *string_asstr(Object *self);
 int string_len(Object *self);
-Slice *string_slice(Object *self);
-char *string_ptr(Object *self);
 
 extern TypeObject char_type;
 #define char_check(ob) (OB_TYPE(ob) == &char_type)

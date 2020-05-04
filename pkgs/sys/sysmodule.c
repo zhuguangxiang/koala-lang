@@ -102,16 +102,14 @@ static void init_sys_path(void)
 {
   Object *arr = array_new(&type_base_str);
   __path = arr;
-  Object *s = string_new(".");
-  array_push_back(arr, s);
-  OB_DECREF(s);
+  Object *s;
 
   // load KOALA_HOME
   char *home = getenv("KOALA_HOME");
   if (home != NULL) {
     STRBUF(buf);
     strbuf_append(&buf, home);
-    strbuf_append(&buf, "/pkgs");
+    strbuf_append(&buf, "/pkgs/");
     s = string_new(strbuf_tostr(&buf));
     array_push_back(arr, s);
     OB_DECREF(s);
@@ -124,7 +122,13 @@ static void init_sys_path(void)
     char *path = NULL;
     int len = str_sep(&pathes, ':', &path);
     while (len > 0) {
-      s = string_with_len(path, len);
+      if (path[len - 1] != '/') {
+        path = str_ndup_ex(path, len, "/");
+        s = string_with_len(path, len + 1);
+        kfree(path);
+      } else {
+        s = string_with_len(path, len);
+      }
       array_push_back(arr, s);
       OB_DECREF(s);
       len = str_sep(&pathes, ':', &path);
@@ -185,4 +189,20 @@ void sys_println(Object *ob)
 
   // release sysm_stdout
   OB_DECREF(out);
+}
+
+Vector sys_path(void)
+{
+  VECTOR(vec);
+  OB_INCREF(__path);
+  Slice *buf = array_slice(__path);
+  Object **pp;
+  int i;
+  char *s;
+  slice_foreach(pp, i, buf) {
+    s = string_asstr(*pp);
+    vector_push_back(&vec, s);
+  }
+  OB_DECREF(__path);
+  return vec;
 }

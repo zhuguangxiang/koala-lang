@@ -164,10 +164,11 @@ TypeObject io_reader_type = {
  */
 static Object *write_str(Object *self, Object *args)
 {
-  Object *bytes = byte_array_no_buf();
+  Object *bytes = byte_array_new();
   Slice *slice = array_slice(bytes);
-  Slice *buf = string_slice(args);
-  slice_slice_to_end(slice, buf, 0);
+  char *str = string_asstr(args);
+  int len = string_len(args);
+  slice_push_array(slice, str, len);
   Object *res = object_call(self, "write", bytes);
   OB_DECREF(bytes);
   return res;

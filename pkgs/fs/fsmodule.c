@@ -137,7 +137,7 @@ static Object *file_write_str(Object *self, Object *args)
     return NULL;
   }
 
-  char *s = string_ptr(args);
+  char *s = string_asstr(args);
   int len = string_len(args);
   int nbytes = fwrite(s, 1, len, file->fp);
   debug("expect %d bytes, and write %d bytes", len, nbytes);

@@ -1,8 +1,22 @@
-import "io"
+import "fmt"
+
+fmt.printf("hello")
+fmt.printf(" world\n")
+fmt.printf()
+fmt.printf("hello, {}\n", "james")
+fmt.printf("hello, {}, {}\n", "james", "lucky")
+fmt.println(1,2,"hello")
+fmt.println(100)
+fmt.println()
+fmt.print(1,2,"hello\n")
+fmt.print(200)
+fmt.print()
+fmt.println()
+
 func show_valist(args ...) {
 	len := args.len()
 	for i in 0 ..< len {
-		io.println(args[i])
+		fmt.println(args[i])
 	}
 }
 show_valist(1,2)
@@ -25,17 +39,3 @@ fprintf(sys.stdout, "hello\n")
 w := sys.stdout
 fprintf(w, "{}")
 fprintf(w, "{}", "hello\n")
-
-import "fmt2"
-fmt2.printf("hello")
-fmt2.printf(" world\n")
-fmt2.printf()
-fmt2.printf("hello, {}\n", "james")
-fmt2.printf("hello, {}, {}\n", "james", "lucky")
-fmt2.println(1,2,"hello")
-fmt2.println(100)
-fmt2.println()
-fmt2.print(1,2,"hello\n")
-fmt2.print(200)
-fmt2.print()
-fmt2.println()

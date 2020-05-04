@@ -32,6 +32,7 @@ extern "C" {
 void init_sys_module(void);
 void fini_sys_module(void);
 void sys_println(Object *ob);
+Vector sys_path(void);
 
 #ifdef __cplusplus
 }

@@ -30,6 +30,7 @@
 #include "tupleobject.h"
 #include "codeobject.h"
 #include "enumobject.h"
+#include "sysmodule.h"
 #include "hashmap.h"
 #include "image.h"
 #include "log.h"
@@ -487,11 +488,32 @@ void module_load_native(Object *self, char *name)
   ((ModuleObject *)self)->dlptr = dlptr;
 }
 
+static Image *load_klc_file(char *klcpath)
+{
+  char *fullpath = klcpath;
+  // load from current directory
+  Image *image = image_read_file(fullpath, 0);
+  if (image != NULL) return image;
+
+  // load from 'sys.path'
+  Vector vec = sys_path();
+  char *prefix;
+  vector_for_each(prefix, &vec) {
+    fullpath = str_dup_ex(prefix, klcpath);
+    image = image_read_file(fullpath, 0);
+    kfree(fullpath);
+    if (image != NULL) goto exit_label;
+  }
+exit_label:
+  vector_fini(&vec);
+  return image;
+}
+
 static Object *module_from_file(char *path, char *name, Object *ob)
 {
   char *klcpath = str_dup_ex(path, ".klc");
   debug("read image from '%s'", klcpath);
-  Image *image = image_read_file(klcpath, 0);
+  Image *image = load_klc_file(klcpath);
   kfree(klcpath);
   Object *mo = ob;
   if (image != NULL) {

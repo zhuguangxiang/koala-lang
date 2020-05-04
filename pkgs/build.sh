@@ -15,6 +15,8 @@ if [ -n "$KOALA_HOME" ]; then
   fi
   echo "copy '*.klc' into '$installed'"
   find . -name "*.klc" | xargs cp --parents -t $installed
+  echo "copy '*.so' into '$installed'"
+  find . -name "*.so" | xargs cp --parents -t $installed
 fi
 
 echo "pack '*.kl' into src.izp"
