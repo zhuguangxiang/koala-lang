@@ -108,7 +108,7 @@ int slice_init_capacity(Slice *self, int objsize, int capacity)
   __SARR(slice)->objs + __OBJSIZE(slice) * ((slice)->offset + (index))
 #define __SIZE(slice) __OBJSIZE(slice) * (slice)->length
 
-int slice_expand(Slice *self, int length)
+int slice_reserve(Slice *self, int length)
 {
   SArray *sarr = __SARR(self);
   int new_cap = self->offset + self->length + length;
@@ -172,7 +172,7 @@ int slice_extend(Slice *dst, Slice *src)
 {
   void *pdst = slice_ptr(dst, dst->length);
   void *psrc = slice_ptr(src, 0);
-  if (slice_expand(dst, src->length)) return -1;
+  if (slice_reserve(dst, src->length)) return -1;
   memcpy(pdst, psrc, __SIZE(src));
   return 0;
 }
@@ -180,7 +180,7 @@ int slice_extend(Slice *dst, Slice *src)
 int slice_push_array(Slice *self, void *arr, int len)
 {
   void *pdst = slice_ptr(self, self->length);
-  if (slice_expand(self, len)) return -1;
+  if (slice_reserve(self, len)) return -1;
   int size = __OBJSIZE(self) * len;
   memcpy(pdst, arr, size);
   return 0;
@@ -194,7 +194,7 @@ void *slice_ptr(Slice *self, int index)
 int slice_set(Slice *self, int index, void *obj)
 {
   if (index < 0 || index > self->length) return -1;
-  if (index == self->length && slice_expand(self, 1)) return -1;
+  if (index == self->length && slice_reserve(self, 1)) return -1;
   void *ptr = __PTR(self, index);
   memcpy(ptr, obj, __OBJSIZE(self));
   return 0;
@@ -223,7 +223,7 @@ static void __move_right(Slice *self, int index)
 int slice_insert(Slice *self, int index, void *obj)
 {
   if (index < 0 || index > self->length) return -1;
-  if (slice_expand(self, 1)) return -1;
+  if (slice_reserve(self, 1)) return -1;
   void *pdst = slice_ptr(self, index);
   __move_right(self, index);
   memcpy(pdst, obj, __OBJSIZE(self));

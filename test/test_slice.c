@@ -52,7 +52,7 @@ static void test_slice(void)
   assert(sarr->objsize == sizeof(int));
   assert(sarr->capacity == 8);
 
-  slice_expand(&slice, 20);
+  slice_reserve(&slice, 20);
   assert(slice.offset == 0);
   assert(slice_len(&slice) == 20);
   assert(sarr->capacity == 32);

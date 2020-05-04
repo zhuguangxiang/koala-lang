@@ -137,7 +137,7 @@ static void obj_tostr(Object *ob, StrBuf *buf)
   char base = desc->base;
   switch (base) {
   case BASE_BYTE:
-    strbuf_append_int(buf, byte_asint(ob));
+    strbuf_append_byte(buf, byte_asint(ob));
     break;
   case BASE_INT:
     strbuf_append_int(buf, integer_asint(ob));

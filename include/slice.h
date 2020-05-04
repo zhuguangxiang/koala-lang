@@ -46,8 +46,8 @@ typedef struct slice {
 /* Initialize a slice with element size and capacity. */
 int slice_init_capacity(Slice *self, int objsize, int capacity);
 
-/* expand # slots of this slice. */
-int slice_expand(Slice *self, int length);
+/* reserve # slots of this slice. */
+int slice_reserve(Slice *self, int length);
 
 /* Initialize a slice with element size, by default capacity. */
 static inline int slice_init(Slice *self, int objsize)

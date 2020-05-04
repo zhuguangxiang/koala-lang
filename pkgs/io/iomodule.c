@@ -85,7 +85,7 @@ static Object *read_to_end(Object *self, Object *args)
 
   while (1) {
     if (len == slice_len(buf))
-      slice_expand(buf, 32);
+      slice_reserve(buf, 32);
 
     slice_slice_to_end(slice, buf, len);
     res = object_call(self, "read", bytes);

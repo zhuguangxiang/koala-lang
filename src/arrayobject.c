@@ -546,7 +546,7 @@ static Object *array_reserve(Object *self, Object *args)
 
   ArrayObject *arr = (ArrayObject *)self;
   int64_t size = integer_asint(args);
-  slice_expand(&arr->buf, size);
+  slice_reserve(&arr->buf, size);
   return NULL;
 }
 
