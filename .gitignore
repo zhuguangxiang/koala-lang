@@ -36,3 +36,4 @@ include/koala_yacc.h
 include/version.h
 out/docs/io/io-uml.png
 out/docs/io/io-uml.svg
+pkgs/src.zip

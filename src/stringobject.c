@@ -215,14 +215,14 @@ Object *string_format(Object *self, Object *args)
     return NULL;
   }
 
-  if (args == NULL) {
-    // no any arguments, just return string self.
-    return OB_INCREF(self);
-  }
-
   if (!valist_check(args)) {
     error("object of '%.64s' is not a VaList", OB_TYPE_NAME(args));
     return NULL;
+  }
+
+  if (valist_len(args) <= 0) {
+    // no any va-args, just return string self.
+    return OB_INCREF(self);
   }
 
   return __format__(__asstr(self), args);

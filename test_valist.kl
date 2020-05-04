@@ -1,3 +1,4 @@
+
 import "fmt"
 
 fmt.printf("hello")
@@ -11,7 +12,6 @@ fmt.println()
 fmt.print(1,2,"hello\n")
 fmt.print(200)
 fmt.print()
-fmt.println()
 
 func show_valist(args ...) {
 	len := args.len()
