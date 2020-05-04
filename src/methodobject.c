@@ -59,6 +59,10 @@ static Object *get_valist_args(Object *args, Vector *argtypes)
   int vaindex = size - 1;
   TypeDesc *lasttype = vector_top_back(argtypes);
   TypeDesc *subtype = vector_get(lasttype->klass.typeargs, 0);
+  int argc = args != NULL ? tuple_size(args) : 0;
+  Object *valist;
+  Object *nargs;
+  Object *ob;
 
   if (vaindex == 0) {
     // function has only one valist parameter.
@@ -67,7 +71,6 @@ static Object *get_valist_args(Object *args, Vector *argtypes)
       return valist_new(0, subtype);
     }
 
-    Object *valist;
     if (!tuple_check(args)) {
       // only one argument
       if (!valist_check(args)) {
@@ -81,9 +84,7 @@ static Object *get_valist_args(Object *args, Vector *argtypes)
     }
 
     // more than one arguments
-    int argc = tuple_size(args);
     valist = valist_new(argc, subtype);
-    Object *ob;
     for (int i = 0; i < argc; ++i) {
       ob = tuple_get(args, i);
       valist_set(valist, i, ob);
@@ -93,10 +94,8 @@ static Object *get_valist_args(Object *args, Vector *argtypes)
   }
 
   // function has more than one parameters, and last one is valist.
-  expect(vaindex >= 1);
   expect(args != NULL);
-  Object *valist;
-  Object *nargs = tuple_new(size);
+  nargs = tuple_new(size);
   if (!tuple_check(args)) {
     // no argument is paassed to valist.
     expect(vaindex == 1);
@@ -108,8 +107,6 @@ static Object *get_valist_args(Object *args, Vector *argtypes)
   }
 
   // there are argc - vaindex arguments are passed to valist.
-  int argc = tuple_size(args);
-  Object *ob;
   for (int i = 0; i < vaindex; ++i) {
     ob = tuple_get(args, i);
     expect(!valist_check(ob));
