@@ -37,3 +37,11 @@ include/version.h
 out/docs/io/io-uml.png
 out/docs/io/io-uml.svg
 pkgs/src.zip
+docs/develop.txt
+docs/errors.txt
+docs/exam.puml
+docs/io.puml
+docs/llvm-example.md
+docs/llvm-example.pdf
+docs/modules.txt
+docs/thread&coroutine.txt

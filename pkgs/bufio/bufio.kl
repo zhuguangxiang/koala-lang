@@ -1,27 +1,46 @@
-class BufferedReader extends io.Reader {
+//
+// Copyright (c) 2020 James, https://github.com/zhuguangxiang
+// All rights reserved.
+//
+
+import "io"
+
+// The default capacity of buffer is currently 4k,
+// but may be changed in the future.
+const DEFAULT_BUF_SIZE = 1024 * 4
+
+///
+///
+///
+class BufReader extends io.Reader {
   r io.Reader
   buf [byte]
   cap int
 
-  func __init__(r io.Reader, size int) {
+  /// Initialize a new `BufReader` with a default buffer Capacity.
+  /// The default is currently 4k, but may be changed in the future.
+  func __init__(r io.Reader) {
     self.r = r
-    buf = new Array<byte>()
-    cap = size
+    buf = []
+    cap = DEFAULT_BUF_SIZE
   }
 
-  func read(buf [byte], count int) Result<int, Error> {
+  func read_until(buf [byte], delim byte) Result<int, Error> {
     return nil
   }
 
-  func read_line() string {
+  func read_line(sb str.Builder) Result<int, Error> {
     return nil
   }
 
+  /*
   func lines() Iterator<string> {
     return nil
   }
+  */
 }
 
+/*
 class BufferedWriter extends io.Writer {
   w io.Writer
   buf [byte]
@@ -95,3 +114,4 @@ class LineWriter extends io.Writer {
     buf.flush();
   }
 }
+*/

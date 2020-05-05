@@ -1,0 +1,22 @@
+//
+// Copyright (c) 2020 James, https://github.com/zhuguangxiang
+// All rights reserved.
+//
+
+import "io"
+
+func read(r io.Reader, items [any]) Result<int, Error> {
+
+}
+
+func readln(r io.Reader, items [any]) Result<int, Error> {
+
+}
+
+func scan(items [any]) Result<int, Error> {
+
+}
+
+func scanln(items [any]) Result<int, Error> {
+
+}
