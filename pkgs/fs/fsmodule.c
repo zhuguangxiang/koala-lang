@@ -65,7 +65,7 @@ static Object *file_result_error(int val)
   return res;
 }
 
-/* func read(buf [byte]) Result<int, Error> */
+/* func read(buf [byte], nbytes int) Result<int, Error> */
 static Object *file_read(Object *self, Object *args)
 {
   if (!file_check(self)) {
@@ -79,17 +79,17 @@ static Object *file_read(Object *self, Object *args)
     return NULL;
   }
 
-  Object *arr = args;
-  if (!array_check(arr)) {
-    error("object of '%.64s' is not an Array", OB_TYPE_NAME(arr));
-    return NULL;
-  }
-
-  char *ptr = array_ptr(arr);
-  int size = array_len(arr);
-  int nbytes = fread(ptr, 1, size, file->fp);
-  debug("max %d bytes read, and really read %d bytes", size, nbytes);
-  return nbytes >= 0 ? file_result_ok(nbytes) : file_result_error(errno);
+  Object *arr = NULL;
+  int64_t nbytes = 0;
+  tuple_decode(args, "Oi", &arr, &nbytes);
+  Slice *buf = array_slice(arr);
+  int start_len = slice_len(buf);
+  slice_reserve(buf, nbytes);
+  void *ptr = slice_ptr(buf, start_len);
+  int nread = fread(ptr, 1, nbytes, file->fp);
+  OB_DECREF(arr);
+  debug("max %d bytes read, and really read %d bytes", nread, nbytes);
+  return nread >= 0 ? file_result_ok(nread) : file_result_error(errno);
 }
 
 /* func write(buf [byte]) Result<int, Error> */
@@ -190,7 +190,7 @@ static Object *file_close(Object *self, Object *args)
 #define RESULT  "Llang.Result(i)(Llang.Error;);"
 
 static MethodDef file_methods[] = {
-  {"read", "[b",  RESULT,  file_read},
+  {"read", "[bi",  RESULT,  file_read},
   {"write", "[b", RESULT, file_write},
   {"write_str", "s", RESULT, file_write_str},
   {"flush", NULL, NULL, file_flush},

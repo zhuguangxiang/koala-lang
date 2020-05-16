@@ -293,3 +293,85 @@ void *tuple_iter_next(struct iterator *iter)
   }
   return iter->item;
 }
+
+int tuple_decode(Object *arg, char *pattern, ...)
+{
+  char ch;
+  char *p = pattern;
+  int index = 0;
+  Object *ob;
+  void *pv;
+  va_list vargs;
+  va_start(vargs, pattern);
+  while ((ch = *p++)) {
+    ob = tuple_get(arg, index);
+    pv = va_arg(vargs, void *);
+    switch (ch) {
+    case 'O': {
+      *(void **)pv = ob;
+      break;
+    }
+    case 'i': {
+      int64_t v = integer_asint(ob);
+      *(int64_t *)pv = v;
+      OB_DECREF(ob);
+      break;
+    }
+    case 'b': {
+      int v = byte_asint(ob);
+      *(int *)pv = v;
+      OB_DECREF(ob);
+    }
+    default:
+      break;
+    }
+    ++index;
+  }
+  va_end(vargs);
+  return 0;
+}
+
+Object *tuple_encode(char *pattern, ...)
+{
+  char *p = pattern;
+  int size = 0;
+  while (*p++) ++size;
+
+  int index = 0;
+  Object *args = tuple_new(size);
+  void *pv;
+  int64_t v;
+  char ch;
+  va_list vargs;
+  va_start(vargs, pattern);
+  p = pattern;
+  while ((ch = *p++)) {
+    switch (ch) {
+    case 'O': {
+      pv = va_arg(vargs, void *);
+      tuple_set(args, index, pv);
+      break;
+    }
+    case 'i': {
+      v = va_arg(vargs, int64_t);
+      pv = integer_new(v);
+      tuple_set(args, index, pv);
+      OB_DECREF(pv);
+      break;
+    }
+    case 'b': {
+      int b = va_arg(vargs, int);
+      pv = byte_new(b);
+      tuple_set(args, index, pv);
+      OB_DECREF(pv);
+      break;
+    }
+    default:
+      break;
+    }
+    ++index;
+  }
+
+  va_end(vargs);
+  return args;
+}

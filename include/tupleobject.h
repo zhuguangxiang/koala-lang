@@ -56,6 +56,20 @@ void *tuple_iter_next(struct iterator *iter);
     ({item = tuple_get(tuple, idx); 1;}); ++idx)
 Object *tuple_match(Object *self, Object *args);
 
+// Decode from arguments
+// patten:
+/*
+  O -> object,
+  i -> int,
+  b -> byte,
+  s -> string,
+  etc.
+ */
+int tuple_decode(Object *arg, char *pattern, ...);
+// Encode from arguments
+Object *tuple_encode(char *pattern, ...);
+
+
 #ifdef __cplusplus
 }
 #endif

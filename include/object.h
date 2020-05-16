@@ -97,26 +97,26 @@ struct object {
 #define OB_TYPE_NAME(_ob_) \
   (OB_TYPE(_ob_)->name)
 
-#define OB_INCREF(_ob_)         \
-({                              \
-  Object *o = (Object *)(_ob_); \
-  if (o != NULL)                \
-    o->ob_refcnt++;             \
-  (_ob_);                       \
+#define OB_INCREF(ob)               \
+({                                  \
+  Object *__ob__ = (Object *)(ob);  \
+  if (__ob__ != NULL)               \
+    __ob__->ob_refcnt++;            \
+  (ob);                             \
 })
 
-#define OB_DECREF(_ob_)                 \
-({                                      \
-  Object *o = (Object *)(_ob_);         \
-  if (o != NULL) {                      \
-    --o->ob_refcnt;                     \
-    expect(o->ob_refcnt >= 0);          \
-    if (!isgc() && o->ob_refcnt == 0) { \
-      OB_TYPE(o)->free(o);              \
-      (_ob_) = NULL;                    \
-    }                                   \
-  }                                     \
-})
+#define OB_DECREF(ob)               \
+do {                                \
+  Object *__ob__ = (Object *)(ob);  \
+  if (__ob__ == NULL) break;        \
+  --__ob__->ob_refcnt;              \
+  expect(__ob__->ob_refcnt >= 0);   \
+  if (!isgc() &&                    \
+      __ob__->ob_refcnt == 0) {     \
+    OB_TYPE(__ob__)->free(__ob__);  \
+    (ob) = NULL;                    \
+  }                                 \
+} while (0)
 
 typedef struct {
   char *name;

@@ -88,6 +88,17 @@ char *str_trim(char *s)
   return str_ntrim(s, strlen(s));
 }
 
+int mem_nrchr(char *s, int len, char ch)
+{
+  int count = len - 1;
+  char *end = s + count;
+  while (end != s) {
+    if (*end == ch) return count;
+    --end; --count;
+  }
+  return -1;
+}
+
 int str_sep(char **str, char ch, char **out)
 {
   if (*str == NULL) return 0;

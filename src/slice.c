@@ -142,11 +142,12 @@ int slice_slice_to_end(Slice *self, Slice *src, int offset)
   return 0;
 }
 
-int slice_copy(Slice *dst, Slice *src)
+int slice_copy(Slice *dst, Slice *src, int count)
 {
-  *dst = *src;
-  SArray *sarr = copy_sarray( __SARR(src));
-  dst->ptr = sarr;
+  if (slice_len(dst) < count) return -1;
+  void *d = slice_ptr(dst, 0);
+  void *s = slice_ptr(src, 0);
+  memcpy(d, s, count * __OBJSIZE(src));
   return 0;
 }
 
@@ -160,7 +161,6 @@ void slice_fini(Slice *self)
 
 int slice_clear(Slice *self)
 {
-  SArray *sarr = __SARR(self);
   void *ptr = __PTR(self, 0);
   int size = __SIZE(self);
   memset(ptr, 0, size);
@@ -170,11 +170,18 @@ int slice_clear(Slice *self)
 
 int slice_extend(Slice *dst, Slice *src)
 {
-  void *pdst = slice_ptr(dst, dst->length);
-  void *psrc = slice_ptr(src, 0);
+  int len = slice_len(dst);
   if (slice_reserve(dst, src->length)) return -1;
+  void *pdst = slice_ptr(dst, len);
+  void *psrc = slice_ptr(src, 0);
   memcpy(pdst, psrc, __SIZE(src));
   return 0;
+}
+
+int slice_capacity(Slice *self)
+{
+  SArray *sarr = __SARR(self);
+  return sarr->capacity;
 }
 
 int slice_push_array(Slice *self, void *arr, int len)

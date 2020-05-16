@@ -343,9 +343,16 @@ moddoc  "//!"[^\n]*
 
 (\'{esc_char}\') {
   char *s = yytext + 2;
-  print("escape:%c\n", *s);
+  printf("escape:%c\n", *s);
   yylval->cval.val = esc_char(*s);
   return YY_RETURN(CHAR_LITERAL);
+}
+
+(b\'{esc_char}\') {
+  char *s = yytext + 3;
+  printf("escape b'%c'\n", *s);
+  yylval->ival = esc_char(*s);
+  YY_RETURN(BYTE_LITERAL);
 }
 
 (\'\\\'\') {

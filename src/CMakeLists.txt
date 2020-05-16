@@ -26,6 +26,8 @@ SET(KOALA_BUILTIN_MODULES
   langmodule.c
   ../pkgs/sys/sysmodule.c
   ../pkgs/io/iomodule.c
+  ../pkgs/io/bufio_reader.c
+  ../pkgs/io/bufio_writer.c
   modules/assertmodule.c
   ../pkgs/fs/fsmodule.c
   ../pkgs/str/strmodule.c)

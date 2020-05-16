@@ -37,8 +37,13 @@ void init_io_types(void);
 void fini_io_types(void);
 void init_io_module(void);
 void fini_io_module(void);
-void IoPrint(Object *ob);
-void IoPrintln(Object *ob);
+
+extern TypeObject bufio_r_type;
+extern TypeObject bufio_w_type;
+extern TypeObject line_w_type;
+#define bufio_r_check(ob)  (OB_TYPE(ob) == &bufio_r_type)
+#define bufio_w_check(ob)  (OB_TYPE(ob) == &bufio_w_type)
+#define line_w_check(ob) (OB_TYPE(ob) == &line_w_type)
 
 #ifdef __cplusplus
 }

@@ -50,17 +50,14 @@ func writeln(w io.Writer, args ...) {
 func printf(fmt string, args ...) {
   w := sys.stdout
   write_fmt(w, fmt, args)
-  w.flush()
 }
 
 func println(args ...) {
   w := sys.stdout
   writeln(sys.stdout, args)
-  w.flush()
 }
 
 func print(args ...) {
   w := sys.stdout
   write(sys.stdout, args)
-  w.flush()
 }

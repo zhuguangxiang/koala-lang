@@ -61,8 +61,8 @@ int slice_slice(Slice *self, Slice *src, int offset, int len);
 /* Get slice's slice from offset to end */
 int slice_slice_to_end(Slice *self, Slice *src, int offset);
 
-/* Copy slice (new memory) */
-int slice_copy(Slice *dst, Slice *src);
+/* Copy slice's only, make sure 'dst' has enough space. */
+int slice_copy(Slice *dst, Slice *src, int count);
 
 /* Destroy a slice */
 void slice_fini(Slice *self);
@@ -81,6 +81,9 @@ int slice_push_array(Slice *self, void *arr, int len);
 
 /* Get the slice length. */
 #define slice_len(self) ((self) != NULL ? (self)->length : 0)
+
+/* Get the slice curent capacity. */
+int slice_capacity(Slice *self);
 
 /* Check the slice is empty or not */
 #define slice_empty(self) (slice_len(self) == 0)

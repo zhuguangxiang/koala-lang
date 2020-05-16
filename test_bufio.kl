@@ -1,0 +1,29 @@
+import "sys"
+bw := new io.BufWriter(sys.stdout)
+bw.write_str("hello\n")
+bw.write("world\n".as_bytes())
+bw.write_str("foobar\n");
+bw.flush()
+
+import "fs"
+file := fs.open("koala_out.txt", "a")
+bw = new io.BufWriter(file)
+bw.write_str("hello\n")
+bw.write("world\n".as_bytes())
+bw.write_str("foobar\n");
+bw.flush()
+file.close()
+bw.write_str("...foobar...\n");
+bw.flush()
+
+file = fs.open("koala_out.txt", "a")
+line := new io.LineWriter(file)
+line.write("hello\nworld".as_bytes())
+line.write("foobar".as_bytes())
+line.write("\r\n".as_bytes())
+line.write_str("hello2\nworld2")
+line.write_str("\r\n")
+line.flush()
+file.close()
+line.write_str("...foobar...\n");
+line.flush()

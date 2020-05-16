@@ -34,7 +34,7 @@ extern "C" {
 
 typedef struct sbldrobject {
   OBJECT_HEAD
-  Slice buf;
+  Object *buf;
 } SBldrObject;
 
 extern TypeObject sbldr_type;

@@ -180,14 +180,14 @@ void sys_println(Object *ob)
   s = string_new(strbuf_tostr(&buf));
   strbuf_fini(&buf);
 
-  // sym_stdout is io.Writer
+  // sys_stdout is io.Writer
   Object *out = __get_stdout(NULL, NULL);
 
   Object *ret = object_call(out, "write_str", s);
   OB_DECREF(s);
   OB_DECREF(ret);
 
-  // release sysm_stdout
+  // release sys_stdout
   OB_DECREF(out);
 }
 

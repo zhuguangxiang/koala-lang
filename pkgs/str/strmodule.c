@@ -57,7 +57,7 @@ static Object *sbldr_write(Object *self, Object *args)
   SBldrObject *sbldr = (SBldrObject *)self;
   char *ptr = array_ptr(args);
   int len = array_len(args);
-  int ret = slice_push_array(&sbldr->buf, ptr, len);
+  int ret = slice_push_array(array_slice(sbldr->buf), ptr, len);
   return ret < 0 ? sbldr_result_error(ret) : sbldr_result_ok(len);
 }
 
@@ -72,7 +72,7 @@ static Object *sbldr_write_str(Object *self, Object *args)
   SBldrObject *sbldr = (SBldrObject *)self;
   char *ptr = string_asstr(args);
   int len = string_len(args);
-  int ret = slice_push_array(&sbldr->buf, ptr, len);
+  int ret = slice_push_array(array_slice(sbldr->buf), ptr, len);
   return ret < 0 ? sbldr_result_error(ret) : sbldr_result_ok(len);
 }
 
@@ -84,33 +84,7 @@ static Object *sbldr_length(Object *self, Object *args)
   }
 
   SBldrObject *sbldr = (SBldrObject *)self;
-  return integer_new(slice_len(&sbldr->buf));
-}
-
-static Object *sbldr_as_str(Object *self, Object *args)
-{
-  if (!sbldr_check(self)) {
-    error("object of '%.64s' is not a str.Builder", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  SBldrObject *sbldr = (SBldrObject *)self;
-  char *ptr = slice_ptr(&sbldr->buf, 0);
-  int len = slice_len(&sbldr->buf);
-  return string_with_len(ptr, len);
-}
-
-static Object *sbldr_as_bytes(Object *self, Object *args)
-{
-  if (!sbldr_check(self)) {
-    error("object of '%.64s' is not a str.Builder", OB_TYPE_NAME(self));
-    return NULL;
-  }
-
-  SBldrObject *sbldr = (SBldrObject *)self;
-  Slice buf;
-  slice_copy(&buf, &sbldr->buf);
-  return byte_array_with_buf(buf);
+  return integer_new(array_len(sbldr->buf));
 }
 
 static Object *sbldr_as_slice(Object *self, Object *args)
@@ -122,7 +96,7 @@ static Object *sbldr_as_slice(Object *self, Object *args)
 
   SBldrObject *sbldr = (SBldrObject *)self;
   Slice buf;
-  slice_slice_to_end(&buf, &sbldr->buf, 0);
+  slice_slice_to_end(&buf, array_slice(sbldr->buf), 0);
   return byte_array_with_buf(buf);
 }
 
@@ -139,14 +113,14 @@ static Object *sbldr_alloc(TypeObject *type)
 {
   SBldrObject *sbldr = kmalloc(sizeof(*sbldr));
   init_object_head(sbldr, &sbldr_type);
-  slice_init(&sbldr->buf, 1);
+  sbldr->buf = byte_array_new();
   return (Object *)sbldr;
 }
 
 static void sbldr_free(Object *self)
 {
   SBldrObject *sbldr = (SBldrObject *)self;
-  slice_fini(&sbldr->buf);
+  OB_DECREF(sbldr->buf);
   kfree(sbldr);
 }
 
@@ -158,10 +132,21 @@ static Object *sbldr_str(Object *self, Object *args)
   }
 
   SBldrObject *sbldr = (SBldrObject *)self;
-  char *ptr = slice_ptr(&sbldr->buf, 0);
-  int len = slice_len(&sbldr->buf);
-  len = (len > 32) ? 32 : len;
+  char *ptr = array_ptr(sbldr->buf);
+  int len = array_len(sbldr->buf);
   return string_with_len(ptr, len);
+}
+
+static Object *sbldr_clear(Object *self, Object *args)
+{
+  if (!sbldr_check(self)) {
+    error("object of '%.64s' is not a str.Builder", OB_TYPE_NAME(self));
+    return NULL;
+  }
+
+  SBldrObject *sbldr = (SBldrObject *)self;
+  slice_clear(array_slice(sbldr->buf));
+  return NULL;
 }
 
 #define RESULT  "Llang.Result(i)(Llang.Error;);"
@@ -170,10 +155,10 @@ static MethodDef sbldr_methods[] = {
   {"write",     "[b", RESULT, sbldr_write     },
   {"write_str", "s",  RESULT, sbldr_write_str },
   {"len",       NULL, "i",  sbldr_length  },
-  {"as_str",    NULL, "s",  sbldr_as_str  },
-  {"as_bytes",  NULL, "[b", sbldr_as_bytes},
+  {"as_str",    NULL, "s",  sbldr_str  },
   {"as_slice",  NULL, "[b", sbldr_as_slice},
   {"flush",     NULL, NULL, sbldr_flush},
+  {"clear",     NULL, NULL, sbldr_clear},
   {NULL}
 };
 
@@ -203,7 +188,7 @@ Slice *sbldr_slice(Object *self)
   }
 
   SBldrObject *sbldr = (SBldrObject *)self;
-  return &sbldr->buf;
+  return array_slice(sbldr->buf);
 }
 
 int sbldr_len(Object *self)
@@ -214,7 +199,7 @@ int sbldr_len(Object *self)
   }
 
   SBldrObject *sbldr = (SBldrObject *)self;
-  return slice_len(&sbldr->buf);
+  return array_len(sbldr->buf);
 }
 
 char *sbldr_ptr(Object *self)
@@ -225,7 +210,7 @@ char *sbldr_ptr(Object *self)
   }
 
   SBldrObject *sbldr = (SBldrObject *)self;
-  return slice_ptr(&sbldr->buf, 0);
+  return array_ptr(sbldr->buf);
 }
 
 void init_str_module(void)

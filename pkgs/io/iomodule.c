@@ -37,60 +37,27 @@ static Object *io_result_error(int val)
 }
 
 /*
-  func read(buf [byte]) Result<int, Error>;
+  func read(buf [byte], nbytes int) Result<int, Error>;
 
   func read_to_end(buf [byte]) Result<int, Error> {
-    start_len := buf.len()
-    len := buf.len()
-    var ret Result<int, Error>
-    while {
-      if len == buf.len() {
-        buf.reserve(32)
-      }
-      match read(buf[len :]) {
-        Ok(0) => {
-          ret = Ok(buf.len() - start_len)
-          break
-        }
-        Ok(n) => {
-          len += n
-        }
-        Err(e) => {
-          ret = Err(e)
-          break
-        }
-      }
-    }
-    ret
+    ...
   }
 
   func read_to_str(sb str.Buffer) Result<int, Error> {
-    buf := sb.as_shared_bytes()
-    read_to_end(buf)
-    sb.check_utf8(buf)
-    Ok(sb.len())
+    ...
   }
  */
 
 static Object *read_to_end(Object *self, Object *args)
 {
-  Slice *buf = array_slice(args);
-  int start_len = slice_len(buf);
-  int len = slice_len(buf);
-
-  Object *bytes = byte_array_no_buf();
-  Slice *slice = array_slice(bytes);
-  Object *res, *val;
+  int len = 0;
   int n;
+  Object *res;
+  Object *val;
+  Object *read_args = tuple_encode("Oi", args, 32);
 
   while (1) {
-    if (len == slice_len(buf))
-      slice_reserve(buf, 32);
-
-    slice_slice_to_end(slice, buf, len);
-    res = object_call(self, "read", bytes);
-    slice_fini(slice);
-
+    res = object_call(self, "read", read_args);
     if (!result_test(res))
       break;
 
@@ -99,7 +66,7 @@ static Object *read_to_end(Object *self, Object *args)
     n = integer_asint(val);
     OB_DECREF(val);
     if (n <= 0) {
-      val = integer_new(len - start_len);
+      val = integer_new(len);
       res = result_ok(val);
       OB_DECREF(val);
       break;
@@ -108,7 +75,7 @@ static Object *read_to_end(Object *self, Object *args)
     }
   }
 
-  OB_DECREF(bytes);
+  OB_DECREF(read_args);
   return res;
 }
 
@@ -121,7 +88,7 @@ static Object *read_to_str(Object *self, Object *args)
   slice_slice_to_end(slice, buf, 0);
   Object *res = read_to_end(self, bytes);
 
-  // restore to string builder
+  // sava to str.builder
   slice_fini(buf);
   slice_slice_to_end(buf, slice, 0);
   OB_DECREF(bytes);
@@ -140,7 +107,7 @@ static Object *read_to_str(Object *self, Object *args)
 }
 
 static MethodDef reader_methods[]= {
-  {"read", "[b", RESULT, NULL, 1},
+  {"read", "[bi", RESULT, NULL, 1},
   {"read_to_end", "[b", RESULT, read_to_end},
   {"read_to_str", "Lstr.Builder;", RESULT, read_to_str},
   {NULL}
@@ -188,6 +155,31 @@ TypeObject io_writer_type = {
   .methods = writer_methods,
 };
 
+static void init_bufio(void)
+{
+  bufio_r_type.desc = desc_from_klass("io", "BufReader");
+  type_add_base(&bufio_r_type, &io_reader_type);
+  if (type_ready(&bufio_r_type) < 0)
+    panic("Cannot initalize 'BufWriter' type.");
+
+  bufio_w_type.desc = desc_from_klass("io", "BufWriter");
+  type_add_base(&bufio_w_type, &io_writer_type);
+  if (type_ready(&bufio_w_type) < 0)
+    panic("Cannot initalize 'BufWriter' type.");
+
+  line_w_type.desc = desc_from_klass("io", "LineWriter");
+  type_add_base(&line_w_type, &io_writer_type);
+  if (type_ready(&line_w_type) < 0)
+    panic("Cannot initalize 'LineWriter' type.");
+}
+
+static void fini_bufio(void)
+{
+  type_fini(&bufio_r_type);
+  type_fini(&bufio_w_type);
+  type_fini(&line_w_type);
+}
+
 void init_io_types(void)
 {
   io_writer_type.desc = desc_from_klass("io", "Writer");
@@ -197,12 +189,15 @@ void init_io_types(void)
   io_reader_type.desc = desc_from_klass("io", "Reader");
   if (type_ready(&io_reader_type) < 0)
     panic("Cannot initalize 'Reader' type.");
+
+  init_bufio();
 }
 
 void fini_io_types(void)
 {
   type_fini(&io_writer_type);
   type_fini(&io_reader_type);
+  fini_bufio();
 }
 
 void init_io_module(void)
@@ -210,6 +205,9 @@ void init_io_module(void)
   Object *m = module_new("io");
   module_add_type(m, &io_writer_type);
   module_add_type(m, &io_reader_type);
+  module_add_type(m, &bufio_r_type);
+  module_add_type(m, &bufio_w_type);
+  module_add_type(m, &line_w_type);
   module_install("io", m);
   OB_DECREF(m);
 }

@@ -647,7 +647,7 @@ Object *object_call(Object *self, char *name, Object *args)
   }
   Object *ob = object_lookup(self, name, NULL);
   if (ob == NULL) {
-    error("[Exception] null pointer");
+    error("[Exception] cannot find '%s'", name);
     return NULL;
   }
   Object *res = method_call(ob, self, args);
