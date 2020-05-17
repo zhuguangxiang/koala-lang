@@ -129,6 +129,8 @@ static void parse_escape(char *buf, char *esc, int len)
   }
 }
 
+int type_args = 0;
+
 #define yyps ((YY_EXTRA_TYPE)yyextra)
 #define ps ((YY_EXTRA_TYPE)yyextra)
 
@@ -217,11 +219,16 @@ moddoc  "//!"[^\n]*
 /* lex scan rules */
 %%
 
-[\+\-\*\/\%\|\=\&\>\<\,\;\^\~\:\?\.\{\}\[\]\(\)\_] {
+[\+\-\*\/\%\|\=\&\>\,\;\^\~\:\?\.\{\}\[\]\(\)\_] {
   /* single character */
   YY_RETURN(yytext[0]);
 }
 
+"<"         {
+              if (type_args) { YY_RETURN(L_ANGLE_ARGS); }
+              else { YY_RETURN('<'); }
+              type_args = 0;
+            }
 "=="        { YY_RETURN(OP_EQ);         }
 "!="        { YY_RETURN(OP_NE);         }
 ">="        { YY_RETURN(OP_GE);         }
@@ -424,7 +431,9 @@ moddoc  "//!"[^\n]*
 }
 
 {identifier} {
-  yylval->sval = atom_nstring(yytext, yyleng);
+  char *name = atom_nstring(yytext, yyleng);
+  yylval->sval = name;
+  type_args = symbol_need_type_args(yyps, name);
   YY_RETURN(ID);
 }
 

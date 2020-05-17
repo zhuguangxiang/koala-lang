@@ -122,6 +122,16 @@ Symbol *find_from_builtins(char *name)
   return stable_get(_lang_.stbl, name);
 }
 
+int symbol_need_type_args(ParserState *ps, char *name)
+{
+  Module *m = ps->module;
+  Symbol *sym = stable_get(m->stbl, name);
+  if (sym == NULL) {
+    sym = find_from_builtins(name);
+  }
+  return symbol_has_typepara(sym);
+}
+
 static void stable_from_native(Module *m, Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;

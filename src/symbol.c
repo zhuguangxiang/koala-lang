@@ -744,3 +744,20 @@ void stable_write_image(STable *stbl, Image *image)
     }
   }
 }
+
+int symbol_has_typepara(Symbol *sym)
+{
+  if (sym == NULL) return 0;
+
+  if (sym->kind == SYM_CLASS ||
+      sym->kind == SYM_TRAIT ||
+      sym->kind == SYM_ENUM) {
+    return vector_size(sym->type.typesyms) > 0 ? 1 : 0;
+  }
+
+  if (sym->kind == SYM_FUNC) {
+    return vector_size(sym->func.typesyms) > 0 ? 1 : 0;
+  }
+
+  return 0;
+}

@@ -196,6 +196,7 @@ void typepara_add_bound(Symbol *sym, Symbol *bnd);
 void sym_add_typepara(Symbol *sym, Symbol *tp);
 Symbol *new_typepara_symbol(char *name, int idx);
 Symbol *new_typeref_symbol(TypeDesc *desc, Symbol *sym);
+int symbol_has_typepara(Symbol *sym);
 
 #ifdef __cplusplus
 }

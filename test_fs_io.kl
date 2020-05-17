@@ -1,0 +1,29 @@
+import "fs"
+file := fs.open("cmake_install.cmake", "r")
+bytes := new Array<byte>()
+file.read(bytes, 32)
+file.read(bytes, 10)
+
+bytes.reserve(64)
+br := new io.BufReader(file)
+sb := new str.Builder();
+br.read_to_str(sb)
+
+br.read_until(bytes, b'\n')
+
+br.read(bytes, 32)
+
+import "fs"
+file := fs.open("cmake_install.cmake", "r")
+br := new io.BufReader(file)
+import "fmt"
+bldr := new str.Builder()
+
+while {
+  ret := br.read_line(bldr)
+  if (Ok(0) ~= ret) {
+    break
+  }
+  fmt.println(bldr.as_str())
+  bldr.clear()
+}

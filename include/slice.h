@@ -52,7 +52,7 @@ int slice_reserve(Slice *self, int length);
 /* Initialize a slice with element size, by default capacity. */
 static inline int slice_init(Slice *self, int objsize)
 {
-  slice_init_capacity(self, objsize, 0);
+  return slice_init_capacity(self, objsize, 0);
 }
 
 /* Get slice's slice */

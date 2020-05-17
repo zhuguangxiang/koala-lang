@@ -1,0 +1,7 @@
+clang
+-I/home/james/github.com/koala-lang/include
+-DNDEBUG
+-DNLog
+-std=gnu11
+-Dkoala_so_EXPORTS
+-Wl,-soname,libkoala.so.0

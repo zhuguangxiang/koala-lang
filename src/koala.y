@@ -167,6 +167,8 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token <sval> STRING_LITERAL
 %token <sval> ID
 
+%token L_ANGLE_ARGS
+
 %type <stmt> import_stmt
 %type <stmt> native_stmt
 %type <aliaslist> id_as_list
@@ -1150,9 +1152,9 @@ dot_expr:
   $$ = expr_from_dottuple($3, $1);
   set_expr_pos($$, @3);
 }
-| primary_expr '.' '<' type_list '>'
+| primary_expr L_ANGLE_ARGS type_list '>'
 {
-  $$ = expr_from_typeargs($4, $1);
+  $$ = expr_from_typeargs($3, $1);
   set_expr_pos($$, @3);
 }
 ;
