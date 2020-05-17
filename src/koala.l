@@ -221,14 +221,18 @@ moddoc  "//!"[^\n]*
 
 [\+\-\*\/\%\|\=\&\>\,\;\^\~\:\?\.\{\}\[\]\(\)\_] {
   /* single character */
+  printf("char:%s\n", yytext);
   YY_RETURN(yytext[0]);
 }
 
 "<"         {
+              printf("L_ANGLE_ARGS\n");
               if (type_args) { YY_RETURN(L_ANGLE_ARGS); }
               else { YY_RETURN('<'); }
               type_args = 0;
             }
+"<<"        { printf("<<\n"); YY_RETURN(L_SHIFT);        }
+">"/">"     { printf(">>:%s\n", yytext); YY_RETURN(R_ANGLE_SHIFT);}
 "=="        { YY_RETURN(OP_EQ);         }
 "!="        { YY_RETURN(OP_NE);         }
 ">="        { YY_RETURN(OP_GE);         }
@@ -250,6 +254,8 @@ moddoc  "//!"[^\n]*
 "&="        { YY_RETURN(AND_ASSIGN);    }
 "|="        { YY_RETURN(OR_ASSIGN);     }
 "^="        { YY_RETURN(XOR_ASSIGN);    }
+"<<="       { YY_RETURN(PLUS_ASSIGN);    }
+">>="       { YY_RETURN(PLUS_ASSIGN);    }
 "..."       { YY_RETURN(DOTDOTDOT);     }
 "..<"       { YY_RETURN(DOTDOTLESS);    }
 "=>"        { YY_RETURN(FAT_ARROW);     }

@@ -148,7 +148,7 @@ int comp_add_var(ParserState *ps, Ident id)
   }
 }
 
-int comp_add_func(ParserState *ps, Ident id)
+int comp_add_func(ParserState *ps, Ident id, Vector *typeparas)
 {
   Module *mod = ps->module;
   Symbol *sym = stable_add_func(mod->stbl, id.name, NULL);
@@ -156,6 +156,7 @@ int comp_add_func(ParserState *ps, Ident id)
     serror(id.row, id.col, "'%s' is redeclared", id.name);
     return -1;
   }
+  sym->func.typesyms = typeparas;
   return 0;
 }
 

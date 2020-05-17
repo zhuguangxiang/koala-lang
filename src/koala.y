@@ -56,7 +56,7 @@ int cmd_add_type(ParserState *ps, Stmt *stmt);
 void comp_add_stmt(ParserState *ps, Stmt *s);
 int comp_add_const(ParserState *ps, Ident id);
 int comp_add_var(ParserState *ps, Ident id);
-int comp_add_func(ParserState *ps, Ident id);
+int comp_add_func(ParserState *ps, Ident id, Vector *typeparas);
 int comp_add_type(ParserState *ps, Stmt *stmt);
 
 %}
@@ -168,6 +168,8 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token <sval> ID
 
 %token L_ANGLE_ARGS
+%token L_SHIFT
+%token R_ANGLE_SHIFT
 
 %type <stmt> import_stmt
 %type <stmt> native_stmt
@@ -233,6 +235,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <expr> unary_expr
 %type <expr> multi_expr
 %type <expr> add_expr
+%type <expr> shift_expr
 %type <expr> relation_expr
 %type <expr> equality_expr
 %type <expr> and_expr
@@ -448,7 +451,8 @@ unit:
       stmt_free($1);
     }
   } else {
-    if ($1 != NULL && !comp_add_func(ps, $1->funcdecl.id)) {
+    if ($1 != NULL &&
+        !comp_add_func(ps, $1->funcdecl.id, $1->funcdecl.typeparas)) {
       comp_add_stmt(ps, $1);
     }
   }
@@ -985,37 +989,54 @@ equality_expr:
 ;
 
 relation_expr:
-  add_expr
+  shift_expr
 {
   $$ = $1;
 }
-| relation_expr '<' add_expr
+| relation_expr '<' shift_expr
 {
   $$ = expr_from_binary(BINARY_LT, $1, $3);
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
 }
-| relation_expr '>' add_expr
+| relation_expr '>' shift_expr
 {
   $$ = expr_from_binary(BINARY_GT, $1, $3);
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
 }
-| relation_expr OP_LE add_expr
+| relation_expr OP_LE shift_expr
 {
   $$ = expr_from_binary(BINARY_LE, $1, $3);
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
 }
-| relation_expr OP_GE add_expr
+| relation_expr OP_GE shift_expr
 {
   $$ = expr_from_binary(BINARY_GE, $1, $3);
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
+}
+;
+
+shift_expr:
+  add_expr
+{
+  $$ = $1;
+}
+| shift_expr R_ANGLE_SHIFT '>' add_expr
+{
+  printf("rshift_expr\n");
+  $$ = $4;
+}
+| shift_expr L_SHIFT add_expr
+{
+  printf("lshift_expr\n");
+  $$ = $3;
 }
 ;
 
@@ -1152,8 +1173,9 @@ dot_expr:
   $$ = expr_from_dottuple($3, $1);
   set_expr_pos($$, @3);
 }
-| primary_expr L_ANGLE_ARGS type_list '>'
+| primary_expr L_ANGLE_ARGS type_list r_angle
 {
+  printf("dot_r_angle_expr\n");
   $$ = expr_from_typeargs($3, $1);
   set_expr_pos($$, @3);
 }
@@ -2073,15 +2095,23 @@ klass_type:
 {
   $$ = desc_from_klass($1, $3);
 }
-| ID '<' type_list '>'
+| ID '<' type_list r_angle
 {
   $$ = desc_from_klass(NULL, $1);
   $$->klass.typeargs = $3;
 }
-| ID '.' ID '<' type_list '>'
+| ID '.' ID '<' type_list r_angle
 {
   $$ = desc_from_klass($1, $3);
   $$->klass.typeargs = $5;
+}
+;
+
+r_angle:
+  '>'
+| R_ANGLE_SHIFT
+{
+  printf("R_ANGLE_SHIFT\n");
 }
 ;
 

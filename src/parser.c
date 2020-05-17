@@ -5901,6 +5901,10 @@ void parse_bound(ParserState *ps, Symbol *sym, Vector *bounds)
 void parse_typepara_decl(ParserState *ps, Vector *typeparas)
 {
   ParserUnit *u = ps->u;
+
+  // generic func/class will add type para in lex stage.
+  u->sym->type.typesyms = NULL;
+
   char *name;
   Symbol *sym;
   TypeParaDef *item;
