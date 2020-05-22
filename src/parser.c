@@ -2215,6 +2215,8 @@ static int check_inherit(TypeDesc *desc, Symbol *sym, TypeDesc *symdesc);
 
 static void parse_binary(ParserState *ps, Expr *exp)
 {
+  if (has_error(ps)) return;
+
   static char *funcnames[] = {
     NULL,         // INVALID
     "__add__",    // BINARY_ADD

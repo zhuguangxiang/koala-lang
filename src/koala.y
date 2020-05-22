@@ -99,6 +99,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token CLASS
 %token TRAIT
 %token ENUM
+%token TYPEALIAS
 %token IF
 %token ELSE
 %token WHILE
@@ -123,7 +124,6 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token BOOL
 %token ANY
 
-%token NEW
 %token SELF
 %token SUPER
 %token TRUE
@@ -471,6 +471,12 @@ unit:
     if ($1 != NULL && !comp_add_type(ps, $1)) {
       comp_add_stmt(ps, $1);
     }
+  }
+}
+| type_alias_decl
+{
+  if (ps->interactive) {
+    ps->more = 0;
   }
 }
 | ';'
@@ -1008,6 +1014,16 @@ relation_expr:
   set_expr_pos($$, @1);
   $$->binary.oprow = row(@2);
   $$->binary.opcol = col(@2);
+}
+| relation_expr '<' error
+{
+  serror(ps->row, col(@1), "not a generic expr.");
+  $$ = expr_from_binary(BINARY_LT, $1, NULL);
+  set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
+  yyclearin;
+  yyerrok;
 }
 | relation_expr '>' shift_expr
 {
@@ -1558,7 +1574,7 @@ name:
   IdParaDef idpara = {id, NULL};
   $$ = idpara;
 }
-| ID '<' type_para_list '>'
+| ID l_angle type_para_list '>'
 {
   IDENT(id, $1, @1);
   IdParaDef idpara = {id, $3};
@@ -1767,6 +1783,10 @@ member_decl:
 {
   $$ = $1;
 }
+| proto_decl
+{
+  $$ = $1;
+}
 | ';'
 {
   $$ = NULL;
@@ -1962,6 +1982,12 @@ enum_methods:
 }
 ;
 
+type_alias_decl:
+  TYPEALIAS name type ';'
+{
+}
+;
+
 type_list:
   type
 {
@@ -2053,24 +2079,26 @@ klass_type:
 {
   $$ = desc_from_klass($1, $3);
 }
-| ID '<' type_list r_angle
+| ID l_angle type_list r_angle
 {
   $$ = desc_from_klass(NULL, $1);
   $$->klass.typeargs = $3;
 }
-| ID '.' ID '<' type_list r_angle
+| ID '.' ID l_angle type_list r_angle
 {
   $$ = desc_from_klass($1, $3);
   $$->klass.typeargs = $5;
 }
 ;
 
+l_angle:
+  '<'
+| L_ANGLE_ARGS
+;
+
 r_angle:
   '>'
 | R_ANGLE_SHIFT
-{
-  printf("R_ANGLE_SHIFT\n");
-}
 ;
 
 func_type:

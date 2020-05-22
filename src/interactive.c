@@ -42,7 +42,6 @@
 #include "image.h"
 #include "enumobject.h"
 #include "readline.h"
-#include "textblock.h"
 
 #define PROMPT      "> "
 #define MORE_PROMPT "  "
@@ -629,37 +628,18 @@ int interactive(ParserState *ps, char *buf, int size)
   }
 
   /* add history of readline */
-  //add_history(line);
+  add_history(line);
 
-  int res = textblock_input(line, buf);
-  if (res) {
-    free(line);
-    int state = textblock_state();
-    if (state == TB_CONT) {
-      ps->more++;
-    }
+  strcpy(buf, line);
+  free(line);
+  int len = strlen(buf);
 
-    int len = strlen(buf);
-    if (len == 0) {
-      lexwrap = 0;
-      return 0;
-    }
+  // flex bug? leave last one char in buffer
+  buf[len++] = 0;
 
-    // flex bug? leave last one char in buffer
-    buf[len++] = '\r';
-    return len;
-  } else {
-    strcpy(buf, line);
-    free(line);
-    int len = strlen(buf);
-
-    // flex bug? leave last one char in buffer
-    buf[len++] = '\r';
-
-    if (!empty(buf, len)) {
-      ps->more++;
-    }
-
-    return len;
+  if (!empty(buf, len)) {
+    ps->more++;
   }
+
+  return len;
 }

@@ -39,7 +39,32 @@
 
 #define LINE_MAX_LINE 1024
 #define LINE_DEFAULT_COLUMNS  80
+#define HISTORY_MAX 5
 
+static char histories[HISTORY_MAX][LINE_MAX_LINE];
+static int save_pos;
+static int cur_pos;
+
+void add_history(char *line)
+{
+  if (line == NULL) return;
+  int len = strlen(line);
+  if (len <= 0) return;
+  if (line[len - 1] == '\n') --len;
+  int pos = save_pos;
+  --pos;
+  if (pos < 0) pos = HISTORY_MAX - 1;
+  char *saved = histories[pos];
+  if (!strncmp(saved, line, len)) {
+    cur_pos = save_pos;
+    return;
+  }
+  strncpy(histories[save_pos], line, len);
+  histories[save_pos][len] = '\0';
+  ++save_pos;
+  if (save_pos >= HISTORY_MAX) save_pos = 0;
+  cur_pos = save_pos;
+}
 
 enum KEY_ACTION {
   KEY_NULL = 0,	      /* NULL */
@@ -108,6 +133,18 @@ static void refresh_cursor(struct linestate *ls)
   char buf[16];
   // move cursor to ->pos+plen
   int len = sprintf(buf, "\r\x1b[%ldC", ls->pos + ls->plen);
+  if (write(ls->out, buf, len) < 0) return;
+}
+
+static void clear_line(struct linestate *ls)
+{
+  ls->len = 0;
+  ls->pos = 0;
+  char buf[16];
+  // move cursor to ->pos+plen
+  int len = sprintf(buf, "\r\x1b[%ldC", ls->plen);
+  // erase to right
+  len += sprintf(buf + len, "\x1b[0K");
   if (write(ls->out, buf, len) < 0) return;
 }
 
@@ -188,6 +225,31 @@ static void do_backspace(struct linestate *ls)
   }
 }
 
+static inline void move_up(struct linestate *ls)
+{
+  int pos = cur_pos;
+  --pos;
+  if (pos < 0) pos = HISTORY_MAX - 1;
+  if (pos == save_pos) return;
+  char *line = histories[pos];
+  int len = strlen(line);
+  if (len <= 0) return;
+  cur_pos = pos;
+  clear_line(ls);
+  line_insert(ls, line, len);
+}
+
+static inline void move_down(struct linestate *ls)
+{
+  if (cur_pos == save_pos) return;
+  ++cur_pos;
+  if (cur_pos >= HISTORY_MAX) cur_pos = 0;
+  char *line = histories[cur_pos];
+  int len = strlen(line);
+  clear_line(ls);
+  line_insert(ls, line, len);
+}
+
 static inline void move_left(struct linestate *ls)
 {
   if (ls->pos > 0) {
@@ -213,8 +275,10 @@ static void do_esc(struct linestate *ls)
     // ESC [ sequences
     switch (seq[1]) {
     case 'A': //up
+      move_up(ls);
       break;
     case 'B': //down
+      move_down(ls);
       break;
     case 'C': //right
       move_right(ls);

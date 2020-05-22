@@ -28,7 +28,6 @@
 #include <stdio.h>
 #include "parser.h"
 #include "utf8.h"
-#include "textblock.h"
 #include "koala_yacc.h"
 
 static int esc_char(char esc)
@@ -127,6 +126,7 @@ static void parse_escape(char *buf, char *esc, int len)
       buf[j++] = ch;
     }
   }
+  buf[j] = 0;
 }
 
 int type_args = 0;
@@ -163,6 +163,9 @@ int type_args = 0;
     YY_RETURN(';');           \
   }
 
+char string_buf[4096];
+int string_index = 0;
+
 %}
 
 %option bison-bridge
@@ -172,7 +175,7 @@ int type_args = 0;
 %option noinput
 %option never-interactive
 
-%x STRING MSTRING
+%x STRING TEXT
 
 digit [0-9]
 hex   [a-fA-F0-9]
@@ -223,17 +226,16 @@ moddoc  "//!"[^\n]*
 
 [\+\-\*\/\%\|\=\&\>\,\;\^\~\:\?\.\{\}\[\]\(\)\_] {
   /* single character */
-  printf("char:%s\n", yytext);
   YY_RETURN(yytext[0]);
 }
 
 "<"         {
-              if (type_args) { printf("L_ANGLE_ARGS\n"); YY_RETURN(L_ANGLE_ARGS); }
-              else { printf("<\n"); YY_RETURN('<'); }
+              if (type_args) { YY_RETURN(L_ANGLE_ARGS); }
+              else { YY_RETURN('<'); }
               type_args = 0;
             }
-"<<"        { printf("<<\n"); YY_RETURN(L_SHIFT);        }
-">"/">"     { printf(">>:%s\n", yytext); YY_RETURN(R_ANGLE_SHIFT);}
+"<<"        { YY_RETURN(L_SHIFT);       }
+">"/">"     { YY_RETURN(R_ANGLE_SHIFT); }
 "=="        { YY_RETURN(OP_EQ);         }
 "!="        { YY_RETURN(OP_NE);         }
 ">="        { YY_RETURN(OP_GE);         }
@@ -269,6 +271,7 @@ moddoc  "//!"[^\n]*
 "class"     { YY_RETURN(CLASS);         }
 "trait"     { YY_RETURN(TRAIT);         }
 "enum"      { YY_RETURN(ENUM);          }
+"type"      { YY_RETURN(TYPEALIAS);     }
 "if"        { YY_RETURN(IF);            }
 "else"      { YY_RETURN(ELSE);          }
 "while"     { YY_RETURN(WHILE);         }
@@ -293,7 +296,6 @@ moddoc  "//!"[^\n]*
 "bool"      { YY_RETURN(BOOL);          }
 "any"       { YY_RETURN(ANY);           }
 
-"new"       { YY_RETURN(NEW);           }
 "self"      { YY_RETURN(SELF);          }
 "super"     { YY_RETURN(SUPER);         }
 "true"      { YY_RETURN(TRUE);          }
@@ -409,12 +411,83 @@ moddoc  "//!"[^\n]*
   }
 }
 
-\"              { BEGIN(STRING); }
-<STRING>\"      { BEGIN(INITIAL); yylval->sval = "hello"; YY_RETURN(STRING_LITERAL); }
-<STRING>\\\"    { printf("\\\"\n"); }
-<STRING>\\\\    { printf("\\\\\n"); }
-<STRING>.       { printf("%s\n", yytext); }
+\"              {
+                  BEGIN(STRING);
+                  string_index = 0;
+                }
+<STRING>\"      {
+                  BEGIN(INITIAL);
+                  char buf[4096];
+                  parse_escape(buf, string_buf, string_index);
+                  string_index = 0;
+                  if (check_utf8_valid(buf) < 0) {
+                    if (yyps->interactive) {
+                      yyps->more = 0;
+                    }
+                    serror(ps->row, ps->col, "invalid utf8 string");
+                    YY_RETURN(';');
+                  } else {
+                    yylval->sval = atom(buf);
+                    YY_RETURN(STRING_LITERAL);
+                  }
+                }
+<STRING>\\\"    {
+                  string_buf[string_index++] = '\\';
+                  string_buf[string_index++] = '\"';
+                }
+<STRING>\\\\    {
+                  string_buf[string_index++] = '\\';
+                  string_buf[string_index++] = '\\';
+                }
+<STRING>\n      {
+                  string_buf[string_index++] = yytext[0];
+                }
+<STRING>\r      {
+                  string_buf[string_index++] = yytext[0];
+                }
+<STRING>\0      ;
+<STRING>.       {
+                  string_buf[string_index++] = yytext[0];
+                }
 
+\"\"\"          {
+                  BEGIN(TEXT);
+                  string_index = 0;
+                }
+<TEXT>\"\"\"    {
+                  BEGIN(INITIAL);
+                  char buf[4096];
+                  parse_escape(buf, string_buf, string_index);
+                  string_index = 0;
+                  if (check_utf8_valid(buf) < 0) {
+                    if (yyps->interactive) {
+                      yyps->more = 0;
+                    }
+                    serror(ps->row, ps->col, "invalid utf8 string");
+                    YY_RETURN(';');
+                  } else {
+                    yylval->sval = atom(buf);
+                    YY_RETURN(STRING_LITERAL);
+                  }
+                }
+<TEXT>\\\"      {
+                  string_buf[string_index++] = '\\';
+                  string_buf[string_index++] = '\"';
+                }
+<TEXT>\\\\      {
+                  string_buf[string_index++] = '\\';
+                  string_buf[string_index++] = '\\';
+                }
+<TEXT>\n        {
+                  string_buf[string_index++] = yytext[0];
+                }
+<TEXT>\r        {
+                  string_buf[string_index++] = yytext[0];
+                }
+<TEXT>\0        ;
+<TEXT>.         {
+                  string_buf[string_index++] = yytext[0];
+                }
 
 {identifier} {
   char *name = atom_nstring(yytext, yyleng);
@@ -451,6 +524,7 @@ moddoc  "//!"[^\n]*
 
 [\n] {
   /* new line */
+  yyps->more = 0;
   YY_NEWLINE
 }
 
@@ -462,7 +536,10 @@ moddoc  "//!"[^\n]*
   /* blank character */
 }
 
+[\0]+ ;
+
 . {
+  printf("%s\n", yytext);
   yylval->sval = yytext;
   return INVALID;
 }
