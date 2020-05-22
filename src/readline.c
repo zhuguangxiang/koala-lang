@@ -37,9 +37,9 @@
 #include <signal.h>
 #include "readline.h"
 
-#define LINE_MAX_LINE 1024
+#define LINE_MAX_LINE 256
 #define LINE_DEFAULT_COLUMNS  80
-#define HISTORY_MAX 5
+#define HISTORY_MAX 1000
 
 static char histories[HISTORY_MAX][LINE_MAX_LINE];
 static int save_pos;
@@ -64,6 +64,7 @@ void add_history(char *line)
   ++save_pos;
   if (save_pos >= HISTORY_MAX) save_pos = 0;
   cur_pos = save_pos;
+  histories[save_pos][0] = '\0';
 }
 
 enum KEY_ACTION {
