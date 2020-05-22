@@ -521,6 +521,8 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_BIT_OR:
   case OP_BIT_XOR:
   case OP_BIT_NOT:
+  case OP_BIT_LSHIFT:
+  case OP_BIT_RSHIFT:
   case OP_INPLACE_ADD:
   case OP_INPLACE_SUB:
   case OP_INPLACE_MUL:
@@ -530,6 +532,8 @@ static void inst_gen(Inst *i, Image *image, ByteBuffer *buf)
   case OP_INPLACE_AND:
   case OP_INPLACE_OR:
   case OP_INPLACE_XOR:
+  case OP_INPLACE_LSHIFT:
+  case OP_INPLACE_RSHIFT:
   case OP_SUBSCR_LOAD:
   case OP_SUBSCR_STORE:
   case OP_NEW_ITER:
@@ -1555,9 +1559,10 @@ static void parse_inplace_mapping(ParserState *ps, AssignOpKind op)
     OP_INPLACE_ADD, OP_INPLACE_SUB, OP_INPLACE_MUL,
     OP_INPLACE_DIV, OP_INPLACE_MOD, OP_INPLACE_POW,
     OP_INPLACE_AND, OP_INPLACE_OR, OP_INPLACE_XOR,
+    OP_INPLACE_LSHIFT, OP_INPLACE_RSHIFT,
   };
 
-  expect(op >= OP_PLUS_ASSIGN && op <= OP_XOR_ASSIGN);
+  expect(op >= OP_PLUS_ASSIGN && op <= OP_RSHIFT_ASSIGN);
   CODE_OP(opmapings[op]);
 }
 
@@ -2301,6 +2306,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
       0,
       OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD, OP_POW,
       OP_BIT_AND, OP_BIT_XOR, OP_BIT_OR,
+      OP_BIT_LSHIFT, OP_BIT_RSHIFT,
       OP_GT, OP_GE, OP_LT, OP_LE, OP_EQ, OP_NEQ,
       OP_AND, OP_OR,
     };
@@ -4008,6 +4014,7 @@ static void parse_as(ParserState *ps, Expr *exp)
   }
 }
 
+/*
 static
 void check_new_args(ParserState *ps, Symbol *sym, TypeDesc *para, Expr *exp)
 {
@@ -4058,9 +4065,11 @@ void check_new_args(ParserState *ps, Symbol *sym, TypeDesc *para, Expr *exp)
   }
   TYPE_DECREF(instanced);
 }
+*/
 
 static void parse_new(ParserState *ps, Expr *exp)
 {
+  /*
   char *path = exp->newobj.path;
   Ident *id = &exp->newobj.id;
   Symbol *sym = get_klass_symbol(ps->module, path, id->name);
@@ -4145,6 +4154,7 @@ static void parse_new(ParserState *ps, Expr *exp)
   } else {
     panic("invalid desc kind : %d", desc->kind);
   }
+  */
 }
 
 static void parse_range(ParserState *ps, Expr *exp)

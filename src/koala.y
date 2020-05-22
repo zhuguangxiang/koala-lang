@@ -140,6 +140,8 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token AND_ASSIGN
 %token OR_ASSIGN
 %token XOR_ASSIGN
+%token LSHIFT_ASSIGN
+%token RSHIFT_ASSIGN
 
 %token OP_AND
 %token OP_OR
@@ -218,7 +220,6 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <list> enum_methods
 %type <enumlabel> enum_label
 
-%type <expr> new_object
 %type <expr> anony_func
 %type <ptr> mapentry
 %type <list> mapentry_list
@@ -737,6 +738,14 @@ assign_operator:
 {
   $$ = OP_XOR_ASSIGN;
 }
+| LSHIFT_ASSIGN
+{
+  $$ = OP_LSHIFT_ASSIGN;
+}
+| RSHIFT_ASSIGN
+{
+  $$ = OP_RSHIFT_ASSIGN;
+}
 ;
 
 return_stmt:
@@ -1030,13 +1039,17 @@ shift_expr:
 }
 | shift_expr R_ANGLE_SHIFT '>' add_expr
 {
-  printf("rshift_expr\n");
-  $$ = $4;
+  $$ = expr_from_binary(BINARY_RSHIFT, $1, $4);
+  set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 | shift_expr L_SHIFT add_expr
 {
-  printf("lshift_expr\n");
-  $$ = $3;
+  $$ = expr_from_binary(BINARY_LSHIFT, $1, $3);
+  set_expr_pos($$, @1);
+  $$->binary.oprow = row(@2);
+  $$->binary.opcol = col(@2);
 }
 ;
 
@@ -1295,10 +1308,6 @@ atom:
 {
   $$ = $1;
 }
-| new_object
-{
-  $$ = $1;
-}
 ;
 
 tuple_object:
@@ -1340,10 +1349,6 @@ array_object:
 {
   $$ = expr_from_array(NULL);
 }
-| NEW '[' type ']'
-{
-  $$ = NULL;
-}
 ;
 
 expr_list:
@@ -1376,10 +1381,6 @@ map_object:
 | '{' ':' '}'
 {
   $$ = expr_from_map(NULL);
-}
-| NEW '[' type ':' type ']'
-{
-  $$ = NULL;
 }
 ;
 
@@ -1421,49 +1422,6 @@ anony_func:
 | FUNC '(' ')' block
 {
   $$ = expr_from_anony(NULL, NULL, $4);
-}
-;
-
-new_object:
-  NEW ID '(' ')'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, NULL, NULL);
-}
-| NEW ID '.' ID '(' ')'
-{
-  IDENT(id, $4, @4);
-  $$ = expr_from_object($2, id, NULL, NULL);
-}
-| NEW ID '<' type_list '>' '(' ')'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, $4, NULL);
-}
-| NEW ID '.' ID '<' type_list '>' '(' ')'
-{
-  IDENT(id, $4, @4);
-  $$ = expr_from_object($2, id, $6, NULL);
-}
-| NEW ID '(' expr_list ')'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, NULL, $4);
-}
-| NEW ID '.' ID '(' expr_list ')'
-{
-  IDENT(id, $4, @4);
-  $$ = expr_from_object($2, id, NULL, $6);
-}
-| NEW ID '<' type_list '>' '(' expr_list ')'
-{
-  IDENT(id, $2, @2);
-  $$ = expr_from_object(NULL, id, $4, $7);
-}
-| NEW ID '.' ID '<' type_list '>' '(' expr_list ')'
-{
-  IDENT(id, $4, @4);
-  $$ = expr_from_object($2, id, $6, $9);
 }
 ;
 

@@ -276,17 +276,6 @@ Expr *expr_from_astype(Expr *e, Type type)
   return exp;
 }
 
-Expr *expr_from_object(char *path, Ident id, Vector *types, Vector *args)
-{
-  Expr *exp = kmalloc(sizeof(Expr));
-  exp->kind = NEW_KIND;
-  exp->newobj.path = path;
-  exp->newobj.id = id;
-  exp->newobj.types = types;
-  exp->newobj.args = args;
-  return exp;
-}
-
 Expr *expr_from_range(int type, Expr *start, Expr *end)
 {
   Expr *exp = kmalloc(sizeof(Expr));
@@ -412,11 +401,6 @@ void expr_free(Expr *exp)
   case AS_KIND:
     TYPE_DECREF(exp->isas.type.desc);
     expr_free(exp->isas.exp);
-    kfree(exp);
-    break;
-  case NEW_KIND:
-    free_descs(exp->newobj.types);
-    exprlist_free(exp->newobj.args);
     kfree(exp);
     break;
   case RANGE_KIND:

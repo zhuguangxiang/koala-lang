@@ -172,6 +172,8 @@ int type_args = 0;
 %option noinput
 %option never-interactive
 
+%x STRING MSTRING
+
 digit [0-9]
 hex   [a-fA-F0-9]
 oct   [0-7]
@@ -226,9 +228,8 @@ moddoc  "//!"[^\n]*
 }
 
 "<"         {
-              printf("L_ANGLE_ARGS\n");
-              if (type_args) { YY_RETURN(L_ANGLE_ARGS); }
-              else { YY_RETURN('<'); }
+              if (type_args) { printf("L_ANGLE_ARGS\n"); YY_RETURN(L_ANGLE_ARGS); }
+              else { printf("<\n"); YY_RETURN('<'); }
               type_args = 0;
             }
 "<<"        { printf("<<\n"); YY_RETURN(L_SHIFT);        }
@@ -254,8 +255,8 @@ moddoc  "//!"[^\n]*
 "&="        { YY_RETURN(AND_ASSIGN);    }
 "|="        { YY_RETURN(OR_ASSIGN);     }
 "^="        { YY_RETURN(XOR_ASSIGN);    }
-"<<="       { YY_RETURN(PLUS_ASSIGN);    }
-">>="       { YY_RETURN(PLUS_ASSIGN);    }
+"<<="       { YY_RETURN(LSHIFT_ASSIGN); }
+">>="       { YY_RETURN(RSHIFT_ASSIGN); }
 "..."       { YY_RETURN(DOTDOTDOT);     }
 "..<"       { YY_RETURN(DOTDOTLESS);    }
 "=>"        { YY_RETURN(FAT_ARROW);     }
@@ -408,33 +409,12 @@ moddoc  "//!"[^\n]*
   }
 }
 
-(\"{utf8_str}?\") {
-  char *buf = kmalloc(yyleng - 2 + 1);
-  parse_escape(buf, yytext + 1, yyleng - 2);
-  if (check_utf8_valid(buf) < 0) {
-    kfree(buf);
-    serror(ps->row, ps->col, "invalid utf8 string");
-    YY_RETURN(';');
-  } else {
-    yylval->sval = atom(buf);
-    kfree(buf);
-    YY_RETURN(STRING_LITERAL);
-  }
-}
+\"              { BEGIN(STRING); }
+<STRING>\"      { BEGIN(INITIAL); yylval->sval = "hello"; YY_RETURN(STRING_LITERAL); }
+<STRING>\\\"    { printf("\\\"\n"); }
+<STRING>\\\\    { printf("\\\\\n"); }
+<STRING>.       { printf("%s\n", yytext); }
 
-(\"\"\") {
-  int state = textblock_state();
-  if (state == TB_END) {
-    char *data = textblock_data();
-    if (data != NULL) {
-      char *s = str_trim(data);
-      yylval->sval = atom(s);
-      free(s);
-      reset_textblock();
-      YY_RETURN(STRING_LITERAL);
-    }
-  }
-}
 
 {identifier} {
   char *name = atom_nstring(yytext, yyleng);

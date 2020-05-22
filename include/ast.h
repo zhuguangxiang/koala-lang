@@ -243,6 +243,8 @@ typedef enum binaryopkind {
   BINARY_ADD = 1, BINARY_SUB, BINARY_MULT, BINARY_DIV, BINARY_MOD, BINARY_POW,
   /* &, ^, | */
   BINARY_BIT_AND, BINARY_BIT_XOR, BINARY_BIT_OR,
+  /* <<, >> */
+  BINARY_LSHIFT, BINARY_RSHIFT,
   /* >, >=, <, <=, ==, != */
   BINARY_GT, BINARY_GE, BINARY_LT, BINARY_LE, BINARY_EQ, BINARY_NEQ,
   /* &&, || */
@@ -385,12 +387,6 @@ struct expr {
       Type type;
     } isas;
     struct {
-      char *path;
-      Ident id;
-      Vector *types;
-      Vector *args;
-    } newobj;
-    struct {
       int type;
       Expr *start;
       Expr *end;
@@ -446,7 +442,6 @@ Expr *expr_from_map(Vector *exps);
 Expr *expr_from_anony(Vector *idtypes, Type *ret, Vector *body);
 Expr *expr_from_istype(Expr *exp, Type type);
 Expr *expr_from_astype(Expr *exp, Type type);
-Expr *expr_from_object(char *path, Ident id, Vector *types, Vector *args);
 Expr *expr_from_range(int type, Expr *start, Expr *end);
 Expr *expr_from_binary_match(Expr *pattern, Expr *some);
 
@@ -490,6 +485,7 @@ typedef enum assignopkind {
   OP_PLUS_ASSIGN, OP_MINUS_ASSIGN,
   OP_MULT_ASSIGN, OP_DIV_ASSIGN, OP_MOD_ASSIGN, OP_POW_ASSIGN,
   OP_AND_ASSIGN, OP_OR_ASSIGN, OP_XOR_ASSIGN,
+  OP_LSHIFT_ASSIGN, OP_RSHIFT_ASSIGN
 } AssignOpKind;
 
 struct stmt {

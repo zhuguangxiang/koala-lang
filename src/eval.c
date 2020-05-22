@@ -839,6 +839,16 @@ Object *Koala_EvalFrame(CallFrame *f)
       PUSH(z);
       break;
     }
+    case OP_BIT_LSHIFT: {
+      x = POP();
+      OB_DECREF(x);
+      break;
+    }
+    case OP_BIT_RSHIFT: {
+      x = POP();
+      OB_DECREF(x);
+      break;
+    }
     case OP_INPLACE_ADD: {
       y = POP();
       x = POP();
@@ -927,6 +937,12 @@ Object *Koala_EvalFrame(CallFrame *f)
       OB_DECREF(x);
       OB_DECREF(y);
       PUSH(z);
+      break;
+    }
+    case OP_INPLACE_LSHIFT: {
+      break;
+    }
+    case OP_INPLACE_RSHIFT: {
       break;
     }
     case OP_SUBSCR_LOAD: {
