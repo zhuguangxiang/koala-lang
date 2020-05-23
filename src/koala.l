@@ -175,7 +175,7 @@ int string_index = 0;
 %option noinput
 %option never-interactive
 
-%x STRING TEXT
+%x XSTRING TEXT
 
 digit [0-9]
 hex   [a-fA-F0-9]
@@ -284,9 +284,6 @@ moddoc  "//!"[^\n]*
 "by"        { YY_RETURN(BY);            }
 "as"        { YY_RETURN(AS);            }
 "is"        { YY_RETURN(IS);            }
-"extends"   { YY_RETURN(EXTENDS);       }
-"with"      { YY_RETURN(WITH);          }
-"native"    { YY_RETURN(NATIVE);        }
 
 "byte"      { YY_RETURN(BYTE);          }
 "int"       { YY_RETURN(INTEGER);       }
@@ -359,14 +356,14 @@ moddoc  "//!"[^\n]*
 
 (\'{esc_char}\') {
   char *s = yytext + 2;
-  printf("escape:%c\n", *s);
+  print("escape:%c\n", *s);
   yylval->cval.val = esc_char(*s);
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (b\'{esc_char}\') {
   char *s = yytext + 3;
-  printf("escape b'%c'\n", *s);
+  print("escape b'%c'\n", *s);
   yylval->ival = esc_char(*s);
   YY_RETURN(BYTE_LITERAL);
 }
@@ -412,10 +409,10 @@ moddoc  "//!"[^\n]*
 }
 
 \"              {
-                  BEGIN(STRING);
+                  BEGIN(XSTRING);
                   string_index = 0;
                 }
-<STRING>\"      {
+<XSTRING>\"      {
                   BEGIN(INITIAL);
                   char buf[4096];
                   parse_escape(buf, string_buf, string_index);
@@ -431,22 +428,22 @@ moddoc  "//!"[^\n]*
                     YY_RETURN(STRING_LITERAL);
                   }
                 }
-<STRING>\\\"    {
+<XSTRING>\\\"    {
                   string_buf[string_index++] = '\\';
                   string_buf[string_index++] = '\"';
                 }
-<STRING>\\\\    {
+<XSTRING>\\\\    {
                   string_buf[string_index++] = '\\';
                   string_buf[string_index++] = '\\';
                 }
-<STRING>\n      {
+<XSTRING>\n      {
                   string_buf[string_index++] = yytext[0];
                 }
-<STRING>\r      {
+<XSTRING>\r      {
                   string_buf[string_index++] = yytext[0];
                 }
-<STRING>\0      ;
-<STRING>.       {
+<XSTRING>\0      ;
+<XSTRING>.       {
                   string_buf[string_index++] = yytext[0];
                 }
 
@@ -524,7 +521,7 @@ moddoc  "//!"[^\n]*
 
 [\n] {
   /* new line */
-  yyps->more = 0;
+  BEGIN(INITIAL);
   YY_NEWLINE
 }
 
@@ -539,7 +536,6 @@ moddoc  "//!"[^\n]*
 [\0]+ ;
 
 . {
-  printf("%s\n", yytext);
   yylval->sval = yytext;
   return INVALID;
 }

@@ -112,9 +112,6 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token BY
 %token AS
 %token IS
-%token EXTENDS
-%token WITH
-%token NATIVE
 
 %token BYTE
 %token INTEGER
@@ -174,7 +171,6 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token R_ANGLE_SHIFT
 
 %type <stmt> import_stmt
-%type <stmt> native_stmt
 %type <aliaslist> id_as_list
 %type <stmt> const_decl
 %type <stmt> var_decl
@@ -206,7 +202,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <ptr> id_varg
 %type <stmt> type_decl
 %type <extendsdef> extends
-%type <typelist> withes
+%type <typelist> klass_type_list
 %type <list> members
 %type <list> member_decls
 %type <stmt> member_decl
@@ -309,20 +305,6 @@ units:
 
 unit:
   import_stmt
-{
-  if (ps->interactive) {
-    ps->more = 0;
-    if ($1 != NULL) {
-      cmd_eval_stmt(ps, $1);
-      stmt_free($1);
-    }
-  } else {
-    if ($1 != NULL) {
-      comp_add_stmt(ps, $1);
-    }
-  }
-}
-| native_stmt
 {
   if (ps->interactive) {
     ps->more = 0;
@@ -609,15 +591,6 @@ import_stmt:
   $$ = stmt_from_import_partial($3, $5);
   $$->import.pathrow = row(@5);
   $$->import.pathcol = col(@5);
-}
-;
-
-native_stmt:
-  NATIVE STRING_LITERAL ';'
-{
-  $$ = stmt_from_native($2);
-  $$->native.row = row(@2);
-  $$->native.col = col(@2);
 }
 ;
 
@@ -1719,32 +1692,23 @@ extends:
 {
   $$ = NULL;
 }
-| EXTENDS klass_type
+| ':' klass_type_list
 {
-  TYPE(type, $2, @2);
-  $$ = new_extends(type, NULL);
-}
-| EXTENDS klass_type withes
-{
-  TYPE(type, $2, @2);
-  $$ = new_extends(type, $3);
+  //TYPE(type, $2, @2);
+  $$ = NULL; //new_extends(type, NULL);
 }
 ;
 
-withes:
-  WITH klass_type
+klass_type_list:
+  klass_type
 {
   $$ = vector_new();
-  Type *type = new_type($2, row(@2), col(@2));
-  TYPE_DECREF($2);
-  vector_push_back($$, type);
+  vector_push_back($$, $1);
 }
-| withes WITH klass_type
+| klass_type_list ',' klass_type
 {
   $$ = $1;
-  Type *type = new_type($3, row(@3), col(@3));
-  TYPE_DECREF($3);
-  vector_push_back($$, type);
+  vector_push_back($$, $3);
 }
 ;
 

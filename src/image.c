@@ -1348,15 +1348,6 @@ static int image_add_const(Image *image, int kind, int index)
   return idx;
 }
 
-char *image_get_native(Image *image)
-{
-  int index = image->header.native;
-  if (index < 0)
-    return NULL;
-  StringItem *item = _get_(image, ITEM_STRING, index);
-  return item->data;
-}
-
 int image_add_integer(Image *image, int64_t val)
 {
   LiteralItem k = {0};
@@ -1660,12 +1651,6 @@ int image_add_mbrs(Image *image, MbrIndex *indexes, int size)
   return _append_(image, ITEM_MBR, item, 0);
 }
 
-int image_add_native(Image *image, char *path)
-{
-  int32_t index = stringitem_set(image, path);
-  image->header.native = index;
-}
-
 static unsigned int item_hash(ItemEntry *e)
 {
   if (e->type < 0 || e->type >= ITEM_MAX)
@@ -1703,7 +1688,6 @@ static void init_header(ImageHeader *h, char *name)
   h->file_size   = 0;
   h->header_size = sizeof(ImageHeader);
   h->endian_tag  = ENDIAN_TAG;
-  h->native = -1;
   h->map_offset  = sizeof(ImageHeader);
   h->map_size    = ITEM_MAX;
   strncpy(h->name, name, PKG_NAME_MAX-1);
@@ -2510,7 +2494,6 @@ void header_show(ImageHeader *h)
   print("version:%d.%d.%d\n", h->version[0] - '0', h->version[1] - '0', 0);
   print("header_size:%d\n", h->header_size);
   print("endian:0x%x\n", h->endian_tag);
-  print("native:%d\n", h->native);
   print("map_offset:0x%x\n", h->map_offset);
   print("map_size:%d\n\n", h->map_size);
   puts("--------------------");

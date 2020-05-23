@@ -35,13 +35,17 @@
 extern "C" {
 #endif
 
-#define BASE_BYTE  'b'
-#define BASE_CHAR  'c'
-#define BASE_INT   'i'
-#define BASE_FLOAT 'f'
-#define BASE_BOOL  'z'
-#define BASE_STR   's'
-#define BASE_ANY   'A'
+#define BASE_BYTE   'b'
+#define BASE_CHAR   'c'
+#define BASE_INT    'i'
+#define BASE_FLOAT  'f'
+#define BASE_BOOL   'z'
+#define BASE_STR    's'
+#define BASE_ANY    'A'
+#define BASE_ARRAY  '['
+#define BASE_MAP    'M'
+#define BASE_TUPLE  'T'
+#define BASE_VALIST 'V'
 
 /* constant value */
 typedef struct literal {

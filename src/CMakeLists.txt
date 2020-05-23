@@ -36,11 +36,11 @@ SET(KOALA_SOURCES
   utf8.c memory.c vector.c hashmap.c strbuf.c bytebuffer.c atom.c
   typedesc.c eval.c image.c opcode.c symbol.c ast.c parser.c
   koala_lex.c koala_yacc.c run.c compile.c interactive.c readline.c gc.c
-  slice.c jit_ffi.c
+  slice.c
   ${KOALA_OBJECTS_SOURCES} ${KOALA_BUILTIN_MODULES})
 
 ADD_LIBRARY(koala STATIC ${KOALA_SOURCES})
-TARGET_LINK_LIBRARIES(koala pthread m dl)
+TARGET_LINK_LIBRARIES(koala pthread m dl ffi)
 
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})
 TARGET_LINK_LIBRARIES(koala_so pthread m dl ffi)

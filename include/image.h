@@ -216,7 +216,6 @@ typedef struct image_header {
   uint32_t file_size;
   uint32_t header_size;
   uint32_t endian_tag;
-  int32_t  native;
   uint32_t map_offset;
   uint32_t map_size;
   uint32_t crc32;
@@ -251,7 +250,6 @@ typedef struct locvar {
 
 LocVar *locvar_new(char *name, TypeDesc *desc, int index);
 void locvar_free(LocVar *loc);
-char *image_get_native(Image *image);
 int image_add_integer(Image *image, int64_t val);
 int image_add_byte(Image *image, int64_t val);
 int image_add_float(Image *image, double val);
@@ -273,7 +271,6 @@ int image_add_method(Image *image, CodeInfo *ci);
 int image_add_ifunc(Image *image, char *name, TypeDesc *desc);
 int image_add_label(Image *image, char *name, Vector *types, int32_t val);
 int image_add_mbrs(Image *image, MbrIndex *indexes, int size);
-int image_add_native(Image *image, char *path);
 
 Image *image_new(char *name);
 void image_free(Image *image);

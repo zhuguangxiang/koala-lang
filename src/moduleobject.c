@@ -534,11 +534,6 @@ static Object *module_from_file(char *path, char *name, Object *ob)
     IMAGE_LOAD_CLASSES(image, _load_class_, mo);
     IMAGE_LOAD_TRAITS(image, _load_trait_, mo);
     IMAGE_LOAD_ENUMS(image, _load_enum_, mo);
-    char *npath = image_get_native(image);
-    if (npath != NULL) {
-      //printf("load native '%s'\n", npath);
-      module_load_native(mo, npath);
-    }
     image_free(image);
   } else {
     debug("load '%s.so'", path);

@@ -14,11 +14,9 @@ test();
 }
 """
 
-"""
-SELECT `EMP_ID`, `LAST_NAME` FROM `EMPLOYEE_TB`
+"""SELECT `EMP_ID`, `LAST_NAME` FROM `EMPLOYEE_TB`
 WHERE `CITY` = 'INDIANAPOLIS'
-ORDER BY `EMP_ID`, `LAST_NAME`;
-"""
+ORDER BY `EMP_ID`, `LAST_NAME`;"""
 
 s := """
   <html>

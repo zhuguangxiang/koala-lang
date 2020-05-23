@@ -132,35 +132,6 @@ int symbol_need_type_args(ParserState *ps, char *name)
   return symbol_has_typepara(sym);
 }
 
-static void stable_from_native(Module *m, Object *ob)
-{
-  ModuleObject *mo = (ModuleObject *)ob;
-  STable *stbl = m->stbl;
-  if (mo->mtbl != NULL) {
-    HASHMAP_ITERATOR(iter, mo->mtbl);
-    struct mnode *node;
-    Object *tmp;
-    Symbol *sym;
-    iter_for_each(&iter, node) {
-      tmp = node->obj;
-      if (type_check(tmp)) {
-        sym = load_type(tmp);
-      } else if (field_check(tmp)) {
-        sym = load_field(tmp);
-        sym->var.typesym = get_desc_symbol(m, sym->desc);
-      } else if (method_check(tmp)) {
-        sym = load_method(tmp);
-      } else {
-        panic("object of '%s'?", OB_TYPE(tmp)->name);
-      }
-      int res = stable_add_symbol(stbl, sym);
-      if (res == 0) {
-        symbol_decref(sym);
-      }
-    }
-  }
-}
-
 static STable *stable_from_mobject(Module *mod, Object *ob)
 {
   ModuleObject *mo = (ModuleObject *)ob;
@@ -4489,27 +4460,6 @@ static void parse_import(ParserState *ps, Stmt *s)
   }
 }
 
-static void parse_native(ParserState *ps, Stmt *s)
-{
-  Module *m = ps->module;
-  Object *mob = m->native;
-  if (mob == NULL) {
-    mob = module_new(m->name);
-    m->native = mob;
-  }
-
-  // only once
-  if (m->npath != NULL) {
-    error("already loaded native '%s'", m->npath);
-    return;
-  }
-
-  char *path = s->native.path;
-  m->npath = path;
-  module_load_native(mob, path);
-  stable_from_native(m, mob);
-}
-
 static void parse_constdecl(ParserState *ps, Stmt *stmt)
 {
   Expr *exp = stmt->vardecl.exp;
@@ -6531,7 +6481,6 @@ void parse_stmt(ParserState *ps, Stmt *stmt)
   static void (*handlers[])(ParserState *, Stmt *) = {
     NULL,               /* INVALID          */
     parse_import,       /* IMPORT_KIND      */
-    parse_native,       /* NATIVE_KIND      */
     parse_constdecl,    /* CONST_KIND       */
     parse_vardecl,      /* VAR_KIND         */
     parse_assign,       /* ASSIGN_KIND      */

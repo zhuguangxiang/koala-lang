@@ -48,6 +48,7 @@ static int cur_pos;
 void add_history(char *line)
 {
   if (line == NULL) return;
+  if (line[0] == '\n') return;
   int len = strlen(line);
   if (len <= 0) return;
   if (line[len - 1] == '\n') --len;
@@ -330,9 +331,11 @@ static int line_edit(int in, int out, char *buf, size_t len, const char *prompt)
     case CTRL_D:
       return 0;
     case CTRL_C:
-      if (write(ls.out, "^C", 2) < 0) return -1;
-      raise(SIGINT);
-      break;
+      if (write(ls.out, "\n^C", 3) < 0) return -1;
+      //raise(SIGINT);
+      ls.len = ls.pos = 0;
+      do_newline(&ls);
+      return ls.len;
     case ESC: // escape sequence
       do_esc(&ls);
       break;
@@ -346,6 +349,16 @@ static int line_edit(int in, int out, char *buf, size_t len, const char *prompt)
       raise(SIGTSTP);
       reset_stdin();
       init_stdin();
+      break;
+    case CTRL_P:
+      move_up(&ls);
+      break;
+    case CTRL_N:
+      move_down(&ls);
+      break;
+    case CTRL_B:
+      break;
+    case CTRL_F:
       break;
     }
   }

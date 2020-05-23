@@ -368,11 +368,6 @@ static void write_image(Module *mod)
   if (stable_size(mod->stbl) > 0) {
     Image *image = image_new(mod->name);
     stable_write_image(mod->stbl, image);
-    if (mod->npath != NULL) {
-      // add native extension
-      //printf("add native '%s'\n", mod->npath);
-      image_add_native(image, mod->npath);
-    }
     image_finish(image);
 #if !defined(NLog)
     image_show(image);
@@ -402,7 +397,6 @@ static inline void fini_mod(Module *mod)
 
   vector_fini(&mod->pss);
   stable_free(mod->stbl);
-  OB_DECREF(mod->native);
 }
 
 extern int stage;
