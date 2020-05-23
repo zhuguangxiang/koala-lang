@@ -404,7 +404,14 @@ static Object *char_str(Object *self, Object *ob)
 
   CharObject *ch = (CharObject *)self;
   char buf[8] = {'\'', 0};
-  int bytes = encode_one_utf8_char(ch->value, buf + 1);
+  int bytes;
+  if (ch->value == '0') {
+    buf[1] = '\\';
+    buf[2] = '0';
+    bytes = 2;
+  } else {
+    bytes = encode_one_utf8_char(ch->value, buf + 1);
+  }
   buf[bytes + 1] = '\'';
   return string_new(buf);
 }

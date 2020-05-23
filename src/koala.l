@@ -30,7 +30,7 @@
 #include "utf8.h"
 #include "koala_yacc.h"
 
-static int esc_char(char esc)
+static int parse_esc_char(char esc)
 {
   static struct {
     char esc;
@@ -195,22 +195,11 @@ u   [\x80-\xbf]
 u2  [\xc0-\xdf]
 u3  [\xe0-\xef]
 u4  [\xf0-\xf7]
+
 asc_char  {asc}
-
-utf8_char {u2}{u}|{u3}{u}{u}|{u4}{u}{u}{u}
-esc_char  \\\\|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
 hex_char  \\x{hex}{hex}
-u16_char  \\u{hex}{hex}{hex}{hex}
-u32_char  \\U{hex}{hex}{hex}{hex}{hex}{hex}{hex}{hex}
-unasc_char {utf8_char}|{esc_char}|{hex_char}|{u16_char}|{u32_char}
-character2 {asc_char}|{unasc_char}
-
-str_char  [\x00-\x21\x23-\x5b\x5d-\x7f]
-character {str_char}|{unasc_char}
-U     [\x80-\xff]
-USTR  {str_char}|{esc_char}|{U}
-utf8_str  {USTR}+
-/* utf8_str  {character}+ */
+esc_char  \\\\|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
+utf8_char {u2}{u}|{u3}{u}{u}|{u4}{u}{u}{u}
 
 alpha      [A-Za-z_]
 identifier {alpha}({alpha}|{digit})*
@@ -230,8 +219,11 @@ moddoc  "//!"[^\n]*
 }
 
 "<"         {
-              if (type_args) { YY_RETURN(L_ANGLE_ARGS); }
-              else { YY_RETURN('<'); }
+              if (type_args) {
+                YY_RETURN(L_ANGLE_ARGS);
+              } else {
+                YY_RETURN('<');
+              }
               type_args = 0;
             }
 "<<"        { YY_RETURN(L_SHIFT);       }
@@ -325,19 +317,39 @@ moddoc  "//!"[^\n]*
 }
 
 (b\'{asc_char}\') {
-  print("b'%c'\n", *(yytext + 2));
   yylval->ival = *(yytext + 2);
   YY_RETURN(BYTE_LITERAL);
 }
 
 (b\'{hex_char}\') {
   char s[4];
-  print("'%s'\n", yytext);
   char *nptr = yytext + 4;
   strncpy(s, nptr, strlen(nptr) - 1);
   yylval->ival = strtoll(s, NULL, 16);
-  print("b'%c'\n", (char)yylval->ival);
   YY_RETURN(BYTE_LITERAL);
+}
+
+(b\'{esc_char}\') {
+  char *s = yytext + 3;
+  yylval->ival = parse_esc_char(*s);
+  YY_RETURN(BYTE_LITERAL);
+}
+
+(b\'\\0\') {
+  yylval->ival = 0;
+  return YY_RETURN(BYTE_LITERAL);
+}
+
+(b\'\') {
+  yylval->ival = 0;
+  return YY_RETURN(BYTE_LITERAL);
+}
+
+(b\'.+\') {
+  serror(ps->row, ps->col, "illegal character:%s", yytext);
+  if (yyps->interactive) {
+    yyps->more = 0;
+  }
 }
 
 (\'{asc_char}\') {
@@ -347,61 +359,43 @@ moddoc  "//!"[^\n]*
   return YY_RETURN(CHAR_LITERAL);
 }
 
-(\'{utf8_char}\') {
-  print("utf8:%s\n", yytext);
-  char *s = yytext + 1;
-  yylval->cval.val = decode_one_utf8_char(&s);
-  return YY_RETURN(CHAR_LITERAL);
-}
-
-(\'{esc_char}\') {
-  char *s = yytext + 2;
-  print("escape:%c\n", *s);
-  yylval->cval.val = esc_char(*s);
-  return YY_RETURN(CHAR_LITERAL);
-}
-
-(b\'{esc_char}\') {
-  char *s = yytext + 3;
-  print("escape b'%c'\n", *s);
-  yylval->ival = esc_char(*s);
-  YY_RETURN(BYTE_LITERAL);
-}
-
-(\'\\\'\') {
-  char *s = yytext + 2;
-  print("escape:%c\n", *s);
-  yylval->cval.val = esc_char(*s);
-  return YY_RETURN(CHAR_LITERAL);
-}
-
 (\'{hex_char}\') {
   char s[4];
-  print("hex:%s\n", yytext);
   char *nptr = yytext + 3;
   strncpy(s, nptr, strlen(nptr) - 1);
   yylval->cval.val = strtol(s, NULL, 16);
   return YY_RETURN(CHAR_LITERAL);
 }
 
-(\'{u16_char}\') {
-  print("unicode-16:%s\n", yytext);
-  return 0;
+(\'{esc_char}\') {
+  char *s = yytext + 2;
+  yylval->cval.val = parse_esc_char(*s);
+  return YY_RETURN(CHAR_LITERAL);
 }
 
-(\'{u32_char}\') {
-  print("unicode-32:%s\n", yytext);
-  return 0;
+(\'{utf8_char}\') {
+  char *s = yytext + 1;
+  yylval->cval.val = decode_one_utf8_char(&s);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'\\\'\') {
+  char *s = yytext + 2;
+  yylval->cval.val = parse_esc_char(*s);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'\\0\') {
+  yylval->cval.val = '0';
+  return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'\') {
-  serror(ps->row, ps->col, "illegal character");
-  if (yyps->interactive) {
-    yyps->more = 0;
-  }
+  yylval->cval.val = '0';
+  return YY_RETURN(CHAR_LITERAL);
 }
 
-(\'{character2}{character2}+\') {
+(\'.+\') {
   serror(ps->row, ps->col, "illegal character:%s", yytext);
   if (yyps->interactive) {
     yyps->more = 0;

@@ -331,7 +331,7 @@ static int line_edit(int in, int out, char *buf, size_t len, const char *prompt)
     case CTRL_D:
       return 0;
     case CTRL_C:
-      if (write(ls.out, "\n^C", 3) < 0) return -1;
+      if (write(ls.out, "^C", 2) < 0) return -1;
       //raise(SIGINT);
       ls.len = ls.pos = 0;
       do_newline(&ls);

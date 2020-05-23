@@ -101,7 +101,9 @@ struct typedesc {
     /* TYPE_PARAREF */
     struct {
       char *name;
-      int index;
+      // where: 0: current, 1: up
+      short where;
+      short index;
     } pararef;
     /* TYPE_PARADEF */
     struct {
