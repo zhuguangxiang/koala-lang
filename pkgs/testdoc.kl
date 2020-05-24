@@ -1,0 +1,39 @@
+
+/// max constant count
+const MAX_COUNT = 1024
+
+/// the person's name
+/// you can use utf-8
+var name string = "Foo-Bar"
+
+
+/// This is free var doc
+jack := 100
+
+/// add the integer
+/// return a new integer
+func add(v1 int, v2 int) int {
+  v1 + v2
+}
+
+
+/// Person class
+/// simple class for test
+/// |headline1|headline2|
+/// |---------|---------|
+/// |123      |         |
+class Person {
+  /// name field
+  name string
+  /// age field
+  age int
+}
+
+/// Hello trait
+/// simple trait for test
+/// |headline1|headline2|
+/// |---------|---------|
+/// |123      |         |
+trait Hello {
+
+}

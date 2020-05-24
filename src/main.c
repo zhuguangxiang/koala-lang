@@ -44,6 +44,7 @@ static void usage(void)
   printf("Usage: koala [<options>] [<module-name>]\n"
          "Options:\n"
          "  -c            Compile the module.\n"
+         "  --doc         Generate markdown document.\n"
          "  -v, --verion  Print Koala version.\n"
          "  -h, --help    Print this message.\n"
          "\n");
@@ -56,7 +57,7 @@ static void usage(void)
 }
 
 #define MAX_PATH_LEN 1024
-int cflag;
+int flag;
 char module[MAX_PATH_LEN];
 
 static void save_path(char *arg)
@@ -81,16 +82,22 @@ void parse_command(int argc, char *argv[])
   extern char *optarg;
   extern int optind;
   struct option options[] = {
-    {"version", no_argument, NULL, 'v'},
-    {"help",    no_argument, NULL, 'h'},
+    {"doc",     required_argument,  NULL, 'd'},
+    {"version", no_argument,        NULL, 'v'},
+    {"help",    no_argument,        NULL, 'h'},
     {NULL, 0, NULL, 0}
   };
   int opt;
 
-  while ((opt = getopt_long(argc, argv, "c:vh?", options, NULL)) != -1) {
+  while ((opt = getopt_long(argc, argv, "c:d:vh?", options, NULL)) != -1) {
     switch (opt) {
     case 'c': {
-      cflag = 1;
+      flag = 1;
+      save_path(optarg);
+      break;
+    }
+    case 'd': {
+      flag = 3;
       save_path(optarg);
       break;
     }
@@ -117,12 +124,12 @@ void parse_command(int argc, char *argv[])
       usage();
       exit(0);
     }
-    if (cflag) {
+    if (flag) {
       error("Only one path is allowed.");
       usage();
       exit(0);
     }
-    cflag = 2;
+    flag = 2;
     save_path(argv[optind++]);
   }
 
@@ -143,12 +150,14 @@ int main(int argc, char *argv[])
 
   koala_initialize();
 
-  if (cflag == 1) {
+  if (flag == 1) {
     koala_compile(module);
-  } else if (cflag == 2) {
+  } else if (flag == 2) {
     koala_run(module);
+  } else if (flag == 3) {
+    koala_doc(module);
   } else {
-    koala_readline();
+    koala_interactive();
   }
 
   koala_finalize();

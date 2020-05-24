@@ -130,9 +130,7 @@ static void fini_cmdline_env(void)
 yyscan_t scanner;
 int halt = 0;
 
-extern int stage;
-
-void koala_readline(void)
+void koala_interactive(void)
 {
   init_cmdline_env();
   show_banner();
@@ -531,7 +529,6 @@ void cmd_eval_stmt(ParserState *ps, Stmt *stmt)
   if (stmt == NULL)
     return;
 
-  stage = 0;
   parser_enter_scope(ps, SCOPE_MODULE, 0);
   ps->u->stbl = mod.stbl;
   ps->u->sym = modSym;

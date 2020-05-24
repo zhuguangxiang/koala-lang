@@ -81,6 +81,8 @@ struct symbol {
   int used;
   /* super() call */
   int super;
+  /* document */
+  char *doc;
   union {
     struct {
       /* type object */

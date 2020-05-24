@@ -27,7 +27,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include "parser.h"
+#include "compile.h"
 
 #define yyerror(loc, ps, scanner, msg) ((void)0)
 
@@ -331,7 +331,8 @@ unit:
     }
   } else {
     if ($1 != NULL && !comp_add_const(ps, $1->vardecl.id)) {
-      comp_add_stmt(ps, $1);
+      if (compflag) comp_add_stmt(ps, $1);
+      else stmt_free($1);
     }
   }
 }
@@ -346,7 +347,8 @@ unit:
     }
   } else {
     if ($1 != NULL && !comp_add_var(ps, $1->vardecl.id)) {
-      comp_add_stmt(ps, $1);
+      if (compflag) comp_add_stmt(ps, $1);
+      else stmt_free($1);
     }
   }
 }
@@ -361,7 +363,8 @@ unit:
     }
   } else {
     if ($1 != NULL && !comp_add_var(ps, $1->vardecl.id)) {
-      comp_add_stmt(ps, $1);
+      if (compflag) comp_add_stmt(ps, $1);
+      else stmt_free($1);
     }
   }
 }
@@ -372,7 +375,8 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-    comp_add_stmt(ps, $1);
+    if (compflag) comp_add_stmt(ps, $1);
+    else stmt_free($1);
   }
 }
 | expr ';'
@@ -383,7 +387,8 @@ unit:
     cmd_eval_stmt(ps, stmt);
     stmt_free(stmt);
   } else {
-    comp_add_stmt(ps, stmt);
+    if (compflag) comp_add_stmt(ps, stmt);
+    else stmt_free(stmt);
   }
 }
 | if_stmt
@@ -393,7 +398,8 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-    comp_add_stmt(ps, $1);
+    if (compflag) comp_add_stmt(ps, $1);
+    else stmt_free($1);
   }
 }
 | while_stmt
@@ -403,7 +409,8 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-    comp_add_stmt(ps, $1);
+    if (compflag) comp_add_stmt(ps, $1);
+    else stmt_free($1);
   }
 }
 | match_stmt
@@ -413,7 +420,8 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-    comp_add_stmt(ps, $1);
+    if (compflag) comp_add_stmt(ps, $1);
+    else stmt_free($1);
   }
 }
 | for_stmt
@@ -423,7 +431,8 @@ unit:
     cmd_eval_stmt(ps, $1);
     stmt_free($1);
   } else {
-    comp_add_stmt(ps, $1);
+    if (compflag) comp_add_stmt(ps, $1);
+    else stmt_free($1);
   }
 }
 | func_decl
@@ -438,7 +447,8 @@ unit:
   } else {
     if ($1 != NULL &&
         !comp_add_func(ps, $1->funcdecl.id, $1->funcdecl.typeparas)) {
-      comp_add_stmt(ps, $1);
+      if (compflag) comp_add_stmt(ps, $1);
+      else stmt_free($1);
     }
   }
 }
@@ -453,7 +463,8 @@ unit:
     }
   } else {
     if ($1 != NULL && !comp_add_type(ps, $1)) {
-      comp_add_stmt(ps, $1);
+      if (compflag) comp_add_stmt(ps, $1);
+      else stmt_free($1);
     }
   }
 }
@@ -480,7 +491,8 @@ unit:
   if (ps->interactive) {
     ps->more = 0;
   }
-  free($1);
+  if (docflag) doc_add($1);
+  else free($1);
 }
 | MODDOC
 {
@@ -1777,6 +1789,12 @@ member_decl:
 {
   $$ = NULL;
 }
+| DOC
+{
+  if (docflag) doc_add($1);
+  else free($1);
+  $$ = NULL;
+}
 ;
 
 field_decl:
@@ -1840,6 +1858,12 @@ trait_member_decl:
 }
 | COMMENT
 {
+  $$ = NULL;
+}
+| DOC
+{
+  if (docflag) doc_add($1);
+  else free($1);
   $$ = NULL;
 }
 ;

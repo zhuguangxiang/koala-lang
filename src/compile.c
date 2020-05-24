@@ -31,7 +31,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include "parser.h"
+#include "compile.h"
 #include "koala_yacc.h"
 #include "koala_lex.h"
 #include "vector.h"
@@ -129,6 +129,7 @@ int comp_add_const(ParserState *ps, Ident id)
   Module *mod = ps->module;
   Symbol *sym = stable_add_const(mod->stbl, id.name, NULL);
   if (sym != NULL) {
+    if (docflag) sym->doc = doc_get();
     return 0;
   } else {
     serror(id.row, id.col, "'%s' is redeclared", id.name);
@@ -141,6 +142,7 @@ int comp_add_var(ParserState *ps, Ident id)
   Module *mod = ps->module;
   Symbol *sym = stable_add_var(mod->stbl, id.name, NULL);
   if (sym != NULL) {
+    if (docflag) sym->doc = doc_get();
     return 0;
   } else {
     serror(id.row, id.col, "'%s' is redeclared", id.name);
@@ -157,6 +159,7 @@ int comp_add_func(ParserState *ps, Ident id, Vector *typeparas)
     return -1;
   }
   sym->func.typesyms = typeparas;
+  if (docflag) sym->doc = doc_get();
   return 0;
 }
 
@@ -197,6 +200,7 @@ static void comp_visit_type(ParserState *ps, Symbol *sym, Vector *body)
     } else {
       panic("invalid type's body statement: %d", s->kind);
     }
+    if (sym2 != NULL && docflag) sym2->doc = doc_get();
   }
 }
 
@@ -210,6 +214,8 @@ static void comp_visit_label(ParserState *ps, Symbol *sym, Vector *labels)
     if (lblsym == NULL) {
       serror(label->id.row, label->id.col,
             "enum label '%s' duplicated.", label->id.name);
+    } else {
+      if (docflag) lblsym->doc = doc_get();
     }
   }
 }
@@ -229,6 +235,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
       ++any->refcnt;
       vector_push_back(&sym->type.lro, any);
       comp_visit_type(ps, sym, stmt->class_stmt.body);
+      if (docflag) sym->doc = doc_get();
     }
     break;
   }
@@ -240,6 +247,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
       ++any->refcnt;
       vector_push_back(&sym->type.lro, any);
       comp_visit_type(ps, sym, stmt->class_stmt.body);
+      if (docflag) sym->doc = doc_get();
     }
     break;
   }
@@ -252,6 +260,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt)
       vector_push_back(&sym->type.lro, any);
       comp_visit_label(ps, sym, stmt->enum_stmt.mbrs.labels);
       comp_visit_type(ps, sym, stmt->enum_stmt.mbrs.methods);
+      if (docflag) sym->doc = doc_get();
     }
     break;
   }
@@ -303,7 +312,7 @@ static void build_ast(char *path, Module *mod)
   fclose(in);
 }
 
-void build_dir_ast(char *path, Module *mod)
+static void build_dir_ast(char *path, Module *mod)
 {
   DIR *dir = opendir(path);
   if (dir == NULL) {
@@ -388,7 +397,51 @@ static void write_image(Module *mod)
   debug("\x1b[32m----END OF GENERATING IMAGE------\x1b[0m");
 }
 
-static inline void fini_mod(Module *mod)
+void build_module(char *path, Module *mod)
+{
+  mod->path = path;
+  mod->name = path;
+  mod->stbl = stable_new();
+  vector_init(&mod->pss);
+
+  Symbol *modSym = symbol_new(mod->name, SYM_MOD);
+  modSym->desc = desc_from_klass("lang", "Module");
+  modSym->mod.ptr = &mod;
+
+  TypeDesc *desc = desc_from_proto(NULL, NULL);
+  Symbol *initsym = stable_add_func(mod->stbl, "__init__", desc);
+  TYPE_DECREF(desc);
+  mod->initsym = initsym;
+  mod->sym = modSym;
+
+  if (isdotkl(path)) {
+    // single source file
+    if (!check_dotkl(path))
+      build_ast(path, mod);
+  } else {
+    // for script with no suffix .kl
+    struct stat sb;
+    if (!lstat(path, &sb) && S_ISREG(sb.st_mode)) {
+      build_ast(path, mod);
+    } else {
+      // check path.kl file exist?
+      char *end = path + strlen(path) - 1;
+      while (*end == '/') --end;
+      char *klpath = str_ndup_ex(path, end - path + 1, ".kl");
+      if (!lstat(klpath, &sb) && S_ISREG(sb.st_mode)) {
+        if (!check_dotkl(klpath))
+          build_ast(klpath, mod);
+      } else {
+        // module directory
+        if (!check_dir(path))
+          build_dir_ast(path, mod);
+      }
+      kfree(klpath);
+    }
+  }
+}
+
+void release_module(Module *mod)
 {
   ParserState *ps;
   vector_for_each(ps, &mod->pss) {
@@ -397,64 +450,25 @@ static inline void fini_mod(Module *mod)
 
   vector_fini(&mod->pss);
   stable_free(mod->stbl);
+  symbol_decref(mod->sym);
 }
 
-extern int stage;
+int compflag;
 
 /* koala -c a/b/foo.kl [a/b/foo] */
 void koala_compile(char *path)
 {
+  compflag = 1;
   int needimage = 1;
   Module mod = {0};
-  Symbol *modSym;
 
-  mod.path = path;
-  mod.name = path;
-  mod.stbl = stable_new();
-  vector_init(&mod.pss);
-
-  modSym = symbol_new(mod.name, SYM_MOD);
-  modSym->desc = desc_from_klass("lang", "Module");
-  modSym->mod.ptr = &mod;
-
-  TypeDesc *desc = desc_from_proto(NULL, NULL);
-  Symbol *initsym = stable_add_func(mod.stbl, "__init__", desc);
-  TYPE_DECREF(desc);
-  mod.initsym = initsym;
-  mod.sym = modSym;
-
-  if (isdotkl(path)) {
-    // single source file
-    if (!check_dotkl(path))
-      build_ast(path, &mod);
-  } else {
-    // for script with no suffix .kl
-    struct stat sb;
-    if (!lstat(path, &sb) && S_ISREG(sb.st_mode)) {
-      build_ast(path, &mod);
-    } else {
-      // check path.kl file exist?
-      char *end = path + strlen(path) - 1;
-      while (*end == '/') --end;
-      char *klpath = str_ndup_ex(path, end - path + 1, ".kl");
-      if (!lstat(klpath, &sb) && S_ISREG(sb.st_mode)) {
-        if (!check_dotkl(klpath))
-          build_ast(klpath, &mod);
-      } else {
-        // module directory
-        if (!check_dir(path))
-          build_dir_ast(path, &mod);
-      }
-      kfree(klpath);
-    }
-  }
+  build_module(path, &mod);
 
   // parse all source files in the same directory as one module
   if (mod.errors == 0) {
     if (vector_size(&mod.pss) <= 0) {
       needimage = 0;
     } else {
-      stage = 1;
       ParserState *ps;
       vector_for_each(ps, &mod.pss) {
         if (!has_error(ps)) {
@@ -472,6 +486,6 @@ void koala_compile(char *path)
     write_image(&mod);
   }
 
-  fini_mod(&mod);
-  symbol_decref(modSym);
+  release_module(&mod);
+  compflag = 0;
 }

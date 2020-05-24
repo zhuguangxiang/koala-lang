@@ -662,11 +662,13 @@ moddoc  "//!"[^\n]*
 
 {comment} {
   /* omit single line comment */
+  yylval->text = NULL;
   return COMMENT;
 }
 
 {blockcomment} {
   /* omit multi lines comment */
+  yylval->text = NULL;
   return COMMENT;
 }
 

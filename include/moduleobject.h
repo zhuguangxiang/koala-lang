@@ -62,7 +62,6 @@ Object *module_new(char *name);
 Object *module_lookup(Object *ob, char *name);
 void module_install(char *path, Object *ob);
 Object *module_load(char *path);
-void module_load_native(Object *ob, char *path);
 void module_uninstall(char *path);
 
 void module_add_type(Object *self, TypeObject *type);

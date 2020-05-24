@@ -7,6 +7,7 @@ import "io"
 import "sys"
 import "str"
 
+/// write formatted string into io.Writer
 func write_fmt(w io.Writer, fmt string, args ...) {
   len := args.len()
   if len > 0 {
@@ -35,12 +36,16 @@ func __fmt_str__(count int, newline bool) string {
   bldr.as_str()
 }
 
+/// write to_str() of objects into io.Writer
+/// no newline
 func write(w io.Writer, args ...) {
   len := args.len()
   fmt := __fmt_str__(len, false)
   write_fmt(w, fmt, args)
 }
 
+/// write to_str() of objects into io.Writer
+/// with newline
 func writeln(w io.Writer, args ...) {
   len := args.len()
   fmt := __fmt_str__(len, true)
