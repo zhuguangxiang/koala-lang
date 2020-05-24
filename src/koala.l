@@ -111,6 +111,49 @@ static char esc_convert(char ch)
   return val;
 }
 
+static inline int utf8_hex_to_int(char *s, int size)
+{
+  char bigs[16] = {0};
+
+  if (!CHECK_BIG_ENDIAN) {
+    int i, j;
+    for (i = 0, j = size - 1; i < size; i += 2, j -= 2) {
+      bigs[i] = s[j - 1];
+      bigs[i + 1] = s[j];
+    }
+  } else {
+    memcpy(bigs, s, size);
+  }
+
+  int v = strtol(bigs, NULL, 16);
+  return v;
+}
+
+static int parse_utf8_hex(char *hex, int len, int *size)
+{
+  char s[16] = {0};
+  strncpy(s, hex, len);
+  int i;
+  for (i = 0; i < len; i++) {
+    if (s[i] != '0') break;
+  }
+  if (size != NULL) *size = (len - i)/2;
+  return utf8_hex_to_int(s + i, len - i);
+}
+
+char string_buf[4096];
+int string_index = 0;
+
+static void parse_utf8_hex_in_string(char *hex, int len)
+{
+  int size = 0;
+  int v = parse_utf8_hex(hex, len, &size);
+  char *ch = (char *)&v;
+  for (int i = 0; i < size; i++) {
+    string_buf[string_index++] = ch[i];
+  }
+}
+
 static void parse_escape(char *buf, char *esc, int len)
 {
   int j = 0;
@@ -120,7 +163,16 @@ static void parse_escape(char *buf, char *esc, int len)
     if (ch == '\\') {
       if (i + 1 < len) {
         ch = esc[++i];
-        buf[j++] = esc_convert(ch);
+        if (ch == 'x') {
+          char *ptr = esc + i + 1;
+          int size = get_one_utf8_size(ptr);
+          int k = 0;
+          while (k++ < size) {
+            buf[j++] = esc[++i];
+          }
+        } else {
+          buf[j++] = esc_convert(ch);
+        }
       }
     } else {
       buf[j++] = ch;
@@ -163,9 +215,6 @@ int type_args = 0;
     YY_RETURN(';');           \
   }
 
-char string_buf[4096];
-int string_index = 0;
-
 %}
 
 %option bison-bridge
@@ -197,9 +246,18 @@ u3  [\xe0-\xef]
 u4  [\xf0-\xf7]
 
 asc_char  {asc}
-hex_char  \\x{hex}{hex}
+hex_char  \\x{hex}|\\x{hex}{hex}
 esc_char  \\\\|\\\"|\\a|\\b|\\f|\\n|\\r|\\t|\\v
 utf8_char {u2}{u}|{u3}{u}{u}|{u4}{u}{u}{u}
+
+utf8_hex_1  \\x{hex}
+utf8_hex_2  \\x{hex}{hex}
+utf8_hex_3  \\x{hex}{hex}{hex}
+utf8_hex_4  \\x{hex}{hex}{hex}{hex}
+utf8_hex_5  \\x{hex}{hex}{hex}{hex}{hex}
+utf8_hex_6  \\x{hex}{hex}{hex}{hex}{hex}{hex}
+utf8_hex_7  \\x{hex}{hex}{hex}{hex}{hex}{hex}{hex}
+utf8_hex_8  \\x{hex}{hex}{hex}{hex}{hex}{hex}{hex}{hex}
 
 alpha      [A-Za-z_]
 identifier {alpha}({alpha}|{digit})*
@@ -276,6 +334,7 @@ moddoc  "//!"[^\n]*
 "by"        { YY_RETURN(BY);            }
 "as"        { YY_RETURN(AS);            }
 "is"        { YY_RETURN(IS);            }
+"where"     { YY_RETURN(WHERE);         }
 
 "byte"      { YY_RETURN(BYTE);          }
 "int"       { YY_RETURN(INTEGER);       }
@@ -322,7 +381,7 @@ moddoc  "//!"[^\n]*
 }
 
 (b\'{hex_char}\') {
-  char s[4];
+  char s[4] = {0};
   char *nptr = yytext + 4;
   strncpy(s, nptr, strlen(nptr) - 1);
   yylval->ival = strtoll(s, NULL, 16);
@@ -355,43 +414,93 @@ moddoc  "//!"[^\n]*
 (\'{asc_char}\') {
   print("ascii:%s\n", yytext);
   char *s = yytext + 1;
-  yylval->cval.val = *s;
-  return YY_RETURN(CHAR_LITERAL);
-}
-
-(\'{hex_char}\') {
-  char s[4];
-  char *nptr = yytext + 3;
-  strncpy(s, nptr, strlen(nptr) - 1);
-  yylval->cval.val = strtol(s, NULL, 16);
+  yylval->cval = *s;
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{esc_char}\') {
   char *s = yytext + 2;
-  yylval->cval.val = parse_esc_char(*s);
+  yylval->cval = parse_esc_char(*s);
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'{utf8_char}\') {
-  char *s = yytext + 1;
-  yylval->cval.val = decode_one_utf8_char(&s);
+  char s[16] = {0};
+  char *nptr = yytext + 1;
+  strncpy(s, nptr, strlen(nptr) - 1);
+  yylval->cval = *(int *)s;
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'{utf8_hex_1}\') {
+  char *nptr = yytext + 3;
+  int len = strlen(nptr) - 1;
+  yylval->cval = parse_utf8_hex(nptr, len, NULL);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'{utf8_hex_2}\') {
+  char *nptr = yytext + 3;
+  int len = strlen(nptr) - 1;
+  yylval->cval = parse_utf8_hex(nptr, len, NULL);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'{utf8_hex_3}\') {
+  char *nptr = yytext + 3;
+  int len = strlen(nptr) - 1;
+  yylval->cval = parse_utf8_hex(nptr, len, NULL);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'{utf8_hex_4}\') {
+  char *nptr = yytext + 3;
+  int len = strlen(nptr) - 1;
+  yylval->cval = parse_utf8_hex(nptr, len, NULL);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'{utf8_hex_5}\') {
+  char *nptr = yytext + 3;
+  int len = strlen(nptr) - 1;
+  yylval->cval = parse_utf8_hex(nptr, len, NULL);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'{utf8_hex_6}\') {
+  char *nptr = yytext + 3;
+  int len = strlen(nptr) - 1;
+  yylval->cval = parse_utf8_hex(nptr, len, NULL);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'{utf8_hex_7}\') {
+  char *nptr = yytext + 3;
+  int len = strlen(nptr) - 1;
+  yylval->cval = parse_utf8_hex(nptr, len, NULL);
+  return YY_RETURN(CHAR_LITERAL);
+}
+
+(\'{utf8_hex_8}\') {
+  char *nptr = yytext + 3;
+  int len = strlen(nptr) - 1;
+  yylval->cval = parse_utf8_hex(nptr, len, NULL);
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'\\\'\') {
   char *s = yytext + 2;
-  yylval->cval.val = parse_esc_char(*s);
+  yylval->cval = parse_esc_char(*s);
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'\\0\') {
-  yylval->cval.val = '0';
+  yylval->cval = 0;
   return YY_RETURN(CHAR_LITERAL);
 }
 
 (\'\') {
-  yylval->cval.val = '0';
+  yylval->cval = 0;
   return YY_RETURN(CHAR_LITERAL);
 }
 
@@ -406,7 +515,7 @@ moddoc  "//!"[^\n]*
                   BEGIN(XSTRING);
                   string_index = 0;
                 }
-<XSTRING>\"      {
+<XSTRING>\"     {
                   BEGIN(INITIAL);
                   char buf[4096];
                   parse_escape(buf, string_buf, string_index);
@@ -422,22 +531,46 @@ moddoc  "//!"[^\n]*
                     YY_RETURN(STRING_LITERAL);
                   }
                 }
-<XSTRING>\\\"    {
+<XSTRING>\\\"   {
                   string_buf[string_index++] = '\\';
                   string_buf[string_index++] = '\"';
                 }
-<XSTRING>\\\\    {
+<XSTRING>\\\\   {
                   string_buf[string_index++] = '\\';
                   string_buf[string_index++] = '\\';
                 }
-<XSTRING>\n      {
+<XSTRING>\n     {
                   string_buf[string_index++] = yytext[0];
                 }
-<XSTRING>\r      {
+<XSTRING>\r     {
                   string_buf[string_index++] = yytext[0];
                 }
-<XSTRING>\0      ;
-<XSTRING>.       {
+<XSTRING>{utf8_hex_1} {
+                        parse_utf8_hex_in_string(yytext+2, 1);
+                      }
+<XSTRING>{utf8_hex_2} {
+                        parse_utf8_hex_in_string(yytext+2, 2);
+                      }
+<XSTRING>{utf8_hex_3} {
+                        parse_utf8_hex_in_string(yytext+2, 3);
+                      }
+<XSTRING>{utf8_hex_4} {
+                        parse_utf8_hex_in_string(yytext+2, 4);
+                      }
+<XSTRING>{utf8_hex_5} {
+                        parse_utf8_hex_in_string(yytext+2, 5);
+                      }
+<XSTRING>{utf8_hex_6} {
+                        parse_utf8_hex_in_string(yytext+2, 6);
+                      }
+<XSTRING>{utf8_hex_7} {
+                        parse_utf8_hex_in_string(yytext+2, 7);
+                      }
+<XSTRING>{utf8_hex_8} {
+                        parse_utf8_hex_in_string(yytext+2, 8);
+                      }
+<XSTRING>\0     ;
+<XSTRING>.      {
                   string_buf[string_index++] = yytext[0];
                 }
 
@@ -475,6 +608,30 @@ moddoc  "//!"[^\n]*
 <TEXT>\r        {
                   string_buf[string_index++] = yytext[0];
                 }
+<TEXT>{utf8_hex_1}  {
+                      parse_utf8_hex_in_string(yytext+2, 1);
+                    }
+<TEXT>{utf8_hex_2}  {
+                      parse_utf8_hex_in_string(yytext+2, 2);
+                    }
+<TEXT>{utf8_hex_3}  {
+                      parse_utf8_hex_in_string(yytext+2, 3);
+                    }
+<TEXT>{utf8_hex_4}  {
+                      parse_utf8_hex_in_string(yytext+2, 4);
+                    }
+<TEXT>{utf8_hex_5}  {
+                      parse_utf8_hex_in_string(yytext+2, 5);
+                    }
+<TEXT>{utf8_hex_6}  {
+                      parse_utf8_hex_in_string(yytext+2, 6);
+                    }
+<TEXT>{utf8_hex_7}  {
+                      parse_utf8_hex_in_string(yytext+2, 7);
+                    }
+<TEXT>{utf8_hex_8}  {
+                      parse_utf8_hex_in_string(yytext+2, 8);
+                    }
 <TEXT>\0        ;
 <TEXT>.         {
                   string_buf[string_index++] = yytext[0];
@@ -483,7 +640,7 @@ moddoc  "//!"[^\n]*
 {identifier} {
   char *name = atom_nstring(yytext, yyleng);
   yylval->sval = name;
-  type_args = symbol_need_type_args(yyps, name);
+  type_args = need_type_args(yyps, name);
   YY_RETURN(ID);
 }
 

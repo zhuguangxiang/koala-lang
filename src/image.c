@@ -403,7 +403,7 @@ static int literalitem_equal(void *k1, void *k2)
     res = (item1->index == item2->index);
     break;
   case LITERAL_UCHAR:
-    res = item1->wch.val == item2->wch.val;
+    res = item1->wch == item2->wch;
     break;
   default:
     panic("invalid literal %d", item1->type);
@@ -1327,7 +1327,7 @@ static inline LiteralItem *literalitem_string_new(int32_t val)
   return item;
 }
 
-static inline LiteralItem *literalitem_uchar_new(wchar val)
+static inline LiteralItem *literalitem_uchar_new(int val)
 {
   LiteralItem *item = kmalloc(sizeof(LiteralItem));
   item->type = LITERAL_UCHAR;
@@ -1414,7 +1414,7 @@ int image_add_string(Image *image, char *val)
   return image_add_const(image, CONST_LITERAL, index);
 }
 
-int image_add_uchar(Image *image, wchar val)
+int image_add_uchar(Image *image, int val)
 {
   LiteralItem k = {0};
   k.type = LITERAL_UCHAR;

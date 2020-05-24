@@ -51,7 +51,7 @@ void literal_show(Literal *val, StrBuf *sbuf)
     strbuf_append_char(sbuf, '\'');
     break;
   case BASE_CHAR:
-    strbuf_append_int(sbuf, val->cval.val);
+    strbuf_append_int(sbuf, val->cval);
     break;
   default:
     panic("invalid literal %d", val->kind);

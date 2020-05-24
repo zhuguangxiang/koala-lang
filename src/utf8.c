@@ -128,6 +128,56 @@ int encode_one_utf8_char(int ch, char *buf)
   return bytes;
 }
 
+int get_one_utf8_size(char *str)
+{
+  unsigned char *s = (unsigned char *)str;
+  int count;
+
+  if (*s < 0x80) {
+    /* 0xxx_xxxx */
+    s += 1;
+    ++count;
+  } else if ((s[0] & 0xe0) == 0xc0) {
+    /* 110X_XXXx 10xx_xxxx */
+    if ((s[1] & 0xc0) != 0x80 ||
+        (s[0] & 0xfe) == 0xc0)
+      goto invalid;
+    s += 2;
+    ++count;
+  } else if ((s[0] & 0xf0) == 0xe0) {
+    /* 1110_XXXX 10Xx_xxxx 10xx_xxxx */
+    if ((s[1] & 0xc0) != 0x80 ||
+        (s[2] & 0xc0) != 0x80 ||
+        /* overlong? */
+        (s[0] == 0xe0 && (s[1] & 0xe0) == 0x80) ||
+        /* surrogate? */
+        (s[0] == 0xed && (s[1] & 0xe0) == 0xa0) ||
+        /* U+FFFE or U+FFFF? */
+        (s[0] == 0xef && s[1] == 0xbf && (s[2] & 0xfe) == 0xbe))
+      goto invalid;
+    s += 3;
+    ++count;
+  } else if ((s[0] & 0xf8) == 0xf0) {
+    /* 1111_0XXX 10XX_xxxx 10xx_xxxx 10xx_xxxx */
+    if ((s[1] & 0xc0) != 0x80 ||
+        (s[2] & 0xc0) != 0x80 ||
+        (s[3] & 0xc0) != 0x80 ||
+        /* overlong? */
+        (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||
+        /* > U+10FFFF? */
+        (s[0] == 0xf4 && s[1] > 0x8f) ||
+        s[0] > 0xf4)
+      goto invalid;
+    s += 4;
+    ++count;
+  } else {
+invalid:
+    return -1;
+  }
+
+  return count;
+}
+
 int check_utf8_valid_with_len(void *str, int len)
 {
   unsigned char *s = (unsigned char *)str;

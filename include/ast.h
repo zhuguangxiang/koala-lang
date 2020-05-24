@@ -423,7 +423,7 @@ Expr *expr_from_int(int64_t val);
 Expr *expr_from_float(double val);
 Expr *expr_from_bool(int val);
 Expr *expr_from_str(char *val);
-Expr *expr_from_char(wchar val);
+Expr *expr_from_char(int val);
 Expr *expr_from_ident(char *val);
 Expr *expr_from_underscore(void);
 Expr *expr_from_unary(UnaryOpKind op, Expr *exp);

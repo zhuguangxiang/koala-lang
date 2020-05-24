@@ -52,7 +52,7 @@ typedef struct literal {
   /* see BASE_XXX */
   char kind;
   union {
-    wchar cval;
+    int cval;
     int64_t ival;
     double fval;
     int bval;
@@ -179,6 +179,7 @@ extern TypeDesc type_base_null;
 #define desc_from_str   _TYPE_INCREF_(&type_base_str)
 #define desc_from_bool  _TYPE_INCREF_(&type_base_bool)
 #define desc_from_any   _TYPE_INCREF_(&type_base_any)
+#define desc_any        _TYPE_INCREF_(&type_base_any)
 #define desc_from_desc  _TYPE_INCREF_(&type_base_desc)
 #define desc_from_null  _TYPE_INCREF_(&type_base_null)
 TypeDesc *desc_from_base(int kind);
@@ -191,6 +192,7 @@ TypeDesc *desc_from_label(TypeDesc *edesc, Vector *types);
 #define desc_from_array desc_from_klass("lang", "Array")
 #define desc_from_map   desc_from_klass("lang", "Map")
 #define desc_from_tuple desc_from_klass("lang", "Tuple")
+#define desc_valist      desc_from_klass("lang", "VaList")
 void desc_add_paratype(TypeDesc *desc, TypeDesc *type);
 void desc_add_paradef(TypeDesc *desc, TypeDesc *type);
 TypeDesc *desc_dup(TypeDesc *desc);

@@ -115,7 +115,7 @@ typedef struct literalitem {
     double fval;    /* float64 */
     int bval;       /* bool */
     int32_t index;  /* ->StringItem */
-    wchar wch;      /* unicode char */
+    int wch;        /* utf8 char */
   };
 } LiteralItem;
 
@@ -255,7 +255,7 @@ int image_add_byte(Image *image, int64_t val);
 int image_add_float(Image *image, double val);
 int image_add_bool(Image *image, int val);
 int image_add_string(Image *image, char *val);
-int image_add_uchar(Image *image, wchar val);
+int image_add_uchar(Image *image, int val);
 int image_add_literal(Image *image, Literal *val);
 int image_add_desc(Image *image, TypeDesc *desc);
 int image_add_anony(Image *image, CodeInfo *ci);

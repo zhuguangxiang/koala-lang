@@ -98,7 +98,7 @@ Expr *expr_from_str(char *val)
   return exp;
 }
 
-Expr *expr_from_char(wchar val)
+Expr *expr_from_char(int val)
 {
   Expr *exp = kmalloc(sizeof(Expr));
   exp->kind = LITERAL_KIND;

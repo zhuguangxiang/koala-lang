@@ -35,6 +35,11 @@ typedef union wchar {
   unsigned short val;
 } wchar;
 
+/* endian check */
+#define CHECK_BIG_ENDIAN ({   \
+  int i = 1; !*((char *)&i);  \
+})
+
 /* Get the min(max) one of the two numbers */
 #define MIN(a, b) ((a) > (b) ? (b) : (a))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))

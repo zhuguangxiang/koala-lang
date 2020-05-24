@@ -403,14 +403,33 @@ static Object *char_str(Object *self, Object *ob)
   }
 
   CharObject *ch = (CharObject *)self;
-  char buf[8] = {'\'', 0};
+  char buf[8] = {'\''};
   int bytes;
-  if (ch->value == '0') {
-    buf[1] = '\\';
-    buf[2] = '0';
+  char *ptr;
+  if (ch->value == 0) {
+    bytes = 0;
+  } else if (ch->value <= 0xFF) {
+    ptr = (char *)&ch->value;
+    buf[1] = ptr[0];
+    bytes = 1;
+  } else if (ch->value <= 0xFFFF) {
+    ptr = (char *)&ch->value;
+    buf[1] = ptr[0];
+    buf[2] = ptr[1];
     bytes = 2;
+  } else if (ch->value <= 0xFFFFFF) {
+    ptr = (char *)&ch->value;
+    buf[1] = ptr[0];
+    buf[2] = ptr[1];
+    buf[3] = ptr[2];
+    bytes = 3;
   } else {
-    bytes = encode_one_utf8_char(ch->value, buf + 1);
+    ptr = (char *)&ch->value;
+    buf[1] = ptr[0];
+    buf[2] = ptr[1];
+    buf[3] = ptr[2];
+    buf[4] = ptr[3];
+    bytes = 4;
   }
   buf[bytes + 1] = '\'';
   return string_new(buf);

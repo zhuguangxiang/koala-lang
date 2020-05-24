@@ -753,7 +753,7 @@ Object *new_literal(Literal *val)
     break;
   case BASE_CHAR:
     debug("literal string value: %s", (char *)&val->cval);
-    ob = char_new(val->cval.val);
+    ob = char_new(val->cval);
     break;
   default:
     panic("invalid literal %d", val->kind);

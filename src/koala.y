@@ -64,7 +64,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %union {
   int64_t ival;
   double fval;
-  wchar cval;
+  int cval;
   char *sval;
   char *text;
   Vector *list;
@@ -112,6 +112,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %token BY
 %token AS
 %token IS
+%token WHERE
 
 %token BYTE
 %token INTEGER
@@ -215,6 +216,7 @@ int comp_add_type(ParserState *ps, Stmt *stmt);
 %type <list> enum_labels
 %type <list> enum_methods
 %type <enumlabel> enum_label
+%type <list> where_clause
 
 %type <expr> anony_func
 %type <ptr> mapentry
@@ -1651,37 +1653,37 @@ id_varg:
 ;
 
 type_decl:
-  CLASS name extends '{' members '}'
+  CLASS name extends where_clause '{' members '}'
 {
-  $$ = stmt_from_class($2.id, $2.vec, $3, $5);
+  $$ = stmt_from_class($2.id, $2.vec, $3, $6);
   $$->row = row(@1);
   $$->col = col(@1);
   ps->semicolon = 0;
 }
-| CLASS name extends ';'
+| CLASS name extends where_clause ';'
 {
   $$ = stmt_from_class($2.id, $2.vec, $3, NULL);
   $$->row = row(@1);
   $$->col = col(@1);
   ps->semicolon = 0;
 }
-| TRAIT name extends '{' trait_members '}'
+| TRAIT name extends where_clause '{' trait_members '}'
 {
-  $$ = stmt_from_trait($2.id, $2.vec, $3, $5);
+  $$ = stmt_from_trait($2.id, $2.vec, $3, $6);
   $$->row = row(@1);
   $$->col = col(@1);
   ps->semicolon = 0;
 }
-| TRAIT name extends ';'
+| TRAIT name extends where_clause ';'
 {
   $$ = stmt_from_trait($2.id, $2.vec, $3, NULL);
   $$->row = row(@1);
   $$->col = col(@1);
   ps->semicolon = 0;
 }
-| ENUM name '{' enum_members '}'
+| ENUM name where_clause '{' enum_members '}'
 {
-  $$ = stmt_from_enum($2.id, $2.vec, $4);
+  $$ = stmt_from_enum($2.id, $2.vec, $5);
   $$->row = row(@1);
   $$->col = col(@1);
 }
@@ -1710,6 +1712,22 @@ klass_type_list:
   $$ = $1;
   vector_push_back($$, $3);
 }
+;
+
+where_clause:
+  %empty
+{
+  $$ = NULL;
+}
+| WHERE where_list
+{
+  $$ = NULL;
+}
+;
+
+where_list:
+  ID ':' type_bound_list
+| where_list ',' ID ':' type_bound_list
 ;
 
 members:

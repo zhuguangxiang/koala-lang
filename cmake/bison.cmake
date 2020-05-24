@@ -13,7 +13,7 @@ MACRO(RUN_BISON input_y output_c output_h)
            ${output_h}
     DEPENDS ${input_y}
     COMMAND ${BISON_EXECUTABLE}
-            -dvt
+            ## -dvt
             --output=${output_c}
             --defines=${output_h}
             ${input_y})

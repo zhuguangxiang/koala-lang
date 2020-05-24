@@ -122,7 +122,7 @@ Symbol *find_from_builtins(char *name)
   return stable_get(_lang_.stbl, name);
 }
 
-int symbol_need_type_args(ParserState *ps, char *name)
+int need_type_args(ParserState *ps, char *name)
 {
   Module *m = ps->module;
   Symbol *sym = stable_get(m->stbl, name);

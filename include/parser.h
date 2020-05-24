@@ -181,7 +181,7 @@ Symbol *find_from_builtins(char *name);
 void mod_from_mobject(Module *mod, Object *ob);
 Symbol *mod_find_symbol(Module *mod, char *name);
 Symbol *get_desc_symbol(Module *mod, TypeDesc *desc);
-int symbol_need_type_args(ParserState *ps, char *name);
+int need_type_args(ParserState *ps, char *name);
 
 #ifdef __cplusplus
 }
