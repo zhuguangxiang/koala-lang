@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 
+/* memory at least 340 bytes */
 char *ga;
 void *gb;
 

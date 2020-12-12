@@ -53,7 +53,7 @@ typedef struct GcHeader {
     };
 } GcHeader;
 
-static const int space_size = 350;
+static const int space_size = 340;
 static char *from_space;
 static char *to_space;
 static char *free_ptr;
@@ -67,7 +67,7 @@ static GcHeader *__new__(int size)
 
 Lrealloc:
     new_ptr = free_ptr + objsize;
-    if (new_ptr > from_space + space_size) {
+    if (new_ptr > (from_space + space_size)) {
         int waste = space_size - (free_ptr - from_space);
         if (tried) {
             printf("gc-debug: alloc size:%d failed\n", objsize);
@@ -201,13 +201,17 @@ static void *copy(void *ptr)
             return newobj;
         }
         case GC_ARRAY_KIND: {
+            int copied = 0;
             GcArray *arr = ptr;
             int own_buf = (arr->ptr == (void *)arr->data);
             GcArray *newarr = gc_alloc_array(arr->len, own_buf, arr->isobj);
-            memcpy(newarr->ptr, arr->ptr, arr->len * sizeof(uintptr_t));
+            if (arr->ptr) {
+                memcpy(newarr->ptr, arr->ptr, arr->len * sizeof(uintptr_t));
+                copied = 1;
+            }
             hdr->forward = newarr;
             hdr->kind = GC_FORWARD_KIND;
-            if (newarr->isobj) {
+            if (newarr->isobj && copied) {
                 void **elems = (void **)newarr->ptr;
                 for (int i = 0; i < newarr->len; i++) elems[i] = copy(elems[i]);
             }
