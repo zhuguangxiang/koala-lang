@@ -1,4 +1,3 @@
-#+TITLE: README
 #+Author: Zhu Guangxiang (James)
 #+EMAIL: zhuguangxiang@gmail.com
 #+STARTUP: showall
