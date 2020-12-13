@@ -103,7 +103,7 @@ static inline void vector_push_front(Vector *vec, void *obj)
 int vector_get(Vector *vec, int index, void *obj);
 
 /* Peek an obj at the end of the vector, not remove it.*/
-static inline void Vectorop_back(Vector *vec, void *obj)
+static inline void vector_top_back(Vector *vec, void *obj)
 {
     vector_get(vec, vec->size - 1, obj);
 }
@@ -132,6 +132,12 @@ static inline void vector_pop_front(Vector *vec, void *obj)
 {
     vector_remove(vec, 0, obj);
 }
+
+/* iterate for vector */
+#define vector_foreach(item, idx, vec)                                    \
+    for (idx = 0;                                                         \
+         vec && idx < vector_size(vec) && !vector_get(vec, idx, &(item)); \
+         idx++)
 
 #ifdef __cplusplus
 }

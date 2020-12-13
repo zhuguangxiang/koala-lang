@@ -5,11 +5,16 @@
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This file implements the Koala 'Field' object.                             *|
+|* This file implements the Koala `Field` object.                             *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
 #include "fieldobject.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-
+#ifdef __cplusplus
+}
+#endif

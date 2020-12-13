@@ -5,7 +5,7 @@
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares the Koala 'Object' and 'TypeObject' object.           *|
+|* This header declares the Koala `Object` and `TypeObject` object.           *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
@@ -58,8 +58,8 @@ typedef enum {
     TP_FLAGS_TRAIT,
     TP_FLAGS_ENUM,
     TP_FLAGS_MOD,
-    TP_FLAGS_FINAL = 0x10,
-    TP_FLAGS_PUB = 0x20,
+    TP_FLAGS_PUB = 0x10,
+    TP_FLAGS_FINAL = 0x20,
 } tp_flags_t;
 
 struct TypeObject {
@@ -81,15 +81,24 @@ struct TypeObject {
 #define is_trait(type) (((type)->flags & 0x0F) == TP_FLAGS_TRAIT)
 #define is_enum(type)  (((type)->flags & 0x0F) == TP_FLAGS_ENUM)
 #define is_mod(type)   (((type)->flags & 0x0F) == TP_FLAGS_MOD)
-#define is_final(type) (((type)->flags & TP_FLAGS_FINAL) == TP_FLAGS_FINAL)
 #define is_pub(type)   (((type)->flags & TP_FLAGS_PUB) == TP_FLAGS_PUB)
+#define is_final(type) (((type)->flags & TP_FLAGS_FINAL) == TP_FLAGS_FINAL)
+
+/* new typeobject */
+TypeObject *type_new(const char *name);
+
+/* type_ready called must be at last */
+void type_ready(TypeObject *type);
+
+/* initialize `Any` and Type` */
+void init_type_type(void);
 
 /* method define struct */
 typedef struct MethodDef {
     const char *name;
-    const char *proto;
+    const char *rtype;
+    const char *ptype;
     const char *funcname;
-    const void *funcptr;
 } MethodDef;
 
 /* field define struct */

@@ -5,11 +5,16 @@
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This file implements the Koala 'Method' object.                            *|
+|* This file implements the Koala `Method` object.                            *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
 #include "methodobject.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-
+#ifdef __cplusplus
+}
+#endif
