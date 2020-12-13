@@ -199,6 +199,24 @@ void type_show(TypeObject *type)
 {
     printf("%s(%p):\n", type->name, type);
 
+    int cnt;
+    char buf[64];
+    if (is_class(type))
+        cnt = sprintf(buf, "TP_FLAGS_CLASS");
+    else if (is_trait(type))
+        cnt = sprintf(buf, "TP_FLAGS_TRAIT");
+    else if (is_enum(type))
+        cnt = sprintf(buf, "TP_FLAGS_ENUM");
+    else if (is_mod(type))
+        cnt = sprintf(buf, "TP_FLAGS_MOD");
+    else
+        assert(0);
+
+    if (is_pub(type)) cnt += sprintf(buf + cnt, " | TP_FLAGS_PUB");
+    if (is_final(type)) cnt += sprintf(buf + cnt, " | TP_FLAGS_FINAL");
+
+    printf("flags:%s\n", buf);
+
     GcObject *gcobj = (GcObject *)type - 1;
 
     printf("->type: %p\n", (TypeObject *)gcobj->type);
@@ -276,6 +294,12 @@ void init_type_type(void)
     /* add `Method` of `Type` */
     MethodDef defs[] = {
         { "__name__", NULL, "s", "kl_type_name" },
+        { "__mod__", NULL, "L.Module;", "kl_type_name" },
+        { "__lro__", NULL, "L.Tuple;", "kl_type_name" },
+        { "__mbrs__", NULL, "L.Array(s);", "kl_type_name" },
+        { "getField", "s", "L.Field;", "kl_type_name" },
+        { "getMethod", "s", "L.Method;", "kl_type_name" },
+        { "__str__", NULL, "s", "kl_type_name" },
         { NULL },
     };
     type_add_methdefs(type, defs);
