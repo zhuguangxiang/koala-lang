@@ -110,7 +110,7 @@ static inline int hashmap_size(HashMap *self)
 void hashmap_init(HashMap *self, hash_equal_t equal);
 
 /* Destroy the hashmap and free its allocated memory. */
-void hashmap_fini(HashMap *self, hash_visit_t free, void *data);
+void hashmap_fini(HashMap *self, hash_visit_t free, void *arg);
 
 /*
  * Retrieve the hashmap entry for the specified hash code.

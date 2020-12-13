@@ -62,14 +62,22 @@ void hashmap_init(HashMap *self, hash_equal_t equal)
     __alloc_entries(self, HASHMAP_INITIAL_SIZE);
 }
 
-void hashmap_fini(HashMap *self, hash_visit_t free, void *data)
+void hashmap_fini(HashMap *self, hash_visit_t free, void *arg)
 {
     if (!self || !self->entries) return;
 
-    hashmap_visit(self, free, data);
+    HashMapEntry *e, *nxt;
+    int entries = self->size;
+    for (int i = 0; i < entries; i++) {
+        e = self->entries[i];
+        while (e) {
+            nxt = e->next;
+            free(e, arg);
+            e = nxt;
+        }
+    }
 
     mm_free(self->entries);
-    memset(self, 0, sizeof(*self));
 }
 
 static inline int bucket(HashMap *self, HashMapEntry *e)
