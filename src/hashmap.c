@@ -68,8 +68,7 @@ void hashmap_fini(HashMap *self, hash_visit_t free, void *arg)
     if (!self || !self->entries) return;
 
     HashMapEntry *e, *nxt;
-    int entries = self->size;
-    for (int i = 0; i < entries; i++) {
+    for (int i = 0; i < self->size; i++) {
         e = self->entries[i];
         while (e) {
             nxt = e->next;

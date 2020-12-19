@@ -30,7 +30,6 @@ static int __str_cmp_cb__(void *k1, void *k2)
 
 static void __str_free_cb__(void *entry, void *data)
 {
-    hashmap_remove(data, entry);
     free(entry);
 }
 
