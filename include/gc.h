@@ -12,9 +12,7 @@
 #ifndef _KOALA_GC_H_
 #define _KOALA_GC_H_
 
-#include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,9 +27,9 @@ extern "C" {
  *           |------|    | &obj |
  *                       |------|
  *
- * NOTE: it is the caller's responsibility to make sure arguments are rooted.
- * foo(f(), g()) will not work, and foo can't do anything about it, so the
- * caller must do it below:
+ * NOTE: it is the caller's responsibility to make sure arguments are
+ * rooted. foo(f(), g()) will not work, and foo can't do anything about it,
+ * so the caller must do it below:
  *
  * Object *x = NULL, *y = NULL;
  * gc_push(2, &x, &y);

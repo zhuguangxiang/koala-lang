@@ -12,7 +12,16 @@
 #ifndef _KOALA_COMMON_H_
 #define _KOALA_COMMON_H_
 
+#include "hashmap.h"
+#include "list.h"
+#include "mm.h"
+#include "vector.h"
+#include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {

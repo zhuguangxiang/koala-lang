@@ -9,14 +9,7 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#include "common.h"
-#include "mm.h"
-#include "object.h"
-#include "vector.h"
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {

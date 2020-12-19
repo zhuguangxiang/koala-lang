@@ -45,9 +45,8 @@
 #ifndef _KOALA_HASHMAP_H_
 #define _KOALA_HASHMAP_H_
 
-#include "common.h"
 #include "mm.h"
-#include <string.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {

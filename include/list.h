@@ -13,7 +13,6 @@
 #define _KOALA_LIST_H_
 
 #include "common.h"
-#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
