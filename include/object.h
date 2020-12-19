@@ -12,9 +12,8 @@
 #ifndef _KOALA_OBJECT_H_
 #define _KOALA_OBJECT_H_
 
-#include "hashmap.h"
-#include "vector.h"
-#include <stdint.h>
+#include "common.h"
+#include "gc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,21 +37,7 @@ typedef struct Object Object;
  */
 typedef struct TypeObject TypeObject;
 
-/* meta table */
-typedef struct kl_mtbl_t kl_mtbl_t;
-
-/* create meta table */
-kl_mtbl_t *mtbl_create(void);
-
-/* add object into meta table, return -1 means failed. */
-int mtbl_add(kl_mtbl_t *mtbl, const char *name, Object *obj);
-
-/* remove object from meta table, return removed object. */
-Object *mtbl_remove(kl_mtbl_t *mtbl, const char *name);
-
-/* destroy meta table */
-void mtbl_destroy(kl_mtbl_t *mtbl);
-
+/* type's flags */
 typedef enum {
     TP_FLAGS_CLASS = 1,
     TP_FLAGS_TRAIT,
@@ -62,9 +47,14 @@ typedef enum {
     TP_FLAGS_FINAL = 0x20,
 } tp_flags_t;
 
+/* `Type` object layout */
 struct TypeObject {
     /* object */
     OBJECT_HEAD
+    /* virtual table */
+    void *vtbl;
+    /* gc object map */
+    objmap_t *objmap;
     /* type name */
     const char *name;
     /* type flags */
@@ -72,26 +62,73 @@ struct TypeObject {
     /* super class or traits */
     Vector *bases;
     /* line resolution order */
-    Vector lro;
+    Vector *lro;
     /* meta table */
-    kl_mtbl_t *mtbl;
+    HashMap *mtbl;
 };
 
-#define is_class(type) (((type)->flags & 0x0F) == TP_FLAGS_CLASS)
-#define is_trait(type) (((type)->flags & 0x0F) == TP_FLAGS_TRAIT)
-#define is_enum(type)  (((type)->flags & 0x0F) == TP_FLAGS_ENUM)
-#define is_mod(type)   (((type)->flags & 0x0F) == TP_FLAGS_MOD)
-#define is_pub(type)   (((type)->flags & TP_FLAGS_PUB) == TP_FLAGS_PUB)
-#define is_final(type) (((type)->flags & TP_FLAGS_FINAL) == TP_FLAGS_FINAL)
+#define obj_get_type(obj)       *((void **)(obj)-1)
+#define obj_set_type(obj, type) *((void **)(obj)-1) = (type)
 
-/* new typeobject */
-TypeObject *type_new(const char *name);
+#define type_is_class(type) (((type)->flags & 0x0F) == TP_FLAGS_CLASS)
+#define type_is_trait(type) (((type)->flags & 0x0F) == TP_FLAGS_TRAIT)
+#define type_is_enum(type)  (((type)->flags & 0x0F) == TP_FLAGS_ENUM)
+#define type_is_mod(type)   (((type)->flags & 0x0F) == TP_FLAGS_MOD)
+#define type_is_pub(type)   (((type)->flags & TP_FLAGS_PUB) == TP_FLAGS_PUB)
+#define type_is_final(type) (((type)->flags & TP_FLAGS_FINAL) == TP_FLAGS_FINAL)
+
+TypeObject *__type_new(const char *name);
+
+/* new class */
+static inline TypeObject *type_new_class(const char *name)
+{
+    TypeObject *type = __type_new(name);
+    type->flags = TP_FLAGS_CLASS;
+    return type;
+}
+
+/* new trait */
+static inline TypeObject *type_new_trait(const char *name)
+{
+    TypeObject *type = __type_new(name);
+    type->flags = TP_FLAGS_TRAIT;
+    return type;
+}
+
+/* new enum */
+static inline TypeObject *type_new_enum(const char *name)
+{
+    TypeObject *type = __type_new(name);
+    type->flags = TP_FLAGS_ENUM;
+    return type;
+}
+
+/* new mod */
+static inline TypeObject *type_new_mod(const char *name)
+{
+    TypeObject *type = __type_new(name);
+    type->flags = TP_FLAGS_MOD;
+    return type;
+}
+
+/* set type's public */
+#define type_set_public(type) (type)->flags |= TP_FLAGS_PUB
+
+/* set type's final */
+#define type_set_final(type) (type)->flags |= TP_FLAGS_FINAL
+
+/* set type's public final */
+#define type_set_public_final(type) \
+    (type)->flags |= (TP_FLAGS_PUB + TP_FLAGS_FINAL)
 
 /* type_ready called must be at last */
 void type_ready(TypeObject *type);
 
-/* initialize `Any` and Type` */
-void init_type_type(void);
+/* append base class or traits */
+void type_append_base(TypeObject *type, TypeObject *base);
+
+/* initialize core types(Any and Type) */
+void init_core_types(void);
 
 /* method define struct */
 typedef struct MethodDef {

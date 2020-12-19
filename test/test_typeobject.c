@@ -10,7 +10,6 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "object.h"
-#include <stdio.h>
 
 /*
  * cc -g test/test_typeobject.c src/typeobject.c src/vector.c src/mm.c
@@ -18,7 +17,7 @@
  */
 void test_typeobject(void)
 {
-    init_type_type();
+    init_core_types();
 }
 
 int main(int argc, char *argv[])

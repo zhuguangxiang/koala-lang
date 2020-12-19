@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# valgrind ./a.out
+
 gcc -g -Wall src/mm.c src/hashmap.c test/test_hashmap.c -I./include
 ./a.out
 
@@ -10,4 +12,7 @@ gcc -g -Wall test/test_list.c -I./include
 ./a.out
 
 gcc -g -Wall src/mm.c src/gc.c test/test_gc.c src/vector.c src/hashmap.c -I./include
+./a.out
+
+gcc -g -Wall test/test_typeobject.c src/typeobject.c src/vector.c src/mm.c src/hashmap.c -I./include
 ./a.out

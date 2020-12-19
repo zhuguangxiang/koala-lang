@@ -10,10 +10,7 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "fieldobject.h"
-#include "gc.h"
 #include "methodobject.h"
-#include "mm.h"
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,31 +55,26 @@ static void mnode_show(void *e, void *arg)
     printf("%s\n", n->name);
 }
 
-/* meta table */
-struct kl_mtbl_t {
-    HashMap map;
-};
-
-kl_mtbl_t *mtbl_create(void)
+static inline HashMap *mtbl_create(void)
 {
-    kl_mtbl_t *mtbl = mm_alloc(sizeof(*mtbl));
-    hashmap_init(&mtbl->map, mnode_equal);
+    HashMap *mtbl = mm_alloc(sizeof(*mtbl));
+    hashmap_init(mtbl, mnode_equal);
     return mtbl;
 }
 
-int mtbl_add(kl_mtbl_t *mtbl, const char *name, Object *obj)
+static int mtbl_add(HashMap *mtbl, const char *name, Object *obj)
 {
     struct mnode *n = mnode_new(name, obj);
-    int ret = hashmap_put_absent(&mtbl->map, n);
+    int ret = hashmap_put_absent(mtbl, n);
     if (ret) { printf("error: duplicated object `%s` in meta-table\n", name); }
     return ret;
 }
 
-Object *mtbl_remove(kl_mtbl_t *mtbl, const char *name)
+static Object *mtbl_remove(HashMap *mtbl, const char *name)
 {
     Object *obj = NULL;
     struct mnode key = { .name = name };
-    struct mnode *old = hashmap_remove(&mtbl->map, &key);
+    struct mnode *old = hashmap_remove(mtbl, &key);
     if (old) {
         obj = old->obj;
         mnode_free(old, NULL);
@@ -93,22 +85,10 @@ Object *mtbl_remove(kl_mtbl_t *mtbl, const char *name)
     return obj;
 }
 
-void mtbl_show(kl_mtbl_t *mtbl)
+static void mtbl_show(HashMap *mtbl)
 {
     if (!mtbl) return;
-    hashmap_visit(&mtbl->map, mnode_show, NULL);
-}
-
-int type_add_fielddef(TypeObject *type, FieldDef *def)
-{
-    Object *obj = NULL; // field_new(def->name);
-    return mtbl_add(type->mtbl, def->name, obj);
-}
-
-int type_add_methdef(TypeObject *type, MethodDef *def)
-{
-    Object *obj = NULL; // cmethod_new(def);
-    return mtbl_add(type->mtbl, def->name, obj);
+    hashmap_visit(mtbl, mnode_show, NULL);
 }
 
 /* `Type` type */
@@ -116,17 +96,6 @@ static TypeObject *type_type;
 
 /* `Any` type */
 static TypeObject *any_type;
-
-TypeObject *type_new(const char *name)
-{
-    GcObject *gcobj = mm_alloc(sizeof(GcObject) + sizeof(TypeObject));
-    gcobj->type = type_type;
-    TypeObject *type = (TypeObject *)(gcobj + 1);
-    type->name = name;
-    vector_init(&type->lro, sizeof(TypeObject *));
-    type->mtbl = mtbl_create();
-    return type;
-}
 
 static int lro_find(Vector *vec, TypeObject *type)
 {
@@ -139,13 +108,23 @@ static int lro_find(Vector *vec, TypeObject *type)
     return 0;
 }
 
+static inline Vector *__get_lro(TypeObject *type)
+{
+    Vector *vec = type->lro;
+    if (!vec) {
+        vec = vector_new(sizeof(void *));
+        type->lro = vec;
+    }
+    return vec;
+}
+
 static void lro_build_one(TypeObject *type, TypeObject *base)
 {
-    Vector *vec = &type->lro;
+    Vector *vec = __get_lro(type);
 
     TypeObject *item;
     int idx;
-    vector_foreach(item, idx, &base->lro)
+    vector_foreach(item, idx, base->lro)
     {
         if (!lro_find(vec, item)) { vector_push_back(vec, &item); }
     }
@@ -174,25 +153,28 @@ static void vtbl_build(TypeObject *type)
 {
 }
 
+TypeObject *__type_new(const char *name)
+{
+    void **obj = mm_alloc(sizeof(void **) + sizeof(TypeObject));
+    *obj = type_type;
+    TypeObject *type = (TypeObject *)(obj + 1);
+    type->name = name;
+    return type;
+}
+
 void type_ready(TypeObject *type)
 {
     /* trait must not be final */
-    if (is_trait(type)) assert(!is_final(type));
+    if (type_is_trait(type)) assert(!type_is_final(type));
 
     /* module, enumeration must be final */
-    if (is_mod(type) || is_enum(type)) assert(is_final(type));
+    if (type_is_mod(type) || type_is_enum(type)) assert(type_is_final(type));
 
     /* build lro */
     lro_build(type);
 
-    /* build virtual table */
+    /* build vtbl */
     vtbl_build(type);
-}
-
-void type_set_type(TypeObject *type)
-{
-    GcObject *gcobj = (GcObject *)type - 1;
-    gcobj->type = type_type;
 }
 
 void type_show(TypeObject *type)
@@ -201,32 +183,30 @@ void type_show(TypeObject *type)
 
     int cnt;
     char buf[64];
-    if (is_class(type))
+    if (type_is_class(type))
         cnt = sprintf(buf, "TP_FLAGS_CLASS");
-    else if (is_trait(type))
+    else if (type_is_trait(type))
         cnt = sprintf(buf, "TP_FLAGS_TRAIT");
-    else if (is_enum(type))
+    else if (type_is_enum(type))
         cnt = sprintf(buf, "TP_FLAGS_ENUM");
-    else if (is_mod(type))
+    else if (type_is_mod(type))
         cnt = sprintf(buf, "TP_FLAGS_MOD");
     else
         assert(0);
 
-    if (is_pub(type)) cnt += sprintf(buf + cnt, " | TP_FLAGS_PUB");
-    if (is_final(type)) cnt += sprintf(buf + cnt, " | TP_FLAGS_FINAL");
+    if (type_is_pub(type)) cnt += sprintf(buf + cnt, " | TP_FLAGS_PUB");
+    if (type_is_final(type)) cnt += sprintf(buf + cnt, " | TP_FLAGS_FINAL");
 
     printf("flags:%s\n", buf);
 
-    GcObject *gcobj = (GcObject *)type - 1;
-
-    printf("->type: %p\n", (TypeObject *)gcobj->type);
-    printf("->vtbl: %p\n", (TypeObject *)gcobj->vtbl);
+    printf("->type: %p\n", obj_get_type(type));
+    printf("->vtbl: %p\n", type->vtbl);
 
     /* show lro */
     TypeObject *item;
     int idx;
-    int vecsize = vector_size(&type->lro);
-    vector_foreach(item, idx, &type->lro)
+    int vecsize = vector_size(type->lro);
+    vector_foreach(item, idx, type->lro)
     {
         if (idx < vecsize - 1)
             printf("%s <- ", item->name);
@@ -238,6 +218,39 @@ void type_show(TypeObject *type)
     /* show meta table */
     printf("mbrs:\n");
     mtbl_show(type->mtbl);
+}
+
+void type_append_base(TypeObject *type, TypeObject *base)
+{
+    Vector *vec = type->bases;
+    if (!vec) {
+        vec = vector_new(sizeof(TypeObject *));
+        type->bases = vec;
+    }
+
+    vector_push_back(vec, &base);
+}
+
+static inline HashMap *__get_mtbl(TypeObject *type)
+{
+    HashMap *mtbl = type->mtbl;
+    if (!mtbl) {
+        mtbl = mtbl_create();
+        type->mtbl = mtbl;
+    }
+    return mtbl;
+}
+
+int type_add_fielddef(TypeObject *type, FieldDef *def)
+{
+    Object *obj = NULL; // field_new(def->name);
+    return mtbl_add(__get_mtbl(type), def->name, obj);
+}
+
+int type_add_methdef(TypeObject *type, MethodDef *def)
+{
+    Object *obj = NULL; // cmethod_new(def);
+    return mtbl_add(__get_mtbl(type), def->name, obj);
 }
 
 /*
@@ -256,12 +269,7 @@ static Object *kl_type_name(Object *self)
 
 static void init_any_type(void)
 {
-    TypeObject *type = type_new("Any");
-
-    /* set `Any` as public trait */
-    type->flags = TP_FLAGS_TRAIT | TP_FLAGS_PUB;
-
-    /* add `Method` of `Any` */
+    /* `Any` methods */
     MethodDef defs[] = {
         { "__hash__", "i", NULL, "kl_type_name" },
         { "__eq__", "A", "b", "" },
@@ -269,29 +277,18 @@ static void init_any_type(void)
         { "__str__", NULL, "s", "" },
         { NULL },
     };
-    type_add_methdefs(type, defs);
-
-    /* set global variable `any_type` */
-    any_type = type;
+    type_add_methdefs(any_type, defs);
 
     /* any_type ready */
-    type_ready(type);
+    type_ready(any_type);
+
+    /* show any_type */
+    type_show(any_type);
 }
 
-void init_type_type(void)
+static void init_type_type(void)
 {
-    init_any_type();
-
-    TypeObject *type = type_new("Type");
-
-    /* reset ->type as self */
-    GcObject *gcobj = (GcObject *)type - 1;
-    gcobj->type = type;
-
-    /* set `Type` as public final class */
-    type->flags = TP_FLAGS_CLASS | TP_FLAGS_PUB | TP_FLAGS_FINAL;
-
-    /* add `Method` of `Type` */
+    /* `Type` methods */
     MethodDef defs[] = {
         { "__name__", NULL, "s", "kl_type_name" },
         { "__mod__", NULL, "L.Module;", "kl_type_name" },
@@ -302,20 +299,33 @@ void init_type_type(void)
         { "__str__", NULL, "s", "kl_type_name" },
         { NULL },
     };
-    type_add_methdefs(type, defs);
-
-    /* set global variable `type_type` */
-    type_type = type;
+    type_add_methdefs(type_type, defs);
 
     /* type_type ready */
-    type_ready(type);
+    type_ready(type_type);
 
-    /* update `any_type` */
-    type_set_type(any_type);
-
-    /* show `Any` and `Type` */
-    type_show(any_type);
+    /* show any_type */
     type_show(type_type);
+}
+
+void init_core_types(void)
+{
+    /* `Type` is public final class */
+    type_type = type_new_class("Type");
+    type_set_public_final(type_type);
+
+    /* set type_type->type as self */
+    obj_set_type(type_type, type_type);
+
+    /* 'Any' is public trait */
+    any_type = type_new_trait("Any");
+    type_set_public(any_type);
+
+    /* initialize `Any` type */
+    init_any_type();
+
+    /* initialize `Type` type */
+    init_type_type();
 }
 
 #ifdef __cplusplus
