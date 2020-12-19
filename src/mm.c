@@ -30,7 +30,7 @@ typedef struct Block {
 static int usedsize = 0;
 
 /* the heap size */
-static const int maxsize = 4 * 1024;
+static const int maxsize = 512 * 1024;
 
 void *mm_alloc(int size)
 {
