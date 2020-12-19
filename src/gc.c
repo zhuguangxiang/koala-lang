@@ -28,7 +28,7 @@ enum gckind {
     /* array memory, slice shared */
     GC_ARRAY_KIND,
     /* C struct or koala object */
-    GC_STRUCT_KIND,
+    GC_OBJECT_KIND,
     /* object is handled */
     GC_FORWARD_KIND,
 };
@@ -40,7 +40,7 @@ typedef struct GcHeader {
     union {
         /* object is handled */
         void *forward;
-        /* struct(object) map */
+        /* object(struct) map */
         objmap_t *objmap;
     };
 } GcHeader;
@@ -102,10 +102,10 @@ void *gc_alloc(int size)
     return (void *)(hdr + 1);
 }
 
-static inline void *__alloc_struct(int size, void *objmap)
+static inline void *__alloc_object(int size, void *objmap)
 {
     GcHeader *hdr = __new__(size);
-    hdr->kind = GC_STRUCT_KIND;
+    hdr->kind = GC_OBJECT_KIND;
     hdr->objmap = objmap;
     return (void *)(hdr + 1);
 }
@@ -116,10 +116,10 @@ static inline void set_obj_fini_func(void *obj, gc_fini_func func)
     vector_push_back(from_fini_objs, &info);
 }
 
-void *gc_alloc_struct(int size, void *objmap, gc_fini_func fini)
+void *gc_alloc_object(int size, void *objmap, gc_fini_func fini)
 {
     assert(size > 0);
-    void *obj = __alloc_struct(size, objmap);
+    void *obj = __alloc_object(size, objmap);
     if (fini) { set_obj_fini_func(obj, fini); }
     return obj;
 }
@@ -225,19 +225,19 @@ static void *copy(void *ptr)
             }
             return newarr;
         }
-        case GC_STRUCT_KIND: {
+        case GC_OBJECT_KIND: {
             objmap_t *map = hdr->objmap;
-            void *newstruct = __alloc_struct(hdr->objsize, map);
-            memcpy(newstruct, ptr, hdr->objsize);
-            hdr->forward = newstruct;
+            void *newobj = __alloc_object(hdr->objsize, map);
+            memcpy(newobj, ptr, hdr->objsize);
+            hdr->forward = newobj;
             hdr->kind = GC_FORWARD_KIND;
             if (map) {
                 for (int i = 0; i < map->num; i++) {
-                    void **field = (void **)(newstruct + map->offset[i]);
+                    void **field = (void **)(newobj + map->offset[i]);
                     *field = copy(*field);
                 }
             }
-            return newstruct;
+            return newobj;
         }
         default: {
             printf("gc-error: invalid gcheader(kind %d?)\n", hdr->kind);

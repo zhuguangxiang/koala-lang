@@ -92,8 +92,8 @@ typedef struct objmap {
 /* object finalized func for close resource */
 typedef void (*gc_fini_func)(void *);
 
-/* allocated struct layout memory */
-void *gc_alloc_struct(int size, void *objmap, gc_fini_func fini);
+/* allocated object(struct) layout memory */
+void *gc_alloc_object(int size, void *objmap, gc_fini_func fini);
 
 /* allocate raw memory(no object layout) */
 void *gc_alloc(int size);

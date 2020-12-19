@@ -73,10 +73,10 @@ void test_struct_gc(void)
     struct Bar *bar = NULL;
     gc_push(&bar);
 
-    foo = gc_alloc_struct(sizeof(struct Foo), __foo__, NULL);
-    bar = gc_alloc_struct(sizeof(struct Bar), NULL, bar_fini_func);
+    foo = gc_alloc_object(sizeof(struct Foo), __foo__, NULL);
+    bar = gc_alloc_object(sizeof(struct Bar), NULL, bar_fini_func);
     bar->value = 0xbeaf;
-    bar = gc_alloc_struct(sizeof(struct Bar), NULL, bar_fini_func);
+    bar = gc_alloc_object(sizeof(struct Bar), NULL, bar_fini_func);
     bar->value = 100;
     foo->bar = bar;
     char *str = gc_alloc(20);
