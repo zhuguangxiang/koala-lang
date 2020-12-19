@@ -30,7 +30,7 @@ typedef struct Block {
 static int usedsize = 0;
 
 /* the heap size */
-static const int maxsize = 2 * 1024 * 1024;
+static const int maxsize = 4 * 1024;
 
 void *mm_alloc(int size)
 {
@@ -50,6 +50,8 @@ void *mm_alloc(int size)
 
 void mm_free(void *ptr)
 {
+    if (!ptr) return;
+
     Block *blk = (Block *)ptr - 1;
 
     if (blk->magic != 0xdeadbeaf) {

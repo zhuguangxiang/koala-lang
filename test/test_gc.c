@@ -61,6 +61,11 @@ struct Foo {
     struct Bar *bar;
 };
 
+void bar_fini_func(void *obj)
+{
+    printf("Bar fini called\n");
+}
+
 OBJECT_MAP(foo, offsetof(struct Foo, str), offsetof(struct Foo, bar));
 
 struct Foo *foo;
@@ -71,10 +76,10 @@ void test_struct_gc(void)
     struct Bar *bar = NULL;
     gc_push(&bar);
 
-    foo = gc_alloc_struct(__foo__, sizeof(struct Foo));
-    bar = gc_alloc_struct(NULL, sizeof(struct Bar));
+    foo = gc_alloc_struct(sizeof(struct Foo), __foo__, NULL);
+    bar = gc_alloc_struct(sizeof(struct Bar), NULL, bar_fini_func);
     bar->value = 0xbeaf;
-    bar = gc_alloc_struct(NULL, sizeof(struct Bar));
+    bar = gc_alloc_struct(sizeof(struct Bar), NULL, bar_fini_func);
     bar->value = 100;
     foo->bar = bar;
     char *str = gc_alloc(20);
@@ -89,6 +94,8 @@ int main(int argc, char *argv[])
 {
     gc_init();
 
+    mm_stat();
+
     gc_add_root(test_gc);
     gc_add_root(test_foo);
 
@@ -97,6 +104,8 @@ int main(int argc, char *argv[])
     ga = gc_alloc(60);
     strcpy(ga, "hello, world");
 
+    mm_stat();
+
     test_raw_gc();
 
     gb = gc_alloc(120);
@@ -104,19 +113,35 @@ int main(int argc, char *argv[])
 
     printf("%s\n", ga);
 
+    mm_stat();
+
     test_array_gc();
+
+    mm_stat();
 
     gc();
 
     gb = NULL;
     test_struct_gc();
-
     gc();
 
     printf("%s\n", ga);
     printf("%s, %d, %d\n", foo->str, foo->bar->value, foo->value);
 
+    mm_stat();
+
+    // release foo and ->bar
+    foo = NULL;
+    // release ga "hello, world"
+    ga = NULL;
+
+    gc();
+
+    mm_stat();
+
     gc_fini();
+
+    mm_stat();
 
     return 0;
 }

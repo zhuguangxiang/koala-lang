@@ -9,9 +9,10 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#include "gc.h"
 #include "common.h"
 #include "mm.h"
+#include "object.h"
+#include "vector.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,10 +34,8 @@ enum gckind {
     GC_RAW_KIND = 1,
     /* array memory, slice shared */
     GC_ARRAY_KIND,
-    /* extend by C, no type */
+    /* C struct or koala object */
     GC_STRUCT_KIND,
-    /* normal koala object */
-    GC_OBJECT_KIND,
     /* object is handled */
     GC_FORWARD_KIND,
 };
@@ -48,7 +47,7 @@ typedef struct GcHeader {
     union {
         /* object is handled */
         void *forward;
-        /* normal object map */
+        /* struct(object) map */
         objmap_t *objmap;
     };
 } GcHeader;
@@ -57,6 +56,15 @@ static const int space_size = 340;
 static char *from_space;
 static char *to_space;
 static char *free_ptr;
+GcTrace *gcroots;
+static Vector fini_objs[2];
+static Vector *from_fini_objs;
+static Vector *to_fini_objs;
+
+typedef struct obj_fini_info {
+    void *obj;
+    gc_fini_func fini;
+} obj_fini_info_t;
 
 static GcHeader *__new__(int size)
 {
@@ -101,13 +109,26 @@ void *gc_alloc(int size)
     return (void *)(hdr + 1);
 }
 
-void *__gc_alloc_struct(objmap_t *objmap, int size)
+static inline void *__alloc_struct(int size, void *objmap)
 {
-    assert(size > 0);
     GcHeader *hdr = __new__(size);
     hdr->kind = GC_STRUCT_KIND;
     hdr->objmap = objmap;
     return (void *)(hdr + 1);
+}
+
+static inline void set_obj_fini_func(void *obj, gc_fini_func func)
+{
+    obj_fini_info_t info = { obj, func };
+    vector_push_back(from_fini_objs, &info);
+}
+
+void *gc_alloc_struct(int size, void *objmap, gc_fini_func fini)
+{
+    assert(size > 0);
+    void *obj = __alloc_struct(size, objmap);
+    if (fini) { set_obj_fini_func(obj, fini); }
+    return obj;
 }
 
 GcArray *gc_alloc_array(int len, int own_buf, int isobj)
@@ -158,31 +179,25 @@ GcArray *gc_expand_array(GcArray *arr, int newlen)
     }
 }
 
-GcObject *gc_alloc_obj(int size, void *type, void *vtbl, objmap_t *map)
-{
-    size += sizeof(GcObject);
-    GcHeader *hdr = __new__(size);
-    hdr->kind = GC_OBJECT_KIND;
-    GcObject *obj = (GcObject *)(hdr + 1);
-    obj->type = type;
-    obj->type = vtbl;
-    return obj;
-}
-
 void gc_init(void)
 {
     from_space = mm_alloc(space_size);
     to_space = mm_alloc(space_size);
     free_ptr = from_space;
+
+    from_fini_objs = &fini_objs[0];
+    to_fini_objs = &fini_objs[1];
+    vector_init(from_fini_objs, sizeof(obj_fini_info_t));
+    vector_init(to_fini_objs, sizeof(obj_fini_info_t));
 }
 
 void gc_fini(void)
 {
     mm_free(from_space);
     mm_free(to_space);
+    vector_fini(from_fini_objs);
+    vector_fini(to_fini_objs);
 }
-
-GcTrace *gcroots;
 
 static void *copy(void *ptr)
 {
@@ -219,7 +234,7 @@ static void *copy(void *ptr)
         }
         case GC_STRUCT_KIND: {
             objmap_t *map = hdr->objmap;
-            void *newstruct = gc_alloc_struct(map, hdr->objsize);
+            void *newstruct = __alloc_struct(hdr->objsize, map);
             memcpy(newstruct, ptr, hdr->objsize);
             hdr->forward = newstruct;
             hdr->kind = GC_FORWARD_KIND;
@@ -230,24 +245,6 @@ static void *copy(void *ptr)
                 }
             }
             return newstruct;
-        }
-        case GC_OBJECT_KIND: {
-            objmap_t *map = hdr->objmap;
-            int objsize = hdr->objsize;
-            GcObject *obj = ptr;
-            GcObject *newobj = gc_alloc_obj(objsize, obj->type, obj->vtbl, map);
-            // copy all includes GcObject
-            memcpy(newobj, obj, objsize);
-            hdr->forward = newobj;
-            hdr->kind = GC_FORWARD_KIND;
-            if (map) {
-                void *newptr = newobj + 1;
-                for (int i = 0; i < map->num; i++) {
-                    void **field = (void **)(newptr + map->offset[i]);
-                    *field = copy(*field);
-                }
-            }
-            return newobj;
         }
         default: {
             printf("gc-error: invalid gcheader(kind %d?)\n", hdr->kind);
@@ -282,6 +279,29 @@ void gc(void)
         root = root->prev;
     }
 
+    // update fini_objs
+    Vector *tmp_vec = from_fini_objs;
+    from_fini_objs = to_fini_objs;
+    to_fini_objs = tmp_vec;
+    vector_clear(from_fini_objs);
+
+    obj_fini_info_t fini_info;
+    int idx;
+    GcHeader *hdr;
+    vector_foreach(fini_info, idx, to_fini_objs)
+    {
+        hdr = (GcHeader *)fini_info.obj - 1;
+        if (hdr->kind != GC_FORWARD_KIND) {
+            printf("call object fini func\n");
+            fini_info.fini(fini_info.obj);
+        }
+        else {
+            printf("update fini_objs\n");
+            set_obj_fini_func(hdr->forward, fini_info.fini);
+        }
+    }
+
+    // call finalized objects
     printf("gc-debug: gc finished\n");
 }
 

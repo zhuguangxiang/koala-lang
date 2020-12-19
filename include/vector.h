@@ -38,6 +38,7 @@ static inline void vector_init(Vector *vec, int objsize)
     vec->objsize = objsize;
 }
 
+/* Finalize an vector */
 static inline void vector_fini(Vector *vec)
 {
     if (!vec) return;
@@ -46,6 +47,13 @@ static inline void vector_fini(Vector *vec)
     vec->objsize = 0;
     vec->size = 0;
     vec->capacity = 0;
+}
+
+/* Clear a vector, no free memory */
+static inline void vector_clear(Vector *vec)
+{
+    memset(vec->objs, 0, vec->capacity * vec->objsize);
+    vec->size = 0;
 }
 
 /* Create a vector */

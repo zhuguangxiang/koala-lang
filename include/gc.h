@@ -91,10 +91,11 @@ typedef struct objmap {
         __VA_ARGS__,                \
     }
 
+/* object finalized func for close resource */
+typedef void (*gc_fini_func)(void *);
+
 /* allocated struct layout memory */
-void *__gc_alloc_struct(objmap_t *objmap, int size);
-#define gc_alloc_struct(objmap, size) \
-    __gc_alloc_struct((objmap_t *)objmap, size)
+void *gc_alloc_struct(int size, void *objmap, gc_fini_func fini);
 
 /* allocate raw memory(no object layout) */
 void *gc_alloc(int size);
@@ -125,17 +126,6 @@ GcArray *gc_alloc_array(int len, int own_buf, int isobj);
 
 /* expand exist array in gc */
 GcArray *gc_expand_array(GcArray *arr, int newlen);
-
-/* gc object, actual object is below it. */
-typedef struct GcObject {
-    /* object type */
-    void *type;
-    /* object virtual tables */
-    void *vtbl;
-} GcObject;
-
-/* allocate object with object size. */
-GcObject *gc_alloc_obj(int size, void *type, void *vtbl, objmap_t *map);
 
 #ifdef __cplusplus
 }
