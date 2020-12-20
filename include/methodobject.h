@@ -36,6 +36,7 @@ typedef struct MethodObject {
     void *ptr;
 } MethodObject;
 
+void init_method_type(void);
 Object *cmethod_new(MethodDef *def);
 Object *method_new(char *name, Object *code);
 

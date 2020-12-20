@@ -153,13 +153,11 @@ static void vtbl_build(TypeObject *type)
 {
 }
 
-TypeObject *__type_new(const char *name)
+void *__alloc_metaobject(int size)
 {
-    void **obj = mm_alloc(sizeof(void **) + sizeof(TypeObject));
+    void **obj = mm_alloc(sizeof(void **) + size);
     *obj = type_type;
-    TypeObject *type = (TypeObject *)(obj + 1);
-    type->name = name;
-    return type;
+    return (void *)(obj + 1);
 }
 
 void type_ready(TypeObject *type)
@@ -249,7 +247,7 @@ int type_add_fielddef(TypeObject *type, FieldDef *def)
 
 int type_add_methdef(TypeObject *type, MethodDef *def)
 {
-    Object *obj = NULL; // cmethod_new(def);
+    Object *obj = cmethod_new(def);
     return mtbl_add(__get_mtbl(type), def->name, obj);
 }
 
@@ -261,7 +259,7 @@ int type_add_methdef(TypeObject *type, MethodDef *def)
   > "String"
   >
  */
-static Object *kl_type_name(Object *self)
+DLLEXPORT Object *kl_type_name(Object *self)
 {
     TypeObject *type = (TypeObject *)self;
     return NULL;
@@ -272,9 +270,9 @@ static void init_any_type(void)
     /* `Any` methods */
     MethodDef defs[] = {
         { "__hash__", "i", NULL, "kl_type_name" },
-        { "__eq__", "A", "b", "" },
-        { "__type__", NULL, "L.Type;", "" },
-        { "__str__", NULL, "s", "" },
+        { "__eq__", "A", "b", "kl_type_name" },
+        { "__type__", NULL, "L.Type;", "kl_type_name" },
+        { "__str__", NULL, "s", "kl_type_name" },
         { NULL },
     };
     type_add_methdefs(any_type, defs);

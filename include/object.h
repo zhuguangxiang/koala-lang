@@ -78,7 +78,16 @@ struct TypeObject {
 #define type_is_pub(type)   (((type)->flags & TP_FLAGS_PUB) == TP_FLAGS_PUB)
 #define type_is_final(type) (((type)->flags & TP_FLAGS_FINAL) == TP_FLAGS_FINAL)
 
-TypeObject *__type_new(const char *name);
+/* allocate meta object */
+void *__alloc_metaobject(int size);
+#define alloc_metaobject(type) (type *)__alloc_metaobject(sizeof(type))
+
+static inline TypeObject *__type_new(const char *name)
+{
+    TypeObject *type = alloc_metaobject(TypeObject);
+    type->name = name;
+    return type;
+}
 
 /* new class */
 static inline TypeObject *type_new_class(const char *name)
