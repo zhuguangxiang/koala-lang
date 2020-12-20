@@ -19,3 +19,6 @@ gcc -g -Wall test/test_typeobject.c src/typeobject.c src/vector.c src/mm.c src/h
 
 gcc -rdynamic -g -Wall -fvisibility=hidden test/test_stringobject.c src/stringobject.c src/typeobject.c src/vector.c src/mm.c src/hashmap.c src/gc.c -I./include -ldl
 ./a.out
+
+gcc -rdynamic -g -Wall -fvisibility=hidden  test/test_state.c src/state.c src/typeobject.c src/vector.c src/mm.c src/gc.c src/hashmap.c src/stringobject.c -I./include
+./a.out

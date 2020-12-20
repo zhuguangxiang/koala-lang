@@ -30,6 +30,15 @@ Object *string_new(const char *s)
     return (Object *)sobj;
 }
 
+#define string_check(obj) assert(obj_get_type(obj) == string_type)
+
+const char *string_tocstr(Object *obj)
+{
+    string_check(obj);
+    StringObject *sobj = (StringObject *)obj;
+    return sobj->s;
+}
+
 // DLLEXPORT int length(StringObject *sobj) __attribute__ ((alias
 // ("kl_string_length")));
 

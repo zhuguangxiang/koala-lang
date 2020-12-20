@@ -14,6 +14,7 @@
 
 #include "common.h"
 #include "gc.h"
+#include "typedesc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -193,54 +194,54 @@ typedef struct kl_value {
     char kind;
 } kl_value_t;
 
-#define setnilval(v) ((v)->kind = TYPE_BASE_NIL)
+#define setnilval(v) ((v)->kind = TYPE_NIL)
 
-#define setbyteval(v, x)            \
-    {                               \
-        (v)->kind = TYPE_BASE_BYTE; \
-        (v)->bval = (x);            \
+#define setbyteval(v, x)       \
+    {                          \
+        (v)->kind = TYPE_BYTE; \
+        (v)->bval = (x);       \
     }
 
-#define setintval(v, x)            \
-    {                              \
-        (v)->kind = TYPE_BASE_INT; \
-        (v)->ival = (x);           \
+#define setintval(v, x)       \
+    {                         \
+        (v)->kind = TYPE_INT; \
+        (v)->ival = (x);      \
     }
 
-#define setfltval(v, x)              \
-    {                                \
-        (v)->kind = TYPE_BASE_FLOAT; \
-        (v)->fval = (x);             \
+#define setfltval(v, x)         \
+    {                           \
+        (v)->kind = TYPE_FLOAT; \
+        (v)->fval = (x);        \
     }
 
-#define setboolval(v, x)            \
-    {                               \
-        (v)->kind = TYPE_BASE_BOOL; \
-        (v)->bval = (x);            \
+#define setboolval(v, x)       \
+    {                          \
+        (v)->kind = TYPE_BOOL; \
+        (v)->bval = (x);       \
     }
 
-#define setcharval(v, x)            \
-    {                               \
-        (v)->kind = TYPE_BASE_CHAR; \
-        (v)->cval = (x);            \
+#define setcharval(v, x)       \
+    {                          \
+        (v)->kind = TYPE_CHAR; \
+        (v)->cval = (x);       \
     }
 
-#define setstrval(v, x)            \
-    {                              \
-        (v)->kind = TYPE_BASE_STR; \
-        (v)->obj = (x);            \
+#define setstrval(v, x)       \
+    {                         \
+        (v)->kind = TYPE_STR; \
+        (v)->obj = (x);       \
     }
 
-#define setanyval(v, x)            \
-    {                              \
-        (v)->kind = TYPE_BASE_ANY; \
-        (v)->obj = (x);            \
+#define setanyval(v, x)       \
+    {                         \
+        (v)->kind = TYPE_ANY; \
+        (v)->obj = (x);       \
     }
 
-#define setptrval(v, x)            \
-    {                              \
-        (v)->kind = TYPE_BASE_ANY; \
-        (v)->p = (x);              \
+#define setptrval(v, x)       \
+    {                         \
+        (v)->kind = TYPE_ANY; \
+        (v)->p = (x);         \
     }
 
 #ifdef __cplusplus

@@ -33,6 +33,7 @@ void init_string_type(void);
 
 /* new `String` object */
 Object *string_new(const char *s);
+const char *string_tocstr(Object *obj);
 
 #ifdef __cplusplus
 }
