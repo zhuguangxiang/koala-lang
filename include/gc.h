@@ -5,7 +5,7 @@
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares APIs of garbage collection.                           *|
+|* This header declares interfaces of garbage collection.                     *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 

@@ -127,14 +127,17 @@ void type_ready(TypeObject *type);
 /* append base class or traits */
 void type_append_base(TypeObject *type, TypeObject *base);
 
+/* show type */
+void type_show(TypeObject *type);
+
 /* initialize core types(Any and Type) */
 void init_core_types(void);
 
 /* method define struct */
 typedef struct MethodDef {
     const char *name;
-    const char *rtype;
     const char *ptype;
+    const char *rtype;
     const char *funcname;
 } MethodDef;
 
@@ -173,14 +176,72 @@ static inline void type_add_fielddefs(TypeObject *type, FieldDef *def)
 /* `kl_value_t` stores variable or field value. */
 typedef struct kl_value {
     union {
+        /* gc object */
+        Object *obj;
+        /* c structure */
+        void *p;
+        /* integer */
         int64_t ival;
+        /* float */
         double fval;
+        /* byte or bool */
         int8_t bval;
+        /* character */
         int32_t cval;
-        void *ptr;
     };
+    /* see: typedesc.h: TYPE_BASE_XX */
     char kind;
 } kl_value_t;
+
+#define setnilval(v) ((v)->kind = TYPE_BASE_NIL)
+
+#define setbyteval(v, x)            \
+    {                               \
+        (v)->kind = TYPE_BASE_BYTE; \
+        (v)->bval = (x);            \
+    }
+
+#define setintval(v, x)            \
+    {                              \
+        (v)->kind = TYPE_BASE_INT; \
+        (v)->ival = (x);           \
+    }
+
+#define setfltval(v, x)              \
+    {                                \
+        (v)->kind = TYPE_BASE_FLOAT; \
+        (v)->fval = (x);             \
+    }
+
+#define setboolval(v, x)            \
+    {                               \
+        (v)->kind = TYPE_BASE_BOOL; \
+        (v)->bval = (x);            \
+    }
+
+#define setcharval(v, x)            \
+    {                               \
+        (v)->kind = TYPE_BASE_CHAR; \
+        (v)->cval = (x);            \
+    }
+
+#define setstrval(v, x)            \
+    {                              \
+        (v)->kind = TYPE_BASE_STR; \
+        (v)->obj = (x);            \
+    }
+
+#define setanyval(v, x)            \
+    {                              \
+        (v)->kind = TYPE_BASE_ANY; \
+        (v)->obj = (x);            \
+    }
+
+#define setptrval(v, x)            \
+    {                              \
+        (v)->kind = TYPE_BASE_ANY; \
+        (v)->p = (x);              \
+    }
 
 #ifdef __cplusplus
 }

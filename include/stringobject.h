@@ -1,32 +1,41 @@
-/*===-- mm.h - Common Memory Allocator ----------------------------*- C -*-===*\
+/*===-- stringobject.h - String Object ----------------------------*- C -*-===*\
 |*                                                                            *|
 |* MIT License                                                                *|
 |* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares interfaces of common memory allocator.                *|
+|* This header declares the Koala `String` object.                            *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#ifndef _KOALA_MM_H_
-#define _KOALA_MM_H_
+#ifndef _KOALA_STRING_OBJECT_H_
+#define _KOALA_STRING_OBJECT_H_
+
+#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* The memory is set to zero. */
-void *mm_alloc(int size);
+/* `String` object layout. */
+typedef struct StringObject {
+    /* object */
+    OBJECT_HEAD
+    /* string length in bytes */
+    int len;
+    /* utf8 string(raw string) */
+    char s[0];
+} StringObject;
 
-/* The func frees the memory space pointed by ptr. */
-void mm_free(void *ptr);
+/* initialize `String` type */
+void init_string_type(void);
 
-/* Stat usage memory */
-void mm_stat(void);
+/* new `String` object */
+Object *string_new(const char *s);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_MM_H_ */
+#endif /* _KOALA_STRING_OBJECT_H_ */

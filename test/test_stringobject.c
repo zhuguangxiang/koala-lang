@@ -1,32 +1,32 @@
-/*===-- mm.h - Common Memory Allocator ----------------------------*- C -*-===*\
+/*===-- test_stringobject.c ---------------------------------------*- C -*-===*\
 |*                                                                            *|
 |* MIT License                                                                *|
 |* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares interfaces of common memory allocator.                *|
+|* Test stringobject in `stringobject.h` and `stringobject.c`                 *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#ifndef _KOALA_MM_H_
-#define _KOALA_MM_H_
+#include "stringobject.h"
+#include <dlfcn.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* The memory is set to zero. */
-void *mm_alloc(int size);
-
-/* The func frees the memory space pointed by ptr. */
-void mm_free(void *ptr);
-
-/* Stat usage memory */
-void mm_stat(void);
-
-#ifdef __cplusplus
+void test_stringobject(void)
+{
+    init_core_types();
+    init_string_type();
+    Object *sobj = string_new("hello, world");
+    // Object *meth = load_function(sobj, "length");
+    int (*f)(void *) = dlsym(NULL, "kl_string_length");
+    printf("len:%d\n", f(sobj));
 }
-#endif
 
-#endif /* _KOALA_MM_H_ */
+int main(int argc, char *argv[])
+{
+    gc_init();
+    test_stringobject();
+    gc();
+    gc_fini();
+    return 0;
+}
