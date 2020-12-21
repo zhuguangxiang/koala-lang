@@ -38,6 +38,8 @@ Object *method_new(char *name, Object *code)
     return NULL;
 }
 
+#define method_check(obj) (obj_get_type(obj) == method_type)
+
 void init_method_type(void)
 {
     /* `Method` is public final class */

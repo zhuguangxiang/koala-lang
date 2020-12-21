@@ -36,8 +36,13 @@ typedef struct MethodObject {
     void *ptr;
 } MethodObject;
 
+/* initialize `Method` type */
 void init_method_type(void);
+
+/* new c method */
 Object *cmethod_new(MethodDef *def);
+
+/* new koala method */
 Object *method_new(char *name, Object *code);
 
 #ifdef __cplusplus

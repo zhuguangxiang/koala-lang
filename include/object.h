@@ -66,6 +66,8 @@ struct TypeObject {
     Vector *lro;
     /* meta table */
     HashMap *mtbl;
+    /* lro methods */
+    Vector *mro;
 };
 
 #define obj_get_type(obj)       *((void **)(obj)-1)
