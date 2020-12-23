@@ -81,25 +81,25 @@ static inline void vector_destroy(Vector *vec)
 #define vector_capacity(vec) ((vec) ? (vec)->capacity : 0)
 
 /*
- * Store an obj at an index. The old will be erased.
+ * Store an object at an index. The old will be erased.
  * Index bound is checked.
  */
 int vector_set(Vector *vec, int index, void *obj);
 
-/* Append an obj at the end of the vector. */
+/* Append an object at the end of the vector. */
 static inline void vector_push_back(Vector *vec, void *obj)
 {
     vector_set(vec, vec->size, obj);
 }
 
 /*
- * Insert an obj into the in-bound of the vector.
+ * Insert an object into the in-bound of the vector.
  * This is relatively expensive operation.
  */
 int vector_insert(Vector *vec, int index, void *obj);
 
 /*
- * Insert an obj at the front of the vector.
+ * Insert an object at the front of the vector.
  * This is relatively expensive operation.
  */
 static inline void vector_push_front(Vector *vec, void *obj)
@@ -108,19 +108,37 @@ static inline void vector_push_front(Vector *vec, void *obj)
 }
 
 /*
- * Get an obj stored at an index position.
+ * Get an object stored at an index position.
  * Index bound is checked.
  */
 int vector_get(Vector *vec, int index, void *obj);
 
-/* Peek an obj at the end of the vector, not remove it.*/
+/* Get first object */
+#define vector_get_first(vec, obj) vector_get(vec, 0, obj)
+
+/* Get last object */
+#define vector_get_last(vec, obj) vector_get(vec, vector_size(vec) - 1, obj)
+
+/*
+ * Get an object pointer stored at an index position.
+ * Index bound is checked.
+ */
+void *vector_get_ptr(Vector *vec, int index);
+
+/* Get first object pointer */
+#define vector_get_ptr_first(vec) vector_get_ptr(vec, 0)
+
+/* Get last object pointer */
+#define vector_get_ptr_last(vec) vector_get_ptr(vec, vector_size(vec) - 1)
+
+/* Peek an object at the end of the vector, not remove it.*/
 static inline void vector_top_back(Vector *vec, void *obj)
 {
     vector_get(vec, vec->size - 1, obj);
 }
 
 /*
- * Remove an obj at the end of the vector.
+ * Remove an object at the end of the vector.
  * When used with 'vector_push_back', the vector can be as a `stack`.
  */
 static inline void vector_pop_back(Vector *vec, void *obj)
@@ -130,13 +148,13 @@ static inline void vector_pop_back(Vector *vec, void *obj)
 }
 
 /*
- * Remove an obj from the in-bound of the vector.
+ * Remove an object from the in-bound of the vector.
  * This is relatively expensive operation.
  */
 int vector_remove(Vector *vec, int index, void *obj);
 
 /*
- * Remove an obj at the front of the vector.
+ * Remove an object at the front of the vector.
  * This is relatively expensive operation.
  */
 static inline void vector_pop_front(Vector *vec, void *obj)
@@ -144,14 +162,14 @@ static inline void vector_pop_front(Vector *vec, void *obj)
     vector_remove(vec, 0, obj);
 }
 
-/* iterate for vector */
+/* iterate for vector by pointer */
 #define vector_foreach(item, vec)                                            \
     if (vec)                                                                 \
         for (int i = 0, len = (vec)->size;                                   \
              i < len && (item = (void *)((vec)->objs + i * (vec)->objsize)); \
              i++)
 
-/* iterate for vector reversely */
+/* iterate for vector reversely by pointer */
 #define vector_foreach_reverse(item, vec)                                   \
     if (vec)                                                                \
         for (int i = (vec)->size - 1;                                       \

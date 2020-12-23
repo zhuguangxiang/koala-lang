@@ -230,13 +230,12 @@ static void lro_update_base_mro(struct lro_info *item, TypeObject *self)
 static void lro_update_mro(TypeObject *type)
 {
     Vector *vec = type->lro;
-    int size = vector_size(vec);
-    struct lro_info lro;
+    int len = vector_size(vec);
+    struct lro_info *item;
 
     /* `Any` */
-    vector_get(vec, 0, &lro);
-    lro.mro = type->mro;
-    vector_set(vec, 0, &lro);
+    item = vector_get_ptr(vec, 0);
+    item->mro = type->mro;
 
     /* first super type(class or trait) */
     TypeObject *base = type->base;
@@ -253,12 +252,10 @@ static void lro_update_mro(TypeObject *type)
     }
 
     /* `Self` */
-    vector_get(vec, size - 1, &lro);
-    lro.mro = type->mro;
-    vector_set(vec, size - 1, &lro);
+    item = vector_get_ptr(vec, len - 1);
+    item->mro = type->mro;
 
     /* other super type(tratis) */
-    struct lro_info *item;
     vector_foreach(item, vec)
     {
         if (item->mro) continue;
