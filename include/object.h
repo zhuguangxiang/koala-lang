@@ -60,8 +60,12 @@ struct TypeObject {
     const char *name;
     /* type flags */
     tp_flags_t flags;
-    /* super class or traits */
-    Vector *bases;
+    /* first super type(class or trait) */
+    TypeObject *base;
+    /* other super types(traits) */
+    Vector *traits;
+    /* self methods */
+    Vector *methods;
     /* line resolution order */
     Vector *lro;
     /* meta table */
@@ -104,6 +108,13 @@ static inline TypeObject *type_new_trait(const char *name)
 {
     TypeObject *type = __type_new(name);
     type->flags = TP_FLAGS_TRAIT;
+    return type;
+}
+
+static inline TypeObject *type_new_pub_trait(const char *name)
+{
+    TypeObject *type = __type_new(name);
+    type->flags = TP_FLAGS_TRAIT + TP_FLAGS_PUB;
     return type;
 }
 

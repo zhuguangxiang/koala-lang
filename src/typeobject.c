@@ -16,21 +16,12 @@
 extern "C" {
 #endif
 
-/* object kind */
-enum mnode_kind {
-    MNODE_METHOD = 1,
-    MNODE_FIELD = 2,
-    MNODE_TYPE = 3,
-};
-
 /* object in meta table */
 struct mnode {
     /* entry need at top */
     HashMapEntry entry;
     /* object name */
     const char *name;
-    /* object kind */
-    enum mnode_kind kind;
     /* object pointer */
     Object *obj;
 };
@@ -42,12 +33,10 @@ static int mnode_equal(void *e1, void *e2)
     return (n1 == n2) || !strcmp(n1->name, n2->name);
 }
 
-static struct mnode *mnode_new(
-    const char *name, enum mnode_kind kind, Object *obj)
+static struct mnode *mnode_new(const char *name, Object *obj)
 {
     struct mnode *n = mm_alloc(sizeof(*n));
     n->name = name;
-    n->kind = kind;
     hashmap_entry_init(n, strhash(name));
     n->obj = obj;
     return n;
@@ -63,7 +52,7 @@ static void mnode_free(void *e, void *arg)
 static void mnode_show(void *e, void *arg)
 {
     struct mnode *n = e;
-    printf("%s\n", n->name);
+    printf("%s(%p)\n", n->name, n->obj);
 }
 
 static inline HashMap *mtbl_create(void)
@@ -73,28 +62,21 @@ static inline HashMap *mtbl_create(void)
     return mtbl;
 }
 
-static int mtbl_add(
-    HashMap *mtbl, const char *name, enum mnode_kind kind, Object *obj)
+static int mtbl_add(HashMap *mtbl, const char *name, Object *obj)
 {
-    struct mnode *n = mnode_new(name, kind, obj);
+    struct mnode *n = mnode_new(name, obj);
     int ret = hashmap_put_absent(mtbl, n);
     if (ret) { printf("error: duplicated object `%s` in meta-table\n", name); }
     return ret;
 }
 
-static Object *mtbl_remove(HashMap *mtbl, const char *name)
+static Object *mtbl_find(HashMap *mtbl, const char *name)
 {
-    Object *obj = NULL;
     struct mnode key = { .name = name };
-    struct mnode *old = hashmap_remove(mtbl, &key);
-    if (old) {
-        obj = old->obj;
-        mnode_free(old, NULL);
-    }
-    else {
-        printf("warn:  `%s` not exist.\n", name);
-    }
-    return obj;
+    hashmap_entry_init(&key, strhash(name));
+    struct mnode *find = hashmap_get(mtbl, &key);
+    if (find) { return find->obj; }
+    return NULL;
 }
 
 static void mtbl_show(HashMap *mtbl)
@@ -114,13 +96,22 @@ struct lro_info {
     Vector *mro;
 };
 
+static inline HashMap *__get_mtbl(TypeObject *type)
+{
+    HashMap *mtbl = type->mtbl;
+    if (!mtbl) {
+        mtbl = mtbl_create();
+        type->mtbl = mtbl;
+    }
+    return mtbl;
+}
+
 static int lro_find(Vector *vec, struct lro_info *lro)
 {
-    struct lro_info item;
-    int idx;
-    vector_foreach(item, idx, vec)
+    struct lro_info *item;
+    vector_foreach(item, vec)
     {
-        if (item.type == lro->type) return 1;
+        if (item->type == lro->type) return 1;
     }
     return 0;
 }
@@ -140,12 +131,11 @@ static void lro_build_one(TypeObject *type, TypeObject *base)
     Vector *vec = __get_lro(type);
 
     struct lro_info lro = { NULL, NULL };
-    struct lro_info item;
-    int idx;
-    vector_foreach(item, idx, base->lro)
+    struct lro_info *item;
+    vector_foreach(item, base->lro)
     {
-        if (!lro_find(vec, &item)) {
-            lro.type = item.type;
+        if (!lro_find(vec, item)) {
+            lro.type = item->type;
             vector_push_back(vec, &lro);
         }
     }
@@ -159,42 +149,32 @@ static void lro_build(TypeObject *type)
     /* add any type */
     lro_build_one(type, any_type);
 
-    /* add base types */
-    TypeObject *item;
-    int idx;
-    vector_foreach(item, idx, type->bases)
+    /* add first base type */
+    if (type->base) lro_build_one(type, type->base);
+
+    /* add trait types */
+    TypeObject **item;
+    vector_foreach(item, type->traits)
     {
-        lro_build_one(type, item);
+        lro_build_one(type, *item);
     }
 
     /* add self type */
     lro_build_one(type, type);
 }
 
-static void mro_build_one_callback(void *e, void *arg)
+static void mro_build_one(Vector *vec, TypeObject *self)
 {
-    /* object is not method */
-    struct mnode *node = e;
-    if (node->kind != MNODE_METHOD) return;
+    if (vector_empty(vec)) return;
 
-    /* object is method */
-    Object *obj = node->obj;
-    TypeObject *self = arg;
-    Vector *mro = self->mro;
-    struct mnode *find = hashmap_get(self->mtbl, node);
-    if (find) {
-        if (find->kind == MNODE_METHOD) {
-            /* method is overrided */
-            printf("mro: '%s' is overrided.\n", node->name);
-            obj = find->obj;
-        }
-        else {
-            /* the same with field? */
-            printf("error: override method '%s' with field?", node->name);
-            abort();
-        }
+    Object *find;
+    MethodObject **mobj;
+    vector_foreach(mobj, vec)
+    {
+        find = mtbl_find(self->mtbl, (*mobj)->name);
+        assert(find);
+        vector_push_back(self->mro, &find);
     }
-    vector_push_back(mro, &obj);
 }
 
 static void mro_build(TypeObject *type)
@@ -207,12 +187,44 @@ static void mro_build(TypeObject *type)
     }
 
     /* iterate lro types */
-    TypeObject *item;
-    int idx;
-    vector_foreach(item, idx, type->lro)
+    struct lro_info *item;
+    vector_foreach(item, type->lro)
     {
-        hashmap_visit(item->mtbl, mro_build_one_callback, type);
+        mro_build_one(item->type->methods, type);
     }
+}
+
+static void lro_build_inherit(TypeObject *type)
+{
+    struct lro_info *item;
+    vector_foreach_reverse(item, type->lro)
+    {
+        if (item->type == type) continue;
+
+        /* method */
+        MethodObject **mobj;
+        vector_foreach(mobj, item->type->methods)
+        {
+            mtbl_add(__get_mtbl(type), (*mobj)->name, (Object *)*mobj);
+        }
+        /* fields */
+    }
+}
+
+static void lro_update_base_mro(struct lro_info *item, TypeObject *self)
+{
+    TypeObject *trait = item->type;
+    Vector *mro = vector_new(sizeof(void *));
+    Object *obj;
+    MethodObject **mobj;
+    vector_foreach(mobj, trait->mro)
+    {
+        obj = mtbl_find(self->mtbl, (*mobj)->name);
+        assert(obj);
+        vector_push_back(mro, &obj);
+    }
+    assert(!item->mro);
+    item->mro = mro;
 }
 
 static void lro_update_mro(TypeObject *type)
@@ -221,13 +233,37 @@ static void lro_update_mro(TypeObject *type)
     int size = vector_size(vec);
     struct lro_info lro;
 
+    /* `Any` */
     vector_get(vec, 0, &lro);
     lro.mro = type->mro;
     vector_set(vec, 0, &lro);
 
+    /* first super type(class or trait) */
+    TypeObject *base = type->base;
+    while (base) {
+        struct lro_info *item;
+        vector_foreach(item, vec)
+        {
+            if (item->type == base) {
+                item->mro = type->mro;
+                break;
+            }
+        }
+        base = base->base;
+    }
+
+    /* `Self` */
     vector_get(vec, size - 1, &lro);
     lro.mro = type->mro;
     vector_set(vec, size - 1, &lro);
+
+    /* other super type(tratis) */
+    struct lro_info *item;
+    vector_foreach(item, vec)
+    {
+        if (item->mro) continue;
+        lro_update_base_mro(item, type);
+    }
 }
 
 void *__alloc_metaobject(int size)
@@ -247,6 +283,9 @@ void type_ready(TypeObject *type)
 
     /* build lro */
     lro_build(type);
+
+    /* build inheritance */
+    lro_build_inherit(type);
 
     /* build mro */
     mro_build(type);
@@ -282,62 +321,62 @@ void type_show(TypeObject *type)
 
     /* show lro */
     printf("lro:\n");
-    struct lro_info item;
-    int idx;
-    int size = vector_size(type->lro);
-    vector_foreach(item, idx, type->lro)
+    struct lro_info *item;
+    vector_foreach(item, type->lro)
     {
-        if (idx < size - 1)
-            printf("%s(%p) <- ", item.type->name, item.mro);
+        if (i < len - 1)
+            printf("%s(%p) <- ", item->type->name, item->mro);
         else
-            printf("%s(%p)", item.type->name, item.mro);
+            printf("%s(%p)", item->type->name, item->mro);
     }
     printf("\n");
 
     /* show lro methods */
     printf("mro:%p\n", type->mro);
-    MethodObject *mobj;
-    vector_foreach(mobj, idx, type->mro)
+    MethodObject **mobj;
+    vector_foreach(mobj, type->mro)
     {
-        printf("%s\n", mobj->name);
+        printf("%s(%p)\n", (*mobj)->name, *mobj);
     }
 
     /* show meta table */
     printf("mbrs:\n");
     mtbl_show(type->mtbl);
+    printf("------============------\n");
 }
 
 void type_append_base(TypeObject *type, TypeObject *base)
 {
-    Vector *vec = type->bases;
+    if (!type->base) {
+        type->base = base;
+        return;
+    }
+
+    Vector *vec = type->traits;
     if (!vec) {
         vec = vector_new(sizeof(TypeObject *));
-        type->bases = vec;
+        type->traits = vec;
     }
 
     vector_push_back(vec, &base);
 }
 
-static inline HashMap *__get_mtbl(TypeObject *type)
-{
-    HashMap *mtbl = type->mtbl;
-    if (!mtbl) {
-        mtbl = mtbl_create();
-        type->mtbl = mtbl;
-    }
-    return mtbl;
-}
-
 int type_add_fielddef(TypeObject *type, FieldDef *def)
 {
     Object *obj = NULL; // field_new(def->name);
-    return mtbl_add(__get_mtbl(type), def->name, MNODE_FIELD, obj);
+    return mtbl_add(__get_mtbl(type), def->name, obj);
 }
 
 int type_add_methdef(TypeObject *type, MethodDef *def)
 {
     Object *obj = cmethod_new(def);
-    return mtbl_add(__get_mtbl(type), def->name, MNODE_METHOD, obj);
+    Vector *vec = type->methods;
+    if (!vec) {
+        vec = vector_new(sizeof(void *));
+        type->methods = vec;
+    }
+    vector_push_back(vec, &obj);
+    return mtbl_add(__get_mtbl(type), def->name, obj);
 }
 
 /*

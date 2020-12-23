@@ -74,6 +74,9 @@ static inline void vector_destroy(Vector *vec)
 /* Get a vector size */
 #define vector_size(vec) ((vec) ? (vec)->size : 0)
 
+/* Check a vector is empty or not */
+#define vector_empty(vec) (!vector_size(vec))
+
 /* Get a vector capacity */
 #define vector_capacity(vec) ((vec) ? (vec)->capacity : 0)
 
@@ -142,10 +145,18 @@ static inline void vector_pop_front(Vector *vec, void *obj)
 }
 
 /* iterate for vector */
-#define vector_foreach(item, idx, vec)                                    \
-    for (idx = 0;                                                         \
-         vec && idx < vector_size(vec) && !vector_get(vec, idx, &(item)); \
-         idx++)
+#define vector_foreach(item, vec)                                            \
+    if (vec)                                                                 \
+        for (int i = 0, len = (vec)->size;                                   \
+             i < len && (item = (void *)((vec)->objs + i * (vec)->objsize)); \
+             i++)
+
+/* iterate for vector reversely */
+#define vector_foreach_reverse(item, vec)                                   \
+    if (vec)                                                                \
+        for (int i = (vec)->size - 1;                                       \
+             i >= 0 && (item = (void *)((vec)->objs + i * (vec)->objsize)); \
+             i--)
 
 #ifdef __cplusplus
 }

@@ -278,19 +278,18 @@ void gc(void)
     to_fini_objs = tmp_vec;
     vector_clear(from_fini_objs);
 
-    obj_fini_info_t fini_info;
-    int idx;
+    obj_fini_info_t *fi;
     GcHeader *hdr;
-    vector_foreach(fini_info, idx, to_fini_objs)
+    vector_foreach(fi, to_fini_objs)
     {
-        hdr = (GcHeader *)fini_info.obj - 1;
+        hdr = (GcHeader *)fi->obj - 1;
         if (hdr->kind != GC_FORWARD_KIND) {
             printf("call object fini func\n");
-            fini_info.fini(fini_info.obj);
+            fi->fini(fi->obj);
         }
         else {
             printf("update fini_objs\n");
-            set_obj_fini_func(hdr->forward, fini_info.fini);
+            set_obj_fini_func(hdr->forward, fi->fini);
         }
     }
 
