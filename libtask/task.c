@@ -1,4 +1,13 @@
-
+/*===-- task.c - Koala Coroutine Library --------------------------*- C -*-===*\
+|*                                                                            *|
+|* MIT License                                                                *|
+|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
+|*                                                                            *|
+|*===----------------------------------------------------------------------===*|
+|*                                                                            *|
+|* This file implements koala coroutine.                                      *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #include "task.h"
 #include <assert.h>

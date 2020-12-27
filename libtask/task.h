@@ -1,11 +1,11 @@
-/*===-- vm.h - Koala Virtual Machine ------------------------------*- C -*-===*\
+/*===-- task.h - Koala Coroutine Library --------------------------*- C -*-===*\
 |*                                                                            *|
 |* MIT License                                                                *|
 |* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares koala virtual machine structures and interfaces.      *|
+|* This header declares koala coroutine structures and interfaces.            *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
