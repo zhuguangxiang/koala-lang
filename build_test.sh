@@ -24,4 +24,6 @@ gcc -rdynamic -g -Wall -fvisibility=hidden  test/test_state.c src/state.c src/ty
 
 gcc -rdynamic -g -Wall -fvisibility=hidden test/test_mixin.c src/stringobject.c src/typeobject.c src/vector.c src/mm.c src/hashmap.c src/gc.c src/methodobject.c  -I./include -ldl
 
-gcc -g libtask/task.c libtask/task_context.c test/test_task.c -I./libtask -lpthread
+gcc -g src/mm.c libtask/task.c test/test_task.c -I./include -I./libtask -lpthread
+
+gcc -std=gnu11 -g src/mm.c src/binheap.c libtask/task.c libtask/task_timer.c libtask/task_event.c test/test_timer.c -I./include -I./libtask -lpthread

@@ -1,37 +1,31 @@
-/*===-- task_context.h - Koala Coroutine Context ------------------*- C -*-===*\
+/*===-- task_event.h - Event For Coroutine ------------------------*- C -*-===*\
 |*                                                                            *|
 |* MIT License                                                                *|
 |* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
 |*                                                                            *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares koala coroutine context.                              *|
+|* This header declares coroutine's event structures and interfaces.          *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#ifndef _KOALA_TASK_CONTEXT_H_
-#define _KOALA_TASK_CONTEXT_H_
+#ifndef _KOALA_TASK_EVENT_H_
+#define _KOALA_TASK_EVENT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef void *(*task_entry_t)(void *);
+#define TIME_RESOLUTION_MS 10 // ms
 
-typedef struct task_context {
-    void *stackbase;
-    int stacksize;
-    void *context;
-} task_context_t;
+/* initialize event system */
+void init_event(void);
 
-int task_context_init(
-    task_context_t *ctx, int stacksize, task_entry_t entry, void *para);
-int task_context_save(task_context_t *ctx);
-void task_context_detroy(task_context_t *ctx);
-void task_context_switch(task_context_t *from, task_context_t *to);
+/* poll event by TIME_RESOLUTION_MS interval */
+void event_poll(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_TASK_CONTEXT_H_ */
+#endif /* _KOALA_TASK_EVENT_H_ */

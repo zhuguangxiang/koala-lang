@@ -12,46 +12,55 @@
 #ifndef _KOALA_TASK_H_
 #define _KOALA_TASK_H_
 
-#include "task_context.h"
+#define _XOPEN_SOURCE
 #include <pthread.h>
 #include <stdint.h>
+#include <ucontext.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* linked locked deque node */
-typedef struct lldq_node {
-    struct lldq_node *next;
-} lldq_node_t;
+/* task entry */
+typedef void *(*task_entry_t)(void *);
 
-/* task state */
-typedef enum {
-    TASK_STATE_RUNNING = 1,
-    TASK_STATE_READY = 2,
-    TASK_STATE_WAITING = 3,
-    TASK_STATE_DONE = 4,
-} task_state_t;
+/* opaque task */
+typedef struct task task_t;
 
-/* task */
-typedef struct task {
-    lldq_node_t dq_node;
-    task_context_t context;
-    task_entry_t entry;
-    void *arg;
-    task_state_t volatile state;
-    uint64_t id;
-    void *volatile result;
-    void *data;
-} task_t;
+/* initialize task's procs */
+void init_procs(int proc);
 
-#define TASK_MAX_PROCS 4
+/* finalize task's procs */
+void fini_procs(void);
 
-void init_task_procs(void);
-task_t *current_task(void);
-task_t *task_create(task_entry_t entry, void *arg);
+/* current proc id */
+int current_pid(void);
+
+/* current task id */
+uint64_t current_tid(void);
+
+/* create a task with tls and argument */
+task_t *task_create(task_entry_t entry, void *arg, void *tls);
+
+/* set task's local storage */
+void task_set_tls(void *tls);
+
+/* get task's local storage */
+void *task_tls(void);
+
+/* yield cpu */
 void task_yield(void);
-void task_sleep(int ms);
+
+/* resume a task from suspend state */
+void task_resume(task_t *tsk);
+
+/*
+ * task sleep a while (ms)
+ * < 0: suspend current task
+ * = 0: just yield cpu
+ * > 0: sleep milisecond
+ */
+void task_sleep(int timeout);
 
 #ifdef __cplusplus
 }
