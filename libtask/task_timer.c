@@ -34,6 +34,12 @@ void init_timer(void)
     pthread_mutex_init(&timer_lock, NULL);
 }
 
+void fini_timer(void)
+{
+    assert(!binheap_top(&timer_heap));
+    binheap_fini(&timer_heap);
+}
+
 void timer_start(task_timer_t *tm, uint64_t tmo, timer_func_t func, void *arg)
 {
     assert(!tm->entry.idx);

@@ -35,6 +35,9 @@ typedef struct task_timer {
 /* initialize timer system */
 void init_timer(void);
 
+/* finalize timer system */
+void fini_timer(void);
+
 /* run one timer */
 void timer_start(task_timer_t *tm, uint64_t tmo, timer_func_t func, void *arg);
 

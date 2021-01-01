@@ -75,6 +75,11 @@ void init_event(void)
     assert(!ret);
 }
 
+void fini_event(void)
+{
+    epoll_ctl(eventfd, EPOLL_CTL_DEL, timerfd, NULL);
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -84,7 +84,6 @@ typedef struct task_proc {
 } task_proc_t;
 
 static lldq_deque_t global_deque;
-static lldq_deque_t suspend_deque;
 static lldq_deque_t done_deque;
 static int num_procs;
 static task_proc_t *procs;
@@ -111,7 +110,7 @@ static int context_init(task_context_t *ctx, int stksize, void *arg)
     void *stk = mm_alloc(stksize);
     ctx->stkbase = stk;
     ctx->stksize = stksize;
-    // VALGRIND_STACK_REGISTER(stk, stk + stksize);
+    VALGRIND_STACK_REGISTER(stk, stk + stksize);
 
     ucontext_t *uctx = &ctx->uctx;
     getcontext(uctx);
@@ -126,7 +125,7 @@ static int context_init(task_context_t *ctx, int stksize, void *arg)
 
 static inline void context_fini(task_context_t *ctx)
 {
-    // VALGRIND_STACK_DEREGISTER(ctx->stkbase);
+    VALGRIND_STACK_DEREGISTER(ctx->stkbase);
     mm_free(ctx->stkbase);
 }
 
@@ -354,7 +353,18 @@ static void *proc_go_routine(void *arg)
             sleep(1);
         }
     }
+    printf("proc_go_routine exits\n");
+    pthread_exit(NULL);
     return NULL;
+}
+
+static void handle_done_tasks(void)
+{
+    task_t *task = (task_t *)lldq_pop_head(&done_deque);
+    while (task) {
+        task_destroy(task);
+        task = (task_t *)lldq_pop_head(&done_deque);
+    }
 }
 
 /* monitor thread */
@@ -366,7 +376,19 @@ static void *monitor_thread(void *arg)
     /* initialize events */
     init_event();
 
-    while (!shutdown) { event_poll(); }
+    while (!shutdown) {
+        event_poll();
+        handle_done_tasks();
+    }
+
+    /* finalize events */
+    fini_event();
+
+    /* finalize timers */
+    fini_timer();
+
+    printf("monitor_thread exits\n");
+    pthread_exit(NULL);
 
     return NULL;
 }
@@ -380,13 +402,12 @@ void init_procs(int nproc)
 
     /* initialize queues */
     lldq_init(&global_deque);
-    lldq_init(&suspend_deque);
     lldq_init(&done_deque);
 
     /* initialize processor 0 */
     init_proc(0);
     current->pid = pthread_self();
-    
+
     /* initialize processor 1 ..< nproc */
     pthread_attr_t attr;
     pthread_attr_init(&attr);
@@ -403,6 +424,13 @@ void init_procs(int nproc)
 
     /* destroy pthread attribute */
     pthread_attr_destroy(&attr);
+}
+
+void fini_procs(void)
+{
+    shutdown = 1;
+    sleep(3);
+    mm_free(procs);
 }
 
 task_t *task_create(task_entry_t entry, void *arg, void *tls)

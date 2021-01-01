@@ -19,6 +19,9 @@ extern "C" {
 /* initialize event system */
 void init_event(void);
 
+/* finalize event system */
+void fini_event(void);
+
 /* poll event by TIME_RESOLUTION_MS interval */
 void event_poll(void);
 
