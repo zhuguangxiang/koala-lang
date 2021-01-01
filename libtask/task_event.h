@@ -16,8 +16,6 @@
 extern "C" {
 #endif
 
-#define TIME_RESOLUTION_MS 10 // ms
-
 /* initialize event system */
 void init_event(void);
 

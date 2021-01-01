@@ -19,6 +19,8 @@
 extern "C" {
 #endif
 
+#define TIME_RESOLUTION_MS 10 // ms
+
 /* timer callback, if it is timeout */
 typedef void (*timer_func_t)(void *);
 

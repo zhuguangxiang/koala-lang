@@ -38,7 +38,7 @@ void timer_start(task_timer_t *tm, uint64_t tmo, timer_func_t func, void *arg)
 {
     assert(!tm->entry.idx);
     tm->func = func;
-    tm->tmo = timer_trigger + tmo;
+    tm->tmo = timer_trigger + (tmo / TIME_RESOLUTION_MS);
     tm->arg = arg;
     pthread_mutex_lock(&timer_lock);
     binheap_insert(&timer_heap, &tm->entry);

@@ -33,7 +33,7 @@ typedef void (*event_func_t)(void *);
 void event_poll(void)
 {
     struct epoll_event events[64];
-    const int count = epoll_wait(eventfd, events, 64, TIME_RESOLUTION_MS);
+    const int count = epoll_wait(eventfd, events, 64, -1);
     if (count < 0) {
         if (errno == EINTR) {
             // interrupted, just try again later (could be gdb'ing etc)
@@ -63,14 +63,13 @@ void init_event(void)
     struct itimerspec in = {};
     in.it_interval.tv_nsec = TIME_RESOLUTION_MS * 1000000;
     in.it_value.tv_nsec = TIME_RESOLUTION_MS * 1000000;
-    struct itimerspec out;
-    int ret = timerfd_settime(timerfd, 0, &in, &out);
+    int ret = timerfd_settime(timerfd, 0, &in, NULL);
     assert(!ret);
 
     eventfd = epoll_create(1);
     assert(eventfd >= 0);
     struct epoll_event e = {};
-    e.events = EPOLLIN;
+    e.events = EPOLLIN | EPOLLET;
     e.data.fd = timerfd;
     ret = epoll_ctl(eventfd, EPOLL_CTL_ADD, timerfd, &e);
     assert(!ret);
