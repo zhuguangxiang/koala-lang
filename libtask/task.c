@@ -74,6 +74,7 @@ typedef struct task {
 /* task processor per thread */
 typedef struct task_proc {
     int id;
+    int wait;
     task_t *volatile current;
     task_t idle_task;
     lldq_deque_t ready_deque;
@@ -152,6 +153,14 @@ static int lldq_init(lldq_deque_t *deque)
     deque->count = 0;
     pthread_mutex_init(&deque->lock, NULL);
     return 0;
+}
+
+static int lldq_is_empty(lldq_deque_t *deque)
+{
+    pthread_mutex_lock(&deque->lock);
+    int count = deque->count;
+    pthread_mutex_unlock(&deque->lock);
+    return count <= 0;
 }
 
 static lldq_node_t *lldq_pop_head(lldq_deque_t *deque)
@@ -332,6 +341,34 @@ static void init_proc(int id)
     pthread_cond_init(&proc->cond, NULL);
 }
 
+static inline void proc_wait(void)
+{
+    printf("suspend proc-%u\n", current->id);
+    pthread_mutex_t *lock = &current->lock;
+    pthread_cond_t *cond = &current->cond;
+    pthread_mutex_lock(lock);
+    current->wait = 1;
+    pthread_cond_wait(cond, lock);
+    pthread_mutex_unlock(lock);
+}
+
+static void wakeup_all_procs(void)
+{
+    task_proc_t *proc;
+    for (int i = 0; i < num_procs; i++) {
+        proc = procs + i;
+        if (proc->wait) {
+            printf("wakeup proc-%u\n", proc->id);
+            pthread_mutex_t *lock = &proc->lock;
+            pthread_cond_t *cond = &proc->cond;
+            pthread_mutex_lock(lock);
+            proc->wait = 0;
+            pthread_cond_signal(cond);
+            pthread_mutex_unlock(lock);
+        }
+    }
+}
+
 /*
  * pthread routine per processor(idle task)
  * get next task from current processor and run it
@@ -350,7 +387,7 @@ static void *proc_go_routine(void *arg)
         }
         else {
             printf("[proc-%u]No more tasks\n", current->id);
-            sleep(1);
+            proc_wait();
         }
     }
     printf("proc_go_routine exits\n");
@@ -367,6 +404,15 @@ static void handle_done_tasks(void)
     }
 }
 
+static void handle_global_tasks(void)
+{
+    /* no tasks in global queue */
+    if (lldq_is_empty(&global_deque)) return;
+
+    /* waitup all suspended procs */
+    wakeup_all_procs();
+}
+
 /* monitor thread */
 static void *monitor_thread(void *arg)
 {
@@ -377,8 +423,9 @@ static void *monitor_thread(void *arg)
     init_event();
 
     while (!shutdown) {
-        event_poll();
         handle_done_tasks();
+        event_poll();
+        handle_global_tasks();
     }
 
     /* finalize events */
@@ -429,6 +476,7 @@ void init_procs(int nproc)
 void fini_procs(void)
 {
     shutdown = 1;
+    wakeup_all_procs();
     sleep(3);
     mm_free(procs);
 }
