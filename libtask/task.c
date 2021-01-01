@@ -376,7 +376,6 @@ static void wakeup_all_procs(void)
 static void *proc_go_routine(void *arg)
 {
     init_proc((intptr_t)arg);
-
     task_t *task;
     while (!shutdown) {
         load_balance();
@@ -391,7 +390,6 @@ static void *proc_go_routine(void *arg)
         }
     }
     printf("proc_go_routine exits\n");
-    pthread_exit(NULL);
     return NULL;
 }
 
@@ -435,7 +433,6 @@ static void *monitor_thread(void *arg)
     fini_timer();
 
     printf("monitor_thread exits\n");
-    pthread_exit(NULL);
 
     return NULL;
 }
@@ -456,28 +453,25 @@ void init_procs(int nproc)
     current->pid = pthread_self();
 
     /* initialize processor 1 ..< nproc */
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    /* pthread_attr_setstacksize(); */
-
     for (int i = 1; i < nproc; i++) {
         pthread_create(
-            &procs[i].pid, &attr, proc_go_routine, (void *)(intptr_t)i);
+            &procs[i].pid, NULL, proc_go_routine, (void *)(intptr_t)i);
     }
 
     /* initialize moniter thread */
-    pthread_create(&monitor, &attr, monitor_thread, NULL);
-
-    /* destroy pthread attribute */
-    pthread_attr_destroy(&attr);
+    pthread_create(&monitor, NULL, monitor_thread, NULL);
 }
 
 void fini_procs(void)
 {
     shutdown = 1;
     wakeup_all_procs();
-    sleep(3);
+    task_proc_t *proc;
+    for (int i = 1; i < num_procs; i++) {
+        proc = procs + i;
+        pthread_join(proc->pid, NULL);
+    }
+    pthread_join(monitor, NULL);
     mm_free(procs);
 }
 
