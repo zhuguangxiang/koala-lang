@@ -32,9 +32,9 @@ int timer_compare(binheap_entry_t *p, binheap_entry_t *c)
     ta = container_of(p, struct timer, entry);
     tb = container_of(c, struct timer, entry);
     // min heap
-    return ta->at_time < tb->at_time;
+    // return ta->at_time < tb->at_time;
     // max heap
-    // return ta->at_time > tb->at_time;
+    return ta->at_time > tb->at_time;
 }
 
 void test_binheap(void)
@@ -69,9 +69,9 @@ void test_binheap(void)
     while (e) {
         timer = container_of(e, struct timer, entry);
         // min heap
-        assert(timer->at_time == test_timers_sorted[i].at_time);
+        // assert(timer->at_time == test_timers_sorted[i].at_time);
         // max heap
-        // assert(timer->at_time == test_timers_sorted_max[i].at_time);
+        assert(timer->at_time == test_timers_sorted_max[i].at_time);
         printf("%d ", timer->at_time);
         e = binheap_pop(&heap);
         ++i;

@@ -172,7 +172,7 @@ int binheap_delete(binheap_t *heap, binheap_entry_t *e)
 
     /* if the last entry is removed, nothing more need be done. */
     if (eidx == heap->used) {
-        //e->idx = 0;
+        e->idx = 0;
         heap->used--;
         return 0;
     }
@@ -197,7 +197,7 @@ int binheap_delete(binheap_t *heap, binheap_entry_t *e)
         __heap_up(heap, last);
 
     /* clear 'index' in the entry */
-    //e->idx = 0;
+    e->idx = 0;
     return 0;
 }
 
