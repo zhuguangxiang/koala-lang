@@ -154,7 +154,7 @@ static int lldq_init(lldq_deque_t *deque)
     return 0;
 }
 
-static int lldq_is_empty(lldq_deque_t *deque)
+static int lldq_empty(lldq_deque_t *deque)
 {
     pthread_mutex_lock(&deque->lock);
     int count = deque->count;
@@ -423,8 +423,7 @@ static void *monitor_thread(void *arg)
         event_poll();
 
         /* tasks in global queue or monitor queue */
-        if (!lldq_is_empty(&global_deque) ||
-            !lldq_is_empty(&current->ready_deque)) {
+        if (!lldq_empty(&global_deque) || !lldq_empty(&current->ready_deque)) {
             /* waitup all suspended procs to handle these tasks */
             wakeup_all_procs();
         }
@@ -439,6 +438,8 @@ void init_procs(int nproc)
 {
     int ncpu = get_nprocs();
     if (nproc <= 0) { nproc = ncpu; }
+    /* there needs at least two procs. */
+    if (nproc == 1) nproc = 2;
     num_procs = nproc;
     procs = mm_alloc(sizeof(task_proc_t) * nproc);
 
@@ -475,6 +476,7 @@ void fini_procs(void)
     task_proc_t *proc;
     for (int i = 1; i < num_procs; i++) {
         proc = procs + i;
+        assert(lldq_empty(&proc->ready_deque));
         pthread_join(proc->pid, NULL);
     }
 
@@ -484,8 +486,8 @@ void fini_procs(void)
     /* finalize timers */
     fini_timer();
 
-    assert(lldq_is_empty(&global_deque));
-    assert(lldq_is_empty(&done_deque));
+    assert(lldq_empty(&global_deque));
+    assert(lldq_empty(&done_deque));
 
     /* free proc memories */
     mm_free(procs);
@@ -508,6 +510,10 @@ task_t *task_create(task_entry_t entry, void *arg, void *tls)
 
     lldq_push_tail(&current->ready_deque, &task->dq_node);
     printf("[proc-%u]task-%lu: created\n", current->id, task->id);
+
+    /* schedule immediately? */
+    task_yield();
+
     return task;
 }
 

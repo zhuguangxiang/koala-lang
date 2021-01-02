@@ -9,7 +9,7 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200112L
 #include "task_event.h"
 #include "task_timer.h"
 #include <assert.h>

@@ -9,6 +9,7 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
+#include "common.h"
 #include "task.h"
 #include "task_timer.h"
 #include <stdio.h>
@@ -35,11 +36,11 @@ void *tm1_hello(void *arg)
 static void tm1_loop_callback(void *arg)
 {
     task_timer_t *tm = arg;
-    int count = (intptr_t)tm->arg;
+    int count = PTR2INT(tm->arg);
     if (count < 10) {
         task_create(tm1_hello, NULL, NULL);
         count++;
-        timer_start(tm, 2000, tm1_loop_callback, (void *)(intptr_t)count);
+        timer_start(tm, 2000, tm1_loop_callback, INT2PTR(count));
     }
 }
 
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
     task_timer_t tm1 = {};
 
     int count = 0;
-    timer_start(&tm1, 2000, tm1_loop_callback, (void *)(intptr_t)count);
+    timer_start(&tm1, 2000, tm1_loop_callback, INT2PTR(count));
 
     int loop = 40;
     while (loop-- > 0) {

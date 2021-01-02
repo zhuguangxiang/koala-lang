@@ -52,6 +52,9 @@ extern "C" {
 /* pointer to integer */
 #define PTR2INT(p) ((int)(intptr_t)(p))
 
+/* integer to pointer */
+#define INT2PTR(i) ((void *)(intptr_t)(i))
+
 /*
 ** Get the 'type' pointer from the pointer to `member`
 ** which is embedded inside the 'type'
