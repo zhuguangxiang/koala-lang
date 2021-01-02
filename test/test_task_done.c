@@ -1,3 +1,13 @@
+/*===-- test_task_done.c ------------------------------------------*- C -*-===*\
+|*                                                                            *|
+|* MIT License                                                                *|
+|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
+|*                                                                            *|
+|*===----------------------------------------------------------------------===*|
+|*                                                                            *|
+|* Test task in `task.c`, `task_timer.c` and `task_event.c`                   *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #include "task.h"
 #include <stdio.h>
@@ -23,7 +33,6 @@ int main(int argc, char *argv[])
     for (int i = 0; i < 5; i++) task_create(hello, NULL, NULL);
 
     int count = 20;
-
     while (count-- > 0) {
         // printf("[proc-%u]No more tasks\n", current_pid());
         sleep(1);

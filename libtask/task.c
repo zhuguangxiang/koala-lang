@@ -92,7 +92,6 @@ static _Atomic uint64_t task_idgen = 0;
 static int task_shutdown = 0;
 static __thread task_proc_t *current;
 static int shutdown = 0;
-static pthread_t monitor;
 
 /* task routine */
 static void task_go_routine(void *arg)
@@ -189,12 +188,7 @@ static void lldq_push_tail(lldq_deque_t *deque, lldq_node_t *node)
     pthread_mutex_unlock(&deque->lock);
 }
 
-static inline void schedule(task_t *task)
-{
-    lldq_push_tail(&current->ready_deque, &task->dq_node);
-}
-
-static task_t *next_task(void)
+static inline task_t *next_task(void)
 {
     return (task_t *)lldq_pop_head(&current->ready_deque);
 }
@@ -225,6 +219,12 @@ static void steal_tasks(void)
         lldq_deque_t *steal_dq = &from->ready_deque;
         task_t *task;
         int num_steal = max_count >> 1;
+
+        if (!num_steal && steal_index == num_procs - 1) {
+            /* only one task and its monitor proc */
+            num_steal = max_count;
+        }
+
         while (num_steal-- > 0) {
             task = (task_t *)lldq_pop_head(steal_dq);
             if (task) {
@@ -241,7 +241,7 @@ static int get_tasks_from_global(void)
     int count = 0;
     task_t *task = (task_t *)lldq_pop_head(&global_deque);
     while (task) {
-        schedule(task);
+        lldq_push_tail(&current->ready_deque, &task->dq_node);
         task = (task_t *)lldq_pop_head(&global_deque);
         ++count;
     }
@@ -280,8 +280,9 @@ static inline void init_idle_task(task_t *task)
 /* destroy task */
 static void task_destroy(task_t *task)
 {
-    printf("task-%lu destroyed\n", task->id);
+    printf("[proc-%u]task-%lu destroyed\n", current->id, task->id);
     assert(task != &current->idle_task);
+    assert(task->state == TASK_STATE_DONE);
     context_fini(&task->context);
     mm_free(task);
 }
@@ -298,7 +299,9 @@ static void task_switch_to(task_t *to)
     task_t *from = current_task();
     if (from->state == TASK_STATE_RUNNING) {
         from->state = TASK_STATE_READY;
-        if (from != &current->idle_task) { schedule(from); }
+        if (from != &current->idle_task) {
+            lldq_push_tail(&current->ready_deque, &from->dq_node);
+        }
         printf(
             "[proc-%u]task-%lu from running -> ready\n", current->id, from->id);
     }
@@ -373,9 +376,10 @@ static void wakeup_all_procs(void)
  * pthread routine per processor(idle task)
  * get next task from current processor and run it
  */
-static void *proc_go_routine(void *arg)
+static void *proc_thread(void *arg)
 {
-    init_proc((intptr_t)arg);
+    init_proc(PTR2INT(arg));
+
     task_t *task;
     while (!shutdown) {
         load_balance();
@@ -393,44 +397,38 @@ static void *proc_go_routine(void *arg)
     return NULL;
 }
 
-static void handle_done_tasks(void)
-{
-    task_t *task = (task_t *)lldq_pop_head(&done_deque);
-    while (task) {
-        task_destroy(task);
-        task = (task_t *)lldq_pop_head(&done_deque);
-    }
-}
-
-static void handle_global_tasks(void)
-{
-    /* no tasks in global queue */
-    if (lldq_is_empty(&global_deque)) return;
-
-    /* waitup all suspended procs */
-    wakeup_all_procs();
-}
-
 /* monitor thread */
 static void *monitor_thread(void *arg)
 {
-    /* initialize timers */
-    init_timer();
+    init_proc(PTR2INT(arg));
 
-    /* initialize events */
-    init_event();
+    int count;
+    task_t *task;
 
     while (!shutdown) {
-        handle_done_tasks();
+        /* one loop to destroy done task count */
+        count = 8;
+        /* handle done tasks */
+        task = (task_t *)lldq_pop_head(&done_deque);
+        while (task) {
+            task_destroy(task);
+            if (--count <= 0) {
+                printf("break to destroy done tasks\n");
+                break;
+            }
+            task = (task_t *)lldq_pop_head(&done_deque);
+        }
+
+        /* check events */
         event_poll();
-        handle_global_tasks();
+
+        /* tasks in global queue or monitor queue */
+        if (!lldq_is_empty(&global_deque) ||
+            !lldq_is_empty(&current->ready_deque)) {
+            /* waitup all suspended procs to handle these tasks */
+            wakeup_all_procs();
+        }
     }
-
-    /* finalize events */
-    fini_event();
-
-    /* finalize timers */
-    fini_timer();
 
     printf("monitor_thread exits\n");
 
@@ -444,34 +442,52 @@ void init_procs(int nproc)
     num_procs = nproc;
     procs = mm_alloc(sizeof(task_proc_t) * nproc);
 
-    /* initialize queues */
-    lldq_init(&global_deque);
-    lldq_init(&done_deque);
-
     /* initialize processor 0 */
     init_proc(0);
     current->pid = pthread_self();
 
-    /* initialize processor 1 ..< nproc */
-    for (int i = 1; i < nproc; i++) {
-        pthread_create(
-            &procs[i].pid, NULL, proc_go_routine, (void *)(intptr_t)i);
-    }
+    /* initialize queues */
+    lldq_init(&global_deque);
+    lldq_init(&done_deque);
 
-    /* initialize moniter thread */
-    pthread_create(&monitor, NULL, monitor_thread, NULL);
+    /* initialize timers */
+    init_timer();
+    /* initialize events */
+    init_event();
+
+    /* initialize processor 1 ... nproc - 2 */
+    int i;
+    for (i = 1; i <= nproc - 2; i++)
+        pthread_create(&procs[i].pid, NULL, proc_thread, INT2PTR(i));
+    /* initialize moniter thread, index at nproc - 1 */
+    pthread_create(&procs[i].pid, NULL, monitor_thread, INT2PTR(i));
 }
 
 void fini_procs(void)
 {
+    /* shutdown */
     shutdown = 1;
+
+    /* wakeup all sleep procs */
     wakeup_all_procs();
+
+    /* wait procs exit */
     task_proc_t *proc;
     for (int i = 1; i < num_procs; i++) {
         proc = procs + i;
         pthread_join(proc->pid, NULL);
     }
-    pthread_join(monitor, NULL);
+
+    /* finalize events */
+    fini_event();
+
+    /* finalize timers */
+    fini_timer();
+
+    assert(lldq_is_empty(&global_deque));
+    assert(lldq_is_empty(&done_deque));
+
+    /* free proc memories */
     mm_free(procs);
 }
 
@@ -490,7 +506,7 @@ task_t *task_create(task_entry_t entry, void *arg, void *tls)
     task->data = tls;
     context_init(&task->context, 4096, task);
 
-    schedule(task);
+    lldq_push_tail(&current->ready_deque, &task->dq_node);
     printf("[proc-%u]task-%lu: created\n", current->id, task->id);
     return task;
 }
@@ -531,6 +547,12 @@ void task_resume(task_t *task)
     lldq_push_tail(&global_deque, &task->dq_node);
 }
 
+static void task_sleep_callback(void *arg)
+{
+    task_timer_t *tm = arg;
+    task_resume(tm->arg);
+}
+
 void task_sleep(int timeout)
 {
     task_t *task = current_task();
@@ -538,7 +560,7 @@ void task_sleep(int timeout)
     if (timeout) {
         task->state = TASK_STATE_SUSPEND;
         if (timeout > 0) {
-            timer_start(&task->timer, timeout, (timer_func_t)task_resume, task);
+            timer_start(&task->timer, timeout, task_sleep_callback, task);
         }
     }
     task_yield();

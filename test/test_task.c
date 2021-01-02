@@ -1,3 +1,13 @@
+/*===-- test_task.c -----------------------------------------------*- C -*-===*\
+|*                                                                            *|
+|* MIT License                                                                *|
+|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
+|*                                                                            *|
+|*===----------------------------------------------------------------------===*|
+|*                                                                            *|
+|* Test task in `task.h` and `task.c`                                         *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #include "task.h"
 #include <stdio.h>
@@ -19,12 +29,13 @@ int main(int argc, char *argv[])
     init_procs(3);
     for (int i = 0; i < 100; i++) task_create(hello, NULL, NULL);
 
-    sleep(1);
-    task_yield();
-
-    while (1) {
+    int loop = 10;
+    while (loop-- > 0) {
         printf("[proc-%u]No more tasks\n", current_pid());
         sleep(1);
+        task_yield();
     }
+
+    fini_procs();
     return 0;
 }

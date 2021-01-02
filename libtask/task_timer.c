@@ -67,7 +67,7 @@ void timer_poll(uint64_t trigger)
     task_timer_t *tm = container_of(e, task_timer_t, entry);
     while (tm->tmo <= timer_trigger) {
         binheap_delete(&timer_heap, e);
-        tm->func(tm->arg);
+        tm->func(tm);
         e = binheap_top(&timer_heap);
         if (!e) break;
         tm = container_of(e, task_timer_t, entry);
