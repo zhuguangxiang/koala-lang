@@ -28,5 +28,6 @@ gcc -g src/mm.c src/binheap.c  libtask/task.c test/test_task.c libtask/task_time
 
 gcc -std=gnu11 -g src/mm.c src/binheap.c libtask/task.c libtask/task_timer.c libtask/task_event.c test/test_timer.c -I./include -I./libtask -lpthread
 
-gcc -g src/mm.c src/binheap.c libtask/task.c libtask/task_timer.c libtask/task_event.c test/test_task_done.c -I./include -I./libtask -lpthread
+gcc -g -fvar-tracking src/mm.c src/binheap.c libtask/task.c libtask/task_timer.c libtask/task_event.c test/test_task_done.c -I./include -I./libtask -lpthread
 
+gcc -g -fvar-tracking test/test_vm.c src/vm.c src/typeobject.c src/codeobject.c src/mm.c -I./include src/vector.c src/hashmap.c src/methodobject.c -ldl -rdynamic -g -Wall -fvisibility=hidden

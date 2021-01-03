@@ -263,9 +263,9 @@ static void lro_update_mro(TypeObject *type)
     }
 }
 
-void *__alloc_metaobject(int size)
+void *__alloc_meta_object(int size)
 {
-    void **obj = mm_alloc(sizeof(void **) + size);
+    void **obj = mm_alloc(sizeof(void *) + size);
     *obj = type_type;
     return (void *)(obj + 1);
 }

@@ -25,7 +25,7 @@ static TypeObject *method_type;
 
 Object *cmethod_new(MethodDef *def)
 {
-    MethodObject *mobj = alloc_metaobject(MethodObject);
+    MethodObject *mobj = alloc_meta_object(MethodObject);
     mobj->name = def->name;
     mobj->kind = CFUNC_KIND;
     mobj->ptr = __get_cfunc(def->funcname);

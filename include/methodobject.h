@@ -23,7 +23,7 @@ typedef enum {
     KFUNC_KIND = 1,
     CFUNC_KIND,
     PROTO_KIND,
-} method_kind_t;
+} meth_kind_t;
 
 /* `Method` object layout */
 typedef struct MethodObject {
@@ -31,7 +31,7 @@ typedef struct MethodObject {
     /* method name */
     const char *name;
     /* cfunc, kcode or intf */
-    method_kind_t kind;
+    meth_kind_t kind;
     /* cfunc or kcode */
     void *ptr;
 } MethodObject;

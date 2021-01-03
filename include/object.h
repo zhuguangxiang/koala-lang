@@ -85,12 +85,12 @@ struct TypeObject {
 #define type_is_final(type) (((type)->flags & TP_FLAGS_FINAL) == TP_FLAGS_FINAL)
 
 /* allocate meta object */
-void *__alloc_metaobject(int size);
-#define alloc_metaobject(type) (type *)__alloc_metaobject(sizeof(type))
+void *__alloc_meta_object(int size);
+#define alloc_meta_object(type) (type *)__alloc_meta_object(sizeof(type))
 
 static inline TypeObject *__type_new(const char *name)
 {
-    TypeObject *type = alloc_metaobject(TypeObject);
+    TypeObject *type = alloc_meta_object(TypeObject);
     type->name = name;
     return type;
 }
@@ -196,75 +196,41 @@ static inline void type_add_fielddefs(TypeObject *type, FieldDef *def)
     }
 }
 
-/* `kl_value_t` stores variable or field value. */
-typedef struct kl_value {
-    union {
-        /* gc object */
-        Object *obj;
-        /* c structure */
-        void *p;
-        /* integer */
-        int64_t ival;
-        /* float */
-        double fval;
-        /* byte or bool */
-        int8_t bval;
-        /* character */
-        int32_t cval;
+/* Type and fat pointer layout */
+typedef union {
+    struct {
+        char tag : 2;
+        char kind;
     };
-    /* see: typedesc.h: TYPE_BASE_XX */
-    char kind;
-} kl_value_t;
+    void *vtbl;
+} TypeRef;
 
-#define setnilval(v) ((v)->kind = TYPE_NIL)
+/* Value layout */
+typedef union {
+    /* gc object */
+    Object *obj;
+    /* c struct */
+    void *ptr;
+    /* integer */
+    int64_t ival;
+    /* float */
+    double fval;
+    /* byte */
+    int8_t bval;
+    /* bool */
+    int8_t zval;
+    /* character */
+    int32_t cval;
+} ValueRef;
 
-#define setbyteval(v, x)       \
-    {                          \
-        (v)->kind = TYPE_BYTE; \
-        (v)->bval = (x);       \
-    }
-
-#define setintval(v, x)       \
-    {                         \
-        (v)->kind = TYPE_INT; \
-        (v)->ival = (x);      \
-    }
-
-#define setfltval(v, x)         \
-    {                           \
-        (v)->kind = TYPE_FLOAT; \
-        (v)->fval = (x);        \
-    }
-
-#define setboolval(v, x)       \
-    {                          \
-        (v)->kind = TYPE_BOOL; \
-        (v)->bval = (x);       \
-    }
-
-#define setcharval(v, x)       \
-    {                          \
-        (v)->kind = TYPE_CHAR; \
-        (v)->cval = (x);       \
-    }
-
-#define setstrval(v, x)       \
-    {                         \
-        (v)->kind = TYPE_STR; \
-        (v)->obj = (x);       \
-    }
-
-#define setanyval(v, x)       \
-    {                         \
-        (v)->kind = TYPE_ANY; \
-        (v)->obj = (x);       \
-    }
-
-#define setptrval(v, x)       \
-    {                         \
-        (v)->kind = TYPE_ANY; \
-        (v)->p = (x);         \
-    }
+/*
+ * `TValueRef` is variables layout in vm stack only.
+ * The global variables and fields in object are as binary(offset) layout.
+ */
+typedef struct {
+    TypeRef _t;
+    ValueRef _v;
+} TValueRef;
 
 #ifdef __cplusplus
 }
