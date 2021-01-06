@@ -72,6 +72,8 @@ struct TypeObject {
     HashMap *mtbl;
     /* lro methods */
     Vector *mro;
+    /* next offset */
+    int next_offset;
 };
 
 #define obj_get_type(obj)       *((void **)(obj)-1)
@@ -156,6 +158,21 @@ void type_show(TypeObject *type);
 /* initialize core types(Any and Type) */
 void init_core_types(void);
 
+/* create a meta table */
+HashMap *mtbl_create(void);
+
+/* add new object to meta table */
+int mtbl_add(HashMap *mtbl, const char *name, void *obj);
+
+/* find an object from a meta table */
+void *mtbl_find(HashMap *mtbl, const char *name);
+
+/* destroy a meta table */
+void mtbl_destroy(HashMap *mtbl);
+
+/* show meta table */
+void mtbl_show(HashMap *mtbl);
+
 /* method define struct */
 typedef struct MethodDef {
     const char *name;
@@ -196,6 +213,76 @@ static inline void type_add_fielddefs(TypeObject *type, FieldDef *def)
     }
 }
 
+/* `Field` object layout */
+typedef struct FieldObject {
+    OBJECT_HEAD
+    /* field name */
+    const char *name;
+    /* field type desc */
+    TypeDesc *desc;
+    /* offset */
+    int offset;
+    /* size */
+    int size;
+} FieldObject;
+
+/* new field */
+Object *field_new(const char *name);
+
+/* method kind */
+typedef enum {
+    KFUNC_KIND = 1,
+    CFUNC_KIND,
+    PROTO_KIND,
+} meth_kind_t;
+
+/* `Method` object layout */
+typedef struct MethodObject {
+    OBJECT_HEAD
+    /* method name */
+    const char *name;
+    /* cfunc, kcode or intf */
+    meth_kind_t kind;
+    /* cfunc or kcode */
+    void *ptr;
+} MethodObject;
+
+/* new c method */
+Object *cmethod_new(MethodDef *def);
+
+/* new koala method */
+Object *method_new(char *name, Object *code);
+
+/* `Module` object layout. */
+typedef struct ModuleObject {
+    /* object */
+    OBJECT_HEAD
+    int size;
+    void **values;
+} ModuleObject;
+
+/*
+    module default value memory:
+    primitive size: 8 bytes
+    object size: 8/16 bytes
+ */
+#define MODULE_MIN_VALUES_SIZE (16 * 32)
+
+/* new module */
+Object *module_new(const char *path);
+
+/* add type to module */
+int module_add_type(Object *obj, TypeObject *type);
+
+/* add variable to module */
+int module_add_var(Object *obj, FieldObject *field);
+
+/* add function to module */
+int module_add_func(Object *obj, MethodObject *meth);
+
+/* show module */
+void module_show(Object *obj);
+
 /* Type and fat pointer layout */
 typedef union {
     struct {
@@ -231,6 +318,14 @@ typedef struct {
     TypeRef _t;
     ValueRef _v;
 } TValueRef;
+
+/* `HeapObject` is instance object layout. */
+typedef struct HeapObject {
+    /* object */
+    OBJECT_HEAD
+    /* each field value */
+    void *items[0];
+} HeapObject;
 
 #ifdef __cplusplus
 }

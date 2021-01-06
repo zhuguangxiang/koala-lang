@@ -19,6 +19,12 @@
 extern "C" {
 #endif
 
+/* init koala */
+void koala_init(void);
+
+/* fini koala */
+void koala_fini(void);
+
 /* stack push functions */
 
 static inline void kl_push_nil(KoalaState *ks)

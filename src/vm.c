@@ -103,9 +103,6 @@ char *opcode_str(uint8_t op)
     abort();
 }
 
-#define EVAL_LOOP while (1) {
-#define EVEL_END  }
-
 #define NEXT_OP() (assert(pc < codesize), codes[pc++])
 
 #define TOP()   *(top - 1)
@@ -145,77 +142,77 @@ void eval(KoalaState *ks)
     TValueRef x, y;
     int iarg;
 
-    EVAL_LOOP
-    op = NEXT_OP();
-    CHECK();
-    switch (op) {
-        case OP_POP_TOP: {
-            x = POP();
-            break;
-        }
-        case OP_DUP: {
-            x = TOP();
-            PUSH(x);
-            break;
-        }
-        case OP_SWAP: {
-            x = POP();
-            y = POP();
-            PUSH(x);
-            PUSH(y);
-            break;
-        }
-        case OP_CONST_BYTE: {
-            int8_t bval = NEXT_BYTE();
-            setbyteval(&x, bval);
-            PUSH(x);
-            break;
-        }
-        case OP_LOAD: {
-            abort();
-            break;
-        }
-        case OP_LOAD_0: {
-            x = GET_LOCAL(0);
-            PUSH(x);
-            break;
-        }
-        case OP_LOAD_1: {
-            x = GET_LOCAL(1);
-            PUSH(x);
-            break;
-        }
-        case OP_STORE: {
-            iarg = NEXT_BYTE();
-            x = POP();
-            SET_LOCAL(iarg, x);
-            break;
-        }
-        case OP_ADD: {
-            x = POP();
-            y = POP();
-            if (x._t.tag == 1 && y._t.tag == 1) {
-                if (x._t.kind == TYPE_BYTE && y._t.kind == TYPE_BYTE) {
-                    x._v.bval += y._v.bval;
-                    PUSH(x);
+    while (1) {
+        op = NEXT_OP();
+        CHECK();
+        switch (op) {
+            case OP_POP_TOP: {
+                x = POP();
+                break;
+            }
+            case OP_DUP: {
+                x = TOP();
+                PUSH(x);
+                break;
+            }
+            case OP_SWAP: {
+                x = POP();
+                y = POP();
+                PUSH(x);
+                PUSH(y);
+                break;
+            }
+            case OP_CONST_BYTE: {
+                int8_t bval = NEXT_BYTE();
+                setbyteval(&x, bval);
+                PUSH(x);
+                break;
+            }
+            case OP_LOAD: {
+                abort();
+                break;
+            }
+            case OP_LOAD_0: {
+                x = GET_LOCAL(0);
+                PUSH(x);
+                break;
+            }
+            case OP_LOAD_1: {
+                x = GET_LOCAL(1);
+                PUSH(x);
+                break;
+            }
+            case OP_STORE: {
+                iarg = NEXT_BYTE();
+                x = POP();
+                SET_LOCAL(iarg, x);
+                break;
+            }
+            case OP_ADD: {
+                x = POP();
+                y = POP();
+                if (x._t.tag == 1 && y._t.tag == 1) {
+                    if (x._t.kind == TYPE_BYTE && y._t.kind == TYPE_BYTE) {
+                        x._v.bval += y._v.bval;
+                        PUSH(x);
+                    }
                 }
+                else {
+                }
+                break;
             }
-            else {
+            case OP_SUB: {
+                break;
             }
-            break;
-        }
-        case OP_SUB: {
-            break;
-        }
-        case OP_HALT: {
-            abort();
-        }
-        default: {
-            printf("error: unrecognized opcode\n");
-            abort();
+            case OP_HALT: {
+                abort();
+            }
+            default: {
+                printf("error: unrecognized opcode\n");
+                abort();
+            }
         }
     }
-    EVEL_END
 }
 
 DLLEXPORT KoalaState *kl_new_state(void)

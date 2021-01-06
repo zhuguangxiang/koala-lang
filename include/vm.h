@@ -65,8 +65,11 @@ struct KoalaState {
 /* new koala state */
 DLLEXPORT KoalaState *kl_new_state(void);
 
-/* eval call koala code */
+/* call koala code */
 void kl_do_call(KoalaState *ks, int argc);
+
+/* run klc */
+void koala_run_file(const char *path);
 
 #define setnilval(v) \
     (v)->_t.tag = 1; \

@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-static TypeObject *code_type;
+TypeObject *code_type;
 
 Object *code_new(uint8_t *codes, int size)
 {
