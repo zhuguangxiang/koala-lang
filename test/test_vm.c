@@ -23,17 +23,44 @@ void test_vm(void)
         OP_ADD,
         OP_RETURN_VALUE,
     };
-    Object *code = code_new(codes, COUNT_OF(codes));
-    kl_push_code(ks, code);
-    kl_push_byte(ks, 100);
-    kl_push_byte(ks, 200);
-    kl_do_call(ks, 2);
+    Object *code = code_new(2, codes, COUNT_OF(codes));
+    Object *meth = method_new("add", code);
+    kl_push_func(ks, meth);
+    kl_push_byte(ks, 10);
+    kl_push_byte(ks, 20);
+    kl_do_call(ks);
+    int8_t res = kl_pop_byte(ks);
+    assert(res == 30);
+    assert(ks->top == ks->ci->top);
+    // kl_free_state(ks);
+}
+
+DLLEXPORT int8_t test_add_func(int8_t a, int8_t b)
+{
+    printf("test_add_func is call by kvm\n");
+    return a + b;
+}
+
+void test_vm2(void)
+{
+    KoalaState *ks = kl_new_state();
+    MethodDef def = { "add", "bb", "b", "test_add_func" };
+    Object *meth = cmethod_new(&def);
+    kl_push_func(ks, meth);
+    kl_push_byte(ks, 10);
+    kl_push_byte(ks, 20);
+    kl_do_call(ks);
+    int8_t res = kl_pop_byte(ks);
+    assert(res == 30);
+    assert(ks->top == ks->ci->top);
+    // kl_free_state(ks);
 }
 
 int main(int argc, char *argv[])
 {
-    init_core_types();
-    init_code_type();
+    kl_init();
     test_vm();
+    test_vm2();
+    kl_fini();
     return 0;
 }

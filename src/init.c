@@ -15,6 +15,9 @@
 
 void kl_init(void)
 {
+    /* init coroutine */
+    init_procs(1);
+
     /* init strtab */
 
     /* init gc */
@@ -22,19 +25,16 @@ void kl_init(void)
 
     /* init core modules */
     init_core_modules();
-
-    /* init coroutine */
-    init_procs(1);
 }
 
 void kl_fini(void)
 {
-    /* fini coroutine */
-    fini_procs();
+    /* fini modules */
+    fini_modules();
 
     /* fini gc */
     gc_fini();
 
-    /* fini modules */
-    fini_modules();
+    /* fini coroutine */
+    fini_procs();
 }

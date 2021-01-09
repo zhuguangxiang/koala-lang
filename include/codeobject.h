@@ -21,6 +21,7 @@ extern "C" {
 /* `Code` object layout */
 typedef struct CodeObject {
     OBJECT_HEAD
+    int nloc;
     int size;
     uint8_t *codes;
 } CodeObject;
@@ -29,7 +30,7 @@ typedef struct CodeObject {
 void init_code_type(void);
 
 /* new code object */
-Object *code_new(uint8_t *codes, int size);
+Object *code_new(int nloc, uint8_t *codes, int size);
 
 #ifdef __cplusplus
 }

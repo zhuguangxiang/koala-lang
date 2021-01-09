@@ -26,7 +26,7 @@ typedef struct ModuleObject {
 
 #define MODULE_MIN_VALUES_SIZE (16 * 32)
 
-Object *module_new(const char *path)
+Object *module_new(char *path)
 {
     TypeObject *type = type_new_mod(path);
     type_set_public_final(type);
@@ -198,6 +198,7 @@ void init_core_modules(void)
 
 void fini_modules(void)
 {
+    mtbl_destroy(modmap);
 }
 
 void gc_trace_modules(void)

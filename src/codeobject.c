@@ -17,11 +17,12 @@ extern "C" {
 
 TypeObject *code_type;
 
-Object *code_new(uint8_t *codes, int size)
+Object *code_new(int nloc, uint8_t *codes, int size)
 {
     CodeObject *cobj = alloc_meta_object(CodeObject);
     cobj->codes = codes;
     cobj->size = size;
+    cobj->nloc = nloc;
     return (Object *)cobj;
 }
 

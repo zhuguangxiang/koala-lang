@@ -1,15 +1,15 @@
-/*===-- typeobject.c - Type Object --------------------------------*- C -*-===*\
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
-|*                                                                            *|
+/*===----------------------------------------------------------------------===*\
+|*                               Koala                                        *|
+|*                 The Multi-Paradigm Programming Language                    *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This file implements the Koala `Any` and `Type` object.                    *|
+|* MIT License                                                                *|
+|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#include "object.h"
+#include "cf_ffi.h"
+#include "codeobject.h"
 #include <dlfcn.h>
 
 #ifdef __cplusplus
@@ -21,7 +21,7 @@ struct mnode {
     /* entry need at top */
     HashMapEntry entry;
     /* object name */
-    const char *name;
+    char *name;
     /* object pointer */
     void *obj;
 };
@@ -33,7 +33,7 @@ static int mnode_equal(void *e1, void *e2)
     return (n1 == n2) || !strcmp(n1->name, n2->name);
 }
 
-static struct mnode *mnode_new(const char *name, void *obj)
+static struct mnode *mnode_new(char *name, void *obj)
 {
     struct mnode *n = mm_alloc(sizeof(*n));
     n->name = name;
@@ -45,7 +45,7 @@ static struct mnode *mnode_new(const char *name, void *obj)
 static void mnode_free(void *e, void *arg)
 {
     struct mnode *n = e;
-    printf("debug: `%s` is freed.", n->name);
+    printf("debug: `%s` is freed\n", n->name);
     mm_free(n);
 }
 
@@ -62,7 +62,7 @@ HashMap *mtbl_create(void)
     return mtbl;
 }
 
-int mtbl_add(HashMap *mtbl, const char *name, void *obj)
+int mtbl_add(HashMap *mtbl, char *name, void *obj)
 {
     struct mnode *n = mnode_new(name, obj);
     int ret = hashmap_put_absent(mtbl, n);
@@ -70,7 +70,7 @@ int mtbl_add(HashMap *mtbl, const char *name, void *obj)
     return ret;
 }
 
-void *mtbl_find(HashMap *mtbl, const char *name)
+void *mtbl_find(HashMap *mtbl, char *name)
 {
     struct mnode key = { .name = name };
     hashmap_entry_init(&key, strhash(name));
@@ -362,6 +362,11 @@ void type_append_base(TypeObject *type, TypeObject *base)
     vector_push_back(vec, &base);
 }
 
+int type_add_type(TypeObject *mod, TypeObject *type)
+{
+    return 0;
+}
+
 int type_add_field(TypeObject *type, FieldObject *ob)
 {
     return 0;
@@ -409,7 +414,7 @@ static void init_field_type(void)
     type_show(field_type);
 }
 
-Object *field_new(const char *name)
+Object *field_new(char *name)
 {
     return NULL;
 }
@@ -433,7 +438,7 @@ static void init_method_type(void)
     type_show(method_type);
 }
 
-static inline void *__get_cfunc(const char *name)
+static inline void *__get_cfunc(char *name)
 {
     return dlsym(NULL, name);
 }
@@ -443,14 +448,29 @@ Object *cmethod_new(MethodDef *def)
     MethodObject *mobj = alloc_meta_object(MethodObject);
     mobj->name = def->name;
     mobj->kind = CFUNC_KIND;
-    mobj->ptr = __get_cfunc(def->funcname);
-    assert(mobj->ptr);
+    TypeDesc *proto = to_proto(def->ptype, def->rtype);
+    void *ptr = __get_cfunc(def->funcname);
+    assert(ptr);
+    mobj->desc = proto;
+    mobj->ptr = kl_new_cfunc(proto, ptr);
     return (Object *)mobj;
 }
 
 Object *method_new(char *name, Object *code)
 {
-    return NULL;
+    MethodObject *mobj = alloc_meta_object(MethodObject);
+    mobj->name = name;
+    mobj->kind = KFUNC_KIND;
+    mobj->ptr = code;
+    return (Object *)mobj;
+}
+
+int method_get_nloc(Object *meth)
+{
+    MethodObject *mobj = (MethodObject *)meth;
+    if (mobj->kind != KFUNC_KIND) return 0;
+    CodeObject *cobj = mobj->ptr;
+    return cobj->nloc;
 }
 
 DLLEXPORT Object *kl_type_name(Object *self)
@@ -465,7 +485,7 @@ static void init_any_type(void)
     MethodDef defs[] = {
         { "__hash__", "i", NULL, "kl_type_name" },
         { "__eq__", "A", "b", "kl_type_name" },
-        { "__type__", NULL, "L.Type;", "kl_type_name" },
+        // { "__type__", NULL, "L.Type;", "kl_type_name" },
         { "__str__", NULL, "s", "kl_type_name" },
         { NULL },
     };
@@ -483,11 +503,13 @@ static void init_type_type(void)
     /* `Type` methods */
     MethodDef defs[] = {
         { "__name__", NULL, "s", "kl_type_name" },
+        /*
         { "__mod__", NULL, "L.Module;", "kl_type_name" },
         { "__lro__", NULL, "L.Tuple;", "kl_type_name" },
         { "__mbrs__", NULL, "L.Array(s);", "kl_type_name" },
         { "getField", "s", "L.Field;", "kl_type_name" },
         { "getMethod", "s", "L.Method;", "kl_type_name" },
+        */
         { "__str__", NULL, "s", "kl_type_name" },
         { NULL },
     };

@@ -1,11 +1,10 @@
-/*===-- object.c - Koala Object Model -----------------------------*- C -*-===*\
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
-|*                                                                            *|
+/*===----------------------------------------------------------------------===*\
+|*                               Koala                                        *|
+|*                 The Multi-Paradigm Programming Language                    *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares the Koala `Object` and `TypeObject` object.           *|
+|* MIT License                                                                *|
+|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
@@ -57,7 +56,7 @@ struct TypeObject {
     /* gc object map */
     objmap_t *objmap;
     /* type name */
-    const char *name;
+    char *name;
     /* type flags */
     tp_flags_t flags;
     /* first super type(class or trait) */
@@ -94,7 +93,7 @@ struct TypeObject {
 void *__alloc_meta_object(int size);
 #define alloc_meta_object(type) (type *)__alloc_meta_object(sizeof(type))
 
-static inline TypeObject *__type_new(const char *name)
+static inline TypeObject *__type_new(char *name)
 {
     TypeObject *type = alloc_meta_object(TypeObject);
     type->name = name;
@@ -102,7 +101,7 @@ static inline TypeObject *__type_new(const char *name)
 }
 
 /* new class */
-static inline TypeObject *type_new_class(const char *name)
+static inline TypeObject *type_new_class(char *name)
 {
     TypeObject *type = __type_new(name);
     type->flags = TP_FLAGS_CLASS;
@@ -110,14 +109,14 @@ static inline TypeObject *type_new_class(const char *name)
 }
 
 /* new trait */
-static inline TypeObject *type_new_trait(const char *name)
+static inline TypeObject *type_new_trait(char *name)
 {
     TypeObject *type = __type_new(name);
     type->flags = TP_FLAGS_TRAIT;
     return type;
 }
 
-static inline TypeObject *type_new_pub_trait(const char *name)
+static inline TypeObject *type_new_pub_trait(char *name)
 {
     TypeObject *type = __type_new(name);
     type->flags = TP_FLAGS_TRAIT + TP_FLAGS_PUB;
@@ -125,7 +124,7 @@ static inline TypeObject *type_new_pub_trait(const char *name)
 }
 
 /* new enum */
-static inline TypeObject *type_new_enum(const char *name)
+static inline TypeObject *type_new_enum(char *name)
 {
     TypeObject *type = __type_new(name);
     type->flags = TP_FLAGS_ENUM;
@@ -133,7 +132,7 @@ static inline TypeObject *type_new_enum(const char *name)
 }
 
 /* new mod */
-static inline TypeObject *type_new_mod(const char *name)
+static inline TypeObject *type_new_mod(char *name)
 {
     TypeObject *type = __type_new(name);
     type->flags = TP_FLAGS_MOD;
@@ -166,10 +165,10 @@ void init_core_types(void);
 HashMap *mtbl_create(void);
 
 /* add new object to meta table */
-int mtbl_add(HashMap *mtbl, const char *name, void *obj);
+int mtbl_add(HashMap *mtbl, char *name, void *obj);
 
 /* find an object from a meta table */
-void *mtbl_find(HashMap *mtbl, const char *name);
+void *mtbl_find(HashMap *mtbl, char *name);
 
 /* destroy a meta table */
 void mtbl_destroy(HashMap *mtbl);
@@ -179,16 +178,16 @@ void mtbl_show(HashMap *mtbl);
 
 /* method define struct */
 typedef struct MethodDef {
-    const char *name;
-    const char *ptype;
-    const char *rtype;
-    const char *funcname;
+    char *name;
+    char *ptype;
+    char *rtype;
+    char *funcname;
 } MethodDef;
 
 /* field define struct */
 typedef struct FieldDef {
-    const char *name;
-    const char *type;
+    char *name;
+    char *type;
 } FieldDef;
 
 /* add method to type */
@@ -221,7 +220,7 @@ static inline void type_add_fielddefs(TypeObject *type, FieldDef *def)
 typedef struct FieldObject {
     OBJECT_HEAD
     /* field name */
-    const char *name;
+    char *name;
     /* field type desc */
     TypeDesc *desc;
     /* offset */
@@ -233,7 +232,7 @@ typedef struct FieldObject {
 } FieldObject;
 
 /* new field */
-Object *field_new(const char *name);
+Object *field_new(char *name);
 
 /* method kind */
 typedef enum {
@@ -246,7 +245,7 @@ typedef enum {
 typedef struct MethodObject {
     OBJECT_HEAD
     /* method name */
-    const char *name;
+    char *name;
     /* method type desc */
     TypeDesc *desc;
     /* method kind */
@@ -260,6 +259,9 @@ Object *cmethod_new(MethodDef *def);
 
 /* new koala method */
 Object *method_new(char *name, Object *code);
+
+/* get method number of locals(kcode only) */
+int method_get_nloc(Object *meth);
 
 /* type(module) add type */
 int type_add_type(TypeObject *mod, TypeObject *type);

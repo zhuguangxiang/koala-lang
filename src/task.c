@@ -11,7 +11,6 @@
 
 #include "task.h"
 #include "common.h"
-#include "mm.h"
 #include "task_event.h"
 #include "task_timer.h"
 #include <assert.h>
@@ -89,7 +88,6 @@ static lldq_deque_t done_deque;
 static int num_procs;
 static task_proc_t *procs;
 static _Atomic uint64_t task_idgen = 0;
-static int task_shutdown = 0;
 static __thread task_proc_t *current;
 static int shutdown = 0;
 

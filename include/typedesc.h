@@ -1,11 +1,10 @@
-/*===-- typedesc.h - Type Descriptor ------------------------------*- C -*-===*\
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
-|*                                                                            *|
+/*===----------------------------------------------------------------------===*\
+|*                               Koala                                        *|
+|*                 The Multi-Paradigm Programming Language                    *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares type descriptor structure and its interfaces.         *|
+|* MIT License                                                                *|
+|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
@@ -26,13 +25,13 @@ extern "C" {
 #define TYPE_VALIST 5
 #define TYPE_TUPLE  6
 
-#define TYPE_BYTE   'b'
-#define TYPE_INT    'i'
-#define TYPE_FLOAT  'f'
-#define TYPE_BOOL   'z'
-#define TYPE_CHAR   'c'
-#define TYPE_STR    's'
-#define TYPE_ANY    'A'
+#define TYPE_BYTE  'b'
+#define TYPE_INT   'i'
+#define TYPE_FLOAT 'f'
+#define TYPE_BOOL  'z'
+#define TYPE_CHAR  'c'
+#define TYPE_STR   's'
+#define TYPE_ANY   'A'
 
 #define TYPE_DESC_HEAD char kind;
 
@@ -47,6 +46,14 @@ typedef struct TypeDesc {
     TYPE_DESC_HEAD
 } TypeDesc;
 
+extern TypeDesc kl_type_byte;
+extern TypeDesc kl_type_int;
+extern TypeDesc kl_type_float;
+extern TypeDesc kl_type_bool;
+extern TypeDesc kl_type_char;
+extern TypeDesc kl_type_str;
+extern TypeDesc kl_type_any;
+
 typedef struct KlassDesc {
     TYPE_DESC_HEAD
     const char *path;
@@ -56,8 +63,8 @@ typedef struct KlassDesc {
 
 typedef struct ProtoDesc {
     TYPE_DESC_HEAD
-    TypeDesc *ret;
-    Vector *args;
+    Vector *ptypes;
+    TypeDesc *rtype;
 } ProtoDesc;
 
 typedef struct ArrayDesc {
@@ -80,6 +87,15 @@ typedef struct TupleDesc {
     TYPE_DESC_HEAD
     Vector *subs;
 } TupleDesc;
+
+/* function proto descriptor */
+TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
+
+/* new type descriptor from string */
+TypeDesc *to_desc(char *type);
+
+/* new proto descriptor from string */
+TypeDesc *to_proto(char *para, char *ret);
 
 #ifdef __cplusplus
 }

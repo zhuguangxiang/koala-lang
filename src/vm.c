@@ -10,6 +10,7 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "vm.h"
+#include "cf_ffi.h"
 #include "codeobject.h"
 #include "opcode.h"
 
@@ -103,11 +104,44 @@ char *opcode_str(uint8_t op)
     abort();
 }
 
+static void __new_callinfo(KoalaState *ks)
+{
+    if (ks->nci >= MAX_CALL_DEPTH) {
+        printf("error: stack overflow(too many call frame)\n");
+        abort();
+    }
+
+    CallInfo *back = ks->ci;
+    TValueRef *func = back->top + 1;
+    Object *meth = func->_v.obj;
+    int nloc = method_get_nloc(meth);
+
+    CallInfo *ci = mm_alloc(sizeof(CallInfo));
+    ci->back = back;
+    ci->func = func;
+    ci->top = func + nloc;
+
+    ks->top = ci->top;
+    ks->ci = ci;
+    ks->nci++;
+}
+
+static void __free_callinfo(KoalaState *ks)
+{
+    CallInfo *ci = ks->ci;
+    CallInfo *back = ci->back;
+
+    ks->ci = back;
+    ks->top = back->top;
+    ks->nci--;
+    mm_free(ci);
+}
+
 #define NEXT_OP() (assert(pc < codesize), codes[pc++])
 
 #define TOP()   *(top - 1)
-#define POP()   *(--top)
-#define PUSH(v) (*top++ = (v))
+#define POP()   *(top--)
+#define PUSH(v) (*++top = (v))
 
 #define NEXT_BYTE() (assert(pc < codesize), codes[pc++])
 
@@ -128,9 +162,10 @@ void eval(KoalaState *ks)
     TValueRef *top = ks->top;
 
     /* opcode array */
-    Object *cobj = ci->func->_v.obj;
-    uint8_t *codes = ((CodeObject *)cobj)->codes;
-    int codesize = ((CodeObject *)cobj)->size;
+    MethodObject *meth = (MethodObject *)ci->func->_v.obj;
+    CodeObject *cobj = meth->ptr;
+    uint8_t *codes = cobj->codes;
+    int codesize = cobj->size;
 
     /* code pc */
     int pc = ci->saved_pc;
@@ -208,7 +243,10 @@ void eval(KoalaState *ks)
                 break;
             }
             case OP_RETURN_VALUE: {
-                break;
+                x = POP();
+                __free_callinfo(ks);
+                *++ks->top = x;
+                return;
             }
             default: {
                 printf("error: unrecognized opcode\n");
@@ -245,28 +283,45 @@ DLLEXPORT KoalaState *kl_new_state(void)
     return ks;
 }
 
-static void __new_call(KoalaState *ks, int nloc)
+static void to_value(TValueRef *x, TypeDesc *desc, intptr_t val)
 {
-    if (ks->nci >= MAX_CALL_DEPTH) {
-        printf("error: stack overflow(too many call frame)\n");
-        abort();
+    switch (desc->kind) {
+        case TYPE_BYTE:
+            setbyteval(x, (int8_t)val);
+            break;
+        case TYPE_INT:
+            setintval(x, (int64_t)val);
+            break;
+        default:
+            abort();
+            break;
     }
-
-    CallInfo *ci = mm_alloc(sizeof(CallInfo));
-    CallInfo *back = ks->ci;
-    ci->back = back;
-    ci->func = back->top + 1;
-    ci->top = ci->func + nloc;
-
-    ks->top = ci->top;
-    ks->ci = ci;
-    ks->nci++;
 }
 
-void kl_do_call(KoalaState *ks, int argc)
+void kl_do_call(KoalaState *ks)
 {
-    __new_call(ks, argc);
-    eval(ks);
+    CallInfo *ci = ks->ci;
+    TValueRef *func = ci->top + 1;
+    MethodObject *meth = (MethodObject *)func->_v.obj;
+    if (meth->kind == CFUNC_KIND) {
+        ProtoDesc *proto = (ProtoDesc *)meth->desc;
+        cfunc_t *cf = meth->ptr;
+        TValueRef *args = func + 1;
+        int narg = ks->top - ci->top;
+        intptr_t ret;
+        kl_call_cfunc(cf, args, narg, &ret);
+        ks->top -= narg;
+        if (proto->rtype) {
+            TValueRef val;
+            to_value(&val, proto->rtype, ret);
+            *++ks->top = val;
+        }
+    }
+    else {
+        assert(meth->kind == KFUNC_KIND);
+        __new_callinfo(ks);
+        eval(ks);
+    }
 }
 
 #ifdef __cplusplus
