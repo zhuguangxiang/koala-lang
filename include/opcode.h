@@ -82,6 +82,11 @@ extern "C" {
 #define OP_INPLACE_LSHIFT 71
 #define OP_INPLACE_RSHIFT 72
 
+#define OP_PRINT        80
+#define OP_CALL         81
+#define OP_RETURN       82
+#define OP_RETURN_VALUE 83
+
 #ifdef __cplusplus
 }
 #endif

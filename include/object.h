@@ -74,6 +74,8 @@ struct TypeObject {
     Vector *mro;
     /* next offset */
     int next_offset;
+    /* for singleton */
+    Object *instance;
 };
 
 #define obj_get_type(obj)       *((void **)(obj)-1)
@@ -85,6 +87,8 @@ struct TypeObject {
 #define type_is_mod(type)   (((type)->flags & 0x0F) == TP_FLAGS_MOD)
 #define type_is_pub(type)   (((type)->flags & TP_FLAGS_PUB) == TP_FLAGS_PUB)
 #define type_is_final(type) (((type)->flags & TP_FLAGS_FINAL) == TP_FLAGS_FINAL)
+
+#define type_set_singleton(type, obj) (type)->instance = (Object *)obj
 
 /* allocate meta object */
 void *__alloc_meta_object(int size);
@@ -224,6 +228,8 @@ typedef struct FieldObject {
     int offset;
     /* size */
     int size;
+    /* field pointer */
+    void *ptr;
 } FieldObject;
 
 /* new field */
@@ -241,7 +247,9 @@ typedef struct MethodObject {
     OBJECT_HEAD
     /* method name */
     const char *name;
-    /* cfunc, kcode or intf */
+    /* method type desc */
+    TypeDesc *desc;
+    /* method kind */
     meth_kind_t kind;
     /* cfunc or kcode */
     void *ptr;
@@ -253,35 +261,14 @@ Object *cmethod_new(MethodDef *def);
 /* new koala method */
 Object *method_new(char *name, Object *code);
 
-/* `Module` object layout. */
-typedef struct ModuleObject {
-    /* object */
-    OBJECT_HEAD
-    int size;
-    void **values;
-} ModuleObject;
+/* type(module) add type */
+int type_add_type(TypeObject *mod, TypeObject *type);
 
-/*
-    module default value memory:
-    primitive size: 8 bytes
-    object size: 8/16 bytes
- */
-#define MODULE_MIN_VALUES_SIZE (16 * 32)
+/* type add field */
+int type_add_field(TypeObject *mod, FieldObject *type);
 
-/* new module */
-Object *module_new(const char *path);
-
-/* add type to module */
-int module_add_type(Object *obj, TypeObject *type);
-
-/* add variable to module */
-int module_add_var(Object *obj, FieldObject *field);
-
-/* add function to module */
-int module_add_func(Object *obj, MethodObject *meth);
-
-/* show module */
-void module_show(Object *obj);
+/* type add method */
+int type_add_method(TypeObject *mod, MethodObject *type);
 
 /* Type and fat pointer layout */
 typedef union {
@@ -318,14 +305,6 @@ typedef struct {
     TypeRef _t;
     ValueRef _v;
 } TValueRef;
-
-/* `HeapObject` is instance object layout. */
-typedef struct HeapObject {
-    /* object */
-    OBJECT_HEAD
-    /* each field value */
-    void *items[0];
-} HeapObject;
 
 #ifdef __cplusplus
 }

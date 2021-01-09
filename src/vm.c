@@ -204,8 +204,11 @@ void eval(KoalaState *ks)
             case OP_SUB: {
                 break;
             }
-            case OP_HALT: {
-                abort();
+            case OP_CALL: {
+                break;
+            }
+            case OP_RETURN_VALUE: {
+                break;
             }
             default: {
                 printf("error: unrecognized opcode\n");
@@ -234,7 +237,6 @@ DLLEXPORT KoalaState *kl_new_state(void)
     ci->func = ks->top;
     /* `func` entry for this `ci` */
     setnilval(ks->top);
-    ks->top++;
     ci->top = ks->top;
 
     ks->ci = ci;
@@ -243,7 +245,7 @@ DLLEXPORT KoalaState *kl_new_state(void)
     return ks;
 }
 
-static void __new_call(KoalaState *ks, int loc)
+static void __new_call(KoalaState *ks, int nloc)
 {
     if (ks->nci >= MAX_CALL_DEPTH) {
         printf("error: stack overflow(too many call frame)\n");
@@ -251,9 +253,12 @@ static void __new_call(KoalaState *ks, int loc)
     }
 
     CallInfo *ci = mm_alloc(sizeof(CallInfo));
-    ci->back = ks->ci;
-    ci->func = ks->top - loc - 1;
-    ci->top = ks->top;
+    CallInfo *back = ks->ci;
+    ci->back = back;
+    ci->func = back->top + 1;
+    ci->top = ci->func + nloc;
+
+    ks->top = ci->top;
     ks->ci = ci;
     ks->nci++;
 }

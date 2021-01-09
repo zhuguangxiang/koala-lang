@@ -21,6 +21,7 @@ void test_vm(void)
         OP_LOAD_0,
         OP_LOAD_1,
         OP_ADD,
+        OP_RETURN_VALUE,
     };
     Object *code = code_new(codes, COUNT_OF(codes));
     kl_push_code(ks, code);

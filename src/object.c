@@ -55,12 +55,6 @@ static void mnode_show(void *e, void *arg)
     printf("%s(%p)\n", n->name, n->obj);
 }
 
-static void mnode_free(void *e, void *arg)
-{
-    struct mnode *n = e;
-    printf("free: %s\n", n->name);
-}
-
 HashMap *mtbl_create(void)
 {
     HashMap *mtbl = mm_alloc(sizeof(*mtbl));
@@ -368,10 +362,20 @@ void type_append_base(TypeObject *type, TypeObject *base)
     vector_push_back(vec, &base);
 }
 
+int type_add_field(TypeObject *type, FieldObject *ob)
+{
+    return 0;
+}
+
 int type_add_fielddef(TypeObject *type, FieldDef *def)
 {
     Object *obj = NULL; // field_new(def->name);
     return mtbl_add(__get_mtbl(type), def->name, obj);
+}
+
+int type_add_method(TypeObject *type, MethodObject *ob)
+{
+    return 0;
 }
 
 int type_add_methdef(TypeObject *type, MethodDef *def)
@@ -447,79 +451,6 @@ Object *cmethod_new(MethodDef *def)
 Object *method_new(char *name, Object *code)
 {
     return NULL;
-}
-
-Object *module_new(const char *path)
-{
-    TypeObject *type = type_new_mod(path);
-    type_set_public_final(type);
-    ModuleObject *mobj = mm_alloc(sizeof(ModuleObject));
-    obj_set_type(mobj, type);
-    mobj->size = MODULE_MIN_VALUES_SIZE;
-    mobj->values = mm_alloc(MODULE_MIN_VALUES_SIZE);
-    return (Object *)mobj;
-}
-
-int module_add_type(Object *obj, TypeObject *type)
-{
-    TypeObject *_type = obj_get_type(obj);
-    if (!type_is_mod(_type)) {
-        printf("error: object '%s' is not module\n", _type->name);
-        abort();
-    }
-
-    printf("add type '%s' into module '%s'\n", type->name, _type->name);
-    return mtbl_add(__get_mtbl(_type), type->name, type);
-}
-
-int module_add_var(Object *obj, FieldObject *field)
-{
-    TypeObject *_type = obj_get_type(obj);
-    if (!type_is_mod(_type)) {
-        printf("error: object '%s' is not module\n", _type->name);
-        abort();
-    }
-
-    printf("add field '%s' into module '%s'\n", field->name, _type->name);
-
-    ModuleObject *mobj = (ModuleObject *)obj;
-    if (_type->next_offset >= mobj->size) {
-        printf("expand module '%s' values' memory\n", _type->name);
-        int new_size = mobj->size << 1;
-        void **new_values = mm_alloc(new_size);
-        memcpy(new_values, mobj->values, mobj->size);
-        mm_free(mobj->values);
-        mobj->values = new_values;
-        mobj->size = new_size;
-    }
-
-    field->offset = _type->next_offset;
-    _type->next_offset += field->size;
-    return mtbl_add(__get_mtbl(_type), field->name, field);
-}
-
-int module_add_func(Object *obj, MethodObject *meth)
-{
-    TypeObject *_type = obj_get_type(obj);
-    if (!type_is_mod(_type)) {
-        printf("error: object '%s' is not module\n", _type->name);
-        abort();
-    }
-
-    printf("add method '%s' into module '%s'\n", meth->name, _type->name);
-    return mtbl_add(__get_mtbl(_type), meth->name, meth);
-}
-
-void module_show(Object *obj)
-{
-    TypeObject *_type = obj_get_type(obj);
-    if (!type_is_mod(_type)) {
-        printf("error: object '%s' is not module\n", _type->name);
-        abort();
-    }
-
-    printf("module '%s':\n", _type->name);
-    mtbl_show(_type->mtbl);
 }
 
 DLLEXPORT Object *kl_type_name(Object *self)
