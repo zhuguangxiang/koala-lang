@@ -1,11 +1,10 @@
-/*===-- stringobject.c - String Object ----------------------------*- C -*-===*\
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
-|*                                                                            *|
+/*===----------------------------------------------------------------------===*\
+|*                               Koala                                        *|
+|*                 The Multi-Paradigm Programming Language                    *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This file implements the Koala `String` object.                            *|
+|* MIT License                                                                *|
+|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
@@ -20,12 +19,12 @@ static TypeObject *string_type;
 Object *string_new(const char *s)
 {
     int len = strlen(s);
-    int size = sizeof(void **) + sizeof(StringObject);
+    int size = sizeof(void *) + sizeof(StringObject);
     size += len + 1;
-    void **obj = gc_alloc(size);
+    void **gcobj = gc_alloc(size);
     *obj = string_type;
     StringObject *sobj = (StringObject *)(obj + 1);
-    sobj->len = len;
+    sobj->nbytes = len;
     memcpy(sobj->s, s, len);
     return (Object *)sobj;
 }

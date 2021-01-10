@@ -1,11 +1,10 @@
-/*===-- init.c - Koala Virtual Machine Initializer ----------------*- C -*-===*\
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
-|*                                                                            *|
+/*===----------------------------------------------------------------------===*\
+|*                               Koala                                        *|
+|*                 The Multi-Paradigm Programming Language                    *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This file is the initializer of koala virtual machine                      *|
+|* MIT License                                                                *|
+|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 

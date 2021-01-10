@@ -8,31 +8,32 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#ifndef _KOALA_CODE_OBJECT_H_
-#define _KOALA_CODE_OBJECT_H_
+#ifndef _KOALA_ARRAY_OBJECT_H_
+#define _KOALA_ARRAY_OBJECT_H_
 
+#include "gc.h"
 #include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* `Code` object layout */
-typedef struct CodeObject {
+/* `Array` object layout. */
+typedef struct ArrayObject {
+    /* object */
     OBJECT_HEAD
-    int nloc;
-    int size;
-    uint8_t *codes;
-} CodeObject;
+    /* start in GcArray */
+    int offset;
+    /* array length */
+    int len;
+    /* GcArray */
+    GcArray *arr;
+} ArrayObject;
 
-/* initialize `Code` type */
-void init_code_type(void);
-
-/* new code object */
-Object *code_new(int nloc, uint8_t *codes, int size);
+Object *array_new(int objsize);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_CODE_OBJECT_H_ */
+#endif /* _KOALA_ARRAY_OBJECT_H_ */

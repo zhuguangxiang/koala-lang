@@ -88,6 +88,9 @@ typedef struct TupleDesc {
     Vector *subs;
 } TupleDesc;
 
+/* base type string */
+char *base_type_str(char kind);
+
 /* function proto descriptor */
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
 

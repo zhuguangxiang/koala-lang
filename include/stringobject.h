@@ -1,11 +1,10 @@
-/*===-- stringobject.h - String Object ----------------------------*- C -*-===*\
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
-|*                                                                            *|
+/*===----------------------------------------------------------------------===*\
+|*                               Koala                                        *|
+|*                 The Multi-Paradigm Programming Language                    *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This header declares the Koala `String` object.                            *|
+|* MIT License                                                                *|
+|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
@@ -22,10 +21,10 @@ extern "C" {
 typedef struct StringObject {
     /* object */
     OBJECT_HEAD
-    /* string length in bytes */
-    int len;
-    /* utf8 string(raw string) */
-    char s[0];
+    /* length */
+    int nbytes;
+    /* utf8 string */
+    const char *s;
 } StringObject;
 
 /* initialize `String` type */

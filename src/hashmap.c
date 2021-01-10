@@ -1,11 +1,10 @@
-/*===-- hashmap.c - Common Hashmap --------------------------------*- C -*-===*\
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) 2020 James, https://github.com/zhuguangxiang                 *|
-|*                                                                            *|
+/*===----------------------------------------------------------------------===*\
+|*                               Koala                                        *|
+|*                 The Multi-Paradigm Programming Language                    *|
 |*===----------------------------------------------------------------------===*|
 |*                                                                            *|
-|* This file implements a common hashmap.                                     *|
+|* MIT License                                                                *|
+|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
@@ -101,7 +100,7 @@ static inline HashMapEntry **find_entry(HashMap *self, HashMapEntry *key)
 void *hashmap_get(HashMap *self, void *key)
 {
     if (!self) return NULL;
-    return *find_entry(self, (HashMapEntry *)key);
+    return *find_entry(self, key);
 }
 
 static void rehash(HashMap *self, int newsize)

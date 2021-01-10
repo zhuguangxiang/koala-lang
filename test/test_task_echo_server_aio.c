@@ -22,7 +22,7 @@
 
 /*
 gcc -g src/mm.c src/binheap.c libtask/task.c libtask/task_timer.c \
-libtask/task_event.c test/test_task_echo_server.c -I./include -I./libtask
+libtask/task_event.c test/test_task_echo_server_io.c -I./include -I./libtask
 -lpthread
 */
 int start_server(const char *host, const char *port)
@@ -52,8 +52,6 @@ void *client_routine(void *param)
     char buffer[256];
     ssize_t num_read;
     while ((num_read = read(sock, buffer, sizeof(buffer))) > 0) {
-        if (!strncmp(buffer, "kill", 4)) { break; }
-
         if (!strncmp(buffer, "exit", 4)) {
             write(sock, "bye\n", 4);
             break;
@@ -68,7 +66,7 @@ void *client_routine(void *param)
 
 int main(int argc, char *argv[])
 {
-    init_procs(1);
+    init_procs(6);
 
     const char *host = "127.0.0.1";
     const char *port = "10001";

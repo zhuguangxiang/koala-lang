@@ -8,31 +8,22 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#ifndef _KOALA_CODE_OBJECT_H_
-#define _KOALA_CODE_OBJECT_H_
-
 #include "object.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+void test_tvalue_layout(void)
+{
+    TValueRef val = {};
+    val.tag = 1;
+    val.kind = 'i';
+    assert(sizeof(val) == 2 * sizeof(void *));
 
-/* `Code` object layout */
-typedef struct CodeObject {
-    OBJECT_HEAD
-    int nloc;
-    int size;
-    uint8_t *codes;
-} CodeObject;
-
-/* initialize `Code` type */
-void init_code_type(void);
-
-/* new code object */
-Object *code_new(int nloc, uint8_t *codes, int size);
-
-#ifdef __cplusplus
+    TValueRef obj = {};
+    obj.vtbl = &obj;
+    assert(obj.tag == 0 && obj.kind != 0);
 }
-#endif
 
-#endif /* _KOALA_CODE_OBJECT_H_ */
+int main(int argc, char *argv[])
+{
+    test_tvalue_layout();
+    return 0;
+}
