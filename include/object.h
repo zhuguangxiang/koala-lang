@@ -80,6 +80,10 @@ struct TypeObject {
 #define obj_get_type(obj)       *((void **)(obj)-1)
 #define obj_set_type(obj, type) *((void **)(obj)-1) = (type)
 
+extern TypeObject *any_type;
+extern TypeObject *type_type;
+#define type_check(obj) (obj_get_type(obj) == type_type)
+
 #define type_is_class(type) (((type)->flags & 0x0F) == TP_FLAGS_CLASS)
 #define type_is_trait(type) (((type)->flags & 0x0F) == TP_FLAGS_TRAIT)
 #define type_is_enum(type)  (((type)->flags & 0x0F) == TP_FLAGS_ENUM)
@@ -176,6 +180,10 @@ void mtbl_destroy(HashMap *mtbl);
 /* show meta table */
 void mtbl_show(HashMap *mtbl);
 
+/* visit meta table */
+typedef void (*mvisit_t)(char *name, Object *obj, void *arg);
+void mtbl_visit(HashMap *mtbl, mvisit_t func, void *arg);
+
 /* method define struct */
 typedef struct MethodDef {
     char *name;
@@ -231,6 +239,9 @@ typedef struct FieldObject {
     void *ptr;
 } FieldObject;
 
+extern TypeObject *field_type;
+#define field_check(obj) (obj_get_type(obj) == field_type)
+
 /* new field */
 Object *field_new(char *name);
 
@@ -253,6 +264,9 @@ typedef struct MethodObject {
     /* cfunc or kcode */
     void *ptr;
 } MethodObject;
+
+extern TypeObject *method_type;
+#define method_check(obj) (obj_get_type(obj) == method_type)
 
 /* new c method */
 Object *cmethod_new(MethodDef *def);

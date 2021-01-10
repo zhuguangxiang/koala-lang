@@ -22,14 +22,17 @@ void test_vm(void)
         OP_ADD,
         OP_RETURN_VALUE,
     };
-    Object *code = code_new(2, codes, COUNT_OF(codes));
+    TypeDesc *proto = to_proto("ii", "i");
+    Object *code = code_new("add", proto, codes, COUNT_OF(codes));
+    code_add_locvar(code, "x", &kl_type_int);
+    code_add_locvar(code, "y", &kl_type_int);
     Object *meth = method_new("add", code);
     kl_push_func(ks, meth);
-    kl_push_byte(ks, 10);
-    kl_push_byte(ks, 20);
+    kl_push_int(ks, 100);
+    kl_push_int(ks, 200);
     kl_do_call(ks);
-    int8_t res = kl_pop_byte(ks);
-    assert(res == 30);
+    int64_t res = kl_pop_int(ks);
+    assert(res == 300);
     assert(ks->top == ks->ci->top);
     // kl_free_state(ks);
 }

@@ -16,12 +16,14 @@ extern "C" {
 
 TypeObject *code_type;
 
-Object *code_new(int nloc, uint8_t *codes, int size)
+Object *code_new(char *name, TypeDesc *proto, uint8_t *codes, int size)
 {
     CodeObject *cobj = alloc_meta_object(CodeObject);
+    cobj->name = name;
+    cobj->proto = proto;
     cobj->codes = codes;
     cobj->size = size;
-    cobj->nloc = nloc;
+    vector_init(&cobj->loc, sizeof(locvar_t));
     return (Object *)cobj;
 }
 

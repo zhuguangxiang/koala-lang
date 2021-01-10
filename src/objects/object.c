@@ -90,6 +90,25 @@ void mtbl_show(HashMap *mtbl)
     hashmap_visit(mtbl, mnode_show, NULL);
 }
 
+struct meta_visit_info {
+    mvisit_t func;
+    void *arg;
+};
+
+static void mnode_visit(void *e, void *arg)
+{
+    struct meta_visit_info *vi = arg;
+    struct mnode *n = e;
+    vi->func(n->name, n->obj, arg);
+}
+
+void mtbl_visit(HashMap *mtbl, mvisit_t func, void *arg)
+{
+    if (!mtbl) return;
+    struct meta_visit_info vi = { func, arg };
+    hashmap_visit(mtbl, mnode_visit, &vi);
+}
+
 /* `Type` type */
 TypeObject *type_type;
 /* `Any` type */
@@ -470,7 +489,7 @@ int method_get_nloc(Object *meth)
     MethodObject *mobj = (MethodObject *)meth;
     if (mobj->kind != KFUNC_KIND) return 0;
     CodeObject *cobj = mobj->ptr;
-    return cobj->nloc;
+    return vector_size(&cobj->loc);
 }
 
 DLLEXPORT Object *kl_type_name(Object *self)
