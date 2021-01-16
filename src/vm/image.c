@@ -298,7 +298,7 @@ static void _add_locals(klc_image_t *klc, klc_func_t *fn, Vector *locvars)
         name_idx = klc_str_set(klc, var->name, strlen(var->name));
         type_idx = klc_type_set(klc, var->desc);
         locvar = (klc_var_t) { .name = name_idx, .type = type_idx };
-        vector_push_back(&fn->locals, &locvar);
+        vector_push_back(fn->locals, &locvar);
     }
 }
 
@@ -326,13 +326,13 @@ void klc_add_func(klc_image_t *klc, codeinfo_t *ci)
     int16_t name_idx = klc_str_set(klc, ci->name, strlen(ci->name));
     int16_t type_idx = klc_type_set(klc, ci->desc);
     int16_t code_idx = _add_code(klc, ci->codes, ci->codesize);
-    klc_func_t *fn = mm_alloc(sizeof(*fn));
-    fn->flags = ci->flags;
-    fn->name = name_idx;
-    fn->type = type_idx;
-    fn->code = code_idx;
-    vector_init(&fn->locals, sizeof(klc_var_t));
-    if (ci->locvec) _add_locals(klc, fn, ci->locvec);
+    klc_func_t fn = {
+        .flags = ci->flags, .name = name_idx, .type = type_idx, .code = code_idx
+    };
+    if (ci->locvec) {
+        fn.locals = vector_new(sizeof(klc_var_t));
+        _add_locals(klc, &fn, ci->locvec);
+    }
     // if (ci->freevec) _add_freevars(klc, fn, ci->freevec);
     vector_push_back(&klc->funcs.vec, &fn);
 }
@@ -364,7 +364,7 @@ klc_image_t *klc_create(void)
     vector_init(&klc->vars.vec, sizeof(klc_var_t));
 
     klc->funcs.id = SECT_FUNC;
-    vector_init(&klc->funcs.vec, sizeof(klc_func_t *));
+    vector_init(&klc->funcs.vec, sizeof(klc_func_t));
 
     klc->codes.id = SECT_CODE;
     vector_init(&klc->codes.vec, sizeof(klc_code_t *));
@@ -404,6 +404,9 @@ static FILE *open_klc_file(char *path, char *mode)
 
 #define WRITE_STRING(str, len) fwrite(str, len + 1, 1, fp)
 #define READ_STRING(str, len)  fread(str, len + 1, 1, fp)
+
+#define WRITE_BYTES(buf, len) fwrite(buf, len, 1, fp)
+#define READ_BYTES(buf, len)  fread(buf, len, 1, fp)
 
 static void write_str_sect(klc_image_t *klc, FILE *fp)
 {
@@ -652,6 +655,104 @@ static void read_var_sect(klc_image_t *klc, FILE *fp)
     }
 }
 
+static void write_func_sect(klc_image_t *klc, FILE *fp)
+{
+    uint8_t id;
+    Vector *vec;
+    klc_func_t *fn;
+    vec = &klc->funcs.vec;
+    uint16_t count = vector_size(vec);
+    if (count > 0) {
+        id = SECT_FUNC;
+        WRITE_OBJECT(id);
+        WRITE_OBJECT(count);
+    }
+
+    vector_foreach(fn, vec)
+    {
+        WRITE_OBJECT(fn->flags);
+        WRITE_OBJECT(fn->name);
+        WRITE_OBJECT(fn->type);
+        WRITE_OBJECT(fn->code);
+        count = vector_size(fn->locals);
+        WRITE_OBJECT(count);
+        count = vector_size(fn->paratypes);
+        WRITE_OBJECT(count);
+        count = vector_size(fn->freevars);
+        WRITE_OBJECT(count);
+    }
+}
+
+static void read_func_sect(klc_image_t *klc, FILE *fp)
+{
+    uint16_t count = 0;
+    READ_OBJECT(count);
+    if (count <= 0) return;
+
+    uint8_t flags;
+    int16_t name_idx;
+    int16_t type_idx;
+    int16_t code_idx;
+    uint16_t cnt;
+    while (count-- > 0) {
+        READ_OBJECT(flags);
+        READ_OBJECT(name_idx);
+        READ_OBJECT(type_idx);
+        READ_OBJECT(code_idx);
+        klc_func_t fn = {
+            .flags = flags, .name = name_idx, .type = type_idx, .code = code_idx
+        };
+        READ_OBJECT(cnt);
+        if (cnt > 0) {
+            fn.locals = vector_new(sizeof(klc_var_t));
+            //_add_locals(klc, &fn, ci->locvec);
+        }
+        READ_OBJECT(cnt);
+        READ_OBJECT(cnt);
+        vector_push_back(&klc->funcs.vec, &fn);
+    }
+}
+
+static void write_code_sect(klc_image_t *klc, FILE *fp)
+{
+    uint8_t id;
+    Vector *vec;
+    klc_code_t **code;
+    vec = &klc->codes.vec;
+    uint16_t count = vector_size(vec);
+    if (count > 0) {
+        id = SECT_CODE;
+        WRITE_OBJECT(id);
+        WRITE_OBJECT(count);
+    }
+
+    vector_foreach(code, vec)
+    {
+        WRITE_OBJECT((*code)->size);
+        WRITE_BYTES((*code)->codes, (*code)->size);
+    }
+}
+
+static void read_code_sect(klc_image_t *klc, FILE *fp)
+{
+    uint16_t count = 0;
+    READ_OBJECT(count);
+    if (count <= 0) return;
+
+    uint32_t size;
+    klc_code_t *code;
+    while (count-- > 0) {
+        READ_OBJECT(size);
+        code = mm_alloc(sizeof(klc_code_t) + size);
+        code->size = size;
+        READ_BYTES(code->codes, size);
+
+        Vector *vec = &klc->codes.vec;
+        int16_t idx = vector_size(vec);
+        vector_push_back(vec, &code);
+    }
+}
+
 void klc_write_file(klc_image_t *klc, char *path)
 {
     FILE *fp = open_klc_file(path, "w");
@@ -661,6 +762,8 @@ void klc_write_file(klc_image_t *klc, char *path)
     write_const_sect(klc, fp);
     write_type_sect(klc, fp);
     write_var_sect(klc, fp);
+    write_func_sect(klc, fp);
+    write_code_sect(klc, fp);
     fclose(fp);
 }
 
@@ -704,6 +807,12 @@ klc_image_t *klc_read_file(char *path)
                 break;
             case SECT_VAR:
                 read_var_sect(klc, fp);
+                break;
+            case SECT_FUNC:
+                read_func_sect(klc, fp);
+                break;
+            case SECT_CODE:
+                read_code_sect(klc, fp);
                 break;
             default:
                 printf("error: invalid section(%d)\n", id);
@@ -888,18 +997,18 @@ static void klc_func_show(klc_image_t *klc)
 
     klc_str_t *str;
     klc_type_t *type;
-    klc_func_t **fn;
+    klc_func_t *fn;
     vector_foreach(fn, &sec->vec)
     {
-        str = vector_get_ptr(strs, (*fn)->name);
-        vector_get(types, (*fn)->type, &type);
+        str = vector_get_ptr(strs, fn->name);
+        vector_get(types, fn->type, &type);
         buf[0] = '\0';
         _proto_str(type, &info);
-        if ((*fn)->flags & ACCESS_FLAGS_PUB)
-            printf("  pub func %s%s {\n", str->s, buf);
+        if (fn->flags & ACCESS_FLAGS_PUB)
+            printf("\n  pub func %s%s {\n", str->s, buf);
         else
-            printf("  func %s%s {\n", str->s, buf);
-        klc_codes_show((*fn), klc);
+            printf("\n  func %s%s {\n", str->s, buf);
+        klc_codes_show(fn, klc);
         printf("    Locals:\n");
         printf("  }\n");
     }

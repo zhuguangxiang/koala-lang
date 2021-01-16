@@ -56,6 +56,29 @@ void test_klc(void)
     };
     klc_add_func(klc, &ci);
 
+    /*
+    func sub(a int, b int, c int) int {
+        return a - b - c
+    }
+    */
+    proto = to_proto("iii", "i");
+    uint8_t codes2[] = {
+        OP_LOAD_0,
+        OP_LOAD_1,
+        OP_LOAD_2,
+        OP_SUB,
+        OP_SUB,
+        OP_RETURN_VALUE,
+    };
+    ci = (codeinfo_t) {
+        .name = "sub",
+        .flags = 0,
+        .desc = proto,
+        .codesize = COUNT_OF(codes2),
+        .codes = codes2,
+    };
+    klc_add_func(klc, &ci);
+
     klc_show(klc);
     klc_write_file(klc, "foo.klc");
     klc_destroy(klc);

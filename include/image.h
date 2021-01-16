@@ -117,9 +117,9 @@ typedef struct klc_func {
     int16_t name;
     int16_t type;
     int16_t code;
-    Vector paratypes;
-    Vector locals;
-    Vector freevars;
+    Vector *locals;
+    Vector *paratypes;
+    Vector *freevars;
 } klc_func_t;
 
 typedef struct klc_anony {
