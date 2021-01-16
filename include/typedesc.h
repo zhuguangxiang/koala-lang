@@ -17,23 +17,22 @@
 extern "C" {
 #endif
 
-#define TYPE_NIL    0
-#define TYPE_KLASS  1
-#define TYPE_PROTO  2
-#define TYPE_ARRAY  3
-#define TYPE_MAP    4
-#define TYPE_VALIST 5
-#define TYPE_TUPLE  6
-
-#define TYPE_BYTE  'b'
-#define TYPE_INT   'i'
-#define TYPE_FLOAT 'f'
-#define TYPE_BOOL  'z'
-#define TYPE_CHAR  'c'
-#define TYPE_STR   's'
-#define TYPE_ANY   'A'
-
-#define TYPE_DESC_HEAD char kind;
+#define TYPE_INT8    1
+#define TYPE_INT16   2
+#define TYPE_INT32   3
+#define TYPE_INT64   4
+#define TYPE_FLOAT32 5
+#define TYPE_FLOAT64 6
+#define TYPE_BOOL    7
+#define TYPE_CHAR    8
+#define TYPE_STRING  9
+#define TYPE_ANY     10
+#define TYPE_ARRAY   11
+#define TYPE_DICT    12
+#define TYPE_TUPLE   13
+#define TYPE_VALIST  14
+#define TYPE_KLASS   15
+#define TYPE_PROTO   16
 
 /*
  * klass: Lio.File;
@@ -43,10 +42,10 @@ extern "C" {
  * varg: ...s
  */
 typedef struct TypeDesc {
-    TYPE_DESC_HEAD
+    uint8_t kind;
 } TypeDesc;
 
-extern TypeDesc kl_type_byte;
+extern TypeDesc kl_type_int8;
 extern TypeDesc kl_type_int;
 extern TypeDesc kl_type_float;
 extern TypeDesc kl_type_bool;
@@ -55,41 +54,44 @@ extern TypeDesc kl_type_str;
 extern TypeDesc kl_type_any;
 
 typedef struct KlassDesc {
-    TYPE_DESC_HEAD
+    uint8_t kind;
     const char *path;
     const char *name;
     Vector *typeparas;
 } KlassDesc;
 
 typedef struct ProtoDesc {
-    TYPE_DESC_HEAD
+    uint8_t kind;
     Vector *ptypes;
     TypeDesc *rtype;
 } ProtoDesc;
 
 typedef struct ArrayDesc {
-    TYPE_DESC_HEAD
+    uint8_t kind;
     TypeDesc *sub;
 } ArrayDesc;
 
 typedef struct MapDesc {
-    TYPE_DESC_HEAD
+    uint8_t kind;
     TypeDesc *key;
     TypeDesc *val;
 } MapDesc;
 
 typedef struct VaListDesc {
-    TYPE_DESC_HEAD
+    uint8_t kind;
     TypeDesc *sub;
 } VaListDesc;
 
 typedef struct TupleDesc {
-    TYPE_DESC_HEAD
-    Vector *subs;
+    uint8_t kind;
+    Vector subs;
 } TupleDesc;
 
-/* base type string */
-char *base_type_str(char kind);
+/* base desc */
+TypeDesc *base_desc(uint8_t kind);
+
+/* base desc string */
+char *base_desc_str(uint8_t kind);
 
 /* function proto descriptor */
 TypeDesc *desc_from_proto(Vector *args, TypeDesc *ret);
