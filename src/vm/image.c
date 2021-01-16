@@ -9,6 +9,7 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "image.h"
+#include "opcode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -276,8 +277,7 @@ static inline void _add_var(
     klc_image_t *klc, int16_t name_idx, int16_t type_idx, uint8_t flags)
 {
     klc_var_t var = { flags, name_idx, type_idx };
-    klc_sect_t *vars = &klc->vars;
-    vector_push_back(&vars->vec, &var);
+    vector_push_back(&klc->vars.vec, &var);
 }
 
 void klc_add_var(klc_image_t *klc, char *name, TypeDesc *type, uint8_t flags)
@@ -287,9 +287,54 @@ void klc_add_var(klc_image_t *klc, char *name, TypeDesc *type, uint8_t flags)
     _add_var(klc, name_idx, type_idx, flags);
 }
 
+static void _add_locals(klc_image_t *klc, klc_func_t *fn, Vector *locvars)
+{
+    int16_t name_idx;
+    int16_t type_idx;
+    locvar_t *var;
+    klc_var_t locvar;
+    vector_foreach(var, locvars)
+    {
+        name_idx = klc_str_set(klc, var->name, strlen(var->name));
+        type_idx = klc_type_set(klc, var->desc);
+        locvar = (klc_var_t) { .name = name_idx, .type = type_idx };
+        vector_push_back(&fn->locals, &locvar);
+    }
+}
+
+static int16_t _add_code(klc_image_t *klc, uint8_t *codes, uint32_t codesize)
+{
+    klc_code_t *code = mm_alloc(sizeof(klc_code_t) + codesize);
+    code->size = codesize;
+    memcpy(code->codes, codes, codesize);
+
+    Vector *vec = &klc->codes.vec;
+    int16_t idx = vector_size(vec);
+    vector_push_back(vec, &code);
+    return idx;
+}
+
+static klc_code_t *_get_code(klc_image_t *klc, int16_t idx)
+{
+    klc_code_t *code;
+    vector_get(&klc->codes.vec, idx, &code);
+    return code;
+}
+
 void klc_add_func(klc_image_t *klc, codeinfo_t *ci)
 {
+    int16_t name_idx = klc_str_set(klc, ci->name, strlen(ci->name));
     int16_t type_idx = klc_type_set(klc, ci->desc);
+    int16_t code_idx = _add_code(klc, ci->codes, ci->codesize);
+    klc_func_t *fn = mm_alloc(sizeof(*fn));
+    fn->flags = ci->flags;
+    fn->name = name_idx;
+    fn->type = type_idx;
+    fn->code = code_idx;
+    vector_init(&fn->locals, sizeof(klc_var_t));
+    if (ci->locvec) _add_locals(klc, fn, ci->locvec);
+    // if (ci->freevec) _add_freevars(klc, fn, ci->freevec);
+    vector_push_back(&klc->funcs.vec, &fn);
 }
 
 klc_image_t *klc_create(void)
@@ -319,7 +364,7 @@ klc_image_t *klc_create(void)
     vector_init(&klc->vars.vec, sizeof(klc_var_t));
 
     klc->funcs.id = SECT_FUNC;
-    vector_init(&klc->funcs.vec, sizeof(klc_func_t));
+    vector_init(&klc->funcs.vec, sizeof(klc_func_t *));
 
     klc->codes.id = SECT_CODE;
     vector_init(&klc->codes.vec, sizeof(klc_code_t *));
@@ -670,6 +715,12 @@ klc_image_t *klc_read_file(char *path)
     return klc;
 }
 
+typedef struct show_info {
+    klc_image_t *klc;
+    char *buf;
+    int proto_prefix;
+} show_info_t;
+
 static void klc_str_show(klc_image_t *klc)
 {
     klc_sect_t *sec = &klc->strs;
@@ -681,50 +732,57 @@ static void klc_str_show(klc_image_t *klc)
     }
 }
 
-static void _type_str(klc_image_t *klc, klc_type_t *type, char *buf);
+static void _type_str(klc_type_t *type, show_info_t *info);
 
-static void _proto_str(klc_image_t *klc, klc_type_t *type, char *buf)
+static void _proto_str(klc_type_t *type, show_info_t *info)
 {
     klc_type_proto_t *proto = (klc_type_proto_t *)type;
 
-    strcat(buf, "func(");
+    if (info->proto_prefix)
+        strcat(info->buf, "func(");
+    else
+        strcat(info->buf, "(");
 
+    show_info_t showinfo = { info->klc, info->buf, 1 };
     klc_type_t *item;
     int16_t *type_index;
     vector_foreach(type_index, proto->ptypes)
     {
-        item = _type_index(klc, *type_index);
-        if (i > 0) strcat(buf, ", ");
-        _type_str(klc, item, buf);
+        item = _type_index(info->klc, *type_index);
+        if (i > 0) strcat(info->buf, ", ");
+        _type_str(item, &showinfo);
     }
 
-    strcat(buf, ")");
+    strcat(info->buf, ")");
 
-    item = _type_index(klc, proto->rtype);
+    item = _type_index(info->klc, proto->rtype);
     if (item) {
-        strcat(buf, " ");
-        _type_str(klc, item, buf);
+        strcat(info->buf, " ");
+        _type_str(item, &showinfo);
     }
 }
 
-static void _type_str(klc_image_t *klc, klc_type_t *type, char *buf)
+static void _type_str(klc_type_t *type, show_info_t *info)
 {
     if (_isbase(type->tag))
-        strcat(buf, base_desc_str(type->tag));
+        strcat(info->buf, base_desc_str(type->tag));
     else if (_isproto(type->tag))
-        _proto_str(klc, type, buf);
+        _proto_str(type, info);
 }
 
 static void klc_type_show(klc_image_t *klc)
 {
     klc_sect_t *sec = &klc->types;
     printf("\nTypes:\n\n");
+
     char buf[4096];
+    show_info_t info = { klc, buf, 1 };
+
     klc_type_t **type;
     vector_foreach(type, &sec->vec)
     {
         buf[0] = '\0';
-        _type_str(klc, *type, buf);
+        _type_str(*type, &info);
         printf("  #%u: %s\n", i, buf);
     }
 }
@@ -783,7 +841,10 @@ static void klc_var_show(klc_image_t *klc)
     klc_sect_t *sec = &klc->vars;
     Vector *strs = &klc->strs.vec;
     Vector *types = &klc->types.vec;
+
     char buf[4096];
+    show_info_t info = { klc, buf, 1 };
+
     klc_str_t *str;
     klc_type_t *type;
     klc_var_t *var;
@@ -793,12 +854,54 @@ static void klc_var_show(klc_image_t *klc)
         str = vector_get_ptr(strs, var->name);
         vector_get(types, var->type, &type);
         buf[0] = '\0';
-        _type_str(klc, type, buf);
+        _type_str(type, &info);
         s1 = (var->flags & ACCESS_FLAGS_FINAL) ? "const" : "var";
         if (var->flags & ACCESS_FLAGS_PUB)
             printf("  pub %s %s %s;\n", s1, str->s, buf);
         else
             printf("  %s %s %s;\n", s1, str->s, buf);
+    }
+}
+
+static void klc_codes_show(klc_func_t *fn, klc_image_t *klc)
+{
+    klc_code_t *code = _get_code(klc, fn->code);
+
+    printf("    Codes:\n");
+    uint8_t op;
+    uint32_t i = 0;
+    while (i < code->size) {
+        op = code->codes[i];
+        printf("      #%d: %s\n", i, opcode_str(op));
+        i += 1 + opcode_argc(op);
+    }
+}
+
+static void klc_func_show(klc_image_t *klc)
+{
+    klc_sect_t *sec = &klc->funcs;
+    Vector *strs = &klc->strs.vec;
+    Vector *types = &klc->types.vec;
+
+    char buf[4096];
+    show_info_t info = { klc, buf, 0 };
+
+    klc_str_t *str;
+    klc_type_t *type;
+    klc_func_t **fn;
+    vector_foreach(fn, &sec->vec)
+    {
+        str = vector_get_ptr(strs, (*fn)->name);
+        vector_get(types, (*fn)->type, &type);
+        buf[0] = '\0';
+        _proto_str(type, &info);
+        if ((*fn)->flags & ACCESS_FLAGS_PUB)
+            printf("  pub func %s%s {\n", str->s, buf);
+        else
+            printf("  func %s%s {\n", str->s, buf);
+        klc_codes_show((*fn), klc);
+        printf("    Locals:\n");
+        printf("  }\n");
     }
 }
 
@@ -810,6 +913,7 @@ void klc_show(klc_image_t *klc)
     klc_const_show(klc);
     printf("\n{\n");
     klc_var_show(klc);
+    klc_func_show(klc);
     printf("}\n\n");
 }
 

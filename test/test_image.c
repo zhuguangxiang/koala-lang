@@ -9,6 +9,7 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "image.h"
+#include "opcode.h"
 
 void test_klc(void)
 {
@@ -31,6 +32,29 @@ void test_klc(void)
     klc_add_char(klc, 0xe6b189);
 
     klc_add_bool(klc, 1);
+
+    /*
+    func add(a int, b int, c int) int {
+        return a + b + c
+    }
+    */
+    proto = to_proto("iii", "i");
+    uint8_t codes[] = {
+        OP_LOAD_0,
+        OP_LOAD_1,
+        OP_LOAD_2,
+        OP_ADD,
+        OP_ADD,
+        OP_RETURN_VALUE,
+    };
+    codeinfo_t ci = {
+        .name = "add",
+        .flags = ACCESS_FLAGS_PUB,
+        .desc = proto,
+        .codesize = COUNT_OF(codes),
+        .codes = codes,
+    };
+    klc_add_func(klc, &ci);
 
     klc_show(klc);
     klc_write_file(klc, "foo.klc");

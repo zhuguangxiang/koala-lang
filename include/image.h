@@ -219,12 +219,17 @@ typedef struct codeinfo {
     char *name;
     uint8_t flags;
     TypeDesc *desc;
-    int size;
+    uint32_t codesize;
     uint8_t *codes;
     Vector *locvec;
     Vector *freevec;
     Vector *upvec;
 } codeinfo_t;
+
+typedef struct locvar {
+    char *name;
+    TypeDesc *desc;
+} locvar_t;
 
 void klc_add_func(klc_image_t *klc, codeinfo_t *ci);
 

@@ -11,6 +11,8 @@
 #ifndef _KOALA_OPCODE_H_
 #define _KOALA_OPCODE_H_
 
+#include "common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,15 +23,16 @@ extern "C" {
 #define OP_DUP     2
 #define OP_SWAP    3
 
-#define OP_CONST_BYTE   4
-#define OP_CONST_INT16  5
-#define OP_CONST_INT32  6
-#define OP_CONST_INT    7
-#define OP_CONST_FLOAT  8
-#define OP_CONST_CHAR   9
-#define OP_CONST_TRUE   10
-#define OP_CONST_FALSE  11
-#define OP_CONST_STRING 12
+#define OP_CONST_INT8    4
+#define OP_CONST_INT16   5
+#define OP_CONST_INT32   6
+#define OP_CONST_INT64   7
+#define OP_CONST_FLOAT32 8
+#define OP_CONST_FLOAT64 8
+#define OP_CONST_TRUE    9
+#define OP_CONST_FALSE   10
+#define OP_CONST_CHAR    11
+#define OP_CONST_STRING  12
 
 #define OP_LOAD   20
 #define OP_LOAD_0 21
@@ -85,6 +88,9 @@ extern "C" {
 #define OP_CALL         81
 #define OP_RETURN       82
 #define OP_RETURN_VALUE 83
+
+char *opcode_str(uint8_t op);
+uint8_t opcode_argc(uint8_t op);
 
 #ifdef __cplusplus
 }
