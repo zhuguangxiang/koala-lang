@@ -65,10 +65,19 @@ static klc_str_t *klc_str_index(klc_image_t *klc, int16_t index)
 }
 
 typedef struct type_entry {
-
+    HashMapEntry entry;
+    int16_t idx;
+    klc_type_t type;
 } type_entry_t;
 
-static int _isbase(uint8_t kind)
+static int type_entry_equal(void *k1, void *k2)
+{
+    type_entry_t *e1 = k1;
+    type_entry_t *e2 = k2;
+    return e1->type.tag == e2->type.tag;
+}
+
+static inline int _isbase(uint8_t kind)
 {
     return (kind == TYPE_INT8 || kind == TYPE_INT16 || kind == TYPE_INT32 ||
         kind == TYPE_INT64 || kind == TYPE_FLOAT32 || kind == TYPE_FLOAT64 ||
@@ -76,25 +85,50 @@ static int _isbase(uint8_t kind)
         kind == TYPE_ANY);
 }
 
+static inline int _isproto(uint8_t kind)
+{
+    return kind == TYPE_PROTO;
+}
+
+static klc_type_t *_type_index(klc_image_t *klc, int16_t index)
+{
+    klc_type_t *type = NULL;
+    Vector *vec = &klc->types.vec;
+    vector_get(vec, index, &type);
+    return type;
+}
+
+static int16_t _get_base(klc_image_t *klc, uint8_t tag)
+{
+    type_entry_t key = { .type.tag = tag };
+    hashmap_entry_init(&key, tag);
+    type_entry_t *e = hashmap_get(&klc->typtab, &key);
+    return e ? e->idx : -1;
+}
+
 static int16_t _add_base(klc_image_t *klc, uint8_t tag)
 {
+    int16_t idx = _get_base(klc, tag);
+    if (idx >= 0) return idx;
+
     /* base type */
     klc_type_t *base = mm_alloc(sizeof(*base));
     base->tag = tag;
 
     /* append type */
     Vector *vec = &klc->types.vec;
-    int16_t idx = vector_size(vec);
+    idx = vector_size(vec);
     vector_push_back(vec, &base);
+
+    /* add to type table */
+    type_entry_t *e = mm_alloc(sizeof(*e));
+    hashmap_entry_init(e, tag);
+    e->idx = idx;
+    e->type.tag = tag;
+    hashmap_put_absent(&klc->typtab, e);
+
     return idx;
 }
-
-static inline int _isproto(uint8_t kind)
-{
-    return kind == TYPE_PROTO;
-}
-
-static int16_t klc_type_set(klc_image_t *klc, TypeDesc *type);
 
 static int16_t _add_proto(klc_image_t *klc, int16_t rtype, Vector *ptypes)
 {
@@ -137,20 +171,6 @@ static int16_t klc_type_set(klc_image_t *klc, TypeDesc *type)
     abort();
 }
 
-static klc_type_t *_type_index(klc_image_t *klc, int16_t index)
-{
-    klc_type_t *type = NULL;
-    Vector *vec = &klc->types.vec;
-    vector_get(vec, index, &type);
-    return type;
-}
-
-static TypeDesc *_get_desc(klc_type_t *type)
-{
-    if (_isbase(type->tag)) return base_desc(type->tag);
-    abort();
-}
-
 static inline void _add_var(
     klc_image_t *klc, int16_t name_idx, int16_t type_idx, uint8_t flags)
 {
@@ -177,6 +197,9 @@ klc_image_t *klc_create(void)
 
     /* init string table */
     hashmap_init(&klc->strtab, str_entry_equal);
+
+    /* init string table */
+    hashmap_init(&klc->typtab, type_entry_equal);
 
     /* init sections */
     klc->strs.id = SECT_STR;
