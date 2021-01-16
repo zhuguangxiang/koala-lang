@@ -19,6 +19,19 @@ void test_klc(void)
     klc_add_var(klc, "fn1", proto, 0);
     proto = to_proto("Pi:i", "Pz:");
     klc_add_var(klc, "fn2", proto, ACCESS_FLAGS_PUB);
+    klc_add_int8(klc, 10);
+    klc_add_int8(klc, 10);
+    klc_add_int8(klc, 20);
+    klc_add_int8(klc, -20);
+    klc_add_int(klc, -20);
+    klc_add_int16(klc, 10);
+    klc_add_float32(klc, 10.2);
+    klc_add_float(klc, -10.2);
+    klc_add_string(klc, "hello汉");
+    klc_add_char(klc, 0xe6b189);
+
+    klc_add_bool(klc, 1);
+
     klc_show(klc);
     klc_write_file(klc, "foo.klc");
     klc_destroy(klc);

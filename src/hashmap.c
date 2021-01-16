@@ -50,9 +50,10 @@ static void __alloc_entries(HashMap *self, int size)
         self->shrink_at = 0;
     else
         self->shrink_at = self->grow_at / 5;
-
+    /*
     printf("hashmap:\nentries: %d, grow_at: %d, shrink_at: %d\n", self->size,
         self->grow_at, self->shrink_at);
+    */
 }
 
 void hashmap_init(HashMap *self, hash_equal_t equal)

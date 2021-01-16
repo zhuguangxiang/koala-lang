@@ -64,6 +64,107 @@ static klc_str_t *klc_str_index(klc_image_t *klc, int16_t index)
     return vector_get_ptr(vec, index);
 }
 
+typedef struct const_entry {
+    HashMapEntry entry;
+    int16_t idx;
+    klc_const_t val;
+} const_entry_t;
+
+static int const_entry_equal(void *k1, void *k2)
+{
+    const_entry_t *e1 = k1;
+    const_entry_t *e2 = k2;
+    return !memcmp(&e1->val, &e2->val, sizeof(klc_const_t));
+}
+
+static int16_t klc_const_get(klc_image_t *klc, klc_const_t val)
+{
+    const_entry_t key = { .val = val };
+    hashmap_entry_init(&key, memhash(&val, sizeof(val)));
+    const_entry_t *e = hashmap_get(&klc->constab, &key);
+    return e ? e->idx : -1;
+}
+
+static int16_t klc_const_set(klc_image_t *klc, klc_const_t val)
+{
+    int16_t idx = klc_const_get(klc, val);
+    if (idx >= 0) return idx;
+
+    Vector *vec = &klc->consts.vec;
+    idx = vector_size(vec);
+    vector_push_back(vec, &val);
+
+    const_entry_t *e = mm_alloc(sizeof(*e));
+    hashmap_entry_init(e, memhash(&val, sizeof(val)));
+    e->idx = idx;
+    e->val = val;
+    hashmap_put_absent(&klc->constab, e);
+
+    return idx;
+}
+
+int16_t klc_add_nil(klc_image_t *klc)
+{
+    klc_const_t kval = { .tag = CONST_NIL };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_int8(klc_image_t *klc, int8_t val)
+{
+    klc_const_t kval = { .tag = CONST_INT8, .i8 = val };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_int16(klc_image_t *klc, int16_t val)
+{
+    klc_const_t kval = { .tag = CONST_INT16, .i16 = val };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_int32(klc_image_t *klc, int32_t val)
+{
+    klc_const_t kval = { .tag = CONST_INT32, .i32 = val };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_int64(klc_image_t *klc, int64_t val)
+{
+    klc_const_t kval = { .tag = CONST_INT64, .i64 = val };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_float32(klc_image_t *klc, float val)
+{
+    klc_const_t kval = { .tag = CONST_FLOAT32, .f32 = val };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_float64(klc_image_t *klc, double val)
+{
+    klc_const_t kval = { .tag = CONST_FLOAT64, .f64 = val };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_bool(klc_image_t *klc, int8_t val)
+{
+    klc_const_t kval = { .tag = CONST_BOOL, .bval = val };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_char(klc_image_t *klc, uint32_t ch)
+{
+    klc_const_t kval = { .tag = CONST_CHAR, .ch = ch };
+    return klc_const_set(klc, kval);
+}
+
+int16_t klc_add_string(klc_image_t *klc, char *s)
+{
+    uint16_t len = strlen(s);
+    int16_t idx = klc_str_set(klc, s, len);
+    klc_const_t kval = { .tag = CONST_STRING, .str = idx };
+    return klc_const_set(klc, kval);
+}
+
 typedef struct type_entry {
     HashMapEntry entry;
     int16_t idx;
@@ -198,12 +299,18 @@ klc_image_t *klc_create(void)
     /* init string table */
     hashmap_init(&klc->strtab, str_entry_equal);
 
+    /* init const table */
+    hashmap_init(&klc->constab, const_entry_equal);
+
     /* init string table */
     hashmap_init(&klc->typtab, type_entry_equal);
 
     /* init sections */
     klc->strs.id = SECT_STR;
     vector_init(&klc->strs.vec, sizeof(klc_str_t));
+
+    klc->consts.id = SECT_CONST;
+    vector_init(&klc->consts.vec, sizeof(klc_const_t));
 
     klc->types.id = SECT_TYPE;
     vector_init(&klc->types.vec, sizeof(klc_type_t *));
@@ -286,6 +393,108 @@ static void read_str_sect(klc_image_t *klc, FILE *fp)
         s = mm_alloc(len + 1);
         READ_STRING(s, len);
         klc_str_set(klc, s, len);
+    }
+}
+
+static void write_const_sect(klc_image_t *klc, FILE *fp)
+{
+    uint8_t id;
+    Vector *vec;
+    klc_const_t *val;
+    vec = &klc->consts.vec;
+    uint16_t count = vector_size(vec);
+    if (count > 0) {
+        id = SECT_CONST;
+        WRITE_OBJECT(id);
+        WRITE_OBJECT(count);
+    }
+
+    vector_foreach(val, vec)
+    {
+        WRITE_OBJECT(val->tag);
+        switch (val->tag) {
+            case CONST_INT8:
+                WRITE_OBJECT(val->i8);
+                break;
+            case CONST_INT16:
+                WRITE_OBJECT(val->i16);
+                break;
+            case CONST_INT32:
+                WRITE_OBJECT(val->i32);
+                break;
+            case CONST_INT64:
+                WRITE_OBJECT(val->i64);
+                break;
+            case CONST_FLOAT32:
+                WRITE_OBJECT(val->f32);
+                break;
+            case CONST_FLOAT64:
+                WRITE_OBJECT(val->f64);
+                break;
+            case CONST_BOOL:
+                WRITE_OBJECT(val->bval);
+                break;
+            case CONST_CHAR:
+                WRITE_OBJECT(val->ch);
+                break;
+            case CONST_STRING:
+                WRITE_OBJECT(val->str);
+                break;
+            case CONST_NIL:
+                break;
+            default:
+                abort();
+        }
+    }
+}
+
+static void read_const_sect(klc_image_t *klc, FILE *fp)
+{
+    uint16_t count = 0;
+    READ_OBJECT(count);
+    if (count <= 0) return;
+
+    uint8_t tag;
+    int8_t i8;
+    klc_const_t val;
+    while (count-- > 0) {
+        READ_OBJECT(tag);
+        val = (klc_const_t) {};
+        val.tag = tag;
+        switch (tag) {
+            case CONST_INT8:
+                READ_OBJECT(val.i8);
+                break;
+            case CONST_INT16:
+                READ_OBJECT(val.i16);
+                break;
+            case CONST_INT32:
+                READ_OBJECT(val.i32);
+                break;
+            case CONST_INT64:
+                READ_OBJECT(val.i64);
+                break;
+            case CONST_FLOAT32:
+                READ_OBJECT(val.f32);
+                break;
+            case CONST_FLOAT64:
+                READ_OBJECT(val.f64);
+                break;
+            case CONST_BOOL:
+                READ_OBJECT(val.bval);
+                break;
+            case CONST_CHAR:
+                READ_OBJECT(val.ch);
+                break;
+            case CONST_STRING:
+                READ_OBJECT(val.str);
+                break;
+            case CONST_NIL:
+                break;
+            default:
+                abort();
+        }
+        klc_const_set(klc, val);
     }
 }
 
@@ -404,6 +613,7 @@ void klc_write_file(klc_image_t *klc, char *path)
     klc_header_t hdr = { "klc", VERSION_MAJOR, VERSION_MINOR };
     fwrite(&hdr, sizeof(hdr), 1, fp);
     write_str_sect(klc, fp);
+    write_const_sect(klc, fp);
     write_type_sect(klc, fp);
     write_var_sect(klc, fp);
     fclose(fp);
@@ -441,6 +651,9 @@ klc_image_t *klc_read_file(char *path)
             case SECT_STR:
                 read_str_sect(klc, fp);
                 break;
+            case SECT_CONST:
+                read_const_sect(klc, fp);
+                break;
             case SECT_TYPE:
                 read_type_sect(klc, fp);
                 break;
@@ -460,7 +673,7 @@ klc_image_t *klc_read_file(char *path)
 static void klc_str_show(klc_image_t *klc)
 {
     klc_sect_t *sec = &klc->strs;
-    printf("\n[Strings]\n");
+    printf("\nStrings:\n\n");
     klc_str_t *str;
     vector_foreach(str, &sec->vec)
     {
@@ -489,7 +702,7 @@ static void _proto_str(klc_image_t *klc, klc_type_t *type, char *buf)
 
     item = _type_index(klc, proto->rtype);
     if (item) {
-        strcat(buf, " -> ");
+        strcat(buf, " ");
         _type_str(klc, item, buf);
     }
 }
@@ -505,7 +718,7 @@ static void _type_str(klc_image_t *klc, klc_type_t *type, char *buf)
 static void klc_type_show(klc_image_t *klc)
 {
     klc_sect_t *sec = &klc->types;
-    printf("\n[Types]\n");
+    printf("\nTypes:\n\n");
     char buf[4096];
     klc_type_t **type;
     vector_foreach(type, &sec->vec)
@@ -513,6 +726,55 @@ static void klc_type_show(klc_image_t *klc)
         buf[0] = '\0';
         _type_str(klc, *type, buf);
         printf("  #%u: %s\n", i, buf);
+    }
+}
+
+static void klc_const_show(klc_image_t *klc)
+{
+    klc_sect_t *sec = &klc->consts;
+    printf("\nConstant Pool:\n\n");
+    klc_const_t *val;
+    vector_foreach(val, &sec->vec)
+    {
+        switch (val->tag) {
+            case CONST_INT8:
+                printf("  #%u = int8 %d\n", i, val->i8);
+                break;
+            case CONST_INT16:
+                printf("  #%u = int16 %d\n", i, val->i16);
+                break;
+            case CONST_INT32:
+                printf("  #%u = int32 %d\n", i, val->i32);
+                break;
+            case CONST_INT64:
+                printf("  #%u = int64 %ld\n", i, val->i64);
+                break;
+            case CONST_FLOAT32:
+                printf("  #%u = float32 %f\n", i, val->f32);
+                break;
+            case CONST_FLOAT64:
+                printf("  #%u = float64 %f\n", i, val->f64);
+                break;
+            case CONST_BOOL:
+                printf("  #%u = bool %s\n", i, val->bval ? "true" : "false");
+                break;
+            case CONST_CHAR: {
+                char wch[8] = { ((char *)&val->ch)[2], ((char *)&val->ch)[1],
+                    ((char *)&val->ch)[0], 0 };
+                printf("  #%u = char %x '%s'\n", i, val->ch, wch);
+                break;
+            }
+            case CONST_STRING: {
+                klc_str_t *str = klc_str_index(klc, val->str);
+                printf("  #%u = string \"%s\"\n", i, str->s);
+                break;
+            }
+            case CONST_NIL:
+                printf("  #%u = nil\n", i);
+                break;
+            default:
+                abort();
+        }
     }
 }
 
@@ -542,9 +804,10 @@ static void klc_var_show(klc_image_t *klc)
 
 void klc_show(klc_image_t *klc)
 {
-    printf("\nversion: %u.%u\n", VERSION_MAJOR, VERSION_MINOR);
+    printf("\nVersion: %u.%u\n", VERSION_MAJOR, VERSION_MINOR);
     klc_str_show(klc);
     klc_type_show(klc);
+    klc_const_show(klc);
     printf("\n{\n");
     klc_var_show(klc);
     printf("}\n\n");

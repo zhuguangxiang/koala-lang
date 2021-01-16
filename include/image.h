@@ -21,18 +21,18 @@ extern "C" {
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 9
 
-#define SECT_CUSTOM  0
-#define SECT_STR     1
-#define SECT_LITERAL 2
-#define SECT_TYPE    3
-#define SECT_VAR     4
-#define SECT_FUNC    5
-#define SECT_ANONY   6
-#define SECT_CODE    7
-#define SECT_CLASS   8
-#define SECT_TRAIT   9
-#define SECT_ENUM    10
-#define SECT_MAX     11
+#define SECT_CUSTOM 0
+#define SECT_STR    1
+#define SECT_CONST  2
+#define SECT_TYPE   3
+#define SECT_VAR    4
+#define SECT_FUNC   5
+#define SECT_ANONY  6
+#define SECT_CODE   7
+#define SECT_CLASS  8
+#define SECT_TRAIT  9
+#define SECT_ENUM   10
+#define SECT_MAX    11
 
 typedef struct klc_header {
     uint8_t magic[4];
@@ -50,18 +50,18 @@ typedef struct klc_str {
     char *s;
 } klc_str_t;
 
-#define LITERAL_NIL     0
-#define LITERAL_INT8    1
-#define LITERAL_INT16   2
-#define LITERAL_INT32   3
-#define LITERAL_INT64   4
-#define LITERAL_FLOAT32 5
-#define LITERAL_FLOAT64 6
-#define LITERAL_BOOL    7
-#define LITERAL_STRING  8
-#define LITERAL_CHAR    9
+#define CONST_NIL     0
+#define CONST_INT8    1
+#define CONST_INT16   2
+#define CONST_INT32   3
+#define CONST_INT64   4
+#define CONST_FLOAT32 5
+#define CONST_FLOAT64 6
+#define CONST_BOOL    7
+#define CONST_CHAR    8
+#define CONST_STRING  9
 
-typedef struct klc_literal {
+typedef struct klc_const {
     uint8_t tag;
     union {
         int8_t i8;
@@ -72,9 +72,9 @@ typedef struct klc_literal {
         double f64;
         int8_t bval;
         int16_t str;
-        int32_t ch;
+        uint32_t ch;
     };
-} klc_literal_t;
+} klc_const_t;
 
 typedef struct klc_type {
     uint8_t tag;
@@ -180,9 +180,10 @@ typedef struct klc_para_type {
 
 typedef struct klc_image {
     HashMap strtab;
+    HashMap constab;
     HashMap typtab;
     klc_sect_t strs;
-    klc_sect_t literals;
+    klc_sect_t consts;
     klc_sect_t types;
     klc_sect_t vars;
     klc_sect_t funcs;
@@ -198,6 +199,19 @@ void klc_destroy(klc_image_t *klc);
 void klc_write_file(klc_image_t *klc, char *path);
 klc_image_t *klc_read_file(char *path);
 void klc_show(klc_image_t *klc);
+
+int16_t klc_add_nil(klc_image_t *klc);
+int16_t klc_add_int8(klc_image_t *klc, int8_t val);
+int16_t klc_add_int16(klc_image_t *klc, int16_t val);
+int16_t klc_add_int32(klc_image_t *klc, int32_t val);
+int16_t klc_add_int64(klc_image_t *klc, int64_t val);
+#define klc_add_int klc_add_int64
+int16_t klc_add_float32(klc_image_t *klc, float val);
+int16_t klc_add_float64(klc_image_t *klc, double val);
+#define klc_add_float klc_add_float64
+int16_t klc_add_bool(klc_image_t *klc, int8_t val);
+int16_t klc_add_char(klc_image_t *klc, uint32_t ch);
+int16_t klc_add_string(klc_image_t *klc, char *s);
 
 void klc_add_var(klc_image_t *klc, char *name, TypeDesc *type, uint8_t flags);
 

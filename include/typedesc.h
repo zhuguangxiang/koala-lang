@@ -46,7 +46,12 @@ typedef struct TypeDesc {
 } TypeDesc;
 
 extern TypeDesc kl_type_int8;
+extern TypeDesc kl_type_int16;
+extern TypeDesc kl_type_int32;
+extern TypeDesc kl_type_int64;
 extern TypeDesc kl_type_int;
+extern TypeDesc kl_type_float32;
+extern TypeDesc kl_type_float64;
 extern TypeDesc kl_type_float;
 extern TypeDesc kl_type_bool;
 extern TypeDesc kl_type_char;
