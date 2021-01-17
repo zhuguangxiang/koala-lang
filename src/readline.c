@@ -138,7 +138,7 @@ static inline void insert_tab(LineState *ls)
 static inline void do_newline(LineState *ls)
 {
     ls->pos = ls->len;
-    line_insert(ls, "\n", 1);
+    line_insert(ls, "\r\n", 2);
 }
 
 static inline void move_home(LineState *ls)
@@ -257,7 +257,7 @@ static int line_edit(int in, int out, char *buf, int len, char *prompt)
                 do_backspace(&ls);
                 break;
             case CTRL_D:
-                if (write(ls.out, "\n", 1) < 0) return -1;
+                if (write(ls.out, "\r\n", 2) < 0) return -1;
                 return 0;
             case CTRL_C:
                 if (write(ls.out, "^C", 2) < 0) return -1;

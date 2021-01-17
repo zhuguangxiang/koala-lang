@@ -1,5 +1,10 @@
 build/
 .vscode/
 .ccls-cache/
-a.out
+*.out
+*.output
 *.so
+koala_lex.c
+koala_lex.h
+koala_yacc.c
+koala_yacc.h

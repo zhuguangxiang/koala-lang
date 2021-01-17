@@ -31,3 +31,9 @@ gcc -std=gnu11 -g src/mm.c src/binheap.c libtask/task.c libtask/task_timer.c lib
 gcc -g -fvar-tracking src/mm.c src/binheap.c libtask/task.c libtask/task_timer.c libtask/task_event.c test/test_task_done.c -I./include -I./libtask -lpthread
 
 gcc -g -fvar-tracking test/test_vm.c src/vm.c src/typeobject.c src/codeobject.c src/mm.c -I./include src/vector.c src/hashmap.c src/methodobject.c -ldl -rdynamic -g -Wall -fvisibility=hidden
+
+flex --outfile=koala_lex.c --header-file=koala_lex.h src/parser/koala.l
+gcc koala_lex.c src/readline.c -I./include -I./
+
+bison -dvt --output=koala_yacc.c --defines=koala_yacc.h src/parser/koala.y
+gcc test/test_yacc_flex.c koala_lex.c koala_yacc.c src/readline.c -I./include -I./
