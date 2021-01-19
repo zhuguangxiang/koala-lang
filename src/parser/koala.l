@@ -1,10 +1,9 @@
 /*===----------------------------------------------------------------------===*\
 |*                               Koala                                        *|
 |*                 The Multi-Paradigm Programming Language                    *|
-|*===----------------------------------------------------------------------===*|
 |*                                                                            *|
 |* MIT License                                                                *|
-|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
+|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
@@ -45,7 +44,7 @@ int next;
                     BEGIN(STRING); 
                     next = 0; 
                 }
-<STRING>\"      { 
+<STRING>\"      {
                     BEGIN(INITIAL); 
                     buf[next] = 0; 
                     next = 0; 
@@ -167,111 +166,111 @@ int next;
 "~="        {     }
 
 "<<" {
-        puts("<<");
-    }
-
-"+" {
-        puts("+");
-    }
-
-"-" {
-        puts("-");
-    }
-
-"*" {
-        puts("*");
-    }
-
-"/" {
-        puts("/");
-    }
-
-"%" {
-        puts("%");
-    }
-
-"|" {
-        puts("|");
-    }
-
-"&" {
-        puts("&");
-    }
-
-"^" {
-        puts("^");
-    }
-
-"~" {
-        puts("~");
-    }
-
-"!" {
-        puts("!");
-    }
-
-":" {
-        puts(":");
-    }
-
-"," {
-        puts(",");
-    }
-
-"?" {
-        puts("?");
-    }
-
-"." {
-        puts(".");
-    }
-
-"=" {
-        puts("=");
-    }
-
-";" {
-        puts(";");
-    }
-
-"@" {
-        puts("@");
-    }
-
-"(" {
-        puts("(");
-    }
-
-")" {
-        puts(")");
-    }
-
-"[" {
-        puts("[");
-    }
-
-"]" {
-        puts("]");
-    }
-
-"{" {
-        puts("{");
-    }
-
-"}" {
-        puts("}");
+        YY_RETURN(L_SHIFT);
     }
 
 "<" {
-        puts("lt<");
+        YY_RETURN('<');
     }
 
 ">"/">" {
-        puts(">>");
+        YY_RETURN(R_ANGLE_SHIFT);
     }
 
 ">" {
-        puts("gt>");
+        YY_RETURN('>');
+    }
+
+"+" {
+        YY_RETURN('+');
+    }
+
+"-" {
+        YY_RETURN('-');
+    }
+
+"*" {
+        YY_RETURN('*');
+    }
+
+"/" {
+        YY_RETURN('/');
+    }
+
+"%" {
+        YY_RETURN('%');
+    }
+
+"|" {
+        YY_RETURN('|');
+    }
+
+"&" {
+        YY_RETURN('&');
+    }
+
+"^" {
+        YY_RETURN('^');
+    }
+
+"~" {
+        YY_RETURN('~');
+    }
+
+"!" {
+        YY_RETURN('!');
+    }
+
+":" {
+        YY_RETURN(':');
+    }
+
+"," {
+        YY_RETURN(',');
+    }
+
+"?" {
+        YY_RETURN('?');
+    }
+
+"." {
+        YY_RETURN('.');
+    }
+
+";" {
+        YY_RETURN(';');
+    }
+
+"=" {
+        YY_RETURN('=');
+    }
+
+"@" {
+        YY_RETURN('@');
+    }
+
+"(" {
+        YY_RETURN('(');
+    }
+
+")" {
+        YY_RETURN(')');
+    }
+
+"[" {
+        YY_RETURN('[');
+    }
+
+"]" {
+        YY_RETURN(']');
+    }
+
+"{" {
+        YY_RETURN('{');
+    }
+
+"}" {
+        YY_RETURN('}');
     }
 
 .           {

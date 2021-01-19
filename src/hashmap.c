@@ -1,10 +1,9 @@
 /*===----------------------------------------------------------------------===*\
 |*                               Koala                                        *|
 |*                 The Multi-Paradigm Programming Language                    *|
-|*===----------------------------------------------------------------------===*|
 |*                                                                            *|
 |* MIT License                                                                *|
-|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
+|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
