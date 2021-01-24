@@ -23,6 +23,20 @@ void test_doubly_linked_list(void)
     list_push_back(&foo_list, &foo1.node);
     list_push_back(&foo_list, &foo2.node);
     printf("count:%d\n", list_size(&foo_list));
+
+    struct foo *foo;
+    ListNode *n;
+    list_foreach(&foo_list, n)
+    {
+        foo = (struct foo *)n;
+        printf("%d\n", foo->bar);
+    }
+
+    list_foreach_reverse(&foo_list, n)
+    {
+        foo = (struct foo *)n;
+        printf("%d\n", foo->bar);
+    }
 }
 
 int main(int argc, char *argv[])

@@ -10,6 +10,7 @@
 #include "readline.h"
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -137,7 +138,7 @@ static inline void insert_tab(LineState *ls)
 static inline void do_newline(LineState *ls)
 {
     ls->pos = ls->len;
-    line_insert(ls, "\r\n", 2);
+    line_insert(ls, "\r\n\0", 3);
 }
 
 static inline void move_home(LineState *ls)
@@ -248,6 +249,9 @@ static int line_edit(int in, int out, char *buf, int len, char *prompt)
             case TAB:
                 insert_tab(&ls);
                 break;
+            case RETURN:
+                printf("input is RETURN?\n");
+                abort();
             case NEWLINE:
                 do_newline(&ls);
                 return ls.len;

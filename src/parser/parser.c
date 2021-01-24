@@ -7,26 +7,23 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-// clang-format off
-// Don't touch this!
-#include <stdint.h>
-#include "koala_yacc.h"
-#include "koala_lex.h"
+#include "parser.h"
 
-// clang-format on
-#include "readline.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-static yyscan_t scanner;
-
-int main(int argc, char *argv[])
+static int need_semicolon(ParserState *ps)
 {
-    init_readline();
+    static int tokens[] = { INT_LITERAL, STRING_LITERAL, ID, SELF, SUPER, TRUE,
+        FALSE, ')', ']', '}', '>', '_' };
 
-    yylex_init_extra(NULL, &scanner);
-    // yyset_in(stdin, scanner);
-    yyparse(NULL, scanner);
-    yylex_destroy(scanner);
-
-    fini_readline();
+    for (int i = 0; i < COUNT_OF(tokens); ++i) {
+        if (tokens[i] == ps->token) return 1;
+    }
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

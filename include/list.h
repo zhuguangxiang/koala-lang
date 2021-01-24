@@ -103,13 +103,14 @@ static inline int list_size(List *list)
 }
 
 /* Insert a node between two known consecutive nodes */
-#define list_add_between(pos, prev, next) \
-    ({                                    \
-        pos->next = next;                 \
-        pos->prev = prev;                 \
-        prev->next = pos;                 \
-        next->prev = pos;                 \
-    })
+static inline void list_add_between(
+    ListNode *entry, ListNode *prev, ListNode *next)
+{
+    entry->next = next;
+    entry->prev = prev;
+    prev->next = entry;
+    next->prev = entry;
+}
 
 /* Insert a 'pos' node after 'prev' node */
 static inline void list_add(ListNode *prev, ListNode *pos)
@@ -126,13 +127,13 @@ static inline void list_add_before(ListNode *next, ListNode *pos)
 /* Insert a 'pos' node at front */
 static inline void list_push_front(List *list, ListNode *pos)
 {
-    list_add_before(list->next, pos);
+    list_add_between(pos, list, list->next);
 }
 
 /* Insert a 'pos' node at tail */
 static inline void list_push_back(List *list, ListNode *pos)
 {
-    list_add(list->prev, pos);
+    list_add_between(pos, list->prev, list);
 }
 
 /* Remove a node by making the prev/next nodes pointer to each other. */
