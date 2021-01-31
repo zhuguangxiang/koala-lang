@@ -27,9 +27,9 @@ static void test_fib(KLVMModule *m)
 
     KLVMBasicBlock *entry = KLVMFuncEntryBasicBlock(fn);
     KLVMBuilder *bldr = KLVMBasicBlockBuilder(entry);
-    KLVMBasicBlock *_then = KLVMAppendBasicBlock(fn);
-    KLVMBasicBlock *_else = KLVMAppendBasicBlock(fn);
-    KLVMValue *cond = KLVMBuildCondLE(bldr, n, KLVMConstInt32(1));
+    KLVMBasicBlock *_then = KLVMAppendBasicBlock(fn, "then");
+    KLVMBasicBlock *_else = KLVMAppendBasicBlock(fn, "else_block");
+    KLVMValue *cond = KLVMBuildCondLE(bldr, n, KLVMConstInt32(1), "");
     KLVMBuildCondJmp(bldr, cond, _then, _else);
 
     bldr = KLVMBasicBlockBuilder(_then);
@@ -37,16 +37,18 @@ static void test_fib(KLVMModule *m)
 
     bldr = KLVMBasicBlockBuilder(_else);
     KLVMValue *args1[] = {
-        KLVMBuildSub(bldr, n, KLVMConstInt32(1)),
+        KLVMBuildSub(bldr, n, KLVMConstInt32(1), ""),
         NULL,
     };
-    KLVMValue *r1 = KLVMBuildCall(bldr, fn, args1);
+    KLVMValue *r1 = KLVMBuildCall(bldr, fn, args1, "");
     KLVMValue *args2[] = {
-        KLVMBuildSub(bldr, n, KLVMConstInt32(2)),
+        KLVMBuildSub(bldr, n, KLVMConstInt32(2), "x"),
         NULL,
     };
-    KLVMValue *r2 = KLVMBuildCall(bldr, fn, args2);
-    KLVMBuildRet(bldr, KLVMBuildAdd(bldr, r1, r2));
+    KLVMValue *r2 = KLVMBuildCall(bldr, fn, args2, "");
+    KLVMBuildRet(bldr, KLVMBuildAdd(bldr, r1, r2, ""));
+
+    KLVMSetVarName(n, "");
 }
 
 static void test_func(KLVMModule *m)
@@ -66,15 +68,15 @@ static void test_func(KLVMModule *m)
 
     KLVMBasicBlock *entry = KLVMFuncEntryBasicBlock(fn);
     KLVMBuilder *bldr = KLVMBasicBlockBuilder(entry);
-    KLVMValue *t1 = KLVMBuildAdd(bldr, v1, v2);
+    KLVMValue *t1 = KLVMBuildAdd(bldr, v1, v2, "");
     KLVMValue *ret = KLVMAddLocVar(fn, KLVMInt32Type(), "res");
     KLVMBuildCopy(bldr, t1, ret);
     KLVMBuildRet(bldr, ret);
     KLVMBuildRet(bldr, KLVMConstInt32(-100));
 
-    KLVMBasicBlock *bb2 = KLVMAppendBasicBlock(fn);
+    KLVMBasicBlock *bb2 = KLVMAppendBasicBlock(fn, "");
     bldr = KLVMBasicBlockBuilder(bb2);
-    KLVMValue *t2 = KLVMBuildSub(bldr, v1, KLVMConstInt32(20));
+    KLVMValue *t2 = KLVMBuildSub(bldr, v1, KLVMConstInt32(20), "");
     KLVMBuildRet(bldr, t2);
 }
 
@@ -88,11 +90,11 @@ static void test_var(KLVMModule *m)
 
     KLVMValue *bar = KLVMAddVar(m, KLVMInt32Type(), "bar");
     KLVMValue *k200 = KLVMConstInt32(200);
-    KLVMValue *v = KLVMBuildAdd(bldr, foo, k200);
+    KLVMValue *v = KLVMBuildAdd(bldr, foo, k200, "");
     KLVMBuildCopy(bldr, v, bar);
 
     KLVMValue *baz = KLVMAddVar(m, KLVMInt32Type(), "baz");
-    KLVMBuildCopy(bldr, KLVMBuildSub(bldr, foo, bar), baz);
+    KLVMBuildCopy(bldr, KLVMBuildSub(bldr, foo, bar, ""), baz);
 }
 
 int main(int argc, char *argv[])

@@ -58,10 +58,11 @@ typedef enum KLVMValueKind {
 // clang-format off
 // Don't touch this!
 
-#define KLVM_VALUE_HEAD KLVMValueKind kind; KLVMType *type; int tag;
+#define KLVM_VALUE_HEAD \
+    KLVMValueKind kind; KLVMType *type; const char *name; int tag;
 
-#define INIT_VALUE_HEAD(val, _kind, _type) \
-    val->kind = _kind; val->type = _type
+#define INIT_VALUE_HEAD(val, _kind, _type, _name) \
+    val->kind = _kind; val->type = _type; val->name = _name; val->tag = -1
 
 // clang-format on
 
@@ -71,7 +72,6 @@ typedef struct KLVMValue {
 
 typedef struct KLVMModule {
     const char *name;
-    int tag_index;
     HashMap map;
     Vector funcs;
     Vector vars;
@@ -94,7 +94,6 @@ typedef struct KLVMConst {
 
 typedef struct KLVMVar {
     KLVM_VALUE_HEAD
-    const char *name;
     int flags;
     int offset;
 } KLVMVar;
@@ -118,7 +117,6 @@ struct KLVMBasicBlock {
 
 typedef struct KLVMFunc {
     KLVM_VALUE_HEAD
-    const char *name;
     int flags;
     int tag_index;
     int bb_tag_index;
@@ -184,9 +182,9 @@ typedef enum KLVMInstKind {
 #define KLVM_INST_HEAD \
     KLVM_VALUE_HEAD ListNode node; KLVMInstKind op;
 
-#define INIT_INST_HEAD(inst, type, _op)      \
-    INIT_VALUE_HEAD(inst, VALUE_INST, type); \
-    list_node_init(&inst->node);             \
+#define INIT_INST_HEAD(inst, type, _op, _name)      \
+    INIT_VALUE_HEAD(inst, VALUE_INST, type, _name); \
+    list_node_init(&inst->node);                    \
     inst->op = _op
 
 // clang-format on
@@ -256,7 +254,7 @@ void KLVMSetVarConst(KLVMValue *var);
 /* Add a function to a module */
 KLVMValue *KLVMAddFunc(KLVMModule *m, KLVMType *ty, const char *name);
 
-void KLVMSetFuncPub(KLVMValue *var);
+void KLVMSetFuncPub(KLVMValue *fn);
 
 /* Get a function type */
 KLVMType *KLVMProtoType(KLVMType *ret, KLVMType **param);
@@ -266,13 +264,13 @@ KLVMType *KLVMProtoTypeReturn(KLVMType *ty);
 
 /* Append a basic block to the end of a function */
 KLVMBasicBlock *KLVMFuncEntryBasicBlock(KLVMValue *fn);
-KLVMBasicBlock *KLVMAppendBasicBlock(KLVMValue *fn);
+KLVMBasicBlock *KLVMAppendBasicBlock(KLVMValue *fn, const char *name);
 
 /* Add a basic block after 'bb' */
-KLVMBasicBlock *KLVMAddBasicBlock(KLVMBasicBlock *bb);
+KLVMBasicBlock *KLVMAddBasicBlock(KLVMBasicBlock *bb, const char *name);
 
 /* Add a basic block before 'bb' */
-KLVMBasicBlock *KLVMAddBasicBlockBefore(KLVMBasicBlock *bb);
+KLVMBasicBlock *KLVMAddBasicBlockBefore(KLVMBasicBlock *bb, const char *name);
 
 /* Create an instruction builder */
 KLVMBuilder *KLVMBasicBlockBuilder(KLVMBasicBlock *bb);
@@ -282,16 +280,17 @@ void KLVMResetBuilderPoint(KLVMBuilder *bldr);
 void KLVMSetBuilderPoint(KLVMBuilder *bldr, KLVMValue *inst);
 void KLVMSetBuilderPointBefore(KLVMBuilder *bldr, KLVMValue *inst);
 
-KLVMValue *KLVMBuildBinary(
-    KLVMBuilder *bldr, KLVMBinaryOp op, KLVMValue *lhs, KLVMValue *rhs);
-#define KLVMBuildAdd(bldr, lhs, rhs) \
-    KLVMBuildBinary(bldr, KLVM_BINARY_ADD, lhs, rhs)
-#define KLVMBuildSub(bldr, lhs, rhs) \
-    KLVMBuildBinary(bldr, KLVM_BINARY_SUB, lhs, rhs)
-#define KLVMBuildCondLE(bldr, lhs, rhs) \
-    KLVMBuildBinary(bldr, KLVM_BINARY_CMP_LE, lhs, rhs)
+KLVMValue *KLVMBuildBinary(KLVMBuilder *bldr, KLVMBinaryOp op, KLVMValue *lhs,
+    KLVMValue *rhs, const char *name);
+#define KLVMBuildAdd(bldr, lhs, rhs, name) \
+    KLVMBuildBinary(bldr, KLVM_BINARY_ADD, lhs, rhs, name)
+#define KLVMBuildSub(bldr, lhs, rhs, name) \
+    KLVMBuildBinary(bldr, KLVM_BINARY_SUB, lhs, rhs, name)
+#define KLVMBuildCondLE(bldr, lhs, rhs, name) \
+    KLVMBuildBinary(bldr, KLVM_BINARY_CMP_LE, lhs, rhs, name)
 
-KLVMValue *KLVMBuildCall(KLVMBuilder *bldr, KLVMValue *fn, KLVMValue **args);
+KLVMValue *KLVMBuildCall(
+    KLVMBuilder *bldr, KLVMValue *fn, KLVMValue **args, const char *name);
 
 void KLVMBuildJmp(KLVMBuilder *bldr, KLVMBasicBlock *dest);
 void KLVMBuildCondJmp(KLVMBuilder *bldr, KLVMValue *cond, KLVMBasicBlock *_then,

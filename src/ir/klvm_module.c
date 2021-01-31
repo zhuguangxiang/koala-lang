@@ -15,17 +15,21 @@ extern "C" {
 
 static KLVMFunc *_new_func(KLVMType *ty, const char *name)
 {
+    if (!name) {
+        printf("error: function must have name\n");
+        abort();
+    }
+
     KLVMFunc *fn = mm_alloc(sizeof(*fn));
-    INIT_VALUE_HEAD(fn, VALUE_FUNC, ty);
+    INIT_VALUE_HEAD(fn, VALUE_FUNC, ty, name);
     vector_init(&fn->locals, sizeof(void *));
     list_init(&fn->bblist);
-    fn->name = name;
 
     // add parameters
     Vector *params = KLVMProtoTypeParams(ty);
     fn->num_params = vector_size(params);
     KLVMType **item;
-    vector_foreach(item, params) KLVMAddLocVar((KLVMValue *)fn, *item, NULL);
+    vector_foreach(item, params) KLVMAddLocVar((KLVMValue *)fn, *item, "");
 
     return fn;
 }
@@ -43,9 +47,7 @@ KLVMValue *KLVMModuleFunc(KLVMModule *m)
 {
     KLVMValue *fn = m->fn;
     if (!fn) {
-        KLVMFunc *_fn = _new_func(NULL, "__init__");
-        _fn->tag_index = m->tag_index;
-        fn = (KLVMValue *)_fn;
+        fn = (KLVMValue *)_new_func(NULL, "__init__");
         m->fn = fn;
     }
     return fn;
@@ -58,18 +60,18 @@ void KLVMDestroyModule(KLVMModule *m)
 
 static inline KLVMVar *_new_var(KLVMType *ty, const char *name)
 {
+    if (!name) {
+        printf("error: variable must have name\n");
+        abort();
+    }
+
     KLVMVar *var = mm_alloc(sizeof(*var));
-    INIT_VALUE_HEAD(var, VALUE_VAR, ty);
-    var->name = name;
+    INIT_VALUE_HEAD(var, VALUE_VAR, ty, name);
     return var;
 }
 
 KLVMValue *KLVMAddVar(KLVMModule *m, KLVMType *ty, const char *name)
 {
-    if (!name) {
-        printf("error: global variable must have name");
-        abort();
-    }
     KLVMVar *var = _new_var(ty, name);
     var->flags = KLVM_FLAGS_GLOBAL;
     vector_push_back(&m->vars, &var);
@@ -80,22 +82,14 @@ KLVMValue *KLVMAddLocVar(KLVMValue *fn, KLVMType *ty, const char *name)
 {
     KLVMVar *var = _new_var(ty, name);
     vector_push_back(&((KLVMFunc *)fn)->locals, &var);
-    if (!name) { var->tag = ((KLVMFunc *)fn)->tag_index++; }
     return (KLVMValue *)var;
 }
 
 KLVMValue *KLVMAddFunc(KLVMModule *m, KLVMType *ty, const char *name)
 {
-    if (!name) {
-        printf("error: function must have name");
-        abort();
-    }
-
     KLVMFunc *fn = _new_func(ty, name);
-
     // add to module
     vector_push_back(&m->funcs, &fn);
-
     return (KLVMValue *)fn;
 }
 
@@ -128,16 +122,14 @@ KLVMBasicBlock *_append_basicblock(KLVMValue *fn, const char *label)
     KLVMFunc *_fn = (KLVMFunc *)fn;
     list_push_back(&_fn->bblist, &bb->bbnode);
     _fn->num_bbs++;
-    if (!label || !label[0])
-        bb->tag = _fn->bb_tag_index++;
-    else
-        bb->label = label;
+    bb->label = label;
+    bb->tag = -1;
     return bb;
 }
 
-KLVMBasicBlock *KLVMAppendBasicBlock(KLVMValue *fn)
+KLVMBasicBlock *KLVMAppendBasicBlock(KLVMValue *fn, const char *name)
 {
-    return _append_basicblock(fn, NULL);
+    return _append_basicblock(fn, name);
 }
 
 KLVMBasicBlock *KLVMFuncEntryBasicBlock(KLVMValue *_fn)

@@ -312,6 +312,7 @@ void main(int argc, char *argv[])
     LLVMTypeRef ret_type = LLVMFunctionType(LLVMInt32Type(), param_types, 2, 0);
     LLVMValueRef sum = LLVMAddFunction(mod, "sum", ret_type);
     LLVMSetSection(sum, "sum_funcs");
+    LLVMValueRef a = LLVMGetParam(sum, 0);
     // LLVMSetLinkage(sum, LLVMInternalLinkage);
 
     LLVMBasicBlockRef entry = LLVMAppendBasicBlock(sum, "entry");
@@ -326,8 +327,13 @@ void main(int argc, char *argv[])
 
     LLVMValueRef tmp = LLVMBuildAdd(
         builder, LLVMGetParam(sum, 0), LLVMGetParam(sum, 1), "tmp");
+    // LLVMBuildBr(builder, entry);
     LLVMBuildRet(builder, tmp);
+
     LLVMDisposeBuilder(builder);
+    LLVMDumpModule(mod);
+    LLVMSetValueName(a, "a");
+    LLVMDumpModule(mod);
 
     gen_gcd(mod);
 
