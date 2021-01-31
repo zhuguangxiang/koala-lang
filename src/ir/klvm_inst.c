@@ -34,11 +34,35 @@ void KLVMBuildCopy(KLVMBuilder *bldr, KLVMValue *rhs, KLVMValue *lhs)
     _inst_append(bldr, (KLVMInst *)inst);
 }
 
+static int _is_cmp(KLVMBinaryOp op)
+{
+    static KLVMBinaryOp cmps[] = {
+        KLVM_BINARY_CMP_EQ,
+        KLVM_BINARY_CMP_NE,
+        KLVM_BINARY_CMP_GT,
+        KLVM_BINARY_CMP_GE,
+        KLVM_BINARY_CMP_LT,
+        KLVM_BINARY_CMP_LE,
+    };
+
+    for (int i = 0; i < COUNT_OF(cmps); i++) {
+        if (op == cmps[i]) return 1;
+    }
+
+    return 0;
+}
+
 KLVMValue *KLVMBuildBinary(KLVMBuilder *bldr, KLVMBinaryOp op, KLVMValue *lhs,
     KLVMValue *rhs, const char *name)
 {
     KLVMBinaryInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, lhs->type, KLVM_INST_BINARY, name);
+
+    if (_is_cmp(op)) {
+        INIT_INST_HEAD(inst, KLVMBoolType(), KLVM_INST_BINARY, name);
+    }
+    else {
+        INIT_INST_HEAD(inst, lhs->type, KLVM_INST_BINARY, name);
+    }
     inst->bop = op;
     inst->lhs = lhs;
     inst->rhs = rhs;
@@ -50,7 +74,8 @@ KLVMValue *KLVMBuildCall(
     KLVMBuilder *bldr, KLVMValue *fn, KLVMValue **args, const char *name)
 {
     KLVMCallInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, NULL, KLVM_INST_CALL, name);
+    KLVMType *rty = KLVMProtoTypeReturn(((KLVMFunc *)fn)->type);
+    INIT_INST_HEAD(inst, rty, KLVM_INST_CALL, name);
     inst->fn = fn;
     vector_init(&inst->args, sizeof(void *));
 

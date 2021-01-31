@@ -74,10 +74,12 @@ static void test_func(KLVMModule *m)
     KLVMBuildRet(bldr, ret);
     KLVMBuildRet(bldr, KLVMConstInt32(-100));
 
-    KLVMBasicBlock *bb2 = KLVMAppendBasicBlock(fn, "");
+    KLVMBasicBlock *bb2 = KLVMAppendBasicBlock(fn, "test_bb");
     bldr = KLVMBasicBlockBuilder(bb2);
     KLVMValue *t2 = KLVMBuildSub(bldr, v1, KLVMConstInt32(20), "");
     KLVMBuildRet(bldr, t2);
+
+    KLVMBuildJmp(bldr, bb2);
 }
 
 static void test_var(KLVMModule *m)

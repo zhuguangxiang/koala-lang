@@ -19,6 +19,12 @@ KLVMType *KLVMInt32Type(void)
     return &i32;
 }
 
+KLVMType *KLVMBoolType(void)
+{
+    static KLVMType bty = { .kind = KLVM_TYPE_BOOL };
+    return &bty;
+}
+
 static struct baseinfo {
     KLVMTypeKind kind;
     char *s;

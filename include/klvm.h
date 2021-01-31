@@ -44,6 +44,7 @@ typedef struct KLVMType {
 } KLVMType;
 
 KLVMType *KLVMInt32Type(void);
+KLVMType *KLVMBoolType(void);
 int KLVMTypeCheck(KLVMType *ty1, KLVMType *ty2);
 char *KLVMTypeString(KLVMType *type);
 
