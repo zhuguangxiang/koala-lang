@@ -18,25 +18,8 @@ KLVMValue *KLVMCreateBinaryInst(
 {
     KLVMBinaryInst *inst = mm_alloc(sizeof(*inst));
     INIT_INST_HEAD(inst, lhs->type, kind, name);
-
-    KLVMVar *var;
-
-    if (lhs->kind == VALUE_VAR) {
-        var = (KLVMVar *)lhs;
-        inst->lhs = KLVMReference(lhs, var->name);
-    }
-    else {
-        inst->lhs = lhs;
-    }
-
-    if (rhs->kind == VALUE_VAR) {
-        var = (KLVMVar *)rhs;
-        inst->rhs = KLVMReference(rhs, var->name);
-    }
-    else {
-        inst->rhs = rhs;
-    }
-
+    inst->lhs = lhs;
+    inst->rhs = rhs;
     return (KLVMValue *)inst;
 }
 
@@ -47,14 +30,14 @@ static inline void _inst_append(KLVMBuilder *bldr, KLVMInst *inst)
     bldr->bb->num_insts++;
 }
 
-void KLVMBuildStore(KLVMBuilder *bldr, KLVMValue *rhs, KLVMValue *lhs)
+void KLVMBuildCopy(KLVMBuilder *bldr, KLVMValue *rhs, KLVMValue *lhs)
 {
     if (KLVMTypeCheck(lhs->type, rhs->type)) {
         printf("error: type not matched\n");
     }
 
-    KLVMStoreInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, lhs->type, KLVM_INST_STORE, NULL);
+    KLVMCopyInst *inst = mm_alloc(sizeof(*inst));
+    INIT_INST_HEAD(inst, lhs->type, KLVM_INST_COPY, NULL);
     inst->lhs = lhs;
     inst->rhs = rhs;
 
@@ -77,14 +60,59 @@ KLVMValue *KLVMBuildSub(
     return inst;
 }
 
+KLVMValue *KLVMBuildCall(
+    KLVMBuilder *bldr, KLVMValue *fn, KLVMValue **args, const char *name)
+{
+    KLVMCallInst *inst = mm_alloc(sizeof(*inst));
+    INIT_INST_HEAD(inst, NULL, KLVM_INST_CALL, name);
+    inst->fn = fn;
+    vector_init(&inst->args, sizeof(void *));
+
+    KLVMValue **arg = args;
+    while (*arg) {
+        vector_push_back(&inst->args, arg);
+        arg++;
+    }
+
+    _inst_append(bldr, (KLVMInst *)inst);
+    return (KLVMValue *)inst;
+}
+
+KLVMValue *KLVMBuildJump(KLVMBuilder *bldr, KLVMBasicBlock *dest)
+{
+    KLVMJumpInst *inst = mm_alloc(sizeof(*inst));
+    INIT_INST_HEAD(inst, NULL, KLVM_INST_JMP, NULL);
+    inst->dest = dest;
+    _inst_append(bldr, (KLVMInst *)inst);
+    return (KLVMValue *)inst;
+}
+
+KLVMValue *KLVMBuildCondJump(KLVMBuilder *bldr, KLVMInstKind op, KLVMValue *lhs,
+    KLVMValue *rhs, KLVMBasicBlock *_then, KLVMBasicBlock *_else)
+{
+    KLVMCondJumpInst *inst = mm_alloc(sizeof(*inst));
+    INIT_INST_HEAD(inst, NULL, op, NULL);
+    inst->lhs = lhs;
+    inst->rhs = rhs;
+    inst->_then = _then;
+    inst->_else = _else;
+    _inst_append(bldr, (KLVMInst *)inst);
+    return (KLVMValue *)inst;
+}
+
 KLVMValue *KLVMBuildRet(KLVMBuilder *bldr, KLVMValue *v)
 {
-    KLVMReturnInst *inst = mm_alloc(sizeof(*inst));
+    KLVMRetInst *inst = mm_alloc(sizeof(*inst));
     INIT_INST_HEAD(inst, v->type, KLVM_INST_RET, v->name);
-    if (v->kind == VALUE_CONST)
-        inst->ret = v;
-    else
-        inst->ret = KLVMReference(v, v->name);
+    inst->ret = v;
+    _inst_append(bldr, (KLVMInst *)inst);
+    return (KLVMValue *)inst;
+}
+
+KLVMValue *KLVMBuildRetVoid(KLVMBuilder *bldr)
+{
+    KLVMInst *inst = mm_alloc(sizeof(*inst));
+    INIT_INST_HEAD(inst, NULL, KLVM_INST_RET_VOID, NULL);
     _inst_append(bldr, (KLVMInst *)inst);
     return (KLVMValue *)inst;
 }

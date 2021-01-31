@@ -53,7 +53,6 @@ typedef enum KLVMValueKind {
     VALUE_FUNC,
     VALUE_INST,
     VALUE_TYPE,
-    VALUE_REF,
 } KLVMValueKind;
 
 #define KLVM_VALUE_HEAD \
@@ -83,19 +82,15 @@ typedef struct KLVMConst {
         int64_t i64val;
         float f32val;
         double f64val;
-        void *ref;
+        void *ptr;
     };
 } KLVMConst;
 
 typedef struct KLVMVar {
     KLVM_VALUE_HEAD
     int flags;
+    int offset;
 } KLVMVar;
-
-typedef struct KLVMRef {
-    KLVM_VALUE_HEAD
-    KLVMValue *val;
-} KLVMRef;
 
 typedef struct KLVMBasicBlock {
     ListNode bbnode;
@@ -105,15 +100,14 @@ typedef struct KLVMBasicBlock {
     List insts;
 } KLVMBasicBlock;
 
-typedef struct KLVMFunction {
+typedef struct KLVMFunc {
     KLVM_VALUE_HEAD
     int flags;
     int num_params;
     Vector locals;
-    KLVMBasicBlock *entry;
     int num_bbs;
     List bblist;
-} KLVMFunction;
+} KLVMFunc;
 
 KLVMValue *KLVMGetParam(KLVMValue *fn, int index);
 
@@ -123,18 +117,24 @@ typedef struct KLVMBuilder {
 } KLVMBuilder;
 
 typedef enum KLVMInstKind {
-    KLVM_INST_LOAD = 1,
-    KLVM_INST_STORE,
+    KLVM_INST_INVALID,
+    KLVM_INST_COPY,
     KLVM_INST_ADD,
     KLVM_INST_SUB,
+    KLVM_INST_CALL,
     KLVM_INST_RET,
     KLVM_INST_RET_VOID,
-    KLVM_INST_BR_EQ,
-    KLVM_INST_BR_NE,
-    KLVM_INST_BR_GT,
-    KLVM_INST_BR_GE,
-    KLVM_INST_BR_LT,
-    KLVM_INST_BR_LE,
+    KLVM_INST_BR,
+    KLVM_INST_BR_IF,
+    KLVM_INST_JMP_NE,
+    KLVM_INST_JMP_GT,
+    KLVM_INST_JMP_GE,
+    KLVM_INST_JMP_LT,
+    KLVM_INST_JMP_LE,
+    KLVM_INST_JMP_TRUE,
+    KLVM_INST_JMP_FALSE,
+    KLVM_INST_JMP_NIL,
+    KLVM_INST_JMP_NOTNIL,
 } KLVMInstKind;
 
 #define KLVM_INST_HEAD             \
@@ -150,11 +150,11 @@ typedef struct KLVMInst {
     KLVM_INST_HEAD
 } KLVMInst;
 
-typedef struct KLVMStoreInst {
+typedef struct KLVMCopyInst {
     KLVM_INST_HEAD
     KLVMValue *lhs;
     KLVMValue *rhs;
-} KLVMStoreInst;
+} KLVMCopyInst;
 
 typedef struct KLVMBinaryInst {
     KLVM_INST_HEAD
@@ -162,16 +162,29 @@ typedef struct KLVMBinaryInst {
     KLVMValue *rhs;
 } KLVMBinaryInst;
 
-typedef struct KLVMBranchInst {
+typedef struct KLVMCallInst {
     KLVM_INST_HEAD
-    KLVMBasicBlock *lhs;
-    KLVMBasicBlock *rhs;
-} KLVMBranchInst;
+    KLVMValue *fn;
+    Vector args;
+} KLVMCallInst;
 
-typedef struct KLVMReturnInst {
+typedef struct KLVMCondJumpInst {
+    KLVM_INST_HEAD
+    KLVMValue *lhs;
+    KLVMValue *rhs;
+    KLVMBasicBlock *_then;
+    KLVMBasicBlock *_else;
+} KLVMCondJumpInst;
+
+typedef struct KLVMJumpInst {
+    KLVM_INST_HEAD
+    KLVMBasicBlock *dest;
+} KLVMJumpInst;
+
+typedef struct KLVMRetInst {
     KLVM_INST_HEAD
     KLVMValue *ret;
-} KLVMReturnInst;
+} KLVMRetInst;
 
 typedef struct KLVMModule {
     const char *name;
@@ -205,7 +218,7 @@ void KLVMSetFuncPub(KLVMValue *var);
 /* Get a function type */
 KLVMType *KLVMProtoType(KLVMType *ret, KLVMType **param);
 Vector *KLVMProtoTypeParams(KLVMType *ty);
-KLVMValue *KLVMAddLocVar(KLVMFunction *fn, KLVMType *ty, const char *name);
+KLVMValue *KLVMAddLocVar(KLVMFunc *fn, KLVMType *ty, const char *name);
 KLVMType *KLVMProtoTypeReturn(KLVMType *ty);
 
 /* Append a basic block to the end of a function */
@@ -229,15 +242,42 @@ KLVMValue *KLVMBuildAdd(
     KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs, const char *name);
 KLVMValue *KLVMBuildSub(
     KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs, const char *name);
-KLVMValue *KLVMBuildBr(KLVMBuilder *bldr, KLVMBasicBlock *dest);
-KLVMValue *KLVMBuildCondBr(KLVMBuilder *bldr, KLVMValue *_if,
-    KLVMBasicBlock *then, KLVMBasicBlock *_else);
+
+KLVMValue *KLVMBuildCall(
+    KLVMBuilder *bldr, KLVMValue *fn, KLVMValue **args, const char *name);
+
+KLVMValue *KLVMBuildJump(KLVMBuilder *bldr, KLVMBasicBlock *dest);
+KLVMValue *KLVMBuildCondJump(KLVMBuilder *bldr, KLVMInstKind op, KLVMValue *lhs,
+    KLVMValue *rhs, KLVMBasicBlock *_then, KLVMBasicBlock *_else);
+#define KLVMBuildCondJumpEQ(bldr, lhs, rhs, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_EQ, lhs, rhs, _then, _else)
+#define KLVMBuildCondJumpNE(bldr, lhs, rhs, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_NE, lhs, rhs, _then, _else)
+#define KLVMBuildCondJumpGT(bldr, lhs, rhs, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_GT, lhs, rhs, _then, _else)
+#define KLVMBuildCondJumpGE(bldr, lhs, rhs, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_GE, lhs, rhs, _then, _else)
+#define KLVMBuildCondJumpLT(bldr, lhs, rhs, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_LT, lhs, rhs, _then, _else)
+#define KLVMBuildCondJumpLE(bldr, lhs, rhs, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_LE, lhs, rhs, _then, _else)
+#define KLVMBuildCondJumpTrue(bldr, cond, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_TRUE, cond, NULL, _then, _else)
+#define KLVMBuildCondJumpFalse(bldr, cond, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_FALSE, cond, NULL, _then, _else)
+#define KLVMBuildCondJumpNil(bldr, cond, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_NIL, cond, NULL, _then, _else)
+#define KLVMBuildCondJumpNotNil(bldr, cond, _then, _else) \
+    KLVMBuildCondJump(bldr, KLVM_INST_JMP_NOTNIL, cond, NULL, _then, _else)
+
 KLVMValue *KLVMBuildRet(KLVMBuilder *bldr, KLVMValue *v);
+KLVMValue *KLVMBuildRetVoid(KLVMBuilder *bldr);
 
 KLVMValue *KLVMConstInt32(int32_t ival);
-KLVMValue *KLVMReference(KLVMValue *val, const char *name);
 
-void KLVMBuildStore(KLVMBuilder *bldr, KLVMValue *rhs, KLVMValue *lhs);
+void KLVMBuildCopy(KLVMBuilder *bldr, KLVMValue *rhs, KLVMValue *lhs);
+
+KLVMValue *KLVMModuleFunc(KLVMModule *m);
 
 #ifdef __cplusplus
 }

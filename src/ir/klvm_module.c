@@ -13,9 +13,9 @@
 extern "C" {
 #endif
 
-static KLVMFunction *_new_func(KLVMType *ty, const char *name)
+static KLVMFunc *_new_func(KLVMType *ty, const char *name)
 {
-    KLVMFunction *fn = mm_alloc(sizeof(*fn));
+    KLVMFunc *fn = mm_alloc(sizeof(*fn));
     INIT_VALUE_HEAD(fn, VALUE_FUNC, ty, name);
     vector_init(&fn->locals, sizeof(void *));
     list_init(&fn->bblist);
@@ -34,11 +34,18 @@ KLVMModule *KLVMCreateModule(const char *name)
     KLVMModule *m = mm_alloc(sizeof(*m));
     m->name = name;
     vector_init(&m->vars, sizeof(KLVMVar *));
-    vector_init(&m->funcs, sizeof(KLVMFunction *));
-
-    m->fn = (KLVMValue *)_new_func(NULL, "__init__");
-
+    vector_init(&m->funcs, sizeof(KLVMFunc *));
     return m;
+}
+
+KLVMValue *KLVMModuleFunc(KLVMModule *m)
+{
+    KLVMValue *fn = m->fn;
+    if (!fn) {
+        fn = (KLVMValue *)_new_func(NULL, "__init__");
+        m->fn = fn;
+    }
+    return fn;
 }
 
 void KLVMDestroyModule(KLVMModule *m)
@@ -60,7 +67,7 @@ KLVMValue *KLVMAddVar(KLVMModule *m, KLVMType *ty, const char *name)
     return (KLVMValue *)var;
 }
 
-KLVMValue *KLVMAddLocVar(KLVMFunction *fn, KLVMType *ty, const char *name)
+KLVMValue *KLVMAddLocVar(KLVMFunc *fn, KLVMType *ty, const char *name)
 {
     KLVMVar *var = mm_alloc(sizeof(*var));
     INIT_VALUE_HEAD(var, VALUE_VAR, ty, name);
@@ -70,7 +77,7 @@ KLVMValue *KLVMAddLocVar(KLVMFunction *fn, KLVMType *ty, const char *name)
 
 KLVMValue *KLVMAddFunc(KLVMModule *m, KLVMType *ty, const char *name)
 {
-    KLVMFunction *fn = _new_func(ty, name);
+    KLVMFunc *fn = _new_func(ty, name);
 
     // add to module
     vector_push_back(&m->funcs, &fn);
@@ -80,7 +87,7 @@ KLVMValue *KLVMAddFunc(KLVMModule *m, KLVMType *ty, const char *name)
 
 KLVMValue *KLVMGetParam(KLVMValue *fn, int index)
 {
-    KLVMFunction *_fn = (KLVMFunction *)fn;
+    KLVMFunc *_fn = (KLVMFunc *)fn;
     int num_params = _fn->num_params;
     if (index < 0 || index >= num_params) {
         printf("error: index %d out of range(0 ..< %d)\n", index, num_params);
@@ -99,7 +106,7 @@ KLVMBasicBlock *KLVMAppendBasicBlock(KLVMValue *fn, const char *name)
     bb->fn = fn;
     bb->name = name;
     list_init(&bb->insts);
-    KLVMFunction *_fn = (KLVMFunction *)fn;
+    KLVMFunc *_fn = (KLVMFunc *)fn;
     list_push_back(&_fn->bblist, &bb->bbnode);
     _fn->num_bbs++;
     return bb;
@@ -111,14 +118,6 @@ KLVMBuilder *KLVMBasicBlockBuilder(KLVMBasicBlock *bb)
     bldr->bb = bb;
     bldr->rover = &bb->insts;
     return bldr;
-}
-
-KLVMValue *KLVMReference(KLVMValue *val, const char *name)
-{
-    KLVMRef *ref = mm_alloc(sizeof(*ref));
-    INIT_VALUE_HEAD(ref, VALUE_REF, val->type, name);
-    ref->val = val;
-    return (KLVMValue *)ref;
 }
 
 KLVMConst *_new_const(void)

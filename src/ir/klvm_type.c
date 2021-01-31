@@ -23,15 +23,15 @@ static struct baseinfo {
     KLVMTypeKind kind;
     char *s;
 } bases[] = {
-    { KLVM_TYPE_INT8, "int8" },
-    { KLVM_TYPE_INT16, "int16" },
-    { KLVM_TYPE_INT32, "int32" },
-    { KLVM_TYPE_INT64, "int64" },
-    { KLVM_TYPE_FLOAT32, "float32" },
-    { KLVM_TYPE_FLOAT64, "float64" },
+    { KLVM_TYPE_INT8, "i8" },
+    { KLVM_TYPE_INT16, "i16" },
+    { KLVM_TYPE_INT32, "i32" },
+    { KLVM_TYPE_INT64, "i64" },
+    { KLVM_TYPE_FLOAT32, "f32" },
+    { KLVM_TYPE_FLOAT64, "f64" },
     { KLVM_TYPE_BOOL, "bool" },
     { KLVM_TYPE_CHAR, "char" },
-    { KLVM_TYPE_STRING, "string" },
+    { KLVM_TYPE_STRING, "str" },
     { KLVM_TYPE_ANY, "any" },
 };
 
