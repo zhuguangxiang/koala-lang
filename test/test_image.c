@@ -44,7 +44,7 @@ void test_klc(void)
         OP_LOAD_2,
         OP_ADD,
         OP_ADD,
-        OP_RETURN_VALUE,
+        OP_RET,
     };
     codeinfo_t ci = {
         .name = "add",
@@ -67,7 +67,7 @@ void test_klc(void)
         OP_LOAD_2,
         OP_SUB,
         OP_SUB,
-        OP_RETURN_VALUE,
+        OP_RET,
     };
     ci = (codeinfo_t) {
         .name = "sub",

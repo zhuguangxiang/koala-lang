@@ -17,10 +17,9 @@ extern "C" {
 #endif
 
 #define OP_HALT 0
-
-#define OP_POP_TOP 1
-#define OP_DUP     2
-#define OP_SWAP    3
+#define OP_POP  1
+#define OP_DUP  2
+#define OP_SWAP 3
 
 #define OP_CONST_INT8    4
 #define OP_CONST_INT16   5
@@ -64,29 +63,17 @@ extern "C" {
 #define OP_OR  54
 #define OP_NOT 55
 
-#define OP_BIT_AND    56
-#define OP_BIT_OR     57
-#define OP_BIT_XOR    58
-#define OP_BIT_NOT    59
-#define OP_BIT_LSHIFT 60
-#define OP_BIT_RSHIFT 61
+#define OP_BIT_AND 56
+#define OP_BIT_OR  57
+#define OP_BIT_XOR 58
+#define OP_BIT_NOT 59
+#define OP_BIT_SHL 60
+#define OP_BIT_SHR 61
 
-#define OP_INPLACE_ADD    62
-#define OP_INPLACE_SUB    63
-#define OP_INPLACE_MUL    64
-#define OP_INPLACE_DIV    65
-#define OP_INPLACE_MOD    66
-#define OP_INPLACE_POW    67
-#define OP_INPLACE_AND    68
-#define OP_INPLACE_OR     69
-#define OP_INPLACE_XOR    70
-#define OP_INPLACE_LSHIFT 71
-#define OP_INPLACE_RSHIFT 72
-
-#define OP_PRINT        80
-#define OP_CALL         81
-#define OP_RETURN       82
-#define OP_RETURN_VALUE 83
+#define OP_PRINT    80
+#define OP_CALL     81
+#define OP_RET      82
+#define OP_RET_VOID 83
 
 char *opcode_str(uint8_t op);
 uint8_t opcode_argc(uint8_t op);
