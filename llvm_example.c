@@ -113,6 +113,8 @@ void create_if_block(LLVMBuilderRef builder, LLVMBasicBlockRef up,
     LLVMBuildCondBr(builder, cond, body, else_body);
 }
 
+LLVMValueRef gcd;
+
 void gen_gcd(LLVMModuleRef mod)
 {
     struct builder_if_state ifthen = { NULL };
@@ -120,7 +122,7 @@ void gen_gcd(LLVMModuleRef mod)
 
     LLVMTypeRef param_types[] = { LLVMInt32Type(), LLVMInt32Type() };
     LLVMTypeRef ret_type = LLVMFunctionType(LLVMInt32Type(), param_types, 2, 0);
-    LLVMValueRef gcd = LLVMAddFunction(mod, "gcd", ret_type);
+    gcd = LLVMAddFunction(mod, "gcd", ret_type);
 
     LLVMValueRef lhs = LLVMGetParam(gcd, 0);
     LLVMValueRef rhs = LLVMGetParam(gcd, 1);
@@ -272,6 +274,14 @@ void gen_print_hello(LLVMModuleRef mod, LLVMExecutionEngineRef engine)
         NULL,
     };
     LLVMBuildCall(builder, print_func, args2, 1, "");
+
+    LLVMValueRef args3[] = {
+        LLVMConstInt(LLVMInt32Type(), 100, 0),
+        LLVMConstInt(LLVMInt32Type(), 200, 0),
+        NULL,
+    };
+
+    LLVMBuildCall(builder, gcd, args3, 2, "NULL");
 
     LLVMBuildRetVoid(builder);
 

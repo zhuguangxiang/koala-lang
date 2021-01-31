@@ -24,30 +24,30 @@ static void test_fib(KLVMModule *m)
     KLVMType *proto = KLVMProtoType(rtype, params);
     KLVMValue *fn = KLVMAddFunc(m, proto, "fib");
     KLVMValue *n = KLVMGetParam(fn, 0);
-    KLVMSetValueName(n, "n");
+    KLVMSetVarName(n, "n");
 
-    KLVMBasicBlock *entry = KLVMAppendBasicBlock(fn, "entry");
-    KLVMBuilder *builder = KLVMBasicBlockBuilder(entry);
-    KLVMBasicBlock *_then = KLVMAppendBasicBlock(fn, "_then");
-    KLVMBasicBlock *_else = KLVMAppendBasicBlock(fn, "_else");
-    KLVMValue *k1 = KLVMConstInt32(1);
-    KLVMValue *cond1 = KLVMBuildCondJumpLE(builder, n, k1, _then, _else);
+    KLVMBasicBlock *entry = KLVMFuncEntryBasicBlock(fn);
+    KLVMBuilder *bldr = KLVMBasicBlockBuilder(entry);
+    KLVMBasicBlock *_then = KLVMAppendBasicBlock(fn);
+    KLVMBasicBlock *_else = KLVMAppendBasicBlock(fn);
+    KLVMValue *cond = KLVMBuildCondLE(bldr, n, KLVMConstInt32(1));
+    KLVMBuildCondJmp(bldr, cond, _then, _else);
 
-    builder = KLVMBasicBlockBuilder(_then);
-    KLVMBuildRet(builder, n);
+    bldr = KLVMBasicBlockBuilder(_then);
+    KLVMBuildRet(bldr, n);
 
-    builder = KLVMBasicBlockBuilder(_else);
+    bldr = KLVMBasicBlockBuilder(_else);
     KLVMValue *args1[] = {
-        KLVMBuildSub(builder, n, KLVMConstInt32(1), "sub1"),
+        KLVMBuildSub(bldr, n, KLVMConstInt32(1)),
         NULL,
     };
-    KLVMValue *r1 = KLVMBuildCall(builder, fn, args1, "r1");
+    KLVMValue *r1 = KLVMBuildCall(bldr, fn, args1);
     KLVMValue *args2[] = {
-        KLVMBuildSub(builder, n, KLVMConstInt32(2), "sub2"),
+        KLVMBuildSub(bldr, n, KLVMConstInt32(2)),
         NULL,
     };
-    KLVMValue *r2 = KLVMBuildCall(builder, fn, args2, "r2");
-    KLVMBuildRet(builder, KLVMBuildAdd(builder, r1, r2, "ret"));
+    KLVMValue *r2 = KLVMBuildCall(bldr, fn, args2);
+    KLVMBuildRet(bldr, KLVMBuildAdd(bldr, r1, r2));
 }
 
 static void test_func(KLVMModule *m)
@@ -62,39 +62,38 @@ static void test_func(KLVMModule *m)
     KLVMValue *fn = KLVMAddFunc(m, proto, "add");
     KLVMValue *v1 = KLVMGetParam(fn, 0);
     KLVMValue *v2 = KLVMGetParam(fn, 1);
-    KLVMSetValueName(v1, "v1");
-    KLVMSetValueName(v2, "v2");
+    KLVMSetVarName(v1, "v1");
+    KLVMSetVarName(v2, "v2");
 
-    KLVMBasicBlock *entry = KLVMAppendBasicBlock(fn, "entry");
-    KLVMBuilder *builder = KLVMBasicBlockBuilder(entry);
-    KLVMValue *t1 = KLVMBuildAdd(builder, v1, v2, "t1");
-    KLVMValue *ret = KLVMAddVar(m, KLVMInt32Type(), "ret");
-    KLVMBuildCopy(builder, t1, ret);
-    KLVMBuildRet(builder, ret);
-    KLVMBuildRet(builder, KLVMConstInt32(-100));
+    KLVMBasicBlock *entry = KLVMFuncEntryBasicBlock(fn);
+    KLVMBuilder *bldr = KLVMBasicBlockBuilder(entry);
+    KLVMValue *t1 = KLVMBuildAdd(bldr, v1, v2);
+    KLVMValue *ret = KLVMAddLocVar(fn, KLVMInt32Type(), "res");
+    KLVMBuildCopy(bldr, t1, ret);
+    KLVMBuildRet(bldr, ret);
+    KLVMBuildRet(bldr, KLVMConstInt32(-100));
 
-    KLVMBasicBlock *bb2 = KLVMAppendBasicBlock(fn, "L2");
-    builder = KLVMBasicBlockBuilder(bb2);
-    KLVMValue *t2 = KLVMBuildSub(builder, v1, KLVMConstInt32(20), "t2");
-    KLVMBuildRet(builder, t2);
+    KLVMBasicBlock *bb2 = KLVMAppendBasicBlock(fn);
+    bldr = KLVMBasicBlockBuilder(bb2);
+    KLVMValue *t2 = KLVMBuildSub(bldr, v1, KLVMConstInt32(20));
+    KLVMBuildRet(bldr, t2);
 }
 
 static void test_var(KLVMModule *m)
 {
-    KLVMBasicBlock *entry = KLVMAppendBasicBlock(KLVMModuleFunc(m), "entry");
-    KLVMBuilder *builder = KLVMBasicBlockBuilder(entry);
+    KLVMBasicBlock *entry = KLVMFuncEntryBasicBlock(KLVMModuleFunc(m));
+    KLVMBuilder *bldr = KLVMBasicBlockBuilder(entry);
 
     KLVMValue *foo = KLVMAddVar(m, KLVMInt32Type(), "foo");
-    KLVMBuildCopy(builder, KLVMConstInt32(100), foo);
+    KLVMBuildCopy(bldr, KLVMConstInt32(100), foo);
 
     KLVMValue *bar = KLVMAddVar(m, KLVMInt32Type(), "bar");
     KLVMValue *k200 = KLVMConstInt32(200);
-    KLVMValue *v = KLVMBuildAdd(builder, foo, k200, "v1");
-    KLVMBuildCopy(builder, v, bar);
+    KLVMValue *v = KLVMBuildAdd(bldr, foo, k200);
+    KLVMBuildCopy(bldr, v, bar);
 
     KLVMValue *baz = KLVMAddVar(m, KLVMInt32Type(), "baz");
-    v = KLVMBuildSub(builder, foo, bar, "v2");
-    KLVMBuildCopy(builder, v, baz);
+    KLVMBuildCopy(bldr, KLVMBuildSub(bldr, foo, bar), baz);
 }
 
 int main(int argc, char *argv[])

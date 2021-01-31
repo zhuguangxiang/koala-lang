@@ -13,14 +13,15 @@
 extern "C" {
 #endif
 
-KLVMValue *KLVMCreateBinaryInst(
-    KLVMInstKind kind, KLVMValue *lhs, KLVMValue *rhs, const char *name)
+static KLVMBinaryInst *_new_binary_inst(
+    KLVMBinaryOp op, KLVMValue *lhs, KLVMValue *rhs)
 {
     KLVMBinaryInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, lhs->type, kind, name);
+    INIT_INST_HEAD(inst, lhs->type, KLVM_INST_BINARY);
+    inst->bop = op;
     inst->lhs = lhs;
     inst->rhs = rhs;
-    return (KLVMValue *)inst;
+    return inst;
 }
 
 static inline void _inst_append(KLVMBuilder *bldr, KLVMInst *inst)
@@ -30,6 +31,12 @@ static inline void _inst_append(KLVMBuilder *bldr, KLVMInst *inst)
     bldr->bb->num_insts++;
 }
 
+static inline void _add_tag(KLVMBuilder *bldr, KLVMInst *inst)
+{
+    KLVMFunc *fn = (KLVMFunc *)bldr->bb->fn;
+    inst->tag = fn->tag_index++;
+}
+
 void KLVMBuildCopy(KLVMBuilder *bldr, KLVMValue *rhs, KLVMValue *lhs)
 {
     if (KLVMTypeCheck(lhs->type, rhs->type)) {
@@ -37,34 +44,26 @@ void KLVMBuildCopy(KLVMBuilder *bldr, KLVMValue *rhs, KLVMValue *lhs)
     }
 
     KLVMCopyInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, lhs->type, KLVM_INST_COPY, NULL);
+    INIT_INST_HEAD(inst, lhs->type, KLVM_INST_COPY);
     inst->lhs = lhs;
     inst->rhs = rhs;
 
     _inst_append(bldr, (KLVMInst *)inst);
 }
 
-KLVMValue *KLVMBuildAdd(
-    KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs, const char *name)
+KLVMValue *KLVMBuildBinary(
+    KLVMBuilder *bldr, KLVMBinaryOp op, KLVMValue *lhs, KLVMValue *rhs)
 {
-    KLVMValue *inst = KLVMCreateBinaryInst(KLVM_INST_ADD, lhs, rhs, name);
+    KLVMBinaryInst *inst = _new_binary_inst(op, lhs, rhs);
     _inst_append(bldr, (KLVMInst *)inst);
-    return inst;
+    _add_tag(bldr, (KLVMInst *)inst);
+    return (KLVMValue *)inst;
 }
 
-KLVMValue *KLVMBuildSub(
-    KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs, const char *name)
-{
-    KLVMValue *inst = KLVMCreateBinaryInst(KLVM_INST_SUB, lhs, rhs, name);
-    _inst_append(bldr, (KLVMInst *)inst);
-    return inst;
-}
-
-KLVMValue *KLVMBuildCall(
-    KLVMBuilder *bldr, KLVMValue *fn, KLVMValue **args, const char *name)
+KLVMValue *KLVMBuildCall(KLVMBuilder *bldr, KLVMValue *fn, KLVMValue **args)
 {
     KLVMCallInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, NULL, KLVM_INST_CALL, name);
+    INIT_INST_HEAD(inst, NULL, KLVM_INST_CALL);
     inst->fn = fn;
     vector_init(&inst->args, sizeof(void *));
 
@@ -75,46 +74,44 @@ KLVMValue *KLVMBuildCall(
     }
 
     _inst_append(bldr, (KLVMInst *)inst);
+    _add_tag(bldr, (KLVMInst *)inst);
     return (KLVMValue *)inst;
 }
 
-KLVMValue *KLVMBuildJump(KLVMBuilder *bldr, KLVMBasicBlock *dest)
+void KLVMBuildJmp(KLVMBuilder *bldr, KLVMBasicBlock *dest)
 {
-    KLVMJumpInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, NULL, KLVM_INST_JMP, NULL);
+    KLVMJmpInst *inst = mm_alloc(sizeof(*inst));
+    INIT_INST_HEAD(inst, NULL, KLVM_INST_JMP);
     inst->dest = dest;
     _inst_append(bldr, (KLVMInst *)inst);
-    return (KLVMValue *)inst;
 }
 
-KLVMValue *KLVMBuildCondJump(KLVMBuilder *bldr, KLVMInstKind op, KLVMValue *lhs,
-    KLVMValue *rhs, KLVMBasicBlock *_then, KLVMBasicBlock *_else)
+void KLVMBuildCondJmp(KLVMBuilder *bldr, KLVMValue *cond, KLVMBasicBlock *_then,
+    KLVMBasicBlock *_else)
 {
-    KLVMCondJumpInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, NULL, op, NULL);
-    inst->lhs = lhs;
-    inst->rhs = rhs;
+    KLVMCondJmpInst *inst = mm_alloc(sizeof(*inst));
+    INIT_INST_HEAD(inst, NULL, KLVM_INST_JMP_COND);
+    inst->cond = cond;
     inst->_then = _then;
+    _then->label = "then";
     inst->_else = _else;
+    _else->label = "else";
     _inst_append(bldr, (KLVMInst *)inst);
-    return (KLVMValue *)inst;
 }
 
-KLVMValue *KLVMBuildRet(KLVMBuilder *bldr, KLVMValue *v)
+void KLVMBuildRet(KLVMBuilder *bldr, KLVMValue *v)
 {
     KLVMRetInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, v->type, KLVM_INST_RET, v->name);
+    INIT_INST_HEAD(inst, v->type, KLVM_INST_RET);
     inst->ret = v;
     _inst_append(bldr, (KLVMInst *)inst);
-    return (KLVMValue *)inst;
 }
 
-KLVMValue *KLVMBuildRetVoid(KLVMBuilder *bldr)
+void KLVMBuildRetVoid(KLVMBuilder *bldr)
 {
     KLVMInst *inst = mm_alloc(sizeof(*inst));
-    INIT_INST_HEAD(inst, NULL, KLVM_INST_RET_VOID, NULL);
+    INIT_INST_HEAD(inst, NULL, KLVM_INST_RET_VOID);
     _inst_append(bldr, (KLVMInst *)inst);
-    return (KLVMValue *)inst;
 }
 
 #ifdef __cplusplus
