@@ -44,8 +44,12 @@ static void inst_show_value(KLVMValue *val)
             KLVMVar *var = (KLVMVar *)val;
             if (var->flags & KLVM_FLAGS_GLOBAL)
                 printf("@%s", var->name);
-            else
-                printf("%%%s", var->name);
+            else {
+                if (var->name)
+                    printf("%%%s", var->name);
+                else
+                    printf("%%%d", var->tag);
+            }
             break;
         }
         case VALUE_INST: {
@@ -201,7 +205,12 @@ static void KLVMFuncShow(KLVMFunc *fn)
     for (int i = 0; i < fn->num_params; i++) {
         vector_get(&fn->locals, i, &para);
         if (i != 0) strcat(buf, ", ");
-        strcat(buf, para->name);
+        if (para->name)
+            strcat(buf, para->name);
+        else {
+            int l = strlen(buf);
+            sprintf(buf + l, "%%%d", para->tag);
+        }
         strcat(buf, " ");
         strcat(buf, KLVMTypeString(para->type));
     }

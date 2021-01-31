@@ -66,6 +66,10 @@ static inline KLVMVar *_new_var(KLVMType *ty, const char *name)
 
 KLVMValue *KLVMAddVar(KLVMModule *m, KLVMType *ty, const char *name)
 {
+    if (!name) {
+        printf("error: global variable must have name");
+        abort();
+    }
     KLVMVar *var = _new_var(ty, name);
     var->flags = KLVM_FLAGS_GLOBAL;
     vector_push_back(&m->vars, &var);
@@ -76,11 +80,17 @@ KLVMValue *KLVMAddLocVar(KLVMValue *fn, KLVMType *ty, const char *name)
 {
     KLVMVar *var = _new_var(ty, name);
     vector_push_back(&((KLVMFunc *)fn)->locals, &var);
+    if (!name) { var->tag = ((KLVMFunc *)fn)->tag_index++; }
     return (KLVMValue *)var;
 }
 
 KLVMValue *KLVMAddFunc(KLVMModule *m, KLVMType *ty, const char *name)
 {
+    if (!name) {
+        printf("error: function must have name");
+        abort();
+    }
+
     KLVMFunc *fn = _new_func(ty, name);
 
     // add to module

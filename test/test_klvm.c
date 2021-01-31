@@ -24,7 +24,6 @@ static void test_fib(KLVMModule *m)
     KLVMType *proto = KLVMProtoType(rtype, params);
     KLVMValue *fn = KLVMAddFunc(m, proto, "fib");
     KLVMValue *n = KLVMGetParam(fn, 0);
-    KLVMSetVarName(n, "n");
 
     KLVMBasicBlock *entry = KLVMFuncEntryBasicBlock(fn);
     KLVMBuilder *bldr = KLVMBasicBlockBuilder(entry);
