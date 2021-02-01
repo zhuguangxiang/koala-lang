@@ -7,6 +7,7 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
+#include "image.h"
 #include "klvm.h"
 
 /*
@@ -99,6 +100,8 @@ static void test_var(KLVMModule *m)
     KLVMBuildCopy(bldr, KLVMBuildSub(bldr, foo, bar, ""), baz);
 }
 
+klc_image_t *klvm_to_image(KLVMModule *m);
+
 int main(int argc, char *argv[])
 {
     KLVMModule *m;
@@ -107,6 +110,7 @@ int main(int argc, char *argv[])
     test_func(m);
     test_fib(m);
     KLVMDumpModule(m);
+    klvm_to_image(m);
     KLVMDestroyModule(m);
     return 0;
 }

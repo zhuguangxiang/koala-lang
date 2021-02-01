@@ -19,7 +19,9 @@ extern "C" {
 
 static void KLVMConstShow(KLVMConst *kval)
 {
-    if (kval->type->kind == KLVM_TYPE_INT32) { printf("%d", kval->i32val); }
+    if (kval->type->kind == KLVM_TYPE_INT32) {
+        printf("const %d", kval->i32val);
+    }
 }
 
 static void KLVMVarShow(KLVMVar *var)
@@ -87,15 +89,19 @@ static void inst_show_value(KLVMFunc *fn, KLVMValue *val)
 
 static void type_show(KLVMType *ty)
 {
-    printf("%s ", KLVMTypeString(ty));
+    printf(" %s", KLVMTypeString(ty));
 }
 
 static void inst_binary_show(KLVMFunc *fn, KLVMBinaryInst *inst)
 {
     if (inst->name && inst->name[0])
-        printf("%%%s = ", inst->name);
+        printf("%%%s", inst->name);
     else
-        printf("%%%d = ", val_tag(fn, (KLVMValue *)inst));
+        printf("%%%d", val_tag(fn, (KLVMValue *)inst));
+
+    type_show(inst->type);
+
+    printf(" = ");
 
     switch (inst->bop) {
         case KLVM_BINARY_ADD:
@@ -105,7 +111,7 @@ static void inst_binary_show(KLVMFunc *fn, KLVMBinaryInst *inst)
             printf("sub ");
             break;
         case KLVM_BINARY_CMP_LE:
-            printf("cmp le ");
+            printf("cmple ");
             break;
         default:
             printf("error:invalid binary instruction\n");
@@ -113,11 +119,13 @@ static void inst_binary_show(KLVMFunc *fn, KLVMBinaryInst *inst)
             break;
     }
 
-    type_show(inst->type);
-
-    inst_show_value(fn, ((KLVMBinaryInst *)inst)->lhs);
+    KLVMValue *lhs = ((KLVMBinaryInst *)inst)->lhs;
+    inst_show_value(fn, lhs);
+    type_show(lhs->type);
     printf(", ");
-    inst_show_value(fn, ((KLVMBinaryInst *)inst)->rhs);
+    KLVMValue *rhs = ((KLVMBinaryInst *)inst)->rhs;
+    inst_show_value(fn, rhs);
+    type_show(rhs->type);
 }
 
 static void KLVMInstShow(KLVMFunc *fn, KLVMInst *inst)
@@ -126,9 +134,10 @@ static void KLVMInstShow(KLVMFunc *fn, KLVMInst *inst)
         case KLVM_INST_COPY: {
             KLVMCopyInst *cp = (KLVMCopyInst *)inst;
             inst_show_value(fn, cp->lhs);
-            printf(" = ");
             type_show(cp->type);
+            printf(" = ");
             inst_show_value(fn, cp->rhs);
+            type_show(cp->rhs->type);
             break;
         }
         case KLVM_INST_BINARY:
@@ -137,34 +146,38 @@ static void KLVMInstShow(KLVMFunc *fn, KLVMInst *inst)
         case KLVM_INST_CALL: {
             KLVMCallInst *call = (KLVMCallInst *)inst;
             if (inst->name && inst->name[0])
-                printf("%%%s = call ", inst->name);
+                printf("%%%s", inst->name);
             else
-                printf("%%%d = call ", val_tag(fn, (KLVMValue *)inst));
+                printf("%%%d", val_tag(fn, (KLVMValue *)inst));
+
+            type_show(call->type);
+
+            printf(" = call ");
+
             inst_show_value(fn, call->fn);
             printf("(");
             KLVMValue **val;
             vector_foreach(val, &call->args)
             {
                 if (i != 0) printf(", ");
-                type_show((*val)->type);
                 inst_show_value(fn, *val);
+                type_show((*val)->type);
             }
-            printf(") ");
-            type_show(call->type);
+            printf(")");
             break;
         }
         case KLVM_INST_RET: {
             KLVMRetInst *ret = (KLVMRetInst *)inst;
             printf("ret ");
-            type_show(ret->type);
             inst_show_value(fn, ret->ret);
+            type_show(ret->type);
             break;
         }
         case KLVM_INST_JMP_COND: {
             printf("br ");
             KLVMCondJmpInst *br = (KLVMCondJmpInst *)inst;
-            type_show(br->cond->type);
             inst_show_value(fn, br->cond);
+            type_show(br->cond->type);
 
             KLVMBasicBlock *bb = br->_then;
             if (bb->label && bb->label[0])
