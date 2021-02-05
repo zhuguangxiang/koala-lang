@@ -4,16 +4,6 @@
 #+STARTUP: indent
 #+STARTUP: align
 
-* What's Koala
-Koala is an object-oriented modern programming language.
-It is simple and extensible.
-** Features of Koala
-- Easy to use
-- Object-oriented(class, trait, mixin)
-- Type safe
-- Funtional programming(closure)
-- Garbage Collection
-- Operator Overloading
-- multi-running mode(shell, script and directly run)
-** The Author
-Koala was originally designed and developed by Zhu Guangxiang (James) in 2020.
+* What's Koala Virtual Machine
+Koala Virtual Machine is middle level intermediate representation and interpreter.
+It was originally designed and developed by Zhu Guangxiang (James) in 2020.
