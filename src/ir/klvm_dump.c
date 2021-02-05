@@ -19,9 +19,7 @@ extern "C" {
 
 static void KLVMConstShow(KLVMConst *kval)
 {
-    if (kval->type->kind == KLVM_TYPE_INT32) {
-        printf("const %d", kval->i32val);
-    }
+    if (kval->type->kind == KLVM_TYPE_INT32) { printf("%d", kval->i32val); }
 }
 
 static void KLVMVarShow(KLVMVar *var)

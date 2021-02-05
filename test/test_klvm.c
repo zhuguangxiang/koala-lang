@@ -1,9 +1,10 @@
 /*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
+|*                                  KOALA                                     *|
+|*                        The Koala Programming Language                      *|
+|*===----------------------------------------------------------------------===*|
 |*                                                                            *|
 |* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
+|* Copyright (c) ZhuGuangxiang https://github.com/zhuguangxiang               *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
