@@ -1,11 +1,7 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*----------------------------------------------------------------------------*\
+|* This file is part of the koala project, under the MIT License.             *|
+|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
+\*----------------------------------------------------------------------------*/
 
 /*
  * Generic implementation of hash-based key-value mappings.
@@ -43,7 +39,6 @@
 #ifndef _KOALA_HASHMAP_H_
 #define _KOALA_HASHMAP_H_
 
-#include "mm.h"
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -59,82 +54,84 @@ extern "C" {
 unsigned int strhash(const char *buf);
 unsigned int memhash(const void *buf, int len);
 
-typedef int (*hash_equal_t)(void *, void *);
-typedef void (*hash_visit_t)(void *, void *);
+typedef int (*hashmap_equal_t)(void *, void *);
+typedef void (*hashmap_visit_t)(void *, void *);
+
+typedef struct hashmap_entry hashmap_entry_t;
 
 /* a hashmap entry is in the hashmap. */
-typedef struct HashMapEntry {
+struct hashmap_entry {
     /*
      * pointer to the next entry in collision list,
      * if multiple entries map to the same slots.
      */
-    struct HashMapEntry *next;
+    hashmap_entry_t *next;
     /* entry's hash code */
     unsigned int hash;
-} HashMapEntry;
+};
 
 /* a hashmap structure. */
-typedef struct HashMap {
+typedef struct hashmap {
     /* collision list array */
-    HashMapEntry **entries;
+    hashmap_entry_t **entries;
     /* entries array size */
     int size;
     /* equal callback */
-    hash_equal_t equal;
+    hashmap_equal_t equal;
     /* total number of entries */
     int count;
     /* expand entries point */
     int grow_at;
     /* shrink entries point */
     int shrink_at;
-} HashMap;
+} hashmap_t;
 
 /* Initialize a HashMapEntry structure. */
 static inline void hashmap_entry_init(void *entry, unsigned int hash)
 {
-    HashMapEntry *e = (HashMapEntry *)entry;
+    hashmap_entry_t *e = (hashmap_entry_t *)entry;
     e->hash = hash;
     e->next = NULL;
 }
 
 /* Return the number of items in the map. */
-static inline int hashmap_size(HashMap *self)
+static inline int hashmap_size(hashmap_t *self)
 {
     return self ? self->count : 0;
 }
 
 /* Initialize a hash map. */
-void hashmap_init(HashMap *self, hash_equal_t equal);
+void hashmap_init(hashmap_t *self, hashmap_equal_t equal);
 
 /* Destroy the hashmap and free its allocated memory.
  * NOTES: HashMapEntry is already removed, no remove it again.
  */
-void hashmap_fini(HashMap *self, hash_visit_t free, void *arg);
+void hashmap_fini(hashmap_t *self, hashmap_visit_t free, void *arg);
 
 /*
  * Retrieve the hashmap entry for the specified hash code.
  * Returns the hashmap entry or null if not found.
  */
-void *hashmap_get(HashMap *self, void *key);
+void *hashmap_get(hashmap_t *self, void *key);
 
 /*
  * Add a hashmap entry. If the hashmap contains duplicate entries, it will
  * return -1 failure.
  */
-int hashmap_put_absent(HashMap *self, void *entry);
+int hashmap_put_absent(hashmap_t *self, void *entry);
 
 /*
  * Add or replace a hashmap entry. If the hashmap contains duplicate entries,
  * the old entry will be replaced and returned.
  * Returns the replaced entry or null if no duplicated entry
  */
-void *hashmap_put(HashMap *self, void *entry);
+void *hashmap_put(hashmap_t *self, void *entry);
 
 /* Removes a hashmap entry matching the specified key. */
-void *hashmap_remove(HashMap *self, void *key);
+void *hashmap_remove(hashmap_t *self, void *key);
 
 /* Visit the hashmap, safely when `visit` removes entry, not suggest do it. */
-void hashmap_visit(HashMap *self, hash_visit_t visit, void *arg);
+void hashmap_visit(hashmap_t *self, hashmap_visit_t visit, void *arg);
 
 #ifdef __cplusplus
 }

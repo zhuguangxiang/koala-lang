@@ -1,15 +1,11 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*----------------------------------------------------------------------------*\
+|* This file is part of the koala project, under the MIT License.             *|
+|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
+\*----------------------------------------------------------------------------*/
 
 #include "binheap.h"
-#include "mm.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef __cplusplus
@@ -22,7 +18,7 @@ int binheap_init(binheap_t *heap, int size, binheap_cmp_t cmp)
 {
     if (size < HEAP_MIN_SIZE) size = HEAP_MIN_SIZE;
     int mm_size = sizeof(binheap_entry_t *) * (size + 1);
-    binheap_entry_t **entries = mm_alloc(mm_size);
+    binheap_entry_t **entries = malloc(mm_size);
     if (!entries) return -1;
 
     heap->cmp = cmp;
@@ -35,7 +31,7 @@ int binheap_init(binheap_t *heap, int size, binheap_cmp_t cmp)
 
 void binheap_fini(binheap_t *heap)
 {
-    mm_free(heap->entries);
+    free(heap->entries);
 }
 
 /*
@@ -118,12 +114,12 @@ static int __heap_grow(binheap_t *heap, unsigned int size)
     if (size <= heap->cap) return 0;
     binheap_entry_t **new_entries;
     int new_cap = heap->cap << 1;
-    printf("heap grow %d -> %d\n", heap->cap + 1, new_cap + 1);
-    new_entries = mm_alloc(sizeof(binheap_entry_t *) * (new_cap + 1));
+    // printf("heap grow %d -> %d\n", heap->cap + 1, new_cap + 1);
+    new_entries = malloc(sizeof(binheap_entry_t *) * (new_cap + 1));
     if (!new_entries) return -1;
     int old_mm_size = sizeof(binheap_entry_t *) * (heap->cap + 1);
     memcpy(new_entries, heap->entries, old_mm_size);
-    mm_free(heap->entries);
+    free(heap->entries);
     heap->entries = new_entries;
     heap->cap = new_cap;
     return 0;
@@ -133,7 +129,7 @@ int binheap_insert(binheap_t *heap, binheap_entry_t *e)
 {
     unsigned int used = heap->used + 1;
     if (__heap_grow(heap, used)) {
-        printf("error: grow binary heap failed.\n");
+        // printf("error: grow binary heap failed.\n");
         return -1;
     }
 
@@ -164,7 +160,7 @@ int binheap_delete(binheap_t *heap, binheap_entry_t *e)
     unsigned int eidx = e->idx;
 
     if (eidx <= 0 || eidx > heap->used) {
-        printf("error: invalid entry.\n");
+        // printf("error: invalid entry.\n");
         return -1;
     }
 

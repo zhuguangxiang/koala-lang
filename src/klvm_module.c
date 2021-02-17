@@ -1,11 +1,7 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*----------------------------------------------------------------------------*\
+|* This file is part of the KLVM project, under the MIT License.              *|
+|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
+\*----------------------------------------------------------------------------*/
 
 #include "klvm.h"
 
@@ -13,157 +9,192 @@
 extern "C" {
 #endif
 
-static KLVMFunc *_new_func(KLVMType *ty, const char *name)
+void klvm_link_edge(klvm_block_t *src, klvm_block_t *dst)
+{
+    klvm_edge_t *edge = malloc(sizeof(*edge));
+    edge->src = src;
+    edge->dst = dst;
+    list_node_init(&edge->in_link);
+    list_node_init(&edge->out_link);
+    list_push_back(&src->out_edges, &edge->out_link);
+    list_push_back(&dst->in_edges, &edge->in_link);
+}
+
+static void _init_block(klvm_block_t *bb, short dummy, char *label)
+{
+    list_node_init(&bb->bbnode);
+    list_init(&bb->insts);
+    list_init(&bb->in_edges);
+    list_init(&bb->out_edges);
+    bb->label = label;
+    bb->dummy = dummy;
+    bb->tag = -1;
+}
+
+static klvm_func_t *_new_func(klvm_type_t *ty, char *name)
 {
     if (!name) {
         printf("error: function must have name\n");
         abort();
     }
 
-    KLVMFunc *fn = mm_alloc(sizeof(*fn));
-    INIT_VALUE_HEAD(fn, VALUE_FUNC, ty, name);
+    klvm_func_t *fn = malloc(sizeof(*fn));
+    KLVM_INIT_VALUE_HEAD(fn, KLVM_VALUE_FUNC, ty, name);
     vector_init(&fn->locals, sizeof(void *));
     list_init(&fn->bblist);
 
     // add parameters
-    Vector *params = KLVMProtoTypeParams(ty);
+    vector_t *params = klvm_proto_params(ty);
     fn->num_params = vector_size(params);
-    KLVMType **item;
-    vector_foreach(item, params) KLVMAddLocVar((KLVMValue *)fn, *item, "");
+    klvm_type_t **item;
+    vector_foreach(item, params) klvm_new_local((klvm_value_t *)fn, *item, "");
+
+    // initial 'start' and 'end' block
+    _init_block(&fn->sbb, 1, "start");
+    _init_block(&fn->ebb, 1, "end");
 
     return fn;
 }
 
-KLVMModule *KLVMCreateModule(const char *name)
+klvm_module_t *klvm_create_module(char *name)
 {
-    KLVMModule *m = mm_alloc(sizeof(*m));
+    klvm_module_t *m = malloc(sizeof(*m));
     m->name = name;
-    vector_init(&m->vars, sizeof(KLVMVar *));
-    vector_init(&m->funcs, sizeof(KLVMFunc *));
+    vector_init(&m->vars, sizeof(void *));
+    vector_init(&m->funcs, sizeof(void *));
+    list_init(&m->passes);
     return m;
 }
 
-KLVMValue *KLVMModuleFunc(KLVMModule *m)
+klvm_value_t *klvm_init_func(klvm_module_t *m)
 {
-    KLVMValue *fn = m->fn;
+    klvm_value_t *fn = m->_init_;
     if (!fn) {
-        fn = (KLVMValue *)_new_func(NULL, "__init__");
-        m->fn = fn;
+        klvm_type_t *ty = klvm_type_proto(NULL, NULL);
+        fn = (klvm_value_t *)_new_func(ty, "__init__");
+        m->_init_ = fn;
     }
     return fn;
 }
 
-void KLVMDestroyModule(KLVMModule *m)
+void klvm_destroy_module(klvm_module_t *m)
 {
-    mm_free(m);
+    free(m);
 }
 
-static inline KLVMVar *_new_var(KLVMType *ty, const char *name)
+static klvm_const_t *_new_const(void)
+{
+    klvm_const_t *k = malloc(sizeof(*k));
+    k->kind = KLVM_VALUE_CONST;
+    return k;
+}
+
+klvm_value_t *klvm_const_int32(int32_t ival)
+{
+    klvm_const_t *k = _new_const();
+    k->type = &klvm_type_int32;
+    k->i32val = ival;
+    return (klvm_value_t *)k;
+}
+
+static klvm_var_t *_new_var(klvm_type_t *ty, char *name)
 {
     if (!name) {
         printf("error: variable must have name\n");
         abort();
     }
 
-    KLVMVar *var = mm_alloc(sizeof(*var));
-    INIT_VALUE_HEAD(var, VALUE_VAR, ty, name);
+    klvm_var_t *var = malloc(sizeof(*var));
+    KLVM_INIT_VALUE_HEAD(var, KLVM_VALUE_VAR, ty, name);
     return var;
 }
 
-KLVMValue *KLVMAddVar(KLVMModule *m, KLVMType *ty, const char *name)
+klvm_value_t *klvm_new_var(klvm_module_t *m, klvm_type_t *ty, char *name)
 {
-    KLVMVar *var = _new_var(ty, name);
-    var->flags = KLVM_FLAGS_GLOBAL;
+    klvm_var_t *var = _new_var(ty, name);
     vector_push_back(&m->vars, &var);
-    return (KLVMValue *)var;
+    return (klvm_value_t *)var;
 }
 
-KLVMValue *KLVMAddLocVar(KLVMValue *fn, KLVMType *ty, const char *name)
+klvm_value_t *klvm_new_func(klvm_module_t *m, klvm_type_t *ty, char *name)
 {
-    KLVMVar *var = _new_var(ty, name);
-    vector_push_back(&((KLVMFunc *)fn)->locals, &var);
-    return (KLVMValue *)var;
-}
-
-KLVMValue *KLVMAddFunc(KLVMModule *m, KLVMType *ty, const char *name)
-{
-    KLVMFunc *fn = _new_func(ty, name);
+    klvm_func_t *fn = _new_func(ty, name);
     // add to module
     vector_push_back(&m->funcs, &fn);
-    return (KLVMValue *)fn;
+    return (klvm_value_t *)fn;
 }
 
-void KLVMSetVarName(KLVMValue *_var, const char *name)
+klvm_value_t *klvm_new_local(klvm_value_t *fn, klvm_type_t *ty, char *name)
 {
-    KLVMVar *var = (KLVMVar *)_var;
-    var->name = name;
+    klvm_var_t *var = _new_var(ty, name);
+    var->attr = KLVM_ATTR_LOCAL;
+    vector_push_back(&((klvm_func_t *)fn)->locals, &var);
+    return (klvm_value_t *)var;
 }
 
-KLVMValue *KLVMGetParam(KLVMValue *fn, int index)
+klvm_value_t *klvm_get_param(klvm_value_t *fn, int index)
 {
-    KLVMFunc *_fn = (KLVMFunc *)fn;
+    klvm_func_t *_fn = (klvm_func_t *)fn;
     int num_params = _fn->num_params;
     if (index < 0 || index >= num_params) {
         printf("error: index %d out of range(0 ..< %d)\n", index, num_params);
         abort();
     }
 
-    KLVMValue *para = NULL;
+    klvm_value_t *para = NULL;
     vector_get(&_fn->locals, index, &para);
     return para;
 }
 
-KLVMBasicBlock *_append_basicblock(KLVMValue *fn, const char *label)
+static void _append_block(klvm_func_t *fn, klvm_block_t *bb)
 {
-    KLVMBasicBlock *bb = mm_alloc(sizeof(*bb));
-    list_node_init(&bb->bbnode);
-    bb->fn = fn;
-    list_init(&bb->insts);
-    KLVMFunc *_fn = (KLVMFunc *)fn;
-    list_push_back(&_fn->bblist, &bb->bbnode);
-    _fn->num_bbs++;
-    bb->label = label;
-    bb->tag = -1;
+    bb->fn = (klvm_value_t *)fn;
+
+    if (list_is_empty(&fn->bblist)) {
+        // first basic block, create an edge <start, bb>
+        klvm_link_edge(&fn->sbb, bb);
+    }
+
+    list_push_back(&fn->bblist, &bb->bbnode);
+    fn->num_bbs++;
+}
+
+klvm_block_t *klvm_append_block(klvm_value_t *fn, char *name)
+{
+    klvm_block_t *bb = malloc(sizeof(*bb));
+    _init_block(bb, 0, name);
+    _append_block((klvm_func_t *)fn, bb);
     return bb;
 }
 
-KLVMBasicBlock *KLVMAppendBasicBlock(KLVMValue *fn, const char *name)
+typedef struct klvm_pass_info {
+    list_node_t node;
+    klvm_pass_run_t run;
+    void *data;
+} klvm_pass_info;
+
+void klvm_register_pass(klvm_module_t *m, klvm_pass_t *pass)
 {
-    return _append_basicblock(fn, name);
+    klvm_pass_info *pi = malloc(sizeof(*pi));
+    list_node_init(&pi->node);
+    pi->run = pass->run;
+    pi->data = pass->data;
+    list_push_back(&m->passes, &pi->node);
 }
 
-KLVMBasicBlock *KLVMFuncEntryBasicBlock(KLVMValue *_fn)
+void klvm_run_passes(klvm_module_t *m)
 {
-    KLVMFunc *fn = (KLVMFunc *)_fn;
-    KLVMBasicBlock *e = fn->entry;
-    if (!e) {
-        e = _append_basicblock(_fn, "entry");
-        fn->entry = e;
+    klvm_func_t **fn;
+    list_node_t *n;
+    klvm_pass_info *pass;
+    vector_foreach(fn, &m->funcs)
+    {
+        list_foreach(&m->passes, n)
+        {
+            pass = (klvm_pass_info *)n;
+            pass->run(*fn, pass->data);
+        }
     }
-    return e;
-}
-
-KLVMBuilder *KLVMBasicBlockBuilder(KLVMBasicBlock *bb)
-{
-    KLVMBuilder *bldr = &bb->bldr;
-    bldr->bb = bb;
-    bldr->rover = &bb->insts;
-    return bldr;
-}
-
-KLVMConst *_new_const(void)
-{
-    KLVMConst *k = mm_alloc(sizeof(*k));
-    k->kind = VALUE_CONST;
-    return k;
-}
-
-KLVMValue *KLVMConstInt32(int32_t ival)
-{
-    KLVMConst *k = _new_const();
-    k->type = KLVMInt32Type();
-    k->i32val = ival;
-    return (KLVMValue *)k;
 }
 
 #ifdef __cplusplus

@@ -1,9 +1,0 @@
-#+Author: Zhu Guangxiang (James)
-#+EMAIL: zhuguangxiang@gmail.com
-#+STARTUP: showall
-#+STARTUP: indent
-#+STARTUP: align
-
-* What's Koala Virtual Machine
-Koala Virtual Machine is middle level intermediate representation and interpreter.
-It was originally designed and developed by Zhu Guangxiang (James) in 2020.

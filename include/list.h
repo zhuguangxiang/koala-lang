@@ -1,88 +1,83 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*----------------------------------------------------------------------------*\
+|* This file is part of the koala project, under the MIT License.             *|
+|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
+\*----------------------------------------------------------------------------*/
 
 #ifndef _KOALA_LIST_H_
 #define _KOALA_LIST_H_
 
-#include "common.h"
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* List element node */
-typedef struct ListNode {
-    /* Previous list element node */
-    struct ListNode *prev;
-    /* Next list element node */
-    struct ListNode *next;
-} ListNode;
+/* List node */
+typedef struct list_node {
+    /* Previous list node */
+    struct list_node *prev;
+    /* Next list node */
+    struct list_node *next;
+} list_node_t;
 
 /* List structure */
-typedef ListNode List;
+typedef list_node_t list_t;
 
 /*
  * List initialization
  *
  * A list may be initialized by calling list_init():
  *
- * List list;
+ * list_t list;
  * list_init(&list);
  *
  * or with an initializer using LIST_INITIALIZER:
  *
- * List list = LIST_INITIALIZER(list);
+ * list_t list = LIST_INITIALIZER(list);
  *
  */
-#define LIST_INITIALIZER(name) \
-    {                          \
-        &(name), &(name)       \
-    }
 
-static inline void list_init(List *list)
+// clang-format off
+#define LIST_NODE_INITIALIZER(name) { &(name), &(name) }
+#define LIST_INITIALIZER(name) LIST_NODE_INITIALIZER(name)
+// clang-format on
+
+static inline void list_init(list_t *list)
 {
     list->prev = list;
     list->next = list;
 }
 
-#define LIST_NODE_INITIALIZER(name) \
-    {                               \
-        &(name), &(name)            \
-    }
-
-static inline void list_node_init(ListNode *node)
+static inline void list_node_init(list_node_t *node)
 {
     node->prev = node;
     node->next = node;
 }
 
-/* Test a list is empty */
-#define list_empty(list) ((list)->next == (list))
+/* Get the entry in which node is embedded */
+#define list_entry(ptr, type, member) container_of(ptr, type, member)
+
+/* Test a list is empty or not */
+#define list_is_empty(list) ((list)->next == (list))
 
 /* Get the first element from a list */
-#define list_first(list) (list_empty(list) ? NULL : (list)->next)
+#define list_first(list) (list_is_empty(list) ? NULL : (list)->next)
 
 /* Get the last element from a list */
-#define list_last(list) (list_empty(list) ? NULL : (list)->prev)
+#define list_last(list) (list_is_empty(list) ? NULL : (list)->prev)
 
 /* Get the next element from a list */
-#define list_next(list, pos)            \
-    ({                                  \
-        ListNode *next = (pos)->next;   \
-        (next == (list)) ? NULL : next; \
+#define list_next(list, pos)             \
+    ({                                   \
+        list_node_t *next = (pos)->next; \
+        (next == (list)) ? NULL : next;  \
     })
 
 /* Get the previous element from a list */
-#define list_prev(list, pos)            \
-    ({                                  \
-        ListNode *prev = (pos)->prev;   \
-        (prev == (list)) ? NULL : prev; \
+#define list_prev(list, pos)             \
+    ({                                   \
+        list_node_t *prev = (pos)->prev; \
+        (prev == (list)) ? NULL : prev;  \
     })
 
 /* Iterate a list */
@@ -94,17 +89,17 @@ static inline void list_node_init(ListNode *node)
     for (pos = (list)->prev; pos != (list); pos = pos->prev)
 
 /* Get the length of a list */
-static inline int list_size(List *list)
+static inline int list_size(list_t *list)
 {
     int count = 0;
-    ListNode *pos;
+    list_node_t *pos;
     list_foreach(list, pos) count++;
     return count;
 }
 
 /* Insert a node between two known consecutive nodes */
 static inline void list_add_between(
-    ListNode *entry, ListNode *prev, ListNode *next)
+    list_node_t *entry, list_node_t *prev, list_node_t *next)
 {
     entry->next = next;
     entry->prev = prev;
@@ -113,25 +108,25 @@ static inline void list_add_between(
 }
 
 /* Insert a 'pos' node after 'prev' node */
-static inline void list_add(ListNode *prev, ListNode *pos)
+static inline void list_add(list_node_t *prev, list_node_t *pos)
 {
     list_add_between(pos, prev, prev->next);
 }
 
 /* Insert a 'pos' node before 'next' node */
-static inline void list_add_before(ListNode *next, ListNode *pos)
+static inline void list_add_before(list_node_t *next, list_node_t *pos)
 {
     list_add_between(pos, next->prev, next);
 }
 
 /* Insert a 'pos' node at front */
-static inline void list_push_front(List *list, ListNode *pos)
+static inline void list_push_front(list_t *list, list_node_t *pos)
 {
     list_add_between(pos, list, list->next);
 }
 
 /* Insert a 'pos' node at tail */
-static inline void list_push_back(List *list, ListNode *pos)
+static inline void list_push_back(list_t *list, list_node_t *pos)
 {
     list_add_between(pos, list->prev, list);
 }

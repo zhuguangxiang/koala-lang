@@ -1,11 +1,7 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*----------------------------------------------------------------------------*\
+|* This file is part of the koala project, under the MIT License.             *|
+|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
+\*----------------------------------------------------------------------------*/
 
 #include "vector.h"
 
@@ -15,7 +11,7 @@ extern "C" {
 
 #define VECTOR_MINIMUM_CAPACITY 8
 
-static int __maybe_expand(Vector *vec, int extra)
+static int __maybe_expand(vector_t *vec, int extra)
 {
     /* vector has enough room space */
     int size = vec->size + extra;
@@ -27,10 +23,10 @@ static int __maybe_expand(Vector *vec, int extra)
     else
         cap = VECTOR_MINIMUM_CAPACITY;
 
-    char *objs = (char *)mm_alloc(cap * vec->objsize);
+    char *objs = (char *)malloc(cap * vec->objsize);
     if (vec->objs) {
         memcpy(objs, vec->objs, vec->size * vec->objsize);
-        mm_free(vec->objs);
+        free(vec->objs);
     }
 
     vec->objs = objs;
@@ -38,12 +34,12 @@ static int __maybe_expand(Vector *vec, int extra)
     return 0;
 }
 
-static inline char *__offset(Vector *vec, int index)
+static inline char *__offset(vector_t *vec, int index)
 {
     return vec->objs + vec->objsize * index;
 }
 
-int vector_set(Vector *vec, int index, void *obj)
+int vector_set(vector_t *vec, int index, void *obj)
 {
     /*
      * valid range is (0 ... size)
@@ -60,7 +56,7 @@ int vector_set(Vector *vec, int index, void *obj)
     return 0;
 }
 
-void *vector_get_ptr(Vector *vec, int index)
+void *vector_get_ptr(vector_t *vec, int index)
 {
     /* not set any object */
     if (!vec->objs) return NULL;
@@ -71,7 +67,7 @@ void *vector_get_ptr(Vector *vec, int index)
     return __offset(vec, index);
 }
 
-int vector_get(Vector *vec, int index, void *obj)
+int vector_get(vector_t *vec, int index, void *obj)
 {
     /* not set any object */
     if (!vec->objs) return -1;
@@ -85,7 +81,7 @@ int vector_get(Vector *vec, int index, void *obj)
 }
 
 /* move one object to right */
-static void __move_to_right(Vector *vec, int index)
+static void __move_to_right(vector_t *vec, int index)
 {
     /* the location to start to move */
     char *from = __offset(vec, index);
@@ -100,7 +96,7 @@ static void __move_to_right(Vector *vec, int index)
     memmove(to, from, nbytes);
 }
 
-int vector_insert(Vector *vec, int index, void *obj)
+int vector_insert(vector_t *vec, int index, void *obj)
 {
     /*
      * valid range is (0 ... size)
@@ -118,7 +114,7 @@ int vector_insert(Vector *vec, int index, void *obj)
     return 0;
 }
 
-static void __move_to_left(Vector *vec, int index)
+static void __move_to_left(vector_t *vec, int index)
 {
     /* the destination to move(one object) */
     char *to = __offset(vec, index);
@@ -133,7 +129,7 @@ static void __move_to_left(Vector *vec, int index)
     memmove(to, from, nbytes);
 }
 
-int vector_remove(Vector *vec, int index, void *obj)
+int vector_remove(vector_t *vec, int index, void *obj)
 {
     /* valid range is (0 ..< size) */
     if (index < 0 || index >= vec->size) return -1;

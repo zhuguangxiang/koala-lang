@@ -1,14 +1,10 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*----------------------------------------------------------------------------*\
+|* This file is part of the koala project, under the MIT License.             *|
+|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
+\*----------------------------------------------------------------------------*/
 
-#ifndef _KOALA_BIN_HEAP_H_
-#define _KOALA_BIN_HEAP_H_
+#ifndef _KOALA_BINHEAP_H_
+#define _KOALA_BINHEAP_H_
 
 /*
  * binary heap is a complete tree, so use often an array to implement it
@@ -93,4 +89,4 @@ binheap_entry_t *binheap_next(binheap_t *heap, binheap_entry_t *e);
 }
 #endif
 
-#endif /* _KOALA_BIN_HEAP_H_ */
+#endif /* _KOALA_BINHEAP_H_ */

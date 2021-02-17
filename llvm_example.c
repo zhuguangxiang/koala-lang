@@ -20,8 +20,8 @@
 #include <string.h>
 
 /*
- cc llvm_example.c -o sum -I/usr/lib/llvm-11/include  -D_GNU_SOURCE \
- -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -lLLVM-11
+cc llvm_example.c -o sum -I/usr/lib/llvm-11/include  -D_GNU_SOURCE \
+-D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -lLLVM-11
 
  llc -filetype=obj -relocation-model=pic sum.bc
  ./sum
@@ -151,7 +151,8 @@ void gen_gcd(LLVMModuleRef mod)
     // LLVMSetAlignment(z, 8);
     int align = LLVMGetAlignment(z);
     printf("alignment of alloca int32:%d\n", align);
-    LLVMBuildStore(builder, LLVMBuildAdd(builder, lhs, rhs, ""), z);
+    LLVMBuildStore(builder, LLVMBuildAdd(builder, lhs, rhs, "z"), z);
+    LLVMBuildStore(builder, LLVMBuildAdd(builder, lhs, rhs, "z"), z);
     LLVMBuildRet(builder, lhs);
 
     // LLVMStructCreateNamed(LLVMGetGlobalContext(), "Person");
@@ -244,14 +245,14 @@ void gen_print_hello(LLVMModuleRef mod, LLVMExecutionEngineRef engine)
         LLVMStructCreateNamed(LLVMGetGlobalContext(), "array");
     LLVMTypeRef param_types3[] = { LLVMPointerType(str_type, 0) };
     ret_type = LLVMFunctionType(LLVMVoidType(), param_types3, 1, 0);
-    LLVMValueRef main_func = LLVMAddFunction(mod, "main2", ret_type);
+    LLVMValueRef print_hello = LLVMAddFunction(mod, "print_hello", ret_type);
 
-    LLVMBasicBlockRef entry = LLVMAppendBasicBlock(main_func, "entry");
+    LLVMBasicBlockRef entry = LLVMAppendBasicBlock(print_hello, "entry");
     LLVMBuilderRef builder = LLVMCreateBuilder();
     LLVMPositionBuilderAtEnd(builder, entry);
     // LLVMValueRef v = LLVMBuildGlobalStringPtr(builder, "hello,world", "str");
     // LLVMConstString("hello,world", 11, 1),
-    LLVMValueRef v = LLVMGetParam(main_func, 0);
+    LLVMValueRef v = LLVMGetParam(print_hello, 0);
 
     /*
     LLVMValueRef gep[3];
@@ -329,11 +330,23 @@ void main(int argc, char *argv[])
         builder, LLVMGetParam(sum, 0), LLVMGetParam(sum, 1), "tmp");
     // LLVMBuildBr(builder, entry);
     LLVMBuildRet(builder, tmp);
+    LLVMBuildRet(builder, LLVMConstInt(LLVMInt32Type(), 200, 0));
+
+    // LLVMDumpModule(mod);
+    // LLVMSetValueName(a, "a");
+    // LLVMDumpModule(mod);
+
+    LLVMBasicBlockRef extra = LLVMAppendBasicBlock(sum, "extra");
+    LLVMPositionBuilderAtEnd(builder, extra);
+
+    LLVMValueRef tmp2 = LLVMBuildSub(
+        builder, LLVMGetParam(sum, 0), LLVMGetParam(sum, 1), "tmp");
+    // LLVMBuildBr(builder, entry);
+    LLVMBuildRet(builder, tmp2);
+    LLVMBuildRet(builder, LLVMConstInt(LLVMInt32Type(), 400, 0));
+    LLVMBuildBr(builder, extra);
 
     LLVMDisposeBuilder(builder);
-    LLVMDumpModule(mod);
-    LLVMSetValueName(a, "a");
-    LLVMDumpModule(mod);
 
     gen_gcd(mod);
 
@@ -360,6 +373,9 @@ void main(int argc, char *argv[])
 
     gen_print_hello(mod, NULL);
 
+    LLVMDumpModule(mod);
+
+#if 0
     char *error = NULL;
     LLVMVerifyModule(mod, LLVMPrintMessageAction, &error);
     LLVMDisposeMessage(error);
@@ -386,6 +402,7 @@ void main(int argc, char *argv[])
     LLVMAddGlobalMapping(engine, str_new_func, __kl_string_new);
 
     LLVMDumpModule(mod);
+#endif
 #if 0
   LLVMPassManagerRef pass = LLVMCreatePassManager();
   //  LLVMAddTargetData(LLVMGetExecutionEngineTargetData(engine), pass);
@@ -420,6 +437,7 @@ void main(int argc, char *argv[])
     int))LLVMGetFunctionAddress(engine, "sum");
   */
 
+#if 0
     void (*main_func)(kl_string_t *) =
         (void (*)(kl_string_t *))LLVMGetFunctionAddress(engine, "main2");
     kl_string_t s = { 3, 10, "foo" };
@@ -429,6 +447,6 @@ void main(int argc, char *argv[])
     if (LLVMWriteBitcodeToFile(mod, "sum.bc") != 0) {
         fprintf(stderr, "error writing bitcode to file, skipping\n");
     }
-
+#endif
     // LLVMDisposeExecutionEngine(engine);
 }
