@@ -111,6 +111,7 @@ typedef struct klvm_block {
     // 'start' and 'end' blocks are dummy block
     short dummy;
     short tag;
+    int visited;
     int num_insts;
     list_t insts;
     list_t in_edges;
@@ -118,6 +119,7 @@ typedef struct klvm_block {
 } klvm_block_t;
 
 typedef struct klvm_edge {
+    list_node_t link;
     klvm_block_t *src;
     klvm_block_t *dst;
     list_node_t in_link;
@@ -137,6 +139,7 @@ typedef struct klvm_func {
     int num_params;
     int num_bbs;
     list_t bblist;
+    list_t edgelist;
     vector_t locals;
     klvm_block_t sbb;
     klvm_block_t ebb;
@@ -226,6 +229,9 @@ klvm_block_t *klvm_add_block(klvm_block_t *bb, char *name);
 
 /* Add a basic block before 'bb' */
 klvm_block_t *kvlm_add_block_before(klvm_block_t *bb, char *name);
+
+/* Delete a basic block */
+void klvm_delete_block(klvm_block_t *bb);
 
 /* Add an edge */
 void klvm_link_edge(klvm_block_t *src, klvm_block_t *dst);
@@ -379,7 +385,7 @@ void klvm_build_ret_void(klvm_builder_t *bldr);
 |* pass                                                                       *|
 \*----------------------------------------------------------------------------*/
 
-typedef int (*klvm_pass_run_t)(klvm_func_t *, void *);
+typedef void (*klvm_pass_run_t)(klvm_func_t *, void *);
 
 typedef struct klvm_pass {
     klvm_pass_run_t run;

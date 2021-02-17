@@ -14,8 +14,11 @@ void klvm_link_edge(klvm_block_t *src, klvm_block_t *dst)
     klvm_edge_t *edge = malloc(sizeof(*edge));
     edge->src = src;
     edge->dst = dst;
+    list_node_init(&edge->link);
     list_node_init(&edge->in_link);
     list_node_init(&edge->out_link);
+    klvm_func_t *fn = (klvm_func_t *)src->fn;
+    list_push_back(&fn->edgelist, &edge->link);
     list_push_back(&src->out_edges, &edge->out_link);
     list_push_back(&dst->in_edges, &edge->in_link);
 }
@@ -51,7 +54,12 @@ static klvm_func_t *_new_func(klvm_type_t *ty, char *name)
 
     // initial 'start' and 'end' block
     _init_block(&fn->sbb, 1, "start");
+    fn->sbb.fn = (klvm_value_t *)fn;
     _init_block(&fn->ebb, 1, "end");
+    fn->ebb.fn = (klvm_value_t *)fn;
+
+    // initial edge list
+    list_init(&fn->edgelist);
 
     return fn;
 }
@@ -165,6 +173,12 @@ klvm_block_t *klvm_append_block(klvm_value_t *fn, char *name)
     _init_block(bb, 0, name);
     _append_block((klvm_func_t *)fn, bb);
     return bb;
+}
+
+void klvm_delete_block(klvm_block_t *bb)
+{
+    list_remove(&bb->bbnode);
+    free(bb);
 }
 
 typedef struct klvm_pass_info {

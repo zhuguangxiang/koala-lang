@@ -89,7 +89,7 @@ static inline void list_node_init(list_node_t *node)
     for (pos = (list)->prev; pos != (list); pos = pos->prev)
 
 /* Get the length of a list */
-static inline int list_size(list_t *list)
+static inline int list_length(list_t *list)
 {
     int count = 0;
     list_node_t *pos;
@@ -132,18 +132,18 @@ static inline void list_push_back(list_t *list, list_node_t *pos)
 }
 
 /* Remove a node by making the prev/next nodes pointer to each other. */
-#define list_remove_between(prev, next) \
-    ({                                  \
-        next->prev = prev;              \
-        prev->next = next;              \
+#define list_remove_between(_prev, _next) \
+    ({                                    \
+        _next->prev = _prev;              \
+        _prev->next = _next;              \
     })
 
 /* Remove a node from list */
-#define list_remove(pos)                            \
-    ({                                              \
-        list_del_between((pos)->prev, (pos)->next); \
-        /* re-initialize node */                    \
-        list_node_init(pos);                        \
+#define list_remove(pos)                               \
+    ({                                                 \
+        list_remove_between((pos)->prev, (pos)->next); \
+        /* re-initialize node */                       \
+        list_node_init(pos);                           \
     })
 
 #ifdef __cplusplus

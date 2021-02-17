@@ -4,7 +4,16 @@
 \*----------------------------------------------------------------------------*/
 
 #include "fib.c"
-#include "klvm_dot.h"
+#include "klvm_passes.h"
+
+/*
+gcc -g -fPIC -shared -Wall src/klvm_module.c src/klvm_type.c src/klvm_inst.c \
+src/klvm_printer.c src/binheap.c src/hashmap.c src/vector.c \
+src/passes/klvm_dot.c src/passes/klvm_block.c -I./include -o libklvm.so
+
+gcc -g test/test_dot.c -I./include -lklvm -L./ -o test_dot
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:.
+*/
 
 #ifdef __cplusplus
 extern "C" {

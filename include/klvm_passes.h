@@ -3,8 +3,8 @@
 |* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
 \*----------------------------------------------------------------------------*/
 
-#ifndef _KOALA_KLVM_DOT_H_
-#define _KOALA_KLVM_DOT_H_
+#ifndef _KOALA_KLVM_PASSES_H_
+#define _KOALA_KLVM_PASSES_H_
 
 #include "klvm.h"
 
@@ -13,9 +13,10 @@ extern "C" {
 #endif
 
 void dot_pass_register(klvm_module_t *m);
+void block_pass_register(klvm_module_t *m);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_KLVM_DOT_H_ */
+#endif /* _KOALA_KLVM_PASSES_H_ */

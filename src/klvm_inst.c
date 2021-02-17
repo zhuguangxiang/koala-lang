@@ -142,6 +142,10 @@ void klvm_build_ret(klvm_builder_t *bldr, klvm_value_t *v)
     KLVM_INIT_INST_HEAD(inst, v->type, KLVM_INST_RET, NULL);
     inst->ret = v;
     _inst_append(bldr, (klvm_inst_t *)inst);
+
+    // add end edge
+    klvm_func_t *fn = (klvm_func_t *)bldr->bb->fn;
+    klvm_link_edge(bldr->bb, &fn->ebb);
 }
 
 void klvm_build_ret_void(klvm_builder_t *bldr)
@@ -149,6 +153,10 @@ void klvm_build_ret_void(klvm_builder_t *bldr)
     klvm_inst_t *inst = malloc(sizeof(*inst));
     KLVM_INIT_INST_HEAD(inst, NULL, KLVM_INST_RET_VOID, NULL);
     _inst_append(bldr, inst);
+
+    // add end edge
+    klvm_func_t *fn = (klvm_func_t *)bldr->bb->fn;
+    klvm_link_edge(bldr->bb, &fn->ebb);
 }
 
 #ifdef __cplusplus
