@@ -111,7 +111,7 @@ typedef struct klvm_block {
     // 'start' and 'end' blocks are dummy block
     short dummy;
     short tag;
-    int visited;
+    int8_t visited;
     int num_insts;
     list_t insts;
     list_t in_edges;
@@ -380,6 +380,8 @@ void klvm_build_branch(klvm_builder_t *bldr, klvm_value_t *cond,
 
 void klvm_build_ret(klvm_builder_t *bldr, klvm_value_t *v);
 void klvm_build_ret_void(klvm_builder_t *bldr);
+
+void klvm_print_inst(klvm_func_t *fn, klvm_inst_t *inst, FILE *fp);
 
 /*----------------------------------------------------------------------------*\
 |* pass                                                                       *|

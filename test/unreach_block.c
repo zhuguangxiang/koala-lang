@@ -33,7 +33,7 @@ static void test_unreach_block(klvm_module_t *m)
     klvm_value_t *ret = klvm_new_local(fn, &klvm_type_int32, "res");
     klvm_build_copy(&bldr, t1, ret);
     klvm_build_ret(&bldr, ret);
-    klvm_build_ret(&bldr, klvm_const_int32(-100));
+    // klvm_build_ret(&bldr, klvm_const_int32(-100));
 
     klvm_block_t *bb2 = klvm_append_block(fn, "test_bb");
     klvm_builder_init(&bldr, bb2);

@@ -285,6 +285,7 @@ void gen_print_hello(LLVMModuleRef mod, LLVMExecutionEngineRef engine)
     LLVMBuildCall(builder, gcd, args3, 2, "NULL");
 
     LLVMBuildRetVoid(builder);
+    // LLVMBuildRetVoid(builder);
 
     // LLVMDisposeBuilder(builder);
 }
@@ -342,8 +343,8 @@ void main(int argc, char *argv[])
     LLVMValueRef tmp2 = LLVMBuildSub(
         builder, LLVMGetParam(sum, 0), LLVMGetParam(sum, 1), "tmp");
     // LLVMBuildBr(builder, entry);
-    LLVMBuildRet(builder, tmp2);
-    LLVMBuildRet(builder, LLVMConstInt(LLVMInt32Type(), 400, 0));
+    // LLVMBuildRet(builder, tmp2);
+    // LLVMBuildRet(builder, LLVMConstInt(LLVMInt32Type(), 400, 0));
     LLVMBuildBr(builder, extra);
 
     LLVMDisposeBuilder(builder);
@@ -375,7 +376,6 @@ void main(int argc, char *argv[])
 
     LLVMDumpModule(mod);
 
-#if 0
     char *error = NULL;
     LLVMVerifyModule(mod, LLVMPrintMessageAction, &error);
     LLVMDisposeMessage(error);
@@ -402,20 +402,19 @@ void main(int argc, char *argv[])
     LLVMAddGlobalMapping(engine, str_new_func, __kl_string_new);
 
     LLVMDumpModule(mod);
-#endif
-#if 0
-  LLVMPassManagerRef pass = LLVMCreatePassManager();
-  //  LLVMAddTargetData(LLVMGetExecutionEngineTargetData(engine), pass);
-  LLVMAddConstantPropagationPass(pass);
-  LLVMAddInstructionCombiningPass(pass);
-  LLVMAddPromoteMemoryToRegisterPass(pass);
-  LLVMAddGVNPass(pass);
-  LLVMAddCFGSimplificationPass(pass);
-  LLVMAddDCEPass(pass);
-  LLVMRunPassManager(pass, mod);
 
-  LLVMDumpModule(mod);
-#endif
+    LLVMPassManagerRef pass = LLVMCreatePassManager();
+    //  LLVMAddTargetData(LLVMGetExecutionEngineTargetData(engine), pass);
+    LLVMAddConstantPropagationPass(pass);
+    LLVMAddInstructionCombiningPass(pass);
+    LLVMAddPromoteMemoryToRegisterPass(pass);
+    LLVMAddGVNPass(pass);
+    LLVMAddCFGSimplificationPass(pass);
+    LLVMAddDCEPass(pass);
+    LLVMRunPassManager(pass, mod);
+
+    LLVMDumpModule(mod);
+
     /*
       if (argc < 3) {
         fprintf(stderr, "usage: %s x y\n", argv[0]);
@@ -437,9 +436,8 @@ void main(int argc, char *argv[])
     int))LLVMGetFunctionAddress(engine, "sum");
   */
 
-#if 0
     void (*main_func)(kl_string_t *) =
-        (void (*)(kl_string_t *))LLVMGetFunctionAddress(engine, "main2");
+        (void (*)(kl_string_t *))LLVMGetFunctionAddress(engine, "print_hello");
     kl_string_t s = { 3, 10, "foo" };
     main_func(&s);
 
@@ -447,6 +445,6 @@ void main(int argc, char *argv[])
     if (LLVMWriteBitcodeToFile(mod, "sum.bc") != 0) {
         fprintf(stderr, "error writing bitcode to file, skipping\n");
     }
-#endif
+
     // LLVMDisposeExecutionEngine(engine);
 }

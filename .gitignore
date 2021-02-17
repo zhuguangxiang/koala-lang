@@ -8,3 +8,9 @@ koala_lex.c
 koala_lex.h
 koala_yacc.c
 koala_yacc.h
+*.pdf
+*.ps
+*.dot
+sum
+*.bc
+test_*

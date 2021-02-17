@@ -25,8 +25,8 @@ static void test_fib(klvm_module_t *m)
     klvm_builder_t bldr;
     klvm_builder_init(&bldr, entry);
 
-    klvm_block_t *_then = klvm_append_block(fn, "if.then");
-    klvm_block_t *_else = klvm_append_block(fn, "if.else");
+    klvm_block_t *_then = klvm_append_block(fn, "if_then");
+    klvm_block_t *_else = klvm_append_block(fn, "if_else");
 
     // entry block
     klvm_value_t *k = klvm_const_int32(1);

@@ -213,7 +213,7 @@ static void klvm_print_branch(klvm_branch_t *inst, klvm_func_t *fn, FILE *fp)
         fprintf(fp, ", label %%bb%d", bb_tag(bb));
 }
 
-static void klvm_print_inst(klvm_func_t *fn, klvm_inst_t *inst, FILE *fp)
+void klvm_print_inst(klvm_func_t *fn, klvm_inst_t *inst, FILE *fp)
 {
     switch (inst->op) {
         case KLVM_INST_COPY:
