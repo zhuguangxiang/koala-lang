@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------------*\
-|* This file is part of the KLVM project, under the MIT License.              *|
+|* This file is part of the koala project, under the MIT License.             *|
 |* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
 \*----------------------------------------------------------------------------*/
 
@@ -28,7 +28,7 @@ int bb_has_terminator(KLVMBasicBlock *bb)
         KLVM_INST_RET,
         KLVM_INST_RET_VOID,
         KLVM_INST_BRANCH,
-        KLVM_INST_GOTO,
+        KLVM_INST_JMP,
     };
     ListNode *nd = list_last(&bb->insts);
     if (!nd) return 0;
@@ -110,10 +110,10 @@ klvm_value_t *klvm_build_call(
     return (klvm_value_t *)inst;
 }
 
-void klvm_build_goto(klvm_builder_t *bldr, klvm_block_t *dst)
+void klvm_build_jmp(klvm_builder_t *bldr, klvm_block_t *dst)
 {
-    klvm_goto_t *inst = malloc(sizeof(*inst));
-    KLVM_INIT_INST_HEAD(inst, NULL, KLVM_INST_GOTO, NULL);
+    klvm_jmp_t *inst = malloc(sizeof(*inst));
+    KLVM_INIT_INST_HEAD(inst, NULL, KLVM_INST_JMP, NULL);
     inst->dst = dst;
     _inst_append(bldr, (klvm_inst_t *)inst);
 

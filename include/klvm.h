@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------------*\
-|* This file is part of the KLVM project, under the MIT License.              *|
+|* This file is part of the koala project, under the MIT License.             *|
 |* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
 \*----------------------------------------------------------------------------*/
 
@@ -233,19 +233,19 @@ void klvm_link_edge(klvm_block_t *src, klvm_block_t *dst);
 // clang-format off
 
 /* Initial an instruction builder */
-#define klvm_set_builder(bldr, _bb) \
+#define klvm_builder_init(bldr, _bb) \
     ({ (bldr)->bb = _bb; (bldr)->rover = NULL; })
 
 // clang-format on
 
-/* Set builder at tail */
-void klvm_set_builder_tail(klvm_builder_t *bldr);
+/* Set builder at end */
+void klvm_builder_set_end(klvm_builder_t *bldr);
 /* Set builder at head */
-void klvm_set_builder_head(klvm_builder_t *bldr);
+void klvm_builder_set_head(klvm_builder_t *bldr);
 /* set builder at 'inst' */
-void klvm_set_builder_point(klvm_builder_t *bldr, klvm_value_t *inst);
+void klvm_builder_set_point(klvm_builder_t *bldr, klvm_value_t *inst);
 /* set builder before 'inst' */
-void klvm_set_builder_point_before(klvm_builder_t *bldr, klvm_value_t *inst);
+void klvm_builder_set_before(klvm_builder_t *bldr, klvm_value_t *inst);
 
 /*----------------------------------------------------------------------------*\
 |* instructions                                                               *|
@@ -287,7 +287,7 @@ typedef enum klvm_inst_kind {
 
     KLVM_INST_RET,
     KLVM_INST_RET_VOID,
-    KLVM_INST_GOTO,
+    KLVM_INST_JMP,
     KLVM_INST_BRANCH,
 
     KLVM_INST_INDEX,
@@ -333,10 +333,10 @@ typedef struct klvm_call {
     vector_t args;
 } klvm_call_t;
 
-typedef struct klvm_goto {
+typedef struct klvm_jmp {
     KLVM_INST_HEAD
     klvm_block_t *dst;
-} klvm_goto_t;
+} klvm_jmp_t;
 
 typedef struct klvm_branch {
     KLVM_INST_HEAD
@@ -368,7 +368,7 @@ klvm_value_t *klvm_build_binary(klvm_builder_t *bldr, klvm_inst_kind_t op,
 klvm_value_t *klvm_build_call(
     klvm_builder_t *bldr, klvm_value_t *fn, klvm_value_t **args, char *name);
 
-void klvm_build_goto(klvm_builder_t *bldr, klvm_block_t *dst);
+void klvm_build_jmp(klvm_builder_t *bldr, klvm_block_t *dst);
 void klvm_build_branch(klvm_builder_t *bldr, klvm_value_t *cond,
     klvm_block_t *_then, klvm_block_t *_else);
 

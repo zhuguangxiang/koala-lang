@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------------*\
-|* This file is part of the KLVM project, under the MIT License.              *|
+|* This file is part of the koala project, under the MIT License.             *|
 |* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
 \*----------------------------------------------------------------------------*/
 
@@ -182,9 +182,9 @@ static void klvm_print_ret(klvm_ret_t *inst, klvm_func_t *fn, FILE *fp)
     klvm_print_value(fn, inst->ret, fp);
 }
 
-static void klvm_print_goto(klvm_goto_t *inst, FILE *fp)
+static void klvm_print_jmp(klvm_jmp_t *inst, FILE *fp)
 {
-    fprintf(fp, "goto ");
+    fprintf(fp, "jmp ");
 
     klvm_block_t *bb = inst->dst;
     if (bb->label && bb->label[0])
@@ -234,8 +234,8 @@ static void klvm_print_inst(klvm_func_t *fn, klvm_inst_t *inst, FILE *fp)
         case KLVM_INST_RET:
             klvm_print_ret((klvm_ret_t *)inst, fn, fp);
             break;
-        case KLVM_INST_GOTO:
-            klvm_print_goto((klvm_goto_t *)inst, fp);
+        case KLVM_INST_JMP:
+            klvm_print_jmp((klvm_jmp_t *)inst, fp);
             break;
         case KLVM_INST_BRANCH:
             klvm_print_branch((klvm_branch_t *)inst, fn, fp);

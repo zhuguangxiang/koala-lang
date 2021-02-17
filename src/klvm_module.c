@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------------*\
-|* This file is part of the KLVM project, under the MIT License.              *|
+|* This file is part of the koala project, under the MIT License.             *|
 |* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
 \*----------------------------------------------------------------------------*/
 
