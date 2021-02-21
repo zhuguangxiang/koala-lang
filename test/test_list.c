@@ -21,62 +21,53 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_COMMON_H_
-#define _KOALA_COMMON_H_
-
-#include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "list.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define DLLEXPORT __attribute__((visibility("default")))
+typedef struct _Foo {
+    List node;
+    int bar;
+} Foo;
 
-/* Get the min(max) one of the two numbers */
-#define MIN(a, b) ((a) > (b) ? (b) : (a))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define foo_first(list)     list_first(list, Foo, node)
+#define foo_next(pos, list) list_next(pos, node, list)
+#define foo_prev(pos, list) list_prev(pos, node, list)
+#define foo_last(list)      list_last(list, Foo, node)
 
-/* Get the aligned value */
-#define ALIGN(x, a) (((x) + (a)-1) & ~((a)-1))
+void test_doubly_linked_list(void)
+{
+    List foo_list = LIST_INIT(foo_list);
+    Foo foo1 = { LIST_INIT(foo1.node), 100 };
+    Foo foo2 = { LIST_INIT(foo2.node), 200 };
+    list_push_back(&foo_list, &foo1.node);
+    list_push_back(&foo_list, &foo2.node);
 
-/* Get the aligned pointer size */
-#define ALIGN_PTR(x) ALIGN(x, sizeof(uintptr_t))
+    Foo *foo;
+    list_foreach(foo, node, &foo_list, printf("%d\n", foo->bar));
 
-/* Get the number of elements in an array */
-#define COUNT_OF(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
+    Foo *nxt;
+    list_foreach_safe(foo, nxt, node, &foo_list, {
+        printf("%d is removed\n", foo->bar);
+        list_remove(&foo->node);
+    });
 
-/* pointer to integer */
-#define PTR2INT(p) ((int)(intptr_t)(p))
+    list_pop_back(&foo_list);
 
-/* integer to pointer */
-#define INT2PTR(i) ((void *)(intptr_t)(i))
+    for (foo = foo_last(&foo_list); foo; foo = foo_prev(foo, &foo_list)) {
+        printf("%d\n", foo->bar);
+    }
+}
 
-// clang-format off
-
-/* endian check */
-#define CHECK_BIG_ENDIAN ({ \
-    int i = 1; \
-    !*((char *)&i);  \
-})
-
-/*
- * Get the 'type' pointer from the pointer to `member`
- * which is embedded inside the 'type'
- */
-#define container_of(ptr, type, member) ({ \
-    const typeof(((type *)0)->member) *__mptr = (ptr); \
-    (type *)((char *)__mptr - offsetof(type, member)); \
-})
-
-// clang-format on
+int main(int argc, char *argv[])
+{
+    test_doubly_linked_list();
+    return 0;
+}
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _KOALA_COMMON_H_ */

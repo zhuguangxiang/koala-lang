@@ -13,4 +13,7 @@ koala_yacc.h
 *.dot
 sum
 *.bc
-test_*
+include/hashmap.h
+test_dot
+test_klvm
+test_unreach_block

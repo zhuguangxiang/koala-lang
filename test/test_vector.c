@@ -21,62 +21,78 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_COMMON_H_
-#define _KOALA_COMMON_H_
-
 #include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define DLLEXPORT __attribute__((visibility("default")))
+void test_vector(void)
+{
+    VectorRef vec = vector_new(sizeof(int));
 
-/* Get the min(max) one of the two numbers */
-#define MIN(a, b) ((a) > (b) ? (b) : (a))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+    int val;
 
-/* Get the aligned value */
-#define ALIGN(x, a) (((x) + (a)-1) & ~((a)-1))
+    val = 100;
+    vector_push_back(vec, &val);
 
-/* Get the aligned pointer size */
-#define ALIGN_PTR(x) ALIGN(x, sizeof(uintptr_t))
+    val = 200;
+    vector_push_back(vec, &val);
 
-/* Get the number of elements in an array */
-#define COUNT_OF(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
+    val = 300;
+    vector_push_back(vec, &val);
 
-/* pointer to integer */
-#define PTR2INT(p) ((int)(intptr_t)(p))
+    int *v;
+    vector_foreach(v, vec, printf("v = %d\n", *v));
+    vector_foreach_reverse(v, vec, printf("v = %d\n", *v));
 
-/* integer to pointer */
-#define INT2PTR(i) ((void *)(intptr_t)(i))
+    assert(vector_size(vec) == 3);
+    assert(vector_capacity(vec) == 8);
 
-// clang-format off
+    vector_pop_back(vec, &val);
+    assert(val == 300);
 
-/* endian check */
-#define CHECK_BIG_ENDIAN ({ \
-    int i = 1; \
-    !*((char *)&i);  \
-})
+    vector_pop_back(vec, &val);
+    assert(val == 200);
 
-/*
- * Get the 'type' pointer from the pointer to `member`
- * which is embedded inside the 'type'
- */
-#define container_of(ptr, type, member) ({ \
-    const typeof(((type *)0)->member) *__mptr = (ptr); \
-    (type *)((char *)__mptr - offsetof(type, member)); \
-})
+    vector_pop_back(vec, &val);
+    assert(val == 100);
 
-// clang-format on
+    assert(!vector_size(vec));
+
+    val = 1000;
+    vector_insert(vec, 0, &val);
+
+    val = 2000;
+    vector_insert(vec, 0, &val);
+
+    val = 3000;
+    vector_insert(vec, 0, &val);
+
+    vector_foreach(v, vec, printf("v = %d\n", *v));
+
+    vector_pop_front(vec, &val);
+    assert(val == 3000);
+
+    vector_pop_front(vec, &val);
+    assert(val == 2000);
+
+    vector_pop_front(vec, &val);
+    assert(val == 1000);
+
+    assert(!vector_size(vec));
+
+    vector_destroy(vec);
+}
+
+int main(int argc, char *argv[])
+{
+    test_vector();
+    return 0;
+}
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _KOALA_COMMON_H_ */

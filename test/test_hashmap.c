@@ -21,62 +21,79 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_COMMON_H_
-#define _KOALA_COMMON_H_
-
 #include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include "hashmap.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define DLLEXPORT __attribute__((visibility("default")))
+struct str {
+    HashMapEntry entry;
+    char value[0];
+};
 
-/* Get the min(max) one of the two numbers */
-#define MIN(a, b) ((a) > (b) ? (b) : (a))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+static int __str_cmp_cb__(void *k1, void *k2)
+{
+    struct str *s1 = k1;
+    struct str *s2 = k2;
+    return s1 == s2 || !strcmp(s1->value, s2->value);
+}
 
-/* Get the aligned value */
-#define ALIGN(x, a) (((x) + (a)-1) & ~((a)-1))
+static void __str_free_cb__(void *entry, void *data)
+{
+    free(entry);
+}
 
-/* Get the aligned pointer size */
-#define ALIGN_PTR(x) ALIGN(x, sizeof(uintptr_t))
+static void random_string(char *data, int len)
+{
+    static const char char_set[] =
+        "0123456789abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUWXYZ";
+    int i;
+    int idx;
 
-/* Get the number of elements in an array */
-#define COUNT_OF(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
+    for (i = 0; i < len; ++i) {
+        idx = rand() % (sizeof(char_set) / sizeof(char_set[0]) - 1);
+        data[i] = char_set[idx];
+    }
+    data[i] = 0;
+}
 
-/* pointer to integer */
-#define PTR2INT(p) ((int)(intptr_t)(p))
+void test_hashmap(void)
+{
+    srand(time(NULL));
 
-/* integer to pointer */
-#define INT2PTR(i) ((void *)(intptr_t)(i))
+    HashMap map;
+    hashmap_init(&map, __str_cmp_cb__);
 
-// clang-format off
+    struct str *s;
+    int ret;
+    struct str *s2;
 
-/* endian check */
-#define CHECK_BIG_ENDIAN ({ \
-    int i = 1; \
-    !*((char *)&i);  \
-})
+    for (int i = 0; i < 10000; i++) {
+        s = malloc(sizeof(struct str) + 11);
+        random_string((char *)(s + 1), 10);
+        hashmap_entry_init(s, strhash((char *)(s + 1)));
+        ret = hashmap_put_absent(&map, s);
+        assert(!ret);
+        s2 = hashmap_get(&map, s);
+        assert(__str_cmp_cb__(s2, s));
+    }
 
-/*
- * Get the 'type' pointer from the pointer to `member`
- * which is embedded inside the 'type'
- */
-#define container_of(ptr, type, member) ({ \
-    const typeof(((type *)0)->member) *__mptr = (ptr); \
-    (type *)((char *)__mptr - offsetof(type, member)); \
-})
+    hashmap_fini(&map, __str_free_cb__, &map);
+}
 
-// clang-format on
+int main(int argc, char *argv[])
+{
+    test_hashmap();
+    return 0;
+}
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _KOALA_COMMON_H_ */

@@ -1,7 +1,25 @@
-/*----------------------------------------------------------------------------*\
-|* This file is part of the koala project, under the MIT License.             *|
-|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
-\*----------------------------------------------------------------------------*/
+/*
+ * This file is part of the koala project, under the MIT License.
+ * Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ * OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 #include "binheap.h"
 #include <stdio.h>
@@ -14,11 +32,11 @@ extern "C" {
 
 #define HEAP_MIN_SIZE 32
 
-int binheap_init(binheap_t *heap, int size, binheap_cmp_t cmp)
+int binheap_init(BinHeapRef heap, int size, binheap_cmp_func cmp)
 {
     if (size < HEAP_MIN_SIZE) size = HEAP_MIN_SIZE;
-    int mm_size = sizeof(binheap_entry_t *) * (size + 1);
-    binheap_entry_t **entries = malloc(mm_size);
+    int mm_size = sizeof(BinHeapEntry *) * (size + 1);
+    BinHeapEntry **entries = malloc(mm_size);
     if (!entries) return -1;
 
     heap->cmp = cmp;
@@ -29,7 +47,7 @@ int binheap_init(binheap_t *heap, int size, binheap_cmp_t cmp)
     return 0;
 }
 
-void binheap_fini(binheap_t *heap)
+void binheap_fini(BinHeapRef heap)
 {
     free(heap->entries);
 }
@@ -42,9 +60,9 @@ void binheap_fini(binheap_t *heap)
 #define LCHILD(i) ((i) << 1)
 #define RCHILD(i) (((i) << 1) + 1)
 
-static void __heap_up(binheap_t *heap, binheap_entry_t *e)
+static void __heap_up(BinHeapRef heap, BinHeapEntry *e)
 {
-    binheap_entry_t *p;
+    BinHeapEntry *p;
     unsigned int eidx, pidx;
 
     eidx = e->idx;
@@ -71,7 +89,7 @@ static void __heap_up(binheap_t *heap, binheap_entry_t *e)
     e->idx = eidx;
 }
 
-static void __heap_down(binheap_t *heap, binheap_entry_t *e)
+static void __heap_down(BinHeapRef heap, BinHeapEntry *e)
 {
     unsigned int eidx, lidx, ridx, swapidx;
 
@@ -84,8 +102,7 @@ static void __heap_down(binheap_t *heap, binheap_entry_t *e)
 
         /* get the 'greater` one from right and left child */
         ridx = RCHILD(eidx);
-        if (ridx <= heap->used &&
-            heap->cmp(heap->entries[ridx], heap->entries[lidx]))
+        if (ridx <= heap->used && heap->cmp(heap->entries[ridx], heap->entries[lidx]))
             swapidx = ridx;
         else
             swapidx = lidx;
@@ -109,15 +126,15 @@ static void __heap_down(binheap_t *heap, binheap_entry_t *e)
 /*
  * enlarge the array by heap->cap multiply 2
  */
-static int __heap_grow(binheap_t *heap, unsigned int size)
+static int __heap_grow(BinHeapRef heap, unsigned int size)
 {
     if (size <= heap->cap) return 0;
-    binheap_entry_t **new_entries;
+    BinHeapEntry **new_entries;
     int new_cap = heap->cap << 1;
     // printf("heap grow %d -> %d\n", heap->cap + 1, new_cap + 1);
-    new_entries = malloc(sizeof(binheap_entry_t *) * (new_cap + 1));
+    new_entries = malloc(sizeof(BinHeapEntry *) * (new_cap + 1));
     if (!new_entries) return -1;
-    int old_mm_size = sizeof(binheap_entry_t *) * (heap->cap + 1);
+    int old_mm_size = sizeof(BinHeapEntry *) * (heap->cap + 1);
     memcpy(new_entries, heap->entries, old_mm_size);
     free(heap->entries);
     heap->entries = new_entries;
@@ -125,7 +142,7 @@ static int __heap_grow(binheap_t *heap, unsigned int size)
     return 0;
 }
 
-int binheap_insert(binheap_t *heap, binheap_entry_t *e)
+int binheap_insert(BinHeapRef heap, BinHeapEntry *e)
 {
     unsigned int used = heap->used + 1;
     if (__heap_grow(heap, used)) {
@@ -141,21 +158,21 @@ int binheap_insert(binheap_t *heap, binheap_entry_t *e)
     return 0;
 }
 
-binheap_entry_t *binheap_pop(binheap_t *heap)
+BinHeapEntry *binheap_pop(BinHeapRef heap)
 {
     if (!heap->used) return NULL;
-    binheap_entry_t *root = heap->entries[1];
+    BinHeapEntry *root = heap->entries[1];
     binheap_delete(heap, root);
     return root;
 }
 
-binheap_entry_t *binheap_top(binheap_t *heap)
+BinHeapEntry *binheap_top(BinHeapRef heap)
 {
     if (!heap->used) return NULL;
     return heap->entries[1];
 }
 
-int binheap_delete(binheap_t *heap, binheap_entry_t *e)
+int binheap_delete(BinHeapRef heap, BinHeapEntry *e)
 {
     unsigned int eidx = e->idx;
 
@@ -172,7 +189,7 @@ int binheap_delete(binheap_t *heap, binheap_entry_t *e)
     }
 
     /* move the last entry to the to be deleted `entry` position. */
-    binheap_entry_t *last = heap->entries[heap->used];
+    BinHeapEntry *last = heap->entries[heap->used];
     heap->entries[eidx] = last;
     last->idx = eidx;
     heap->used--;
@@ -182,8 +199,7 @@ int binheap_delete(binheap_t *heap, binheap_entry_t *e)
      * or the entry is root, do heap down.
      */
     unsigned int pidx = PARENT(eidx);
-    if (eidx == 1 || heap->cmp(heap->entries[pidx], last))
-        __heap_down(heap, last);
+    if (eidx == 1 || heap->cmp(heap->entries[pidx], last)) __heap_down(heap, last);
     /*
      * the entry and its child are in the proper order, do heap up.
      */
@@ -196,7 +212,7 @@ int binheap_delete(binheap_t *heap, binheap_entry_t *e)
 }
 
 /* iterate heap */
-binheap_entry_t *binheap_next(binheap_t *heap, binheap_entry_t *e)
+BinHeapEntry *binheap_next(BinHeapRef heap, BinHeapEntry *e)
 {
     if (!e) return binheap_top(heap);
     unsigned int eidx = e->idx;

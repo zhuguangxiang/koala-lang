@@ -1,7 +1,25 @@
-/*----------------------------------------------------------------------------*\
-|* This file is part of the koala project, under the MIT License.             *|
-|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
-\*----------------------------------------------------------------------------*/
+/*
+ * This file is part of the koala project, under the MIT License.
+ * Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ * OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 #include "hashmap.h"
 #include <stdio.h>
@@ -36,10 +54,10 @@ unsigned int memhash(const void *buf, int len)
 #define HASHMAP_INITIAL_SIZE 32
 #define HASHMAP_LOAD_FACTOR  65
 
-static void __alloc_entries(hashmap_t *self, int size)
+static void __alloc_entries(HashMapRef self, int size)
 {
     self->size = size;
-    self->entries = malloc(size * sizeof(hashmap_entry_t *));
+    self->entries = malloc(size * sizeof(HashMapEntry *));
     /* calculate new thresholds */
     self->grow_at = size * HASHMAP_LOAD_FACTOR / 100;
     if (size <= HASHMAP_INITIAL_SIZE)
@@ -52,18 +70,18 @@ static void __alloc_entries(hashmap_t *self, int size)
     */
 }
 
-void hashmap_init(hashmap_t *self, hashmap_equal_t equal)
+void hashmap_init(HashMapRef self, hashmap_equal_func equal)
 {
-    memset(self, 0, sizeof(hashmap_t));
+    memset(self, 0, sizeof(*self));
     self->equal = equal;
     __alloc_entries(self, HASHMAP_INITIAL_SIZE);
 }
 
-void hashmap_fini(hashmap_t *self, hashmap_visit_t _free, void *arg)
+void hashmap_fini(HashMapRef self, hashmap_visit_func _free, void *arg)
 {
     if (!self || !self->entries) return;
 
-    hashmap_entry_t *e, *nxt;
+    HashMapEntry *e, *nxt;
     for (int i = 0; i < self->size; i++) {
         e = self->entries[i];
         while (e) {
@@ -76,41 +94,39 @@ void hashmap_fini(hashmap_t *self, hashmap_visit_t _free, void *arg)
     free(self->entries);
 }
 
-static inline int bucket(hashmap_t *self, hashmap_entry_t *e)
+static inline int bucket(HashMapRef self, HashMapEntry *e)
 {
     return e->hash & (self->size - 1);
 }
 
-static inline int entry_equals(
-    hashmap_t *self, hashmap_entry_t *e1, hashmap_entry_t *e2)
+static inline int entry_equals(HashMapRef self, HashMapEntry *e1, HashMapEntry *e2)
 {
     return (e1 == e2) || (e1->hash == e2->hash && self->equal(e1, e2));
 }
 
-static inline hashmap_entry_t **find_entry(
-    hashmap_t *self, hashmap_entry_t *key)
+static inline HashMapEntry **find_entry(HashMapRef self, HashMapEntry *key)
 {
-    hashmap_entry_t **e = &self->entries[bucket(self, key)];
+    HashMapEntry **e = &self->entries[bucket(self, key)];
     while (*e && !entry_equals(self, *e, key)) e = &(*e)->next;
     return e;
 }
 
-void *hashmap_get(hashmap_t *self, void *key)
+void *hashmap_get(HashMapRef self, void *key)
 {
     if (!self) return NULL;
     return *find_entry(self, key);
 }
 
-static void rehash(hashmap_t *self, int newsize)
+static void rehash(HashMapRef self, int newsize)
 {
     int oldsize = self->size;
     printf("hashmap:\nrehashing: %d\n", self->count);
-    hashmap_entry_t **oldentries = self->entries;
+    HashMapEntry **oldentries = self->entries;
 
     __alloc_entries(self, newsize);
 
-    hashmap_entry_t *e;
-    hashmap_entry_t *n;
+    HashMapEntry *e;
+    HashMapEntry *n;
     int b;
     for (int i = 0; i < oldsize; ++i) {
         e = oldentries[i];
@@ -126,11 +142,11 @@ static void rehash(hashmap_t *self, int newsize)
     free(oldentries);
 }
 
-int hashmap_put_absent(hashmap_t *self, void *entry)
+int hashmap_put_absent(HashMapRef self, void *entry)
 {
     if (self == NULL) return -1;
 
-    hashmap_entry_t *e = entry;
+    HashMapEntry *e = entry;
 
     if (*find_entry(self, e)) return -1;
 
@@ -142,19 +158,19 @@ int hashmap_put_absent(hashmap_t *self, void *entry)
     return 0;
 }
 
-void *hashmap_put(hashmap_t *self, void *entry)
+void *hashmap_put(HashMapRef self, void *entry)
 {
     void *old = hashmap_remove(self, entry);
     hashmap_put_absent(self, entry);
     return old;
 }
 
-void *hashmap_remove(hashmap_t *self, void *key)
+void *hashmap_remove(HashMapRef self, void *key)
 {
-    hashmap_entry_t **e = find_entry(self, (hashmap_entry_t *)key);
+    HashMapEntry **e = find_entry(self, key);
     if (!*e) return NULL;
 
-    hashmap_entry_t *old;
+    HashMapEntry *old;
     old = *e;
     *e = old->next;
     old->next = NULL;
@@ -165,12 +181,11 @@ void *hashmap_remove(hashmap_t *self, void *key)
     return old;
 }
 
-void hashmap_visit(hashmap_t *self, hashmap_visit_t visit, void *arg)
+void hashmap_visit(HashMapRef self, hashmap_visit_func visit, void *arg)
 {
     if (!self || !self->entries || !visit) return;
 
-    hashmap_entry_t *e;
-    hashmap_entry_t *next;
+    HashMapEntry *e, *next;
     int entries;
 
 rehashed:
