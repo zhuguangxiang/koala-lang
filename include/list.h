@@ -1,11 +1,25 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*
+ * This file is part of the koala-lang project, under the MIT License.
+ * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ * OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 #ifndef _KOALA_LIST_H_
 #define _KOALA_LIST_H_
@@ -16,140 +30,137 @@
 extern "C" {
 #endif
 
-/* List element node */
-typedef struct ListNode {
-    /* Previous list element node */
-    struct ListNode *prev;
-    /* Next list element node */
-    struct ListNode *next;
-} ListNode;
+typedef struct _List {
+    /* Previous list entry */
+    struct _List *prev;
+    /* Next list entry */
+    struct _List *next;
+} List, *ListRef;
 
-/* List structure */
-typedef ListNode List;
+// clang-format off
+#define LIST_INIT(name) { &(name), &(name) }
+// clang-format on
 
-/*
- * List initialization
- *
- * A list may be initialized by calling list_init():
- *
- * List list;
- * list_init(&list);
- *
- * or with an initializer using LIST_INITIALIZER:
- *
- * List list = LIST_INITIALIZER(list);
- *
- */
-#define LIST_INITIALIZER(name) \
-    {                          \
-        &(name), &(name)       \
-    }
-
-static inline void list_init(List *list)
+static inline void init_list(ListRef list)
 {
     list->prev = list;
     list->next = list;
 }
 
-#define LIST_NODE_INITIALIZER(name) \
-    {                               \
-        &(name), &(name)            \
-    }
-
-static inline void list_node_init(ListNode *node)
+/* Test whether a list is empty */
+static inline int list_empty(const ListRef list)
 {
-    node->prev = node;
-    node->next = node;
+    return list->next == list;
 }
 
-/* Test a list is empty */
-#define list_empty(list) ((list)->next == (list))
+/* Insert a new entry between two known consecutive entries */
+static inline void __list_add(ListRef new__, ListRef prev, ListRef next)
+{
+    next->prev = new__;
+    new__->next = next;
+    new__->prev = prev;
+    prev->next = new__;
+}
+
+/* Insert a new entry after 'prev' entry */
+static inline void list_add_after(ListRef new__, ListRef prev)
+{
+    __list_add(new__, prev, prev->next);
+}
+
+/* Insert a new entry before 'next' entry */
+static inline void list_add_before(ListRef new__, ListRef next)
+{
+    __list_add(new__, next->prev, next);
+}
+
+/* Insert a new entry at front */
+static inline void list_push_front(ListRef list, ListRef new__)
+{
+    __list_add(new__, list, list->next);
+}
+
+/* Insert a new entry at tail */
+static inline void list_push_back(ListRef list, ListRef new__)
+{
+    __list_add(new__, list->prev, list);
+}
+
+/* Remove a entry by making the prev/next entries pointer to each other. */
+static inline void __list_remove(ListRef prev, ListRef next)
+{
+    next->prev = prev;
+    prev->next = next;
+}
+
+/* Remove an entry from list */
+static inline void list_remove(ListRef entry)
+{
+    __list_remove(entry->prev, entry->next);
+    init_list(entry);
+}
+
+/* Pop an entry at front */
+static inline ListRef list_pop_front(ListRef list)
+{
+    ListRef entry = list->next;
+    if (entry == list) return NULL;
+    list_remove(entry);
+    return entry;
+}
+
+/* Pop an entry at tail */
+static inline ListRef list_pop_back(ListRef list)
+{
+    ListRef entry = list->prev;
+    if (entry == list) return NULL;
+    list_remove(entry);
+    return entry;
+}
+
+// clang-format off
+
+/* Get the entry in which is embedded */
+#define list_entry(ptr, type, member) CONTAINER_OF(ptr, type, member)
 
 /* Get the first element from a list */
-#define list_first(list) (list_empty(list) ? NULL : (list)->next)
+#define list_first(list, type, member) ({ \
+    ListRef head__ = (list); \
+    ListRef pos__ = head__->next; \
+    pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
+})
 
 /* Get the last element from a list */
-#define list_last(list) (list_empty(list) ? NULL : (list)->prev)
+#define list_last(list, type, member) ({ \
+    ListRef head__ = (list); \
+    ListRef pos__ = head__->prev; \
+    pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
+})
 
 /* Get the next element from a list */
-#define list_next(list, pos)            \
-    ({                                  \
-        ListNode *next = (pos)->next;   \
-        (next == (list)) ? NULL : next; \
-    })
+#define list_next(pos, member, list) ({ \
+    ListRef head__ = (list); \
+    ListRef nxt__ = (pos)->member.next; \
+    nxt__ != head__ ? list_entry(nxt__, typeof(*(pos)), member) : NULL; \
+})
 
 /* Get the previous element from a list */
-#define list_prev(list, pos)            \
-    ({                                  \
-        ListNode *prev = (pos)->prev;   \
-        (prev == (list)) ? NULL : prev; \
-    })
+#define list_prev(pos, member, list) ({ \
+    ListRef head__ = (list); \
+    ListRef prev__ = (pos)->member.prev; \
+    prev__ != head__ ? list_entry(prev__, typeof(*(pos)), member) : NULL; \
+})
 
-/* Iterate a list */
-#define list_foreach(list, pos) \
-    for (pos = (list)->next; pos != (list); pos = pos->next)
+#define list_foreach(v__, member, list, closure) \
+    for (v__ = list_first(list, typeof(*(v__)), member); \
+         v__; v__ = list_next(v__, member, list)) closure;
 
-/* Iterate a list in reverse order */
-#define list_foreach_reverse(list, pos) \
-    for (pos = (list)->prev; pos != (list); pos = pos->prev)
+#define list_foreach_safe(v__, n__, member, list, closure) \
+    for (v__ = list_first(list, typeof(*(v__)), member), \
+         n__ = v__ ? list_next(v__, member, list) : NULL; \
+         v__ && ({ n__ = list_next(v__, member, list); 1;}); v__ = n__) closure;
 
-/* Get the length of a list */
-static inline int list_size(List *list)
-{
-    int count = 0;
-    ListNode *pos;
-    list_foreach(list, pos) count++;
-    return count;
-}
-
-/* Insert a node between two known consecutive nodes */
-static inline void list_add_between(
-    ListNode *entry, ListNode *prev, ListNode *next)
-{
-    entry->next = next;
-    entry->prev = prev;
-    prev->next = entry;
-    next->prev = entry;
-}
-
-/* Insert a 'pos' node after 'prev' node */
-static inline void list_add(ListNode *prev, ListNode *pos)
-{
-    list_add_between(pos, prev, prev->next);
-}
-
-/* Insert a 'pos' node before 'next' node */
-static inline void list_add_before(ListNode *next, ListNode *pos)
-{
-    list_add_between(pos, next->prev, next);
-}
-
-/* Insert a 'pos' node at front */
-static inline void list_push_front(List *list, ListNode *pos)
-{
-    list_add_between(pos, list, list->next);
-}
-
-/* Insert a 'pos' node at tail */
-static inline void list_push_back(List *list, ListNode *pos)
-{
-    list_add_between(pos, list->prev, list);
-}
-
-/* Remove a node by making the prev/next nodes pointer to each other. */
-#define list_remove_between(prev, next) \
-    ({                                  \
-        next->prev = prev;              \
-        prev->next = next;              \
-    })
-
-/* Remove a node from list */
-#define list_remove(pos)                            \
-    ({                                              \
-        list_del_between((pos)->prev, (pos)->next); \
-        /* re-initialize node */                    \
-        list_node_init(pos);                        \
-    })
+// clang-format on
 
 #ifdef __cplusplus
 }

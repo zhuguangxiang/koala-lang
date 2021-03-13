@@ -1,4 +1,4 @@
-BasedOnStyle: WebKit
+BasedOnStyle: Google
 #AccessModifierOffset: -2
 AlignEscapedNewlinesLeft: true
 AlignTrailingComments: false
@@ -20,6 +20,8 @@ ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
 Cpp11BracedListStyle: false
 DerivePointerBinding: false
+DerivePointerAlignment: false
+PointerAlignment: Right
 ExperimentalAutoDetectBinPacking: false
 IndentCaseLabels: true
 IndentFunctionDeclarationAfterType: true
@@ -49,3 +51,8 @@ Standard:        Cpp11
 TabWidth:        4
 UseTab:          Never
 AlignConsecutiveMacros: true
+IncludeBlocks: Merge
+BreakBeforeBraces: Custom
+BraceWrapping:
+    AfterFunction: true
+    BeforeElse: false
