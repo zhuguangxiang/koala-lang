@@ -1,11 +1,7 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*----------------------------------------------------------------------------*\
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|* Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>                    *|
+\*----------------------------------------------------------------------------*/
 
 #include "klvm.h"
 
