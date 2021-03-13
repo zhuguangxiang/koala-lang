@@ -25,6 +25,7 @@
 #define _KOALA_VECTOR_H_
 
 #include "common.h"
+#include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -52,7 +53,7 @@ static inline void vector_init(VectorRef vec, int objsize)
 static inline void vector_fini(VectorRef vec)
 {
     if (!vec) return;
-    free(vec->objs);
+    mm_free(vec->objs);
     vec->objs = NULL;
     vec->objsize = 0;
     vec->size = 0;
@@ -69,7 +70,7 @@ static inline void vector_clear(VectorRef vec)
 /* Create a vector */
 static inline VectorRef vector_new(int objsize)
 {
-    VectorRef vec = malloc(sizeof(*vec));
+    VectorRef vec = mm_alloc(sizeof(*vec));
     vector_init(vec, objsize);
     return vec;
 }
@@ -78,7 +79,7 @@ static inline VectorRef vector_new(int objsize)
 static inline void vector_destroy(VectorRef vec)
 {
     vector_fini(vec);
-    free(vec);
+    mm_free(vec);
 }
 
 /* Get a vector size */

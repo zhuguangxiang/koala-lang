@@ -25,3 +25,4 @@ include(${CMAKE_SOURCE_DIR}/cmake/test.cmake)
 
 TEST(test_list)
 TEST(test_vector koala)
+TEST(test_hashmap koala)

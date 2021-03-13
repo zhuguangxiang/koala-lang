@@ -64,7 +64,7 @@ extern "C" {
     !*((char *)&_i);        \
 })
 
-/**
+/*
  * Get the 'type' pointer from the pointer to `member`
  * which is embedded inside the 'type'
  */

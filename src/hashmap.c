@@ -1,15 +1,28 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*
+ * This file is part of the koala-lang project, under the MIT License.
+ * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ * OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 #include "hashmap.h"
-#include <stdio.h>
-#include <string.h>
+#include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,7 +52,7 @@ unsigned int memhash(const void *buf, int len)
 #define HASHMAP_INITIAL_SIZE 32
 #define HASHMAP_LOAD_FACTOR  65
 
-static void __alloc_entries(HashMap *self, int size)
+static void __alloc_entries(HashMapRef self, int size)
 {
     self->size = size;
     self->entries = mm_alloc(size * sizeof(HashMapEntry *));
@@ -55,14 +68,14 @@ static void __alloc_entries(HashMap *self, int size)
     */
 }
 
-void hashmap_init(HashMap *self, hash_equal_t equal)
+void hashmap_init(HashMapRef self, hashmap_equal_func equal)
 {
-    memset(self, 0, sizeof(HashMap));
+    memset(self, 0, sizeof(*self));
     self->equal = equal;
     __alloc_entries(self, HASHMAP_INITIAL_SIZE);
 }
 
-void hashmap_fini(HashMap *self, hash_visit_t free, void *arg)
+void hashmap_fini(HashMapRef self, hashmap_visit_func _free, void *arg)
 {
     if (!self || !self->entries) return;
 
@@ -71,7 +84,7 @@ void hashmap_fini(HashMap *self, hash_visit_t free, void *arg)
         e = self->entries[i];
         while (e) {
             nxt = e->next;
-            free(e, arg);
+            _free(e, arg);
             e = nxt;
         }
     }
@@ -79,31 +92,31 @@ void hashmap_fini(HashMap *self, hash_visit_t free, void *arg)
     mm_free(self->entries);
 }
 
-static inline int bucket(HashMap *self, HashMapEntry *e)
+static inline int bucket(HashMapRef self, HashMapEntry *e)
 {
     return e->hash & (self->size - 1);
 }
 
-static inline int entry_equals(
-    HashMap *self, HashMapEntry *e1, HashMapEntry *e2)
+static inline int entry_equals(HashMapRef self, HashMapEntry *e1,
+                               HashMapEntry *e2)
 {
     return (e1 == e2) || (e1->hash == e2->hash && self->equal(e1, e2));
 }
 
-static inline HashMapEntry **find_entry(HashMap *self, HashMapEntry *key)
+static inline HashMapEntry **find_entry(HashMapRef self, HashMapEntry *key)
 {
     HashMapEntry **e = &self->entries[bucket(self, key)];
     while (*e && !entry_equals(self, *e, key)) e = &(*e)->next;
     return e;
 }
 
-void *hashmap_get(HashMap *self, void *key)
+void *hashmap_get(HashMapRef self, void *key)
 {
     if (!self) return NULL;
     return *find_entry(self, key);
 }
 
-static void rehash(HashMap *self, int newsize)
+static void rehash(HashMapRef self, int newsize)
 {
     int oldsize = self->size;
     printf("hashmap:\nrehashing: %d\n", self->count);
@@ -128,7 +141,7 @@ static void rehash(HashMap *self, int newsize)
     mm_free(oldentries);
 }
 
-int hashmap_put_absent(HashMap *self, void *entry)
+int hashmap_put_absent(HashMapRef self, void *entry)
 {
     if (self == NULL) return -1;
 
@@ -144,16 +157,16 @@ int hashmap_put_absent(HashMap *self, void *entry)
     return 0;
 }
 
-void *hashmap_put(HashMap *self, void *entry)
+void *hashmap_put(HashMapRef self, void *entry)
 {
     void *old = hashmap_remove(self, entry);
     hashmap_put_absent(self, entry);
     return old;
 }
 
-void *hashmap_remove(HashMap *self, void *key)
+void *hashmap_remove(HashMapRef self, void *key)
 {
-    HashMapEntry **e = find_entry(self, (HashMapEntry *)key);
+    HashMapEntry **e = find_entry(self, key);
     if (!*e) return NULL;
 
     HashMapEntry *old;
@@ -167,12 +180,11 @@ void *hashmap_remove(HashMap *self, void *key)
     return old;
 }
 
-void hashmap_visit(HashMap *self, hash_visit_t visit, void *arg)
+void hashmap_visit(HashMapRef self, hashmap_visit_func visit, void *arg)
 {
     if (!self || !self->entries || !visit) return;
 
-    HashMapEntry *e;
-    HashMapEntry *next;
+    HashMapEntry *e, *next;
     int entries;
 
 rehashed:

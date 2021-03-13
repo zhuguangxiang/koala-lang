@@ -41,10 +41,10 @@ static inline int __maybe_expand(VectorRef vec, int extra)
     else
         cap = VECTOR_MINIMUM_CAPACITY;
 
-    char *objs = (char *)malloc(cap * vec->objsize);
+    char *objs = (char *)mm_alloc(cap * vec->objsize);
     if (vec->objs) {
         memcpy(objs, vec->objs, vec->size * vec->objsize);
-        free(vec->objs);
+        mm_free(vec->objs);
     }
 
     vec->objs = objs;
