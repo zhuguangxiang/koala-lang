@@ -1,20 +1,65 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*
+ * This file is part of the koala-lang project, under the MIT License.
+ * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ * OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
-#include "readline.h"
 #include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
+#include "common.h"
+
+static struct termios orig;
+
+void line_init(void)
+{
+    /* save old */
+    struct termios raw;
+    tcgetattr(STDIN_FILENO, &orig);
+
+    /* modify the original mode */
+    raw = orig;
+
+    /*
+      local modes - choing off, canonical off, no extended functions,
+      no signal chars (^Z,^C)
+     */
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+
+    /*
+      control chars - set return condition: min number of bytes and timer.
+      We want read to return every single byte, without timeout.
+     */
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+
+    /* put terminal in raw mode after flushing */
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+void line_fini(void)
+{
+    /* reset term mode */
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig);
+}
 
 enum KEY_ACTION {
     KEY_NULL = 0,
@@ -105,12 +150,10 @@ static void line_insert(LineState *ls, char *s, int count)
         if (ls->plen + ls->len < ls->col) {
             // not wrap line
             if (write(ls->out, s, count) < 0) return;
-        }
-        else {
+        } else {
             refresh(ls);
         }
-    }
-    else {
+    } else {
         char *from = ls->buf + ls->pos;
         char *to = from + count;
         int len = ls->len - ls->pos;
@@ -207,8 +250,7 @@ static void do_esc(LineState *ls)
             default:
                 break;
         }
-    }
-    else {
+    } else {
         // ESC 0 sequences
     }
 }
@@ -296,46 +338,12 @@ static int line_edit(int in, int out, char *buf, int len, char *prompt)
             case CTRL_W:
                 break;
             case CTRL_Z: // stop self
-                fini_readline();
+                line_fini();
                 raise(SIGTSTP);
-                init_readline();
+                line_init();
                 break;
         }
     }
-}
-
-static struct termios orig;
-
-void init_readline(void)
-{
-    /* save old */
-    struct termios raw;
-    tcgetattr(STDIN_FILENO, &orig);
-
-    /* modify the original mode */
-    raw = orig;
-
-    /*
-      local modes - choing off, canonical off, no extended functions,
-      no signal chars (^Z,^C)
-     */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-
-    /*
-      control chars - set return condition: min number of bytes and timer.
-      We want read to return every single byte, without timeout.
-     */
-    raw.c_cc[VMIN] = 1;
-    raw.c_cc[VTIME] = 0;
-
-    /* put terminal in raw mode after flushing */
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
-}
-
-void fini_readline(void)
-{
-    /* reset term mode */
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig);
 }
 
 int readline(char *prompt, char *buf, int len)

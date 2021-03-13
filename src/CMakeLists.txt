@@ -24,7 +24,7 @@
 ADD_COMPILE_DEFINITIONS(COMPILE_IR)
 
 SET(KOALA_SOURCES
-    mm.c vector.c hashmap.c)
+    mm.c vector.c hashmap.c readline.c)
 
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})
 SET_TARGET_PROPERTIES(koala_so PROPERTIES
