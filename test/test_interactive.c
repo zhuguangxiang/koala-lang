@@ -21,20 +21,10 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <stdlib.h>
-#include "readline.h"
-
-void test_readline(void)
-{
-    init_line();
-    char buf[128];
-    while (readline("> ", buf, 127)) {
-    }
-    fini_line();
-}
+void kl_cmdline(void);
 
 int main(int argc, char *argv[])
 {
-    test_readline();
+    kl_cmdline();
     return 0;
 }

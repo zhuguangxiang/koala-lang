@@ -286,10 +286,10 @@ int yywrap(yyscan_t yyscanner)
 
 int main(int argc, char *argv[])
 {
-    init_readline();
+    init_line();
     yyscan_t scan;
     yylex_init(&scan);
     yylex(scan);
-    fini_readline();
+    fini_line();
     return 0;
 }

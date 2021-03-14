@@ -1,57 +1,123 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*
+ * This file is part of the koala-lang project, under the MIT License.
+ * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ * OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 /* prologue */
 
 %{
 
-#include <stdio.h>
 #include "parser.h"
 #include "readline.h"
 #include "koala_yacc.h"
 
-#define YY_EXTRA_TYPE ParserState *
+/* auto insert semi-colon check */
+static int semicolon(ParserStateRef ps)
+{
+    static int tokens[] = {
+        INT_LITERAL, STRING_LITERAL,
+        ID, SELF, SUPER, TRUE, FALSE,
+        ')', ']', '}', '>', '_',
+    };
+
+    int token = ps->token;
+    for (int i = 0; i < COUNT_OF(tokens); ++i) {
+        if (tokens[i] == token) return 1;
+    }
+    return 0;
+}
+
+/* escape convert & utf8 check */
+static int parse_string(ParserStateRef ps)
+{
+    return 0;
+}
+
+int stdin_input(ParserStateRef ps, char *buf, int size);
+int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
+{
+    return 0;
+}
+
+/* Macros in flex */
+
+#define YY_INPUT(buf, result, size) \
+    if (yyps->interactive) \
+        result = stdin_input(yyps, buf, size); \
+    else \
+        result = file_input(yyps, buf, size, yyin);
+
+#define YY_EXTRA_TYPE ParserStateRef
 #define yyps ((YY_EXTRA_TYPE)yyextra)
 
-#define YY_USER_ACTION {                    \
-    char ch = *yytext;                      \
-    if (ch != '\0' &&                       \
-        ch != '\r' && ch != '\n') {         \
-        yyps->col += yys->len;              \
-        yyps->len = strlen(yytext);         \
-        yylloc->first_column = yyps->col;   \
-        yylloc->first_line = yyps->line;    \
-    }                                       \
+#define YY_USER_ACTION {                  \
+    char ch = yytext[0];                  \
+    if (ch != '\n' && ch != '\r') {       \
+        yyps->col += yyps->len;           \
+        yyps->len = strlen(yytext);       \
+        yylloc->first_column = yyps->col; \
+        yylloc->first_line = yyps->line;  \
+    }                                     \
 }
 
 #define YY_RETURN(x) yyps->token = x; return x
 
-#define YY_INPUT(buf, result, size) result = readline("> ", buf, size)
-
-#define YY_NEWLINE              \
-    ++yyps->line;               \
-    yyps->col = 1;              \
-    yyps->len = 0;              \
-    if (need_semicolon(yyps)) { \
-        YY_RETURN(';');         \
+#define YY_NEWLINE         \
+    ++yyps->line;          \
+    yyps->col = 1;         \
+    yyps->len = 0;         \
+    if (semicolon(yyps)) { \
+        YY_RETURN(';');    \
     }
 
 #define YY_STRING_BEGIN yyps->next = 0
 
-#define YY_STRING_END               \
-    int ret = parse_string(yyps);   \
-    yyps->next = 0;                 \
-    if (ret) YY_RETURN(';');        \
-    else YY_RETURN(STRING_LITERAL)
+#define YY_STRING_END do {         \
+    int ret = parse_string(yyps);  \
+    if (ret) {                     \
+        printf("error: invalid utf8 string\n"); \
+        YY_RETURN(';');            \
+    } else {                       \
+        yylval->sval = yyps->buf;  \
+        YY_RETURN(STRING_LITERAL); \
+    }                              \
+} while (0)
 
-#define YY_STRING_APPEND(ch)        \
+#define YY_STRING_APPEND(ch) \
     yyps->buf[yyps->next++] = ch
+
+#define YY_TEXT_BEGIN yyps->next = 0
+
+#define YY_TEXT_END do {       \
+    YY_RETURN(STRING_LITERAL); \
+} while (0)
+
+#define YY_TEXT_APPEND(ch) \
+    yyps->buf[yyps->next++] = ch
+
+#define YY_IDENT_VALUE(s) \
+    yylval->sval = s
+
+#define YY_INT_VALUE(s, base) \
+    yylval->ival = strtoll(s, NULL, base)
 
 %}
 
@@ -68,43 +134,9 @@
 
 %%
 
-[ \t\r\0]+      ;
-
-[\n]            {
-                    BEGIN(INITIAL);
-                    YY_NEWLINE;
-                }
-
-\"              {
-                    BEGIN(STRING);
-                    YY_STRING_BEGIN;
-                }
-<STRING>\"      {
-                    BEGIN(INITIAL);
-                    YY_STRING_END;
-                }
-<STRING>\\\"    { YY_STRING_APPEND('\"');      }
-<STRING>\\\\    { YY_STRING_APPEND('\\');      }
-<STRING>\n      { YY_STRING_APPEND('\n');      }
-<STRING>\r      { YY_STRING_APPEND('\r');      }
-<STRING>\0      ;
-<STRING>.       { YY_STRING_APPEND(yytext[0]); }
-
-\"\"\"          { 
-                    BEGIN(TEXT);
-                    YY_STRING_BEGIN;
-                }
-<TEXT>\"\"\"    {
-                    BEGIN(INITIAL);
-                    YY_STRING_END;
-                }
-<TEXT>\n        { YY_STRING_APPEND('\n');      }
-<TEXT>\r        { YY_STRING_APPEND('\r');      }
-<TEXT>\0        ;
-<TEXT>.         { YY_STRING_APPEND(yytext[0]); }
-
 "import"    { YY_RETURN(IMPORT);   }
-"const"     { YY_RETURN(CONST);    }
+"final"     { YY_RETURN(FINAL);    }
+"pub"       { YY_RETURN(PUB);      }
 "var"       { YY_RETURN(VAR);      }
 "func"      { YY_RETURN(FUNC);     }
 "class"     { YY_RETURN(CLASS);    }
@@ -123,180 +155,150 @@
 "as"        { YY_RETURN(AS);       }
 "is"        { YY_RETURN(IS);       }
 
-"int8"      { YY_RETURN(BYTE);     }
-"int16"     { YY_RETURN(BYTE);     }
-"int32"     { YY_RETURN(BYTE);     }
-"int64"     { YY_RETURN(BYTE);     }
-"int"       { YY_RETURN(INTEGER);  }
-"float32"   { YY_RETURN(FLOAT);    }
-"float64"   { YY_RETURN(FLOAT);    }
-"float"     { YY_RETURN(FLOAT);    }
-"bool"      { YY_RETURN(BOOL);     }
-"char"      { YY_RETURN(CHAR);     }
-"string"    { YY_RETURN(STRING);   }
-"any"       { YY_RETURN(ANY);      }
+"self"  { YY_RETURN(SELF);  }
+"super" { YY_RETURN(SUPER); }
+"true"  { YY_RETURN(TRUE);  }
+"false" { YY_RETURN(FALSE); }
+"nil"   { YY_RETURN(NIL);   }
 
-"self"      { YY_RETURN(SELF);     }
-"super"     { YY_RETURN(SUPER);    }
-"true"      { YY_RETURN(TRUE);     }
-"false"     { YY_RETURN(FALSE);    }
-"nil"       { YY_RETURN(NIL);      }
+"int8"      { YY_RETURN(INT8);    }
+"int16"     { YY_RETURN(INT16);   }
+"int32"     { YY_RETURN(INT32);   }
+"int64"     { YY_RETURN(INT64);   }
+"int"       { YY_RETURN(INT);     }
+"float32"   { YY_RETURN(FLOAT32); }
+"float64"   { YY_RETURN(FLOAT64); }
+"float"     { YY_RETURN(FLOAT);   }
+"bool"      { YY_RETURN(BOOL);    }
+"char"      { YY_RETURN(CHAR);    }
+"string"    { YY_RETURN(STRING);  }
+"any"       { YY_RETURN(ANY);     }
 
-"_"     {}
-"and"   {  }
-"or"    { }
-"not"   {  }
+"and"   { YY_RETURN(AND); }
+"or"    { YY_RETURN(OR);  }
+"not"   { YY_RETURN(NOT); }
 
-[A-Za-z_][A-Za-z0-9_]*  {}
+"=="    { YY_RETURN(EQ);  }
+"!="    { YY_RETURN(NE);  }
+">="    { YY_RETURN(GE);  }
+"<="    { YY_RETURN(LE);  }
+"&&"    { YY_RETURN(AND); }
+"||"    { YY_RETURN(OR);  }
 
-0[xX][0-9a-fA-F_]+  {  }
-0[dD][0-9_]+        {  }
-0[oO][0-7_]+        {  }
-0[bB][01_]+         {  }
-[0-9][0-9_]*        {  }
+":="    { YY_RETURN(FREE_ASSIGN);  }
+"+="    { YY_RETURN(PLUS_ASSIGN);  }
+"-="    { YY_RETURN(MINUS_ASSIGN); }
+"*="    { YY_RETURN(MULT_ASSIGN);  }
+"/="    { YY_RETURN(DIV_ASSIGN);   }
+"%="    { YY_RETURN(MOD_ASSIGN);   }
+"&="    { YY_RETURN(AND_ASSIGN);   }
+"|="    { YY_RETURN(OR_ASSIGN);    }
+"^="    { YY_RETURN(XOR_ASSIGN);   }
+"<<="   { YY_RETURN(SHL_ASSIGN);   }
+">>="   { YY_RETURN(SHR_ASSIGN);   }
 
-"=="    {  }
-"!="    { }
-">="    {}
-"<="    {  }
-"&&"    {  }
-"||"    {  }
-"**"    {  }
-":="    {  }
-"+="    { }
-"-="    { }
-"*="    { }
-"/="    {  }
-"**="   { }
-"%="    {  }
-"&="    {  }
-"|="    {  }
-"^="    {     }
-"<<="   { }
-">>="   {  }
 "..."   {  }
-"..<"   { }
-"=>"    {    }
-"~="    {     }
+"..<"   {  }
+"=>"    {  }
+"~="    {  }
 
-"<"     {
-        YY_RETURN('<');
-    }
+"+"     { YY_RETURN('+'); }
+"-"     { YY_RETURN('-'); }
+"*"     { YY_RETURN('*'); }
+"/"     { YY_RETURN('/'); }
+"%"     { YY_RETURN('%'); }
+"&"     { YY_RETURN('&'); }
+"|"     { YY_RETURN('|'); }
+"~"     { YY_RETURN('~'); }
+"^"     { YY_RETURN('^'); }
+"!"     { YY_RETURN(NOT); }
 
-">" {
-        YY_RETURN('>');
-    }
+":"     { YY_RETURN(':'); }
+","     { YY_RETURN(','); }
+";"     { YY_RETURN(';'); }
+"."     { YY_RETURN('.'); }
+"="     { YY_RETURN('='); }
+"_"     { YY_RETURN('_'); }
+"?"     { YY_RETURN('?'); }
 
-"+" {
-        YY_RETURN('+');
-    }
+"("     { YY_RETURN('('); }
+")"     { YY_RETURN(')'); }
+"["     { YY_RETURN('['); }
+"]"     { YY_RETURN(']'); }
+"{"     { YY_RETURN('{'); }
+"}"     { YY_RETURN('}'); }
 
-"-" {
-        YY_RETURN('-');
-    }
+">"     { YY_RETURN('>'); }
+"<"     { YY_RETURN('<'); }
+"<<"    { YY_RETURN(L_SHIFT); }
+">"/">" { YY_RETURN(R_ANGLE_SHIFT); }
 
-"*" {
-        YY_RETURN('*');
-    }
+\"           { BEGIN(STRING); YY_STRING_BEGIN; }
+<STRING>\"   { BEGIN(INITIAL); YY_STRING_END;  }
+<STRING>\\\" { YY_STRING_APPEND('\"');         }
+<STRING>\\\\ { YY_STRING_APPEND('\\');         }
+<STRING>\n   { 
+                /* string with newline */ 
+                YY_STRING_APPEND('\n');
+             }
+<STRING>\r   { /* string omit return */ }
+<STRING>.    { YY_STRING_APPEND(yytext[0]); }
 
-"/" {
-        YY_RETURN('/');
-    }
+\"\"\"       { BEGIN(TEXT); YY_TEXT_BEGIN;  }
+<TEXT>\"\"\" { BEGIN(INITIAL); YY_TEXT_END; }
+<TEXT>\n     { 
+                /* text with newline */ 
+                YY_TEXT_APPEND('\n');
+             }
+<TEXT>\r     { /* text omit return */ }
+<TEXT>.      { YY_TEXT_APPEND(yytext[0]); }
 
-"%" {
-        YY_RETURN('%');
-    }
+[A-Za-z_][A-Za-z0-9_]*  {
+                            YY_IDENT_VALUE(yytext);
+                            YY_RETURN(ID);
+                        }
 
-"|" {
-        YY_RETURN('|');
-    }
+0[xX][0-9a-fA-F_]+  {
+                        YY_INT_VALUE(yytext + 2, 16);
+                        YY_RETURN(INT_LITERAL);
+                    }
+0[dD][0-9_]+        {
+                        YY_INT_VALUE(yytext + 2, 10);
+                        YY_RETURN(INT_LITERAL);
+                    }
+0[oO][0-7_]+        {
+                        YY_INT_VALUE(yytext + 2, 8);
+                        YY_RETURN(INT_LITERAL);
+                    }
+0[bB][01_]+         { 
+                        YY_INT_VALUE(yytext + 2, 2);
+                        YY_RETURN(INT_LITERAL);
+                    }
+[0-9][0-9_]*        {
+                        YY_INT_VALUE(yytext, 10);
+                        YY_RETURN(INT_LITERAL);
+                    }
 
-"&" {
-        YY_RETURN('&');
-    }
+[ \t\r]+ ;
 
-"^" {
-        YY_RETURN('^');
-    }
+[\n]+ { YY_NEWLINE; }
 
-"~" {
-        YY_RETURN('~');
-    }
-
-"!" {
-        YY_RETURN('!');
-    }
-
-":" {
-        YY_RETURN(':');
-    }
-
-"," {
-        YY_RETURN(',');
-    }
-
-"?" {
-        YY_RETURN('?');
-    }
-
-"." {
-        YY_RETURN('.');
-    }
-
-";" {
-        YY_RETURN(';');
-    }
-
-"=" {
-        YY_RETURN('=');
-    }
-
-"@" {
-        YY_RETURN('@');
-    }
-
-"(" {
-        YY_RETURN('(');
-    }
-
-")" {
-        YY_RETURN(')');
-    }
-
-"[" {
-        YY_RETURN('[');
-    }
-
-"]" {
-        YY_RETURN(']');
-    }
-
-"{" {
-        YY_RETURN('{');
-    }
-
-"}" {
-        YY_RETURN('}');
-    }
-
-"<<"    {
-        YY_RETURN(L_SHIFT);
-    }
-
-">"/">" {
-        YY_RETURN(R_ANGLE_SHIFT);
-    }
-
-.           {
-                printf("invalid\n");
-                // return 0;
-            }
+. { printf("error: invalid input\n"); abort(); }
 
 %%
 
 /* epilogue */
 
+/*
+When the scanner receives an end-of-file indication from YY_INPUT, it then
+checks the yywrap() function.
+
+If yywrap() returns false (zero), then it is assumed that the function has gone
+ahead and set up yyin to point to another input file, and scanning continues.
+
+If it returns true (non-zero), then the scanner terminates.
+*/
 int yywrap(yyscan_t yyscanner)
 {
-    return 1;
+    return -1;
 }

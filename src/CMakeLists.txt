@@ -23,8 +23,21 @@
 
 ADD_COMPILE_DEFINITIONS(COMPILE_IR)
 
+INCLUDE(${PROJECT_SOURCE_DIR}/cmake/bison.cmake)
+
+RUN_FLEX(
+    ${PROJECT_SOURCE_DIR}/src/parser/koala.l
+    ${PROJECT_SOURCE_DIR}/src/parser/koala_lex.c
+    ${PROJECT_SOURCE_DIR}/include/koala_lex.h)
+
+RUN_BISON(
+    ${PROJECT_SOURCE_DIR}/src/parser/koala.y
+    ${PROJECT_SOURCE_DIR}/src/parser/koala_yacc.c
+    ${PROJECT_SOURCE_DIR}/include/koala_yacc.h)
+
 SET(KOALA_SOURCES
-    mm.c vector.c hashmap.c readline.c)
+    mm.c vector.c hashmap.c readline.c 
+    parser/koala_lex.c parser/koala_yacc.c parser/interactive.c)
 
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})
 SET_TARGET_PROPERTIES(koala_so PROPERTIES

@@ -29,7 +29,7 @@
 
 static struct termios orig;
 
-void line_init(void)
+void init_line(void)
 {
     /* save old */
     struct termios raw;
@@ -55,7 +55,7 @@ void line_init(void)
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-void line_fini(void)
+void fini_line(void)
 {
     /* reset term mode */
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig);
@@ -175,13 +175,13 @@ static void line_insert(LineState *ls, char *s, int count)
 
 static inline void insert_tab(LineState *ls)
 {
-    line_insert(ls, "  ", 2);
+    line_insert(ls, "    ", 4);
 }
 
 static inline void do_newline(LineState *ls)
 {
     ls->pos = ls->len;
-    line_insert(ls, "\r\n\0", 3);
+    line_insert(ls, "\n\r", 2);
 }
 
 static inline void move_home(LineState *ls)
@@ -302,7 +302,7 @@ static int line_edit(int in, int out, char *buf, int len, char *prompt)
                 do_backspace(&ls);
                 break;
             case CTRL_D:
-                if (write(ls.out, "\r\n", 2) < 0) return -1;
+                if (write(ls.out, "\n\r", 2) < 0) return -1;
                 return 0;
             case CTRL_C:
                 if (write(ls.out, "^C", 2) < 0) return -1;
@@ -338,9 +338,9 @@ static int line_edit(int in, int out, char *buf, int len, char *prompt)
             case CTRL_W:
                 break;
             case CTRL_Z: // stop self
-                line_fini();
+                fini_line();
                 raise(SIGTSTP);
-                line_init();
+                init_line();
                 break;
         }
     }

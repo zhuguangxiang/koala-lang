@@ -29,10 +29,10 @@ extern "C" {
 #endif
 
 /* initialize termios */
-void line_init(void);
+void init_line(void);
 
 /* restore termios */
-void line_fini(void);
+void fini_line(void);
 
 /* read line with prompt */
 int readline(char *prompt, char *buf, int len);

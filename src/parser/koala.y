@@ -1,59 +1,117 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*
+ * This file is part of the koala-lang project, under the MIT License.
+ * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ * OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 
 /* prologue */
 
 %{
 
-#include <stdint.h>
+#include "parser.h"
 
 #define yyerror(loc, ps, scanner, msg) ((void)0)
 
 %}
 
 %union {
-    int8_t  INT8;
-    int16_t INT16;
-    int32_t INT32;
-    int64_t INT64;
-    int64_t INT;
-    char *  STRING;
+    int64_t ival;
+    double fval;
+    int cval;
+    char *sval;
 }
+
+%token IMPORT
+%token FINAL
+%token PUB
+%token VAR
+%token FUNC
+%token CLASS
+%token TRAIT
+%token ENUM
+%token IF
+%token ELSE
+%token WHILE
+%token FOR
+%token MATCH
+%token BREAK
+%token CONTINUE
+%token RETURN
+%token IN
+%token BY
+%token AS
+%token IS
+
+%token SELF
+%token SUPER
+%token TRUE
+%token FALSE
+%token NIL
+
+%token INT8
+%token INT16
+%token INT32
+%token INT64
+%token INT
+%token FLOAT32
+%token FLOAT64
+%token FLOAT
+%token BOOL
+%token CHAR
+%token STRING
+%token ANY
 
 %token AND
 %token OR
 %token NOT
 %token EQ
 %token NE
-%token LE
 %token GE
-%token POWER
+%token LE
+
+%token FREE_ASSIGN
+%token PLUS_ASSIGN
+%token MINUS_ASSIGN
+%token MULT_ASSIGN
+%token DIV_ASSIGN
+%token MOD_ASSIGN
+%token AND_ASSIGN
+%token OR_ASSIGN
+%token XOR_ASSIGN
+%token SHL_ASSIGN
+%token SHR_ASSIGN
 
 %token L_SHIFT
 %token R_ANGLE_SHIFT
 
-%token SELF
-%token SUPER
-%token TRUE
-%token FALSE
-
-%token <INT> INT_LITERAL
-%token <STRING> STRING_LITERAL
-%token <STRING> ID
+%token <ival> INT_LITERAL
+%token <sval> STRING_LITERAL
+%token <sval> ID
 
 %locations
-%parse-param {void *ps}
+%parse-param {ParserStateRef ps}
 %parse-param {void *scanner}
 %define api.pure full
 %lex-param {void *scanner}
 %code provides {
-  int yylex(YYSTYPE *yylval, YYLTYPE *yylloc, void *yyscanner);
+  int yylex(YYSTYPE *yylval_param, YYLTYPE *yylloc, void *yyscanner);
 }
 
 %start units
@@ -69,6 +127,12 @@ units
 
 unit
     : expr ';'
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+            printf("exression\n");
+        }
+    }
     ;
 
 expr
@@ -136,7 +200,6 @@ multi_expr
     | multi_expr '*' unary_expr
     | multi_expr '/' unary_expr
     | multi_expr '%' unary_expr
-    | multi_expr POWER unary_expr
     ;
 
 unary_expr
@@ -180,9 +243,17 @@ slice_expr
 atom_expr
     : ID
     | '_'
+    | INT_LITERAL
+    {
+        printf("integer:%ld\n", $1);
+    }
     | STRING_LITERAL
+    {
+        printf("string:%s\n", $1);
+    }
     | TRUE
     | FALSE
+    | NIL
     | SELF
     | SUPER
     | '(' expr ')'

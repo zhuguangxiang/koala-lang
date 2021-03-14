@@ -21,42 +21,72 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_PARSER_H_
-#define _KOALA_PARSER_H_
-
-#include "common.h"
+// clang-format off
+#include <sys/utsname.h>
+#include "version.h"
+#include "parser.h"
+#include "koala_yacc.h"
+#include "koala_lex.h"
+#include "readline.h"
+// clang-format on
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define MAX_STR_BUF_LEN 4096
+#define PROMPT      ">>> "
+#define MORE_PROMPT "    "
 
-typedef struct _ParserState {
-    /* is interactive ? */
-    int interactive;
-    /* is complete ? */
-    int more;
-    /* interactive quit */
-    int quit;
+static yyscan_t scanner;
+static ParserState ps;
 
-    /* token ident */
-    int token;
-    /* token length */
+static void show_banner(void)
+{
+    printf("Koala %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
+
+    struct utsname sysinfo;
+    if (!uname(&sysinfo)) {
+#if defined(__clang__)
+        printf("[clang %d.%d.%d on %s/%s]\r\n", __clang_major__,
+               __clang_minor__, __clang_patchlevel__, sysinfo.sysname,
+               sysinfo.machine);
+#elif defined(__GNUC__)
+        printf("[gcc %d.%d.%d on %s/%s]\r\n", __GNUC__, __GNUC_MINOR__,
+               __GNUC_PATCHLEVEL__, sysinfo.sysname, sysinfo.machine);
+#elif defined(_MSC_VER)
+#else
+#endif
+    }
+}
+
+int stdin_input(ParserStateRef ps, char *buf, int size)
+{
     int len;
-    /* token line */
-    int line;
-    /* token column */
-    int col;
+    if (ps->more) {
+        len = readline(MORE_PROMPT, buf, size);
+    } else {
+        len = readline(PROMPT, buf, size);
+    }
+    ps->more = 1;
+    return len;
+}
 
-    /* string buffer */
-    char buf[MAX_STR_BUF_LEN];
-    /* buf next avail */
-    int next;
-} ParserState, *ParserStateRef;
+void kl_cmdline(void)
+{
+    show_banner();
+
+    init_line();
+
+    ps.interactive = 1;
+
+    yylex_init_extra(&ps, &scanner);
+    yyset_in(stdin, scanner);
+    yyparse(&ps, scanner);
+    yylex_destroy(scanner);
+
+    fini_line();
+}
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _KOALA_PARSER_H_ */
