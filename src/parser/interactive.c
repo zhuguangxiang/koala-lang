@@ -59,6 +59,16 @@ static void show_banner(void)
     }
 }
 
+static int empty(char *buf, int len)
+{
+    char ch;
+    for (int i = 0; i < len; i++) {
+        ch = buf[i];
+        if (ch != '\r' && ch != '\n' && ch != ' ') return 0;
+    }
+    return 1;
+}
+
 int stdin_input(ParserStateRef ps, char *buf, int size)
 {
     int len;
@@ -67,7 +77,9 @@ int stdin_input(ParserStateRef ps, char *buf, int size)
     } else {
         len = readline(PROMPT, buf, size);
     }
-    ps->more = 1;
+
+    if (!empty(buf, len)) ps->more = 1;
+
     return len;
 }
 

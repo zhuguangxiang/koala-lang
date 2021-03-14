@@ -29,6 +29,9 @@
 
 #define yyerror(loc, ps, scanner, msg) ((void)0)
 
+#define line(loc) ((loc).first_line)
+#define column(loc) ((loc).first_column)
+
 %}
 
 %union {
@@ -36,6 +39,7 @@
     double fval;
     int cval;
     char *sval;
+    char *text;
 }
 
 %token IMPORT
@@ -102,7 +106,9 @@
 %token R_ANGLE_SHIFT
 
 %token <ival> INT_LITERAL
+%token <fval> FLOAT_LITERAL
 %token <sval> STRING_LITERAL
+%token <text> TEXT_LITERAL
 %token <sval> ID
 
 %locations
@@ -245,11 +251,19 @@ atom_expr
     | '_'
     | INT_LITERAL
     {
-        printf("integer:%ld\n", $1);
+        printf("integer:%ld(%d-%d)\n", $1, line(@1), column(@1));
+    }
+    | FLOAT_LITERAL
+    {
+        printf("float:%lf(%d-%d)\n", $1, line(@1), column(@1));
     }
     | STRING_LITERAL
     {
-        printf("string:%s\n", $1);
+        printf("string:%s(%d-%d)\n", $1, line(@1), column(@1));
+    }
+    | TEXT_LITERAL
+    {
+
     }
     | TRUE
     | FALSE

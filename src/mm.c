@@ -28,12 +28,12 @@ extern "C" {
 #endif
 
 /* The head of user's memory */
-typedef struct Block {
+typedef struct _Block {
     /* allocated size */
     size_t size;
     /* memory guard */
     uint32_t magic;
-} Block;
+} Block, *BlockRef;
 
 /* allocated memory size */
 static int usedsize = 0;
@@ -48,7 +48,7 @@ void *mm_alloc(int size)
         abort();
     }
 
-    Block *blk = calloc(1, sizeof(*blk) + size);
+    BlockRef blk = calloc(1, sizeof(*blk) + size);
     assert(blk);
     blk->size = size;
     blk->magic = 0xdeadbeaf;
@@ -61,7 +61,7 @@ void mm_free(void *ptr)
 {
     if (!ptr) return;
 
-    Block *blk = (Block *)ptr - 1;
+    BlockRef blk = (BlockRef)ptr - 1;
 
     if (blk->magic != 0xdeadbeaf) {
         printf("bug: memory is broken.\n");

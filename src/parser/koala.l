@@ -33,7 +33,7 @@
 static int semicolon(ParserStateRef ps)
 {
     static int tokens[] = {
-        INT_LITERAL, STRING_LITERAL,
+        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL,
         ID, SELF, SUPER, TRUE, FALSE,
         ')', ']', '}', '>', '_',
     };
@@ -52,6 +52,7 @@ static int parse_string(ParserStateRef ps)
 }
 
 int stdin_input(ParserStateRef ps, char *buf, int size);
+
 int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 {
     return 0;
@@ -119,6 +120,9 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 #define YY_INT_VALUE(s, base) \
     yylval->ival = strtoll(s, NULL, base)
 
+#define YY_FLOAT_VALUE(s) \
+    yylval->fval = strtod(s, NULL)
+
 %}
 
 %option bison-locations
@@ -171,7 +175,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "float"     { YY_RETURN(FLOAT);   }
 "bool"      { YY_RETURN(BOOL);    }
 "char"      { YY_RETURN(CHAR);    }
-"string"    { YY_RETURN(STRING);  }
+"str"       { YY_RETURN(STRING);  }
 "any"       { YY_RETURN(ANY);     }
 
 "and"   { YY_RETURN(AND); }
@@ -278,6 +282,11 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
                         YY_INT_VALUE(yytext, 10);
                         YY_RETURN(INT_LITERAL);
                     }
+
+([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)? {
+    YY_FLOAT_VALUE(yytext);
+    YY_RETURN(FLOAT_LITERAL);
+}
 
 [ \t\r]+ ;
 
