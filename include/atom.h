@@ -21,63 +21,35 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_COMMON_H_
-#define _KOALA_COMMON_H_
+/*
+ * An atom is a null-terminated string cached in internal hashmap.
+ * With null-terminated, it's convenient to operate it like c-string.
+ */
 
-#include <assert.h>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#ifndef _KOALA_ATOM_H_
+#define _KOALA_ATOM_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define DLLEXPORT __attribute__((visibility("default")))
+/* New an atom string with null-terminated string. */
+char *atom(char *str);
 
-/* Get the min(max) one of the two numbers */
-#define MIN(a, b) ((a) > (b) ? (b) : (a))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+/* New an atom string with length-ed string. */
+char *atom_nstr(char *str, int len);
 
-/* Get the aligned value */
-#define ALIGN(x, a) (((x) + (a)-1) & ~((a)-1))
+/* Concat 'arc' null-terminated strings into one atom string. */
+char *atom_vstr(int argc, ...);
 
-/* Get the aligned pointer size */
-#define ALIGN_PTR(x) ALIGN(x, sizeof(uintptr_t))
+/* Initialize atom string internal hashmap */
+void init_atom(void);
 
-/* Get the number of elements in an array */
-#define COUNT_OF(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
-
-/* pointer to integer */
-#define PTR2INT(p) ((int)(intptr_t)(p))
-
-/* integer to pointer */
-#define INT2PTR(i) ((void *)(intptr_t)(i))
-
-// clang-format off
-
-/* endian check */
-#define CHECK_BIG_ENDIAN ({ \
-    int _i = 1;             \
-    !*((char *)&_i);        \
-})
-
-/*
- * Get the 'type' pointer from the pointer to `member`
- * which is embedded inside the 'type'
- */
-#define CONTAINER_OF(ptr, type, member) ({ \
-    const typeof(((type *)0)->member) *__mptr = (ptr); \
-    (type *)((char *)__mptr - offsetof(type, member)); \
-})
-
-// clang-format on
+/* Free hashmap and atom string memory */
+void fini_atom(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_COMMON_H_ */
+#endif /* _KOALA_ATOM_H_ */

@@ -36,7 +36,7 @@ RUN_BISON(
     ${PROJECT_SOURCE_DIR}/include/koala_yacc.h)
 
 SET(KOALA_SOURCES
-    mm.c vector.c hashmap.c readline.c 
+    mm.c vector.c hashmap.c sbuf.c atom.c readline.c 
     parser/koala_lex.c parser/koala_yacc.c parser/interactive.c)
 
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})

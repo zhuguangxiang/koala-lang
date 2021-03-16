@@ -21,63 +21,55 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_COMMON_H_
-#define _KOALA_COMMON_H_
+/* dynamic string buffer. */
 
-#include <assert.h>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#ifndef _KOALA_SBUF_H_
+#define _KOALA_SBUF_H_
+
+#include "common.h"
+#include "mm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define DLLEXPORT __attribute__((visibility("default")))
+/* string buffer */
+typedef struct _SBuf {
+    /* allocated size */
+    int size;
+    /* used size */
+    int len;
+    /* contains string */
+    char *buf;
+} SBuf, *SBufRef;
 
-/* Get the min(max) one of the two numbers */
-#define MIN(a, b) ((a) > (b) ? (b) : (a))
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
+/* Declare a string buffer. */
+#define SBUF(name) SBuf name = { 0, 0, NULL }
 
-/* Get the aligned value */
-#define ALIGN(x, a) (((x) + (a)-1) & ~((a)-1))
+/* Free a string buffer. */
+#define FINI_SBUF(name) mm_free((name).buf)
 
-/* Get the aligned pointer size */
-#define ALIGN_PTR(x) ALIGN(x, sizeof(uintptr_t))
+/* Write string with len */
+void sbuf_nprint(SBufRef self, char *s, int len);
 
-/* Get the number of elements in an array */
-#define COUNT_OF(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
+/* Write a null-terminated string. */
+void sbuf_print(SBufRef self, char *s);
 
-/* pointer to integer */
-#define PTR2INT(p) ((int)(intptr_t)(p))
+/* Write 'num' null-terminated strings. */
+void sbuf_nsprint(SBufRef self, int num, ...);
+void sbuf_vnprint(SBufRef self, int num, va_list args);
 
-/* integer to pointer */
-#define INT2PTR(i) ((void *)(intptr_t)(i))
+void sbuf_print_char(SBufRef self, char ch);
+void sbuf_print_byte(SBufRef self, int val);
+void sbuf_print_int(SBufRef self, int ch);
+void sbuf_print_int64(SBufRef self, int64_t val);
+void sbuf_print_double(SBufRef self, double val);
 
-// clang-format off
-
-/* endian check */
-#define CHECK_BIG_ENDIAN ({ \
-    int _i = 1;             \
-    !*((char *)&_i);        \
-})
-
-/*
- * Get the 'type' pointer from the pointer to `member`
- * which is embedded inside the 'type'
- */
-#define CONTAINER_OF(ptr, type, member) ({ \
-    const typeof(((type *)0)->member) *__mptr = (ptr); \
-    (type *)((char *)__mptr - offsetof(type, member)); \
-})
-
-// clang-format on
+/* Get null-terminated string from the string buffer. */
+#define SBUF_STR(name) (name).buf
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_COMMON_H_ */
+#endif /* _KOALA_SBUF_H_ */
