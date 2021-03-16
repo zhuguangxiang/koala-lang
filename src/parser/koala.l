@@ -80,9 +80,15 @@ static char esc(char ch)
 /* escape convert */
 static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
 {
-    SBUF(sbuf);
     char *s = SBUF_STR(ps->sbuf);
     int len = SBUF_LEN(ps->sbuf);
+
+    if (!s) {
+        yylval->sval = atom_nstr(NULL, 0);
+        return;
+    }
+
+    SBUF(sbuf);
     char ch;
 
     for (int i = 0; i < len; ++i) {
@@ -110,6 +116,12 @@ static void do_text(ParserStateRef ps, YYSTYPE *yylval)
 {
     int len = SBUF_LEN(ps->sbuf);
     char *s = SBUF_STR(ps->sbuf);
+
+    if (!s) {
+        yylval->sval = atom_nstr(NULL, 0);
+        return;
+    }
+
     int i = 0;
     while (isspace(s[i])) { i++; len--; }
     while (isspace(s[len - 1])) len--;
