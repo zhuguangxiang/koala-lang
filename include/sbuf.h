@@ -49,6 +49,15 @@ typedef struct _SBuf {
 /* Free a string buffer. */
 #define FINI_SBUF(name) mm_free((name).buf)
 
+/* Reset a string buffer. */
+#define RESET_SBUF(name) (name).len = 0
+
+/* Get null-terminated string from the string buffer. */
+#define SBUF_STR(name) (name).buf
+
+/* Get string length */
+#define SBUF_LEN(name) (name).len
+
 /* Write string with len */
 void sbuf_nprint(SBufRef self, char *s, int len);
 
@@ -64,9 +73,6 @@ void sbuf_print_byte(SBufRef self, int val);
 void sbuf_print_int(SBufRef self, int ch);
 void sbuf_print_int64(SBufRef self, int64_t val);
 void sbuf_print_double(SBufRef self, double val);
-
-/* Get null-terminated string from the string buffer. */
-#define SBUF_STR(name) (name).buf
 
 #ifdef __cplusplus
 }

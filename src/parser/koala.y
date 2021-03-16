@@ -39,7 +39,6 @@
     double fval;
     int cval;
     char *sval;
-    char *text;
 }
 
 %token IMPORT
@@ -108,7 +107,6 @@
 %token <ival> INT_LITERAL
 %token <fval> FLOAT_LITERAL
 %token <sval> STRING_LITERAL
-%token <text> TEXT_LITERAL
 %token <sval> ID
 
 %locations
@@ -136,7 +134,6 @@ unit
     {
         if (ps->interactive) {
             ps->more = 0;
-            printf("exression\n");
         }
     }
     ;
@@ -260,10 +257,6 @@ atom_expr
     | STRING_LITERAL
     {
         printf("string:%s(%d-%d)\n", $1, line(@1), column(@1));
-    }
-    | TEXT_LITERAL
-    {
-
     }
     | TRUE
     | FALSE

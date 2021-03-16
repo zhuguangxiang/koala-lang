@@ -45,10 +45,80 @@ static int semicolon(ParserStateRef ps)
     return 0;
 }
 
-/* escape convert & utf8 check */
-static int parse_string(ParserStateRef ps)
+static char esc(char ch)
 {
-    return 0;
+    char val;
+    switch (ch) {
+    case 'a':
+        val = 7;
+        break;
+    case 'b':
+        val = 8;
+        break;
+    case 'f':
+        val = 12;
+        break;
+    case 'n':
+        val = 10;
+        break;
+    case 'r':
+        val = 13;
+        break;
+    case 't':
+        val = 9;
+        break;
+    case 'v':
+        val = 11;
+        break;
+    default:
+        val = ch;
+        break;
+    }
+    return val;
+}
+
+/* escape convert */
+static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
+{
+    SBUF(sbuf);
+    char *s = SBUF_STR(ps->sbuf);
+    int len = SBUF_LEN(ps->sbuf);
+    char ch;
+
+    for (int i = 0; i < len; ++i) {
+        ch = s[i];
+        if (ch == '\\') {
+            if (i + 1 < len) {
+                ch = esc(s[++i]);
+            }
+        }
+        sbuf_print_char(&sbuf, ch);
+    }
+
+    if (len < 256) {
+        /* short length string in atom */
+        yylval->sval = atom(SBUF_STR(sbuf));
+        FINI_SBUF(sbuf);
+    } else {
+        /* long string in string buffer */
+        yylval->sval = SBUF_STR(sbuf);
+        vector_push_back(&ps->svec, &sbuf);
+    }
+}
+
+static void do_text(ParserStateRef ps, YYSTYPE *yylval)
+{
+    int len = SBUF_LEN(ps->sbuf);
+    if (len < 256) {
+        /* short length text in atom */
+        yylval->sval = atom(SBUF_STR(ps->sbuf));
+    } else {
+        /* text in string buffer */
+        SBUF(sbuf);
+        sbuf_nprint(&sbuf, SBUF_STR(ps->sbuf), len);
+        yylval->sval = SBUF_STR(sbuf);
+        vector_push_back(&ps->svec, &sbuf);
+    }
 }
 
 int stdin_input(ParserStateRef ps, char *buf, int size);
@@ -69,14 +139,20 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 #define YY_EXTRA_TYPE ParserStateRef
 #define yyps ((YY_EXTRA_TYPE)yyextra)
 
-#define YY_USER_ACTION {                  \
-    char ch = yytext[0];                  \
-    if (ch != '\n' && ch != '\r') {       \
-        yyps->col += yyps->len;           \
-        yyps->len = strlen(yytext);       \
-        yylloc->first_column = yyps->col; \
-        yylloc->first_line = yyps->line;  \
-    }                                     \
+#define YY_USER_ACTION {                        \
+    char ch = yytext[0];                        \
+    if (ch != '\n' && ch != '\r') {             \
+        yyps->col += yyps->len;                 \
+        yyps->len = strlen(yytext);             \
+        if (!yyps->in_str) {                    \
+            yylloc->first_column = yyps->col;   \
+            yylloc->first_line = yyps->line;    \
+        }                                       \
+    } else if (ch == '\n' && yyps->in_str) {    \
+        ++yyps->line;                           \
+        yyps->col = 1;                          \
+        yyps->len = 0;                          \
+    }                                           \
 }
 
 #define YY_RETURN(x) yyps->token = x; return x
@@ -89,33 +165,32 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
         YY_RETURN(';');    \
     }
 
-#define YY_STRING_BEGIN yyps->next = 0
+#define YY_STRING_BEGIN yyps->in_str = 1; RESET_SBUF(yyps->sbuf)
 
-#define YY_STRING_END do {         \
-    int ret = parse_string(yyps);  \
-    if (ret) {                     \
-        printf("error: invalid utf8 string\n"); \
-        YY_RETURN(';');            \
-    } else {                       \
-        yylval->sval = yyps->buf;  \
-        YY_RETURN(STRING_LITERAL); \
-    }                              \
+#define YY_STRING_END do {      \
+    yyps->in_str = 0;           \
+    do_escape(yyps, yylval);    \
+    RESET_SBUF(yyps->sbuf);     \
+    YY_RETURN(STRING_LITERAL);  \
 } while (0)
 
-#define YY_STRING_APPEND(ch) \
-    yyps->buf[yyps->next++] = ch
+#define YY_STRING_WRITE(ch) \
+    sbuf_print_char(&yyps->sbuf, ch)
 
-#define YY_TEXT_BEGIN yyps->next = 0
+#define YY_TEXT_BEGIN yyps->in_str = 1; RESET_SBUF(yyps->sbuf)
 
-#define YY_TEXT_END do {       \
-    YY_RETURN(STRING_LITERAL); \
+#define YY_TEXT_END do {        \
+    yyps->in_str = 0;           \
+    do_text(yyps, yylval);      \
+    RESET_SBUF(yyps->sbuf);     \
+    YY_RETURN(STRING_LITERAL);  \
 } while (0)
 
-#define YY_TEXT_APPEND(ch) \
-    yyps->buf[yyps->next++] = ch
+#define YY_TEXT_WRITE(ch) \
+    sbuf_print_char(&yyps->sbuf, ch)
 
 #define YY_IDENT_VALUE(s) \
-    yylval->sval = s
+    yylval->sval = atom(s)
 
 #define YY_INT_VALUE(s, base) \
     yylval->ival = strtoll(s, NULL, base)
@@ -159,11 +234,11 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "as"        { YY_RETURN(AS);       }
 "is"        { YY_RETURN(IS);       }
 
-"self"  { YY_RETURN(SELF);  }
-"super" { YY_RETURN(SUPER); }
-"true"  { YY_RETURN(TRUE);  }
-"false" { YY_RETURN(FALSE); }
-"nil"   { YY_RETURN(NIL);   }
+"self"      { YY_RETURN(SELF);  }
+"super"     { YY_RETURN(SUPER); }
+"true"      { YY_RETURN(TRUE);  }
+"false"     { YY_RETURN(FALSE); }
+"nil"       { YY_RETURN(NIL);   }
 
 "int8"      { YY_RETURN(INT8);    }
 "int16"     { YY_RETURN(INT16);   }
@@ -239,53 +314,35 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 
 \"           { BEGIN(STRING); YY_STRING_BEGIN; }
 <STRING>\"   { BEGIN(INITIAL); YY_STRING_END;  }
-<STRING>\\\" { YY_STRING_APPEND('\"');         }
-<STRING>\\\\ { YY_STRING_APPEND('\\');         }
+<STRING>\\\" { YY_STRING_WRITE('\"');          }
+<STRING>\\\\ { YY_STRING_WRITE('\\');          }
 <STRING>\n   { 
-                /* string with newline */ 
-                YY_STRING_APPEND('\n');
+                /* omit newline in string */
+                yyps->more = 1;
              }
 <STRING>\r   { /* string omit return */ }
-<STRING>.    { YY_STRING_APPEND(yytext[0]); }
+<STRING>.    { YY_STRING_WRITE(yytext[0]);  }
 
 \"\"\"       { BEGIN(TEXT); YY_TEXT_BEGIN;  }
 <TEXT>\"\"\" { BEGIN(INITIAL); YY_TEXT_END; }
 <TEXT>\n     { 
                 /* text with newline */ 
-                YY_TEXT_APPEND('\n');
+                YY_TEXT_WRITE('\n');
              }
 <TEXT>\r     { /* text omit return */ }
-<TEXT>.      { YY_TEXT_APPEND(yytext[0]); }
+<TEXT>.      { YY_TEXT_WRITE(yytext[0]); }
 
-[A-Za-z_][A-Za-z0-9_]*  {
-                            YY_IDENT_VALUE(yytext);
-                            YY_RETURN(ID);
-                        }
+[A-Za-z_][A-Za-z0-9_]*  { YY_IDENT_VALUE(yytext); YY_RETURN(ID); }
 
-0[xX][0-9a-fA-F_]+  {
-                        YY_INT_VALUE(yytext + 2, 16);
-                        YY_RETURN(INT_LITERAL);
-                    }
-0[dD][0-9_]+        {
-                        YY_INT_VALUE(yytext + 2, 10);
-                        YY_RETURN(INT_LITERAL);
-                    }
-0[oO][0-7_]+        {
-                        YY_INT_VALUE(yytext + 2, 8);
-                        YY_RETURN(INT_LITERAL);
-                    }
-0[bB][01_]+         { 
-                        YY_INT_VALUE(yytext + 2, 2);
-                        YY_RETURN(INT_LITERAL);
-                    }
-[0-9][0-9_]*        {
-                        YY_INT_VALUE(yytext, 10);
-                        YY_RETURN(INT_LITERAL);
-                    }
+0[xX][0-9a-fA-F_]+  { YY_INT_VALUE(yytext + 2, 16); YY_RETURN(INT_LITERAL); }
+
+0[dD][0-9_]+    { YY_INT_VALUE(yytext + 2, 10); YY_RETURN(INT_LITERAL); }
+0[oO][0-7_]+    { YY_INT_VALUE(yytext + 2, 8); YY_RETURN(INT_LITERAL);  }
+0[bB][01_]+     { YY_INT_VALUE(yytext + 2, 2); YY_RETURN(INT_LITERAL);  }
+[0-9][0-9_]*    { YY_INT_VALUE(yytext, 10); YY_RETURN(INT_LITERAL);     }
 
 ([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)? {
-    YY_FLOAT_VALUE(yytext);
-    YY_RETURN(FLOAT_LITERAL);
+    YY_FLOAT_VALUE(yytext); YY_RETURN(FLOAT_LITERAL);
 }
 
 [ \t\r]+ ;

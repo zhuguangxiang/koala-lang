@@ -88,14 +88,21 @@ void kl_cmdline(void)
     show_banner();
 
     init_line();
+    init_atom();
 
     ps.interactive = 1;
+    ps.line = 1;
+    ps.col = 1;
+    RESET_SBUF(ps.sbuf);
+    vector_init(&ps.svec, sizeof(SBuf));
 
     yylex_init_extra(&ps, &scanner);
     yyset_in(stdin, scanner);
     yyparse(&ps, scanner);
     yylex_destroy(scanner);
 
+    FINI_SBUF(ps.sbuf);
+    fini_atom();
     fini_line();
 }
 

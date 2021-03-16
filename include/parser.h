@@ -24,7 +24,9 @@
 #ifndef _KOALA_PARSER_H_
 #define _KOALA_PARSER_H_
 
-#include "common.h"
+#include "atom.h"
+#include "sbuf.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,11 +50,13 @@ typedef struct _ParserState {
     int line;
     /* token column */
     int col;
+    /* in multi-line string */
+    int in_str;
 
     /* string buffer */
-    char buf[MAX_STR_BUF_LEN];
-    /* buf next avail */
-    int next;
+    SBuf sbuf;
+    /* long strings/text */
+    Vector svec;
 } ParserState, *ParserStateRef;
 
 #ifdef __cplusplus
