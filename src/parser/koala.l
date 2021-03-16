@@ -97,7 +97,7 @@ static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
 
     if (len < 256) {
         /* short length string in atom */
-        yylval->sval = atom(SBUF_STR(sbuf));
+        yylval->sval = atom_nstr(SBUF_STR(sbuf), len);
         FINI_SBUF(sbuf);
     } else {
         /* long string in string buffer */
@@ -109,13 +109,18 @@ static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
 static void do_text(ParserStateRef ps, YYSTYPE *yylval)
 {
     int len = SBUF_LEN(ps->sbuf);
+    char *s = SBUF_STR(ps->sbuf);
+    int i = 0;
+    while (isspace(s[i])) { i++; len--; }
+    while (isspace(s[len - 1])) len--;
+
     if (len < 256) {
         /* short length text in atom */
-        yylval->sval = atom(SBUF_STR(ps->sbuf));
+        yylval->sval = atom_nstr(s + i, len);
     } else {
         /* text in string buffer */
         SBUF(sbuf);
-        sbuf_nprint(&sbuf, SBUF_STR(ps->sbuf), len);
+        sbuf_nprint(&sbuf, s + i, len);
         yylval->sval = SBUF_STR(sbuf);
         vector_push_back(&ps->svec, &sbuf);
     }
@@ -326,7 +331,8 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 \"\"\"       { BEGIN(TEXT); YY_TEXT_BEGIN;  }
 <TEXT>\"\"\" { BEGIN(INITIAL); YY_TEXT_END; }
 <TEXT>\n     { 
-                /* text with newline */ 
+                /* text with newline */
+                yyps->more = 1;
                 YY_TEXT_WRITE('\n');
              }
 <TEXT>\r     { /* text omit return */ }
