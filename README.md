@@ -65,7 +65,7 @@ make install
 
 ## Home page
 
-`https://www.koala-lang.org/`
+<https://www.koala-lang.org/>
 
 ## The Author
 
