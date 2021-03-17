@@ -206,8 +206,8 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 #define YY_TEXT_WRITE(ch) \
     sbuf_print_char(&yyps->sbuf, ch)
 
-#define YY_IDENT_VALUE(s) \
-    yylval->sval = atom(s)
+#define YY_IDENT_VALUE(s, len) \
+    yylval->sval = atom_nstr(s, len)
 
 #define YY_INT_VALUE(s, base) \
     yylval->ival = strtoll(s, NULL, base)
@@ -224,7 +224,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 %option noinput
 %option never-interactive
 
-%x STRING TEXT
+%x STR TXT COM
 
 /* rules */
 
@@ -270,87 +270,87 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "str"       { YY_RETURN(STRING);  }
 "any"       { YY_RETURN(ANY);     }
 
-"and"   { YY_RETURN(AND); }
-"or"    { YY_RETURN(OR);  }
-"not"   { YY_RETURN(NOT); }
+"and"       { YY_RETURN(AND); }
+"or"        { YY_RETURN(OR);  }
+"not"       { YY_RETURN(NOT); }
 
-"=="    { YY_RETURN(EQ);  }
-"!="    { YY_RETURN(NE);  }
-">="    { YY_RETURN(GE);  }
-"<="    { YY_RETURN(LE);  }
-"&&"    { YY_RETURN(AND); }
-"||"    { YY_RETURN(OR);  }
+"=="        { YY_RETURN(EQ);  }
+"!="        { YY_RETURN(NE);  }
+">="        { YY_RETURN(GE);  }
+"<="        { YY_RETURN(LE);  }
+"&&"        { YY_RETURN(AND); }
+"||"        { YY_RETURN(OR);  }
 
-":="    { YY_RETURN(FREE_ASSIGN);  }
-"+="    { YY_RETURN(PLUS_ASSIGN);  }
-"-="    { YY_RETURN(MINUS_ASSIGN); }
-"*="    { YY_RETURN(MULT_ASSIGN);  }
-"/="    { YY_RETURN(DIV_ASSIGN);   }
-"%="    { YY_RETURN(MOD_ASSIGN);   }
-"&="    { YY_RETURN(AND_ASSIGN);   }
-"|="    { YY_RETURN(OR_ASSIGN);    }
-"^="    { YY_RETURN(XOR_ASSIGN);   }
-"<<="   { YY_RETURN(SHL_ASSIGN);   }
-">>="   { YY_RETURN(SHR_ASSIGN);   }
+":="        { YY_RETURN(FREE_ASSIGN);  }
+"+="        { YY_RETURN(PLUS_ASSIGN);  }
+"-="        { YY_RETURN(MINUS_ASSIGN); }
+"*="        { YY_RETURN(MULT_ASSIGN);  }
+"/="        { YY_RETURN(DIV_ASSIGN);   }
+"%="        { YY_RETURN(MOD_ASSIGN);   }
+"&="        { YY_RETURN(AND_ASSIGN);   }
+"|="        { YY_RETURN(OR_ASSIGN);    }
+"^="        { YY_RETURN(XOR_ASSIGN);   }
+"<<="       { YY_RETURN(SHL_ASSIGN);   }
+">>="       { YY_RETURN(SHR_ASSIGN);   }
 
-"..."   {  }
-"..<"   {  }
-"=>"    {  }
-"~="    {  }
+"..."       {  }
+"..<"       {  }
+"=>"        {  }
+"~="        {  }
 
-"+"     { YY_RETURN('+'); }
-"-"     { YY_RETURN('-'); }
-"*"     { YY_RETURN('*'); }
-"/"     { YY_RETURN('/'); }
-"%"     { YY_RETURN('%'); }
-"&"     { YY_RETURN('&'); }
-"|"     { YY_RETURN('|'); }
-"~"     { YY_RETURN('~'); }
-"^"     { YY_RETURN('^'); }
-"!"     { YY_RETURN(NOT); }
+"+"         { YY_RETURN('+'); }
+"-"         { YY_RETURN('-'); }
+"*"         { YY_RETURN('*'); }
+"/"         { YY_RETURN('/'); }
+"%"         { YY_RETURN('%'); }
+"&"         { YY_RETURN('&'); }
+"|"         { YY_RETURN('|'); }
+"~"         { YY_RETURN('~'); }
+"^"         { YY_RETURN('^'); }
+"!"         { YY_RETURN(NOT); }
 
-":"     { YY_RETURN(':'); }
-","     { YY_RETURN(','); }
-";"     { YY_RETURN(';'); }
-"."     { YY_RETURN('.'); }
-"="     { YY_RETURN('='); }
-"_"     { YY_RETURN('_'); }
-"?"     { YY_RETURN('?'); }
+":"         { YY_RETURN(':'); }
+","         { YY_RETURN(','); }
+";"         { YY_RETURN(';'); }
+"."         { YY_RETURN('.'); }
+"="         { YY_RETURN('='); }
+"_"         { YY_RETURN('_'); }
+"?"         { YY_RETURN('?'); }
 
-"("     { YY_RETURN('('); }
-")"     { YY_RETURN(')'); }
-"["     { YY_RETURN('['); }
-"]"     { YY_RETURN(']'); }
-"{"     { YY_RETURN('{'); }
-"}"     { YY_RETURN('}'); }
+"("         { YY_RETURN('('); }
+")"         { YY_RETURN(')'); }
+"["         { YY_RETURN('['); }
+"]"         { YY_RETURN(']'); }
+"{"         { YY_RETURN('{'); }
+"}"         { YY_RETURN('}'); }
 
-">"     { YY_RETURN('>'); }
-"<"     { YY_RETURN('<'); }
-"<<"    { YY_RETURN(L_SHIFT); }
-">"/">" { YY_RETURN(R_ANGLE_SHIFT); }
+">"         { YY_RETURN('>'); }
+"<"         { YY_RETURN('<'); }
+"<<"        { YY_RETURN(L_SHIFT); }
+">"/">"     { YY_RETURN(R_ANGLE_SHIFT); }
 
-\"           { BEGIN(STRING); YY_STRING_BEGIN; }
-<STRING>\"   { BEGIN(INITIAL); YY_STRING_END;  }
-<STRING>\\\" { YY_STRING_WRITE('\"');          }
-<STRING>\\\\ { YY_STRING_WRITE('\\');          }
-<STRING>\n   { 
+\"          { BEGIN(STRING); YY_STRING_BEGIN; }
+<STR>\"     { BEGIN(INITIAL); YY_STRING_END;  }
+<STR>\\\"   { YY_STRING_WRITE('\"');          }
+<STR>\\\\   { YY_STRING_WRITE('\\');          }
+<STR>\n     {
                 /* omit newline in string */
                 yyps->more = 1;
-             }
-<STRING>\r   { /* string omit return */ }
-<STRING>.    { YY_STRING_WRITE(yytext[0]);  }
+            }
+<STR>\r     { /* string omit return */ }
+<STR>.      { YY_STRING_WRITE(yytext[0]);  }
 
-\"\"\"       { BEGIN(TEXT); YY_TEXT_BEGIN;  }
-<TEXT>\"\"\" { BEGIN(INITIAL); YY_TEXT_END; }
-<TEXT>\n     { 
+\"\"\"      { BEGIN(TXT); YY_TEXT_BEGIN;  }
+<TXT>\"\"\" { BEGIN(INITIAL); YY_TEXT_END; }
+<TXT>\n     {
                 /* text with newline */
                 yyps->more = 1;
                 YY_TEXT_WRITE('\n');
-             }
-<TEXT>\r     { /* text omit return */ }
-<TEXT>.      { YY_TEXT_WRITE(yytext[0]); }
+            }
+<TXT>\r     { /* text omit return */ }
+<TXT>.      { YY_TEXT_WRITE(yytext[0]); }
 
-[A-Za-z_][A-Za-z0-9_]*  { YY_IDENT_VALUE(yytext); YY_RETURN(ID); }
+[A-Za-z_][A-Za-z0-9_]*  { YY_IDENT_VALUE(yytext, yyleng); YY_RETURN(ID); }
 
 0[xX][0-9a-fA-F_]+  { YY_INT_VALUE(yytext + 2, 16); YY_RETURN(INT_LITERAL); }
 
@@ -365,7 +365,19 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 
 [ \t\r]+ ;
 
-[\n]+ { YY_NEWLINE; }
+[\n]+ { printf("newline\n");YY_NEWLINE; }
+
+"///"[^\n]* { printf("doc\n"); yyps->more = 0; }
+
+("//"|#)[^\n]*  {
+    /* single line comment */
+    yyps->more = 0;
+}
+
+"/*"        { BEGIN(COM); yyps->in_str = 1; }
+<COM>"*/"   { BEGIN(INITIAL); yyps->in_str = 0; yyps->more = 0; }
+<COM>\n     { yyps->more = 1; }
+<COM>.      { /* omit other characters */ }
 
 . { printf("error: invalid input\n"); abort(); }
 

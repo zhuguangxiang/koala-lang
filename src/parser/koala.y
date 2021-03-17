@@ -108,6 +108,7 @@
 %token <fval> FLOAT_LITERAL
 %token <sval> STRING_LITERAL
 %token <sval> ID
+%token <sval> DOC
 
 %locations
 %parse-param {ParserStateRef ps}
@@ -135,6 +136,10 @@ unit
         if (ps->interactive) {
             ps->more = 0;
         }
+    }
+    | ';'
+    {
+
     }
     ;
 
