@@ -138,6 +138,18 @@ static void do_text(ParserStateRef ps, YYSTYPE *yylval)
     }
 }
 
+static void do_doc(ParserStateRef ps, char *txt, int len)
+{
+    // char *s = txt;
+    // char *e = txt + len - 1;
+    // while (isspace(*s)) s++;
+    // while (isspace(*e)) e--;
+    // sbuf_nprint(&ps->doc_buf, s, e - s + 1);
+
+    sbuf_nprint(&ps->doc_buf, txt, len);
+    sbuf_print_char(&ps->doc_buf, '\n');
+}
+
 int stdin_input(ParserStateRef ps, char *buf, int size);
 
 int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
@@ -182,9 +194,9 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
         YY_RETURN(';');    \
     }
 
-#define YY_STRING_BEGIN yyps->in_str = 1; RESET_SBUF(yyps->sbuf)
+#define YY_STR_BEGIN yyps->in_str = 1; RESET_SBUF(yyps->sbuf)
 
-#define YY_STRING_END do {      \
+#define YY_STR_END do {      \
     yyps->in_str = 0;           \
     do_escape(yyps, yylval);    \
     RESET_SBUF(yyps->sbuf);     \
@@ -329,26 +341,26 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "<<"        { YY_RETURN(L_SHIFT); }
 ">"/">"     { YY_RETURN(R_ANGLE_SHIFT); }
 
-\"          { BEGIN(STRING); YY_STRING_BEGIN; }
-<STR>\"     { BEGIN(INITIAL); YY_STRING_END;  }
-<STR>\\\"   { YY_STRING_WRITE('\"');          }
-<STR>\\\\   { YY_STRING_WRITE('\\');          }
+\"          { BEGIN(STR); YY_STR_BEGIN;     }
+<STR>\"     { BEGIN(INITIAL); YY_STR_END;   }
+<STR>\\\"   { YY_STRING_WRITE('\"');        }
+<STR>\\\\   { YY_STRING_WRITE('\\');        }
 <STR>\n     {
                 /* omit newline in string */
                 yyps->more = 1;
             }
-<STR>\r     { /* string omit return */ }
-<STR>.      { YY_STRING_WRITE(yytext[0]);  }
+<STR>\r     { /* string omit return */      }
+<STR>.      { YY_STRING_WRITE(yytext[0]);   }
 
-\"\"\"      { BEGIN(TXT); YY_TEXT_BEGIN;  }
-<TXT>\"\"\" { BEGIN(INITIAL); YY_TEXT_END; }
+\"\"\"      { BEGIN(TXT); YY_TEXT_BEGIN;    }
+<TXT>\"\"\" { BEGIN(INITIAL); YY_TEXT_END;  }
 <TXT>\n     {
                 /* text with newline */
                 yyps->more = 1;
                 YY_TEXT_WRITE('\n');
             }
-<TXT>\r     { /* text omit return */ }
-<TXT>.      { YY_TEXT_WRITE(yytext[0]); }
+<TXT>\r     { /* text omit return */        }
+<TXT>.      { YY_TEXT_WRITE(yytext[0]);     }
 
 [A-Za-z_][A-Za-z0-9_]*  { YY_IDENT_VALUE(yytext, yyleng); YY_RETURN(ID); }
 
@@ -365,9 +377,23 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 
 [ \t\r]+ ;
 
-[\n]+ { printf("newline\n");YY_NEWLINE; }
+[\n]+ {
+    if (yyps->doc_line > 0 && yyps->doc_line != yyps->line) {
+        /* not consecutive document */
+        printf("doc:\n");
+        printf("%s", SBUF_STR(yyps->doc_buf));
+        printf("doc is taken\n");
+        yyps->doc_line = 0;
+        RESET_SBUF(yyps->doc_buf);
+    }
+    YY_NEWLINE;
+}
 
-"///"[^\n]* { printf("doc\n"); yyps->more = 0; }
+"///"[^\n]* {
+    yyps->more = 0;
+    yyps->doc_line = yyps->line;
+    do_doc(yyps, yytext + 3, yyleng - 3);
+}
 
 ("//"|#)[^\n]*  {
     /* single line comment */

@@ -108,7 +108,6 @@
 %token <fval> FLOAT_LITERAL
 %token <sval> STRING_LITERAL
 %token <sval> ID
-%token <sval> DOC
 
 %locations
 %parse-param {ParserStateRef ps}
@@ -254,14 +253,17 @@ atom_expr
     | INT_LITERAL
     {
         printf("integer:%ld(%d-%d)\n", $1, line(@1), column(@1));
+        printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
     }
     | FLOAT_LITERAL
     {
         printf("float:%lf(%d-%d)\n", $1, line(@1), column(@1));
+        printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
     }
     | STRING_LITERAL
     {
         printf("string:%s(%d-%d)\n", $1, line(@1), column(@1));
+        printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
     }
     | TRUE
     | FALSE

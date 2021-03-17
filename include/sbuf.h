@@ -49,8 +49,12 @@ typedef struct _SBuf {
 /* Free a string buffer. */
 #define FINI_SBUF(name) mm_free((name).buf)
 
+// clang-format off
 /* Reset a string buffer. */
-#define RESET_SBUF(name) (name).len = 0
+#define RESET_SBUF(name) do { \
+    memset((name).buf, 0, (name).len); (name).len = 0; \
+} while (0)
+// clang-format on
 
 /* Get null-terminated string from the string buffer. */
 #define SBUF_STR(name) (name).buf

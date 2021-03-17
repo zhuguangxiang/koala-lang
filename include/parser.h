@@ -57,6 +57,10 @@ typedef struct _ParserState {
     SBuf sbuf;
     /* long strings/text */
     Vector svec;
+
+    /* document */
+    SBuf doc_buf;
+    int doc_line;
 } ParserState, *ParserStateRef;
 
 #ifdef __cplusplus
