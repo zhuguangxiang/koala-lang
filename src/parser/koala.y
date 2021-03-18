@@ -75,7 +75,6 @@
 %token INT
 %token FLOAT32
 %token FLOAT64
-%token FLOAT
 %token BOOL
 %token CHAR
 %token STRING

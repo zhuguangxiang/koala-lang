@@ -276,7 +276,6 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "int"       { YY_RETURN(INT);     }
 "float32"   { YY_RETURN(FLOAT32); }
 "float64"   { YY_RETURN(FLOAT64); }
-"float"     { YY_RETURN(FLOAT);   }
 "bool"      { YY_RETURN(BOOL);    }
 "char"      { YY_RETURN(CHAR);    }
 "str"       { YY_RETURN(STRING);  }
