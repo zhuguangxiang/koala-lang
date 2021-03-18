@@ -47,23 +47,29 @@ typedef enum _KLVMTypeKind {
     KLVM_TYPE_MAP,
     KLVM_TYPE_TUPLE,
     KLVM_TYPE_VALIST,
-    KLVM_TYPE_CLASS,
-    KLVM_TYPE_INTF,
-    KLVM_TYPE_ENUM,
-    KLVM_TYPE_CLOSURE,
+    KLVM_TYPE_KLASS,
     KLVM_TYPE_PROTO,
 } KLVMTypeKind;
 
 /*
- * klass: Lio.File;
- * proto: Pis:i
+ * int: i, i8, i16, i32, i64
+ * float: f32, f64
+ * bool: b
+ * char: c
+ * str: s
+ * any: A
  * array: [s
- * Map: Mss
+ * Map: M(s:s)
+ * Tuple: T(is[s)
  * varg: ...s
+ * klass: Lio.File;
+ * proto: P(is:i)
  */
 typedef struct _KLVMType {
     KLVMTypeKind kind;
 } KLVMType, *KLVMTypeRef;
+
+void fini_klvm_type(void);
 
 KLVMTypeRef klvm_type_int8(void);
 KLVMTypeRef klvm_type_int16(void);
@@ -77,15 +83,20 @@ KLVMTypeRef klvm_type_char(void);
 KLVMTypeRef klvm_type_str(void);
 KLVMTypeRef klvm_type_any(void);
 
+KLVMTypeRef klvm_type_klass(char *path, char *name);
+char *klass_get_path(KLVMTypeRef type);
+char *klass_get_name(KLVMTypeRef type);
+void klass_add_typeparam(KLVMTypeRef type, KLVMTypeRef param);
+
 KLVMTypeRef klvm_type_proto(KLVMTypeRef ret, VectorRef params);
 VectorRef klvm_proto_params(KLVMTypeRef ty);
 KLVMTypeRef klvm_proto_ret(KLVMTypeRef ty);
 
 /* new type from string */
-KLVMTypeRef klvm_new_type(char *type);
+KLVMTypeRef str_to_type(char *type);
 
 /* new proto from string */
-KLVMTypeRef klvm_new_proto(char *para, char *ret);
+KLVMTypeRef str_to_proto(char *para, char *ret);
 
 int klvm_type_equal(KLVMTypeRef ty1, KLVMTypeRef ty2);
 char *klvm_type_tostr(KLVMTypeRef ty);

@@ -22,6 +22,8 @@
  */
 
 #include "klvm_type.h"
+#include "atom.h"
+#include "list.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,13 +91,89 @@ KLVMTypeRef klvm_type_any(void)
     return &bases[KLVM_TYPE_ANY];
 }
 
+typedef struct _KLVMKlass {
+    KLVMTypeKind kind;
+    char *name;
+    char *path;
+    VectorRef tps;
+    List node;
+} KLVMKlass, *KLVMKlassRef;
+
+static List klasslist = LIST_INIT(klasslist);
+
+static inline void __add_to_klasslist(KLVMKlassRef klass)
+{
+    list_push_back(&klasslist, &klass->node);
+}
+
+static void __fini_klasslist(void)
+{
+    KLVMKlassRef k, kn;
+    list_foreach_safe(k, kn, node, &klasslist, {
+        list_remove(&k->node);
+        mm_free(k);
+    });
+}
+
+KLVMTypeRef klvm_type_klass(char *path, char *name)
+{
+    KLVMKlassRef klass = mm_alloc(sizeof(KLVMKlass));
+    klass->kind = KLVM_TYPE_KLASS;
+    klass->path = path;
+    klass->name = name;
+    init_list(&klass->node);
+    __add_to_klasslist(klass);
+    return (KLVMTypeRef)klass;
+}
+
+char *klass_get_path(KLVMTypeRef type)
+{
+    KLVMKlassRef klass = (KLVMKlassRef)type;
+    return klass->path;
+}
+
+char *klass_get_name(KLVMTypeRef type)
+{
+    KLVMKlassRef klass = (KLVMKlassRef)type;
+    return klass->name;
+}
+
+void klass_add_typeparam(KLVMTypeRef type, KLVMTypeRef param)
+{
+    KLVMKlassRef klass = (KLVMKlassRef)type;
+
+    Vector *params = klass->tps;
+    if (!params) {
+        params = vector_new(sizeof(void *));
+        klass->tps = params;
+    }
+    vector_push_back(params, param);
+}
+
 typedef struct _KLVMProto {
     KLVMTypeKind kind;
     KLVMTypeRef ret;
     VectorRef params;
+    List node;
 } KLVMProto, *KLVMProtoRef;
 
 static KLVMProto _empty_proto = { .kind = KLVM_TYPE_PROTO };
+static List protolist = LIST_INIT(protolist);
+
+static inline void __add_to_protolist(KLVMProtoRef proto)
+{
+    list_push_back(&protolist, &proto->node);
+}
+
+static void __fini_protolist(void)
+{
+    KLVMProtoRef p, pn;
+    list_foreach_safe(p, pn, node, &protolist, {
+        list_remove(&p->node);
+        vector_destroy(p->params);
+        mm_free(p);
+    });
+}
 
 KLVMTypeRef klvm_type_proto(KLVMTypeRef ret, VectorRef params)
 {
@@ -105,6 +183,8 @@ KLVMTypeRef klvm_type_proto(KLVMTypeRef ret, VectorRef params)
     ty->kind = KLVM_TYPE_PROTO;
     ty->ret = ret;
     ty->params = params;
+    init_list(&ty->node);
+    __add_to_protolist(ty);
     return (KLVMTypeRef)ty;
 }
 
@@ -122,7 +202,13 @@ KLVMTypeRef klvm_proto_ret(KLVMTypeRef ty)
     return proto->ret;
 }
 
-static KLVMTypeRef __to_int_type(char **str)
+void fini_klvm_type(void)
+{
+    __fini_klasslist();
+    __fini_protolist();
+}
+
+static KLVMTypeRef __to_inttype(char **str)
 {
     KLVMTypeRef type;
     char *s = *str;
@@ -138,25 +224,37 @@ static KLVMTypeRef __to_int_type(char **str)
     } else if (s[0] == '6' && s[1] == '4') {
         type = klvm_type_int64();
         s += 2;
+    } else {
+        type = klvm_type_int64();
     }
     *str = s;
     return type;
+}
+
+static KLVMTypeRef __to_klass(char *s, int len)
+{
+    char *dot = strchr(s, '.');
+    assert(dot);
+    char *path = atom_nstr(s, dot - s);
+    char *type = atom_nstr(dot + 1, len - (dot - s) - 1);
+    return klvm_type_klass(path, type);
 }
 
 static KLVMTypeRef __to_type(char **str)
 {
     char *s = *str;
     char ch = *s;
+    char *k;
     KLVMTypeRef type;
     KLVMTypeRef t1;
 
     switch (ch) {
         case 'i': {
             s++;
-            type = __to_int_type(&s);
+            type = __to_inttype(&s);
             break;
         }
-        case 'z': {
+        case 'b': {
             type = klvm_type_bool();
             s++;
             break;
@@ -167,6 +265,15 @@ static KLVMTypeRef __to_type(char **str)
             break;
         }
         case 'L': {
+            s++;
+            k = s;
+            while (*s != ';' && *s != '<' && *s != '(') s++;
+            type = __to_klass(k, s - k);
+            while (*s != ';') {
+                t1 = __to_type(&s);
+                klass_add_typeparam(type, t1);
+            }
+            s++;
             break;
         }
         case '(': {
@@ -211,13 +318,13 @@ static KLVMTypeRef __to_type(char **str)
     return type;
 }
 
-KLVMTypeRef klvm_new_type(char *s)
+KLVMTypeRef str_to_type(char *s)
 {
     if (!s) return NULL;
     return __to_type(&s);
 }
 
-KLVMTypeRef klvm_new_proto(char *para, char *ret)
+KLVMTypeRef str_to_proto(char *para, char *ret)
 {
     VectorRef ptypes = NULL;
     if (para) {
