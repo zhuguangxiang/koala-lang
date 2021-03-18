@@ -27,6 +27,11 @@
 extern "C" {
 #endif
 
+void do_klass_typeparams(ParserState *ps, char *name)
+{
+    ps->in_angle = 1;
+}
+
 #ifdef __cplusplus
 }
 #endif

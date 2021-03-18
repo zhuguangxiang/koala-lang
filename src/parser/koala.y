@@ -72,7 +72,6 @@
 %token INT16
 %token INT32
 %token INT64
-%token INT
 %token FLOAT32
 %token FLOAT64
 %token BOOL
@@ -88,6 +87,10 @@
 %token GE
 %token LE
 
+%token DOTDOTDOT
+%token DOTDOTLESS
+%token FAT_ARROW
+
 %token FREE_ASSIGN
 %token PLUS_ASSIGN
 %token MINUS_ASSIGN
@@ -100,6 +103,7 @@
 %token SHL_ASSIGN
 %token SHR_ASSIGN
 
+%token L_ANGLE_ARGS
 %token L_SHIFT
 %token R_ANGLE_SHIFT
 
@@ -135,10 +139,38 @@ unit
             ps->more = 0;
         }
     }
+    | const_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | var_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
     | ';'
     {
 
     }
+    ;
+
+const_decl
+    : FINAL ID '=' expr ';'
+    | FINAL ID type '=' expr ';'
+    | PUB FINAL ID '=' expr ';'
+    | PUB FINAL ID type '=' expr ';'
+    ;
+
+var_decl
+    : VAR ID type ';'
+    | VAR ID '=' expr ';'
+    | VAR ID type '=' expr ';'
+    | PUB VAR ID type ';'
+    | PUB VAR ID '=' expr ';'
+    | PUB VAR ID type '=' expr ';'
     ;
 
 expr
@@ -220,6 +252,7 @@ primary_expr
     : call_expr
     | dot_expr
     | index_expr
+    | angle_expr
     | atom_expr
     ;
 
@@ -246,6 +279,17 @@ slice_expr
     | ':'
     ;
 
+angle_expr
+    : primary_expr L_ANGLE_ARGS type_list r_angle
+    {
+
+    }
+    | error
+    {
+        printf("type params error\n");
+    }
+    ;
+
 atom_expr
     : ID
     | '_'
@@ -270,11 +314,144 @@ atom_expr
     | SELF
     | SUPER
     | '(' expr ')'
+    | array_object_expr
+    | map_object_expr
+    | tuple_object_expr
+    ;
+
+array_object_expr
+    : '[' expr_list ']'
+    {
+    }
+    | '[' expr_list ',' ']'
+    {
+    }
+    | '[' expr_list ';' ']'
+    {
+    }
+    | '[' ']'
+    {
+    }
+    ;
+
+map_object_expr
+    : '{' mapentry_list '}'
+    {
+    }
+    | '{' mapentry_list ',' '}'
+    {
+    }
+    | '{' mapentry_list ';' '}'
+    {
+    }
+    | '{' ':' '}'
+    {
+    }
+    ;
+
+mapentry_list
+    : mapentry
+    {
+    }
+    | mapentry_list ',' mapentry
+    {
+    }
+    ;
+
+mapentry
+    : expr ':' expr
+    {
+    }
+    ;
+
+tuple_object_expr
+    : '(' expr_list ',' ')'
+    {
+    }
+    | '(' expr_list ',' expr ')'
+    {
+    }
+    | '(' expr_list ',' expr ';' ')'
+    {
+    }
+    | '(' ')'
+    {
+    }
     ;
 
 expr_list
     : expr
     | expr_list ',' expr
+    ;
+
+type
+    : no_array_type
+    | '[' type ']'
+    ;
+
+no_array_type
+    : INT8
+    | INT16
+    | INT32
+    | INT64
+    | FLOAT32
+    | FLOAT64
+    | BOOL
+    | CHAR
+    | STRING
+    | ANY
+    | '[' type ':' type ']'
+    | '(' type_list ')'
+    | klass_type
+    | func_type
+    ;
+
+klass_type
+    : ID
+    | ID '.' ID
+    | ID L_ANGLE_ARGS type_list r_angle
+    {
+        printf("type param\n");
+    }
+    | ID '.' ID L_ANGLE_ARGS type_list r_angle
+    ;
+
+r_angle
+    : '>'
+    | R_ANGLE_SHIFT
+    ;
+
+func_type
+    : FUNC '(' type_varg_list ')' type
+    {
+
+    }
+    | FUNC '(' type_varg_list ')'
+    {
+    }
+    | FUNC '(' ')' type
+    {
+    }
+    | FUNC '(' ')'
+    {
+    }
+    ;
+
+type_varg_list
+    : type_list
+    {
+    }
+    | type_list ',' DOTDOTDOT
+    {
+    }
+    | type_list ',' DOTDOTDOT no_array_type
+    {
+    }
+    ;
+
+type_list
+    : type
+    | type_list ',' type
     ;
 
 %%

@@ -273,9 +273,10 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "int16"     { YY_RETURN(INT16);   }
 "int32"     { YY_RETURN(INT32);   }
 "int64"     { YY_RETURN(INT64);   }
-"int"       { YY_RETURN(INT);     }
+"int"       { YY_RETURN(INT64);   }
 "float32"   { YY_RETURN(FLOAT32); }
 "float64"   { YY_RETURN(FLOAT64); }
+"float"     { YY_RETURN(FLOAT64); }
 "bool"      { YY_RETURN(BOOL);    }
 "char"      { YY_RETURN(CHAR);    }
 "str"       { YY_RETURN(STRING);  }
@@ -336,7 +337,15 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "}"         { YY_RETURN('}'); }
 
 ">"         { YY_RETURN('>'); }
-"<"         { YY_RETURN('<'); }
+"<" {
+    if (yyps->in_angle) {
+        yyps->in_angle = 0;
+        YY_RETURN(L_ANGLE_ARGS);
+    } else {
+        YY_RETURN('<');
+    }
+}
+
 "<<"        { YY_RETURN(L_SHIFT); }
 ">"/">"     { YY_RETURN(R_ANGLE_SHIFT); }
 
@@ -361,7 +370,11 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 <TXT>\r     { /* text omit return */        }
 <TXT>.      { YY_TEXT_WRITE(yytext[0]);     }
 
-[A-Za-z_][A-Za-z0-9_]*  { YY_IDENT_VALUE(yytext, yyleng); YY_RETURN(ID); }
+[A-Za-z_][A-Za-z0-9_]*  {
+    YY_IDENT_VALUE(yytext, yyleng);
+    do_klass_typeparams(yyps, yytext);
+    YY_RETURN(ID);
+}
 
 0[xX][0-9a-fA-F_]+  { YY_INT_VALUE(yytext + 2, 16); YY_RETURN(INT_LITERAL); }
 

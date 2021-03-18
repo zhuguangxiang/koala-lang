@@ -61,7 +61,12 @@ typedef struct _ParserState {
     /* document */
     SBuf doc_buf;
     int doc_line;
+
+    /* type parameters */
+    int in_angle;
 } ParserState, *ParserStateRef;
+
+void do_klass_typeparams(ParserState *ps, char *name);
 
 #ifdef __cplusplus
 }
