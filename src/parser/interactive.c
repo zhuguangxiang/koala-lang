@@ -38,7 +38,7 @@ extern "C" {
 #define MORE_PROMPT "    "
 
 static yyscan_t scanner;
-static ParserState ps;
+static ParserState cmdps;
 
 static void show_banner(void)
 {
@@ -78,7 +78,11 @@ int stdin_input(ParserStateRef ps, char *buf, int size)
         len = readline(PROMPT, buf, size);
     }
 
-    if (!empty(buf, len)) ps->more = 1;
+    if (!empty(buf, len)) {
+        memcpy(ps->linebuf, buf, len);
+        ps->linebuf[len - 2] = '\0';
+        ps->more = 1;
+    }
 
     return len;
 }
@@ -90,18 +94,20 @@ void kl_cmdline(void)
     init_line();
     init_atom();
 
-    ps.interactive = 1;
-    ps.line = 1;
-    ps.col = 1;
-    RESET_SBUF(ps.sbuf);
-    vector_init(&ps.svec, sizeof(SBuf));
+    cmdps.interactive = 1;
+    cmdps.line = 1;
+    cmdps.col = 1;
+    cmdps.filename = "stdin";
 
-    yylex_init_extra(&ps, &scanner);
+    RESET_SBUF(cmdps.sbuf);
+    vector_init(&cmdps.svec, sizeof(SBuf));
+
+    yylex_init_extra(&cmdps, &scanner);
     yyset_in(stdin, scanner);
-    yyparse(&ps, scanner);
+    yyparse(&cmdps, scanner);
     yylex_destroy(scanner);
 
-    FINI_SBUF(ps.sbuf);
+    FINI_SBUF(cmdps.sbuf);
     fini_atom();
     fini_line();
 }

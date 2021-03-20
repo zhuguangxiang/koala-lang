@@ -35,6 +35,7 @@ static int semicolon(ParserStateRef ps)
     static int tokens[] = {
         INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL,
         ID, SELF, SUPER, TRUE, FALSE,
+        INT8, INT16, INT32, INT64,
         ')', ']', '}', '>', '_',
     };
 
@@ -168,7 +169,10 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 #define YY_EXTRA_TYPE ParserStateRef
 #define yyps ((YY_EXTRA_TYPE)yyextra)
 
+#define YY_SAVE_TOKEN strncpy(yyps->tokenstr, yytext, TOKEN_MAX_LEN)
+
 #define YY_USER_ACTION {                        \
+    YY_SAVE_TOKEN;                              \
     char ch = yytext[0];                        \
     if (ch != '\n' && ch != '\r') {             \
         yyps->col += yyps->len;                 \
@@ -243,7 +247,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 %%
 
 "import"    { YY_RETURN(IMPORT);   }
-"final"     { YY_RETURN(FINAL);    }
+"const"     { YY_RETURN(CONST);    }
 "pub"       { YY_RETURN(PUB);      }
 "var"       { YY_RETURN(VAR);      }
 "func"      { YY_RETURN(FUNC);     }
@@ -383,11 +387,13 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 0[bB][01_]+     { YY_INT_VALUE(yytext + 2, 2); YY_RETURN(INT_LITERAL);  }
 [0-9][0-9_]*    { YY_INT_VALUE(yytext, 10); YY_RETURN(INT_LITERAL);     }
 
-([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)? {
+([0-9]+\.[0-9]+|[0-9]+)([eE][-+]?[0-9]+)? {
     YY_FLOAT_VALUE(yytext); YY_RETURN(FLOAT_LITERAL);
 }
 
-[ \t\r]+ ;
+[ ]+ {}
+
+[\t\r]+ ;
 
 [\n]+ {
     if (yyps->doc_line > 0 && yyps->doc_line != yyps->line) {
@@ -417,7 +423,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 <COM>\n     { yyps->more = 1; }
 <COM>.      { /* omit other characters */ }
 
-. { printf("error: invalid input\n"); abort(); }
+. { YY_RETURN(INVALID); }
 
 %%
 

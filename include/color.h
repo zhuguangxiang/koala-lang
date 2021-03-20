@@ -21,17 +21,18 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "parser.h"
+#ifndef _KOALA_TERM_COLOR_H_
+#define _KOALA_TERM_COLOR_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void do_klass_typeparams(ParserState *ps, char *name)
-{
-    ps->in_angle = 0;
-}
+#define RED_COLOR(x)  "\x1b[1;31m" #x "\x1b[0m"
+#define BLUE_COLOR(x) "\x1b[1;35m #x \x1b[0m"
 
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* _KOALA_TERM_COLOR_H_ */

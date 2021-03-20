@@ -32,9 +32,19 @@
 extern "C" {
 #endif
 
-#define MAX_STR_BUF_LEN 4096
+#define LINE_MAX_LEN  256
+#define TOKEN_MAX_LEN 80
 
 typedef struct _ParserState {
+    /* file name */
+    char *filename;
+    /* line source */
+    char linebuf[LINE_MAX_LEN];
+    /* token string */
+    char tokenstr[TOKEN_MAX_LEN];
+    /* count of errors */
+    int errors;
+
     /* is interactive ? */
     int interactive;
     /* is complete ? */

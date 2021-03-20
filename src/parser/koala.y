@@ -26,11 +26,17 @@
 %{
 
 #include "parser.h"
+#include "color.h"
 
 #define yyerror(loc, ps, scanner, msg) ((void)0)
 
 #define line(loc) ((loc).first_line)
 #define column(loc) ((loc).first_column)
+
+#define yy_error(loc, fmt, ...) printf("%s:%d:%d: " RED_COLOR(%s) fmt "\n", \
+    ps->filename, line(loc), column(loc), "error: ", ##__VA_ARGS__)
+    // printf("%5d | %s\n", line(loc), ps->linebuf); 
+    // printf("      | " RED_COLOR(%*s) "\n", column(loc), "^")
 
 %}
 
@@ -42,7 +48,7 @@
 }
 
 %token IMPORT
-%token FINAL
+%token CONST
 %token PUB
 %token VAR
 %token FUNC
@@ -111,6 +117,7 @@
 %token <fval> FLOAT_LITERAL
 %token <sval> STRING_LITERAL
 %token <sval> ID
+%token INVALID
 
 %locations
 %parse-param {ParserStateRef ps}
@@ -155,13 +162,26 @@ unit
     {
 
     }
+    | INVALID
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | error {
+        ps->more = 0;
+        printf("syntax error\n");
+        yyclearin;
+        yyerrok;
+
+    }
     ;
 
 const_decl
-    : FINAL ID '=' expr ';'
-    | FINAL ID type '=' expr ';'
-    | PUB FINAL ID '=' expr ';'
-    | PUB FINAL ID type '=' expr ';'
+    : CONST ID '=' expr ';'
+    | CONST ID type '=' expr ';'
+    | PUB CONST ID '=' expr ';'
+    | PUB CONST ID type '=' expr ';'
     ;
 
 var_decl
@@ -171,15 +191,40 @@ var_decl
     | PUB VAR ID type ';'
     | PUB VAR ID '=' expr ';'
     | PUB VAR ID type '=' expr ';'
+    | VAR error
+    {
+        yy_error(@2, "expected identifier");
+        yyerrok;
+    }
+    | VAR ID error
+    {
+        yy_error(@3, "expected TYPE or '='");
+        yyerrok;
+    }
+    | VAR ID '=' error
+    {
+        yy_error(@4, "expected expression");
+        yyerrok;
+    }
+    | VAR ID type '=' error
+    {
+        yy_error(@4, "expected expression");
+        yyerrok;
+    }
+    | PUB VAR error
+    {
+        yy_error(@3, "expected ident");
+        yyerrok;
+    }
     ;
 
 expr
     : cond_expr
+    | or_expr
     ;
 
 cond_expr
-    : or_expr
-    | or_expr '?' or_expr ':' or_expr
+    : or_expr '?' or_expr ':' or_expr
     ;
 
 or_expr
@@ -238,6 +283,13 @@ multi_expr
     | multi_expr '*' unary_expr
     | multi_expr '/' unary_expr
     | multi_expr '%' unary_expr
+    | multi_expr '*' error
+    {
+        //ps->errors++;
+        ps->more = 0;
+        yyerrok;
+        printf("expected expr\n");
+    }
     ;
 
 unary_expr
@@ -254,12 +306,20 @@ primary_expr
     | index_expr
     | angle_expr
     | atom_expr
+    | array_object_expr
+    | map_object_expr
+    | tuple_object_expr
+    | new_map_expr
     ;
 
 call_expr
     : primary_expr '(' ')'
     | primary_expr '(' expr_list ')'
     | primary_expr '(' expr_list ';' ')'
+    | primary_expr '(' error
+    {
+        printf("error, expected ) or expr list\n");
+    }
     ;
 
 dot_expr
@@ -284,29 +344,28 @@ angle_expr
     {
 
     }
-    | error
-    {
-        printf("type params error\n");
-    }
     ;
 
 atom_expr
     : ID
+    {
+        printf("id:%s\n",$1);
+    }
     | '_'
     | INT_LITERAL
     {
         printf("integer:%ld(%d-%d)\n", $1, line(@1), column(@1));
-        printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
+        //printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
     }
     | FLOAT_LITERAL
     {
         printf("float:%lf(%d-%d)\n", $1, line(@1), column(@1));
-        printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
+        //printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
     }
     | STRING_LITERAL
     {
         printf("string:%s(%d-%d)\n", $1, line(@1), column(@1));
-        printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
+        //printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
     }
     | TRUE
     | FALSE
@@ -314,9 +373,7 @@ atom_expr
     | SELF
     | SUPER
     | '(' expr ')'
-    | array_object_expr
-    | map_object_expr
-    | tuple_object_expr
+    | new_base_type
     ;
 
 array_object_expr
@@ -344,9 +401,7 @@ map_object_expr
     | '{' mapentry_list ';' '}'
     {
     }
-    | '{' ':' '}'
-    {
-    }
+    | '[' ':' ']'
     ;
 
 mapentry_list
@@ -374,9 +429,6 @@ tuple_object_expr
     | '(' expr_list ',' expr ';' ')'
     {
     }
-    | '(' ')'
-    {
-    }
     ;
 
 expr_list
@@ -384,9 +436,31 @@ expr_list
     | expr_list ',' expr
     ;
 
+new_map_expr
+    : '[' expr ':' expr ']'
+    {
+        printf("new map\n");
+    }
+    ;
+
+new_base_type
+    : INT8
+    | INT16
+    | INT32
+    | INT64
+    | FLOAT32
+    | FLOAT64
+    | BOOL
+    | CHAR
+    | STRING
+    | ANY
+    ;
+
 type
     : no_array_type
     | '[' type ']'
+    | '[' type ':' type ']'
+    | '(' type_list ')'
     ;
 
 no_array_type
@@ -400,8 +474,6 @@ no_array_type
     | CHAR
     | STRING
     | ANY
-    | '[' type ':' type ']'
-    | '(' type_list ')'
     | klass_type
     | func_type
     ;
