@@ -64,7 +64,6 @@
 %token CONTINUE
 %token RETURN
 %token IN
-%token BY
 %token AS
 %token IS
 
@@ -92,6 +91,7 @@
 %token NE
 %token GE
 %token LE
+%token OP_MATCH
 
 %token DOTDOTDOT
 %token DOTDOTLESS
@@ -140,7 +140,13 @@ units
     ;
 
 unit
-    : expr ';'
+    : import_stmt
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | expr ';'
     {
         if (ps->interactive) {
             ps->more = 0;
@@ -152,7 +158,55 @@ unit
             ps->more = 0;
         }
     }
+    | PUB const_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
     | var_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | PUB var_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | free_var_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | assignment
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | if_stmt
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | while_stmt
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | for_stmt
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | match_stmt
     {
         if (ps->interactive) {
             ps->more = 0;
@@ -162,6 +216,30 @@ unit
     {
 
     }
+    | func_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | PUB func_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | type_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | PUB type_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
     | INVALID
     {
         if (ps->interactive) {
@@ -169,7 +247,9 @@ unit
         }
     }
     | error {
-        ps->more = 0;
+        if (ps->interactive) {
+            ps->more = 0;
+        }
         printf("syntax error\n");
         yyclearin;
         yyerrok;
@@ -177,20 +257,45 @@ unit
     }
     ;
 
+import_stmt
+    : IMPORT STRING_LITERAL ';'
+    {
+    }
+    | IMPORT ID STRING_LITERAL ';'
+    {
+    }
+    | IMPORT '.' STRING_LITERAL ';'
+    {
+    }
+    | IMPORT '{' id_as_list '}' STRING_LITERAL ';'
+    {
+    }
+    ;
+
+id_as_list
+    : ID
+    {
+    }
+    | ID AS ID
+    {
+    }
+    | id_as_list ',' ID
+    {
+    }
+    | id_as_list ',' ID AS ID
+    {
+    }
+    ;
+
 const_decl
     : CONST ID '=' expr ';'
     | CONST ID type '=' expr ';'
-    | PUB CONST ID '=' expr ';'
-    | PUB CONST ID type '=' expr ';'
     ;
 
 var_decl
     : VAR ID type ';'
     | VAR ID '=' expr ';'
     | VAR ID type '=' expr ';'
-    | PUB VAR ID type ';'
-    | PUB VAR ID '=' expr ';'
-    | PUB VAR ID type '=' expr ';'
     | VAR error
     {
         yy_error(@2, "expected identifier");
@@ -211,16 +316,383 @@ var_decl
         yy_error(@4, "expected expression");
         yyerrok;
     }
-    | PUB VAR error
+    ;
+
+free_var_decl
+    : ID FREE_ASSIGN expr ';'
     {
-        yy_error(@3, "expected ident");
-        yyerrok;
+    }
+    | PUB ID FREE_ASSIGN expr ';'
+    ;
+
+assignment
+    : primary_expr assignop expr ';'
+    {
+    }
+    ;
+
+assignop
+    : '='
+    {
+    }
+    | PLUS_ASSIGN
+    {
+    }
+    | MINUS_ASSIGN
+    {
+    }
+    | MULT_ASSIGN
+    {
+    }
+    | DIV_ASSIGN
+    {
+    }
+    | MOD_ASSIGN
+    {
+    }
+    | AND_ASSIGN
+    {
+    }
+    | OR_ASSIGN
+    {
+    }
+    | XOR_ASSIGN
+    {
+    }
+    | SHL_ASSIGN
+    {
+
+    }
+    | SHR_ASSIGN {}
+    ;
+
+return_stmt
+    : RETURN ';'
+    {
+    }
+    | RETURN expr ';'
+    {
+    }
+    ;
+
+    jump_stmt
+    : BREAK ';'
+    {
+    }
+    | CONTINUE ';'
+    {
+    }
+    ;
+
+block
+    : '{' local_list '}'
+    {
+    }
+    | '{' expr '}'
+    {
+    }
+    | '{' '}'
+    {
+
+    }
+    ;
+
+local_list
+    : local
+    {
+
+    }
+    | local_list local
+    {
+    }
+    ;
+
+local
+    : expr ';'
+    {
+    }
+    | var_decl
+    {
+    }
+    | free_var_decl
+    {
+    }
+    | assignment
+    {
+    }
+    | if_stmt
+    {
+    }
+    | while_stmt
+    {
+    }
+    | for_stmt
+    {
+    }
+    | match_stmt
+    {
+    }
+    | return_stmt
+    {
+    }
+    | jump_stmt
+    {
+    }
+    | block
+    {
+    }
+    | ';'
+    {
+    }
+    ;
+
+if_stmt
+    : IF expr block elseif
+    ;
+
+elseif
+    : %empty
+    | ELSE block
+    | ELSE if_stmt
+    ;
+
+while_stmt
+    : WHILE expr block
+    | WHILE block
+    ;
+
+for_stmt
+    : FOR expr IN expr block
+    ;
+
+match_stmt
+    : MATCH expr '{' match_clauses '}'
+    ;
+
+match_clauses
+    : match_clause
+    | match_clauses match_clause
+    ;
+
+match_clause
+    : match_pattern FAT_ARROW match_block match_tail
+    ;
+
+match_pattern
+    : expr_list
+    | IS type
+    ;
+
+match_tail
+    : ';'
+    | ','
+    ;
+
+match_block
+    : block
+    | expr
+    ;
+
+func_decl
+    : FUNC name '(' param_list ')' type block
+    {
+    }
+    | FUNC name '(' param_list ')' block
+    {
+    }
+    | FUNC name '(' ')' type block
+    {
+    }
+    | FUNC name '(' ')' block
+    {
+    }
+    ;
+
+proto_decl
+    : FUNC name '(' param_list ')' type ';'
+    {
+    }
+    | FUNC name '(' param_list ')' ';'
+    {
+    }
+    | FUNC name '(' ')' type ';'
+    {
+    }
+    | FUNC name '(' ')' ';'
+    {
+    }
+    ;
+
+param_list
+    : id_type_list
+    {
+    }
+    | id_varg
+    {
+    }
+    | id_type_list ',' id_varg
+    {
+    }
+    ;
+
+id_type_list
+    : ID type
+    {
+    }
+    | id_type_list ',' ID type
+    {
+    }
+    ;
+
+id_varg
+    : ID DOTDOTDOT
+    {
+    }
+    | ID DOTDOTDOT no_array_type
+    {
+    }
+    ;
+
+type_decl
+    : class_decl
+    | CONST class_decl
+    | trait_decl
+    | enum_decl
+    | CONST enum_decl
+    ;
+
+class_decl
+    : CLASS name extends '{' class_members '}'
+    | CLASS name extends '{' '}'
+    | CLASS name extends ';'
+    ;
+
+trait_decl
+    : TRAIT name extends '{' trait_members '}'
+    | TRAIT name extends '{' '}'
+    | TRAIT name extends ';'
+    ;
+
+enum_decl
+    : ENUM name extends '{' enum_members '}'
+    | ENUM name extends ';'
+    ;
+
+name
+    : ID
+    {
+    }
+    | ID '<' type_param_decl_list '>'
+    {
+    }
+    ;
+
+type_param_decl_list
+    : type_param_decl
+    | type_param_decl_list ',' type_param_decl
+    ;
+
+type_param_decl
+    : ID
+    | ID ':' type_param_bound_list
+    ;
+
+type_param_bound_list
+    : klass_type
+    {
+        // trait, not class
+    }
+    | type_param_bound_list '&' klass_type
+    ;
+
+extends
+    : %empty
+    | ':' klass_list
+    ;
+
+klass_list
+    : klass_type
+    | klass_list ',' klass_type
+    ;
+
+class_members
+    : class_member
+    | class_members class_member
+    ;
+
+class_member
+    : ID type ';'
+    | ID type '=' expr ';'
+    | func_decl
+    | ';'
+    ;
+
+trait_members
+    : trait_member
+    | trait_members trait_member
+    ;
+
+trait_member
+    : func_decl
+    | proto_decl
+    | ';'
+    ;
+
+enum_members
+    : enum_labels ','
+    | enum_labels ';'
+    | enum_labels ',' enum_methods
+    | enum_labels ';' enum_methods
+    ;
+
+enum_labels
+    : enum_label
+    {
+    }
+    | enum_labels ',' enum_label
+    {
+    }
+    ;
+
+enum_label
+    : ID
+    | ID '(' type_list ')'
+    | ID '=' INT_LITERAL
+    ;
+
+enum_methods
+    : func_decl ';'
+    {
+    }
+    | enum_methods func_decl ';'
+    {
     }
     ;
 
 expr
     : cond_expr
     | or_expr
+    | range_expr
+    | is_expr
+    | as_expr
+    | match_expr
+    ;
+
+range_expr
+    : or_expr DOTDOTDOT or_expr
+    | or_expr DOTDOTLESS or_expr
+    ;
+
+is_expr
+    : primary_expr IS type
+    ;
+
+as_expr
+    : primary_expr AS type
+    ;
+
+match_expr
+    : primary_expr OP_MATCH expr
     ;
 
 cond_expr
@@ -309,7 +781,9 @@ primary_expr
     | array_object_expr
     | map_object_expr
     | tuple_object_expr
+    | anony_object_expr
     | new_map_expr
+    | new_base_expr
     ;
 
 call_expr
@@ -324,7 +798,13 @@ call_expr
 
 dot_expr
     : primary_expr '.' ID
+    {
+        printf("object access\n");
+    }
     | primary_expr '.' INT_LITERAL
+    {
+        printf("tuple access\n");
+    }
     ;
 
 index_expr
@@ -373,7 +853,6 @@ atom_expr
     | SELF
     | SUPER
     | '(' expr ')'
-    | new_base_type
     ;
 
 array_object_expr
@@ -401,7 +880,7 @@ map_object_expr
     | '{' mapentry_list ';' '}'
     {
     }
-    | '[' ':' ']'
+    | '{' ':' '}'
     ;
 
 mapentry_list
@@ -431,9 +910,19 @@ tuple_object_expr
     }
     ;
 
-expr_list
-    : expr
-    | expr_list ',' expr
+anony_object_expr
+    : FUNC '(' param_list ')' type block
+    {
+    }
+    | FUNC '(' param_list ')' block
+    {
+    }
+    | FUNC '(' ')' type block
+    {
+    }
+    | FUNC '(' ')' block
+    {
+    }
     ;
 
 new_map_expr
@@ -443,7 +932,7 @@ new_map_expr
     }
     ;
 
-new_base_type
+new_base_expr
     : INT8
     | INT16
     | INT32
@@ -454,6 +943,11 @@ new_base_type
     | CHAR
     | STRING
     | ANY
+    ;
+
+expr_list
+    : expr
+    | expr_list ',' expr
     ;
 
 type

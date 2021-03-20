@@ -263,7 +263,6 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "continue"  { YY_RETURN(CONTINUE); }
 "return"    { YY_RETURN(RETURN);   }
 "in"        { YY_RETURN(IN);       }
-"by"        { YY_RETURN(BY);       }
 "as"        { YY_RETURN(AS);       }
 "is"        { YY_RETURN(IS);       }
 
@@ -309,10 +308,10 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "<<="       { YY_RETURN(SHL_ASSIGN);   }
 ">>="       { YY_RETURN(SHR_ASSIGN);   }
 
-"..."       {  }
-"..<"       {  }
-"=>"        {  }
-"~="        {  }
+"..."       { YY_RETURN(DOTDOTDOT);  }
+"..<"       { YY_RETURN(DOTDOTLESS); }
+"=>"        { YY_RETURN(FAT_ARROW);  }
+"~="        { YY_RETURN(OP_MATCH);   }
 
 "+"         { YY_RETURN('+'); }
 "-"         { YY_RETURN('-'); }
