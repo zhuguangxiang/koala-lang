@@ -475,11 +475,17 @@ match_clauses
     ;
 
 match_clause
-    : match_pattern FAT_ARROW match_block match_tail
+    : match_pattern_list FAT_ARROW match_block match_tail
     ;
 
+match_pattern_list
+    : match_pattern
+    | match_pattern_list ',' match_pattern
+    ; 
+
 match_pattern
-    : expr_list
+    : expr
+    | IN range_expr
     | IS type
     ;
 
@@ -678,6 +684,16 @@ expr
     | match_expr
     ;
 
+cond_expr
+    : cond_c_expr '?' expr ':' expr
+    ;
+
+cond_c_expr
+    : equality_expr
+    | is_expr
+    | match_expr
+    ;
+
 range_expr
     : or_expr DOTDOTDOT or_expr
     | or_expr DOTDOTLESS or_expr
@@ -692,11 +708,7 @@ as_expr
     ;
 
 match_expr
-    : primary_expr OP_MATCH expr
-    ;
-
-cond_expr
-    : or_expr '?' or_expr ':' or_expr
+    : primary_expr OP_MATCH or_expr
     ;
 
 or_expr
@@ -865,9 +877,6 @@ array_object_expr
     | '[' expr_list ';' ']'
     {
     }
-    | '[' ']'
-    {
-    }
     ;
 
 map_object_expr
@@ -880,7 +889,6 @@ map_object_expr
     | '{' mapentry_list ';' '}'
     {
     }
-    | '{' ':' '}'
     ;
 
 mapentry_list
