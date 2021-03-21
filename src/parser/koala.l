@@ -397,7 +397,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 [\n]+ {
     if (yyps->doc_line > 0 && yyps->doc_line != yyps->line) {
         /* not consecutive document */
-        printf("doc:\n");
+        printf("doc\n");
         printf("%s", SBUF_STR(yyps->doc_buf));
         printf("doc is taken\n");
         yyps->doc_line = 0;

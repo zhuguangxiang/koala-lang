@@ -128,18 +128,18 @@
   int yylex(YYSTYPE *yylval_param, YYLTYPE *yylloc, void *yyscanner);
 }
 
-%start units
+%start program
 
 /* grammar rules */
 
 %%
 
-units
-    : unit
-    | units unit
+program
+    : %empty
+    | program stmt
     ;
 
-unit
+stmt
     : import_stmt
     {
         if (ps->interactive) {
@@ -214,7 +214,9 @@ unit
     }
     | ';'
     {
-
+        if (ps->interactive) {
+            ps->more = 0;
+        }
     }
     | func_decl
     {
@@ -250,7 +252,7 @@ unit
         if (ps->interactive) {
             ps->more = 0;
         }
-        printf("syntax error\n");
+        //printf("syntax error\n");
         yyclearin;
         yyerrok;
 
