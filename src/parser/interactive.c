@@ -79,8 +79,7 @@ int stdin_input(ParserStateRef ps, char *buf, int size)
     }
 
     if (!empty(buf, len)) {
-        memcpy(ps->linebuf, buf, len);
-        ps->linebuf[len - 2] = '\0';
+        sbuf_nprint(&ps->linebuf, buf, len - 2);
         ps->more = 1;
     }
 
@@ -98,15 +97,19 @@ void kl_cmdline(void)
     cmdps.line = 1;
     cmdps.col = 1;
     cmdps.filename = "stdin";
+    cmdps.in = stdin;
 
+    RESET_SBUF(cmdps.linebuf);
     RESET_SBUF(cmdps.sbuf);
     vector_init(&cmdps.svec, sizeof(SBuf));
 
     yylex_init_extra(&cmdps, &scanner);
     yyset_in(stdin, scanner);
+    cmdps.lexer = scanner;
     yyparse(&cmdps, scanner);
     yylex_destroy(scanner);
 
+    FINI_SBUF(cmdps.linebuf);
     FINI_SBUF(cmdps.sbuf);
     fini_atom();
     fini_line();

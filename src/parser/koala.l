@@ -33,10 +33,11 @@
 static int semicolon(ParserStateRef ps)
 {
     static int tokens[] = {
-        INT_LITERAL, FLOAT_LITERAL, STRING_LITERAL,
-        ID, SELF, SUPER, TRUE, FALSE,
-        INT8, INT16, INT32, INT64,
-        ')', ']', '}', '>', '_',
+        INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
+        ID, SELF, SUPER, TRUE, FALSE, NIL,
+        INT8, INT16, INT32, INT64, CHAR, STRING, BOOL, ANY,
+        RETURN, BREAK, CONTINUE, ')', ']', '}', '>', '_',
+        DOTDOTDOT, DOTDOTLESS, FAT_ARROW,
     };
 
     int token = ps->token;
@@ -169,17 +170,15 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 #define YY_EXTRA_TYPE ParserStateRef
 #define yyps ((YY_EXTRA_TYPE)yyextra)
 
-#define YY_SAVE_TOKEN strncpy(yyps->tokenstr, yytext, TOKEN_MAX_LEN)
-
 #define YY_USER_ACTION {                        \
-    YY_SAVE_TOKEN;                              \
     char ch = yytext[0];                        \
     if (ch != '\n' && ch != '\r') {             \
         yyps->col += yyps->len;                 \
         yyps->len = strlen(yytext);             \
         if (!yyps->in_str) {                    \
-            yylloc->first_column = yyps->col;   \
             yylloc->first_line = yyps->line;    \
+            yylloc->first_column = yyps->col;   \
+            yylloc->last_column = yylloc->first_column + yyps->len; \
         }                                       \
     } else if (ch == '\n' && yyps->in_str) {    \
         ++yyps->line;                           \
@@ -374,6 +373,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 <TXT>.      { YY_TEXT_WRITE(yytext[0]);     }
 
 [A-Za-z_][A-Za-z0-9_]*  {
+    printf("id\n");
     YY_IDENT_VALUE(yytext, yyleng);
     do_klass_typeparams(yyps, yytext);
     YY_RETURN(ID);

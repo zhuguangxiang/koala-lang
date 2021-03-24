@@ -27,16 +27,21 @@
 
 #include "parser.h"
 #include "color.h"
+#include "koala_yacc.h"
+#include "koala_lex.h"
 
 #define yyerror(loc, ps, scanner, msg) ((void)0)
 
 #define line(loc) ((loc).first_line)
-#define column(loc) ((loc).first_column)
+#define col_1st(loc) ((loc).first_column)
+#define col_last(loc) ((loc).last_column)
+#define loc(l) (l).first_line, (l).first_column
+
+void show_error_detail(ParserStateRef ps, int row, int col);
 
 #define yy_error(loc, fmt, ...) printf("%s:%d:%d: " RED_COLOR(%s) fmt "\n", \
-    ps->filename, line(loc), column(loc), "error: ", ##__VA_ARGS__)
-    // printf("%5d | %s\n", line(loc), ps->linebuf); 
-    // printf("      | " RED_COLOR(%*s) "\n", column(loc), "^")
+    ps->filename, line(loc), col_last(loc), "error: ", ##__VA_ARGS__); \
+    show_error_detail(ps, line(loc), col_last(loc))
 
 %}
 
@@ -45,6 +50,7 @@
     double fval;
     int cval;
     char *sval;
+    ExprRef expr;
 }
 
 %token IMPORT
@@ -112,12 +118,15 @@
 %token L_ANGLE_ARGS
 %token L_SHIFT
 %token R_ANGLE_SHIFT
+%token INVALID
 
 %token <ival> INT_LITERAL
 %token <fval> FLOAT_LITERAL
+%token <cval> CHAR_LITERAL
 %token <sval> STRING_LITERAL
 %token <sval> ID
-%token INVALID
+%type <expr> expr
+%type <expr> atom_expr
 
 %locations
 %parse-param {ParserStateRef ps}
@@ -148,8 +157,11 @@ stmt
     }
     | expr ';'
     {
+        StmtRef s = stmt_from_expr($1);
+        stmt_set_loc(s, loc(@1));
         if (ps->interactive) {
             ps->more = 0;
+            free_stmt(s);
         }
     }
     | const_decl
@@ -177,6 +189,12 @@ stmt
         }
     }
     | free_var_decl
+    {
+        if (ps->interactive) {
+            ps->more = 0;
+        }
+    }
+    | PUB free_var_decl
     {
         if (ps->interactive) {
             ps->more = 0;
@@ -252,10 +270,9 @@ stmt
         if (ps->interactive) {
             ps->more = 0;
         }
-        //printf("syntax error\n");
+        printf("syntax error\n");
         yyclearin;
         yyerrok;
-
     }
     ;
 
@@ -272,6 +289,33 @@ import_stmt
     | IMPORT '{' id_as_list '}' STRING_LITERAL ';'
     {
     }
+    | IMPORT error
+    {
+        yyclearin;
+        yyerrok;
+    }
+    | IMPORT ID error
+    {
+
+    }
+    | IMPORT '.' error
+    {
+
+    }
+    | IMPORT STRING_LITERAL error
+    | IMPORT ID STRING_LITERAL error
+    | IMPORT '.' STRING_LITERAL error
+    | IMPORT '{' error '}' STRING_LITERAL ';'
+    {
+        printf("import error\n");
+    }
+    | IMPORT '{' id_as_list error
+    {
+    }
+    | IMPORT '{' id_as_list '}' error
+    {
+    }
+    | IMPORT '{' id_as_list '}' STRING_LITERAL error
     ;
 
 id_as_list
@@ -301,6 +345,8 @@ var_decl
     | VAR error
     {
         yy_error(@2, "expected identifier");
+        if (yychar != FOR && yychar != VAR)
+            yyclearin;
         yyerrok;
     }
     | VAR ID error
@@ -310,12 +356,23 @@ var_decl
     }
     | VAR ID '=' error
     {
-        yy_error(@4, "expected expression");
+        yy_error(@4, "expected expression2, %d\n", yychar);
+        if (yychar != FOR) {
+            yyclearin;
+        }
+        yyerrok;
+    }
+    | VAR ID '=' expr error
+    {
+        yy_error(@5, "expected ';' or '\\n', %d\n", yychar);
+        if (yychar != FOR) {
+            yyclearin;
+        }
         yyerrok;
     }
     | VAR ID type '=' error
     {
-        yy_error(@4, "expected expression");
+        yy_error(@4, "expected expression3");
         yyerrok;
     }
     ;
@@ -324,7 +381,6 @@ free_var_decl
     : ID FREE_ASSIGN expr ';'
     {
     }
-    | PUB ID FREE_ASSIGN expr ';'
     ;
 
 assignment
@@ -469,6 +525,11 @@ for_stmt
 
 match_stmt
     : MATCH expr '{' match_clauses '}'
+    | MATCH error
+    {
+        yy_error(@2, "match error\n");
+        yyerrok;
+    }
     ;
 
 match_clauses
@@ -483,7 +544,7 @@ match_clause
 match_pattern_list
     : match_pattern
     | match_pattern_list ',' match_pattern
-    ; 
+    ;
 
 match_pattern
     : expr
@@ -497,7 +558,8 @@ match_tail
     ;
 
 match_block
-    : block
+    : %empty
+    | block
     | expr
     ;
 
@@ -679,19 +741,26 @@ enum_methods
 
 expr
     : cond_expr
-    | or_expr
-    | range_expr
-    | is_expr
+    {
+
+    }
     | as_expr
-    | match_expr
+    {
+
+    }
+    | range_expr
+    {
+
+    }
     ;
 
 cond_expr
-    : cond_c_expr '?' expr ':' expr
+    : cond_c_expr
+    | cond_c_expr '?' expr ':' expr
     ;
 
 cond_c_expr
-    : equality_expr
+    : or_expr
     | is_expr
     | match_expr
     ;
@@ -843,30 +912,63 @@ angle_expr
 atom_expr
     : ID
     {
-        printf("id:%s\n",$1);
+        $$ = expr_from_ident($1);
+        expr_set_loc($$, loc(@1));
     }
     | '_'
+    {
+        $$ = expr_from_under();
+        expr_set_loc($$, loc(@1));
+    }
     | INT_LITERAL
     {
-        printf("integer:%ld(%d-%d)\n", $1, line(@1), column(@1));
-        //printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
+        $$ = expr_from_int64($1);
+        expr_set_loc($$, loc(@1));
     }
     | FLOAT_LITERAL
     {
-        printf("float:%lf(%d-%d)\n", $1, line(@1), column(@1));
-        //printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
+        $$ = expr_from_float64($1);
+        expr_set_loc($$, loc(@1));
+    }
+    | CHAR_LITERAL
+    {
+        $$ = expr_from_char($1);
+        expr_set_loc($$, loc(@1));
     }
     | STRING_LITERAL
     {
-        printf("string:%s(%d-%d)\n", $1, line(@1), column(@1));
-        //printf("has doc:%d\n", SBUF_LEN(ps->doc_buf));
+        $$ = expr_from_str($1);
+        expr_set_loc($$, loc(@1));
     }
     | TRUE
+    {
+        $$ = expr_from_bool(1);
+        expr_set_loc($$, loc(@1));
+    }
     | FALSE
+    {
+        $$ = expr_from_bool(0);
+        expr_set_loc($$, loc(@1));
+    }
     | NIL
+    {
+        $$ = expr_from_nil();
+        expr_set_loc($$, loc(@1));
+    }
     | SELF
+    {
+        $$ = expr_from_self();
+        expr_set_loc($$, loc(@1));
+    }
     | SUPER
+    {
+        $$ = expr_from_super();
+        expr_set_loc($$, loc(@1));
+    }
     | '(' expr ')'
+    {
+        $$ = $2;
+    }
     ;
 
 array_object_expr

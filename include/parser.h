@@ -24,6 +24,7 @@
 #ifndef _KOALA_PARSER_H_
 #define _KOALA_PARSER_H_
 
+#include "ast.h"
 #include "atom.h"
 #include "sbuf.h"
 #include "vector.h"
@@ -32,16 +33,17 @@
 extern "C" {
 #endif
 
-#define LINE_MAX_LEN  256
-#define TOKEN_MAX_LEN 80
-
 typedef struct _ParserState {
+    FILE *in;
+    void *lexer;
+
     /* file name */
     char *filename;
-    /* line source */
-    char linebuf[LINE_MAX_LEN];
-    /* token string */
-    char tokenstr[TOKEN_MAX_LEN];
+    /* source line buffer */
+    SBuf linebuf;
+    /* token string index */
+    int token_index;
+
     /* count of errors */
     int errors;
 
@@ -49,8 +51,6 @@ typedef struct _ParserState {
     int interactive;
     /* is complete ? */
     int more;
-    /* interactive quit */
-    int quit;
 
     /* token ident */
     int token;
@@ -76,7 +76,12 @@ typedef struct _ParserState {
     int in_angle;
 } ParserState, *ParserStateRef;
 
-void do_klass_typeparams(ParserState *ps, char *name);
+/* more than MAX_ERRORS, discard left errors shown */
+#define MAX_ERRORS 8
+
+void parse_stmt(ParserStateRef ps, StmtRef stmt);
+
+void do_klass_typeparams(ParserStateRef ps, char *name);
 
 #ifdef __cplusplus
 }
