@@ -310,7 +310,6 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "..."       { YY_RETURN(DOTDOTDOT);  }
 "..<"       { YY_RETURN(DOTDOTLESS); }
 "=>"        { YY_RETURN(FAT_ARROW);  }
-"~="        { YY_RETURN(OP_MATCH);   }
 
 "+"         { YY_RETURN('+'); }
 "-"         { YY_RETURN('-'); }
@@ -373,7 +372,6 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 <TXT>.      { YY_TEXT_WRITE(yytext[0]);     }
 
 [A-Za-z_][A-Za-z0-9_]*  {
-    printf("id\n");
     YY_IDENT_VALUE(yytext, yyleng);
     do_klass_typeparams(yyps, yytext);
     YY_RETURN(ID);

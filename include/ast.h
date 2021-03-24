@@ -109,6 +109,61 @@ typedef struct _ExprK {
     };
 } ExprK, *ExprKRef;
 
+typedef struct _ExprID {
+    EXPR_HEAD
+    char *name;
+} ExprID, *ExprIDRef;
+
+/* unary operator kind */
+typedef enum _UnKind {
+    /* - */
+    UNARY_NEG = 1,
+    /* ~ */
+    UNARY_BIT_NOT,
+    /* ! */
+    UNARY_NOT
+} UnKind;
+
+typedef struct _ExprUn {
+    EXPR_HEAD
+    UnKind ukind;
+    ExprRef exp;
+} ExprUn, *ExprUnRef;
+
+/* binary operator kind */
+typedef enum _Bikind {
+    /* +, -, *, /, %, <<, >> */
+    BINARY_ADD = 1,
+    BINARY_SUB,
+    BINARY_MULT,
+    BINARY_DIV,
+    BINARY_MOD,
+    BINARY_LSHIFT,
+    BINARY_RSHIFT,
+
+    /* &, ^, | */
+    BINARY_BIT_AND,
+    BINARY_BIT_XOR,
+    BINARY_BIT_OR,
+    /* >, >=, <, <=, ==, != */
+    BINARY_GT,
+    BINARY_GE,
+    BINARY_LT,
+    BINARY_LE,
+    BINARY_EQ,
+    BINARY_NE,
+    /* &&, || */
+    BINARY_AND,
+    BINARY_OR,
+} BiKind;
+
+typedef struct _ExprBi {
+    EXPR_HEAD
+    BiKind bkind;
+    ExprRef lexp;
+    ExprRef rexp;
+} ExprBi, *ExprBiRef;
+
 static inline void expr_set_loc(ExprRef e, int row, int col)
 {
     e->row = row;
@@ -127,6 +182,8 @@ ExprRef expr_from_str(char *val);
 ExprRef expr_from_char(int val);
 
 ExprRef expr_from_ident(char *val);
+ExprRef expr_from_unary(UnKind ukind, ExprRef e);
+ExprRef expr_from_binary(BiKind bkind, ExprRef le, ExprRef re);
 
 typedef enum _StmtKind {
     /* import */

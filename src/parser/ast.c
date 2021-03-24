@@ -96,6 +96,33 @@ ExprRef expr_from_char(int val)
     return (ExprRef)k;
 }
 
+ExprRef expr_from_ident(char *val)
+{
+    ExprIDRef id = mm_alloc(sizeof(*id));
+    id->kind = EXPR_ID_KIND;
+    id->name = val;
+    return (ExprRef)id;
+}
+
+ExprRef expr_from_unary(UnKind ukind, ExprRef e)
+{
+    ExprUnRef un = mm_alloc(sizeof(*un));
+    un->kind = EXPR_UNARY_KIND;
+    un->ukind = ukind;
+    un->exp = e;
+    return (ExprRef)un;
+}
+
+ExprRef expr_from_binary(BiKind bkind, ExprRef le, ExprRef re)
+{
+    ExprBiRef bi = mm_alloc(sizeof(*bi));
+    bi->kind = EXPR_BINARY_KIND;
+    bi->bkind = bkind;
+    bi->lexp = le;
+    bi->rexp = re;
+    return (ExprRef)bi;
+}
+
 void free_expr(ExprRef e)
 {
     if (!e) return;
@@ -112,6 +139,19 @@ void free_expr(ExprRef e)
         case EXPR_UNDER_KIND:
             mm_free(e);
             break;
+        case EXPR_UNARY_KIND: {
+            ExprUnRef un = (ExprUnRef)e;
+            free_expr(un->exp);
+            mm_free(e);
+            break;
+        }
+        case EXPR_BINARY_KIND: {
+            ExprBiRef bi = (ExprBiRef)e;
+            free_expr(bi->lexp);
+            free_expr(bi->rexp);
+            mm_free(e);
+            break;
+        }
         default:
             break;
     }

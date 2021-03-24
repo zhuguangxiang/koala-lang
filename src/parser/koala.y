@@ -97,7 +97,6 @@ void show_error_detail(ParserStateRef ps, int row, int col);
 %token NE
 %token GE
 %token LE
-%token OP_MATCH
 
 %token DOTDOTDOT
 %token DOTDOTLESS
@@ -126,6 +125,23 @@ void show_error_detail(ParserStateRef ps, int row, int col);
 %token <sval> STRING_LITERAL
 %token <sval> ID
 %type <expr> expr
+%type <expr> cond_expr
+%type <expr> cond_c_expr
+%type <expr> range_expr
+%type <expr> is_expr
+%type <expr> as_expr
+%type <expr> or_expr
+%type <expr> and_expr
+%type <expr> bit_or_expr
+%type <expr> bit_xor_expr
+%type <expr> bit_and_expr
+%type <expr> equality_expr
+%type <expr> relation_expr
+%type <expr> shift_expr
+%type <expr> add_expr
+%type <expr> multi_expr
+%type <expr> unary_expr
+%type <expr> primary_expr
 %type <expr> atom_expr
 
 %locations
@@ -742,27 +758,38 @@ enum_methods
 expr
     : cond_expr
     {
-
+        $$ = $1;
     }
     | as_expr
     {
-
+        $$ = $1;
     }
     | range_expr
     {
-
+        $$ = $1;
     }
     ;
 
 cond_expr
     : cond_c_expr
+    {
+        $$ = $1;
+    }
     | cond_c_expr '?' expr ':' expr
+    {
+
+    }
     ;
 
 cond_c_expr
     : or_expr
+    {
+        $$ = $1;
+    }
     | is_expr
-    | match_expr
+    {
+        $$ = $1;
+    }
     ;
 
 range_expr
@@ -772,72 +799,176 @@ range_expr
 
 is_expr
     : primary_expr IS type
+    {
+
+    }
     ;
 
 as_expr
     : primary_expr AS type
-    ;
+    {
 
-match_expr
-    : primary_expr OP_MATCH or_expr
+    }
     ;
 
 or_expr
     : and_expr
+    {
+        $$ = $1;
+    }
     | or_expr OR and_expr
+    {
+        $$ = expr_from_binary(BINARY_OR, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 and_expr
     : bit_or_expr
+    {
+        $$ = $1;
+    }
     | and_expr AND bit_or_expr
+    {
+        $$ = expr_from_binary(BINARY_AND, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 bit_or_expr
     : bit_xor_expr
+    {
+        $$ = $1;
+    }
     | bit_or_expr '|' bit_xor_expr
+    {
+        $$ = expr_from_binary(BINARY_BIT_OR, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 bit_xor_expr
     : bit_and_expr
+    {
+        $$ = $1;
+    }
     | bit_xor_expr '^' bit_and_expr
+    {
+        $$ = expr_from_binary(BINARY_BIT_XOR, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 bit_and_expr
     : equality_expr
+    {
+        $$ = $1;
+    }
     | bit_and_expr '&' equality_expr
+    {
+        $$ = expr_from_binary(BINARY_BIT_AND, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 equality_expr
     : relation_expr
+    {
+        $$ = $1;
+    }
     | equality_expr EQ relation_expr
+    {
+        $$ = expr_from_binary(BINARY_EQ, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     | equality_expr NE relation_expr
+    {
+        $$ = expr_from_binary(BINARY_NE, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 relation_expr
     : shift_expr
+    {
+        $$ = $1;
+    }
     | relation_expr '<' shift_expr
+    {
+        $$ = expr_from_binary(BINARY_LT, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     | relation_expr '>' shift_expr
+    {
+        $$ = expr_from_binary(BINARY_GT, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     | relation_expr LE shift_expr
+    {
+        $$ = expr_from_binary(BINARY_LE, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     | relation_expr GE shift_expr
+    {
+        $$ = expr_from_binary(BINARY_GE, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 shift_expr
     : add_expr
+    {
+        $$ = $1;
+    }
     | shift_expr R_ANGLE_SHIFT '>' add_expr
+    {
+        $$ = expr_from_binary(BINARY_RSHIFT, $1, $4);
+        expr_set_loc($$, loc(@1));
+    }
     | shift_expr L_SHIFT add_expr
+    {
+        $$ = expr_from_binary(BINARY_LSHIFT, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 add_expr
     : multi_expr
+    {
+        $$ = $1;
+    }
     | add_expr '+' multi_expr
+    {
+        $$ = expr_from_binary(BINARY_ADD, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     | add_expr '-' multi_expr
+    {
+        $$ = expr_from_binary(BINARY_SUB, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 multi_expr
     : unary_expr
+    {
+        $$ = $1;
+    }
     | multi_expr '*' unary_expr
+    {
+        $$ = expr_from_binary(BINARY_MULT, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     | multi_expr '/' unary_expr
+    {
+        $$ = expr_from_binary(BINARY_DIV, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     | multi_expr '%' unary_expr
+    {
+        $$ = expr_from_binary(BINARY_MOD, $1, $3);
+        expr_set_loc($$, loc(@1));
+    }
     | multi_expr '*' error
     {
         //ps->errors++;
@@ -849,24 +980,75 @@ multi_expr
 
 unary_expr
     : primary_expr
+    {
+        $$ = $1;
+    }
     | '+' unary_expr
+    {
+        $$ = $2;
+    }
     | '-' unary_expr
+    {
+        $$ = expr_from_unary(UNARY_NEG, $2);
+        expr_set_loc($$, loc(@1));
+    }
     | '~' unary_expr
+    {
+        $$ = expr_from_unary(UNARY_BIT_NOT, $2);
+        expr_set_loc($$, loc(@1));
+    }
     | NOT unary_expr
+    {
+        $$ = expr_from_unary(UNARY_NOT, $2);
+        expr_set_loc($$, loc(@1));
+    }
     ;
 
 primary_expr
     : call_expr
+    {
+
+    }
     | dot_expr
+    {
+
+    }
     | index_expr
+    {
+
+    }
     | angle_expr
+    {
+
+    }
     | atom_expr
+    {
+        $$ = $1;
+    }
     | array_object_expr
+    {
+
+    }
     | map_object_expr
+    {
+
+    }
     | tuple_object_expr
+    {
+
+    }
     | anony_object_expr
+    {
+
+    }
     | new_map_expr
+    {
+
+    }
     | new_base_expr
+    {
+
+    }
     ;
 
 call_expr
