@@ -38,7 +38,50 @@ extern "C" {
 #define MORE_PROMPT "    "
 
 static yyscan_t scanner;
+static Module cmdmod;
 static ParserState cmdps;
+static SymbolRef cursym;
+
+static void init_cmd_env(void)
+{
+    cmdmod.path = "__main__";
+    cmdmod.name = "__main__";
+    cmdmod.stbl = stbl_new();
+    vector_init(&cmdmod.pss, sizeof(void *));
+
+    cmdps.cmd = 1;
+    cmdps.line = 1;
+    cmdps.col = 1;
+    cmdps.filename = "stdin";
+    cmdps.in = stdin;
+    cmdps.mod = &cmdmod;
+
+    // RESET_SBUF(cmdps.linebuf);
+    RESET_SBUF(cmdps.sbuf);
+    vector_init(&cmdps.svec, sizeof(SBuf));
+}
+
+static void fini_cmd_env(void)
+{
+    // FINI_SBUF(cmdps.linebuf);
+    FINI_SBUF(cmdps.sbuf);
+}
+
+int cmd_add_var(ParserStateRef ps, Ident id)
+{
+    cursym = stbl_add_var(cmdmod.stbl, id.name, NULL);
+    if (cursym != NULL) {
+        return 0;
+    } else {
+        printf("'%s' is redeclared", id.name);
+        return -1;
+    }
+}
+
+void cmd_eval_stmt(ParserStateRef ps, StmtRef stmt)
+{
+    parse_stmt(ps, stmt);
+}
 
 static void show_banner(void)
 {
@@ -57,6 +100,24 @@ static void show_banner(void)
 #else
 #endif
     }
+}
+
+void kl_cmdline(void)
+{
+    init_atom();
+    init_cmd_env();
+    init_line();
+
+    show_banner();
+    yylex_init_extra(&cmdps, &scanner);
+    yyset_in(stdin, scanner);
+    cmdps.lexer = scanner;
+    yyparse(&cmdps, scanner);
+    yylex_destroy(scanner);
+
+    fini_line();
+    fini_cmd_env();
+    fini_atom();
 }
 
 static int empty(char *buf, int len)
@@ -79,40 +140,11 @@ int stdin_input(ParserStateRef ps, char *buf, int size)
     }
 
     if (!empty(buf, len)) {
-        sbuf_nprint(&ps->linebuf, buf, len - 2);
+        // sbuf_nprint(&ps->linebuf, buf, len - 2);
         ps->more = 1;
     }
 
     return len;
-}
-
-void kl_cmdline(void)
-{
-    show_banner();
-
-    init_line();
-    init_atom();
-
-    cmdps.interactive = 1;
-    cmdps.line = 1;
-    cmdps.col = 1;
-    cmdps.filename = "stdin";
-    cmdps.in = stdin;
-
-    RESET_SBUF(cmdps.linebuf);
-    RESET_SBUF(cmdps.sbuf);
-    vector_init(&cmdps.svec, sizeof(SBuf));
-
-    yylex_init_extra(&cmdps, &scanner);
-    yyset_in(stdin, scanner);
-    cmdps.lexer = scanner;
-    yyparse(&cmdps, scanner);
-    yylex_destroy(scanner);
-
-    FINI_SBUF(cmdps.linebuf);
-    FINI_SBUF(cmdps.sbuf);
-    fini_atom();
-    fini_line();
 }
 
 #ifdef __cplusplus

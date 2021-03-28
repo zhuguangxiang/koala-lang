@@ -162,7 +162,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 /* Macros in flex */
 
 #define YY_INPUT(buf, result, size) \
-    if (yyps->interactive) \
+    if (yyps->cmd) \
         result = stdin_input(yyps, buf, size); \
     else \
         result = file_input(yyps, buf, size, yyin);
@@ -228,7 +228,8 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
     yylval->ival = strtoll(s, NULL, base)
 
 #define YY_FLOAT_VALUE(s) \
-    yylval->fval = strtod(s, NULL)
+    yylval->fval = strtod(s, NULL); \
+    printf("%lf\n", yylval->fval);
 
 %}
 

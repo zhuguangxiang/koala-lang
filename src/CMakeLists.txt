@@ -38,8 +38,8 @@ RUN_BISON(
 SET(KOALA_SOURCES
     mm.c vector.c hashmap.c sbuf.c atom.c readline.c
     klvm/klvm_type.c
-    parser/koala_lex.c parser/koala_yacc.c parser/interactive.c
-    parser/parser.c parser/ast.c)
+    parser/koala_lex.c parser/koala_yacc.c parser/symtbl.c
+    parser/type.c parser/ast.c parser/parser.c parser/cmd.c)
 
 ADD_LIBRARY(koala_so SHARED ${KOALA_SOURCES})
 SET_TARGET_PROPERTIES(koala_so PROPERTIES

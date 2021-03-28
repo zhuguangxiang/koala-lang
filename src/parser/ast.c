@@ -98,7 +98,7 @@ ExprRef expr_from_char(int val)
 
 ExprRef expr_from_ident(char *val)
 {
-    ExprIDRef id = mm_alloc(sizeof(*id));
+    ExprIdRef id = mm_alloc(sizeof(*id));
     id->kind = EXPR_ID_KIND;
     id->name = val;
     return (ExprRef)id;
@@ -157,9 +157,68 @@ void free_expr(ExprRef e)
     }
 }
 
+StmtRef stmt_from_constdecl(Ident *name, TypeRef ty, ExprRef e)
+{
+    VarDeclStmtRef s = mm_alloc(sizeof(*s));
+    s->kind = STMT_CONST_KIND;
+    s->name = *name;
+    s->ty = ty;
+    s->exp = e;
+    return (StmtRef)s;
+}
+
+StmtRef stmt_from_vardecl(Ident *name, TypeRef ty, ExprRef e)
+{
+    VarDeclStmtRef s = mm_alloc(sizeof(*s));
+    s->kind = STMT_VAR_KIND;
+    s->name = *name;
+    s->ty = ty;
+    s->exp = e;
+    return (StmtRef)s;
+}
+
+StmtRef stmt_from_assign(AssignOpKind op, ExprRef lhs, ExprRef rhs)
+{
+    AssignStmtRef s = mm_alloc(sizeof(*s));
+    s->kind = STMT_ASSIGN_KIND;
+    s->lhs = lhs;
+    s->rhs = rhs;
+    return (StmtRef)s;
+}
+
+StmtRef stmt_from_ret(ExprRef ret)
+{
+    RetStmtRef s = mm_alloc(sizeof(*s));
+    s->kind = STMT_RETURN_KIND;
+    s->exp = ret;
+    return (StmtRef)s;
+}
+
+StmtRef stmt_from_break(void)
+{
+    StmtRef s = mm_alloc(sizeof(*s));
+    s->kind = STMT_BREAK_KIND;
+    return s;
+}
+
+StmtRef stmt_from_continue(void)
+{
+    StmtRef s = mm_alloc(sizeof(*s));
+    s->kind = STMT_CONTINUE_KIND;
+    return s;
+}
+
+StmtRef stmt_from_block(VectorRef stmts)
+{
+    BlockStmtRef s = mm_alloc(sizeof(*s));
+    s->kind = STMT_BLOCK_KIND;
+    s->stmts = stmts;
+    return (StmtRef)s;
+}
+
 StmtRef stmt_from_expr(ExprRef e)
 {
-    StmtExprRef s = mm_alloc(sizeof(*s));
+    ExprStmtRef s = mm_alloc(sizeof(*s));
     s->kind = STMT_EXPR_KIND;
     s->exp = e;
     return (StmtRef)s;
@@ -170,8 +229,8 @@ void free_stmt(StmtRef s)
     if (!s) return;
     switch (s->kind) {
         case STMT_EXPR_KIND: {
-            StmtExprRef s_e = (StmtExprRef)s;
-            free_expr(s_e->exp);
+            ExprStmtRef e_s = (ExprStmtRef)s;
+            free_expr(e_s->exp);
             mm_free(s);
             break;
         }

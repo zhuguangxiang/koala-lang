@@ -27,28 +27,45 @@
 #include "ast.h"
 #include "atom.h"
 #include "sbuf.h"
+#include "symtbl.h"
 #include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct _Module {
+    /* saved in global parser modules */
+    HashMapEntry entry;
+    /* module path */
+    char *path;
+    /* module name is file, dir or __name__ */
+    char *name;
+    /* symbol table per module(share between files) */
+    SymTblRef stbl;
+    /* ParserState per source file */
+    Vector pss;
+} Module, *ModuleRef;
+
 typedef struct _ParserState {
     FILE *in;
     void *lexer;
+    ModuleRef mod;
+    /* statements */
+    Vector stmts;
 
     /* file name */
     char *filename;
     /* source line buffer */
-    SBuf linebuf;
+    // SBuf linebuf;
     /* token string index */
-    int token_index;
+    // int token_index;
 
     /* count of errors */
     int errors;
 
     /* is interactive ? */
-    int interactive;
+    int cmd;
     /* is complete ? */
     int more;
 

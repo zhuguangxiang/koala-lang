@@ -37,11 +37,15 @@
 #define col_last(loc) ((loc).last_column)
 #define loc(l) (l).first_line, (l).first_column
 
+#define IDENT(_s, _l) (Ident){_s, loc(_l)}
+
 void show_error_detail(ParserStateRef ps, int row, int col);
 
 #define yy_error(loc, fmt, ...) printf("%s:%d:%d: " RED_COLOR(%s) fmt "\n", \
-    ps->filename, line(loc), col_last(loc), "error: ", ##__VA_ARGS__); \
-    show_error_detail(ps, line(loc), col_last(loc))
+    ps->filename, line(loc), col_1st(loc), "error: ", ##__VA_ARGS__);
+
+int cmd_add_var(ParserStateRef ps, Ident id);
+void cmd_eval_stmt(ParserStateRef ps, StmtRef stmt);
 
 %}
 
@@ -50,7 +54,13 @@ void show_error_detail(ParserStateRef ps, int row, int col);
     double fval;
     int cval;
     char *sval;
+    AssignOpKind assignop;
     ExprRef expr;
+    StmtRef stmt;
+    TypeRef type;
+    VectorRef list;
+    VectorRef typelist;
+    VectorRef stmtlist;
 }
 
 %token IMPORT
@@ -124,6 +134,18 @@ void show_error_detail(ParserStateRef ps, int row, int col);
 %token <cval> CHAR_LITERAL
 %token <sval> STRING_LITERAL
 %token <sval> ID
+
+%type <stmt> const_decl
+%type <stmt> var_decl
+%type <stmt> free_var_decl
+%type <assignop> assignop
+%type <stmt> assignment
+%type <stmt> return_stmt
+%type <stmt> jump_stmt
+%type <stmt> block
+%type <stmt> local
+%type <stmtlist> local_list
+
 %type <expr> expr
 %type <expr> cond_expr
 %type <expr> cond_c_expr
@@ -143,6 +165,13 @@ void show_error_detail(ParserStateRef ps, int row, int col);
 %type <expr> unary_expr
 %type <expr> primary_expr
 %type <expr> atom_expr
+
+%type <type> type
+%type <type> atom_type
+%type <type> klass_type
+%type <type> func_type
+%type <typelist> type_varg_list
+%type <typelist> type_list
 
 %locations
 %parse-param {ParserStateRef ps}
@@ -167,7 +196,7 @@ program
 stmt
     : import_stmt
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
@@ -175,115 +204,131 @@ stmt
     {
         StmtRef s = stmt_from_expr($1);
         stmt_set_loc(s, loc(@1));
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
+            cmd_eval_stmt(ps, s);
             free_stmt(s);
         }
     }
     | const_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
+            free_stmt($1);
         }
     }
     | PUB const_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
+            free_stmt($2);
         }
     }
     | var_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
+            cmd_add_var(ps, ((VarDeclStmtRef)$1)->name);
+            cmd_eval_stmt(ps, $1);
+            free_stmt($1);
         }
     }
     | PUB var_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
+            free_stmt($2);
         }
     }
     | free_var_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
+            free_stmt($1);
         }
     }
     | PUB free_var_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
+            free_stmt($2);
         }
     }
     | assignment
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | if_stmt
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | while_stmt
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | for_stmt
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | match_stmt
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | ';'
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | func_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | PUB func_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | type_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | PUB type_decl
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
     }
     | INVALID
     {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
+        printf("invalid token\n");
+    }
+    | expr error
+    {
+        printf("expr: expected ;\n");
+        free_expr($1);
+        yyerrok;
     }
     | error {
-        if (ps->interactive) {
+        if (ps->cmd) {
             ps->more = 0;
         }
         printf("syntax error\n");
@@ -351,18 +396,42 @@ id_as_list
 
 const_decl
     : CONST ID '=' expr ';'
+    {
+        Ident name = IDENT($2, @2);
+        $$ = stmt_from_constdecl(&name, NULL, $4);
+        stmt_set_loc($$, loc(@1));
+    }
     | CONST ID type '=' expr ';'
+    {
+        Ident name = IDENT($2, @2);
+        $$ = stmt_from_constdecl(&name, $3, $5);
+        stmt_set_loc($$, loc(@1));
+    }
     ;
 
 var_decl
     : VAR ID type ';'
+    {
+        Ident name = IDENT($2, @2);
+        $$ = stmt_from_vardecl(&name, $3, NULL);
+        stmt_set_loc($$, loc(@1));
+    }
     | VAR ID '=' expr ';'
+    {
+        Ident name = IDENT($2, @2);
+        $$ = stmt_from_vardecl(&name, NULL, $4);
+        stmt_set_loc($$, loc(@1));
+    }
     | VAR ID type '=' expr ';'
+    {
+        Ident name = IDENT($2, @2);
+        $$ = stmt_from_vardecl(&name, $3, $5);
+        stmt_set_loc($$, loc(@1));
+    }
     | VAR error
     {
+        printf("%d-%d\n", loc(@2));
         yy_error(@2, "expected identifier");
-        if (yychar != FOR && yychar != VAR)
-            yyclearin;
         yyerrok;
     }
     | VAR ID error
@@ -384,7 +453,7 @@ var_decl
         if (yychar != FOR) {
             yyclearin;
         }
-        yyerrok;
+        yyclearin;
     }
     | VAR ID type '=' error
     {
@@ -396,127 +465,177 @@ var_decl
 free_var_decl
     : ID FREE_ASSIGN expr ';'
     {
+        Ident name = IDENT($1, @1);
+        $$ = stmt_from_vardecl(&name, NULL, $3);
+        stmt_set_loc($$, loc(@1));
     }
     ;
 
 assignment
     : primary_expr assignop expr ';'
     {
+        $$ = stmt_from_assign($2, $1, $3);
+        stmt_set_loc($$, loc(@1));
     }
     ;
 
 assignop
     : '='
     {
+        $$ = OP_ASSIGN;
     }
     | PLUS_ASSIGN
     {
+        $$ = OP_PLUS_ASSIGN;
     }
     | MINUS_ASSIGN
     {
+        $$ = OP_MINUS_ASSIGN;
     }
     | MULT_ASSIGN
     {
+        $$ = OP_MULT_ASSIGN;
     }
     | DIV_ASSIGN
     {
+        $$ = OP_DIV_ASSIGN;
     }
     | MOD_ASSIGN
     {
+        $$ = OP_MOD_ASSIGN;
     }
     | AND_ASSIGN
     {
+        $$ = OP_AND_ASSIGN;
     }
     | OR_ASSIGN
     {
+        $$ = OP_OR_ASSIGN;
     }
     | XOR_ASSIGN
     {
+        $$ = OP_XOR_ASSIGN;
     }
     | SHL_ASSIGN
     {
-
+        $$ = OP_ASSIGN;
     }
-    | SHR_ASSIGN {}
+    | SHR_ASSIGN
+    {
+        $$ = OP_ASSIGN;
+    }
     ;
 
 return_stmt
     : RETURN ';'
     {
+        $$ = stmt_from_ret(NULL);
+        stmt_set_loc($$, loc(@1));
     }
     | RETURN expr ';'
     {
+        $$ = stmt_from_ret($2);
+        stmt_set_loc($$, loc(@1));
     }
     ;
 
-    jump_stmt
+jump_stmt
     : BREAK ';'
     {
+        $$ = stmt_from_break();
+        stmt_set_loc($$, loc(@1));
     }
     | CONTINUE ';'
     {
+        $$ = stmt_from_continue();
+        stmt_set_loc($$, loc(@1));
     }
     ;
 
 block
     : '{' local_list '}'
     {
+        $$ = stmt_from_block($2);
+        stmt_set_loc($$, loc(@1));
     }
     | '{' expr '}'
     {
+        VectorRef vec = vector_new(sizeof(void *));
+        StmtRef s = stmt_from_expr($2);
+        stmt_set_loc(s, loc(@2));
+        vector_push_back(vec, &s);
+        $$ = stmt_from_block(vec);
+        stmt_set_loc($$, loc(@1));
     }
     | '{' '}'
     {
-
+        $$ = stmt_from_block(NULL);
+        stmt_set_loc($$, loc(@1));
     }
     ;
 
 local_list
     : local
     {
-
+        $$ = vector_new(sizeof(void *));
+        vector_push_back($$, $1);
     }
     | local_list local
     {
+        $$ = $1;
+        vector_push_back($$, $2);
     }
     ;
 
 local
     : expr ';'
     {
+        $$ = stmt_from_expr($1);
+        stmt_set_loc($$, loc(@1));
     }
     | var_decl
     {
+        $$ = $1;
     }
     | free_var_decl
     {
+        $$ = $1;
     }
     | assignment
     {
+        $$ = $1;
     }
     | if_stmt
     {
+        $$ = NULL;
     }
     | while_stmt
     {
+        $$ = NULL;
     }
     | for_stmt
     {
+        $$ = NULL;
     }
     | match_stmt
     {
+        $$ = NULL;
     }
     | return_stmt
     {
+        $$ = $1;
     }
     | jump_stmt
     {
+        $$ = $1;
     }
     | block
     {
+        $$ = $1;
     }
     | ';'
     {
+        $$ = NULL;
     }
     ;
 
@@ -634,7 +753,7 @@ id_varg
     : ID DOTDOTDOT
     {
     }
-    | ID DOTDOTDOT no_array_type
+    | ID DOTDOTDOT atom_type
     {
     }
     ;
@@ -777,7 +896,7 @@ cond_expr
     }
     | cond_c_expr '?' expr ':' expr
     {
-
+        $$ = NULL;
     }
     ;
 
@@ -794,20 +913,26 @@ cond_c_expr
 
 range_expr
     : or_expr DOTDOTDOT or_expr
+    {
+        $$ = NULL;
+    }
     | or_expr DOTDOTLESS or_expr
+    {
+        $$ = NULL;
+    }
     ;
 
 is_expr
     : primary_expr IS type
     {
-
+        $$ = NULL;
     }
     ;
 
 as_expr
     : primary_expr AS type
     {
-
+        $$ = NULL;
     }
     ;
 
@@ -969,13 +1094,6 @@ multi_expr
         $$ = expr_from_binary(BINARY_MOD, $1, $3);
         expr_set_loc($$, loc(@1));
     }
-    | multi_expr '*' error
-    {
-        //ps->errors++;
-        ps->more = 0;
-        yyerrok;
-        printf("expected expr\n");
-    }
     ;
 
 unary_expr
@@ -1055,10 +1173,6 @@ call_expr
     : primary_expr '(' ')'
     | primary_expr '(' expr_list ')'
     | primary_expr '(' expr_list ';' ')'
-    | primary_expr '(' error
-    {
-        printf("error, expected ) or expr list\n");
-    }
     ;
 
 dot_expr
@@ -1245,35 +1359,114 @@ expr_list
     ;
 
 type
-    : no_array_type
+    : atom_type
+    {
+        $$ = $1;
+    }
     | '[' type ']'
+    {
+        $$ = NULL;
+    }
     | '[' type ':' type ']'
+    {
+        $$ = NULL;
+    }
     | '(' type_list ')'
+    {
+        $$ = NULL;
+    }
     ;
 
-no_array_type
+atom_type
     : INT8
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | INT16
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | INT32
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | INT64
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | FLOAT32
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | FLOAT64
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | BOOL
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | CHAR
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | STRING
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | ANY
+    {
+        $$ = ast_type_int8();
+        type_set_loc($$, loc(@1));
+    }
     | klass_type
+    {
+        $$ = $1;
+    }
     | func_type
+    {
+        $$ = $1;
+    }
     ;
 
 klass_type
     : ID
+    {
+        Ident name = IDENT($1, @1);
+        $$ = ast_type_klass(NULL, &name);
+        type_set_loc($$, loc(@1));
+    }
     | ID '.' ID
+    {
+        Ident pkg = IDENT($1, @1);
+        Ident name = IDENT($3, @3);
+        $$ = ast_type_klass(&pkg, &name);
+        type_set_loc($$, loc(@1));
+    }
     | ID L_ANGLE_ARGS type_list r_angle
     {
-        printf("type param\n");
+        Ident name = IDENT($1, @1);
+        $$ = ast_type_klass(NULL, &name);
+        type_set_typeparams($$, $3);
+        type_set_loc($$, loc(@1));
     }
     | ID '.' ID L_ANGLE_ARGS type_list r_angle
+    {
+        Ident pkg = IDENT($1, @1);
+        Ident name = IDENT($3, @3);
+        $$ = ast_type_klass(&pkg, &name);
+        type_set_typeparams($$, $5);
+        type_set_loc($$, loc(@1));
+    }
     ;
 
 r_angle
@@ -1284,34 +1477,58 @@ r_angle
 func_type
     : FUNC '(' type_varg_list ')' type
     {
-
+        $$ = ast_type_proto($5, $3);
+        type_set_loc($$, loc(@1));
     }
     | FUNC '(' type_varg_list ')'
     {
+        $$ = ast_type_proto(NULL, $3);
+        type_set_loc($$, loc(@1));
     }
     | FUNC '(' ')' type
     {
+        $$ = ast_type_proto($4, NULL);
+        type_set_loc($$, loc(@1));
     }
     | FUNC '(' ')'
     {
+        $$ = ast_type_proto(NULL, NULL);
+        type_set_loc($$, loc(@1));
     }
     ;
 
 type_varg_list
     : type_list
     {
+        $$ = $1;
     }
     | type_list ',' DOTDOTDOT
     {
+        $$ = $1;
+        TypeRef _t = ast_type_valist(NULL);
+        type_set_loc(_t, loc(@3));
+        vector_push_back($$, &_t);
     }
-    | type_list ',' DOTDOTDOT no_array_type
+    | type_list ',' DOTDOTDOT atom_type
     {
+        $$ = $1;
+        TypeRef _t = ast_type_valist($4);
+        type_set_loc(_t, loc(@3));
+        vector_push_back($$, &_t);
     }
     ;
 
 type_list
     : type
+    {
+        $$ = vector_new(sizeof(void *));
+        vector_push_back($$, &$1);
+    }
     | type_list ',' type
+    {
+        $$ = $1;
+        vector_push_back($$, &$3);
+    }
     ;
 
 %%

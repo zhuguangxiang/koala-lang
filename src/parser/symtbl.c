@@ -21,16 +21,60 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KLVM_H_
-#define _KLVM_H_
+#include "symtbl.h"
 
-#define _KLVM_H_INSIDE_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include "klvm_inst.h"
-#include "klvm_mod.h"
-#include "klvm_type.h"
-#include "klvm_value.h"
+static int symbol_equal(void *k1, void *k2)
+{
+    SymbolRef s1 = k1;
+    SymbolRef s2 = k2;
+    return k1 == k2 || !strcmp(s1->name, s2->name);
+}
 
-#undef _KLVM_H_INSIDE_
+SymTblRef stbl_new(void)
+{
+    SymTblRef stbl = mm_alloc(sizeof(*stbl));
+    hashmap_init(&stbl->table, symbol_equal);
+    return stbl;
+}
 
-#endif /* _KLVM_H_ */
+static void _symbol_free_(void *e, void *arg)
+{
+    SymbolRef sym = e;
+    mm_free(sym);
+}
+
+void stbl_free(SymTblRef stbl)
+{
+    if (stbl == NULL) return;
+    hashmap_fini(&stbl->table, _symbol_free_, NULL);
+    mm_free(stbl);
+}
+
+SymbolRef stbl_add_var(SymTblRef stbl, char *name, TypeRef ty)
+{
+    VarSymbolRef sym = mm_alloc(sizeof(*sym));
+    hashmap_entry_init(sym, strhash(name));
+    sym->kind = SYM_VAR;
+    sym->name = name;
+    sym->ty = ty;
+    if (hashmap_put_absent(&stbl->table, sym) < 0) {
+        printf("add symbol '%s' failed", sym->name);
+    }
+    return (SymbolRef)sym;
+}
+
+SymbolRef stbl_get(SymTblRef stbl, char *name)
+{
+    if (stbl == NULL) return NULL;
+    Symbol key = { .name = name };
+    hashmap_entry_init(&key, strhash(name));
+    return hashmap_get(&stbl->table, &key);
+}
+
+#ifdef __cplusplus
+}
+#endif

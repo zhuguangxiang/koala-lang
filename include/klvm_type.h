@@ -24,6 +24,10 @@
 #ifndef _KLVM_TYPE_H_
 #define _KLVM_TYPE_H_
 
+#if !defined(_KLVM_H_INSIDE_) && !define(_COMPILE_KLVM_)
+#error "Only <klvm.h> can be included directly."
+#endif
+
 #include "common.h"
 #include "vector.h"
 
@@ -86,6 +90,7 @@ KLVMTypeRef klvm_type_any(void);
 KLVMTypeRef klvm_type_klass(char *path, char *name);
 char *klass_get_path(KLVMTypeRef type);
 char *klass_get_name(KLVMTypeRef type);
+VectorRef klass_get_typeparams(KLVMTypeRef type);
 void klass_add_typeparam(KLVMTypeRef type, KLVMTypeRef param);
 
 KLVMTypeRef klvm_type_proto(KLVMTypeRef ret, VectorRef params);

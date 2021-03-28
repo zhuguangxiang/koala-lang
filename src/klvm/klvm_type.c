@@ -138,6 +138,12 @@ char *klass_get_name(KLVMTypeRef type)
     return klass->name;
 }
 
+VectorRef klass_get_typeparams(KLVMTypeRef type)
+{
+    KLVMKlassRef klass = (KLVMKlassRef)type;
+    return klass->tps;
+}
+
 void klass_add_typeparam(KLVMTypeRef type, KLVMTypeRef param)
 {
     KLVMKlassRef klass = (KLVMKlassRef)type;

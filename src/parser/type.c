@@ -21,16 +21,40 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KLVM_H_
-#define _KLVM_H_
+#include "type.h"
 
-#define _KLVM_H_INSIDE_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include "klvm_inst.h"
-#include "klvm_mod.h"
-#include "klvm_type.h"
-#include "klvm_value.h"
+TypeRef ast_type_int8(void)
+{
+    TypeRef ty = mm_alloc(sizeof(*ty));
+    ty->kind = KLVM_TYPE_INT8;
+    return ty;
+}
 
-#undef _KLVM_H_INSIDE_
+TypeRef ast_type_klass(Ident *pkg, Ident *name)
+{
+    TypeRef ty = mm_alloc(sizeof(*ty));
+    ty->kind = KLVM_TYPE_KLASS;
+    return ty;
+}
 
-#endif /* _KLVM_H_ */
+TypeRef ast_type_proto(TypeRef ret, VectorRef params)
+{
+    TypeRef ty = mm_alloc(sizeof(*ty));
+    ty->kind = KLVM_TYPE_PROTO;
+    return ty;
+}
+
+TypeRef ast_type_valist(TypeRef subtype)
+{
+    TypeRef ty = mm_alloc(sizeof(*ty));
+    ty->kind = KLVM_TYPE_VALIST;
+    return ty;
+}
+
+#ifdef __cplusplus
+}
+#endif

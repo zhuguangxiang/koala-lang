@@ -24,7 +24,7 @@
 #ifndef _KOALA_AST_H_
 #define _KOALA_AST_H_
 
-#include "klvm_type.h"
+#include "type.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,8 +54,6 @@ typedef enum _ExprKind {
     EXPR_SUBSCRIPT_KIND,
     EXPR_CALL_KIND,
     EXPR_SLICE_KIND,
-    /* type arguments */
-    EXPR_DOT_TYPEARGS_KIND,
     /* dot tuple */
     EXPR_DOT_TUPLE_KIND,
     /* tuple, array, map, anonymous */
@@ -68,8 +66,6 @@ typedef enum _ExprKind {
     EXPR_AS_KIND,
     /* range object */
     EXPR_RANGE_KIND,
-    /* binary match */
-    EXPR_BINARY_MATCH_KIND,
     EXPR_KIND_MAX
 } ExprKind;
 
@@ -109,10 +105,10 @@ typedef struct _ExprK {
     };
 } ExprK, *ExprKRef;
 
-typedef struct _ExprID {
+typedef struct _ExprId {
     EXPR_HEAD
     char *name;
-} ExprID, *ExprIDRef;
+} ExprId, *ExprIdRef;
 
 /* unary operator kind */
 typedef enum _UnKind {
@@ -185,6 +181,8 @@ ExprRef expr_from_ident(char *val);
 ExprRef expr_from_unary(UnKind ukind, ExprRef e);
 ExprRef expr_from_binary(BiKind bkind, ExprRef le, ExprRef re);
 
+void free_expr(ExprRef e);
+
 typedef enum _StmtKind {
     /* import */
     STMT_IMPORT_KIND = 1,
@@ -236,11 +234,55 @@ static inline void stmt_set_loc(StmtRef s, int row, int col)
     s->col = col;
 }
 
-typedef struct _StmtExpr {
+typedef struct _VarDeclStmt {
+    STMT_HEAD
+    Ident name;
+    TypeRef ty;
+    ExprRef exp;
+} VarDeclStmt, *VarDeclStmtRef;
+
+typedef enum _AssignOpKind {
+    OP_ASSIGN = 1,
+    OP_PLUS_ASSIGN,
+    OP_MINUS_ASSIGN,
+    OP_MULT_ASSIGN,
+    OP_DIV_ASSIGN,
+    OP_MOD_ASSIGN,
+    OP_POW_ASSIGN,
+    OP_AND_ASSIGN,
+    OP_OR_ASSIGN,
+    OP_XOR_ASSIGN,
+} AssignOpKind;
+
+typedef struct _AssignStmt {
+    STMT_HEAD
+    AssignOpKind op;
+    ExprRef lhs;
+    ExprRef rhs;
+} AssignStmt, *AssignStmtRef;
+
+typedef struct _RetStmt {
     STMT_HEAD
     ExprRef exp;
-} StmtExpr, *StmtExprRef;
+} RetStmt, *RetStmtRef;
 
+typedef struct _BlockStmt {
+    STMT_HEAD
+    VectorRef stmts;
+} BlockStmt, *BlockStmtRef;
+
+typedef struct _ExprStmt {
+    STMT_HEAD
+    ExprRef exp;
+} ExprStmt, *ExprStmtRef;
+
+StmtRef stmt_from_constdecl(Ident *name, TypeRef ty, ExprRef e);
+StmtRef stmt_from_vardecl(Ident *name, TypeRef ty, ExprRef e);
+StmtRef stmt_from_assign(AssignOpKind op, ExprRef lhs, ExprRef rhs);
+StmtRef stmt_from_ret(ExprRef ret);
+StmtRef stmt_from_break(void);
+StmtRef stmt_from_continue(void);
+StmtRef stmt_from_block(VectorRef stmts);
 StmtRef stmt_from_expr(ExprRef e);
 
 void free_stmt(StmtRef s);
