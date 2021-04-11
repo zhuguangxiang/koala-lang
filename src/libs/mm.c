@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +41,7 @@ static int usedsize = 0;
 /* the heap size */
 static const int maxsize = 512 * 1024;
 
-void *mm_alloc(int size)
+void *MemAlloc(int size)
 {
     if (usedsize >= maxsize) {
         printf("error: there is no more memory for heap allocator.\n");
@@ -57,7 +57,7 @@ void *mm_alloc(int size)
     return (void *)(blk + 1);
 }
 
-void mm_free(void *ptr)
+void MemFree(void *ptr)
 {
     if (!ptr) return;
 
@@ -72,7 +72,7 @@ void mm_free(void *ptr)
     free(blk);
 }
 
-void mm_stat(void)
+void MemStat(void)
 {
     puts("------ Memory Usage ------");
     printf("%d bytes available\n", maxsize - usedsize);

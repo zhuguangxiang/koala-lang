@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 {
     gc_init();
 
-    mm_stat();
+    MemStat();
 
     gc_add_root(test_gc);
     gc_add_root(test_foo);
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
     ga = gc_alloc(60);
     strcpy(ga, "hello, world");
 
-    mm_stat();
+    MemStat();
 
     test_raw_gc();
 
@@ -108,11 +108,11 @@ int main(int argc, char *argv[])
 
     printf("%s\n", ga);
 
-    mm_stat();
+    MemStat();
 
     test_array_gc();
 
-    mm_stat();
+    MemStat();
 
     gc();
 
@@ -123,7 +123,7 @@ int main(int argc, char *argv[])
     printf("%s\n", ga);
     printf("%s, %d, %d\n", foo->str, foo->bar->value, foo->value);
 
-    mm_stat();
+    MemStat();
 
     // release foo and ->bar
     foo = NULL;
@@ -132,11 +132,11 @@ int main(int argc, char *argv[])
 
     gc();
 
-    mm_stat();
+    MemStat();
 
     gc_fini();
 
-    mm_stat();
+    MemStat();
 
     return 0;
 }

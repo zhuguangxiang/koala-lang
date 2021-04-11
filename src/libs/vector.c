@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,10 +41,10 @@ static inline int __maybe_expand(VectorRef vec, int extra)
     else
         cap = VECTOR_MINIMUM_CAPACITY;
 
-    char *objs = (char *)mm_alloc(cap * vec->objsize);
+    char *objs = (char *)MemAlloc(cap * vec->objsize);
     if (vec->objs) {
         memcpy(objs, vec->objs, vec->size * vec->objsize);
-        mm_free(vec->objs);
+        MemFree(vec->objs);
     }
 
     vec->objs = objs;
@@ -57,7 +57,7 @@ static inline char *__offset(VectorRef vec, int index)
     return vec->objs + vec->objsize * index;
 }
 
-int vector_set(VectorRef vec, int index, void *obj)
+int VectorSet(VectorRef vec, int index, void *obj)
 {
     /*
      * valid range is (0 ... size)
@@ -74,7 +74,7 @@ int vector_set(VectorRef vec, int index, void *obj)
     return 0;
 }
 
-void *vector_get_ptr(VectorRef vec, int index)
+void *VectorGetPtr(VectorRef vec, int index)
 {
     /* not set any object */
     if (!vec->objs) return NULL;
@@ -85,7 +85,7 @@ void *vector_get_ptr(VectorRef vec, int index)
     return __offset(vec, index);
 }
 
-int vector_get(VectorRef vec, int index, void *obj)
+int VectorGet(VectorRef vec, int index, void *obj)
 {
     /* not set any object */
     if (!vec->objs) return -1;
@@ -114,7 +114,7 @@ static void __move_to_right(VectorRef vec, int index)
     memmove(to, from, nbytes);
 }
 
-int vector_insert(VectorRef vec, int index, void *obj)
+int VectorInsert(VectorRef vec, int index, void *obj)
 {
     /*
      * valid range is (0 ... size)
@@ -147,7 +147,7 @@ static void __move_to_left(VectorRef vec, int index)
     memmove(to, from, nbytes);
 }
 
-int vector_remove(VectorRef vec, int index, void *obj)
+int VectorRemove(VectorRef vec, int index, void *obj)
 {
     /* valid range is (0 ..< size) */
     if (index < 0 || index >= vec->size) return -1;

@@ -21,7 +21,7 @@ klc_image_t *klvm_to_image(KLVMModule *m)
     klc_image_t *klc = klc_create();
 
     KLVMVar **var;
-    vector_foreach(var, &m->vars)
+    VectorForEach(var, &m->vars)
     {
         klc_add_var(klc, (*var)->name, &kl_type_int32, 0);
     }

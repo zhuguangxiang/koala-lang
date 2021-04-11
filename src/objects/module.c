@@ -30,11 +30,11 @@ Object *module_new(char *path)
 {
     TypeObject *type = type_new_mod(path);
     type_set_public_final(type);
-    ModuleObject *mobj = mm_alloc(sizeof(ModuleObject));
+    ModuleObject *mobj = MemAlloc(sizeof(ModuleObject));
     obj_set_type(mobj, type);
     type_set_singleton(type, mobj);
     mobj->size = MODULE_MIN_VALUES_SIZE;
-    mobj->values = mm_alloc(MODULE_MIN_VALUES_SIZE);
+    mobj->values = MemAlloc(MODULE_MIN_VALUES_SIZE);
     return (Object *)type;
 }
 
@@ -64,9 +64,9 @@ int module_add_var(Object *mod, FieldObject *field)
     if (_type->next_offset >= mobj->size) {
         printf("expand module '%s' values' memory\n", _type->name);
         int new_size = mobj->size << 1;
-        void **new_values = mm_alloc(new_size);
+        void **new_values = MemAlloc(new_size);
         memcpy(new_values, mobj->values, mobj->size);
-        mm_free(mobj->values);
+        MemFree(mobj->values);
         mobj->values = new_values;
         mobj->size = new_size;
     }

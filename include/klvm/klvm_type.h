@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,10 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KLVM_TYPE_H_
-#define _KLVM_TYPE_H_
+#ifndef _KLIR_TYPE_H_
+#define _KLIR_TYPE_H_
 
-#if !defined(_KLVM_H_INSIDE_) && !define(_COMPILE_KLVM_)
+#if !defined(_KLVM_H_INSIDE_) && !defined(KLVM_COMPILATION)
 #error "Only <klvm.h> can be included directly."
 #endif
 
@@ -36,7 +36,7 @@ extern "C" {
 #endif
 
 typedef enum _KLVMTypeKind {
-    KLVM_TYPE_INVALID,
+    KLVM_TYPE_UNDEF,
     KLVM_TYPE_INT8,
     KLVM_TYPE_INT16,
     KLVM_TYPE_INT32,
@@ -47,6 +47,7 @@ typedef enum _KLVMTypeKind {
     KLVM_TYPE_CHAR,
     KLVM_TYPE_STR,
     KLVM_TYPE_ANY,
+    KLVM_TYPE_PARAM,
     KLVM_TYPE_ARRAY,
     KLVM_TYPE_MAP,
     KLVM_TYPE_TUPLE,
@@ -73,41 +74,33 @@ typedef struct _KLVMType {
     KLVMTypeKind kind;
 } KLVMType, *KLVMTypeRef;
 
-void fini_klvm_type(void);
+void KLVMInitTypes(void);
+void KLVMFiniTypes(void);
 
-KLVMTypeRef klvm_type_int8(void);
-KLVMTypeRef klvm_type_int16(void);
-KLVMTypeRef klvm_type_int32(void);
-KLVMTypeRef klvm_type_int64(void);
-KLVMTypeRef klvm_type_int(void);
-KLVMTypeRef klvm_type_float32(void);
-KLVMTypeRef klvm_type_float64(void);
-KLVMTypeRef klvm_type_bool(void);
-KLVMTypeRef klvm_type_char(void);
-KLVMTypeRef klvm_type_str(void);
-KLVMTypeRef klvm_type_any(void);
+KLVMTypeRef KLVMTypeInt8(void);
+KLVMTypeRef KLVMTypeInt16(void);
+KLVMTypeRef KLVMTypeInt32(void);
+KLVMTypeRef KLVMTypeInt64(void);
+KLVMTypeRef KLVMTypeFloat32(void);
+KLVMTypeRef KLVMTypeFloat64(void);
+KLVMTypeRef KLVMTypeBool(void);
+KLVMTypeRef KLVMTypeChar(void);
+KLVMTypeRef KLVMTypeStr(void);
+KLVMTypeRef KLVMTypeAny(void);
 
-KLVMTypeRef klvm_type_klass(char *path, char *name);
-char *klass_get_path(KLVMTypeRef type);
-char *klass_get_name(KLVMTypeRef type);
-VectorRef klass_get_typeparams(KLVMTypeRef type);
-void klass_add_typeparam(KLVMTypeRef type, KLVMTypeRef param);
+KLVMTypeRef KLVMTypeKlass(char *path, char *name);
+char *KLVMGetPath(KLVMTypeRef ty);
+char *KLVMGetName(KLVMTypeRef ty);
 
-KLVMTypeRef klvm_type_proto(KLVMTypeRef ret, VectorRef params);
-VectorRef klvm_proto_params(KLVMTypeRef ty);
-KLVMTypeRef klvm_proto_ret(KLVMTypeRef ty);
+KLVMTypeRef KLVMTypeProto(KLVMTypeRef ret, KLVMTypeRef params[], int size);
+VectorRef KLVMProtoParams(KLVMTypeRef ty);
+KLVMTypeRef KLVMProtoRet(KLVMTypeRef ty);
 
-/* new type from string */
-KLVMTypeRef str_to_type(char *type);
-
-/* new proto from string */
-KLVMTypeRef str_to_proto(char *para, char *ret);
-
-int klvm_type_equal(KLVMTypeRef ty1, KLVMTypeRef ty2);
-char *klvm_type_tostr(KLVMTypeRef ty);
+char *KLVMTypeToStr(KLVMTypeRef ty);
+int KLVMTypeEqual(KLVMTypeRef ty1, KLVMTypeRef ty2);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KLVM_TYPE_H_ */
+#endif /* _KLIR_TYPE_H_ */

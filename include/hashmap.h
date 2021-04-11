@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,12 +45,12 @@
  *
  * int main(int argc, char *argv[])
  * {
- *   hashmap_init(&map, string_compare);
+ *   HashMapInit(&map, string_compare);
  *   struct string *s = malloc(sizeof(*s));
  *   s->length = strlen("some string");
  *   s->value = "some string";
- *   hashmap_entry_init(&s->entry, strhash(s->value), s, s);
- *   hashmap_put(&map, &s->entry);
+ *   HashMapEntryInit(&s->entry, StrHash(s->value), s, s);
+ *   HashMapPut(&map, &s->entry);
  * }
  */
 
@@ -66,14 +66,14 @@ extern "C" {
 /*
  * Ready-to-use hash functions for strings, using the FNV-1 algorithm.
  * (see http://www.isthe.com/chongo/tech/comp/fnv).
- * `strhash` takes 0-terminated strings.
- * `memhash` operates on arbitrary-length memory.
+ * `StrHash` takes 0-terminated strings.
+ * `MenHash` operates on arbitrary-length memory.
  */
-unsigned int strhash(const char *buf);
-unsigned int memhash(const void *buf, int len);
+unsigned int StrHash(const char *buf);
+unsigned int MenHash(const void *buf, int len);
 
-typedef int (*hashmap_equal_func)(void *, void *);
-typedef void (*hashmap_visit_func)(void *, void *);
+typedef int (*HashMapEqualFunc)(void *, void *);
+typedef void (*HashMapVisitFunc)(void *, void *);
 
 /* a hashmap entry is in the hashmap. */
 typedef struct _HashMapEntry {
@@ -93,7 +93,7 @@ typedef struct _HashMap {
     /* entries array size */
     int size;
     /* equal callback */
-    hashmap_equal_func equal;
+    HashMapEqualFunc equal;
     /* total number of entries */
     int count;
     /* expand entries point */
@@ -103,7 +103,7 @@ typedef struct _HashMap {
 } HashMap, *HashMapRef;
 
 /* Initialize a HashMapEntry structure. */
-static inline void hashmap_entry_init(void *entry, unsigned int hash)
+static inline void HashMapEntryInit(void *entry, unsigned int hash)
 {
     HashMapEntry *e = (HashMapEntry *)entry;
     e->hash = hash;
@@ -111,43 +111,43 @@ static inline void hashmap_entry_init(void *entry, unsigned int hash)
 }
 
 /* Return the number of items in the map. */
-static inline int hashmap_size(HashMapRef self)
+static inline int HashMapSize(HashMapRef self)
 {
     return self ? self->count : 0;
 }
 
 /* Initialize a hash map. */
-void hashmap_init(HashMapRef self, hashmap_equal_func equal);
+void HashMapInit(HashMapRef self, HashMapEqualFunc equal);
 
 /* Destroy the hashmap and free its allocated memory.
  * NOTES: HashMapEntry is already removed, no remove it again.
  */
-void hashmap_fini(HashMapRef self, hashmap_visit_func free, void *arg);
+void HashMapFini(HashMapRef self, HashMapVisitFunc free, void *arg);
 
 /*
  * Retrieve the hashmap entry for the specified hash code.
  * Returns the hashmap entry or null if not found.
  */
-void *hashmap_get(HashMapRef self, void *key);
+void *HashMapGet(HashMapRef self, void *key);
 
 /*
  * Add a hashmap entry. If the hashmap contains duplicate entries, it will
  * return -1 failure.
  */
-int hashmap_put_absent(HashMapRef self, void *entry);
+int HashMapPutAbsent(HashMapRef self, void *entry);
 
 /*
  * Add or replace a hashmap entry. If the hashmap contains duplicate entries,
  * the old entry will be replaced and returned.
  * Returns the replaced entry or null if no duplicated entry
  */
-void *hashmap_put(HashMapRef self, void *entry);
+void *HashMapPut(HashMapRef self, void *entry);
 
 /* Removes a hashmap entry matching the specified key. */
-void *hashmap_remove(HashMapRef self, void *key);
+void *HashMapRemove(HashMapRef self, void *key);
 
 /* Visit the hashmap, safely when `visit` removes entry, not suggest do it. */
-void hashmap_visit(HashMapRef self, hashmap_visit_func visit, void *arg);
+void HashMapVisit(HashMapRef self, HashMapVisitFunc visit, void *arg);
 
 #ifdef __cplusplus
 }

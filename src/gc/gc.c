@@ -111,14 +111,16 @@ static inline void *__alloc_object(int size, void *objmap)
 static inline void set_obj_fini_func(void *obj, gc_fini_func func)
 {
     obj_fini_info_t info = { obj, func };
-    vector_push_back(from_fini_objs, &info);
+    VectorPushBack(from_fini_objs, &info);
 }
 
 void *gc_alloc_object(int size, void *objmap, gc_fini_func fini)
 {
     assert(size > 0);
     void *obj = __alloc_object(size, objmap);
-    if (fini) { set_obj_fini_func(obj, fini); }
+    if (fini) {
+        set_obj_fini_func(obj, fini);
+    }
     return obj;
 }
 
@@ -155,15 +157,13 @@ GcArray *gc_alloc_array(int len, int own_buf, int isobj)
 
 GcArray *gc_expand_array(GcArray *arr, int newlen)
 {
-
     if (arr->ptr != arr->data) {
         GcHeader *hdr = __new__(newlen * sizeof(uintptr_t));
         memcpy(hdr + 1, arr->ptr, arr->len * sizeof(uintptr_t));
         arr->ptr = hdr + 1;
         arr->len = newlen;
         return arr;
-    }
-    else {
+    } else {
         GcArray *newarr = gc_alloc_array(newlen, 1, arr->isobj);
         memcpy(newarr->ptr, arr->ptr, arr->len * sizeof(uintptr_t));
         return newarr;
@@ -172,22 +172,22 @@ GcArray *gc_expand_array(GcArray *arr, int newlen)
 
 void gc_init(void)
 {
-    from_space = mm_alloc(space_size);
-    to_space = mm_alloc(space_size);
+    from_space = MemAlloc(space_size);
+    to_space = MemAlloc(space_size);
     free_ptr = from_space;
 
     from_fini_objs = &fini_objs[0];
     to_fini_objs = &fini_objs[1];
-    vector_init(from_fini_objs, sizeof(obj_fini_info_t));
-    vector_init(to_fini_objs, sizeof(obj_fini_info_t));
+    VectorInit(from_fini_objs, sizeof(obj_fini_info_t));
+    VectorInit(to_fini_objs, sizeof(obj_fini_info_t));
 }
 
 void gc_fini(void)
 {
-    mm_free(from_space);
-    mm_free(to_space);
-    vector_fini(from_fini_objs);
-    vector_fini(to_fini_objs);
+    MemFree(from_space);
+    MemFree(to_space);
+    VectorFini(from_fini_objs);
+    VectorFini(to_fini_objs);
 }
 
 static void *copy(void *ptr)
@@ -274,18 +274,17 @@ void gc(void)
     Vector *tmp_vec = from_fini_objs;
     from_fini_objs = to_fini_objs;
     to_fini_objs = tmp_vec;
-    vector_clear(from_fini_objs);
+    VectorClear(from_fini_objs);
 
     obj_fini_info_t *fi;
     GcHeader *hdr;
-    vector_foreach(fi, to_fini_objs)
+    VectorForEach(fi, to_fini_objs)
     {
         hdr = (GcHeader *)fi->obj - 1;
         if (hdr->kind != GC_FORWARD_KIND) {
             printf("call object fini func\n");
             fi->fini(fi->obj);
-        }
-        else {
+        } else {
             printf("update fini_objs\n");
             set_obj_fini_func(hdr->forward, fi->fini);
         }

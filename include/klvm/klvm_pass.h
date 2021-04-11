@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,25 +21,15 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "sbuf.h"
-
-int main(int argc, char *argv[])
-{
-    SBUF(sbuf);
-
-    char *s = "Hello, Koala";
-    sbuf_print(&sbuf, s);
-    sbuf_print(&sbuf, s);
-    sbuf_print(&sbuf, s);
-    assert(sbuf.len == 36 && sbuf.size == 64);
-
-    sbuf_print_char(&sbuf, 'O');
-    sbuf_print_char(&sbuf, 'K');
-    assert(sbuf.len == 38 && sbuf.size == 64);
-
-    s = SBUF_STR(sbuf);
-    assert(!strcmp(s, "Hello, KoalaHello, KoalaHello, KoalaOK"));
-
-    FINI_SBUF(sbuf);
-    return 0;
+#ifndef _KLVM_PASS_H_
+#define _KLVM_PASS_H_
+ 
+#ifdef __cplusplus
+extern "C" {
+#endif
+ 
+#ifdef __cplusplus
 }
+#endif
+ 
+#endif /* _KLVM_PASS_H_ */

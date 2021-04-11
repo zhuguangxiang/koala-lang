@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,7 @@ static void init_cmd_env(void)
     cmdmod.path = "__main__";
     cmdmod.name = "__main__";
     cmdmod.stbl = stbl_new();
-    vector_init(&cmdmod.pss, sizeof(void *));
+    VectorInit(&cmdmod.pss, sizeof(void *));
 
     cmdps.cmd = 1;
     cmdps.line = 1;
@@ -56,15 +56,15 @@ static void init_cmd_env(void)
     cmdps.in = stdin;
     cmdps.mod = &cmdmod;
 
-    // RESET_SBUF(cmdps.linebuf);
-    RESET_SBUF(cmdps.sbuf);
-    vector_init(&cmdps.svec, sizeof(SBuf));
+    // RESET_BUF(cmdps.linebuf);
+    RESET_BUF(cmdps.buf);
+    VectorInit(&cmdps.svec, sizeof(Buffer));
 }
 
 static void fini_cmd_env(void)
 {
-    // FINI_SBUF(cmdps.linebuf);
-    FINI_SBUF(cmdps.sbuf);
+    // FINI_BUF(cmdps.linebuf);
+    FINI_BUF(cmdps.buf);
 }
 
 int cmd_add_var(ParserStateRef ps, Ident id)
@@ -85,7 +85,7 @@ void cmd_eval_stmt(ParserStateRef ps, StmtRef stmt)
 
 static void show_banner(void)
 {
-    printf("Koala %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
+    printf("Koala(🐻) %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
 
     struct utsname sysinfo;
     if (!uname(&sysinfo)) {
@@ -104,9 +104,9 @@ static void show_banner(void)
 
 void kl_cmdline(void)
 {
-    init_atom();
+    InitAtom();
     init_cmd_env();
-    init_line();
+    InitReadLine();
 
     show_banner();
     yylex_init_extra(&cmdps, &scanner);
@@ -115,9 +115,9 @@ void kl_cmdline(void)
     yyparse(&cmdps, scanner);
     yylex_destroy(scanner);
 
-    fini_line();
+    FiniReadLine();
     fini_cmd_env();
-    fini_atom();
+    FiniAtom();
 }
 
 static int empty(char *buf, int len)
@@ -134,13 +134,13 @@ int stdin_input(ParserStateRef ps, char *buf, int size)
 {
     int len;
     if (ps->more) {
-        len = readline(MORE_PROMPT, buf, size);
+        len = ReadLine(MORE_PROMPT, buf, size);
     } else {
-        len = readline(PROMPT, buf, size);
+        len = ReadLine(PROMPT, buf, size);
     }
 
     if (!empty(buf, len)) {
-        // sbuf_nprint(&ps->linebuf, buf, len - 2);
+        // BufWriteNStr(&ps->linebuf, buf, len - 2);
         ps->more = 1;
     }
 

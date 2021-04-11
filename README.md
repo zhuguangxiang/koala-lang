@@ -69,9 +69,9 @@ make install
 
 ## The Author
 
-Koala(🐻) was originally designed and developed by Zhu Guangxiang (James) since 2018.
+Koala(🐻) was originally designed and developed by Zhu Guangxiang (James) since 2020.
 
-<zhuguangxiang@gmail.com> or <zhuguangxiang@163.com>
+<zhuguangxiang@gmail.com>
 
 ## Donation
 

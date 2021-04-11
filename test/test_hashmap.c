@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,7 +65,7 @@ void test_hashmap(void)
     srand(time(NULL));
 
     HashMap map;
-    hashmap_init(&map, __str_cmp_cb__);
+    HashMapInit(&map, __str_cmp_cb__);
 
     struct str *s;
     int ret;
@@ -74,14 +74,14 @@ void test_hashmap(void)
     for (int i = 0; i < 10000; i++) {
         s = malloc(sizeof(struct str) + 11);
         random_string((char *)(s + 1), 10);
-        hashmap_entry_init(s, strhash((char *)(s + 1)));
-        ret = hashmap_put_absent(&map, s);
+        HashMapEntryInit(s, StrHash((char *)(s + 1)));
+        ret = HashMapPutAbsent(&map, s);
         assert(!ret);
-        s2 = hashmap_get(&map, s);
+        s2 = HashMapGet(&map, s);
         assert(__str_cmp_cb__(s2, s));
     }
 
-    hashmap_fini(&map, __str_free_cb__, &map);
+    HashMapFini(&map, __str_free_cb__, &map);
 }
 
 int main(int argc, char *argv[])

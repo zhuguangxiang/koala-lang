@@ -21,27 +21,16 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KOALA_MM_H_
-#define _KOALA_MM_H_
+#ifndef _KLVM_H_
+#define _KLVM_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#define _KLVM_H_INSIDE_
 
-/* The memory is set to zero. */
-void *MemAlloc(int size);
+#include "klvm/klvm_inst.h"
+#include "klvm/klvm_pass.h"
+#include "klvm/klvm_type.h"
+#include "klvm/klvm_value.h"
 
-/* Allocate by ptr */
-#define MemAllocWithPtr(ptr) MemAlloc(sizeof(*ptr))
+#undef _KLVM_H_INSIDE_
 
-/* The func frees the memory space pointed by ptr. */
-void MemFree(void *ptr);
-
-/* Stat usage memory */
-void MemStat(void);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* _KOALA_MM_H_ */
+#endif /* _KLVM_H_ */

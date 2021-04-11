@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,11 +21,11 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "buffer.h"
 #include "hashmap.h"
-#include "sbuf.h"
 
-typedef struct atom {
-    /* hashmap entry of atom */
+typedef struct Atom {
+    /* hashmap entry of Atom */
     HashMapEntry entry;
     /* the string length */
     int len;
@@ -35,37 +35,37 @@ typedef struct atom {
 
 static HashMap atom_table;
 
-char *atom_nstr(char *s, int len)
+char *AtomNStr(char *s, int len)
 {
-    Atom key = { { NULL, memhash(s, len) }, len, s };
-    Atom *atom = hashmap_get(&atom_table, &key);
-    if (atom) return atom->str;
+    Atom key = { { NULL, MenHash(s, len) }, len, s };
+    Atom *Atom = HashMapGet(&atom_table, &key);
+    if (Atom) return Atom->str;
 
-    atom = mm_alloc(sizeof(*atom) + len + 1);
-    hashmap_entry_init(&atom->entry, memhash(s, len));
-    atom->len = len;
-    atom->str = (char *)(atom + 1);
-    strncpy(atom->str, s, len);
-    hashmap_put_absent(&atom_table, atom);
-    return atom->str;
+    Atom = MemAlloc(sizeof(*Atom) + len + 1);
+    HashMapEntryInit(&Atom->entry, MenHash(s, len));
+    Atom->len = len;
+    Atom->str = (char *)(Atom + 1);
+    strncpy(Atom->str, s, len);
+    HashMapPutAbsent(&atom_table, Atom);
+    return Atom->str;
 }
 
-char *atom(char *s)
+char *AtomStr(char *s)
 {
-    return atom_nstr(s, strlen(s));
+    return AtomNStr(s, strlen(s));
 }
 
-char *atom_vstr(int n, ...)
+char *AtomVStr(int n, ...)
 {
     char *s;
-    SBUF(sbuf);
+    BUF(buf);
     va_list args;
 
     va_start(args, n);
-    sbuf_vnprint(&sbuf, n, args);
+    BufVWrite(&buf, n, args);
     va_end(args);
-    s = atom(SBUF_STR(sbuf));
-    FINI_SBUF(sbuf);
+    s = AtomStr(BUF_STR(buf));
+    FINI_BUF(buf);
 
     return s;
 }
@@ -80,15 +80,15 @@ static int _atom_equal_(void *e1, void *e2)
 
 static void _atom_free_(void *entry, void *data)
 {
-    mm_free(entry);
+    MemFree(entry);
 }
 
-void init_atom(void)
+void InitAtom(void)
 {
-    hashmap_init(&atom_table, _atom_equal_);
+    HashMapInit(&atom_table, _atom_equal_);
 }
 
-void fini_atom(void)
+void FiniAtom(void)
 {
-    hashmap_fini(&atom_table, _atom_free_, NULL);
+    HashMapFini(&atom_table, _atom_free_, NULL);
 }

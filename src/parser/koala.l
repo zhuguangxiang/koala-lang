@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -82,15 +82,15 @@ static char esc(char ch)
 /* escape convert */
 static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
 {
-    char *s = SBUF_STR(ps->sbuf);
-    int len = SBUF_LEN(ps->sbuf);
+    char *s = BUF_STR(ps->buf);
+    int len = BUF_LEN(ps->buf);
 
     if (!s) {
-        yylval->sval = atom_nstr(NULL, 0);
+        yylval->sval = AtomNStr(NULL, 0);
         return;
     }
 
-    SBUF(sbuf);
+    BUF(buf);
     char ch;
 
     for (int i = 0; i < len; ++i) {
@@ -100,27 +100,27 @@ static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
                 ch = esc(s[++i]);
             }
         }
-        sbuf_print_char(&sbuf, ch);
+        BufWriteChar(&buf, ch);
     }
 
     if (len < 256) {
-        /* short length string in atom */
-        yylval->sval = atom_nstr(SBUF_STR(sbuf), len);
-        FINI_SBUF(sbuf);
+        /* short length string in Atom */
+        yylval->sval = AtomNStr(BUF_STR(buf), len);
+        FINI_BUF(buf);
     } else {
         /* long string in string buffer */
-        yylval->sval = SBUF_STR(sbuf);
-        vector_push_back(&ps->svec, &sbuf);
+        yylval->sval = BUF_STR(buf);
+        VectorPushBack(&ps->svec, &buf);
     }
 }
 
 static void do_text(ParserStateRef ps, YYSTYPE *yylval)
 {
-    int len = SBUF_LEN(ps->sbuf);
-    char *s = SBUF_STR(ps->sbuf);
+    int len = BUF_LEN(ps->buf);
+    char *s = BUF_STR(ps->buf);
 
     if (!s) {
-        yylval->sval = atom_nstr(NULL, 0);
+        yylval->sval = AtomNStr(NULL, 0);
         return;
     }
 
@@ -129,14 +129,14 @@ static void do_text(ParserStateRef ps, YYSTYPE *yylval)
     while (isspace(s[len - 1])) len--;
 
     if (len < 256) {
-        /* short length text in atom */
-        yylval->sval = atom_nstr(s + i, len);
+        /* short length text in Atom */
+        yylval->sval = AtomNStr(s + i, len);
     } else {
         /* text in string buffer */
-        SBUF(sbuf);
-        sbuf_nprint(&sbuf, s + i, len);
-        yylval->sval = SBUF_STR(sbuf);
-        vector_push_back(&ps->svec, &sbuf);
+        BUF(buf);
+        BufWriteNStr(&buf, s + i, len);
+        yylval->sval = BUF_STR(buf);
+        VectorPushBack(&ps->svec, &buf);
     }
 }
 
@@ -146,10 +146,10 @@ static void do_doc(ParserStateRef ps, char *txt, int len)
     // char *e = txt + len - 1;
     // while (isspace(*s)) s++;
     // while (isspace(*e)) e--;
-    // sbuf_nprint(&ps->doc_buf, s, e - s + 1);
+    // BufWriteNStr(&ps->doc_buf, s, e - s + 1);
 
-    sbuf_nprint(&ps->doc_buf, txt, len);
-    sbuf_print_char(&ps->doc_buf, '\n');
+    BufWriteNStr(&ps->doc_buf, txt, len);
+    BufWriteChar(&ps->doc_buf, '\n');
 }
 
 int stdin_input(ParserStateRef ps, char *buf, int size);
@@ -197,32 +197,32 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
         YY_RETURN(';');    \
     }
 
-#define YY_STR_BEGIN yyps->in_str = 1; RESET_SBUF(yyps->sbuf)
+#define YY_STR_BEGIN yyps->in_str = 1; RESET_BUF(yyps->buf)
 
 #define YY_STR_END do {      \
     yyps->in_str = 0;           \
     do_escape(yyps, yylval);    \
-    RESET_SBUF(yyps->sbuf);     \
+    RESET_BUF(yyps->buf);     \
     YY_RETURN(STRING_LITERAL);  \
 } while (0)
 
 #define YY_STRING_WRITE(ch) \
-    sbuf_print_char(&yyps->sbuf, ch)
+    BufWriteChar(&yyps->buf, ch)
 
-#define YY_TEXT_BEGIN yyps->in_str = 1; RESET_SBUF(yyps->sbuf)
+#define YY_TEXT_BEGIN yyps->in_str = 1; RESET_BUF(yyps->buf)
 
 #define YY_TEXT_END do {        \
     yyps->in_str = 0;           \
     do_text(yyps, yylval);      \
-    RESET_SBUF(yyps->sbuf);     \
+    RESET_BUF(yyps->buf);     \
     YY_RETURN(STRING_LITERAL);  \
 } while (0)
 
 #define YY_TEXT_WRITE(ch) \
-    sbuf_print_char(&yyps->sbuf, ch)
+    BufWriteChar(&yyps->buf, ch)
 
 #define YY_IDENT_VALUE(s, len) \
-    yylval->sval = atom_nstr(s, len)
+    yylval->sval = AtomNStr(s, len)
 
 #define YY_INT_VALUE(s, base) \
     yylval->ival = strtoll(s, NULL, base)
@@ -397,10 +397,10 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
     if (yyps->doc_line > 0 && yyps->doc_line != yyps->line) {
         /* not consecutive document */
         printf("doc\n");
-        printf("%s", SBUF_STR(yyps->doc_buf));
+        printf("%s", BUF_STR(yyps->doc_buf));
         printf("doc is taken\n");
         yyps->doc_line = 0;
-        RESET_SBUF(yyps->doc_buf);
+        RESET_BUF(yyps->doc_buf);
     }
     YY_NEWLINE;
 }

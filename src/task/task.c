@@ -8,9 +8,6 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "task.h"
-#include "common.h"
-#include "task_event.h"
-#include "task_timer.h"
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
@@ -20,6 +17,9 @@
 #include <sys/sysinfo.h>
 #include <unistd.h>
 #include <valgrind/valgrind.h>
+#include "common.h"
+#include "task_event.h"
+#include "task_timer.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -103,7 +103,7 @@ static void task_go_routine(void *arg)
 
 static int context_init(task_context_t *ctx, int stksize, void *arg)
 {
-    void *stk = mm_alloc(stksize);
+    void *stk = MemAlloc(stksize);
     ctx->stkbase = stk;
     ctx->stksize = stksize;
     VALGRIND_STACK_REGISTER(stk, stk + stksize);
@@ -122,7 +122,7 @@ static int context_init(task_context_t *ctx, int stksize, void *arg)
 static inline void context_fini(task_context_t *ctx)
 {
     VALGRIND_STACK_DEREGISTER(ctx->stkbase);
-    mm_free(ctx->stkbase);
+    MemFree(ctx->stkbase);
 }
 
 static inline int context_save(task_context_t *ctx)
@@ -168,7 +168,9 @@ static lldq_node_t *lldq_pop_head(lldq_deque_t *deque)
         first->next = NULL;
         deque->count--;
     }
-    if (first == deque->tail) { deque->tail = deque->head; }
+    if (first == deque->tail) {
+        deque->tail = deque->head;
+    }
     pthread_mutex_unlock(&deque->lock);
     return first;
 }
@@ -225,7 +227,7 @@ static void steal_tasks(void)
             task = (task_t *)lldq_pop_head(steal_dq);
             if (task) {
                 printf("[proc-%u]steal task-%lu from proc-%d\n", to->id,
-                    task->id, from->id);
+                       task->id, from->id);
                 lldq_push_tail(&to->ready_deque, &task->dq_node);
             }
         }
@@ -280,7 +282,7 @@ static void task_destroy(task_t *task)
     assert(task != &current->idle_task);
     assert(task->state == TASK_STATE_DONE);
     context_fini(&task->context);
-    mm_free(task);
+    MemFree(task);
 }
 
 static inline void task_done(task_t *task)
@@ -298,18 +300,15 @@ static void task_switch_to(task_t *to)
         if (from != &current->idle_task) {
             lldq_push_tail(&current->ready_deque, &from->dq_node);
         }
-        printf(
-            "[proc-%u]task-%lu from running -> ready\n", current->id, from->id);
-    }
-    else if (from->state == TASK_STATE_DONE) {
+        printf("[proc-%u]task-%lu from running -> ready\n", current->id,
+               from->id);
+    } else if (from->state == TASK_STATE_DONE) {
         printf("[proc-%u]task-%lu: done\n", current->id, from->id);
         task_done(from);
         done = 1;
-    }
-    else if (from->state == TASK_STATE_SUSPEND) {
+    } else if (from->state == TASK_STATE_SUSPEND) {
         printf("[proc-%u]task-%lu: suspended\n", current->id, from->id);
-    }
-    else {
+    } else {
         assert(0);
     }
 
@@ -320,8 +319,7 @@ static void task_switch_to(task_t *to)
     if (!done) {
         printf("[proc-%u]SWITCH to task-%lu\n", current->id, to->id);
         context_switch(&from->context, &to->context);
-    }
-    else {
+    } else {
         printf("[proc-%u]LOAD task-%lu\n", current->id, to->id);
         context_load(&to->context);
     }
@@ -383,8 +381,7 @@ static void *proc_thread(void *arg)
         if (task) {
             printf("[proc-%u]switch to task-%lu\n", current->id, task->id);
             task_switch_to(task);
-        }
-        else {
+        } else {
             printf("[proc-%u]No more tasks\n", current->id);
             proc_wait();
         }
@@ -433,11 +430,13 @@ static void *monitor_thread(void *arg)
 void init_procs(int nproc)
 {
     int ncpu = get_nprocs();
-    if (nproc <= 0) { nproc = ncpu; }
+    if (nproc <= 0) {
+        nproc = ncpu;
+    }
     /* there needs at least two procs. */
     if (nproc == 1) nproc = 2;
     num_procs = nproc;
-    procs = mm_alloc(sizeof(task_proc_t) * nproc);
+    procs = MemAlloc(sizeof(task_proc_t) * nproc);
 
     /* initialize processor 0 */
     init_proc(0);
@@ -486,12 +485,12 @@ void fini_procs(void)
     assert(lldq_empty(&done_deque));
 
     /* free proc memories */
-    mm_free(procs);
+    MemFree(procs);
 }
 
 task_t *task_create(task_entry_t entry, void *arg, void *tls)
 {
-    task_t *task = mm_alloc(sizeof(task_t));
+    task_t *task = MemAlloc(sizeof(task_t));
     if (!task) {
         errno = ENOMEM;
         return NULL;
@@ -535,8 +534,7 @@ void task_yield(void)
         if (current_task() != &current->idle_task) {
             // printf("[proc-%u]switch to idle task\n", current->id);
             task_switch_to(&current->idle_task);
-        }
-        else {
+        } else {
             printf("[proc-%u]idle task\n", current->id);
         }
     }

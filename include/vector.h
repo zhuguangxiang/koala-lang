@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,17 +43,19 @@ typedef struct _Vector {
 } Vector, *VectorRef;
 
 /* Initialize an empty vector */
-static inline void vector_init(VectorRef vec, int objsize)
+static inline void VectorInit(VectorRef vec, int objsize)
 {
     memset(vec, 0, sizeof(*vec));
     vec->objsize = objsize;
 }
 
+#define VectorInitPtr(vec) VectorInit(vec, PTR_SIZE)
+
 /* Finalize an vector */
-static inline void vector_fini(VectorRef vec)
+static inline void VectorFini(VectorRef vec)
 {
     if (!vec) return;
-    mm_free(vec->objs);
+    MemFree(vec->objs);
     vec->objs = NULL;
     vec->objsize = 0;
     vec->size = 0;
@@ -61,128 +63,128 @@ static inline void vector_fini(VectorRef vec)
 }
 
 /* Clear a vector, no free memory */
-static inline void vector_clear(VectorRef vec)
+static inline void VectorClear(VectorRef vec)
 {
     memset(vec->objs, 0, vec->capacity * vec->objsize);
     vec->size = 0;
 }
 
 /* Create a vector */
-static inline VectorRef vector_new(int objsize)
+static inline VectorRef VectorCreate(int objsize)
 {
-    VectorRef vec = mm_alloc(sizeof(*vec));
-    vector_init(vec, objsize);
+    VectorRef vec = MemAlloc(sizeof(*vec));
+    VectorInit(vec, objsize);
     return vec;
 }
 
 /* Destroy a vector */
-static inline void vector_destroy(VectorRef vec)
+static inline void VectorDestroy(VectorRef vec)
 {
-    vector_fini(vec);
-    mm_free(vec);
+    VectorFini(vec);
+    MemFree(vec);
 }
 
 /* Get a vector size */
-#define vector_size(vec) ((vec) ? (vec)->size : 0)
+#define VectorSize(vec) ((NULL != (vec)) ? (vec)->size : 0)
 
 /* Test whether a vector is empty */
-#define vector_empty(vec) (!vector_size(vec))
+#define VectorEmpty(vec) (!VectorSize(vec))
 
 /* Get a vector capacity */
-#define vector_capacity(vec) ((vec) ? (vec)->capacity : 0)
+#define VectorCapacity(vec) ((NULL != (vec)) ? (vec)->capacity : 0)
 
 /*
  * Store an object at an index. The old will be erased.
  * Index bound is checked.
  */
-int vector_set(VectorRef vec, int index, void *obj);
+int VectorSet(VectorRef vec, int index, void *obj);
 
 /* Append an object at the end of the vector. */
-static inline void vector_push_back(VectorRef vec, void *obj)
+static inline void VectorPushBack(VectorRef vec, void *obj)
 {
-    vector_set(vec, vec->size, obj);
+    VectorSet(vec, vec->size, obj);
 }
 
 /*
  * Insert an object into the in-bound of the vector.
  * This is relatively expensive operation.
  */
-int vector_insert(VectorRef vec, int index, void *obj);
+int VectorInsert(VectorRef vec, int index, void *obj);
 
 /*
  * Insert an object at the front of the vector.
  * This is relatively expensive operation.
  */
-static inline void vector_push_front(VectorRef vec, void *obj)
+static inline void VectorPushFront(VectorRef vec, void *obj)
 {
-    vector_insert(vec, 0, obj);
+    VectorInsert(vec, 0, obj);
 }
 
 /*
  * Get an object stored at an index position.
  * Index bound is checked.
  */
-int vector_get(VectorRef vec, int index, void *obj);
+int VectorGet(VectorRef vec, int index, void *obj);
 
 /* Get first object */
-#define vector_get_first(vec, obj) vector_get(vec, 0, obj)
+#define VectorGetFirst(vec, obj) VectorGet(vec, 0, obj)
 
 /* Get last object */
-#define vector_get_last(vec, obj) vector_get(vec, vector_size(vec) - 1, obj)
+#define VectorGetLast(vec, obj) VectorGet(vec, VectorSize(vec) - 1, obj)
 
 /*
  * Get an object pointer stored at an index position.
  * Index bound is checked.
  */
-void *vector_get_ptr(VectorRef vec, int index);
+void *VectorGetPtr(VectorRef vec, int index);
 
 /* Get first object pointer */
-#define vector_first_ptr(vec) vector_get_ptr(vec, 0)
+#define VectorFirstPtr(vec) VectorGetPtr(vec, 0)
 
 /* Get last object pointer */
-#define vector_last_ptr(vec) vector_get_ptr(vec, vector_size(vec) - 1)
+#define VectorLastPtr(vec) VectorGetPtr(vec, VectorSize(vec) - 1)
 
 /* Peek an object at the end of the vector, not remove it.*/
-static inline void vector_top_back(VectorRef vec, void *obj)
+static inline void VectorTopBack(VectorRef vec, void *obj)
 {
-    vector_get(vec, vec->size - 1, obj);
+    VectorGet(vec, vec->size - 1, obj);
 }
 
 /*
  * Remove an object from the in-bound of the vector.
  * This is relatively expensive operation.
  */
-int vector_remove(VectorRef vec, int index, void *obj);
+int VectorRemove(VectorRef vec, int index, void *obj);
 
 /*
  * Remove an object at the end of the vector.
- * When used with 'vector_push_back', the vector can be as a `stack`.
+ * When used with 'VectorPushBack', the vector can be as a `stack`.
  */
-static inline void vector_pop_back(VectorRef vec, void *obj)
+static inline void VectorPopBack(VectorRef vec, void *obj)
 {
-    vector_remove(vec, vec->size - 1, obj);
+    VectorRemove(vec, vec->size - 1, obj);
 }
 
 /*
  * Remove an object at the front of the vector.
  * This is relatively expensive operation.
  */
-static inline void vector_pop_front(VectorRef vec, void *obj)
+static inline void VectorPopFront(VectorRef vec, void *obj)
 {
-    vector_remove(vec, 0, obj);
+    VectorRemove(vec, 0, obj);
 }
 
 // clang-format off
 
 /* iterate vector by pointer */
-#define vector_foreach(item, vec, closure) \
-    for (int i = 0, len = vector_size(vec); \
-         i < len && (item = vector_get_ptr(vec, i)); i++) closure;
+#define VectorForEach(item, vec, closure) \
+    for (int i = 0, len = VectorSize(vec); \
+         i < len && (item = VectorGetPtr(vec, i)); i++) closure;
 
 /* iterate vector by pointer reversely */
-#define vector_foreach_reverse(item, vec, closure) \
-    for (int i = vector_size(vec) - 1; \
-         i >= 0 && (item = vector_get_ptr(vec, i)); i--) closure;
+#define VectorForEachReverse(item, vec, closure) \
+    for (int i = VectorSize(vec) - 1; \
+         i >= 0 && (item = VectorGetPtr(vec, i)); i--) closure;
 
 // clang-format on
 

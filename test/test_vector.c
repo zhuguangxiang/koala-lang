@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,60 +29,60 @@ extern "C" {
 
 void test_vector(void)
 {
-    VectorRef vec = vector_new(sizeof(int));
+    VectorRef vec = VectorCreate(sizeof(int));
 
     int val;
 
     val = 100;
-    vector_push_back(vec, &val);
+    VectorPushBack(vec, &val);
 
     val = 200;
-    vector_push_back(vec, &val);
+    VectorPushBack(vec, &val);
 
     val = 300;
-    vector_push_back(vec, &val);
+    VectorPushBack(vec, &val);
 
     int *v;
-    vector_foreach(v, vec, printf("v = %d\n", *v));
-    vector_foreach_reverse(v, vec, printf("v = %d\n", *v));
+    VectorForEach(v, vec, printf("v = %d\n", *v));
+    VectorForEachReverse(v, vec, printf("v = %d\n", *v));
 
-    assert(vector_size(vec) == 3);
-    assert(vector_capacity(vec) == 8);
+    assert(VectorSize(vec) == 3);
+    assert(VectorCapacity(vec) == 8);
 
-    vector_pop_back(vec, &val);
+    VectorPopBack(vec, &val);
     assert(val == 300);
 
-    vector_pop_back(vec, &val);
+    VectorPopBack(vec, &val);
     assert(val == 200);
 
-    vector_pop_back(vec, &val);
+    VectorPopBack(vec, &val);
     assert(val == 100);
 
-    assert(!vector_size(vec));
+    assert(!VectorSize(vec));
 
     val = 1000;
-    vector_insert(vec, 0, &val);
+    VectorInsert(vec, 0, &val);
 
     val = 2000;
-    vector_insert(vec, 0, &val);
+    VectorInsert(vec, 0, &val);
 
     val = 3000;
-    vector_insert(vec, 0, &val);
+    VectorInsert(vec, 0, &val);
 
-    vector_foreach(v, vec, printf("v = %d\n", *v));
+    VectorForEach(v, vec, printf("v = %d\n", *v));
 
-    vector_pop_front(vec, &val);
+    VectorPopFront(vec, &val);
     assert(val == 3000);
 
-    vector_pop_front(vec, &val);
+    VectorPopFront(vec, &val);
     assert(val == 2000);
 
-    vector_pop_front(vec, &val);
+    VectorPopFront(vec, &val);
     assert(val == 1000);
 
-    assert(!vector_size(vec));
+    assert(!VectorSize(vec));
 
-    vector_destroy(vec);
+    VectorDestroy(vec);
 }
 
 int main(int argc, char *argv[])

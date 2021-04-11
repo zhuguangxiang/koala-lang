@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,14 +31,14 @@ extern "C" {
 #define FNV32_BASE  ((unsigned int)0x811c9dc5)
 #define FNV32_PRIME ((unsigned int)0x01000193)
 
-unsigned int strhash(const char *str)
+unsigned int StrHash(const char *str)
 {
     unsigned int c, hash = FNV32_BASE;
     while ((c = (unsigned char)*str++)) hash = (hash * FNV32_PRIME) ^ c;
     return hash;
 }
 
-unsigned int memhash(const void *buf, int len)
+unsigned int MenHash(const void *buf, int len)
 {
     unsigned int hash = FNV32_BASE;
     unsigned char *ucbuf = (unsigned char *)buf;
@@ -55,7 +55,7 @@ unsigned int memhash(const void *buf, int len)
 static void __alloc_entries(HashMapRef self, int size)
 {
     self->size = size;
-    self->entries = mm_alloc(size * sizeof(HashMapEntry *));
+    self->entries = MemAlloc(size * sizeof(HashMapEntry *));
     /* calculate new thresholds */
     self->grow_at = size * HASHMAP_LOAD_FACTOR / 100;
     if (size <= HASHMAP_INITIAL_SIZE)
@@ -68,14 +68,14 @@ static void __alloc_entries(HashMapRef self, int size)
     */
 }
 
-void hashmap_init(HashMapRef self, hashmap_equal_func equal)
+void HashMapInit(HashMapRef self, HashMapEqualFunc equal)
 {
     memset(self, 0, sizeof(*self));
     self->equal = equal;
     __alloc_entries(self, HASHMAP_INITIAL_SIZE);
 }
 
-void hashmap_fini(HashMapRef self, hashmap_visit_func _free, void *arg)
+void HashMapFini(HashMapRef self, HashMapVisitFunc _free, void *arg)
 {
     if (!self || !self->entries) return;
 
@@ -89,7 +89,7 @@ void hashmap_fini(HashMapRef self, hashmap_visit_func _free, void *arg)
         }
     }
 
-    mm_free(self->entries);
+    MemFree(self->entries);
 }
 
 static inline int bucket(HashMapRef self, HashMapEntry *e)
@@ -110,7 +110,7 @@ static inline HashMapEntry **find_entry(HashMapRef self, HashMapEntry *key)
     return e;
 }
 
-void *hashmap_get(HashMapRef self, void *key)
+void *HashMapGet(HashMapRef self, void *key)
 {
     if (!self) return NULL;
     return *find_entry(self, key);
@@ -138,10 +138,10 @@ static void rehash(HashMapRef self, int newsize)
         }
     }
 
-    mm_free(oldentries);
+    MemFree(oldentries);
 }
 
-int hashmap_put_absent(HashMapRef self, void *entry)
+int HashMapPutAbsent(HashMapRef self, void *entry)
 {
     if (self == NULL) return -1;
 
@@ -157,14 +157,14 @@ int hashmap_put_absent(HashMapRef self, void *entry)
     return 0;
 }
 
-void *hashmap_put(HashMapRef self, void *entry)
+void *HashMapPut(HashMapRef self, void *entry)
 {
-    void *old = hashmap_remove(self, entry);
-    hashmap_put_absent(self, entry);
+    void *old = HashMapRemove(self, entry);
+    HashMapPutAbsent(self, entry);
     return old;
 }
 
-void *hashmap_remove(HashMapRef self, void *key)
+void *HashMapRemove(HashMapRef self, void *key)
 {
     HashMapEntry **e = find_entry(self, key);
     if (!*e) return NULL;
@@ -180,7 +180,7 @@ void *hashmap_remove(HashMapRef self, void *key)
     return old;
 }
 
-void hashmap_visit(HashMapRef self, hashmap_visit_func visit, void *arg)
+void HashMapVisit(HashMapRef self, HashMapVisitFunc visit, void *arg)
 {
     if (!self || !self->entries || !visit) return;
 

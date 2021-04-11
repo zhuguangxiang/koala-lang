@@ -35,9 +35,13 @@ RUN_BISON(
     ${PROJECT_SOURCE_DIR}/src/parser/koala_yacc.c
     ${PROJECT_SOURCE_DIR}/include/koala_yacc.h)
 
+
+ADD_COMPILE_DEFINITIONS(KLVM_COMPILATION)
+
 SET(KOALA_SOURCES
-    mm.c vector.c hashmap.c sbuf.c atom.c readline.c
-    klvm/klvm_type.c
+    libs/mm.c libs/vector.c libs/hashmap.c libs/binheap.c 
+    libs/buffer.c libs/atom.c libs/readline.c
+    klvm/klvm_type.c klvm/klvm_value.c klvm/klvm_inst.c klvm/klvm_printer.c
     parser/koala_lex.c parser/koala_yacc.c parser/symtbl.c
     parser/type.c parser/ast.c parser/parser.c parser/cmd.c)
 

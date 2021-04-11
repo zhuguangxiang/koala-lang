@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -560,10 +560,10 @@ block
     }
     | '{' expr '}'
     {
-        VectorRef vec = vector_new(sizeof(void *));
+        VectorRef vec = VectorCreate(sizeof(void *));
         StmtRef s = stmt_from_expr($2);
         stmt_set_loc(s, loc(@2));
-        vector_push_back(vec, &s);
+        VectorPushBack(vec, &s);
         $$ = stmt_from_block(vec);
         stmt_set_loc($$, loc(@1));
     }
@@ -577,13 +577,13 @@ block
 local_list
     : local
     {
-        $$ = vector_new(sizeof(void *));
-        vector_push_back($$, $1);
+        $$ = VectorCreate(sizeof(void *));
+        VectorPushBack($$, $1);
     }
     | local_list local
     {
         $$ = $1;
-        vector_push_back($$, $2);
+        VectorPushBack($$, $2);
     }
     ;
 
@@ -1507,27 +1507,27 @@ type_varg_list
         $$ = $1;
         TypeRef _t = ast_type_valist(NULL);
         type_set_loc(_t, loc(@3));
-        vector_push_back($$, &_t);
+        VectorPushBack($$, &_t);
     }
     | type_list ',' DOTDOTDOT atom_type
     {
         $$ = $1;
         TypeRef _t = ast_type_valist($4);
         type_set_loc(_t, loc(@3));
-        vector_push_back($$, &_t);
+        VectorPushBack($$, &_t);
     }
     ;
 
 type_list
     : type
     {
-        $$ = vector_new(sizeof(void *));
-        vector_push_back($$, &$1);
+        $$ = VectorCreate(sizeof(void *));
+        VectorPushBack($$, &$1);
     }
     | type_list ',' type
     {
         $$ = $1;
-        vector_push_back($$, &$3);
+        VectorPushBack($$, &$3);
     }
     ;
 

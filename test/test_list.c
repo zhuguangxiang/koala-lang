@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,29 +33,29 @@ typedef struct _Foo {
     int bar;
 } Foo;
 
-#define foo_first(list)     list_first(list, Foo, node)
-#define foo_next(pos, list) list_next(pos, node, list)
-#define foo_prev(pos, list) list_prev(pos, node, list)
-#define foo_last(list)      list_last(list, Foo, node)
+#define foo_first(list)     ListFirst(list, Foo, node)
+#define foo_next(pos, list) ListNext(pos, node, list)
+#define foo_prev(pos, list) ListPrev(pos, node, list)
+#define foo_last(list)      ListLast(list, Foo, node)
 
 void test_doubly_linked_list(void)
 {
     List foo_list = LIST_INIT(foo_list);
     Foo foo1 = { LIST_INIT(foo1.node), 100 };
     Foo foo2 = { LIST_INIT(foo2.node), 200 };
-    list_push_back(&foo_list, &foo1.node);
-    list_push_back(&foo_list, &foo2.node);
+    ListPushBack(&foo_list, &foo1.node);
+    ListPushBack(&foo_list, &foo2.node);
 
     Foo *foo;
-    list_foreach(foo, node, &foo_list, printf("%d\n", foo->bar));
+    ListForEach(foo, node, &foo_list, printf("%d\n", foo->bar));
 
     Foo *nxt;
-    list_foreach_safe(foo, nxt, node, &foo_list, {
+    ListForEachSafe(foo, nxt, node, &foo_list, {
         printf("%d is removed\n", foo->bar);
-        list_remove(&foo->node);
+        ListRemove(&foo->node);
     });
 
-    list_pop_back(&foo_list);
+    ListPopBack(&foo_list);
 
     for (foo = foo_last(&foo_list); foo; foo = foo_prev(foo, &foo_list)) {
         printf("%d\n", foo->bar);

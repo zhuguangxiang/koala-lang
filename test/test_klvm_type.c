@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,36 +26,38 @@
 
 int main(int argc, char *argv[])
 {
-    init_atom();
+    InitAtom();
 
-    KLVMTypeRef proto = str_to_proto("Llang.Tuple;si", "b");
-    VectorRef params = klvm_proto_params(proto);
+    KLVMInitTypes();
+
+    KLVMTypeRef proto = KLVMProtoFromStr("Llang.Tuple;si", "b");
+    VectorRef params = KLVMProtoParams(proto);
     KLVMTypeRef type = NULL;
-    vector_get(params, 0, &type);
+    VectorGet(params, 0, &type);
     assert(type->kind == KLVM_TYPE_KLASS);
-    char *path = klass_get_path(type);
-    char *name = klass_get_name(type);
+    char *path = KLVMGetKlassPath(type);
+    char *name = KLVMGetKlassName(type);
     assert(!strcmp(path, "lang"));
     assert(!strcmp(name, "Tuple"));
 
     type = NULL;
-    vector_get(params, 1, &type);
-    assert(type->kind == KLVM_TYPE_STR);
+    VectorGet(params, 1, &type);
 
+    assert(type->kind == KLVM_TYPE_STR);
     type = NULL;
-    vector_get(params, 2, &type);
+    VectorGet(params, 2, &type);
     assert(type->kind == KLVM_TYPE_INT64);
 
     type = NULL;
-    vector_get(params, 3, &type);
+    VectorGet(params, 3, &type);
     assert(!type);
 
-    type = klvm_proto_ret(proto);
+    type = KLVMProtoRet(proto);
     assert(type->kind == KLVM_TYPE_BOOL);
 
-    fini_klvm_type();
+    KLVMFiniTypes();
 
-    fini_atom();
+    FiniAtom();
 
     return 0;
 }

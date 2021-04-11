@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,28 +29,28 @@ extern "C" {
 
 TypeRef ast_type_int8(void)
 {
-    TypeRef ty = mm_alloc(sizeof(*ty));
+    TypeRef ty = MemAlloc(sizeof(*ty));
     ty->kind = KLVM_TYPE_INT8;
     return ty;
 }
 
 TypeRef ast_type_klass(Ident *pkg, Ident *name)
 {
-    TypeRef ty = mm_alloc(sizeof(*ty));
+    TypeRef ty = MemAlloc(sizeof(*ty));
     ty->kind = KLVM_TYPE_KLASS;
     return ty;
 }
 
 TypeRef ast_type_proto(TypeRef ret, VectorRef params)
 {
-    TypeRef ty = mm_alloc(sizeof(*ty));
+    TypeRef ty = MemAlloc(sizeof(*ty));
     ty->kind = KLVM_TYPE_PROTO;
     return ty;
 }
 
 TypeRef ast_type_valist(TypeRef subtype)
 {
-    TypeRef ty = mm_alloc(sizeof(*ty));
+    TypeRef ty = MemAlloc(sizeof(*ty));
     ty->kind = KLVM_TYPE_VALIST;
     return ty;
 }

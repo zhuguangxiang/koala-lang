@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,15 +22,15 @@
  */
 
 #include <stdlib.h>
-#include "readline.h"
+#include "ReadLine.h"
 
 void test_readline(void)
 {
-    init_line();
+    InitReadLine();
     char buf[128];
-    while (readline("> ", buf, 127)) {
+    while (ReadLine("> ", buf, 127)) {
     }
-    fini_line();
+    FiniReadLine();
 }
 
 int main(int argc, char *argv[])

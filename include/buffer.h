@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,10 +21,10 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/* dynamic string buffer. */
+/* A Dynamic Buffer. */
 
-#ifndef _KOALA_SBUF_H_
-#define _KOALA_SBUF_H_
+#ifndef _KOALA_BUF_H_
+#define _KOALA_BUF_H_
 
 #include "common.h"
 #include "mm.h"
@@ -33,53 +33,53 @@
 extern "C" {
 #endif
 
-/* string buffer */
-typedef struct _SBuf {
+/* buffer */
+typedef struct _Buffer {
     /* allocated size */
     int size;
     /* used size */
     int len;
     /* contains string */
     char *buf;
-} SBuf, *SBufRef;
+} Buffer, *BufferRef;
 
-/* Declare a string buffer. */
-#define SBUF(name) SBuf name = { 0, 0, NULL }
+/* Declare a buffer. */
+#define BUF(name) Buffer name = { 0, 0, NULL }
 
-/* Free a string buffer. */
-#define FINI_SBUF(name) mm_free((name).buf)
+/* Free a buffer. */
+#define FINI_BUF(name) MemFree((name).buf)
 
 // clang-format off
-/* Reset a string buffer. */
-#define RESET_SBUF(name) do { \
+/* Reset a buffer. */
+#define RESET_BUF(name) do { \
     memset((name).buf, 0, (name).len); (name).len = 0; \
 } while (0)
 // clang-format on
 
-/* Get null-terminated string from the string buffer. */
-#define SBUF_STR(name) (name).buf
+/* Get null-terminated string from the buffer. */
+#define BUF_STR(name) (name).buf
 
-/* Get string length */
-#define SBUF_LEN(name) (name).len
+/* Get the buffer length */
+#define BUF_LEN(name) (name).len
 
 /* Write string with len */
-void sbuf_nprint(SBufRef self, char *s, int len);
+void BufWriteNStr(BufferRef self, char *s, int len);
 
 /* Write a null-terminated string. */
-void sbuf_print(SBufRef self, char *s);
+void BufWriteStr(BufferRef self, char *s);
 
 /* Write 'num' null-terminated strings. */
-void sbuf_nsprint(SBufRef self, int num, ...);
-void sbuf_vnprint(SBufRef self, int num, va_list args);
+void BufNWrite(BufferRef self, int num, ...);
+void BufVWrite(BufferRef self, int num, va_list args);
 
-void sbuf_print_char(SBufRef self, char ch);
-void sbuf_print_byte(SBufRef self, int val);
-void sbuf_print_int(SBufRef self, int ch);
-void sbuf_print_int64(SBufRef self, int64_t val);
-void sbuf_print_double(SBufRef self, double val);
+void BufWriteChar(BufferRef self, char ch);
+void BufWriteByte(BufferRef self, int val);
+void BufWriteInt(BufferRef self, int ch);
+void BufWriteInt64(BufferRef self, int64_t val);
+void BufWriteDouble(BufferRef self, double val);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* _KOALA_SBUF_H_ */
+#endif /* _KOALA_BUF_H_ */

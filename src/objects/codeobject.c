@@ -22,7 +22,7 @@ Object *code_new(char *name, TypeDesc *proto, uint8_t *codes, int size)
     cobj->proto = proto;
     cobj->codes = codes;
     cobj->size = size;
-    vector_init(&cobj->loc, sizeof(locvar_t));
+    VectorInit(&cobj->loc, sizeof(locvar_t));
     return (Object *)cobj;
 }
 

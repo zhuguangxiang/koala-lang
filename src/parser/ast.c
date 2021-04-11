@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,35 +30,35 @@ extern "C" {
 
 ExprRef expr_from_nil(void)
 {
-    ExprRef e = mm_alloc(sizeof(*e));
+    ExprRef e = MemAlloc(sizeof(*e));
     e->kind = EXPR_NIL_KIND;
     return e;
 }
 
 ExprRef expr_from_self(void)
 {
-    ExprRef e = mm_alloc(sizeof(*e));
+    ExprRef e = MemAlloc(sizeof(*e));
     e->kind = EXPR_SELF_KIND;
     return e;
 }
 
 ExprRef expr_from_super(void)
 {
-    ExprRef e = mm_alloc(sizeof(*e));
+    ExprRef e = MemAlloc(sizeof(*e));
     e->kind = EXPR_SUPER_KIND;
     return e;
 }
 
 ExprRef expr_from_under(void)
 {
-    ExprRef e = mm_alloc(sizeof(*e));
+    ExprRef e = MemAlloc(sizeof(*e));
     e->kind = EXPR_UNDER_KIND;
     return e;
 }
 
 ExprRef expr_from_int64(int64_t val)
 {
-    ExprKRef k = mm_alloc(sizeof(*k));
+    ExprKRef k = MemAlloc(sizeof(*k));
     k->kind = EXPR_INT_KIND;
     k->ival = val;
     return (ExprRef)k;
@@ -66,7 +66,7 @@ ExprRef expr_from_int64(int64_t val)
 
 ExprRef expr_from_float64(double val)
 {
-    ExprKRef k = mm_alloc(sizeof(*k));
+    ExprKRef k = MemAlloc(sizeof(*k));
     k->kind = EXPR_FLOAT_KIND;
     k->fval = val;
     return (ExprRef)k;
@@ -74,7 +74,7 @@ ExprRef expr_from_float64(double val)
 
 ExprRef expr_from_bool(int val)
 {
-    ExprKRef k = mm_alloc(sizeof(*k));
+    ExprKRef k = MemAlloc(sizeof(*k));
     k->kind = EXPR_BOOL_KIND;
     k->bval = val;
     return (ExprRef)k;
@@ -82,7 +82,7 @@ ExprRef expr_from_bool(int val)
 
 ExprRef expr_from_str(char *val)
 {
-    ExprKRef k = mm_alloc(sizeof(*k));
+    ExprKRef k = MemAlloc(sizeof(*k));
     k->kind = EXPR_STR_KIND;
     k->sval = val;
     return (ExprRef)k;
@@ -90,7 +90,7 @@ ExprRef expr_from_str(char *val)
 
 ExprRef expr_from_char(int val)
 {
-    ExprKRef k = mm_alloc(sizeof(*k));
+    ExprKRef k = MemAlloc(sizeof(*k));
     k->kind = EXPR_CHAR_KIND;
     k->cval = val;
     return (ExprRef)k;
@@ -98,7 +98,7 @@ ExprRef expr_from_char(int val)
 
 ExprRef expr_from_ident(char *val)
 {
-    ExprIdRef id = mm_alloc(sizeof(*id));
+    ExprIdRef id = MemAlloc(sizeof(*id));
     id->kind = EXPR_ID_KIND;
     id->name = val;
     return (ExprRef)id;
@@ -106,7 +106,7 @@ ExprRef expr_from_ident(char *val)
 
 ExprRef expr_from_unary(UnKind ukind, ExprRef e)
 {
-    ExprUnRef un = mm_alloc(sizeof(*un));
+    ExprUnRef un = MemAlloc(sizeof(*un));
     un->kind = EXPR_UNARY_KIND;
     un->ukind = ukind;
     un->exp = e;
@@ -115,7 +115,7 @@ ExprRef expr_from_unary(UnKind ukind, ExprRef e)
 
 ExprRef expr_from_binary(BiKind bkind, ExprRef le, ExprRef re)
 {
-    ExprBiRef bi = mm_alloc(sizeof(*bi));
+    ExprBiRef bi = MemAlloc(sizeof(*bi));
     bi->kind = EXPR_BINARY_KIND;
     bi->bkind = bkind;
     bi->lexp = le;
@@ -137,19 +137,19 @@ void free_expr(ExprRef e)
         case EXPR_STR_KIND:
         case EXPR_ID_KIND:
         case EXPR_UNDER_KIND:
-            mm_free(e);
+            MemFree(e);
             break;
         case EXPR_UNARY_KIND: {
             ExprUnRef un = (ExprUnRef)e;
             free_expr(un->exp);
-            mm_free(e);
+            MemFree(e);
             break;
         }
         case EXPR_BINARY_KIND: {
             ExprBiRef bi = (ExprBiRef)e;
             free_expr(bi->lexp);
             free_expr(bi->rexp);
-            mm_free(e);
+            MemFree(e);
             break;
         }
         default:
@@ -159,7 +159,7 @@ void free_expr(ExprRef e)
 
 StmtRef stmt_from_constdecl(Ident *name, TypeRef ty, ExprRef e)
 {
-    VarDeclStmtRef s = mm_alloc(sizeof(*s));
+    VarDeclStmtRef s = MemAlloc(sizeof(*s));
     s->kind = STMT_CONST_KIND;
     s->name = *name;
     s->ty = ty;
@@ -169,7 +169,7 @@ StmtRef stmt_from_constdecl(Ident *name, TypeRef ty, ExprRef e)
 
 StmtRef stmt_from_vardecl(Ident *name, TypeRef ty, ExprRef e)
 {
-    VarDeclStmtRef s = mm_alloc(sizeof(*s));
+    VarDeclStmtRef s = MemAlloc(sizeof(*s));
     s->kind = STMT_VAR_KIND;
     s->name = *name;
     s->ty = ty;
@@ -179,7 +179,7 @@ StmtRef stmt_from_vardecl(Ident *name, TypeRef ty, ExprRef e)
 
 StmtRef stmt_from_assign(AssignOpKind op, ExprRef lhs, ExprRef rhs)
 {
-    AssignStmtRef s = mm_alloc(sizeof(*s));
+    AssignStmtRef s = MemAlloc(sizeof(*s));
     s->kind = STMT_ASSIGN_KIND;
     s->lhs = lhs;
     s->rhs = rhs;
@@ -188,7 +188,7 @@ StmtRef stmt_from_assign(AssignOpKind op, ExprRef lhs, ExprRef rhs)
 
 StmtRef stmt_from_ret(ExprRef ret)
 {
-    RetStmtRef s = mm_alloc(sizeof(*s));
+    RetStmtRef s = MemAlloc(sizeof(*s));
     s->kind = STMT_RETURN_KIND;
     s->exp = ret;
     return (StmtRef)s;
@@ -196,21 +196,21 @@ StmtRef stmt_from_ret(ExprRef ret)
 
 StmtRef stmt_from_break(void)
 {
-    StmtRef s = mm_alloc(sizeof(*s));
+    StmtRef s = MemAlloc(sizeof(*s));
     s->kind = STMT_BREAK_KIND;
     return s;
 }
 
 StmtRef stmt_from_continue(void)
 {
-    StmtRef s = mm_alloc(sizeof(*s));
+    StmtRef s = MemAlloc(sizeof(*s));
     s->kind = STMT_CONTINUE_KIND;
     return s;
 }
 
 StmtRef stmt_from_block(VectorRef stmts)
 {
-    BlockStmtRef s = mm_alloc(sizeof(*s));
+    BlockStmtRef s = MemAlloc(sizeof(*s));
     s->kind = STMT_BLOCK_KIND;
     s->stmts = stmts;
     return (StmtRef)s;
@@ -218,7 +218,7 @@ StmtRef stmt_from_block(VectorRef stmts)
 
 StmtRef stmt_from_expr(ExprRef e)
 {
-    ExprStmtRef s = mm_alloc(sizeof(*s));
+    ExprStmtRef s = MemAlloc(sizeof(*s));
     s->kind = STMT_EXPR_KIND;
     s->exp = e;
     return (StmtRef)s;
@@ -231,7 +231,7 @@ void free_stmt(StmtRef s)
         case STMT_EXPR_KIND: {
             ExprStmtRef e_s = (ExprStmtRef)s;
             free_expr(e_s->exp);
-            mm_free(s);
+            MemFree(s);
             break;
         }
         default:

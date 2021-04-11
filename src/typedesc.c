@@ -75,7 +75,7 @@ char *base_desc_str(uint8_t kind)
 
 TypeDesc *desc_from_proto(Vector *ptypes, TypeDesc *rtype)
 {
-    ProtoDesc *desc = mm_alloc(sizeof(ProtoDesc));
+    ProtoDesc *desc = MemAlloc(sizeof(ProtoDesc));
     desc->kind = TYPE_PROTO;
     desc->ptypes = ptypes;
     desc->rtype = rtype;
@@ -127,10 +127,10 @@ static TypeDesc *__to_desc(char **str)
             s++;
             Vector *args = NULL;
             if (*s != ':') {
-                args = vector_new(sizeof(TypeDesc *));
+                args = VectorCreate(sizeof(TypeDesc *));
                 while (*s != ':') {
                     t1 = __to_desc(&s);
-                    vector_push_back(args, &t1);
+                    VectorPushBack(args, &t1);
                 }
             }
             s++;
@@ -160,12 +160,12 @@ TypeDesc *to_proto(char *para, char *ret)
 {
     Vector *ptypes = NULL;
     if (para) {
-        ptypes = vector_new(sizeof(void *));
+        ptypes = VectorCreate(sizeof(void *));
         char *s = para;
         TypeDesc *desc;
         while (*s) {
             desc = __to_desc(&s);
-            vector_push_back(ptypes, &desc);
+            VectorPushBack(ptypes, &desc);
         }
     }
 

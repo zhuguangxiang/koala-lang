@@ -6,6 +6,7 @@
  * }
  */
 
+#include <inttypes.h>
 #include <llvm-c/Analysis.h>
 #include <llvm-c/BitWriter.h>
 #include <llvm-c/Core.h>
@@ -13,14 +14,12 @@
 #include <llvm-c/Target.h>
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/Utils.h>
-
-#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /*
- cc llvm_example.c -o sum -I/usr/lib/llvm-11/include  -D_GNU_SOURCE \
+ cc llvm_example.c -o sum -std=gnu17 -I/usr/lib/llvm-11/include  -D_GNU_SOURCE \
  -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -lLLVM-11
 
  llc -filetype=obj -relocation-model=pic sum.bc
@@ -44,8 +43,9 @@ LLVMBasicBlockRef build_insert_new_block(LLVMBuilderRef builder, char *name)
     current_block = LLVMGetInsertBlock(builder);
 
     next_block = LLVMGetNextBasicBlock(current_block);
-    if (next_block) { next_block = LLVMInsertBasicBlock(next_block, name); }
-    else {
+    if (next_block) {
+        next_block = LLVMInsertBasicBlock(next_block, name);
+    } else {
         LLVMValueRef func = LLVMGetBasicBlockParent(current_block);
         new_block = LLVMAppendBasicBlock(func, name);
     }
@@ -53,7 +53,7 @@ LLVMBasicBlockRef build_insert_new_block(LLVMBuilderRef builder, char *name)
 }
 
 void build_if(struct builder_if_state *ifthen, LLVMBuilderRef builder,
-    LLVMValueRef condition)
+              LLVMValueRef condition)
 {
     LLVMBasicBlockRef block = LLVMGetInsertBlock(builder);
     ifthen->condition = condition;
@@ -83,11 +83,10 @@ void builde_endif(struct builder_if_state *ifthen, LLVMBuilderRef builder)
     LLVMPositionBuilderAtEnd(builder, ifthen->entry_block);
     if (ifthen->false_block) {
         LLVMBuildCondBr(builder, ifthen->condition, ifthen->true_block,
-            ifthen->false_block);
-    }
-    else {
+                        ifthen->false_block);
+    } else {
         LLVMBuildCondBr(builder, ifthen->condition, ifthen->true_block,
-            ifthen->merge_block);
+                        ifthen->merge_block);
     }
 
     LLVMPositionBuilderAtEnd(builder, ifthen->merge_block);
@@ -107,7 +106,8 @@ unsigned gcd(unsigned x, unsigned y) {
 }
  */
 void create_if_block(LLVMBuilderRef builder, LLVMBasicBlockRef up,
-    LLVMValueRef cond, LLVMBasicBlockRef body, LLVMBasicBlockRef else_body)
+                     LLVMValueRef cond, LLVMBasicBlockRef body,
+                     LLVMBasicBlockRef else_body)
 {
     LLVMPositionBuilderAtEnd(builder, up);
     LLVMBuildCondBr(builder, cond, body, else_body);
@@ -325,8 +325,8 @@ void main(int argc, char *argv[])
 
     // LLVMBuildCall(builder, bar_func, NULL, 0, "bar");
 
-    LLVMValueRef tmp = LLVMBuildAdd(
-        builder, LLVMGetParam(sum, 0), LLVMGetParam(sum, 1), "tmp");
+    LLVMValueRef tmp = LLVMBuildAdd(builder, LLVMGetParam(sum, 0),
+                                    LLVMGetParam(sum, 1), "tmp");
     // LLVMBuildBr(builder, entry);
     LLVMBuildRet(builder, tmp);
 

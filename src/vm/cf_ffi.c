@@ -45,13 +45,13 @@ cfunc_t *kl_new_cfunc(TypeDesc *desc, void *ptr)
 {
     ProtoDesc *proto = (ProtoDesc *)desc;
     Vector *ptypes = proto->ptypes;
-    int nargs = vector_size(ptypes);
-    cfunc_t *cf = mm_alloc(sizeof(cfunc_t) + nargs * sizeof(void *));
+    int nargs = VectorSize(ptypes);
+    cfunc_t *cf = MemAlloc(sizeof(cfunc_t) + nargs * sizeof(void *));
 
     /* parameter types */
     TypeDesc *type;
     for (int i = 0; i < nargs; i++) {
-        type = vector_get_ptr(ptypes, i);
+        type = VectorGetPtr(ptypes, i);
         cf->ptypes[i] = map_ffi_type(type);
     }
     /* return type */
@@ -67,19 +67,18 @@ void kl_call_cfunc(cfunc_t *cf, TValueRef *args, int narg, intptr_t *ret)
 {
     if (narg > 0) {
         void *aval[narg];
-        for (int i = 0; i < narg; i++) { aval[i] = &((args + i)->_v); }
+        for (int i = 0; i < narg; i++) {
+            aval[i] = &((args + i)->_v);
+        }
         if (cf->rtype != &ffi_type_void) {
             ffi_call(&cf->cif, cf->ptr, ret, aval);
-        }
-        else {
+        } else {
             ffi_call(&cf->cif, cf->ptr, NULL, aval);
         }
-    }
-    else {
+    } else {
         if (cf->rtype != &ffi_type_void) {
             ffi_call(&cf->cif, cf->ptr, ret, NULL);
-        }
-        else {
+        } else {
             ffi_call(&cf->cif, cf->ptr, NULL, NULL);
         }
     }

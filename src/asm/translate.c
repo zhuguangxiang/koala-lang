@@ -12,13 +12,13 @@
 
 #define NEXT_OP() codes[pc++]
 
-#define POP(v)  vector_pop_back(stack, &(v))
-#define PUSH(v) vector_push_back(stack, &(v))
+#define POP(v)  VectorPopBack(stack, &(v))
+#define PUSH(v) VectorPushBack(stack, &(v))
 
-#define SET_LOCAL(i, v) vector_set(locals, i, &(v))
+#define SET_LOCAL(i, v) VectorSet(locals, i, &(v))
 
-#define GET_LOCAL(i, v)          \
-    vector_get(locals, i, &(v)); \
+#define GET_LOCAL(i, v)         \
+    VectorGet(locals, i, &(v)); \
     PUSH(v)
 
 /* x = x + y */

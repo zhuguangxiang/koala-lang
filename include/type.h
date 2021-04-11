@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 #ifndef _KOALA_TYPE_DESC_H_
 #define _KOALA_TYPE_DESC_H_
 
-#include "klvm_type.h"
+#include "klvm/klvm_type.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -89,10 +89,10 @@ static inline void type_add_typeparam(Type *_type, Type *param)
 {
     VectorRef params = ((KlassTypeRef)_type)->tps;
     if (!params) {
-        params = vector_new(sizeof(Type));
+        params = VectorCreate(sizeof(Type));
         ((KlassTypeRef)_type)->tps = params;
     }
-    vector_push_back(params, &param);
+    VectorPushBack(params, &param);
 }
 
 static inline void type_set_typeparams(Type *_type, VectorRef params)

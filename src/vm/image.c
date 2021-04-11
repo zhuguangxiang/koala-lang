@@ -32,14 +32,14 @@ static int16_t klc_str_append(klc_image_t *klc, char *s, uint16_t len)
 {
     klc_str_t str = { len, s };
     Vector *vec = &klc->strs.vec;
-    int16_t idx = vector_size(vec);
-    vector_push_back(vec, &str);
+    int16_t idx = VectorSize(vec);
+    VectorPushBack(vec, &str);
 
-    str_entry_t *e = mm_alloc(sizeof(*e));
-    hashmap_entry_init(e, memhash(s, len));
+    str_entry_t *e = MemAlloc(sizeof(*e));
+    HashMapEntryInit(e, MenHash(s, len));
     e->idx = idx;
     e->s = str;
-    hashmap_put_absent(&klc->strtab, e);
+    HashMapPutAbsent(&klc->strtab, e);
 
     return idx;
 }
@@ -47,8 +47,8 @@ static int16_t klc_str_append(klc_image_t *klc, char *s, uint16_t len)
 static int16_t klc_str_get(klc_image_t *klc, char *s, uint16_t len)
 {
     str_entry_t key = { .s = { len, s } };
-    hashmap_entry_init(&key, memhash(s, len));
-    str_entry_t *e = hashmap_get(&klc->strtab, &key);
+    HashMapEntryInit(&key, MenHash(s, len));
+    str_entry_t *e = HashMapGet(&klc->strtab, &key);
     return e ? e->idx : -1;
 }
 
@@ -62,7 +62,7 @@ static int16_t klc_str_set(klc_image_t *klc, char *s, uint16_t len)
 static klc_str_t *klc_str_index(klc_image_t *klc, int16_t index)
 {
     Vector *vec = &klc->strs.vec;
-    return vector_get_ptr(vec, index);
+    return VectorGetPtr(vec, index);
 }
 
 typedef struct const_entry {
@@ -81,8 +81,8 @@ static int const_entry_equal(void *k1, void *k2)
 static int16_t klc_const_get(klc_image_t *klc, klc_const_t val)
 {
     const_entry_t key = { .val = val };
-    hashmap_entry_init(&key, memhash(&val, sizeof(val)));
-    const_entry_t *e = hashmap_get(&klc->constab, &key);
+    HashMapEntryInit(&key, MenHash(&val, sizeof(val)));
+    const_entry_t *e = HashMapGet(&klc->constab, &key);
     return e ? e->idx : -1;
 }
 
@@ -92,14 +92,14 @@ static int16_t klc_const_set(klc_image_t *klc, klc_const_t val)
     if (idx >= 0) return idx;
 
     Vector *vec = &klc->consts.vec;
-    idx = vector_size(vec);
-    vector_push_back(vec, &val);
+    idx = VectorSize(vec);
+    VectorPushBack(vec, &val);
 
-    const_entry_t *e = mm_alloc(sizeof(*e));
-    hashmap_entry_init(e, memhash(&val, sizeof(val)));
+    const_entry_t *e = MemAlloc(sizeof(*e));
+    HashMapEntryInit(e, MenHash(&val, sizeof(val)));
     e->idx = idx;
     e->val = val;
-    hashmap_put_absent(&klc->constab, e);
+    HashMapPutAbsent(&klc->constab, e);
 
     return idx;
 }
@@ -182,9 +182,9 @@ static int type_entry_equal(void *k1, void *k2)
 static inline int _isbase(uint8_t kind)
 {
     return (kind == TYPE_INT8 || kind == TYPE_INT16 || kind == TYPE_INT32 ||
-        kind == TYPE_INT64 || kind == TYPE_FLOAT32 || kind == TYPE_FLOAT64 ||
-        kind == TYPE_BOOL || kind == TYPE_STRING || kind == TYPE_CHAR ||
-        kind == TYPE_ANY);
+            kind == TYPE_INT64 || kind == TYPE_FLOAT32 ||
+            kind == TYPE_FLOAT64 || kind == TYPE_BOOL || kind == TYPE_STRING ||
+            kind == TYPE_CHAR || kind == TYPE_ANY);
 }
 
 static inline int _isproto(uint8_t kind)
@@ -196,15 +196,15 @@ static klc_type_t *_type_index(klc_image_t *klc, int16_t index)
 {
     klc_type_t *type = NULL;
     Vector *vec = &klc->types.vec;
-    vector_get(vec, index, &type);
+    VectorGet(vec, index, &type);
     return type;
 }
 
 static int16_t _get_base(klc_image_t *klc, uint8_t tag)
 {
     type_entry_t key = { .type.tag = tag };
-    hashmap_entry_init(&key, tag);
-    type_entry_t *e = hashmap_get(&klc->typtab, &key);
+    HashMapEntryInit(&key, tag);
+    type_entry_t *e = HashMapGet(&klc->typtab, &key);
     return e ? e->idx : -1;
 }
 
@@ -214,35 +214,35 @@ static int16_t _add_base(klc_image_t *klc, uint8_t tag)
     if (idx >= 0) return idx;
 
     /* base type */
-    klc_type_t *base = mm_alloc(sizeof(*base));
+    klc_type_t *base = MemAlloc(sizeof(*base));
     base->tag = tag;
 
     /* append type */
     Vector *vec = &klc->types.vec;
-    idx = vector_size(vec);
-    vector_push_back(vec, &base);
+    idx = VectorSize(vec);
+    VectorPushBack(vec, &base);
 
     /* add to type table */
-    type_entry_t *e = mm_alloc(sizeof(*e));
-    hashmap_entry_init(e, tag);
+    type_entry_t *e = MemAlloc(sizeof(*e));
+    HashMapEntryInit(e, tag);
     e->idx = idx;
     e->type.tag = tag;
-    hashmap_put_absent(&klc->typtab, e);
+    HashMapPutAbsent(&klc->typtab, e);
 
     return idx;
 }
 
 static int16_t _add_proto(klc_image_t *klc, int16_t rtype, Vector *ptypes)
 {
-    klc_type_proto_t *p = mm_alloc(sizeof(*p));
+    klc_type_proto_t *p = MemAlloc(sizeof(*p));
     p->tag = TYPE_PROTO;
     p->rtype = rtype;
     p->ptypes = ptypes;
 
     /* append type */
     Vector *vec = &klc->types.vec;
-    int16_t idx = vector_size(vec);
-    vector_push_back(vec, &p);
+    int16_t idx = VectorSize(vec);
+    VectorPushBack(vec, &p);
     return idx;
 }
 
@@ -259,13 +259,13 @@ static int16_t klc_type_set(klc_image_t *klc, TypeDesc *type)
         int16_t rtype = klc_type_set(klc, proto->rtype);
 
         /* para types */
-        Vector *ptypes = vector_new(sizeof(int16_t));
+        Vector *ptypes = VectorCreate(sizeof(int16_t));
         TypeDesc **item;
         int16_t idx;
-        vector_foreach(item, proto->ptypes)
+        VectorForEach(item, proto->ptypes)
         {
             idx = klc_type_set(klc, *item);
-            vector_push_back(ptypes, &idx);
+            VectorPushBack(ptypes, &idx);
         }
 
         return _add_proto(klc, rtype, ptypes);
@@ -273,11 +273,11 @@ static int16_t klc_type_set(klc_image_t *klc, TypeDesc *type)
     abort();
 }
 
-static inline void _add_var(
-    klc_image_t *klc, int16_t name_idx, int16_t type_idx, uint8_t flags)
+static inline void _add_var(klc_image_t *klc, int16_t name_idx,
+                            int16_t type_idx, uint8_t flags)
 {
     klc_var_t var = { flags, name_idx, type_idx };
-    vector_push_back(&klc->vars.vec, &var);
+    VectorPushBack(&klc->vars.vec, &var);
 }
 
 void klc_add_var(klc_image_t *klc, char *name, TypeDesc *type, uint8_t flags)
@@ -293,31 +293,31 @@ static void _add_locals(klc_image_t *klc, klc_func_t *fn, Vector *locvars)
     int16_t type_idx;
     locvar_t *var;
     klc_var_t locvar;
-    vector_foreach(var, locvars)
+    VectorForEach(var, locvars)
     {
         name_idx = klc_str_set(klc, var->name, strlen(var->name));
         type_idx = klc_type_set(klc, var->desc);
-        locvar = (klc_var_t) { .name = name_idx, .type = type_idx };
-        vector_push_back(fn->locals, &locvar);
+        locvar = (klc_var_t){ .name = name_idx, .type = type_idx };
+        VectorPushBack(fn->locals, &locvar);
     }
 }
 
 static int16_t _add_code(klc_image_t *klc, uint8_t *codes, uint32_t codesize)
 {
-    klc_code_t *code = mm_alloc(sizeof(klc_code_t) + codesize);
+    klc_code_t *code = MemAlloc(sizeof(klc_code_t) + codesize);
     code->size = codesize;
     memcpy(code->codes, codes, codesize);
 
     Vector *vec = &klc->codes.vec;
-    int16_t idx = vector_size(vec);
-    vector_push_back(vec, &code);
+    int16_t idx = VectorSize(vec);
+    VectorPushBack(vec, &code);
     return idx;
 }
 
 static klc_code_t *_get_code(klc_image_t *klc, int16_t idx)
 {
     klc_code_t *code;
-    vector_get(&klc->codes.vec, idx, &code);
+    VectorGet(&klc->codes.vec, idx, &code);
     return code;
 }
 
@@ -330,51 +330,51 @@ void klc_add_func(klc_image_t *klc, codeinfo_t *ci)
         .flags = ci->flags, .name = name_idx, .type = type_idx, .code = code_idx
     };
     if (ci->locvec) {
-        fn.locals = vector_new(sizeof(klc_var_t));
+        fn.locals = VectorCreate(sizeof(klc_var_t));
         _add_locals(klc, &fn, ci->locvec);
     }
     // if (ci->freevec) _add_freevars(klc, fn, ci->freevec);
-    vector_push_back(&klc->funcs.vec, &fn);
+    VectorPushBack(&klc->funcs.vec, &fn);
 }
 
 klc_image_t *klc_create(void)
 {
-    klc_image_t *klc = mm_alloc(sizeof(*klc));
+    klc_image_t *klc = MemAlloc(sizeof(*klc));
 
     /* init string table */
-    hashmap_init(&klc->strtab, str_entry_equal);
+    HashMapInit(&klc->strtab, str_entry_equal);
 
     /* init const table */
-    hashmap_init(&klc->constab, const_entry_equal);
+    HashMapInit(&klc->constab, const_entry_equal);
 
     /* init string table */
-    hashmap_init(&klc->typtab, type_entry_equal);
+    HashMapInit(&klc->typtab, type_entry_equal);
 
     /* init sections */
     klc->strs.id = SECT_STR;
-    vector_init(&klc->strs.vec, sizeof(klc_str_t));
+    VectorInit(&klc->strs.vec, sizeof(klc_str_t));
 
     klc->consts.id = SECT_CONST;
-    vector_init(&klc->consts.vec, sizeof(klc_const_t));
+    VectorInit(&klc->consts.vec, sizeof(klc_const_t));
 
     klc->types.id = SECT_TYPE;
-    vector_init(&klc->types.vec, sizeof(klc_type_t *));
+    VectorInit(&klc->types.vec, sizeof(klc_type_t *));
 
     klc->vars.id = SECT_VAR;
-    vector_init(&klc->vars.vec, sizeof(klc_var_t));
+    VectorInit(&klc->vars.vec, sizeof(klc_var_t));
 
     klc->funcs.id = SECT_FUNC;
-    vector_init(&klc->funcs.vec, sizeof(klc_func_t));
+    VectorInit(&klc->funcs.vec, sizeof(klc_func_t));
 
     klc->codes.id = SECT_CODE;
-    vector_init(&klc->codes.vec, sizeof(klc_code_t *));
+    VectorInit(&klc->codes.vec, sizeof(klc_code_t *));
 
     return klc;
 }
 
 void klc_destroy(klc_image_t *klc)
 {
-    mm_free(klc);
+    MemFree(klc);
 }
 
 static void make_pkgs_dir(char *dir, int len)
@@ -414,14 +414,14 @@ static void write_str_sect(klc_image_t *klc, FILE *fp)
     Vector *vec;
     klc_str_t *str;
     vec = &klc->strs.vec;
-    uint16_t count = vector_size(vec);
+    uint16_t count = VectorSize(vec);
     if (count > 0) {
         id = SECT_STR;
         WRITE_OBJECT(id);
         WRITE_OBJECT(count);
     }
 
-    vector_foreach(str, vec)
+    VectorForEach(str, vec)
     {
         WRITE_OBJECT(str->len);
         WRITE_STRING(str->s, str->len);
@@ -438,7 +438,7 @@ static void read_str_sect(klc_image_t *klc, FILE *fp)
     char *s;
     while (count-- > 0) {
         READ_OBJECT(len);
-        s = mm_alloc(len + 1);
+        s = MemAlloc(len + 1);
         READ_STRING(s, len);
         klc_str_set(klc, s, len);
     }
@@ -450,14 +450,14 @@ static void write_const_sect(klc_image_t *klc, FILE *fp)
     Vector *vec;
     klc_const_t *val;
     vec = &klc->consts.vec;
-    uint16_t count = vector_size(vec);
+    uint16_t count = VectorSize(vec);
     if (count > 0) {
         id = SECT_CONST;
         WRITE_OBJECT(id);
         WRITE_OBJECT(count);
     }
 
-    vector_foreach(val, vec)
+    VectorForEach(val, vec)
     {
         WRITE_OBJECT(val->tag);
         switch (val->tag) {
@@ -507,7 +507,7 @@ static void read_const_sect(klc_image_t *klc, FILE *fp)
     klc_const_t val;
     while (count-- > 0) {
         READ_OBJECT(tag);
-        val = (klc_const_t) {};
+        val = (klc_const_t){};
         val.tag = tag;
         switch (tag) {
             case CONST_INT8:
@@ -552,7 +552,7 @@ static void write_type_sect(klc_image_t *klc, FILE *fp)
     Vector *vec;
     klc_type_t **type;
     vec = &klc->types.vec;
-    uint16_t count = vector_size(vec);
+    uint16_t count = VectorSize(vec);
     if (count > 0) {
         id = SECT_TYPE;
         WRITE_OBJECT(id);
@@ -560,19 +560,19 @@ static void write_type_sect(klc_image_t *klc, FILE *fp)
     }
 
     uint8_t tag;
-    vector_foreach(type, vec)
+    VectorForEach(type, vec)
     {
         tag = (*type)->tag;
         WRITE_OBJECT(tag);
         if (_isproto(tag)) {
             klc_type_proto_t *proto = (klc_type_proto_t *)*type;
             WRITE_OBJECT(proto->rtype);
-            uint16_t count = vector_size(proto->ptypes);
+            uint16_t count = VectorSize(proto->ptypes);
             WRITE_OBJECT(count);
             int16_t index;
             int i = 0;
             while (count-- > 0) {
-                vector_get(proto->ptypes, i++, &index);
+                VectorGet(proto->ptypes, i++, &index);
                 WRITE_OBJECT(index);
             }
         }
@@ -602,17 +602,16 @@ static void read_type_sect(klc_image_t *klc, FILE *fp)
             /* para types */
             Vector *ptypes = NULL;
             if (count > 0) {
-                ptypes = vector_new(sizeof(int16_t));
+                ptypes = VectorCreate(sizeof(int16_t));
                 int16_t idx;
                 while (count-- > 0) {
                     READ_OBJECT(idx);
-                    vector_push_back(ptypes, &idx);
+                    VectorPushBack(ptypes, &idx);
                 }
             }
 
             _add_proto(klc, rtype, ptypes);
-        }
-        else
+        } else
             abort();
     }
 }
@@ -623,14 +622,14 @@ static void write_var_sect(klc_image_t *klc, FILE *fp)
     Vector *vec;
     klc_var_t *var;
     vec = &klc->vars.vec;
-    uint16_t count = vector_size(vec);
+    uint16_t count = VectorSize(vec);
     if (count > 0) {
         id = SECT_VAR;
         WRITE_OBJECT(id);
         WRITE_OBJECT(count);
     }
 
-    vector_foreach(var, vec)
+    VectorForEach(var, vec)
     {
         WRITE_OBJECT(var->flags);
         WRITE_OBJECT(var->name);
@@ -661,24 +660,24 @@ static void write_func_sect(klc_image_t *klc, FILE *fp)
     Vector *vec;
     klc_func_t *fn;
     vec = &klc->funcs.vec;
-    uint16_t count = vector_size(vec);
+    uint16_t count = VectorSize(vec);
     if (count > 0) {
         id = SECT_FUNC;
         WRITE_OBJECT(id);
         WRITE_OBJECT(count);
     }
 
-    vector_foreach(fn, vec)
+    VectorForEach(fn, vec)
     {
         WRITE_OBJECT(fn->flags);
         WRITE_OBJECT(fn->name);
         WRITE_OBJECT(fn->type);
         WRITE_OBJECT(fn->code);
-        count = vector_size(fn->locals);
+        count = VectorSize(fn->locals);
         WRITE_OBJECT(count);
-        count = vector_size(fn->paratypes);
+        count = VectorSize(fn->paratypes);
         WRITE_OBJECT(count);
-        count = vector_size(fn->freevars);
+        count = VectorSize(fn->freevars);
         WRITE_OBJECT(count);
     }
 }
@@ -704,12 +703,12 @@ static void read_func_sect(klc_image_t *klc, FILE *fp)
         };
         READ_OBJECT(cnt);
         if (cnt > 0) {
-            fn.locals = vector_new(sizeof(klc_var_t));
+            fn.locals = VectorCreate(sizeof(klc_var_t));
             //_add_locals(klc, &fn, ci->locvec);
         }
         READ_OBJECT(cnt);
         READ_OBJECT(cnt);
-        vector_push_back(&klc->funcs.vec, &fn);
+        VectorPushBack(&klc->funcs.vec, &fn);
     }
 }
 
@@ -719,14 +718,14 @@ static void write_code_sect(klc_image_t *klc, FILE *fp)
     Vector *vec;
     klc_code_t **code;
     vec = &klc->codes.vec;
-    uint16_t count = vector_size(vec);
+    uint16_t count = VectorSize(vec);
     if (count > 0) {
         id = SECT_CODE;
         WRITE_OBJECT(id);
         WRITE_OBJECT(count);
     }
 
-    vector_foreach(code, vec)
+    VectorForEach(code, vec)
     {
         WRITE_OBJECT((*code)->size);
         WRITE_BYTES((*code)->codes, (*code)->size);
@@ -743,13 +742,13 @@ static void read_code_sect(klc_image_t *klc, FILE *fp)
     klc_code_t *code;
     while (count-- > 0) {
         READ_OBJECT(size);
-        code = mm_alloc(sizeof(klc_code_t) + size);
+        code = MemAlloc(sizeof(klc_code_t) + size);
         code->size = size;
         READ_BYTES(code->codes, size);
 
         Vector *vec = &klc->codes.vec;
-        int16_t idx = vector_size(vec);
-        vector_push_back(vec, &code);
+        int16_t idx = VectorSize(vec);
+        VectorPushBack(vec, &code);
     }
 }
 
@@ -835,7 +834,7 @@ static void klc_str_show(klc_image_t *klc)
     klc_sect_t *sec = &klc->strs;
     printf("\nStrings:\n\n");
     klc_str_t *str;
-    vector_foreach(str, &sec->vec)
+    VectorForEach(str, &sec->vec)
     {
         printf("  #%u: \"%s\"\n", i, str->s);
     }
@@ -855,7 +854,7 @@ static void _proto_str(klc_type_t *type, show_info_t *info)
     show_info_t showinfo = { info->klc, info->buf, 1 };
     klc_type_t *item;
     int16_t *type_index;
-    vector_foreach(type_index, proto->ptypes)
+    VectorForEach(type_index, proto->ptypes)
     {
         item = _type_index(info->klc, *type_index);
         if (i > 0) strcat(info->buf, ", ");
@@ -888,7 +887,7 @@ static void klc_type_show(klc_image_t *klc)
     show_info_t info = { klc, buf, 1 };
 
     klc_type_t **type;
-    vector_foreach(type, &sec->vec)
+    VectorForEach(type, &sec->vec)
     {
         buf[0] = '\0';
         _type_str(*type, &info);
@@ -901,7 +900,7 @@ static void klc_const_show(klc_image_t *klc)
     klc_sect_t *sec = &klc->consts;
     printf("\nConstant Pool:\n\n");
     klc_const_t *val;
-    vector_foreach(val, &sec->vec)
+    VectorForEach(val, &sec->vec)
     {
         switch (val->tag) {
             case CONST_INT8:
@@ -927,7 +926,7 @@ static void klc_const_show(klc_image_t *klc)
                 break;
             case CONST_CHAR: {
                 char wch[8] = { ((char *)&val->ch)[2], ((char *)&val->ch)[1],
-                    ((char *)&val->ch)[0], 0 };
+                                ((char *)&val->ch)[0], 0 };
                 printf("  #%u = char %x '%s'\n", i, val->ch, wch);
                 break;
             }
@@ -958,10 +957,10 @@ static void klc_var_show(klc_image_t *klc)
     klc_type_t *type;
     klc_var_t *var;
     char *s1;
-    vector_foreach(var, &sec->vec)
+    VectorForEach(var, &sec->vec)
     {
-        str = vector_get_ptr(strs, var->name);
-        vector_get(types, var->type, &type);
+        str = VectorGetPtr(strs, var->name);
+        VectorGet(types, var->type, &type);
         buf[0] = '\0';
         _type_str(type, &info);
         s1 = (var->flags & ACCESS_FLAGS_FINAL) ? "const" : "var";
@@ -998,10 +997,10 @@ static void klc_func_show(klc_image_t *klc)
     klc_str_t *str;
     klc_type_t *type;
     klc_func_t *fn;
-    vector_foreach(fn, &sec->vec)
+    VectorForEach(fn, &sec->vec)
     {
-        str = vector_get_ptr(strs, fn->name);
-        vector_get(types, fn->type, &type);
+        str = VectorGetPtr(strs, fn->name);
+        VectorGet(types, fn->type, &type);
         buf[0] = '\0';
         _proto_str(type, &info);
         if (fn->flags & ACCESS_FLAGS_PUB)

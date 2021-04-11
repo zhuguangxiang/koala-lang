@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,20 +41,20 @@ typedef struct _List {
 #define LIST_INIT(name) { &(name), &(name) }
 // clang-format on
 
-static inline void init_list(ListRef list)
+static inline void InitList(ListRef list)
 {
     list->prev = list;
     list->next = list;
 }
 
 /* Test whether a list is empty */
-static inline int list_empty(const ListRef list)
+static inline int ListEmpty(ListRef list)
 {
     return list->next == list;
 }
 
 /* Insert a new entry between two known consecutive entries */
-static inline void __list_add(ListRef new__, ListRef prev, ListRef next)
+static inline void __ListAdd(ListRef new__, ListRef prev, ListRef next)
 {
     next->prev = new__;
     new__->next = next;
@@ -63,102 +63,102 @@ static inline void __list_add(ListRef new__, ListRef prev, ListRef next)
 }
 
 /* Insert a new entry after 'prev' entry */
-static inline void list_add_after(ListRef new__, ListRef prev)
+static inline void ListAddAfter(ListRef new__, ListRef prev)
 {
-    __list_add(new__, prev, prev->next);
+    __ListAdd(new__, prev, prev->next);
 }
 
 /* Insert a new entry before 'next' entry */
-static inline void list_add_before(ListRef new__, ListRef next)
+static inline void ListAddBefore(ListRef new__, ListRef next)
 {
-    __list_add(new__, next->prev, next);
+    __ListAdd(new__, next->prev, next);
 }
 
 /* Insert a new entry at front */
-static inline void list_push_front(ListRef list, ListRef new__)
+static inline void ListPushFront(ListRef list, ListRef new__)
 {
-    __list_add(new__, list, list->next);
+    __ListAdd(new__, list, list->next);
 }
 
 /* Insert a new entry at tail */
-static inline void list_push_back(ListRef list, ListRef new__)
+static inline void ListPushBack(ListRef list, ListRef new__)
 {
-    __list_add(new__, list->prev, list);
+    __ListAdd(new__, list->prev, list);
 }
 
 /* Remove a entry by making the prev/next entries pointer to each other. */
-static inline void __list_remove(ListRef prev, ListRef next)
+static inline void __ListRemove(ListRef prev, ListRef next)
 {
     next->prev = prev;
     prev->next = next;
 }
 
 /* Remove an entry from list */
-static inline void list_remove(ListRef entry)
+static inline void ListRemove(ListRef entry)
 {
-    __list_remove(entry->prev, entry->next);
-    init_list(entry);
+    __ListRemove(entry->prev, entry->next);
+    InitList(entry);
 }
 
 /* Pop an entry at front */
-static inline ListRef list_pop_front(ListRef list)
+static inline ListRef ListPopFront(ListRef list)
 {
     ListRef entry = list->next;
     if (entry == list) return NULL;
-    list_remove(entry);
+    ListRemove(entry);
     return entry;
 }
 
 /* Pop an entry at tail */
-static inline ListRef list_pop_back(ListRef list)
+static inline ListRef ListPopBack(ListRef list)
 {
     ListRef entry = list->prev;
     if (entry == list) return NULL;
-    list_remove(entry);
+    ListRemove(entry);
     return entry;
 }
 
 // clang-format off
 
 /* Get the entry in which is embedded */
-#define list_entry(ptr, type, member) CONTAINER_OF(ptr, type, member)
+#define ListEntry(ptr, type, member) CONTAINER_OF(ptr, type, member)
 
 /* Get the first element from a list */
-#define list_first(list, type, member) ({ \
+#define ListFirst(list, type, member) ({ \
     ListRef head__ = (list); \
     ListRef pos__ = head__->next; \
-    pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
+    pos__ != head__ ? ListEntry(pos__, type, member) : NULL; \
 })
 
 /* Get the last element from a list */
-#define list_last(list, type, member) ({ \
+#define ListLast(list, type, member) ({ \
     ListRef head__ = (list); \
     ListRef pos__ = head__->prev; \
-    pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
+    pos__ != head__ ? ListEntry(pos__, type, member) : NULL; \
 })
 
 /* Get the next element from a list */
-#define list_next(pos, member, list) ({ \
+#define ListNext(pos, member, list) ({ \
     ListRef head__ = (list); \
     ListRef nxt__ = (pos)->member.next; \
-    nxt__ != head__ ? list_entry(nxt__, typeof(*(pos)), member) : NULL; \
+    nxt__ != head__ ? ListEntry(nxt__, typeof(*(pos)), member) : NULL; \
 })
 
 /* Get the previous element from a list */
-#define list_prev(pos, member, list) ({ \
+#define ListPrev(pos, member, list) ({ \
     ListRef head__ = (list); \
     ListRef prev__ = (pos)->member.prev; \
-    prev__ != head__ ? list_entry(prev__, typeof(*(pos)), member) : NULL; \
+    prev__ != head__ ? ListEntry(prev__, typeof(*(pos)), member) : NULL; \
 })
 
-#define list_foreach(v__, member, list, closure) \
-    for (v__ = list_first(list, typeof(*(v__)), member); \
-         v__; v__ = list_next(v__, member, list)) closure;
+#define ListForEach(v__, member, list, closure) \
+    for (v__ = ListFirst(list, typeof(*(v__)), member); \
+         v__; v__ = ListNext(v__, member, list)) closure;
 
-#define list_foreach_safe(v__, n__, member, list, closure) \
-    for (v__ = list_first(list, typeof(*(v__)), member), \
-         n__ = v__ ? list_next(v__, member, list) : NULL; \
-         v__ && ({ n__ = list_next(v__, member, list); 1;}); v__ = n__) closure;
+#define ListForEachSafe(v__, n__, member, list, closure) \
+    for (v__ = ListFirst(list, typeof(*(v__)), member), \
+         n__ = v__ ? ListNext(v__, member, list) : NULL; \
+         v__ && ({ n__ = ListNext(v__, member, list); 1;}); v__ = n__) closure;
 
 // clang-format on
 

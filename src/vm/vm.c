@@ -29,7 +29,7 @@ static void __new_callinfo(KoalaState *ks)
     Object *meth = func->_v.obj;
     int nloc = method_get_nloc(meth);
 
-    CallInfo *ci = mm_alloc(sizeof(CallInfo));
+    CallInfo *ci = MemAlloc(sizeof(CallInfo));
     ci->back = back;
     ci->func = func;
     ci->top = func + nloc;
@@ -47,7 +47,7 @@ static void __free_callinfo(KoalaState *ks)
     ks->ci = back;
     ks->top = back->top;
     ks->nci--;
-    mm_free(ci);
+    MemFree(ci);
 }
 
 #define NEXT_OP() (assert(pc < codesize), codes[pc++])
@@ -144,8 +144,7 @@ void eval(KoalaState *ks)
                         x._v.bval += y._v.bval;
                         PUSH(x);
                     }
-                }
-                else {
+                } else {
                 }
                 break;
             }
@@ -174,10 +173,10 @@ DLLEXPORT KoalaState *kl_new_state(void)
     KoalaState *ks;
 
     /* create new koalastate */
-    ks = mm_alloc(sizeof(*ks));
+    ks = MemAlloc(sizeof(*ks));
 
     /* initialize stack  */
-    ks->stack = mm_alloc(MAX_STACK_SIZE * sizeof(TValueRef));
+    ks->stack = MemAlloc(MAX_STACK_SIZE * sizeof(TValueRef));
     ks->stacksize = MAX_STACK_SIZE;
     ks->stack_last = ks->stack + ks->stacksize;
     ks->top = ks->stack;
@@ -229,8 +228,7 @@ void kl_do_call(KoalaState *ks)
             to_value(&val, proto->rtype, ret);
             *++ks->top = val;
         }
-    }
-    else {
+    } else {
         assert(meth->kind == KFUNC_KIND);
         __new_callinfo(ks);
         eval(ks);

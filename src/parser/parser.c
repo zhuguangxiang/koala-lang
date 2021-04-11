@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,17 +48,17 @@ static void _mod_free_(void *e, void *arg)
     Module *mod = e;
     printf("free module(parser) '%s'", mod->path);
     stbl_free(mod->stbl);
-    mm_free(mod);
+    MemFree(mod);
 }
 
 void init_parser(void)
 {
-    hashmap_init(&modules, _mod_equal_);
+    HashMapInit(&modules, _mod_equal_);
 }
 
 void fini_parser(void)
 {
-    hashmap_fini(&modules, _mod_free_, NULL);
+    HashMapFini(&modules, _mod_free_, NULL);
 }
 
 void do_klass_typeparams(ParserStateRef ps, char *name)
@@ -70,7 +70,7 @@ void show_error_detail(ParserStateRef ps, int row, int col)
 {
     // clang-format off
     /*
-    printf("%5d | %s\n", row, SBUF_STR(ps->linebuf));
+    printf("%5d | %s\n", row, BUF_STR(ps->linebuf));
     printf("      | %*s" RED_COLOR(^) "\n", col, "");
     */
     // clang-format on

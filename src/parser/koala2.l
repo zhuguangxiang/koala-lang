@@ -12,9 +12,9 @@
 %{
 
 #include <stdio.h>
-#include "readline.h"
+#include "ReadLine.h"
 
-#define YY_INPUT(buf, result, size) result = readline("> ", buf, size)
+#define YY_INPUT(buf, result, size) result = ReadLine("> ", buf, size)
 #define YY_USER_ACTION
 #define YY_RETURN(x)
 
@@ -286,10 +286,10 @@ int yywrap(yyscan_t yyscanner)
 
 int main(int argc, char *argv[])
 {
-    init_line();
+    InitReadLine();
     yyscan_t scan;
     yylex_init(&scan);
     yylex(scan);
-    fini_line();
+    FiniReadLine();
     return 0;
 }

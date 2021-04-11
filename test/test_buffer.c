@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,16 +21,25 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KLVM_H_
-#define _KLVM_H_
+#include "buffer.h"
 
-#define _KLVM_H_INSIDE_
+int main(int argc, char *argv[])
+{
+    BUF(buf);
 
-#include "klvm_inst.h"
-#include "klvm_mod.h"
-#include "klvm_type.h"
-#include "klvm_value.h"
+    char *s = "Hello, Koala";
+    BufWriteStr(&buf, s);
+    BufWriteStr(&buf, s);
+    BufWriteStr(&buf, s);
+    assert(buf.len == 36 && buf.size == 64);
 
-#undef _KLVM_H_INSIDE_
+    BufWriteChar(&buf, 'O');
+    BufWriteChar(&buf, 'K');
+    assert(buf.len == 38 && buf.size == 64);
 
-#endif /* _KLVM_H_ */
+    s = BUF_STR(buf);
+    assert(!strcmp(s, "Hello, KoalaHello, KoalaHello, KoalaOK"));
+
+    FINI_BUF(buf);
+    return 0;
+}

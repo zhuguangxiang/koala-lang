@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@
 
 static struct termios orig;
 
-void init_line(void)
+void InitReadLine(void)
 {
     /* save old */
     struct termios raw;
@@ -55,7 +55,7 @@ void init_line(void)
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-void fini_line(void)
+void FiniReadLine(void)
 {
     /* reset term mode */
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig);
@@ -86,7 +86,7 @@ enum KEY_ACTION {
 };
 
 /* line editor state */
-typedef struct linestate {
+typedef struct _LineState {
     /* in fd */
     int in;
     /* out fd */
@@ -105,9 +105,9 @@ typedef struct linestate {
     int plen;
     /* column */
     int col;
-} LineState;
+} LineState, *LineStateRef;
 
-static void refresh(LineState *ls)
+static void refresh(LineStateRef ls)
 {
     char buf[ls->bufsize];
 
@@ -127,7 +127,7 @@ static void refresh(LineState *ls)
     if (write(ls->out, buf, len) < 0) return;
 }
 
-static void refresh_cursor(LineState *ls)
+static void refresh_cursor(LineStateRef ls)
 {
     char buf[16];
 
@@ -137,7 +137,7 @@ static void refresh_cursor(LineState *ls)
     if (write(ls->out, buf, len) < 0) return;
 }
 
-static void line_insert(LineState *ls, char *s, int count)
+static void line_insert(LineStateRef ls, char *s, int count)
 {
     if (ls->len + count >= ls->bufsize) return;
 
@@ -173,18 +173,18 @@ static void line_insert(LineState *ls, char *s, int count)
     }
 }
 
-static inline void insert_tab(LineState *ls)
+static inline void insert_tab(LineStateRef ls)
 {
     line_insert(ls, "    ", 4);
 }
 
-static inline void do_newline(LineState *ls)
+static inline void do_newline(LineStateRef ls)
 {
     ls->pos = ls->len;
     line_insert(ls, "\n\r", 2);
 }
 
-static inline void move_home(LineState *ls)
+static inline void move_home(LineStateRef ls)
 {
     if (ls->pos != 0) {
         ls->pos = 0;
@@ -192,7 +192,7 @@ static inline void move_home(LineState *ls)
     }
 }
 
-static inline void move_end(LineState *ls)
+static inline void move_end(LineStateRef ls)
 {
     if (ls->pos != ls->len) {
         ls->pos = ls->len;
@@ -200,7 +200,7 @@ static inline void move_end(LineState *ls)
     }
 }
 
-static void do_backspace(LineState *ls)
+static void do_backspace(LineStateRef ls)
 {
     if (ls->pos > 0 && ls->len > 0) {
         char *from = ls->buf + ls->pos;
@@ -213,7 +213,7 @@ static void do_backspace(LineState *ls)
     }
 }
 
-static inline void move_left(LineState *ls)
+static inline void move_left(LineStateRef ls)
 {
     if (ls->pos > 0) {
         ls->pos--;
@@ -221,7 +221,7 @@ static inline void move_left(LineState *ls)
     }
 }
 
-static inline void move_right(LineState *ls)
+static inline void move_right(LineStateRef ls)
 {
     if (ls->pos != ls->len) {
         ls->pos++;
@@ -229,7 +229,7 @@ static inline void move_right(LineState *ls)
     }
 }
 
-static void do_esc(LineState *ls)
+static void do_esc(LineStateRef ls)
 {
     char seq[2];
     if (read(ls->in, seq, 2) < 0) return;
@@ -338,15 +338,15 @@ static int line_edit(int in, int out, char *buf, int len, char *prompt)
             case CTRL_W:
                 break;
             case CTRL_Z: // stop self
-                fini_line();
+                FiniReadLine();
                 raise(SIGTSTP);
-                init_line();
+                InitReadLine();
                 break;
         }
     }
 }
 
-int readline(char *prompt, char *buf, int len)
+int ReadLine(char *prompt, char *buf, int len)
 {
     return line_edit(STDIN_FILENO, STDOUT_FILENO, buf, len, prompt);
 }

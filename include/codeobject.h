@@ -48,7 +48,7 @@ static inline void code_add_locvar(Object *obj, char *name, TypeDesc *type)
 {
     CodeObject *cobj = (CodeObject *)obj;
     locvar_t locvar = { name, type };
-    vector_push_back(&cobj->locals, &locvar);
+    VectorPushBack(&cobj->locals, &locvar);
 }
 
 #ifdef __cplusplus

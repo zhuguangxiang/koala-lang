@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,7 @@
  */
 
 /*
- * An atom is a null-terminated string cached in internal hashmap.
+ * An Atom is a null-terminated string cached in internal hashmap.
  * With null-terminated, it's convenient to operate it like c-string.
  */
 
@@ -33,20 +33,20 @@
 extern "C" {
 #endif
 
-/* New an atom string with null-terminated string. */
-char *atom(char *str);
+/* New an Atom string with null-terminated string. */
+char *AtomStr(char *str);
 
-/* New an atom string with length-ed string. */
-char *atom_nstr(char *str, int len);
+/* New an Atom string with length-ed string. */
+char *AtomNStr(char *str, int len);
 
-/* Concat 'arc' null-terminated strings into one atom string. */
-char *atom_vstr(int argc, ...);
+/* Concat 'arc' null-terminated strings into one Atom string. */
+char *AtomVStr(int argc, ...);
 
-/* Initialize atom string internal hashmap */
-void init_atom(void);
+/* Initialize Atom string internal hashmap */
+void InitAtom(void);
 
-/* Free hashmap and atom string memory */
-void fini_atom(void);
+/* Free hashmap and Atom string memory */
+void FiniAtom(void);
 
 #ifdef __cplusplus
 }

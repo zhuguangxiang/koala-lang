@@ -7,9 +7,9 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
+#include <dlfcn.h>
 #include "cf_ffi.h"
 #include "codeobject.h"
-#include <dlfcn.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,9 +34,9 @@ static int mnode_equal(void *e1, void *e2)
 
 static struct mnode *mnode_new(char *name, void *obj)
 {
-    struct mnode *n = mm_alloc(sizeof(*n));
+    struct mnode *n = MemAlloc(sizeof(*n));
     n->name = name;
-    hashmap_entry_init(n, strhash(name));
+    HashMapEntryInit(n, StrHash(name));
     n->obj = obj;
     return n;
 }
@@ -45,7 +45,7 @@ static void mnode_free(void *e, void *arg)
 {
     struct mnode *n = e;
     printf("debug: `%s` is freed\n", n->name);
-    mm_free(n);
+    MemFree(n);
 }
 
 static void mnode_show(void *e, void *arg)
@@ -56,37 +56,41 @@ static void mnode_show(void *e, void *arg)
 
 HashMap *mtbl_create(void)
 {
-    HashMap *mtbl = mm_alloc(sizeof(*mtbl));
-    hashmap_init(mtbl, mnode_equal);
+    HashMap *mtbl = MemAlloc(sizeof(*mtbl));
+    HashMapInit(mtbl, mnode_equal);
     return mtbl;
 }
 
 int mtbl_add(HashMap *mtbl, char *name, void *obj)
 {
     struct mnode *n = mnode_new(name, obj);
-    int ret = hashmap_put_absent(mtbl, n);
-    if (ret) { printf("error: duplicated object `%s` in meta-table\n", name); }
+    int ret = HashMapPutAbsent(mtbl, n);
+    if (ret) {
+        printf("error: duplicated object `%s` in meta-table\n", name);
+    }
     return ret;
 }
 
 void *mtbl_find(HashMap *mtbl, char *name)
 {
     struct mnode key = { .name = name };
-    hashmap_entry_init(&key, strhash(name));
-    struct mnode *find = hashmap_get(mtbl, &key);
-    if (find) { return find->obj; }
+    HashMapEntryInit(&key, StrHash(name));
+    struct mnode *find = HashMapGet(mtbl, &key);
+    if (find) {
+        return find->obj;
+    }
     return NULL;
 }
 
 void mtbl_destroy(HashMap *mtbl)
 {
-    hashmap_fini(mtbl, mnode_free, NULL);
+    HashMapFini(mtbl, mnode_free, NULL);
 }
 
 void mtbl_show(HashMap *mtbl)
 {
     if (!mtbl) return;
-    hashmap_visit(mtbl, mnode_show, NULL);
+    HashMapVisit(mtbl, mnode_show, NULL);
 }
 
 struct meta_visit_info {
@@ -105,7 +109,7 @@ void mtbl_visit(HashMap *mtbl, mvisit_t func, void *arg)
 {
     if (!mtbl) return;
     struct meta_visit_info vi = { func, arg };
-    hashmap_visit(mtbl, mnode_visit, &vi);
+    HashMapVisit(mtbl, mnode_visit, &vi);
 }
 
 /* `Type` type */
@@ -131,7 +135,7 @@ static inline HashMap *__get_mtbl(TypeObject *type)
 static int lro_find(Vector *vec, struct lro_info *lro)
 {
     struct lro_info *item;
-    vector_foreach(item, vec)
+    VectorForEach(item, vec)
     {
         if (item->type == lro->type) return 1;
     }
@@ -142,7 +146,7 @@ static inline Vector *__get_lro(TypeObject *type)
 {
     Vector *vec = type->lro;
     if (!vec) {
-        vec = vector_new(sizeof(struct lro_info));
+        vec = VectorCreate(sizeof(struct lro_info));
         type->lro = vec;
     }
     return vec;
@@ -154,16 +158,18 @@ static void lro_build_one(TypeObject *type, TypeObject *base)
 
     struct lro_info lro = { NULL, NULL };
     struct lro_info *item;
-    vector_foreach(item, base->lro)
+    VectorForEach(item, base->lro)
     {
         if (!lro_find(vec, item)) {
             lro.type = item->type;
-            vector_push_back(vec, &lro);
+            VectorPushBack(vec, &lro);
         }
     }
 
     lro.type = base;
-    if (!lro_find(vec, &lro)) { vector_push_back(vec, &lro); }
+    if (!lro_find(vec, &lro)) {
+        VectorPushBack(vec, &lro);
+    }
 }
 
 static void lro_build(TypeObject *type)
@@ -176,7 +182,7 @@ static void lro_build(TypeObject *type)
 
     /* add trait types */
     TypeObject **item;
-    vector_foreach(item, type->traits)
+    VectorForEach(item, type->traits)
     {
         lro_build_one(type, *item);
     }
@@ -187,15 +193,15 @@ static void lro_build(TypeObject *type)
 
 static void mro_build_one(Vector *vec, TypeObject *self)
 {
-    if (vector_empty(vec)) return;
+    if (VectorEmpty(vec)) return;
 
     Object *find;
     MethodObject **mobj;
-    vector_foreach(mobj, vec)
+    VectorForEach(mobj, vec)
     {
         find = mtbl_find(self->mtbl, (*mobj)->name);
         assert(find);
-        vector_push_back(self->mro, &find);
+        VectorPushBack(self->mro, &find);
     }
 }
 
@@ -204,13 +210,13 @@ static void mro_build(TypeObject *type)
     /* new type->mro */
     Vector *mro = type->mro;
     if (!mro) {
-        mro = vector_new(sizeof(void *));
+        mro = VectorCreate(sizeof(void *));
         type->mro = mro;
     }
 
     /* iterate lro types */
     struct lro_info *item;
-    vector_foreach(item, type->lro)
+    VectorForEach(item, type->lro)
     {
         mro_build_one(item->type->methods, type);
     }
@@ -219,13 +225,13 @@ static void mro_build(TypeObject *type)
 static void lro_build_inherit(TypeObject *type)
 {
     struct lro_info *item;
-    vector_foreach_reverse(item, type->lro)
+    VectorForEachReverse(item, type->lro)
     {
         if (item->type == type) continue;
 
         /* method */
         MethodObject **mobj;
-        vector_foreach(mobj, item->type->methods)
+        VectorForEach(mobj, item->type->methods)
         {
             mtbl_add(__get_mtbl(type), (*mobj)->name, (Object *)*mobj);
         }
@@ -236,14 +242,14 @@ static void lro_build_inherit(TypeObject *type)
 static void lro_update_base_mro(struct lro_info *item, TypeObject *self)
 {
     TypeObject *trait = item->type;
-    Vector *mro = vector_new(sizeof(void *));
+    Vector *mro = VectorCreate(sizeof(void *));
     Object *obj;
     MethodObject **mobj;
-    vector_foreach(mobj, trait->mro)
+    VectorForEach(mobj, trait->mro)
     {
         obj = mtbl_find(self->mtbl, (*mobj)->name);
         assert(obj);
-        vector_push_back(mro, &obj);
+        VectorPushBack(mro, &obj);
     }
     assert(!item->mro);
     item->mro = mro;
@@ -252,18 +258,18 @@ static void lro_update_base_mro(struct lro_info *item, TypeObject *self)
 static void lro_update_mro(TypeObject *type)
 {
     Vector *vec = type->lro;
-    int len = vector_size(vec);
+    int len = VectorSize(vec);
     struct lro_info *item;
 
     /* `Any` */
-    item = vector_get_ptr(vec, 0);
+    item = VectorGetPtr(vec, 0);
     item->mro = type->mro;
 
     /* first super type(class or trait) */
     TypeObject *base = type->base;
     while (base) {
         struct lro_info *item;
-        vector_foreach(item, vec)
+        VectorForEach(item, vec)
         {
             if (item->type == base) {
                 item->mro = type->mro;
@@ -274,11 +280,11 @@ static void lro_update_mro(TypeObject *type)
     }
 
     /* `Self` */
-    item = vector_get_ptr(vec, len - 1);
+    item = VectorGetPtr(vec, len - 1);
     item->mro = type->mro;
 
     /* other super type(tratis) */
-    vector_foreach(item, vec)
+    VectorForEach(item, vec)
     {
         if (item->mro) continue;
         lro_update_base_mro(item, type);
@@ -287,7 +293,7 @@ static void lro_update_mro(TypeObject *type)
 
 void *__alloc_meta_object(int size)
 {
-    void **obj = mm_alloc(sizeof(void *) + size);
+    void **obj = MemAlloc(sizeof(void *) + size);
     *obj = type_type;
     return (void *)(obj + 1);
 }
@@ -341,7 +347,7 @@ void type_show(TypeObject *type)
     /* show lro */
     printf("lro:\n");
     struct lro_info *item;
-    vector_foreach(item, type->lro)
+    VectorForEach(item, type->lro)
     {
         if (i < len - 1)
             printf("%s(%p) <- ", item->type->name, item->mro);
@@ -353,7 +359,7 @@ void type_show(TypeObject *type)
     /* show lro methods */
     printf("mro:%p\n", type->mro);
     MethodObject **mobj;
-    vector_foreach(mobj, type->mro)
+    VectorForEach(mobj, type->mro)
     {
         printf("%s(%p)\n", (*mobj)->name, *mobj);
     }
@@ -373,11 +379,11 @@ void type_append_base(TypeObject *type, TypeObject *base)
 
     Vector *vec = type->traits;
     if (!vec) {
-        vec = vector_new(sizeof(TypeObject *));
+        vec = VectorCreate(sizeof(TypeObject *));
         type->traits = vec;
     }
 
-    vector_push_back(vec, &base);
+    VectorPushBack(vec, &base);
 }
 
 int type_add_type(TypeObject *mod, TypeObject *type)
@@ -406,10 +412,10 @@ int type_add_methdef(TypeObject *type, MethodDef *def)
     Object *obj = cmethod_new(def);
     Vector *vec = type->methods;
     if (!vec) {
-        vec = vector_new(sizeof(void *));
+        vec = VectorCreate(sizeof(void *));
         type->methods = vec;
     }
-    vector_push_back(vec, &obj);
+    VectorPushBack(vec, &obj);
     return mtbl_add(__get_mtbl(type), def->name, obj);
 }
 
@@ -488,7 +494,7 @@ int method_get_nloc(Object *meth)
     MethodObject *mobj = (MethodObject *)meth;
     if (mobj->kind != KFUNC_KIND) return 0;
     CodeObject *cobj = mobj->ptr;
-    return vector_size(&cobj->loc);
+    return VectorSize(&cobj->loc);
 }
 
 DLLEXPORT Object *kl_type_name(Object *self)

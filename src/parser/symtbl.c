@@ -1,6 +1,6 @@
 /*
  * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,32 +36,32 @@ static int symbol_equal(void *k1, void *k2)
 
 SymTblRef stbl_new(void)
 {
-    SymTblRef stbl = mm_alloc(sizeof(*stbl));
-    hashmap_init(&stbl->table, symbol_equal);
+    SymTblRef stbl = MemAlloc(sizeof(*stbl));
+    HashMapInit(&stbl->table, symbol_equal);
     return stbl;
 }
 
 static void _symbol_free_(void *e, void *arg)
 {
     SymbolRef sym = e;
-    mm_free(sym);
+    MemFree(sym);
 }
 
 void stbl_free(SymTblRef stbl)
 {
     if (stbl == NULL) return;
-    hashmap_fini(&stbl->table, _symbol_free_, NULL);
-    mm_free(stbl);
+    HashMapFini(&stbl->table, _symbol_free_, NULL);
+    MemFree(stbl);
 }
 
 SymbolRef stbl_add_var(SymTblRef stbl, char *name, TypeRef ty)
 {
-    VarSymbolRef sym = mm_alloc(sizeof(*sym));
-    hashmap_entry_init(sym, strhash(name));
+    VarSymbolRef sym = MemAlloc(sizeof(*sym));
+    HashMapEntryInit(sym, StrHash(name));
     sym->kind = SYM_VAR;
     sym->name = name;
     sym->ty = ty;
-    if (hashmap_put_absent(&stbl->table, sym) < 0) {
+    if (HashMapPutAbsent(&stbl->table, sym) < 0) {
         printf("add symbol '%s' failed", sym->name);
     }
     return (SymbolRef)sym;
@@ -71,8 +71,8 @@ SymbolRef stbl_get(SymTblRef stbl, char *name)
 {
     if (stbl == NULL) return NULL;
     Symbol key = { .name = name };
-    hashmap_entry_init(&key, strhash(name));
-    return hashmap_get(&stbl->table, &key);
+    HashMapEntryInit(&key, StrHash(name));
+    return HashMapGet(&stbl->table, &key);
 }
 
 #ifdef __cplusplus
