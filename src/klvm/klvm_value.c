@@ -28,7 +28,153 @@ extern "C" {
 #endif
 
 /*--------------------------------------------------------------------------*\
-|* Module                                                                   *|
+|* Literal constant                                                         *|
+\*--------------------------------------------------------------------------*/
+
+KLVMValue *KLVMConstInt32(int32_t v)
+{
+    KLVMConstRef k = MemAllocWithPtr(k);
+    INIT_KLVM_VALUE_HEAD(k, KLVM_VALUE_CONST, KLVMTypeInt32(), "");
+    k->i32val = v;
+    return (KLVMValueRef)k;
+}
+
+/*--------------------------------------------------------------------------*\
+|* Basic Block                                                              *|
+\*--------------------------------------------------------------------------*/
+
+static KLVMBlockRef __new_block(KLVMValueRef fn, int dummy, char *label)
+{
+    KLVMBlockRef bb = MemAllocWithPtr(bb);
+    InitList(&bb->bb_link);
+    InitList(&bb->insts);
+    InitList(&bb->in_edges);
+    InitList(&bb->out_edges);
+    bb->fn = fn;
+    bb->label = label;
+    bb->dummy = dummy;
+    bb->tag = -1;
+    return bb;
+}
+
+KLVMBlockRef KLVMAppendBlock(KLVMValueRef _fn, char *label)
+{
+    KLVMBlockRef bb = __new_block(_fn, 0, label);
+    KLVMFuncRef fn = (KLVMFuncRef)_fn;
+    ListPushBack(&fn->bb_list, &bb->bb_link);
+    fn->num_bbs++;
+
+    if (ListEmpty(&fn->bb_list)) {
+        /* first block, add an edge <start, bb> */
+        KLVMLinkEdge(fn->sbb, bb);
+    }
+    return bb;
+}
+
+KLVMBlockRef KLVMAddBlock(KLVMBlockRef _bb, char *label)
+{
+    KLVMFuncRef fn = (KLVMFuncRef)_bb->fn;
+    KLVMBlockRef bb = __new_block((KLVMValueRef)fn, 0, label);
+    ListAdd(&_bb->bb_link, &bb->bb_link);
+    fn->num_bbs++;
+    return bb;
+}
+
+KLVMBlockRef KLVMAddBlockBefore(KLVMBlockRef _bb, char *label)
+{
+    KLVMFuncRef fn = (KLVMFuncRef)_bb->fn;
+    KLVMBlockRef bb = __new_block((KLVMValueRef)fn, 0, label);
+    ListAddBefore(&_bb->bb_link, &bb->bb_link);
+    fn->num_bbs++;
+    return bb;
+}
+
+void KLVMDeleteBlock(KLVMBlockRef bb)
+{
+    /* FIXME */
+    ListRemove(&bb->bb_link);
+    MemFree(bb);
+}
+
+/*--------------------------------------------------------------------------*\
+|* Block Edge                                                               *|
+\*--------------------------------------------------------------------------*/
+
+void KLVMLinkEdge(KLVMBlockRef src, KLVMBlockRef dst)
+{
+    KLVMEdgeRef edge = MemAllocWithPtr(edge);
+    edge->src = src;
+    edge->dst = dst;
+    InitList(&edge->link);
+    InitList(&edge->in_link);
+    InitList(&edge->out_link);
+    KLVMFuncRef fn = (KLVMFuncRef)src->fn;
+    ListPushBack(&fn->edge_list, &edge->link);
+    ListPushBack(&src->out_edges, &edge->out_link);
+    ListPushBack(&dst->in_edges, &edge->in_link);
+}
+
+/*--------------------------------------------------------------------------*\
+|* Instruction Builder                                                      *|
+\*--------------------------------------------------------------------------*/
+
+void KLVMSetBuilderAtEnd(KLVMBuilderRef bldr, KLVMBlockRef bb)
+{
+    bldr->bb = bb;
+    bldr->it = &bb->insts;
+}
+
+void KLVMSetBuilderAtHead(KLVMBuilderRef bldr, KLVMBlockRef bb)
+{
+    bldr->bb = bb;
+    bldr->it = bb->insts.prev;
+}
+
+/*--------------------------------------------------------------------------*\
+|* Function                                                                 *|
+\*--------------------------------------------------------------------------*/
+
+KLVMTypeRef KLVMGetFunctionType(KLVMValueRef fn)
+{
+    return NULL;
+}
+
+KLVMValueRef KLVMGetParam(KLVMValueRef _fn, int index)
+{
+    KLVMFuncRef fn = (KLVMFuncRef)_fn;
+    int num_params = fn->num_params;
+    if (index < 0 || index >= num_params) {
+        printf("error: index %d out of range(0 ..< %d)\n", index, num_params);
+        abort();
+    }
+
+    KLVMValueRef param = NULL;
+    VectorGet(&fn->locals, index, &param);
+    return param;
+}
+
+static KLVMVarRef __new_var(KLVMTypeRef ty, char *name)
+{
+    if (!name) {
+        printf("error: variable must have name\n");
+        abort();
+    }
+
+    KLVMVarRef var = MemAllocWithPtr(var);
+    INIT_KLVM_VALUE_HEAD(var, KLVM_VALUE_VAR, ty, name);
+    return var;
+}
+
+KLVMValueRef KLVMAddLocal(KLVMValueRef fn, char *name, KLVMTypeRef ty)
+{
+    KLVMVarRef var = __new_var(ty, name);
+    var->local = 1;
+    VectorPushBack(&((KLVMFuncRef)fn)->locals, &var);
+    return (KLVMValueRef)var;
+}
+
+/*--------------------------------------------------------------------------*\
+|* Module: values container                                                 *|
 \*--------------------------------------------------------------------------*/
 
 KLVMModuleRef KLVMCreateModule(char *name)
@@ -39,17 +185,29 @@ KLVMModuleRef KLVMCreateModule(char *name)
     return m;
 }
 
-static KLVMFuncRef _NewFunc(char *name, KLVMTypeRef ty)
+void KLVMDestroyModule(KLVMModuleRef m)
+{
+    /* FIXME */
+    MemFree(m);
+}
+
+static KLVMFuncRef __new_func(KLVMTypeRef ty, char *name)
 {
     if (!name) {
         printf("error: function must have name\n");
         abort();
     }
 
-    KLVMFuncRef fn = MemAlloc(sizeof(*fn));
+    KLVMFuncRef fn = MemAllocWithPtr(fn);
     INIT_KLVM_VALUE_HEAD(fn, KLVM_VALUE_FUNC, ty, name);
-    VectorInit(&fn->locals, sizeof(void *));
+
     InitList(&fn->bb_list);
+    InitList(&fn->edge_list);
+    VectorInitPtr(&fn->locals);
+
+    /* initial 'start' and 'end' dummy block */
+    fn->sbb = __new_block((KLVMValueRef)fn, 1, "start");
+    fn->ebb = __new_block((KLVMValueRef)fn, 1, "end");
 
     // add parameters
     VectorRef pty = KLVMProtoParams(ty);
@@ -60,146 +218,29 @@ static KLVMFuncRef _NewFunc(char *name, KLVMTypeRef ty)
     return fn;
 }
 
-KLVMValueRef KLVMGetInitFunc(KLVMModuleRef m)
+KLVMValueRef KLVMGetInitFunction(KLVMModuleRef m)
 {
     KLVMValueRef fn = m->fn;
     if (!fn) {
-        fn = (KLVMValueRef)_NewFunc("__init__", NULL);
+        KLVMTypeRef vvty = KLVMTypeProto(NULL, NULL, 0);
+        fn = (KLVMValueRef)__new_func(vvty, "__init__");
         m->fn = fn;
     }
     return fn;
 }
 
-void KLVMDestroyModule(KLVMModuleRef m)
+KLVMValueRef KLVMAddVariable(KLVMModuleRef m, char *name, KLVMTypeRef ty)
 {
-    MemFree(m);
-}
-
-/*--------------------------------------------------------------------------*\
-|* Literal constant                                                         *|
-\*--------------------------------------------------------------------------*/
-
-KLVMValue *KLVMConstInt32(int32_t v)
-{
-    KLVMConstRef k = MemAlloc(sizeof(*k));
-    INIT_KLVM_VALUE_HEAD(k, KLVM_VALUE_CONST, KLVMTypeInt32(), "");
-    k->i32val = v;
-    return (KLVMValueRef)k;
-}
-
-/*--------------------------------------------------------------------------*\
-|* Variable                                                                 *|
-\*--------------------------------------------------------------------------*/
-
-static inline KLVMVarRef _NewVar(KLVMTypeRef ty, char *name)
-{
-    if (!name) {
-        printf("error: variable must have name\n");
-        abort();
-    }
-
-    KLVMVarRef var = MemAlloc(sizeof(*var));
-    INIT_KLVM_VALUE_HEAD(var, KLVM_VALUE_VAR, ty, name);
-    return var;
-}
-
-KLVMValueRef KLVMAddVar(KLVMModuleRef m, char *name, KLVMTypeRef ty)
-{
-    KLVMVarRef var = _NewVar(ty, name);
+    KLVMVarRef var = __new_var(ty, name);
     VectorPushBack(&m->items, &var);
     return (KLVMValueRef)var;
 }
 
-KLVMValueRef KLVMAddFunc(KLVMModuleRef m, char *name, KLVMTypeRef ty)
+KLVMValueRef KLVMAddFunction(KLVMModuleRef m, char *name, KLVMTypeRef ty)
 {
-    KLVMFuncRef fn = _NewFunc(name, ty);
-    // add to module
+    KLVMFuncRef fn = __new_func(ty, name);
     VectorPushBack(&m->items, &fn);
     return (KLVMValueRef)fn;
-}
-
-/*--------------------------------------------------------------------------*\
-|* Basic Block                                                              *|
-\*--------------------------------------------------------------------------*/
-
-static KLVMBlockRef _AppendBlock(KLVMValueRef fn, char *label)
-{
-    KLVMBlockRef bb = MemAlloc(sizeof(*bb));
-    InitList(&bb->bb_link);
-    bb->fn = fn;
-    InitList(&bb->insts);
-    KLVMFunc *_fn = (KLVMFunc *)fn;
-    ListPushBack(&_fn->bb_list, &bb->bb_link);
-    _fn->num_bbs++;
-    bb->label = label;
-    bb->tag = -1;
-    return bb;
-}
-
-KLVMBlockRef KLVMAppendBlock(KLVMValueRef fn, char *label)
-{
-    return _AppendBlock(fn, label);
-}
-
-KLVMBlockRef KLVMAddBlock(KLVMBlockRef bb, char *label)
-{
-    return NULL;
-}
-
-KLVMBlockRef KLVMAddBlockBefore(KLVMBlockRef bb, char *label)
-{
-    return NULL;
-}
-
-/*--------------------------------------------------------------------------*\
-|* Instruction Visitor                                                      *|
-\*--------------------------------------------------------------------------*/
-
-/* Set visitor at end */
-void KLVMSetVisitorAtEnd(KLVMVisitorRef vst)
-{
-}
-
-/* Set visitor at head */
-void KLVMSetVisitorAtHead(KLVMVisitorRef vst)
-{
-}
-
-/* Set visitor at 'inst' */
-void KLVMSetVisitor(KLVMVisitorRef vst, KLVMValueRef inst)
-{
-}
-
-/* Set visitor before 'inst' */
-void KLVMSetVisitorBefore(KLVMVisitorRef vst, KLVMValueRef inst)
-{
-}
-
-/*--------------------------------------------------------------------------*\
-|* Function                                                                 *|
-\*--------------------------------------------------------------------------*/
-
-/* Get function param by index */
-KLVMValue *KLVMGetParam(KLVMValue *fn, int index)
-{
-    KLVMFunc *_fn = (KLVMFunc *)fn;
-    int num_params = _fn->num_params;
-    if (index < 0 || index >= num_params) {
-        printf("error: index %d out of range(0 ..< %d)\n", index, num_params);
-        abort();
-    }
-
-    KLVMValue *para = NULL;
-    VectorGet(&_fn->locals, index, &para);
-    return para;
-}
-
-KLVMValueRef KLVMAddLocal(KLVMValueRef fn, char *name, KLVMTypeRef ty)
-{
-    KLVMVarRef var = _NewVar(ty, name);
-    var->local = 1;
-    VectorPushBack(&((KLVMFunc *)fn)->locals, &var);
-    return (KLVMValueRef)var;
 }
 
 #ifdef __cplusplus

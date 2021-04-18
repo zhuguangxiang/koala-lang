@@ -54,40 +54,40 @@ static inline int ListEmpty(ListRef list)
 }
 
 /* Insert a new entry between two known consecutive entries */
-static inline void __ListAdd(ListRef new__, ListRef prev, ListRef next)
+static inline void __list_add(ListRef __new, ListRef prev, ListRef next)
 {
-    next->prev = new__;
-    new__->next = next;
-    new__->prev = prev;
-    prev->next = new__;
+    next->prev = __new;
+    __new->next = next;
+    __new->prev = prev;
+    prev->next = __new;
 }
 
 /* Insert a new entry after 'prev' entry */
-static inline void ListAddAfter(ListRef new__, ListRef prev)
+static inline void ListAdd(ListRef prev, ListRef __new)
 {
-    __ListAdd(new__, prev, prev->next);
+    __list_add(__new, prev, prev->next);
 }
 
 /* Insert a new entry before 'next' entry */
-static inline void ListAddBefore(ListRef new__, ListRef next)
+static inline void ListAddBefore(ListRef next, ListRef __new)
 {
-    __ListAdd(new__, next->prev, next);
+    __list_add(__new, next->prev, next);
 }
 
 /* Insert a new entry at front */
-static inline void ListPushFront(ListRef list, ListRef new__)
+static inline void ListPushFront(ListRef list, ListRef __new)
 {
-    __ListAdd(new__, list, list->next);
+    __list_add(__new, list, list->next);
 }
 
 /* Insert a new entry at tail */
-static inline void ListPushBack(ListRef list, ListRef new__)
+static inline void ListPushBack(ListRef list, ListRef __new)
 {
-    __ListAdd(new__, list->prev, list);
+    __list_add(__new, list->prev, list);
 }
 
 /* Remove a entry by making the prev/next entries pointer to each other. */
-static inline void __ListRemove(ListRef prev, ListRef next)
+static inline void __list_remove(ListRef prev, ListRef next)
 {
     next->prev = prev;
     prev->next = next;
@@ -96,7 +96,7 @@ static inline void __ListRemove(ListRef prev, ListRef next)
 /* Remove an entry from list */
 static inline void ListRemove(ListRef entry)
 {
-    __ListRemove(entry->prev, entry->next);
+    __list_remove(entry->prev, entry->next);
     InitList(entry);
 }
 

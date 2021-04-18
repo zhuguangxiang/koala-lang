@@ -81,11 +81,11 @@ typedef enum _KLVMInstKind {
 
 // clang-format off
 
-#define KLVM_INST_HEAD KLVM_VALUE_HEAD List node; KLVMInstKind op;
+#define KLVM_INST_HEAD KLVM_VALUE_HEAD List link; KLVMInstKind op;
 
-#define INIT_KLVM_INST_HEAD(inst, type, _op, _name)      \
+#define INIT_KLVM_INST_HEAD(inst, type, _op, _name) \
     INIT_KLVM_VALUE_HEAD(inst, KLVM_VALUE_INST, type, _name); \
-    InitList(&inst->node); inst->op = _op
+    InitList(&inst->link); inst->op = _op
 
 // clang-format on
 
@@ -133,26 +133,27 @@ typedef struct _KLVMRetInst {
     KLVMValueRef ret;
 } KLVMRetInst, *KLVMRetInstRef;
 
-void KLVMInstCopy(KLVMVisitorRef vst, KLVMValueRef lhs, KLVMValueRef rhs);
+void KLVMBuildCopy(KLVMBuilderRef bldr, KLVMValueRef lhs, KLVMValueRef rhs);
 
-KLVMValueRef KLVMInstBinary(KLVMVisitorRef vst, KLVMInstKind op,
-                            KLVMValueRef lhs, KLVMValueRef rhs, char *name);
-#define KLVMInstAdd(csr, lhs, rhs, name) \
-    KLVMInstBinary(csr, KLVM_INST_ADD, lhs, rhs, name)
-#define KLVMInstSub(csr, lhs, rhs, name) \
-    KLVMInstBinary(csr, KLVM_INST_SUB, lhs, rhs, name)
-#define KLVMInstCondLE(csr, lhs, rhs, name) \
-    KLVMInstBinary(csr, KLVM_INST_CMP_LE, lhs, rhs, name)
+KLVMValueRef KLVMBuildBinary(KLVMBuilderRef bldr, KLVMInstKind op,
+                             KLVMValueRef lhs, KLVMValueRef rhs, char *name);
+#define KLVMBuildAdd(bldr, lhs, rhs, name) \
+    KLVMBuildBinary(bldr, KLVM_INST_ADD, lhs, rhs, name)
+#define KLVMBuildSub(bldr, lhs, rhs, name) \
+    KLVMBuildBinary(bldr, KLVM_INST_SUB, lhs, rhs, name)
 
-KLVMValueRef KLVMInstCall(KLVMVisitorRef vst, KLVMValueRef fn,
-                          KLVMValueRef args[], char *name);
+#define KLVMBuildCmple(bldr, lhs, rhs, name) \
+    KLVMBuildBinary(bldr, KLVM_INST_CMP_LE, lhs, rhs, name)
 
-void KLVMInstJmp(KLVMVisitorRef vst, KLVMBlockRef dest);
-void KLVMInstCondJmp(KLVMVisitorRef vst, KLVMValueRef cond, KLVMBlockRef _then,
-                     KLVMBlockRef _else);
+KLVMValueRef KLVMBuildCall(KLVMBuilderRef bldr, KLVMValueRef fn,
+                           KLVMValueRef args[], int size, char *name);
 
-void KLVMInstRet(KLVMVisitorRef vst, KLVMValueRef ret);
-void KLVMInstRetVoid(KLVMVisitorRef vst);
+void KLVMBuildJmp(KLVMBuilderRef bldr, KLVMBlockRef dst);
+void KLVMBuildCondJmp(KLVMBuilderRef bldr, KLVMValueRef cond,
+                      KLVMBlockRef _then, KLVMBlockRef _else);
+
+void KLVMBuildRet(KLVMBuilderRef bldr, KLVMValueRef ret);
+void KLVMBuildRetVoid(KLVMBuilderRef bldr);
 
 #ifdef __cplusplus
 }

@@ -57,7 +57,7 @@ typedef enum _KLVMTypeKind {
 } KLVMTypeKind;
 
 /*
- * int: i, i8, i16, i32, i64
+ * int: i8, i16, i32, i64
  * float: f32, f64
  * bool: b
  * char: c

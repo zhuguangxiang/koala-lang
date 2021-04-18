@@ -26,41 +26,35 @@
 static void test_fib(KLVMModuleRef m)
 {
     KLVMTypeRef rtype = KLVMTypeInt32();
-    KLVMTypeRef params[] = {
-        KLVMTypeInt32(),
-        NULL,
-    };
+    KLVMTypeRef params[] = { KLVMTypeInt32() };
     KLVMTypeRef proto = KLVMTypeProto(rtype, params, 1);
-    KLVMValueRef fn = KLVMAddFunc(m, "fib", proto);
+    KLVMValueRef fn = KLVMAddFunction(m, "fib", proto);
     KLVMValueRef n = KLVMGetParam(fn, 0);
+    KLVMSetName(n, "n");
 
     KLVMBlockRef entry = KLVMAppendBlock(fn, "entry");
     KLVMBlockRef _then = KLVMAppendBlock(fn, "then");
-    KLVMBlockRef _else = KLVMAppendBlock(fn, "else_block");
+    KLVMBlockRef _else = KLVMAppendBlock(fn, "else");
 
-    KLVMVisitor visitor;
-    KVLMSetVisitor(&visitor, entry);
+    KLVMBuilder bldr;
+    KLVMSetBuilderAtEnd(&bldr, entry);
 
-    KLVMValueRef cond = KLVMInstCondLE(&visitor, n, KLVMConstInt32(1), "");
-    KLVMInstCondJmp(&visitor, cond, _then, _else);
+    KLVMValueRef cond = KLVMBuildCmple(&bldr, n, KLVMConstInt32(1), "");
+    KLVMBuildCondJmp(&bldr, cond, _then, _else);
 
-    KVLMSetVisitor(&visitor, _then);
-    KLVMInstRet(&visitor, n);
+    KLVMSetBuilderAtEnd(&bldr, _then);
+    KLVMBuildRet(&bldr, n);
 
-    KVLMSetVisitor(&visitor, _else);
+    KLVMSetBuilderAtEnd(&bldr, _else);
     KLVMValueRef args1[] = {
-        KLVMInstSub(&visitor, n, KLVMConstInt32(1), ""),
-        NULL,
+        KLVMBuildSub(&bldr, n, KLVMConstInt32(1), ""),
     };
-    KLVMValueRef r1 = KLVMInstCall(&visitor, fn, args1, "");
+    KLVMValueRef r1 = KLVMBuildCall(&bldr, fn, args1, 1, "");
     KLVMValueRef args2[] = {
-        KLVMInstSub(&visitor, n, KLVMConstInt32(2), "x"),
-        NULL,
+        KLVMBuildSub(&bldr, n, KLVMConstInt32(2), "x"),
     };
-    KLVMValueRef r2 = KLVMInstCall(&visitor, fn, args2, "");
-    KLVMInstRet(&visitor, KLVMInstAdd(&visitor, r1, r2, ""));
-
-    KLVMSetName(n, "");
+    KLVMValueRef r2 = KLVMBuildCall(&bldr, fn, args2, 1, "");
+    KLVMBuildRet(&bldr, KLVMBuildAdd(&bldr, r1, r2, ""));
 }
 
 /*

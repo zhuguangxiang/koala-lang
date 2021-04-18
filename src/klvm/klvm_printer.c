@@ -282,15 +282,15 @@ static void KLVMPrintBlock(KLVMBlockRef bb, FILE *fp)
 
     // print predecessors
     if (ListEmpty(&bb->in_edges)) {
-        fprintf(fp, "%*s", 64 - cnt, ";; No predecessors!");
+        fprintf(fp, "%*s", 64 - cnt, ";; No preds!");
     } else {
         KLVMFuncRef fn = (KLVMFuncRef)bb->fn;
         KLVMEdgeRef edge = ListFirst(&bb->in_edges, KLVMEdge, in_link);
-        if (edge->src != &fn->sbb) KLVMPrintPreds(bb, 64 - cnt, fp);
+        if (edge->src != fn->sbb) KLVMPrintPreds(bb, 64 - cnt, fp);
     }
 
     KLVMInstRef inst;
-    ListForEach(inst, node, &bb->insts, {
+    ListForEach(inst, link, &bb->insts, {
         NEW_LINE();
         INDENT();
         KLVMPrintInst((KLVMFuncRef)bb->fn, inst, fp);
@@ -355,27 +355,18 @@ void KLVMPrintModule(KLVMModuleRef m, FILE *fp)
 {
     fprintf(fp, "\n__name__ := \"%s\"\n\n", m->name);
 
-    /*
-        KLVMVarRef *var;
-        VectorForEach(var, &m->items, {
-            KLVMPrintVar(*var, fp);
+    KLVMValueRef *item;
+    VectorForEach(item, &m->items, {
+        if ((*item)->kind == KLVM_VALUE_VAR) {
+            KLVMVarRef var = *(KLVMVarRef *)item;
+            KLVMPrintVar(var, fp);
             NEW_LINE();
-        });
-
-        NEW_LINE();
-
-        KLVMFuncRef _init_ = (KLVMFuncRef)m->_init_;
-        if (_init_) {
-            KLVMPrintFunc(_init_, fp);
+        } else if ((*item)->kind == KLVM_VALUE_FUNC) {
+            KLVMFuncRef fn = *(KLVMFuncRef *)item;
+            KLVMPrintFunc(fn, fp);
             NEW_LINE();
         }
-
-        KLVMFuncRef *fn;
-        VectorForEach(fn, &m->funcs, {
-            KLVMPrintFunc(*fn, fp);
-            NEW_LINE();
-        });
-    */
+    });
 }
 
 #ifdef __cplusplus

@@ -27,31 +27,44 @@
 extern "C" {
 #endif
 
-static inline void __InstAppend(KLVMVisitorRef vst, KLVMInstRef inst)
+/*--------------------------------------------------------------------------*\
+|* Instruction Builder                                                      *|
+\*--------------------------------------------------------------------------*/
+
+void KLVMSetBuilder(KLVMBuilderRef bldr, KLVMValueRef _inst)
 {
-    if (!vst->it)
-        ListPushBack(&vst->bb->insts, &inst->node);
-    else
-        ListAddAfter(&inst->node, vst->it);
-    vst->it = &inst->node;
-    vst->bb->num_insts++;
+    KLVMInstRef inst = (KLVMInstRef)_inst;
+    bldr->it = &inst->link;
 }
 
-void KLVMInstCopy(KLVMVisitorRef vst, KLVMValueRef lhs, KLVMValueRef rhs)
+void KLVMSetBuilderBefore(KLVMBuilderRef bldr, KLVMValueRef _inst)
+{
+    KLVMInstRef inst = (KLVMInstRef)_inst;
+    bldr->it = inst->link.prev;
+}
+
+static inline void __inst_append(KLVMBuilderRef bldr, KLVMInstRef inst)
+{
+    ListAdd(bldr->it, &inst->link);
+    bldr->it = &inst->link;
+    bldr->bb->num_insts++;
+}
+
+void KLVMBuildCopy(KLVMBuilderRef bldr, KLVMValueRef lhs, KLVMValueRef rhs)
 {
     if (!KLVMTypeEqual(lhs->type, rhs->type)) {
         printf("error: type not matched\n");
     }
 
-    KLVMCopyInst *inst = MemAllocWithPtr(inst);
-    INIT_KLVM_INST_HEAD(inst, lhs->type, KLVM_INST_COPY, NULL);
+    KLVMCopyInstRef inst = MemAllocWithPtr(inst);
+    INIT_KLVM_INST_HEAD(inst, lhs->type, KLVM_INST_COPY, "");
     inst->lhs = lhs;
     inst->rhs = rhs;
 
-    __InstAppend(vst, (KLVMInstRef)inst);
+    __inst_append(bldr, (KLVMInstRef)inst);
 }
 
-static int __IsCmpInst(KLVMInstKind op)
+static int __is_cmp_inst(KLVMInstKind op)
 {
     static KLVMInstKind cmps[] = {
         KLVM_INST_CMP_EQ, KLVM_INST_CMP_NE, KLVM_INST_CMP_GT,
@@ -65,12 +78,12 @@ static int __IsCmpInst(KLVMInstKind op)
     return 0;
 }
 
-KLVMValueRef KLVMInstBinary(KLVMVisitorRef vst, KLVMInstKind op,
-                            KLVMValueRef lhs, KLVMValueRef rhs, char *name)
+KLVMValueRef KLVMBuildBinary(KLVMBuilderRef bldr, KLVMInstKind op,
+                             KLVMValueRef lhs, KLVMValueRef rhs, char *name)
 {
     KLVMBinaryInstRef inst = MemAllocWithPtr(inst);
 
-    if (__IsCmpInst(op)) {
+    if (__is_cmp_inst(op)) {
         INIT_KLVM_INST_HEAD(inst, KLVMTypeBool(), op, name);
     } else {
         INIT_KLVM_INST_HEAD(inst, lhs->type, op, name);
@@ -78,61 +91,76 @@ KLVMValueRef KLVMInstBinary(KLVMVisitorRef vst, KLVMInstKind op,
 
     inst->lhs = lhs;
     inst->rhs = rhs;
-    __InstAppend(vst, (KLVMInstRef)inst);
+    __inst_append(bldr, (KLVMInstRef)inst);
     return (KLVMValueRef)inst;
 }
 
-KLVMValueRef KLVMInstCall(KLVMVisitorRef vst, KLVMValueRef fn,
-                          KLVMValueRef *args, char *name)
+KLVMValueRef KLVMBuildCall(KLVMBuilderRef bldr, KLVMValueRef fn,
+                           KLVMValueRef args[], int size, char *name)
 {
     KLVMCallInstRef inst = MemAllocWithPtr(inst);
     KLVMTypeRef rty = KLVMProtoRet(((KLVMFuncRef)fn)->type);
     INIT_KLVM_INST_HEAD(inst, rty, KLVM_INST_CALL, name);
     inst->fn = fn;
-    VectorInit(&inst->args, sizeof(void *));
+    VectorInitPtr(&inst->args);
 
-    KLVMValueRef *arg = args;
-    while (*arg) {
+    KLVMValueRef *arg;
+    for (int i = 0; i < size; i++) {
+        arg = args + i;
         VectorPushBack(&inst->args, arg);
-        arg++;
     }
 
-    __InstAppend(vst, (KLVMInstRef)inst);
+    __inst_append(bldr, (KLVMInstRef)inst);
     return (KLVMValueRef)inst;
 }
 
-void KLVMInstJmp(KLVMVisitorRef vst, KLVMBlockRef dest)
+void KLVMBuildJmp(KLVMBuilderRef bldr, KLVMBlockRef dst)
 {
     KLVMJmpInstRef inst = MemAllocWithPtr(inst);
-    INIT_KLVM_INST_HEAD(inst, NULL, KLVM_INST_JMP, NULL);
-    inst->dest = dest;
-    __InstAppend(vst, (KLVMInstRef)inst);
+    INIT_KLVM_INST_HEAD(inst, NULL, KLVM_INST_JMP, "");
+    inst->dest = dst;
+    __inst_append(bldr, (KLVMInstRef)inst);
+
+    // add edge
+    KLVMLinkEdge(bldr->bb, dst);
 }
 
-void KLVMInstCondJmp(KLVMVisitorRef vst, KLVMValueRef cond, KLVMBlockRef _then,
-                     KLVMBlockRef _else)
+void KLVMBuildCondJmp(KLVMBuilderRef bldr, KLVMValueRef cond,
+                      KLVMBlockRef _then, KLVMBlockRef _else)
 {
     KLVMCondJmpInstRef inst = MemAllocWithPtr(inst);
-    INIT_KLVM_INST_HEAD(inst, NULL, KLVM_INST_JMP_COND, NULL);
+    INIT_KLVM_INST_HEAD(inst, NULL, KLVM_INST_JMP_COND, "");
     inst->cond = cond;
     inst->_then = _then;
     inst->_else = _else;
-    __InstAppend(vst, (KLVMInstRef)inst);
+    __inst_append(bldr, (KLVMInstRef)inst);
+
+    // add edges
+    KLVMLinkEdge(bldr->bb, _then);
+    KLVMLinkEdge(bldr->bb, _else);
 }
 
-void KLVMInstRet(KLVMVisitorRef vst, KLVMValueRef v)
+void KLVMBuildRet(KLVMBuilderRef bldr, KLVMValueRef v)
 {
-    KLVMRetInst *inst = MemAllocWithPtr(inst);
-    INIT_KLVM_INST_HEAD(inst, v->type, KLVM_INST_RET, NULL);
+    KLVMRetInstRef inst = MemAllocWithPtr(inst);
+    INIT_KLVM_INST_HEAD(inst, v->type, KLVM_INST_RET, "");
     inst->ret = v;
-    __InstAppend(vst, (KLVMInstRef)inst);
+    __inst_append(bldr, (KLVMInstRef)inst);
+
+    // add end edge
+    KLVMFuncRef fn = (KLVMFuncRef)bldr->bb->fn;
+    KLVMLinkEdge(bldr->bb, fn->ebb);
 }
 
-void KLVMInstRetVoid(KLVMVisitorRef vst)
+void KLVMBuildRetVoid(KLVMBuilderRef bldr)
 {
     KLVMInstRef inst = MemAllocWithPtr(inst);
-    INIT_KLVM_INST_HEAD(inst, NULL, KLVM_INST_RET_VOID, NULL);
-    __InstAppend(vst, (KLVMInstRef)inst);
+    INIT_KLVM_INST_HEAD(inst, NULL, KLVM_INST_RET_VOID, "");
+    __inst_append(bldr, inst);
+
+    // add end edge
+    KLVMFuncRef fn = (KLVMFuncRef)bldr->bb->fn;
+    KLVMLinkEdge(bldr->bb, fn->ebb);
 }
 
 #ifdef __cplusplus

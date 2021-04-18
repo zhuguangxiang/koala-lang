@@ -102,7 +102,7 @@ static void __fini_klasstypes(void)
 
 KLVMTypeRef KLVMTypeKlass(char *path, char *name)
 {
-    KLVMKlassRef klass = MemAlloc(sizeof(KLVMKlass));
+    KLVMKlassRef klass = MemAllocWithPtr(klass);
     klass->kind = KLVM_TYPE_KLASS;
     klass->path = path;
     klass->name = name;

@@ -45,7 +45,7 @@ typedef struct _Vector {
 /* Initialize an empty vector */
 static inline void VectorInit(VectorRef vec, int objsize)
 {
-    memset(vec, 0, sizeof(*vec));
+    memset(vec, 0, OBJ_SIZE(vec));
     vec->objsize = objsize;
 }
 
@@ -72,7 +72,7 @@ static inline void VectorClear(VectorRef vec)
 /* Create a vector */
 static inline VectorRef VectorCreate(int objsize)
 {
-    VectorRef vec = MemAlloc(sizeof(*vec));
+    VectorRef vec = MemAllocWithPtr(vec);
     VectorInit(vec, objsize);
     return vec;
 }

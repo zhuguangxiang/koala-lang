@@ -53,7 +53,7 @@ typedef enum _KLVMValueKind {
 // clang-format off
 
 #define KLVM_VALUE_HEAD \
-    KLVMValueKind kind; KLVMTypeRef type; const char *name; \
+    KLVMValueKind kind; KLVMTypeRef type; char *name; \
     int tag; int pub; int final;
 
 #define INIT_KLVM_VALUE_HEAD(val, _kind, _type, _name) \
@@ -88,43 +88,6 @@ typedef struct _KLVMValue {
 #define KLVMIsPub(val) (val)->pub
 
 /*--------------------------------------------------------------------------*\
-|* Module: values container                                                 *|
-\*--------------------------------------------------------------------------*/
-
-typedef struct _KLVMModule {
-    char *name;
-    Vector items;
-    KLVMValueRef fn;
-} KLVMModule, *KLVMModuleRef;
-
-/* Create a new module */
-KLVMModuleRef KLVMCreateModule(char *name);
-
-/* Destroy a module */
-void KLVMDestroyModule(KLVMModuleRef m);
-
-/* Print a module */
-void KLVMPrintModule(KLVMModuleRef m, FILE *fp);
-
-/* Dump a module */
-#define KLVMDumpModule(m)       \
-    KLVMPrintModule(m, stdout); \
-    fflush(stdout)
-
-/* Get '__init__' func */
-KLVMValueRef KLVMGetInitFunc(KLVMModuleRef m);
-
-/* Add a variable to a module */
-KLVMValueRef KLVMAddVar(KLVMModuleRef m, char *name, KLVMTypeRef ty);
-
-/* Add a function to a module */
-KLVMValueRef KLVMAddFunc(KLVMModuleRef m, char *name, KLVMTypeRef ty);
-
-/* Add a class to a module */
-KLVMValueRef KLVMAddClass(KLVMModuleRef m, char *name, KLVMValueRef base,
-                          VectorRef traits);
-
-/*--------------------------------------------------------------------------*\
 |* Literal constant                                                         *|
 \*--------------------------------------------------------------------------*/
 
@@ -157,8 +120,8 @@ KLVMValueRef KLVMConstStr(char *s);
 
 typedef struct _KLVMVar {
     KLVM_VALUE_HEAD
-    int readonly;
-    int local;
+    int8_t readonly;
+    int8_t local;
 } KLVMVar, *KLVMVarRef;
 
 /*--------------------------------------------------------------------------*\
@@ -169,7 +132,7 @@ typedef struct _KLVMBlock {
     List bb_link;
     KLVMValueRef fn;
     char *label;
-    // 'start' and 'end' blocks are dummy block
+    /* 'start' and 'end' blocks are marked as dummy */
     short dummy;
     short tag;
     int8_t visited;
@@ -207,33 +170,25 @@ typedef struct _KLVMEdge {
 void KLVMLinkEdge(KLVMBlockRef src, KLVMBlockRef dst);
 
 /*--------------------------------------------------------------------------*\
-|* Instruction Visitor                                                      *|
+|* Instruction Builder                                                      *|
 \*--------------------------------------------------------------------------*/
 
-typedef struct _KLVMVisitor {
+typedef struct _KLVMBuilder {
     KLVMBlockRef bb;
     ListRef it;
-} KLVMVisitor, *KLVMVisitorRef;
+} KLVMBuilder, *KLVMBuilderRef;
 
-// clang-format off
+/* Set builder at end */
+void KLVMSetBuilderAtEnd(KLVMBuilderRef bldr, KLVMBlockRef bb);
 
-/* Set a visitor at the head of 'bb' */
-#define KVLMSetVisitor(vst, bb) \
-    do { *(vst) = (KLVMVisitor){bb, NULL}; } while (0)
+/* Set builder at head */
+void KLVMSetBuilderAtHead(KLVMBuilderRef bldr, KLVMBlockRef bb);
 
-// clang-format on
+/* Set builder at 'inst' */
+void KLVMSetBuilder(KLVMBuilderRef bldr, KLVMValueRef inst);
 
-/* Set visitor at end */
-void KLVMSetVisitorAtEnd(KLVMVisitorRef vst);
-
-/* Set visitor at head */
-void KLVMSetVisitorAtHead(KLVMVisitorRef vst);
-
-/* Set visitor at 'inst' */
-void KLVMSetVisitor(KLVMVisitorRef vst, KLVMValueRef inst);
-
-/* Set visitor before 'inst' */
-void KLVMSetVisitorBefore(KLVMVisitorRef vst, KLVMValueRef inst);
+/* Set builder before 'inst' */
+void KLVMSetBuilderBefore(KLVMBuilderRef bldr, KLVMValueRef inst);
 
 /*--------------------------------------------------------------------------*\
 |* Function                                                                 *|
@@ -249,18 +204,53 @@ typedef struct _KLVMFunc {
     List bb_list;
     List edge_list;
     Vector locals;
-    KLVMBlock sbb;
-    KLVMBlock ebb;
+    KLVMBlockRef sbb;
+    KLVMBlockRef ebb;
 } KLVMFunc, *KLVMFuncRef;
 
 /* Get function prototype */
-KLVMTypeRef KLVMGetFuncType(KLVMValueRef fn);
+KLVMTypeRef KLVMGetFunctionType(KLVMValueRef fn);
 
 /* Get function param by index */
 KLVMValueRef KLVMGetParam(KLVMValueRef fn, int index);
 
 /* Add a local variable */
 KLVMValueRef KLVMAddLocal(KLVMValueRef fn, char *name, KLVMTypeRef ty);
+
+/*--------------------------------------------------------------------------*\
+|* Module: values container                                                 *|
+\*--------------------------------------------------------------------------*/
+
+typedef struct _KLVMModule {
+    char *name;
+    /* variables, functions, ... */
+    Vector items;
+    /* __init__ function */
+    KLVMValueRef fn;
+} KLVMModule, *KLVMModuleRef;
+
+/* Create a new module */
+KLVMModuleRef KLVMCreateModule(char *name);
+
+/* Destroy a module */
+void KLVMDestroyModule(KLVMModuleRef m);
+
+/* Print a module */
+void KLVMPrintModule(KLVMModuleRef m, FILE *fp);
+
+/* Dump a module */
+#define KLVMDumpModule(m)       \
+    KLVMPrintModule(m, stdout); \
+    fflush(stdout)
+
+/* Get '__init__' func */
+KLVMValueRef KLVMGetInitFunction(KLVMModuleRef m);
+
+/* Add a variable to a module */
+KLVMValueRef KLVMAddVariable(KLVMModuleRef m, char *name, KLVMTypeRef ty);
+
+/* Add a function to a module */
+KLVMValueRef KLVMAddFunction(KLVMModuleRef m, char *name, KLVMTypeRef ty);
 
 #ifdef __cplusplus
 }

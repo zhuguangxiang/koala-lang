@@ -79,6 +79,8 @@ extern "C" {
 
 #define PTR_SIZE sizeof(void *)
 
+#define OBJ_SIZE(ptr) sizeof(*ptr)
+
 #ifdef __cplusplus
 }
 #endif

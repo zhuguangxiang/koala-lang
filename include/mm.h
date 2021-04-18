@@ -32,7 +32,7 @@ extern "C" {
 void *MemAlloc(int size);
 
 /* Allocate by ptr */
-#define MemAllocWithPtr(ptr) MemAlloc(sizeof(*ptr))
+#define MemAllocWithPtr(ptr) MemAlloc(OBJ_SIZE(ptr))
 
 /* The func frees the memory space pointed by ptr. */
 void MemFree(void *ptr);
