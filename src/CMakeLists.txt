@@ -42,6 +42,7 @@ SET(KOALA_SOURCES
     libs/mm.c libs/vector.c libs/hashmap.c libs/binheap.c 
     libs/buffer.c libs/atom.c libs/readline.c
     klvm/klvm_type.c klvm/klvm_value.c klvm/klvm_inst.c klvm/klvm_printer.c
+    klvm/klvm_pass.c
     parser/koala_lex.c parser/koala_yacc.c parser/symtbl.c
     parser/type.c parser/ast.c parser/parser.c parser/cmd.c)
 

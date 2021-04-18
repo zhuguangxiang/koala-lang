@@ -135,7 +135,6 @@ typedef struct _KLVMBlock {
     /* 'start' and 'end' blocks are marked as dummy */
     short dummy;
     short tag;
-    int8_t visited;
     int num_insts;
     List insts;
     List in_edges;
@@ -227,8 +226,6 @@ typedef struct _KLVMModule {
     Vector items;
     /* __init__ function */
     KLVMValueRef fn;
-    /* passess */
-    List passes;
 } KLVMModule, *KLVMModuleRef;
 
 /* Create a new module */
@@ -258,21 +255,28 @@ KLVMValueRef KLVMAddFunction(KLVMModuleRef m, char *name, KLVMTypeRef ty);
 |* Pass                                                                     *|
 \*--------------------------------------------------------------------------*/
 
-typedef int (*KLVMPassFunc)(KLVMFuncRef fn, void *arg);
+typedef void (*KLVMPassFunc)(KLVMFuncRef fn, void *arg);
 
 typedef struct _KLVMPass {
     KLVMPassFunc callback;
     void *arg;
 } KLVMPass, *KLVMPassRef;
 
-/* Finalize passes */
-void KLVMFiniPasses(KLVMModuleRef m);
+typedef struct _KLVMPassGroup {
+    List passes;
+} KLVMPassGroup, *KLVMPassGroupRef;
 
-/* Register pass callback */
-void KLVMRegisterPass(KLVMModuleRef m, KLVMPassRef pass);
+/* Initialize KLVMPassGroup */
+void KLVMInitPassGroup(KLVMPassGroupRef grp);
 
-/* Execute the pass group */
-void KLVMRunPasses(KLVMModuleRef m);
+/* Finalize KLVMPassGroup */
+void KLVMFiniPassGroup(KLVMPassGroupRef grp);
+
+/* Register KLVMPass */
+void KLVMRegisterPass(KLVMPassGroupRef grp, KLVMPassRef pass);
+
+/* Execute KLVMPassGroup */
+void KLVMRunPassGroup(KLVMPassGroupRef grp, KLVMModuleRef m);
 
 #ifdef __cplusplus
 }

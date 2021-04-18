@@ -61,13 +61,14 @@ KLVMBlockRef KLVMAppendBlock(KLVMValueRef _fn, char *label)
 {
     KLVMBlockRef bb = __new_block(_fn, 0, label);
     KLVMFuncRef fn = (KLVMFuncRef)_fn;
-    ListPushBack(&fn->bb_list, &bb->bb_link);
-    fn->num_bbs++;
 
     if (ListEmpty(&fn->bb_list)) {
         /* first block, add an edge <start, bb> */
         KLVMLinkEdge(fn->sbb, bb);
     }
+
+    ListPushBack(&fn->bb_list, &bb->bb_link);
+    fn->num_bbs++;
     return bb;
 }
 
@@ -182,14 +183,12 @@ KLVMModuleRef KLVMCreateModule(char *name)
     KLVMModuleRef m = MemAllocWithPtr(m);
     m->name = name;
     VectorInitPtr(&m->items);
-    InitList(&m->passes);
     return m;
 }
 
 void KLVMDestroyModule(KLVMModuleRef m)
 {
     /* FIXME */
-    KLVMFiniPasses(m);
     MemFree(m);
 }
 
@@ -226,6 +225,7 @@ KLVMValueRef KLVMGetInitFunction(KLVMModuleRef m)
     if (!fn) {
         KLVMTypeRef vvty = KLVMTypeProto(NULL, NULL, 0);
         fn = (KLVMValueRef)__new_func(vvty, "__init__");
+        VectorPushBack(&m->items, &fn);
         m->fn = fn;
     }
     return fn;
@@ -255,43 +255,43 @@ typedef struct _KLVMPassInfo {
     void *arg;
 } KLVMPassInfo, *KLVMPassInfoRef;
 
-void KLVMFiniPasses(KLVMModuleRef m)
+void KLVMInitPassGroup(KLVMPassGroupRef grp)
+{
+    InitList(&grp->passes);
+}
+
+void KLVMFiniPassGroup(KLVMPassGroupRef grp)
 {
     KLVMPassInfoRef pi, nxt;
-    ListForEachSafe(pi, nxt, link, &m->passes, {
+    ListForEachSafe(pi, nxt, link, &grp->passes, {
         ListRemove(&pi->link);
         MemFree(pi);
     });
 }
 
-void KLVMRegisterPass(KLVMModuleRef m, KLVMPassRef pass)
+void KLVMRegisterPass(KLVMPassGroupRef grp, KLVMPassRef pass)
 {
     KLVMPassInfoRef pi = MemAllocWithPtr(pi);
     InitList(&pi->link);
     pi->callback = pass->callback;
     pi->arg = pass->arg;
-    ListPushBack(&m->passes, &pi->link);
+    ListPushBack(&grp->passes, &pi->link);
 }
 
-static void _run_pass(KLVMModuleRef m, KLVMFuncRef fn)
+static void _run_pass(KLVMPassGroupRef grp, KLVMFuncRef fn)
 {
-    int ret;
     KLVMPassInfoRef pi;
-    ListForEach(pi, link, &m->passes, {
-        ret = pi->callback(fn, pi->arg);
-        /* error */
-        if (ret) return;
-    });
+    ListForEach(pi, link, &grp->passes, { pi->callback(fn, pi->arg); });
 }
 
-void KLVMRunPasses(KLVMModuleRef m)
+void KLVMRunPassGroup(KLVMPassGroupRef grp, KLVMModuleRef m)
 {
     KLVMFuncRef fn;
     KLVMValueRef *item;
     VectorForEach(item, &m->items, {
         if ((*item)->kind != KLVM_VALUE_FUNC) continue;
         fn = *(KLVMFuncRef *)item;
-        _run_pass(m, fn);
+        _run_pass(grp, fn);
     });
 }
 

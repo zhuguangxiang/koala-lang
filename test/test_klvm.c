@@ -37,8 +37,8 @@ static void test_fib(KLVMModuleRef m)
     KLVMBlockRef _else = KLVMAppendBlock(fn, "else");
 
     KLVMBuilder bldr;
-    KLVMSetBuilderAtEnd(&bldr, entry);
 
+    KLVMSetBuilderAtEnd(&bldr, entry);
     KLVMValueRef cond = KLVMBuildCmple(&bldr, n, KLVMConstInt32(1), "");
     KLVMBuildCondJmp(&bldr, cond, _then, _else);
 
@@ -57,61 +57,72 @@ static void test_fib(KLVMModuleRef m)
     KLVMBuildRet(&bldr, KLVMBuildAdd(&bldr, r1, r2, ""));
 }
 
-/*
-static void test_func(KLVMModule *m)
+static void test_func(KLVMModuleRef m)
 {
-    KLVMType *rtype = KLVMInt32Type();
-    KLVMType *params[] = {
-        KLVMInt32Type(),
-        KLVMInt32Type(),
-        NULL,
+    KLVMTypeRef rtype = KLVMTypeInt32();
+    KLVMTypeRef params[] = {
+        KLVMTypeInt32(),
+        KLVMTypeInt32(),
     };
-    KLVMType *proto = KLVMProtoType(rtype, params);
-    KLVMValue *fn = KLVMAddFunc(m, proto, "add");
-    KLVMValue *v1 = KLVMGetParam(fn, 0);
-    KLVMValue *v2 = KLVMGetParam(fn, 1);
-    KLVMSetVarName(v1, "v1");
-    KLVMSetVarName(v2, "v2");
+    KLVMTypeRef proto = KLVMTypeProto(rtype, params, 2);
+    KLVMValueRef fn = KLVMAddFunction(m, "add", proto);
+    KLVMValueRef v1 = KLVMGetParam(fn, 0);
+    KLVMValueRef v2 = KLVMGetParam(fn, 1);
+    KLVMSetName(v1, "v1");
+    KLVMSetName(v2, "v2");
 
-    KLVMBasicBlock *entry = KLVMFuncEntryBasicBlock(fn);
-    KLVMBuilder *bldr = KLVMBasicBlockBuilder(entry);
-    KLVMValue *t1 = KLVMBuildAdd(bldr, v1, v2, "");
-    KLVMValue *ret = KLVMAddLocVar(fn, KLVMInt32Type(), "res");
-    KLVMBuildCopy(bldr, t1, ret);
-    KLVMBuildRet(bldr, ret);
-    KLVMBuildRet(bldr, KLVMConstInt32(-100));
+    KLVMBuilder bldr;
 
-    KLVMBasicBlock *bb2 = KLVMAppendBasicBlock(fn, "test_bb");
-    bldr = KLVMBasicBlockBuilder(bb2);
-    KLVMValue *t2 = KLVMBuildSub(bldr, v1, KLVMConstInt32(20), "");
-    KLVMBuildRet(bldr, t2);
+    KLVMBlockRef entry = KLVMAppendBlock(fn, "entry");
+    KLVMSetBuilderAtEnd(&bldr, entry);
+    KLVMValueRef t1 = KLVMBuildAdd(&bldr, v1, v2, "");
+    KLVMValueRef ret = KLVMAddLocal(fn, "res", KLVMTypeInt32());
+    KLVMBuildCopy(&bldr, ret, t1);
+    KLVMBuildRet(&bldr, ret);
+    // KLVMBuildRet(&bldr, KLVMConstInt32(-100));
 
-    KLVMBuildJmp(bldr, bb2);
+    KLVMBlockRef bb2 = KLVMAppendBlock(fn, "test_bb");
+    KLVMSetBuilderAtEnd(&bldr, bb2);
+    KLVMValueRef t2 = KLVMBuildSub(&bldr, v1, KLVMConstInt32(20), "");
+    KLVMBuildRet(&bldr, t2);
+
+    KLVMBuildJmp(&bldr, bb2);
 }
 
-static void test_var(KLVMModule *m)
+static void test_var(KLVMModuleRef m)
 {
-    KLVMBasicBlock *entry = KLVMFuncEntryBasicBlock(KLVMModuleFunc(m));
-    KLVMBuilder *bldr = KLVMBasicBlockBuilder(entry);
+    KLVMValueRef fn = KLVMGetInitFunction(m);
+    KLVMBlockRef entry = KLVMAppendBlock(fn, "entry");
 
-    KLVMValue *foo = KLVMAddVar(m, KLVMInt32Type(), "foo");
-    KLVMBuildCopy(bldr, KLVMConstInt32(100), foo);
+    KLVMBuilder bldr;
 
-    KLVMValue *bar = KLVMAddVar(m, KLVMInt32Type(), "bar");
-    KLVMValue *k200 = KLVMConstInt32(200);
-    KLVMValue *v = KLVMBuildAdd(bldr, foo, k200, "");
-    KLVMBuildCopy(bldr, v, bar);
+    KLVMSetBuilderAtEnd(&bldr, entry);
+    KLVMValueRef foo = KLVMAddVariable(m, "foo", KLVMTypeInt32());
+    KLVMBuildCopy(&bldr, foo, KLVMConstInt32(100));
 
-    KLVMValue *baz = KLVMAddVar(m, KLVMInt32Type(), "baz");
-    KLVMBuildCopy(bldr, KLVMBuildSub(bldr, foo, bar, ""), baz);
+    KLVMValueRef bar = KLVMAddVariable(m, "bar", KLVMTypeInt32());
+    KLVMValueRef k200 = KLVMConstInt32(200);
+    KLVMValueRef v = KLVMBuildAdd(&bldr, foo, k200, "");
+    KLVMBuildCopy(&bldr, bar, v);
+
+    KLVMValueRef baz = KLVMAddVariable(m, "baz", KLVMTypeInt32());
+    KLVMBuildCopy(&bldr, baz, KLVMBuildSub(&bldr, foo, bar, ""));
 }
-*/
 
 int main(int argc, char *argv[])
 {
     KLVMModuleRef m = KLVMCreateModule("test");
     test_fib(m);
+    test_func(m);
+    test_var(m);
     KLVMDumpModule(m);
+
+    KLVMPassGroup grp;
+    KLVMInitPassGroup(&grp);
+    KLVMAddUnReachBlockPass(&grp);
+    KLVMAddDotPass(&grp);
+    KLVMRunPassGroup(&grp, m);
+
     KLVMDestroyModule(m);
     return 0;
 }

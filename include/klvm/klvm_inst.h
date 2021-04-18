@@ -93,6 +93,9 @@ typedef struct _KLVMInst {
     KLVM_INST_HEAD
 } KLVMInst, *KLVMInstRef;
 
+/* Print Instruction */
+void KLVMPrintInst(KLVMFuncRef fn, KLVMInstRef inst, FILE *fp);
+
 typedef struct _KLVMCopyInst {
     KLVM_INST_HEAD
     KLVMValueRef lhs;

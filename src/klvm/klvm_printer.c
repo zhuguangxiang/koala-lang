@@ -120,7 +120,10 @@ static void KLVMPrintValue(KLVMFuncRef fn, KLVMValueRef val, FILE *fp)
         }
         case KLVM_VALUE_VAR: {
             KLVMVarRef var = (KLVMVarRef)val;
-            fprintf(fp, "@%s", var->name);
+            if (var->local)
+                KLVMPrintName(val, fn, fp);
+            else
+                fprintf(fp, "@%s", var->name);
             KLVMPrintType(val->type, fp);
             break;
         }

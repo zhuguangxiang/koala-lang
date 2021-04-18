@@ -21,16 +21,27 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KLVM_H_
-#define _KLVM_H_
+#ifndef _KLVM_PASS_H_
+#define _KLVM_PASS_H_
 
-#define _KLVM_H_INSIDE_
+#if !defined(_KLVM_H_INSIDE_) && !defined(KLVM_COMPILATION)
+#error "Only <klvm.h> can be included directly."
+#endif
 
-#include "klvm/klvm_inst.h"
-#include "klvm/klvm_pass.h"
-#include "klvm/klvm_type.h"
 #include "klvm/klvm_value.h"
 
-#undef _KLVM_H_INSIDE_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#endif /* _KLVM_H_ */
+/* Check unreachable block */
+void KLVMAddUnReachBlockPass(KLVMPassGroupRef grp);
+
+/* Generate graphviz dot file and pdf */
+void KLVMAddDotPass(KLVMPassGroupRef grp);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _KLVM_PASS_H_ */
