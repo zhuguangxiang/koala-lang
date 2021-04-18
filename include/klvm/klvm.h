@@ -27,7 +27,6 @@
 #define _KLVM_H_INSIDE_
 
 #include "klvm/klvm_inst.h"
-#include "klvm/klvm_pass.h"
 #include "klvm/klvm_type.h"
 #include "klvm/klvm_value.h"
 

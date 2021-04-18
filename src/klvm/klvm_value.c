@@ -182,12 +182,14 @@ KLVMModuleRef KLVMCreateModule(char *name)
     KLVMModuleRef m = MemAllocWithPtr(m);
     m->name = name;
     VectorInitPtr(&m->items);
+    InitList(&m->passes);
     return m;
 }
 
 void KLVMDestroyModule(KLVMModuleRef m)
 {
     /* FIXME */
+    KLVMFiniPasses(m);
     MemFree(m);
 }
 
@@ -241,6 +243,56 @@ KLVMValueRef KLVMAddFunction(KLVMModuleRef m, char *name, KLVMTypeRef ty)
     KLVMFuncRef fn = __new_func(ty, name);
     VectorPushBack(&m->items, &fn);
     return (KLVMValueRef)fn;
+}
+
+/*--------------------------------------------------------------------------*\
+|* Pass                                                                     *|
+\*--------------------------------------------------------------------------*/
+
+typedef struct _KLVMPassInfo {
+    List link;
+    KLVMPassFunc callback;
+    void *arg;
+} KLVMPassInfo, *KLVMPassInfoRef;
+
+void KLVMFiniPasses(KLVMModuleRef m)
+{
+    KLVMPassInfoRef pi, nxt;
+    ListForEachSafe(pi, nxt, link, &m->passes, {
+        ListRemove(&pi->link);
+        MemFree(pi);
+    });
+}
+
+void KLVMRegisterPass(KLVMModuleRef m, KLVMPassRef pass)
+{
+    KLVMPassInfoRef pi = MemAllocWithPtr(pi);
+    InitList(&pi->link);
+    pi->callback = pass->callback;
+    pi->arg = pass->arg;
+    ListPushBack(&m->passes, &pi->link);
+}
+
+static void _run_pass(KLVMModuleRef m, KLVMFuncRef fn)
+{
+    int ret;
+    KLVMPassInfoRef pi;
+    ListForEach(pi, link, &m->passes, {
+        ret = pi->callback(fn, pi->arg);
+        /* error */
+        if (ret) return;
+    });
+}
+
+void KLVMRunPasses(KLVMModuleRef m)
+{
+    KLVMFuncRef fn;
+    KLVMValueRef *item;
+    VectorForEach(item, &m->items, {
+        if ((*item)->kind != KLVM_VALUE_FUNC) continue;
+        fn = *(KLVMFuncRef *)item;
+        _run_pass(m, fn);
+    });
 }
 
 #ifdef __cplusplus

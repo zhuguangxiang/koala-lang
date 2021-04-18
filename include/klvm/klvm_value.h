@@ -227,6 +227,8 @@ typedef struct _KLVMModule {
     Vector items;
     /* __init__ function */
     KLVMValueRef fn;
+    /* passess */
+    List passes;
 } KLVMModule, *KLVMModuleRef;
 
 /* Create a new module */
@@ -251,6 +253,26 @@ KLVMValueRef KLVMAddVariable(KLVMModuleRef m, char *name, KLVMTypeRef ty);
 
 /* Add a function to a module */
 KLVMValueRef KLVMAddFunction(KLVMModuleRef m, char *name, KLVMTypeRef ty);
+
+/*--------------------------------------------------------------------------*\
+|* Pass                                                                     *|
+\*--------------------------------------------------------------------------*/
+
+typedef int (*KLVMPassFunc)(KLVMFuncRef fn, void *arg);
+
+typedef struct _KLVMPass {
+    KLVMPassFunc callback;
+    void *arg;
+} KLVMPass, *KLVMPassRef;
+
+/* Finalize passes */
+void KLVMFiniPasses(KLVMModuleRef m);
+
+/* Register pass callback */
+void KLVMRegisterPass(KLVMModuleRef m, KLVMPassRef pass);
+
+/* Execute the pass group */
+void KLVMRunPasses(KLVMModuleRef m);
 
 #ifdef __cplusplus
 }
