@@ -47,6 +47,12 @@ void BitVecSet(BitVectorRef bvec, int idx)
     bvec->bits[BITWORD_SLOT(idx)] |= BITWORD_MASK(idx);
 }
 
+int BitVecGet(BitVectorRef bvec, int idx)
+{
+    assert(idx >= 0 && idx < bvec->size);
+    return (bvec->bits[BITWORD_SLOT(idx)] >> ((idx) % BITWORD_SIZE)) & 1;
+}
+
 void BitVecClear(BitVectorRef bvec, int idx)
 {
     assert(idx >= 0 && idx < bvec->size);

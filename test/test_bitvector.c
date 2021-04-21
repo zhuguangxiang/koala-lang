@@ -35,9 +35,20 @@ static void test_bitvector(void)
     assert(bvec.words == 1);
 
     BitVecSet(&bvec, 0);
+    assert(BitVecGet(&bvec, 0) == 1);
+    assert(BitVecGet(&bvec, 1) == 0);
+    assert(BitVecGet(&bvec, 2) == 0);
+
     BitVecSet(&bvec, 1);
+    assert(BitVecGet(&bvec, 0) == 1);
+    assert(BitVecGet(&bvec, 1) == 1);
+    assert(BitVecGet(&bvec, 2) == 0);
+
     BitVecSet(&bvec, 2);
     assert(bvec.bits[0] == 7);
+    assert(BitVecGet(&bvec, 0) == 1);
+    assert(BitVecGet(&bvec, 1) == 1);
+    assert(BitVecGet(&bvec, 2) == 1);
 
     BitVecClear(&bvec, 1);
     assert(bvec.bits[0] == 5);
@@ -47,6 +58,9 @@ static void test_bitvector(void)
 
     BitVecSetAll(&bvec);
     assert(bvec.bits[0] == 7);
+    assert(BitVecGet(&bvec, 0) == 1);
+    assert(BitVecGet(&bvec, 1) == 1);
+    assert(BitVecGet(&bvec, 2) == 1);
 
     BitVecFini(&bvec);
 }
@@ -63,14 +77,24 @@ static void test_bitvector2(void)
     BitVecSet(&bvec, 2);
     assert(bvec.bits[0] == 7);
     assert(bvec.bits[1] == 0);
+    assert(BitVecGet(&bvec, 0) == 1);
+    assert(BitVecGet(&bvec, 1) == 1);
+    assert(BitVecGet(&bvec, 2) == 1);
 
     BitVecClear(&bvec, 1);
     assert(bvec.bits[0] == 5);
     assert(bvec.bits[1] == 0);
+    assert(BitVecGet(&bvec, 0) == 1);
+    assert(BitVecGet(&bvec, 1) == 0);
+    assert(BitVecGet(&bvec, 2) == 1);
 
     BitVecSet(&bvec, 64);
     assert(bvec.bits[0] == 5);
     assert(bvec.bits[1] == 1);
+    assert(BitVecGet(&bvec, 0) == 1);
+    assert(BitVecGet(&bvec, 1) == 0);
+    assert(BitVecGet(&bvec, 2) == 1);
+    assert(BitVecGet(&bvec, 64) == 1);
 
     BitVecClearAll(&bvec);
     assert(bvec.bits[0] == 0);
@@ -79,7 +103,10 @@ static void test_bitvector2(void)
     BitVecSetAll(&bvec);
     assert(bvec.bits[0] == (BitWord)-1);
     assert(bvec.bits[1] == 1);
-
+    assert(BitVecGet(&bvec, 0) == 1);
+    assert(BitVecGet(&bvec, 1) == 1);
+    assert(BitVecGet(&bvec, 2) == 1);
+    assert(BitVecGet(&bvec, 64) == 1);
     BitVecFini(&bvec);
 }
 

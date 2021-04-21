@@ -55,6 +55,9 @@ void BitVecFini(BitVectorRef bvec);
 /* Set 'idx' bit postion to 1 */
 void BitVecSet(BitVectorRef bvec, int idx);
 
+/* Get 'idx' bit value(0 or 1) */
+int BitVecGet(BitVectorRef bvec, int idx);
+
 /* Set 'idx' bit postion to 0 */
 void BitVecClear(BitVectorRef bvec, int idx);
 
