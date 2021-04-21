@@ -39,7 +39,7 @@ RUN_BISON(
 ADD_COMPILE_DEFINITIONS(KLVM_COMPILATION)
 
 SET(KOALA_SOURCES
-    libs/mm.c libs/vector.c libs/hashmap.c libs/binheap.c 
+    libs/mm.c libs/vector.c libs/hashmap.c libs/binheap.c libs/bitvector.c
     libs/buffer.c libs/atom.c libs/readline.c
     klvm/klvm_type.c klvm/klvm_value.c klvm/klvm_inst.c klvm/klvm_printer.c
     klvm/klvm_pass.c

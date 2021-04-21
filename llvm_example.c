@@ -288,6 +288,42 @@ void gen_print_hello(LLVMModuleRef mod, LLVMExecutionEngineRef engine)
     // LLVMDisposeBuilder(builder);
 }
 
+void test_phi(LLVMModuleRef mod)
+{
+    LLVMTypeRef param_types[] = { LLVMInt32Type(), LLVMInt32Type() };
+    LLVMTypeRef ret_type = LLVMFunctionType(LLVMInt32Type(), param_types, 2, 0);
+    LLVMValueRef add22 = LLVMAddFunction(mod, "add22", ret_type);
+
+    LLVMValueRef lhs = LLVMGetParam(add22, 0);
+    LLVMValueRef rhs = LLVMGetParam(add22, 1);
+
+    LLVMBasicBlockRef entry = LLVMAppendBasicBlock(add22, "entry");
+    LLVMBuilderRef builder = LLVMCreateBuilder();
+    LLVMPositionBuilderAtEnd(builder, entry);
+
+    LLVMValueRef z = LLVMBuildAlloca(builder, LLVMInt32Type(), "z");
+
+    // condition
+    LLVMValueRef _if = LLVMBuildICmp(builder, LLVMIntSGT, lhs, rhs, "cond");
+    LLVMBasicBlockRef _then = LLVMAppendBasicBlock(add22, "_then");
+    LLVMBasicBlockRef _else = LLVMAppendBasicBlock(add22, "_else");
+
+    // jump in entry block
+    LLVMBuildCondBr(builder, _if, _then, _else);
+
+    LLVMPositionBuilderAtEnd(builder, _then);
+    LLVMValueRef v = LLVMBuildAdd(builder, lhs, rhs, "");
+    LLVMBuildStore(builder, v, z);
+
+    LLVMPositionBuilderAtEnd(builder, _else);
+    LLVMValueRef v1 = LLVMBuildSub(builder, lhs, rhs, "");
+    LLVMBuildStore(builder, v, z);
+
+    LLVMBasicBlockRef _end = LLVMAppendBasicBlock(add22, "_end");
+    LLVMPositionBuilderAtEnd(builder, _end);
+    LLVMBuildRet(builder, z);
+}
+
 int bar();
 
 void main(int argc, char *argv[])
@@ -336,6 +372,8 @@ void main(int argc, char *argv[])
     LLVMDumpModule(mod);
 
     gen_gcd(mod);
+
+    test_phi(mod);
 
     LLVMTypeRef st = LLVMStructCreateNamed(LLVMGetGlobalContext(), "Foo");
     LLVMTypeRef elems[2];
@@ -419,16 +457,16 @@ void main(int argc, char *argv[])
     int (*sum_func)(int, int) = (int (*)(int,
     int))LLVMGetFunctionAddress(engine, "sum");
   */
+    /*
+        void (*main_func)(kl_string_t *) =
+            (void (*)(kl_string_t *))LLVMGetFunctionAddress(engine, "main2");
+        kl_string_t s = { 3, 10, "foo" };
+        main_func(&s);
 
-    void (*main_func)(kl_string_t *) =
-        (void (*)(kl_string_t *))LLVMGetFunctionAddress(engine, "main2");
-    kl_string_t s = { 3, 10, "foo" };
-    main_func(&s);
-
-    // Write out bitcode to file
-    if (LLVMWriteBitcodeToFile(mod, "sum.bc") != 0) {
-        fprintf(stderr, "error writing bitcode to file, skipping\n");
-    }
-
+        // Write out bitcode to file
+        if (LLVMWriteBitcodeToFile(mod, "sum.bc") != 0) {
+            fprintf(stderr, "error writing bitcode to file, skipping\n");
+        }
+    */
     // LLVMDisposeExecutionEngine(engine);
 }

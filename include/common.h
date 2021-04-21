@@ -44,7 +44,7 @@ extern "C" {
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 /* Get the aligned value */
-#define ALIGN(x, a) (((x) + (a)-1) & ~((a)-1))
+#define ALIGN(x, n) (((x) + (n)-1) & ~((n)-1))
 
 /* Get the aligned pointer size */
 #define ALIGN_PTR(x) ALIGN(x, sizeof(uintptr_t))
