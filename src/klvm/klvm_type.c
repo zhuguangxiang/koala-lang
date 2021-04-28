@@ -30,11 +30,16 @@ extern "C" {
 #endif
 
 static KLVMType bases[] = {
-    { KLVM_TYPE_UNDEF },   { KLVM_TYPE_INT8 },  { KLVM_TYPE_INT16 },
+    { KLVM_TYPE_NONE },    { KLVM_TYPE_INT8 },  { KLVM_TYPE_INT16 },
     { KLVM_TYPE_INT32 },   { KLVM_TYPE_INT64 }, { KLVM_TYPE_FLOAT32 },
     { KLVM_TYPE_FLOAT64 }, { KLVM_TYPE_BOOL },  { KLVM_TYPE_CHAR },
     { KLVM_TYPE_STR },     { KLVM_TYPE_ANY },
 };
+
+KLVMTypeRef KLVMTypeNone(void)
+{
+    return &bases[KLVM_TYPE_NONE];
+}
 
 KLVMTypeRef KLVMTypeInt8(void)
 {

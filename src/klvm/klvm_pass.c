@@ -21,7 +21,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "klvm/klvm_inst.h"
+#include "klvm/klvm_insn.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,10 +78,10 @@ void KLVMAddUnReachBlockPass(KLVMPassGroupRef grp)
 
 static int has_branch(KLVMBlockRef bb)
 {
-    KLVMInstRef inst;
-    inst = ListLast(&bb->insts, KLVMInst, link);
-    if (!inst) return 0;
-    return (inst->op == KLVM_INST_JMP_COND) ? 1 : 0;
+    KLVMInsnRef insn;
+    insn = ListLast(&bb->insns, KLVMInsn, link);
+    if (!insn) return 0;
+    return (insn->op == KLVM_INSN_COND_JMP) ? 1 : 0;
 }
 
 static int is_ebb(KLVMBlockRef bb)
@@ -120,10 +120,10 @@ static void __dot_print_edge(KLVMBlockRef bb, FILE *fp)
 
 static void __dot_print_block(KLVMBlockRef bb, FILE *fp)
 {
-    KLVMInstRef inst;
-    ListForEach(inst, link, &bb->insts, {
+    KLVMInsnRef insn;
+    ListForEach(insn, link, &bb->insns, {
         fprintf(fp, "\\l");
-        KLVMPrintInst((KLVMFuncRef)bb->fn, inst, fp);
+        KLVMPrintInsn((KLVMFuncRef)bb->fn, insn, fp);
     });
 }
 
@@ -138,11 +138,11 @@ static void __dot_pass(KLVMFuncRef fn, void *arg)
     fprintf(fp, "  node[shape=record margin=0.1 fontsize=12]\n");
 
     KLVMBlockRef bb;
-    KLVMInstRef inst;
+    KLVMInsnRef insn;
     ListForEach(bb, bb_link, &fn->bb_list, {
         fprintf(fp, "  %s", bb->label);
-        inst = ListLast(&bb->insts, KLVMInst, link);
-        if (inst->op == KLVM_INST_JMP_COND) {
+        insn = ListLast(&bb->insns, KLVMInsn, link);
+        if (insn->op == KLVM_INSN_COND_JMP) {
             fprintf(fp, "[label=\"{<h>%s:", bb->label);
             __dot_print_block(bb, fp);
             fprintf(fp, "|{<t>T|<f>F}}\"]\n");

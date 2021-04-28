@@ -43,22 +43,26 @@ typedef enum _KLVMValueKind {
     KLVM_VALUE_CONST = 1,
     KLVM_VALUE_VAR,
     KLVM_VALUE_FUNC,
-    KLVM_VALUE_INST,
+    KLVM_VALUE_INSN,
     KLVM_VALUE_CLASS,
     KLVM_VALUE_INTF,
     KLVM_VALUE_ENUM,
     KLVM_VALUE_CLOSURE,
 } KLVMValueKind;
 
+typedef struct _KLVMInterval KLVMInterval, *KLVMIntervalRef;
+
 // clang-format off
 
 #define KLVM_VALUE_HEAD \
     KLVMValueKind kind; KLVMTypeRef type; char *name; \
-    int tag; int pub; int final;
+    int tag; int pub; int final; int reg; \
+    KLVMIntervalRef interval;
 
-#define INIT_KLVM_VALUE_HEAD(val, _kind, _type, _name) \
+#define INIT_VALUE_HEAD(val, _kind, _type, _name) \
     val->kind = _kind; val->type = _type; val->name = _name; \
-    val->tag = -1; val->pub = 0; val->final = 0
+    val->tag = -1; val->pub = 0; val->final = 0; val->reg = -1; \
+    val->interval = NULL;
 
 // clang-format on
 
@@ -86,6 +90,27 @@ typedef struct _KLVMValue {
 
 /* Value is public */
 #define KLVMIsPub(val) (val)->pub
+
+/*--------------------------------------------------------------------------*\
+|* live range & interval                                                    *|
+\*--------------------------------------------------------------------------*/
+
+typedef struct _KLVMRange {
+    List link;
+    int start;
+    int end;
+} KLVMRange, *KLVMRangeRef;
+
+struct _KLVMInterval {
+    KLVMValueRef parent;
+    List range_list;
+    List use_list;
+    List link;
+    int start;
+    int end;
+};
+
+KLVMIntervalRef IntervalAlloc(KLVMValueRef parent);
 
 /*--------------------------------------------------------------------------*\
 |* Literal constant                                                         *|
@@ -135,8 +160,8 @@ typedef struct _KLVMBlock {
     /* 'start' and 'end' blocks are marked as dummy */
     short dummy;
     short tag;
-    int num_insts;
-    List insts;
+    int num_insns;
+    List insns;
     List in_edges;
     List out_edges;
 } KLVMBlock, *KLVMBlockRef;
@@ -183,11 +208,11 @@ void KLVMSetBuilderAtEnd(KLVMBuilderRef bldr, KLVMBlockRef bb);
 /* Set builder at head */
 void KLVMSetBuilderAtHead(KLVMBuilderRef bldr, KLVMBlockRef bb);
 
-/* Set builder at 'inst' */
-void KLVMSetBuilder(KLVMBuilderRef bldr, KLVMValueRef inst);
+/* Set builder at 'insn' */
+void KLVMSetBuilder(KLVMBuilderRef bldr, KLVMValueRef insn);
 
-/* Set builder before 'inst' */
-void KLVMSetBuilderBefore(KLVMBuilderRef bldr, KLVMValueRef inst);
+/* Set builder before 'insn' */
+void KLVMSetBuilderBefore(KLVMBuilderRef bldr, KLVMValueRef insn);
 
 /*--------------------------------------------------------------------------*\
 |* Function                                                                 *|

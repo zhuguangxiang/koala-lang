@@ -36,7 +36,7 @@ extern "C" {
 #endif
 
 typedef enum _KLVMTypeKind {
-    KLVM_TYPE_UNDEF,
+    KLVM_TYPE_NONE,
     KLVM_TYPE_INT8,
     KLVM_TYPE_INT16,
     KLVM_TYPE_INT32,
@@ -54,6 +54,7 @@ typedef enum _KLVMTypeKind {
     KLVM_TYPE_VALIST,
     KLVM_TYPE_KLASS,
     KLVM_TYPE_PROTO,
+    KLVM_TYPE_MAX,
 } KLVMTypeKind;
 
 /*
@@ -77,6 +78,7 @@ typedef struct _KLVMType {
 void KLVMInitTypes(void);
 void KLVMFiniTypes(void);
 
+KLVMTypeRef KLVMTypeNone(void);
 KLVMTypeRef KLVMTypeInt8(void);
 KLVMTypeRef KLVMTypeInt16(void);
 KLVMTypeRef KLVMTypeInt32(void);

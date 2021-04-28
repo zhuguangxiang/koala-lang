@@ -26,7 +26,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 /*--------------------------------------------------------------------------*\
 |* Literal constant                                                         *|
 \*--------------------------------------------------------------------------*/
@@ -34,7 +33,7 @@ extern "C" {
 KLVMValue *KLVMConstInt32(int32_t v)
 {
     KLVMConstRef k = MemAllocWithPtr(k);
-    INIT_KLVM_VALUE_HEAD(k, KLVM_VALUE_CONST, KLVMTypeInt32(), "");
+    INIT_VALUE_HEAD(k, KLVM_VALUE_CONST, KLVMTypeInt32(), "");
     k->i32val = v;
     return (KLVMValueRef)k;
 }
@@ -47,7 +46,7 @@ static KLVMBlockRef __new_block(KLVMValueRef fn, int dummy, char *label)
 {
     KLVMBlockRef bb = MemAllocWithPtr(bb);
     InitList(&bb->bb_link);
-    InitList(&bb->insts);
+    InitList(&bb->insns);
     InitList(&bb->in_edges);
     InitList(&bb->out_edges);
     bb->fn = fn;
@@ -122,13 +121,13 @@ void KLVMLinkEdge(KLVMBlockRef src, KLVMBlockRef dst)
 void KLVMSetBuilderAtEnd(KLVMBuilderRef bldr, KLVMBlockRef bb)
 {
     bldr->bb = bb;
-    bldr->it = &bb->insts;
+    bldr->it = &bb->insns;
 }
 
 void KLVMSetBuilderAtHead(KLVMBuilderRef bldr, KLVMBlockRef bb)
 {
     bldr->bb = bb;
-    bldr->it = bb->insts.prev;
+    bldr->it = bb->insns.prev;
 }
 
 /*--------------------------------------------------------------------------*\
@@ -162,7 +161,7 @@ static KLVMVarRef __new_var(KLVMTypeRef ty, char *name)
     }
 
     KLVMVarRef var = MemAllocWithPtr(var);
-    INIT_KLVM_VALUE_HEAD(var, KLVM_VALUE_VAR, ty, name);
+    INIT_VALUE_HEAD(var, KLVM_VALUE_VAR, ty, name);
     return var;
 }
 
@@ -200,7 +199,7 @@ static KLVMFuncRef __new_func(KLVMTypeRef ty, char *name)
     }
 
     KLVMFuncRef fn = MemAllocWithPtr(fn);
-    INIT_KLVM_VALUE_HEAD(fn, KLVM_VALUE_FUNC, ty, name);
+    INIT_VALUE_HEAD(fn, KLVM_VALUE_FUNC, ty, name);
 
     InitList(&fn->bb_list);
     InitList(&fn->edge_list);

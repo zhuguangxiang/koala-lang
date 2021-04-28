@@ -21,7 +21,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "klvm/klvm_inst.h"
+#include "klvm/klvm_insn.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,8 +109,43 @@ static void KLVMPrintName(KLVMValueRef val, KLVMFuncRef fn, FILE *fp)
     }
 }
 
-static void KLVMPrintValue(KLVMFuncRef fn, KLVMValueRef val, FILE *fp)
+static void KLVMPrintUse(KLVMFuncRef fn, KLVMUseRef use, FILE *fp)
 {
+    KLVMValueRef val = use->interval->parent;
+    KLVMPrintName(val, fn, fp);
+    KLVMPrintType(val->type, fp);
+}
+
+static void KLVMPrintOperand(KLVMFuncRef fn, KLVMOperRef oper, FILE *fp)
+{
+    KLVMOperKind kind = oper->kind;
+    switch (kind) {
+        case KLVM_OPER_CONST: {
+            KLVMConstRef val = oper->konst;
+            KLVMPrintConst(val, fp);
+            KLVMPrintType(val->type, fp);
+            break;
+        }
+        case KLVM_OPER_USE: {
+            KLVMPrintUse(fn, &oper->use, fp);
+            break;
+        }
+        case KLVM_OPER_FUNC: {
+            KLVMFuncRef _fn = (KLVMFuncRef)oper->fn;
+            fprintf(fp, "@%s", _fn->name);
+            break;
+        }
+        case KLVM_OPER_BLOCK: {
+            break;
+        }
+        default: {
+            assert(0);
+            break;
+        }
+    }
+
+#if 0
+    KLVMValueRef val;
     KLVMTypeKind kind = val->kind;
     switch (kind) {
         case KLVM_VALUE_CONST: {
@@ -127,7 +162,7 @@ static void KLVMPrintValue(KLVMFuncRef fn, KLVMValueRef val, FILE *fp)
             KLVMPrintType(val->type, fp);
             break;
         }
-        case KLVM_VALUE_INST: {
+        case KLVM_VALUE_INSN: {
             KLVMPrintName(val, fn, fp);
             KLVMPrintType(val->type, fp);
             break;
@@ -142,116 +177,118 @@ static void KLVMPrintValue(KLVMFuncRef fn, KLVMValueRef val, FILE *fp)
             abort();
             break;
     }
+#endif
 }
 
-static void KLVMPrintCopy(KLVMCopyInstRef inst, KLVMFuncRef fn, FILE *fp)
+static void KLVMPrintCopy(KLVMInsnRef insn, KLVMFuncRef fn, FILE *fp)
 {
-    KLVMPrintValue(fn, inst->lhs, fp);
-    ASSIGN();
-    KLVMPrintValue(fn, inst->rhs, fp);
+    fprintf(fp, "copy ");
+    KLVMPrintOperand(fn, &insn->operands[0], fp);
+    fprintf(fp, ", ");
+    KLVMPrintOperand(fn, &insn->operands[1], fp);
 }
 
-static void KLVMPrintBinary(KLVMBinaryInstRef inst, char *opname,
-                            KLVMFuncRef fn, FILE *fp)
+static void KLVMPrintBinary(KLVMInsnRef insn, char *opname, KLVMFuncRef fn,
+                            FILE *fp)
 {
-    KLVMPrintName((KLVMValueRef)inst, fn, fp);
+    KLVMPrintName((KLVMValueRef)insn, fn, fp);
 
-    KLVMPrintType(inst->type, fp);
+    KLVMPrintType(insn->type, fp);
 
     ASSIGN();
 
     fprintf(fp, "%s ", opname);
-    KLVMPrintValue(fn, inst->lhs, fp);
+    KLVMPrintOperand(fn, &insn->operands[0], fp);
     COMMA();
-    KLVMPrintValue(fn, inst->rhs, fp);
+    KLVMPrintOperand(fn, &insn->operands[1], fp);
 }
 
-static void KLVMPrintCall(KLVMCallInstRef inst, KLVMFuncRef fn, FILE *fp)
+static void KLVMPrintCall(KLVMInsnRef insn, KLVMFuncRef fn, FILE *fp)
 {
-    KLVMPrintName((KLVMValueRef)inst, fn, fp);
+    KLVMPrintName((KLVMValueRef)insn, fn, fp);
 
-    KLVMPrintType(inst->type, fp);
+    KLVMPrintType(insn->type, fp);
 
     ASSIGN();
 
     fprintf(fp, "call ");
 
-    KLVMPrintValue(fn, inst->fn, fp);
+    KLVMPrintOperand(fn, &insn->operands[0], fp);
 
     fprintf(fp, "(");
 
-    KLVMValueRef *arg;
-    VectorForEach(arg, &inst->args, {
-        if (i != 0) COMMA();
-        KLVMPrintValue(fn, *arg, fp);
-    });
+    KLVMOperRef oper;
+    for (int i = 1; i < insn->num_ops; i++) {
+        oper = &insn->operands[i];
+        KLVMPrintOperand(fn, oper, fp);
+    }
 
     fprintf(fp, ")");
 }
 
-static void KLVMPrintRet(KLVMRetInstRef inst, KLVMFuncRef fn, FILE *fp)
+static void KLVMPrintRet(KLVMInsnRef insn, KLVMFuncRef fn, FILE *fp)
 {
     fprintf(fp, "ret ");
-    KLVMPrintValue(fn, inst->ret, fp);
+    KLVMPrintOperand(fn, &insn->operands[0], fp);
 }
 
-static void KLVMPrintJmp(KLVMJmpInstRef inst, FILE *fp)
+static void KLVMPrintJmp(KLVMInsnRef insn, FILE *fp)
 {
     fprintf(fp, "jmp ");
 
-    KLVMBlockRef bb = inst->dest;
+    KLVMBlockRef bb = insn->operands[0].block;
     if (bb->label && bb->label[0])
         fprintf(fp, "label %%%s", bb->label);
     else
         fprintf(fp, "label %%bb%d", bb_tag(bb));
 }
 
-static void KLVMPrintCondJmp(KLVMCondJmpInstRef inst, KLVMFuncRef fn, FILE *fp)
+static void KLVMPrintCondJmp(KLVMInsnRef insn, KLVMFuncRef fn, FILE *fp)
 {
     fprintf(fp, "br ");
-    KLVMPrintValue(fn, inst->cond, fp);
+    KLVMPrintOperand(fn, &insn->operands[0], fp);
 
     KLVMBlockRef bb;
 
-    bb = inst->_then;
+    bb = insn->operands[1].block;
     if (bb->label && bb->label[0])
         fprintf(fp, ", label %%%s", bb->label);
     else
         fprintf(fp, ", label %%bb%d", bb_tag(bb));
 
-    bb = inst->_else;
+    bb = insn->operands[2].block;
     if (bb->label && bb->label[0])
         fprintf(fp, ", label %%%s", bb->label);
     else
         fprintf(fp, ", label %%bb%d", bb_tag(bb));
 }
 
-void KLVMPrintInst(KLVMFuncRef fn, KLVMInstRef inst, FILE *fp)
+void KLVMPrintInsn(KLVMFuncRef fn, KLVMInsnRef insn, FILE *fp)
 {
-    switch (inst->op) {
-        case KLVM_INST_COPY:
-            KLVMPrintCopy((KLVMCopyInstRef)inst, fn, fp);
+    switch (insn->op) {
+        case KLVM_INSN_COPY:
+            KLVMPrintCopy(insn, fn, fp);
             break;
-        case KLVM_INST_ADD:
-            KLVMPrintBinary((KLVMBinaryInstRef)inst, "add", fn, fp);
+        case KLVM_INSN_ADD:
+            KLVMPrintBinary(insn, "add", fn, fp);
             break;
-        case KLVM_INST_SUB:
-            KLVMPrintBinary((KLVMBinaryInstRef)inst, "sub", fn, fp);
+        case KLVM_INSN_SUB:
+            KLVMPrintBinary(insn, "sub", fn, fp);
             break;
-        case KLVM_INST_CMP_LE:
-            KLVMPrintBinary((KLVMBinaryInstRef)inst, "cmple", fn, fp);
+        case KLVM_INSN_CMP_LE:
+            KLVMPrintBinary(insn, "cmple", fn, fp);
             break;
-        case KLVM_INST_CALL:
-            KLVMPrintCall((KLVMCallInstRef)inst, fn, fp);
+        case KLVM_INSN_CALL:
+            KLVMPrintCall(insn, fn, fp);
             break;
-        case KLVM_INST_RET:
-            KLVMPrintRet((KLVMRetInstRef)inst, fn, fp);
+        case KLVM_INSN_RET:
+            KLVMPrintRet(insn, fn, fp);
             break;
-        case KLVM_INST_JMP:
-            KLVMPrintJmp((KLVMJmpInstRef)inst, fp);
+        case KLVM_INSN_JMP:
+            KLVMPrintJmp(insn, fp);
             break;
-        case KLVM_INST_JMP_COND:
-            KLVMPrintCondJmp((KLVMCondJmpInstRef)inst, fn, fp);
+        case KLVM_INSN_COND_JMP:
+            KLVMPrintCondJmp(insn, fn, fp);
             break;
         default:
             break;
@@ -292,11 +329,11 @@ static void KLVMPrintBlock(KLVMBlockRef bb, FILE *fp)
         if (edge->src != fn->sbb) KLVMPrintPreds(bb, 64 - cnt, fp);
     }
 
-    KLVMInstRef inst;
-    ListForEach(inst, link, &bb->insts, {
+    KLVMInsnRef insn;
+    ListForEach(insn, link, &bb->insns, {
         NEW_LINE();
         INDENT();
-        KLVMPrintInst((KLVMFuncRef)bb->fn, inst, fp);
+        KLVMPrintInsn((KLVMFuncRef)bb->fn, insn, fp);
     });
 }
 

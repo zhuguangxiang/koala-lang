@@ -21,16 +21,10 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef _KLVM_H_
-#define _KLVM_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define _KLVM_H_INSIDE_
-
-#include "klvm/klvm_insn.h"
-#include "klvm/klvm_pass.h"
-#include "klvm/klvm_type.h"
-#include "klvm/klvm_value.h"
-
-#undef _KLVM_H_INSIDE_
-
-#endif /* _KLVM_H_ */
+#ifdef __cplusplus
+}
+#endif

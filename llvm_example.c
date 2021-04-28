@@ -157,11 +157,11 @@ void gen_gcd(LLVMModuleRef mod)
     // LLVMStructCreateNamed(LLVMGetGlobalContext(), "Person");
 
     //  check instructions in then block
-    LLVMValueRef inst = LLVMGetFirstInstruction(then_block);
-    while (inst) {
-        LLVMOpcode code = LLVMGetInstructionOpcode(inst);
-        inst = LLVMGetNextInstruction(inst);
-        if (inst && code == LLVMRet) {
+    LLVMValueRef insn = LLVMGetFirstInstruction(then_block);
+    while (insn) {
+        LLVMOpcode code = LLVMGetInstructionOpcode(insn);
+        insn = LLVMGetNextInstruction(insn);
+        if (insn && code == LLVMRet) {
             printf("error: return must be last one.\n");
             abort();
         }
