@@ -88,7 +88,7 @@ typedef enum _KLVMInsnKind {
 
 // clang-format on
 
-typedef struct _KLVMInsn *KLVMInsnRef;
+typedef struct _KLVMInsn KLVMInsn, *KLVMInsnRef;
 
 typedef struct _KLVMUse {
     // link in KLVMInterval
@@ -98,6 +98,9 @@ typedef struct _KLVMUse {
     // self instruction
     KLVMInsnRef insn;
 } KLVMUse, *KLVMUseRef;
+
+#define UseForEach(use, use_list, closure) \
+    ListForEach(use, use_link, use_list, closure)
 
 typedef enum _KLVMOperKind {
     KLVM_OPER_NONE,
@@ -114,20 +117,23 @@ typedef struct _KLVMOper {
         KLVMConstRef konst;
         KLVMUse use;
         KLVMValueRef fn;
-        KLVMBlockRef block;
+        KLVMBasicBlockRef block;
     };
 } KLVMOper, *KLVMOperRef;
 
-typedef struct _KLVMInsn {
+struct _KLVMInsn {
     KLVM_VALUE_HEAD
     KLVMInsnKind op;
     List link;
-    int seq;
+    int pos;
     int num_ops;
     KLVMOper operands[0];
-} KLVMInsn;
+};
 
-/* Print Instruction */
+/* instruction iteration */
+#define InsnForEach(insn, insn_list, closure) \
+    ListForEach(insn, link, insn_list, closure)
+
 void KLVMPrintInsn(KLVMFuncRef fn, KLVMInsnRef insn, FILE *fp);
 
 void KLVMBuildCopy(KLVMBuilderRef bldr, KLVMValueRef lhs, KLVMValueRef rhs);
@@ -145,9 +151,9 @@ KLVMValueRef KLVMBuildBinary(KLVMBuilderRef bldr, KLVMInsnKind op,
 KLVMValueRef KLVMBuildCall(KLVMBuilderRef bldr, KLVMValueRef fn,
                            KLVMValueRef args[], int size, char *name);
 
-void KLVMBuildJmp(KLVMBuilderRef bldr, KLVMBlockRef dst);
+void KLVMBuildJmp(KLVMBuilderRef bldr, KLVMBasicBlockRef dst);
 void KLVMBuildCondJmp(KLVMBuilderRef bldr, KLVMValueRef cond,
-                      KLVMBlockRef _then, KLVMBlockRef _else);
+                      KLVMBasicBlockRef _then, KLVMBasicBlockRef _else);
 
 void KLVMBuildRet(KLVMBuilderRef bldr, KLVMValueRef ret);
 void KLVMBuildRetVoid(KLVMBuilderRef bldr);

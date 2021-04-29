@@ -33,7 +33,7 @@ void build_example_1(KLVMModuleRef mod)
     KLVMValueRef ret = KLVMAddLocal(fn, "RET", KLVMTypeInt32());
 
     KLVMBuilder bldr;
-    KLVMBlockRef b1 = KLVMAppendBlock(fn, "b1");
+    KLVMBasicBlockRef b1 = KLVMAppendBlock(fn, "b1");
     KLVMSetBuilderAtEnd(&bldr, b1);
     KLVMBuildCopy(&bldr, x, KLVMConstInt32(3));
     KLVMBuildCopy(&bldr, y, x);
@@ -46,6 +46,64 @@ void build_example_1(KLVMModuleRef mod)
 
     KLVMBuildCopy(&bldr, ret, z);
     KLVMBuildRet(&bldr, ret);
+
+    KLVMComputeInsnPositions(fn);
+}
+
+void show_mod_pos_reg(KLVMModuleRef m)
+{
+    KLVMValueRef *item;
+    VectorForEach(item, &m->functions, {
+        KLVMFuncRef fn = *(KLVMFuncRef *)item;
+        printf("func: %s, regs: %d\n", fn->name, fn->regs);
+        KLVMVarRef *var;
+        VectorForEach(var, &fn->locals, {
+            printf("var: %s, reg: %d\n", (*var)->name, (*var)->reg);
+        });
+
+        KLVMInsnRef insn;
+        KLVMBasicBlockRef bb;
+        BasicBlockForEach(bb, &fn->bb_list, {
+            printf("bb: %s, start: %d, end: %d\n", bb->label, bb->start,
+                   bb->end);
+            InsnForEach(insn, &bb->insns,
+                        { printf("insn-%d: reg:%d\n", insn->pos, insn->reg); });
+        });
+    });
+}
+
+void show_uses(KLVMModuleRef m)
+{
+    KLVMValueRef *item;
+    VectorForEach(item, &m->functions, {
+        KLVMFuncRef fn = *(KLVMFuncRef *)item;
+        KLVMInsnRef insn;
+        KLVMVarRef *var;
+        KLVMIntervalRef interval;
+        KLVMUseRef use;
+        VectorForEach(var, &fn->locals, {
+            printf("var: %s(reg: %d), uses:\n", (*var)->name, (*var)->reg);
+            interval = (*var)->interval;
+            UseForEach(use, &interval->use_list, {
+                insn = use->insn;
+                printf("insn-%d\n", insn->pos);
+            });
+        });
+
+        KLVMBasicBlockRef bb;
+        BasicBlockForEach(bb, &fn->bb_list, {
+            InsnForEach(insn, &bb->insns, {
+                if (insn->reg >= 0) {
+                    printf("insn: %d(reg: %d), uses:\n", insn->pos, insn->reg);
+                    interval = insn->interval;
+                    UseForEach(use, &interval->use_list, {
+                        insn = use->insn;
+                        printf("insn-%d\n", insn->pos);
+                    });
+                }
+            });
+        });
+    });
 }
 
 void test_liveness(KLVMModuleRef mod)
@@ -63,6 +121,9 @@ int main(int argc, char *argv[])
     KLVMInitPassGroup(&grp);
     KLVMAddDotPass(&grp);
     KLVMRunPassGroup(&grp, m);
+
+    show_mod_pos_reg(m);
+    show_uses(m);
 
     KLVMDestroyModule(m);
     return 0;

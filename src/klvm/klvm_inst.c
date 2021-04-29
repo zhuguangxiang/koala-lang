@@ -120,7 +120,7 @@ static void InitFuncOper(KLVMOperRef oper, KLVMValueRef fn)
     oper->fn = fn;
 }
 
-static void InitBlockOper(KLVMOperRef oper, KLVMBlockRef block)
+static void InitBlockOper(KLVMOperRef oper, KLVMBasicBlockRef block)
 {
     oper->kind = KLVM_OPER_BLOCK;
     oper->block = block;
@@ -167,6 +167,9 @@ KLVMValueRef KLVMBuildBinary(KLVMBuilderRef bldr, KLVMInsnKind op,
     InitOper(&insn->operands[0], insn, lhs);
     InitOper(&insn->operands[1], insn, rhs);
 
+    KLVMFuncRef _fn = (KLVMFuncRef)bldr->bb->fn;
+    insn->reg = _fn->regs++;
+
     InsnAppend(bldr, insn);
     return (KLVMValueRef)insn;
 }
@@ -174,7 +177,8 @@ KLVMValueRef KLVMBuildBinary(KLVMBuilderRef bldr, KLVMInsnKind op,
 KLVMValueRef KLVMBuildCall(KLVMBuilderRef bldr, KLVMValueRef fn,
                            KLVMValueRef args[], int size, char *name)
 {
-    KLVMTypeRef type = KLVMProtoRet(((KLVMFuncRef)fn)->type);
+    KLVMFuncRef _fn = (KLVMFuncRef)fn;
+    KLVMTypeRef type = KLVMProtoRet(_fn->type);
     KLVMInsnRef insn = InsnAlloc(KLVM_INSN_CALL, size + 1, type, name);
 
     InitFuncOper(&insn->operands[0], fn);
@@ -184,11 +188,15 @@ KLVMValueRef KLVMBuildCall(KLVMBuilderRef bldr, KLVMValueRef fn,
         InitOper(&insn->operands[i + 1], insn, arg);
     }
 
+    if (type != KLVMTypeNone()) {
+        insn->reg = _fn->regs++;
+    }
+
     InsnAppend(bldr, insn);
     return (KLVMValueRef)insn;
 }
 
-void KLVMBuildJmp(KLVMBuilderRef bldr, KLVMBlockRef dst)
+void KLVMBuildJmp(KLVMBuilderRef bldr, KLVMBasicBlockRef dst)
 {
     KLVMInsnRef insn = InsnAlloc(KLVM_INSN_JMP, 1, KLVMTypeNone(), "");
     InitBlockOper(&insn->operands[0], dst);
@@ -197,7 +205,7 @@ void KLVMBuildJmp(KLVMBuilderRef bldr, KLVMBlockRef dst)
 }
 
 void KLVMBuildCondJmp(KLVMBuilderRef bldr, KLVMValueRef cond,
-                      KLVMBlockRef _then, KLVMBlockRef _else)
+                      KLVMBasicBlockRef _then, KLVMBasicBlockRef _else)
 {
     KLVMInsnRef insn = InsnAlloc(KLVM_INSN_COND_JMP, 3, KLVMTypeNone(), "");
     InitOper(&insn->operands[0], insn, cond);

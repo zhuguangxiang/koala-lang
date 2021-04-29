@@ -21,7 +21,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "klvm/klvm_value.h"
+#include "klvm/klvm_insn.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,9 +42,9 @@ KLVMValue *KLVMConstInt32(int32_t v)
 |* Basic Block                                                              *|
 \*--------------------------------------------------------------------------*/
 
-static KLVMBlockRef __new_block(KLVMValueRef fn, int dummy, char *label)
+static KLVMBasicBlockRef __new_block(KLVMValueRef fn, int dummy, char *label)
 {
-    KLVMBlockRef bb = MemAllocWithPtr(bb);
+    KLVMBasicBlockRef bb = MemAllocWithPtr(bb);
     InitList(&bb->bb_link);
     InitList(&bb->insns);
     InitList(&bb->in_edges);
@@ -56,9 +56,9 @@ static KLVMBlockRef __new_block(KLVMValueRef fn, int dummy, char *label)
     return bb;
 }
 
-KLVMBlockRef KLVMAppendBlock(KLVMValueRef _fn, char *label)
+KLVMBasicBlockRef KLVMAppendBlock(KLVMValueRef _fn, char *label)
 {
-    KLVMBlockRef bb = __new_block(_fn, 0, label);
+    KLVMBasicBlockRef bb = __new_block(_fn, 0, label);
     KLVMFuncRef fn = (KLVMFuncRef)_fn;
 
     if (ListEmpty(&fn->bb_list)) {
@@ -71,25 +71,25 @@ KLVMBlockRef KLVMAppendBlock(KLVMValueRef _fn, char *label)
     return bb;
 }
 
-KLVMBlockRef KLVMAddBlock(KLVMBlockRef _bb, char *label)
+KLVMBasicBlockRef KLVMAddBlock(KLVMBasicBlockRef _bb, char *label)
 {
     KLVMFuncRef fn = (KLVMFuncRef)_bb->fn;
-    KLVMBlockRef bb = __new_block((KLVMValueRef)fn, 0, label);
+    KLVMBasicBlockRef bb = __new_block((KLVMValueRef)fn, 0, label);
     ListAdd(&_bb->bb_link, &bb->bb_link);
     fn->num_bbs++;
     return bb;
 }
 
-KLVMBlockRef KLVMAddBlockBefore(KLVMBlockRef _bb, char *label)
+KLVMBasicBlockRef KLVMAddBlockBefore(KLVMBasicBlockRef _bb, char *label)
 {
     KLVMFuncRef fn = (KLVMFuncRef)_bb->fn;
-    KLVMBlockRef bb = __new_block((KLVMValueRef)fn, 0, label);
+    KLVMBasicBlockRef bb = __new_block((KLVMValueRef)fn, 0, label);
     ListAddBefore(&_bb->bb_link, &bb->bb_link);
     fn->num_bbs++;
     return bb;
 }
 
-void KLVMDeleteBlock(KLVMBlockRef bb)
+void KLVMDeleteBlock(KLVMBasicBlockRef bb)
 {
     /* FIXME */
     ListRemove(&bb->bb_link);
@@ -100,7 +100,7 @@ void KLVMDeleteBlock(KLVMBlockRef bb)
 |* Block Edge                                                               *|
 \*--------------------------------------------------------------------------*/
 
-void KLVMLinkEdge(KLVMBlockRef src, KLVMBlockRef dst)
+void KLVMLinkEdge(KLVMBasicBlockRef src, KLVMBasicBlockRef dst)
 {
     KLVMEdgeRef edge = MemAllocWithPtr(edge);
     edge->src = src;
@@ -118,13 +118,13 @@ void KLVMLinkEdge(KLVMBlockRef src, KLVMBlockRef dst)
 |* Instruction Builder                                                      *|
 \*--------------------------------------------------------------------------*/
 
-void KLVMSetBuilderAtEnd(KLVMBuilderRef bldr, KLVMBlockRef bb)
+void KLVMSetBuilderAtEnd(KLVMBuilderRef bldr, KLVMBasicBlockRef bb)
 {
     bldr->bb = bb;
     bldr->it = &bb->insns;
 }
 
-void KLVMSetBuilderAtHead(KLVMBuilderRef bldr, KLVMBlockRef bb)
+void KLVMSetBuilderAtHead(KLVMBuilderRef bldr, KLVMBasicBlockRef bb)
 {
     bldr->bb = bb;
     bldr->it = bb->insns.prev;
@@ -169,8 +169,24 @@ KLVMValueRef KLVMAddLocal(KLVMValueRef fn, char *name, KLVMTypeRef ty)
 {
     KLVMVarRef var = __new_var(ty, name);
     var->local = 1;
-    VectorPushBack(&((KLVMFuncRef)fn)->locals, &var);
+    KLVMFuncRef _fn = (KLVMFuncRef)fn;
+    VectorPushBack(&_fn->locals, &var);
+    var->reg = _fn->regs++;
     return (KLVMValueRef)var;
+}
+
+void KLVMComputeInsnPositions(KLVMValueRef _fn)
+{
+    KLVMFuncRef fn = (KLVMFuncRef)_fn;
+
+    int pos = 0;
+    KLVMInsnRef insn;
+    KLVMBasicBlockRef bb;
+    BasicBlockForEach(bb, &fn->bb_list, {
+        bb->start = pos;
+        InsnForEach(insn, &bb->insns, { insn->pos = pos++; });
+        bb->end = pos;
+    });
 }
 
 /*--------------------------------------------------------------------------*\
@@ -181,7 +197,8 @@ KLVMModuleRef KLVMCreateModule(char *name)
 {
     KLVMModuleRef m = MemAllocWithPtr(m);
     m->name = name;
-    VectorInitPtr(&m->items);
+    VectorInitPtr(&m->variables);
+    VectorInitPtr(&m->functions);
     return m;
 }
 
@@ -224,7 +241,7 @@ KLVMValueRef KLVMGetInitFunction(KLVMModuleRef m)
     if (!fn) {
         KLVMTypeRef vvty = KLVMTypeProto(NULL, NULL, 0);
         fn = (KLVMValueRef)__new_func(vvty, "__init__");
-        VectorPushBack(&m->items, &fn);
+        VectorPushBack(&m->functions, &fn);
         m->fn = fn;
     }
     return fn;
@@ -233,14 +250,14 @@ KLVMValueRef KLVMGetInitFunction(KLVMModuleRef m)
 KLVMValueRef KLVMAddVariable(KLVMModuleRef m, char *name, KLVMTypeRef ty)
 {
     KLVMVarRef var = __new_var(ty, name);
-    VectorPushBack(&m->items, &var);
+    VectorPushBack(&m->variables, &var);
     return (KLVMValueRef)var;
 }
 
 KLVMValueRef KLVMAddFunction(KLVMModuleRef m, char *name, KLVMTypeRef ty)
 {
     KLVMFuncRef fn = __new_func(ty, name);
-    VectorPushBack(&m->items, &fn);
+    VectorPushBack(&m->functions, &fn);
     return (KLVMValueRef)fn;
 }
 
@@ -287,8 +304,7 @@ void KLVMRunPassGroup(KLVMPassGroupRef grp, KLVMModuleRef m)
 {
     KLVMFuncRef fn;
     KLVMValueRef *item;
-    VectorForEach(item, &m->items, {
-        if ((*item)->kind != KLVM_VALUE_FUNC) continue;
+    VectorForEach(item, &m->functions, {
         fn = *(KLVMFuncRef *)item;
         _run_pass(grp, fn);
     });

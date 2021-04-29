@@ -32,9 +32,9 @@ static void test_fib(KLVMModuleRef m)
     KLVMValueRef n = KLVMGetParam(fn, 0);
     KLVMSetName(n, "n");
 
-    KLVMBlockRef entry = KLVMAppendBlock(fn, "entry");
-    KLVMBlockRef _then = KLVMAppendBlock(fn, "then");
-    KLVMBlockRef _else = KLVMAppendBlock(fn, "else");
+    KLVMBasicBlockRef entry = KLVMAppendBlock(fn, "entry");
+    KLVMBasicBlockRef _then = KLVMAppendBlock(fn, "then");
+    KLVMBasicBlockRef _else = KLVMAppendBlock(fn, "else");
 
     KLVMBuilder bldr;
 
@@ -73,7 +73,7 @@ static void test_func(KLVMModuleRef m)
 
     KLVMBuilder bldr;
 
-    KLVMBlockRef entry = KLVMAppendBlock(fn, "entry");
+    KLVMBasicBlockRef entry = KLVMAppendBlock(fn, "entry");
     KLVMSetBuilderAtEnd(&bldr, entry);
     KLVMValueRef t1 = KLVMBuildAdd(&bldr, v1, v2, "");
     KLVMValueRef ret = KLVMAddLocal(fn, "res", KLVMTypeInt32());
@@ -81,7 +81,7 @@ static void test_func(KLVMModuleRef m)
     KLVMBuildRet(&bldr, ret);
     // KLVMBuildRet(&bldr, KLVMConstInt32(-100));
 
-    KLVMBlockRef bb2 = KLVMAppendBlock(fn, "test_bb");
+    KLVMBasicBlockRef bb2 = KLVMAppendBlock(fn, "test_bb");
     KLVMSetBuilderAtEnd(&bldr, bb2);
     KLVMValueRef t2 = KLVMBuildSub(&bldr, v1, KLVMConstInt32(20), "");
     KLVMBuildRet(&bldr, t2);
@@ -92,7 +92,7 @@ static void test_func(KLVMModuleRef m)
 static void test_var(KLVMModuleRef m)
 {
     KLVMValueRef fn = KLVMGetInitFunction(m);
-    KLVMBlockRef entry = KLVMAppendBlock(fn, "entry");
+    KLVMBasicBlockRef entry = KLVMAppendBlock(fn, "entry");
 
     KLVMBuilder bldr;
 

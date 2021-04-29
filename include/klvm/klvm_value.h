@@ -28,6 +28,8 @@
 #error "Only <klvm.h> can be included directly."
 #endif
 
+#include "bitvector.h"
+#include "hashmap.h"
 #include "klvm/klvm_type.h"
 #include "list.h"
 
@@ -96,16 +98,23 @@ typedef struct _KLVMValue {
 \*--------------------------------------------------------------------------*/
 
 typedef struct _KLVMRange {
+    /* link in interval */
     List link;
+    /* [start, end) */
     int start;
     int end;
 } KLVMRange, *KLVMRangeRef;
 
 struct _KLVMInterval {
+    /* parent variable/instruction of this interval */
     KLVMValueRef parent;
+    /* ranges of this interval */
     List range_list;
+    /* registers(uses) in this interval */
     List use_list;
+    /* link in linear-scan */
     List link;
+    /* combine ranges into one range [start, end) */
     int start;
     int end;
 };
@@ -153,30 +162,53 @@ typedef struct _KLVMVar {
 |* Basic Block                                                              *|
 \*--------------------------------------------------------------------------*/
 
-typedef struct _KLVMBlock {
+typedef struct _KLVMBasicBlock {
     List bb_link;
     KLVMValueRef fn;
     char *label;
     /* 'start' and 'end' blocks are marked as dummy */
     short dummy;
     short tag;
+
+    /* computed by liveness analysis.*/
+    struct {
+        /* instructions sequence number in this block, [start, end) */
+        int start, end;
+
+        /* variables(registers) defined by this block */
+        BitVectorRef defs;
+
+        /* variables(registers) used by this block */
+        BitVectorRef uses;
+
+        /* variables(registers) that are live when entering this block */
+        BitVectorRef liveins;
+
+        /* variables(registers) that are live when exiting this block */
+        BitVectorRef liveouts;
+    };
+
     int num_insns;
     List insns;
     List in_edges;
     List out_edges;
-} KLVMBlock, *KLVMBlockRef;
+} KLVMBasicBlock, *KLVMBasicBlockRef;
 
 /* Append a basic block to the end of a function */
-KLVMBlockRef KLVMAppendBlock(KLVMValueRef fn, char *label);
+KLVMBasicBlockRef KLVMAppendBlock(KLVMValueRef fn, char *label);
 
 /* Add a basic block after 'bb' */
-KLVMBlockRef KLVMAddBlock(KLVMBlockRef bb, char *label);
+KLVMBasicBlockRef KLVMAddBlock(KLVMBasicBlockRef bb, char *label);
 
 /* Add a basic block before 'bb' */
-KLVMBlockRef KLVMAddBlockBefore(KLVMBlockRef bb, char *label);
+KLVMBasicBlockRef KLVMAddBlockBefore(KLVMBasicBlockRef bb, char *label);
 
 /* Delete a basic block */
-void KLVMDeleteBlock(KLVMBlockRef bb);
+void KLVMDeleteBlock(KLVMBasicBlockRef bb);
+
+/* basic block iteration */
+#define BasicBlockForEach(bb, bb_list, closure) \
+    ListForEach(bb, bb_link, bb_list, closure)
 
 /*--------------------------------------------------------------------------*\
 |* Block Edge                                                               *|
@@ -184,29 +216,37 @@ void KLVMDeleteBlock(KLVMBlockRef bb);
 
 typedef struct _KLVMEdge {
     List link;
-    KLVMBlockRef src;
-    KLVMBlockRef dst;
+    KLVMBasicBlockRef src;
+    KLVMBasicBlockRef dst;
     List in_link;
     List out_link;
 } KLVMEdge, *KLVMEdgeRef;
 
 /* Add an edge */
-void KLVMLinkEdge(KLVMBlockRef src, KLVMBlockRef dst);
+void KLVMLinkEdge(KLVMBasicBlockRef src, KLVMBasicBlockRef dst);
+
+/* edge-out iteration */
+#define EdgeOutForEach(edge, out_list, closure) \
+    ListForEach(edge, out_link, out_list, closure)
+
+/* edge-in iteration */
+#define EdgeInForEach(edge, in_list, closure) \
+    ListForEach(edge, in_link, in_list, closure)
 
 /*--------------------------------------------------------------------------*\
 |* Instruction Builder                                                      *|
 \*--------------------------------------------------------------------------*/
 
 typedef struct _KLVMBuilder {
-    KLVMBlockRef bb;
+    KLVMBasicBlockRef bb;
     ListRef it;
 } KLVMBuilder, *KLVMBuilderRef;
 
 /* Set builder at end */
-void KLVMSetBuilderAtEnd(KLVMBuilderRef bldr, KLVMBlockRef bb);
+void KLVMSetBuilderAtEnd(KLVMBuilderRef bldr, KLVMBasicBlockRef bb);
 
 /* Set builder at head */
-void KLVMSetBuilderAtHead(KLVMBuilderRef bldr, KLVMBlockRef bb);
+void KLVMSetBuilderAtHead(KLVMBuilderRef bldr, KLVMBasicBlockRef bb);
 
 /* Set builder at 'insn' */
 void KLVMSetBuilder(KLVMBuilderRef bldr, KLVMValueRef insn);
@@ -223,13 +263,14 @@ typedef struct _KLVMFunc {
     int attr;
     int tag_index;
     int bb_tag_index;
+    int regs;
     int num_params;
     int num_bbs;
     List bb_list;
     List edge_list;
     Vector locals;
-    KLVMBlockRef sbb;
-    KLVMBlockRef ebb;
+    KLVMBasicBlockRef sbb;
+    KLVMBasicBlockRef ebb;
 } KLVMFunc, *KLVMFuncRef;
 
 /* Get function prototype */
@@ -241,14 +282,21 @@ KLVMValueRef KLVMGetParam(KLVMValueRef fn, int index);
 /* Add a local variable */
 KLVMValueRef KLVMAddLocal(KLVMValueRef fn, char *name, KLVMTypeRef ty);
 
+/* Compute Instructions positions */
+void KLVMComputeInsnPositions(KLVMValueRef _fn);
+
 /*--------------------------------------------------------------------------*\
 |* Module: values container                                                 *|
 \*--------------------------------------------------------------------------*/
 
 typedef struct _KLVMModule {
     char *name;
-    /* variables, functions, ... */
-    Vector items;
+    /* all symbols */
+    HashMap map;
+    /* variables */
+    Vector variables;
+    /* functions */
+    Vector functions;
     /* __init__ function */
     KLVMValueRef fn;
 } KLVMModule, *KLVMModuleRef;

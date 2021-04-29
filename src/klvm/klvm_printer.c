@@ -65,7 +65,7 @@ static inline int val_tag(KLVMFuncRef fn, KLVMValueRef val)
     return val->tag;
 }
 
-static inline int bb_tag(KLVMBlockRef bb)
+static inline int bb_tag(KLVMBasicBlockRef bb)
 {
     if (bb->tag < 0) {
         KLVMFuncRef fn = (KLVMFuncRef)bb->fn;
@@ -143,41 +143,6 @@ static void KLVMPrintOperand(KLVMFuncRef fn, KLVMOperRef oper, FILE *fp)
             break;
         }
     }
-
-#if 0
-    KLVMValueRef val;
-    KLVMTypeKind kind = val->kind;
-    switch (kind) {
-        case KLVM_VALUE_CONST: {
-            KLVMPrintConst((KLVMConstRef)val, fp);
-            KLVMPrintType(val->type, fp);
-            break;
-        }
-        case KLVM_VALUE_VAR: {
-            KLVMVarRef var = (KLVMVarRef)val;
-            if (var->local)
-                KLVMPrintName(val, fn, fp);
-            else
-                fprintf(fp, "@%s", var->name);
-            KLVMPrintType(val->type, fp);
-            break;
-        }
-        case KLVM_VALUE_INSN: {
-            KLVMPrintName(val, fn, fp);
-            KLVMPrintType(val->type, fp);
-            break;
-        }
-        case KLVM_VALUE_FUNC: {
-            KLVMFuncRef _fn = (KLVMFuncRef)val;
-            fprintf(fp, "@%s", _fn->name);
-            break;
-        }
-        default:
-            printf("error: unsupported value\n");
-            abort();
-            break;
-    }
-#endif
 }
 
 static void KLVMPrintCopy(KLVMInsnRef insn, KLVMFuncRef fn, FILE *fp)
@@ -236,7 +201,7 @@ static void KLVMPrintJmp(KLVMInsnRef insn, FILE *fp)
 {
     fprintf(fp, "jmp ");
 
-    KLVMBlockRef bb = insn->operands[0].block;
+    KLVMBasicBlockRef bb = insn->operands[0].block;
     if (bb->label && bb->label[0])
         fprintf(fp, "label %%%s", bb->label);
     else
@@ -248,7 +213,7 @@ static void KLVMPrintCondJmp(KLVMInsnRef insn, KLVMFuncRef fn, FILE *fp)
     fprintf(fp, "br ");
     KLVMPrintOperand(fn, &insn->operands[0], fp);
 
-    KLVMBlockRef bb;
+    KLVMBasicBlockRef bb;
 
     bb = insn->operands[1].block;
     if (bb->label && bb->label[0])
@@ -295,14 +260,14 @@ void KLVMPrintInsn(KLVMFuncRef fn, KLVMInsnRef insn, FILE *fp)
     }
 }
 
-static void KLVMPrintPreds(KLVMBlockRef bb, int spaces, FILE *fp)
+static void KLVMPrintPreds(KLVMBasicBlockRef bb, int spaces, FILE *fp)
 {
     fprintf(fp, "%*s = %%", spaces, ";; preds");
 
-    KLVMBlockRef src;
+    KLVMBasicBlockRef src;
     KLVMEdgeRef edge;
     int i = 0;
-    ListForEach(edge, in_link, &bb->in_edges, {
+    EdgeInForEach(edge, &bb->in_edges, {
         src = edge->src;
         if (i++ == 0)
             fprintf(fp, "%s", src->label);
@@ -311,7 +276,7 @@ static void KLVMPrintPreds(KLVMBlockRef bb, int spaces, FILE *fp)
     });
 }
 
-static void KLVMPrintBlock(KLVMBlockRef bb, FILE *fp)
+static void KLVMPrintBlock(KLVMBasicBlockRef bb, FILE *fp)
 {
     int cnt;
     if (bb->label && bb->label[0]) {
@@ -330,7 +295,7 @@ static void KLVMPrintBlock(KLVMBlockRef bb, FILE *fp)
     }
 
     KLVMInsnRef insn;
-    ListForEach(insn, link, &bb->insns, {
+    InsnForEach(insn, &bb->insns, {
         NEW_LINE();
         INDENT();
         KLVMPrintInsn((KLVMFuncRef)bb->fn, insn, fp);
@@ -341,8 +306,8 @@ static void KLVMPrintBlocks(KLVMFuncRef fn, FILE *fp)
 {
     // print basic blocks directly(not cfg)
 
-    KLVMBlockRef bb;
-    ListForEach(bb, bb_link, &fn->bb_list, {
+    KLVMBasicBlockRef bb;
+    BasicBlockForEach(bb, &fn->bb_list, {
         NEW_LINE();
         KLVMPrintBlock(bb, fp);
     });
@@ -396,16 +361,16 @@ void KLVMPrintModule(KLVMModuleRef m, FILE *fp)
     fprintf(fp, "\n__name__ := \"%s\"\n\n", m->name);
 
     KLVMValueRef *item;
-    VectorForEach(item, &m->items, {
-        if ((*item)->kind == KLVM_VALUE_VAR) {
-            KLVMVarRef var = *(KLVMVarRef *)item;
-            KLVMPrintVar(var, fp);
-            NEW_LINE();
-        } else if ((*item)->kind == KLVM_VALUE_FUNC) {
-            KLVMFuncRef fn = *(KLVMFuncRef *)item;
-            KLVMPrintFunc(fn, fp);
-            NEW_LINE();
-        }
+    VectorForEach(item, &m->variables, {
+        KLVMVarRef var = *(KLVMVarRef *)item;
+        KLVMPrintVar(var, fp);
+        NEW_LINE();
+    });
+
+    VectorForEach(item, &m->functions, {
+        KLVMFuncRef fn = *(KLVMFuncRef *)item;
+        KLVMPrintFunc(fn, fp);
+        NEW_LINE();
     });
 }
 
