@@ -76,3 +76,7 @@ Koala(🐻) was originally designed and developed by Zhu Guangxiang (James) sinc
 ## Donation
 
 To support this project, you can make a donation to give me a cup of coffee (😀).
+
+WeChat Donation:
+
+![WeChat Donation](wechat-donation.jpeg)
