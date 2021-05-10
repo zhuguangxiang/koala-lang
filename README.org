@@ -74,4 +74,5 @@ Koala was originally designed and developed by [[mailto:zhuguangxiang@gmail.com]
 ** Donation
 
 To support this project, you can make a donation to give me a cup of coffee ^\_^.
-[[img:wechat-donation.png][WeChat Donation]]
+#+CAPTION: WeChat Donation
+[[./wechat-donation.png]]
