@@ -1,4 +1,3 @@
-#+TITLE: README
 
 * What's Koala?
 
@@ -73,6 +72,6 @@ Koala was originally designed and developed by [[mailto:zhuguangxiang@gmail.com]
 
 ** Donation
 
-To support this project, you can make a donation to give me a cup of coffee ^\_^.
+To support this project, you can make a donation to give me a cup of coffee ^_^.
 #+CAPTION: WeChat Donation
 [[./wechat-donation.png]]
