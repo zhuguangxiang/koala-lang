@@ -1,4 +1,3 @@
-
 # What's Koala
 
 Koala(ğŸ») is a modern programming language.
@@ -79,4 +78,4 @@ To support this project, you can make a donation to give me a cup of coffee (ğŸ˜
 
 WeChat Donation:
 
-![WeChat Donation](wechat-donation.jpeg)
+![WeChat Donation](wechat-donation.png)
