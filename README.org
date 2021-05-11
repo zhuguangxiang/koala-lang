@@ -22,7 +22,7 @@ cmake ..
 make
 #+end_src
 
-For GNU/Linux, needs `cmake`, `gcc`, `flex/bison`, for example, in Ubuntu:
+For GNU/Linux, needs ~Cmake~, `gcc`, `flex/bison`, for example, in Ubuntu:
 
 #+begin_src shell
 sudo apt install build-essential
