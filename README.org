@@ -22,7 +22,7 @@ cmake ..
 make
 #+end_src
 
-For GNU/Linux, needs ~Cmake~, `gcc`, `flex/bison`, for example, in Ubuntu:
+For GNU/Linux, needs ~Cmake~, ~gcc~, ~flex/bison~, for example, in Ubuntu:
 
 #+begin_src shell
 sudo apt install build-essential
@@ -34,8 +34,8 @@ sudo apt install cmake
 echo 'export PATH="~/.local/bin:$PATH"' >> ~/.profile
 #+end_src
 
-For Apple/MacOS, needs `cmake`, `XCode`, `flex/bison`, in MacOS, using
-`[[https:brew.sh][homebrew]]` to install dependencies softwares.
+For Apple/MacOS, needs ~cmake~, ~XCode~, ~flex/bison~, in MacOS, using
+[[https:brew.sh][homebrew]] to install dependencies softwares.
 
 #+begin_src shell
 # XCode installed from `Apple` app store. It is too large, be patient!
@@ -50,7 +50,7 @@ echo 'export PATH="/usr/local/opt/flex/bin:$PATH"' >> ~/.bash_profile
 echo 'export PATH="~/.local/bin:$PATH"' >> ~/.bash_profile
 #+end_src
 
-The program `koala` is at `build/src/koala`, you can copy it to other places.
+The program ~koala~ is at 'build/src/koala', you can copy it to other places.
 
 #+begin_src shell
 # `make install` will install `koala` into '~/.local/bin'
