@@ -5,11 +5,11 @@ Koala is a modern programming language. It is simple and extensible.
 
 ** Features of Koala
 
-- Easy to use
-- Object-oriented Programming (class, trait, mix-in)
-- Functional Programming (closure)
-- Type safe
-- Garbage Collection
++ Easy to use
++ Object-oriented Programming (class, trait, mix-in)
++ Functional Programming (closure)
++ Type safe
++ Garbage Collection
 
 ** Install
 
@@ -22,7 +22,7 @@ cmake ..
 make
 #+end_src
 
-For GNU/Linux, needs ~Cmake~, ~gcc~, ~flex/bison~, for example, in Ubuntu:
+For GNU/Linux, needs =Cmake=, =gcc=, =flex/bison=, for example, in Ubuntu:
 
 #+begin_src shell
 sudo apt install build-essential
