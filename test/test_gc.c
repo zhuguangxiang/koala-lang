@@ -39,6 +39,7 @@ void test_object_gc(void)
 {
     struct Bar *old;
     struct Bar *bar = NULL;
+    GC_STACK(1);
     gc_push1(&bar);
 
     bar = gc_alloc(sizeof(struct Bar), NULL, bar_fini_func);
@@ -54,6 +55,7 @@ void test_object_gc(void)
 
     {
         struct Foo *foo = NULL;
+        GC_STACK(1);
         gc_push1(&foo);
         foo = gc_alloc(sizeof(struct Foo), Foo_objmap, foo_fini_func);
         foo->value = 100;
@@ -72,11 +74,11 @@ void test_object_gc(void)
 void test_array_gc(void)
 {
     void *arr = NULL;
+    GC_STACK(1);
     gc_push1(&arr);
 
-    arr = gc_alloc_array(64, 0);
+    arr = gc_alloc_array(64, 1, 0);
     strcpy(arr, "hello, world");
-    gc_expand_array(&arr, 18);
 
     gc();
     assert(!strcmp(arr, "hello, world"));
@@ -87,20 +89,20 @@ void test_array_gc(void)
 void test_array_gc2(void)
 {
     char **arr = NULL;
+    GC_STACK(1);
     gc_push1(&arr);
 
-    arr = (char **)gc_alloc_array(8 * 4, 1);
+    arr = (char **)gc_alloc_array(4, 8, 1);
     printf("--------first string-----------\n");
-    char *s = gc_alloc_array(48, 0);
+    char *s = gc_alloc_array(48, 1, 0);
     arr[0] = s;
     strcpy(s, "hello, world");
     printf("--------second string-----------\n");
-    s = gc_alloc_array(48, 0);
+    s = gc_alloc_array(48, 1, 0);
     arr[1] = s;
     strcpy(s, "hello, koala");
 
     printf("--------string gc-----------\n");
-    gc_stat();
     gc();
     printf("--------string gc end-----------\n");
 
@@ -112,7 +114,7 @@ void test_array_gc2(void)
 
 int main(int argc, char *argv[])
 {
-    gc_init();
+    gc_init(200);
 
     mm_stat();
 
@@ -121,8 +123,6 @@ int main(int argc, char *argv[])
     test_array_gc2();
     printf("----end----\n");
     gc();
-
-    gc_stat();
 
     gc_fini();
 

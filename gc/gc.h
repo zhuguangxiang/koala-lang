@@ -13,8 +13,7 @@
 extern "C" {
 #endif
 
-/* like julia gc */
-
+/* per-thread? */
 extern void *gcroots;
 
 /*
@@ -25,30 +24,42 @@ extern void *gcroots;
 
 /* clang-format off */
 
-/* save traced objects in func frame */
-#define gc_push1(arg1) \
-    void *__gc_stkf[] = { (void *)1, gcroots, arg1 }; \
-    gcroots = __gc_stkf;
+#define GC_STACK(nargs) \
+    void *__gc_stkf[nargs + 2] = { NULL, gcroots }; gcroots = __gc_stkf;
 
-#define gc_push2(arg1, arg2) \
-    void *__gc_stkf[] = { (void *)2, gcroots, arg1, arg2 }; \
-    gcroots = __gc_stkf;
+#define gc_push1(arg1) do {   \
+    __gc_stkf[0] = (void *)1; \
+    __gc_stkf[2] = arg1;      \
+} while (0)
 
-#define gc_push3(arg1, arg2, args3) \
-    void *__gc_stkf[] = { (void *)3, gcroots, arg1, arg2, arg3 }; \
-    gcroots = __gc_stkf;
+#define gc_push2(arg1, arg2) do { \
+    __gc_stkf[0] = (void *)2; \
+    __gc_stkf[2] = arg1;      \
+    __gc_stkf[3] = arg2;      \
+} while (0)
+
+#define gc_push3(arg1, arg2, arg3) do { \
+    __gc_stkf[0] = (void *)3; \
+    __gc_stkf[2] = arg1;      \
+    __gc_stkf[3] = arg2;      \
+    __gc_stkf[4] = arg3;      \
+} while (0)
+
+#define gc_push4(arg1, arg2, arg3, arg4) do { \
+    __gc_stkf[0] = (void *)3; \
+    __gc_stkf[2] = arg1;      \
+    __gc_stkf[3] = arg2;      \
+    __gc_stkf[4] = arg3;      \
+    __gc_stkf[5] = arg4;      \
+} while (0)
+
+/* clang-format on */
 
 /* remove traced objects from func frame */
 #define gc_pop() (gcroots = ((void **)gcroots)[1])
 
-/* clang-format on */
-
 /* object finalized func for close resource */
 typedef void (*GcFiniFunc)(void *);
-
-/* count of __VA_ARGS__ */
-#define VA_NARGS(type, ...) \
-    ((type)(sizeof((type[]){ __VA_ARGS__ }) / sizeof(type)))
 
 /*
  objmap[0] = count,
@@ -59,22 +70,16 @@ typedef void (*GcFiniFunc)(void *);
 void *gc_alloc(int size, int *objmap, GcFiniFunc fini);
 
 /* allocate array */
-void *gc_alloc_array(int size, int isobj);
-
-/* expand array */
-void gc_expand_array(void **arr, int size);
+void *gc_alloc_array(int num, int size, int isobj);
 
 /* start to gc */
 void gc(void);
 
 /* initialize gc */
-void gc_init(void);
+void gc_init(int size);
 
 /* finalize gc */
 void gc_fini(void);
-
-/* gc mem stat */
-void gc_stat(void);
 
 #ifdef __cplusplus
 }

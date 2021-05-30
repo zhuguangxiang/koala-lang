@@ -43,7 +43,7 @@ typedef struct _GcHeader {
 } GcHeader, *GcHeaderRef;
 
 /* semi-copy space */
-static const int space_size = 200;
+static int space_size;
 static char *from_space;
 static char *to_space;
 static char *free_ptr;
@@ -58,8 +58,8 @@ static VectorRef to_fini_objs;
 
 static GcHeaderRef __new__(int size)
 {
-    size = ALIGN_PTR(size);
     int objsize = sizeof(GcHeader) + size;
+    objsize = ALIGN_PTR(objsize);
     char *new_ptr;
     int tried = 0;
 
@@ -80,7 +80,7 @@ Lrealloc:
         goto Lrealloc;
     }
 
-    printf("gc-debug: alloc size:%d\n", objsize);
+    printf("gc-debug: alloc: %d\n", objsize);
 
     GcHeaderRef hdr = (GcHeaderRef)free_ptr;
     // 8 bytes alignment
@@ -93,6 +93,7 @@ Lrealloc:
 
 void *gc_alloc(int size, int *objmap, GcFiniFunc fini)
 {
+    printf("gc-debug: alloc object %d\n", size);
     assert(size > 0);
     GcHeaderRef hdr = __new__(size);
     hdr->kind = GC_OBJECT_KIND;
@@ -102,32 +103,21 @@ void *gc_alloc(int size, int *objmap, GcFiniFunc fini)
     return (void *)(hdr + 1);
 }
 
-void *gc_alloc_array(int size, int isobj)
+void *gc_alloc_array(int num, int size, int isobj)
 {
-    printf("gc-debug: alloc array [%d], isobj: %d\n", size, isobj);
-    GcHeaderRef hdr = __new__(size);
+    int arrsize = num * size;
+    printf("gc-debug: alloc array %dx%d@%d\n", num, size, isobj);
+    GcHeaderRef hdr = __new__(arrsize);
     hdr->kind = GC_ARRAY_KIND;
     hdr->arrinfo.isobj = isobj;
     hdr->arrinfo.size = size;
     return (void *)(hdr + 1);
 }
 
-void gc_expand_array(void **ptr, int size)
+void gc_init(int size)
 {
-    void *arr = *ptr;
-    GcHeaderRef hdr = (GcHeaderRef)arr - 1;
-    int oldsize = hdr->arrinfo.size;
-    int newsize = oldsize + size;
-    int isobj = hdr->arrinfo.isobj;
-    printf("gc-debug: expand array [%d] -> [%d] isobj: %d\n", oldsize, newsize,
-           isobj);
-    void *newarr = gc_alloc_array(newsize, isobj);
-    memcpy(newarr, arr, oldsize);
-    *ptr = newarr;
-}
+    space_size = size;
 
-void gc_init(void)
-{
     from_space = mm_alloc(space_size);
     to_space = mm_alloc(space_size);
     free_ptr = from_space;
@@ -158,13 +148,15 @@ static void *copy(void *ptr)
             printf("gc-debug: already copied\n");
             return hdr->forward;
         case GC_ARRAY_KIND: {
-            GcArrayInfo arrinfo = hdr->arrinfo;
-            void *newarr = gc_alloc_array(arrinfo.size, arrinfo.isobj);
-            memcpy(newarr, ptr, arrinfo.size);
+            GcArrayInfo *arrinfo = &hdr->arrinfo;
+            int num_objs = hdr->objsize / arrinfo->size;
+            int obj_size = arrinfo->size;
+            int isobj = arrinfo->isobj;
+            void *newarr = gc_alloc_array(num_objs, obj_size, isobj);
+            memcpy(newarr, ptr, hdr->objsize);
             hdr->forward = newarr;
             hdr->kind = GC_FORWARD_KIND;
-            if (arrinfo.isobj) {
-                int num_objs = arrinfo.size / PTR_SIZE;
+            if (isobj) {
                 void **elems = (void **)newarr;
                 for (int i = 0; i < num_objs; i++) elems[i] = copy(elems[i]);
             }
@@ -195,7 +187,7 @@ static void *copy(void *ptr)
 
 void gc(void)
 {
-    printf("gc-debug: start to gc\n");
+    printf("gc-debug: === gc is starting ===\n");
 
     // wait other threads stopped.
     // TODO
@@ -252,16 +244,9 @@ void gc(void)
     }
     */
 
-    printf("gc-debug: gc finished\n");
-    printf("gc-debug: %ld available\n", space_size - (free_ptr - from_space));
-}
-
-void gc_stat(void)
-{
-    puts("------ GC Memory Usage ------");
-    printf("%d bytes total\n", space_size);
-    printf("%ld bytes used\n", free_ptr - from_space);
-    puts("--------------------------");
+    printf("gc-debug: === gc finished ===\n");
+    printf("gc-debug: %d totoal, %ld used, %ld avail\n", space_size,
+           (free_ptr - from_space), space_size - (free_ptr - from_space));
 }
 
 #ifdef __cplusplus

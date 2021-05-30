@@ -15,17 +15,18 @@
 extern "C" {
 #endif
 
-/* The macro is used to indicate which is an `Object` */
-#define OBJECT_HEAD
-
-/* The `Object` type is an opaque type, it likes `void` in c. */
-typedef struct Object *ObjectRef;
-
 /*
  * The `TypeObject` type is koala meta type, represents `class`, `trait`,
  * `enum` and `module`.
  */
 typedef struct _TypeObject *TypeObjectRef;
+
+/* The macro is used to indicate which is an `Object` */
+#define OBJECT_HEAD TypeObjectRef type;
+
+typedef struct _Object {
+    OBJECT_HEAD
+} Object, *ObjectRef;
 
 /* type's flags */
 typedef enum {
