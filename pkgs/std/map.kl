@@ -1,0 +1,41 @@
+
+package std
+
+pub final class MapEntry<K, V> {
+    var next MapEntry<K, V>
+    var hash int
+    var key K
+    var value V
+}
+
+pub final class Map<K, V> {
+    var entries [MapEntry<K, V>]
+    var count int
+    var group_at int
+    var shrink_at int
+
+    pub func __init__() {
+
+    }
+
+    func exist(key K) bool {
+        hash := key.hash()
+        slot := hash % count
+        item := entries[slot]
+        while (item != nil) {
+            if (key.equal(key, item)) return true
+            item = item.next;
+        }
+        return false
+    }
+
+    pub func put(key K, val V) int {
+        if (exist(key)) return -1
+        e := MapEntry<K, V>(key, val)
+        slot := e.hash % count
+        e.next = entries[slot].next
+        entries[slot].next = e
+        count += 1
+        return 0
+    }
+}

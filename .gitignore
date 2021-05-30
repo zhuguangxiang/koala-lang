@@ -9,3 +9,6 @@ koala_lex.h
 koala_yacc.c
 koala_yacc.h
 include/version.h
+*.bc
+*.ll
+*.o

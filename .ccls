@@ -1,7 +1,7 @@
 clang
--I/home/james/Codes/koala/include
--I/home/james/Codes/koala/include/objects
+-I/home/james/Codes/koala
 -I/usr/lib/llvm-11/include
 -DNDEBUG
--DNLog
+-DNLOG
+-DKLIR_COMPILATION
 %c -std=gnu11

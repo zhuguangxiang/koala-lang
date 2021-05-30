@@ -1,34 +1,41 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*
+ * This file is part of the koala-lang project, under the MIT License.
+ *
+ * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ */
 
-#include "binheap.h"
-#include "common.h"
+#include "util/binheap.h"
+#include "util/common.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct timer {
     unsigned int at_time;
-    binheap_entry_t entry;
+    BinHeapEntry entry;
 };
 
-struct timer test_timers[] = { { 26 }, { 35 }, { 12 }, { 20 }, { 5 }, { 34 },
-    { 23 }, { 14 }, { 24 }, { 9 } };
+struct timer test_timers[] = {
+    { 26 }, { 35 }, { 12 }, { 20 }, { 5 },
+    { 34 }, { 23 }, { 14 }, { 24 }, { 9 },
+};
 
-struct timer test_timers_sorted[] = { { 5 }, { 9 }, { 12 }, { 14 }, { 20 },
-    { 23 }, { 24 }, { 26 }, { 34 }, { 35 } };
+struct timer test_timers_sorted[] = {
+    { 5 },  { 9 },  { 12 }, { 14 }, { 20 },
+    { 23 }, { 24 }, { 26 }, { 34 }, { 35 },
+};
 
-struct timer test_timers_sorted_max[] = { { 35 }, { 34 }, { 26 }, { 24 },
-    { 23 }, { 20 }, { 14 }, { 12 }, { 9 }, { 5 } };
+struct timer test_timers_sorted_max[] = {
+    { 35 }, { 34 }, { 26 }, { 24 }, { 23 },
+    { 20 }, { 14 }, { 12 }, { 9 },  { 5 },
+};
 
-int timer_compare(binheap_entry_t *p, binheap_entry_t *c)
+int timer_compare(BinHeapEntryRef p, BinHeapEntryRef c)
 {
     struct timer *ta, *tb;
-    ta = container_of(p, struct timer, entry);
-    tb = container_of(c, struct timer, entry);
+    ta = CONTAINER_OF(p, struct timer, entry);
+    tb = CONTAINER_OF(c, struct timer, entry);
     // min heap
     // return ta->at_time < tb->at_time;
     // max heap
@@ -37,7 +44,7 @@ int timer_compare(binheap_entry_t *p, binheap_entry_t *c)
 
 void test_binheap(void)
 {
-    binheap_t heap;
+    BinHeap heap;
     binheap_init(&heap, 0, timer_compare);
 
     struct timer *timer;
@@ -49,10 +56,10 @@ void test_binheap(void)
         // printf("timer-%d:%ld\n", i, timer->entry.idx);
     }
 
-    binheap_entry_t *e = binheap_next(&heap, NULL);
+    BinHeapEntryRef e = binheap_next(&heap, NULL);
     printf("[");
     while (e) {
-        timer = container_of(e, struct timer, entry);
+        timer = CONTAINER_OF(e, struct timer, entry);
         e = binheap_next(&heap, e);
         if (e)
             printf("%d ", timer->at_time);
@@ -65,7 +72,7 @@ void test_binheap(void)
     e = binheap_pop(&heap);
     int i = 0;
     while (e) {
-        timer = container_of(e, struct timer, entry);
+        timer = CONTAINER_OF(e, struct timer, entry);
         // min heap
         // assert(timer->at_time == test_timers_sorted[i].at_time);
         // max heap
@@ -84,3 +91,7 @@ int main(int argc, char *argv[])
     test_binheap();
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

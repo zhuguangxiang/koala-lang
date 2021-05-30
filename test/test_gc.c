@@ -1,50 +1,13 @@
-/*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
-|*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
-|*                                                                            *|
-\*===----------------------------------------------------------------------===*/
+/*
+ * This file is part of the koala-lang project, under the MIT License.
+ *
+ * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ */
 
-#include "gc.h"
+#include "gc/gc.h"
+#include "util/mm.h"
 
 /* memory at least 340 bytes */
-char *ga;
-void *gb;
-
-ROOT_TRACE(test_gc, &ga, &gb);
-
-void test_raw_gc(void)
-{
-    void *obj = NULL;
-    void *obj2 = NULL;
-    gc_push(&obj, &obj2);
-    obj = gc_alloc(110);
-    obj2 = gc_alloc(50);
-    gc_pop();
-}
-
-void test_array_gc(void)
-{
-    GcArray *arr = NULL;
-    gc_push(&arr);
-    arr = gc_alloc_array(2, 1, 1);
-    void **pobj = (void **)arr->ptr;
-    pobj[0] = gc_alloc(8);
-    pobj[0] = gc_alloc(6);
-    arr = gc_expand_array(arr, 4);
-    gc_pop();
-
-    {
-        arr = NULL;
-        gc_push(&arr);
-        arr = gc_alloc_array(3, 0, 1);
-        pobj = (void **)arr->ptr;
-        pobj[0] = gc_alloc(8);
-        gc_pop();
-    }
-}
 
 struct Bar {
     int value;
@@ -52,36 +15,98 @@ struct Bar {
 
 struct Foo {
     int value;
-    char *str;
     struct Bar *bar;
 };
 
-void bar_fini_func(void *obj)
+int Foo_objmap[2] = {
+    1,
+    offsetof(struct Foo, bar),
+};
+
+void foo_fini_func(void *obj)
 {
-    printf("Bar fini called\n");
+    struct Foo *foo = obj;
+    printf("Foo %d fini called\n", foo->value);
 }
 
-OBJECT_MAP(foo, offsetof(struct Foo, str), offsetof(struct Foo, bar));
-
-struct Foo *foo;
-ROOT_TRACE(test_foo, &foo);
-
-void test_struct_gc(void)
+void bar_fini_func(void *obj)
 {
-    struct Bar *bar = NULL;
-    gc_push(&bar);
+    struct Bar *bar = obj;
+    printf("Bar %d fini called\n", bar->value);
+}
 
-    foo = gc_alloc_object(sizeof(struct Foo), __foo__, NULL);
-    bar = gc_alloc_object(sizeof(struct Bar), NULL, bar_fini_func);
-    bar->value = 0xbeaf;
-    bar = gc_alloc_object(sizeof(struct Bar), NULL, bar_fini_func);
+void test_object_gc(void)
+{
+    struct Bar *old;
+    struct Bar *bar = NULL;
+    gc_push1(&bar);
+
+    bar = gc_alloc(sizeof(struct Bar), NULL, bar_fini_func);
+    old = bar;
+    bar->value = 200;
+
+    gc();
+    assert(bar->value == 200);
+    assert(bar != old);
+
+    bar = gc_alloc(sizeof(struct Bar), NULL, bar_fini_func);
     bar->value = 100;
-    foo->bar = bar;
-    char *str = gc_alloc(20);
-    str = gc_alloc(40);
-    strcpy(str, "hello in foo");
-    foo->str = str;
-    foo->value = 200;
+
+    {
+        struct Foo *foo = NULL;
+        gc_push1(&foo);
+        foo = gc_alloc(sizeof(struct Foo), Foo_objmap, foo_fini_func);
+        foo->value = 100;
+        foo->bar = bar;
+        gc();
+        assert(foo->value == 100);
+        assert(foo->bar == bar);
+        gc_pop();
+    }
+
+    assert(bar->value == 100);
+
+    gc_pop();
+}
+
+void test_array_gc(void)
+{
+    void *arr = NULL;
+    gc_push1(&arr);
+
+    arr = gc_alloc_array(64, 0);
+    strcpy(arr, "hello, world");
+    gc_expand_array(&arr, 18);
+
+    gc();
+    assert(!strcmp(arr, "hello, world"));
+
+    gc_pop();
+}
+
+void test_array_gc2(void)
+{
+    char **arr = NULL;
+    gc_push1(&arr);
+
+    arr = (char **)gc_alloc_array(8 * 4, 1);
+    printf("--------first string-----------\n");
+    char *s = gc_alloc_array(48, 0);
+    arr[0] = s;
+    strcpy(s, "hello, world");
+    printf("--------second string-----------\n");
+    s = gc_alloc_array(48, 0);
+    arr[1] = s;
+    strcpy(s, "hello, koala");
+
+    printf("--------string gc-----------\n");
+    gc_stat();
+    gc();
+    printf("--------string gc end-----------\n");
+
+    assert(!strcmp(arr[0], "hello, world"));
+    assert(!strcmp(arr[1], "hello, koala"));
+
     gc_pop();
 }
 
@@ -89,54 +114,19 @@ int main(int argc, char *argv[])
 {
     gc_init();
 
-    MemStat();
+    mm_stat();
 
-    gc_add_root(test_gc);
-    gc_add_root(test_foo);
-
-    ga = gc_alloc(80);
-    ga = gc_alloc(100);
-    ga = gc_alloc(60);
-    strcpy(ga, "hello, world");
-
-    MemStat();
-
-    test_raw_gc();
-
-    gb = gc_alloc(120);
-    gb = gc_alloc(100);
-
-    printf("%s\n", ga);
-
-    MemStat();
-
+    test_object_gc();
     test_array_gc();
-
-    MemStat();
-
+    test_array_gc2();
+    printf("----end----\n");
     gc();
 
-    gb = NULL;
-    test_struct_gc();
-    gc();
-
-    printf("%s\n", ga);
-    printf("%s, %d, %d\n", foo->str, foo->bar->value, foo->value);
-
-    MemStat();
-
-    // release foo and ->bar
-    foo = NULL;
-    // release ga "hello, world"
-    ga = NULL;
-
-    gc();
-
-    MemStat();
+    gc_stat();
 
     gc_fini();
 
-    MemStat();
+    mm_stat();
 
     return 0;
 }
