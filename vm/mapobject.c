@@ -122,7 +122,7 @@ static inline int bucket(MapObjectRef map, uint32 hash)
 
 ObjectRef map_new(int8 key_ref, int8 val_ref)
 {
-    MapObjectRef map = gc_alloc(sizeof(MapObject), __map_objmap__, NULL);
+    MapObjectRef map = gc_alloc(sizeof(MapObject), __map_objmap__);
     GC_STACK(1);
     gc_push1(&map);
 
@@ -188,7 +188,7 @@ MapEntryRef __entry_new(EntryInfo *info, uintptr_t key, uintptr_t val)
         objmap = __entry_none_objmap__;
     }
 
-    MapEntryRef entry = gc_alloc(sizeof(MapEntry), objmap, NULL);
+    MapEntryRef entry = gc_alloc(sizeof(MapEntry), objmap);
     entry->hash = info->hash;
     entry->key = key;
     entry->val = val;

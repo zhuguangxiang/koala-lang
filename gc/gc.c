@@ -39,7 +39,6 @@ typedef struct _GcHeader {
         int *objmap;
         GcArrayInfo arrinfo;
     };
-    GcFiniFunc fini;
 } GcHeader, *GcHeaderRef;
 
 /* semi-copy space */
@@ -50,11 +49,6 @@ static char *free_ptr;
 
 /* all roots */
 void *gcroots;
-
-/* objects with finalize func */
-static Vector fini_objs[2];
-static VectorRef from_fini_objs;
-static VectorRef to_fini_objs;
 
 static GcHeaderRef __new__(int size)
 {
@@ -91,15 +85,13 @@ Lrealloc:
     return hdr;
 }
 
-void *gc_alloc(int size, int *objmap, GcFiniFunc fini)
+void *gc_alloc(int size, int *objmap)
 {
     printf("gc-debug: alloc object %d\n", size);
     assert(size > 0);
     GcHeaderRef hdr = __new__(size);
     hdr->kind = GC_OBJECT_KIND;
     hdr->objmap = objmap;
-    hdr->fini = fini;
-    if (fini) vector_push_back(from_fini_objs, &hdr);
     return (void *)(hdr + 1);
 }
 
@@ -117,24 +109,15 @@ void *gc_alloc_array(int num, int size, int isobj)
 void gc_init(int size)
 {
     space_size = size;
-
     from_space = mm_alloc(space_size);
     to_space = mm_alloc(space_size);
     free_ptr = from_space;
-
-    from_fini_objs = &fini_objs[0];
-    to_fini_objs = &fini_objs[1];
-    vector_init_ptr(from_fini_objs);
-    vector_init_ptr(to_fini_objs);
 }
 
 void gc_fini(void)
 {
     mm_free(from_space);
     mm_free(to_space);
-
-    vector_fini(from_fini_objs);
-    vector_fini(to_fini_objs);
 }
 
 static void *copy(void *ptr)
@@ -164,7 +147,7 @@ static void *copy(void *ptr)
         }
         case GC_OBJECT_KIND: {
             int *objmap = hdr->objmap;
-            void *newobj = gc_alloc(hdr->objsize, objmap, hdr->fini);
+            void *newobj = gc_alloc(hdr->objsize, objmap);
             memcpy(newobj, ptr, hdr->objsize);
             hdr->forward = newobj;
             hdr->kind = GC_FORWARD_KIND;
@@ -189,8 +172,7 @@ void gc(void)
 {
     printf("gc-debug: === gc is starting ===\n");
 
-    // wait other threads stopped.
-    // TODO
+    // TODO: wait other threads stopped?
 
     // swap space
     char *tmp = from_space;
@@ -200,10 +182,12 @@ void gc(void)
     memset(from_space, 0, space_size);
 
     // exchange from_fini_objs and to_fini_objs
+    /*
     VectorRef vec = from_fini_objs;
     from_fini_objs = to_fini_objs;
     to_fini_objs = vec;
     vector_clear(from_fini_objs);
+    */
 
     // foreach roots
     void **pptr;
@@ -219,6 +203,7 @@ void gc(void)
     }
 
     // call object's fini func
+    /*
     void **item;
     vector_foreach(item, to_fini_objs, {
         GcHeaderRef hdr = (GcHeaderRef)(*item);
@@ -226,6 +211,7 @@ void gc(void)
         printf("gc-debug: object is freed\n");
         if (hdr->fini) hdr->fini(hdr + 1);
     });
+    */
 
     /*
     GcHeaderRef hdr = (GcHeaderRef)to_space;

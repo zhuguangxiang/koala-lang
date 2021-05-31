@@ -107,7 +107,7 @@ void test_array2(void)
 
 int main(int argc, char *argv[])
 {
-    gc_init(600);
+    gc_init(512);
     test_array1();
     gc();
     test_array2();

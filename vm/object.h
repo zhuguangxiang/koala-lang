@@ -69,7 +69,7 @@ struct _TypeObject {
     VectorRef traits;
     /* line resolution order */
     VectorRef lro;
-    /* all symbols(includes bases) */
+    /* all symbols */
     HashMapRef mtbl;
     /* for singleton */
     ObjectRef instance;

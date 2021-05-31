@@ -13,7 +13,7 @@ extern "C" {
 
 int main(int argc, char *argv[])
 {
-    gc_init(1200);
+    gc_init(1000);
 
     GC_STACK(1);
     ObjectRef map = map_new(0, 0);

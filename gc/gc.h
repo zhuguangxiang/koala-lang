@@ -59,16 +59,13 @@ extern void *gcroots;
 /* remove traced objects from func frame */
 #define gc_pop() (gcroots = ((void **)gcroots)[1])
 
-/* object finalized func for close resource */
-typedef void (*GcFiniFunc)(void *);
-
 /*
  objmap[0] = count,
  objmap[1...n] = offset,
 */
 
 /* allocate object */
-void *gc_alloc(int size, int *objmap, GcFiniFunc fini);
+void *gc_alloc(int size, int *objmap);
 
 /* allocate array */
 void *gc_alloc_array(int num, int size, int isobj);

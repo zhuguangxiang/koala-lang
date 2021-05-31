@@ -36,7 +36,7 @@ static int __objmap__[] = {
 
 ObjectRef array_new(int32 itemsize, int8 ref)
 {
-    ArrayObjectRef arr = gc_alloc(sizeof(ArrayObject), __objmap__, NULL);
+    ArrayObjectRef arr = gc_alloc(sizeof(ArrayObject), __objmap__);
     GC_STACK(1);
     gc_push1(&arr);
     arr->gcarr = gc_alloc_array(ARRAY_SIZE, itemsize, ref);

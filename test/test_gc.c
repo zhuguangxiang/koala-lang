@@ -42,7 +42,7 @@ void test_object_gc(void)
     GC_STACK(1);
     gc_push1(&bar);
 
-    bar = gc_alloc(sizeof(struct Bar), NULL, bar_fini_func);
+    bar = gc_alloc(sizeof(struct Bar), NULL);
     old = bar;
     bar->value = 200;
 
@@ -50,14 +50,14 @@ void test_object_gc(void)
     assert(bar->value == 200);
     assert(bar != old);
 
-    bar = gc_alloc(sizeof(struct Bar), NULL, bar_fini_func);
+    bar = gc_alloc(sizeof(struct Bar), NULL);
     bar->value = 100;
 
     {
         struct Foo *foo = NULL;
         GC_STACK(1);
         gc_push1(&foo);
-        foo = gc_alloc(sizeof(struct Foo), Foo_objmap, foo_fini_func);
+        foo = gc_alloc(sizeof(struct Foo), Foo_objmap);
         foo->value = 100;
         foo->bar = bar;
         gc();
