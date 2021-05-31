@@ -13,47 +13,48 @@
 extern "C" {
 #endif
 
-/* per-thread? */
+/* FIXME: per-thread? */
 extern void *gcroots;
 
 /*
-    roots[0] = num_roots,
-    roots[1] = previous root,
-    roots[2...n] = actual roots' objects
+ roots[0] = num_roots,
+ roots[1] = previous root,
+ roots[2...n] = actual roots' objects
  */
 
-/* clang-format off */
+#define GC_STACK(nargs)                               \
+    void *__gc_stkf__[nargs + 2] = { NULL, gcroots }; \
+    gcroots = __gc_stkf__;
 
-#define GC_STACK(nargs) \
-    void *__gc_stkf[nargs + 2] = { NULL, gcroots }; gcroots = __gc_stkf;
+#define gc_push1(arg1)              \
+    do {                            \
+        __gc_stkf__[0] = (void *)1; \
+        __gc_stkf__[2] = arg1;      \
+    } while (0)
 
-#define gc_push1(arg1) do {   \
-    __gc_stkf[0] = (void *)1; \
-    __gc_stkf[2] = arg1;      \
-} while (0)
+#define gc_push2(arg1, arg2)        \
+    do {                            \
+        __gc_stkf__[0] = (void *)2; \
+        __gc_stkf__[2] = arg1;      \
+        __gc_stkf__[3] = arg2;      \
+    } while (0)
 
-#define gc_push2(arg1, arg2) do { \
-    __gc_stkf[0] = (void *)2; \
-    __gc_stkf[2] = arg1;      \
-    __gc_stkf[3] = arg2;      \
-} while (0)
+#define gc_push3(arg1, arg2, arg3)  \
+    do {                            \
+        __gc_stkf__[0] = (void *)3; \
+        __gc_stkf__[2] = arg1;      \
+        __gc_stkf__[3] = arg2;      \
+        __gc_stkf__[4] = arg3;      \
+    } while (0)
 
-#define gc_push3(arg1, arg2, arg3) do { \
-    __gc_stkf[0] = (void *)3; \
-    __gc_stkf[2] = arg1;      \
-    __gc_stkf[3] = arg2;      \
-    __gc_stkf[4] = arg3;      \
-} while (0)
-
-#define gc_push4(arg1, arg2, arg3, arg4) do { \
-    __gc_stkf[0] = (void *)3; \
-    __gc_stkf[2] = arg1;      \
-    __gc_stkf[3] = arg2;      \
-    __gc_stkf[4] = arg3;      \
-    __gc_stkf[5] = arg4;      \
-} while (0)
-
-/* clang-format on */
+#define gc_push4(arg1, arg2, arg3, arg4) \
+    do {                                 \
+        __gc_stkf__[0] = (void *)4;      \
+        __gc_stkf__[2] = arg1;           \
+        __gc_stkf__[3] = arg2;           \
+        __gc_stkf__[4] = arg3;           \
+        __gc_stkf__[5] = arg4;           \
+    } while (0)
 
 /* remove traced objects from func frame */
 #define gc_pop() (gcroots = ((void **)gcroots)[1])

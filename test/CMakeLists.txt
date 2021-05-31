@@ -18,6 +18,7 @@ test(test_mixin vm)
 # test(test_value_layout vm)
 test(test_gc gc)
 test(test_arrayobject vm)
+test(test_mapobject vm)
 
 # test(test_interactive util)
 # test(test_readline util)

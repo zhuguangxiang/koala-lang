@@ -36,6 +36,15 @@ void test_array1(void)
     len = array_length(arr);
     assert(len == 13);
     array_print(arr);
+
+    array_reserve(arr, 15);
+    array___set_item__(arr, 14, 'K');
+    array_print(arr);
+
+    array_reserve(arr, 18);
+    array___set_item__(arr, 16, '_');
+    array_print(arr);
+
     gc_pop();
 }
 
@@ -98,7 +107,7 @@ void test_array2(void)
 
 int main(int argc, char *argv[])
 {
-    gc_init(500);
+    gc_init(600);
     test_array1();
     gc();
     test_array2();

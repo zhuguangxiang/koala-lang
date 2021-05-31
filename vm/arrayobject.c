@@ -7,13 +7,17 @@
 #include "gc/gc.h"
 #include "object.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
     pub final class Array<T> {
         pub func length() int32 {}
     }
 */
 
-#define ARRAY_SIZE 4
+#define ARRAY_SIZE 8
 
 typedef struct _ArrayObject {
     OBJECT_HEAD
@@ -25,14 +29,14 @@ typedef struct _ArrayObject {
 } ArrayObject, *ArrayObjectRef;
 
 static TypeObjectRef array_type;
-static int array_objmap[] = {
+static int __objmap__[] = {
     1,
     offsetof(ArrayObject, gcarr),
 };
 
 ObjectRef array_new(int32 itemsize, int8 ref)
 {
-    ArrayObjectRef arr = gc_alloc(sizeof(ArrayObject), array_objmap, NULL);
+    ArrayObjectRef arr = gc_alloc(sizeof(ArrayObject), __objmap__, NULL);
     GC_STACK(1);
     gc_push1(&arr);
     arr->gcarr = gc_alloc_array(ARRAY_SIZE, itemsize, ref);
@@ -41,6 +45,29 @@ ObjectRef array_new(int32 itemsize, int8 ref)
     arr->ref = ref;
     gc_pop();
     return (ObjectRef)arr;
+}
+
+void array_reserve(ObjectRef self, int32 count)
+{
+    ArrayObjectRef arr = (ArrayObjectRef)self;
+    if (count <= arr->next) return;
+
+    GC_STACK(1);
+    gc_push1(&arr);
+
+    if (count > arr->num) {
+        // auto-expand
+        int num = arr->num * 2;
+        while (num < count) num = num * 2;
+
+        void *gcarr = gc_alloc_array(num, arr->itemsize, arr->ref);
+        memcpy(gcarr, arr->gcarr, arr->num * arr->itemsize);
+        arr->num = num;
+        arr->gcarr = gcarr;
+    }
+    arr->next = count;
+
+    gc_pop();
 }
 
 void array___set_item__(ObjectRef self, uint32 index, uintptr_t val)
@@ -146,3 +173,7 @@ static MethodDef array_methods[] = {
     { "length", NULL, "i32", array_length },
     { NULL },
 };
+
+#ifdef __cplusplus
+}
+#endif

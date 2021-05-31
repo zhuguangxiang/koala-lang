@@ -12,3 +12,7 @@ include/version.h
 *.bc
 *.ll
 *.o
+edit
+.gitignore
+sum
+example

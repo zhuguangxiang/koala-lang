@@ -15,7 +15,11 @@ pub final class Map<K, V> {
     var shrink_at int
 
     pub func __init__() {
-
+        entries = [MapEntry<K, V>]
+        entries.reserved(32)
+        count = 32
+        group_at = 0
+        shrink_at = 0
     }
 
     func exist(key K) bool {

@@ -14,6 +14,7 @@ extern "C" {
 #endif
 
 ObjectRef array_new(int32 itemsize, int8 ref);
+void array_reserve(ObjectRef self, int32 count);
 void array_append(ObjectRef self, uintptr_t val);
 int32 array_length(ObjectRef self);
 void array___set_item__(ObjectRef self, uint32 index, uintptr_t val);
