@@ -14,14 +14,7 @@ extern "C" {
 #define FNV32_BASE  ((unsigned int)0x811c9dc5)
 #define FNV32_PRIME ((unsigned int)0x01000193)
 
-uint32 str_hash(const char *str)
-{
-    uint32 c, hash = FNV32_BASE;
-    while ((c = (unsigned char)*str++)) hash = (hash * FNV32_PRIME) ^ c;
-    return hash;
-}
-
-uint32 mem_hash(const void *buf, int len)
+static uint32 hash_mem_hash(const void *buf, int len)
 {
     uint32 hash = FNV32_BASE;
     unsigned char *ucbuf = (unsigned char *)buf;
@@ -138,7 +131,7 @@ ObjectRef map_new(int8 key_ref, int8 val_ref)
 
 static uint32 __hash(MapObjectRef map, uintptr_t key)
 {
-    if (!map->key_ref) return mem_hash(&key, sizeof(uintptr_t));
+    if (!map->key_ref) return hash_mem_hash(&key, sizeof(uintptr_t));
 
     TypeObjectRef type = ((ObjectRef)key)->type;
     // MethodObjectRef meth = type->vtbl[0][0];

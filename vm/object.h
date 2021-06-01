@@ -19,7 +19,7 @@ extern "C" {
  * The `TypeObject` type is koala meta type, represents `class`, `trait`,
  * `enum` and `module`.
  */
-typedef struct _TypeObject *TypeObjectRef;
+typedef struct _TypeObject TypeObject, *TypeObjectRef;
 
 /* The macro is used to indicate which is an `Object` */
 #define OBJECT_HEAD TypeObjectRef type;
@@ -27,6 +27,8 @@ typedef struct _TypeObject *TypeObjectRef;
 typedef struct _Object {
     OBJECT_HEAD
 } Object, *ObjectRef;
+
+#define OBJECT_HEAD_INIT(_type_) .type = (_type_),
 
 /* type's flags */
 typedef enum {
@@ -48,11 +50,10 @@ typedef enum {
 /* `Type` object layout */
 struct _TypeObject {
     OBJECT_HEAD
-    /* object map */
-    // objmap_t *objmap;
-    /* mark */
     /* virtual table */
-    VectorRef vtbl;
+    uintptr_t **vtbl;
+    /* object map */
+    int *objmap;
     /* type name */
     char *name;
     /* type flags */

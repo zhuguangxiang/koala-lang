@@ -10,14 +10,104 @@
 extern "C" {
 #endif
 
+// clang-format off
 /* `Type` type */
-TypeObjectRef type_type;
-/* `Any` type */
-TypeObjectRef any_type;
+TypeObject type_type = {
+    OBJECT_HEAD_INIT(&type_type)
+    .name  = "Type",
+};
+
+/* 'Class' type */
+TypeObject class_type = {
+    OBJECT_HEAD_INIT(&type_type)
+    .name = "Class",
+    .flags = TF_CLASS | TF_PUB | TF_FINAL,
+};
+
+/*
+static MethodDef class_methods[] = {
+    { "get_name",   NULL, "s",                class_get_name   },
+    { "get_module", NULL, "LModule;",         class_get_module },
+    { "get_lro",    NULL, "LArray(LClass;);", class_get_lro    },
+    { "get_mbrs",   NULL, "LArray(A);",       class_get_mbrs   },
+    { "get_field",  "s",  "LField;",          class_get_field  },
+    { "get_method", "s",  "LMethod;",         class_get_method },
+    { "to_string",  NULL, "s",                class_to_string  },
+    { NULL }
+};
+*/
+
 /* `Field` type */
-TypeObjectRef field_type;
+TypeObject field_type = {
+    OBJECT_HEAD_INIT(&type_type)
+    .name = "Field",
+    .flags = TF_CLASS | TF_PUB | TF_FINAL,
+};
+
+/*
+static MethodDef field_methods[] = {
+    { "set",       "AA", NULL, field_set },
+    { "get",       "A",  "A",  field_get },
+    { "to_string", NULL, "s",  field_to_string },
+    { NULL }
+};
+*/
+
 /* `Method` type */
-TypeObjectRef method_type;
+TypeObject method_type = {
+    OBJECT_HEAD_INIT(&type_type)
+    .name = "Method",
+    .flags = TF_CLASS | TF_PUB | TF_FINAL,
+};
+
+/*
+static MethodDef method_methods[] = {
+    { "invoke",    "A...", NULL, method_invoke    },
+    { "to_string", NULL,   "s",  method_to_string },
+    { NULL }
+};
+*/
+
+/* `Any` type */
+TypeObject any_type = {
+    OBJECT_HEAD_INIT(&type_type)
+    .name  = "Any",
+    .flags = TF_TRAIT | TF_PUB,
+};
+
+int32 any_hash_code(ObjectRef self)
+{
+    return (int32)mem_hash(&self, sizeof(void *));
+}
+
+int8 any_equals(ObjectRef self, ObjectRef other)
+{
+    if (self->type != other->type) return 0;
+    return self == other;
+}
+
+ObjectRef any_get_class(ObjectRef self)
+{
+    return NULL;
+}
+
+ObjectRef any_to_string(ObjectRef self)
+{
+    char buf[64];
+    TypeObjectRef type = self->type;
+    snprintf(buf, sizeof(buf) - 1, "%.32s@%x", type->name, PTR2INT(self));
+    return NULL;
+}
+
+static MethodDef any_methods[] = {
+    { "hash_code", NULL, "i32",     any_hash_code },
+    { "equals",    "A",  "b",       any_equals    },
+    { "get_class", NULL, "LClass;", any_get_class },
+    { "to_string", NULL, "s",       any_to_string },
+    { NULL }
+};
+
+// clang-format on
 
 typedef struct _LroInfo {
     TypeObjectRef type;
@@ -85,7 +175,7 @@ static void build_one_lro(TypeObjectRef type, TypeObjectRef one)
 static void build_lro(TypeObjectRef type)
 {
     /* add Any type */
-    build_one_lro(type, any_type);
+    build_one_lro(type, &any_type);
 
     /* add first class or trait */
     build_one_lro(type, type->base);
@@ -114,23 +204,6 @@ static void inherit_methods(TypeObjectRef type)
     }
 }
 
-static VectorRef __get_vtbl(TypeObjectRef type, int index)
-{
-    VectorRef vec = type->vtbl;
-    if (!vec) {
-        vec = vector_create(PTR_SIZE);
-        type->vtbl = vec;
-    }
-
-    VectorRef vtbl = NULL;
-    vector_get(vec, index, &vtbl);
-    if (!vtbl) {
-        vtbl = vector_create(PTR_SIZE);
-        vector_set(vec, index, &vtbl);
-    }
-    return vtbl;
-}
-
 static int vtbl_same(VectorRef v1, int len1, VectorRef v2)
 {
     if (vector_size(v2) != len1) return 0;
@@ -145,19 +218,36 @@ static int vtbl_same(VectorRef v1, int len1, VectorRef v2)
     return 1;
 }
 
-static void build_vtbl_one(uintptr_t *slots, int index, VectorRef methods,
-                           HashMapRef mtbl)
+static uintptr_t *build_one_vtbl(TypeObjectRef type, HashMapRef mtbl)
 {
+    VectorRef lro = __get_lro(type);
+    LroInfoRef item;
+    VectorRef vec;
+
+    /* calculae length */
+    int length = 0;
+    vector_foreach(item, lro, {
+        vec = item->type->methods;
+        length += vector_size(vec);
+    });
+
+    /* build virtual table */
+    uintptr_t *slots = mm_alloc(sizeof(uintptr_t) * (length + 1));
+    int index = 0;
     MethodObjectRef *m;
     MethodObjectRef n;
     HashMapEntry *e;
-    vector_foreach(m, methods, {
-        n = *m;
-        e = hashmap_get(mtbl, &n->entry);
-        assert(e);
-        n = CONTAINER_OF(e, MethodObject, entry);
-        *(slots + index++) = (uintptr_t)n;
+    vector_foreach(item, lro, {
+        vec = item->type->methods;
+        vector_foreach(m, vec, {
+            e = hashmap_get(mtbl, &(*m)->entry);
+            assert(e);
+            n = CONTAINER_OF(e, MethodObject, entry);
+            *(slots + index++) = (uintptr_t)n->ptr;
+        });
     });
+
+    return slots;
 }
 
 static void build_vtbl(TypeObjectRef type)
@@ -194,45 +284,23 @@ static void build_vtbl(TypeObjectRef type)
     });
 
     uintptr_t **slots = mm_alloc(sizeof(uintptr_t *) * num_slot);
-    assert(slots);
-
     HashMapRef mtbl = __get_mtbl(type);
-    VectorRef vtbl = __get_vtbl(type, 0);
-
-    /* calculae #0 slot length */
-    int n0 = 1;
-    VectorRef vec;
-    vector_foreach(item, lro, {
-        vec = item->type->methods;
-        n0 += vector_size(vec);
-    });
 
     /* build #0 slot virtual table */
-    uintptr_t *n0slot = mm_alloc(sizeof(uintptr_t) * n0);
-    slots[0] = n0slot;
-    int index = 0;
-    vector_foreach(item, lro, {
-        vec = item->type->methods;
-        build_vtbl_one(n0slot, index, vec, mtbl);
-        index += sizeof(vec);
-    });
+    slots[0] = build_one_vtbl(type, mtbl);
 
     /* build other traits virtual tables */
     int j = 0;
-    int nx;
-    uintptr_t *nxslot;
     vector_foreach(item, lro, {
         if (item->index == -1) {
             item->index = ++j;
-            vtbl = __get_vtbl(type, j);
-            vec = __get_vtbl(item->type, 0);
-            nx = vector_size(vec) + 1;
-            nxslot = mm_alloc(sizeof(uintptr_t) * nx);
-            build_vtbl_one(nxslot, 0, vec, mtbl);
-            slots[j] = nxslot;
+            slots[j] = build_one_vtbl(item->type, mtbl);
             assert(j < num_slot);
         }
     });
+
+    /* set virtual table */
+    type->vtbl = slots;
 }
 
 TypeObjectRef kl_type_new(char *path, char *name, TPFlags flags,
@@ -266,17 +334,6 @@ void kl_type_ready(TypeObjectRef type)
 
 void kl_init_types(void)
 {
-    TypeObjectRef any_tp;
-    TypeObjectRef type_tp;
-
-    any_tp = kl_type_new_simple("std", "Any", TF_TRAIT | TF_PUB);
-    type_tp = kl_type_new_simple("std", "Type", TF_CLASS | TF_PUB | TF_FINAL);
-
-    // any_tp->type = type_tp;
-    // type_tp->type = type_tp;
-
-    any_type = any_tp;
-    type_type = type_tp;
 }
 
 void kl_fini_types(void)
