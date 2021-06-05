@@ -40,7 +40,7 @@ void test_object_gc(void)
     struct Bar *old;
     struct Bar *bar = NULL;
     GC_STACK(1);
-    gc_push1(&bar);
+    gc_push(&bar, 0);
 
     bar = gc_alloc(sizeof(struct Bar), NULL);
     old = bar;
@@ -56,7 +56,7 @@ void test_object_gc(void)
     {
         struct Foo *foo = NULL;
         GC_STACK(1);
-        gc_push1(&foo);
+        gc_push(&foo, 0);
         foo = gc_alloc(sizeof(struct Foo), Foo_objmap);
         foo->value = 100;
         foo->bar = bar;
@@ -75,7 +75,7 @@ void test_array_gc(void)
 {
     void *arr = NULL;
     GC_STACK(1);
-    gc_push1(&arr);
+    gc_push(&arr, 0);
 
     arr = gc_alloc_array(64, 1, 0);
     strcpy(arr, "hello, world");
@@ -90,7 +90,7 @@ void test_array_gc2(void)
 {
     char **arr = NULL;
     GC_STACK(1);
-    gc_push1(&arr);
+    gc_push(&arr, 0);
 
     arr = (char **)gc_alloc_array(4, 8, 1);
     printf("--------first string-----------\n");

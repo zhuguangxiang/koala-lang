@@ -40,7 +40,7 @@ Object *array_new(uint32 tp_map)
     int itemsize = tp_size(tp_map, 0);
     ArrayObject *arr = gc_alloc(sizeof(ArrayObject), __objmap__);
     GC_STACK(1);
-    gc_push1(&arr);
+    gc_push(&arr, 0);
     int isref = is_ref(tp_map, 0);
     void *gcarr = gc_alloc_array(ARRAY_SIZE, itemsize, isref);
     arr->gcarr = gcarr;
@@ -56,7 +56,7 @@ void array_reserve(Object *self, int32 count)
     ArrayObject *arr = (ArrayObject *)self;
     if (count <= arr->next) return;
     GC_STACK(1);
-    gc_push1(&arr);
+    gc_push(&arr, 0);
 
     if (count > arr->num) {
         // auto-expand
@@ -84,10 +84,8 @@ void array_set(Object *self, uint32 index, uintptr val)
 
     int isref = is_ref(arr->tp_map, 0);
     GC_STACK(2);
-    if (isref)
-        gc_push2(&arr, &val);
-    else
-        gc_push1(&arr);
+    gc_push(&arr, 0);
+    if (isref) gc_push(&val, 1);
 
     if (arr->next >= arr->num) {
         // auto-expand
@@ -124,10 +122,8 @@ void array_append(Object *self, uintptr val)
     ArrayObject *arr = (ArrayObject *)self;
     int isref = is_ref(arr->tp_map, 0);
     GC_STACK(2);
-    if (isref)
-        gc_push2(&arr, &val);
-    else
-        gc_push1(&arr);
+    gc_push(&arr, 0);
+    if (isref) gc_push(&val, 1);
 
     if (arr->next >= arr->num) {
         // auto-expand

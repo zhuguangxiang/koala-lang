@@ -35,32 +35,6 @@ extern void *gcroots;
         __gc_stkf[2 + idx] = arg; \
     } while (0)
 
-#define gc_push1(arg1)       \
-    do {                     \
-        __gc_stkf[2] = arg1; \
-    } while (0)
-
-#define gc_push2(arg1, arg2) \
-    do {                     \
-        __gc_stkf[2] = arg1; \
-        __gc_stkf[3] = arg2; \
-    } while (0)
-
-#define gc_push3(arg1, arg2, arg3) \
-    do {                           \
-        __gc_stkf[2] = arg1;       \
-        __gc_stkf[3] = arg2;       \
-        __gc_stkf[4] = arg3;       \
-    } while (0)
-
-#define gc_push4(arg1, arg2, arg3, arg4) \
-    do {                                 \
-        __gc_stkf[2] = arg1;             \
-        __gc_stkf[3] = arg2;             \
-        __gc_stkf[4] = arg3;             \
-        __gc_stkf[5] = arg4;             \
-    } while (0)
-
 /* remove traced objects from func frame */
 #define gc_pop() (gcroots = ((void **)gcroots)[1])
 

@@ -15,7 +15,7 @@ void test_array1(void)
 {
     Object *arr = array_new(TP_0(TP_I8));
     GC_STACK(1);
-    gc_push1(&arr);
+    gc_push(&arr, 0);
     array_append(arr, 'h');
     array_append(arr, 'e');
     array_append(arr, 'l');
@@ -52,7 +52,7 @@ void test_array2(void)
 {
     Object *arr = array_new(TP_0(TP_REF));
     GC_STACK(1);
-    gc_push1(&arr);
+    gc_push(&arr, 0);
 
     {
         GC_STACK(4);
@@ -60,7 +60,10 @@ void test_array2(void)
         Object *subarr2 = NULL;
         Object *subarr3 = NULL;
         Object *subarr4 = NULL;
-        gc_push4(&subarr1, &subarr2, &subarr3, &subarr4);
+        gc_push(&subarr1, 0);
+        gc_push(&subarr2, 1);
+        gc_push(&subarr3, 2);
+        gc_push(&subarr4, 3);
 
         subarr1 = array_new(TP_0(TP_I32));
         array_append(subarr1, 100);
