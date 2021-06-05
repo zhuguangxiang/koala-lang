@@ -30,10 +30,7 @@ extern void *gcroots;
 
 // clang-format on
 
-#define gc_push(arg, idx)         \
-    do {                          \
-        __gc_stkf[2 + idx] = arg; \
-    } while (0)
+#define gc_push(arg, idx) __gc_stkf[2 + idx] = arg
 
 /* remove traced objects from func frame */
 #define gc_pop() (gcroots = ((void **)gcroots)[1])
