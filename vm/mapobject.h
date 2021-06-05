@@ -13,11 +13,11 @@
 extern "C" {
 #endif
 
-ObjectRef map_new(int8 key_ref, int8 val_ref);
-int32 map_put_absent(ObjectRef self, uintptr_t key, uintptr_t val);
-void map_put(ObjectRef self, uintptr_t key, uintptr_t val, uintptr_t *old_val);
-int32 map_get(ObjectRef self, uintptr_t key, uintptr_t *val);
-int32 map_remove(ObjectRef self, uintptr_t key, uintptr_t *val);
+ObjectRef map_new(uint32 tp_map);
+int32 map_put_absent(ObjectRef self, uintptr key, uintptr val);
+void map_put(ObjectRef self, uintptr key, uintptr val, uintptr *old_val);
+int32 map_get(ObjectRef self, uintptr key, uintptr *val);
+int32 map_remove(ObjectRef self, uintptr key, uintptr *val);
 
 #ifdef __cplusplus
 }

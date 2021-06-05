@@ -23,27 +23,27 @@ output: CBDA
 
 void test_mixin_order(void)
 {
-    TypeObjectRef A_type = kl_type_new_simple("std", "A", TF_TRAIT | TF_PUB);
+    TypeInfo *A_type = kl_type_new_simple("std", "A", TF_TRAIT | TF_PUB);
     kl_type_ready(A_type);
 
-    TypeObjectRef B_type =
+    TypeInfo *B_type =
         kl_type_new("std", "B", TF_PUB | TF_TRAIT, NULL, A_type, NULL);
     kl_type_ready(B_type);
 
-    TypeObjectRef C_type =
+    TypeInfo *C_type =
         kl_type_new("std", "C", TF_PUB | TF_TRAIT, NULL, B_type, NULL);
     kl_type_ready(C_type);
 
-    TypeObjectRef D_type =
+    TypeInfo *D_type =
         kl_type_new("std", "D", TF_PUB | TF_TRAIT, NULL, A_type, NULL);
     kl_type_ready(D_type);
 
-    VectorRef traits = vector_create(PTR_SIZE);
+    Vector *traits = vector_create(PTR_SIZE);
     vector_push_back(traits, &D_type);
     vector_push_back(traits, &C_type);
     vector_push_back(traits, &B_type);
 
-    TypeObjectRef E_type =
+    TypeInfo *E_type =
         kl_type_new("std", "E", TF_PUB | TF_CLASS, NULL, A_type, traits);
     kl_type_ready(E_type);
 

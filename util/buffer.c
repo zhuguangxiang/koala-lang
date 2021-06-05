@@ -8,7 +8,7 @@
 
 #define EXPAND_MIN_SIZE 32
 
-static int expand(BufferRef self, int min)
+static int expand(Buffer *self, int min)
 {
     int size = self->len + min + 1;
     int newsize = self->size;
@@ -26,14 +26,14 @@ static int expand(BufferRef self, int min)
     return 0;
 }
 
-static int available(BufferRef self, int size)
+static int available(Buffer *self, int size)
 {
     int left = self->size - self->len - 1;
     if (left <= size && expand(self, size)) return -1;
     return self->size - self->len - 1 - size;
 }
 
-void buf_write_nstr(BufferRef self, char *s, int len)
+void buf_write_nstr(Buffer *self, char *s, int len)
 {
     if (!s) return;
     if (len <= 0) return;
@@ -42,14 +42,14 @@ void buf_write_nstr(BufferRef self, char *s, int len)
     self->len += len;
 }
 
-void buf_write_str(BufferRef self, char *s)
+void buf_write_str(Buffer *self, char *s)
 {
     if (!s) return;
     int len = strlen(s);
     buf_write_nstr(self, s, len);
 }
 
-void buf_vwrite(BufferRef self, int count, va_list args)
+void buf_vwrite(Buffer *self, int count, va_list args)
 {
     char *s;
     while (count-- > 0) {
@@ -58,7 +58,7 @@ void buf_vwrite(BufferRef self, int count, va_list args)
     }
 }
 
-void buf_nwrite(BufferRef self, int count, ...)
+void buf_nwrite(Buffer *self, int count, ...)
 {
     va_list args;
     va_start(args, count);
@@ -66,13 +66,13 @@ void buf_nwrite(BufferRef self, int count, ...)
     va_end(args);
 }
 
-void buf_write_char(BufferRef self, char ch)
+void buf_write_char(Buffer *self, char ch)
 {
     if (available(self, 1) <= 0) return;
     self->buf[self->len++] = ch;
 }
 
-void buf_write_int(BufferRef self, int ch)
+void buf_write_int(Buffer *self, int ch)
 {
     char buf[64];
     if (ch < 255) {
@@ -85,21 +85,21 @@ void buf_write_int(BufferRef self, int ch)
     }
 }
 
-void buf_write_byte(BufferRef self, int val)
+void buf_write_byte(Buffer *self, int val)
 {
     char buf[64];
     int sz = snprintf(buf, 63, "%d", val);
     buf_write_nstr(self, buf, sz);
 }
 
-void buf_write_int64(BufferRef self, int64_t val)
+void buf_write_int64(Buffer *self, int64 val)
 {
     char buf[64];
     int sz = snprintf(buf, 63, "%ld", val);
     buf_write_nstr(self, buf, sz);
 }
 
-void buf_write_double(BufferRef self, double val)
+void buf_write_double(Buffer *self, double val)
 {
     char buf[64];
     int sz = snprintf(buf, 63, "%lf", val);

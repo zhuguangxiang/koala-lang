@@ -22,38 +22,43 @@ extern void *gcroots;
  roots[2...n] = actual roots' objects
  */
 
-#define GC_STACK(nargs)                               \
-    void *__gc_stkf__[nargs + 2] = { NULL, gcroots }; \
-    gcroots = __gc_stkf__;
+// clang-format off
 
-#define gc_push1(arg1)              \
-    do {                            \
-        __gc_stkf__[0] = (void *)1; \
-        __gc_stkf__[2] = arg1;      \
+#define GC_STACK(nargs) \
+    void *__gc_stkf[nargs + 2] = { (void *)nargs, gcroots }; \
+    gcroots = __gc_stkf;
+
+// clang-format on
+
+#define gc_push(arg, idx)         \
+    do {                          \
+        __gc_stkf[2 + idx] = arg; \
     } while (0)
 
-#define gc_push2(arg1, arg2)        \
-    do {                            \
-        __gc_stkf__[0] = (void *)2; \
-        __gc_stkf__[2] = arg1;      \
-        __gc_stkf__[3] = arg2;      \
+#define gc_push1(arg1)       \
+    do {                     \
+        __gc_stkf[2] = arg1; \
     } while (0)
 
-#define gc_push3(arg1, arg2, arg3)  \
-    do {                            \
-        __gc_stkf__[0] = (void *)3; \
-        __gc_stkf__[2] = arg1;      \
-        __gc_stkf__[3] = arg2;      \
-        __gc_stkf__[4] = arg3;      \
+#define gc_push2(arg1, arg2) \
+    do {                     \
+        __gc_stkf[2] = arg1; \
+        __gc_stkf[3] = arg2; \
+    } while (0)
+
+#define gc_push3(arg1, arg2, arg3) \
+    do {                           \
+        __gc_stkf[2] = arg1;       \
+        __gc_stkf[3] = arg2;       \
+        __gc_stkf[4] = arg3;       \
     } while (0)
 
 #define gc_push4(arg1, arg2, arg3, arg4) \
     do {                                 \
-        __gc_stkf__[0] = (void *)4;      \
-        __gc_stkf__[2] = arg1;           \
-        __gc_stkf__[3] = arg2;           \
-        __gc_stkf__[4] = arg3;           \
-        __gc_stkf__[5] = arg4;           \
+        __gc_stkf[2] = arg1;             \
+        __gc_stkf[3] = arg2;             \
+        __gc_stkf[4] = arg3;             \
+        __gc_stkf[5] = arg4;             \
     } while (0)
 
 /* remove traced objects from func frame */

@@ -15,7 +15,7 @@ extern "C" {
 void *mm_alloc(int size);
 
 /* Allocate by ptr */
-#define mm_alloc_ptr(ptr) mm_alloc(OBJ_SIZE(ptr))
+#define mm_alloc_obj(ptr) mm_alloc(OBJ_SIZE(ptr))
 
 /* The func frees the memory space pointed by ptr. */
 void mm_free(void *ptr);

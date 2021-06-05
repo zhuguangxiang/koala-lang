@@ -18,26 +18,26 @@ typedef struct _List {
     struct _List *prev;
     /* Next list entry */
     struct _List *next;
-} List, *ListRef;
+} List;
 
 // clang-format off
 #define LIST_INIT(name) { &(name), &(name) }
 // clang-format on
 
-static inline void init_list(ListRef list)
+static inline void init_list(List *list)
 {
     list->prev = list;
     list->next = list;
 }
 
 /* Test whether a list is empty */
-static inline int list_empty(ListRef list)
+static inline int list_empty(List *list)
 {
     return list->next == list;
 }
 
 /* Insert a new entry between two known consecutive entries */
-static inline void __list_add(ListRef __new, ListRef prev, ListRef next)
+static inline void __list_add(List *__new, List *prev, List *next)
 {
     next->prev = __new;
     __new->next = next;
@@ -46,56 +46,56 @@ static inline void __list_add(ListRef __new, ListRef prev, ListRef next)
 }
 
 /* Insert a new entry after 'prev' entry */
-static inline void list_add(ListRef prev, ListRef __new)
+static inline void list_add(List *prev, List *__new)
 {
     __list_add(__new, prev, prev->next);
 }
 
 /* Insert a new entry before 'next' entry */
-static inline void list_add_before(ListRef next, ListRef __new)
+static inline void list_add_before(List *next, List *__new)
 {
     __list_add(__new, next->prev, next);
 }
 
 /* Insert a new entry at front */
-static inline void list_push_front(ListRef list, ListRef __new)
+static inline void list_push_front(List *list, List *__new)
 {
     __list_add(__new, list, list->next);
 }
 
 /* Insert a new entry at tail */
-static inline void list_push_back(ListRef list, ListRef __new)
+static inline void list_push_back(List *list, List *__new)
 {
     __list_add(__new, list->prev, list);
 }
 
 /* Remove a entry by making the prev/next entries pointer to each other. */
-static inline void __list_remove(ListRef prev, ListRef next)
+static inline void __list_remove(List *prev, List *next)
 {
     next->prev = prev;
     prev->next = next;
 }
 
 /* Remove an entry from list */
-static inline void list_remove(ListRef entry)
+static inline void list_remove(List *entry)
 {
     __list_remove(entry->prev, entry->next);
     init_list(entry);
 }
 
 /* Pop an entry at front */
-static inline ListRef list_pop_front(ListRef list)
+static inline List *list_pop_front(List *list)
 {
-    ListRef entry = list->next;
+    List *entry = list->next;
     if (entry == list) return NULL;
     list_remove(entry);
     return entry;
 }
 
 /* Pop an entry at tail */
-static inline ListRef list_pop_back(ListRef list)
+static inline List *list_pop_back(List *list)
 {
-    ListRef entry = list->prev;
+    List *entry = list->prev;
     if (entry == list) return NULL;
     list_remove(entry);
     return entry;
@@ -108,29 +108,29 @@ static inline ListRef list_pop_back(ListRef list)
 
 /* Get the first element from a list */
 #define list_first(list, type, member) ({ \
-    ListRef head__ = (list); \
-    ListRef pos__ = head__->next; \
+    List * head__ = (list); \
+    List * pos__ = head__->next; \
     pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
 })
 
 /* Get the last element from a list */
 #define list_last(list, type, member) ({ \
-    ListRef head__ = (list); \
-    ListRef pos__ = head__->prev; \
+    List * head__ = (list); \
+    List * pos__ = head__->prev; \
     pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
 })
 
 /* Get the next element from a list */
 #define list_next(pos, member, list) ({ \
-    ListRef head__ = (list); \
-    ListRef nxt__ = (pos)->member.next; \
+    List * head__ = (list); \
+    List * nxt__ = (pos)->member.next; \
     nxt__ != head__ ? list_entry(nxt__, typeof(*(pos)), member) : NULL; \
 })
 
 /* Get the previous element from a list */
 #define list_prev(pos, member, list) ({ \
-    ListRef head__ = (list); \
-    ListRef prev__ = (pos)->member.prev; \
+    List * head__ = (list); \
+    List * prev__ = (pos)->member.prev; \
     prev__ != head__ ? list_entry(prev__, typeof(*(pos)), member) : NULL; \
 })
 

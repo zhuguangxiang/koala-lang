@@ -1,0 +1,16 @@
+/*
+ * This file is part of the koala-lang project, under the MIT License.
+ *
+ * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
+ */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct _String {
+} String, *StringRef;
+
+#ifdef __cplusplus
+}
+#endif

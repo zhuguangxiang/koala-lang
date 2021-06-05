@@ -85,7 +85,7 @@ Lrealloc:
 
     GcHeader *hdr = (GcHeader *)free_ptr;
     // 8 bytes alignment
-    assert(!((uintptr_t)hdr & 7));
+    assert(!((uintptr)hdr & 7));
 
     free_ptr = new_ptr;
     hdr->objsize = size;
@@ -132,7 +132,7 @@ GcArray *gc_alloc_array(int len, int own_buf, int isobj)
     printf("gc-debug: alloc array [%d]\n", len);
 
     int size = sizeof(GcArray);
-    if (own_buf) size += len * sizeof(uintptr_t);
+    if (own_buf) size += len * sizeof(uintptr);
 
     GcHeader *hdr = __new__(size);
     hdr->kind = GC_ARRAY_KIND;
@@ -144,7 +144,7 @@ GcArray *gc_alloc_array(int len, int own_buf, int isobj)
     if (own_buf)
         data = arr->data;
     else {
-        hdr = __new__(len * sizeof(uintptr_t));
+        hdr = __new__(len * sizeof(uintptr));
         data = (void *)(hdr + 1);
     }
 
@@ -158,14 +158,14 @@ GcArray *gc_alloc_array(int len, int own_buf, int isobj)
 GcArray *gc_expand_array(GcArray *arr, int newlen)
 {
     if (arr->ptr != arr->data) {
-        GcHeader *hdr = __new__(newlen * sizeof(uintptr_t));
-        memcpy(hdr + 1, arr->ptr, arr->len * sizeof(uintptr_t));
+        GcHeader *hdr = __new__(newlen * sizeof(uintptr));
+        memcpy(hdr + 1, arr->ptr, arr->len * sizeof(uintptr));
         arr->ptr = hdr + 1;
         arr->len = newlen;
         return arr;
     } else {
         GcArray *newarr = gc_alloc_array(newlen, 1, arr->isobj);
-        memcpy(newarr->ptr, arr->ptr, arr->len * sizeof(uintptr_t));
+        memcpy(newarr->ptr, arr->ptr, arr->len * sizeof(uintptr));
         return newarr;
     }
 }
@@ -212,7 +212,7 @@ static void *copy(void *ptr)
             int own_buf = (arr->ptr == (void *)arr->data);
             GcArray *newarr = gc_alloc_array(arr->len, own_buf, arr->isobj);
             if (arr->ptr) {
-                memcpy(newarr->ptr, arr->ptr, arr->len * sizeof(uintptr_t));
+                memcpy(newarr->ptr, arr->ptr, arr->len * sizeof(uintptr));
                 copied = 1;
             }
             hdr->forward = newarr;

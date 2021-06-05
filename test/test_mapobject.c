@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     gc_init(1000);
 
     GC_STACK(1);
-    ObjectRef map = map_new(0, 0);
+    Object *map = map_new(0, 0);
     gc_push1(&map);
 
     gc();
@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 
     gc();
 
-    uintptr_t val = 0;
+    uintptr val = 0;
     map_get(map, 100, &val);
     assert(val == 100);
     map_get(map, 200, &val);

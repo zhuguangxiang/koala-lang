@@ -27,32 +27,32 @@ typedef struct _BitVector {
     int size;
     /* size in words, round_up(size / WORD_BIT_SIZE) */
     int words;
-} BitVector, *BitVectorRef;
+} BitVector;
 
 /* Initialize a bit vector with size in bits */
-void bitvector_init(BitVectorRef bvec, int nbits);
+void bitvector_init(BitVector *bvec, int nbits);
 
 /* Finalize a bit vector */
-void bitvector_fini(BitVectorRef bvec);
+void bitvector_fini(BitVector *bvec);
 
 /* Set 'idx' bit postion to 1 */
-void bitvector_set(BitVectorRef bvec, int idx);
+void bitvector_set(BitVector *bvec, int idx);
 
 /* Get 'idx' bit value(0 or 1) */
-int bitvector_get(BitVectorRef bvec, int idx);
+int bitvector_get(BitVector *bvec, int idx);
 
 #define bitvector_test(bvec, idx) bitvector_get(bvec, idx)
 
 /* Set 'idx' bit postion to 0 */
-void bitvector_clear(BitVectorRef bvec, int idx);
+void bitvector_clear(BitVector *bvec, int idx);
 
 /* Set all bits to 1 */
-void bitvector_set_all(BitVectorRef bvec);
+void bitvector_set_all(BitVector *bvec);
 
 /* Set all bits to 0 */
-void bitvector_clear_all(BitVectorRef bvec);
+void bitvector_clear_all(BitVector *bvec);
 
-void bitvector_show(BitVectorRef bvec);
+void bitvector_show(BitVector *bvec);
 
 #ifdef __cplusplus
 }

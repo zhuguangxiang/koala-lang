@@ -31,7 +31,7 @@ struct timer test_timers_sorted_max[] = {
     { 20 }, { 14 }, { 12 }, { 9 },  { 5 },
 };
 
-int timer_compare(BinHeapEntryRef p, BinHeapEntryRef c)
+int timer_compare(BinHeapEntry *p, BinHeapEntry *c)
 {
     struct timer *ta, *tb;
     ta = CONTAINER_OF(p, struct timer, entry);
@@ -56,7 +56,7 @@ void test_binheap(void)
         // printf("timer-%d:%ld\n", i, timer->entry.idx);
     }
 
-    BinHeapEntryRef e = binheap_next(&heap, NULL);
+    BinHeapEntry *e = binheap_next(&heap, NULL);
     printf("[");
     while (e) {
         timer = CONTAINER_OF(e, struct timer, entry);

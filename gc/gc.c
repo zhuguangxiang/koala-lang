@@ -78,7 +78,7 @@ Lrealloc:
 
     GcHeaderRef hdr = (GcHeaderRef)free_ptr;
     // 8 bytes alignment
-    assert(!((uintptr_t)hdr & 7));
+    assert(!((uintptr)hdr & 7));
 
     free_ptr = new_ptr;
     hdr->objsize = size;
@@ -193,7 +193,7 @@ void gc(void)
     void **pptr;
     void **root = (void **)gcroots;
     while (root) {
-        int nroots = (int)(uintptr_t)root[0];
+        int nroots = (int)(uintptr)root[0];
         for (int i = 0; i < nroots; i++) {
             pptr = root[2 + i];
             if (!*pptr) continue;

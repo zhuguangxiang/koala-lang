@@ -13,13 +13,13 @@
 extern "C" {
 #endif
 
-ObjectRef array_new(int32 itemsize, int8 ref);
-void array_reserve(ObjectRef self, int32 count);
-void array_append(ObjectRef self, uintptr_t val);
-int32 array_length(ObjectRef self);
-void array___set_item__(ObjectRef self, uint32 index, uintptr_t val);
-uintptr_t array___get_item__(ObjectRef self, uint32 index);
-void array_print(ObjectRef self);
+Object *array_new(uint32 tp_map);
+void array_reserve(Object *self, int32 count);
+void array_append(Object *self, uintptr val);
+int32 array_length(Object *self);
+void array_set(Object *self, uint32 index, uintptr val);
+uintptr array_get(Object *self, uint32 index);
+void array_print(Object *self);
 
 #ifdef __cplusplus
 }

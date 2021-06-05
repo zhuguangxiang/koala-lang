@@ -19,39 +19,42 @@ extern "C" {
 
 #define ARRAY_SIZE 8
 
-typedef struct _ArrayObject {
-    OBJECT_HEAD
-    void *gcarr;
+typedef struct _ArrayObject ArrayObject;
+
+struct _ArrayObject {
+    GENERIC_OBJECT_HEAD
     uint32 num;
     uint32 itemsize;
-    uint32 next : 31;
-    uint32 ref : 1;
-} ArrayObject, *ArrayObjectRef;
+    uint32 next;
+    void *gcarr;
+};
 
-static TypeObjectRef array_type;
+static TypeInfo array_type;
 static int __objmap__[] = {
     1,
     offsetof(ArrayObject, gcarr),
 };
 
-ObjectRef array_new(int32 itemsize, int8 ref)
+Object *array_new(uint32 tp_map)
 {
-    ArrayObjectRef arr = gc_alloc(sizeof(ArrayObject), __objmap__);
+    int itemsize = tp_size(tp_map, 0);
+    ArrayObject *arr = gc_alloc(sizeof(ArrayObject), __objmap__);
     GC_STACK(1);
     gc_push1(&arr);
-    arr->gcarr = gc_alloc_array(ARRAY_SIZE, itemsize, ref);
+    int isref = is_ref(tp_map, 0);
+    void *gcarr = gc_alloc_array(ARRAY_SIZE, itemsize, isref);
+    arr->gcarr = gcarr;
     arr->num = ARRAY_SIZE;
     arr->itemsize = itemsize;
-    arr->ref = ref;
+    arr->tp_map = tp_map;
     gc_pop();
-    return (ObjectRef)arr;
+    return (Object *)arr;
 }
 
-void array_reserve(ObjectRef self, int32 count)
+void array_reserve(Object *self, int32 count)
 {
-    ArrayObjectRef arr = (ArrayObjectRef)self;
+    ArrayObject *arr = (ArrayObject *)self;
     if (count <= arr->next) return;
-
     GC_STACK(1);
     gc_push1(&arr);
 
@@ -60,7 +63,8 @@ void array_reserve(ObjectRef self, int32 count)
         int num = arr->num * 2;
         while (num < count) num = num * 2;
 
-        void *gcarr = gc_alloc_array(num, arr->itemsize, arr->ref);
+        int isref = is_ref(arr->tp_map, 0);
+        void *gcarr = gc_alloc_array(num, arr->itemsize, isref);
         memcpy(gcarr, arr->gcarr, arr->num * arr->itemsize);
         arr->num = num;
         arr->gcarr = gcarr;
@@ -70,16 +74,17 @@ void array_reserve(ObjectRef self, int32 count)
     gc_pop();
 }
 
-void array___set_item__(ObjectRef self, uint32 index, uintptr_t val)
+void array_set(Object *self, uint32 index, uintptr val)
 {
-    ArrayObjectRef arr = (ArrayObjectRef)self;
+    ArrayObject *arr = (ArrayObject *)self;
     if (index > arr->next) {
         printf("panic: out of bound\n");
         abort();
     }
 
+    int isref = is_ref(arr->tp_map, 0);
     GC_STACK(2);
-    if (arr->ref)
+    if (isref)
         gc_push2(&arr, &val);
     else
         gc_push1(&arr);
@@ -87,7 +92,8 @@ void array___set_item__(ObjectRef self, uint32 index, uintptr_t val)
     if (arr->next >= arr->num) {
         // auto-expand
         int num = arr->num * 2; // double
-        void *gcarr = gc_alloc_array(num, arr->itemsize, arr->ref);
+        void *gcarr;
+        gcarr = gc_alloc_array(num, arr->itemsize, isref);
         memcpy(gcarr, arr->gcarr, arr->num * arr->itemsize);
         arr->num = num;
         arr->gcarr = gcarr;
@@ -99,25 +105,26 @@ void array___set_item__(ObjectRef self, uint32 index, uintptr_t val)
     gc_pop();
 }
 
-uintptr_t array___get_item__(ObjectRef self, uint32 index)
+uintptr array_get(Object *self, uint32 index)
 {
-    ArrayObjectRef arr = (ArrayObjectRef)self;
+    ArrayObject *arr = (ArrayObject *)self;
     if (index >= arr->next) {
         printf("panic: out of bound\n");
         abort();
     }
 
     char *addr = (char *)arr->gcarr + index * arr->itemsize;
-    uintptr_t val = 0;
+    uintptr val = 0;
     memcpy(&val, addr, arr->itemsize);
     return val;
 }
 
-void array_append(ObjectRef self, uintptr_t val)
+void array_append(Object *self, uintptr val)
 {
-    ArrayObjectRef arr = (ArrayObjectRef)self;
+    ArrayObject *arr = (ArrayObject *)self;
+    int isref = is_ref(arr->tp_map, 0);
     GC_STACK(2);
-    if (arr->ref)
+    if (isref)
         gc_push2(&arr, &val);
     else
         gc_push1(&arr);
@@ -125,7 +132,8 @@ void array_append(ObjectRef self, uintptr_t val)
     if (arr->next >= arr->num) {
         // auto-expand
         int num = arr->num * 2; // double
-        void *gcarr = gc_alloc_array(num, arr->itemsize, arr->ref);
+        void *gcarr;
+        gcarr = gc_alloc_array(num, arr->itemsize, isref);
         memcpy(gcarr, arr->gcarr, arr->num * arr->itemsize);
         arr->num = num;
         arr->gcarr = gcarr;
@@ -137,15 +145,15 @@ void array_append(ObjectRef self, uintptr_t val)
     gc_pop();
 }
 
-int32 array_length(ObjectRef self)
+int32 array_length(Object *self)
 {
-    ArrayObjectRef arr = (ArrayObjectRef)self;
+    ArrayObject *arr = (ArrayObject *)self;
     return (int32)arr->next;
 }
 
-void array_print(ObjectRef self)
+void array_print(Object *self)
 {
-    ArrayObjectRef arr = (ArrayObjectRef)self;
+    ArrayObject *arr = (ArrayObject *)self;
     printf("[");
     if (arr->itemsize == 1) {
         int8 *gcarr = (int8 *)arr->gcarr;

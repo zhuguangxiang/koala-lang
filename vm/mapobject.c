@@ -31,12 +31,12 @@ static uint32 hash_mem_hash(const void *buf, int len)
 typedef struct _MapEntry {
     struct _MapEntry *next;
     uint32 hash;
-    uintptr_t key;
-    uintptr_t val;
+    uintptr key;
+    uintptr val;
 } MapEntry, *MapEntryRef;
 
 typedef struct _MapObject {
-    OBJECT_HEAD
+    GENERIC_OBJECT_HEAD
     /* collision list array */
     MapEntryRef *entries;
     /* entries array size */
@@ -47,10 +47,6 @@ typedef struct _MapObject {
     uint32 grow_at;
     /* shrink entries point */
     uint32 shrink_at;
-    /* key is reference? */
-    int8 key_ref;
-    /* value is reference? */
-    int8 val_ref;
 } MapObject, *MapObjectRef;
 
 static int __entry_none_objmap__[] = {
@@ -113,56 +109,39 @@ static inline int bucket(MapObjectRef map, uint32 hash)
     return hash & (map->size - 1);
 }
 
-ObjectRef map_new(int8 key_ref, int8 val_ref)
+ObjectRef map_new(uint32 tp_map)
 {
     MapObjectRef map = gc_alloc(sizeof(MapObject), __map_objmap__);
     GC_STACK(1);
     gc_push1(&map);
-
     __alloc_entries(map, MAP_INIT_SIZE);
-
-    /* set reference or not */
-    map->key_ref = key_ref;
-    map->val_ref = val_ref;
-
+    map->tp_map = tp_map;
     gc_pop();
     return (ObjectRef)map;
 }
 
-static uint32 __hash(MapObjectRef map, uintptr_t key)
+static int32 __hash(uint32 tp_map, uintptr key)
 {
-    if (!map->key_ref) return hash_mem_hash(&key, sizeof(uintptr_t));
-
-    TypeObjectRef type = ((ObjectRef)key)->type;
-    // MethodObjectRef meth = type->vtbl[0][0];
-    uint32 ret = 0;
-    // method_call(meth, key, &ret);
-    return ret;
+    int key_isref = is_ref(tp_map, 0);
+    return generic_any_hash(key, key_isref);
 }
 
-static int __equal(MapObjectRef map, MapEntryRef e, uintptr_t key, uint32 hash)
+static int8 __equal(uint32 tp_map, MapEntryRef e, uintptr key)
 {
-    if (e->key == key) return 1;
-    if (e->hash != hash) return 0;
-    if (!map->key_ref) return 1;
-
-    ObjectRef obj = (ObjectRef)key;
-    TypeObjectRef type = ((ObjectRef)key)->type;
-    // MethodObjectRef meth = type->vtbl[0][1];
-    int ret = 0;
-    // method_call(meth, key, &ret);
-    return ret;
+    int key_isref = is_ref(tp_map, 0);
+    return generic_any_equal(key, e->key, key_isref);
 }
 
-static MapEntryRef *find_entry(MapObjectRef map, uintptr_t key)
+static MapEntryRef *find_entry(MapObjectRef map, uintptr key)
 {
-    uint32 hash = __hash(map, key);
+    int32 hash = __hash(map->tp_map, key);
     MapEntryRef *e = &map->entries[bucket(map, hash)];
-    while (*e && !__equal(map, *e, key, hash)) e = &(*e)->next;
+    while (*e && (((*e)->hash != hash) || !__equal(tp_map, *e, key)))
+        e = &(*e)->next;
     return e;
 }
 
-MapEntryRef __entry_new(EntryInfo *info, uintptr_t key, uintptr_t val)
+MapEntryRef __entry_new(EntryInfo *info, uintptr key, uintptr val)
 {
     int *objmap;
 
@@ -219,7 +198,7 @@ static void rehash(MapObjectRef map, int newsize)
     gc_pop();
 }
 
-int32 map_put_absent(ObjectRef self, uintptr_t key, uintptr_t val)
+int32 map_put_absent(ObjectRef self, uintptr key, uintptr val)
 {
     MapObjectRef map = (MapObjectRef)self;
 
@@ -240,7 +219,7 @@ int32 map_put_absent(ObjectRef self, uintptr_t key, uintptr_t val)
     return 0;
 }
 
-void map_put(ObjectRef self, uintptr_t key, uintptr_t val, uintptr_t *old_val)
+void map_put(ObjectRef self, uintptr key, uintptr val, uintptr *old_val)
 {
     MapObjectRef map = (MapObjectRef)self;
     MapEntryRef *entry = find_entry(map, key);
@@ -252,7 +231,7 @@ void map_put(ObjectRef self, uintptr_t key, uintptr_t val, uintptr_t *old_val)
     }
 }
 
-int32 map_get(ObjectRef self, uintptr_t key, uintptr_t *val)
+int32 map_get(ObjectRef self, uintptr key, uintptr *val)
 {
     MapObjectRef map = (MapObjectRef)self;
     MapEntryRef *entry = find_entry(map, key);
@@ -263,7 +242,7 @@ int32 map_get(ObjectRef self, uintptr_t key, uintptr_t *val)
     return -1;
 }
 
-int32 map_remove(ObjectRef self, uintptr_t key, uintptr_t *val)
+int32 map_remove(ObjectRef self, uintptr key, uintptr *val)
 {
     MapObjectRef map = (MapObjectRef)self;
     MapEntryRef *entry = find_entry(map, key);

@@ -41,19 +41,11 @@
 #define _KOALA_HASHMAP_H_
 
 #include "common.h"
+#include "hash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/*
- * Ready-to-use hash functions for strings, using the FNV-1 algorithm.
- * (see http://www.isthe.com/chongo/tech/comp/fnv).
- * `str_hash` takes 0-terminated strings.
- * `mem_hash` operates on arbitrary-length memory.
- */
-unsigned int str_hash(const char *buf);
-unsigned int mem_hash(const void *buf, int len);
 
 typedef int (*HashMapEqualFunc)(void *, void *);
 typedef void (*HashMapVisitFunc)(void *, void *);
@@ -83,7 +75,7 @@ typedef struct _HashMap {
     int grow_at;
     /* shrink entries point */
     int shrink_at;
-} HashMap, *HashMapRef;
+} HashMap;
 
 /* Initialize a HashMapEntry structure. */
 static inline void hashmap_entry_init(void *entry, unsigned int hash)
@@ -94,43 +86,43 @@ static inline void hashmap_entry_init(void *entry, unsigned int hash)
 }
 
 /* Return the number of items in the map. */
-static inline int hashmap_size(HashMapRef self)
+static inline int hashmap_size(HashMap *self)
 {
     return self ? self->count : 0;
 }
 
 /* Initialize a hash map. */
-void hashmap_init(HashMapRef self, HashMapEqualFunc equal);
+void hashmap_init(HashMap *self, HashMapEqualFunc equal);
 
 /* Destroy the hashmap and free its allocated memory.
  * NOTES: HashMapEntry is already removed, no remove it again.
  */
-void hashmap_fini(HashMapRef self, HashMapVisitFunc free, void *arg);
+void hashmap_fini(HashMap *self, HashMapVisitFunc free, void *arg);
 
 /*
  * Retrieve the hashmap entry for the specified hash code.
  * Returns the hashmap entry or null if not found.
  */
-void *hashmap_get(HashMapRef self, void *key);
+void *hashmap_get(HashMap *self, void *key);
 
 /*
  * Add a hashmap entry. If the hashmap contains duplicate entries, it will
  * return -1 failure.
  */
-int hashmap_put_absent(HashMapRef self, void *entry);
+int hashmap_put_absent(HashMap *self, void *entry);
 
 /*
  * Add or replace a hashmap entry. If the hashmap contains duplicate entries,
  * the old entry will be replaced and returned.
  * Returns the replaced entry or null if no duplicated entry
  */
-void *hashmap_put(HashMapRef self, void *entry);
+void *hashmap_put(HashMap *self, void *entry);
 
 /* Removes a hashmap entry matching the specified key. */
-void *hashmap_remove(HashMapRef self, void *key);
+void *hashmap_remove(HashMap *self, void *key);
 
 /* Visit the hashmap, safely when `visit` removes entry, not suggest do it. */
-void hashmap_visit(HashMapRef self, HashMapVisitFunc visit, void *arg);
+void hashmap_visit(HashMap *self, HashMapVisitFunc visit, void *arg);
 
 #ifdef __cplusplus
 }

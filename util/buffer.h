@@ -24,7 +24,7 @@ typedef struct _Buffer {
     int len;
     /* contains string */
     char *buf;
-} Buffer, *BufferRef;
+} Buffer;
 
 /* Declare a buffer. */
 #define BUF(name) Buffer name = { 0, 0, NULL }
@@ -46,20 +46,20 @@ typedef struct _Buffer {
 #define BUF_LEN(name) (name).len
 
 /* Write string with len */
-void buf_write_nstr(BufferRef self, char *s, int len);
+void buf_write_nstr(Buffer *self, char *s, int len);
 
 /* Write a null-terminated string. */
-void buf_write_str(BufferRef self, char *s);
+void buf_write_str(Buffer *self, char *s);
 
 /* Write 'num' null-terminated strings. */
-void buf_nwrite(BufferRef self, int num, ...);
-void buf_vwrite(BufferRef self, int num, va_list args);
+void buf_nwrite(Buffer *self, int num, ...);
+void buf_vwrite(Buffer *self, int num, va_list args);
 
-void buf_write_char(BufferRef self, char ch);
-void buf_write_byte(BufferRef self, int val);
-void buf_write_int(BufferRef self, int ch);
-void buf_write_int64(BufferRef self, int64_t val);
-void buf_write_double(BufferRef self, double val);
+void buf_write_char(Buffer *self, char ch);
+void buf_write_byte(Buffer *self, int val);
+void buf_write_int(Buffer *self, int ch);
+void buf_write_int64(Buffer *self, int64 val);
+void buf_write_double(Buffer *self, double val);
 
 #ifdef __cplusplus
 }

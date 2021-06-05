@@ -12,7 +12,7 @@ extern "C" {
 
 void test_vector(void)
 {
-    VectorRef vec = vector_create(sizeof(int));
+    Vector *vec = vector_create(sizeof(int));
 
     int val;
 

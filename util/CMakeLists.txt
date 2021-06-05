@@ -7,6 +7,7 @@
 set(UTIL_SRCS
     mm.c
     vector.c
+    hash.c
     hashmap.c
     binheap.c
     buffer.c

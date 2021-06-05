@@ -13,10 +13,10 @@ extern "C" {
 #endif
 
 static KlrType bases[] = {
-    { KLR_TYPE_NONE },    { KLR_TYPE_INT8 },  { KLR_TYPE_INT16 },
-    { KLR_TYPE_INT32 },   { KLR_TYPE_INT64 }, { KLR_TYPE_FLOAT32 },
-    { KLR_TYPE_FLOAT64 }, { KLR_TYPE_BOOL },  { KLR_TYPE_CHAR },
-    { KLR_TYPE_STR },     { KLR_TYPE_ANY },
+    { KLR_TYPE_NONE },    { KLR_TYPE_INT8 },    { KLR_TYPE_INT16 },
+    { KLR_TYPE_INT32 },   { KLR_TYPE_INT64 },   { KLR_TYPE_FLOAT16 },
+    { KLR_TYPE_FLOAT32 }, { KLR_TYPE_FLOAT64 }, { KLR_TYPE_BOOL },
+    { KLR_TYPE_CHAR },    { KLR_TYPE_STR },     { KLR_TYPE_ANY },
 };
 
 KlrTypeRef klr_type_none(void)
@@ -42,6 +42,11 @@ KlrTypeRef klr_type_int32(void)
 KlrTypeRef klr_type_int64(void)
 {
     return &bases[KLR_TYPE_INT64];
+}
+
+KlrTypeRef klr_type_float16(void)
+{
+    return &bases[KLR_TYPE_FLOAT16];
 }
 
 KlrTypeRef klr_type_float32(void)
@@ -84,7 +89,7 @@ static Vector klass_types;
 
 KlrTypeRef klr_type_klass(char *path, char *name)
 {
-    KlrKlassRef klass = mm_alloc_ptr(klass);
+    KlrKlassRef klass = mm_alloc_obj(klass);
     klass->kind = KLR_TYPE_KLASS;
     klass->path = path;
     klass->name = name;
@@ -107,17 +112,17 @@ char *klr_get_name(KlrTypeRef type)
 typedef struct _KlrProto {
     KlrTypeKind kind;
     KlrTypeRef ret;
-    VectorRef params;
+    Vector *params;
 } KlrProto, *KlrProtoRef;
 
 static KlrProto _void_func_type = { .kind = KLR_TYPE_PROTO };
 static Vector func_types;
 
-KlrTypeRef klr_type_proto(KlrTypeRef ret, VectorRef params)
+KlrTypeRef klr_type_proto(KlrTypeRef ret, Vector *params)
 {
     if (!ret && !params) return (KlrTypeRef)&_void_func_type;
 
-    KlrProtoRef pty = mm_alloc_ptr(pty);
+    KlrProtoRef pty = mm_alloc_obj(pty);
     pty->kind = KLR_TYPE_PROTO;
     pty->ret = ret;
     pty->params = params;
@@ -125,7 +130,7 @@ KlrTypeRef klr_type_proto(KlrTypeRef ret, VectorRef params)
     return (KlrTypeRef)pty;
 }
 
-VectorRef klr_get_params(KlrTypeRef ty)
+Vector *klr_get_params(KlrTypeRef ty)
 {
     if (!ty) return NULL;
     KlrProtoRef proto = (KlrProtoRef)ty;
@@ -260,7 +265,7 @@ static KlrTypeRef __to_type(char **str)
         }
         case 'A': {
             /* any */
-            ty = klr_type_str();
+            ty = klr_type_any();
             break;
         }
         case '[': {
@@ -290,7 +295,7 @@ KlrTypeRef klr_type_from_str(char *str)
 
 KlrTypeRef klr_proto_from_str(char *params, char *ret)
 {
-    VectorRef args = NULL;
+    Vector *args = NULL;
     if (params) {
         args = vector_create(PTR_SIZE);
         KlrTypeRef ty;

@@ -38,7 +38,7 @@ extern "C" {
  *
  */
 typedef struct GcTrace {
-    uintptr_t nroots;
+    uintptr nroots;
     struct GcTrace *prev;
     /* actual roots go here */
 } GcTrace;
@@ -47,7 +47,7 @@ extern GcTrace *gcroots;
 
 /* count of __VA_ARGS__ */
 #define VA_NARGS(type, ...) \
-    ((type)(sizeof((type[]) { __VA_ARGS__ }) / sizeof(type)))
+    ((type)(sizeof((type[]){ __VA_ARGS__ }) / sizeof(type)))
 
 /* save traced objects in func frame */
 #define gc_push(...)                   \

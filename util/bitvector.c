@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-void bitvector_init(BitVectorRef bvec, int nbits)
+void bitvector_init(BitVector *bvec, int nbits)
 {
     int nwords = (nbits + BITWORD_SIZE - 1) / BITWORD_SIZE;
     bvec->bits = mm_alloc(nwords * sizeof(BitWord));
@@ -19,30 +19,30 @@ void bitvector_init(BitVectorRef bvec, int nbits)
     bvec->words = nwords;
 }
 
-void bitvector_fini(BitVectorRef bvec)
+void bitvector_fini(BitVector *bvec)
 {
     mm_free(bvec->bits);
 }
 
-void bitvector_set(BitVectorRef bvec, int idx)
+void bitvector_set(BitVector *bvec, int idx)
 {
     assert(idx >= 0 && idx < bvec->size);
     bvec->bits[BITWORD_SLOT(idx)] |= BITWORD_MASK(idx);
 }
 
-int bitvector_get(BitVectorRef bvec, int idx)
+int bitvector_get(BitVector *bvec, int idx)
 {
     assert(idx >= 0 && idx < bvec->size);
     return (bvec->bits[BITWORD_SLOT(idx)] >> ((idx) % BITWORD_SIZE)) & 1;
 }
 
-void bitvector_clear(BitVectorRef bvec, int idx)
+void bitvector_clear(BitVector *bvec, int idx)
 {
     assert(idx >= 0 && idx < bvec->size);
     bvec->bits[BITWORD_SLOT(idx)] &= ~BITWORD_MASK(idx);
 }
 
-void bitvector_set_all(BitVectorRef bvec)
+void bitvector_set_all(BitVector *bvec)
 {
     int nbytes = bvec->words * sizeof(BitWord);
     memset(bvec->bits, 0xFF, nbytes);
@@ -55,13 +55,13 @@ void bitvector_set_all(BitVectorRef bvec)
     }
 }
 
-void bitvector_clear_all(BitVectorRef bvec)
+void bitvector_clear_all(BitVector *bvec)
 {
     int nbytes = bvec->words * sizeof(BitWord);
     memset(bvec->bits, 0, nbytes);
 }
 
-void bitvector_show(BitVectorRef bvec)
+void bitvector_show(BitVector *bvec)
 {
     for (int i = 0; i < bvec->words; i++) {
         if (i == 0)

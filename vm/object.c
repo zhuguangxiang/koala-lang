@@ -10,121 +10,105 @@
 extern "C" {
 #endif
 
-// clang-format off
-/* `Type` type */
-TypeObject type_type = {
-    OBJECT_HEAD_INIT(&type_type)
-    .name  = "Type",
-};
+int tp_size(uint32 tp_map, int index)
+{
+    static int __size__[] = { 0, PTR_SIZE, 1, 2, 4, 8, 2, 4, 8, 1, 4 };
+    return __size__[tp_index(tp_map, index)];
+}
 
-/* 'Class' type */
-TypeObject class_type = {
-    OBJECT_HEAD_INIT(&type_type)
-    .name = "Class",
-    .flags = TF_CLASS | TF_PUB | TF_FINAL,
-};
+/* var obj T(Any) */
+int32 generic_any_hash(uintptr obj, int isref)
+{
+    if (!isref) {
+        return (int32)mem_hash(&obj, sizeof(uintptr));
+    } else {
+        TypeInfo *type = ((Object *)obj)->type;
+        int32 (*fn)(uintptr) = (void *)type->vtbl[0][0];
+        return fn(obj);
+    }
+}
 
-/*
-static MethodDef class_methods[] = {
-    { "get_name",   NULL, "s",                class_get_name   },
-    { "get_module", NULL, "LModule;",         class_get_module },
-    { "get_lro",    NULL, "LArray(LClass;);", class_get_lro    },
-    { "get_mbrs",   NULL, "LArray(A);",       class_get_mbrs   },
-    { "get_field",  "s",  "LField;",          class_get_field  },
-    { "get_method", "s",  "LMethod;",         class_get_method },
-    { "to_string",  NULL, "s",                class_to_string  },
-    { NULL }
-};
-*/
+int8 generic_any_equal(uintptr obj, uintptr other, int isref)
+{
+    if (obj == other) return 1;
 
-/* `Field` type */
-TypeObject field_type = {
-    OBJECT_HEAD_INIT(&type_type)
-    .name = "Field",
-    .flags = TF_CLASS | TF_PUB | TF_FINAL,
-};
+    if (isref) {
+        TypeInfo *type = ((Object *)obj)->type;
+        int32 (*fn)(uintptr, uintptr) = (void *)type->vtbl[0][1];
+        return fn(obj, other);
+    }
+}
 
-/*
-static MethodDef field_methods[] = {
-    { "set",       "AA", NULL, field_set },
-    { "get",       "A",  "A",  field_get },
-    { "to_string", NULL, "s",  field_to_string },
-    { NULL }
-};
-*/
+Object *generic_any_type(uintptr obj, int tpkind)
+{
+    return NULL;
+}
 
-/* `Method` type */
-TypeObject method_type = {
-    OBJECT_HEAD_INIT(&type_type)
-    .name = "Method",
-    .flags = TF_CLASS | TF_PUB | TF_FINAL,
-};
-
-/*
-static MethodDef method_methods[] = {
-    { "invoke",    "A...", NULL, method_invoke    },
-    { "to_string", NULL,   "s",  method_to_string },
-    { NULL }
-};
-*/
+Object *generic_any_tostr(uintptr obj, int tpkind)
+{
+    return NULL;
+}
 
 /* `Any` type */
-TypeObject any_type = {
-    OBJECT_HEAD_INIT(&type_type)
-    .name  = "Any",
+static TypeInfo any_type = {
+    .name = "Any",
     .flags = TF_TRAIT | TF_PUB,
 };
 
-int32 any_hash_code(ObjectRef self)
+int32 any_hash(Object *self)
 {
     return (int32)mem_hash(&self, sizeof(void *));
 }
 
-int8 any_equals(ObjectRef self, ObjectRef other)
+bool any_equal(Object *self, Object *other)
 {
     if (self->type != other->type) return 0;
     return self == other;
 }
 
-ObjectRef any_get_class(ObjectRef self)
+Object *any_get_type(Object *self)
 {
     return NULL;
 }
 
-ObjectRef any_to_string(ObjectRef self)
+Object *any_tostr(Object *self)
 {
     char buf[64];
-    TypeObjectRef type = self->type;
+    TypeInfo *type = self->type;
     snprintf(buf, sizeof(buf) - 1, "%.32s@%x", type->name, PTR2INT(self));
     return NULL;
 }
 
+// clang-format off
+
+/* DON'T change the order */
 static MethodDef any_methods[] = {
-    { "hash_code", NULL, "i32",     any_hash_code },
-    { "equals",    "A",  "b",       any_equals    },
-    { "get_class", NULL, "LClass;", any_get_class },
-    { "to_string", NULL, "s",       any_to_string },
-    { NULL }
+    METHOD_DEF("__hash__", NIL, "i32",    any_hash),
+    METHOD_DEF("__eq__",   "A", "b",      any_equal),
+    METHOD_DEF("__type__", NIL, "LType;", any_get_type),
+    METHOD_DEF("__str__",  NIL, "s",      any_tostr),
 };
 
 // clang-format on
 
-typedef struct _LroInfo {
-    TypeObjectRef type;
+typedef struct _LroInfo LroInfo;
+
+struct _LroInfo {
+    TypeInfo *type;
     /* index of virtual table */
     int index;
-} LroInfo, *LroInfoRef;
+};
 
-static HashMapRef mtbl_create(void)
+static HashMap *mtbl_create(void)
 {
-    HashMapRef mtbl = mm_alloc_ptr(mtbl);
+    HashMap *mtbl = mm_alloc_obj(mtbl);
     hashmap_init(mtbl, NULL);
     return mtbl;
 }
 
-static inline HashMapRef __get_mtbl(TypeObjectRef type)
+static inline HashMap *__get_mtbl(TypeInfo *type)
 {
-    HashMapRef mtbl = type->mtbl;
+    HashMap *mtbl = type->mtbl;
     if (!mtbl) {
         mtbl = mtbl_create();
         type->mtbl = mtbl;
@@ -132,18 +116,18 @@ static inline HashMapRef __get_mtbl(TypeObjectRef type)
     return mtbl;
 }
 
-static int lro_find(VectorRef lro, TypeObjectRef type)
+static int lro_find(Vector *lro, TypeInfo *type)
 {
-    LroInfoRef item;
+    LroInfo *item;
     vector_foreach(item, lro, {
         if (item->type == type) return 1;
     });
     return 0;
 }
 
-static inline VectorRef __get_lro(TypeObjectRef type)
+static inline Vector *__get_lro(TypeInfo *type)
 {
-    VectorRef vec = type->lro;
+    Vector *vec = type->lro;
     if (!vec) {
         vec = vector_create(sizeof(LroInfo));
         type->lro = vec;
@@ -151,14 +135,14 @@ static inline VectorRef __get_lro(TypeObjectRef type)
     return vec;
 }
 
-static void build_one_lro(TypeObjectRef type, TypeObjectRef one)
+static void build_one_lro(TypeInfo *type, TypeInfo *one)
 {
     if (!one) return;
 
-    VectorRef vec = __get_lro(type);
+    Vector *vec = __get_lro(type);
 
     LroInfo lro = { NULL, -1 };
-    LroInfoRef item;
+    LroInfo *item;
     vector_foreach(item, one->lro, {
         if (!lro_find(vec, item->type)) {
             lro.type = item->type;
@@ -172,7 +156,7 @@ static void build_one_lro(TypeObjectRef type, TypeObjectRef one)
     }
 }
 
-static void build_lro(TypeObjectRef type)
+static void build_lro(TypeInfo *type)
 {
     /* add Any type */
     build_one_lro(type, &any_type);
@@ -181,21 +165,21 @@ static void build_lro(TypeObjectRef type)
     build_one_lro(type, type->base);
 
     /* add traits */
-    TypeObjectRef *trait;
+    TypeInfo **trait;
     vector_foreach(trait, type->traits, { build_one_lro(type, *trait); });
 
     /* add self */
     build_one_lro(type, type);
 }
 
-static void inherit_methods(TypeObjectRef type)
+static void inherit_methods(TypeInfo *type)
 {
-    VectorRef lro = __get_lro(type);
+    Vector *lro = __get_lro(type);
     int size = vector_size(lro);
-    HashMapRef mtbl = __get_mtbl(type);
-    VectorRef vec;
-    MethodObjectRef *m;
-    LroInfoRef item;
+    HashMap *mtbl = __get_mtbl(type);
+    Vector *vec;
+    MethodObject **m;
+    LroInfo *item;
     for (int i = size - 2; i >= 0; i--) {
         /* omit type self */
         item = vector_get_ptr(lro, i);
@@ -204,11 +188,11 @@ static void inherit_methods(TypeObjectRef type)
     }
 }
 
-static int vtbl_same(VectorRef v1, int len1, VectorRef v2)
+static int vtbl_same(Vector *v1, int len1, Vector *v2)
 {
     if (vector_size(v2) != len1) return 0;
 
-    LroInfoRef item1, item2;
+    LroInfo *item1, *item2;
     for (int i = 0; i <= len1; i++) {
         item1 = vector_get_ptr(v1, i);
         item2 = vector_get_ptr(v2, i);
@@ -218,11 +202,11 @@ static int vtbl_same(VectorRef v1, int len1, VectorRef v2)
     return 1;
 }
 
-static uintptr_t *build_one_vtbl(TypeObjectRef type, HashMapRef mtbl)
+static uintptr *build_one_vtbl(TypeInfo *type, HashMap *mtbl)
 {
-    VectorRef lro = __get_lro(type);
-    LroInfoRef item;
-    VectorRef vec;
+    Vector *lro = __get_lro(type);
+    LroInfo *item;
+    Vector *vec;
 
     /* calculae length */
     int length = 0;
@@ -232,10 +216,10 @@ static uintptr_t *build_one_vtbl(TypeObjectRef type, HashMapRef mtbl)
     });
 
     /* build virtual table */
-    uintptr_t *slots = mm_alloc(sizeof(uintptr_t) * (length + 1));
+    uintptr *slots = mm_alloc(sizeof(uintptr) * (length + 1));
     int index = 0;
-    MethodObjectRef *m;
-    MethodObjectRef n;
+    MethodObject **m;
+    MethodObject *n;
     HashMapEntry *e;
     vector_foreach(item, lro, {
         vec = item->type->methods;
@@ -243,19 +227,19 @@ static uintptr_t *build_one_vtbl(TypeObjectRef type, HashMapRef mtbl)
             e = hashmap_get(mtbl, &(*m)->entry);
             assert(e);
             n = CONTAINER_OF(e, MethodObject, entry);
-            *(slots + index++) = (uintptr_t)n->ptr;
+            *(slots + index++) = (uintptr)n->ptr;
         });
     });
 
     return slots;
 }
 
-static void build_vtbl(TypeObjectRef type)
+static void build_vtbl(TypeInfo *type)
 {
     /* first class or trait is the same virtual table, at 0 */
-    VectorRef lro = __get_lro(type);
-    TypeObjectRef base = type;
-    LroInfoRef item;
+    Vector *lro = __get_lro(type);
+    TypeInfo *base = type;
+    LroInfo *item;
     while (base) {
         vector_foreach(item, lro, {
             if (item->type == base) {
@@ -283,8 +267,8 @@ static void build_vtbl(TypeObjectRef type)
         if (item->index == -1) num_slot++;
     });
 
-    uintptr_t **slots = mm_alloc(sizeof(uintptr_t *) * num_slot);
-    HashMapRef mtbl = __get_mtbl(type);
+    uintptr **slots = mm_alloc(sizeof(uintptr *) * num_slot);
+    HashMap *mtbl = __get_mtbl(type);
 
     /* build #0 slot virtual table */
     slots[0] = build_one_vtbl(type, mtbl);
@@ -303,11 +287,10 @@ static void build_vtbl(TypeObjectRef type)
     type->vtbl = slots;
 }
 
-TypeObjectRef kl_type_new(char *path, char *name, TPFlags flags,
-                          VectorRef params, TypeObjectRef base,
-                          VectorRef traits)
+TypeInfo *kl_type_new(char *path, char *name, int flags, Vector *params,
+                      TypeInfo *base, Vector *traits)
 {
-    TypeObjectRef tp = mm_alloc_ptr(tp);
+    TypeInfo *tp = mm_alloc_obj(tp);
     // tp->type = type_type;
     tp->name = name;
     tp->flags = flags;
@@ -317,15 +300,15 @@ TypeObjectRef kl_type_new(char *path, char *name, TPFlags flags,
     return tp;
 }
 
-void kl_add_field(TypeObjectRef type, ObjectRef field)
+void kl_add_field(TypeInfo *type, Object *field)
 {
 }
 
-void kl_add_method(TypeObjectRef type, ObjectRef meth)
+void kl_add_method(TypeInfo *type, Object *meth)
 {
 }
 
-void kl_type_ready(TypeObjectRef type)
+void kl_type_ready(TypeInfo *type)
 {
     build_lro(type);
     inherit_methods(type);
@@ -340,7 +323,7 @@ void kl_fini_types(void)
 {
 }
 
-void kl_type_show(TypeObjectRef type)
+void kl_type_show(TypeInfo *type)
 {
     if (kl_is_pub(type)) printf("pub ");
 
@@ -361,7 +344,7 @@ void kl_type_show(TypeObjectRef type)
 
     /* show lro */
     printf("lro:\n");
-    LroInfoRef item;
+    LroInfo *item;
     vector_foreach(item, type->lro, {
         if (i < len - 1)
             printf("%s <- ", item->type->name);

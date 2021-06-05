@@ -14,11 +14,11 @@ extern "C" {
 
 #define HEAP_MIN_SIZE 32
 
-int binheap_init(BinHeapRef heap, int size, BinHeapCmpFunc cmp)
+int binheap_init(BinHeap *heap, int size, BinHeapCmpFunc cmp)
 {
     if (size < HEAP_MIN_SIZE) size = HEAP_MIN_SIZE;
-    int mm_size = sizeof(BinHeapEntryRef) * (size + 1);
-    BinHeapEntryRef *entries = mm_alloc(mm_size);
+    int mm_size = sizeof(BinHeapEntry *) * (size + 1);
+    BinHeapEntry **entries = mm_alloc(mm_size);
     if (!entries) return -1;
 
     heap->cmp = cmp;
@@ -29,7 +29,7 @@ int binheap_init(BinHeapRef heap, int size, BinHeapCmpFunc cmp)
     return 0;
 }
 
-void binheap_fini(BinHeapRef heap)
+void binheap_fini(BinHeap *heap)
 {
     mm_free(heap->entries);
 }
@@ -42,9 +42,9 @@ void binheap_fini(BinHeapRef heap)
 #define LCHILD(i) ((i) << 1)
 #define RCHILD(i) (((i) << 1) + 1)
 
-static void __heap_up(BinHeapRef heap, BinHeapEntryRef e)
+static void __heap_up(BinHeap *heap, BinHeapEntry *e)
 {
-    BinHeapEntryRef p;
+    BinHeapEntry *p;
     unsigned int eidx, pidx;
 
     eidx = e->idx;
@@ -71,7 +71,7 @@ static void __heap_up(BinHeapRef heap, BinHeapEntryRef e)
     e->idx = eidx;
 }
 
-static void __heap_down(BinHeapRef heap, BinHeapEntryRef e)
+static void __heap_down(BinHeap *heap, BinHeapEntry *e)
 {
     unsigned int eidx, lidx, ridx, swapidx;
 
@@ -109,15 +109,15 @@ static void __heap_down(BinHeapRef heap, BinHeapEntryRef e)
 /*
  * enlarge the array by heap->cap multiply 2
  */
-static int __heap_grow(BinHeapRef heap, unsigned int size)
+static int __heap_grow(BinHeap *heap, unsigned int size)
 {
     if (size <= heap->cap) return 0;
-    BinHeapEntryRef *new_entries;
+    BinHeapEntry **new_entries;
     int new_cap = heap->cap << 1;
     printf("heap grow %d -> %d\n", heap->cap + 1, new_cap + 1);
-    new_entries = mm_alloc(sizeof(BinHeapEntryRef) * (new_cap + 1));
+    new_entries = mm_alloc(sizeof(BinHeapEntry *) * (new_cap + 1));
     if (!new_entries) return -1;
-    int old_mm_size = sizeof(BinHeapEntryRef) * (heap->cap + 1);
+    int old_mm_size = sizeof(BinHeapEntry *) * (heap->cap + 1);
     memcpy(new_entries, heap->entries, old_mm_size);
     mm_free(heap->entries);
     heap->entries = new_entries;
@@ -125,7 +125,7 @@ static int __heap_grow(BinHeapRef heap, unsigned int size)
     return 0;
 }
 
-int binheap_insert(BinHeapRef heap, BinHeapEntryRef e)
+int binheap_insert(BinHeap *heap, BinHeapEntry *e)
 {
     unsigned int used = heap->used + 1;
     if (__heap_grow(heap, used)) {
@@ -141,21 +141,21 @@ int binheap_insert(BinHeapRef heap, BinHeapEntryRef e)
     return 0;
 }
 
-BinHeapEntryRef binheap_pop(BinHeapRef heap)
+BinHeapEntry *binheap_pop(BinHeap *heap)
 {
     if (!heap->used) return NULL;
-    BinHeapEntryRef root = heap->entries[1];
+    BinHeapEntry *root = heap->entries[1];
     binheap_delete(heap, root);
     return root;
 }
 
-BinHeapEntryRef binheap_top(BinHeapRef heap)
+BinHeapEntry *binheap_top(BinHeap *heap)
 {
     if (!heap->used) return NULL;
     return heap->entries[1];
 }
 
-int binheap_delete(BinHeapRef heap, BinHeapEntryRef e)
+int binheap_delete(BinHeap *heap, BinHeapEntry *e)
 {
     unsigned int eidx = e->idx;
 
@@ -172,7 +172,7 @@ int binheap_delete(BinHeapRef heap, BinHeapEntryRef e)
     }
 
     /* move the last entry to the to be deleted `entry` position. */
-    BinHeapEntryRef last = heap->entries[heap->used];
+    BinHeapEntry *last = heap->entries[heap->used];
     heap->entries[eidx] = last;
     last->idx = eidx;
     heap->used--;
@@ -196,7 +196,7 @@ int binheap_delete(BinHeapRef heap, BinHeapEntryRef e)
 }
 
 /* iterate heap */
-BinHeapEntryRef binheap_next(BinHeapRef heap, BinHeapEntryRef e)
+BinHeapEntry *binheap_next(BinHeap *heap, BinHeapEntry *e)
 {
     if (!e) return binheap_top(heap);
     unsigned int eidx = e->idx;

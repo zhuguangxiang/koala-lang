@@ -20,7 +20,21 @@
 extern "C" {
 #endif
 
-#define DLLEXPORT __attribute__((visibility("default")))
+/* types */
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+typedef uintptr_t uintptr;
+typedef int8_t bool;
+
+#define TRUE  1
+#define FALSE 0
+#define NIL   NULL
 
 /* Get the min(max) one of the two numbers */
 #define MIN(a, b) ((a) > (b) ? (b) : (a))
@@ -30,16 +44,16 @@ extern "C" {
 #define ALIGN(x, n) (((x) + (n)-1) & ~((n)-1))
 
 /* Get the aligned pointer size */
-#define ALIGN_PTR(x) ALIGN(x, sizeof(uintptr_t))
+#define ALIGN_PTR(x) ALIGN(x, sizeof(uintptr))
 
 /* Get the number of elements in an array */
 #define COUNT_OF(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
 
 /* pointer to integer */
-#define PTR2INT(p) ((int)(intptr_t)(p))
+#define PTR2INT(p) ((int)(uintptr)(p))
 
 /* integer to pointer */
-#define INT2PTR(i) ((void *)(intptr_t)(i))
+#define INT2PTR(i) ((void *)(uintptr)(i))
 
 // clang-format off
 
@@ -63,16 +77,6 @@ extern "C" {
 #define PTR_SIZE sizeof(void *)
 
 #define OBJ_SIZE(ptr) sizeof(*ptr)
-
-/* types */
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
 
 #ifdef __cplusplus
 }

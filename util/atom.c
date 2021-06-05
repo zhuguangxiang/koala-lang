@@ -14,14 +14,14 @@ typedef struct _Atom {
     int len;
     /* the string pointer */
     char *str;
-} Atom, *AtomRef;
+} Atom;
 
 static HashMap atom_tbl;
 
 char *atom_str(char *s, int len)
 {
     Atom key = { { NULL, mem_hash(s, len) }, len, s };
-    AtomRef Atom = hashmap_get(&atom_tbl, &key);
+    Atom *Atom = hashmap_get(&atom_tbl, &key);
     if (Atom) return Atom->str;
 
     Atom = mm_alloc(sizeof(*Atom) + len + 1);
@@ -55,8 +55,8 @@ char *atom_vstr(int n, ...)
 
 static int _atom_equal_(void *e1, void *e2)
 {
-    AtomRef a1 = e1;
-    AtomRef a2 = e2;
+    Atom *a1 = e1;
+    Atom *a2 = e2;
     if (a1->len != a2->len) return 0;
     return !strncmp(a1->str, a2->str, a1->len);
 }

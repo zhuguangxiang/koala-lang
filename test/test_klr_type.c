@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
     klr_init_types();
 
     KlrTypeRef proto = klr_proto_from_str("Lio.File;si2", "b");
-    VectorRef params = klr_get_params(proto);
+    Vector *params = klr_get_params(proto);
     KlrTypeRef type = NULL;
     vector_get(params, 0, &type);
     assert(type->kind == KLR_TYPE_KLASS);
@@ -29,8 +29,8 @@ int main(int argc, char *argv[])
 
     type = NULL;
     vector_get(params, 1, &type);
-
     assert(type->kind == KLR_TYPE_STR);
+
     type = NULL;
     vector_get(params, 2, &type);
     assert(type->kind == KLR_TYPE_INT16);

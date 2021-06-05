@@ -11,31 +11,10 @@
 extern "C" {
 #endif
 
-#define FNV32_BASE  ((unsigned int)0x811c9dc5)
-#define FNV32_PRIME ((unsigned int)0x01000193)
-
-unsigned int str_hash(const char *str)
-{
-    unsigned int c, hash = FNV32_BASE;
-    while ((c = (unsigned char)*str++)) hash = (hash * FNV32_PRIME) ^ c;
-    return hash;
-}
-
-unsigned int mem_hash(const void *buf, int len)
-{
-    unsigned int hash = FNV32_BASE;
-    unsigned char *ucbuf = (unsigned char *)buf;
-    while (len--) {
-        unsigned int c = *ucbuf++;
-        hash = (hash * FNV32_PRIME) ^ c;
-    }
-    return hash;
-}
-
 #define HASHMAP_INITIAL_SIZE 32
 #define HASHMAP_LOAD_FACTOR  65
 
-static void __alloc_entries(HashMapRef self, int size)
+static void __alloc_entries(HashMap *self, int size)
 {
     self->size = size;
     self->entries = mm_alloc(size * sizeof(HashMapEntry *));
@@ -47,14 +26,14 @@ static void __alloc_entries(HashMapRef self, int size)
         self->shrink_at = self->grow_at / 5;
 }
 
-void hashmap_init(HashMapRef self, HashMapEqualFunc equal)
+void hashmap_init(HashMap *self, HashMapEqualFunc equal)
 {
     memset(self, 0, sizeof(*self));
     self->equal = equal;
     __alloc_entries(self, HASHMAP_INITIAL_SIZE);
 }
 
-void hashmap_fini(HashMapRef self, HashMapVisitFunc _free, void *arg)
+void hashmap_fini(HashMap *self, HashMapVisitFunc _free, void *arg)
 {
     if (!self || !self->entries) return;
 
@@ -71,31 +50,31 @@ void hashmap_fini(HashMapRef self, HashMapVisitFunc _free, void *arg)
     mm_free(self->entries);
 }
 
-static inline int bucket(HashMapRef self, HashMapEntry *e)
+static inline int bucket(HashMap *self, HashMapEntry *e)
 {
     return e->hash & (self->size - 1);
 }
 
-static inline int entry_equals(HashMapRef self, HashMapEntry *e1,
+static inline int entry_equals(HashMap *self, HashMapEntry *e1,
                                HashMapEntry *e2)
 {
     return (e1 == e2) || (e1->hash == e2->hash && self->equal(e1, e2));
 }
 
-static inline HashMapEntry **find_entry(HashMapRef self, HashMapEntry *key)
+static inline HashMapEntry **find_entry(HashMap *self, HashMapEntry *key)
 {
     HashMapEntry **e = &self->entries[bucket(self, key)];
     while (*e && !entry_equals(self, *e, key)) e = &(*e)->next;
     return e;
 }
 
-void *hashmap_get(HashMapRef self, void *key)
+void *hashmap_get(HashMap *self, void *key)
 {
     if (!self) return NULL;
     return *find_entry(self, key);
 }
 
-static void rehash(HashMapRef self, int newsize)
+static void rehash(HashMap *self, int newsize)
 {
     int oldsize = self->size;
     printf("hashmap:\nrehashing: %d\n", self->count);
@@ -120,7 +99,7 @@ static void rehash(HashMapRef self, int newsize)
     mm_free(oldentries);
 }
 
-int hashmap_put_absent(HashMapRef self, void *entry)
+int hashmap_put_absent(HashMap *self, void *entry)
 {
     if (!self) return -1;
 
@@ -136,14 +115,14 @@ int hashmap_put_absent(HashMapRef self, void *entry)
     return 0;
 }
 
-void *hashmap_put(HashMapRef self, void *entry)
+void *hashmap_put(HashMap *self, void *entry)
 {
     void *old = hashmap_remove(self, entry);
     hashmap_put_absent(self, entry);
     return old;
 }
 
-void *hashmap_remove(HashMapRef self, void *key)
+void *hashmap_remove(HashMap *self, void *key)
 {
     HashMapEntry **e = find_entry(self, key);
     if (!*e) return NULL;
@@ -159,7 +138,7 @@ void *hashmap_remove(HashMapRef self, void *key)
     return old;
 }
 
-void hashmap_visit(HashMapRef self, HashMapVisitFunc visit, void *arg)
+void hashmap_visit(HashMap *self, HashMapVisitFunc visit, void *arg)
 {
     if (!self || !self->entries || !visit) return;
 

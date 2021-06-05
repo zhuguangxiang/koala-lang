@@ -23,6 +23,7 @@ typedef enum _KlrTypeKind {
     KLR_TYPE_INT16,
     KLR_TYPE_INT32,
     KLR_TYPE_INT64,
+    KLR_TYPE_FLOAT16,
     KLR_TYPE_FLOAT32,
     KLR_TYPE_FLOAT64,
     KLR_TYPE_BOOL,
@@ -62,8 +63,8 @@ KlrTypeRef klr_type_klass(char *path, char *name);
 char *klr_get_path(KlrTypeRef ty);
 char *klr_get_name(KlrTypeRef ty);
 
-KlrTypeRef klr_type_proto(KlrTypeRef ret, VectorRef params);
-VectorRef klr_get_params(KlrTypeRef ty);
+KlrTypeRef klr_type_proto(KlrTypeRef ret, Vector *params);
+Vector *klr_get_params(KlrTypeRef ty);
 KlrTypeRef klr_get_ret(KlrTypeRef ty);
 
 int klr_type_equal(KlrTypeRef ty1, KlrTypeRef ty2);

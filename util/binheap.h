@@ -43,7 +43,7 @@ extern "C" {
  */
 typedef struct _BinHeapEntry {
     unsigned int idx;
-} BinHeapEntry, *BinHeapEntryRef;
+} BinHeapEntry;
 
 /*
  * `cmp` function must return 1, if the parent P and his child C are in the
@@ -51,7 +51,7 @@ typedef struct _BinHeapEntry {
  * To do that, in a min-heap `cmp` must return 1 when P <= C, and in a
  * max-heap it must return 1 inversely P >= C.
  */
-typedef int (*BinHeapCmpFunc)(BinHeapEntryRef p, BinHeapEntryRef c);
+typedef int (*BinHeapCmpFunc)(BinHeapEntry *p, BinHeapEntry *c);
 
 /* binary heap structure, root is at index 1, valid indices 1 through n */
 typedef struct _BinHeap {
@@ -62,29 +62,29 @@ typedef struct _BinHeap {
     /* `entries` array capacity */
     unsigned int cap;
     /* `entries` array pointer */
-    BinHeapEntryRef *entries;
-} BinHeap, *BinHeapRef;
+    BinHeapEntry **entries;
+} BinHeap;
 
 /* initialize a binary heap with default size */
-int binheap_init(BinHeapRef heap, int size, BinHeapCmpFunc cmp);
+int binheap_init(BinHeap *heap, int size, BinHeapCmpFunc cmp);
 
 /* finalize a binary heap */
-void binheap_fini(BinHeapRef heap);
+void binheap_fini(BinHeap *heap);
 
 /* insert an entry into the binary heap */
-int binheap_insert(BinHeapRef heap, BinHeapEntryRef e);
+int binheap_insert(BinHeap *heap, BinHeapEntry *e);
 
 /* get and delete the root entry from the binary heap */
-BinHeapEntryRef binheap_pop(BinHeapRef heap);
+BinHeapEntry *binheap_pop(BinHeap *heap);
 
 /* get and NOT REMOVE the root entry from the binary heap */
-BinHeapEntryRef binheap_top(BinHeapRef heap);
+BinHeapEntry *binheap_top(BinHeap *heap);
 
 /* delete the specified entry from the binary heap */
-int binheap_delete(BinHeapRef heap, BinHeapEntryRef e);
+int binheap_delete(BinHeap *heap, BinHeapEntry *e);
 
 /* iterate heap, if it's first time, `e` is null. */
-BinHeapEntryRef binheap_next(BinHeapRef heap, BinHeapEntryRef e);
+BinHeapEntry *binheap_next(BinHeap *heap, BinHeapEntry *e);
 
 #ifdef __cplusplus
 }
