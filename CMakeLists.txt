@@ -29,12 +29,12 @@ if(DEBUG_TYPE STREQUAL DEBUG)
 endif()
 
 # link_directories(${CMAKE_CURRENT_BINARY_DIR}/src)
-include_directories(.)
+include_directories(. pkgs)
 
 add_subdirectory(util)
 add_subdirectory(klr)
 add_subdirectory(gc)
-add_subdirectory(vm)
+add_subdirectory(pkgs/core)
 
 if(ENABLE_TEST)
   enable_testing()

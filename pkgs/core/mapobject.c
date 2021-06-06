@@ -49,24 +49,24 @@ typedef struct _MapObject {
     uint32 shrink_at;
 } MapObject, *MapObjectRef;
 
-static int __entry_none_objmap__[] = {
+static int __entry_none_objmap[] = {
     1,
     offsetof(MapEntry, next),
 };
 
-static int __entry_key_objmap__[] = {
+static int __entry_key_objmap[] = {
     2,
     offsetof(MapEntry, next),
     offsetof(MapEntry, key),
 };
 
-static int __entry_val_objmap__[] = {
+static int __entry_val_objmap[] = {
     2,
     offsetof(MapEntry, next),
     offsetof(MapEntry, val),
 };
 
-static int __entry_both_objmap__[] = {
+static int __entry_both_objmap[] = {
     3,
     offsetof(MapEntry, next),
     offsetof(MapEntry, key),
@@ -111,7 +111,7 @@ static inline int bucket(MapObjectRef map, uint32 hash)
 
 ObjectRef map_new(uint32 tp_map)
 {
-    MapObjectRef map = gc_alloc(sizeof(MapObject), __map_objmap__);
+    MapObjectRef map = gc_alloc(sizeof(MapObject), __map_objmap);
     GC_STACK(1);
     gc_push1(&map);
     __alloc_entries(map, MAP_INIT_SIZE);
@@ -149,15 +149,15 @@ MapEntryRef __entry_new(EntryInfo *info, uintptr key, uintptr val)
 
     if (info->key_ref && info->val_ref) {
         gc_push2(&key, &val);
-        objmap = __entry_both_objmap__;
+        objmap = __entry_both_objmap;
     } else if (info->key_ref && !info->val_ref) {
         gc_push1(&key);
-        objmap = __entry_key_objmap__;
+        objmap = __entry_key_objmap;
     } else if (!info->key_ref && info->val_ref) {
         gc_push1(&val);
-        objmap = __entry_val_objmap__;
+        objmap = __entry_val_objmap;
     } else {
-        objmap = __entry_none_objmap__;
+        objmap = __entry_none_objmap;
     }
 
     MapEntryRef entry = gc_alloc(sizeof(MapEntry), objmap);

@@ -20,7 +20,7 @@ static HashMap atom_tbl;
 
 char *atom_str(char *s, int len)
 {
-    Atom key = { { NULL, mem_hash(s, len) }, len, s };
+    Atom key = { { nil, mem_hash(s, len) }, len, s };
     Atom *Atom = hashmap_get(&atom_tbl, &key);
     if (Atom) return Atom->str;
 
@@ -73,5 +73,5 @@ void init_atom(void)
 
 void fini_atom(void)
 {
-    hashmap_fini(&atom_tbl, _atom_free_, NULL);
+    hashmap_fini(&atom_tbl, _atom_free_, nil);
 }

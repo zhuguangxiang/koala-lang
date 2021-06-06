@@ -82,7 +82,7 @@ static inline void hashmap_entry_init(void *entry, unsigned int hash)
 {
     HashMapEntry *e = (HashMapEntry *)entry;
     e->hash = hash;
-    e->next = NULL;
+    e->next = nil;
 }
 
 /* Return the number of items in the map. */

@@ -70,7 +70,7 @@ static inline HashMapEntry **find_entry(HashMap *self, HashMapEntry *key)
 
 void *hashmap_get(HashMap *self, void *key)
 {
-    if (!self) return NULL;
+    if (!self) return nil;
     return *find_entry(self, key);
 }
 
@@ -125,12 +125,12 @@ void *hashmap_put(HashMap *self, void *entry)
 void *hashmap_remove(HashMap *self, void *key)
 {
     HashMapEntry **e = find_entry(self, key);
-    if (!*e) return NULL;
+    if (!*e) return nil;
 
     HashMapEntry *old;
     old = *e;
     *e = old->next;
-    old->next = NULL;
+    old->next = nil;
 
     self->count--;
     if (self->count < self->shrink_at) rehash(self, self->size >> 1);

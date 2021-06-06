@@ -27,15 +27,15 @@ void test_mixin_order(void)
     kl_type_ready(A_type);
 
     TypeInfo *B_type =
-        kl_type_new("std", "B", TF_PUB | TF_TRAIT, NULL, A_type, NULL);
+        kl_type_new("std", "B", TF_PUB | TF_TRAIT, nil, A_type, nil);
     kl_type_ready(B_type);
 
     TypeInfo *C_type =
-        kl_type_new("std", "C", TF_PUB | TF_TRAIT, NULL, B_type, NULL);
+        kl_type_new("std", "C", TF_PUB | TF_TRAIT, nil, B_type, nil);
     kl_type_ready(C_type);
 
     TypeInfo *D_type =
-        kl_type_new("std", "D", TF_PUB | TF_TRAIT, NULL, A_type, NULL);
+        kl_type_new("std", "D", TF_PUB | TF_TRAIT, nil, A_type, nil);
     kl_type_ready(D_type);
 
     Vector *traits = vector_create(PTR_SIZE);
@@ -44,7 +44,7 @@ void test_mixin_order(void)
     vector_push_back(traits, &B_type);
 
     TypeInfo *E_type =
-        kl_type_new("std", "E", TF_PUB | TF_CLASS, NULL, A_type, traits);
+        kl_type_new("std", "E", TF_PUB | TF_CLASS, nil, A_type, traits);
     kl_type_ready(E_type);
 
     kl_type_show(A_type);

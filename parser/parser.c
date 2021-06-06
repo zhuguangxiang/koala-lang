@@ -58,7 +58,7 @@ void init_parser(void)
 
 void fini_parser(void)
 {
-    hashmap_fini(&modules, _mod_free_, NULL);
+    hashmap_fini(&modules, _mod_free_, nil);
 }
 
 void do_klass_typeparams(ParserStateRef ps, char *name)
@@ -196,7 +196,7 @@ void parser_visit_expr(ParserStateRef ps, ExprRef exp)
 
     // clang-format off
     static void (*handlers[])(ParserStateRef, ExprRef) = {
-        NULL,                   /* INVALID              */
+        nil,                   /* INVALID              */
         parse_nil,              /* NIL_KIND             */
         parse_self,             /* SELF_KIND            */
         parse_super,            /* SUPER_KIND           */
@@ -322,7 +322,7 @@ void parse_stmt(ParserStateRef ps, StmtRef stmt)
 
     // clang-format off
     static void (*handlers[])(ParserStateRef, StmtRef) = {
-        NULL,               /* INVALID          */
+        nil,               /* INVALID          */
         parse_import,       /* IMPORT_KIND      */
         parse_constdecl,    /* CONST_KIND       */
         parse_vardecl,      /* VAR_KIND         */

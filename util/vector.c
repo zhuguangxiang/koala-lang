@@ -60,10 +60,10 @@ int vector_set(Vector *vec, int index, void *obj)
 void *vector_get_ptr(Vector *vec, int index)
 {
     /* not set any object */
-    if (!vec->objs) return NULL;
+    if (!vec->objs) return nil;
 
     /* valid range is (0 ..< size) */
-    if (index < 0 || index >= vec->size) return NULL;
+    if (index < 0 || index >= vec->size) return nil;
 
     return __offset(vec, index);
 }

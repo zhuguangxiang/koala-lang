@@ -4,8 +4,8 @@
  * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
  */
 
+#include "core/core.h"
 #include "gc/gc.h"
-#include "vm/arrayobject.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,10 +56,10 @@ void test_array2(void)
 
     {
         GC_STACK(4);
-        Object *subarr1 = NULL;
-        Object *subarr2 = NULL;
-        Object *subarr3 = NULL;
-        Object *subarr4 = NULL;
+        Object *subarr1 = nil;
+        Object *subarr2 = nil;
+        Object *subarr3 = nil;
+        Object *subarr4 = nil;
         gc_push(&subarr1, 0);
         gc_push(&subarr2, 1);
         gc_push(&subarr3, 2);

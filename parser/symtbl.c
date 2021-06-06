@@ -49,8 +49,8 @@ static void _symbol_free_(void *e, void *arg)
 
 void stbl_free(SymTblRef stbl)
 {
-    if (stbl == NULL) return;
-    hashmap_fini(&stbl->table, _symbol_free_, NULL);
+    if (stbl == nil) return;
+    hashmap_fini(&stbl->table, _symbol_free_, nil);
     mm_free(stbl);
 }
 
@@ -69,7 +69,7 @@ SymbolRef stbl_add_var(SymTblRef stbl, char *name, TypeRef ty)
 
 SymbolRef stbl_get(SymTblRef stbl, char *name)
 {
-    if (stbl == NULL) return NULL;
+    if (stbl == nil) return nil;
     Symbol key = { .name = name };
     hashmap_entry_init(&key, str_hash(name));
     return hashmap_get(&stbl->table, &key);

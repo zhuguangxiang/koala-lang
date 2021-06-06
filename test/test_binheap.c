@@ -56,7 +56,7 @@ void test_binheap(void)
         // printf("timer-%d:%ld\n", i, timer->entry.idx);
     }
 
-    BinHeapEntry *e = binheap_next(&heap, NULL);
+    BinHeapEntry *e = binheap_next(&heap, nil);
     printf("[");
     while (e) {
         timer = CONTAINER_OF(e, struct timer, entry);

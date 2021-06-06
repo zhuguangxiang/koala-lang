@@ -4,8 +4,8 @@
  * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
  */
 
+#include "core.h"
 #include "gc/gc.h"
-#include "object.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,8 +29,18 @@ struct _ArrayObject {
     void *gcarr;
 };
 
-static TypeInfo array_type;
-static int __objmap__[] = {
+static TypeInfo array_type = {
+    .name = "Array",
+    .flags = TF_CLASS | TF_FINAL,
+};
+
+void init_array_type(void)
+{
+    type_ready(&array_type);
+    pkg_add_type("/", &array_type);
+}
+
+static int __array_objmap[] = {
     1,
     offsetof(ArrayObject, gcarr),
 };
@@ -38,7 +48,7 @@ static int __objmap__[] = {
 Object *array_new(uint32 tp_map)
 {
     int itemsize = tp_size(tp_map, 0);
-    ArrayObject *arr = gc_alloc(sizeof(ArrayObject), __objmap__);
+    ArrayObject *arr = gc_alloc(sizeof(*arr), __array_objmap);
     GC_STACK(1);
     gc_push(&arr, 0);
     int isref = is_ref(tp_map, 0);
@@ -174,8 +184,8 @@ void array_print(Object *self)
 }
 
 static MethodDef array_methods[] = {
-    { "length", NULL, "i32", array_length },
-    { NULL },
+    { "length", nil, "i32", array_length },
+    { nil },
 };
 
 #ifdef __cplusplus

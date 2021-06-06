@@ -4,11 +4,13 @@
  * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
  */
 
-#include "object.h"
+#include "core.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// ------ type parameter bitmap ---------------------------------------------
 
 int tp_size(uint32 tp_map, int index)
 {
@@ -16,7 +18,10 @@ int tp_size(uint32 tp_map, int index)
     return __size__[tp_index(tp_map, index)];
 }
 
-/* var obj T(Any) */
+// ------ generic type ------------------------------------------------------
+
+// var obj T, where the upper bound of T is Any
+
 int32 generic_any_hash(uintptr obj, int isref)
 {
     if (!isref) {
@@ -28,31 +33,34 @@ int32 generic_any_hash(uintptr obj, int isref)
     }
 }
 
-int8 generic_any_equal(uintptr obj, uintptr other, int isref)
+bool generic_any_equal(uintptr obj, uintptr other, int isref)
 {
     if (obj == other) return 1;
 
     if (isref) {
         TypeInfo *type = ((Object *)obj)->type;
-        int32 (*fn)(uintptr, uintptr) = (void *)type->vtbl[0][1];
+        bool (*fn)(uintptr, uintptr) = (void *)type->vtbl[0][1];
         return fn(obj, other);
     }
+
+    return 0;
 }
 
-Object *generic_any_type(uintptr obj, int tpkind)
+Object *generic_any_class(uintptr obj, int tpkind)
 {
-    return NULL;
+    return nil;
 }
 
 Object *generic_any_tostr(uintptr obj, int tpkind)
 {
-    return NULL;
+    return nil;
 }
 
-/* `Any` type */
-static TypeInfo any_type = {
+// ------ Any type ----------------------------------------------------------
+
+TypeInfo any_type = {
     .name = "Any",
-    .flags = TF_TRAIT | TF_PUB,
+    .flags = TF_TRAIT,
 };
 
 int32 any_hash(Object *self)
@@ -66,9 +74,9 @@ bool any_equal(Object *self, Object *other)
     return self == other;
 }
 
-Object *any_get_type(Object *self)
+Object *any_class(Object *self)
 {
-    return NULL;
+    return class_new(self->type);
 }
 
 Object *any_tostr(Object *self)
@@ -76,33 +84,115 @@ Object *any_tostr(Object *self)
     char buf[64];
     TypeInfo *type = self->type;
     snprintf(buf, sizeof(buf) - 1, "%.32s@%x", type->name, PTR2INT(self));
-    return NULL;
+    return string_new(buf);
 }
 
-// clang-format off
+void init_any_type(void)
+{
+    // clang-format off
+    /* DON'T change the order */
+    MethodDef any_methods[] = {
+        METHOD_DEF("__hash__", nil, "i32",     any_hash),
+        METHOD_DEF("__eq__",   "A", "b",       any_equal),
+        METHOD_DEF("__type__", nil, "LClass;", any_class),
+        METHOD_DEF("__str__",  nil, "s",       any_tostr),
+    };
+    // clang-format on
 
-/* DON'T change the order */
-static MethodDef any_methods[] = {
-    METHOD_DEF("__hash__", NIL, "i32",    any_hash),
-    METHOD_DEF("__eq__",   "A", "b",      any_equal),
-    METHOD_DEF("__type__", NIL, "LType;", any_get_type),
-    METHOD_DEF("__str__",  NIL, "s",      any_tostr),
-};
+    type_ready(&any_type);
+    pkg_add_type("/", &any_type);
+}
 
-// clang-format on
+// ------ Member Info -------------------------------------------------------
+
+int mbr_equal(void *m1, void *m2)
+{
+    MbrInfo *mbr1 = m1;
+    MbrInfo *mbr2 = m2;
+    return !strcmp(mbr1->name, mbr2->name);
+}
+
+HashMap *mbr_map_new(void)
+{
+    HashMap *m = mm_alloc_obj(m);
+    hashmap_init(m, mbr_equal);
+    return m;
+}
+
+MbrInfo *mbr_new_field(char *name, uint32 offset)
+{
+    MbrInfo *mbr = mm_alloc_obj(mbr);
+    mbr->name = name;
+    mbr->kind = MBR_FIELD_KIND;
+    hashmap_entry_init(mbr, str_hash(mbr->name));
+    mbr->offset = offset;
+    return mbr;
+}
+
+MbrInfo *mbr_new_kfunc(char *name, CodeInfo *code)
+{
+    MbrInfo *mbr = mm_alloc_obj(mbr);
+    mbr->name = name;
+    mbr->kind = MBR_KFUNC_KIND;
+    hashmap_entry_init(mbr, str_hash(mbr->name));
+    mbr->code = code;
+    return mbr;
+}
+
+MbrInfo *mbr_new_cfunc(char *name, void *cfunc)
+{
+    MbrInfo *mbr = mm_alloc_obj(mbr);
+    mbr->name = name;
+    mbr->kind = MBR_CFUNC_KIND;
+    hashmap_entry_init(mbr, str_hash(mbr->name));
+    mbr->cfunc = cfunc;
+    return mbr;
+}
+
+MbrInfo *mbr_new_proto(char *name)
+{
+    MbrInfo *mbr = mm_alloc_obj(mbr);
+    mbr->name = name;
+    mbr->kind = MBR_PROTO_KIND;
+    hashmap_entry_init(mbr, str_hash(mbr->name));
+    return mbr;
+}
+
+MbrInfo *mbr_new_type(TypeInfo *type)
+{
+    MbrInfo *mbr = mm_alloc_obj(mbr);
+    mbr->name = type->name;
+    mbr->kind = MBR_TYPE_KIND;
+    hashmap_entry_init(mbr, str_hash(mbr->name));
+    mbr->type = type;
+    return mbr;
+}
+
+MbrInfo *mbr_new_gvar(char *name)
+{
+    MbrInfo *mbr = mm_alloc_obj(mbr);
+    mbr->name = name;
+    mbr->kind = MBR_GVAR_KIND;
+    hashmap_entry_init(mbr, str_hash(mbr->name));
+    return mbr;
+}
+
+// ------ type info ---------------------------------------------------------
+
+// Create TypeInfo, build LRO and virtual tables
 
 typedef struct _LroInfo LroInfo;
 
 struct _LroInfo {
     TypeInfo *type;
-    /* index of virtual table */
+    // index of virtual table
     int index;
 };
 
 static HashMap *mtbl_create(void)
 {
     HashMap *mtbl = mm_alloc_obj(mtbl);
-    hashmap_init(mtbl, NULL);
+    hashmap_init(mtbl, nil);
     return mtbl;
 }
 
@@ -141,7 +231,7 @@ static void build_one_lro(TypeInfo *type, TypeInfo *one)
 
     Vector *vec = __get_lro(type);
 
-    LroInfo lro = { NULL, -1 };
+    LroInfo lro = { nil, -1 };
     LroInfo *item;
     vector_foreach(item, one->lro, {
         if (!lro_find(vec, item->type)) {
@@ -158,17 +248,17 @@ static void build_one_lro(TypeInfo *type, TypeInfo *one)
 
 static void build_lro(TypeInfo *type)
 {
-    /* add Any type */
+    // add Any type
     build_one_lro(type, &any_type);
 
-    /* add first class or trait */
+    // add first class or trait
     build_one_lro(type, type->base);
 
-    /* add traits */
+    // add traits
     TypeInfo **trait;
     vector_foreach(trait, type->traits, { build_one_lro(type, *trait); });
 
-    /* add self */
+    // add self
     build_one_lro(type, type);
 }
 
@@ -178,13 +268,13 @@ static void inherit_methods(TypeInfo *type)
     int size = vector_size(lro);
     HashMap *mtbl = __get_mtbl(type);
     Vector *vec;
-    MethodObject **m;
+    MbrInfo **mbr;
     LroInfo *item;
     for (int i = size - 2; i >= 0; i--) {
-        /* omit type self */
+        // omit type self
         item = vector_get_ptr(lro, i);
         vec = item->type->methods;
-        vector_foreach(m, vec, { hashmap_put_absent(mtbl, &(*m)->entry); });
+        vector_foreach(mbr, vec, { hashmap_put_absent(mtbl, &(*mbr)->entry); });
     }
 }
 
@@ -208,26 +298,26 @@ static uintptr *build_one_vtbl(TypeInfo *type, HashMap *mtbl)
     LroInfo *item;
     Vector *vec;
 
-    /* calculae length */
+    // calculae length
     int length = 0;
     vector_foreach(item, lro, {
         vec = item->type->methods;
         length += vector_size(vec);
     });
 
-    /* build virtual table */
+    // build virtual table
     uintptr *slots = mm_alloc(sizeof(uintptr) * (length + 1));
     int index = 0;
-    MethodObject **m;
-    MethodObject *n;
+    MbrInfo **m;
+    MbrInfo *n;
     HashMapEntry *e;
     vector_foreach(item, lro, {
         vec = item->type->methods;
         vector_foreach(m, vec, {
             e = hashmap_get(mtbl, &(*m)->entry);
             assert(e);
-            n = CONTAINER_OF(e, MethodObject, entry);
-            *(slots + index++) = (uintptr)n->ptr;
+            // n = CONTAINER_OF(e, MethodObject, entry);
+            *(slots + index++) = (uintptr)n;
         });
     });
 
@@ -236,7 +326,7 @@ static uintptr *build_one_vtbl(TypeInfo *type, HashMap *mtbl)
 
 static void build_vtbl(TypeInfo *type)
 {
-    /* first class or trait is the same virtual table, at 0 */
+    // first class or trait is the same virtual table, at 0
     Vector *lro = __get_lro(type);
     TypeInfo *base = type;
     LroInfo *item;
@@ -250,18 +340,18 @@ static void build_vtbl(TypeInfo *type)
         base = base->base;
     }
 
-    /* vtbl of 'Any' is also at 0 */
+    // vtbl of 'Any' is also at 0
     item = vector_first_ptr(lro);
     item->index = 0;
 
-    /* update some traits indexes */
+    // update some traits indexes
     vector_foreach_reverse(item, lro, {
         if (item->index == -1) {
             if (vtbl_same(lro, i, item->type->lro)) item->index = 0;
         }
     });
 
-    /* calculate number of slots */
+    // calculate number of slots
     int num_slot = 2;
     vector_foreach(item, lro, {
         if (item->index == -1) num_slot++;
@@ -270,10 +360,10 @@ static void build_vtbl(TypeInfo *type)
     uintptr **slots = mm_alloc(sizeof(uintptr *) * num_slot);
     HashMap *mtbl = __get_mtbl(type);
 
-    /* build #0 slot virtual table */
+    // build #0 slot virtual table
     slots[0] = build_one_vtbl(type, mtbl);
 
-    /* build other traits virtual tables */
+    // build other traits virtual tables
     int j = 0;
     vector_foreach(item, lro, {
         if (item->index == -1) {
@@ -283,15 +373,14 @@ static void build_vtbl(TypeInfo *type)
         }
     });
 
-    /* set virtual table */
+    // set virtual table
     type->vtbl = slots;
 }
 
-TypeInfo *kl_type_new(char *path, char *name, int flags, Vector *params,
-                      TypeInfo *base, Vector *traits)
+TypeInfo *type_new(char *name, int flags, Vector *params, TypeInfo *base,
+                   Vector *traits)
 {
     TypeInfo *tp = mm_alloc_obj(tp);
-    // tp->type = type_type;
     tp->name = name;
     tp->flags = flags;
     tp->params = params;
@@ -300,43 +389,39 @@ TypeInfo *kl_type_new(char *path, char *name, int flags, Vector *params,
     return tp;
 }
 
-void kl_add_field(TypeInfo *type, Object *field)
-{
-}
+// void type_add_field(TypeInfo *type, FieldInfo *field)
+// {
+// }
 
-void kl_add_method(TypeInfo *type, Object *meth)
-{
-}
+// void type_add_kfunc(TypeInfo *type, CodeInfo *code)
+// {
+// }
 
-void kl_type_ready(TypeInfo *type)
+// void type_add_cfunc(TypeInfo *type, CFuncInfo *cfunc)
+// {
+// }
+
+// void type_add_proto(TypeInfo *type, ProtoInfo *proto)
+// {
+// }
+
+void type_ready(TypeInfo *type)
 {
     build_lro(type);
     inherit_methods(type);
     build_vtbl(type);
 }
 
-void kl_init_types(void)
+void type_show(TypeInfo *type)
 {
-}
+    if (type_is_final(type)) printf("final ");
 
-void kl_fini_types(void)
-{
-}
-
-void kl_type_show(TypeInfo *type)
-{
-    if (kl_is_pub(type)) printf("pub ");
-
-    if (kl_is_final(type)) printf("final ");
-
-    if (kl_is_class(type))
+    if (type_is_class(type))
         printf("class ");
-    else if (kl_is_trait(type))
+    else if (type_is_trait(type))
         printf("trait ");
-    else if (kl_is_enum(type))
+    else if (type_is_enum(type))
         printf("enum ");
-    else if (kl_is_mod(type))
-        printf("module ");
     else
         assert(0);
 
@@ -353,6 +438,10 @@ void kl_type_show(TypeInfo *type)
     });
     printf("\n");
     printf("----============----\n");
+}
+
+void type_add_methoddefs(TypeInfo *type, MethodDef *def, int size)
+{
 }
 
 #ifdef __cplusplus

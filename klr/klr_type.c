@@ -132,14 +132,14 @@ KlrTypeRef klr_type_proto(KlrTypeRef ret, Vector *params)
 
 Vector *klr_get_params(KlrTypeRef ty)
 {
-    if (!ty) return NULL;
+    if (!ty) return nil;
     KlrProtoRef proto = (KlrProtoRef)ty;
     return proto->params;
 }
 
 KlrTypeRef klr_get_ret(KlrTypeRef ty)
 {
-    if (!ty) return NULL;
+    if (!ty) return nil;
     KlrProtoRef proto = (KlrProtoRef)ty;
     return proto->ret;
 }
@@ -208,7 +208,7 @@ static KlrTypeRef __to_klass(char *s, int len)
         }
     }
 
-    char *path = NULL;
+    char *path = nil;
     if (dot > 0) {
         path = atom_str(s, dot);
     }
@@ -289,13 +289,13 @@ static KlrTypeRef __to_type(char **str)
 
 KlrTypeRef klr_type_from_str(char *str)
 {
-    if (!str) return NULL;
+    if (!str) return nil;
     return __to_type(&str);
 }
 
 KlrTypeRef klr_proto_from_str(char *params, char *ret)
 {
-    Vector *args = NULL;
+    Vector *args = nil;
     if (params) {
         args = vector_create(PTR_SIZE);
         KlrTypeRef ty;
@@ -307,11 +307,11 @@ KlrTypeRef klr_proto_from_str(char *params, char *ret)
         }
         if (vector_empty(args)) {
             vector_destroy(args);
-            args = NULL;
+            args = nil;
         }
     }
 
-    KlrTypeRef rty = NULL;
+    KlrTypeRef rty = nil;
     if (ret) {
         rty = __to_type(&ret);
     }

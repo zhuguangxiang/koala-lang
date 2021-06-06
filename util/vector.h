@@ -39,7 +39,7 @@ static inline void vector_fini(Vector *vec)
 {
     if (!vec) return;
     mm_free(vec->objs);
-    vec->objs = NULL;
+    vec->objs = nil;
     vec->objsize = 0;
     vec->size = 0;
     vec->capacity = 0;
@@ -68,13 +68,13 @@ static inline void vector_destroy(Vector *vec)
 }
 
 /* Get a vector size */
-#define vector_size(vec) ((NULL != (vec)) ? (vec)->size : 0)
+#define vector_size(vec) ((nil != (vec)) ? (vec)->size : 0)
 
 /* Test whether a vector is empty */
 #define vector_empty(vec) (!vector_size(vec))
 
 /* Get a vector capacity */
-#define vector_capacity(vec) ((NULL != (vec)) ? (vec)->capacity : 0)
+#define vector_capacity(vec) ((nil != (vec)) ? (vec)->capacity : 0)
 
 /*
  * Store an object at an index. The old will be erased.

@@ -34,7 +34,7 @@ static int semicolon(ParserStateRef ps)
 {
     static int tokens[] = {
         INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
-        ID, SELF, SUPER, TRUE, FALSE, NIL,
+        ID, SELF, SUPER, TRUE, FALSE, nil,
         INT8, INT16, INT32, INT64, CHAR, STRING, BOOL, ANY,
         RETURN, BREAK, CONTINUE, ')', ']', '}', '>', '_',
         DOTDOTDOT, DOTDOTLESS, FAT_ARROW,
@@ -86,7 +86,7 @@ static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
     int len = BUF_LEN(ps->buf);
 
     if (!s) {
-        yylval->sval = atom_str(NULL, 0);
+        yylval->sval = atom_str(nil, 0);
         return;
     }
 
@@ -120,7 +120,7 @@ static void do_text(ParserStateRef ps, YYSTYPE *yylval)
     char *s = BUF_STR(ps->buf);
 
     if (!s) {
-        yylval->sval = atom_str(NULL, 0);
+        yylval->sval = atom_str(nil, 0);
         return;
     }
 
@@ -225,10 +225,10 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
     yylval->sval = atom_str(s, len)
 
 #define YY_INT_VALUE(s, base) \
-    yylval->ival = strtoll(s, NULL, base)
+    yylval->ival = strtoll(s, nil, base)
 
 #define YY_FLOAT_VALUE(s) \
-    yylval->fval = strtod(s, NULL); \
+    yylval->fval = strtod(s, nil); \
     printf("%lf\n", yylval->fval);
 
 %}
@@ -270,7 +270,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "super"     { YY_RETURN(SUPER); }
 "true"      { YY_RETURN(TRUE);  }
 "false"     { YY_RETURN(FALSE); }
-"nil"       { YY_RETURN(NIL);   }
+"nil"       { YY_RETURN(nil);   }
 
 "int8"      { YY_RETURN(INT8);    }
 "int16"     { YY_RETURN(INT16);   }

@@ -27,7 +27,7 @@ typedef struct _Buffer {
 } Buffer;
 
 /* Declare a buffer. */
-#define BUF(name) Buffer name = { 0, 0, NULL }
+#define BUF(name) Buffer name = { 0, 0, nil }
 
 /* Free a buffer. */
 #define FINI_BUF(name) mm_free((name).buf)

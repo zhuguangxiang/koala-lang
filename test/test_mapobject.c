@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
     map_put_absent(map, 109, 101);
     map_put_absent(map, 110, 101);
     map_put_absent(map, 111, 101);
-    map_put(map, 100, 100, NULL);
+    map_put(map, 100, 100, nil);
 
     gc();
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
     map_get(map, 200, &val);
     assert(val == 201);
 
-    map_remove(map, 200, NULL);
+    map_remove(map, 200, nil);
     ret = map_get(map, 200, &val);
     assert(ret == -1);
     gc();

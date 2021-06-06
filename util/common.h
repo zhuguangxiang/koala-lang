@@ -34,7 +34,7 @@ typedef int8_t bool;
 
 #define TRUE  1
 #define FALSE 0
-#define NIL   NULL
+#define nil   NULL
 
 /* Get the min(max) one of the two numbers */
 #define MIN(a, b) ((a) > (b) ? (b) : (a))

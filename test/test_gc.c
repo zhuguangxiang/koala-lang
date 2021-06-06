@@ -38,11 +38,11 @@ void bar_fini_func(void *obj)
 void test_object_gc(void)
 {
     struct Bar *old;
-    struct Bar *bar = NULL;
+    struct Bar *bar = nil;
     GC_STACK(1);
     gc_push(&bar, 0);
 
-    bar = gc_alloc(sizeof(struct Bar), NULL);
+    bar = gc_alloc(sizeof(struct Bar), nil);
     old = bar;
     bar->value = 200;
 
@@ -50,11 +50,11 @@ void test_object_gc(void)
     assert(bar->value == 200);
     assert(bar != old);
 
-    bar = gc_alloc(sizeof(struct Bar), NULL);
+    bar = gc_alloc(sizeof(struct Bar), nil);
     bar->value = 100;
 
     {
-        struct Foo *foo = NULL;
+        struct Foo *foo = nil;
         GC_STACK(1);
         gc_push(&foo, 0);
         foo = gc_alloc(sizeof(struct Foo), Foo_objmap);
@@ -73,7 +73,7 @@ void test_object_gc(void)
 
 void test_array_gc(void)
 {
-    void *arr = NULL;
+    void *arr = nil;
     GC_STACK(1);
     gc_push(&arr, 0);
 
@@ -88,7 +88,7 @@ void test_array_gc(void)
 
 void test_array_gc2(void)
 {
-    char **arr = NULL;
+    char **arr = nil;
     GC_STACK(1);
     gc_push(&arr, 0);
 

@@ -87,7 +87,7 @@ void cmd_eval_stmt(ParserStateRef ps, StmtRef stmt);
 %token SUPER
 %token TRUE
 %token FALSE
-%token NIL
+%token nil
 
 %token INT8
 %token INT16
@@ -398,7 +398,7 @@ const_decl
     : CONST ID '=' expr ';'
     {
         Ident name = IDENT($2, @2);
-        $$ = stmt_from_constdecl(&name, NULL, $4);
+        $$ = stmt_from_constdecl(&name, nil, $4);
         stmt_set_loc($$, loc(@1));
     }
     | CONST ID type '=' expr ';'
@@ -413,13 +413,13 @@ var_decl
     : VAR ID type ';'
     {
         Ident name = IDENT($2, @2);
-        $$ = stmt_from_vardecl(&name, $3, NULL);
+        $$ = stmt_from_vardecl(&name, $3, nil);
         stmt_set_loc($$, loc(@1));
     }
     | VAR ID '=' expr ';'
     {
         Ident name = IDENT($2, @2);
-        $$ = stmt_from_vardecl(&name, NULL, $4);
+        $$ = stmt_from_vardecl(&name, nil, $4);
         stmt_set_loc($$, loc(@1));
     }
     | VAR ID type '=' expr ';'
@@ -466,7 +466,7 @@ free_var_decl
     : ID FREE_ASSIGN expr ';'
     {
         Ident name = IDENT($1, @1);
-        $$ = stmt_from_vardecl(&name, NULL, $3);
+        $$ = stmt_from_vardecl(&name, nil, $3);
         stmt_set_loc($$, loc(@1));
     }
     ;
@@ -529,7 +529,7 @@ assignop
 return_stmt
     : RETURN ';'
     {
-        $$ = stmt_from_ret(NULL);
+        $$ = stmt_from_ret(nil);
         stmt_set_loc($$, loc(@1));
     }
     | RETURN expr ';'
@@ -569,7 +569,7 @@ block
     }
     | '{' '}'
     {
-        $$ = stmt_from_block(NULL);
+        $$ = stmt_from_block(nil);
         stmt_set_loc($$, loc(@1));
     }
     ;
@@ -607,19 +607,19 @@ local
     }
     | if_stmt
     {
-        $$ = NULL;
+        $$ = nil;
     }
     | while_stmt
     {
-        $$ = NULL;
+        $$ = nil;
     }
     | for_stmt
     {
-        $$ = NULL;
+        $$ = nil;
     }
     | match_stmt
     {
-        $$ = NULL;
+        $$ = nil;
     }
     | return_stmt
     {
@@ -635,7 +635,7 @@ local
     }
     | ';'
     {
-        $$ = NULL;
+        $$ = nil;
     }
     ;
 
@@ -896,7 +896,7 @@ cond_expr
     }
     | cond_c_expr '?' expr ':' expr
     {
-        $$ = NULL;
+        $$ = nil;
     }
     ;
 
@@ -914,25 +914,25 @@ cond_c_expr
 range_expr
     : or_expr DOTDOTDOT or_expr
     {
-        $$ = NULL;
+        $$ = nil;
     }
     | or_expr DOTDOTLESS or_expr
     {
-        $$ = NULL;
+        $$ = nil;
     }
     ;
 
 is_expr
     : primary_expr IS type
     {
-        $$ = NULL;
+        $$ = nil;
     }
     ;
 
 as_expr
     : primary_expr AS type
     {
-        $$ = NULL;
+        $$ = nil;
     }
     ;
 
@@ -1246,7 +1246,7 @@ atom_expr
         $$ = expr_from_bool(0);
         expr_set_loc($$, loc(@1));
     }
-    | NIL
+    | nil
     {
         $$ = expr_from_nil();
         expr_set_loc($$, loc(@1));
@@ -1365,15 +1365,15 @@ type
     }
     | '[' type ']'
     {
-        $$ = NULL;
+        $$ = nil;
     }
     | '[' type ':' type ']'
     {
-        $$ = NULL;
+        $$ = nil;
     }
     | '(' type_list ')'
     {
-        $$ = NULL;
+        $$ = nil;
     }
     ;
 
@@ -1442,7 +1442,7 @@ klass_type
     : ID
     {
         Ident name = IDENT($1, @1);
-        $$ = ast_type_klass(NULL, &name);
+        $$ = ast_type_klass(nil, &name);
         type_set_loc($$, loc(@1));
     }
     | ID '.' ID
@@ -1455,7 +1455,7 @@ klass_type
     | ID L_ANGLE_ARGS type_list r_angle
     {
         Ident name = IDENT($1, @1);
-        $$ = ast_type_klass(NULL, &name);
+        $$ = ast_type_klass(nil, &name);
         type_set_typeparams($$, $3);
         type_set_loc($$, loc(@1));
     }
@@ -1482,17 +1482,17 @@ func_type
     }
     | FUNC '(' type_varg_list ')'
     {
-        $$ = ast_type_proto(NULL, $3);
+        $$ = ast_type_proto(nil, $3);
         type_set_loc($$, loc(@1));
     }
     | FUNC '(' ')' type
     {
-        $$ = ast_type_proto($4, NULL);
+        $$ = ast_type_proto($4, nil);
         type_set_loc($$, loc(@1));
     }
     | FUNC '(' ')'
     {
-        $$ = ast_type_proto(NULL, NULL);
+        $$ = ast_type_proto(nil, nil);
         type_set_loc($$, loc(@1));
     }
     ;
@@ -1505,7 +1505,7 @@ type_varg_list
     | type_list ',' DOTDOTDOT
     {
         $$ = $1;
-        TypeRef _t = ast_type_valist(NULL);
+        TypeRef _t = ast_type_valist(nil);
         type_set_loc(_t, loc(@3));
         vector_push_back($$, &_t);
     }

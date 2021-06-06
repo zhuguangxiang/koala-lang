@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
 
     KlrTypeRef proto = klr_proto_from_str("Lio.File;si2", "b");
     Vector *params = klr_get_params(proto);
-    KlrTypeRef type = NULL;
+    KlrTypeRef type = nil;
     vector_get(params, 0, &type);
     assert(type->kind == KLR_TYPE_KLASS);
     char *path = klr_get_path(type);
@@ -27,15 +27,15 @@ int main(int argc, char *argv[])
     assert(!strcmp(path, "io"));
     assert(!strcmp(name, "File"));
 
-    type = NULL;
+    type = nil;
     vector_get(params, 1, &type);
     assert(type->kind == KLR_TYPE_STR);
 
-    type = NULL;
+    type = nil;
     vector_get(params, 2, &type);
     assert(type->kind == KLR_TYPE_INT16);
 
-    type = NULL;
+    type = nil;
     vector_get(params, 3, &type);
     assert(!type);
 

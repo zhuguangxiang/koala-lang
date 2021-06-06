@@ -122,7 +122,7 @@ void gc_fini(void)
 
 static void *copy(void *ptr)
 {
-    if (!ptr) return NULL;
+    if (!ptr) return nil;
 
     GcHeaderRef hdr = (GcHeaderRef)ptr - 1;
 

@@ -126,7 +126,7 @@ void *gc_alloc_object(int size, void *objmap, gc_fini_func fini)
 
 GcArray *gc_alloc_array(int len, int own_buf, int isobj)
 {
-    GcArray *arr = NULL;
+    GcArray *arr = nil;
     gc_push(&arr);
 
     printf("gc-debug: alloc array [%d]\n", len);
@@ -192,7 +192,7 @@ void gc_fini(void)
 
 static void *copy(void *ptr)
 {
-    if (!ptr) return NULL;
+    if (!ptr) return nil;
 
     GcHeader *hdr = (GcHeader *)ptr - 1;
 
