@@ -1,8 +1,10 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- *
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #include "klr_type.h"
 #include "util/atom.h"
@@ -13,10 +15,10 @@ extern "C" {
 #endif
 
 static KlrType bases[] = {
-    { KLR_TYPE_NONE },    { KLR_TYPE_INT8 },    { KLR_TYPE_INT16 },
-    { KLR_TYPE_INT32 },   { KLR_TYPE_INT64 },   { KLR_TYPE_FLOAT16 },
-    { KLR_TYPE_FLOAT32 }, { KLR_TYPE_FLOAT64 }, { KLR_TYPE_BOOL },
-    { KLR_TYPE_CHAR },    { KLR_TYPE_STR },     { KLR_TYPE_ANY },
+    { KLR_TYPE_NONE },    { KLR_TYPE_INT8 },  { KLR_TYPE_INT16 },
+    { KLR_TYPE_INT32 },   { KLR_TYPE_INT64 }, { KLR_TYPE_FLOAT32 },
+    { KLR_TYPE_FLOAT64 }, { KLR_TYPE_BOOL },  { KLR_TYPE_CHAR },
+    { KLR_TYPE_STR },     { KLR_TYPE_ANY },
 };
 
 KlrTypeRef klr_type_none(void)
@@ -42,11 +44,6 @@ KlrTypeRef klr_type_int32(void)
 KlrTypeRef klr_type_int64(void)
 {
     return &bases[KLR_TYPE_INT64];
-}
-
-KlrTypeRef klr_type_float16(void)
-{
-    return &bases[KLR_TYPE_FLOAT16];
 }
 
 KlrTypeRef klr_type_float32(void)

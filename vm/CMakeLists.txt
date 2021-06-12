@@ -4,8 +4,8 @@
 # Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
 #
 
-set(VM_SRCS object.c arrayobject.c)
+set(VM_SRCS vm.c)
 
 add_library(vm STATIC ${VM_SRCS})
 
-target_link_libraries(vm util gc)
+target_link_libraries(vm util)

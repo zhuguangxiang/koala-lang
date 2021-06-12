@@ -25,7 +25,7 @@ configure_file(
 )
 
 if(DEBUG_TYPE STREQUAL DEBUG)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -g -fvar-tracking")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -std=gnu11 -Wall -g -fvar-tracking")
 endif()
 
 # link_directories(${CMAKE_CURRENT_BINARY_DIR}/src)
@@ -34,7 +34,8 @@ include_directories(. pkgs)
 add_subdirectory(util)
 add_subdirectory(klr)
 add_subdirectory(gc)
-add_subdirectory(pkgs/core)
+#add_subdirectory(pkgs/core)
+add_subdirectory(vm)
 
 if(ENABLE_TEST)
   enable_testing()

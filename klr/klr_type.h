@@ -1,8 +1,10 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- *
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #ifndef _KOALA_IR_TYPE_H_
 #define _KOALA_IR_TYPE_H_
@@ -23,7 +25,6 @@ typedef enum _KlrTypeKind {
     KLR_TYPE_INT16,
     KLR_TYPE_INT32,
     KLR_TYPE_INT64,
-    KLR_TYPE_FLOAT16,
     KLR_TYPE_FLOAT32,
     KLR_TYPE_FLOAT64,
     KLR_TYPE_BOOL,
