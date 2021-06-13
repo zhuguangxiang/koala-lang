@@ -1,8 +1,10 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- *
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #include "bitvector.h"
 #include "mm.h"

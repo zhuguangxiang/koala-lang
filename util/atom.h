@@ -1,8 +1,10 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- *
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 /*
  * An Atom is a null-terminated string cached in internal hashmap.
