@@ -350,6 +350,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 
 "<<"        { YY_RETURN(L_SHIFT); }
 ">"/">"     { YY_RETURN(R_ANGLE_SHIFT); }
+">>>"       { YY_RETURN(R_ANGLE_SHIFT); }
 
 \"          { BEGIN(STR); YY_STR_BEGIN;     }
 <STR>\"     { BEGIN(INITIAL); YY_STR_END;   }
