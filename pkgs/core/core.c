@@ -320,14 +320,10 @@ static VirtTable *build_0_slot_vtbl(TypeInfo *type, HashMap *mtbl)
     Vector *vec;
 
     /* calculae length */
-    int length = 0;
-    vector_foreach(item, lro, {
-        vec = item->type->methods;
-        length += vector_size(vec);
-    });
+    int len = __get_mtbl(type)->count;
 
     /* build virtual table */
-    VirtTable *vtbl = mm_alloc(sizeof(VirtTable) + sizeof(uintptr) * length);
+    VirtTable *vtbl = mm_alloc(sizeof(VirtTable) + sizeof(uintptr) * len);
     vtbl->head = 0;
     int index = 0;
     FuncNode **m;
@@ -352,16 +348,16 @@ static VirtTable *build_0_slot_vtbl(TypeInfo *type, HashMap *mtbl)
 static VirtTable *build_nth_slot_vtbl(int nth, TypeInfo *type, HashMap *mtbl)
 {
     /* calculae length */
-    int length = 0;
+    int len = 0;
     VirtTable *vtbl0 = type->vtbl[0];
     uintptr *ptr = (uintptr *)vtbl0->func;
     while (*ptr) {
-        length++;
+        len++;
         ptr++;
     }
 
     /* build virtual table */
-    VirtTable *vtbl = mm_alloc(sizeof(VirtTable) + sizeof(uintptr) * length);
+    VirtTable *vtbl = mm_alloc(sizeof(VirtTable) + sizeof(uintptr) * len);
     vtbl->head = -(nth * PTR_SIZE);
     ptr = (uintptr *)vtbl0->func;
     HashMapEntry *e;
