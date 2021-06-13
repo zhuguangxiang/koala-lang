@@ -1,10 +1,12 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- *
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
-#include "vm/object.h"
+#include "core/core.h"
 
 /*
 trait A
@@ -23,41 +25,37 @@ output: CBDA
 
 void test_mixin_order(void)
 {
-    TypeInfo *A_type = kl_type_new_simple("std", "A", TF_TRAIT | TF_PUB);
-    kl_type_ready(A_type);
+    TypeInfo *A_type = type_new("A", TF_TRAIT);
+    type_ready(A_type);
 
-    TypeInfo *B_type =
-        kl_type_new("std", "B", TF_PUB | TF_TRAIT, nil, A_type, nil);
-    kl_type_ready(B_type);
+    TypeInfo *B_type = type_new("B", TF_TRAIT);
+    type_set_base(B_type, A_type);
+    type_ready(B_type);
 
-    TypeInfo *C_type =
-        kl_type_new("std", "C", TF_PUB | TF_TRAIT, nil, B_type, nil);
-    kl_type_ready(C_type);
+    TypeInfo *C_type = type_new("C", TF_TRAIT);
+    type_set_base(C_type, B_type);
+    type_ready(C_type);
 
-    TypeInfo *D_type =
-        kl_type_new("std", "D", TF_PUB | TF_TRAIT, nil, A_type, nil);
-    kl_type_ready(D_type);
+    TypeInfo *D_type = type_new("D", TF_TRAIT);
+    type_set_base(D_type, A_type);
+    type_ready(D_type);
 
-    Vector *traits = vector_create(PTR_SIZE);
-    vector_push_back(traits, &D_type);
-    vector_push_back(traits, &C_type);
-    vector_push_back(traits, &B_type);
+    TypeInfo *E_type = type_new("E", TF_CLASS);
+    type_set_base(E_type, A_type);
+    type_add_trait(E_type, D_type);
+    type_add_trait(E_type, C_type);
+    type_add_trait(E_type, B_type);
+    type_ready(E_type);
 
-    TypeInfo *E_type =
-        kl_type_new("std", "E", TF_PUB | TF_CLASS, nil, A_type, traits);
-    kl_type_ready(E_type);
-
-    kl_type_show(A_type);
-    kl_type_show(B_type);
-    kl_type_show(C_type);
-    kl_type_show(D_type);
-    kl_type_show(E_type);
+    type_show(A_type);
+    type_show(B_type);
+    type_show(C_type);
+    type_show(D_type);
+    type_show(E_type);
 }
 
 int main(int argc, char *argv[])
 {
-    kl_init_types();
     test_mixin_order();
-    kl_fini_types();
     return 0;
 }

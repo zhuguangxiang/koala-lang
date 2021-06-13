@@ -183,7 +183,7 @@ DLLEXPORT KoalaState *kl_new_state(void)
 
     /* initialize ci */
     CallInfo *ci = &ks->base_ci;
-    ci->back = NULL;
+    ci->back = nil;
     ci->func = ks->top;
     /* `func` entry for this `ci` */
     setnilval(ks->top);

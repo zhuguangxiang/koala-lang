@@ -184,8 +184,7 @@ void array_print(Object *self)
 }
 
 static MethodDef array_methods[] = {
-    { "length", nil, "i32", array_length },
-    { nil },
+    METHOD_DEF("length", nil, "i32", array_length),
 };
 
 #ifdef __cplusplus

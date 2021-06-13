@@ -56,7 +56,6 @@ struct _KoalaState {
 };
 
 void koala_execute(KoalaState *ks, CallInfo *ci);
-void eval(KoalaState *ks);
 
 #ifdef __cplusplus
 }

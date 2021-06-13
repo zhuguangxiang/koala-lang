@@ -5,12 +5,10 @@
 #
 
 set(CORE_SRCS
-    object.c
-    package.c
-    arrayobject.c
-    mapobject.c
+    core.c
     stringobject.c
-    classobject.c)
+    arrayobject.c
+    reflect.c)
 
 add_library(core STATIC ${CORE_SRCS})
 

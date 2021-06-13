@@ -250,7 +250,7 @@ int32 map_remove(ObjectRef self, uintptr key, uintptr *val)
 
     MapEntryRef old = *entry;
     *entry = old->next;
-    old->next = NULL;
+    old->next = nil;
 
     map->count--;
     if (map->count < map->shrink_at) rehash(map, map->size >> 1);

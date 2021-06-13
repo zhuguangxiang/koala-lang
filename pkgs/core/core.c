@@ -1,8 +1,10 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- *
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #include "core.h"
 
@@ -10,7 +12,14 @@
 extern "C" {
 #endif
 
-// ------ type parameter bitmap ---------------------------------------------
+static HashMap *all_pkgs;
+
+TypeInfo any_type = {
+    .name = "Any",
+    .flags = TF_TRAIT,
+};
+
+/*------ type parameter bitmap ----------------------------------------------*/
 
 int tp_size(uint32 tp_map, int index)
 {
@@ -18,9 +27,9 @@ int tp_size(uint32 tp_map, int index)
     return __size__[tp_index(tp_map, index)];
 }
 
-// ------ generic type ------------------------------------------------------
+/*------ generic type -------------------------------------------------------*/
 
-// var obj T, where the upper bound of T is Any
+/* var obj T, where the upper bound of T is Any */
 
 int32 generic_any_hash(uintptr obj, int isref)
 {
@@ -56,12 +65,7 @@ Object *generic_any_tostr(uintptr obj, int tpkind)
     return nil;
 }
 
-// ------ Any type ----------------------------------------------------------
-
-TypeInfo any_type = {
-    .name = "Any",
-    .flags = TF_TRAIT,
-};
+/*------ Any type -----------------------------------------------------------*/
 
 int32 any_hash(Object *self)
 {
@@ -103,81 +107,93 @@ void init_any_type(void)
     pkg_add_type("/", &any_type);
 }
 
-// ------ Member Info -------------------------------------------------------
+/*------ Member Node --------------------------------------------------------*/
 
-int mbr_equal(void *m1, void *m2)
+static int mn_equal(void *m1, void *m2)
 {
-    MbrInfo *mbr1 = m1;
-    MbrInfo *mbr2 = m2;
-    return !strcmp(mbr1->name, mbr2->name);
+    MNode *n1 = m1;
+    MNode *n2 = m2;
+    return !strcmp(n1->name, n2->name);
 }
 
-HashMap *mbr_map_new(void)
+static HashMap *mn_map_new(void)
 {
     HashMap *m = mm_alloc_obj(m);
-    hashmap_init(m, mbr_equal);
+    hashmap_init(m, mn_equal);
     return m;
 }
 
-MbrInfo *mbr_new_field(char *name, uint32 offset)
+static FieldNode *_add_field(HashMap *m, char *name, TypeDesc *desc)
 {
-    MbrInfo *mbr = mm_alloc_obj(mbr);
-    mbr->name = name;
-    mbr->kind = MBR_FIELD_KIND;
-    hashmap_entry_init(mbr, str_hash(mbr->name));
-    mbr->offset = offset;
-    return mbr;
+    FieldNode *f = mm_alloc_obj(f);
+    f->name = name;
+    f->kind = MNODE_FIELD_KIND;
+    hashmap_entry_init(f, str_hash(f->name));
+    f->desc = desc;
+    if (hashmap_put_absent(m, f)) {
+        mm_free(f);
+        return nil;
+    }
+    return f;
 }
 
-MbrInfo *mbr_new_kfunc(char *name, CodeInfo *code)
+static FuncNode *_add_func(HashMap *m, char *name, TypeDesc *desc)
 {
-    MbrInfo *mbr = mm_alloc_obj(mbr);
-    mbr->name = name;
-    mbr->kind = MBR_KFUNC_KIND;
-    hashmap_entry_init(mbr, str_hash(mbr->name));
-    mbr->code = code;
-    return mbr;
+    FuncNode *fn = mm_alloc_obj(fn);
+    fn->name = name;
+    hashmap_entry_init(fn, str_hash(fn->name));
+    fn->desc = desc;
+    if (hashmap_put_absent(m, fn)) {
+        mm_free(fn);
+        return nil;
+    }
+    return fn;
 }
 
-MbrInfo *mbr_new_cfunc(char *name, void *cfunc)
+static ProtoNode *_add_proto(HashMap *m, char *name, TypeDesc *desc)
 {
-    MbrInfo *mbr = mm_alloc_obj(mbr);
-    mbr->name = name;
-    mbr->kind = MBR_CFUNC_KIND;
-    hashmap_entry_init(mbr, str_hash(mbr->name));
-    mbr->cfunc = cfunc;
-    return mbr;
+    ProtoNode *pn = mm_alloc_obj(pn);
+    pn->name = name;
+    pn->kind = MNODE_PROTO_KIND;
+    hashmap_entry_init(pn, str_hash(pn->name));
+    pn->desc = desc;
+    if (hashmap_put_absent(m, pn)) {
+        mm_free(pn);
+        return nil;
+    }
+    return pn;
 }
 
-MbrInfo *mbr_new_proto(char *name)
+static TypeNode *_add_type(HashMap *m, char *name, TypeInfo *type)
 {
-    MbrInfo *mbr = mm_alloc_obj(mbr);
-    mbr->name = name;
-    mbr->kind = MBR_PROTO_KIND;
-    hashmap_entry_init(mbr, str_hash(mbr->name));
-    return mbr;
+    TypeNode *tn = mm_alloc_obj(tn);
+    tn->name = name;
+    tn->kind = MNODE_TYPE_KIND;
+    hashmap_entry_init(tn, str_hash(tn->name));
+    tn->type = type;
+    if (hashmap_put_absent(m, tn)) {
+        mm_free(tn);
+        return nil;
+    }
+    return tn;
 }
 
-MbrInfo *mbr_new_type(TypeInfo *type)
+static VarNode *_add_var(HashMap *m, char *name, TypeDesc *desc)
 {
-    MbrInfo *mbr = mm_alloc_obj(mbr);
-    mbr->name = type->name;
-    mbr->kind = MBR_TYPE_KIND;
-    hashmap_entry_init(mbr, str_hash(mbr->name));
-    mbr->type = type;
-    return mbr;
+    VarNode *vn = mm_alloc_obj(vn);
+    vn->name = name;
+    vn->kind = MNODE_VAR_KIND;
+    hashmap_entry_init(vn, str_hash(vn->name));
+    vn->desc = desc;
+    if (hashmap_put_absent(m, vn)) {
+        mm_free(vn);
+        return nil;
+    }
+    return vn;
 }
 
-MbrInfo *mbr_new_gvar(char *name)
-{
-    MbrInfo *mbr = mm_alloc_obj(mbr);
-    mbr->name = name;
-    mbr->kind = MBR_GVAR_KIND;
-    hashmap_entry_init(mbr, str_hash(mbr->name));
-    return mbr;
-}
-
-// ------ type info ---------------------------------------------------------
+/*------ type info
+ * ----------------------------------------------------------*/
 
 // Create TypeInfo, build LRO and virtual tables
 
@@ -185,7 +201,7 @@ typedef struct _LroInfo LroInfo;
 
 struct _LroInfo {
     TypeInfo *type;
-    // index of virtual table
+    /* index of virtual table */
     int index;
 };
 
@@ -248,17 +264,17 @@ static void build_one_lro(TypeInfo *type, TypeInfo *one)
 
 static void build_lro(TypeInfo *type)
 {
-    // add Any type
+    /* add Any type */
     build_one_lro(type, &any_type);
 
-    // add first class or trait
+    /* add first class or trait */
     build_one_lro(type, type->base);
 
-    // add traits
+    /* add traits */
     TypeInfo **trait;
     vector_foreach(trait, type->traits, { build_one_lro(type, *trait); });
 
-    // add self
+    /* add self */
     build_one_lro(type, type);
 }
 
@@ -268,13 +284,20 @@ static void inherit_methods(TypeInfo *type)
     int size = vector_size(lro);
     HashMap *mtbl = __get_mtbl(type);
     Vector *vec;
-    MbrInfo **mbr;
+    FuncNode **fn;
+    FuncNode *node;
     LroInfo *item;
     for (int i = size - 2; i >= 0; i--) {
-        // omit type self
+        /* omit type self */
         item = vector_get_ptr(lro, i);
         vec = item->type->methods;
-        vector_foreach(mbr, vec, { hashmap_put_absent(mtbl, &(*mbr)->entry); });
+        vector_foreach(fn, vec, {
+            node = _add_func(mtbl, (*fn)->name, (*fn)->desc);
+            if (!node) continue;
+            node->kind = (*fn)->kind;
+            node->ptr = (*fn)->ptr;
+            node->inherit = 1;
+        });
     }
 }
 
@@ -298,26 +321,24 @@ static uintptr *build_one_vtbl(TypeInfo *type, HashMap *mtbl)
     LroInfo *item;
     Vector *vec;
 
-    // calculae length
+    /* calculae length */
     int length = 0;
     vector_foreach(item, lro, {
         vec = item->type->methods;
         length += vector_size(vec);
     });
 
-    // build virtual table
+    /* build virtual table */
     uintptr *slots = mm_alloc(sizeof(uintptr) * (length + 1));
     int index = 0;
-    MbrInfo **m;
-    MbrInfo *n;
+    FuncNode **m;
     HashMapEntry *e;
     vector_foreach(item, lro, {
         vec = item->type->methods;
         vector_foreach(m, vec, {
             e = hashmap_get(mtbl, &(*m)->entry);
             assert(e);
-            // n = CONTAINER_OF(e, MethodObject, entry);
-            *(slots + index++) = (uintptr)n;
+            *(slots + index++) = (uintptr)e;
         });
     });
 
@@ -326,7 +347,7 @@ static uintptr *build_one_vtbl(TypeInfo *type, HashMap *mtbl)
 
 static void build_vtbl(TypeInfo *type)
 {
-    // first class or trait is the same virtual table, at 0
+    /* first class or trait is the same virtual table, at #0 */
     Vector *lro = __get_lro(type);
     TypeInfo *base = type;
     LroInfo *item;
@@ -340,18 +361,18 @@ static void build_vtbl(TypeInfo *type)
         base = base->base;
     }
 
-    // vtbl of 'Any' is also at 0
+    /* vtbl of 'Any' is also at #0 */
     item = vector_first_ptr(lro);
     item->index = 0;
 
-    // update some traits indexes
+    /* update some traits indexes, they are also at #0 */
     vector_foreach_reverse(item, lro, {
         if (item->index == -1) {
             if (vtbl_same(lro, i, item->type->lro)) item->index = 0;
         }
     });
 
-    // calculate number of slots
+    /* calculate number of slots */
     int num_slot = 2;
     vector_foreach(item, lro, {
         if (item->index == -1) num_slot++;
@@ -360,10 +381,10 @@ static void build_vtbl(TypeInfo *type)
     uintptr **slots = mm_alloc(sizeof(uintptr *) * num_slot);
     HashMap *mtbl = __get_mtbl(type);
 
-    // build #0 slot virtual table
+    /* build #0 slot virtual table */
     slots[0] = build_one_vtbl(type, mtbl);
 
-    // build other traits virtual tables
+    /* build other traits virtual tables */
     int j = 0;
     vector_foreach(item, lro, {
         if (item->index == -1) {
@@ -373,37 +394,73 @@ static void build_vtbl(TypeInfo *type)
         }
     });
 
-    // set virtual table
+    /* set virtual table */
     type->vtbl = slots;
 }
 
-TypeInfo *type_new(char *name, int flags, Vector *params, TypeInfo *base,
-                   Vector *traits)
+TypeInfo *type_new(char *name, int flags)
 {
     TypeInfo *tp = mm_alloc_obj(tp);
     tp->name = name;
     tp->flags = flags;
-    tp->params = params;
-    tp->base = base;
-    tp->traits = traits;
     return tp;
 }
 
-// void type_add_field(TypeInfo *type, FieldInfo *field)
-// {
-// }
+int type_set_base(TypeInfo *type, TypeInfo *base)
+{
+    if (type->base) return -1;
+    type->base = base;
+    return 0;
+}
 
-// void type_add_kfunc(TypeInfo *type, CodeInfo *code)
-// {
-// }
+int type_add_typeparam(TypeInfo *type, TypeParam *tp)
+{
+    return 0;
+}
 
-// void type_add_cfunc(TypeInfo *type, CFuncInfo *cfunc)
-// {
-// }
+int type_add_trait(TypeInfo *type, TypeInfo *trait)
+{
+    Vector *traits = type->traits;
+    if (!traits) {
+        traits = vector_create(PTR_SIZE);
+        type->traits = traits;
+    }
+    vector_push_back(traits, &trait);
+    return 0;
+}
 
-// void type_add_proto(TypeInfo *type, ProtoInfo *proto)
-// {
-// }
+int type_add_field(TypeInfo *ty, char *name, TypeDesc *desc)
+{
+    FieldNode *fld = _add_field(ty->mtbl, name, desc);
+    if (!fld) return -1;
+    fld->offset = 0;
+    return 0;
+}
+
+int type_add_kfunc(TypeInfo *ty, char *name, TypeDesc *desc, CodeInfo *code)
+{
+    FuncNode *fn = _add_func(ty->mtbl, name, desc);
+    if (!fn) return -1;
+    fn->kind = MNODE_KFUNC_KIND;
+    fn->ptr = code;
+    return 0;
+}
+
+int type_add_cfunc(TypeInfo *ty, char *name, TypeDesc *desc, void *ptr)
+{
+    FuncNode *fn = _add_func(ty->mtbl, name, desc);
+    if (!fn) return -1;
+    fn->kind = MNODE_CFUNC_KIND;
+    fn->ptr = ptr;
+    return 0;
+}
+
+int type_add_proto(TypeInfo *type, char *name, TypeDesc *desc)
+{
+    ProtoNode *pn = _add_proto(type->mtbl, name, desc);
+    if (!pn) return -1;
+    return 0;
+}
 
 void type_ready(TypeInfo *type)
 {
@@ -425,10 +482,9 @@ void type_show(TypeInfo *type)
     else
         assert(0);
 
-    printf("%s:\n", type->name);
+    printf("%s {\n", type->name);
 
     /* show lro */
-    printf("lro:\n");
     LroInfo *item;
     vector_foreach(item, type->lro, {
         if (i < len - 1)
@@ -436,12 +492,65 @@ void type_show(TypeInfo *type)
         else
             printf("%s", item->type->name);
     });
-    printf("\n");
-    printf("----============----\n");
+    printf("\n}\n\n");
 }
 
-void type_add_methoddefs(TypeInfo *type, MethodDef *def, int size)
+void type_add_methods(TypeInfo *type, MethodDef *def, int size)
 {
+}
+
+static PkgNode *_get_pkg(char *path)
+{
+    PkgNode key = { .name = path };
+    hashmap_entry_init(&key, str_hash(path));
+    return hashmap_get(all_pkgs, &key);
+}
+
+void pkg_add_type(char *path, TypeInfo *type)
+{
+    PkgNode *pkg = _get_pkg(path);
+    _add_type(pkg->map, type->name, type);
+}
+
+void pkg_add_var(char *path, char *name, TypeDesc *desc)
+{
+    PkgNode *pkg = _get_pkg(path);
+    _add_var(pkg->map, name, desc);
+}
+
+void pkg_add_cfunc(char *path, char *name, TypeDesc *desc, void *ptr)
+{
+    PkgNode *pkg = _get_pkg(path);
+    FuncNode *fn = _add_func(pkg->map, name, desc);
+    if (!fn) return;
+    fn->kind = MNODE_CFUNC_KIND;
+    fn->ptr = ptr;
+}
+
+void pkg_add_kfunc(char *path, char *name, TypeDesc *desc, CodeInfo *code)
+{
+    PkgNode *pkg = _get_pkg(path);
+    FuncNode *fn = _add_func(pkg->map, name, desc);
+    if (!fn) return;
+    fn->kind = MNODE_KFUNC_KIND;
+    fn->ptr = code;
+}
+
+void init_core_pkg(void)
+{
+    all_pkgs = mn_map_new();
+
+    PkgNode *pkg = mm_alloc_obj(pkg);
+    pkg->name = "/";
+    hashmap_entry_init(pkg, str_hash(pkg->name));
+    pkg->map = mn_map_new();
+
+    hashmap_put_absent(all_pkgs, pkg);
+
+    init_any_type();
+    init_string_type();
+    init_array_type();
+    init_reflect_types();
 }
 
 #ifdef __cplusplus

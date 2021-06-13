@@ -60,6 +60,15 @@ func fib(n int32) int32 {
     OP_RET_VAL 0 ##-> opt as OP_RET, if A == 0
 */
 
+#if 0
+#define OP_I32_JMP_CMPKGT 0
+#define OP_RET            1
+#define OP_SAVE_RET       2
+#define OP_I32_ADD_RET    3
+#define OP_PUSH_I32_SUBK  4
+#define OP_CALL           5
+#endif
+
 void test_fib(void)
 {
     // clang-format off

@@ -34,7 +34,7 @@ include_directories(. pkgs)
 add_subdirectory(util)
 add_subdirectory(klr)
 add_subdirectory(gc)
-#add_subdirectory(pkgs/core)
+add_subdirectory(pkgs/core)
 add_subdirectory(vm)
 
 if(ENABLE_TEST)
