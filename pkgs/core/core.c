@@ -102,7 +102,7 @@ void init_any_type(void)
         METHOD_DEF("__str__",  nil, "s",       any_tostr),
     };
     // clang-format on
-
+    type_add_methods(&any_type, any_methods, COUNT_OF(any_methods));
     type_ready(&any_type);
     pkg_add_type("/", &any_type);
 }
@@ -141,7 +141,7 @@ static FuncNode *_add_func(HashMap *m, char *name, TypeDesc *desc)
 {
     FuncNode *fn = mm_alloc_obj(fn);
     fn->name = name;
-    hashmap_entry_init(fn, str_hash(fn->name));
+    hashmap_entry_init(fn, str_hash(name));
     fn->desc = desc;
     if (hashmap_put_absent(m, fn)) {
         mm_free(fn);
@@ -155,7 +155,7 @@ static ProtoNode *_add_proto(HashMap *m, char *name, TypeDesc *desc)
     ProtoNode *pn = mm_alloc_obj(pn);
     pn->name = name;
     pn->kind = MNODE_PROTO_KIND;
-    hashmap_entry_init(pn, str_hash(pn->name));
+    hashmap_entry_init(pn, str_hash(name));
     pn->desc = desc;
     if (hashmap_put_absent(m, pn)) {
         mm_free(pn);
@@ -169,7 +169,7 @@ static TypeNode *_add_type(HashMap *m, char *name, TypeInfo *type)
     TypeNode *tn = mm_alloc_obj(tn);
     tn->name = name;
     tn->kind = MNODE_TYPE_KIND;
-    hashmap_entry_init(tn, str_hash(tn->name));
+    hashmap_entry_init(tn, str_hash(name));
     tn->type = type;
     if (hashmap_put_absent(m, tn)) {
         mm_free(tn);
@@ -183,7 +183,7 @@ static VarNode *_add_var(HashMap *m, char *name, TypeDesc *desc)
     VarNode *vn = mm_alloc_obj(vn);
     vn->name = name;
     vn->kind = MNODE_VAR_KIND;
-    hashmap_entry_init(vn, str_hash(vn->name));
+    hashmap_entry_init(vn, str_hash(name));
     vn->desc = desc;
     if (hashmap_put_absent(m, vn)) {
         mm_free(vn);
@@ -192,8 +192,7 @@ static VarNode *_add_var(HashMap *m, char *name, TypeDesc *desc)
     return vn;
 }
 
-/*------ type info
- * ----------------------------------------------------------*/
+/*------ type info ----------------------------------------------------------*/
 
 // Create TypeInfo, build LRO and virtual tables
 
@@ -205,18 +204,11 @@ struct _LroInfo {
     int index;
 };
 
-static HashMap *mtbl_create(void)
-{
-    HashMap *mtbl = mm_alloc_obj(mtbl);
-    hashmap_init(mtbl, nil);
-    return mtbl;
-}
-
 static inline HashMap *__get_mtbl(TypeInfo *type)
 {
     HashMap *mtbl = type->mtbl;
     if (!mtbl) {
-        mtbl = mtbl_create();
+        mtbl = mn_map_new();
         type->mtbl = mtbl;
     }
     return mtbl;
@@ -431,7 +423,7 @@ int type_add_trait(TypeInfo *type, TypeInfo *trait)
 
 int type_add_field(TypeInfo *ty, char *name, TypeDesc *desc)
 {
-    FieldNode *fld = _add_field(ty->mtbl, name, desc);
+    FieldNode *fld = _add_field(__get_mtbl(ty), name, desc);
     if (!fld) return -1;
     fld->offset = 0;
     return 0;
@@ -439,7 +431,7 @@ int type_add_field(TypeInfo *ty, char *name, TypeDesc *desc)
 
 int type_add_kfunc(TypeInfo *ty, char *name, TypeDesc *desc, CodeInfo *code)
 {
-    FuncNode *fn = _add_func(ty->mtbl, name, desc);
+    FuncNode *fn = _add_func(__get_mtbl(ty), name, desc);
     if (!fn) return -1;
     fn->kind = MNODE_KFUNC_KIND;
     fn->ptr = code;
@@ -448,16 +440,22 @@ int type_add_kfunc(TypeInfo *ty, char *name, TypeDesc *desc, CodeInfo *code)
 
 int type_add_cfunc(TypeInfo *ty, char *name, TypeDesc *desc, void *ptr)
 {
-    FuncNode *fn = _add_func(ty->mtbl, name, desc);
+    FuncNode *fn = _add_func(__get_mtbl(ty), name, desc);
     if (!fn) return -1;
     fn->kind = MNODE_CFUNC_KIND;
     fn->ptr = ptr;
+    Vector *vec = ty->methods;
+    if (!vec) {
+        vec = vector_create(PTR_SIZE);
+        ty->methods = vec;
+    }
+    vector_push_back(vec, &fn);
     return 0;
 }
 
-int type_add_proto(TypeInfo *type, char *name, TypeDesc *desc)
+int type_add_proto(TypeInfo *ty, char *name, TypeDesc *desc)
 {
-    ProtoNode *pn = _add_proto(type->mtbl, name, desc);
+    ProtoNode *pn = _add_proto(__get_mtbl(ty), name, desc);
     if (!pn) return -1;
     return 0;
 }
@@ -487,16 +485,44 @@ void type_show(TypeInfo *type)
     /* show lro */
     LroInfo *item;
     vector_foreach(item, type->lro, {
-        if (i < len - 1)
-            printf("%s <- ", item->type->name);
+        if (i == 0)
+            printf("    %s(%d)", item->type->name, item->index);
         else
-            printf("%s", item->type->name);
+            printf(" <- %s(%d)", item->type->name, item->index);
     });
-    printf("\n}\n\n");
+    printf("\n}\n");
+
+    /* show methods */
+    FuncNode **m;
+    vector_foreach(m, type->methods,
+                   { printf("%s@%p\n", (*m)->name, (*m)->ptr); });
+    printf("\n");
+
+    /* show vtbl */
+    FuncNode **fn;
+    uintptr **vtbl = type->vtbl;
+    int i = 0;
+    while (*vtbl) {
+        printf("vtbl[%d]:\n", i++);
+        fn = (FuncNode **)*vtbl;
+        while (*fn) {
+            printf("%s@%p\n", (*fn)->name, (*fn)->ptr);
+            fn++;
+        }
+        ++vtbl;
+        printf("\n");
+    }
+    printf("\n");
 }
 
 void type_add_methods(TypeInfo *type, MethodDef *def, int size)
 {
+    MethodDef *m;
+    for (int i = 0; i < size; i++) {
+        m = def + i;
+        printf("%s@%s@%p\n", m->name, m->fname, m->faddr);
+        type_add_cfunc(type, m->name, NULL, m->faddr);
+    }
 }
 
 static PkgNode *_get_pkg(char *path)
@@ -551,6 +577,8 @@ void init_core_pkg(void)
     init_string_type();
     init_array_type();
     init_reflect_types();
+
+    type_show(&any_type);
 }
 
 #ifdef __cplusplus
