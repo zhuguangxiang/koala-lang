@@ -20,6 +20,7 @@ extern "C" {
 
 /* clang-format off */
 
+typedef struct _VirtTable  VirtTable;
 typedef struct _TypeInfo   TypeInfo;
 typedef struct _Object     Object;
 typedef struct _TypeParam  TypeParam;
@@ -115,10 +116,15 @@ Object *generic_any_tostr(uintptr obj, int tpkind);
 #define type_is_enum(type)  (((type)->flags & 0x0F) == TF_ENUM)
 #define type_is_final(type) ((type)->flags & TF_FINAL)
 
+struct _VirtTable {
+    int head;
+    FuncNode *func[1];
+};
+
 /* type info */
 struct _TypeInfo {
     // virtual table
-    uintptr **vtbl;
+    VirtTable **vtbl;
     // object map
     int *objmap;
     // type name
@@ -203,6 +209,7 @@ struct _FieldNode {
 struct _FuncNode {
     MNODE_HEAD
     int8 inherit;
+    int16 slot;
     TypeDesc *desc;
     PkgNode *pkg;
     void *ptr;

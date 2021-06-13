@@ -37,7 +37,7 @@ int32 generic_any_hash(uintptr obj, int isref)
         return (int32)mem_hash(&obj, sizeof(uintptr));
     } else {
         TypeInfo *type = ((Object *)obj)->type;
-        int32 (*fn)(uintptr) = (void *)type->vtbl[0][0];
+        int32 (*fn)(uintptr) = NULL; //(void *)type->vtbl[0][0];
         return fn(obj);
     }
 }
@@ -48,7 +48,7 @@ bool generic_any_equal(uintptr obj, uintptr other, int isref)
 
     if (isref) {
         TypeInfo *type = ((Object *)obj)->type;
-        bool (*fn)(uintptr, uintptr) = (void *)type->vtbl[0][1];
+        bool (*fn)(uintptr, uintptr) = NULL; //(void *)type->vtbl[0][1];
         return fn(obj, other);
     }
 
@@ -289,6 +289,7 @@ static void inherit_methods(TypeInfo *type)
             node->kind = (*fn)->kind;
             node->ptr = (*fn)->ptr;
             node->inherit = 1;
+            node->slot = -1;
         });
     }
 }
@@ -307,7 +308,7 @@ static int vtbl_same(Vector *v1, int len1, Vector *v2)
     return 1;
 }
 
-static uintptr *build_one_vtbl(TypeInfo *type, HashMap *mtbl)
+static VirtTable *build_0_slot_vtbl(TypeInfo *type, HashMap *mtbl)
 {
     Vector *lro = __get_lro(type);
     LroInfo *item;
@@ -321,20 +322,55 @@ static uintptr *build_one_vtbl(TypeInfo *type, HashMap *mtbl)
     });
 
     /* build virtual table */
-    uintptr *slots = mm_alloc(sizeof(uintptr) * (length + 1));
+    VirtTable *vtbl = mm_alloc(sizeof(VirtTable) + sizeof(uintptr) * length);
+    vtbl->head = 0;
     int index = 0;
     FuncNode **m;
     HashMapEntry *e;
+    FuncNode *fn;
     vector_foreach(item, lro, {
         vec = item->type->methods;
         vector_foreach(m, vec, {
             e = hashmap_get(mtbl, &(*m)->entry);
             assert(e);
-            *(slots + index++) = (uintptr)e;
+            fn = (FuncNode *)e;
+            if (fn->slot == -1) {
+                fn->slot = index;
+                vtbl->func[index++] = fn;
+            }
         });
     });
 
-    return slots;
+    return vtbl;
+}
+
+static VirtTable *build_nth_slot_vtbl(int nth, TypeInfo *type, HashMap *mtbl)
+{
+    /* calculae length */
+    int length = 0;
+    VirtTable *vtbl0 = type->vtbl[0];
+    uintptr *ptr = (uintptr *)vtbl0->func;
+    while (*ptr) {
+        length++;
+        ptr++;
+    }
+
+    /* build virtual table */
+    VirtTable *vtbl = mm_alloc(sizeof(VirtTable) + sizeof(uintptr) * length);
+    vtbl->head = -(nth * PTR_SIZE);
+    ptr = (uintptr *)vtbl0->func;
+    HashMapEntry *e;
+    FuncNode *fn;
+    int index = 0;
+    while (*ptr) {
+        e = hashmap_get(mtbl, &((FuncNode *)*ptr)->entry);
+        assert(e);
+        fn = (FuncNode *)e;
+        vtbl->func[index++] = fn;
+        ptr++;
+    }
+
+    return vtbl;
 }
 
 static void build_vtbl(TypeInfo *type)
@@ -370,18 +406,18 @@ static void build_vtbl(TypeInfo *type)
         if (item->index == -1) num_slot++;
     });
 
-    uintptr **slots = mm_alloc(sizeof(uintptr *) * num_slot);
+    VirtTable **slots = mm_alloc(sizeof(VirtTable *) * num_slot);
     HashMap *mtbl = __get_mtbl(type);
 
     /* build #0 slot virtual table */
-    slots[0] = build_one_vtbl(type, mtbl);
+    slots[0] = build_0_slot_vtbl(type, mtbl);
 
     /* build other traits virtual tables */
     int j = 0;
     vector_foreach(item, lro, {
         if (item->index == -1) {
             item->index = ++j;
-            slots[j] = build_one_vtbl(item->type, mtbl);
+            slots[j] = build_nth_slot_vtbl(j, item->type, mtbl);
             assert(j < num_slot);
         }
     });
@@ -435,6 +471,7 @@ int type_add_kfunc(TypeInfo *ty, char *name, TypeDesc *desc, CodeInfo *code)
     if (!fn) return -1;
     fn->kind = MNODE_KFUNC_KIND;
     fn->ptr = code;
+    fn->slot = -1;
     return 0;
 }
 
@@ -444,6 +481,7 @@ int type_add_cfunc(TypeInfo *ty, char *name, TypeDesc *desc, void *ptr)
     if (!fn) return -1;
     fn->kind = MNODE_CFUNC_KIND;
     fn->ptr = ptr;
+    fn->slot = -1;
     Vector *vec = ty->methods;
     if (!vec) {
         vec = vector_create(PTR_SIZE);
@@ -483,36 +521,39 @@ void type_show(TypeInfo *type)
     printf("%s {\n", type->name);
 
     /* show lro */
+    printf("lro:\n");
     LroInfo *item;
     vector_foreach(item, type->lro, {
         if (i == 0)
-            printf("    %s(%d)", item->type->name, item->index);
+            printf("  %s(%d)", item->type->name, item->index);
         else
             printf(" <- %s(%d)", item->type->name, item->index);
     });
-    printf("\n}\n");
+    printf("\n\n");
 
     /* show methods */
+    printf("self-methods:\n");
     FuncNode **m;
     vector_foreach(m, type->methods,
-                   { printf("%s@%p\n", (*m)->name, (*m)->ptr); });
+                   { printf("  %s@%p\n", (*m)->name, (*m)->ptr); });
     printf("\n");
 
     /* show vtbl */
     FuncNode **fn;
-    uintptr **vtbl = type->vtbl;
+    VirtTable **vtbl = type->vtbl;
     int i = 0;
     while (*vtbl) {
-        printf("vtbl[%d]:\n", i++);
-        fn = (FuncNode **)*vtbl;
+        printf("vtbl[%d], head = %d:\n", i++, (*vtbl)->head);
+        fn = (*vtbl)->func;
         while (*fn) {
-            printf("%s@%p\n", (*fn)->name, (*fn)->ptr);
+            printf("  %s@%p\n", (*fn)->name, (*fn)->ptr);
             fn++;
         }
         ++vtbl;
         printf("\n");
     }
-    printf("\n");
+
+    printf("}\n\n");
 }
 
 void type_add_methods(TypeInfo *type, MethodDef *def, int size)
@@ -520,7 +561,6 @@ void type_add_methods(TypeInfo *type, MethodDef *def, int size)
     MethodDef *m;
     for (int i = 0; i < size; i++) {
         m = def + i;
-        printf("%s@%s@%p\n", m->name, m->fname, m->faddr);
         type_add_cfunc(type, m->name, NULL, m->faddr);
     }
 }

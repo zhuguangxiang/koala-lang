@@ -23,29 +23,79 @@ https://stackoverflow.com/questions/34242536/linearization-order-in-scala
 output: CBDA
 */
 
+void A_foo(void)
+{
+    printf("fooA called\n");
+}
+
+void B_foo(void)
+{
+    printf("fooB called\n");
+}
+
+void C_foo(void)
+{
+    printf("fooC called\n");
+}
+
+void D_foo(void)
+{
+    printf("fooD called\n");
+}
+
+void E_foo(void)
+{
+    printf("fooE called\n");
+}
+
+void A__str__(void)
+{
+    printf("A__str__ called\n");
+}
+
+void B__str__(void)
+{
+    printf("B__str__ called\n");
+}
+
+void C__str__(void)
+{
+    printf("C__str__ called\n");
+}
+
+void D__str__(void)
+{
+    printf("D__str__ called\n");
+}
+
+void E__str__(void)
+{
+    printf("E__str__ called\n");
+}
+
 MethodDef A_methods[] = {
-    METHOD_DEF("fooA", "i32", "i32", nil),
-    METHOD_DEF("__str__", "i32", "i32", nil),
+    METHOD_DEF("fooA", "i32", "i32", A_foo),
+    METHOD_DEF("__str__", "i32", "i32", A__str__),
 };
 
 MethodDef B_methods[] = {
-    METHOD_DEF("fooB", "i32", "i32", nil),
-    METHOD_DEF("__str__", "i32", "i32", nil),
+    METHOD_DEF("fooB", "i32", "i32", B_foo),
+    METHOD_DEF("__str__", "i32", "i32", B__str__),
 };
 
 MethodDef C_methods[] = {
-    METHOD_DEF("fooC", "i32", "i32", nil),
-    METHOD_DEF("__str__", "i32", "i32", nil),
+    METHOD_DEF("fooC", "i32", "i32", C_foo),
+    METHOD_DEF("__str__", "i32", "i32", C__str__),
 };
 
 MethodDef D_methods[] = {
-    METHOD_DEF("fooD", "i32", "i32", nil),
-    METHOD_DEF("__str__", "i32", "i32", nil),
+    METHOD_DEF("fooD", "i32", "i32", D_foo),
+    METHOD_DEF("__str__", "i32", "i32", D__str__),
 };
 
 MethodDef E_methods[] = {
-    METHOD_DEF("fooE", "i32", "i32", nil),
-    METHOD_DEF("__str__", "i32", "i32", nil),
+    METHOD_DEF("fooE", "i32", "i32", E_foo),
+    METHOD_DEF("__str__", "i32", "i32", E__str__),
 };
 
 void test_mixin_order(void)
