@@ -98,6 +98,17 @@ MethodDef E_methods[] = {
     METHOD_DEF("__str__", "i32", "i32", E__str__),
 };
 
+void call_fn(VirtTable *vtbl, TypeInfo *type, char *name)
+{
+    MNode key = { .name = name };
+    hashmap_entry_init(&key, str_hash(name));
+    FuncNode *fn = hashmap_get(type->mtbl, &key);
+    fn = vtbl->func[fn->slot];
+    ((void (*)(void))fn->ptr)();
+}
+
+extern TypeInfo any_type;
+
 void test_mixin_order(void)
 {
     TypeInfo *A_type = type_new("A", TF_TRAIT);
@@ -132,6 +143,24 @@ void test_mixin_order(void)
     type_show(C_type);
     type_show(D_type);
     type_show(E_type);
+
+    call_fn(A_type->vtbl[0], A_type, "fooA");
+    call_fn(A_type->vtbl[0], &any_type, "__str__");
+    call_fn(A_type->vtbl[0], A_type, "__str__");
+
+    call_fn(E_type->vtbl[0], A_type, "fooA");
+    call_fn(E_type->vtbl[0], &any_type, "__str__");
+    call_fn(E_type->vtbl[0], A_type, "__str__");
+
+    call_fn(E_type->vtbl[3], A_type, "fooA");
+    call_fn(E_type->vtbl[3], B_type, "fooA");
+    call_fn(E_type->vtbl[3], C_type, "fooA");
+    call_fn(E_type->vtbl[3], C_type, "fooB");
+    call_fn(E_type->vtbl[3], C_type, "fooC");
+    call_fn(E_type->vtbl[3], &any_type, "__str__");
+    call_fn(E_type->vtbl[3], A_type, "__str__");
+    call_fn(E_type->vtbl[3], B_type, "__str__");
+    call_fn(E_type->vtbl[3], C_type, "__str__");
 }
 
 int main(int argc, char *argv[])
