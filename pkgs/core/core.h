@@ -118,8 +118,11 @@ Object *generic_any_tostr(uintptr obj, int tpkind);
 
 struct _VirtTable {
     int head;
+    int data;
     FuncNode *func[1];
 };
+
+#define __GET_OBJECT(ptr) (Object *)(ptr + (((VirtTable **)ptr)[0])->data)
 
 /* type info */
 struct _TypeInfo {
@@ -306,11 +309,11 @@ bool map_remove(Object *self, uintptr key, uintptr *val);
 
 /*------ string -------------------------------------------------------------*/
 
-Object *string_new(char *s);
+uintptr string_new(char *s);
 
 /*------ reflect ------------------------------------------------------------*/
 
-Object *class_new(TypeInfo *type);
+uintptr class_new(TypeInfo *type);
 Object *field_new();
 Object *method_new();
 

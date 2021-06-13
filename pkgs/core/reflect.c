@@ -58,12 +58,12 @@ void init_reflect_types(void)
     // clang-format on
 }
 
-Object *class_new(TypeInfo *type)
+uintptr class_new(TypeInfo *type)
 {
     ClassObject *clazz = gc_alloc(sizeof(*clazz), nil);
     clazz->type = &class_type;
     clazz->typeinfo = type;
-    return (Object *)clazz;
+    return (uintptr)clazz;
 }
 
 #ifdef __cplusplus

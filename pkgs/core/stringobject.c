@@ -36,7 +36,7 @@ void init_string_type(void)
     pkg_add_type("/", &string_type);
 }
 
-Object *string_new(char *s)
+uintptr string_new(char *s)
 {
     int len = strlen(s);
     StringObject *sobj = gc_alloc(sizeof(*sobj), __string_objmap);
@@ -48,7 +48,7 @@ Object *string_new(char *s)
     sobj->type = &string_type;
     sobj->gcstr = gcstr;
     gc_pop();
-    return (Object *)sobj;
+    return (uintptr)sobj;
 }
 
 #ifdef __cplusplus

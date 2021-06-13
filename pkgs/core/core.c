@@ -67,27 +67,32 @@ Object *generic_any_tostr(uintptr obj, int tpkind)
 
 /*------ Any type -----------------------------------------------------------*/
 
-int32 any_hash(Object *self)
+int32 any_hash(uintptr self)
 {
     return (int32)mem_hash(&self, sizeof(void *));
 }
 
-bool any_equal(Object *self, Object *other)
+bool any_equal(uintptr self, uintptr other)
 {
-    if (self->type != other->type) return 0;
-    return self == other;
+    Object *ref1 = __GET_OBJECT(self);
+    Object *ref2 = __GET_OBJECT(other);
+
+    if (ref1->type != ref2->type) return 0;
+    return ref1 == ref2;
 }
 
-Object *any_class(Object *self)
+uintptr any_class(uintptr self)
 {
-    return class_new(self->type);
+    Object *ref = __GET_OBJECT(self);
+    return class_new(ref->type);
 }
 
-Object *any_tostr(Object *self)
+uintptr any_tostr(uintptr self)
 {
     char buf[64];
-    TypeInfo *type = self->type;
-    snprintf(buf, sizeof(buf) - 1, "%.32s@%x", type->name, PTR2INT(self));
+    Object *ref = __GET_OBJECT(self);
+    TypeInfo *type = ref->type;
+    snprintf(buf, sizeof(buf) - 1, "%.32s@%08lx", type->name, self);
     return string_new(buf);
 }
 
@@ -422,6 +427,13 @@ static void build_vtbl(TypeInfo *type)
         }
     });
 
+    /* update virtual table */
+    VirtTable *vt;
+    for (int i = 0; i <= j; i++) {
+        vt = slots[i];
+        vt->data = (j - i + 1) * PTR_SIZE;
+    }
+
     /* set virtual table */
     type->vtbl = slots;
 }
@@ -543,7 +555,8 @@ void type_show(TypeInfo *type)
     VirtTable **vtbl = type->vtbl;
     int i = 0;
     while (*vtbl) {
-        printf("vtbl[%d], head = %d:\n", i++, (*vtbl)->head);
+        printf("vtbl[%d], head = %d, data = %d:\n", i++, (*vtbl)->head,
+               (*vtbl)->data);
         fn = (*vtbl)->func;
         while (*fn) {
             printf("  %s@%p\n", (*fn)->name, (*fn)->ptr);
