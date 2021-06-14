@@ -36,7 +36,7 @@ int32 generic_any_hash(uintptr obj, int isref)
     if (!isref) {
         return (int32)mem_hash(&obj, sizeof(uintptr));
     } else {
-        TypeInfo *type = ((VirtTable *)obj)->type;
+        TypeInfo *type = __GET_TYPEINFO(obj);
         int32 (*fn)(uintptr) = NULL; //(void *)type->vtbl[0][0];
         return fn(obj);
     }
@@ -47,7 +47,7 @@ bool generic_any_equal(uintptr obj, uintptr other, int isref)
     if (obj == other) return 1;
 
     if (isref) {
-        TypeInfo *type = ((VirtTable *)obj)->type;
+        TypeInfo *type = __GET_TYPEINFO(obj);
         bool (*fn)(uintptr, uintptr) = NULL; //(void *)type->vtbl[0][1];
         return fn(obj, other);
     }
@@ -55,12 +55,12 @@ bool generic_any_equal(uintptr obj, uintptr other, int isref)
     return 0;
 }
 
-Object *generic_any_class(uintptr obj, int tpkind)
+uintptr generic_any_class(uintptr obj, int tpkind)
 {
     return 0;
 }
 
-Object *generic_any_tostr(uintptr obj, int tpkind)
+uintptr generic_any_tostr(uintptr obj, int tpkind)
 {
     return 0;
 }
@@ -74,24 +74,23 @@ int32 any_hash(uintptr self)
 
 bool any_equal(uintptr self, uintptr other)
 {
-    Object *ref1 = __GET_OBJECT(self);
-    Object *ref2 = __GET_OBJECT(other);
+    TypeInfo *t1 = __GET_TYPEINFO(self);
+    TypeInfo *t2 = __GET_TYPEINFO(other);
 
-    if (ref1->type != ref2->type) return 0;
-    return ref1 == ref2;
+    if (t1 != t2) return 0;
+    return self == other;
 }
 
 uintptr any_class(uintptr self)
 {
-    Object *ref = __GET_OBJECT(self);
-    return class_new(ref->type);
+    TypeInfo *type = __GET_TYPEINFO(self);
+    return class_new(type);
 }
 
 uintptr any_tostr(uintptr self)
 {
     char buf[64];
-    Object *ref = __GET_OBJECT(self);
-    TypeInfo *type = ref->type;
+    TypeInfo *type = __GET_TYPEINFO(self);
     snprintf(buf, sizeof(buf) - 1, "%.32s@%08lx", type->name, self);
     return string_new(buf);
 }

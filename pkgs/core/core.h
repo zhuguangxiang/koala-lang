@@ -110,8 +110,8 @@ int tp_size(uint32 tp_map, int index);
 
 int32 generic_any_hash(uintptr obj, int isref);
 int8 generic_any_equal(uintptr obj, uintptr other, int isref);
-Object *generic_any_class(uintptr obj, int tpkind);
-Object *generic_any_tostr(uintptr obj, int tpkind);
+uintptr generic_any_class(uintptr obj, int tpkind);
+uintptr generic_any_tostr(uintptr obj, int tpkind);
 
 /*------ type info ----------------------------------------------------------*/
 
@@ -135,7 +135,12 @@ struct _VirtTable {
     FuncNode *func[1];
 };
 
-#define __GET_OBJECT(ptr) (Object *)(ptr + (((VirtTable **)ptr)[0])->data)
+/* clang-format off */
+
+#define __GET_HEAD(ptr) ((ptr) + ((VirtTable *)ptr)->head)
+#define __GET_TYPEINFO(ptr) (((VirtTable *)ptr)->type)
+
+/* clang-format on */
 
 /* type info */
 struct _TypeInfo {
