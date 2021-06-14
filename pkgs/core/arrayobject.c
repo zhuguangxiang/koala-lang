@@ -12,8 +12,8 @@ extern "C" {
 #endif
 
 /*
-    pub final class Array<T> {
-        pub func length() int32 {}
+    final class Array<T> {
+        func length() int32 {}
     }
 */
 

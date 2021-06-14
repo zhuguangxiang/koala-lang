@@ -36,7 +36,7 @@ int32 generic_any_hash(uintptr obj, int isref)
     if (!isref) {
         return (int32)mem_hash(&obj, sizeof(uintptr));
     } else {
-        TypeInfo *type = ((Object *)obj)->type;
+        TypeInfo *type = ((VirtTable *)obj)->type;
         int32 (*fn)(uintptr) = NULL; //(void *)type->vtbl[0][0];
         return fn(obj);
     }
@@ -47,7 +47,7 @@ bool generic_any_equal(uintptr obj, uintptr other, int isref)
     if (obj == other) return 1;
 
     if (isref) {
-        TypeInfo *type = ((Object *)obj)->type;
+        TypeInfo *type = ((VirtTable *)obj)->type;
         bool (*fn)(uintptr, uintptr) = NULL; //(void *)type->vtbl[0][1];
         return fn(obj, other);
     }
@@ -57,12 +57,12 @@ bool generic_any_equal(uintptr obj, uintptr other, int isref)
 
 Object *generic_any_class(uintptr obj, int tpkind)
 {
-    return nil;
+    return 0;
 }
 
 Object *generic_any_tostr(uintptr obj, int tpkind)
 {
-    return nil;
+    return 0;
 }
 
 /*------ Any type -----------------------------------------------------------*/
@@ -325,6 +325,7 @@ static VirtTable *build_0_slot_vtbl(TypeInfo *type, HashMap *mtbl)
     /* build virtual table */
     VirtTable *vtbl = mm_alloc(sizeof(VirtTable) + sizeof(uintptr) * len);
     vtbl->head = 0;
+    vtbl->num_func = len;
     int index = 0;
     FuncNode **m;
     HashMapEntry *e;
@@ -359,6 +360,7 @@ static VirtTable *build_nth_slot_vtbl(int nth, TypeInfo *type, HashMap *mtbl)
     /* build virtual table */
     VirtTable *vtbl = mm_alloc(sizeof(VirtTable) + sizeof(uintptr) * len);
     vtbl->head = -(nth * PTR_SIZE);
+    vtbl->num_func = len;
     ptr = (uintptr *)vtbl0->func;
     HashMapEntry *e;
     FuncNode *fn;
@@ -428,9 +430,11 @@ static void build_vtbl(TypeInfo *type)
     for (int i = 0; i <= j; i++) {
         vt = slots[i];
         vt->data = (j - i + 1) * PTR_SIZE;
+        vt->type = type;
     }
 
     /* set virtual table */
+    type->num_vtbl = num_slot;
     type->vtbl = slots;
 }
 

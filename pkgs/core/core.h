@@ -41,8 +41,6 @@ typedef struct _FuncDef    MethodDef;
 
 /* clang-format on */
 
-/*------ object -------------------------------------------------------------*/
-
 // The macro indicates which is an `Object`
 #define OBJECT_HEAD TypeInfo *type;
 
@@ -52,6 +50,19 @@ typedef struct _FuncDef    MethodDef;
 struct _Object {
     OBJECT_HEAD
 };
+
+/*
+object layout, like c++ object layout
++---------+
+|  0vtbl  |
++---------+
+|   ....  |
++---------+
+|  nvtbl  |
++---------+
+|  data   |
++---------+
+*/
 
 /*------ type parameter -----------------------------------------------------*/
 
@@ -117,8 +128,10 @@ Object *generic_any_tostr(uintptr obj, int tpkind);
 #define type_is_final(type) ((type)->flags & TF_FINAL)
 
 struct _VirtTable {
+    TypeInfo *type;
     int head;
     int data;
+    int num_func;
     FuncNode *func[1];
 };
 
@@ -126,14 +139,16 @@ struct _VirtTable {
 
 /* type info */
 struct _TypeInfo {
-    // virtual table
+    /* type name */
+    char *name;
+    /* type flags */
+    int flags;
+    /* count vtbl */
+    int num_vtbl;
+    /* virtual table */
     VirtTable **vtbl;
     // object map
     int *objmap;
-    // type name
-    char *name;
-    // type flags
-    int flags;
     // type parameters
     Vector *params;
     // self methods
@@ -300,13 +315,13 @@ uintptr array_get(Object *self, uint32 index);
 void array_print(Object *self);
 
 /*------ map ----------------------------------------------------------------*/
-
+/*
 Object *map_new(uint32 tp_map);
 bool map_put_absent(Object *self, uintptr key, uintptr val);
 void map_put(Object *self, uintptr key, uintptr val, uintptr *old_val);
 bool map_get(Object *self, uintptr key, uintptr *val);
 bool map_remove(Object *self, uintptr key, uintptr *val);
-
+*/
 /*------ string -------------------------------------------------------------*/
 
 uintptr string_new(char *s);
@@ -314,8 +329,6 @@ uintptr string_new(char *s);
 /*------ reflect ------------------------------------------------------------*/
 
 uintptr class_new(TypeInfo *type);
-Object *field_new();
-Object *method_new();
 
 /*------ package ------------------------------------------------------------*/
 
