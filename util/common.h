@@ -57,7 +57,7 @@ typedef int8_t bool;
 /* integer to pointer */
 #define INT2PTR(i) ((void *)(uintptr)(i))
 
-// clang-format off
+/* clang-format off */
 
 /* endian check */
 #define CHECK_BIG_ENDIAN ({ \
@@ -74,7 +74,7 @@ typedef int8_t bool;
     (type *)((char *)__mptr - offsetof(type, member)); \
 })
 
-// clang-format on
+/* clang-format on */
 
 #define PTR_SIZE sizeof(void *)
 

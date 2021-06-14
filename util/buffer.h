@@ -34,12 +34,12 @@ typedef struct _Buffer {
 /* Free a buffer. */
 #define FINI_BUF(name) mm_free((name).buf)
 
-// clang-format off
+/* clang-format off */
 /* Reset a buffer. */
 #define RESET_BUF(name) do { \
     memset((name).buf, 0, (name).len); (name).len = 0; \
 } while (0)
-// clang-format on
+/* clang-format on */
 
 /* Get null-terminated string from the buffer. */
 #define BUF_STR(name) (name).buf

@@ -71,7 +71,7 @@ func fib(n int32) int32 {
 
 void test_fib(void)
 {
-    // clang-format off
+    /* clang-format off */
     /*
     uint8 codes[] = {
         OP_I32_CMP_CONST, 1, 0, 1,
@@ -119,7 +119,7 @@ void test_fib(void)
         OP_RET,
     };
 
-    // clang-format on
+    /* clang-format on */
 
     KoalaState ks = { 0 };
     ks.ci = &ks.base_ci;

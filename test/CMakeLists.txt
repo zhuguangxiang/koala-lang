@@ -16,6 +16,8 @@ test(test_atom util)
 test(test_klr_type klr)
 test(test_mixin core)
 test(test_gc gc)
+test(test_objects core)
+
 # test(test_arrayobject core)
 # test(test_mapobject vm)
 

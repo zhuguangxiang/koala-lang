@@ -39,7 +39,7 @@ typedef struct _symtbl {
 
 /* symbol kind */
 typedef enum symbolkind {
-    // clang-format off
+    /* clang-format off */
     SYM_CONST   = 1,   /* constant           */
     SYM_VAR     = 2,   /* variable           */
     SYM_FUNC    = 3,   /* function or method */
@@ -51,7 +51,7 @@ typedef enum symbolkind {
     SYM_ANONY   = 9,   /* anonymous function */
     SYM_MOD     = 10,  /* (external) module  */
     SYM_MAX
-    // clang-format on
+    /* clang-format on */
 } SymKind;
 
 #define SYMBOL_HEAD     \

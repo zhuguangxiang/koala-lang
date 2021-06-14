@@ -14,9 +14,9 @@
 extern "C" {
 #endif
 
-// clang-format off
+/* clang-format off */
 // Don't touch this!
-    
+
 #define OPCODE(op, argc, asm_str) {op, argc, asm_str}
 
 static struct opcode {
@@ -84,14 +84,16 @@ static struct opcode {
     OPCODE(OP_RET_VOID, 0, "ret void"),
 };
 
-// clang-format on
+/* clang-format on */
 
 char *opcode_str(uint8_t op)
 {
     struct opcode *opcode;
     for (int i = 0; i < COUNT_OF(opcodes); i++) {
         opcode = opcodes + i;
-        if (opcode->op == op) { return opcode->str; }
+        if (opcode->op == op) {
+            return opcode->str;
+        }
     }
     abort();
 }
@@ -101,7 +103,9 @@ uint8_t opcode_argc(uint8_t op)
     struct opcode *opcode;
     for (int i = 0; i < COUNT_OF(opcodes); i++) {
         opcode = opcodes + i;
-        if (opcode->op == op) { return opcode->argc; }
+        if (opcode->op == op) {
+            return opcode->argc;
+        }
     }
     abort();
 }

@@ -137,8 +137,8 @@ struct _VirtTable {
 
 /* clang-format off */
 
-#define __GET_HEAD(ptr) ((ptr) + ((VirtTable *)ptr)->head)
-#define __GET_TYPEINFO(ptr) (((VirtTable *)ptr)->type)
+#define __GET_HEAD(ptr) ((ptr) + (*(VirtTable **)ptr)->head)
+#define __GET_TYPEINFO(ptr) ((*(VirtTable **)ptr)->type)
 
 /* clang-format on */
 
@@ -289,6 +289,8 @@ int type_add_cfunc(TypeInfo *ty, char *name, TypeDesc *desc, void *ptr);
 int type_add_proto(TypeInfo *type, char *name, TypeDesc *desc);
 void type_ready(TypeInfo *type);
 void type_show(TypeInfo *type);
+int type_get_func_slot(TypeInfo *type, char *name);
+FuncNode *object_get_func(uintptr obj, int offset);
 
 struct _FuncDef {
     char *name;
@@ -305,9 +307,12 @@ struct _FuncDef {
 
 #define METHOD_DEF FUNC_DEF
 
-/* clang-format on */
+#define type_add_methdefs(type, def) do { \
+    for (int i = 0; i < COUNT_OF(def); i++) \
+        type_add_cfunc(type, (def + i)->name, NULL, (def + i)->faddr); \
+} while (0)
 
-void type_add_methods(TypeInfo *type, MethodDef *def, int size);
+/* clang-format on */
 
 /*------ array --------------------------------------------------------------*/
 
@@ -330,6 +335,7 @@ bool map_remove(Object *self, uintptr key, uintptr *val);
 /*------ string -------------------------------------------------------------*/
 
 uintptr string_new(char *s);
+void string_show(uintptr self);
 
 /*------ reflect ------------------------------------------------------------*/
 

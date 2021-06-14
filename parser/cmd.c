@@ -21,14 +21,14 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-// clang-format off
+/* clang-format off */
 #include <sys/utsname.h>
 #include "version.h"
 #include "parser.h"
 #include "koala_yacc.h"
 #include "koala_lex.h"
 #include "readline.h"
-// clang-format on
+/* clang-format on */
 
 #ifdef __cplusplus
 extern "C" {

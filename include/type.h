@@ -37,9 +37,9 @@ typedef struct _Ident {
     short col;
 } Ident;
 
-// clang-format off
+/* clang-format off */
 #define TYPE_HEAD KLVMTypeKind kind; short row; short col;
-// clang-format on
+/* clang-format on */
 
 /* type */
 typedef struct _Type {

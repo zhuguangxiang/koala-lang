@@ -54,7 +54,7 @@ typedef enum _KLVMValueKind {
 
 typedef struct _KLVMInterval KLVMInterval, *KLVMIntervalRef;
 
-// clang-format off
+/* clang-format off */
 
 #define KLVM_VALUE_HEAD \
     KLVMValueKind kind; KLVMTypeRef type; char *name; \
@@ -66,7 +66,7 @@ typedef struct _KLVMInterval KLVMInterval, *KLVMIntervalRef;
     val->tag = -1; val->pub = 0; val->final = 0; val->reg = -1; \
     val->interval = NULL;
 
-// clang-format on
+/* clang-format on */
 
 typedef struct _KLVMValue {
     KLVM_VALUE_HEAD

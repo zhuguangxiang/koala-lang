@@ -68,12 +68,12 @@ void do_klass_typeparams(ParserStateRef ps, char *name)
 
 void show_error_detail(ParserStateRef ps, int row, int col)
 {
-    // clang-format off
+    /* clang-format off */
     /*
     printf("%5d | %s\n", row, BUF_STR(ps->linebuf));
     printf("      | %*s" RED_COLOR(^) "\n", col, "");
     */
-    // clang-format on
+    /* clang-format on */
 }
 
 static void parse_nil(ParserStateRef ps, ExprRef exp)
@@ -194,7 +194,7 @@ void parser_visit_expr(ParserStateRef ps, ExprRef exp)
     /* if errors is greater than MAX_ERRORS, stop parsing */
     if (ps->errors >= MAX_ERRORS) return;
 
-    // clang-format off
+    /* clang-format off */
     static void (*handlers[])(ParserStateRef, ExprRef) = {
         nil,                   /* INVALID              */
         parse_nil,              /* NIL_KIND             */
@@ -223,7 +223,7 @@ void parser_visit_expr(ParserStateRef ps, ExprRef exp)
         parse_as,               /* AS_KIND              */
         parse_range,            /* RANGE_KIND           */
     };
-    // clang-format on
+    /* clang-format on */
 
     handlers[exp->kind](ps, exp);
 }
@@ -320,7 +320,7 @@ void parse_stmt(ParserStateRef ps, StmtRef stmt)
     /* if errors is greater than MAX_ERRORS, stop parsing */
     if (ps->errors >= MAX_ERRORS) return;
 
-    // clang-format off
+    /* clang-format off */
     static void (*handlers[])(ParserStateRef, StmtRef) = {
         nil,               /* INVALID          */
         parse_import,       /* IMPORT_KIND      */
@@ -342,7 +342,7 @@ void parse_stmt(ParserStateRef ps, StmtRef stmt)
         parse_for,          /* FOR_KIND         */
         parse_match,        /* MATCH_KIND       */
     };
-    // clang-format on
+    /* clang-format on */
 
     handlers[stmt->kind](ps, stmt);
 }

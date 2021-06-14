@@ -46,7 +46,7 @@ return i32
 
 */
 
-// clang-format off
+/* clang-format off */
 
 typedef enum {
 /*----------------------------------------------------------------------------
@@ -175,7 +175,7 @@ typedef enum {
 
 } OpCode;
 
-// clang-format on
+/* clang-format on */
 
 #ifdef __cplusplus
 }

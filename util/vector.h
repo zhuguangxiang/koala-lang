@@ -159,7 +159,7 @@ static inline void vector_pop_front(Vector *vec, void *obj)
     vector_remove(vec, 0, obj);
 }
 
-// clang-format off
+/* clang-format off */
 
 /* iterate vector by pointer */
 #define vector_foreach(item, vec, closure) \
@@ -171,7 +171,7 @@ static inline void vector_pop_front(Vector *vec, void *obj)
     for (int i = vector_size(vec) - 1; \
          i >= 0 && (item = vector_get_ptr(vec, i)); i--) closure;
 
-// clang-format on
+/* clang-format on */
 
 #ifdef __cplusplus
 }

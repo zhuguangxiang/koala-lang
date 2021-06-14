@@ -31,14 +31,14 @@ extern "C" {
  * https://cs.lmu.edu/~ray/notes/ir/
  */
 
-// clang-format off
+/* clang-format off */
 
 #define NEW_LINE() fprintf(fp, "\n")
 #define INDENT() fprintf(fp, "  ")
 #define ASSIGN() fprintf(fp, " = ")
 #define COMMA()  fprintf(fp, ", ")
 
-// clang-format on
+/* clang-format on */
 
 static void KLVMPrintVar(KLVMVarRef var, FILE *fp)
 {

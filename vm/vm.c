@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-// clang-format off
+/* clang-format off */
 
 #define NEXT_OP()   ({ *pc++; })
 #define NEXT_REG()  ({ *pc++; })
@@ -33,7 +33,7 @@ extern "C" {
 
 #define STK_NIL(ra) ci->base[ra] = (StkVal)nil
 
-// clang-format on
+/* clang-format on */
 
 #if 1
 void koala_execute(KoalaState *ks, CallInfo *ci)

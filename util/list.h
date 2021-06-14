@@ -24,9 +24,9 @@ struct _List {
     struct _List *next;
 };
 
-// clang-format off
+/* clang-format off */
 #define LIST_INIT(name) { &(name), &(name) }
-// clang-format on
+/* clang-format on */
 
 static inline void init_list(List *list)
 {
@@ -105,7 +105,7 @@ static inline List *list_pop_back(List *list)
     return entry;
 }
 
-// clang-format off
+/* clang-format off */
 
 /* Get the entry in which is embedded */
 #define list_entry(ptr, type, member) CONTAINER_OF(ptr, type, member)
@@ -151,7 +151,7 @@ static inline List *list_pop_back(List *list)
          n__ = v__ ? list_next(v__, member, list) : nil; \
          v__ && ({ n__ = list_next(v__, member, list); 1;}); v__ = n__) closure;
 
-// clang-format on
+/* clang-format on */
 
 #ifdef __cplusplus
 }

@@ -22,13 +22,13 @@ extern void *gcroots;
  roots[2...n] = actual roots' objects
  */
 
-// clang-format off
+/* clang-format off */
 
 #define GC_STACK(nargs) \
     void *__gc_stkf[nargs + 2] = { (void *)nargs, gcroots }; \
     gcroots = __gc_stkf;
 
-// clang-format on
+/* clang-format on */
 
 #define gc_push(arg, idx) __gc_stkf[2 + idx] = arg
 

@@ -97,16 +97,18 @@ uintptr any_tostr(uintptr self)
 
 void init_any_type(void)
 {
-    // clang-format off
-    /* DON'T change the order */
+    /* clang-format off */
+
     MethodDef any_methods[] = {
-        METHOD_DEF("__hash__", nil, "i32",     any_hash),
-        METHOD_DEF("__eq__",   "A", "b",       any_equal),
-        METHOD_DEF("__type__", nil, "LClass;", any_class),
-        METHOD_DEF("__str__",  nil, "s",       any_tostr),
+        METHOD_DEF("__hash__", nil, "i32", any_hash),
+        METHOD_DEF("__eq__", "A", "b", any_equal),
+        METHOD_DEF("__class__", nil, "LClass;", any_class),
+        METHOD_DEF("__str__", nil, "s", any_tostr),
     };
-    // clang-format on
-    type_add_methods(&any_type, any_methods, COUNT_OF(any_methods));
+
+    /* clang-format on */
+
+    type_add_methdefs(&any_type, any_methods);
     type_ready(&any_type);
     pkg_add_type("/", &any_type);
 }
@@ -433,7 +435,7 @@ static void build_vtbl(TypeInfo *type)
     }
 
     /* set virtual table */
-    type->num_vtbl = num_slot;
+    type->num_vtbl = num_slot - 1;
     type->vtbl = slots;
 }
 
@@ -568,13 +570,19 @@ void type_show(TypeInfo *type)
     printf("}\n\n");
 }
 
-void type_add_methods(TypeInfo *type, MethodDef *def, int size)
+int type_get_func_slot(TypeInfo *type, char *name)
 {
-    MethodDef *m;
-    for (int i = 0; i < size; i++) {
-        m = def + i;
-        type_add_cfunc(type, m->name, NULL, m->faddr);
-    }
+    MNode key = { .name = name };
+    hashmap_entry_init(&key, str_hash(name));
+    FuncNode *fn = hashmap_get(type->mtbl, &key);
+    return fn == nil ? -1 : fn->slot;
+}
+
+FuncNode *object_get_func(uintptr obj, int offset)
+{
+    VirtTable *vtbl = *(VirtTable **)obj;
+    assert(offset >= 0 && offset < vtbl->num_func);
+    return vtbl->func[offset];
 }
 
 static PkgNode *_get_pkg(char *path)

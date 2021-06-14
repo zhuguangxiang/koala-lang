@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-// clang-format off
+/* clang-format off */
 
 #define KOALA_MAJOR ${KOALA_VERSION_MAJOR}
 #define KOALA_MINOR ${KOALA_VERSION_MINOR}
@@ -19,7 +19,7 @@ extern "C" {
 
 #define KOALA_VERSION "${KOALA_VERSION}"
 
-// clang-format on
+/* clang-format on */
 
 #ifdef __cplusplus
 }

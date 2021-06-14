@@ -13,10 +13,10 @@
 extern "C" {
 #endif
 
-typedef struct _StringObject StringObject;
+typedef struct _StringObj StringObj;
 
-struct _StringObject {
-    OBJECT_HEAD
+struct _StringObj {
+    VirtTable *vtbl;
     char *gcstr;
 };
 
@@ -25,30 +25,58 @@ static TypeInfo string_type = {
     .flags = TF_CLASS | TF_FINAL,
 };
 
-static int __string_objmap[] = {
+static int string_objmap[] = {
     1,
-    offsetof(StringObject, gcstr),
+    offsetof(StringObj, gcstr),
 };
+
+uintptr string_class(uintptr self)
+{
+    return 0;
+}
+
+uintptr string_tostr(uintptr self)
+{
+    return self;
+}
 
 void init_string_type(void)
 {
+    MethodDef string_methods[] = {
+        /* clang-format off */
+        METHOD_DEF("__class__", nil, "LClass;", string_class),
+        METHOD_DEF("__str__",   nil, "s", string_tostr),
+        /* clang-format on */
+    };
+    type_add_methdefs(&string_type, string_methods);
     type_ready(&string_type);
+    type_show(&string_type);
+    assert(string_type.num_vtbl == 1);
     pkg_add_type("/", &string_type);
 }
 
 uintptr string_new(char *s)
 {
     int len = strlen(s);
-    StringObject *sobj = gc_alloc(sizeof(*sobj), __string_objmap);
+    StringObj *obj = gc_alloc(sizeof(*obj), string_objmap);
+
     GC_STACK(1);
-    gc_push(&sobj, 0);
+    gc_push(&obj, 0);
 
     void *gcstr = gc_alloc_string(len + 1);
     memcpy(gcstr, s, len);
-    sobj->type = &string_type;
-    sobj->gcstr = gcstr;
+    obj->vtbl = string_type.vtbl[0];
+    obj->gcstr = gcstr;
+
     gc_pop();
-    return (uintptr)sobj;
+
+    return (uintptr)obj;
+}
+
+void string_show(uintptr self)
+{
+    StringObj *obj = (StringObj *)self;
+    printf(">>> %s\n", obj->gcstr);
 }
 
 #ifdef __cplusplus

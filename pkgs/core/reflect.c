@@ -46,7 +46,7 @@ struct _ClassObject {
 
 void init_reflect_types(void)
 {
-    // clang-format off
+    /* clang-format off */
     MethodDef class_methods[] = {
         METHOD_DEF("__name__",   nil, "s",          nil),
         METHOD_DEF("__pkg__",    nil, "LClass;",    nil),
@@ -55,7 +55,7 @@ void init_reflect_types(void)
         METHOD_DEF("get_method", "s", "LMethod;",   nil),
         METHOD_DEF("__str__",    nil, "s",          nil),
     };
-    // clang-format on
+    /* clang-format on */
 }
 
 uintptr class_new(TypeInfo *type)

@@ -80,13 +80,13 @@ typedef enum _KLVMInsnKind {
     KLVM_INSN_MAX,
 } KLVMInsnKind;
 
-// clang-format off
+/* clang-format off */
 
 #define INIT_INSN_HEAD(insn, type, _op, _name) \
     INIT_VALUE_HEAD(insn, KLVM_VALUE_INSN, type, _name); \
     insn->op = _op; InitList(&insn->link);
 
-// clang-format on
+/* clang-format on */
 
 typedef struct _KLVMInsn KLVMInsn, *KLVMInsnRef;
 
