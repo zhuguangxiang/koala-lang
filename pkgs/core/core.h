@@ -18,58 +18,58 @@
 extern "C" {
 #endif
 
-/* clang-format off */
+typedef uintptr anyref;
+typedef uintptr objref;
+typedef struct _VTable VTable;
+typedef struct _TypeInfo TypeInfo;
+typedef struct _TypeDesc TypeDesc;
+typedef struct _TypeProto TypeProto;
+typedef struct _TypeKlass TypeKlass;
 
-typedef struct _VirtTable  VirtTable;
-typedef struct _TypeInfo   TypeInfo;
-typedef struct _Object     Object;
-typedef struct _TypeParam  TypeParam;
-typedef struct _TypeDesc   TypeDesc;
-typedef struct _TypeProto  TypeProto;
-typedef struct _TypeKlass  TypeKlass;
-typedef struct _FieldNode  FieldNode;
-typedef struct _FuncNode   FuncNode;
-typedef struct _ProtoNode  ProtoNode;
-typedef struct _TypeNode   TypeNode;
-typedef struct _VarNode    VarNode;
-typedef struct _PkgNode    PkgNode;
-typedef struct _MNode      MNode;
-typedef struct _CodeInfo   CodeInfo;
-typedef struct _RelInfo    RelInfo;
-typedef struct _FuncDef    FuncDef;
-typedef struct _FuncDef    MethodDef;
+typedef struct _FieldNode FieldNode;
+typedef struct _FuncNode FuncNode;
+typedef struct _ProtoNode ProtoNode;
+typedef struct _TypeNode TypeNode;
+typedef struct _VarNode VarNode;
+typedef struct _PkgNode PkgNode;
+typedef struct _MNode MNode;
 
-/* clang-format on */
+typedef struct _CodeInfo CodeInfo;
+typedef struct _RelInfo RelInfo;
+typedef struct _MethodDef MethodDef;
 
 /*
 object layout, like c++ object layout
-+----------+
-|  vtbl_0  |
-+----------+
-|   ....   |
-+----------+
-|  vtbl_n  |
-+----------+
-|  struct  |
-+----------+
+
++-----------+
+|  *vtbl_0  |   <-- object
++-----------+
+|   ....    |   <-- trait
++-----------+
+|  *vtbl_n  |   <-- trait
++-----------+
+|  struct   |
++-----------+
+
 */
 
-/*------ type parameter -----------------------------------------------------*/
+/*----------------------------------------------------------------------------*\
+|*                    type parameter(TP) for generic type                     *|
+\*----------------------------------------------------------------------------*/
 
-#define TP_REF_KIND  1
-#define TP_I8_KIND   2
-#define TP_I16_KIND  3
-#define TP_I32_KIND  4
-#define TP_I64_KIND  5
-#define TP_F32_KIND  6
-#define TP_F64_KIND  7
-#define TP_BOOL_KIND 8
-#define TP_CHAR_KIND 9
+#define TP_I8_KIND   1
+#define TP_I16_KIND  2
+#define TP_I32_KIND  3
+#define TP_I64_KIND  4
+#define TP_F32_KIND  5
+#define TP_F64_KIND  6
+#define TP_BOOL_KIND 7
+#define TP_CHAR_KIND 8
+#define TP_REF_KIND  9
 #define TP_KIND_MASK 15
 
 #define tp_index(tp, idx) (((tp) >> ((idx)*4)) & TP_KIND_MASK)
 
-#define tp_is_ref(tp, idx)  (tp_index(tp, idx) == TP_REF_KIND)
 #define tp_is_i8(tp, idx)   (tp_index(tp, idx) == TP_I8_KIND)
 #define tp_is_i16(tp, idx)  (tp_index(tp, idx) == TP_I16_KIND)
 #define tp_is_i32(tp, idx)  (tp_index(tp, idx) == TP_I32_KIND)
@@ -78,6 +78,7 @@ object layout, like c++ object layout
 #define tp_is_f64(tp, idx)  (tp_index(tp, idx) == TP_F64_KIND)
 #define tp_is_bool(tp, idx) (tp_index(tp, idx) == TP_BOOL_KIND)
 #define tp_is_char(tp, idx) (tp_index(tp, idx) == TP_CHAR_KIND)
+#define tp_is_ref(tp, idx)  (tp_index(tp, idx) == TP_REF_KIND)
 
 /* clang-format off */
 
@@ -94,16 +95,21 @@ object layout, like c++ object layout
 
 /* clang-format on */
 
-int tp_size(uint32 tp_map, int index);
+/* var obj T, where the upper bound of T is Any */
 
-/* generic type T: its upper bound of T is Any */
+int32 tp_any_hash(anyref obj, int ref);
+bool tp_any_equal(anyref obj, anyref other, int ref);
 
-int32 generic_any_hash(uintptr obj, int isref);
-int8 generic_any_equal(uintptr obj, uintptr other, int isref);
-uintptr generic_any_class(uintptr obj, int tpkind);
-uintptr generic_any_tostr(uintptr obj, int tpkind);
+/* get type parameter size */
+static inline int tp_size(uint32 tp_map, int index)
+{
+    static int __size__[] = { 0, 1, 2, 4, 8, 4, 8, 1, 4, PTR_SIZE };
+    return __size__[tp_index(tp_map, index)];
+}
 
-/*------ type info ----------------------------------------------------------*/
+/*----------------------------------------------------------------------------*\
+|*                type info, virtual table and type descriptor                *|
+\*----------------------------------------------------------------------------*/
 
 /* type flags */
 
@@ -117,22 +123,8 @@ uintptr generic_any_tostr(uintptr obj, int tpkind);
 #define type_is_enum(type)  (((type)->flags & 0x0F) == TF_ENUM)
 #define type_is_final(type) ((type)->flags & TF_FINAL)
 
-struct _VirtTable {
-    TypeInfo *type;
-    int head;
-    int data;
-    int num_func;
-    FuncNode *func[1];
-};
-
-/* clang-format off */
-
-#define __GET_HEAD(ptr) ((ptr) + (*(VirtTable **)ptr)->head)
-#define __GET_TYPE(ptr) ((*(VirtTable **)ptr)->type)
-
-/* clang-format on */
-
 /* type info */
+
 struct _TypeInfo {
     /* type name */
     char *name;
@@ -141,30 +133,45 @@ struct _TypeInfo {
     /* count vtbl */
     int num_vtbl;
     /* virtual table */
-    VirtTable **vtbl;
+    VTable **vtbl;
     // object map
     int *objmap;
-    // type parameters
+    /* type parameters */
     Vector *params;
-    // self methods
+    /* self methods */
     Vector *methods;
-    // self fields
+    /* self fields */
     Vector *fields;
-    // first class or trait
+    /* first class or trait */
     TypeInfo *base;
-    // other traits
+    /* other traits */
     Vector *traits;
-    // line resolution order
+    /* line resolution order */
     Vector *lro;
-    // all symbols
+    /* all symbols */
     HashMap *mtbl;
 };
 
-/* type parameter */
-struct _TypeParam {
-    char name[8];
-    TypeInfo *bound;
+/* virtual table */
+
+struct _VTable {
+    /* object's type */
+    TypeInfo *type;
+    /* offset of object head ptr */
+    int head;
+    /* offset of data struct */
+    int data;
+    /* number of functions */
+    int num;
+    /* function array, terminated with nil */
+    FuncNode *func[1];
 };
+
+#define __GET_VTBL(ptr) (*(VTable **)(ptr))
+#define __GET_HEAD(ptr) ((ptr) + __GET_VTBL(ptr)->head)
+#define __GET_TYPE(ptr) (__GET_VTBL(ptr)->type)
+
+/* type descriptor */
 
 #define DESC_I8_KIND    1
 #define DESC_I16_KIND   2
@@ -197,7 +204,9 @@ struct _TypeKlass {
     char *name;
 };
 
-/*------  member of typeinfo or package -------------------------------------*/
+/*----------------------------------------------------------------------------*\
+|*                    member node for typeinfo and package                    *|
+\*----------------------------------------------------------------------------*/
 
 /* clang-format off */
 
@@ -241,12 +250,12 @@ struct _TypeNode {
 struct _VarNode {
     MNODE_HEAD
     TypeDesc *desc;
-    uintptr val;
+    anyref val;
 };
 
 struct _PkgNode {
     MNODE_HEAD
-    HashMap *map;
+    HashMap map;
     Vector *rel;
     Vector *gc_map;
 };
@@ -271,7 +280,7 @@ struct _RelInfo {
 
 TypeInfo *type_new(char *name, int flags);
 int type_set_base(TypeInfo *type, TypeInfo *base);
-int type_add_typeparam(TypeInfo *type, TypeParam *tp);
+int type_add_typeparam(TypeInfo *type, char *name, TypeInfo *bound);
 int type_add_trait(TypeInfo *type, TypeInfo *trait);
 int type_add_field(TypeInfo *ty, char *name, TypeDesc *desc);
 int type_add_kfunc(TypeInfo *ty, char *name, TypeDesc *desc, CodeInfo *code);
@@ -280,9 +289,11 @@ int type_add_proto(TypeInfo *type, char *name, TypeDesc *desc);
 void type_ready(TypeInfo *type);
 void type_show(TypeInfo *type);
 int type_get_func_slot(TypeInfo *type, char *name);
-FuncNode *object_get_func(uintptr obj, int offset);
+FuncNode *object_get_func(objref obj, int offset);
 
-struct _FuncDef {
+/* c method define */
+
+struct _MethodDef {
     char *name;
     char *ptype;
     char *rtype;
@@ -292,10 +303,8 @@ struct _FuncDef {
 
 /* clang-format off */
 
-#define FUNC_DEF(name, ptype, rtype, func) \
+#define METHOD_DEF(name, ptype, rtype, func) \
     { name, ptype, rtype, #func, func }
-
-#define METHOD_DEF FUNC_DEF
 
 #define type_add_methdefs(type, def) do { \
     for (int i = 0; i < COUNT_OF(def); i++) \
@@ -304,50 +313,50 @@ struct _FuncDef {
 
 /* clang-format on */
 
-/* create new object */
-uintptr object_new(TypeInfo *type);
+/*----------------------------------------------------------------------------*\
+|*                       intrinsic objects & package                          *|
+\*----------------------------------------------------------------------------*/
 
-/*------ array --------------------------------------------------------------*/
+/* array object */
 
-uintptr array_new(uint32 tp_map);
-void array_reserve(uintptr self, int32 count);
-void array_append(uintptr self, uintptr val);
-int32 array_length(uintptr self);
-void array_set(uintptr self, uint32 index, uintptr val);
-uintptr array_get(uintptr self, uint32 index);
-void array_print(uintptr self);
+objref array_new(uint32 tp_map);
+void array_reserve(objref self, int32 count);
+void array_append(objref self, anyref val);
+int32 array_length(objref self);
+/* if index is out of bounds, panic() */
+void array_set(objref self, uint32 index, anyref val);
+/* if index is out of bounds, panic() */
+anyref array_get(objref self, uint32 index);
+void array_print(objref self);
 
-/*------ map ----------------------------------------------------------------*/
-/*
-Object *map_new(uint32 tp_map);
-bool map_put_absent(Object *self, uintptr key, uintptr val);
-void map_put(Object *self, uintptr key, uintptr val, uintptr *old_val);
-bool map_get(Object *self, uintptr key, uintptr *val);
-bool map_remove(Object *self, uintptr key, uintptr *val);
-*/
-/*------ string -------------------------------------------------------------*/
+/* map object */
 
-uintptr string_new(char *s);
-void string_show(uintptr self);
+objref map_new(uint32 tp_map);
+bool map_put_absent(objref self, anyref key, anyref val);
+void map_put(objref self, anyref key, anyref val, anyref *old);
+bool map_get(objref self, anyref key, anyref *val);
+bool map_remove(objref self, anyref key, anyref *val);
 
-/*------ reflect ------------------------------------------------------------*/
+/* string object */
 
-uintptr class_new(TypeInfo *type);
+objref string_new(char *s);
+void string_show(objref self);
 
-/*------ package ------------------------------------------------------------*/
+/* reflect(class, field, method, package) object */
+
+objref class_new(objref obj);
+
+/* package operations */
 
 void pkg_add_type(char *path, TypeInfo *type);
 void pkg_add_var(char *path, char *name, TypeDesc *desc);
 void pkg_add_cfunc(char *path, char *name, TypeDesc *desc, void *ptr);
 void pkg_add_kfunc(char *path, char *name, TypeDesc *desc, CodeInfo *code);
 
-void init_core_pkg(void);
-void fini_core_pkg(void);
+/* core pkg("/") initialize and finalize */
 
-void init_array_type(void);
-void init_string_type(void);
-void init_map_type(void);
-void init_reflect_types(void);
+void init_core(void);
+void fini_core(void);
 
 #ifdef __cplusplus
 }

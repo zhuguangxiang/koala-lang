@@ -18,8 +18,7 @@ test(test_mixin core)
 test(test_gc gc)
 test(test_objects core)
 test(test_arrayobj core)
-
-# test(test_mapobject vm)
+test(test_mapobj core)
 
 # test(test_interactive util)
 # test(test_readline util)

@@ -196,7 +196,7 @@ void gc(void)
         int nroots = (int)(uintptr)root[0];
         for (int i = 0; i < nroots; i++) {
             pptr = root[2 + i];
-            if (!*pptr) continue;
+            if (!pptr || !*pptr) continue;
             *pptr = copy(*pptr);
         }
         root = (void **)root[1];

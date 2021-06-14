@@ -151,8 +151,8 @@ void test_array3(void)
 
 int main(int argc, char *argv[])
 {
-    gc_init(512);
-    init_core_pkg();
+    gc_init(768);
+    init_core();
 
     test_array1();
     gc();

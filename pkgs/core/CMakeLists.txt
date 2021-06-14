@@ -6,9 +6,16 @@
 
 set(CORE_SRCS
     core.c
+    anyobj.c
+    classobj.c
+    fieldobj.c
+    methodobj.c
+    pkgobj.c
     stringobj.c
     arrayobj.c
-    reflect.c)
+    mapobj.c
+    optionobj.c
+    )
 
 add_library(core STATIC ${CORE_SRCS})
 

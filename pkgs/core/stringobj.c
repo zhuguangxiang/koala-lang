@@ -17,7 +17,7 @@ extern "C" {
 typedef struct _StringObj StringObj;
 
 struct _StringObj {
-    VirtTable *vtbl;
+    VTable *vtbl;
     int len;
     char data[0];
 };
@@ -27,7 +27,7 @@ static TypeInfo string_type = {
     .flags = TF_CLASS | TF_FINAL,
 };
 
-uintptr string_tostr(uintptr self)
+objref string_tostr(objref self)
 {
     return self;
 }
@@ -45,17 +45,17 @@ void init_string_type(void)
     pkg_add_type("/", &string_type);
 }
 
-uintptr string_new(char *s)
+objref string_new(char *s)
 {
     int len = strlen(s);
     StringObj *obj = gc_alloc(sizeof(*obj) + len + 1, nil);
     obj->vtbl = string_type.vtbl[0];
     obj->len = len;
     memcpy(obj->data, s, len);
-    return (uintptr)obj;
+    return (objref)obj;
 }
 
-void string_show(uintptr self)
+void string_show(objref self)
 {
     StringObj *obj = (StringObj *)self;
     printf(">>> %s\n", obj->data);

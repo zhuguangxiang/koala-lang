@@ -102,7 +102,7 @@ MethodDef E_methods[] = {
     METHOD_DEF("__str__", "i32", "i32", E__str__),
 };
 
-void call_fn(VirtTable *vtbl, TypeInfo *type, char *name)
+void call_fn(VTable *vtbl, TypeInfo *type, char *name)
 {
     MNode key = { .name = name };
     hashmap_entry_init(&key, str_hash(name));
@@ -169,7 +169,7 @@ void test_mixin_order(void)
 
 int main(int argc, char *argv[])
 {
-    init_core_pkg();
+    init_core();
     test_mixin_order();
     return 0;
 }

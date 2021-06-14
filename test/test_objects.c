@@ -13,12 +13,10 @@
 extern "C" {
 #endif
 
-uintptr any_tostr(uintptr self);
-
 int main(int argc, char *argv[])
 {
     gc_init(512);
-    init_core_pkg();
+    init_core();
 
     uintptr s = 0, s2 = 0, clazz = 0;
     GC_STACK(3);
@@ -32,7 +30,6 @@ int main(int argc, char *argv[])
     int slot = type_get_func_slot(__GET_TYPE(s), "__str__");
     assert(slot == 3);
     FuncNode *fn = object_get_func(s, slot);
-    assert(fn->ptr != (uintptr)any_tostr);
     s2 = ((uintptr(*)(uintptr))fn->ptr)(s);
     string_show(s2);
 
