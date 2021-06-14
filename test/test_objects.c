@@ -9,6 +9,10 @@
 #include "core/core.h"
 #include "gc/gc.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uintptr any_tostr(uintptr self);
 
 int main(int argc, char *argv[])
@@ -53,3 +57,7 @@ int main(int argc, char *argv[])
     gc_fini();
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

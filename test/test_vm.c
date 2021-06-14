@@ -11,6 +11,10 @@
 #include "vm/opcode.h"
 #include "vm/vm.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
     func add(a int8, b int8) int8 {
         return a + b
@@ -71,3 +75,7 @@ int main(int argc, char *argv[])
     test_opcode();
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

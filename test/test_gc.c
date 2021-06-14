@@ -9,6 +9,10 @@
 #include "gc/gc.h"
 #include "util/mm.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* memory at least 340 bytes */
 
 struct Bar {
@@ -132,3 +136,7 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif

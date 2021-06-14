@@ -8,6 +8,10 @@
 
 #include "core/core.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*
 trait A
 
@@ -169,3 +173,7 @@ int main(int argc, char *argv[])
     test_mixin_order();
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
