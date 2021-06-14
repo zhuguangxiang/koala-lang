@@ -41,65 +41,55 @@ typedef struct _FuncDef    MethodDef;
 
 /* clang-format on */
 
-// The macro indicates which is an `Object`
-#define OBJECT_HEAD TypeInfo *type;
-
-// The macro indicates an `Object` with type parameters
-#define GENERIC_OBJECT_HEAD OBJECT_HEAD uint32 tp_map;
-
-struct _Object {
-    OBJECT_HEAD
-};
-
 /*
 object layout, like c++ object layout
-+---------+
-|  0vtbl  |
-+---------+
-|   ....  |
-+---------+
-|  nvtbl  |
-+---------+
-|  data   |
-+---------+
++----------+
+|  vtbl_0  |
++----------+
+|   ....   |
++----------+
+|  vtbl_n  |
++----------+
+|  struct  |
++----------+
 */
 
 /*------ type parameter -----------------------------------------------------*/
 
-#define TP_REF  1
-#define TP_I8   2
-#define TP_I16  3
-#define TP_I32  4
-#define TP_I64  5
-#define TP_F32  6
-#define TP_F64  7
-#define TP_BOOL 8
-#define TP_CHAR 9
-#define TP_MASK 15
+#define TP_REF_KIND  1
+#define TP_I8_KIND   2
+#define TP_I16_KIND  3
+#define TP_I32_KIND  4
+#define TP_I64_KIND  5
+#define TP_F32_KIND  6
+#define TP_F64_KIND  7
+#define TP_BOOL_KIND 8
+#define TP_CHAR_KIND 9
+#define TP_KIND_MASK 15
 
-#define tp_index(tp, idx) (((tp) >> ((idx)*4)) & TP_MASK)
+#define tp_index(tp, idx) (((tp) >> ((idx)*4)) & TP_KIND_MASK)
 
-#define is_ref(tp, idx)  (tp_index(tp, idx) == TP_REF)
-#define is_i8(tp, idx)   (tp_index(tp, idx) == TP_I8)
-#define is_i16(tp, idx)  (tp_index(tp, idx) == TP_I16)
-#define is_i32(tp, idx)  (tp_index(tp, idx) == TP_I32)
-#define is_i64(tp, idx)  (tp_index(tp, idx) == TP_I64)
-#define is_f32(tp, idx)  (tp_index(tp, idx) == TP_F32)
-#define is_f64(tp, idx)  (tp_index(tp, idx) == TP_F64)
-#define is_bool(tp, idx) (tp_index(tp, idx) == TP_BOOL)
-#define is_char(tp, idx) (tp_index(tp, idx) == TP_CHAR)
+#define tp_is_ref(tp, idx)  (tp_index(tp, idx) == TP_REF_KIND)
+#define tp_is_i8(tp, idx)   (tp_index(tp, idx) == TP_I8_KIND)
+#define tp_is_i16(tp, idx)  (tp_index(tp, idx) == TP_I16_KIND)
+#define tp_is_i32(tp, idx)  (tp_index(tp, idx) == TP_I32_KIND)
+#define tp_is_i64(tp, idx)  (tp_index(tp, idx) == TP_I64_KIND)
+#define tp_is_f32(tp, idx)  (tp_index(tp, idx) == TP_F32_KIND)
+#define tp_is_f64(tp, idx)  (tp_index(tp, idx) == TP_F64_KIND)
+#define tp_is_bool(tp, idx) (tp_index(tp, idx) == TP_BOOL_KIND)
+#define tp_is_char(tp, idx) (tp_index(tp, idx) == TP_CHAR_KIND)
 
 /* clang-format off */
 
-#define TP_0(t0) (t0)
-#define TP_1(t0, t1) (TP_1(t0) + (t1) << 4)
-#define TP_2(t0, t1, t2) (TP_2(t0, t1) + (t2) << 8)
-#define TP_3(t0, t1, t2, t3) (TP_3(t0, t1, t2) + (t3) << 12)
-#define TP_4(t0, t1, t2, t3, t4) (TP_4(t0, t1, t2, t3) + (t4) << 16)
-#define TP_5(t0, t1, t2, t3, t4, t5) (TP_5(t0, t1, t2, t3, t4) + (t5) << 20)
-#define TP_6(t0, t1, t2, t3, t4, t5, t6) \
+#define TP_1(t0) (t0)
+#define TP_2(t0, t1) (TP_1(t0) + (t1) << 4)
+#define TP_3(t0, t1, t2) (TP_2(t0, t1) + (t2) << 8)
+#define TP_4(t0, t1, t2, t3) (TP_3(t0, t1, t2) + (t3) << 12)
+#define TP_5(t0, t1, t2, t3, t4) (TP_4(t0, t1, t2, t3) + (t4) << 16)
+#define TP_6(t0, t1, t2, t3, t4, t5) (TP_5(t0, t1, t2, t3, t4) + (t5) << 20)
+#define TP_7(t0, t1, t2, t3, t4, t5, t6) \
     (TP_6(t0, t1, t2, t3, t4, t5) + (t6) << 24)
-#define TP_7(t0, t1, t2, t3, t4, t5, t6, t7) \
+#define TP_8(t0, t1, t2, t3, t4, t5, t6, t7) \
     (TP_7(t0, t1, t2, t3, t4, t5, t6) + (t7) << 28)
 
 /* clang-format on */
@@ -138,7 +128,7 @@ struct _VirtTable {
 /* clang-format off */
 
 #define __GET_HEAD(ptr) ((ptr) + (*(VirtTable **)ptr)->head)
-#define __GET_TYPEINFO(ptr) ((*(VirtTable **)ptr)->type)
+#define __GET_TYPE(ptr) ((*(VirtTable **)ptr)->type)
 
 /* clang-format on */
 
@@ -235,7 +225,7 @@ struct _FuncNode {
     int16 slot;
     TypeDesc *desc;
     PkgNode *pkg;
-    void *ptr;
+    uintptr ptr;
 };
 
 struct _ProtoNode {
@@ -314,15 +304,18 @@ struct _FuncDef {
 
 /* clang-format on */
 
+/* create new object */
+uintptr object_new(TypeInfo *type);
+
 /*------ array --------------------------------------------------------------*/
 
-Object *array_new(uint32 tp_map);
-void array_reserve(Object *self, int32 count);
-void array_append(Object *self, uintptr val);
-int32 array_length(Object *self);
-void array_set(Object *self, uint32 index, uintptr val);
-uintptr array_get(Object *self, uint32 index);
-void array_print(Object *self);
+uintptr array_new(uint32 tp_map);
+void array_reserve(uintptr self, int32 count);
+void array_append(uintptr self, uintptr val);
+int32 array_length(uintptr self);
+void array_set(uintptr self, uint32 index, uintptr val);
+uintptr array_get(uintptr self, uint32 index);
+void array_print(uintptr self);
 
 /*------ map ----------------------------------------------------------------*/
 /*

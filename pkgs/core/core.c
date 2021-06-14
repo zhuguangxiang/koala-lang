@@ -23,7 +23,7 @@ TypeInfo any_type = {
 
 int tp_size(uint32 tp_map, int index)
 {
-    static int __size__[] = { 0, PTR_SIZE, 1, 2, 4, 8, 2, 4, 8, 1, 4 };
+    static int __size__[] = { 0, PTR_SIZE, 1, 2, 4, 8, 4, 8, 1, 4 };
     return __size__[tp_index(tp_map, index)];
 }
 
@@ -36,7 +36,7 @@ int32 generic_any_hash(uintptr obj, int isref)
     if (!isref) {
         return (int32)mem_hash(&obj, sizeof(uintptr));
     } else {
-        TypeInfo *type = __GET_TYPEINFO(obj);
+        TypeInfo *type = __GET_TYPE(obj);
         int32 (*fn)(uintptr) = NULL; //(void *)type->vtbl[0][0];
         return fn(obj);
     }
@@ -47,7 +47,7 @@ bool generic_any_equal(uintptr obj, uintptr other, int isref)
     if (obj == other) return 1;
 
     if (isref) {
-        TypeInfo *type = __GET_TYPEINFO(obj);
+        TypeInfo *type = __GET_TYPE(obj);
         bool (*fn)(uintptr, uintptr) = NULL; //(void *)type->vtbl[0][1];
         return fn(obj, other);
     }
@@ -74,8 +74,8 @@ int32 any_hash(uintptr self)
 
 bool any_equal(uintptr self, uintptr other)
 {
-    TypeInfo *t1 = __GET_TYPEINFO(self);
-    TypeInfo *t2 = __GET_TYPEINFO(other);
+    TypeInfo *t1 = __GET_TYPE(self);
+    TypeInfo *t2 = __GET_TYPE(other);
 
     if (t1 != t2) return 0;
     return self == other;
@@ -83,15 +83,15 @@ bool any_equal(uintptr self, uintptr other)
 
 uintptr any_class(uintptr self)
 {
-    TypeInfo *type = __GET_TYPEINFO(self);
+    TypeInfo *type = __GET_TYPE(self);
     return class_new(type);
 }
 
 uintptr any_tostr(uintptr self)
 {
     char buf[64];
-    TypeInfo *type = __GET_TYPEINFO(self);
-    snprintf(buf, sizeof(buf) - 1, "%.32s@%08lx", type->name, self);
+    TypeInfo *type = __GET_TYPE(self);
+    snprintf(buf, sizeof(buf) - 1, "%.32s@%lx", type->name, self);
     return string_new(buf);
 }
 
@@ -110,6 +110,7 @@ void init_any_type(void)
 
     type_add_methdefs(&any_type, any_methods);
     type_ready(&any_type);
+    type_show(&any_type);
     pkg_add_type("/", &any_type);
 }
 
@@ -483,7 +484,7 @@ int type_add_kfunc(TypeInfo *ty, char *name, TypeDesc *desc, CodeInfo *code)
     FuncNode *fn = _add_func(__get_mtbl(ty), name, desc);
     if (!fn) return -1;
     fn->kind = MNODE_KFUNC_KIND;
-    fn->ptr = code;
+    fn->ptr = (uintptr)code;
     fn->slot = -1;
     return 0;
 }
@@ -493,7 +494,7 @@ int type_add_cfunc(TypeInfo *ty, char *name, TypeDesc *desc, void *ptr)
     FuncNode *fn = _add_func(__get_mtbl(ty), name, desc);
     if (!fn) return -1;
     fn->kind = MNODE_CFUNC_KIND;
-    fn->ptr = ptr;
+    fn->ptr = (uintptr)ptr;
     fn->slot = -1;
     Vector *vec = ty->methods;
     if (!vec) {
@@ -548,7 +549,7 @@ void type_show(TypeInfo *type)
     printf("self-methods:\n");
     FuncNode **m;
     vector_foreach(m, type->methods,
-                   { printf("  %s@%p\n", (*m)->name, (*m)->ptr); });
+                   { printf("  %s@%lx\n", (*m)->name, (*m)->ptr); });
     printf("\n");
 
     /* show vtbl */
@@ -560,7 +561,7 @@ void type_show(TypeInfo *type)
                (*vtbl)->data);
         fn = (*vtbl)->func;
         while (*fn) {
-            printf("  %s@%p\n", (*fn)->name, (*fn)->ptr);
+            printf("  %s@%lx(%d)\n", (*fn)->name, (*fn)->ptr, (*fn)->inherit);
             fn++;
         }
         ++vtbl;
@@ -610,7 +611,7 @@ void pkg_add_cfunc(char *path, char *name, TypeDesc *desc, void *ptr)
     FuncNode *fn = _add_func(pkg->map, name, desc);
     if (!fn) return;
     fn->kind = MNODE_CFUNC_KIND;
-    fn->ptr = ptr;
+    fn->ptr = (uintptr)ptr;
 }
 
 void pkg_add_kfunc(char *path, char *name, TypeDesc *desc, CodeInfo *code)
@@ -619,7 +620,7 @@ void pkg_add_kfunc(char *path, char *name, TypeDesc *desc, CodeInfo *code)
     FuncNode *fn = _add_func(pkg->map, name, desc);
     if (!fn) return;
     fn->kind = MNODE_KFUNC_KIND;
-    fn->ptr = code;
+    fn->ptr = (uintptr)code;
 }
 
 void init_core_pkg(void)
@@ -637,8 +638,6 @@ void init_core_pkg(void)
     init_string_type();
     init_array_type();
     init_reflect_types();
-
-    type_show(&any_type);
 }
 
 #ifdef __cplusplus

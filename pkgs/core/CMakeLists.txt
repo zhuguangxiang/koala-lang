@@ -6,8 +6,8 @@
 
 set(CORE_SRCS
     core.c
-    stringobject.c
-    arrayobject.c
+    stringobj.c
+    arrayobj.c
     reflect.c)
 
 add_library(core STATIC ${CORE_SRCS})

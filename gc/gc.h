@@ -46,9 +46,6 @@ void *gc_alloc(int size, int *objmap);
 /* allocate array */
 void *gc_alloc_array(int num, int size, int isobj);
 
-/* allocate readonly string */
-#define gc_alloc_string(len) gc_alloc_array(len, 1, 0)
-
 /* start to gc */
 void gc(void);
 

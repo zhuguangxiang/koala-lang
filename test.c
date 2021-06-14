@@ -30,5 +30,6 @@ int main(int argc, char *argv[])
     n.v2 = 40;
     n = fib(n);
     printf("%d\n", (int)n.v2);
+    printf("%s\n", "汉");
     return 0;
 }

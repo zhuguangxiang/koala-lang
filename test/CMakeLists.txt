@@ -17,8 +17,8 @@ test(test_klr_type klr)
 test(test_mixin core)
 test(test_gc gc)
 test(test_objects core)
+test(test_arrayobj core)
 
-# test(test_arrayobject core)
 # test(test_mapobject vm)
 
 # test(test_interactive util)
