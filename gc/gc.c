@@ -1,8 +1,10 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- *
- * Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #include "gc.h"
 #include "util/mm.h"
@@ -122,7 +124,7 @@ void gc_fini(void)
 
 static void *copy(void *ptr)
 {
-    if (!ptr) return nil;
+    if (!ptr) return null;
 
     GcHeaderRef hdr = (GcHeaderRef)ptr - 1;
 

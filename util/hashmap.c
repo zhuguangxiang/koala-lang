@@ -72,7 +72,7 @@ static inline HashMapEntry **find_entry(HashMap *self, HashMapEntry *key)
 
 void *hashmap_get(HashMap *self, void *key)
 {
-    if (!self) return nil;
+    if (!self) return null;
     return *find_entry(self, key);
 }
 
@@ -101,6 +101,16 @@ static void rehash(HashMap *self, int newsize)
     mm_free(oldentries);
 }
 
+void hashmap_put_only(HashMap *self, void *entry)
+{
+    HashMapEntry *e = entry;
+    int b = bucket(self, e);
+    e->next = self->entries[b];
+    self->entries[b] = e;
+    self->count++;
+    if (self->count > self->grow_at) rehash(self, self->size << 1);
+}
+
 int hashmap_put_absent(HashMap *self, void *entry)
 {
     if (!self) return -1;
@@ -120,19 +130,19 @@ int hashmap_put_absent(HashMap *self, void *entry)
 void *hashmap_put(HashMap *self, void *entry)
 {
     void *old = hashmap_remove(self, entry);
-    hashmap_put_absent(self, entry);
+    hashmap_put_only(self, entry);
     return old;
 }
 
 void *hashmap_remove(HashMap *self, void *key)
 {
     HashMapEntry **e = find_entry(self, key);
-    if (!*e) return nil;
+    if (!*e) return null;
 
     HashMapEntry *old;
     old = *e;
     *e = old->next;
-    old->next = nil;
+    old->next = null;
 
     self->count--;
     if (self->count < self->shrink_at) rehash(self, self->size >> 1);

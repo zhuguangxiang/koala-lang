@@ -16,3 +16,15 @@ edit
 .gitignore
 sum
 example
+leetcode*.c
+leetcode*.md
+version.h
+*.py
+*.java
+*.class
+*.lua
+*.cc
+test.c
+test2.c
+test3.c
+socket_server.c

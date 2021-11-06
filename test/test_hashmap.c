@@ -47,7 +47,7 @@ static void random_string(char *data, int len)
 
 void test_hashmap(void)
 {
-    srand(time(nil));
+    srand(time(null));
 
     HashMap map;
     hashmap_init(&map, __str_cmp_cb__);

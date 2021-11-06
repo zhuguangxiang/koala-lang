@@ -358,11 +358,12 @@ void main(int argc, char *argv[])
 
     LLVMBuilderRef builder = LLVMCreateBuilder();
     LLVMPositionBuilderAtEnd(builder, entry);
+    LLVMValueRef load_gval = LLVMBuildLoad(builder, gval, "load_gval");
 
     // LLVMBuildCall(builder, bar_func, NULL, 0, "bar");
 
-    LLVMValueRef tmp = LLVMBuildAdd(builder, LLVMGetParam(sum, 0),
-                                    LLVMGetParam(sum, 1), "tmp");
+    LLVMValueRef tmp =
+        LLVMBuildAdd(builder, LLVMGetParam(sum, 0), load_gval, "tmp");
     // LLVMBuildBr(builder, entry);
     LLVMBuildRet(builder, tmp);
 

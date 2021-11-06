@@ -23,20 +23,29 @@ extern "C" {
 #endif
 
 /* types */
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-typedef uintptr_t uintptr;
-typedef int8_t bool;
 
-#define TRUE  1
-#define FALSE 0
-#define nil   NULL
+/* clang-format off */
+
+typedef int8_t      int8;
+typedef int16_t     int16;
+typedef int32_t     int32;
+typedef int64_t     int64;
+typedef uint8_t     uint8;
+typedef uint16_t    uint16;
+typedef uint32_t    uint32;
+typedef uint64_t    uint64;
+typedef uintptr_t   uintptr;
+typedef float       float32;
+typedef double      float64;
+typedef int8_t      bool;
+typedef uintptr_t   anyref;
+typedef uintptr_t   objref;
+
+#define true    1
+#define false   0
+#define null    NULL
+
+/* clang-format on */
 
 /* Get the min(max) one of the two numbers */
 #define MIN(a, b) ((a) > (b) ? (b) : (a))
@@ -60,10 +69,7 @@ typedef int8_t bool;
 /* clang-format off */
 
 /* endian check */
-#define CHECK_BIG_ENDIAN ({ \
-    int _i = 1;             \
-    !*((char *)&_i);        \
-})
+#define CHECK_BIG_ENDIAN ({ int _i = 1; !*((char *)&_i); })
 
 /*
  * Get the 'type' pointer from the pointer to `member`
@@ -79,6 +85,22 @@ typedef int8_t bool;
 #define PTR_SIZE sizeof(void *)
 
 #define OBJ_SIZE(ptr) sizeof(*ptr)
+
+typedef void (*initfunc)(void);
+
+/* clang-format off */
+#define INIT_FUNC_LEVEL_0(name) \
+    static initfunc __##name    \
+    __attribute__((used, section("_init_func_0"))) = name
+
+#define INIT_FUNC_LEVEL_1(name) \
+    static initfunc __##name    \
+    __attribute__((used, section("_init_func_1"))) = name
+
+#define INIT_FUNC_LEVEL_2(name) \
+    static initfunc __##name    \
+    __attribute__((used, section("_init_func_2"))) = name
+/* clang-format on */
 
 #ifdef __cplusplus
 }

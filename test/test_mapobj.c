@@ -55,22 +55,22 @@ int main(int argc, char *argv[])
     map_get(map, 200, &val);
     assert(val == 2000);
 
-    map_remove(map, 200, nil);
+    map_remove(map, 200, null);
     ret = map_get(map, 200, &val);
     assert(ret == 0);
 
-    map_remove(map, 100, nil);
-    map_remove(map, 101, nil);
-    map_remove(map, 102, nil);
-    map_remove(map, 103, nil);
-    map_remove(map, 104, nil);
-    map_remove(map, 105, nil);
-    map_remove(map, 106, nil);
-    map_remove(map, 107, nil);
-    map_remove(map, 108, nil);
-    map_remove(map, 109, nil);
-    map_remove(map, 200, nil);
-    map_remove(map, 300, nil);
+    map_remove(map, 100, null);
+    map_remove(map, 101, null);
+    map_remove(map, 102, null);
+    map_remove(map, 103, null);
+    map_remove(map, 104, null);
+    map_remove(map, 105, null);
+    map_remove(map, 106, null);
+    map_remove(map, 107, null);
+    map_remove(map, 108, null);
+    map_remove(map, 109, null);
+    map_remove(map, 200, null);
+    map_remove(map, 300, null);
 
     gc();
 

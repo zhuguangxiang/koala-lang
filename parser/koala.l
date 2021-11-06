@@ -1,43 +1,30 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
- * OR OTHER DEALINGS IN THE SOFTWARE.
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 /* prologue */
 
 %{
 
 #include "parser.h"
-#include "readline.h"
 #include "koala_yacc.h"
 
+#define YY_EXTRA_TYPE ParserState *
+#define yyps ((YY_EXTRA_TYPE)yyextra)
+
 /* auto insert semi-colon check */
-static int semicolon(ParserStateRef ps)
+static int semicolon(YY_EXTRA_TYPE ps)
 {
     static int tokens[] = {
         INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
-        ID, SELF, SUPER, TRUE, FALSE, nil,
+        ID, SELF, SUPER, TRUE, FALSE, NIL,
         INT8, INT16, INT32, INT64, CHAR, STRING, BOOL, ANY,
         RETURN, BREAK, CONTINUE, ')', ']', '}', '>', '_',
-        DOTDOTDOT, DOTDOTLESS, FAT_ARROW,
+        DOTDOTDOT, DOTDOTLESS,
     };
 
     int token = ps->token;
@@ -47,7 +34,7 @@ static int semicolon(ParserStateRef ps)
     return 0;
 }
 
-static char esc(char ch)
+static char esc_convert(char ch)
 {
     char val;
     switch (ch) {
@@ -80,13 +67,13 @@ static char esc(char ch)
 }
 
 /* escape convert */
-static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
+static void do_escape(YY_EXTRA_TYPE ps, YYSTYPE *yylval)
 {
     char *s = BUF_STR(ps->buf);
     int len = BUF_LEN(ps->buf);
 
     if (!s) {
-        yylval->sval = atom_str(nil, 0);
+        yylval->sval = atom_str(null, 0);
         return;
     }
 
@@ -97,7 +84,7 @@ static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
         ch = s[i];
         if (ch == '\\') {
             if (i + 1 < len) {
-                ch = esc(s[++i]);
+                ch = esc_convert(s[++i]);
             }
         }
         buf_write_char(&buf, ch);
@@ -114,13 +101,13 @@ static void do_escape(ParserStateRef ps, YYSTYPE *yylval)
     }
 }
 
-static void do_text(ParserStateRef ps, YYSTYPE *yylval)
+static void do_text(YY_EXTRA_TYPE ps, YYSTYPE *yylval)
 {
     int len = BUF_LEN(ps->buf);
     char *s = BUF_STR(ps->buf);
 
     if (!s) {
-        yylval->sval = atom_str(nil, 0);
+        yylval->sval = atom_str(null, 0);
         return;
     }
 
@@ -140,7 +127,7 @@ static void do_text(ParserStateRef ps, YYSTYPE *yylval)
     }
 }
 
-static void do_doc(ParserStateRef ps, char *txt, int len)
+static void do_doc(YY_EXTRA_TYPE ps, char *txt, int len)
 {
     // char *s = txt;
     // char *e = txt + len - 1;
@@ -152,23 +139,11 @@ static void do_doc(ParserStateRef ps, char *txt, int len)
     buf_write_char(&ps->doc_buf, '\n');
 }
 
-int stdin_input(ParserStateRef ps, char *buf, int size);
-
-int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
-{
-    return 0;
-}
-
 /* Macros in flex */
 
-#define YY_INPUT(buf, result, size) \
-    if (yyps->cmd) \
-        result = stdin_input(yyps, buf, size); \
-    else \
-        result = file_input(yyps, buf, size, yyin);
-
-#define YY_EXTRA_TYPE ParserStateRef
-#define yyps ((YY_EXTRA_TYPE)yyextra)
+#define YY_INPUT(buf, ret, size) do { \
+    ret = yyps->lexer_input(yyps, buf, size, yyin); \
+} while (0)
 
 #define YY_USER_ACTION {                        \
     char ch = yytext[0];                        \
@@ -176,12 +151,12 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
         yyps->col += yyps->len;                 \
         yyps->len = strlen(yytext);             \
         if (!yyps->in_str) {                    \
-            yylloc->first_line = yyps->line;    \
+            yylloc->first_line = yyps->row;     \
             yylloc->first_column = yyps->col;   \
             yylloc->last_column = yylloc->first_column + yyps->len; \
         }                                       \
     } else if (ch == '\n' && yyps->in_str) {    \
-        ++yyps->line;                           \
+        ++yyps->row;                            \
         yyps->col = 1;                          \
         yyps->len = 0;                          \
     }                                           \
@@ -189,20 +164,34 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 
 #define YY_RETURN(x) yyps->token = x; return x
 
-#define YY_NEWLINE         \
-    ++yyps->line;          \
-    yyps->col = 1;         \
-    yyps->len = 0;         \
+/* 32 or 64 check */
+#if INTPTR_MAX == INT64_MAX
+    #define YY_RETURN_INT() YY_RETURN(INT64)
+#elif INTPTR_MAX == INT32_MAX
+    #define YY_RETURN_INT() YY_RETURN(INT32)
+#else
+    #error "Must define either 32 or 64 bits".
+#endif
+
+#define YY_NEWLINE do { \
+    int len = yyps->len; \
+    ++yyps->row; \
+    yyps->col = 1; \
+    yyps->len = 0; \
     if (semicolon(yyps)) { \
-        YY_RETURN(';');    \
-    }
+        yylloc->first_column += len; \
+        yylloc->last_column = yylloc->first_column + len; \
+        buf_write_char(&yyps->linebuf, ';'); \
+        YY_RETURN(';'); \
+    } \
+} while (0)
 
 #define YY_STR_BEGIN yyps->in_str = 1; RESET_BUF(yyps->buf)
 
-#define YY_STR_END do {      \
+#define YY_STR_END do {         \
     yyps->in_str = 0;           \
     do_escape(yyps, yylval);    \
-    RESET_BUF(yyps->buf);     \
+    RESET_BUF(yyps->buf);       \
     YY_RETURN(STRING_LITERAL);  \
 } while (0)
 
@@ -214,7 +203,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 #define YY_TEXT_END do {        \
     yyps->in_str = 0;           \
     do_text(yyps, yylval);      \
-    RESET_BUF(yyps->buf);     \
+    RESET_BUF(yyps->buf);       \
     YY_RETURN(STRING_LITERAL);  \
 } while (0)
 
@@ -225,10 +214,10 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
     yylval->sval = atom_str(s, len)
 
 #define YY_INT_VALUE(s, base) \
-    yylval->ival = strtoll(s, nil, base)
+    yylval->ival = strtoll(s, null, base)
 
 #define YY_FLOAT_VALUE(s) \
-    yylval->fval = strtod(s, nil); \
+    yylval->fval = strtod(s, null); \
     printf("%lf\n", yylval->fval);
 
 %}
@@ -247,8 +236,8 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 %%
 
 "import"    { YY_RETURN(IMPORT);   }
-"const"     { YY_RETURN(CONST);    }
-"pub"       { YY_RETURN(PUB);      }
+"type"      { YY_RETURN(TYPE);     }
+"let"       { YY_RETURN(LET);      }
 "var"       { YY_RETURN(VAR);      }
 "func"      { YY_RETURN(FUNC);     }
 "class"     { YY_RETURN(CLASS);    }
@@ -259,30 +248,31 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "while"     { YY_RETURN(WHILE);    }
 "for"       { YY_RETURN(FOR);      }
 "match"     { YY_RETURN(MATCH);    }
+"case"      { YY_RETURN(CASE);     }
 "break"     { YY_RETURN(BREAK);    }
 "continue"  { YY_RETURN(CONTINUE); }
 "return"    { YY_RETURN(RETURN);   }
 "in"        { YY_RETURN(IN);       }
 "as"        { YY_RETURN(AS);       }
 "is"        { YY_RETURN(IS);       }
+"final"     { YY_RETURN(FINAL);    }
 
 "self"      { YY_RETURN(SELF);  }
 "super"     { YY_RETURN(SUPER); }
 "true"      { YY_RETURN(TRUE);  }
 "false"     { YY_RETURN(FALSE); }
-"nil"       { YY_RETURN(nil);   }
+"nil"       { YY_RETURN(NIL);   }
 
 "int8"      { YY_RETURN(INT8);    }
 "int16"     { YY_RETURN(INT16);   }
 "int32"     { YY_RETURN(INT32);   }
+"int"       { YY_RETURN_INT();    }
 "int64"     { YY_RETURN(INT64);   }
-"int"       { YY_RETURN(INT64);   }
 "float32"   { YY_RETURN(FLOAT32); }
 "float64"   { YY_RETURN(FLOAT64); }
-"float"     { YY_RETURN(FLOAT64); }
 "bool"      { YY_RETURN(BOOL);    }
 "char"      { YY_RETURN(CHAR);    }
-"str"       { YY_RETURN(STRING);  }
+"string"    { YY_RETURN(STRING);  }
 "any"       { YY_RETURN(ANY);     }
 
 "and"       { YY_RETURN(AND); }
@@ -293,8 +283,6 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "!="        { YY_RETURN(NE);  }
 ">="        { YY_RETURN(GE);  }
 "<="        { YY_RETURN(LE);  }
-"&&"        { YY_RETURN(AND); }
-"||"        { YY_RETURN(OR);  }
 
 ":="        { YY_RETURN(FREE_ASSIGN);  }
 "+="        { YY_RETURN(PLUS_ASSIGN);  }
@@ -310,7 +298,6 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 
 "..."       { YY_RETURN(DOTDOTDOT);  }
 "..<"       { YY_RETURN(DOTDOTLESS); }
-"=>"        { YY_RETURN(FAT_ARROW);  }
 
 "+"         { YY_RETURN('+'); }
 "-"         { YY_RETURN('-'); }
@@ -321,7 +308,6 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "|"         { YY_RETURN('|'); }
 "~"         { YY_RETURN('~'); }
 "^"         { YY_RETURN('^'); }
-"!"         { YY_RETURN(NOT); }
 
 ":"         { YY_RETURN(':'); }
 ","         { YY_RETURN(','); }
@@ -329,7 +315,6 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 "."         { YY_RETURN('.'); }
 "="         { YY_RETURN('='); }
 "_"         { YY_RETURN('_'); }
-"?"         { YY_RETURN('?'); }
 
 "("         { YY_RETURN('('); }
 ")"         { YY_RETURN(')'); }
@@ -375,7 +360,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 
 [A-Za-z_][A-Za-z0-9_]*  {
     YY_IDENT_VALUE(yytext, yyleng);
-    do_klass_typeparams(yyps, yytext);
+    ident_has_param_type(yyps, yytext);
     YY_RETURN(ID);
 }
 
@@ -390,12 +375,12 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
     YY_FLOAT_VALUE(yytext); YY_RETURN(FLOAT_LITERAL);
 }
 
-[ ]+ {}
-
-[\t\r]+ ;
+[ ]+  { }
+[\t]+ { }
+[\r]+ { }
 
 [\n]+ {
-    if (yyps->doc_line > 0 && yyps->doc_line != yyps->line) {
+    if (yyps->doc_line > 0 && yyps->doc_line != yyps->row) {
         /* not consecutive document */
         printf("doc\n");
         printf("%s", BUF_STR(yyps->doc_buf));
@@ -408,7 +393,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 
 "///"[^\n]* {
     yyps->more = 0;
-    yyps->doc_line = yyps->line;
+    yyps->doc_line = yyps->row;
     do_doc(yyps, yytext + 3, yyleng - 3);
 }
 
@@ -422,7 +407,7 @@ int file_input(ParserStateRef ps, char *buf, int size, FILE *in)
 <COM>\n     { yyps->more = 1; }
 <COM>.      { /* omit other characters */ }
 
-. { YY_RETURN(INVALID); }
+. { yylval->sval = yytext; YY_RETURN(INVALID); }
 
 %%
 

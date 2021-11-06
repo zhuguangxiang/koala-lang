@@ -145,7 +145,7 @@ int binheap_insert(BinHeap *heap, BinHeapEntry *e)
 
 BinHeapEntry *binheap_pop(BinHeap *heap)
 {
-    if (!heap->used) return nil;
+    if (!heap->used) return null;
     BinHeapEntry *root = heap->entries[1];
     binheap_delete(heap, root);
     return root;
@@ -153,7 +153,7 @@ BinHeapEntry *binheap_pop(BinHeap *heap)
 
 BinHeapEntry *binheap_top(BinHeap *heap)
 {
-    if (!heap->used) return nil;
+    if (!heap->used) return null;
     return heap->entries[1];
 }
 
@@ -202,7 +202,7 @@ BinHeapEntry *binheap_next(BinHeap *heap, BinHeapEntry *e)
 {
     if (!e) return binheap_top(heap);
     unsigned int eidx = e->idx;
-    if (eidx <= 0 || eidx >= heap->used) return nil;
+    if (eidx <= 0 || eidx >= heap->used) return null;
     return heap->entries[eidx + 1];
 }
 

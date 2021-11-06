@@ -1,0 +1,18 @@
+
+package builtin
+
+pub final class string {
+
+}
+
+pub final class vector {
+
+}
+
+
+rd := StringReader("hello")
+line := rd.readline()
+print(line)
+
+vec := [1,2,3]
+rd := VectorReader(vec)

@@ -41,7 +41,7 @@ static inline void vector_fini(Vector *vec)
 {
     if (!vec) return;
     mm_free(vec->objs);
-    vec->objs = nil;
+    vec->objs = null;
     vec->objsize = 0;
     vec->size = 0;
     vec->capacity = 0;
@@ -50,7 +50,7 @@ static inline void vector_fini(Vector *vec)
 /* Clear a vector, no free memory */
 static inline void vector_clear(Vector *vec)
 {
-    memset(vec->objs, 0, vec->capacity * vec->objsize);
+    // memset(vec->objs, 0, vec->capacity * vec->objsize);
     vec->size = 0;
 }
 
@@ -62,6 +62,9 @@ static inline Vector *vector_create(int objsize)
     return vec;
 }
 
+/* Create a pointer vector */
+#define vector_create_ptr() vector_create(PTR_SIZE)
+
 /* Destroy a vector */
 static inline void vector_destroy(Vector *vec)
 {
@@ -70,13 +73,13 @@ static inline void vector_destroy(Vector *vec)
 }
 
 /* Get a vector size */
-#define vector_size(vec) ((nil != (vec)) ? (vec)->size : 0)
+#define vector_size(vec) ((null != (vec)) ? (vec)->size : 0)
 
 /* Test whether a vector is empty */
 #define vector_empty(vec) (!vector_size(vec))
 
 /* Get a vector capacity */
-#define vector_capacity(vec) ((nil != (vec)) ? (vec)->capacity : 0)
+#define vector_capacity(vec) ((null != (vec)) ? (vec)->capacity : 0)
 
 /*
  * Store an object at an index. The old will be erased.

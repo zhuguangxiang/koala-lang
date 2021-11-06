@@ -1,0 +1,6 @@
+
+package io
+
+pub trait Writer {
+    func write() Result<int>;
+}

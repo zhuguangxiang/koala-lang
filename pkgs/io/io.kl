@@ -1,5 +1,0 @@
-
-pub trait Reader {
-    func read(buf [byte]) Result<int, Error>
-    func read_str(w io.writer)
-}

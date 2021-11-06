@@ -84,7 +84,7 @@ static inline void hashmap_entry_init(void *entry, unsigned int hash)
 {
     HashMapEntry *e = (HashMapEntry *)entry;
     e->hash = hash;
-    e->next = nil;
+    e->next = null;
 }
 
 /* Return the number of items in the map. */
@@ -106,6 +106,11 @@ void hashmap_fini(HashMap *self, HashMapVisitFunc free, void *arg);
  * Returns the hashmap entry or null if not found.
  */
 void *hashmap_get(HashMap *self, void *key);
+
+/*
+ * Add a hashmap entry. No check duplication.
+ */
+void hashmap_put_only(HashMap *self, void *entry);
 
 /*
  * Add a hashmap entry. If the hashmap contains duplicate entries, it will

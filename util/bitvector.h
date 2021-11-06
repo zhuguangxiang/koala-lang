@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-typedef uint64_t BitWord;
+typedef uint64 BitWord;
 
 #define BITWORD_SIZE (sizeof(BitWord) * 8)
 
@@ -27,7 +27,7 @@ typedef struct _BitVector {
     BitWord *bits;
     /* size in bits */
     int size;
-    /* size in words, round_up(size / WORD_BIT_SIZE) */
+    /* size in words */
     int words;
 } BitVector;
 

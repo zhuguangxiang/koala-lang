@@ -3,5 +3,5 @@ clang
 -I/usr/lib/llvm-11/include
 -DNDEBUG
 -DNLOG
--DKLIR_COMPILATION
+-D_KLVM_H_
 %c -std=gnu11

@@ -29,16 +29,21 @@ typedef struct _Buffer {
 } Buffer;
 
 /* Declare a buffer. */
-#define BUF(name) Buffer name = { 0, 0, nil }
+#define BUF(name) Buffer name = { 0, 0, null }
 
 /* Free a buffer. */
 #define FINI_BUF(name) mm_free((name).buf)
 
 /* clang-format off */
+
+/* Init a buffer */
+#define INIT_BUF(name) memset(&(name), 0, sizeof(Buffer))
+
 /* Reset a buffer. */
 #define RESET_BUF(name) do { \
     memset((name).buf, 0, (name).len); (name).len = 0; \
 } while (0)
+
 /* clang-format on */
 
 /* Get null-terminated string from the buffer. */

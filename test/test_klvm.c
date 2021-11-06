@@ -1,44 +1,30 @@
-/*
- * This file is part of the koala-lang project, under the MIT License.
- * Copyright (c) 2020-2021 James <zhuguangxiang@gmail.com>
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
- * OR OTHER DEALINGS IN THE SOFTWARE.
- */
+/*===----------------------------------------------------------------------===*\
+|*                                                                            *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
 
 #include "klvm/klvm.h"
 
-static void test_fib(KLVMModuleRef m)
+static void test_fib(KLVMModule *m)
 {
-    KLVMTypeRef rtype = KLVMTypeInt32();
-    KLVMTypeRef params[] = { KLVMTypeInt32() };
-    KLVMTypeRef proto = KLVMTypeProto(rtype, params, 1);
-    KLVMValueRef fn = KLVMAddFunction(m, "fib", proto);
-    KLVMValueRef n = KLVMGetParam(fn, 0);
-    KLVMSetName(n, "n");
+    TypeDesc *rtype = desc_from_int32();
+    TypeDesc *params[] = { desc_from_int32() };
+    TypeDesc *proto = desc_from_proto2(rtype, params, 1);
+    KLVMFunc *fn = klvm_add_func(m, "fib", proto);
+    // KLVMValue *n = klvm_get_param(fn, 0);
+    // klvm_set_name(n, "n");
 
-    KLVMBasicBlockRef entry = KLVMAppendBlock(fn, "entry");
-    KLVMBasicBlockRef _then = KLVMAppendBlock(fn, "then");
-    KLVMBasicBlockRef _else = KLVMAppendBlock(fn, "else");
+    KLVMBasicBlock *entry = klvm_append_block(fn, "entry");
+    KLVMBasicBlock *_then = klvm_append_block(fn, "then");
+    KLVMBasicBlock *_else = klvm_append_block(fn, "else");
 
     KLVMBuilder bldr;
 
-    KLVMSetBuilderAtEnd(&bldr, entry);
+    klvm_set_builder_tail(&bldr, entry);
+    /*
     KLVMValueRef cond = KLVMBuildCmple(&bldr, n, KLVMConstInt32(1), "");
     KLVMBuildCondJmp(&bldr, cond, _then, _else);
 
@@ -55,8 +41,11 @@ static void test_fib(KLVMModuleRef m)
     };
     KLVMValueRef r2 = KLVMBuildCall(&bldr, fn, args2, 1, "");
     KLVMBuildRet(&bldr, KLVMBuildAdd(&bldr, r1, r2, ""));
+    */
+    klvm_build_ret(&bldr, klvm_const_int32(100));
 }
 
+/*
 static void test_func(KLVMModuleRef m)
 {
     KLVMTypeRef rtype = KLVMTypeInt32();
@@ -89,15 +78,15 @@ static void test_func(KLVMModuleRef m)
     KLVMBuildJmp(&bldr, bb2);
 }
 
-static void test_var(KLVMModuleRef m)
+static void test_var(KLVMModule *m)
 {
-    KLVMValueRef fn = KLVMGetInitFunction(m);
-    KLVMBasicBlockRef entry = KLVMAppendBlock(fn, "entry");
+    KLVMFunc *fn = klvm_init_func(m);
+    KLVMBasicBlock *entry = klvm_append_block(fn, "entry");
 
     KLVMBuilder bldr;
 
-    KLVMSetBuilderAtEnd(&bldr, entry);
-    KLVMValueRef foo = KLVMAddVariable(m, "foo", KLVMTypeInt32());
+    klvm_set_builder_tail(&bldr, entry);
+    KLVMVar *foo = klvm_add_var(m, "foo", desc_from_int32());
     KLVMBuildCopy(&bldr, foo, KLVMConstInt32(100));
 
     KLVMValueRef bar = KLVMAddVariable(m, "bar", KLVMTypeInt32());
@@ -108,21 +97,46 @@ static void test_var(KLVMModuleRef m)
     KLVMValueRef baz = KLVMAddVariable(m, "baz", KLVMTypeInt32());
     KLVMBuildCopy(&bldr, baz, KLVMBuildSub(&bldr, foo, bar, ""));
 }
+*/
+
+static void test_func2(KLVMModule *m)
+{
+    KLVMFunc *fn = klvm_init_func(m);
+    KLVMValue *v1 = klvm_add_local(fn, desc_from_int32(), "a");
+    KLVMValue *v2 = klvm_add_local(fn, desc_from_int32(), "b");
+    KLVMValue *v3 = klvm_add_local(fn, desc_from_int32(), "c");
+
+    KLVMBasicBlock *entry = klvm_append_block(fn, "entry");
+    KLVMBuilder bldr;
+    klvm_set_builder_tail(&bldr, entry);
+
+    klvm_build_copy(&bldr, v1, klvm_const_int32(1));
+    klvm_build_copy(&bldr, v2, klvm_const_int32(2));
+    KLVMValue *v4 = klvm_build_add(&bldr, v1, v2, null);
+    klvm_build_copy(&bldr, v3, v4);
+    KLVMValue *v5 = klvm_build_sub(&bldr, v1, v2, null);
+    klvm_build_copy(&bldr, v3, v5);
+    klvm_build_ret(&bldr, v3);
+}
 
 int main(int argc, char *argv[])
 {
-    KLVMModuleRef m = KLVMCreateModule("test");
+    init_desc();
+
+    KLVMModule *m = klvm_create_module("test");
     test_fib(m);
-    test_func(m);
-    test_var(m);
-    KLVMDumpModule(m);
+    // test_func(m);
+    // test_var(m);
+    test_func2(m);
+    klvm_dump_module(m);
 
-    KLVMPassGroup grp;
-    KLVMInitPassGroup(&grp);
-    KLVMAddUnReachBlockPass(&grp);
-    KLVMAddDotPass(&grp);
-    KLVMRunPassGroup(&grp, m);
+    List list = LIST_INIT(list);
+    klvm_add_unreachblock_pass(&list);
+    klvm_add_dot_pass(&list);
+    klvm_run_passes(&list, m);
+    klvm_fini_passes(&list);
 
-    KLVMDestroyModule(m);
+    klvm_destroy_module(m);
+    fini_desc();
     return 0;
 }

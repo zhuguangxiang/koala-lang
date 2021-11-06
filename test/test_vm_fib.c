@@ -8,9 +8,40 @@
 
 #include <assert.h>
 #include <time.h>
+#include "koala.h"
+#include "opcode.h"
 #include "util/mm.h"
-#include "vm/opcode.h"
-#include "vm/vm.h"
+#include "vm.h"
+
+#if 0
+    OP_PUSH_I32_ADD,        /* A  B             R(++top) = R(A) + R(B)      */
+    OP_PUSH_I32_SUB,        /* A  B             R(++top) = R(A) - R(B)      */
+    OP_PUSH_I32_MUL,        /* A  B  C          R(A) = R(B) * R(C)          */
+    OP_PUSH_I32_DIV,             /* A  B  C          R(A) = R(B) / R(C)          */
+    OP_PUSH_I32_MOD,             /* A  B  C          R(A) = R(B) % R(C)          */
+    OP_PUSH_I32_NEG,             /* A  B             R(A) = -R(B)                */
+    OP_PUSH_I32_AND,             /* A  B  C          R(A) = R(B) & R(C)          */
+    OP_PUSH_I32_OR,              /* A  B  C          R(A) = R(B) | R(C)          */
+    OP_PUSH_I32_XOR,             /* A  B  C          R(A) = R(B) ^ R(C)          */
+    OP_PUSH_I32_SHL,             /* A  B  C          R(A) = R(B) << R(C)         */
+    OP_PUSH_I32_SHR,             /* A  B  C          R(A) = R(B) >> R(C)         */
+    OP_PUSH_I32_USHR,            /* A  B  C          R(A) = R(B) >>> R(C)        */
+
+    OP_PUSH_I32_ADDK,            /* A  B  K(1)       R(A) = R(B) + (u8)K         */
+    OP_PUSH_I32_SUBK,            /* A  B  K(1)       R(A) = R(B) - (u8)K         */
+    OP_PUSH_I32_MULK,            /* A  B  K(1)       R(A) = R(B) * (u8)K         */
+    OP_PUSH_I32_DIVK,            /* A  B  K(1)       R(A) = R(B) / (u8)K         */
+    OP_PUSH_I32_MODK,            /* A  B  K(1)       R(A) = R(B) % (u8)K         */
+    OP_PUSH_I32_ANDK,            /* A  B  K(1)       R(A) = R(B) & (u8)K         */
+    OP_PUSH_I32_ORK,             /* A  B  K(1)       R(A) = R(B) | (u8)K         */
+    OP_PUSH_I32_XORK,            /* A  B  K(1)       R(A) = R(B) ^ (u8)K         */
+    OP_PUSH_I32_SHLK,            /* A  B  K(1)       R(A) = R(B) << (u8)K        */
+    OP_PUSH_I32_SHRK,            /* A  B  K(1)       R(A) = R(B) >> (u8)K        */
+    OP_PUSH_I32_USHRK,           /* A  B  K(1)       R(A) = R(B) >>> (u8)K       */
+
+    OP_PUSH_I32_ADDK,       /* A  K(1)          R(++top) = R(A) + (u8)K     */
+    OP_PUSH_I32_SUBK,       /* A  K(1)          R(++top) = R(A) - (u8)K     */
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -112,47 +143,58 @@ void test_fib(void)
     */
 
     uint8 codes[] = {
-        OP_I32_JMP_CMPKGT, 0, 1, 1, 0,
-        OP_RET,
-        OP_PUSH_I32_SUBK, 0, 1,
-        OP_CALL, 1, 0, 0,
-        OP_SAVE_RET, 1,
-        OP_PUSH_I32_SUBK, 0, 2,
-        OP_CALL, 1, 0, 0,
-        OP_I32_ADD_RET, 0, 1,
-        OP_RET,
+        OP_JMP_I32_CMPGTK, 0, 1, 2, 0,
+        OP_RET_VALUE, 0,
+        OP_I32_SUBK, 1, 0, 1,
+        OP_PUSH, 1,
+        //OP_I32_SUBK_PUSH, 0, 1,
+        OP_CALL, 0, 0, 1,
+        OP_POP, 1,
+        OP_I32_SUBK, 2, 0, 2,
+        OP_PUSH, 2,
+        //OP_I32_SUBK_PUSH, 0, 2,
+        OP_CALL, 0, 0, 1,
+        OP_POP, 2,
+        OP_I32_ADD, 0, 1, 2,
+        OP_RET_VALUE, 0,
     };
 
     /* clang-format on */
 
-    KoalaState ks = { 0 };
-    ks.ci = &ks.base_ci;
-    ks.nci = 1;
-    ks.stack = mm_alloc(320 * sizeof(StkVal));
-    ks.stack_end = ks.stack + 320;
+    KlState ks = { 0 };
+    ks.cf = &ks.base_cf;
+    ks.depth = 1;
+    ks.base = mm_alloc(320 * sizeof(KlValue));
+    ks.last = ks.base + 320;
 
-    int stacksize = 3;
-    CallInfo *ci = ks.ci;
-    ci->code = codes;
-    ci->base = ks.stack;
-    ci->top = ci->base + stacksize - 1;
-    ci->savedpc = codes;
-    ci->relinfo = (uintptr)codes;
+    KlFrame *cf = ks.cf;
+    cf->base = ks.base - 1;
+    cf->top = cf->base - 1;
+    ks.top = cf->top;
 
-    ks.top = ci->top;
+    kl_push_int32(&ks, 40);
+    KlCode code = {
+        .codes = codes,
+        .size = sizeof(codes),
+    };
 
-    ci->base[0] = 40;
+    KlFunc fn = {
+        .kind = MNODE_KFUNC_KIND,
+        .ptr = (uintptr)&code,
+    };
+
     // time_t start, end;
     clock_t start, end;
     // time(&start);
     start = clock();
-    koala_execute(&ks, ci);
+    kl_eval_func(&ks, &fn);
     // time(&end);
     end = clock();
-    printf("k-fib:%ld, %lf\n", ci->base[0], difftime(end, start));
+    int res = kl_pop_int32(&ks);
+    printf("k-fib:%d, %lf\n", res, difftime(end, start));
 }
 
-static int fib(int n)
+int fib(int n)
 {
     if (n <= 1) return n;
     return fib(n - 1) + fib(n - 2);
@@ -160,12 +202,16 @@ static int fib(int n)
 
 int main(int argc, char *argv[])
 {
+    kl_init();
     clock_t start, end;
     start = clock();
     int r = fib(40);
     end = clock();
+    signed char v = 0xFE;
+    printf("v&0x80=%x\n", v & 0x80);
     printf("c-fib:%d, %lf\n", r, difftime(end, start));
     test_fib();
+    kl_fini();
     return 0;
 }
 

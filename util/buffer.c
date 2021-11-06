@@ -48,7 +48,9 @@ void buf_write_str(Buffer *self, char *s)
 {
     if (!s) return;
     int len = strlen(s);
-    buf_write_nstr(self, s, len);
+    if (available(self, len) <= 0) return;
+    strcat(self->buf, s);
+    self->len += len;
 }
 
 void buf_vwrite(Buffer *self, int count, va_list args)

@@ -19,7 +19,7 @@ extern "C" {
 /*
  *           |------|    |------|    |------|
  * gcroot -> |  2   |    |  3   |    |  1   |
- *           | prev | -> | prev | -> | nil  |
+ *           | prev | -> | prev | -> | null  |
  *           | &obj |    | &obj |    | &obj |
  *           | &obj |    | &obj |    |------|
  *           |------|    | &obj |
@@ -29,7 +29,7 @@ extern "C" {
  * rooted. foo(f(), g()) will not work, and foo can't do anything about it,
  * so the caller must do it below:
  *
- * Object *x = nil, *y = nil;
+ * Object *x = null, *y = null;
  * gc_push(2, &x, &y);
  * x = f();
  * y = g();
@@ -64,7 +64,7 @@ extern GcTrace *gcroots;
 #define ROOT_TRACE(name, ...)          \
     static void *__##name##__[] = {    \
         VA_NARGS(void *, __VA_ARGS__), \
-        nil,                           \
+        null,                          \
         __VA_ARGS__,                   \
     };
 
