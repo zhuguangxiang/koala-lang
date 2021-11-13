@@ -20,34 +20,39 @@ struct _KLVMPass {
     void *arg;
 };
 
-void klvm_fini_passes(List *list)
+void klvm_init_passes(KLVMPassGroup *grp)
+{
+    init_list(&grp->list);
+}
+
+void klvm_fini_passes(KLVMPassGroup *grp)
 {
     KLVMPass *pass, *nxt;
-    list_foreach_safe(pass, nxt, link, list, {
+    list_foreach_safe(pass, nxt, link, &grp->list, {
         list_remove(&pass->link);
         mm_free(pass);
     });
 }
 
-void klvm_register_pass(List *list, KLVMPassFunc fn, void *arg)
+void klvm_register_pass(KLVMPassGroup *grp, KLVMPassFunc fn, void *arg)
 {
     KLVMPass *pass = mm_alloc_obj(pass);
     init_list(&pass->link);
     pass->callback = fn;
     pass->arg = arg;
-    list_push_back(list, &pass->link);
+    list_push_back(&grp->list, &pass->link);
 }
 
-static inline void _run_pass(List *list, KLVMFunc *fn)
+static inline void _run_pass(KLVMPassGroup *grp, KLVMFunc *fn)
 {
     KLVMPass *pass;
-    list_foreach(pass, link, list, { pass->callback(fn, pass->arg); });
+    list_foreach(pass, link, &grp->list, { pass->callback(fn, pass->arg); });
 }
 
-void klvm_run_passes(List *list, KLVMModule *m)
+void klvm_run_passes(KLVMPassGroup *grp, KLVMModule *m)
 {
     KLVMFunc **item;
-    vector_foreach(item, &m->functions, { _run_pass(list, *item); });
+    vector_foreach(item, &m->functions, { _run_pass(grp, *item); });
 }
 
 /* Pass: Check unreachable block */
@@ -64,7 +69,7 @@ static int __is_visited(KLVMBasicBlock *bb, Vector *visited)
 static void __visit_block(KLVMBasicBlock *bb, Vector *visited)
 {
     KLVMEdge *edge;
-    edge_out_foreach(edge, &bb->out_edges, {
+    edge_out_foreach(edge, bb, {
         vector_push_back(visited, &edge->dst);
         __visit_block(edge->dst, visited);
     });
@@ -80,23 +85,23 @@ static void __unreach_block_pass(KLVMFunc *fn, void *arg)
 
     /* check unreachable blocks */
     KLVMBasicBlock *bb;
-    basic_block_foreach(bb, &fn->bb_list, {
+    block_foreach(bb, fn, {
         if (!__is_visited(bb, &visited)) {
-            printf("warn: bb: %s is unreachable\n", bb->label);
+            printf("warn: bb: %s is unreachable\n", bb->name);
         }
     });
 }
 
-void klvm_add_unreachblock_pass(List *list)
+void klvm_add_unreachblock_pass(KLVMPassGroup *grp)
 {
-    klvm_register_pass(list, __unreach_block_pass, null);
+    klvm_register_pass(grp, __unreach_block_pass, null);
 }
 
 /* Pass: Generate graphviz dot file and pdf */
 
 static inline int has_branch(KLVMBasicBlock *bb)
 {
-    KLVMInst *inst = list_last(&bb->inst_list, KLVMInst, link);
+    KLVMInst *inst = inst_last(bb);
     if (!inst) return 0;
     return 0; //(inst->op == KLVM_INSN_COND_JMP) ? 1 : 0;
 }
@@ -112,21 +117,21 @@ static void __dot_print_edge(KLVMBasicBlock *bb, FILE *fp)
     KLVMBasicBlock *out;
     KLVMEdge *edge;
     int i = 0;
-    edge_out_foreach(edge, &bb->out_edges, {
+    edge_out_foreach(edge, bb, {
         out = edge->dst;
         if (branch) {
             if (is_ebb(out)) {
-                fprintf(fp, "  %s:%c -> %s:h\n", bb->label,
-                        (i == 0) ? 't' : 'f', out->label);
+                fprintf(fp, "  %s:%c -> %s:h\n", bb->name, (i == 0) ? 't' : 'f',
+                        out->name);
             } else {
-                fprintf(fp, "  %s:%c -> %s\n", bb->label, (i == 0) ? 't' : 'f',
-                        out->label);
+                fprintf(fp, "  %s:%c -> %s\n", bb->name, (i == 0) ? 't' : 'f',
+                        out->name);
             }
         } else {
             if (is_ebb(out)) {
-                fprintf(fp, "  %s -> %s\n", bb->label, out->label);
+                fprintf(fp, "  %s -> %s\n", bb->name, out->name);
             } else {
-                fprintf(fp, "  %s -> %s:h\n", bb->label, out->label);
+                fprintf(fp, "  %s -> %s:h\n", bb->name, out->name);
             }
         }
         __dot_print_edge(out, fp);
@@ -137,7 +142,7 @@ static void __dot_print_edge(KLVMBasicBlock *bb, FILE *fp)
 static void __dot_print_block(KLVMBasicBlock *bb, FILE *fp)
 {
     KLVMInst *inst;
-    inst_foreach(inst, &bb->inst_list, {
+    inst_foreach(inst, bb, {
         fprintf(fp, "\\l");
         klvm_print_inst((KLVMFunc *)bb->func, inst, fp);
     });
@@ -155,15 +160,15 @@ static void __dot_pass(KLVMFunc *fn, void *arg)
 
     KLVMBasicBlock *bb;
     KLVMInst *inst;
-    basic_block_foreach(bb, &fn->bb_list, {
-        fprintf(fp, "  %s", bb->label);
-        inst = list_last(&bb->inst_list, KLVMInst, link);
+    block_foreach(bb, fn, {
+        fprintf(fp, "  %s", bb->name);
+        inst = inst_last(bb);
         if (inst && inst->opcode == KLVM_OP_COND_JMP) {
-            fprintf(fp, "[label=\"{<h>%s:", bb->label);
+            fprintf(fp, "[label=\"{<h>%s:", bb->name);
             __dot_print_block(bb, fp);
             fprintf(fp, "|{<t>T|<f>F}}\"]\n");
         } else {
-            fprintf(fp, "[label=\"{<h>%s:", bb->label);
+            fprintf(fp, "[label=\"{<h>%s:", bb->name);
             __dot_print_block(bb, fp);
             fprintf(fp, "\\l}\"]\n");
         }
@@ -178,9 +183,31 @@ static void __dot_pass(KLVMFunc *fn, void *arg)
     system(buf);
 }
 
-void klvm_add_dot_pass(List *list)
+void klvm_add_dot_pass(KLVMPassGroup *grp)
 {
-    klvm_register_pass(list, __dot_pass, null);
+    klvm_register_pass(grp, __dot_pass, null);
+}
+
+void __unused_val_pass(KLVMFunc *fn, void *arg)
+{
+    KLVMBasicBlock *bb;
+    KLVMLocal *local;
+    block_foreach(bb, fn, {
+        local_foreach(local, bb, {
+            if (list_empty(&local->use_list)) {
+                if (local->name[0]) {
+                    printf("warn: unused '%%%s'\n", local->name);
+                } else {
+                    printf("warn: unused '%%%d'\n", 0);
+                }
+            }
+        });
+    });
+}
+
+void klvm_add_check_unused_pass(KLVMPassGroup *grp)
+{
+    klvm_register_pass(grp, __unused_val_pass, null);
 }
 
 #ifdef __cplusplus

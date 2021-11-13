@@ -22,9 +22,6 @@ typedef enum _KLVMOpCode {
 
     KLVM_OP_COPY,
 
-    KLVM_OP_SET_GLOBAL,
-    KLVM_OP_GET_GLOBAL,
-
     KLVM_OP_ADD,
     KLVM_OP_SUB,
     KLVM_OP_MUL,
@@ -52,15 +49,24 @@ typedef enum _KLVMOpCode {
     KLVM_OP_BIT_NOT,
 
     KLVM_OP_CALL,
+    KLVM_OP_CALL_VOID,
 
     KLVM_OP_RET,
     KLVM_OP_RET_VOID,
     KLVM_OP_JMP,
     KLVM_OP_COND_JMP,
 
-    KLVM_OP_INDEX,
+    KLVM_OP_FIELD_GET,
+    KLVM_OP_FIELD_SET,
+
+    KLVM_OP_SUBSCR_GET,
+    KLVM_OP_SUBSCR_SET,
+
+    KLVM_OP_NEW_ARRAY,
+    KLVM_OP_NEW_MAP,
+    KLVM_OP_NEW_TUPLE,
     KLVM_OP_NEW,
-    KLVM_OP_FIELD,
+
     KLVM_OP_MAX,
 } KLVMOpCode;
 

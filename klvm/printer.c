@@ -12,8 +12,6 @@
 extern "C" {
 #endif
 
-// https://cs.lmu.edu/~ray/notes/ir/
-
 static void print_type(TypeDesc *ty, FILE *fp)
 {
     BUF(buf);
@@ -24,24 +22,23 @@ static void print_type(TypeDesc *ty, FILE *fp)
 
 static void klvm_print_var(KLVMVar *var, FILE *fp)
 {
-    fprintf(fp, "var %s", var->name);
+    fprintf(fp, "var @%s ", var->name);
     print_type(var->type, fp);
+    fprintf(fp, "\n\n");
 }
 
-static inline int val_tag(KLVMFunc *fn, KLVMValDef *def)
+static void print_label_or_tag(KLVMValue *val, FILE *fp)
 {
-    return def->tag;
-}
-
-static inline int bb_tag(KLVMBasicBlock *bb)
-{
-    /*
-    if (bb->tag < 0) {
-        bb->tag = bb->fn->bb_tag_index++;
+    if (val->kind == KLVM_VALUE_VAR || val->kind == KLVM_VALUE_FUNC) {
+        fprintf(fp, "@%s", val->name);
+        return;
     }
-    return bb->tag;
-    */
-    return 0;
+
+    if (val->name[0]) {
+        fprintf(fp, "%%%s", val->name);
+    } else {
+        fprintf(fp, "%%%d", val->tag);
+    }
 }
 
 static void print_const(KLVMConst *v, FILE *fp)
@@ -61,82 +58,60 @@ static void print_const(KLVMConst *v, FILE *fp)
     }
 }
 
-static void print_label_or_tag(KLVMValDef *def, KLVMFunc *fn, FILE *fp)
+static void print_use(KLVMFunc *fn, KLVMUse *use, FILE *fp)
 {
-    if (def->label[0])
-        fprintf(fp, "%%%s", def->label);
-    else {
-        fprintf(fp, "%%%d", val_tag(fn, def));
+    KLVMValue *val = use->parent;
+    print_label_or_tag(val, fp);
+    if (val->kind != KLVM_VALUE_FUNC) {
+        fprintf(fp, " ");
+        print_type(val->type, fp);
     }
-}
-
-static void print_reg(KLVMFunc *fn, KLVMUse *reg, FILE *fp)
-{
-    KLVMValDef *val = reg->interval->owner;
-    print_label_or_tag(val, fn, fp);
-    fprintf(fp, " ");
-    print_type(val->type, fp);
 }
 
 static void print_operand(KLVMFunc *fn, KLVMOper *oper, FILE *fp)
 {
     KLVMOperKind kind = oper->kind;
-    switch (kind) {
-        case KLVM_OPER_CONST: {
-            KLVMConst *val = oper->konst;
-            print_const(val, fp);
-            fprintf(fp, " ");
-            print_type(val->type, fp);
-            break;
-        }
-        case KLVM_OPER_VAR: {
-            assert(0);
-            break;
-        }
-        case KLVM_OPER_REG: {
-            print_reg(fn, oper->reg, fp);
-            break;
-        }
-        case KLVM_OPER_FUNC: {
-            fprintf(fp, "@%s", oper->func->name);
-            break;
-        }
-        case KLVM_OPER_BLOCK: {
-            break;
-        }
-        default: {
-            panic("invalid operand kind");
-            break;
-        }
+    if (kind == KLVM_OPER_CONST) {
+        KLVMConst *val = oper->konst;
+        print_const(val, fp);
+        fprintf(fp, " ");
+        print_type(val->type, fp);
+    } else if (kind == KLVM_OPER_USE) {
+        print_use(fn, oper->use, fp);
+    } else {
+        panic("invalid operand");
     }
+}
+
+static void print_local(KLVMLocal *local, KLVMFunc *fn, FILE *fp)
+{
+    fprintf(fp, "\n  ");
+    fprintf(fp, "local ");
+    print_label_or_tag((KLVMValue *)local, fp);
+    fprintf(fp, " ");
+    print_type(local->type, fp);
 }
 
 static void print_copy(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
 {
-    KLVMUse *reg = inst->operands[0].reg;
-    KLVMValDef *def = reg->interval->owner;
-    print_label_or_tag(def, fn, fp);
+    KLVMValue *val = inst->operands[0].use->parent;
+    print_label_or_tag(val, fp);
     fprintf(fp, " = ");
     print_operand(fn, &inst->operands[1], fp);
 }
 
 static void print_binary(KLVMInst *inst, char *opname, KLVMFunc *fn, FILE *fp)
 {
-    KLVMUse *reg = inst->operands[0].reg;
-    KLVMValDef *def = reg->interval->owner;
-    print_label_or_tag(def, fn, fp);
+    print_label_or_tag((KLVMValue *)inst, fp);
     fprintf(fp, " = %s ", opname);
-    print_operand(fn, &inst->operands[1], fp);
+    print_operand(fn, &inst->operands[0], fp);
     fprintf(fp, ", ");
-    print_operand(fn, &inst->operands[2], fp);
+    print_operand(fn, &inst->operands[1], fp);
 }
 
 static void print_call(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
 {
-    KLVMUse *reg = inst->operands[0].reg;
-    KLVMValDef *def = reg->interval->owner;
-    print_label_or_tag(def, fn, fp);
-    print_type(def->type, fp);
+    print_label_or_tag((KLVMValue *)inst, fp);
     fprintf(fp, " = call ");
     print_operand(fn, &inst->operands[0], fp);
     fprintf(fp, "(");
@@ -145,7 +120,8 @@ static void print_call(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
         oper = &inst->operands[i];
         print_operand(fn, oper, fp);
     }
-    fprintf(fp, ")");
+    fprintf(fp, ") ");
+    print_type(inst->type, fp);
 }
 
 static void print_ret(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
@@ -158,11 +134,11 @@ static void print_jmp(KLVMInst *inst, FILE *fp)
 {
     fprintf(fp, "jmp ");
 
-    KLVMBasicBlock *bb = inst->operands[0].block;
-    if (bb->label[0])
-        fprintf(fp, "label %%%s", bb->label);
+    KLVMValue *val = inst->operands[0].use->parent;
+    if (val->name[0])
+        fprintf(fp, "label %%%s", val->name);
     else
-        fprintf(fp, "label %%bb%d", bb_tag(bb));
+        fprintf(fp, "label %%bb%d", val->tag);
 }
 
 static void print_condjmp(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
@@ -170,19 +146,17 @@ static void print_condjmp(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
     fprintf(fp, "br ");
     print_operand(fn, &inst->operands[0], fp);
 
-    KLVMBasicBlock *bb;
-
-    bb = inst->operands[1].block;
-    if (bb->label[0])
-        fprintf(fp, ", label %%%s", bb->label);
+    KLVMValue *val = inst->operands[1].use->parent;
+    if (val->name[0])
+        fprintf(fp, ", label %%%s", val->name);
     else
-        fprintf(fp, ", label %%bb%d", bb_tag(bb));
+        fprintf(fp, ", label %%bb%d", val->tag);
 
-    bb = inst->operands[2].block;
-    if (bb->label[0])
-        fprintf(fp, ", label %%%s", bb->label);
+    val = inst->operands[2].use->parent;
+    if (val->name[0])
+        fprintf(fp, ", label %%%s", val->name);
     else
-        fprintf(fp, ", label %%bb%d", bb_tag(bb));
+        fprintf(fp, ", label %%bb%d", val->tag);
 }
 
 void klvm_print_inst(KLVMFunc *fn, KLVMInst *inst, FILE *fp)
@@ -224,55 +198,84 @@ static void print_preds(KLVMBasicBlock *bb, int spaces, FILE *fp)
     KLVMBasicBlock *src;
     KLVMEdge *edge;
     int i = 0;
-    edge_in_foreach(edge, &bb->in_edges, {
+    edge_in_foreach(edge, bb, {
         src = edge->src;
         if (i++ == 0)
-            fprintf(fp, "%s", src->label);
+            fprintf(fp, "%s", src->name);
         else
-            fprintf(fp, ", %s", src->label);
+            fprintf(fp, ", %s", src->name);
     });
 }
 
 static void print_block(KLVMBasicBlock *bb, FILE *fp)
 {
-    int cnt;
-    if (bb->label[0]) {
-        cnt = fprintf(fp, "%s:", bb->label);
-    } else {
-        cnt = fprintf(fp, "bb%d:", bb_tag(bb));
-    }
+    int left = 0;
+
+    if (bb->name[0])
+        left = fprintf(fp, "%%%s:", bb->name);
+    else
+        left = fprintf(fp, "%%bb%d:", bb->tag);
 
     // print predecessors
-    if (list_empty(&bb->in_edges)) {
-        fprintf(fp, "%*s", 48 - cnt, ";; No preds!");
+    if (edge_in_empty(bb)) {
+        fprintf(fp, "%*s", 48 - left, ";; No preds!");
     } else {
         KLVMFunc *fn = bb->func;
-        KLVMEdge *edge = list_first(&bb->in_edges, KLVMEdge, in_link);
-        if (edge->src != fn->sbb) print_preds(bb, 64 - cnt, fp);
+        KLVMEdge *edge = edge_in_first(bb);
+        if (edge->src != fn->sbb) print_preds(bb, 48 - left, fp);
     }
 
+    // print locals
+    KLVMLocal *local;
+    local_foreach(local, bb, { print_local(local, bb->func, fp); });
+
     KLVMInst *inst;
-    inst_foreach(inst, &bb->inst_list, {
+    inst_foreach(inst, bb, {
         fprintf(fp, "\n  ");
         klvm_print_inst(bb->func, inst, fp);
     });
 }
 
+static void update_tags(KLVMFunc *fn)
+{
+    fn->val_tag = 0;
+    fn->bb_tag = 0;
+
+    KLVMArgument **arg;
+    vector_foreach(arg, &fn->args, {
+        if (!(*arg)->name[0]) (*arg)->tag = fn->val_tag++;
+    });
+
+    KLVMBasicBlock *bb;
+    KLVMLocal *local;
+    KLVMInst *inst;
+    block_foreach(bb, fn, {
+        if (!bb->name[0]) bb->tag = fn->bb_tag++;
+
+        local_foreach(local, bb, {
+            if (!local->name[0]) local->tag = fn->val_tag++;
+        });
+
+        inst_foreach(inst, bb, {
+            if (inst->type && !inst->name[0]) inst->tag = fn->val_tag++;
+        });
+    });
+}
+
 static void print_func(KLVMFunc *fn, FILE *fp)
 {
-    fprintf(fp, "func %s", fn->name);
+    update_tags(fn);
+
+    fprintf(fp, "func @%s", fn->name);
 
     fprintf(fp, "(");
-    KLVMValDef *def;
-    for (int i = 0; i < fn->num_params; i++) {
-        vector_get(&fn->locals, i, &def);
+    KLVMArgument **arg;
+    vector_foreach(arg, &fn->args, {
         if (i != 0) fprintf(fp, ", ");
-        if (def->label[0])
-            fprintf(fp, "%s ", def->label);
-        else
-            fprintf(fp, "%%%d ", val_tag(fn, def));
-        print_type(def->type, fp);
-    }
+        print_label_or_tag((KLVMValue *)(*arg), fp);
+        fprintf(fp, " ");
+        print_type((*arg)->type, fp);
+    });
 
     TypeDesc *ret = proto_ret(fn->type);
     if (ret) {
@@ -286,29 +289,23 @@ static void print_func(KLVMFunc *fn, FILE *fp)
 
     // print basic blocks directly(not cfg)
     KLVMBasicBlock *bb;
-    basic_block_foreach(bb, &fn->bb_list, {
+    block_foreach(bb, fn, {
         fprintf(fp, "\n");
         print_block(bb, fp);
     });
 
-    fprintf(fp, "\n}\n");
+    fprintf(fp, "\n}\n\n");
 }
 
 void klvm_print_module(KLVMModule *m, FILE *fp)
 {
-    fprintf(fp, "\n__name__ := \"%s\"\n\n", m->name);
+    fprintf(fp, "\n@__name__ := \"%s\"\n\n", m->name);
 
     KLVMVar **var;
-    vector_foreach(var, &m->variables, {
-        klvm_print_var(*var, fp);
-        fprintf(fp, "\n");
-    });
+    vector_foreach(var, &m->variables, { klvm_print_var(*var, fp); });
 
     KLVMFunc **fn;
-    vector_foreach(fn, &m->functions, {
-        print_func(*fn, fp);
-        fprintf(fp, "\n");
-    });
+    vector_foreach(fn, &m->functions, { print_func(*fn, fp); });
 }
 
 #ifdef __cplusplus

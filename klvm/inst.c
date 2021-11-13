@@ -14,131 +14,106 @@
 extern "C" {
 #endif
 
-static KLVMUse *new_use(KLVMInst *inst, KLVMInterval *interval)
+static KLVMUse *new_use(KLVMInst *inst, KLVMValue *val)
 {
     KLVMUse *use = mm_alloc_obj(use);
     use->inst = inst;
     init_list(&use->use_link);
-    list_add(&interval->use_list, &use->use_link);
-    use->interval = interval;
+    list_add(&val->use_list, &use->use_link);
+    use->parent = val;
     return use;
 }
 
+/*
 static void free_use(KLVMUse *use)
 {
     list_remove(&use->use_link);
     use->inst = null;
-    use->interval = null;
+    use->parent = null;
     mm_free(use);
 }
+*/
 
-static KLVMInst *alloc_inst(KLVMOpCode op, int num)
+static KLVMInst *alloc_inst(KLVMOpCode op, int num, char *name)
 {
-    KLVMInst *inst = mm_alloc(sizeof(KLVMInst) + sizeof(KLVMOper) * num);
+    KLVMInst *inst = mm_alloc(sizeof(*inst) + sizeof(KLVMOper) * num);
+    inst->kind = KLVM_VALUE_INST;
+    init_list(&inst->use_list);
+    inst->name = name ? name : "";
     inst->opcode = op;
     inst->num_ops = num;
-    init_list(&inst->link);
+    init_list(&inst->bb_link);
     return inst;
 }
+
+/*
+void klvm_free_const(KLVMConst *konst);
 
 static void free_inst(KLVMInst *inst)
 {
     KLVMOper *oper;
     for (int i = 0; i < inst->num_ops; i++) {
         oper = &inst->operands[i];
-        if (oper->kind == KLVM_OPER_REG) {
-            free_use(oper->reg);
+        if (oper->kind == KLVM_OPER_USE) {
+            free_use(oper->use);
+        } else {
+            klvm_free_const(oper->konst);
         }
     }
 
     mm_free(inst);
 }
+*/
 
-static inline void append_inst(KLVMBuilder *bldr, KLVMInst *inst)
+static void append_inst(KLVMBuilder *bldr, KLVMInst *inst)
 {
-    list_add(bldr->it, &inst->link);
-    bldr->it = &inst->link;
-    bldr->bb->num_insts++;
+    list_add(bldr->it, &inst->bb_link);
+    inst->bb = bldr->bb;
+    bldr->it = &inst->bb_link;
 }
 
-static void init_const_oper(KLVMOper *oper, KLVMConst *konst)
+static void init_operand(KLVMOper *oper, KLVMInst *inst, KLVMValue *ref)
 {
-    oper->kind = KLVM_OPER_CONST;
-    oper->konst = konst;
-}
-
-static void init_var_oper(KLVMOper *oper, KLVMVar *var)
-{
-    oper->kind = KLVM_OPER_VAR;
-    oper->var = var;
-}
-
-static void init_func_oper(KLVMOper *oper, KLVMFunc *fn)
-{
-    oper->kind = KLVM_OPER_FUNC;
-    oper->func = fn;
-}
-
-static void init_block_oper(KLVMOper *oper, KLVMBasicBlock *block)
-{
-    oper->kind = KLVM_OPER_BLOCK;
-    oper->block = block;
-}
-
-static void init_reg_oper(KLVMOper *oper, KLVMInst *inst, KLVMValDef *ref)
-{
-    oper->kind = KLVM_OPER_REG;
-    if (!ref->interval) ref->interval = interval_alloc(ref);
-    oper->reg = new_use(inst, ref->interval);
-}
-
-static void init_oper(KLVMOper *oper, KLVMInst *inst, KLVMValue *ref)
-{
-    if (ref->kind == KLVM_VALUE_CONST)
-        init_const_oper(oper, (KLVMConst *)ref);
-    else
-        init_reg_oper(oper, inst, (KLVMValDef *)ref);
-}
-
-static int valdef_has_used(KLVMValDef *def)
-{
-    if (!def->interval) return 0;
-    KLVMInterval *interval = def->interval;
-    if (list_empty(&interval->use_list)) return 0;
-
-#if !defined(NLOG)
-    int count = 0;
-    KLVMUse *reg;
-    list_foreach(reg, use_link, &interval->use_list, { count++; });
-    if (def->label[0]) {
-        debug("valdef: %%%s, count: %d", def->label, count);
+    if (ref->kind == KLVM_VALUE_CONST) {
+        oper->kind = KLVM_OPER_CONST;
+        oper->konst = (KLVMConst *)ref;
     } else {
-        debug("valdef: %%%d, count: %d", def->tag, count);
+        oper->kind = KLVM_OPER_USE;
+        oper->use = new_use(inst, ref);
     }
-#endif
+}
 
-    return 1;
+static KLVMLocal *__new_local(TypeDesc *ty, char *name)
+{
+    KLVMLocal *local = mm_alloc_obj(local);
+    local->kind = KLVM_VALUE_LOCAL;
+    init_list(&local->use_list);
+    local->name = name ? name : "";
+    local->type = ty;
+    init_list(&local->bb_link);
+    return local;
+}
+
+KLVMValue *klvm_build_local(KLVMBuilder *bldr, TypeDesc *ty, char *name)
+{
+    KLVMBasicBlock *bb = bldr->bb;
+    KLVMLocal *local = __new_local(ty, name);
+    list_push_back(&bb->local_list, &local->bb_link);
+    local->bb = bb;
+    return (KLVMValue *)local;
 }
 
 void klvm_build_copy(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
 {
-    KLVMInst *inst = alloc_inst(KLVM_OP_COPY, 2);
-    // lhs must be instruction
-    if (lhs->kind != KLVM_VALUE_REG) panic("expected value definition");
+    KLVMInst *inst = alloc_inst(KLVM_OP_COPY, 2, null);
 
-    KLVMValDef *def = (KLVMValDef *)lhs;
-    /*
-    if (valdef_has_used((KLVMValDef *)lhs)) {
-        // FIXME: SSA: new valdef?
-        debug("need new value definitons?");
-        KLVMFunc *fn = bldr->bb->func;
-        KLVMValue *val = klvm_add_local(fn, lhs->type, null);
-        def = (KLVMValDef *)val;
+    if (lhs->kind != KLVM_VALUE_VAR && lhs->kind != KLVM_VALUE_ARG &&
+        lhs->kind != KLVM_VALUE_LOCAL) {
+        panic("expected value user");
     }
-    */
-    init_reg_oper(&inst->operands[0], inst, def);
-    // rhs maybe constant, valdef or var
-    init_oper(&inst->operands[1], inst, rhs);
+
+    init_operand(&inst->operands[0], inst, lhs);
+    init_operand(&inst->operands[1], inst, rhs);
     append_inst(bldr, inst);
 }
 
@@ -160,52 +135,40 @@ KLVMValue *klvm_build_binary(KLVMBuilder *bldr, KLVMOpCode op, KLVMValue *lhs,
                              KLVMValue *rhs, char *name)
 {
     TypeDesc *ty = iscmp(op) ? desc_from_bool() : lhs->type;
-    KLVMInst *inst = alloc_inst(op, 3);
+    KLVMInst *inst = alloc_inst(op, 2, name);
+    inst->type = ty;
 
-    KLVMValue *def = klvm_add_local(bldr->bb->func, ty, name);
-    init_reg_oper(&inst->operands[0], inst, (KLVMValDef *)def);
-
-    // lhs and rhs both maybe constant or valdef.
-    init_oper(&inst->operands[1], inst, lhs);
-    init_oper(&inst->operands[2], inst, rhs);
-
-    // FIXME:
-    // KLVMFunc *fn = bldr->bb->fn;
-    // inst->reg = fn->regs++;
+    // lhs and rhs both maybe constant or user.
+    init_operand(&inst->operands[0], inst, lhs);
+    init_operand(&inst->operands[1], inst, rhs);
 
     append_inst(bldr, inst);
-    return (KLVMValue *)def;
+    return (KLVMValue *)inst;
 }
 
 KLVMValue *klvm_build_call(KLVMBuilder *bldr, KLVMFunc *fn, KLVMValue *args[],
                            int size, char *name)
 {
-    KLVMInst *inst = alloc_inst(KLVM_OP_CALL, size + 2);
     TypeDesc *ty = proto_ret(fn->type);
-    KLVMValue *def = klvm_add_local(bldr->bb->func, ty, name);
-    init_reg_oper(&inst->operands[0], inst, (KLVMValDef *)def);
+    KLVMInst *inst = alloc_inst(KLVM_OP_CALL, size + 1, name);
+    inst->type = ty;
 
-    init_func_oper(&inst->operands[1], fn);
+    init_operand(&inst->operands[0], inst, (KLVMValue *)fn);
 
     KLVMValue *arg;
-    for (int i = 1; i < size + 2; i++) {
+    for (int i = 0; i < size; i++) {
         arg = args[i];
-        init_oper(&inst->operands[i + 1], inst, arg);
+        init_operand(&inst->operands[i + 1], inst, arg);
     }
 
-    // FIXME:
-    // if (type) {
-    //     inst->reg = fn->regs++;
-    // }
-
     append_inst(bldr, inst);
-    return (KLVMValue *)def;
+    return (KLVMValue *)inst;
 }
 
 void klvm_build_jmp(KLVMBuilder *bldr, KLVMBasicBlock *dst)
 {
-    KLVMInst *inst = alloc_inst(KLVM_OP_JMP, 1);
-    init_block_oper(&inst->operands[0], dst);
+    KLVMInst *inst = alloc_inst(KLVM_OP_JMP, 1, null);
+    init_operand(&inst->operands[0], inst, (KLVMValue *)dst);
     append_inst(bldr, inst);
     klvm_link_age(bldr->bb, dst);
 }
@@ -213,10 +176,10 @@ void klvm_build_jmp(KLVMBuilder *bldr, KLVMBasicBlock *dst)
 void klvm_build_condjmp(KLVMBuilder *bldr, KLVMValue *cond,
                         KLVMBasicBlock *_then, KLVMBasicBlock *_else)
 {
-    KLVMInst *inst = alloc_inst(KLVM_OP_COND_JMP, 3);
-    init_oper(&inst->operands[0], inst, cond);
-    init_block_oper(&inst->operands[1], _then);
-    init_block_oper(&inst->operands[2], _else);
+    KLVMInst *inst = alloc_inst(KLVM_OP_COND_JMP, 3, null);
+    init_operand(&inst->operands[0], inst, cond);
+    init_operand(&inst->operands[1], inst, (KLVMValue *)_then);
+    init_operand(&inst->operands[2], inst, (KLVMValue *)_else);
     append_inst(bldr, inst);
     klvm_link_age(bldr->bb, _then);
     klvm_link_age(bldr->bb, _else);
@@ -224,8 +187,8 @@ void klvm_build_condjmp(KLVMBuilder *bldr, KLVMValue *cond,
 
 void klvm_build_ret(KLVMBuilder *bldr, KLVMValue *v)
 {
-    KLVMInst *inst = alloc_inst(KLVM_OP_RET, 1);
-    init_oper(&inst->operands[0], inst, v);
+    KLVMInst *inst = alloc_inst(KLVM_OP_RET, 1, null);
+    init_operand(&inst->operands[0], inst, v);
     append_inst(bldr, inst);
     KLVMFunc *fn = bldr->bb->func;
     klvm_link_age(bldr->bb, fn->ebb);
@@ -233,7 +196,7 @@ void klvm_build_ret(KLVMBuilder *bldr, KLVMValue *v)
 
 void klvm_build_retvoid(KLVMBuilder *bldr)
 {
-    KLVMInst *inst = alloc_inst(KLVM_OP_RET, 0);
+    KLVMInst *inst = alloc_inst(KLVM_OP_RET, 0, null);
     append_inst(bldr, inst);
     KLVMFunc *fn = bldr->bb->func;
     klvm_link_age(bldr->bb, fn->ebb);

@@ -27,79 +27,82 @@ struct _KLVMBuilder {
 };
 
 struct _KLVMUse {
-    // link in KLVMInterval
+    /* parent(use_list) */
+    KLVMValue *parent;
+    /* link in use_list */
     List use_link;
-    // live interval
-    KLVMInterval *interval;
-    // -> self KLVMInst
+    /* self */
     KLVMInst *inst;
 };
 
-#define use_foreach(use, use_list, closure) \
-    list_foreach(use, use_link, use_list, closure)
+#define use_foreach(use, val, closure) \
+    list_foreach(use, use_link, &(val)->use_list, closure)
 
 enum _KLVMOperKind {
     KLVM_OPER_NONE,
     KLVM_OPER_CONST,
-    KLVM_OPER_REG,
-    KLVM_OPER_VAR,
-    KLVM_OPER_FUNC,
-    KLVM_OPER_BLOCK,
-    KLVM_OPER_MAX,
+    KLVM_OPER_USE,
 };
 
 struct _KLVMOper {
     KLVMOperKind kind;
     union {
         KLVMConst *konst;
-        KLVMUse *reg;
-        KLVMVar *var;
-        KLVMFunc *func;
-        KLVMBasicBlock *block;
+        KLVMUse *use;
     };
 };
 
 struct _KLVMInst {
-    /* linked in KLVMBasicBlock */
-    List link;
+    KLVM_VALUE_HEAD
+    /* register */
+    int reg;
     /* opcode */
     KLVMOpCode opcode;
     /* number of operands */
     int num_ops;
+    /* link in bb */
+    List bb_link;
+    /* ->bb */
+    KLVMBasicBlock *bb;
     /* operands */
     KLVMOper operands[0];
 };
 
 /* Set builder at head */
-static inline void klvm_set_builder_head(KLVMBuilder *bldr, KLVMBasicBlock *bb)
+static inline void klvm_builder_head(KLVMBuilder *bldr, KLVMBasicBlock *bb)
 {
     bldr->bb = bb;
     bldr->it = &bb->inst_list;
 }
 
-/* Set builder at tail */
-static inline void klvm_set_builder_tail(KLVMBuilder *bldr, KLVMBasicBlock *bb)
+/* Set builder at and */
+static inline void klvm_builder_end(KLVMBuilder *bldr, KLVMBasicBlock *bb)
 {
     bldr->bb = bb;
     bldr->it = bb->inst_list.prev;
 }
 
 /* Set builder at 'inst' */
-static inline void klvm_set_builder(KLVMBuilder *bldr, KLVMInst *inst)
+static inline void klvm_builder_at(KLVMBuilder *bldr, KLVMInst *inst)
 {
-    bldr->it = &inst->link;
+    bldr->it = &inst->bb_link;
 }
 
 /* Set builder before 'inst' */
-static inline void klvm_set_builder_before(KLVMBuilder *bldr, KLVMInst *inst)
+static inline void klvm_builder_before(KLVMBuilder *bldr, KLVMInst *inst)
 {
-    bldr->it = inst->link.prev;
+    bldr->it = inst->bb_link.prev;
 }
 
 /* instruction iteration */
-#define inst_foreach(inst, inst_list, closure) \
-    list_foreach(inst, link, inst_list, closure)
+#define inst_foreach(inst, bb, closure) \
+    list_foreach(inst, bb_link, &(bb)->inst_list, closure)
 
+#define inst_empty(bb) list_empty(&(bb)->inst_list)
+#define inst_first(bb) list_first(&(bb)->inst_list, KLVMInst, bb_link)
+#define inst_last(bb)  list_last(&(bb)->inst_list, KLVMInst, bb_link)
+
+KLVMValue *klvm_build_local(KLVMBuilder *bldr, TypeDesc *ty, char *name);
 void klvm_build_copy(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
 KLVMValue *klvm_build_binary(KLVMBuilder *bldr, KLVMOpCode op, KLVMValue *lhs,
                              KLVMValue *rhs, char *name);

@@ -19,20 +19,22 @@ extern "C" {
 #endif
 
 typedef struct _KLVMModule KLVMModule;
-typedef struct _KLVMVar KLVMVar;
 typedef enum _KLVMValueKind KLVMValueKind;
 typedef struct _KLVMValue KLVMValue;
 typedef struct _KLVMConst KLVMConst;
-typedef struct _KLVMValDef KLVMValDef;
-typedef struct _KLVMInterval KLVMInterval;
-typedef struct _KLVMRange KLVMRange;
+typedef struct _KLVMVar KLVMVar;
+typedef struct _KLVMArgument KLVMArgument;
+typedef struct _KLVMLocal KLVMLocal;
 typedef struct _KLVMFunc KLVMFunc;
 typedef struct _KLVMBasicBlock KLVMBasicBlock;
-typedef struct _KLVMEdge KLVMEdge;
 typedef struct _KLVMUse KLVMUse;
 typedef enum _KLVMOperKind KLVMOperKind;
 typedef struct _KLVMOper KLVMOper;
+typedef struct _KLVMInstOper KLVMInstOper;
 typedef struct _KLVMInst KLVMInst;
+typedef struct _KLVMEdge KLVMEdge;
+typedef struct _KLVMInterval KLVMInterval;
+typedef struct _KLVMRange KLVMRange;
 typedef struct _KLVMBuilder KLVMBuilder;
 
 struct _KLVMModule {
@@ -47,7 +49,7 @@ struct _KLVMModule {
     /* types */
     Vector types;
     /* __init__ function */
-    KLVMFunc *func;
+    KLVMFunc *init;
 };
 
 /* Create a new module */
@@ -56,16 +58,8 @@ KLVMModule *klvm_create_module(char *name);
 /* Destroy a module */
 void klvm_destroy_module(KLVMModule *m);
 
-/* Print a module */
-void klvm_print_module(KLVMModule *m, FILE *fp);
-
-/* clang-format off */
-/* Dump a module */
-#define klvm_dump_module(m) klvm_print_module(m, stdout); fflush(stdout)
-/* clang-format on */
-
 /* Add a variable to a module */
-KLVMVar *klvm_add_var(KLVMModule *m, char *name, TypeDesc *type);
+KLVMValue *klvm_add_var(KLVMModule *m, char *name, TypeDesc *type);
 
 /* Add a function to a module */
 KLVMFunc *klvm_add_func(KLVMModule *m, char *name, TypeDesc *type);
@@ -73,24 +67,23 @@ KLVMFunc *klvm_add_func(KLVMModule *m, char *name, TypeDesc *type);
 /* Get module's init function */
 KLVMFunc *klvm_init_func(KLVMModule *m);
 
-/* variable */
-struct _KLVMVar {
-    /* name */
-    char *name;
-    /* type */
-    TypeDesc *type;
-};
-
 enum _KLVMValueKind {
-    KLVM_VALUE_CONST = 1,
-    KLVM_VALUE_REG,
+    KLVM_VALUE_NONE,
+    KLVM_VALUE_CONST,
+    KLVM_VALUE_VAR,
+    KLVM_VALUE_ARG,
+    KLVM_VALUE_LOCAL,
+    KLVM_VALUE_FUNC,
+    KLVM_VALUE_BLOCK,
+    KLVM_VALUE_INST,
 };
 
 #define KLVM_VALUE_HEAD \
-    /* value kind */    \
     KLVMValueKind kind; \
-    /* register type */ \
-    TypeDesc *type;
+    List use_list;      \
+    char *name;         \
+    TypeDesc *type;     \
+    int tag;
 
 struct _KLVMValue {
     KLVM_VALUE_HEAD
@@ -110,22 +103,6 @@ struct _KLVMConst {
     };
 };
 
-/* value(reg) definition */
-struct _KLVMValDef {
-    KLVM_VALUE_HEAD
-    /* label & tag */
-    char *label;
-    int tag;
-    /* offset in IR */
-    int pos;
-    /* value numbering */
-    int valnum;
-    /* register */
-    int reg;
-    /* value interval */
-    KLVMInterval *interval;
-};
-
 KLVMValue *klvm_const_int8(int8 v);
 KLVMValue *klvm_const_int16(int16 v);
 KLVMValue *klvm_const_int32(int32 v);
@@ -136,26 +113,46 @@ KLVMValue *klvm_const_bool(int8 v);
 KLVMValue *klvm_const_char(int32 ch);
 KLVMValue *klvm_const_str(char *s);
 
+/* variable */
+struct _KLVMVar {
+    KLVM_VALUE_HEAD
+};
+
+/* argument variable */
+struct _KLVMArgument {
+    KLVM_VALUE_HEAD
+    /* register */
+    int reg;
+};
+
+/* local variable */
+struct _KLVMLocal {
+    KLVM_VALUE_HEAD
+    /* register */
+    int reg;
+    /* link in bb */
+    List bb_link;
+    /* ->bb */
+    KLVMBasicBlock *bb;
+};
+
+/* local iteration */
+#define local_foreach(local, bb, closure) \
+    list_foreach(local, bb_link, &(bb)->local_list, closure)
+
 /* function */
 struct _KLVMFunc {
-    /* name */
-    char *name;
-    /* type */
-    TypeDesc *type;
-    /* tags of valdef */
-    int def_tags;
-    /* tags of basic block */
-    int bb_tags;
-    /* number of basic block */
-    int num_bbs;
+    KLVM_VALUE_HEAD
+    /* value tag */
+    int val_tag;
+    /* basic block tag */
+    int bb_tag;
     /* basic block list */
     List bb_list;
     /* all edges */
     List edge_list;
-    /* local varables */
-    Vector locals;
-    /* number of parameters */
-    int num_params;
+    /* arguments */
+    Vector args;
     /* start basic block */
     KLVMBasicBlock *sbb;
     /* end basic block */
@@ -163,23 +160,20 @@ struct _KLVMFunc {
 };
 
 /* Get function prototype */
-TypeDesc *klvm_get_func_type(KLVMFunc *fn);
+TypeDesc *klvm_get_functype(KLVMFunc *fn);
 
 /* Get function param by index */
 KLVMValue *klvm_get_param(KLVMFunc *fn, int index);
 
-/* Add a local variable */
-KLVMValue *klvm_add_local(KLVMFunc *fn, TypeDesc *ty, char *name);
+/* Set value name */
+void klvm_set_name(KLVMValue *val, char *name);
 
 struct _KLVMBasicBlock {
-    /* linked in KLVMFunction */
-    List bb_link;
-    /* -> KLVMFunction */
+    KLVM_VALUE_HEAD
+    /* linked in KLVMFunc */
+    List link;
+    /* ->KLVMFunc */
     KLVMFunc *func;
-    /* tagged name */
-    char *label;
-    /* tagged number */
-    int tag;
 
     /* computed by liveness analysis.*/
     struct {
@@ -199,9 +193,13 @@ struct _KLVMBasicBlock {
         BitVector *liveouts;
     };
 
-    int num_insts;
+    /* locals */
+    List local_list;
+    /* instructions */
     List inst_list;
+    /* in edges */
     List in_edges;
+    /* out edges */
     List out_edges;
 };
 
@@ -218,8 +216,8 @@ KLVMBasicBlock *klvm_add_block_before(KLVMBasicBlock *bb, char *label);
 void klvm_delete_block(KLVMBasicBlock *bb);
 
 /* basic block iteration */
-#define basic_block_foreach(bb, bb_list, closure) \
-    list_foreach(bb, bb_link, bb_list, closure)
+#define block_foreach(bb, fn, closure) \
+    list_foreach(bb, link, &(fn)->bb_list, closure)
 
 struct _KLVMEdge {
     /* linked in KLVMFunc */
@@ -238,19 +236,35 @@ struct _KLVMEdge {
 void klvm_link_age(KLVMBasicBlock *src, KLVMBasicBlock *dst);
 
 /* edge-out iteration */
-#define edge_out_foreach(edge, out_list, closure) \
-    list_foreach(edge, out_link, out_list, closure)
+#define edge_out_foreach(edge, bb, closure) \
+    list_foreach(edge, out_link, &(bb)->out_edges, closure)
 
 /* edge-in iteration */
-#define edge_in_foreach(edge, in_list, closure) \
-    list_foreach(edge, in_link, in_list, closure)
+#define edge_in_foreach(edge, bb, closure) \
+    list_foreach(edge, in_link, &(bb)->in_edges, closure)
+
+#define edge_out_empty(bb) list_empty(&(bb)->out_edges)
+#define edge_out_first(bb) list_first(&(bb)->out_edges, KLVMEdge, out_link)
+#define edge_out_last(bb)  list_last(&(bb)->out_edges, KLVMEdge, out_link)
+
+#define edge_in_empty(bb) list_empty(&(bb)->in_edges)
+#define edge_in_first(bb) list_first(&(bb)->in_edges, KLVMEdge, in_link)
+#define edge_in_last(bb)  list_last(&(bb)->in_edges, KLVMEdge, in_link)
 
 #include "inst.h"
-#include "interval.h"
+// #include "interval.h"
 #include "pass.h"
 
 /* print instruction */
 void klvm_print_inst(KLVMFunc *fn, KLVMInst *inst, FILE *fp);
+
+/* Print a module */
+void klvm_print_module(KLVMModule *m, FILE *fp);
+
+/* Dump a module */
+/* clang-format off */
+#define klvm_dump_module(m) klvm_print_module(m, stdout); fflush(stdout)
+/* clang-format on */
 
 #ifdef __cplusplus
 }

@@ -20,22 +20,34 @@
 extern "C" {
 #endif
 
+typedef struct _KLVMPassGroup KLVMPassGroup;
+
+struct _KLVMPassGroup {
+    List list;
+};
+
 typedef void (*KLVMPassFunc)(KLVMFunc *fn, void *arg);
 
+/* Initialize passes */
+void klvm_init_passes(KLVMPassGroup *grp);
+
 /* Finalize passes */
-void klvm_fini_passes(List *list);
+void klvm_fini_passes(KLVMPassGroup *grp);
 
 /* Register pass */
-void klvm_register_pass(List *list, KLVMPassFunc fn, void *arg);
+void klvm_register_pass(KLVMPassGroup *grp, KLVMPassFunc fn, void *arg);
 
 /* Execute passes */
-void klvm_run_passes(List *list, KLVMModule *m);
+void klvm_run_passes(KLVMPassGroup *grp, KLVMModule *m);
 
 /* Add check unreachable block pass */
-void klvm_add_unreachblock_pass(List *list);
+void klvm_add_unreachblock_pass(KLVMPassGroup *grp);
 
 /* Add gen graphviz dot file and pdf pass */
-void klvm_add_dot_pass(List *list);
+void klvm_add_dot_pass(KLVMPassGroup *grp);
+
+/* Add check unused variable pass */
+void klvm_add_check_unused_pass(KLVMPassGroup *grp);
 
 #ifdef __cplusplus
 }
