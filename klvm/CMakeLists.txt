@@ -18,3 +18,13 @@ set_target_properties(klvm_so PROPERTIES
     VERSION ${KOALA_VERSION}
     SOVERSION ${KOALA_VERSION_MAJOR}
     OUTPUT_NAME koala-klvm)
+
+install(TARGETS klvm DESTINATION koala-${KOALA_VERSION_MAIN}/lib)
+install(TARGETS klvm_so DESTINATION koala-${KOALA_VERSION_MAIN}/lib)
+
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/klvm/
+    DESTINATION koala-${KOALA_VERSION_MAIN}/include/klvm
+    FILES_MATCHING
+    PATTERN "*.h"
+    PATTERN "opcode.h" EXCLUDE
+    PATTERN "interval.h" EXCLUDE)

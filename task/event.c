@@ -1,15 +1,13 @@
 /*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
 |*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
 #define _POSIX_C_SOURCE 200112L
-#include "task_event.h"
-#include "task_timer.h"
+#include "event.h"
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
@@ -18,6 +16,7 @@
 #include <sys/timerfd.h>
 #include <time.h>
 #include <unistd.h>
+#include "timer.h"
 
 #ifdef __cplusplus
 extern "C" {

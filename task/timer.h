@@ -1,17 +1,16 @@
 /*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
 |*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
 #ifndef _KOALA_TASK_TIMER_H_
 #define _KOALA_TASK_TIMER_H_
 
-#include "binheap.h"
 #include <stdint.h>
+#include "util/binheap.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,7 +23,7 @@ typedef void (*timer_func_t)(void *);
 
 /* timer structure */
 typedef struct task_timer {
-    binheap_entry_t entry;
+    BinHeapEntry entry;
     uint64_t tmo;
     timer_func_t func;
     void *arg;

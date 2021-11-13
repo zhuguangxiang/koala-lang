@@ -39,6 +39,7 @@ add_subdirectory(klvm)
 # add_subdirectory(v0.9)
 add_subdirectory(parser)
 add_subdirectory(main)
+add_subdirectory(task)
 
 if(ENABLE_TEST)
     enable_testing()

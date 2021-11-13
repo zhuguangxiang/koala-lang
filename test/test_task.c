@@ -1,16 +1,15 @@
 /*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
 |*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#include "task.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "task/task.h"
 
 void *hello(void *arg)
 {

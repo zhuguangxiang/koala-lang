@@ -29,4 +29,6 @@ test(test_klvm klvm)
 
 ## test(test_liveness koala)
 # test(test_vm core)
-# test(test_vm_fib core)
+test(test_task task)
+test(test_timer task)
+test(test_task_done task)

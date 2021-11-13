@@ -1,15 +1,12 @@
 /*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
 |*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
 #define _POSIX_C_SOURCE 200112L
-#include "common.h"
-#include "task.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
@@ -18,11 +15,11 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "task/task.h"
+#include "util/common.h"
 
 /*
-gcc -g src/mm.c src/binheap.c libtask/task.c libtask/task_timer.c \
-libtask/task_event.c test/test_task_echo_server_io.c -I./include -I./libtask
--lpthread
+gcc -g test/test_task_echo_server_aio.c -I./ -lkoala-task -L./build/task
 */
 int start_server(const char *host, const char *port)
 {
@@ -33,7 +30,9 @@ int start_server(const char *host, const char *port)
     getaddrinfo(host, port, &hints, &res);
 
     int sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (sockfd < 0) { return -1; }
+    if (sockfd < 0) {
+        return -1;
+    }
     if (bind(sockfd, res->ai_addr, res->ai_addrlen)) {
         close(sockfd);
         return -1;
@@ -54,9 +53,10 @@ void *client_routine(void *param)
         if (!strncmp(buffer, "exit", 4)) {
             write(sock, "bye\n", 4);
             break;
-        }
-        else {
-            if (num_read != write(sock, buffer, num_read)) { break; }
+        } else {
+            if (num_read != write(sock, buffer, num_read)) {
+                break;
+            }
         }
     }
     close(sock);

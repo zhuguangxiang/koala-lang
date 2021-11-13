@@ -1,9 +1,8 @@
 /*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
 |*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
@@ -17,9 +16,10 @@
 #include <sys/sysinfo.h>
 #include <unistd.h>
 #include <valgrind/valgrind.h>
-#include "common.h"
-#include "task_event.h"
-#include "task_timer.h"
+#include "event.h"
+#include "timer.h"
+#include "util/common.h"
+#include "util/mm.h"
 
 #ifdef __cplusplus
 extern "C" {

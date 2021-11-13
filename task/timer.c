@@ -1,23 +1,22 @@
 /*===----------------------------------------------------------------------===*\
-|*                               Koala                                        *|
-|*                 The Multi-Paradigm Programming Language                    *|
 |*                                                                            *|
-|* MIT License                                                                *|
-|* Copyright (c) ZhuGuangXiang https://github.com/zhuguangxiang               *|
+|* This file is part of the koala-lang project, under the MIT License.        *|
+|*                                                                            *|
+|* Copyright (c) 2018-2021 James <zhuguangxiang@gmail.com>                    *|
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#include "task_timer.h"
-#include "common.h"
+#include "timer.h"
 #include <assert.h>
 #include <pthread.h>
+#include "util/common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 static pthread_mutex_t timer_lock;
-static binheap_t timer_heap;
+static BinHeap timer_heap;
 static uint64_t timer_trigger;
 
 static int timer_cmp_func(task_timer_t *p, task_timer_t *c)
@@ -28,7 +27,7 @@ static int timer_cmp_func(task_timer_t *p, task_timer_t *c)
 
 void init_timer(void)
 {
-    binheap_init(&timer_heap, 0, (binheap_cmp_t)timer_cmp_func);
+    binheap_init(&timer_heap, 0, (BinHeapCmpFunc)timer_cmp_func);
     pthread_mutex_init(&timer_lock, NULL);
 }
 
@@ -60,15 +59,15 @@ void timer_stop(task_timer_t *tm)
 void timer_poll(uint64_t trigger)
 {
     timer_trigger += trigger;
-    binheap_entry_t *e = binheap_top(&timer_heap);
+    BinHeapEntry *e = binheap_top(&timer_heap);
     if (!e) return;
-    task_timer_t *tm = container_of(e, task_timer_t, entry);
+    task_timer_t *tm = CONTAINER_OF(e, task_timer_t, entry);
     while (tm->tmo <= timer_trigger) {
         binheap_delete(&timer_heap, e);
         tm->func(tm);
         e = binheap_top(&timer_heap);
         if (!e) break;
-        tm = container_of(e, task_timer_t, entry);
+        tm = CONTAINER_OF(e, task_timer_t, entry);
     }
 }
 
