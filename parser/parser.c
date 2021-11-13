@@ -352,7 +352,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
             }
             ty = lexp->type->ty;
             break;
-        case BINARY_LSHIFT:
+        case BINARY_SHL:
             if (!desc_is_integer(lexp->type->ty) ||
                 !desc_is_integer(rexp->type->ty)) {
                 show_binary_error(ps, bexp, "<<");
@@ -360,7 +360,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
             }
             ty = lexp->type->ty;
             break;
-        case BINARY_RSHIFT:
+        case BINARY_SHR:
             if (!desc_is_integer(lexp->type->ty) ||
                 !desc_is_integer(rexp->type->ty)) {
                 show_binary_error(ps, bexp, ">>");

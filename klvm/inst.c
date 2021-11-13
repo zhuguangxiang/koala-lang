@@ -131,11 +131,11 @@ static int iscmp(KLVMOpCode op)
     return 0;
 }
 
-KLVMValue *klvm_build_binary(KLVMBuilder *bldr, KLVMOpCode op, KLVMValue *lhs,
-                             KLVMValue *rhs, char *name)
+static KLVMValue *klvm_build_binary(KLVMBuilder *bldr, KLVMOpCode op,
+                                    KLVMValue *lhs, KLVMValue *rhs)
 {
     TypeDesc *ty = iscmp(op) ? desc_from_bool() : lhs->type;
-    KLVMInst *inst = alloc_inst(op, 2, name);
+    KLVMInst *inst = alloc_inst(op, 2, null);
     inst->type = ty;
 
     // lhs and rhs both maybe constant or user.
@@ -146,11 +146,66 @@ KLVMValue *klvm_build_binary(KLVMBuilder *bldr, KLVMOpCode op, KLVMValue *lhs,
     return (KLVMValue *)inst;
 }
 
+KLVMValue *klvm_build_add(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_ADD, lhs, rhs);
+}
+
+KLVMValue *klvm_build_sub(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_SUB, lhs, rhs);
+}
+
+KLVMValue *klvm_build_mul(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_MUL, lhs, rhs);
+}
+
+KLVMValue *klvm_build_div(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_DIV, lhs, rhs);
+}
+
+KLVMValue *klvm_build_mod(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_MOD, lhs, rhs);
+}
+
+KLVMValue *klvm_build_cmple(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_CMP_LE, lhs, rhs);
+}
+
+KLVMValue *klvm_build_cmplt(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_CMP_LT, lhs, rhs);
+}
+
+KLVMValue *klvm_build_cmpge(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_CMP_GE, lhs, rhs);
+}
+
+KLVMValue *klvm_build_cmpgt(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_CMP_GT, lhs, rhs);
+}
+
+KLVMValue *klvm_build_cmpeq(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_CMP_EQ, lhs, rhs);
+}
+
+KLVMValue *klvm_build_cmpne(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs)
+{
+    return klvm_build_binary(bldr, KLVM_OP_CMP_NE, lhs, rhs);
+}
+
 KLVMValue *klvm_build_call(KLVMBuilder *bldr, KLVMFunc *fn, KLVMValue *args[],
-                           int size, char *name)
+                           int size)
 {
     TypeDesc *ty = proto_ret(fn->type);
-    KLVMInst *inst = alloc_inst(KLVM_OP_CALL, size + 1, name);
+    KLVMInst *inst = alloc_inst(KLVM_OP_CALL, size + 1, null);
     inst->type = ty;
 
     init_operand(&inst->operands[0], inst, (KLVMValue *)fn);
@@ -162,7 +217,7 @@ KLVMValue *klvm_build_call(KLVMBuilder *bldr, KLVMFunc *fn, KLVMValue *args[],
     }
 
     append_inst(bldr, inst);
-    return (KLVMValue *)inst;
+    return ty ? (KLVMValue *)inst : null;
 }
 
 void klvm_build_jmp(KLVMBuilder *bldr, KLVMBasicBlock *dst)

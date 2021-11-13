@@ -574,11 +574,11 @@ assignop
     }
     | SHL_ASSIGN
     {
-        $$ = OP_LSHIFT_ASSIGN;
+        $$ = OP_SHL_ASSIGN;
     }
     | SHR_ASSIGN
     {
-        $$ = OP_RSHIFT_ASSIGN;
+        $$ = OP_SHR_ASSIGN;
     }
     ;
 
@@ -1380,12 +1380,12 @@ shift_expr
     }
     | shift_expr R_ANGLE_SHIFT '>' add_expr
     {
-        $$ = expr_from_binary(BINARY_RSHIFT, loc(@2), $1, $4);
+        $$ = expr_from_binary(BINARY_SHR, loc(@2), $1, $4);
         expr_set_loc($$, loc(@1));
     }
     | shift_expr L_SHIFT add_expr
     {
-        $$ = expr_from_binary(BINARY_LSHIFT, loc(@2), $1, $3);
+        $$ = expr_from_binary(BINARY_SHL, loc(@2), $1, $3);
         expr_set_loc($$, loc(@1));
     }
     | shift_expr R_ANGLE_SHIFT '>' error

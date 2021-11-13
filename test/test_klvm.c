@@ -24,7 +24,7 @@ static void test_fib(KLVMModule *m)
     KLVMBuilder bldr;
 
     klvm_builder_end(&bldr, entry);
-    KLVMValue *cond = klvm_build_cmple(&bldr, n, klvm_const_int32(1), null);
+    KLVMValue *cond = klvm_build_cmple(&bldr, n, klvm_const_int32(1));
     klvm_build_condjmp(&bldr, cond, _then, _else);
 
     klvm_builder_end(&bldr, _then);
@@ -32,14 +32,14 @@ static void test_fib(KLVMModule *m)
 
     klvm_builder_end(&bldr, _else);
     KLVMValue *args1[] = {
-        klvm_build_sub(&bldr, n, klvm_const_int32(1), "x1"),
+        klvm_build_sub(&bldr, n, klvm_const_int32(1)),
     };
-    KLVMValue *r1 = klvm_build_call(&bldr, fn, args1, 1, null);
+    KLVMValue *r1 = klvm_build_call(&bldr, fn, args1, 1);
     KLVMValue *args2[] = {
-        klvm_build_sub(&bldr, n, klvm_const_int32(2), ""),
+        klvm_build_sub(&bldr, n, klvm_const_int32(2)),
     };
-    KLVMValue *r2 = klvm_build_call(&bldr, fn, args2, 1, null);
-    klvm_build_ret(&bldr, klvm_build_add(&bldr, r1, r2, null));
+    KLVMValue *r2 = klvm_build_call(&bldr, fn, args2, 1);
+    klvm_build_ret(&bldr, klvm_build_add(&bldr, r1, r2));
 
     klvm_build_ret(&bldr, klvm_const_int32(100));
 }
@@ -59,9 +59,9 @@ static void test_func(KLVMModule *m)
 
     klvm_build_copy(&bldr, v1, klvm_const_int32(1));
     klvm_build_copy(&bldr, v2, klvm_const_int32(2));
-    KLVMValue *v4 = klvm_build_add(&bldr, v1, v2, null);
+    KLVMValue *v4 = klvm_build_add(&bldr, v1, v2);
     klvm_build_copy(&bldr, v3, v4);
-    KLVMValue *v5 = klvm_build_sub(&bldr, v1, v2, null);
+    KLVMValue *v5 = klvm_build_sub(&bldr, v1, v2);
     klvm_build_copy(&bldr, v3, v5);
     klvm_set_name(v5, "xyz");
     klvm_build_ret(&bldr, v3);

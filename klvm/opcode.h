@@ -49,7 +49,6 @@ typedef enum _KLVMOpCode {
     KLVM_OP_BIT_NOT,
 
     KLVM_OP_CALL,
-    KLVM_OP_CALL_VOID,
 
     KLVM_OP_RET,
     KLVM_OP_RET_VOID,
@@ -59,8 +58,11 @@ typedef enum _KLVMOpCode {
     KLVM_OP_FIELD_GET,
     KLVM_OP_FIELD_SET,
 
-    KLVM_OP_SUBSCR_GET,
-    KLVM_OP_SUBSCR_SET,
+    KLVM_OP_INDEX_GET,
+    KLVM_OP_INDEX_SET,
+
+    KLVM_OP_MAP_GET,
+    KLVM_OP_MAP_SET,
 
     KLVM_OP_NEW_ARRAY,
     KLVM_OP_NEW_MAP,

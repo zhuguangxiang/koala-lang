@@ -345,12 +345,12 @@ Stmt *stmt_from_assign(AssignOpKind op, Loc oploc, Expr *lhs, Expr *rhs)
             rexp = expr_from_binary(BINARY_MOD, oploc, lhs, rhs);
             expr_set_loc(rexp, rhs->loc);
             break;
-        case OP_LSHIFT_ASSIGN:
-            rexp = expr_from_binary(BINARY_LSHIFT, oploc, lhs, rhs);
+        case OP_SHL_ASSIGN:
+            rexp = expr_from_binary(BINARY_SHL, oploc, lhs, rhs);
             expr_set_loc(rexp, rhs->loc);
             break;
-        case OP_RSHIFT_ASSIGN:
-            rexp = expr_from_binary(BINARY_RSHIFT, oploc, lhs, rhs);
+        case OP_SHR_ASSIGN:
+            rexp = expr_from_binary(BINARY_SHR, oploc, lhs, rhs);
             expr_set_loc(rexp, rhs->loc);
             break;
         case OP_AND_ASSIGN:

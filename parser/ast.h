@@ -226,8 +226,8 @@ enum _BinOpkind {
     BINARY_MULT,
     BINARY_DIV,
     BINARY_MOD,
-    BINARY_LSHIFT,
-    BINARY_RSHIFT,
+    BINARY_SHL,
+    BINARY_SHR,
 
     /* &, ^, | */
     BINARY_BIT_AND,
@@ -351,8 +351,8 @@ enum _AssignOpKind {
     OP_MULT_ASSIGN,
     OP_DIV_ASSIGN,
     OP_MOD_ASSIGN,
-    OP_LSHIFT_ASSIGN,
-    OP_RSHIFT_ASSIGN,
+    OP_SHL_ASSIGN,
+    OP_SHR_ASSIGN,
     OP_AND_ASSIGN,
     OP_OR_ASSIGN,
     OP_XOR_ASSIGN,
