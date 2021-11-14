@@ -35,19 +35,26 @@ void klvm_init_passes(KLVMPassGroup *grp);
 void klvm_fini_passes(KLVMPassGroup *grp);
 
 /* Register pass */
-void klvm_register_pass(KLVMPassGroup *grp, KLVMPassFunc fn, void *arg);
+void klvm_add_pass(KLVMPassGroup *grp, KLVMPassFunc fn, void *arg);
 
 /* Execute passes */
 void klvm_run_passes(KLVMPassGroup *grp, KLVMModule *m);
 
-/* Add check unreachable block pass */
-void klvm_add_unreachblock_pass(KLVMPassGroup *grp);
+/*----------------------------------------------------------------------------*\
+|*                                 Passes                                     *|
+\*----------------------------------------------------------------------------*/
+
+/* Unused block checker pass */
+void klvm_check_unused_block_pass(KLVMFunc *fn, void *arg);
 
 /* Add gen graphviz dot file and pdf pass */
 void klvm_add_dot_pass(KLVMPassGroup *grp);
 
-/* Add check unused variable pass */
-void klvm_add_check_unused_pass(KLVMPassGroup *grp);
+/* Unused value checker pass */
+void klvm_check_unused_value_pass(KLVMFunc *fn, void *arg);
+
+/* Print liveness pass */
+void klvm_print_liveness_pass(KLVMFunc *fn, void *arg);
 
 #ifdef __cplusplus
 }

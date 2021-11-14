@@ -77,10 +77,8 @@ static void print_operand(KLVMFunc *fn, KLVMOper *oper, FILE *fp)
         print_const(val, fp);
         fprintf(fp, " ");
         print_type(val->type, fp);
-    } else if (kind == KLVM_OPER_USE) {
-        print_use(fn, oper->use, fp);
     } else {
-        panic("invalid operand");
+        print_use(fn, oper->use, fp);
     }
 }
 
@@ -117,7 +115,7 @@ static void print_call(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
     print_operand(fn, &inst->operands[0], fp);
     fprintf(fp, "(");
     KLVMOper *oper;
-    for (int i = 1; i < inst->num_ops; i++) {
+    for (int i = 1; i < inst->num_opers; i++) {
         oper = &inst->operands[i];
         print_operand(fn, oper, fp);
     }
@@ -133,7 +131,7 @@ static void print_ret(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
 
 static void print_jmp(KLVMInst *inst, FILE *fp)
 {
-    fprintf(fp, "jmp ");
+    fprintf(fp, "br ");
 
     KLVMValue *val = inst->operands[0].use->parent;
     if (val->name[0])
@@ -175,6 +173,12 @@ void klvm_print_inst(KLVMFunc *fn, KLVMInst *inst, FILE *fp)
         case KLVM_OP_CMP_LE:
             print_binary(inst, "cmple", fn, fp);
             break;
+        case KLVM_OP_CMP_LT:
+            print_binary(inst, "cmplt", fn, fp);
+            break;
+        case KLVM_OP_CMP_GE:
+            print_binary(inst, "cmpge", fn, fp);
+            break;
         case KLVM_OP_CALL:
             print_call(inst, fn, fp);
             break;
@@ -194,36 +198,45 @@ void klvm_print_inst(KLVMFunc *fn, KLVMInst *inst, FILE *fp)
 
 static void print_preds(KLVMBasicBlock *bb, int spaces, FILE *fp)
 {
-    fprintf(fp, "%*s = %%", spaces, ";; preds");
+    fprintf(fp, "%*s = ", spaces, ";; preds");
 
     KLVMBasicBlock *src;
     KLVMEdge *edge;
     int i = 0;
     edge_in_foreach(edge, bb, {
         src = edge->src;
-        if (i++ == 0)
-            fprintf(fp, "%s", src->name);
-        else
-            fprintf(fp, ", %s", src->name);
+        if (i++ == 0) {
+            if (src->name[0]) {
+                fprintf(fp, "%%%s", src->name);
+            } else {
+                fprintf(fp, "%%bb%d", src->tag);
+            }
+        } else {
+            if (src->name[0]) {
+                fprintf(fp, ", %%%s", src->name);
+            } else {
+                fprintf(fp, ", %%bb%d", src->tag);
+            }
+        }
     });
 }
 
 static void print_block(KLVMBasicBlock *bb, FILE *fp)
 {
-    int left = 0;
+    int used = 0;
 
     if (bb->name[0])
-        left = fprintf(fp, "%%%s:", bb->name);
+        used = fprintf(fp, "%%%s:", bb->name);
     else
-        left = fprintf(fp, "%%bb%d:", bb->tag);
+        used = fprintf(fp, "%%bb%d:", bb->tag);
 
     // print predecessors
     if (edge_in_empty(bb)) {
-        fprintf(fp, "%*s", 48 - left, ";; No preds!");
+        fprintf(fp, "%*s", 50 - used + 12, ";; No preds!");
     } else {
         KLVMFunc *fn = bb->func;
         KLVMEdge *edge = edge_in_first(bb);
-        if (edge->src != fn->sbb) print_preds(bb, 48 - left, fp);
+        if (edge->src != fn->sbb) print_preds(bb, 50 - used + 8, fp);
     }
 
     // print locals
@@ -250,7 +263,7 @@ static void update_tags(KLVMFunc *fn)
     KLVMBasicBlock *bb;
     KLVMLocal *local;
     KLVMInst *inst;
-    block_foreach(bb, fn, {
+    basic_block_foreach(bb, fn, {
         if (!bb->name[0]) bb->tag = fn->bb_tag++;
 
         local_foreach(local, bb, {
@@ -290,12 +303,13 @@ static void print_func(KLVMFunc *fn, FILE *fp)
 
     // print basic blocks directly(not cfg)
     KLVMBasicBlock *bb;
-    block_foreach(bb, fn, {
+    basic_block_foreach(bb, fn, {
         fprintf(fp, "\n");
         print_block(bb, fp);
+        fprintf(fp, "\n");
     });
 
-    fprintf(fp, "\n}\n\n");
+    fprintf(fp, "}\n\n");
 }
 
 void klvm_print_module(KLVMModule *m, FILE *fp)
@@ -307,6 +321,28 @@ void klvm_print_module(KLVMModule *m, FILE *fp)
 
     KLVMFunc **fn;
     vector_foreach(fn, &m->functions, { print_func(*fn, fp); });
+}
+
+void klvm_print_liveness(KLVMFunc *fn, FILE *fp)
+{
+    fprintf(fp, "Liveness `@%s`:\n", fn->name);
+    fprintf(fp, "  Instructions: %d\n", fn->num_insts);
+    fprintf(fp, "  registers: %d\n", fn->vregs);
+    KLVMBasicBlock *bb;
+    basic_block_foreach(bb, fn, {
+        fprintf(fp, "\n");
+        if (bb->name[0])
+            fprintf(fp, "  BB of `%%%s`:\n", bb->name);
+        else
+            fprintf(fp, "  BB of `%%bb%d`:\n", bb->tag);
+        fprintf(fp, "    Instructions: %d\n", bb->num_insts);
+        fprintf(fp, "    Range: [%d, %d)\n", bb->start, bb->end);
+        bitvector_show(&bb->uses);
+        bitvector_show(&bb->defs);
+        bitvector_show(&bb->live_ins);
+        bitvector_show(&bb->live_outs);
+    });
+    fprintf(fp, "\n");
 }
 
 #ifdef __cplusplus

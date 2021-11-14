@@ -35,7 +35,7 @@ void klvm_fini_passes(KLVMPassGroup *grp)
     });
 }
 
-void klvm_register_pass(KLVMPassGroup *grp, KLVMPassFunc fn, void *arg)
+void klvm_add_pass(KLVMPassGroup *grp, KLVMPassFunc fn, void *arg)
 {
     KLVMPass *pass = mm_alloc_obj(pass);
     init_list(&pass->link);
@@ -71,12 +71,13 @@ static void __visit_block(KLVMBasicBlock *bb, Vector *visited)
 {
     KLVMEdge *edge;
     edge_out_foreach(edge, bb, {
+        if (__is_visited(edge->dst, visited)) continue;
         vector_push_back(visited, &edge->dst);
         __visit_block(edge->dst, visited);
     });
 }
 
-static void __unreach_block_pass(KLVMFunc *fn, void *arg)
+void klvm_check_unused_block_pass(KLVMFunc *fn, void *arg)
 {
     Vector visited;
     vector_init_ptr(&visited);
@@ -86,16 +87,11 @@ static void __unreach_block_pass(KLVMFunc *fn, void *arg)
 
     /* check unreachable blocks */
     KLVMBasicBlock *bb;
-    block_foreach(bb, fn, {
+    basic_block_foreach(bb, fn, {
         if (!__is_visited(bb, &visited)) {
             printf("warn: bb: %s is unreachable\n", bb->name);
         }
     });
-}
-
-void klvm_add_unreachblock_pass(KLVMPassGroup *grp)
-{
-    klvm_register_pass(grp, __unreach_block_pass, null);
 }
 
 /* Pass: Generate graphviz dot file and pdf */
@@ -161,7 +157,7 @@ static void __dot_pass(KLVMFunc *fn, void *arg)
 
     KLVMBasicBlock *bb;
     KLVMInst *inst;
-    block_foreach(bb, fn, {
+    basic_block_foreach(bb, fn, {
         fprintf(fp, "  %s", bb->name);
         inst = inst_last(bb);
         if (inst && inst->opcode == KLVM_OP_COND_JMP) {
@@ -186,14 +182,14 @@ static void __dot_pass(KLVMFunc *fn, void *arg)
 
 void klvm_add_dot_pass(KLVMPassGroup *grp)
 {
-    klvm_register_pass(grp, __dot_pass, null);
+    klvm_add_pass(grp, __dot_pass, null);
 }
 
-void __unused_val_pass(KLVMFunc *fn, void *arg)
+void klvm_check_unused_value_pass(KLVMFunc *fn, void *arg)
 {
     KLVMBasicBlock *bb;
     KLVMLocal *local;
-    block_foreach(bb, fn, {
+    basic_block_foreach(bb, fn, {
         local_foreach(local, bb, {
             if (list_empty(&local->use_list)) {
                 if (local->name[0]) {
@@ -206,9 +202,11 @@ void __unused_val_pass(KLVMFunc *fn, void *arg)
     });
 }
 
-void klvm_add_check_unused_pass(KLVMPassGroup *grp)
+void klvm_print_liveness_pass(KLVMFunc *fn, void *arg)
 {
-    klvm_register_pass(grp, __unused_val_pass, null);
+    klvm_analyze_liveness(fn);
+
+    klvm_print_liveness(fn, stdout);
 }
 
 #ifdef __cplusplus

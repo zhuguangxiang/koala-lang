@@ -5,7 +5,7 @@
 #
 
 set(KLVM_SRCS
-    klvm.c inst.c pass.c printer.c)
+    klvm.c inst.c pass.c printer.c liveness.c)
 
 add_library(klvm STATIC ${KLVM_SRCS})
 target_link_libraries(klvm util)

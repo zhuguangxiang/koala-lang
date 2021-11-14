@@ -66,6 +66,7 @@ static void __add_param(KLVMFunc *fn, TypeDesc *ty, char *name)
     arg->name = name ? name : "";
     arg->type = ty;
     vector_push_back(&fn->args, &arg);
+    arg->vreg = fn->vregs++;
 }
 
 static KLVMFunc *__new_func(TypeDesc *ty, char *name)
@@ -280,21 +281,17 @@ void klvm_link_age(KLVMBasicBlock *src, KLVMBasicBlock *dst)
     list_push_back(&dst->in_edges, &edge->in_link);
 }
 
-/*
-void KLVMComputeInsnPositions(KLVMValueRef _fn)
+void klvm_compute_inst_positions(KLVMFunc *fn)
 {
-    KLVMFuncRef fn = (KLVMFuncRef)_fn;
-
     int pos = 0;
-    KLVMInsnRef insn;
-    KLVMBasicBlockRef bb;
-    BasicBlockForEach(bb, &fn->bb_list, {
+    KLVMInst *inst;
+    KLVMBasicBlock *bb;
+    basic_block_foreach(bb, fn, {
         bb->start = pos;
-        InsnForEach(insn, &bb->insns, { insn->pos = pos++; });
+        inst_foreach(inst, bb, { inst->pos = pos++; });
         bb->end = pos;
     });
 }
-*/
 
 #ifdef __cplusplus
 }

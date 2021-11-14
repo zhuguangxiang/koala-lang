@@ -40,8 +40,6 @@ static void test_fib(KLVMModule *m)
     };
     KLVMValue *r2 = klvm_build_call(&bldr, fn, args2, 1);
     klvm_build_ret(&bldr, klvm_build_add(&bldr, r1, r2));
-
-    klvm_build_ret(&bldr, klvm_const_int32(100));
 }
 
 static void test_func(KLVMModule *m)
@@ -72,6 +70,60 @@ static void test_func(KLVMModule *m)
     klvm_add_var(m, "bar", desc_from_str());
 }
 
+static void test_func2(KLVMModule *m)
+{
+    /*
+        func sum(n int) int {
+            i := 0
+            sum := 0
+            while (i < n) {
+                sum = sum + i;
+                i = i + 1;
+            }
+            return sum;
+        }
+     */
+    TypeDesc *rtype = desc_from_int32();
+    TypeDesc *params[] = { desc_from_int32() };
+    TypeDesc *proto = desc_from_proto2(rtype, params, 1);
+    KLVMFunc *fn = klvm_add_func(m, "sum", proto);
+    KLVMValue *n = klvm_get_param(fn, 0);
+    klvm_set_name(n, "n");
+
+    KLVMBasicBlock *entry = klvm_append_block(fn, "entry");
+    KLVMBuilder bldr;
+    klvm_builder_end(&bldr, entry);
+
+    KLVMValue *i = klvm_build_local(&bldr, desc_from_int32(), "");
+    klvm_build_copy(&bldr, i, klvm_const_int32(0));
+    KLVMValue *sum = klvm_build_local(&bldr, desc_from_int32(), "sum");
+    klvm_build_copy(&bldr, sum, klvm_const_int32(0));
+
+    KLVMBasicBlock *cond = klvm_append_block(fn, "cond");
+    // link to entry block
+    klvm_build_jmp(&bldr, cond);
+
+    KLVMBasicBlock *loop = klvm_append_block(fn, "");
+    KLVMBasicBlock *end = klvm_append_block(fn, "");
+
+    /* condition block */
+    klvm_builder_end(&bldr, cond);
+    KLVMValue *cmplt = klvm_build_cmplt(&bldr, i, n);
+    klvm_build_condjmp(&bldr, cmplt, loop, end);
+
+    /* loop body block */
+    klvm_builder_end(&bldr, loop);
+    KLVMValue *tmp = klvm_build_add(&bldr, sum, klvm_const_int32(1));
+    klvm_build_copy(&bldr, sum, tmp);
+    tmp = klvm_build_add(&bldr, i, klvm_const_int32(1));
+    klvm_build_copy(&bldr, i, tmp);
+    klvm_build_jmp(&bldr, cond);
+
+    /* end block */
+    klvm_builder_end(&bldr, end);
+    klvm_build_ret(&bldr, sum);
+}
+
 int main(int argc, char *argv[])
 {
     init_desc();
@@ -79,14 +131,17 @@ int main(int argc, char *argv[])
     KLVMModule *m = klvm_create_module("test");
     test_fib(m);
     test_func(m);
+    test_func2(m);
     klvm_dump_module(m);
 
     KLVMPassGroup group;
     klvm_init_passes(&group);
-    klvm_add_unreachblock_pass(&group);
-    // klvm_add_dot_pass(&list);
-    klvm_add_check_unused_pass(&group);
+
+    klvm_add_pass(&group, klvm_check_unused_block_pass, null);
+    klvm_add_pass(&group, klvm_check_unused_value_pass, null);
+    klvm_add_pass(&group, klvm_print_liveness_pass, null);
     klvm_run_passes(&group, m);
+
     klvm_fini_passes(&group);
 
     klvm_destroy_module(m);

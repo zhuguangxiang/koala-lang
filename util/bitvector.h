@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-typedef uint64 BitWord;
+typedef uint8 BitWord;
 
 #define BITWORD_SIZE (sizeof(BitWord) * 8)
 

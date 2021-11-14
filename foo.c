@@ -1,4 +1,6 @@
 
+// clang -S -emit-llvm foo.c
+
 #include <stdio.h>
 
 int sum(int n)

@@ -40,7 +40,10 @@ struct _KLVMUse {
 enum _KLVMOperKind {
     KLVM_OPER_NONE,
     KLVM_OPER_CONST,
-    KLVM_OPER_USE,
+    KLVM_OPER_VAR,
+    KLVM_OPER_FUNC,
+    KLVM_OPER_BLOCK,
+    KLVM_OPER_REG,
 };
 
 struct _KLVMOper {
@@ -53,12 +56,12 @@ struct _KLVMOper {
 
 struct _KLVMInst {
     KLVM_VALUE_HEAD
-    /* register */
-    int reg;
+    /* linear position in function */
+    int pos;
     /* opcode */
     int opcode;
     /* number of operands */
-    int num_ops;
+    int num_opers;
     /* link in bb */
     List bb_link;
     /* ->bb */
@@ -101,6 +104,9 @@ static inline void klvm_builder_before(KLVMBuilder *bldr, KLVMInst *inst)
 #define inst_first(bb) list_first(&(bb)->inst_list, KLVMInst, bb_link)
 #define inst_last(bb)  list_last(&(bb)->inst_list, KLVMInst, bb_link)
 
+void klvm_get_uses(KLVMInst *inst, Vector *uses);
+KLVMValue *klvm_get_def(KLVMInst *inst);
+
 KLVMValue *klvm_build_local(KLVMBuilder *bldr, TypeDesc *ty, char *name);
 void klvm_build_copy(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
 KLVMValue *klvm_build_add(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
@@ -129,7 +135,7 @@ KLVMValue *klvm_build_shr(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
 
 void klvm_build_jmp(KLVMBuilder *bldr, KLVMBasicBlock *dst);
 void klvm_build_condjmp(KLVMBuilder *bldr, KLVMValue *cond,
-                        KLVMBasicBlock *_then, KLVMBasicBlock *_else);
+                        KLVMBasicBlock *_true, KLVMBasicBlock *_false);
 void klvm_build_ret(KLVMBuilder *bldr, KLVMValue *ret);
 void klvm_build_ret_void(KLVMBuilder *bldr);
 

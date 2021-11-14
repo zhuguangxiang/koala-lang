@@ -67,9 +67,9 @@ void bitvector_show(BitVector *bvec)
 {
     for (int i = 0; i < bvec->words; i++) {
         if (i == 0)
-            printf("%lx ", bvec->bits[i]);
+            printf("%x", bvec->bits[i]);
         else
-            printf("%lx", bvec->bits[i]);
+            printf(" %x", bvec->bits[i]);
     }
     printf("\n");
 }
