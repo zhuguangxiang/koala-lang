@@ -366,7 +366,7 @@ Stmt *stmt_from_assign(AssignOpKind op, Loc oploc, Expr *lhs, Expr *rhs)
             expr_set_loc(rexp, rhs->loc);
             break;
         default:
-            expect(0);
+            assert(0);
             break;
     }
     s->rhs = rexp;

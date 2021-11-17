@@ -93,13 +93,13 @@ TypeDesc *desc_from_proto2(TypeDesc *ret, TypeDesc *params[], int size);
 TypeDesc *desc_from_klass(char *path, char *name, Vector *args);
 static inline Vector *proto_params(TypeDesc *ty)
 {
-    expect(ty->kind == TYPE_PROTO_KIND);
+    assert(ty->kind == TYPE_PROTO_KIND);
     ProtoType *proto = (ProtoType *)ty;
     return proto->params;
 }
 static inline TypeDesc *proto_ret(TypeDesc *ty)
 {
-    expect(ty->kind == TYPE_PROTO_KIND);
+    assert(ty->kind == TYPE_PROTO_KIND);
     ProtoType *proto = (ProtoType *)ty;
     return proto->ret;
 }

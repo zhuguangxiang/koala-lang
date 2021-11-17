@@ -11,7 +11,7 @@ set(UTIL_SRCS
     hashmap.c
     binheap.c
     buffer.c
-    bitvector.c
+    bitset.c
     atom.c
     readline.c
     typedesc.c)

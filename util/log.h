@@ -21,8 +21,6 @@ extern "C" {
 
 /* clang-format off */
 
-#define _FILE_ ({ char *s = strrchr(__FILE__, '/'); s ? s + 1 : __FILE__; })
-
 #define _print_(clr, fmt, ...) fprintf(stdout, clr fmt "\n", ##__VA_ARGS__)
 
 #ifndef NLOG
@@ -31,22 +29,17 @@ extern "C" {
 #define warn(fmt, ...)  _print_(WARN_COLOR, fmt, ##__VA_ARGS__)
 #define error(fmt, ...) _print_(ERR_COLOR, fmt, ##__VA_ARGS__)
 #define log(fmt, ...)   fprintf(stdout, fmt "\n", ##__VA_ARGS__)
-#define expect(expr) if (!(expr)) { \
-    _print_(ERR_COLOR, "%s:%d: %s", _FILE_, __LINE__, #expr); abort(); \
-}
+
 #else /* NLOG */
 
 #define debug(fmt, ...) ((void)0)
 #define warn(fmt, ...)  ((void)0)
 #define error(fmt, ...) ((void)0)
 #define log(fmt, ...)   ((void)0)
-#define expect(expr)    ((void)0)
 
 #endif /* !NLOG */
 
-#define panic(fmt, ...) do { \
-    _print_(PANIC_COLOR, fmt, ##__VA_ARGS__); abort(); \
-} while (0)
+#define panic(fmt, ...) _print_(PANIC_COLOR, fmt, ##__VA_ARGS__); abort();
 
 /* clang-format on */
 

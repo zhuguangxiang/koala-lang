@@ -11,7 +11,7 @@ test(test_vector util)
 test(test_hashmap util)
 test(test_binheap util)
 test(test_buffer util)
-test(test_bitvector util)
+test(test_bitset util)
 test(test_atom util)
 
 # test(test_gc gc)

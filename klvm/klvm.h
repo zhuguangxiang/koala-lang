@@ -9,7 +9,7 @@
 #ifndef _KLVM_H_
 #define _KLVM_H_
 
-#include "util/bitvector.h"
+#include "util/bitset.h"
 #include "util/hashmap.h"
 #include "util/list.h"
 #include "util/typedesc.h"
@@ -205,16 +205,16 @@ struct _KLVMBasicBlock {
         int start, end;
 
         /* variables(registers) defined by this block */
-        BitVector defs;
+        BitSet *def_set;
 
         /* variables(registers) used by this block */
-        BitVector uses;
+        BitSet *use_set;
 
         /* variables(registers) that are live when entering this block */
-        BitVector live_ins;
+        BitSet *live_in_set;
 
         /* variables(registers) that are live when exiting this block */
-        BitVector live_outs;
+        BitSet *live_out_set;
     };
 };
 

@@ -27,14 +27,14 @@ static void __analyze_use_def(KLVMBasicBlock *bb, KLVMInst *inst)
          OUT(bb) = Union(IN(S)), S = successor
          IN(bb) = USE || (OUT(bb) - DEF)
         */
-        if (!bitvector_get(&bb->defs, (*item)->vreg)) {
-            bitvector_set(&bb->uses, (*item)->vreg);
+        if (!bits_test(bb->def_set, (*item)->vreg)) {
+            bits_set(bb->use_set, (*item)->vreg);
         }
     });
     vector_fini(&uses);
 
     KLVMValue *def = klvm_get_def(inst);
-    if (def) bitvector_set(&bb->defs, def->vreg);
+    if (def) bits_set(bb->def_set, def->vreg);
 }
 
 void klvm_analyze_liveness(KLVMFunc *fn)
@@ -47,10 +47,10 @@ void klvm_analyze_liveness(KLVMFunc *fn)
     /* initialize bit vectors */
     int vregs = fn->vregs;
     basic_block_foreach(bb, fn, {
-        bitvector_init(&bb->defs, vregs);
-        bitvector_init(&bb->uses, vregs);
-        bitvector_init(&bb->live_ins, vregs);
-        bitvector_init(&bb->live_outs, vregs);
+        bb->def_set = bits_new(vregs);
+        bb->use_set = bits_new(vregs);
+        bb->live_in_set = bits_new(vregs);
+        bb->live_out_set = bits_new(vregs);
     });
 
     /* analyze use & def */

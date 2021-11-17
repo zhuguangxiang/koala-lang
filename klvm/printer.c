@@ -337,10 +337,20 @@ void klvm_print_liveness(KLVMFunc *fn, FILE *fp)
             fprintf(fp, "  BB of `%%bb%d`:\n", bb->tag);
         fprintf(fp, "    Instructions: %d\n", bb->num_insts);
         fprintf(fp, "    Range: [%d, %d)\n", bb->start, bb->end);
-        bitvector_show(&bb->uses);
-        bitvector_show(&bb->defs);
-        bitvector_show(&bb->live_ins);
-        bitvector_show(&bb->live_outs);
+
+        fprintf(fp, "    Uses: ");
+        bits_show(bb->use_set, fp);
+
+        fprintf(fp, "\n    Defs: ");
+        bits_show(bb->def_set, fp);
+
+        fprintf(fp, "\n    Live-Ins: ");
+        bits_show(bb->live_in_set, fp);
+
+        fprintf(fp, "\n    Live-Outs: ");
+        bits_show(bb->live_out_set, fp);
+
+        fprintf(fp, "\n");
     });
     fprintf(fp, "\n");
 }

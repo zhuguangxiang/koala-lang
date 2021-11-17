@@ -260,7 +260,7 @@ static void parse_unary(ParserState *ps, Expr *exp)
             }
             break;
         default:
-            expect(0);
+            assert(0);
             break;
     }
 
@@ -457,7 +457,7 @@ static void parse_binary(ParserState *ps, Expr *exp)
             ty = desc_from_bool();
             break;
         default:
-            expect(0);
+            assert(0);
             break;
     }
 
@@ -654,7 +654,7 @@ static void parse_letdecl(ParserState *ps, Stmt *stmt)
     } else if (s->where == VAR_DECL_LOCAL) {
         parse_letdecl_local(ps, s);
     } else {
-        expect(s->where == VAR_DECL_FIELD);
+        assert(s->where == VAR_DECL_FIELD);
         parse_letdecl_field(ps, s);
     }
 }
@@ -704,7 +704,7 @@ static void parse_vardecl(ParserState *ps, Stmt *stmt)
     } else if (s->where == VAR_DECL_LOCAL) {
         parse_vardecl_local(ps, s);
     } else {
-        expect(s->where == VAR_DECL_FIELD);
+        assert(s->where == VAR_DECL_FIELD);
         parse_vardecl_field(ps, s);
     }
 }
@@ -884,7 +884,7 @@ static void parse_return(ParserState *ps, Stmt *stmt)
     }
 
     Symbol *func = up->sym;
-    expect(func->kind == SYM_FUNC || func->kind == SYM_ANONY);
+    assert(func->kind == SYM_FUNC || func->kind == SYM_ANONY);
     ProtoType *proto = (ProtoType *)func->type;
 
     if (!ret->exp) {
@@ -1031,7 +1031,7 @@ void parser_new_var(ParserState *ps, Stmt *stmt)
     if (stmt->kind == STMT_LET_KIND) {
         sym = stbl_add_let(grp->stbl, id->str, type);
     } else {
-        expect(stmt->kind == STMT_VAR_KIND);
+        assert(stmt->kind == STMT_VAR_KIND);
         sym = stbl_add_var(grp->stbl, id->str, type);
     }
 
