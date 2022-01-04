@@ -13,48 +13,48 @@
 extern "C" {
 #endif
 
-TypeInfo int8_type = {
+KlTypeInfo int8_type = {
     .name = "int8",
     .flags = TP_CLASS | TP_FINAL,
 };
 
-TypeInfo int16_type = {
+KlTypeInfo int16_type = {
     .name = "int16",
     .flags = TP_CLASS | TP_FINAL,
 };
 
-TypeInfo int32_type = {
+KlTypeInfo int32_type = {
     .name = "int32",
     .flags = TP_CLASS | TP_FINAL,
 };
 
-TypeInfo int64_type = {
+KlTypeInfo int64_type = {
     .name = "int64",
     .flags = TP_CLASS | TP_FINAL,
 };
 
-TypeInfo float32_type = {
+KlTypeInfo float32_type = {
     .name = "float32",
     .flags = TP_CLASS | TP_FINAL,
 };
 
-TypeInfo float64_type = {
+KlTypeInfo float64_type = {
     .name = "float64",
     .flags = TP_CLASS | TP_FINAL,
 };
 
-TypeInfo bool_type = {
+KlTypeInfo bool_type = {
     .name = "bool",
     .flags = TP_CLASS | TP_FINAL,
 };
 
-VTable *int8_vtbl;
-VTable *int16_vtbl;
-VTable *int32_vtbl;
-VTable *int64_vtbl;
-VTable *float32_vtbl;
-VTable *float64_vtbl;
-VTable *bool_vtbl;
+KlFuncTbl *int8_vtbl;
+KlFuncTbl *int16_vtbl;
+KlFuncTbl *int32_vtbl;
+KlFuncTbl *int64_vtbl;
+KlFuncTbl *float32_vtbl;
+KlFuncTbl *float64_vtbl;
+KlFuncTbl *bool_vtbl;
 
 static int kl_number_class(KlState *ks)
 {
@@ -86,8 +86,8 @@ void init_number_types(void)
     type_add_methdefs(&int16_type, methods);
     type_add_methdefs(&int32_type, methods);
     type_add_methdefs(&int64_type, methods);
-    // type_add_methdefs(&float32_type, methods);
-    // type_add_methdefs(&float64_type, methods);
+    type_add_methdefs(&float32_type, methods);
+    type_add_methdefs(&float64_type, methods);
     type_add_methdefs(&bool_type, methods);
 
     type_ready(&int8_type);
@@ -106,16 +106,16 @@ void init_number_types(void)
     float64_vtbl = float64_type.vtbl[0];
     bool_vtbl = bool_type.vtbl[0];
 
-    type_show(&int8_type);
-    type_show(&int16_type);
-    type_show(&int32_type);
-    type_show(&int64_type);
-    type_show(&float32_type);
-    type_show(&float64_type);
-    type_show(&bool_type);
+    pkg_add_type("/", &int8_type);
+    pkg_add_type("/", &int16_type);
+    pkg_add_type("/", &int32_type);
+    pkg_add_type("/", &int64_type);
+    pkg_add_type("/", &float32_type);
+    pkg_add_type("/", &float64_type);
+    pkg_add_type("/", &bool_type);
 }
 
-INIT_FUNC_LEVEL_1(init_number_types);
+INIT_LEVEL_2(init_number_types);
 
 #ifdef __cplusplus
 }

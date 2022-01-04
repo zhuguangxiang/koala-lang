@@ -18,46 +18,49 @@ extern "C" {
 /* FIXME: per-thread? */
 extern void *gcroots;
 
-/*
- roots[0] = num_roots,
- roots[1] = previous root,
- roots[2...n] = actual roots' objects
+/**
+ * gc shadow stack
+ * roots[0] = num_roots,
+ * roots[1] = previous root,
+ * roots[2...n] = actual roots' objects
  */
 
 /* clang-format off */
 
-#define GC_STACK(nargs) \
+#define KL_GC_STACK(nargs) \
     void *__gc_stkf[nargs + 2] = { (void *)nargs, gcroots }; \
     gcroots = __gc_stkf;
 
 /* clang-format on */
 
-#define gc_push(arg, idx) __gc_stkf[2 + idx] = arg
+#define kl_gc_push(arg, idx) __gc_stkf[2 + idx] = arg
 
 /* remove traced objects from func frame */
-#define gc_pop() (gcroots = ((void **)gcroots)[1])
+#define kl_gc_pop() (gcroots = ((void **)gcroots)[1])
 
-/*
- objmap[0] = count,
- objmap[1...n] = offset,
-*/
+/**
+ * gc object map
+ * objmap[0] = count,
+ * objmap[1...n] = offset,
+ */
 
 /* allocate object */
-void *gc_alloc(int size, int *objmap);
+void *kl_gc_alloc(int size, int *objmap);
 
-/* allocate array */
-void *gc_alloc_array(int num, int size, int isobj);
+/* allocate KlValue array */
+void *kl_gc_alloc_array(int num);
+
+/* allocate raw(char, int, etc) memory */
+void *kl_gc_alloc_raw(int size);
 
 /* start to gc */
-void gc(void);
+void kl_gc(void);
 
 /* initialize gc */
-void gc_init(int size);
+void kl_gc_init(int size);
 
 /* finalize gc */
-void gc_fini(void);
-
-#define GcArray(type) type *
+void kl_gc_fini(void);
 
 #ifdef __cplusplus
 }

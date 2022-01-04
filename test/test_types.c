@@ -9,7 +9,6 @@
 #include <assert.h>
 #include "koala.h"
 #include "util/mm.h"
-#include "vm.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,32 +67,32 @@ int main(int argc, char *argv[])
 {
     kl_init();
 
-    TypeInfo T1 = {
+    KlTypeInfo T1 = {
         .name = "T1",
         .flags = TP_TRAIT,
     };
 
-    TypeInfo T2 = {
+    KlTypeInfo T2 = {
         .name = "T2",
         .flags = TP_TRAIT,
     };
 
-    TypeInfo TA = {
+    KlTypeInfo TA = {
         .name = "TA",
         .flags = TP_TRAIT,
     };
 
-    TypeInfo B1 = {
+    KlTypeInfo B1 = {
         .name = "B1",
         .flags = TP_CLASS,
     };
 
-    TypeInfo B = {
+    KlTypeInfo B = {
         .name = "B",
         .flags = TP_CLASS,
     };
 
-    TypeInfo C = {
+    KlTypeInfo C = {
         .name = "C",
         .flags = TP_CLASS,
     };

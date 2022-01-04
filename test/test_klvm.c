@@ -137,12 +137,14 @@ int main(int argc, char *argv[])
     KLVMPassGroup group;
     klvm_init_passes(&group);
 
-    klvm_add_pass(&group, klvm_check_unused_block_pass, null);
+    // klvm_add_pass(&group, klvm_check_unused_block_pass, null);
     klvm_add_pass(&group, klvm_check_unused_value_pass, null);
-    klvm_add_pass(&group, klvm_print_liveness_pass, null);
+    // klvm_add_pass(&group, klvm_print_liveness_pass, null);
     klvm_run_passes(&group, m);
 
     klvm_fini_passes(&group);
+
+    klvm_dump_module(m);
 
     klvm_destroy_module(m);
     fini_desc();

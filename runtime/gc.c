@@ -7,6 +7,8 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "gc.h"
+#include "kltypes.h"
+#include "util/log.h"
 #include "util/mm.h"
 #include "util/vector.h"
 
@@ -20,34 +22,19 @@ extern "C" {
  * see: `The Garbage Collection Handbook`
  */
 
+typedef struct _KlGcHdr KlGcHdr;
+
+#define GC_RAW_KIND     0
 #define GC_OBJECT_KIND  1
 #define GC_ARRAY_KIND   2
 #define GC_FORWARD_KIND 3
 
-/* clang-format off */
-#define GC_HEADER uint32 kind : 2; uint32 objsize : 30;
-/* clang-format on */
-
 /* gc header */
-typedef struct _GcHeader {
-    GC_HEADER
-} GcHeader;
-
-typedef struct _GcObject {
-    GC_HEADER
-    int *objmap;
-} GcObject;
-
-typedef struct _GcArray {
-    GC_HEADER
-    uint32 isobj : 1;
-    uint32 itemsize : 31;
-} GcArray;
-
-typedef struct _GcForward {
-    GC_HEADER
-    void *forward;
-} GcForward;
+struct _KlGcHdr {
+    uint32 kind : 2;
+    uint32 size : 30;
+    uintptr ptr;
+};
 
 /* semi-copy space */
 static int space_size;
@@ -60,10 +47,9 @@ static char *free_ptr;
 /* all roots */
 void *gcroots;
 
-static GcHeader *__new__(int size)
+static KlGcHdr *__new__(int size)
 {
-    int objsize = sizeof(GcHeader) + size;
-    objsize = ALIGN_PTR(objsize);
+    int objsize = ALIGN_PTR(sizeof(KlGcHdr) + size);
     char *new_ptr;
     int tried = 0;
 
@@ -72,51 +58,56 @@ Lrealloc:
     if (new_ptr > (from_space + space_size)) {
         int waste = space_size - (free_ptr - from_space);
         if (tried) {
-            printf("gc-debug: alloc size:%d failed\n", objsize);
-            printf("gc-debug: %d bytes wasted(total:%d)\n", waste, space_size);
-            printf("gc-error: too small managed memory\n");
-            abort();
+            debug("alloc size:%d failed", objsize);
+            debug("%d bytes wasted(total:%d)", waste, space_size);
+            panic("too small managed memory");
         }
-        printf("gc-debug: alloc size:%d failed\n", objsize);
-        printf("gc-debug: %d bytes wasted(total:%d)\n", waste, space_size);
+        debug("alloc size:%d failed", objsize);
+        debug("%d bytes wasted(total:%d)", waste, space_size);
         tried = 1;
-        gc();
+        kl_gc();
         goto Lrealloc;
     }
 
-    printf("gc-debug: alloc: %d\n", objsize);
+    debug("alloc: %d", objsize);
 
-    GcHeader *hdr = (GcHeader *)free_ptr;
+    KlGcHdr *hdr = (KlGcHdr *)free_ptr;
     // 8 bytes alignment
     assert(!((uintptr)hdr & 7));
 
     free_ptr = new_ptr;
-    hdr->objsize = size;
+    hdr->size = size;
     return hdr;
 }
 
-void *gc_alloc(int size, int *objmap)
+void *kl_gc_alloc(int size, int *objmap)
 {
-    printf("gc-debug: alloc object %d\n", size);
     assert(size > 0);
-    GcObject *hdr = (GcObject *)__new__(size);
+    debug("try to alloc object:%d", size);
+    KlGcHdr *hdr = __new__(size);
     hdr->kind = GC_OBJECT_KIND;
-    hdr->objmap = objmap;
+    hdr->ptr = (uintptr)objmap;
     return (void *)(hdr + 1);
 }
 
-void *gc_alloc_array(int num, int size, int isobj)
+void *kl_gc_alloc_array(int num)
 {
-    int arrsize = num * size;
-    printf("gc-debug: alloc array %dx%d@%d\n", num, size, isobj);
-    GcArray *hdr = (GcArray *)__new__(arrsize);
+    int size = num * sizeof(KlValue);
+    debug("try to alloc array:%d", num);
+    KlGcHdr *hdr = __new__(size);
     hdr->kind = GC_ARRAY_KIND;
-    hdr->isobj = isobj;
-    hdr->itemsize = size;
     return (void *)(hdr + 1);
 }
 
-void gc_init(int size)
+void *kl_gc_alloc_raw(int size)
+{
+    debug("try to alloc raw:%d", size);
+    KlGcHdr *hdr = __new__(size);
+    hdr->kind = GC_RAW_KIND;
+    return (void *)(hdr + 1);
+}
+
+void kl_gc_init(int size)
 {
     space_size = size;
     from_space = mm_alloc(space_size);
@@ -124,7 +115,7 @@ void gc_init(int size)
     free_ptr = from_space;
 }
 
-void gc_fini(void)
+void kl_gc_fini(void)
 {
     mm_free(from_space);
     mm_free(to_space);
@@ -134,53 +125,58 @@ static void *copy(void *ptr)
 {
     if (!ptr) return null;
 
-    GcHeaderRef hdr = (GcHeaderRef)ptr - 1;
+    KlGcHdr *hdr = (KlGcHdr *)ptr - 1;
 
     switch (hdr->kind) {
-        case GC_FORWARD_KIND:
-            printf("gc-debug: already copied\n");
-            return hdr->forward;
-        case GC_ARRAY_KIND: {
-            GcArrayInfo *arrinfo = &hdr->arrinfo;
-            int num_objs = hdr->objsize / arrinfo->size;
-            int obj_size = arrinfo->size;
-            int isobj = arrinfo->isobj;
-            void *newarr = gc_alloc_array(num_objs, obj_size, isobj);
-            memcpy(newarr, ptr, hdr->objsize);
-            hdr->forward = newarr;
+        case GC_RAW_KIND: {
+            void *newraw = kl_gc_alloc_raw(hdr->size);
+            memcpy(newraw, ptr, hdr->size);
             hdr->kind = GC_FORWARD_KIND;
-            if (isobj) {
-                void **elems = (void **)newarr;
-                for (int i = 0; i < num_objs; i++) elems[i] = copy(elems[i]);
-            }
-            return newarr;
+            hdr->ptr = (uintptr)newraw;
+            return newraw;
         }
         case GC_OBJECT_KIND: {
-            int *objmap = hdr->objmap;
-            void *newobj = gc_alloc(hdr->objsize, objmap);
-            memcpy(newobj, ptr, hdr->objsize);
-            hdr->forward = newobj;
+            int *objmap = (int *)hdr->ptr;
+            void *newobj = kl_gc_alloc(hdr->size, objmap);
+            memcpy(newobj, ptr, hdr->size);
             hdr->kind = GC_FORWARD_KIND;
+            hdr->ptr = (uintptr)newobj;
             if (objmap) {
-                int num_fields = objmap[0];
+                int num = objmap[0];
                 int *offset = objmap + 1;
-                for (int i = 0; i < num_fields; i++) {
-                    void **field = (void **)(newobj + offset[i]);
+                void **field;
+                for (int i = 0; i < num; i++) {
+                    field = (void **)(newobj + offset[i]);
                     *field = copy(*field);
                 }
             }
             return newobj;
         }
+        case GC_ARRAY_KIND: {
+            int num_objs = hdr->size / sizeof(KlValue);
+            void *newarr = kl_gc_alloc_array(num_objs);
+            memcpy(newarr, ptr, hdr->size);
+            hdr->kind = GC_FORWARD_KIND;
+            hdr->ptr = (uintptr)newarr;
+            KlValue **elems = (KlValue **)newarr;
+            for (int i = 0; i < num_objs; i++) {
+                // elems[i] = copy(elems[i]);
+            }
+            return newarr;
+        }
+        case GC_FORWARD_KIND: {
+            debug("already copied");
+            return (void *)hdr->ptr;
+        }
         default: {
-            printf("gc-error: invalid gcheader(kind %d?)\n", hdr->kind);
-            abort();
+            panic("invalid gc header(kind %d?)", hdr->kind);
         }
     }
 }
 
-void gc(void)
+void kl_gc(void)
 {
-    printf("gc-debug: === gc is starting ===\n");
+    debug("=== gc is starting ===");
 
     // TODO: wait other threads stopped?
 
@@ -240,9 +236,9 @@ void gc(void)
     }
     */
 
-    printf("gc-debug: === gc finished ===\n");
-    printf("gc-debug: %d totoal, %ld used, %ld avail\n", space_size,
-           (free_ptr - from_space), space_size - (free_ptr - from_space));
+    debug("=== gc finished ===");
+    debug("%d totoal, %ld used, %ld avail", space_size, (free_ptr - from_space),
+          space_size - (free_ptr - from_space));
 }
 
 #ifdef __cplusplus

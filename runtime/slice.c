@@ -6,20 +6,10 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#ifndef _KOALA_API_H_
-#define _KOALA_API_H_
-
-#include "vm.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void kl_init(void);
-void kl_fini(void);
-
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _KOALA_API_H_ */

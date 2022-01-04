@@ -55,20 +55,6 @@ static KlProto *_add_ifunc(HashMap *m, char *name, TypeDesc *desc)
     return pt;
 }
 
-static KlType *_add_type(HashMap *m, TypeInfo *type)
-{
-    KlType *ty = mm_alloc_obj(ty);
-    ty->name = type->name;
-    hashmap_entry_init(ty, str_hash(type->name));
-    if (hashmap_put_absent(m, ty)) {
-        mm_free(ty);
-        return null;
-    }
-    ty->kind = MNODE_TYPE_KIND;
-    ty->type = type;
-    return ty;
-}
-
 static KlVar *_add_var(HashMap *m, char *name, TypeDesc *desc)
 {
     KlVar *va = mm_alloc_obj(va);
@@ -83,31 +69,40 @@ static KlVar *_add_var(HashMap *m, char *name, TypeDesc *desc)
     return va;
 }
 
-static int mn_equal(void *m1, void *m2)
+int mtbl_equal_func(void *m1, void *m2)
 {
     MNode *n1 = m1;
     MNode *n2 = m2;
     return !strcmp(n1->name, n2->name);
 }
 
-static inline HashMap *__get_mtbl(TypeInfo *type)
+int mtbl_add_type(HashMap *m, KlTypeInfo *ty)
+{
+    hashmap_entry_init(ty, str_hash(ty->name));
+    if (hashmap_put_absent(m, ty)) {
+        return -1;
+    }
+    return 0;
+}
+
+HashMap *type_get_mtbl(KlTypeInfo *type)
 {
     HashMap *mtbl = type->mtbl;
     if (!mtbl) {
         mtbl = mm_alloc_obj(mtbl);
-        hashmap_init(mtbl, mn_equal);
+        hashmap_init(mtbl, mtbl_equal_func);
         type->mtbl = mtbl;
     }
     return mtbl;
 }
 
 typedef struct _LroInfo {
-    TypeInfo *type;
+    KlTypeInfo *type;
     /* index of virtual table */
     int index;
 } LroInfo;
 
-static int lro_find(Vector *lro, TypeInfo *type)
+static int lro_find(Vector *lro, KlTypeInfo *type)
 {
     LroInfo *item;
     vector_foreach(item, lro, {
@@ -116,7 +111,7 @@ static int lro_find(Vector *lro, TypeInfo *type)
     return 0;
 }
 
-static inline Vector *__get_lro(TypeInfo *type)
+static inline Vector *__get_lro(KlTypeInfo *type)
 {
     Vector *vec = type->lro;
     if (!vec) {
@@ -126,7 +121,7 @@ static inline Vector *__get_lro(TypeInfo *type)
     return vec;
 }
 
-static void build_one_lro(TypeInfo *type, TypeInfo *one)
+static void build_one_lro(KlTypeInfo *type, KlTypeInfo *one)
 {
     if (!one) return;
 
@@ -147,7 +142,7 @@ static void build_one_lro(TypeInfo *type, TypeInfo *one)
     }
 }
 
-static void build_lro(TypeInfo *type)
+static void build_lro(KlTypeInfo *type)
 {
     /* add Any type */
     build_one_lro(type, &any_type);
@@ -156,18 +151,18 @@ static void build_lro(TypeInfo *type)
     build_one_lro(type, type->base);
 
     /* add traits */
-    TypeInfo **trait;
+    KlTypeInfo **trait;
     vector_foreach(trait, type->traits, { build_one_lro(type, *trait); });
 
     /* add self */
     build_one_lro(type, type);
 }
 
-static void inherit_methods(TypeInfo *type)
+static void inherit_methods(KlTypeInfo *type)
 {
     Vector *lro = __get_lro(type);
     int size = vector_size(lro);
-    HashMap *mtbl = __get_mtbl(type);
+    HashMap *mtbl = type_get_mtbl(type);
     Vector *vec;
     KlFunc **fn;
     KlFunc *node;
@@ -188,7 +183,7 @@ static void inherit_methods(TypeInfo *type)
     }
 }
 
-static Vector *__get_fields(TypeInfo *ty)
+static Vector *__get_fields(KlTypeInfo *ty)
 {
     Vector *vec = ty->fields;
     if (!vec) {
@@ -198,7 +193,7 @@ static Vector *__get_fields(TypeInfo *ty)
     return vec;
 }
 
-static Vector *__get_methods(TypeInfo *ty)
+static Vector *__get_methods(KlTypeInfo *ty)
 {
     Vector *vec = ty->methods;
     if (!vec) {
@@ -221,7 +216,7 @@ static int vtbl_same(Vector *v1, Vector *v2)
     return 1;
 }
 
-static VTable *build_main_vtbl(TypeInfo *type, HashMap *mtbl)
+static KlFuncTbl *build_main_vtbl(KlTypeInfo *type, HashMap *mtbl)
 {
     Vector *lro = __get_lro(type);
     LroInfo *item;
@@ -234,7 +229,7 @@ static VTable *build_main_vtbl(TypeInfo *type, HashMap *mtbl)
     vector_foreach(item, lro, { num += vector_size(item->type->methods); });
 
     /* build virtual table */
-    VTable *vtbl = mm_alloc(sizeof(VTable) + sizeof(KlFunc *) * num);
+    KlFuncTbl *vtbl = mm_alloc(sizeof(KlFuncTbl) + sizeof(KlFunc *) * num);
     vtbl->num = num;
 
     int index = 0;
@@ -257,14 +252,14 @@ static VTable *build_main_vtbl(TypeInfo *type, HashMap *mtbl)
     return vtbl;
 }
 
-static VTable *build_nth_vtbl(int nth, TypeInfo *type, HashMap *mtbl)
+static KlFuncTbl *build_nth_vtbl(int nth, KlTypeInfo *type, HashMap *mtbl)
 {
     /* calculae length */
-    VTable *vtbl0 = type->vtbl[0];
+    KlFuncTbl *vtbl0 = type->vtbl[0];
     int len = vtbl0->num;
 
     /* build virtual table */
-    VTable *vtbl = mm_alloc(sizeof(VTable) + sizeof(KlFunc *) * len);
+    KlFuncTbl *vtbl = mm_alloc(sizeof(KlFuncTbl) + sizeof(KlFunc *) * len);
     vtbl->num = len;
 
     KlFunc **fn = vtbl0->func;
@@ -278,14 +273,14 @@ static VTable *build_nth_vtbl(int nth, TypeInfo *type, HashMap *mtbl)
     return vtbl;
 }
 
-static void build_vtbl(TypeInfo *type)
+static void build_vtbl(KlTypeInfo *type)
 {
-    HashMap *mtbl = __get_mtbl(type);
-    VTable **vtbl;
+    HashMap *mtbl = type_get_mtbl(type);
+    KlFuncTbl **vtbl;
 
     /* first class or trait is the same virtual table, at #0 */
     Vector *lro = __get_lro(type);
-    TypeInfo *base = type;
+    KlTypeInfo *base = type;
     LroInfo *item;
     while (base) {
         vector_foreach(item, lro, {
@@ -316,7 +311,7 @@ static void build_vtbl(TypeInfo *type)
         if (item->index == -1) num_vtbl++;
     });
 
-    vtbl = mm_alloc(sizeof(VTable *) * num_vtbl);
+    vtbl = mm_alloc(sizeof(KlFuncTbl *) * num_vtbl);
 
     /* build #0(main) virtual table */
     vtbl[0] = build_main_vtbl(type, mtbl);
@@ -332,7 +327,7 @@ static void build_vtbl(TypeInfo *type)
     });
 
     /* update virtual table */
-    VTable *vt;
+    KlFuncTbl *vt;
     for (int i = 0; i <= j; i++) {
         vt = vtbl[i];
         vt->type = type;
@@ -343,18 +338,18 @@ static void build_vtbl(TypeInfo *type)
     type->vtbl = vtbl;
 }
 
-int type_add_field(TypeInfo *ty, char *name, TypeDesc *desc)
+int type_add_field(KlTypeInfo *ty, char *name, TypeDesc *desc)
 {
-    KlField *fd = _add_field(__get_mtbl(ty), name, desc);
+    KlField *fd = _add_field(type_get_mtbl(ty), name, desc);
     if (!fd) return -1;
     fd->offset = 0;
     vector_push_back(__get_fields(ty), &fd);
     return 0;
 }
 
-int type_add_kfunc(TypeInfo *ty, char *name, TypeDesc *desc, KlCode *code)
+int type_add_kfunc(KlTypeInfo *ty, char *name, TypeDesc *desc, KlCode *code)
 {
-    KlFunc *fn = _add_func(__get_mtbl(ty), name, desc);
+    KlFunc *fn = _add_func(type_get_mtbl(ty), name, desc);
     if (!fn) return -1;
     fn->kind = MNODE_KFUNC_KIND;
     fn->owner = ty;
@@ -364,9 +359,9 @@ int type_add_kfunc(TypeInfo *ty, char *name, TypeDesc *desc, KlCode *code)
     return 0;
 }
 
-int type_add_cfunc(TypeInfo *ty, char *name, TypeDesc *desc, void *cfunc)
+int type_add_cfunc(KlTypeInfo *ty, char *name, TypeDesc *desc, void *cfunc)
 {
-    KlFunc *fn = _add_func(__get_mtbl(ty), name, desc);
+    KlFunc *fn = _add_func(type_get_mtbl(ty), name, desc);
     if (!fn) return -1;
     fn->kind = MNODE_CFUNC_KIND;
     fn->owner = ty;
@@ -376,15 +371,15 @@ int type_add_cfunc(TypeInfo *ty, char *name, TypeDesc *desc, void *cfunc)
     return 0;
 }
 
-int type_add_ifunc(TypeInfo *ty, char *name, TypeDesc *desc)
+int type_add_ifunc(KlTypeInfo *ty, char *name, TypeDesc *desc)
 {
-    KlProto *pt = _add_ifunc(__get_mtbl(ty), name, desc);
+    KlProto *pt = _add_ifunc(type_get_mtbl(ty), name, desc);
     if (!pt) return -1;
     vector_push_back(__get_methods(ty), &pt);
     return 0;
 }
 
-void type_ready(TypeInfo *type)
+void type_ready(KlTypeInfo *type)
 {
     build_lro(type);
     inherit_methods(type);
@@ -392,18 +387,19 @@ void type_ready(TypeInfo *type)
 }
 
 #if !defined(NLOG)
-void type_show(TypeInfo *type)
+void type_show(KlTypeInfo *type)
 {
     if (TP_IS_FINAL(type)) log("final ");
 
-    if (TP_IS_CLASS(type))
+    if (TP_IS_CLASS(type)) {
         log("class ");
-    else if (TP_IS_TRAIT(type))
+    } else if (TP_IS_TRAIT(type)) {
         log("trait ");
-    else if (TP_IS_ENUM(type))
+    } else if (TP_IS_ENUM(type)) {
         log("enum ");
-    else
-        assert(0);
+    } else {
+        return;
+    }
 
     log("%s {\n", type->name);
 
@@ -436,8 +432,8 @@ void type_show(TypeInfo *type)
 
     /* show vtbl */
     KlFunc **fn;
-    VTable **vtbl = type->vtbl;
-    TypeInfo *owner;
+    KlFuncTbl **vtbl = type->vtbl;
+    KlTypeInfo *owner;
     int i = 0;
     while (*vtbl) {
         log("vtbl[%d]:", i++);
@@ -460,7 +456,7 @@ void type_show(TypeInfo *type)
 }
 #endif
 
-void type_add_methdefs(TypeInfo *ty, MethodDef *def)
+void type_add_methdefs(KlTypeInfo *ty, MethodDef *def)
 {
     TypeDesc *desc;
     MethodDef *fn = def;
@@ -475,19 +471,19 @@ void type_add_methdefs(TypeInfo *ty, MethodDef *def)
     }
 }
 
-int type_set_base(TypeInfo *type, TypeInfo *base)
+int type_set_base(KlTypeInfo *type, KlTypeInfo *base)
 {
     if (type->base) return -1;
     type->base = base;
     return 0;
 }
 
-int type_add_bound(TypeInfo *type, char *name, TypeInfo *bound)
+int type_add_bound(KlTypeInfo *type, char *name, KlTypeInfo *bound)
 {
     return 0;
 }
 
-int type_add_trait(TypeInfo *type, TypeInfo *trait)
+int type_add_trait(KlTypeInfo *type, KlTypeInfo *trait)
 {
     Vector *traits = type->traits;
     if (!traits) {

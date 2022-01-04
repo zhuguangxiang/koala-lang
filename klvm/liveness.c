@@ -7,8 +7,6 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "klvm.h"
-#include "opcode.h"
-#include "util/log.h"
 
 #ifdef __cplusplus
 extern "C" {

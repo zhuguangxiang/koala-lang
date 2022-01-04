@@ -7,7 +7,6 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "klvm.h"
-#include "opcode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -145,6 +144,7 @@ static void __dot_print_block(KLVMBasicBlock *bb, FILE *fp)
     });
 }
 
+/*
 static void __dot_pass(KLVMFunc *fn, void *arg)
 {
     char buf[512];
@@ -160,7 +160,7 @@ static void __dot_pass(KLVMFunc *fn, void *arg)
     basic_block_foreach(bb, fn, {
         fprintf(fp, "  %s", bb->name);
         inst = inst_last(bb);
-        if (inst && inst->opcode == KLVM_OP_COND_JMP) {
+        if (inst && inst->opcode == OP_COND_JMP) {
             fprintf(fp, "[label=\"{<h>%s:", bb->name);
             __dot_print_block(bb, fp);
             fprintf(fp, "|{<t>T|<f>F}}\"]\n");
@@ -184,22 +184,40 @@ void klvm_add_dot_pass(KLVMPassGroup *grp)
 {
     klvm_add_pass(grp, __dot_pass, null);
 }
+*/
 
 void klvm_check_unused_value_pass(KLVMFunc *fn, void *arg)
 {
+    printf("func %s {\n", fn->name);
+
     KLVMBasicBlock *bb;
     KLVMLocal *local;
+    KLVMInst *inst;
+    KLVMInst *nxt;
     basic_block_foreach(bb, fn, {
         local_foreach(local, bb, {
             if (list_empty(&local->use_list)) {
                 if (local->name[0]) {
-                    printf("warn: unused '%%%s'\n", local->name);
+                    printf("warn: unused local '%%%s'\n", local->name);
                 } else {
-                    printf("warn: unused '%%%d'\n", 0);
+                    printf("warn: unused local '%%%d'\n", local->tag);
                 }
             }
         });
+
+        inst_foreach_safe(inst, nxt, bb, {
+            if (!inst->type) continue;
+            if (list_empty(&inst->use_list)) {
+                if (inst->name[0]) {
+                    printf("warn: unused reg '%%%s'\n", inst->name);
+                } else {
+                    printf("warn: unused reg '%%%d'\n", inst->tag);
+                }
+                list_remove(&inst->bb_link);
+            }
+        });
     });
+    printf("}\n\n");
 }
 
 void klvm_print_liveness_pass(KLVMFunc *fn, void *arg)

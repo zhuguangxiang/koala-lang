@@ -14,39 +14,33 @@
 extern "C" {
 #endif
 
-static void init_empty_2(void)
-{
-}
+extern initfunc __start__init_0[];
+extern initfunc __stop__init_0[];
 
-INIT_FUNC_LEVEL_2(init_empty_2);
+extern initfunc __start__init_1[];
+extern initfunc __stop__init_1[];
 
-extern initfunc __start__init_func_0[];
-extern initfunc __stop__init_func_0[];
+extern initfunc __start__init_2[];
+extern initfunc __stop__init_2[];
 
-extern initfunc __start__init_func_1[];
-extern initfunc __stop__init_func_1[];
-
-extern initfunc __start__init_func_2[];
-extern initfunc __stop__init_func_2[];
-
-void init_builtin_types(void)
+void init_builtins(void)
 {
     initfunc *fn;
 
-    fn = __start__init_func_0;
-    while (fn < __stop__init_func_0) {
+    fn = __start__init_0;
+    while (fn < __stop__init_0) {
         (*fn)();
         fn++;
     }
 
-    fn = __start__init_func_1;
-    while (fn < __stop__init_func_1) {
+    fn = __start__init_1;
+    while (fn < __stop__init_1) {
         (*fn)();
         fn++;
     }
 
-    fn = __start__init_func_2;
-    while (fn < __stop__init_func_2) {
+    fn = __start__init_2;
+    while (fn < __stop__init_2) {
         (*fn)();
         fn++;
     }
@@ -56,7 +50,7 @@ void kl_init(void)
 {
     init_atom();
     init_desc();
-    init_builtin_types();
+    init_builtins();
 }
 
 void kl_fini(void)

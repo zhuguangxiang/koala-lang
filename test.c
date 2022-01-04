@@ -1,4 +1,5 @@
 
+#include <stdint.h>
 #include <stdio.h>
 
 int sum(int n)
@@ -12,8 +13,19 @@ int sum(int n)
     return sum;
 }
 
+struct A {
+    union {
+        uint32_t kind : 2;
+        void *ptr;
+    };
+};
+
 int main()
 {
     printf("%d\n", sum(100));
+
+    struct A instance;
+    instance.ptr = &instance;
+    instance.kind = 2;
     return 0;
 }

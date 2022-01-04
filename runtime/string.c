@@ -12,14 +12,7 @@
 extern "C" {
 #endif
 
-/* ref:
-    rust str & string
-    golang string & stringbuffer
-    java String & StringBuilder, StringBuffer
-    c++ string
- */
-
-TypeInfo string_type = {
+KlTypeInfo string_type = {
     .name = "string",
     .flags = TP_CLASS | TP_FINAL,
 };
@@ -40,10 +33,10 @@ void init_string_type(void)
 
     type_add_methdefs(&string_type, methods);
     type_ready(&string_type);
-    type_show(&string_type);
+    pkg_add_type("/", &string_type);
 }
 
-TypeInfo char_type = {
+KlTypeInfo char_type = {
     .name = "char",
     .flags = TP_CLASS | TP_FINAL,
 };
@@ -51,11 +44,11 @@ TypeInfo char_type = {
 void init_char_type(void)
 {
     type_ready(&char_type);
-    type_show(&char_type);
+    pkg_add_type("/", &char_type);
 }
 
-INIT_FUNC_LEVEL_1(init_string_type);
-INIT_FUNC_LEVEL_1(init_char_type);
+INIT_LEVEL_2(init_string_type);
+INIT_LEVEL_2(init_char_type);
 
 #ifdef __cplusplus
 }

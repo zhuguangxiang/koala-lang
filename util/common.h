@@ -89,17 +89,17 @@ typedef uintptr_t   objref;
 typedef void (*initfunc)(void);
 
 /* clang-format off */
-#define INIT_FUNC_LEVEL_0(name) \
+#define INIT_LEVEL_0(name) \
     static initfunc __##name    \
-    __attribute__((used, section("_init_func_0"))) = name
+    __attribute__((used, section("_init_0"))) = name
 
-#define INIT_FUNC_LEVEL_1(name) \
+#define INIT_LEVEL_1(name) \
     static initfunc __##name    \
-    __attribute__((used, section("_init_func_1"))) = name
+    __attribute__((used, section("_init_1"))) = name
 
-#define INIT_FUNC_LEVEL_2(name) \
+#define INIT_LEVEL_2(name) \
     static initfunc __##name    \
-    __attribute__((used, section("_init_func_2"))) = name
+    __attribute__((used, section("_init_2"))) = name
 /* clang-format on */
 
 #ifdef __cplusplus

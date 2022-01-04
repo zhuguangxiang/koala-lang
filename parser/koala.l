@@ -295,6 +295,7 @@ static void do_doc(YY_EXTRA_TYPE ps, char *txt, int len)
 "^="        { YY_RETURN(XOR_ASSIGN);   }
 "<<="       { YY_RETURN(SHL_ASSIGN);   }
 ">>="       { YY_RETURN(SHR_ASSIGN);   }
+">>>="      { YY_RETURN(USHR_ASSIGN);  }
 
 "..."       { YY_RETURN(DOTDOTDOT);  }
 "..<"       { YY_RETURN(DOTDOTLESS); }
@@ -335,7 +336,7 @@ static void do_doc(YY_EXTRA_TYPE ps, char *txt, int len)
 
 "<<"        { YY_RETURN(L_SHIFT); }
 ">"/">"     { YY_RETURN(R_ANGLE_SHIFT); }
-">>>"       { YY_RETURN(R_ANGLE_SHIFT); }
+">>>"       { YY_RETURN(R_ANGLE_USHIFT); }
 
 \"          { BEGIN(STR); YY_STR_BEGIN;     }
 <STR>\"     { BEGIN(INITIAL); YY_STR_END;   }

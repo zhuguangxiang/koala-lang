@@ -7,7 +7,6 @@
 \*===----------------------------------------------------------------------===*/
 
 #include "klvm.h"
-#include "opcode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -115,7 +114,7 @@ static void print_call(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
     print_operand(fn, &inst->operands[0], fp);
     fprintf(fp, "(");
     KLVMOper *oper;
-    for (int i = 1; i < inst->num_opers; i++) {
+    for (int i = 1; i < inst->num_ops; i++) {
         oper = &inst->operands[i];
         print_operand(fn, oper, fp);
     }
@@ -142,16 +141,28 @@ static void print_jmp(KLVMInst *inst, FILE *fp)
 
 static void print_condjmp(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
 {
-    fprintf(fp, "br ");
-    print_operand(fn, &inst->operands[0], fp);
+    if (inst->opcode == OP_JMP_LT) {
+        fprintf(fp, "blt");
+    } else if (inst->opcode == OP_JMP_LE) {
+        fprintf(fp, "ble");
+    } else {
+        fprintf(fp, "br");
+    }
 
-    KLVMValue *val = inst->operands[1].use->parent;
+    assert(inst->num_ops == 4);
+
+    fprintf(fp, " ");
+    print_operand(fn, &inst->operands[0], fp);
+    fprintf(fp, ", ");
+    print_operand(fn, &inst->operands[1], fp);
+
+    KLVMValue *val = inst->operands[2].use->parent;
     if (val->name[0])
         fprintf(fp, ", label %%%s", val->name);
     else
         fprintf(fp, ", label %%bb%d", val->tag);
 
-    val = inst->operands[2].use->parent;
+    val = inst->operands[3].use->parent;
     if (val->name[0])
         fprintf(fp, ", label %%%s", val->name);
     else
@@ -161,37 +172,50 @@ static void print_condjmp(KLVMInst *inst, KLVMFunc *fn, FILE *fp)
 void klvm_print_inst(KLVMFunc *fn, KLVMInst *inst, FILE *fp)
 {
     switch (inst->opcode) {
-        case KLVM_OP_COPY:
+        case OP_MOVE:
+        case OP_CONST_I8:
+        case OP_CONST_I16:
+        case OP_CONST_I32:
+        case OP_CONST_F32:
+        case OP_CONST_BOOL:
+        case OP_CONST_CHAR:
+        case OP_LOAD_CONST:
             print_copy(inst, fn, fp);
             break;
-        case KLVM_OP_ADD:
+        case OP_ADD:
             print_binary(inst, "add", fn, fp);
             break;
-        case KLVM_OP_SUB:
+        case OP_SUB:
             print_binary(inst, "sub", fn, fp);
             break;
-        case KLVM_OP_CMP_LE:
+        case OP_CMP_LE:
             print_binary(inst, "cmple", fn, fp);
             break;
-        case KLVM_OP_CMP_LT:
+        case OP_CMP_LT:
             print_binary(inst, "cmplt", fn, fp);
             break;
-        case KLVM_OP_CMP_GE:
+        case OP_CMP_GE:
             print_binary(inst, "cmpge", fn, fp);
             break;
-        case KLVM_OP_CALL:
+        case OP_CALL:
             print_call(inst, fn, fp);
             break;
-        case KLVM_OP_RET:
+        case OP_RET:
             print_ret(inst, fn, fp);
             break;
-        case KLVM_OP_JMP:
+        case OP_JMP:
             print_jmp(inst, fp);
             break;
-        case KLVM_OP_COND_JMP:
+        case OP_JMP_EQ:
+        case OP_JMP_NE:
+        case OP_JMP_GT:
+        case OP_JMP_GE:
+        case OP_JMP_LT:
+        case OP_JMP_LE:
             print_condjmp(inst, fn, fp);
             break;
         default:
+            assert(0);
             break;
     }
 }

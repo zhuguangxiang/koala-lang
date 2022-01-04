@@ -66,7 +66,8 @@ struct _KlState {
 
 /* global state, shared by all tasks */
 struct _KlGlobal {
-    HashMap pkgs;
+    HashMap modules;
+    Vector values;
     List states;
 };
 
@@ -98,7 +99,7 @@ static inline void kl_push_int8(KlState *ks, int8 val)
 {
     ++ks->top;
     check_stack(ks);
-    KlValue _val = { val, int8_vtbl };
+    KlValue _val = { .i8val = val, .vtbl = int8_vtbl };
     *ks->top = _val;
 }
 
@@ -106,7 +107,7 @@ static inline void kl_push_int16(KlState *ks, int16 val)
 {
     ++ks->top;
     check_stack(ks);
-    KlValue _val = { val, int16_vtbl };
+    KlValue _val = { .i16val = val, .vtbl = int16_vtbl };
     *ks->top = _val;
 }
 
@@ -114,7 +115,7 @@ static inline void kl_push_int32(KlState *ks, int32 val)
 {
     ++ks->top;
     check_stack(ks);
-    KlValue _val = { val, int32_vtbl };
+    KlValue _val = { .i32val = val, .vtbl = int32_vtbl };
     *ks->top = _val;
 }
 
@@ -122,7 +123,7 @@ static inline void kl_push_int64(KlState *ks, int64 val)
 {
     ++ks->top;
     check_stack(ks);
-    KlValue _val = { val, int64_vtbl };
+    KlValue _val = { .i64val = val, .vtbl = int64_vtbl };
     *ks->top = _val;
 }
 
@@ -130,7 +131,7 @@ static inline void kl_push_bool(KlState *ks, int8 val)
 {
     ++ks->top;
     check_stack(ks);
-    KlValue _val = { val, bool_vtbl };
+    KlValue _val = { .bval = val, .vtbl = bool_vtbl };
     *ks->top = _val;
 }
 
@@ -141,7 +142,7 @@ static inline int8 kl_pop_int8(KlState *ks)
     KlValue _val = *ks->top;
     --ks->top;
     check_stack(ks);
-    return (int8)_val.value;
+    return _val.i8val;
 }
 
 static inline int16 kl_pop_int16(KlState *ks)
@@ -149,7 +150,7 @@ static inline int16 kl_pop_int16(KlState *ks)
     KlValue _val = *ks->top;
     --ks->top;
     check_stack(ks);
-    return (int16)_val.value;
+    return _val.i16val;
 }
 
 static inline int32 kl_pop_int32(KlState *ks)
@@ -157,7 +158,7 @@ static inline int32 kl_pop_int32(KlState *ks)
     KlValue _val = *ks->top;
     --ks->top;
     check_stack(ks);
-    return (int32)_val.value;
+    return _val.i32val;
 }
 
 static inline int64 kl_pop_int64(KlState *ks)
@@ -165,7 +166,7 @@ static inline int64 kl_pop_int64(KlState *ks)
     KlValue _val = *ks->top;
     --ks->top;
     check_stack(ks);
-    return (int64)_val.value;
+    return _val.i64val;
 }
 
 static inline int32 kl_pop_char(KlState *ks)

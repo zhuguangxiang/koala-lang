@@ -9,6 +9,7 @@
 #ifndef _KLVM_H_
 #define _KLVM_H_
 
+#include "runtime/opcode.h"
 #include "util/bitset.h"
 #include "util/hashmap.h"
 #include "util/list.h"

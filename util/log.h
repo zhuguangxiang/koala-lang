@@ -28,7 +28,7 @@ extern "C" {
 #define debug(fmt, ...) _print_(DBG_COLOR, fmt, ##__VA_ARGS__)
 #define warn(fmt, ...)  _print_(WARN_COLOR, fmt, ##__VA_ARGS__)
 #define error(fmt, ...) _print_(ERR_COLOR, fmt, ##__VA_ARGS__)
-#define log(fmt, ...)   fprintf(stdout, fmt "\n", ##__VA_ARGS__)
+#define log(fmt, ...)   fprintf(stdout, fmt, ##__VA_ARGS__)
 
 #else /* NLOG */
 

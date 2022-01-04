@@ -15,158 +15,212 @@ extern "C" {
 
 /*
 
-reference: jvm/dalvik/wasm/python/lua
+instruction format:
 
-4 bytes instruction:
-
- 0        7 0        7 0        7 0        7
-+----------+----------+----------+----------+
-|  opcode  |    A     |    B     |     C    |
-+----------+----------+----------+----------+
-
-0 - 255: direct access
-256 - 64k: using move to [0, 255] and do operation
-
-The register index argument of opcode is 1 byte.
-The constant pool argument is 2 bytes.
-The Offset of jmp is 2 bytes.
-
-i8/u8 -> i32 auto
-
-bool: op_i8_const 0/1
-return i32
-
-char: op_i32_const
-return i32
-
-~: -1 xor val
+opcode A, B, C
+------------------------------------
+A: target register index
+If A[7] == 0, A is 8 bytes(0-127); if A[7] == 1, A is 16 bytes(128-32767).
+B/C src register index or constant.
 
 */
 
-/* clang-format off */
+typedef enum _KlOpCode KlOpCode;
 
-typedef enum _OpCode {
-/*---------------------------------------------------------------------------\
-|   name                    arguments           description                  |
-\---------------------------------------------------------------------------*/
-    OP_MOVE,                /* A  B             R(A) = R(B)                 */
-    OP_MOVE2,               /* A  B(2)          R(A) = R(B)                 */
-    OP_MOVE3,               /* A(2)  B          R(A) = R(B)                 */
-    OP_PUSH = 4,                /* A                R(++top) = R(A)             */
-    OP_PUSH2,               /* A(2)             R(++top) = R(A)             */
-    OP_POP = 5,                 /* A                R(A) = R(--top)             */
-    OP_POP2,                /* A(2)             R(A) = R(--top)             */
+// clang-format off
 
-    OP_NIL,                 /* A                R(A) = nil                  */
-    OP_I8K,                 /* A  K(1)          R(A) = (i8)K                */
-    OP_I16K,                /* A  K(2)          R(A) = (u8)K               */
-    OP_I32K,                /* A  K(4)          R(A) = (i32)K               */
-    OP_F32K,                /* A  K(4)          R(A) = (f32)K               */
-    OP_LDC_I64,             /* A  K(2)          R(A) = (i64)CP[K]           */
-    OP_LDC_F64,             /* A  K(2)          R(A) = (f64)CP[K]           */
-    OP_LDC_STR,             /* A  K(2)          R(A) = (Ref)CP[K]           */
+enum _KlOpCode {
+//  name                    arguments           description
+    OP_HALT,                //                  Halt VM
 
-    OP_I32_ADD = 3,             /* A  B  C          R(A) = R(B) + R(C)          */
-    OP_I32_SUB,             /* A  B  C          R(A) = R(B) - R(C)          */
-    OP_I32_MUL,             /* A  B  C          R(A) = R(B) * R(C)          */
-    OP_I32_DIV,             /* A  B  C          R(A) = R(B) / R(C)          */
-    OP_I32_MOD,             /* A  B  C          R(A) = R(B) % R(C)          */
-    OP_I32_NEG,             /* A  B             R(A) = -R(B)                */
-    OP_I32_AND,             /* A  B  C          R(A) = R(B) & R(C)          */
-    OP_I32_OR,              /* A  B  C          R(A) = R(B) | R(C)          */
-    OP_I32_XOR,             /* A  B  C          R(A) = R(B) ^ R(C)          */
-    OP_I32_SHL,             /* A  B  C          R(A) = R(B) << R(C)         */
-    OP_I32_SHR,             /* A  B  C          R(A) = R(B) >> R(C)         */
-    OP_I32_USHR,            /* A  B  C          R(A) = R(B) >>> R(C)        */
-    OP_I32_CMP,             /* A  B  C          R(A) = 1/0/-1               */
+    OP_PUSH,                // A                R(++top) = R(A)
+    OP_PUSH_I8,             // K(1)             R(++top) = K
+    OP_PUSH_I16,            // K(2)             R(++top) = K
+    OP_PUSH_I32,            // K(4)             R(++top) = K
+    OP_PUSH_I64,            // K(2)             R(++top) = CP[K]
+    OP_PUSH_F32,            // K(4)             R(++top) = K
+    OP_PUSH_F64,            // K(2)             R(++top) = CP[K]
+    OP_PUSH_BOOL,           // K(1)             R(++top) = K
+    OP_PUSH_CHAR,           // K(4)             R(++top) = K
+    OP_PUSH_STR,            // K(2)             R(++top) = CP[K]
 
-    OP_I32_ADDK,            /* A  B  K(1)       R(A) = R(B) + (u8)K         */
-    OP_I32_SUBK = 2,            /* A  B  K(1)       R(A) = R(B) - (u8)K         */
-    OP_I32_MULK,            /* A  B  K(1)       R(A) = R(B) * (u8)K         */
-    OP_I32_DIVK,            /* A  B  K(1)       R(A) = R(B) / (u8)K         */
-    OP_I32_MODK,            /* A  B  K(1)       R(A) = R(B) % (u8)K         */
-    OP_I32_ANDK,            /* A  B  K(1)       R(A) = R(B) & (u8)K         */
-    OP_I32_ORK,             /* A  B  K(1)       R(A) = R(B) | (u8)K         */
-    OP_I32_XORK,            /* A  B  K(1)       R(A) = R(B) ^ (u8)K         */
-    OP_I32_SHLK,            /* A  B  K(1)       R(A) = R(B) << (u8)K        */
-    OP_I32_SHRK,            /* A  B  K(1)       R(A) = R(B) >> (u8)K        */
-    OP_I32_USHRK,           /* A  B  K(1)       R(A) = R(B) >>> (u8)K       */
-    OP_I32_CMPK,            /* A  B  K(1)       R(A) = 1/0/-1               */
+    OP_MOV_TOP,             // A                R(A) = R(top--)
+    OP_MOV,                 // A  B             R(A) = R(B)
+    OP_CONST_I8,            // A  K(1)          R(A) = (i8)K
+    OP_CONST_I16,           // A  K(2)          R(A) = (i16)K
+    OP_CONST_I32,           // A  K(4)          R(A) = (i32)K
+    OP_CONST_I64,           // A  K(2)          R(A) = CP[K]
+    OP_CONST_F32,           // A  K(4)          R(A) = (f32)K
+    OP_CONST_F64,           // A  K(2)          R(A) = CP[K]
+    OP_CONST_BOOL,          // A  K(1)          R(A) = (i8)K
+    OP_CONST_CHAR,          // A  K(1)          R(A) = (i32)K
+    OP_CONST_STR,           // A  K(2)          R(A) = CP[K]
 
-    OP_I64_ADD,             /* A  B  C          R(A) = R(B) + R(C)          */
-    OP_I64_SUB,             /* A  B  C          R(A) = R(B) - R(C)          */
-    OP_I64_MUL,             /* A  B  C          R(A) = R(B) * R(C)          */
-    OP_I64_DIV,             /* A  B  C          R(A) = R(B) / R(C)          */
-    OP_I64_MOD,             /* A  B  C          R(A) = R(B) % R(C)          */
-    OP_I64_NEG,             /* A  B             R(A) = -R(B)                */
-    OP_I64_AND,             /* A  B  C          R(A) = R(B) & R(C)          */
-    OP_I64_OR,              /* A  B  C          R(A) = R(B) | R(C)          */
-    OP_I64_XOR,             /* A  B  C          R(A) = R(B) ^ R(C)          */
-    OP_I64_SHL,             /* A  B  C          R(A) = R(B) << R(C)         */
-    OP_I64_SHR,             /* A  B  C          R(A) = R(B) >> R(C)         */
-    OP_I64_USHR,            /* A  B  C          R(A) = R(B) >>> R(C)        */
-    OP_I64_CMP,             /* A  B  C          R(A) = 1/0/-1               */
+    OP_I32_ADD,             // A  B  C          R(A) = R(B) + R(C)
+    OP_I32_SUB,             // A  B  C          R(A) = R(B) - R(C)
+    OP_I32_MUL,             // A  B  C          R(A) = R(B) * R(C)
+    OP_I32_DIV,             // A  B  C          R(A) = R(B) / R(C)
+    OP_I32_MOD,             // A  B  C          R(A) = R(B) % R(C)
+    OP_I32_NEG,             // A  B             R(A) = -R(B)
 
-    OP_I64_ADDK,            /* A  B  K(1)       R(A) = R(B) + (u8)K         */
-    OP_I64_SUBK,            /* A  B  K(1)       R(A) = R(B) - (u8)K         */
-    OP_I64_MULK,            /* A  B  K(1)       R(A) = R(B) * (u8)K         */
-    OP_I64_DIVK,            /* A  B  K(1)       R(A) = R(B) / (u8)K         */
-    OP_I64_MODK,            /* A  B  K(1)       R(A) = R(B) % (u8)K         */
-    OP_I64_ANDK,            /* A  B  K(1)       R(A) = R(B) & (u8)K         */
-    OP_I64_ORK,             /* A  B  K(1)       R(A) = R(B) | (u8)K         */
-    OP_I64_XORK,            /* A  B  K(1)       R(A) = R(B) ^ (u8)K         */
-    OP_I64_SHLK,            /* A  B  K(1)       R(A) = R(B) << (u8)K        */
-    OP_I64_SHRK,            /* A  B  K(1)       R(A) = R(B) >> (u8)K        */
-    OP_I64_USHRK,           /* A  B  K(1)       R(A) = R(B) >>> (u8)K       */
-    OP_I64_CMPK,            /* A  B  K(1)       R(A) = 1/0/-1               */
+    OP_I32_AND,             // A  B  C          R(A) = R(B) & R(C)
+    OP_I32_OR,              // A  B  C          R(A) = R(B) | R(C)
+    OP_I32_XOR,             // A  B  C          R(A) = R(B) ^ R(C)
+    OP_I32_NOT,             // A  B             R(A) = ~R(B)
+    OP_I32_SHL,             // A  B  C          R(A) = R(B) << R(C)
+    OP_I32_SHR,             // A  B  C          R(A) = R(B) >> R(C)
+    OP_I32_USHR,            // A  B  C          R(A) = R(B) >>> R(C)
 
-    OP_F32_ADD,             /* A  B  C          R(A) = R(B) + R(C)          */
-    OP_F32_SUB,             /* A  B  C          R(A) = R(B) - R(C)          */
-    OP_F32_MUL,             /* A  B  C          R(A) = R(B) * R(C)          */
-    OP_F32_DIV,             /* A  B  C          R(A) = R(B) / R(C)          */
-    OP_F32_MOD,             /* A  B  C          R(A) = R(B) % R(C)          */
-    OP_F32_NEG,             /* A  B             R(A) = -R(B)                */
-    OP_F32_CMP,             /* A  B  C          R(A) = 1/0/-1               */
+    OP_I32_ADD_I8,          // A  B  K(1)       R(A) = R(B) + (i8)K
+    OP_I32_SUB_I8,          // A  B  K(1)       R(A) = R(B) - (i8)K
+    OP_I32_MUL_I8,          // A  B  K(1)       R(A) = R(B) * (i8)K
+    OP_I32_DIV_I8,          // A  B  K(1)       R(A) = R(B) / (i8)K
+    OP_I32_MOD_I8,          // A  B  K(1)       R(A) = R(B) % (i8)K
 
-    OP_F64_ADD,             /* A  B  C          R(A) = R(B) + R(C)          */
-    OP_F64_SUB,             /* A  B  C          R(A) = R(B) - R(C)          */
-    OP_F64_MUL,             /* A  B  C          R(A) = R(B) * R(C)          */
-    OP_F64_DIV,             /* A  B  C          R(A) = R(B) / R(C)          */
-    OP_F64_MOD,             /* A  B  C          R(A) = R(B) % R(C)          */
-    OP_F64_NEG,             /* A  B             R(A) = -R(B)                */
-    OP_F64_CMP,             /* A  B  C          R(A) = 1/0/-1               */
+    OP_I32_AND_I8,          // A  B  K(1)       R(A) = R(B) & (i8)K
+    OP_I32_OR_I8,           // A  B  K(1)       R(A) = R(B) | (i8)K
+    OP_I32_XOR_I8,          // A  B  K(1)       R(A) = R(B) ^ (i8)K
+    OP_I32_SHL_I8,          // A  B  K(1)       R(A) = R(B) << (i8)K
+    OP_I32_SHR_I8,          // A  B  K(1)       R(A) = R(B) >> (i8)K
+    OP_I32_USHR_I8,         // A  B  K(1)       R(A) = R(B) >>> (i8)K
 
-    OP_JMP,                 /* K(2)             pc += K                     */
-    OP_JEQ,                 /* A  K(2)          R(A) == 0, pc += K          */
-    OP_JNE,                 /* A  K(2)          R(A) != 0, pc += K          */
-    OP_JLT,                 /* A  K(2)          R(A) < 0,  pc += K          */
-    OP_JLE,                 /* A  K(2)          R(A) <= 0, pc += K          */
-    OP_JGT,                 /* A  K(2)          R(A) > 0,  pc += K          */
-    OP_JGE,                 /* A  K(2)          R(A) >= 0, pc += K          */
+    OP_I32_EQ,              // A  B  C          R(A) = R(B) == R(C)
+    OP_I32_NE,              // A  B  C          R(A) = R(B) != R(C)
+    OP_I32_GT,              // A  B  C          R(A) = R(B) > R(C)
+    OP_I32_GE,              // A  B  C          R(A) = R(B) >= R(C)
+    OP_I32_LT,              // A  B  C          R(A) = R(B) < R(C)
+    OP_I32_LE,              // A  B  C          R(A) = R(B) <= R(C)
 
-    OP_RET_VOID,            /*                  return                      */
-    OP_RET_VALUE = 1,           /* A                R(0) = R(A), return         */
-    OP_RETURN_I32,          /* K(4)             R(0) = R(A), return         */
-    OP_RETURN_F32,          /* K(4)             R(0) = R(A), return         */
+    OP_I32_EQ_I8,           // A  B  K(1)       R(A) = R(B) == (i8)K
+    OP_I32_NE_I8,           // A  B  K(1)       R(A) = R(B) != (i8)K
+    OP_I32_GT_I8,           // A  B  K(1)       R(A) = R(B) > (i8)K
+    OP_I32_GE_I8,           // A  B  K(1)       R(A) = R(B) >= (i8)K
+    OP_I32_LT_I8,           // A  B  K(1)       R(A) = R(B) < (i8)K
+    OP_I32_LE_I8,           // A  B  K(1)       R(A) = R(B) <= (i8)K
 
-    OP_CALL = 6,                /* K1(2) K2(1)      K1 is index of CP           */
+    OP_I64_ADD,             // A  B  C          R(A) = R(B) + R(C)
+    OP_I64_SUB,             // A  B  C          R(A) = R(B) - R(C)
+    OP_I64_MUL,             // A  B  C          R(A) = R(B) * R(C)
+    OP_I64_DIV,             // A  B  C          R(A) = R(B) / R(C)
+    OP_I64_MOD,             // A  B  C          R(A) = R(B) % R(C)
+    OP_I64_NEG,             // A  B             R(A) = -R(B)
 
-    OP_JMP_I32_CMPEQ,       /* A  B  K(2)       R(A) == R(B), pc += K       */
-    OP_JMP_I32_CMPNE,       /* A  B  K(2)       R(A) != R(B), pc += K       */
-    OP_JMP_I32_CMPLT,       /* A  B  K(2)       R(A) < R(B), pc += K        */
-    OP_JMP_I32_CMPLE,       /* A  B  K(2)       R(A) <= R(B), pc += K       */
-    OP_JMP_I32_CMPGT,       /* A  B  K(2)       R(A) > R(B), pc += K        */
-    OP_JMP_I32_CMPGE,       /* A  B  K(2)       R(A) >= R(B), pc += K       */
+    OP_I64_AND,             // A  B  C          R(A) = R(B) & R(C)
+    OP_I64_OR,              // A  B  C          R(A) = R(B) | R(C)
+    OP_I64_XOR,             // A  B  C          R(A) = R(B) ^ R(C)
+    OP_I64_NOT,             // A  B             R(A) = ~R(B)
+    OP_I64_SHL,             // A  B  C          R(A) = R(B) << R(C)
+    OP_I64_SHR,             // A  B  C          R(A) = R(B) >> R(C)
+    OP_I64_USHR,            // A  B  C          R(A) = R(B) >>> R(C)
 
-    OP_JMP_I32_CMPEQK,      /* A  K1(1)  K2(2)  R(A) == (u8)K, pc += K2     */
-    OP_JMP_I32_CMPNEK,      /* A  K1(1)  K2(2)  R(A) != (u8)K, pc += K2     */
-    OP_JMP_I32_CMPLTK,      /* A  K1(1)  K2(2)  R(A) < (u8)K, pc += K2      */
-    OP_JMP_I32_CMPLEK,      /* A  K1(1)  K2(2)  R(A) <= (u8)K, pc += K2     */
-    OP_JMP_I32_CMPGTK = 0,      /* A  K1(1)  K2(2)  R(A) > (u8)K, pc += K2      */
-    OP_JMP_I32_CMPGEK,      /* A  K1(1)  K2(2)  R(A) >= (u8)K, pc += K2     */
-} OpCode;
+    OP_I64_ADD_I8,          // A  B  K(1)       R(A) = R(B) + (i8)K
+    OP_I64_SUB_I8,          // A  B  K(1)       R(A) = R(B) - (i8)K
+    OP_I64_MUL_I8,          // A  B  K(1)       R(A) = R(B) * (i8)K
+    OP_I64_DIV_I8,          // A  B  K(1)       R(A) = R(B) / (i8)K
+    OP_I64_MOD_I8,          // A  B  K(1)       R(A) = R(B) % (i8)K
 
-/* clang-format on */
+    OP_I64_AND_I8,          // A  B  K(1)       R(A) = R(B) & (i8)K
+    OP_I64_OR_I8,           // A  B  K(1)       R(A) = R(B) | (i8)K
+    OP_I64_XOR_I8,          // A  B  K(1)       R(A) = R(B) ^ (i8)K
+    OP_I64_SHL_I8,          // A  B  K(1)       R(A) = R(B) << (i8)K
+    OP_I64_SHR_I8,          // A  B  K(1)       R(A) = R(B) >> (i8)K
+    OP_I64_USHR_I8,         // A  B  K(1)       R(A) = R(B) >>> (i8)K
+
+    OP_I64_EQ,              // A  B  C          R(A) = R(B) == R(C)
+    OP_I64_NE,              // A  B  C          R(A) = R(B) != R(C)
+    OP_I64_GT,              // A  B  C          R(A) = R(B) > R(C)
+    OP_I64_GE,              // A  B  C          R(A) = R(B) >= R(C)
+    OP_I64_LT,              // A  B  C          R(A) = R(B) < R(C)
+    OP_I64_LE,              // A  B  C          R(A) = R(B) <= R(C)
+
+    OP_I64_EQ_I8,           // A  B  K(1)       R(A) = R(B) == (i8)K
+    OP_I64_NE_I8,           // A  B  K(1)       R(A) = R(B) != (i8)K
+    OP_I64_GT_I8,           // A  B  K(1)       R(A) = R(B) > (i8)K
+    OP_I64_GE_I8,           // A  B  K(1)       R(A) = R(B) >= (i8)K
+    OP_I64_LT_I8,           // A  B  K(1)       R(A) = R(B) < (i8)K
+    OP_I64_LE_I8,           // A  B  K(1)       R(A) = R(B) <= (i8)K
+
+    OP_F32_ADD,             // A  B  C          R(A) = R(B) + R(C)
+    OP_F32_SUB,             // A  B  C          R(A) = R(B) - R(C)
+    OP_F32_MUL,             // A  B  C          R(A) = R(B) * R(C)
+    OP_F32_DIV,             // A  B  C          R(A) = R(B) / R(C)
+    OP_F32_MOD,             // A  B  C          R(A) = R(B) % R(C)
+    OP_F32_NEG,             // A  B             R(A) = -R(B)
+
+    OP_F32_EQ,              // A  B  C          R(A) = R(B) == R(C)
+    OP_F32_NE,              // A  B  C          R(A) = R(B) != R(C)
+    OP_F32_GT,              // A  B  C          R(A) = R(B) > R(C)
+    OP_F32_GE,              // A  B  C          R(A) = R(B) >= R(C)
+    OP_F32_LT,              // A  B  C          R(A) = R(B) < R(C)
+    OP_F32_LE,              // A  B  C          R(A) = R(B) <= R(C)
+
+    OP_F32_EQ_I8,           // A  B  K(1)       R(A) = R(B) == (i8)K
+    OP_F32_NE_I8,           // A  B  K(1)       R(A) = R(B) != (i8)K
+    OP_F32_GT_I8,           // A  B  K(1)       R(A) = R(B) > (i8)K
+    OP_F32_GE_I8,           // A  B  K(1)       R(A) = R(B) >= (i8)K
+    OP_F32_LT_I8,           // A  B  K(1)       R(A) = R(B) < (i8)K
+    OP_F32_LE_I8,           // A  B  K(1)       R(A) = R(B) <= (i8)K
+
+    OP_F64_ADD,             // A  B  C          R(A) = R(B) + R(C)
+    OP_F64_SUB,             // A  B  C          R(A) = R(B) - R(C)
+    OP_F64_MUL,             // A  B  C          R(A) = R(B) * R(C)
+    OP_F64_DIV,             // A  B  C          R(A) = R(B) / R(C)
+    OP_F64_MOD,             // A  B  C          R(A) = R(B) % R(C)
+    OP_F64_NEG,             // A  B             R(A) = -R(B)
+
+    OP_F64_EQ,              // A  B  C          R(A) = R(B) == R(C)
+    OP_F64_NE,              // A  B  C          R(A) = R(B) != R(C)
+    OP_F64_GT,              // A  B  C          R(A) = R(B) > R(C)
+    OP_F64_GE,              // A  B  C          R(A) = R(B) >= R(C)
+    OP_F64_LT,              // A  B  C          R(A) = R(B) < R(C)
+    OP_F64_LE,              // A  B  C          R(A) = R(B) <= R(C)
+
+    OP_F64_EQ_I8,           // A  B  K(1)       R(A) = R(B) == (i8)K
+    OP_F64_NE_I8,           // A  B  K(1)       R(A) = R(B) != (i8)K
+    OP_F64_GT_I8,           // A  B  K(1)       R(A) = R(B) > (i8)K
+    OP_F64_GE_I8,           // A  B  K(1)       R(A) = R(B) >= (i8)K
+    OP_F64_LT_I8,           // A  B  K(1)       R(A) = R(B) < (i8)K
+    OP_F64_LE_I8,           // A  B  K(1)       R(A) = R(B) <= (i8)K
+
+    OP_JMP,                 // K(2)             pc += K
+    OP_JMP_TRUE,            // A, K(2)          pc += K
+    OP_JMP_FALSE,           // A, K(2)          pc += K
+
+    OP_LAND,                // A  B  C          R(A) = R(B) && R(C)
+    OP_LOR,                 // A  B  C          R(A) = R(B) || R(C)
+    OP_LNOT,                // A  B             R(A) = !R(B)
+
+    OP_CALL,                // K1(1) K2(2)      argc = K1, offset = K2
+    OP_RET_VOID,            //                  Return Void
+    OP_RET,                 // A                R(0) = R(A), RET
+    OP_RET_I8,              // K(1)             R(0) = K
+    OP_RET_I16,             // K(2)             R(0) = K
+    OP_RET_I32,             // K(4)             R(0) = K
+    OP_RET_I64,             // K(2)             R(0) = CP[K]
+    OP_RET_F32,             // K(4)             R(0) = K
+    OP_RET_F64,             // K(2)             R(0) = CP[K]
+    OP_RET_BOOL,            // K(1)             R(0) = K
+    OP_RET_CHAR,            // K(4)             R(0) = K
+    OP_RET_STR,             // K(2)             R(0) = CP[K]
+
+    OP_NEW,
+    OP_NEW_OPTION,
+    OP_NEW_RESULT,
+    OP_NEW_STRING,
+    OP_NEW_RANGE,
+    OP_NEW_ARRAY,
+    OP_NEW_MAP,
+    OP_NEW_TUPLE,
+
+    OP_FIELD_GET,
+    OP_FIELD_SET,
+    OP_INDEX_GET,
+    OP_INDEX_SET,
+    OP_MAP_GET,
+    OP_MAP_SET,
+};
+
+// clang-format on
 
 #ifdef __cplusplus
 }

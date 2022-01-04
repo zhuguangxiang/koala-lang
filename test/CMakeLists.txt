@@ -25,7 +25,7 @@ test(test_atom util)
 # test(test_interactive util)
 # test(test_readline util)
 
-test(test_klvm klvm)
+# test(test_klvm klvm)
 
 ## test(test_liveness koala)
 # test(test_vm core)

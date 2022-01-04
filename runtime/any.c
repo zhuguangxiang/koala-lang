@@ -22,7 +22,7 @@ trait Any {
 }
 */
 
-TypeInfo any_type = {
+KlTypeInfo any_type = {
     .name = "any",
     .flags = TP_TRAIT,
 };
@@ -39,7 +39,7 @@ static int kl_any_equal(KlState *ks)
 {
     KlValue self = kl_pop_value(ks);
     KlValue o = kl_pop_value(ks);
-    int eq = self.value == o.value;
+    int eq = (self.obj == o.obj);
     kl_push_bool(ks, eq);
     return 1;
 }
@@ -75,10 +75,10 @@ static void init_any_type(void)
 
     type_add_methdefs(&any_type, methods);
     type_ready(&any_type);
-    type_show(&any_type);
+    pkg_add_type("/", &any_type);
 }
 
-INIT_FUNC_LEVEL_0(init_any_type);
+INIT_LEVEL_1(init_any_type);
 
 #ifdef __cplusplus
 }

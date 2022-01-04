@@ -59,9 +59,9 @@ struct _KLVMInst {
     /* linear position in function */
     int pos;
     /* opcode */
-    int opcode;
+    KlOpCode opcode;
     /* number of operands */
-    int num_opers;
+    int num_ops;
     /* link in bb */
     List bb_link;
     /* ->bb */
@@ -99,6 +99,9 @@ static inline void klvm_builder_before(KLVMBuilder *bldr, KLVMInst *inst)
 /* instruction iteration */
 #define inst_foreach(inst, bb, closure) \
     list_foreach(inst, bb_link, &(bb)->inst_list, closure)
+
+#define inst_foreach_safe(inst, nxt, bb, closure) \
+    list_foreach_safe(inst, nxt, bb_link, &(bb)->inst_list, closure)
 
 #define inst_empty(bb) list_empty(&(bb)->inst_list)
 #define inst_first(bb) list_first(&(bb)->inst_list, KLVMInst, bb_link)

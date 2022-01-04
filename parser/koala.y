@@ -122,10 +122,12 @@ int keyword(int token)
 %token XOR_ASSIGN
 %token SHL_ASSIGN
 %token SHR_ASSIGN
+%token USHR_ASSIGN
 
 %token L_ANGLE_ARGS
 %token L_SHIFT
 %token R_ANGLE_SHIFT
+%token R_ANGLE_USHIFT
 %token <sval> INVALID
 
 %token <ival> INT_LITERAL
@@ -579,6 +581,10 @@ assignop
     | SHR_ASSIGN
     {
         $$ = OP_SHR_ASSIGN;
+    }
+    | USHR_ASSIGN
+    {
+        $$ = OP_USHR_ASSIGN;
     }
     ;
 
@@ -1378,6 +1384,7 @@ shift_expr
     {
         $$ = $1;
     }
+    | shift_expr R_ANGLE_USHIFT add_expr
     | shift_expr R_ANGLE_SHIFT '>' add_expr
     {
         $$ = expr_from_binary(BINARY_SHR, loc(@2), $1, $4);

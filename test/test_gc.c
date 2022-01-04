@@ -6,7 +6,8 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#include "gc/gc.h"
+#include "runtime/gc.h"
+#include "util/log.h"
 #include "util/mm.h"
 
 #ifdef __cplusplus
@@ -45,38 +46,101 @@ void test_object_gc(void)
 {
     struct Bar *old;
     struct Bar *bar = null;
-    GC_STACK(1);
-    gc_push(&bar, 0);
+    KL_GC_STACK(1);
+    kl_gc_push(&bar, 0);
 
-    bar = gc_alloc(sizeof(struct Bar), null);
+    bar = kl_gc_alloc(sizeof(struct Bar), null);
+    debug("bar:%p", bar);
     old = bar;
     bar->value = 200;
 
-    gc();
+    kl_gc();
     assert(bar->value == 200);
     assert(bar != old);
+    debug("bar:%p", bar);
 
-    bar = gc_alloc(sizeof(struct Bar), null);
+    bar = kl_gc_alloc(sizeof(struct Bar), null);
     bar->value = 100;
+    debug("bar:%p", bar);
 
     {
         struct Foo *foo = null;
-        GC_STACK(1);
-        gc_push(&foo, 0);
-        foo = gc_alloc(sizeof(struct Foo), Foo_objmap);
+        KL_GC_STACK(1);
+        kl_gc_push(&foo, 0);
+        foo = kl_gc_alloc(sizeof(struct Foo), Foo_objmap);
         foo->value = 100;
         foo->bar = bar;
-        gc();
+        kl_gc();
         assert(foo->value == 100);
         assert(foo->bar == bar);
-        gc_pop();
+        kl_gc_pop();
     }
 
     assert(bar->value == 100);
+    debug("bar:%p", bar);
 
-    gc_pop();
+    kl_gc_pop();
 }
 
+struct TestSlice {
+    int offset;
+    int length;
+    void *array;
+};
+
+int TestSliceObjmap[] = {
+    1,
+    offsetof(struct TestSlice, array),
+};
+
+struct TestArray {
+    int length;
+    int cap;
+    void *raw;
+};
+
+int TestArrayObjmap[] = {
+    1,
+    offsetof(struct TestArray, raw),
+};
+
+void test_slice_array(void)
+{
+    struct TestArray *arr =
+        kl_gc_alloc(sizeof(struct TestArray), TestArrayObjmap);
+    int *raw = kl_gc_alloc_raw(sizeof(int) * 10);
+    arr->length = 0;
+    arr->cap = 10;
+    arr->raw = raw;
+    for (int i = 0; i < 10; i++) {
+        raw[i] = 100 + i;
+    }
+    struct TestSlice *s1 =
+        kl_gc_alloc(sizeof(struct TestSlice), TestSliceObjmap);
+    s1->offset = 5;
+    s1->length = 5;
+    s1->array = arr;
+
+    KL_GC_STACK(3);
+    kl_gc_push(&s1, 0);
+    kl_gc_push(&arr, 1);
+    kl_gc_push(&raw, 2);
+
+    debug("s1:%p,arr:%p,raw:%p", s1, arr, raw);
+
+    kl_gc();
+
+    arr = s1->array;
+    raw = arr->raw;
+    for (int i = 0; i < 10; i++) {
+        assert(raw[i] == 100 + i);
+    }
+
+    debug("s1:%p,arr:%p,raw:%p", s1, arr, raw);
+    kl_gc_pop();
+}
+
+#if 0
 void test_array_gc(void)
 {
     void *arr = null;
@@ -117,20 +181,22 @@ void test_array_gc2(void)
 
     gc_pop();
 }
+#endif
 
 int main(int argc, char *argv[])
 {
-    gc_init(200);
+    kl_gc_init(200);
 
     mm_stat();
 
     test_object_gc();
-    test_array_gc();
-    test_array_gc2();
+    test_slice_array();
+    // test_array_gc();
+    // test_array_gc2();
     printf("----end----\n");
-    gc();
+    kl_gc();
 
-    gc_fini();
+    kl_gc_fini();
 
     mm_stat();
 

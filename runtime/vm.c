@@ -29,7 +29,7 @@ extern "C" {
 
 /* clang-format on */
 
-#if 0
+#if 1
 void kl_eval_frame(KlState *ks, KlFrame *cf)
 {
     uint8 op;
