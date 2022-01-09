@@ -9,8 +9,6 @@
 #ifndef _KOALA_H_
 #define _KOALA_H_
 
-#include "kleval.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
