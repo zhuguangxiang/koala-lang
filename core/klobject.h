@@ -32,22 +32,24 @@ typedef struct _KlValue KlValue;
 #define KL_TYPE_NODE  4
 
 // clang-format off
-#define KL_NODE_HEAD HashMapEntry entry; char *name; uint8 kind;
+#define KL_NODE_HEAD HashMapEntry entry; char *name; TypeDesc *desc; \
+    void *owner; uint8 kind;
 // clang-format on
 
 struct _KlNode {
     KL_NODE_HEAD
 };
 
-int mtbl_equal_func(void *m1, void *m2);
+KlField *mtbl_add_field(HashMap *m, char *name);
+KlFunc *mtbl_add_func(HashMap *m, char *name);
 int mtbl_add_type(HashMap *m, KlType *ty);
+int mtbl_equal_func(void *m1, void *m2);
 
 // koala field(variable)
 struct _KlField {
     KL_NODE_HEAD
+    // field or var index
     uint16 offset;
-    void *owner;
-    TypeDesc *desc;
 };
 
 // koala function
@@ -57,10 +59,6 @@ struct _KlFunc {
     uint8 inherit;
     // virtual table slot
     uint16 slot;
-    // owner: type or module
-    void *owner;
-    // func's proto type
-    TypeDesc *desc;
     // cfunc or kfunc
     int cfunc;
     // cfunc or KlCode
@@ -72,8 +70,6 @@ struct _KlProto {
     KL_NODE_HEAD
     // virtual table slot
     uint16 slot;
-    // proto type
-    TypeDesc *desc;
 };
 
 // koala code
@@ -107,8 +103,10 @@ struct _KlCode {
 // type info(meta info)
 struct _KlType {
     KL_NODE_HEAD
-    // type's flag
+    // type flags
     uint8 flags;
+    // object gc flag
+    uint8 gc;
     // number of virtual table
     uint16 num_vtbl;
     // virtual table
@@ -156,12 +154,13 @@ void type_show(KlType *type);
 struct _KlFuncTbl {
     KlType *type;
     int num;
-    KlFunc *func;
+    KlFunc **func;
 };
 
 // fat layout
 struct _KlValue {
     union {
+        void *obj;
         int8 i8val;
         int16 i16val;
         int32 i32val;
@@ -170,27 +169,8 @@ struct _KlValue {
         double f64val;
         int32 cval;
         int8 bval;
-        uintptr obj;
     };
     KlFuncTbl *vtbl;
-};
-
-#define KL_GC_VTBL(vtbl)   (KlFuncTbl *)((uintptr)(vtbl) + KL_VALUE_GC)
-#define KL_VALUE_ISGC(val) ((uintptr)(val).vtbl & KL_VALUE_GC)
-#define KL_GC_OBJ(val)     ((val).obj)
-
-struct _KlSlice {
-    KlArray *array;
-    uint32 offset;
-    uint32 len;
-};
-
-struct _KlArray {
-    uintptr gcdata;
-    KlFuncTbl *subvtbl;
-    uint32 elemsize;
-    uint32 len;
-    uint32 cap;
 };
 
 typedef struct _MethodDef MethodDef;
@@ -205,32 +185,32 @@ struct _MethodDef {
 
 void type_add_methdefs(KlType *ty, MethodDef *def);
 
-extern KlType any_type;
-extern KlType int8_type;
-extern KlType int16_type;
-extern KlType int32_type;
-extern KlType int64_type;
-extern KlType float32_type;
-extern KlType float64_type;
-extern KlType bool_type;
-extern KlType char_type;
-extern KlType string_type;
-extern KlType array_type;
-extern KlType map_type;
+/*----------------------------------------------------------------------------*/
 
-extern KlType class_type;
-extern KlType field_type;
-extern KlType method_type;
+typedef struct _KlString KlString;
+typedef struct _KlArray KlArray;
+typedef struct _KlWrapper KlWrapper;
 
-extern KlFuncTbl *int8_vtbl;
-extern KlFuncTbl *int16_vtbl;
-extern KlFuncTbl *int32_vtbl;
-extern KlFuncTbl *int64_vtbl;
-extern KlFuncTbl *float32_vtbl;
-extern KlFuncTbl *float64_vtbl;
-extern KlFuncTbl *bool_vtbl;
+struct _KlString {
+    char **data;
+    int cap;
+    int start;
+    int end;
+};
 
-void pkg_add_type(char *path, KlType *type);
+struct _KlArray {
+    KlWrapper *wrap;
+    KlFuncTbl *vtbl;
+    int start;
+    int end;
+};
+
+struct _KlWrapper {
+    char *data;
+    int cap;
+};
+
+void mod_add_type(char *path, KlType *type);
 
 #ifdef __cplusplus
 }

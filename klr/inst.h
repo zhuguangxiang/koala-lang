@@ -129,7 +129,7 @@ KLVMValue *klvm_build_or(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
 KLVMValue *klvm_build_not(KLVMBuilder *bldr, KLVMValue *val);
 KLVMValue *klvm_build_neg(KLVMBuilder *bldr, KLVMValue *val);
 
-KLVMValue *klvm_build_band(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
+KlrValue *klr_build_band(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
 KLVMValue *klvm_build_bor(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
 KLVMValue *klvm_build_bxor(KLVMBuilder *bldr, KLVMValue *lhs, KLVMValue *rhs);
 KLVMValue *klvm_build_bnot(KLVMBuilder *bldr, KLVMValue *val);

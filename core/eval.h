@@ -9,7 +9,7 @@
 #ifndef _KOALA_VM_H_
 #define _KOALA_VM_H_
 
-#include "object.h"
+#include "kltypes.h"
 #include "util/list.h"
 
 #ifdef __cplusplus
@@ -94,7 +94,7 @@ static inline void check_stack(KlState *ks)
 }
 
 /* stack push functions */
-
+#if 0
 static inline void kl_push_int8(KlState *ks, int8 val)
 {
     ++ks->top;
@@ -134,6 +134,8 @@ static inline void kl_push_bool(KlState *ks, int8 val)
     KlValue _val = { .bval = val, .vtbl = bool_vtbl };
     *ks->top = _val;
 }
+
+#endif
 
 /* stack pop functions */
 

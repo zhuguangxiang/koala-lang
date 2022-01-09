@@ -22,18 +22,23 @@ extern "C" {
  * see: `The Garbage Collection Handbook`
  */
 
+#define GC_RAW_KIND     1
+#define GC_STRUCT_KIND  2
+#define GC_OBJECT_KIND  3
+#define GC_FORWARD_KIND 4
+
 typedef struct _KlGcHdr KlGcHdr;
+typedef struct _KlGcWrap KlGcWrap;
 
-#define GC_RAW_KIND     0
-#define GC_OBJECT_KIND  1
-#define GC_ARRAY_KIND   2
-#define GC_FORWARD_KIND 3
-
-/* gc header */
+/* gc object header */
 struct _KlGcHdr {
-    uint32 kind : 2;
-    uint32 size : 30;
+    int kind;
+    int size;
     uintptr ptr;
+};
+
+struct _KlGcWrap {
+    void *ptr;
 };
 
 /* semi-copy space */
@@ -44,66 +49,112 @@ static char *from_space;
 static char *to_space;
 static char *free_ptr;
 
+static int gc_running = 0;
+
 /* all roots */
 void *gcroots;
 
 static KlGcHdr *__new__(int size)
 {
-    int objsize = ALIGN_PTR(sizeof(KlGcHdr) + size);
-    char *new_ptr;
+    char *new_ptr = null;
     int tried = 0;
+    int objsize = sizeof(KlGcHdr) + ALIGN_PTR(size);
 
-Lrealloc:
-    new_ptr = free_ptr + objsize;
-    if (new_ptr > (from_space + space_size)) {
+    for (;;) {
+        new_ptr = free_ptr + objsize;
+        if (new_ptr <= (from_space + space_size)) break;
         int waste = space_size - (free_ptr - from_space);
-        if (tried) {
-            debug("alloc size:%d failed", objsize);
-            debug("%d bytes wasted(total:%d)", waste, space_size);
-            panic("too small managed memory");
+        if (gc_running || tried) {
+            debug("alloc size: %d failed(left: %d)", objsize, waste);
+            panic("too small managed memory(total: %d)", space_size);
         }
-        debug("alloc size:%d failed", objsize);
-        debug("%d bytes wasted(total:%d)", waste, space_size);
+        debug("alloc size: %d failed(left: %d)", objsize, waste);
         tried = 1;
         kl_gc();
-        goto Lrealloc;
     }
 
-    debug("alloc: %d", objsize);
-
+    debug("%d bytes allocated", objsize);
     KlGcHdr *hdr = (KlGcHdr *)free_ptr;
+    hdr->size = ALIGN_PTR(size);
     // 8 bytes alignment
     assert(!((uintptr)hdr & 7));
-
     free_ptr = new_ptr;
-    hdr->size = size;
     return hdr;
 }
 
-void *kl_gc_alloc(int size, int *objmap)
-{
-    assert(size > 0);
-    debug("try to alloc object:%d", size);
-    KlGcHdr *hdr = __new__(size);
-    hdr->kind = GC_OBJECT_KIND;
-    hdr->ptr = (uintptr)objmap;
-    return (void *)(hdr + 1);
-}
-
-void *kl_gc_alloc_array(int num)
-{
-    int size = num * sizeof(KlValue);
-    debug("try to alloc array:%d", num);
-    KlGcHdr *hdr = __new__(size);
-    hdr->kind = GC_ARRAY_KIND;
-    return (void *)(hdr + 1);
-}
-
+/**
+ * +-------------+
+ * |  gc header  |
+ * +-------------+
+ * |  raw data   |
+ * +-------------+
+ *
+ */
 void *kl_gc_alloc_raw(int size)
 {
-    debug("try to alloc raw:%d", size);
+    debug("try to alloc raw: %d", size);
+
     KlGcHdr *hdr = __new__(size);
     hdr->kind = GC_RAW_KIND;
+    hdr->ptr = 0;
+
+    // 8 bytes alignment
+    assert(!((uintptr)(hdr + 1) & 7));
+    return (void *)(hdr + 1);
+}
+
+/**
+ * +----------------+
+ * |  gc header     | =====> +----------+
+ * +----------------+        |  kind    |
+ * |                |        |  size    |
+ * |  struct data   |        |  objmap  |
+ * |                |        +----------+
+ * +----------------+
+ */
+void *kl_gc_alloc_struct(int size, int *objmap)
+{
+    debug("try to alloc struct: %d", size);
+
+    KlGcHdr *hdr = __new__(size);
+    hdr->kind = GC_STRUCT_KIND;
+    hdr->ptr = (uintptr)objmap;
+
+    // 8 bytes alignment
+    assert(!((uintptr)(hdr + 1) & 7));
+    return (void *)(hdr + 1);
+}
+
+static int wrap_objmap[] = {
+    1,
+    offsetof(KlWrapper, data),
+};
+
+void *kl_gc_alloc_wrap(void)
+{
+    return kl_gc_alloc_struct(sizeof(KlWrapper), wrap_objmap);
+}
+
+/**
+ * +----------------+
+ * |  gc header     |
+ * +----------------+
+ * |                |
+ * |  object data   |
+ * |                |
+ * +----------------+
+ */
+void *kl_gc_alloc(int num)
+{
+    debug("try to alloc object: %d", num);
+
+    int size = num * sizeof(KlValue);
+    KlGcHdr *hdr = __new__(size);
+    hdr->kind = GC_OBJECT_KIND;
+    hdr->size = num;
+
+    // 8 bytes alignment
+    assert(!((uintptr)(hdr + 1) & 7));
     return (void *)(hdr + 1);
 }
 
@@ -133,11 +184,11 @@ static void *copy(void *ptr)
             memcpy(newraw, ptr, hdr->size);
             hdr->kind = GC_FORWARD_KIND;
             hdr->ptr = (uintptr)newraw;
-            return newraw;
+            return (void *)newraw;
         }
-        case GC_OBJECT_KIND: {
+        case GC_STRUCT_KIND: {
             int *objmap = (int *)hdr->ptr;
-            void *newobj = kl_gc_alloc(hdr->size, objmap);
+            void *newobj = kl_gc_alloc_struct(hdr->size, objmap);
             memcpy(newobj, ptr, hdr->size);
             hdr->kind = GC_FORWARD_KIND;
             hdr->ptr = (uintptr)newobj;
@@ -152,17 +203,23 @@ static void *copy(void *ptr)
             }
             return newobj;
         }
-        case GC_ARRAY_KIND: {
-            int num_objs = hdr->size / sizeof(KlValue);
-            void *newarr = kl_gc_alloc_array(num_objs);
-            memcpy(newarr, ptr, hdr->size);
+        case GC_OBJECT_KIND: {
+            int num_objs = hdr->size;
+            void *newobj = kl_gc_alloc(num_objs);
+            memcpy(newobj, ptr, num_objs * sizeof(KlValue));
             hdr->kind = GC_FORWARD_KIND;
-            hdr->ptr = (uintptr)newarr;
-            KlValue **elems = (KlValue **)newarr;
+            hdr->ptr = (uintptr)newobj;
+
+            KlValue *elem = (KlValue *)newobj;
+            KlFuncTbl *vtbl;
             for (int i = 0; i < num_objs; i++) {
-                // elems[i] = copy(elems[i]);
+                vtbl = elem->vtbl;
+                if (vtbl && vtbl->type->gc) {
+                    elem->obj = copy(elem->obj);
+                }
+                elem++;
             }
-            return newarr;
+            return newobj;
         }
         case GC_FORWARD_KIND: {
             debug("already copied");
@@ -186,14 +243,7 @@ void kl_gc(void)
     to_space = tmp;
     free_ptr = from_space;
     memset(from_space, 0, space_size);
-
-    // exchange from_fini_objs and to_fini_objs
-    /*
-    VectorRef vec = from_fini_objs;
-    from_fini_objs = to_fini_objs;
-    to_fini_objs = vec;
-    vector_clear(from_fini_objs);
-    */
+    gc_running = 1;
 
     // foreach roots
     void **pptr;
@@ -208,37 +258,10 @@ void kl_gc(void)
         root = (void **)root[1];
     }
 
-    // call object's fini func
-    /*
-    void **item;
-    vector_foreach(item, to_fini_objs, {
-        GcHeaderRef hdr = (GcHeaderRef)(*item);
-        if (hdr->kind != GC_OBJECT_KIND) continue;
-        printf("gc-debug: object is freed\n");
-        if (hdr->fini) hdr->fini(hdr + 1);
-    });
-    */
-
-    /*
-    GcHeaderRef hdr = (GcHeaderRef)to_space;
-    char *end = to_space + space_size;
-    while ((char *)hdr < end && hdr->kind != GC_NONE_KIND) {
-        if (hdr->kind == GC_OBJECT_KIND) {
-            printf("gc-debug: object is freed\n");
-            if (hdr->fini) hdr->fini(hdr + 1);
-        }
-
-        if (hdr->kind == GC_ARRAY_KIND) {
-            printf("gc-debug: array is freed\n");
-        }
-
-        hdr = (GcHeaderRef)((char *)(hdr + 1) + hdr->objsize);
-    }
-    */
-
+    gc_running = 0;
+    debug("=== gc-mem: %d totoal, %ld used, %ld avail", space_size,
+          (free_ptr - from_space), space_size - (free_ptr - from_space));
     debug("=== gc finished ===");
-    debug("%d totoal, %ld used, %ld avail", space_size, (free_ptr - from_space),
-          space_size - (free_ptr - from_space));
 }
 
 #ifdef __cplusplus

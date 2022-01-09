@@ -6,30 +6,20 @@
 |*                                                                            *|
 \*===----------------------------------------------------------------------===*/
 
-#include "core.h"
+#ifndef _KOALA_H_
+#define _KOALA_H_
+
+#include "kleval.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-static TypeInfo option_type = {
-    .name = "Option",
-    .flags = TF_ENUM,
-};
-
-void init_option_type(void)
-{
-    MethodDef option_methods[] = {
-        /* clang-format off */
-        /* clang-format on */
-    };
-
-    type_add_methdefs(&option_type, option_methods);
-    type_ready(&option_type);
-    type_show(&option_type);
-    pkg_add_type(root_pkg, &option_type);
-}
+void kl_init(void);
+void kl_fini(void);
 
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* _KOALA_H_ */
