@@ -1,0 +1,52 @@
+
+extern "C" {
+
+    struct A { // 不能有方法，不能实现traits，不能有GC成员对象（不能有外部struct）
+        var s Pointer<u8>
+        var len (uint32)
+    }
+
+    sizeof(A)
+
+    func memset(ptr *void, val uint8, size uint32);
+
+    func callback(a *A) {
+        var foo = Foo()
+        foo.name = string(a.s)
+        foo.size = a.len
+        for (i in 0 ... a.len) {
+            v := s[i]
+        }
+    }
+}
+
+
+
+ ====================================================
+
+struct B : traits { //不能继承,不能有指针类型的B
+    var a A
+    var ap *A // *和&只能是"C"的struct和基础类型
+    var foo Foo
+}
+
+var a A;
+
+op(&a, b);
+
+func op(a *A, b B) int32 {
+
+}
+
+class Foo : class or tratis {
+    var c_ptr *A
+    var b B
+}
+
+class Bar : ValueType {
+
+}
+
+foo := Foo()
+
+b := &foo.c_ptr

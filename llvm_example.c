@@ -326,28 +326,206 @@ void test_phi(LLVMModuleRef mod)
 
 int bar();
 
+void call_intrinsic(LLVMModuleRef mod)
+{
+    // LLVMTypeRef param_types[] = { LLVMDoubleType() };
+    // LLVMTypeRef fn_type = LLVMFunctionType(LLVMDoubleType(), param_types, 1,
+    // 0); LLVMValueRef fn = LLVMAddFunction(mod, "llvm.cos.f64", fn_type);
+
+    LLVMTypeRef param_types[] = { LLVMInt64Type(), LLVMInt32Type() };
+    LLVMTypeRef fn_type = LLVMFunctionType(LLVMVoidType(), param_types, 2, 1);
+    LLVMValueRef fn =
+        LLVMAddFunction(mod, "llvm.experimental.stackmap", fn_type);
+}
+
+#define LLVM_DECLARE_ATTRIBUTEREF(decl, name, val)                           \
+    LLVMAttributeRef decl;                                                   \
+    {                                                                        \
+        unsigned decl##_id =                                                 \
+            LLVMGetEnumAttributeKindForName(#name, sizeof(#name) - 1);       \
+        decl =                                                               \
+            LLVMCreateEnumAttribute(LLVMGetGlobalContext(), decl##_id, val); \
+    }
+
+LLVMValueRef kl_gen_func(LLVMModuleRef M, char *name, LLVMTypeRef T)
+{
+    LLVMTypeRef param_types[] = { LLVMPointerType(T, 0) };
+    LLVMTypeRef FnTy =
+        LLVMFunctionType(LLVMPointerType(T, 0), param_types, 1, 0);
+    LLVMValueRef F = LLVMAddFunction(M, name, FnTy);
+    return F;
+}
+
+LLVMValueRef kl_gen_pointer_new2(LLVMBuilderRef bldr, LLVMValueRef val)
+{
+    LLVMValueRef ptr = LLVMBuildAlloca(bldr, LLVMTypeOf(val), "ptr");
+    LLVMBuildStore(bldr, val, ptr);
+    return ptr;
+}
+
+void kl_intrinsic_Pointer(LLVMModuleRef M, LLVMTypeRef T, LLVMTypeRef V[],
+                          int sizeV)
+{
+    LLVMValueRef fn = kl_gen_func(M, "std7Pointer1i6offset", T);
+    LLVMBasicBlockRef entry = LLVMAppendBasicBlock(fn, "");
+    LLVMBuilderRef builder = LLVMCreateBuilder();
+    LLVMPositionBuilderAtEnd(builder, entry);
+
+    LLVMValueRef p0 = LLVMGetParam(fn, 0);
+    LLVMValueRef ret = LLVMBuildInBoundsGEP(
+        builder, p0, (LLVMValueRef[]){ LLVMConstInt(LLVMInt32Type(), 3, 0) }, 1,
+        "");
+    LLVMBuildRet(builder, ret);
+
+    kl_gen_func(M, "get", T);
+    kl_gen_func(M, "set", T);
+    kl_gen_func(M, "is_null", T);
+}
+
+/*
+extern "C" {
+
+struct Foo {
+    str Pointer<u8>
+    len uint32
+}
+
+func printf(fmt Pointer<u8>, ...)
+}
+*/
+
+LLVMTypeRef foo_type;
+
+void gen_c_struct(LLVMModuleRef M)
+{
+    LLVMTypeRef foo_struct_types[] = {
+        LLVMPointerType(LLVMInt8Type(), 0),
+        LLVMInt32Type(),
+    };
+
+    foo_type = LLVMStructCreateNamed(LLVMGetGlobalContext(), "Foo");
+    LLVMStructSetBody(foo_type, foo_struct_types, 2, 0);
+}
+
+/*
+func main() {
+    foo := Foo()
+    foo.str = "hello"
+    foo.len = 5
+    printf("Foo(%s, %d)\n", foo.str, foo.len);
+}
+*/
+void gen_main(LLVMModuleRef M)
+{
+    LLVMTypeRef FnTy = LLVMFunctionType(LLVMVoidType(), NULL, 0, 0);
+    LLVMValueRef F = LLVMAddFunction(M, "main", FnTy);
+
+    LLVMBasicBlockRef entry = LLVMAppendBasicBlock(F, "");
+    LLVMBuilderRef builder = LLVMCreateBuilder();
+    LLVMPositionBuilderAtEnd(builder, entry);
+
+    LLVMValueRef v = LLVMConstInt(LLVMInt32Type(), 100, 0);
+    LLVMValueRef b = LLVMBuildAlloca(builder, LLVMInt32Type(), "b");
+    LLVMBuildStore(builder, v, b);
+    kl_gen_pointer_new2(builder, b);
+
+    LLVMValueRef foo_inst = LLVMBuildAlloca(builder, foo_type, "");
+    LLVMValueRef foo_str = LLVMBuildStructGEP(builder, foo_inst, 0, "");
+    LLVMValueRef foo_str2 = LLVMBuildLoad(builder, foo_str, "");
+
+    LLVMValueRef str_val =
+        LLVMConstStringInContext(LLVMGetGlobalContext(), "hello", 5, 0);
+
+    LLVMValueRef g_str = LLVMAddGlobal(M, LLVMTypeOf(str_val), "");
+    LLVMSetLinkage(g_str, LLVMPrivateLinkage);
+    LLVMSetInitializer(g_str, str_val);
+    LLVMSetGlobalConstant(g_str, 1);
+    LLVMSetUnnamedAddr(g_str, 1);
+
+    LLVMValueRef args[2];
+    args[0] = LLVMConstInt(LLVMInt32Type(), 0, 0);
+    args[1] = LLVMConstInt(LLVMInt32Type(), 0, 0);
+    LLVMValueRef s = LLVMConstInBoundsGEP(g_str, args, 2);
+
+    LLVMBuildStore(builder, s, foo_str);
+
+    LLVMValueRef foo_len = LLVMBuildStructGEP(builder, foo_inst, 1, "");
+    LLVMValueRef foo_len_val = LLVMBuildLoad(builder, foo_len, "");
+    LLVMBuildStore(builder, LLVMConstInt(LLVMInt32Type(), 5, 0), foo_len);
+
+    LLVMTypeRef param_types[] = { LLVMPointerType(LLVMInt8Type(), 0) };
+    LLVMTypeRef ret_type = LLVMFunctionType(LLVMInt32Type(), param_types, 1, 1);
+    LLVMValueRef fn_printf = LLVMAddFunction(M, "printf", ret_type);
+    LLVMSetFunctionCallConv(fn_printf, LLVMCCallConv);
+    LLVMSetLinkage(fn_printf, LLVMExternalLinkage);
+
+    str_val = LLVMConstStringInContext(LLVMGetGlobalContext(), "Foo(%s, %d)\n",
+                                       13, 0);
+    g_str = LLVMAddGlobal(M, LLVMTypeOf(str_val), "");
+    LLVMSetLinkage(g_str, LLVMPrivateLinkage);
+    LLVMSetInitializer(g_str, str_val);
+    LLVMSetGlobalConstant(g_str, 1);
+    LLVMSetUnnamedAddr(g_str, 1);
+    s = LLVMConstInBoundsGEP(g_str, args, 2);
+    foo_str2 = LLVMBuildLoad(builder, foo_str, "");
+    foo_len_val = LLVMBuildLoad(builder, foo_len, "");
+
+    LLVMValueRef args2[3];
+    args2[0] = s;
+    args2[1] = foo_str2;
+    args2[2] = foo_len_val;
+    LLVMBuildCall(builder, fn_printf, args2, 3, "");
+    LLVMBuildRetVoid(builder);
+}
+
+void kl_gen_pointer_new(LLVMModuleRef M, char *name, LLVMTypeRef ety)
+{
+    LLVMTypeRef ret_ty = LLVMPointerType(ety, 0);
+    LLVMTypeRef fn_ty =
+        LLVMFunctionType(LLVMPointerType(ret_ty, 0), NULL, 0, 0);
+
+    LLVMValueRef fn = LLVMAddFunction(M, "Pointer$Int8$new", fn_ty);
+    LLVMSetLinkage(fn, LLVMInternalLinkage);
+    LLVMBasicBlockRef entry = LLVMAppendBasicBlock(fn, "");
+    LLVMBuilderRef bldr = LLVMCreateBuilder();
+    LLVMPositionBuilderAtEnd(bldr, entry);
+    LLVMValueRef ret = LLVMBuildAlloca(bldr, ret_ty, "");
+    LLVMBuildRet(bldr, ret);
+    LLVMDisposeBuilder(bldr);
+}
+
 void main(int argc, char *argv[])
 {
+    LLVM_DECLARE_ATTRIBUTEREF(nounwind_attr, nounwind, 0);
+    LLVM_DECLARE_ATTRIBUTEREF(readnone_attr, readnone, 0);
+    LLVM_DECLARE_ATTRIBUTEREF(readonly_attr, readonly, 0);
+
     LLVMModuleRef mod = LLVMModuleCreateWithName("my_module");
 
     LLVMValueRef gval = LLVMAddGlobal(mod, LLVMInt32Type(), "gval");
-    LLVMSetSection(gval, "init_globals");
-    // LLVMSetGlobalConstant(gval, 1);
-    // LLVMSetLinkage(gval, LLVMPrivateLinkage);
-    // LLVMSetLinkage(gval, LLVMAvailableExternallyLinkage);
-    LLVMSetInitializer(gval, LLVMConstInt(LLVMInt32Type(), 0, 1));
+    LLVMSetThreadLocal(gval, 1);
+    // LLVMSetSection(gval, "init_globals");
+    //  LLVMSetGlobalConstant(gval, 1);
+    //  LLVMSetLinkage(gval, LLVMPrivateLinkage);
+    //  LLVMSetLinkage(gval, LLVMAvailableExternallyLinkage);
+    // LLVMSetInitializer(gval, LLVMConstInt(LLVMInt32Type(), 0, 1));
+    // LLVMSetLinkage(gval, LLVMExternalLinkage);
 
     // LLVMSetVisibility(gval, LLVMProtectedVisibility);
+    LLVMTypeRef ptr = LLVMPointerType(LLVMInt8Type(), 1);
 
-    LLVMTypeRef param_types[] = { LLVMInt32Type(), LLVMInt32Type() };
+    LLVMTypeRef param_types[] = { LLVMInt32Type(), LLVMInt32Type(), ptr };
 
     LLVMTypeRef ret_type2 =
         LLVMFunctionType(LLVMInt32Type(), param_types, 0, 0);
     LLVMValueRef bar_func = LLVMAddFunction(mod, "bar", ret_type2);
+    LLVMSetLinkage(bar_func, LLVMExternalLinkage);
 
     LLVMTypeRef ret_type = LLVMFunctionType(LLVMInt32Type(), param_types, 2, 0);
     LLVMValueRef sum = LLVMAddFunction(mod, "sum", ret_type);
-    LLVMSetSection(sum, "sum_funcs");
+    // LLVMSetSection(sum, "sum_funcs");
+    // LLVMSetGC(sum, "statepoint-example");
+    // LLVMAddAttributeAtIndex(sum, 3, readonly_attr);
     LLVMValueRef a = LLVMGetParam(sum, 0);
     // LLVMSetLinkage(sum, LLVMInternalLinkage);
 
@@ -360,21 +538,38 @@ void main(int argc, char *argv[])
     LLVMPositionBuilderAtEnd(builder, entry);
 
     // LLVMBuildCall(builder, bar_func, NULL, 0, "bar");
+    LLVMValueRef _val = LLVMBuildLoad(builder, gval, "gg");
+    LLVMValueRef tmp = LLVMBuildAdd(builder, LLVMGetParam(sum, 0), _val, "tmp");
 
-    LLVMValueRef tmp = LLVMBuildAdd(builder, LLVMGetParam(sum, 0),
-                                    LLVMGetParam(sum, 1), "tmp");
+    // call_intrinsic(mod);
+
+    LLVMValueRef b = LLVMGetParam(sum, 2);
+    // LLVMBuildCall(builder, );
+
     // LLVMBuildBr(builder, entry);
     LLVMBuildRet(builder, tmp);
 
     LLVMDisposeBuilder(builder);
-    LLVMDumpModule(mod);
+    // LLVMDumpModule(mod);
     LLVMSetValueName(a, "a");
+
+    kl_intrinsic_Pointer(mod, LLVMInt32Type(), NULL, 0);
+    gen_c_struct(mod);
+    gen_main(mod);
+    kl_gen_pointer_new(mod, "", LLVMInt8Type());
+    LLVMTargetDataRef td = LLVMGetModuleDataLayout(mod);
+    int size = LLVMStoreSizeOfType(td, LLVMInt64Type());
+    printf("size:%d\n", size);
+
     LLVMDumpModule(mod);
 
-    gen_gcd(mod);
+    char *error = NULL;
+    LLVMVerifyModule(mod, LLVMPrintMessageAction, &error);
 
-    test_phi(mod);
+    // gen_gcd(mod);
 
+    // test_phi(mod);
+/*
     LLVMTypeRef st = LLVMStructCreateNamed(LLVMGetGlobalContext(), "Foo");
     LLVMTypeRef elems[2];
     elems[0] = LLVMInt32Type();
@@ -396,7 +591,7 @@ void main(int argc, char *argv[])
     // LLVMSetGlobalConstant(gv2, 1);
     // LLVMSetLinkage(gv2, LLVMPrivateLinkage);
 
-    gen_print_hello(mod, NULL);
+    // gen_print_hello(mod, NULL);
 
     char *error = NULL;
     LLVMVerifyModule(mod, LLVMPrintMessageAction, &error);
@@ -424,6 +619,7 @@ void main(int argc, char *argv[])
     LLVMAddGlobalMapping(engine, str_new_func, __kl_string_new);
 
     LLVMDumpModule(mod);
+*/
 #if 0
   LLVMPassManagerRef pass = LLVMCreatePassManager();
   //  LLVMAddTargetData(LLVMGetExecutionEngineTargetData(engine), pass);

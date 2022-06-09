@@ -1,54 +1,42 @@
 #
 # This file is part of the koala-lang project, under the MIT License.
-# Copyright (c) 2021-2021 James <zhuguangxiang@gmail.com>
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
-# OR OTHER DEALINGS IN THE SOFTWARE.
+# Copyright (c) 2018-2022 James <zhuguangxiang@gmail.com>
 #
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+cmake_minimum_required(VERSION 3.11)
 
-SET(PROJECT_NAME "koala-lang")
-SET(SKIP_TESTS 0)
-SET(DEBUG_TYPE DEBUG)
+set(PROJECT_NAME "koala-lang")
 
-PROJECT(${PROJECT_NAME})
+set(KOALA_VERSION_MAJOR 0)
+set(KOALA_VERSION_MINOR 7)
+set(KOALA_VERSION_PATCH 0)
+set(KOALA_VERSION_MAIN "${KOALA_VERSION_MAJOR}.${KOALA_VERSION_MINOR}")
+set(KOALA_VERSION "${KOALA_VERSION_MAIN}.${KOALA_VERSION_PATCH}")
 
-SET(KOALA_VERSION_MAJOR 0)
-SET(KOALA_VERSION_MINOR 5)
-SET(KOALA_VERSION_PATCH 0)
-SET(KOALA_VERSION_MAIN "${KOALA_VERSION_MAJOR}.${KOALA_VERSION_MINOR}")
-SET(KOALA_VERSION "${KOALA_VERSION_MAIN}.${KOALA_VERSION_PATCH}")
+project(${PROJECT_NAME} VERSION ${KOALA_VERSION})
 
-CONFIGURE_FILE(
-    ${PROJECT_SOURCE_DIR}/include/version.h.in
-    ${PROJECT_SOURCE_DIR}/include/version.h)
+configure_file(
+    ${PROJECT_SOURCE_DIR}/src/version.h.in
+    ${PROJECT_SOURCE_DIR}/src/version.h)
 
-IF(DEBUG_TYPE STREQUAL DEBUG)
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall -g -fvar-tracking")
-ENDIF()
+set(ENABLE_TEST 0)
 
-LINK_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/src)
-INCLUDE_DIRECTORIES(include)
+set(CMAKE_INSTALL_PREFIX $ENV{HOME}/.local/lib)
+add_definitions(-DMEM_MAXSIZE=512*1024)
 
-ADD_SUBDIRECTORY(src)
+if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wextra -Wall -g")
+else()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wextra -Werror -Wall -O2")
+endif()
 
-IF(NOT SKIP_TESTS)
-    ENABLE_TESTING()
-    ADD_SUBDIRECTORY(test)
-ENDIF()
+include_directories(src)
+
+add_subdirectory(src/common)
+add_subdirectory(src/koalac)
+#add_subdirectory(src/runtime)
+
+if(ENABLE_TEST)
+    enable_testing()
+    add_subdirectory(test)
+endif()

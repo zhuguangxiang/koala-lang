@@ -6,8 +6,8 @@ It is simple and extensible.
 ## Features of Koala
 
 - Easy to use
-- Object-oriented Programming (class, trait, mix-in)
-- Functional Programming (closure)
+- Object-oriented Programming
+- Functional Programming
 - Type safe
 - Garbage Collection
 
@@ -68,14 +68,6 @@ make install
 
 ## The Author
 
-Koala(🐻) was originally designed and developed by Zhu Guangxiang (James) since 2020.
+Koala(🐻) was originally designed and developed by Zhu Guangxiang (James) since 2018.
 
 <zhuguangxiang@gmail.com>
-
-## Donation
-
-To support this project, you can make a donation to give me a cup of coffee (😀).
-
-WeChat Donation:
-
-![WeChat Donation](wechat-donation.png)

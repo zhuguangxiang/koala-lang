@@ -1,0 +1,99 @@
+
+/// Pointer<T> is a raw memory pointer, usually used for `FFI` with C language.
+/// Like pointer in C language, Pointer<T> is unsafe, its lifecycle must be maintained by user.
+///
+/// The `T` type is only value types without any meta info.
+/// There are primitive number type, bool and struct defined in extern "C" block.
+/// About `String` and `Array`, use as_ptr() method to get the raw Pointer<T>.
+/// This is directly get memory pointer in GC. This is unsafe.
+///
+/// How to use raw pointer, some examples are below:
+
+1.
+```
+val := UInt32(100)
+ptr := Pointer(val)
+
+ptr.write_value<u16>(2, 200) // val = (200 << 16) + 100
+println(typeof(ptr)) // Pointer<u32>
+
+(ptr as Pointer<i8>).offset(2).write(200)
+
+p := addr_of(val) as Pointer<i8>
+p.write(100)
+p.offset(1).write(100) // val = (100 << 8) + 100
+```
+2. struct in extern "C"
+
+```
+extern "C" {
+    struct Foo {
+        str Pointer<u8>
+        len u32
+    }
+
+    func malloc(size u32) Pointer<Any>
+    func free(ptr Pointer<u8>)
+    func do_something(foo Pointer<Foo>)
+
+    func call_back(s Pointer<u8>) Pointer<Foo> {
+        foo := Foo()
+        foo.str = s
+        foo.len = s.length()
+        p := malloc(sizeof(Foo)) as Pointer<Foo>
+        p.write(foo)
+        return p
+    }
+}
+
+p := malloc(size_of(Foo)) as Pointer<Foo>
+
+p.str = "hello".as_ptr()
+p.len = 5
+foo := p.get()
+p.set(foo)
+
+do_something(p)
+
+free(p)
+
+```
+
+size_of()
+addr_of()
+offset_of()
+
+*/
+
+@intrinsic
+public struct Pointer<T> {
+
+    @intrinsic
+    public func __init__(v T)
+
+    @intrinsic
+    public func offset(off Int32) Pointer<T>
+
+    @intrinsic
+    public func read() T
+
+    @intrinsic
+    public func write(v T)
+
+    @intrinsic
+    public func read_offset<V>(off Int32) V
+
+    @intrinsic
+    public func write_offset<V>(off Int32, val V)
+
+    // overload dot operator
+    @intrinsic
+    public func __get_field__<V>(off UInt32) V
+
+    // overload dot operator
+    @intrinsic
+    public func __set_field__<V>(off UInt32, val V)
+
+    @intrinsic
+    public func is_null() bool
+}

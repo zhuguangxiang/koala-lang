@@ -1,0 +1,22 @@
+
+package std
+
+"""
+raw := RawArray<u8>(100)
+
+"""
+@intrinsic
+public struct RawArray<T> {
+
+    @intrinsic
+    public func __get_item__(idx u32) T
+
+    @intrinsic
+    public func __set_item__(idx u32, val T)
+
+    @intrinsic
+    public func size() u32
+
+    @intrinsic
+    public func as_ptr() Pointer<T>
+}

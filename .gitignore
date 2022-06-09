@@ -4,6 +4,7 @@ build/
 *.out
 *.output
 *.so
+*.o
 koala_lex.c
 koala_lex.h
 koala_yacc.c

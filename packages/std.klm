@@ -1,0 +1,10 @@
+
+package std
+
+@meta
+public class String {
+
+    public func to_string() String
+}
+
+public struct Array<T> ...

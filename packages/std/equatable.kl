@@ -1,0 +1,4 @@
+
+public trait Equatable<T> {
+    public abstract func equals(other T) bool
+}

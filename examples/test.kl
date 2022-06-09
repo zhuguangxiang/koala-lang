@@ -1,0 +1,32 @@
+
+package example
+
+import . "std"
+import . "std/io"
+import out "std/sys"
+import {out as stdout} "std/sys"
+
+let LEN = 100
+var hello = "hello"
+
+extern "C" {
+
+struct Foo {
+    var name Int
+    var age Int
+}
+
+}
+
+func abc() {
+    foo : bar()
+    foo; bar
+    foo.bar
+
+    let a io:File
+    io:println()
+    io.println()
+    io:stdout = in
+    io.stdout = out
+
+}

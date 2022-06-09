@@ -1,0 +1,6 @@
+
+package std
+
+public interface ToString {
+    func to_string() String
+}

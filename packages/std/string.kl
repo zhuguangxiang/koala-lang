@@ -1,0 +1,194 @@
+
+package std
+
+public struct String : ToString, Hashable, Equatable<String>, Comparable<String> {
+    let raw RawArray<u8>
+    var offset UInt32
+    var len u32
+
+    public func __init__(s Pointer<u8>, len u32) {
+        raw = alloc_raw_array<u8>()
+    }
+
+    public func sub_string(offset u32, len u32) String {
+        // if offset out of range, raise a panic!
+        if offset > self.len {
+            panic("invalid offset")
+        }
+
+        var s = String()
+        s.ptr = self.ptr
+        s.offset = offset
+        s.len = len
+        return s
+    }
+
+    public func as_ptr() Pointer<u8> {
+        return raw.as_ptr()
+    }
+
+    public override func to_string() String {
+        return self
+    }
+
+    public override func hash_code() u32 {
+
+    }
+
+    public override func equals(other String) bool {
+
+    }
+
+    public override func compare(other String) Order {
+
+    }
+}
+
+pub func StringFromLiteral(ptr Pointer<uint8>, size uint32) String
+{
+    var s = String()
+    s.ptr = Pointer<u8>:alloc(size)
+    memcpy(s.ptr, ptr, size)
+    s.offset = 0
+    s.len = size
+    return s
+}
+
+struct Foo {
+    var s CPointer<uint8>
+    var index uint32
+    var bar CPointer<Bar>
+    var inst Bar
+}
+
+struct Foo {
+    uint8 *s;
+    uint32 index;
+    Bar *bar;
+    Bar inst;
+};
+
+struct Bar {
+    var slot uint32
+}
+
+extern "C" {
+    func pass_to_cfunc(foo CPointer<Foo>);
+}
+
+func test() {
+    let foo = Foo()
+    let bar = Bar()
+
+    let b Bar
+
+    bar.slot = 20
+
+    foo.bar = bar
+    foo.s = "hello".getCPointer()
+    foo.s = malloc(100)
+    memcpy(foo.s, "hello".getCPointer(), 20)
+    foo.index = 100
+
+    pass_to_cfunc(foo)
+}
+
+class Person {
+    var name string
+    var age i32
+}
+
+var p Person = Person()
+p = None
+
+p.age = 100 => if (p.isSome()) {
+    p.age = 100
+} else {
+    panic();
+}
+
+class Node {
+    var value i32
+    var next Node
+    func __init__(v i32) {
+        value = v
+        next = self
+    }
+    func toString() string {
+        return "${value}"
+    }
+}
+
+var n = Node(100);
+n.next = Node(200);
+
+var it = n;
+while (it.next != it) {
+    io.println(it);
+    it = it.next()
+}
+
+var n ?Node = None
+n.isNone()
+n = m => 自动为Some(m)
+
+var n Option<Node> = None
+n = Some(n)
+n = m => 自动为Some(m)
+
+n?.next
+
+extern "C" {
+
+struct B {
+    var s CPointer<u8>
+    var len u32
+}
+
+struct A {
+    var b B
+    var bp CPointer<B>
+    var v i8
+}
+
+func xx(v1 CPointer<A>, v2 B);
+
+}
+
+var b B;
+b.s = "hello"
+b.len = 5
+
+var a A;
+a.v = 100
+a.b = b;
+a.bp = b;
+var bp = a.bp
+bp.s = "hello" => bp.write(0, offsetof(B, s), "hello")
+bp.len
+
+var bp = addressof(a)
+a = valueof(bp)
+a = valueof(bp, 1)
+bp.increase(2)
+
+var bpp  CPointer<CPointer<B>> = malloc(8 * 10);
+bpp[0] = bp
+
+xx(a, b)
+================
+CPointer和对象之间的赋值自动识别是取地址，还是值拷贝
+
+struct
+CPointer
+
+extern "C" struct
+extern "C" func
+
+
+cffi {
+    struct Pointer<T> {
+
+    }
+
+}
