@@ -16,6 +16,7 @@ extern "C" {
 
 typedef enum _TypeKind TypeKind;
 typedef struct _TypeDesc TypeDesc;
+typedef struct _PointerType PointerType;
 typedef struct _ArrayType ArrayType;
 typedef struct _MapType MapType;
 typedef struct _ProtoType ProtoType;
@@ -37,6 +38,7 @@ enum _TypeKind {
     TYPE_BOOL_KIND,
     TYPE_CHAR_KIND,
     TYPE_STR_KIND,
+    TYPE_PTR_KIND,
     TYPE_ARRAY_KIND,
     TYPE_MAP_KIND,
     TYPE_PROTO_KIND,
@@ -50,6 +52,11 @@ enum _TypeKind {
 
 struct _TypeDesc {
     DESC_HEAD
+};
+
+struct _PointerType {
+    DESC_HEAD
+    TypeDesc *ty;
 };
 
 struct _ArrayType {
@@ -93,10 +100,11 @@ TypeDesc *desc_from_float64(void);
 TypeDesc *desc_from_bool(void);
 TypeDesc *desc_from_char(void);
 TypeDesc *desc_from_str(void);
+TypeDesc *desc_from_ptr(TypeDesc *ty);
 TypeDesc *desc_from_array(TypeDesc *ty);
 TypeDesc *desc_from_map(TypeDesc *kty, TypeDesc *vty);
 TypeDesc *desc_from_proto(TypeDesc *ret, Vector *params);
-TypeDesc *desc_from_klass(char *pkg, char *name, Vector *args);
+TypeDesc *desc_from_klass(char *pkg, char *name, Vector *type_params);
 static inline Vector *proto_params(TypeDesc *ty)
 {
     assert(ty->kind == TYPE_PROTO_KIND);

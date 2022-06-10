@@ -92,6 +92,14 @@ TypeDesc *desc_from_str(void)
     return &bases[TYPE_STR_KIND];
 }
 
+TypeDesc *desc_from_ptr(TypeDesc *ty)
+{
+    PointerType *ptr = mm_alloc_obj(ptr);
+    ptr->kind = TYPE_PTR_KIND;
+    ptr->ty = ty;
+    return (TypeDesc *)ptr;
+}
+
 static ArrayType uint8_array = { TYPE_ARRAY_KIND, &bases[TYPE_U8_KIND] };
 static ArrayType uint16_array = { TYPE_ARRAY_KIND, &bases[TYPE_U16_KIND] };
 static ArrayType uint32_array = { TYPE_ARRAY_KIND, &bases[TYPE_U32_KIND] };

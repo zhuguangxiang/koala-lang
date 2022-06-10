@@ -404,7 +404,9 @@ let_decl
     : LET ID '=' expr ';'
     {
         Ident id = {$2, loc(@2), NULL};
-        ExprType ty = {{0, 0}, desc_from_unk()};
+        ExprType ty;
+        ty.loc = (Loc){0, 0};
+        ty.ty = desc_from_unk();
         $$ = stmt_from_let_decl(id, ty, $4);
         $$->loc = loc(@1);
     }
@@ -416,13 +418,17 @@ let_decl
     }
     | LET error
     {
+        printf("error let-1\n");
         // yy_errmsg(loc(@2), "expected identifier");
-        yy_clearin_errok; $$ = NULL;
+        yy_clearin_errok;
+        $$ = NULL;
     }
     | LET ID error
     {
+        printf("error let\n");
         // yy_errmsg(loc(@3), "expected 'TYPE' or '='");
-        yy_clearin_errok; $$ = NULL;
+        yy_clearin_errok;
+        $$ = NULL;
     }
     | LET ID '=' error
     {
@@ -431,6 +437,7 @@ let_decl
     }
     | LET ID type error
     {
+        printf("error let2:%d\n", $3.ty->kind);
         // yy_errmsg(loc(@4), "expected '='");
         yy_clearin_errok; $$ = NULL;
     }
@@ -738,6 +745,7 @@ local
     | let_decl
     {
         //set_var_decl_where($1, VAR_DECL_LOCAL);
+        printf("local let\n");
         $$ = $1;
     }
     | var_decl
@@ -1642,7 +1650,7 @@ angle_expr
 atom_expr
     : ID
     {
-        printf("ID expr\n");
+        //printf("ID expr\n");
         //Ident id = {$1, loc(@1), NULL};
         //$$ = expr_from_ident(&id, NULL);
        // expr_set_loc($$, loc(@1));
@@ -1774,6 +1782,14 @@ atom_expr
     {
         assert(0);
     }
+    | POINTER '<' type '>' '(' ID ')'
+    {
+
+    }
+    | POINTER '<' type '>' '(' ID '.' ID ')'
+    {
+
+    }
     ;
 
 array_object_expr
@@ -1896,123 +1912,131 @@ type
     {
         $$ = $1;
     }
+    | '[' type ';' INT_LITERAL ']'
+    {
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
+    }
     | '[' type ']'
     {
-       // $$ = expr_type_array($2);
-       // expr_type_set_loc($$, loc(@1));
+        $$.loc = loc(@1);
+        $$.ty = desc_from_array($2.ty);
+        $$.loc2 = loc(@2);
     }
     | '[' type ':' type ']'
     {
-       // $$ = expr_type_map($2, $4);
-      //  expr_type_set_loc($$, loc(@1));
+        $$.loc = loc(@1);
+        $$.ty = desc_from_map($2.ty, $4.ty);
+        $$.loc2 = loc(@2);
+        $$.loc3 = loc(@4);
     }
     | '(' type_list ')'
     {
-       // $$ = expr_type_tuple($2);
-       // expr_type_set_loc($$, loc(@1));
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | '[' error
     {
-        ExprType ty = {{0, 0}, desc_from_unk()};
-        $$ = ty;
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | '[' type error
     {
-        ExprType ty = {{0, 0}, desc_from_unk()};
-        $$ = ty;
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | '[' type ':' error
     {
-        ExprType ty = {{0, 0}, desc_from_unk()};
-        $$ = ty;
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | '[' type ':' type error
     {
-        ExprType ty = {{0, 0}, desc_from_unk()};
-        $$ = ty;
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | '(' error
     {
-        ExprType ty = {{0, 0}, desc_from_unk()};
-        $$ = ty;
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | '(' type_list error
     {
-        ExprType ty = {{0, 0}, desc_from_unk()};
-        $$ = ty;
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     ;
 
 atom_type
     : INT8
     {
-        ExprType ty = {loc(@1), desc_from_int8()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_int8();
     }
     | INT16
     {
-        ExprType ty = {loc(@1), desc_from_int16()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_int16();
     }
     | INT32
     {
-        ExprType ty = {loc(@1), desc_from_int32()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_int32();
     }
     | INT64
     {
-        ExprType ty = {loc(@1), desc_from_int64()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_int64();
     }
     | UINT8
     {
-        ExprType ty = {loc(@1), desc_from_uint8()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_uint8();
     }
     | UINT16
     {
-        ExprType ty = {loc(@1), desc_from_uint16()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_uint16();
     }
     | UINT32
     {
-        ExprType ty = {loc(@1), desc_from_uint32()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_uint32();
     }
     | UINT64
     {
-        ExprType ty = {loc(@1), desc_from_uint64()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_uint64();
     }
     | FLOAT32
     {
-        ExprType ty = {loc(@1), desc_from_float32()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_float32();
     }
     | FLOAT64
     {
-        ExprType ty = {loc(@1), desc_from_float64()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_float64();
     }
     | BOOL
     {
-        ExprType ty = {loc(@1), desc_from_bool()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_bool();
     }
     | CHAR
     {
-        ExprType ty = {loc(@1), desc_from_char()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_char();
     }
     | STRING
     {
-        ExprType ty = {loc(@1), desc_from_str()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_str();
     }
     | ANY
     {
-        ExprType ty = {loc(@1), desc_from_any()};
-        $$ = ty;
+        $$.loc = loc(@1);
+        $$.ty = desc_from_any();
     }
     | klass_type
     {
@@ -2024,38 +2048,66 @@ atom_type
     }
     | POINTER '<' type '>'
     {
-
+        $$.loc = loc(@1);
+        $$.ty = desc_from_ptr($3.ty);
+        $$.loc2 = loc(@3);
     }
     ;
 
 klass_type
     : ID
     {
-        TypeDesc *ty = desc_from_klass(NULL, $1, NULL);
         $$.loc = loc(@1);
-        $$.ty = ty;
+        $$.ty = desc_from_klass(NULL, $1, NULL);
     }
     | ID '.' ID
     {
-        printf("ID : ID\n");
-       // Ident pkg = {$1, loc(@1), NULL};
-       // Ident name = {$3, loc(@3), NULL};
-       // $$ = expr_type_klass(&pkg, &name, NULL);
-       // expr_type_set_loc($$, loc(@1));
+        $$.loc = loc(@1);
+        $$.ty = desc_from_klass($1, $3, NULL);
+        $$.loc2 = loc(@3);
     }
     | ID L_ANGLE_ARGS type_list r_angle
     {
-       // Ident pkg = {NULL, {0, 0}, NULL};
-       // Ident name = {$1, loc(@1), NULL};
-       // $$ = expr_type_klass(&pkg, &name, $3);
-       // expr_type_set_loc($$, loc(@1));
+        $$.loc = loc(@1);
+        $$.ty = desc_from_klass(NULL, $1, $3);
+        $$.loc2 = loc(@3);
     }
     | ID '.' ID L_ANGLE_ARGS type_list r_angle
     {
-       // Ident pkg = {$1, loc(@1), NULL};
-      //  Ident name = {$3, loc(@3), NULL};
-       // $$ = expr_type_klass(&pkg, &name, $5);
-       // expr_type_set_loc($$, loc(@1));
+        $$.loc = loc(@1);
+        $$.ty = desc_from_klass($1, $3, $5);
+        $$.loc2 = loc(@3);
+        $$.loc3 = loc(@5);
+    }
+    | ID '.' error
+    {
+        printf("error types\n");
+        $$.loc = loc(@3);
+        $$.ty = desc_from_unk();
+    }
+    | ID L_ANGLE_ARGS error
+    {
+        printf("error types2\n");
+        $$.loc = loc(@3);
+        $$.ty = desc_from_unk();
+    }
+    | ID L_ANGLE_ARGS type_list error
+    {
+        printf("error types3\n");
+        $$.loc = loc(@4);
+        $$.ty = desc_from_unk();
+    }
+    | ID '.' ID L_ANGLE_ARGS error
+    {
+        printf("error types4\n");
+        $$.loc = loc(@5);
+        $$.ty = desc_from_unk();
+    }
+    | ID '.' ID L_ANGLE_ARGS type_list error
+    {
+        printf("error types5\n");
+        $$.loc = loc(@6);
+        $$.ty = desc_from_unk();
     }
     ;
 
@@ -2067,47 +2119,53 @@ r_angle
 func_type
     : FUNC '(' type_list ')' type
     {
-        //$$ = expr_type_proto($5, $3);
-       // expr_type_set_loc($$, loc(@1));
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC '(' type_list ')'
     {
-       // $$ = expr_type_proto(NULL, $3);
-       // expr_type_set_loc($$, loc(@1));
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC '(' ')' type
     {
-       // $$ = expr_type_proto($4, NULL);
-       // expr_type_set_loc($$, loc(@1));
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC '(' ')'
     {
-        //$$ = expr_type_proto(NULL, NULL);
-        //expr_type_set_loc($$, loc(@1));
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC '(' param_list ')' type
     {
-
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC '(' param_list ')'
     {
-
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC error
     {
-
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC '(' error
     {
-
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC '(' type_list error
     {
-
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     | FUNC '(' param_list error
     {
-
+        $$.loc = (Loc){0, 0};
+        $$.ty = desc_from_unk();
     }
     ;
 

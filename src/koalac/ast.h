@@ -45,13 +45,15 @@ typedef struct _ExprProtoType ExprProtoType;
 
 /* location */
 struct _Loc {
-    int row;
-    int col;
+    short row;
+    short col;
 };
 
 /* type */
 struct _ExprType {
     Loc loc;
+    Loc loc2;
+    Loc loc3;
     TypeDesc *ty;
 };
 
