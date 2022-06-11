@@ -1,8 +1,4 @@
 
-public trait Equatable<T> {
-    public abstract func __eq__(other Any) bool
-}
-
-public trait Hashable : Equatable<T> {
-    public abstract func hash_code() u32
+public interface Hashable<T> : Equatable<T> {
+    func hashCode() UInt32
 }

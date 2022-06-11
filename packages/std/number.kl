@@ -1,64 +1,28 @@
 
-package std
+@intrinsic
+public struct Int8 : ToString & Hashable<Int8> {
 
-public struct Int8 : ToString & Hashable & Equatable<String> {
-
+    @asm
     public func __add__(rhs Int8) Int8
 
+    @asm
     public func __sub__(rhs Int8) Int8
 
+    @asm
     public func __div__(rhs Int8) Int8
 
+    @asm
     public func __mod__(rhs Int8) Int8
 
+    @asm
+    @override
     public func __eq__(rhs Int8) bool
 
+    @inline
     @override
-    public func to_string() String
+    public func toString() String
 
+    @inline
     @override
-    public func hash_code() u32
-
-    @override
-    public func equals(rhs Int8) bool
-}
-
-
-var v Int8 = 100
-v.hash_code() => func _ZN3std4Int89hash_code(self i8) UInt32
-
-var i8_hash Hashable = v
-
-+----------+
-| vtbl     |
-+----------+
-| typeinfo |
-+----------+
-| u64      |
-+----------+
-| obj      |
-+----------+
-
-+----------+
-| vtbl     |
-+----------+
-| obj      |--------+
-+----------+        |
-                   \|/
-                +----------+
-                | typeinfo |
-                +----------+
-                | u64      |
-                +----------+
-
-i8_hash.hash_code()
-
-fn(i8 *) = i8_hash.vtbl[0]
-fn(i8_hash.obj.u64 * as i8 *)
-
-v = i8_hash as i8
-if (i8_hash.obj.typeinfo == i8_typeinfo) {
-    v = (i8)i8_hash.obj.u64
-} else {
-    panic();
+    public func hashCode() UInt32
 }

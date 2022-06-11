@@ -38,19 +38,91 @@ Expr *expr_from_under(void)
     return e;
 }
 
+Expr *expr_from_int8(int8_t val)
+{
+    LiteralExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->i8val = val;
+    exp->ty = desc_from_int8();
+    return (Expr *)exp;
+}
+
+Expr *expr_from_int16(int16_t val)
+{
+    LiteralExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->i16val = val;
+    exp->ty = desc_from_int16();
+    return (Expr *)exp;
+}
+
+Expr *expr_from_int32(int32_t val)
+{
+    LiteralExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->i32val = val;
+    exp->ty = desc_from_int32();
+    return (Expr *)exp;
+}
+
 Expr *expr_from_int64(int64_t val)
 {
     LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_INT64_KIND;
+    exp->kind = EXPR_LITERAL_KIND;
     exp->i64val = val;
     exp->ty = desc_from_int64();
+    return (Expr *)exp;
+}
+
+Expr *expr_from_uint8(uint8_t val)
+{
+    LiteralExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->u8val = val;
+    exp->ty = desc_from_uint8();
+    return (Expr *)exp;
+}
+
+Expr *expr_from_uint16(uint16_t val)
+{
+    LiteralExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->u16val = val;
+    exp->ty = desc_from_uint16();
+    return (Expr *)exp;
+}
+
+Expr *expr_from_uint32(uint32_t val)
+{
+    LiteralExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->u32val = val;
+    exp->ty = desc_from_uint32();
+    return (Expr *)exp;
+}
+
+Expr *expr_from_uint64(uint64_t val)
+{
+    LiteralExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->u64val = val;
+    exp->ty = desc_from_uint64();
+    return (Expr *)exp;
+}
+
+Expr *expr_from_float32(float val)
+{
+    LiteralExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_LITERAL_KIND;
+    exp->f32val = val;
+    exp->ty = desc_from_float64();
     return (Expr *)exp;
 }
 
 Expr *expr_from_float64(double val)
 {
     LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_FLOAT64_KIND;
+    exp->kind = EXPR_LITERAL_KIND;
     exp->f64val = val;
     exp->ty = desc_from_float64();
     return (Expr *)exp;
@@ -59,7 +131,7 @@ Expr *expr_from_float64(double val)
 Expr *expr_from_bool(int val)
 {
     LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_BOOL_KIND;
+    exp->kind = EXPR_LITERAL_KIND;
     exp->bval = val;
     exp->ty = desc_from_bool();
     return (Expr *)exp;
@@ -68,7 +140,7 @@ Expr *expr_from_bool(int val)
 Expr *expr_from_str(char *val)
 {
     LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_STR_KIND;
+    exp->kind = EXPR_LITERAL_KIND;
     exp->sval = val;
     exp->ty = desc_from_str();
     return (Expr *)exp;
@@ -77,7 +149,7 @@ Expr *expr_from_str(char *val)
 Expr *expr_from_char(int val)
 {
     LiteralExpr *exp = mm_alloc_obj(exp);
-    exp->kind = EXPR_CHAR_KIND;
+    exp->kind = EXPR_LITERAL_KIND;
     exp->cval = val;
     exp->ty = desc_from_char();
     return (Expr *)exp;
@@ -120,19 +192,7 @@ void free_expr(Expr *e)
         case EXPR_NULL_KIND:
         case EXPR_SELF_KIND:
         case EXPR_SUPER_KIND:
-        case EXPR_UINT8_KIND:
-        case EXPR_UINT16_KIND:
-        case EXPR_UINT32_KIND:
-        case EXPR_UINT64_KIND:
-        case EXPR_INT8_KIND:
-        case EXPR_INT16_KIND:
-        case EXPR_INT32_KIND:
-        case EXPR_INT64_KIND:
-        case EXPR_FLOAT32_KIND:
-        case EXPR_FLOAT64_KIND:
-        case EXPR_BOOL_KIND:
-        case EXPR_CHAR_KIND:
-        case EXPR_STR_KIND:
+        case EXPR_LITERAL_KIND:
         case EXPR_ID_KIND:
         case EXPR_UNDER_KIND:
             mm_free(e);
@@ -165,11 +225,11 @@ Stmt *stmt_from_let_decl(Ident name, ExprType ty, Expr *e)
     return (Stmt *)s;
 }
 
-Stmt *stmt_from_var_decl(Ident *name, ExprType ty, Expr *e)
+Stmt *stmt_from_var_decl(Ident name, ExprType ty, Expr *e)
 {
     VarDeclStmt *s = mm_alloc(sizeof(*s));
     s->kind = STMT_VAR_KIND;
-    s->id = *name;
+    s->id = name;
     s->ty = ty;
     s->exp = e;
     return (Stmt *)s;
@@ -224,15 +284,15 @@ Stmt *stmt_from_expr(Expr *e)
     return (Stmt *)s;
 }
 
-Stmt *stmt_from_func_decl(Ident *name, Vector *type_params, Vector *args,
-                          ExprType ret, Vector *body)
+Stmt *stmt_from_func_decl(Ident name, Vector *type_params, Vector *args,
+                          ExprType *ret, Vector *body)
 {
     FuncDeclStmt *s = mm_alloc(sizeof(*s));
     s->kind = STMT_FUNC_KIND;
-    s->id = *name;
+    s->id = name;
     s->type_params = type_params;
     s->args = args;
-    s->ret = ret;
+    if (ret) s->ret = *ret;
     s->body = body;
     return (Stmt *)s;
 }

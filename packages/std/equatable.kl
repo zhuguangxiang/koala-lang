@@ -1,4 +1,4 @@
 
-public trait Equatable<T> {
-    public abstract func equals(other T) bool
+public interface Equatable<T> {
+    func __eq__(rhs T) bool
 }

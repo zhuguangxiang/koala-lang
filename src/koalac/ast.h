@@ -69,20 +69,8 @@ enum _ExprKind {
     EXPR_NULL_KIND = 1,
     EXPR_SELF_KIND,
     EXPR_SUPER_KIND,
-    /* literal:int, float, bool, char, string */
-    EXPR_INT8_KIND,
-    EXPR_INT16_KIND,
-    EXPR_INT32_KIND,
-    EXPR_INT64_KIND,
-    EXPR_UINT8_KIND,
-    EXPR_UINT16_KIND,
-    EXPR_UINT32_KIND,
-    EXPR_UINT64_KIND,
-    EXPR_FLOAT32_KIND,
-    EXPR_FLOAT64_KIND,
-    EXPR_BOOL_KIND,
-    EXPR_CHAR_KIND,
-    EXPR_STR_KIND,
+    /* literal: int, float, bool, char, string */
+    EXPR_LITERAL_KIND,
     /* ident and underscore(_) */
     EXPR_ID_KIND,
     EXPR_UNDER_KIND,
@@ -135,7 +123,7 @@ struct _LiteralExpr {
         int32_t i32val;
         int64_t i64val;
         uint8_t u8val;
-        uint16_t ui16val;
+        uint16_t u16val;
         uint32_t u32val;
         uint64_t u64val;
         float f32val;
@@ -223,11 +211,29 @@ Expr *expr_from_self(void);
 Expr *expr_from_super(void);
 Expr *expr_from_under(void);
 
+Expr *expr_from_int8(int8_t val);
+Expr *expr_from_int16(int16_t val);
+Expr *expr_from_int32(int32_t val);
 Expr *expr_from_int64(int64_t val);
+Expr *expr_from_uint8(uint8_t val);
+Expr *expr_from_uint16(uint16_t val);
+Expr *expr_from_uint32(uint32_t val);
+Expr *expr_from_uint64(uint64_t val);
+Expr *expr_from_float32(float val);
 Expr *expr_from_float64(double val);
 Expr *expr_from_bool(int val);
 Expr *expr_from_str(char *val);
 Expr *expr_from_char(int val);
+
+#if INTPTR_MAX == INT64_MAX
+#define expr_from_int(v)   expr_from_int64(v)
+#define expr_from_float(v) expr_from_float64(v)
+#elif INTPTR_MAX == INT32_MAX
+#define expr_from_int(v)   expr_from_int32(v)
+#define expr_from_float(v) expr_from_float32(v)
+#else
+#error "Must define either 32 or 64 bits".
+#endif
 
 Expr *expr_from_ident(Ident *val, ExprType *ty);
 Expr *expr_from_unary(UnOpKind op, Loc op_loc, Expr *e);
@@ -285,10 +291,6 @@ struct _Stmt {
 
 struct _VarDeclStmt {
     STMT_HEAD
-    int where;
-#define VAR_DECL_GLOBAL 1
-#define VAR_DECL_LOCAL  2
-#define VAR_DECL_FIELD  3
     Ident id;
     ExprType ty;
     Expr *exp;
@@ -341,21 +343,23 @@ struct _ExprStmt {
 };
 
 Stmt *stmt_from_let_decl(Ident name, ExprType ty, Expr *e);
-Stmt *stmt_from_var_decl(Ident *name, ExprType ty, Expr *e);
+Stmt *stmt_from_var_decl(Ident name, ExprType ty, Expr *e);
 Stmt *stmt_from_assign(AssignOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
 Stmt *stmt_from_ret(Expr *ret);
 Stmt *stmt_from_break(void);
 Stmt *stmt_from_continue(void);
 Stmt *stmt_from_block(Vector *stmts);
 Stmt *stmt_from_expr(Expr *e);
-Stmt *stmt_from_func_decl(Ident *name, Vector *type_params, Vector *args,
-                          ExprType ret, Vector *body);
+Stmt *stmt_from_func_decl(Ident name, Vector *type_params, Vector *args,
+                          ExprType *ret, Vector *body);
 
 void free_stmt(Stmt *s);
 
 typedef struct {
     Ident id;
     Vector *type_params;
+    Loc loc;
+    int error;
 } Ident_TypeParams;
 
 typedef struct {
