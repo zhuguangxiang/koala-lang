@@ -420,45 +420,38 @@ let_decl
     }
     | LET error
     {
-        printf("error let-1\n");
-        // yy_errmsg(loc(@2), "expected identifier");
-        yy_clearin_errok;
-        $$ = NULL;
+        parser_error(loc(@2), "expected identifier");
+        yyerrok; $$ = NULL;
     }
     | LET ID error
     {
-        printf("error let\n");
-        // yy_errmsg(loc(@3), "expected 'TYPE' or '='");
-        yy_clearin_errok;
-        $$ = NULL;
+        parser_error(loc(@3), "expected TYPE or =");
+        yyerrok; $$ = NULL;
     }
     | LET ID '=' error
     {
         parser_error(loc(@4), "expected expression");
-        yyerrok;
-        $$ = NULL;
+        yyerrok; $$ = NULL;
     }
     | LET ID type error
     {
-        printf("error let2:%d\n", $3.ty->kind);
-        // yy_errmsg(loc(@4), "expected '='");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@4), "expected =");
+        yyerrok; $$ = NULL;
     }
     | LET ID type '=' error
     {
-        // yy_errmsg(loc(@5), "expected expression");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@5), "expected expression");
+        yyerrok; $$ = NULL;
     }
     | LET ID '=' expr error
     {
-        parser_error(loc(@5), "expected ';'");
-        yyerrok;
-        $$ = NULL;
+        parser_error(loc(@5), "expected ; or \\n");
+        yyerrok; $$ = NULL;
     }
     | LET ID type '=' expr error
     {
-        // yy_errmsg(loc(@6), "expected ';' or '\\n'");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@6), "expected ; or \\n");
+        yyerrok; $$ = NULL;
     }
     ;
 
@@ -486,38 +479,38 @@ var_decl
     }
     | VAR error
     {
-        // yy_errmsg(loc(@2), "expected identifier");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@2), "expected identifier");
+        yyerrok; $$ = NULL;
     }
     | VAR ID error
     {
-        // yy_errmsg(loc(@3), "expected 'TYPE' or '='");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@3), "expected TYPE or =");
+        yyerrok; $$ = NULL;
     }
     | VAR ID '=' error
     {
-        // yy_errmsg(loc(@4), "expected expression");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@4), "expected expression");
+        yyerrok; $$ = NULL;
     }
     | VAR ID type error
     {
-        printf("var decl error3, %c\n", yychar);
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@4), "expected = or ;");
+        yyerrok; $$ = NULL;
     }
     | VAR ID '=' expr error
     {
-        // yy_errmsg(loc(@5), "expected ';' or '\\n'");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@5), "expected ; or \\n");
+        yyerrok; $$ = NULL;
     }
     | VAR ID type '=' error
     {
-        // yy_errmsg(loc(@5), "expected expression");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@5), "expected expression");
+        yyerrok; $$ = NULL;
     }
     | VAR ID type '=' expr error
     {
-        // yy_errmsg(loc(@6), "expected ';' or '\\n'");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@6), "expected ; or \\n");
+        yyerrok; $$ = NULL;
     }
     ;
 
