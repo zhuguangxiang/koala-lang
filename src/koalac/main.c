@@ -14,7 +14,7 @@
 
 static void version(void)
 {
-    printf("Koala(🐻) %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
+    printf("Koala %s (%s, %s)\n", KOALA_VERSION, __DATE__, __TIME__);
 
     struct utsname sysinfo;
     if (!uname(&sysinfo)) {
@@ -77,11 +77,11 @@ static void parse_command(int argc, char *argv[], ParserOption *parse_opt)
                 const char *name = options[index].name;
                 if (!strcmp(name, "filetype")) {
                     if (optarg) {
-                        printf("filetype: %s\n", optarg);
+                        // printf("filetype: %s\n", optarg);
                     }
                 } else if (!strcmp(name, "pic")) {
                     parse_opt->pic = 1;
-                    printf("pic: enabled\n");
+                    // printf("pic: enabled\n");
                 } else if (!strcmp(name, "version")) {
                     version();
                     exit(0);
@@ -94,7 +94,7 @@ static void parse_command(int argc, char *argv[], ParserOption *parse_opt)
             case 1:
                 /* regular argument */
                 parse_opt->input[input++] = optarg;
-                printf("input: %s\n", optarg);
+                // printf("input: %s\n", optarg);
                 break;
             case '?':
                 usage();
@@ -102,11 +102,11 @@ static void parse_command(int argc, char *argv[], ParserOption *parse_opt)
                 break;
             case ':':
                 if (optopt == 'l') {
-                    printf("missing library name\n");
+                    printf("Missing library name.\n");
                 } else if (optopt == 'L') {
-                    printf("missing library path\n");
+                    printf("Missing library path.\n");
                 } else if (optopt == 'o') {
-                    printf("missing output file name\n");
+                    printf("Missing output file name.\n");
                 } else {
                     /* empty */
                 }
@@ -114,18 +114,18 @@ static void parse_command(int argc, char *argv[], ParserOption *parse_opt)
                 exit(0);
                 break;
             case 'l':
-                printf("-l %s\n", optarg);
+                // printf("-l %s\n", optarg);
                 break;
             case 'L':
-                printf("-L %s\n", optarg);
+                // printf("-L %s\n", optarg);
                 break;
             case 'o':
                 parse_opt->output = optarg;
-                printf("output: %s\n", optarg);
+                // printf("output: %s\n", optarg);
                 break;
             case 'g':
                 parse_opt->debug = 1;
-                printf("debug: enabled\n");
+                // printf("debug: enabled\n");
                 break;
             default:
                 break;
@@ -144,6 +144,7 @@ static void build_ast(char *path)
     ParserState ps = { 0 };
     ps.row = 1;
     ps.col = 1;
+    ps.filename = path;
 
     yyscan_t scanner;
     yylex_init_extra(&ps, &scanner);

@@ -142,9 +142,8 @@ static void do_doc(YY_EXTRA_TYPE ps, char *txt, int len)
     buf_write_char(&ps->doc_buf, '\n');
 }
 
-int file_input(YY_EXTRA_TYPE ps, char *buf, int size, FILE *in)
+int file_input(char *buf, int size, FILE *in)
 {
-    UNUSED(ps);
     errno = 0;
     int result = 0;
     while ((result = (int)fread(buf, 1, (size_t)size, in)) == 0 && ferror(in)) {
@@ -160,14 +159,15 @@ int file_input(YY_EXTRA_TYPE ps, char *buf, int size, FILE *in)
 
 /* Macros in flex */
 
-#define YY_INPUT(buf, ret, size) ret = file_input(yyps, buf, size, yyin)
+#define YY_INPUT(buf, ret, size) ret = file_input(buf, size, yyin)
 
 #define YY_USER_ACTION                                                  \
     {                                                                   \
+        yyps->read_bytes += yyleng;                                     \
         char ch = yytext[0];                                            \
         if (ch != '\n' && ch != '\r') {                                 \
             yyps->col += yyps->len;                                     \
-            yyps->len = strlen(yytext);                                 \
+            yyps->len = yyleng;                                         \
             if (!yyps->in_str) {                                        \
                 yylloc->first_line = yyps->row;                         \
                 yylloc->first_column = yyps->col;                       \
@@ -199,6 +199,8 @@ int file_input(YY_EXTRA_TYPE ps, char *buf, int size, FILE *in)
     do {                                                      \
         int len = yyps->len;                                  \
         ++yyps->row;                                          \
+        yyps->last_line = yyps->line;                         \
+        yyps->line = yyps->read_bytes;                        \
         yyps->col = 1;                                        \
         yyps->len = 0;                                        \
         if (semicolon(yyps)) {                                \

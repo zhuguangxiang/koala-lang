@@ -171,12 +171,11 @@ Expr *expr_from_sizeof(ExprType ty)
     return (Expr *)exp;
 }
 
-Expr *expr_from_ident(Ident *val, ExprType *ty)
+Expr *expr_from_ident(Ident name)
 {
     IdExpr *exp = mm_alloc_obj(exp);
     exp->kind = EXPR_ID_KIND;
-    exp->ty = ty->ty;
-    exp->id = *val;
+    exp->id = name;
     return (Expr *)exp;
 }
 

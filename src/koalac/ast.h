@@ -252,7 +252,7 @@ Expr *expr_from_sizeof(ExprType ty);
 #error "Must define either 32 or 64 bits".
 #endif
 
-Expr *expr_from_ident(Ident *val, ExprType *ty);
+Expr *expr_from_ident(Ident name);
 Expr *expr_from_unary(UnOpKind op, Loc op_loc, Expr *e);
 Expr *expr_from_binary(BinOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
 

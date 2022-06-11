@@ -22,6 +22,7 @@
 
 %%
 
+"func("     { YY_RETURN(LAMBDA);  }
 "package"   { YY_RETURN(PACKAGE);  }
 "import"    { YY_RETURN(IMPORT);   }
 "type"      { YY_RETURN(TYPE);     }

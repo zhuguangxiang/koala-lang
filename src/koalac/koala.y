@@ -80,6 +80,7 @@ int keyword(int token)
 %token EXTERNC
 %token INOUT
 %token POINTER
+%token LAMBDA
 
 %token SELF
 %token SUPER
@@ -251,6 +252,7 @@ top_decl
     }
     | let_decl
     {
+        //printf("let_decl in top\n");
         //parser_new_var(ps, $1);
         //set_var_decl_where($1, VAR_DECL_GLOBAL);
     }
@@ -269,6 +271,7 @@ top_decl
     }
     | func_decl
     {
+        //printf("func_decl in top\n");
         //parser_new_func(ps, $1);
     }
     | PUBLIC func_decl
@@ -299,9 +302,9 @@ top_decl
     }
     | error
     {
-        // // yy_errmsg(loc(@1), "syntax error");
-        printf("syntax error\n");
-        yyclearin; yyerrok;
+        parser_error(loc(@1), "illegal top declaration");
+        yyclearin;
+        yyerrok;
     }
     ;
 
@@ -401,6 +404,7 @@ type_alias_decl
 let_decl
     : LET ID '=' expr ';'
     {
+        // printf("let-decl\n");
         Ident id = {$2, loc(@2), NULL};
         ExprType ty;
         ty.loc = (Loc){0, 0};
@@ -430,8 +434,9 @@ let_decl
     }
     | LET ID '=' error
     {
-        // yy_errmsg(loc(@4), "expected expression");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@4), "expected expression");
+        yyerrok;
+        $$ = NULL;
     }
     | LET ID type error
     {
@@ -446,8 +451,9 @@ let_decl
     }
     | LET ID '=' expr error
     {
-        // yy_errmsg(loc(@5), "expected ';' or '\\n'");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@5), "expected ';'");
+        yyerrok;
+        $$ = NULL;
     }
     | LET ID type '=' expr error
     {
@@ -912,6 +918,7 @@ case_tail
 func_decl
     : FUNC name '(' param_list ')' type block
     {
+        printf("func decl\n");
         $$ = stmt_from_func_decl($2.id, $2.type_params, $4, &$6, $7);
         $$->loc = loc(@1);
     }
@@ -1713,7 +1720,8 @@ slice_expr
     | error
     {
         // yy_errmsg(loc(@1), "expected slice expression");
-        yy_clearin_errok; $$ = NULL;
+        yy_clearin_errok;
+        $$ = NULL;
     }
     ;
 
@@ -1727,10 +1735,9 @@ angle_expr
 atom_expr
     : ID
     {
-        //printf("ID expr\n");
-        //Ident id = {$1, loc(@1), NULL};
-        //$$ = expr_from_ident(&id, NULL);
-       // expr_set_loc($$, loc(@1));
+        Ident id = {$1, loc(@1), NULL};
+        $$ = expr_from_ident(id);
+        $$->loc = loc(@1);
     }
     | '_'
     {
@@ -1848,17 +1855,15 @@ atom_expr
     }
     | '(' error
     {
-        $$ = expr_from_error();
-        $$->loc = loc(@1);
-        ((ErrorExpr *)$$)->inv_loc = loc(@2);
-        printf("error: %d-%d\n", row(@2), col(@2));
+        parser_error(loc(@2), "illegal expression");
+        yyerrok;
+        $$ = NULL;
     }
     | '(' expr error
     {
-        $$ = expr_from_error();
-        $$->loc = loc(@1);
-        ((ErrorExpr *)$$)->inv_loc = loc(@3);
-        printf("error2: %d-%d\n", row(@3), col(@3));
+        parser_error(loc(@3), "illegal expression");
+        yyerrok;
+        $$ = NULL;
     }
     | array_object_expr
     {
@@ -1874,7 +1879,7 @@ atom_expr
     }
     | anony_object_expr
     {
-        assert(0);
+        //assert(0);
     }
     | POINTER '<' type '>' '(' ID ')'
     {
@@ -1960,39 +1965,39 @@ tuple_object_expr
     ;
 
 anony_object_expr
-    : FUNC '(' param_list ')' type block
+    : LAMBDA param_list ')' type block
     {
     }
-    | FUNC '(' param_list ')' block
+    | LAMBDA param_list ')' block
     {
     }
-    | FUNC '(' ')' type block
+    | LAMBDA ')' type block
     {
     }
-    | FUNC '(' ')' block
+    | LAMBDA ')' block
     {
     }
-    | FUNC '(' error
-    {
-
-    }
-    | FUNC '(' param_list error
+    | LAMBDA error
     {
 
     }
-    | FUNC '(' ')' error
+    | LAMBDA param_list error
     {
 
     }
-    | FUNC '(' param_list ')' error
+    | LAMBDA ')' error
     {
 
     }
-    | FUNC '(' ')' type error
+    | LAMBDA param_list ')' error
     {
 
     }
-    | FUNC '(' param_list ')' type error
+    | LAMBDA ')' type error
+    {
+
+    }
+    | LAMBDA param_list ')' type error
     {
 
     }

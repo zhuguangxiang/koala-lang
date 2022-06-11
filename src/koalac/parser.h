@@ -55,6 +55,8 @@ struct _ParserScope {
 struct _ParserState {
     /* file name */
     char *filename;
+    /* file */
+    FILE *in;
     /* -> ParserPackage */
     ParserPackage *pkg;
     /* statements */
@@ -93,8 +95,14 @@ struct _ParserState {
     /* type parameter */
     int in_angle;
 
+    /* bytes read */
+    int read_bytes;
+
     /* errors */
     int errors;
+
+    int last_line;
+    int line;
 };
 
 /* one package is compiled unit, and has one meta file */
@@ -125,17 +133,50 @@ void parser_new_var(ParserState *ps, Stmt *Stmt);
 void parser_new_func(ParserState *ps, Stmt *stmt);
 void ident_has_param_type(ParserState *ps, char *name);
 
-void yyps_error_detail(ParserState *ps, int row, int col);
+static inline void parser_error_detail(ParserState *ps, int row, int col)
+{
+    FILE *in = ps->in;
+    if (!in) {
+        in = fopen(ps->filename, "r");
+        ps->in = in;
+    }
+
+    // printf(">>%d,%d\n", ps->last_line, ps->line);
+
+    if (col == 1) {
+        fseek(in, ps->line, SEEK_SET);
+    } else {
+        fseek(in, ps->last_line, SEEK_SET);
+    }
+
+    char buf[256];
+    int nbytes = fread(buf, 1, 256, in);
+    for (int i = 0; i < nbytes; i++) {
+        if (buf[i] == '\n') {
+            buf[i] = 0;
+        }
+    }
+
+    char *line = buf;
+    while (*line == 0) line++;
+
+    printf("%5d | %s\n", row, line);
+    if (col - 1 == 0) {
+        printf("%5c | ^\n", ' ');
+    } else {
+        printf("%5c | %*c^\n", ' ', col - 1, ' ');
+    }
+}
 
 /* clang-format off */
 
-#define yyps_error(loc, fmt, ...) do { \
+#define parser_error(loc, fmt, ...) do { \
     if (ps->errors++ >= MAX_ERRORS) { \
-        printf(RED_COLOR("%s: ") "Too many errors.\n", ps->filename); \
+        printf(RED_COLOR("%s: error: ") "Too many errors.\n", ps->filename); \
     } else { \
-        printf(RED_COLOR("%s:%d:%d: ") fmt "\n", \
+        printf(RED_COLOR("%s:%d:%d: error: ") fmt "\n", \
             ps->filename, (loc).row, (loc).col, ##__VA_ARGS__); \
-        yyps_error_detail(ps, (loc).row, (loc).col); \
+        parser_error_detail(ps, (loc).row, (loc).col); \
     } \
 } while (0)
 /* clang-format on */
