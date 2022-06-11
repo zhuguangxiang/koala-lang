@@ -10,6 +10,13 @@
 extern "C" {
 #endif
 
+Expr *expr_from_error(void)
+{
+    ErrorExpr *e = mm_alloc_obj(e);
+    e->kind = EXPR_ERROR_KIND;
+    return (Expr *)e;
+}
+
 Expr *expr_from_null(void)
 {
     Expr *e = mm_alloc_obj(e);
@@ -152,6 +159,15 @@ Expr *expr_from_char(int val)
     exp->kind = EXPR_LITERAL_KIND;
     exp->cval = val;
     exp->ty = desc_from_char();
+    return (Expr *)exp;
+}
+
+Expr *expr_from_sizeof(ExprType ty)
+{
+    SizeOfExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_SIZEOF_KIND;
+    exp->sub_ty = ty;
+    exp->ty = desc_from_uint32();
     return (Expr *)exp;
 }
 

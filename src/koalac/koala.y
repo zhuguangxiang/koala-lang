@@ -1839,7 +1839,8 @@ atom_expr
     }
     | SIZEOF '(' type ')'
     {
-
+        $$ = expr_from_sizeof($3);
+        $$->loc = loc(@1);
     }
     | '(' expr ')'
     {
@@ -1847,11 +1848,17 @@ atom_expr
     }
     | '(' error
     {
-        assert(0);
+        $$ = expr_from_error();
+        $$->loc = loc(@1);
+        ((ErrorExpr *)$$)->inv_loc = loc(@2);
+        printf("error: %d-%d\n", row(@2), col(@2));
     }
     | '(' expr error
     {
-        assert(0);
+        $$ = expr_from_error();
+        $$->loc = loc(@1);
+        ((ErrorExpr *)$$)->inv_loc = loc(@3);
+        printf("error2: %d-%d\n", row(@3), col(@3));
     }
     | array_object_expr
     {

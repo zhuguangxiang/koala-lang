@@ -20,7 +20,9 @@ typedef struct _Loc Loc;
 typedef struct _ExprType ExprType;
 typedef struct _Ident Ident;
 typedef struct _Expr Expr;
+typedef struct _ErrorExpr ErrorExpr;
 typedef struct _LiteralExpr LiteralExpr;
+typedef struct _SizeOfExpr SizeOfExpr;
 typedef struct _IdExpr IdExpr;
 typedef enum _UnOpKind UnOpKind;
 typedef struct _UnaryExpr UnaryExpr;
@@ -65,12 +67,15 @@ struct _Ident {
 };
 
 enum _ExprKind {
+    EXPR_ERROR_KIND,
     /* null, self and super */
-    EXPR_NULL_KIND = 1,
+    EXPR_NULL_KIND,
     EXPR_SELF_KIND,
     EXPR_SUPER_KIND,
     /* literal: int, float, bool, char, string */
     EXPR_LITERAL_KIND,
+    /* sizeof */
+    EXPR_SIZEOF_KIND,
     /* ident and underscore(_) */
     EXPR_ID_KIND,
     EXPR_UNDER_KIND,
@@ -115,6 +120,11 @@ struct _Expr {
     EXPR_HEAD
 };
 
+struct _ErrorExpr {
+    EXPR_HEAD
+    Loc inv_loc;
+};
+
 struct _LiteralExpr {
     EXPR_HEAD
     union {
@@ -132,6 +142,11 @@ struct _LiteralExpr {
         int bval;
         char *sval;
     };
+};
+
+struct _SizeOfExpr {
+    EXPR_HEAD
+    ExprType sub_ty;
 };
 
 struct _IdExpr {
@@ -206,6 +221,7 @@ struct _BinaryExpr {
     Expr *rexp;
 };
 
+Expr *expr_from_error(void);
 Expr *expr_from_null(void);
 Expr *expr_from_self(void);
 Expr *expr_from_super(void);
@@ -224,6 +240,7 @@ Expr *expr_from_float64(double val);
 Expr *expr_from_bool(int val);
 Expr *expr_from_str(char *val);
 Expr *expr_from_char(int val);
+Expr *expr_from_sizeof(ExprType ty);
 
 #if INTPTR_MAX == INT64_MAX
 #define expr_from_int(v)   expr_from_int64(v)

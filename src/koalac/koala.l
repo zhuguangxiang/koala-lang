@@ -172,12 +172,9 @@
     YY_FLOAT_VALUE(yytext); YY_RETURN(FLOAT_LITERAL);
 }
 
-[ ]+  { }
-[\t]+ { }
-[\r]+ { }
+[ \t\r]  { }
 
-[\n]+ {
-    #if 0
+[\n] {
     if (yyps->doc_line > 0 && yyps->doc_line != yyps->row) {
         /* not consecutive document */
         printf("doc\n");
@@ -186,7 +183,6 @@
         yyps->doc_line = 0;
         RESET_BUF(yyps->doc_buf);
     }
-    #endif
     YY_NEWLINE;
 }
 

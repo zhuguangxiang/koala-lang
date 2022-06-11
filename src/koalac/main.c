@@ -142,6 +142,8 @@ static void build_ast(char *path)
     }
 
     ParserState ps = { 0 };
+    ps.row = 1;
+    ps.col = 1;
 
     yyscan_t scanner;
     yylex_init_extra(&ps, &scanner);
