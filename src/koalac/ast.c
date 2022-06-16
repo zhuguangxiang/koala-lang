@@ -171,6 +171,42 @@ Expr *expr_from_sizeof(ExprType ty)
     return (Expr *)exp;
 }
 
+Expr *expr_from_pointer(void)
+{
+    PointerExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_POINTER_KIND;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_range(Expr *lhs, RangeOpKind op, Loc op_loc, Expr *rhs)
+{
+    RangeExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_RANGE_KIND;
+    exp->lhs = lhs;
+    exp->rhs = rhs;
+    exp->range_op = op;
+    exp->op_loc = op_loc;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_is(Expr *lhs, ExprType ty)
+{
+    IsAsExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_IS_KIND;
+    exp->lhs = lhs;
+    exp->sub_ty = ty;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_as(Expr *lhs, ExprType ty)
+{
+    IsAsExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_AS_KIND;
+    exp->lhs = lhs;
+    exp->sub_ty = ty;
+    return (Expr *)exp;
+}
+
 Expr *expr_from_ident(Ident name)
 {
     IdExpr *exp = mm_alloc_obj(exp);
@@ -197,6 +233,51 @@ Expr *expr_from_binary(BinOpKind op, Loc op_loc, Expr *le, Expr *re)
     exp->op_loc = op_loc;
     exp->lexp = le;
     exp->rexp = re;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_call(Expr *lhs, Vector *arguments)
+{
+    CallExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_CALL_KIND;
+    exp->lhs = lhs;
+    exp->arguments = arguments;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_attr(Expr *lhs, Expr *attr)
+{
+    AttrExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_ATTR_KIND;
+    exp->lhs = lhs;
+    exp->attr = attr;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_index(Expr *lhs, Expr *arg)
+{
+    IndexExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_INDEX_KIND;
+    exp->lhs = lhs;
+    exp->arg = arg;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_type_params(Expr *lhs, Vector *type_params)
+{
+    TypeParamsExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_TYPE_PARAMS_KIND;
+    exp->lhs = lhs;
+    exp->type_params = type_params;
+    return (Expr *)exp;
+}
+
+Expr *expr_from_tuple_access(Expr *lhs, int index)
+{
+    TupleAccessExpr *exp = mm_alloc_obj(exp);
+    exp->kind = EXPR_DOT_TUPLE_KIND;
+    exp->lhs = lhs;
+    exp->index = index;
     return (Expr *)exp;
 }
 

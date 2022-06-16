@@ -181,7 +181,6 @@ int keyword(int token)
 %type <expr> dot_expr
 %type <expr> index_expr
 %type <expr> angle_expr
-%type <expr> slice_expr
 %type <exprlist> expr_list
 
 %type <type> type
@@ -1451,26 +1450,24 @@ expr
 range_expr
     : or_expr DOTDOTDOT or_expr
     {
-        $$ = NULL;
-        // $$ = expr_from_range();
-        // expr_set_loc($$, loc(@1));
+        $$ = expr_from_range($1, RANGE_DOTDOTDOT, loc(@2), $3);
+        $$->loc = loc(@1);
     }
     | or_expr DOTDOTLESS or_expr
     {
-        $$ = NULL;
-        // $$ = expr_from_range();
-        // expr_set_loc($$, loc(@1));
+        $$ = expr_from_range($1, RANGE_DOTDOTLESS, loc(@2), $3);
+        $$->loc = loc(@1);
     }
     | or_expr DOTDOTDOT error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     | or_expr DOTDOTLESS error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1478,13 +1475,12 @@ range_expr
 is_expr
     : primary_expr IS type
     {
-        $$ = NULL;
-        //$$ = expr_from_is($1, $3);
-        //expr_set_loc($$, loc(@1));
+        $$ = expr_from_is($1, $3);
+        $$->loc = loc(@1);
     }
     | primary_expr IS error {
-        // yy_errmsg(loc(@3), "expected 'TYPE'");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected 'TYPE'");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1492,13 +1488,12 @@ is_expr
 as_expr
     : primary_expr AS type
     {
-        $$ = NULL;
-        //$$ = expr_from_as($1, $3);
-        //expr_set_loc($$, loc(@1));
+        $$ = expr_from_as($1, $3);
+        $$->loc = loc(@1);
     }
     | primary_expr AS error {
-        // yy_errmsg(loc(@3), "expected 'TYPE'");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected 'TYPE'");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1515,8 +1510,8 @@ or_expr
     }
     | or_expr OR error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1533,8 +1528,8 @@ and_expr
     }
     | and_expr AND error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1551,8 +1546,8 @@ bit_or_expr
     }
     | bit_or_expr '|' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1569,8 +1564,8 @@ bit_xor_expr
     }
     | bit_xor_expr '^' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1587,8 +1582,8 @@ bit_and_expr
     }
     | bit_and_expr '&' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1610,14 +1605,14 @@ equality_expr
     }
     | equality_expr EQ error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     | equality_expr NE error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1649,26 +1644,26 @@ relation_expr
     }
     | relation_expr '<' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok; $$ = NULL;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
+        $$ = NULL;
     }
     | relation_expr '>' error
     {
-        printf("HERE?\n");
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     | relation_expr LE error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     | relation_expr GE error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1690,14 +1685,14 @@ shift_expr
     }
     | shift_expr R_ANGLE_SHIFT '>' error
     {
-        // yy_errmsg(loc(@4), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@4), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     | shift_expr L_SHIFT error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1719,14 +1714,14 @@ add_expr
     }
     | add_expr '+' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     | add_expr '-' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1753,20 +1748,20 @@ multi_expr
     }
     | multi_expr '*' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
      | multi_expr '/' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
      | multi_expr '%' error
     {
-        // yy_errmsg(loc(@3), "expected expression");
-        yy_clearin_errok;
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1824,28 +1819,50 @@ primary_expr
 call_expr
     : primary_expr '(' ')'
     {
-        //$$ = expr_from_call();
+        $$ = expr_from_call($1, NULL);
+        $$->loc = loc(@1);
     }
     | primary_expr '(' expr_list ')'
+    {
+        $$ = expr_from_call($1, $3);
+        $$->loc = loc(@1);
+    }
     | primary_expr '(' expr_list ';' ')'
+    {
+        $$ = expr_from_call($1, $3);
+        $$->loc = loc(@1);
+    }
     | primary_expr '(' error
+    {
+        parser_error(loc(@3), "expected arguments or ')'");
+        yyerrok;
+        $$ = NULL;
+    }
     | primary_expr '(' expr_list error
+    {
+        parser_error(loc(@4), "expected ')'");
+        yyerrok;
+        $$ = NULL;
+    }
     ;
 
 dot_expr
     : primary_expr '.' ID
     {
-        // printf("object access\n");
+        Ident id = {$3, loc(@3), NULL};
+        Expr *idexp = expr_from_ident(id);
+        idexp->loc = loc(@3);
+        $$ = expr_from_attr($1, idexp);
+        $$->loc = loc(@1);
     }
     | primary_expr '.' INT_LITERAL
     {
-        printf("tuple access\n");
+        $$ = expr_from_tuple_access($1, $3);
+        $$->loc = loc(@1);
     }
     | primary_expr '.' error
     {
-        // yy_errmsg(loc(@3),
-            // "expected 'ID' or 'index' before '%c' token", yychar);
-        yyclearin;
+        parser_error(loc(@3), "expected identifer or integer index");
         yyerrok;
         $$ = NULL;
     }
@@ -1853,38 +1870,20 @@ dot_expr
 
 index_expr
     : primary_expr '[' expr ']'
-    | primary_expr '[' slice_expr ']'
-    ;
-
-slice_expr
-    : expr ':' expr
     {
-
+        $$ = expr_from_index($1, $3);
+        $$->loc = loc(@1);
     }
-    | ':' expr
+    | primary_expr '[' error
     {
-
+        parser_error(loc(@3), "expected expression");
+        yyerrok;
+        $$ = NULL;
     }
-    | expr ':'
+    | primary_expr '[' expr error
     {
-
-    }
-    | ':'
-    {
-
-    }
-    | ':' error
-    {
-
-    }
-    | expr ':' error
-    {
-
-    }
-    | error
-    {
-        // yy_errmsg(loc(@1), "expected slice expression");
-        yy_clearin_errok;
+        parser_error(loc(@4), "expected ']'");
+        yyerrok;
         $$ = NULL;
     }
     ;
@@ -1892,7 +1891,20 @@ slice_expr
 angle_expr
     : primary_expr L_ANGLE_ARGS type_list r_angle
     {
-        // printf("angle_expr\n");
+        $$ = expr_from_type_params($1, $3);
+        $$->loc = loc(@1);
+    }
+    | primary_expr L_ANGLE_ARGS error
+    {
+        parser_error(loc(@3), "expected TYPE-LIST");
+        yyerrok;
+        $$ = NULL;
+    }
+    | primary_expr L_ANGLE_ARGS type_list error
+    {
+        parser_error(loc(@3), "expected '>'");
+        yyerrok;
+        $$ = NULL;
     }
     ;
 
@@ -2010,6 +2022,8 @@ atom_expr
     }
     | POINTER
     {
+        $$ = expr_from_pointer();
+        $$->loc = loc(@1);
         ps->in_angle = 1;
     }
     | SIZEOF '(' type ')'
@@ -2017,19 +2031,37 @@ atom_expr
         $$ = expr_from_sizeof($3);
         $$->loc = loc(@1);
     }
+    | SIZEOF error
+    {
+        parser_error(loc(@2), "expected '('");
+        yyerrok;
+        $$ = NULL;
+    }
+    | SIZEOF '(' error
+    {
+        parser_error(loc(@3), "expected TYPE");
+        yyerrok;
+        $$ = NULL;
+    }
+    | SIZEOF '(' type error
+    {
+        parser_error(loc(@4), "expected ')'");
+        yyerrok;
+        $$ = NULL;
+    }
     | '(' expr ')'
     {
         $$ = $2;
     }
     | '(' error
     {
-        parser_error(loc(@2), "illegal expression");
+        parser_error(loc(@2), "expected expression");
         yyerrok;
         $$ = NULL;
     }
     | '(' expr error
     {
-        parser_error(loc(@3), "illegal expression");
+        parser_error(loc(@3), "expected ')'");
         yyerrok;
         $$ = NULL;
     }
@@ -2047,7 +2079,7 @@ atom_expr
     }
     | anony_object_expr
     {
-        //assert(0);
+        assert(0);
     }
     ;
 
@@ -2069,6 +2101,8 @@ array_object_expr
     {
 
     }
+    | '[' expr_list ',' error
+    | '[' expr_list ';' error
     ;
 
 map_object_expr

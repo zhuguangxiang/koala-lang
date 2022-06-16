@@ -28,6 +28,15 @@ typedef enum _UnOpKind UnOpKind;
 typedef struct _UnaryExpr UnaryExpr;
 typedef enum _BinOpkind BinOpKind;
 typedef struct _BinaryExpr BinaryExpr;
+typedef enum _RangeOpKind RangeOpKind;
+typedef struct _RangeExpr RangeExpr;
+typedef struct _IsAsExpr IsAsExpr;
+typedef struct _PointerExpr PointerExpr;
+typedef struct _CallExpr CallExpr;
+typedef struct _AttrExpr AttrExpr;
+typedef struct _IndexExpr IndexExpr;
+typedef struct _TypeParamsExpr TypeParamsExpr;
+typedef struct _TupleAccessExpr TupleAccessExpr;
 typedef enum _StmtKind StmtKind;
 typedef struct _Stmt Stmt;
 typedef struct _VarDeclStmt VarDeclStmt;
@@ -83,11 +92,10 @@ enum _ExprKind {
     /* unary, binary */
     EXPR_UNARY_KIND,
     EXPR_BINARY_KIND,
-    /* dot, [], (), [:] access */
-    EXPR_ATTRIBUTE_KIND,
-    EXPR_SUBSCRIPT_KIND,
+    /* dot, [], () */
+    EXPR_ATTR_KIND,
+    EXPR_INDEX_KIND,
     EXPR_CALL_KIND,
-    EXPR_SLICE_KIND,
     /* dot tuple */
     EXPR_DOT_TUPLE_KIND,
     /* tuple, array, map, anonymous */
@@ -95,6 +103,10 @@ enum _ExprKind {
     EXPR_ARRAY_KIND,
     EXPR_MAP_KIND,
     EXPR_ANONY_KIND,
+    /* pointer */
+    EXPR_POINTER_KIND,
+    /* type parameters */
+    EXPR_TYPE_PARAMS_KIND,
     /* is, as */
     EXPR_IS_KIND,
     EXPR_AS_KIND,
@@ -222,6 +234,60 @@ struct _BinaryExpr {
     Expr *rexp;
 };
 
+enum _RangeOpKind {
+    RANGE_DOTDOTDOT,
+    RANGE_DOTDOTLESS,
+};
+
+struct _RangeExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Expr *rhs;
+    RangeOpKind range_op;
+    Loc op_loc;
+};
+
+struct _IsAsExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    ExprType sub_ty;
+};
+
+struct _PointerExpr {
+    EXPR_HEAD
+    ExprType sub_ty;
+};
+
+struct _CallExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Vector *arguments;
+};
+
+struct _AttrExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Expr *attr;
+};
+
+struct _IndexExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Expr *arg;
+};
+
+struct _TupleAccessExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    int index;
+};
+
+struct _TypeParamsExpr {
+    EXPR_HEAD
+    Expr *lhs;
+    Vector *type_params;
+};
+
 Expr *expr_from_error(void);
 Expr *expr_from_null(void);
 Expr *expr_from_self(void);
@@ -242,6 +308,7 @@ Expr *expr_from_bool(int val);
 Expr *expr_from_str(char *val);
 Expr *expr_from_char(int val);
 Expr *expr_from_sizeof(ExprType ty);
+Expr *expr_from_pointer(void);
 
 #if INTPTR_MAX == INT64_MAX
 #define expr_from_int(v)   expr_from_int64(v)
@@ -253,9 +320,17 @@ Expr *expr_from_sizeof(ExprType ty);
 #error "Must define either 32 or 64 bits".
 #endif
 
+Expr *expr_from_range(Expr *lhs, RangeOpKind op, Loc op_loc, Expr *rhs);
+Expr *expr_from_is(Expr *lhs, ExprType ty);
+Expr *expr_from_as(Expr *lhs, ExprType ty);
 Expr *expr_from_ident(Ident name);
 Expr *expr_from_unary(UnOpKind op, Loc op_loc, Expr *e);
 Expr *expr_from_binary(BinOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
+Expr *expr_from_call(Expr *lhs, Vector *arguments);
+Expr *expr_from_attr(Expr *lhs, Expr *attr);
+Expr *expr_from_index(Expr *lhs, Expr *arg);
+Expr *expr_from_type_params(Expr *lhs, Vector *type_params);
+Expr *expr_from_tuple_access(Expr *lhs, int index);
 
 void free_expr(Expr *e);
 
