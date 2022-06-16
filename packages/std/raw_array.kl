@@ -1,10 +1,6 @@
-
-package std
-
-"""
-raw := RawArray<u8>(100)
-
-"""
+///
+///
+///
 @intrinsic
 public struct RawArray<T> {
 
@@ -15,8 +11,11 @@ public struct RawArray<T> {
     public func __set_item__(idx u32, val T)
 
     @intrinsic
-    public func size() u32
+    public func len() u32
 
     @intrinsic
     public func as_ptr() Pointer<T>
 }
+
+@intrinsic
+public func raw_array_new<T>(len uint32) RawArray<T>

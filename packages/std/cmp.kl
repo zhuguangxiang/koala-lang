@@ -1,0 +1,14 @@
+///
+/// Comparable<T> is an interface.
+/// If a type is implemented this, object of this type is comparable.
+/// When a type supports sortable, it must be implemented this interface.
+///
+public interface Comparable<T> {
+    ///
+    /// If returns 0, objects are equal and the same with `Equatable<T>`.
+    /// If returns greater than 0, lhs value is greater than rhs value.
+    /// If returns less than 0, lhs value is less than rhs value.
+    ///
+    @abstract
+    public func cmp(rhs T) Int8
+}

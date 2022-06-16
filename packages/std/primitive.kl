@@ -1,0 +1,58 @@
+
+@intrinsic
+public struct Int8 : ToString & Hashable<Int8> {
+
+    @intrinsic
+    public func __add__(rhs Int8) Int8
+
+    @intrinsic
+    public func __sub__(rhs Int8) Int8
+
+    @intrinsic
+    public func __mul__(rhs Int8) Int8
+
+    @intrinsic
+    public func __div__(rhs Int8) Int8
+
+    @intrinsic
+    public func __mod__(rhs Int8) Int8
+
+    @intrinsic
+    public func __band__(rhs Int8) Int8
+
+    @intrinsic
+    public func __bor__(rhs Int8) Int8
+
+    @intrinsic
+    public func __bxor__(rhs Int8) Int8
+
+    @intrinsic
+    public func __bnot__(rhs Int8) Int8
+
+    @intrinsic
+    public func __neq__(rhs Int8) Bool
+
+    @intrinsic
+    public func __gt__(rhs Int8) Bool
+
+    @intrinsic
+    public func __lt__(rhs Int8) Bool
+
+    @intrinsic
+    public func __ge__(rhs Int8) Bool
+
+    @intrinsic
+    public func __le__(rhs Int8) Bool
+
+    @intrinsic
+    @override
+    public func to_str() String
+
+    @intrinsic
+    @override
+    public func __eq__(rhs Int8) Bool
+
+    @intrinsic
+    @override
+    public func hash_code() UInt32
+}

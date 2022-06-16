@@ -22,7 +22,6 @@
 
 %%
 
-"func("     { YY_RETURN(LAMBDA);  }
 "package"   { YY_RETURN(PACKAGE);  }
 "import"    { YY_RETURN(IMPORT);   }
 "type"      { YY_RETURN(TYPE);     }
@@ -54,7 +53,7 @@
 "false"     { YY_RETURN(FALSE); }
 "null"      { YY_RETURN(NULL_TK); }
 
-"UInt8"     { YY_RETURN(UINT8);   }
+("UInt8"|"uint8"|"u8")    {  printf("u8\n"); YY_RETURN(UINT8); }
 "UInt16"    { YY_RETURN(UINT16);  }
 "UInt32"    { YY_RETURN(UINT32);  }
 "UInt64"    { YY_RETURN(UINT64);  }
@@ -71,6 +70,20 @@
 "String"    { YY_RETURN(STRING);  }
 "Any"       { YY_RETURN(ANY);     }
 "Pointer"   { YY_RETURN(POINTER); }
+"uint16"    { YY_RETURN(UINT16);  }
+"uint32"    { YY_RETURN(UINT32);  }
+"uint64"    { YY_RETURN(UINT64);  }
+"int8"      { YY_RETURN(INT8);    }
+"int16"     { YY_RETURN(INT16);   }
+"int32"     { YY_RETURN(INT32);   }
+"int64"     { YY_RETURN(INT64);   }
+"int"       { YY_RETURN_INT();    }
+"uint"      { YY_RETURN_UINT();   }
+"float32"   { YY_RETURN(FLOAT32); }
+"float64"   { YY_RETURN(FLOAT64); }
+"bool"      { YY_RETURN(BOOL);    }
+"char"      { YY_RETURN(CHAR);    }
+"string"    { YY_RETURN(STRING);  }
 
 "sizeof"    { YY_RETURN(SIZEOF); }
 "inout"     { YY_RETURN(INOUT); }
@@ -127,6 +140,7 @@
 "<" {
     if (yyps->in_angle) {
         yyps->in_angle = 0;
+        printf("L_ANGLE_ARGS\n");
         YY_RETURN(L_ANGLE_ARGS);
     } else {
         YY_RETURN('<');
@@ -158,7 +172,7 @@
 
 [A-Za-z_][A-Za-z0-9_]*  {
     YY_IDENT_VALUE(yytext, yyleng);
-    // ident_has_param_type(yyps, yytext);
+    ident_has_param_type(yyps, yytext);
     YY_RETURN(ID);
 }
 
@@ -175,7 +189,9 @@
 
 [ \t\r]  { }
 
-[\n] {
+"\n" {
+    // printf("new_line:%d\n", yyps->row);
+    #if 0
     if (yyps->doc_line > 0 && yyps->doc_line != yyps->row) {
         /* not consecutive document */
         printf("doc\n");
@@ -184,18 +200,21 @@
         yyps->doc_line = 0;
         RESET_BUF(yyps->doc_buf);
     }
+    #endif
     YY_NEWLINE;
 }
 
 "///"[^\n]* {
-    yyps->doc_line = yyps->row;
-    do_doc(yyps, yytext + 3, yyleng - 3);
+    // yyps->doc_line = yyps->row;
+    // do_doc(yyps, yytext + 3, yyleng - 3);
+    printf("doc comment\n");
 }
 
 "//"[^\n]*  { /* single line comment */ }
 
 "/*"            { BEGIN(COMMENT); yyps->in_str = 1; }
 <COMMENT>"*/"   { BEGIN(INITIAL); yyps->in_str = 0; }
+<COMMENT>\n     { /* omit new line */ }
 <COMMENT>.      { /* omit other characters */ }
 
 . {  }

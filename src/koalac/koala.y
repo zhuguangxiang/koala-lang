@@ -52,6 +52,7 @@ int keyword(int token)
     Vector *stmtlist;
     Ident_TypeParams id_typeparams;
     Ident_Type id_type;
+    Vector *member_list;
 }
 
 %token PACKAGE
@@ -80,7 +81,6 @@ int keyword(int token)
 %token EXTERNC
 %token INOUT
 %token POINTER
-%token LAMBDA
 
 %token SELF
 %token SUPER
@@ -150,11 +150,15 @@ int keyword(int token)
 %type <stmt> func_decl
 %type <id_typeparams> name
 %type <type_param_list> type_param_decl_list
-%type <klasslist> type_param_bounds
 %type <klasslist> klass_list
 %type <klasslist> extends
 %type <id_typeparams> type_param_decl
 %type <list> param_list
+%type <stmt> type_decl
+%type <stmt> struct_decl
+%type <member_list> struct_members
+%type <id_typeparams> struct_name
+%type <stmt> struct_member
 
 %type <expr> expr
 %type <expr> range_expr
@@ -292,7 +296,7 @@ top_decl
     }
     | at_expr_list PUBLIC type_decl
     {
-
+        printf("which?\n");
     }
     | extern_scope
     {
@@ -302,7 +306,7 @@ top_decl
     }
     | error
     {
-        parser_error(loc(@1), "illegal top declaration");
+        parser_error(loc(@1), "illegal top definition");
         yyclearin;
         yyerrok;
     }
@@ -732,12 +736,12 @@ local_list
     : local
     {
         $$ = vector_create_ptr();
-        vector_push_back($$, &$1);
+        if ($1) vector_push_back($$, &$1);
     }
     | local_list local
     {
         $$ = $1;
-        vector_push_back($$, &$2);
+        if ($2)  vector_push_back($$, &$2);
     }
     ;
 
@@ -749,9 +753,8 @@ local
     }
     | expr error
     {
-        // yy_errmsg(loc(@2), "expected ';' or '\\n'");
-        yy_clearin_errok;
-        $$ = NULL;
+        parser_error(loc(@2), "expected ; or \\n");
+        yyerrok; $$ = NULL;
     }
     | let_decl
     {
@@ -1037,15 +1040,25 @@ param_list
 
 type_decl
     : class_decl
+    {
+        $$ = NULL;
+    }
     | interface_decl
+    {
+        $$ = NULL;
+    }
     | enum_decl
+    {
+        $$ = NULL;
+    }
     | struct_decl
+    {
+        $$ = $1;
+    }
     ;
 
 class_decl
     : CLASS name extends '{' class_members '}'
-    | CLASS name extends '{' '}'
-    | CLASS name extends ';'
     | CLASS error
     | CLASS name error
     | CLASS name extends '{' error
@@ -1053,19 +1066,172 @@ class_decl
     ;
 
 struct_decl
-    : STRUCT name extends '{' class_members '}'
-    | STRUCT name extends '{' '}'
-    | STRUCT name extends ';'
+    : STRUCT struct_name extends '{' struct_members '}'
+    {
+        $$ = stmt_from_struct_decl($2.id, $2.type_params, $3, $5, 0);
+    }
     | STRUCT error
-    | STRUCT name error
-    | STRUCT name extends '{' error
-    | STRUCT name extends '{' class_members error
+    {
+        parser_error(loc(@2), "expected identifer of structure");
+        yyerrok;
+        $$ = NULL;
+    }
+    | STRUCT struct_name error
+    {
+        parser_error(loc(@3), "expected ':' or '{'");
+        yyerrok;
+        $$ = NULL;
+    }
+    | STRUCT struct_name extends '{' error
+    {
+        parser_error(loc(@4), "expected fields or functions declaration in structure");
+        yyerrok;
+        $$ = NULL;
+    }
+    | STRUCT struct_name extends '{' struct_members error
+    {
+        parser_error(loc(@6), "expected '}' at end of structure");
+        $$ = NULL;
+    }
+    ;
+
+struct_name
+    : name
+    {
+        $$ = $1;
+    }
+    | UINT8
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | UINT16
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | UINT32
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | UINT64
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | INT8
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | INT16
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | INT32
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | INT64
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | FLOAT32
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | FLOAT64
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | BOOL
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | CHAR
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | STRING
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    | POINTER '<' ID '>'
+    {
+        Ident uint8_ident = {"UInt8", loc(@1), NULL};
+        Ident_TypeParams id_tps = {uint8_ident, NULL, (Loc){0, 0}, 0};
+        $$ = id_tps;
+    }
+    ;
+
+struct_members
+    : struct_member
+    {
+        $$ = vector_create_ptr();
+        if ($1) vector_push_back($$, $1);
+    }
+    | struct_members struct_member
+    {
+        $$ = $1;
+        if ($2) vector_push_back($$, $2);
+    }
+    ;
+
+struct_member
+    : var_decl
+    {
+        $$ = $1;
+    }
+    | PUBLIC var_decl
+    {
+        $$ = $2;
+    }
+    | let_decl
+    {
+        $$ = $1;
+    }
+    | PUBLIC let_decl
+    {
+        $$ = $2;
+    }
+    | func_decl
+    {
+        $$ = $1;
+    }
+    | PUBLIC func_decl
+    {
+        $$ = $2;
+    }
+    | ';'
+    {
+        $$ = NULL;
+    }
     ;
 
 interface_decl
     : INTERFACE name extends '{' interface_members '}'
-    | INTERFACE name extends '{' '}'
-    | INTERFACE name extends ';'
     | INTERFACE error
     | INTERFACE name error
     | INTERFACE name extends '{' error
@@ -1074,7 +1240,6 @@ interface_decl
 
 enum_decl
     : ENUM name extends '{' enum_members '}'
-    | ENUM name extends ';'
     | ENUM error
     | ENUM name error
     | ENUM name extends '{' error
@@ -1102,6 +1267,8 @@ name
         $$.type_params = NULL;
         $$.loc = loc(@3);
         $$.error = 1;
+        parser_error(loc(@3), "illegal type parameter list");
+        yyerrok;
     }
     ;
 
@@ -1119,6 +1286,8 @@ type_param_decl_list
     | type_param_decl_list ',' error
     {
         $$ = NULL;
+        parser_error(loc(@3), "illegal type parameter");
+        yyerrok;
     }
     ;
 
@@ -1130,7 +1299,7 @@ type_param_decl
         $$.loc = (Loc){0, 0};
         $$.error = 0;
     }
-    | ID ':' type_param_bounds
+    | ID ':' klass_list
     {
         $$.id = (Ident){$1, loc(@1), NULL};
         $$.type_params = $3;
@@ -1139,25 +1308,12 @@ type_param_decl
     }
     | ID error
     {
-        // yy_errmsg(loc(@2), "expected ':'");
-        yy_clearin_errok;
         $$.id = (Ident){$1, loc(@1), NULL};
         $$.type_params = NULL;
         $$.loc = loc(@2);
         $$.error = 1;
-    }
-    ;
-
-type_param_bounds
-    : klass_type
-    {
-        $$ = vector_create(sizeof(ExprType));
-        vector_push_back($$, &$1);
-    }
-    | type_param_bounds '&' klass_type
-    {
-        $$ = $1;
-        vector_push_back($$, &$3);
+        parser_error(loc(@2), "expected type list");
+        yyerrok;
     }
     ;
 
@@ -1182,7 +1338,7 @@ klass_list
         $$ = vector_create(sizeof(ExprType));
         vector_push_back($$, &$1);
     }
-    | klass_list ',' klass_type
+    | klass_list '&' klass_type
     {
         $$ = $1;
         vector_push_back($$, &$3);
@@ -1197,13 +1353,18 @@ class_members
     ;
 
 at_expr_list
-    : '@' ID
-    | at_expr_list '@' ID
+    : '@' ID ';'
+    {
+        printf("at-expr:%s\n", $2);
+    }
+    | at_expr_list '@' ID ';'
     ;
 
 class_member
     : var_decl
     | PUBLIC var_decl
+    | let_decl
+    | PUBLIC let_decl
     | func_decl
     | PUBLIC func_decl
     | proto_decl
@@ -1213,7 +1374,9 @@ class_member
 
 interface_members
     : interface_member
+    | at_expr_list interface_member
     | interface_members interface_member
+    | interface_members at_expr_list interface_member
     ;
 
 interface_member
@@ -1250,12 +1413,20 @@ enum_label
     ;
 
 enum_methods
-    : func_decl ';'
+    : enum_method
     {
     }
-    | enum_methods func_decl ';'
+    | enum_methods enum_method
     {
     }
+    ;
+
+enum_method
+    : func_decl
+    | PUBLIC func_decl
+    | at_expr_list func_decl
+    | at_expr_list PUBLIC func_decl
+    | ';'
     ;
 
 expr
@@ -1664,7 +1835,7 @@ call_expr
 dot_expr
     : primary_expr '.' ID
     {
-        printf("object access\n");
+        // printf("object access\n");
     }
     | primary_expr '.' INT_LITERAL
     {
@@ -1721,7 +1892,7 @@ slice_expr
 angle_expr
     : primary_expr L_ANGLE_ARGS type_list r_angle
     {
-
+        // printf("angle_expr\n");
     }
     ;
 
@@ -1837,6 +2008,10 @@ atom_expr
         $$ = expr_from_super();
         $$->loc = loc(@1);
     }
+    | POINTER
+    {
+        ps->in_angle = 1;
+    }
     | SIZEOF '(' type ')'
     {
         $$ = expr_from_sizeof($3);
@@ -1874,16 +2049,6 @@ atom_expr
     {
         //assert(0);
     }
-    | POINTER '<' type '>' '(' ID ')'
-    {
-        assert(0);
-    }
-    /*
-    | POINTER '<' type '>' '(' ID '.' ID ')'
-    {
-        assert(0);
-    }
-    */
     ;
 
 array_object_expr
@@ -1958,39 +2123,39 @@ tuple_object_expr
     ;
 
 anony_object_expr
-    : LAMBDA param_list ')' type block
+    : FUNC '(' param_list ')' type block
     {
     }
-    | LAMBDA param_list ')' block
+    | FUNC '(' param_list ')' block
     {
     }
-    | LAMBDA ')' type block
+    | FUNC '(' ')' type block
     {
     }
-    | LAMBDA ')' block
+    | FUNC '(' ')' block
     {
     }
-    | LAMBDA error
-    {
-
-    }
-    | LAMBDA param_list error
+    | FUNC '(' error
     {
 
     }
-    | LAMBDA ')' error
+    | FUNC '(' param_list error
     {
 
     }
-    | LAMBDA param_list ')' error
+    | FUNC '(' ')' error
     {
 
     }
-    | LAMBDA ')' type error
+    | FUNC '(' param_list ')' error
     {
 
     }
-    | LAMBDA param_list ')' type error
+    | FUNC '(' ')' type error
+    {
+
+    }
+    | FUNC '(' param_list ')' type error
     {
 
     }
@@ -2150,6 +2315,7 @@ atom_type
     }
     | POINTER '<' type '>'
     {
+        printf("pointer\n");
         $$.loc = loc(@1);
         $$.ty = desc_from_ptr($3.ty);
         $$.loc2 = loc(@3);
@@ -2168,13 +2334,13 @@ klass_type
         $$.ty = desc_from_klass($1, $3, NULL);
         $$.loc2 = loc(@3);
     }
-    | ID L_ANGLE_ARGS type_list r_angle
+    | ID l_angle type_list r_angle
     {
         $$.loc = loc(@1);
         $$.ty = desc_from_klass(NULL, $1, $3);
         $$.loc2 = loc(@3);
     }
-    | ID '.' ID L_ANGLE_ARGS type_list r_angle
+    | ID '.' ID l_angle type_list r_angle
     {
         $$.loc = loc(@1);
         $$.ty = desc_from_klass($1, $3, $5);
@@ -2183,39 +2349,49 @@ klass_type
     }
     | ID '.' error
     {
-        printf("error types\n");
         $$.loc = loc(@3);
         $$.ty = desc_from_unk();
+        parser_error(loc(@3), "expected identifier");
+        yyerrok;
     }
-    | ID L_ANGLE_ARGS error
+    | ID l_angle error
     {
-        printf("error types2\n");
         $$.loc = loc(@3);
         $$.ty = desc_from_unk();
+        parser_error(loc(@3), "expected type list");
+        yyerrok;
     }
-    | ID L_ANGLE_ARGS type_list error
+    | ID l_angle type_list error
     {
-        printf("error types3\n");
         $$.loc = loc(@4);
         $$.ty = desc_from_unk();
+        parser_error(loc(@4), "expected >");
+        yyerrok;
     }
-    | ID '.' ID L_ANGLE_ARGS error
+    | ID '.' ID l_angle error
     {
-        printf("error types4\n");
         $$.loc = loc(@5);
         $$.ty = desc_from_unk();
+        parser_error(loc(@5), "expected type list");
+        yyerrok;
     }
-    | ID '.' ID L_ANGLE_ARGS type_list error
+    | ID '.' ID l_angle type_list error
     {
-        printf("error types5\n");
         $$.loc = loc(@6);
         $$.ty = desc_from_unk();
+        parser_error(loc(@6), "expected >");
+        yyerrok;
     }
     ;
 
 r_angle
     : '>'
     | R_ANGLE_SHIFT
+    ;
+
+l_angle
+    : '<'
+    | L_ANGLE_ARGS
     ;
 
 func_type

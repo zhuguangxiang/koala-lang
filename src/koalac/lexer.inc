@@ -20,11 +20,12 @@ static int semicolon(YY_EXTRA_TYPE ps)
         INT_LITERAL, FLOAT_LITERAL, CHAR_LITERAL, STRING_LITERAL,
         ID,          SELF,          SUPER,        TRUE,
         FALSE,       NULL_TK,       INT8,         INT16,
-        INT32,       INT64,         CHAR,         STRING,
-        BOOL,        ANY,           RETURN,       BREAK,
-        CONTINUE,    ')',           ']',          '}',
-        '>',         '_',           DOTDOTDOT,    DOTDOTLESS,
-        EXTERNC,
+        INT32,       INT64,         UINT8,        UINT16,
+        UINT32,      UINT64,        FLOAT32,      FLOAT64,
+        CHAR,        STRING,        BOOL,         ANY,
+        RETURN,      BREAK,         CONTINUE,     ')',
+        ']',         '}',           '>',          '_',
+        DOTDOTDOT,   DOTDOTLESS,    EXTERNC,
     };
 
     int token = ps->token;
@@ -130,6 +131,7 @@ static void do_text(YY_EXTRA_TYPE ps, YYSTYPE *yylval)
     }
 }
 
+#if 0
 static void do_doc(YY_EXTRA_TYPE ps, char *txt, int len)
 {
     // char *s = txt;
@@ -141,9 +143,11 @@ static void do_doc(YY_EXTRA_TYPE ps, char *txt, int len)
     buf_write_nstr(&ps->doc_buf, txt, len);
     buf_write_char(&ps->doc_buf, '\n');
 }
+#endif
 
-int file_input(char *buf, int size, FILE *in)
+int file_input(YY_EXTRA_TYPE ps, char *buf, int size, FILE *in)
 {
+    /*
     errno = 0;
     int result = 0;
     while ((result = (int)fread(buf, 1, (size_t)size, in)) == 0 && ferror(in)) {
@@ -155,15 +159,30 @@ int file_input(char *buf, int size, FILE *in)
         clearerr(in);
     }
     return result;
+    */
+    static int row = 1;
+    // printf("file_input:%d\n", row);
+    char *line = fgets(buf, size, in);
+    if (line) {
+        int len = strlen(line);
+        char *linebuf = ps->linebuf[row % 512];
+        assert(len < 256);
+        strncpy(linebuf, line, len - 1);
+        row++;
+        return len;
+    } else {
+        errno = 0;
+        clearerr(in);
+        return 0;
+    }
 }
 
 /* Macros in flex */
 
-#define YY_INPUT(buf, ret, size) ret = file_input(buf, size, yyin)
+#define YY_INPUT(buf, ret, size) ret = file_input(yyps, buf, size, yyin)
 
 #define YY_USER_ACTION                                                  \
     {                                                                   \
-        yyps->read_bytes += yyleng;                                     \
         char ch = yytext[0];                                            \
         if (ch != '\n' && ch != '\r') {                                 \
             yyps->col += yyps->len;                                     \
@@ -199,14 +218,11 @@ int file_input(char *buf, int size, FILE *in)
     do {                                                      \
         int len = yyps->len;                                  \
         ++yyps->row;                                          \
-        yyps->last_line = yyps->line;                         \
-        yyps->line = yyps->read_bytes;                        \
         yyps->col = 1;                                        \
         yyps->len = 0;                                        \
         if (semicolon(yyps)) {                                \
             yylloc->first_column += len;                      \
             yylloc->last_column = yylloc->first_column + len; \
-            buf_write_char(&yyps->linebuf, ';');              \
             YY_RETURN(';');                                   \
         }                                                     \
     } while (0)
@@ -243,6 +259,4 @@ int file_input(char *buf, int size, FILE *in)
 
 #define YY_INT_VALUE(s, base) yylval->ival = strtoll(s, NULL, base)
 
-#define YY_FLOAT_VALUE(s)           \
-    yylval->fval = strtod(s, NULL); \
-    printf("%lf\n", yylval->fval);
+#define YY_FLOAT_VALUE(s) yylval->fval = strtod(s, NULL);

@@ -312,6 +312,35 @@ Stmt *stmt_from_func_decl(Ident name, Vector *type_params, Vector *args,
     return (Stmt *)s;
 }
 
+Stmt *stmt_from_struct_decl(Ident name, Vector *type_params, Vector *bases,
+                            Vector *members, int c_struct)
+{
+    StructDeclStmt *s = mm_alloc(sizeof(*s));
+    s->kind = STMT_STRUCT_KIND;
+    s->name = name;
+    s->type_params = type_params;
+    s->bases = bases;
+    s->c_struct = c_struct;
+
+    Stmt *m;
+    vector_foreach(m, members, {
+        if (m->kind == STMT_LET_KIND) {
+            if (!s->fields) s->fields = vector_create_ptr();
+            vector_push_back(s->fields, &m);
+        } else if (m->kind == STMT_VAR_KIND) {
+            if (!s->fields) s->fields = vector_create_ptr();
+            vector_push_back(s->fields, &m);
+        } else if (m->kind == STMT_FUNC_KIND) {
+            if (!s->functions) s->functions = vector_create_ptr();
+            vector_push_back(s->functions, &m);
+        } else {
+            assert(0);
+        }
+    });
+
+    return (Stmt *)s;
+}
+
 void free_stmt(Stmt *s)
 {
     if (!s) return;

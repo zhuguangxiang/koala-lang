@@ -1,5 +1,5 @@
 
-pub class Array<T> : ToString {
+pub class Vector<T> : ToString {
     var ptr Pointer<T>
     var offset uint32
     var len uint32

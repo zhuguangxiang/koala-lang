@@ -1,4 +1,30 @@
-
+///
+/// `ToString` is an interface.
+/// An object implemented this means it can be represented as a String
+/// and can be printable.
+///
+/// ```koala
+///
+/// class Foo : ToString {
+///     var num Int
+///     func __init__(num Int) {
+///         self.num = num
+///     }
+///
+///     func to_str() String {
+///         return num.to_str()
+///     }
+/// }
+///
+/// let foo = Foo(100)
+/// print(foo)
+///
+/// ```
+///
 public interface ToString {
-    func toString() String
+    ///
+    /// returns a String of this object.
+    ///
+    @override
+    public func to_str() String
 }

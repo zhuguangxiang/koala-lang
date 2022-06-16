@@ -19,16 +19,26 @@ void fini_parser(void)
 
 void ident_has_param_type(ParserState *ps, char *name)
 {
-    if (!strcmp(name, "Cat") || !strcmp(name, "Comparable")) {
+    if (!strcmp(name, "Person") || !strcmp(name, "Comparable")) {
         ps->in_angle = 1;
     } else {
         ps->in_angle = 0;
     }
 }
 
-void yyps_error_detail(ParserState *ps, int row, int col)
+void parser_error_detail(ParserState *ps, int row, int col)
 {
-    printf("%5d | %s\n", row, BUF_STR(ps->linebuf));
+    FILE *in = ps->in;
+    if (!in) {
+        in = fopen(ps->filename, "r");
+        ps->in = in;
+    }
+    fseek(in, ps->offset, SEEK_SET);
+
+    char buf[1024];
+    fread(buf, sizeof(buf), in);
+
+    printf("%5d | %s\n", row, buf);
     if (col - 1 == 0) {
         printf("%5c | " RED_COLOR("^") "\n", ' ');
     } else {

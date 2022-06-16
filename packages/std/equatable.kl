@@ -1,4 +1,18 @@
+///
+/// `Equatable<T>` is an interface, which means two objects are equal or not.
+/// It is commonly used together with `Hashable` in `HashMap<K, V>`.
+///
+
+"""
+`Equatable<T>` is an interface, which means two objects are equal or not.
+It is commonly used together with `Hashable` in `HashMap<K, V>`.
+"""
 
 public interface Equatable<T> {
-    func __eq__(rhs T) bool
+    ///
+    /// If it returns `true`, two objects are equal.
+    /// It also overloads operator `==`.
+    ///
+    @abstract
+    public func __eq__(rhs T) Bool
 }

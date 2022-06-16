@@ -1,4 +1,12 @@
+///
+/// `Hashable` is an interface, which object can be hashed.
+/// It is commonly used together with `Equatable<T>` in `HashMap<K, V>`.
+///
+public interface Hashable {
 
-public interface Hashable<T> : Equatable<T> {
-    func hashCode() UInt32
+    ///
+    /// returns a hash code as `UInt32` of this object.
+    ///
+    @abstract
+    public func hash_code() UInt32
 }

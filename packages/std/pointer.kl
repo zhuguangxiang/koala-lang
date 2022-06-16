@@ -1,37 +1,34 @@
-
+///
 /// Pointer<T> is a raw memory pointer, usually used for `FFI` with C language.
 /// Like pointer in C language, Pointer<T> is unsafe, its lifecycle must be maintained by user.
 ///
 /// The `T` type is only value types without any meta info.
-/// There are primitive number type, bool and struct defined in extern "C" block.
-/// About `String` and `Array`, use as_ptr() method to get the raw Pointer<T>.
+/// There are primitive number types, and struct defined in extern "C" block.
+/// About `String` and `Array`, use `as_ptr()` method to get the raw Pointer<T>.
 /// This is directly get memory pointer in GC. This is unsafe.
 ///
 /// How to use raw pointer, some examples are below:
-
-1.
-```
-val := UInt32(100)
-ptr := Pointer(val)
-
-ptr.write_value<u16>(2, 200) // val = (200 << 16) + 100
-println(typeof(ptr)) // Pointer<u32>
-
-(ptr as Pointer<i8>).offset(2).write(200)
-
-p := addr_of(val) as Pointer<i8>
-p.write(100)
-p.offset(1).write(100) // val = (100 << 8) + 100
-```
-2. struct in extern "C"
-
-```
-extern "C" {
-    struct Foo {
-        str Pointer<u8>
-        len u32
-    }
-
+///
+/// ```koala
+///
+/// var val = UInt32(100); // val = 100
+/// let p = Pointer(val)
+/// p.write(200); // val = 200
+/// println(typeof(p)); // Pointer<UInt32>
+///
+/// let p2 = p as Pointer<UInt8>
+/// p2[0] = 1
+/// p2[1] = 2
+/// p2[2] = 3
+/// p2[3] = 4
+///
+/// extern "C" {
+///
+/// struct Foo {
+///     str Pointer<Int8>
+///     len UInt32
+/// }
+/*
     func malloc(size u32) Pointer<Any>
     func free(ptr Pointer<u8>)
     func do_something(foo Pointer<Foo>)
@@ -44,8 +41,11 @@ extern "C" {
         p.write(foo)
         return p
     }
-}
-
+*/
+///
+/// }
+///
+/*
 p := malloc(size_of(Foo)) as Pointer<Foo>
 
 p.str = "hello".as_ptr()
@@ -57,20 +57,28 @@ do_something(p)
 
 free(p)
 
-```
-
-size_of()
-addr_of()
-offset_of()
-
 */
 
 @intrinsic
 public struct Pointer<T> {
 
+    ///
+    /// `__init__` takes the same type with struct `Pointer<T>`,
+    /// so it can omit the type parameter when new Pointer object.
+    ///
+    /// ```koala
+    /// var val = 100
+    /// var p = Pointer<Int>(val)
+    /// var p2 = Pointer(val)
+    /// ```
+    ///
     @intrinsic
     public func __init__(v T)
 
+    ///
+    /// `offset` returns a new Pointer object. It's used in array type.
+    /// > NOTE: This is unsafe function, and it maybe out of range of an array.
+    ///
     @intrinsic
     public func offset(off Int32) Pointer<T>
 
@@ -81,19 +89,19 @@ public struct Pointer<T> {
     public func write(v T)
 
     @intrinsic
-    public func read_offset<V>(off Int32) V
+    public func __get_item__(off UInt32) T
 
     @intrinsic
-    public func write_offset<V>(off Int32, val V)
+    public func __set_item__(off UInt32, val T)
 
-    // overload dot operator
     @intrinsic
+    @indirectly
     public func __get_field__<V>(off UInt32) V
 
-    // overload dot operator
     @intrinsic
+    @indirectly
     public func __set_field__<V>(off UInt32, val V)
 
     @intrinsic
-    public func is_null() bool
+    public func is_null() Bool
 }

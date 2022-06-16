@@ -37,6 +37,7 @@ typedef struct _ReturnStmt ReturnStmt;
 typedef struct _BlockStmt BlockStmt;
 typedef struct _ExprStmt ExprStmt;
 typedef struct _FuncDeclStmt FuncDeclStmt;
+typedef struct _StructDeclStmt StructDeclStmt;
 typedef struct _Ident Ident;
 typedef struct _ExprKlassType ExprKlassType;
 typedef struct _ExprArrayType ExprArrayType;
@@ -263,6 +264,8 @@ enum _StmtKind {
     STMT_PACKAGE_KIND = 1,
     /* import */
     STMT_IMPORT_KIND,
+    /* type alias */
+    STMT_TYPE_ALIAS_KIND,
     /* let */
     STMT_LET_KIND,
     /* variable */
@@ -279,6 +282,8 @@ enum _StmtKind {
     STMT_BLOCK_KIND,
     /* ifunc */
     STMT_IFUNC_KIND,
+    /* struct */
+    STMT_STRUCT_KIND,
     /* class */
     STMT_CLASS_KIND,
     /* interface */
@@ -359,6 +364,34 @@ struct _ExprStmt {
     Expr *exp;
 };
 
+struct _StructDeclStmt {
+    STMT_HEAD
+    Ident name;
+    int c_struct;
+    Vector *type_params;
+    Vector *bases;
+    Vector *fields;
+    Vector *functions;
+};
+
+struct _ClassDeclStmt {
+    STMT_HEAD
+    Ident name;
+    int has_abstract;
+    Vector *type_params;
+    Vector *bases;
+    Vector *members;
+};
+
+struct _IntfDeclStmt {
+    STMT_HEAD
+    Ident name;
+    Vector *type_params;
+    Vector *bases;
+    Vector *protos;
+};
+
+Stmt *stmt_from_type_decl();
 Stmt *stmt_from_let_decl(Ident name, ExprType ty, Expr *e);
 Stmt *stmt_from_var_decl(Ident name, ExprType ty, Expr *e);
 Stmt *stmt_from_assign(AssignOpKind op, Loc op_loc, Expr *lhs, Expr *rhs);
@@ -369,6 +402,13 @@ Stmt *stmt_from_block(Vector *stmts);
 Stmt *stmt_from_expr(Expr *e);
 Stmt *stmt_from_func_decl(Ident name, Vector *type_params, Vector *args,
                           ExprType *ret, Vector *body);
+Stmt *stmt_from_struct_decl(Ident name, Vector *type_params, Vector *bases,
+                            Vector *members, int c_struct);
+Stmt *stmt_from_class_decl(Ident name, Vector *type_params, Vector *bases,
+                           Vector *members);
+Stmt *stmt_from_intf_decl(Ident name, Vector *type_params, Vector *bases,
+                          Vector *protos);
+Stmt *stmt_from_enum_decl();
 
 void free_stmt(Stmt *s);
 
