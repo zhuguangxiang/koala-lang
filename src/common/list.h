@@ -89,7 +89,7 @@ static inline void list_remove(List *entry)
 static inline List *list_pop_front(List *list)
 {
     List *entry = list->next;
-    if (entry == list) return null;
+    if (entry == list) return NULL;
     list_remove(entry);
     return entry;
 }
@@ -98,7 +98,7 @@ static inline List *list_pop_front(List *list)
 static inline List *list_pop_back(List *list)
 {
     List *entry = list->prev;
-    if (entry == list) return null;
+    if (entry == list) return NULL;
     list_remove(entry);
     return entry;
 }
@@ -112,28 +112,28 @@ static inline List *list_pop_back(List *list)
 #define list_first(list, type, member) ({ \
     List * head__ = (list); \
     List * pos__ = head__->next; \
-    pos__ != head__ ? list_entry(pos__, type, member) : null; \
+    pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
 })
 
 /* Get the last element from a list */
 #define list_last(list, type, member) ({ \
     List * head__ = (list); \
     List * pos__ = head__->prev; \
-    pos__ != head__ ? list_entry(pos__, type, member) : null; \
+    pos__ != head__ ? list_entry(pos__, type, member) : NULL; \
 })
 
 /* Get the next element from a list */
 #define list_next(pos, member, list) ({ \
     List * head__ = (list); \
     List * nxt__ = (pos)->member.next; \
-    nxt__ != head__ ? list_entry(nxt__, typeof(*(pos)), member) : null; \
+    nxt__ != head__ ? list_entry(nxt__, typeof(*(pos)), member) : NULL; \
 })
 
 /* Get the previous element from a list */
 #define list_prev(pos, member, list) ({ \
     List * head__ = (list); \
     List * prev__ = (pos)->member.prev; \
-    prev__ != head__ ? list_entry(prev__, typeof(*(pos)), member) : null; \
+    prev__ != head__ ? list_entry(prev__, typeof(*(pos)), member) : NULL; \
 })
 
 #define list_foreach(v__, member, list, closure) \
@@ -146,7 +146,7 @@ static inline List *list_pop_back(List *list)
 
 #define list_foreach_safe(v__, n__, member, list, closure) \
     for (v__ = list_first(list, typeof(*(v__)), member), \
-         n__ = v__ ? list_next(v__, member, list) : null; \
+         n__ = v__ ? list_next(v__, member, list) : NULL; \
          v__ && ({ n__ = list_next(v__, member, list); 1;}); v__ = n__) closure;
 
 /* clang-format on */

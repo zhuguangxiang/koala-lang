@@ -4,8 +4,8 @@
 #
 
 # add simple test with arguments
-MACRO(TEST name)
-    ADD_EXECUTABLE(${name} ${name}.c)
-    TARGET_LINK_LIBRARIES(${name} ${ARGN})
-    ADD_TEST(NAME ${name} COMMAND ${name})
-ENDMACRO()
+macro(TEST name)
+    add_executable(${name} ${name}.c)
+    target_link_libraries(${name} ${ARGN})
+    add_test(NAME ${name} COMMAND ${name})
+endmacro()

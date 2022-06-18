@@ -4,8 +4,8 @@
 #
 
 # symbol link
-MACRO(INSTALL_SYMLINK target linkname)
-    INSTALL(CODE
+macro(INSTALL_SYMLINK target linkname)
+    install(CODE
         "EXECUTE_PROCESS(
         COMMAND ${CMAKE_COMMAND} -E create_symlink ${target} ${linkname})")
-ENDMACRO()
+endmacro()
